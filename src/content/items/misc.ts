@@ -266,7 +266,7 @@ defItem({
   model: (mb) => folded(mb, 0.24, 0.18, 0.05, D_TOWEL, 0x6ab0d8),
 });
 defItem({
-  key: 'blanket', name: 'Blanket', cat: 'misc', weight: 1.2, burn: 0.6, tags: ['blanket', 'cloth', 'bedding'],
+  key: 'blanket', name: 'Blanket', cat: 'misc', weight: 1.2, burn: 0.6, tags: ['blanket', 'cloth', 'bedding', 'warmth'],
   desc: 'Wool, warm. Wrap up (+warmth) or sleep under it for better rest.',
   model: (mb) => folded(mb, 0.32, 0.26, 0.08, D_BLANKET, 0xffffff),
 });

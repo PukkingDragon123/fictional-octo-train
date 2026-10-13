@@ -145,7 +145,7 @@ export function itemMenuOptions(p: Player, it: Item, c: Container, group: Item[]
   if (d.clothing?.rip && mine && !p.isWorn(it)) o.push({ label: 'Rip into ' + itemDef(d.clothing.rip).name.toLowerCase() + 's', action: () => p.actions.add(new RipAction(p, it)) });
 
   // ---- placeables & specials
-  if (d.place) o.push({ label: 'Place', action: pre(() => G.interact?.startPlacing?.(p, it)) });
+  if (d.place || (it.key === 'furniture' && it.data?.obj)) o.push({ label: 'Place', action: pre(() => G.interact?.startPlacing?.(p, it)) });
   if (d.seed) o.push({ label: 'Plant', action: pre(() => G.interact?.plantMode?.(p, it)) });
   if (d.radio) o.push({ label: 'Radio…', action: () => G.interact?.radioMenu?.(p, it) });
   if (hasTag(it, 'entertain') || ['mp3_player', 'handheld_game', 'deck_of_cards', 'comic'].includes(it.key)) {

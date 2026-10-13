@@ -49,9 +49,9 @@ const S_RAG_DIRTY = tex('i_rag_dirty', 8, 8, (pc) => {
   });
 }, true);
 const D_SHEET = tex('i_bedsheet_top', 16, 14, (pc) => {
-  pc.fill(0xe8eef4);
-  for (let x = 0; x < 16; x += 4) pc.vline(x, 0, 13, 0xb8c8e0);
-  pc.hline(0, 15, 4, 0xc8d4e2); pc.hline(0, 15, 9, 0xc8d4e2); pc.hline(0, 15, 0, 0xf6f8fa);
+  pc.fill(0xdce6f0);
+  for (let x = 0; x < 16; x += 4) { pc.vline(x, 0, 13, 0x7a9ad0); pc.vline(x + 1, 0, 13, 0xa8c0e4); }
+  pc.hline(0, 15, 4, 0xb4c4dc); pc.hline(0, 15, 9, 0xb4c4dc); pc.hline(0, 15, 0, 0xf6f8fa);
 });
 const S_DENIM = tex('i_denim', 8, 8, (pc) => pc.each((x, y) => pc.set(x, y, (x + y) % 3 === 0 ? 0x5a7aaa : (x - y + 16) % 4 === 0 ? 0x2e4a7a : 0x3e5e8e)), true);
 const D_SPOOL = tex('i_spool', 12, 6, (pc) => { pc.each((x, y) => pc.set(x, y, (x + (y & 1)) % 2 ? 0xc8302a : 0xa82420)); pc.vline(2, 0, 5, 0xe86a5a); }, true);

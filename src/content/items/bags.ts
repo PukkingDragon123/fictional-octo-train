@@ -14,9 +14,8 @@ const S_ZIP = tex('i_zip_panel', 12, 12, (pc) => {
 });
 const D_TOTE = decal('i_tote_print', 12, 12, (pc) => {
   pc.fill(0xe8dcc0); pc.each((x, y) => { if ((x + y) % 2 === 0 && ph(x, y, 3) < 0.3) pc.set(x, y, 0xd8ccb0); });
-  txtC(pc, 'I', 3, 3, 0x2a2a2a); stamp(pc, 5, 3, ['r.r', 'rrr', 'rrr', '.r.'], { r: 0xc8302a }); txtC(pc, '', 10, 3, 0);
-  stamp(pc, 9, 3, ['###', '#..', '###', '..#', '###'].map((r) => r.replace(/#/g, 'k')), { k: 0x2a2a2a });
-  dashes(pc, 2, 10, 8, 0x6a6a6a, 2);
+  stamp(pc, 3, 2, ['.rr.rr.', 'rrrrrrr', 'rrrrrrr', '.rrrrr.', '..rrr..', '...r...'], { r: 0xc8302a });
+  dashes(pc, 2, 9, 8, 0x2a2a2a, 2); dashes(pc, 3, 10, 6, 0x6a6a6a, 3);
 });
 const D_PLASTIC = tex('i_plastic_bag', 12, 12, (pc) => {
   pc.fill(0xf2f2ee);

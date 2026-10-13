@@ -18,6 +18,7 @@ import { AudioEngine } from '../audio/audio';
 import { MissionSystem } from '../missions/missions';
 import '../missions/directives';
 import { ShiftSystem } from '../world/shift';
+import { WorldSystems } from '../items/worldSystems';
 import '../game/worldOps';
 import '../world/zones';
 
@@ -70,6 +71,9 @@ export function startSolo(opts: NewGameOpts): Game {
   g.missions = missions;
   g.addSystem(missions);
   g.addSystem(new ShiftSystem());
+  const items = new WorldSystems();
+  g.items = items;
+  g.addSystem(items);
   const ui = new UI();
   g.ui = ui;
   ui.inventory = new InventoryUI(ui);
@@ -86,6 +90,7 @@ export function startSolo(opts: NewGameOpts): Game {
   g.addPlayer(p);
   ui.onWorldClick = (t, b) => {
     if (p.body.dead) return;
+    if (items.placing && items.placementClick(b)) return;
     if (ui.scanner?.open && t.kind === 'creature' && b === 0) { ui.scanner.scanCreature(t.c); return; }
     if (b === 2) { const m = interact.menu(p, t); ui.openMenu(g.input.mouseX, g.input.mouseY, m.title, m.opts); }
     else interact.defaultAction(p, t);

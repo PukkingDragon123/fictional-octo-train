@@ -128,6 +128,8 @@ export class Zone {
   removedLights: LightSource[] = [];
   /** power state per circuit id */
   power = new Map<number, boolean>();
+  /** extra power sources (running generators): is (x, z) inside a powered radius? */
+  extPower: ((x: number, z: number) => boolean) | null = null;
   waterOn = true;
   /** environment */
   env = {

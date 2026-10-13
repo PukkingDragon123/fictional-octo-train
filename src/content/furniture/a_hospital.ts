@@ -163,7 +163,7 @@ defObj({
   key: 'bed_hospital', name: 'Hospital Bed', w: 1, d: 2, height: 1.05, block: 'low', sleep: 0.7, sit: true, movable: 70,
   sound: 'metal', flammable: 0.4,
   disassemble: { tools: ['#wrench', '#screwdriver'], time: 35, skill: 'mechanics', yields: [['scrap_metal', 3, 6], ['pipe', 1, 3], ['electronics_scrap', 0, 2], ['rag', 2, 3]] },
-  tags: T('hospital', 'bed', 'sleep'),
+  tags: T('hospital', 'bed', 'sleep', 'sit'),
   model: (mb) => {
     const W = 0.92, z0 = WZ2 + 0.04, z1 = z0 + 1.96, zc = (z0 + z1) / 2, m = 'metal_grey', mc = { color: 0xd0d4d8 };
     for (const sx of [-1, 1]) for (const z of [z0 + 0.12, z1 - 0.12]) { mb.box(sx * 0.36, 0.06, z, 0.04, 0.32, 0.04, m, mc); caster(mb, sx * 0.36, z, 0.04); }
@@ -210,7 +210,7 @@ defObj({
   key: 'gurney', name: 'Gurney', w: 1, d: 2, height: 0.95, block: 'low', sleep: 0.3, movable: 40,
   sound: 'metal', flammable: 0.2,
   disassemble: { tools: ['#wrench'], time: 20, skill: 'mechanics', yields: [['scrap_metal', 2, 4], ['pipe', 1, 2], ['rag', 1, 2]] },
-  tags: T('hospital', 'medical'),
+  tags: T('hospital', 'medical', 'sleep'),
   variant: (s) => 'v' + ((s.v ?? 0) % 2),
   model: (mb, s) => {
     const z0 = -0.92, z1 = 0.92, m = 'chrome';

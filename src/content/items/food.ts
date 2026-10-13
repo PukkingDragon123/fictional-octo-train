@@ -579,7 +579,7 @@ food('venison_raw', 'Venison', 0.6, { hunger: 28, calories: 950, raw: true, cook
   mb.box(-0.02, 0.004, 0, 0.14, 0.05, 0.09, S_VENISON, { uvScale: 4 });
   mb.box(0.06, 0.004, -0.015, 0.06, 0.035, 0.06, S_VENISON, { uvScale: 4 });
   mb.box(-0.02, 0.054, 0, 0.13, 0.004, 0.02, T.white, { color: 0xe8dcc8 });
-}, { tags: ['rawmeat', 'stewmeat'], desc: 'Lean, dark meat from one of the long-legged deer of the fields.' });
+}, { tags: ['rawmeat', 'stewmeat'], desc: 'Lean, dark meat from a stilt deer. Gamey, rich, and a lot of it.' });
 
 food('hound_meat_raw', 'Hound Meat', 0.4, { hunger: 16, calories: 560, raw: true, cookable: true, cookMins: 30, poison: 0.4, unhappy: 12, stress: 3, fresh: 1, rot: 3, ingredient: 'meat', cookedName: 'Cooked Hound Meat' }, (mb) => {
   mb.push().rotateY(0.3); mb.box(0, 0, 0, 0.13, 0.035, 0.06, S_HOUND, { uvScale: 4 }); mb.pop();

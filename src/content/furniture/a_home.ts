@@ -239,7 +239,7 @@ defObj({
   key: 'bed_single', name: 'Single Bed', w: 1, d: 2, height: 0.95, block: 'low', sleep: 0.8, sit: true, movable: 40,
   sound: 'fabric', flammable: 0.8,
   disassemble: { tools: ['#hammer', '#screwdriver'], time: 25, skill: 'carpentry', yields: [['plank', 2, 4], ['nails', 2, 5], ['spring', 1, 3], ['rag', 2, 4]] },
-  tags: T('home', 'bed', 'sleep', 'bedroom'),
+  tags: T('home', 'bed', 'sleep', 'bedroom', 'sit'),
   model: (mb) => {
     const { z0, z1 } = bedFrame(mb, 0.98, 1.98, 0.95, 0.6);
     bedding(mb, 0.98, z0, z1, 'p_quilt', 1);
@@ -250,7 +250,7 @@ defObj({
   key: 'bed_double', name: 'Double Bed', w: 2, d: 2, height: 1.05, block: 'low', sleep: 0.9, sit: true, movable: 70,
   sound: 'fabric', flammable: 0.8,
   disassemble: { tools: ['#hammer', '#screwdriver'], time: 35, skill: 'carpentry', yields: [['plank', 3, 6], ['nails', 3, 8], ['spring', 2, 5], ['rag', 3, 6]] },
-  tags: T('home', 'bed', 'sleep', 'bedroom'),
+  tags: T('home', 'bed', 'sleep', 'bedroom', 'sit'),
   model: (mb) => {
     const { z0, z1 } = bedFrame(mb, 1.62, 2.0, 1.05, 0.6);
     bedding(mb, 1.62, z0, z1, 'p_bedspread', 2);
@@ -264,7 +264,7 @@ defObj({
   key: 'bunk_bed', name: 'Bunk Bed', w: 1, d: 2, height: 1.8, block: 'solid', sleep: 0.7, sit: true, movable: 60,
   sound: 'metal', flammable: 0.5,
   disassemble: { tools: ['#wrench', '#screwdriver'], time: 30, skill: 'mechanics', yields: [['pipe', 2, 4], ['scrap_metal', 2, 4], ['spring', 1, 4], ['rag', 2, 4]] },
-  tags: T('home', 'bed', 'sleep', 'bedroom', 'school'),
+  tags: T('home', 'bed', 'sleep', 'bedroom', 'school', 'sit'),
   model: (mb) => {
     const W = 0.96, z0 = WZ2 + 0.03, z1 = z0 + 1.96, m = 'metal_grey', mc = { color: 0x8aa0b8 };
     for (const sx of [-1, 1]) for (const z of [z0 + 0.025, z1 - 0.025]) mb.cylinder(sx * (W / 2 - 0.025), 0, z, 0.022, 1.8, 6, m, mc);
@@ -289,7 +289,7 @@ defObj({
   key: 'crib', name: 'Crib', height: 1.0, block: 'solid', sleep: 0.2, movable: 20,
   sound: 'wood', flammable: 0.8,
   disassemble: { tools: ['#hammer'], time: 15, skill: 'carpentry', yields: [['plank', 2, 3], ['nails', 2, 5], ['rag', 1, 2]] },
-  tags: T('home', 'nursery', 'decor', 'bed'),
+  tags: T('home', 'nursery', 'decor', 'sleep'),
   model: (mb) => {
     const W = 0.94, D = 0.64, zc = WZ + D / 2 + 0.02, w = 'wood_light', wc = { color: 0xfff4ec };
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) mb.box(sx * (W / 2 - 0.025), 0, zc + sz * (D / 2 - 0.025), 0.05, 1.0, 0.05, w, wc);
@@ -402,7 +402,7 @@ defObj({
   key: 'sofa', name: 'Sofa', w: 2, d: 1, height: 0.9, block: 'low', sit: true, sleep: 0.5, movable: 55,
   sound: 'fabric', flammable: 0.9,
   disassemble: { tools: ['#hammer', '#knife'], time: 25, skill: 'carpentry', yields: [['plank', 2, 4], ['rag', 3, 6], ['spring', 2, 5], ['nails', 2, 5]] },
-  tags: T('home', 'living', 'sit', 'sofa'),
+  tags: T('home', 'living', 'sit', 'sofa', 'sleep'),
   model: (mb) => {
     const { zc } = sofaBody(mb, 1.96, 3, 'fabric_floral', 0xffffff);
     // crocheted throw over the back and a lost remote between cushions
@@ -417,7 +417,23 @@ defObj({
   sound: 'fabric', flammable: 0.9,
   disassemble: { tools: ['#hammer', '#knife'], time: 15, skill: 'carpentry', yields: [['plank', 1, 2], ['rag', 2, 4], ['spring', 1, 3]] },
   tags: T('home', 'living', 'sit'),
-  model: (mb) => { sofaBody(mb, 0.9, 1, 'fabric_brown', 0xffffff); },
+  model: (mb) => {
+    // wingback armchair with an antimacassar
+    const f = 'fabric_green', zc = WZ + 0.44, c = { color: 0xd8e0c8 };
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) mb.cylinder(sx * 0.33, 0, zc + sz * 0.3, 0.025, 0.12, 6, 'wood_dark', { rTop: 0.032 });
+    mb.box(0, 0.12, zc, 0.84, 0.3, 0.76, f, c);
+    mb.box(0, 0.1, zc + 0.385, 0.84, 0.08, 0.012, f, { color: 0xb8c4a8 });
+    mb.box(0, 0.42, zc + 0.07, 0.58, 0.12, 0.6, f, { color: 0xe4ecd4 });
+    mb.push().translate(0, 0.42, zc - 0.3).rotateX(-0.12);
+    mb.box(0, 0, 0, 0.84, 0.66, 0.16, f, c);
+    for (const sx of [-1, 1]) mb.box(sx * 0.37, 0.28, 0.14, 0.1, 0.38, 0.3, f, c);
+    mb.box(0, 0.42, 0.085, 0.36, 0.2, 0.01, 'p_lace');
+    mb.pop();
+    for (const sx of [-1, 1]) {
+      mb.box(sx * 0.35, 0.42, zc + 0.06, 0.14, 0.18, 0.66, f, c);
+      mb.cylinderZ(sx * 0.35, 0.6, zc + 0.06, 0.08, 0.68, 8, f, { ...c, caps: true });
+    }
+  },
 });
 
 defObj({
@@ -636,7 +652,7 @@ defObj({
   key: 'rocking_horse', name: 'Rocking Horse', height: 0.9, block: 'low', movable: 10, sit: true,
   sound: 'wood', flammable: 0.8,
   disassemble: { tools: ['#hammer', '#saw'], time: 10, skill: 'carpentry', yields: [['plank', 1, 3], ['nails', 1, 3]] },
-  tags: T('home', 'nursery', 'kids', 'decor'),
+  tags: T('home', 'nursery', 'kids', 'decor', 'sit'),
   model: (mb) => {
     const h = 'p_horse';
     for (const sx of [-0.14, 0.14]) {
@@ -689,6 +705,7 @@ defObj({
   tags: T('home', 'nursery', 'kids', 'decor', 'mall', 'sit'),
   model: (mb) => {
     const f = 'p_plush', fl = 'p_plush_light', zc = -0.12;
+    mb.push().scale(1.1, 1.1, 1.1);
     // legs stretched forward, sitting
     for (const sx of [-0.2, 0.2]) {
       mb.cylinderZ(sx, 0.16, zc + 0.24, 0.13, 0.42, 8, f);
@@ -714,6 +731,7 @@ defObj({
     // red bow
     mb.box(0, 0.74, zc + 0.2, 0.08, 0.07, 0.06, 'fabric_red');
     for (const sx of [-1, 1]) mb.wedge(sx * 0.09, 0.72, zc + 0.2, 0.1, 0.05, 0.11, 0.11, 'fabric_red');
+    mb.pop();
   },
 });
 

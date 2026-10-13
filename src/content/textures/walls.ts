@@ -102,7 +102,7 @@ function tieHole(pc: PixelCanvas, x: number, y: number, R: number[]) {
 function concreteWall(pc: PixelCanvas, rng: Rng, base: number, seed: number, ties = true): number[] {
   const R = makeRamp(base, 6, { spread: 0.34, hueShift: 0.02 });
   for (let y = 0; y < H; y++) for (let x = 0; x < 32; x++) {
-    const v = 0.52 + (nz(pc, x, y, 3, 8, 3, seed) - 0.5) * 0.36 + (nz(pc, x, y, 8, 21, 1, seed + 5) - 0.5) * 0.1;
+    const v = 0.52 + (nz(pc, x, y, 4, 11, 3, seed) - 0.5) * 0.26 + (nz(pc, x, y, 8, 21, 2, seed + 5) - 0.5) * 0.14;
     pc.set(x, y, q(R, v, x, y, 0.18));
   }
   // formwork panel joints: a faint ridge
@@ -137,7 +137,7 @@ function wallGarage(pc: PixelCanvas, rng: Rng) {
     if (y === top + 1) c = Y[3];
     // chipped paint shows the concrete underneath
     const chip = nz(pc, x, y, 8, 21, 2, 413);
-    if (chip > 0.68 || (y < top + 3 && ph(x, y, 414) < 0.06)) c = R[3];
+    if (chip > 0.72 || (y < top + 3 && ph(x, y, 414) < 0.05)) c = R[3];
     pc.set(x, y, c);
   }
   // tyre / bumper scuffs on the paint

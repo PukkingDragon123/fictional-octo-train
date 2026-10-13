@@ -185,6 +185,44 @@ function wallTopWood(pc: PixelCanvas) {
   pc.set(5, 3, R[0]); pc.set(12, 12, R[0]);
 }
 
+/** Stocked gondola shelving (the `shelf_wall` wall type): steel uprights, lit shelf lips with price strips, half-empty stock. */
+function shelfSide(pc: PixelCanvas, rng: Rng) {
+  const H = pc.h;
+  const back = makeRamp(0x4a4945, 4, { spread: 0.3 });
+  for (let y = 0; y < H; y++) for (let x = 0; x < 32; x++) pc.set(x, y, (x % 4 === 2 && y % 4 === 2) ? back[0] : back[1]);   // pegboard back
+  const shelves = [8, 22, 36, 50, 63].map((y) => Math.min(H - 4, y));
+  const goods = [[0xb8433a, 0xe0c060], [0x3a6aa8, 0xe6e6e0], [0xd8b23c, 0x8a3a2a], [0x4f8a52, 0xe8e2d0], [0xe6e2d6, 0x3a6aa8], [0x8a5a3a, 0xd8c8a0], [0xc86a9a, 0xf2e6ee], [0x6a6aa8, 0xd8d8e8]];
+  for (let s = 0; s < shelves.length; s++) {
+    const floorY = shelves[s], top = s === 0 ? 1 : shelves[s - 1] + 3;
+    // stock standing on this shelf, with gaps where it has run out
+    let x = 2;
+    while (x < 30) {
+      const w = rng.int(2, 5);
+      if (rng.chance(0.22)) { x += w; continue; }
+      const h = Math.min(floorY - top - 1, rng.int(4, 10));
+      const [c, band] = rng.pick(goods);
+      const R = makeRamp(c, 4, { spread: 0.36 });
+      for (let j = 0; j < h; j++) for (let i = 0; i < w && x + i < 30; i++) {
+        const yy = floorY - 1 - j;
+        let col = i === 0 ? R[3] : i === w - 1 ? R[1] : R[2];
+        if (j === Math.floor(h / 2) && w > 2) col = band;
+        if (j === h - 1) col = R[3];
+        pc.set(x + i, yy, col);
+      }
+      x += w + (rng.chance(0.4) ? 1 : 0);
+    }
+    // shelf lip: lit top edge, front, price strip
+    for (let xx = 0; xx < 32; xx++) {
+      pc.set(xx, floorY, 0xc9cdd1); pc.set(xx, floorY + 1, 0x9aa0a6);
+      if (floorY + 2 < H) pc.set(xx, floorY + 2, xx % 8 === 3 ? 0xe8d24a : 0xe8e8e2);
+    }
+  }
+  // uprights at the bay joint
+  for (let y = 0; y < H; y++) { pc.set(0, y, 0xa8aeb4); pc.set(1, y, 0x7a8088); pc.set(31, y, 0x5c6268); }
+  // kick plate
+  for (let y = H - 3; y < H; y++) for (let x = 0; x < 32; x++) pc.set(x, y, y === H - 3 ? 0x8a9096 : 0x5c6268);
+}
+
 addTextureModule(() => {
   const A = atlas();
   A.add('cubicle_fabric', 32, 47, cubicleFabric, 1, 1.45);
@@ -196,4 +234,5 @@ addTextureModule(() => {
   A.add('hedge', 32, 58, (pc, r) => leafMass(pc, r, false), 1, 1.8);
   A.add('hedge_top', 32, 32, (pc, r) => leafMass(pc, r, true));
   A.add('wall_top_wood', 16, 16, wallTopWood);
+  A.add('shelf_side', 32, 67, shelfSide, 1, 2.1);
 });

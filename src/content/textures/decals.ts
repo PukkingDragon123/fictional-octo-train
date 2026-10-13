@@ -155,8 +155,58 @@ function arrowFloor(pc: PixelCanvas) {
     if (worn && ph(x, y, 11) < 0.7) continue;
     over(pc, x, y, ph(x, y, 12) < 0.15 ? 0xd2cfc2 : 0xebe8dc, 230);
   }
-  // tyre smear across the paint
-  for (let x = 9; x < 24; x++) for (let y = 19; y < 22; y++) if (pc.alpha(x, y) > 0 && ph(x, y, 13) < 0.6) over(pc, x, y, 0x3a3836, 120);
+}
+
+/** Spray-painted search mark: two bold strokes, overspray mist and a couple of drips. */
+function markX(pc: PixelCanvas, rng: Rng) {
+  pc.wrap = false; pc.clear();
+  const paint = 0xe8562c, deep = 0xc23e1e;
+  for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+    const d1 = Math.abs((x - 16) - (y - 16)) / Math.SQRT2, d2 = Math.abs((x - 16) + (y - 16)) / Math.SQRT2;
+    const along = Math.max(Math.abs(x - 16), Math.abs(y - 16));
+    if (along > 12) continue;
+    const d = Math.min(d1, d2);
+    if (d < 1.6) over(pc, x, y, ph(x, y, 3) < 0.2 ? deep : paint, 240);
+    else if (d < 2.6 && ph(x, y, 4) < 0.5) over(pc, x, y, paint, 150);
+  }
+  for (let i = 0; i < 40; i++) {                       // overspray mist
+    const a = rng.float(0, Math.PI * 2), r = rng.float(2, 15);
+    const x = Math.round(16 + Math.cos(a) * r), y = Math.round(16 + Math.sin(a) * r);
+    if (pc.alpha(x, y) === 0) over(pc, x, y, paint, 90);
+  }
+  for (const [x, y, l] of [[6, 27, 3], [25, 27, 2]]) for (let k = 0; k < l; k++) over(pc, x, y + k, deep, 200 - k * 40);
+}
+
+/** Broken window glass: scattered shards that catch the light. */
+function glassShards(pc: PixelCanvas, rng: Rng) {
+  pc.wrap = false; pc.clear();
+  const shapes = [['#.', '##'], ['##', '#.'], ['.#', '##', '#.'], ['###', '.#.'], ['#', '#'], ['##']];
+  for (let k = 0; k < 22; k++) {
+    const sh = rng.pick(shapes), x0 = rng.int(2, 28), y0 = rng.int(2, 28);
+    for (let j = 0; j < sh.length; j++) for (let i = 0; i < sh[j].length; i++) {
+      if (sh[j][i] !== '#') continue;
+      over(pc, x0 + i, y0 + j, (i + j) === 0 ? 0xf4fbfc : (i + j) % 2 ? 0xa9cfd6 : 0xcfe6ea, (i + j) === 0 ? 240 : 190);
+    }
+    over(pc, x0 + 1, y0 + sh.length, 0x000000, 45);   // tiny shadow
+  }
+  for (let i = 0; i < 18; i++) over(pc, rng.int(1, 30), rng.int(1, 30), 0xe6f4f6, 170);   // glitter
+}
+
+/** What leaks out of things that were never real: displaced pixel blocks in magenta/cyan/black. */
+function glitchSplat(pc: PixelCanvas, rng: Rng) {
+  pc.wrap = false; pc.clear();
+  const cols = [0xff00ff, 0x00e5ff, 0x050508, 0xffffff];
+  for (let by = 0; by < 32; by += 2) for (let bx = 0; bx < 32; bx += 2) {
+    const m = blob(bx + 1, by + 1, 16, 16, 12, 10, 7, 0.55);
+    if (m <= 0 || ph(bx, by, 9) > m * 2.4) continue;
+    const c = cols[Math.floor(ph(bx >> 2, by >> 1, 10) * 3.4) % 4];
+    const w = ph(bx, by, 11) < 0.3 ? 4 : 2;
+    for (let y = by; y < by + 2; y++) for (let x = bx; x < bx + w; x++) over(pc, x, y, c, 235);
+  }
+  // a torn scanline and a patch of the missing-texture checker
+  for (let x = 4; x < 28; x++) if (ph(x, 1, 12) < 0.7) over(pc, x, 15, x & 1 ? 0xff00ff : 0x00e5ff, 220);
+  for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) over(pc, 20 + x, 20 + y, ((x >> 1) + (y >> 1)) & 1 ? 0x000000 : 0xff00ff, 240);
+  void rng;
 }
 
 function scorch(pc: PixelCanvas, rng: Rng) {
@@ -304,4 +354,8 @@ addTextureModule(() => {
   A.add('decal_glow_paint', 16, 16, glowPaint);
   A.add('decal_hopscotch', 32, 64, hopscotch);
   A.add('water', 32, 32, water);
+  // referenced by gameplay code (player marks, broken windows, glitch creatures)
+  A.add('decal_mark_x', 32, 32, markX);
+  A.add('decal_glass', 32, 32, glassShards);
+  A.add('decal_glitch', 32, 32, glitchSplat);
 });

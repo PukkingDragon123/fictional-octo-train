@@ -46,7 +46,7 @@ export class LightGrid {
   /** effective brightness multiplier for a light right now */
   effective(l: LightSource): number {
     if (!l.on || l.broken) return 0;
-    if (!this.zone.circuitPowered(l.circuit)) return 0;
+    if (!this.zone.circuitPowered(l.circuit) && !this.zone.extPower?.(l.x, l.z)) return 0;
     return 1;
   }
 

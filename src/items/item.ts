@@ -158,7 +158,7 @@ export function allItemDefs(): ItemDef[] { return [...REG.values()]; }
 
 export function itemWeight(it: Item): number {
   const d = itemDef(it.key);
-  let w = d.weight;
+  let w = it.data?.weight ?? d.weight;
   if (d.food && it.eaten) w *= Math.max(0.1, 1 - it.eaten);
   if (d.fluidCap && it.fluid) w += it.fluid.amount; // 1 L = 1 kg
   if (it.inv) w += it.inv.carriedWeight();

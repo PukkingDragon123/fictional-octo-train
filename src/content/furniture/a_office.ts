@@ -785,7 +785,7 @@ defObj({
 defObj({
   key: 'computer', name: 'Computer', height: 0.6, block: 'none', movable: 14, power: true, hum: 'computer',
   light: { color: 0x8affa8, intensity: 0.22, radius: 2.0, y: 1.05, kind: 'screen', power: true },
-  sound: 'plastic', flammable: 0.2, lore: 'terminal',
+  sound: 'plastic', flammable: 0.2,
   disassemble: { tools: ['#screwdriver'], time: 16, skill: 'electrical', yields: [['electronics_scrap', 2, 5], ['wire', 1, 2], ['glass_shard', 0, 2], ['screws', 2, 4]] },
   tags: T('office', 'terminal', 'surface_item', 'electronics'),
   variant: (s) => (scrOn(s) ? 'on' : 'off'),

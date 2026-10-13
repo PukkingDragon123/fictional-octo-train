@@ -80,7 +80,7 @@ export class SurvivalSystem implements GameSystem {
     env.anomaly = this.anomaly;
     env.corruptZone = (z.flags[z.idx(tx, ty)] & TF.CORRUPT) ? 0.6 : 0;
     env.collapse = G.collapse;
-    env.nearFire = (G as any).fireNear?.(p.x, p.z) ?? 0;
+    env.nearFire = (G as any).fireNear?.(p.x, p.z, p.zoneKey) ?? 0;
     const rw = room.x1 - room.x0 + 1, rh = room.y1 - room.y0 + 1;
     env.smallRoom = room.id > 0 && rw * rh < 12;
     env.openSpace = outdoor || (room.id > 0 && rw * rh > 400);

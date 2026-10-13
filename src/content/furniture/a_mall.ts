@@ -251,7 +251,7 @@ defObj({
   key: 'bench', name: 'Bench', w: 2, d: 1, height: 0.85, block: 'low', sit: true, sleep: 0.25, movable: 0,
   sound: 'wood', flammable: 0.5,
   disassemble: { tools: ['#wrench', '#saw'], time: 20, skill: 'carpentry', yields: [['plank', 2, 4], ['scrap_metal', 1, 3], ['screws', 2, 5]] },
-  tags: T('mall', 'outdoor', 'sit'),
+  tags: T('mall', 'outdoor', 'sit', 'sleep'),
   model: (mb) => {
     const L = 1.8, iron = { color: 0x3a3e44 };
     for (const sx of [-0.82, 0.82]) {
@@ -289,7 +289,7 @@ defObj({
 
 defObj({
   key: 'fountain', name: 'Fountain', w: 3, d: 3, height: 1.85, block: 'solid', movable: 0,
-  water: { capacity: 500, tainted: true }, sound: 'ceramic', flammable: 0, hum: 'water',
+  water: { capacity: 500, tainted: true }, sound: 'ceramic', flammable: 0,
   tags: T('mall', 'water', 'decor'),
   model: (mb) => {
     const R = 1.36, segs = 16, st = 'marble', sc = { color: 0xe8e4dc };
@@ -352,7 +352,7 @@ function carouselHorse(mb: ModelBuilder, col: number, saddle: number) {
 }
 
 defObj({
-  key: 'carousel', name: 'Carousel', w: 4, d: 4, height: 2.7, block: 'solid', movable: 0, power: true, hum: 'carousel',
+  key: 'carousel', name: 'Carousel', w: 4, d: 4, height: 2.7, block: 'solid', movable: 0, power: true, hum: 'machine',
   light: { color: 0xffe2b8, intensity: 0.7, radius: 5.5, y: 2.0, kind: 'lamp', power: true },
   sound: 'wood', flammable: 0.5,
   tags: T('mall', 'decor', 'kids'),
@@ -392,7 +392,7 @@ defObj({
 });
 
 defObj({
-  key: 'arcade_machine', name: 'Arcade Cabinet', height: 1.8, block: 'solid', movable: 90, power: true, hum: 'arcade',
+  key: 'arcade_machine', name: 'Arcade Cabinet', height: 1.8, block: 'solid', movable: 90, power: true, hum: 'computer',
   light: { color: 0xd8a8ff, intensity: 0.4, radius: 2.4, y: 1.3, kind: 'screen', power: true, flicker: 0.02 },
   sound: 'wood', flammable: 0.5,
   disassemble: { tools: ['#screwdriver'], time: 30, skill: 'electrical', yields: [['electronics_scrap', 3, 5], ['glass_shard', 1, 2], ['wire', 2, 3], ['plank', 1, 3]] },
@@ -558,10 +558,10 @@ defObj({
 });
 
 defObj({
-  key: 'coin_ride', name: 'Kiddie Ride', height: 1.2, block: 'solid', movable: 0, power: true, hum: 'kiddie_ride', sit: true,
+  key: 'coin_ride', name: 'Kiddie Ride', height: 1.2, block: 'solid', movable: 0, power: true, hum: 'machine', sit: true,
   sound: 'plastic', flammable: 0.4,
   disassemble: { tools: ['#wrench', '#screwdriver'], time: 35, skill: 'mechanics', yields: [['scrap_metal', 2, 4], ['electronics_scrap', 1, 2], ['spring', 1, 2], ['wire', 1, 2]] },
-  tags: T('mall', 'kids', 'arcade'),
+  tags: T('mall', 'kids', 'arcade', 'sit'),
   model: (mb) => {
     mb.box(0, 0, 0, 0.94, 0.14, 0.94, 'plastic_blue', { color: 0x8ab8e8 });
     mb.box(0, 0.14, 0, 0.88, 0.012, 0.88, 'rubber_black');

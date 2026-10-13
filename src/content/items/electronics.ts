@@ -109,17 +109,20 @@ defItem({
 });
 tex('i_cushion', 8, 8, (pc) => { pc.fill(0x1c1c20); pc.each((x, y) => { if (Math.hypot(x - 3.5, y - 3.5) < 2.2) pc.set(x, y, 0x5a5a62); }); });
 defItem({
-  key: 'mp3_player', name: 'MP3 Player', cat: 'electronics', weight: 0.1, battery: true, uses: 100, tags: ['music', 'electronics'],
+  key: 'mp3_player', name: 'MP3 Player', cat: 'electronics', weight: 0.1, battery: true, uses: 100, tags: ['music', 'electronics', 'comfort'],
+  literature: { boredom: -20, unhappy: -10, stress: -5 },
   desc: 'Two hundred songs you do not remember downloading. Eases boredom and unhappiness while it has charge.',
   model: (mb) => slab(mb, 0.055, 0.01, 0.09, D_MP3, T.white, 0xe8e8e4, { rot: 0.2 }),
 });
 defItem({
-  key: 'handheld_game', name: 'Handheld Game', cat: 'electronics', weight: 0.3, battery: true, uses: 100, tags: ['game', 'electronics'],
+  key: 'handheld_game', name: 'Handheld Game', cat: 'electronics', weight: 0.3, battery: true, uses: 100, tags: ['game', 'electronics', 'comfort'],
+  literature: { boredom: -30, unhappy: -8 },
   desc: 'A blocky puzzle game. The high score table has your initials on every line.',
   model: (mb) => slab(mb, 0.09, 0.025, 0.14, D_GAME, T.plastic, 0xb8b8b0, { rot: -0.15 }),
 });
 defItem({
-  key: 'cassette_player', name: 'Cassette Player', cat: 'electronics', weight: 0.3, battery: true, uses: 100, tags: ['music', 'tapeplayer', 'electronics'],
+  key: 'cassette_player', name: 'Cassette Player', cat: 'electronics', weight: 0.3, battery: true, uses: 100, tags: ['music', 'tapeplayer', 'electronics', 'comfort'],
+  literature: { boredom: -15, unhappy: -8, stress: -4 },
   desc: 'Plays music tapes — and the recorded logs you find.',
   model: (mb) => {
     mb.box(0, 0, 0, 0.12, 0.03, 0.09, { all: T.plastic, top: D_CASSETTE_P }, { color: 0x3a5a8a, fit: { top: true } });

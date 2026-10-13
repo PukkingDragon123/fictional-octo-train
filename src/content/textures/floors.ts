@@ -465,12 +465,11 @@ function grassB(pc: PixelCanvas, rng: Rng) {
 }
 function grassC(pc: PixelCanvas, rng: Rng) {
   const R = grassBase(pc, rng, LAWN, 48);
-  // a sun-dried patch with a hard, organic edge
-  const dry = makeRamp(0x93955a, 3, { spread: 0.3 });
+  // a sun-bleached patch: the blades stay, the colour drifts to straw
   for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
-    const m = blob(x, y, 11, 20, 7, 5, 2);
-    if (m > 0.3) pc.set(x, y, (x * 7 + y * 3) % 9 === 0 ? dry[0] : dry[1]);
-    else if (m > 0.12) pc.set(x, y, (x + y) & 1 ? dry[1] : R[2]);
+    const m = blob(x, y, 11, 20, 7.5, 5.5, 2, 0.45);
+    if (m > 0.22) pc.blend(x, y, 0xb3a75e, 0.5);
+    else if (m > 0.06 && ((x + y) & 1) === 0) pc.blend(x, y, 0xb3a75e, 0.32);
   }
   for (const [x, y] of [[25, 6], [27, 22]]) { pc.set(x, y, 0xe8c840); pc.set(x, y + 1, R[1]); }
 }

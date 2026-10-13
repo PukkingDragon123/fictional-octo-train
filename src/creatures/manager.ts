@@ -270,7 +270,7 @@ export class CreatureSystem implements GameSystem {
     // tamed companions
     if (c.tamedBy) { this.companionBrain(c, z, dt, think); return; }
     // fear of fire for hostile beasts
-    if (think && !fearful && G.items?.fireNear?.(c.x, c.z, 4) && T !== 'hazard') { c.setState('flee'); c.goal = this.fleeSpot(c, z, c.x, c.z); }
+    if (think && !fearful && G.items?.fireNear?.(c.x, c.z, 4, c.zoneKey) && T !== 'hazard') { c.setState('flee'); c.goal = this.fleeSpot(c, z, c.x, c.z); }
     switch (c.state) {
       case 'disguised':
         c.speed = 0;

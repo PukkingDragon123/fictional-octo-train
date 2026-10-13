@@ -527,12 +527,12 @@ addTextureModule(() => {
   A.add('metal_brushed', 32, 32, metalBrushed);
   A.add('metal_painted_green', 32, 32, metalPaintedGreen);
   A.add('chrome', 16, 16, chrome);
-  A.add('plastic_white', 32, 32, (pc, r) => { plastic(pc, r, 0xe1e0d9, 811, { spread: 0.12 }); });
+  A.add('plastic_white', 32, 32, (pc, r) => { plastic(pc, r, 0xe1e0d9, 811, { spread: 0.1 }); });
   A.add('plastic_black', 32, 32, (pc, r) => { const R = plastic(pc, r, 0x2c2d31, 812, { spread: 0.16, scuffs: 0 }); for (let i = 0; i < 4; i++) scuff(pc, r.int(0, 28), r.int(0, 31), r.int(2, 4), 1, 0, R[4], 0.5); });
   A.add('plastic_beige', 32, 32, (pc, r) => { plastic(pc, r, 0xcec4a6, 813, { stipple: 0.05, yellow: 0.18 }); });
-  A.add('plastic_red', 32, 32, (pc, r) => { plastic(pc, r, 0xb63c34, 814, { spread: 0.11 }); });
-  A.add('plastic_blue', 32, 32, (pc, r) => { plastic(pc, r, 0x3b66ab, 815, { spread: 0.11 }); });
-  A.add('plastic_yellow', 32, 32, (pc, r) => { plastic(pc, r, 0xdfb43e, 816, { spread: 0.11 }); });
+  A.add('plastic_red', 32, 32, (pc, r) => { plastic(pc, r, 0xb63c34, 814, { spread: 0.08 }); });
+  A.add('plastic_blue', 32, 32, (pc, r) => { plastic(pc, r, 0x3b66ab, 815, { spread: 0.08 }); });
+  A.add('plastic_yellow', 32, 32, (pc, r) => { plastic(pc, r, 0xdfb43e, 816, { spread: 0.08 }); });
   A.add('fabric_grey', 32, 32, (pc, r) => { fabric(pc, r, 0x7c7f84, 821, 'plain'); });
   A.add('fabric_blue', 32, 32, (pc, r) => { fabric(pc, r, 0x4b5f86, 822, 'twill'); });
   A.add('fabric_red', 32, 32, (pc, r) => { fabric(pc, r, 0x8a3638, 823, 'twill'); });
