@@ -1,0 +1,41 @@
+@font-face { font-family: 'VT323'; src: url('/fonts/vt323.woff2') format('woff2'); font-display: block; }
+@font-face { font-family: 'Silkscreen'; src: url('/fonts/silkscreen-400.woff2') format('woff2'); font-weight: 400; font-display: block; }
+@font-face { font-family: 'Silkscreen'; src: url('/fonts/silkscreen-700.woff2') format('woff2'); font-weight: 700; font-display: block; }
+@font-face { font-family: 'Pixelify Sans'; src: url('/fonts/pixelify-sans.woff2') format('woff2'); font-weight: 400 700; font-display: block; }
+@font-face { font-family: 'DotGothic16'; src: url('/fonts/dotgothic16.woff2') format('woff2'); font-display: block; }
+@font-face { font-family: 'Jacquard 12'; src: url('/fonts/jacquard12.woff2') format('woff2'); font-display: block; }
+@font-face { font-family: 'Handjet'; src: url('/fonts/handjet.woff2') format('woff2'); font-weight: 100 900; font-display: block; }
+
+:root {
+  --ink: #1a160c;
+  --paper: #e9dfc3;
+  --paper-dark: #cfc19c;
+  --bone: #d8cfb4;
+  --canvas: #2e2a1e;
+  --canvas-dark: #1c1912;
+  --canvas-light: #4a4330;
+  --stitch: #8a7d58;
+  --amber: #f2b33d;
+  --amber-dim: #9a6b1f;
+  --phosphor: #9cff8a;
+  --phosphor-dim: #3c7a34;
+  --blood: #8c1d14;
+  --tape-black: #111;
+  --tape-red: #b3261c;
+  --tape-blue: #1f4f9a;
+  --tape-yellow: #e7c227;
+  --hl: #fff2b0;
+  --font-ui: 'Pixelify Sans', 'VT323', monospace;
+  --font-mono: 'VT323', monospace;
+  --font-label: 'Silkscreen', monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; color: var(--paper); font-family: var(--font-ui); -webkit-font-smoothing: none; font-smooth: never; }
+canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; image-rendering: pixelated; cursor: none; }
+#ui { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+#ui > * { pointer-events: auto; }
+#boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; z-index: 100; font-family: var(--font-mono); color: #cbb662; font-size: 28px; letter-spacing: 2px; }
+#boot.gone { display: none; }
+.boot-text { animation: bootblink 1.1s steps(2) infinite; }
+@keyframes bootblink { 50% { opacity: 0.25; } }
