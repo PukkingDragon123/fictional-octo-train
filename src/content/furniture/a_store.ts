@@ -174,6 +174,15 @@ function rowsFor(loot: string | undefined, side: number): string[] {
 addTextureModule(() => {
   const A = atlas();
   for (const [k, fn] of Object.entries(ROWS)) A.add('p_prod_' + k, 32, 10, fn);
+  A.add('p_prod_top', 32, 11, (pc) => {
+    pc.fill(0x2a2c30);
+    for (let x = 0, k = 0; x < 32; k++) {
+      const w = 2 + Math.floor(ph(k, 5, 3) * 3);
+      const c = [0xc8ccd0, 0xd8b850, 0xe8e4d8, 0xc83a3a, 0x3a6ab0, 0xf0f0e8, 0x7ab040][Math.floor(ph(k, 5, 9) * 7)];
+      for (let i = 0; i < w - 1 && x + i < 32; i++) for (let y = 0; y < 11; y++) if ((y + k) % 3 !== 2) pc.set(x + i, y, (y + k) % 3 === 0 ? mixHex(c, 0xffffff, 0.3) : c);
+      x += w;
+    }
+  });
   A.add('p_price_strip', 32, 3, (pc) => {
     pc.fill(0xe8e8e4); pc.hline(0, 31, 2, 0xa8a8a4);
     for (let x = 1; x < 32; x += 4) { const sale = ph(x, 1, 3) < 0.2; pc.rect(x, 0, 2, 2, sale ? 0xf0d020 : 0xffffff); pc.set(x, 1, sale ? 0xd02020 : 0x3a3a3a); }
@@ -316,7 +325,7 @@ function gondola(mb: ModelBuilder, W: number, loot: string | undefined, doubleSi
       mb.box(0, y - 0.05, zf - side * 0.005, W - 0.04, 0.05, 0.01, 'p_price_strip', { uvOffset: [i * 0.3, 0] });
       const full = (W - 0.06) * (i === 2 && side < 0 ? 0.7 : 1);
       const tex = rows[i];
-      mb.box(-(W - 0.06 - full) / 2 * side, y, zp, full, 10 / 32, 0.34, { south: tex, north: tex, top: 'cardboard', all: 'cardboard' }, { uvOffset: [i * 0.37 + (side > 0 ? 0 : 0.5), -y], color: 0xffffff });
+      mb.box(-(W - 0.06 - full) / 2 * side, y, zp, full, 10 / 32, 0.34, { south: tex, north: tex, top: 'p_prod_top', all: 'p_prod_top' }, { uvOffset: [i * 0.37 + (side > 0 ? 0 : 0.5), -y], color: 0xffffff });
     });
   }
 }

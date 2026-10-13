@@ -184,11 +184,11 @@ defObj({
 });
 
 defObj({
-  key: 'lifeguard_chair', name: 'Lifeguard Stand', w: 1, d: 1, height: 2.55, block: 'solid',
+  key: 'lifeguard_chair', name: 'Lifeguard Stand', w: 1, d: 1, height: 2.55, block: 'solid', tall: true,
   container: { capacity: 10, kind: 'box', loot: 'lifeguard' },
   sound: 'wood', flammable: 0.4,
   desc: 'A tall white stand overlooking the water. The whistle on the seat is still warm.',
-  tags: [...T, 'tall'],
+  tags: [...T, 'lifeguard'],
   model: (mb) => {
     const P = 'q_paint_white';
     const seatY = 1.45;
@@ -285,10 +285,10 @@ defObj({
 });
 
 defObj({
-  key: 'pool_slide', name: 'Water Slide', w: 2, d: 3, height: 2.6, block: 'solid',
+  key: 'pool_slide', name: 'Water Slide', w: 2, d: 3, height: 2.6, block: 'solid', tall: true,
   sound: 'plastic',
   desc: 'A teal water slide that curls back on itself. The water at the bottom is perfectly still.',
-  tags: [...T, 'decor', 'tall'],
+  tags: [...T, 'decor'],
   model: (mb) => {
     const S = 'q_slide_chute';
     // ladder up to the platform

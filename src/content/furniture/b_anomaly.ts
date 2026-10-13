@@ -14,7 +14,7 @@ import {
   grimeBottom, glow, poly, rod, fan, ringBand, rockBlob, gradV, discY,
 } from './b_common';
 
-const T = ['setB', 'anomaly'];
+const T = ['setB', 'liminal'];
 
 // ---------------------------------------------------------------------------
 // textures
@@ -66,19 +66,24 @@ addTextureModule(() => {
     pc.wrap = false;
     for (let y = 0; y < 66; y++) for (let x = 0; x < 30; x++) {
       const dx = Math.min(x, 29 - x) / 15, dy = Math.min(y, 65 - y) / 33;
-      const e = Math.min(dx * 2.2, dy * 3, 1);
-      const v = e + (bayer(x, y) - 0.5) * 0.25;
-      pc.set(x, y, v > 0.75 ? 0xffffff : v > 0.5 ? 0xf2f6ff : v > 0.3 ? 0xd8e6ff : 0xb8ccf0);
+      const e = Math.min(dx * 1.6, dy * 2.4, 1);
+      const v = e + (bayer(x, y) - 0.5) * 0.22;
+      pc.set(x, y, v > 0.8 ? 0xffffff : v > 0.6 ? 0xeef4ff : v > 0.42 ? 0xd2e2fa : v > 0.24 ? 0xa8c0e8 : 0x7e98c8);
     }
   });
   A.add('q_exit_sign', 12, 5, (pc) => { pc.wrap = false; pc.fill(0x1a9a4a); textC(pc, 'EXIT', 6, 0, 0xffffff); });
   A.add('q_door_white', 27, 65, (pc, rng) => {
     pc.wrap = false;
-    const r = makeRamp(0xe8e4da, 5, { spread: 0.28 });
-    fillNoise(pc, r, 0.6, 0.06, 3, 1231, 0.03);
-    pc.bevel(0, 0, 27, 65, r[4], r[1]);
-    // four raised panels
-    for (const [x, y, w, h] of [[4, 4, 8, 24], [15, 4, 8, 24], [4, 33, 8, 28], [15, 33, 8, 28]]) { pc.bevel(x, y, w, h, r[1], r[4]); pc.bevel(x + 1, y + 1, w - 2, h - 2, r[4], r[2]); }
+    const r = makeRamp(0xd8d2c4, 6, { spread: 0.4 });
+    fillNoise(pc, r, 0.62, 0.06, 3, 1231, 0.03);
+    pc.bevel(0, 0, 27, 65, r[5], r[1]);
+    // four recessed panels with a dark shadow line on the top/left and a bright lip bottom/right
+    for (const [x, y, w, h] of [[4, 4, 8, 24], [15, 4, 8, 24], [4, 33, 8, 28], [15, 33, 8, 28]]) {
+      pc.rect(x, y, w, h, r[2]);
+      pc.bevel(x, y, w, h, r[0], r[5]);
+      pc.bevel(x + 1, y + 1, w - 2, h - 2, r[1], r[4]);
+      pc.rect(x + 2, y + 2, w - 4, h - 4, r[3]);
+    }
     pc.set(13, 20, 0x2a2a2a);
     // grime around the handle side, scuffs at the bottom
     pc.each((x, y) => { if (x > 20 && y > 25 && y < 40 && tileFbm(x, y, 27, 65, 3, 2, 1233) > 0.55 && bayer(x, y) < 0.5) pc.set(x, y, r[1]); });
@@ -188,7 +193,7 @@ defObj({
   power: true, hum: 'server', sound: 'glass', hp: 99999,
   light: { color: 0x40e8ff, intensity: 0.9, radius: 6, y: 1.5, kind: 'screen', power: true },
   desc: 'A monolithic simulation server of black glass. Its cyan core pulses in time with your heartbeat. Then slightly ahead of it.',
-  tags: [...T, 'node', 'mission', 'server'],
+  tags: [...T, 'node', 'mission', 'anomaly', 'server'],
   model: (mb) => {
     mb.box(0, 0, 0, 1.9, 0.14, 1.9, { sides: 'q_steel_dark', top: 'q_black_glass' }, { skip: ['bottom'] });
     for (const s of [-1, 1]) {
@@ -217,7 +222,7 @@ defObj({
   sound: 'glass', hp: 99999,
   light: { color: 0xff40d0, intensity: 0.6, radius: 4, y: 1.4, kind: 'neon', power: false },
   desc: 'A black slab covered in crawling pixels. Looking at it too long makes the walls lag.',
-  tags: [...T, 'glitch'],
+  tags: [...T, 'anomaly', 'glitch'],
   model: (mb) => {
     mb.box(0, 0, 0, 0.9, 0.02, 0.5, 'q_void', { skip: ['bottom'] });
     const slices: [number, number, number, number][] = [[0, 0.5, 0, 0], [0.5, 0.35, 0.06, 0.01], [0.85, 0.5, -0.03, 0], [1.35, 0.18, 0.11, -0.02], [1.53, 0.55, 0.0, 0.02], [2.08, 0.32, -0.07, 0]];
@@ -233,11 +238,11 @@ defObj({
   desc: 'A doorframe standing alone, full of white light. It feels like the way out. It feels like a test.',
   tags: [...T, 'portal', 'mission', 'exit'],
   model: (mb) => {
-    const F = 'plastic_white';
-    for (const x of [-0.5, 0.5]) mb.box(x, 0, 0, 0.08, 2.22, 0.16, F, { emissive: 0.35, skip: ['bottom'] });
-    mb.box(0, 2.22, 0, 1.08, 0.1, 0.16, F, { emissive: 0.35 });
-    mb.box(0, 0, 0, 1.0, 0.02, 0.18, F, { emissive: 0.4 });
-    mb.box(0, 0.02, 0, 0.92, 2.2, 0.03, 'q_exit_light', { fit: true, emissive: 1.8 });
+    const F = 'q_steel_grey';
+    for (const x of [-0.5, 0.5]) mb.box(x, 0, 0, 0.1, 2.24, 0.2, F, { skip: ['bottom'] });
+    mb.box(0, 2.22, 0, 1.1, 0.12, 0.2, F);
+    mb.box(0, 0, 0, 1.0, 0.025, 0.22, 'metal_dark');
+    mb.box(0, 0.025, 0, 0.9, 2.2, 0.03, 'q_exit_light', { fit: true, emissive: 1.25 });
     mb.box(0, 2.4, 0, 0.38, 0.15, 0.06, { south: 'q_exit_sign', north: 'q_exit_sign', sides: 'q_steel_dark' }, { fit: { south: true, north: true }, emissive: 1.1 });
     rod(mb, 0, 2.32, 0, 0, 2.4, 0, 0.01, 4, 'metal_dark');
   },
@@ -250,10 +255,12 @@ defObj({
   tags: [...T, 'portal', 'door'],
   model: (mb) => {
     const F = 'q_paint_white';
-    for (const x of [-0.47, 0.47]) mb.box(x, 0, 0, 0.07, 2.12, 0.14, F, { skip: ['bottom'] });
-    mb.box(0, 2.12, 0, 1.03, 0.09, 0.14, F);
-    mb.box(0, 0, 0, 0.94, 0.015, 0.16, 'wood_dark');
-    mb.box(0, 0.025, 0, 0.86, 2.08, 0.045, { south: 'q_door_white', north: 'q_door_white', sides: F, top: F }, { fit: { south: true, north: true } });
+    for (const x of [-0.47, 0.47]) mb.box(x, 0, 0, 0.08, 2.14, 0.16, F, { skip: ['bottom'] });
+    mb.box(0, 2.12, 0, 1.03, 0.1, 0.16, F);
+    mb.box(0, 0, 0, 0.94, 0.015, 0.18, 'wood_dark');
+    // dark reveal between leaf and frame
+    mb.box(0, 0.02, 0, 0.87, 2.1, 0.03, 'q_void');
+    mb.box(0, 0.025, 0, 0.84, 2.06, 0.05, { south: 'q_door_white', north: 'q_door_white', sides: 'q_steel_cream', top: 'q_steel_cream' }, { fit: { south: true, north: true } });
     for (const z of [0.035, -0.035]) { mb.sphere(0.34, 1.0, z, 0.03, 6, 4, 'metal_brass'); }
     mb.box(0.34, 0.98, 0, 0.05, 0.08, 0.06, 'metal_brass');
     for (const y of [0.25, 1.05, 1.85]) mb.box(-0.44, y, 0.0, 0.025, 0.1, 0.05, 'metal_brass');
@@ -276,14 +283,15 @@ defObj({
       const zc = z0 - (i + 0.5) * run;
       mb.box(0, 0, zc, 0.92, (i + 1) * rise, run, { top: 'q_stair_tread', south: 'q_stair_riser', sides: 'concrete' }, { fit: { top: true, south: true }, color: col, skip: ['bottom'], uvOffset: [0, -i * rise] });
     }
-    // stairwell walls closing in over the upper half, header and the dark mouth
+    // sloped stringers along the lower flight, a full-height mouth over the top
+    // flight, a header and the dark void the stairs vanish into
     for (const s of [-1, 1]) {
-      mb.box(s * 0.5, 0, 0.3, 0.07, 1.4, 1.4, 'concrete', { skip: ['bottom'] });
-      mb.box(s * 0.5, 0, -0.45, 0.07, 2.7, 1.1, 'concrete', { skip: ['bottom'], color: 0x9a9a9a });
+      mb.wedge(s * 0.5, 0, 0.28, 0.07, 1.36, 2.3, 0.6, 'concrete');
+      mb.box(s * 0.5, 0, -0.7, 0.07, 2.7, 0.6, 'concrete', { skip: ['bottom'], color: 0x8a8a8a });
     }
-    mb.box(0, 2.1, 0.08, 1.07, 0.6, 0.12, 'concrete', { color: 0x9a9a9a });
+    mb.box(0, 2.3, -0.43, 1.07, 0.4, 0.1, 'concrete', { color: 0x8a8a8a });
     mb.box(0, 0.0, -0.98, 0.93, 2.7, 0.04, 'q_void');
-    mb.box(0, 2.42, -0.45, 0.93, 0.28, 1.06, 'q_void', { skip: ['bottom'] });
+    mb.box(0, 2.42, -0.7, 0.93, 0.28, 0.6, 'q_void', { skip: ['bottom'] });
     // handrail
     for (let i = 0; i < 3; i++) rod(mb, 0.42, 0.9 + i * 0.6, 0.85 - i * 0.48, 0.42, 1.5 + i * 0.6, 0.37 - i * 0.48, 0.02, 6, 'q_paint_yellow');
     rod(mb, 0.42, 0.0, 0.88, 0.42, 0.9, 0.85, 0.02, 6, 'q_paint_yellow');
@@ -322,8 +330,8 @@ defObj({
     mb.box(0, 0.0, z + 0.01, 1.02, 2.2, 0.03, 'q_elev_doors', { fit: { south: true } });
     mb.box(0, 0, z + 0.07, 1.04, 0.012, 0.14, 'metal_brushed');
     mb.box(0, 2.42, z + 0.01, 0.62, 0.18, 0.04, { south: 'q_elev_indicator', sides: 'metal_dark' }, { fit: { south: true }, emissive: 1.0 });
-    mb.box(0.78, 1.0, z + 0.0, 0.11, 0.24, 0.03, { south: 'q_elev_panel', sides: 'metal_brushed' }, { fit: { south: true } });
-    mb.box(0.78, 1.07, z + 0.02, 0.04, 0.04, 0.012, 'plastic_yellow', { emissive: 1.2 });
+    mb.box(0.78, 1.0, -0.425, 0.11, 0.24, 0.03, { south: 'q_elev_panel', sides: 'metal_brushed' }, { fit: { south: true } });
+    mb.box(0.78, 1.07, -0.405, 0.04, 0.04, 0.012, 'plastic_yellow', { emissive: 1.2 });
   },
 });
 

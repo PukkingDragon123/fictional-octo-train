@@ -274,16 +274,15 @@ function hopscotch(pc: PixelCanvas) {
 }
 
 function water(pc: PixelCanvas, rng: Rng) {
-  const R = makeRamp(0x37a3b1, 6, { spread: 0.42, hueShift: 0.04 });
+  const R = makeRamp(0x3aa5b2, 6, { spread: 0.34, hueShift: 0.04 });
   for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
-    const n = nz(pc, x, y, 2, 4, 3, 41);
-    let c = n < 0.4 ? R[1] : n < 0.5 ? R[2] : n < 0.6 ? R[3] : R[4];
-    // crest highlights along a contour
-    if (Math.abs(n - 0.61) < 0.012) c = R[5];
+    const n = nz(pc, x, y, 4, 8, 2, 41) * 0.75 + nz(pc, x, y, 8, 8, 1, 42) * 0.25;
+    let c = n < 0.42 ? R[2] : n < 0.58 ? mixHex(R[2], R[3], 0.6) : R[3];
+    if (Math.abs(n - 0.6) < 0.012) c = R[5];                          // ripple crests catch the light
+    else if (Math.abs(n - 0.4) < 0.01) c = R[1];                      // and their troughs
     pc.set(x, y, c);
   }
-  // pixel glints
-  for (let i = 0; i < 10; i++) { const x = rng.int(0, 31), y = rng.int(0, 31); if (nz(pc, x, y, 2, 4, 3, 41) > 0.56) { pc.set(x, y, 0xe6fbfd); pc.set(x + 1, y, mixHex(0xe6fbfd, R[4], 0.5)); } }
+  for (let i = 0; i < 8; i++) { const x = rng.int(0, 31), y = rng.int(0, 31); pc.set(x, y, 0xe6fbfd); pc.set(x + 1, y, mixHex(0xe6fbfd, R[4], 0.5)); }
 }
 
 addTextureModule(() => {

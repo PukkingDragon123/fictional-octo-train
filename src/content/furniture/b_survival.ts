@@ -515,20 +515,20 @@ defObj({
     const st: [number, number][] = [];
     for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2; const r = 0.28 + hashf(i, 1, 1701) * 0.12; st.push([Math.cos(a) * r * 1.2, -0.12 + Math.sin(a) * r]); }
     fan(mb, 0, 0.004, -0.12, st, 'q_jerky', { color: 0x5a4a44 });
-    // pelvis + legs in jeans + boots (one knee raised)
-    mb.box(0, 0.02, -0.26, 0.3, 0.12, 0.16, 'q_denim');
-    mb.box(-0.1, 0.03, -0.02, 0.13, 0.12, 0.42, 'q_denim');
-    mb.box(-0.1, 0.03, 0.38, 0.11, 0.11, 0.4, 'q_denim');
-    mb.box(-0.1, 0.0, 0.6, 0.12, 0.12, 0.24, 'leather_brown');
-    mb.push(); mb.translate(0.1, 0.06, -0.18); mb.rotateX(-0.6);
-    mb.box(0, -0.06, 0.2, 0.13, 0.12, 0.42, 'q_denim');
+    // pelvis + legs in jeans + boots (one leg out, one knee raised) — kept inside the tile
+    mb.box(0, 0.02, -0.27, 0.3, 0.12, 0.16, 'q_denim');
+    mb.box(-0.1, 0.03, -0.1, 0.13, 0.12, 0.38, 'q_denim');
+    mb.box(-0.1, 0.03, 0.22, 0.11, 0.11, 0.3, 'q_denim');
+    mb.box(-0.1, 0.0, 0.4, 0.12, 0.13, 0.2, 'leather_brown');
+    mb.push(); mb.translate(0.1, 0.06, -0.24); mb.rotateX(-0.6);
+    mb.box(0, -0.06, 0.19, 0.13, 0.12, 0.4, 'q_denim');
     mb.pop();
-    mb.push(); mb.translate(0.1, 0.3, 0.17); mb.rotateX(0.75);
-    mb.box(0, -0.42, 0, 0.11, 0.42, 0.11, 'q_denim');
+    mb.push(); mb.translate(0.1, 0.29, 0.08); mb.rotateX(-0.3);
+    mb.box(0, -0.3, 0, 0.11, 0.3, 0.11, 'q_denim');
     mb.pop();
-    mb.box(0.1, 0.0, 0.42, 0.12, 0.12, 0.24, 'leather_brown');
+    mb.box(0.1, 0.0, 0.17, 0.12, 0.12, 0.22, 'leather_brown');
     // torso in an open jacket, leaning back on the wall
-    mb.push(); mb.translate(0, 0.12, -0.33); mb.rotateX(-0.22);
+    mb.push(); mb.translate(0, 0.12, -0.28); mb.rotateX(-0.22);
     mb.box(0, 0, 0, 0.38, 0.44, 0.2, { south: 'q_ribcage', sides: 'q_jacket', top: 'q_jacket' }, { fit: { south: true } });
     mb.box(0, 0.44, 0, 0.12, 0.05, 0.08, 'q_bone');
     // arms: one limp at the side, one across the lap
@@ -542,7 +542,7 @@ defObj({
     for (let i = 0; i < 3; i++) mb.box(-0.03 + i * 0.025, 0.01, 0.26, 0.015, 0.015, 0.07, 'q_bone');
     mb.pop();
     // slumped skull with a beanie
-    mb.push(); mb.translate(0.03, 0.62, -0.28); mb.rotateZ(0.42); mb.rotateX(0.35);
+    mb.push(); mb.translate(0.05, 0.57, -0.33); mb.rotateZ(0.42); mb.rotateX(0.35);
     mb.box(0, 0, 0, 0.15, 0.15, 0.17, 'q_bone');
     mb.box(0, -0.05, 0.05, 0.11, 0.05, 0.08, 'q_bone');
     for (const x of [-0.035, 0.035]) mb.box(x, 0.06, 0.081, 0.04, 0.035, 0.012, 'q_void');
@@ -648,8 +648,9 @@ defObj({
     const y0 = 0.745;
     mb.box(0, y0, -0.02, 0.2, 0.06, 0.22, 'q_bakelite');
     mb.wedge(0, y0 + 0.06, -0.02, 0.2, 0.22, 0.07, 0.02, 'q_bakelite');
-    mb.push(); mb.translate(0, y0 + 0.095, 0.03); mb.rotateX(-0.75);
-    disc(mb, 0, 0, 0.002, 0.065, 10, 'q_rotary_dial');
+    // dial lies on the sloped top (slope ~0.22 rad)
+    mb.push(); mb.translate(0, y0 + 0.098, 0.03); mb.rotateX(-1.35);
+    disc(mb, 0, 0, 0.0, 0.065, 10, 'q_rotary_dial');
     mb.pop();
     // handset in the cradle
     mb.box(0, y0 + 0.13, -0.06, 0.22, 0.03, 0.05, 'q_bakelite');
@@ -667,19 +668,19 @@ defObj({
   desc: 'A leaning tower of stacking chairs, one taller than it should be able to stand.',
   tags: [...T, 'decor', 'liminal'],
   model: (mb) => {
-    const n = 14, step = 0.08;
-    const cols = [0xf0a060, 0x80c8c0, 0xe8e0c8, 0xf0a060, 0x80c8c0];
+    const n = 12, step = 0.09;
+    const cols = [0xe07a3a, 0x4aa8a0, 0xd8d0b8, 0xe07a3a, 0x4aa8a0];
     // bottom chair legs
     for (const x of [-0.2, 0.2]) for (const z of [-0.18, 0.2]) rod(mb, x * 1.1, 0, z * 1.1, x, 0.43, z, 0.012, 4, 'chrome');
     for (let i = 0; i < n; i++) {
       const y = 0.43 + i * step, lean = i * 0.006, c = cols[i % cols.length];
       mb.push(); mb.translate(lean, 0, lean * 0.5);
-      mb.box(0, y, 0.01, 0.44, 0.025, 0.42, 'plastic_white', { color: c });
-      mb.box(0, y - 0.07, 0.21, 0.42, 0.07, 0.012, 'chrome');
-      for (const x of [-0.215, 0.215]) mb.box(x, y - 0.07, 0.01, 0.012, 0.07, 0.42, 'chrome');
+      mb.box(0, y, 0.01, 0.44, 0.03, 0.42, 'q_paint_white', { color: c, skip: ['bottom'] });
+      mb.box(0, y - 0.07, 0.21, 0.42, 0.07, 0.012, 'chrome', { skip: ['bottom', 'top'] });
+      for (const x of [-0.215, 0.215]) mb.box(x, y - 0.07, 0.01, 0.012, 0.07, 0.42, 'chrome', { skip: ['bottom', 'top'] });
       mb.push(); mb.translate(0, y + 0.03, -0.2); mb.rotateX(-0.12);
-      mb.box(0, 0.12, 0, 0.42, 0.22, 0.022, 'plastic_white', { color: c });
-      for (const x of [-0.2, 0.2]) mb.box(x, 0, 0, 0.014, 0.34, 0.014, 'chrome');
+      mb.box(0, 0.12, 0, 0.42, 0.22, 0.022, 'q_paint_white', { color: c, skip: ['bottom'] });
+      for (const x of [-0.2, 0.2]) mb.box(x, 0, 0, 0.014, 0.34, 0.014, 'chrome', { skip: ['bottom'] });
       mb.pop();
       mb.pop();
     }

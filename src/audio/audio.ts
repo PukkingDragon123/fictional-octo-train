@@ -158,6 +158,11 @@ const AMB: Record<string, AmbProfile> = {
     music: 'broken', reverb: 'void',
   },
   exit: { beds: [{ key: 'wind', vol: 0.05 }], events: [], music: 'choir', reverb: 'dream' },
+  house: {
+    beds: [{ key: 'fridge_hum', vol: 0.05, lp: 500 }, { key: 'tv_hum', vol: 0.02, lp: 1800 }],
+    events: [{ keys: ['wood_creak', 'door_far', 'plush_squeak', 'music_box_broken', 'steps_far'], every: [25, 70], vol: 0.3, dist: [8, 26] }],
+    music: 'musicbox', reverb: 'small',
+  },
   void: { beds: [{ key: 'tunnel_air', vol: 0.18 }, { key: 'static', vol: 0.03, lp: 1500 }], events: [{ keys: ['thud_distant', 'deja'], every: [30, 80], vol: 0.3, dist: [20, 60] }], music: 'drone', reverb: 'void' },
 };
 

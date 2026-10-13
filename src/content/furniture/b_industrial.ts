@@ -955,8 +955,9 @@ defObj({
   desc: 'A low ventilation grille. One slat is bent outward, from the inside.',
   tags: [...T, 'vent'],
   model: (mb) => {
-    mb.box(0, 0.06, -0.48, 0.74, 0.5, 0.035, { south: 'q_vent_wall', sides: 'metal_grey', top: 'metal_grey' }, { fit: { south: true }, skip: ['bottom'] });
-    mb.box(0, 0.04, -0.47, 0.78, 0.02, 0.05, 'metal_grey');
+    // wall faces sit at z = -0.44 (0.12 m walls), so the grille must stand proud of that
+    mb.box(0, 0.06, -0.425, 0.74, 0.5, 0.04, { south: 'q_vent_wall', sides: 'metal_grey', top: 'metal_grey' }, { fit: { south: true }, skip: ['bottom'] });
+    mb.box(0, 0.04, -0.42, 0.78, 0.02, 0.05, 'metal_grey');
   },
 });
 

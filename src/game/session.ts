@@ -15,6 +15,9 @@ import { CreatureSystem } from '../creatures/manager';
 import { CombatSystem } from './combat';
 import { Scanner } from '../ui/scanner/scanner';
 import { AudioEngine } from '../audio/audio';
+import { MissionSystem } from '../missions/missions';
+import '../missions/directives';
+import { ShiftSystem } from '../world/shift';
 import '../game/worldOps';
 import '../world/zones';
 
@@ -63,6 +66,10 @@ export function startSolo(opts: NewGameOpts): Game {
   const audio = new AudioEngine();
   g.audio = audio;
   g.addSystem({ name: 'audio', update: (dt) => audio.update(dt) });
+  const missions = new MissionSystem();
+  g.missions = missions;
+  g.addSystem(missions);
+  g.addSystem(new ShiftSystem());
   const ui = new UI();
   g.ui = ui;
   ui.inventory = new InventoryUI(ui);

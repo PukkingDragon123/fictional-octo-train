@@ -351,7 +351,7 @@ addTextureModule(() => {
   A.add('q_bush', 32, 32, (pc) => leafBlob(pc, 0x5a8a3c, 785, 0.04, [0xf0e8f0, 0xf6a8c8]));
   A.add('q_leaf_pine', 32, 24, (pc) => {
     pc.wrap = false;
-    const R = makeRamp(0x2e5a3a, 6, { hueShift: 0.05, spread: 0.5 });
+    const R = makeRamp(0x22462c, 6, { hueShift: 0.05, spread: 0.55 });
     for (let y = 0; y < 24; y++) for (let x = 0; x < 32; x++) {
       const tooth = Math.abs((x % 4) - 1.5);
       const edge = 23 - Math.round(tooth * 2) - (hashf(Math.floor(x / 4), 1, 791) < 0.3 ? 2 : 0);
@@ -399,7 +399,7 @@ addTextureModule(() => {
     pc.wrap = false;
     const G = makeRamp(0x5a8a3a, 4, { spread: 0.4 });
     const cols = [0xf28ab4, 0xf2d244, 0xb294e6, 0xf4f2ea, 0x8ac8f0];
-    for (let k = 0; k < 16; k++) {
+    for (let k = 0; k < 24; k++) {
       const x = Math.round(1 + hashf(k, 1, 821) * 29), h = 6 + Math.floor(hashf(k, 2, 821) * 9);
       for (let t = 0; t < h; t++) pc.set(x + (t > h / 2 && k % 2 ? 1 : 0), 15 - t, G[t < 3 ? 0 : 1]);
       if (k % 3 === 0) { pc.set(x - 1, 13, G[2]); pc.set(x + 1, 12, G[3]); }
@@ -487,7 +487,7 @@ defObj({
   power: true, sound: 'metal', hp: 1500,
   light: { color: 0xffa040, intensity: 1.15, radius: 9, y: 4.0, kind: 'sodium', power: true },
   desc: 'A tall lamp washing the lot in sodium orange. Moths circle something you cannot see.',
-  tags: [...T, 'parking', 'light', 'tall'],
+  tags: [...T, 'parking', 'light'],
   model: (mb) => {
     mb.cylinder(0, 0, 0, 0.24, 0.3, 8, { sides: 'concrete', top: 'concrete' });
     mb.cylinder(0, 0.3, 0, 0.15, 0.05, 8, 'metal_dark');
@@ -497,9 +497,10 @@ defObj({
     rod(mb, 0, 4.12, 0, 0, 4.25, 0.5, 0.035, 6, 'q_pole_galv');
     mb.sphere(0, 4.17, 0, 0.06, 6, 3, 'q_pole_galv');
     mb.push(); mb.translate(0, 4.2, 0.62); mb.rotateX(-0.08);
-    mb.box(0, 0, 0, 0.3, 0.12, 0.55, 'q_lamp_head');
-    mb.box(0, 0.12, -0.05, 0.22, 0.05, 0.4, 'q_lamp_head');
-    mb.box(0, -0.075, 0.03, 0.22, 0.075, 0.4, { sides: 'q_sodium_lens', top: 'q_lamp_head', bottom: 'q_sodium_lens' }, { fit: true, emissive: 1.6 });
+    mb.box(0, 0, 0, 0.36, 0.13, 0.66, 'q_lamp_head');
+    mb.box(0, 0.13, -0.06, 0.26, 0.06, 0.46, 'q_lamp_head');
+    // drop refractor: its glowing sides are what the iso camera sees
+    mb.box(0, -0.11, 0.04, 0.28, 0.11, 0.5, { sides: 'q_sodium_lens', top: 'q_lamp_head', bottom: 'q_sodium_lens' }, { fit: true, emissive: 1.7 });
     mb.cylinder(0, 0.17, -0.12, 0.03, 0.04, 6, 'plastic_black');
     mb.pop();
     flyer(mb, 0, 1.45, 0.078);
@@ -512,7 +513,7 @@ defObj({
   power: true, sound: 'metal', hp: 1200,
   light: { color: 0xffb860, intensity: 0.95, radius: 7, y: 3.0, kind: 'sodium', power: true },
   desc: 'An old cast-iron lantern post. It hums a single low note all night.',
-  tags: [...T, 'street', 'light', 'tall'],
+  tags: [...T, 'street', 'light'],
   model: (mb) => {
     const G = 'q_iron_green';
     mb.cylinder(0, 0, 0, 0.17, 0.12, 8, G);
@@ -961,9 +962,10 @@ defObj({
   desc: 'Pastel wildflowers, too bright for the light here.',
   tags: [...T, 'nature', 'plant', 'dream'],
   model: (mb) => {
-    mb.cross(0, 0, 0, 0.75, 0.4, 'q_flowers', { sway: 0.8, rot: 0.5 });
-    mb.cross(0.18, 0, -0.15, 0.55, 0.32, 'q_flowers', { sway: 0.8, rot: 1.4 });
-    mb.cross(-0.15, 0, 0.2, 0.6, 0.3, 'q_grass_tall', { sway: 1, rot: 2.3 });
+    mb.cross(0, 0, 0, 0.85, 0.45, 'q_flowers', { sway: 0.8, rot: 0.5 });
+    mb.cross(0.2, 0, -0.18, 0.7, 0.4, 'q_flowers', { sway: 0.8, rot: 1.4 });
+    mb.cross(-0.18, 0, 0.18, 0.7, 0.38, 'q_flowers', { sway: 0.8, rot: 2.6 });
+    mb.cross(-0.1, 0, -0.2, 0.6, 0.3, 'q_grass_tall', { sway: 1, rot: 2.3 });
   },
 });
 
@@ -1032,7 +1034,7 @@ defObj({
   key: 'power_pole', name: 'Power Pole', w: 1, d: 1, height: 5.3, block: 'solid', tall: true,
   sound: 'wood', flammable: 0.5, hp: 2500,
   desc: 'A utility pole. Its wires run out a few metres away and simply stop.',
-  tags: [...T, 'street', 'tall', 'electrical'],
+  tags: [...T, 'street', 'electrical'],
   model: (mb) => {
     mb.cylinder(0, 0, 0, 0.13, 5.25, 8, 'q_pole_wood', { rTop: 0.1 });
     mb.box(0, 4.75, 0, 1.6, 0.1, 0.1, 'q_pole_wood');
@@ -1062,7 +1064,7 @@ defObj({
   sound: 'metal',
   disassemble: { tools: ['#wrench'], time: 20, skill: 'electrical', yields: [['scrap_metal', 2, 4], ['wire', 1, 3], ['electronics_scrap', 1, 2]] },
   desc: 'A dish aimed at a patch of sky where there are no stars.',
-  tags: [...T, 'electrical', 'radio'],
+  tags: [...T, 'electrical', 'antenna'],
   model: (mb) => {
     mb.box(0, 0, -0.1, 0.5, 0.06, 0.5, 'concrete');
     mb.cylinder(0, 0.06, -0.1, 0.045, 0.95, 8, 'metal_grey', { caps: false });
@@ -1127,7 +1129,7 @@ defObj({
   power: true, sound: 'metal', hp: 2500,
   light: { color: 0xfff0d0, intensity: 0.75, radius: 6, y: 4.5, kind: 'lamp', power: true },
   desc: 'HAVE YOU TRIED WAKING UP? The fine print is in a language you almost know.',
-  tags: [...T, 'street', 'tall', 'decor', 'dream'],
+  tags: [...T, 'street', 'decor', 'dream'],
   model: (mb) => {
     const S = 'q_steel_dark';
     for (const x of [-1.2, 1.2]) {
@@ -1158,7 +1160,7 @@ defObj({
   key: 'birdbath', name: 'Birdbath', w: 1, d: 1, height: 0.82, block: 'low',
   sound: 'ceramic',
   desc: 'A stone birdbath. The water reflects a sky that is a different colour.',
-  tags: [...T, 'garden', 'water_decor'],
+  tags: [...T, 'garden', 'birdbath'],
   model: (mb) => {
     const C = 'q_rock';
     mb.cylinder(0, 0, 0, 0.2, 0.07, 8, C, { color: 0xd8d4c8 });

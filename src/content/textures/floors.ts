@@ -45,10 +45,10 @@ function carpetOffice(pc: PixelCanvas, rng: Rng) {
 function carpetRed(pc: PixelCanvas, rng: Rng) {
   const R = makeRamp(0x7b2533, 5, { hueShift: 0.035, spread: 0.34 });
   for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
-    const m = nz(pc, x, y, 3, 3, 2, 7), w = nz(pc, x, y, 2, 2, 2, 41);
+    const m = nz(pc, x, y, 5, 5, 2, 7), w = nz(pc, x, y, 4, 4, 2, 41);
     let c = R[2];
     if (m < 0.4) c = mixHex(R[2], R[1], 0.5);
-    if (w > 0.64 || (w > 0.6 && ((x + y) & 1) === 0)) c = mixHex(R[2], R[3], 0.55);   // worn, flattened pile reads paler
+    if (w > 0.63 || (w > 0.59 && ((x + y) & 1) === 0)) c = mixHex(R[2], R[3], 0.45);   // worn, flattened pile reads paler
     pc.set(x, y, c);
   }
   // velvet nap: short brushed strokes catching the light, and crushed tufts
@@ -295,8 +295,8 @@ function terrazzo(pc: PixelCanvas, rng: Rng) {
 // ---------------------------------------------------------------------------
 
 function concreteBase(pc: PixelCanvas, rng: Rng, base: number, seed: number, amp = 0.32): number[] {
-  const R = makeRamp(base, 6, { spread: 0.34, hueShift: 0.02 });
-  field(pc, R, (x, y) => 0.5 + (nz(pc, x, y, 3, 3, 3, seed) - 0.5) * amp + (nz(pc, x, y, 8, 8, 1, seed + 7) - 0.5) * 0.1, 0.18);
+  const R = makeRamp(base, 6, { spread: 0.3, hueShift: 0.02 });
+  field(pc, R, (x, y) => 0.5 + (nz(pc, x, y, 4, 4, 3, seed) - 0.5) * amp * 0.7 + (nz(pc, x, y, 8, 8, 2, seed + 7) - 0.5) * 0.16, 0.18);
   for (let i = 0; i < 10; i++) {
     const x = rng.int(0, 31), y = rng.int(0, 31);
     pc.set(x, y, R[1]); pc.blend(x + 1, y + 1, R[4], 0.5);
@@ -488,7 +488,7 @@ function grassDream(pc: PixelCanvas, rng: Rng, flowers: number) {
 
 function dirt(pc: PixelCanvas, rng: Rng) {
   const R = makeRamp(0x7a5b40, 6, { spread: 0.42, hueShift: 0.03 });
-  field(pc, R, (x, y) => 0.52 + (nz(pc, x, y, 3, 3, 3, 101) - 0.5) * 0.2, 0.15);
+  field(pc, R, (x, y) => 0.52 + (nz(pc, x, y, 4, 4, 2, 101) - 0.5) * 0.14 + (nz(pc, x, y, 8, 8, 2, 102) - 0.5) * 0.12, 0.15);
   // pebbles with a lit top and a cast shadow
   const peb = [0x9a8d7c, 0x8a7a66, 0xa89c88];
   for (let i = 0; i < 11; i++) {

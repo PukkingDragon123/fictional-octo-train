@@ -68,8 +68,22 @@ addTextureModule(() => {
     for (let y = 4; y < 32; y += 9) { pc.set(7, y, 0xfff0a0); pc.set(8, y, 0xfff0a0); }
   });
   A.add('p_canopy', 32, 16, (pc) => {
-    const cols = [0xf8c8d8, 0xfaf4ec, 0xb8e4dc, 0xfaf4ec, 0xf8e4a8, 0xfaf4ec, 0xd0c4f0, 0xfaf4ec];
-    pc.each((x, y) => { const c = cols[x >> 2]; pc.set(x, y, (x % 4 === 3) ? scaleHex(c, 0.88) : y === 15 ? scaleHex(c, 0.8) : c); });
+    // 16 stripes: one per canopy segment (texture is fitted once around the cone)
+    const cols = [0xf4a8c4, 0xfaf2e8, 0x9ad8cc, 0xfaf2e8, 0xc4b0f0, 0xfaf2e8, 0xf8dc90, 0xfaf2e8];
+    pc.each((x, y) => {
+      const c = cols[(x >> 1) % cols.length];
+      pc.set(x, y, y >= 14 ? scaleHex(c, 0.82) : y <= 1 ? mixHex(c, 0xffffff, 0.3) : c);
+    });
+  });
+  A.add('p_valance', 8, 8, (pc) => {
+    pc.wrap = false;
+    pc.fill(0xfaf2e8);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) {
+      const d = Math.hypot((x + 0.5 - 4) / 4, (y + 0.5 - 2) / 6);
+      if (y >= 2 && d <= 1) pc.set(x, y, d > 0.8 ? 0xe090b0 : 0xf4a8c4);
+      else if (y >= 5) pc.set(x, y, 0x7a6470);
+    }
+    pc.hline(0, 7, 0, 0xe8c070); pc.hline(0, 7, 1, 0xf8e0a0);
   });
   A.add('p_carousel_base', 16, 8, (pc) => {
     pc.fill(0xe8a8c0);
@@ -350,15 +364,14 @@ defObj({
     mb.cylinder(0, 0.26, 0, 0.42, 1.88, 8, 'p_carousel_center', { color: 0xffffff });
     // canopy: underside, striped cone, scalloped valance with bulbs, finial
     mb.cylinder(0, 2.1, 0, R + 0.05, 0.04, 20, 'wood_light', { color: 0xf8e8f0 });
-    mb.cylinder(0, 2.14, 0, R + 0.05, 0.42, 20, { sides: 'p_canopy', top: 'p_canopy', bottom: 'p_canopy' }, { rTop: 0.32, caps: false });
-    mb.cylinder(0, 2.56, 0, 0.32, 0.06, 10, 'metal_brass');
-    mb.cylinder(0, 2.62, 0, 0.03, 0.08, 6, 'metal_brass');
-    mb.box(0.07, 2.64, 0, 0.12, 0.05, 0.006, 'plastic_red', { color: 0xf0a0c0 });
+    mb.cylinder(0, 2.14, 0, R + 0.05, 0.5, 16, 'p_canopy', { rTop: 0.3, caps: false, fit: true });
+    mb.cylinder(0, 2.62, 0, 0.3, 0.05, 10, 'metal_brass');
+    mb.sphere(0, 2.69, 0, 0.06, 6, 4, 'metal_brass');
     const vs = 28;
     for (let i = 0; i < vs; i++) {
       const a = (i + 0.5) / vs * Math.PI * 2;
       mb.push().translate(Math.cos(a) * (R + 0.06), 1.96, Math.sin(a) * (R + 0.06)).rotateY(-a + Math.PI / 2);
-      mb.box(0, 0, 0, 2 * Math.PI * (R + 0.06) / vs - 0.02, 0.18, 0.025, 'p_canopy', { color: i % 2 ? 0xf8c8d8 : 0xfaf4ec });
+      mb.box(0, 0, 0, 2 * Math.PI * (R + 0.06) / vs - 0.02, 0.18, 0.025, 'p_valance', { fit: true });
       mb.box(0, -0.03, 0.016, 0.04, 0.04, 0.02, 'white', { color: i % 2 ? 0xfff2b0 : 0xffd8a0, emissive: 1.2 });
       mb.pop();
     }

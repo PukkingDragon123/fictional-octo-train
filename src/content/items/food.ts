@@ -747,3 +747,11 @@ food('food_scraps', 'Food Scraps', 0.3, { hunger: 2, calories: 50, poison: 0.5, 
 food('donut', 'Donut', 0.07, { hunger: 5, calories: 260, unhappy: -6, fresh: 2, rot: 5, ingredient: 'sweet' }, (mb) => {
   mb.cylinder(0, 0, 0, 0.045, 0.026, 12, { sides: S_DONUT, top: D_DONUT, bottom: S_DONUT }, { fit: true });
 }, { tags: ['snack', 'sweet'] });
+
+const D_RATION = decal('i_ration_top', 16, 6, (pc) => {
+  pc.fill(0x5a6a3a); band(pc, 0, 1, 0x3e4a28); band(pc, 5, 1, 0x3e4a28);
+  pc.rect(3, 1, 10, 4, 0xd8cca0); dashes(pc, 4, 2, 8, 0x2a2a1e, 3); dashes(pc, 4, 3, 6, 0x2a2a1e, 5);
+});
+food('ration_bar', 'Ration Bar', 0.12, { hunger: 15, thirst: -4, calories: 700, unhappy: 2, ingredient: 'grain' }, (mb) => {
+  slab(mb, 0.12, 0.022, 0.045, D_RATION, T.card, 0x5a6a3a);
+}, { tags: ['ration', 'snack'], desc: 'Dense, chewy, homemade. Keeps forever.' });

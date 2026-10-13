@@ -463,14 +463,14 @@ addTextureModule(() => {
     // panel seams at tile edge + rivets
     seamH(pc, 0, 31, 0, r[0], r[4]); seamV(pc, 0, 0, 31, r[0], r[4]);
     for (let k = 3; k < 32; k += 7) { rivet(pc, k, 3, r[5], r[0], r[3]); rivet(pc, 3, k, r[5], r[0], r[3]); }
-    chips(pc, rng, 4, scaleHex(base, 0.6), r[0]);
+    chips(pc, rng, rustAmt > 0 ? 4 : 2, scaleHex(base, 0.75), r[1]);
     if (rustAmt > 0) rust(pc, seed + 5, rustAmt, 3);
   });
-  steel('q_steel_grey', 0x7e878c, 21, 0.1);
-  steel('q_steel_green', 0x55705a, 22, 0.18);
-  steel('q_steel_blue', 0x4d6a86, 23, 0.1);
-  steel('q_steel_dark', 0x3c4044, 24, 0.08);
-  steel('q_steel_cream', 0xc9c2a8, 25, 0.06);
+  steel('q_steel_grey', 0x7e878c, 21, 0.06);
+  steel('q_steel_green', 0x55705a, 22, 0.15);
+  steel('q_steel_blue', 0x4d6a86, 23, 0.06);
+  steel('q_steel_dark', 0x3c4044, 24, 0);
+  steel('q_steel_cream', 0xc9c2a8, 25, 0);
 
   // rusty pipe (cylinder sides: u around, v along)
   A.add('q_pipe_rust', 16, 32, (pc) => {
@@ -524,7 +524,7 @@ addTextureModule(() => {
 
   // rough stone (tiling) with lichen
   A.add('q_rock', 32, 32, (pc, rng) => {
-    const r = makeRamp(0x7c7a74, 7, { spread: 0.5 });
+    const r = makeRamp(0x6a6b6c, 7, { spread: 0.62, hueShift: 0.06 });
     pc.fillRamp(r, (x, y) => {
       const n = tileFbm(x, y, 32, 32, 3, 4, 71);
       const facet = Math.floor(tileFbm(x, y, 32, 32, 2, 1, 72) * 5) / 5;
@@ -538,8 +538,8 @@ addTextureModule(() => {
     // lichen clusters
     pc.each((x, y) => {
       const n = tileFbm(x, y, 32, 32, 4, 3, 73);
-      if (n > 0.66 && ph(x, y, 74) < 0.7) pc.set(x, y, ph(x, y, 75) < 0.5 ? 0x9aa46a : 0x7e8c58);
-      else if (n > 0.62 && bayer(x, y) < 0.3) pc.set(x, y, 0xb4b088);
+      if (n > 0.68 && ph(x, y, 74) < 0.7) pc.set(x, y, ph(x, y, 75) < 0.5 ? 0x7e8c4e : 0x66743e);
+      else if (n > 0.64 && bayer(x, y) < 0.3) pc.set(x, y, 0x9a9a6c);
     });
   });
   A.add('q_rock_dark', 32, 32, (pc, rng) => {
@@ -600,13 +600,13 @@ addTextureModule(() => {
   });
 
   // chipped playground paint (one per colour)
-  const paint = (name: string, base: number, seed: number) => A.add(name, 32, 32, (pc, rng) => {
+  const paint = (name: string, base: number, seed: number, rustAmt = 0.12) => A.add(name, 32, 32, (pc, rng) => {
     const r = makeRamp(base, 6, { spread: 0.42 });
     fillNoise(pc, r, 0.6, 0.12, 2, seed, 0.05);
     // faded sun-bleach on the upper half of each tile
     pc.each((x, y) => { if (tileFbm(x, y, 32, 32, 2, 2, seed + 1) > 0.6 && bayer(x, y) < 0.35) pc.set(x, y, r[5]); });
     chips(pc, rng, 9, 0x8c8a84, r[0]);
-    rust(pc, seed + 3, 0.2, 3);
+    if (rustAmt > 0) rust(pc, seed + 3, rustAmt, 3);
     // brush marks
     for (let y = 2; y < 32; y += 5) for (let x = 0; x < 32; x++) if (ph(x, y, seed) < 0.3) pc.blend(x, y, r[4], 0.35);
   });
@@ -617,7 +617,7 @@ addTextureModule(() => {
   paint('q_paint_pink', 0xe59ab4, 105);
   paint('q_paint_teal', 0x4fb3ac, 106);
   paint('q_paint_lilac', 0xa996d6, 107);
-  paint('q_paint_white', 0xe4e2da, 108);
+  paint('q_paint_white', 0xe4e2da, 108, 0.03);
   paint('q_paint_orange', 0xe0782e, 109);
 
   // cardboard box face (fit) with tape and marker scrawl

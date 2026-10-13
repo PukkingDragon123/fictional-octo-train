@@ -345,6 +345,7 @@ function drawMap(s: Screen, sc: Scanner, p: Player) {
 // ------------------------------------------------------------------ DIRECTIVES
 function drawLog(s: Screen, sc: Scanner, p: Player) {
   const ms = G.missions;
+  ms?.markRead?.();
   const list: any[] = ms?.visible?.() || [];
   if (!list.length) {
     s.para('NO DIRECTIVES RECEIVED. KEEP THE SCANNER CLOSE. SOMETHING WILL REACH OUT.', 6, 18, s.w - 12, MID);

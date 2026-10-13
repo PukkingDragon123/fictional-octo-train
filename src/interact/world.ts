@@ -199,6 +199,10 @@ export class Interact {
     const out: MenuOption[] = [];
     const tags = d.tags || [];
     const powered = this.objPowered(o);
+    if (o.state.mission || o.state.code || tags.includes('node') || tags.includes('keycard') || tags.includes('keypad') || o.key === 'keycard_reader') {
+      const mo: MenuOption[] = G.missions?.objectOptions?.(p, o) || [];
+      if (mo.length) return mo;
+    }
     if (tags.includes('portal')) out.push({ label: portalVerb(o.key), action: () => this.usePortalObject(p, o) });
     if (o.inv) {
       const locked = o.inv.locked;
@@ -363,13 +367,13 @@ export class Interact {
     const z = G.getZone(p.zoneKey);
     const portal = z.portals.find((q) => q.id === portalId);
     if (!portal) return;
-    queueAt(p, pos.x, pos.z, new UseObjectAction(p, portal.label || 'Enter', 0.5, 'hold_item', () => G.travel(p, portal.to, portal.tx, portal.ty, portal.face, portal.locked)), 1.4);
+    queueAt(p, pos.x, pos.z, new UseObjectAction(p, portal.label || 'Enter', 0.5, 'hold_item', () => G.usePortal(p, portal)), 1.4);
   }
   usePortalObject(p: Player, o: TileObject) {
     const z = G.getZone(p.zoneKey);
     const portal = z.portals.find((q) => q.id === o.state.portal) || z.portals.find((q) => Math.abs(q.x - o.x) <= 1 && Math.abs(q.y - o.y) <= 1);
     if (!portal) { bus.emit('think', p, 'It leads nowhere. Yet.'); return; }
-    queueAt(p, o.x + 0.5, o.y + 0.5, new UseObjectAction(p, portal.label || 'Go', 0.8, 'hold_item', () => G.travel(p, portal.to, portal.tx, portal.ty, portal.face, portal.locked)), 1.5);
+    queueAt(p, o.x + 0.5, o.y + 0.5, new UseObjectAction(p, portal.label || 'Go', 0.8, 'hold_item', () => G.usePortal(p, portal)), 1.5);
   }
 
   // ---------------- terminals & lore ----------------

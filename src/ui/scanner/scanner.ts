@@ -327,7 +327,8 @@ export class Scanner {
     const danger = (G.survival?.threat ?? 0) > 0.2 || p.body.bleedRate() > 0.05;
     this.setLed('alert', danger && Math.sin(G.time * 10) > 0 ? 'c_led_red' : 'c_led_off');
     const sig = this.st.sigStrength ?? 0;
-    this.setLed('signal', sig > 0.3 && Math.sin(G.time * (4 + sig * 12)) > 0 ? 'c_led_amber' : 'c_led_off');
+    const unread = !!G.missions?.unread && Math.sin(G.time * 2.5) > 0.55;
+    this.setLed('signal', (sig > 0.3 && Math.sin(G.time * (4 + sig * 12)) > 0) || unread ? 'c_led_amber' : 'c_led_off');
     this.screenMat.uniforms.uTime.value = G.time;
     this.screenMat.uniforms.uPower.value = this.power;
     this.screenMat.uniforms.uGlitch.value = Math.max(G.collapse * 0.5, p.body.corruption > 30 ? 0.3 : 0);

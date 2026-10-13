@@ -68,44 +68,61 @@ function wallpaperYellow(pc: PixelCanvas, rng: Rng, variant: number) {
   }
 }
 
+/**
+ * Level 0 carpet: light tan loop pile (~#a8956e), deliberately low contrast.
+ * Soft damp mottling at mid frequency (so 1 m repeats don't read as a grid),
+ * sparse 2px tufts instead of per-pixel static. The floor is laid with random
+ * 90° turns, so one-off marks stay away from the tile edges.
+ */
 function carpetYellow(pc: PixelCanvas, rng: Rng, variant: number) {
-  const R = makeRamp(0x9a8444, 7, { hueShift: 0.035, spread: 0.6 });
+  const R = makeRamp(0xa8956e, 6, { hueShift: 0.03, spread: 0.3 });
   const W = pc.w, H = pc.h;
-  pc.fillRamp(R, (x, y) => {
-    const fib = (ph(x, y, 17 + variant) - 0.5) * 0.32;
-    const weave = ((x + y * 2) % 5 === 0 ? -0.08 : 0) + ((x * 3 + y) % 7 === 0 ? 0.06 : 0);
-    const blot = tileFbm(x, y, W, H, 2, 3, 21 + variant);
-    const damp = blot < 0.42 ? -(0.42 - blot) * 0.9 : 0;
-    return 0.52 + fib + weave + damp;
-  }, 1);
-  // loose lighter fibres and dark grit
-  pc.speckle(rng, [R[5], R[6]], 0.015);
-  pc.speckle(rng, [R[0], R[1]], 0.02);
+  const lo = mixHex(R[2], R[3], 0.3), mid = mixHex(R[2], R[3], 0.65), hi = mixHex(R[3], R[4], 0.25);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const m = tileFbm(x, y, W, H, 5, 2, 21 + variant) * 0.7 + tileFbm(x, y, W, H, 8, 1, 31 + variant) * 0.3;
+    let c = m < 0.41 ? lo : m < 0.5 ? mid : m < 0.61 ? R[3] : hi;
+    // loop-pile tufts: tiny 2px clusters, sparse
+    const t = ph((x + (y & 1)) >> 1, y, 17 + variant);
+    if (t < 0.06) c = mixHex(R[2], lo, 0.3);
+    else if (t > 0.97) c = R[4];
+    pc.set(x, y, c);
+  }
   if (variant === 1) {
-    // a coffee-coloured stain
-    pc.stain(rng.int(8, 24), rng.int(8, 24), rng.int(5, 8), 0x5e4a22, 0x4a3818, 7);
+    // an old coffee-coloured stain with a darker tide line
+    const cx = rng.int(12, 20), cy = rng.int(12, 20), r = rng.int(4, 6);
+    pc.stain(cx, cy, r, 0x7a6438, 0x5e4a26, 7);
   } else if (variant === 2) {
-    // dark wet patch with glossy highlight specks
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const n = tileFbm(x, y, W, H, 2, 2, 55);
-      if (n > 0.55) {
-        pc.blend(x, y, 0x4e4220, (n - 0.55) * 1.8);
-        if (ph(x, y, 6) < 0.03) pc.set(x, y, 0xc9c08a);
+    // a damp patch: darker, faintly green-brown, with a few wet glints
+    for (let y = 4; y < H - 4; y++) for (let x = 4; x < W - 4; x++) {
+      const dx = (x - 15.5) / 10, dy = (y - 16.5) / 8;
+      const d = dx * dx + dy * dy + (tileFbm(x, y, W, H, 4, 2, 55) - 0.5) * 0.9;
+      if (d < 1) {
+        pc.blend(x, y, 0x6c6240, d < 0.55 ? 0.42 : 0.26);
+        if (d < 0.5 && ph(x, y, 6) < 0.04) pc.set(x, y, 0xd2c99e);
       }
     }
   }
 }
 
+/** Soaked carpet: darker, matted pile with standing water sheen (no static). */
 function carpetWet(pc: PixelCanvas, rng: Rng) {
-  const R = makeRamp(0x6e5f30, 7, { hueShift: 0.04 });
-  pc.fillRamp(R, (x, y) => 0.45 + (ph(x, y, 31) - 0.5) * 0.3 + tileFbm(x, y, pc.w, pc.h, 3, 3, 8) * 0.2 - 0.1, 1);
-  // standing water sheen
-  for (let y = 0; y < pc.h; y++) for (let x = 0; x < pc.w; x++) {
-    const n = tileFbm(x, y, pc.w, pc.h, 2, 2, 91);
-    if (n > 0.5) pc.blend(x, y, 0x3c4a3a, 0.35);
-    if (n > 0.62 && ph(x, y, 2) < 0.09) pc.set(x, y, 0xd8d6b0);
+  const R = makeRamp(0x7e6d4a, 6, { hueShift: 0.04, spread: 0.34 });
+  const W = pc.w, H = pc.h;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const m = tileFbm(x, y, W, H, 5, 2, 8);
+    let c = m < 0.42 ? R[1] : m < 0.56 ? mixHex(R[1], R[2], 0.6) : R[2];
+    if (ph((x + (y & 1)) >> 1, y, 31) < 0.07) c = R[1];
+    pc.set(x, y, c);
   }
-  pc.speckle(rng, [R[0]], 0.03);
+  // standing water: slightly green-grey sheen pooling in the low spots, sparse glints
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const n = tileFbm(x, y, W, H, 4, 2, 91);
+    if (n > 0.55) {
+      pc.blend(x, y, 0x48503e, n > 0.6 ? 0.45 : 0.28);
+      if (n > 0.6 && ph(x, y, 2) < 0.05) pc.set(x, y, 0xcfcaa6);
+    }
+  }
+  void rng;
 }
 
 function wallTop(pc: PixelCanvas, rng: Rng, base: number) {

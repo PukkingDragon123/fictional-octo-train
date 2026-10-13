@@ -29,6 +29,7 @@ export function generateZone(key: string, worldSeed: number): Zone {
   const z = new Zone(key, spec.W, spec.H, seed);
   spec.gen(z, seed);
   z.name = z.name || spec.name;
+  if (spec.blurb && !z.meta.blurb) z.meta.blurb = spec.blurb;
   z.dirtyChunks.clear();
   z.lightDirtyTiles.length = 0;
   z.removedLights.length = 0;

@@ -103,6 +103,7 @@ export class EatAction extends TimedAction {
       if (f.leaves) this.p.inv.add(createItem(f.leaves, undefined, { pristine: true }));
     }
     bus.emit('inventoryChanged', this.p);
+    bus.emit('consumed', this.p, this.it.key);
     if (fr === 'rotten') bus.emit('think', this.p, 'That tasted rotten...');
   }
 }
@@ -126,6 +127,7 @@ export class DrinkAction extends TimedAction {
     this.p.body.drink(fl.type, amt);
     if (fl.amount <= 0.005) this.it.fluid = null;
     bus.emit('inventoryChanged', this.p);
+    bus.emit('consumed', this.p, this.it.key);
   }
 }
 
@@ -137,6 +139,7 @@ export class DrinkFromSourceAction extends TimedAction {
   perform() {
     const need = Math.max(0.1, this.p.body.thirst / 48);
     this.p.body.drink(this.fluid, need);
+    bus.emit('consumed', this.p, 'water_bottle');
     this.onDone?.(need);
     if (this.fluid === 'tainted') bus.emit('think', this.p, 'That water tasted... off.');
   }

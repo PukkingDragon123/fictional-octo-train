@@ -181,3 +181,16 @@ canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 .k-toast small { display: block; font-size: 18px; letter-spacing: 2px; color: #a89a72; }
 .k-center-msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 250; background: rgba(0,0,0,0.75); color: #efe5c4; font-family: var(--font-mono); font-size: 34px; letter-spacing: 4px; text-align: center; }
 .k-center-msg .k-btn { margin-top: 18px; font-size: 13px; padding: 6px 14px; }
+
+/* ---------------- ending ---------------- */
+.k-ending { position: fixed; inset: 0; z-index: 400; background: #fff; opacity: 0; transition: opacity 4s ease-in; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+.k-ending.on { opacity: 1; }
+.k-ending-inner { max-width: 640px; padding: 24px; text-align: center; color: #3a3428; font-family: var(--font-mono); font-size: 26px; line-height: 1.25; }
+.k-ending-inner p { opacity: 0; animation: endline 3s ease forwards; margin: 0 0 22px; }
+.k-end-1 { animation-delay: 4.5s !important; }
+.k-end-2 { animation-delay: 9s !important; }
+.k-end-3 { animation-delay: 14s !important; font-family: var(--font-label); font-size: 16px; letter-spacing: 3px; color: #1f4f9a; }
+.k-end-4 { animation-delay: 19s !important; font-size: 20px; color: #8a7d58; }
+.k-end-5 { animation-delay: 23s !important; font-family: 'Jacquard 12', var(--font-mono); font-size: 72px; letter-spacing: 8px; color: #1a160c; }
+.k-end-btn { opacity: 0; animation: endline 2s ease 27s forwards; font-family: var(--font-label); font-size: 13px; letter-spacing: 2px; padding: 8px 16px; background: #1a160c; color: #e9dfc3; border: 0; cursor: pointer; }
+@keyframes endline { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }

@@ -373,17 +373,17 @@ defObj({
 });
 
 defObj({
-  key: 'lab_bench', name: 'Lab Bench', w: 2, d: 1, height: 1.6, block: 'table', surface: 0.92,
+  key: 'lab_bench', name: 'Lab Bench', w: 2, d: 1, height: 1.6, block: 'table', surface: 0.9,
   container: { capacity: 30, kind: 'counter', loot: 'lab_bench' },
   sound: 'ceramic',
   desc: 'A black-topped lab bench. The microscope slide is labelled with today\'s date, next year.',
   tags: [...T],
   model: (mb) => {
     const zc = -0.08;
-    mb.box(0, 0, zc, 1.9, 0.86, 0.68, { south: 'q_lab_cab_front', sides: 'q_steel_cream', top: 'q_steel_cream' }, { fit: { south: true }, skip: ['bottom'] });
-    mb.box(0, 0.86, zc, 1.98, 0.05, 0.76, 'q_epoxy_top');
+    mb.box(0, 0, zc, 1.9, 0.85, 0.68, { south: 'q_lab_cab_front', sides: 'q_steel_cream', top: 'q_steel_cream' }, { fit: { south: true }, skip: ['bottom'] });
+    mb.box(0, 0.85, zc, 1.98, 0.05, 0.76, 'q_epoxy_top');
     // reagent shelf
-    for (const x of [-0.92, 0.92]) mb.box(x, 0.91, zc - 0.3, 0.04, 0.68, 0.04, 'metal_brushed');
+    for (const x of [-0.92, 0.92]) mb.box(x, 0.9, zc - 0.3, 0.04, 0.69, 0.04, 'metal_brushed');
     mb.box(0, 1.3, zc - 0.28, 1.88, 0.025, 0.2, 'q_steel_cream');
     mb.box(0, 1.57, zc - 0.3, 1.88, 0.02, 0.04, 'metal_brushed');
     const bottle = (x: number, h: number, c: number, amber = false) => {
@@ -392,7 +392,7 @@ defObj({
     };
     bottle(-0.8, 0.16, 0x8a5a2a, true); bottle(-0.7, 0.12, 0xd0e8f0); bottle(-0.6, 0.18, 0x8a5a2a, true); bottle(-0.3, 0.14, 0xd0f0d0);
     bottle(0.1, 0.16, 0xffffff); bottle(0.4, 0.12, 0x8a5a2a, true); bottle(0.55, 0.15, 0xf0d0f0); bottle(0.75, 0.13, 0xd0e8f0);
-    const y0 = 0.91;
+    const y0 = 0.9;
     // microscope
     mb.box(-0.6, y0, zc + 0.05, 0.18, 0.04, 0.22, 'plastic_black');
     mb.box(-0.6, y0 + 0.04, zc - 0.03, 0.06, 0.28, 0.06, 'plastic_white');
@@ -421,7 +421,7 @@ defObj({
   power: true, sound: 'glass', hum: 'machine',
   light: { color: 0x6affb0, intensity: 0.4, radius: 3, y: 1.2, kind: 'screen', power: true },
   desc: 'A glass cylinder of green fluid. Something curled inside turns, slowly, to face you.',
-  tags: [...T, 'anomaly_decor', 'creepy'],
+  tags: [...T, 'specimen', 'creepy'],
   model: (mb) => {
     mb.cylinder(0, 0, 0, 0.48, 0.28, 12, { sides: 'q_steel_dark', top: 'q_steel_dark' });
     mb.cylinder(0, 0.27, 0, 0.485, 0.035, 12, 'q_glow_green', { caps: false, emissive: 1.3 });
@@ -493,7 +493,7 @@ defObj({
   power: true, hum: 'machine', sound: 'metal',
   light: { color: 0x9ad8ff, intensity: 0.3, radius: 2.5, y: 0.9, kind: 'screen', power: true },
   desc: 'A sealed sleeper pod, frosted from the inside. The occupant\'s breath fogs the glass, very slowly.',
-  tags: [...T, 'sleep_decor', 'creepy'],
+  tags: [...T, 'cryo', 'creepy'],
   model: (mb) => {
     mb.box(0, 0, 0, 0.86, 0.32, 1.9, { sides: 'q_steel_dark', top: 'q_steel_dark' });
     for (const s of [-1, 1]) mb.box(s * 0.433, 0.06, 0, 0.006, 0.03, 1.7, 'q_tube_light', { emissive: 1.2, color: 0x9ad8ff });
@@ -517,10 +517,11 @@ defObj({
   desc: 'A card reader with a red light. It is waiting for a card with your name on it.',
   tags: [...T, 'mission', 'security'],
   model: (mb) => {
-    mb.box(0.3, 1.06, -0.48, 0.13, 0.2, 0.04, { south: 'q_keycard', sides: 'metal_dark', top: 'metal_dark' }, { fit: { south: true } });
-    mb.box(0.3, 1.21, -0.455, 0.03, 0.02, 0.01, 'led_red', { emissive: 1.5 });
-    mb.box(0.3, 0.95, -0.49, 0.18, 0.06, 0.01, 'q_tank_plate', { fit: true });
-    rod(mb, 0.3, 1.26, -0.49, 0.3, 2.7, -0.49, 0.012, 4, 'metal_grey');
+    // wall face is at z = -0.44: mount everything just in front of it
+    mb.box(0.3, 1.06, -0.42, 0.13, 0.2, 0.04, { south: 'q_keycard', sides: 'metal_dark', top: 'metal_dark' }, { fit: { south: true } });
+    mb.box(0.3, 1.21, -0.397, 0.03, 0.02, 0.01, 'led_red', { emissive: 1.5 });
+    mb.box(0.3, 0.95, -0.435, 0.18, 0.06, 0.01, 'q_tank_plate', { fit: true });
+    rod(mb, 0.3, 1.26, -0.43, 0.3, 2.7, -0.43, 0.012, 4, 'metal_grey');
   },
 });
 
@@ -584,7 +585,7 @@ defObj({
   key: 'antenna_mast', name: 'Antenna Mast', w: 1, d: 1, height: 5.6, block: 'solid', tall: true,
   sound: 'metal', hp: 2500,
   desc: 'A lattice mast tipped with a red light. It is tuned to a station that only broadcasts silence.',
-  tags: [...T, 'radio', 'tall', 'outdoor'],
+  tags: [...T, 'antenna', 'outdoor'],
   model: (mb) => {
     mb.box(0, 0, 0, 0.7, 0.12, 0.7, 'concrete', { skip: ['bottom'] });
     const H = 4.9, lv = 6;

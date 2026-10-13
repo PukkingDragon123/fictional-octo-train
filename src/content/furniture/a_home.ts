@@ -497,7 +497,7 @@ defObj({
   variant: (s) => (on(s) ? 'on' : 'off'),
   model: (mb, s) => {
     mb.cylinder(0, 0, 0, 0.15, 0.03, 10, 'metal_brass', { rTop: 0.12 });
-    mb.cylinder(0, 0.03, 0, 0.014, 1.33, 6, 'metal_brass');
+    mb.cylinder(0, 0.03, 0, 0.022, 1.33, 6, 'metal_brass', { color: 0xb8a070 });
     mb.cylinder(0, 0.7, 0, 0.022, 0.05, 6, 'metal_brass');
     lampShade(mb, 0, 1.33, 0, 0.23, 0.3, on(s));
     mb.box(0.03, 1.2, 0.0, 0.008, 0.12, 0.008, 'metal_brass');

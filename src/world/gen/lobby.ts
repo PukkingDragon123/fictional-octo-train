@@ -98,7 +98,10 @@ export function generateLobby(z: Zone, seed: number) {
   z.env = {
     ...z.env,
     ambient: 0x3a3420, ambientI: 0.55, fog: 0x2b2512, fogNear: 13, fogFar: 27, void: 0x070603, temp: 22,
-    grade: 'lobby', reverb: 'office', ambience: 'hum',
+    grade: 'lobby', reverb: 'hall', ambience: 'hum',
   };
+  // what lives here: mostly quiet; packs and stalkers are rare
+  z.spawnTable = [['grinhound', 3], ['employee', 2], ['lumenmoth', 3], ['swivel', 2], ['underlay', 1.5], ['drywall_man', 1], ['hollow', 1.2], ['custodian', 0.5], ['lamplighter', 1], ['echo', 0.8], ['occupant', 0.15]];
+  z.creatureCap = 9;
   return b;
 }

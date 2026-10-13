@@ -5,7 +5,7 @@ import { atlas } from '../gfx/atlas';
 import { Input } from '../core/input';
 import { bus } from '../core/events';
 import { clamp, damp, lerp, wrapAngle } from '../core/math';
-import { Zone } from '../world/zone';
+import { Zone, Portal } from '../world/zone';
 import { ZoneRenderer } from '../world/zoneRenderer';
 import { LightGrid } from '../world/lighting';
 import { Visibility } from '../world/visibility';
@@ -44,6 +44,7 @@ export const GRADES: Record<string, Partial<Grade>> = {
   corrupt: { lift: [0.04, 0.0, 0.05], gain: [1.1, 0.9, 1.15], sat: 1.2, vignette: 0.5 },
   exit: { lift: [0.1, 0.1, 0.1], gain: [1.1, 1.1, 1.1], sat: 0.5, vignette: 0.2 },
   void: { lift: [0, 0, 0], gain: [0.8, 0.8, 0.9], sat: 0.4, vignette: 0.7 },
+  house: { lift: [0.03, 0.02, 0.01], gain: [1.05, 1.0, 0.9], sat: 0.95, tint: [1.02, 1.0, 0.94], vignette: 0.45 },
 };
 
 export class Game {
@@ -155,6 +156,17 @@ export class Game {
     this.sun.color.set(e.sun);
     this.hemi.intensity = e.sky ? 0.9 : 0;
     this.hemi.color.set(e.skyColor);
+  }
+
+  /** closest tile to (tx,ty) a player can stand on (generator mistakes never strand anyone) */
+  nearestWalkable(z: Zone, tx: number, ty: number): [number, number] {
+    const ok = (x: number, y: number) => z.inb(x, y) && z.floor[z.idx(x, y)] !== 0 && z.solid[z.idx(x, y)] !== 1;
+    if (ok(tx, ty)) return [tx, ty];
+    for (let r = 1; r < 40; r++) for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+      if (ok(tx + dx, ty + dy)) return [tx + dx, ty + dy];
+    }
+    return [tx, ty];
   }
 
   /** Move a player to a zone/tile (handles view swap for the local player) */
@@ -340,13 +352,23 @@ export class Game {
         return;
       }
       if (portal.kind === 'door' || portal.kind === 'elevator' || portal.kind === 'manhole' || portal.kind === 'ladder' || portal.kind === 'vent') continue; // these need interaction
-      this.travel(p, portal.to, portal.tx, portal.ty, portal.face, portal.locked);
+      this.usePortal(p, portal);
       return;
     }
   }
 
-  travel(p: Player, zoneKey: string, tx: number, ty: number, face?: number, lockReq?: string) {
-    if (lockReq && this.missions && !this.missions.isUnlocked?.(lockReq)) {
+  /** go through a portal: lock check, special destinations, anchor resolution */
+  usePortal(p: Player, portal: Portal) {
+    if (portal.to === '__ending__') {
+      if (portal.locked && this.missions && !this.missions.isUnlocked?.(portal.locked, p)) { bus.emit('think', p, this.missions.lockText?.(portal.locked) || "It won't open."); return; }
+      this.missions?.ending?.(p);
+      return;
+    }
+    this.travel(p, portal.to, portal.tx, portal.ty, portal.face, portal.locked, portal.anchor ?? portal.id);
+  }
+
+  travel(p: Player, zoneKey: string, tx: number, ty: number, face?: number, lockReq?: string, anchor?: string) {
+    if (lockReq && this.missions && !this.missions.isUnlocked?.(lockReq, p)) {
       bus.emit('think', p, this.missions.lockText?.(lockReq) || "It won't budge.");
       return;
     }
@@ -354,6 +376,10 @@ export class Game {
     p.actions.clear();
     bus.emit('travelStart', p, zoneKey);
     this.fadeThen(() => {
+      const z = this.getZone(zoneKey);
+      const a = anchor ? (z.meta.anchors?.[anchor] as number[] | undefined) : undefined;
+      if (a) { tx = a[0]; ty = a[1]; if (a[2] !== undefined) face = a[2]; }
+      [tx, ty] = this.nearestWalkable(z, tx, ty);
       this.placePlayer(p, zoneKey, tx, ty, face);
       p.vx = p.vz = 0;
       this.transitioning = false;

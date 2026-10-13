@@ -71,6 +71,8 @@ export interface Portal {
   /** loop portals shift the player seamlessly by an offset inside the same zone */
   loopDx?: number; loopDy?: number;
   hidden?: boolean;
+  /** arrival anchor id in the target zone (zone.meta.anchors[id] = [x, y, face?]); defaults to this portal's id */
+  anchor?: string;
 }
 
 export interface Room {

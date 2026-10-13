@@ -22,9 +22,10 @@ function ceilingShadow(pc: PixelCanvas, c: number, a = 0.5) {
 /** Wall paint: near-flat with soft roller patches (three close tones, hard-edged, no static). */
 function paint(pc: PixelCanvas, base: number, seed: number, y0 = 0, y1 = H, spread = 0.14): number[] {
   const R = makeRamp(base, 5, { spread, hueShift: 0.02 });
+  const lo = mixHex(R[2], R[1], 0.5), hi = mixHex(R[2], R[3], 0.45);
   for (let y = y0; y < y1; y++) for (let x = 0; x < pc.w; x++) {
-    const n = nz(pc, x, y, 4, 9, 3, seed);
-    pc.set(x, y, n < 0.39 ? R[1] : n > 0.63 ? R[3] : R[2]);
+    const n = nz(pc, x, y, 5, 12, 3, seed);
+    pc.set(x, y, n < 0.39 ? lo : n > 0.63 ? hi : R[2]);
   }
   return R;
 }
@@ -400,7 +401,7 @@ function wallLab(pc: PixelCanvas, rng: Rng) {
 
 function wallServer(pc: PixelCanvas, rng: Rng) {
   const R = makeRamp(0x3d4147, 6, { spread: 0.34, hueShift: 0.03 });
-  for (let y = 0; y < H; y++) for (let x = 0; x < 32; x++) pc.set(x, y, nz(pc, x, y, 3, 8, 2, 491) < 0.42 ? R[2] : R[3]);
+  for (let y = 0; y < H; y++) for (let x = 0; x < 32; x++) pc.set(x, y, nz(pc, x, y, 5, 12, 2, 491) < 0.42 ? mixHex(R[2], R[3], 0.5) : R[3]);
   const hy = yAt(1.35);
   for (let y = 0; y < H; y++) { pc.set(0, y, 0x1b1d20); pc.set(1, y, R[4]); pc.set(31, y, R[1]); }
   for (let x = 0; x < 32; x++) { pc.set(x, hy, 0x1b1d20); pc.set(x, hy + 1, R[4]); pc.set(x, hy - 1, R[1]); }
@@ -530,7 +531,7 @@ const ROSE = [
 function wallFloral(pc: PixelCanvas, rng: Rng) {
   const R = makeRamp(0xe1d3b9, 5, { spread: 0.18, hueShift: 0.02 });
   for (let y = 0; y < H; y++) for (let x = 0; x < 32; x++) {
-    let c = nz(pc, x, y, 3, 8, 2, 551) < 0.4 ? R[1] : R[2];
+    let c = nz(pc, x, y, 5, 12, 2, 551) < 0.4 ? mixHex(R[1], R[2], 0.5) : R[2];
     if ((x & 7) === 0) c = mixHex(c, R[1], 0.6);                     // fine printed stripe
     pc.set(x, y, c);
   }
@@ -589,7 +590,7 @@ function cloud(pc: PixelCanvas, cx: number, cy: number, w: number, lit: number, 
 
 function wallKids(pc: PixelCanvas, rng: Rng) {
   const R = makeRamp(0xa9c9e6, 5, { spread: 0.16, hueShift: 0.02 });
-  for (let y = 0; y < H; y++) for (let x = 0; x < 32; x++) pc.set(x, y, nz(pc, x, y, 3, 8, 2, 571) < 0.4 ? R[1] : R[2]);
+  for (let y = 0; y < H; y++) for (let x = 0; x < 32; x++) pc.set(x, y, nz(pc, x, y, 5, 12, 2, 571) < 0.4 ? mixHex(R[1], R[2], 0.5) : R[2]);
   cloud(pc, 9, 18, 11, 0xf7f9fb, 0xe6eef6, 0xc8d8ea);
   cloud(pc, 25, 47, 9, 0xf7f9fb, 0xe6eef6, 0xc8d8ea);
   cloud(pc, 6, 66, 7, 0xf7f9fb, 0xe6eef6, 0xc8d8ea);
@@ -639,7 +640,7 @@ const DAMASK = [
 function wallHotel(pc: PixelCanvas, rng: Rng) {
   const railY = yAt(0.95);
   const R = makeRamp(0xb39d6e, 5, { spread: 0.22, hueShift: 0.02 });
-  for (let y = 0; y < railY; y++) for (let x = 0; x < 32; x++) pc.set(x, y, nz(pc, x, y, 3, 8, 2, 591) < 0.4 ? R[1] : R[2]);
+  for (let y = 0; y < railY; y++) for (let x = 0; x < 32; x++) pc.set(x, y, nz(pc, x, y, 5, 12, 2, 591) < 0.4 ? mixHex(R[1], R[2], 0.5) : R[2]);
   for (let j = -1; j < 4; j++) {
     stamp(pc, 2, j * 22 + 4, DAMASK, { '#': R[0] });
     stamp(pc, 18, j * 22 + 15, DAMASK, { '#': R[0] });
