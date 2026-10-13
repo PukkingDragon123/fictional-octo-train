@@ -1,0 +1,67 @@
+import { Item, itemDef, itemName, itemWeight, freshness, fluidName, BodyPart } from '../items/item';
+import { escapeHtml } from './ui';
+import { PART_NAMES } from '../survival/body';
+
+const pct = (v: number) => Math.round(v * 100);
+
+/** Paper-slip tooltip describing an item in Project Zomboid depth. */
+export function itemTooltip(it: Item, count = 1): string {
+  const d = itemDef(it.key);
+  const rows: string[] = [];
+  const row = (a: string, b: string, cls = '') => rows.push(`<div class="row ${cls}"><span>${a}</span><span>${b}</span></div>`);
+  const bar = (v: number, color = '#3c7a34') => rows.push(`<div class="bar"><i style="width:${pct(Math.max(0, Math.min(1, v)))}%;background:${color}"></i></div>`);
+  row('Weight', (itemWeight(it) * count).toFixed(2) + ' kg');
+  if (d.durability || d.weapon || d.clothing) { row('Condition', pct(it.cond) + '%'); bar(it.cond, it.cond > 0.6 ? '#3c7a34' : it.cond > 0.25 ? '#b08a1a' : '#a3271c'); }
+  if (d.food) {
+    const f = d.food;
+    const fr = freshness(it);
+    if (fr !== 'none') row('Freshness', fr === 'fresh' ? 'Fresh' : fr === 'stale' ? 'Stale' : 'Rotten', fr === 'rotten' ? 'warn' : '');
+    if (f.canned && !it.opened) row('Sealed', 'needs opening');
+    const left = 1 - (it.eaten ?? 0);
+    row('Hunger', '-' + Math.round(f.hunger * left));
+    if (f.thirst) row('Thirst', (f.thirst > 0 ? '-' : '+') + Math.abs(Math.round(f.thirst * left)));
+    row('Calories', Math.round(f.calories * left) + ' kcal');
+    if (f.unhappy) row('Mood', f.unhappy > 0 ? 'unpleasant' : 'comforting', f.unhappy > 0 ? 'warn' : '');
+    if (f.raw && !(it.cooked && it.cooked >= 1)) row('Raw', 'cook first', 'warn');
+    if (it.cooked !== undefined && it.cooked > 0 && it.cooked < 1) { row('Cooking', pct(it.cooked) + '%'); bar(it.cooked, '#b06a1a'); }
+    if (f.lucidity) row('Lucidity', '+' + f.lucidity);
+  }
+  if (d.fluidCap) {
+    const amt = it.fluid?.amount ?? 0;
+    row('Contents', it.fluid && amt > 0.001 ? `${fluidName(it.fluid.type)}` : 'Empty');
+    row('Volume', `${amt.toFixed(2)} / ${d.fluidCap} L`);
+    bar(amt / d.fluidCap, it.fluid?.type === 'tainted' ? '#6b6b2a' : '#2a6a9a');
+  }
+  if (d.uses !== undefined || d.light || d.battery) { const u = it.uses ?? 1; row(d.light || d.battery ? 'Battery' : 'Remaining', pct(u) + '%'); bar(u, '#b08a1a'); }
+  if (d.weapon) {
+    const w = d.weapon;
+    row('Damage', `${w.dmg[0]}–${w.dmg[1]}`);
+    row('Reach', w.range.toFixed(1) + ' m');
+    row('Speed', w.speed.toFixed(1) + '/s');
+    if (w.mag) row('Loaded', `${it.ammo ?? 0}/${w.mag}`);
+    if (w.twoHanded) row('Grip', 'Two-handed');
+    row('Noise', w.noise > 20 ? 'Very loud' : w.noise > 8 ? 'Loud' : 'Quiet');
+  }
+  if (d.clothing) {
+    const c = d.clothing;
+    row('Insulation', pct(c.insulation) + '%');
+    if (c.scratch) row('Scratch prot.', c.scratch + '%');
+    if (c.bite) row('Bite prot.', c.bite + '%');
+    if (c.water) row('Waterproof', pct(c.water) + '%');
+    if ((it.wet ?? 0) > 0.05) row('Wet', pct(it.wet!) + '%', 'warn');
+    rows.push(`<div class="desc">Covers: ${c.covers.map((p) => PART_NAMES[p as BodyPart]).filter(Boolean).slice(0, 4).join(', ')}${c.covers.length > 4 ? '…' : ''}</div>`);
+  }
+  if (d.bag && it.inv) {
+    row('Capacity', `${it.inv.contentWeight().toFixed(1)} / ${d.bag.capacity}`);
+    row('Weight reduction', pct(d.bag.reduction) + '%');
+  }
+  if (d.medical) row('Use', d.medical.type);
+  if (d.literature?.skill) row('Teaches', d.literature.skill + (d.literature.mult ? ` ×${d.literature.mult}` : ''));
+  if (d.literature?.recipes?.length) row('Schematics', String(d.literature.recipes.length));
+  if (d.light) row('Light', `${d.light.range} m beam`);
+  if (d.radio) row('Radio', `${d.radio.channels} ch, ${d.radio.range} m`);
+  const tags = (d.tags || []).filter((t) => !t.startsWith('_')).slice(0, 6);
+  if (tags.length) rows.push(`<div class="desc">${tags.map((t) => '#' + t).join(' ')}</div>`);
+  if (d.desc) rows.push(`<div class="desc">${escapeHtml(d.desc)}</div>`);
+  return `<h4>${escapeHtml(itemName(it))}${count > 1 ? ' ×' + count : ''}</h4>${rows.join('')}`;
+}

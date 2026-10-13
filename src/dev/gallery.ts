@@ -34,7 +34,7 @@ export async function runGallery(kind: string, params: URLSearchParams) {
 
   const z = new Zone('gallery', 48, 48, 1);
   const b = new ZoneBuilder(z, new Rng(1));
-  b.fillFloor(1, 1, 46, 46, params.get('floor') || 'concrete');
+  b.fillFloor(1, 1, 46, 46, params.get('floor') || 'carpet_yellow');
   b.paper(0, 0, 47, 47, 'wall_yellow');
   for (let y = 2; y < 46; y += 3) for (let x = 2; x < 46; x += 3) b.light(x + 0.5, y + 0.5, 'fluoro', { intensity: 0.75, radius: 6 });
   const labels: { text: string; pos: THREE.Vector3 }[] = [];
@@ -94,7 +94,7 @@ export async function runGallery(kind: string, params: URLSearchParams) {
     }
   }
 
-  const tgt = new THREE.Vector3(14, 0, 12);
+  const tgt = new THREE.Vector3(kind === 'items' ? 9 : 12, 0, kind === 'items' ? 7 : 9);
   if (params.get('tx')) tgt.set(Number(params.get('tx')), 0, Number(params.get('tz')));
   const labelEls = labels.map((l) => {
     const el = document.createElement('div');

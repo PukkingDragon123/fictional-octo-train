@@ -15,7 +15,7 @@ export interface Grade {
 }
 
 export const DEFAULT_GRADE: Grade = {
-  lift: [0.0, 0.0, 0.0], gain: [1, 1, 1], gamma: 1, sat: 1, tint: [1, 1, 1], vignette: 0.35, levels: 30, grain: 0.03,
+  lift: [0.0, 0.0, 0.0], gain: [1, 1, 1], gamma: 1, sat: 1, tint: [1, 1, 1], vignette: 0.35, levels: 56, grain: 0.012,
 };
 
 const FS_VERT = /* glsl */`
@@ -337,6 +337,7 @@ export class PixelRenderer {
   /** Player view-space position used by the wall cutout */
   updatePlayerView(worldPos: THREE.Vector3) {
     U.uPlayerPos.value.copy(worldPos);
+    U.uCamFwd.value.set(-Math.sin(this.yaw), -Math.cos(this.yaw)).normalize();
     const v = worldPos.clone().add(new THREE.Vector3(0, 1.0, 0)).applyMatrix4(this.camera.matrixWorldInverse);
     U.uPlayerView.value.copy(v);
   }

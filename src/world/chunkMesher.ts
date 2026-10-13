@@ -38,6 +38,7 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
   const foliage = new ModelBuilder();
   const decals = new ModelBuilder();
   const glass = new ModelBuilder();
+  const alphaWalls = new ModelBuilder();
   const x0 = cx * CHUNK, y0 = cy * CHUNK;
   const x1 = Math.min(zone.W, x0 + CHUNK), y1 = Math.min(zone.H, y0 + CHUNK);
 
@@ -78,7 +79,10 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       const ox = side === 1 ? x - 1 : x, oy = side === 0 ? y - 1 : y;
       const texIn = faceTex(zone, x, y, w, side);
       const texOut = faceTex(zone, ox, oy, w, side);
-      emitWall(zone, side === 0 ? walls : walls, glass, x, y, side, w, texIn, texOut, e, wid !== 0);
+      const target = w.alpha ? alphaWalls : walls;
+      target.swayDefault = side === 0 ? 1 : 2;
+      emitWall(zone, target, glass, x, y, side, w, texIn, texOut, e, wid !== 0);
+      target.swayDefault = 0;
     }
     // ---- static objects anchored on this tile
     const objs = zone.tileObjs.get(i);
@@ -111,6 +115,7 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
   };
   add(floors, MAT.floor, false);
   add(walls, MAT.wall, true);
+  add(alphaWalls, worldMaterial({ alphaTest: 0.5, doubleSide: true, cutout: true }), true);
   add(props, MAT.prop, true);
   add(propsLow, MAT.propLow, true);
   add(foliage, MAT.foliage, false);

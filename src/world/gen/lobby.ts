@@ -1,6 +1,7 @@
 import { Zone, TF } from '../zone';
 import { ZoneBuilder } from './builder';
 import { Rng } from '../../core/rng';
+import { lobbyLandmarks } from './lobbyRooms';
 
 /**
  * Level 0 — "The Lobby". Irregular office-like maze produced by recursive
@@ -89,8 +90,11 @@ export function generateLobby(z: Zone, seed: number) {
     if (!z.floor[z.idx(x, y)]) continue;
     const broken = s.dead ? rng.chance(0.85) : rng.chance(0.06);
     const fl = broken ? 0 : (s.flicker > 0 ? (rng.chance(0.4) ? s.flicker : 0) : rng.chance(0.03) ? 0.15 : 0);
-    b.obj('light_fluoro', x, y, 0, { broken, flicker: fl });
+    const circuit = 1 + Math.floor(x / sectorSize) + Math.floor(y / sectorSize) * 16;
+    b.obj('light_fluoro', x, y, 0, { broken, flicker: fl, circuit });
   }
+  for (let c = 1; c < 16 * 16 + 1; c++) z.power.set(c, true);
+  lobbyLandmarks(z, b, rng);
   z.env = {
     ...z.env,
     ambient: 0x3a3420, ambientI: 0.55, fog: 0x2b2512, fogNear: 13, fogFar: 27, void: 0x070603, temp: 22,

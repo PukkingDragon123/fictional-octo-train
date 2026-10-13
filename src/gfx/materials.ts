@@ -15,14 +15,16 @@ export const U = {
   uPlayerPos: { value: new THREE.Vector3() },
   uPlayerView: { value: new THREE.Vector3() },
   uCutOn: { value: 1 },
-  uCutRadius: { value: 3.6 },
+  uCutRadius: { value: 1.3 },
+  uCamFwd: { value: new THREE.Vector2(-0.707, -0.707) },
+  uCutWide: { value: 5.5 },
   uCutFloor: { value: 0.32 },
   uFogColor: { value: new THREE.Color(0x1a1608) },
   uFogNear: { value: 14 },
   uFogFar: { value: 30 },
   uVoidColor: { value: new THREE.Color(0x050403) },
   uRememberTint: { value: new THREE.Color(0x8890a0) },
-  uRememberAmt: { value: 0.28 },
+  uRememberAmt: { value: 0.42 },
   uCollapse: { value: 0 },
   uSnapRes: { value: new THREE.Vector2(640, 360) },
   uSnapOn: { value: 0 },
@@ -47,6 +49,8 @@ export interface WorldMatOpts {
   /** additive glow sprites, light shafts */
   additive?: boolean;
   unlit?: boolean;
+  /** ignore the zone light grid (overlay objects such as the held scanner) */
+  noGrid?: boolean;
 }
 
 const VERT_DECL = /* glsl */`
@@ -56,6 +60,7 @@ varying vec4 vAtlas;
 varying vec3 vWPos;
 varying vec3 vWNormal;
 varying float vEmis;
+varying float vWallAxis;
 uniform float uTime;
 uniform float uCollapse;
 uniform vec2 uSnapRes;
@@ -94,6 +99,7 @@ if (uSnapOn > 0.5) {
 }
 vAtlas = aAtlas;
 vEmis = aFx.x;
+vWallAxis = aFx.y;
 vec3 nObj = objectNormal;
 #ifdef USE_INSTANCING
   nObj = mat3(instanceMatrix) * nObj;
@@ -107,6 +113,7 @@ varying vec4 vAtlas;
 varying vec3 vWPos;
 varying vec3 vWNormal;
 varying float vEmis;
+varying float vWallAxis;
 uniform float uTime;
 uniform sampler2D uLightTex;
 uniform vec4 uLightInfo;
@@ -115,6 +122,8 @@ uniform vec4 uVisInfo;
 uniform float uVisOn;
 uniform vec3 uPlayerPos;
 uniform vec3 uPlayerView;
+uniform vec2 uCamFwd;
+uniform float uCutWide;
 uniform float uCutOn;
 uniform float uCutRadius;
 uniform float uCutFloor;
@@ -149,21 +158,30 @@ const FRAG_MAP = /* glsl */`
 const FRAG_CUTOUT = /* glsl */`
 #ifdef CUTOUT
 if (uCutOn > 0.5 && vWPos.y > uCutFloor) {
-  // decide front/back per vertical column (project to the floor) so cut edges stay vertical
-  vec3 fp = (viewMatrix * vec4(vWPos.x, uPlayerPos.y, vWPos.z, 1.0)).xyz;
-  vec3 pp = (viewMatrix * vec4(uPlayerPos, 1.0)).xyz;
-  float front = smoothstep(0.15, 0.75, fp.z - pp.z);
-  vec3 vp = -vViewPosition;
-  float d = length(vp.xy - uPlayerView.xy);
-  float edge = smoothstep(uCutRadius, uCutRadius * 0.6, d);
+  float cut = 0.0;
+  vec2 toCam = -sign(uCamFwd);
+  if (vWallAxis > 0.5 && vWallAxis < 2.5) {
+    // Project Zomboid style cutaway: walls on the camera side of the player
+    // (south/east for the default view) are lowered to stubs around them.
+    bool alongX = vWallAxis < 1.5;
+    float ahead = alongX ? (vWPos.z - uPlayerPos.z) * toCam.y : (vWPos.x - uPlayerPos.x) * toCam.x;
+    float lateral = alongX ? abs(vWPos.x - uPlayerPos.x) : abs(vWPos.z - uPlayerPos.z);
+    cut = smoothstep(0.1, 0.45, ahead) * smoothstep(uCutWide + 1.5, uCutWide - 1.0, ahead) * smoothstep(uCutWide + 1.5, uCutWide - 1.5, lateral);
+  } else {
+    // props: vertical slab between camera and player
+    vec2 d = vWPos.xz - uPlayerPos.xz;
+    float fwd = dot(d, uCamFwd);
+    float lat = dot(d, vec2(-uCamFwd.y, uCamFwd.x));
+    cut = smoothstep(-0.1, -0.5, fwd) * smoothstep(-5.2, -3.6, fwd) * smoothstep(uCutRadius, uCutRadius * 0.45, abs(lat));
+  }
   float hfade = smoothstep(uCutFloor, uCutFloor + 0.25, vWPos.y);
-  if (front * edge * hfade > bayer4(gl_FragCoord.xy)) discard;
+  if (cut * hfade > bayer4(gl_FragCoord.xy)) discard;
 }
 #endif
 `;
 
 const FRAG_LIGHTGRID = /* glsl */`
-#if defined( RE_IndirectDiffuse ) && !defined(UNLIT)
+#if defined( RE_IndirectDiffuse ) && !defined(UNLIT) && !defined(NOGRID)
 {
   vec2 lgp = vWPos.xz + vWNormal.xz * 0.28;
   vec3 gt = texture2D(uLightTex, (lgp - uLightInfo.xy) * uLightInfo.zw).rgb;
@@ -193,8 +211,9 @@ if (uVisOn > 0.5) {
   vec2 vis = texture2D(uVisTex, (vgp - uVisInfo.xy) * uVisInfo.zw).rg;
   vec3 col = gl_FragColor.rgb;
   float lum = dot(col, vec3(0.3, 0.59, 0.11));
-  vec3 remembered = mix(vec3(lum), col, 0.3) * uRememberTint * uRememberAmt;
-  vec3 res = mix(uVoidColor, remembered + uVoidColor, vis.g);
+  vec3 remembered = mix(vec3(lum), col, 0.35) * uRememberTint * uRememberAmt;
+  vec3 unexplored = mix(vec3(lum), col, 0.15) * uRememberTint * uRememberAmt * 0.45;
+  vec3 res = mix(unexplored, remembered, vis.g) + uVoidColor;
   // dithered transition keeps the pixel-art feel at vision edges
   float v = vis.r;
   v = clamp(v + (bayer4(gl_FragCoord.xy) - 0.5) * 0.18, 0.0, 1.0);
@@ -254,6 +273,7 @@ export function worldMaterial(o: WorldMatOpts = {}): THREE.Material {
   if (o.noFog) defines.NOFOG = 1;
   if (o.highlight) defines.HIGHLIGHT = 1;
   if (o.unlit) defines.UNLIT = 1;
+  if (o.noGrid) defines.NOGRID = 1;
   inject(mat, defines);
   cache.set(key, mat);
   return mat;

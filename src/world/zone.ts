@@ -121,6 +121,9 @@ export class Zone {
   decals: Decal[] = [];
   dirtyChunks = new Set<number>();
   lightDirty = true;
+  /** tiles whose wall/door/sight-blocking state changed (light footprints near them need recomputing) */
+  lightDirtyTiles: [number, number][] = [];
+  removedLights: LightSource[] = [];
   /** power state per circuit id */
   power = new Map<number, boolean>();
   waterOn = true;
@@ -173,15 +176,21 @@ export class Zone {
   /** Wall def on the north edge of (x,y) */
   wallNAt(x: number, y: number): WallDef | null { if (!this.inb(x, y)) return null; const w = this.wallN[this.idx(x, y)]; return w ? wallDef(w) : null; }
   wallWAt(x: number, y: number): WallDef | null { if (!this.inb(x, y)) return null; const w = this.wallW[this.idx(x, y)]; return w ? wallDef(w) : null; }
-  setWallN(x: number, y: number, id: number) { if (!this.inb(x, y)) return; this.wallN[this.idx(x, y)] = id; this.markDirty(x, y); this.markDirty(x, y - 1); this.lightDirty = true; }
-  setWallW(x: number, y: number, id: number) { if (!this.inb(x, y)) return; this.wallW[this.idx(x, y)] = id; this.markDirty(x, y); this.markDirty(x - 1, y); this.lightDirty = true; }
+  setWallN(x: number, y: number, id: number) { if (!this.inb(x, y)) return; this.wallN[this.idx(x, y)] = id; this.markDirty(x, y); this.markDirty(x, y - 1); this.lightDirtyTiles.push([x, y]); }
+  setWallW(x: number, y: number, id: number) { if (!this.inb(x, y)) return; this.wallW[this.idx(x, y)] = id; this.markDirty(x, y); this.markDirty(x - 1, y); this.lightDirtyTiles.push([x, y]); }
   edge(x: number, y: number, side: EdgeSide): EdgeObj | undefined { return this.inb(x, y) ? this.edges.get(this.edgeKey(x, y, side)) : undefined; }
   setEdge(x: number, y: number, side: EdgeSide, e: EdgeObj | null) {
     const k = this.edgeKey(x, y, side);
     if (e) this.edges.set(k, e); else this.edges.delete(k);
     this.markDirty(x, y);
     if (side === 0) this.markDirty(x, y - 1); else this.markDirty(x - 1, y);
-    this.lightDirty = true;
+    this.lightDirtyTiles.push([x, y]);
+  }
+  /** door opened/closed, curtains etc: light & sight changed but geometry may not */
+  edgeChanged(x: number, y: number, side: EdgeSide) {
+    this.markDirty(x, y);
+    if (side === 0) this.markDirty(x, y - 1); else this.markDirty(x - 1, y);
+    this.lightDirtyTiles.push([x, y]);
   }
 
   /**
@@ -261,7 +270,7 @@ export class Zone {
       this.recomputeTile(x, y);
       this.markDirty(x, y);
     }
-    if (def?.light || def?.blocksSight) this.lightDirty = true;
+    if (def?.blocksSight) this.lightDirtyTiles.push([o.x, o.y]);
   }
 
   removeObject(o: TileObject) {
@@ -276,8 +285,8 @@ export class Zone {
       this.recomputeTile(x, y);
       this.markDirty(x, y);
     }
-    this.lights = this.lights.filter((l) => l.objUid !== o.uid || (this.lightDirty = true, false));
-    if (def?.blocksSight) this.lightDirty = true;
+    this.lights = this.lights.filter((l) => { if (l.objUid === o.uid) { this.removedLights.push(l); return false; } return true; });
+    if (def?.blocksSight) this.lightDirtyTiles.push([o.x, o.y]);
   }
 
   recomputeTile(x: number, y: number) {
@@ -303,7 +312,6 @@ export class Zone {
   }
   setCircuit(c: number, on: boolean) {
     this.power.set(c, on);
-    this.lightDirty = true;
   }
 
   roomAt(x: number, y: number): Room { return this.rooms[this.inb(x, y) ? this.room[this.idx(x, y)] : 0] || this.rooms[0]; }

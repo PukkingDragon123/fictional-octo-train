@@ -37,6 +37,7 @@ export interface WallDef {
   sound?: 'drywall' | 'concrete' | 'wood' | 'metal' | 'glass';
   noWallpaper?: boolean;   // ignore room wallpaper (exterior materials)
   glass?: boolean;
+  alpha?: boolean;         // texture has transparent pixels (chain-link, railings)
 }
 
 export const WALL_H = 2.7;
@@ -113,8 +114,8 @@ defWall({ key: 'siding', name: 'House Siding', tex: 'wall_siding', top: 'wall_to
 defWall({ key: 'tile', name: 'Tiled Wall', tex: 'wall_pool', top: 'wall_top_white', hp: 1500, sound: 'concrete' });
 defWall({ key: 'cubicle', name: 'Cubicle Partition', tex: 'cubicle_fabric', top: 'cubicle_top', height: 1.45, thick: 0.08, hp: 80, sound: 'drywall', low: false, noWallpaper: true });
 defWall({ key: 'fence_wood', name: 'Wooden Fence', tex: 'fence_wood', top: 'wood_light', height: 1.2, thick: 0.08, hp: 120, low: true, sound: 'wood', noWallpaper: true });
-defWall({ key: 'fence_chain', name: 'Chain-link Fence', tex: 'fence_chain', top: 'metal_grey', height: 1.9, thick: 0.05, hp: 200, seeThrough: true, sound: 'metal', noWallpaper: true });
-defWall({ key: 'railing', name: 'Railing', tex: 'railing', top: 'metal_grey', height: 1.0, thick: 0.06, hp: 300, seeThrough: true, low: true, sound: 'metal', noWallpaper: true });
+defWall({ key: 'fence_chain', name: 'Chain-link Fence', tex: 'fence_chain', top: 'metal_grey', height: 1.9, thick: 0.05, hp: 200, seeThrough: true, sound: 'metal', noWallpaper: true, alpha: true });
+defWall({ key: 'railing', name: 'Railing', tex: 'railing', top: 'metal_grey', height: 1.0, thick: 0.06, hp: 300, seeThrough: true, low: true, sound: 'metal', noWallpaper: true, alpha: true });
 defWall({ key: 'glass', name: 'Glass Wall', tex: 'glass_wall', top: 'metal_grey', hp: 60, seeThrough: true, sound: 'glass', noWallpaper: true, glass: true });
 defWall({ key: 'lab', name: 'Lab Panel Wall', tex: 'wall_lab', top: 'wall_top_white', hp: 2500, sound: 'metal' });
 defWall({ key: 'server', name: 'Server Wall', tex: 'wall_server', top: 'wall_top_concrete', hp: 2500, sound: 'metal' });

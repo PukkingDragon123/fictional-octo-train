@@ -167,6 +167,7 @@ function buildEdgeDynamic(z: Zone, x: number, y: number, side: 0 | 1, e: EdgeObj
     const dw = 0.84, dh = 2.08;
     const a0 = (1 - dw) / 2;
     const mb = new ModelBuilder();
+    mb.swayDefault = side === 0 ? 1 : 2;
     const tex = doorTex(e.style);
     // leaf modelled from hinge at origin, extending +x
     const th = 0.05;

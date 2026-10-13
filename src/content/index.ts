@@ -5,7 +5,7 @@ import { registerAllTextures } from '../gfx/textures/index';
 import './furniture_basic';
 
 // ---- content modules (added as they are authored) ----
-const modules = import.meta.glob(['./textures/*.ts', './furniture/*.ts', './items/*.ts', './recipes/*.ts', './lore/*.ts'], { eager: true });
+const modules = import.meta.glob(['./textures/*.ts', './furniture/*.ts', './items/*.ts', './recipes/*.ts', './lore/*.ts', '../creatures/species/*.ts'], { eager: true });
 void modules;
 
 export function registerContent() {

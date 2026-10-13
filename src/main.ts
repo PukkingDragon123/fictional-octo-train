@@ -6,6 +6,8 @@ registerContent();
 const gallery = params.get('gallery');
 if (gallery) {
   import('./dev/gallery').then((m) => m.runGallery(gallery, params));
-} else {
+} else if (params.has('sandbox')) {
   import('./dev/sandbox').then((m) => m.runSandbox(params));
+} else {
+  import('./game/session').then((m) => m.startSolo({ name: 'Survivor', seed: Number(params.get('seed') || 1337) }));
 }

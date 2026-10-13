@@ -3,11 +3,17 @@
 import { registerLobbyTextures } from './lobby';
 
 const registrars: (() => void)[] = [registerLobbyTextures];
+let registered = false;
 
-/** Modules call this at import time to add their registrar */
-export function addTextureModule(fn: () => void) { registrars.push(fn); }
+/** Modules call this at import time to add their registrar (runs immediately if late) */
+export function addTextureModule(fn: () => void) {
+  registrars.push(fn);
+  if (registered) { try { fn(); } catch (e) { console.error('texture module failed', e); } }
+}
 
 export function registerAllTextures() {
+  if (registered) return;
+  registered = true;
   for (const r of registrars) {
     try { r(); } catch (e) { console.error('texture module failed', e); }
   }

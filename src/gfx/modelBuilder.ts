@@ -48,6 +48,8 @@ export class ModelBuilder {
   private tmpN = new THREE.Vector3();
   /** global tint multiplied into every vertex colour */
   tint = 0xffffff;
+  /** default aFx.y when a primitive gives no sway (walls store their axis here: 1 = along x, 2 = along z) */
+  swayDefault = 0;
   private faceShade = true;
 
   get vertexCount() { return this.pos.length / 3; }
@@ -82,7 +84,7 @@ export class ModelBuilder {
       ((c & 255) / 255) * ((t & 255) / 255) * s,
     );
     this.atl.push(r.u0, r.v0, r.du, r.dv);
-    this.fx.push(emis, sway);
+    this.fx.push(emis, sway || this.swayDefault);
   }
 
   /**

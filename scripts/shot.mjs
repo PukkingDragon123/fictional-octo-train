@@ -13,7 +13,9 @@ const browser = await chromium.launch({
   executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'],
 });
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const VW = Number(process.env.VW || 1280), VH = Number(process.env.VH || 720);
+const page = await browser.newPage({ viewport: { width: VW, height: VH } });
+page.setDefaultTimeout(120000);
 const logs = [];
 page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}\n${e.stack}`));
@@ -26,11 +28,11 @@ if (scriptFile) {
     if (s.press) await page.keyboard.press(s.press);
     if (s.click) await page.mouse.click(s.click[0], s.click[1], { button: s.button || 'left' });
     if (s.move) await page.mouse.move(s.move[0], s.move[1]);
-    if (s.eval) logs.push('[eval] ' + JSON.stringify(await page.evaluate(s.eval)));
+    if (s.eval) { try { logs.push('[eval] ' + JSON.stringify(await page.evaluate(s.eval))); } catch (e) { logs.push('[eval-error] ' + e.message); } }
     if (s.wait) await page.waitForTimeout(s.wait);
-    if (s.shot) await page.screenshot({ path: s.shot });
+    if (s.shot) { try { await page.screenshot({ path: s.shot }); } catch (e) { logs.push('[shot-error] ' + e.message); } }
   }
 }
-await page.screenshot({ path: out });
+try { await page.screenshot({ path: out }); } catch (e) { logs.push('[shot-error] ' + e.message); }
 console.log(logs.slice(0, 80).join('\n'));
 await browser.close();

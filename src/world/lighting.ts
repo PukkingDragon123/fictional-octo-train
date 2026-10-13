@@ -23,6 +23,10 @@ export class LightGrid {
   private texDirty = true;
   private lastUpload = 0;
   private flickerT = 0;
+  /** lights whose footprint is currently stamped into buf */
+  private stamped = new Set<LightSource>();
+  private index = new Map<number, LightSource[]>();
+  private indexedCount = -1;
 
   constructor(zone: Zone) {
     this.zone = zone;
@@ -34,6 +38,9 @@ export class LightGrid {
     this.tex.magFilter = THREE.LinearFilter; this.tex.minFilter = THREE.LinearFilter;
     this.tex.generateMipmaps = false;
     this.tex.needsUpdate = true;
+    // lights already stamped by a previous view of this zone are reset
+    for (const l of zone.lights) { l.level = 0; l.fp = null; }
+    zone.lightDirty = false;
   }
 
   /** effective brightness multiplier for a light right now */
@@ -43,24 +50,43 @@ export class LightGrid {
     return 1;
   }
 
+  private rebuildIndex() {
+    this.index.clear();
+    for (const l of this.zone.lights) {
+      const k = (Math.floor(l.z / 16) << 12) | Math.floor(l.x / 16);
+      let a = this.index.get(k); if (!a) { a = []; this.index.set(k, a); } a.push(l);
+    }
+    this.indexedCount = this.zone.lights.length;
+  }
+
+  /** lights whose centre lies inside the given tile rect */
+  lightsIn(x0: number, y0: number, x1: number, y1: number): LightSource[] {
+    if (this.indexedCount !== this.zone.lights.length) this.rebuildIndex();
+    const out: LightSource[] = [];
+    for (let cy = Math.floor(y0 / 16); cy <= Math.floor(y1 / 16); cy++) for (let cx = Math.floor(x0 / 16); cx <= Math.floor(x1 / 16); cx++) {
+      const a = this.index.get((cy << 12) | cx);
+      if (a) for (const l of a) if (l.x >= x0 && l.x <= x1 && l.z >= y0 && l.z <= y1) out.push(l);
+    }
+    return out;
+  }
+
+  /** full reset (all footprints recomputed lazily) */
   rebuild() {
     this.buf.fill(0);
-    for (const l of this.zone.lights) {
-      l.fp = this.footprint(l);
-      l.level = this.effective(l);
-      if (l.level > 0) this.stamp(l, l.level);
-    }
+    for (const l of this.stamped) { l.level = 0; l.fp = null; }
+    this.stamped.clear();
     this.zone.lightDirty = false;
     this.texDirty = true;
   }
 
-  /** Recompute only lights near a tile (door opened, wall broken) */
-  refreshNear(tx: number, ty: number, r = 10) {
-    for (const l of this.zone.lights) {
+  /** Recompute footprints of stamped lights near a tile (door opened, wall broken) */
+  refreshNear(tx: number, ty: number, r = 2) {
+    for (const l of [...this.stamped]) {
       if (Math.abs(l.x - tx) > l.radius + r || Math.abs(l.z - ty) > l.radius + r) continue;
-      if (l.level) this.stamp(l, -l.level);
+      const lvl = l.level || 0;
+      if (lvl) this.stamp(l, -lvl);
       l.fp = this.footprint(l);
-      if (l.level) this.stamp(l, l.level);
+      if (lvl) this.stamp(l, lvl);
     }
     this.texDirty = true;
   }
@@ -84,6 +110,7 @@ export class LightGrid {
     if (!l.fp) l.fp = this.footprint(l);
     this.stamp(l, level - cur);
     l.level = level;
+    if (level > 0) this.stamped.add(l);
     this.texDirty = true;
   }
 
@@ -131,28 +158,42 @@ export class LightGrid {
   }
 
   update(dt: number, camTileX: number, camTileY: number, time: number) {
-    if (this.zone.lightDirty) this.rebuild();
-    // power / switch changes and flicker
-    this.flickerT += dt;
-    const doFlicker = this.flickerT > 1 / 15;
-    if (doFlicker) this.flickerT = 0;
-    for (const l of this.zone.lights) {
-      const base = this.effective(l);
-      let level = base;
-      if (base > 0 && l.flicker > 0 && doFlicker && Math.abs(l.x - camTileX) < LWIN / 2 && Math.abs(l.z - camTileY) < LWIN / 2) {
-        // fluorescent tubes stutter: mostly on, bursts of off/dim
-        const slot = Math.floor(time * 3 + l.id * 13.7);
-        const burst = hashf(slot, l.id, 3) < l.flicker;
-        if (burst) level = hashf(Math.floor(time * 15), l.id, 9) < 0.5 ? 0.05 : 0.55;
-      } else if (base > 0 && l.flicker > 0 && !doFlicker) level = l.level ?? base;
-      if (l.kind === 'fire' && base > 0) level = 0.8 + 0.2 * Math.sin(time * 9 + l.id) * Math.sin(time * 13.3 + l.id * 2);
-      this.setLevel(l, level);
+    const z = this.zone;
+    if (z.lightDirty) this.rebuild();
+    // lights removed from the zone: subtract their contribution
+    if (z.removedLights.length) {
+      for (const l of z.removedLights) { if (l.level) this.stamp(l, -l.level); l.level = 0; this.stamped.delete(l); }
+      z.removedLights.length = 0;
+      this.texDirty = true;
+    }
+    // walls / doors changed: recompute nearby footprints
+    if (z.lightDirtyTiles.length) {
+      for (const [tx, ty] of z.lightDirtyTiles) this.refreshNear(tx, ty);
+      z.lightDirtyTiles.length = 0;
     }
     // recentre window
     const half = LWIN / 2;
     if (Math.abs(camTileX - (this.winX + half)) > LWIN / 4 || Math.abs(camTileY - (this.winY + half)) > LWIN / 4) {
       this.winX = Math.floor(camTileX - half); this.winY = Math.floor(camTileY - half);
       this.texDirty = true;
+    }
+    this.flickerT += dt;
+    const doFlicker = this.flickerT > 1 / 15;
+    if (doFlicker) this.flickerT = 0;
+    // update every light whose footprint can touch the window (lazy footprint computation)
+    const m = 10;
+    for (const l of this.lightsIn(this.winX - m, this.winY - m, this.winX + LWIN + m, this.winY + LWIN + m)) {
+      const base = this.effective(l);
+      let level = base;
+      if (base > 0 && l.flicker > 0) {
+        if (doFlicker) {
+          // fluorescent tubes stutter: mostly on, bursts of off/dim
+          const slot = Math.floor(time * 3 + l.id * 13.7);
+          if (hashf(slot, l.id, 3) < l.flicker) level = hashf(Math.floor(time * 15), l.id, 9) < 0.5 ? 0.05 : 0.55;
+        } else level = l.level ?? base;
+      }
+      if (l.kind === 'fire' && base > 0) level = 0.8 + 0.2 * Math.sin(time * 9 + l.id) * Math.sin(time * 13.3 + l.id * 2);
+      this.setLevel(l, level);
     }
     const now = performance.now();
     if (this.texDirty && now - this.lastUpload > 50) this.upload();
