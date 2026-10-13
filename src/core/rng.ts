@@ -109,7 +109,37 @@ export function tileFbm(x: number, y: number, w: number, h: number, cells: numbe
   return sum / norm;
 }
 
-let uidCounter = 1;
-export function uid(): number { return uidCounter++; }
-export function setUidBase(n: number) { if (n > uidCounter) uidCounter = n; }
-export function peekUid() { return uidCounter; }
+// ---------------------------------------------------------------- unique ids
+// Zone generation draws ids from a deterministic per-zone range, so every
+// co-op peer and every reload builds identical ids no matter which order
+// zones were generated in. Runtime ids are partitioned by peer slot so two
+// players can never mint the same id.
+const RUNTIME_BASE = 2 ** 40;
+const SLOTS = 64;
+let slot = 0;
+let counter = 0;
+const genStack: { next: number }[] = [];
+
+export function uid(): number {
+  const g = genStack[genStack.length - 1];
+  if (g) return g.next++;
+  return RUNTIME_BASE + (counter++) * SLOTS + slot;
+}
+/** this peer's slot (0 = host/solo, 1.. = clients) */
+export function setUidSlot(s: number) { slot = ((s % SLOTS) + SLOTS) % SLOTS; }
+/** called with (seen uid + 1) when items/objects arrive: keep this peer's counter ahead of its own ids */
+export function setUidBase(n: number) {
+  const u = n - 1;
+  if (u < RUNTIME_BASE) return;
+  const k = u - RUNTIME_BASE;
+  if (k % SLOTS !== slot) return;
+  counter = Math.max(counter, Math.floor(k / SLOTS) + 1);
+}
+/** begin a deterministic id range (zone generation, shifting regions); nests */
+export function beginGenUids(base: number) { genStack.push({ next: base }); }
+export function endGenUids() { genStack.pop(); }
+export const ZONE_UID_SPAN = 2 ** 24;
+export const SHIFT_UID_BASE = 2 ** 36;
+export function peekUid() { return counter; }
+/** after loading a save: never mint ids this slot already used */
+export function restoreUidCounter(n: number) { counter = Math.max(counter, n); }

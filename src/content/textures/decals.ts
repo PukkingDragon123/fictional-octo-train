@@ -323,16 +323,18 @@ function hopscotch(pc: PixelCanvas) {
   num('9', 15, y + 3, P);
 }
 
+/** Pool water surface. Alpha is baked in (body translucent, crests and glints opaque) for transparent materials. */
 function water(pc: PixelCanvas, rng: Rng) {
   const R = makeRamp(0x3aa5b2, 6, { spread: 0.34, hueShift: 0.04 });
   for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
     const n = nz(pc, x, y, 4, 8, 2, 41) * 0.75 + nz(pc, x, y, 8, 8, 1, 42) * 0.25;
     let c = n < 0.42 ? R[2] : n < 0.58 ? mixHex(R[2], R[3], 0.6) : R[3];
-    if (Math.abs(n - 0.6) < 0.012) c = R[5];                          // ripple crests catch the light
-    else if (Math.abs(n - 0.4) < 0.01) c = R[1];                      // and their troughs
-    pc.set(x, y, c);
+    let a = n < 0.42 ? 176 : n < 0.58 ? 190 : 205;
+    if (Math.abs(n - 0.6) < 0.012) { c = R[5]; a = 235; }              // ripple crests catch the light
+    else if (Math.abs(n - 0.4) < 0.01) { c = R[1]; a = 215; }          // and their troughs
+    pc.set(x, y, c, a);
   }
-  for (let i = 0; i < 8; i++) { const x = rng.int(0, 31), y = rng.int(0, 31); pc.set(x, y, 0xe6fbfd); pc.set(x + 1, y, mixHex(0xe6fbfd, R[4], 0.5)); }
+  for (let i = 0; i < 8; i++) { const x = rng.int(0, 31), y = rng.int(0, 31); pc.set(x, y, 0xe6fbfd, 255); pc.set(x + 1, y, mixHex(0xe6fbfd, R[4], 0.5), 245); }
 }
 
 addTextureModule(() => {

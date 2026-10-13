@@ -238,7 +238,7 @@ defObj({
   desc: 'A doorframe standing alone, full of white light. It feels like the way out. It feels like a test.',
   tags: [...T, 'portal', 'mission', 'exit'],
   model: (mb) => {
-    const F = 'q_steel_grey';
+    const F = 'metal_brushed';
     for (const x of [-0.5, 0.5]) mb.box(x, 0, 0, 0.1, 2.24, 0.2, F, { skip: ['bottom'] });
     mb.box(0, 2.22, 0, 1.1, 0.12, 0.2, F);
     mb.box(0, 0, 0, 1.0, 0.025, 0.22, 'metal_dark');

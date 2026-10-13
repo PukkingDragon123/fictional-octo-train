@@ -23,10 +23,10 @@ function coverTex(name: string, c: Cover) {
 }
 
 // ---------------------------------------------------------------- magazines
-interface Mag { key: string; name: string; skill: string; recipes: string[]; cover: Cover; desc: string }
+interface Mag { key: string; name: string; skill?: string; recipes: string[]; cover: Cover; desc: string }
 const MAGS: Mag[] = [
-  { key: 'mag_carpentry', name: 'Weekend Woodworker', skill: 'carpentry', recipes: ['make_kit_bed', 'make_rain_collector', 'make_barricade_kit'],
-    desc: 'Teaches: crafted bed, rain collector, barricade panels.',
+  { key: 'mag_carpentry', name: 'Weekend Woodworker', skill: 'carpentry', recipes: ['make_kit_bed', 'make_rain_collector', 'make_kit_table'],
+    desc: 'Teaches: bed frame, rain collector, table.',
     cover: { bg: 0xc8862a, title: 'WOOD', titleC: 0xf6f0e0, bandC: 0x5a3a1a, iconY: 9, icon: ['ggggg..', '.gg.....', '.gg.sss', '.gg.sss', '....sss'], pal: { g: 0x8a8e94, s: 0xe8d8a8 } } },
   { key: 'mag_electrical', name: 'Circuit Monthly', skill: 'electrical', recipes: ['make_noisemaker', 'make_lantern', 'jury_rig_fuse'],
     desc: 'Teaches: noisemaker, lantern, jury-rigged fuse.',
@@ -52,7 +52,7 @@ const MAGS: Mag[] = [
   { key: 'mag_survival', name: 'Off-Grid Living', skill: 'foraging', recipes: ['make_poultice', 'make_slingshot', 'purify_bleach'],
     desc: 'Teaches: herbal poultice, slingshot, purifying water with bleach.',
     cover: { bg: 0x2a5a4a, title: 'WILD', titleC: 0xf6f0e0, bandC: 0x1a3a30, iconY: 9, icon: ['..o..', '.ooo.', 'oyoyo', 'bbbbb'], pal: { o: 0xe86a1a, y: 0xf6d040, b: 0x7a5a3a } } },
-  { key: 'mag_debug', name: 'PATCH NOTES (zine)', skill: 'debugging', recipes: ['make_checksum_pills', 'make_sim_patch', 'charge_battery_static', 'make_glow_jar', 'make_lucid_tea'],
+  { key: 'mag_debug', name: 'PATCH NOTES (zine)', recipes: ['make_checksum_pills', 'make_sim_patch', 'charge_battery_static', 'make_glow_jar', 'make_lucid_tea'],
     desc: 'Photocopied zine passed between survivors. Teaches: checksum pills, sim patch, static charging, glow jars, dreamlily tea.',
     cover: { bg: 0x0c0c14, title: 'SYS', titleC: 0x6af06a, iconY: 9, icon: ['.ccc.', 'cmwmc', 'cwkwc', 'cmwmc', '.ccc.'], pal: { c: 0x6af0ff, m: 0xff6ad8, w: 0xf2f2f2, k: 0x0c0c14 } } },
 ];
@@ -60,7 +60,7 @@ for (const m of MAGS) {
   const cover = coverTex('i_cover_' + m.key, m.cover);
   defItem({
     key: m.key, name: m.name, cat: 'literature', weight: 0.2, tags: ['magazine', 'paper', 'tinder'], burn: 0.1, desc: m.desc,
-    literature: { skill: m.skill, mult: 1.5, minLevel: 0, recipes: m.recipes, pages: 30, boredom: -10 },
+    literature: m.skill ? { skill: m.skill, mult: 1.5, minLevel: 0, recipes: m.recipes, pages: 30, boredom: -10 } : { recipes: m.recipes, pages: 30, boredom: -10 },
     model: (mb) => slab(mb, 0.21, 0.006, 0.28, cover, T.pages, 0xf2ecdc, { rot: 0.12 }),
   });
 }

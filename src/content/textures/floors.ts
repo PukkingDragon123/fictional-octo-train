@@ -341,8 +341,8 @@ function concreteWet(pc: PixelCanvas, rng: Rng) {
   const R = concreteBase(pc, rng, 0x6f6e6a, 63, 0.26);
   // damp darkening everywhere
   for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) if (nz(pc, x, y, 3, 3, 2, 64) > 0.52) pc.blend(x, y, R[0], 0.3);
-  const P = makeRamp(0x5a656d, 5, { spread: 0.4, hueShift: 0.02 });
-  const puddles: [number, number, number, number, number][] = [[11, 11, 8, 6, 2], [24, 23, 5.5, 4.5, 5], [6, 25, 3, 2.5, 8]];
+  const P = makeRamp(mixHex(R[1], 0x56626c, 0.55), 5, { spread: 0.36, hueShift: 0.02 });
+  const puddles: [number, number, number, number, number][] = [[10, 9, 6, 4, 2], [25, 24, 3.5, 2.5, 5]];
   for (const [cx, cy, rx, ry, s] of puddles) {
     for (let y = Math.floor(cy - ry - 2); y <= cy + ry + 2; y++) for (let x = Math.floor(cx - rx - 2); x <= cx + rx + 2; x++) {
       const m = blob(x, y, cx, cy, rx, ry, s, 0.25);
@@ -374,9 +374,9 @@ function concreteGarage(pc: PixelCanvas, rng: Rng) {
       }
     }
   }
-  oilStain(pc, 18, 14, 6, 4.5, 11, 0x2e2a26);
-  oilStain(pc, 26, 26, 2, 1.5, 12, 0x2e2a26);
-  for (const [x, y] of [[11, 8], [13, 10], [21, 6], [9, 22]]) pc.blend(x, y, 0x2e2a26, 0.55);
+  // one faint drip stain per bay-sized tile reads as a pattern, so keep it small and soft
+  oilStain(pc, 8, 9, 3.5, 2.5, 11, 0x4a4640);
+  for (const [x, y] of [[11, 8], [13, 10], [24, 24], [9, 22]]) pc.blend(x, y, 0x3a3631, 0.45);
   flecks(pc, rng, [R[1]], 4, 0);
 }
 

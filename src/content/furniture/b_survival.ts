@@ -182,7 +182,7 @@ addTextureModule(() => {
 function stoneRing(mb: ModelBuilder, n = 9, r = 0.36, seed = 1600) {
   for (let k = 0; k < n; k++) {
     const a = (k / n) * Math.PI * 2 + hashf(k, 1, seed) * 0.3;
-    rockBlob(mb, Math.cos(a) * r, 0, Math.sin(a) * r, 0.085 + hashf(k, 2, seed) * 0.03, 0.1 + hashf(k, 3, seed) * 0.05, 0.075, seed + k, k % 3 ? 'q_rock' : 'q_rock_dark', 6, 3);
+    rockBlob(mb, Math.cos(a) * r, 0, Math.sin(a) * r, 0.085 + hashf(k, 2, seed) * 0.03, 0.1 + hashf(k, 3, seed) * 0.05, 0.075, seed + k, 'q_rock_dark', 6, 3, { color: k % 3 ? 0xd8d4cc : 0xffffff });
   }
 }
 function teepee(mb: ModelBuilder, n: number, h: number, tex: string, tipTex?: string) {
@@ -350,7 +350,7 @@ defObj({
 });
 
 defObj({
-  key: 'table_built', name: 'Plank Table', w: 1, d: 1, height: 0.8, block: 'table', surface: 0.8,
+  key: 'table_built', name: 'Plank Table', w: 1, d: 1, height: 0.8, block: 'table', surface: 0.78,
   sound: 'wood', flammable: 0.8,
   disassemble: { tools: ['#hammer'], time: 20, skill: 'carpentry', yields: [['plank', 3, 5], ['nails', 3, 8]] },
   desc: 'A sturdy enough table of rough planks. It wobbles exactly once, then stops.',
@@ -583,7 +583,7 @@ defObj({
     // candles (on the shrine and on the floor in front)
     const candle = (x: number, y: number, z: number, h: number, r = 0.025) => {
       mb.cylinder(x, y, z, r, h, 6, 'q_candle');
-      mb.cylinder(x, y + h, z, 0.012, 0.045, 4, 'q_flame', { rTop: 0, fit: true, emissive: 1.8, caps: false });
+      mb.cylinder(x, y + h, z, 0.018, 0.065, 5, 'q_flame', { rTop: 0, fit: true, emissive: 1.8, caps: false });
     };
     candle(-0.28, 0.312, zc + 0.12, 0.12); candle(-0.12, 0.312, zc + 0.14, 0.07); candle(0.17, 0.312, zc + 0.13, 0.16, 0.03);
     candle(-0.2, 0, 0.18, 0.1); candle(0.05, 0, 0.25, 0.06, 0.03); candle(0.24, 0, 0.12, 0.14); candle(-0.05, 0, 0.1, 0.18, 0.035);

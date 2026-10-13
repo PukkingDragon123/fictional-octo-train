@@ -48,16 +48,15 @@ addTextureModule(() => {
 
   // --- poles, lamps
   A.add('q_pole_galv', 16, 32, (pc, rng) => {
-    const r = makeRamp(0x9aa0a2, 6, { spread: 0.35 });
+    const r = makeRamp(0x7c8386, 6, { spread: 0.38 });
     pc.fillRamp(r, (x, y) => 0.5 + Math.floor(tileFbm(x, y, 16, 32, 4, 1, 601) * 4) / 4 * 0.3 - 0.15 + (ph(x, y, 602) - 0.5) * 0.08, 0.6);
     pc.drips(rng, 0x6a6e6a, 3, 0, 26, 0.3);
     rust(pc, 603, 0.12, 2);
   });
   A.add('q_iron_green', 16, 16, (pc, rng) => {
     const r = makeRamp(0x2f4a3a, 5, { spread: 0.4 });
-    fillNoise(pc, r, 0.55, 0.1, 2, 611, 0.05);
-    chips(pc, rng, 4, 0x6a6a64, r[0]);
-    for (let k = 0; k < 4; k++) pc.set(rng.int(0, 15), rng.int(0, 15), r[4]);
+    fillNoise(pc, r, 0.5, 0.1, 2, 611, 0.03);
+    chips(pc, rng, 2, 0x4a5048, r[1]);
   });
   A.add('q_lamp_head', 16, 16, (pc) => {
     const r = makeRamp(0x55595c, 5, { spread: 0.4 });
@@ -74,9 +73,10 @@ addTextureModule(() => {
   });
   A.add('q_lantern_pane', 8, 12, (pc) => {
     pc.wrap = false;
-    pc.fill(0xf0b050);
-    glow(pc, 4, 6, 4, 6, 0xffd890, 1.4);
-    glow(pc, 4, 7, 2, 3, 0xfff4d0, 1.5);
+    pc.fill(0xc87020);
+    glow(pc, 4, 6, 4, 6, 0xf0a040, 1.4);
+    glow(pc, 4, 7, 2.2, 3.2, 0xffd070, 1.5);
+    pc.set(4, 7, 0xfff0c0);
     pc.strokeRect(0, 0, 8, 12, 0x1e2a22); pc.vline(4, 0, 11, 0x2a3a2e);
   });
   A.add('q_flyer', 10, 14, (pc) => {
@@ -314,27 +314,31 @@ addTextureModule(() => {
   // --- billboard
   A.add('q_billboard_ad', 128, 64, (pc) => {
     pc.wrap = false;
-    gradV(pc, 0, 0, 128, 46, 0x8cc4ee, 0xf6c6d6, 8);
+    gradV(pc, 0, 0, 128, 46, 0x4f8fd6, 0xf2a8c4, 8);
     const cloud = (cx: number, cy: number, s: number) => {
       pc.ellipse(cx, cy, 7 * s, 3 * s, 0xf4f4fa); pc.ellipse(cx - 4 * s, cy - 2 * s, 4 * s, 3 * s, 0xffffff);
       pc.ellipse(cx + 3 * s, cy - 3 * s, 5 * s, 3.5 * s, 0xffffff); pc.ellipse(cx, cy + 1.5 * s, 7 * s, 1.5 * s, 0xdcd8ea);
     };
-    cloud(100, 9, 1.3); cloud(22, 36, 0.9); cloud(70, 32, 0.7);
+    cloud(104, 7, 1.2); cloud(22, 38, 0.9); cloud(72, 37, 0.7);
     for (let y = 46; y < 64; y++) for (let x = 0; x < 128; x++) {
       const band = Math.floor((y - 46) / 3) % 2;
-      pc.set(x, y, (band ? 0x7cba68 : 0x88c472) - (ph(x, y, 761) < 0.15 ? 0x081008 : 0));
+      pc.set(x, y, (band ? 0x4f9a48 : 0x5aa852) - (ph(x, y, 761) < 0.15 ? 0x081008 : 0));
     }
     // the door in the field
     pc.rect(101, 49, 8, 2, 0x6a9a5a);
     pc.rect(98, 28, 12, 22, 0xf2f0ea); pc.rect(100, 30, 8, 20, 0xdedad0); pc.vline(107, 30, 49, 0x0a0a0c); pc.vline(106, 31, 49, 0x2a2a30);
     pc.set(101, 40, 0xb08a3a);
-    text(pc, 'HAVE YOU TRIED', 6, 5, 0xffffff, 2, 0x6a8ab8);
-    text(pc, 'WAKING UP?', 6, 19, 0xffffff, 2, 0x6a8ab8);
+    text(pc, 'HAVE YOU TRIED', 6, 9, 0xffffff, 2, 0x22407a);
+    text(pc, 'WAKING UP?', 6, 23, 0xfff4a0, 2, 0x22407a);
     scribble(pc, 6, 58, 30, 0x4a7a3a, 5);
     pc.strokeRect(0, 0, 128, 64, 0xf0f0ea); pc.strokeRect(1, 1, 126, 62, 0xc8ccd0);
     // weathering: peeling corner + streaks
     for (let k = 0; k < 9; k++) pc.set(120 + (k % 3), 54 + Math.floor(k / 3) * 2, 0x8a8a84);
     for (let x = 0; x < 128; x += 11) for (let y = 0; y < 30; y++) if (ph(x, y, 7) < 0.4) pc.blend(x, y + 30, 0x5a6a6a, 0.12);
+  });
+  A.add('q_catwalk', 16, 16, (pc) => {
+    const r = makeRamp(0x4a4e52, 5, { spread: 0.4 });
+    pc.each((x, y) => pc.set(x, y, (x % 4 === 0 || y % 4 === 0) ? r[3] : (x % 4 === 1 || y % 4 === 1) ? r[1] : 0x141618));
   });
   A.add('q_billboard_back', 32, 32, (pc, rng) => {
     const r = makeRamp(0x6a6a66, 5, { spread: 0.4 });
@@ -526,7 +530,7 @@ defObj({
     for (const s of [-1, 1]) rod(mb, 0, 2.6, 0, s * 0.2, 2.72, 0, 0.012, 4, G);
     // lantern
     mb.cylinder(0, 2.84, 0, 0.09, 0.08, 4, G, { rTop: 0.17 });
-    mb.box(0, 2.92, 0, 0.26, 0.36, 0.26, { sides: 'q_lantern_pane', top: G }, { fit: true, emissive: 1.3 });
+    mb.box(0, 2.92, 0, 0.26, 0.36, 0.26, { sides: 'q_lantern_pane', top: G }, { fit: true, emissive: 1.0 });
     for (const x of [-0.13, 0.13]) for (const z of [-0.13, 0.13]) mb.box(x, 2.92, z, 0.025, 0.36, 0.025, G);
     mb.push(); mb.translate(0, 3.28, 0); mb.rotateY(Math.PI / 4);
     mb.cylinder(0, 0, 0, 0.23, 0.14, 4, G, { rTop: 0.03 });
@@ -828,8 +832,8 @@ defObj({
       mb.box(s * 0.44, 0.5, 0, 0.02, 1.5, 0.84, 'q_shelter_glass');
       mb.box(s * 0.44, 1.2, 0, 0.035, 0.04, 0.84, F);
     }
-    // folded-open door at the front-left
-    mb.push(); mb.translate(-0.41, 0.08, 0.44); mb.rotateY(-1.25);
+    // bi-fold door folded open against the front-left post
+    mb.push(); mb.translate(-0.44, 0.08, 0.44); mb.rotateY(-1.45);
     mb.box(0.2, 0, 0, 0.4, 1.95, 0.03, { sides: 'q_shelter_glass', top: F });
     mb.box(0.2, 0, 0, 0.42, 0.4, 0.04, F);
     mb.pop();
@@ -837,14 +841,14 @@ defObj({
     mb.box(0, 2.08, 0, 1.0, 0.22, 1.0, { sides: 'q_phone_sign', top: F }, { fit: { south: true, north: true, east: true, west: true }, emissive: 0.9 });
     mb.box(0, 2.3, 0, 1.04, 0.06, 1.04, { sides: F, top: 'q_steel_dark' });
     mb.box(0, 2.04, 0, 0.5, 0.04, 0.12, 'q_tube_light', { emissive: 1.3 });
-    // payphone, handset dangling, phone book shelf
-    mb.box(0, 1.0, -0.39, 0.26, 0.42, 0.1, { south: 'q_payphone', sides: 'metal_brushed', top: 'metal_brushed' }, { fit: { south: true } });
-    mb.push(); mb.translate(-0.17, 0.75, -0.33); mb.rotateZ(0.15);
+    // payphone on the west inner wall (seen through the open front), handset off the hook
+    mb.box(-0.37, 1.0, -0.05, 0.1, 0.42, 0.26, { east: 'q_payphone', sides: 'metal_brushed', top: 'metal_brushed' }, { fit: { east: true } });
+    mb.push(); mb.translate(-0.3, 0.72, 0.12); mb.rotateX(0.2);
     mb.box(0, 0, 0, 0.05, 0.2, 0.05, 'plastic_black');
     mb.pop();
-    rod(mb, -0.13, 1.05, -0.36, -0.17, 0.85, -0.33, 0.006, 4, 'metal_grey');
-    mb.box(0, 0.62, -0.32, 0.4, 0.03, 0.22, 'metal_brushed');
-    mb.box(0.05, 0.65, -0.33, 0.24, 0.05, 0.17, 'paper', { color: 0xf0e070 });
+    rod(mb, -0.33, 1.05, 0.08, -0.3, 0.84, 0.13, 0.006, 4, 'metal_grey');
+    mb.box(-0.3, 0.62, -0.05, 0.22, 0.03, 0.4, 'metal_brushed');
+    mb.box(-0.3, 0.65, -0.1, 0.17, 0.05, 0.24, 'paper', { color: 0xf0e070 });
   },
 });
 
@@ -1132,13 +1136,15 @@ defObj({
   tags: [...T, 'street', 'decor', 'dream'],
   model: (mb) => {
     const S = 'q_steel_dark';
+    // I-beam posts stand behind the panel (panel back face is at z = -0.1)
     for (const x of [-1.2, 1.2]) {
-      mb.box(x, 0, -0.05, 0.08, 4.55, 0.2, S, { skip: ['bottom'] });
-      mb.box(x, 0, -0.05, 0.2, 4.55, 0.03, S, { skip: ['bottom'] });
-      mb.box(x, 0, -0.05, 0.36, 0.08, 0.36, 'concrete');
+      mb.box(x, 0, -0.24, 0.08, 4.5, 0.2, S, { skip: ['bottom'] });
+      mb.box(x, 0, -0.24, 0.2, 4.5, 0.03, S, { skip: ['bottom'] });
+      mb.box(x, 0, -0.24, 0.36, 0.08, 0.36, 'concrete');
     }
+    for (const x of [-1.2, 1.2]) mb.box(x, 2.38, 0.0, 0.06, 0.06, 0.48, S);
     // catwalk
-    mb.box(0, 2.4, 0.22, 3.9, 0.04, 0.4, 'q_floor_grate');
+    mb.box(0, 2.4, 0.22, 3.9, 0.04, 0.4, 'q_catwalk');
     for (const x of [-1.9, -0.95, 0, 0.95, 1.9]) rod(mb, x, 2.44, 0.4, x, 2.95, 0.4, 0.012, 4, S);
     rod(mb, -1.95, 2.95, 0.4, 1.95, 2.95, 0.4, 0.014, 4, S);
     // panel
@@ -1147,8 +1153,8 @@ defObj({
     mb.box(0, 2.46, -0.05, 4.06, 0.05, 0.14, S);
     // gooseneck lamps
     for (const x of [-1.3, 0, 1.3]) {
-      rod(mb, x, 4.55, -0.02, x, 4.75, 0.3, 0.018, 4, S);
-      mb.push(); mb.translate(x, 4.7, 0.4); mb.rotateX(0.7);
+      rod(mb, x, 4.5, -0.02, x, 4.68, 0.34, 0.018, 4, S);
+      mb.push(); mb.translate(x, 4.66, 0.42); mb.rotateX(0.7);
       mb.box(0, 0, 0, 0.26, 0.08, 0.16, { sides: 'q_lamp_head', top: 'q_lamp_head', bottom: 'q_sodium_lens' }, { fit: { bottom: true }, emissive: 0 });
       mb.box(0, -0.012, 0, 0.22, 0.012, 0.13, 'q_sodium_lens', { fit: true, emissive: 1.5, color: 0xfff6e8 });
       mb.pop();

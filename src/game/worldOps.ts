@@ -1,5 +1,5 @@
 import { G } from './G';
-import { defOp, op } from './ops';
+import { defOp, op, isReplaying } from './ops';
 import { Zone, TileObject, EdgeObj, Decal } from '../world/zone';
 import { Container } from '../items/container';
 import { Item } from '../items/item';
@@ -79,6 +79,7 @@ defOp('take', (a: { z: string; ref: string; uid: number; to: string; dest?: numb
   c.remove(it);
   bus.emit('containerChanged', c);
   const p = playerById(a.to);
+  if (isReplaying()) return;
   if (p && p.isLocal) { playerContainer(p, a.dest).add(it); bus.emit('inventoryChanged', p); }
   else if (ctx.host && G.role === 'host') G.net?.sendTo(a.to, 'give', { item: serializeItem(it), dest: a.dest });
 });
@@ -116,6 +117,7 @@ defOp('takeFloor', (a: { z: string; uid: number; to: string; dest?: number }, ct
   removeFloorItem(z, wi.item);
   bus.emit('floorChanged', z);
   const p = playerById(a.to);
+  if (isReplaying()) return;
   if (p && p.isLocal) { playerContainer(p, a.dest).add(wi.item); bus.emit('inventoryChanged', p); }
   else if (ctx.host && G.role === 'host') G.net?.sendTo(a.to, 'give', { item: serializeItem(wi.item), dest: a.dest });
 });

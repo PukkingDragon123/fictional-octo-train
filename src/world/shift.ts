@@ -5,7 +5,7 @@
 import type { Zone } from './zone';
 import { TF } from './zone';
 import { ZoneBuilder } from './gen/builder';
-import { Rng, hash3, hashStr } from '../core/rng';
+import { Rng, hash3, hashStr, beginGenUids, endGenUids, SHIFT_UID_BASE } from '../core/rng';
 import { defOp, op } from '../game/ops';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -47,9 +47,12 @@ function applyVariant(z: Zone, r: ShiftRegion, v: number, initial = false) {
   const rng = new Rng(hash3(z.seed, hashStr(r.id), v + 1));
   const b = new ZoneBuilder(z, rng);
   for (const o of [...z.objects.values()]) if (o.x >= r.x0 && o.x <= r.x1 && o.y >= r.y0 && o.y <= r.y1) z.removeObject(o);
+  // ceiling lights of the region go too (object lights left with their objects)
+  z.lights = z.lights.filter((l) => { const inside = l.x >= r.x0 && l.x < r.x1 + 1 && l.z >= r.y0 && l.z < r.y1 + 1; if (inside) z.removedLights.push(l); return !inside; });
   if (r.keepBorder) b.clearWallsIn(r.x0, r.y0, r.x1, r.y1);
   else for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) { b.clearN(x, y); b.clearW(x, y); }
-  r.stamp(b, rng, v, r);
+  beginGenUids(SHIFT_UID_BASE + (hash3(z.seed, hashStr(r.id), v + 7) & 0xffffff) * 4096);
+  try { r.stamp(b, rng, v, r); } finally { endGenUids(); }
   r.current = v;
   (z.meta.shiftState ||= {})[r.id] = v;
   if (initial) return;

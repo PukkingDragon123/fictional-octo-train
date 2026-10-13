@@ -52,7 +52,7 @@ defItem({
 });
 
 // ---------------------------------------------------------------- harvest of the anomalous crop
-const S_PETAL = tex('i_petal', 6, 6, (pc) => { pc.fill(0xe8c8f8); pc.vline(2, 0, 5, 0xf8e8ff); pc.set(3, 5, 0xc8a0e8); pc.set(4, 4, 0xd8b0f0); });
+const S_PETAL = tex('i_petal', 6, 6, (pc) => { pc.fill(0xc898f0); pc.vline(2, 0, 5, 0xecd8ff); pc.set(3, 5, 0x9a68d8); pc.set(4, 4, 0xb080e8); });
 defItem({
   key: 'dreamlily_bloom', name: 'Dreamlily Bloom', cat: 'food', weight: 0.05, tags: ['anomalous', 'herb', 'flower'],
   food: { hunger: 1, thirst: 1, calories: 10, lucidity: 15, unhappy: -4, fresh: 2, rot: 4, ingredient: 'weird' },
@@ -61,7 +61,7 @@ defItem({
     rodX(mb, -0.09, 0.0, 0.004, 0.003, 0.003, 4, T.white, { color: 0x6ad8a8 });
     for (let i = 0; i < 5; i++) {
       const a = (i / 5) * Math.PI * 2;
-      mb.push().translate(0.01, 0.012, 0).rotateY(a).rotateZ(0.5); mb.box(0.018, 0, 0, 0.036, 0.003, 0.02, S_PETAL, { fit: true, emissive: 0.5 }); mb.pop();
+      mb.push().translate(0.01, 0.012, 0).rotateY(a).rotateZ(0.5); mb.box(0.018, 0, 0, 0.036, 0.003, 0.02, S_PETAL, { fit: true, emissive: 0.3 }); mb.pop();
     }
     mb.sphere(0.01, 0.016, 0, 0.007, 5, 4, T.white, { color: 0xfff6c0, emissive: 1.2 });
     mb.push().translate(-0.05, 0.004, 0).rotateY(0.6); mb.box(0, 0, 0.012, 0.04, 0.003, 0.016, T.white, { color: 0x6ad8a8 }); mb.pop();
@@ -123,3 +123,52 @@ defItem({
 });
 
 void K; void rp; void dk; void lt; void txt; void stamp; void band; void prism;
+
+// ---------------------------------------------------------------- trap catches (spawned by the trap system) & small game
+const furTex = (name: string, base: number, belly: number) => tex(name, 12, 8, (pc) => {
+  pc.each((x, y) => pc.set(x, y, y > 5 ? belly : ph(x, y, 3) < 0.25 ? lt(base, 0.15) : ph(x, y, 4) < 0.2 ? dk(base, 0.85) : base));
+}, true);
+const F_RAT = furTex('i_fur_rat', 0x6a625a, 0x9a928a);
+const F_RABBIT = furTex('i_fur_rabbit', 0x8a6a4a, 0xd8cbb8);
+const F_SQUIRREL = furTex('i_fur_squirrel', 0xa8582a, 0xe8d8c0);
+const F_BIRD = tex('i_feathers', 12, 8, (pc) => pc.each((x, y) => pc.set(x, y, (x + y * 2) % 5 === 0 ? 0x4a3a2a : y > 5 ? 0xc8b898 : (x % 3 === 0 ? 0x7a6a52 : 0x8a7a62))), true);
+/** small animal lying on its side: body along X, head at +X */
+function critter(mb: MB, o: { fur: string; len: number; r: number; head: number; tail?: [number, number, number]; ears?: number; legs?: number; beak?: boolean }) {
+  mb.push().scale(o.len / (o.r * 2), 1, 1); mb.sphere(0, o.r * 0.85, 0, o.r, 7, 5, o.fur, { fit: true, sy: 0.85 }); mb.pop();
+  mb.sphere(o.len * 0.5, o.r * 0.7, 0, o.head, 6, 5, o.fur, { fit: true });
+  if (o.beak) mb.box(o.len * 0.5 + o.head * 1.1, o.r * 0.68, 0, o.head * 0.8, o.head * 0.35, o.head * 0.4, T.white, { color: 0xd8a83a });
+  else mb.box(o.len * 0.5 + o.head * 0.9, o.r * 0.6, 0, o.head * 0.4, o.head * 0.35, o.head * 0.4, T.white, { color: 0xc89a8a });
+  mb.box(o.len * 0.5 + o.head * 0.2, o.r * 0.7 + o.head * 0.4, o.head * 0.62, o.head * 0.25, o.head * 0.25, 0.004, T.black);
+  if (o.ears) for (const s of [-1, 1]) { mb.push().translate(o.len * 0.42, o.r * 0.9 + o.head * 0.5, s * o.head * 0.4).rotateZ(-1.0); mb.box(o.ears / 2, 0, 0, o.ears, o.head * 0.25, o.head * 0.45, o.fur, { fit: true }); mb.pop(); }
+  if (o.tail) { const [len, w, curl] = o.tail; mb.push().translate(-o.len * 0.5, o.r * 0.6, 0).rotateZ(curl); mb.box(-len / 2, 0, 0, len, w, w, o.fur, { fit: true }); mb.pop(); }
+  if (o.legs) for (const x of [-o.len * 0.25, o.len * 0.25]) mb.box(x, o.r * 0.25, o.r * 0.7, o.legs * 0.3, o.legs * 0.25, o.legs, o.fur, { fit: true });
+}
+defItem({
+  key: 'rat_dead', name: 'Dead Rat', cat: 'corpse', weight: 0.3, tags: ['small_game', 'butcherable'],
+  desc: 'Caught in a trap. Butcher it with a knife for a little meat.',
+  model: (mb) => critter(mb, { fur: F_RAT, len: 0.17, r: 0.032, head: 0.026, tail: [0.16, 0.008, 0.15], legs: 0.03 }),
+});
+defItem({
+  key: 'rabbit_dead', name: 'Dead Rabbit', cat: 'corpse', weight: 1.5, tags: ['small_game', 'butcherable'],
+  desc: 'A grey-brown rabbit with fur too soft for this place. Butcher it with a knife.',
+  model: (mb) => critter(mb, { fur: F_RABBIT, len: 0.3, r: 0.07, head: 0.05, tail: [0.03, 0.035, 0.6], ears: 0.08, legs: 0.08 }),
+});
+defItem({
+  key: 'squirrel_dead', name: 'Dead Squirrel', cat: 'corpse', weight: 0.5, tags: ['small_game', 'butcherable'],
+  desc: 'Butcher it with a knife for a little meat.',
+  model: (mb) => critter(mb, { fur: F_SQUIRREL, len: 0.2, r: 0.04, head: 0.032, tail: [0.18, 0.05, -0.5], ears: 0.02, legs: 0.04 }),
+});
+defItem({
+  key: 'bird_dead', name: 'Dead Bird', cat: 'corpse', weight: 0.3, tags: ['small_game', 'butcherable'],
+  desc: 'A drab little bird. Pluck and butcher it with a knife.',
+  model: (mb) => critter(mb, { fur: F_BIRD, len: 0.15, r: 0.04, head: 0.026, tail: [0.07, 0.012, 0.1], beak: true }),
+});
+defItem({
+  key: 'small_meat_raw', name: 'Small Game Meat', cat: 'food', weight: 0.2, tags: ['rawmeat', 'stewmeat'],
+  food: { hunger: 8, calories: 280, raw: true, cookable: true, cookMins: 12, poison: 0.4, fresh: 1, rot: 3, ingredient: 'meat', cookedName: 'Roast Small Game' },
+  model: (mb) => {
+    mb.box(0, 0, 0, 0.1, 0.004, 0.08, T.card, { color: 0xd8c8a8 });
+    mb.push().rotateY(0.3); mb.box(0, 0.004, 0, 0.08, 0.025, 0.045, 'i_meat_raw', { uvScale: 4 }); mb.pop();
+    mb.push().translate(0.02, 0.004, 0.02).rotateY(-0.4); mb.box(0, 0, 0, 0.04, 0.02, 0.025, 'i_meat_raw', { uvScale: 4 }); mb.pop();
+  },
+});

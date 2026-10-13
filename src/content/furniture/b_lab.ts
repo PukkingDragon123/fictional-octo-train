@@ -165,7 +165,7 @@ addTextureModule(() => {
     for (const x0 of [1, 15]) { pc.bevel(x0, 34, 13, 28, r[4], r[1]); }
     pc.rect(13, 44, 1, 6, 0x5a5e62); pc.rect(15, 44, 1, 6, 0x5a5e62);
     poly(pc, [[7, 38], [11, 42], [7, 46], [3, 42]], 0xc8281e); pc.set(7, 42, 0xffffff);
-    pc.rect(17, 38, 9, 4, 0xf0f0e8); text(pc, 'CHEM', 17, 38, 0x2a5a9a);
+    pc.rect(7, 51, 16, 7, 0xf0f0e8); pc.strokeRect(7, 51, 16, 7, 0x2a5a9a); textC(pc, 'CHEM', 15, 52, 0x2a5a9a);
     grimeBottom(pc, 0x8a8a7a, 6, 0.6, 1063);
     chips(pc, rng, 3, r[1], r[0]);
   });
@@ -244,7 +244,7 @@ addTextureModule(() => {
   A.add('q_crt_body', 16, 16, (pc, rng) => {
     const r = makeRamp(0xb8ae94, 5, { spread: 0.35 });
     fillNoise(pc, r, 0.5, 0.1, 2, 1091, 0.05);
-    for (let y = 2; y < 14; y += 2) pc.hline(2, 13, y, r[1]);
+    for (let y = 3; y < 8; y += 2) pc.hline(9, 14, y, r[1]);
     chips(pc, rng, 2, r[1], r[0]);
   });
   A.add('q_crt_static', 16, 12, (pc) => {
@@ -594,11 +594,11 @@ defObj({
       const y0 = 0.12 + (i / lv) * (H - 0.12), y1 = 0.12 + ((i + 1) / lv) * (H - 0.12);
       const a = half(y0), b = half(y1);
       const tex = i % 2 ? 'q_paint_white' : 'q_paint_red';
-      for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) rod(mb, sx * a, y0, sz * a, sx * b, y1, sz * b, 0.016, 4, tex);
+      for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) rod(mb, sx * a, y0, sz * a, sx * b, y1, sz * b, 0.016, 4, tex, { skip: ['top', 'bottom'] });
       // ring + diagonals
       for (const [p, q] of [[[-1, -1], [1, -1]], [[1, -1], [1, 1]], [[1, 1], [-1, 1]], [[-1, 1], [-1, -1]]] as number[][][]) {
-        rod(mb, p[0] * b, y1, p[1] * b, q[0] * b, y1, q[1] * b, 0.01, 4, 'metal_grey');
-        rod(mb, p[0] * a, y0, p[1] * a, q[0] * b, y1, q[1] * b, 0.008, 4, 'metal_grey');
+        rod(mb, p[0] * b, y1, p[1] * b, q[0] * b, y1, q[1] * b, 0.01, 4, 'metal_grey', { skip: ['top', 'bottom'] });
+        rod(mb, p[0] * a, y0, p[1] * a, q[0] * b, y1, q[1] * b, 0.008, 4, 'metal_grey', { skip: ['top', 'bottom'] });
       }
     }
     // mast top: whip, dipoles and aviation light

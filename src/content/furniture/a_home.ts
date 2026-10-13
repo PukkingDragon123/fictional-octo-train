@@ -324,12 +324,18 @@ defObj({
   model: (mb) => {
     const W = 0.46, D = 0.38, zc = WZ + D / 2 + 0.02, zf = zc + D / 2;
     rlegs4(mb, W - 0.02, D - 0.02, 0.1, 0.02, 'wood_dark', { rTop: 0.016 }, 0, zc);
-    mb.box(0, 0.1, zc, W, 0.42, D, 'wood_dark');
+    // carcass from panels so the lower shelf is really open
+    for (const sx of [-1, 1]) mb.box(sx * (W / 2 - 0.0125), 0.1, zc, 0.025, 0.42, D, 'wood_dark');
+    mb.box(0, 0.1, zc - D / 2 + 0.01, W - 0.05, 0.42, 0.02, 'wood_dark', { color: 0x6a5a50 });
+    mb.box(0, 0.1, zc, W - 0.05, 0.025, D, 'wood_dark');
+    mb.box(0, 0.33, zc, W - 0.05, 0.19, D, 'wood_dark');
     mb.box(0, 0.52, zc, W + 0.03, 0.035, D + 0.02, 'wood_dark', { color: 0xd8c8b8 });
-    mb.box(0, 0.36, zf + 0.008, W - 0.05, 0.14, 0.016, 'wood_dark', { color: 0xe8d8c8 });
+    mb.box(0, 0.355, zf + 0.008, W - 0.05, 0.15, 0.016, 'wood_dark', { color: 0xe8d8c8 });
     knob(mb, 0, 0.43, zf + 0.016, 0.025, 'metal_brass');
-    mb.box(0, 0.13, zf - 0.02, W - 0.05, 0.2, 0.012, 'wood_dark', { color: 0x4a3a30 });
-    mb.box(0.02, 0.13, zf - 0.08, 0.26, 0.04, 0.18, 'p_books_a', { color: 0xd0d0d0 });
+    // books lying on the open shelf + a tissue box
+    mb.box(0.05, 0.125, zc + 0.02, 0.24, 0.05, 0.17, { south: 'p_books_b', all: 'paper' }, { color: 0xffffff });
+    mb.box(0.06, 0.175, zc + 0.03, 0.2, 0.035, 0.15, { south: 'p_books_a', all: 'paper' }, { color: 0xffffff });
+    mb.box(-0.13, 0.125, zc, 0.12, 0.09, 0.2, 'cardboard', { color: 0xc8d8f0 });
     // alarm clock stuck blinking
     mb.box(-0.13, 0.555, zc - 0.08, 0.12, 0.07, 0.07, { south: 'p_alarm', all: 'plastic_black' }, { fit: { south: true }, emissive: 0.6 });
   },
@@ -490,13 +496,13 @@ defObj({
     for (const x of [-W / 2 + 0.015, 0, W / 2 - 0.015]) mb.box(x, 0.05, zc, 0.03, 0.42, D, 'wood_dark');
     mb.box(0, 0.05, zc - D / 2 + 0.01, W, 0.42, 0.02, 'wood_dark', { color: 0x5a4a3a });
     mb.box(0, 0.26, zc, W - 0.04, 0.02, D - 0.02, 'wood_dark');
-    // left: VCR + tapes behind smoky glass; right: open shelf of tapes
-    mb.box(-0.25, 0.05, zc + 0.02, 0.42, 0.08, 0.32, { south: 'p_vcr', all: 'plastic_black' }, { fit: { south: true }, emissive: 0.3 });
-    mb.box(-0.25, 0.28, zc, 0.44, 0.13, 0.2, { south: 'p_vhs', all: 'plastic_black' });
-    mb.box(-0.25, 0.06, zf - 0.005, 0.46, 0.4, 0.008, 'glass_dark', { color: 0x9aa0a0 });
-    knob(mb, -0.06, 0.25, zf, 0.025, 'metal_brass');
-    mb.box(0.25, 0.07, zc, 0.44, 0.13, 0.2, { south: 'p_vhs', all: 'plastic_black' }, { uvOffset: [0.4, 0] });
-    mb.push().translate(0.2, 0.28, zc + 0.02).rotateZ(0.3); mb.box(0, 0, 0, 0.03, 0.19, 0.11, 'plastic_black'); mb.pop();
+    // left: closed door; right: open shelves with the VCR (12:00 blinking) and tapes
+    mb.box(-0.25, 0.06, zf + 0.004, 0.46, 0.4, 0.016, 'wood_dark', { color: 0xe0d0c0 });
+    mb.box(-0.25, 0.1, zf + 0.014, 0.36, 0.32, 0.01, 'wood_dark', { color: 0xc8b8a8 });
+    knob(mb, -0.06, 0.25, zf + 0.012, 0.025, 'metal_brass');
+    mb.box(0.25, 0.05, zc + 0.03, 0.42, 0.08, 0.32, { south: 'p_vcr', all: 'plastic_black' }, { fit: { south: true }, emissive: 0.3 });
+    mb.box(0.22, 0.28, zc + 0.02, 0.36, 0.13, 0.2, { south: 'p_vhs', all: 'plastic_black' });
+    mb.push().translate(0.43, 0.28, zc + 0.02).rotateZ(0.3); mb.box(0, 0, 0, 0.03, 0.19, 0.11, 'plastic_black'); mb.pop();
   },
 });
 

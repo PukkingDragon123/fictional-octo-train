@@ -648,7 +648,7 @@ food('candy_dream', 'Dream Candy', 0.02, { hunger: 1, calories: 50, unhappy: -10
 }, { tags: ['sweet', 'anomalous'], desc: 'Pastel sweets that taste like a half-remembered birthday. Clears the head.' });
 
 food('dream_fruit', 'Dream Fruit', 0.2, { hunger: 8, thirst: 8, calories: 120, lucidity: 12, unhappy: -6, stress: 4, fresh: 3, rot: 5, ingredient: 'weird' }, (mb) => {
-  mb.sphere(0, 0.042, 0, 0.042, 8, 6, SK_DREAM, { fit: true, sy: 1.0, emissive: 0.7 });
+  mb.sphere(0, 0.042, 0, 0.042, 8, 6, SK_DREAM, { fit: true, sy: 1.0, emissive: 0.4 });
   mb.cylinder(0, 0.08, 0, 0.003, 0.016, 4, 'i_black', { color: 0x8a6a9a });
   mb.push().translate(0.004, 0.09, 0).rotateZ(-0.5); mb.box(0.012, 0, 0, 0.024, 0.003, 0.014, S_LEAF, { color: 0xc8f0e0 }); mb.pop();
 }, { tags: ['fruit', 'anomalous', 'wild'], desc: 'Grows in the bright fields. Faintly warm, faintly glowing. It is watching, a little.' });

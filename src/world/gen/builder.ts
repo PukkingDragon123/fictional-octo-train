@@ -11,7 +11,6 @@ import { Container } from '../../items/container';
 export class ZoneBuilder {
   z: Zone;
   rng: Rng;
-  private lightId = 1;
   constructor(z: Zone, rng: Rng) { this.z = z; this.rng = rng; }
 
   fillFloor(x0: number, y0: number, x1: number, y1: number, floor: string, h = 0) {
@@ -141,7 +140,7 @@ export class ZoneBuilder {
     };
     const p = presets[kind] || {};
     const l: LightSource = {
-      id: this.lightId++, x, z, y: o.y ?? p.y ?? 2.6, color: o.color ?? p.color ?? 0xffffff, intensity: o.intensity ?? p.intensity ?? 1,
+      id: uid(), x, z, y: o.y ?? p.y ?? 2.6, color: o.color ?? p.color ?? 0xffffff, intensity: o.intensity ?? p.intensity ?? 1,
       radius: o.radius ?? p.radius ?? 5, kind, circuit: o.circuit ?? 0, on: o.on ?? true, broken: o.broken ?? false, flicker: o.flicker ?? 0, objUid: o.objUid,
     };
     this.z.lights.push(l);

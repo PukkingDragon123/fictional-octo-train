@@ -1,5 +1,5 @@
 import { Zone } from './zone';
-import { hash3, hashStr } from '../core/rng';
+import { hash3, hashStr, beginGenUids, endGenUids, ZONE_UID_SPAN } from '../core/rng';
 
 /**
  * The world graph: every zone (level) of the simulation, its size and the
@@ -22,12 +22,20 @@ export function defZone(s: ZoneSpec) { SPECS.set(s.key, s); return s; }
 export function zoneSpec(key: string) { return SPECS.get(key); }
 export function allZoneSpecs() { return [...SPECS.values()]; }
 
+const ZONE_INDEX: Record<string, number> = {
+  lobby: 1, pools: 2, fields: 3, house: 4, suburbs: 5, school: 6, office: 7, stairwell: 8, mall: 9,
+  market: 10, parking: 11, hospital: 12, tunnels: 13, lab: 14, server: 15, corrupt: 16, exit: 17,
+};
+function zoneIndex(key: string) { return ZONE_INDEX[key] ?? 100 + (hashStr(key) % 3800); }
+
 export function generateZone(key: string, worldSeed: number): Zone {
   const spec = SPECS.get(key);
   if (!spec) throw new Error('unknown zone ' + key);
   const seed = hash3(worldSeed, hashStr(key), 7);
   const z = new Zone(key, spec.W, spec.H, seed);
-  spec.gen(z, seed);
+  // deterministic ids for everything the generator creates (stable per zone key)
+  beginGenUids(zoneIndex(key) * ZONE_UID_SPAN);
+  try { spec.gen(z, seed); } finally { endGenUids(); }
   z.name = z.name || spec.name;
   if (spec.blurb && !z.meta.blurb) z.meta.blurb = spec.blurb;
   z.dirtyChunks.clear();

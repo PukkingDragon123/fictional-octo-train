@@ -6,10 +6,10 @@ import { defItem } from '../../items/item';
 import { tex, decal, T, K, rp, dk, lt, txt, txtC, stamp, stampC, dashes, band, panels, slab, rodX, rodZ, prism, ph, bayer, MB, PixelCanvas } from './_kit';
 
 // ---------------------------------------------------------------- textures
-const S_GLOWDUST = tex('i_glowdust', 8, 8, (pc) => pc.each((x, y) => pc.set(x, y, ph(x, y, 3) < 0.3 ? 0xd8fff0 : ph(x, y, 4) < 0.5 ? 0x7af0d0 : 0x4ad0b0)), true);
-const S_STATIC = tex('i_static', 8, 8, (pc) => pc.each((x, y) => { const v = ph(x, y, 7); pc.set(x, y, v < 0.33 ? 0x2a2a30 : v < 0.66 ? 0x8a8a94 : 0xe8e8f0); }), true);
-const S_CRYSTAL = tex('i_crystal', 6, 12, (pc) => { pc.fill(0xc8a8f0); pc.vline(1, 0, 11, 0xf2e8ff); pc.vline(4, 0, 11, 0x9a78d8); pc.set(2, 3, 0xffffff); pc.set(3, 8, 0xe0d0ff); });
-const S_SHARD = tex('i_memshard', 6, 12, (pc) => { pc.each((x, y) => pc.set(x, y, [0xf2c8e8, 0xc8e8f8, 0xf8f0c8][(x + (y >> 2)) % 3])); pc.vline(1, 0, 11, 0xffffff); });
+const S_GLOWDUST = tex('i_glowdust', 8, 8, (pc) => pc.each((x, y) => pc.set(x, y, ph(x, y, 3) < 0.25 ? 0x8af8d0 : ph(x, y, 4) < 0.5 ? 0x2ad8a0 : 0x169a78)), true);
+const S_STATIC = tex('i_static', 8, 8, (pc) => pc.each((x, y) => { const v = ph(x, y, 7); pc.set(x, y, v < 0.45 ? 0x16161e : v < 0.75 ? 0x3e3e50 : v < 0.92 ? 0x7a7a96 : 0xd0d0e8); }), true);
+const S_CRYSTAL = tex('i_crystal', 6, 12, (pc) => { pc.fill(0x8a5ad8); pc.vline(1, 0, 11, 0xc8a8f8); pc.vline(4, 0, 11, 0x5a38a8); pc.set(2, 3, 0xf2e8ff); pc.set(3, 8, 0xb898f0); });
+const S_SHARD = tex('i_memshard', 6, 12, (pc) => { pc.each((x, y) => pc.set(x, y, [0xe070c0, 0x60b0e8, 0xe8c050][(x + (y >> 2)) % 3])); pc.vline(1, 0, 11, 0xf8e8f8); });
 const S_MISSING = tex('i_missing', 4, 4, (pc) => pc.each((x, y) => pc.set(x, y, ((x >> 1) + (y >> 1)) % 2 ? 0xff00ff : 0x101010)), true);
 const D_KEYCARD = decal('i_keycard', 16, 10, (pc) => {
   pc.fill(0xf2f2ee); pc.rect(0, 0, 16, 3, 0xc8302a); txt(pc, 'ADM', 1, -1, 0xf2f2ee);
@@ -69,7 +69,7 @@ defItem({
   desc: 'Luminous scales from the big pale moths. Mix it with water to paint trail marks that glow for days.',
   model: (mb) => {
     mb.cylinder(0, 0, 0, 0.018, 0.05, 8, 'i_glass', { color: 0xe8f8f2, fit: true });
-    mb.cylinder(0, 0.004, 0, 0.0185, 0.03, 8, S_GLOWDUST, { fit: true, emissive: 1.0, caps: false });
+    mb.cylinder(0, 0.004, 0, 0.0185, 0.03, 8, S_GLOWDUST, { fit: true, emissive: 0.55, caps: false });
     mb.cylinder(0, 0.05, 0, 0.012, 0.014, 6, 'i_wood', { fit: true });
   },
 });
@@ -78,17 +78,17 @@ defItem({
   desc: 'Twenty glowing trail marks. Paint arrows on walls and floors; they shine in the dark for days.',
   model: (mb) => {
     mb.cylinder(0, 0, 0, 0.035, 0.07, 10, { sides: T.tin, top: 'i_glowpaint_top', bottom: T.tinTop }, { fit: true });
-    mb.cylinder(0, 0.07, 0, 0.0365, 0.006, 10, { sides: T.tin, top: 'i_glowpaint_top' }, { fit: true, emissive: 1.2 });
-    mb.push().translate(0.035, 0.05, 0).rotateZ(-0.7); mb.box(0, 0.04, 0, 0.012, 0.09, 0.006, 'i_wood'); mb.box(0, 0.0, 0, 0.016, 0.02, 0.008, S_GLOWDUST, { emissive: 1.1 }); mb.pop();
+    mb.cylinder(0, 0.07, 0, 0.0365, 0.006, 10, { sides: T.tin, top: 'i_glowpaint_top' }, { fit: true, emissive: 0.55 });
+    mb.push().translate(0.035, 0.05, 0).rotateZ(-0.7); mb.box(0, 0.04, 0, 0.012, 0.09, 0.006, 'i_wood'); mb.box(0, 0.0, 0, 0.016, 0.02, 0.008, S_GLOWDUST, { emissive: 0.55 }); mb.pop();
   },
 });
-tex('i_glowpaint_top', 10, 10, (pc) => { pc.fill(0x6af0c8); pc.each((x, y) => { if (ph(x, y, 6) < 0.25) pc.set(x, y, 0xc8fff0); if (Math.hypot(x - 4.5, y - 4.5) > 4.4) pc.set(x, y, 0xb8bcc0); }); });
+tex('i_glowpaint_top', 10, 10, (pc) => { pc.fill(0x22c890); pc.each((x, y) => { if (ph(x, y, 6) < 0.25) pc.set(x, y, 0x7af0c0); if (Math.hypot(x - 4.5, y - 4.5) > 4.4) pc.set(x, y, 0xb8bcc0); }); });
 defItem({
   key: 'glow_jar', name: 'Glow Jar', cat: 'light', weight: 0.4, uses: 100, tags: ['light', 'anomalous'],
   light: { range: 3.5, intensity: 0.45, color: 0x9fffe0, drainPerHour: 0.01 },
   desc: 'A jar of stirred glow dust. Dim, cold, and lasts for days. Needs no batteries.',
   model: (mb) => {
-    mb.cylinder(0, 0, 0, 0.04, 0.1, 10, S_GLOWDUST, { fit: true, emissive: 1.3 });
+    mb.cylinder(0, 0, 0, 0.04, 0.1, 10, S_GLOWDUST, { fit: true, emissive: 0.7 });
     mb.cylinder(0, 0.1, 0, 0.034, 0.012, 10, { sides: T.tin, top: T.tinTop }, { fit: true });
     mb.box(0, 0.03, 0.0405, 0.05, 0.03, 0.002, 'i_glass', { color: 0xe8fff8 });
   },
@@ -98,17 +98,17 @@ defItem({
   anomaly: 'static', tags: ['fluidcontainer', 'anomalous', 'static'],
   desc: 'It pours like water and sounds like a dead channel. Do not drink. Batteries left in it come out charged.',
   model: (mb) => {
-    mb.cylinder(0, 0, 0, 0.042, 0.11, 10, S_STATIC, { fit: false, uvScale: 4, emissive: 0.5 });
+    mb.cylinder(0, 0, 0, 0.042, 0.11, 10, S_STATIC, { fit: false, uvScale: 4, emissive: 0.2 });
     mb.cylinder(0, 0.11, 0, 0.036, 0.016, 10, { sides: T.tin, top: T.tinTop }, { fit: true });
-    mb.cylinder(0, 0.002, 0, 0.0435, 0.1, 10, 'i_glass', { color: 0xe0e4ea, fit: true, caps: false, skip: [] });
+    mb.box(0.026, 0.02, 0.026, 0.006, 0.07, 0.006, 'i_white', { color: 0xf0f4f8 });
   },
 });
 defItem({
   key: 'memory_shard', name: 'Memory Shard', cat: 'anomaly', weight: 0.02, anomaly: 'memory', lore: 'memory_shard', tags: ['collectible', 'shard', 'anomalous'],
   desc: 'A sliver of crystallised recollection. Hold it to the light and you see a birthday party that may have been yours.',
   model: (mb) => {
-    prism(mb, [[-0.02, 0.0], [0.0, 0.015], [0.03, 0.006], [0.02, -0.012], [-0.005, -0.014]], 0, 0.012, S_SHARD, S_SHARD, { emissive: 0.6 });
-    mb.push().translate(0.004, 0.012, 0).rotateZ(0.3); prism(mb, [[-0.006, 0.0], [0.0, 0.006], [0.014, 0.0], [0.0, -0.006]], 0, 0.02, S_SHARD, S_SHARD, { emissive: 0.7 }); mb.pop();
+    prism(mb, [[-0.02, 0.0], [0.0, 0.015], [0.03, 0.006], [0.02, -0.012], [-0.005, -0.014]], 0, 0.012, S_SHARD, S_SHARD, { emissive: 0.3 });
+    mb.push().translate(0.004, 0.012, 0).rotateZ(0.3); prism(mb, [[-0.006, 0.0], [0.0, 0.006], [0.014, 0.0], [0.0, -0.006]], 0, 0.02, S_SHARD, S_SHARD, { emissive: 0.35 }); mb.pop();
   },
 });
 defItem({
@@ -126,8 +126,8 @@ defItem({
     mb.cylinder(0, 0, 0, 0.04, 0.015, 6, 'stone_rough', { color: 0x8a8a94 });
     for (const [x, z, h, a] of [[0, 0, 0.09, 0], [0.018, 0.01, 0.06, 0.4], [-0.016, 0.012, 0.05, -0.5], [0.004, -0.018, 0.045, 0.3]] as [number, number, number, number][]) {
       mb.push().translate(x, 0.01, z).rotateZ(a * 0.5).rotateX(a * 0.4);
-      mb.cylinder(0, 0, 0, 0.011, h * 0.8, 6, S_CRYSTAL, { fit: true, emissive: 0.7 });
-      mb.cylinder(0, h * 0.8, 0, 0.011, h * 0.2, 6, S_CRYSTAL, { fit: true, rTop: 0.001, emissive: 0.8 });
+      mb.cylinder(0, 0, 0, 0.011, h * 0.8, 6, S_CRYSTAL, { fit: true, emissive: 0.35 });
+      mb.cylinder(0, h * 0.8, 0, 0.011, h * 0.2, 6, S_CRYSTAL, { fit: true, rTop: 0.001, emissive: 0.4 });
       mb.pop();
     }
   },
@@ -139,7 +139,7 @@ defItem({
   model: (mb) => {
     mb.box(0, 0, 0, 0.16, 0.025, 0.06, T.plastic, { color: 0x1c1c24 });
     mb.box(0, 0.025, 0, 0.15, 0.002, 0.05, T.plastic, { color: 0x2a2a34 });
-    rodX(mb, -0.06, 0.05, 0.034, 0.009, 0.009, 8, 'i_glass', { color: 0x9af0ff, emissive: 1.1 });
+    rodX(mb, -0.06, 0.05, 0.034, 0.009, 0.009, 8, 'i_glass', { color: 0x30c8f0, emissive: 0.5 });
     rodX(mb, 0.05, 0.07, 0.034, 0.009, 0.003, 6, T.steel);
     rodX(mb, -0.075, -0.06, 0.034, 0.011, 0.011, 8, T.white, { color: 0xff6ad8 });
   },

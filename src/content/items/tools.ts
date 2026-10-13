@@ -78,7 +78,7 @@ defItem({
 });
 defItem({
   key: 'screwdriver', name: 'Screwdriver', cat: 'tool', weight: 0.15, durability: 200, tags: ['screwdriver'],
-  weapon: { kind: 'blade', dmg: [3, 5], range: 0.85, speed: 1.8, endurance: 0.02, crit: 0.15, knock: 0.05, durability: 40, noise: 3 },
+  weapon: { kind: 'blade', dmg: [3, 5], range: 0.85, speed: 1.8, endurance: 0.02, crit: 0.15, knock: 0.05, durability: 40, noise: 4 },
   model: (mb) => {
     rodX(mb, -0.1, -0.02, 0.014, 0.014, 0.012, 6, S_HGRIP, { color: 0xe8b81a, uvScale: 3 });
     rodX(mb, -0.02, 0.09, 0.014, 0.0035, 0.0035, 4, T.steel);
@@ -131,7 +131,7 @@ defItem({
 });
 defItem({
   key: 'trowel', name: 'Trowel', cat: 'tool', weight: 0.3, durability: 150, tags: ['trowel', 'dig'],
-  weapon: { kind: 'blade', dmg: [2, 4], range: 0.85, speed: 1.6, endurance: 0.025, crit: 0.1, knock: 0.1, durability: 30, noise: 3 },
+  weapon: { kind: 'blade', dmg: [2, 4], range: 0.85, speed: 1.6, endurance: 0.025, crit: 0.1, knock: 0.1, durability: 30, noise: 4 },
   model: (mb) => {
     rodX(mb, -0.14, -0.04, 0.013, 0.013, 0.014, 6, S_HGRIP, { color: 0x3a8a4a, uvScale: 3 });
     rodX(mb, -0.04, -0.01, 0.012, 0.004, 0.004, 4, T.steel);
@@ -140,7 +140,7 @@ defItem({
 });
 defItem({
   key: 'knife_kitchen', name: 'Kitchen Knife', cat: 'weapon', weight: 0.2, durability: 120, tags: ['knife', 'sharp'],
-  weapon: { kind: 'blade', dmg: [4, 7], range: 0.9, speed: 1.8, endurance: 0.02, crit: 0.2, knock: 0.05, durability: 40, noise: 3 },
+  weapon: { kind: 'blade', dmg: [4, 7], range: 0.9, speed: 1.8, endurance: 0.02, crit: 0.2, knock: 0.05, durability: 40, noise: 4 },
   desc: 'Chef\'s knife. Cuts food, cloth, rope — and whatever else it has to.',
   model: (mb) => {
     mb.box(-0.08, 0, 0, 0.11, 0.016, 0.022, T.black);
@@ -150,7 +150,7 @@ defItem({
 });
 defItem({
   key: 'scissors', name: 'Scissors', cat: 'tool', weight: 0.1, durability: 150, tags: ['scissors', 'sharp'],
-  weapon: { kind: 'blade', dmg: [2, 4], range: 0.85, speed: 1.7, endurance: 0.02, crit: 0.12, knock: 0.05, durability: 30, noise: 3 },
+  weapon: { kind: 'blade', dmg: [2, 4], range: 0.85, speed: 1.7, endurance: 0.02, crit: 0.12, knock: 0.05, durability: 30, noise: 4 },
   model: (mb) => {
     for (const s of [-1, 1]) {
       mb.push().rotateY(s * 0.18);
@@ -184,7 +184,7 @@ defItem({
 });
 defItem({
   key: 'multitool', name: 'Multitool', cat: 'tool', weight: 0.25, durability: 150, tags: ['screwdriver', 'canopener', 'knife', 'pliers', 'sharp'],
-  weapon: { kind: 'blade', dmg: [3, 5], range: 0.85, speed: 1.7, endurance: 0.02, crit: 0.15, knock: 0.05, durability: 30, noise: 3 },
+  weapon: { kind: 'blade', dmg: [3, 5], range: 0.85, speed: 1.7, endurance: 0.02, crit: 0.15, knock: 0.05, durability: 30, noise: 4 },
   desc: 'Pliers, blade, screwdriver and can opener in one. Worse at each than the real thing.',
   model: (mb) => {
     mb.box(-0.02, 0, 0, 0.1, 0.018, 0.03, T.steel, { color: 0x9aa0a8 });
@@ -195,7 +195,7 @@ defItem({
 });
 defItem({
   key: 'pocket_knife', name: 'Pocket Knife', cat: 'weapon', weight: 0.1, durability: 100, tags: ['knife', 'sharp'],
-  weapon: { kind: 'blade', dmg: [3, 6], range: 0.85, speed: 1.8, endurance: 0.02, crit: 0.2, knock: 0.05, durability: 35, noise: 3 },
+  weapon: { kind: 'blade', dmg: [3, 6], range: 0.85, speed: 1.8, endurance: 0.02, crit: 0.2, knock: 0.05, durability: 35, noise: 4 },
   model: (mb) => {
     mb.box(-0.035, 0, 0, 0.09, 0.014, 0.022, T.white, { color: 0xc8302a });
     mb.box(-0.06, 0.0141, 0, 0.012, 0.001, 0.012, T.white, { color: 0xf2f2ee });
@@ -204,7 +204,7 @@ defItem({
 });
 defItem({
   key: 'box_cutter', name: 'Box Cutter', cat: 'tool', weight: 0.08, durability: 60, tags: ['sharp', 'boxcutter'],
-  weapon: { kind: 'blade', dmg: [2, 5], range: 0.85, speed: 1.9, endurance: 0.015, crit: 0.2, knock: 0.0, durability: 20, noise: 2 },
+  weapon: { kind: 'blade', dmg: [2, 5], range: 0.85, speed: 1.9, endurance: 0.02, crit: 0.2, knock: 0.0, durability: 20, noise: 4 },
   model: (mb) => {
     mb.box(-0.01, 0, 0, 0.13, 0.016, 0.022, T.white, { color: 0xf0c419 });
     mb.box(-0.01, 0.016, 0, 0.1, 0.002, 0.012, T.black);
@@ -370,7 +370,7 @@ defItem({
 
 // ---------------------------------------------------------------- marking & office
 defItem({
-  key: 'spray_paint', name: 'Spray Paint', cat: 'tool', weight: 0.4, uses: 20, tags: ['spraypaint', 'mark_wall'],
+  key: 'spray_paint', name: 'Spray Paint', cat: 'tool', weight: 0.4, uses: 20, tags: ['spray', 'spraypaint', 'mark_wall'],
   desc: 'Mark walls with arrows and warnings. Twenty marks.',
   model: (mb) => {
     mb.cylinder(0, 0, 0, 0.033, 0.16, 10, { sides: L_SPRAY, top: T.tinTop, bottom: T.tinTop }, { fit: true });

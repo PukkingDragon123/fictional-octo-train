@@ -4,7 +4,7 @@ import { SurvivalSystem } from '../survival/survivalSystem';
 import { Player } from '../entities/player';
 import { Appearance, randomAppearance } from '../entities/humanRig';
 import { Item, hasItemDef } from '../items/item';
-import { Rng } from '../core/rng';
+import { Rng, setUidSlot } from '../core/rng';
 import { createItem } from '../items/factory';
 import { UI } from '../ui/ui';
 import { InventoryUI } from '../ui/inventory';
@@ -19,16 +19,29 @@ import { MissionSystem } from '../missions/missions';
 import '../missions/directives';
 import { ShiftSystem } from '../world/shift';
 import { WorldSystems } from '../items/worldSystems';
+import { replayOps } from './ops';
+import { restorePlayer, restoreAfterLoad, saveGame, SaveData } from './save';
+import { occupationByKey } from '../survival/traits';
+import { PauseMenu } from '../ui/menus/pause';
+import type { Net, Welcome } from '../net/net';
 import '../game/worldOps';
 import '../world/zones';
 
-export interface NewGameOpts {
+export interface SessionOpts {
+  mode: 'solo' | 'host' | 'client';
   name: string;
   app?: Appearance;
   occupation?: string;
   traits?: string[];
   seed?: number;
+  sandbox?: Partial<Game['sandbox']>;
+  directives?: boolean;
+  net?: Net;
+  welcome?: Welcome;
+  save?: SaveData;
 }
+/** kept for dev entry points */
+export interface NewGameOpts { name: string; app?: Appearance; occupation?: string; traits?: string[]; seed?: number }
 
 export function newItem(key: string, extra: Partial<Item> = {}): Item {
   return { ...createItem(key, undefined, { pristine: true }), ...extra };
@@ -38,26 +51,43 @@ export function newItem(key: string, extra: Partial<Item> = {}): Item {
 class WorldExtras implements GameSystem {
   name = 'extras';
   floor = new FloorItemRenderer();
+  private autosaveT = 300;
   constructor(g: Game) { g.pr.scene.add(this.floor.root); }
   update(dt: number) {
     const g = G;
     if (!g.view) return;
-    const p = g.local;
     const R = g.pr.lowW * g.pr.pxSize * 0.7 + 4;
     this.floor.update(g.zone, g.pr.target.x, g.pr.target.z, R, (x, y) => g.view!.vis.isVisible(x, y), dt);
     const inp = g.input;
     if (inp.hit('inventory')) g.ui?.inventory?.toggle();
     if (inp.hit('scanner')) g.ui?.scanner?.toggle?.();
     if (inp.hit('map')) g.ui?.scanner?.toggle?.(true, 'map');
-    void p;
+    // autosave every five minutes (solo / host)
+    this.autosaveT -= dt;
+    if (this.autosaveT <= 0) { this.autosaveT = 300; if (g.role !== 'client' && !g.local.body.dead) saveGame().then((ok) => { if (ok) g.ui?.toast?.('SAVED', '', 1.5); }); }
   }
 }
 
-/** Boot a single-player session straight into Level 0. */
 export function startSolo(opts: NewGameOpts): Game {
+  return startSession({ mode: 'solo', ...opts });
+}
+
+/** Build a complete running game: new world, loaded save, co-op host or co-op client. */
+export function startSession(o: SessionOpts): Game {
   const canvas = document.getElementById('view') as HTMLCanvasElement;
   const g = new Game(canvas);
-  g.worldSeed = opts.seed ?? 1337;
+  g.role = o.mode;
+  const w = o.welcome, s = o.save;
+  g.worldSeed = w?.seed ?? s?.seed ?? o.seed ?? 1337;
+  Object.assign(g.sandbox, w?.sandbox ?? s?.sandbox ?? o.sandbox ?? {});
+  if (o.net) {
+    g.net = o.net;
+    setUidSlot(Math.max(0, Number(o.net.id.slice(1)) - 1));
+  }
+  if (s) { g.saveId = s.id; g.playMinutes = s.playMinutes || 0; }
+  g.clock.hours = w?.hours ?? s?.hours ?? g.sandbox.startHour;
+  g.collapse = w?.collapse ?? s?.collapse ?? 0;
+
   const surv = new SurvivalSystem();
   g.survival = surv;
   g.addSystem(surv);
@@ -69,25 +99,46 @@ export function startSolo(opts: NewGameOpts): Game {
   g.addSystem({ name: 'audio', update: (dt) => audio.update(dt) });
   const missions = new MissionSystem();
   g.missions = missions;
+  missions.enabled = o.directives ?? true;
   g.addSystem(missions);
   g.addSystem(new ShiftSystem());
   const items = new WorldSystems();
   g.items = items;
   g.addSystem(items);
+  if (o.net) g.addSystem(o.net);
   const ui = new UI();
   g.ui = ui;
   ui.inventory = new InventoryUI(ui);
   new Scanner();
   const interact = new Interact();
-  const app = opts.app || randomAppearance(Math.random);
-  const p = new Player('local', opts.name, app, true);
-  for (const t of opts.traits || []) p.body.traits.add(t);
-  p.setOccupation(opts.occupation || 'unemployed');
-  const start = ['tshirt', 'jeans', 'sneakers', 'socks'];
-  for (const k of start) if (hasItemDef(k)) { const it = newItem(k); p.inv.add(it); p.wear(it); }
-  for (const k of ['water_bottle', 'almond_water', 'granola_bar', 'lighter']) if (hasItemDef(k)) p.inv.add(newItem(k));
+  new PauseMenu();
+
+  // ---- the survivor
+  const id = o.net?.id ?? 'p1';
+  const app = s?.player?.app ?? o.app ?? randomAppearance(Math.random);
+  const p = new Player(id, s?.player?.name ?? o.name, app, true);
+  if (s) restorePlayer(p, s.player);
+  else {
+    for (const t of o.traits || []) p.body.traits.add(t);
+    p.setOccupation(o.occupation || 'unemployed');
+    const start = ['tshirt', 'jeans', 'sneakers', 'socks'];
+    for (const k of start) if (hasItemDef(k)) { const it = newItem(k); p.inv.add(it); p.wear(it); }
+    for (const k of ['water_bottle', 'almond_water', 'granola_bar']) if (hasItemDef(k)) p.inv.add(newItem(k));
+    for (const k of occupationByKey(p.occupation).items) if (hasItemDef(k)) p.inv.add(newItem(k));
+  }
   g.local = p;
   g.addPlayer(p);
+
+  // ---- the world: mission state, then every change ever made (op log)
+  const mstate = w?.missions ?? s?.missions;
+  if (mstate) missions.load(mstate);
+  if (o.directives === false) missions.enabled = false;
+  const log = w?.log ?? s?.log;
+  if (log?.length) replayOps(log);
+  if (s) restoreAfterLoad(s);
+  if (w) for (const [zk, f] of Object.entries(w.fires || {})) g.getZone(zk).meta.fires = f;
+
+  // ---- input routing
   ui.onWorldClick = (t, b) => {
     if (p.body.dead) return;
     if (items.placing && items.placementClick(b)) return;
@@ -97,19 +148,40 @@ export function startSolo(opts: NewGameOpts): Game {
   };
   ui.onInteractKey = () => {
     if (ui.hover && ui.hover.kind !== 'tile') { interact.defaultAction(p, ui.hover); return; }
-    // nearest interactable in front
     const objs = interact.objectsNear(p, 1.6);
     if (objs.length) { interact.defaultAction(p, { kind: 'object', obj: objs[0], point: p.pos }); return; }
   };
   bus.on('death', (pl: Player) => {
     if (pl !== p) return;
-    setTimeout(() => ui.centerMessage(`YOU HAVE BEEN DELETED<br><span style="font-size:20px;letter-spacing:2px;color:#a89a72">${p.name} survived ${Math.floor(g.clock.hours / 24)} days, ${Math.floor(g.clock.hours % 24)} hours</span>`, { label: 'Begin again', action: () => location.reload() }), 1500);
+    const days = Math.floor(g.clock.hours / 24), hrs = Math.floor(g.clock.hours % 24);
+    setTimeout(() => ui.centerMessage(`YOU HAVE BEEN DELETED<br><span style="font-size:20px;letter-spacing:2px;color:#a89a72">${escape(p.name)} survived ${days} days, ${hrs} hours</span>`, { label: 'Back to the title', action: () => location.reload() }), 1500);
   });
-  const z = g.getZone('lobby');
-  const sp = (z.meta.spawn as [number, number]) || z.randomFloor(new Rng(3)) || [10, 10];
-  g.placePlayer(p, 'lobby', sp[0], sp[1], 0);
+
+  // ---- where we start
+  if (w) {
+    const z = g.getZone(w.zone);
+    const [x, y] = g.nearestWalkable(z, w.spawn[0], w.spawn[1]);
+    g.placePlayer(p, w.zone, x, y, 0);
+    for (const q of w.players) {
+      if (q.id === id || g.players.has(q.id)) continue;
+      const rp = new Player(q.id, q.name, q.app, false);
+      if (q.state) { rp.x = q.state.x; rp.z = q.state.z; rp.zoneKey = q.state.zone; rp.remote = { tx: q.state.x, tz: q.state.z, tf: q.state.f, t: 0, state: q.state }; }
+      g.addPlayer(rp);
+    }
+  } else if (s) {
+    const z = g.getZone(s.player.zoneKey);
+    const [x, y] = g.nearestWalkable(z, Math.floor(s.player.x), Math.floor(s.player.z));
+    g.placePlayer(p, s.player.zoneKey, x, y, s.player.facing);
+  } else {
+    const z = g.getZone('lobby');
+    const sp = (z.meta.spawn as [number, number]) || z.randomFloor(new Rng(3)) || [10, 10];
+    g.placePlayer(p, 'lobby', sp[0], sp[1], 0);
+  }
   (window as any).__game = g;
   document.getElementById('boot')?.classList.add('gone');
+  g.sessionStart = performance.now();
   g.start();
   return g;
 }
+
+function escape(s: string) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]); }

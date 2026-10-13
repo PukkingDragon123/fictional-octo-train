@@ -171,7 +171,7 @@ defItem({
 // ---------------------------------------------------------------- melee: blades & axes
 defItem({
   key: 'knife_hunting', name: 'Hunting Knife', cat: 'weapon', weight: 0.3, durability: 200, tags: ['knife', 'sharp'],
-  weapon: { kind: 'blade', dmg: [5, 9], range: 0.95, speed: 1.7, endurance: 0.025, crit: 0.25, knock: 0.1, durability: 120, noise: 3 },
+  weapon: { kind: 'blade', dmg: [5, 9], range: 0.95, speed: 1.7, endurance: 0.025, crit: 0.25, knock: 0.1, durability: 120, noise: 4 },
   desc: 'Full-tang steel. Skins game, cuts rope, holds an edge.',
   model: (mb) => {
     mb.box(-0.075, 0, 0, 0.11, 0.022, 0.026, 'leather_brown');
@@ -204,7 +204,7 @@ defItem({
 });
 defItem({
   key: 'shiv', name: 'Glass Shiv', cat: 'weapon', weight: 0.06, tags: ['sharp'],
-  weapon: { kind: 'blade', dmg: [3, 6], range: 0.8, speed: 1.9, endurance: 0.02, crit: 0.25, knock: 0.0, durability: 12, noise: 2 },
+  weapon: { kind: 'blade', dmg: [3, 6], range: 0.8, speed: 1.9, endurance: 0.02, crit: 0.25, knock: 0.0, durability: 12, noise: 4 },
   desc: 'A glass shard with a rag-wrapped grip. Fragile, quiet, desperate.',
   model: (mb) => {
     rodX(mb, -0.08, -0.02, 0.012, 0.012, 0.013, 6, T.cloth, { color: 0xc8b898 });
@@ -243,7 +243,7 @@ defItem({
 // ---------------------------------------------------------------- ranged
 defItem({
   key: 'pistol', name: 'Pistol', cat: 'weapon', weight: 0.9, rare: true, tags: ['gun'],
-  weapon: { kind: 'firearm', dmg: [14, 20], range: 18, speed: 2.0, endurance: 0.01, crit: 0.25, knock: 0.3, durability: 800, noise: 40, ammo: 'ammo_9mm', mag: 15, reload: 2.2, spread: 0.05 },
+  weapon: { kind: 'firearm', dmg: [14, 20], range: 18, speed: 2.0, endurance: 0.02, crit: 0.25, knock: 0.3, durability: 800, noise: 40, ammo: 'ammo_9mm', mag: 15, reload: 2.2, spread: 0.05 },
   desc: '9mm semi-automatic, fifteen-round magazine. Every shot rings for forty tiles.',
   model: (mb) => {
     mb.box(0.02, 0.0, 0, 0.18, 0.035, 0.028, 'metal_dark');
@@ -264,7 +264,7 @@ defItem({
 });
 defItem({
   key: 'nail_gun', name: 'Nail Gun', cat: 'weapon', weight: 2.5, battery: true, uses: 100, tags: ['nailgun', 'power_tool'],
-  weapon: { kind: 'firearm', dmg: [5, 8], range: 5, speed: 1.5, endurance: 0.01, crit: 0.1, knock: 0.1, durability: 400, noise: 12, ammo: 'nails', mag: 30, reload: 3, spread: 0.08 },
+  weapon: { kind: 'firearm', dmg: [5, 8], range: 5, speed: 1.5, endurance: 0.02, crit: 0.1, knock: 0.1, durability: 400, noise: 12, ammo: 'nails', mag: 30, reload: 3, spread: 0.08 },
   desc: 'Cordless framing nailer. Loads from a box of nails; drains its battery per shot. Also nails boards up fast.',
   model: (mb) => {
     mb.box(0.03, 0.04, 0, 0.24, 0.07, 0.05, 'plastic_yellow', { color: 0xf0c419 });
@@ -276,7 +276,7 @@ defItem({
 });
 defItem({
   key: 'flare_gun', name: 'Flare Gun', cat: 'weapon', weight: 0.5, tags: ['gun'],
-  weapon: { kind: 'firearm', dmg: [8, 12], range: 12, speed: 0.8, endurance: 0.01, crit: 0.1, knock: 0.2, durability: 100, noise: 25, ammo: 'flare', mag: 1, reload: 2.5, spread: 0.06, fire: true },
+  weapon: { kind: 'firearm', dmg: [8, 12], range: 12, speed: 0.8, endurance: 0.02, crit: 0.1, knock: 0.2, durability: 100, noise: 25, ammo: 'flare', mag: 1, reload: 2.5, spread: 0.06, fire: true },
   desc: 'Fires a burning flare: lights up the dark, sets things alight, draws every eye.',
   model: (mb) => {
     rodX(mb, -0.02, 0.15, 0.04, 0.02, 0.02, 8, 'plastic_red', { color: 0xf26a1a });

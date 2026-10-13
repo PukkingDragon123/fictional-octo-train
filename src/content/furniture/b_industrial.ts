@@ -215,8 +215,8 @@ addTextureModule(() => {
     for (let y = 0; y < 32; y++) { pc.set(0, y, r[0]); pc.set(16, y, r[0]); pc.set(1, y, r[3]); pc.set(17, y, r[3]); }
     for (let x = 0; x < 32; x++) { pc.set(x, 0, r[0]); pc.set(x, 1, r[3]); }
     for (let k = 1; k < 32; k += 3) { rivet(pc, 2, k, r[5], r[0], r[3]); rivet(pc, 18, k, r[5], r[0], r[3]); rivet(pc, k, 2, r[5], r[0], r[3]); }
-    rust(pc, 233, 0.45, 3);
-    pc.drips(rng, 0x6a3a1a, 4, 3, 16, 0.35);
+    rust(pc, 233, 0.28, 3);
+    pc.drips(rng, 0x5a3418, 3, 3, 14, 0.3);
     pc.grime(0x15140f, 0.7, 2, 235, 0.55);
   });
   A.add('q_boiler_head', 40, 40, (pc, rng) => {
@@ -288,8 +288,8 @@ addTextureModule(() => {
     const r = makeRamp(0x6c7a6e, 6, { spread: 0.4 });
     fillNoise(pc, r, 0.55, 0.1, 2, 261, 0.05);
     seamH(pc, 0, 31, 0, r[0], r[4]);
-    rust(pc, 263, 0.18, 3);
-    pc.drips(rng, 0x5a4024, 4, 2, 22, 0.25);
+    rust(pc, 263, 0.1, 3);
+    pc.drips(rng, 0x5a4024, 3, 2, 18, 0.22);
     chips(pc, rng, 4, 0x9a9a92, r[0]);
   });
   A.add('q_hv_sign', 10, 12, (pc) => {
@@ -336,7 +336,7 @@ addTextureModule(() => {
     }
     for (let k = 2; k < 24; k += 5) { pc.hline(0, 25, k, r[3]); pc.vline(k, 0, 25, r[3]); pc.hline(0, 25, k + 1, r[1]); pc.vline(k + 1, 0, 25, r[1]); }
     pc.bevel(0, 0, 26, 26, r[5], r[0]);
-    rust(pc, 271, 0.45, 3);
+    rust(pc, 271, 0.25, 3);
     pc.set(15, 15, 0x8a8c70); pc.set(17, 15, 0x8a8c70);
     pc.blend(5, 10, 0x2a3a3a, 0.5);
   });

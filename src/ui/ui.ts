@@ -95,7 +95,36 @@ export class UI {
     bus.on('halo', (p: Player, text: string, kind = '') => this.halo(p, text, kind));
   }
 
-  blocksMovement() { return !!this.readerEl || !!this.modal; }
+  blocksMovement() { return !!this.readerEl || !!this.modal || !!this.chatEl; }
+
+  // ---------------- co-op chat ----------------
+  private chatLog: HTMLDivElement | null = null;
+  private chatEl: HTMLInputElement | null = null;
+  chatLine(name: string, text: string) {
+    if (!this.chatLog) { this.chatLog = document.createElement('div'); this.chatLog.className = 'k-chatlog'; document.body.appendChild(this.chatLog); }
+    const line = document.createElement('div');
+    line.className = 'k-chatline';
+    line.innerHTML = `<b>${escapeHtml(name)}</b> ${escapeHtml(text)}`;
+    this.chatLog.appendChild(line);
+    while (this.chatLog.children.length > 7) this.chatLog.firstChild!.remove();
+    setTimeout(() => line.classList.add('old'), 9000);
+  }
+  openChat() {
+    if (this.chatEl) return;
+    const el = document.createElement('input');
+    el.className = 'k-chatinput'; el.maxLength = 200; el.placeholder = 'say something…  (Enter to send, Esc to cancel)';
+    document.body.appendChild(el);
+    this.chatEl = el;
+    G.input.textFocus = true;
+    setTimeout(() => el.focus(), 0);
+    const close = () => { el.remove(); this.chatEl = null; G.input.textFocus = false; };
+    el.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { const t = el.value; close(); if (t.trim()) G.net?.chat?.(t); }
+      else if (e.key === 'Escape') close();
+    });
+    el.addEventListener('blur', () => { if (this.chatEl === el) close(); });
+  }
 
   // ---------------- bubbles ----------------
   say(p: Player, text: string, kind: 'say' | 'think' | 'shout' | 'radio' = 'say', secs = 3.5) {
@@ -280,6 +309,7 @@ export class UI {
       el.style.left = s.x + 'px'; el.style.top = s.y + 'px';
     }
     for (const [id, el] of this.names) if (!nseen.has(id)) { el.remove(); this.names.delete(id); }
+    if (g.net && !this.chatEl && g.input.hit('chat')) this.openChat();
     this.updateHover();
     this.inventory?.update?.(dt);
     this.scanner?.update?.(dt);

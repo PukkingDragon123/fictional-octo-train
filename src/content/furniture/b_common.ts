@@ -600,12 +600,12 @@ addTextureModule(() => {
   });
 
   // chipped playground paint (one per colour)
-  const paint = (name: string, base: number, seed: number, rustAmt = 0.12) => A.add(name, 32, 32, (pc, rng) => {
+  const paint = (name: string, base: number, seed: number, rustAmt = 0.12, nChips = 9) => A.add(name, 32, 32, (pc, rng) => {
     const r = makeRamp(base, 6, { spread: 0.42 });
     fillNoise(pc, r, 0.6, 0.12, 2, seed, 0.05);
     // faded sun-bleach on the upper half of each tile
     pc.each((x, y) => { if (tileFbm(x, y, 32, 32, 2, 2, seed + 1) > 0.6 && bayer(x, y) < 0.35) pc.set(x, y, r[5]); });
-    chips(pc, rng, 9, 0x8c8a84, r[0]);
+    chips(pc, rng, nChips, 0x8c8a84, r[0]);
     if (rustAmt > 0) rust(pc, seed + 3, rustAmt, 3);
     // brush marks
     for (let y = 2; y < 32; y += 5) for (let x = 0; x < 32; x++) if (ph(x, y, seed) < 0.3) pc.blend(x, y, r[4], 0.35);
@@ -614,10 +614,10 @@ addTextureModule(() => {
   paint('q_paint_blue', 0x3f6fb8, 102);
   paint('q_paint_yellow', 0xe2b437, 103);
   paint('q_paint_green', 0x4c9a52, 104);
-  paint('q_paint_pink', 0xe59ab4, 105);
-  paint('q_paint_teal', 0x4fb3ac, 106);
-  paint('q_paint_lilac', 0xa996d6, 107);
-  paint('q_paint_white', 0xe4e2da, 108, 0.03);
+  paint('q_paint_pink', 0xe59ab4, 105, 0.04, 4);
+  paint('q_paint_teal', 0x4fb3ac, 106, 0.06, 5);
+  paint('q_paint_lilac', 0xa996d6, 107, 0.04, 4);
+  paint('q_paint_white', 0xe4e2da, 108, 0);
   paint('q_paint_orange', 0xe0782e, 109);
 
   // cardboard box face (fit) with tape and marker scrawl

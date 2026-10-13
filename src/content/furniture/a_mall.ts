@@ -226,8 +226,7 @@ defObj({
     const W = 1.5, D = 0.86;
     mb.box(0, 0, 0, W, 0.9, D, { all: 'p_tile_counter' });
     mb.box(0, 0.9, 0, W + 0.06, 0.04, D + 0.06, 'wood_light', { color: 0xf0e0d0 });
-    mb.box(0, 0.94, 0, W - 0.1, 0.16, D - 0.1, 'glass', { color: 0xd8f0f4 });
-    mb.box(0, 0.942, 0, W - 0.14, 0.004, D - 0.14, 'p_jewelry', { fit: true });
+    mb.box(0, 0.94, 0, W - 0.1, 0.16, D - 0.1, { top: 'p_jewelry', all: 'glass' }, { fit: { top: true }, color: 0xf0f8f8 });
     mb.box(0, 1.1, 0, W - 0.08, 0.02, D - 0.08, 'metal_brushed');
     for (const sx of [-1, 1]) {
       mb.cylinderX(sx * (W / 2 + 0.02), 0.3, 0.2, 0.26, 0.05, 12, { sides: 'wood_dark', top: 'p_wheel', bottom: 'p_wheel' }, { fit: true, color: 0xffffff });
@@ -498,8 +497,8 @@ defObj({
     mb.box(-0.35, 0.95, zc - 0.05, 1.6, 0.012, 0.4, { top: 'p_food_trays', all: 'metal_grey' }, { fit: { top: true } });
     // sneeze guard + heat lamps
     for (const sx of [-1.15, -0.35, 0.45]) mb.box(sx, 0.96, zc + 0.3, 0.025, 0.42, 0.025, 'chrome');
-    mb.push().translate(-0.35, 1.36, zc + 0.24).rotateX(0.5);
-    mb.box(0, 0, 0, 1.64, 0.012, 0.32, 'glass', { color: 0xd8eef2 }); mb.pop();
+    mb.push().translate(-0.35, 1.36, zc + 0.3).rotateX(0.9);
+    mb.box(0, 0, 0, 1.64, 0.012, 0.16, 'glass', { color: 0xd8eef2 }); mb.pop();
     for (const sx of [-0.9, -0.35, 0.2]) mb.box(sx, 1.3, zc - 0.05, 0.3, 0.05, 0.12, 'white', { color: 0xffa860, emissive: 0.9 });
     mb.box(-0.35, 1.35, zc - 0.05, 1.64, 0.03, 0.04, 'metal_brushed');
     // register + cup stack + straws

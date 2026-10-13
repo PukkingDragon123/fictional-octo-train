@@ -1,7 +1,8 @@
 // Items stream — MISC: toys & comfort items, hygiene, bedding, keys, and the
 // placeable kits (`place` = object key created when the kit is placed).
-// Comfort items carry their "play / hold" effect in `literature` (boredom,
-// unhappy, stress per use session) and the tag 'comfort' (UI verb: Play/Hold).
+// Toys and games carry the tag 'entertain' (the item menu offers "Use", which
+// relieves boredom over time); 'comfort' marks items that should also soothe
+// unhappiness/stress when held (teddy bear, rubber duck).
 import { defItem } from '../../items/item';
 import { tex, decal, T, K, rp, dk, lt, txt, txtC, stamp, stampC, dashes, band, panels, slab, folded, book, rodX, rodZ, prism, ph, MB, PixelCanvas } from './_kit';
 
@@ -33,15 +34,12 @@ const K_TABLE = D_KIT_TAG('i_kit_table', ['bbbbbbbb', 'bbbbbbbb', '.b....b.', '.
 const K_CHAIR = D_KIT_TAG('i_kit_chair', ['.b...', '.b...', '.bbbb', '.b..b', '.b..b'], { b: 0x6a4a2a });
 const K_BED = D_KIT_TAG('i_kit_bed', ['b......', 'bwwwrrr', 'brrrrrr', 'b.....b'], { b: 0x6a4a2a, w: 0xf2f2ee, r: 0xc8402a });
 const K_PLANTER = D_KIT_TAG('i_kit_planter', ['.g.g.g.', 'ggggggg', 'bbbbbbb', 'bkkkkkb', 'bbbbbbb'], { g: 0x4aa83a, b: 0x6a4a2a, k: 0x3a2a1a });
-const K_BARRICADE = D_KIT_TAG('i_kit_barricade', ['bbbbbb.', '.bbbbbb', 'bbbbbb.', '.bbbbbb'], { b: 0x6a4a2a });
 const K_BENCH = D_KIT_TAG('i_kit_workbench', ['..g.s..', 'bbbbbbb', 'b.....b', 'b.....b'], { b: 0x6a4a2a, g: 0x8a8e94, s: 0xc8302a });
 const K_RAIN = D_KIT_TAG('i_kit_rain', ['.b.b.b.', 'ttttttt', '.t...t.', '..ccc..', '..ccc..'], { b: 0x4a8ad8, t: 0x2a5ab8, c: 0x8a8e94 });
 
 // ---------------------------------------------------------------- toys & comfort
-const comfort = (b: number, u: number, s = 0) => ({ boredom: b, unhappy: u, stress: s });
 defItem({
-  key: 'teddy_bear', name: 'Teddy Bear', cat: 'misc', weight: 0.4, tags: ['toy', 'comfort'],
-  literature: comfort(-5, -15, -10),
+  key: 'teddy_bear', name: 'Teddy Bear', cat: 'misc', weight: 0.4, tags: ['toy', 'comfort', 'entertain'],
   desc: 'Threadbare and patient. Hold it to calm down; sleeping with it keeps the nightmares quieter.',
   model: (mb) => {
     mb.sphere(0, 0.065, 0, 0.06, 8, 6, S_FUR, { sy: 1.1, fit: true });
@@ -58,8 +56,7 @@ defItem({
   },
 });
 defItem({
-  key: 'toy_rubber_duck', name: 'Rubber Duck', cat: 'misc', weight: 0.05, tags: ['toy', 'comfort'],
-  literature: comfort(-6, -5),
+  key: 'toy_rubber_duck', name: 'Rubber Duck', cat: 'misc', weight: 0.05, tags: ['toy', 'comfort', 'entertain'],
   desc: 'Squeaks. Floats. Found in a pool hall that has never had children in it.',
   model: (mb) => {
     mb.sphere(0, 0.03, 0, 0.035, 8, 5, T.white, { color: 0xf6d02a, sy: 0.8 });
@@ -71,7 +68,6 @@ defItem({
 });
 defItem({
   key: 'doll', name: 'Porcelain Doll', cat: 'misc', weight: 0.5, tags: ['toy'],
-  literature: comfort(-4, 4, 6),
   desc: 'Glass eyes. It was facing the other way a minute ago.',
   model: (mb) => {
     mb.cylinder(0, 0, 0, 0.05, 0.1, 8, T.white, { color: 0x8a3a5a, rTop: 0.03 });
@@ -81,8 +77,7 @@ defItem({
   },
 });
 defItem({
-  key: 'toy_car', name: 'Toy Car', cat: 'misc', weight: 0.1, tags: ['toy'],
-  literature: comfort(-6, -2),
+  key: 'toy_car', name: 'Toy Car', cat: 'misc', weight: 0.1, tags: ['toy', 'entertain'],
   model: (mb) => {
     mb.box(0, 0.012, 0, 0.09, 0.02, 0.04, T.plastic, { color: 0xc8302a });
     mb.box(-0.005, 0.032, 0, 0.045, 0.016, 0.036, T.plastic, { color: 0xd84038 });
@@ -91,15 +86,13 @@ defItem({
   },
 });
 defItem({
-  key: 'rubiks_cube', name: 'Puzzle Cube', cat: 'misc', weight: 0.1, tags: ['toy', 'comfort'],
-  literature: comfort(-25, -3),
+  key: 'rubiks_cube', name: 'Puzzle Cube', cat: 'misc', weight: 0.1, tags: ['toy', 'entertain'],
   desc: 'A colour-twisting puzzle. One face can never be solved.',
   model: (mb) => mb.box(0, 0, 0, 0.056, 0.056, 0.056, 'i_cube_faces', { fit: true }),
 });
 tex('i_cube_faces', 9, 9, (pc) => { pc.fill(0x1c1c1c); for (let y = 0; y < 3; y++) for (let x = 0; x < 3; x++) pc.rect(x * 3, y * 3, 2, 2, [0xc8302a, 0xf0c419, 0x2a5aa8, 0x3a9a3a, 0xf2f2ee, 0xe8862a][(x * 7 + y * 3) % 6]); });
 defItem({
-  key: 'marbles', name: 'Bag of Marbles', cat: 'misc', weight: 0.2, tags: ['toy', 'distraction'],
-  literature: comfort(-8, -2),
+  key: 'marbles', name: 'Bag of Marbles', cat: 'misc', weight: 0.2, tags: ['toy', 'distraction', 'entertain'],
   desc: 'Scatter them on the floor: anything that walks over them makes a racket.',
   model: (mb) => {
     mb.sphere(0, 0.035, 0, 0.045, 6, 5, T.cloth, { color: 0x6a3a8a, sy: 0.8 });
@@ -108,8 +101,7 @@ defItem({
   },
 });
 defItem({
-  key: 'deck_of_cards', name: 'Deck of Cards', cat: 'misc', weight: 0.1, tags: ['toy', 'comfort'],
-  literature: comfort(-20, -5),
+  key: 'deck_of_cards', name: 'Deck of Cards', cat: 'misc', weight: 0.1, tags: ['toy', 'entertain'],
   desc: 'Solitaire passes the time. Fifty-three cards; you have checked twice.',
   model: (mb) => pack(mb, 0.064, 0.09, 0.02, D_CARDS, 0x2a4a9a),
 });
@@ -118,16 +110,14 @@ function pack(mb: MB, w: number, h: number, d: number, front: string, color: num
   mb.panel(-w / 2, d / 2 + 0.0015, w / 2, d / 2 + 0.0015, 0, h, front, { fit: true });
 }
 defItem({
-  key: 'dice', name: 'Dice', cat: 'misc', weight: 0.02, tags: ['toy', 'comfort'],
-  literature: comfort(-8, -2),
+  key: 'dice', name: 'Dice', cat: 'misc', weight: 0.02, tags: ['toy', 'entertain'],
   model: (mb) => {
     mb.push().rotateY(0.3); mb.box(0, 0, 0, 0.018, 0.018, 0.018, D_DIE, { fit: true }); mb.pop();
     mb.push().translate(0.03, 0, 0.012).rotateY(-0.5); mb.box(0, 0, 0, 0.018, 0.018, 0.018, D_DIE, { fit: true }); mb.pop();
   },
 });
 defItem({
-  key: 'crayons', name: 'Crayons', cat: 'misc', weight: 0.1, tags: ['pen', 'toy'],
-  literature: comfort(-10, -4),
+  key: 'crayons', name: 'Crayons', cat: 'misc', weight: 0.1, tags: ['pen', 'toy', 'entertain'],
   desc: 'Draw on the walls. Something down here likes the drawings.',
   model: (mb) => {
     pack(mb, 0.09, 0.06, 0.02, D_CRAYONS, 0xf0c419);
@@ -220,7 +210,6 @@ defItem({
 });
 defItem({
   key: 'toothbrush', name: 'Toothbrush', cat: 'misc', weight: 0.02, tags: ['hygiene'],
-  literature: comfort(0, -3),
   model: (mb) => {
     mb.box(0, 0, 0, 0.17, 0.008, 0.012, T.plastic, { color: 0x2a8ad8 });
     mb.box(0.07, 0.008, 0, 0.025, 0.01, 0.011, T.white, { color: 0xf2f2ee });
@@ -325,7 +314,6 @@ const KITS: KitOpts[] = [
   { key: 'kit_chair', name: 'Chair Kit', place: 'chair_built', weight: 6, tag: K_CHAIR, boards: 3, len: 0.6, desc: 'A simple wooden chair, ready to assemble.' },
   { key: 'kit_bed', name: 'Bed Frame Kit', place: 'crafted_bed', weight: 12, tag: K_BED, boards: 6, len: 1.0, heavy: true, desc: 'A raised bed frame with a stuffed-sheet mattress. Far better sleep than the floor.' },
   { key: 'kit_planter', name: 'Planter Box Kit', place: 'farm_planter', weight: 8, tag: K_PLANTER, boards: 4, len: 0.8, desc: 'A raised planter box: grow food on any floor, even carpet. Needs soil and water.' },
-  { key: 'kit_barricade', name: 'Barricade Panel', place: 'barricade', weight: 6.5, tag: K_BARRICADE, boards: 3, len: 1.0, desc: 'Three planks pre-nailed on battens. Fix over a door or window, or stand it in a corridor.' },
   { key: 'kit_workbench', name: 'Workbench Kit', place: 'workbench', weight: 14, tag: K_BENCH, boards: 6, len: 1.0, heavy: true, desc: 'A heavy workbench. Advanced carpentry, electrical and mechanics recipes need one.' },
 ];
 for (const k of KITS) {

@@ -206,7 +206,7 @@ defItem({
 });
 defItem({
   key: 'scalpel', name: 'Scalpel', cat: 'tool', weight: 0.02, tags: ['knife', 'sharp', 'scalpel'],
-  weapon: { kind: 'blade', dmg: [4, 7], range: 0.85, speed: 1.9, endurance: 0.02, crit: 0.3, knock: 0.05, durability: 25, noise: 3 },
+  weapon: { kind: 'blade', dmg: [4, 7], range: 0.85, speed: 1.9, endurance: 0.02, crit: 0.3, knock: 0.05, durability: 25, noise: 4 },
   model: (mb) => {
     mb.box(-0.03, 0, 0, 0.09, 0.006, 0.01, T.steel, { color: 0xb8c0c8 });
     mb.box(0.03, 0.001, 0, 0.035, 0.003, 0.008, T.steel);

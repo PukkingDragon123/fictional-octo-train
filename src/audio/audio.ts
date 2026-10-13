@@ -530,6 +530,31 @@ export class AudioEngine {
     this.radio.on = true; this.radio.strength = strength; this.radio.sig = sig; this.radio.freq = freq;
   }
 
+  /** where remote voice chat is mixed in (the voice bus) */
+  voiceInput(): AudioNode | null { return this.ctx ? this.buses.voice : null; }
+
+  /**
+   * A mimic creature calls out. With friends connected it throws back a
+   * snippet of something one of them actually said; alone, it uses a
+   * synthesised voice saying something that sounds like your name.
+   */
+  mimic(c: any) {
+    const ctx = this.ctx;
+    if (!ctx || !this.ready || c.zoneKey !== this.L.zone) return;
+    const clip = G.net?.voice?.randomClip?.() as AudioBuffer | null;
+    if (!clip) { this.creature('mimic_call', c); return; }
+    const sp = this.spatial(c.x, c.z, 34, false);
+    if (!sp) return;
+    const src = ctx.createBufferSource(); src.buffer = clip; src.playbackRate.value = 0.94 + Math.random() * 0.08;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = Math.min(sp.cutoff, 5200);
+    const g = ctx.createGain(); g.gain.value = 1.1 * sp.gain;
+    const pan = ctx.createStereoPanner(); pan.pan.value = sp.pan;
+    const send = ctx.createGain(); send.gain.value = sp.send + 0.2;
+    src.connect(f); f.connect(pan); pan.connect(g); g.connect(this.buses.voice); g.connect(send); send.connect(this.reverbIn);
+    src.start();
+    src.onended = () => { src.disconnect(); f.disconnect(); pan.disconnect(); g.disconnect(); send.disconnect(); };
+  }
+
   /** ringing ears and muffled world after a close gunshot or blast */
   deafen(amount: number) { this.deaf = Math.max(this.deaf, amount); }
 

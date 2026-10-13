@@ -6,9 +6,18 @@ first (furniture/item/texture conventions). The reference generator is
 
 ## How a zone is built
 
-* One file per zone: `src/world/gen/<key>.ts` exporting
-  `generate<Name>(z: Zone, seed: number)`. Register it in
-  `src/world/zones.ts` with `defZone({ key, name, W, H, gen, depth, blurb })`.
+* One file per zone: `src/world/gen/z_<key>.ts`. It calls
+  `defZone({ key, name, W, H, gen, depth, blurb })` at import time
+  (`src/world/zones.ts` globs `./gen/z_*.ts`). Shared helpers for several of
+  your zones go in `src/world/gen/<yourname>_kit.ts`.
+* **Check your zones headlessly** (no WebGL, ~1 s):
+  `node scripts/zonecheck.mjs <key> [<key> ...]` generates them, validates
+  anchors (walkable, not on triggers), portals, loop portals, reachability
+  from the first anchor (≥75% of floor), cross-zone anchor links against the
+  other zones listed, unknown objects/textures, and writes
+  `scripts/out/map_<key>.png` (red portal, magenta loop, green anchor, orange
+  door, blue window, dots = lights). Look at the PNG. Run it with all your
+  zones plus their neighbours (e.g. `node scripts/zonecheck.mjs lobby office stairwell`).
 * Deterministic: build everything from `new Rng(seed)`. Never call
   `Math.random()`. Co-op clients regenerate zones locally and only sync
   changes, so identical seed ⇒ identical zone.

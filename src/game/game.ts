@@ -85,6 +85,12 @@ export class Game {
   interact: any = null;
   survival: any = null;
   collapse = 0;
+  /** title-screen mode: replaces player control with a scripted wanderer */
+  attract: ((dt: number) => void) | null = null;
+  /** save slot of this world (set on first save / load) */
+  saveId: string | null = null;
+  playMinutes = 0;
+  sessionStart = performance.now();
   fade = 0; fadeTarget = 0; fadeCb: (() => void) | null = null;
   transitioning = false;
 
@@ -239,7 +245,8 @@ export class Game {
       if (this.fadeTarget === 0 && this.fade < 0.01) this.fade = 0;
     }
     let t0 = performance.now();
-    if (sim && this.local) this.controlLocal(dt);
+    if (this.attract) this.attract(dt);
+    else if (sim && this.local) this.controlLocal(dt);
     this.perfMark('control', t0);
     if (sim) for (const s of this.systems) {
       t0 = performance.now();
