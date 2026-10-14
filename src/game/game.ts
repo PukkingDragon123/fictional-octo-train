@@ -440,7 +440,7 @@ export class Game {
     // players visuals
     for (const pl of this.players.values()) {
       const same = pl.zoneKey === p.zoneKey;
-      pl.rig.root.visible = same && (pl === p || v.vis.isVisible(Math.floor(pl.x), Math.floor(pl.z)));
+      pl.rig.root.visible = same && !pl.inVehicle && (pl === p || v.vis.isVisible(Math.floor(pl.x), Math.floor(pl.z)));
       if (same) pl.updateVisual(dt);
     }
   }

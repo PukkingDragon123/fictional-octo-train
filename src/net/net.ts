@@ -18,7 +18,7 @@ import type { MenuOption } from '../ui/ui';
 
 export interface Welcome {
   seed: number; sandbox: any; hours: number; collapse: number;
-  missions: any; log: string[]; fires: Record<string, any>;
+  missions: any; log: string[]; fires: Record<string, any>; vehicles?: any[];
   zone: string; spawn: [number, number];
   players: { id: string; name: string; app: Appearance; state?: PlayerNetState }[];
 }
@@ -96,6 +96,8 @@ export class Net implements GameSystem {
   broadcastFx(kind: string, data: any) { this.to('all', { k: 'fx', f: kind, d: data }); }
   sendTo(id: string, kind: string, data: any) { if (G.players.get(id)?.isLocal) { this.handle(this.id, { k: kind, ...data }); return; } this.to(id, { k: kind, ...data }); }
   sendNoise(n: any) { this.to('host', { k: 'noise', n }); }
+  /** the local driver's car pose (host relays it to everyone) */
+  sendVehicle(s: any) { this.to(this.isHost ? 'all' : 'host', { k: 'veh', s }); }
   sendHurt(pid: string, hit: any) { this.sendTo(pid, 'hurt', { hit }); }
   sendMedical(pid: string, inj: any) { this.sendTo(pid, 'med', { inj }); }
   onLocalTravel(zone: string) { void zone; this.selfT = 1; }
@@ -157,6 +159,7 @@ export class Net implements GameSystem {
       case 'me': this.applyRemote(from, d.s); break;
       case 'op': if (this.isHost) hostApply(d.n, d.a, from); else applyOp(d.n, d.a, from, false); break;
       case 'noise': if (this.isHost) bus.emit('noise', d.n); break;
+      case 'veh': (G as any).vehicles?.applyPose?.(d.s); if (this.isHost) this.to('all', { k: 'veh', s: d.s }); break;
       // ---- client side
       case 'welcome': this.onWelcome?.(d.w); break;
       case 'snap': this.applySnap(d); break;
@@ -194,7 +197,7 @@ export class Net implements GameSystem {
     for (const z of G.zones.values()) if (z.meta.fires && Object.keys(z.meta.fires).length) fires[z.key] = z.meta.fires;
     const w: Welcome = {
       seed: G.worldSeed, sandbox: G.sandbox, hours: G.clock.hours, collapse: G.collapse,
-      missions: G.missions?.serialize?.() ?? null, log: opLog, fires,
+      missions: G.missions?.serialize?.() ?? null, log: opLog, fires, vehicles: (G as any).vehicles?.serialize?.() ?? [],
       zone: me.zoneKey, spawn: G.nearestWalkable(G.getZone(me.zoneKey), Math.floor(me.x + 1), Math.floor(me.z)),
       players: [...G.players.values()].filter((q) => q.id !== id).map((q) => ({ id: q.id, name: q.name, app: q.app, state: q.netState() })),
     };
@@ -290,6 +293,7 @@ export class Net implements GameSystem {
     p.flashlightOn = s.light;
     p.body.downed = s.down; p.body.dead = s.dead;
     p.carrying = s.carry || null; p.carriedBy = s.carriedBy || null;
+    p.inVehicle = s.veh || null;
     // held items & outfit are visual mirrors
     if ((p.handR?.key || '') !== s.hr) p.handR = s.hr ? ({ uid: -1, key: s.hr, cond: 1, age: 0 } as Item) : null;
     if ((p.handL?.key || '') !== s.hl) p.handL = s.hl ? ({ uid: -2, key: s.hl, cond: 1, age: 0 } as Item) : null;

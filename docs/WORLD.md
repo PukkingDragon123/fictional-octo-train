@@ -59,6 +59,13 @@ first (furniture/item/texture conventions). The reference generator is
   `music`: '' musicbox muzak drone pads choir broken (empty = zone default).
 * Creatures: `z.spawnTable = [[speciesKey, weight], ...]`, `z.creatureCap`.
   Unknown species keys are ignored, so list the planned ones.
+* Vehicles: list parked cars in `z.meta.vehicleSpawns = [{ x, y, rot, type?, chance? }]`
+  (tile of the car centre; rot 0..3 quarter turns, 0 = facing +x/east; type
+  `sedan | hatch | van | pickup`, chance default 0.8). They are drivable
+  (keys, hotwiring, fuel, trunk loot) and can drive through `walk` portals,
+  so put them on roads, driveways and parking bays with ~3 tiles of clear
+  space around. Use them in suburbs, parking, hospital lot, market dock,
+  and one abandoned on the fields road.
 * Flags per tile: `TF.OUTDOOR`, `TF.NOSPAWN` (safe rooms, spawn points),
   `TF.SAFE`, `TF.CORRUPT`, `TF.SHIFT`, `TF.VENT`.
 

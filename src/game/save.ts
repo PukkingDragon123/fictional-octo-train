@@ -26,6 +26,7 @@ export interface SaveData {
   creatures: any[];
   uid: number;
   playMinutes: number;
+  vehicles?: any[];
 }
 export interface SaveMeta { id: string; name: string; savedAt: number; hours: number; zone: string; character: string; version: number }
 
@@ -130,7 +131,7 @@ export function snapshotGame(name?: string): SaveData {
     missions: G.missions?.serialize?.() ?? null,
     log: opLog.slice(), fires,
     player: serializePlayer(p),
-    creatures, uid: peekUid(),
+    creatures, uid: peekUid(), vehicles: (G as any).vehicles?.serialize?.() ?? [],
     playMinutes: (G.playMinutes || 0) + (performance.now() - (G.sessionStart || 0)) / 60000,
   };
 }
@@ -154,4 +155,5 @@ export function restoreAfterLoad(s: SaveData) {
     if (c.inv) cr.inv = deserializeContainer(c.inv);
   }
   for (const [zk, f] of Object.entries(s.fires || {})) { const z = G.getZone(zk); z.meta.fires = f; }
+  if (s.vehicles) { for (const v of s.vehicles) G.getZone(v.zone); (G as any).vehicles?.load?.(s.vehicles); }
 }

@@ -7,6 +7,7 @@ import { floorItems, WorldItem } from '../items/worldItems';
 import { itemGeometry } from '../items/itemMeshes';
 import { Player } from '../entities/player';
 import { WALL_H } from '../world/defs';
+import { vehicleBox } from '../vehicles/vehicles';
 
 export type PickTarget =
   | { kind: 'object'; obj: TileObject; point: THREE.Vector3 }
@@ -117,6 +118,13 @@ export function pick(cssX: number, cssY: number, opts: { creatures?: any[]; igno
     box.set(new THREE.Vector3(p.x - 0.3, p.y, p.z - 0.3), new THREE.Vector3(p.x + 0.3, p.y + 1.8, p.z + 0.3));
     const t = hitBox(box);
     if (t !== null) consider(t - 0.4, () => ({ kind: 'player', p, point: new THREE.Vector3(p.x, p.y, p.z) }));
+  }
+  // vehicles
+  for (const v of (g as any).vehicles?.list?.() || []) {
+    if (!vis.isVisible(Math.floor(v.x), Math.floor(v.z)) && !z.explored[z.idx(Math.floor(v.x), Math.floor(v.z))]) continue;
+    vehicleBox(v, box);
+    const t = hitBox(box);
+    if (t !== null) consider(t + 0.2, () => ({ kind: 'vehicle', v, point: new THREE.Vector3(v.x, 0, v.z) }));
   }
   if (best) return best;
   const tx = Math.floor(floorHit.x), ty = Math.floor(floorHit.z);

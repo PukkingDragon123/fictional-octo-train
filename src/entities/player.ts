@@ -18,7 +18,7 @@ export type WearSlot = typeof WEAR_SLOTS[number];
 export interface PlayerNetState {
   x: number; z: number; f: number; sp: number; st: Stance; fb: FullBody; ac: ActionAnim; at: number; ad: number;
   run: boolean; light: boolean; hr: string; hl: string; out: Outfit; down: boolean; dead: boolean; zone: string; aim: boolean;
-  carry?: string; carriedBy?: string; name: string; app: Appearance; th?: boolean;
+  carry?: string; carriedBy?: string; name: string; app: Appearance; th?: boolean; veh?: string;
 }
 
 /**
@@ -308,7 +308,7 @@ export class Player {
       at: this.actions.current?.t ?? 0, ad: this.actions.current?.effDuration ?? 0,
       run: this.running, light: this.flashlightOn, hr: this.handR?.key || '', hl: this.handL && this.handL !== this.handR ? this.handL.key : '',
       out: this.computeOutfit(), down: this.body.downed, dead: this.body.dead, zone: this.zoneKey, aim: this.aiming,
-      carry: this.carrying || undefined, carriedBy: this.carriedBy || undefined, name: this.name, app: this.app, th: this.scannerOpen,
+      carry: this.carrying || undefined, carriedBy: this.carriedBy || undefined, name: this.name, app: this.app, th: this.scannerOpen, veh: this.inVehicle || undefined,
     };
   }
 }

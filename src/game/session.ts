@@ -19,6 +19,7 @@ import { MissionSystem } from '../missions/missions';
 import '../missions/directives';
 import { ShiftSystem } from '../world/shift';
 import { WorldSystems } from '../items/worldSystems';
+import { VehicleSystem } from '../vehicles/vehicles';
 import { replayOps } from './ops';
 import { restorePlayer, restoreAfterLoad, saveGame, SaveData } from './save';
 import { occupationByKey } from '../survival/traits';
@@ -105,6 +106,7 @@ export function startSession(o: SessionOpts): Game {
   const items = new WorldSystems();
   g.items = items;
   g.addSystem(items);
+  g.addSystem(new VehicleSystem());
   if (o.net) g.addSystem(o.net);
   const ui = new UI();
   g.ui = ui;
@@ -137,6 +139,7 @@ export function startSession(o: SessionOpts): Game {
   if (log?.length) replayOps(log);
   if (s) restoreAfterLoad(s);
   if (w) for (const [zk, f] of Object.entries(w.fires || {})) g.getZone(zk).meta.fires = f;
+  if (w?.vehicles) { for (const v of w.vehicles) g.getZone(v.zone); (g as any).vehicles?.load?.(w.vehicles); }
 
   // ---- input routing
   ui.onWorldClick = (t, b) => {
@@ -147,6 +150,7 @@ export function startSession(o: SessionOpts): Game {
     else interact.defaultAction(p, t);
   };
   ui.onInteractKey = () => {
+    if (p.inVehicle) return;
     if (ui.hover && ui.hover.kind !== 'tile') { interact.defaultAction(p, ui.hover); return; }
     const objs = interact.objectsNear(p, 1.6);
     if (objs.length) { interact.defaultAction(p, { kind: 'object', obj: objs[0], point: p.pos }); return; }

@@ -530,6 +530,20 @@ export class AudioEngine {
     this.radio.on = true; this.radio.strength = strength; this.radio.sig = sig; this.radio.freq = freq;
   }
 
+  /**
+   * A positional loop owned by some system (engines, machines): call every
+   * frame with the current position/volume/rate; key null stops it.
+   */
+  private extLoops = new Map<string, LoopVoice>();
+  positionalLoop(id: string, key: string | null, x = 0, z = 0, vol = 1, rate = 1, range = 30) {
+    let lv = this.extLoops.get(id);
+    if (!key || !this.ready) { if (lv) { this.stopLoop(lv, 0.4); this.extLoops.delete(id); } return; }
+    if (lv && lv.key !== key) { this.stopLoop(lv, 0.2); lv = undefined; this.extLoops.delete(id); }
+    if (!lv) { lv = this.startLoop(key, 'sfx', 0, { spatial: true, fadeIn: 0.2 }) || undefined; if (!lv) return; this.extLoops.set(id, lv); }
+    this.placeLoop(lv, x, z, vol, range);
+    lv.src.playbackRate.setTargetAtTime(rate, this.ctx!.currentTime, 0.05);
+  }
+
   /** where remote voice chat is mixed in (the voice bus) */
   voiceInput(): AudioNode | null { return this.ctx ? this.buses.voice : null; }
 

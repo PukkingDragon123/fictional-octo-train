@@ -31,7 +31,7 @@ export class CombatSystem implements GameSystem {
 
   update(dt: number) {
     const p = G.local;
-    if (!p || p.body.dead || p.body.downed) return;
+    if (!p || p.body.dead || p.body.downed || p.inVehicle) return;
     p.attackCooldown = Math.max(0, p.attackCooldown - dt);
     const inp = G.input;
     const busy = p.actions.current?.started && p.actions.current.locks;

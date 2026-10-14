@@ -152,6 +152,11 @@ export class Interact {
       case 'creature':
         if (t.c.dead) { G.ui?.inventory?.toggle(true); return; }
         return;
+      case 'vehicle': {
+        const first = ((G as any).vehicles?.menuOptions?.(p, t.v) || []).find((o: MenuOption) => o.action && !o.disabled);
+        first?.action?.();
+        return;
+      }
       case 'player':
         return;
       case 'tile':
@@ -176,6 +181,7 @@ export class Interact {
         break;
       }
       case 'creature': opts.push(...(G.creatures?.menuOptions?.(p, t.c) || [])); break;
+      case 'vehicle': opts.push(...((G as any).vehicles?.menuOptions?.(p, t.v) || [])); break;
       case 'player': opts.push(...this.playerOptions(p, t.p)); break;
       case 'tile': opts.push(...this.tileOptions(p, t.x, t.y)); break;
     }
