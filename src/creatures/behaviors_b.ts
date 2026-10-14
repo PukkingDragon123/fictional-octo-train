@@ -15,7 +15,7 @@ import { createItem, serializeItem } from '../items/factory';
 import { itemDef } from '../items/item';
 import type { Zone, LightSource } from '../world/zone';
 import type { Player } from '../entities/player';
-import type { Creature, CState } from './creature';
+import type { Creature } from './creature';
 import type { Rig, SpeciesDef } from './species';
 
 export const rng = new Rng(Math.random() * 1e9);
@@ -171,6 +171,46 @@ export function hiddenSpot(z: Zone, cx: number, cz: number, rMin: number, rMax: 
   return null;
 }
 
+/**
+ * Tiles reachable on foot from (x,z) (BFS through doorless edges, creature
+ * rules), up to maxN tiles. Every result is a place the creature can actually
+ * walk to, unlike random sampling in a maze.
+ */
+export function reachTiles(z: Zone, x: number, zz: number, maxN = 1400, allowDeep = false): [number, number, number][] {
+  const sx = Math.floor(x), sy = Math.floor(zz);
+  const out: [number, number, number][] = [];
+  if (!z.inb(sx, sy)) return out;
+  const seen = new Set<number>([z.idx(sx, sy)]);
+  const q: [number, number, number][] = [[sx, sy, 0]];
+  for (let h = 0; h < q.length && out.length < maxN; h++) {
+    const [cx, cy, d] = q[h];
+    out.push(q[h]);
+    for (const [dx, dy] of DIR4) {
+      const nx = cx + dx, ny = cy + dy;
+      if (!z.inb(nx, ny)) continue;
+      const j = z.idx(nx, ny);
+      if (seen.has(j)) continue;
+      if (!z.canStep(cx, cy, dx, dy, true)) continue;
+      if (!allowDeep && z.floorAt(nx, ny)?.water === 'deep') continue;
+      seen.add(j);
+      q.push([nx, ny, d + 1]);
+    }
+  }
+  return out;
+}
+const DIR4: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+/** best reachable tile by score (null = rejected); a little randomness keeps it unpredictable */
+export function pickReach(z: Zone, x: number, zz: number, score: (tx: number, tz: number, steps: number) => number | null, maxN = 1400): { x: number; z: number } | null {
+  let best: { x: number; z: number } | null = null, bs = -Infinity;
+  for (const [tx, ty, st] of reachTiles(z, x, zz, maxN)) {
+    const s0 = score(tx + 0.5, ty + 0.5, st);
+    if (s0 === null) continue;
+    const sc = s0 + rng.next() * 2;
+    if (sc > bs) { bs = sc; best = { x: tx + 0.5, z: ty + 0.5 }; }
+  }
+  return best;
+}
+
 /** creatures that make gentle things hide */
 export function isThreat(o: Creature) {
   const T = o.sp.temperament;
@@ -220,7 +260,6 @@ export function face(c: Creature, x: number, z: number, instant = false) {
   c.targetFacing = Math.atan2(z - c.z, x - c.x);
   if (instant) c.facing = c.targetFacing;
 }
-export function setS(c: Creature, s: CState) { c.setState(s); }
 
 /** cheap stable hash 0..1 of a creature id (per-individual looks) */
 export function hashId(id: string, salt = 0): number {
@@ -281,8 +320,8 @@ export function partB(rig: Rig, name: string, parent: THREE.Object3D, at: [numbe
 /** minimal stand-in creature for gallery animation */
 export function fakeCreature(sp: any, over: Partial<Creature> & Record<string, any> = {}): Creature {
   return {
-    id: 'gallery' + (over.id ?? ''), sp, zoneKey: '', x: 0, z: 0, y: 0, facing: 0, targetFacing: 0, vx: 0, vz: 0, speed: 0,
-    hp: sp.hp, state: 'idle', stateT: 0, mem: {}, dead: false, deathT: 0, attackPhase: 0, observed: false, hitFlash: 0,
+    sp, zoneKey: '', x: 0, z: 0, y: 0, facing: 0, targetFacing: 0, vx: 0, vz: 0, speed: 0,
+    hp: sp.hp, state: 'idle', id: 'gallery', stateT: 0, mem: {}, dead: false, deathT: 0, attackPhase: 0, observed: false, hitFlash: 0,
     tamedBy: null, phase: 0, animT: 0, visibleToLocal: true, radius: sp.radius, height: sp.height, ...over,
   } as unknown as Creature;
 }

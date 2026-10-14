@@ -58,6 +58,7 @@ const DUST = 6;
 function buildMoth(rig: Rig, i: number, parent: THREE.Object3D): THREE.Group {
   const m = new THREE.Group();
   m.name = 'moth' + i;
+  m.scale.setScalar(1.3); // hand-sized: readable as specks of light from the iso camera
   parent.add(m);
   rig.parts['moth' + i] = m;
   part(rig, 'mb' + i, m, [0, 0, 0], (mb) => {
