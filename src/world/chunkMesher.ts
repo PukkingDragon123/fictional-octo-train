@@ -168,6 +168,19 @@ function emitWall(zone: Zone, mb: ModelBuilder, glass: ModelBuilder, x: number, 
     }
   };
   const ext = T / 2; // overlap corners
+  if (w.glass && !e) {
+    // glass partition: metal frame in the opaque mesh, the pane goes to the transparent pass
+    const fr = w.top || 'metal_grey';
+    const frame = (a0: number, a1: number, h0: number, h1: number) => {
+      if (side === 0) mb.boxMinMax(x + a0, baseH + h0, y - T / 2, x + a1, baseH + h1, y + T / 2, fr, { ao: true });
+      else mb.boxMinMax(x - T / 2, baseH + h0, y + a0, x + T / 2, baseH + h1, y + a1, fr, { ao: true });
+    };
+    frame(-ext, 0.05, 0, H); frame(0.95, 1 + ext, 0, H);
+    frame(0.05, 0.95, 0, 0.1); frame(0.05, 0.95, H - 0.08, H);
+    if (side === 0) glass.boxMinMax(x + 0.05, baseH + 0.1, y - 0.015, x + 0.95, baseH + H - 0.08, y + 0.015, 'glass');
+    else glass.boxMinMax(x - 0.015, baseH + 0.1, y + 0.05, x + 0.015, baseH + H - 0.08, y + 0.95, 'glass');
+    return;
+  }
   if (!e || !hasWall && e.kind === 'arch') {
     if (!e) { seg(0, 1, 0, H, ext, ext); return; }
   }
