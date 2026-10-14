@@ -309,7 +309,7 @@ export class ModelBuilder {
    * Append a cached geometry with a transform. Used by the chunk mesher to
    * stamp furniture models into merged chunk meshes.
    */
-  appendGeometry(g: THREE.BufferGeometry, m: THREE.Matrix4, tint = 0xffffff) {
+  appendGeometry(g: THREE.BufferGeometry, m: THREE.Matrix4, tint = 0xffffff, fxY?: number) {
     const base = this.vertexCount;
     const P = g.getAttribute('position'), N = g.getAttribute('normal'), UV = g.getAttribute('uv');
     const C = g.getAttribute('color'), A = g.getAttribute('aAtlas'), F = g.getAttribute('aFx');
@@ -323,7 +323,7 @@ export class ModelBuilder {
       this.uv.push(UV.getX(i), UV.getY(i));
       this.col.push(C.getX(i) * tr, C.getY(i) * tg, C.getZ(i) * tb);
       this.atl.push(A.getX(i), A.getY(i), A.getZ(i), A.getW(i));
-      this.fx.push(F.getX(i), F.getY(i));
+      this.fx.push(F.getX(i), fxY ?? F.getY(i));
     }
     const I = g.getIndex()!;
     for (let i = 0; i < I.count; i++) this.idx.push(I.getX(i) + base);

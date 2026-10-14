@@ -94,7 +94,8 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       if (!g) continue;
       const m = objectMatrix(zone, o, d);
       const target = d.foliage ? foliage : (d.height > 1.1 || d.tall) ? props : propsLow;
-      target.appendGeometry(g, m, o.tint ?? 0xffffff);
+      // wall-mounted props are cut away together with the wall they hang on (axis 1 = wall along x, 2 = along z)
+      target.appendGeometry(g, m, o.tint ?? 0xffffff, d.onWall && !d.foliage ? (o.rot % 2 === 0 ? 1 : 2) : undefined);
     }
   }
   // decals inside this chunk
