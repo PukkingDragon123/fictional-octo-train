@@ -424,10 +424,13 @@ export class MissionSystem implements GameSystem {
       <p class="k-end-3">CONTINUITY SESSION TERMINATED.<br>SUBJECT RESPONSIVE.</p>
       <p class="k-end-4">${escapeHtml(p.name)} — ${days} days, ${hrs} hours inside.</p>
       <p class="k-end-5">NOCLIP</p>
-      <button class="k-end-btn">Wake up again</button></div>`;
+      <button class="k-end-btn">Wake up again</button>${G.net ? '<button class="k-end-btn k-end-stay">Stay until the others are out</button>' : ''}</div>`;
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('on'));
     el.querySelector('button')?.addEventListener('click', () => location.reload());
+    // co-op: the host leaving would end everyone's session, so you can linger at the door
+    el.querySelector('.k-end-stay')?.addEventListener('click', () => { el.remove(); G.audio?.flat?.('choir', 'music', 0, 1, 0, 1); });
+    if (G.net) G.net.chat(`${p.name} stepped through the door.`);
     void ui;
   }
 
