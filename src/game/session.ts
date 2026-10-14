@@ -53,6 +53,7 @@ class WorldExtras implements GameSystem {
   name = 'extras';
   floor = new FloorItemRenderer();
   private autosaveT = 300;
+  private shoutT = 0;
   constructor(g: Game) { g.pr.scene.add(this.floor.root); }
   update(dt: number) {
     const g = G;
@@ -63,6 +64,20 @@ class WorldExtras implements GameSystem {
     if (inp.hit('inventory')) g.ui?.inventory?.toggle();
     if (inp.hit('scanner')) g.ui?.scanner?.toggle?.();
     if (inp.hit('map')) g.ui?.scanner?.toggle?.(true, 'map');
+    // Q: shout. Friends hear it across the floor; so does everything else.
+    this.shoutT -= dt;
+    if (inp.hit('shout') && this.shoutT <= 0 && !g.local.body.dead && !g.ui?.scanner?.open) {
+      this.shoutT = 2.5;
+      const p = g.local;
+      const alone = g.players.size <= 1;
+      const lines = alone ? ['HELLO?!', 'IS ANYONE THERE?', 'HEY!', 'HELLO?'] : ['HEY!', 'OVER HERE!', 'HERE!', 'COME HERE!', 'WAIT UP!'];
+      const text = lines[Math.floor(Math.random() * lines.length)];
+      g.ui?.say?.(p, text, 'shout', 2.5);
+      g.audio?.at?.('shout', p.x, p.z, 1);
+      bus.emit('noise', { x: p.x, z: p.z, radius: 28, kind: 'shout', zone: p.zoneKey, by: p.id });
+      g.net?.shout?.(text);
+      bus.emit('shout', p);
+    }
     // autosave every five minutes (solo / host)
     this.autosaveT -= dt;
     if (this.autosaveT <= 0) { this.autosaveT = 300; if (g.role !== 'client' && !g.local.body.dead) saveGame().then((ok) => { if (ok) g.ui?.toast?.('SAVED', '', 1.5); }); }

@@ -120,6 +120,7 @@ def('hit_blunt', (v) => { const b = new Buf(0.35); b.mix(thump(0.25, 130 + v * 1
 def('hit_blade', (v) => { const b = new Buf(0.3); const sl = noise(0.15, 'white'); bandpass(sl, 3500 + v * 200, 2); sl.env(perc(0.005, 25)); b.mix(sl, 0, 0.8); b.mix(burst(0.12, 'brown', 900, 60, 30), 0.02, 0.6); return b.normalize(0.75); });
 def('hit_crit', () => { const b = new Buf(0.5); b.mix(thump(0.35, 90, 35, 10), 0, 1); b.mix(burst(0.2, 'brown', 1200, 40, 15), 0, 0.8); return b.drive(3).normalize(0.9); });
 def('gun_pistol', () => { const b = new Buf(1.6); b.mix(burst(0.04, 'white', 12000, 300, 40), 0, 1); b.mix(thump(0.3, 160, 45, 9), 0, 1); const tail = noise(1.5, 'brown'); lowpass(tail, 700); tail.env(decay(3.2)); b.mix(tail, 0.02, 0.6); return b.drive(4).normalize(0.95); });
+def('shout', (v) => { const b = voice(0.6, (t) => (t < 0.24 ? 205 + t * 90 : 196 - (t - 0.24) * 140) + v * 18, [[650, 1], [1750, 0.55], [2600, 0.2]], 0.12, 'saw'); b.env(adsr(0.02, 0.08, 0.85, 0.18, 0.6)); return b.drive(1.4).normalize(0.7); });
 def('hurt_player', (v) => { const b = voice(0.45, (t) => 220 - t * 140 + v * 12, [[700, 1], [1200, 0.6], [2600, 0.25]], 0.25); b.env(perc(0.01, 6)); return b.normalize(0.55); });
 def('heartbeat', () => { const b = new Buf(0.8); b.mix(thump(0.18, 70, 40, 18), 0, 1); b.mix(thump(0.16, 62, 38, 20), 0.22, 0.7); lowpass(b, 300); return b.normalize(0.8); });
 def('breath', () => { const b = noise(1.4, 'pink'); bandpass(b, 900, 0.8); return b.env((t) => Math.pow(Math.sin(Math.min(1, t / 1.4) * Math.PI), 2) * 0.8).normalize(0.35); });

@@ -125,6 +125,8 @@ export class Net implements GameSystem {
     this.to('all', { k: 'chat', text });
     G.ui?.chatLine?.(me.name, text);
   }
+  /** a shout everyone in the zone can hear (bubble + voice) */
+  shout(text: string) { this.to('all', { k: 'shout', text }); }
   /** walkie-talkie: pick a channel / switch on (item menu) */
   radioMenu(p: Player, it: Item) {
     const d = itemDef(it.key);
@@ -171,6 +173,7 @@ export class Net implements GameSystem {
       case 'revive': this.revived(from); break;
       case 'carry': if (G.local) { G.local.carriedBy = d.by; bus.emit('think', G.local, d.by ? 'Someone has me.' : 'Back on my feet... sort of.'); } break;
       case 'chat': { const p = G.players.get(from); if (p) G.ui?.say?.(p, d.text, 'say', 5); G.ui?.chatLine?.(p?.name || from, d.text); break; }
+      case 'shout': { const p = G.players.get(from); if (p && G.local && p.zoneKey === G.local.zoneKey) { G.ui?.say?.(p, String(d.text).slice(0, 40), 'shout', 2.5); G.audio?.at?.('shout', p.x, p.z, 1); } break; }
       case 'rtc': this.voice.onSignal(from, d); break;
       case 'left': this.dropPeer(from); break;
     }

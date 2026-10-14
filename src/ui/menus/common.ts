@@ -64,7 +64,7 @@ export const CONTROLS: [string, string][] = [
   ['Right click', 'context menu'], ['E', 'interact with what is in front of you'], ['Space', 'shove'], ['F', 'flashlight'],
   ['Tab', 'raise the SEER-9 scanner'], ['1–6 / Q E / wheel', 'scanner pages · dial'], ['I', 'inventory'], ['M', 'map'],
   ['R', 'reload · rotate when placing'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'], ['V (hold)', 'talk (co-op voice, walkie when switched on)'],
-  ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
+  ['Q', 'shout (scanner closed)'], ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
 ];
 export function controlsPanel(): HTMLElement {
   const box = h('div', 'k-controls');
