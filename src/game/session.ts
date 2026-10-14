@@ -20,7 +20,7 @@ import '../missions/directives';
 import { ShiftSystem } from '../world/shift';
 import { WorldSystems } from '../items/worldSystems';
 import { VehicleSystem } from '../vehicles/vehicles';
-import { replayOps } from './ops';
+import { replayOps, op } from './ops';
 import { restorePlayer, restoreAfterLoad, saveGame, SaveData } from './save';
 import { occupationByKey } from '../survival/traits';
 import { PauseMenu } from '../ui/menus/pause';
@@ -182,6 +182,7 @@ export function startSession(o: SessionOpts): Game {
     g.placePlayer(p, 'lobby', sp[0], sp[1], 0);
   }
   (window as any).__game = g;
+  if (import.meta.env.DEV) (window as any).__dev = { newItem, op };
   document.getElementById('boot')?.classList.add('gone');
   g.sessionStart = performance.now();
   g.start();

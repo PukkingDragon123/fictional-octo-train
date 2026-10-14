@@ -89,6 +89,15 @@ defObj({
   },
 });
 
+/** Serialized container for an object added at runtime (built, placed, swapped).
+ *  Built storage starts empty; carried furniture keeps whatever it held. */
+function invFor(key: string, objUid: number, prev?: any): any {
+  const d = objDef(key); const spec = d?.container || d?.containers?.[0];
+  if (!spec) return null;
+  if (prev) return { ...prev, owner: 'obj:' + objUid };
+  return { uid: uid(), name: spec.name || d!.name, kind: spec.kind, capacity: spec.capacity, reduction: 0, lootDone: true, locked: false, owner: 'obj:' + objUid, cooling: spec.cooling, heating: spec.heating, items: [] };
+}
+
 // ---------------------------------------------------------------- building
 interface Buildable { key: string; label: string; secs: number; skill?: number; tools: string[]; mats: [string, number][]; obj?: string; wall?: string; edge?: boolean }
 const BUILD: Buildable[] = [
@@ -96,12 +105,14 @@ const BUILD: Buildable[] = [
   { key: 'wall_w', label: 'Wooden wall (west edge)', secs: 14, skill: 1, tools: ['#hammer'], mats: [['plank', 3], ['nails', 6]], wall: 'wood_built', edge: true },
   { key: 'fence_n', label: 'Fence (north edge)', secs: 8, tools: ['#hammer'], mats: [['plank', 2], ['nails', 4]], wall: 'fence_wood', edge: true },
   { key: 'fence_w', label: 'Fence (west edge)', secs: 8, tools: ['#hammer'], mats: [['plank', 2], ['nails', 4]], wall: 'fence_wood', edge: true },
-  { key: 'crate', label: 'Wooden crate', secs: 10, skill: 1, tools: ['#hammer'], mats: [['plank', 3], ['nails', 4]], obj: 'crate_wood' },
+  { key: 'crate', label: 'Plank crate', secs: 10, skill: 1, tools: ['#hammer'], mats: [['plank', 3], ['nails', 4]], obj: 'crate_built' },
   { key: 'firepit', label: 'Fire pit', secs: 6, tools: [], mats: [['stone', 4], ['firewood', 1]], obj: 'campfire_unlit' },
   { key: 'rain', label: 'Rain collector', secs: 16, skill: 2, tools: ['#hammer'], mats: [['plank', 2], ['nails', 4], ['tarp', 1]], obj: 'rain_collector' },
-  { key: 'bed', label: 'Makeshift bed', secs: 18, skill: 2, tools: ['#hammer'], mats: [['plank', 4], ['nails', 6], ['bedsheet', 1]], obj: 'bed_makeshift' },
-  { key: 'table', label: 'Plank table', secs: 14, skill: 2, tools: ['#hammer'], mats: [['plank', 4], ['nails', 6]], obj: 'table_makeshift' },
-  { key: 'sign', label: 'Sign post', secs: 5, tools: ['#hammer'], mats: [['plank', 1], ['nails', 2]], obj: 'sign_post' },
+  { key: 'bed', label: 'Plank bed', secs: 18, skill: 2, tools: ['#hammer'], mats: [['plank', 4], ['nails', 6], ['bedsheet', 1]], obj: 'crafted_bed' },
+  { key: 'table', label: 'Plank table', secs: 14, skill: 2, tools: ['#hammer'], mats: [['plank', 4], ['nails', 6]], obj: 'table_built' },
+  { key: 'chair', label: 'Plank chair', secs: 8, skill: 1, tools: ['#hammer'], mats: [['plank', 2], ['nails', 4]], obj: 'chair_built' },
+  { key: 'planter', label: 'Raised planter', secs: 16, skill: 1, tools: ['#hammer'], mats: [['plank', 3], ['nails', 4], ['compost', 1]], obj: 'farm_planter' },
+  { key: 'workbench', label: 'Workbench', secs: 30, skill: 3, tools: ['#hammer', '#saw'], mats: [['plank', 6], ['nails', 10], ['scrap_metal', 2]], obj: 'workbench' },
 ];
 
 const pickN = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
@@ -334,7 +345,8 @@ export class WorldSystems implements GameSystem {
   private swapObject(z: Zone, o: TileObject, key: string, state: Record<string, any>) {
     const s = serializeObj(o);
     op('objRemove', { z: z.key, uid: o.uid });
-    op('objAdd', { z: z.key, obj: { ...s, uid: uid(), key, state: { ...o.state, ...state }, inv: null } });
+    const nu = uid();
+    op('objAdd', { z: z.key, obj: { ...s, uid: nu, key, state: { ...o.state, ...state }, inv: invFor(key, nu, s.inv) } });
   }
 
   private renderFires() {
@@ -664,7 +676,7 @@ export class WorldSystems implements GameSystem {
     if (o.inv?.items.length) { bus.emit('think', p, 'I should empty it first.'); return; }
     const it = createItem('furniture');
     it.name = d.name;
-    it.data = { obj: o.key, state: { ...o.state, pushedBy: null }, weight: d.movable ?? 10 };
+    it.data = { obj: o.key, state: { ...o.state, pushedBy: null }, weight: d.movable ?? 10, inv: o.inv ? serializeObj(o).inv : null };
     op('objRemove', { z: z.key, uid: o.uid });
     p.inv.add(it);
     if (!p.handR) p.equip(it, 'R');
@@ -734,7 +746,8 @@ export class WorldSystems implements GameSystem {
     queueAt(p, x + 0.5, y + 0.5, new UseObjectAction(p, 'Place', 1.5, 'pickup', () => {
       if (!p.containerOf(it)) return;
       p.removeItem(it);
-      op('objAdd', { z: z.key, obj: { uid: uid(), key, x, y, rot, state } });
+      const nu = uid();
+      op('objAdd', { z: z.key, obj: { uid: nu, key, x, y, rot, state, inv: invFor(key, nu, it.data?.inv) } });
       G.audio?.at?.('thud_soft', x + 0.5, y + 0.5, 0.5);
       bus.emit('inventoryChanged', p);
     }), 2.2);
@@ -796,7 +809,7 @@ export class WorldSystems implements GameSystem {
       if (b.mats.some(([k, n]) => this.countOf(p, k) < n)) { bus.emit('think', p, 'I\'m missing materials.'); return; }
       this.takeMats(p, b.mats);
       if (b.wall) op('wall', { z: z.key, x, y, side: b.key.endsWith('_n') ? 0 : 1, wall: wallId(b.wall) });
-      else if (b.obj) op('objAdd', { z: z.key, obj: { uid: uid(), key: b.obj, x, y, rot: 0, state: {} } });
+      else if (b.obj) { const nu = uid(); op('objAdd', { z: z.key, obj: { uid: nu, key: b.obj, x, y, rot: 0, state: { built: true }, inv: invFor(b.obj, nu) } }); }
       p.body.addXp?.('carpentry' as any, 6);
       bus.emit('inventoryChanged', p);
       bus.emit('noise', { x: x + 0.5, z: y + 0.5, radius: 22, kind: 'build', zone: z.key, by: p.id });
