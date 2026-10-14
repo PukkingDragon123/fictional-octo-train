@@ -35,7 +35,8 @@ export function checkRecipe(p: Player, r: Recipe): CraftCheck {
   }
   if (r.skill) { const lvl = p.body.skill(r.skill[0] as SkillKey); if (lvl < r.skill[1]) missing.push(`${r.skill[0]} ${r.skill[1]}`); }
   if (r.learned) { const known: Set<string> | undefined = (p as any).knownRecipes; if (!known?.has(r.key)) missing.push('unknown schematic'); }
-  for (const n of r.needs || []) {
+  const needs = (Array.isArray(r.needs) ? r.needs : r.needs ? [r.needs as any] : []) as string[];
+  for (const n of needs) {
     if (n === 'fire' || n === 'stove') { if (!G.interact?.nearHeat?.(p)) missing.push('heat source'); }
     else if (n === 'workbench') { if (!G.interact?.nearTag?.(p, 'workbench')) missing.push('workbench'); }
     else if (n === 'water') { if (!G.interact?.nearWater?.(p)) missing.push('water source'); }
@@ -62,11 +63,16 @@ export class CraftAction extends TimedAction {
     const chk = checkRecipe(this.p, this.r);
     if (!chk.ok) return;
     let condFrom: Item | null = null;
+    // kept inputs an output refers to are changed in place (boiling, purifying, repairs, patches, charging)
+    const inPlace = new Set(this.r.outputs.map((o) => o.item));
+    const kept = new Map<string, Item[]>();
     for (const pk of chk.picks) {
       for (const it of pk.items) {
         if (this.r.keepCondFrom && matches(it, this.r.keepCondFrom)) condFrom = it;
         if (pk.inp.keep) {
           const d = itemDef(it.key);
+          if (inPlace.has(pk.inp.item)) { const a = kept.get(pk.inp.item) || []; a.push(it); kept.set(pk.inp.item, a); continue; }
+          if (pk.inp.fluid && it.fluid) { it.fluid.amount -= pk.inp.fluid[1]; if (it.fluid.amount <= 0.005) it.fluid = null; }
           if (d.durability) it.cond = Math.max(0, it.cond - 1 / d.durability);
           continue;
         }
@@ -75,23 +81,37 @@ export class CraftAction extends TimedAction {
         this.p.removeItem(it);
       }
     }
+    let label = '';
     for (const out of this.r.outputs) {
+      const same = kept.get(out.item);
+      if (same?.length) {
+        for (const it of same) {
+          if (out.fluid) { if (it.fluid) it.fluid = { type: out.fluid[0] as any, amount: it.fluid.amount }; }
+          else {
+            it.cond = Math.min(1, it.cond + 0.6);
+            if (it.uses !== undefined || itemDef(it.key).uses) it.uses = 1;
+          }
+          label = label || (out.fluid ? `${itemDef(it.key).name}: ${out.fluid[0]}` : `${itemDef(it.key).name} restored`);
+        }
+        continue;
+      }
       if (out.fluid) {
-        // fill a container that was an input (e.g. boiled water in the pot)
+        // fill a container that was an input (e.g. a drink mixed into a bottle)
         const vessel = chk.picks.flatMap((p) => p.items).find((i) => itemDef(i.key).fluidCap);
         if (vessel) vessel.fluid = { type: out.fluid[0] as any, amount: Math.min(itemDef(vessel.key).fluidCap!, (vessel.fluid?.amount ?? 0) + out.fluid[1]) };
         continue;
       }
+      if (out.item.startsWith('#')) continue;
       for (let i = 0; i < (out.count ?? 1); i++) {
         const it = createItem(out.item, undefined, { pristine: true });
         if (condFrom) it.cond = Math.min(1, condFrom.cond + 0.25);
         if (itemDef(out.item).food?.cookable && this.r.category === 'cooking') it.cooked = 1;
         this.p.inv.add(it);
       }
+      label = label || `+${out.count ?? 1} ${itemDef(out.item).name}`;
     }
     if (this.r.xp) this.p.body.addXp(this.r.xp[0] as SkillKey, this.r.xp[1]);
-    const first = this.r.outputs[0];
-    if (first && !first.fluid) bus.emit('halo', this.p, `+${first.count ?? 1} ${itemDef(first.item).name}`, 'good');
+    if (label) bus.emit('halo', this.p, label, 'good');
     bus.emit('crafted', this.p, this.r);
     bus.emit('inventoryChanged', this.p);
   }

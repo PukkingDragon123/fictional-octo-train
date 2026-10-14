@@ -593,7 +593,7 @@ export class AudioEngine {
     let key = 'step_' + (f?.sound || 'concrete');
     if (key === 'step_carpet' && p.body.wetness > 60) key = 'step_wetcarpet';
     const stance = p.sneaking ? 0.22 : p.running ? 0.95 : 0.55;
-    const shoes = p.worn?.get?.('feet' as any) ? 1 : 0.6;
+    const shoes = p.worn?.get?.('shoes') || p.worn?.get?.('feet') ? 1 : 0.6;
     if (p.isLocal) this.play(key, p.x, p.z, { vol: stance * shoes * 0.8, zone: p.zoneKey, flat: true, send: 0.6 });
     else this.play(key, p.x, p.z, { vol: stance * shoes, zone: p.zoneKey });
   }

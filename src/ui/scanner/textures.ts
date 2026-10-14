@@ -24,20 +24,63 @@ addTextureModule(() => {
     scratches(pc, rng, 10, 0xa6a28c);
     pc.grime(0x2a2a1c, 0.6, 3, 4, 0.6);
   });
+  // close-up surfaces: the device fills a third of the screen, so these are
+  // painted at ~450 px/m and mapped once per face ("fit")
+  const enamel = (pc: PixelCanvas, rng: Rng, chipEdges: boolean) => {
+    const R = makeRamp(0x4f5a3a, 7, { hueShift: 0.03, spread: 0.42 });
+    pc.fillRamp(R, (x, y) => 0.5 + (tileFbm(x, y, pc.w, pc.h, 5, 4, 3) - 0.5) * 0.16 + (ph(x, y, 5) - 0.5) * 0.05, 0.5);
+    // orange-peel speckle of the paint
+    for (let i = 0; i < pc.w * pc.h * 0.03; i++) pc.blend(rng.int(0, pc.w - 1), rng.int(0, pc.h - 1), rng.chance(0.5) ? R[5] : R[2], 0.35);
+    if (chipEdges) {
+      for (let y = 0; y < pc.h; y++) for (let x = 0; x < pc.w; x++) {
+        const e = Math.min(x, y, pc.w - 1 - x, pc.h - 1 - y);
+        const n = tileFbm(x, y, pc.w, pc.h, 9, 2, 11);
+        if (e < 3 && n > 0.55 - e * 0.05) pc.set(x, y, n > 0.66 ? 0xc4c2b4 : 0x8e8c80); // worn to aluminium
+        else if (e === 0) pc.blend(x, y, R[1], 0.6);
+      }
+      for (let i = 0; i < 7; i++) { // chips in the field
+        const cx = rng.int(4, pc.w - 5), cy = rng.int(4, pc.h - 5), r = rng.float(0.8, 2.2);
+        for (let y = -3; y <= 3; y++) for (let x = -3; x <= 3; x++) if (x * x + y * y < r * r * (0.6 + rng.next() * 0.6)) pc.set(cx + x, cy + y, 0x9a988a);
+      }
+    }
+    scratches(pc, rng, Math.floor(pc.w * pc.h / 260), 0x7a8064);
+    pc.grime(0x262a18, 0.5, 4, 5, 0.6);
+  };
+  A.add('c_scanner_front', 128, 100, (pc, rng) => {
+    pc.wrap = false;
+    enamel(pc, rng, true);
+    // panel seam and stencilled maker line along the bottom
+    pc.hline(6, 121, 90, 0x343a26); pc.hline(6, 121, 91, 0x6a7450);
+    for (const [rx, ry] of [[4, 4], [123, 4], [4, 95], [123, 95]]) { pc.set(rx, ry, 0x2a2a22); pc.set(rx + 1, ry, 0x9a9a90); }
+  });
+  A.add('c_scanner_side', 64, 18, (pc, rng) => { pc.wrap = false; enamel(pc, rng, true); for (let x = 2; x < 62; x += 3) pc.set(x, 9, 0x2e3422); });
+  A.add('c_scanner_back', 96, 76, (pc, rng) => {
+    pc.wrap = false; enamel(pc, rng, false);
+    pc.strokeRect(30, 22, 36, 30, 0x2e3422); pc.rect(31, 23, 34, 28, 0x56603c); // battery door
+    pc.rect(40, 28, 16, 6, 0xcfc7a8); pc.hline(41, 54, 31, 0x2a2618);
+  });
+  A.add('c_scanner_bezel', 72, 56, (pc) => {
+    pc.wrap = false;
+    const R = makeRamp(0x22201c, 5, { spread: 0.3 });
+    pc.fillRamp(R, (x, y) => 0.45 + ((x + y) % 5 === 0 ? 0.08 : 0) + (ph(x, y, 4) - 0.5) * 0.08, 0.5);
+    pc.strokeRect(0, 0, 72, 56, 0x0c0b0a); pc.strokeRect(1, 1, 70, 54, 0x3a3832);
+    pc.hline(3, 68, 2, 0x4a4840);
+  });
   A.add('c_scanner_rubber', 16, 16, (pc) => {
     const R = makeRamp(0x2a2826, 5, { spread: 0.3 });
     pc.fillRamp(R, (x, y) => 0.5 + ((x + y) % 4 === 0 ? 0.15 : 0) + (ph(x, y, 3) - 0.5) * 0.1, 0.5);
   });
-  A.add('c_scanner_knob', 16, 16, (pc) => {
-    const R = makeRamp(0x6a6a66, 6);
-    pc.fillRamp(R, (x) => (x % 2 === 0 ? 0.7 : 0.35), 0);
+  A.add('c_scanner_knob', 48, 8, (pc) => {
+    const R = makeRamp(0x5a5a56, 6);
+    pc.fillRamp(R, (x, y) => (x % 3 === 0 ? 0.25 : x % 3 === 1 ? 0.75 : 0.55) - y * 0.02, 0);
   });
-  A.add('c_scanner_knobtop', 16, 16, (pc) => {
+  A.add('c_scanner_knobtop', 40, 40, (pc) => {
     pc.wrap = false;
-    const R = makeRamp(0x7a7a74, 6);
-    pc.fillRamp(R, (x, y) => 0.65 - Math.hypot(x - 7.5, y - 7.5) * 0.03, 0.6);
-    pc.vline(7, 1, 6, 0xf2b33d); pc.vline(8, 1, 6, 0xf2b33d); // pointer
-    pc.circle(7.5, 7.5, 7.6, R[1]);
+    const R = makeRamp(0x6e6e68, 7, { spread: 0.5 });
+    pc.fillRamp(R, (x, y) => { const d = Math.hypot(x - 19.5, y - 19.5); return d > 18 ? 0.15 : d > 16 ? 0.35 : 0.62 - d * 0.012 + ((Math.atan2(y - 19.5, x - 19.5) * 6) % 1 < 0.5 ? 0.04 : 0); }, 0.4);
+    pc.circle(19.5, 19.5, 7, R[2]); pc.circle(19.5, 19.5, 5.5, R[4]);
+    for (let y = 3; y < 14; y++) { pc.set(19, y, 0xf2b33d); pc.set(20, y, 0xf2b33d); } // pointer
+    for (let a = 0; a < 12; a++) { const t = a / 12 * Math.PI * 2; pc.set(Math.round(19.5 + Math.cos(t) * 17), Math.round(19.5 + Math.sin(t) * 17), R[6]); }
   });
   A.add('c_scanner_grille', 16, 16, (pc) => {
     pc.fill(0x3a3a2e);

@@ -113,7 +113,7 @@ const DESC: Record<string, string> = {
   hot: 'Remove layers, drink, find shade.',
   wet: 'Wet clothes chill you. Dry off by a fire.',
   drunk: 'Clumsy and slow.',
-  lucidity: 'The simulation leaks in. Find light, people, almond water.',
+  lucidity: 'The simulation leaks in. Find light, people, Bluecap.',
   corruption: 'Your data is degrading. Find a cure before it completes.',
   heavy: 'Too much weight. You are slow and loud.',
   stuffed: 'Too full to eat more.',

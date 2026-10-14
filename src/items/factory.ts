@@ -1,7 +1,7 @@
 import { Item, itemDef } from './item';
 import { Container } from './container';
 import { uid, Rng } from '../core/rng';
-import { rollLoot } from './loot';
+import { rollLoot, lootTable } from './loot';
 
 /** Create a fresh item instance with sensible randomised state. */
 export function createItem(key: string, rng?: Rng, opts: { pristine?: boolean } = {}): Item {
@@ -25,6 +25,8 @@ export function createItem(key: string, rng?: Rng, opts: { pristine?: boolean } 
     c.reduction = d.bag.reduction;
     c.owner = 'item:' + it.uid;
     it.inv = c;
+    // kits come packed (first aid kit, sewing kit, toolbox...)
+    if (lootTable('contents_' + key)) for (const k of rollLoot('contents_' + key, r, 1)) c.add(createItem(k, r, opts));
   }
   if (d.weapon?.mag) it.ammo = r.chance(0.5) ? r.int(0, d.weapon.mag) : 0;
   return it;

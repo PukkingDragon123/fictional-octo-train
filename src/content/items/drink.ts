@@ -1,5 +1,5 @@
 // Items stream — DRINKS. Sealed single-serve drinks are food items (cat
-// 'drink') that leave an empty container. Bottled water / almond water /
+// 'drink') that leave an empty container. Bottled water / Bluecap /
 // liquor are fluid containers: thirst comes from the fluid (0.25 L ≈ 12 thirst).
 // FoodProps.alcohol is the drunkenness added by the whole item on a 0..1 scale.
 import { defItem } from '../../items/item';
@@ -89,9 +89,9 @@ defItem({
 
 // ---------------------------------------------------------------- fluid-container drinks
 defItem({
-  key: 'almond_water', name: 'Almond Water', cat: 'drink', weight: 0.03, fluidCap: 0.5, startFluid: ['almond', 0.5],
+  key: 'almond_water', name: 'Bluecap Water', cat: 'drink', weight: 0.03, fluidCap: 0.5, startFluid: ['almond', 0.5],
   tags: ['fluidcontainer', 'bottle', 'almond'],
-  desc: 'Faintly sweet, faintly nutty. Steadies the mind; the only thing down here that tastes like it was meant for you.',
+  desc: 'Meridian staff water with a pale blue cap. Faintly sweet, vanilla and pennies. Steadies the mind; the only thing down here that tastes like it was meant for you.',
   model: (mb) => bottle(mb, { r: 0.033, h: 0.21, neckR: 0.013, neckH: 0.02, shoulder: 0.04, body: S_PBOTTLE, bodyColor: 0xf4eedc, label: L_ALMOND, labelY: 0.055, labelH: 0.06, cap: 0x7ab0d8, capH: 0.016 }),
 });
 defItem({

@@ -7,7 +7,7 @@ defLore({
 
 Don't panic. Panic makes noise and noise brings the laughing ones.
 
-1. The bottles with the blue caps are safe. Almond water. Drink it.
+1. The bottles with the blue caps are safe. Bluecap. Drink it.
 2. Walk. Don't run unless something is already running at you.
 3. The hum is normal. A hum that sounds DIFFERENT is not.
 4. Doors that are alone in a room go somewhere else.
@@ -77,7 +77,7 @@ WALK. DON'T RUN.
 defLore({
   id: 'note', title: 'Note',
   text: `Someone wrote a list on the back of a receipt:
-- almond water ×2
+- bluecaps ×2
 - batteries (D)
 - bandages
 - find Okafor

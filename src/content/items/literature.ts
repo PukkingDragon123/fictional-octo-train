@@ -137,7 +137,7 @@ const C_JOURNAL = decal('i_cover_journal', 14, 20, (pc) => {
 defItem({
   key: 'journal', name: 'Survivor\'s Journal', cat: 'lore', weight: 0.3, tags: ['lore', 'paper'], lore: 'journal_survivor', noStack: true,
   desc: 'Water-stained pages in a hurried hand.',
-  literature: { boredom: -5, stress: 3, pages: 40, text: 'Day 3. Found almond water in a vending machine that was not plugged in. Tastes like being nine years old.\nDay 9. The hum stops when you are being watched. Learned that the hard way.\nDay 14. Marked the walls with chalk arrows. Came back an hour later and the arrows pointed the other way.\nDay 20. The fields beyond the pool hall have a door standing on its own. It wants a code. Three parts. I have one.\nDay 21. If you are reading this: do not sleep without someone on watch. Do not follow the music.' },
+  literature: { boredom: -5, stress: 3, pages: 40, text: 'Day 3. Found a Bluecap in a vending machine that was not plugged in. Tastes like being nine years old.\nDay 9. The hum stops when you are being watched. Learned that the hard way.\nDay 14. Marked the walls with chalk arrows. Came back an hour later and the arrows pointed the other way.\nDay 20. The fields beyond the pool hall have a door standing on its own. It wants a code. Three parts. I have one.\nDay 21. If you are reading this: do not sleep without someone on watch. Do not follow the music.' },
   model: (mb) => book(mb, 0.13, 0.2, 0.025, C_JOURNAL, 0x5a3a22, { rot: 0.4 }),
 });
 const C_HANDBOOK = decal('i_cover_handbook', 16, 22, (pc) => {
@@ -149,10 +149,10 @@ const C_HANDBOOK = decal('i_cover_handbook', 16, 22, (pc) => {
 });
 defItem({
   key: 'employee_handbook', name: 'Meridian Employee Handbook', cat: 'lore', weight: 0.4, tags: ['lore', 'paper'], lore: 'handbook_meridian', noStack: true,
-  desc: 'MERIDIAN INSTITUTE — Continuity Program — Onboarding Handbook (rev. 7). Teaches: almond water.',
+  desc: 'MERIDIAN INSTITUTE — Continuity Program — Onboarding Handbook (rev. 7). Teaches: the Bluecap formula.',
   literature: {
     boredom: 5, pages: 60, recipes: ['make_almond_water'],
-    text: 'Welcome to the Meridian Continuity Program!\n\n§1 You are a valued instance. Your comfort is monitored.\n§2 If you find yourself in an unfamiliar corridor, remain calm. All corridors are familiar to someone.\n§3 HYDRATION PROTOCOL: Combine one measure of almond extract with clean water. Drink regularly. Almond water stabilises perception (see Appendix C: "Lucidity").\n§4 Do not attempt to leave the program before your exit code is fully assembled. Partial exits are not supported.\n§5 Fluorescent fixtures are maintained for your benefit. Do not remove the tubes.\n§6 Report any entity that resembles a co-worker. It is not your co-worker.\n\nAppendix C has been torn out.',
+    text: 'Welcome to the Meridian Continuity Program!\n\n§1 You are a valued instance. Your comfort is monitored.\n§2 If you find yourself in an unfamiliar corridor, remain calm. All corridors are familiar to someone.\n§3 HYDRATION PROTOCOL: Combine one measure of vanilla extract with clean water ("Bluecap"). Drink regularly. Bluecap stabilises perception (see Appendix C: "Lucidity").\n§4 Do not attempt to leave the program before your exit code is fully assembled. Partial exits are not supported.\n§5 Fluorescent fixtures are maintained for your benefit. Do not remove the tubes.\n§6 Report any entity that resembles a co-worker. It is not your co-worker.\n\nAppendix C has been torn out.',
   },
   model: (mb) => {
     mb.box(0, 0, 0, 0.24, 0.045, 0.3, T.card, { color: 0x2a5a9a });

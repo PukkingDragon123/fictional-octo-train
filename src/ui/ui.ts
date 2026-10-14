@@ -265,7 +265,7 @@ export class UI {
     for (const b of this.bubbles) {
       const age = g.time - b.born;
       let x: number, y: number, z: number;
-      if (b.target instanceof Player) { x = b.target.x; y = b.target.y + 2.05; z = b.target.z; if (b.target.zoneKey !== g.local.zoneKey) { b.el.style.display = 'none'; continue; } }
+      if (b.target instanceof Player) { x = b.target.x; y = b.target.y + 2.05; z = b.target.z; if (b.target.zoneKey !== g.local.zoneKey || (b.target === g.local && this.scanner?.open)) { b.el.style.display = 'none'; continue; } }
       else { x = b.target.x; y = b.target.y; z = b.target.z; }
       const s = g.pr.worldToScreen(new THREE.Vector3(x, y, z));
       const lift = b.rise ? age * 28 : 0;

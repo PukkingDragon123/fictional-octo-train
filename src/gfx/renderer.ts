@@ -275,7 +275,7 @@ export class PixelRenderer {
       type: THREE.HalfFloatType,
     });
     this.rtPost = new THREE.WebGLRenderTarget(RW, RH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false });
-    this.rtOverlay = new THREE.WebGLRenderTarget(RW, RH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
+    this.rtOverlay = new THREE.WebGLRenderTarget(RW, RH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, type: THREE.HalfFloatType });
     this.overlayCamera.aspect = RW / RH;
     this.overlayCamera.updateProjectionMatrix();
     U.uSnapRes.value.set(RW, RH);

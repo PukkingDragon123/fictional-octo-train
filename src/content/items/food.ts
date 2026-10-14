@@ -474,9 +474,9 @@ food('cooking_oil', 'Cooking Oil', 0.95, { hunger: 1, thirst: -1, calories: 800,
   bottle(mb, { r: 0.04, h: 0.27, neckR: 0.014, neckH: 0.03, shoulder: 0.05, body: T.plastic, bodyColor: 0xe8c040, label: L_OIL, labelY: 0.06, labelH: 0.08, cap: 0x3a7a3a, capH: 0.02 });
 }, { uses: 10, tags: ['oil'] });
 
-food('almond_extract', 'Almond Extract', 0.06, { hunger: 0, thirst: -1, calories: 10, unhappy: 2, ingredient: 'spice' }, (mb) => {
+food('almond_extract', 'Vanilla Extract', 0.06, { hunger: 0, thirst: -1, calories: 10, unhappy: 2, ingredient: 'spice' }, (mb) => {
   bottle(mb, { r: 0.017, h: 0.095, neckR: 0.007, neckH: 0.012, shoulder: 0.012, body: T.glass, bodyColor: 0x7a4a22, label: L_ALMOND, labelY: 0.015, labelH: 0.035, cap: 0x2a2a2a, capH: 0.014 });
-}, { uses: 4, tags: ['almond'], desc: 'Baking flavour. Smells exactly like the water down here.' });
+}, { uses: 4, tags: ['almond'], desc: 'Baking flavour. One measure in clean water and it tastes like Bluecap.' });
 
 food('eggs', 'Eggs (half dozen)', 0.36, { hunger: 18, calories: 430, raw: true, cookable: true, cookMins: 5, poison: 0.1, fresh: 14, rot: 28, ingredient: 'egg', cookedName: 'Scrambled Eggs' }, (mb) => {
   mb.box(0, 0, 0, 0.16, 0.03, 0.105, S_PULP, { uvScale: 4 });

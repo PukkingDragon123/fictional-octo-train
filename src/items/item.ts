@@ -183,7 +183,7 @@ export function itemName(it: Item): string {
 }
 
 export function fluidName(t: FluidType): string {
-  return ({ water: 'Water', tainted: 'Tainted Water', almond: 'Almond Water', gasoline: 'Gasoline', bleach: 'Bleach', juice: 'Juice', soda: 'Soda', alcohol: 'Liquor', milk: 'Milk', coolant: 'Coolant', static: 'Liquid Static' } as Record<FluidType, string>)[t] || t;
+  return ({ water: 'Water', tainted: 'Tainted Water', almond: 'Bluecap', gasoline: 'Gasoline', bleach: 'Bleach', juice: 'Juice', soda: 'Soda', alcohol: 'Liquor', milk: 'Milk', coolant: 'Coolant', static: 'Liquid Static' } as Record<FluidType, string>)[t] || t;
 }
 
 /** freshness state from age in hours */

@@ -122,6 +122,8 @@ for (const [ch, s] of Object.entries(G)) {
 const FALLBACK = BITS.get('?')!;
 
 /** RGBA pixel buffer the scanner draws into */
+const SUBST: Record<string, string> = { '—': '-', '–': '-', '’': "'", '‘': "'", '“': '"', '”': '"', 'é': 'E', 'É': 'E', '×': 'X', '·': '.' };
+
 export class Screen {
   w: number; h: number;
   data: Uint32Array;
@@ -155,7 +157,7 @@ export class Screen {
     let cx = x;
     for (const ch of s) {
       if (cx - x + 6 * scale > maxW) { this.text('…', cx, y, c, scale); break; }
-      const b = BITS.get(ch) || BITS.get(ch.toUpperCase()) || FALLBACK;
+      const b = BITS.get(ch) || BITS.get(ch.toUpperCase()) || BITS.get(SUBST[ch] ?? '') || FALLBACK;
       for (let j = 0; j < 7; j++) for (let i = 0; i < 5; i++) if (b[j * 5 + i]) {
         if (scale === 1) this.px(cx + i, y + j, c); else this.rect(cx + i * scale, y + j * scale, scale, scale, c);
       }

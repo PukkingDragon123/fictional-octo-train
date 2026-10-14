@@ -52,7 +52,8 @@ export function floorItemsNear(z: Zone, x: number, zz: number, r: number): World
  * the floor; moving items in drops them at the player's feet.
  */
 export function floorContainer(z: Zone, x: number, zz: number, r = 1.3): Container {
-  const c = new Container(uid(), 'Floor', 'floor', 9999);
+  // transient view of the floor: fixed id so UIs can diff it and no ids are burned
+  const c = new Container(-1, 'Floor', 'floor', 9999);
   c.owner = `floor:${x.toFixed(2)},${zz.toFixed(2)}`;
   for (const wi of floorItemsNear(z, x, zz, r)) c.items.push(wi.item);
   c.lootDone = true;

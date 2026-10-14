@@ -177,7 +177,7 @@ canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 .k-reader pre { white-space: pre-wrap; font-family: inherit; margin: 0; }
 
 /* ---------- toasts & fades ---------- */
-.k-toast { position: fixed; left: 50%; top: 18%; transform: translateX(-50%); z-index: 200; pointer-events: none; font-family: var(--font-mono); font-size: 30px; letter-spacing: 3px; color: #efe5c4; text-shadow: 2px 2px 0 #000; text-align: center; transition: opacity 1.2s; }
+.k-toast { position: fixed; left: 50%; top: 7%; transform: translateX(-50%); z-index: 200; pointer-events: none; font-family: var(--font-mono); font-size: 30px; letter-spacing: 3px; color: #efe5c4; text-shadow: 2px 2px 0 #000; text-align: center; transition: opacity 1.2s; }
 .k-toast small { display: block; font-size: 18px; letter-spacing: 2px; color: #a89a72; }
 .k-center-msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; z-index: 250; background: rgba(0,0,0,0.75); color: #efe5c4; font-family: var(--font-mono); font-size: 34px; letter-spacing: 4px; text-align: center; }
 .k-center-msg .k-btn { margin-top: 18px; font-size: 13px; padding: 6px 14px; }

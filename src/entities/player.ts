@@ -10,7 +10,9 @@ import { uid } from '../core/rng';
 import { clamp, dampAngle, wrapAngle } from '../core/math';
 import { occupationByKey } from '../survival/traits';
 
-export const WEAR_SLOTS = ['head', 'eyes', 'face', 'neck', 'torso_inner', 'torso', 'torso_outer', 'hands', 'legs', 'feet', 'socks', 'back', 'belt', 'wrist'] as const;
+// item clothing slots (one item each): layered torso tshirt < shirt < sweater < jacket
+export const WEAR_SLOTS = ['hat', 'eyes', 'mask', 'neck', 'tshirt', 'shirt', 'sweater', 'jacket', 'fullsuit', 'hands', 'pants', 'socks', 'shoes', 'back', 'belt', 'wrist',
+  'head', 'face', 'torso_inner', 'torso', 'torso_outer', 'legs', 'feet'] as const;
 export type WearSlot = typeof WEAR_SLOTS[number];
 
 export interface PlayerNetState {
@@ -200,6 +202,8 @@ export class Player {
   /** visual outfit from worn items */
   computeOutfit(): Outfit {
     const o: Outfit = {};
+    let torsoRank = -1;
+    let suit: Outfit['torso'] | null = null;
     const look = (it?: Item) => it ? itemDef(it.key).clothing?.look : undefined;
     for (const [slot, it] of this.worn) {
       const d = itemDef(it.key);
@@ -208,10 +212,14 @@ export class Player {
       if (!l) continue;
       const lp = { tex: l.tex, color: l.color, sleeve: l.sleeve };
       switch (l.part) {
-        case 'torso':
-          if (slot === 'torso_outer') o.torsoOuter = lp;
-          else if (slot === 'torso' || !o.torso) o.torso = lp;
+        case 'torso': {
+          // layers: tshirt < shirt < sweater, jacket drawn over them; coveralls paint torso and legs
+          if (slot === 'jacket' || slot === 'torso_outer') { o.torsoOuter = lp; break; }
+          const rank = ({ fullsuit: 0, tshirt: 1, torso_inner: 1, shirt: 2, torso: 2, sweater: 3 } as Record<string, number>)[slot] ?? 2;
+          if (!o.torso || rank >= torsoRank) { o.torso = lp; torsoRank = rank; }
+          if (slot === 'fullsuit') suit = lp;
           break;
+        }
         case 'legs': o.legs = lp; o.legsKind = l.tex.includes('short') ? 'shorts' : l.tex.includes('skirt') ? 'skirt' : 'pants'; break;
         case 'feet': o.feet = lp; break;
         case 'hands': o.hands = lp; break;
@@ -221,6 +229,7 @@ export class Player {
         case 'back': o.back = { ...lp, size: 1 }; break;
       }
     }
+    if (suit && !o.legs) { o.legs = { tex: suit.tex, color: suit.color }; o.legsKind = 'pants'; }
     void look;
     return o;
   }

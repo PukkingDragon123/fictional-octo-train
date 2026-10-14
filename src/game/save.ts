@@ -89,7 +89,7 @@ export function serializePlayer(p: Player): any {
     body: serializeBody(p.body), inv: serializeContainer(p.inv),
     worn: [...p.worn].map(([slot, it]) => [slot, it.uid]),
     handR: p.handR?.uid ?? null, handL: p.handL?.uid ?? null, light: p.lightItem?.uid ?? null, lightOn: p.flashlightOn,
-    kills: p.kills, daysSurvived: p.daysSurvived, known: [...((p as any).knownSignals || [])],
+    kills: p.kills, daysSurvived: p.daysSurvived, known: [...((p as any).knownSignals || [])], recipes: [...((p as any).knownRecipes || [])],
   };
 }
 export function restorePlayer(p: Player, s: any) {
@@ -107,6 +107,7 @@ export function restorePlayer(p: Player, s: any) {
   p.flashlightOn = !!s.lightOn && !!p.lightItem;
   p.kills = s.kills || 0; p.daysSurvived = s.daysSurvived || 0;
   (p as any).knownSignals = new Set(s.known || []);
+  (p as any).knownRecipes = new Set(s.recipes || []);
   p.outfitDirty = true;
 }
 

@@ -71,7 +71,7 @@ export class Scanner {
   buttons: Btn[] = [];
   drawT = 0;
   /** page-local state */
-  st: Record<string, any> = { sel: 0, scroll: 0, mapZoom: 2, freq: 88.0, dataTab: 0, logSel: 0 };
+  st: Record<string, any> = { sel: 0, scroll: 0, mapZoom: 3, freq: 88.0, dataTab: 0, logSel: 0 };
   healthOf: Player | null = null;
   scanTarget: any = null;
   scanProgress = 0;
@@ -89,15 +89,16 @@ export class Scanner {
     this.tex = new THREE.CanvasTexture(this.canvas);
     this.tex.magFilter = THREE.NearestFilter; this.tex.minFilter = THREE.NearestFilter; this.tex.generateMipmaps = false;
     this.tex.colorSpace = THREE.SRGBColorSpace;
+    this.tex.flipY = false; // the screen shader flips v itself
     this.screenMat = new THREE.ShaderMaterial({
       vertexShader: SCREEN_VERT, fragmentShader: SCREEN_FRAG,
       uniforms: { tScreen: { value: this.tex }, uTime: { value: 0 }, uPower: { value: 0 }, uGlitch: { value: 0 } },
     });
     this.build();
     const s = G.pr.overlayScene;
-    s.add(new THREE.AmbientLight(0xd8dcc8, 1.6));
-    const key = new THREE.DirectionalLight(0xfff0d8, 2.6); key.position.set(-0.6, 1.2, 1.0); s.add(key);
-    const rim = new THREE.DirectionalLight(0x6a8aff, 0.9); rim.position.set(1, -0.3, -0.5); s.add(rim);
+    s.add(new THREE.AmbientLight(0xd8dcc8, 0.55));
+    const key = new THREE.DirectionalLight(0xfff0d8, 1.25); key.position.set(-0.6, 1.2, 1.0); s.add(key);
+    const rim = new THREE.DirectionalLight(0x6a8aff, 0.35); rim.position.set(1, -0.3, -0.5); s.add(rim);
     this.light = new THREE.PointLight(0x7cff6a, 0.6, 0.6, 2); s.add(this.light);
     s.add(this.group);
     this.group.add(this.device);
@@ -114,15 +115,15 @@ export class Scanner {
     const W = 0.26, H = 0.205, D = 0.055;
     const mb = new ModelBuilder();
     // main body with chamfer strips
-    mb.box(0, -H / 2, 0, W, H, D, { all: 'c_scanner_case', south: 'c_scanner_case' });
-    mb.box(0, -H / 2 + 0.006, D / 2 + 0.002, W - 0.02, H - 0.012, 0.004, 'c_scanner_case');
+    mb.box(0, -H / 2, 0, W, H, D, { all: 'c_scanner_side', south: 'c_scanner_front', north: 'c_scanner_back' }, { fit: true });
+    mb.box(0, -H / 2 + 0.006, D / 2 + 0.002, W - 0.02, H - 0.012, 0.004, { all: 'c_scanner_side', south: 'c_scanner_front' }, { fit: true });
     // rubber corner bumpers
-    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mb.box(sx * (W / 2 - 0.012), (sy > 0 ? H / 2 - 0.034 : -H / 2 - 0.004), 0, 0.034, 0.038, D + 0.012, 'c_scanner_rubber');
+    for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mb.box(sx * (W / 2 - 0.012), (sy > 0 ? H / 2 - 0.034 : -H / 2 - 0.004), 0, 0.034, 0.038, D + 0.012, 'c_scanner_rubber', { fit: true });
     // side grips
-    mb.box(-W / 2 - 0.006, -0.06, 0, 0.012, 0.12, D - 0.01, 'c_scanner_rubber');
+    mb.box(-W / 2 - 0.006, -0.06, 0, 0.012, 0.12, D - 0.01, 'c_scanner_rubber', { fit: true });
     // screen bezel (recessed dark rubber)
     const sw = 0.152, sh = 0.114, sx = -0.022, sy = 0.022;
-    mb.box(sx, sy - sh / 2 - 0.012, D / 2 + 0.004, sw + 0.026, sh + 0.024, 0.01, 'c_scanner_rubber');
+    mb.box(sx, sy - sh / 2 - 0.012, D / 2 + 0.004, sw + 0.026, sh + 0.024, 0.01, { all: 'c_scanner_rubber', south: 'c_scanner_bezel' }, { fit: { south: true } });
     // speaker grille (left of buttons) & label plates
     mb.box(-0.098, -0.082, D / 2 + 0.005, 0.044, 0.026, 0.004, 'c_scanner_grille', { fit: true });
     mb.box(0.08, -0.092, D / 2 + 0.005, 0.07, 0.016, 0.003, 'c_scanner_label', { fit: true });
@@ -130,7 +131,7 @@ export class Scanner {
     // screws
     for (const [x, y] of [[-0.118, 0.088], [0.118, 0.088], [-0.118, -0.09], [0.118, -0.09]]) mb.cylinder(x, y, D / 2 + 0.002, 0.004, 0.004, 6, 'metal_grey');
     // antenna base
-    mb.box(0.09, H / 2 - 0.004, -0.008, 0.024, 0.02, 0.024, 'c_scanner_rubber');
+    mb.box(0.09, H / 2 - 0.004, -0.008, 0.024, 0.02, 0.024, 'c_scanner_rubber', { fit: true });
     // strap lugs
     mb.box(-0.06, H / 2 - 0.004, -0.02, 0.03, 0.012, 0.012, 'metal_dark');
     mb.box(-0.06, -H / 2 - 0.008, -0.02, 0.03, 0.012, 0.012, 'metal_dark');
@@ -315,7 +316,7 @@ export class Scanner {
     this.device.rotation.x = (1 - ease) * -0.9 + (k > 0.98 ? 0 : -0.04);
     this.device.rotation.z = (1 - ease) * 0.25;
     this.light.position.set(x - 0.02, y + 0.02, -d + 0.08);
-    this.light.intensity = 0.4 * this.power;
+    this.light.intensity = 0.0025 * this.power; // 1/d² at a few cm: keep it a faint glow
     if (this.lastScale !== RH) { this.lastScale = RH; }
     // buttons spring back, dial rotation, antenna
     for (const b of this.buttons) { b.press = Math.max(0, b.press - dt * 6); b.mesh.position.z = 0.0275 + 0.006 - b.press * 0.004 - (b.page === this.page ? 0.002 : 0); }
