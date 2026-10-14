@@ -213,6 +213,30 @@ export class Interact {
     if (o.inv) {
       const locked = o.inv.locked;
       out.push({ label: locked ? 'Search (locked)' : 'Search ' + d.name, action: at(new SearchAction(p, o)) });
+      if (locked) {
+        // a matching key, a crowbar, or something heavy enough to break the lock
+        const keyId = o.state.keyId as string | undefined;
+        const key = keyId ? p.findItem((i) => i.data?.keyId === keyId) : null;
+        const unlock = (how: string) => { op('invLock', { z: z.key, uid: o.uid, locked: false }); bus.emit('think', p, how); };
+        if (key) out.push({ label: 'Unlock with ' + itemName(key), action: at(new UseObjectAction(p, 'Unlock', 1.5, 'craft', () => { G.audio?.at?.('lock', cx, cz, 0.6); unlock('Unlocked.'); })) });
+        const bar = p.findTool('#crowbar');
+        out.push({ label: 'Pry it open', disabled: !bar ? 'needs a crowbar' : false, action: at(new UseObjectAction(p, 'Pry open', 7, 'push', () => {
+          noise(p, cx, cz, 10, 'pry');
+          G.audio?.at?.('break', cx, cz, 0.8);
+          if (bar) bar.cond = Math.max(0, bar.cond - 0.02);
+          op('objState', { z: z.key, uid: o.uid, patch: { pried: true } });
+          unlock('The lock gives.');
+        })) });
+        const hw = p.handR ? itemDef(p.handR.key).weapon : undefined;
+        const heavy = p.handR && hw && (hw.kind === 'blunt' || hw.kind === 'axe') && itemDef(p.handR.key).weight >= 1.2 ? p.handR : null;
+        if (heavy) out.push({ label: 'Smash the lock', danger: true, action: at(new UseObjectAction(p, 'Smash lock', 4, 'hammer', () => {
+          noise(p, cx, cz, 22, 'smash');
+          G.audio?.at?.('metal_clank', cx, cz, 1);
+          heavy.cond = Math.max(0, heavy.cond - 0.06);
+          if (Math.random() < 0.6) unlock('The lock snaps.');
+          else bus.emit('think', p, 'It held. Again.');
+        })) });
+      }
     }
     if (tags.includes('vending')) {
       out.push({ label: 'Insert coins', disabled: !p.findTool('coins') ? 'no coins' : false, action: at(new VendAction(p, o, false)) });

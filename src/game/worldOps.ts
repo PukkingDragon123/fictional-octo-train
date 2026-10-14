@@ -209,6 +209,13 @@ defOp('objState', (a: { z: string; uid: number; patch: Record<string, any> }) =>
   }
   bus.emit('objChanged', z, o, a.patch);
 });
+/** lock or unlock an object's container (keys, prying, smashing the lock) */
+defOp('invLock', (a: { z: string; uid: number; locked: boolean }) => {
+  const z = G.zones.get(a.z); if (!z) return;
+  const o = z.objects.get(a.uid); if (!o?.inv) return;
+  o.inv.locked = a.locked;
+  bus.emit('containerChanged', o.inv);
+});
 defOp('objAdd', (a: { z: string; obj: any }) => {
   const z = G.zones.get(a.z); if (!z) return;
   const o = deserializeObj(a.obj);
