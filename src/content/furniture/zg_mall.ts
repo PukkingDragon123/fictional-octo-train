@@ -96,6 +96,23 @@ export const ZG_FASCIA: Record<string, Fascia> = {
   service: { lines: ['CUSTOMER', 'SERVICE'], bg: 0xc0262a, fg: 0xfff8e8, trim: 0xf0c040 },
   warehouse: { lines: ['WAREHOUSE', 'STAFF ONLY'], bg: 0x3a3a3e, fg: 0xf0c040, trim: 0xf0c040 },
   checkout: { lines: ['CHECKOUT'], bg: 0xc0262a, fg: 0xfff8e8, trim: 0xf0c040 },
+  // food court counters
+  fc_pizza: { lines: ['PIZZA PALACE'], bg: 0x2a6a2a, fg: 0xfff0d0, trim: 0xd03a2a },
+  fc_wok: { lines: ['GOLDEN WOK'], bg: 0xb01a1a, fg: 0xf8d040, trim: 0xf8d040 },
+  fc_burger: { lines: ['BURGER BARN'], bg: 0x8a4a1a, fg: 0xffe8a0, trim: 0xf0c040 },
+  fc_taco: { lines: ['TACO TOWN'], bg: 0xf0a020, fg: 0x6a1a10, trim: 0x2a8a3a },
+  fc_yogurt: { lines: ['FROZEN', 'YOGURT'], bg: 0xf8e0f0, fg: 0x8a4aa0, trim: 0x8ad0f0 },
+  fc_cookie: { lines: ['COOKIE JAR'], bg: 0xe8c890, fg: 0x5a3010, trim: 0x8a5a2a },
+  fc_hotdog: { lines: ['HOT DOG HUT'], bg: 0xf0d020, fg: 0xc02020, trim: 0xc02020 },
+  fc_juice: { lines: ['JUICE BAR'], bg: 0xf09020, fg: 0xffffff, trim: 0x5ab040 },
+  fc_chicken: { lines: ['CHICKEN COOP'], bg: 0xf8f0e0, fg: 0xc02a1a, trim: 0x8a5a2a },
+  // cinema screens (there is no sign for six; somebody wrote one)
+  scr1: { lines: ['SCREEN 1'], bg: 0x2a0a10, fg: 0xf8d060, trim: 0xd83040 },
+  scr2: { lines: ['SCREEN 2'], bg: 0x2a0a10, fg: 0xf8d060, trim: 0xd83040 },
+  scr3: { lines: ['SCREEN 3'], bg: 0x2a0a10, fg: 0xf8d060, trim: 0xd83040 },
+  scr4: { lines: ['SCREEN 4'], bg: 0x2a0a10, fg: 0xf8d060, trim: 0xd83040 },
+  scr5: { lines: ['SCREEN 5'], bg: 0x2a0a10, fg: 0xf8d060, trim: 0xd83040 },
+  scr6: { lines: ['SCREEN 6', 'CLOSED 1987'], bg: 0x1a1a1e, fg: 0xd8d8d0, trim: 0x5a5a5e },
 };
 
 const FX_W = 64, FX_H = 13;
@@ -174,7 +191,7 @@ function drawPillar(pc: PixelCanvas, label: string, seed: number) {
 
 // ---------------------------------------------------------------- aisle signs
 export const ZG_AISLE_LABELS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '0', '∞', '?'];
-export const ZG_AISLE_CATS = ['CANNED', 'DRY GOODS', 'SNACKS', 'DRINKS', 'HOUSEHOLD', 'CEREAL', 'BAKING', 'PASTA', 'SOUP', 'PET FOOD', 'BABY', 'HEALTH', 'PAPER', 'FROZEN', 'SEASONAL', 'BREAD', 'CANDY', 'COFFEE', 'NOTHING', 'MIA'];
+export const ZG_AISLE_CATS = ['CANNED', 'DRY GOODS', 'SNACKS', 'DRINKS', 'HOUSEHOLD', 'CEREAL', 'BAKING', 'PASTA', 'SOUP', 'PET FOOD', 'BABY', 'HEALTH', 'PAPER', 'FROZEN', 'SEASONAL', 'BREAD', 'CANDY', 'COFFEE', 'NOTHING', 'MIA', 'BIRTHDAY', 'HARDWARE'];
 
 // ---------------------------------------------------------------- textures
 addTextureModule(() => {
@@ -281,7 +298,20 @@ addTextureModule(() => {
     for (let x = 0; x < 16; x++) { pc.set(x, 10, 0x8d6aa6); pc.set(x, 11, 0x5aa69e); }
   });
 
-  // painted floor markings (transparent decals)
+  // hanging banners in the atrium: a summer sale that never ended
+  const BANNERS: [number, number, string, string][] = [[0xe86a8a, 0xfff4e0, 'SUMMER', "SALE '87"], [0x5aa69e, 0xfff4e0, 'WESTGATE', 'MALL'], [0x8d6aa6, 0xf8e0a0, 'BACK TO', 'SCHOOL']];
+  BANNERS.forEach(([bg, fg, l1, l2], i) => A.add('zg_banner_' + i, 24, 48, (pc) => {
+    pc.wrap = false;
+    pc.fill(bg);
+    for (let y = 0; y < 48; y++) { pc.set(0, y, scaleHex(bg, 0.8)); pc.set(23, y, scaleHex(bg, 0.8)); }
+    // a sun (or a clock face) and two words
+    for (let y = 0; y < 48; y++) for (let x = 0; x < 24; x++) { const r = Math.hypot(x - 11.5, y - 12); if (r < 6) pc.set(x, y, mixHex(fg, bg, r < 4 ? 0 : 0.35)); else if (r < 9 && (Math.round(Math.atan2(y - 12, x - 11.5) * 8 / Math.PI) & 1)) pc.set(x, y, mixHex(fg, bg, 0.5)); }
+    zgTextC(pc, l1, 12, 26, fg); zgTextC(pc, l2, 12, 33, fg);
+    for (let x = 0; x < 24; x += 3) { pc.set(x, 46, scaleHex(bg, 0.7)); pc.set(x + 1, 47, scaleHex(bg, 0.6)); }
+    for (let x = 0; x < 24; x++) pc.blend(x, 0, 0xffffff, 0.3);
+  }));
+
+  // painted floor markings (transparent decals; at rot 0 text reads along +x with its top to the north)
   const paint = (pc: PixelCanvas, x: number, y: number, c: number, seed: number) => {
     if (ph(x, y, seed) < 0.13) return;
     pc.set(x, y, ph(x, y, seed + 1) < 0.2 ? scaleHex(c, 0.88) : c, 225);
@@ -330,6 +360,34 @@ defObj({
     mb.box(0, 2.1, WZ + 0.05, 2.86, 0.5, 0.1, { south: 'zg_fx_' + k, all: 'metal_dark' }, { fit: { south: true }, emissive: s.lit ? 0.75 : 0 });
     mb.box(0, 2.07, WZ + 0.05, 2.9, 0.03, 0.12, 'metal_brushed');
     mb.box(0, 2.6, WZ + 0.05, 2.9, 0.03, 0.12, 'metal_brushed');
+  },
+});
+
+defObj({
+  key: 'zg_mall_column', name: 'Column', w: 1, d: 1, height: 2.7, block: 'solid', movable: 0,
+  sound: 'ceramic', hp: 99999,
+  desc: 'A column clad in pink stone, holding up a roof you cannot see. Coins have been pushed into the gap at its foot.',
+  tags: [...T, 'column'],
+  model: (mb) => {
+    mb.box(0, 0, 0, 0.84, 0.18, 0.84, 'marble', { color: 0xd8c8c8 });
+    mb.cylinder(0, 0.18, 0, 0.3, 2.2, 8, 'marble', { color: 0xf0c8cc });
+    for (const y of [0.9, 1.0]) mb.cylinder(0, y, 0, 0.32, 0.04, 8, 'metal_brass');
+    mb.cylinder(0, 2.38, 0, 0.3, 0.22, 8, 'marble', { rTop: 0.46, color: 0xf4e0e0 });
+    mb.box(0, 2.6, 0, 0.96, 0.1, 0.96, 'marble', { color: 0xe8dcd8 });
+  },
+});
+
+defObj({
+  key: 'zg_banner', name: 'Banner', w: 1, d: 1, height: 0, block: 'none', ceiling: true, movable: 0,
+  sound: 'fabric', hp: 60, flammable: 1,
+  desc: 'A fabric banner hanging from the skylight frame. The sale it announces ended a long time ago, or has not started yet.',
+  tags: [...T, 'ceiling', 'decor'],
+  variant: (s) => String(Math.abs(Math.floor(s.v ?? 0)) % 3),
+  model: (mb, s) => {
+    const t = 'zg_banner_' + (Math.abs(Math.floor(s.v ?? 0)) % 3);
+    mb.box(0, 2.62, 0, 0.9, 0.04, 0.04, 'metal_brass');
+    mb.box(0, 1.25, 0, 0.8, 1.35, 0.02, { south: t, north: t, all: 'fabric_grey' }, { fit: { south: true, north: true } });
+    for (const sx of [-0.38, 0.38]) mb.box(sx, 2.6, 0, 0.01, 0.1, 0.01, 'metal_grey');
   },
 });
 
