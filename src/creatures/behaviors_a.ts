@@ -17,7 +17,9 @@ import { lineOfSight } from '../world/collision';
 import { objDef } from '../world/objects';
 import { wallDef } from '../world/defs';
 import { floorItems, removeFloorItem, WorldItem } from '../items/worldItems';
-import { serializeItem } from '../items/factory';
+import { serializeItem, deserializeItem } from '../items/factory';
+import { Container } from '../items/container';
+import { uid } from '../core/rng';
 import { itemDef, Item } from '../items/item';
 import { TimedAction } from '../actions/action';
 import { ModelBuilder } from '../gfx/modelBuilder';
@@ -232,9 +234,10 @@ export function speak(c: Creature, text: string, secs = 4.5) {
 export function showSpeech(c: Creature, headY: number) {
   const s = nm(c).say;
   if (!s || s[0] === c.mem._sayShown) return;
-  c.mem._sayShown = s[0];
   const l = G.local;
+  // wait (while the line is still current) until this survivor can actually see the speaker
   if (!l || l.zoneKey !== c.zoneKey || dist(l.x, l.z, c.x, c.z) > 16 || !c.visibleToLocal) return;
+  c.mem._sayShown = s[0];
   const tgt = { get x() { return c.x; }, get y() { return c.y + headY; }, get z() { return c.z; } };
   G.ui?.say?.(tgt as any, s[1], 'say', 3.2);
 }
@@ -309,17 +312,38 @@ export function floorItemsAround(z: Zone, x: number, zz: number, r: number): Wor
   for (const wi of floorItems(z).values()) if (Math.abs(wi.x - x) <= r && Math.abs(wi.z - zz) <= r && (wi.y ?? 0) < 1.3) out.push(wi);
   return out;
 }
+/**
+ * Carried items live in c.mem[store] (serialized). They are mirrored into c.inv
+ * while the creature is alive so they survive save/load (the save game keeps
+ * c.inv); restoreStore() moves them back on the first think after loading.
+ */
+function syncInv(c: Creature, store: string) {
+  if (c.dead) return;
+  const list: any[] = c.mem[store] || [];
+  if (!list.length) { c.inv = null; return; }
+  const inv = new Container(uid(), c.sp.name, 'pile', 999);
+  inv.owner = 'corpse:' + c.id; inv.lootDone = true;
+  for (const s of list) inv.add(deserializeItem(s));
+  c.inv = inv;
+}
+export function restoreStore(c: Creature, store: string) {
+  if (c.mem._restored) return;
+  c.mem._restored = true;
+  if (c.inv && !c.dead && !(c.mem[store]?.length)) c.mem[store] = c.inv.items.map(serializeItem);
+}
 /** host: lift an item off the floor into the creature's memory */
 export function takeFloorItem(c: Creature, wi: WorldItem, store: string) {
   const s = serializeItem(wi.item);
   op('a_takeFloor', { z: c.zoneKey, uid: wi.item.uid });
   (c.mem[store] = c.mem[store] || []).push(s);
+  syncInv(c, store);
   return s;
 }
 export function takeObjItem(c: Creature, o: any, it: Item, store: string) {
   const s = serializeItem(it);
   op('a_takeObj', { z: c.zoneKey, obj: o.uid, uid: it.uid });
   (c.mem[store] = c.mem[store] || []).push(s);
+  syncInv(c, store);
   return s;
 }
 /** host: drop remembered items on the floor around (x,z) */
@@ -327,6 +351,13 @@ export function dropStored(c: Creature, store: string, x = c.x, z = c.z) {
   const list: any[] = c.mem[store] || [];
   for (const s of list) op('dropFloor', { z: c.zoneKey, item: s, x: x + (Math.random() - 0.5) * 0.5, zz: z + (Math.random() - 0.5) * 0.5 });
   c.mem[store] = [];
+  syncInv(c, store);
+}
+/** host: hand remembered items to a container (custodian's bins) */
+export function putStored(c: Creature, store: string, objUid: number) {
+  for (const s of c.mem[store] || []) op('put', { z: c.zoneKey, ref: 'obj:' + objUid, item: s });
+  c.mem[store] = [];
+  syncInv(c, store);
 }
 
 // ---------------------------------------------------------------- rendering helpers

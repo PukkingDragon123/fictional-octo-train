@@ -19,8 +19,8 @@ addTextureModule(() => {
   // beige polyester twill with a faint pinstripe: the most average suit possible
   A.add('c_employee_suit', 32, 32, (pc) => {
     const R = makeRamp(0x9a8a70, 7, { hueShift: 0.03 });
-    pc.fillRamp(R, (x, y) => 0.55 + (tileFbm(x, y, 32, 32, 3, 3, 21) - 0.5) * 0.12 + (((x + y) & 3) === 0 ? 0.06 : 0) - (((x - y) & 7) === 0 ? 0.04 : 0), 0.6);
-    for (let x = 3; x < 32; x += 8) for (let y = 0; y < 32; y++) if ((y & 1) === 0) pc.blend(x, y, R[5], 0.35);
+    pc.fillRamp(R, (x, y) => 0.55 + (tileFbm(x, y, 32, 32, 3, 3, 21) - 0.5) * 0.12 + (((x + y) & 3) === 0 ? 0.03 : 0), 0.3);
+    for (let x = 3; x < 32; x += 8) for (let y = 0; y < 32; y++) if ((y & 1) === 0) pc.blend(x, y, R[5], 0.18);
     // creases that never move
     for (let i = 0; i < 4; i++) { const cx = (i * 13 + 5) % 32, cy = (i * 7 + 3) % 32; for (let k = 0; k < 5; k++) pc.blend(cx + k, cy + (k >> 1), R[2], 0.35); }
   });
@@ -48,7 +48,7 @@ addTextureModule(() => {
   });
   // glossy fibreglass skin, mould seams
   A.add('c_employee_skin', 16, 16, (pc) => {
-    const R = makeRamp(0xc4ab92, 6, { hueShift: 0.02 });
+    const R = makeRamp(0xb39a80, 6, { hueShift: 0.02 });
     pc.fillRamp(R, (x, y) => 0.6 + (tileFbm(x, y, 16, 16, 2, 2, 5) - 0.5) * 0.12, 0.4);
     for (let y = 0; y < 16; y++) pc.blend(7, y, R[2], 0.25);
     pc.set(3, 4, R[5]); pc.set(4, 4, R[5]); pc.set(11, 10, R[5]);
@@ -56,7 +56,7 @@ addTextureModule(() => {
   // the face: brow, nose, cheekbones — and nothing else
   A.add('c_employee_face', 16, 20, (pc) => {
     pc.wrap = false;
-    const R = makeRamp(0xc4ab92, 7, { hueShift: 0.02 });
+    const R = makeRamp(0xb39a80, 7, { hueShift: 0.02 });
     pc.fillRamp(R, (x, y) => 0.62 - Math.abs(x - 7.5) * 0.018 - Math.max(0, y - 15) * 0.03, 0.4);
     // brow ridge and two shallow, empty sockets
     pc.hline(3, 12, 7, R[5]);
@@ -105,9 +105,12 @@ function buildEmployee(): Rig {
     mb.sphere(0, 0.08, 0, 0.06, 6, 3, SKIN);
   });
   part(rig, 'head', neck, [0, 0.08, 0], (mb) => {
-    mb.box(0, 0.0, 0.0, 0.2, 0.25, 0.22, { south: 'c_employee_face', all: SKIN }, { fit: { south: true } });
-    mb.box(0, 0.25, 0.0, 0.16, 0.035, 0.18, SKIN); // crown
-    mb.box(0, -0.035, 0.03, 0.14, 0.04, 0.14, SKIN); // jaw, slightly too narrow
+    // a smooth egg: no hair, no ears, a face plate with only the suggestion of features
+    mb.cylinder(0, 0.0, 0, 0.105, 0.19, 8, SKIN, { rTop: 0.1 });
+    mb.sphere(0, 0.19, 0, 0.1, 8, 4, SKIN, { sy: 0.85 });
+    mb.box(0, 0.0, 0.055, 0.13, 0.19, 0.06, { south: 'c_employee_face', all: SKIN }, { fit: { south: true } });
+    mb.box(0, 0.085, 0.085, 0.024, 0.055, 0.04, SKIN); // nose
+    mb.box(0, -0.035, 0.035, 0.12, 0.045, 0.12, SKIN); // jaw, slightly too narrow
   });
   for (const s of [-1, 1]) {
     const n = s < 0 ? 'L' : 'R';
@@ -253,6 +256,7 @@ const sp = def({
 });
 (sp as any).animateGallery = (rig: Rig, t: number) => {
   const q = galleryPose('');
-  const i = q === '' ? Math.floor(t / 1.5) % POSES.length : Number(q) % POSES.length;
+  const n = Number(q);
+  const i = q !== '' && Number.isFinite(n) ? Math.abs(Math.floor(n)) % POSES.length : Math.floor(t / 1.5) % POSES.length;
   applyPose(rig, POSES[i].p, POSES[i].y);
 };
