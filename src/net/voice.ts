@@ -20,7 +20,7 @@ interface PeerVoice {
   src?: MediaStreamAudioSourceNode;
   dry?: GainNode; pan?: StereoPannerNode; lp?: BiquadFilterNode;
   radio?: GainNode; radioBp?: BiquadFilterNode;
-  rec?: ScriptProcessorNode;
+  rec?: AudioNode;
   ring: Float32Array; ringPos: number; ringFill: number;
   wasRadio: boolean;
   makingOffer: boolean;
@@ -59,11 +59,14 @@ export class Voice {
   ensure(id: string) {
     if (this.peers.has(id) || id === this.selfId()) return;
     const pc = new RTCPeerConnection({ iceServers: ICE });
-    const tr = pc.addTransceiver('audio', { direction: 'sendrecv' });
-    const pv: PeerVoice = { pc, sender: tr.sender, ring: new Float32Array(CLIP_SECS * 48000), ringPos: 0, ringFill: 0, wasRadio: false, makingOffer: false };
+    // Only the offerer (lower id) creates the audio transceiver. The answerer adopts the one the
+    // offer creates (see onSignal); a second, locally added transceiver would never be negotiated.
+    const offerer = this.selfId() < id;
+    const tr = offerer ? pc.addTransceiver('audio', { direction: 'sendrecv' }) : null;
+    const pv: PeerVoice = { pc, sender: tr?.sender ?? null, ring: new Float32Array(CLIP_SECS * 48000), ringPos: 0, ringFill: 0, wasRadio: false, makingOffer: false };
     this.peers.set(id, pv);
     const t = this.mic?.getAudioTracks()[0];
-    if (t) tr.sender.replaceTrack(t);
+    if (t && tr) tr.sender.replaceTrack(t);
     pc.onicecandidate = (e) => { if (e.candidate) this.send(id, { k: 'rtc', ice: e.candidate.toJSON() }); };
     pc.ontrack = (e) => this.attach(id, pv, e.streams[0] || new MediaStream([e.track]));
     pc.onnegotiationneeded = async () => {
@@ -83,7 +86,19 @@ export class Voice {
         const collision = d.sdp.type === 'offer' && (pv.makingOffer || pc.signalingState !== 'stable');
         if (collision && !polite) return;
         await pc.setRemoteDescription(d.sdp);
-        if (d.sdp.type === 'offer') { await pc.setLocalDescription(); this.send(from, { k: 'rtc', sdp: pc.localDescription }); }
+        if (d.sdp.type === 'offer') {
+          if (!pv.sender) {
+            const tr = pc.getTransceivers().find((x) => x.receiver.track?.kind === 'audio');
+            if (tr) {
+              tr.direction = 'sendrecv';
+              pv.sender = tr.sender;
+              const t = this.mic?.getAudioTracks()[0];
+              if (t) await tr.sender.replaceTrack(t);
+            }
+          }
+          await pc.setLocalDescription();
+          this.send(from, { k: 'rtc', sdp: pc.localDescription });
+        }
       } else if (d.ice) await pc.addIceCandidate(d.ice).catch(() => {});
     } catch (e) { console.warn('rtc', e); }
   }
@@ -110,18 +125,27 @@ export class Voice {
     src.connect(radioBp); radioBp.connect(this.radioShaper(ctx)); this.shaper!.connect(radio);
     const out = G.audio?.voiceInput?.() as AudioNode | undefined;
     dry.connect(out || ctx.destination); radio.connect(out || ctx.destination);
-    // capture what they say (for the mimics)
-    const rec = ctx.createScriptProcessor(4096, 1, 1);
-    const sink = ctx.createGain(); sink.gain.value = 0;
-    src.connect(rec); rec.connect(sink); sink.connect(ctx.destination);
-    rec.onaudioprocess = (e) => {
+    Object.assign(pv, { src, lp, pan, dry, radio, radioBp });
+    // capture what they say (for the mimics): an AudioWorklet where available, ScriptProcessor otherwise
+    const push = (inp: Float32Array) => {
       const st = (G.players.get(id) as any)?.remote?.state;
       if (!st?.vc) return;
-      const inp = e.inputBuffer.getChannelData(0);
       for (let i = 0; i < inp.length; i++) { pv.ring[pv.ringPos] = inp[i]; pv.ringPos = (pv.ringPos + 1) % pv.ring.length; }
       pv.ringFill = Math.min(pv.ring.length, pv.ringFill + inp.length);
     };
-    Object.assign(pv, { src, lp, pan, dry, radio, radioBp, rec });
+    loadCapture(ctx).then((ok) => {
+      if (this.peers.get(id) !== pv) return; // left while the worklet loaded
+      const sink = ctx.createGain(); sink.gain.value = 0; sink.connect(ctx.destination);
+      if (ok) {
+        const node = new AudioWorkletNode(ctx, 'noclip-capture');
+        node.port.onmessage = (e) => push(e.data as Float32Array);
+        src.connect(node); node.connect(sink); pv.rec = node;
+      } else {
+        const rec = ctx.createScriptProcessor(4096, 1, 1);
+        rec.onaudioprocess = (e) => push(e.inputBuffer.getChannelData(0));
+        src.connect(rec); rec.connect(sink); pv.rec = rec;
+      }
+    });
   }
   private radioShaper(ctx: AudioContext) {
     if (this.shaper) return this.shaper;
@@ -202,4 +226,25 @@ export class Voice {
     for (let i = 0; i < len; i++) d[i] = pv.ring[(bestStart + i) % N] * Math.min(1, i / 800, (len - i) / 800);
     return ab;
   }
+}
+
+// ---------------------------------------------------------------- capture worklet (batches 2048 frames per message)
+const CAPTURE_SRC = `registerProcessor('noclip-capture', class extends AudioWorkletProcessor {
+  constructor() { super(); this.buf = new Float32Array(2048); this.n = 0; }
+  process(inputs) {
+    const ch = inputs[0] && inputs[0][0];
+    if (ch) for (let i = 0; i < ch.length; i++) { this.buf[this.n++] = ch[i]; if (this.n === this.buf.length) { this.port.postMessage(this.buf.slice(0)); this.n = 0; } }
+    return true;
+  }
+});`;
+const captureReady = new WeakMap<BaseAudioContext, Promise<boolean>>();
+function loadCapture(ctx: AudioContext): Promise<boolean> {
+  let p = captureReady.get(ctx);
+  if (!p) {
+    p = ctx.audioWorklet
+      ? ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([CAPTURE_SRC], { type: 'application/javascript' }))).then(() => true, () => false)
+      : Promise.resolve(false);
+    captureReady.set(ctx, p);
+  }
+  return p;
 }
