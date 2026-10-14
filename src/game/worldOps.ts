@@ -1,3 +1,4 @@
+import { refreshUnpowered } from '../world/power';
 import { G } from './G';
 import { defOp, op, isReplaying } from './ops';
 import { Zone, TileObject, EdgeObj, Decal } from '../world/zone';
@@ -255,6 +256,7 @@ defOp('light', (a: { z: string; id: number; patch: any }) => {
 defOp('circuit', (a: { z: string; c: number; on: boolean }) => {
   const z = G.zones.get(a.z); if (!z) return;
   z.setCircuit(a.c, a.on);
+  refreshUnpowered(z);
   bus.emit('circuit', z, a.c, a.on);
 });
 defOp('roomLights', (a: { z: string; room: number; on: boolean }) => {

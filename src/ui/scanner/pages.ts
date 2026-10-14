@@ -318,7 +318,7 @@ function drawMap(s: Screen, sc: Scanner, p: Player) {
     if (z.wallW[k]) s.vline(sx, sy, sy + zoom - 1, z.edge(x, y, 1) ? AMB : MID);
   }
   const toS = (wx: number, wz: number) => [ox + (wx - tx0) * zoom, oy + (wz - ty0) * zoom];
-  for (const pt of z.portals) { if (!z.explored[z.idx(pt.x, pt.y)]) continue; const [x, y] = toS(pt.x + 0.5, pt.y + 0.5); s.text('*', x - 2, y - 3, HI); }
+  for (const pt of z.portals) { if (pt.kind === 'loop' || (pt as any).hidden || !z.explored[z.idx(pt.x, pt.y)]) continue; const [x, y] = toS(pt.x + 0.5, pt.y + 0.5); s.text('*', x - 2, y - 3, HI); }
   for (const o of G.players.values()) { if (o === p || o.zoneKey !== p.zoneKey) continue; const [x, y] = toS(o.x, o.z); s.text('+', x - 2, y - 3, HI); }
   const markers: { x: number; z: number }[] = (z.meta.markers as any) || [];
   for (const m of markers) { const [x, y] = toS(m.x, m.z); s.text('×', x - 2, y - 3, AMB); }

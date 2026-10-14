@@ -19,6 +19,7 @@ import { atlas } from '../gfx/atlas';
 import { addTextureModule } from '../gfx/textures/index';
 import { TF, Zone, TileObject } from '../world/zone';
 import { wallId } from '../world/defs';
+import { refreshUnpowered } from '../world/power';
 import { queueAt } from '../actions/basic';
 import { UseObjectAction } from '../actions/world';
 import { pick } from '../game/picking';
@@ -390,6 +391,9 @@ export class WorldSystems implements GameSystem {
         }
       }
       z.extPower = any ? (x: number, y: number) => this.running.some((r) => r.z === z && Math.hypot(r.x - x, r.y - y) < 14) : null;
+      // appliances near a generator light up (or go dark) when it starts or stops
+      const sig = this.running.filter((r) => r.z === z).map((r) => r.o.uid).join(',');
+      if (sig !== (z.meta.__genSig ?? '')) { z.meta.__genSig = sig; refreshUnpowered(z); }
     }
   }
   generatorPowers(z: Zone, x: number, y: number) { return this.running.some((r) => r.z === z && Math.hypot(r.x - (x + 0.5), r.y - (y + 0.5)) < 14); }

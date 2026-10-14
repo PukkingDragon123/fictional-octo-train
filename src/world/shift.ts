@@ -46,13 +46,17 @@ export function registerShift(z: Zone, id: string, x0: number, y0: number, x1: n
 function applyVariant(z: Zone, r: ShiftRegion, v: number, initial = false) {
   const rng = new Rng(hash3(z.seed, hashStr(r.id), v + 1));
   const b = new ZoneBuilder(z, rng);
-  for (const o of [...z.objects.values()]) if (o.x >= r.x0 && o.x <= r.x1 && o.y >= r.y0 && o.y <= r.y1) z.removeObject(o);
+  // containers that were already looted stay empty when their variant comes back (no loot farming)
+  const looted: Set<number> = (z.meta.__shiftLooted ||= new Set<number>());
+  const inside = (o: { x: number; y: number }) => o.x >= r.x0 && o.x <= r.x1 && o.y >= r.y0 && o.y <= r.y1;
+  for (const o of [...z.objects.values()]) if (inside(o)) { if (o.inv?.lootDone) looted.add(o.inv.uid); z.removeObject(o); }
   // ceiling lights of the region go too (object lights left with their objects)
   z.lights = z.lights.filter((l) => { const inside = l.x >= r.x0 && l.x < r.x1 + 1 && l.z >= r.y0 && l.z < r.y1 + 1; if (inside) z.removedLights.push(l); return !inside; });
   if (r.keepBorder) b.clearWallsIn(r.x0, r.y0, r.x1, r.y1);
   else for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) { b.clearN(x, y); b.clearW(x, y); }
   beginGenUids(SHIFT_UID_BASE + (hash3(z.seed, hashStr(r.id), v + 7) & 0xffffff) * 4096);
   try { r.stamp(b, rng, v, r); } finally { endGenUids(); }
+  for (const o of z.objects.values()) if (o.inv && inside(o) && looted.has(o.inv.uid)) o.inv.lootDone = true;
   r.current = v;
   (z.meta.shiftState ||= {})[r.id] = v;
   if (initial) return;
@@ -106,6 +110,10 @@ export class ShiftSystem implements GameSystem {
       const dx = Math.max(r.x0 - p.x, 0, p.x - (r.x1 + 1));
       const dy = Math.max(r.y0 - p.z, 0, p.z - (r.y1 + 1));
       if (Math.hypot(dx, dy) < 9) return false;
+    }
+    // never rebuild a region on top of a parked car
+    for (const v of ((G as any).vehicles?.vehicles?.values?.() || []) as Iterable<{ zone: string; x: number; z: number }>) {
+      if (v.zone === z.key && v.x > r.x0 - 3 && v.x < r.x1 + 4 && v.z > r.y0 - 3 && v.z < r.y1 + 4) return false;
     }
     const now = G.clock.hours;
     for (let y = r.y0; y <= r.y1; y++) for (let x = r.x0; x <= r.x1; x++) {

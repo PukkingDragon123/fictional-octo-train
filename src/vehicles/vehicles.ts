@@ -407,7 +407,7 @@ export class VehicleSystem implements GameSystem {
     // roads off the map edge: drive into the next zone
     const tx = Math.floor(v.x), ty = Math.floor(v.z);
     const portal = z.portals.find((q) => q.kind === 'walk' && q.x === tx && q.y === ty);
-    if (portal && Math.abs(v.speed) > 0.5) this.travel(v, portal);
+    if (portal && Math.abs(v.speed) > 0.5) { this.travel(v, portal); return; }
     // looping streets and lanes: shift the car (and the camera) seamlessly
     const loop = z.portals.find((q) => q.kind === 'loop' && q.x === tx && q.y === ty);
     if (loop) this.shift(v, loop.loopDx ?? 0, loop.loopDy ?? 0);

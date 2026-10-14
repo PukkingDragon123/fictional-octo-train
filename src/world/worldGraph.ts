@@ -1,3 +1,4 @@
+import { refreshUnpowered } from './power';
 import { Zone } from './zone';
 import { hash3, hashStr, beginGenUids, endGenUids, ZONE_UID_SPAN } from '../core/rng';
 
@@ -36,6 +37,7 @@ export function generateZone(key: string, worldSeed: number): Zone {
   // deterministic ids for everything the generator creates (stable per zone key)
   beginGenUids(zoneIndex(key) * ZONE_UID_SPAN);
   try { spec.gen(z, seed); } finally { endGenUids(); }
+  refreshUnpowered(z);
   z.name = z.name || spec.name;
   if (spec.blurb && !z.meta.blurb) z.meta.blurb = spec.blurb;
   z.dirtyChunks.clear();
