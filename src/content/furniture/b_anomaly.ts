@@ -71,7 +71,7 @@ addTextureModule(() => {
       pc.set(x, y, v > 0.8 ? 0xffffff : v > 0.6 ? 0xeef4ff : v > 0.42 ? 0xd2e2fa : v > 0.24 ? 0xa8c0e8 : 0x7e98c8);
     }
   });
-  A.add('q_exit_sign', 12, 5, (pc) => { pc.wrap = false; pc.fill(0x1a9a4a); textC(pc, 'EXIT', 6, 0, 0xffffff); });
+  A.add('q_exit_sign', 17, 7, (pc) => { pc.wrap = false; pc.fill(0x1a9a4a); pc.strokeRect(0, 0, 17, 7, 0x0e6a30); text(pc, 'EXIT', 1, 1, 0xffffff); });
   A.add('q_door_white', 27, 65, (pc, rng) => {
     pc.wrap = false;
     const r = makeRamp(0xd8d2c4, 6, { spread: 0.4 });
@@ -238,11 +238,11 @@ defObj({
   desc: 'A doorframe standing alone, full of white light. It feels like the way out. It feels like a test.',
   tags: [...T, 'portal', 'mission', 'exit'],
   model: (mb) => {
-    const F = 'metal_brushed';
+    const F = 'q_steel_dark';
     for (const x of [-0.5, 0.5]) mb.box(x, 0, 0, 0.1, 2.24, 0.2, F, { skip: ['bottom'] });
     mb.box(0, 2.22, 0, 1.1, 0.12, 0.2, F);
     mb.box(0, 0, 0, 1.0, 0.025, 0.22, 'metal_dark');
-    mb.box(0, 0.025, 0, 0.9, 2.2, 0.03, 'q_exit_light', { fit: true, emissive: 1.25 });
+    mb.box(0, 0.025, 0, 0.9, 2.2, 0.03, 'q_exit_light', { fit: true, emissive: 1.1 });
     mb.box(0, 2.4, 0, 0.38, 0.15, 0.06, { south: 'q_exit_sign', north: 'q_exit_sign', sides: 'q_steel_dark' }, { fit: { south: true, north: true }, emissive: 1.1 });
     rod(mb, 0, 2.32, 0, 0, 2.4, 0, 0.01, 4, 'metal_dark');
   },

@@ -27,23 +27,21 @@ interface Pending { name: string; w: number; h: number; draw: TexDraw; mw?: numb
  */
 export class TextureAtlas {
   readonly size: number;
-  readonly canvas: HTMLCanvasElement;
-  readonly ctx: CanvasRenderingContext2D;
-  readonly texture: THREE.CanvasTexture;
+  /** RGBA pixels, row 0 = top (uploaded as one DataTexture, flipY off) */
+  readonly data: Uint8Array;
+  readonly texture: THREE.DataTexture;
   private rects = new Map<string, AtlasRect>();
   private shelves: { y: number; h: number; x: number }[] = [];
   private nextShelfY = 0;
   private pending: Pending[] = [];
   private defs = new Map<string, Pending>();
+  private dbgCanvas: HTMLCanvasElement | null = null;
   dirty = false;
 
   constructor(size = 2048) {
     this.size = size;
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = size; this.canvas.height = size;
-    this.ctx = this.canvas.getContext('2d', { willReadFrequently: false })!;
-    this.ctx.imageSmoothingEnabled = false;
-    const t = new THREE.CanvasTexture(this.canvas);
+    this.data = new Uint8Array(size * size * 4);
+    const t = new THREE.DataTexture(this.data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
     t.magFilter = THREE.NearestFilter;
     t.minFilter = THREE.NearestFilter;
     t.generateMipmaps = false;
@@ -56,7 +54,16 @@ export class TextureAtlas {
     this.flush();
   }
 
-  /** Queue a texture definition. w,h in pixels; mw/mh override metres covered. */
+  /** debug view of the atlas as a canvas (galleries); built on demand */
+  get canvas(): HTMLCanvasElement {
+    if (!this.dbgCanvas) { this.dbgCanvas = document.createElement('canvas'); this.dbgCanvas.width = this.dbgCanvas.height = this.size; }
+    const ctx = this.dbgCanvas.getContext('2d')!;
+    const img = ctx.createImageData(this.size, this.size);
+    img.data.set(this.data);
+    ctx.putImageData(img, 0, 0);
+    return this.dbgCanvas;
+  }
+
   add(name: string, w: number, h: number, draw: TexDraw, mw?: number, mh?: number) {
     const p = { name, w, h, draw, mw, mh };
     this.defs.set(name, p);
@@ -77,7 +84,7 @@ export class TextureAtlas {
     return [1, shelf.y + 1];
   }
 
-  /** Draw all pending textures into the atlas canvas. */
+  /** Draw all pending textures into the atlas buffer. */
   flush() {
     if (!this.pending.length) return;
     // tallest first packs shelves better
@@ -94,16 +101,20 @@ export class TextureAtlas {
   private paint(p: Pending, x: number, y: number) {
     const pc = new PixelCanvas(p.w, p.h);
     p.draw(pc, new Rng(hashStr(p.name)));
-    this.ctx.putImageData(pc.toImageData(), x, y);
+    const S = this.size, D = this.data, src = pc.data;
+    const row = p.w * 4;
+    for (let j = 0; j < p.h; j++) D.set(src.subarray(j * row, j * row + row), ((y + j) * S + x) * 4);
     // replicate border pixels into the 1px gutter (prevents any bleed)
-    this.ctx.drawImage(this.canvas, x, y, p.w, 1, x, y - 1, p.w, 1);
-    this.ctx.drawImage(this.canvas, x, y + p.h - 1, p.w, 1, x, y + p.h, p.w, 1);
-    this.ctx.drawImage(this.canvas, x, y - 1, 1, p.h + 2, x - 1, y - 1, 1, p.h + 2);
-    this.ctx.drawImage(this.canvas, x + p.w - 1, y - 1, 1, p.h + 2, x + p.w, y - 1, 1, p.h + 2);
+    D.copyWithin(((y - 1) * S + x) * 4, (y * S + x) * 4, (y * S + x) * 4 + row);
+    D.copyWithin(((y + p.h) * S + x) * 4, ((y + p.h - 1) * S + x) * 4, ((y + p.h - 1) * S + x) * 4 + row);
+    for (let j = -1; j <= p.h; j++) {
+      const r = (y + j) * S;
+      D.copyWithin((r + x - 1) * 4, (r + x) * 4, (r + x) * 4 + 4);
+      D.copyWithin((r + x + p.w) * 4, (r + x + p.w - 1) * 4, (r + x + p.w - 1) * 4 + 4);
+    }
     let r = 0, g = 0, b = 0, n = 0;
-    for (let i = 0; i < pc.data.length; i += 16) { if (pc.data[i + 3] > 0) { r += pc.data[i]; g += pc.data[i + 1]; b += pc.data[i + 2]; n++; } }
+    for (let i = 0; i < src.length; i += 16) { if (src[i + 3] > 0) { r += src[i]; g += src[i + 1]; b += src[i + 2]; n++; } }
     n = Math.max(1, n);
-    const S = this.size;
     this.rects.set(p.name, {
       name: p.name, x, y, w: p.w, h: p.h,
       u0: x / S, v0: y / S, du: p.w / S, dv: p.h / S,

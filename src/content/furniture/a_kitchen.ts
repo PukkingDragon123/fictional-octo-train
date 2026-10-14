@@ -153,7 +153,14 @@ addTextureModule(() => {
 function baseCabinet(mb: ModelBuilder, w = 1.0, sink = false) {
   const D = 0.6, zc = WZ + D / 2, zf = zc + D / 2, top = 0.88;
   mb.box(0, 0, zc - 0.03, w - 0.02, 0.09, D - 0.08, 'metal_dark', { color: 0x5a5048 });
-  mb.box(0, 0.09, zc, w, top - 0.09, D, 'p_oak', { color: 0xe8e0d8 });
+  if (!sink) mb.box(0, 0.09, zc, w, top - 0.09, D, 'p_oak', { color: 0xe8e0d8 });
+  else {
+    // hollow above 0.66 so the basin shows through the countertop cut-out
+    mb.box(0, 0.09, zc, w, 0.57, D, 'p_oak', { color: 0xe8e0d8 });
+    for (const sx of [-1, 1]) mb.box(sx * (w / 2 - 0.01), 0.66, zc, 0.02, top - 0.66, D, 'p_oak', { color: 0xe8e0d8 });
+    mb.box(0, 0.66, zc - D / 2 + 0.01, w, top - 0.66, 0.02, 'p_oak', { color: 0xe8e0d8 });
+    mb.box(0, 0.66, zf - 0.01, w, top - 0.66, 0.02, 'p_oak', { color: 0xe8e0d8 });
+  }
   if (!sink) {
     mb.box(0, top, zc + 0.015, w, 0.04, D + 0.03, { top: 'p_formica', all: 'p_formica' });
   } else {

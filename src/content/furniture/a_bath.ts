@@ -179,6 +179,12 @@ defObj({
     mb.box(-W / 2 + t / 2, y0, zc, t, H, D - t * 2, 'porcelain', pc);
     mb.box(W / 2 - t / 2, y0, zc, t, H, D - t * 2, 'porcelain', pc);
     mb.box(0, y0 + 0.02, zc, W - t * 2, 0.02, D - t * 2, { top: 'p_tub_floor', all: 'porcelain' }, { fit: { top: true } });
+    // inner enamel faces, shaded so the basin reads as a hollow
+    const inner = { color: 0xb8c0c4 };
+    mb.box(0, y0 + 0.04, zc + D / 2 - t - 0.004, W - t * 2, H - 0.04, 0.008, 'porcelain', { color: 0xd8dee0 });
+    mb.box(0, y0 + 0.04, zc - D / 2 + t + 0.004, W - t * 2, H - 0.04, 0.008, 'porcelain', inner);
+    mb.box(-W / 2 + t + 0.004, y0 + 0.04, zc, 0.008, H - 0.04, D - t * 2, 'porcelain', inner);
+    mb.box(W / 2 - t - 0.004, y0 + 0.04, zc, 0.008, H - 0.04, D - t * 2, 'porcelain', { color: 0xc8cfd2 });
     // rolled rim
     mb.box(0, y0 + H, zc + D / 2 - t / 2, W + 0.02, 0.035, t + 0.02, 'porcelain', { color: 0xffffff });
     mb.box(0, y0 + H, zc - D / 2 + t / 2, W + 0.02, 0.035, t + 0.02, 'porcelain', { color: 0xffffff });

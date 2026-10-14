@@ -496,7 +496,7 @@ addTextureModule(() => {
     const r = makeRamp(0xd8d6ce, 4, { spread: 0.3 });
     pc.fillRamp(r, (x, y) => 0.55 + Math.sin(x / 16 * Math.PI * 2) * 0.22 + (ph(x, y, 61) - 0.5) * 0.05, 0.8);
     pc.grime(0x8a8470, 0.5, 2, 62, 0.6);
-    text(pc, 'SCH40', 1, 5, 0x6a6a72);
+    text(pc, 'PVC', 2, 5, 0x6a6a72);
   });
 
   // round gauge (fit)

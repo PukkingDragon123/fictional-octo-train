@@ -250,7 +250,7 @@ export class Net implements GameSystem {
     for (const cr of (G.creatures?.creatures?.values?.() || []) as Iterable<any>) {
       if (!zones.has(cr.zoneKey)) continue;
       if (!near.some((n) => n.zone === cr.zoneKey && Math.abs(n.x - cr.x) < 60 && Math.abs(n.z - cr.z) < 60)) continue;
-      c.push({ id: cr.id, k: cr.sp.key, z: cr.zoneKey, x: +cr.x.toFixed(2), zz: +cr.z.toFixed(2), f: +cr.facing.toFixed(2), s: cr.state, sp: +cr.speed.toFixed(2), hp: Math.round(cr.hp), y: +(cr.y || 0).toFixed(2), d: cr.dead ? 1 : 0, at: cr.attackPhase > 0 ? 1 : 0 });
+      c.push({ id: cr.id, k: cr.sp.key, z: cr.zoneKey, x: +cr.x.toFixed(2), zz: +cr.z.toFixed(2), f: +cr.facing.toFixed(2), s: cr.state, sp: +cr.speed.toFixed(2), hp: Math.round(cr.hp), y: +(cr.y || 0).toFixed(2), d: cr.dead ? 1 : 0, at: cr.attackPhase > 0 ? 1 : 0, ...(cr.mem?.net ? { m: cr.mem.net } : {}) });
     }
     this.to('all', { k: 'snap', p, c, h: G.clock.hours, col: +G.collapse.toFixed(3) });
   }

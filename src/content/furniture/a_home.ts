@@ -641,16 +641,18 @@ defObj({
   tags: T('home', 'nursery', 'kids', 'container'),
   model: (mb) => {
     const W = 0.82, D = 0.46, zc = WZ + D / 2 + 0.04, zf = zc + D / 2;
-    mb.box(0, 0, zc, W, 0.44, D, { south: 'p_toybox', all: 'wood_light' }, { fit: { south: true }, color: 0xffffff });
+    mb.box(0, 0.02, zf - 0.015, W, 0.42, 0.03, { south: 'p_toybox', all: 'wood_light' }, { fit: { south: true }, color: 0xffffff });
+    mb.box(0, 0.02, zc - D / 2 + 0.015, W, 0.42, 0.03, 'wood_light', { color: 0xc8e0f0 });
+    for (const sx of [-1, 1]) mb.box(sx * (W / 2 - 0.015), 0.02, zc, 0.03, 0.42, D - 0.06, 'wood_light', { color: 0xc8e0f0 });
     mb.box(0, 0.0, zc, W + 0.02, 0.04, D + 0.02, 'wood_light', { color: 0xf0d0d8 });
     // lid propped open, toys spilling over the rim
     mb.push().translate(0, 0.44, zc - D / 2).rotateX(-1.2);
     mb.box(0, 0, D / 2, W + 0.02, 0.035, D + 0.02, 'wood_light', { color: 0xc8e0f0 }); mb.pop();
-    mb.box(0, 0.38, zc, W - 0.04, 0.04, D - 0.04, 'wood_dark', { color: 0x5a4a3a });
-    mb.sphere(-0.2, 0.47, zc + 0.04, 0.09, 8, 4, 'white', { color: 0xe05050 });
-    mb.box(0.05, 0.42, zc + 0.05, 0.1, 0.1, 0.1, 'wood_light', { color: 0xf0d060 });
+    mb.box(0, 0.04, zc, W - 0.06, 0.34, D - 0.06, 'wood_dark', { color: 0x5a4a3a });
+    mb.sphere(-0.2, 0.45, zc + 0.04, 0.09, 8, 4, 'white', { color: 0xe05050 });
+    mb.box(0.05, 0.38, zc + 0.05, 0.1, 0.1, 0.1, 'wood_light', { color: 0xf0d060 });
     mb.push().translate(0.25, 0.44, zf - 0.02).rotateZ(0.9); mb.box(0, 0, 0, 0.04, 0.2, 0.04, 'white', { color: 0xf0c8b0 }); mb.pop();
-    mb.box(0.2, 0.42, zc - 0.08, 0.12, 0.05, 0.16, 'plastic_blue');
+    mb.box(0.2, 0.38, zc - 0.08, 0.12, 0.05, 0.16, 'plastic_blue');
   },
 });
 
@@ -671,17 +673,19 @@ defObj({
     }
     mb.box(0, 0.44, 0, 0.6, 0.2, 0.22, h);
     mb.box(0.02, 0.64, 0, 0.18, 0.02, 0.24, 'fabric_red');
-    mb.push().translate(-0.28, 0.5, 0).rotateZ(-0.7);
-    mb.box(0, 0, 0, 0.14, 0.32, 0.14, h); mb.pop();
-    mb.push().translate(-0.48, 0.74, 0).rotateZ(0.5);
-    mb.box(0, 0, 0, 0.24, 0.12, 0.12, h);
-    mb.box(-0.1, 0.0, 0.0, 0.06, 0.08, 0.1, h, { color: 0xd8d0c8 });
-    for (const sz of [-1, 1]) mb.box(0.04, 0.07, sz * 0.062, 0.025, 0.025, 0.006, 'plastic_black');
-    mb.box(0.08, 0.12, 0, 0.04, 0.06, 0.08, h);
+    // neck leaning forward (-x), head with the muzzle dipping down
+    mb.push().translate(-0.26, 0.5, 0).rotateZ(0.7);
+    mb.box(0, 0, 0, 0.14, 0.34, 0.13, h);
+    mb.box(0.075, 0.03, 0, 0.035, 0.3, 0.05, 'wood_dark', { color: 0x4a3020 }); // mane
     mb.pop();
-    mb.push().translate(-0.36, 0.7, 0).rotateZ(-0.7); mb.box(0.06, 0, 0, 0.04, 0.3, 0.05, 'wood_dark', { color: 0x4a3020 }); mb.pop();
+    mb.push().translate(-0.5, 0.76, 0).rotateZ(0.45);
+    mb.box(0, 0, 0, 0.24, 0.12, 0.12, h);
+    mb.box(-0.12, -0.005, 0, 0.07, 0.1, 0.1, h, { color: 0xd8d0c8 });
+    for (const sz of [-1, 1]) mb.box(0.03, 0.07, sz * 0.062, 0.025, 0.025, 0.006, 'plastic_black');
+    for (const sz of [-1, 1]) mb.box(0.09, 0.12, sz * 0.035, 0.035, 0.06, 0.025, h);
+    mb.cylinderZ(-0.06, 0.03, 0, 0.012, 0.3, 4, 'wood_dark', { color: 0x8a6a40 }); // handle peg
+    mb.pop();
     mb.box(0.32, 0.38, 0, 0.06, 0.24, 0.05, 'wood_dark', { color: 0x4a3020 });
-    mb.cylinderZ(-0.36, 0.78, 0, 0.012, 0.3, 4, 'wood_dark', { color: 0x8a6a40 });
   },
 });
 

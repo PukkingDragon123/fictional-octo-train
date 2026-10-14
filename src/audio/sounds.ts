@@ -7,10 +7,17 @@ import { Buf, noise, osc, lowpass, highpass, bandpass, comb, decay, perc, adsr, 
 type Recipe = (v: number) => Buf;
 const R: Record<string, Recipe> = {};
 const def = (k: string, f: Recipe) => { R[k] = f; };
+/** register a one-shot recipe from another module (creature packs etc.) */
+export const defSound = (k: string, f: Recipe) => { R[k] = f; };
+/** keys of looping recipes registered from other modules (seamless crossfade + loop playback) */
+export const LOOP_KEYS = new Set<string>();
+export const defLoopSound = (k: string, f: Recipe) => { R[k] = f; LOOP_KEYS.add(k); };
 
 const thump = (len: number, f0: number, f1: number, k: number) => osc(len, 'sine', (t) => f1 + (f0 - f1) * Math.exp(-t * 30)).env(decay(k));
 const burst = (len: number, color: 'white' | 'pink' | 'brown', lp: number, hp: number, k: number) => { const b = noise(len, color); lowpass(b, lp); if (hp) highpass(b, hp); return b.env(decay(k)); };
 const clickS = (f: number, len = 0.02) => osc(len, 'square', f).env(decay(300));
+/** shared building blocks for recipe packs */
+export const kit = { thump, burst, clickS };
 
 // ---------------------------------------------------------------- footsteps
 function step(soft: number, bright: number, wet: number, hard: number) {

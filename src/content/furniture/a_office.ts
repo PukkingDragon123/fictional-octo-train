@@ -1119,8 +1119,10 @@ defObj({
     for (const sx of [-1, 1]) mb.box(sx * 0.95, 0, -0.07, 0.06, 1.04, 0.84, 'p_steel', st);
     mb.box(0, 0.72, -0.1, 1.84, 0.03, 0.66, 'wood_light', { color: 0xc8c0b0 });
     mb.box(0.6, 0.04, -0.12, 0.42, 0.68, 0.56, 'p_steel', st);
-    const cells = frontGrid(mb, 0.41, 0.79, 0.08, 0.7, -0.12 + 0.28, [1], [1, 1.5], 'p_steel_drawer', { ...st, fit: { south: true } });
-    void cells;
+    // pedestal drawers face the guard's chair (north side)
+    mb.push().translate(0.6, 0, -0.12).rotateY(Math.PI);
+    frontGrid(mb, -0.19, 0.19, 0.08, 0.7, 0.28, [1], [1, 1.5], 'p_steel_drawer', { ...st, fit: { south: true } });
+    mb.pop();
     // logbook, radio, lamp
     mb.box(-0.45, 1.08, zf - 0.07, 0.3, 0.014, 0.2, { top: 'p_logbook', all: 'paper' }, { fit: { top: true } });
     mb.box(0.55, 0.75, -0.25, 0.1, 0.2, 0.06, 'plastic_black');

@@ -217,7 +217,7 @@ canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 .k-title { position: fixed; inset: 0; z-index: 50; pointer-events: none; display: flex; align-items: stretch; }
 .k-title-panel { pointer-events: auto; width: min(460px, 92vw); padding: 7vh 34px 24px 46px; background: linear-gradient(90deg, rgba(8,7,4,0.92) 0%, rgba(8,7,4,0.78) 70%, rgba(8,7,4,0) 100%); display: flex; flex-direction: column; }
 .k-logo { margin-bottom: 4vh; }
-.k-logo-t { position: relative; font-family: 'Jacquard 12', var(--font-mono); font-size: clamp(64px, 11vw, 124px); line-height: 0.9; color: #f1e6b8; letter-spacing: 4px; text-shadow: 0 0 18px rgba(255, 230, 140, 0.35), 3px 3px 0 #000; animation: hum 6s infinite; }
+.k-logo-t { position: relative; font-family: 'Silkscreen', var(--font-mono); font-weight: 700; font-size: clamp(54px, 8.4vw, 96px); line-height: 0.95; color: #f1e6b8; letter-spacing: 2px; text-shadow: 0 0 22px rgba(255, 230, 140, 0.35), 4px 4px 0 #000; animation: hum 6s infinite; }
 .k-logo-t::before, .k-logo-t::after { content: attr(data-t); position: absolute; left: 0; top: 0; opacity: 0; }
 .k-logo-t::before { color: #ff4fd8; transform: translate(3px, 0); animation: glitchA 7s infinite steps(1); }
 .k-logo-t::after { color: #4fe8ff; transform: translate(-3px, 1px); animation: glitchB 7s infinite steps(1); }
@@ -321,3 +321,6 @@ canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 .k-stamp.shake { animation: shake 0.35s; }
 @keyframes shake { 25% { transform: rotate(-4deg) translateX(-6px); } 75% { transform: rotate(-4deg) translateX(6px); } }
 @media (max-width: 640px) { .k-two, .k-traits, .k-coop-cols { grid-template-columns: 1fr; } .k-slider { grid-template-columns: 110px 1fr 70px; } }
+
+.k-title-menu .k-mbtn { flex-wrap: wrap; row-gap: 0; }
+.k-title-menu .k-mbtn small { width: 100%; margin: -2px 0 6px 24px; padding: 0; text-align: left; font-size: 15px; }

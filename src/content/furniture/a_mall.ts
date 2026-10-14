@@ -432,7 +432,6 @@ defObj({
     mb.box(-0.21, 0.02, zf - 0.005, 0.5, 1.75, 0.012, 'plastic_black', { color: 0x2a1a26 });
     mb.box(-0.21, 1.78, zf + 0.04, 0.54, 0.03, 0.03, 'chrome');
     for (let i = 0; i < 4; i++) mb.box(-0.42 + i * 0.075, 0.25, zf + 0.03 + (i % 2) * 0.02, 0.08, 1.53, 0.015, 'p_booth_curtain', { uvOffset: [i * 0.1, 0] });
-    mb.box(-0.1, 0.0, zf - 0.1, 0.2, 0.45, 0.2, 'chrome');
     // right panel: sample strips, coin slot
     mb.box(0.27, 0.9, zf + 0.004, 0.16, 0.6, 0.006, 'p_photo_strips', { fit: true });
     mb.box(0.27, 0.65, zf + 0.008, 0.08, 0.12, 0.012, 'p_coin_door', { fit: true, emissive: lit ? 0.5 : 0 });

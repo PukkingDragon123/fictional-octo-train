@@ -8,7 +8,7 @@
 import { bus } from '../core/events';
 import { G } from '../game/G';
 import { clamp } from '../core/math';
-import { synth } from './sounds';
+import { synth, LOOP_KEYS } from './sounds';
 import { impulse, SR } from './synth';
 import { wallsBetween } from '../world/collision';
 import { objDef } from '../world/objects';
@@ -297,7 +297,7 @@ export class AudioEngine {
     const b = synth(key, v);
     if (!b || !this.ctx) return null;
     let data = b.d;
-    if (LOOPS.has(key)) {
+    if (LOOPS.has(key) || LOOP_KEYS.has(key)) {
       // crossfade the tail into the head: the cut becomes inaudible
       const L = Math.min(Math.floor(0.3 * SR), Math.floor(data.length / 3));
       const n = data.length - L;

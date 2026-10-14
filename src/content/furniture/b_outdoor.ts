@@ -184,7 +184,7 @@ addTextureModule(() => {
     const r = makeRamp(0x2c4c8c, 5, { spread: 0.38 });
     fillNoise(pc, r, 0.55, 0.08, 3, 681, 0.04);
     pc.bevel(0, 0, 16, 22, r[4], r[0]);
-    textC(pc, 'MAIL', 8, 8, 0xf0f0e8);
+    text(pc, 'MAIL', 0, 8, 0xf0f0e8);
     pc.rect(2, 15, 12, 4, 0xd8d8d0); scribble(pc, 3, 16, 10, 0x4a4a52, 5, 2, 2);
     chips(pc, rng, 4, 0x8a8a8a, r[0]);
   });
