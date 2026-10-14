@@ -172,6 +172,7 @@ export function lobbyLandmarks(z: Zone, b: ZoneBuilder, rng: Rng) {
     const [x, y] = site(9, 9, 40, 70);
     stampRoom(b, x, y, x + 8, y + 8, { name: 'Empty Room', type: 'empty', arches: 2 });
     const o = f.place('door_freestanding', x + 4, y + 4, 0, { portal: 'p_fields' }) || b.obj('door_freestanding', x + 4, y + 4, 0, { portal: 'p_fields' });
+    if (o) o.tint = 0xe06850; // the same red door stands in the fields
     if (o) b.portal({ id: 'p_fields', x: x + 4, y: y + 4, kind: 'door', to: 'fields', tx: 40, ty: 40, label: 'Open the red door' });
     anchors.r_fields = [x + 4, y + 6, Math.PI / 2];
     z.meta.lonelyDoor = [x + 4, y + 4];

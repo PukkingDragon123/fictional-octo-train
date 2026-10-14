@@ -27,6 +27,9 @@ export class Visibility {
   /** extra viewers (co-op teammates share sight) */
   extra: { x: number; z: number; facing: number }[] = [];
   enabled = true;
+  /** outdoors in daylight you know your surroundings: tiles within this radius count as explored */
+  autoExplore = 0;
+  private lastExX = -9999; private lastExY = -9999;
   private acc = 0;
   private touched: number[] = [];
 
@@ -80,6 +83,13 @@ export class Visibility {
       for (const i of this.touched) this.now[i] = 0;
       this.touched.length = 0;
       if (this.enabled) {
+        const ex = Math.floor(px), ey = Math.floor(pz), R = this.autoExplore;
+        if (R > 0 && (ex !== this.lastExX || ey !== this.lastExY)) {
+          this.lastExX = ex; this.lastExY = ey;
+          for (let y = Math.max(0, ey - R); y <= Math.min(z.H - 1, ey + R); y++) for (let x = Math.max(0, ex - R); x <= Math.min(z.W - 1, ex + R); x++) {
+            if ((x - ex) * (x - ex) + (y - ey) * (y - ey) <= R * R) z.explored[y * z.W + x] = 1;
+          }
+        }
         this.fan(px, pz, facing, this.range, gameTime);
         for (const e of this.extra) this.fan(e.x, e.z, e.facing, this.range * 0.8, gameTime);
       }

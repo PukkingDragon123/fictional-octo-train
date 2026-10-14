@@ -21,6 +21,7 @@ export interface FloorDef {
   wet?: number;            // wetness applied per second while standing (0..1)
   cold?: number;           // temperature modifier
   rotate?: boolean;        // allow random 90deg uv rotation
+  side?: string;           // texture for vertical step faces (ledges, banks); default: the floor's own
 }
 
 export interface WallDef {
@@ -73,8 +74,8 @@ defFloor({ key: 'carpet_wet', name: 'Soaked Carpet', tex: ['carpet_wet'], sound:
 defFloor({ key: 'carpet_office', name: 'Office Carpet', tex: ['carpet_office'], sound: 'carpet', flammable: 0.6 });
 defFloor({ key: 'carpet_red', name: 'Red Carpet', tex: ['carpet_red'], sound: 'carpet', flammable: 0.6 });
 defFloor({ key: 'carpet_hotel', name: 'Patterned Carpet', tex: ['carpet_hotel'], sound: 'carpet', flammable: 0.6 });
-defFloor({ key: 'tile_pool', name: 'Pool Tiles', tex: ['tile_pool'], sound: 'tile', cold: -2 });
-defFloor({ key: 'tile_pool_blue', name: 'Blue Pool Tiles', tex: ['tile_pool_blue'], sound: 'tile', cold: -2 });
+defFloor({ key: 'tile_pool', name: 'Pool Tiles', tex: ['tile_pool'], sound: 'tile', cold: -2, side: 'wall_pool' });
+defFloor({ key: 'tile_pool_blue', name: 'Blue Pool Tiles', tex: ['tile_pool_blue'], sound: 'tile', cold: -2, side: 'wall_pool' });
 defFloor({ key: 'water_shallow', name: 'Shallow Water', tex: ['tile_pool_blue'], sound: 'water', water: 'shallow', tainted: true, slow: 0.7, wet: 0.02, cold: -4 });
 defFloor({ key: 'water_deep', name: 'Deep Water', tex: ['tile_pool_deep'], sound: 'deep', water: 'deep', tainted: true, slow: 0.45, wet: 0.2, cold: -6 });
 defFloor({ key: 'linoleum', name: 'Linoleum', tex: ['linoleum'], sound: 'linoleum' });
@@ -85,8 +86,8 @@ defFloor({ key: 'terrazzo', name: 'Terrazzo', tex: ['terrazzo'], sound: 'tile' }
 defFloor({ key: 'concrete', name: 'Concrete', tex: ['concrete', 'concrete_b'], sound: 'concrete', rotate: true });
 defFloor({ key: 'concrete_wet', name: 'Wet Concrete', tex: ['concrete_wet'], sound: 'water', wet: 0.004, rotate: true });
 defFloor({ key: 'asphalt', name: 'Asphalt', tex: ['asphalt'], sound: 'gravel', outdoor: true, rotate: true });
-defFloor({ key: 'grass', name: 'Grass', tex: ['grass', 'grass_b', 'grass_c'], sound: 'grass', outdoor: true, diggable: true, forage: 'grass', flammable: 0.3, rotate: true });
-defFloor({ key: 'grass_dream', name: 'Soft Grass', tex: ['grass_dream', 'grass_dream_b'], sound: 'grass', outdoor: true, diggable: true, forage: 'dream', flammable: 0.2, rotate: true });
+defFloor({ key: 'grass', name: 'Grass', tex: ['grass', 'grass_b', 'grass_c'], sound: 'grass', outdoor: true, diggable: true, forage: 'grass', flammable: 0.3, rotate: true , side: 'dirt' });
+defFloor({ key: 'grass_dream', name: 'Soft Grass', tex: ['grass_dream', 'grass_dream_b'], sound: 'grass', outdoor: true, diggable: true, forage: 'dream', flammable: 0.2, rotate: true , side: 'dirt' });
 defFloor({ key: 'dirt', name: 'Dirt', tex: ['dirt'], sound: 'dirt', outdoor: true, diggable: true, forage: 'dirt', rotate: true });
 defFloor({ key: 'soil', name: 'Tilled Soil', tex: ['soil'], sound: 'dirt', outdoor: true, farmable: true });
 defFloor({ key: 'sidewalk', name: 'Sidewalk', tex: ['sidewalk'], sound: 'concrete', outdoor: true });

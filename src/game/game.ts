@@ -163,6 +163,9 @@ export class Game {
     this.sun.intensity = e.sky ? e.sunI : 0;
     this.sun.color.set(e.sun);
     this.hemi.intensity = e.sky ? 0.9 : 0;
+    // outdoors: the land around you is known and memory reads brighter
+    U.uRememberAmt.value = e.sky ? 0.72 : 0.42;
+    if (this.view?.zone === z) this.view.vis.autoExplore = e.sky ? 22 : 0;
     this.hemi.color.set(e.skyColor);
   }
 

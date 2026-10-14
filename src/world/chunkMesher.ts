@@ -56,12 +56,12 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       for (let r = 0; r < rot; r++) uvs = [uvs[1], uvs[2], uvs[3], uvs[0]];
       floors.quadRaw([[x, h, y + 1], [x + 1, h, y + 1], [x + 1, h, y], [x, h, y]], uvs, tex, 0xffffff, 1, 0, 0, [0, 1, 0]);
       // vertical steps to lower neighbours (pool edges, ledges)
-      const sideTex = f.water ? 'wall_pool' : tex;
+      const sideTex = f.side ?? (f.water ? 'wall_pool' : tex);
       const stepFace = (nx: number, ny: number, p: number[][]) => {
         const nh = zone.inb(nx, ny) && zone.floor[zone.idx(nx, ny)] ? zone.height[zone.idx(nx, ny)] * 0.1 : -3;
         if (nh < h - 0.01) {
           const pts = p.map((q) => [q[0], q[1] === 1 ? h : nh, q[2]]);
-          floors.quadRaw(pts, [[0, nh / 2.7], [1, nh / 2.7], [1, h / 2.7], [0, h / 2.7]], sideTex === tex ? 'wall_pool' : sideTex, 0xd8d8d8, 0.9);
+          floors.quadRaw(pts, [[0, nh / 2.7], [1, nh / 2.7], [1, h / 2.7], [0, h / 2.7]], sideTex, 0xd8d8d8, 0.9);
         }
       };
       stepFace(x, y + 1, [[x, 0, y + 1], [x + 1, 0, y + 1], [x + 1, 1, y + 1], [x, 1, y + 1]]);
@@ -131,7 +131,8 @@ export function objectMatrix(zone: Zone, o: TileObject, d: ObjDef): THREE.Matrix
   const w = d.w ?? 1, dd = d.d ?? 1;
   const rw = o.rot % 2 === 0 ? w : dd, rd = o.rot % 2 === 0 ? dd : w;
   const cx = o.x + rw / 2 + (o.ox ?? 0), cz = o.y + rd / 2 + (o.oz ?? 0);
-  const h = d.onWall ? 0 : zone.heightAt(o.x, o.y);
+  // wall-mounted props follow the floor they hang over unless given an explicit (absolute) state.y
+  const h = d.onWall && o.state?.y !== undefined ? 0 : zone.heightAt(o.x, o.y);
   const m = new THREE.Matrix4().makeTranslation(cx, h + (o.state?.y ?? 0), cz);
   m.multiply(ROT_MATS[o.rot]);
   if (o.state?.yaw) m.multiply(new THREE.Matrix4().makeRotationY(o.state.yaw));

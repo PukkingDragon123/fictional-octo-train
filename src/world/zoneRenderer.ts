@@ -179,7 +179,7 @@ function buildEdgeDynamic(z: Zone, x: number, y: number, side: 0 | 1, e: EdgeObj
       mb.box(dw - 0.1, 0.98, th / 2 + 0.02, 0.1, 0.03, 0.04, 'metal_brass');
       mb.box(dw - 0.1, 0.98, -th / 2 - 0.02, 0.1, 0.03, 0.04, 'metal_brass');
       if (e.style.includes('glass')) mb.box(dw / 2, 1.2, 0, 0.4, 0.6, th + 0.01, 'glass_dark', { fit: true });
-      if (e.sign) mb.box(dw / 2, 1.55, th / 2 + 0.006, 0.36, 0.12, 0.01, 'sign_' + e.sign, { fit: true });
+      if (e.sign) { mb.box(dw / 2, 1.55, th / 2 + 0.006, 0.36, 0.12, 0.01, 'sign_' + e.sign, { fit: true }); mb.box(dw / 2, 1.55, -th / 2 - 0.006, 0.36, 0.12, 0.01, 'sign_' + e.sign, { fit: true }); }
     }
     const leafMesh = new THREE.Mesh(mb.build(), MAT.prop);
     leafMesh.castShadow = true; leafMesh.receiveShadow = true;

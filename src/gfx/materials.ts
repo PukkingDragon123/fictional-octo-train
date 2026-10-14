@@ -213,7 +213,8 @@ if (uVisOn > 0.5) {
   float lum = dot(col, vec3(0.3, 0.59, 0.11));
   vec3 remembered = mix(vec3(lum), col, 0.35) * uRememberTint * uRememberAmt;
   vec3 unexplored = mix(vec3(lum), col, 0.15) * uRememberTint * uRememberAmt * 0.45;
-  vec3 res = mix(unexplored, remembered, vis.g) + uVoidColor;
+  // hidden areas sink toward the zone's void colour (near-black indoors, haze outdoors) without washing out
+  vec3 res = mix(mix(unexplored, remembered, vis.g), uVoidColor, 0.08 + 0.22 * (1.0 - vis.g));
   // dithered transition keeps the pixel-art feel at vision edges
   float v = vis.r;
   v = clamp(v + (bayer4(gl_FragCoord.xy) - 0.5) * 0.18, 0.0, 1.0);
