@@ -16,12 +16,12 @@
 // names the street you just left, a garage door on Maple Court that opens into
 // a garage on Elm, one house that rearranges itself, a playground that does too.
 import { defZone } from '../worldGraph';
-import { Zone, TF, TileObject } from '../zone';
+import { Zone, TF } from '../zone';
 import { ZoneBuilder } from './builder';
 import { Furnisher } from './furnish';
 import { Rng, hash3, hashStr, fbm2 } from '../../core/rng';
 import { registerShift } from '../shift';
-import { Frame, Dir, Rot, LDir, LBACK, LFACE, WBACK, WFACE, ANG, wallAt, signAt, decal, scatter, lootIn, arrive, openTile } from './suburbs_kit';
+import { Frame, Dir, Rot, LDir, LBACK, LFACE, WBACK, WFACE, ANG, wallAt, decal, scatter, lootIn, arrive, openTile } from './suburbs_kit';
 
 const W = 192, H = 192;
 // road corridors (8 wide: sidewalk, verge, 4 asphalt, verge, sidewalk)
@@ -115,8 +115,8 @@ function buildLot(c: Ctx, x0: number, y0: number, front: Dir, o: LotOpts): Frame
   const f = new Furnisher(b, rng);
   const wrong = o.wrong ?? -1;
   const P = (key: string, u: number, v: number, lr: number, st: Record<string, any> = {}) => F.put(f, key, u, v, lr, st);
-  const circuit = o.beyond ? 0 : c.nextCircuit++;
-  const lit = rng.chance(0.7); // drawn for copies too, so their rng stays in step with the partner
+  const circuit = c.nextCircuit++;
+  const lit = rng.chance(0.7);
   const keyId = 'alder_' + o.salt;
 
   // ---------------- ground
@@ -152,7 +152,7 @@ function buildLot(c: Ctx, x0: number, y0: number, front: Dir, o: LotOpts): Frame
   const [mx, my] = F.C(6, 5);
   decal(z, 'carpet_rug', mx, my, 0.8, 0.5, F.ns ? 0 : Math.PI / 2, 0xb07a50);
   // porch light: warm, on at dusk
-  b.light(mx, my, 'lamp', { y: 2.35, intensity: 0.75, radius: 4.5, circuit, color: 0xffc888, flicker: wrong === 2 ? 0.3 : 0, on: o.beyond ? lit : true });
+  b.light(mx, my, 'lamp', { y: 2.35, intensity: 0.75, radius: 4.5, circuit, color: 0xffc888, flicker: wrong === 2 ? 0.3 : 0 });
   // the street in front: a tree on the verge, sometimes a hydrant
   const hyd = rng.chance(0.4);
   if (!o.noVerge) { P('tree_oak', 3, -2, 0); if (hyd) P('fire_hydrant', 16, -2, 0); }
@@ -180,8 +180,8 @@ function buildLot(c: Ctx, x0: number, y0: number, front: Dir, o: LotOpts): Frame
     shed(c, F, 13, LD - 5, rng, o.beyond);
   }
 
-  // ---------------- inside
-  if (!o.beyond) {
+  // ---------------- inside (the copies past the Elm seams too: the camera's cutaway shows interiors)
+  {
     const irng = new Rng(hash3(c.seed, hashStr(o.salt), 97));
     const fi = new Furnisher(b, irng);
     if (o.shift) {
@@ -193,20 +193,18 @@ function buildLot(c: Ctx, x0: number, y0: number, front: Dir, o: LotOpts): Frame
     } else houseInterior(F, fi, irng, circuit, 0, wrong, false);
     garageInterior(F, fi, irng, circuit, o);
     // a little loose stuff, and the key under the porch plant for some locked houses
-    if (!o.shift) {
+    if (!o.shift && !o.beyond) {
       const [lx0, ly0, lx1, ly1] = F.R(1, 6, 11, 15);
       lootIn(fi, irng, 'generic', lx0, ly0, lx1, ly1, 2);
       const [kx, ky] = F.P(3, 13);
       if (irng.chance(0.6)) fi.floorLoot('toys', kx, ky);
       if (irng.chance(0.25)) fi.floorLoot('lore_bits', ...F.P(6, irng.int(7, 14)));
     }
-    if (o.locked && irng.chance(0.45)) { const [kx, ky] = F.P(7, 5); fi.floorItem('key_generic', kx, ky, { keyId }); }
-    c.houses++;
-    if (!o.locked) c.unlocked++;
+    if (o.locked && !o.beyond && irng.chance(0.45)) { const [kx, ky] = F.P(7, 5); fi.floorItem('key_generic', kx, ky, { keyId }); }
     z.power.set(circuit, lit);
-  } else {
-    F.flag(0, 0, 17, LD - 1, TF.NOSPAWN);
   }
+  if (o.beyond) F.flag(0, 0, 17, LD - 1, TF.NOSPAWN);
+  else { c.houses++; if (!o.locked) c.unlocked++; }
   if (o.car && !o.beyond) {
     const [cx, cy] = F.P(13, 3);
     const rot = front === 's' ? 1 : front === 'n' ? 3 : front === 'w' ? 2 : 0;
@@ -329,7 +327,7 @@ function houseInterior(F: Frame, f: Furnisher, rng: Rng, circuit: number, varian
   P(rng.chance(0.5) ? 'rocking_horse' : 'dollhouse', 4, 12, LFACE.l);
   M('zg_wall_drawing', 3, 11, 'f', { v: rng.int(0, 2) });
   M('poster', 1, 12, 'l', { v: rng.int(0, 5) });
-  if (!stamp) { const [bx, by] = F.P(2, 14); f.floorItem('teddy_bear', bx, by); }
+  if (!stamp) { const [bx, by] = F.P(2, 14); if (z.inb(bx, by) && z.floor[z.idx(bx, by)]) f.floorItem('teddy_bear', bx, by); }
   // ---------------- hall
   P('clothing_rack', 7, 6, LBACK.r, { loot: 'wardrobe' });
   P('phone_desk', 7, 12, LBACK.r);
@@ -585,7 +583,7 @@ function hasePark(c: Ctx) {
   f.floorItem('toy_rubber_duck', 163, 172); f.floorItem('toy_rubber_duck', 168, 175);
   // the playground: rubber matting, a low fence, everything a child could want
   const px0 = 112, py0 = 162, px1 = 139, py1 = 181;
-  b.fillFloor(px0, py0, px1, py1, 'rubber');
+  b.fillFloor(px0, py0, px1, py1, 'sand');
   b.addRoom('Playground', 'playground', px0, py0, px1, py1, { outdoor: true, circuit: C_PARK });
   b.roomWalls(px0, py0, px1, py1, 'fence_wood');
   for (const x of [130, 131]) { b.gap(x, py0, 0); b.gap(x, py1 + 1, 0); }
@@ -596,6 +594,8 @@ function hasePark(c: Ctx) {
   // picnic area, trees, a phone booth by the path
   for (const [x, y] of [[100, 166], [104, 172], [100, 178], [146, 152], [152, 155]] as const) f.place('picnic_table', x, y, 0);
   f.place('phone_booth', 128, 156, 0);
+  for (const x of [100, 146, 176]) b.obj('lamp_post', x, 157, 0, {});
+  for (const y of [152, 186]) b.obj('lamp_post', 132, y, 0, {});
   f.place('trash_can_outdoor', 129, 160, 0); f.place('trash_can_outdoor', 162, 160, 0);
   for (let i = 0; i < 46; i++) {
     const x = rng.int(97, 188), y = rng.int(151, 188);
@@ -610,7 +610,7 @@ function hasePark(c: Ctx) {
 /** the playground rearranges itself when nobody is watching */
 function playground(sb: ZoneBuilder, rng: Rng, v: number, x0: number, y0: number, x1: number, y1: number) {
   const f = new Furnisher(sb, rng);
-  sb.fillFloor(x0, y0, x1, y1, 'rubber');
+  sb.fillFloor(x0, y0, x1, y1, 'sand');
   if (v === 0) {
     f.place('swing_set', x0 + 2, y0 + 2, 0); f.place('swing_set', x0 + 6, y0 + 2, 0);
     f.place('slide_playground', x0 + 12, y0 + 2, 0); f.place('slide_playground', x0 + 14, y0 + 2, 0);
@@ -686,7 +686,7 @@ export function generateSuburbs(z: Zone, seed: number) {
   b.fillFloor(190, ALDER + 1, 191, ALDER + 6, 'asphalt');
   for (let y = ALDER + 1; y <= ALDER + 6; y++) {
     b.gap(190, y, 1);
-    b.portal({ id: 'p_suburbs_lot', x: 190, y, kind: 'walk', to: 'parking', tx: 10, ty: 100, face: 0, label: 'Follow the road to the parking lot' });
+    b.portal({ id: 'p_suburbs_lot', x: 190, y, kind: 'walk', to: 'parking', tx: 82, ty: 126, face: 0, label: 'Follow the road to the parking lot' });
   }
   arrive(b, 'r_suburbs_lot', 183, ALDER + 3, ANG.w, 4);
   // Elm Street: the whole width of the map, so it can loop
@@ -708,7 +708,7 @@ export function generateSuburbs(z: Zone, seed: number) {
   const nS = ['2', '4', '6', '8', '10', '12', '14', '14'];
   elmReal.forEach((x0, i) => {
     const sN = 'elmN' + x0, sS = 'elmS' + x0;
-    buildLot(c, x0, 2, 's', { name: 'Elm Street', num: nN[i], salt: sN, depth: 22, hedges: true, locked: ![1, 5].includes(i), wrong: i === 3 ? 4 : i === 6 ? 7 : -1, shift: i === 6 });
+    buildLot(c, x0, 2, 's', { name: 'Elm Street', num: nN[i], salt: sN, depth: 22, hedges: true, locked: ![1, 5, 6].includes(i), wrong: i === 3 ? 4 : i === 6 ? 7 : -1, shift: i === 6 });
     buildLot(c, x0, ELM + 8, 'n', { name: 'Elm Street', num: nS[i], salt: sS, depth: 22, hedges: true, locked: ![2, 6].includes(i), wrong: i === 4 ? 1 : i === 1 ? 2 : -1, garageOpen: i === 5 });
   });
   // the copies past the seams (exteriors only, identical to their partners)
@@ -748,7 +748,7 @@ export function generateSuburbs(z: Zone, seed: number) {
   {
     const mx = 124, my = ELM + 4;
     b.obj('manhole', mx, my, 0, { portal: 'p_suburbs_manhole' });
-    b.portal({ id: 'p_suburbs_manhole', x: mx, y: my, kind: 'manhole', to: 'tunnels', tx: 20, ty: 20, label: 'Climb down the manhole' });
+    b.portal({ id: 'p_suburbs_manhole', x: mx, y: my, kind: 'manhole', to: 'tunnels', tx: 135, ty: 17, label: 'Climb down the manhole' });
     arrive(b, 'r_suburbs_manhole', mx + 1, my, ANG.e, 4);
     f.place('traffic_cone', mx - 1, my - 1, 0); f.place('traffic_cone', mx + 1, my + 1, 0);
     decal(z, 'decal_stain_dark', mx + 0.5, my + 0.5, 2, 2, 0.4, 0x302820, 0.6);
@@ -820,21 +820,20 @@ export function generateSuburbs(z: Zone, seed: number) {
   }
   // a garage on Maple Court whose side door opens into a garage on Elm (and back)
   {
-    // Maple Court 41 (lot x0 = 64, front 's'): garage side door at local (15,10) 'r' → world east wall
+    // Maple Court 41 (lot x0 = 64, front 's') and Elm Street 10 (lot x0 = 96, south side): the same
+    // garage side door at local (15, 10), each opening into the other garage
     const Fm = new Frame(b, 64, MAPLE - 22, LOT_W, 22, 's');
-    const [gx, gy, gs] = Fm.edge(15, 10, 'r');
-    b.door(gx, gy, gs, 'door_wood', { portal: 'garage_maple' });
-    const [tx, ty] = Fm.P(15, 10);
-    b.portal({ id: 'garage_maple', x: tx, y: ty, kind: 'door', to: 'suburbs', tx: 0, ty: 0, label: 'Open the side door', anchor: 'garage_elm_in' });
-    // Elm 10 (lot x0 = 96, south side, front 'n'): same door, other end
     const Fe = new Frame(b, 96, ELM + 8, LOT_W, 22, 'n');
-    const [ex, ey, es] = Fe.edge(15, 10, 'r');
-    b.door(ex, ey, es, 'door_wood', { portal: 'garage_elm' });
-    const [ux, uy] = Fe.P(15, 10);
-    b.portal({ id: 'garage_elm', x: ux, y: uy, kind: 'door', to: 'suburbs', tx: 0, ty: 0, label: 'Open the side door', anchor: 'garage_maple_in' });
-    const [ax, ay] = Fe.P(14, 9), [bx2, by2] = Fm.P(14, 9);
+    const [ax, ay] = Fe.P(14, 9), [mx2, my2] = Fm.P(14, 9);
     (z.meta.anchors as any).garage_elm_in = [ax, ay, Fe.ang('l')];
-    (z.meta.anchors as any).garage_maple_in = [bx2, by2, Fm.ang('l')];
+    (z.meta.anchors as any).garage_maple_in = [mx2, my2, Fm.ang('l')];
+    const pairs: [Frame, string, string, number, number][] = [[Fm, 'garage_maple', 'garage_elm_in', ax, ay], [Fe, 'garage_elm', 'garage_maple_in', mx2, my2]];
+    for (const [F, id, anchorId, tx, ty] of pairs) {
+      const [gx, gy, gs] = F.edge(15, 10, 'r');
+      b.door(gx, gy, gs, 'door_wood', { portal: id });
+      const [px, py] = F.P(15, 10);
+      b.portal({ id, x: px, y: py, kind: 'door', to: 'suburbs', tx, ty, label: 'Open the side door', anchor: anchorId });
+    }
   }
 
   // ------------------------------------------------------------ the school and the park
@@ -872,13 +871,14 @@ export function generateSuburbs(z: Zone, seed: number) {
     for (const o of [...z.objectsAt(x, y)]) z.removeObject(o);
   }
   z.lights = z.lights.filter((l) => (l.x >= 2 && l.x < 190 && l.z >= 2 && l.z < 190) || (l.z >= ALDER + 1 && l.z < ALDER + 7));
+  z.decals = z.decals.filter((d) => (d.x >= 2 && d.x < 190 && d.z >= 2 && d.z < 190) || (d.z >= ALDER + 1 && d.z < ALDER + 7 && d.x >= 0 && d.x < W));
 
   // ------------------------------------------------------------ env, creatures
   for (const cc of [C_STORE, C_ALLEY, C_PARK]) z.power.set(cc, true);
   z.env = {
     ...z.env,
-    ambient: 0x6a5a78, ambientI: 0.5, fog: 0x8a7088, fogNear: 26, fogFar: 74, void: 0x3a2c40, temp: 19,
-    sky: true, sun: 0xffa868, sunI: 0.7, skyColor: 0x8a84c8, outdoorAmbient: 0x8a7aa8,
+    ambient: 0x5a4c6c, ambientI: 0.46, fog: 0x7a6280, fogNear: 24, fogFar: 70, void: 0x2e2234, temp: 19,
+    sky: true, sun: 0xff9a5a, sunI: 0.45, skyColor: 0x7a74b8, outdoorAmbient: 0x7a6a98,
     grade: 'suburbs', reverb: 'outdoor', ambience: 'suburbs', music: 'musicbox', weather: 'none',
   };
   z.spawnTable = [['grinhound', 3], ['goodboy', 1.5], ['wrongbird', 2], ['stilt_doe', 1], ['sentinel', 1], ['hollow', 1]];
