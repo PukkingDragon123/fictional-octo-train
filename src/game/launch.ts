@@ -4,7 +4,7 @@
 import { startSession } from './session';
 import { readSave } from './save';
 import { Net } from '../net/net';
-import type { Appearance } from '../entities/humanRig';
+import { Appearance, randomAppearance } from '../entities/humanRig';
 
 interface Char { name: string; app: Appearance; occupation: string; traits: string[] }
 export type LaunchConfig =
@@ -58,8 +58,9 @@ export async function launch(cfg: LaunchConfig) {
       }
       case 'join': {
         bootText(`NOCLIPPING INTO ROOM ${cfg.room.toUpperCase()}…`);
-        const { net, welcome } = await Net.join(cfg.server, cfg.room, { name: cfg.name, app: cfg.app, occupation: cfg.occupation, traits: cfg.traits }, cfg.pass);
-        startSession({ mode: 'client', net, welcome, name: cfg.name, app: cfg.app, occupation: cfg.occupation, traits: cfg.traits, directives: welcome.missions?.enabled ?? true });
+        const hello = { name: cfg.name, app: cfg.app ?? randomAppearance(Math.random), occupation: cfg.occupation, traits: cfg.traits };
+        const { net, welcome } = await Net.join(cfg.server, cfg.room, hello, cfg.pass);
+        startSession({ mode: 'client', net, welcome, name: cfg.name, app: hello.app, occupation: cfg.occupation, traits: cfg.traits, directives: welcome.missions?.enabled ?? true });
         break;
       }
     }

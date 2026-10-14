@@ -13,7 +13,7 @@ import { Player, PlayerNetState } from '../entities/player';
 import { itemDef, Item } from '../items/item';
 import { Voice } from './voice';
 import type { GameSystem } from '../game/game';
-import type { Appearance } from '../entities/humanRig';
+import { Appearance, randomAppearance } from '../entities/humanRig';
 import type { MenuOption } from '../ui/ui';
 
 export interface Welcome {
@@ -78,6 +78,7 @@ export class Net implements GameSystem {
   static async join(url: string, room: string, hello: Hello, pass = ''): Promise<{ net: Net; welcome: Welcome }> {
     const n = new Net(url);
     await n.openP;
+    if (!hello.app) hello.app = randomAppearance(Math.random); // host and client must agree on the look
     return new Promise((res, rej) => {
       n.onWelcome = (w) => res({ net: n, welcome: w });
       n.onError = (e) => rej(new Error(e));
@@ -194,7 +195,8 @@ export class Net implements GameSystem {
   private welcome(id: string, h: Hello) {
     this.pendingHello.set(id, h);
     const me = G.local;
-    const p = new Player(id, h.name, h.app, false);
+    if (!h.app) h.app = randomAppearance(Math.random);
+    const p = new Player(id, h.name || 'Survivor', h.app, false);
     p.zoneKey = me.zoneKey;
     p.x = me.x + 1; p.z = me.z;
     G.addPlayer(p);
