@@ -59,6 +59,7 @@ for (const key of keys) {
   if (uniq.length > 12) P(key, `... ${uniq.length - 12} more warnings`);
   let floors = 0; for (let i = 0; i < z.W * z.H; i++) if (z.floor[i]) floors++;
   console.log(`${key.padEnd(10)} ${z.W}x${z.H}  ${ms.toFixed(0)}ms  floor ${floors}  rooms ${z.rooms.length - 1}  objects ${z.objects.size}  lights ${z.lights.length}  portals ${z.portals.length}  anchors ${Object.keys(z.meta.anchors || {}).length}  spawn ${z.spawnTable.length} sp/cap ${z.creatureCap}`);
+  if (process.env.ROOMS) console.log("  rooms: " + z.rooms.slice(1).map((r) => r.name).filter((n, i, a) => a.indexOf(n) === i).map((n) => `${n}×${z.rooms.filter((r) => r.name === n).length}`).join(", "));
 }
 
 // ---------------------------------------------------------------- per zone checks
@@ -84,6 +85,23 @@ function reach(z, sx, sy) {
   }
   return seen;
 }
+/** ASCII close-up: '-' / '|' walls, 'D' doors, '#' void, 'o' solid, '.' floor (',' = reached) */
+function ascii(z, cx, cy, r, seen) {
+  const out = [];
+  for (let y = cy - r; y <= cy + r; y++) {
+    let top = '', mid = '';
+    for (let x = cx - r; x <= cx + r; x++) {
+      if (!z.inb(x, y)) { top += '  '; mid += '  '; continue; }
+      const en = z.edge(x, y, 0), ew = z.edge(x, y, 1);
+      const i = z.idx(x, y);
+      top += '+' + (en ? (en.kind === 'door' ? 'D' : en.kind === 'window' ? 'w' : '?') : z.wallN[i] ? '-' : ' ');
+      const c = x === cx && y === cy ? '@' : !z.floor[i] ? '#' : z.solid[i] === 1 ? 'o' : seen && seen[i] ? ',' : '.';
+      mid += (ew ? (ew.kind === 'door' ? 'D' : ew.kind === 'window' ? 'w' : '?') : z.wallW[i] ? '|' : ' ') + c;
+    }
+    out.push(top, mid);
+  }
+  return out.join('\n');
+}
 for (const [key, z] of zones) {
   const anchors = z.meta.anchors || {};
   for (const [id, a] of Object.entries(anchors)) {
@@ -103,7 +121,7 @@ for (const [key, z] of zones) {
   const first = Object.values(anchors)[0];
   if (first && walkable(z, first[0], first[1])) {
     const seen = reach(z, first[0], first[1]);
-    for (const [id, a] of Object.entries(anchors)) if (walkable(z, a[0], a[1]) && !seen[z.idx(a[0], a[1])]) P(key, `anchor ${id} unreachable from ${Object.keys(anchors)[0]}`);
+    for (const [id, a] of Object.entries(anchors)) if (walkable(z, a[0], a[1]) && !seen[z.idx(a[0], a[1])]) { P(key, `anchor ${id} unreachable from ${Object.keys(anchors)[0]}`); if (process.env.ASCII) console.log(`${key}/${id} at ${a[0]},${a[1]}\n` + ascii(z, a[0], a[1], 12, seen)); }
     for (const p of z.portals) {
       if (p.kind === 'loop') continue;
       let ok = false;

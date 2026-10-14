@@ -60,13 +60,21 @@ export function lobbyLandmarks(z: Zone, b: ZoneBuilder, rng: Rng) {
   }
 
   // helper to find a site away from the centre
+  // districts (see lobbyDistricts) reserve their footprint before the landmarks go down
+  const reserved = (z.meta.reserved as { x0: number; y0: number; x1: number; y1: number }[]) || [];
+  const inReserved = (x: number, y: number, w: number, h: number) => reserved.some((r) => x <= r.x1 + 3 && x + w >= r.x0 - 3 && y <= r.y1 + 3 && y + h >= r.y0 - 3);
   const site = (w: number, h: number, minDist: number, maxDist: number): [number, number] => {
     for (let t = 0; t < 200; t++) {
       const a = rng.float(0, Math.PI * 2), d = rng.float(minDist, maxDist);
       const x = Math.floor(cx + Math.cos(a) * d - w / 2), y = Math.floor(cy + Math.sin(a) * d - h / 2);
       if (x < 4 || y < 4 || x + w > W - 5 || y + h > H - 5) continue;
       if (placed.some((p) => Math.abs(p.x - x) < w + 6 && Math.abs(p.y - y) < h + 6)) continue;
+      if (inReserved(x, y, w, h)) continue;
       return [x, y];
+    }
+    for (let t = 0; t < 200; t++) {
+      const x = rng.int(5, W - w - 6), y = rng.int(5, H - h - 6);
+      if (!inReserved(x, y, w, h)) return [x, y];
     }
     return [rng.int(5, W - w - 6), rng.int(5, H - h - 6)];
   };

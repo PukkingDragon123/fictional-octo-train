@@ -2,6 +2,8 @@ import { Zone, TF } from '../zone';
 import { ZoneBuilder } from './builder';
 import { Rng } from '../../core/rng';
 import { lobbyLandmarks } from './lobbyRooms';
+import { lobbyDistricts, reserveLobbyDistricts } from './lobbyDistricts';
+import { connectRegions } from './connect';
 
 /**
  * Level 0 — "The Lobby". Irregular office-like maze produced by recursive
@@ -94,7 +96,13 @@ export function generateLobby(z: Zone, seed: number) {
     b.obj('light_fluoro', x, y, 0, { broken, flicker: fl, circuit });
   }
   for (let c = 1; c < 16 * 16 + 1; c++) z.power.set(c, true);
+  reserveLobbyDistricts(z, rng);
   lobbyLandmarks(z, b, rng);
+  lobbyDistricts(z, b, rng);
+  // nothing may end up sealed off from where you wake
+  const sp = z.meta.spawn as [number, number] | undefined;
+  if (sp) connectRegions(z, b, sp[0], sp[1], rng, { keep: z.meta.sealed });
+  delete z.meta.sealed;
   z.env = {
     ...z.env,
     ambient: 0x3a3420, ambientI: 0.55, fog: 0x2b2512, fogNear: 13, fogFar: 27, void: 0x070603, temp: 22,
