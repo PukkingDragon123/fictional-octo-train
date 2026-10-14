@@ -126,7 +126,7 @@ export function stencil(z: Zone, word: string, x: number, y: number, len: number
 }
 /** a painted arrow pointing toward `dir` */
 export function arrow(z: Zone, x: number, y: number, dir: Side, len = 1.2, tint = 0xd8b030, h?: number) {
-  const rot = dir === 'e' ? 0 : dir === 's' ? -Math.PI / 2 : dir === 'w' ? Math.PI : Math.PI / 2;
+  const rot = dir === 'e' ? 0 : dir === 's' ? Math.PI / 2 : dir === 'w' ? Math.PI : -Math.PI / 2;
   decalAt(z, 'zg_fw_arrow', x, y, len, len * 0.5, rot, tint, undefined, h);
 }
 

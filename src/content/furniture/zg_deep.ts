@@ -6,7 +6,7 @@
 import { defObj } from '../../world/objects';
 import { atlas } from '../../gfx/atlas';
 import { addTextureModule } from '../../gfx/textures/index';
-import { makeRamp, mixHex, scaleHex, ph, bayer, text, textC, textW, rod, chips } from './b_common';
+import { makeRamp, mixHex, scaleHex, ph, bayer, text, textC, textW, rod, chips, flipY } from './b_common';
 
 const T = ['zg', 'deep'];
 const WZ = -0.44; // wall face (0.12 m walls) in model space at rot 0
@@ -56,6 +56,8 @@ addTextureModule(() => {
         if (wear < 0.18) pc.setRGBA(x, y, 0, 0, 0, 0);
         else if (wear < 0.3) pc.set(x, y, 0xd8d8d0, 170);
       }
+      // floor decals map the texture's top row to +z (south): flip so the words read from above
+      flipY(pc);
     });
   }
 
@@ -199,5 +201,36 @@ defObj({
       rod(mb, -0.3, y + 0.05, WZ + 0.31, -0.1, 1.85, WZ + 0.38, 0.018, 5, 'rubber_black');
       rod(mb, -0.1, 1.85, WZ + 0.38, 0.15, y + 0.05, WZ + 0.31, 0.018, 5, 'rubber_black');
     }
+  },
+});
+
+addTextureModule(() => {
+  const A = atlas();
+  // a cinema screen with nothing projected on it but a faint, wrong test card
+  A.add('zg_screen', 64, 24, (pc) => {
+    pc.wrap = false;
+    const R = makeRamp(0xd8dce4, 5, { spread: 0.18 });
+    for (let y = 0; y < 24; y++) for (let x = 0; x < 64; x++) {
+      const vig = Math.hypot((x - 32) / 32, (y - 12) / 12);
+      let c = R[Math.max(0, Math.min(4, Math.round(3.4 - vig * 1.6 + (bayer(x, y) - 0.5) * 0.6)))];
+      if (y % 3 === 0) c = mixHex(c, 0x9aa0b0, 0.12);
+      pc.set(x, y, c);
+    }
+    const bars = [0xd8d0a0, 0xa0d0d0, 0xa0d0a0, 0xd0a0c8, 0xd0a0a0, 0xa0a0d0];
+    for (let x = 14; x < 50; x++) for (let y = 6; y < 13; y++) pc.blend(x, y, bars[Math.floor((x - 14) / 6)], 0.35);
+    textC(pc, 'SCREEN 6', 32, 15, 0x8a8e9a, 1);
+  });
+});
+
+defObj({
+  key: 'zg_cinema_screen', name: 'Cinema Screen', w: 6, d: 1, height: 2.7, block: 'none', onWall: true, sound: 'fabric', hp: 99999,
+  light: { color: 0xdfe6ff, intensity: 0.65, radius: 8, y: 1.6, kind: 'screen', flicker: 0.15, power: false },
+  desc: 'A cinema screen. The projector behind you is off. The picture is still there.',
+  tags: [...T, 'screen', 'mall'],
+  model: (mb) => {
+    mb.box(0, 0.5, WZ + 0.03, 5.9, 2.1, 0.04, { south: 'zg_screen', all: 'metal_dark' }, { fit: { south: true }, emissive: 0.45 });
+    mb.box(0, 0.42, WZ + 0.05, 6.0, 0.08, 0.08, 'metal_dark');
+    mb.box(0, 2.6, WZ + 0.05, 6.0, 0.1, 0.08, 'metal_dark');
+    for (const s of [-1, 1]) mb.box(s * 2.96, 0.42, WZ + 0.06, 0.1, 2.28, 0.1, 'fabric_red');
   },
 });

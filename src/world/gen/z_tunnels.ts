@@ -12,7 +12,10 @@
 //   J4 FACILITY 4: the blast door with its keypad, the beacon, Sato's body.
 // The West Main is collapsed between J5 and J8, the north main floods past J2,
 // the south-east is dark, and five maze blocks re-dig themselves when nobody
-// is watching. Arrows in the maze go around in circles.
+// is watching. Arrows in the maze go around in circles, and a service door in
+// the substation opens in J3, on the other side of the map (and back).
+// Small boiler rooms, pump rooms, stores, crew rooms and camps are dug into
+// the rock between the passages.
 import { defZone } from '../worldGraph';
 import { Zone, TF } from '../zone';
 import { ZoneBuilder } from './builder';
@@ -258,10 +261,10 @@ function generateTunnels(z: Zone, seed: number) {
   R.area(b, EXITR.x0, EXITR.y0, EXITR.x1, EXITR.y1, ID_EXIT, 'concrete');
 
   // ---------------------------------------------------------------- maintenance rooms dug into the rock
-  type RoomKind = 'maintenance' | 'storage' | 'electrical' | 'breakroom' | 'camp' | 'toilet' | 'valves' | 'records' | 'nest';
+  type RoomKind = 'maintenance' | 'storage' | 'electrical' | 'breakroom' | 'camp' | 'toilet' | 'valves' | 'records' | 'nest' | 'boiler';
   const rooms: { r: Rect; id: number; kind: RoomKind; door: [number, number, 0 | 1, Side] }[] = [];
   const reserved: Rect[] = [...Object.values(L).map((l) => l.r), ...blockRects, LOOP, VEST, EXITR];
-  const roomKinds: [RoomKind, number][] = [['maintenance', 5], ['storage', 5], ['electrical', 3], ['breakroom', 2], ['camp', 1.5], ['toilet', 1.5], ['valves', 2], ['records', 1], ['nest', 1]];
+  const roomKinds: [RoomKind, number][] = [['maintenance', 5], ['storage', 5], ['electrical', 3], ['breakroom', 2], ['camp', 1.5], ['toilet', 1.5], ['valves', 2.5], ['records', 1], ['nest', 1], ['boiler', 2]];
   const rockFree = (r: Rect) => {
     if (r.x0 < 3 || r.y0 < 3 || r.x1 > W - 4 || r.y1 > H - 4) return false;
     if (reserved.some((q) => overlaps(q, r, 1))) return false;
@@ -324,7 +327,7 @@ function generateTunnels(z: Zone, seed: number) {
   // LANDMARKS
   // =====================================================================
   const jsign = (x: number, y: number, label: string, side: Side = 'n') => mount(b, 'zg_junction_sign', x, y, side, { label });
-  const chamber = (l: Landmark, name: string, type: string, temp = 14) => b.addRoom(name, type, l.r.x0, l.r.y0, l.r.x1, l.r.y1, { circuit: C_(l.r.x0, l.r.y0), temp });
+  const chamber = (l: Landmark, name: string, type: string, temp = 14, lootMul?: number) => b.addRoom(name, type, l.r.x0, l.r.y0, l.r.x1, l.r.y1, { circuit: C_(l.r.x0, l.r.y0), temp, lootMul });
 
   // ---------------------------------------------------------------- J1: drain inflow (ladder up to the Poolrooms)
   {
@@ -347,7 +350,7 @@ function generateTunnels(z: Zone, seed: number) {
     put(f, 'barrel_oil', r.x1, r.y1, 0); put(f, 'barrel_oil', r.x1 - 1, r.y1, 0);
     put(f, 'trash_bags', r.x0 + 1, r.y1, 0);
     put(f, 'shopping_cart', r.x0 + 3, r.y0 + 4, 1, { yaw: 0.4 });
-    bulb(b, r.x0 + 3, r.y0 + 7, C_(r.x0, r.y0), { flicker: 0.15 });
+    bulb(b, r.x0 + 3, r.y0 + 7, C_(r.x0, r.y0), { flicker: 0.15 }); bulb(b, sx, r.y0 + 6, C_(r.x0, r.y0), {});
     bulb(b, r.x1 - 3, r.y1 - 3, C_(r.x0, r.y0), { broken: true });
     stencil(z, 'J3', r.x1 - 1.5, C(3) + 0.5, 1.6, 0, 0xd8b030); arrow(z, r.x1 - 0.2, C(3) + 0.5, 'e', 1.1);
     stencil(z, 'J5', C(3) + 0.5, r.y1 - 1.5, 1.6, Math.PI / 2, 0xd8b030); arrow(z, C(3) + 0.5, r.y1 - 0.2, 's', 1.1);
@@ -382,7 +385,7 @@ function generateTunnels(z: Zone, seed: number) {
     for (let x = r.x0 + 2; x < ax0; x++) mount(b, 'pipes_cluster', x, r.y0, 'n');
     for (let x = ax1 + 1; x <= r.x1; x++) mount(b, 'pipes_cluster', x, r.y0, 'n');
     bulb(b, 77, 16, C_(77, 16), { kind: 'light_fluoro', flicker: 0.3 });
-    bulb(b, 85, 18, C_(85, 18), { kind: 'light_fluoro', broken: true });
+    bulb(b, 85, 18, C_(85, 18), { kind: 'light_fluoro', broken: true }); bulb(b, 81, 19, C_(81, 19), { kind: 'light_fluoro' });
     stencil(z, 'J6', C(12) + 0.5, r.y1 - 1.5, 1.6, Math.PI / 2, 0xd8b030); arrow(z, C(12) + 0.5, r.y1 - 0.2, 's', 1.1);
     f.floorLoot('hospital_cabinet', r.x0 + 3, r.y1 - 1);
     for (let k = 0; k < 4; k++) f.decal('decal_footprints', rng.int(r.x0, r.x1), rng.int(ay1 + 2, r.y1), 0.8, 0.8);
@@ -407,9 +410,13 @@ function generateTunnels(z: Zone, seed: number) {
     for (const x of [r.x0 + 3, r.x0 + 4, r.x1 - 1, r.x1]) mount(b, 'pipes_cluster', x, r.y0, 'n');
     put(f, 'electrical_cabinet', r.x0, r.y1 - 1, FACE.e);
     put(f, 'crate_wood', r.x1, r.y1, 0); put(f, 'cardboard_box', r.x1 - 1, r.y1, 0);
-    bulb(b, r.x0 + 3, r.y0 + 8, C_(r.x0, r.y0), { flicker: 0.1 });
+    bulb(b, r.x0 + 3, r.y0 + 8, C_(r.x0, r.y0), { flicker: 0.1 }); bulb(b, r.x1 - 3, r.y1 - 3, C_(r.x0, r.y0), {});
     stencil(z, 'J1', r.x0 + 1.5, C(3) + 0.5, 1.6, Math.PI, 0xd8b030); arrow(z, r.x0 + 0.2, C(3) + 0.5, 'w', 1.1);
     f.floorLoot('floor_generic', r.x1 - 3, r.y1 - 2);
+    b.door(r.x0, 19, 1, 'door_metal', { sign: 'maintenance', portal: 'tun_fold_b' });
+    b.portal({ id: 'tun_fold_b', x: r.x0, y: 19, kind: 'door', to: 'tunnels', tx: 23, ty: 132, label: 'Open the service door', anchor: 'fold_j8' });
+    anchorAt(b, 'fold_j3', r.x0 + 2, 19, 'e', 1);
+    mount(b, 'zg_room_plate', r.x0, 18, 'w', { label: '?' });
   }
 
   // ---------------------------------------------------------------- J5: pump station
@@ -519,9 +526,9 @@ function generateTunnels(z: Zone, seed: number) {
     for (let k = 0; k < 12; k++) {
       const a = (k / 12) * Math.PI * 2;
       const x = cx + 0.5 + Math.cos(a) * 4.2, y = cy + 0.5 + Math.sin(a) * 4.2;
-      decalAt(z, 'zg_fw_arrow', x, y, 1.1, 0.55, -(a + Math.PI / 2), k % 3 === 0 ? 0xc83a2a : 0xd8b030);
+      decalAt(z, 'zg_fw_arrow', x, y, 1.1, 0.55, a + Math.PI / 2, k % 3 === 0 ? 0xc83a2a : 0xd8b030);
     }
-    for (let k = 0; k < 4; k++) { stencil(z, 'J4', cx + 0.5 + Math.cos(k * 1.57) * 2.3, cy + 0.5 + Math.sin(k * 1.57) * 2.3, 1.4, -(k * 1.57 + Math.PI / 2), 0xe8e8e0); }
+    for (let k = 0; k < 4; k++) { stencil(z, 'J4', cx + 0.5 + Math.cos(k * Math.PI / 2) * 2.3, cy + 0.5 + Math.sin(k * Math.PI / 2) * 2.3, 1.4, k * Math.PI / 2 + Math.PI / 2, 0xe8e8e0); }
     stencil(z, 'J4', 132.5, r.y1 - 1.5, 2, Math.PI / 2, 0xd8b030); arrow(z, 132.5, r.y1 - 0.2, 's', 1.4);
     stencil(z, 'NO EXIT', r.x1 - 2, C(10) + 0.5, 2.6, 0, 0xc83a2a);
     stencil(z, 'KEEP LEFT', cx + 0.5, cy + 2.6, 2.4, 0, 0xe8e8e0);
@@ -531,6 +538,7 @@ function generateTunnels(z: Zone, seed: number) {
     put(f, 'electrical_cabinet', r.x1, r.y0 + 1, FACE.w);
     for (let x = r.x0 + 3; x <= r.x1; x++) mount(b, 'pipes_cluster', x, r.y0, 'n');
     bulb(b, cx, cy + 1, C_(cx, cy), { flicker: 0.4 });
+    bulb(b, r.x0 + 3, r.y0 + 3, C_(cx, cy), {}); bulb(b, r.x1 - 3, r.y1 - 3, C_(cx, cy), { flicker: 0.1 }); bulb(b, r.x1 - 3, r.y0 + 3, C_(cx, cy), { broken: true });
     f.floorItem('note', cx + 1, cy + 1, { lore: 'note_generic' });
     f.floorItem('chalk', cx - 1, cy + 2);
   }
@@ -581,7 +589,7 @@ function generateTunnels(z: Zone, seed: number) {
     for (let x = r.x0 + 1; x <= r.x1 - 1; x += 2) put(f, 'electrical_cabinet', x, r.y0, 0);
     mount(b, 'fuse_panel_big', r.x0, r.y0 + 4, 'w');
     mount(b, 'breaker_panel', r.x0, r.y0 + 6, 'w');
-    for (let y = r.y0 + 8; y <= r.y1; y += 2) mount(b, 'zg_cable_tray', r.x0, y, 'w', { v: y % 3 });
+    for (let y = r.y0 + 8; y <= r.y1; y += 2) if (Math.abs(y - 132) > 2) mount(b, 'zg_cable_tray', r.x0, y, 'w', { v: y % 3 });
     jsign(r.x1 - 1, r.y0, '8');
     for (const [x, y] of [[24, 126], [30, 126], [24, 133], [30, 133]] as const) bulb(b, x, y, C_(x, y), { kind: 'light_fluoro', flicker: rng.chance(0.5) ? 0.35 : 0.05 });
     stencil(z, 'J8', 27.5, r.y1 - 1, 2.4, 0, 0xd8b030);
@@ -589,17 +597,22 @@ function generateTunnels(z: Zone, seed: number) {
     put(f, 'tool_chest', r.x1, r.y1, FACE.w);
     put(f, 'shelf_metal', r.x1, r.y1 - 1, FACE.w, { loot: 'maintenance' });
     f.floorItem('fuse', r.x1 - 1, r.y1 - 2);
+    // a service door in the west wall that opens on the other side of the map (J3), and back
+    b.door(r.x0, 132, 1, 'door_metal', { sign: 'maintenance', portal: 'tun_fold_a' });
+    b.portal({ id: 'tun_fold_a', x: r.x0, y: 132, kind: 'door', to: 'tunnels', tx: 130, ty: 19, label: 'Open the service door', anchor: 'fold_j3' });
+    anchorAt(b, 'fold_j8', r.x0 + 2, 132, 'e', 1);
+    mount(b, 'zg_room_plate', r.x0, 131, 'w', { label: '?' });
     for (let k = 0; k < 6; k++) f.decal(rng.pick(['decal_scorch', 'decal_stain_dark', 'decal_crack']), rng.int(r.x0, r.x1), rng.int(r.y0, r.y1), rng.float(0.8, 1.6), rng.float(0.8, 1.6));
   }
 
   // ---------------------------------------------------------------- J9: the boiler hall (Sato's kit)
   {
     const l = L.J9, r = l.r;           // 63..81 × 123..141
-    chamber(l, 'Junction 9 — Boiler Hall', 'boiler', 29);
-    for (const x of [65, 70]) { put(f, 'boiler', x, r.y0 + 1, 0); b.light(x + 1, r.y0 + 3.2, 'fire', { intensity: 0.9, radius: 5, y: 0.5, circuit: 0, flicker: 0.15 }); }
+    chamber(l, 'Junction 9 — Boiler Hall', 'boiler', 29, 1.6);
+    for (const x of [65, 70]) { put(f, 'boiler', x, r.y0 + 1, 0); b.light(x + 1, r.y0 + 3.2, 'fire', { intensity: 1.3, radius: 7, y: 0.6, circuit: 0, flicker: 0.15 }); }
     // the big one, set out from the wall: behind it, the kit
     put(f, 'boiler', 77, r.y0 + 1, 0);
-    b.light(78, r.y0 + 3.2, 'fire', { intensity: 1.1, radius: 6, y: 0.5, circuit: 0, flicker: 0.2 });
+    b.light(78, r.y0 + 3.2, 'fire', { intensity: 1.4, radius: 7.5, y: 0.6, circuit: 0, flicker: 0.2 });
     const st = put(f, 'survivor_stash', 78, r.y0, FACE.s, { loot: 'survivor_stash' });
     for (const k of ['pistol', 'ammo_9mm', 'battery', 'battery', 'canned_beans', 'mre', 'almond_water', 'first_aid_kit', 'flashlight']) stash(st, rng, k);
     decalAt(z, 'decal_mark_x', 79.5, r.y0 + 0.5, 0.8, 0.8, 0.3, 0xe8e8e0);
@@ -613,7 +626,7 @@ function generateTunnels(z: Zone, seed: number) {
     put(f, 'chair_wood', r.x1 - 1, r.y1 - 4, FACE.s);
     jsign(r.x0, r.y0 + 3, '9', 'w');
     stencil(z, 'J9', 72.5, 133, 3, 0, 0xd8b030);
-    for (const [x, y] of [[67, 131], [77, 131], [67, 138], [77, 138]] as const) bulb(b, x, y, C_(x, y), { flicker: rng.chance(0.4) ? 0.2 : 0 });
+    for (const [x, y] of [[66, 129], [72, 129], [78, 130], [66, 135], [72, 134], [78, 136], [69, 140], [76, 140]] as const) bulb(b, x, y, C_(x, y), { flicker: rng.chance(0.3) ? 0.2 : 0 });
     for (let k = 0; k < 10; k++) f.decal(rng.pick(['decal_stain_dark', 'decal_scorch', 'decal_stain_water']), rng.int(r.x0, r.x1), rng.int(r.y0 + 3, r.y1), rng.float(1, 2), rng.float(1, 2));
     stencil(z, 'J8', r.x0 + 1.5, C(21) + 0.5, 1.6, Math.PI, 0xd8b030); arrow(z, r.x0 + 0.2, C(21) + 0.5, 'w', 1.1);
     stencil(z, 'J6', C(12) + 0.5, r.y0 + 1.5, 1.6, -Math.PI / 2, 0xd8b030); arrow(z, C(12) + 0.5, r.y0 + 0.2, 'n', 1.1);
@@ -652,7 +665,7 @@ function generateTunnels(z: Zone, seed: number) {
     decalAt(z, 'decal_blood_pool', dx + 4.6, dy + 1.6, 1.6, 1.3, 0.4);
     for (let k = 0; k < 7; k++) decalAt(z, 'decal_blood_drip', r.x0 + 2 + k * 1.3, dy + 4.2 - k * 0.35 + Math.sin(k) * 0.3, 0.8, 0.8, k);
     decalAt(z, 'decal_scorch', dx - 2, dy + 1, 1.5, 1.5, 0.5);
-    bulb(b, dx + 5, dy + 4, 0, { flicker: 0.5 });
+    bulb(b, dx + 5, dy + 4, 0, { flicker: 0.5 }); bulb(b, dx - 4, dy + 3, 0, { flicker: 0.15 }); bulb(b, dx, dy + 7, 0, {});
     bulb(b, r.x0 + 3, r.y1 - 2, DEAD, { broken: true });
     put(f, 'hazard_barrier', dx - 3, dy + 4, 0); put(f, 'hazard_barrier', dx + 3, dy + 6, 0, { yaw: 0.6 });
     put(f, 'crate_wood', r.x1, r.y1, 0); put(f, 'cardboard_stack', r.x1 - 1, r.y1, 0);
@@ -661,14 +674,15 @@ function generateTunnels(z: Zone, seed: number) {
   // =====================================================================
   // MAINTENANCE ROOMS
   // =====================================================================
-  const signFor: Record<RoomKind, string | undefined> = { maintenance: 'maintenance', storage: 'staff', electrical: 'danger', breakroom: 'staff', camp: undefined, toilet: 'restroom', valves: 'maintenance', records: 'office', nest: undefined };
-  const nameFor: Record<RoomKind, string> = { maintenance: 'Maintenance Room', storage: 'Store Room', electrical: 'Electrical Room', breakroom: 'Crew Room', camp: 'Somebody\'s Camp', toilet: 'Washroom', valves: 'Valve Room', records: 'Survey Office', nest: 'Den' };
+  const signFor: Record<RoomKind, string | undefined> = { maintenance: 'maintenance', storage: 'staff', electrical: 'danger', breakroom: 'staff', camp: undefined, toilet: 'restroom', valves: 'maintenance', records: 'office', nest: undefined, boiler: 'danger' };
+  const nameFor: Record<RoomKind, string> = { maintenance: 'Maintenance Room', storage: 'Store Room', electrical: 'Electrical Room', breakroom: 'Crew Room', camp: 'Somebody\'s Camp', toilet: 'Washroom', valves: 'Pump Room', records: 'Survey Office', nest: 'Den', boiler: 'Boiler Room' };
+  const typeFor = (k: RoomKind) => (k === 'valves' ? 'pump' : k);
   let roomNo = 1;
   for (const rm of rooms) {
     const { r, kind: k } = rm;
     const [dxx, dyy, ds] = rm.door;
     const circ = C_(r.x0, r.y0);
-    b.addRoom(`${nameFor[k]} ${String(roomNo++).padStart(2, '0')}`, k, r.x0, r.y0, r.x1, r.y1, { circuit: circ, temp: k === 'electrical' ? 18 : 14 });
+    b.addRoom(`${nameFor[k]} ${String(roomNo++).padStart(2, '0')}`, typeFor(k), r.x0, r.y0, r.x1, r.y1, { circuit: circ, temp: k === 'electrical' ? 18 : k === 'boiler' ? 26 : 14 });
     if (k === 'camp' || k === 'nest') b.gap(dxx, dyy, ds);
     else b.door(dxx, dyy, ds, 'door_metal', { open: rng.chance(0.35), sign: signFor[k], locked: k === 'electrical' && rng.chance(0.3) });
     const cx = Math.floor((r.x0 + r.x1) / 2), cy = Math.floor((r.y0 + r.y1) / 2);
@@ -709,6 +723,13 @@ function generateTunnels(z: Zone, seed: number) {
         aw('desk_office'); aw('filing_cabinet', { loot: 'filing' }); aw('filing_cabinet', { loot: 'filing' }); any('chair_office'); wallOn('noticeboard');
         f.floorItem('map_lobby', cx, cy); f.floorItem('paper', cx, cy);
         break;
+      case 'boiler': {
+        const bo = f.place('boiler', r.x0 + 1 <= r.x1 - 2 ? r.x0 + 1 : r.x0, r.y0, 0, {});
+        if (bo) b.light(bo.x + 1, bo.y + 2.2, 'fire', { intensity: 1.1, radius: 5, y: 0.6, circuit: 0, flicker: 0.2 });
+        aw('water_heater'); wallOn('pipes_cluster'); wallOn('pipes_cluster'); any('barrel_oil');
+        b.fillFloor(r.x0, r.y0, r.x1, r.y1, 'concrete_wet');
+        break;
+      }
       case 'nest':
         any('trash_bags', { loot: 'creature_nest' }); any('clothes_pile'); any('skeleton');
         for (let i = 0; i < 6; i++) f.decal(rng.pick(['decal_stain_dark', 'decal_blood_drip', 'decal_trash']), rng.int(r.x0, r.x1), rng.int(r.y0, r.y1), 1.2, 1.2);
@@ -847,7 +868,7 @@ function generateTunnels(z: Zone, seed: number) {
   connectRegions(z, b, first[0], first[1], rng, { keep: [...blockRects, rect(LOOP.x0, LOOP.y0, LOOP.x1, LOOP.y1), VEST] });
   // anchors first in the table = the manhole (zonecheck reachability starts there)
   const a = z.meta.anchors;
-  z.meta.anchors = { p_suburbs_manhole: a.p_suburbs_manhole, p_pools_drain: a.p_pools_drain, p_hospital_basement: a.p_hospital_basement, r_tunnels_lab: a.r_tunnels_lab, lab_door: a.lab_door };
+  z.meta.anchors = { p_suburbs_manhole: a.p_suburbs_manhole, p_pools_drain: a.p_pools_drain, p_hospital_basement: a.p_hospital_basement, r_tunnels_lab: a.r_tunnels_lab, lab_door: a.lab_door, fold_j3: a.fold_j3, fold_j8: a.fold_j8 };
 
   for (let c = 1; c <= 9; c++) z.power.set(c, c !== DEAD);
   z.env = {
