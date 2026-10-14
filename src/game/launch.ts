@@ -14,17 +14,20 @@ export type LaunchConfig =
   | ({ mode: 'join'; server: string; room: string; pass: string } & Char);
 
 const KEY = 'noclip.launch';
+// window.name survives a reload in the same tab, so it carries the config where sessionStorage is blocked
+const NAME_PREFIX = 'noclip.launch:';
 export function setLaunch(cfg: LaunchConfig) {
-  try { sessionStorage.setItem(KEY, JSON.stringify(cfg)); } catch { /* ignore */ }
+  const json = JSON.stringify(cfg);
+  try { sessionStorage.setItem(KEY, json); } catch { /* blocked: window.name below still works */ }
+  window.name = NAME_PREFIX + json;
   location.reload();
 }
 export function takeLaunch(): LaunchConfig | null {
-  try {
-    const s = sessionStorage.getItem(KEY);
-    if (!s) return null;
-    sessionStorage.removeItem(KEY);
-    return JSON.parse(s);
-  } catch { return null; }
+  let s: string | null = null;
+  try { s = sessionStorage.getItem(KEY); sessionStorage.removeItem(KEY); } catch { /* blocked */ }
+  if (window.name.startsWith(NAME_PREFIX)) { s = s || window.name.slice(NAME_PREFIX.length); window.name = ''; }
+  if (!s) return null;
+  try { return JSON.parse(s); } catch { return null; }
 }
 
 function bootText(html: string, back = false) {

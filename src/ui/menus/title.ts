@@ -136,10 +136,12 @@ class TitleMenu {
   private coop() {
     const box = h('div', 'k-coop');
     const srv = h('input', 'k-field') as HTMLInputElement;
-    srv.value = localStorage.getItem('noclip.server') || defaultServerUrl();
+    let saved = ''; try { saved = localStorage.getItem('noclip.server') || ''; } catch { /* storage blocked */ }
+    srv.value = saved || defaultServerUrl();
     const remember = () => { try { localStorage.setItem('noclip.server', srv.value.trim()); } catch { /* ignore */ } };
     box.append(h('div', 'k-lbl', 'Relay server'), srv);
     box.append(h('div', 'k-sheet-sub', 'Co-op runs through a NOCLIP relay (<code>npm start</code> in the project folder serves the game and the relay on port 8787). Everyone uses the same address.'));
+    if (import.meta.env.VITE_SANDBOXED) box.append(h('div', 'k-sheet-sub k-warn', 'This copy runs in a sandboxed page that cannot open network connections, so co-op is unavailable here. Run the project with <code>npm start</code> to play together.'));
     // host
     const hostBox = h('div', 'k-coop-col');
     hostBox.append(h('h4', '', 'HOST'));

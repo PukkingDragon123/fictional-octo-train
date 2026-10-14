@@ -7,6 +7,7 @@
 @font-face { font-family: 'Handjet'; src: url('/fonts/handjet.woff2') format('woff2'); font-weight: 100 900; font-display: block; }
 
 :root {
+  color-scheme: dark;
   --ink: #1a160c;
   --paper: #e9dfc3;
   --paper-dark: #cfc19c;
@@ -324,3 +325,4 @@ canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: b
 
 .k-title-menu .k-mbtn { flex-wrap: wrap; row-gap: 0; }
 .k-title-menu .k-mbtn small { width: 100%; margin: -2px 0 6px 24px; padding: 0; text-align: left; font-size: 15px; }
+.k-warn { color: var(--amber); }

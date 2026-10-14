@@ -35,6 +35,8 @@ Other scripts:
 | `npm run build` | production build into `dist/` |
 | `node scripts/zonecheck.mjs [zone…]` | generate zones headlessly, validate portals/anchors/reachability, write top-down maps to `scripts/out/` (`SEED=`, `ROOMS=1`, `ASCII=1`) |
 | `node scripts/shot.mjs <url> <out.png> [waitMs] [steps.json]` | headless screenshot against a running dev server |
+| `node scripts/walkthrough.mjs [devUrl]` | plays the main mission chain from the lobby fuses to the ending through the real mission objects and portals |
+| `VITE_SANDBOXED=1 npx vite build && node scripts/artifact.mjs` | packages a single-page build (CSS and fonts inlined) for sandboxed hosts; co-op is disabled there |
 
 URL flags: `?quick` skips the title and starts a fresh run; `?gallery=<set>` and
 `?sandbox` open the asset gallery and the rendering sandbox.
