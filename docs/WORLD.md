@@ -68,6 +68,20 @@ first (furniture/item/texture conventions). The reference generator is
   and one abandoned on the fields road.
 * Flags per tile: `TF.OUTDOOR`, `TF.NOSPAWN` (safe rooms, spawn points),
   `TF.SAFE`, `TF.CORRUPT`, `TF.SHIFT`, `TF.VENT`.
+* Connectivity: `connectRegions(z, b, sx, sy, rng, { keep })` in
+  `src/world/gen/connect.ts` opens plain walls until every walkable pocket is
+  reachable from (sx, sy); `keep` lists rects (set pieces, loop corridors)
+  whose walls must stay shut. Run it last in maze-like generators.
+* Rooms can be richer or poorer than the zone: `addRoom(..., { lootMul })`
+  scales container loot rolls.
+* Wall-mounted props follow the floor height of their tile; an explicit
+  `state.y` is absolute. Ledge faces use the floor's `side` texture
+  (grass shows earth, pool decks show tiles).
+* Shifting regions (`registerShift`): stamps may add walls, doors, furniture
+  and lights, but not decals, floor items or rooms (those would pile up on
+  every re-stamp). Loop portals can't change height; keep loops level.
+* Door `sign` values must match a `sign_*` texture: danger, exit, lab,
+  maintenance, office, pool, pool_rules, restroom, staff, stairs.
 
 ## Linking zones (portals + anchors)
 

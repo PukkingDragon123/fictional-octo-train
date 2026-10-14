@@ -52,7 +52,11 @@ defOp('openContainer', (a: { z: string; ref: string }, ctx) => {
   if (!ctx.host) return;
   const z = G.zones.get(a.z); if (!z) return;
   const c = resolveContainer(z, a.ref); if (!c || c.lootDone) return;
-  fillLoot(c, z.seed, G.sandbox.loot * (playerById(ctx.from)?.body.has('lucky') ? 1.2 : 1));
+  // rooms can be richer or poorer than the zone average (Room.lootMul)
+  const ou = c.owner?.startsWith('obj:') ? Number(c.owner.slice(4)) : NaN;
+  const o = Number.isFinite(ou) ? z.objects.get(ou) : undefined;
+  const roomMul = o ? (z.roomAt(o.x, o.y).lootMul ?? 1) : 1;
+  fillLoot(c, z.seed, G.sandbox.loot * roomMul * (playerById(ctx.from)?.body.has('lucky') ? 1.2 : 1));
   if (G.role === 'host') G.net?.broadcastOp('lootFill', { z: a.z, ref: a.ref, items: c.items.map(serializeItem) });
 });
 defOp('lootFill', (a: { z: string; ref: string; items: any[] }, ctx) => {
