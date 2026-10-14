@@ -29,7 +29,7 @@ const SNAP_HZ = 15, SELF_HZ = 15;
 export function defaultServerUrl() {
   const loc = window.location;
   if (loc.protocol === 'http:' || loc.protocol === 'https:') {
-    if (loc.port === '5173') return `ws://${loc.hostname}:8787/ws`; // vite dev server → local relay
+    if (import.meta.env.DEV) return `ws://${loc.hostname}:8787/ws`; // vite dev server → local relay
     return `${loc.protocol === 'https:' ? 'wss' : 'ws'}://${loc.host}/ws`;
   }
   return 'ws://localhost:8787/ws';
@@ -155,6 +155,8 @@ export class Net implements GameSystem {
 
   private handle(from: string, d: any) {
     if (!d) return;
+    // until our own session exists only the welcome matters (snapshots etc. would hit a null game)
+    if (!G?.local && d.k !== 'welcome' && d.k !== 'hello') return;
     switch (d.k) {
       // ---- host side
       case 'hello': if (this.isHost) this.welcome(from, d); break;
