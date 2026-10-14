@@ -332,6 +332,8 @@ export class VehicleSystem implements GameSystem {
     // remote-driven vehicles interpolate
     for (const v of this.vehicles.values()) {
       if (v.net && !(s && s.v === v && s.seat === 0)) {
+        // a remote driver crossed a loop seam: jump with it instead of sliding across the map
+        if (Math.hypot(v.net.x - v.x, v.net.z - v.z) > 12) { const dx = v.net.x - v.x, dz = v.net.z - v.z; v.net.x -= dx; v.net.z -= dz; this.shift(v, dx, dz); }
         const k = 1 - Math.exp(-10 * dt);
         v.x += (v.net.x - v.x) * k; v.z += (v.net.z - v.z) * k;
         let dy = v.net.yaw - v.yaw; while (dy > Math.PI) dy -= Math.PI * 2; while (dy < -Math.PI) dy += Math.PI * 2;
@@ -406,6 +408,9 @@ export class VehicleSystem implements GameSystem {
     const tx = Math.floor(v.x), ty = Math.floor(v.z);
     const portal = z.portals.find((q) => q.kind === 'walk' && q.x === tx && q.y === ty);
     if (portal && Math.abs(v.speed) > 0.5) this.travel(v, portal);
+    // looping streets and lanes: shift the car (and the camera) seamlessly
+    const loop = z.portals.find((q) => q.kind === 'loop' && q.x === tx && q.y === ty);
+    if (loop) this.shift(v, loop.loopDx ?? 0, loop.loopDy ?? 0);
     // stream the pose
     this.sendT -= dt;
     if (this.sendT <= 0 && G.net) { this.sendT = 1 / 15; G.net.sendVehicle?.({ id: v.id, x: +v.x.toFixed(2), z: +v.z.toFixed(2), yaw: +v.yaw.toFixed(3), zone: v.zone, sp: +v.speed.toFixed(2) }); }
@@ -441,6 +446,18 @@ export class VehicleSystem implements GameSystem {
       q.body.addInjury('head' as any, 'bruise' as any, Math.min(1, (speed - 6) * 0.08));
       if (speed > 11) q.body.addInjury('torso_u' as any, speed > 14 ? 'fracture' as any : 'bruise' as any, Math.min(1, (speed - 10) * 0.08));
       q.body.panic = Math.min(100, q.body.panic + 30);
+    }
+  }
+
+  /** move a car by a loop offset; local occupants and the camera come along without a visible jump */
+  private shift(v: Vehicle, dx: number, dz: number) {
+    v.x += dx; v.z += dz;
+    if (v.net) { v.net.x += dx; v.net.z += dz; }
+    for (const pid of v.seats) {
+      const p = pid ? G.players.get(pid) : null;
+      if (!p) continue;
+      p.x += dx; p.z += dz;
+      if (p.isLocal) { G.pr.target.x += dx; G.pr.target.z += dz; }
     }
   }
 

@@ -350,7 +350,7 @@ export class Game {
   }
 
   checkPortals(p: Player) {
-    if (this.transitioning) return;
+    if (this.transitioning || p.inVehicle) return; // cars handle portals and loops for everyone inside
     const z = this.zone;
     const tx = p.tileX(), ty = p.tileY();
     for (const portal of z.portals) {
