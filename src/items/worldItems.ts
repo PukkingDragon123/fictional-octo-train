@@ -22,12 +22,20 @@ export function floorItems(z: Zone): Map<number, WorldItem> {
   return m;
 }
 
+/** stable 0..1 noise from an item uid, so every co-op peer scatters a drop identically */
+function uidNoise(uid: number, k: number): number {
+  let h = ((uid % 4294967296) ^ Math.floor(uid / 4294967296) ^ Math.imul(k + 1, 0x9e3779b9)) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+}
+
 export function dropItem(z: Zone, it: Item, x: number, zz: number, y?: number, scatter = 0.25): WorldItem {
   const wi: WorldItem = {
     item: it,
-    x: x + (Math.random() - 0.5) * scatter, z: zz + (Math.random() - 0.5) * scatter,
+    x: x + (uidNoise(it.uid, 0) - 0.5) * scatter, z: zz + (uidNoise(it.uid, 1) - 0.5) * scatter,
     y: y ?? z.heightAt(Math.floor(x), Math.floor(zz)),
-    rot: Math.random() * Math.PI * 2,
+    rot: uidNoise(it.uid, 2) * Math.PI * 2,
   };
   floorItems(z).set(it.uid, wi);
   it.parent = undefined;

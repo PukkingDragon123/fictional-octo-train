@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { objDef } from '../world/objects';
 import type { SpeciesDef, Rig } from './species';
 import { Container } from '../items/container';
 import { uid } from '../core/rng';
@@ -79,7 +80,7 @@ export class Creature {
 
   displayName() {
     if (this.dead) return (this.scanned ? this.sp.name : 'Something') + ' (dead)';
-    if (this.sp.flags?.furniture && this.state === 'disguised') return this.sp.flags.furniture;
+    if (this.sp.flags?.furniture && this.state === 'disguised') return objDef(this.sp.flags.furniture)?.name || this.sp.flags.furniture;
     return this.scanned ? this.sp.name : this.sp.temperament === 'peaceful' || this.sp.temperament === 'skittish' ? 'Animal' : 'Something';
   }
 

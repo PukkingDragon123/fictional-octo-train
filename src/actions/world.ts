@@ -354,7 +354,7 @@ export class ButcherAction extends TimedAction {
   isValid() { return !!this.p.findTool('#knife') && !this.corpse.butchered; }
   perform() {
     const p = this.p;
-    const yields: [string, number][] = this.corpse.species?.meat || [['meat_raw', 2]];
+    const yields: [string, number][] = this.corpse.sp?.meat || [['meat_raw', 2]];
     const z = G.getZone(p.zoneKey);
     for (const [k, n] of yields) for (let i = 0; i < n; i++) p.inv.add(createItem(k, undefined, { pristine: true }));
     this.corpse.butchered = true;

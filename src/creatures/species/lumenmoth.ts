@@ -277,7 +277,7 @@ const S = def({
   hp: 5, walk: 0.9, run: 3.4, turn: 6, radius: 0.22, height: 0.4, sight: 18, fov: 3.1, hearing: 0.6,
   light: 'attracted', diet: 'light',
   zones: ['lobby', 'pools', 'mall', 'office', 'house', 'suburbs', 'fields'], weight: 2, group: [1, 2], maxPerZone: 5,
-  flags: { flying: true },
+  flags: { flying: true }, remains: 'decal_glow_paint',
   sounds: snd({ loop: 'moth_flutter', hurt: 'lumen_puff', death: 'lumen_puff' }),
   scan: {
     cls: 'Phototropic swarm / harmless',

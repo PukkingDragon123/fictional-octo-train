@@ -47,7 +47,11 @@ export interface SpeciesDef {
   tame?: { food: string[]; feeds: number };
   /** behaviour flags */
   flags?: Partial<{ weepingAngel: boolean; wallHider: boolean; vents: boolean; mimic: boolean; watcher: boolean; leviathan: boolean; flying: boolean; swimmer: boolean; underCarpet: boolean; thief: boolean; furniture: string; ghost: boolean; immortal: boolean; noCorpse: boolean; nocturnal: boolean; pack: boolean; custodian: boolean; glitch: boolean; plush: boolean; companion: boolean }>;
-  sounds?: { idle?: string; alert?: string; attack?: string; hurt?: string; death?: string; step?: string; call?: string };
+  sounds?: { idle?: string; alert?: string; attack?: string; hurt?: string; death?: string; step?: string; call?: string; loop?: string };
+  /** death decal ('none' for plush, glass, dust…); default is a blood pool */
+  remains?: string;
+  /** gallery-only animation hook (pose previews) */
+  animateGallery?(rig: Rig, t: number, pose?: string): void;
   scan: { cls: string; notes: string[] };
   build(): Rig;
   /** procedural animation: moving speed, state, time */

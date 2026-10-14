@@ -181,13 +181,15 @@ export class CreatureSystem implements GameSystem {
   }
 
   /** is creature c being looked at by any player (for things that only move unobserved) */
-  observed(c: Creature, z: Zone): boolean {
+  /** Is any survivor looking at this creature? `coneOnly` drops the "anything within 2 m counts" rule,
+   *  which weeping-angel style creatures need to ever reach you. */
+  observed(c: Creature, z: Zone, coneOnly = false): boolean {
     for (const p of this.playersInZone(c.zoneKey)) {
       const dx = c.x - p.x, dz = c.z - p.z, d = Math.hypot(dx, dz);
       if (d > 30) continue;
       const ang = Math.abs(angleDiff(p.facing, Math.atan2(dz, dx)));
       const cone = (p.isLocal && G.view ? G.view.vis.coneHalf : 1.4) + 0.05;
-      if (ang > cone && d > 2.0) continue;
+      if (ang > cone && (coneOnly || d > 2.0)) continue;
       if (!lineOfSight(z, p.x, p.z, c.x, c.z)) continue;
       const lit = (G.view?.zone === z ? G.lightLevelAt(c.x, c.z) : 0.5) + (p.flashlightOn && ang < 0.55 ? 1 : 0);
       if (lit < 0.1 && d > 3) continue;
@@ -205,7 +207,7 @@ export class CreatureSystem implements GameSystem {
     c.attackT = Math.max(0, c.attackT - dt);
     c.stagger = Math.max(0, c.stagger - dt);
     c.noiseCooldown = Math.max(0, c.noiseCooldown - dt);
-    c.observed = this.observed(c, z);
+    c.observed = this.observed(c, z, !!c.sp.flags?.weepingAngel);
     if (c.observed) c.lastObserved = G.time;
     // attack in progress
     if (c.attackPhase > 0) {
@@ -528,7 +530,8 @@ export class CreatureSystem implements GameSystem {
     c.targetId = G.players.has(byId) ? byId : c.targetId;
     c.lastSeen = { x: fx, z: fz, t: G.time };
     const z = G.getZone(c.zoneKey);
-    if (this.rng.chance(0.5)) op('decal', { z: c.zoneKey, d: { x: c.x + this.rng.float(-0.4, 0.4), z: c.z + this.rng.float(-0.4, 0.4), w: 0.5 + amount * 0.03, d: 0.5 + amount * 0.03, rot: this.rng.float(0, 6), tex: c.sp.flags?.glitch ? 'decal_glitch' : 'decal_blood_drip' } });
+    const drip = remainsTex(c, false);
+    if (drip && this.rng.chance(0.5)) op('decal', { z: c.zoneKey, d: { x: c.x + this.rng.float(-0.4, 0.4), z: c.z + this.rng.float(-0.4, 0.4), w: 0.5 + amount * 0.03, d: 0.5 + amount * 0.03, rot: this.rng.float(0, 6), tex: drip } });
     if (c.hp <= 0) this.kill(c, z, byId);
     else {
       this.call(c, 'hurt');
@@ -547,7 +550,8 @@ export class CreatureSystem implements GameSystem {
       const drops = rollLoot('creature_' + c.sp.key, this.rng);
       for (const k of drops) c.inv.add(createItem(k, this.rng));
       c.inv.lootDone = true;
-      op('decal', { z: c.zoneKey, d: { x: c.x, z: c.z, w: 1 + c.radius * 2, d: 1 + c.radius * 2, rot: this.rng.float(0, 6), tex: c.sp.flags?.glitch ? 'decal_glitch' : 'decal_blood_pool' } });
+      const pool = remainsTex(c, true);
+      if (pool) op('decal', { z: c.zoneKey, d: { x: c.x, z: c.z, w: 1 + c.radius * 2, d: 1 + c.radius * 2, rot: this.rng.float(0, 6), tex: pool } });
     } else {
       setTimeout(() => this.remove(c), 1500);
     }
@@ -631,7 +635,7 @@ export class CreatureSystem implements GameSystem {
       const tileVis = vis.isVisible(Math.floor(c.x), Math.floor(c.z));
       const show = tileVis || d < 1.6;
       c.visibleToLocal = show;
-      if (show && !c.wasSeenByLocal) { c.wasSeenByLocal = true; bus.emit('creatureSeen', c); }
+      if (show && !c.wasSeenByLocal && !concealed(c)) { c.wasSeenByLocal = true; bus.emit('creatureSeen', c); }
       c.rig.root.visible = show || !!c.rig.eyes;
       if (c.rig.eyes) for (const e of c.rig.eyes) e.visible = show || (d < 16 && lineOfSight(G.zone, local.x, local.z, c.x, c.z) && !c.dead);
       c.rig.body.visible = show;
@@ -653,7 +657,7 @@ export class CreatureSystem implements GameSystem {
     const p = G.local; if (!p || !G.survival) return;
     let threat = 0, anomaly = 0;
     for (const c of this.creatures.values()) {
-      if (c.dead || c.zoneKey !== p.zoneKey || !c.visibleToLocal || c.tamedBy) continue;
+      if (c.dead || c.zoneKey !== p.zoneKey || !c.visibleToLocal || c.tamedBy || concealed(c)) continue;
       const d = Math.hypot(c.x - p.x, c.z - p.z);
       const lit = G.lightLevelAt(c.x, c.z) > 0.12 || d < 4;
       if (!lit) continue;
@@ -703,3 +707,19 @@ export function applyHitToPlayer(p: Player, h: HitInfo) {
 
 declare module '../entities/player' { interface Player { mem_grabbed?: number; } }
 export { allSpecies, wrapAngle };
+
+/** what a creature leaves on the floor when hurt (drip) or killed (pool); null = nothing */
+function remainsTex(c: Creature, pool: boolean): string | null {
+  const r = c.sp.remains;
+  if (r) return r === 'none' ? null : r;
+  if (c.sp.flags?.glitch) return 'decal_glitch';
+  if (c.sp.flags?.plush) return null;
+  return pool ? 'decal_blood_pool' : 'decal_blood_drip';
+}
+
+/** disguised as furniture, under the carpet, inside a wall or a duct: not something you can see as a threat */
+export function concealed(c: Creature): boolean {
+  if (c.state === 'disguised') return true;
+  const f = c.sp.flags;
+  return !!(f && (f.underCarpet || f.wallHider || f.vents) && (c.state === 'hide' || c.state === 'travel'));
+}

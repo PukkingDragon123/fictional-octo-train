@@ -118,7 +118,7 @@ export function snapshotGame(name?: string): SaveData {
   const creatures: any[] = [];
   for (const c of (G.creatures?.creatures?.values?.() || []) as Iterable<any>) {
     if (c.dead && !c.inv?.items.length) continue;
-    creatures.push({ id: c.id, k: c.sp.key, z: c.zoneKey, x: c.x, zz: c.z, hp: c.hp, dead: c.dead, butchered: c.butchered, tamedBy: c.tamedBy, feeds: c.feeds, scanned: c.scanned, home: c.home, inv: c.inv ? serializeContainer(c.inv) : null });
+    creatures.push({ id: c.id, k: c.sp.key, z: c.zoneKey, x: c.x, zz: c.z, hp: c.hp, dead: c.dead, butchered: c.butchered, tamedBy: c.tamedBy, feeds: c.feeds, scanned: c.scanned, home: c.home, inv: c.inv ? serializeContainer(c.inv) : null, st: c.state, mem: plainMem(c.mem) });
   }
   const fires: Record<string, any> = {};
   for (const z of G.zones.values()) if (z.meta.fires && Object.keys(z.meta.fires).length) fires[z.key] = z.meta.fires;
@@ -145,6 +145,18 @@ export async function saveGame(name?: string): Promise<boolean> {
   } catch (e) { console.error('save failed', e); return false; }
 }
 
+/** the JSON-safe part of a creature's memory (numbers, strings, flags, small plain data) */
+function plainMem(mem: Record<string, any> | undefined): Record<string, any> | undefined {
+  if (!mem) return undefined;
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(mem)) {
+    if (v == null || typeof v === 'function') continue;
+    if (typeof v !== 'object') { out[k] = v; continue; }
+    try { const j = JSON.stringify(v); if (j.length < 2000) out[k] = JSON.parse(j); } catch { /* cyclic or exotic: skip */ }
+  }
+  return out;
+}
+
 /** restore creatures etc. after the world has been rebuilt (called by the session) */
 export function restoreAfterLoad(s: SaveData) {
   restoreUidCounter(s.uid || 0);
@@ -153,6 +165,8 @@ export function restoreAfterLoad(s: SaveData) {
     if (!cr) continue;
     if (c.dead) { cr.dead = true; cr.deathT = 99; cr.butchered = !!c.butchered; }
     if (c.inv) cr.inv = deserializeContainer(c.inv);
+    if (c.mem) Object.assign(cr.mem, c.mem);
+    if (c.st && !c.dead) cr.state = c.st;
   }
   for (const [zk, f] of Object.entries(s.fires || {})) { const z = G.getZone(zk); z.meta.fires = f; }
   if (s.vehicles) { for (const v of s.vehicles) G.getZone(v.zone); (G as any).vehicles?.load?.(s.vehicles); }

@@ -71,6 +71,8 @@ export class Game {
   points: THREE.PointLight[] = [];
   /** requests for point lights this frame (fires, flares, lamps) */
   private pointReq: { x: number; y: number; z: number; color: number; intensity: number; dist: number }[] = [];
+  /** last frame's dynamic lights big enough to matter for gameplay light checks (fires, lanterns, muzzle flashes) */
+  private pointPrev: { x: number; z: number; intensity: number; dist: number }[] = [];
   camZoom = 3;
   camLead = new THREE.Vector3();
   // ui / services attached later
@@ -476,6 +478,7 @@ export class Game {
       if (!r) { L.intensity = 0; continue; }
       L.position.set(r.x, r.y, r.z); L.color.set(r.color); L.intensity = r.intensity * 8; L.distance = r.dist;
     }
+    this.pointPrev = req.filter((r) => r.dist >= 4).map((r) => ({ x: r.x, z: r.z, intensity: r.intensity, dist: r.dist }));
     this.pointReq.length = 0;
   }
 
@@ -490,6 +493,10 @@ export class Game {
       if (d > 16) continue;
       const ang = Math.abs(wrapAngle(Math.atan2(dz, dx) - pl.facing));
       if (ang < 0.55 || d < 1.2) l += 1.2 * (1 - d / 16);
+    }
+    for (const r of this.pointPrev) {
+      const d = Math.hypot(x - r.x, z - r.z);
+      if (d < r.dist) l += Math.min(1.2, r.intensity * 0.6) * (1 - d / r.dist);
     }
     return l;
   }
