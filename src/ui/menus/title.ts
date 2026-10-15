@@ -94,7 +94,7 @@ class TitleMenu {
   private clockT = 0;
 
   constructor() {
-    const f = frame('Meridian continuity terminal', 't-title-panel crt-host', 'T-07');
+    const f = frame('Continuity terminal', 't-title-panel crt-host', 'T-07');
     this.panel = f.el;
     f.screen.classList.add('crt-on');
     f.body.append(this.logo(), this.diorama(), this.sysline(), this.menu, this.ticker(), this.foot());
@@ -121,7 +121,7 @@ class TitleMenu {
     paint();
     bus.on('uiSettings', () => { if (el.isConnected) { paint(); this.dio?.retheme(); } });
     bus.on('uiScale', () => { if (el.isConnected) { paint(); this.sizeDiorama(); } });
-    const sub = h('div', 't-logo-s', 'continuity survival simulation · <b>meridian institute</b> 1987');
+    const sub = h('div', 't-logo-s', 'continuity survival simulation<br><b>meridian institute</b> · 1987');
     const wrap = h('div', '');
     wrap.append(el, sub);
     return wrap;
@@ -130,7 +130,9 @@ class TitleMenu {
   private dioBox: HTMLElement | null = null;
   private diorama() {
     const box = h('div', 't-diorama');
-    this.dio = new Diorama(168, 52);
+    // a shorter feed on short screens so the whole menu still fits
+    const pxn = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxn')) || 2;
+    this.dio = new Diorama(168, window.innerHeight / pxn < 420 ? 40 : 52);
     box.append(this.dio.canvas);
     this.dioBox = box;
     this.sizeDiorama();
@@ -163,7 +165,7 @@ class TitleMenu {
     return el;
   }
   private foot() {
-    return h('div', 't-title-foot', '<span>↑↓ select · enter open · esc back</span><span class="blk">ready</span>');
+    return h('div', 't-title-foot', '<span>↑↓ select · enter · esc</span><span class="blk">ready</span>');
   }
   private setSide(el: HTMLElement | null, focusFirst = true) {
     this.sideNav?.destroy(); this.sideNav = null;

@@ -119,7 +119,7 @@ img { image-rendering: pixelated; }
   display: flex; align-items: center; gap: calc(var(--px) * 4); padding: 0 calc(var(--px) * 5) 0 calc(var(--px) * 3);
   border: calc(var(--px) * 4) solid transparent; border-width: 0 calc(var(--px) * 4);
   border-image: var(--pk-plate) 4 fill / calc(var(--px) * 4) repeat;
-  font-family: var(--font-stencil); font-weight: 400; font-size: var(--t-label); line-height: var(--t-label); letter-spacing: var(--ls); text-transform: uppercase;
+  font-family: var(--font-stencil); font-weight: 400; font-size: var(--t-label); line-height: var(--t-label); letter-spacing: 0; text-transform: uppercase;
   color: var(--plate-ink); text-shadow: 0 calc(var(--px) * -1) 0 #000;
   white-space: nowrap; overflow: hidden; pointer-events: none; z-index: 2; width: max-content; max-width: calc(100% - var(--px) * 8);
 }
@@ -313,7 +313,7 @@ img { image-rendering: pixelated; }
 .t-logo-g.b { filter: hue-rotate(-90deg) saturate(3); animation: glitchB 7s infinite steps(1); }
 @keyframes glitchA { 0%, 88%, 100% { opacity: 0; } 89% { opacity: 0.7; clip-path: inset(10% 0 60% 0); transform: translateX(calc(var(--px) * 2)); } 90% { opacity: 0.7; clip-path: inset(55% 0 20% 0); transform: translateX(calc(var(--px) * -3)); } 91% { opacity: 0; } }
 @keyframes glitchB { 0%, 88%, 100% { opacity: 0; } 89.5% { opacity: 0.7; clip-path: inset(30% 0 40% 0); transform: translateX(calc(var(--px) * -2)); } 90.5% { opacity: 0; } }
-.t-logo-s { font-family: var(--font-stencil); font-size: var(--t-label); line-height: var(--t-label); color: var(--ph-mid); margin-top: calc(var(--px) * 3); text-transform: uppercase; text-shadow: none; }
+.t-logo-s { font-family: var(--font-body); font-size: var(--t-body); line-height: var(--lh); color: var(--ph-mid); margin-top: calc(var(--px) * 2); text-transform: uppercase; text-shadow: none; }
 .t-logo-s b { color: var(--ph-hi); font-weight: normal; }
 .t-diorama { display: block; align-self: center; width: max-content; max-width: 100%; overflow: hidden; margin: calc(var(--px) * 3) 0 0; border: calc(var(--px) * 5) solid transparent; border-image: var(--pk-readout) 5 / calc(var(--px) * 5) repeat; background: #000; }
 .t-diorama canvas { display: block; image-rendering: pixelated; }
@@ -393,8 +393,8 @@ img { image-rendering: pixelated; }
 .pf-hud { position: absolute; z-index: 2; pointer-events: none; font-family: var(--font-readout); font-size: var(--t-label); line-height: var(--t-label); text-transform: uppercase; color: var(--ph-mid); text-shadow: var(--drop); }
 .pf-hud.tl { left: calc(var(--px) * 7); top: calc(var(--px) * 6); }
 .pf-hud.tr { right: calc(var(--px) * 7); top: calc(var(--px) * 6); text-align: right; }
-.pf-hud.bl { left: calc(var(--px) * 7); bottom: calc(var(--px) * 28); }
-.pf-hud.br { right: calc(var(--px) * 7); bottom: calc(var(--px) * 28); text-align: right; color: var(--ph-hi); font-family: var(--font-body); font-size: var(--t-body); }
+.pf-hud.bl { left: calc(var(--px) * 7); bottom: calc(var(--px) * 34); }
+.pf-hud.br { right: calc(var(--px) * 7); bottom: calc(var(--px) * 34); text-align: right; color: var(--ph-hi); font-family: var(--font-body); font-size: var(--t-body); }
 .pf-hud b { color: var(--ph-hi); font-weight: normal; }
 .pf-rec::before { content: ''; display: inline-block; width: calc(var(--px) * 4); height: calc(var(--px) * 4); margin-right: calc(var(--px) * 2); background: var(--danger); box-shadow: inset calc(var(--px) * -1) calc(var(--px) * -1) 0 rgba(0, 0, 0, 0.4); animation: blink 1.2s steps(2) infinite; }
 .pf-brackets { position: absolute; inset: calc(var(--px) * 16) calc(var(--px) * 10) calc(var(--px) * 34); pointer-events: none; z-index: 2;
@@ -852,6 +852,9 @@ img { image-rendering: pixelated; }
   .t-title { padding: calc(var(--px) * 3) calc(var(--px) * 5); }
   .t-title-panel > .crt { padding: calc(var(--px) * 3) calc(var(--px) * 4); }
   .t-logo-s, .t-sysline, .t-diorama { display: none; }
+}
+@media (max-height: 640px) {
+  .t-diorama { display: none; }
   .t-title-menu .t-btn small { display: none; }
   .t-title-foot { display: none; }
   .t-win { max-height: 100%; }
