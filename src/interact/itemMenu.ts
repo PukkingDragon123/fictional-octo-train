@@ -69,7 +69,8 @@ export function itemMenuOptions(p: Player, it: Item, c: Container, group: Item[]
       const raw = f.raw && !((it.cooked ?? 0) >= 1);
       const lbl = f.pills ? 'Take' : 'Eat';
       const warn = rotten ? ' (rotten!)' : raw ? ' (raw!)' : '';
-      if (f.pills) o.push({ label: lbl, action: pre(() => p.actions.add(new EatAction(p, it, 1))) });
+      // medicine is taken one dose at a time through its medical option below
+      if (f.pills) { if (!d.medical) o.push({ label: lbl, action: pre(() => p.actions.add(new EatAction(p, it, 1))) }); }
       else o.push({
         label: lbl + warn, sub: [
           { label: 'All', action: pre(() => p.actions.add(new EatAction(p, it, 1))) },
