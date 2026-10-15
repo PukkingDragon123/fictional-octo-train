@@ -151,9 +151,9 @@ html.nc-touch .sub-radio { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 
 /* ---------------------------------------------------------------- timed actions: tally marks scratched round your feet */
 .w-tally { position: fixed; left: 0; top: 0; z-index: 58; pointer-events: none; overflow: visible; filter: drop-shadow(1px 1px 0 rgba(0, 0, 0, 0.85)); }
-.w-tally line { stroke: #efe7cf; stroke-width: 2; stroke-linecap: square; }
+.w-tally line { stroke: #f2ead2; stroke-width: 2.5; stroke-linecap: round; }
 .w-tally line.cur { stroke: #fffbe8; }
-.w-tally line.ghost { stroke: rgba(239, 231, 207, 0.16); }
+.w-tally line.ghost { stroke: rgba(239, 231, 207, 0.2); stroke-width: 1.5; }
 
 /* ---------------------------------------------------------------- right-click: tags and tape fanned from the target */
 .k-menu.tg { border: 0; border-image: none; background: none; filter: none; padding: calc(var(--px) * 2) calc(var(--px) * 24) calc(var(--px) * 6) calc(var(--px) * 2); min-width: 0;
@@ -180,7 +180,8 @@ html.nc-touch .sub-radio { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 .k-menu.tg .mi:hover, .k-menu.tg .mi:focus, .k-menu.tg .mi.open { background-color: #f3e3b4; color: #000; box-shadow: none; transform: translateX(calc(var(--dx, 0) * var(--px) + var(--px) * 5)) rotate(0deg); }
 .k-menu.tg .mi.dis { color: rgba(44, 38, 26, 0.55); background-color: #b3a88c; cursor: var(--cur-arrow, default); }
 .k-menu.tg .mi.dis:hover, .k-menu.tg .mi.dis:focus { background-color: #bdb294; color: rgba(44, 38, 26, 0.7); transform: translateX(calc(var(--dx, 0) * var(--px) + var(--px) * 2)) rotate(var(--r, 0deg)); }
-.k-menu.tg .mi.dis > :not(.why) { text-decoration: line-through; text-decoration-color: rgba(150, 20, 10, 0.6); }
+.k-menu.tg .mi.dis { text-decoration: line-through; text-decoration-color: rgba(150, 20, 10, 0.6); text-decoration-thickness: 2px; }
+.k-menu.tg .mi.dis .why { display: inline-block; text-decoration: none; }
 .k-menu.tg .mi .why { margin-left: calc(var(--px) * 5); padding-left: 0; font-family: var(--font-hand); font-weight: 500; font-size: calc(var(--px) * 8 + 4px); letter-spacing: 0; text-transform: none; color: #a3180e; }
 .k-menu.tg .mi:hover .why, .k-menu.tg .mi:focus .why { color: #a3180e; }
 .k-menu.tg .mi.danger { background-color: #b8392e; color: #fff4e6; }
@@ -211,4 +212,7 @@ html.nc-touch .sub-radio { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 .k-chatinput { border: 0; border-image: none; border-bottom: 2px dashed rgba(232, 255, 240, 0.6); background: rgba(0, 0, 0, 0.18); padding: 2px 4px; font-family: var(--font-vhs); font-size: calc(var(--px) * 9 + 3px); color: #f0fff4; caret-color: #9dffb8; text-shadow: 1px 1px 0 #000; }
 .k-chatinput::placeholder { color: rgba(220, 255, 230, 0.45); }
 
-.reduce-flash .sub-rl, .reduce-flash .k-toast.osd, .reduce-flash .sub-voss, .reduce-flash .w-bubble.shout i, .reduce-flash .k-center-msg.burn .k-cm-t, .reduce-flash .w-name.down { animation: none !important; }
+/* calm mode: nothing flickers, nothing deals itself out; everything simply appears */
+.reduce-flash .sub-rl, .reduce-flash .k-toast.osd, .reduce-flash .sub-voss, .reduce-flash .w-bubble.shout i, .reduce-flash .k-center-msg.burn .k-cm-t, .reduce-flash .w-name.down,
+.reduce-flash .w-bubble.think i, .reduce-flash .w-bubble.say span, .reduce-flash .sub-voss span, .reduce-flash .sub-guard, .reduce-flash .sub-guard span, .reduce-flash .w-bubble.halo, .reduce-flash .sub-band > div,
+.reduce-flash .k-place b i, .reduce-flash .k-place small, .reduce-flash .k-place::before, .reduce-flash .k-toast.unlock.tape, .reduce-flash .k-menu.tg .mi, .reduce-flash .k-menu.tg .mh, .reduce-flash .k-center-msg.burn { animation: none !important; }

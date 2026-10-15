@@ -7,7 +7,7 @@ import { Zone, TF } from '../zone';
 import { ZoneBuilder } from './builder';
 import { Rng, hash3 } from '../../core/rng';
 import { stampRoom } from './lobbyRooms';
-import { carveWrong, WrongKind, WRect, WRONG_SIZE } from './wrong_kit';
+import { carveWrong, type WrongKind, type WRect, WRONG_SIZE } from './wrong_kit';
 import { arrive, mount, decal } from './weird_kit';
 
 export function lobbyWrongRooms(z: Zone, b: ZoneBuilder, seed: number) {

@@ -256,7 +256,9 @@ function animatePlenum(rig: Rig, c: Creature, t: number, dt: number) {
   const fallK = since < 0.4 ? 1 - since / 0.4 : 0;
   const unfold = since < 0.4 ? 0 : since < 0.75 ? (since - 0.4) / 0.35 : 1;
   // climbing back up: the reverse
-  const climbK = n.climb && live() ? Math.min(1, (G.time - n.climb) / 0.6) : 0;
+  // (sequence numbers, not host timestamps: peers' clocks differ)
+  if (n.cl !== undefined && n.cl !== ud.clSeen) { ud.clSeen = n.cl; ud.climbAt = t; }
+  const climbK = n.up && ud.climbAt !== undefined ? Math.min(1, (t - ud.climbAt) / 0.6) : 0;
   rig.root.position.y += (WALL_H - 0.6) * (fallK * fallK) + (WALL_H - 0.5) * climbK;
   const moving = c.speed > 0.3;
   const ph0 = c.phase * 1.6;
@@ -310,7 +312,7 @@ function nearest(c: Creature, maxD = 30): { p: Player; d: number } | null {
 }
 function goUp(c: Creature) {
   const n = net(c);
-  n.climb = G.time; c.setState('emerge'); c.mem.up = true; c.mem.upAt = G.time;
+  n.cl = ((n.cl ?? 0) + 1) % 1000; n.up = 1; c.setState('emerge'); c.mem.up = true; c.mem.upAt = G.time;
   playAt('plenum_skitter', c, 0.9, 16);
 }
 
@@ -323,7 +325,7 @@ function thinkPlenum(c: Creature, dt: number): boolean {
   // climbing up or dropping down: a scripted moment
   if (c.state === 'emerge') {
     hold(c);
-    if (m.up && G.time - m.upAt > 0.6) { m.up = false; n.climb = 0; n.ceil = 1; c.setState('hide'); m.dropCd = G.time + rng.float(10, 18); m.lair = pickReach(z, c.x, c.z, (x, zz, st) => (st < 6 || st > 20 || !ceilingOver(z, x, zz) ? null : 0), 500); }
+    if (m.up && G.time - m.upAt > 0.6) { m.up = false; n.up = 0; n.ceil = 1; c.setState('hide'); m.dropCd = G.time + rng.float(10, 18); m.lair = pickReach(z, c.x, c.z, (x, zz, st) => (st < 6 || st > 20 || !ceilingOver(z, x, zz) ? null : 0), 500); }
     else if (!m.up && c.stateT > 0.75) { c.setState('chase'); m.floorAt = G.time; }
     return true;
   }

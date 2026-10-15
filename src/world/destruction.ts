@@ -354,7 +354,7 @@ export class DestructionSystem implements GameSystem {
     G.destruct = this;
     this.root.name = 'destruct';
     G.pr.scene.add(this.root);
-    this.dust = new Particles(1100);
+    this.dust = new Particles(1100, 0.22);
     this.sparks = new Particles(260, true);
     this.root.add(this.dust.mesh, this.sparks.mesh);
     setDamageGeometryHook((g, d, lvl) => damageGeometry(g, lvl, hashStr(d.key)));

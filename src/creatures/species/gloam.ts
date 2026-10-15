@@ -176,7 +176,8 @@ function animateGloam(rig: Rig, c: Creature, t: number, dt: number) {
   ud.grin = (ud.grin ?? 0) + ((ac.wind > 0.2 || ac.strike > 0 ? 1 : watching * (0.25 + 0.15 * Math.max(0, Math.sin(t * 0.7)))) - (ud.grin ?? 0)) * Math.min(1, dt * (ac.strike > 0 ? 20 : 2));
   R('jaw', ud.grin * 0.75, 0, 0);
   // eyes: blink one at a time, never together; shut tight when light finds it
-  const shut = n.shut && live() && G.time - n.shut < 1.2 ? 1 : 0;
+  if (n.sh !== undefined && n.sh !== ud.shSeen) { if (ud.shSeen !== undefined) ud.shutAt = t; ud.shSeen = n.sh; }
+  const shut = ud.shutAt !== undefined && t - ud.shutAt < 1.2 ? 1 : 0;
   for (let i = 0; i < 4; i++) {
     const e = P['eye' + i]; if (!e) continue;
     const blink = Math.floor(t * 0.9 + i * 1.37 + seed * 13) % 7 === 0 && ((t * 0.9 + i * 1.37 + seed * 13) % 1) < 0.15;
@@ -242,7 +243,7 @@ function thinkGloam(c: Creature, dt: number): boolean {
   const bright = lightAt(z, c.x, c.z) > 0.42;
   if ((beam || bright) && c.state !== 'flee' && c.attackPhase <= 0) {
     c.setState('flee');
-    n.shut = G.time;
+    n.sh = ((n.sh ?? 0) + 1) % 1000;
     playAt('gloam_hiss', c, 1, 22);
     c.goal = darkSpot(z, c, beam ?? p ?? c, 8, 18) ?? cs.fleeSpot(c, z, (beam ?? p ?? c).x, (beam ?? p ?? c).z);
     m.shyUntil = G.time + rng.float(5, 10);

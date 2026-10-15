@@ -13,7 +13,7 @@ import { ZoneBuilder } from './builder';
 import { Furnisher } from './furnish';
 import { Rng } from '../../core/rng';
 import {
-  Ctx, Rot, Side, FACE, arrive, put, force, mount, decal, hh, hopperAt, lamp, isOpen, floorRect, unitFrame,
+  type Ctx, type Rot, type Side, FACE, arrive, put, force, mount, decal, hh, hopperAt, lamp, isOpen, floorRect, unitFrame,
   itemAtW, objCentre, rotLocal, loopSeamsX,
 } from './weird_kit';
 import { objDef } from '../objects';

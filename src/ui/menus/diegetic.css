@@ -439,6 +439,13 @@ section.ob-card { display: block; align-items: stretch; background: #f8f6ee; bor
 
 /* ---------------------------------------------------------------- small screens */
 @media (max-aspect-ratio: 4/5) {
+  .ik-plate, .ik-rec { display: none; }
+  .ik-signs { gap: var(--px); }
+  .ik-sign { padding: calc(var(--px) * 2) calc(var(--px) * 3) var(--px); margin-top: calc(var(--px) * 5); letter-spacing: 0; }
+  .ik-sign::before, .ik-sign::after { top: calc(var(--px) * -5); height: calc(var(--px) * 5); }
+  .ik-sign small { display: none; }
+  .ik-exit { top: calc(var(--px) * 22); left: calc(var(--px) * 4); }
+  .rh-wrap, .tm-wrap { top: calc(var(--px) * 36); }
   .ik-props { left: 0; right: 0; top: auto; bottom: calc(var(--px) * 40); height: 48vh; width: auto; padding: calc(var(--px) * 3) calc(var(--px) * 4); }
   .ik.examining .ik-caption, .ik.examining .ik-hint { left: 50%; }
   .ik.examining .ik-caption { bottom: auto; top: calc(var(--px) * 40); }
@@ -456,16 +463,18 @@ section.ob-card { display: block; align-items: stretch; background: #f8f6ee; bor
   .rh-wrap { bottom: calc(var(--px) * 26); }
 }
 @media (max-height: 500px) {
+  .ik[data-station="1"] .ik-plate, .ik[data-station="2"] .ik-plate { display: none; }
+  .ik[data-station="1"] .ik-exit, .ik[data-station="2"] .ik-exit { top: calc(var(--px) * 4); }
+  .ik-credits { top: calc(var(--px) * 14); bottom: auto; }
   .ik-plate span { display: none; }
   .ik-plate { padding-top: var(--px); padding-bottom: var(--px); }
   .ik-exit { top: calc(var(--px) * 18); }
   .ik-sign { margin-top: calc(var(--px) * 4); padding: var(--px) calc(var(--px) * 4); }
   .ik-sign::before, .ik-sign::after { top: calc(var(--px) * -4); height: calc(var(--px) * 4); }
-  .ik-props { top: calc(var(--px) * 16); bottom: calc(var(--px) * 34); }
+  .ik-props { top: calc(var(--px) * 30); bottom: calc(var(--px) * 30); }
   .ik-caption { bottom: calc(var(--px) * 24); }
   .ik-hint { display: none; }
-  .ik-credits { bottom: calc(var(--px) * 25); }
-  .rh-wrap, .tm-wrap { top: calc(var(--px) * 18); bottom: calc(var(--px) * 30); }
+  .rh-wrap, .tm-wrap { top: calc(var(--px) * 22); bottom: calc(var(--px) * 30); }
   .rh-tip { display: none; }
   .rh-lever small { display: none; }
 }

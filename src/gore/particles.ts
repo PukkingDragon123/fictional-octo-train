@@ -29,14 +29,14 @@ export class Particles {
   /** a drop flew into a wall at (x, y, z); (nx, nz) is the wall's normal toward the drop */
   onWall?: (x: number, y: number, z: number, nx: number, nz: number, col: number) => void;
 
-  constructor(cap: number, emissive = false) {
+  constructor(cap: number, emissive: boolean | number = false) {
     this.cap = cap;
     this.px = new Float32Array(cap); this.py = new Float32Array(cap); this.pz = new Float32Array(cap);
     this.vx = new Float32Array(cap); this.vy = new Float32Array(cap); this.vz = new Float32Array(cap);
     this.life = new Float32Array(cap); this.max = new Float32Array(cap); this.size = new Float32Array(cap); this.str = new Float32Array(cap);
     this.kind = new Uint8Array(cap); this.rest = new Uint8Array(cap); this.col = new Uint32Array(cap);
     const mb = new ModelBuilder();
-    mb.box(0, -0.5, 0, 1, 1, 1, 'white', { emissive: emissive ? 0.9 : 0, ao: false });
+    mb.box(0, -0.5, 0, 1, 1, 1, 'white', { emissive: typeof emissive === 'number' ? emissive : emissive ? 0.9 : 0, ao: false });
     this.mesh = new THREE.InstancedMesh(mb.build(), worldMaterial({ outline: 0 }), cap);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.setColorAt(0, tmpC.set(0xffffff));

@@ -104,7 +104,7 @@ export class PauseMenu {
     const out: HTMLElement[] = [];
     const p = G.local;
     const z = p ? zoneSpec(p.zoneKey) : null;
-    const ekg = h('div', 'hp-ekg', `<i></i><span>${solo ? 'HELD' : Math.round(70 + (p?.body.panic ?? 0) * 0.8) + ' BPM'}</span>`);
+    const ekg = h('div', 'hp-ekg', `<svg viewBox="0 0 120 14" preserveAspectRatio="none" aria-hidden="true"><polyline points="${solo ? '0,7 120,7' : '0,7 30,7 34,2 38,12 41,4 44,7 80,7 84,2 88,12 91,4 94,7 120,7'}" fill="none" stroke="currentColor" stroke-width="1" vector-effect="non-scaling-stroke" shape-rendering="crispEdges"/></svg><span>${solo ? 'HELD' : Math.round(70 + (p?.body.panic ?? 0) * 0.8) + ' BPM'}</span>`);
     out.push(ekg);
     if (p) {
       const st = h('div', 'hp-grid');

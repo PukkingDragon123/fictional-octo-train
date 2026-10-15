@@ -11,9 +11,9 @@
 .tt { position: fixed; inset: 0; z-index: 50; font-size: var(--t-body); overflow: hidden; }
 .tt.playing .tt-screen::before { animation: tt-play 0.6s steps(6) forwards; }
 @keyframes tt-play { 0% { background-color: transparent; } 40% { background-color: rgba(30, 40, 160, 0.6); } 100% { background-color: #10189a; } }
-.tt-mon { position: absolute; left: 50%; top: 47%; transform: translate(-50%, -50%); --bz: calc(var(--px) * 10); padding: var(--bz) var(--bz) calc(var(--bz) + var(--px) * 12); z-index: 1; isolation: isolate; }
+.tt-mon { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); --bz: calc(var(--px) * 10); padding: var(--bz) var(--bz) calc(var(--bz) + var(--px) * 12); z-index: 1; isolation: isolate; }
 /* the screen is a hole: its outer shadow paints the bezel ring and then the whole wall around it, so the live feed shows only through the glass */
-.tt-screen { position: relative; overflow: hidden; width: min(56vw, 60vh * 1.333); height: min(42vw, 60vh); border-radius: calc(var(--px) * 7) / calc(var(--px) * 9);
+.tt-screen { position: relative; overflow: hidden; width: min(56vw, 54vh * 1.333); height: min(42vw, 54vh); border-radius: calc(var(--px) * 7) / calc(var(--px) * 9);
   box-shadow: inset 0 0 0 calc(var(--px) * 2) #0a0a08, inset 0 0 0 calc(var(--px) * 5) rgba(0, 0, 0, 0.55), inset 0 0 0 calc(var(--px) * 10) rgba(0, 0, 0, 0.3), inset 0 0 0 calc(var(--px) * 18) rgba(0, 0, 0, 0.15),
     0 0 0 var(--px) #1a1810, 0 0 0 calc(var(--px) * 2) var(--tt-bezel-lo), 0 0 0 calc(var(--px) * 3) var(--tt-bezel-hi), 0 0 0 calc(var(--bz) - var(--px)) var(--tt-bezel), 0 0 0 var(--bz) #2a2618, 0 0 0 200vmax var(--tt-wall); }
 .tt-screen::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(rgba(0, 0, 0, 0.28) 0 var(--px), transparent var(--px) calc(var(--px) * 2)); }
@@ -38,13 +38,13 @@
 .tt-knobs b { width: calc(var(--px) * 4); height: calc(var(--px) * 4); background: #3aff6a; box-shadow: 0 0 0 var(--px) #0a3a14; }
 
 /* the tape label stuck on the wall above */
-.tt-label { position: absolute; left: 50%; top: max(calc(var(--px) * 3), calc(47% - min(42vw, 60vh) / 2 - var(--px) * 50)); transform: translateX(-50%) rotate(-1.5deg); z-index: 2;
+.tt-label { position: absolute; left: 50%; top: max(calc(var(--px) * 2), calc(46% - min(42vw, 54vh) / 2 - var(--px) * 56)); transform: translateX(-50%) rotate(-1.5deg); z-index: 2;
   padding: calc(var(--px) * 3) calc(var(--px) * 10) calc(var(--px) * 3); background: #e8e0c8; border: var(--px) solid #b8ae90;
   background-image: repeating-linear-gradient(transparent 0 calc(var(--px) * 7), rgba(60, 80, 160, 0.25) calc(var(--px) * 7) calc(var(--px) * 8)); box-shadow: calc(var(--px) * 2) calc(var(--px) * 3) 0 rgba(0, 0, 0, 0.6);
   display: flex; flex-direction: column; align-items: center; }
 .tt-label::before, .tt-label::after { content: ''; position: absolute; top: calc(var(--px) * -4); width: calc(var(--px) * 18); height: calc(var(--px) * 8); background: rgba(230, 220, 170, 0.75); }
 .tt-label::before { left: calc(var(--px) * -6); transform: rotate(-20deg); } .tt-label::after { right: calc(var(--px) * -6); transform: rotate(20deg); }
-.tt-logo { display: block; width: calc(var(--px) * 136); height: auto; image-rendering: pixelated; }
+.tt-logo { display: block; width: calc(var(--px) * 104); height: auto; image-rendering: pixelated; }
 .tt-label-s { margin-top: calc(var(--px) * 1); font-family: var(--font-readout); font-size: var(--t-label); line-height: calc(var(--px) * 9); color: #2a2830; text-align: center; }
 .tt-label-s b { color: #b8261e; font-weight: normal; }
 .tt-notice { position: absolute; right: calc(var(--px) * 8); top: calc(var(--px) * 8); z-index: 2; width: calc(var(--px) * 64); padding: calc(var(--px) * 3) calc(var(--px) * 4); background: #e8c84a; color: #1a1408; transform: rotate(2deg);
@@ -57,7 +57,7 @@
 .tt-desk::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 22%; background: repeating-linear-gradient(90deg, rgba(0, 0, 0, 0.18) 0 calc(var(--px) * 2), transparent calc(var(--px) * 2) calc(var(--px) * 11)), linear-gradient(var(--tt-desk-hi) 0 var(--px), var(--tt-desk) var(--px), #1e140a); }
 .tt-desk::after { content: ''; position: absolute; left: 0; top: 0; width: 34%; height: 100%; pointer-events: none; background: radial-gradient(ellipse at 40% 85%, rgba(255, 210, 140, 0.13), transparent 60%); }
 .tt-things { position: absolute; inset: 0; pointer-events: none; }
-.tt-wing { position: absolute; top: 18%; bottom: calc(var(--px) * 14); width: calc((100% - min(56vw, 60vh * 1.333)) / 2 - var(--px) * 14); display: flex; flex-direction: column; justify-content: flex-end; gap: calc(var(--px) * 4); pointer-events: none; }
+.tt-wing { position: absolute; top: 18%; bottom: calc(var(--px) * 14); width: calc((100% - min(56vw, 54vh * 1.333)) / 2 - var(--px) * 14); display: flex; flex-direction: column; justify-content: flex-end; gap: calc(var(--px) * 4); pointer-events: none; }
 .tt-wing.l { left: calc(var(--px) * 4); align-items: flex-end; }
 .tt-wing.r { right: calc(var(--px) * 4); align-items: flex-start; }
 .tt-thing { pointer-events: auto; position: relative; display: flex; align-items: center; gap: calc(var(--px) * 4); padding: calc(var(--px) * 2); background: none; border: 0; color: #e8e4d0; text-align: left;
@@ -81,8 +81,8 @@
 .tt-thing.vhs .tt-tape small { color: #c8c4b4; }
 .tt-decor { position: absolute; left: 0; right: 0; bottom: 3%; pointer-events: none; }
 .tt-dec { position: absolute; image-rendering: pixelated; height: calc(var(--px) * 18); filter: drop-shadow(calc(var(--px) * 2) calc(var(--px) * 2) 0 rgba(0, 0, 0, 0.6)); }
-.tt-dec.mug { left: calc(50% + min(28vw, 30vh * 1.333) + var(--px) * 4); bottom: 0; }
-.tt-dec.ashtray { right: calc(50% + min(28vw, 30vh * 1.333) + var(--px) * 6); bottom: var(--px); height: calc(var(--px) * 10); }
+.tt-dec.mug { left: calc(50% + min(28vw, 27vh * 1.333) + var(--px) * 14); bottom: 0; }
+.tt-dec.ashtray { right: calc(50% + min(28vw, 27vh * 1.333) + var(--px) * 16); bottom: var(--px); height: calc(var(--px) * 10); }
 .tt-foot { position: absolute; left: 50%; bottom: calc(var(--px) * 3); transform: translateX(-50%); display: flex; gap: calc(var(--px) * 10); font-family: var(--font-readout); font-size: var(--t-label); color: #8a7a5a; pointer-events: none; white-space: nowrap; }
 .tt-foot .blk::after { content: ''; display: inline-block; width: calc(var(--px) * 3); height: calc(var(--px) * 4); background: #8a7a5a; animation: blink 1s steps(2) infinite; margin-left: calc(var(--px) * 2); }
 
@@ -200,10 +200,10 @@
   .dg-cols { grid-template-columns: 1fr; }
 }
 @media (max-height: 520px) and (min-aspect-ratio: 4/5) {
-  .tt-screen { width: min(54vw, 72vh * 1.333); height: min(40.5vw, 72vh); }
-  .tt-mon { --bz: calc(var(--px) * 6); top: 48%; }
+  .tt-screen { width: min(54vw, 62vh * 1.333); height: min(40.5vw, 62vh); }
+  .tt-mon { --bz: calc(var(--px) * 6); top: 45%; }
   .tt-knobs { height: calc(var(--px) * 12); }
-  .tt-wing { top: calc(var(--px) * 4); width: calc((100% - min(54vw, 72vh * 1.333)) / 2 - var(--px) * 12); gap: calc(var(--px) * 2); }
+  .tt-wing { top: calc(var(--px) * 4); width: calc((100% - min(54vw, 62vh * 1.333)) / 2 - var(--px) * 12); gap: calc(var(--px) * 2); }
   .tt-thing img { height: calc(var(--px) * 18) !important; }
   .tt-tape small { display: none; }
   .tt-label { top: calc(var(--px) * 1); padding: var(--px) calc(var(--px) * 6); }
@@ -244,8 +244,8 @@
 .hp-tab:hover, .hp-tab:focus-visible { outline: none; border-color: #dffcff; color: #dffcff; }
 .hp-tab.on:hover, .hp-tab.on:focus-visible { color: #04262c; }
 .hp-page { flex: 1; min-height: 0; overflow-y: auto; padding-right: var(--px); }
-.hp-ekg { height: calc(var(--px) * 14); margin: calc(var(--px) * 2) 0 calc(var(--px) * 4); background: linear-gradient(transparent calc(50% - var(--px) / 2), var(--dg-holo) calc(50% - var(--px) / 2) calc(50% + var(--px) / 2), transparent calc(50% + var(--px) / 2)); position: relative; opacity: 0.85; }
-.hp-ekg i { position: absolute; left: 30%; top: 0; width: calc(var(--px) * 10); height: 100%; background: linear-gradient(115deg, transparent 0 40%, var(--dg-holo) 40% 46%, transparent 46%), linear-gradient(65deg, transparent 0 54%, var(--dg-holo) 54% 60%, transparent 60%); }
+.hp-ekg { position: relative; height: calc(var(--px) * 14); margin: calc(var(--px) * 2) 0 calc(var(--px) * 4); color: var(--dg-holo); opacity: 0.9; }
+.hp-ekg svg { display: block; width: 100%; height: 100%; stroke-width: var(--px); }
 .hp-ekg span { position: absolute; right: 0; top: 0; font-family: var(--font-readout); font-size: var(--t-label); color: var(--dg-amber); }
 .hp-grid { display: grid; grid-template-columns: auto 1fr; gap: var(--px) calc(var(--px) * 6); font-family: var(--font-readout); font-size: var(--t-label); line-height: calc(var(--px) * 10); }
 .hp-grid span { color: var(--dg-holo-dim); text-transform: uppercase; }

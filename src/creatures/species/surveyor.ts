@@ -378,7 +378,8 @@ function animateSurveyor(rig: Rig, c: Creature, t: number, dt: number) {
     G.pointLight?.(_p.x + fx * 1.8, 0.6, _p.z + fz * 1.8, 0xfff0c8, 0.9 * flick, 5.5);
   }
   // the visor: fogged; for a moment after it is hurt, you can see what is pressed against it
-  const showFace = n.vis === 1e9 || (!!n.vis && live() && G.time - n.vis < 1.4);
+  if (n.vs !== undefined && n.vs !== ud.vsSeen) { if (ud.vsSeen !== undefined) ud.visAt = t; ud.vsSeen = n.vs; }
+  const showFace = n.vis === 1e9 || (ud.visAt !== undefined && t - ud.visAt < 1.4);
   K.visor.visible = !showFace; K.face.visible = !!showFace;
   if (ac.strike > 0.5) { K.visor.visible = false; K.face.visible = true; }
   const fl = flinchOf(c);
@@ -457,7 +458,7 @@ function radio(c: Creature, line?: number) {
 function thinkSurveyor(c: Creature, dt: number): boolean {
   const z = G.getZone(c.zoneKey), cs = G.creatures, m = c.mem, n = net(c);
   const ev = pulse(c);
-  if (ev.hurt > 0) { n.vis = G.time; if (m.drag) endDrag(c); if (c.noiseCooldown <= 0) { playAt('surveyor_hurt', c, 1, 20); c.noiseCooldown = 1.5; } }
+  if (ev.hurt > 0) { n.vs = ((n.vs ?? 0) + 1) % 1000; if (m.drag) endDrag(c); if (c.noiseCooldown <= 0) { playAt('surveyor_hurt', c, 1, 20); c.noiseCooldown = 1.5; } }
   m.radT = (m.radT ?? rng.float(4, 10)) - dt;
   const near = nearest(c, 40);
   // a grab that landed (the manager resolved the strike since the last think) becomes a drag

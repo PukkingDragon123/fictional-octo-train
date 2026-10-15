@@ -12,7 +12,7 @@ import { addTextureModule } from '../../gfx/textures/index';
 import { makeRamp, mixHex, scaleHex, ph, bayer } from '../../gfx/pixel';
 import type { PixelCanvas } from '../../gfx/pixel';
 import type { ModelBuilder } from '../../gfx/modelBuilder';
-import { text, textC, textW } from './b_common';
+import { text, textC, textW, rod } from './b_common';
 import { WZ, crtGlass } from './a_lib';
 import { nz, over } from '../textures/kit';
 import '../../world/roomFx';
@@ -236,17 +236,10 @@ defObj({
       mb.box(0, 0, zc, 0.96, (i + 1) * rise, run, { top: tread, south: riser, sides: riser }, { skip: ['bottom'], uvOffset: [0, -i * rise] });
       mb.box(0, (i + 1) * rise - 0.02, zc + run / 2 - 0.01, 0.96, 0.025, 0.03, 'wood_trim', { color: 0x8a7a5a });
     }
-    // handrail up one side, ending in the plaster
+    // handrails up both sides, running into the plaster
     for (const sx of [-1, 1]) {
-      const pts: number[][] = [];
-      for (let i = 0; i <= n; i += 3) pts.push([sx * 0.46, i * rise + 0.9, z0 - i * run]);
-      for (let i = 1; i < pts.length; i++) {
-        const a = pts[i - 1], b = pts[i];
-        const len = Math.hypot(b[1] - a[1], b[2] - a[2]);
-        mb.push().translate(a[0], a[1], a[2]).rotateX(-Math.atan2(b[1] - a[1], a[2] - b[2]) + Math.PI / 2);
-        mb.box(0, 0, 0, 0.04, len, 0.04, 'wood_dark'); mb.pop();
-      }
-      for (let i = 0; i < n; i += 2) mb.box(sx * 0.46, (i + 1) * rise, z0 - (i + 0.5) * run, 0.025, 0.9, 0.025, 'wood_dark');
+      rod(mb, sx * 0.46, 0.9, z0 - 0.1, sx * 0.46, WALL_H - 0.02, z0 - 0.1 - (WALL_H - 0.92) * (run / rise), 0.022, 4, 'wood_dark');
+      for (let i = 0; i < n; i += 2) mb.box(sx * 0.46, (i + 1) * rise, z0 - (i + 0.5) * run, 0.025, Math.min(0.9, WALL_H - (i + 1) * rise), 0.025, 'wood_dark');
     }
     // the dark gap where the flight goes through the ceiling
     mb.box(0, WALL_H - 0.03, z0 - 2.9 + run, 0.98, 0.03, run * 2, 'zw_black');

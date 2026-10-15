@@ -142,4 +142,4 @@ html.nc-touch .hb-breathe { padding: calc(var(--hp) * 5) calc(var(--hp) * 8) cal
 .hb-cone.hb-red stop { stop-color: #ff4a3a; }
 .hb-cone.hb-red line { stroke: rgba(255, 120, 100, 0.35); }
 
-.reduce-flash .hb-tilt, .reduce-flash .hb-line, .reduce-flash .hb-tag, .reduce-flash .hb-breathe, .reduce-flash .hb-ledger .hot { animation: none !important; }
+.reduce-flash .hb-tilt, .reduce-flash .hb-line, .reduce-flash .hb-tag, .reduce-flash .hb-breathe, .reduce-flash .hb-ledger .hot, .reduce-flash .hb-toast, .reduce-flash .hb-breathe::before { animation: none !important; }

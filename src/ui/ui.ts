@@ -263,7 +263,10 @@ export class UI {
     el.className = 'k-place';
     el.setAttribute('role', 'status');
     const b = document.createElement('b');
-    [...title].forEach((ch, i) => { const s = document.createElement('i'); s.textContent = ch; s.style.animationDelay = calm() ? '0s' : (i * 0.035 + (strHash(title + i) % 5) * 0.03).toFixed(2) + 's'; b.appendChild(s); });
+    [...title].forEach((ch, i) => {
+      if (ch === ' ') { b.appendChild(document.createTextNode(' ')); return; }
+      const s = document.createElement('i'); s.textContent = ch; s.style.animationDelay = calm() ? '0s' : (i * 0.035 + (strHash(title + i) % 5) * 0.03).toFixed(2) + 's'; b.appendChild(s);
+    });
     el.appendChild(b);
     if (sub) { const sm = document.createElement('small'); sm.textContent = sub; el.appendChild(sm); }
     document.body.appendChild(el);

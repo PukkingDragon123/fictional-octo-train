@@ -79,7 +79,7 @@ export function generateUndercroft(z: Zone, seed: number) {
   force(c, 'zw_rope_hanging', ax, ay, 0, { v: 1, portal: 'r_annex_under' });
   b.portal({ id: 'r_annex_under', x: ax, y: ay, kind: 'ladder', to: 'annex', tx: 108, ty: 56, label: 'Climb the blue rope' });
   arrive(b, 'p_annex_under', ax, ay + 2, 's', 3);
-  b.light(ax + 0.5, ay + 0.5, 'sky', { color: 0xd8dcc8, intensity: 0.45, radius: 5, y: 6, circuit: 0 });
+  b.light(ax + 0.5, ay + 0.5, 'sky', { color: 0xd8dcc8, intensity: 0.8, radius: 6, y: 6, circuit: 0 });
   ropeLine(z, [[ax + 0.6, ay + 0.6], [ax + 1.5, ay + 1.6], [ax + 1.1, ay + 3.2]], 'zw_rope_blue', 0.05);
   for (let i = 0; i < 5; i++) decal(z, 'zw_debris', ax + rng.float(-1.5, 1.5) + 0.5, ay + rng.float(-1.5, 1.5) + 0.5, 1.2, 1.2, rng.float(0, 6));
   // from Level 0 (tan rope), north-west
@@ -89,7 +89,7 @@ export function generateUndercroft(z: Zone, seed: number) {
   force(c, 'zw_rope_hanging', bx, by, 0, { v: 0, portal: 'r_lobby_under' });
   b.portal({ id: 'r_lobby_under', x: bx, y: by, kind: 'ladder', to: 'lobby', tx: 80, ty: 80, label: 'Climb the rope back up' });
   arrive(b, 'p_lobby_under', bx, by + 2, 's', 3);
-  b.light(bx + 0.5, by + 0.5, 'sky', { color: 0xe8d890, intensity: 0.5, radius: 5, y: 6, circuit: 0 });
+  b.light(bx + 0.5, by + 0.5, 'sky', { color: 0xe8d890, intensity: 0.85, radius: 6, y: 6, circuit: 0 });
   // a square of yellow carpet that fell with you
   decal(z, 'carpet_rug', bx + 1.5, by + 1.2, 1.4, 1.2, 0.3, 0xd8c060, 0.95);
   for (let i = 0; i < 4; i++) put(c, 'zw_rubble', bx - 2 + rng.int(0, 4), by - 2 + rng.int(0, 1), 0, { v: i });
@@ -118,12 +118,12 @@ export function generateUndercroft(z: Zone, seed: number) {
   for (let i = 0; i < 6; i++) { const x = rng.int(6, W - 7), y = rng.int(6, H - 7); if (isOpen(z, x, y)) put(c, i % 2 ? 'zw_suitcase' : 'chair_office', x, y, (i % 4) as Rot, { v: i }); }
   for (let i = 0; i < 70; i++) { const x = rng.int(3, W - 4), y = rng.int(3, H - 4); if (z.floor[z.idx(x, y)]) f.decal(rng.weighted([['decal_puddle', 5], ['decal_stain_dark', 3], ['decal_mold', 2], ['zw_debris', 2], ['decal_footprints', 1]]), x, y, rng.float(1.2, 2.6), rng.float(1.2, 2.6)); }
   // emergency lamps, far apart and dim; most of the light here is what you bring
-  for (const [x, y] of [[30, 26], [62, 34], [22, 62], [74, 70], [48, 84], [84, 30]] as const) lamp(b, x, y, 'emergency', C_EM, { intensity: 0.3, radius: 4, flicker: 0.15 });
+  for (const [x, y] of [[30, 26], [62, 34], [22, 62], [74, 70], [48, 84], [84, 30]] as const) lamp(b, x, y, 'emergency', C_EM, { intensity: 0.5, radius: 5, flicker: 0.15 });
   // thin grey light falling through cracks in the slab far above, onto wet concrete
   for (let i = 0; i < 12; i++) {
     const x = rng.int(6, W - 7), y = rng.int(6, H - 7);
     if (!z.floor[z.idx(x, y)]) continue;
-    b.light(x + 0.5, y + 0.5, 'sky', { color: 0xb8c0c8, intensity: 0.3, radius: 4.5, y: 7, circuit: 0, flicker: i % 4 === 0 ? 0.05 : 0 });
+    b.light(x + 0.5, y + 0.5, 'sky', { color: 0xb8c0c8, intensity: 0.6, radius: 5.5, y: 6, circuit: 0, flicker: i % 4 === 0 ? 0.05 : 0 });
     decal(z, 'decal_puddle', x + 0.5, y + 0.5, 1.8, 1.4, rng.float(0, 6));
   }
   // a door frame standing alone near the pit, and a single office chair facing the dark
@@ -134,7 +134,7 @@ export function generateUndercroft(z: Zone, seed: number) {
   z.power.set(C_EM, true); z.power.set(C_CAMP, true);
   z.env = {
     ...z.env,
-    ambient: 0x1a1c20, ambientI: 0.42, fog: 0x08090b, fogNear: 9, fogFar: 24, void: 0x020203, temp: 9,
+    ambient: 0x23272c, ambientI: 0.52, fog: 0x0b0c0e, fogNear: 10, fogFar: 26, void: 0x020203, temp: 9,
     grade: 'tunnels', reverb: 'void', ambience: 'tunnels', music: 'drone',
   };
   z.spawnTable = [['still_life', 2], ['hollow', 1.5], ['occupant', 1], ['underlay', 1], ['echo', 1], ['grinhound', 0.5], ['gloam', 1.5], ['surveyor', 0.8]];

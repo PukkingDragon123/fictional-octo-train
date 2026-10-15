@@ -381,7 +381,7 @@ export class InventoryUI {
       this.buildRig(2, Math.max(0, layoutH - rigH - 2), rigW, hookH, scaleH, strapH, bags, bagC, bagSpec, bagArt, look, compactRig);
       const sx = rigW + gap;
       if (this.compactShow === 'body') this.buildDoll(sx, 1, p, bagItem);
-      else this.buildLoot(sx, tapeH - 12, entry, lootSpec, tray, lootStyle, false);
+      else this.buildLoot(sx, Math.max(tapeH - 12, Math.round((layoutH - lootH) / 2)), entry, lootSpec, tray, lootStyle, false);
       this.buildTapes(this.compactShow === 'body' ? sx + 22 : sx, 0, layoutW - sx - 22, true);
       return;
     }

@@ -944,6 +944,9 @@ export class Intro implements GameSystem {
       const f = seamFaceOf(this.seamL);
       A.place('lobby', f.x - f.nx * 0.6, f.z - f.nz * 0.6, Math.atan2(f.nz, f.nx));
       this.seamFx?.ripple(this.seamL, { x: f.x, y: 1.3, z: f.z }, 1.8);
+      // the black heaves and throws the debtor back off it
+      const dn = (p.x - f.x) * f.nx + (p.z - f.z) * f.nz;
+      if (dn < 2.1) { this.stumble(f.nx, f.nz, 2.2 - dn, 0.45); this.pose('stagger', 0.9); }
       this.snd('seam_ripple', f.x, f.z, 1); this.snd('seam_reject', f.x, f.z, 0.7);
       this.g.camera.shake(0.35, 0.8, 0.5);
     } else A.place('lobby', p.x + 3, p.z, Math.PI);

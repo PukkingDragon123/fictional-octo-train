@@ -135,7 +135,7 @@ class TitleDesk {
     const el = h('div', 'tt-label');
     const pc = logoCanvas('NOCLIP', MARKER);
     const img = new Image(); img.src = toUrl(pc); img.alt = 'NOCLIP'; img.className = 'tt-logo';
-    el.append(img, h('div', 'tt-label-s', 'REMITTANCE PROGRAMME · DEBTOR INTAKE<br><b>TAPE 07 · DO NOT ERASE</b>'));
+    el.append(img, h('div', 'tt-label-s', 'REMITTANCE PROGRAMME · <b>TAPE 07 · DO NOT ERASE</b>'));
     return el;
   }
   private tickClock() {

@@ -148,7 +148,7 @@ export class Handler implements GameSystem {
   }
 
   // ================================================================ API
-  get visible() { return this.show > 0.5 && !this.hidden; }
+  get visible() { return this.show > 0.3 && !this.hidden; }
   get active() { return this.visible; }
   worldPos(out = new THREE.Vector3()) { return out.set(this.x, this.y, this.z); }
   get speaking() { return !!this.cur; }
@@ -346,7 +346,7 @@ export class Handler implements GameSystem {
       const voiced = this.voice.speak(q.text);
       const dur = Math.max(q.o.dur ?? 0, voiced, readTime(q.text) * 0.8);
       this.cur = { text: q.text, o: q.o, t: 0, dur: dur + 0.15 };
-      line('SSGT. VOSS', q.text, 'voss', dur + 0.9);
+      line('SSGT. VOSS', q.text, 'voss', dur + 0.9, { x: this.x, y: this.y, z: this.z });
       if (q.o.point) this.point(q.o.point.x, q.o.point.z);
       else if (q.o.gesture) this.gesture(q.o.gesture, Math.min(dur, 3));
       else {
@@ -371,7 +371,8 @@ export class Handler implements GameSystem {
     // beside the survivor, on the camera's side so he is never hidden behind them
     const yaw = G.pr.yaw;
     const rx = Math.cos(yaw), rz = -Math.sin(yaw), cx = Math.sin(yaw), cz = Math.cos(yaw);
-    const cands: [number, number][] = [[1.55, 0.3], [-1.55, 0.3], [1.0, 1.0], [-1.0, 1.0], [0, 1.3], [1.3, -0.5], [-1.3, -0.5]];
+    // (on the survivor's left on screen: the band's own read-out floats to the right of the wrist)
+    const cands: [number, number][] = [[-1.55, 0.3], [-1.0, 1.0], [1.55, 0.3], [1.0, 1.0], [0, 1.3], [-1.3, -0.5], [1.3, -0.5]];
     for (const [a, b] of cands) {
       const x = p.x + rx * a + cx * b, zz = p.z + rz * a + cz * b;
       if (this.clear(z, p.x, p.z, x, zz)) return [x, zz];

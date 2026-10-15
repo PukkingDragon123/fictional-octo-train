@@ -2,7 +2,7 @@
 // undercroft) and the wrong-room library: items laid on surfaces, tether
 // ropes laid as decals, the Remittance Hopper placement, periodic hashing
 // for endless (looping) layouts and seamless loop seams.
-import { Zone, TF, TileObject } from '../zone';
+import { Zone, TF, type TileObject } from '../zone';
 import { ZoneBuilder } from './builder';
 import { Rng, hash3 } from '../../core/rng';
 import { objDef } from '../objects';
