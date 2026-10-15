@@ -185,7 +185,7 @@ export function limbState(severed: readonly string[], aids: LimbAids): LimbState
 export function stumpBleed(part: BodyPart): number {
   const c = chainOf(part);
   if (!c) return 3;
-  return c.kind === 'arm' ? [6.0, 4.4, 3.0][c.idx] : [7.0, 5.0, 3.2][c.idx];
+  return c.kind === 'arm' ? [7.5, 5.6, 4.2][c.idx] : [8.5, 6.2, 4.4][c.idx];
 }
 
 // ------------------------------------------------------------------ stump looks (rig condition)
