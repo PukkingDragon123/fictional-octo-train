@@ -483,6 +483,15 @@ function elevatorCore(c: Ctx, T: Torus, blk: Block) {
   T.light(cu0 + 3, cv1 + 2, 'fluoro', C_CORE, { color: 0xe8f0ff, flicker: 0.25 });
   T.obj('bench_park', cu0 - 2, cv1 + 1, 0, {});
   T.obj('trash_can_outdoor', cu1 + 1, cv1 + 1, 0, {});
+  if (blk.m === 5) {
+    // world stream 3: a steel door in the core's east face, stencilled BUSES, up to Interchange 0
+    const { b } = c;
+    const x = mx(cu1 + 1), y = my(a + 7);
+    b.door(x, y, 1, 'door_metal', { portal: 'p_parking_depot', sign: 'exit' });
+    b.portal({ id: 'p_parking_depot', x, y, kind: 'door', to: 'depot', tx: 100, ty: 4, label: 'Go through to the buses' });
+    arrive(b, 'r_parking_depot', x + 2, y, 'e', 3);
+    b.obj('zw_plate', x, y - 1, 1, { label: 'BAY 0' });
+  }
 }
 
 function camp(c: Ctx, T: Torus) {

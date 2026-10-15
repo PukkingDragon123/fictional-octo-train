@@ -466,6 +466,15 @@ function moduleTwo(c: Ctx, ms: number) {
     lamp(b, x1 - 3, ROOM1 - 1, 'emergency', C_STAFF, { flicker: 0.05 });
     lamp(b, x0 + 8, ROOM0 + 3, 'fluoro', C_STAFF);
   }
+  // a steel door in the bus deck's back wall: up to the multi-storey car park
+  {
+    const dx = ms + 16;
+    b.door(dx, LANE0, 0, 'door_metal', { portal: 'r_parking_depot', sign: 'exit' });
+    b.portal({ id: 'r_parking_depot', x: dx, y: LANE0, kind: 'door', to: 'parking', tx: 140, ty: 152, label: 'Go up to the car park' });
+    arrive(b, 'p_parking_depot', dx, LANE0 + 2, 's', 3);
+    mount(b, 'zw_plate', dx + 1, LANE0, 'n', { label: 'THIS WAY' });
+    lamp(b, dx, LANE0 + 1, 'emergency', C_DECK, { intensity: 0.4, radius: 3 });
+  }
   // the waiting hall (x ms+16 .. ms+31): rows of seats, every one taken
   {
     const x0 = ms + 16, x1 = ms + 31;

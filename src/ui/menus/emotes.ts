@@ -214,7 +214,8 @@ export const HOLD_POSES: Record<string, Pose> = {
   torso: { uarmL: [0.02, 0, 0.42], uarmR: [0.02, 0, -0.42], farmL: [-0.15, 0, 0], farmR: [-0.15, 0, 0], gripL: 0.1, gripR: 0.1 },
   armL: { uarmL: [-0.45, 0, 0.55], farmL: [-0.35, 0, 0], handL: [0, 0, 0.2], head: [0.2, 0.55, 0], gripL: 0.15 },
   armR: { uarmR: [-0.45, 0, -0.55], farmR: [-0.35, 0, 0], handR: [0, 0, -0.2], head: [0.2, -0.55, 0], gripR: 0.15 },
-  hands: { uarmL: [-0.62, 0, 0.12], farmL: [-1.05, 0, -0.15], handL: [0, 0, 0], uarmR: [-0.62, 0, -0.12], farmR: [-1.05, 0, 0.15], handR: [0, 0, 0], head: [0.45, 0, 0], gripL: 0.08, gripR: 0.08 },
+  // hands up in front of the chest, backs of the hands to the camera (knuckles, nails)
+  hands: { uarmL: [-0.3, 0, 0.3], farmL: [-2.0, 0, -0.45], handL: [0.15, 0, 0], uarmR: [-0.3, 0, -0.3], farmR: [-2.0, 0, 0.45], handR: [0.15, 0, 0], head: [0.3, 0, 0], gripL: 0.05, gripR: 0.05 },
   legs: { uarmL: [0.05, 0, 0.2], uarmR: [0.05, 0, -0.2], thighL: [0, 0, 0.06], thighR: [0, 0, -0.06], footL: [0, 0, -0.06], footR: [0, 0, 0.06] },
   feet: { head: [0.55, 0, 0], neck: [0.2, 0, 0], thighR: [-0.22, 0, -0.02], shinR: [0.18, 0, 0], footR: [-0.05, 0, 0] },
   board: { uarmL: [-0.55, -0.3, 0.12], farmL: [-1.15, 0, -0.55], handL: [0, 0, 0], uarmR: [-0.55, 0.3, -0.12], farmR: [-1.15, 0, 0.55], handR: [0, 0, 0], head: [-0.05, 0, 0], gripL: 0.75, gripR: 0.75 },

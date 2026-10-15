@@ -104,6 +104,7 @@ export class BandSystem implements GameSystem {
   private graceT = GRACE;
   private seamCache = new Map<string, { t: number; list: TileObject[] }>();
   private remoteWarn = new Map<string, number>();
+  private remoteBeep = new Map<string, number>();
   private flashes: { x: number; y: number; z: number; t: number; zone: string; c?: number; i?: number }[] = [];
   private wornCheckT = 0;
 
@@ -357,9 +358,8 @@ export class BandSystem implements GameSystem {
     for (const [id, lv] of this.remoteWarn) {
       const q = G.players.get(id);
       if (!q || q.zoneKey !== p?.zoneKey) continue;
-      const k = 'rw' + id;
-      const t = ((this as any)[k] ?? 0) - dt;
-      (this as any)[k] = t <= 0 ? 0.6 - lv * 0.4 : t;
+      const t = (this.remoteBeep.get(id) ?? 0) - dt;
+      this.remoteBeep.set(id, t <= 0 ? 0.6 - lv * 0.4 : t);
       if (t <= 0) { G.audio?.play?.('band_beep', q.x, q.z, { vol: 0.7, range: 16 }); const wq = wristPos(q); this.flashes.push({ x: wq.x, y: wq.y + 0.1, z: wq.z, t: 0.12, zone: q.zoneKey, c: 0xff2010, i: 1.5 }); }
     }
     if (!p) return;

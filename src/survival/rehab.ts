@@ -24,6 +24,8 @@ export class RehabEffects {
   private scarePeak = 0;
   private valueT = 0;
   private carryingValue = true;
+  private bandT = 0;
+  private banded = false;
   private pending: { at: number; fn: (p: Player) => void }[] = [];
   private t = 0;
 
@@ -120,8 +122,9 @@ export class RehabEffects {
     // ---- Picks at the Band: soothing, until it bleeds
     if (T('band_picker')) {
       b.stress = Math.max(0, b.stress - 0.65 * dh);
-      const banded = [...p.worn.values()].some((it) => it.key === 'bailiff_band') || !!(G as any).band;
-      if (banded && !p.sleeping) {
+      this.bandT -= dt;
+      if (this.bandT <= 0) { this.bandT = 3; this.banded = (G as any).band ? !!(G as any).band.armed?.(p.id) : [...p.worn.values()].some((it) => it.key === 'bailiff_band'); }
+      if (this.banded && !p.sleeping) {
         this.pickT -= dh;
         if (this.pickT <= 0) {
           this.pickT = 6 + Math.random() * 8;

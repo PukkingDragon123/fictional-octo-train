@@ -18,6 +18,8 @@
 /* the survivor's lines lean away from the band hologram (ui.ts toggles these) */
 .w-bubble.away-l { translate: calc(-50% + var(--px) * 6) 0; }
 .w-bubble.away-r { translate: calc(50% - var(--px) * 6) 0; }
+.w-bubble.sub-voss.away-l, .w-bubble.sub-guard.away-l { translate: calc(-50% + var(--px) * 10) 0; }
+.w-bubble.sub-voss.away-r, .w-bubble.sub-guard.away-r { translate: calc(50% - var(--px) * 10) 0; }
 
 /* a thought: handwriting in the air, each letter its own slant, written out then smudged away */
 .w-bubble.think {
@@ -51,7 +53,7 @@
 
 /* the sergeant: projected text hanging beside him, amber scanlines */
 .sub-voss {
-  white-space: normal; width: max-content; max-width: min(calc(var(--px) * 150), 70vw); text-align: left;
+  white-space: normal; width: max-content; max-width: min(calc(var(--px) * 112), 62vw); text-align: left;
   font-family: 'Tiny5', var(--font-body); font-size: calc(var(--px) * 8); line-height: calc(var(--px) * 9); color: #ffd28a; text-transform: uppercase;
   text-shadow: -1px 0 0 rgba(255, 60, 40, 0.55), 1px 0 0 rgba(60, 200, 255, 0.55), 0 0 8px rgba(255, 170, 70, 0.65), 0 1px 0 rgba(0, 0, 0, 0.8);
   -webkit-mask-image: repeating-linear-gradient(to bottom, #000 0 calc(var(--px) * 2 - 1px), rgba(0, 0, 0, 0.55) calc(var(--px) * 2 - 1px) calc(var(--px) * 2));

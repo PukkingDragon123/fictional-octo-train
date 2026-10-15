@@ -147,13 +147,15 @@ function generateReality(z: Zone, seed: number) {
   for (const [x, y] of [[50, 20], [53, 22]] as [number, number][]) L.ante.push(...lightOf(lamp(b, x, y, 0, { kind: 'light_fluoro', flicker: x === 53 ? 0.15 : 0 })));
 
   // ------------------------------------------------------------ Room 0
-  room(b, 'Room 0', 'seam_room', RX0, RY0, RX1, RY1, { floor: 'concrete', paper: 'zp_wall_dark', wall, temp: 9 });
+  room(b, 'Room 0', 'seam_room', RX0, RY0, RX1, RY1, { floor: 'concrete', paper: 'wall_concrete', wall, temp: 9 });
   b.door(RX0, 21, 1, 'door_metal', { locked: false, sign: 'danger' });
   const seamO = b.obj('seam_door', SEAM_X, RY0, BACK.n, {});
   seamDecals(z, SEAM_X, RY0, BACK.n);
   // a caged bulb by the door, a weak cold light that the Seam drinks
   L.room0.push(b.light(RX0 + 0.8, 20.2, 'emergency', { intensity: 0.4, radius: 3.4, y: 2.4 }).id);
-  L.room0.push(b.light(SEAM_X + 0.5, RY0 + 2.6, 'bulb', { intensity: 0.5, radius: 5.2, y: 2.5, color: 0xc8d4e0 }).id);
+  // one cold work lamp washing the wall, so you can see how black the Seam is
+  L.room0.push(b.light(SEAM_X + 0.5, RY0 + 1.4, 'bulb', { intensity: 1.1, radius: 4.6, y: 2.5, color: 0xd8e4f0 }).id);
+  L.room0.push(b.light(RX0 + 2.5, RY1 - 1.5, 'bulb', { intensity: 0.35, radius: 3.5, y: 2.3, color: 0xa8b4c0, flicker: 0.2 }).id);
   for (let i = 0; i < 6; i++) decalAt(z, 'decal_stain_dark', rng.float(RX0 + 1, RX1), rng.float(RY0 + 1, RY1), rng.float(0.8, 1.6), rng.float(0.6, 1.2), rng.float(0, 3), 0x101010, 0.5);
   // things that were left too near it, and dragged in by the light
   f.place('chair_office', 61, 24, FACE.e, {});

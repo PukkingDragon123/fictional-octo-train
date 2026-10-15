@@ -87,6 +87,7 @@ export class SmashAction extends TimedAction {
     const at = targetPoint(p, t);
     let dx = at.x - p.x, dz = at.z - p.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
     noise(p, at.x, at.z, this.kick ? 12 : heavy ? 20 : 15, 'smash');
+    try { (p as any).anim?.impact?.(this.kick ? 0.5 : heavy ? 0.9 : 0.7); } catch { /* older rigs */ }
     if (t.kind === 'light') {
       op('lightSmash', { z: z.key, id: t.id, by: p.id });
       return;
@@ -147,33 +148,49 @@ export class ClearDebrisAction extends TimedAction {
 }
 
 // ---------------------------------------------------------------- menus
-function approach(p: Player, o: TileObject): { x: number; z: number; reach: number } {
+/** where to stand to work on it: off the side of its footprint nearest the survivor */
+function approach(p: Player, o: TileObject, gap = 0.55): { x: number; z: number; reach: number; cx: number; cz: number } {
   const z = G.getZone(p.zoneKey), d = objDef(o.key)!;
   const m = objectMatrix(z, o, d);
   const cx = m.elements[12], cz = m.elements[14];
   const w = d.w ?? 1, dd = d.d ?? 1;
-  const rw = o.rot % 2 === 0 ? w : dd, rd = o.rot % 2 === 0 ? dd : w;
-  return { x: cx, z: cz, reach: Math.max(rw, rd) / 2 + 0.75 };
+  const hx = (o.rot % 2 === 0 ? w : dd) / 2, hz = (o.rot % 2 === 0 ? dd : w) / 2;
+  // nearest point of the footprint, then out from that side
+  const nx = Math.max(cx - hx, Math.min(p.x, cx + hx)), nz = Math.max(cz - hz, Math.min(p.z, cz + hz));
+  let ox = 0, oz = 0;
+  const dl = Math.abs(nx - (cx - hx)), dr = Math.abs(nx - (cx + hx)), dt = Math.abs(nz - (cz - hz)), db = Math.abs(nz - (cz + hz));
+  const mn = Math.min(dl, dr, dt, db);
+  if (mn === dl) ox = -1; else if (mn === dr) ox = 1; else if (mn === dt) oz = -1; else oz = 1;
+  let x = nx + ox * gap, zz = nz + oz * gap;
+  // that spot is in a wall or another object: just go for the middle of the nearest side
+  if (!z.inb(Math.floor(x), Math.floor(zz)) || z.solid[z.idx(Math.floor(x), Math.floor(zz))] === 1 || !z.floor[z.idx(Math.floor(x), Math.floor(zz))]) { x = cx + ox * (hx + gap); zz = cz + oz * (hz + gap); }
+  return { x, z: zz, reach: 0.4, cx, cz };
+}
+/** walk to the spot, then do it facing the object */
+function queueOn(p: Player, o: TileObject, a: TimedAction, gap = 0.55) {
+  const ap = approach(p, o, gap);
+  queueAt(p, ap.x, ap.z, a, ap.reach, false);
+  a.face = { x: ap.cx, z: ap.cz };
 }
 
 bus.on('objectMenu', (p: Player, o: TileObject, out: MenuOption[]) => {
   try {
     const d = objDef(o.key); if (!d) return;
     if (o.key === PILE) {
-      out.push({ label: 'Kick the debris aside', action: () => { const a = approach(p, o); queueAt(p, a.x, a.z, new ClearDebrisAction(p, o), 1.2); } });
+      out.push({ label: 'Kick the debris aside', action: () => queueOn(p, o, new ClearDebrisAction(p, o), 0.45) });
       return;
     }
-    const ap = approach(p, o);
     if (breakable(d, o)) {
-      const { it, armed, heavy } = weaponOf(p);
-      const w = it ? itemDef(it.key) : null;
-      const label = armed ? `Smash it (${w!.name.toLowerCase()})` : 'Smash it (bare hands)';
-      out.push({ label, danger: true, action: () => queueAt(p, ap.x, ap.z, new SmashAction(p, { kind: 'obj', o }), Math.max(1.1, ap.reach - (heavy ? 0.1 : 0.2))) });
-      if (d.height <= 1.7) out.push({ label: 'Kick it', danger: true, action: () => queueAt(p, ap.x, ap.z, new SmashAction(p, { kind: 'obj', o }, true), Math.max(1.0, ap.reach - 0.25)) });
+      const { it, armed, heavy, w } = weaponOf(p);
+      const name = it ? itemDef(it.key).name.toLowerCase() : '';
+      const label = armed ? `Smash it (${name})` : 'Smash it (bare hands)';
+      const gap = Math.max(0.45, Math.min(1.0, (w.range ?? 0.85) - (heavy ? 0.45 : 0.35)));
+      out.push({ label, danger: true, action: () => queueOn(p, o, new SmashAction(p, { kind: 'obj', o }), gap) });
+      if (d.height <= 1.7) out.push({ label: 'Kick it', danger: true, action: () => queueOn(p, o, new SmashAction(p, { kind: 'obj', o }, true), 0.42) });
     }
     if (pushable(d, o) && !d.tags?.includes('pushable')) {
-      out.push({ label: 'Push', action: () => queueAt(p, ap.x, ap.z, new PushAction(p, o, 'push'), Math.max(0.9, ap.reach - 0.2)) });
-      out.push({ label: 'Drag', action: () => queueAt(p, ap.x, ap.z, new PushAction(p, o, 'drag'), Math.max(0.9, ap.reach - 0.2)) });
+      out.push({ label: 'Push', action: () => queueOn(p, o, new PushAction(p, o, 'push'), 0.45) });
+      out.push({ label: 'Drag', action: () => queueOn(p, o, new PushAction(p, o, 'drag'), 0.45) });
     }
   } catch (e) { console.warn('destruct menu', e); }
 });

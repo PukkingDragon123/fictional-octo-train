@@ -299,21 +299,26 @@ defObj({
 
 // ================================================================ the passage kiosk
 export function kioskModel(mb: ModelBuilder) {
-  mb.box(0, 0, -0.06, 0.66, 0.06, 0.6, 'metal_dark');
-  mb.box(0, 0.06, -0.08, 0.6, 1.26, 0.5, { south: 'zd_kiosk_body', all: 'zd_steel', top: 'metal_dark' }, { fit: { south: true } });
+  mb.box(0, 0, -0.06, 0.84, 0.06, 0.62, 'metal_dark');
+  mb.box(0, 0.06, -0.08, 0.76, 1.26, 0.52, { south: 'zd_kiosk_body', all: 'zd_steel', top: 'metal_dark' }, { fit: { south: true } });
+  // hazard-striped kick plate and side rails
+  mb.box(0, 0.06, 0.185, 0.78, 0.1, 0.012, 'zd_hazard', { fit: true });
+  for (const s of [-1, 1]) mb.box(s * 0.4, 0.06, -0.08, 0.04, 1.3, 0.54, 'metal_dark');
   // slanted screen hood
-  mb.box(0, 1.32, -0.12, 0.6, 0.06, 0.46, 'zd_steel');
+  mb.box(0, 1.32, -0.12, 0.76, 0.06, 0.48, 'zd_steel');
   mb.push().translate(0, 1.38, 0.08).rotateX(-0.42);
-  mb.box(0, 0, -0.02, 0.56, 0.44, 0.08, 'zd_steel');
-  mb.box(0, 0.05, 0.022, 0.46, 0.34, 0.004, 'zd_kiosk_screen', { fit: true, emissive: 1.1 });
+  mb.box(0, 0, -0.02, 0.72, 0.5, 0.08, 'zd_steel');
+  mb.box(0, 0.06, 0.022, 0.58, 0.38, 0.004, 'zd_kiosk_screen', { fit: true, emissive: 1.1 });
+  mb.box(0, 0.47, 0.03, 0.72, 0.04, 0.12, 'metal_dark'); // glare visor
   mb.pop();
-  mb.box(0, 1.38, -0.24, 0.6, 0.44, 0.18, 'zd_steel');
+  mb.box(0, 1.38, -0.24, 0.76, 0.5, 0.2, 'zd_steel');
   // the lit sign on a stalk
-  mb.box(0, 1.82, -0.2, 0.06, 0.24, 0.06, 'metal_dark');
-  mb.box(0, 2.04, -0.2, 0.72, 0.2, 0.12, { south: 'zd_kiosk_sign', north: 'zd_kiosk_sign', all: 'metal_dark' }, { fit: { south: true, north: true }, emissive: 0.9 });
+  mb.box(0, 1.86, -0.2, 0.07, 0.26, 0.07, 'metal_dark');
+  mb.box(0, 2.1, -0.2, 0.96, 0.26, 0.14, { south: 'zd_kiosk_sign', north: 'zd_kiosk_sign', all: 'metal_dark' }, { fit: { south: true, north: true }, emissive: 0.9 });
   // band reader cradle and the ticket tongue
-  mb.box(0, 0.72, 0.18, 0.3, 0.04, 0.08, 'metal_dark');
-  mb.box(0, 0.9, 0.175, 0.16, 0.004, 0.04, 'paper', { color: 0xece2c8 });
+  mb.box(0, 0.72, 0.19, 0.36, 0.05, 0.1, 'metal_dark');
+  mb.box(0.1, 0.75, 0.23, 0.04, 0.012, 0.03, 'led_green', { emissive: 1.4 });
+  mb.box(0, 0.9, 0.185, 0.18, 0.004, 0.05, 'paper', { color: 0xece2c8 });
 }
 
 defObj({
@@ -325,7 +330,8 @@ defObj({
 });
 
 // ================================================================ transports (built at origin, long axis along x, doors on +z)
-export function coachModel(mb: ModelBuilder, open = false) {
+/** side: which flank the door is on (+1 = +z, -1 = -z) */
+export function coachModel(mb: ModelBuilder, open = false, side = 1) {
   const L = 10.4, W = 2.5, H = 3.0, y0 = 0.42;
   mb.box(0, y0, 0, L, H - y0, W, { south: 'zd_coach_side', north: 'zd_coach_side', east: 'zd_coach_front', west: 'zd_coach_front', top: 'metal_grey' }, { fit: { south: true, north: true, east: true, west: true } });
   mb.box(0, H, 0, L - 0.4, 0.08, W - 0.2, 'metal_grey');
@@ -341,18 +347,18 @@ export function coachModel(mb: ModelBuilder, open = false) {
   mb.box(-L / 2 - 0.06, 0.42, 0, 0.12, 0.25, W, 'metal_dark');
   for (const s of [-1, 1]) { mb.box(L / 2 + 0.02, 1.0, s * 0.95, 0.04, 0.16, 0.3, 'screen_on', { emissive: 1.4, color: 0xfff4d0 }); mb.box(L / 2 + 0.25, 2.2, s * (W / 2 + 0.15), 0.05, 0.4, 0.05, 'metal_dark'); }
   for (const s of [-1, 1]) mb.box(-L / 2 - 0.02, 0.95, s * 0.95, 0.04, 0.2, 0.25, 'led_red', { emissive: 1.2 });
-  const dx = 3.9;
+  const dx = 3.9, sd = side < 0 ? -1 : 1;
   if (open) {
-    mb.box(dx, y0 + 0.05, W / 2 + 0.01, 1.1, 2.2, 0.02, 'metal_dark', { color: 0x050506 });
-    mb.box(dx, 0.2, W / 2 + 0.3, 1.1, 0.06, 0.5, 'metal_grey'); // step
-    for (const s of [-1, 1]) mb.box(dx + s * 0.75, y0 + 0.05, W / 2 + 0.05, 0.4, 2.2, 0.04, 'glass_dark');
+    mb.box(dx, y0 + 0.05, sd * (W / 2 + 0.01), 1.1, 2.2, 0.02, 'metal_dark', { color: 0x050506 });
+    mb.box(dx, 0.2, sd * (W / 2 + 0.3), 1.1, 0.06, 0.5, 'metal_grey'); // step
+    for (const s of [-1, 1]) mb.box(dx + s * 0.75, y0 + 0.05, sd * (W / 2 + 0.05), 0.4, 2.2, 0.04, 'glass_dark');
   } else {
-    for (const s of [-1, 1]) mb.box(dx + s * 0.28, y0 + 0.05, W / 2 + 0.02, 0.54, 2.2, 0.04, 'glass_dark');
+    for (const s of [-1, 1]) mb.box(dx + s * 0.28, y0 + 0.05, sd * (W / 2 + 0.02), 0.54, 2.2, 0.04, 'glass_dark');
   }
   // dim cab light: the driver's seat is empty
   mb.box(L / 2 - 0.9, 1.6, 0.6, 0.4, 0.5, 0.4, 'fabric_grey');
 }
-export function carriageModel(mb: ModelBuilder, open = false) {
+export function carriageModel(mb: ModelBuilder, open = false, side = 1) {
   const L = 12, W = 2.7, H = 3.3, y0 = 0.6;
   mb.box(0, y0, 0, L, H - y0, W, { south: 'zd_carriage_side', north: 'zd_carriage_side', east: 'zd_carriage_end', west: 'zd_carriage_end', top: 'metal_dark' }, { fit: { south: true, north: true, east: true, west: true }, emissive: 0.15 });
   // curved roof suggested by two stepped slabs
@@ -364,20 +370,21 @@ export function carriageModel(mb: ModelBuilder, open = false) {
     for (const k of [-0.6, 0.6]) for (const s of [-1, 1]) { mb.push().translate(x + k, 0.42, s * (W / 2 - 0.4)).rotateX(Math.PI / 2); mb.cylinder(0, -0.06, 0, 0.42, 0.12, 10, 'metal_rusty'); mb.pop(); }
   }
   for (const s of [-1, 1]) mb.box(s * (L / 2 + 0.2), 1.0, 0, 0.4, 0.3, 0.3, 'metal_dark'); // couplers to nothing
-  const dx = 0;
-  if (open) { mb.box(dx, y0, W / 2 + 0.01, 1.0, 2.1, 0.02, 'wood_dark', { color: 0x1a0e06 }); mb.box(dx, 0.3, W / 2 + 0.35, 1.0, 0.06, 0.5, 'metal_dark'); }
-  else mb.box(dx, y0, W / 2 + 0.02, 1.0, 2.1, 0.04, 'wood_dark');
+  const dx = 0, sd = side < 0 ? -1 : 1;
+  if (open) { mb.box(dx, y0, sd * (W / 2 + 0.01), 1.0, 2.1, 0.02, 'wood_dark', { color: 0x1a0e06 }); mb.box(dx, 0.3, sd * (W / 2 + 0.35), 1.0, 0.06, 0.5, 'metal_dark'); }
+  else mb.box(dx, y0, sd * (W / 2 + 0.02), 1.0, 2.1, 0.04, 'wood_dark');
 }
-export function cageModel(mb: ModelBuilder, open = false) {
+export function cageModel(mb: ModelBuilder, open = false, side = 1) {
   const S = 3.0, H = 2.6;
   mb.box(0, 0, 0, S, 0.12, S, { top: 'zd_hopper_plate', all: 'zd_hazard' }, { fit: { top: true } });
   for (const x of [-1, 1]) for (const z of [-1, 1]) mb.box(x * (S / 2 - 0.05), 0.12, z * (S / 2 - 0.05), 0.1, H, 0.1, 'zd_steel');
   mb.box(0, H + 0.12, 0, S, 0.12, S, 'zd_steel');
   // mesh walls on three sides, a folding gate on the front
-  mb.box(0, 0.12, -S / 2 + 0.03, S - 0.1, H, 0.02, 'zd_cage_mesh', { fit: false });
+  mb.box(0, 0.12, -(side < 0 ? -1 : 1) * (S / 2 - 0.03), S - 0.1, H, 0.02, 'zd_cage_mesh', { fit: false });
   for (const s of [-1, 1]) mb.box(s * (S / 2 - 0.03), 0.12, 0, 0.02, H, S - 0.1, 'zd_cage_mesh', { fit: false });
-  if (!open) for (let i = 0; i < 7; i++) mb.box(-S / 2 + 0.25 + i * 0.42, 0.12, S / 2 - 0.03, 0.04, H, 0.04, 'chrome');
-  else for (let i = 0; i < 7; i++) mb.box(-S / 2 + 0.12 + i * 0.06, 0.12, S / 2 - 0.03, 0.04, H, 0.04, 'chrome');
+  const gz = (side < 0 ? -1 : 1) * (S / 2 - 0.03);
+  if (!open) for (let i = 0; i < 7; i++) mb.box(-S / 2 + 0.25 + i * 0.42, 0.12, gz, 0.04, H, 0.04, 'chrome');
+  else for (let i = 0; i < 7; i++) mb.box(-S / 2 + 0.12 + i * 0.06, 0.12, gz, 0.04, H, 0.04, 'chrome');
   mb.box(0, H - 0.3, -S / 2 + 0.08, 0.5, 0.3, 0.12, 'metal_dark'); // control box
   mb.box(0.1, H - 0.2, -S / 2 + 0.145, 0.06, 0.06, 0.01, 'led_green', { emissive: 1.4 });
   // cables vanishing up into the dark

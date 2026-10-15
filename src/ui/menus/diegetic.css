@@ -460,7 +460,7 @@ section.ob-card { display: block; align-items: stretch; background: #f8f6ee; bor
   .rh-tray { max-height: 22vh; }
   .rh-banks { max-height: 48vh; }
   .rh-tip { display: none; }
-  .rh-wrap { bottom: calc(var(--px) * 26); }
+  .rh-wrap { bottom: calc(var(--px) * 50); }
 }
 @media (max-height: 500px) {
   .ik[data-station="1"] .ik-plate, .ik[data-station="2"] .ik-plate { display: none; }

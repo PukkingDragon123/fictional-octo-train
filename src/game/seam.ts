@@ -240,8 +240,9 @@ export class SeamFx implements GameSystem {
         dz -= kk * 0.06;
       }
       a[i] = x + dx; a[i + 1] = y + dy; a[i + 2] = b[i + 2] + dz;
-      lit = Math.min(0.28, lit);
-      c[i] = lit * 0.55; c[i + 1] = lit * 0.55; c[i + 2] = lit * 0.75;
+      // (linear values: even 0.06 reads as a grey ring against that black)
+      lit = Math.min(0.07, lit * 0.2);
+      c[i] = lit * 0.75; c[i + 1] = lit * 0.75; c[i + 2] = lit;
     }
     pos.needsUpdate = true;
     cat.needsUpdate = true;

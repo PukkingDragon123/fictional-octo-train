@@ -152,7 +152,7 @@
 .dg-cab-h { display: flex; gap: calc(var(--px) * 4); align-items: baseline; padding: calc(var(--px) * 2) calc(var(--px) * 4); background: #e8e4d0; color: var(--dg-ink); margin-bottom: calc(var(--px) * 4); }
 .dg-cab-drawer { display: flex; flex-direction: column; padding: calc(var(--px) * 4) calc(var(--px) * 3); background: #2a302a; border: var(--px) solid #0a0c0a; box-shadow: inset 0 calc(var(--px) * 3) 0 rgba(0, 0, 0, 0.5); }
 .dg-empty { color: #a8b0a8; padding: calc(var(--px) * 6); text-align: center; }
-.dg-case { position: relative; display: grid; grid-template-columns: 1fr auto; gap: calc(var(--px) * 3); align-items: center; padding: calc(var(--px) * 7) calc(var(--px) * 4) calc(var(--px) * 3); margin-top: calc(var(--px) * -2); background: var(--dg-manila); color: var(--dg-ink); border: var(--px) solid var(--dg-manila-2); box-shadow: 0 calc(var(--px) * -1) 0 rgba(0, 0, 0, 0.3); transition: transform 0.2s steps(3); }
+.dg-case { position: relative; display: grid; grid-template-columns: 1fr auto; gap: calc(var(--px) * 3); align-items: center; padding: calc(var(--px) * 10) calc(var(--px) * 4) calc(var(--px) * 3); margin-top: calc(var(--px) * -2); background: var(--dg-manila); color: var(--dg-ink); border: var(--px) solid var(--dg-manila-2); box-shadow: 0 calc(var(--px) * -1) 0 rgba(0, 0, 0, 0.3); transition: transform 0.2s steps(3); }
 .dg-case:nth-child(even) { background: #ccb47a; }
 .dg-case:focus-within, .dg-case:hover { transform: translateY(calc(var(--px) * -4)); z-index: 1; }
 .dg-case-tab { position: absolute; left: calc(var(--px) * 4); top: var(--px); font-family: var(--font-stencil); font-size: var(--t-label); color: var(--dg-red); }

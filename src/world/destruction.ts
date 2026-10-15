@@ -430,6 +430,7 @@ export class DestructionSystem implements GameSystem {
       const base = (w.dmg ? (w.dmg[0] + Math.random() * (w.dmg[1] - w.dmg[0])) : 3);
       const dmg = this.weaponDamage(p, o, w.kind ?? 'unarmed', base);
       this.damageObject(p, o, dmg, 'melee', undefined, [fx, fz]);
+      try { (p as any).anim?.impact?.(0.7); } catch { /* older rigs */ }
       if (it) this.wearWeapon(p, it, 0.6);
       return true;
     }
@@ -439,6 +440,7 @@ export class DestructionSystem implements GameSystem {
       const base = (w.dmg ? (w.dmg[0] + Math.random() * (w.dmg[1] - w.dmg[0])) : 2);
       const k = w.kind === 'blunt' ? 1 : w.kind === 'axe' ? 0.85 : w.kind === 'unarmed' ? 0.35 : 0.2;
       op('wallSmash', { z: z.key, x: wh.x, y: wh.y, side: wh.side, d: r2(base * k * (1 + p.body.skill('strength') * 0.05)), how: 'melee', by: p.id, u: r2(wh.u), h: r2(wh.h), n: wh.n } as WallArgs);
+      try { (p as any).anim?.impact?.(0.8); } catch { /* older rigs */ }
       if (it) this.wearWeapon(p, it, 0.5);
       if (!it) this.punchedWall(p);
       return true;

@@ -78,12 +78,12 @@ class AboardAction extends TimedAction {
 }
 
 const GEO = new Map<string, THREE.BufferGeometry>();
-function vehicleGeo(kind: string, open: boolean) {
-  const k = kind + (open ? ':o' : ':c');
+function vehicleGeo(kind: string, open: boolean, side = 1) {
+  const k = kind + (open ? ':o' : ':c') + (side < 0 ? '-' : '+');
   let g = GEO.get(k);
   if (!g) {
     const mb = new ModelBuilder();
-    if (kind === 'coach') coachModel(mb, open); else if (kind === 'carriage') carriageModel(mb, open); else cageModel(mb, open);
+    if (kind === 'coach') coachModel(mb, open, side); else if (kind === 'carriage') carriageModel(mb, open, side); else cageModel(mb, open, side);
     g = mb.build();
     GEO.set(k, g);
   }
@@ -110,8 +110,8 @@ export class TransportSystem implements GameSystem {
     if (tb) {
       const cx = (tb.x0 + tb.x1 + 1) / 2, cz = (tb.y0 + tb.y1 + 1) / 2;
       const lane = tb.laneY ? (tb.laneY[0] + tb.laneY[1] + 1) / 2 : NaN;
-      // nose in toward the platform (+z), doors on the west kerb
-      return [cx - 0.5, cz - 0.5, Math.PI / 2, 1, lane];
+      // nose in toward the platform (+z), doors on the east flank (the side the camera sees)
+      return [cx - 0.5, cz - 0.5, Math.PI / 2, -1, lane];
     }
     const a = (z.meta.anchors || {})['transport_bay'] as number[] | undefined;
     const k = [...z.objects.values()].find((o) => o.key === 'ticket_kiosk');
@@ -210,7 +210,7 @@ export class TransportSystem implements GameSystem {
   private ensureMesh(r: Ride) {
     if (r.group || G.view?.zone.key !== r.zone) return;
     const g = new THREE.Group();
-    const m = new THREE.Mesh(vehicleGeo(r.kind, r.open), worldMaterial({ cutout: true }));
+    const m = new THREE.Mesh(vehicleGeo(r.kind, r.open, r.flip), worldMaterial({ cutout: true }));
     m.castShadow = true; m.receiveShadow = true;
     g.add(m);
     G.pr.scene.add(g);
@@ -225,11 +225,10 @@ export class TransportSystem implements GameSystem {
       return { x: r.x, z: r.z, oy, h: r.heading, vis: r.phase !== 'depart' || r.t < 9 };
     }
     const sp = r.kind === 'coach' ? 1 : 0.75;
-    const sgn = r.flip < 0 ? -1 : 1;
     if (Number.isFinite(r.laneZ)) {
       // along the lane, then a turn into the bay; out the same way in reverse, then off along the lane
-      const turnH = r.heading - Math.PI / 2 * sgn, far = 34;
-      const lx = Math.cos(turnH) * sgn, lz = Math.sin(turnH) * sgn;   // lane direction of travel
+      const turnH = r.heading - Math.PI / 2, far = 34;
+      const lx = Math.cos(turnH), lz = Math.sin(turnH);   // lane direction of travel
       if (r.phase === 'arrive') {
         const T = 7 / sp, a = r.t / T;
         if (a < 0.55) { const k = out(a / 0.55); return { x: r.x - lx * far * (1 - k), z: r.laneZ - lz * far * (1 - k), oy: 0, h: turnH, vis: true }; }
@@ -245,7 +244,7 @@ export class TransportSystem implements GameSystem {
       }
       return { x: r.x, z: r.z, oy: 0, h: r.heading, vis: true };
     }
-    const ax = Math.cos(r.heading) * sgn, az = Math.sin(r.heading) * sgn;
+    const ax = Math.cos(r.heading), az = Math.sin(r.heading);
     let s = 0;
     if (r.phase === 'arrive') s = -(r.kind === 'coach' ? 34 : 40) * (1 - out(r.t / (r.kind === 'coach' ? 6 : 8)));
     if (r.phase === 'depart') s = Math.pow(Math.max(0, r.t - 1.5), 2) * (r.kind === 'coach' ? 1.4 : 0.8);
@@ -263,7 +262,7 @@ export class TransportSystem implements GameSystem {
     // timeline
     if (r.phase === 'arrive' && r.t >= this.arriveSecs(r)) {
       r.phase = 'wait'; r.t = 0; r.open = true;
-      if (r.mesh) r.mesh.geometry = vehicleGeo(r.kind, true);
+      if (r.mesh) r.mesh.geometry = vehicleGeo(r.kind, true, r.flip);
       if (here) {
         G.audio?.play?.(r.kind === 'coach' ? 'coach_doors' : 'metal_clank', r.x, r.z, { vol: 1, range: 30 });
         if (r.kind === 'coach') setTimeout(() => G.audio?.play?.('coach_horn', r.x, r.z, { vol: 1, range: 60 }), 500);
@@ -277,10 +276,10 @@ export class TransportSystem implements GameSystem {
     // pose
     const ps = this.pose(r);
     const base = G.zones.get(r.zone)?.heightAt(Math.floor(r.x), Math.floor(r.z)) ?? 0;
-    if (r.group) { r.group.position.set(ps.x, base + ps.oy, ps.z); r.group.rotation.y = -ps.h + (r.flip < 0 ? Math.PI : 0); r.group.visible = ps.vis; }
+    if (r.group) { r.group.position.set(ps.x, base + ps.oy, ps.z); r.group.rotation.y = -ps.h; r.group.visible = ps.vis; }
     // lights: headlights / warm windows / the cage's work lamp
     if (here && ps.vis) {
-      const k = r.flip < 0 ? -1 : 1, ax = Math.cos(ps.h) * k, az = Math.sin(ps.h) * k;
+      const ax = Math.cos(ps.h), az = Math.sin(ps.h);
       if (r.kind === 'coach') { G.pointLight(ps.x + ax * 6.5, 1.0, ps.z + az * 6.5, 0xfff0c0, 2.2, 12); G.pointLight(ps.x, 2.2, ps.z, 0x3a3428, 0.6, 6); }
       else if (r.kind === 'carriage') G.pointLight(ps.x, 1.8, ps.z, 0xffc070, 1.8, 10);
       else G.pointLight(ps.x, 2.2 + ps.oy, ps.z, 0xd8ffe0, 1.4, 7);
@@ -294,7 +293,7 @@ export class TransportSystem implements GameSystem {
     // aboard: ride along (the camera follows the vehicle out)
     if (me && r.boarded.has(me.id) && me.zoneKey === r.zone) {
       const d = transportDef(r.kind)!;
-      const k = r.flip < 0 ? -1 : 1, ax = Math.cos(ps.h) * k, az = Math.sin(ps.h) * k;
+      const ax = Math.cos(ps.h), az = Math.sin(ps.h);
       const seat = r.kind === 'cage' ? 0 : d.door - 0.7;
       me.x = ps.x + ax * seat; me.z = ps.z + az * seat;
       me.y = base + (r.kind === 'cage' ? ps.oy + 0.12 : 0.6);
@@ -356,8 +355,8 @@ export class TransportSystem implements GameSystem {
   serialize() { return null; }
 }
 
-/** the vehicle's long axis in world space (its local +x after the flip) */
-function axis(r: Ride): [number, number] { const k = r.flip < 0 ? -1 : 1; return [Math.cos(r.heading) * k, Math.sin(r.heading) * k]; }
+/** the vehicle's long axis in world space (its local +x; flip only says which flank the door is on) */
+function axis(r: Ride): [number, number] { return [Math.cos(r.heading), Math.sin(r.heading)]; }
 
 function esc(s: string) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]); }
 

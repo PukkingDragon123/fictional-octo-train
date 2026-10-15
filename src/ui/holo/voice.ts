@@ -8,7 +8,7 @@
 // it shouldn't. Plays on the voice bus; subtitles are shown by holo.ts.
 import { G } from '../../game/G';
 
-const SR = 22050;
+const SR = 16000;
 
 type Cls = 'v' | 'n' | 'l' | 'f' | 'p' | 'h' | ' ' | ',' | '.';
 interface Ph { cls: Cls; f: [number, number, number]; len: number; noise?: number; voiced: number; stress?: boolean }
@@ -105,8 +105,10 @@ export function renderVoice(text: string, o: VoiceOpts = {}): Float32Array {
   // ---- a start chirp: the band clears its throat
   for (let i = 0; i < 0.05 * SR; i++) { const t = i / SR; out[i] = Math.sign(Math.sin(t * 2 * Math.PI * (1500 - t * 9000))) * 0.18 * (1 - t / 0.05); }
   // ---- formant resonators (2-pole), coefficients recomputed every 32 samples
-  const R = [{ y1: 0, y2: 0, a1: 0, a2: 0, g: 1 }, { y1: 0, y2: 0, a1: 0, a2: 0, g: 0.55 }, { y1: 0, y2: 0, a1: 0, a2: 0, g: 0.22 }];
-  const setRes = (r: typeof R[0], f: number, bw: number) => { const rr = Math.exp(-Math.PI * bw / SR); r.a1 = 2 * rr * Math.cos(2 * Math.PI * Math.min(f, SR * 0.45) / SR); r.a2 = -rr * rr; };
+  // three resonators in plain locals (this loop runs ~50k times a line)
+  let ay1 = 0, ay2 = 0, aa1 = 0, aa2 = 0, by1 = 0, by2 = 0, ba1 = 0, ba2 = 0, cy1 = 0, cy2 = 0, ca1 = 0, ca2 = 0;
+  const R1 = Math.exp(-Math.PI * 90 / SR), R2 = Math.exp(-Math.PI * 120 / SR), R3 = Math.exp(-Math.PI * 180 / SR);
+  const W = 2 * Math.PI / SR, FMAX = SR * 0.45;
   let srcPh = 0, ring = 0, nz = 12345;
   const base = o.kind === 'leak' ? 74 : o.kind === 'alarm' ? 128 : 98;
   let i0 = Math.floor(0.09 * SR);
@@ -126,10 +128,16 @@ export function renderVoice(text: string, o: VoiceOpts = {}): Float32Array {
     const slide = o.kind === 'leak' ? -0.25 : 0;
     const plos = p.cls === 'p';
     const gap = plos ? Math.floor(len * 0.45) : 0;
+    const glide = p.cls === 'v' || p.cls === 'l' || p.cls === 'n' ? 0.35 : 0.8;
+    const pn = p.noise ?? (plos ? 0.7 : 0), pv = p.voiced, fric = p.cls === 'f', nasal = p.cls === 'n' ? 0.6 : 1, noisy = p.cls === 'f' || p.cls === 'p';
+    const burstK = 1 / (SR * 0.012);
     for (let j = 0; j < len && i0 + j < n; j++) {
       const t = j / len;
       if ((j & 31) === 0) {
-        for (let q = 0; q < 3; q++) { cur[q] += (p.f[q] - cur[q]) * (p.cls === 'v' || p.cls === 'l' || p.cls === 'n' ? 0.35 : 0.8); setRes(R[q], cur[q], q === 0 ? 90 : q === 1 ? 120 : 180); }
+        cur[0] += (p.f[0] - cur[0]) * glide; cur[1] += (p.f[1] - cur[1]) * glide; cur[2] += (p.f[2] - cur[2]) * glide;
+        aa1 = 2 * R1 * Math.cos(W * Math.min(cur[0], FMAX)); aa2 = -R1 * R1;
+        ba1 = 2 * R2 * Math.cos(W * Math.min(cur[1], FMAX)); ba2 = -R2 * R2;
+        ca1 = 2 * R3 * Math.cos(W * Math.min(cur[2], FMAX)); ca2 = -R3 * R3;
       }
       // sources
       const f = f0 * (1 + slide * t * 0.4);
@@ -140,13 +148,15 @@ export function renderVoice(text: string, o: VoiceOpts = {}): Float32Array {
       let env = 1;
       if (t < 0.12) env = t / 0.12; else if (t > 0.82) env = (1 - t) / 0.18;
       let x = 0;
-      if (plos) { if (j < gap) x = 0; else x = (noise * (p.noise ?? 0.7) * Math.exp(-(j - gap) / (SR * 0.012)) + buzz * p.voiced * 0.5); }
-      else x = buzz * p.voiced + noise * (p.noise ?? 0) * (p.cls === 'f' ? 0.9 : 0.4);
-      x *= env * (p.cls === 'n' ? 0.6 : 1);
+      if (plos) { if (j < gap) x = 0; else x = (noise * pn * Math.exp(-(j - gap) * burstK) + buzz * pv * 0.5); }
+      else x = buzz * pv + noise * pn * (fric ? 0.9 : 0.4);
+      x *= env * nasal;
       // resonators in parallel
-      let y = 0;
-      for (const r of R) { const v = x + r.a1 * r.y1 + r.a2 * r.y2; r.y2 = r.y1; r.y1 = v; y += v * r.g; }
-      if (p.cls === 'f' || p.cls === 'p') y = y * 0.35 + x * 0.25;
+      const va = x + aa1 * ay1 + aa2 * ay2; ay2 = ay1; ay1 = va;
+      const vb = x + ba1 * by1 + ba2 * by2; by2 = by1; by1 = vb;
+      const vc = x + ca1 * cy1 + ca2 * cy2; cy2 = cy1; cy1 = vc;
+      let y = va + vb * 0.55 + vc * 0.22;
+      if (noisy) y = y * 0.35 + x * 0.25;
       out[i0 + j] += y * 0.06;
     }
     i0 += len;
@@ -157,17 +167,22 @@ export function renderVoice(text: string, o: VoiceOpts = {}): Float32Array {
   const norm = mx > 0 ? 0.8 / mx : 1;
   const ringF = o.kind === 'leak' ? 31 : 53;
   let hold = 0, held = 0, hp = 0, lp = 0;
-  const q = o.kind === 'leak' ? 18 : 24;
+  const q = o.kind === 'leak' ? 32 : 48;
+  // ring oscillator as a rotation (no trig per sample)
+  const rw = 2 * Math.PI * ringF / SR, rc = Math.cos(rw), rs = Math.sin(rw);
+  let rx = 1, ry = 0;
+  void ring;
   for (let i = 0; i < n; i++) {
-    ring += ringF / SR; if (ring >= 1) ring -= 1;
+    const nx = rx * rc - ry * rs; ry = rx * rs + ry * rc; rx = nx;
     let v = out[i] * norm;
-    v = v * 0.62 + v * Math.sin(ring * 2 * Math.PI) * 0.38;
+    v = v * 0.62 + v * ry * 0.38;
     if (hold-- <= 0) { held = Math.round(v * q) / q; hold = 1; }
     v = held;
-    // high-pass ~240 Hz, low-pass ~3.6 kHz
-    hp += (v - hp) * 0.068; v = v - hp;
-    lp += (v - lp) * 0.62; v = lp;
-    out[i] = Math.tanh(v * 1.6) * 0.75;
+    // high-pass ~240 Hz, low-pass ~3.4 kHz, soft clip
+    hp += (v - hp) * 0.09; v = v - hp;
+    lp += (v - lp) * 0.75; v = lp * 1.6;
+    if (v > 3) v = 3; else if (v < -3) v = -3;
+    out[i] = v * (27 + v * v) / (27 + 9 * v * v) * 0.75;
   }
   // ---- glitches: stutters and dropouts
   const chunk = Math.floor(0.055 * SR);

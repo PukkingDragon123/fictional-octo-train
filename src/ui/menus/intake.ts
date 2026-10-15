@@ -212,6 +212,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     const setCaption = (s: string) => { caption.textContent = s ? 'SUBJECT ' + s : ''; caption.classList.toggle('on', !!s); };
     stage.onEmote = (l) => { if (!closing) setCaption(l); };
     stage.onHover = (p, x, y) => {
+      if (closing) p = null;
       hoverTag.classList.toggle('on', !!p);
       if (!p) return;
       hoverTag.innerHTML = `<b>${esc(PART_LABEL[p] || p)}</b><small>${part && sameGroup(part, p) ? 'examining' : 'examine'}</small>`;
@@ -555,6 +556,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       }
       if (!name.trim()) { sfx('error'); goStation(0); select('board'); return; }
       closing = true;
+      hoverTag.classList.remove('on');
       root.classList.add('processing');
       goStationRaw(0);
       select0();

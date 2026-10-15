@@ -477,11 +477,17 @@ export class UI {
       else { x = b.target.x; y = b.target.y; z = b.target.z; }
       const s = g.pr.worldToScreen(new THREE.Vector3(x, y, z));
       const lift = b.rise ? age * 28 : 0;
-      // the survivor's own lines lean away from the band's hologram so they never write over it
+      // the survivor's own lines lean away from the band's hologram so they never write over it;
+      // the sergeant's lean away from the survivor
       if (b.target === g.local && b.kind !== 'halo') {
         const side = g.holo?.visible ? (g.holo.screenSide as number) : 0;
         b.el.classList.toggle('away-l', side > 0);
         b.el.classList.toggle('away-r', side < 0);
+      } else if (b.kind === 'voss' || b.kind === 'guard') {
+        const me = g.pr.worldToScreen(this.tmpV.set(g.local.x, g.local.y + 1.5, g.local.z));
+        const sx = g.pr.worldToScreen(new THREE.Vector3(x, y, z)).x;
+        b.el.classList.toggle('away-l', sx < me.x - 4);
+        b.el.classList.toggle('away-r', sx > me.x + 4);
       }
       b.el.style.left = s.x + 'px';
       b.el.style.top = (s.y - lift) + 'px';
@@ -496,6 +502,7 @@ export class UI {
       if (n) b.el.style.top = (parseFloat(b.el.style.top) - n * 19) + 'px';
       per.set(b.target, n + 1);
     }
+    this.unclutter();
     // timed actions: tally marks scratched into the floor round the worker's feet
     const seen = new Set<string>();
     const pxm = g.pr.cssPerMetre ? g.pr.cssPerMetre() : 40;
@@ -537,6 +544,28 @@ export class UI {
     this.updateHover();
     this.inventory?.update?.(dt);
     this.scanner?.update?.(dt);
+  }
+
+  /** world text must stay readable: lift any line that would write over another one (or over the hologram) */
+  private unclutter() {
+    const placed: DOMRect[] = [];
+    const holo = G.holo?.visible ? (document.querySelector('.hb-tilt') as HTMLElement | null)?.getBoundingClientRect() : null;
+    if (holo) placed.push(holo);
+    // the survivor's own thoughts keep their place; everything else moves up out of the way
+    const order = [...this.bubbles].filter((b) => b.el.style.display !== 'none' && b.el.isConnected).sort((a, c) => (a.target === G.local ? 0 : 1) - (c.target === G.local ? 0 : 1));
+    for (const b of order) {
+      let r = b.el.getBoundingClientRect();
+      if (!r.width) continue;
+      for (let tries = 0; tries < 6; tries++) {
+        const hit = placed.find((o) => r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top);
+        if (!hit) break;
+        // the hologram itself is not moved over: lines beside it go above it
+        const dy = r.bottom - hit.top + 3;
+        b.el.style.top = (parseFloat(b.el.style.top) - dy) + 'px';
+        r = b.el.getBoundingClientRect();
+      }
+      placed.push(r);
+    }
   }
 
   private updateHover() {

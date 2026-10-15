@@ -1027,7 +1027,7 @@ export class Pedal extends Thing {
     if (wide) p.add(box(0.07, 0.06, 0.42), M(0, 0.02, -0.18), 0x6f726b, STEEL);
     else p.add(cyl(0.035, W + 0.1, 8), M(0, 0.0, 0, 0, 0, PI / 2), 0x6f726b, STEEL);
     this.mesh(p, this.mat({ wear: 0.6 }), this.pad);
-    this.tape(wide ? 'BRAKE' : 'GAS', wide ? 0 : -0.3, 0.046, wide ? 0.4 : 0.42, 'up', this.body);
+    this.tape(wide ? 'BRAKE' : 'GAS', 0, 0.046, wide ? 0.4 : 0.45, 'up', this.body);
   }
   protected onDown() { sfx('tc_clunk', 0.3, this.wide ? 0.8 : 1.2); haptic(10); }
   protected animate() {

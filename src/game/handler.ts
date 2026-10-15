@@ -46,7 +46,7 @@ const VOSS_OUTFIT: Outfit = {
   hands: undefined,
 };
 
-const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), tmpQ = new THREE.Quaternion();
+const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), tmpQ = new THREE.Quaternion(), tmpM = new THREE.Matrix4(), tmpC = new THREE.Color();
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 const wrapA = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
 
@@ -88,7 +88,7 @@ export class Handler implements GameSystem {
   private glitch = 0; private glitchT = 4;
   private lookAt: { x: number; z: number } | null = null;
   private speed = 0;
-  private paceT = 0; private paceDir = 1;
+  private paceT = 0;
   private beret: THREE.Mesh;
   private cone: THREE.Mesh;
   private coneW = 0;
@@ -112,6 +112,7 @@ export class Handler implements GameSystem {
   private milestones = new Set<number>();
   private offs: (() => void)[] = [];
   private bootT = 0;
+  private scanT = 0; private lookT = 0;
 
   constructor() {
     G.handler = this;
@@ -264,15 +265,18 @@ export class Handler implements GameSystem {
   }
 
   // ================================================================ world queries
+  private hopC = { t: -9, zone: '', o: null as TileObject | null };
   nearestHopperObj(): TileObject | null {
     const p = G.local; if (!p || !G.view) return null;
     const z = G.view.zone;
+    if (G.time - this.hopC.t < 1 && this.hopC.zone === z.key) return this.hopC.o;
     let best: TileObject | null = null, bd = 1e9;
     for (const o of z.objects.values()) {
       if (o.key !== 'hopper') continue;
       const d = Math.hypot(o.x + 1 - p.x, o.y + 1 - p.z);
       if (d < bd) { bd = d; best = o; }
     }
+    this.hopC = { t: G.time, zone: z.key, o: best };
     return best;
   }
   nearestHopper(): { x: number; z: number } | null {
@@ -283,12 +287,15 @@ export class Handler implements GameSystem {
     return { x: best.x + rw / 2, z: best.y + rd / 2 };
   }
   /** a hopper's projector lens (its pylon), and where he stands in its beam */
+  private pylonC: { o: TileObject; lens: THREE.Vector3; x: number; z: number } | null = null;
   private pylon(o: TileObject): { lens: THREE.Vector3; x: number; z: number } {
+    if (this.pylonC?.o === o) return this.pylonC;
     const z = G.view!.zone, d = objDef(o.key);
     const m = d ? objectMatrix(z, o, d) : new THREE.Matrix4().makeTranslation(o.x + 1, 0, o.y + 1);
     const lens = new THREE.Vector3(0.86, 1.86, -0.6).applyMatrix4(m);
     const st = new THREE.Vector3(0.75, 0, 1.45).applyMatrix4(m);
-    return { lens, x: st.x, z: st.z };
+    this.pylonC = { o, lens, x: st.x, z: st.z };
+    return this.pylonC;
   }
   /** the nearest piece of furniture worth smashing */
   nearestFurniture(maxD = 18): { x: number; z: number } | null {
@@ -357,7 +364,8 @@ export class Handler implements GameSystem {
       this.glitch = Math.max(this.glitch, 0.35);
     }
     // nothing more to say: fade out after a while
-    if (!this.cur && !this.queue.length && this.quietT > 6 && this.showGoal > 0 && !this.scripted) this.vanish();
+    const linger = this.tut >= 0 && this.tut < 9 ? 11 : 6;
+    if (!this.cur && !this.queue.length && this.quietT > linger && this.showGoal > 0 && !this.scripted) this.vanish();
   }
 
   /** where he stands this frame */
@@ -401,8 +409,13 @@ export class Handler implements GameSystem {
   }
 
   private updateFigure(dt: number, p: Player, z: Zone) {
-    // ---- move toward his spot (a long way: the signal jumps)
-    const [tx, tz] = this.spot(p, z);
+    // ---- move toward his spot (a long way: the signal jumps); pacing while he waits on you
+    let [tx, tz] = this.spot(p, z);
+    if (this.paceT > 2.5 && this.where === 'band') {
+      const yaw = G.pr.yaw, k = Math.sin((this.paceT - 2.5) * 0.85) * 0.75;
+      const nx = tx + Math.cos(yaw) * k, nz = tz - Math.sin(yaw) * k;
+      if (this.clear(z, tx, tz, nx, nz)) { tx = nx; tz = nz; }
+    }
     const dx = tx - this.x, dz = tz - this.z, d = Math.hypot(dx, dz);
     let sp = 0;
     if (d > 3.2) { this.x = tx; this.z = tz; this.glitch = Math.max(this.glitch, 0.8); }
@@ -411,11 +424,8 @@ export class Handler implements GameSystem {
       this.x += (dx / d) * sp * dt; this.z += (dz / d) * sp * dt;
     }
     // pacing while he waits for you to do something
-    const waiting = !this.cur && !this.gest && sp < 0.1;
-    if (waiting && !this.scripted) {
-      this.paceT += dt;
-      if (this.paceT > 7) { this.paceT = 0; this.paceDir = -this.paceDir; }
-    } else this.paceT = 0;
+    const waiting = !this.cur && !this.gest && !this.lookAt;
+    if (waiting && !this.scripted) this.paceT += dt; else this.paceT = 0;
     this.y += (z.heightAt(Math.floor(this.x), Math.floor(this.z)) - this.y) * Math.min(1, dt * 10);
     // ---- face: what he points at, else you
     const look = this.lookAt ?? (sp > 0.3 ? { x: this.x + dx, z: this.z + dz } : { x: p.x, z: p.z });
@@ -511,7 +521,7 @@ export class Handler implements GameSystem {
     const phase = (G.time * 1.1) % SP;
     let px = p.x, pz = p.z, seg = 0, along = 0.9 + phase, n = 0;
     let acc = 0;
-    const m = new THREE.Matrix4(), col = new THREE.Color();
+    const m = tmpM, col = tmpC;
     while (n < MAXN && seg < this.path.length) {
       const [ax, az] = this.path[seg];
       const sl = Math.hypot(ax - px, az - pz);
@@ -568,7 +578,8 @@ export class Handler implements GameSystem {
           if (t) { this.guide(t); if (G.time - this.externalAt > 3) this.say('First lesson. Find something nobody\'s using. A chair, a desk. Break it.', { point: t }); }
         }
         // the guide follows whatever is nearest as you wander
-        if (this.tutT > 4 && Math.floor(this.tutT) % 6 === 0 && this.guideT) { const t = this.nearestFurniture(); if (t) this.guideT = t; }
+        this.scanT -= dt;
+        if (this.scanT <= 0 && this.tutT > 4 && this.guideT) { this.scanT = 5; const t = this.nearestFurniture(); if (t) this.guideT = t; }
         break;
       }
       case 1:
@@ -591,8 +602,11 @@ export class Handler implements GameSystem {
     this.idleT = moving ? 0 : this.idleT + dt;
     if (this.idleT > 50 && !p.sleeping && !p.sittingOn) { this.idleT = 0; this.react('idle', 70, L.idle); }
     // something in sight
-    const cr = G.creatures?.list?.() as { x: number; z: number; dead?: boolean }[] | undefined;
-    if (cr && cr.length && (this.cds.get('creature') ?? -1e9) < G.time - 120) {
+    this.lookT -= dt;
+    if (this.lookT > 0) return;
+    this.lookT = 0.6;
+    const cr = (this.cds.get('creature') ?? -1e9) < G.time - 120 ? G.creatures?.list?.() as { x: number; z: number; dead?: boolean }[] | undefined : undefined;
+    if (cr && cr.length) {
       for (const c of cr) {
         if (c.dead) continue;
         const d = Math.hypot(c.x - p.x, c.z - p.z);

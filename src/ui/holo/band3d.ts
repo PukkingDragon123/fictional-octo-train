@@ -116,7 +116,8 @@ export class Bands {
     if (!rig?.bones) return;
     // the left forearm, or the right one if the left is gone
     const sev: string[] = (p.body as any)?.severed || [];
-    const leftGone = sev.includes('farm_l') || sev.includes('uarm_l');
+    // a lost left hand takes the wrist with it: the band goes on (or is refitted to) the right forearm
+    const leftGone = sev.includes('hand_l') || sev.includes('farm_l') || sev.includes('uarm_l');
     const side: 1 | -1 = leftGone ? -1 : 1;
     const bone: THREE.Object3D | undefined = rig.bones[leftGone ? 'farmR' : 'farmL'];
     if (!bone) return;

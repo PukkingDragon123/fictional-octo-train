@@ -22,6 +22,8 @@ export const PART_REGIONS: Record<PartKey, RegKey[]> = {
   head: ['HEAD', 'LIDS', 'MASK'], hair: ['HAIR', 'HAT'], torso: ['TORSO', 'NECK', 'COLLAR', 'SKIRT', 'PACK'],
   armL: ['ARM_L', 'WATCH'], armR: ['ARM_R'], handL: ['HAND_L'], handR: ['HAND_R'], legL: ['LEG_L'], legR: ['LEG_R'], feet: ['FOOT_L', 'FOOT_R'],
 };
+/** what lights up for a selection (parts plus the two-sided groups) */
+const HIGHLIGHT_REGIONS: Record<string, RegKey[]> = { ...PART_REGIONS, legs: ['LEG_L', 'LEG_R'], hands: ['HAND_L', 'HAND_R'] };
 const REGION_PART: [RegKey, PartKey][] = (Object.entries(PART_REGIONS) as [PartKey, RegKey[]][]).flatMap(([p, rs]) => rs.map((r) => [r, p] as [RegKey, PartKey]));
 
 /** camera framing per focus: look-at (rig-local, metres at height 1), distance, subject yaw, pitch */
@@ -33,13 +35,13 @@ const FRAMES: Record<string, Frame> = {
   torso: { at: [0, 1.22, 0], dist: 2.0, yaw: 0, pitch: 0.04 },
   armL: { at: [0.12, 1.18, 0.05], dist: 1.55, yaw: -1.05, pitch: 0.04 },
   armR: { at: [-0.12, 1.18, 0.05], dist: 1.55, yaw: 1.05, pitch: 0.04 },
-  hands: { at: [0, 1.12, 0.28], dist: 1.1, yaw: 0, pitch: 0.38 },
+  hands: { at: [0, 1.32, 0.18], dist: 1.15, yaw: 0, pitch: 0.1 },
   legs: { at: [0, 0.55, 0], dist: 2.4, yaw: 0.25, pitch: 0.05 },
   feet: { at: [0, 0.1, 0.12], dist: 1.35, yaw: 0.3, pitch: 0.42 },
   chart: { at: [0, 1.05, -0.45], dist: 3.7, yaw: 0, pitch: 0.02 },
   board: { at: [1.35, 1.35, -0.58], dist: 1.5, yaw: 0, pitch: 0.02 },
   uniform: { at: [-1.55, 0.55, -0.15], dist: 1.9, yaw: 0, pitch: 0.4 },
-  mugshot: { at: [0, 1.48, 0], dist: 1.9, yaw: 0, pitch: 0.0 },
+  mugshot: { at: [0, 1.42, 0], dist: 2.0, yaw: 0, pitch: 0.0 },
 };
 export const focusFrameOf = (k: string) => (k === 'handL' || k === 'handR' ? 'hands' : k === 'legL' || k === 'legR' ? 'legs' : k);
 
@@ -321,8 +323,8 @@ export class IntakeStage {
   private placeHeldBoard() {
     if (!this.heldBoard || !this.rig) return;
     const h = this.app?.height ?? 1;
-    this.heldBoard.position.set(0, 1.12 * h, 0.27);
-    this.heldBoard.rotation.set(-0.12, 0, 0);
+    this.heldBoard.position.set(0, 1.2 * h, 0.25);
+    this.heldBoard.rotation.set(-0.08, 0, 0);
   }
   /** turn the subject (radians, eased) */
   setYaw(y: number) { this.yaw = y; this.yawUser = 0; }
@@ -348,7 +350,7 @@ export class IntakeStage {
   }
   /** camera flash: white-out, a real light burst, the subject flinches */
   doFlash(flinch = true) {
-    this.flash = 1;
+    this.flash = document.documentElement.classList.contains('reduce-flash') ? 0.3 : 1;
     if (flinch) this.emote('flinch');
   }
 
@@ -460,7 +462,7 @@ export class IntakeStage {
             else if (mx.b > 0.5 && m.r > 0.5) c = mix(c, uSelC, 0.75);
             else if (mx.b > 0.5) c = mix(c, uSelC, 0.55 + 0.3 * pulse);
             // hovered part: an amber rim inside, a bright line around
-            if (m.g > 0.5) { c = mix(c, uHov, 0.1 + (mn.g < 0.5 ? 0.55 : 0.0)); }
+            if (m.g > 0.5) { c = mix(c, uHov, 0.16 + (mn.g < 0.5 ? 0.55 : 0.0)); }
             else if (mx.g > 0.5) c = mix(c, uHov, 0.9);
             // the flash burns everything out
             c = mix(c, vec3(1.0, 0.98, 0.94), clamp(uFlash, 0.0, 1.0));
@@ -482,7 +484,7 @@ export class IntakeStage {
   }
 
   private setRects(u: THREE.Vector4[], nU: { value: number }, part: Pickable | null) {
-    const regs = part && (PART_REGIONS as Record<string, RegKey[]>)[part];
+    const regs = part && HIGHLIGHT_REGIONS[part];
     let n = 0;
     if (regs) for (const rk of regs) { if (n >= u.length) break; const g = REG[rk]; u[n++].set(g.x - PAD, g.y - PAD, g.x + g.w + PAD, g.y + g.h + PAD); }
     nU.value = n;

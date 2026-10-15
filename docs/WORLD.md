@@ -145,6 +145,7 @@ b.portal({ id: 'p_fields', x, y, kind: 'door', to: 'fields', tx: 40, ty: 40, lab
 | p_mall_showroom / r_mall_showroom | mall East Court glass doors ↔ showroom entrance | door | — |
 | p_showroom_home / r_showroom_home | showroom "Living Room 14 / YOU ARE HOME" set front door ↔ homestead house 12 front door | door | — |
 | p_suburbs_home / r_suburbs_home | suburbs Maple Court 5 red front door ↔ homestead house 14 front door | door | — |
+| p_parking_depot / r_parking_depot | parking elevator core (P4) east door ↔ depot bus deck back wall | door | — |
 
 ## Zones
 
@@ -392,7 +393,7 @@ chair faces one corner), and Platform 0, whose edge drops onto a track bed
   `zw_lost_property`), Station Office (`zw_depot_driver`), Staff Corridor with
   the door to Annex B (`zw_annex_memo` on the noticeboard), the Waiting Hall
   full of seated Still Lifes. Hopper by hand in the concourse at (58, 39).
-* Anchors: p_lobby_depot, transport_bay, ticket_kiosk, r_depot_annex.
+* Anchors: p_lobby_depot, transport_bay, ticket_kiosk, r_depot_annex, p_parking_depot.
 * Grade `parking`, ambience `parking`, reverb `hall`, music `drone`. Spawn:
   still_life 3, hollow 1.5, employee 1, grinhound 1, sentinel 1, echo 0.8, occupant 0.3, gloam 0.8, stammer 0.8.
 

@@ -426,7 +426,9 @@ export class Holo {
       const alive = new Set<string>();
       for (const q of G.players.values()) {
         alive.add(q.id);
-        const on = !this.detonated.has(q.id) && (q.isLocal ? this.fitted && this.detonT < 0 : this.fitted || this.wearsBand(q));
+        const st = this.bandState(q.id);
+        if (st === 'armed') this.detonated.delete(q.id);
+        const on = !this.detonated.has(q.id) && !this.gone(st) && (st === 'armed' || (q.isLocal ? this.fitted && this.detonT < 0 : this.fitted || this.wearsBand(q)));
         this.bands.sync(q, on);
       }
       this.bands.prune(alive);
@@ -452,6 +454,8 @@ export class Holo {
     this.talk(dt, v, p);
     // timers
     if (this.bootT >= 0) { this.bootT += dt; if (this.bootT > 5.2) this.bootT = -1; }
+    // a new band fitted after the old one went off: boot it
+    if (this.detonT > 2 && this.bandState(p.id) === 'armed') { this.detonT = -1; this.boot(); }
     if (this.autoT > 0) { this.autoT -= dt; if (this.autoT <= 0 && !this.pinned && this.hoverT < 0) this.setExpanded(false); }
     if (this.hoverT > 0) { this.hoverT -= dt; if (this.hoverT <= 0) { this.hoverT = -1; this.setExpanded(true); } }
     if (this.leaveT > 0) { this.leaveT -= dt; if (this.leaveT <= 0) { this.leaveT = -1; if (!this.pinned && this.autoT <= 0) this.setExpanded(false); } }
@@ -461,7 +465,9 @@ export class Holo {
     // visibility
     const ui = G.ui;
     const blocked = !!(ui?.scanner?.open || ui?.inventory?.open || ui?.readerEl || ui?.modal || G.attract);
-    const show = this.fitted && !blocked && !(this.dead && this.deadT > 4) && this.detonT < 1.6;
+    // no band on the wrist (cut off, blown, lost with the arm): no projection
+    const gone = this.gone(this.bandState(p.id)) && this.detonT < 0;
+    const show = this.fitted && !gone && !blocked && !(this.dead && this.deadT > 4) && this.detonT < 1.6;
     if (show !== this.visible) {
       this.visible = show;
       this.el.classList.toggle('hb-hidden', !show);
@@ -487,13 +493,18 @@ export class Holo {
     if (this.sessionStart < 0) this.sessionStart = G.time;
     const intro: any = G.systems.find((s) => s.name === 'intro');
     const introOn = !!intro && intro.phase !== 'done' && !intro.done && !intro.finished;
-    const flagged = !!G.missions?.flags?.has?.('contract:intake');
-    if (flagged || this.wearsBand(p) || (!introOn && G.time - this.sessionStart > 0.3)) {
+    // while the intro runs, only its fitting scene (boot()) turns the band on
+    if (introOn) return;
+    const flagged = !!G.missions?.flags?.has?.('contract:intake') || this.bandState(p.id) === 'armed';
+    if (flagged || this.wearsBand(p) || G.time - this.sessionStart > 0.3) {
       this.fitted = true;
       // a quick flicker-on instead of the full boot when nobody ran one
       if (!this.booted) { this.glitch = 0.8; G.audio?.ui?.('band_open', 0.3); }
     }
   }
+  /** the band rules' view of a survivor's band ('armed', 'removed', 'blown', 'lost'; '' when unknown) */
+  private bandState(id: string): string { try { const s = (G as any).band?.get?.(id); return typeof s === 'string' && s !== 'none' ? s : ''; } catch { return ''; } }
+  private gone(st: string) { return st === 'removed' || st === 'blown' || st === 'lost'; }
   private wearsBand(p: Player): boolean {
     try {
       if (p.worn?.get?.('wrist' as any)?.key === 'bailiff_band') return true;
@@ -1026,7 +1037,7 @@ export class Holo {
     B.text3(id, right - HoloBuf.w3(id), 21, COL.dim, 0.8);
     B.hline(2, W - 3, 30, COL.dim, 0.5, 3);
     // band footer
-    const foot = 'BAILIFF 4.71  MERIDIAN REMITTANCE  [L]';
+    const foot = 'BAILIFF BLF-7  MERIDIAN REMITTANCE  [L]';
     B.text3(foot, 2, EH - 6, COL.dim, 0.45);
     if (this.warn) {
       const cd = this.warn.countdown != null ? Math.ceil(this.warn.countdown) : null;
@@ -1051,17 +1062,33 @@ export class Holo {
     for (let x = 0; x < BODY_W; x++) B.add(ox + x, sy, COL.cyan, 0.18);
   }
 
+  /** power-on: a line of light opens out of the lens, the unit types its terms, the lock seats */
   private drawBoot(B: HoloBuf, c: Ink, p: Player) {
     const t = this.bootT;
-    const lines = ['BAILIFF 4.71', 'MERIDIAN REMIT.', 'SEATING..... OK', 'VASC LOCK... OK', 'DEBTOR ' + debtorNo(p), 'LIAB ¤' + (this.debtNow() ? fmt(this.debtNow()!.owed) : '------')];
-    const n = Math.min(lines.length, Math.floor(t / 0.42) + 1);
-    const start = Math.max(0, n - 6);
-    for (let i = start; i < n; i++) {
-      const s = lines[i];
-      const shown = i === n - 1 ? s.slice(0, Math.floor(((t % 0.42) / 0.42) * s.length * 1.5) + 1) : s;
-      B.text3(shown, 3, 3 + (i - start) * 7, i === n - 1 ? COL.white : c, i === n - 1 ? 1 : 0.7, 0.02);
+    const W = B.w, H = B.h;
+    if (t < 0.5) {
+      // a CRT-style line widening from the middle, then a burst of snow
+      const k = t / 0.5, half = Math.floor((W / 2) * Math.min(1, k * 1.6)), y = Math.floor(H / 2);
+      for (let x = W / 2 - half; x < W / 2 + half; x++) { B.add(x, y, COL.white, 1); B.add(x, y - 1, c, 0.5); B.add(x, y + 1, c, 0.5); }
+      if (k > 0.6) for (let i = 0; i < 160; i++) B.add(Math.random() * W, Math.random() * H, Math.random() < 0.3 ? COL.white : c, 0.7);
+      return;
     }
-    if (Math.floor(t * 4) % 2) B.add(3 + HoloBuf.w3(lines[n - 1]) + 2, 3 + (n - 1 - start) * 7 + 4, COL.white, 1);
+    const d = this.debtNow();
+    const lines = ['BAILIFF BLF-7', 'MERIDIAN REMITTANCE', 'SEATING........ OK', 'VASCULAR LOCK.. OK', 'DEBTOR ' + debtorNo(p), d ? 'LIABILITY ¤' + fmt(d.owed) : 'LIABILITY ¤------'];
+    const tt = t - 0.5;
+    const n = Math.min(lines.length, Math.floor(tt / 0.45) + 1);
+    for (let i = 0; i < n; i++) {
+      const s = lines[i];
+      const last = i === n - 1;
+      const shown = last ? s.slice(0, Math.floor(((tt % 0.45) / 0.45) * s.length * 1.6) + 1) : s;
+      B.text3(shown, 3, 2 + i * 7, last ? COL.white : COL.hi, last ? 1 : 0.85, 0.01, last ? 1 : 0);
+    }
+    if (Math.floor(t * 5) % 2) B.rect(3 + HoloBuf.w3(lines[n - 1]) + 2, 2 + (n - 1) * 7, 2, 5, COL.white, 1);
+    // the lock seating: a bar that fills, stalls, then slams full
+    const prog = Math.min(1, tt < 1.6 ? tt / 2.4 : tt < 2.0 ? 0.66 : 0.66 + (tt - 2.0) * 1.2);
+    const bx = W - 10, by = 3, bh = H - 8;
+    for (let y = 0; y < bh; y++) { const on = y >= bh * (1 - prog); B.add(bx, by + y, on ? (prog >= 1 ? COL.white : c) : COL.dim, on ? 0.9 : 0.35); B.add(bx + 2, by + y, on ? c : COL.dim, on ? 0.6 : 0.2); }
+    if (prog >= 1 && tt < 3.0) B.text3('OK', bx - 9, by + bh - 5, COL.white, 1);
   }
 
   private drawDetonate(B: HoloBuf, t: number) {
