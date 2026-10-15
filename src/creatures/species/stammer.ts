@@ -38,7 +38,7 @@ function bonesS(v: number): BoneSpec[] {
   ];
   for (const [s, k] of [['L', 1], ['R', -1]] as const) {
     b.push(
-      { name: 'arm' + s, parent: 'chest', at: [k * 0.21, 0.29, -0.01], cap: true },
+      { name: 'arm' + s, parent: 'chest', at: [k * 0.25, 0.29, -0.01], cap: true },
       { name: 'fore' + s, parent: 'arm' + s, at: [0, -0.56, 0], cap: true },
       { name: 'hand' + s, parent: 'fore' + s, at: [0, -0.74, 0], cap: true },
       { name: 'f1' + s, parent: 'hand' + s, at: [0, -0.1, 0] },
@@ -120,12 +120,12 @@ function buildS(B: SkinB, x: BuildCtx) {
     return [bi('chest'), 0.5, bi('neck'), 0.5];
   };
   // a ribcage you could count, a spine of knuckles
-  tube(B, { rows: TORSO_S.map((r) => ({ ...r, rx: r.rx * 1.3, rf: r.rf * 1.2, rb: r.rb * 1.25 })), ys: [1.45, 1.5, 1.54, 1.58, 1.64, 1.7, 1.76, 1.84, 1.91, 1.98, 2.05, 2.12, 2.17, 2.2, 2.25, 2.28], n: 12, reg: R('TORSO'), vr: R('TORSO').range, at: [0, off, 0], w: (y) => tw(y), g: 1, start: [0, 1.445 + off, 0], end: [0, 2.29 + off, -0.004],
+  tube(B, { rows: TORSO_S.map((r) => ({ ...r, rx: r.rx * 1.55, rf: r.rf * 1.45, rb: r.rb * 1.5 })), ys: [1.45, 1.5, 1.54, 1.58, 1.64, 1.7, 1.76, 1.84, 1.91, 1.98, 2.05, 2.12, 2.17, 2.2, 2.25, 2.28], n: 12, reg: R('TORSO'), vr: R('TORSO').range, at: [0, off, 0], w: (y) => tw(y), g: 1, start: [0, 1.445 + off, 0], end: [0, 2.29 + off, -0.004],
     bump: (th, y) => (Math.cos(th) > -0.2 ? 0.09 * Math.pow(Math.max(0, Math.sin(y * 70)), 2) * gauss(y, 2.0, 0.12) : 0) + gauss(Math.abs(angd(th, Math.PI)), 0, 0.12) * 0.1 * Math.max(0, Math.sin(y * 95)) - gauss(y, 1.72, 0.06) * gauss(th, 0, 0.5) * 0.12 });
   tube(B, { rows: [{ y: -0.04, rx: 0.03, rf: 0.03, rb: 0.034 }, { y: 0.05, rx: 0.02, rf: 0.02, rb: 0.024 }, { y: 0.28, rx: 0.018, rf: 0.018, rb: 0.022 }, { y: 0.35, rx: 0.026, rf: 0.026, rb: 0.026 }],
     ys: [-0.04, 0.02, 0.08, 0.16, 0.24, 0.3, 0.35], n: 7, reg: R('NECK'), vr: R('NECK').range, at: x.rest('neck'), w: (y) => (y < 0.0 ? [bi('chest'), 0.5, bi('neck'), 0.5] : y > 0.3 ? [bi('neck'), 0.4, bi('head'), 0.6] : [bi('neck'), 1]), g: 4 });
   const hp = x.rest('head');
-  headLoft(B, { at: hp, rows: HEAD_S, s: 1.3, reg: R('HEAD'), vr: R('HEAD').range, w: (y) => (y < 0.06 ? [bi('head'), 0.5, bi('jaw'), 0.5] : [bi('head'), 1]), g: 6, top: 0.235, bottom: -0.035,
+  headLoft(B, { at: hp, rows: HEAD_S, s: 1.45, reg: R('HEAD'), vr: R('HEAD').range, w: (y) => (y < 0.06 ? [bi('head'), 0.5, bi('jaw'), 0.5] : [bi('head'), 1]), g: 6, top: 0.235, bottom: -0.035,
     bump: (th, y) => -gauss(Math.abs(th), 0.32, 0.12) * gauss(y, 0.12, 0.018) * 0.22 - gauss(th, 0, 0.16) * gauss(y, 0.04, 0.03) * 0.16 });
   // the inside of the mouth: a long dark hole the jaw hangs open over
   {
@@ -142,13 +142,13 @@ function buildS(B: SkinB, x: BuildCtx) {
       if (y > -1.26 * L) return [F, 1];
       return [F, 0.5, H, 0.5];
     };
-    tube(B, { rows: ARM_S(L), ys: [0, -0.03, -0.2, -0.4, -0.5, -0.56, -0.62, -0.8, -1.0, -1.15, -1.25 * L, -1.3 * L], n: 6, reg: R('ARM'), vr: R('ARM').range, at, w: wf, g: 10 + (k > 0 ? 0 : 1), mirror: k });
+    tube(B, { rows: ARM_S(L).map((r) => ({ ...r, rx: r.rx * 1.35, rf: r.rf * 1.35, rb: r.rb * 1.35 })), ys: [0, -0.03, -0.2, -0.4, -0.5, -0.56, -0.62, -0.8, -1.0, -1.15, -1.25 * L, -1.3 * L], n: 6, reg: R('ARM'), vr: R('ARM').range, at, w: wf, g: 10 + (k > 0 ? 0 : 1), mirror: k });
     const hpp = x.rest('hand' + s);
     handLoft(B, { k, at: [hpp[0], hpp[1] - 0.004, hpp[2]], bones: { farm: F, hand: H, f1: bi('f1' + s), f2: bi('f2' + s), thumb: bi('th' + s) }, reg: R('HAND'), g: 20 + (k > 0 ? 0 : 10), s: 1.0,
-      palm: { len: 0.1, w: 0.03, t: 0.01 }, fingers: { n: 3, len: [0.25, 0.28, 0.24], r: [0.0058, 0.006, 0.0056] }, thumb: { len: 0.1, r: 0.006 } });
+      palm: { len: 0.12, w: 0.04, t: 0.014 }, fingers: { n: 3, len: [0.28, 0.32, 0.27], r: [0.009, 0.0095, 0.0088] }, thumb: { len: 0.11, r: 0.009 } });
     const T = bi('thigh' + s), Sh = bi('shin' + s), Ft = bi('foot' + s);
     const lt = x.rest('thigh' + s);
-    const rows = LEG_S.map((r) => ({ ...r, y: r.y < -0.75 ? r.y * L : r.y }));
+    const rows = LEG_S.map((r) => ({ ...r, y: r.y < -0.75 ? r.y * L : r.y, rx: r.rx * 1.6, rf: r.rf * 1.6, rb: r.rb * 1.6 }));
     const wl = (y: number): Wt => {
       if (y > 0.02) return [bi('pelvis'), 0.5, T, 0.5];
       if (y > -0.72 * L) return [T, 1];
@@ -157,7 +157,7 @@ function buildS(B: SkinB, x: BuildCtx) {
       return [Sh, 0.5, Ft, 0.5];
     };
     tube(B, { rows, ys: [0.06, -0.02, -0.15, -0.3, -0.5, -0.72 * L, -0.78 * L, -0.84 * L, -1.0 * L, -1.2 * L, -1.4 * L, -1.46 * L], n: 6, reg: R('LEG'), vr: R('LEG').range.map((v) => v * L), at: lt, w: wl, g: 30 + (k > 0 ? 0 : 1), mirror: k, start: [lt[0], lt[1] + 0.06, lt[2]], startW: [bi('pelvis'), 0.6, T, 0.4] });
-    footLoft(B, { k, at: x.rest('foot' + s), rows: FOOT_BARE, ground: -0.06, sole: 0.002, lip: 0, reg: R('FOOT'), w: [Ft, 1], g: 36 + (k > 0 ? 0 : 1), s: 1.25, sx: 0.55, toeLift: 0.1 });
+    footLoft(B, { k, at: x.rest('foot' + s), rows: FOOT_BARE, ground: -0.06, sole: 0.002, lip: 0, reg: R('FOOT'), w: [Ft, 1], g: 36 + (k > 0 ? 0 : 1), s: 1.4, sx: 0.75, toeLift: 0.1 });
   }
 }
 

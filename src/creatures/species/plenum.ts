@@ -348,6 +348,16 @@ function thinkPlenum(c: Creature, dt: number): boolean {
     }
     return true;
   }
+  // on the floor with a body (src/gore/maul.ts picks it and bites): it stays at it
+  const f = m.feed as { pid: string; until: number } | undefined;
+  const v = f && G.time < f.until ? (G.players.get(f.pid) as Player | undefined) : undefined;
+  if (v && v.body.dead && v.zoneKey === c.zoneKey && (!near || near.d > 6)) {
+    const reach = c.sp.attack!.range + 0.3;
+    if (dist(v, c) > reach) { c.setState('investigate'); cs.moveTo(c, z, v.x, v.z, c.sp.run * 0.6, dt, reach * 0.8); }
+    else { hold(c); face(c, v.x, v.z); }
+    m.floorAt = G.time;
+    return true;
+  }
   // on the floor: fast, low, it bites; it does not stay long
   if (!near || near.d > 20) { if (ceilingOver(z, c.x, c.z)) goUp(c); else { c.setState('wander'); c.goal = c.goal ?? cs.wanderSpot(c, z, 10); if (cs.moveTo(c, z, c.goal!.x, c.goal!.z, c.sp.walk, dt, 0.8)) c.goal = null; } return true; }
   const p = near.p, d = near.d;

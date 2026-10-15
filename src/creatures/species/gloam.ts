@@ -86,7 +86,7 @@ function buildG(B: SkinB, x: BuildCtx) {
       const rx = 0.112, rz = 0.104;
       const c: V3 = [hp[0] + Math.sin(a) * rx, hp[1] + y0, hp[2] + 0.03 + Math.cos(a) * rz];
       const h = 0.022 + (i % 3 === 1 ? 0.012 : 0) + (Math.abs(i - 7) < 2 ? 0.006 : 0);
-      B.box([c[0], c[1] + (jaw ? h / 2 : -h / 2), c[2]], [0.011, h, 0.01], null, R('TOOTH'), [J, 1], [0, 0, 1, 1], 1, 0.55);
+      B.box([c[0], c[1] + (jaw ? h / 2 : -h / 2), c[2]], [0.013, h * 1.15, 0.012], null, R('TOOTH'), [J, 1], [0, 0, 1, 1], 1, 0.8);
     }
     B.box([hp[0], hp[1] + y0 + (jaw ? -0.004 : 0.004), hp[2] + 0.06], [0.2, 0.008, 0.12], null, R('GUM'), [J, 1]);
   };
@@ -253,7 +253,18 @@ function thinkGloam(c: Creature, dt: number): boolean {
     if (!c.goal || cs.moveTo(c, z, c.goal.x, c.goal.z, c.sp.run, dt, 0.7) || c.stateT > 6) { c.setState('hide'); c.goal = null; }
     return true;
   }
-  if (!p) { c.setState('idle'); hold(c); return true; }
+  if (!p) {
+    // a body to feed on (src/gore/maul.ts chooses it and does the biting): go to it, through the dark
+    const f = m.feed as { pid: string; until: number } | undefined;
+    const v = f && G.time < f.until ? (G.players.get(f.pid) as Player | undefined) : undefined;
+    if (v && v.body.dead && v.zoneKey === c.zoneKey) {
+      const reach = c.sp.attack!.range + 0.3;
+      if (dist(v, c) > reach) { c.setState('investigate'); cs.moveTo(c, z, v.x, v.z, c.sp.walk, dt, reach * 0.8); }
+      else { hold(c); face(c, v.x, v.z); }
+      return true;
+    }
+    c.setState('idle'); hold(c); return true;
+  }
   c.targetId = p.id;
   const d = dist(p, c);
   // what counts as the dark for the survivor: no light on, or it browning out, and standing somewhere dark
@@ -300,7 +311,7 @@ const S = def({
   animate: animateGloam,
   think: thinkGloam,
 });
-defDread('gloam', { shine: { part: 'head', off: [0, 0.05, 0.12], sep: 0.05, color: 0xd8ff70, size: 0.05 }, flick: 9, flickStep: 3, sting: 'swell', cam: 0.7, twitch: ['head', 'jaw'], twitchRate: 0.4, skipDark: 0.3 });
+defDread('gloam', { shine: { part: 'head', off: [0, 0.05, 0.12], sep: 0.05, color: 0xd8ff70, size: 0.065 }, flick: 9, flickStep: 3, sting: 'swell', cam: 0.7, twitch: ['head', 'jaw'], twitchRate: 0.4, skipDark: 0.3 });
 (S as any).animateGallery = (rig: Rig, t: number) => {
   const q = new URLSearchParams(location.search).get('pose') || '';
   const c = fakeCreature(S, { id: 'g' + (Number(q.match(/\d/)?.[0] ?? 1)), state: q.startsWith('flee') ? 'flee' : 'stalk', speed: q.startsWith('walk') ? 1.4 : 0, phase: t * 4, attackPhase: q.startsWith('attack') ? 0.1 : 0, mem: { netMem: {} } });
