@@ -118,7 +118,7 @@ export function generateShowroom(z: Zone, seed: number) {
   floorRect(b, 101, 51, 103, 53, 'linoleum');
 
   // ============================================================ the cafeteria (east)
-  floorRect(b, 101, 2, 141, 40, 'checker', 'wall_kitchen');
+  floorRect(b, 101, 2, 141, 40, 'linoleum_school', 'wall_kitchen');
   b.roomWalls(101, 2, 141, 40, 'cinder');
   b.addRoom('Cafe', 'cafeteria', 101, 2, 141, 40, { circuit: C_CAFE, temp: 21 });
   for (let y = 21; y <= 23; y++) b.gap(101, y, 1);       // from aisle 1's east end
@@ -201,7 +201,7 @@ export function generateShowroom(z: Zone, seed: number) {
     ambient: 0x3a3a38, ambientI: 0.6, fog: 0x1e1e1c, fogNear: 16, fogFar: 38, void: 0x0a0a09, temp: 19,
     grade: 'market', reverb: 'mall', ambience: 'market', music: 'muzak',
   };
-  z.spawnTable = [['still_life', 4], ['davenport', 1.5], ['hollow', 1], ['employee', 1.5], ['swivel', 1], ['plushkin', 0.6]];
+  z.spawnTable = [['still_life', 4], ['davenport', 1.5], ['hollow', 1], ['employee', 1.5], ['swivel', 1], ['plushkin', 0.6], ['plenum', 0.8], ['stammer', 0.6]];
   z.creatureCap = 8;
   z.meta.terminalLore = ['zw_showroom_memo', 'zw_assembly', 'terminal_generic'];
 }

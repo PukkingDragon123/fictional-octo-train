@@ -22,6 +22,7 @@ import { toUrl } from '../pixelkit';
 import { tattooImage, hairIcon, stampWord } from './art';
 import { rehabStation, RehabCtx } from './rehab';
 import { termsStation, TermsCtx, PRESETS } from './terms';
+import { CONTRACT_SANDBOX } from '../../game/debt/defaults';
 import './diegetic.css';
 
 export interface IntakeResult {
@@ -97,7 +98,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     let occ = 'unemployed';
     const traits = new Set<string>();
     let preset = 'standard';
-    const sb: Record<string, number> = { ...((G?.sandbox as any) || {}), ...PRESETS.standard.s };
+    // the debt contract's own terms (src/game/debt/defaults.ts) are on the form even before a world exists
+    const sb: Record<string, number> = { ...CONTRACT_SANDBOX, ...((G?.sandbox as any) || {}), ...PRESETS.standard.s };
     let seed = Math.floor(Math.random() * 99999);
     let directives = opts.directives ?? true;
     const withSandbox = opts.sandbox !== false;

@@ -241,7 +241,7 @@ export function paintLid(look: BagLook, w: number, number: string): PixelCanvas 
   }
   if (!look.rigid) {
     // mesh pocket across the lower half with an elastic band
-    const mx0 = 9, mx1 = w - 9, my0 = 14, my1 = H;
+    const mx0 = 9, mx1 = w - 9, my0 = number ? 17 : 14, my1 = H;
     for (let y = my0; y < my1; y++) for (let x = mx0; x < mx1; x++) {
       const m = ((x + y) % 3 === 0) || ((x - y + 99) % 3 === 0);
       if (m) pc.set(x, y, mixHex(pc.get(x, y), 0x0e0d0a, 0.55));
@@ -260,11 +260,10 @@ export function paintLid(look: BagLook, w: number, number: string): PixelCanvas 
       const tmp = new PixelCanvas(4, 6); tmp.wrap = false; text(tmp, ch, 0, 0, 0xffffff);
       for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (tmp.alpha(i, j)) for (let q = 0; q < 4; q++) {
         const px = cx + i * 2 + (q & 1), py = sy + j * 2 + (q >> 1);
-        if (ph(px, py, 77) > 0.12) pc.set(px, py, ph(px, py, 78) > 0.85 ? 0x3a2a1a : 0x16130e);
+        if (ph(px, py, 77) > 0.14) pc.set(px, py, ph(px, py, 78) > 0.8 ? 0xb8b098 : 0xe2dcc6);
       }
       cx += 8;
     }
-    if (line1) text(pc, line1.slice(0, Math.floor((w - 10) / 4)), Math.round((w - textW(line1.slice(0, Math.floor((w - 10) / 4)))) / 2), 18 + 2, mixHex(0x16130e, dk(look.lining, 0.82), 0.25));
   } else if (line1) {
     const tw = textW(line1) + 6;
     const lx = Math.round((w - tw) / 2), ly = 5;

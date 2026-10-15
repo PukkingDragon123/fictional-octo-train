@@ -127,7 +127,7 @@ export class Touch3D {
     else if (st.parts.mesh.count) { st.parts.update(dt, st.px); st.dirty = true; }
     // ambient life (lamp flutter, the scanner's blink, rust and blood spreading) at a low rate
     this.ambientT -= dt;
-    if (this.ambientT <= 0) { this.ambientT = 0.1; st.dirty = true; }
+    if (this.ambientT <= 0) { this.ambientT = 0.125; st.dirty = true; }
     SHARED.uTime.value += dt;
     const quality = (G as any).pr?.quality;
     st.render(performance.now(), quality === 'low' ? 30 : 60);

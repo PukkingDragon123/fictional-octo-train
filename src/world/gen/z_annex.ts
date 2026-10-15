@@ -14,7 +14,7 @@ import { Furnisher } from './furnish';
 import { Rng } from '../../core/rng';
 import { registerShift } from '../shift';
 import { connectRegions } from './connect';
-import { Ctx, Rot, arrive, put, force, mount, decal, hh, hopperAt, lamp, ropeLine, isOpen, floorRect } from './weird_kit';
+import { type Ctx, type Rot, arrive, put, force, mount, decal, hh, hopperAt, lamp, ropeLine, isOpen, floorRect } from './weird_kit';
 
 const W = 128, H = 112;
 const C_WEST = 1, C_CAMP = 2, C_DARK = 3, C_GEN = 4, C_LABS = 5;
@@ -307,7 +307,7 @@ export function generateAnnex(z: Zone, seed: number) {
     ambient: 0x242628, ambientI: 0.42, fog: 0x101214, fogNear: 10, fogFar: 26, void: 0x050607, temp: 17,
     grade: 'office', reverb: 'office', ambience: 'office', music: 'drone',
   };
-  z.spawnTable = [['still_life', 3], ['employee', 2], ['hollow', 1.5], ['swivel', 1], ['drywall_man', 1], ['echo', 1], ['custodian', 0.4]];
+  z.spawnTable = [['still_life', 3], ['employee', 2], ['hollow', 1.5], ['swivel', 1], ['drywall_man', 1], ['echo', 1], ['custodian', 0.4], ['surveyor', 1.5], ['plenum', 1.2]];
   z.creatureCap = 8;
   z.meta.terminalLore = ['zw_annex_memo', 'zw_annex_log', 'terminal_generic'];
   z.meta.shiftRate = 1;

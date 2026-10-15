@@ -365,7 +365,7 @@ defObj({
   variant: (s) => String((s.v ?? 0) % 6),
   model: (mb, s) => {
     const k = (s.v ?? 0) % 6;
-    mb.box(0, 0.95, WZ + 0.006, 0.6, 0.88, 0.006, 'zw_same_' + k, { fit: true });
+    mb.box(0, 0.82, WZ + 0.006, 0.8, 1.16, 0.006, 'zw_same_' + k, { fit: true });
   },
 });
 

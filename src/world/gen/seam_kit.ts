@@ -57,7 +57,8 @@ export function placeSeam(z: Zone, b: ZoneBuilder) {
   cands.sort((a, c) => a.score - c.score);
   const c = cands[0];
   if (!c) return null;
-  const o = b.obj('seam_door', c.x, c.y, c.rot, {});
+  // the Lobby's Seam is shut: a dead scar (the intro wakes it locally for a minute)
+  const o = b.obj('seam_door', c.x, c.y, c.rot, { sealed: true });
   if (!o) return null;
   seamDecals(z, c.x, c.y, c.rot);
   z.meta.seam = [c.x, c.y, c.rot];

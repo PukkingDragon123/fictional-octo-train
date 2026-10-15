@@ -32,11 +32,11 @@ const FRAG = /* glsl */`
   vec3 alb = diffuseColor.rgb;
   float lum = dot(alb, vec3(0.3, 0.59, 0.11));
   float warm = clamp((alb.r - alb.b) * 2.4 - 0.25, 0.0, 1.0);
-  vec3 col = mix(uHoloTint, uHoloWarm, warm * 0.85) * (0.28 + lum * 1.35);
+  vec3 col = mix(uHoloTint, uHoloWarm, warm * 0.85) * (0.45 + lum * 1.6);
   // rim: edges of the figure glow brighter
   vec3 vd = normalize(cameraPosition - vWPos);
   float rim = pow(1.0 - abs(dot(normalize(vWNormal), vd)), 2.0);
-  col += uHoloTint * rim * 0.55;
+  col += uHoloTint * rim * 0.8;
   // scanlines (screen) and fine world bands
   float scan = 0.62 + 0.38 * step(0.5, fract(gl_FragCoord.y * 0.5));
   float bands = 0.85 + 0.15 * sin(vWPos.y * 90.0 - uTime * 6.0);
@@ -79,6 +79,18 @@ export function holoBaseMaterial(): THREE.Material {
   };
   m.customProgramCacheKey = () => 'noclip:holo1';
   baseMat = m;
+  return m;
+}
+
+let propMat: THREE.Material | null = null;
+/** the same light for plain (unskinned) meshes textured from the atlas: the beret */
+export function holoPropMaterial(): THREE.Material {
+  if (propMat) return propMat;
+  const base = holoBaseMaterial();
+  const m = new THREE.MeshLambertMaterial({ map: atlas().texture, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending });
+  m.onBeforeCompile = (shader, r) => base.onBeforeCompile(shader, r);
+  m.customProgramCacheKey = () => 'noclip:holo1p';
+  propMat = m;
   return m;
 }
 

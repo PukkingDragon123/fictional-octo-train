@@ -79,6 +79,17 @@ export function fallbackPose(name: string, u: number, t: number, k = 9): Pose | 
         gripL: 0.4, gripR: 0.4, blink: 0.6,
       });
     }
+    case 'hauled_up': {
+      // pulled up off the floor by the wrists: from flat on the back to on the feet, knees buckling
+      const e = ease(u), kb = Math.sin(clamp01(u) * Math.PI);
+      return P({
+        bodyPitch: lerp(-1.38, 0.18, e), bodyY: lerp(0.2, 0, e), rootY: -0.35 * kb,
+        uarmL: [lerp(-2.95, -1.3, e), 0, 0.2], farmL: [-0.2, 0, 0], uarmR: [lerp(-2.95, -1.3, e), 0, -0.2], farmR: [-0.2, 0, 0],
+        spine: [0.3 * kb, 0, 0], head: [lerp(0.55, 0.3, e), 0, 0.1],
+        thighL: [-0.9 * kb, 0, 0.08], shinL: [1.3 * kb, 0, 0], thighR: [-0.6 * kb, 0, -0.08], shinR: [1.1 * kb, 0, 0],
+        gripL: 0.5, gripR: 0.5,
+      });
+    }
     case 'beaten': {
       // curled on the side, arms wrapped over the head; each blow jolts the whole body
       const j = Math.exp(-k * 9) * (k < 0.6 ? 1 : 0);

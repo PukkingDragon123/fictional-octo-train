@@ -258,14 +258,15 @@ defObj({
     const z0 = WZ;
     // wall plate + bracket arm
     mb.box(0, 2.18, z0 + 0.02, 0.22, 0.14, 0.04, 'metal_dark');
-    mb.box(0, 2.08, z0 + 0.2, 0.05, 0.05, 0.36, 'metal_dark');
-    mb.push().translate(0, 1.66, z0 + 0.36).rotateX(0.14);
+    mb.box(0, 2.1, z0 + 0.22, 0.05, 0.05, 0.42, 'metal_dark');
+    mb.box(0, 2.1, z0 + 0.42, 0.05, 0.12, 0.05, 'metal_dark');
+    mb.push().translate(0, 1.52, z0 + 0.42).rotateX(0.14);
     // housing: deep industrial tube
-    mb.box(0, 0, -0.05, 0.66, 0.52, 0.34, 'zp_crt_body');
-    mb.box(0, 0.05, -0.3, 0.46, 0.38, 0.18, 'zp_crt_body', { color: 0xc8c8c8 });
+    mb.box(0, 0, -0.06, 0.84, 0.66, 0.4, 'zp_crt_body');
+    mb.box(0, 0.06, -0.34, 0.6, 0.48, 0.2, 'zp_crt_body', { color: 0xc8c8c8 });
     // screen
-    mb.box(0, 0.05, 0.122, 0.56, 0.42, 0.006, { south: 'zp_crt_mugshot', all: 'glass_dark' }, { fit: { south: true }, emissive: 0.95 });
-    mb.box(0.27, 0.025, 0.12, 0.025, 0.015, 0.006, 'led_green', { emissive: 1.2 });
+    mb.box(0, 0.06, 0.142, 0.72, 0.54, 0.006, { south: 'zp_crt_mugshot', all: 'glass_dark' }, { fit: { south: true }, emissive: 0.95 });
+    mb.box(0.36, 0.025, 0.14, 0.025, 0.015, 0.006, 'led_green', { emissive: 1.2 });
     mb.pop();
   },
 });

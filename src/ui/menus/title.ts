@@ -24,7 +24,7 @@ import { h, esc, optionsPanel, controlsPanel, applyGfx, confirmDialog, FocusNav,
 import { runBoot } from './boot';
 import { logoCanvas } from '../pixelart';
 import { toUrl, PkTheme } from '../pixelkit';
-import { DESK_SPRITES, stampWord } from './art';
+import { DESK_SPRITES } from './art';
 import { bus } from '../../core/events';
 import '../../world/zones';
 import '../../game/worldOps';
@@ -164,6 +164,9 @@ class TitleDesk {
     things.push({ key: 'controls', sprite: 'card', label: 'PROCEDURES', sub: 'controls', act: () => this.controls() });
     things.push({ key: 'about', sprite: 'note', label: 'ABOUT', act: () => this.about() });
     const row = h('div', 'tt-things');
+    const wl = h('div', 'tt-wing l'), wr = h('div', 'tt-wing r');
+    row.append(wl, wr);
+    const half = Math.ceil(things.length / 2);
     things.forEach((t, i) => {
       const b = h('button', 'tt-thing ' + (t.cls || '') + ' s-' + t.sprite, `<img src="${toUrl(DESK_SPRITES[t.sprite]())}" alt=""><span class="tt-tape"><b>${esc(t.label)}</b>${t.sub ? `<small>${esc(t.sub)}</small>` : ''}</span>`);
       b.type = 'button';
@@ -172,7 +175,7 @@ class TitleDesk {
       hoverFocus(b);
       b.addEventListener('focus', () => { this.lastBtn = b; });
       b.onclick = () => { sfx(t.cls === 'primary' ? 'confirm' : 'click'); t.act(); };
-      row.append(b);
+      (i < half ? wl : wr).append(b);
     });
     const decor = h('div', 'tt-decor');
     for (const k of ['mug', 'ashtray']) { const im = new Image(); im.src = toUrl(DESK_SPRITES[k]()); im.alt = ''; im.className = 'tt-dec ' + k; decor.append(im); }
@@ -355,6 +358,3 @@ class TitleDesk {
     this.openOver(box, 'k-phone');
   }
 }
-
-/** kept for anything that still imports it: the old label stamp */
-export const titleStamp = () => toUrl(stampWord('NOCLIP', 0xb8261e, 2));

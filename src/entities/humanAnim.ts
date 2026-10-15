@@ -266,6 +266,8 @@ export class HumanAnimator {
    * item body-part key ('head', 'torso_u', 'thigh_l'...), strength 0..1.5.
    */
   hit(fx: number, fz: number, part: string, strength: number) { this.react.hit(fx, fz, part, strength); }
+  /** a swing connected with something solid: the impact jars back up the arms */
+  impact(strength = 0.6) { this.react.recoil(strength); }
   /** foot landings so far (footstep sounds / prints) */
   get steps() { return this.gait.steps; }
   /** which foot landed last (0 left, 1 right) */
@@ -308,7 +310,7 @@ export class HumanAnimator {
       // ---------------- secondary motion: backpack and hair swing with the body
       const yaw = this.gf.yaw, c = Math.cos(yaw), s = Math.sin(yaw);
       const rx = p.rootX ?? 0, rz = p.rootZ ?? 0;
-      const g = this.gait as any;
+      const g = this.gait;
       this.sec.update(dt, g.trkX + c * rx + s * rz, (this.gf.wy || 0) + D.hipY + (p.rootY ?? 0), g.trkZ - s * rx + c * rz, yaw, this.gait.turn,
         (p.head?.[1] ?? 0) + (p.neck?.[1] ?? 0));
       p.pack = this.sec.pack; p.packY = this.sec.packY; p.hair = this.sec.hair;
@@ -860,6 +862,10 @@ export class HumanAnimator {
     } else if (act === 'drag') {
       const tug = Math.max(0, Math.sin(t * 4.2)) * 0.03;
       L.to(0.95, 0.17, 0.8, 0.5 - tug).pole(0.6, -0.4, -0.6); R.to(0.95, -0.17, 0.8, 0.5 - tug).pole(-0.6, -0.4, -0.6);
+    } else if (act === 'pickup') {
+      // the hand goes down for it, in front of the feet, at the bottom of the dip
+      const u = clamp(inp.actionT / Math.max(0.2, inp.actionDur), 0, 1), d = Math.sin(u * Math.PI);
+      R.to(0.85 * d, -0.12, 0.1 + (1 - d) * 0.5, 0.42).pole(-0.7, -0.2, -0.7);
     } else if (act === 'eat') {
       const c = (t / 1.6) % 1;
       const up = c < 0.25 ? ease(c / 0.25) : c < 0.6 ? 1 : 1 - ease((c - 0.6) / 0.3);
@@ -1222,7 +1228,7 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
       set(P, 'handR', drink ? -0.25 - up * 0.65 : 0.15, 0, drink ? -0.2 : 0);
       set(P, 'head', drink ? 0.12 - up * 0.5 + gulp : 0.22 - up * 0.1 + chew, 0, 0);
       set(P, 'neck', drink ? -up * 0.15 : 0.05, 0, 0);
-      set(P, 'uarmL', -0.35, 0.1, 0.2); set(P, 'farmL', -1.4, 0.3, 0);
+      set(P, 'uarmL', -0.12, 0.05, 0.1); set(P, 'farmL', -0.55, 0.15, 0); set(P, 'handL', 0.1, 0, 0.1);
       set(P, 'chest', drink ? -0.08 * up : 0.04, 0, 0); set(P, 'spine', drink ? -0.05 * up : 0.05, 0, 0);
       P.gripR = 0.9; P.gripL = 0.6;
       return { pose: P };
@@ -1361,8 +1367,8 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
       const tug = Math.max(0, Math.sin(time * 4.2));
       set(P, 'uarmR', -0.9, 0.15, -0.05); set(P, 'farmR', -0.2, 0, 0); set(P, 'uarmL', -0.9, -0.15, 0.05); set(P, 'farmL', -0.2, 0, 0);
       set(P, 'handR', 0.3, 0, 0); set(P, 'handL', 0.3, 0, 0);
-      set(P, 'spine', 0.3 - tug * 0.08, 0, 0); set(P, 'chest', 0.06, 0, 0); set(P, 'head', 0.12, 0, 0);
-      P.bodyPitch = -0.2 - tug * 0.05; P.rootY = -0.15 - tug * 0.03; P.gripL = 1; P.gripR = 1;
+      set(P, 'spine', 0.1 - tug * 0.08, 0, 0); set(P, 'chest', 0.04, 0, 0); set(P, 'head', 0.25, 0, 0);
+      P.bodyPitch = -0.3 - tug * 0.06; P.rootY = -0.17 - tug * 0.03; P.gripL = 1; P.gripR = 1;
       return { pose: P };
     }
     case 'smash': {
@@ -1391,7 +1397,7 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
       const T = dur > 0.3 && dur < 1.2 ? dur : 0.85, u2 = ((t % T) + T) % T / T;
       const ch = u2 < 0.35 ? ease(u2 / 0.35) : u2 < 0.62 ? 1 : 1 - ease((u2 - 0.62) / 0.38);
       const ex = u2 < 0.35 ? 0 : u2 < 0.47 ? ease((u2 - 0.35) / 0.12) : u2 < 0.62 ? 1 - ease((u2 - 0.47) / 0.15) : 0;
-      set(P, 'thighR', -1.25 * ch - 0.2 * ex, 0, -0.04); set(P, 'shinR', 1.7 * ch - 1.6 * ex, 0, 0); set(P, 'footR', 0.25 * ch - 0.6 * ex, 0, 0);
+      set(P, 'thighR', -1.5 * ch - 0.15 * ex, 0, -0.04); set(P, 'shinR', 1.9 * ch - 1.8 * ex, 0, 0); set(P, 'footR', 0.25 * ch - 0.65 * ex, 0, 0);
       set(P, 'thighL', 0.05 * ch, 0, 0.03); set(P, 'shinL', 0.15 * ch, 0, 0);
       set(P, 'spine', -0.16 * ch - 0.14 * ex, 0, 0); set(P, 'head', 0.25 * ch, 0, 0);
       set(P, 'uarmL', -0.5 * ch, 0, 0.55 * ch); set(P, 'uarmR', 0.3 * ch, 0, -0.45 * ch); set(P, 'farmL', -0.7, 0, 0); set(P, 'farmR', -0.6, 0, 0);
@@ -1411,12 +1417,13 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
       // hauled along by the wrists: arms up and forward, knees and shins scraping the floor, head lolling
       const loll = Math.sin(time * 1.7), sc = Math.sin(time * 6.5) * 0.03;
       const kick = Math.max(0, Math.sin(time * 0.9 + 1)) ** 12;
-      P.rootY = -0.5; P.bodyPitch = 0.42; P.rootZ = -0.05;
-      set(P, 'uarmL', -2.45, 0.1, 0.22); set(P, 'uarmR', -2.45, -0.1, -0.22); set(P, 'farmL', -0.15, 0, 0); set(P, 'farmR', -0.15, 0, 0);
+      // knees and shins on the floor behind, toes trailing; the trunk hangs from the raised arms
+      P.rootY = -0.56; P.bodyPitch = 0.38; P.rootZ = -0.04;
+      set(P, 'uarmL', -2.5, 0.1, 0.22); set(P, 'uarmR', -2.5, -0.1, -0.22); set(P, 'farmL', -0.12, 0, 0); set(P, 'farmR', -0.12, 0, 0);
       set(P, 'handL', 0.35, 0, 0); set(P, 'handR', 0.35, 0, 0);
-      set(P, 'spine', 0.12, 0, sc); set(P, 'chest', -0.1, 0, 0); set(P, 'neck', 0.25, 0, 0); set(P, 'head', 0.55 + loll * 0.12, loll * 0.3, loll * 0.15);
-      set(P, 'thighL', 0.35 - kick * 0.5, 0, 0.08); set(P, 'shinL', 1.25 + kick * 0.4, 0, 0); set(P, 'footL', 1.0, 0, 0);
-      set(P, 'thighR', 0.3, 0, -0.08); set(P, 'shinR', 1.35 + sc, 0, 0); set(P, 'footR', 1.0, 0, 0);
+      set(P, 'spine', 0.04, 0, sc); set(P, 'chest', -0.12, 0, 0); set(P, 'neck', 0.3, 0, 0); set(P, 'head', 0.6 + loll * 0.12, loll * 0.3, loll * 0.15);
+      set(P, 'thighL', 0.42 - kick * 0.35, 0, 0.08); set(P, 'shinL', 0.78 + kick * 0.5, 0, 0); set(P, 'footL', 1.15, 0, 0);
+      set(P, 'thighR', 0.36, 0, -0.08); set(P, 'shinR', 0.84 + sc, 0, 0); set(P, 'footR', 1.15, 0, 0);
       P.gripL = 0.5; P.gripR = 0.5; P.blink = loll > 0.6 ? 1 : 0.4;
       return { pose: P, mask: ALL };
     }

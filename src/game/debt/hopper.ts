@@ -89,7 +89,7 @@ function eatableObject(o: TileObject): boolean {
   if (!d || d.onWall || d.ceiling) return false;
   const t = d.tags || [];
   if (t.includes('hopper') || t.includes('portal') || t.includes('mission') || t.includes('node') || t.includes('light') || t.includes('transport_model')) return false;
-  if (o.state.pushedBy || o.state.dragBy || o.state.draggedBy || o.state.heldBy || o.state.carriedBy) return false;
+  if (o.state.held || o.state.pushedBy || o.state.dragBy || o.state.draggedBy || o.state.heldBy || o.state.carriedBy) return false;
   return !!(d.movable || o.state.broken || o.state.pushed || o.state.debris || t.includes('debris'));
 }
 
@@ -200,7 +200,10 @@ export class HopperSystem implements GameSystem {
     for (const p of G.players.values()) if (p.zoneKey) zones.add(p.zoneKey);
     const live = new Set<number>();
     for (const zk of zones) {
-      const z = G.zones.get(zk); if (!z) continue;
+      if (zk === 'reality') continue;
+      // a crewmate's zone the host never visited still has to be weighed: generate it (deterministic)
+      let z = G.zones.get(zk);
+      if (!z) { try { z = G.getZone(zk); } catch { continue; } }
       for (const o of this.hoppersIn(z)) {
         live.add(o.uid);
         const { items, objs } = this.contents(z, o);
@@ -347,7 +350,7 @@ export class HopperSystem implements GameSystem {
       f.needle.rotation.z = Math.atan2(-Math.cos(a), -Math.sin(a));
       // plate light: dim idle breathing, amber while weighing, white flash on the take, red on reject
       let gl = on ? 0.12 + 0.05 * Math.sin(G.time * 1.3) : 0.02, gc = 0xffb040;
-      if (f.phase === 'weigh') gl = 0.45 + 0.25 * Math.sin(G.time * 8);
+      if (f.phase === 'weigh') gl = 0.75 + 0.25 * Math.sin(G.time * 8);
       if (f.phase === 'scan') { gl = 0.6; gc = 0x6af0ff; }
       if (f.phase === 'sink') { gl = Math.max(0.15, 1.2 - f.t * 1.2); gc = 0xffe8c0; }
       if (f.phase === 'reject') { gl = 0.7 * (Math.sin(f.t * 20) > 0 ? 1 : 0.2); gc = 0xff3020; }
@@ -387,6 +390,7 @@ export class HopperSystem implements GameSystem {
         this.tmp.set(o.x + 1, 0, o.y + 1);
         if (busy) G.pointLight(this.tmp.x - 0.4, 2.3, this.tmp.z - 0.9, f.phase === 'reject' ? 0xff3020 : 0xffa020, 1.4 * (Math.sin(G.time * 14) > 0 ? 1 : 0.25), 6);
         if (scanning) G.pointLight(this.tmp.x, 0.6, this.tmp.z, 0x6af0ff, 1.6, 5);
+        else if (f.phase === 'weigh') G.pointLight(this.tmp.x, 0.4, this.tmp.z, 0xffa030, 0.7 + 0.4 * Math.sin(G.time * 8), 4);
         else if (f.phase === 'sink') G.pointLight(this.tmp.x, 0.3, this.tmp.z, 0xffe0b0, Math.max(0, 1.4 - f.t), 5);
       }
       // the number roll-up projected above the plate
@@ -396,7 +400,7 @@ export class HopperSystem implements GameSystem {
         const shown = Math.round(f.value * (1 - Math.pow(1 - k, 3)));
         const num = f.label.querySelector('b');
         if (num) num.textContent = '+' + fmt(shown);
-        const sp = G.pr.worldToScreen(this.tmp.set(o.x + 1, 2.0, o.y + 1));
+        const sp = G.pr.worldToScreen(this.tmp.set(o.x + 1, 1.1, o.y + 1.3));
         f.label.style.left = sp.x + 'px'; f.label.style.top = sp.y + 'px';
         f.label.style.opacity = String(vis ? Math.min(1, (3.2 - f.roll) * 2) : 0);
         if (f.roll > 3.4) { f.label.remove(); f.label = null; }

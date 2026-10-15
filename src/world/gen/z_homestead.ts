@@ -11,7 +11,7 @@ import { Zone, TF } from '../zone';
 import { ZoneBuilder } from './builder';
 import { Furnisher } from './furnish';
 import { Rng } from '../../core/rng';
-import { Ctx, Rot, Side, BACK, FACE, arrive, put, force, mount, decal, hh, hopperAt, lamp, isOpen, floorRect, itemAtW, objCentre, rotLocal } from './weird_kit';
+import { type Ctx, type Rot, type Side, BACK, FACE, arrive, put, force, mount, decal, hh, hopperAt, lamp, isOpen, floorRect, itemAtW, objCentre, rotLocal } from './weird_kit';
 
 const HW = 24, HH = 20, COLS = 4, ROWS = 4, OX = 2, OY = 2;
 const W = OX * 2 + HW * COLS, H = OY * 2 + HH * ROWS;
@@ -37,7 +37,7 @@ export function generateHomestead(z: Zone, seed: number) {
     ambient: 0x2e261c, ambientI: 0.5, fog: 0x140f0a, fogNear: 10, fogFar: 24, void: 0x030202, temp: 21,
     grade: 'house', reverb: 'small', ambience: 'house', music: 'musicbox',
   };
-  z.spawnTable = [['still_life', 5], ['plushkin', 1], ['lamplighter', 1], ['echo', 0.8], ['davenport', 0.4]];
+  z.spawnTable = [['still_life', 5], ['plushkin', 1], ['lamplighter', 1], ['echo', 0.8], ['davenport', 0.4], ['stammer', 1]];
   z.creatureCap = 6;
   z.meta.terminalLore = ['zw_home_survey', 'zw_home_note'];
 }

@@ -57,7 +57,7 @@ float vn(vec3 p) {
 
 const FRAG = /* glsl */`
 uniform vec3 uKey; uniform float uLight; uniform float uRust; uniform float uBlood; uniform float uTime; uniform vec3 uTint;
-uniform float uAlpha; uniform vec3 uGlow; uniform float uSeed; uniform float uWear;
+uniform float uAlpha; uniform vec3 uGlow; uniform float uSeed; uniform float uWear; uniform float uBloodK;
 #ifdef USE_MAP
 uniform sampler2D uMap;
 #endif
@@ -93,7 +93,7 @@ void main() {
     }
   }
   // blood: wet splashes where the hands have been (bleeding)
-  float bs = vSurf.z * uBlood;
+  float bs = vSurf.z * uBlood * uBloodK;
   float wet = 0.0;
   if (bs > 0.001) {
     float bn = vn(q * 7.0 + 11.0) * 0.6 + vn(vec3(q.x * 30.0, q.y * 5.0, q.z * 30.0) + 2.0) * 0.4;
@@ -292,6 +292,8 @@ export class Prop {
   readonly root = new THREE.Group();
   readonly body = new THREE.Group();
   readonly mats: THREE.ShaderMaterial[] = [];
+  /** how much of the survivor's blood ends up on this control (the valve gets the most) */
+  bloodK = 0.35;
   /** view elevation: 90 deg = straight down onto the panel */
   elev = 58 * DEG;
   /** model units across the hit area's smaller side */
@@ -325,7 +327,7 @@ export class Prop {
       uniforms: {
         ...SHARED,
         uAlpha: { value: 1 }, uGlow: { value: new THREE.Vector3() }, uDent: { value: 0 }, uSeed: { value: this.seed + this.mats.length * 3.1 },
-        uWear: { value: o.wear ?? 0.5 }, uMap: { value: o.map ?? null },
+        uWear: { value: o.wear ?? 0.5 }, uMap: { value: o.map ?? null }, uBloodK: { value: this.bloodK },
       },
     });
     this.mats.push(m);
@@ -339,11 +341,12 @@ export class Prop {
   }
   /** dithered contact shadow disc / quad lying on the panel */
   shadow(geo: THREE.BufferGeometry, parent: THREE.Object3D = this.body, dens = 0.6, col = 0x050403): THREE.Mesh {
-    const m = new THREE.ShaderMaterial({ vertexShader: SHADOW_VERT, fragmentShader: SHADOW_FRAG, side: THREE.DoubleSide, uniforms: { uDens: { value: dens }, uAlpha: { value: 1 }, uCol: { value: new THREE.Vector3(((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255) } }, depthWrite: false });
+    const m = new THREE.ShaderMaterial({ vertexShader: SHADOW_VERT, fragmentShader: SHADOW_FRAG, side: THREE.DoubleSide, uniforms: { uDens: { value: dens }, uAlpha: { value: 1 }, uCol: { value: new THREE.Vector3(((col >> 16) & 255) / 255, ((col >> 8) & 255) / 255, (col & 255) / 255) } }, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     (m as any)._shadow = true;
     this.mats.push(m);
     const me = new THREE.Mesh(geo, m);
-    me.frustumCulled = false; me.renderOrder = -1;
+    // after the solid parts, so it lands on whatever surface lies under it
+    me.frustumCulled = false; me.renderOrder = 1;
     parent.add(me);
     return me;
   }

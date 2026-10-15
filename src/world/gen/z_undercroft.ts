@@ -10,7 +10,7 @@ import { Zone, TF } from '../zone';
 import { ZoneBuilder } from './builder';
 import { Furnisher } from './furnish';
 import { Rng } from '../../core/rng';
-import { Ctx, Rot, arrive, put, force, mount, decal, hh, hopperAt, lamp, ropeLine, isOpen, floorRect } from './weird_kit';
+import { type Ctx, type Rot, arrive, put, force, mount, decal, hh, hopperAt, lamp, ropeLine, isOpen, floorRect } from './weird_kit';
 
 const W = 96, H = 96;
 const C_EM = 1, C_CAMP = 2;
@@ -119,6 +119,13 @@ export function generateUndercroft(z: Zone, seed: number) {
   for (let i = 0; i < 70; i++) { const x = rng.int(3, W - 4), y = rng.int(3, H - 4); if (z.floor[z.idx(x, y)]) f.decal(rng.weighted([['decal_puddle', 5], ['decal_stain_dark', 3], ['decal_mold', 2], ['zw_debris', 2], ['decal_footprints', 1]]), x, y, rng.float(1.2, 2.6), rng.float(1.2, 2.6)); }
   // emergency lamps, far apart and dim; most of the light here is what you bring
   for (const [x, y] of [[30, 26], [62, 34], [22, 62], [74, 70], [48, 84], [84, 30]] as const) lamp(b, x, y, 'emergency', C_EM, { intensity: 0.3, radius: 4, flicker: 0.15 });
+  // thin grey light falling through cracks in the slab far above, onto wet concrete
+  for (let i = 0; i < 12; i++) {
+    const x = rng.int(6, W - 7), y = rng.int(6, H - 7);
+    if (!z.floor[z.idx(x, y)]) continue;
+    b.light(x + 0.5, y + 0.5, 'sky', { color: 0xb8c0c8, intensity: 0.3, radius: 4.5, y: 7, circuit: 0, flicker: i % 4 === 0 ? 0.05 : 0 });
+    decal(z, 'decal_puddle', x + 0.5, y + 0.5, 1.8, 1.4, rng.float(0, 6));
+  }
   // a door frame standing alone near the pit, and a single office chair facing the dark
   put(c, 'door_freestanding', PIT.x1 + 4, PIT.y0 - 3, 0, {});
   put(c, 'chair_office', PIT.x0 - 3, PIT.y1 - 2, 1, {});
@@ -127,10 +134,10 @@ export function generateUndercroft(z: Zone, seed: number) {
   z.power.set(C_EM, true); z.power.set(C_CAMP, true);
   z.env = {
     ...z.env,
-    ambient: 0x141618, ambientI: 0.34, fog: 0x07080a, fogNear: 8, fogFar: 22, void: 0x020203, temp: 9,
+    ambient: 0x1a1c20, ambientI: 0.42, fog: 0x08090b, fogNear: 9, fogFar: 24, void: 0x020203, temp: 9,
     grade: 'tunnels', reverb: 'void', ambience: 'tunnels', music: 'drone',
   };
-  z.spawnTable = [['still_life', 2], ['hollow', 1.5], ['occupant', 1], ['underlay', 1], ['echo', 1], ['grinhound', 0.5]];
+  z.spawnTable = [['still_life', 2], ['hollow', 1.5], ['occupant', 1], ['underlay', 1], ['echo', 1], ['grinhound', 0.5], ['gloam', 1.5], ['surveyor', 0.8]];
   z.creatureCap = 6;
   z.meta.terminalLore = ['zw_under_scratch'];
 }

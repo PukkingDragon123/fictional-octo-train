@@ -28,6 +28,10 @@ function seatUnder(mb: ModelBuilder, key: string | undefined, fallback: string) 
   const g = buildObjGeometry(k);
   if (g) mb.appendGeometry(g, new THREE.Matrix4());
 }
+/** seat heights of the chairs replicas are put on (unknown chairs: a dining chair's) */
+const SEAT_H: Record<string, number> = { chair_wood: 0.475, chair_plastic: 0.44, chair_folding: 0.45, chair_office: 0.5, chair_stack: 0.45, zw_highchair: 0.72, stool: 0.62, none: 0.45 };
+const BED_H: Record<string, number> = { bed_single: 0.6, bed_double: 0.62, bed_hospital: 0.68, bunk_bed: 0.42, crafted_bed: 0.36 };
+const seatH = (k: string | undefined) => SEAT_H[k ?? 'none'] ?? objDef(k ?? '')?.surface ?? 0.47;
 const mi = (s: Record<string, any>, def: number) => (typeof s.v === 'number' ? ((Math.floor(s.v) % MEMORY_COUNT) + MEMORY_COUNT) % MEMORY_COUNT : def);
 const TR = (x: number, y: number, z: number) => new THREE.Matrix4().makeTranslation(x, y, z);
 
@@ -42,7 +46,7 @@ defObj({
     seatUnder(mb, seat, 'chair_wood');
     const pose = (s.pose as ReplicaPose) ?? 'sit';
     // hips just in front of the backrest; on 'none' (sofa) a little deeper
-    bakeReplica(mb, mi(s, 2), replicaPose(pose === 'sit_table' || pose === 'kneel' || pose === 'stand' ? pose : 'sit', mi(s, 2) * 7 + 1), TR(0, seat === 'none' ? -0.03 : 0, seat === 'none' ? -0.12 : -0.07));
+    bakeReplica(mb, mi(s, 2), replicaPose(pose === 'sit_table' || pose === 'kneel' || pose === 'stand' ? pose : 'sit', mi(s, 2) * 7 + 1), TR(0, pose === 'stand' || pose === 'kneel' ? 0 : seatH(seat) - 0.475, seat === 'none' ? -0.12 : -0.07));
   },
 });
 
@@ -63,7 +67,7 @@ defObj({
   model: (mb, s) => {
     const bed = s.bed ?? 'bed_single';
     seatUnder(mb, bed, 'bed_single');
-    const top = bed === 'none' || !objDef(bed) ? 0 : (objDef(bed)!.surface ?? 0.5);
+    const top = bed === 'none' || !objDef(bed) ? 0 : (BED_H[bed] ?? objDef(bed)!.surface ?? 0.55);
     // feet toward the foot of the bed (+z), head on the pillow (-z)
     bakeReplica(mb, mi(s, 3), replicaPose('lie', mi(s, 3) * 7 + 3), TR(0, top - 0.02, 0.86));
   },
@@ -77,8 +81,8 @@ defObj({
     const pose = (s.pose as ReplicaPose) ?? 'child';
     const seated = pose === 'sit' || pose === 'sit_table';
     if (seated) seatUnder(mb, s.seat, 'none');
-    // a seated child sits up on the chair (scaled hips)
-    bakeReplica(mb, mi(s, CHILD_MEMORY), replicaPose(pose, 31), TR(0, seated ? 0.47 * (1 - 0.62) : 0, seated ? -0.05 : 0), true);
+    // a seated child sits up on the chair (its hips are 0.29 m up at child scale)
+    bakeReplica(mb, mi(s, CHILD_MEMORY), replicaPose(pose, 31), TR(0, seated ? seatH(s.seat) - 0.47 * 0.62 : 0, seated ? -0.05 : 0), true);
   },
 });
 

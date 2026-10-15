@@ -20,10 +20,11 @@ import { bus } from '../core/events';
 import { HumanRig, type Appearance, type Outfit } from '../entities/humanRig';
 import type { FullBody } from '../entities/humanAnim';
 import { objDef } from '../world/objects';
+import { objectMatrix } from '../world/chunkMesher';
 import { findPath } from '../world/path';
 import type { Zone, TileObject } from '../world/zone';
 import type { Player } from '../entities/player';
-import { holoBaseMaterial, makeHologram, HOLO, HOLO_BASE, coneMesh, floorQuadGeo, additiveMat } from './holoShader';
+import { holoBaseMaterial, holoPropMaterial, makeHologram, HOLO, HOLO_BASE, coneMesh, floorQuadGeo, additiveMat } from './holoShader';
 import { RadioVoice } from './vossVoice';
 import { line, readTime } from './lines';
 import { fallbackPose, overlay, ease } from './cutPose';
@@ -32,7 +33,7 @@ import { rigNumber } from '../content/items/prisoner';
 import '../audio/sounds_remit';
 
 export type HandlerWhere = 'band' | 'pylon' | { x: number; z: number };
-export interface SayOpts { at?: { x: number; z: number }; point?: { x: number; z: number }; dur?: number; key?: string; cd?: number; gesture?: string; pri?: number }
+export interface SayOpts { at?: { x: number; z: number }; point?: { x: number; z: number }; dur?: number; key?: string; cd?: number; gesture?: string; pri?: number; pylon?: boolean }
 
 const VOSS_APP: Appearance = {
   skin: 0xd39b6c, hair: 0x3b2a1e, hairStyle: 'buzz', face: 4, build: 'broad', height: 1.05, beard: false,
@@ -126,7 +127,7 @@ export class Handler implements GameSystem {
     mb.cylinder(0.02, 0.045, 0, 0.13, 0.02, 10, 'fabric_red', { rTop: 0.06, color: 0x8a6a6a });
     mb.box(-0.06, 0.012, 0.1, 0.045, 0.05, 0.02, 'metal_brass', { emissive: 0.6 });
     mb.pop();
-    this.beret = new THREE.Mesh(mb.build(), this.rig.material);
+    this.beret = new THREE.Mesh(mb.build(), holoPropMaterial());
     this.beret.renderOrder = 20; this.beret.castShadow = false;
     this.rig.j.head.add(this.beret);
     this.rig.root.visible = false;
@@ -237,7 +238,9 @@ export class Handler implements GameSystem {
     const t = this.cds.get(key) ?? -1e9;
     if (G.time - t < cd) return;
     this.cds.set(key, G.time);
-    this.say(pickL(lines), { pri: o.pri });
+    let pylon = false;
+    if (o.pylon) { const h = this.nearestHopper(), p = G.local; pylon = !!h && !!p && Math.hypot(h.x - p.x, h.z - p.z) < 7; }
+    this.say(pickL(lines), { pri: o.pri, pylon });
   }
 
   private advanceTut(stage: number) {
@@ -261,19 +264,31 @@ export class Handler implements GameSystem {
   }
 
   // ================================================================ world queries
-  nearestHopper(): { x: number; z: number } | null {
+  nearestHopperObj(): TileObject | null {
     const p = G.local; if (!p || !G.view) return null;
     const z = G.view.zone;
     let best: TileObject | null = null, bd = 1e9;
     for (const o of z.objects.values()) {
       if (o.key !== 'hopper') continue;
-      const d = Math.hypot(o.x + 0.5 - p.x, o.y + 0.5 - p.z);
+      const d = Math.hypot(o.x + 1 - p.x, o.y + 1 - p.z);
       if (d < bd) { bd = d; best = o; }
     }
+    return best;
+  }
+  nearestHopper(): { x: number; z: number } | null {
+    const best = this.nearestHopperObj();
     if (!best) return null;
     const d = objDef(best.key);
     const w = d?.w ?? 1, dd = d?.d ?? 1, rw = best.rot % 2 === 0 ? w : dd, rd = best.rot % 2 === 0 ? dd : w;
     return { x: best.x + rw / 2, z: best.y + rd / 2 };
+  }
+  /** a hopper's projector lens (its pylon), and where he stands in its beam */
+  private pylon(o: TileObject): { lens: THREE.Vector3; x: number; z: number } {
+    const z = G.view!.zone, d = objDef(o.key);
+    const m = d ? objectMatrix(z, o, d) : new THREE.Matrix4().makeTranslation(o.x + 1, 0, o.y + 1);
+    const lens = new THREE.Vector3(0.86, 1.86, -0.6).applyMatrix4(m);
+    const st = new THREE.Vector3(0.75, 0, 1.45).applyMatrix4(m);
+    return { lens, x: st.x, z: st.z };
   }
   /** the nearest piece of furniture worth smashing */
   nearestFurniture(maxD = 18): { x: number; z: number } | null {
@@ -322,11 +337,12 @@ export class Handler implements GameSystem {
     } else this.quietT += dt;
     if (!this.cur && this.queue.length && this.quietT > 0.45) {
       const q = this.queue.shift()!;
+      const where: HandlerWhere = q.o.at ? q.o.at : q.o.pylon ? 'pylon' : 'band';
       if (this.show < 0.5) {
         // he flickers in first, then talks
-        this.appear(q.o.at ? q.o.at : this.where === 'pylon' ? 'pylon' : 'band');
+        this.appear(where);
         if (this.show < 0.35) { this.queue.unshift(q); return; }
-      }
+      } else if (!this.scripted) this.where = where;
       const voiced = this.voice.speak(q.text);
       const dur = Math.max(q.o.dur ?? 0, voiced, readTime(q.text) * 0.8);
       this.cur = { text: q.text, o: q.o, t: 0, dur: dur + 0.15 };
@@ -349,13 +365,13 @@ export class Handler implements GameSystem {
     const w = this.where;
     if (typeof w === 'object') return [w.x, w.z];
     if (w === 'pylon') {
-      const h = this.nearestHopper();
-      if (h) { const dx = p.x - h.x, dz = p.z - h.z, d = Math.hypot(dx, dz) || 1; return [h.x + (dx / d) * 1.2, h.z + (dz / d) * 1.2]; }
+      const o = this.nearestHopperObj();
+      if (o) { const py = this.pylon(o); return [py.x, py.z]; }
     }
     // beside the survivor, on the camera's side so he is never hidden behind them
     const yaw = G.pr.yaw;
     const rx = Math.cos(yaw), rz = -Math.sin(yaw), cx = Math.sin(yaw), cz = Math.cos(yaw);
-    const cands: [number, number][] = [[1.3, 0.35], [-1.3, 0.35], [0.9, 1.0], [-0.9, 1.0], [0, 1.25], [1.2, -0.5], [-1.2, -0.5]];
+    const cands: [number, number][] = [[1.55, 0.3], [-1.55, 0.3], [1.0, 1.0], [-1.0, 1.0], [0, 1.3], [1.3, -0.5], [-1.3, -0.5]];
     for (const [a, b] of cands) {
       const x = p.x + rx * a + cx * b, zz = p.z + rz * a + cz * b;
       if (this.clear(z, p.x, p.z, x, zz)) return [x, zz];
@@ -442,7 +458,7 @@ export class Handler implements GameSystem {
     HOLO_BASE.uHoloBase.value = this.y;
     this.rig.root.position.set(this.x, this.y, this.z);
     this.rig.root.rotation.y = Math.PI / 2 - this.facing;
-    this.rig.root.scale.setScalar(0.97);
+    this.rig.root.scale.setScalar(1.0);
   }
 
   /** the faint beam from the band (or the pylon) to him */
@@ -452,8 +468,8 @@ export class Handler implements GameSystem {
     if (this.coneW < 0.02) { this.cone.visible = false; return; }
     const apex = tmpV;
     if (this.where === 'pylon') {
-      const h = this.nearestHopper();
-      if (h) apex.set(h.x, this.y + 2.25, h.z); else p.rig.jointWorld('handL', apex);
+      const o = this.nearestHopperObj();
+      if (o) apex.copy(this.pylon(o).lens); else p.rig.jointWorld('handL', apex);
     } else {
       p.rig.jointWorld('handL', apex);
       apex.y += 0.04;

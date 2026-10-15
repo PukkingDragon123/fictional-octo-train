@@ -224,12 +224,13 @@ export class IntakeStage {
     this.turn.add(held);
     // folded uniform on the bench (clickable)
     const fold = new ModelBuilder();
-    fold.box(0, 0, 0, 0.36, 0.08, 0.3, 'plastic_white', { color: 0xe8a818 });
-    fold.box(0, 0.08, 0, 0.34, 0.03, 0.28, 'plastic_white', { color: 0xf8c030 });
-    fold.box(-0.07, 0.11, 0.06, 0.1, 0.004, 0.05, 'paper', { color: 0xf0ece0 });
-    fold.box(0.02, 0, 0.2, 0.3, 0.1, 0.16, 'plastic_white', { color: 0x8a8c88 }); // shoe tray
-    fold.box(-0.03, 0.1, 0.2, 0.1, 0.04, 0.12, 'fabric_grey', { color: 0xe8e4d8 });
-    fold.box(0.08, 0.1, 0.2, 0.1, 0.04, 0.12, 'fabric_grey', { color: 0xe8e4d8 });
+    // a stack of folded jumpsuits, the top one with its number tape, and canvas slip-ons beside it
+    for (let i = 0; i < 3; i++) fold.box(0.004 * (i % 2 ? 1 : -1), i * 0.055, 0, 0.34, 0.055, 0.28, { top: 'i_fold_jumpsuit', all: 'plastic_white' }, { color: i === 2 ? 0xffffff : 0xe8b028, fit: { top: true } });
+    fold.box(0.0, 0.0, 0.2, 0.3, 0.012, 0.14, 'metal_grey', { color: 0x8a8c88 });
+    for (const x of [-0.07, 0.07]) {
+      fold.box(x, 0.012, 0.2, 0.1, 0.035, 0.24, 'plastic_white', { color: 0xe8e4d8 });
+      fold.box(x, 0.047, 0.17, 0.09, 0.012, 0.14, 'plastic_white', { color: 0xd8d4c4 });
+    }
     const foldMesh = new THREE.Mesh(fold.build(), mat);
     foldMesh.position.set(-1.6, 0.48, -0.25);
     foldMesh.rotation.y = 0.15;
@@ -250,6 +251,8 @@ export class IntakeStage {
       this.keyLight.shadow.bias = -0.002;
     }
     const fill = new THREE.DirectionalLight(0x9ab8d8, 0.45); fill.position.set(3, 1.6, 2); this.scene.add(fill);
+    // the camera-side fill: faces under the mugshot lights never go muddy
+    const front = new THREE.DirectionalLight(0xfff0e0, 0.75); front.position.set(0.3, 1.5, 4); this.scene.add(front);
     const rim = new THREE.DirectionalLight(0xffe0a0, 0.7); rim.position.set(1.2, 2.4, -2.5); this.scene.add(rim);
     this.flashLight.position.set(-1.25, 1.7, 2.5);
     this.scene.add(this.flashLight);
@@ -308,6 +311,8 @@ export class IntakeStage {
     this.shiftTY = panelSide === 'bottom' ? -0.46 * off : 0;
     this.selected = (key as Pickable) || null;
     this.idleT = 5;
+    // whatever they were doing, they stop and present the part
+    if (this.emoteName) { this.emoteName = ''; this.onEmote?.(''); }
   }
   /** the frame the camera eases to while nothing is selected (e.g. mugshot) */
   frameKey(k: string) { if (FRAMES[k]) this.focusKey = k; }
@@ -451,7 +456,7 @@ export class IntakeStage {
             if (m.r < 0.5 && mx.r > 0.5) c = vec3(0.02, 0.022, 0.02);
             // selected part: a steady glow
             float pulse = 0.5 + 0.5 * sin(uTime * 4.0);
-            if (m.b > 0.5) { c = mix(c, uSelC, 0.06 + (mn.b < 0.5 ? 0.35 : 0.0)); }
+            if (m.b > 0.5) { if (mn.b < 0.5) c = mix(c, uSelC, 0.3); }
             else if (mx.b > 0.5 && m.r > 0.5) c = mix(c, uSelC, 0.75);
             else if (mx.b > 0.5) c = mix(c, uSelC, 0.55 + 0.3 * pulse);
             // hovered part: an amber rim inside, a bright line around

@@ -72,7 +72,7 @@ interface Drag {
   /** a finger dragging holds the item above itself (art px); a tap-to-place puts it under the finger */
   lift?: number;
 }
-interface Press { pointerId: number; x0: number; y0: number; t: number; touch: boolean; el: HTMLElement; long: number; done: boolean; shift: boolean; ctrl: boolean; start: () => void; tap: (x: number, y: number) => void; menu: (x: number, y: number) => void }
+interface Press { pointerId: number; x0: number; y0: number; t: number; touch: boolean; el: HTMLElement; long: number; done: boolean; shift: boolean; ctrl: boolean; start: () => void; tap: (x: number, y: number, pr: Press) => void; menu: (x: number, y: number) => void }
 
 const LONG_MS = 460;
 const isTouchEv = (e: PointerEvent) => e.pointerType !== 'mouse';
@@ -157,7 +157,8 @@ export class InventoryUI {
     bus.on('containerChanged', () => { this.dirty = true; });
     bus.on('inventoryChanged', () => { this.dirty = true; this.settleT = Math.min(this.settleT, 0.05); });
     bus.on('floorChanged', () => { this.scanT = 0; this.dirty = true; });
-    bus.on('gridNoRoom', () => { if (this.open) { G.audio?.ui?.('bag_bad', 0.5); this.swingEl?.classList.remove('shake'); } });
+    bus.on('gridNoRoom', (it: Item, to: Container) => { if (this.open) this.noRoom(it, to); });
+    bus.on('gridOverflow', (it: Item, where: string) => { if (this.open) this.note(where === 'hand' ? 'no room: in hand' : 'no room: dropped', itemName(it)); });
     bus.on('uiScale', () => { this.structSig = ''; });
     window.addEventListener('resize', () => { this.structSig = ''; });
     window.addEventListener('pointermove', (e) => this.onMove(e), { passive: false });
@@ -337,7 +338,7 @@ export class InventoryUI {
     const bagW = bagArt ? bagArt.w : 96, bagH = bagArt ? bagArt.h : 80;
     const rigW = Math.max(bagW + 26, 110);
     const compactRig = innerHeight < 560;
-    const hookH = compactRig ? 0 : 12, scaleH = compactRig ? 0 : 40, strapH = compactRig ? 22 : 46;
+    const hookH = compactRig ? 0 : 12, scaleH = compactRig ? 0 : 40, strapH = compactRig ? 38 : 46;
     const rigH = hookH + scaleH + strapH + bagH + 6;
     const dollW = 20 + Art.DOLL_W, dollH = Art.DOLL_H;
     let lootSpec: GridSpec | null = null;
@@ -362,10 +363,10 @@ export class InventoryUI {
     const tapeH = 14;
     if (this.compact) {
       // phones: the bag, and beside it either your body or what you are looting (tapes switch)
-      const sideW = Math.max(this.compactShow === 'body' ? dollW : lootW, 120);
-      const sideH = (this.compactShow === 'body' ? dollH : lootH - 14) + tapeH;
-      layoutW = rigW + gap + sideW + 6; layoutH = Math.max(sideH, rigH) + 4;
-      k = Math.floor(Math.min(W * 0.99 / layoutW, H * 0.99 / layoutH) * dpr);
+      // one zoom for both views, so switching does not jump
+      const sideW = Math.max(dollW, lootW, 120);
+      layoutW = rigW + gap + sideW + 6; layoutH = Math.max(dollH, lootH - 10, rigH) + 2;
+      k = Math.floor(Math.min(W / layoutW, H / layoutH) * dpr + 0.001);
     }
     k = Math.max(2, k);
     this.bs = k / dpr;
@@ -379,9 +380,9 @@ export class InventoryUI {
     if (this.compact) {
       this.buildRig(2, Math.max(0, layoutH - rigH - 2), rigW, hookH, scaleH, strapH, bags, bagC, bagSpec, bagArt, look, compactRig);
       const sx = rigW + gap;
-      this.buildTapes(sx, 0, layoutW - sx, true);
-      if (this.compactShow === 'body') this.buildDoll(sx, tapeH + 2, p, bagItem);
+      if (this.compactShow === 'body') this.buildDoll(sx, 1, p, bagItem);
       else this.buildLoot(sx, tapeH - 12, entry, lootSpec, tray, lootStyle, false);
+      this.buildTapes(this.compactShow === 'body' ? sx + 22 : sx, 0, layoutW - sx - 22, true);
       return;
     }
     let x = 4;
@@ -506,13 +507,14 @@ export class InventoryUI {
         el.style.opacity = '0.55';
       }
       el.addEventListener('pointerdown', (e) => this.onHandDown(e, el, hand));
+      el.addEventListener('contextmenu', (e) => this.onItemMenu(e, el));
       el.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && !this.drag && it) this.hoverTag(el, it, 1); });
       el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !this.drag) this.unhover(el); });
       panel.appendChild(el);
       this.handEls[hand] = el;
     }
     // worn things pinned down the side
-    let by = 4;
+    let by = this.compact ? 16 : 4;
     const order = ['hat', 'eyes', 'mask', 'neck', 'jacket', 'fullsuit', 'sweater', 'shirt', 'tshirt', 'hands', 'wrist', 'belt', 'back', 'pants', 'socks', 'shoes'];
     const worn = [...(p.worn as Map<string, Item>).entries()].sort((a, b) => (order.indexOf(a[0]) + 99) % 99 - (order.indexOf(b[0]) + 99) % 99);
     for (const [slot, it] of worn) {
@@ -525,6 +527,7 @@ export class InventoryUI {
       this.wornOf.set(b, it);
       b.dataset.slot = slot;
       b.addEventListener('pointerdown', (e) => this.onWornDown(e, b, it));
+      b.addEventListener('contextmenu', (e) => this.onItemMenu(e, b));
       b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && !this.drag) this.hoverTag(b, it, 1, 'worn · drag off to take off'); });
       b.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && !this.drag) this.unhover(b); });
       panel.appendChild(b);
@@ -555,7 +558,7 @@ export class InventoryUI {
       const ro = document.createElement('div'); ro.className = 'bg-readout'; this.place(ro, cx + 9, hookH + 14); rig.appendChild(ro);
       this.bagEls = { plunger: pl, dring: dr, readout: ro };
     } else {
-      const ro = document.createElement('div'); ro.className = 'bg-readout'; this.place(ro, rigW - 40, 0); rig.appendChild(ro);
+      const ro = document.createElement('div'); ro.className = 'bg-readout'; this.place(ro, 2, 6); rig.appendChild(ro);
       this.bagEls = { readout: ro };
     }
     const bagY = hookH + scaleH + strapH;
@@ -684,6 +687,7 @@ export class InventoryUI {
   private renderItems() {
     const p = G.local;
     const pend = this.pendingTransfers();
+    this.leaving = new Set(pend.map((t) => t.it));
     for (const v of this.views) {
       let pos: ((it: Item) => Placement | undefined) | undefined;
       if (v.kind === 'floor') {
@@ -702,7 +706,7 @@ export class InventoryUI {
         keep.add(it.uid);
         let el = v.els.get(it.uid);
         const fresh = !el;
-        if (!el) { el = document.createElement('div'); el.className = 'gi'; el.appendChild(document.createElement('i')); v.el.appendChild(el); v.els.set(it.uid, el); el.addEventListener('pointerdown', (e) => this.onItemDown(e, el!)); el.addEventListener('pointerenter', (e) => this.onItemEnter(e, el!)); el.addEventListener('pointerleave', (e) => this.onItemLeave(e, el!)); }
+        if (!el) { el = document.createElement('div'); el.className = 'gi'; el.appendChild(document.createElement('i')); v.el.appendChild(el); v.els.set(it.uid, el); el.addEventListener('pointerdown', (e) => this.onItemDown(e, el!)); el.addEventListener('pointerenter', (e) => this.onItemEnter(e, el!)); el.addEventListener('pointerleave', (e) => this.onItemLeave(e, el!)); el.addEventListener('contextmenu', (e) => this.onItemMenu(e, el!)); }
         this.anchorOf.set(el, { view: v, a });
         this.drawItem(el, v, a, fresh);
       }
@@ -728,6 +732,7 @@ export class InventoryUI {
           el.addEventListener('pointerdown', (e) => this.onItemDown(e, el));
           el.addEventListener('pointerenter', (e) => this.onItemEnter(e, el));
           el.addEventListener('pointerleave', (e) => this.onItemLeave(e, el));
+          el.addEventListener('contextmenu', (e) => this.onItemMenu(e, el));
         }
       }
       // transfers on their way into this grid: a faint ghost with progress
@@ -773,7 +778,9 @@ export class InventoryUI {
     if (cur !== extra) { while (el.childNodes.length > 1) el.lastChild!.remove(); if (extra) el.insertAdjacentHTML('beforeend', extra); (el as any)._extra = extra; }
     if (fresh && this.root.classList.contains('opening')) el.classList.add('dropin');
     el.classList.toggle('sel', this.sel?.it === it);
+    el.classList.toggle('leaving', !el.classList.contains('pend') && a.items.every((i) => this.leaving.has(i)));
   }
+  private leaving = new Set<Item>();
 
   private pendingTransfers(): { it: Item; to: Container; at: Placement | null; progress: number }[] {
     const p = G.local;
@@ -789,7 +796,8 @@ export class InventoryUI {
     if (ro) {
       const over = w > cap;
       ro.classList.toggle('over', over);
-      ro.innerHTML = `${w.toFixed(1)}<b>${over ? '!' : ''}</b> / ${cap.toFixed(0)} kg`;
+      const html = `${w.toFixed(1)}<b>${over ? '!' : ''}</b> / ${cap.toFixed(0)} kg`;
+      if ((ro as any)._h !== html) { ro.innerHTML = html; (ro as any)._h = html; }
     }
     const t = Math.min(1.6, w / Math.max(1, cap));
     const ext = Math.round(3 + t * 10);
@@ -841,7 +849,7 @@ export class InventoryUI {
     }
   }
 
-  private beginPress(e: PointerEvent, el: HTMLElement, start: () => void, tap: (x: number, y: number) => void, menu: (x: number, y: number) => void) {
+  private beginPress(e: PointerEvent, el: HTMLElement, start: () => void, tap: (x: number, y: number, pr: Press) => void, menu: (x: number, y: number) => void) {
     if (!this.open || this.drag) return;
     if (e.pointerType === 'mouse' && e.button !== 0) return;
     e.stopPropagation();
@@ -871,12 +879,12 @@ export class InventoryUI {
         if (a.gx < -50) { grab[0] = 0; grab[1] = 0; }
         this.startDrag({ stack: a.items.slice(), count, from: view.c, src: 'grid', view, rot: a.rot, grab, pointerId: pr.pointerId, touch: pr.touch, held: false, srcEl: el, cell: view.cell });
       },
-      (x, y) => {
+      (x, y, pr) => {
         const now = performance.now();
         const dbl = this.lastTap.uid === it.uid && now - this.lastTap.t < 380;
         this.lastTap = { uid: it.uid, t: now };
-        if (this.press?.ctrl || dbl) { this.lastTap.t = 0; if (this.drag?.held) this.cancelDrag(); quick(); return; }
-        if (this.press?.touch) {
+        if (pr.ctrl || dbl) { this.lastTap.t = 0; if (this.drag?.held) this.cancelDrag(); quick(); return; }
+        if (pr.touch) {
           // tap to pick up
           const [w, h] = [a.w, a.h];
           this.startDrag({ stack: a.items.slice(), count: a.items.length, from: view.c, src: 'grid', view, rot: a.rot, grab: [Math.floor((w - 1) / 2), Math.floor((h - 1) / 2)], pointerId: -1, touch: true, held: true, srcEl: el, cell: view.cell });
@@ -897,8 +905,8 @@ export class InventoryUI {
         const [w, h] = footprintOf(it);
         this.startDrag({ stack: [it], count: 1, from: G.local.inv, src: 'worn', rot: 0, grab: [Math.floor((w - 1) / 2), Math.floor((h - 1) / 2)], pointerId: this.press!.pointerId, touch: this.press!.touch, held: false, srcEl: el, cell: CELL });
       },
-      () => {
-        if (this.press?.touch) {
+      (_x, _y, pr) => {
+        if (pr.touch) {
           if (it.key === 'bailiff_band') { this.showTag(el, it, 1, 'it does not come off'); return; }
           const [w, h] = footprintOf(it);
           this.startDrag({ stack: [it], count: 1, from: G.local.inv, src: 'worn', rot: 0, grab: [Math.floor((w - 1) / 2), Math.floor((h - 1) / 2)], pointerId: -1, touch: true, held: true, srcEl: el, cell: CELL });
@@ -918,12 +926,23 @@ export class InventoryUI {
     const from = p.containerOf(it) || p.inv;
     this.beginPress(e, el,
       () => { const [w, h] = footprintOf(it); this.startDrag({ stack: [it], count: 1, from, src: 'hand', hand, rot: 0, grab: [Math.floor((w - 1) / 2), Math.floor((h - 1) / 2)], pointerId: this.press!.pointerId, touch: this.press!.touch, held: false, srcEl: el, cell: CELL }); },
-      () => {
-        if (this.press?.touch) { const [w, h] = footprintOf(it); this.startDrag({ stack: [it], count: 1, from, src: 'hand', hand, rot: 0, grab: [Math.floor((w - 1) / 2), Math.floor((h - 1) / 2)], pointerId: -1, touch: true, held: true, srcEl: el, cell: CELL }); this.showHud(); return; }
+      (_x, _y, pr) => {
+        if (pr.touch) { const [w, h] = footprintOf(it); this.startDrag({ stack: [it], count: 1, from, src: 'hand', hand, rot: 0, grab: [Math.floor((w - 1) / 2), Math.floor((h - 1) / 2)], pointerId: -1, touch: true, held: true, srcEl: el, cell: CELL }); this.showHud(); return; }
         this.setSel(this.sel?.it === it ? null : { it, el });
         if (this.sel) this.showTag(el, it, 1, 'in hand · drag into the bag to put away'); else this.hideTag();
       },
       (x, y) => this.openMenu(it, from, [it], x, y));
+  }
+
+  /** right-click: the item's actions (touch gets them from a long press) */
+  private onItemMenu(e: MouseEvent, el: HTMLElement) {
+    e.preventDefault();
+    if (this.drag || (e as PointerEvent).pointerType === 'touch' || this.press?.touch) return;
+    e.stopPropagation();
+    const ref = this.anchorOf.get(el);
+    if (ref) { this.setSel({ it: ref.a.items[0], el }); this.openMenu(ref.a.items[0], ref.view.c, ref.a.items, e.clientX, e.clientY); return; }
+    const it = this.wornOf.get(el);
+    if (it) { const p = G.local; this.openMenu(it, p.containerOf(it) || p.inv, [it], e.clientX, e.clientY); }
   }
 
   private onItemEnter(e: PointerEvent, el: HTMLElement) {
@@ -1000,7 +1019,8 @@ export class InventoryUI {
     const d = this.drag;
     if (!d) return;
     const { x, y } = this.lastPt;
-    const tgt = d.held ? ({ k: 'none' } as Target) : this.targetAt(x, y);
+    if (d.held) { this.showTarget({ k: 'none' }); d.over = { k: 'none' }; return; }
+    const tgt = this.targetAt(x, y);
     this.showTarget(tgt);
     d.over = tgt;
     const cell = d.cell * this.bs;
@@ -1079,7 +1099,7 @@ export class InventoryUI {
     const d = this.drag!;
     const it = d.stack[0];
     if (view.c.locked) return 'blocked';
-    if (view.kind === 'floor') return view.c === d.from ? 'blocked' : 'free';
+    if (view.kind === 'floor') return 'free';
     if (it.inv && (view.c === it.inv)) return 'blocked';
     if (view.c !== d.from && !this.weightFits(view.c, d.stack.slice(0, d.count))) return 'blocked';
     const moving = new Set(d.stack.slice(0, d.count));
@@ -1147,7 +1167,7 @@ export class InventoryUI {
     if (pr && e.pointerId === pr.pointerId) {
       clearTimeout(pr.long);
       this.press = null;
-      if (!pr.done && !cancelled) pr.tap(e.clientX, e.clientY);
+      if (!pr.done && !cancelled) pr.tap(e.clientX, e.clientY, pr);
       return;
     }
     const d = this.drag;
@@ -1172,8 +1192,9 @@ export class InventoryUI {
     const [w0, h0] = footprintOf(d.stack[0]);
     if (w0 === h0) return;
     const [w, h] = dimsOf(d.stack[0], d.rot);
-    // keep the grabbed cell under the pointer: (x, y) in w x h becomes (h-1-y, x) in h x w
-    d.grab = [Math.max(0, h - 1 - d.grab[1]), Math.min(w - 1, d.grab[0])];
+    // turning toggles between two orientations, so the grabbed cell is mirrored across the diagonal
+    // (turning twice puts it back exactly where it was)
+    d.grab = [Math.min(h - 1, d.grab[1]), Math.min(w - 1, d.grab[0])];
     d.rot = (d.rot ? 0 : 1) as Rot;
     this.drawGhost();
     this.refreshTarget();
@@ -1196,6 +1217,7 @@ export class InventoryUI {
     d.srcEl?.classList.remove('lifted');
     this.drag = null;
     this.hud.classList.remove('on');
+    this.hideTag();
     this.dim.classList.remove('floor-hot');
     this.floorHint.classList.remove('on');
     for (const v of this.views) { v.foot.className = 'gfoot'; v.el.classList.remove('hot'); }
@@ -1252,7 +1274,7 @@ export class InventoryUI {
         if (t.fit === 'blocked') { this.bad(); return; }
         const to = t.view.c;
         const at: Placement = { gx: t.gx, gy: t.gy, rot: d.rot };
-        if (t.view.kind === 'floor') { if (from === to) return; release(); queueTransfers(p, items, from, to); this.thunk(it); return; }
+        if (t.view.kind === 'floor') { if (from.kind === 'floor') return; release(); queueTransfers(p, items, from, to); this.thunk(it); return; }
         if (to === from && d.src === 'grid') {
           if (world(to)) op('gridPlace', { z: G.zone.key, ref: containerRef(to), uids: items.map((i) => i.uid), gx: at.gx, gy: at.gy, rot: at.rot });
           else { for (const i of items) { i.gx = at.gx; i.gy = at.gy; i.rot = at.rot; } bus.emit('inventoryChanged', p); }
@@ -1338,6 +1360,23 @@ export class InventoryUI {
   }
 
   // ---------------------------------------------------------------- feedback
+  /** a transfer found no room: the target grid flashes red and a scrap of tape says so */
+  private noRoom(it: Item, to: Container) {
+    this.bad();
+    for (const v of this.views) if (v.c === to || (to === G.local.inv && (v.kind === 'bag' || v.kind === 'pocket'))) { v.el.classList.remove('nofit'); void v.el.offsetWidth; v.el.classList.add('nofit'); }
+    this.note('no room', itemName(it));
+  }
+  private note(head: string, what: string) {
+    const el = document.createElement('div');
+    el.className = 'bg-note';
+    el.innerHTML = `<b>${head.replace(/</g, '&lt;')}</b>${what.replace(/</g, '&lt;')}`;
+    const anchor = this.swingEl?.getBoundingClientRect();
+    this.root.appendChild(el);
+    const w = el.offsetWidth;
+    el.style.left = Math.round(anchor ? anchor.left + anchor.width / 2 - w / 2 : innerWidth / 2 - w / 2) + 'px';
+    el.style.top = Math.round(anchor ? anchor.top + anchor.height * 0.42 : innerHeight / 2) + 'px';
+    setTimeout(() => el.remove(), 1900);
+  }
   private thunk(it: Item) { G.audio?.ui?.('bag_place', 0.6); void it; }
   private bad() { G.audio?.ui?.('bag_bad', 0.5); (navigator as any).vibrate?.(20); }
   private bump(el: HTMLElement) { el.animate?.([{ transform: 'translateX(-2px)' }, { transform: 'translateX(2px)' }, { transform: 'none' }], { duration: 160 }); this.bad(); }

@@ -36,7 +36,9 @@ const CONTRACT_ROWS: Record<string, { label: string; vals?: (d: number) => [numb
   contract: { label: 'Contract', bool: ['none', 'signed'] },
   debt: { label: 'Debt owed', vals: (d) => [0.5, 1, 2, 4].map((k) => [Math.round((d || 1000) * k), Math.round((d || 1000) * k).toLocaleString('en') + ' scrip'] as [number, string]) },
   installmentDays: { label: 'Installment every', vals: () => [[1, '1 day'], [2, '2 days'], [3, '3 days'], [5, '5 days'], [7, '7 days']] },
-  bandLethal: { label: 'BAILIFF band', bool: ['shocks only', 'lethal'] },
+  debtDays: { label: 'Installment every', vals: () => [[0.5, '12 hours'], [1, '1 day'], [2, '2 days'], [3, '3 days'], [5, '5 days']] },
+  bandLethal: { label: 'Band detonation', bool: ['takes the hand', 'kills'] },
+  finalLethal: { label: 'Final deadline', bool: ['forgiving', 'lethal'] },
 };
 const KNOWN = new Set([...ROWS.map((r) => r.key), 'limbLoss', 'directives']);
 const humanize = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());

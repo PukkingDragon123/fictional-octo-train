@@ -22,6 +22,7 @@ import { Furnisher } from './furnish';
 import { Rng, hash3, hashStr, fbm2 } from '../../core/rng';
 import { registerShift } from '../shift';
 import { Frame, Dir, Rot, LDir, LBACK, LFACE, WBACK, WFACE, ANG, wallAt, decal, scatter, lootIn, arrive, openTile } from './suburbs_kit';
+import { wrongRoomsIn } from './wrong_kit';
 
 const W = 192, H = 192;
 // road corridors (8 wide: sidewalk, verge, 4 asphalt, verge, sidewalk)
@@ -797,7 +798,15 @@ export function generateSuburbs(z: Zone, seed: number) {
     buildLot(c, 27, MAPLE + 13, 'n', { name: 'Maple Court', num: '3', salt: 'mapleB3', depth: 21, locked: false, noVerge: true });
     buildLot(c, 46, MAPLE - 22, 's', { name: 'Maple Court', num: '4', salt: 'mapleN46', depth: 22, locked: true, car: true });
     buildLot(c, 64, MAPLE - 22, 's', { name: 'Maple Court', num: '41', salt: 'mapleN64', depth: 22, locked: false });
-    buildLot(c, 46, MAPLE + 8, 'n', { name: 'Maple Court', num: '5', salt: 'mapleS46', depth: 22, locked: true });
+    const F5 = buildLot(c, 46, MAPLE + 8, 'n', { name: 'Maple Court', num: '5', salt: 'mapleS46', depth: 22, locked: true });
+    // number 5's red front door does not open into number 5: it opens into the Homestead
+    {
+      F5.door(6, 6, 'f', 'door_red', { portal: 'p_suburbs_home' });
+      const [px, py] = F5.P(6, 5);
+      b.portal({ id: 'p_suburbs_home', x: px, y: py, kind: 'door', to: 'homestead', tx: 60, ty: 79, label: 'Open the red front door' });
+      const [ax, ay] = F5.P(6, 3);
+      arrive(b, 'r_suburbs_home', ax, ay, F5.ang('f'), 3);
+    }
     buildLot(c, 64, MAPLE + 8, 'n', { name: 'Maple Court', num: '6', salt: 'mapleS64', depth: 22, locked: false, car: true, wrong: 3 });
     const cx = 35.5, cy = MAPLE + 3.5;
     for (let y = MAPLE - 6; y <= MAPLE + 13; y++) for (let x = 26; x <= 45; x++) {
@@ -885,6 +894,8 @@ export function generateSuburbs(z: Zone, seed: number) {
   z.creatureCap = 10;
   z.meta.terminalLore = ['terminal_generic'];
   z.meta.shiftRate = 0.8;
+  // two of the walk-in houses have a room that is wrong (world stream 3)
+  wrongRoomsIn(z, b, seed ^ 0x77a5, ['living', 'kids_room', 'bedroom'], 2, ['upside_down', 'tv_backs', 'bed_still', 'tiny_door'], { paper: 'wall_house_floral', lamp: 'light_bulb' });
   z.meta.houses = c.houses; z.meta.housesOpen = c.unlocked;
   return b;
 }

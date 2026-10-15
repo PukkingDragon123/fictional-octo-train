@@ -5,6 +5,7 @@
 // scaled by condition) and the tag 'valuable' (tut:valuable, hopper scan
 // lines). Furniture spills them when it is smashed (src/game/debt/values.ts).
 import { defItem } from '../../items/item';
+import { lootTable } from '../../items/loot';
 import { tex, decal, T, K, rp, dk, lt, txt, txtC, stamp, stampC, dashes, slab, rodX, rodZ, ph, MB, PixelCanvas } from './_kit';
 
 // ---------------------------------------------------------------- shared metal / fabric textures
@@ -654,6 +655,25 @@ V({
     for (const s of [-1, 1]) mb.box(s * 0.15, -0.006, 0.0, 0.04, 0.008, 0.26, 'rubber_black');
     void G;
   },
+});
+
+// ---------------------------------------------------------------- loot: valuables also turn up in the usual places
+// (smashing furniture is the main source; see src/game/debt/values.ts). Runs after every table is registered.
+queueMicrotask(() => {
+  const add = (table: string, entry: [string, number, number?, number?]) => { const t = lootTable(table); if (t && !t.entries.some((e) => e[0] === entry[0])) t.entries.push(entry as any); };
+  for (const [k, w] of [['wedding_ring', 0.8], ['gold_chain', 0.4], ['pearl_necklace', 0.4], ['cameo_brooch', 0.5], ['jewellery_box', 0.6], ['diamond_earrings', 0.2]] as const) add('bedroom_dresser', [k, w]);
+  for (const [k, w] of [['wedding_ring', 0.5], ['pocket_watch', 0.3], ['dentures', 0.4], ['cash_roll', 0.4]] as const) add('nightstand', [k, w]);
+  for (const [k, w] of [['cash_roll', 0.5], ['gold_watch', 0.25], ['gold_lighter', 0.3], ['hard_drive_old', 0.4]] as const) add('office_desk', [k, w]);
+  for (const [k, w] of [['gold_award', 0.5], ['medal_case', 0.3]] as const) add('security_office', [k, w]);
+  for (const [k, w] of [['silverware_set', 0.6], ['silver_candlestick', 0.5], ['crystal_decanter', 0.4], ['coin_jar', 0.6]] as const) add('kitchen_cabinet', [k, w]);
+  for (const [k, w] of [['stamp_album', 0.6], ['antique_figurine', 0.5], ['film_reel', 0.3], ['vhs_stack', 0.6]] as const) add('bookshelf', [k, w]);
+  for (const [k, w] of [['camcorder', 1], ['boombox', 1], ['vhs_stack', 1.5], ['circuit_board', 1]] as const) add('store_electronics', [k, w]);
+  for (const [k, w] of [['circuit_board', 1.5], ['hard_drive_old', 0.6]] as const) add('electronics_small', [k, w]);
+  for (const [k, w] of [['copper_bundle', 1], ['circuit_board', 0.6]] as const) add('garage_shelf', [k, w]);
+  for (const [k, w] of [['wedding_ring', 1], ['gold_teeth', 0.6], ['gold_watch', 0.5], ['cash_roll', 0.8]] as const) add('survivor_corpse', [k, w]);
+  for (const [k, w] of [['cash_roll', 1.5], ['gold_chain', 0.5], ['silver_dollars', 0.6]] as const) add('survivor_stash', [k, w]);
+  for (const [k, w] of [['cash_roll', 0.6], ['gold_watch', 0.2]] as const) add('car_glovebox', [k, w]);
+  for (const [k, w] of [['porcelain_doll', 0.5]] as const) add('toy_box', [k, w]);
 });
 
 void K; void dk; void lt; void txt; void stampC; void rodZ; void PixelCanvas;

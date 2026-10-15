@@ -36,6 +36,8 @@ export interface DreadProfile {
   tilt?: string; tiltMax?: number;
   /** parts that twitch out of true now and then, and the twitches per second */
   twitch?: string[]; twitchRate?: number;
+  /** impossible bends: these joints flip the wrong way for a few frames while it moves (per second) */
+  bend?: string[]; bendRate?: number;
   /** eye-shine in the dark: on part, offset in part space, half separation, colour */
   shine?: { part: string; off: [number, number, number]; sep: number; color?: number; size?: number };
   /** parts that grow too long while it strikes (scale along their own y) */
@@ -59,16 +61,16 @@ export interface DreadProfile {
 const PROFILES: Record<string, DreadProfile> = {
   custodian: { stutter: 0.12, watchFreeze: true, tilt: 'head', tiltMax: 0.5, flick: 9, sting: 'swell', cam: 0.4 },
   davenport: { twitch: ['legFL', 'legBR', 'armL'], twitchRate: 0.18, stretch: { parts: ['armL', 'armR'], amount: 0.45 }, sting: 'hit', cam: 0.8 },
-  drywall_man: { stutter: 0.3, skipDark: 0.6, tilt: 'head', tiltMax: 0.7, twitch: ['head', 'handL', 'handR'], twitchRate: 0.35, stretch: { parts: ['farmL', 'farmR'], amount: 0.5 }, sting: 'hit', cam: 0.8, flick: 7, flickStep: 2.5 },
-  echo: { stutter: 0.15, watchFreeze: true, tilt: 'head', tiltMax: 0.95, twitch: ['head'], twitchRate: 0.5, stretch: { parts: ['foreL', 'foreR'], amount: 0.35 }, sting: 'swell', cam: 0.6, flick: 6, flickStep: 3 },
-  employee: { stutter: 0.2, skipDark: 0.8, tilt: 'head', tiltMax: 0.6, twitch: ['handL', 'handR', 'head'], twitchRate: 0.25, stretch: { parts: ['farmL', 'farmR'], amount: 0.4 }, sting: 'hit', cam: 0.6, flick: 8, flickStep: 3.5, moved: true },
-  grinhound: { twitch: ['head'], twitchRate: 0.3, shine: { part: 'head', off: [0, 0.06, 0.16], sep: 0.045, color: 0xd8ff9a }, sting: 'chase', cam: 0.9, skipDark: 0.25 },
-  hollow: { skipDark: 0.5, tilt: 'head', tiltMax: 0.55, flick: 5, sting: 'hit', cam: 0.5 },
+  drywall_man: { bend: ['shinL', 'shinR', 'farmL', 'farmR'], bendRate: 0.5, stutter: 0.3, skipDark: 0.6, tilt: 'head', tiltMax: 0.7, twitch: ['head', 'handL', 'handR'], twitchRate: 0.35, stretch: { parts: ['farmL', 'farmR'], amount: 0.5 }, sting: 'hit', cam: 0.8, flick: 7, flickStep: 2.5 },
+  echo: { bend: ['shinL', 'shinR', 'foreL', 'foreR'], bendRate: 0.4, stutter: 0.15, watchFreeze: true, tilt: 'head', tiltMax: 0.95, twitch: ['head'], twitchRate: 0.5, stretch: { parts: ['foreL', 'foreR'], amount: 0.35 }, sting: 'swell', cam: 0.6, flick: 6, flickStep: 3 },
+  employee: { bend: ['shinL', 'shinR', 'farmL', 'farmR', 'neck'], bendRate: 0.6, stutter: 0.2, skipDark: 0.8, tilt: 'head', tiltMax: 0.6, twitch: ['handL', 'handR', 'head'], twitchRate: 0.25, stretch: { parts: ['farmL', 'farmR'], amount: 0.4 }, sting: 'hit', cam: 0.6, flick: 8, flickStep: 3.5, moved: true },
+  grinhound: { bend: ['shin0', 'shin1', 'shin2', 'shin3'], bendRate: 0.3, twitch: ['head'], twitchRate: 0.3, shine: { part: 'head', off: [0, 0.06, 0.16], sep: 0.045, color: 0xd8ff9a }, sting: 'chase', cam: 0.9, skipDark: 0.25 },
+  hollow: { bend: ['shinL', 'shinR', 'farmL', 'farmR'], bendRate: 0.25, skipDark: 0.5, tilt: 'head', tiltMax: 0.55, flick: 5, sting: 'hit', cam: 0.5 },
   lifeguard: { stretch: { parts: ['foreL', 'foreR'], amount: 0.5 }, sting: 'hit', cam: 0.9, tilt: 'head', tiltMax: 0.5 },
   occupant: { flick: 16, cam: 1, sting: 'swell' },
   plushkin: { watchFreeze: true, tilt: 'bearhead', tiltMax: 0.6, twitch: ['bunnyhead', 'beararmL'], twitchRate: 0.2, moved: true },
   sentinel: { shine: { part: 'head', off: [0, 0.02, 0.12], sep: 0.05, color: 0xfff2c8 }, flick: 10 },
-  stilt_doe: { stutter: 0.1, skipDark: 0.4, tilt: 'head', tiltMax: 0.8, shine: { part: 'head', off: [0, 0.05, 0.1], sep: 0.06, color: 0xf8f0b0 } },
+  stilt_doe: { bend: ['shin0', 'shin1', 'shin2', 'shin3'], bendRate: 0.5, stutter: 0.1, skipDark: 0.4, tilt: 'head', tiltMax: 0.8, shine: { part: 'head', off: [0, 0.05, 0.1], sep: 0.06, color: 0xf8f0b0 } },
   swivel: { twitch: ['leg0', 'leg2', 'armL'], twitchRate: 0.25, sting: 'hit', cam: 0.7 },
   underlay: { sting: 'hit', cam: 0.8, flick: 5 },
   ventling: { shine: { part: 'head', off: [0, 0.03, 0.08], sep: 0.03, color: 0xffd060, size: 0.016 }, twitch: ['head'], twitchRate: 0.6 },
@@ -89,11 +91,11 @@ const live = () => !!G && !!(G as any).players;
 const calmFx = () => { try { return document.documentElement.classList.contains('reduce-flash'); } catch { return false; } };
 const lightHere = (c: Creature) => (live() && G.view?.zone.key === c.zoneKey ? G.lightLevelAt(c.x, c.z) : 0.5);
 
-interface DState { seed: number; holdT: number; skipT: number; sx: number; sz: number; sf: number; added: Map<THREE.Object3D, [number, number, number]>; tw: { part: string; t: number; r: [number, number, number] } | null; tilt: number; stretchK: number; seenAt: number; seenX: number; seenZ: number; atk: boolean; glT: number; huntSeen: boolean }
+interface DState { bd: { part: string; t: number; a: number } | null; seed: number; holdT: number; skipT: number; sx: number; sz: number; sf: number; added: Map<THREE.Object3D, [number, number, number]>; tw: { part: string; t: number; r: [number, number, number] } | null; tilt: number; stretchK: number; seenAt: number; seenX: number; seenZ: number; atk: boolean; glT: number; huntSeen: boolean }
 function ds(rig: Rig, c: Creature): DState {
   const ud = rig.root.userData;
   let s = ud.dread as DState | undefined;
-  if (!s) { s = { seed: idSeed(c), holdT: 0, skipT: 0, sx: 0, sz: 0, sf: 0, added: new Map(), tw: null, tilt: 0, stretchK: 0, seenAt: -1, seenX: c.x, seenZ: c.z, atk: false, glT: 0, huntSeen: false }; ud.dread = s; }
+  if (!s) { s = { bd: null, seed: idSeed(c), holdT: 0, skipT: 0, sx: 0, sz: 0, sf: 0, added: new Map(), tw: null, tilt: 0, stretchK: 0, seenAt: -1, seenX: c.x, seenZ: c.z, atk: false, glT: 0, huntSeen: false }; ud.dread = s; }
   return s;
 }
 
@@ -116,6 +118,7 @@ export function dreadBefore(c: Creature, dt: number): boolean {
   const rig = c.rig; if (!rig) return false;
   const P = dreadOf(c); if (!P || c.dead) return false;
   const s = ds(rig, c);
+  if (off()) { for (const [o, r] of s.added) { o.rotation.x -= r[0]; o.rotation.y -= r[1]; o.rotation.z -= r[2]; } s.added.clear(); return false; }
   // restore what we added (animate() may or may not overwrite these joints)
   for (const [o, r] of s.added) { o.rotation.x -= r[0]; o.rotation.y -= r[1]; o.rotation.z -= r[2]; }
   s.added.clear();
@@ -134,7 +137,7 @@ export function dreadBefore(c: Creature, dt: number): boolean {
 
 /** where the creature is drawn this frame (after the manager placed the root): frame skips in the dark */
 export function dreadPlace(c: Creature, dt: number) {
-  const rig = c.rig; if (!rig) return;
+  const rig = c.rig; if (!rig || off()) return;
   const P = dreadOf(c); if (!P || c.dead) return;
   const s = ds(rig, c);
   const k = P.skipDark ?? 0;
@@ -144,10 +147,12 @@ export function dreadPlace(c: Creature, dt: number) {
   } else s.skipT = 0;
 }
 
-const _v = new THREE.Vector3();
+const _v = new THREE.Vector3(), _inv = new THREE.Matrix4();
+/** dev: window.__noDread = true switches the whole layer off (before / after comparisons) */
+const off = () => { try { return !!(window as any).__noDread; } catch { return false; } };
 /** after the species animated: tilts, twitches, stretch, shine, glitch, stingers */
 export function dreadAfter(c: Creature, dt: number) {
-  const rig = c.rig; if (!rig) return;
+  const rig = c.rig; if (!rig || off()) return;
   const P = dreadOf(c); if (!P) return;
   const s = ds(rig, c);
   const t = G.time;
@@ -179,6 +184,16 @@ export function dreadAfter(c: Creature, dt: number) {
       s.tw = { part, t: t + 0.08 + h01(t, s.seed) * 0.1, r: [ax === 0 ? a : 0, ax === 1 ? a : 0, ax === 2 ? a * (h01(t, 2) < 0.5 ? 1 : -1) : 0] };
     }
     if (s.tw) add(s.tw.part, s.tw.r[0], s.tw.r[1], s.tw.r[2]);
+  }
+  // ---- a knee or elbow that bends the wrong way for a beat
+  if (P.bend?.length) {
+    if (s.bd && t > s.bd.t) s.bd = null;
+    const moving = c.speed > 0.3 || hunting;
+    if (!s.bd && moving && h01(Math.floor(t * 8), s.seed + 31) < (P.bendRate ?? 0.4) / 8 * (lightHere(c) < 0.3 ? 1.6 : 1)) {
+      const part = P.bend[Math.floor(h01(Math.floor(t * 8), s.seed + 37) * P.bend.length)];
+      s.bd = { part, t: t + 0.12 + h01(t, s.seed + 3) * 0.12, a: (h01(t, s.seed + 5) < 0.5 ? -1 : 1) * (1.0 + h01(t, s.seed + 7) * 0.5) };
+    }
+    if (s.bd) add(s.bd.part, s.bd.a, 0, 0);
   }
   // ---- too long, right when it strikes
   if (P.stretch) {
@@ -236,7 +251,7 @@ function shine(rig: Rig, c: Creature, P: DreadProfile, alive: boolean) {
   }
   if (!show) { for (const e of eyes) e.visible = false; return; }
   rig.root.updateMatrixWorld(true);
-  const inv = rig.root.matrixWorld.clone().invert();
+  const inv = _inv.copy(rig.root.matrixWorld).invert();
   const sz = (P.shine.size ?? 0.022) * lit;
   for (let k = 0; k < 2; k++) {
     const e = eyes[k];

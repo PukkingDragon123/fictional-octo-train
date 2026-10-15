@@ -80,6 +80,12 @@ export class Reactions {
     if (s > 0.75 && Math.abs(fx) > 0.55) v[C.SPIN] += Math.sign(fx) * (s - 0.6) * 9;
   }
 
+  /** the weapon connected: it jars back up the arm into the shoulders */
+  recoil(strength: number) {
+    const s = Math.max(0, Math.min(1.5, strength)), v = this.v;
+    v[C.AR] += -3.2 * s; v[C.AL] += -1.2 * s; v[C.TP] += -1.4 * s; v[C.TY] += -1.6 * s; v[C.HP] += -1.2 * s;
+  }
+
   /** integrate and add onto the pose; returns true while anything is still moving */
   apply(p: Pose, dt: number): boolean {
     this.since += dt;
@@ -163,9 +169,9 @@ export class Secondary {
       if (x[i] < lo) { x[i] = lo; if (v[i] < 0) v[i] *= -0.3; }
       if (x[i] > hi) { x[i] = hi; if (v[i] > 0) v[i] *= -0.3; }
     };
-    step(0, 8.5, 0.22, az * 0.9 - ay * 0.35, -0.04, 0.38);
-    step(1, 8, 0.25, -ax * 0.9 + yawRate * 1.2, -0.25, 0.25);
-    step(2, 14, 0.3, -ay * 0.012, -0.02, 0.02);
+    step(0, 8, 0.18, az * 1.6 - ay * 0.7, -0.05, 0.4);
+    step(1, 8, 0.22, -ax * 1.4 + yawRate * 1.6, -0.28, 0.28);
+    step(2, 13, 0.25, -ay * 0.02, -0.025, 0.025);
     // hair lags the head
     step(3, 7, 0.3, az * 0.6 - ay * 0.25, -0.3, 0.35);
     step(4, 7.5, 0.28, -hyr * 6 - yawRate * 2.5, -0.5, 0.5);

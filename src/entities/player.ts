@@ -42,7 +42,11 @@ bus.on('playerHit', (p: Player, part: string, _kind: string, h: { dmg?: number; 
 });
 // the BAILIFF band (debt contract): a shock jolts its wearer; a detonation throws the arm (emitted on every peer)
 const bandPlayer = (e: any): Player | undefined => (typeof e?.id === 'string' ? (globalThis as any).__game?.players?.get?.(e.id) : undefined);
-bus.on('bandShock', (e: { id: string; strength?: number }) => { const p = bandPlayer(e); if (p && !p.body.dead) p.playAnim('shocked', 0.8 + Math.min(1, e.strength ?? 0.5) * 0.8); });
+bus.on('bandShock', (e: { id: string; strength?: number }) => {
+  // the owner plays it (peers see it through netState); skipped when a timed 'shocked' action already runs
+  const p = bandPlayer(e);
+  if (p && p.isLocal && !p.body.dead && !p.actions.list.some((a) => a.anim === 'shocked')) p.playAnim('shocked', 0.8 + Math.min(1, e.strength ?? 0.5) * 0.8);
+});
 bus.on('bandDetonate', (e: { id: string }) => { const p = bandPlayer(e); if (p) p.blast(p.x + Math.cos(p.facing + 1.2) * 0.3, p.z + Math.sin(p.facing + 1.2) * 0.3, 'hand_l', 1.6); });
 
 const BODY_PART_KEYS: readonly string[] = BODY_PARTS as readonly string[];

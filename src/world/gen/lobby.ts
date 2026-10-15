@@ -4,6 +4,7 @@ import { Rng } from '../../core/rng';
 import { lobbyLandmarks } from './lobbyRooms';
 import { lobbyDistricts, reserveLobbyDistricts } from './lobbyDistricts';
 import { connectRegions } from './connect';
+import { lobbyWrongRooms } from './lobbyWrong';
 import { placeSeam } from './seam_kit';
 
 /**
@@ -100,6 +101,7 @@ export function generateLobby(z: Zone, seed: number) {
   reserveLobbyDistricts(z, rng);
   lobbyLandmarks(z, b, rng);
   lobbyDistricts(z, b, rng);
+  lobbyWrongRooms(z, b, seed);
   // the Seam you fell out of, on a wall of the waking room (src/world/gen/seam_kit.ts)
   placeSeam(z, b);
   // nothing may end up sealed off from where you wake

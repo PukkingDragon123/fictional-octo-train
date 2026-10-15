@@ -902,6 +902,8 @@ function remainsTex(c: Creature, pool: boolean): string | null {
 /** disguised as furniture, under the carpet, inside a wall or a duct: not something you can see as a threat */
 export function concealed(c: Creature): boolean {
   if (c.state === 'disguised') return true;
+  // up in the ceiling void (src/creatures/species/plenum.ts)
+  if ((c.mem.net || c.mem.netMem)?.ceil) return true;
   const f = c.sp.flags;
   return !!(f && (f.underCarpet || f.wallHider || f.vents) && (c.state === 'hide' || c.state === 'travel'));
 }

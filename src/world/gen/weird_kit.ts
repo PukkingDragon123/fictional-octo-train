@@ -9,7 +9,7 @@ import { objDef } from '../objects';
 import { createItem } from '../../items/factory';
 import { dropItem } from '../../items/worldItems';
 import { hasItemDef } from '../../items/item';
-import { Ctx, Rot, decal, isOpen } from './mall_kit';
+import { type Ctx, type Rot, decal, isOpen } from './mall_kit';
 
 export * from './mall_kit';
 

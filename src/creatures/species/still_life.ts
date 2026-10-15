@@ -134,6 +134,21 @@ const add = (p: HPose, j: keyof HPose, x: number, y = 0, z = 0) => { const v = p
 const STATIC = new Set(['sit', 'sit_table', 'stand', 'lie', 'kneel', 'child']);
 const angd = (a: number, b: number) => { let d = a - b; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
 
+/** the static pose for this frame, written into a per-rig scratch pose (no per-frame allocation) */
+const POSE_CACHE = new Map<string, HPose>();
+function posed(m: Record<string, any>, kind: ReplicaPose, seed: number): HPose {
+  const k = kind + ':' + Math.round(seed * 100);
+  let base = POSE_CACHE.get(k);
+  if (!base) { base = replicaPose(kind, seed); POSE_CACHE.set(k, base); }
+  const out: HPose = (m.scratch ??= {});
+  for (const key of Object.keys(out)) { const v = (out as any)[key]; if (Array.isArray(v)) { v[0] = 0; v[1] = 0; v[2] = 0; } else delete (out as any)[key]; }
+  for (const [key, v] of Object.entries(base)) {
+    if (Array.isArray(v)) { const o = ((out as any)[key] ??= [0, 0, 0]); o[0] = v[0]; o[1] = v[1]; o[2] = v[2]; }
+    else (out as any)[key] = v;
+  }
+  return out;
+}
+
 function walkPose(R: SLRig, speed: number, dt: number, t: number): HPose {
   const inp: AnimInput = {
     speed, stance: 'stand', full: '', action: '', actionT: 0, actionDur: 1, twoHanded: false, limp: 0, tired: 0, panic: 0, cold: 0,
@@ -191,8 +206,14 @@ function headTrack(R: SLRig, c: Creature, dt: number, frozen: boolean): number {
 
 function animateSL(rig: Rig, c: Creature, t: number, dt: number) {
   const R = rig as SLRig, m = R.m;
-  const L = lookFor(c);
-  if (R.who !== L.key) { adopt(R, L.key, L.mem); m.spread = L.mem.flaws.spread; m.eyes = L.mem.flaws.eyes; }
+  // who it is: resolved when that changes (and now and then for copies, whose clothes can change)
+  const n0 = netOf(c);
+  const sig = (n0.cp ?? '') + '|' + (n0.mi ?? 0);
+  if (sig !== m.sig || (n0.cp && t - (m.sigT ?? 0) > 4)) {
+    const L = lookFor(c);
+    m.sig = sig; m.sigT = t;
+    if (R.who !== L.key) { adopt(R, L.key, L.mem); m.spread = L.mem.flaws.spread; m.eyes = L.mem.flaws.eyes; }
+  }
   cutSync(R.cut, R.hr.body);
   const n = netOf(c);
   const mode: Mode = (n.ps as Mode) || 'sit';
@@ -213,12 +234,11 @@ function animateSL(rig: Rig, c: Creature, t: number, dt: number) {
     if (frozen && m.lastP) P = m.lastP;
     else { P = walkPose(R, Math.max(c.speed, moving ? 0.8 : 0), dt, t); m.lastP = P; }
   } else if (mode === 'strangle') {
-    P = replicaPose('stand', seed); strangleShape(P, t, 1);
+    P = posed(m, 'stand', seed); strangleShape(P, t, 1);
   } else if (mode === 'reach') {
-    P = replicaPose('stand', seed); strangleShape(P, t, 0.3); add(P, 'spine', 0.1);
+    P = posed(m, 'stand', seed); strangleShape(P, t, 0.3); add(P, 'spine', 0.1);
   } else {
-    P = replicaPose(STATIC.has(mode) ? (mode as ReplicaPose) : 'sit', seed);
-    if (m.child && mode === 'stand') P = replicaPose('child', seed);
+    P = posed(m, m.child && mode === 'stand' ? 'child' : STATIC.has(mode) ? (mode as ReplicaPose) : 'sit', seed);
   }
   // the head
   const yaw = headTrack(R, c, dt, frozen);
@@ -247,7 +267,7 @@ function animateSL(rig: Rig, c: Creature, t: number, dt: number) {
 }
 
 const litAt = (c: Creature) => (G && (G as any).players && c.zoneKey ? lightAtB(zoneOf(c), c.x, c.z) : 0.5);
-const _hp = new THREE.Vector3(), _q = new THREE.Quaternion();
+const _hp = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _inv = new THREE.Matrix4();
 function hideGlints(R: SLRig) { for (const g of R.glints) g.visible = false; }
 /** blank eyes are the only part of it that shows in the dark, and only when your light is on it */
 function eyeShine(R: SLRig, c: Creature) {
@@ -261,13 +281,14 @@ function eyeShine(R: SLRig, c: Creature) {
   R.root.updateMatrixWorld(true);
   head.getWorldQuaternion(_q);
   const s = R.hr.s * (R.m.child ? 1.32 * 0.62 : 1);
-  const inv = new THREE.Matrix4().copy(R.root.matrixWorld).invert();
+  const inv = _inv.copy(R.root.matrixWorld).invert();
+  _q2.setFromRotationMatrix(inv);
   for (let k = 0; k < 2; k++) {
     const a = ((k ? 1 : -1) * (R.m.spread ?? 17.5) * Math.PI) / 180;
     _hp.set(Math.sin(a) * 0.088 * s, 0.096 * s, Math.cos(a) * 0.088 * s + 0.002).applyMatrix4(head.matrixWorld).applyMatrix4(inv);
     const g = R.glints[k];
     g.position.copy(_hp);
-    g.quaternion.copy(_q).premultiply(new THREE.Quaternion().setFromRotationMatrix(inv));
+    g.quaternion.copy(_q).premultiply(_q2);
     g.visible = true;
   }
 }

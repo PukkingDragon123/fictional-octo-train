@@ -39,6 +39,10 @@ import { synth } from '../audio/sounds';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { DestructionSystem } from '../world/destruction';
+import { WallRuns } from './wallRuns';
+import { addWound, restoreWounds } from './wounds';
+import { LensBlood } from './lens';
+import { Mauling } from './maul';
 
 /** gore sound recipes, synthesised a few at a time in the background so the first kill does not hitch */
 const WARM = ['gore_wet_hit', 'gore_bone_crack', 'gore_squelch', 'gore_tear', 'gore_burst', 'gore_gib_land', 'gore_spurt', 'gore_crunch', 'gore_chip_land', 'gore_fluff', 'gore_crumble', 'gore_static'];
@@ -47,7 +51,7 @@ export interface CreatureHitInfo { dmg: number; kind: string; fx: number; fz: nu
 
 /** compact fx events (host → all for creatures; a survivor's machine → all for its own blood) */
 type GoreEv =
-  | { t: 'c'; id: string; w: string; a: number; x: number; z: number; k?: 1; cr?: 1; sv?: string[]; hb?: 1; gb?: 1; ch?: number; art?: 1 }
+  | { t: 'c'; id: string; w: string; a: number; x: number; z: number; k?: 1; cr?: 1; sv?: string[]; hb?: 1; gb?: 1; ch?: number; art?: 1; bs?: 1; op?: 1; b?: string }
   | { t: 'pool'; z: string; d: Decal; g: number }
   | { t: 'p'; id: string; w: string; a: number; x: number; z: number; pt: string }
   | { t: 'b'; id: string; l: number; pt: string }
@@ -59,6 +63,8 @@ type GoreEv =
   | { t: 'T'; id: string; pid: string; pt: string; h: number; v: string }
   /** a survivor lost a limb (their machine → all) */
   | { t: 'L'; id: string; pt: string; w: string; x: number; z: number }
+  /** a creature feeding on a body (host → all) */
+  | { t: 'M'; id: string; pid: string; n: number }
   /** destruction fx (pushed furniture moving): handed to G.destruct */
   | { t: 'D'; [k: string]: any };
 
@@ -104,18 +110,29 @@ export class GoreSystem implements GameSystem {
   private warm = 0;
   private warmT = 4;
   private warmMesh: THREE.Mesh | null = null;
+  /** blood running down walls, droplet marks */
+  runs: WallRuns;
+  /** blood on the camera lens */
+  lens = new LensBlood();
+  /** creatures feeding on the dead (host) */
+  maulers = new Mauling();
+  private weaponT = 0;
+  /** dev / tests: force the next death's outcome ('bs' bisect, 'op' opened, 'gb' gib, 'hb' head burst) */
+  debugForce: string | null = null;
 
   constructor() {
     (G as any).gore = this;
     this.root.name = 'gore';
     G.pr.scene.add(this.root);
-    this.parts = new Particles(900);
+    this.parts = new Particles(1500);
     this.glow = new Particles(260, true);
     this.root.add(this.parts.mesh, this.glow.mesh);
     this.decals = new GoreDecals(this.root);
     this.gibs = new Gibs(this.root);
     this.gibs.onLand = (g, x, y, z, speed) => this.gibLanded(g, x, y, z, speed);
     this.gibs.onOoze = (g, x, z) => { if (g.kind.liquid && Math.random() < 0.3) this.emit(g.kind, g.tint, x, g.obj.position.y, z, 0, 0.3, 0, 0.025, 1, 0); };
+    this.runs = new WallRuns(this.root);
+    this.parts.onWall = (x, y, z, nx, nz, col) => { const zk = G.view?.zone?.key; if (zk && this.lv > 0) this.runs.dot(zk, x, y, z, nx, nz, col); };
     bus.on('footstep', (p: Player) => this.footstep(p));
     bus.on('death', (p: Player) => this.localDeath(p));
     // survivors losing limbs (runs whatever the gore level; it decides what to show)
@@ -126,10 +143,10 @@ export class GoreSystem implements GameSystem {
 
   /** 0 off, 1 normal, 2 heavy */
   get lv(): number { return G.sandbox.gore ?? 2; }
-  get mul() { return this.lv >= 2 ? 1 : 0.55; }
+  get mul() { return this.lv >= 2 ? 1.45 : 0.7; }
   get authority() { return G.role !== 'client'; }
 
-  onZoneChange() { this.parts.clear(); this.glow.clear(); this.gibs.clear(); this.arteries.length = 0; }
+  onZoneChange() { this.parts.clear(); this.glow.clear(); this.gibs.clear(); this.arteries.length = 0; this.runs.clear(); this.lens.clear(); }
 
   update(dt: number) {
     const z = G.view?.zone ?? null;
@@ -140,6 +157,10 @@ export class GoreSystem implements GameSystem {
     this.gibs.update(dt, z);
     this.updateArteries(dt, z);
     this.decals.update(dt);
+    this.runs.update(this.lv > 0 ? z : null);
+    this.lens.update(dt);
+    try { this.maulers.update(dt); } catch (e) { console.error('maul', e); }
+    if ((this.weaponT -= dt) <= 0) { this.weaponT = 0.5; this.bloodyWeapon(); }
     if (this.lv > 0) {
       if (this.warm < WARM.length * 3 && (this.warmT -= dt) <= 0) { this.warmT = 0.15; synth(WARM[this.warm % WARM.length], Math.floor(this.warm / WARM.length)); this.warm++; }
       this.updateSurvivors(dt, z);
@@ -177,6 +198,7 @@ export class GoreSystem implements GameSystem {
         case 'cs': this.applyCreatureSevered(ev); break;
         case 'T': this.applyTear(ev); break;
         case 'L': this.applySurvivorSevered(ev); break;
+        case 'M': this.applyMaul(ev); break;
       }
     } catch (e) { console.warn('gore fx', e); }
   }
@@ -391,6 +413,7 @@ export class GoreSystem implements GameSystem {
     if (K.key === 'none') return;
     const ev: GoreEv = { t: 'c', id: c.id, w: info.kind, a: Math.round(info.dmg * 10) / 10, x: Math.round(info.fx * 10) / 10, z: Math.round(info.fz * 10) / 10 };
     if (info.crit) ev.cr = 1;
+    if (info.by) ev.b = info.by;
     const ratio = c.hp / c.sp.hp;
     if (this.lv >= 2 && K.liquid && ratio < 0.45 && ['blade', 'axe', 'firearm', 'bite', 'claw', 'spear'].includes(info.kind) && !this.arteries.some((a) => a.tag === c.id)) ev.art = 1;
     this.applyCreature(ev);
@@ -415,9 +438,18 @@ export class GoreSystem implements GameSystem {
     const head = gd.head && !gone.includes(gd.head) && shown(gd.head) ? gd.head : null;
     const canGib = gd.gib !== false && !sp.flags?.noCorpse;
     const out: string[] = [];
-    let hb = false, gb = false, ch = 0;
+    let hb = false, gb = false, ch = 0, bs = false, opened = false;
     const cutBy = (k: string) => ['blade', 'axe', 'firearm', 'vehicle', 'blunt', 'bite'].includes(k);
-    if (this.lv >= 2 && cutBy(hk)) {
+    // cut in two: a huge axe or sledge blow, a car, a point-blank blast
+    if (this.lv >= 2 && canGib && this.waistOf(c) && (
+      (hk === 'axe' && (info.crit || dmg >= sp.hp * 0.75) && r.chance(0.5)) || (hk === 'vehicle' && dmg >= 25 && r.chance(0.5)) ||
+      (hk === 'blunt' && info.crit && dmg >= 22 && r.chance(0.3)) || (hk === 'firearm' && dmg >= 26 && r.chance(0.35)) || (dmg >= sp.hp * 1.6 && r.chance(0.5)))) bs = true;
+    const force = this.debugForce; this.debugForce = null;
+    if (force === 'bs' && this.waistOf(c)) bs = true;
+    if (force === 'gb') gb = true;
+    if (force === 'hb' && head) hb = true;
+    if (bs || gb || hb) { /* forced or the bisection is the show */ }
+    else if (this.lv >= 2 && cutBy(hk)) {
       if (canGib && ((hk === 'vehicle' && dmg >= 30) || (hk === 'axe' && info.crit && dmg >= sp.hp * 0.9) || (hk === 'firearm' && sp.hp <= 12) || dmg >= Math.max(55, sp.hp * 2.2))) gb = true;
       else {
         if (hk === 'firearm' && r.chance(0.4)) hb = true;
@@ -437,8 +469,13 @@ export class GoreSystem implements GameSystem {
     } else if (this.lv === 1 && head && (hk === 'blade' || hk === 'axe') && (info.crit || dmg >= sp.hp * 0.5) && r.chance(0.35)) out.push(head);
     // the blow took the head clean off (decided by rollLiveSever)
     if ((info as any).head && head && !out.includes(head) && !gb) { out.push(head); hb = false; }
+    // a killing cut or bite through the torso opens it (ribs, guts)
+    if (this.lv >= 2 && !gb && !bs && K.liquid && (force === 'op' || (hk === 'axe' || hk === 'blade' || hk === 'bite' || hk === 'claw') && r.chance(hk === 'axe' ? 0.6 : 0.4))) opened = true;
     const ev: GoreEv = { t: 'c', id: c.id, w: hk, a: Math.round(dmg * 10) / 10, x: Math.round(info.fx * 10) / 10, z: Math.round(info.fz * 10) / 10, k: 1 };
     if (info.crit) ev.cr = 1;
+    if (info.by) ev.b = info.by;
+    if (bs) ev.bs = 1;
+    if (opened) ev.op = 1;
     if (out.length) ev.sv = out;
     if (hb) ev.hb = 1;
     if (gb) ev.gb = 1;
@@ -450,7 +487,7 @@ export class GoreSystem implements GameSystem {
     const [dx, dz] = this.dirFrom(c, info.fx, info.fz);
     const tint = gd.tint ?? K.tint;
     this.hitDecals(z, K, tint, hk, c.x, this.hitY(c), c.z, dx, dz, dmg);
-    if (hb || gb) {
+    if (hb || gb || bs) {
       // a ring of splatter
       for (let i = 0; i < (gb ? 5 : 3); i++) {
         const a = r.float(0, 6.28), d = r.float(0.4, gb ? 1.6 : 1.1);
@@ -473,8 +510,13 @@ export class GoreSystem implements GameSystem {
   private deathPool(c: Creature) {
     const gd = goreOf(c.sp), K = KINDS[gd.blood];
     const z = G.getZone(c.zoneKey);
-    const size = clamp(0.6 + c.radius * 2.4, 0.5, 2.4) * clamp(Math.sqrt(c.sp.hp / 40), 0.7, 1.3) * (this.lv >= 2 ? 1.15 : 1) * (c.mem.gibbed ? 1.3 : 1);
+    const size = clamp(0.6 + c.radius * 2.4, 0.5, 2.4) * clamp(Math.sqrt(c.sp.hp / 40), 0.7, 1.3) * (this.lv >= 2 ? 1.25 : 1) * (c.mem.gibbed ? 1.3 : c.mem.bisected ? 1.5 : 1);
     this.pool(z, c.x + this.rng.float(-0.1, 0.1), c.z + this.rng.float(-0.1, 0.1), size, K, gd.tint ?? K.tint);
+    // it keeps draining: a wider, darker second pool creeps out from under it a while later
+    if (this.lv >= 2 && K.liquid) {
+      const x = c.x + this.rng.float(-0.25, 0.25), zz = c.z + this.rng.float(-0.25, 0.25), tint = gd.tint ?? K.tint;
+      setTimeout(() => { if (G.zones.get(z.key) === z) this.pool(z, x, zz, Math.min(2.8, size * 1.45), K, mulHex(0xc8b0b0, tint), 22); }, 9000 + this.rng.float(0, 8000));
+    }
   }
 
   /** dead creature tick on the host: sliding corpses smear, then pool */
@@ -523,6 +565,18 @@ export class GoreSystem implements GameSystem {
     const hx = c.x - dx * c.radius * 0.4, hz = c.z - dz * c.radius * 0.4;
     if (here) {
       this.hitFx(K, tint, ev.w, hx, hy, hz, dx, dz, ev.a, !!ev.cr);
+      // the wound stays on the body
+      if (this.lv > 0 && c.rig && ev.w !== 'fire' && ev.w !== 'shove' && (ev.w !== 'unarmed' || ev.a >= 6)) {
+        try { addWound(c, K, ev.w, dx, dz, hy, !!ev.k || ev.a >= 18, false, tint); } catch (e) { console.warn('wound', e); }
+        if (ev.k && ev.op && !ev.gb && !ev.bs) { try { addWound(c, K, ev.w, dx, dz, hy - 0.08, true, true, tint); } catch (e) { console.warn('wound', e); } }
+      }
+      // a close one: on the lens
+      if (K.liquid && ev.a >= 9) this.lensNear(c.x, c.z, (ev.a / 30) * (ev.k ? 1.4 : 1), K);
+      // the weapon that did it
+      if (ev.b && ev.b === G.local?.id && K.liquid && ['blade', 'axe', 'blunt', 'spear', 'unarmed'].includes(ev.w)) {
+        const it = G.local.handR;
+        if (it) it.bloody = Math.min(1, (it.bloody ?? 0) + 0.12 + ev.a / 120);
+      }
       // survivors right next to a bloody hit get splashed
       if (K.liquid && ev.a >= 8) for (const p of G.players.values()) {
         if (p.zoneKey === c.zoneKey && !p.body.dead && Math.hypot(p.x - c.x, p.z - c.z) < 1.3 + c.radius) bus.emit('bloodied', p, 'torso_u', clamp(ev.a / 40, 0.1, 0.6) * this.mul);
@@ -540,6 +594,12 @@ export class GoreSystem implements GameSystem {
     // death: what comes off
     const sev: string[] = c.mem.sev = [...(c.mem.sev || [])];
     if (ev.gb) { c.mem.gibbed = true; this.fullGib(c, K, tint, dx, dz, here); return; }
+    if (ev.bs) { const w = this.waistOf(c); if (w && !sev.includes(w)) { sev.push(w); c.mem.bisected = true; if (here) this.bisect(c, w, K, tint, dx, dz); } }
+    if (ev.op && here && K.liquid) {
+      this.gibs.organs(c.zoneKey, K, tint, c.x, hy - 0.1, c.z, Math.round(1 + this.mul), v3.set(dx, 0, dz), 1.6);
+      this.jet(K, tint, c.x, hy - 0.1, c.z, dx, dz, Math.round(30 * this.mul), 2.4, 1.2, 1.4, 0.034, 0.05);
+      this.snd(K.snd.tear, c.x, c.z, 1, c.zoneKey);
+    }
     for (const n of ev.sv || []) if (!sev.includes(n)) { sev.push(n); if (here) this.sever(c, n, K, tint, dx, dz, true); }
     if (ev.hb && gd.head) { if (!sev.includes(gd.head)) sev.push(gd.head); if (here) this.headBurst(c, gd.head, K, tint, dx, dz); }
     if (ev.ch && here) {
@@ -552,6 +612,7 @@ export class GoreSystem implements GameSystem {
 
   /** the rig was (re)built: re-apply missing parts as stumps, no gibs */
   onRigBuilt(c: Creature) {
+    try { restoreWounds(c); } catch (e) { console.warn('wounds', e); }
     if (!c.rig || (!c.mem.sev?.length && !c.mem.severed?.length)) return;
     const K = kindOf(c.sp);
     for (const n of [...(c.mem.severed || []), ...(c.mem.sev || [])] as string[]) this.sever(c, n, K, 0xffffff, 0, 0, false);
@@ -710,6 +771,7 @@ export class GoreSystem implements GameSystem {
     bus.emit('bloodied', p, 'torso_u', 0.8);
     bus.emit('bloodied', p, ev.pt, 1);
     this.shake(p.x, p.z, p.isLocal ? 0.9 : 0.45);
+    this.lensNear(pos.x, pos.z, p.isLocal ? 1.6 : 1.0);
   }
 
   /** cut a named part off a creature's rig: stump, gib, spurting */
@@ -739,8 +801,113 @@ export class GoreSystem implements GameSystem {
       if (wdir.lengthSq() < 1e-4) wdir.set(0, 1, 0);
       wdir.normalize();
       const local = wdir.applyQuaternion(stump.getWorldQuaternion(q4).invert());
-      this.arteries.push({ obj: stump, off: new THREE.Vector3(), dir: local, t: 0, dur: (this.lv >= 2 ? 5 : 2.5) + Math.random() * 2, str: burst ? 1.3 : 1, K, tint, zone: c.zoneKey, ph: Math.random() * 3, f: 1.25, acc: 0, owner: this.authority, dec: 0.6, tag: c.id });
+      const neck = isHead || burst;
+      this.arteries.push({ obj: stump, off: new THREE.Vector3(), dir: local, t: 0, dur: (this.lv >= 2 ? (neck ? 9 : 5) : 2.5) + Math.random() * 2, str: neck ? 1.7 : 1.1, K, tint, zone: c.zoneKey, ph: Math.random() * 3, f: neck ? 1.45 : 1.25, acc: 0, owner: this.authority, dec: 0.6, tag: c.id });
     }
+  }
+
+  /** the part to cut a body in two at: the bone above the root on the way to the head (a spine, a chest) */
+  waistOf(c: Creature): string | null {
+    const rig = c.rig; if (!rig) return null;
+    const gd = goreOf(c.sp);
+    let start: THREE.Object3D | undefined = gd.head ? rig.parts[gd.head] : undefined;
+    if (!start) for (const n of gd.sever || []) { if (partRole(n, gd.head) === 'arm' && rig.parts[n]) { start = rig.parts[n]; break; } }
+    if (!start || !attached(start, rig.root)) return null;
+    const chain: THREE.Object3D[] = [];
+    let q = start.parent;
+    while (q && q !== rig.body && q !== rig.root) { chain.push(q); q = q.parent; }
+    if (chain.length < 2) return null;
+    const pick = chain[chain.length - 2];
+    for (const k in rig.parts) if (rig.parts[k] === pick) return k;
+    return null;
+  }
+
+  /** cut in two at the waist: the top half goes, the legs stay, everything in between comes out */
+  private bisect(c: Creature, waist: string, K: BloodKind, tint: number, dx: number, dz: number) {
+    const part = c.rig?.parts[waist];
+    let px = c.x, py = this.hitY(c) - 0.1, pz = c.z;
+    if (part) { part.updateWorldMatrix(true, false); const wp = new THREE.Vector3().setFromMatrixPosition(part.matrixWorld); px = wp.x; py = wp.y; pz = wp.z; }
+    this.sever(c, waist, K, tint, dx, dz, true);
+    const m = this.mul;
+    if (K.liquid) this.gibs.organs(c.zoneKey, K, tint, px, py, pz, Math.round(2 + 2 * m), v3.set(dx, 0, dz), 2.2);
+    this.gibs.chunks(c.zoneKey, K, tint, px, py, pz, Math.round(5 * m) + 2, v3.set(dx, 0, dz), 2.6, 2.2);
+    this.jet(K, tint, px, py, pz, dx, dz, Math.round(60 * m), 3.6, 1.4, 2.4, 0.036, 0.07);
+    this.jet(K, tint, px, py, pz, -dz, dx, Math.round(20 * m), 2.6, 0.8, 1.6, 0.03, 0.06);
+    this.jet(K, tint, px, py, pz, dz, -dx, Math.round(20 * m), 2.6, 0.8, 1.6, 0.03, 0.06);
+    this.mist(K, tint, px, py, pz, dx, dz, Math.round(18 * m), 2);
+    this.bits(K, tint, px, py, pz, dx, dz, Math.round(10 * m), 3);
+    this.snd(K.snd.burst, px, pz, 1, c.zoneKey);
+    this.snd(K.snd.tear, px, pz, 1, c.zoneKey);
+    this.snd(K.snd.heavy, px, pz, 0.9, c.zoneKey);
+    this.shake(px, pz, 0.55);
+    this.lensNear(px, pz, 1.4, K);
+  }
+
+  /** blood on the lens when it happens close to the local survivor */
+  lensNear(x: number, z: number, amount: number, K: BloodKind = KINDS.red) {
+    const p = G.local; if (!p || !K.liquid) return;
+    const d = Math.hypot(p.x - x, p.z - z);
+    if (d > 2.6) return;
+    const k = amount * (1 - d / 2.6);
+    if (k < 0.15 || Math.random() > 0.35 + k) return;
+    // which side of the picture: screen-right of the camera is (cos yaw, -sin yaw)
+    const yaw = G.pr.yaw, sx = (x - p.x) * Math.cos(yaw) - (z - p.z) * Math.sin(yaw);
+    this.lens.splash(k, clamp(sx, -1, 1), K.drop[1] ?? 0x8a1214);
+  }
+
+  // ================================================================ feeding (src/gore/maul.ts decides, host)
+  maul(c: Creature, p: Player, n: number) {
+    const ev: GoreEv = { t: 'M', id: c.id, pid: p.id, n };
+    this.applyMaul(ev);
+    this.send(ev);
+    // what stays: the pool widens, meat and blood strewn about
+    const z = G.getZone(p.zoneKey);
+    if (n % 3 === 1) this.pool(z, p.x + this.rng.float(-0.3, 0.3), p.z + this.rng.float(-0.3, 0.3), Math.min(2.6, 1.2 + n * 0.08), KINDS.red, 0xffffff, 6);
+    if (n % 2 === 0) {
+      const a = this.rng.float(0, 6.28), d = this.rng.float(0.3, 1.0);
+      this.decals.commit(z, { x: p.x + Math.cos(a) * d, z: p.z + Math.sin(a) * d, w: this.rng.float(0.4, 0.8), d: this.rng.float(0.4, 0.8), rot: this.rng.float(0, 6.28), tex: tex(KINDS.red, this.rng.chance(0.5) ? 'splat_a' : 'drops') }, 0.4);
+    }
+  }
+
+  private applyMaul(ev: Extract<GoreEv, { t: 'M' }>) {
+    const c: Creature | undefined = G.creatures?.creatures?.get?.(ev.id);
+    const p = G.players.get(ev.pid);
+    if (!c || !p || this.lv <= 0 || p.zoneKey !== G.local?.zoneKey) return;
+    const K = KINDS.red, m = this.mul, r = this.rng;
+    const parts = ['torso_u', 'torso_l', 'neck', 'thigh_l', 'thigh_r', 'uarm_l', 'uarm_r', 'head'];
+    const pt = parts[(ev.n * 7 + 3) % parts.length];
+    const wp = this.woundPos(p, pt);
+    // it pulls back with its mouthful: the spray goes up and toward it
+    let dx = c.x - p.x, dz = c.z - p.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    this.jet(K, 0xffffff, wp.x, wp.y, wp.z, dx, dz, Math.round(16 * m) + 2, 2.2, 1.2, 2.2, 0.034, 0.05);
+    this.mist(K, 0xffffff, wp.x, wp.y, wp.z, dx, dz, Math.round(5 * m) + 1, 1.2);
+    if (ev.n % 2 === 0) this.bits(K, 0xffffff, wp.x, wp.y, wp.z, dx, dz, Math.round(3 * m) + 1, 2);
+    if (ev.n % 3 === 0) this.gibs.chunks(p.zoneKey, K, 0xffffff, wp.x, wp.y, wp.z, Math.round(m) + 1, v3.set(dx, 0, dz), 1.8, 1.5);
+    if (this.lv >= 2 && ev.n >= 5 && ev.n % 4 === 1) this.gibs.organs(p.zoneKey, K, 0xffffff, wp.x, wp.y, wp.z, 1, v3.set(dx, 0, dz), 1.4);
+    this.snd(r.chance(0.5) ? 'gore_tear' : 'gore_squelch', p.x, p.z, 0.9, p.zoneKey);
+    if (ev.n % 3 === 0) this.snd('gore_bone_crack', p.x, p.z, 0.7, p.zoneKey);
+    bus.emit('bloodied', p, pt, 0.7);
+    this.lensNear(wp.x, wp.z, 0.8, K);
+    // the body is gone after long enough at it
+    if (this.lv >= 2 && ev.n >= 16) this.gibPlayer(p);
+  }
+
+  /** the local survivor's weapon shows what it has been used for */
+  private bloodyWeapon() {
+    const p = G.local; if (!p || this.lv <= 0) return;
+    const it = p.handR;
+    const lvl = it ? Math.min(3, Math.floor((it.bloody ?? 0) * 3.99)) : 0;
+    const held: THREE.Object3D | undefined = (p.rig as any)?.heldR;
+    if (!held) return;
+    held.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.geometry) return;
+      const ud = mesh.userData;
+      if ((ud.goreLvl ?? 0) === lvl && ud.goreSrc) return;
+      if (!ud.goreSrc) ud.goreSrc = mesh.geometry;
+      ud.goreLvl = lvl;
+      mesh.geometry = lvl ? bloodyGeo(ud.goreSrc, lvl) : ud.goreSrc;
+    });
   }
 
   private headBurst(c: Creature, head: string, K: BloodKind, tint: number, dx: number, dz: number) {
@@ -756,6 +923,7 @@ export class GoreSystem implements GameSystem {
     this.snd(K.snd.burst, cx, cz, 1, c.zoneKey);
     this.snd(K.snd.heavy, cx, cz, 0.8, c.zoneKey);
     this.shake(cx, cz, 0.35);
+    this.lensNear(cx, cz, 1.2, K);
   }
 
   private fullGib(c: Creature, K: BloodKind, tint: number, dx: number, dz: number, here: boolean) {
@@ -788,6 +956,7 @@ export class GoreSystem implements GameSystem {
     this.snd(K.snd.burst, c.x, c.z, 1, c.zoneKey);
     this.snd(K.snd.heavy, c.x, c.z, 0.9, c.zoneKey);
     this.shake(c.x, c.z, 0.5);
+    this.lensNear(c.x, c.z, 1.5, K);
   }
 
   /** a corpse run over (host decides, every peer bursts it) */
@@ -913,6 +1082,12 @@ export class GoreSystem implements GameSystem {
     if (ev.w !== 'bruise') bus.emit('bloodied', p, ev.pt, clamp(ev.a / 25, 0.15, 1));
     if (ev.w !== 'bruise') this.snd('gore_wet_hit', p.x, p.z, 0.75, p.zoneKey);
     if (ev.w === 'bite') this.snd('gore_tear', p.x, p.z, 0.6, p.zoneKey);
+    if (ev.w !== 'bruise') this.lensNear(wp.x, wp.z, (ev.a / 20) * (p.isLocal ? 1.3 : 0.8));
+    // on the floor and still being torn at
+    if (p.body.downed && ev.w !== 'bruise' && this.lv >= 2) {
+      this.jet(KINDS.red, 0xffffff, wp.x, wp.y, wp.z, -dx, -dz, Math.round(14 * this.mul), 2, 1.1, 2, 0.034, 0.05);
+      if (Math.random() < 0.4) this.gibs.chunks(p.zoneKey, KINDS.red, 0xffffff, wp.x, wp.y, wp.z, 1, v3.set(-dx, 0, -dz), 1.6, 1.4);
+    }
   }
 
   /** world position of a wound on a survivor (rig.woundPoints() if the rig offers it, else the joint) */
@@ -1085,6 +1260,34 @@ export class GoreSystem implements GameSystem {
       }
     }
   }
+}
+
+const bloodyCache = new Map<string, THREE.BufferGeometry>();
+/** a held weapon's geometry with blood worked into its business end (the far half along its length) */
+function bloodyGeo(src: THREE.BufferGeometry, lvl: number): THREE.BufferGeometry {
+  const key = src.uuid + '|' + lvl;
+  let g = bloodyCache.get(key);
+  if (g) return g;
+  g = src.clone();
+  const P = g.getAttribute('position') as THREE.BufferAttribute, C = g.getAttribute('color') as THREE.BufferAttribute;
+  if (!P || !C) return src;
+  g.computeBoundingBox();
+  const bb = g.boundingBox!, size = bb.getSize(new THREE.Vector3());
+  const ax = size.x >= size.y && size.x >= size.z ? 'x' : size.y >= size.z ? 'y' : 'z';
+  const lo = bb.min[ax], len = Math.max(1e-4, size[ax]);
+  for (let i = 0; i < P.count; i++) {
+    const t = ((ax === 'x' ? P.getX(i) : ax === 'y' ? P.getY(i) : P.getZ(i)) - lo) / len;
+    const n = ((Math.round(P.getX(i) * 300) * 73856093) ^ (Math.round(P.getY(i) * 300) * 19349663) ^ (Math.round(P.getZ(i) * 300) * 83492791)) >>> 0;
+    const reach = 0.25 + lvl * 0.15;
+    // whichever end is further from the grip (the grip sits about a quarter along)
+    const along = Math.max(t, 1 - t);
+    if (along < 1 - reach || (n % 7) / 7 > 0.35 + lvl * 0.2) continue;
+    const k = Math.min(1, 0.45 + lvl * 0.18);
+    C.setXYZ(i, C.getX(i) * (1 - k) + 0.42 * k, C.getY(i) * (1 - k) + 0.04 * k, C.getZ(i) * (1 - k) + 0.05 * k);
+  }
+  C.needsUpdate = true;
+  bloodyCache.set(key, g);
+  return g;
 }
 
 function attached(o: THREE.Object3D, root: THREE.Object3D): boolean {

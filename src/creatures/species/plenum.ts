@@ -18,6 +18,9 @@ import {
   gauss, lostParts, attackCurve, flinchOf, hash, addV, scl,
 } from '../kit/humanoids';
 import { defDread } from '../dread';
+import { atlas } from '../../gfx/atlas';
+import { addTextureModule } from '../../gfx/textures/index';
+import { ph } from '../../gfx/pixel';
 import '../../audio/sounds_creatures_c';
 
 // =====================================================================================
@@ -29,6 +32,21 @@ import '../../audio/sounds_creatures_c';
 // but it does not like it there; when it has bitten someone, or been hurt, it
 // goes back up.
 // =====================================================================================
+
+addTextureModule(() => {
+  // a drop-ceiling panel: fissured mineral fibre, a water stain, the grid edge
+  atlas().add('c_ceiling_panel', 20, 20, (pc) => {
+    pc.wrap = false;
+    for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) {
+      const n = ph(x, y, 41), m = ph(x >> 1, y >> 1, 43);
+      let c = n < 0.12 ? 0xb8b2a4 : n < 0.2 ? 0xc8c2b4 : 0xe0dccf;
+      if (m < 0.1) c = 0xa8a294;
+      if (Math.hypot(x - 13, y - 7) < 4.5) c = (c & 0xfefefe) >> 0 === c ? 0xc8b890 : c; // an old leak
+      if (x === 0 || y === 0 || x === 19 || y === 19) c = 0xd8d8d0;
+      pc.set(x, y, c);
+    }
+  }, 0.6, 0.6);
+});
 
 const LEGS = 8;
 const LEG_Z = [0.26, 0.09, -0.09, -0.26];
@@ -84,7 +102,7 @@ function buildP(B: SkinB, x: BuildCtx) {
   frames(B, fr, 10, R('BODY'), 1, { start: true, end: true });
   // the head: under the front, a face set upside down in it
   const hp = x.rest('head');
-  ellipsoid(B, [hp[0], hp[1], hp[2] + 0.02], [0.085, 0.07, 0.08], 10, 6, R('HEAD'), [bi('head'), 1], 3);
+  ellipsoid(B, [hp[0], hp[1], hp[2] + 0.03], [0.1, 0.09, 0.095], 10, 6, R('HEAD'), [bi('head'), 1], 3);
   ellipsoid(B, [hp[0], hp[1] - 0.04, hp[2] + 0.07], [0.06, 0.03, 0.05], 8, 4, R('HEAD'), [bi('jaw'), 1], 4);
   // eight legs, four joints each, the knuckles swollen
   for (let i = 0; i < LEGS; i++) {
@@ -99,7 +117,7 @@ function buildP(B: SkinB, x: BuildCtx) {
 
 function paintP(p: Page, x: BuildCtx) {
   const SK = makeRamp([0xa89490, 0x9c948c, 0xb09a88][x.variant % 3], 10, { hueShift: 0.05, spread: 0.6 });
-  const dust = (r: Region, sd: number) => { for (let yy = 0; yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) { const n = r.fbm(xx, yy, 4, 2, sd); if (n > 0.62) r.blend(xx, yy, 0xd8d4c8, (n - 0.62) * 1.6); if (hash(xx * 3 + yy, sd) < 0.05) r.set(xx, yy, 0xe8e4d8); } };
+  const dust = (r: Region, sd: number) => { for (let yy = 0; yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) { const n = r.fbm(xx, yy, 4, 2, sd); if (n > 0.62) r.blend(xx, yy, 0xd8d4c8, (n - 0.62) * 1.6); if (hash(xx * 3 + yy, sd) < 0.012) r.blend(xx, yy, 0xe8e4d8, 0.6); } };
   {
     const r = p.R('BODY');
     r.fill(SK, (xx, yy) => 4.6 + Math.sin((xx / r.w) * Math.PI * 2) * 1.2 + (r.fbm(xx, yy, 3, 2, 3) - 0.5) * 1.2 + (Math.sin(yy * 0.9) > 0.6 ? 1.2 : 0) - (Math.sin(yy * 0.9) < -0.7 ? 1 : 0));
@@ -152,7 +170,7 @@ function dropTile(x: number, z: number, ry: number) {
   const root = fxRoot(); if (!root) return;
   if (!tileMesh) {
     const mb = new ModelBuilder();
-    mb.box(0, -0.01, 0, 0.6, 0.02, 0.6, { top: 'ceiling_tile', bottom: 'ceiling_tile', sides: 'white' }, { color: 0xe8e4d8 });
+    mb.box(0, -0.01, 0, 0.6, 0.02, 0.6, { top: 'c_ceiling_panel', bottom: 'c_ceiling_panel', sides: 'white' }, { color: 0xe8e4d8, fit: true });
     tileMesh = new THREE.Mesh(mb.build(), worldMaterial({}));
     tileMesh.castShadow = true;
   }

@@ -352,6 +352,14 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
       if (client) (limbs as HTMLButtonElement).disabled = true;
       f.append(limbs);
       f.append(h('p', 't-note', client ? 'Set by the host for everyone in this world.' : 'Saved with this world (co-op guests use your setting).'));
+      // the rest of the sentencing terms (world rules, the debt contract's own fields): fixed at intake, shown for reference
+      const TERM_LABELS: Record<string, string> = { dayLength: 'Day length (min)', creatures: 'Entities', loot: 'Valuables', startHour: 'Arrived at', collapseSpeed: 'Collapse', waterShutoffDays: 'Water fails (day)', powerShutoffDays: 'Power fails (day)',
+        contract: 'Contract', debt: 'Debt owed (scrip)', debtDays: 'Days per installment', installmentDays: 'Days per installment', bandLethal: 'Band detonation kills', finalLethal: 'Final deadline lethal' };
+      const rest = Object.entries(sbx).filter(([k, v]) => typeof v === 'number' && k !== 'gore' && k !== 'limbLoss');
+      if (rest.length) {
+        f.append(h('div', 't-ctl-h', 'SENTENCING TERMS · fixed at intake'));
+        for (const [k, v] of rest) f.append(h('div', 't-ctl', `<kbd>${esc(TERM_LABELS[k] || humanizeKey(k))}</kbd><span>${esc(String(Math.round(v * 100) / 100))}</span>`));
+      }
     }
     swapPage(page, f, dir);
   };

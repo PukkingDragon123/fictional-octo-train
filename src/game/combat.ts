@@ -102,6 +102,8 @@ export class CombatSystem implements GameSystem {
     if (!hitAny) this.hitWorld(p, w, it);
     if (hitAny && it) this.wear(p, it);
     if (hitAny) p.body.addXp('strength', 1);
+    // the blow lands: it jars back up the arm (procedural recoil, src/entities/humanReact.ts)
+    if (hitAny) p.anim?.impact?.(w.kind === 'blade' || w.kind === 'spear' ? 0.35 : 0.7);
     noise(p, p.x, p.z, hitAny ? w.noise : w.noise * 0.5, 'melee');
   }
 

@@ -26,7 +26,7 @@ export function rigNumber(rig: unknown): string {
 }
 const numberOf = (P: Paint) => prisonerNumber(P.seed - hashStr(P.lp.tex + (P.lp.item || '')));
 
-export const JUMPSUIT_YELLOW = 0xd9a826;
+export const JUMPSUIT_YELLOW = 0xeeb415;
 export const GUARD_GREY = 0x62686a;
 
 // ------------------------------------------------------------------ painters

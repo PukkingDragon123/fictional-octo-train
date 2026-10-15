@@ -272,6 +272,8 @@ export class TouchControls implements GameSystem {
     const g = this.btnGroup[key];
     return (g ? this.vis[g] === true : this.vis[key] === true) && this.vis[key] !== false;
   }
+  private shownFn = (key: string) => this.shownBtn(key);
+  private fadedFn = (key: string) => this.fadedBtn(key);
   private fadedBtn(key: string) { const g = this.btnGroup[key]; return g && this.groups[g]?.classList.contains('nc-faded') ? 0.32 : 1; }
 
   /** button size follows the screen; icons snap to whole multiples of their pixel grid */
@@ -305,7 +307,7 @@ export class TouchControls implements GameSystem {
     if (!on || !this.g.local || !this.g.ui) { this.t3.update(dt, false, () => false, () => 1, null); return; }
     this.updateControls(dt);
     const stickShown = this.vis.stick ? (this.mode === 'drive' ? 'steer' : 'valve') : null;
-    this.t3.update(dt, true, (k) => this.shownBtn(k), (k) => this.fadedBtn(k), stickShown);
+    this.t3.update(dt, true, this.shownFn, this.fadedFn, stickShown);
   }
 
   private updateControls(dt: number) {

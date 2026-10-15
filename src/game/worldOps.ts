@@ -91,9 +91,11 @@ defOp('take', (a: { z: string; ref: string; uid: number; to: string; dest?: numb
   bus.emit('containerChanged', c);
   const p = playerById(a.to);
   if (isReplaying()) return;
-  if (p && p.isLocal) { setPlace(it, atOf(a)); playerContainer(p, a.dest).add(it); bus.emit('inventoryChanged', p); }
+  if (p && p.isLocal) { if (!carries(p, it.uid)) { setPlace(it, atOf(a)); playerContainer(p, a.dest).add(it); bus.emit('inventoryChanged', p); } }
   else if (ctx.host && G.role === 'host') G.net?.sendTo(a.to, 'give', { item: serializeItem(it), dest: a.dest, ...atArgs(atOf(a)) });
 });
+/** a client gets a taken item twice (the host's 'give' and the broadcast op): keep one */
+function carries(p: Player, uid: number): boolean { return p.allItems().some((i) => i.uid === uid); }
 defOp('put', (a: { z: string; ref: string; item: any }) => {
   const z = G.zones.get(a.z); if (!z) return;
   const c = resolveContainer(z, a.ref); if (!c) return;
@@ -129,7 +131,7 @@ defOp('takeFloor', (a: { z: string; uid: number; to: string; dest?: number } & A
   bus.emit('floorChanged', z);
   const p = playerById(a.to);
   if (isReplaying()) return;
-  if (p && p.isLocal) { setPlace(wi.item, atOf(a)); playerContainer(p, a.dest).add(wi.item); bus.emit('inventoryChanged', p); }
+  if (p && p.isLocal) { if (!carries(p, wi.item.uid)) { setPlace(wi.item, atOf(a)); playerContainer(p, a.dest).add(wi.item); bus.emit('inventoryChanged', p); } }
   else if (ctx.host && G.role === 'host') G.net?.sendTo(a.to, 'give', { item: serializeItem(wi.item), dest: a.dest, ...atArgs(atOf(a)) });
 });
 /** host -> requesting client: receive an item into a container */
@@ -137,6 +139,7 @@ export function receiveGive(a: { item: any; dest?: number } & At) {
   const p = G.local; if (!p) return;
   const it = deserializeItem(a.item);
   setUidBase(it.uid + 1);
+  if (carries(p, it.uid)) return;
   if (a.gx !== undefined) setPlace(it, atOf(a));
   else if (a.dest === undefined) setPlace(it, null);
   playerContainer(p, a.dest).add(it);

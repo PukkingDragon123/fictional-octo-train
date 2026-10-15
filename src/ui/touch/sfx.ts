@@ -201,4 +201,9 @@ export function sfx(key: string, vol = 0.5, rate = 1, minGap = 0.025) {
 }
 export function resetSfx() { lastAt = {}; }
 /** haptics (touch mode only) */
-export function haptic(ms: number | number[]) { buzz(ms); }
+export function haptic(ms: number | number[]) {
+  // browsers refuse (and log) vibration before the first tap
+  const ua = (navigator as any).userActivation;
+  if (ua && !ua.hasBeenActive) return;
+  buzz(ms);
+}

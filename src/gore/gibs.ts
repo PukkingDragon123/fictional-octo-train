@@ -125,6 +125,22 @@ export class Gibs {
     }
   }
 
+  /** organs thrown out of an opened body: coils of gut, a piece of rib cage, bone shards */
+  organs(zone: string, kind: BloodKind, tint: number, x: number, y: number, z: number, n: number, dir: THREE.Vector3, speed: number) {
+    const geos = organGeos();
+    const mat = worldMaterial({});
+    for (let i = 0; i < n; i++) {
+      const m = new THREE.Mesh(geos[i % geos.length], mat);
+      m.castShadow = false;
+      m.position.set(x + (Math.random() - 0.5) * 0.15, y + (Math.random() - 0.5) * 0.1, z + (Math.random() - 0.5) * 0.15);
+      m.rotation.set(Math.random() * 6, Math.random() * 6, Math.random() * 6);
+      const a = Math.random() * Math.PI * 2;
+      const v = new THREE.Vector3(Math.cos(a), 0, Math.sin(a)).multiplyScalar(speed * (0.2 + Math.random() * 0.6)).addScaledVector(dir, speed * (0.4 + Math.random() * 0.8));
+      v.y = 0.8 + Math.random() * 1.8;
+      this.spawn(m, zone, kind, tint, v, 8, 4);
+    }
+  }
+
   private tintMesh(m: THREE.Mesh, col: number) {
     // chunks share geometry: tint by cloning the colour attribute once per colour
     const key = (m.geometry.uuid) + col;
@@ -240,3 +256,39 @@ export class Gibs {
 }
 
 const tintCache = new Map<string, THREE.BufferGeometry>();
+
+let organCache: THREE.BufferGeometry[] | null = null;
+/** gut coils, a slab of ribs, a long bone shard (built once) */
+function organGeos(): THREE.BufferGeometry[] {
+  if (organCache) return organCache;
+  const out: THREE.BufferGeometry[] = [];
+  for (let v = 0; v < 2; v++) {
+    // a coil of intestine: fat segments bending round on themselves
+    const mb = new ModelBuilder();
+    let x = 0, z = 0, a = v * 1.3;
+    for (let i = 0; i < 7; i++) {
+      const nx = x + Math.cos(a) * 0.05, nz = z + Math.sin(a) * 0.05;
+      mb.push().translate((x + nx) / 2, 0.022, (z + nz) / 2).rotateY(-a).rotateZ(Math.PI / 2);
+      mb.cylinder(0, -0.03, 0, 0.022, 0.062, 6, 'gore_guts');
+      mb.pop();
+      x = nx; z = nz; a += 0.75 + (i % 2) * 0.25;
+    }
+    out.push(mb.build());
+  }
+  {
+    // a piece of rib cage: curved bars on a strip of meat
+    const mb = new ModelBuilder();
+    mb.box(0, 0, 0, 0.16, 0.025, 0.14, 'gore_flesh', { fit: true });
+    for (let k = 0; k < 4; k++) { mb.push().translate(-0.06 + k * 0.04, 0.025, 0).rotateX(0.25); mb.box(0, 0, 0, 0.018, 0.018, 0.17, 'gore_bone', { fit: true }); mb.pop(); }
+    out.push(mb.build());
+  }
+  {
+    const mb = new ModelBuilder();
+    mb.box(0, 0, 0, 0.026, 0.026, 0.2, 'gore_bone', { fit: true });
+    mb.box(0, 0.01, 0.09, 0.04, 0.04, 0.04, 'gore_bone', { fit: true });
+    mb.box(0.005, 0.0, -0.08, 0.03, 0.03, 0.05, 'gore_stump', { fit: true });
+    out.push(mb.build());
+  }
+  organCache = out;
+  return out;
+}

@@ -28,10 +28,11 @@
 @keyframes vx-ff { 50% { transform: translateX(4px); } }
 
 /* the chapter card */
-.vx-card { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); text-align: center; opacity: 0; transition: opacity 1.4s; white-space: nowrap; text-shadow: 3px 3px 0 #000; }
+.vx-card { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); text-align: center; opacity: 0; transition: opacity 1.4s; white-space: nowrap; text-shadow: 3px 3px 0 #000; line-height: 1.05; padding: 18px 48px; background: radial-gradient(ellipse at center, rgba(0,0,0,.62) 0%, rgba(0,0,0,.35) 55%, transparent 75%); }
+.vx-card div { display: block; }
 .vx-card.on { opacity: 1; }
 .vx-card .l1 { font-size: clamp(15px, 2vw, 22px); letter-spacing: 6px; color: #b8b49a; }
-.vx-card .l2 { font-size: clamp(28px, 5.2vw, 58px); letter-spacing: 4px; color: #f4f0dc; margin: 2px 0 4px; }
+.vx-card .l2 { font-size: clamp(28px, 5.2vw, 58px); letter-spacing: 4px; color: #f4f0dc; margin: 6px 0 8px; }
 .vx-card .l3 { font-size: clamp(14px, 1.9vw, 21px); letter-spacing: 5px; color: #d8a830; }
 
 /* what to do, written onto the tape */

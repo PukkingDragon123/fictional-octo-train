@@ -23,6 +23,7 @@ import { Rng, hash3 } from '../../core/rng';
 import { registerShift } from '../shift';
 import { Frame, Dir, Rot, LBACK, LFACE, WBACK, WFACE, ANG, wallAt, signAt, decal, scatter, lootIn, arrive, openTile } from './suburbs_kit';
 import { itemAt, stash, sectorPick } from './meridian_kit';
+import { wrongRoomsIn } from './wrong_kit';
 
 const W = 144, H = 120;
 // building interior x 3..140, y 4..116; the Main Corridor rows 56..59
@@ -613,6 +614,8 @@ export function generateHospital(z: Zone, seed: number) {
   z.creatureCap = 8;
   z.meta.terminalLore = ['terminal_generic'];
   z.meta.shiftRate = 1;
+  // a few patient rooms are wrong (world stream 3): someone sitting on the bed, the wet room, the phones
+  wrongRoomsIn(z, b, seed ^ 0x77a2, ['patient_room', 'paediatric_room'], 4, ['bed_still', 'wet', 'phones', 'tv_backs', 'sideways_bath', 'chairs_corner'], { paper: 'wall_hospital' });
   return b;
 }
 

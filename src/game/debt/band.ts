@@ -104,7 +104,7 @@ export class BandSystem implements GameSystem {
   private graceT = GRACE;
   private seamCache = new Map<string, { t: number; list: TileObject[] }>();
   private remoteWarn = new Map<string, number>();
-  private flashes: { x: number; y: number; z: number; t: number; zone: string }[] = [];
+  private flashes: { x: number; y: number; z: number; t: number; zone: string; c?: number; i?: number }[] = [];
   private wornCheckT = 0;
 
   constructor() {
@@ -351,7 +351,7 @@ export class BandSystem implements GameSystem {
       const f = this.flashes[i];
       f.t -= dt;
       if (f.t <= 0) { this.flashes.splice(i, 1); continue; }
-      if (f.zone === p?.zoneKey) G.pointLight(f.x, f.y, f.z, 0xffd8a0, 2.5 * f.t / 0.45 + 0.3, 9);
+      if (f.zone === p?.zoneKey) G.pointLight(f.x, f.y, f.z, f.c ?? 0xffd8a0, (f.i ?? 2.5) * f.t / 0.45 + 0.3, f.c ? 5 : 9);
     }
     // remote survivors' bands beeping
     for (const [id, lv] of this.remoteWarn) {
@@ -360,7 +360,7 @@ export class BandSystem implements GameSystem {
       const k = 'rw' + id;
       const t = ((this as any)[k] ?? 0) - dt;
       (this as any)[k] = t <= 0 ? 0.6 - lv * 0.4 : t;
-      if (t <= 0) G.audio?.play?.('band_beep', q.x, q.z, { vol: 0.7, range: 16 });
+      if (t <= 0) { G.audio?.play?.('band_beep', q.x, q.z, { vol: 0.7, range: 16 }); const wq = wristPos(q); this.flashes.push({ x: wq.x, y: wq.y + 0.1, z: wq.z, t: 0.12, zone: q.zoneKey, c: 0xff2010, i: 1.5 }); }
     }
     if (!p) return;
     const m = G.missions;
@@ -407,6 +407,9 @@ export class BandSystem implements GameSystem {
     if (w.beepT <= 0) {
       w.beepT = Math.max(0.09, 0.9 * (w.countdown / COUNTDOWN));
       G.audio?.play?.('band_beep', p.x, p.z, { vol: 0.7 + w.level * 0.4, variant: Math.min(7, Math.floor(w.level * 8)) });
+      // the pip on the band strobes red with every beep
+      const wp = wristPos(p);
+      this.flashes.push({ x: wp.x, y: wp.y + 0.1, z: wp.z, t: 0.12, zone: p.zoneKey, c: 0xff2010, i: 1.2 + w.level * 2 });
       bus.emit('bandWarning', { id: p.id, level: w.level, reason: w.reason, countdown: Math.max(0, Math.ceil(w.countdown)) });
       if (w.level > 0.6) G.pr.fx.hurt = Math.max(G.pr.fx.hurt, 0.15);
     }
@@ -418,7 +421,7 @@ export class BandSystem implements GameSystem {
   itemMenu(p: Player, it: Item, opts: MenuOption[]) {
     if (it.key !== 'bailiff_band') return;
     // it does not come off normally
-    for (let i = opts.length - 1; i >= 0; i--) if (/^(Take off|Drop|Drop all|Move to|Unequip)/.test(opts[i].label)) opts.splice(i, 1);
+    for (let i = opts.length - 1; i >= 0; i--) if (/^(Take off|Drop|Drop all|Move to|Unequip|Equip)/.test(opts[i].label)) opts.splice(i, 1);
     if (!this.armed(p.id)) return;
     const tool = this.removalTool(p);
     opts.unshift({ label: 'Cut the band off…', danger: true, disabled: !tool ? 'needs pliers, bolt cutters or a saw' : false, action: () => this.startRemoval(p) });

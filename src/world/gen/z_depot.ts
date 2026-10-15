@@ -14,7 +14,7 @@ import { Zone, TF } from '../zone';
 import { ZoneBuilder } from './builder';
 import { Furnisher } from './furnish';
 import { Rng } from '../../core/rng';
-import { Ctx, Rot, arrive, put, force, mount, decal, hh, hopperAt, loopSeamsX, lamp, itemAtW, isOpen } from './weird_kit';
+import { type Ctx, type Rot, arrive, put, force, mount, decal, hh, hopperAt, loopSeamsX, lamp, itemAtW, isOpen } from './weird_kit';
 import { BAY_LABELS } from '../../content/furniture/zw_surfaces';
 import { objDef } from '../objects';
 
@@ -112,7 +112,7 @@ export function generateDepot(z: Zone, seed: number) {
     ambient: 0x2a2418, ambientI: 0.48, fog: 0x16110a, fogNear: 12, fogFar: 30, void: 0x050403, temp: 13,
     grade: 'parking', reverb: 'hall', ambience: 'parking', music: 'drone',
   };
-  z.spawnTable = [['still_life', 3], ['hollow', 1.5], ['employee', 1], ['grinhound', 1], ['sentinel', 1], ['echo', 0.8], ['occupant', 0.3]];
+  z.spawnTable = [['still_life', 3], ['hollow', 1.5], ['employee', 1], ['grinhound', 1], ['sentinel', 1], ['echo', 0.8], ['occupant', 0.3], ['gloam', 0.8], ['stammer', 0.8]];
   z.creatureCap = 7;
   z.meta.terminalLore = ['zw_depot_notice', 'terminal_generic'];
   z.meta.transportBay = { x0: B0X, y0: BAY0, x1: B0X1, y1: BAY1, face: -Math.PI / 2, laneY: [LANE0, LANE1], entry: [B0X + 3, LANE1] };

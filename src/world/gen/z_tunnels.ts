@@ -403,6 +403,10 @@ function generateTunnels(z: Zone, seed: number) {
     // dusk falls down the shaft
     b.light(sx + 0.5, r.y0 + 0.7, 'sky', { color: 0xffbf80, intensity: 0.7, radius: 6, y: 2.6, circuit: 0 });
     for (let k = 0; k < 9; k++) decalAt(z, 'decal_leaves', sx + rng.float(-0.6, 1.6), r.y0 + rng.float(0.6, 4.2), rng.float(0.6, 1.1), rng.float(0.6, 1.1), rng.float(0, 6));
+    // a second, older ladder in the corner: rusted, going up into somewhere that is not a street
+    b.obj('ladder_wall', r.x1 - 3, r.y0, 0, { portal: 'r_under_tunnels' });
+    b.portal({ id: 'r_under_tunnels', x: r.x1 - 3, y: r.y0, kind: 'ladder', to: 'undercroft', tx: 48, ty: 54, label: 'Climb the rusted ladder' });
+    anchorAt(b, 'p_under_tunnels', r.x1 - 3, r.y0 + 2, 's', 2);
     put(f, 'traffic_cone', sx + 1, r.y0 + 3, 0, { yaw: 1.2 });
     f.floorItem('newspaper', sx - 1, r.y0 + 3);
     jsign(r.x0 + 1, r.y0, '3');
@@ -868,7 +872,7 @@ function generateTunnels(z: Zone, seed: number) {
   connectRegions(z, b, first[0], first[1], rng, { keep: [...blockRects, rect(LOOP.x0, LOOP.y0, LOOP.x1, LOOP.y1), VEST] });
   // anchors first in the table = the manhole (zonecheck reachability starts there)
   const a = z.meta.anchors;
-  z.meta.anchors = { p_suburbs_manhole: a.p_suburbs_manhole, p_pools_drain: a.p_pools_drain, p_hospital_basement: a.p_hospital_basement, r_tunnels_lab: a.r_tunnels_lab, lab_door: a.lab_door, fold_j3: a.fold_j3, fold_j8: a.fold_j8 };
+  z.meta.anchors = { p_suburbs_manhole: a.p_suburbs_manhole, p_pools_drain: a.p_pools_drain, p_hospital_basement: a.p_hospital_basement, r_tunnels_lab: a.r_tunnels_lab, lab_door: a.lab_door, fold_j3: a.fold_j3, fold_j8: a.fold_j8, p_under_tunnels: a.p_under_tunnels };
 
   for (let c = 1; c <= 9; c++) z.power.set(c, c !== DEAD);
   z.env = {

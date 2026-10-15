@@ -18,6 +18,7 @@ import {
   anchor, noSpawn, room, wallObj, lamp, decalAt, itemOn, itemAt, stash, scatterLoot, sectorPick,
   BACK, FACE, Rot, Side,
 } from './meridian_kit';
+import { wrongRoomsIn } from './wrong_kit';
 
 // ---------------------------------------------------------------- plan
 const PX0 = 5, PY0 = 5, PX1 = 110, PY1 = 138;       // floor plate interior
@@ -300,7 +301,12 @@ function generateOffice(z: Zone, seed: number) {
     noSpawn(b, 47, y0 + 2, 3);
     wallObj(b, 'exit_sign', 47, y0, 'n', {});
     wallObj(b, 'zg_level_sign', 49, y0, 'n', { label: '4' });
-    wallObj(b, 'fire_extinguisher_wall', 45, y0, 'n', {});
+    wallObj(b, 'fire_extinguisher_wall', 50, y0 + 2, 'e', {});
+    // a second steel door that is not on the plans: through it, Annex B
+    b.door(45, y0, 0, 'door_lab', { portal: 'p_office_annex', sign: 'danger' });
+    b.portal({ id: 'p_office_annex', x: 45, y: y0, kind: 'door', to: 'annex', tx: 4, ty: 8, label: 'Go through to Annex B' });
+    anchor(z, 'r_office_annex', 45, y0 + 2, 's');
+    wallObj(b, 'zw_plate', 44, y0, 'n', { label: 'ANNEX B' });
     lamp(b, 47, 64, C_CORE, { kind: 'light_bulb', flicker: 0.15 });
   }
   // restrooms
@@ -806,6 +812,8 @@ function generateOffice(z: Zone, seed: number) {
   z.creatureCap = 9;
   z.meta.terminalLore = ['terminal_mail_1', 'terminal_mail_2', 'terminal_generic'];
   z.meta.shiftRate = 1.0;
+  // a few offices are wrong in one specific way each (world stream 3)
+  wrongRoomsIn(z, b, seed ^ 0x77a1, ['office', 'empty'], 5, ['high_door', 'tiny_door', 'phones', 'tv_backs', 'chairs_corner', 'upside_down', 'ceiling_stairs'], { paper: 'wall_office' });
 }
 
 // ---------------------------------------------------------------- east wing

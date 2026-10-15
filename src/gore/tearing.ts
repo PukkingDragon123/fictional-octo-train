@@ -49,6 +49,12 @@ export const TEARS: Record<string, TearDef> = {
   hollow: { parts: [['hand_l', 1], ['hand_r', 1], ['farm_l', 1], ['farm_r', 1]], chance: 0.03, hold: 1.6, verb: 'pull', with: /arm/i, line: 'Let GO of me—' },
   ventling: { parts: [['hand_l', 1], ['hand_r', 1]], chance: 0.012, hold: 1.0, verb: 'bite', with: /head/i, line: 'My fingers— it took my—' },
   stilt_doe: { parts: [['uarm_l', 1], ['uarm_r', 1]], chance: 0.02, hold: 1.0, verb: 'snap', line: 'It kicked— my arm—' },
+  // the monster pass (src/creatures/species/stammer.ts, surveyor.ts, plenum.ts, gloam.ts, still_life.ts)
+  stammer: { parts: [['uarm_l', 2], ['uarm_r', 2], ['farm_l', 2], ['farm_r', 2]], chance: 0.08, hold: 1.5, verb: 'snap', with: /fore|hand/i, line: 'Its fingers go all the way round my arm— it is FOLDING it—' },
+  surveyor: { parts: [['foot_l', 1], ['foot_r', 1], ['hand_l', 2], ['hand_r', 2]], chance: 0.04, hold: 1.8, verb: 'pull', with: /arm|fore/i, line: 'It is pulling me along the rope— into the dark—' },
+  plenum: { parts: [['hand_l', 2], ['hand_r', 2], ['foot_l', 2], ['foot_r', 2], ['shin_l', 1], ['shin_r', 1]], chance: 0.07, hold: 1.2, verb: 'bite', with: /head|jaw/i, line: 'It is chewing— under the face— it is CHEWING—' },
+  gloam: { parts: [['hand_l', 3], ['hand_r', 3], ['farm_l', 2], ['farm_r', 2]], chance: 0.09, hold: 1.3, verb: 'bite', with: /head|jaw/i, line: 'Teeth in the dark— my hand is in the TEETH—' },
+  still_life: { parts: [['hand_l', 1], ['hand_r', 1]], chance: 0.015, hold: 2.2, verb: 'wrench', with: /arm|hand/i, line: 'Wax fingers— they will not open—' },
 };
 export const tearDef = (key: string): TearDef | null => TEARS[key] ?? null;
 
@@ -72,7 +78,7 @@ export function limbId(name: string): string {
 }
 
 /** things that keep going without a head */
-export const HEADLESS_OK = new Set(['employee', 'davenport', 'swivel', 'plushkin', 'custodian', 'occupant', 'lamplighter']);
+export const HEADLESS_OK = new Set(['employee', 'davenport', 'swivel', 'plushkin', 'custodian', 'occupant', 'lamplighter', 'still_life', 'surveyor']);
 
 export interface CreatureLimbFx {
   /** movement multiplier */

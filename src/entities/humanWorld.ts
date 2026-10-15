@@ -90,6 +90,7 @@ export function pickLook(p: Player, out: LookTarget, now: number): LookTarget | 
  * The local survivor is always full detail.
  */
 export function lodFor(p: Player): number {
+  if (p.inVehicle) return 2;
   if (p.isLocal) return 0;
   if (!p.rig.root.visible) return 2;
   const me = G?.local;

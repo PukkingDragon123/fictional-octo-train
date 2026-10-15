@@ -136,6 +136,15 @@ b.portal({ id: 'p_fields', x, y, kind: 'door', to: 'fields', tx: 40, ty: 40, lab
 | p_lab_core / r_lab_core | lab freight elevator ↔ server | elevator | p_lab_core: stage:2 |
 | p_core_exit | server → exit | door | stage:3 |
 | p_exit_final | exit doorway → the ending (`to: '__ending__'`) | door (`exit_doorway` object) | stage:3 |
+| p_lobby_depot / r_lobby_depot | lobby Underpass stairs ↔ depot "Stairs to Level 0" | stairs_down / stairs_up | — |
+| p_lobby_under / r_lobby_under | lobby hole into the dark ↔ undercroft tan rope | hole / ladder | — |
+| p_depot_annex / r_depot_annex | depot staff corridor ↔ annex Transit Door | door | — |
+| p_office_annex / r_office_annex | office Stair B vestibule ↔ annex Reception B | door | — |
+| p_annex_under / r_annex_under | annex Sector 7 hole (end of the blue rope) ↔ undercroft blue rope | hole / ladder | — |
+| p_under_tunnels / r_under_tunnels | undercroft pit ladder ↔ tunnels Junction 3 rusted ladder | ladder / ladder | — |
+| p_mall_showroom / r_mall_showroom | mall East Court glass doors ↔ showroom entrance | door | — |
+| p_showroom_home / r_showroom_home | showroom "Living Room 14 / YOU ARE HOME" set front door ↔ homestead house 12 front door | door | — |
+| p_suburbs_home / r_suburbs_home | suburbs Maple Court 5 red front door ↔ homestead house 14 front door | door | — |
 
 ## Zones
 
@@ -360,6 +369,126 @@ Almost nothing: white floor, soft white light, fog to white, a single
 locked stage:3), a note with `exit_note` taped near it. Arrival anchor
 p_core_exit some distance away so the player walks toward the light. Grade
 `exit`, ambience `exit`, reverb `dream`, music `choir`. No creatures.
+
+### depot — Interchange 0 (192×72, depth 2) — `z_depot.ts`
+A 1990 bus and rail interchange that never ends: the whole level repeats
+every 128 tiles east–west (32-tile modules; loop seams at x 32 ↔ 160 and
+159 ↔ 31) and only modules 1–2 (x 52..115) are unique. North to south: bus
+lane + bays under sodium lamps (dead coaches `zw_coach`, NOT IN SERVICE),
+bus platform, glass wall, concourse (dot-matrix `zw_departures` /
+`zw_board_hanging` boards listing places nobody can go, steel benches,
+pillars, newsstands, ticket machines), a row of rooms (waiting rooms with a
+seated Still Life, toilets, Bay Cafe, left luggage, a quiet room where every
+chair faces one corner), and Platform 0, whose edge drops onto a track bed
+(`zw_track`, h −1.1) and then into void.
+* **Bay 0** (x 70..75, y 10..21) is kept clear for the transport: room type
+  `transport_bay`, anchor `transport_bay` at its platform end, and
+  `z.meta.transportBay = { x0, y0, x1, y1, face, laneY, entry }` (the vehicle
+  comes in from the lane at y 2..9 and noses south into the bay).
+* **Ticket booth** `zw_ticket_booth` faces the concourse behind Bay 0; the
+  debt contract's `ticket_kiosk` machine is placed by hand at the booth window
+  (bx+1, 29) and the anchor `ticket_kiosk` is the tile in front of it.
+* Unique rooms: Stairs to Level 0 (r_lobby_depot), Lost Property (lore
+  `zw_lost_property`), Station Office (`zw_depot_driver`), Staff Corridor with
+  the door to Annex B (`zw_annex_memo` on the noticeboard), the Waiting Hall
+  full of seated Still Lifes. Hopper by hand in the concourse at (58, 39).
+* Anchors: p_lobby_depot, transport_bay, ticket_kiosk, r_depot_annex.
+* Grade `parking`, ambience `parking`, reverb `hall`, music `drone`. Spawn:
+  still_life 3, hollow 1.5, employee 1, grinhound 1, sentinel 1, echo 0.8, occupant 0.3, gloam 0.8, stammer 0.8.
+
+### showroom — The Showroom (176×128, depth 2) — `z_showroom.ts`
+An endless furniture store: entrance (from the mall, hopper by the door), then
+one long path of 66 room sets (living, kitchen, bedroom, dining, office,
+nursery, bathroom; banners `zw_banner`, price stands `zw_price_stand`) along
+three aisles with painted path edges and arrows. Sets deeper in repeat with
+one thing wrong: a Still Life on the sofa, dinner served (real food on the
+plates) with a family at the table, everything hung from the ceiling
+(`zw_upside_down`), someone in the bed (`replica_lying`), a bathroom on its
+side (`zw_on_wall`), SOLD / YOURS price cards. The "Living Room 14 / YOU ARE
+HOME" set has a red front door in its back wall (p_showroom_home). Then the
+cafeteria (food on every table, a children's corner), the collection point,
+and the self-serve warehouse: pallet racking (`zw_rack`, `zw_flatpack`) that
+loops east–west (period 16, seams x 24 ↔ 152), checkouts in the unique middle.
+* Anchors: p_mall_showroom, r_showroom_home. Lore: `zw_showroom_memo`,
+  `zw_showroom_receipt`, `zw_assembly`, `zw_home_child`, `zw_home_note`.
+* Grade `market`, ambience `market`, reverb `mall`, music `muzak`. Spawn:
+  still_life 4, davenport 1.5, employee 1.5, hollow 1, swivel 1, plushkin 0.6, plenum 0.8, stammer 0.6.
+
+### homestead — The Homestead (100×84, depth 3) — `z_homestead.ts`
+One family bungalow copied 4×4 times wall to wall. Every front door opens
+onto the hallway of the house in front of it; the bottom row's front doors
+open onto the top row's hallways (portals `home_front_k` → anchors
+`home_hall_k`), except house 12 (→ showroom) and house 14 (→ suburbs). The
+kitchen back door opens into the child's bedroom of the house behind; the
+parents' bedroom into the next house's living room. Copies differ: the family
+of Still Lifes at dinner (real food on the plates via `zw_table_setting` +
+items), on the sofa facing the static `zw_tv_console`, in the beds, children
+at the little table, the living room on the ceiling, chairs turned away,
+buckets under drips. Portraits `zw_portrait` have smeared faces. Exterior
+windows look onto black. Hopper by hand in house 12's dining room.
+* Anchors: home_hall_0..3, p_showroom_home, p_suburbs_home.
+* Grade `house`, ambience `house`, reverb `small`, music `musicbox`. Spawn:
+  still_life 5, plushkin 1, lamplighter 1, echo 0.8, davenport 0.4, stammer 1.
+
+### annex — Annex B (128×112, depth 3) — `z_annex.ts`
+A 1990 Meridian research annex: beige vinyl walls (`zw_wall_annex`), carpet
+tiles, cubicles, tape library, an observation room whose one-way glass looks
+onto a sealed cell with a seated Still Life, break room, records, equipment
+store, decontamination (`zw_hazmat` suits on hooks, `zw_decon_arch`), the
+Transit Door to the depot, the director's office, Lab 3, meeting room, server
+closet B. In the middle, the abandoned **base camp**: tents, `zw_cot`,
+`zw_field_table`, hard cases, generator, work lights `zw_floodlight`, CRT
+carts with test patterns `zw_crt_cart`, camcorders `zw_camcorder` pointed
+east, a survey board, three tether stakes `zw_tether_stake` whose ropes
+(decals via `ropeLine`) run into **Sector 7**, the east half where every
+light is dead, black doorways `zw_black_door` stand in the walls and two
+rooms rearrange. T1/T2 stop short; the blue T3 rope goes over the lip of a
+hole (p_annex_under). Hopper by hand at the camp entrance (48, 51).
+* Anchors: p_office_annex, p_depot_annex, r_annex_under. Lore:
+  `zw_annex_memo`, `zw_annex_log`, `zw_annex_tape`.
+* Grade `office`, ambience `office`, reverb `office`, music `drone`. Spawn:
+  still_life 3, employee 2, hollow 1.5, swivel 1, drywall_man 1, echo 1, custodian 0.4, surveyor 1.5, plenum 1.2.
+
+### undercroft — The Undercroft (96×96, depth 4) — `z_undercroft.ts`
+Under the Lobby and Annex B: a wet concrete hall with no far wall, huge 2×2
+pillars (`zw_pillar_huge`), ragged edges, standing water, rubble, black
+doorways, a debtors' camp with a tally (`zw_under_ledger`), and in the middle
+a pit with a rusted ladder going down (`zw_pit_ladder`, p_under_tunnels).
+You arrive under two holes in the ceiling, each with a rope hanging out of it
+(`zw_rope_hanging`): the tan one back up to Level 0, the blue one to Annex B.
+Hopper by hand near the Level 0 rope. Very dark: bring light.
+* Anchors: r_under_tunnels, p_annex_under, p_lobby_under.
+* Grade `tunnels`, ambience `tunnels`, reverb `void`, music `drone`. Spawn:
+  still_life 2, hollow 1.5, occupant 1, underlay 1, echo 1, grinhound 0.5, gloam 1.5, surveyor 0.8.
+
+### Wrong rooms — `wrong_kit.ts`, `lobbyWrong.ts`
+A library of rooms that are wrong in one specific way: `high_door`
+(`zw_high_door`), `ceiling_stairs` (`zw_stairs_ceiling`), `chairs_corner`
+(chairs with `state.yaw` all facing one corner), `narrowing` (slanted
+`zw_slab` walls squeezing a corridor to a `zw_crack`), `tiny_door`
+(`zw_tiny_door`), `same_thrice` (three identical rooms in a row, same note),
+`upside_down` (`zw_upside_down` / `zw_on_wall` render any furniture key on
+the ceiling or standing on a wall: `state.of`, `state.ofState`), `sideways_bath`,
+`dark_hole` (void hole with torn carpet edge; optional hole portal), `phones`
+(`zw_phone`, ringing), `wet` (`zw_drip_bucket`, dripping), `bed_still` (a
+Still Life sitting on a single bed), `poster_corridor` (`zw_poster_same`:
+the figure in the poster gets closer), `tv_backs` (`zw_tv_stack`: CRTs
+showing the back of a figure in a yellow jumpsuit), `loop_stairs` (a stairs
+portal into the same zone that lands you at the foot of the same stairs).
+* `carveWrong(z, b, rng, kind, rect, opts)` carves a fresh walled room (the
+  Lobby has 14 of them plus the Underpass and the hole to the Undercroft, all
+  ≥16 tiles from the spawn room); `wrongRoomsIn(z, b, seed, types, n, kinds)`
+  dresses existing rooms (office ×5, hospital ×4, school ×3, mall ×3,
+  suburbs ×2), skipping rooms with portals, anchors, mission props or
+  mission items. Rooms are retyped `wrong_*` (flags `room:<zone>:wrong_*`).
+* Sound cues (`src/world/roomFx.ts`): phones ring, buckets drip, TV stacks
+  hiss, cracks whisper — local, proximity-based, every peer.
+
+### Hand-placed contract props
+New zones place the Remittance Hopper by hand near their entry
+(`hopperAt` in `weird_kit.ts`, also recorded in `z.meta.hopperSites`); the
+debt contract's post-gen hook leaves zones that already have one alone. The
+depot places the `ticket_kiosk` at the booth window by hand.
 
 ## Liminal mechanics (use them!)
 

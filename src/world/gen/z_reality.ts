@@ -61,6 +61,11 @@ const LX0 = 19, LX1 = 20, LY0 = 1, LY1 = 19;
 const VX0 = 30, VY0 = 30, VX1 = 66, VY1 = 46;
 const FALL_X = 50, FALL_Y = 38;
 
+/** stencilled paint on the north wall of tile (x, y): a wall decal, so the wall shows between the letters */
+function notice(z: Zone, x: number, y: number, v: number) {
+  z.decals.push({ x: x + 0.5, z: y + 0.065, y: 1.55, w: 2.9, d: 0.27, rot: Math.PI / 2, tex: 'zp_notice_' + v, vert: 1 });
+}
+
 function generateReality(z: Zone, seed: number) {
   const rng = new Rng(seed);
   const b = new ZoneBuilder(z, rng);
@@ -76,7 +81,7 @@ function generateReality(z: Zone, seed: number) {
   for (let y = CY0; y <= CY1; y++) for (let x = CX0; x <= CX1; x++) b.floorVar(x, y, (x * 5 + y * 3) % 2);
   // where you came from: a holding door, locked behind you
   b.door(CX0, 21, 1, 'door_metal', { locked: true, sign: 'staff' });
-  b.obj('zp_notice', 4, CY0, BACK.n, { v: 4 });
+  notice(z, 4, CY0, 4);
   // observation glass, still figures behind it
   const obs = (x0: number, n: number, name: string) => {
     room(b, name, 'observation', x0, 17, x0 + 4, 19, { floor: 'concrete', paper: 'zp_wall_dark', wall, temp: 15 });
@@ -84,7 +89,7 @@ function generateReality(z: Zone, seed: number) {
     const xs = n === 1 ? [x0 + 2] : n === 2 ? [x0 + 1, x0 + 3] : [x0 + 1, x0 + 2, x0 + 4];
     xs.forEach((x, i) => b.obj('zp_observer', x, 18 + (i % 2), FACE.s, { v: (x0 + i) % 3 }));
     // lit from behind, so you only ever see the outline
-    b.light(x0 + 2.5, 17.2, 'bulb', { intensity: 0.42, radius: 3.6, y: 2.2, color: 0xffd8a0 });
+    b.light(x0 + 2.5, 17.1, 'bulb', { intensity: 1.0, radius: 3.4, y: 2.0, color: 0xffe0b0 });
   };
   obs(9, 2, 'Observation A');
   obs(25, 3, 'Observation B');
@@ -93,9 +98,9 @@ function generateReality(z: Zone, seed: number) {
   mon(7); mon(31); mon(42);
   b.obj('zp_sign_remit', 22, CY0, BACK.n, {});
   b.obj('zp_bricked_door', 35, CY0, BACK.n, {});
-  b.obj('zp_notice', 14, CY0, BACK.n, { v: 0 });
-  b.obj('zp_notice', 33, CY0, BACK.n, { v: 2 });
-  b.obj('zp_notice', 44, CY0, BACK.n, { v: 1 });
+  notice(z, 14, CY0, 0);
+  notice(z, 33, CY0, 2);
+  notice(z, 44, CY0, 1);
   b.obj('fire_extinguisher_wall', 46, CY0, BACK.n, {});
   b.obj('zg_pa_speaker', 24, CY0, BACK.n, {});
   // kit issue alcove: the rack of yellow jumpsuits, lockers
@@ -132,7 +137,7 @@ function generateReality(z: Zone, seed: number) {
   b.door(AX0, 21, 1, 'door_metal', { open: true });
   b.obj('zp_floor_drain', 51, 21, 0, {});
   b.obj('zp_hose_reel', 50, AY0, BACK.n, {});
-  b.obj('zp_notice', 53, AY0, BACK.n, { v: 3 });
+  notice(z, 53, AY0, 3);
   f.place('bench', 49, AY1, FACE.n, {});
   f.place('mop_bucket', 54, AY1, 0, {});
   f.place('gurney', 53, 19, FACE.w, {});
@@ -205,7 +210,7 @@ function generateReality(z: Zone, seed: number) {
   z.env = {
     ...z.env,
     ambient: 0x1a1e20, ambientI: 0.3, fog: 0x080a0a, fogNear: 13, fogFar: 27, void: 0x020203, temp: 15,
-    sky: false, grade: 'hospital', reverb: 'tunnel', ambience: 'lab', music: 'none', weather: 'none',
+    sky: false, grade: 'office', reverb: 'tunnel', ambience: 'lab', music: 'none', weather: 'none',
   };
 }
 

@@ -19,6 +19,7 @@ import {
   Ctx, Rot, Side, BACK, FACE, arrive, put, force, mount, fascia, glow, skylight, decal, floorRect,
   itemAt, itemOn, scatterLoot, scatterDecals, unitFrame, UnitFrame, hf, isOpen, isFloor,
 } from './mall_kit';
+import { wrongRoomsIn } from './wrong_kit';
 
 const W = 192, H = 160;
 // circuits
@@ -415,6 +416,8 @@ export function generateMall(z: Zone, seed: number) {
   z.spawnTable = [['davenport', 2], ['hollow', 2], ['employee', 1], ['ventling', 1], ['lumenmoth', 1], ['custodian', 0.5]];
   z.creatureCap = 9;
   z.meta.terminalLore = ['terminal_generic', 'terminal'];
+  // a couple of shuttered units are wrong inside (world stream 3)
+  wrongRoomsIn(z, b, seed ^ 0x77a4, ['vacant_store', 'gift_shop', 'photo_store'], 3, ['wet', 'tv_backs', 'phones', 'upside_down', 'chairs_corner'], { paper: 'wall_mall' });
   z.meta.shiftRate = 1;
 }
 
@@ -493,6 +496,12 @@ function buildEastCourt(c: Ctx) {
   for (const [x, y] of [[180, 70], [180, 80]] as const) put(c, 'bench', x, y, 1);
   put(c, 'coin_ride', 184, 56, 1); put(c, 'gumball_machine', 184, 54, 1); put(c, 'trash_can', 171, 88, 0);
   mount(b, 'payphone', 185, 75, 'e');
+  // the glass doors in the east wall that the directory does not list: the furniture showroom
+  for (const y of [77, 78]) b.door(186, y, 1, 'door_glass', { portal: 'p_mall_showroom', sign: 'exit' });
+  b.portal({ id: 'p_mall_showroom', x: 185, y: 77, kind: 'door', to: 'showroom', tx: 4, ty: 7, label: 'Go through to the Showroom' });
+  arrive(b, 'r_mall_showroom', 183, 78, 'w', 3);
+  mount(b, 'zw_plate', 185, 79, 'e', { label: 'SHOWROOM' });
+  b.obj('zw_banner', 182, 76, 1, { v: 9 });
   for (let y = 56; y <= 89; y += 6) for (const x of [173, 181]) glow(b, x, y, 'fluoro', C_CONC, { color: 0xfff0dc });
   skylight(b, 177, 64, 0.45, 9); skylight(b, 177, 80, 0.45, 9);
   for (let i = 0; i < 4; i++) f.floorLoot('mall_trash', 172 + c.rng.int(0, 12), 58 + c.rng.int(0, 30));

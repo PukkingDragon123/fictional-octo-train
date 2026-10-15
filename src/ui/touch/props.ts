@@ -77,7 +77,7 @@ export class Thing extends Prop {
     const t = pixTex(w, h, draw);
     const g = new THREE.PlaneGeometry(1, 1);
     if (orient === 'up') g.rotateX(-PI / 2);
-    const mo = new Mold().add(g, null, 0xffffff, [0.1, 0.4, 0.6, 0]);
+    const mo = new Mold().add(g, null, 0xffffff, [0.1, 0.4, 0.12, 0]);
     const mesh = this.mesh(mo, this.mat({ map: t.tex, decal: true }), parent);
     mesh.position.set(x, y, z);
     const d: Decal = { mesh, w, h, orient, tilt };
@@ -132,6 +132,7 @@ const setGlow = (m: THREE.ShaderMaterial, rgb: number, k: number) => {
 // VALVE WHEEL: the movement stick
 // =====================================================================
 const IRON = 0x3c4a3e, VRED = 0xa3241a;
+const SH_N = 32;
 export class Valve extends Thing {
   private wheel = new THREE.Group();
   private spin = new THREE.Group();
@@ -150,7 +151,7 @@ export class Valve extends Thing {
 
   constructor() {
     super('stick');
-    this.elev = 64 * DEG; this.fit = 1.0;
+    this.elev = 64 * DEG; this.fit = 1.0; this.bloodK = 1.15;
     // cast-iron valve body on a bolted flange
     const b = new Mold();
     b.add(cyl(0.3, 0.05, 18, 0.33), M(0, 0.025, 0), IRON, PAINT);
@@ -343,10 +344,22 @@ export class Arcade extends Thing {
   private shadowM: THREE.Mesh;
   private plateTex: ReturnType<typeof liveTex>;
   armed = 0; lock = false; aimX = 0; aimY = 0;
-  private atx = 0; private aty = 0;
+  private atx = 0; private aty = 0; private shP = -1;
+  /** the part of a disc (radius r, offset o toward the light's far side) that lands on the bezel ring */
+  private crescent(o: number, r: number) {
+    const pos = this.shadowM.geometry.getAttribute('position') as THREE.BufferAttribute;
+    const arr = pos.array as Float32Array;
+    for (let i = 0; i < SH_N; i++) {
+      const a = i / SH_N * PI * 2, ux = Math.cos(a), uz = Math.sin(a);
+      const d = ux * o + uz * o, disc = r * r - 2 * o * o + d * d;
+      const rOut = clamp(disc > 0 ? d + Math.sqrt(disc) : 0, 0.272, 0.39);
+      arr.set([ux * 0.272, 0.211, uz * 0.272, ux * rOut, 0.211, uz * rOut], i * 6);
+    }
+    pos.needsUpdate = true;
+  }
   constructor(key = 'attack', private capColor = 0xc2271c, private stripes = true) {
     super(key);
-    this.elev = 52 * DEG; this.fit = 1.0; this.k = 2600;
+    this.elev = 52 * DEG; this.fit = 1.0; this.k = 2600; this.bloodK = 0.75;
     const pm = this.mat({ wear: 0.6 });
     pm.defines = { USE_MAP: '' };
     const plate = new Mold().add(box(0.98, 0.07, 0.98), M(0, 0.035, 0), 0xffffff, SURF(PAINT, 0.5));
@@ -354,12 +367,17 @@ export class Arcade extends Thing {
     this.plateTex = liveTex(this, pm);
     const hw = new Mold();
     for (const [x, z] of [[-0.41, -0.41], [0.41, -0.41], [-0.41, 0.41], [0.41, 0.41]]) hw.add(cyl(0.038, 0.03, 6), M(x, 0.08, z, 0, 0.4), 0x8e9189, STEEL);
-    hw.add(lathe([[0.27, 0.07], [0.375, 0.07], [0.39, 0.11], [0.375, 0.19], [0.335, 0.208], [0.285, 0.205], [0.27, 0.17]], 24), null, chromeC(), CHROME);
+    hw.add(lathe([[0.27, 0.07], [0.375, 0.07], [0.39, 0.11], [0.375, 0.19], [0.335, 0.208], [0.285, 0.205], [0.27, 0.17]], 24), null, chromeC(0xc6c9c0, 0x868982, 0x3c3e3a), CHROME);
     hw.add(cyl(0.272, 0.02, 20), M(0, 0.1, 0), 0x0e0d0c, RUBBER);
     this.mesh(hw, this.mat({ wear: 0.4 }));
-    // contact shadow of the cap on the bezel: shrinks as the cap goes down
-    this.shadowM = this.shadow(new THREE.CircleGeometry(0.27, 20).rotateX(-PI / 2), this.body, 0.55);
-    this.shadowM.position.set(0.06, 0.212, 0.06);
+    // the cap's shadow on the bezel ring: a crescent that shrinks as the cap goes down
+    const sg = new THREE.BufferGeometry();
+    sg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(SH_N * 2 * 3), 3));
+    const idx: number[] = [];
+    for (let i = 0; i < SH_N; i++) { const a = i * 2, b = ((i + 1) % SH_N) * 2; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+    sg.setIndex(idx);
+    this.shadowM = this.shadow(sg, this.body, 0.5);
+    this.crescent(0.07, 0.27);
     // the domed cap (lit from inside when armed)
     this.cap.position.set(0, 0.1, 0);
     this.body.add(this.cap);
@@ -390,9 +408,7 @@ export class Arcade extends Thing {
   protected animate(dt: number) {
     const p = this.press;
     this.cap.position.y = 0.1 - p * 0.115;
-    const sc = 1 - p * 0.18;
-    this.shadowM.scale.set(sc, 1, sc);
-    this.shadowM.position.set(0.06 - p * 0.04, 0.212, 0.06 - p * 0.04);
+    if (Math.abs(p - this.shP) > 0.01) { this.shP = p; this.crescent(0.07 - p * 0.055, 0.27 * (1 - p * 0.12)); }
     // dragging aims: the cap leans after the thumb
     this.atx += (this.aimX - this.atx) * Math.min(1, dt * 16);
     this.aty += (this.aimY - this.aty) * Math.min(1, dt * 16);
@@ -510,7 +526,7 @@ export class BottleCap extends Thing {
   private brand = CAP_BRANDS[Math.floor(Math.random() * CAP_BRANDS.length)];
   constructor() {
     super('use');
-    this.elev = 60 * DEG; this.fit = 1.05; this.k = 2000;
+    this.elev = 60 * DEG; this.fit = 1.05; this.k = 2000; this.bloodK = 0.6;
     const g = crown();
     const tin = (x: number, _y: number, z: number) => (hash(Math.round(x * 30), Math.round(z * 30)) > 0.8 ? 0x8f8a74 : 0xc2bb9f);
     this.mesh(new Mold().add(g.skirt, null, tin, [0.9, 0.9, 0.6, 0]), this.mat({ wear: 0.5 }));
@@ -562,7 +578,7 @@ export class BottleCap extends Thing {
   protected onDown() { sfx('tc_cap', 0.5, 1, 0.04); haptic(14); }
   protected onUp(cancelled: boolean) { if (!cancelled) sfx('tc_cap', 0.35, 1.3, 0.04); this.dent = Math.min(0.02, this.dent + 0.004); }
   protected animate(dt: number) {
-    this.topM.uniforms.uDent.value = this.press * 0.07 + this.dent;
+    this.topM.uniforms.uDent.value = this.press * 0.095 + this.dent;
     // a little hop when something new comes into reach
     const k = 320, c = 2 * Math.sqrt(k) * 0.35;
     this.hv += (-k * this.hop - c * this.hv) * dt; this.hop += this.hv * dt;
@@ -760,10 +776,11 @@ export class Mic extends Thing {
   private ledM: THREE.ShaderMaterial;
   constructor() {
     super('talk');
-    this.elev = 52 * DEG; this.fit = 1.0;
+    this.elev = 52 * DEG; this.fit = 1.2;
     const m = new Mold();
-    m.add(box(0.4, 0.15, 0.6), M(0, 0.1, -0.02), 0x23221f, SURF(PLASTIC, 1));
-    m.add(sph(1, 12, 6, 0, PI / 2), M(0, 0.1, -0.32, 0, 0, 0, 0.2, 0.075, 0.08), 0x23221f, PLASTIC);
+    const shell = chromeC(0x6a6860, 0x45433e, 0x23221f);
+    m.add(box(0.4, 0.15, 0.6), M(0, 0.1, -0.02), shell, SURF(PLASTIC, 1));
+    m.add(sph(1, 12, 6, 0, PI / 2), M(0, 0.1, -0.32, 0, 0, 0, 0.2, 0.075, 0.08), shell, PLASTIC);
     for (let i = 0; i < 5; i++) m.add(box(0.26, 0.01, 0.025), M(0, 0.18, -0.24 + i * 0.05), 0x5a5853, STEEL);
     m.add(box(0.05, 0.08, 0.3), M(-0.22, 0.1, 0.02), 0x7d7b74, RUBBER);
     const coil: [number, number, number][] = [];
@@ -967,12 +984,15 @@ export class Rucksack extends Thing {
 export class Handset extends Thing {
   constructor() {
     super('chat');
-    this.elev = 40 * DEG; this.fit = 1.0;
+    this.elev = 55 * DEG; this.fit = 1.05;
     const m = new Mold();
-    m.add(box(0.62, 0.1, 0.16), M(0, 0.12, 0), 0x1b1a18, SURF(PLASTIC, 0.8));
-    for (const x of [-0.32, 0.32]) m.add(cyl(0.15, 0.14, 12, 0.11), M(x, 0.06, 0.02), 0x1b1a18, PLASTIC);
-    m.add(cyl(0.1, 0.01, 10), M(0.32, -0.015, 0.02), 0x3a3a36, STEEL);
-    this.mesh(m, this.mat({ wear: 0.4 }));
+    const bak = chromeC(0xe5dcc0, 0xc9bd99, 0x8a7f62);
+    m.add(box(0.56, 0.1, 0.17), M(0, 0.16, 0, 0, 0, 0), bak, SURF(PLASTIC, 0.8));
+    for (const x of [-0.3, 0.3]) { m.add(cyl(0.16, 0.16, 14, 0.12), M(x, 0.08, 0.02), bak, PLASTIC); m.add(cyl(0.11, 0.01, 12), M(x, 0.165, 0.02), 0x3d382c, STEEL); }
+    const cord: [number, number, number][] = [];
+    for (let i = 0; i <= 12; i++) { const a = i * 1.4; cord.push([0.36 + i * 0.012 + Math.cos(a) * 0.03, 0.04 + Math.sin(a) * 0.03, 0.15 + i * 0.025]); }
+    for (let i = 0; i < cord.length - 1; i++) rod(m, cord[i], cord[i + 1], 0.014, 0x5a5444, RUBBER, 4);
+    this.mesh(m, this.mat({ wear: 0.5 }));
   }
   protected onDown() { sfx('tc_knob', 0.4, 0.8); haptic(8); }
   protected animate() { this.body.position.y = this.press * 0.08; this.body.rotation.z = this.press * 0.15; return false; }
@@ -985,23 +1005,34 @@ export class Pedal extends Thing {
   private pad = new THREE.Group();
   constructor(key: string, private wide: boolean) {
     super(key);
-    this.elev = 34 * DEG; this.fit = 1.0; this.k = 700;
-    this.mesh(new Mold().add(box(0.94, 0.04, 0.98), M(0, 0.02, 0), (x) => ((Math.round(x * 24) & 1) ? 0x2d2c29 : 0x24231f), RUBBER), this.mat());
-    this.pad.position.set(0, 0.05, wide ? -0.3 : 0.38);
+    this.elev = 40 * DEG; this.fit = 1.0; this.k = 700;
+    // a worn rubber floor mat
+    const mat = new Mold().add(box(0.94, 0.03, 0.98), M(0, 0.015, 0), 0x1f1e1b, RUBBER);
+    for (let i = 0; i < 7; i++) mat.add(box(0.86, 0.012, 0.035), M(0, 0.034, -0.4 + i * 0.13), 0x2c2b27, RUBBER);
+    this.mesh(mat, this.mat({ wear: 0.9 }));
+    // gas hinges at its heel (front edge), the brake hangs from an arm at the back
+    this.pad.position.set(0, 0.05, wide ? -0.36 : 0.36);
     this.body.add(this.pad);
     const p = new Mold();
-    const W = wide ? 0.74 : 0.42, D = wide ? 0.5 : 0.82;
-    const z0 = wide ? 0.35 : -0.42;
-    p.add(box(W, 0.06, D), M(0, 0.05, z0), (x, _y, z) => ((Math.round((wide ? x : z) * 26) & 1) ? 0x34332f : 0x1c1b18), SURF(RUBBER, 0.8));
-    p.add(box(W + 0.04, 0.03, D + 0.04), M(0, 0.015, z0), 0x8f918a, STEEL);
-    if (wide) p.add(box(0.08, 0.05, 0.4), M(0, 0.03, 0.0), 0x6f726b, STEEL);
-    this.mesh(p, this.mat({ wear: 0.5 }), this.pad);
-    this.tape(wide ? 'BRAKE' : 'GAS', 0, 0.045, wide ? 0.4 : -0.38, 'up', this.body);
+    const W = wide ? 0.72 : 0.4, D = wide ? 0.46 : 0.8, dir = wide ? 1 : -1;
+    const zc = dir * D / 2;
+    p.add(box(W + 0.05, 0.035, D + 0.05), M(0, 0.0, zc), chromeC(0xc9ccc4, 0x8d9089, 0x4a4d48), STEEL);
+    p.add(box(W, 0.04, D), M(0, 0.03, zc), 0x2e2d2a, SURF(RUBBER, 0.8));
+    const n = wide ? 5 : 8;
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n - 0.5;
+      if (wide) p.add(box(0.035, 0.02, D * 0.86), M(t * W * 0.9, 0.058, zc), 0x55534d, RUBBER);
+      else p.add(box(W * 0.84, 0.02, 0.035), M(0, 0.058, zc + t * D * 0.9), 0x55534d, RUBBER);
+    }
+    if (wide) p.add(box(0.07, 0.06, 0.42), M(0, 0.02, -0.18), 0x6f726b, STEEL);
+    else p.add(cyl(0.035, W + 0.1, 8), M(0, 0.0, 0, 0, 0, PI / 2), 0x6f726b, STEEL);
+    this.mesh(p, this.mat({ wear: 0.6 }), this.pad);
+    this.tape(wide ? 'BRAKE' : 'GAS', wide ? 0 : -0.3, 0.046, wide ? 0.4 : 0.42, 'up', this.body);
   }
   protected onDown() { sfx('tc_clunk', 0.3, this.wide ? 0.8 : 1.2); haptic(10); }
   protected animate() {
-    // gas hinges at its heel, brake hangs from above
-    this.pad.rotation.x = this.wide ? 0.32 - this.press * 0.3 : -0.42 + this.press * 0.36;
+    // raised at rest, pressed nearly flat
+    this.pad.rotation.x = this.wide ? -(0.42 - this.press * 0.34) : 0.5 - this.press * 0.4;
     return false;
   }
 }
@@ -1067,9 +1098,11 @@ export class Ignition extends Thing {
     this.keyG.position.set(0, 0.11, -0.05);
     this.body.add(this.keyG);
     const k = new Mold();
-    k.add(box(0.05, 0.1, 0.03), M(0, 0.05, 0), 0xb79c55, BRASS);
-    k.add(cyl(0.14, 0.04, 14), M(0, 0.18, 0, 0, 0, PI / 2), 0xbca159, SURF(BRASS, 0.8));
-    k.add(tor(0.05, 0.012, 4, 10), M(0, 0.32, 0.0), 0x8f918a, STEEL);
+    k.add(box(0.06, 0.12, 0.035), M(0, 0.06, 0), 0xb79c55, BRASS);
+    k.add(cyl(0.2, 0.05, 16), M(0, 0.25, 0, 0, 0, PI / 2), chromeC(0xe6cf86, 0xb59a52, 0x6e5a2a), SURF(BRASS, 0.8));
+    k.add(cyl(0.05, 0.06, 8), M(0, 0.33, 0, 0, 0, PI / 2), 0x1a1712, RUBBER);
+    k.add(tor(0.07, 0.014, 4, 12), M(0, 0.47, 0.0, 0, PI / 2), 0x8f918a, STEEL);
+    k.add(box(0.05, 0.22, 0.14), M(0, 0.6, 0.12, 0.5), 0xd8cfa8, PAPER);
     this.mesh(k, this.mat({ wear: 0.4 }), this.keyG);
     this.setText('START');
   }

@@ -474,6 +474,12 @@ export class UI {
       else { x = b.target.x; y = b.target.y; z = b.target.z; }
       const s = g.pr.worldToScreen(new THREE.Vector3(x, y, z));
       const lift = b.rise ? age * 28 : 0;
+      // the survivor's own lines lean away from the band's hologram so they never write over it
+      if (b.target === g.local && b.kind !== 'halo') {
+        const side = g.holo?.visible ? (g.holo.screenSide as number) : 0;
+        b.el.classList.toggle('away-l', side > 0);
+        b.el.classList.toggle('away-r', side < 0);
+      }
       b.el.style.left = s.x + 'px';
       b.el.style.top = (s.y - lift) + 'px';
       b.el.style.display = '';

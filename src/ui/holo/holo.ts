@@ -144,6 +144,8 @@ export class Holo {
   private bands = new Bands();
   private bandT = 0;
   private side = 1;
+  /** which side of the survivor the projection floats on this frame (+1 right, -1 left): speech goes the other way */
+  screenSide = 1;
   private sideHold = 0;
   private pos = { x: -1, y: -1, w: 0, h: 0 };
   private wrist = new THREE.Vector3();
@@ -228,6 +230,7 @@ export class Holo {
 
     G.addSystem({ name: 'holo', update: (dt) => this.update(dt) });
     (G as any).holo = this;
+    if (import.meta.env.DEV) (window as any).__bus = bus;
   }
 
   // =================================================================== API
@@ -726,9 +729,11 @@ export class Holo {
     const top = touch ? 66 : 10, bottom = vh - (touch ? 10 : 10);
     const w = this.pos.w, h = this.pos.h;
     let side = this.side;
+    this.screenSide = side;
     // not enough room on that side: use the other
     const room = (s: number) => (s > 0 ? vw - (cs.x + pxm * 0.45) : cs.x - pxm * 0.45);
     if (room(side) < w + 12 && room(-side) > room(side)) side = -side;
+    this.screenSide = side;
     let x = side > 0 ? cs.x + pxm * 0.34 : cs.x - pxm * 0.34 - w;
     let y = hs.y - h;
     x = clamp(x, 8, vw - w - 8);

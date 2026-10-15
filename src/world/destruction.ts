@@ -43,14 +43,15 @@ import './destructActions';
 
 // ================================================================ rules
 /** things that never break or move (mission hardware, portals, the remittance kit) */
-const FIXED_TAGS = ['mission', 'node', 'portal', 'keypad', 'keycard', 'hopper', 'kiosk', 'transport', 'seam', 'fixed', 'indestructible', 'pylon', 'fusebox', 'breaker'];
+const FIXED_TAGS = ['mission', 'node', 'portal', 'keypad', 'keycard', 'hopper', 'kiosk', 'transport', 'transport_model', 'seam', 'fixed', 'indestructible', 'nobreak', 'pylon', 'fusebox', 'breaker'];
 const FIXED_KEYS = new Set(['seam_door', 'hopper', 'ticket_kiosk', 'transport_bay', 'keycard_reader']);
 export const PILE = 'debris_pile';
 
 function fixedObj(d: ObjDef, o?: TileObject): boolean {
   if (FIXED_KEYS.has(d.key) || d.key === PILE) return true;
   if (d.tags?.some((t) => FIXED_TAGS.includes(t))) return true;
-  if (o && (o.state?.mission || o.state?.portal || o.state?.code)) return true;
+  if (o && (o.state?.mission || o.state?.portal || o.state?.code || o.state?.node || o.state?.hopper)) return true;
+  if ((d.hp ?? 0) > 5000) return true;
   return false;
 }
 export function breakable(d: ObjDef | undefined, o?: TileObject): boolean {
@@ -155,7 +156,7 @@ defOp('objBreak', (a: BreakArgs, ctx) => {
   let pile: TileObject | null = null;
   if (z.inb(tx, ty) && z.floor[z.idx(tx, ty)]) {
     setUidBase(a.pu + 1);
-    const ps: ObjState = { of: o.key, seed: a.seed, mat, how: a.how, ix: r2(a.dx), iz: r2(a.dz), src: { x: o.x, y: o.y, rot: o.rot, ox: o.ox ?? 0, oz: o.oz ?? 0, sy: o.state?.y, yaw: o.state?.yaw }, os: pickState(o.state), t: Math.round(G.clock.hours * 10) / 10 };
+    const ps: ObjState = { of: o.key, seed: a.seed, mat, how: a.how, ix: r2(a.dx), iz: r2(a.dz), src: { uid: o.uid, x: o.x, y: o.y, rot: o.rot, ox: o.ox ?? 0, oz: o.oz ?? 0, sy: o.state?.y, yaw: o.state?.yaw }, os: pickState(o.state), t: Math.round(G.clock.hours * 10) / 10 };
     pile = { uid: a.pu, key: PILE, x: tx, y: ty, rot: 0, state: ps };
     const c = new Container(a.pu, 'Debris', 'pile', 25);
     c.loot = 'debris_' + mat;
@@ -210,6 +211,7 @@ export function applyHold(z: Zone, o: TileObject, by: string) {
   z.objects.set(o.uid, o);
   if (ls.length) { z.lights.push(...ls); z.removedLights = z.removedLights.filter((l) => !ls.includes(l)); }
   o.state.held = by;
+  o.state.heldBy = by; // the hopper waits for it to be let go
   bus.emit('objHeld', z, o, by);
 }
 defOp('objHold', (a: HoldArgs) => {
@@ -223,8 +225,8 @@ defOp('objRelease', (a: ReleaseArgs) => {
   const o = z.objects.get(a.uid); if (!o) return;
   const d = objDef(o.key); if (!d) return;
   if (o.state.held && o.state.held !== a.by) return;
-  o.state.held = null;
-  delete o.state.held;
+  delete o.state.held; delete o.state.heldBy;
+  o.state.pushed = 1;
   // remove from its old tiles first (a release without a hold, e.g. replay order) then place
   if (z.tileObjs.get(z.idx(o.x, o.y))?.includes(o)) z.removeObject(o);
   o.x = a.x; o.y = a.y; o.ox = a.ox || undefined; o.oz = a.oz || undefined;
@@ -669,6 +671,7 @@ export class DestructionSystem implements GameSystem {
   /** the object is gone: debris out of its model, particles, sound, sparks, flash */
   onBroken(z: Zone, o: TileObject, d: ObjDef, m: THREE.Matrix4, a: BreakArgs, pile: TileObject | null) {
     this.markOverlay(z);
+    if (!isReplaying()) this.tidyPiles(z);
     const here = z === G.view?.zone && !isReplaying();
     const mat = objMat(d);
     if (!here) { if (pile) SETTLED.add(a.seed); return; }
@@ -706,6 +709,18 @@ export class DestructionSystem implements GameSystem {
     if (mat === 'flesh' && (G.sandbox.gore ?? 2) > 0) G.gore?.replicaBurst?.(z, cx, cy + h * 0.6, cz, a.dx, a.dz);
     this.shakeNear(cx, cz, 0.35);
     (G.camera as any)?.punch?.(0.03, 0.25);
+  }
+
+  /** host: a zone full of wreckage loses its oldest heaps (anything buried in them is left on the floor) */
+  private tidyPiles(z: Zone) {
+    if (G.role === 'client') return;
+    const piles = [...z.objects.values()].filter((q) => q.key === PILE);
+    if (piles.length <= 60) return;
+    piles.sort((a, b) => (a.state.t ?? 0) - (b.state.t ?? 0));
+    for (const q of piles.slice(0, piles.length - 60)) {
+      if (q.inv) for (const it of [...q.inv.items]) op('move', { z: z.key, from: 'obj:' + q.uid, to: `floor:${q.x + 0.5},${q.y + 0.5}`, uid: it.uid });
+      op('objRemove', { z: z.key, uid: q.uid });
+    }
   }
 
   /** window glass shattered (edge op) */
@@ -819,8 +834,8 @@ export class DestructionSystem implements GameSystem {
   /** fracture + simulate (break time, or lazily for a pile seen later) */
   private buildPile(z: Zone, o: TileObject, d: ObjDef, m: THREE.Matrix4, a: { seed: number; dx: number; dz: number; how: string }, pile: TileObject | null): { sim: SimResult; pieces: Piece[] } | null {
     const mat = objMat(d);
-    const q = this.quality;
-    const max = q === 0 ? 10 : q === 2 ? 26 : 18;
+    // the same on every machine (phones and desktops must agree on the heap)
+    const max = 18;
     const pieces = fracture(d, { ...(o.state || {}), dmg: 0, held: undefined }, o, { max, seed: a.seed, mat });
     // loose bits by material (splinters, stuffing tufts, shards, boards) join the sim
     const bits = bitGeos(mat);
@@ -871,7 +886,7 @@ export class DestructionSystem implements GameSystem {
       const z = [...G.zones.values()].find((zz) => zz.objects.get(o.uid) === o);
       const d = s.of ? objDef(s.of) : undefined;
       if (z && d && s.src) {
-        const fake: TileObject = { uid: -1, key: s.of, x: s.src.x, y: s.src.y, rot: s.src.rot, state: { ...(s.os || {}), y: s.src.sy, yaw: s.src.yaw }, ox: s.src.ox || undefined, oz: s.src.oz || undefined };
+        const fake: TileObject = { uid: s.src.uid ?? -1, key: s.of, x: s.src.x, y: s.src.y, rot: s.src.rot, state: { ...(s.os || {}), y: s.src.sy, yaw: s.src.yaw }, ox: s.src.ox || undefined, oz: s.src.oz || undefined };
         const m = objectMatrix(z, fake, d).clone();
         this.buildPile(z, fake, d, m, { seed, dx: s.ix ?? 0, dz: s.iz ?? 0, how: s.how ?? 'smash' }, o);
         data = this.piles.get(seed);
@@ -1046,7 +1061,7 @@ export class DestructionSystem implements GameSystem {
   // ---------------------------------------------------------------- held objects (push / drag)
   dropHold(z: Zone, o: TileObject) {
     this.push?.forget?.(o.uid);
-    o.state.held = null; delete o.state.held;
+    delete o.state.held; delete o.state.heldBy;
     if (!z.tileObjs.get(z.idx(o.x, o.y))?.includes(o)) z.addObject(o);
   }
   onReleased(z: Zone, o: TileObject) { this.push?.released?.(z, o); this.markOverlay(z); }

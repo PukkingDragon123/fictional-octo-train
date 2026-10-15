@@ -31,7 +31,7 @@ import { U } from '../gfx/materials';
 import { opLog } from './ops';
 import type { Zone, TileObject, EdgeObj } from '../world/zone';
 import { createItem } from '../items/factory';
-import { hasItemDef, itemDef, type BodyPart } from '../items/item';
+import { hasItemDef, itemDef, type BodyPart, type Item } from '../items/item';
 import type { InjuryType } from '../survival/body';
 import { synth } from '../audio/sounds';
 import '../audio/sounds_intro';
@@ -147,6 +147,7 @@ export class Intro implements GameSystem {
   private touch = false;
   private warmQ = [...WARM];
   private num: string;
+  private pack: Item | null = null;
 
   constructor(public g: Game, public p: Player, public spawn: [number, number]) {
     const z = this.z = g.getZone(INTRO_ZONE);
@@ -184,6 +185,7 @@ export class Intro implements GameSystem {
     g.pr.yaw = -45 * DEG; g.pr.pitch = 31 * DEG;
     g.pr.setZoomLevel(6);
     this.camF = { x: this.L.focus[0], z: this.L.focus[1], w: 1, wGoal: 1, rate: 2.2 };
+    cam.pushIn(0.42, 0.05, -3);
     this.touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
     if (G.handler) G.handler.scripted = true;
     (g as any).touch?.setHidden?.(true);
@@ -205,6 +207,9 @@ export class Intro implements GameSystem {
       if (it !== suit && (part === 'torso' || part === 'legs') && slot !== 'back') p.unwear(it);
     }
     if (!p.isWorn(suit)) p.wear(suit);
+    // the issue pack is handed out after processing
+    const pack = p.worn.get('back');
+    if (pack) { p.removeItem(pack); this.pack = pack; }
     p.outfitDirty = true;
     bus.emit('inventoryChanged', p);
   }
@@ -269,7 +274,7 @@ export class Intro implements GameSystem {
     };
     this.offs.push(() => { delete cam.update; });
   }
-  private frame(x: number, z: number, w: number, rate = 2.2) { this.camF.x = x; this.camF.z = z; this.camF.wGoal = w; this.camF.rate = rate; }
+  private frame(x: number, z: number, w: number, rate = 2.2) { if (w > 0) { this.camF.x = x; this.camF.z = z; } this.camF.wGoal = w; this.camF.rate = rate; }
 
   // ================================================================== the survivor
   private makeCuffs() {
@@ -312,6 +317,7 @@ export class Intro implements GameSystem {
     if (this.pp) {
       const s = this.pp;
       s.t += dt;
+      if (s.k !== undefined) s.k += dt;
       const u = s.loop ? (s.t % s.dur) / s.dur : clamp01(s.t / s.dur);
       if (!s.anim) {
         const ps = fallbackPose(s.name, u, t, s.k ?? 9);
@@ -462,8 +468,8 @@ export class Intro implements GameSystem {
     }
     this.updMoveTo(dt);
     // pain on the screen
-    this.hurtPulse = Math.max(0, this.hurtPulse - dt * 1.6);
-    if (this.hurtPulse > 0) { fx.hurt = Math.max(fx.hurt, this.hurtPulse); fx.desat = Math.max(fx.desat, this.hurtPulse * 0.4); }
+    this.hurtPulse = Math.max(0, this.hurtPulse - dt * 2.4);
+    if (this.hurtPulse > 0) { fx.hurt = Math.max(fx.hurt, this.hurtPulse * 0.4); fx.desat = Math.max(fx.desat, this.hurtPulse * 0.3); }
     this.paintDom(dt);
   }
 
@@ -496,7 +502,7 @@ export class Intro implements GameSystem {
     this.at(0.4, 1, () => { this.osdPlay.classList.add('on'); this.osdTime.classList.add('on'); this.osdCam.classList.add('on'); G.audio?.flat?.('static_burst', 'sfx', 0.25); });
     this.at(1.0, 2, () => this.card.classList.add('on'));
     this.at(1.6, 3, () => this.skipBtn.classList.add('on'));
-    this.at(3.6, 4, () => { this.card.classList.remove('on'); this.frame(this.p.x + 1.2, 21.5, 0.4, 1.2); this.g.pr.setZoomLevel(4); });
+    this.at(3.6, 4, () => { this.card.classList.remove('on'); this.frame(this.p.x + 1.2, 21.5, 0.4, 1.2); this.g.pr.setZoomLevel(4); this.g.camera.pushIn(0, 2.5); });
     this.at(4.2, 5, () => { this.B.bark('Walk.'); });
     this.at(5.0, 6, () => {
       this.go('walk');
@@ -537,6 +543,7 @@ export class Intro implements GameSystem {
     if (this.lockT <= 0 && this.intentX < -0.4) this.backT += dt; else this.backT = Math.max(0, this.backT - dt);
     if (this.backT > 0.3 && this.lockT <= 0) { this.backT = 0; this.tase('Wrong way, debtor.'); }
     if (p.speed > 0.4 && this.prompt.classList.contains('on') && this.walkT > 1.5) this.setPrompt('');
+    this.frame(p.x + 1.1, p.z - 1.3, 1, 3);
     // the officer ahead sets the pace and does not let you pass
     const aheadX = Math.max(A.x, p.x + 2.3);
     if (A.walkTo(Math.min(aheadX, L.grabX + 2.4), 21.35, 2.5, dt, 0.05)) { if (Math.floor(this.T * 0.5) % 3 === 0) A.turnTo(p.x, p.z, dt, 3); else A.turnTo(A.x + 5, A.z, dt, 3); }
@@ -737,10 +744,11 @@ export class Intro implements GameSystem {
     const dmg = s.kind === 'kick' ? 9 : 11;
     const inj = b.addInjury(s.part, s.inj, s.sev);
     if (s.inj === 'laceration') inj.bleed = Math.min(inj.bleed, 0.05);
-    b.panic = Math.min(100, b.panic + 14);
     (G.gore as any)?.playerHit?.(p, { dmg, from: [gd.x, gd.z] }, s.part, s.inj === 'bruise' ? 'bruise' : 'laceration');
     if (s.inj === 'bruise' && G.sandbox.gore > 0) bus.emit('bloodied', p, s.part, 0.25);
-    bus.emit('playerHit', p, s.part, 'blunt', { dmg, from: [gd.x, gd.z], knock: 0.25, by: 'custody' });
+    // the body reacts to every blow; the rest of the game (screen blood, the mind) only hears about the worst ones
+    if (s.inj !== 'bruise') bus.emit('playerHit', p, s.part, 'blunt', { dmg, from: [gd.x, gd.z], knock: 0.25, by: 'custody' });
+    else (p as any).registerHit?.(gd.x, gd.z, s.part, 0.5);
     this.g.camera.shake(0.55, 0.35, 1.2);
     this.g.camera.punch(0.07, 0.3);
     this.pulseHurt(0.9);
@@ -750,13 +758,12 @@ export class Intro implements GameSystem {
   // ------------------------------------------------------------------ 3. Room 0
   private startRoom0() {
     this.go('room0');
-    this.pose('get_up', 1.8);
+    this.pose('hauled_up', 1.5);
     this.g.pr.setZoomLevel(5);
-    this.frame((this.p.x + this.L.seam.x) / 2, (this.p.z + this.L.seam.z) / 2 + 0.6, 0.6, 1);
+    this.frame(this.p.x * 0.4 + this.L.seam.x * 0.6, this.p.z * 0.4 + this.L.seam.z * 0.6 + 0.4, 0.85, 1);
   }
   private updRoom0(dt: number) {
     const p = this.p, A = this.A, B = this.B, t = this.t, S = this.L.seam;
-    if (this.pp?.name === 'beaten' || this.pp?.name === 'dragged') this.pose('get_up', 1.8);
     // they hold on while the debtor gets up, then let go
     const hw = Math.max(0, 1 - t / 1.4);
     if (hw > 0) { this.grip(A, 'R', hw); this.grip(B, 'L', hw); } else { this.ungrip(A); this.ungrip(B); }
@@ -870,6 +877,8 @@ export class Intro implements GameSystem {
     this.pose('fall', 1, true);
     this.shadeA = 1; this.noiseA = 0;
     g.pr.fx.dream = 0;
+    // shock: the panic drains out into numbness
+    p.body.panic = Math.min(p.body.panic, 50);
   }
   private updLand(dt: number) {
     const p = this.p, t = this.t, g = this.g;
@@ -1022,9 +1031,9 @@ export class Intro implements GameSystem {
       gore?.pool?.(G.getZone(p.zoneKey), w.x + dx * 0.4, w.z + dz * 0.4, 0.55, KINDS.red, 0xffffff, 1.5);
       bus.emit('bloodied', p, 'hand_l', 1); bus.emit('bloodied', p, 'farm_l', 0.7);
     }
-    const inj = p.body.addInjury('farm_l', 'deep', 0.26);
+    const inj = p.body.addInjury('farm_l', 'deep', 0.2);
     inj.bleed = Math.min(inj.bleed, 0.06);
-    p.body.panic = 100;
+    p.body.panic = Math.max(p.body.panic, 80);
     bus.emit('playerHit', p, 'hand_l', 'deep', { dmg: 16, from: [A.x, A.z], knock: 0.2, by: 'custody' });
     g.camera.shake(1.1, 0.7, 1.4); g.camera.punch(0.16, 0.5);
     g.pr.fx.glitch = Math.max(g.pr.fx.glitch, 0.6);
@@ -1055,6 +1064,7 @@ export class Intro implements GameSystem {
     p.full = '';
     this.clearPose();
     this.pose('get_up', 1.4);
+    p.body.panic = Math.min(p.body.panic, 45);
     this.frame(0, 0, 0, 1);
     this.g.camera.pushIn(0, 2);
     this.g.pr.setZoomLevel(this.g.camZoom);
@@ -1068,7 +1078,8 @@ export class Intro implements GameSystem {
     if (!h) return;
     h.scripted = true;
     h.appear?.('band');
-    const owed = Math.round((G.debt as any)?.remaining ?? (G.debt as any)?.state?.()?.owed ?? G.sandbox.debt ?? 25000);
+    const D = G.debt as any;
+    const owed = Math.round(D?.on && D.remaining > 0 ? D.remaining : Number(G.sandbox.debt) || 25000);
     const owedS = owed.toLocaleString('en-GB');
     const hopper = h.nearestHopper?.();
     if (short) {
@@ -1133,6 +1144,7 @@ export class Intro implements GameSystem {
     }
     if (!this.pierced) { this.pierced = true; const inj = p.body.addInjury('farm_l', 'deep', 0.22); inj.bleed = Math.min(inj.bleed, 0.05); }
     this.fitBand();
+    this.returnPack();
     if (this.seamL && !this.sealed) { this.sealed = true; this.seamFx?.setState(this.seamL, true); }
     g.camera.setPhotoRig(45 * DEG, this.pitch0);
     g.pr.yaw = 45 * DEG;
@@ -1146,6 +1158,15 @@ export class Intro implements GameSystem {
     this.ctl = 'all';
     (g as any).touch?.setHidden?.(false);
     this.vossLines(true);
+  }
+
+  private returnPack() {
+    const p = this.p, k = this.pack;
+    this.pack = null;
+    if (!k) return;
+    if (!p.allItems().includes(k)) p.inv.add(k);
+    if (!p.worn.get('back')) p.wear(k);
+    bus.emit('inventoryChanged', p);
   }
 
   private restoreEnv() {
@@ -1166,6 +1187,7 @@ export class Intro implements GameSystem {
     g.attract = null;
     this.clearPose(); p.full = '';
     if (this.cuffed) this.removeCuffs();
+    this.returnPack();
     p.y = g.getZone(p.zoneKey).heightAt(p.tileX(), p.tileY());
     G.audio?.positionalLoop?.('intro_drag', null); G.audio?.positionalLoop?.('intro_fall', null);
     for (const off of this.offs.splice(0)) { try { off(); } catch (e) { console.error(e); } }
@@ -1205,7 +1227,7 @@ export class Intro implements GameSystem {
     switch (phase) {
       case 'walk': if (this.phase === 'open') { this.t = 5; this.updOpen(); } break;
       case 'grab': this.p.x = this.L.grabX; this.A.x = this.L.grabX + 2.2; this.B.x = this.L.grabX - 1.8; this.startGrab(); break;
-      case 'drag': this.p.x = this.L.grabX; this.A.x = this.L.grabX + 0.7; this.B.x = this.L.grabX + 0.8; this.pose('dragged', 1, true); this.startDrag(this.L.drag, 1.45, 'drag'); break;
+      case 'drag': this.p.x = this.L.grabX; this.p.z = 21.5; this.A.x = this.L.grabX + 0.7; this.B.x = this.L.grabX + 0.8; this.startGrab(); this.pose('dragged', 1, true); this.startDrag(this.L.drag, 1.45, 'drag'); break;
       case 'beat': this.p.x = this.L.beat[0]; this.p.z = this.L.beat[1]; this.A.place(INTRO_ZONE, this.p.x + 1, 21.2); this.B.place(INTRO_ZONE, this.p.x + 1, 21.8); this.startBeat(); break;
       case 'room0': this.p.x = this.L.inside0[0]; this.p.z = this.L.inside0[1]; this.A.place(INTRO_ZONE, this.p.x + 0.6, 21.2); this.B.place(INTRO_ZONE, this.p.x + 0.6, 21.8); { const [dx, dy, ds] = this.L.door0; const e = this.z.edges.get(this.z.edgeKey(dx, dy, ds)); if (e) { e.open = true; this.z.edgeChanged(dx, dy, ds); } } this.startRoom0(); break;
       case 'shove': this.debugJump('room0'); run(Math.ceil(5.7 / 0.05)); return;

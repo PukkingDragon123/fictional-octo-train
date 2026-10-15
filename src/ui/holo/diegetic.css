@@ -15,6 +15,10 @@
 #ui > .w-bubble { pointer-events: none; }
 .w-bubble { white-space: nowrap; }
 
+/* the survivor's lines lean away from the band hologram (ui.ts toggles these) */
+.w-bubble.away-l { translate: calc(-50% + var(--px) * 6) 0; }
+.w-bubble.away-r { translate: calc(50% - var(--px) * 6) 0; }
+
 /* a thought: handwriting in the air, each letter its own slant, written out then smudged away */
 .w-bubble.think {
   font-family: var(--font-hand); font-weight: 500; font-size: calc(var(--px) * 9 + 6px); line-height: 1; letter-spacing: 0.02em; color: #e8ecf4;

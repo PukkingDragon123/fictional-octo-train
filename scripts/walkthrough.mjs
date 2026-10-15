@@ -1,95 +1,298 @@
-// Main-mission walkthrough: drives the real mission objects and portals zone by zone,
-// from the lobby fuses to the ending. Timed actions are fast-forwarded once started.
-//   node scripts/walkthrough.mjs [baseUrl]      (needs a running dev server; default http://127.0.0.1:5173)
+// Main-chain walkthrough for the Remittance contract (src/game/debt, src/missions):
+//   quick start (band fitted at intake) → smash furniture → pick up a valuable → deposit it in a hopper
+//   → pay the installments (scrip topped up through page JS for pacing; one deadline is missed on purpose)
+//   → clear the debt → buy passage at the kiosk → the transport arrives → board → the ending,
+// plus the BAILIFF band (warning at the Seam, detonation, a replacement band at a hopper) and, on a
+// second page, the side chain (fuses → numbers → render nodes → root key → core → bands unlatch → exit).
+// Timed actions and the transport's timeline are fast-forwarded once started.
+//   node scripts/walkthrough.mjs [baseUrl] [--main-only]
 import { chromium } from 'playwright-core';
+const base = process.argv.find((a) => a.startsWith('http')) || 'http://127.0.0.1:5173';
+const mainOnly = process.argv.includes('--main-only');
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
-page.setDefaultTimeout(900000);
-page.on('pageerror', (e) => console.log('  <pageerror>', e.message, (e.stack || '').split('\n')[1] || ''));
-page.on('console', (m) => { if (m.type() === 'error') console.log('  <error>', m.text().slice(0, 200)); });
 const t0 = Date.now();
 const log = (...a) => console.log(`[${((Date.now() - t0) / 1000).toFixed(0)}s]`, ...a);
-await page.goto((process.argv[2] || 'http://127.0.0.1:5173') + '/?quick');
-await page.waitForFunction(() => window.__game?.local, null, { polling: 1000 });
-await page.evaluate(async () => {
-  const ev = await import('/src/core/events.ts');
-  const T = window.T = {
-    get g() { return window.__game; }, get p() { return window.__game.local; },
-    sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-    async until(fn, ms = 90000, what = '') { const t = performance.now(); while (!fn()) { if (performance.now() - t > ms) throw new Error('timeout ' + what); await T.sleep(200); } },
-    objs(zone, pred) { return [...T.g.getZone(zone).objects.values()].filter(pred); },
-    obj(zone, pred, what) { const o = T.objs(zone, pred)[0]; if (!o) throw new Error('no object: ' + what + ' in ' + zone); return o; },
-    near(o) { const g = T.g, z = g.getZone(T.p.zoneKey); const [x, y] = g.nearestWalkable(z, o.x, o.y); g.placePlayer(T.p, z.key, x, y, 0); },
-    async use(o, label) {
-      T.near(o); await T.sleep(300);
-      const opts = T.g.missions.objectOptions(T.p, o);
-      const op = opts.find((q) => q.label.startsWith(label));
-      if (!op) throw new Error(`no option "${label}" on ${o.key}; has ${opts.map((q) => q.label).join(' | ')}`);
-      if (op.disabled) throw new Error(`"${label}" disabled: ${op.disabled}`);
-      op.action();
-    },
-    portal(id) { const z = T.g.getZone(T.p.zoneKey); const pt = z.portals.find((q) => q.id === id); if (!pt) throw new Error('no portal ' + id + ' in ' + z.key); return pt; },
-    async through(id, expectZone) {
-      const pt = T.portal(id);
-      if (pt.locked && !T.g.missions.isUnlocked(pt.locked, T.p)) throw new Error(`${id} still locked (${pt.locked})`);
-      T.g.usePortal(T.p, pt);
-      await T.until(() => T.p.zoneKey === expectZone && !T.g.transitioning, 90000, 'travel ' + id);
-      await T.sleep(500);
-      const z = T.g.getZone(expectZone), i = z.idx(T.p.tileX(), T.p.tileY());
-      return { zone: T.p.zoneKey, at: [T.p.tileX(), T.p.tileY()], walkable: z.floor[i] !== 0 && z.solid[i] !== 1 };
-    },
-    async go(zone) { if (T.p.zoneKey === zone) return; T.g.travel(T.p, zone, 10, 10); await T.until(() => T.p.zoneKey === zone && !T.g.transitioning, 90000, 'go ' + zone); await T.sleep(500); },
-    /** take an item lying on a floor or sitting in a container of this zone */
-    take(zone, key) {
-      const z = T.g.getZone(zone);
-      for (const o of z.objects.values()) { const it = o.inv?.items.find((i) => i.key === key); if (it) { o.inv.remove(it); T.p.inv.add(it); ev.bus.emit('inventoryChanged', T.p); return 'container ' + o.key; } }
-      const fl = z.meta.__floor || null; void fl;
-      return null;
-    },
-    lore(id) { ev.bus.emit('loreRead', T.p, id); },
-    flags() { return [...T.g.missions.flags]; },
-    emitInv() { ev.bus.emit('inventoryChanged', T.p); },
-  };
-  // fast-forward any timed action once it has started (walks excluded)
-  setInterval(() => { const a = T.p.actions.current; if (a && a.started && !/Walk/.test(a.constructor.name)) a.t = Math.max(a.t, a.effDuration); }, 100);
-  for (const k of ['screwdriver', 'fuse', 'fuse', 'fuse']) T.p.inv.add(window.__dev.newItem(k));
-});
 let failed = 0;
-const step = async (name, fn) => {
-  try { const r = await page.evaluate(fn); log('OK  ', name, r !== undefined ? JSON.stringify(r) : ''); return true; }
+
+async function session() {
+  const page = await (await browser.newContext({ viewport: { width: 960, height: 540 } })).newPage();
+  page.setDefaultTimeout(900000);
+  page.on('pageerror', (e) => console.log('  <pageerror>', e.message, (e.stack || '').split('\n')[1] || ''));
+  page.on('console', (m) => { if (m.type() === 'error') console.log('  <error>', m.text().slice(0, 200)); });
+  await page.goto(base + '/?quick');
+  await page.waitForFunction(() => window.__game?.local && window.__game.view, null, { polling: 1000 });
+  await page.evaluate(async () => {
+    const ev = await import('/src/core/events.ts');
+    const wi = await import('/src/items/worldItems.ts');
+    const T = window.T = {
+      ev, wi,
+      get g() { return window.__game; }, get p() { return window.__game.local; }, get D() { return window.__debt; },
+      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+      async until(fn, ms = 120000, what = '') { const t = performance.now(); while (!fn()) { if (performance.now() - t > ms) throw new Error('timeout ' + what); await T.sleep(200); } },
+      objs(zone, pred) { return [...T.g.getZone(zone).objects.values()].filter(pred); },
+      obj(zone, pred, what) { const o = T.objs(zone, pred)[0]; if (!o) throw new Error('no object: ' + what + ' in ' + zone); return o; },
+      near(o) { const g = T.g, z = g.getZone(T.p.zoneKey); const [x, y] = g.nearestWalkable(z, o.x, o.y); g.placePlayer(T.p, z.key, x, y, 0); },
+      async use(o, label) {
+        T.near(o); await T.sleep(300);
+        const opts = T.g.missions.objectOptions(T.p, o);
+        const op = opts.find((q) => q.label.startsWith(label));
+        if (!op) throw new Error(`no option "${label}" on ${o.key}; has ${opts.map((q) => q.label).join(' | ')}`);
+        if (op.disabled) throw new Error(`"${label}" disabled: ${op.disabled}`);
+        op.action();
+      },
+      /** pick an option from the full world menu of an object (interact + mission + contract hooks) */
+      async menu(o, label) {
+        const opts = T.g.interact.objectOptions(T.p, o);
+        const flat = opts.flatMap((q) => [q, ...(q.sub || [])]);
+        const op = flat.find((q) => q.label.startsWith(label));
+        if (!op) throw new Error(`no option "${label}" on ${o.key}; has ${opts.map((q) => q.label).join(' | ')}`);
+        if (op.disabled) throw new Error(`"${label}" disabled: ${op.disabled}`);
+        op.action();
+      },
+      portal(id) { const z = T.g.getZone(T.p.zoneKey); const pt = z.portals.find((q) => q.id === id); if (!pt) throw new Error('no portal ' + id + ' in ' + z.key); return pt; },
+      async through(id, expectZone) {
+        const pt = T.portal(id);
+        if (pt.locked && !T.g.missions.isUnlocked(pt.locked, T.p)) throw new Error(`${id} still locked (${pt.locked})`);
+        T.g.usePortal(T.p, pt);
+        await T.until(() => T.p.zoneKey === expectZone && !T.g.transitioning, 90000, 'travel ' + id);
+        await T.sleep(500);
+        const z = T.g.getZone(expectZone), i = z.idx(T.p.tileX(), T.p.tileY());
+        return { zone: T.p.zoneKey, at: [T.p.tileX(), T.p.tileY()], walkable: z.floor[i] !== 0 && z.solid[i] !== 1 };
+      },
+      async go(zone, x = 10, y = 10) { if (T.p.zoneKey === zone) return; T.g.travel(T.p, zone, x, y); await T.until(() => T.p.zoneKey === zone && !T.g.transitioning, 90000, 'go ' + zone); await T.sleep(500); },
+      take(zone, key) {
+        const z = T.g.getZone(zone);
+        for (const o of z.objects.values()) { const it = o.inv?.items.find((i) => i.key === key); if (it) { o.inv.remove(it); T.p.inv.add(it); ev.bus.emit('inventoryChanged', T.p); return 'container ' + o.key; } }
+        return null;
+      },
+      takeFloor(zone, key, data) { const z = T.g.getZone(zone); for (const [, w] of wi.floorItems(z)) if (w.item.key === key && (!data || Object.entries(data).every(([k, v]) => w.item.data?.[k] === v))) { wi.removeFloorItem(z, w.item); T.p.inv.add(w.item); T.emitInv(); return [Math.round(w.x), Math.round(w.z)]; } return null; },
+      lore(id) { ev.bus.emit('loreRead', T.p, id); },
+      flags() { return [...T.g.missions.flags]; },
+      has(f) { return T.g.missions.flags.has(f); },
+      emitInv() { ev.bus.emit('inventoryChanged', T.p); },
+      /** a directive finished (the host evaluates twice a second of game time) */
+      async done(key, ms = 120000) { await T.until(() => T.has('done:' + key), ms, 'done:' + key); },
+    };
+    // fast-forward any timed action once it has started (walks and the seat aboard excluded)
+    setInterval(() => { const a = T.p.actions.current; if (a && a.started && !/Walk|Aboard/.test(a.constructor.name) && a.name !== 'Aboard') a.t = Math.max(a.t, a.effDuration); }, 100);
+    // headless software GL runs a few frames a second: keep the slow game-time timers moving
+    // (directive checks, the ledger's deadline check, the hopper's 1.5 s weighing)
+    setInterval(() => {
+      const g = T.g; if (!g) return;
+      if (g.missions) g.missions.checkT = 0;
+      if (g.debt) g.debt.checkT = 0;
+      if (T.D?.hop) T.D.hop.hostT = 0;
+      for (const pd of T.D?.hop?.pending?.values?.() || []) pd.since -= 0.5;
+    }, 100);
+  });
+  return page;
+}
+
+const step = async (page, name, fn, arg) => {
+  try { const r = await page.evaluate(fn, arg); log('OK  ', name, r !== undefined ? JSON.stringify(r) : ''); return true; }
   catch (e) { failed++; log('FAIL', name, e.message.split('\n')[0]); return false; }
 };
-// floor items live in a module map: expose a helper to take them
-await page.evaluate(async () => { const wi = await import('/src/items/worldItems.ts'); window.T.takeFloor = (zone, key, data) => { const z = window.T.g.getZone(zone); for (const [, w] of wi.floorItems(z)) if (w.item.key === key && (!data || Object.entries(data).every(([k, v]) => w.item.data?.[k] === v))) { wi.removeFloorItem(z, w.item); window.T.p.inv.add(w.item); window.T.emitInv(); return [Math.round(w.x), Math.round(w.z)]; } return null; }; });
 
-await step('lobby: fit fuse 1', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 1); });
-await step('lobby: fit fuse 2', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 2); });
-await step('lobby: fit fuse 3', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 3); });
-await step('lobby: main switch', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Throw the main switch'); await T.until(() => T.g.getZone('lobby').circuitPowered(99)); return T.flags().includes('first_light'); });
-await step('lobby → office (elevator)', async () => window.T.through('p_office', 'office'));
-await step('office: numbers terminal', async () => { const T = window.T, o = T.obj('office', (o) => o.state.lore === 'terminal_numbers', 'numbers terminal'); T.near(o); T.lore('terminal_numbers'); return [o.key, o.x, o.y]; });
-await step('office: facilities keycard', async () => { const T = window.T; const r = T.take('office', 'keycard_facilities') || T.takeFloor('office', 'keycard_facilities'); if (!r) throw new Error('keycard not found'); await T.sleep(1500); return [r, T.flags().includes('got:keycard_facilities')]; });
-await step('office: swipe server closet reader', async () => { const T = window.T, o = T.obj('office', (o) => o.state.card === 'keycard_facilities', 'reader'); await T.use(o, 'Swipe a card'); const d = o.state.door; await T.until(() => !T.g.getZone('office').edge(d[0], d[1], d[2])?.locked); });
-await step('office: disable SRV-1', async () => { const T = window.T, o = T.obj('office', (o) => o.state.node === 'SRV-1', 'SRV-1'); await T.use(o, 'Disable node SRV-1'); await T.until(() => T.flags().includes('node:SRV-1')); return { stage: T.g.missions.stage, collapse: +T.g.collapse.toFixed(2) }; });
-await step('office → stairwell → lobby', async () => { const T = window.T; const a = await T.through('p_office_stair', 'stairwell'); const b = await T.through('r_stair_lobby', 'lobby').catch(async () => T.through('p_stair', 'lobby')); return [a, b]; });
-await step('lobby → fields → house', async () => { const T = window.T; const a = await T.through('p_fields', 'fields'); const b = await T.through('p_fields_house', 'house'); return [a, b]; });
-await step('house: attic key + birthday card → lab code', async () => { const T = window.T; const k = T.takeFloor('fields', 'house_key') || T.take('fields', 'house_key'); const card = T.takeFloor('house', 'note', { lore: 'card_birthday' }) || T.objs('house', (o) => o.state.lore === 'card_birthday').length; T.lore('card_birthday'); return { key: !!k, card: !!card, lab_code: T.flags().includes('lab_code') }; });
-await step('house: basement keypad', async () => { const T = window.T, o = T.obj('house', (o) => o.state.codeFlag === 'lab_code', 'keypad'); await T.use(o, 'Enter the code'); const d = o.state.door; if (d) await T.until(() => !T.g.getZone('house').edge(d[0], d[1], d[2])?.locked); return d; });
-await step('house → lab (basement stairs)', async () => window.T.through('p_house_lab', 'lab'));
-await step('lab: director\'s log', async () => { const T = window.T, o = T.objs('lab', (o) => o.state.lore === 'log_director')[0]; T.lore('log_director'); return o ? [o.key, o.x, o.y] : 'no object with log_director (lore emitted anyway)'; });
-await step('lab: lab keycard', async () => { const T = window.T; const r = T.take('lab', 'keycard_lab') || T.takeFloor('lab', 'keycard_lab'); if (!r) throw new Error('keycard_lab not found'); return r; });
-await step('lab: swipe SRV-2 reader', async () => { const T = window.T, o = T.obj('lab', (o) => o.state.card === 'keycard_lab', 'reader'); await T.use(o, 'Swipe a card'); const d = o.state.door; if (d) await T.until(() => !T.g.getZone('lab').edge(d[0], d[1], d[2])?.locked); });
-await step('lab: disable SRV-2', async () => { const T = window.T, o = T.obj('lab', (o) => o.state.node === 'SRV-2', 'SRV-2'); await T.use(o, 'Disable node SRV-2'); await T.until(() => T.flags().includes('node:SRV-2')); return { stage: T.g.missions.stage, collapse: +T.g.collapse.toFixed(2) }; });
-await step('lab → tunnels (airlock)', async () => { const T = window.T; return T.through('r_tunnels_lab', 'tunnels').catch(() => T.through('p_lab_tunnels', 'tunnels')); });
-await step('tunnels → lab again (blast door)', async () => window.T.through('p_tunnels_lab', 'lab'));
-await step('lab → stairwell landing 13 → corrupt', async () => { const T = window.T; await T.go('stairwell'); return T.through('p_stair_13', 'corrupt'); });
-await step('corrupt: root key', async () => { const T = window.T; const r = T.takeFloor('corrupt', 'root_key') || T.take('corrupt', 'root_key'); if (!r) throw new Error('root_key not found'); await T.sleep(1500); return [r, T.flags().includes('got:root_key')]; });
-await step('corrupt → lab → core (freight elevator)', async () => { const T = window.T; await T.go('lab'); return T.through('p_lab_core', 'server'); });
-await step('server: disable SRV-3', async () => { const T = window.T, o = T.obj('server', (o) => o.state.node === 'SRV-3', 'SRV-3'); await T.use(o, 'Disable node SRV-3'); await T.until(() => T.flags().includes('node:SRV-3')); return { stage: T.g.missions.stage, collapse: +T.g.collapse.toFixed(2) }; });
-await step('server → exit', async () => window.T.through('p_core_exit', 'exit'));
-await step('exit → the ending', async () => { const T = window.T; const pt = T.portal('p_exit_final'); T.g.usePortal(T.p, pt); await T.sleep(1500); return { escaped: T.flags().includes('escaped'), overlay: !!document.querySelector('.k-ending') }; });
-await step('directives state', async () => { const T = window.T; return T.flags().filter((f) => !f.startsWith('room:') && !f.startsWith('visit:') && !f.startsWith('read:')); });
-await page.screenshot({ path: 'scripts/out/walk_end.png' });
+// ================================================================ main chain: the contract
+{
+  const page = await session();
+  await step(page, 'intake: band fitted, contract running', async () => {
+    const T = window.T;
+    await T.until(() => T.g.debt?.on, 60000, 'ledger start');
+    if (T.g.band.get(T.p.id) !== 'armed') throw new Error('band not armed: ' + T.g.band.get(T.p.id));
+    const worn = T.p.worn.get('wrist');
+    if (worn?.key !== 'bailiff_band') throw new Error('band not worn');
+    await T.until(() => T.has('start:first_haul'), 30000, 'first_haul');
+    return { debt: T.g.debt.state(), kit: [...T.p.worn.values()].map((i) => i.key), hopperBeacon: (T.g.getZone('lobby').meta.signals || []).some((s) => s.id === 'hopper_lobby') };
+  });
+  await step(page, 'band will not come off normally', async () => {
+    const T = window.T, it = T.p.worn.get('wrist');
+    const { itemMenuOptions } = await import('/src/interact/itemMenu.ts');
+    const labels = itemMenuOptions(T.p, it, T.p.inv, [it]).map((o) => o.label);
+    if (labels.some((l) => /^(Take off|Drop)/.test(l))) throw new Error('band can be taken off: ' + labels.join(' | '));
+    return labels.filter((l) => l !== '-');
+  });
+  await step(page, 'lobby: smash furniture next to the hopper', async () => {
+    const T = window.T, z = T.g.getZone('lobby');
+    const h = T.obj('lobby', (o) => o.key === 'hopper', 'hopper');
+    // a sofa to wreck, a few tiles in front of the plate; the cushions are guaranteed to hide something today
+    const vals = await import('/src/game/debt/values.ts');
+    vals.STASH.cushions.chance = 1; vals.STASH.cushions.n = [2, 2];
+    vals.STASH.cushions.items = [['wedding_ring', 1], ['cash_roll', 1], ['gold_watch', 1]];
+    let spot = null;
+    for (let dy = 3; dy < 9 && !spot; dy++) for (let dx = -2; dx < 3 && !spot; dx++) { const x = h.x + dx, y = h.y + dy; if ([0, 1].every((k) => z.floor[z.idx(x + k, y)] && !z.solid[z.idx(x + k, y)] && !z.objectsAt(x + k, y).length)) spot = [x, y]; }
+    if (!spot) throw new Error('no space for the sofa');
+    const uidv = 970000001;
+    window.__dev.op('objAdd', { z: 'lobby', obj: { uid: uidv, key: 'sofa', x: spot[0], y: spot[1], rot: 0, state: {} } });
+    T.g.placePlayer(T.p, 'lobby', spot[0], spot[1] + 2, -Math.PI / 2);
+    await T.sleep(400);
+    T.D.smash(z.objects.get(uidv));
+    await T.until(() => T.has('tut:smash'), 60000, 'tut:smash');
+    await T.until(() => [...T.wi.floorItems(z).values()].some((w) => ['wedding_ring', 'cash_roll', 'gold_watch'].includes(w.item.key)), 60000, 'valuables spilled');
+    return { spilled: [...T.wi.floorItems(z).values()].filter((w) => Math.hypot(w.x - T.p.x, w.z - T.p.z) < 5).map((w) => w.item.key) };
+  });
+  await step(page, 'pick up a valuable', async () => {
+    const T = window.T, z = T.g.getZone('lobby');
+    // let the toss land, then pick it up through the real floor → inventory transfer
+    await T.until(() => [...T.wi.floorItems(z).values()].every((w) => w.vy === undefined), 60000, 'landed');
+    const w = [...T.wi.floorItems(z).values()].find((q) => ['wedding_ring', 'cash_roll', 'gold_watch'].includes(q.item.key));
+    const { transferItem } = await import('/src/game/worldOps.ts');
+    const fc = T.wi.floorContainer(z, w.x, w.z, 0.5);
+    transferItem(T.p, w.item, fc, T.p.inv);
+    await T.until(() => T.has('tut:valuable'), 30000, 'tut:valuable');
+    return T.p.allItems().filter((i) => (window.__game.debt.valueOf(i) || 0) >= 100).map((i) => i.key);
+  });
+  await step(page, 'deposit it in the hopper (hopper menu)', async () => {
+    const T = window.T;
+    const h = T.obj('lobby', (o) => o.key === 'hopper', 'hopper');
+    T.g.placePlayer(T.p, 'lobby', h.x + 1, h.y + 2, -Math.PI / 2);
+    await T.sleep(300);
+    await T.menu(h, 'Deposit all valuables');
+    await T.until(() => T.has('contract:first_deposit'), 120000, 'first deposit');
+    await T.done('first_haul');
+    return T.g.debt.state();
+  });
+  await step(page, 'item menu offers "Deposit" at a hopper', async () => {
+    const T = window.T;
+    const it = window.__dev.newItem('pocket_watch'); T.p.inv.add(it); T.emitInv();
+    const { itemMenuOptions } = await import('/src/interact/itemMenu.ts');
+    const labels = itemMenuOptions(T.p, it, T.p.inv, [it]).map((o) => o.label);
+    const dep = labels.find((l) => l.startsWith('Deposit in hopper'));
+    if (!dep) throw new Error('no deposit option: ' + labels.join(' | '));
+    return dep;
+  });
+  await step(page, 'push furniture onto the plate: the hopper takes it', async () => {
+    const T = window.T, z = T.g.getZone('lobby');
+    const h = T.obj('lobby', (o) => o.key === 'hopper', 'hopper');
+    const uidv = 970000050, paid0 = T.g.debt.paid + T.g.debt.surplus;
+    window.__dev.op('objAdd', { z: 'lobby', obj: { uid: uidv, key: 'filing_cabinet', x: h.x + 1, y: h.y + 3, rot: 0, state: {} } });
+    // the push ends with the cabinet released on the plate (the destruction system's objRelease op)
+    window.__dev.op('objRelease', { z: 'lobby', uid: uidv, x: h.x + 1, y: h.y + 1, by: T.p.id });
+    await T.until(() => !z.objects.has(uidv), 120000, 'cabinet taken');
+    await T.until(() => T.g.debt.paid + T.g.debt.surplus > paid0, 30000, 'credited');
+    return { credited: T.g.debt.paid + T.g.debt.surplus - paid0 };
+  });
+  for (let n = 1; n <= 4; n++) {
+    await step(page, `installment ${n}`, async (n) => {
+      const T = window.T, d = T.g.debt;
+      await T.until(() => T.has('start:installment_' + n), 60000, 'installment directive');
+      if (n === 2) {
+        // miss this deadline on purpose: penalty, a shock for the band, a fresh period
+        const owed = d.owed, before = T.p.body.health;
+        T.g.clock.hours = d.s.dueH + 0.05;
+        await T.until(() => d.s.missed > 0, 60000, 'missed');
+        if (!(d.owed > owed)) throw new Error('no penalty');
+        void before;
+      }
+      d.credit(d.due, 'dev');
+      await T.until(() => T.has('contract:installment:' + n), 30000, 'flag');
+      await T.done('installment_' + n);
+      return { n, paid: d.paid, owed: d.owed, missed: d.s.missed, dueDay: d.dueDay };
+    }, n);
+  }
+  await step(page, 'clear the debt', async () => {
+    const T = window.T, d = T.g.debt;
+    await T.until(() => T.has('start:clear_debt'), 60000, 'clear_debt directive');
+    d.credit(d.remaining + 4000, 'dev'); // the rest, and surplus for the ticket
+    await T.done('clear_debt');
+    if (!T.has('contract:debt_cleared')) throw new Error('flag');
+    return d.state();
+  });
+  await step(page, 'band: warning at the Seam, detonation, refit', async () => {
+    const T = window.T, b = T.g.band;
+    const s = T.obj('lobby', (o) => o.key === 'seam_door', 'seam');
+    b.graceT = 0;
+    const r = s.rot, nx = r === 1 ? -1 : r === 3 ? 1 : 0, nz = r === 0 ? 1 : r === 2 ? -1 : 0;
+    const warned = [];
+    const off = T.ev.bus.on('bandWarning', (w) => warned.push(w.countdown));
+    T.g.placePlayer(T.p, 'lobby', s.x + nx, s.y + nz, 0);
+    await T.until(() => b.warn.on, 60000, 'warning');
+    // back off: the countdown stops
+    T.g.placePlayer(T.p, 'lobby', s.x + nx * 4, s.y + nz * 4, 0);
+    await T.until(() => !b.warn.on, 60000, 'stand down');
+    // and come back for good
+    T.g.placePlayer(T.p, 'lobby', s.x + nx, s.y + nz, 0);
+    await T.until(() => b.warn.on, 60000, 'warning again');
+    b.warn.countdown = 0.3;
+    await T.until(() => b.get(T.p.id) === 'blown', 60000, 'detonation');
+    off();
+    const sev = [...T.p.body.severed];
+    // a replacement band from the hopper
+    const h = T.obj('lobby', (o) => o.key === 'hopper', 'hopper');
+    T.g.placePlayer(T.p, 'lobby', h.x + 1, h.y + 2, 0);
+    await T.sleep(300);
+    await T.menu(h, 'Take a replacement band');
+    await T.until(() => b.get(T.p.id) === 'armed', 60000, 'refit');
+    return { beeps: warned.length, severed: sev, dead: T.p.body.dead, refit: b.get(T.p.id) };
+  });
+  await step(page, 'passage: reach the kiosk, buy a ticket', async () => {
+    const T = window.T;
+    await T.until(() => T.has('start:transport'), 60000, 'transport directive');
+    const zk = T.D.tr.kioskZone();
+    let k = T.objs(zk, (o) => o.key === 'ticket_kiosk')[0];
+    if (!k) throw new Error('no kiosk in ' + zk);
+    await T.go(zk, k.x, k.y + 1);
+    k = T.objs(zk, (o) => o.key === 'ticket_kiosk')[0];
+    T.near(k); await T.sleep(300);
+    // keep the survivor alive for the ride (the blast took a forearm)
+    for (const part of Object.values(T.p.body.parts)) for (const i of part.injuries) { i.bleed = 0; i.bandage = { clean: true, soak: 0, sterile: true }; }
+    T.p.body.blood = 100; T.p.body.health = 100;
+    await T.menu(k, 'Night Coach 0400');
+    await T.until(() => T.D.tr.ride, 60000, 'ride called');
+    return { zone: zk, kiosk: [k.x, k.y], ride: T.D.tr.ride.kind, surplus: T.g.debt.surplus, ticket: T.p.allItems().some((i) => i.key === 'passage_ticket') };
+  });
+  await step(page, 'the coach arrives; board; it leaves; the ending', async () => {
+    const T = window.T, tr = T.D.tr;
+    // fast-forward the arrival
+    const ff = setInterval(() => { const r = tr.ride; if (r && (r.phase === 'arrive' || r.phase === 'depart')) r.t += 0.5; }, 100);
+    await T.until(() => tr.ride.phase === 'wait', 120000, 'arrived');
+    const [dx, dz] = tr.doorPos(tr.ride);
+    T.p.x = dx; T.p.z = dz;
+    await T.until(() => tr.ride.boarded.has(T.p.id), 60000, 'boarded');
+    await T.until(() => tr.ride.phase === 'depart', 120000, 'departed');
+    await T.until(() => document.querySelector('.dbt-end'), 120000, 'ending overlay');
+    clearInterval(ff);
+    await T.until(() => T.has('contract:transport'), 30000, 'contract:transport');
+    await T.done('transport', 60000);
+    return { ending: document.querySelector('.dbt-end .l5')?.textContent, flags: T.flags().filter((f) => f.startsWith('contract') || f.startsWith('done:')) };
+  });
+  await page.screenshot({ path: 'scripts/out/walk_end.png' });
+  await page.context().close();
+}
+
+// ================================================================ side chain: the way out they don't want you to find
+if (!mainOnly) {
+  const page = await session();
+  await page.evaluate(() => { for (const k of ['screwdriver', 'fuse', 'fuse', 'fuse']) window.T.p.inv.add(window.__dev.newItem(k)); });
+  await step(page, 'side: First Haul done (the side chain hangs off it)', async () => {
+    const T = window.T;
+    await T.until(() => T.has('start:first_haul'), 60000, 'first_haul');
+    for (const f of ['tut:smash', 'tut:valuable', 'contract:first_deposit']) T.g.missions.set(f);
+    await T.done('first_haul');
+    await T.until(() => T.has('start:first_light'), 30000, 'side chain');
+  });
+  const S = (name, fn) => step(page, 'side: ' + name, fn);
+  await S('lobby: fit fuse 1', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 1); });
+  await S('lobby: fit fuse 2', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 2); });
+  await S('lobby: fit fuse 3', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Fit a fuse'); await T.until(() => o.state.fuses >= 3); });
+  await S('lobby: main switch', async () => { const T = window.T, o = T.obj('lobby', (o) => o.state.mission === 'first_light', 'panel'); await T.use(o, 'Throw the main switch'); await T.until(() => T.g.getZone('lobby').circuitPowered(99)); return T.has('first_light'); });
+  await S('lobby → office (elevator)', async () => window.T.through('p_office', 'office'));
+  await S('office: numbers terminal', async () => { const T = window.T, o = T.obj('office', (o) => o.state.lore === 'terminal_numbers', 'numbers terminal'); T.near(o); T.lore('terminal_numbers'); return [o.key, o.x, o.y]; });
+  await S('office: facilities keycard', async () => { const T = window.T; const r = T.take('office', 'keycard_facilities') || T.takeFloor('office', 'keycard_facilities'); if (!r) throw new Error('keycard not found'); await T.sleep(1500); return [r, T.has('got:keycard_facilities')]; });
+  await S('office: swipe server closet reader', async () => { const T = window.T, o = T.obj('office', (o) => o.state.card === 'keycard_facilities', 'reader'); await T.use(o, 'Swipe a card'); const d = o.state.door; await T.until(() => !T.g.getZone('office').edge(d[0], d[1], d[2])?.locked); });
+  await S('office: disable SRV-1', async () => { const T = window.T, o = T.obj('office', (o) => o.state.node === 'SRV-1', 'SRV-1'); await T.use(o, 'Disable node SRV-1'); await T.until(() => T.has('node:SRV-1')); return { stage: T.g.missions.stage }; });
+  await S('fields → house: attic key + birthday card → lab code', async () => { const T = window.T; await T.go('house'); const k = T.takeFloor('fields', 'house_key') || T.take('fields', 'house_key'); T.lore('card_birthday'); return { key: !!k, lab_code: T.has('lab_code') }; });
+  await S('house: basement keypad', async () => { const T = window.T, o = T.obj('house', (o) => o.state.codeFlag === 'lab_code', 'keypad'); await T.use(o, 'Enter the code'); const d = o.state.door; if (d) await T.until(() => !T.g.getZone('house').edge(d[0], d[1], d[2])?.locked); return d; });
+  await S('house → lab (basement stairs)', async () => window.T.through('p_house_lab', 'lab'));
+  await S('lab: director\'s log + keycard', async () => { const T = window.T; T.lore('log_director'); const r = T.take('lab', 'keycard_lab') || T.takeFloor('lab', 'keycard_lab'); if (!r) throw new Error('keycard_lab not found'); return r; });
+  await S('lab: swipe SRV-2 reader', async () => { const T = window.T, o = T.obj('lab', (o) => o.state.card === 'keycard_lab', 'reader'); await T.use(o, 'Swipe a card'); const d = o.state.door; if (d) await T.until(() => !T.g.getZone('lab').edge(d[0], d[1], d[2])?.locked); });
+  await S('lab: disable SRV-2', async () => { const T = window.T, o = T.obj('lab', (o) => o.state.node === 'SRV-2', 'SRV-2'); await T.use(o, 'Disable node SRV-2'); await T.until(() => T.has('node:SRV-2')); return { stage: T.g.missions.stage }; });
+  await S('stairwell landing 13 → corrupt: root key', async () => { const T = window.T; await T.go('stairwell'); await T.through('p_stair_13', 'corrupt'); const r = T.takeFloor('corrupt', 'root_key') || T.take('corrupt', 'root_key'); if (!r) throw new Error('root_key not found'); await T.sleep(1500); return [r, T.has('got:root_key')]; });
+  await S('lab → core: disable SRV-3, the bands go dead', async () => { const T = window.T; await T.go('lab'); await T.through('p_lab_core', 'server'); const o = T.obj('server', (o) => o.state.node === 'SRV-3', 'SRV-3'); await T.use(o, 'Disable node SRV-3'); await T.until(() => T.has('node:SRV-3')); await T.until(() => T.has('band:removed'), 60000, 'band:removed'); return { band: T.g.band.get(T.p.id), cut: T.p.allItems().some((i) => i.key === 'bailiff_band_cut') }; });
+  await S('server → exit → the ending (no band, no detonation)', async () => { const T = window.T; await T.through('p_core_exit', 'exit'); const pt = T.portal('p_exit_final'); T.g.usePortal(T.p, pt); await T.sleep(1500); return { escaped: T.has('escaped'), overlay: !!document.querySelector('.k-ending'), band: T.g.band.get(T.p.id) }; });
+  await page.context().close();
+}
+
 await browser.close();
 console.log(failed ? `${failed} step(s) failed` : 'walkthrough complete');
 process.exit(failed ? 1 : 0);

@@ -69,12 +69,16 @@ export function settlePack(p: Player): boolean {
     c.remove(it); p.inv.items.push(it); it.parent = p.inv.uid; changed = true;
   }
   const seen = new Set<number>();
+  // things the hands are busy with (being taken off, moved, equipped) are left alone
+  const busy = new Set<Item>();
+  for (const a of p.actions?.list || []) { const it = (a as any).it; if (it) busy.add(it); }
   for (const c of p.containers()) {
     const spec = gridSpec(c);
     if (!spec) continue;
     const occ = occupancy(c.items, spec);
     for (const it of occ.bad) {
       seen.add(it.uid);
+      if (busy.has(it)) continue;
       const at = findSpot(occ, it);
       if (at) { setPlace(it, at); claim(occ, it, at); changed = true; pending.delete(it.uid); continue; }
       const b = bestDest(p, it, c);

@@ -110,7 +110,7 @@ export function rehabStation(ctx: RehabCtx) {
       return;
     }
     const avail = traitAvailable(t), conflict = conflictOf(t);
-    reader.innerHTML = `<b class="rh-r-n">${esc(t.name)} <em class="${t.cost < 0 ? 'neg' : 'pos'}">${cr(-t.cost)} CR</em></b>
+    reader.innerHTML = `<b class="rh-r-n">${esc(t.name)} <em class="${t.cost < 0 ? 'neg' : 'pos'}">${cr(t.cost)} CREDITS</em></b>
       <div class="rh-line good"><i>✚</i><span>${esc(t.good || '')}</span></div>
       <div class="rh-line bad"><i>✖</i><span>${esc(t.bad || '')}</span></div>
       ${!avail ? `<div class="rh-r-warn">SEALED · ${esc(t.unlock?.hint || 'Not yet available.')}</div>` : conflict ? `<div class="rh-r-warn">CONFLICTS WITH ${esc(conflict.name.toUpperCase())}</div>` : ''}`;
@@ -130,7 +130,7 @@ export function rehabStation(ctx: RehabCtx) {
     const g = h('div', 'rh-films');
     for (const t of list) {
       const avail = traitAvailable(t);
-      const b = h('button', 'rh-film' + (avail ? '' : ' locked'), `<img src="${filmUrl(t)}" alt=""><span class="n">${esc(t.name)}</span><span class="c">${cr(-t.cost)}</span><i class="clip"></i>`);
+      const b = h('button', 'rh-film' + (avail ? '' : ' locked'), `<img src="${filmUrl(t)}" alt=""><span class="n">${esc(t.name)}</span><span class="c">${cr(t.cost)}</span><i class="clip"></i>`);
       b.type = 'button';
       b.title = '';
       b.setAttribute('aria-label', `${t.name}, ${t.cost < 0 ? 'costs ' + -t.cost : 'gives ' + t.cost} credits. Good: ${t.good}. Bad: ${t.bad}`);

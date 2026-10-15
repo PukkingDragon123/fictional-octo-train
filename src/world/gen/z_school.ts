@@ -21,6 +21,7 @@ import { Rng, hash3, hashStr } from '../../core/rng';
 import { registerShift } from '../shift';
 import { Frame, Dir, Rot, LBACK, LFACE, WBACK, WFACE, ANG, wallAt, signAt, decal, scatter, lootIn, arrive, openTile } from './suburbs_kit';
 import { itemAt } from './meridian_kit';
+import { wrongRoomsIn } from './wrong_kit';
 
 const W = 128, H = 96;
 // halls (4 wide) and the spine
@@ -599,6 +600,8 @@ export function generateSchool(z: Zone, seed: number) {
   z.creatureCap = 6;
   z.meta.terminalLore = ['terminal_generic'];
   z.meta.shiftRate = 1;
+  // a few classrooms are wrong (world stream 3)
+  wrongRoomsIn(z, b, seed ^ 0x77a3, ['classroom'], 3, ['chairs_corner', 'upside_down', 'high_door', 'tiny_door', 'tv_backs'], { paper: 'wall_school' });
   // the outer walls are brick wherever a room redrew them
   b.hwall(5, 122, 5, 'brick'); b.hwall(5, 122, 92, 'brick'); b.vwall(5, 5, 91, 'brick'); b.vwall(123, 5, 91, 'brick');
   return b;

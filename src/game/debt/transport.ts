@@ -58,6 +58,8 @@ interface Ride {
   kind: TransportDef['key'];
   zone: string;
   x: number; z: number; heading: number; flip: number;
+  /** a lane the vehicle drives along before turning into the bay (depot); NaN = straight in */
+  laneZ: number;
   phase: Phase; t: number;
   boarded: Set<string>;
   group: THREE.Group | null; mesh: THREE.Mesh | null; open: boolean;
@@ -65,7 +67,7 @@ interface Ride {
   departSent: boolean;
   hornT: number;
 }
-interface TOp { k: 'buy' | 'call' | 'board' | 'depart'; kind?: string; by?: string; id?: string; ids?: string[]; zone?: string; x?: number; z?: number; h?: number; f?: number }
+interface TOp { k: 'buy' | 'call' | 'board' | 'depart'; kind?: string; by?: string; id?: string; ids?: string[]; zone?: string; x?: number; z?: number; h?: number; f?: number; lz?: number }
 
 defOp('transport', (a: TOp, ctx) => { (G.debt?.transport as TransportSystem | undefined)?.onOp(a, ctx); });
 
@@ -102,19 +104,26 @@ export class TransportSystem implements GameSystem {
   // ---------------------------------------------------------------- where
   kioskZone(): string { return zoneSpec('depot') ? 'depot' : 'lobby'; }
   /** bay for a zone: [tile x, tile y, heading radians, door flip] */
-  bay(z: Zone): [number, number, number, number] {
+  bay(z: Zone): [number, number, number, number, number] {
+    // the depot describes its bay: a rectangle off a bus lane (src/world/gen/z_depot.ts z.meta.transportBay)
+    const tb = z.meta.transportBay as { x0: number; y0: number; x1: number; y1: number; laneY?: [number, number] } | undefined;
+    if (tb) {
+      const cx = (tb.x0 + tb.x1 + 1) / 2, cz = (tb.y0 + tb.y1 + 1) / 2;
+      const lane = tb.laneY ? (tb.laneY[0] + tb.laneY[1] + 1) / 2 : NaN;
+      // nose in toward the platform (+z), doors on the west kerb
+      return [cx - 0.5, cz - 0.5, Math.PI / 2, 1, lane];
+    }
     const a = (z.meta.anchors || {})['transport_bay'] as number[] | undefined;
     const k = [...z.objects.values()].find((o) => o.key === 'ticket_kiosk');
-    let x = a?.[0] ?? (k ? k.x : z.W >> 1), y = a?.[1] ?? (k ? k.y + 3 : z.H >> 1);
+    const x = a?.[0] ?? (k ? k.x : z.W >> 1), y = a?.[1] ?? (k ? k.y + 3 : z.H >> 1);
     // the vehicle lies along the more open axis through the bay
     const run = (dx: number, dy: number) => { let n = 0; for (let i = -6; i <= 6; i++) { const X = x + dx * i, Y = y + dy * i; if (z.inb(X, Y) && z.floor[z.idx(X, Y)] && z.solid[z.idx(X, Y)] !== 1) n++; } return n; };
-    let heading = a?.[2] !== undefined ? Number(a[2]) : run(1, 0) >= run(0, 1) ? 0 : Math.PI / 2;
+    let heading = run(1, 0) >= run(0, 1) ? 0 : Math.PI / 2;
     if (!Number.isFinite(heading)) heading = 0;
     // doors face the kiosk
     let flip = 1;
     if (k) { const nx = -Math.sin(heading), nz = Math.cos(heading); if ((k.x + 0.5 - (x + 0.5)) * nx + (k.y + 0.5 - (y + 0.5)) * nz < 0) flip = -1; }
-    void heading;
-    return [x, y, heading, flip];
+    return [x, y, heading, flip, NaN];
   }
   /** world position of the door (where you board) */
   doorPos(r: Ride): [number, number] {
@@ -154,15 +163,15 @@ export class TransportSystem implements GameSystem {
         if (this.ride && this.ride.phase !== 'gone') return;
         if (!G.debt?.cleared || !G.debt.spend(t.price, t.key, a.by)) return;
         const z = G.getZone(a.zone || this.kioskZone());
-        const [x, y, h, f] = this.bay(z);
-        op('transport', { k: 'call', kind: t.key, by: a.by, zone: z.key, x: x + 0.5, z: y + 0.5, h, f });
+        const [x, y, h, f, lz] = this.bay(z);
+        op('transport', { k: 'call', kind: t.key, by: a.by, zone: z.key, x: x + 0.5, z: y + 0.5, h, f, lz: Number.isFinite(lz) ? lz : undefined });
         return;
       }
       case 'call': {
         if (rep) return;
         const t = transportDef(a.kind || ''); if (!t) return;
         this.dropMesh();
-        this.ride = { kind: t.key, zone: a.zone!, x: a.x!, z: a.z!, heading: a.h ?? 0, flip: a.f ?? 1, phase: 'arrive', t: 0, boarded: new Set(), group: null, mesh: null, open: false, by: a.by || '', departSent: false, hornT: 15 };
+        this.ride = { kind: t.key, zone: a.zone!, x: a.x!, z: a.z!, heading: a.h ?? 0, flip: a.f ?? 1, laneZ: a.lz ?? NaN, phase: 'arrive', t: 0, boarded: new Set(), group: null, mesh: null, open: false, by: a.by || '', departSent: false, hornT: 15 };
         G.missions?.set?.('contract:ticket');
         if (a.by === G.local?.id) {
           addStat('transports_bought');
@@ -204,24 +213,46 @@ export class TransportSystem implements GameSystem {
     const m = new THREE.Mesh(vehicleGeo(r.kind, r.open), worldMaterial({ cutout: true }));
     m.castShadow = true; m.receiveShadow = true;
     g.add(m);
-    g.rotation.y = -r.heading + (r.flip < 0 ? Math.PI : 0);
     G.pr.scene.add(g);
     r.group = g; r.mesh = m;
   }
-  /** offset of the vehicle from its bay at this moment of its timeline */
-  private pose(r: Ride): { ox: number; oy: number; oz: number; vis: boolean } {
-    const [ax, az] = axis(r);
-    const ease = (t: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
+  /** where the vehicle is at this moment of its timeline: centre, height offset, heading */
+  private pose(r: Ride): { x: number; z: number; oy: number; h: number; vis: boolean } {
+    const ease = (t: number) => { t = Math.max(0, Math.min(1, t)); return t * t * (3 - 2 * t); };
+    const out = (t: number) => 1 - Math.pow(1 - Math.max(0, Math.min(1, t)), 3);
     if (r.kind === 'cage') {
-      if (r.phase === 'arrive') return { ox: 0, oy: -4.5 * (1 - ease(r.t / 5)), oz: 0, vis: true };
-      if (r.phase === 'depart') return { ox: 0, oy: -Math.pow(r.t, 1.6) * 1.2, oz: 0, vis: r.t < 9 };
-      return { ox: 0, oy: 0, oz: 0, vis: true };
+      const oy = r.phase === 'arrive' ? -4.5 * (1 - out(r.t / 5)) : r.phase === 'depart' ? -Math.pow(r.t, 1.6) * 1.2 : 0;
+      return { x: r.x, z: r.z, oy, h: r.heading, vis: r.phase !== 'depart' || r.t < 9 };
     }
+    const sp = r.kind === 'coach' ? 1 : 0.75;
+    const sgn = r.flip < 0 ? -1 : 1;
+    if (Number.isFinite(r.laneZ)) {
+      // along the lane, then a turn into the bay; out the same way in reverse, then off along the lane
+      const turnH = r.heading - Math.PI / 2 * sgn, far = 34;
+      const lx = Math.cos(turnH) * sgn, lz = Math.sin(turnH) * sgn;   // lane direction of travel
+      if (r.phase === 'arrive') {
+        const T = 7 / sp, a = r.t / T;
+        if (a < 0.55) { const k = out(a / 0.55); return { x: r.x - lx * far * (1 - k), z: r.laneZ - lz * far * (1 - k), oy: 0, h: turnH, vis: true }; }
+        const k = ease((a - 0.55) / 0.45);
+        return { x: r.x, z: r.laneZ + (r.z - r.laneZ) * k, oy: 0, h: turnH + (r.heading - turnH) * k, vis: true };
+      }
+      if (r.phase === 'depart') {
+        const t = r.t * sp;
+        if (t < 3) { const k = ease(t / 3); return { x: r.x, z: r.z + (r.laneZ - r.z) * k, oy: 0, h: r.heading, vis: true }; }
+        if (t < 4.5) { const k = ease((t - 3) / 1.5); return { x: r.x, z: r.laneZ, oy: 0, h: r.heading + (turnH - r.heading) * k, vis: true }; }
+        const d = Math.pow(t - 4.5, 2) * 1.4;
+        return { x: r.x + lx * d, z: r.laneZ + lz * d, oy: 0, h: turnH, vis: d < 60 };
+      }
+      return { x: r.x, z: r.z, oy: 0, h: r.heading, vis: true };
+    }
+    const ax = Math.cos(r.heading) * sgn, az = Math.sin(r.heading) * sgn;
     let s = 0;
-    if (r.phase === 'arrive') s = -(r.kind === 'coach' ? 34 : 40) * (1 - ease(r.t / (r.kind === 'coach' ? 6 : 8)));
+    if (r.phase === 'arrive') s = -(r.kind === 'coach' ? 34 : 40) * (1 - out(r.t / (r.kind === 'coach' ? 6 : 8)));
     if (r.phase === 'depart') s = Math.pow(Math.max(0, r.t - 1.5), 2) * (r.kind === 'coach' ? 1.4 : 0.8);
-    return { ox: s * ax, oy: 0, oz: s * az, vis: s < 60 };
+    return { x: r.x + s * ax, z: r.z + s * az, oy: 0, h: r.heading, vis: s < 60 };
   }
+  /** how long the arrival takes */
+  private arriveSecs(r: Ride) { return r.kind === 'cage' ? 5.5 : Number.isFinite(r.laneZ) ? (r.kind === 'coach' ? 7.2 : 9.6) : r.kind === 'coach' ? 6.5 : 8.5; }
 
   update(dt: number) {
     const r = this.ride;
@@ -230,7 +261,7 @@ export class TransportSystem implements GameSystem {
     const here = G.local?.zoneKey === r.zone && G.view?.zone.key === r.zone;
     if (here) this.ensureMesh(r); else this.dropMesh();
     // timeline
-    if (r.phase === 'arrive' && r.t >= (r.kind === 'coach' ? 6.5 : r.kind === 'carriage' ? 8.5 : 5.5)) {
+    if (r.phase === 'arrive' && r.t >= this.arriveSecs(r)) {
       r.phase = 'wait'; r.t = 0; r.open = true;
       if (r.mesh) r.mesh.geometry = vehicleGeo(r.kind, true);
       if (here) {
@@ -246,14 +277,13 @@ export class TransportSystem implements GameSystem {
     // pose
     const ps = this.pose(r);
     const base = G.zones.get(r.zone)?.heightAt(Math.floor(r.x), Math.floor(r.z)) ?? 0;
-    if (r.group) { r.group.position.set(r.x + ps.ox, base + ps.oy, r.z + ps.oz); r.group.visible = ps.vis; }
+    if (r.group) { r.group.position.set(ps.x, base + ps.oy, ps.z); r.group.rotation.y = -ps.h + (r.flip < 0 ? Math.PI : 0); r.group.visible = ps.vis; }
     // lights: headlights / warm windows / the cage's work lamp
     if (here && ps.vis) {
-      const lx = r.x + ps.ox, lz = r.z + ps.oz;
-      const [ax, az] = axis(r);
-      if (r.kind === 'coach') { G.pointLight(lx + ax * 6.5, 1.0, lz + az * 6.5, 0xfff0c0, 2.2, 12); G.pointLight(lx, 2.2, lz, 0x3a3428, 0.6, 6); }
-      else if (r.kind === 'carriage') G.pointLight(lx, 1.8, lz, 0xffc070, 1.8, 10);
-      else G.pointLight(lx, 2.2 + ps.oy, lz, 0xd8ffe0, 1.4, 7);
+      const k = r.flip < 0 ? -1 : 1, ax = Math.cos(ps.h) * k, az = Math.sin(ps.h) * k;
+      if (r.kind === 'coach') { G.pointLight(ps.x + ax * 6.5, 1.0, ps.z + az * 6.5, 0xfff0c0, 2.2, 12); G.pointLight(ps.x, 2.2, ps.z, 0x3a3428, 0.6, 6); }
+      else if (r.kind === 'carriage') G.pointLight(ps.x, 1.8, ps.z, 0xffc070, 1.8, 10);
+      else G.pointLight(ps.x, 2.2 + ps.oy, ps.z, 0xd8ffe0, 1.4, 7);
     }
     const me = G.local;
     // boarding: walk into the door
@@ -264,9 +294,9 @@ export class TransportSystem implements GameSystem {
     // aboard: ride along (the camera follows the vehicle out)
     if (me && r.boarded.has(me.id) && me.zoneKey === r.zone) {
       const d = transportDef(r.kind)!;
-      const [ax, az] = axis(r);
+      const k = r.flip < 0 ? -1 : 1, ax = Math.cos(ps.h) * k, az = Math.sin(ps.h) * k;
       const seat = r.kind === 'cage' ? 0 : d.door - 0.7;
-      me.x = r.x + ps.ox + ax * seat; me.z = r.z + ps.oz + az * seat;
+      me.x = ps.x + ax * seat; me.z = ps.z + az * seat;
       me.y = base + (r.kind === 'cage' ? ps.oy + 0.12 : 0.6);
       me.vx = me.vz = 0;
     }

@@ -225,8 +225,8 @@ export class SeamFx implements GameSystem {
         const env = Math.exp(-r.t * 1.8) * r.amp;
         const w = Math.sin((dist - front) * 7) * Math.exp(-Math.abs(dist - front) * 2.2) * env;
         dz += w * 0.07 * (r.inward ? -1 : 1);
-        // the crest catches what little light there is
-        lit += Math.max(0, w) * 0.5;
+        // the leading crest catches what little light there is: a thin, dim ring
+        lit += Math.exp(-((dist - front) ** 2) * 60) * env * 0.35;
         // the outline itself shivers
         const edge = Math.min(u, 1 - u, vv, 1 - vv);
         if (edge < 0.02) { dx += w * 0.05 * Math.sign(x || 1); dy += w * 0.03; }
@@ -240,8 +240,8 @@ export class SeamFx implements GameSystem {
         dz -= kk * 0.06;
       }
       a[i] = x + dx; a[i + 1] = y + dy; a[i + 2] = b[i + 2] + dz;
-      lit = Math.min(0.6, lit);
-      c[i] = lit * 0.62; c[i + 1] = lit * 0.6; c[i + 2] = lit * 0.78;
+      lit = Math.min(0.28, lit);
+      c[i] = lit * 0.55; c[i + 1] = lit * 0.55; c[i + 2] = lit * 0.75;
     }
     pos.needsUpdate = true;
     cat.needsUpdate = true;

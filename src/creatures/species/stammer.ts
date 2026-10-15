@@ -427,7 +427,7 @@ const S = def({
   animate: animateStammer,
   think: thinkStammer,
 });
-defDread('stammer', { stretch: { parts: ['foreL', 'foreR'], amount: 0.55 }, sting: 'hit', cam: 1, flick: 9, twitch: ['head', 'handL', 'handR'], twitchRate: 0.3, tilt: 'head', tiltMax: 0.5, moved: true });
+defDread('stammer', { bend: ['shinL', 'shinR', 'foreL', 'foreR'], bendRate: 0.5, stretch: { parts: ['foreL', 'foreR'], amount: 0.55 }, sting: 'hit', cam: 1, flick: 9, twitch: ['head', 'handL', 'handR'], twitchRate: 0.3, tilt: 'head', tiltMax: 0.5, moved: true });
 (S as any).animateGallery = (rig: Rig, t: number) => {
   const q = new URLSearchParams(location.search).get('pose') || '';
   const atk = q === 'attack' ? Math.max(0, 0.38 - (t % 1.4) * 0.5) : 0;

@@ -1,5 +1,5 @@
-// Title boot sequence: a Meridian continuity terminal powering up over the
-// attract-mode world. Full POST on the first visit of a session, a short
+// Title boot sequence: the security desk's monitor warming up and a tape
+// going into the deck, over the attract-mode world. Full POST on the first visit of a session, a short
 // flicker after that. Any key, click or tap skips it.
 import { h, esc } from './common';
 import { sfx } from './sfx';
@@ -8,18 +8,18 @@ import { logoCanvas } from '../pixelart';
 import { toUrl } from '../pixelkit';
 
 const LINES: [string, number][] = [
-  ['MERIDIAN INSTITUTE  //  CONTINUITY TERMINAL  MK-IV', 0],
-  ['(C) 1987 MERIDIAN INSTITUTE. PROPERTY OF THE FIELD OFFICE.', 0],
+  ['MERIDIAN INSTITUTE  //  SECURITY DESK B  //  M-14 MONITOR', 0],
+  ['PROPERTY OF THE REMITTANCE OFFICE. DO NOT REMOVE TAPES.', 0],
   ['', 0],
-  ['CORE MEMORY ......... 655360 WORDS {ok:OK}', 1],
-  ['PHOSPHOR ............ {ok:WARM}', 1],
-  ['SEER LINK ........... {ok:ESTABLISHED}', 1],
-  ['ROOM BUFFER ......... 4,294,967,295 ROOMS {hi:(AND COUNTING)}', 1],
-  ['REALITY ANCHOR ...... {bad:[ FAILED ]}', 2],
-  ['RETRY ............... {bad:[ FAILED ]}', 2],
-  ['{hi:>> PROCEEDING WITHOUT AN EXIT}', 1],
+  ['TAPE 07 ............. {ok:INSERTED}', 1],
+  ['TRACKING ............ {ok:AUTO}', 1],
+  ['CAM 03 PROCESSING ... {ok:SIGNAL}', 1],
+  ['DEBTORS ON FILE ..... 4,294,967,295 {hi:(AND COUNTING)}', 1],
+  ['CAM 09 THE SEAM ..... {bad:[ NO SIGNAL ]}', 2],
+  ['CAM 09 THE SEAM ..... {bad:[ SOMETHING IS IN FRONT OF THE LENS ]}', 2],
+  ['{hi:>> REWINDING}', 1],
   ['', 0],
-  ['MOUNTING CONTINUITY.SIM', 0],
+  ['PLAY ▶  SP', 0],
 ];
 
 function fmt(s: string) {
