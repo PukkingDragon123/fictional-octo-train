@@ -251,6 +251,7 @@ const S = def({
       'Loves sweets. Two candies and it is yours; it lights the way ahead of you.',
     ],
   },
+  gore: { blood: 'glass', sever: ['leg0', 'leg1'], gib: false },
   build: buildLamp,
   animate: animateLamp,
   think: thinkLamp,

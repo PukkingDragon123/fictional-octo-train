@@ -224,6 +224,7 @@ const sp = def({
       'Strikes at ankles, then stays surfaced for a moment. That is the only time a weapon finds it.',
     ],
   },
+  gore: { blood: 'dark', tint: 0xb89a8a, sever: ['arm'] },
   build: buildUnderlay,
   animate: animateUnderlay,
   think: thinkUnderlay,

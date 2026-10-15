@@ -290,6 +290,7 @@ const S = def({
       'Noise draws it: running, shouting and gunfire turn it your way at the next junction. Stay quiet and let it pass.',
     ],
   },
+  gore: { blood: 'none' },
   build: buildOccupant,
   animate: animateOccupant,
   think: thinkOccupant,

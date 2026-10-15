@@ -234,6 +234,7 @@ const S = def({
       'Small game meat. Sometimes something else: keys, coins, a marble. It never swallowed them.',
     ],
   },
+  gore: { blood: 'red', sever: ['wingL', 'wingR', 'leg0', 'leg1'], head: 'head' },
   build: buildBird,
   animate: animateBird,
   think: thinkBird,

@@ -87,6 +87,8 @@ export class Game {
   picking: any = null;
   interact: any = null;
   survival: any = null;
+  /** blood, gibs and dismemberment (src/gore) */
+  gore: any = null;
   collapse = 0;
   /** title-screen mode: replaces player control with a scripted wanderer */
   attract: ((dt: number) => void) | null = null;

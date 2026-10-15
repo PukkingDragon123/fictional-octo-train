@@ -305,6 +305,7 @@ const sp = def({
       'There are always coins and remotes inside it. Nobody knows where they came from.',
     ],
   },
+  gore: { blood: 'stuffing', sever: ['legFL', 'legFR', 'legBL', 'legBR', 'armL', 'armR'], head: 'back', flesh: 0xd8ccbc },
   build: buildDavenport,
   animate: animateDavenport,
   think: thinkDavenport,

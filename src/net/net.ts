@@ -313,6 +313,7 @@ export class Net implements GameSystem {
   private fx(kind: string, d: any) {
     if (kind === 'csnd') { const c = G.creatures?.creatures?.get?.(d.id); if (c) G.audio?.creature?.(d.s, c); }
     else if (kind === 'sound') G.audio?.at?.(d.key, d.x, d.z, d.vol ?? 1);
+    else if (kind === 'gore') G.gore?.onNet?.(d);
   }
   private applyMedical(inj: any) {
     const me = G.local; if (!me || !inj) return;

@@ -11,9 +11,9 @@ import { serializeItem } from '../items/factory';
 import { op } from './ops';
 import { Rng } from '../core/rng';
 
-defOp('creatureHit', (a: { id: string; dmg: number; fx: number; fz: number; knock: number; by: string }, ctx) => {
+defOp('creatureHit', (a: { id: string; dmg: number; fx: number; fz: number; knock: number; by: string; k?: string; cr?: 1 }, ctx) => {
   if (!ctx.host) return;
-  G.creatures?.damage(a.by, a.id, a.dmg, a.fx, a.fz, a.knock);
+  G.creatures?.damage(a.by, a.id, a.dmg, a.fx, a.fz, a.knock, a.k, !!a.cr);
 });
 
 const UNARMED = { kind: 'unarmed' as const, dmg: [2, 4] as [number, number], range: 0.85, speed: 1.6, endurance: 0.03, crit: 0.05, knock: 0.4, durability: 1, noise: 4 };
@@ -89,7 +89,7 @@ export class CombatSystem implements GameSystem {
       const crit = this.rng.chance(w.crit + skill * 0.01 + (c.state === 'idle' || c.state === 'sleep' || c.state === 'disguised' ? 0.25 : 0));
       if (crit) dmg *= 2.2;
       if (it && (it.cond ?? 1) < 0.3) dmg *= 0.75;
-      cs.damage(p.id, c.id, dmg, p.x, p.z, w.knock);
+      cs.damage(p.id, c.id, dmg, p.x, p.z, w.knock, w.kind, crit);
       hitAny = true;
       G.audio?.hit?.(w.kind, c.x, c.z, crit);
       if (crit) G.pr.shake = Math.max(G.pr.shake, 0.6);
@@ -165,7 +165,7 @@ export class CombatSystem implements GameSystem {
       if (!lineOfSight(z, p.x, p.z, cc.x, cc.z)) continue;
       best = cc; bd = d;
     }
-    if (best) { cs.damage(p.id, best.id, this.rng.float(w.dmg[0], w.dmg[1]) * (1 - bd / 60), p.x, p.z, w.knock); p.body.addXp('firearm', 4); }
+    if (best) { cs.damage(p.id, best.id, this.rng.float(w.dmg[0], w.dmg[1]) * (1 - bd / 60), p.x, p.z, w.knock, 'firearm', this.rng.chance(w.crit ?? 0)); p.body.addXp('firearm', 4); }
   }
 
   throwItem(p: Player, it: Item) {
@@ -186,7 +186,7 @@ export class CombatSystem implements GameSystem {
       // thrown hits
       for (const c of G.creatures?.creatures.values() || []) {
         const cc: any = c;
-        if (!cc.dead && cc.zoneKey === p.zoneKey && Math.hypot(cc.x - lx, cc.z - lz) < 1.2 && d.weapon) G.creatures.damage(p.id, cc.id, this.rng.float(d.weapon.dmg[0], d.weapon.dmg[1]), lx, lz, 0.3);
+        if (!cc.dead && cc.zoneKey === p.zoneKey && Math.hypot(cc.x - lx, cc.z - lz) < 1.2 && d.weapon) G.creatures.damage(p.id, cc.id, this.rng.float(d.weapon.dmg[0], d.weapon.dmg[1]), p.x, p.z, 0.3, d.weapon.fire ? 'fire' : 'thrown');
       }
     }, t * 1000);
     bus.emit('inventoryChanged', p);
@@ -204,7 +204,7 @@ export class CombatSystem implements GameSystem {
       const d = Math.hypot(cc.x - p.x, cc.z - p.z);
       if (d > 1.1 + cc.radius || Math.abs(angleDiff(p.facing, Math.atan2(cc.z - p.z, cc.x - p.x))) > 1.0) continue;
       const big = cc.radius > 0.6;
-      G.creatures.damage(p.id, cc.id, big ? 0.5 : 1.5, p.x, p.z, big ? 0.15 : 1.2);
+      G.creatures.damage(p.id, cc.id, big ? 0.5 : 1.5, p.x, p.z, big ? 0.15 : 1.2, 'shove');
     }
     G.audio?.at?.('shove', p.x, p.z);
   }

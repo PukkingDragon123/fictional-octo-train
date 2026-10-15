@@ -323,6 +323,7 @@ const sp = def({
       'The SEER-9 radar still pings him behind the plaster.',
     ],
   },
+  gore: { blood: 'plaster', sever: ['uarmL', 'uarmR', 'farmL', 'farmR', 'handL', 'handR', 'thighL', 'thighR', 'shinL', 'shinR'], head: 'head' },
   build: buildDrywall,
   animate: animateDrywall,
   think: thinkDrywall,

@@ -316,6 +316,7 @@ const sp = def({
       'It calms down and forgets you if you get out of sight.',
     ],
   },
+  gore: { blood: 'static', sever: ['uarmL', 'uarmR', 'farmL', 'farmR', 'thighL', 'thighR', 'shinL', 'shinR'], head: 'head' },
   build: buildHollow,
   animate: animateHollow,
   think: thinkHollow,

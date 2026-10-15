@@ -300,6 +300,7 @@ const S = def({
       'Throw something noisy in to draw it away, or cross where the water is shallow.',
     ],
   },
+  gore: { blood: 'pale', sever: ['armL', 'armR', 'foreL', 'foreR'], head: 'head' },
   build: buildLifeguard,
   animate: animateLifeguard,
   think: thinkLifeguard,

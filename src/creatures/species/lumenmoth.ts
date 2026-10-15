@@ -288,6 +288,7 @@ const S = def({
       'Swat the swarm to collect the dust. It does not fight back.',
     ],
   },
+  gore: { blood: 'glow' },
   build: buildSwarm,
   animate: animateSwarm,
   think: thinkSwarm,

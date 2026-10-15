@@ -339,6 +339,7 @@ const sp = def({
       'Missing things? Check under the vents. It keeps a hoard.',
     ],
   },
+  gore: { blood: 'red', tint: 0xffd0d0, sever: ['armL', 'armR', 'legL', 'legR', 'tail'], head: 'head' },
   build: buildVentling,
   animate: animateVentling,
   think: thinkVentling,

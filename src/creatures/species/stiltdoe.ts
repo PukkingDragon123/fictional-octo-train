@@ -78,6 +78,7 @@ def({
   meat: [['venison_raw', 4]],
   sounds: { idle: 'doe_click', alert: 'doe_shriek', hurt: 'doe_shriek', death: 'doe_death', step: 'hoof' },
   scan: { cls: 'Grazer / skittish', notes: ['Legs over two metres long. It ducks under door frames.', 'Grazes the artificial grass. Flees from running footsteps.', 'Kicks hard if cornered.', 'Edible. Tastes faintly of static.'] },
+  gore: { blood: 'red', sever: ['leg0', 'leg1', 'leg2', 'leg3', 'shin0', 'shin1', 'shin2', 'shin3'], head: 'head' },
   build: buildDoe,
   animate: animateDoe,
 });

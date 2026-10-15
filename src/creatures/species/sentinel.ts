@@ -217,6 +217,7 @@ const S = def({
       'Being watched is exhausting: stress and panic build while it is in view. Rounds pass through it.',
     ],
   },
+  gore: { blood: 'none' },
   build: buildSentinel,
   animate: animateSentinel,
   think: thinkSentinel,

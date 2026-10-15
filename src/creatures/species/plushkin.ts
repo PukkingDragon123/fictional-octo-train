@@ -319,6 +319,7 @@ const S = def({
       'Harmless. Hit it and it tears open into a pile of stuffing.',
     ],
   },
+  gore: { blood: 'stuffing', sever: ['bearhead', 'bunnyhead', 'beararmL', 'beararmR', 'bunnyarmL', 'bunnyarmR', 'bearlegL', 'bearlegR', 'bunnylegL', 'bunnylegR', 'bearearL', 'bunnyearR'] },
   build: buildPlush,
   animate: animatePlush,
   think: thinkPlush,

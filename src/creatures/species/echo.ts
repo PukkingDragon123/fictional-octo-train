@@ -302,6 +302,7 @@ const S = def({
       'Listen for wet clicking. Stay together; it goes for whoever is alone.',
     ],
   },
+  gore: { blood: 'dark', sever: ['armL', 'armR', 'foreL', 'foreR', 'thighL', 'thighR', 'shinL', 'shinR'], head: 'head' },
   build: buildEcho,
   animate: animateEcho,
   think: thinkEcho,

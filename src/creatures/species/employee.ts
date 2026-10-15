@@ -250,6 +250,7 @@ const sp = def({
       'Its pose is different every time you look. The closer it is, the more it is reaching.',
     ],
   },
+  gore: { blood: 'shell', sever: ['uarmL', 'uarmR', 'farmL', 'farmR', 'handL', 'handR', 'thighL', 'thighR', 'shinL', 'shinR'], head: 'head' },
   build: buildEmployee,
   animate: animateEmployee,
   think: thinkEmployee,

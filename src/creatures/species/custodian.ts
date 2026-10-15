@@ -349,6 +349,7 @@ const sp = def({
       'It cannot be destroyed. Three quick blows make it lose its place for a few seconds.',
     ],
   },
+  gore: { blood: 'none' },
   build: buildCustodian,
   animate: animateCustodian,
   think: thinkCustodian,

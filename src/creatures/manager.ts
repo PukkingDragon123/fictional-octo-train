@@ -24,6 +24,9 @@ import { queueAt } from '../actions/basic';
 import { UseObjectAction } from '../actions/world';
 import { itemDef } from '../items/item';
 
+/** what a creature was hit with (passed to the gore system) */
+export interface GoreHit { dmg: number; kind: string; fx: number; fz: number; crit?: boolean; by?: string }
+
 export interface NoiseEvent { x: number; z: number; radius: number; kind: string; zone: string; by?: string; t: number; }
 
 const PART_WEIGHTS_LOW: [BodyPart, number][] = [['shin_l', 4], ['shin_r', 4], ['foot_l', 2], ['foot_r', 2], ['thigh_l', 3], ['thigh_r', 3], ['hand_l', 1], ['hand_r', 1], ['farm_l', 1], ['farm_r', 1]];
@@ -202,7 +205,7 @@ export class CreatureSystem implements GameSystem {
   // ---------------------------------------------------------------- simulation
   private simulate(c: Creature, dt: number) {
     const z = G.getZone(c.zoneKey);
-    if (c.dead) { c.deathT += dt; return; }
+    if (c.dead) { c.deathT += dt; G.gore?.corpseStep?.(c, dt, z); return; }
     c.stateT += dt;
     c.attackT = Math.max(0, c.attackT - dt);
     c.stagger = Math.max(0, c.stagger - dt);
@@ -392,7 +395,7 @@ export class CreatureSystem implements GameSystem {
     const foe = c.mem.foe ? this.creatures.get(c.mem.foe) : null;
     if (foe && c.sp.attack) {
       const d = Math.hypot(foe.x - c.x, foe.z - c.z);
-      if (d < c.sp.attack.range + foe.radius && c.attackT <= 0) { c.attackT = c.sp.attack.cooldown; this.damage(c.id, foe.id, (c.sp.attack.dmg[0] + c.sp.attack.dmg[1]) / 2, c.x, c.z); return; }
+      if (d < c.sp.attack.range + foe.radius && c.attackT <= 0) { c.attackT = c.sp.attack.cooldown; this.damage(c.id, foe.id, (c.sp.attack.dmg[0] + c.sp.attack.dmg[1]) / 2, c.x, c.z, 0.4, 'bite'); return; }
       this.moveTo(c, z, foe.x, foe.z, c.sp.run, dt, 0.8);
       return;
     }
@@ -515,11 +518,14 @@ export class CreatureSystem implements GameSystem {
     else G.net?.sendHurt?.(p.id, hit);
   }
 
-  /** damage a creature (authority) */
-  damage(byId: string, cid: string, amount: number, fx: number, fz: number, knock = 0.4) {
+  /**
+   * damage a creature (authority). `kind` is what did it (weapon kind: blunt, blade, axe, spear,
+   * firearm, thrown, unarmed, shove; or bite, vehicle, fire, trap) for blood and dismemberment.
+   */
+  damage(byId: string, cid: string, amount: number, fx: number, fz: number, knock = 0.4, kind?: string, crit = false) {
     const c = this.creatures.get(cid);
     if (!c || c.dead) return;
-    if (!this.isAuthority) { op('creatureHit', { id: cid, dmg: amount, fx, fz, knock, by: byId }); return; }
+    if (!this.isAuthority) { op('creatureHit', { id: cid, dmg: amount, fx, fz, knock, by: byId, k: kind, cr: crit ? 1 : undefined }); return; }
     if (c.sp.flags?.immortal) { c.stagger = 0.4; this.call(c, 'hurt'); return; }
     c.hp -= amount;
     c.hitFlash = 0.15;
@@ -530,10 +536,14 @@ export class CreatureSystem implements GameSystem {
     c.targetId = G.players.has(byId) ? byId : c.targetId;
     c.lastSeen = { x: fx, z: fz, t: G.time };
     const z = G.getZone(c.zoneKey);
-    const drip = remainsTex(c, false);
-    if (drip && this.rng.chance(0.5)) op('decal', { z: c.zoneKey, d: { x: c.x + this.rng.float(-0.4, 0.4), z: c.z + this.rng.float(-0.4, 0.4), w: 0.5 + amount * 0.03, d: 0.5 + amount * 0.03, rot: this.rng.float(0, 6), tex: drip } });
-    if (c.hp <= 0) this.kill(c, z, byId);
+    const hit: GoreHit = { dmg: amount, kind: kind ?? this.hitKind(byId), fx, fz, crit, by: byId };
+    if (!G.gore) {
+      const drip = remainsTex(c, false);
+      if (drip && this.rng.chance(0.5)) op('decal', { z: c.zoneKey, d: { x: c.x + this.rng.float(-0.4, 0.4), z: c.z + this.rng.float(-0.4, 0.4), w: 0.5 + amount * 0.03, d: 0.5 + amount * 0.03, rot: this.rng.float(0, 6), tex: drip } });
+    }
+    if (c.hp <= 0) this.kill(c, z, byId, hit);
     else {
+      G.gore?.creatureHurt?.(c, hit);
       this.call(c, 'hurt');
       const T = c.sp.temperament;
       if (T === 'peaceful' || T === 'skittish' || T === 'curious') { c.setState('flee'); c.goal = this.fleeSpot(c, z, fx, fz); }
@@ -541,16 +551,31 @@ export class CreatureSystem implements GameSystem {
     }
   }
 
-  kill(c: Creature, z: Zone, byId?: string) {
+  /** what hit a creature when the caller did not say: cars, fire, companions' teeth, or a plain blow */
+  private hitKind(byId: string): string {
+    if (byId === 'fire') return 'fire';
+    const p = G.players.get(byId);
+    if (p?.inVehicle) return 'vehicle';
+    if (!p && this.creatures.has(byId)) return 'bite';
+    return 'blunt';
+  }
+
+  kill(c: Creature, z: Zone, byId?: string, hit?: GoreHit) {
     c.dead = true; c.hp = 0; c.setState('dead'); c.speed = 0; c.vx = c.vz = 0;
     this.call(c, 'death');
+    // blood, severed parts, pools (gore system); without it, the plain remains decal
+    if (G.gore) {
+      G.gore.creatureDied?.(c, hit ?? { dmg: 0, kind: 'trap', fx: c.x, fz: c.z });
+      const r = c.sp.remains;
+      if (!c.sp.flags?.noCorpse && (G.sandbox.gore ?? 2) <= 0 && r && r !== 'none' && !/blood/.test(r)) op('decal', { z: c.zoneKey, d: { x: c.x, z: c.z, w: 1 + c.radius * 2, d: 1 + c.radius * 2, rot: this.rng.float(0, 6), tex: r } });
+    }
     if (!c.sp.flags?.noCorpse) {
       c.inv = new Container(uid(), c.sp.name, 'corpse', 30);
       c.inv.owner = 'corpse:' + c.id;
       const drops = rollLoot('creature_' + c.sp.key, this.rng);
       for (const k of drops) c.inv.add(createItem(k, this.rng));
       c.inv.lootDone = true;
-      const pool = remainsTex(c, true);
+      const pool = G.gore ? null : remainsTex(c, true);
       if (pool) op('decal', { z: c.zoneKey, d: { x: c.x, z: c.z, w: 1 + c.radius * 2, d: 1 + c.radius * 2, rot: this.rng.float(0, 6), tex: pool } });
     } else {
       setTimeout(() => this.remove(c), 1500);
@@ -630,7 +655,7 @@ export class CreatureSystem implements GameSystem {
       if (!inZone) { if (c.rig) { this.root.remove(c.rig.root); c.rig = null; } continue; }
       const d = Math.hypot(c.x - local.x, c.z - local.z);
       if (d > 50) { if (c.rig) c.rig.root.visible = false; c.visibleToLocal = false; continue; }
-      if (!c.rig) { c.rig = c.sp.build(); c.rig.root.userData.creature = c; this.root.add(c.rig.root); }
+      if (!c.rig) { c.rig = c.sp.build(); c.rig.root.userData.creature = c; this.root.add(c.rig.root); G.gore?.onRigBuilt?.(c); }
       const vis = G.view.vis;
       const tileVis = vis.isVisible(Math.floor(c.x), Math.floor(c.z));
       const show = tileVis || d < 1.6;
@@ -638,7 +663,7 @@ export class CreatureSystem implements GameSystem {
       if (show && !c.wasSeenByLocal && !concealed(c)) { c.wasSeenByLocal = true; bus.emit('creatureSeen', c); }
       c.rig.root.visible = show || !!c.rig.eyes;
       if (c.rig.eyes) for (const e of c.rig.eyes) e.visible = show || (d < 16 && lineOfSight(G.zone, local.x, local.z, c.x, c.z) && !c.dead);
-      c.rig.body.visible = show;
+      c.rig.body.visible = show && !c.mem.gibbed;
       c.rig.root.position.set(c.x, c.y, c.z);
       c.rig.root.rotation.y = Math.PI / 2 - c.facing;
       c.animT += dt;
@@ -646,8 +671,17 @@ export class CreatureSystem implements GameSystem {
       try { c.sp.animate(c.rig, c, c.animT, dt); } catch (e) { console.error('anim', c.sp.key, e); }
       if (c.dead) {
         const k = Math.min(1, c.deathT * 2 + (c.deathT > 0 ? 0 : 1));
-        c.rig.body.rotation.z = (c.sp.flags?.flying ? 0 : Math.PI / 2) * Math.min(1, k + 0.01);
-        c.rig.body.position.y = -c.height * 0.25 * Math.min(1, k + 0.01);
+        const rz = c.sp.flags?.flying ? 0 : Math.PI / 2;
+        // lying on its side, resting on the floor (measured once in the final pose)
+        let restY = c.rig.root.userData.restY as number | undefined;
+        if (restY === undefined) {
+          c.rig.body.rotation.z = rz; c.rig.body.position.y = 0;
+          c.rig.root.updateMatrixWorld(true);
+          const box = new THREE.Box3().setFromObject(c.rig.body);
+          restY = c.rig.root.userData.restY = box.isEmpty() ? -c.height * 0.25 : Math.min(0.3, c.rig.root.position.y + 0.015 - box.min.y);
+        }
+        c.rig.body.rotation.z = rz * Math.min(1, k + 0.01);
+        c.rig.body.position.y = restY * Math.min(1, k + 0.01);
       }
     }
   }
@@ -701,7 +735,8 @@ export function applyHitToPlayer(p: Player, h: HitInfo) {
   G.pr.shake = Math.min(2, G.pr.shake + 0.8);
   G.audio?.hurt?.(p);
   if (h.grab) { p.mem_grabbed = G.time + 1.2; }
-  op('decal', { z: p.zoneKey, d: { x: p.x, z: p.z, w: 0.6, d: 0.6, rot: rng.float(0, 6), tex: 'decal_blood_drip' } });
+  if (G.gore) G.gore.playerHit?.(p, h, part, kind);
+  else op('decal', { z: p.zoneKey, d: { x: p.x, z: p.z, w: 0.6, d: 0.6, rot: rng.float(0, 6), tex: 'decal_blood_drip' } });
   bus.emit('playerHit', p, part, kind, h);
 }
 

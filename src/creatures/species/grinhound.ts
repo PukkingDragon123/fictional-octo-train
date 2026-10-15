@@ -99,6 +99,7 @@ def({
   meat: [['hound_meat_raw', 2]], flags: { pack: true },
   sounds: { idle: 'hound_huff', alert: 'hound_laugh', attack: 'hound_snarl', hurt: 'hound_yelp', death: 'hound_death', step: 'pad' },
   scan: { cls: 'Predator / pack', notes: ['Head is rotated ninety degrees. It does not seem to notice.', 'Hunts by smell. Follows the warm trail you leave on carpet.', 'Afraid of open flame.', 'Its "laughing" call brings the rest of the pack.'] },
+  gore: { blood: 'red', sever: ['leg0', 'leg1', 'leg2', 'leg3', 'shin0', 'shin1', 'shin2', 'shin3', 'tail'], head: 'head' },
   build: () => buildHound('c_hound_skin'),
   animate: animateHound,
 });
@@ -112,6 +113,7 @@ def({
   flags: { companion: true },
   sounds: { idle: 'dog_whine', alert: 'dog_bark', attack: 'dog_growl', hurt: 'hound_yelp', death: 'hound_death' },
   scan: { cls: 'Stray / tameable', notes: ['Smiles a little too wide. Wags its tail anyway.', 'Feed it meat a few times and it will follow you.', 'Growls at things you cannot see yet.'] },
+  gore: { blood: 'red', sever: ['leg0', 'leg1', 'leg2', 'leg3', 'tail'], head: 'head' },
   build: () => {
     const r = buildHound('c_dog_fur', 0.85);
     return r;

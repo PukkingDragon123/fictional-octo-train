@@ -13,6 +13,7 @@ import { FloorItemRenderer } from '../items/worldItems';
 import { bus } from '../core/events';
 import { CreatureSystem } from '../creatures/manager';
 import { CombatSystem } from './combat';
+import { GoreSystem } from '../gore/gore';
 import { Scanner } from '../ui/scanner/scanner';
 import { Watch } from '../ui/watch/watch';
 import { AudioEngine } from '../audio/audio';
@@ -111,6 +112,7 @@ export function startSession(o: SessionOpts): Game {
   g.addSystem(new WorldExtras(g));
   g.addSystem(new CreatureSystem());
   g.addSystem(new CombatSystem());
+  g.addSystem(new GoreSystem());
   const audio = new AudioEngine();
   g.audio = audio;
   g.addSystem({ name: 'audio', update: (dt) => audio.update(dt) });

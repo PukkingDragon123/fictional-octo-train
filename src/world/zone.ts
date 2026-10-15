@@ -86,7 +86,8 @@ export interface Room {
   temp?: number;
 }
 
-export interface Decal { x: number; z: number; y?: number; w: number; d: number; rot: number; tex: string; tint?: number; alpha?: number; }
+/** A floor decal (default), or with `vert` a wall decal: centre (x, floor + y, z), facing (cos rot, sin rot), w wide, d tall. */
+export interface Decal { x: number; z: number; y?: number; w: number; d: number; rot: number; tex: string; tint?: number; alpha?: number; vert?: 1; }
 
 export const TF = {
   OUTDOOR: 1, NOSPAWN: 2, ROOF: 4, CORRUPT: 8, SHIFT: 16, VENT: 32, SAFE: 64, FURROW: 128, BURNT: 256, NOBUILD: 512, STAIRS: 1024,

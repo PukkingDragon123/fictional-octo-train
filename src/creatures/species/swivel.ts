@@ -263,6 +263,7 @@ const sp = def({
       'A chair that faces you when it did not before is not a chair. Kick it before it moves.',
     ],
   },
+  gore: { blood: 'oil', sever: ['leg0', 'leg1', 'leg2', 'leg3', 'leg4', 'armL', 'armR'], head: 'back' },
   build: buildSwivel,
   animate: animateSwivel,
   think: thinkSwivel,

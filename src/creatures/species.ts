@@ -50,6 +50,8 @@ export interface SpeciesDef {
   sounds?: { idle?: string; alert?: string; attack?: string; hurt?: string; death?: string; step?: string; call?: string; loop?: string };
   /** death decal ('none' for plush, glass, dust…); default is a blood pool */
   remains?: string;
+  /** what it bleeds and what can be cut off it (gore system, src/gore) */
+  gore?: GoreDef;
   /** gallery-only animation hook (pose previews) */
   animateGallery?(rig: Rig, t: number, pose?: string): void;
   scan: { cls: string; notes: string[] };
@@ -58,6 +60,27 @@ export interface SpeciesDef {
   animate(rig: Rig, c: Creature, t: number, dt: number): void;
   /** optional custom brain; return true if handled (skips default) */
   think?(c: Creature, dt: number): boolean;
+}
+
+/**
+ * What comes out of a creature when it is hurt:
+ * 'red' blood (default), 'dark' ichor, 'pale' watery blood, 'static' (glitched things),
+ * 'stuffing' (plush, upholstery), 'plaster' (drywall), 'shell' (fibreglass), 'oil'
+ * (hydraulic fluid), 'glow' paint, 'glass' shards, or 'none'.
+ */
+export type GoreBlood = 'red' | 'dark' | 'pale' | 'static' | 'stuffing' | 'plaster' | 'shell' | 'oil' | 'glow' | 'glass' | 'none';
+export interface GoreDef {
+  blood?: GoreBlood;
+  /** tint multiplied into blood decals and particles (0xffffff = as painted) */
+  tint?: number;
+  /** named rig parts (see part()) that can be cut, shot or torn off; the whole sub-tree goes with it */
+  sever?: string[];
+  /** the head part: decapitation and head bursts */
+  head?: string;
+  /** can the whole body burst into chunks (default true) */
+  gib?: boolean;
+  /** colour of the generic meat / fluff chunks */
+  flesh?: number;
 }
 
 export function def(s: SpeciesDef) { return defSpecies(s as any) as unknown as SpeciesDef; }

@@ -1,10 +1,11 @@
 import * as THREE from 'three';
-import { Zone, CHUNK, TileObject, EdgeObj } from './zone';
+import { Zone, CHUNK, TileObject, EdgeObj, Decal } from './zone';
 import { floorDef, wallDef, wallpaperTex, WALL_H, WallDef } from './defs';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { MAT, worldMaterial } from '../gfx/materials';
 import { hash3 } from '../core/rng';
 import { objDef, objectGeometry, ObjDef } from './objects';
+import { G } from '../game/G';
 
 const ROT_MATS = [0, 1, 2, 3].map((r) => new THREE.Matrix4().makeRotationY(-r * Math.PI / 2));
 
@@ -98,9 +99,13 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       target.appendGeometry(g, m, o.tint ?? 0xffffff, d.onWall && !d.foliage ? (o.rot % 2 === 0 ? 1 : 2) : undefined);
     }
   }
-  // decals inside this chunk
+  // decals inside this chunk (floor decals, and wall decals that get cut away with their wall)
+  let wallDecals: ModelBuilder | null = null;
+  const noBlood = G?.sandbox?.gore === 0;
   for (const dc of zone.decals) {
     if (dc.x < x0 || dc.x >= x1 || dc.z < y0 || dc.z >= y1) continue;
+    if (dc.vert) { wallDecal(wallDecals ??= new ModelBuilder(), zone, dc); continue; }
+    if (noBlood && dc.tex.startsWith('decal_blood')) continue; // gore off: no blood at all, not even the level's
     const fy = zone.heightAt(Math.floor(dc.x), Math.floor(dc.z)) + (dc.y ?? 0.012);
     decals.flat(dc.x, fy, dc.z, dc.w, dc.d, dc.tex, { rot: dc.rot, color: dc.tint ?? 0xffffff });
   }
@@ -121,11 +126,33 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
   add(propsLow, MAT.propLow, true);
   add(foliage, MAT.foliage, false);
   add(decals, MAT.decal, false, 1);
+  if (wallDecals) add(wallDecals, worldMaterial({ transparent: true, outline: 0.0, depthWrite: false, cutout: true }), false, 1);
   add(glass, MAT.glass, false, 2);
   return {
     group,
     dispose() { group.traverse((o) => { if ((o as THREE.Mesh).geometry) (o as THREE.Mesh).geometry.dispose(); }); },
   };
+}
+
+/** vertical decal quad facing (cos rot, sin rot); shaded like the wall face it sits on, tagged with the wall axis for cutaways */
+function wallDecal(mb: ModelBuilder, zone: Zone, dc: Decal) {
+  const nx = Math.cos(dc.rot), nz = Math.sin(dc.rot);
+  // the wall behind it may be gone (knocked down, a room that shifted): then so is the decal
+  const tx = Math.floor(dc.x), ty = Math.floor(dc.z);
+  const along = Math.abs(nz) >= Math.abs(nx);
+  const ex = along ? tx : (nx > 0 ? tx : tx + 1), ey = along ? (nz > 0 ? ty : ty + 1) : ty;
+  if (!zone.inb(ex, ey)) return;
+  const wi = zone.idx(ex, ey), side = along ? 0 : 1;
+  if (!(side === 0 ? zone.wallN[wi] : zone.wallW[wi]) || zone.edges.has(wi * 2 + side)) return;
+  const ux = nz, uz = -nx; // tangent: (p1 - p0) x (p2 - p0) then points along the normal
+  const hw = dc.w / 2, hh = dc.d / 2;
+  const cy = zone.heightAt(Math.floor(dc.x), Math.floor(dc.z)) + (dc.y ?? 1.2);
+  const shade = Math.abs(nz) >= Math.abs(nx) ? (nz > 0 ? 0.94 : 0.86) : (nx > 0 ? 0.9 : 0.82);
+  mb.swayDefault = Math.abs(nz) >= Math.abs(nx) ? 1 : 2;
+  mb.quadRaw(
+    [[dc.x - ux * hw, cy - hh, dc.z - uz * hw], [dc.x + ux * hw, cy - hh, dc.z + uz * hw], [dc.x + ux * hw, cy + hh, dc.z + uz * hw], [dc.x - ux * hw, cy + hh, dc.z - uz * hw]],
+    [[0, 0], [1, 0], [1, 1], [0, 1]], dc.tex, dc.tint ?? 0xffffff, shade, 0, 0, [nx, 0, nz]);
+  mb.swayDefault = 0;
 }
 
 export function objectMatrix(zone: Zone, o: TileObject, d: ObjDef): THREE.Matrix4 {
