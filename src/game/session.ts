@@ -153,6 +153,8 @@ export function startSession(o: SessionOpts): Game {
     p.setOccupation(o.occupation || 'unemployed');
     // a Remittance debtor's intake kit (src/game/debt): jumpsuit, slip-ons, issue pack, a ration bar, a water pouch
     issueKit(p, (k, wear) => { if (!hasItemDef(k)) return null; const it = newItem(k); p.inv.add(it); if (wear) p.wear(it); return it; });
+    // free survival has no BAILIFF band: a plain wrist monitor projects the vitals instead
+    if (!missions.enabled && hasItemDef('wrist_monitor')) { const it = newItem('wrist_monitor'); p.inv.add(it); p.wear(it); }
     if (!p.worn.size) for (const k of ['tshirt', 'jeans', 'sneakers', 'socks']) if (hasItemDef(k)) { const it = newItem(k); p.inv.add(it); p.wear(it); }
     // the job's kit: clothing and bags go on (as the personnel-file preview shows), the rest into the pockets
     for (const k of occupationByKey(p.occupation).items) {
@@ -220,8 +222,10 @@ export function startSession(o: SessionOpts): Game {
   } else {
     const z = g.getZone('lobby');
     const sp = (z.meta.spawn as [number, number]) || z.randomFloor(new Rng(3)) || [10, 10];
-    // a brand-new world opens in normal reality and noclips into the Lobby (src/game/intro.ts)
-    if (!s && introWanted(o.mode)) startIntro(g, p, sp);
+    // a brand-new contract world opens with the prisoner intake (src/game/intro.ts); free survival
+    // (no contract, no band, no Voss) starts straight in the Lobby unless ?intro forces it
+    const forced = new URLSearchParams(location.search).get('intro');
+    if (!s && introWanted(o.mode) && (missions.enabled || (forced !== null && forced !== '0'))) startIntro(g, p, sp);
     else { g.placePlayer(p, 'lobby', sp[0], sp[1], 0); skipIntake(p); }
   }
   // joining a crew, or a world from before the contract: the band is already on

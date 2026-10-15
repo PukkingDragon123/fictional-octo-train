@@ -7,7 +7,9 @@ import { G } from '../game/G';
 
 interface Drop { x: number; y: number; r: number; vy: number; life: number; max: number; trail: number; col: number; mist: boolean }
 
-const W = 192, H = 108;
+const W = 320, H = 180;
+/** radii and speeds were tuned at 192 px across */
+const S = W / 192;
 
 export class LensBlood {
   private cv: HTMLCanvasElement | null = null;
@@ -41,12 +43,12 @@ export class LensBlood {
     const cx = W * (0.5 + side * 0.3 + (Math.random() - 0.5) * 0.3), cy = H * (0.25 + Math.random() * 0.45);
     for (let i = 0; i < big; i++) {
       const a = Math.random() * Math.PI * 2, d = Math.pow(Math.random(), 0.7) * W * 0.16 * (0.5 + k);
-      const r = 1.6 + Math.random() * (1.5 + k * 3.5);
+      const r = (1.6 + Math.random() * (1.5 + k * 3.5)) * S;
       this.add(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.7, r, col, false);
     }
     for (let i = 0; i < fine; i++) {
       const a = Math.random() * Math.PI * 2, d = Math.pow(Math.random(), 0.5) * W * 0.26;
-      this.add(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.6, 0.6 + Math.random() * 0.8, col, true);
+      this.add(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.6, (0.6 + Math.random() * 0.8) * S, col, true);
     }
     if (this.drops.length > 140) this.drops.splice(0, this.drops.length - 140);
   }
@@ -65,11 +67,11 @@ export class LensBlood {
       d.life -= dt;
       if (d.life <= 0) { this.drops.splice(i, 1); continue; }
       // big drops sag, then run, leaving a thinning trail
-      if (!d.mist && d.r > 2.4 && d.max - d.life > 0.6) {
-        d.vy = Math.min(9, d.vy + dt * (d.r * 1.4));
+      if (!d.mist && d.r > 2.4 * S && d.max - d.life > 0.6) {
+        d.vy = Math.min(9 * S, d.vy + dt * (d.r * 1.4));
         const dy = d.vy * dt;
-        d.y += dy; d.trail = Math.min(40, d.trail + dy);
-        d.r = Math.max(1.2, d.r - dy * 0.06);
+        d.y += dy; d.trail = Math.min(40 * S, d.trail + dy);
+        d.r = Math.max(1.2 * S, d.r - dy * 0.06);
       }
     }
     this.acc += dt;
@@ -102,12 +104,14 @@ export class LensBlood {
         for (let k = -Math.round(w); k <= Math.round(w); k++) put(d.x + k, d.y - t, R * 0.8, Gc * 0.8, B * 0.8, Math.round(aEdge * (1 - t / (d.trail + 6))));
       }
       const r = d.r, r2 = r * r;
-      if (r < 1.2) {
+      const seed = (d.max * 1000) | 0;
+      if (r < 2.2) {
+        // a speck: one to three pixels in an irregular clump (a tiny pixel circle reads as a "+")
         put(d.x, d.y, R * 0.8, Gc * 0.8, B * 0.8, aBody);
-        if (r > 0.9) put(d.x + 1, d.y, R * 0.6, Gc * 0.6, B * 0.6, aEdge);
+        if (r > 1.1) put(d.x + (seed & 1 ? 1 : -1), d.y, R * 0.6, Gc * 0.6, B * 0.6, aEdge);
+        if (r > 1.6) put(d.x, d.y + (seed & 2 ? 1 : -1), R * 0.6, Gc * 0.6, B * 0.6, aEdge);
         continue;
       }
-      const seed = (d.max * 1000) | 0;
       for (let y = -Math.ceil(r) - 1; y <= Math.ceil(r) + 1; y++) for (let x = -Math.ceil(r) - 1; x <= Math.ceil(r) + 1; x++) {
         // lumpy edge: a cheap angular wobble per drop
         const ang = Math.atan2(y, x);

@@ -438,7 +438,9 @@ export class Holo {
         alive.add(q.id);
         const st = this.bandState(q.id);
         if (st === 'armed') this.detonated.delete(q.id);
-        const on = !this.detonated.has(q.id) && !this.gone(st) && (st === 'armed' || (q.isLocal ? this.fitted && this.detonT < 0 : this.fitted || this.wearsBand(q)));
+        // free survival (no contract): no band at all; the projection comes from a plain wrist monitor
+        const contract = G.missions?.enabled !== false;
+        const on = !this.detonated.has(q.id) && !this.gone(st) && (st === 'armed' || this.wearsBand(q) || (contract && (q.isLocal ? this.fitted && this.detonT < 0 : this.fitted)));
         this.bands.sync(q, on);
       }
       this.bands.prune(alive);
@@ -478,7 +480,8 @@ export class Holo {
     // scripted control (G.attract) hides it on the title screen, but not in the intro once the band has been fitted
     const blocked = !!(ui?.scanner?.open || ui?.inventory?.open || ui?.readerEl || ui?.modal || (G.attract && !this.booted));
     // no band on the wrist (cut off, blown, lost with the arm): no projection
-    const gone = this.gone(this.bandState(p.id)) && this.detonT < 0;
+    // (a scavenged wrist monitor still projects the vitals once the band is off)
+    const gone = this.gone(this.bandState(p.id)) && this.detonT < 0 && !this.wearsMonitor(p);
     const show = this.fitted && !gone && !blocked && !(this.dead && this.deadT > 4) && this.detonT < 1.6;
     if (show !== this.visible) {
       this.visible = show;
@@ -518,6 +521,10 @@ export class Holo {
   /** the band rules' view of a survivor's band ('armed', 'removed', 'blown', 'lost'; '' when unknown) */
   private bandState(id: string): string { try { const s = (G as any).band?.get?.(id); return typeof s === 'string' && s !== 'none' ? s : ''; } catch { return ''; } }
   private gone(st: string) { return st === 'removed' || st === 'blown' || st === 'lost'; }
+  private wearsMonitor(p: Player): boolean {
+    try { for (const it of p.worn?.values?.() || []) if (it.key === 'wrist_monitor') return true; } catch { /* ignore */ }
+    return false;
+  }
   private wearsBand(p: Player): boolean {
     try {
       if (p.worn?.get?.('wrist' as any)?.key === 'bailiff_band') return true;
