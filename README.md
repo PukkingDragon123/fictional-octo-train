@@ -59,6 +59,9 @@ URL flags: `?quick` skips the title and the intro and starts a fresh run;
 | Q | shout |
 | H | breathing exercise (calms a panic attack) |
 | Z / X, wheel | rotate camera, zoom |
+| Middle mouse or Alt+drag | orbit the camera freely (snaps back on release) |
+| PageUp / PageDown, Alt+wheel | camera pitch |
+| P | photo mode (free camera, hidden HUD, Space saves a picture) |
 | V (hold) | talk: proximity voice, or the walkie-talkie when it's on |
 | Enter / T | chat |
 | Esc | close / pause |
@@ -85,8 +88,19 @@ lights and ignition buttons.
   company, comfort items, music, journaling, breathing and pets help, and
   medication has real side effects. A KESTREL wrist monitor shows the time,
   your pulse, temperature and state of mind.
-- **Gore** (Off / Normal / Heavy): weapon-specific blood, wall splatter,
-  spreading pools, bloody footprints, severed limbs and heads, gibs.
+- **Gore and limb loss** (Gore: Off / Normal / Heavy; Limb loss: on / off):
+  weapon-specific blood, wall splatter, spreading pools, bloody footprints,
+  severed heads and limbs, gibs. Monsters grab survivors and tear off hands,
+  arms, feet and legs; a stump bleeds out unless you tourniquet, cauterise or
+  stitch it, and you live on one-handed, on crutches, a peg leg or a hook.
+  Monsters lose limbs mid-fight and keep coming on what they have left.
+- **Monsters that look the part.** Eighteen species rebuilt as skinned
+  low-poly bodies with hand-painted textures: planted-foot gaits, stalking,
+  wind-up lunges, flinches, furniture disguises that match the real props.
+- **A camera with weight.** Shake, recoil and zoom punches, free orbit and
+  pitch, look-ahead toward your aim, push-ins when you go down, and photo
+  mode; ambient occlusion, bloom, volumetric light and flashlight beams,
+  wet-floor reflections and pool caustics, with quality presets for phones.
 - **A personnel file to fill in.** A live 3D model of your survivor turns and
   emotes while you choose looks, a job and traits (40-odd, many of them
   silly). Most jobs are locked until you earn them by playing, and stay
