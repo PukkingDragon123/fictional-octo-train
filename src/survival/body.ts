@@ -146,6 +146,9 @@ export function moodleLevel(v: number, th: number[]): number {
 export class Body {
   parts = {} as Record<BodyPart, { injuries: Injury[] }>;
   hunger = 8; thirst = 8; fatigue = 12; endurance = 1;
+  /** body parts that are gone (a lost upper arm lists the forearm and hand too). See src/survival/limbs.ts. */
+  severed: BodyPart[] = [];
+  isSevered(part: BodyPart) { return this.severed.includes(part); }
   boredom = 10; unhappy = 5; stress = 8; panic = 0;
   lucidity = 100; corruption = 0; corruptInfected = false;
   sickness = 0; temp = 37; wetness = 0; drunk = 0; stuffed = 0;
