@@ -84,8 +84,8 @@ function onBroken(z: Zone, o: TileObject, by: string | null, how: string) {
   void how;
   // only the one who broke it rolls the stash (once: replays of the break op must not roll again)
   if (!by || by !== G.local?.id || !o || isReplaying()) return;
-  G.missions?.set?.('tut:smash');
-  if (!G.destruct) addStat('furniture_smashed'); // the destruction system counts its own breaks
+  // the destruction system flags 'tut:smash' and counts 'furniture_smashed' itself; only without it do we
+  if (!G.destruct) { G.missions?.set?.('tut:smash'); addStat('furniture_smashed'); }
   const d = objDef(o.key);
   if (!d || d.onWall || d.ceiling) return;
   const kind = stashKind(o, d);

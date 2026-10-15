@@ -8,10 +8,10 @@
   animation: dbt-flick 2.3s steps(1) infinite; white-space: nowrap;
 }
 .dbt-roll::after { content: ''; position: absolute; inset: calc(var(--px) * -2); background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.32) 0 var(--px), transparent var(--px) calc(var(--px) * 3)); pointer-events: none; }
-.dbt-roll b { display: block; font-weight: normal; font-size: calc(var(--px) * 18); }
+.dbt-roll b { display: block; font-weight: normal; font-size: calc(var(--px) * 13); }
 .dbt-roll i { display: block; font-style: normal; font-family: var(--font-stencil); font-size: calc(var(--px) * 5); opacity: 0.8; margin-top: var(--px); }
 .dbt-roll s { display: block; text-decoration: none; font-family: var(--font-stencil); font-size: calc(var(--px) * 5); color: #ffcf70; text-shadow: 0 0 calc(var(--px) * 2) rgba(255, 160, 40, 0.8); margin-top: calc(var(--px) * 2); }
-.dbt-roll.big b { color: #fff2c0; font-size: calc(var(--px) * 24); text-shadow: 0 0 calc(var(--px) * 4) rgba(255, 176, 64, 0.95), var(--px) var(--px) 0 #000; }
+.dbt-roll.big b { color: #fff2c0; font-size: calc(var(--px) * 17); text-shadow: 0 0 calc(var(--px) * 4) rgba(255, 176, 64, 0.95), var(--px) var(--px) 0 #000; }
 @keyframes dbt-flick { 0%, 100% { opacity: 1; } 41% { opacity: 0.55; } 42% { opacity: 1; } 77% { opacity: 0.8; } 78% { opacity: 1; } }
 
 /* ---------------------------------------------------------------- the transport ending */
