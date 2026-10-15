@@ -1,3 +1,4 @@
+import { isUnlocked } from '../game/profile';
 // Occupations, traits and skills — the "employee intake form" of the simulation.
 
 export type SkillKey =
@@ -29,11 +30,16 @@ export const SKILLS: { key: SkillKey; name: string; group: string; passive?: boo
 /** XP needed to go from level n to n+1 (Project Zomboid curve) */
 export const XP_PER_LEVEL = [75, 150, 300, 750, 1500, 3000, 4500, 6000, 7500, 9000];
 
+/** How a job or trait becomes available: always (no field), or once a profile unlock id
+ *  ('job:<key>' / 'trait:<key>') has been earned. `hint` tells the player how to earn it. */
+export interface UnlockRule { hint: string }
+
 export interface Occupation {
   key: string; name: string; desc: string; points: number;
   skills: Partial<Record<SkillKey, number>>;
   items: string[];
   perks?: string[];
+  unlock?: UnlockRule;
 }
 
 export const OCCUPATIONS: Occupation[] = [
@@ -51,7 +57,7 @@ export const OCCUPATIONS: Occupation[] = [
   { key: 'student', name: 'Student', desc: 'Learns everything faster, knows nothing yet.', points: 0, skills: {}, items: ['backpack_school', 'notebook'], perks: ['learner'] },
 ];
 
-export interface Trait { key: string; name: string; cost: number; desc: string; excl?: string[]; }
+export interface Trait { key: string; name: string; cost: number; desc: string; excl?: string[]; unlock?: UnlockRule; }
 
 export const TRAITS: Trait[] = [
   // positive (cost points)
@@ -98,3 +104,7 @@ export const TRAITS: Trait[] = [
 
 export const traitByKey = (k: string) => TRAITS.find((t) => t.key === k);
 export const occupationByKey = (k: string) => OCCUPATIONS.find((o) => o.key === k) || OCCUPATIONS[0];
+
+/** Is this job / trait available on this browser's profile? */
+export const occupationAvailable = (o: Occupation) => !o.unlock || isUnlocked('job:' + o.key);
+export const traitAvailable = (t: Trait) => !t.unlock || isUnlocked('trait:' + t.key);

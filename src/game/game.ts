@@ -62,7 +62,8 @@ export class Game {
   paused = false;
   /** multiplayer role */
   role: 'solo' | 'host' | 'client' = 'solo';
-  sandbox = { dayLength: 60, creatures: 1, loot: 1, startHour: 8.5, collapseSpeed: 1, waterShutoffDays: 14, powerShutoffDays: 10 };
+  /** gore: 0 off, 1 normal, 2 heavy (dismemberment, gibs, arterial spray) */
+  sandbox = { dayLength: 60, creatures: 1, loot: 1, startHour: 8.5, collapseSpeed: 1, waterShutoffDays: 14, powerShutoffDays: 10, gore: 2 };
   // lights
   ambient = new THREE.AmbientLight(0xffffff, 1);
   hemi = new THREE.HemisphereLight(0xbfd8ff, 0x405030, 0);
