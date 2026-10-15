@@ -298,7 +298,7 @@ function picturePage(f: DocumentFragment) {
   const shakeNow = gs.shake === false ? 0 : (gs.shakeAmt ?? 1);
   f.append(seg<number>('Camera shake', [[0, 'Off'], [0.5, 'Low'], [1, 'Normal'], [1.5, 'Strong']], [0, 0.5, 1, 1.5].reduce((a, b) => Math.abs(b - shakeNow) < Math.abs(a - shakeNow) ? b : a, 1),
     (v) => { gs.shake = v > 0; if (v > 0) gs.shakeAmt = v; save(); }));
-  if ('grain' in gs && typeof gs.grain === 'number') f.append(seg<number>('Film grain', [[0, 'Off'], [0.5, 'Low'], [1, 'Normal']], gs.grain <= 0.25 ? 0 : gs.grain <= 0.75 ? 0.5 : 1, (v) => { gs.grain = v; save(); }));
+  if ('grain' in gs && typeof gs.grain === 'number') f.append(seg<number>('Grain & lens', [[0, 'Off'], [0.5, 'Low'], [1, 'Normal']], gs.grain <= 0.25 ? 0 : gs.grain <= 0.75 ? 0.5 : 1, (v) => { gs.grain = v; save(); }, { tip: () => 'Film grain and dirt on the lens' }));
   for (const k of ['peek', 'comfort', 'keepOrbit']) if (typeof gs[k] === 'boolean') {
     const [l, sub] = GFX_LABELS[k];
     f.append(toggle(l, gs[k], (v) => { gs[k] = v; save(); }, sub));
@@ -366,7 +366,8 @@ export const CONTROLS: [string, string][] = [
   ['WASD', 'walk'], ['Shift', 'run'], ['C / Ctrl', 'sneak'], ['Right mouse (hold)', 'aim / ready weapon'], ['Left mouse', 'attack while aiming · interact'],
   ['Right click', 'context menu'], ['E', 'interact with what is in front of you'], ['Space', 'shove'], ['F', 'flashlight'],
   ['Tab', 'raise the SEER-9 scanner'], ['1–6 / Q E / wheel', 'scanner pages · dial'], ['I', 'inventory'], ['M', 'map'],
-  ['R', 'reload · rotate when placing'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'], ['V (hold)', 'talk (co-op voice, walkie when switched on)'],
+  ['R', 'reload · rotate when placing'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'],
+  ['Middle mouse / Alt+drag', 'orbit the camera'], ['PageUp / PageDown · Alt+wheel', 'camera pitch'], ['P', 'photo mode'], ['V (hold)', 'talk (co-op voice, walkie when switched on)'],
   ['Q', 'shout (scanner closed)'], ['H', 'breathing exercise (calms panic)'], ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
 ];
 export const TOUCH_CONTROLS: [string, string][] = [
