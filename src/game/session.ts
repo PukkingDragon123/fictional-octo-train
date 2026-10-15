@@ -27,6 +27,7 @@ import { restorePlayer, restoreAfterLoad, saveGame, SaveData } from './save';
 import { occupationByKey } from '../survival/traits';
 import { PauseMenu } from '../ui/menus/pause';
 import type { Net, Welcome } from '../net/net';
+import { introWanted, startIntro, INTRO_ZONE } from './intro';
 import '../game/worldOps';
 import '../world/zones';
 
@@ -182,23 +183,28 @@ export function startSession(o: SessionOpts): Game {
 
   // ---- where we start
   if (w) {
-    const z = g.getZone(w.zone);
-    const [x, y] = g.nearestWalkable(z, w.spawn[0], w.spawn[1]);
-    g.placePlayer(p, w.zone, x, y, 0);
+    // a host still in the opening intro: friends wake in the Lobby spawn room instead
+    const lobbySpawn = () => (g.getZone('lobby').meta.spawn as [number, number]) || [10, 10];
+    const wz = w.zone === INTRO_ZONE ? 'lobby' : w.zone, wsp = w.zone === INTRO_ZONE ? lobbySpawn() : w.spawn;
+    const z = g.getZone(wz);
+    const [x, y] = g.nearestWalkable(z, wsp[0], wsp[1]);
+    g.placePlayer(p, wz, x, y, 0);
     for (const q of w.players) {
       if (q.id === id || g.players.has(q.id)) continue;
       const rp = new Player(q.id, q.name, q.app, false);
       if (q.state) { rp.x = q.state.x; rp.z = q.state.z; rp.zoneKey = q.state.zone; rp.remote = { tx: q.state.x, tz: q.state.z, tf: q.state.f, t: 0, state: q.state }; }
       g.addPlayer(rp);
     }
-  } else if (s) {
+  } else if (s && s.player.zoneKey !== INTRO_ZONE) {
     const z = g.getZone(s.player.zoneKey);
     const [x, y] = g.nearestWalkable(z, Math.floor(s.player.x), Math.floor(s.player.z));
     g.placePlayer(p, s.player.zoneKey, x, y, s.player.facing);
   } else {
     const z = g.getZone('lobby');
     const sp = (z.meta.spawn as [number, number]) || z.randomFloor(new Rng(3)) || [10, 10];
-    g.placePlayer(p, 'lobby', sp[0], sp[1], 0);
+    // a brand-new world opens in normal reality and noclips into the Lobby (src/game/intro.ts)
+    if (!s && introWanted(o.mode)) startIntro(g, p, sp);
+    else g.placePlayer(p, 'lobby', sp[0], sp[1], 0);
   }
   (window as any).__game = g;
   if (import.meta.env.DEV) (window as any).__dev = { newItem, op };
