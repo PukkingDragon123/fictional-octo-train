@@ -67,13 +67,14 @@ export function objMat(d: ObjDef): Mat {
 /** kg per cubic metre of bounding box (furniture is mostly air) */
 const DENSITY: Record<Mat, number> = { wood: 160, metal: 420, plastic: 90, fabric: 70, glass: 260, ceramic: 380, paper: 120, flesh: 300, elec: 220 };
 /** hit points per material before size scaling */
-const BASE_HP: Record<Mat, number> = { wood: 42, metal: 115, plastic: 26, fabric: 48, glass: 12, ceramic: 20, paper: 12, flesh: 30, elec: 30 };
+const BASE_HP: Record<Mat, number> = { wood: 40, metal: 80, plastic: 26, fabric: 48, glass: 12, ceramic: 20, paper: 12, flesh: 30, elec: 30 };
 
 export function objVolume(d: ObjDef): number { return (d.w ?? 1) * (d.d ?? 1) * Math.max(0.15, d.height); }
 export function objMaxHp(d: ObjDef): number {
-  if (d.hp) return d.hp;
   const v = objVolume(d);
-  return Math.round(BASE_HP[objMat(d)] * Math.min(2.4, Math.max(0.45, 0.55 + v * 0.62)));
+  const hp = Math.round(BASE_HP[objMat(d)] * Math.min(2.4, Math.max(0.45, 0.55 + v * 0.62)));
+  // a declared hp makes it tougher, within reason (smashing should take a few blows, not a dozen)
+  return d.hp ? Math.max(hp, Math.min(d.hp, Math.round(hp * 1.5))) : hp;
 }
 /** estimated mass in kg (declared movable weight wins) */
 export function objMass(d: ObjDef): number {

@@ -64,7 +64,7 @@ const PROFILES: Record<string, DreadProfile> = {
   drywall_man: { bend: ['shinL', 'shinR', 'farmL', 'farmR'], bendRate: 0.5, stutter: 0.3, skipDark: 0.6, tilt: 'head', tiltMax: 0.7, twitch: ['head', 'handL', 'handR'], twitchRate: 0.35, stretch: { parts: ['farmL', 'farmR'], amount: 0.5 }, sting: 'hit', cam: 0.8, flick: 7, flickStep: 2.5 },
   echo: { bend: ['shinL', 'shinR', 'foreL', 'foreR'], bendRate: 0.4, stutter: 0.15, watchFreeze: true, tilt: 'head', tiltMax: 0.95, twitch: ['head'], twitchRate: 0.5, stretch: { parts: ['foreL', 'foreR'], amount: 0.35 }, sting: 'swell', cam: 0.6, flick: 6, flickStep: 3 },
   employee: { bend: ['shinL', 'shinR', 'farmL', 'farmR', 'neck'], bendRate: 0.6, stutter: 0.2, skipDark: 0.8, tilt: 'head', tiltMax: 0.6, twitch: ['handL', 'handR', 'head'], twitchRate: 0.25, stretch: { parts: ['farmL', 'farmR'], amount: 0.4 }, sting: 'hit', cam: 0.6, flick: 8, flickStep: 3.5, moved: true },
-  grinhound: { bend: ['shin0', 'shin1', 'shin2', 'shin3'], bendRate: 0.3, twitch: ['head'], twitchRate: 0.3, shine: { part: 'head', off: [0, 0.06, 0.16], sep: 0.045, color: 0xd8ff9a }, sting: 'chase', cam: 0.9, skipDark: 0.25 },
+  grinhound: { bend: ['shin0', 'shin1', 'shin2', 'shin3'], bendRate: 0.3, twitch: ['head'], twitchRate: 0.3, shine: { part: 'head', off: [0, 0.06, 0.16], sep: 0.045, color: 0xd8ff9a, size: 0.035 }, sting: 'chase', cam: 0.9, skipDark: 0.25 },
   hollow: { bend: ['shinL', 'shinR', 'farmL', 'farmR'], bendRate: 0.25, skipDark: 0.5, tilt: 'head', tiltMax: 0.55, flick: 5, sting: 'hit', cam: 0.5 },
   lifeguard: { stretch: { parts: ['foreL', 'foreR'], amount: 0.5 }, sting: 'hit', cam: 0.9, tilt: 'head', tiltMax: 0.5 },
   occupant: { flick: 16, cam: 1, sting: 'swell' },
@@ -73,7 +73,7 @@ const PROFILES: Record<string, DreadProfile> = {
   stilt_doe: { bend: ['shin0', 'shin1', 'shin2', 'shin3'], bendRate: 0.5, stutter: 0.1, skipDark: 0.4, tilt: 'head', tiltMax: 0.8, shine: { part: 'head', off: [0, 0.05, 0.1], sep: 0.06, color: 0xf8f0b0 } },
   swivel: { twitch: ['leg0', 'leg2', 'armL'], twitchRate: 0.25, sting: 'hit', cam: 0.7 },
   underlay: { sting: 'hit', cam: 0.8, flick: 5 },
-  ventling: { shine: { part: 'head', off: [0, 0.03, 0.08], sep: 0.03, color: 0xffd060, size: 0.016 }, twitch: ['head'], twitchRate: 0.6 },
+  ventling: { shine: { part: 'head', off: [0, 0.03, 0.08], sep: 0.03, color: 0xffd060, size: 0.026 }, twitch: ['head'], twitchRate: 0.6 },
   wrongbird: { stutter: 0.3, skipDark: 0.5, tilt: 'head', tiltMax: 1.1, twitch: ['head'], twitchRate: 0.6 },
   still_life: { moved: true },
 };
@@ -247,12 +247,12 @@ function shine(rig: Rig, c: Creature, P: DreadProfile, alive: boolean) {
     const d = Math.hypot(p!.x - c.x, p!.z - c.z);
     show = d < 18 && lightHere(c) < 0.35 && !(c.state === 'disguised' || c.state === 'hide') && lineOfSight(G.zone, p!.x, p!.z, c.x, c.z);
     // brighter (bigger) when your light is on them: the tapetum throws it back
-    lit = p!.flashlightOn && Math.abs(angd(p!.facing, Math.atan2(c.z - p!.z, c.x - p!.x))) < 0.6 ? 1 : 0.55;
+    lit = p!.flashlightOn && Math.abs(angd(p!.facing, Math.atan2(c.z - p!.z, c.x - p!.x))) < 0.6 ? 1.25 : 0.8;
   }
   if (!show) { for (const e of eyes) e.visible = false; return; }
   rig.root.updateMatrixWorld(true);
   const inv = _inv.copy(rig.root.matrixWorld).invert();
-  const sz = (P.shine.size ?? 0.022) * lit;
+  const sz = (P.shine.size ?? 0.04) * lit;
   for (let k = 0; k < 2; k++) {
     const e = eyes[k];
     _v.set(P.shine.off[0] + (k ? 1 : -1) * P.shine.sep, P.shine.off[1], P.shine.off[2]).applyMatrix4(part!.matrixWorld).applyMatrix4(inv);

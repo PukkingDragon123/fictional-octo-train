@@ -175,7 +175,7 @@ export class Holo {
           <div class="hb-log"></div>
         </div>
       </div>
-      <button class="hb-breathe" type="button" title="Breathing exercise (H)">BREATHE · H</button>`;
+`;
     document.body.appendChild(el);
     this.tilt = el.querySelector('.hb-tilt') as HTMLDivElement;
     this.face = el.querySelector('.hb-face') as HTMLButtonElement;
@@ -188,7 +188,12 @@ export class Holo {
     this.logEl = el.querySelector('.hb-log') as HTMLDivElement;
     this.sayEl = el.querySelector('.hb-say') as HTMLDivElement;
     this.toastEl = el.querySelector('.hb-toasts') as HTMLDivElement;
-    this.breatheBtn = el.querySelector('.hb-breathe') as HTMLButtonElement;
+    // the breathing prompt is projected on the floor at the survivor's feet, away from every other line
+    const bb = this.breatheBtn = document.createElement('button');
+    bb.type = 'button'; bb.className = 'hb-breathe'; bb.title = 'Breathing exercise (H)'; bb.textContent = 'BREATHE · H';
+    bb.addEventListener('pointerenter', () => { if (G.input) G.input.pointerOverUI = true; });
+    bb.addEventListener('pointerleave', () => { if (G.input) G.input.pointerOverUI = false; });
+    document.body.appendChild(bb);
     // the projector cone lives in its own full-screen SVG under the hologram
     const NS = 'http://www.w3.org/2000/svg';
     const svg = this.svg = document.createElementNS(NS, 'svg') as SVGSVGElement;
@@ -304,6 +309,9 @@ export class Holo {
     for (let t = 0; t < secs; t += 1 / 30) { this.trace.step(1 / 30, bpm, this.vit); if (this.trace.beatAt >= 0) this.onBeat(this.vit); this.updateFx(1 / 30, this.vit, p); }
     this.tagKey = ''; this.drawT = 0;
   }
+
+  /** a band or sergeant line is being projected right now (thoughts wait for it) */
+  get speaking(): boolean { if (!this.visible) return false; for (const c of this.sayEl.children) if (!c.classList.contains('out')) return true; return false; }
 
   /** world position of a survivor's projector lens (other modules can aim things at it) */
   lensPos(p: Player, out: THREE.Vector3): boolean { return this.bands.lensWorld(p.id, out); }
@@ -467,7 +475,8 @@ export class Holo {
     if (G.input?.keyHit?.('KeyL') && !G.input.textFocus && !G.ui?.blocksMovement?.()) this.toggle();
     // visibility
     const ui = G.ui;
-    const blocked = !!(ui?.scanner?.open || ui?.inventory?.open || ui?.readerEl || ui?.modal || G.attract);
+    // scripted control (G.attract) hides it on the title screen, but not in the intro once the band has been fitted
+    const blocked = !!(ui?.scanner?.open || ui?.inventory?.open || ui?.readerEl || ui?.modal || (G.attract && !this.booted));
     // no band on the wrist (cut off, blown, lost with the arm): no projection
     const gone = this.gone(this.bandState(p.id)) && this.detonT < 0;
     const show = this.fitted && !gone && !blocked && !(this.dead && this.deadT > 4) && this.detonT < 1.6;
@@ -475,6 +484,7 @@ export class Holo {
       this.visible = show;
       this.el.classList.toggle('hb-hidden', !show);
       this.svg.classList.toggle('hb-hidden', !show);
+      this.breatheBtn.classList.toggle('hb-hidden', !show);
       if (!show) { this.hideTagTip(); if (G.input && this.el.matches(':hover')) G.input.pointerOverUI = false; }
     }
     if (this.dead) this.deadT += dt;
@@ -746,6 +756,17 @@ export class Holo {
     const top = touch ? 66 : 10, bottom = vh - (touch ? 10 : 10);
     const w = this.pos.w, h = this.pos.h;
     let side = this.side;
+    // the sergeant's projection gets his side of the survivor; the band takes the other
+    // (and anyone else talking right next to us: an officer, a friend)
+    let other = NaN;
+    const hd: any = (G as any).handler;
+    if (hd?.visible && typeof hd.worldPos === 'function') { try { other = pr.worldToScreen(hd.worldPos(this.tmpV)).x; } catch { /* ignore */ } }
+    for (const b of (G.ui?.bubbles || []) as any[]) {
+      if (b.target === p || b.kind === 'halo' || b.kind === 'think' || b.el?.style.display === 'none') continue;
+      const bx = parseFloat(b.el?.style.left);
+      if (Number.isFinite(bx) && Math.abs(bx - cs.x) < pxm * 3.5 && (!Number.isFinite(other) || Math.abs(bx - cs.x) < Math.abs(other - cs.x))) other = bx;
+    }
+    if (Number.isFinite(other) && Math.abs(other - cs.x) < pxm * 3.5) side = other < cs.x ? 1 : -1;
     this.screenSide = side;
     // not enough room on that side: use the other
     const room = (s: number) => (s > 0 ? vw - (cs.x + pxm * 0.45) : cs.x - pxm * 0.45);
@@ -774,6 +795,11 @@ export class Holo {
     this.grad.setAttribute('x2', String((bx0 + bx1) / 2)); this.grad.setAttribute('y2', String(by));
     for (const [ln, bx] of [[this.rayA, bx0], [this.rayB, bx1]] as const) { ln.setAttribute('x1', String(lx)); ln.setAttribute('y1', String(ly)); ln.setAttribute('x2', String(bx)); ln.setAttribute('y2', String(by)); }
     this.svg.classList.toggle('hb-red', !!this.warn || this.shockT > 0);
+    if (this.breatheBtn.classList.contains('on')) {
+      const fs = this.screenOf(p.x, p.y, p.z);
+      const bw = this.breatheBtn.offsetWidth || 120;
+      this.breatheBtn.style.transform = `translate3d(${Math.round(clamp(fs.x - bw / 2, 8, vw - bw - 8))}px, ${Math.round(clamp(fs.y + 10, top, vh - 60))}px, 0)`;
+    }
   }
 
   private hp2(n: number) { return n * this.hp; }

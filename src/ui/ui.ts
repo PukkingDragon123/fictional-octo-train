@@ -469,8 +469,10 @@ export class UI {
   update(dt: number) {
     const g = G;
     if (!g.local) return;
-    // bubbles follow their owners
+    // bubbles follow their owners. The survivor's thoughts wait while the sergeant or the band is talking.
+    const hush = !!g.holo?.speaking || this.bubbles.some((b) => b.kind === 'voss' && g.time < b.until - 0.4);
     for (const b of this.bubbles) {
+      if (hush && b.kind === 'think' && b.target === g.local && ((b as any).held ?? 0) < 8) { (b as any).held = ((b as any).held ?? 0) + dt; b.until += dt; b.born += dt; b.el.style.display = 'none'; continue; }
       const age = g.time - b.born;
       let x: number, y: number, z: number;
       if (b.target instanceof Player) { x = b.target.x; y = b.target.y + 2.05; z = b.target.z; if (b.target.zoneKey !== g.local.zoneKey || (b.target === g.local && this.scanner?.open)) { b.el.style.display = 'none'; continue; } }
@@ -562,7 +564,8 @@ export class UI {
         const hit = placed.find((o) => r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top)
           || (!mine && holo && r.left < holo.right && r.right > holo.left && r.top < holo.bottom && r.bottom > holo.top ? holo : undefined);
         if (!hit) break;
-        const dy = Math.min(140 - moved, r.bottom - hit.top + 3);
+        const dy = Math.min(140 - moved, r.bottom - hit.top + 3, Math.max(0, r.top - 12));
+        if (dy <= 0) break;
         moved += dy;
         b.el.style.top = (parseFloat(b.el.style.top) - dy) + 'px';
         r = b.el.getBoundingClientRect();

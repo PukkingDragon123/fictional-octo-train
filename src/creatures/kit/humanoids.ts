@@ -475,7 +475,7 @@ vec4 nWp = vec4( transformed, 1.0 );`);
   }
   fs = fs.replace('diffuseColor *= sampledDiffuseColor;', `diffuseColor *= sampledDiffuseColor;
 if (uClip.w > 0.5 && dot(vWPos.xz, uClip.xy) < uClip.z) discard;
-if (uKit.w > 0.001 && bayer4(gl_FragCoord.xy) < uKit.w) discard;
+if (uKit.w > 0.001 && vEmis < 0.5 && bayer4(gl_FragCoord.xy) < uKit.w) discard; // glowing parts (eyes, teeth) never dissolve
 if (uKitTint.w > 0.001) diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * uKitTint.rgb, uKitTint.w);
 if (uKit.x > 0.001) {
   float gb = floor(vWPos.y * 24.0 + floor(uKit.y * 9.0) * 3.0);

@@ -862,7 +862,7 @@ export class GoreSystem implements GameSystem {
     this.send(ev);
     // what stays: the pool widens, meat and blood strewn about
     const z = G.getZone(p.zoneKey);
-    if (n % 3 === 1) this.pool(z, p.x + this.rng.float(-0.3, 0.3), p.z + this.rng.float(-0.3, 0.3), Math.min(2.6, 1.2 + n * 0.08), KINDS.red, 0xffffff, 6);
+    if (n === 1 || n === 7 || n === 14) this.pool(z, p.x + this.rng.float(-0.5, 0.5), p.z + this.rng.float(-0.5, 0.5), Math.min(2.8, 1.5 + n * 0.08), KINDS.red, 0xffffff, 6);
     if (n % 2 === 0) {
       const a = this.rng.float(0, 6.28), d = this.rng.float(0.3, 1.0);
       this.decals.commit(z, { x: p.x + Math.cos(a) * d, z: p.z + Math.sin(a) * d, w: this.rng.float(0.4, 0.8), d: this.rng.float(0.4, 0.8), rot: this.rng.float(0, 6.28), tex: tex(KINDS.red, this.rng.chance(0.5) ? 'splat_a' : 'drops') }, 0.4);
@@ -879,10 +879,11 @@ export class GoreSystem implements GameSystem {
     const wp = this.woundPos(p, pt);
     // it pulls back with its mouthful: the spray goes up and toward it
     let dx = c.x - p.x, dz = c.z - p.z; const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-    this.jet(K, 0xffffff, wp.x, wp.y, wp.z, dx, dz, Math.round(16 * m) + 2, 2.2, 1.2, 2.2, 0.034, 0.05);
-    this.mist(K, 0xffffff, wp.x, wp.y, wp.z, dx, dz, Math.round(5 * m) + 1, 1.2);
-    if (ev.n % 2 === 0) this.bits(K, 0xffffff, wp.x, wp.y, wp.z, dx, dz, Math.round(3 * m) + 1, 2);
-    if (ev.n % 3 === 0) this.gibs.chunks(p.zoneKey, K, 0xffffff, wp.x, wp.y, wp.z, Math.round(m) + 1, v3.set(dx, 0, dz), 1.8, 1.5);
+    this.jet(K, 0xffffff, wp.x, wp.y, wp.z, dx, dz, Math.round(28 * m) + 2, 2.4, 1.3, 2.4, 0.036, 0.05);
+    this.jet(K, 0xffffff, wp.x, wp.y, wp.z, -dz, dx, Math.round(8 * m) + 1, 1.6, 0.9, 1.4, 0.03, 0.04);
+    this.mist(K, 0xffffff, wp.x, wp.y, wp.z, dx, dz, Math.round(8 * m) + 1, 1.3);
+    this.bits(K, 0xffffff, wp.x, wp.y, wp.z, dx, dz, Math.round(3 * m) + 1, 2);
+    if (ev.n % 2 === 0) this.gibs.chunks(p.zoneKey, K, 0xffffff, wp.x, wp.y, wp.z, Math.round(m) + 1, v3.set(dx, 0, dz), 1.8, 1.5);
     if (this.lv >= 2 && ev.n >= 5 && ev.n % 4 === 1) this.gibs.organs(p.zoneKey, K, 0xffffff, wp.x, wp.y, wp.z, 1, v3.set(dx, 0, dz), 1.4);
     this.snd(r.chance(0.5) ? 'gore_tear' : 'gore_squelch', p.x, p.z, 0.9, p.zoneKey);
     if (ev.n % 3 === 0) this.snd('gore_bone_crack', p.x, p.z, 0.7, p.zoneKey);

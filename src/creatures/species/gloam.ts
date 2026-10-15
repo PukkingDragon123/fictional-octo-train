@@ -300,7 +300,7 @@ const S = def({
   animate: animateGloam,
   think: thinkGloam,
 });
-defDread('gloam', { shine: { part: 'head', off: [0, 0.05, 0.12], sep: 0.05, color: 0xd8ff70, size: 0.026 }, flick: 9, flickStep: 3, sting: 'swell', cam: 0.7, twitch: ['head', 'jaw'], twitchRate: 0.4, skipDark: 0.3 });
+defDread('gloam', { shine: { part: 'head', off: [0, 0.05, 0.12], sep: 0.05, color: 0xd8ff70, size: 0.05 }, flick: 9, flickStep: 3, sting: 'swell', cam: 0.7, twitch: ['head', 'jaw'], twitchRate: 0.4, skipDark: 0.3 });
 (S as any).animateGallery = (rig: Rig, t: number) => {
   const q = new URLSearchParams(location.search).get('pose') || '';
   const c = fakeCreature(S, { id: 'g' + (Number(q.match(/\d/)?.[0] ?? 1)), state: q.startsWith('flee') ? 'flee' : 'stalk', speed: q.startsWith('walk') ? 1.4 : 0, phase: t * 4, attackPhase: q.startsWith('attack') ? 0.1 : 0, mem: { netMem: {} } });

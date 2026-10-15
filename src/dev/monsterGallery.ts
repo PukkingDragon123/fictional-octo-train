@@ -115,16 +115,18 @@ export function info() { return { zone: G.zone.key, x: G.local.x, z: G.local.z, 
 /** pin the camera on a world point (null releases it): screenshots of things the survivor is not standing on */
 export function frame(x: number | null, z = 0, zoom?: number) {
   const g = G as any;
-  const cam = g.camera;
-  // (re)hook: other systems (the intro) wrap and later delete cam.update
-  if (!cam.update.__framer) {
-    const orig = cam.update.bind(cam);
-    const f = (dt: number) => { orig(dt); const fr = g.__frame; if (fr) { g.pr.target.x = fr.x; g.pr.target.z = fr.z; g.pr.updateCamera(dt); } };
-    (f as any).__framer = true;
-    cam.update = f;
+  // applied right before the frame renders, after every camera hook (intro / handler framing) has had its say
+  if (!g.pr.__framer) {
+    g.pr.__framer = true;
+    const orig = g.pr.render.bind(g.pr);
+    g.pr.render = (dt: number) => {
+      const fr = g.__frame;
+      if (fr) { g.pr.target.x = fr.x; g.pr.target.z = fr.z; g.pr.camOffset?.set?.(0, 0, 0); g.pr.updateCamera(0); }
+      orig(dt);
+    };
   }
   g.__frame = x === null ? null : { x, z };
-  if (zoom) g.pr.pxSizeTarget = 1 / zoom;
+  if (zoom) g.pr.pxSizeTarget = g.pr.pxSize = 1 / zoom;
 }
 
 /** move the survivor to the centre of an open square (radius r tiles: floor, nothing solid, no walls) near them */

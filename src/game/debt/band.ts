@@ -25,6 +25,7 @@ import { createItem } from '../../items/factory';
 import { itemDef, type Item } from '../../items/item';
 import { objDef } from '../../world/objects';
 import { KINDS } from '../../gore/kinds';
+import { rigNumber } from '../../content/items/prisoner';
 import type { GameSystem } from '../game';
 import type { Player } from '../../entities/player';
 import type { Zone, TileObject } from '../../world/zone';
@@ -137,6 +138,8 @@ export class BandSystem implements GameSystem {
   /** put the band on (local survivor). With silent the fitting is not dramatised (quick start, loads). */
   fit(p: Player = G.local, o: { silent?: boolean } = {}) {
     if (!p?.isLocal) return;
+    // free survival (directives off): no contract, no band
+    if (G.missions && !G.missions.enabled) return;
     let it = p.allItems().find((i) => i.key === 'bailiff_band');
     if (!it) { it = createItem('bailiff_band', undefined, { pristine: true }); p.inv.add(it); }
     if (!p.isWorn(it)) { const prev = p.worn.get('wrist' as any); if (prev && prev !== it) p.unwear(prev); p.wear(it); }
@@ -437,8 +440,12 @@ export class BandSystem implements GameSystem {
   }
 }
 
-function debtorNo(p: Player) { return 'D-' + (4400 + (Math.abs(hashS(p.name + p.id)) % 600)); }
-function hashS(s: string) { let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return h; }
+/** the debtor number everyone else shows (jumpsuit patch, mugshot, hologram): set by the intro / handler */
+function debtorNo(p: Player): string {
+  const given = (p as unknown as { prisonerNo?: string }).prisonerNo;
+  if (given) return given;
+  try { const n = rigNumber(p.rig); (p as unknown as { prisonerNo: string }).prisonerNo = n; return n; } catch { return 'D-0000'; }
+}
 
 function bandText(p: Player) {
   const d = G.debt;
