@@ -40,6 +40,8 @@ export interface Occupation {
   items: string[];
   perks?: string[];
   unlock?: UnlockRule;
+  /** Rehab Section: what the programme gives you, and what it costs you */
+  good?: string; bad?: string;
 }
 
 /**
@@ -68,7 +70,7 @@ export const OCCUPATIONS: Occupation[] = [
   { key: 'security', name: 'Security Guard', desc: 'Used to long nights and empty hallways. Hits hard.', points: -2, skills: { blunt: 2, sprinting: 1 }, items: ['flashlight'], perks: ['nightowl'],
     unlock: { hint: 'Down ten creatures (across all your runs).' } },
   { key: 'developer', name: 'Software Developer', desc: 'Sees the seams of the simulation. Scanner works better, lucidity drains slower.', points: -2, skills: { electrical: 1 }, items: ['handheld_game'], perks: ['seams'],
-    unlock: { hint: 'Take render node SRV-1 offline.' } },
+    unlock: { hint: 'Get the BAILIFF band off your wrist (or take render node SRV-1 offline).' } },
   { key: 'mechanic', name: 'Mechanic', desc: 'Engines, batteries and hotwiring. Knows every car part.', points: -2, skills: { mechanics: 3, electrical: 1 }, items: ['wrench'],
     unlock: { hint: 'Hotwire a car, or drive one for 300 metres.' } },
   // ---- new jobs
@@ -87,14 +89,31 @@ export const OCCUPATIONS: Occupation[] = [
   { key: 'lab_tech', name: 'Lab Technician', desc: 'Used to work for Meridian. Knows how the simulation leaks: lucidity drains slower and the hum is just background.', points: -2, skills: { firstaid: 1, electrical: 2 }, items: ['lab_coat', 'gloves_rubber'], perks: ['seams'],
     unlock: { hint: 'Get inside the Meridian laboratory.' } },
   { key: 'returnee', name: 'Returnee', desc: 'Got out once. Came back anyway. Lucidity drains much slower, loops never rattle them, and they remember where the water is.', points: -4, skills: { sneaking: 1, foraging: 1 }, items: ['map_lobby', 'almond_water'], perks: ['deja_vu'],
-    unlock: { hint: 'Walk out through the exit door.' } },
+    unlock: { hint: 'Buy a seat on the transport and ride it out.' } },
   { key: 'mime', name: 'Street Mime', desc: 'Silent on their feet and never short of imaginary company: loneliness builds slowly. Shouting breaks character (and their composure).', points: 0, skills: { nimble: 2, sneaking: 2 }, items: ['chalk'], perks: ['lightstep', 'mime'],
     unlock: { hint: 'Spend ten minutes sneaking (across your runs).' } },
   { key: 'exterminator', name: 'Exterminator', desc: 'Creepy-crawlies are a job, not a nightmare. Panics less at creatures, and downing one settles the nerves.', points: -2, skills: { blunt: 1, trapping: 2 }, items: ['bait', 'trap_box_item'], perks: ['exterminator'],
     unlock: { hint: 'Down three different kinds of creature in one run.' } },
+  // ---- Remittance Programme jobs (earned through the debt contract)
+  { key: 'fence', name: 'Fence', desc: 'Moved other people\'s things for twenty years. Knows what anything is worth to the Hopper, and hates walking around with empty pockets.', points: -2,
+    skills: { nimble: 1, sneaking: 1 }, items: ['notebook', 'marker'], perks: ['fence'],
+    good: 'Valuables you feed the Hopper pay 15% more scrip. Nimble and Sneaking 1.', bad: 'Costs 2 credits. Empty pockets make you blue: low mood builds while you carry nothing of value.',
+    unlock: { hint: 'Deposit 2,000 scrip in total (across your runs).' } },
+  { key: 'mover', name: 'Furniture Mover', desc: 'Twelve years of sofas up stairwells. Strong, steady, and the back never really recovered.', points: -2,
+    skills: { strength: 2, fitness: 1 }, items: ['gloves_work', 'tape_measure'], perks: ['mover'],
+    good: 'Strength 2, Fitness 1: drags, lifts and smashes like it is moving day. Work gloves.', bad: 'Costs 2 credits. Bad back: a heavy load makes you tired and grumpy fast.',
+    unlock: { hint: 'Smash thirty pieces of furniture (across your runs).' } },
+  { key: 'ex_officer', name: 'Ex-Custody Officer', desc: 'Wore the grey uniform once, on the other side of the Seam. Then the debt caught up with them too.', points: -2,
+    skills: { blunt: 2, fitness: 1 }, items: ['flashlight', 'whistle'], perks: ['ex_officer', 'nightowl'],
+    good: 'Blunt 2, Fitness 1, needs less sleep. Knows the drill: BAILIFF warnings and shocks rattle you far less.', bad: 'Costs 2 credits. Guilty conscience: low mood creeps up a little every day.',
+    unlock: { hint: 'Clear a whole debt.' } },
 ];
 
-export interface Trait { key: string; name: string; cost: number; desc: string; excl?: string[]; unlock?: UnlockRule; }
+export interface Trait {
+  key: string; name: string; cost: number; desc: string; excl?: string[]; unlock?: UnlockRule;
+  /** Rehab Section: the upside and the downside of the condition */
+  good?: string; bad?: string;
+}
 
 export const TRAITS: Trait[] = [
   // positive (cost points)
@@ -134,8 +153,28 @@ export const TRAITS: Trait[] = [
   { key: 'creature_whisperer', name: 'Creature Whisperer', cost: -4, desc: 'Every tameable creature trusts you one meal sooner, and a companion nearby counts as company.',
     unlock: { hint: 'Earn the trust of a creature.' } },
   { key: 'unbothered', name: 'Unbothered', cost: -5, desc: 'Stress and unhappiness build 30% slower.', excl: ['worrier'],
-    unlock: { hint: 'Escape the simulation.' } },
+    unlock: { hint: 'Clear your debt.' } },
+  // ---- Remittance conditions: every one of these cuts both ways
+  { key: 'hoarder', name: 'Hoarder', cost: -2, desc: 'A full pack feels like safety. Letting go of anything feels like loss.',
+    good: 'A heavy pack is a security blanket: stress and low mood ease while you carry a full load.', bad: 'Parting hurts: every deposit into the Hopper spikes stress and low mood.' },
+  { key: 'snitch', name: 'Snitch', cost: -1, desc: 'Told on somebody once. Everybody inside knows it.',
+    good: 'Everybody pays the snitch: hunger builds 20% slower.', bad: 'Sleeps with one eye open: sleep restores 20% less.', excl: ['heavy_sleeper'] },
+  { key: 'lifer', name: 'Lifer', cost: -3, desc: 'Has been inside so long the inside is home.',
+    good: 'Routine is home: boredom barely builds and cramped rooms feel safe.', bad: 'Freedom terrifies you: open spaces and the outdoors pile on stress.', excl: ['claustrophobic', 'agoraphobic'],
+    unlock: { hint: 'Pay three installments (across your runs).' } },
+  { key: 'wrecking_ball', name: 'Wrecking Ball', cost: -2, desc: 'Breaks things. Feels better. Breaks more things.',
+    good: 'Smashing furniture is therapy: every piece you break melts stress, boredom and low mood.', bad: 'Restless hands: boredom builds 40% faster.' },
+  { key: 'sweet_on_sarge', name: 'Sweet on the Sergeant', cost: -1, desc: 'He is a projection. He is also the only one who talks to you.',
+    good: 'Every word from Staff Sgt. Voss eases panic and loneliness.', bad: 'When he goes quiet for an hour, low mood creeps in.' },
+  { key: 'gallows_humour', name: 'Gallows Humour', cost: -2, desc: 'Laughs at the worst moments. Mostly that helps.',
+    good: 'Laughs it off: panic drains faster and low mood fades after every scare.', bad: 'Cackles out loud at the wrong moment, and things in the dark hear it.' },
   // negative (give points)
+  { key: 'fresh_fish', name: 'Fresh Fish', cost: 3, desc: 'First time inside. Has no idea how bad this is.',
+    good: 'Too green to know better: panic builds 30% slower for your first two days.', bad: 'Not used to the rations: hunger and thirst build 25% faster.' },
+  { key: 'born_in_debt', name: 'Born in Debt', cost: 2, desc: 'Inherited the debt from a parent, who inherited it from theirs.',
+    good: 'Feeding the Hopper is pure relief: each deposit drops panic and stress.', bad: 'Deadline dread: stress climbs while an installment is due within a day.' },
+  { key: 'band_picker', name: 'Picks at the Band', cost: 2, desc: 'Cannot leave the BAILIFF band alone. Picks at the bolt, the seam, the skin.',
+    good: 'Fidgeting soothes: stress fades 20% faster.', bad: 'The skin under the band rubs raw: now and then the wrist opens up and bleeds.' },
   { key: 'weak', name: 'Weak', cost: 6, desc: '-4 Strength.' },
   { key: 'unfit', name: 'Out of Shape', cost: 6, desc: '-4 Fitness.' },
   { key: 'hard_hearing', name: 'Hard of Hearing', cost: 4, desc: 'Hears less.' },
@@ -169,6 +208,54 @@ export const TRAITS: Trait[] = [
   { key: 'coffee_dependent', name: 'Coffee Dependent', cost: 2, desc: 'Headaches and grumpiness after twelve hours without caffeine. Coffee hits harder.' },
 ];
 
+// ---- the Rehab Section shows every programme and condition as a good line and a bad line
+const JOB_LINES: Record<string, [string, string]> = {
+  unemployed: ['+8 credits to spend on conditions. No expectations, no paperwork.', 'No skills, no kit, nothing to fall back on.'],
+  student: ['Learns everything 20% faster. School bag, notebook, pen.', 'No skills yet: all theory, no practice.'],
+  janitor: ['Quiet feet, needs less sleep. Carpentry, Sneaking and Mechanics 1. Flashlight, keys, mop.', 'No combat training; a mop is a mop.'],
+  electrician: ['Electrical 3, Mechanics 1. Screwdriver and multimeter.', 'Costs 2 credits. No combat training.'],
+  nurse: ['Injuries barely raise the pulse. First Aid 3, Sneaking 1. Bandages and disinfectant.', 'Costs 2 credits. No combat training.'],
+  cook: ['Hot meals lift the mood far more. Cooking 3, Blade 1. A kitchen knife.', 'Costs 2 credits.'],
+  lifeguard: ['Swims 50% faster. Fitness, First Aid and Sprinting 1. Goggles.', 'Costs 2 credits. The goggles are the whole kit.'],
+  ranger: ['Open sky calms stress and low mood. Foraging and Trapping 2, Blade 1. Matches.', 'Costs 4 credits.'],
+  carpenter: ['Builds, barricades and dismantles faster. Carpentry 3, Blunt 1. A hammer.', 'Costs 2 credits.'],
+  security: ['Needs less sleep. Blunt 2, Sprinting 1. A flashlight.', 'Costs 2 credits.'],
+  developer: ['Lucidity drains slower; the SEER-9 works better. Electrical 1. A handheld game.', 'Costs 2 credits. Soft hands: no physical skills.'],
+  mechanic: ['Engines, batteries, hotwiring. Mechanics 3, Electrical 1. A wrench.', 'Costs 2 credits.'],
+  barista: ['Caffeine lasts twice as long, no jitters; coffee is a daily joy. Cooking and Nimble 1.', 'The kit is a mug and a bag of beans.'],
+  mattress_tester: ['+2 credits. Sleeps well on anything, shrugs off insomnia.', 'No skills. The kit is a pillow.'],
+  investigator: ['Anomalies drain less lucidity; cataloguing something new is a thrill. Camera and notebook.', 'Costs 2 credits.'],
+  radio_host: ['Loneliness builds slowly; voices on the radio count as company. Needs less sleep.', 'Barely any skills: Electrical 1.'],
+  therapist: ['Breathing and journaling work twice as well; panic attacks pass faster. First Aid 1.', 'Costs 2 credits.'],
+  explorer: ['New zones lift the mood; boredom fades on the move. Sprinting, Nimble and Foraging 1.', 'Costs 2 credits.'],
+  lab_tech: ['Lucidity drains slower, the hum is background. First Aid 1, Electrical 2. Lab coat, gloves.', 'Costs 2 credits. Used to work for the people who sent you here.'],
+  returnee: ['Lucidity drains much slower; loops never rattle them. Lobby map, almond water.', 'Costs 4 credits.'],
+  mime: ['Silent on their feet, never short of imaginary company. Nimble and Sneaking 2.', 'Shouting breaks character: every shout spikes stress.'],
+  exterminator: ['Creatures panic you less and downing one settles the nerves. Trapping 2, Blunt 1. Bait, trap.', 'Costs 2 credits.'],
+};
+const TRAIT_LINES: Record<string, [string, string]> = {
+  gym_rat: ['Double Fitness and Sprinting experience; tires a little slower.', 'Costs 4 credits. Grumpy after a day without a workout.'],
+  heavy_sleeper: ['Sleep restores 25% faster and almost nothing wakes you.', 'Costs 3 credits. Might sleep through the alarm.'],
+  pocket_hoarder: ['+2 kg carrying capacity.', 'Costs 3 credits. Feels naked with nearly empty pockets.'],
+  lucky_socks: ['With socks on, injuries are milder and some hits only bruise.', 'Costs 2 credits. Without socks: a nervous wreck.'],
+  snack_goblin: ['Sweets and snacks cheer you up twice as much.', 'Costs 1 credit. Snacks vanish twice as fast and hunger comes a bit sooner.'],
+  couch_potato: ['+2 credits. Sitting down is pure bliss: stress and boredom melt away.', 'Tires faster and builds Fitness slowly.'],
+  dramatic: ['+1 credit. Panic drains twice as fast.', 'Panic spikes twice as hard. Narrates every crisis out loud.'],
+  hypochondriac: ['+2 credits. Any pill calms you a little.', 'Every scratch is a catastrophe: injuries spike panic and stress twice as much.'],
+  coffee_dependent: ['+2 credits. Coffee hits harder.', 'Headaches and grumpiness after twelve hours without caffeine.'],
+};
+const credits = (n: number) => `${n} credit${n === 1 ? '' : 's'}`;
+for (const o of OCCUPATIONS) {
+  const l = JOB_LINES[o.key];
+  o.good ??= l?.[0] ?? o.desc;
+  o.bad ??= l?.[1] ?? (o.points < 0 ? `Costs ${credits(-o.points)}.` : 'Nothing in particular.');
+}
+for (const t of TRAITS) {
+  const l = TRAIT_LINES[t.key];
+  t.good ??= l?.[0] ?? (t.cost < 0 ? t.desc : `Pays ${credits(t.cost)} back into your programme.`);
+  t.bad ??= l?.[1] ?? (t.cost < 0 ? `Costs ${credits(-t.cost)}.` : t.desc);
+}
+
 // exclusions are symmetric: picking either side blocks the other on the intake form
 for (const t of TRAITS) for (const x of t.excl || []) {
   const o = TRAITS.find((q) => q.key === x);
@@ -182,6 +269,7 @@ export const PERKS: Record<string, string> = {
   outdoors: 'Open sky calms stress and low mood', barista: 'Caffeine lasts longer, no jitters', sleeper: 'Sleeps well anywhere, resists insomnia',
   investigator: 'Anomalies drain less, scanning lifts mood', radio_voice: 'Radio and chat count as company', therapist: 'Coping works twice as well',
   explorer: 'New zones lift mood', deja_vu: 'Lucidity drains much slower', mime: 'Imaginary company', exterminator: 'Creatures panic you less',
+  fence: 'Better scrip rates at the Hopper', mover: 'Built for hauling (bad back)', ex_officer: 'BAILIFF warnings rattle you less',
 };
 
 export const traitByKey = (k: string) => TRAITS.find((t) => t.key === k);

@@ -23,6 +23,14 @@ export class Container {
   cooling?: 'fridge' | 'freezer';
   heating?: boolean;
 
+  /**
+   * Backpack-grid hooks, installed by src/items/grid.ts: `placer` gives an
+   * item added without a valid cell a spot (first fit, or none = overflow),
+   * `fitter` answers "is there room" by cells (and a bag's weight rating).
+   */
+  static placer: ((c: Container, it: Item) => void) | null = null;
+  static fitter: ((c: Container, it: Item) => boolean) | null = null;
+
   constructor(uid: number, name: string, kind: string, capacity: number) {
     this.uid = uid; this.name = name; this.kind = kind; this.capacity = capacity;
   }
@@ -30,8 +38,14 @@ export class Container {
   contentWeight(): number { let w = 0; for (const it of this.items) w += itemWeight(it); return w; }
   /** weight as carried (after bag reduction) */
   carriedWeight(): number { return this.contentWeight() * (1 - this.reduction); }
-  hasRoom(it: Item): boolean { return this.contentWeight() + itemWeight(it) <= this.capacity + 1e-6; }
-  add(it: Item) { this.items.push(it); it.parent = this.uid; }
+  hasRoom(it: Item): boolean {
+    if (Container.fitter) return Container.fitter(this, it);
+    return this.contentWeight() + itemWeight(it) <= this.capacity + 1e-6;
+  }
+  add(it: Item) {
+    if (Container.placer) { try { Container.placer(this, it); } catch (e) { console.warn('grid place', e); } }
+    this.items.push(it); it.parent = this.uid;
+  }
   remove(it: Item) { const i = this.items.indexOf(it); if (i >= 0) this.items.splice(i, 1); }
   find(pred: (it: Item) => boolean): Item | undefined {
     for (const it of this.items) { if (pred(it)) return it; if (it.inv) { const r = it.inv.find(pred); if (r) return r; } }

@@ -4,6 +4,7 @@ import { Rng } from '../../core/rng';
 import { lobbyLandmarks } from './lobbyRooms';
 import { lobbyDistricts, reserveLobbyDistricts } from './lobbyDistricts';
 import { connectRegions } from './connect';
+import { placeSeam } from './seam_kit';
 
 /**
  * Level 0 — "The Lobby". Irregular office-like maze produced by recursive
@@ -99,6 +100,8 @@ export function generateLobby(z: Zone, seed: number) {
   reserveLobbyDistricts(z, rng);
   lobbyLandmarks(z, b, rng);
   lobbyDistricts(z, b, rng);
+  // the Seam you fell out of, on a wall of the waking room (src/world/gen/seam_kit.ts)
+  placeSeam(z, b);
   // nothing may end up sealed off from where you wake
   const sp = z.meta.spawn as [number, number] | undefined;
   if (sp) connectRegions(z, b, sp[0], sp[1], rng, { keep: z.meta.sealed });

@@ -10,6 +10,12 @@ import { objDef } from '../world/objects';
 import { bus } from '../core/events';
 import { Player } from '../entities/player';
 import { setUidBase } from '../core/rng';
+import { Placement, setPlace, containerOcc, testFit, autoPack } from '../items/grid';
+
+/** grid placement carried by item-moving ops (backpack inventory) */
+type At = { gx?: number; gy?: number; rot?: 0 | 1 };
+const atOf = (a: At): Placement | undefined => (a.gx === undefined || a.gy === undefined ? undefined : { gx: a.gx, gy: a.gy, rot: a.rot ?? 0 });
+const atArgs = (p?: Placement | null): At => (p ? { gx: p.gx, gy: p.gy, rot: p.rot } : {});
 
 // ---------------- container references ----------------
 export function containerRef(c: Container): string { return c.owner; }
@@ -77,7 +83,7 @@ export function ensureLoot(z: Zone, c: Container) {
 }
 
 // ---------------- item transfer ----------------
-defOp('take', (a: { z: string; ref: string; uid: number; to: string; dest?: number }, ctx) => {
+defOp('take', (a: { z: string; ref: string; uid: number; to: string; dest?: number } & At, ctx) => {
   const z = G.zones.get(a.z); if (!z) return;
   const c = resolveContainer(z, a.ref); if (!c) return;
   const it = c.items.find((i) => i.uid === a.uid); if (!it) return;
@@ -85,8 +91,8 @@ defOp('take', (a: { z: string; ref: string; uid: number; to: string; dest?: numb
   bus.emit('containerChanged', c);
   const p = playerById(a.to);
   if (isReplaying()) return;
-  if (p && p.isLocal) { playerContainer(p, a.dest).add(it); bus.emit('inventoryChanged', p); }
-  else if (ctx.host && G.role === 'host') G.net?.sendTo(a.to, 'give', { item: serializeItem(it), dest: a.dest });
+  if (p && p.isLocal) { setPlace(it, atOf(a)); playerContainer(p, a.dest).add(it); bus.emit('inventoryChanged', p); }
+  else if (ctx.host && G.role === 'host') G.net?.sendTo(a.to, 'give', { item: serializeItem(it), dest: a.dest, ...atArgs(atOf(a)) });
 });
 defOp('put', (a: { z: string; ref: string; item: any }) => {
   const z = G.zones.get(a.z); if (!z) return;
@@ -96,7 +102,7 @@ defOp('put', (a: { z: string; ref: string; item: any }) => {
   if (!c.items.some((i) => i.uid === it.uid)) c.add(it);
   bus.emit('containerChanged', c);
 });
-defOp('move', (a: { z: string; from: string; to: string; uid: number }) => {
+defOp('move', (a: { z: string; from: string; to: string; uid: number } & At) => {
   const z = G.zones.get(a.z); if (!z) return;
   const f = a.from.startsWith('floor') ? null : resolveContainer(z, a.from);
   const t = a.to.startsWith('floor') ? null : resolveContainer(z, a.to);
@@ -104,7 +110,7 @@ defOp('move', (a: { z: string; from: string; to: string; uid: number }) => {
   if (f) { it = f.items.find((i) => i.uid === a.uid); if (it) f.remove(it); }
   else { const wi = floorItems(z).get(a.uid); if (wi) { it = wi.item; removeFloorItem(z, it); } }
   if (!it) return;
-  if (t) t.add(it);
+  if (t) { setPlace(it, atOf(a)); t.add(it); }
   else { const [x, zz] = a.to.slice(6).split(',').map(Number); dropItem(z, it, x, zz); }
   bus.emit('containerChanged', f); bus.emit('containerChanged', t);
 });
@@ -116,54 +122,75 @@ defOp('dropFloor', (a: { z: string; item: any; x: number; zz: number; y?: number
   if (a.v) { wi.vx = a.v[0]; wi.vy = a.v[1]; wi.vz = a.v[2]; wi.y = a.y ?? 1.2; }
   bus.emit('floorChanged', z);
 });
-defOp('takeFloor', (a: { z: string; uid: number; to: string; dest?: number }, ctx) => {
+defOp('takeFloor', (a: { z: string; uid: number; to: string; dest?: number } & At, ctx) => {
   const z = G.zones.get(a.z); if (!z) return;
   const wi = floorItems(z).get(a.uid); if (!wi) return;
   removeFloorItem(z, wi.item);
   bus.emit('floorChanged', z);
   const p = playerById(a.to);
   if (isReplaying()) return;
-  if (p && p.isLocal) { playerContainer(p, a.dest).add(wi.item); bus.emit('inventoryChanged', p); }
-  else if (ctx.host && G.role === 'host') G.net?.sendTo(a.to, 'give', { item: serializeItem(wi.item), dest: a.dest });
+  if (p && p.isLocal) { setPlace(wi.item, atOf(a)); playerContainer(p, a.dest).add(wi.item); bus.emit('inventoryChanged', p); }
+  else if (ctx.host && G.role === 'host') G.net?.sendTo(a.to, 'give', { item: serializeItem(wi.item), dest: a.dest, ...atArgs(atOf(a)) });
 });
 /** host -> requesting client: receive an item into a container */
-export function receiveGive(a: { item: any; dest?: number }) {
+export function receiveGive(a: { item: any; dest?: number } & At) {
   const p = G.local; if (!p) return;
   const it = deserializeItem(a.item);
   setUidBase(it.uid + 1);
+  if (a.gx !== undefined) setPlace(it, atOf(a));
+  else if (a.dest === undefined) setPlace(it, null);
   playerContainer(p, a.dest).add(it);
   bus.emit('inventoryChanged', p);
 }
+
+/** rearrange (or split a stack) inside a world container: every peer applies the same check */
+defOp('gridPlace', (a: { z: string; ref: string; uids: number[]; gx: number; gy: number; rot: 0 | 1 }) => {
+  const z = G.zones.get(a.z); if (!z) return;
+  const c = resolveContainer(z, a.ref); if (!c) return;
+  const items = a.uids.map((u) => c.items.find((i) => i.uid === u)).filter((i): i is Item => !!i);
+  if (!items.length) return;
+  const occ = containerOcc(c, new Set(items)); if (!occ) return;
+  if (testFit(occ, items[0], a.gx, a.gy, a.rot, items.length) === 'blocked') return;
+  for (const it of items) setPlace(it, { gx: a.gx, gy: a.gy, rot: a.rot });
+  bus.emit('containerChanged', c);
+});
+/** shake a world container: deterministic re-pack */
+defOp('gridPack', (a: { z: string; ref: string }) => {
+  const z = G.zones.get(a.z); if (!z) return;
+  const c = resolveContainer(z, a.ref); if (!c) return;
+  autoPack(c);
+  bus.emit('containerChanged', c);
+});
 
 /**
  * Move an item between any two containers on behalf of the local player,
  * routing through ops when world containers are involved.
  */
-export function transferItem(p: Player, it: Item, from: Container, to: Container) {
-  if (from === to) return;
+export function transferItem(p: Player, it: Item, from: Container, to: Container, at?: Placement | null) {
+  if (from === to) { if (at && to.kind !== 'floor') { setPlace(it, at); bus.emit('inventoryChanged', p); } return; }
   const z = G.getZone(p.zoneKey);
   const fw = isWorldContainer(from) || from.kind === 'floor';
   const tw = isWorldContainer(to) || to.kind === 'floor';
   if (!fw && !tw) {
     if (p.isWorn(it)) p.unwear(it);
     if (p.handR === it || p.handL === it) { if (p.handR === it) p.equip(null, 'R'); if (p.handL === it) p.equip(null, 'L'); }
-    from.remove(it); to.add(it);
+    from.remove(it); if (at !== undefined) setPlace(it, at); to.add(it);
     bus.emit('inventoryChanged', p);
     return;
   }
   if (fw && !tw) {
-    if (from.kind === 'floor') op('takeFloor', { z: z.key, uid: it.uid, to: p.id, dest: to.uid });
-    else op('take', { z: z.key, ref: containerRef(from), uid: it.uid, to: p.id, dest: to.uid });
+    if (from.kind === 'floor') op('takeFloor', { z: z.key, uid: it.uid, to: p.id, dest: to.uid, ...atArgs(at) });
+    else op('take', { z: z.key, ref: containerRef(from), uid: it.uid, to: p.id, dest: to.uid, ...atArgs(at) });
     return;
   }
   if (!fw && tw) {
     p.removeItem(it);
     bus.emit('inventoryChanged', p);
     if (to.kind === 'floor') op('dropFloor', { z: z.key, item: serializeItem(it), x: p.x, zz: p.z });
-    else op('put', { z: z.key, ref: containerRef(to), item: serializeItem(it) });
+    else { if (at !== undefined) setPlace(it, at); op('put', { z: z.key, ref: containerRef(to), item: serializeItem(it) }); }
     return;
   }
-  op('move', { z: z.key, from: from.kind === 'floor' ? `floor:${p.x},${p.z}` : containerRef(from), to: to.kind === 'floor' ? `floor:${p.x},${p.z}` : containerRef(to), uid: it.uid });
+  op('move', { z: z.key, from: from.kind === 'floor' ? `floor:${p.x},${p.z}` : containerRef(from), to: to.kind === 'floor' ? `floor:${p.x},${p.z}` : containerRef(to), uid: it.uid, ...(to.kind === 'floor' ? {} : atArgs(at)) });
 }
 
 // ---------------- doors, windows & edges ----------------

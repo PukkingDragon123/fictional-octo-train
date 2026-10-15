@@ -1,13 +1,23 @@
 // On-screen controls: the whole game playable on a phone or tablet.
 //
+// The controls are physical found objects drawn in 3D (touch3d.ts / props.ts):
+// a red valve wheel is the stick, ATTACK a chunky arcade button, RUN a toggle
+// under a flip-up cover, USE a bottle cap, SHOVE a fire-exit crash bar, SNEAK
+// a slipper, LIGHT a bulb's pull chain, SHOUT a whistle, the top bar tape-deck
+// keys, a disposable camera, a folded map, a tiny scanner and a rucksack; in a
+// car a steering wheel, pedals, a horn, a headlight knob, an ignition key and
+// a door handle. The DOM buttons below are their (invisible) hit areas, so
+// when WebGL is missing the flat pixel pads simply stay visible.
+//
 //  - floating analog stick in the left thumb zone (small push walks, full push runs)
 //  - right-hand action cluster: attack (tap strikes, hold readies with auto-aim,
 //    drag aims), use, shove, sneak, flashlight, shout, push-to-talk; top bars for
-//    map / scanner / inventory / chat / pause / fullscreen / camera turn
+//    map / scanner / inventory / chat / pause / fullscreen / photo
 //  - context actions: placing furniture, driving, riding, carrying, reading, reloading
 //  - world gestures: tap = left-click default (walk to / interact / pick up),
 //    long-press = right-click context menu, double-tap = toggle run,
-//    two-finger pinch = zoom, two-finger twist or sideways swipe = turn the camera
+//    one-finger sideways swipe = turn the camera (snaps to the nearest view on release),
+//    two-finger pinch = zoom, two-finger twist = turn the camera
 //  - scanner: tap its buttons / screen / dial directly, swipe the screen to scroll,
 //    or use the 2D strip that sits on top of the device
 //
@@ -30,6 +40,7 @@ import { objDef } from '../../world/objects';
 import { PAGES } from '../scanner/pages';
 import { iconUrl } from './icons';
 import { isTouchMode, buzz, installTouchMode, lastTouchTime } from './mode';
+import { Touch3D } from './touch3d';
 
 export { getTouchSetting, setTouchSetting, isTouchMode } from './mode';
 export type { TouchSetting } from './mode';
@@ -40,16 +51,19 @@ const TAP_MS = 350;
 const TAP_SLOP = 12;       // px a tap may wander
 const STICK_SLOP = 8;      // px before a touch in the thumb zone becomes the stick
 const DOUBLE_MS = 320;
+const SWIPE_START = 20;    // px sideways before a world touch turns the camera
 const PARK = -9999;        // the "mouse" is parked off-screen between touches (no hover highlight)
 const SCAN_LABEL: Record<string, string> = { stat: 'BIO', scan: 'SCAN', sig: 'SIG', map: 'MAP', log: 'LOG', data: 'DATA' };
 
-type Role = 'world' | 'stickPending' | 'stick' | 'gesture' | 'scanner' | 'dead';
+type Role = 'world' | 'stickPending' | 'stick' | 'gesture' | 'scanner' | 'swipe' | 'dead';
 interface TP {
   id: number; x0: number; y0: number; x: number; y: number; ly: number; t0: number;
   role: Role; moved: boolean; long: boolean; longDue: boolean; timer: number; ringTimer: number; acc: number;
 }
 interface BtnOpts {
   label?: string; x?: number; y?: number; s?: number; cls?: string;
+  /** width / height in button units when not square */
+  w?: number; h?: number;
   /** fire on press (default) or on release (needed for fullscreen / keyboard focus) */
   on?: 'down' | 'up';
   tap?: () => void;
@@ -66,6 +80,15 @@ export class TouchControls implements GameSystem {
   private groups: Record<string, HTMLDivElement> = {};
   private btns: Record<string, HTMLDivElement> = {};
   private vis: Record<string, boolean> = {};
+  /** button key -> the group it sits in ('' = directly on the root) */
+  private btnGroup: Record<string, string> = {};
+  /** the physical 3D controls (null when WebGL is unavailable) */
+  readonly t3: Touch3D;
+  private synced = new Set<string>();
+  private mode = 'walk';
+  private stickRun = false;
+  // one-finger swipe: free camera orbit while the finger moves, snaps to a view on release
+  private swipe: { id: number; lastX: number; lastT: number; vel: number; yaw0: number } | null = null;
   // stick
   private stick: HTMLDivElement; private stickBase: HTMLDivElement; private stickKnob: HTMLDivElement;
   private stickId = -1; private sx = 0; private sy = 0; private R = 60;
@@ -98,21 +121,20 @@ export class TouchControls implements GameSystem {
     root.addEventListener('contextmenu', (e) => e.preventDefault());
     document.getElementById('nc-touch')?.remove();
     document.body.appendChild(root);
+    this.t3 = new Touch3D(root);
 
     // ---- stick
     this.stick = div(root, 'nc-stick');
     this.stickBase = div(this.stick, 'nc-stick-base');
     this.stickKnob = div(this.stickBase, 'nc-stick-knob');
     this.groups.stick = this.stick;
-    this.btn(root, 'run', 'run', { cls: 'nc-runbtn', tap: () => this.toggleRun() });
+    this.btn(root, 'run', 'run', { label: 'RUN', cls: 'nc-runbtn', w: 1.0, h: 1.3, tap: () => this.toggleRun() });
 
     // ---- top bars
     const tl = this.group('tl', 'nc-group nc-row nc-tl');
     this.btn(tl, 'menu', 'menu', { label: 'MENU', s: 0.85, tap: () => this.g.input.tap('pause') });
     const fsOk = !!(document.fullscreenEnabled || (document as any).webkitFullscreenEnabled);
     if (fsOk) this.btn(tl, 'fs', 'fullscreen', { label: 'FULL', s: 0.85, on: 'up', tap: () => toggleFullscreen() });
-    this.btn(tl, 'rotL', 'rotL', { label: 'TURN', s: 0.85, tap: () => this.g.rotateCamera(1) });
-    this.btn(tl, 'rotR', 'rotR', { label: 'TURN', s: 0.85, tap: () => this.g.rotateCamera(-1) });
     this.btn(tl, 'photo', 'photo', { label: 'PHOTO', s: 0.85, tap: () => (this.g as any).camera?.photo?.toggle?.() });
     const tr = this.group('tr', 'nc-group nc-row nc-tr');
     this.btn(tr, 'chat', 'chat', { label: 'CHAT', s: 0.95, on: 'up', tap: () => this.openChat() });
@@ -124,11 +146,11 @@ export class TouchControls implements GameSystem {
     const act = this.group('act', 'nc-group nc-br');
     this.btn(act, 'attack', 'attack', { x: 0.05, y: 0.05, s: 1.6, cls: 'round big', down: (e) => this.atkDown(e), move: (e) => this.atkMove(e), up: (_e, c) => this.atkUp(c) });
     this.btn(act, 'use', 'use', { label: 'USE', x: 1.85, y: 0.0, s: 1.3, cls: 'big', down: () => this.useDown(), up: (_e, c) => this.useUp(c) });
-    this.btn(act, 'shove', 'shove', { label: 'SHOVE', x: 0.2, y: 1.85, s: 1.1, tap: () => this.g.input.tap('shove') });
-    this.btn(act, 'sneak', 'sneak', { label: 'SNEAK', x: 1.6, y: 1.55, s: 1.0, tap: () => this.g.input.tap('sneak') });
-    this.btn(act, 'light', 'light', { label: 'LIGHT', x: 3.35, y: 0.1, s: 1.0, tap: () => this.g.input.tap('flashlight') });
-    this.btn(act, 'shout', 'shout', { label: 'SHOUT', x: 0.25, y: 3.15, s: 1.0, tap: () => this.g.input.tap('shout') });
-    this.btn(act, 'talk', 'talk', { label: 'TALK', x: 3.05, y: 1.3, s: 1.0, cls: 'rec', hold: 'talk' });
+    this.btn(act, 'shove', 'shove', { label: 'SHOVE', x: 0.0, y: 1.78, w: 1.8, h: 0.82, tap: () => this.g.input.tap('shove') });
+    this.btn(act, 'sneak', 'sneak', { label: 'SNEAK', x: 1.95, y: 1.45, s: 1.05, tap: () => this.g.input.tap('sneak') });
+    this.btn(act, 'light', 'light', { label: 'LIGHT', x: 3.3, y: 0.08, w: 0.9, h: 2.15, tap: () => this.g.input.tap('flashlight') });
+    this.btn(act, 'shout', 'shout', { label: 'SHOUT', x: 0.3, y: 2.75, s: 1.05, tap: () => this.g.input.tap('shout') });
+    this.btn(act, 'talk', 'talk', { label: 'TALK', x: 1.75, y: 2.6, s: 1.0, cls: 'rec', hold: 'talk' });
 
     // ---- driver's seat (the stick steers)
     const drive = this.group('drive', 'nc-group nc-br');
@@ -188,6 +210,10 @@ export class TouchControls implements GameSystem {
     if (o.x !== undefined) el.style.setProperty('--x', String(o.x));
     if (o.y !== undefined) el.style.setProperty('--y', String(o.y));
     if (o.s !== undefined) el.style.setProperty('--s', String(o.s));
+    if (o.w !== undefined) el.style.setProperty('--w', String(o.w));
+    if (o.h !== undefined) el.style.setProperty('--h', String(o.h));
+    this.btnGroup[key] = Object.keys(this.groups).find((k) => this.groups[k] === parent) ?? '';
+    this.t3.bind(key, el);
     let pid = -1;
     el.addEventListener('pointerdown', (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -195,6 +221,7 @@ export class TouchControls implements GameSystem {
       pid = e.pointerId;
       try { el.setPointerCapture(e.pointerId); } catch { /* synthetic pointer */ }
       el.classList.add('down');
+      this.t3.press(key, true);
       const inp = this.g.input;
       if (!this.g.ui?.inventory?.open) inp.pointerOverUI = false;
       if (o.hold) inp.press(o.hold);
@@ -206,6 +233,7 @@ export class TouchControls implements GameSystem {
       if (e.pointerId !== pid) return;
       pid = -1;
       el.classList.remove('down');
+      this.t3.press(key, false, cancelled);
       if (o.hold) this.g.input.release(o.hold);
       o.up?.(e, cancelled);
       if (o.tap && o.on === 'up' && !cancelled) o.tap();
@@ -231,7 +259,20 @@ export class TouchControls implements GameSystem {
     }
     this.rects = {};
   }
-  private setOn(key: string, on: boolean) { const el = this.btns[key]; if (el && el.classList.contains('on') !== on) el.classList.toggle('on', on); }
+  private setOn(key: string, on: boolean) {
+    const el = this.btns[key];
+    if (el && el.classList.contains('on') !== on) el.classList.toggle('on', on);
+    // the first sync snaps the physical control into place without a sound
+    const first = !this.synced.has(key);
+    if (first) this.synced.add(key);
+    this.t3.setOn(key, on, first);
+  }
+  /** is a button on screen right now (its group and itself shown)? */
+  private shownBtn(key: string) {
+    const g = this.btnGroup[key];
+    return (g ? this.vis[g] === true : this.vis[key] === true) && this.vis[key] !== false;
+  }
+  private fadedBtn(key: string) { const g = this.btnGroup[key]; return g && this.groups[g]?.classList.contains('nc-faded') ? 0.32 : 1; }
 
   /** button size follows the screen; icons snap to whole multiples of their pixel grid */
   layout() {
@@ -245,6 +286,7 @@ export class TouchControls implements GameSystem {
     st.setProperty('--u', u + 'px'); st.setProperty('--ip', ip + 'px'); st.setProperty('--ipl', ipl + 'px');
     st.setProperty('--R', this.R + 'px');
     this.rects = {};
+    this.t3.invalidate();
     if (this.stickId < 0) this.restStick();
   }
 
@@ -260,9 +302,14 @@ export class TouchControls implements GameSystem {
   update(dt: number) {
     const on = isTouchMode() && !this.suppressed;
     if (on !== this.active) { this.active = on; if (!on) this.reset(); }
-    if (!on) return;
+    if (!on || !this.g.local || !this.g.ui) { this.t3.update(dt, false, () => false, () => 1, null); return; }
+    this.updateControls(dt);
+    const stickShown = this.vis.stick ? (this.mode === 'drive' ? 'steer' : 'valve') : null;
+    this.t3.update(dt, true, (k) => this.shownBtn(k), (k) => this.fadedBtn(k), stickShown);
+  }
+
+  private updateControls(dt: number) {
     const g = this.g, p = g.local, ui = g.ui, inp = g.input;
-    if (!p || !ui) return;
     const now = performance.now();
     const sc = ui.scanner;
     const seat = (g as any).vehicles?.seatOf?.(p) as { v: any; seat: number } | null;
@@ -272,6 +319,7 @@ export class TouchControls implements GameSystem {
     const scan = !!sc?.open;
     const portrait = window.innerHeight > window.innerWidth;
     const mode = dead ? 'dead' : seat ? (seat.seat === 0 ? 'drive' : 'ride') : 'walk';
+    if (mode !== this.mode) { this.mode = mode; if (this.stickId < 0) this.restStick(); }
     const free = !dead && !modal && !inv;
 
     // in portrait the raised scanner fills the bottom of the screen: tap-to-walk only
@@ -303,6 +351,7 @@ export class TouchControls implements GameSystem {
       const lbl = this.btns.ign?.querySelector('b');
       const want = seat.v.running ? 'STOP' : 'START';
       if (lbl && lbl.textContent !== want) lbl.textContent = want;
+      this.t3.label('ign', want);
     }
 
     for (const tp of this.tps.values()) if (tp.longDue) { tp.longDue = false; this.longPress(tp); }
@@ -343,6 +392,8 @@ export class TouchControls implements GameSystem {
     this.hideRing();
     this.setHighlight(null);
     this.reticle.style.display = 'none';
+    this.endSwipe(true);
+    this.t3.reset();
     if (this.myLowH && !isTouchMode()) { const pr = this.g.pr; if (pr.targetLowH === this.myLowH) { pr.targetLowH = this.userLowH || 360; pr.resize(); } this.myLowH = 0; }
   }
 
@@ -363,8 +414,8 @@ export class TouchControls implements GameSystem {
     if (!g.local || g.local.body.dead || ui?.modal) { tp.role = 'dead'; return; }
     const sc = ui?.scanner;
     if (sc?.open && sc.raise > 0.7 && sc.hitTest(tp.x, tp.y)) { tp.role = 'scanner'; return; }
-    // a second finger landing together with the first: pinch / twist / swipe
-    if (this.gesture) { tp.role = 'dead'; return; }
+    // a second finger landing together with the first: pinch / twist
+    if (this.gesture || this.swipe) { tp.role = 'dead'; return; }
     const other = [...this.tps.values()].find((o) => o !== tp && (o.role === 'world' || o.role === 'stickPending') && !o.long && now - o.t0 < 350);
     if (other) {
       this.cancelTimers(other); this.hideRing();
@@ -391,11 +442,16 @@ export class TouchControls implements GameSystem {
         if (d > STICK_SLOP) { tp.role = 'stick'; this.stickStart(tp); this.stickMove(tp); }
         break;
       case 'stick': this.stickMove(tp); break;
-      case 'world':
+      case 'world': {
         if (d > TAP_SLOP && !tp.moved) { tp.moved = true; this.cancelTimers(tp); this.hideRing(); }
         // dragging while placing furniture slides the ghost
-        if (this.g.items?.placing) { this.g.input.mouseX = tp.x; this.g.input.mouseY = tp.y; }
+        if (this.g.items?.placing) { this.g.input.mouseX = tp.x; this.g.input.mouseY = tp.y; break; }
+        // a sideways swipe on the world turns the camera
+        const ax = Math.abs(tp.x - tp.x0), ay = Math.abs(tp.y - tp.y0);
+        if (!tp.long && !this.swipe && !this.gesture && ax > SWIPE_START && ax > ay * 0.8) { tp.role = 'swipe'; this.startSwipe(tp); }
         break;
+      }
+      case 'swipe': this.moveSwipe(tp); break;
       case 'gesture': this.gestureMove(); break;
       case 'scanner': {
         // swipe the screen up/down = turn the dial (scroll lists, tune, zoom the map)
@@ -419,6 +475,7 @@ export class TouchControls implements GameSystem {
     switch (tp.role) {
       case 'stickPending': if (!cancelled && dur < TAP_MS) this.tap(tp.x, tp.y, at); break;
       case 'stick': this.stickEnd(); break;
+      case 'swipe': if (this.swipe?.id === tp.id) this.endSwipe(cancelled); break;
       case 'world': if (!cancelled && !tp.moved && !tp.long && dur < LONG_MS) this.tap(tp.x, tp.y, at); break;
       case 'gesture': {
         // lifting one finger ends the gesture; the other one is spent
@@ -520,6 +577,47 @@ export class TouchControls implements GameSystem {
     if (p) bus.emit('halo', p, inp.runLatch ? 'RUN' : 'WALK');
   }
 
+  // ---------------------------------------------------------------- one-finger swipe: turn the camera
+  private startSwipe(tp: TP) {
+    const cam = (this.g as any).camera;
+    if (!cam?.orbitBy) { tp.role = 'dead'; return; }
+    this.swipe = { id: tp.id, lastX: tp.x0, lastT: performance.now(), vel: 0, yaw0: cam.yawGoal };
+    this.moveSwipe(tp);
+  }
+  private moveSwipe(tp: TP) {
+    const s = this.swipe, cam = (this.g as any).camera;
+    if (!s || s.id !== tp.id || !cam) return;
+    const dx = tp.x - s.lastX;
+    s.lastX = tp.x;
+    if (!dx) return;
+    // about a quarter turn per third of the screen; the floor follows the finger
+    const k = (Math.PI / 2) / clamp(window.innerWidth * 0.3, 140, 320);
+    const dYaw = -dx * k;
+    cam.orbitBy(dYaw, 0);
+    const now = performance.now(), dts = Math.max(8, now - s.lastT) / 1000;
+    s.lastT = now;
+    s.vel = s.vel * 0.55 + (dYaw / dts) * 0.45;
+  }
+  /** let go: settle on the nearest view, or carry on to the next one after a flick or a decent push */
+  private endSwipe(cancelled: boolean) {
+    const s = this.swipe;
+    if (!s) return;
+    this.swipe = null;
+    const cam = (this.g as any).camera;
+    if (!cam?.endOrbit) return;
+    const free: number = cam.yawGoal;
+    cam.endOrbit();
+    if (cam.keepOrbit || cancelled) return;
+    const vel = performance.now() - s.lastT > 90 ? 0 : clamp(s.vel, -7, 7);
+    const start: number = cam.snapYaw(s.yaw0);
+    let target: number = cam.snapYaw(free + vel * 0.14);
+    const moved = free - start;
+    if (Math.abs(target - start) < 1e-3 && Math.abs(moved) > 0.28) target = start + Math.sign(moved) * Math.PI / 2;
+    cam.yawGoal = target;
+    this.g.pr.yawTarget = target;
+    buzz(6);
+  }
+
   // ---------------------------------------------------------------- two fingers
   private gestureMove() {
     const gs = this.gesture; if (!gs) return;
@@ -552,6 +650,7 @@ export class TouchControls implements GameSystem {
   private placeStick(kx: number, ky: number) {
     this.stickBase.style.transform = `translate(${this.sx - this.R}px, ${this.sy - this.R}px)`;
     this.stickKnob.style.transform = `translate(${kx}px, ${ky}px)`;
+    this.t3.stick(this.sx, this.sy, this.R, kx, ky, this.stickId >= 0, this.stickRun, this.mode === 'drive');
   }
   private stickStart(tp: TP) {
     this.stickId = tp.id;
@@ -576,14 +675,16 @@ export class TouchControls implements GameSystem {
     if (len > 0.001) { inp.stickX = (dx / len) * mm; inp.stickY = (-dy / len) * mm; } else { inp.stickX = inp.stickY = 0; }
     const kl = Math.min(len, R);
     const kx = len > 0.001 ? dx / len * kl : 0, ky = len > 0.001 ? dy / len * kl : 0;
-    this.placeStick(kx, ky);
     const run = mm >= 0.92 || inp.runLatch;
+    this.stickRun = run;
+    this.placeStick(kx, ky);
     if (this.stick.classList.contains('running') !== run) this.stick.classList.toggle('running', run);
   }
   private stickEnd() {
     const tp = this.tps.get(this.stickId);
     if (tp) tp.role = 'dead';
     this.stickId = -1;
+    this.stickRun = false;
     const inp = this.g.input;
     inp.stickX = inp.stickY = 0;
     this.restStick();
@@ -636,6 +737,8 @@ export class TouchControls implements GameSystem {
     }
     if (this.atk || this.fireQueued || now < this.aimHoldUntil) this.updateAim(p);
     else if (inp.touchAim) { inp.touchAim = null; this.aimTarget = null; this.reticle.style.display = 'none'; }
+    const a = this.atk;
+    this.t3.attackAim(a?.drag ? a.dx : 0, a?.drag ? a.dy : 0, !!a && !!this.aimTarget);
   }
 
   /** where the attack button aims: a drag direction, else the nearest hostile ahead, else straight ahead */
@@ -733,6 +836,7 @@ export class TouchControls implements GameSystem {
     const t = enabled ? this.findUseTarget(p) : null;
     this.useTarget = t;
     const label = t ? shortName(targetName(t)) : 'USE';
+    this.t3.label('use', label);
     if (label !== this.useLabel) {
       this.useLabel = label;
       const b = this.btns.use?.querySelector('b'); if (b) b.textContent = label;

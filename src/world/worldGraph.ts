@@ -29,6 +29,10 @@ const ZONE_INDEX: Record<string, number> = {
 };
 function zoneIndex(key: string) { return ZONE_INDEX[key] ?? 100 + (hashStr(key) % 3800); }
 
+/** post-generation hooks (run inside the generator's deterministic uid range; e.g. hopper placement, src/game/debt) */
+const POST_GEN: ((z: Zone, seed: number) => void)[] = [];
+export function onZoneGenerated(fn: (z: Zone, seed: number) => void) { if (!POST_GEN.includes(fn)) POST_GEN.push(fn); }
+
 export function generateZone(key: string, worldSeed: number): Zone {
   const spec = SPECS.get(key);
   if (!spec) throw new Error('unknown zone ' + key);
@@ -36,7 +40,10 @@ export function generateZone(key: string, worldSeed: number): Zone {
   const z = new Zone(key, spec.W, spec.H, seed);
   // deterministic ids for everything the generator creates (stable per zone key)
   beginGenUids(zoneIndex(key) * ZONE_UID_SPAN);
-  try { spec.gen(z, seed); } finally { endGenUids(); }
+  try {
+    spec.gen(z, seed);
+    for (const fn of POST_GEN) { try { fn(z, seed); } catch (e) { console.error('post-gen hook', key, e); } }
+  } finally { endGenUids(); }
   refreshUnpowered(z);
   z.name = z.name || spec.name;
   if (spec.blurb && !z.meta.blurb) z.meta.blurb = spec.blurb;

@@ -27,6 +27,8 @@ export interface SaveData {
   uid: number;
   playMinutes: number;
   vehicles?: any[];
+  /** the debt contract: ledger + band states (src/game/debt; the op log also carries them) */
+  debt?: any;
 }
 export interface SaveMeta { id: string; name: string; savedAt: number; hours: number; zone: string; character: string; version: number }
 
@@ -132,6 +134,7 @@ export function snapshotGame(name?: string): SaveData {
     log: opLog.slice(), fires,
     player: serializePlayer(p),
     creatures, uid: peekUid(), vehicles: (G as any).vehicles?.serialize?.() ?? [],
+    debt: { ledger: G.debt?.serialize?.() ?? null, band: G.band ? [...G.band.st] : [] },
     playMinutes: (G.playMinutes || 0) + (performance.now() - (G.sessionStart || 0)) / 60000,
   };
 }
@@ -170,4 +173,6 @@ export function restoreAfterLoad(s: SaveData) {
   }
   for (const [zk, f] of Object.entries(s.fires || {})) { const z = G.getZone(zk); z.meta.fires = f; }
   if (s.vehicles) { for (const v of s.vehicles) G.getZone(v.zone); (G as any).vehicles?.load?.(s.vehicles); }
+  if (s.debt?.ledger) G.debt?.load?.(s.debt.ledger);
+  if (s.debt?.band && G.band) for (const [id, st] of s.debt.band) if (!G.band.st.has(id)) G.band.st.set(id, st);
 }

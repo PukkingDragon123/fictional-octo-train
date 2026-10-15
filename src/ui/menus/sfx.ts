@@ -4,7 +4,7 @@
 // UI/master volume) and its own otherwise (title boot before a game exists).
 import { G } from '../../game/G';
 
-export type Sfx = 'hover' | 'click' | 'confirm' | 'back' | 'type' | 'error' | 'boot' | 'tab' | 'toggle' | 'unlock' | 'open' | 'tick' | 'stamp';
+export type Sfx = 'hover' | 'click' | 'confirm' | 'back' | 'type' | 'error' | 'boot' | 'tab' | 'toggle' | 'unlock' | 'open' | 'tick' | 'stamp' | 'shutter' | 'hum' | 'freeze';
 
 let own: AudioContext | null = null;
 let gestureHooked = false;
@@ -92,6 +92,18 @@ export function sfx(kind: Sfx, vol = 1) {
       tone('sine', 60, 40, 0, 0.35, 0.22);
       tone('sine', 15600, 15600, 0.02, 1.4, 0.006);
       tone('triangle', 220, 880, 0.05, 0.5, 0.03);
+      break;
+    case 'shutter':
+      // mirror slap, shutter, then the flash capacitor whining back up
+      noise(0, 0.03, 0.9, 1800, 0.7); noise(0.045, 0.02, 0.7, 3200, 0.9);
+      tone('sine', 900, 7200, 0.08, 0.9, 0.012);
+      break;
+    case 'hum': tone('sawtooth', 60, 60, 0, 0.6, 0.03); tone('sine', 120, 118, 0, 0.6, 0.04); break;
+    case 'freeze':
+      // time catches on something: a falling glassy chord and a tape stop
+      [880, 660, 440].forEach((f, i) => tone('triangle', f, f * 0.5, i * 0.03, 0.5, 0.04));
+      tone('sawtooth', 220, 40, 0, 0.45, 0.03);
+      noise(0, 0.15, 0.3, 6000, 0.5);
       break;
     case 'unlock':
       [523, 659, 784, 1046].forEach((f, i) => tone('square', f, f, i * 0.07, 0.16, 0.05));

@@ -34,7 +34,7 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 /* ---------------------------------------------------------------- buttons */
 .nc-btn {
   position: absolute; pointer-events: auto; touch-action: none;
-  width: calc(var(--u) * var(--s, 1)); height: calc(var(--u) * var(--s, 1));
+  width: calc(var(--u) * var(--w, var(--s, 1))); height: calc(var(--u) * var(--h, var(--s, 1)));
   right: calc(var(--u) * var(--x, 0)); bottom: calc(var(--u) * var(--y, 0));
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
   /* pixel pad: translucent rubber with a hard bevel, drawn by src/ui/pixelkit.ts */
@@ -107,7 +107,7 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 }
 .nc-stick.live .nc-stick-base { opacity: 1; }
 .nc-stick.running .nc-stick-knob { border-image-source: var(--pk-pad-round-on); }
-.nc-runbtn { --s: 0.78; left: calc(var(--sl) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--R) * 2 + 26px); right: auto; }
+.nc-runbtn { left: calc(var(--sl) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--R) * 2 + 26px); right: auto; }
 
 /* ---------------------------------------------------------------- feedback */
 .nc-ring { position: absolute; left: 0; top: 0; width: 64px; height: 64px; margin: -32px 0 0 -32px; pointer-events: none; display: none; }
@@ -133,3 +133,11 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
     linear-gradient(#f2b33d, #f2b33d) 100% 50% / 6px 2px no-repeat;
   filter: drop-shadow(1px 1px 0 #000); }
 .nc-reticle.lock { width: 30px; height: 30px; margin: -15px 0 0 -15px; }
+
+/* ---------------------------------------------------------------- physical 3D controls (touch3d.ts)
+   The props are drawn by a small WebGL canvas under the buttons; the buttons
+   become invisible hit areas. Without WebGL the flat pads above stay. */
+.nc-3d-canvas { position: absolute; left: 0; top: 0; pointer-events: none; image-rendering: pixelated; image-rendering: crisp-edges; }
+#nc-touch.nc-3d .nc-btn.nc-3dbtn { border-image: none; border-color: transparent; background: none; }
+#nc-touch.nc-3d .nc-btn.nc-3dbtn > i, #nc-touch.nc-3d .nc-btn.nc-3dbtn > b { visibility: hidden; }
+#nc-touch.nc-3d .nc-stick-base { visibility: hidden; }

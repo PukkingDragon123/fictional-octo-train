@@ -81,3 +81,46 @@ export function itemTooltip(it: Item, count = 1): string {
   const hero = `<div class="tip-hero">${icon ? `<img src="${icon}" alt="">` : ''}<div class="tip-rows"><div class="tip-cat">${escapeHtml(CAT_LABEL[d.cat] || d.cat)}</div>${head.join('')}</div></div>`;
   return `<h4>${escapeHtml(itemName(it))}${count > 1 ? ' ×' + count : ''}</h4>${hero}${rest.join('')}`;
 }
+
+/**
+ * The same facts written on a manila luggage tag (backpack inventory): name,
+ * kind / weight / footprint line, a few readouts with ink bars, and the first
+ * sentence of the description. `hint` is the handling line at the bottom.
+ */
+export function itemTag(it: Item, count = 1, foot?: [number, number], hint = ''): string {
+  const d = itemDef(it.key);
+  const rows: string[] = [];
+  const row = (a: string, b: string, warn = false) => rows.push(`<div class="r${warn ? ' warn' : ''}"><span>${a}</span><span>${b}</span></div>`);
+  const bar = (v: number, color: string) => rows.push(`<div class="bar"><i style="width:${pct(Math.max(0, Math.min(1, v)))}%;background:${color}"></i></div>`);
+  if (d.durability || d.weapon || d.clothing) { row('Condition', pct(it.cond) + '%', it.cond < 0.25); bar(it.cond, it.cond > 0.6 ? '#4a7a3a' : it.cond > 0.25 ? '#a8822e' : '#8a1a14'); }
+  if (d.food) {
+    const f = d.food;
+    const fr = freshness(it);
+    if (fr !== 'none') row('Fresh', fr === 'fresh' ? 'yes' : fr === 'stale' ? 'stale' : 'ROTTEN', fr === 'rotten');
+    if (f.canned && !it.opened) row('Sealed', 'needs opening');
+    const left = 1 - (it.eaten ?? 0);
+    row('Hunger', '-' + Math.round(f.hunger * left));
+    if (f.thirst) row('Thirst', (f.thirst > 0 ? '-' : '+') + Math.abs(Math.round(f.thirst * left)));
+    if (f.raw && !(it.cooked && it.cooked >= 1)) row('Raw', 'cook it', true);
+  }
+  if (d.fluidCap) {
+    const amt = it.fluid?.amount ?? 0;
+    row(it.fluid && amt > 0.001 ? fluidName(it.fluid.type) : 'Empty', `${amt.toFixed(2)}/${d.fluidCap} L`, it.fluid?.type === 'tainted');
+    bar(amt / d.fluidCap, it.fluid?.type === 'tainted' ? '#7a8a2a' : '#2a6a9a');
+  }
+  if (d.uses !== undefined || d.light || d.battery) { const u = it.uses ?? 1; row(d.light || d.battery ? 'Battery' : 'Left', pct(u) + '%', u < 0.15); }
+  if (d.weapon) {
+    const w = d.weapon;
+    row('Damage', `${w.dmg[0]}-${w.dmg[1]}`);
+    if (w.mag) row('Loaded', `${it.ammo ?? 0}/${w.mag}`);
+    if (w.twoHanded) row('Grip', 'two hands');
+  }
+  if (d.clothing && d.clothing.covers.length) { row('Warmth', pct(d.clothing.insulation) + '%'); if (d.clothing.bite) row('Bite', d.clothing.bite + '%'); }
+  if (d.bag && it.inv) row('Holds', `${it.inv.contentWeight().toFixed(1)}/${d.bag.capacity} kg`);
+  if (d.medical) row('Use', d.medical.type);
+  if (d.literature?.skill) row('Teaches', d.literature.skill);
+  const kind = (CAT_LABEL[d.cat] || d.cat) + ' · ' + (itemWeight(it) * count).toFixed(count > 1 || itemWeight(it) < 1 ? 2 : 1) + ' kg' + (foot ? ` · ${foot[0]}x${foot[1]}` : '');
+  const desc = d.desc ? escapeHtml(d.desc.split(/(?<=[.!?])\s/)[0].slice(0, 120)) : '';
+  const value = d.value && d.value > 1 ? `<div class="v">≈ ${Math.round(d.value * count)} scrip at the hopper</div>` : '';
+  return `<h5>${escapeHtml(itemName(it))}${count > 1 ? ' ×' + count : ''}</h5><div class="k">${escapeHtml(kind)}</div>${rows.join('')}${value}${desc ? `<div class="d">${desc}</div>` : ''}${hint ? `<div class="h">${escapeHtml(hint)}</div>` : ''}`;
+}

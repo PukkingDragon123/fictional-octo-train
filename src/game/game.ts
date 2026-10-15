@@ -66,7 +66,9 @@ export class Game {
   /** multiplayer role */
   role: 'solo' | 'host' | 'client' = 'solo';
   /** gore: 0 off, 1 normal, 2 heavy (dismemberment, gibs, arterial spray); limbLoss: 1 = survivors can lose limbs */
-  sandbox = { dayLength: 60, creatures: 1, loot: 1, startHour: 8.5, collapseSpeed: 1, waterShutoffDays: 14, powerShutoffDays: 10, gore: 2, limbLoss: 1 };
+  sandbox = { dayLength: 60, creatures: 1, loot: 1, startHour: 8.5, collapseSpeed: 1, waterShutoffDays: 14, powerShutoffDays: 10, gore: 2, limbLoss: 1,
+    /** debt contract (src/game/debt): starting debt in scrip, installment interval in in-game days, band detonation 0 maims / 1 kills, final deadline 1 = lethal */
+    debt: 25000, debtDays: 2, bandLethal: 0, finalLethal: 0 };
   // lights
   ambient = new THREE.AmbientLight(0xffffff, 1);
   hemi = new THREE.HemisphereLight(0xbfd8ff, 0x405030, 0);
@@ -98,6 +100,16 @@ export class Game {
   survival: any = null;
   /** blood, gibs and dismemberment (src/gore) */
   gore: any = null;
+  /** furniture damage, breaking, debris, push / drag, wall holes (src/world/destruction.ts) */
+  destruct: any = null;
+  /** Staff Sergeant Voss, the hologram handler (src/game/handler.ts) */
+  handler: any = null;
+  /** the crew's debt ledger, hoppers, transport (src/game/debt) */
+  debt: any = null;
+  /** BAILIFF band rules: escape detection, shocks, removal, detonation (src/game/debt/band.ts) */
+  band: any = null;
+  /** BAILIFF band hologram HUD: boot(), ping(kind, value), expand(), collapse(), say(), toast() (src/ui/holo) */
+  holo: any = null;
   collapse = 0;
   /** title-screen mode: replaces player control with a scripted wanderer */
   attract: ((dt: number) => void) | null = null;

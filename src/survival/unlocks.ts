@@ -10,6 +10,7 @@ import { isUnlocked, unlock, stat, addStat, bumpStat, profile, resetProfile, flu
 import type { Player } from '../entities/player';
 import type { Env } from './body';
 import type { SkillKey } from './traits';
+import { RehabEffects } from './rehab';
 
 interface Rule {
   id: string;
@@ -24,9 +25,14 @@ interface Rule {
 export const UNLOCK_RULES: Rule[] = [
   { id: 'job:electrician', flags: ['first_light'] },
   { id: 'job:lifeguard', flags: ['pumps_on'] },
-  { id: 'job:developer', flags: ['node:SRV-1'] },
+  // the old render-node / exit chain gave way to the debt contract: these follow its flags now (the old flags still count)
+  { id: 'job:developer', flags: ['band:removed', 'node:SRV-1'] },
   { id: 'job:lab_tech', flags: ['visit:lab'] },
-  { id: 'job:returnee', flags: ['escaped'] },
+  { id: 'job:returnee', flags: ['contract:transport', 'escaped'], stat: ['transports_bought', 1] },
+  { id: 'job:fence', stat: ['scrip_deposited', 2000] },
+  { id: 'job:mover', stat: ['furniture_smashed', 30] },
+  { id: 'job:ex_officer', flags: ['contract:debt_cleared'] },
+  { id: 'trait:lifer', stat: ['installments_paid', 3] },
   { id: 'job:investigator', flags: ['scanner_mk2'], count: ['scan:', 5] },
   { id: 'job:radio_host', count: ['sig:', 3] },
   { id: 'job:explorer', count: ['visit:', 8] },
@@ -44,7 +50,7 @@ export const UNLOCK_RULES: Rule[] = [
   { id: 'trait:iron_nerves', stat: ['panic_attacks', 5] },
   { id: 'trait:been_here_before', stat: ['deaths', 1] },
   { id: 'trait:creature_whisperer', count: ['tamed:', 1] },
-  { id: 'trait:unbothered', flags: ['escaped'] },
+  { id: 'trait:unbothered', flags: ['contract:debt_cleared', 'escaped'] },
 ];
 
 /** display name of an unlock id ('job:nurse' -> 'Night-shift Nurse') */
@@ -69,6 +75,8 @@ export function unlockProgress(id: string): number {
 export class Unlocks {
   private evalT = 1;
   private driveAcc = 0;
+  /** upsides and downsides of the Rehab Section conditions and programmes */
+  rehab = new RehabEffects();
 
   constructor() {
     bus.on('flag', (k: string, on: boolean) => { if (on !== false) this.onFlag(k); });
@@ -112,6 +120,7 @@ export class Unlocks {
 
   update(p: Player, env: Env, dt: number, dh: number) {
     if (p.body.dead) return;
+    try { this.rehab.update(p, env, dt, dh); } catch (e) { console.warn('rehab effects', e); }
     // lifetime counters
     if (env.outdoor && !p.inVehicle) bumpStat('outdoor_h', dh);
     if (p.sleeping) bumpStat('sleep_h', dh);

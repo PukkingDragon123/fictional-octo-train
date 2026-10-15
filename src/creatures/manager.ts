@@ -25,6 +25,8 @@ import { UseObjectAction } from '../actions/world';
 import { itemDef } from '../items/item';
 import { tearDef, creatureLimbFx, CreatureLimbFx } from '../gore/tearing';
 import { redirectPart, isLimbPart } from '../survival/limbs';
+import { dreadBefore, dreadPlace, dreadAfter, dreadHost, dreadFrame, dreadFlickPoll, dreadFlickStep, lightOut } from './dread';
+import './spawnTables';
 
 /** what a creature was hit with (passed to the gore system) */
 export interface GoreHit { dmg: number; kind: string; fx: number; fz: number; crit?: boolean; by?: string; head?: boolean }
@@ -100,6 +102,7 @@ export class CreatureSystem implements GameSystem {
       for (const c of this.creatures.values()) this.interpolate(c, dt);
     }
     this.updateVisuals(dt);
+    try { dreadFrame(dt); } catch (e) { console.error('dread', e); }
     this.updateThreat(dt);
   }
 
@@ -205,7 +208,9 @@ export class CreatureSystem implements GameSystem {
       const cone = (p.isLocal && G.view ? G.view.vis.coneHalf : 1.4) + 0.05;
       if (ang > cone && (coneOnly || d > 2.0)) continue;
       if (!lineOfSight(z, p.x, p.z, c.x, c.z)) continue;
-      const lit = (G.view?.zone === z ? G.lightLevelAt(c.x, c.z) : 0.5) + (p.flashlightOn && ang < 0.55 ? 1 : 0);
+      // a flashlight browning out (src/creatures/dread.ts) shows nothing
+      const out = lightOut(p);
+      const lit = (G.view?.zone === z ? G.lightLevelAt(c.x, c.z) * (out ? 0.3 : 1) : 0.5) + (p.flashlightOn && !out && ang < 0.55 ? 1 : 0);
       if (lit < 0.1 && d > 3) continue;
       if (p.sleeping || p.body.downed) continue;
       return true;
@@ -234,6 +239,8 @@ export class CreatureSystem implements GameSystem {
       return;
     }
     if (c.stagger > 0) { this.applyMove(c, z, dt); return; }
+    // some things only cross the room while your light is out
+    if (dreadFlickStep(c, dt, (gx, gz, sp) => this.moveTo(c, z, gx, gz, sp, dt, 1.2))) { this.applyMove(c, z, dt); return; }
     c.thinkT -= dt;
     const doThink = c.thinkT <= 0;
     if (doThink) {
@@ -241,6 +248,7 @@ export class CreatureSystem implements GameSystem {
       this.perceive(c, z, 0.25);
     }
     if (!(c.sp.think && c.sp.think(c, dt))) this.defaultBrain(c, z, dt, doThink);
+    try { dreadHost(c, dt); } catch (e) { console.error('dreadHost', e); }
     this.applyMove(c, z, dt);
   }
 
@@ -362,6 +370,8 @@ export class CreatureSystem implements GameSystem {
         const want = 9;
         if ((dist < 4 && !c.observed) || t.body.downed || t.body.health < 30) { c.setState('chase'); return; }
         if (c.observed && dist < 12 && this.rng.chance(dt * 0.6)) { c.setState('flee'); c.goal = this.fleeSpot(c, z, t.x, t.z); return; }
+        // looked at, it stops dead and stares back; it only comes closer while you look away
+        if (c.observed && dist < 16) { c.speed = 0; c.targetFacing = Math.atan2(t.z - c.z, t.x - c.x); return; }
         if (dist > want + 3) this.moveTo(c, z, t.x, t.z, sp.walk, dt, want);
         else c.speed = 0;
         c.targetFacing = Math.atan2(t.z - c.z, t.x - c.x);
@@ -751,13 +761,20 @@ export class CreatureSystem implements GameSystem {
       c.rig.root.visible = show || !!c.rig.eyes;
       if (c.rig.eyes) for (const e of c.rig.eyes) e.visible = show || (d < 16 && lineOfSight(G.zone, local.x, local.z, c.x, c.z) && !c.dead);
       c.rig.body.visible = show && !c.mem.gibbed;
-      c.rig.root.position.set(c.x, c.y, c.z);
-      c.rig.root.rotation.y = Math.PI / 2 - c.facing;
+      // the dread layer may hold this frame (stop-motion, frozen while you look at it)
+      let held = false;
+      try { held = dreadBefore(c, dt); } catch (e) { console.error('dread', e); }
+      if (!held) {
+        c.rig.root.position.set(c.x, c.y, c.z);
+        c.rig.root.rotation.y = Math.PI / 2 - c.facing;
+        dreadPlace(c, dt);
+      }
       c.animT += dt;
       c.hitFlash = Math.max(0, c.hitFlash - dt);
-      try { c.sp.animate(c.rig, c, c.animT, dt); } catch (e) { console.error('anim', c.sp.key, e); }
-      if (!c.dead) this.limbVisuals(c);
+      if (!held) try { c.sp.animate(c.rig, c, c.animT, dt); } catch (e) { console.error('anim', c.sp.key, e); }
+      if (!c.dead) { if (!held) this.limbVisuals(c); }
       else if (c.rig.root.rotation.x || c.rig.root.rotation.z) { c.rig.root.rotation.x = 0; c.rig.root.rotation.z = 0; }
+      try { dreadAfter(c, dt); dreadFlickPoll(c); } catch (e) { console.error('dread', c.sp.key, e); }
       if (c.dead) {
         const k = Math.min(1, c.deathT * 2 + (c.deathT > 0 ? 0 : 1));
         const rz = c.sp.flags?.flying ? 0 : Math.PI / 2;

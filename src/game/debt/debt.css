@@ -1,0 +1,36 @@
+/* Debt contract (src/game/debt): the hopper's projected tally and the transport ending. */
+
+/* the number the hopper's projector throws above the plate: cyan hologram, scanlines, a flicker */
+.dbt-roll {
+  position: fixed; z-index: 30; pointer-events: none; transform: translate(-50%, -100%);
+  font-family: var(--font-readout); color: #9af6ff; text-align: center; line-height: 1;
+  letter-spacing: var(--ls); text-shadow: 0 0 calc(var(--px) * 3) rgba(42, 208, 255, 0.85), var(--px) var(--px) 0 rgba(0, 20, 30, 0.8);
+  animation: dbt-flick 2.3s steps(1) infinite; white-space: nowrap;
+}
+.dbt-roll::after { content: ''; position: absolute; inset: calc(var(--px) * -2); background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.32) 0 var(--px), transparent var(--px) calc(var(--px) * 3)); pointer-events: none; }
+.dbt-roll b { display: block; font-weight: normal; font-size: calc(var(--px) * 18); }
+.dbt-roll i { display: block; font-style: normal; font-family: var(--font-stencil); font-size: calc(var(--px) * 5); opacity: 0.8; margin-top: var(--px); }
+.dbt-roll s { display: block; text-decoration: none; font-family: var(--font-stencil); font-size: calc(var(--px) * 5); color: #ffcf70; text-shadow: 0 0 calc(var(--px) * 2) rgba(255, 160, 40, 0.8); margin-top: calc(var(--px) * 2); }
+.dbt-roll.big b { color: #fff2c0; font-size: calc(var(--px) * 24); text-shadow: 0 0 calc(var(--px) * 4) rgba(255, 176, 64, 0.95), var(--px) var(--px) 0 #000; }
+@keyframes dbt-flick { 0%, 100% { opacity: 1; } 41% { opacity: 0.55; } 42% { opacity: 1; } 77% { opacity: 0.8; } 78% { opacity: 1; } }
+
+/* ---------------------------------------------------------------- the transport ending */
+.dbt-end { position: fixed; inset: 0; z-index: 400; background: #000; opacity: 0; transition: opacity 3s ease-in; display: flex; align-items: center; justify-content: center; pointer-events: auto; overflow: hidden; }
+.dbt-end.on { opacity: 1; }
+/* VHS: tracking band, grain, a timestamp in the corner */
+.dbt-end::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 3px); pointer-events: none; }
+.dbt-end::after { content: ''; position: absolute; left: 0; right: 0; height: 12%; top: -12%; background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.06), transparent); animation: dbt-track 7s linear infinite; pointer-events: none; }
+@keyframes dbt-track { to { top: 112%; } }
+.dbt-end .vhs { position: absolute; left: 4vw; top: 4vh; font-family: var(--font-stencil); font-size: var(--t-label); color: #e8e4d8; text-shadow: var(--px) 0 0 rgba(255, 0, 60, 0.6), calc(var(--px) * -1) 0 0 rgba(0, 220, 255, 0.6); opacity: 0; animation: dbt-line 1s ease 1s forwards; }
+.dbt-end .vhs.r { left: auto; right: 4vw; }
+.dbt-end-inner { max-width: 640px; padding: 24px; text-align: center; color: #d8d2bc; font-family: var(--font-body); font-size: var(--t-big); line-height: 1.05; }
+.dbt-end-inner p { opacity: 0; animation: dbt-line 3s ease forwards; margin: 0 0 22px; }
+.dbt-end-inner .l1 { animation-delay: 3.5s; }
+.dbt-end-inner .l2 { animation-delay: 8s; }
+.dbt-end-inner .l3 { animation-delay: 13s; font-family: var(--font-stencil); font-size: var(--t-label); color: #ffb040; letter-spacing: var(--ls); }
+.dbt-end-inner .l4 { animation-delay: 18s; font-size: var(--t-body); color: #8a8270; }
+.dbt-end-inner .l5 { animation-delay: 22s; font-size: calc(var(--t-huge) * 2); line-height: 1; color: #f0ead8; }
+.dbt-end-btn { opacity: 0; animation: dbt-line 2s ease 26s forwards; font-family: var(--font-stencil); font-size: var(--t-label); text-transform: uppercase; padding: 8px 16px; background: #e8e2cc; color: #0c0a06; border: 0; margin: 6px; cursor: var(--cur-hand); }
+.dbt-end-btn.ghost { background: transparent; color: #8a8270; outline: var(--px) solid #3a3428; }
+@keyframes dbt-line { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .dbt-end::after, .dbt-roll { animation: none; } }

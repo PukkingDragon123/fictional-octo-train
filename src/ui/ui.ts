@@ -14,6 +14,9 @@ import { OCCUPATIONS, TRAITS } from '../survival/traits';
 import { itemIcon } from './icons';
 import { sfx } from './menus/sfx';
 import { calm } from './menus/settings';
+import './holo/diegetic.css';
+import { initSubtitles, scrawl, speech, shout, radioLine } from './holo/subs';
+import { debtorNo } from './holo/holo';
 
 export interface MenuOption {
   label: string;
@@ -25,6 +28,43 @@ export interface MenuOption {
 }
 
 interface Bubble { el: HTMLDivElement; target: Player | { x: number; y: number; z: number }; until: number; born: number; rise: number; kind: string; }
+/** a ring of tally marks scratched round a survivor's feet while they work */
+interface Tally { el: SVGSVGElement; lines: SVGLineElement[]; shown: number }
+const TALLY = 20;
+const SVGNS = 'http://www.w3.org/2000/svg';
+function makeTally(): Tally {
+  const el = document.createElementNS(SVGNS, 'svg') as SVGSVGElement;
+  el.setAttribute('class', 'w-tally');
+  el.setAttribute('aria-hidden', 'true');
+  const lines: SVGLineElement[] = [];
+  for (let i = 0; i < TALLY; i++) { const l = document.createElementNS(SVGNS, 'line') as SVGLineElement; el.appendChild(l); lines.push(l); }
+  return { el, lines, shown: -1 };
+}
+/** stroke i of the ring at progress n (strokes): four uprights and a slash per group of five, round an ellipse on the floor */
+function placeTally(t: Tally, rx: number, ry: number, n: number) {
+  const pad = 6, W = rx * 2 + pad * 2, H = ry * 2 + pad * 2 + 10;
+  t.el.setAttribute('width', String(Math.ceil(W))); t.el.setAttribute('height', String(Math.ceil(H)));
+  const cx = W / 2, cy = H / 2;
+  const groups = TALLY / 5;
+  const at = (g: number, k: number, r: number): [number, number] => {
+    const a = -Math.PI / 2 + ((g + 0.12 + k * 0.17) / groups) * Math.PI * 2;
+    return [cx + Math.cos(a) * rx * r, cy + Math.sin(a) * ry * r];
+  };
+  for (let i = 0; i < TALLY; i++) {
+    const g = Math.floor(i / 5), k = i % 5;
+    let a: [number, number], b: [number, number];
+    if (k < 4) { a = at(g, k, 0.78); b = at(g, k, 1.18); }
+    else { a = at(g, -0.25, 0.86); b = at(g, 3.25, 1.1); }
+    const frac = Math.max(0, Math.min(1, n - i));
+    const l = t.lines[i];
+    if (frac <= 0) { l.setAttribute('class', 'ghost'); }
+    else l.setAttribute('class', frac < 1 ? 'cur' : '');
+    const bx = frac > 0 ? a[0] + (b[0] - a[0]) * frac : b[0], by = frac > 0 ? a[1] + (b[1] - a[1]) * frac : b[1];
+    l.setAttribute('x1', a[0].toFixed(1)); l.setAttribute('y1', a[1].toFixed(1)); l.setAttribute('x2', bx.toFixed(1)); l.setAttribute('y2', by.toFixed(1));
+  }
+  return [W, H];
+}
+function strHash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 /** Generates the canvas-weave background used by every panel. */
 function weaveDataUrl(): string {
@@ -75,7 +115,8 @@ function menuIcon(o: { label: string; icon?: string }): string {
 export class UI {
   root: HTMLElement;
   bubbles: Bubble[] = [];
-  bars = new Map<string, HTMLDivElement>();
+  /** timed-action tally rings by player id */
+  bars = new Map<string, Tally>();
   names = new Map<string, HTMLDivElement>();
   hover: PickTarget | null = null;
   hoverLabel: HTMLDivElement;
@@ -89,6 +130,7 @@ export class UI {
   scanner: any = null;
   modal: HTMLElement | null = null;
   private hlMesh: THREE.Mesh | null = null;
+  private tmpV = new THREE.Vector3();
   private hlKey = '';
   onWorldClick?: (t: PickTarget, button: number) => void;
   onInteractKey?: () => void;
@@ -116,6 +158,7 @@ export class UI {
     bus.on('think', (p: Player, text: string) => this.say(p, text, 'think'));
     bus.on('say', (p: Player, text: string) => this.say(p, text, 'say'));
     bus.on('halo', (p: Player, text: string, kind = '') => this.halo(p, text, kind));
+    initSubtitles(this);
   }
 
   blocksMovement() { return !!this.readerEl || !!this.modal || !!this.chatEl; }
@@ -152,11 +195,11 @@ export class UI {
   // ---------------- bubbles ----------------
   say(p: Player, text: string, kind: 'say' | 'think' | 'shout' | 'radio' = 'say', secs = 3.5) {
     if (!text) return;
+    // radio is burned into the corner of the picture, not hung over anyone
+    if (kind === 'radio') { radioLine(p && !p.isLocal ? p.name : 'RX', text, secs + text.length * 0.03); return; }
     // replace previous bubble of same kind for this player
     for (const b of this.bubbles) if (b.target === p && b.kind === kind) b.until = 0;
-    const el = document.createElement('div');
-    el.className = 'w-bubble ' + kind;
-    el.textContent = kind === 'think' ? text : kind === 'radio' ? '<<' + text + '>>' : text;
+    const el = kind === 'think' ? scrawl(text, 'think') : kind === 'shout' ? shout(text) : speech(text, 'say');
     this.root.appendChild(el);
     this.bubbles.push({ el, target: p, until: G.time + secs + text.length * 0.03, born: G.time, rise: 0, kind });
   }
@@ -192,8 +235,14 @@ export class UI {
   toast(title: string, sub = '', secs = 3.5) {
     // the unlock celebration below already covers plain "X UNLOCKED" notices
     if (/UNLOCKED$/.test(title) && performance.now() - this.lastUnlockAt < 2000) return;
+    sub = sub.replace(/on the watch/i, 'on the band');
+    // entering a place: a title card, not a notice
+    const zn = String((G.zone as any)?.name || '').toUpperCase();
+    if (zn && title === zn) { this.placeCard(title, sub, secs + 1); return; }
+    // the band projects everything else while its hologram is up
+    if (G.holo?.toast?.(title, sub, secs)) return;
     const el = document.createElement('div');
-    el.className = 'k-toast';
+    el.className = 'k-toast osd';
     el.dataset.t = title;
     el.dataset.at = String(performance.now());
     el.innerHTML = `<span class="tt"></span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}`;
@@ -206,6 +255,23 @@ export class UI {
     step();
   }
 
+  private placeEl: HTMLDivElement | null = null;
+  /** a film title card low on the left: where you are */
+  placeCard(title: string, sub = '', secs = 5) {
+    this.placeEl?.remove();
+    const el = document.createElement('div');
+    el.className = 'k-place';
+    el.setAttribute('role', 'status');
+    const b = document.createElement('b');
+    [...title].forEach((ch, i) => { const s = document.createElement('i'); s.textContent = ch; s.style.animationDelay = calm() ? '0s' : (i * 0.035 + (strHash(title + i) % 5) * 0.03).toFixed(2) + 's'; b.appendChild(s); });
+    el.appendChild(b);
+    if (sub) { const sm = document.createElement('small'); sm.textContent = sub; el.appendChild(sm); }
+    document.body.appendChild(el);
+    this.placeEl = el;
+    setTimeout(() => el.classList.add('out'), secs * 1000);
+    setTimeout(() => { el.remove(); if (this.placeEl === el) this.placeEl = null; }, secs * 1000 + 1500);
+  }
+
   /** profile unlock: a new occupation or trait is on the intake form */
   unlockToast(id: string) {
     const [ns, key] = id.split(':');
@@ -216,9 +282,10 @@ export class UI {
     // drop a plain notice another system may have just posted for the same unlock
     this.toastHost?.querySelectorAll('.k-toast:not(.unlock)').forEach((n) => { const e = n as HTMLElement; if (/UNLOCKED$/.test(e.dataset.t || '') && performance.now() - Number(e.dataset.at || 0) < 2000) e.remove(); });
     const el = document.createElement('div');
-    el.className = 'k-toast unlock';
-    const star = `<img src="${glyphUrl('star', 0xffd04a, 0x5a3a08)}" alt="" style="width:calc(var(--px) * 9);height:calc(var(--px) * 9)">`;
-    el.innerHTML = `<div class="u-strip"><span>${escapeHtml(kind)}</span><i>MERIDIAN HR</i></div><div class="u-body"><div class="u-ico">${icon ? `<img src="${icon}" alt="">` : star}</div><div><div class="u-name">${escapeHtml(name)}</div><div class="u-sub">Now on the personnel file for your next run.</div></div><div class="u-sweep"></div></div>`;
+    el.className = 'k-toast unlock tape';
+    el.setAttribute('role', 'status');
+    el.innerHTML = `<div class="tp"><div class="tp-k">MERIDIAN HR // ${escapeHtml(kind)}</div><div class="tp-row">${icon ? `<img src="${icon}" alt="">` : ''}<div class="tp-name">${escapeHtml(name)}</div></div><div class="tp-sub">Now on the personnel file for your next run.</div><div class="tp-stamp">FILED</div></div>`;
+    void glyphUrl;
     this.pushToast(el, 6.5);
     sfx('unlock');
     G.audio?.ui?.('scanDone', 0.4);
@@ -240,8 +307,9 @@ export class UI {
   private menuKeyboard = false;
   private buildMenu(title: string, opts: MenuOption[], parent?: HTMLDivElement, icon = ''): HTMLDivElement {
     const el = document.createElement('div');
-    el.className = 'k-menu';
+    el.className = 'k-menu tg' + (parent ? ' sub' : '');
     el.setAttribute('role', 'menu');
+    if (title) el.setAttribute('aria-label', title);
     (el as any)._parent = parent || null;
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     if (title) {
@@ -292,6 +360,16 @@ export class UI {
       else if (o.disabled) mi.addEventListener('click', (e) => { e.stopPropagation(); sfx('error', 0.6); });
       el.appendChild(mi);
     }
+    // deal the tags out in a loose fan: the middle ones stick out furthest, each a little crooked
+    const tags = [...el.querySelectorAll(':scope > .mi')] as HTMLElement[];
+    const n = tags.length;
+    const reach = Math.min(14, 3 + n * 1.5);
+    tags.forEach((mi, i) => {
+      const u = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
+      mi.style.setProperty('--dx', String(Math.round((1 - u * u) * reach)));
+      mi.style.setProperty('--r', (((strHash(title + (mi.textContent || '') + i) % 9) - 4) * 0.55).toFixed(2) + 'deg');
+      mi.style.animationDelay = calm() ? '0s' : (i * 0.022).toFixed(3) + 's';
+    });
     return el;
   }
   /** arrows / enter / esc drive an open context menu; those keys never reach the game meanwhile */
@@ -368,10 +446,11 @@ export class UI {
 
   centerMessage(html: string, button?: { label: string; action: () => void }) {
     const el = document.createElement('div');
-    el.className = 'k-center-msg';
+    el.className = 'k-center-msg burn';
+    el.setAttribute('role', 'alertdialog');
     el.innerHTML = `<div class="k-cm-t">${html}</div>`;
     if (button) {
-      const b = document.createElement('div'); b.className = 'k-btn'; b.tabIndex = 0; b.setAttribute('role', 'button'); b.textContent = button.label;
+      const b = document.createElement('div'); b.className = 'k-btn k-stamp'; b.tabIndex = 0; b.setAttribute('role', 'button'); b.textContent = button.label;
       b.onclick = () => { el.remove(); this.modal = null; sfx('confirm'); button.action(); };
       b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); } });
       el.appendChild(b);
@@ -408,21 +487,29 @@ export class UI {
       if (n) b.el.style.top = (parseFloat(b.el.style.top) - n * 19) + 'px';
       per.set(b.target, n + 1);
     }
-    // action progress bars
+    // timed actions: tally marks scratched into the floor round the worker's feet
     const seen = new Set<string>();
+    const pxm = g.pr.cssPerMetre ? g.pr.cssPerMetre() : 40;
+    const pitch = Math.sin(g.pr.pitch ?? 0.63);
     for (const p of g.players.values()) {
       const a = p.actions.current;
       const showBar = p.isLocal ? (a && a.started && a.showBar) : (p.remote?.state?.ad ?? 0) > 0.6;
       if (!showBar || p.zoneKey !== g.local.zoneKey) continue;
       seen.add(p.id);
-      let el = this.bars.get(p.id);
-      if (!el) { el = document.createElement('div'); el.className = 'w-bar'; el.innerHTML = '<i></i>'; this.root.appendChild(el); this.bars.set(p.id, el); }
-      const s = g.pr.worldToScreen(new THREE.Vector3(p.x, p.y + 2.25, p.z));
-      el.style.left = s.x + 'px'; el.style.top = s.y + 'px';
+      let t = this.bars.get(p.id);
+      if (!t) { t = makeTally(); this.root.appendChild(t.el); this.bars.set(p.id, t); }
       const prog = p.isLocal ? a!.progress : Math.min(1, (p.remote!.state!.at ?? 0) / Math.max(0.01, p.remote!.state!.ad));
-      (el.firstChild as HTMLElement).style.width = Math.round(prog * 100) + '%';
+      const n = prog * TALLY;
+      const s = g.pr.worldToScreen(this.tmpV.set(p.x, p.y + 0.03, p.z));
+      const rx = Math.max(16, pxm * 0.62), ry = rx * Math.max(0.35, pitch);
+      const [W, H] = placeTally(t, rx, ry, n);
+      t.el.style.transform = `translate(${Math.round(s.x - W / 2)}px, ${Math.round(s.y - H / 2)}px)`;
+      // a scratch sound for each new mark
+      const whole = Math.floor(n);
+      if (p.isLocal && whole !== t.shown && t.shown >= 0 && whole > 0) G.audio?.ui?.('tab', 0.12);
+      t.shown = whole;
     }
-    for (const [id, el] of this.bars) if (!seen.has(id)) { el.remove(); this.bars.delete(id); }
+    for (const [id, t] of this.bars) if (!seen.has(id)) { t.el.remove(); this.bars.delete(id); }
     // teammate name tags (only when visible)
     const nseen = new Set<string>();
     for (const p of g.players.values()) {
@@ -430,7 +517,9 @@ export class UI {
       nseen.add(p.id);
       let el = this.names.get(p.id);
       if (!el) { el = document.createElement('div'); el.className = 'w-name'; this.root.appendChild(el); this.names.set(p.id, el); }
-      el.textContent = p.name + (p.body.downed || p.remote?.state?.down ? ' — DOWN' : '');
+      const down = !!(p.body.downed || p.remote?.state?.down);
+      el.textContent = debtorNo(p) + ' ' + p.name + (down ? ' — DOWN' : '');
+      el.classList.toggle('down', down);
       const s = g.pr.worldToScreen(new THREE.Vector3(p.x, p.y + 2.0, p.z));
       el.style.left = s.x + 'px'; el.style.top = s.y + 'px';
     }

@@ -38,6 +38,7 @@ import { LimbSystem } from '../survival/limbSystem';
 import { synth } from '../audio/sounds';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
+import { DestructionSystem } from '../world/destruction';
 
 /** gore sound recipes, synthesised a few at a time in the background so the first kill does not hitch */
 const WARM = ['gore_wet_hit', 'gore_bone_crack', 'gore_squelch', 'gore_tear', 'gore_burst', 'gore_gib_land', 'gore_spurt', 'gore_crunch', 'gore_chip_land', 'gore_fluff', 'gore_crumble', 'gore_static'];
@@ -57,7 +58,9 @@ type GoreEv =
   /** a creature has a survivor in its grip and is pulling (host → all) */
   | { t: 'T'; id: string; pid: string; pt: string; h: number; v: string }
   /** a survivor lost a limb (their machine → all) */
-  | { t: 'L'; id: string; pt: string; w: string; x: number; z: number };
+  | { t: 'L'; id: string; pt: string; w: string; x: number; z: number }
+  /** destruction fx (pushed furniture moving): handed to G.destruct */
+  | { t: 'D'; [k: string]: any };
 
 interface Artery { obj: THREE.Object3D; off: THREE.Vector3; dir: THREE.Vector3; t: number; dur: number; str: number; K: BloodKind; tint: number; zone: string; ph: number; f: number; acc: number; owner: boolean; dec: number; tag: string }
 
@@ -117,6 +120,8 @@ export class GoreSystem implements GameSystem {
     bus.on('death', (p: Player) => this.localDeath(p));
     // survivors losing limbs (runs whatever the gore level; it decides what to show)
     if (!(G as any).limbs) G.addSystem(new LimbSystem());
+    // furniture damage, debris, wall holes, push / drag (src/world/destruction.ts)
+    if (!G.destruct) G.addSystem(new DestructionSystem());
   }
 
   /** 0 off, 1 normal, 2 heavy */
@@ -159,6 +164,7 @@ export class GoreSystem implements GameSystem {
   private send(ev: GoreEv) { if (G.role !== 'solo') G.net?.broadcastFx?.('gore', ev); }
   /** fx from another peer */
   onNet(ev: GoreEv) {
+    if (ev?.t === 'D') { G.destruct?.onNet?.(ev); return; }
     if (!ev || this.lv <= 0) return;
     try {
       switch (ev.t) {
@@ -357,6 +363,23 @@ export class GoreSystem implements GameSystem {
     const g = grow ?? (this.lv >= 2 ? 9 : 7);
     const dd = this.decals.commit(z, d, g, { grow: g });
     if (dd) this.send({ t: 'pool', z: z.key, d: dd, g });
+  }
+
+  // ================================================================ wax replicas (furniture of a sort: src/world/destruction.ts)
+  /** a hit on a wax replica: something pale and thin seeps out */
+  replicaBleed(x: number, y: number, z: number, nx: number, nz: number, k = 1) {
+    if (this.lv <= 0) return;
+    this.jet(KINDS.pale, 0xffffff, x, y, z, nx, nz, Math.round(8 * k * this.mul) + 1, 1.8, 0.8, 1.2, 0.026, 0.05);
+  }
+  /** a replica coming apart: pale gouts, chunks of wax and something inside that should not be there */
+  replicaBurst(zone: Zone, x: number, y: number, z: number, dx: number, dz: number) {
+    if (this.lv <= 0) return;
+    const K = KINDS.pale, m = this.mul;
+    this.jet(K, 0xffffff, x, y, z, dx, dz, Math.round(40 * m), 2.6, 1.4, 2.0, 0.032, 0.06);
+    this.mist(K, 0xffffff, x, y, z, dx, dz, Math.round(10 * m), 1.2);
+    this.gibs.chunks(zone.key, KINDS.red, 0xe8d0c0, x, y, z, Math.round(4 * m) + 1, v3.set(dx, 0, dz), 2.2, 1.8);
+    this.snd('gore_squelch', x, z, 0.9, zone.key);
+    if (this.authority) this.pool(zone, x + dx * 0.3, z + dz * 0.3, 1.0, K, 0xffe8e0, 5);
   }
 
   // ================================================================ creatures (authority side)

@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import type { Appearance, Outfit } from './humanRig';
 import { OutfitShape } from './humanClothes';
+import { shapeOf, noseOf, noseK, earK, suitLooks } from './humanLooks';
 
 // ------------------------------------------------------------------ skeleton
 export const BONES = [
@@ -36,8 +37,9 @@ export interface Dims {
 export function rigDims(app: Appearance): Dims {
   const s = app.height || 1;
   const fem = app.bodyShape ?? 0.3;
-  const bw = app.build === 'slim' ? 0.92 : app.build === 'broad' ? 1.09 : 1;
-  const mass = app.build === 'slim' ? 0.9 : app.build === 'broad' ? 1.14 : 1;
+  const b = String(app.build);
+  const bw = b === 'slim' ? 0.92 : b === 'broad' ? 1.09 : b === 'wiry' ? 0.95 : b === 'heavy' ? 1.07 : b === 'stocky' ? 1.12 : 1;
+  const mass = b === 'slim' ? 0.9 : b === 'broad' ? 1.14 : b === 'wiry' ? 0.84 : b === 'heavy' ? 1.3 : b === 'stocky' ? 1.18 : 1;
   // heads a touch larger than life read better at isometric distances
   const headS = 1.06 - fem * 0.035;
   const sh = 0.184 * bw * (1 - 0.08 * fem);
@@ -404,6 +406,7 @@ export function cutSpec(part: string, d: Dims, sh?: OutfitShape): { bone: BoneNa
 export interface BuildResult { geometry: THREE.BufferGeometry; tris: number; sole: number }
 
 export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, cond: BuildCond): BuildResult {
+  ({ o, sh } = suitLooks(app, o, sh));
   const B = new SkinBuilder();
   const s = d.s, fem = d.fem, mass = d.mass, bw = d.bw;
   const R = d.rest;
@@ -857,11 +860,11 @@ function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
   const hp = d.rest.head;
   const fem = d.fem;
   const H = BI.head;
-  const face = app.face ?? 0;
-  // shape tweaks: jaw width, chin, cheekbones per face variant / body shape
-  const jaw = (1 - fem * 0.12) * (1 + (face === 4 ? 0.05 : 0) - (face === 2 ? 0.03 : 0));
-  const chin = 1 - fem * 0.06 + (face === 5 ? 0.04 : 0);
-  const cheek = 1 + (face === 3 ? 0.03 : 0) + fem * 0.01;
+  // shape tweaks: jaw width, chin, cheekbones per face shape (humanLooks) / body shape
+  const SK = shapeOf(app);
+  const jaw = (1 - fem * 0.12) * SK.jaw;
+  const chin = (1 - fem * 0.06) * SK.chin;
+  const cheek = SK.cheek + fem * 0.01;
   const tweak = (row: HeadRow, deg: number) => {
     let r = headR(row, deg);
     const a = Math.abs(deg);
@@ -869,9 +872,14 @@ function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
     if (a >= 30 && a <= 110) r *= 1 + (jaw - 1) * lowFace;
     if (a < 30) r *= 1 + (chin - 1) * lowFace;
     if (row.y > 0.06 && row.y < 0.1 && a > 15 && a < 70) r *= cheek;
+    // gaunt: hollow under the cheekbones
+    if (SK.hollow && row.y > 0.02 && row.y < 0.065 && a > 25 && a < 80) r *= 1 - 0.05 * SK.hollow * Math.sin(((row.y - 0.02) / 0.045) * Math.PI);
+    if (SK.wide !== 1 && a > 20 && a < 160) r *= 1 + (SK.wide - 1) * Math.sin((a * Math.PI) / 180);
     return r;
   };
-  const tr = (p: V3): V3 => [hp[0] + p[0] * hs, hp[1] + p[1] * hs, hp[2] + p[2] * hs];
+  // a longer / shorter lower face stretches the rows under the cheekbones
+  const longY = (y: number) => (SK.long !== 1 && y < 0.07 ? 0.07 + (y - 0.07) * SK.long : y);
+  const tr = (p: V3): V3 => [hp[0] + p[0] * hs, hp[1] + longY(p[1]) * hs, hp[2] + p[2] * hs];
   const headPt = (y: number, deg: number, off = 0): V3 => {
     const row = sampleHead(y);
     const t = (deg * Math.PI) / 180;
@@ -887,7 +895,8 @@ function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
 
   // projection helpers into the head region
   const projUV = (p: V3): [number, number] => {
-    const lx = (p[0] - hp[0]) / hs, ly = (p[1] - hp[1]) / hs, lz = (p[2] - hp[2]) / hs - 0.006;
+    const lx = (p[0] - hp[0]) / hs, ly0 = (p[1] - hp[1]) / hs, lz = (p[2] - hp[2]) / hs - 0.006;
+    const ly = SK.long !== 1 && ly0 < 0.07 ? 0.07 + (ly0 - 0.07) / SK.long : ly0;
     const a = Math.atan2(lx, lz) / (Math.PI * 2) + 0.5;
     return [REG.HEAD.x + a * REG.HEAD.w, REG.HEAD.y + (1 - vOf(VMAP.HEAD, ly)) * REG.HEAD.h];
   };
@@ -896,29 +905,33 @@ function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
 
   // nose
   {
-    const f = (y: number) => headR(sampleHead(y), 0) + sampleHead(y).zc;
-    const nw = 0.016 * (face === 4 ? 1.2 : face === 2 ? 0.9 : 1) * (1 - fem * 0.12);
-    const len_ = 0.021 * (face === 5 ? 1.15 : 1) * (1 - fem * 0.15);
+    const f = (y: number) => tweak(sampleHead(y), 0) + sampleHead(y).zc;
+    const NK = noseK(noseOf(app));
+    const nw = 0.016 * NK.w * (1 - fem * 0.12);
+    const len_ = 0.021 * NK.len * (1 - fem * 0.15) * (1 - NK.flat * 0.35);
+    const cx = NK.crook;
     const top = tr([0, 0.1, f(0.1) - 0.002]);
-    const tip = tr([0, 0.058, f(0.058) + len_]);
-    const bot = tr([0, 0.047, f(0.047) + len_ * 0.45]);
-    const l = tr([nw, 0.052, f(0.052) - 0.006]);
-    const r = tr([-nw, 0.052, f(0.052) - 0.006]);
-    const ml = tr([nw * 0.55, 0.08, f(0.08) + len_ * 0.25]);
-    const mr = tr([-nw * 0.55, 0.08, f(0.08) + len_ * 0.25]);
+    const tip = tr([cx, 0.058, f(0.058) + len_]);
+    const bot = tr([cx * 0.8, 0.047, f(0.047) + len_ * 0.45]);
+    const l = tr([nw + cx * 0.5, 0.052, f(0.052) - 0.006]);
+    const r = tr([-nw + cx * 0.5, 0.052, f(0.052) - 0.006]);
+    const ml = tr([nw * 0.55 + cx * 0.6, 0.08, f(0.08) + len_ * 0.25 + NK.bump]);
+    const mr = tr([-nw * 0.55 + cx * 0.6, 0.08, f(0.08) + len_ * 0.25 + NK.bump]);
     const P = [top, tip, bot, l, r, ml, mr].map((p) => vP(p, 80));
     const [T, Tp, Bt, L, Rr, ML, MR] = P;
     const ins = tr([0, 0.07, f(0.07) - 0.03]);
     for (const t of [[T, ML, Tp], [T, Tp, MR], [ML, L, Tp], [MR, Tp, Rr], [L, Bt, Tp], [Rr, Tp, Bt], [T, MR, Rr], [T, L, ML]] as number[][]) B.triOut(t[0], t[1], t[2], ins);
   }
   // ears
+  const EK = earK(app.ears ?? 0);
   for (const k of [1, -1]) {
     const a = k * 95;
-    const p0 = headPt(0.104, a), p1 = headPt(0.058, a);
-    const out = 0.014;
+    const ys = EK.size, ym = 0.081;
+    const p0 = headPt(ym + (0.104 - ym) * ys, a), p1 = headPt(ym + (0.058 - ym) * ys, a);
+    const out = 0.014 * EK.out + EK.lump * 0.004;
     const e0 = tr([p0[0], p0[1], p0[2] + 0.004]), e1 = tr([p1[0], p1[1], p1[2] + 0.002]);
-    const e2 = tr([p0[0] + k * out, 0.1, p0[2] - 0.018]), e3 = tr([p1[0] + k * out * 0.7, 0.062, p1[2] - 0.012]);
-    const e4 = tr([p0[0] + k * 0.002, 0.11, p0[2] - 0.028]);
+    const e2 = tr([p0[0] + k * out, ym + (0.1 - ym) * ys, p0[2] - 0.018 * ys]), e3 = tr([p1[0] + k * out * 0.7, ym + (0.062 - ym) * ys, p1[2] - 0.012 * ys]);
+    const e4 = tr([p0[0] + k * (0.002 + EK.lump * 0.004), ym + (0.11 - ym) * ys, p0[2] - 0.028 * ys]);
     const ids = [e0, e1, e2, e3, e4].map((p) => vP(p, -1));
     const ins = tr([0, 0.08, -0.01]);
     B.triOut(ids[0], ids[2], ids[1], ins); B.triOut(ids[1], ids[2], ids[3], ins); B.triOut(ids[0], ids[4], ids[2], ins);
@@ -936,20 +949,31 @@ function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
       for (let c = 0; c < 2; c++) { B.triOut(ids[0][c], ids[1][c], ids[1][c + 1], centre); B.triOut(ids[0][c], ids[1][c + 1], ids[0][c + 1], centre); }
     }
   }
-  // facial hair geometry (stubble is painted)
-  const fh = app.facialHair || (app.beard ? 'beard' : 'none');
-  if ((fh === 'beard' || fh === 'goatee') && sh.face !== 'gasmask' && sh.face !== 'mask') {
-    const ang = fh === 'beard' ? [-92, -70, -48, -25, 0, 25, 48, 70, 92] : [-28, -14, 0, 14, 28];
-    const ys = fh === 'beard' ? [-0.028, -0.012, 0.006, 0.024, 0.045] : [-0.02, -0.006, 0.01, 0.026];
-    const off = (y: number, a: number) => (fh === 'beard' ? 0.006 + (y < 0 ? 0.005 : 0) + (Math.abs(a) < 30 && y < 0 ? 0.006 : 0) : 0.005 + (y < 0 ? 0.004 : 0));
-    const top = (a: number) => (Math.abs(a) < 18 ? 0.018 : Math.abs(a) < 34 ? 0.03 : 0.052);
+  // facial hair geometry (stubble and soul patches are painted)
+  const fh = String(app.facialHair || (app.beard ? 'beard' : 'none'));
+  const masked = sh.face === 'gasmask' || sh.face === 'mask';
+  if (!masked && (fh === 'beard' || fh === 'goatee' || fh === 'chops' || fh === 'chin_strap')) {
+    const ang = fh === 'goatee' ? [-28, -14, 0, 14, 28] : [-92, -70, -48, -25, 0, 25, 48, 70, 92];
+    const ys = fh === 'goatee' ? [-0.02, -0.006, 0.01, 0.026] : fh === 'chops' ? [-0.006, 0.012, 0.03, 0.05, 0.072] : [-0.028, -0.012, 0.006, 0.024, 0.045];
+    const off = (y: number, a: number) => (fh === 'beard' ? 0.006 + (y < 0 ? 0.005 : 0) + (Math.abs(a) < 30 && y < 0 ? 0.006 : 0)
+      : fh === 'chin_strap' ? 0.003 : fh === 'chops' ? 0.006 + (y < 0.02 ? 0.003 : 0) : 0.005 + (y < 0 ? 0.004 : 0));
+    const top = (a: number) => {
+      const aa = Math.abs(a);
+      if (fh === 'chin_strap') return aa > 75 ? 0.075 : aa > 55 ? 0.03 : 0.004;
+      if (fh === 'chops') return aa > 60 ? 0.1 : 0.05;
+      return aa < 18 ? 0.018 : aa < 34 ? 0.03 : 0.052;
+    };
     const rr = ys.map((y, i) => ({ pts: ang.map((a) => { const yy = Math.min(y, top(a)); return tr(headPt(yy, a, yy >= top(a) - 0.001 ? 0.002 : off(yy, a))); }).map((p) => (i === 0 ? [p[0], p[1] - 0.006 * hs, p[2] - 0.006 * hs] : p)), v: 0.42 + 0.14 * (i / (ys.length - 1)), w: [H, 1] as Wt }));
     const uu = ang.map((a) => 0.5 + a / 360);
-    B.loft(rr, uu, REG.HAIR, 100, {});
+    // mutton chops leave the chin bare
+    B.loft(rr, uu, REG.HAIR, 100, fh === 'chops' ? { skip: (j) => j >= 2 && j <= 5 } : {});
   }
-  if (fh === 'moustache' || fh === 'beard') {
-    const ang = [-30, -15, 0, 15, 30];
-    const rr = [0.043, 0.052].map((y, i) => ({ pts: ang.map((a) => tr(headPt(y - Math.abs(a) * 0.00025, a, 0.004 + (i === 0 ? 0.002 : 0)))), v: 0.36 + 0.03 * i, w: [H, 1] as Wt }));
+  if (!masked && (fh === 'moustache' || fh === 'beard' || fh === 'chops' || fh === 'handlebar')) {
+    const bar = fh === 'handlebar';
+    const ang = bar ? [-44, -32, -15, 0, 15, 32, 44] : [-30, -15, 0, 15, 30];
+    // handlebar ends sweep out and curl up
+    const lift = (a: number) => (bar && Math.abs(a) > 30 ? (Math.abs(a) - 30) * 0.0011 : 0) - (bar ? 0 : Math.abs(a) * 0.00025);
+    const rr = [0.043, 0.052].map((y, i) => ({ pts: ang.map((a) => tr(headPt(y + lift(a), a, 0.004 + (i === 0 ? 0.002 : 0) + (bar && Math.abs(a) > 30 ? 0.003 : 0)))), v: 0.36 + 0.03 * i, w: [H, 1] as Wt }));
     B.loft(rr, ang.map((a) => 0.5 + a / 360), REG.HAIR, 101, {});
   }
 
@@ -960,29 +984,72 @@ function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
 // ------------------------------------------------------------------ hair
 type HeadPt = (y: number, deg: number, off?: number) => V3;
 function hair(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape, tr: (p: V3) => V3, headPt: HeadPt) {
-  const st = app.hairStyle;
-  if (st === 'bald') return;
+  const st = String(app.hairStyle);
+  // bald and shaved heads are all paint (shaved: a stubble shadow)
+  if (st === 'bald' || st === 'shaved') return;
   const H = BI.head;
   const hat = sh.hat;
+  const hairW = (p: V3): Wt => {
+    const ly = (p[1] - d.rest.head[1]) / (d.s * d.headS);
+    if (ly > -0.02) return [H, 1];
+    const t = clamp01((-0.02 - ly) / 0.2);
+    return [H, 1 - t * 0.75, BI.chest, t * 0.75];
+  };
+  // mohawk: a crest from the forehead over the crown to the nape (the sides are painted stubble)
+  if (st === 'mohawk') {
+    if (hat) return;
+    // the scalp's midline profile: up the forehead, over the crown, down to the nape
+    const prof: V3[] = [
+      ...[0.148, 0.168, 0.186, 0.2].map((y) => headPt(y, 0, 0.001)),
+      [0, 0.214, -0.006] as V3,
+      ...[0.2, 0.182, 0.155, 0.12, 0.085].map((y) => headPt(y, 180, 0.001)),
+    ];
+    const n = prof.length - 1;
+    const rings: { pts: V3[]; v: number; w: Wt }[] = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      const base = prof[i];
+      const nx = 0, ny = base[1] - 0.08, nz = base[2] + 0.004;
+      const nl = Math.hypot(ny, nz) || 1;
+      const hgt = 0.006 + 0.034 * Math.sin(Math.min(1, t * 1.15) * Math.PI) * (t > 0.88 ? (1 - t) / 0.12 : 1);
+      const half = 0.012 - t * 0.004;
+      const tx = nx, ty = (ny / nl) * hgt, tz = (nz / nl) * hgt;
+      const pts: V3[] = [
+        [base[0] + half, base[1], base[2]], [base[0] + half * 0.55 + tx, base[1] + ty, base[2] + tz],
+        [base[0] - half * 0.55 + tx, base[1] + ty, base[2] + tz], [base[0] - half, base[1], base[2]], [base[0] + half, base[1], base[2]],
+      ].map((q) => tr(q as V3));
+      rings.push({ pts, v: 0.3 + 0.6 * t, w: hairW(pts[0]) });
+    }
+    B.loft(rings, [0, 0.25, 0.5, 0.75, 1], REG.HAIR, 113, {});
+    return;
+  }
+  const longish = st === 'long' || st === 'bob' || st === 'mullet';
   // hairline height by angle: front, temple, side (over ear), back
   const line = (deg: number) => {
     const a = Math.abs(deg);
     let front = 0.152, temple = 0.13, side = 0.112, back = 0.02;
     if (st === 'long' || st === 'bob') { side = st === 'bob' ? -0.005 : -0.07; back = st === 'bob' ? -0.015 : -0.2; temple = 0.12; }
     if (st === 'curly') { side = 0.08; back = 0.0; }
-    if (st === 'ponytail') { side = 0.105; back = 0.03; }
+    if (st === 'afro') { front = 0.15; temple = 0.124; side = 0.06; back = -0.02; }
+    if (st === 'ponytail' || st === 'topknot') { side = 0.105; back = 0.03; }
+    if (st === 'mullet') { side = 0.1; back = -0.15; }
+    if (st === 'undercut') { temple = 0.15; side = 0.165; back = 0.13; }
+    if (st === 'receding') { front = 0.188; temple = 0.172; }
     if (a < 25) return front;
     if (a < 60) return front + (temple - front) * ((a - 25) / 35);
     if (a < 105) return temple + (side - temple) * ((a - 60) / 45);
     return side + (back - side) * Math.min(1, (a - 105) / 55);
   };
-  const thick = st === 'buzz' ? 0.003 : st === 'curly' ? 0.024 : st === 'short' ? 0.011 : 0.012;
+  const thick = st === 'buzz' || st === 'cornrows' ? 0.0035 : st === 'curly' ? 0.024 : st === 'afro' ? 0.044 : st === 'short' || st === 'spiky' ? 0.011
+    : st === 'undercut' ? 0.017 : st === 'receding' ? 0.008 : st === 'topknot' ? 0.008 : 0.012;
   const hatLine = hat === 'cap' ? 0.132 : hat === 'beanie' ? 0.124 : hat === 'hardhat' ? 0.135 : hat === 'helmet' ? 0.13 : 99;
   const ys = [-0.25, -0.14, -0.05, 0.0, 0.035, 0.07, 0.105, 0.14, 0.17, 0.198];
   const minY = Math.min(...HEAD_ANG.map((a) => line(a)));
   const rowYs = ys.filter((y) => y >= minY - 0.03);
   const us = HEAD_ANG.map((a) => 0.5 + a / 360);
-  const curl = (deg: number, y: number) => (st === 'curly' ? (Math.sin(deg * 0.21 + y * 90) * 0.5 + Math.cos(deg * 0.13 - y * 140) * 0.5) * 0.008 : 0);
+  const curlAmp = st === 'curly' ? 0.008 : st === 'afro' ? 0.013 : 0;
+  const curl = (deg: number, y: number) => (curlAmp ? (Math.sin(deg * 0.21 + y * 90) * 0.5 + Math.cos(deg * 0.13 - y * 140) * 0.5) * curlAmp : 0);
+  const spike = (deg: number, y: number) => (st === 'spiky' && y > 0.11 ? Math.max(0, Math.sin(deg * 0.31 + y * 210)) * 0.016 * clamp01((y - 0.11) / 0.05) : 0);
   const rings = rowYs.map((y) => {
     const pts = HEAD_ANG.map((a) => {
       const yy = Math.max(y, line(a));
@@ -993,29 +1060,23 @@ function hair(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape, tr: (p:
         // hanging hair: continue down from the back/sides of the head and fall outward over the shoulders
         const base = headPt(0.0, a, thick);
         const drop = -yc;
-        const flare = (st === 'long' ? 0.03 : 0.012) * drop / 0.25 + 0.004;
+        const flare = (st === 'long' ? 0.03 : st === 'afro' ? 0.02 : 0.012) * drop / 0.25 + 0.004;
         const t = (a * Math.PI) / 180;
         const back = Math.abs(a) > 100 ? 1 : 0;
-        p = [base[0] + Math.sin(t) * flare, yc, base[2] + Math.cos(t) * flare - back * drop * 0.12];
+        p = [base[0] + Math.sin(t) * flare, yc, base[2] + Math.cos(t) * flare - back * drop * (st === 'mullet' ? 0.2 : 0.12)];
       } else {
         // hair hugs the scalp at its edges and gains volume toward the crown
-        const edge = (st === 'long' || st === 'bob' ? 1 : 0.3 + 0.7 * clamp01((yc - line(a)) / 0.04)) * (st === 'short' && Math.abs(a) < 50 && yc > 0.16 ? 1.5 : 1);
-        p = headPt(yc, a, thick * edge + curl(a, yc) + (st === 'curly' && yc > 0.1 ? 0.006 : 0) + (yc > 0.12 && st !== 'buzz' ? 0.003 : 0));
+        const edge = (st === 'long' || st === 'bob' || st === 'afro' ? 1 : 0.3 + 0.7 * clamp01((yc - line(a)) / 0.04)) * ((st === 'short' || st === 'undercut') && Math.abs(a) < 50 && yc > 0.16 ? 1.5 : 1);
+        p = headPt(yc, a, thick * edge + curl(a, yc) + spike(a, yc) + ((st === 'curly' || st === 'afro') && yc > 0.1 ? 0.006 : 0) + (yc > 0.12 && st !== 'buzz' && st !== 'cornrows' ? 0.003 : 0));
       }
       return tr(p);
     });
-    const w = (p: V3): Wt => {
-      const ly = (p[1] - d.rest.head[1]) / (d.s * d.headS);
-      if (ly > -0.02) return [H, 1];
-      const t = clamp01((-0.02 - ly) / 0.2);
-      return [H, 1 - t * 0.75, BI.chest, t * 0.75];
-    };
-    return { pts, v: vOf(VMAP.HAIR, y), w };
+    return { pts, v: vOf(VMAP.HAIR, y), w: hairW };
   });
-  const capOff = hat ? null : tr([0, 0.215 + thick + (st === 'curly' ? 0.01 : 0), -0.008]);
-  B.loft(rings, us, REG.HAIR, 110, { end: capOff, endW: [H, 1], endV: 1, double: st === 'long' || st === 'bob', doubleRows: (i) => rowYs[i] < 0.02 });
+  const capOff = hat ? null : tr([0, 0.215 + thick + (st === 'curly' ? 0.01 : st === 'afro' ? 0.02 : st === 'spiky' ? 0.012 : 0), -0.008]);
+  B.loft(rings, us, REG.HAIR, 110, { end: capOff, endW: [H, 1], endV: 1, double: longish || st === 'afro', doubleRows: (i) => rowYs[i] < 0.02 });
   // fringe / bangs
-  if (!hat && (st === 'bob' || st === 'long' || st === 'curly')) {
+  if (!hat && (st === 'bob' || st === 'long' || st === 'curly' || st === 'afro')) {
     const ang = [-50, -30, -12, 0, 12, 30, 50];
     const y0 = st === 'bob' ? 0.128 : st === 'long' ? 0.14 : 0.148;
     const rr = [
@@ -1023,6 +1084,15 @@ function hair(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape, tr: (p:
       { pts: ang.map((a, i) => tr(headPt(y0 - (Math.abs(a) < 20 ? 0.006 : 0) - (i % 2) * 0.007 - (i === 2 ? 0.004 : 0), a, thick * 0.6 + 0.004))), v: vOf(VMAP.HAIR, y0 - 0.02), w: [H, 1] as Wt },
     ];
     B.loft(rr, ang.map((a) => 0.5 + a / 360), REG.HAIR, 111, { double: true });
+  }
+  // undercut: the long top swept to one side
+  if (!hat && st === 'undercut') {
+    const ang = [-40, -20, 0, 20, 40];
+    const rr = [
+      { pts: ang.map((a) => tr(headPt(0.19, a, thick + 0.006))), v: vOf(VMAP.HAIR, 0.19), w: [H, 1] as Wt },
+      { pts: ang.map((a, i) => { const q = headPt(0.158 - i * 0.004, a + 14, thick * 0.9); return tr([q[0] - 0.012, q[1], q[2] + 0.008]); }), v: vOf(VMAP.HAIR, 0.15), w: [H, 1] as Wt },
+    ];
+    B.loft(rr, ang.map((a) => 0.5 + a / 360), REG.HAIR, 114, { double: true });
   }
   // ponytail: tie at the crown-back, tail falling down the back
   if (st === 'ponytail') {
@@ -1037,6 +1107,16 @@ function hair(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape, tr: (p:
       w: (i < 2 ? [H, 1] : [H, 1 - i * 0.18, BI.chest, i * 0.18]) as Wt,
     }));
     B.loft(rr, usFor(6), REG.HAIR, 112, { end: tr([0, -0.18, pts[4].c[2] + 0.005]) });
+  }
+  // top knot: a bun on the crown
+  if (st === 'topknot' && !hat) {
+    const c = headPt(0.2, 160, thick + 0.022);
+    const ysK = [-0.026, -0.012, 0.006, 0.02];
+    const rr = ysK.map((dy, i) => {
+      const r = [0.016, 0.028, 0.026, 0.014][i];
+      return { pts: ellRing(c[1] + dy, c[0], c[2], r, r, r, 6, 2, 1).map(tr), v: 0.86 + i * 0.03, w: [H, 1] as Wt };
+    });
+    B.loft(rr, usFor(6), REG.HAIR, 115, { end: tr([c[0], c[1] + 0.03, c[2]]) });
   }
 }
 

@@ -1,19 +1,28 @@
-// Character creation as a Meridian Institute personnel file: a live 3D
-// subject viewer on the left (the exact in-game rig, on a turntable) and a
-// tabbed terminal form on the right: identity and looks, prior employment
-// (occupation), personal particulars (traits on a point budget) and the
-// simulation parameters (sandbox settings).
-import * as RigMod from '../../entities/humanRig';
-import { Appearance, Outfit, SKIN_TONES, HAIR_COLORS, randomAppearance } from '../../entities/humanRig';
+// INTAKE PROCESSING. A new debtor-convict is processed in three rooms:
+//  01 INTAKE  the prisoner stands under the mugshot lights; click or tap the
+//             body itself to examine a part, and the options appear as things
+//             in the room (an identikit frame, a barber's chart, a tattoo
+//             flash sheet, a fingerprint card, the uniform issue slip...)
+//  02 REHAB   jobs and traits as rehab programmes and conditions (rehab.ts)
+//  03 TERMS   the sentencing terms clipboard: world rules (terms.ts)
+// PROCESS walks back to the lights for the mugshot: number board, flash,
+// profile, flash, PROCESSED.
+import { Appearance, Outfit, SKIN_TONES, randomAppearance, EYE_COLORS } from '../../entities/humanRig';
 import { Player } from '../../entities/player';
-import { OCCUPATIONS, TRAITS, SKILLS, Occupation, Trait, occupationAvailable, traitAvailable, occupationByKey } from '../../survival/traits';
+import { OCCUPATIONS, TRAITS, Occupation, occupationAvailable, traitAvailable, occupationByKey } from '../../survival/traits';
 import { hasItemDef, itemDef } from '../../items/item';
-import { itemIcon } from '../icons';
-import { h, esc, mbtn, kbtn, seg, toggle, tabs, swapPage, frame, FocusNav, sfx, hoverFocus } from './common';
-import { RigPreview } from './preview3d';
+import {
+  FACE_SHAPES, EYE_SHAPES, BROWS, NOSES, MOUTHS, EARS, FACIAL_HAIR_ALL, HAIR_STYLES_ALL, HAIR_DYES, TATTOO_SPOTS, TATTOOS, tattoosFor, SCAR_SPOTS, BODY_SCARS,
+  KNUCKLES, NAILS, SUIT_SLEEVES, SUIT_WEAR, STAINS, PATCHES, FEET_KIT, feetKitItems, randomLooks, suitNumber, shapeOf, eyeShapeOf, browsOf, noseOf, mouthOf, Opt,
+} from '../../entities/humanLooks';
+import { h, esc, FocusNav, sfx, hoverFocus, confirmDialog } from './common';
+import { IntakeStage, Pickable } from './preview3d';
 import { G } from '../../game/G';
-import { glyph, glyphUrl, stampCanvas } from '../pixelart';
-import { toUrl, kitTheme, idPhoto } from '../pixelkit';
+import { toUrl } from '../pixelkit';
+import { tattooImage, hairIcon, stampWord } from './art';
+import { rehabStation, RehabCtx } from './rehab';
+import { termsStation, TermsCtx, PRESETS } from './terms';
+import './diegetic.css';
 
 export interface IntakeResult {
   name: string; app: Appearance; occupation: string; traits: string[];
@@ -32,551 +41,585 @@ export function randomName() {
   return `${pickR(FIRST)} ${pickR(LAST)}`;
 }
 
-const PRESETS: Record<string, { label: string; note: string; s: Record<string, number> }> = {
-  standard: { label: 'Standard', note: 'The simulation as designed.', s: { dayLength: 60, creatures: 1, loot: 1, collapseSpeed: 1, startHour: 8.5, waterShutoffDays: 7, powerShutoffDays: 0, gore: 2 } },
-  quiet: { label: 'Quiet Halls', note: 'Few entities, plenty of supplies. For builders and wanderers.', s: { dayLength: 90, creatures: 0.35, loot: 1.6, collapseSpeed: 0.6, startHour: 9, waterShutoffDays: 0, powerShutoffDays: 0, gore: 1 } },
-  lost: { label: 'Lost and Alone', note: 'More of them, less of everything else. Water fails on day 3, power on day 14.', s: { dayLength: 60, creatures: 1.6, loot: 0.6, collapseSpeed: 1.3, startHour: 21, waterShutoffDays: 3, powerShutoffDays: 14, gore: 2 } },
-};
-
-const LOCK_ICON = () => `<i class="pxi lk" style="background-image:url(${glyphUrl('lock', 0xffd04a, -1)})"></i>`;
-const IC = {
-  get dice() { return glyph('dice'); },
-  get left() { return glyph('left'); },
-  get right() { return glyph('right'); },
-  get plus() { return glyph('plus'); },
-  get minus() { return glyph('minus'); },
-  get play() { return glyph('play'); },
-};
-
-// ---------------------------------------------------------------- appearance fields (incl. ones the rig may add later)
-interface FieldSpec { key: string; label: string; kind: 'color' | 'enum' | 'bool' | 'range' | 'int'; vals: any[]; min?: number; max?: number }
-const KNOWN = ['skin', 'hair', 'hairStyle', 'face', 'build', 'height', 'beard'];
-const BASE_STYLES = ['short', 'long', 'buzz', 'bald', 'ponytail', 'curly', 'bob'];
-const RANGE_TEXT: Record<string, (v: number) => string> = {
-  bodyShape: (v) => (v < 0.34 ? 'masculine' : v > 0.66 ? 'feminine' : 'in between'),
-  age: (v) => (v < 0.25 ? 'young' : v < 0.6 ? 'middle-aged' : 'older'),
-  freckles: (v) => (v < 0.05 ? 'none' : v < 0.5 ? 'a few' : 'lots'),
-};
-const rangeText = (k: string, v: number) => RANGE_TEXT[k]?.(v) ?? String(Math.round(v * 100) / 100);
-const LABELS: Record<string, string> = { bodyShape: 'Body shape', eyeColor: 'Eye colour', facialHair: 'Facial hair', freckles: 'Freckles', scars: 'Scars', age: 'Age' };
-const humanize = (k: string) => LABELS[k] || k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase()).replace(/color/i, 'colour');
-
-function discoverFields(): { styles: string[]; faces: number; extra: FieldSpec[] } {
-  const mod = RigMod as any;
-  const samples: any[] = [];
-  for (let i = 0; i < 80; i++) { try { samples.push(randomAppearance(Math.random)); } catch { break; } }
-  const styles = new Set<string>([...BASE_STYLES, ...((Array.isArray(mod.HAIR_STYLES) ? mod.HAIR_STYLES : []) as string[])]);
-  let faces = typeof mod.FACE_COUNT === 'number' ? mod.FACE_COUNT : 4;
-  const seen: Record<string, any[]> = {};
-  for (const s of samples) {
-    if (s.hairStyle) styles.add(s.hairStyle);
-    if (typeof s.face === 'number') faces = Math.max(faces, s.face + 1);
-    for (const [k, v] of Object.entries(s)) { if (KNOWN.includes(k) || v === undefined || v === null || typeof v === 'object') continue; (seen[k] ||= []).push(v); }
-  }
-  const extra: FieldSpec[] = [];
-  const optLists = (mod.APPEARANCE_OPTIONS || {}) as Record<string, any[]>;
-  for (const [k, vs] of Object.entries(seen)) {
-    const listed = optLists[k] || mod[k.replace(/([A-Z])/g, '_$1').toUpperCase() + 'S'];
-    const uniq = [...new Set([...(Array.isArray(listed) ? listed : []), ...vs])];
-    const label = humanize(k);
-    if (typeof vs[0] === 'boolean') extra.push({ key: k, label, kind: 'bool', vals: [false, true] });
-    else if (typeof vs[0] === 'string') extra.push({ key: k, label, kind: 'enum', vals: Array.isArray(listed) ? uniq : uniq.sort() });
-    else if (typeof vs[0] === 'number') {
-      const ints = uniq.every((v) => Number.isInteger(v));
-      if (ints && Math.max(...uniq) > 0xff) extra.push({ key: k, label, kind: 'color', vals: uniq.slice(0, 14) });
-      else if (ints && Math.max(...uniq) - Math.min(...uniq) <= 10) {
-        const lo = Math.min(0, ...uniq), hi = Math.max(...uniq);
-        extra.push({ key: k, label, kind: 'int', vals: Array.from({ length: hi - lo + 1 }, (_, i) => lo + i) });
-      } else extra.push({ key: k, label, kind: 'range', vals: [], min: Math.min(...uniq), max: Math.max(...uniq) });
-    }
-  }
-  return { styles: [...styles], faces: Math.max(1, Math.min(12, faces)), extra };
-}
-
-// ---------------------------------------------------------------- what the occupation starts wearing / holding
+// ---------------------------------------------------------------- what the prisoner wears
 const START_CLOTHES = ['tshirt', 'jeans', 'sneakers', 'socks'];
+/** dress a throwaway Player-shaped object and read its Outfit (the game's own rules) */
+function outfitOfItems(keys: string[]): { outfit: Outfit; held: string | null } {
+  const fake: any = { worn: new Map(), handR: null, handL: null, lightItem: null, outfitDirty: false };
+  const wear = (k: string) => { if (!hasItemDef(k)) return; try { Player.prototype.wear.call(fake, { uid: 0, key: k, cond: 1, age: 0 } as any); } catch { /* not wearable */ } };
+  for (const k of keys) wear(k);
+  let outfit: Outfit = {};
+  try { outfit = Player.prototype.computeOutfit.call(fake); } catch { /* keep naked default */ }
+  return { outfit, held: null };
+}
+/** the occupation's starting look (kept for other callers) */
 export function outfitFor(occKey: string): { outfit: Outfit; held: string | null } {
   const o = occupationByKey(occKey) as Occupation & Record<string, any>;
   const clothes: string[] = (o.clothes || o.outfit || o.wear || START_CLOTHES).filter((k: string) => hasItemDef(k));
-  const fake: any = { worn: new Map(), handR: null, handL: null, lightItem: null, outfitDirty: false };
-  const wear = (k: string) => { try { Player.prototype.wear.call(fake, { uid: 0, key: k, cond: 1, age: 0 } as any); } catch { /* not wearable */ } };
-  for (const k of clothes) wear(k);
-  let held: string | null = null;
-  for (const k of o.items || []) {
-    if (!hasItemDef(k)) continue;
-    const d = itemDef(k);
-    if (d.clothing || d.bag) wear(k);
-    else if (!held && (d.weapon || d.light || d.tags?.includes('tool') || d.cat === 'tool' || d.cat === 'weapon')) held = k;
+  const r = outfitOfItems([...clothes, ...o.items.filter((k) => hasItemDef(k) && (itemDef(k).clothing || itemDef(k).bag))]);
+  return r;
+}
+/** the Remittance issue: jumpsuit (or a stand-in until it exists) and the chosen footwear */
+function prisonerOutfit(app: Appearance, inspect: boolean): Outfit {
+  const keys = [hasItemDef('prison_jumpsuit') ? 'prison_jumpsuit' : 'janitor_uniform', ...feetKitItems(app)];
+  const { outfit } = outfitOfItems(keys);
+  if (!hasItemDef('prison_jumpsuit')) {
+    // stand-in: the coverall painter in programme yellow
+    for (const k of ['torso', 'legs'] as const) if (outfit[k]) outfit[k] = { ...outfit[k]!, color: 0xd9a826 };
   }
-  let outfit: Outfit = {};
-  try { outfit = Player.prototype.computeOutfit.call(fake); } catch { /* keep naked default */ }
-  return { outfit, held };
+  // canvas slip-ons: plain off-white shoes (the slippers item is pink and fluffy)
+  if ((app.feetKit ?? 'slipons') === 'slipons') outfit.feet = { tex: 'c_shoes_sneaker', color: 0xe4e0d4, item: 'slipons' };
+  if (inspect) {
+    // examining body marks: the top half of the jumpsuit comes down
+    outfit.torso = { tex: (app.bodyShape ?? 0.3) > 0.5 ? 'c_bandeau' : 'c_bare', color: 0xe8e4d8, sleeve: 'none' };
+  }
+  return outfit;
 }
 
-/** show the form; resolves with the filled form or null if cancelled */
+// ---------------------------------------------------------------- labels
+const PART_LABEL: Record<string, string> = {
+  head: 'FACE', hair: 'HAIR', torso: 'BODY MARKS', armL: 'LEFT ARM', armR: 'RIGHT ARM', handL: 'HANDS', handR: 'HANDS', legL: 'BUILD', legR: 'BUILD', feet: 'FEET',
+  chart: 'HEIGHT CHART', board: 'BOOKING BOARD', uniform: 'ISSUE UNIFORM',
+};
+const TAGS: [string, string][] = [['head', 'Face'], ['hair', 'Hair'], ['torso', 'Body'], ['armL', 'L. arm'], ['armR', 'R. arm'], ['handL', 'Hands'], ['legL', 'Build'], ['feet', 'Feet'], ['uniform', 'Uniform'], ['board', 'Name']];
+const SKIN_ALL = [0xf8dcc8, ...SKIN_TONES, 0x4a2c1c];
+const BUILDS: [string, string, number][] = [['wiry', 'Wiry', 58], ['slim', 'Slim', 64], ['average', 'Average', 75], ['broad', 'Broad', 86], ['stocky', 'Stocky', 92], ['heavy', 'Heavy', 108]];
+const STATIONS = ['INTAKE', 'REHAB', 'TERMS'];
+const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
+const fmtDate = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.87`; };
+
+/** show the intake; resolves with the processed prisoner or null if they walked out */
 export function intakeForm(opts: { title?: string; sandbox?: boolean; directives?: boolean; submit?: string } = {}): Promise<IntakeResult | null> {
   return new Promise((resolve) => {
-    const fields = discoverFields();
-    const app: Appearance = randomAppearance(Math.random);
+    const fem0 = Math.random() < 0.5;
+    const app: Appearance = { ...randomAppearance(Math.random), ...randomLooks(Math.random, fem0) };
     let name = randomName();
     let occ = 'unemployed';
     const traits = new Set<string>();
     let preset = 'standard';
-    const sb: Record<string, number> = { ...PRESETS.standard.s };
+    const sb: Record<string, number> = { ...((G?.sandbox as any) || {}), ...PRESETS.standard.s };
     let seed = Math.floor(Math.random() * 99999);
     let directives = opts.directives ?? true;
     const withSandbox = opts.sandbox !== false;
+    const stations = withSandbox ? STATIONS : STATIONS.slice(0, 2);
+    let station = 0;
+    let part: string | null = null;
+    let closing = false;
 
     // ---------------- skeleton
-    const wrap = h('div', 'pf-wrap');
-    const f = frame('Meridian Institute · Personnel file', 'pf', 'FORM 4-B');
-    f.screen.classList.add('crt-on');
-    wrap.append(f.el);
-    const viewer = h('div', 'pf-viewer');
-    const form = h('div', 'pf-form');
-    f.body.append(viewer, form);
+    const root = h('div', 'ik');
+    const stageHost = h('div', 'ik-stage');
+    const hud = h('div', 'ik-hud');
+    const props = h('div', 'ik-props');
+    const rooms = [stageHost, h('div', 'ik-room rh'), h('div', 'ik-room tm')];
+    root.append(...rooms, hud, props);
+    const stage = new IntakeStage(stageHost);
+    const portrait = () => innerWidth / innerHeight < 0.8;
 
-    // viewer chrome
-    const hudTL = h('div', 'pf-hud tl', 'SUBJECT VIEW · <b>CAM 01</b>');
-    const hudTR = h('div', 'pf-hud tr pf-rec', 'LIVE');
-    const hudBL = h('div', 'pf-hud bl', 'ROT 000° · ZOOM 1.0×');
-    const hudBR = h('div', 'pf-hud br', '');
-    const stamp = h('div', 'pf-stamp');
-    {
-      const pc = stampCanvas((opts.submit || 'APPROVED').toUpperCase(), kitTheme().danger);
-      const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxn')) || 2;
-      const img = new Image(); img.src = toUrl(pc); img.alt = opts.submit || 'APPROVED';
-      img.style.width = pc.w * px * 2 + 'px'; img.style.height = pc.h * px * 2 + 'px';
-      stamp.append(img);
+    // HUD: plates, station signs, tags, the go button
+    const plate = h('div', 'ik-plate', `<b>${esc(opts.title || 'INTAKE PROCESSING')}</b><span>MERIDIAN INSTITUTE · WING B · REMITTANCE PROGRAMME</span>`);
+    const rec = h('div', 'ik-rec', '<i></i>CAM 2 <b>REC</b> <span class="tc"></span>');
+    const signs = h('div', 'ik-signs');
+    const signBtns = stations.map((s, i) => {
+      const b = h('button', 'ik-sign' + (i === 0 ? ' on' : ''), `<small>${String(i + 1).padStart(2, '0')}</small>${s}`);
+      b.type = 'button';
+      hoverFocus(b);
+      b.onclick = () => goStation(i);
+      signs.append(b);
+      return b;
+    });
+    const back = h('button', 'ik-exit', '<span>◀</span> WITHDRAW');
+    back.type = 'button';
+    hoverFocus(back);
+    back.onclick = () => withdraw();
+    const caption = h('div', 'ik-caption');
+    const hoverTag = h('div', 'ik-hovertag');
+    const tags = h('div', 'ik-tags');
+    const tagBtns = new Map<string, HTMLButtonElement>();
+    for (const [k, l] of TAGS) {
+      const b = h('button', 'ik-tag', `<i></i>${esc(l)}`);
+      b.type = 'button';
+      b.dataset.part = k;
+      hoverFocus(b);
+      b.onclick = () => select(part === k || (part && sameGroup(part, k)) ? null : k);
+      tags.append(b);
+      tagBtns.set(k, b);
     }
-    const scanline = h('div', 'pf-scanline');
-    const idBar = h('div', 'pf-id');
-    const photo = h('div', 'pf-id-photo');
-    photo.setAttribute('aria-hidden', 'true');
-    const idT = h('div', 'pf-id-t', '<div class="pf-id-name"></div><div class="pf-id-job"></div>');
-    const tools = h('div', 'pf-tools');
-    viewer.append(h('div', 'pf-brackets'), hudTL, hudTR, hudBL, hudBR, scanline, stamp, idBar);
-    idBar.append(photo, idT, tools);
-    // the ID photo is a pixel print of the live subject, retaken whenever the looks settle
-    let photoT = 0;
-    const takePhoto = () => {
-      clearTimeout(photoT);
-      photoT = window.setTimeout(() => {
-        const snap = preview.snapshot?.(18, 17);
-        if (!snap) return;
-        photo.style.backgroundImage = `url(${toUrl(idPhoto(kitTheme(), snap))})`;
-      }, 700);
-    };
-    const preview = new RigPreview(viewer);
-    viewer.insertBefore(preview.canvas, viewer.firstChild);
-    preview.onInfo = (i) => {
-      hudBL.textContent = `ROT ${String(i.yaw).padStart(3, '0')}° · ZOOM ${i.zoom.toFixed(1)}×`;
-      hudBR.textContent = i.emote ? '> ' + i.emote : '';
-    };
-    tools.append(
-      kbtn(IC.left, () => preview.rotateBy(-0.9), { tip: 'Rotate left (or drag the subject)', sound: 'tick', cls: 'fine' }),
-      kbtn(IC.right, () => preview.rotateBy(0.9), { tip: 'Rotate right (or drag the subject)', sound: 'tick', cls: 'fine' }),
-      kbtn(IC.minus, () => preview.zoomBy(1.18), { tip: 'Zoom out (or scroll / pinch)', sound: 'tick', cls: 'fine' }),
-      kbtn(IC.plus, () => preview.zoomBy(1 / 1.18), { tip: 'Zoom in (or scroll / pinch)', sound: 'tick', cls: 'fine' }),
-      kbtn(IC.play, () => preview.emote(), { tip: 'Play an emote (or double-click the subject)' }),
-      kbtn(IC.dice, () => randomizeAll(), { tip: 'Randomize everything', cls: 'amber' }),
-    );
-    const updateId = () => {
-      (idT.firstChild as HTMLElement).textContent = (name.trim() || 'UNNAMED').toUpperCase();
-      (idT.lastChild as HTMLElement).textContent = occupationByKey(occ).name + ` · ${Math.round(172 * app.height)} cm · ${app.build}`;
-    };
+    const credits = h('div', 'ik-credits', '<span>REHAB CREDITS</span><b>00</b>');
+    const go = h('button', 'ik-go', '');
+    go.type = 'button';
+    hoverFocus(go);
+    go.onclick = () => (station < stations.length - 1 ? goStation(station + 1) : processPrisoner());
+    const hint = h('div', 'ik-hint', '');
+    const flashEl = h('div', 'ik-flash');
+    const stampEl = h('div', 'ik-stamp');
+    hud.append(plate, rec, signs, back, caption, hoverTag, tags, credits, go, hint, flashEl, stampEl);
+    {
+      const img = new Image();
+      img.src = toUrl(stampWord(opts.submit ? opts.submit.toUpperCase() : 'PROCESSED', 0xc8261e, 3));
+      img.alt = 'PROCESSED';
+      stampEl.append(img);
+    }
 
-    // form chrome
-    const head = h('div', 'pf-head');
-    const seal = h('div', 'pf-seal');
-    seal.setAttribute('aria-hidden', 'true');
-    const headT = h('div', 'pf-head-t', `<h2>${esc(opts.title || 'FIELD PERSONNEL INTAKE')}</h2><small>"Thank you for your continuity."</small>`);
-    const pts = h('div', 'pf-pts', '<b>00</b><span>POINTS</span>');
-    head.append(seal, headT, pts);
-    const pageNames = ['IDENTITY', 'OCCUPATION', 'TRAITS', ...(withSandbox ? ['SIMULATION'] : [])];
-    let pageIdx = 0;
-    const page = h('div', 'pf-page');
-    const hint = h('div', 'pf-hint', '<kbd>Q</kbd><kbd>E</kbd> section');
-    const foot = h('div', 'pf-foot');
-    const sum = h('div', 'pf-sum');
-    const t = tabs(pageNames.map((n, i) => `${String(i + 1).padStart(2, '0')} ${n}`), 0, (i) => { const d = i > pageIdx ? 1 : -1; pageIdx = i; renderPage(d); });
-    const tabRow = h('div', 'pf-tabrow');
-    tabRow.append(t.el, hint);
-    form.append(head, tabRow, page, foot);
-    const approve = mbtn(opts.submit || 'Approve', () => submit(), { primary: true, key: '' });
-    approve.classList.add('pf-approve');
-    foot.append(mbtn('Back', () => close(null), { key: 'ESC' }), sum, approve);
+    // timecode
+    let tcT = 0;
+    const tc = rec.querySelector('.tc') as HTMLElement;
+    const tick = () => {
+      if (!root.isConnected) return;
+      const d = new Date();
+      tc.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
+      tcT = window.setTimeout(tick, 1000);
+    };
+    tick();
 
     // ---------------- state helpers
     const points = () => {
       let p = occupationByKey(occ).points;
-      // trait cost is signed like the labels: assets are negative (spend points), liabilities positive (give points)
       for (const k of traits) p += TRAITS.find((x) => x.key === k)?.cost ?? 0;
       return p;
     };
     let lastPts = NaN;
-    const updatePoints = () => {
+    const updateCredits = () => {
       const p = points();
-      (pts.firstChild as HTMLElement).textContent = (p < 0 ? '-' : '') + String(Math.abs(p)).padStart(2, '0');
-      pts.classList.toggle('bad', p < 0);
-      if (p !== lastPts && !Number.isNaN(lastPts)) { pts.classList.remove('bump'); void pts.offsetWidth; pts.classList.add('bump'); }
+      const b = credits.querySelector('b') as HTMLElement;
+      b.textContent = (p < 0 ? '-' : '') + String(Math.abs(p)).padStart(2, '0');
+      credits.classList.toggle('bad', p < 0);
+      if (p !== lastPts && !Number.isNaN(lastPts)) { credits.classList.remove('bump'); void credits.offsetWidth; credits.classList.add('bump'); }
       lastPts = p;
-      approve.classList.toggle('off', p < 0 || !name.trim());
-      const o = occupationByKey(occ);
-      sum.innerHTML = `<b>${esc(o.name)}</b> · ${traits.size} trait${traits.size === 1 ? '' : 's'}${withSandbox ? ` · ${esc(preset === 'custom' ? 'custom world' : PRESETS[preset].label)} · seed ${seed}` : ''}`;
-      updateId();
+      rehab?.refresh();
     };
-    let rebuildT = 0;
+    const updateGo = () => {
+      const last = station === stations.length - 1;
+      go.innerHTML = last ? `<b>PROCESS</b><small>${esc(name.trim() || 'unnamed')}</small>` : `<b>NEXT</b><small>${stations[station + 1]} ▶</small>`;
+      go.classList.toggle('final', last);
+      hint.innerHTML = station === 0
+        ? (part ? `<kbd>Esc</kbd> step back · <kbd>Q</kbd><kbd>E</kbd> rooms` : (matchMedia('(pointer: coarse)').matches ? 'tap the prisoner to examine a part · drag to turn them' : 'click the prisoner to examine a part · drag to turn · <kbd>Q</kbd><kbd>E</kbd> rooms'))
+        : '<kbd>Q</kbd><kbd>E</kbd> rooms · <kbd>Esc</kbd> back';
+    };
+    let looksT = 0;
     const refreshLooks = (react = '') => {
-      clearTimeout(rebuildT);
-      rebuildT = window.setTimeout(() => {
-        preview.setAppearance(app);
-        if (react) preview.react(react);
-        takePhoto();
-      }, 40);
-      updateId();
+      clearTimeout(looksT);
+      looksT = window.setTimeout(() => {
+        stage.setAppearance(app);
+        stage.setOutfit(prisonerOutfit(app, part === 'torso' || part === 'armL' || part === 'armR'));
+        if (react) stage.react(react);
+        stage.setBoard(name, '', fmtDate());
+      }, 30);
     };
-    const refreshOutfit = (react = '') => {
-      shownOcc = occ;
-      hudTL.innerHTML = 'SUBJECT VIEW · <b>CAM 01</b>';
-      const { outfit, held } = outfitFor(occ);
-      preview.setOutfit(outfit, held);
-      if (react) preview.react(react);
-      takePhoto();
+    const refreshOutfit = () => stage.setOutfit(prisonerOutfit(app, part === 'torso' || part === 'armL' || part === 'armR'));
+    const setCaption = (s: string) => { caption.textContent = s ? 'SUBJECT ' + s : ''; caption.classList.toggle('on', !!s); };
+    stage.onEmote = (l) => { if (!closing) setCaption(l); };
+    stage.onHover = (p, x, y) => {
+      hoverTag.classList.toggle('on', !!p);
+      if (!p) return;
+      hoverTag.innerHTML = `<b>${esc(PART_LABEL[p] || p)}</b><small>${part && sameGroup(part, p) ? 'examining' : 'examine'}</small>`;
+      const r = root.getBoundingClientRect();
+      hoverTag.style.transform = `translate(${Math.round(x - r.left + 14)}px, ${Math.round(y - r.top + 10)}px)`;
     };
-    // hovered occupation previews its outfit on the subject (debounced: rebuilding a rig costs a few ms)
-    let shownOcc = '', previewT = 0;
-    const previewOutfit = (key: string) => {
-      clearTimeout(previewT);
-      previewT = window.setTimeout(() => {
-        if (key === shownOcc) return;
-        shownOcc = key;
-        const { outfit, held } = outfitFor(key);
-        preview.setOutfit(outfit, held);
-        hudTL.innerHTML = key === occ ? 'SUBJECT VIEW · <b>CAM 01</b>' : `PREVIEW · <b>${esc(occupationByKey(key).name.toUpperCase())}</b>`;
-      }, 90);
-    };
-    const flashScan = () => { scanline.classList.remove('on'); void scanline.offsetWidth; scanline.classList.add('on'); };
+    stage.onPick = (p) => { if (station !== 0 || closing) return; if (!p) { if (part) select(null); return; } select(part && sameGroup(part, p) ? null : p); };
+    const sameGroup = (a: string, b: string) => a === b || (a.startsWith('hand') && b.startsWith('hand')) || (a.startsWith('leg') && b.startsWith('leg')) || ((a === 'legL' || a === 'chart') && (b === 'legL' || b === 'legR' || b === 'chart'));
 
-    // ---------------- pages (re-rendered with focus + scroll restored)
-    const rerender = () => renderPage(0, true);
-    const renderPage = (dir: 1 | -1 | 0, keep = false) => {
-      const focusKey = (document.activeElement as HTMLElement | null)?.dataset?.k;
-      const scroll = page.scrollTop;
-      const frag = document.createDocumentFragment();
-      const pn = pageNames[pageIdx];
-      if (pn === 'IDENTITY') identityPage(frag);
-      else if (pn === 'OCCUPATION') occupationPage(frag);
-      else if (pn === 'TRAITS') traitsPage(frag);
-      else simulationPage(frag);
-      if (keep) { page.innerHTML = ''; page.append(frag); page.scrollTop = scroll; }
-      else { swapPage(page, frag, dir); page.scrollTop = 0; }
-      if (focusKey && keep) (page.querySelector(`[data-k="${CSS.escape(focusKey)}"]`) as HTMLElement | null)?.focus({ preventScroll: true });
-      updatePoints();
+    // ---------------- examination props
+    const select = (k: string | null) => {
+      if (closing) return;
+      if (k === 'legR') k = 'legL';
+      if (k === 'handR') k = 'handL';
+      if (k === 'chart') k = 'legL';
+      const was = part;
+      part = k;
+      for (const [tk, b] of tagBtns) b.classList.toggle('on', !!k && sameGroup(k, tk));
+      root.classList.toggle('examining', !!k);
+      stage.focus(k === 'legL' ? 'legs' : k === 'handL' ? 'hands' : k, portrait() ? 'bottom' : 'right');
+      const inspectNow = k === 'torso' || k === 'armL' || k === 'armR', inspectWas = was === 'torso' || was === 'armL' || was === 'armR';
+      if (inspectNow !== inspectWas) refreshOutfit();
+      props.innerHTML = '';
+      props.classList.toggle('on', !!k);
+      if (k) {
+        const el = buildProps(k);
+        props.append(el);
+        props.scrollTop = 0;
+        sfx('open', 0.5);
+        if (k === 'head') stage.react('stare');
+        else if (k === 'hair') stage.react('touch_hair');
+        else if (k === 'feet') stage.react('look_down');
+        else if (k === 'board') stage.react('crack_neck');
+      } else sfx('back', 0.5);
+      updateGo();
     };
 
-    const section = (title: string, sub = '') => {
-      const s = h('section', 'pf-sec');
-      s.append(h('h3', '', `${esc(title)}${sub ? `<small>${esc(sub)}</small>` : ''}`));
+    /** a physical object holding options: a labelled frame / sheet / card */
+    const obj = (kind: string, title: string, sub = '') => {
+      const o = h('section', 'ob ob-' + kind, `<header><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</header>`);
+      return o;
+    };
+    const opt = (cls: string, html: string, on: boolean, click: () => void, label?: string) => {
+      const b = h('button', 'ob-o ' + cls + (on ? ' on' : ''), html);
+      b.type = 'button';
+      if (label) b.setAttribute('aria-label', label);
+      b.setAttribute('aria-pressed', String(on));
+      hoverFocus(b);
+      b.onclick = () => { click(); };
+      return b;
+    };
+    const mark = (wrap: HTMLElement, b: HTMLElement) => { wrap.querySelectorAll('.ob-o').forEach((o) => { o.classList.toggle('on', o === b); o.setAttribute('aria-pressed', String(o === b)); }); };
+    /** identikit strip: ◀ LABEL · VALUE ▶ */
+    const strip = (label: string, list: Opt[], get: () => number, set: (i: number) => void, react = 'stare') => {
+      const s = h('div', 'ob-strip');
+      const val = h('button', 'ob-strip-v', '');
+      val.type = 'button';
+      const paint = () => { const i = get(); val.innerHTML = `<small>${esc(label)}</small><b>${esc(list[i]?.name ?? '?')}</b><em>${i + 1}/${list.length}</em>`; val.title = list[get()]?.note || ''; };
+      const step = (d: number) => { const i = (get() + d + list.length) % list.length; set(i); paint(); sfx('tick'); s.classList.remove('flip'); void s.offsetWidth; s.classList.add('flip'); refreshLooks(react); };
+      const l = h('button', 'ob-strip-a', '◀'); l.type = 'button'; l.setAttribute('aria-label', label + ': previous'); l.onclick = () => step(-1);
+      const r = h('button', 'ob-strip-a', '▶'); r.type = 'button'; r.setAttribute('aria-label', label + ': next'); r.onclick = () => step(1);
+      val.onclick = () => step(1);
+      for (const b of [l, val, r]) hoverFocus(b);
+      paint();
+      s.append(l, val, r);
       return s;
     };
-    const row = (label: string, ...kids: HTMLElement[]) => {
-      const r = h('div', 'pf-row', `<span class="pf-l">${esc(label)}</span>`);
-      const c = h('div', 'pf-c');
-      c.append(...kids);
-      r.append(c);
-      return r;
-    };
-    const swatches = (key: string, list: number[], cur: number, set: (c: number) => void, react = 'nod') => list.map((c, i) => {
-      const b = h('button', 'pf-sw' + (c === cur ? ' on' : ''));
-      b.type = 'button';
-      b.style.background = '#' + c.toString(16).padStart(6, '0');
-      b.dataset.k = key + i;
-      b.setAttribute('aria-label', key + ' ' + (i + 1));
-      hoverFocus(b);
-      b.onclick = () => { set(c); sfx('toggle'); b.parentElement!.querySelectorAll('.pf-sw').forEach((o) => o.classList.toggle('on', o === b)); refreshLooks(react); flashScan(); };
-      return b;
-    });
-    const keyed = (el: HTMLElement, k: string) => { el.querySelectorAll('button, input').forEach((b, i) => ((b as HTMLElement).dataset.k = k + i)); return el; };
-
-    const identityPage = (P: DocumentFragment) => {
-      const s1 = section('NAME OF PERSONNEL');
-      const nr = h('div', 'pf-namerow');
-      const ni = h('input', 't-field') as HTMLInputElement;
-      ni.value = name; ni.maxLength = 24; ni.spellcheck = false; ni.dataset.k = 'name'; ni.setAttribute('aria-label', 'Name');
-      ni.addEventListener('input', () => { name = ni.value; updatePoints(); });
-      nr.append(ni, kbtn(IC.dice + '<span>Generate</span>', () => { name = randomName(); ni.value = name; updatePoints(); preview.react('nod'); }, { tip: 'Generate a name' }));
-      (nr.lastChild as HTMLElement).dataset.k = 'gen';
-      s1.append(nr);
-      P.append(s1);
-
-      // one control per appearance field; fields the rig gained later are discovered at runtime
-      const spec = new Map(fields.extra.map((f) => [f.key, f] as const));
-      const used = new Set<string>();
-      const control = (key: string, react = 'nod'): HTMLElement | null => {
-        const fs = spec.get(key);
-        if (!fs) return null;
-        used.add(key);
-        const cur = (app as any)[key];
-        const set = (v: any) => { (app as any)[key] = v; if (key === 'facialHair') app.beard = v === 'beard'; refreshLooks(react); flashScan(); };
-        if (fs.kind === 'color') return row(fs.label, ...swatches(key, fs.vals, cur, (c) => { (app as any)[key] = c; }, react));
-        if (fs.kind === 'bool') return row(fs.label, keyed(seg('', [[false, 'no'], [true, 'yes']] as [boolean, string][], !!cur, set), key));
-        if (fs.kind === 'enum') return row(fs.label, keyed(seg('', fs.vals.map((v) => [v, String(v)] as [any, string]), cur ?? fs.vals[0], set), key));
-        if (fs.kind === 'int') return row(fs.label, keyed(seg('', fs.vals.map((v) => [v, v === 0 ? 'none' : String(v)] as [any, string]), cur ?? 0, set), key));
-        const r = h('div', 'pf-range');
-        const inp = h('input') as HTMLInputElement; inp.type = 'range'; inp.min = String(fs.min); inp.max = String(fs.max); inp.step = String(((fs.max ?? 1) - (fs.min ?? 0)) / 40); inp.value = String(cur ?? fs.min);
-        inp.dataset.k = key; inp.setAttribute('aria-label', fs.label);
-        const out = h('output', '', esc(rangeText(key, Number(inp.value))));
-        const pp = () => inp.style.setProperty('--p', String((Number(inp.value) - fs.min!) / ((fs.max! - fs.min!) || 1)));
-        pp();
-        hoverFocus(inp);
-        inp.oninput = () => { (app as any)[key] = Number(inp.value); out.textContent = rangeText(key, Number(inp.value)); pp(); sfx('tick'); refreshLooks(); };
-        inp.onchange = () => { flashScan(); preview.react('scan'); };
-        r.append(inp, out);
-        return row(fs.label, r);
-      };
-      const add = (sec: HTMLElement, el: HTMLElement | null) => { if (el) sec.append(el); };
-
-      const sB = section('BODY', 'changes show on the subject live');
-      sB.append(row('Skin', ...swatches('skin', SKIN_TONES, app.skin, (c) => { app.skin = c; })));
-      add(sB, control('bodyShape', 'look'));
-      sB.append(row('Build', keyed(seg('', [['slim', 'slim'], ['average', 'average'], ['broad', 'broad']] as [Appearance['build'], string][], app.build, (v) => { app.build = v; refreshLooks('flex'); flashScan(); }), 'build')));
-      const hr = h('div', 'pf-range');
-      const hs = h('input') as HTMLInputElement; hs.type = 'range'; hs.min = '0.94'; hs.max = '1.06'; hs.step = '0.01'; hs.value = String(app.height); hs.dataset.k = 'height'; hs.setAttribute('aria-label', 'Height');
-      const ho = h('output', '', `${Math.round(172 * app.height)} cm`);
-      const paint = () => hs.style.setProperty('--p', String((Number(hs.value) - 0.94) / 0.12));
-      paint();
-      hoverFocus(hs);
-      hs.oninput = () => { app.height = Number(hs.value); ho.textContent = `${Math.round(172 * app.height)} cm`; paint(); sfx('tick'); refreshLooks(); };
-      hs.onchange = () => { preview.react('scan'); flashScan(); };
-      hr.append(hs, ho);
-      sB.append(row('Height', hr));
-      P.append(sB);
-
-      const sF = section('FACE');
-      sF.append(row('Face', keyed(seg('', Array.from({ length: fields.faces }, (_, i) => [i, String.fromCharCode(65 + i)] as [number, string]), app.face, (v) => { app.face = v; refreshLooks('nod'); flashScan(); }), 'face')));
-      for (const k of ['eyeColor', 'freckles', 'scars', 'age']) add(sF, control(k));
-      P.append(sF);
-
-      const sH = section('HAIR');
-      sH.append(row('Style', keyed(seg('', fields.styles.map((v) => [v, v] as [string, string]), app.hairStyle, (v) => { (app as any).hairStyle = v; refreshLooks('nod'); flashScan(); }), 'hs')));
-      sH.append(row('Colour', ...swatches('hair', HAIR_COLORS, app.hair, (c) => { app.hair = c; }, 'look')));
-      const fh = control('facialHair');
-      if (fh) sH.append(fh);
-      else sH.append(row('Facial hair', keyed(seg('', [[false, 'none'], [true, 'beard']] as [boolean, string][], !!app.beard, (v) => { app.beard = v; refreshLooks('nod'); flashScan(); }), 'beard')));
-      P.append(sH);
-
-      const rest = fields.extra.filter((f) => !used.has(f.key));
-      if (rest.length) {
-        const sO = section('OTHER');
-        for (const f of rest) add(sO, control(f.key));
-        P.append(sO);
+    const swatches = (list: number[], cur: () => number, set: (c: number) => void, cls = 'chip', react = 'stare') => {
+      const row = h('div', 'ob-swatches ' + cls);
+      for (const c of list) {
+        const b = opt('ob-sw', `<i style="background:${hex(c)}"></i>`, c === cur(), () => { set(c); mark(row, b); sfx('toggle'); refreshLooks(react); }, 'colour ' + hex(c));
+        row.append(b);
       }
-      const rb = mbtn('Someone else', () => { Object.assign(app, randomAppearance(Math.random)); rerender(); refreshLooks(); preview.react('spin'); flashScan(); }, { sub: 'randomize looks' });
-      rb.dataset.k = 'rlooks';
-      P.append(rb);
+      return row;
+    };
+    const tape = (label: string, min: number, max: number, step: number, get: () => number, set: (v: number) => void, fmt: (v: number) => string, react = '') => {
+      const w = h('label', 'ob-tape');
+      const inp = h('input') as HTMLInputElement;
+      inp.type = 'range'; inp.min = String(min); inp.max = String(max); inp.step = String(step); inp.value = String(get());
+      inp.setAttribute('aria-label', label);
+      const out = h('output', '', esc(fmt(get())));
+      const paint = () => w.style.setProperty('--p', String((Number(inp.value) - min) / (max - min)));
+      paint();
+      hoverFocus(inp);
+      inp.oninput = () => { set(Number(inp.value)); out.textContent = fmt(Number(inp.value)); paint(); sfx('tick'); refreshLooks(); };
+      inp.onchange = () => { if (react) stage.react(react); };
+      w.append(h('span', 'ob-tape-l', esc(label)), inp, out);
+      return w;
+    };
+    const stampRow = (label: string, list: Opt[], cur: () => string, set: (k: string) => void, react = '') => {
+      const row = h('div', 'ob-row', `<span class="ob-row-l">${esc(label)}</span>`);
+      const box = h('div', 'ob-row-o');
+      for (const o of list) {
+        const b = opt('ob-box', `<i></i>${esc(o.name)}`, o.key === cur(), () => { set(o.key); mark(box, b); sfx('stamp', 0.5); refreshLooks(react); });
+        box.append(b);
+      }
+      row.append(box);
+      return row;
     };
 
-    const skillLine = (o: Occupation) => {
-      const parts = Object.entries(o.skills).map(([k, v]) => `${esc(SKILLS.find((s) => s.key === k)?.name || k)} <i>${'▮'.repeat(v as number)}</i>`);
-      return parts.length ? parts.join('') : '<span>no prior skills</span>';
-    };
-    const occupationPage = (P: DocumentFragment) => {
-      const s = section('PRIOR EMPLOYMENT', 'sets starting skills, kit and points');
-      const grid = h('div', 'pf-occs');
-      OCCUPATIONS.forEach((o, i) => {
-        const avail = occupationAvailable(o);
-        const b = h('button', 'pf-occ' + (o.key === occ ? ' on' : '') + (avail ? '' : ' locked'));
-        b.type = 'button';
-        b.dataset.k = 'occ' + i;
-        const icon = o.items.find((k) => hasItemDef(k));
-        const kit = o.items.filter((k) => hasItemDef(k)).slice(0, 5);
-        const p = o.points;
-        b.innerHTML = `<div class="pf-occ-h">${icon ? `<img src="${itemIcon(icon, '', 20)}" alt="">` : '<span class="ico-x"></span>'}<span class="pf-occ-n">${esc(o.name)}</span><span class="pf-occ-p ${p > 0 ? 'pos' : p < 0 ? 'neg' : ''}">${p > 0 ? '+' : ''}${p}</span></div>`
-          + (avail
-            ? `<div class="pf-occ-d">${esc(o.desc)}</div><div class="pf-occ-s">${skillLine(o)}</div><div class="pf-occ-kit">${kit.map((k) => `<img src="${itemIcon(k, '', 16)}" alt="" title="${esc(itemDef(k).name)}">`).join('')}</div>`
-            : `<div class="pf-lock">${LOCK_ICON()}<span>LOCKED · ${esc(o.unlock?.hint || 'Not yet available.')}</span></div>`);
-        if (!avail) b.setAttribute('aria-disabled', 'true');
-        hoverFocus(b);
-        // hover / focus preview: try the kit on before committing
-        if (avail) {
-          const tryOn = () => previewOutfit(o.key);
-          b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') tryOn(); });
-          b.addEventListener('focus', tryOn);
-          b.addEventListener('pointerleave', () => previewOutfit(occ));
-          b.addEventListener('blur', () => previewOutfit(occ));
+    let tatSpot = 'chest', scarSpot = 'chest';
+    const buildProps = (k: string): HTMLElement => {
+      const wrap = h('div', 'ik-props-in');
+      const close = h('button', 'ik-props-x', 'DONE ✓');
+      close.type = 'button'; hoverFocus(close); close.onclick = () => select(null);
+      if (k === 'head') {
+        const kit = obj('kit', 'IDENTIKIT', 'composite face kit · flip each strip');
+        kit.append(
+          strip('Face shape', FACE_SHAPES, () => shapeIndex(), (i) => { app.jaw = i; }),
+          strip('Eyes', EYE_SHAPES, () => eyeShapeOf(app), (i) => { app.eyeShape = i; }),
+          strip('Brows', BROWS, () => browsOf(app), (i) => { app.brows = i; }, 'crack_neck'),
+          strip('Nose', NOSES, () => noseOf(app), (i) => { app.nose = i; }, 'wipe'),
+          strip('Mouth', MOUTHS, () => mouthOf(app), (i) => { app.mouth = i; }),
+          strip('Ears', EARS, () => app.ears ?? 0, (i) => { app.ears = i; }, 'turn_head'),
+          strip('Facial hair', FACIAL_HAIR_ALL, () => Math.max(0, FACIAL_HAIR_ALL.findIndex((f) => f.key === (app.facialHair || 'none'))), (i) => { (app as any).facialHair = FACIAL_HAIR_ALL[i].key; app.beard = FACIAL_HAIR_ALL[i].key === 'beard'; }),
+          strip('Face scars', [{ key: '0', name: 'None' }, { key: '1', name: 'One' }, { key: '2', name: 'Two' }, { key: '3', name: 'Several' }], () => app.scars ?? 0, (i) => { app.scars = i; }),
+          strip('Freckles', [{ key: '0', name: 'None' }, { key: '1', name: 'A few' }, { key: '2', name: 'Lots' }], () => ((app.freckles ?? 0) < 0.15 ? 0 : (app.freckles ?? 0) < 0.6 ? 1 : 2), (i) => { app.freckles = [0, 0.4, 0.9][i]; }),
+          strip('Wear and tear', [{ key: '0', name: 'Young' }, { key: '1', name: 'Lined' }, { key: '2', name: 'Weathered' }, { key: '3', name: 'Old' }], () => Math.min(3, Math.round((app.age ?? 0) / 0.3)), (i) => { app.age = [0, 0.3, 0.6, 0.9][i]; }),
+        );
+        const eyes = obj('cork', 'IRIS SAMPLES', 'pinned');
+        eyes.append(swatches(EYE_COLORS, () => app.eyeColor ?? -1, (c) => { app.eyeColor = c; }, 'marbles'));
+        const skin = obj('cork', 'SKIN TONE', 'paint chips');
+        skin.append(swatches(SKIN_ALL, () => app.skin, (c) => { app.skin = c; }, 'chip'));
+        wrap.append(kit, eyes, skin);
+      } else if (k === 'hair') {
+        const chart = obj('chart', 'CLIPPER CHART', 'barber · wing B');
+        const grid = h('div', 'ob-grid hair');
+        for (const st of HAIR_STYLES_ALL) {
+          const b = opt('ob-card', `<img src="${toUrl(hairIcon(st.key, app.hair, app.skin))}" alt=""><span>${esc(st.name)}</span>`, app.hairStyle === st.key, () => { (app as any).hairStyle = st.key; mark(grid, b); sfx('toggle'); refreshLooks('touch_hair'); });
+          grid.append(b);
         }
-        b.onclick = () => {
-          if (!avail) { sfx('error'); b.classList.remove('deny'); void b.offsetWidth; b.classList.add('deny'); return; }
-          if (occ === o.key) return;
-          occ = o.key;
-          shownOcc = '';
-          sfx('confirm');
-          grid.querySelectorAll('.pf-occ').forEach((x) => x.classList.toggle('on', x === b));
-          refreshOutfit('look'); flashScan();
-          updatePoints();
+        chart.append(grid);
+        const dye = obj('cork', 'DYE SAMPLES', 'tufts');
+        dye.append(swatches(HAIR_DYES, () => app.hair, (c) => { app.hair = c; grid.querySelectorAll('img').forEach((im, i) => { (im as HTMLImageElement).src = toUrl(hairIcon(HAIR_STYLES_ALL[i].key, c, app.skin)); }); }, 'tufts', 'touch_hair'));
+        const fh = obj('kit', 'FACIAL HAIR');
+        fh.append(strip('Facial hair', FACIAL_HAIR_ALL, () => Math.max(0, FACIAL_HAIR_ALL.findIndex((f) => f.key === (app.facialHair || 'none'))), (i) => { (app as any).facialHair = FACIAL_HAIR_ALL[i].key; app.beard = FACIAL_HAIR_ALL[i].key === 'beard'; }));
+        wrap.append(chart, dye, fh);
+      } else if (k === 'torso' || k === 'armL' || k === 'armR') {
+        if (k === 'torso') {
+          const sc = obj('scale', 'BUILD', 'platform scale · kg');
+          const row = h('div', 'ob-scale');
+          for (const [bk, bl, kg] of BUILDS) {
+            const b = opt('ob-weight', `<b>${kg}</b><span>${esc(bl)}</span>`, String(app.build) === bk, () => { (app as any).build = bk; mark(row, b); sfx('toggle'); refreshLooks('stretch'); });
+            row.append(b);
+          }
+          sc.append(row, tape('Frame', 0, 1, 0.05, () => app.bodyShape ?? 0.3, (v) => { app.bodyShape = v; }, (v) => (v < 0.34 ? 'square' : v > 0.66 ? 'curved' : 'in between'), 'stretch'));
+          const skin = obj('cork', 'SKIN TONE', 'paint chips');
+          skin.append(swatches(SKIN_ALL, () => app.skin, (c) => { app.skin = c; }, 'chip'));
+          wrap.append(sc, skin);
+        }
+        const spots = k === 'torso' ? ['chest', 'back', 'belly', 'neck', 'face'] : k === 'armL' ? ['uarm_l', 'farm_l'] : ['uarm_r', 'farm_r'];
+        if (!spots.includes(tatSpot)) tatSpot = spots[0];
+        const flash = obj('sheet', 'TATTOO FLASH', 'pick a spot, then a design');
+        const spotRow = h('div', 'ob-spots');
+        const dGrid = h('div', 'ob-grid flash');
+        const paintDesigns = () => {
+          dGrid.innerHTML = '';
+          const cur = app.tattoos?.[tatSpot] || '';
+          const none = opt('ob-flash none', '<span>NONE</span>', !cur, () => { const t = { ...(app.tattoos || {}) }; delete t[tatSpot]; app.tattoos = t; mark(dGrid, none); sfx('back', 0.5); refreshLooks(); paintSpots(); });
+          dGrid.append(none);
+          for (const d of tattoosFor(tatSpot)) {
+            const b = opt('ob-flash', `<img src="${toUrl(tattooImage(d, 3))}" alt=""><span>${esc(TATTOOS[d].name)}</span>`, cur === d, () => {
+              app.tattoos = { ...(app.tattoos || {}), [tatSpot]: d }; mark(dGrid, b); sfx('stamp', 0.4); refreshLooks(); stage.doFlash(false); paintSpots();
+            });
+            dGrid.append(b);
+          }
         };
-        grid.append(b);
-      });
-      s.append(grid);
-      P.append(s);
+        const paintSpots = () => {
+          spotRow.innerHTML = '';
+          for (const sp of spots) {
+            const has = !!app.tattoos?.[sp];
+            const b = opt('ob-spot' + (has ? ' inked' : ''), `<i></i>${esc(TATTOO_SPOTS[sp].name)}`, sp === tatSpot, () => { tatSpot = sp; mark(spotRow, b); sfx('tick'); paintDesigns(); });
+            spotRow.append(b);
+          }
+        };
+        paintSpots(); paintDesigns();
+        flash.append(spotRow, dGrid);
+        const sSpots = Object.keys(SCAR_SPOTS).filter((s) => (k === 'torso' ? ['brow', 'chest', 'belly', 'back'] : k === 'armL' ? ['uarm_l', 'farm_l'] : ['uarm_r', 'farm_r']).includes(s));
+        if (!sSpots.includes(scarSpot)) scarSpot = sSpots[0];
+        const med = obj('card', 'MEDICAL HISTORY', 'old wounds, noted');
+        const sRow = h('div', 'ob-spots');
+        const kRow = h('div', 'ob-row-o');
+        const paintKinds = () => {
+          kRow.innerHTML = '';
+          const cur = app.bodyScars?.[scarSpot] || '';
+          const none = opt('ob-box', '<i></i>None', !cur, () => { const t = { ...(app.bodyScars || {}) }; delete t[scarSpot]; app.bodyScars = t; mark(kRow, none); sfx('back', 0.5); refreshLooks(); });
+          kRow.append(none);
+          for (const [sk, sl] of Object.entries(BODY_SCARS)) {
+            const b = opt('ob-box', `<i></i>${esc(sl)}`, cur === sk, () => { app.bodyScars = { ...(app.bodyScars || {}), [scarSpot]: sk }; mark(kRow, b); sfx('stamp', 0.5); refreshLooks('wipe'); });
+            kRow.append(b);
+          }
+        };
+        for (const sp of sSpots) {
+          const b = opt('ob-spot', `<i></i>${esc(SCAR_SPOTS[sp].name)}`, sp === scarSpot, () => { scarSpot = sp; mark(sRow, b); sfx('tick'); paintKinds(); });
+          sRow.append(b);
+        }
+        paintKinds();
+        med.append(sRow, kRow);
+        wrap.append(flash, med);
+      } else if (k === 'handL') {
+        const card = obj('card', 'FINGERPRINT CARD', 'right hand · left hand');
+        card.append(h('div', 'ob-prints', '<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>'));
+        const kn = h('div', 'ob-grid knuckles');
+        for (const [kk, kv] of Object.entries(KNUCKLES)) {
+          const b = opt('ob-knuckle', `<b>${esc(kv.l || '·')}</b><b>${esc(kv.r || '·')}</b><span>${esc(kv.name)}</span>`, (app.knuckles || 'none') === kk, () => { app.knuckles = kk; mark(kn, b); sfx('stamp', 0.4); refreshLooks(); stage.doFlash(false); });
+          kn.append(b);
+        }
+        card.append(h('div', 'ob-sub', 'KNUCKLES'), kn, h('div', 'ob-sub', 'NAILS'));
+        const nl = h('div', 'ob-row-o');
+        for (const [nk, nv] of Object.entries(NAILS)) {
+          const b = opt('ob-box', `<i style="${nv.color ? `background:${hex(nv.color)}` : ''}"></i>${esc(nv.name)}`, (app.nails || 'clean') === nk, () => { app.nails = nk; mark(nl, b); sfx('toggle'); refreshLooks(); });
+          nl.append(b);
+        }
+        card.append(nl);
+        const skin = obj('cork', 'SKIN TONE', 'paint chips');
+        skin.append(swatches(SKIN_ALL, () => app.skin, (c) => { app.skin = c; }, 'chip'));
+        wrap.append(card, skin);
+      } else if (k === 'legL') {
+        const m = obj('tape', 'MEASUREMENT', 'against the chart');
+        m.append(
+          tape('Height', 0.92, 1.08, 0.01, () => app.height, (v) => { app.height = v; }, (v) => `${Math.round(172 * v)} cm`, 'stretch'),
+          tape('Frame', 0, 1, 0.05, () => app.bodyShape ?? 0.3, (v) => { app.bodyShape = v; }, (v) => (v < 0.34 ? 'square' : v > 0.66 ? 'curved' : 'in between'), 'stretch'),
+        );
+        const sc = obj('scale', 'BUILD', 'platform scale · kg');
+        const row = h('div', 'ob-scale');
+        for (const [bk, bl, kg] of BUILDS) {
+          const b = opt('ob-weight', `<b>${kg}</b><span>${esc(bl)}</span>`, String(app.build) === bk, () => { (app as any).build = bk; mark(row, b); sfx('toggle'); refreshLooks('stretch'); });
+          row.append(b);
+        }
+        sc.append(row);
+        wrap.append(m, sc);
+      } else if (k === 'feet') {
+        const t = obj('tags', 'PROPERTY · FOOTWEAR', 'issued on intake');
+        const row = h('div', 'ob-grid feet');
+        for (const f of FEET_KIT) {
+          const b = opt('ob-luggage', `<i></i><b>${esc(f.name)}</b>`, (app.feetKit ?? 'slipons') === f.key, () => { app.feetKit = f.key; mark(row, b); sfx('toggle'); refreshLooks('look_down'); });
+          row.append(b);
+        }
+        t.append(row);
+        wrap.append(t);
+      } else if (k === 'uniform') {
+        const s = obj('slip', 'UNIFORM ISSUE SLIP', 'form U-2 · stamp one per line');
+        const suit = () => (app.suit ||= {});
+        s.append(
+          stampRow('Sleeves', SUIT_SLEEVES, () => suit().sleeves || 'down', (v) => { suit().sleeves = v; }, 'stretch'),
+          stampRow('Condition', SUIT_WEAR, () => String(suit().wear ?? 0), (v) => { suit().wear = Number(v); }),
+          stampRow('Stains', STAINS, () => suit().stains || 'none', (v) => { suit().stains = v; }, 'wipe'),
+          stampRow('Number patch', PATCHES, () => suit().patch || 'stitched', (v) => { suit().patch = v; }),
+        );
+        s.append(h('p', 'ob-note', 'Your number is assigned when you are processed. It is stencilled on your back.'));
+        wrap.append(s);
+      } else if (k === 'board') {
+        const b = obj('felt', 'BOOKING BOARD', 'name of the debtor');
+        const row = h('div', 'ob-namerow');
+        const ni = h('input', 'ob-name') as HTMLInputElement;
+        ni.value = name; ni.maxLength = 24; ni.spellcheck = false; ni.setAttribute('aria-label', 'Name');
+        ni.addEventListener('input', () => { name = ni.value; stage.setBoard(name, '', fmtDate()); updateGo(); rehab?.refresh(); });
+        ni.addEventListener('focus', () => { if (G?.input) G.input.textFocus = true; });
+        ni.addEventListener('blur', () => { if (G?.input) G.input.textFocus = false; });
+        const dice = h('button', 'ob-dice', '⚄ <span>Another name</span>');
+        (dice as HTMLButtonElement).type = 'button';
+        hoverFocus(dice);
+        dice.onclick = () => { name = randomName(); ni.value = name; stage.setBoard(name, '', fmtDate()); sfx('click'); updateGo(); stage.react('crack_neck'); };
+        row.append(ni, dice);
+        b.append(row, h('p', 'ob-note', 'NUMBER: <b>D-____</b> · assigned at processing'));
+        wrap.append(b);
+        requestAnimationFrame(() => { if (!matchMedia('(pointer: coarse)').matches) ni.focus({ preventScroll: true }); });
+      }
+      const someone = h('button', 'ik-props-rand', '⚄ Somebody else');
+      (someone as HTMLButtonElement).type = 'button';
+      hoverFocus(someone);
+      someone.onclick = () => randomizeLooks();
+      const foot = h('div', 'ik-props-foot');
+      foot.append(someone, close);
+      wrap.append(foot);
+      return wrap;
+    };
+    const shapeIndex = () => {
+      if (app.jaw != null) return app.jaw;
+      const s = shapeOf(app);
+      return s.jaw > 1.04 ? 6 : s.jaw < 0.98 ? 4 : 0;
     };
 
-    const traitsPage = (P: DocumentFragment) => {
-      const s = section('PERSONAL PARTICULARS', 'assets cost points · liabilities give points');
-      const budget = h('div', 'pf-budget');
-      const occP = occupationByKey(occ).points;
-      const spent = occP - points();
-      const total = Math.max(1, occP + [...traits].reduce((a, k) => a + Math.max(0, TRAITS.find((x) => x.key === k)?.cost ?? 0), 0));
-      const left = points();
-      budget.innerHTML = `<span>BUDGET</span><div class="pf-budget-bar ${left < 0 ? 'bad' : ''}"><i style="width:${Math.max(0, Math.min(100, (left / total) * 100))}%"></i></div><span>${left} LEFT · ${spent >= 0 ? spent : 0} SPENT</span>`;
-      s.append(budget);
-      const picked = h('div', 'pf-picked');
-      for (const k of traits) picked.append(h('span', '', esc(TRAITS.find((x) => x.key === k)?.name || k)));
-      if (!traits.size) picked.append(h('span', '', 'none selected'));
-      s.append(picked);
-      const cols = h('div', 'pf-traits');
-      const good = h('div', 'pf-tcol', '<h4>ASSETS</h4>'), bad = h('div', 'pf-tcol', '<h4>LIABILITIES</h4>');
-      const detail = h('div', 'pf-detail', '<b>Select a line for details.</b>Assets cost points; liabilities give points back. Finish at 0 or above.');
-      const describe = (tr: Trait, why = '') => {
-        detail.innerHTML = `<b>${esc(tr.name)} · ${tr.cost < 0 ? tr.cost : '+' + tr.cost}</b>${esc(tr.desc)}${why ? `<br><span class="warn">${esc(why)}</span>` : ''}`;
-      };
-      TRAITS.forEach((tr, i) => {
-        const on = traits.has(tr.key);
-        const avail = traitAvailable(tr);
-        const conflict = !on ? TRAITS.find((x) => traits.has(x.key) && ((tr.excl || []).includes(x.key) || (x.excl || []).includes(tr.key))) : undefined;
-        const b = h('button', 'pf-trait' + (on ? ' on' : '') + (conflict ? ' blocked' : '') + (!avail ? ' locked' : ''),
-          `<span class="bx"></span><span class="nm">${esc(tr.name)}</span><span class="co">${tr.cost < 0 ? tr.cost : '+' + tr.cost}</span>`);
-        b.type = 'button';
-        b.dataset.k = 'tr' + i;
-        const why = !avail ? 'LOCKED · ' + (tr.unlock?.hint || 'Not yet available.') : conflict ? `Conflicts with ${conflict.name}.` : '';
-        hoverFocus(b);
-        b.addEventListener('focus', () => describe(tr, why));
-        b.addEventListener('pointerenter', () => describe(tr, why));
-        b.onclick = () => {
-          if (!avail || conflict) { describe(tr, why); sfx('error'); b.classList.remove('deny'); void b.offsetWidth; b.classList.add('deny'); return; }
-          if (on) { traits.delete(tr.key); sfx('back'); } else { traits.add(tr.key); sfx('confirm'); preview.react(tr.cost < 0 ? 'nod' : 'shrug'); }
-          rerender();
-          const nb = page.querySelector(`[data-k="tr${i}"]`) as HTMLElement | null;
-          nb?.focus({ preventScroll: true });
-          describe(tr);
-        };
-        (tr.cost < 0 ? good : bad).append(b);
-      });
-      cols.append(good, bad);
-      s.append(cols, detail);
-      P.append(s);
+    // ---------------- stations
+    const rehabCtx: RehabCtx = {
+      get occ() { return occ; }, set occ(v) { occ = v; updateCredits(); },
+      traits, points, onChange: () => updateCredits(),
+      get name() { return name; },
+      mugshot: () => stage.snapshot(24, 24),
     };
-
-    const simulationPage = (P: DocumentFragment) => {
-      const s = section('SIMULATION PARAMETERS', 'world rules for this run');
-      const grid = h('div', 'pf-presets');
-      const all = [...Object.entries(PRESETS).map(([k, p]) => [k, p.label, p.note] as const), ['custom', 'Custom', 'Every dial, your call.'] as const];
-      all.forEach(([k, label, note], i) => {
-        const b = h('button', 'pf-preset' + (preset === k ? ' on' : ''), `<b>${esc(label)}</b><small>${esc(note)}</small>`);
-        b.type = 'button';
-        b.dataset.k = 'pre' + i;
-        hoverFocus(b);
-        b.onclick = () => { preset = k; if (k !== 'custom') Object.assign(sb, PRESETS[k].s); sfx('confirm'); rerender(); };
-        grid.append(b);
-      });
-      s.append(grid);
-      const custom = h('div', 'pf-custom');
-      const opt = (label: string, key: string, vals: [number, string][], tip?: (v: number) => string) => {
-        custom.append(keyed(seg<number>(label, vals, sb[key], (v) => { sb[key] = v; if (preset !== 'custom') { preset = 'custom'; rerender(); } else updatePoints(); }, { tip }), 'sb' + key));
-      };
-      opt('Day length', 'dayLength', [[30, '30 min'], [60, '1 hour'], [90, '90 min'], [120, '2 hours']]);
-      opt('Entities', 'creatures', [[0, 'none'], [0.35, 'few'], [1, 'normal'], [1.6, 'many'], [2.5, 'swarming']]);
-      opt('Supplies', 'loot', [[0.4, 'scarce'], [0.7, 'low'], [1, 'normal'], [1.6, 'plenty']]);
-      opt('Collapse', 'collapseSpeed', [[0.4, 'slow'], [1, 'normal'], [1.6, 'fast']]);
-      opt('Wake at', 'startHour', [[7, '07:00'], [8.5, '08:30'], [14, '14:00'], [21, '21:00'], [2, '02:00']]);
-      opt('Water fails', 'waterShutoffDays', [[0, 'never'], [3, 'day 3'], [7, 'day 7'], [14, 'day 14']]);
-      opt('Power fails', 'powerShutoffDays', [[0, 'never'], [7, 'day 7'], [14, 'day 14'], [30, 'day 30']]);
-      opt('Gore', 'gore', [[0, 'off'], [1, 'normal'], [2, 'heavy']], (v) => ['No blood or wounds shown', 'Blood and wounds', 'Dismemberment, gibs, arterial spray'][v]);
-      s.append(custom);
-      const ll = toggle('Limb loss', (sb.limbLoss ?? 1) !== 0, (v) => { sb.limbLoss = v ? 1 : 0; updatePoints(); }, 'survivors can lose hands, arms, feet and legs to bites and blades');
-      ll.dataset.k = 'limb';
-      s.append(ll);
-      const dir = toggle('Directives', directives, (v) => { directives = v; updatePoints(); }, directives ? 'story mode: restore power, follow the signal, find the way out' : 'free survival: no mission chain');
-      dir.dataset.k = 'dir';
-      dir.addEventListener('click', () => { const sm = dir.querySelector('small'); if (sm) sm.textContent = directives ? 'story mode: restore power, follow the signal, find the way out' : 'free survival: no mission chain'; });
-      s.append(dir);
-      const sr = h('div', 'pf-seedrow');
-      const si = h('input', 't-field') as HTMLInputElement; si.value = String(seed); si.inputMode = 'numeric'; si.dataset.k = 'seed'; si.setAttribute('aria-label', 'World seed');
-      si.oninput = () => { seed = Math.abs(Math.floor(Number(si.value) || 0)); updatePoints(); };
-      const rs = kbtn(IC.dice, () => { seed = Math.floor(Math.random() * 99999); si.value = String(seed); updatePoints(); }, { tip: 'Random seed' });
-      rs.dataset.k = 'seedr';
-      sr.append(h('span', 't-lbl', 'World seed'), si, rs);
-      s.append(sr);
-      P.append(s);
+    let rehab: ReturnType<typeof rehabStation> | null = null;
+    const termsCtx: TermsCtx = {
+      sb, get preset() { return preset; }, set preset(v) { preset = v; },
+      get seed() { return seed; }, set seed(v) { seed = v; },
+      get directives() { return directives; }, set directives(v) { directives = v; },
+      get name() { return name; },
+    };
+    let terms: ReturnType<typeof termsStation> | null = null;
+    const goStation = (i: number) => {
+      if (closing) return;
+      i = Math.max(0, Math.min(stations.length - 1, i));
+      if (i === station && rooms[i].classList.contains('on')) return;
+      const dir = i > station ? 1 : -1;
+      station = i;
+      if (part && i !== 0) select(null);
+      signBtns.forEach((b, j) => b.classList.toggle('on', j === i));
+      rooms.forEach((r, j) => { r.classList.toggle('on', j === i); r.classList.toggle('from-l', dir < 0); });
+      root.dataset.station = String(i);
+      stage.visible = i === 0;
+      if (i === 1) { if (!rehab) { rehab = rehabStation(rehabCtx); rooms[1].append(rehab.el); } rehab.enter(); }
+      if (i === 2) { if (!terms) { terms = termsStation(termsCtx); rooms[2].append(terms.el); } terms.enter(); }
+      sfx('tab');
+      updateGo();
+      requestAnimationFrame(() => (rooms[i].querySelector('button:not([disabled]), input') as HTMLElement | null)?.focus?.({ preventScroll: true }));
     };
 
     // ---------------- actions
-    const randomizeAll = () => {
-      Object.assign(app, randomAppearance(Math.random));
-      name = randomName();
-      const jobs = OCCUPATIONS.filter(occupationAvailable);
-      occ = pickR(jobs).key;
-      traits.clear();
-      // a couple of affordable traits
-      const pool = TRAITS.filter(traitAvailable).sort(() => Math.random() - 0.5);
-      for (const tr of pool) {
-        if (traits.size >= 3) break;
-        const conflict = [...traits].some((k) => (tr.excl || []).includes(k) || (TRAITS.find((x) => x.key === k)?.excl || []).includes(tr.key));
-        if (conflict) continue;
-        traits.add(tr.key);
-        if (points() < 0) traits.delete(tr.key);
-      }
+    const randomizeLooks = () => {
+      const fem = Math.random() < 0.5;
+      Object.assign(app, randomAppearance(Math.random), randomLooks(Math.random, fem));
       sfx('confirm');
-      refreshLooks();
-      refreshOutfit();
-      preview.react('spin');
-      setTimeout(() => preview.emote('shrug'), 700);
-      flashScan();
-      rerender();
+      refreshLooks('stretch');
+      if (part) { const k = part; part = null; select(k); }
     };
 
-    let closing = false;
-    const submit = () => {
+    const withdraw = async () => {
+      if (closing) return;
+      const ok = await confirmDialog({ title: 'WITHDRAW', body: 'Walk out of processing? Nothing here is kept.', ok: 'Walk out', cancel: 'Stay', danger: true });
+      if (ok) close(null);
+    };
+
+    const processPrisoner = () => {
       if (closing) return;
       if (points() < 0) {
         sfx('error');
-        approve.classList.remove('shake'); void approve.offsetWidth; approve.classList.add('shake');
-        pts.classList.remove('bad'); void pts.offsetWidth; pts.classList.add('bad');
-        if (pageNames[pageIdx] !== 'TRAITS') t.select(pageNames.indexOf('TRAITS'));
+        go.classList.remove('shake'); void go.offsetWidth; go.classList.add('shake');
+        credits.classList.remove('bad'); void credits.offsetWidth; credits.classList.add('bad');
+        goStation(1);
+        rehab?.deny('Not enough rehab credits: drop a condition or take a cheaper programme.');
         return;
       }
-      if (!name.trim()) {
-        sfx('error');
-        if (pageIdx !== 0) t.select(0);
-        setTimeout(() => (page.querySelector('[data-k="name"]') as HTMLElement | null)?.focus(), 50);
-        return;
-      }
+      if (!name.trim()) { sfx('error'); goStation(0); select('board'); return; }
       closing = true;
-      sfx('stamp');
-      stamp.classList.add('on');
-      preview.emote('salute');
-      setTimeout(() => close({ name: name.trim().slice(0, 24), app, occupation: occ, traits: [...traits], sandbox: { ...sb }, seed, directives }), 1100);
+      root.classList.add('processing');
+      goStationRaw(0);
+      select0();
+      stage.idle = false;
+      const number = suitNumber(stage.rigSeed);
+      stage.setBoard(name.trim(), number, fmtDate());
+      stage.frameKey('mugshot');
+      stage.holdBoard(true);
+      stage.setYaw(0);
+      const steps: [number, () => void][] = [
+        [300, () => setCaption('HOLDS THE BOARD')],
+        [1300, () => { caption.textContent = 'OFFICER: Look at the camera.'; caption.classList.add('on'); }],
+        [2300, () => { shutter(); }],
+        [3500, () => { caption.textContent = 'OFFICER: Turn to your left.'; stage.setYaw(Math.PI / 2); }],
+        [4900, () => { shutter(); }],
+        [6000, () => { stage.setYaw(0); caption.textContent = `${number} · ${name.trim().toUpperCase()}`; }],
+        [6500, () => { sfx('stamp'); stampEl.classList.add('on'); }],
+        [7800, () => close({ name: name.trim().slice(0, 24), app: { ...app }, occupation: occ, traits: [...traits], sandbox: { ...sb }, seed, directives })],
+      ];
+      for (const [t, f] of steps) timers.push(window.setTimeout(f, t));
     };
+    const timers: number[] = [];
+    const shutter = () => {
+      sfx('shutter');
+      stage.doFlash(true);
+      flashEl.classList.remove('on'); void flashEl.offsetWidth; flashEl.classList.add('on');
+    };
+    const goStationRaw = (i: number) => {
+      station = i;
+      signBtns.forEach((b, j) => b.classList.toggle('on', j === i));
+      rooms.forEach((r, j) => r.classList.toggle('on', j === i));
+      root.dataset.station = String(i);
+      stage.visible = i === 0;
+    };
+    const select0 = () => { part = null; props.classList.remove('on'); props.innerHTML = ''; root.classList.remove('examining'); for (const b of tagBtns.values()) b.classList.remove('on'); stage.focus(null, 'none'); };
 
     let nav: FocusNav;
     const close = (r: IntakeResult | null) => {
       nav.destroy();
-      preview.dispose();
-      clearTimeout(rebuildT);
-      wrap.remove();
+      clearTimeout(tcT); clearTimeout(looksT);
+      for (const t of timers) clearTimeout(t);
+      rehab?.destroy(); terms?.destroy();
+      stage.dispose();
+      root.remove();
       if (G?.input) G.input.textFocus = false;
       resolve(r);
     };
 
     // ---------------- go
-    document.body.append(wrap);
-    preview.setAppearance(app);
-    refreshOutfit();
-    renderPage(0);
-    nav = new FocusNav(f.el, { onBack: () => close(null), onTab: (d) => t.select(t.index + d), autofocus: false });
-    if (!matchMedia('(pointer: coarse)').matches) requestAnimationFrame(() => t.buttons[0]?.focus({ preventScroll: true }));
+    document.body.append(root);
+    rooms[0].classList.add('on');
+    root.dataset.station = '0';
+    stage.setAppearance(app);
+    stage.setOutfit(prisonerOutfit(app, false));
+    stage.setBoard(name, '', fmtDate());
+    updateCredits();
+    updateGo();
+    nav = new FocusNav(root, {
+      onBack: () => { if (closing) return; if (part) select(null); else if (station > 0) goStation(station - 1); else withdraw(); },
+      onTab: (d) => { if (!closing) goStation(station + d); },
+      autofocus: false,
+    });
+    if (!matchMedia('(pointer: coarse)').matches) requestAnimationFrame(() => tagBtns.get('head')?.focus({ preventScroll: true }));
     sfx('open');
-    if (import.meta.env.DEV) (window as any).__intake = { preview, randomizeAll, tabs: t, submit };
+    window.addEventListener('resize', onResize);
+    function onResize() { if (!root.isConnected) { window.removeEventListener('resize', onResize); return; } if (part) stage.focus(part === 'legL' ? 'legs' : part === 'handL' ? 'hands' : part, portrait() ? 'bottom' : 'right'); }
+    if (import.meta.env.DEV) (window as any).__intake = { stage, app, select, goStation, process: processPrisoner, randomizeLooks, refreshLooks, get part() { return part; }, rehab: () => rehab, terms: () => terms, traits, setOcc: (k: string) => { occ = k; updateCredits(); } };
+    void OCCUPATIONS; void occupationAvailable; void traitAvailable;
   });
 }

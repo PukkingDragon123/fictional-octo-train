@@ -19,6 +19,7 @@ import type { GameSystem } from '../game/game';
 import type { Player } from '../entities/player';
 import type { TileObject, Zone } from '../world/zone';
 import type { MenuOption } from '../ui/ui';
+import { voss } from '../game/debt/voice';
 
 export interface Objective {
   id: string;
@@ -44,6 +45,8 @@ export interface DirectiveDef {
   when?: (m: MissionSystem) => boolean;
   objectives: Objective[];
   signals?: SignalDef[];
+  /** who delivers intro/outro: the hologram handler (main contract chain) or a radio burst (default) */
+  voice?: 'handler' | 'radio';
   /** radio line printed when the directive arrives */
   intro?: string;
   outro?: string;
@@ -184,6 +187,8 @@ export class MissionSystem implements GameSystem {
         if (!this.available(d)) continue;
         this.set('start:' + d.key);
         d.onStart?.(this);
+        // already satisfied when it arrives (e.g. several installments paid in one deposit): close it at once, quietly
+        if (d.objectives.every((o) => o.optional || this.objDone(d, o))) { this.set('done:' + d.key); d.onDone?.(this); }
         continue;
       }
       if (this.done(d)) continue;
@@ -207,7 +212,7 @@ export class MissionSystem implements GameSystem {
         this.unread = true;
         G.ui?.toast?.(d.main ? 'NEW DIRECTIVE' : 'SIDE DIRECTIVE', d.title, 4.5);
         G.audio?.ui?.('radarPing');
-        if (d.intro) this.radio(d.intro, 7);
+        if (d.intro) this.line(d, d.intro, 7);
       }
       for (const o of d.objectives) {
         const ok = `obj:${d.key}:${o.id}`;
@@ -217,9 +222,15 @@ export class MissionSystem implements GameSystem {
         this.notified.add(dk);
         G.ui?.toast?.('DIRECTIVE COMPLETE', d.title, 4.5);
         G.audio?.ui?.('scanDone');
-        if (d.outro) setTimeout(() => this.radio(d.outro!, 8), 2500);
+        if (d.outro) setTimeout(() => this.line(d, d.outro!, 8), 2500);
       }
     }
+  }
+
+  /** a directive's intro / outro: the handler speaks for the contract, the radio for everything else */
+  private line(d: DirectiveDef, text: string, secs: number) {
+    if (d.voice === 'handler') { voss(text); return; }
+    this.radio(text, secs);
   }
 
   radio(text: string, secs = 6) {
@@ -409,20 +420,30 @@ export class MissionSystem implements GameSystem {
   }
 
   // ---------------------------------------------------------------- the end
-  ending(p: Player) {
+  /**
+   * The end of a run. 'transport:<kind>' is the contract's ending (bought
+   * passage, src/game/debt/transport.ts); no variant is the side chain's: the
+   * band dead, the door that was always there.
+   */
+  ending(p: Player, variant = '') {
     if (this.endingStarted || !p.isLocal) return;
     this.endingStarted = true;
+    if (variant.startsWith('transport:')) {
+      this.set('contract:transport');
+      G.debt?.transport?.showEnding?.(p, variant.slice(10));
+      return;
+    }
     this.set('escaped');
     G.audio?.flat?.('choir', 'music', 0.4, 1, 0, 60);
-    const ui = G.ui;
     const days = Math.floor(G.clock.hours / 24), hrs = Math.floor(G.clock.hours % 24);
+    const owed = G.debt?.on && !G.debt.cleared ? `${Math.round(G.debt.remaining).toLocaleString('en-GB')} scrip unpaid.` : '';
     const el = document.createElement('div');
     el.className = 'k-ending';
     el.innerHTML = `<div class="k-ending-inner">
-      <p class="k-end-1">The light is warm. It smells like rain on a car park in summer.</p>
-      <p class="k-end-2">Somewhere a monitor shows a flat green line, then a pulse.</p>
-      <p class="k-end-3">CONTINUITY SESSION TERMINATED.<br>SUBJECT RESPONSIVE.</p>
-      <p class="k-end-4">${escapeHtml(p.name)} — ${days} days, ${hrs} hours inside.</p>
+      <p class="k-end-1">The light is warm. It smells like rain on a car park in summer. Your wrist is bare and it aches.</p>
+      <p class="k-end-2">Somewhere a ledger prints one word next to your number, and a monitor shows a flat green line, then a pulse.</p>
+      <p class="k-end-3">DEBTOR STATUS: ABSCONDED.<br>CONTINUITY SESSION TERMINATED. SUBJECT RESPONSIVE.</p>
+      <p class="k-end-4">${escapeHtml(p.name)} — ${days} days, ${hrs} hours inside. ${owed}</p>
       <p class="k-end-5">NOCLIP</p>
       <button class="k-end-btn">Wake up again</button>${G.net ? '<button class="k-end-btn k-end-stay">Stay until the others are out</button>' : ''}</div>`;
     document.body.appendChild(el);
@@ -431,7 +452,6 @@ export class MissionSystem implements GameSystem {
     // co-op: the host leaving would end everyone's session, so you can linger at the door
     el.querySelector('.k-end-stay')?.addEventListener('click', () => { el.remove(); G.audio?.flat?.('choir', 'music', 0, 1, 0, 1); });
     if (G.net) G.net.chat(`${p.name} stepped through the door.`);
-    void ui;
   }
 
   // ---------------------------------------------------------------- persistence

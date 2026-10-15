@@ -9,7 +9,8 @@ import { PixelCanvas, makeRamp, mixHex, scaleHex, bayer, ph } from '../gfx/pixel
 import { Rng, hashStr, tileFbm } from '../core/rng';
 import { REG, RegKey, PAGE, PAD, VMAP } from './humanModel';
 import type { Appearance, Outfit, LookPart, RigCondition } from './humanRig';
-import { OutfitShape, garment, Paint, paintFallback } from './humanClothes';
+import { OutfitShape, garment, Paint, paintFallback, text } from './humanClothes';
+import { shapeOf, eyeShapeOf, browsOf, noseOf, noseK, mouthOf, TATTOOS, TATTOO_SPOTS, TEXT_TATTOOS, SCAR_SPOTS, KNUCKLES, NAILS, suitLooks, isJumpsuit, suitNumber } from './humanLooks';
 
 const NOISE = new Map<string, Float32Array>();
 const LIGHT = new Map<string, Float32Array>();
@@ -167,7 +168,7 @@ function paintHead(S: Surf, K: Skin, o: Outfit, sh: OutfitShape, cond: RigCondit
     S.pc.ditherBlob(S.X(k * 95), S.Y(0.084), 2, 4, mixHex(R[4], 0xc05048, 0.25), 0.7);
   }
   S.pc.ditherBlob(S.X(0), S.Y(0.06), 1.6, 1.4, warm, 0.6);
-  const fh = A.facialHair || (A.beard ? 'beard' : 'none');
+  const fh = String(A.facialHair || (A.beard ? 'beard' : 'none'));
   const beardArea = (deg: number, yy: number) => {
     const a = Math.abs(deg);
     if (yy > 0.058 || yy < -0.028) return 0;
@@ -178,7 +179,7 @@ function paintHead(S: Surf, K: Skin, o: Outfit, sh: OutfitShape, cond: RigCondit
     if (yy > cheekTop) return 0;
     return 1;
   };
-  const stubble = fh === 'stubble' ? 0.8 : fh === 'beard' || fh === 'goatee' || fh === 'moustache' ? 0.4 : Math.max(0, 0.5 - fem) * 0.3;
+  const stubble = fh === 'stubble' ? 0.8 : fh === 'beard' || fh === 'goatee' || fh === 'moustache' || fh === 'handlebar' || fh === 'chops' || fh === 'chin_strap' ? 0.4 : fh === 'soul_patch' ? 0.2 : Math.max(0, 0.5 - fem) * 0.3;
   if (stubble > 0) {
     // a cool shadow over the beard area, flecked with darker hair dots
     const shadow = mixHex(R[4], 0x4a5058, 0.18 + stubble * 0.12);
@@ -190,23 +191,60 @@ function paintHead(S: Surf, K: Skin, o: Outfit, sh: OutfitShape, cond: RigCondit
       if (bayer(x, y) < a * stubble * 0.45) S.pc.blend(x, y, dot, 0.6);
     }
   }
+  // painted facial hair: soul patch under the lip, the sideburn half of mutton chops, the strap along the jaw
+  {
+    const HRf = makeRamp(hairC, 5, { hueShift: 0.03, spread: 0.5 });
+    if (fh === 'soul_patch') for (let x = -1; x <= 1; x++) for (let y = 0; y < 3; y++) S.pc.set(Math.round(S.X(0) - 0.5) + x, HY(S, 0.022) + y, HRf[1 + ((x + y) & 1)]);
+    if (fh === 'chops' || fh === 'chin_strap') for (const k of [-1, 1]) for (let y = HY(S, fh === 'chops' ? 0.1 : 0.075); y <= HY(S, 0.0); y++) for (let i = 0; i < (fh === 'chops' ? 4 : 2); i++) S.pc.set(HX(S, k * (80 - i * 4)), y, HRf[1 + ((i + y) & 1)]);
+  }
   // ---- scalp under the hair: paint hair colour above the hairline so gaps never show skin
-  const style = A.hairStyle;
-  if (style !== 'bald') {
-    const HR = makeRamp(hairC, 6, { hueShift: 0.03, spread: 0.5 });
+  const style = String(A.hairStyle);
+  const HR = makeRamp(hairC, 6, { hueShift: 0.03, spread: 0.5 });
+  if (style !== 'bald' && style !== 'shaved') {
+    const shavedSides = style === 'mohawk' || style === 'undercut';
     const line = (deg: number) => {
       const a = Math.abs(deg);
-      const front = style === 'buzz' ? 0.158 : 0.155, temple = 0.132, side = style === 'buzz' ? 0.112 : 0.1, back = 0.03;
+      let front = style === 'buzz' || style === 'cornrows' ? 0.158 : 0.155, temple = 0.132, side = style === 'buzz' || style === 'cornrows' ? 0.112 : 0.1, back = 0.03;
+      if (style === 'receding') { front = 0.19; temple = 0.174; }
+      if (shavedSides) { temple = 0.15; side = 0.168; back = 0.135; }
       if (a < 25) return front; if (a < 60) return front + (temple - front) * ((a - 25) / 35);
       if (a < 105) return temple + (side - temple) * ((a - 60) / 45); return side + (back - side) * Math.min(1, (a - 105) / 55);
     };
+    const mohawk = style === 'mohawk';
     for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
       const deg = S.deg(x), yy = S.yAt(y), ln = line(deg);
-      if (yy > ln + 0.004) S.put(x, y, HR, 2.4 + (ph(x, y, 3) - 0.5) * (style === 'buzz' ? 2 : 1));
-      else if (yy > ln - 0.006 && ph(x, y, 5) < (yy - ln + 0.006) / 0.01) S.pc.blend(x, y, HR[2], 0.7);
+      const crest = !mohawk || Math.abs(Math.sin((deg * Math.PI) / 180)) < 0.22;
+      if (yy > ln + 0.004 && crest) S.put(x, y, HR, 2.4 + (ph(x, y, 3) - 0.5) * (style === 'buzz' ? 2 : 1));
+      else if (yy > ln - 0.006 && crest && ph(x, y, 5) < (yy - ln + 0.006) / 0.01) S.pc.blend(x, y, HR[2], 0.7);
+    }
+    // shaved sides: a stubble shadow below the long top
+    if (shavedSides) for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
+      const deg = S.deg(x), yy = S.yAt(y), a = Math.abs(deg);
+      if (yy < 0.1 && a < 100) continue;
+      if (yy < 0.02 || yy > 0.205) continue;
+      if (mohawk ? Math.abs(Math.sin((deg * Math.PI) / 180)) < 0.22 : yy > line(deg) + 0.004) continue;
+      if (a < 30 && yy < 0.15) continue;
+      S.pc.blend(x, y, mixHex(HR[2], R[4], 0.45), 0.55);
+      if (bayer(x, y) < 0.3) S.pc.blend(x, y, HR[1], 0.5);
+    }
+    // cornrows: tight rows from the hairline back over the crown
+    if (style === 'cornrows') for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
+      const yy = S.yAt(y);
+      if (yy < line(S.deg(x)) + 0.004) continue;
+      if ((x % 3) === 0) S.pc.set(x, y, HR[0]); else if ((x + (y >> 1)) % 3 === 1) S.pc.set(x, y, HR[4]);
     }
     // sideburns
-    if (style !== 'long' && style !== 'bob') for (const k of [1, -1]) for (let y = HY(S, 0.13); y <= HY(S, 0.07 + fem * 0.04); y++) for (let dx = 0; dx < 2; dx++) S.pc.blend(HX(S, k * (84 - dx * 4)), y, HR[1], 0.75);
+    if (style !== 'long' && style !== 'bob' && !shavedSides) for (const k of [1, -1]) for (let y = HY(S, 0.13); y <= HY(S, 0.07 + fem * 0.04); y++) for (let dx = 0; dx < 2; dx++) S.pc.blend(HX(S, k * (84 - dx * 4)), y, HR[1], 0.75);
+  } else if (style === 'shaved') {
+    // a shaved head: the hairline as a grey-blue shadow, flecked
+    for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
+      const deg = S.deg(x), yy = S.yAt(y), a = Math.abs(deg);
+      const ln = a < 25 ? 0.158 : a < 105 ? 0.13 - (a - 25) * 0.0002 : 0.03;
+      if (yy < ln) continue;
+      S.pc.blend(x, y, mixHex(R[3], HR[2], 0.5), 0.42);
+      if (bayer(x, y) < 0.25) S.pc.blend(x, y, HR[1], 0.45);
+    }
+    S.pc.ditherBlob(S.X(-20), S.Y(0.19), 5, 2, R[7], 0.4);
   } else {
     // bald: scalp highlight
     S.pc.ditherBlob(S.X(-20), S.Y(0.19), 6, 2.5, R[7], 0.6);
@@ -216,67 +254,107 @@ function paintHead(S: Surf, K: Skin, o: Outfit, sh: OutfitShape, cond: RigCondit
   const iris = A.eyeColor ?? EYE_COLORS[Math.floor(ph(K.seed, 1, 2) * EYE_COLORS.length)];
   const IR = makeRamp(iris, 4, { spread: 0.5 });
   const white = mixHex(0xf2efe6, R[6], 0.15), lash = mixHex(0x1c1410, hairC, 0.2), lid = R[3];
-  const narrow = face === 2, round = face === 4;
+  const es = eyeShapeOf(A);
+  const narrow = es === 1, round = es === 2;
   const lookDir = 0;
   for (const k of [-1, 1]) {
     // k = -1: character's right eye (viewer's left)
     const cx = S.X(k * 17.5);
     const x0 = Math.round(cx - 2), x1 = x0 + 3;
-    // socket shadow + upper lid crease
-    for (let x = x0 - 1; x <= x1 + 1; x++) { S.pc.blend(x, eyeY - 2, R[3], 0.45); S.pc.blend(x, eyeY + 1, R[4], 0.3); }
-    // lid line / lashes
-    for (let x = x0; x <= x1; x++) S.pc.set(x, eyeY - 1, x === (k > 0 ? x1 : x0) && !fem ? lid : lash);
-    if (fem > 0.5) { S.pc.set(k > 0 ? x1 + 1 : x0 - 1, eyeY - 1, lash); }
+    const ey = eyeY + (es === 6 && k > 0 ? 1 : 0);
+    // socket shadow + upper lid crease (deep-set and hooded eyes sit in heavier shadow)
+    const sock = es === 5 ? 0.75 : es === 3 ? 0.6 : 0.45;
+    for (let x = x0 - 1; x <= x1 + 1; x++) { S.pc.blend(x, ey - 2, R[3], sock); S.pc.blend(x, ey + 1, R[4], 0.3); if (es === 5) S.pc.blend(x, ey - 3, R[3], 0.35); }
+    // lid line / lashes (hooded: a heavy fold over the lid)
+    for (let x = x0; x <= x1; x++) S.pc.set(x, ey - 1, es === 3 ? lid : x === (k > 0 ? x1 : x0) && !fem ? lid : lash);
+    if (fem > 0.5) { S.pc.set(k > 0 ? x1 + 1 : x0 - 1, ey - 1, lash); }
     // eye: white | iris | iris | white  (narrow eyes lose a row of white)
-    for (let x = x0; x <= x1; x++) S.pc.set(x, eyeY, white);
+    for (let x = x0; x <= x1; x++) S.pc.set(x, ey, white);
     const ix = Math.round(cx - 0.5 + lookDir);
-    S.pc.set(ix, eyeY, IR[1]); S.pc.set(ix + 1, eyeY, IR[2]);
+    const glass = es === 7 && k > 0;
+    const IRk = glass ? makeRamp(0x9ab0b8, 4, { spread: 0.4 }) : IR;
+    S.pc.set(ix, ey, IRk[1]); S.pc.set(ix + 1, ey, IRk[2]);
     if (!narrow) {
-      // pupil + catchlight on round/open eyes
-      S.pc.set(ix, eyeY, mixHex(IR[0], 0x101010, 0.5));
-      if (round) { for (let x = x0; x <= x1; x++) S.pc.set(x, eyeY + 1, x === ix || x === ix + 1 ? IR[1] : mixHex(white, R[4], 0.4)); }
+      // pupil + catchlight on round/open eyes (the glass eye stares, no pupil)
+      if (!glass) S.pc.set(ix, ey, mixHex(IRk[0], 0x101010, 0.5));
+      if (round) { for (let x = x0; x <= x1; x++) S.pc.set(x, ey + 1, x === ix || x === ix + 1 ? IRk[1] : mixHex(white, R[4], 0.4)); }
     } else {
-      S.pc.set(x0, eyeY, lid); S.pc.set(x1, eyeY, mixHex(white, lid, 0.5));
+      S.pc.set(x0, ey, lid); S.pc.set(x1, ey, mixHex(white, lid, 0.5));
     }
+    // tired: the outer corner droops and the bags are dark
+    if (es === 4) { S.pc.set(k > 0 ? x1 : x0, ey, lid); }
     // lower lid / bags
-    for (let x = x0; x <= x1; x++) S.pc.blend(x, eyeY + (round ? 2 : 1), R[3], 0.35 + age * 0.3);
-    // brows: hair colour, shape by variant and body shape
+    for (let x = x0; x <= x1; x++) S.pc.blend(x, ey + (round ? 2 : 1), es === 4 ? mixHex(R[2], 0x5a4058, 0.25) : R[3], (es === 4 ? 0.65 : 0.35) + age * 0.3);
+    if (es === 4) for (let x = x0; x <= x1; x++) S.pc.blend(x, ey + 2, R[3], 0.3);
+    // brows: hair colour, shape by style
+    const bs = browsOf(A);
     const BR = scaleHex(mixHex(hairC, 0x2a2018, 0.25), 0.85);
-    const by = HY(S, 0.115) - (round ? 1 : 0);
-    for (let i = 0; i < 5; i++) {
+    const by = HY(S, 0.115) - (round ? 1 : 0) - (es === 3 ? 0 : 0);
+    if (bs !== 6) for (let i = 0; i < 5; i++) {
       const bx = Math.round(cx - 2.5 + i);
-      const arch = fem > 0.5 ? (i === 2 || i === 3 ? -1 : 0) : face === 5 ? (i < 2 ? 1 : 0) : 0;
-      const thick = fem > 0.5 ? (i >= 1 && i <= 3 ? 1 : 0) : face === 5 || face === 1 ? 2 : 1 + (i < 3 ? 1 : 0);
+      const arch = bs === 2 ? (i === 2 || i === 3 ? -1 : 0) : bs === 1 ? (i < 2 ? 1 : 0) : 0;
+      const thick = bs === 3 ? (i >= 1 && i <= 3 ? 1 : 0) : bs === 1 ? 2 : bs === 2 ? (i >= 1 && i <= 3 ? 1 : 0) : 1 + (i < 3 ? 1 : 0);
       const xx = k > 0 ? Math.round(cx + 2.5 - i) : bx; // mirror so the thick end sits near the nose
-      for (let t = 0; t < Math.max(1, thick); t++) S.pc.blend(xx, by + arch + t, BR, i === 4 ? 0.55 : 0.92);
+      if (bs === 5 && k > 0 && i === 2) continue;     // split brow: a scar runs through it
+      for (let t = 0; t < Math.max(1, thick); t++) S.pc.blend(xx, by + arch + t, BR, i === 4 ? 0.55 : bs === 3 ? 0.7 : 0.92);
     }
+    if (bs === 6) for (let i = 0; i < 5; i++) S.pc.blend(Math.round(cx - 2.5 + i), by, mixHex(R[4], BR, 0.3), 0.35); // shaved: a faint shadow
+    if (bs === 5 && k > 0) { const sx = Math.round(cx + 0.5); for (let t = -1; t <= 2; t++) S.pc.set(sx, by + t, mixHex(R[6], 0xd89090, 0.35)); }
     // crow's feet / age
-    if (age > 0.4) { const ox = k > 0 ? x1 + 2 : x0 - 2; S.pc.blend(ox, eyeY - 1, R[3], 0.5); S.pc.blend(ox, eyeY + 1, R[3], 0.5); }
+    if (age > 0.4) { const ox = k > 0 ? x1 + 2 : x0 - 2; S.pc.blend(ox, ey - 1, R[3], 0.5); S.pc.blend(ox, ey + 1, R[3], 0.5); }
   }
+  if (browsOf(A) === 4) { const BR = scaleHex(mixHex(hairC, 0x2a2018, 0.25), 0.85); for (let x = HX(S, -6); x <= HX(S, 6); x++) S.pc.blend(x, HY(S, 0.115) - (round ? 1 : 0), BR, 0.8); }
   // ---- nose
+  const nn = noseOf(A), NK = noseK(nn);
+  const crook = NK.crook > 0 ? 1 : 0;
   const nx = Math.round(S.X(0) - 0.5);
-  for (let y = HY(S, 0.095); y <= HY(S, 0.062); y++) { S.pc.blend(nx, y, R[6], 0.35); S.pc.blend(nx + 1, y, R[5], 0.2); S.pc.blend(nx - 2, y, R[3], 0.35); S.pc.blend(nx + 2, y, R[3], 0.3); }
+  for (let y = HY(S, 0.095); y <= HY(S, 0.062); y++) {
+    const c = y > HY(S, 0.075) ? crook : 0;
+    S.pc.blend(nx + c, y, R[6], 0.35); S.pc.blend(nx + 1 + c, y, R[5], 0.2); S.pc.blend(nx - 2 + c, y, R[3], 0.35); S.pc.blend(nx + 2 + c, y, R[3], 0.3);
+  }
+  if (NK.bump) S.pc.blend(nx, HY(S, 0.082), R[7], 0.6);
   const ny = HY(S, 0.053);
-  S.pc.set(nx - 1, ny, R[2]); S.pc.set(nx + 1, ny, R[2]);           // nostrils
-  S.pc.blend(nx, ny, R[4], 0.6);
-  S.pc.blend(nx, ny - 1, R[7], 0.5);                                 // tip highlight
-  for (let x = nx - 2; x <= nx + 2; x++) S.pc.blend(x, ny + 1, R[3], 0.4); // under-nose shadow
+  const nwp = NK.w > 1.15 ? 2 : 1;
+  S.pc.set(nx - nwp + crook, ny, R[2]); S.pc.set(nx + nwp + crook, ny, R[2]);           // nostrils
+  S.pc.blend(nx + crook, ny, R[4], 0.6);
+  S.pc.blend(nx + crook, ny - 1, R[7], 0.5);                                 // tip highlight
+  for (let x = nx - 2 - (nwp - 1); x <= nx + 2 + (nwp - 1); x++) S.pc.blend(x + crook, ny + 1, R[3], 0.4); // under-nose shadow
+  if (nn === 4) S.pc.blend(nx + 1, HY(S, 0.078), mixHex(R[3], 0x8a5a6a, 0.4), 0.5); // the old break
   // ---- mouth
+  const mo = mouthOf(A);
   const my = HY(S, 0.034);
   const lipC = mixHex(R[4], fem > 0.5 ? 0xb04848 : 0x9a4a40, 0.32 + fem * 0.12);
   const lipD = mixHex(lipC, 0x2a1210, 0.35), lipL = mixHex(lipC, 0xffe0d0, 0.25);
-  const mw = face === 5 ? 3 : fem > 0.5 ? 3 : 3;
+  const mw = mo === 3 ? 4 : 3;
+  const thin = mo === 2;
   S.pc.blend(nx, my - 2, R[4], 0.4); // philtrum
   for (let x = nx - mw; x <= nx + mw; x++) {
     const edge = Math.abs(x - nx) === mw;
-    S.pc.set(x, my, edge ? lipD : face === 5 ? lipD : mixHex(lipD, lipC, 0.35));   // lip line
-    if (!edge) S.pc.blend(x, my - 1, lipC, face === 5 ? 0.3 : 0.75);              // upper lip
-    if (Math.abs(x - nx) < mw - (fem > 0.5 ? 0 : 1)) S.pc.blend(x, my + 1, Math.abs(x - nx) < 1 ? lipL : lipC, face === 5 ? 0.35 : 0.7); // lower lip
+    const dy = mo === 4 && edge ? 1 : mo === 1 && x === nx + mw ? -1 : 0;
+    S.pc.set(x, my + dy, edge ? lipD : thin ? lipD : mixHex(lipD, lipC, 0.35));   // lip line
+    if (!edge) S.pc.blend(x, my - 1, lipC, thin ? 0.3 : mo === 3 ? 0.9 : 0.75);              // upper lip
+    if (Math.abs(x - nx) < mw - (fem > 0.5 || mo === 3 ? 0 : 1)) S.pc.blend(x, my + 1, Math.abs(x - nx) < 1 ? lipL : lipC, thin ? 0.35 : mo === 3 ? 0.9 : 0.7); // lower lip
+    if (mo === 3 && Math.abs(x - nx) < mw - 1) S.pc.blend(x, my + 2, lipC, 0.45);
   }
-  if (face === 1) { S.pc.set(nx - mw - 1, my - 1, lipD); S.pc.set(nx + mw + 1, my - 1, lipD); } // smile corners
+  if (mo === 1) { S.pc.set(nx + mw + 1, my - 2, lipD); S.pc.blend(nx + mw + 1, my - 1, R[3], 0.5); }              // smirk: one corner up
+  if (mo === 5) { S.pc.set(nx, my, 0x1a0e0c); S.pc.set(nx - 1, my, 0xe8e2d8); S.pc.set(nx + 1, my, 0xe8e2d8); }  // a gap in the front teeth
+  if (mo === 7) { S.pc.set(nx + 1, my, 0xe8b830); S.pc.set(nx, my, 0xe8e2d8); }                                    // gold tooth
+  if (mo === 6) { const sc = mixHex(R[6], 0xd89090, 0.4); S.pc.set(nx - 1, my - 2, sc); S.pc.set(nx - 1, my - 1, sc); S.pc.set(nx - 1, my + 1, sc); S.pc.set(nx - 1, my + 2, sc); }
+  if (A.face === 1 && A.mouth == null) { S.pc.set(nx - mw - 1, my - 1, lipD); S.pc.set(nx + mw + 1, my - 1, lipD); } // smile corners (old face variant)
   S.pc.blend(nx, my + 3, R[3], 0.4); S.pc.blend(nx - 1, my + 3, R[3], 0.25); S.pc.blend(nx + 1, my + 3, R[3], 0.25); // chin dimple shadow
   for (let x = nx - 2; x <= nx + 2; x++) S.pc.blend(x, HY(S, 0.004), R[6], 0.35); // chin highlight
-  // ---- details: freckles, age lines, scars
+  // gaunt faces: hollows under the cheekbones
+  if (shapeOf(A).hollow) for (const k of [-1, 1]) S.pc.ditherBlob(S.X(k * 40), S.Y(0.045), 3, 3, R[3], 0.5);
+  // ---- ears: piercings, gauges, a notch, cauliflower lumps (painted where the ear geometry samples the page)
+  const ears = A.ears ?? 0;
+  if (ears) for (const k of [-1, 1]) {
+    const ex = HX(S, k * 95), ey = HY(S, 0.066);
+    if (ears === 5) { S.pc.set(ex, ey + 1, 0xe8c860); S.pc.set(ex + k, ey + 2, 0xc8a040); if (k > 0) S.pc.set(ex, ey - 4, 0xd8d8d8); }
+    if (ears === 6) { S.pc.set(ex, ey, 0x141210); S.pc.set(ex, ey + 1, 0x2a2420); S.pc.blend(ex - 1, ey, 0x141210, 0.6); }
+    if (ears === 4 && k > 0) for (let i = 0; i < 2; i++) S.pc.set(ex + i, HY(S, 0.1), mixHex(R[2], 0x6a2a2a, 0.3));
+    if (ears === 3) for (let i = 0; i < 4; i++) S.pc.blend(ex + ((i & 1) ? 1 : -1), HY(S, 0.09) + i * 2, R[(i & 1) ? 6 : 3], 0.6);
+  }
+  // ---- details: freckles, age lines, scars, face tattoos
   const freckles = A.freckles ?? (face === 3 ? 0.5 : 0);
   if (freckles > 0) {
     const fc = mixHex(R[3], 0x8a4a2a, 0.4);
@@ -296,6 +374,7 @@ function paintHead(S: Surf, K: Skin, o: Outfit, sh: OutfitShape, cond: RigCondit
     const sc = mixHex(R[6], 0xd89090, 0.35);
     for (let t = 0; t < len; t++) { S.pc.set(HX(S, sx) + t, HY(S, sy) - Math.round(t * 0.6), sc); if (t % 2 === 0) S.pc.blend(HX(S, sx) + t, HY(S, sy) - Math.round(t * 0.6) + 1, R[3], 0.4); }
   }
+  bodyMarks(S, K, 'HEAD');
   // ---- glasses painted on (frames + lenses), temples are geometry
   if (sh.eyes) {
     const fc = sh.eyes === 'goggles' ? mixHex(o.eyes?.color ?? 0x4aa0d8, 0x101010, 0.25) : (o.eyes?.color ?? 0x202020);
@@ -325,7 +404,7 @@ function paintHead(S: Surf, K: Skin, o: Outfit, sh: OutfitShape, cond: RigCondit
 function paintHair(S: Surf, A: Appearance, wet: number) {
   const c = wet > 1 ? scaleHex(A.hair, 0.78) : A.hair;
   const HR = makeRamp(c, 7, { hueShift: 0.035, spread: 0.6 });
-  const st = A.hairStyle;
+  const st = String(A.hairStyle);
   const strand = (x: number) => ph(x, 0, 41) * 1.2 + (x % 3 === 0 ? -0.6 : 0);
   S.fill(HR, (x, y) => {
     const yy = S.yAt(y), a = Math.abs(S.deg(x));
@@ -342,6 +421,9 @@ function paintHair(S: Surf, A: Appearance, wet: number) {
   if (st === 'long' || st === 'bob' || st === 'short') { const px = Math.round(S.X(st === 'short' ? 28 : -14)); for (let y = Math.round(S.Y(0.21)); y < S.Y(0.16); y++) S.pc.blend(px, y, HR[0], 0.55); }
   // ends: lighter, ragged tips at the bottom of long hair
   if (st === 'ponytail') { const ty = Math.round(S.Y(-0.05)); for (let x = 0; x < S.w; x++) { S.pc.set(x, ty, 0x2a2a30); S.pc.set(x, ty + 1, 0x3a3a44); } }
+  // cornrows: tight braided rows; mohawk crest strands
+  if (st === 'cornrows') for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) { if (x % 3 === 0) S.pc.set(x, y, HR[0]); else if ((x + (y >> 1)) % 3 === 1) S.pc.set(x, y, HR[5]); }
+  if (st === 'mohawk' || st === 'spiky') for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) if ((x + y * 2) % 5 === 0) S.pc.blend(x, y, HR[6], 0.4);
 }
 
 // ------------------------------------------------------------------ condition overlays
@@ -467,7 +549,8 @@ export function bakePage(inp: BakeInput, out: Uint8Array, cache?: BakeCache) {
 }
 
 function paintBase(inp: BakeInput): Surf[] {
-  const { app, outfit: o, shape: sh, cond } = inp;
+  const { app, cond } = inp;
+  const { o, sh } = suitLooks(app, inp.outfit, inp.shape);
   const fem = app.bodyShape ?? 0.3;
   const pale = cond.pale ?? 0, wet = cond.wet ?? 0, dirt = cond.dirt ?? 0;
   const K: Skin = { R: skinRamp(app.skin, pale), base: app.skin, app, fem, seed: inp.seed, pale, dirt, wet };
@@ -493,6 +576,7 @@ function paintBase(inp: BakeInput): Surf[] {
   const neck = mk('NECK', VMAP.NECK);
   neck.light = (x, y) => -0.5 * Math.max(0, (neck.yAt(y) - 1.55) / 0.05) * (Math.cos((neck.deg(x) * Math.PI) / 180) > 0 ? 1 : 0.3) - 0.2;
   paintSkinBody(neck, K);
+  bodyMarks(neck, K, 'NECK');
   // ---- hair
   const hair = mk('HAIR', VMAP.HAIR);
   paintHair(hair, app, wet);
@@ -501,22 +585,28 @@ function paintBase(inp: BakeInput): Surf[] {
   torsoLight(torso, fem);
   paintSkinBody(torso, K);
   torsoSkinDetail(torso, K);
+  bodyMarks(torso, K, 'TORSO');
   call(legs, 'pelvis', torso);
   call(top, 'torso', torso);
   call(outerP, 'torso', torso);
+  const suit = isJumpsuit(o) ? app.suit : undefined;
+  if (suit) suitOverlay(torso, 'TORSO', suit, inp.seed, K);
   // ---- arms
   for (const side of ['L', 'R'] as const) {
     const S = mk(('ARM_' + side) as RegKey, VMAP.ARM, side === 'L' ? 1 : -1);
     limbLight(S, 'arm');
     paintSkinBody(S, K);
     armSkinDetail(S, K);
+    bodyMarks(S, K, ('ARM_' + side) as RegKey);
     call(top, 'arm', S);
     call(outerP, 'arm', S);
+    if (suit) suitOverlay(S, 'ARM', suit, inp.seed, K, sh.sleeve);
     call(hands, 'arm', S);
     const H = mk(('HAND_' + side) as RegKey, [0, 1], side === 'L' ? 1 : -1);
     H.light = (x, y) => (y > H.h * 0.5 ? -0.1 : -0.3) - 0.4 * Math.max(0, -Math.sin(((H.deg(x)) * Math.PI) / 180));
     paintSkinBody(H, K);
     handSkinDetail(H, K);
+    handMarks(H, K, side);
     call(hands, 'hand', H);
   }
   // ---- legs & feet
@@ -526,6 +616,7 @@ function paintBase(inp: BakeInput): Surf[] {
     paintSkinBody(S, K);
     call(feet, 'leg', S);
     call(legs, 'leg', S);
+    if (suit) suitOverlay(S, 'LEG', suit, inp.seed, K);
     const F = mk(('FOOT_' + side) as RegKey, [0, 1], side === 'L' ? 1 : -1);
     if (feet) call(feet, 'foot', F);
     else { F.light = (x, y) => (Math.abs(F.deg(x)) > 100 ? -0.8 : 0) - (y > F.h * 0.7 ? 0 : 0); paintSkinBody(F, K); footSkinDetail(F, K); }
@@ -642,6 +733,158 @@ function paintGear(S: Surf, frame: number) {
   for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
     if (x < S.w / 2) S.pc.set(x, y, FR[(y + (x & 1)) % 3]);
     else S.pc.set(x, y, WD[1 + ((x + y * 3) % 5 === 0 ? 0 : 1) + (y % 4 === 0 ? 1 : 0)]);
+  }
+}
+
+// ------------------------------------------------------------------ tattoos, body scars, knuckles, nails (humanLooks)
+const INK: Record<string, [number, number]> = { '#': [0x252c3a, 0.86], o: [0x3a4458, 0.55], r: [0x9a2a26, 0.8], g: [0x2e5a3a, 0.8], y: [0xc8a030, 0.75] };
+function inkSprite(S: Surf, art: string[], cx: number, cy: number, k = 1) {
+  const h = art.length, w = art.reduce((m, r) => Math.max(m, r.length), 0);
+  const x0 = Math.round(cx - (w * k) / 2), y0 = Math.round(cy - (h * k) / 2);
+  for (let j = 0; j < h; j++) for (let i = 0; i < art[j].length; i++) {
+    const c = INK[art[j][i]];
+    if (!c) continue;
+    for (let a = 0; a < k; a++) for (let b = 0; b < k; b++) S.pc.blend(x0 + i * k + a, y0 + j * k + b, c[0], c[1] * (0.9 + ph(i, j, 77) * 0.1));
+  }
+}
+function scarMark(S: Surf, K: Skin, kind: string, cx: number, cy: number, seed: number) {
+  const R = K.R;
+  const pale = mixHex(R[7], 0xe8b0b0, 0.3), pink = mixHex(R[5], 0xd07878, 0.35), dark = mixHex(R[2], 0x6a3a3a, 0.2);
+  const X = Math.round(cx), Y = Math.round(cy);
+  switch (kind) {
+    case 'slash': for (let t = 0; t < 6; t++) { S.pc.set(X - 3 + t, Y + 2 - Math.round(t * 0.7), pale); S.pc.blend(X - 3 + t, Y + 3 - Math.round(t * 0.7), dark, 0.35); } break;
+    case 'stitches': for (let t = 0; t < 7; t++) { S.pc.set(X - 3 + t, Y, pink); if (t % 2 === 0) { S.pc.set(X - 3 + t, Y - 1, pale); S.pc.set(X - 3 + t, Y + 1, pale); } } break;
+    case 'burn':
+      for (let j = -2; j <= 2; j++) for (let i = -3; i <= 3; i++) { const d = Math.hypot(i / 3, j / 2); if (d < 1 && ph(i, j, seed) < 1.1 - d) S.pc.blend(X + i, Y + j, ph(i + 3, j, seed) < 0.5 ? pink : pale, 0.85); }
+      break;
+    case 'bullet': S.pc.set(X, Y, dark); for (const [i, j] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) S.pc.blend(X + i, Y + j, pink, 0.8); S.pc.blend(X + 1, Y + 1, pale, 0.6); break;
+    case 'surgery': for (let t = -5; t <= 5; t++) { S.pc.set(X, Y + t, pink); if (t % 2 === 0) { S.pc.blend(X - 1, Y + t, pale, 0.8); S.pc.blend(X + 1, Y + t, pale, 0.8); } } break;
+    case 'bite': for (let i = 0; i < 5; i++) { S.pc.set(X - 2 + i, Y - 1 - (i === 0 || i === 4 ? 0 : 1), pink); S.pc.set(X - 2 + i, Y + 2 + (i === 0 || i === 4 ? 0 : 1), pink); } break;
+    case 'lashes': for (let l = 0; l < 3; l++) for (let t = 0; t < 8; t++) S.pc.blend(X - 4 + t, Y - 3 + l * 3 + Math.round(t * 0.4), l === 1 ? pink : pale, 0.8); break;
+  }
+}
+/** tattoos and scars that sit on this surface (painted on the skin, so clothing covers them) */
+function bodyMarks(S: Surf, K: Skin, reg: RegKey) {
+  const A = K.app;
+  const at = (sp: { deg: number; y: number }) => [S.X(sp.deg), S.Y(sp.y)] as const;
+  for (const [spot, design] of Object.entries(A.tattoos || {})) {
+    const sp = TATTOO_SPOTS[spot];
+    if (!sp || sp.reg !== reg || !design) continue;
+    const [cx, cy] = at(sp);
+    const word = TEXT_TATTOOS[design];
+    if (word) { text(S, word, cx, cy - 2, mixHex(0x252c3a, K.R[4], 0.15)); continue; }
+    const art = TATTOOS[design]?.art;
+    if (art?.length) inkSprite(S, art, cx, cy, sp.big ? 2 : 1);
+  }
+  for (const [spot, kind] of Object.entries(A.bodyScars || {})) {
+    const sp = SCAR_SPOTS[spot];
+    if (!sp || sp.reg !== reg || !kind) continue;
+    const [cx, cy] = at(sp);
+    scarMark(S, K, kind, cx, cy, hashStr(spot + kind));
+  }
+}
+/** knuckle tattoos (one mark per finger) and nails */
+function handMarks(S: Surf, K: Skin, side: 'L' | 'R') {
+  const A = K.app;
+  const kn = KNUCKLES[A.knuckles || 'none'];
+  const word = kn ? (side === 'L' ? kn.l : kn.r) : '';
+  if (word) {
+    const y = Math.round(S.h * 0.56);
+    for (let i = 0; i < 4; i++) {
+      const ch = word[i] || ' ';
+      const x = Math.round(S.X(side === 'L' ? 50 + i * 20 : 110 - i * 20));
+      const code = ch.charCodeAt(0);
+      const c = mixHex(0x252c3a, K.R[4], 0.12);
+      if (ch === '.') S.pc.set(x, y, c);
+      else if (ch === '+') { S.pc.set(x, y, c); S.pc.set(x, y - 1, c); S.pc.set(x, y + 1, c); S.pc.blend(x - 1, y, c, 0.7); S.pc.blend(x + 1, y, c, 0.7); }
+      else { S.pc.set(x, y - 1, c); S.pc.set(x, y + 1, c); if (code & 1) S.pc.set(x, y, c); if (code & 2) S.pc.blend(x + 1, y - 1, c, 0.8); if (code & 4) S.pc.blend(x - 1, y + 1, c, 0.8); }
+    }
+  }
+  const nl = NAILS[A.nails || 'clean'];
+  if (nl && nl.color) for (let x = 0; x < S.w; x++) {
+    const a = S.deg(x);
+    if (!(a > 70 && a < 130)) continue;
+    for (let y = S.h - 3; y < S.h; y++) {
+      if (A.nails === 'bitten') { if (y === S.h - 1) S.pc.blend(x, y, nl.color, 0.6); else if (y === S.h - 3) S.pc.blend(x, y, nl.color, 0.3); continue; }
+      if (A.nails === 'chipped' && ph(x, y, 91) < 0.4) continue;
+      S.pc.set(x, y, A.nails === 'grimy' && y < S.h - 1 ? mixHex(K.R[6], 0xf0d8d0, 0.4) : nl.color);
+    }
+  }
+}
+
+// ------------------------------------------------------------------ jumpsuit details (humanLooks SuitLooks)
+const STAIN_C: Record<string, number[]> = { sweat: [0x8a6a1a, 0x7a5a14], coffee: [0x5a3a1c, 0x4a2c14], oil: [0x1c1c1e, 0x2a2826], blood: [0x4a1410, 0x5e1a14], bleach: [0xf0ead0, 0xe8e2c4] };
+function suitOverlay(S: Surf, kind: 'TORSO' | 'ARM' | 'LEG', suit: NonNullable<Appearance['suit']>, seed: number, K: Skin, sleeve?: string) {
+  const wear = Math.max(0, Math.min(3, suit.wear ?? 0));
+  const cov = (x: number, y: number) => {
+    const yy = S.yAt(y);
+    if (kind === 'ARM') return sleeve === 'short' ? yy > -0.15 : yy > -0.515;
+    if (kind === 'LEG') return yy > -0.83;
+    return yy < 1.47;
+  };
+  // rolled sleeves: a fat roll of cloth at the cuff
+  if (kind === 'ARM' && sleeve === 'short') {
+    const r = Math.round(S.Y(-0.15));
+    const R = makeRamp(0xd9a826, 6, { spread: 0.5 });
+    for (let x = 0; x < S.w; x++) { S.pc.set(x, r - 2, R[4]); S.pc.set(x, r - 1, R[3]); S.pc.set(x, r, R[1]); S.pc.blend(x, r + 1, K.R[2], 0.35); }
+  }
+  // wear: faded fabric, then frays and holes showing what is under
+  if (wear > 0) {
+    const n = [0, 3, 8, 16][wear] * (kind === 'TORSO' ? 2 : 1);
+    for (let i = 0; i < n; i++) {
+      const x = Math.floor(ph(i, seed + S.seed, 51) * S.w), y = Math.floor(ph(i, seed + S.seed, 52) * S.h);
+      if (!cov(x, y)) continue;
+      const big = wear >= 2 && ph(i, seed, 53) < 0.4;
+      const w = big ? 3 : 2, h = big ? 2 : 1;
+      for (let j = 0; j < h; j++) for (let k = 0; k < w; k++) S.pc.set(x + k, y + j, (j + k) % 2 ? K.R[4] : K.R[3]);
+      for (let k = -1; k <= w; k++) { S.pc.blend(x + k, y - 1, 0xf0e0a0, 0.45); S.pc.blend(x + k, y + h, 0x6a5418, 0.55); }
+    }
+    if (wear >= 2) for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) if (cov(x, y) && S.fbm(x, y, 3, 2, 57) > 0.7) S.pc.blend(x, y, 0xf0e2a8, 0.18 * wear);
+  }
+  // stains
+  const sc = STAIN_C[suit.stains || ''];
+  if (sc) {
+    const blobs: [number, number, number][] = suit.stains === 'sweat'
+      ? (kind === 'TORSO' ? [[90, 1.34, 3], [-90, 1.34, 3], [0, 1.45, 2], [180, 1.3, 4]] : [])
+      : suit.stains === 'oil' ? (kind === 'LEG' ? [[10, -0.3, 3], [-40, -0.55, 2]] : kind === 'TORSO' ? [[40, 0.95, 3]] : [[0, -0.45, 2]])
+      : suit.stains === 'bleach' ? Array.from({ length: kind === 'TORSO' ? 7 : 3 }, (_, i) => [ph(i, seed, 61) * 360 - 180, kind === 'TORSO' ? 0.9 + ph(i, seed, 62) * 0.5 : kind === 'ARM' ? -0.05 - ph(i, seed, 62) * 0.4 : -0.1 - ph(i, seed, 62) * 0.7, 1] as [number, number, number])
+      : kind === 'TORSO' ? [[20, 1.2, 3], [-8, 1.08, 2], [35, 1.0, 2]] : kind === 'LEG' ? [[0, -0.2, 2]] : [];
+    for (const [deg, yy, r] of blobs) {
+      const cx = S.X(deg), cy = S.Y(yy);
+      for (let j = -r - 1; j <= r + 1; j++) for (let i = -r - 1; i <= r + 1; i++) {
+        const d = Math.hypot(i, j * 1.2) / r + (ph(i, j, seed + deg) - 0.5) * 0.5;
+        if (d > 1) continue;
+        const x = Math.round(cx + i), y = Math.round(cy + j);
+        if (!cov(x, y)) continue;
+        const ring = suit.stains === 'sweat' && d > 0.65;
+        S.pc.blend(x, y, sc[ring ? 1 : 0], suit.stains === 'sweat' ? (ring ? 0.45 : 0.18) : 0.55 + (1 - d) * 0.3);
+      }
+      if (suit.stains === 'coffee' || suit.stains === 'blood') for (let t = 0; t < r + 3; t++) S.pc.blend(Math.round(cx + 1), Math.round(cy + r + t), sc[0], 0.5 * (1 - t / (r + 4)));
+    }
+  }
+  // the number patch (torso, left breast)
+  if (kind === 'TORSO' && suit.patch && suit.patch !== 'stitched') {
+    const x0 = Math.round(S.X(-30) - 7.5), y0 = Math.round(S.Y(1.36));
+    const R = makeRamp(0xd9a826, 6, { spread: 0.5 });
+    const num = suitNumber(seed);
+    if (suit.patch === 'stencil' || suit.patch === 'torn') {
+      // no tape (or half of it gone): yellow cloth with glue residue
+      for (let j = 0; j < 7; j++) for (let i = suit.patch === 'torn' ? 7 : 0; i < 15; i++) S.pc.set(x0 + i, y0 + j, (i + j) % 5 === 0 ? mixHex(R[3], 0xb8b090, 0.4) : R[3]);
+      if (suit.patch === 'torn') for (let j = 0; j < 7; j++) { S.pc.set(x0 + 7, y0 + j, j % 2 ? 0xd8d2c0 : 0xb8b2a2); }
+    }
+    if (suit.patch === 'stencil') {
+      text(S, num.slice(2), S.X(-30), y0 + 1, 0x16140f);
+      for (let i = 0; i < 10; i++) S.pc.blend(x0 + Math.floor(ph(i, seed, 71) * 15), y0 + Math.floor(ph(i, seed, 72) * 7), 0x16140f, 0.35); // overspray
+    }
+    if (suit.patch === 'marker') {
+      for (let j = 1; j < 6; j++) for (let i = 1; i < 14; i++) S.pc.set(x0 + i, y0 + j, 0xe8e4d6);
+      text(S, num.slice(2), S.X(-30) + 0.5, y0 + 1, 0x1c2a6a);
+      for (let i = 0; i < 4; i++) S.pc.blend(x0 + 2 + i * 3, y0 + 6, 0x1c2a6a, 0.5);
+    }
+  }
+  if (kind === 'TORSO' && (suit.patch ?? 'stitched') === 'stitched') {
+    const x0 = Math.round(S.X(-30) - 7.5), y0 = Math.round(S.Y(1.36));
+    for (let i = 0; i < 15; i += 2) { S.pc.set(x0 + i, y0 - 1, 0x2a2620); S.pc.set(x0 + i, y0 + 7, 0x2a2620); }
   }
 }
 

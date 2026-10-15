@@ -15,10 +15,11 @@ import { CreatureSystem } from '../creatures/manager';
 import { CombatSystem } from './combat';
 import { GoreSystem } from '../gore/gore';
 import { Scanner } from '../ui/scanner/scanner';
-import { Watch } from '../ui/watch/watch';
+import { Holo } from '../ui/holo/holo';
 import { AudioEngine } from '../audio/audio';
 import { MissionSystem } from '../missions/missions';
 import '../missions/directives';
+import { installContract, issueKit, skipIntake } from './debt';
 import { ShiftSystem } from '../world/shift';
 import { WorldSystems } from '../items/worldSystems';
 import { VehicleSystem } from '../vehicles/vehicles';
@@ -124,6 +125,8 @@ export function startSession(o: SessionOpts): Game {
   g.missions = missions;
   missions.enabled = o.directives ?? true;
   g.addSystem(missions);
+  // the debt contract: ledger, BAILIFF band, hoppers, transport (src/game/debt)
+  installContract(g);
   g.addSystem(new ShiftSystem());
   const items = new WorldSystems();
   g.items = items;
@@ -134,7 +137,7 @@ export function startSession(o: SessionOpts): Game {
   g.ui = ui;
   ui.inventory = new InventoryUI(ui);
   new Scanner();
-  new Watch();
+  g.holo = new Holo();
   const interact = new Interact();
   new PauseMenu();
 
@@ -146,15 +149,16 @@ export function startSession(o: SessionOpts): Game {
   else {
     for (const t of o.traits || []) p.body.traits.add(t);
     p.setOccupation(o.occupation || 'unemployed');
-    const start = ['tshirt', 'jeans', 'sneakers', 'socks', 'wrist_monitor'];
-    for (const k of start) if (hasItemDef(k)) { const it = newItem(k); p.inv.add(it); p.wear(it); }
-    for (const k of ['water_bottle', 'almond_water', 'granola_bar']) if (hasItemDef(k)) p.inv.add(newItem(k));
+    // a Remittance debtor's intake kit (src/game/debt): jumpsuit, slip-ons, issue pack, a ration bar, a water pouch
+    issueKit(p, (k, wear) => { if (!hasItemDef(k)) return null; const it = newItem(k); p.inv.add(it); if (wear) p.wear(it); return it; });
+    if (!p.worn.size) for (const k of ['tshirt', 'jeans', 'sneakers', 'socks']) if (hasItemDef(k)) { const it = newItem(k); p.inv.add(it); p.wear(it); }
     // the job's kit: clothing and bags go on (as the personnel-file preview shows), the rest into the pockets
     for (const k of occupationByKey(p.occupation).items) {
       if (!hasItemDef(k)) continue;
       const it = newItem(k); p.inv.add(it);
       const d = itemDef(k);
-      if (d.clothing || d.bag?.slot === 'back') p.wear(it);
+      // (the intake kit stays on: job clothes only fill slots the jumpsuit and pack leave free)
+      if ((d.clothing && !p.worn.has(d.clothing.slot as any)) || (d.bag?.slot === 'back' && !p.worn.has('back'))) p.wear(it);
     }
   }
   g.local = p;
@@ -213,8 +217,10 @@ export function startSession(o: SessionOpts): Game {
     const sp = (z.meta.spawn as [number, number]) || z.randomFloor(new Rng(3)) || [10, 10];
     // a brand-new world opens in normal reality and noclips into the Lobby (src/game/intro.ts)
     if (!s && introWanted(o.mode)) startIntro(g, p, sp);
-    else g.placePlayer(p, 'lobby', sp[0], sp[1], 0);
+    else { g.placePlayer(p, 'lobby', sp[0], sp[1], 0); skipIntake(p); }
   }
+  // joining a crew, or a world from before the contract: the band is already on
+  if (w || (s && !missions.flags.has('contract:intake'))) skipIntake(p);
   (window as any).__game = g;
   if (import.meta.env.DEV) (window as any).__dev = { newItem, op };
   document.getElementById('boot')?.classList.add('gone');

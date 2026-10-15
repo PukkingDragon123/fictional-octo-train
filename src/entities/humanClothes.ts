@@ -773,3 +773,26 @@ export function paintFallback(S: Surf, P: Paint, fn: string) {
   }
 }
 void bayer;
+
+// ------------------------------------------------------------------ intake inspection (the jumpsuit top off)
+/** nothing on top: tattoos and scars on the chest and back show */
+G.c_bare = {};
+TOPS.c_bare = { sleeve: 'none', thick: 0, hem: 1.6, collar: '' };
+/** a plain band around the chest */
+G.c_bandeau = {
+  torso: (S, P) => {
+    cloth(S, P, 'knit', 1.3, 1.17, undefined, BASE + 0.3);
+    for (let x = 0; x < S.w; x++) { S.pc.set(x, Math.round(S.Y(1.3)), P.R[2]); S.pc.set(x, Math.round(S.Y(1.17)), P.R[2]); }
+  },
+};
+TOPS.c_bandeau = { sleeve: 'none', thick: 0.003, hem: 1.17, collar: '' };
+
+// ------------------------------------------------------------------ garments from content modules
+/** register a look tex's painter (and silhouette) from a content module (src/content/items/prisoner.ts) */
+export function defGarment(tex: string, g: Garment, shape: { top?: TopInfo; leg?: { kind: OutfitShape['legKind']; thick: number; flare: number; len?: number } } = {}) {
+  G[tex] = g;
+  if (shape.top) TOPS[tex] = shape.top;
+  if (shape.leg) LEGS[tex] = shape.leg;
+}
+/** painting helpers for defGarment painters */
+export const garmentKit = { topBase, sleeveBase, pantsTorso, pantsLeg, collarPaint, cloth, hem, pocket, rectAt, vline, stitch, wrinkles, text, BASE };

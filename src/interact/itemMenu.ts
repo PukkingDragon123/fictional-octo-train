@@ -10,6 +10,7 @@ import { floorContainer } from '../items/worldItems';
 import { isWorldContainer } from '../game/worldOps';
 import { bus } from '../core/events';
 import { craftOptionsForItem } from './crafting';
+import { itemMenuHook } from '../game/debt';
 
 const hasTag = (it: Item, t: string) => (itemDef(it.key).tags || []).includes(t) || itemDef(it.key).key === t;
 
@@ -163,6 +164,9 @@ export function itemMenuOptions(p: Player, it: Item, c: Container, group: Item[]
   // ---- crafting
   const crafts = craftOptionsForItem(p, it);
   if (crafts.length) o.push({ label: 'Craft', sub: crafts });
+
+  // the debt contract: deposit at a hopper, the band that does not come off (src/game/debt)
+  itemMenuHook(p, it, c, o, inWorld);
 
   o.push({ label: '-' });
   o.push({ label: 'Inspect', action: () => G.ui?.read(itemName(it), inspectText(it)) });

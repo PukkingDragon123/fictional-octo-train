@@ -59,15 +59,21 @@ Zone.objDef = (k: string) => REG.get(k);
 
 const geoCache = new Map<string, THREE.BufferGeometry | null>();
 
-/** Cached geometry for an object definition + appearance variant */
+/** damaged furniture (state.dmg 1..3): set by src/world/destruction.ts, turns a clean model into a battered copy */
+let damageHook: ((g: THREE.BufferGeometry, d: ObjDef, lvl: number) => THREE.BufferGeometry) | null = null;
+export function setDamageGeometryHook(f: typeof damageHook) { damageHook = f; }
+
+/** Cached geometry for an object definition + appearance variant (+ damage level) */
 export function objectGeometry(d: ObjDef, o: TileObject): THREE.BufferGeometry | null {
   const v = d.variant ? d.variant(o.state || {}) : '';
-  const key = d.key + '|' + v;
+  const dmg = damageHook ? (o.state?.dmg | 0) : 0;
+  const key = d.key + '|' + v + (dmg ? '|d' + dmg : '');
   let g = geoCache.get(key);
   if (g === undefined) {
     const mb = new ModelBuilder();
     try { d.model(mb, o.state || {}, o); } catch (e) { console.error('model error', d.key, e); }
     g = mb.isEmpty ? null : mb.build();
+    if (g && dmg && damageHook) { try { g = damageHook(g, d, dmg); } catch (e) { console.error('damage geometry', d.key, e); } }
     geoCache.set(key, g);
   }
   return g;

@@ -99,13 +99,15 @@ export class CombatSystem implements GameSystem {
       p.body.addXp(skillFor(w.kind), 3);
     }
     // hitting walls/doors/windows in front
-    if (!hitAny) this.hitWorld(p, w);
+    if (!hitAny) this.hitWorld(p, w, it);
     if (hitAny && it) this.wear(p, it);
     if (hitAny) p.body.addXp('strength', 1);
     noise(p, p.x, p.z, hitAny ? w.noise : w.noise * 0.5, 'melee');
   }
 
-  private hitWorld(p: Player, w: any) {
+  private hitWorld(p: Player, w: any, it: Item | null = null) {
+    // furniture, walls (src/world/destruction.ts)
+    if (G.destruct?.meleeWorld?.(p, w, it)) return;
     const z = G.getZone(p.zoneKey);
     const fx = p.x + Math.cos(p.facing) * 0.9, fz = p.z + Math.sin(p.facing) * 0.9;
     const tx = Math.floor(fx), ty = Math.floor(fz);
@@ -169,6 +171,8 @@ export class CombatSystem implements GameSystem {
       best = cc; bd = d;
     }
     if (best) { cs.damage(p.id, best.id, this.rng.float(w.dmg[0], w.dmg[1]) * (1 - bd / 60), p.x, p.z, w.knock, 'firearm', this.rng.chance(w.crit ?? 0)); p.body.addXp('firearm', 4); }
+    // what the bullet hits before (or instead of) a creature: windows, walls, furniture
+    else G.destruct?.bulletWorld?.(p, ang, 30, w);
   }
 
   throwItem(p: Player, it: Item) {
