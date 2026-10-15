@@ -110,7 +110,10 @@ export interface ItemDef {
   burn?: number;             // hours of fuel in fire
   seed?: string;             // crop key
   place?: string;            // object key created when placed
+  /** salvage value in scrip (the debt currency); unset = derived by the debt system */
   value?: number;
+  /** backpack-grid footprint in cells [w, h]; unset = derived by the inventory grid */
+  grid?: [number, number];
   rare?: boolean;
   battery?: boolean;         // uses batteries
   radio?: { channels: number; range: number; twoWay?: boolean };
@@ -139,6 +142,10 @@ export interface Item {
   data?: Record<string, any>;
   eaten?: number;            // fraction already consumed
   opened?: boolean;
+  /** grid placement inside its container (cell x, y; rot 1 = turned 90 degrees) */
+  gx?: number;
+  gy?: number;
+  rot?: 0 | 1;
 }
 
 const REG = new Map<string, ItemDef>();
