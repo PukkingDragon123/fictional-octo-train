@@ -187,7 +187,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     // ---------------- state helpers
     const points = () => {
       let p = occupationByKey(occ).points;
-      for (const k of traits) p -= TRAITS.find((x) => x.key === k)?.cost ?? 0;
+      // trait cost is signed like the labels: assets are negative (spend points), liabilities positive (give points)
+      for (const k of traits) p += TRAITS.find((x) => x.key === k)?.cost ?? 0;
       return p;
     };
     let lastPts = NaN;
@@ -238,10 +239,10 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       const focusKey = (document.activeElement as HTMLElement | null)?.dataset?.k;
       const scroll = page.scrollTop;
       const frag = document.createDocumentFragment();
-      const name = pageNames[pageIdx];
-      if (name === 'IDENTITY') identityPage(frag);
-      else if (name === 'OCCUPATION') occupationPage(frag);
-      else if (name === 'TRAITS') traitsPage(frag);
+      const pn = pageNames[pageIdx];
+      if (pn === 'IDENTITY') identityPage(frag);
+      else if (pn === 'OCCUPATION') occupationPage(frag);
+      else if (pn === 'TRAITS') traitsPage(frag);
       else simulationPage(frag);
       if (keep) { page.innerHTML = ''; page.append(frag); page.scrollTop = scroll; }
       else { swapPage(page, frag, dir); page.scrollTop = 0; }

@@ -80,6 +80,8 @@ html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
 canvas#view { position: fixed; inset: 0; width: 100vw; height: 100vh; display: block; image-rendering: pixelated; cursor: none; }
 #ui { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 #ui > * { pointer-events: auto; }
+/* passive world overlays must never swallow taps / clicks meant for the world */
+#ui > .w-bubble, #ui > .w-bar, #ui > .w-name, #ui > #hover-label { pointer-events: none; }
 button { font: inherit; color: inherit; }
 kbd { font-family: var(--font-body); }
 ::selection { background: var(--ph); color: var(--scr); }
@@ -756,6 +758,8 @@ kbd { font-family: var(--font-body); }
   .inv-hint { display: block; }
 }
 @media (max-width: 760px) {
+  /* portrait phones: below the watch (top-left) instead of on top of it */
+  .k-toasts { top: calc(env(safe-area-inset-top, 0px) + 176px); }
   .pf-wrap { font-size: calc(15px * var(--ui-scale)); }
   .k-toasts { font-size: calc(13px * var(--ui-scale)); }
   .k-toast.unlock .u-strip i { display: none; }

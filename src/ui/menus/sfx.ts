@@ -12,6 +12,7 @@ const last: Record<string, number> = {};
 
 function context(): AudioContext | null {
   const gc = (G as any)?.audio?.ctx as AudioContext | null | undefined;
+  hookGestures();
   if (gc) return gc;
   if (!own) {
     try {
@@ -20,14 +21,19 @@ function context(): AudioContext | null {
       own = new AC({ latencyHint: 'interactive' });
     } catch { return null; }
   }
-  if (!gestureHooked) {
-    gestureHooked = true;
-    const resume = () => { if (own && own.state !== 'running') own.resume().catch(() => {}); };
-    window.addEventListener('pointerdown', resume, { capture: true });
-    window.addEventListener('keydown', resume, { capture: true });
-  }
   return own;
 }
+
+/** resume suspended audio (ours and the game's) on real user gestures; mobile browsers only count touchend / pointerup / click / keydown, not pointerdown */
+function hookGestures() {
+  if (gestureHooked) return;
+  gestureHooked = true;
+  const run = () => {
+    for (const c of [own, (G as any)?.audio?.ctx as AudioContext | null]) if (c && c.state !== 'running') c.resume().catch(() => {});
+  };
+  for (const ev of ['pointerdown', 'pointerup', 'touchend', 'click', 'keydown']) window.addEventListener(ev, run, { capture: true });
+}
+hookGestures();
 
 function volume(): number {
   const v = (G as any)?.audio?.vol;

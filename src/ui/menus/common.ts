@@ -4,7 +4,8 @@
 import { G } from '../../game/G';
 import { sfx, Sfx } from './sfx';
 import { FocusNav } from './nav';
-import { uiSettings, saveUiSettings, touchMode, setTouchMode, calm, UiTheme, TouchMode } from './settings';
+import { uiSettings, saveUiSettings, calm, UiTheme } from './settings';
+import { getTouchSetting, setTouchSetting, TouchSetting } from '../touch/mode';
 
 export { sfx } from './sfx';
 export { FocusNav } from './nav';
@@ -289,12 +290,14 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
       f.append(seg<UiTheme>('Terminal', [['green', 'Phosphor green'], ['amber', 'Amber']], us.theme, (v) => { us.theme = v; saveUiSettings(us); }));
       f.append(slider('UI scale', us.scale, 0.8, 1.4, 0.05, (v) => Math.round(v * 100) + '%', (v) => { us.scale = v; saveUiSettings(us); }));
       f.append(toggle('Reduce flashing', us.reduceFlash, (v) => { us.reduceFlash = v; saveUiSettings(us); }, 'no flicker, glitches or blinking'));
-      f.append(seg<TouchMode>('Touch controls', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], touchMode(), (v) => setTouchMode(v),
+      f.append(seg<TouchSetting>('Touch controls', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], getTouchSetting(), (v) => setTouchSetting(v),
         { tip: (v) => v === 'auto' ? 'Show on-screen controls on touch screens' : v === 'on' ? 'Always show on-screen controls' : 'Never show on-screen controls' }));
     } else if (name === 'GAME' && G?.sandbox) {
       const client = G.role === 'client';
-      f.append(seg<number>('Gore', [[0, 'Off'], [1, 'Normal'], [2, 'Heavy']], G.sandbox.gore ?? 2, (v) => { G.sandbox.gore = v; }, { tip: (v) => ['No blood or wounds shown', 'Blood and wounds', 'Dismemberment, gibs, arterial spray'][v as number] }));
-      f.append(h('p', 't-note', client ? 'Applies to what you see on this device.' : 'Saved with this world.'));
+      const gore = seg<number>('Gore', [[0, 'Off'], [1, 'Normal'], [2, 'Heavy']], G.sandbox.gore ?? 2, (v) => { G.sandbox.gore = v; }, { tip: (v) => ['No blood or wounds shown', 'Blood and wounds', 'Dismemberment, gibs, arterial spray'][v as number] });
+      if (client) gore.querySelectorAll('button').forEach((b) => { (b as HTMLButtonElement).disabled = true; });
+      f.append(gore);
+      f.append(h('p', 't-note', client ? 'Set by the host for everyone in this world.' : 'Saved with this world (co-op guests use your setting).'));
     }
     swapPage(page, f, dir);
   };
@@ -310,12 +313,18 @@ export const CONTROLS: [string, string][] = [
   ['Right click', 'context menu'], ['E', 'interact with what is in front of you'], ['Space', 'shove'], ['F', 'flashlight'],
   ['Tab', 'raise the SEER-9 scanner'], ['1–6 / Q E / wheel', 'scanner pages · dial'], ['I', 'inventory'], ['M', 'map'],
   ['R', 'reload · rotate when placing'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'], ['V (hold)', 'talk (co-op voice, walkie when switched on)'],
-  ['Q', 'shout (scanner closed)'], ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
+  ['Q', 'shout (scanner closed)'], ['H', 'breathing exercise (calms panic)'], ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
+];
+export const TOUCH_CONTROLS: [string, string][] = [
+  ['Stick', 'move · push fully or double-tap to run'], ['Tap', 'act on a thing · walk to a spot'], ['Hold', 'context menu'],
+  ['Pinch', 'zoom'], ['Two-finger twist / swipe', 'turn the camera'], ['Hold ATTACK', 'aim, release to strike'],
 ];
 export const MENU_CONTROLS: [string, string][] = [['↑ ↓ ← →', 'move the cursor'], ['Enter', 'select'], ['Esc', 'back'], ['Q / E', 'switch tabs'], ['Gamepad', 'd-pad, A select, B back, LB/RB tabs']];
 export function controlsPanel(): HTMLElement {
   const box = h('div', 't-controls');
   for (const [k, v] of CONTROLS) box.append(h('div', 't-ctl', `<kbd>${esc(k)}</kbd><span>${esc(v)}</span>`));
+  box.append(h('div', 't-ctl-h', 'TOUCH'));
+  for (const [k, v] of TOUCH_CONTROLS) box.append(h('div', 't-ctl', `<kbd>${esc(k)}</kbd><span>${esc(v)}</span>`));
   box.append(h('div', 't-ctl-h', 'MENUS'));
   for (const [k, v] of MENU_CONTROLS) box.append(h('div', 't-ctl', `<kbd>${esc(k)}</kbd><span>${esc(v)}</span>`));
   box.append(h('div', 't-ctl-h', 'INVENTORY'));
