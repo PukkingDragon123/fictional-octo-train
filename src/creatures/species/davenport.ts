@@ -150,7 +150,7 @@ function buildDavenport(): Rig {
   K.local('eyes', (mb) => {
     for (const s of [-1, 1]) {
       mb.push().translate(s * 0.27, 0, 0).rotateX(-0.2);
-      blob(mb, [0, 0, 0], [0.042, 0.032, 0.03], 8, 4, 'c_an_eye_human', { fit: true, seam: Math.PI, ao: false });
+      blob(mb, [0, 0, 0], [0.055, 0.042, 0.036], 8, 4, 'c_an_eye_ball', { fit: true, seam: Math.PI, ao: false });
       mb.pop();
     }
   }, 'g');

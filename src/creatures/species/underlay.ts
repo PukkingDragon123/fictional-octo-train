@@ -207,7 +207,7 @@ function buildUnderlay(): Rig {
     const pts: V3[] = [];
     const top = ys[4] + 0.03;
     for (let k = 0; k <= 22; k++) pts.push([0, ys[0] - 0.06 + (top - ys[0] + 0.06) * (k / 22), 0]);
-    tube(mb, pts, (t) => 0.026 - t * 0.008, 7, 'c_an_skin_grey', {
+    tube(mb, pts, (t) => 0.03 - t * 0.009, 7, 'c_an_skin_grey', {
       bump: (t, a) => { const yy = ys[0] - 0.06 + (top - ys[0] + 0.06) * t; let b = 1; for (let q = 1; q < 4; q++) b += 0.55 * Math.exp(-((yy - ys[q]) ** 2) / 0.0007); return b + Math.sin(a * 2 + t * 30) * 0.05; },
       squash: [1, 0.85],
     });
@@ -255,7 +255,7 @@ function buildUnderlay(): Rig {
 
 // ---------------------------------------------------------------- animation
 interface UPose { h: number; moving: number; open: number; reach: number; grab: number; thrash: number; dead: number; flinch: number; strain: number; speed: number }
-const TMP_M = new THREE.Matrix4();
+const TMP_M = new THREE.Matrix4(), TMP_T = new THREE.Matrix4();
 
 /** the dome under the carpet in creature space (x right, z forward) */
 function domeField(lx: number, lz: number, o: UPose, t: number): number {
@@ -303,12 +303,14 @@ function poseUnderlay(rig: KRig, o: UPose, t: number, cx: number, cz: number, ry
     });
     rig.root.updateMatrix();
     TMP_M.copy(rig.root.matrix).invert();
-    patch.mesh.matrix.copy(TMP_M).multiply(new THREE.Matrix4().makeTranslation(ox, 0, oz));
+    patch.mesh.matrix.copy(TMP_M).multiply(TMP_T.makeTranslation(ox, 0, oz));
     patch.mesh.matrixWorldNeedsUpdate = true;
     patch.mesh.visible = rig.body.visible;
   }
   // the tear rides on top of the dome
-  const top = domeField(0, 0.05, { ...o, open: 0 }, t);
+  const op0 = o.open; o.open = 0;
+  const top = domeField(0, 0.05, o, t);
+  o.open = op0;
   P.tear.position.set(0, top + 0.006, 0.05);
   const op = clamp01(o.open);
   P.tear.scale.set(Math.max(0.001, 0.4 + op * 0.6) * (op > 0.02 ? 1 : 0.001), 1, Math.max(0.001, op));

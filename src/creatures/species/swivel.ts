@@ -34,7 +34,7 @@ addTextureModule(() => {
   // the mouth floor under the cushion: gums around the rim, a ribbed wet tongue-bed, the throat at the back
   A.add('c_swivel_maw', 32, 32, (pc) => {
     pc.wrap = false;
-    const R = makeRamp(0x7a2026, 9, { hueShift: -0.03, spread: 0.7 });
+    const R = makeRamp(0x6a2428, 9, { hueShift: -0.03, spread: 0.65, satShift: -0.06 });
     const h = (x: number, y: number) => tileFbm(x, y, 32, 32, 4, 2, 301);
     pc.fillRamp(R, (x, y) => {
       const dx = (x - 15.5) / 16, dy = (y - 9) / 18;

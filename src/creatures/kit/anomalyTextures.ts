@@ -42,7 +42,7 @@ addTextureModule(() => {
 
   // ---------------------------------------------------------------- wet flesh (tiling)
   A.add('c_an_flesh', 32, 32, (pc) => {
-    const R = makeRamp(0x8a2a2c, 8, { hueShift: -0.03, spread: 0.62 });
+    const R = makeRamp(0x7a2e30, 8, { hueShift: -0.03, spread: 0.58, satShift: -0.05 });
     const h = (x: number, y: number) => tileFbm(x, y, 32, 32, 3, 3, 211) * 0.75 + tileFbm(x, y, 32, 32, 8, 2, 212) * 0.25;
     pc.fillRamp(R, (x, y) => 0.12 + h(x, y) * 0.9 - (h(x, y) < 0.42 ? 0.18 : 0), 0.7);
     // folds: dark creases where the surface dips
@@ -60,7 +60,7 @@ addTextureModule(() => {
 
   // ---------------------------------------------------------------- gums: ridged, glossy, with dark sockets near one edge (v=0 top)
   A.add('c_an_gum', 32, 16, (pc) => {
-    const R = makeRamp(0xb04a52, 7, { hueShift: -0.04, spread: 0.6 });
+    const R = makeRamp(0x9c4a50, 7, { hueShift: -0.04, spread: 0.55 });
     pc.fillRamp(R, (x, y) => 0.35 + (Math.sin(x * 1.3 + Math.sin(y * 0.7) * 1.4) * 0.5 + 0.5) * 0.22 + (tileFbm(x, y, 32, 16, 4, 2, 31) - 0.5) * 0.3 + (y / 16) * 0.12, 0.6);
     for (let x = 0; x < 32; x++) { pc.blend(x, 0, 0x3a0c10, 0.7); if (ph(x, 0, 3) < 0.5) pc.blend(x, 1, 0x5a1418, 0.5); }
     for (let x = 1; x < 32; x += 4) { pc.set(x, 1, 0x2a0608); pc.set(x + 1, 1, 0x3a0a0c); } // sockets
@@ -129,14 +129,14 @@ addTextureModule(() => {
 
   // ---------------------------------------------------------------- grey skin (underlay): mottled, veined, faintly wet
   A.add('c_an_skin_grey', 32, 32, (pc) => {
-    const R = makeRamp(0x9a9c94, 8, { hueShift: -0.05, spread: 0.55 });
-    const h = (x: number, y: number) => tileFbm(x, y, 32, 32, 3, 3, 71);
-    pc.fillRamp(R, (x, y) => 0.3 + h(x, y) * 0.55 + (tileFbm(x, y, 32, 32, 8, 1, 72) - 0.5) * 0.12, 0.55);
-    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) if (tileFbm(x, y, 32, 32, 5, 2, 73) > 0.66) pc.blend(x, y, 0x7a7a8c, 0.35); // bruise-blue mottling
-    veins(pc, 74, 4, 0x5a6278, 18, 0.45);
-    // wrinkle lines across the long axis
-    for (let y = 2; y < 32; y += 5) for (let x = 0; x < 32; x++) if (ph(x >> 2, y, 75) < 0.6) pc.blend(x, y + (x & 4 ? 1 : 0), 0x5a5c58, 0.35);
-    wetGlints(pc, h, 0xe8ecf0, 0.76, 7);
+    const R = makeRamp(0xa4a6a2, 8, { hueShift: -0.05, spread: 0.4 });
+    const h = (x: number, y: number) => tileFbm(x, y, 32, 32, 2, 3, 71);
+    pc.fillRamp(R, (x, y) => 0.42 + (h(x, y) - 0.5) * 0.35 + (tileFbm(x, y, 32, 32, 8, 1, 72) - 0.5) * 0.08, 0.5);
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) if (tileFbm(x, y, 32, 32, 3, 2, 73) > 0.7) pc.blend(x, y, 0x8a8a9c, 0.25); // faint bruise-blue mottling
+    veins(pc, 74, 4, 0x6a7088, 18, 0.35);
+    // fine wrinkle lines across the long axis
+    for (let y = 3; y < 32; y += 6) for (let x = 0; x < 32; x++) if (ph(x >> 2, y, 75) < 0.5) pc.blend(x, y + (x & 4 ? 1 : 0), 0x6a6c68, 0.25);
+    wetGlints(pc, h, 0xe8ecf0, 0.8, 7);
   }, M(32), M(32));
 
   A.add('c_an_nail', 8, 8, (pc) => {
@@ -177,6 +177,16 @@ addTextureModule(() => {
     pc.circle(8, 3.8, 1, 0x0a0806);
     pc.set(7, 2, 0xffffff); pc.set(9, 5, 0x8a7a4a);
     for (let x = 1; x < 15; x++) pc.blend(x, 0, 0x2a0e0c, 0.6);
+  });
+  // a whole eyeball for spheres (u around, v top→bottom): small iris at the front centre, veined sclera, lids top and bottom
+  A.add('c_an_eye_ball', 32, 16, (pc) => {
+    pc.wrap = false;
+    const R = makeRamp(0xdcd4bc, 5, { hueShift: 0.03, spread: 0.35 });
+    pc.fillRamp(R, (x, y) => 0.75 - Math.abs(y - 7.5) * 0.05 - Math.abs(x - 15.5) * 0.012, 0.6);
+    veins(pc, 121, 7, 0xb04848, 6, 0.75);
+    pc.ellipse(15.5, 7.5, 3.4, 3.2, 0x5a4a22); pc.ellipse(15.5, 7.5, 2.6, 2.4, 0x7a6a30); pc.ellipse(15.5, 7.5, 1.4, 1.4, 0x0a0806);
+    pc.set(14, 6, 0xffffff); pc.set(17, 9, 0x9a8a5a);
+    for (let x = 0; x < 32; x++) { pc.set(x, 0, 0x4a1e1a); pc.set(x, 15, 0x4a1e1a); pc.blend(x, 1, 0x6a2a24, 0.7); pc.blend(x, 14, 0x6a2a24, 0.7); }
   });
   A.add('c_an_eye_shut', 16, 8, (pc) => {
     pc.wrap = false;
