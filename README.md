@@ -38,8 +38,9 @@ Other scripts:
 | `node scripts/walkthrough.mjs [devUrl]` | plays the main mission chain from the lobby fuses to the ending through the real mission objects and portals |
 | `VITE_SANDBOXED=1 npx vite build && node scripts/artifact.mjs` | packages a single-page build (CSS and fonts inlined) for sandboxed hosts; co-op is disabled there |
 
-URL flags: `?quick` skips the title and starts a fresh run; `?gallery=<set>` and
-`?sandbox` open the asset gallery and the rendering sandbox.
+URL flags: `?quick` skips the title and the intro and starts a fresh run;
+`?intro=0` keeps the title but skips the intro, `?intro` forces it;
+`?gallery=<set>` and `?sandbox` open the asset gallery and the rendering sandbox.
 
 ## Controls
 
@@ -56,6 +57,7 @@ URL flags: `?quick` skips the title and starts a fresh run; `?gallery=<set>` and
 | M | map |
 | R | reload; rotate while placing furniture |
 | Q | shout |
+| H | breathing exercise (calms a panic attack) |
 | Z / X, wheel | rotate camera, zoom |
 | V (hold) | talk: proximity voice, or the walkie-talkie when it's on |
 | Enter / T | chat |
@@ -64,8 +66,31 @@ URL flags: `?quick` skips the title and starts a fresh run; `?gallery=<set>` and
 In a vehicle: W/S throttle and brake, A/D steer, R ignition, F headlights,
 Space horn, E get out.
 
+On phones and tablets the touch layer turns on by itself (Options → Touch
+controls: auto / on / off): a floating stick to move (push fully or
+double-tap to run), ATTACK (tap to strike, hold to aim with target lock),
+USE, SHOVE, SNEAK, LIGHT and SHOUT buttons, map/scanner/pack buttons up top,
+tap to act or walk, hold anywhere for the context menu, pinch to zoom and a
+two-finger twist to turn the camera. Driving gets its own gas, brake, horn,
+lights and ignition buttons.
+
 ## What's in it
 
+- **Clipping in.** A new game opens on a night shift at the Meridian
+  Institute; reality goes wrong around you and you fall through the floor
+  into the Lobby.
+- **Your mind matters.** Anxiety, low mood, insomnia, trauma flashbacks,
+  loneliness and private hallucinations build from what happens to you;
+  panic attacks race your heart and blur your aim. Sleep, food, light,
+  company, comfort items, music, journaling, breathing and pets help, and
+  medication has real side effects. A KESTREL wrist monitor shows the time,
+  your pulse, temperature and state of mind.
+- **Gore** (Off / Normal / Heavy): weapon-specific blood, wall splatter,
+  spreading pools, bloody footprints, severed limbs and heads, gibs.
+- **A personnel file to fill in.** A live 3D model of your survivor turns and
+  emotes while you choose looks, a job and traits (40-odd, many of them
+  silly). Most jobs are locked until you earn them by playing, and stay
+  unlocked across runs.
 - **Survival you have to manage.** Hunger, thirst, fatigue, temperature,
   wetness, exhaustion, panic, stress, boredom and sickness. Body-part injuries
   (scratches, lacerations, bites, burns, fractures) bleed and get infected
