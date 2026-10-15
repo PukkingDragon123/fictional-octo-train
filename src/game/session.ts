@@ -3,7 +3,7 @@ import { G } from './G';
 import { SurvivalSystem } from '../survival/survivalSystem';
 import { Player } from '../entities/player';
 import { Appearance, randomAppearance } from '../entities/humanRig';
-import { Item, hasItemDef } from '../items/item';
+import { Item, hasItemDef, itemDef } from '../items/item';
 import { Rng, setUidSlot } from '../core/rng';
 import { createItem } from '../items/factory';
 import { UI } from '../ui/ui';
@@ -149,7 +149,13 @@ export function startSession(o: SessionOpts): Game {
     const start = ['tshirt', 'jeans', 'sneakers', 'socks', 'wrist_monitor'];
     for (const k of start) if (hasItemDef(k)) { const it = newItem(k); p.inv.add(it); p.wear(it); }
     for (const k of ['water_bottle', 'almond_water', 'granola_bar']) if (hasItemDef(k)) p.inv.add(newItem(k));
-    for (const k of occupationByKey(p.occupation).items) if (hasItemDef(k)) p.inv.add(newItem(k));
+    // the job's kit: clothing and bags go on (as the personnel-file preview shows), the rest into the pockets
+    for (const k of occupationByKey(p.occupation).items) {
+      if (!hasItemDef(k)) continue;
+      const it = newItem(k); p.inv.add(it);
+      const d = itemDef(k);
+      if (d.clothing || d.bag?.slot === 'back') p.wear(it);
+    }
   }
   g.local = p;
   g.addPlayer(p);
