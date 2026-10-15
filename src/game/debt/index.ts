@@ -23,6 +23,7 @@ import type { Zone, TileObject } from '../../world/zone';
 import type { Item } from '../../items/item';
 import type { Container } from '../../items/container';
 import type { MenuOption } from '../../ui/ui';
+import { feetKitItems } from '../../entities/humanLooks';
 import { DebtSystem } from './ledger';
 import { BandSystem } from './band';
 import { HopperSystem } from './hopper';
@@ -61,7 +62,10 @@ export function installContract(g: Game) {
 /** a new world: the starting kit of a Remittance debtor */
 export function issueKit(p: Player, add: (key: string, wear?: boolean) => Item | null) {
   add('prison_jumpsuit', true);
-  add('canvas_slipons', true);
+  // footwear as chosen at intake (src/entities/humanLooks.ts): canvas slip-ons unless the file says otherwise
+  let feet: string[] = ['canvas_slipons'];
+  try { feet = feetKitItems(p.app); } catch { /* older appearance: issue slip-ons */ }
+  for (const k of feet) add(k, true);
   add('issue_pack', true);
   add('ration_bar');
   add('water_pouch');

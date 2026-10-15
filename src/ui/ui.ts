@@ -549,18 +549,21 @@ export class UI {
   /** world text must stay readable: lift any line that would write over another one (or over the hologram) */
   private unclutter() {
     const placed: DOMRect[] = [];
-    const holo = G.holo?.visible ? (document.querySelector('.hb-tilt') as HTMLElement | null)?.getBoundingClientRect() : null;
-    if (holo) placed.push(holo);
-    // the survivor's own thoughts keep their place; everything else moves up out of the way
+    // the closed hologram is an obstacle for other people's lines (the survivor's own lean away from it instead)
+    const holo = G.holo?.visible && !G.holo.expanded ? (document.querySelector('.hb-tilt') as HTMLElement | null)?.getBoundingClientRect() : null;
+    // the survivor's own thoughts keep their place; everything else moves up out of the way (a little)
     const order = [...this.bubbles].filter((b) => b.el.style.display !== 'none' && b.el.isConnected).sort((a, c) => (a.target === G.local ? 0 : 1) - (c.target === G.local ? 0 : 1));
     for (const b of order) {
       let r = b.el.getBoundingClientRect();
       if (!r.width) continue;
-      for (let tries = 0; tries < 6; tries++) {
-        const hit = placed.find((o) => r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top);
+      const mine = b.target === G.local;
+      let moved = 0;
+      for (let tries = 0; tries < 5 && moved < 140; tries++) {
+        const hit = placed.find((o) => r.left < o.right && r.right > o.left && r.top < o.bottom && r.bottom > o.top)
+          || (!mine && holo && r.left < holo.right && r.right > holo.left && r.top < holo.bottom && r.bottom > holo.top ? holo : undefined);
         if (!hit) break;
-        // the hologram itself is not moved over: lines beside it go above it
-        const dy = r.bottom - hit.top + 3;
+        const dy = Math.min(140 - moved, r.bottom - hit.top + 3);
+        moved += dy;
         b.el.style.top = (parseFloat(b.el.style.top) - dy) + 'px';
         r = b.el.getBoundingClientRect();
       }

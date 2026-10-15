@@ -233,6 +233,13 @@ addTextureModule(() => {
     for (let y = 0; y < 16; y++) for (let x = 0; x < 8; x++) { const k = (y / 15) * (y % 3 === 0 ? 0.5 : 1) * (0.6 + 0.4 * Math.abs(Math.sin(x * 1.7))); const c = Math.round(255 * k); pc.setRGBA(x, y, c, c, c, 255); }
   });
   A.add('zd_pit', 4, 4, (pc) => { pc.fill(0x020203); pc.set(1, 1, 0x0a0a0c); });
+  // a four-point glint for valuables lying about (additive: black is transparent)
+  A.add('zd_glint', 9, 9, (pc) => {
+    pc.wrap = false; pc.fill(0x000000);
+    for (let i = 0; i < 9; i++) { const k = 1 - Math.abs(i - 4) / 4.5; const c = Math.round(255 * k * k); pc.setRGBA(i, 4, c, c, c, 255); pc.setRGBA(4, i, c, c, c, 255); }
+    pc.setRGBA(3, 3, 120, 120, 120, 255); pc.setRGBA(5, 5, 120, 120, 120, 255); pc.setRGBA(3, 5, 120, 120, 120, 255); pc.setRGBA(5, 3, 120, 120, 120, 255);
+    pc.setRGBA(4, 4, 255, 255, 255, 255);
+  });
   A.add('zd_needle', 4, 8, (pc) => { pc.wrap = false; pc.fill(0xb81e14); pc.vline(0, 0, 7, 0xe8402a); pc.rect(0, 6, 4, 2, 0x1a1a1a); });
 
   // freight cage mesh and its warning gate

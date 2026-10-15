@@ -24,8 +24,21 @@
 .hb-flip .hb-tilt { transform: perspective(calc(var(--hp) * 320)) rotateY(11deg) rotateX(7deg) scaleX(-1); }
 @keyframes hb-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 calc(var(--hp) * -1); } }
 
-.hb-face { display: block; padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; pointer-events: auto; cursor: var(--cur-hand, pointer); outline: none; -webkit-tap-highlight-color: transparent; }
-.hb-face:focus-visible canvas { outline: var(--hp) dashed rgba(92, 242, 255, 0.55); outline-offset: calc(var(--hp) * 2); }
+.hb-face { display: block; padding: 0; margin: 0; border: 0; background: none; color: inherit; font: inherit; pointer-events: none; outline: none; -webkit-tap-highlight-color: transparent; }
+/* the one deliberate target of the closed projection: a small ring of light on the lens corner */
+.hb-grab {
+  position: absolute; left: calc(var(--hp) * -9); bottom: calc(var(--hp) * -9); width: 34px; height: 34px; padding: 0; margin: 0; border: 0; background: none;
+  pointer-events: auto; cursor: var(--cur-hand, pointer); outline: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.hb-l .hb-grab { left: auto; right: calc(var(--hp) * -9); }
+.hb-grab i { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(150, 250, 255, 0.85), 0 0 6px rgba(92, 242, 255, 0.7), inset 0 0 0 3px rgba(0, 10, 14, 0.5); background: radial-gradient(circle, #d2fdff 0 2px, rgba(92, 242, 255, 0.35) 3px, transparent 5px);
+  animation: hb-grab 2.6s steps(6) infinite; }
+.hb-grab:hover i, .hb-grab:focus-visible i { box-shadow: 0 0 0 1px #fff, 0 0 10px rgba(92, 242, 255, 1), inset 0 0 0 3px rgba(0, 10, 14, 0.5); }
+.hb-grab:focus-visible { outline: 1px dashed rgba(92, 242, 255, 0.7); outline-offset: -4px; }
+.hb-open .hb-grab i { background: radial-gradient(circle, #ffffff 0 3px, rgba(92, 242, 255, 0.5) 4px, transparent 6px); }
+html.nc-touch .hb-grab { width: 42px; height: 42px; }
+@keyframes hb-grab { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
 .hb canvas {
   display: block; image-rendering: pixelated;
   /* scanlines: every hologram pixel row loses its last device pixel of light */
@@ -39,10 +52,11 @@ html.hb-lowfx .hb-face { filter: none; }
 /* ---------------------------------------------------------------- expanded: tags, plain words, ledger, log */
 .hb-x {
   display: none; position: absolute; left: calc(var(--hp) * 50); top: calc(var(--hp) * 33); width: calc(var(--hp) * 166); bottom: calc(var(--hp) * 8);
-  pointer-events: auto; flex-direction: column; gap: calc(var(--hp) * 2); overflow: hidden;
+  pointer-events: none; flex-direction: column; gap: calc(var(--hp) * 2); overflow: hidden;
   text-shadow: calc(var(--hp) * -1) 0 0 rgba(255, 40, 60, 0.45), var(--hp) 0 0 rgba(40, 110, 255, 0.5), 0 0 calc(var(--hp) * 3) rgba(92, 242, 255, 0.55);
 }
 .hb-open .hb-x { display: flex; }
+.hb-user .hb-x { pointer-events: auto; }
 .hb-tags { display: flex; flex-direction: column; gap: 0; }
 .hb-tag {
   display: flex; align-items: center; gap: calc(var(--hp) * 3); width: 100%; margin: 0; padding: 0 calc(var(--hp) * 1); border: 0; background: none;
@@ -142,4 +156,4 @@ html.nc-touch .hb-breathe { padding: calc(var(--hp) * 5) calc(var(--hp) * 8) cal
 .hb-cone.hb-red stop { stop-color: #ff4a3a; }
 .hb-cone.hb-red line { stroke: rgba(255, 120, 100, 0.35); }
 
-.reduce-flash .hb-tilt, .reduce-flash .hb-line, .reduce-flash .hb-tag, .reduce-flash .hb-breathe, .reduce-flash .hb-ledger .hot, .reduce-flash .hb-toast, .reduce-flash .hb-breathe::before { animation: none !important; }
+.reduce-flash .hb-grab i, .reduce-flash .hb-tilt, .reduce-flash .hb-line, .reduce-flash .hb-tag, .reduce-flash .hb-breathe, .reduce-flash .hb-ledger .hot, .reduce-flash .hb-toast, .reduce-flash .hb-breathe::before { animation: none !important; }

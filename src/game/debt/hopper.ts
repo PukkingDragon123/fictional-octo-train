@@ -141,6 +141,47 @@ function geo(kind: 'needle' | 'glow' | 'pit' | 'scan' | 'curtain' | 'beacon' | '
 const step = (c: number, k: number) => { const q = Math.max(0, Math.min(8, Math.round(k * 8))) / 8; return (Math.round(((c >> 16) & 255) * q) << 16) | (Math.round(((c >> 8) & 255) * q) << 8) | Math.round((c & 255) * q); };
 const ADD = () => worldMaterial({ additive: true, outline: 0, unlit: true });
 
+/** valuables lying about catch the light now and then, so a smashed sofa's ring is findable */
+class Glints {
+  private pool: THREE.Mesh[] = [];
+  private live: { m: THREE.Mesh; t: number; life: number }[] = [];
+  private pickT = 0;
+  constructor(private root: THREE.Group) {
+    const mb = new ModelBuilder();
+    mb.panel(-0.5, 0, 0.5, 0, -0.5, 0.5, 'zd_glint', { emissive: 1, fit: true, color: 0xfff4d8 });
+    const g = mb.build();
+    for (let i = 0; i < 10; i++) { const m = new THREE.Mesh(g, ADD()); m.visible = false; m.renderOrder = 7; m.frustumCulled = false; root.add(m); this.pool.push(m); }
+  }
+  update(dt: number, z: Zone) {
+    for (let i = this.live.length - 1; i >= 0; i--) {
+      const l = this.live[i];
+      l.t += dt;
+      const k = Math.sin(Math.PI * Math.min(1, l.t / l.life));
+      l.m.scale.setScalar(Math.max(0.001, k * 0.22));
+      l.m.quaternion.copy(G.pr.camera.quaternion);
+      if (l.t >= l.life) { l.m.visible = false; this.pool.push(l.m); this.live.splice(i, 1); }
+    }
+    this.pickT -= dt;
+    if (this.pickT > 0 || !this.pool.length) return;
+    this.pickT = 0.35;
+    const cx = G.pr.target.x, cz = G.pr.target.z, R = 12;
+    const cands: WorldItem[] = [];
+    for (const wi of floorItems(z).values()) {
+      if (Math.abs(wi.x - cx) > R || Math.abs(wi.z - cz) > R || wi.vy !== undefined) continue;
+      const t = itemDef(wi.item.key).tags;
+      if (!t || !t.includes('valuable')) continue;
+      if (!G.view?.vis.isVisible(Math.floor(wi.x), Math.floor(wi.z))) continue;
+      cands.push(wi);
+    }
+    if (!cands.length) return;
+    const wi = cands[Math.floor(Math.random() * cands.length)];
+    const m = this.pool.pop()!;
+    m.position.set(wi.x + (Math.random() - 0.5) * 0.05, wi.y + 0.06, wi.z + (Math.random() - 0.5) * 0.05);
+    m.visible = true;
+    this.live.push({ m, t: 0, life: 0.45 });
+  }
+}
+
 export class HopperSystem implements GameSystem {
   name = 'hoppers';
   root = new THREE.Group();
@@ -149,10 +190,12 @@ export class HopperSystem implements GameSystem {
   private fx = new Map<number, Fx>();
   private cache = new Map<string, { t: number; list: TileObject[] }>();
   private tmp = new THREE.Vector3();
+  private glints: Glints;
 
   constructor() {
     this.root.name = 'hoppers';
     G.pr.scene.add(this.root);
+    this.glints = new Glints(this.root);
     bus.on('objectMenu', (p: Player, o: TileObject, out: MenuOption[]) => { if (o.key === 'hopper') { try { out.unshift(...this.menu(p, o)); } catch (e) { console.warn('hopper menu', e); } } });
     bus.on('zoneView', () => this.clearFx());
     bus.on('objAdded', (z: Zone, o: TileObject) => { if (o?.key === 'hopper') this.cache.delete(z.key); });
@@ -474,6 +517,7 @@ export class HopperSystem implements GameSystem {
       if (this.hostT <= 0) { this.hostT = 0.25; this.hostStep(); }
     }
     this.updateFx(dt);
+    if (G.view?.zone) this.glints.update(dt, G.view.zone);
   }
 }
 

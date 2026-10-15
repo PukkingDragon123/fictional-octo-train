@@ -62,17 +62,12 @@ function fmtLeft(h: number): string {
   const d = Math.floor(h / 24), hh = Math.floor(h % 24), mm = Math.floor((h % 1) * 60);
   return d > 0 ? `${d}D ${String(hh).padStart(2, '0')}H` : `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
 }
-/** a prisoner number for this survivor: from the debt contract if it has one, else stable per id + name */
+/** the survivor's prisoner number: the one stencilled on the jumpsuit (content/items/prisoner.ts), so patch, band and HUD agree */
 export function debtorNo(p: Player | null | undefined): string {
-  if (!p) return 'D-0000';
-  const D = (G as any).debt;
-  const given = (p as any).prisonerNo || (p as any).prisoner || D?.prisonerNo?.(p.id) || D?.debtorId;
+  if (!p) return 'D-4471';
+  const given = (p as any).prisonerNo;
   if (typeof given === 'string' && given) return given;
-  // the number stencilled on the jumpsuit (content/items/prisoner.ts) so patch, band and HUD agree
-  try { if (typeof (p.rig as any)?.seed === 'number') return rigNumber(p.rig); } catch { /* older rig */ }
-  let h = 2166136261;
-  for (const ch of p.name + '#' + (G.worldSeed ?? 0)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
-  return 'D-' + (1000 + ((h >>> 0) % 9000));
+  try { return rigNumber(p.rig); } catch { return 'D-4471'; }
 }
 
 export class Holo {
@@ -84,7 +79,6 @@ export class Holo {
   private pinned = false;
   private autoT = 0;
   private hoverT = -1;
-  private leaveT = -1;
   private bootT = -1;
   private booted = false;
   private sessionStart = -1;
@@ -93,6 +87,7 @@ export class Holo {
   private el: HTMLDivElement;
   private tilt: HTMLDivElement;
   private face: HTMLButtonElement;
+  private grab: HTMLButtonElement;
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private xl: HTMLDivElement;
@@ -170,7 +165,8 @@ export class Holo {
     el.innerHTML = `
       <div class="hb-above"><div class="hb-toasts" aria-live="polite"></div><div class="hb-say" aria-live="assertive"></div></div>
       <div class="hb-tilt">
-        <button class="hb-face" type="button" aria-expanded="false" title="BAILIFF band (L)"><canvas></canvas></button>
+        <button class="hb-face" type="button" aria-expanded="false" tabindex="-1"><canvas></canvas></button>
+        <button class="hb-grab" type="button" aria-expanded="false" title="BAILIFF band: open / close (L)"><i></i></button>
         <div class="hb-scan"></div>
         <div class="hb-x">
           <div class="hb-tags" role="list"></div>
@@ -208,10 +204,16 @@ export class Holo {
     document.documentElement.style.setProperty('--nc-scrip', `url(${glyph3Url('¤')})`);
     this.resize();
 
-    // ---- input: hover opens, leaving closes (unless pinned); tap / click / Enter pins
-    el.addEventListener('pointerenter', (e) => { if (G.input) G.input.pointerOverUI = true; if (e.pointerType === 'mouse') { this.hoverT = 0.35; this.leaveT = -1; } });
-    el.addEventListener('pointerleave', (e) => { if (G.input) G.input.pointerOverUI = false; if (e.pointerType === 'mouse') { this.hoverT = -1; if (!this.pinned) this.leaveT = 0.7; } this.hideTagTip(); });
+    // ---- input. The projection is light: the world stays clickable / tappable / swipeable through it.
+    // Only the grab (a small ring on the lens corner), the opened view and the breathe prompt take the pointer.
+    // Hovering the grab opens it for a moment (kept open while the pointer is on it); a click / tap / L pins it.
+    this.grab = el.querySelector('.hb-grab') as HTMLButtonElement;
+    el.addEventListener('pointerenter', () => { if (G.input) G.input.pointerOverUI = true; });
+    el.addEventListener('pointerleave', () => { if (G.input) G.input.pointerOverUI = false; this.hideTagTip(); });
     el.addEventListener('contextmenu', (e) => e.preventDefault());
+    this.grab.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && !this.expanded) this.hoverT = 0.4; });
+    this.grab.addEventListener('pointerleave', () => { this.hoverT = -1; });
+    this.grab.addEventListener('click', () => { this.hoverT = -1; this.toggle(); });
     this.face.addEventListener('click', () => this.toggle());
     this.breatheBtn.addEventListener('click', () => { const p = G.local; if (p) startBreathing(p); G.audio?.ui?.('band_tick', 0.4); });
     window.addEventListener('resize', () => this.resize());
@@ -260,7 +262,7 @@ export class Holo {
         G.audio?.ui?.('band_tick', 0.4);
     }
   }
-  expand() { this.pinned = true; this.setExpanded(true); }
+  expand() { this.pinned = true; this.setExpanded(true); this.el.classList.add('hb-user'); }
   collapse() { this.pinned = false; this.autoT = 0; this.setExpanded(false); }
   toggle() { if (this.expanded && (this.pinned || this.autoT <= 0)) this.collapse(); else this.expand(); }
 
@@ -457,8 +459,9 @@ export class Holo {
     // a new band fitted after the old one went off: boot it
     if (this.detonT > 2 && this.bandState(p.id) === 'armed') { this.detonT = -1; this.boot(); }
     if (this.autoT > 0) { this.autoT -= dt; if (this.autoT <= 0 && !this.pinned && this.hoverT < 0) this.setExpanded(false); }
-    if (this.hoverT > 0) { this.hoverT -= dt; if (this.hoverT <= 0) { this.hoverT = -1; this.setExpanded(true); } }
-    if (this.leaveT > 0) { this.leaveT -= dt; if (this.leaveT <= 0) { this.leaveT = -1; if (!this.pinned && this.autoT <= 0) this.setExpanded(false); } }
+    // hover on the grab opens for a moment; staying on the opened view keeps it open
+    if (this.hoverT > 0) { this.hoverT -= dt; if (this.hoverT <= 0) { this.hoverT = -1; this.autoT = Math.max(this.autoT, 2.5); this.setExpanded(true); this.el.classList.add('hb-user'); } }
+    if (this.expanded && !this.pinned && this.el.matches(':hover')) this.autoT = Math.max(this.autoT, 1.2);
     if (this.warn) { this.warn.t += dt; if (this.warn.countdown != null) this.warn.countdown = Math.max(0, this.warn.countdown - dt); if (this.warn.t > 12 && this.warn.level < 0.9) this.warn = null; }
     // keys: L opens / closes
     if (G.input?.keyHit?.('KeyL') && !G.input.textFocus && !G.ui?.blocksMovement?.()) this.toggle();
@@ -704,8 +707,11 @@ export class Holo {
   private setExpanded(on: boolean) {
     if (on === this.expanded) return;
     this.expanded = on;
+    // only a view the player opened takes the pointer; one that opened by itself stays see-through
+    if (!on) this.el.classList.remove('hb-user');
     this.el.classList.toggle('hb-open', on);
     this.face.setAttribute('aria-expanded', String(on));
+    this.grab.setAttribute('aria-expanded', String(on));
     this.applySize();
     this.parts.length = 0; this.floaters = this.floaters.filter((f) => !f.big);
     this.tagKey = ''; this.logDirty = true;
@@ -794,7 +800,7 @@ export class Holo {
       this.ariaT = 2;
       const d = this.debt;
       const states = this.tags.filter((t) => t.kind !== 'med').slice(0, 4).map((t) => t.plain).join(', ');
-      this.face.setAttribute('aria-label', `BAILIFF band. Pulse ${Math.round(mind?.bpm ?? 0)}. ${states || 'No alerts'}.${d ? ` Owed ${fmt(d.owed)} scrip${d.hoursLeft != null && !d.cleared ? `, next ${fmt(d.due)} due in ${fmtLeft(d.hoursLeft)}` : ''}.` : ''} Press L to ${this.expanded ? 'close' : 'open'}.`);
+      this.grab.setAttribute('aria-label', `BAILIFF band. Pulse ${Math.round(mind?.bpm ?? 0)}. ${states || 'No alerts'}.${d ? ` Owed ${fmt(d.owed)} scrip${d.hoursLeft != null && !d.cleared ? `, next ${fmt(d.due)} due in ${fmtLeft(d.hoursLeft)}` : ''}.` : ''} Press L to ${this.expanded ? 'close' : 'open'}.`);
     }
     if (!this.expanded) return;
     // tags: kept by key so a level change does not rebuild (or re-animate) the list
