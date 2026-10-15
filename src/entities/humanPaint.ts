@@ -544,6 +544,8 @@ function paintBase(inp: BakeInput): Surf[] {
   paintGear(gear, eyesP?.color ?? 0x202020);
   const pack = mk('PACK', [0, 1]);
   if (backP) call(backP, 'pack', pack);
+  const watch = mk('WATCH', [0, 1]);
+  paintWatch(watch);
   const lids = mk('LIDS', [0, 1]);
   lids.fill(K.R, (x, y) => SKIN_MID - 0.2 - (y / lids.h) * 0.6);
   for (let x = 0; x < lids.w; x++) { lids.pc.set(x, lids.h - 1, mixHex(0x1c1410, app.hair, 0.2)); lids.pc.blend(x, 1, K.R[3], 0.5); }
@@ -618,6 +620,19 @@ function handSkinDetail(S: Surf, K: Skin) {
 }
 function footSkinDetail(S: Surf, K: Skin) {
   for (let x = 0; x < S.w; x++) if (Math.abs(S.deg(x)) < 60) for (let y = 0; y < 3; y++) if (x % 3 !== 0) S.pc.blend(x, Math.round(S.h * 0.3) - y, K.R[6], 0.4);
+}
+
+function paintWatch(S: Surf) {
+  // bottom rows: rubber band; top rows: the monitor face (bezel, amber LCD digits, a button)
+  for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
+    if (y >= S.h * 0.5) S.pc.set(x, y, (x + y) % 3 === 0 ? 0x3e3832 : 0x2e2a26);
+    else {
+      const edge = x === 0 || x === S.w - 1 || y === 0 || y === Math.floor(S.h * 0.5) - 1;
+      S.pc.set(x, y, edge ? 0x5a5650 : 0x1a1612);
+    }
+  }
+  for (const x of [3, 4, 6, 7]) { S.pc.set(x, 1, 0xf0a030); S.pc.set(x, 2, 0xc87818); }
+  S.pc.set(5, 2, 0xf0a030); S.pc.set(S.w - 2, 1, 0xc8302a);
 }
 
 function paintGear(S: Surf, frame: number) {

@@ -27,7 +27,7 @@ export type ActionAnim =
   | '' | 'aim_melee' | 'aim_gun' | 'aim_throw' | 'swing' | 'swing2h' | 'stab' | 'shoot' | 'throw' | 'shove' | 'eat' | 'drink'
   | 'loot' | 'pickup' | 'craft' | 'hammer' | 'saw' | 'read' | 'scanner' | 'carry' | 'push' | 'bandage' | 'dig' | 'pour'
   | 'flinch' | 'shiver' | 'cough' | 'wave' | 'hold_light' | 'hold_item' | 'type' | 'pray' | 'cover_ears' | 'reload'
-  | 'stitch' | 'cook' | 'mix' | `emote:${string}`;
+  | 'stitch' | 'cook' | 'mix' | 'breathe' | 'panic' | `emote:${string}`;
 
 export interface AnimInput {
   speed: number;          // horizontal m/s
@@ -98,6 +98,12 @@ export class HumanAnimator {
   private emote: { name: EmoteName; t: number; loop: boolean } | null = null;
   private emoteW = 0; private lastEmote: EmoteName | null = null; private emoteT = 0;
   private lean = 0;
+  private attackT = 0;
+
+  /** a panic attack: trembling, hunched, hyperventilating, hands to chest and head for a few seconds */
+  panicAttack(secs = 7) { if (this.attackT <= 0) this.attackDur = 0; this.attackT = Math.max(this.attackT, secs); this.fid = null; }
+  private attackDur = 0;
+  get panicking() { return this.attackT > 0.3; }
 
   playEmote(name: string, loop?: boolean) {
     if (!(EMOTES as readonly string[]).includes(name)) return false;
@@ -281,6 +287,22 @@ export class HumanAnimator {
       add(p, 'chest', 0.08 * panic, 0, 0);
       p.gripL = 0.9; p.gripR = 0.9;
     }
+    if (this.attackT > 0) {
+      this.attackT -= dt; this.attackDur += dt;
+      const e = clamp(this.attackT / 1.2, 0, 1) * clamp(this.attackDur / 0.5 + 0.2, 0, 1);
+      const hv = Math.sin(t * 9.5), tr = Math.sin(t * 43) * 0.04 + Math.sin(t * 31 + 2) * 0.03;
+      const q: Pose = {};
+      set(q, 'spine', 0.32 + hv * 0.04, 0, 0); set(q, 'chest', 0.12 - hv * 0.09, 0, tr); set(q, 'neck', 0.1, 0, 0);
+      set(q, 'head', 0.2 + tr, this.look * 0.6 + tr * 3, tr * 2);
+      set(q, 'uarmR', -0.8 + tr, 0.5, -0.1); set(q, 'farmR', -2.05, 0, 0); set(q, 'handR', 0.3, 0, -0.3);   // hand clutching the chest
+      set(q, 'uarmL', -1.05 + tr, -0.45, 1.3); set(q, 'farmL', -2.3 - tr * 2, 0, 0); set(q, 'handL', 0.4, 0, 0); // hand on the head
+      set(q, 'thighL', -0.2, 0, 0.06); set(q, 'thighR', -0.2, 0, -0.06); set(q, 'shinL', 0.4 + tr, 0, 0); set(q, 'shinR', 0.4 - tr, 0, 0);
+      set(q, 'footL', -0.2, 0, 0); set(q, 'footR', -0.2, 0, 0);
+      q.rootY = -0.05;
+      blend(p, q, e * (moving ? 0.5 : 1), moving ? UPPER : ALL);
+      if (!moving) p.rootY = lerp(p.rootY ?? 0, -0.05, e);
+      p.gripL = 0.7; p.gripR = 0.9;
+    }
     if (inp.cold > 0.2) {
       const c = inp.cold, sh = Math.sin(t * 42) * 0.025 * c;
       add(p, 'uarmL', -0.45 * c, 0, -0.32 * c + sh); add(p, 'farmL', -1.25 * c, 0.4 * c, 0);
@@ -336,6 +358,7 @@ export class HumanAnimator {
     // remote emotes arrive as 'emote:name'
     let emoteName: EmoteName | null = null, emoteU = 0;
     if (act && act.startsWith('emote:')) { emoteName = act.slice(6) as EmoteName; emoteU = inp.actionT; act = ''; }
+    if (act === 'panic') { this.attackT = Math.max(this.attackT, 1.4); act = ''; } // mirrored panic attack
     if (act) { this.lastAction = act; if (act !== this.lastSwingAct && (act === 'swing' || act === 'swing2h' || act === 'stab')) { this.swingN++; } }
     this.lastSwingAct = act;
     this.actW = lerp(this.actW, act ? 1 : 0, 1 - Math.exp(-16 * dt));
@@ -346,6 +369,7 @@ export class HumanAnimator {
       if (a.pose.rootY !== undefined) p.rootY = lerp(p.rootY ?? 0, a.pose.rootY, this.actW);
       if (a.pose.gripL !== undefined) p.gripL = lerp(p.gripL ?? 0, a.pose.gripL, this.actW);
       if (a.pose.gripR !== undefined) p.gripR = lerp(p.gripR ?? 0, a.pose.gripR, this.actW);
+      if (a.pose.blink !== undefined && this.actW > 0.5) p.blink = a.pose.blink;
     }
 
     // ---------------- emotes
@@ -521,7 +545,8 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
         const arm = u < 0.32 ? lerp(-1.4, -2.9, wu) : u < 0.55 ? lerp(-2.9, -0.75, sk) : lerp(-0.75, -1.0, rc);
         const fore = u < 0.32 ? lerp(-1.2, -1.5, wu) : u < 0.55 ? lerp(-1.5, -0.15, sk) : lerp(-0.15, -0.8, rc);
         const bend = u < 0.32 ? lerp(0, -0.15, wu) : u < 0.55 ? lerp(-0.15, 0.4, sk) : lerp(0.4, 0.1, rc);
-        set(P, 'uarmR', arm, 0, -0.15); set(P, 'farmR', fore, 0, 0); set(P, 'handR', -0.3 + st * 0.3, 0, 0);
+        const wr = u < 0.32 ? lerp(0, -0.4, wu) : u < 0.55 ? lerp(-0.4, 1.0, sk) : lerp(1.0, 0.4, rc);
+        set(P, 'uarmR', arm, 0, -0.15); set(P, 'farmR', fore, 0, 0); set(P, 'handR', wr, 0, 0);
         if (twoH) { set(P, 'uarmL', arm + 0.15, -0.5, 0.35); set(P, 'farmL', fore, 0, 0); } else { set(P, 'uarmL', -0.5, 0, 0.35); set(P, 'farmL', -1.0, 0, 0); }
         set(P, 'spine', 0.08 + bend, 0, 0); set(P, 'chest', bend * 0.5, -0.1, 0); set(P, 'head', 0.1 + bend * 0.3, 0.1, 0);
         P.rootY = -0.06 * st;
@@ -530,8 +555,9 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
         const tw = u < 0.32 ? lerp(-0.45, -1.0, wu) : u < 0.55 ? lerp(-1.0, 1.0, sk) : lerp(1.0, 0.2, rc);
         const lift = u < 0.32 ? lerp(-0.5, -0.4, wu) : u < 0.55 ? lerp(-0.4, -1.4, sk) : lerp(-1.4, -0.9, rc);
         const fore = u < 0.32 ? lerp(-2.0, -2.2, wu) : u < 0.55 ? lerp(-2.2, -0.35, sk) : lerp(-0.35, -1.2, rc);
-        set(P, 'uarmR', lift, 0.4, -0.5 + st * 0.4); set(P, 'farmR', fore, 0.3, 0); set(P, 'handR', -0.6 + st * 0.6, 0, 0);
-        set(P, 'uarmL', lift - 0.3, -0.7 + st * 0.3, 0.5); set(P, 'farmL', fore + 0.4, 0, 0);
+        const wr = u < 0.32 ? lerp(-0.4, -0.7, wu) : u < 0.55 ? lerp(-0.7, 1.35, sk) : lerp(1.35, 0.7, rc);
+        set(P, 'uarmR', lift, 0.4, -0.5 + st * 0.4); set(P, 'farmR', fore, 0.3, 0); set(P, 'handR', wr, 0, 0);
+        set(P, 'uarmL', lift - 0.3, -0.7 + st * 0.3, 0.5); set(P, 'farmL', fore + 0.4, 0, 0); set(P, 'handL', wr, 0, 0);
         set(P, 'chest', 0.04, tw * 0.6, 0); set(P, 'spine', 0.12, tw * 0.35, 0); set(P, 'hips', 0, tw * 0.25, 0); set(P, 'head', 0.05, -tw * 0.5, 0);
         set(P, 'thighL', -0.2, 0, 0.12); set(P, 'shinL', 0.25, 0, 0); set(P, 'thighR', 0.15 - st * 0.1, 0, -0.12); set(P, 'shinR', 0.25 + st * 0.2, 0, 0); set(P, 'footR', -0.3 - st * 0.3, 0, 0);
         P.rootY = -0.05;
@@ -543,7 +569,9 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
         const arm = u < 0.32 ? lerp(-1.1, -1.7, wu) : u < 0.55 ? lerp(-1.7, -1.15, sk) : lerp(-1.15, -1.0, rc);
         const ab = u < 0.32 ? lerp(-0.6, back ? 0.5 : -1.1, wu) : u < 0.55 ? lerp(back ? 0.5 : -1.1, back ? -0.9 : 0.35, sk) : lerp(back ? -0.9 : 0.35, -0.5, rc);
         const fore = u < 0.32 ? lerp(-1.4, -1.9, wu) : u < 0.55 ? lerp(-1.9, -0.25, sk) : lerp(-0.25, -1.0, rc);
-        set(P, 'uarmR', arm, 0.2, ab); set(P, 'farmR', fore, 0, 0); set(P, 'handR', -0.4, 0, 0);
+        // the wrist snaps through the strike so the weapon leads the hand into the target
+        const wr = u < 0.32 ? lerp(-0.2, -0.6, wu) : u < 0.55 ? lerp(-0.6, 1.3, sk) : lerp(1.3, 0.5, rc);
+        set(P, 'uarmR', arm, 0.2, ab); set(P, 'farmR', fore, 0, 0); set(P, 'handR', wr, 0, 0);
         set(P, 'uarmL', -0.5, 0, 0.35); set(P, 'farmL', -1.2, 0, 0);
         set(P, 'chest', 0.05, tw * 0.6, 0); set(P, 'spine', 0.14, tw * 0.3, 0); set(P, 'head', 0.06, -tw * 0.4, 0);
         P.rootY = -0.04;
@@ -717,6 +745,16 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
       P.gripL = 0.2; P.gripR = 0.2;
       return { pose: P };
     case 'wave': return emotePose('wave', t, time);
+    case 'breathe': {
+      // slow box breathing: hands on chest and belly, eyes closed, shoulders rise and fall
+      const c = (t / 16) % 1, ph4 = Math.floor(c * 4), f = (c * 4) % 1;
+      const fill = ph4 === 0 ? ease(f) : ph4 === 1 ? 1 : ph4 === 2 ? 1 - ease(f) : 0;
+      set(P, 'chest', -0.08 * fill, 0, 0); set(P, 'neck', 0.05, 0, 0); set(P, 'head', 0.18 - fill * 0.12, 0, 0);
+      set(P, 'uarmR', -0.5, 0.45, -0.1 - fill * 0.05); set(P, 'farmR', -1.75, 0, 0); set(P, 'handR', 0.2, 0, -0.4);
+      set(P, 'uarmL', -0.3, -0.3, 0.12 + fill * 0.05); set(P, 'farmL', -1.4, 0, 0); set(P, 'handL', 0.2, 0, 0.4);
+      P.gripL = 0.1; P.gripR = 0.1; P.blink = 1;
+      return { pose: P };
+    }
     case 'pray':
       set(P, 'uarmR', -0.6, 0.6, 0); set(P, 'farmR', -1.85, 0, 0); set(P, 'uarmL', -0.6, -0.6, 0); set(P, 'farmL', -1.85, 0, 0); set(P, 'head', 0.5, 0, 0);
       P.gripL = 0; P.gripR = 0;

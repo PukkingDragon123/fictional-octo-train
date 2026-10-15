@@ -57,6 +57,8 @@ export interface Outfit {
   eyes?: LookPart;
   face?: LookPart;
   back?: LookPart & { size?: number };
+  /** wrist monitor / watch on the left wrist */
+  wrist?: LookPart;
   /** visible condition (blood, bandages, splints, wet, dirt, pallor, corruption) */
   cond?: RigCondition;
 }
@@ -138,6 +140,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.3, 0.25), uHuman.z);`);
   m.customProgramCacheKey = () => key + '|human1';
   return m;
 }
+const EMPTY_GEO = new THREE.BufferGeometry();
 const isWorldMat = (m: THREE.Material | undefined) => !!m && typeof (m as any).customProgramCacheKey === 'function' && String((m as any).customProgramCacheKey()).startsWith('noclip:');
 
 // where wounds sit for woundPoints(): bone + local offset (scaled by height)
@@ -213,6 +216,11 @@ export class HumanRig {
   j = {} as Record<JointName, THREE.Group>;
   /** all skeleton nodes including finger / eyelid bones */
   bones = {} as Record<BoneName, THREE.Group>;
+  /**
+   * One stand-in per body segment, parented to its joint. They draw nothing,
+   * but clone() bakes that segment of the current body into a standalone mesh
+   * (gore uses this to throw survivor gibs). The visible body is `skin`.
+   */
   meshes = new Map<string, THREE.Mesh>();
   heldR = new THREE.Group();
   heldL = new THREE.Group();
@@ -262,8 +270,49 @@ export class HumanRig {
     this.body.add(this.mesh);
     this.skeleton = this.makeSkeleton();
     this.mesh.bind(this.skeleton, new THREE.Matrix4());
-    this.meshes.set('body', this.mesh);
+    for (const jn of JOINTS) {
+      const proxy = new THREE.Mesh(EMPTY_GEO, this.material);
+      proxy.visible = false; proxy.name = 'seg:' + jn;
+      (proxy as any).clone = () => this.segmentMesh(jn);
+      this.j[jn].add(proxy);
+      this.meshes.set(jn, proxy);
+    }
     this.setOutfit({});
+  }
+
+  /** the visible skinned body mesh */
+  get skin(): THREE.SkinnedMesh { return this.mesh; }
+
+  /** a static mesh of one body segment (bind pose, joint-local), e.g. for gibs */
+  segmentMesh(jn: JointName): THREE.Mesh {
+    const g = this.mesh.geometry;
+    const P = g.getAttribute('position'), SI = g.getAttribute('skinIndex'), SW = g.getAttribute('skinWeight'), I = g.getIndex();
+    const owner = (b: number): JointName => { let n = BONES[b] as BoneName; while (!(JOINTS as string[]).includes(n)) n = BONE_PARENT[n] as BoneName; return n as JointName; };
+    const dom = (v: number) => { let best = 0, bw = -1; for (let k = 0; k < 4; k++) { const w = SW.getComponent(v, k); if (w > bw) { bw = w; best = SI.getComponent(v, k); } } return owner(best); };
+    const keep: number[] = [];
+    if (I) for (let t = 0; t < I.count; t += 3) { const a = I.getX(t); if (dom(a) === jn && dom(I.getX(t + 1)) === jn) keep.push(I.getX(t), I.getX(t + 1), I.getX(t + 2)); }
+    const r = this.dims.rest[jn];
+    const geo = new THREE.BufferGeometry();
+    const map = new Map<number, number>();
+    const attrs: Record<string, number[]> = { position: [], normal: [], uv: [], color: [], aAtlas: [], aFx: [] };
+    const idx: number[] = [];
+    for (const v of keep) {
+      let ni = map.get(v);
+      if (ni === undefined) {
+        ni = map.size; map.set(v, ni);
+        for (const name of Object.keys(attrs)) {
+          const at = g.getAttribute(name); if (!at) continue;
+          for (let c = 0; c < at.itemSize; c++) attrs[name].push(at.getComponent(v, c) - (name === 'position' ? r[c] : 0));
+        }
+      }
+      idx.push(ni);
+    }
+    for (const [name, arr] of Object.entries(attrs)) { const at = g.getAttribute(name); if (at) geo.setAttribute(name, new THREE.Float32BufferAttribute(arr, at.itemSize)); }
+    geo.setIndex(idx);
+    geo.computeBoundingSphere();
+    const m = new THREE.Mesh(geo, this.material);
+    m.castShadow = true;
+    return m;
   }
 
   private placeBones() {
@@ -303,7 +352,7 @@ export class HumanRig {
     const sh = outfitShape(full);
     const cond = this.outfit.cond || {};
     const appKey = JSON.stringify(this.app);
-    const gk = appKey + JSON.stringify(sh) + (cond.splint || []).join(',');
+    const gk = appKey + JSON.stringify(sh) + (cond.splint || []).join(',') + (full.wrist ? '|w' : '');
     const { cond: _c, ...looks } = full;
     void _c;
     const tk = appKey + JSON.stringify(looks) + JSON.stringify({ ...cond, bleeding: undefined });
@@ -417,7 +466,6 @@ export class HumanRig {
     this.page.tex.dispose();
     this.material.dispose();
     this.skeleton.dispose();
-    this.meshes.clear();
   }
 }
 

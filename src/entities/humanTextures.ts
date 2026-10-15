@@ -1,5 +1,8 @@
-// Character textures: neutral (light grey) designs tinted per character via
-// vertex colours — skin, faces, hair and every clothing look used by items.
+// Character atlas textures: neutral (light grey) designs tinted via vertex
+// colours. Survivors themselves are now painted onto a per-character texture
+// page (humanPaint.ts / humanClothes.ts keyed by these same look names); these
+// atlas versions remain registered as the fallback for unknown looks and for
+// anything else that wants a flat swatch of a garment.
 import { atlas } from '../gfx/atlas';
 import { addTextureModule } from '../gfx/textures/index';
 import { PixelCanvas, makeRamp, ph } from '../gfx/pixel';

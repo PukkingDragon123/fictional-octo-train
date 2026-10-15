@@ -74,12 +74,12 @@ export const PAGE = 256;
 export const PAD = 4;
 export interface Reg { x: number; y: number; w: number; h: number }
 export type RegKey = 'HEAD' | 'HAIR' | 'TORSO' | 'NECK' | 'ARM_L' | 'ARM_R' | 'LEG_L' | 'LEG_R' | 'HAND_L' | 'HAND_R'
-  | 'FOOT_L' | 'FOOT_R' | 'SKIRT' | 'HAT' | 'MASK' | 'COLLAR' | 'GEAR' | 'PACK' | 'LIDS';
+  | 'FOOT_L' | 'FOOT_R' | 'SKIRT' | 'HAT' | 'MASK' | 'COLLAR' | 'GEAR' | 'PACK' | 'LIDS' | 'WATCH';
 const REG_SIZES: [RegKey, number, number][] = [
   ['LEG_L', 36, 60], ['LEG_R', 36, 60], ['TORSO', 72, 56], ['ARM_L', 28, 44], ['ARM_R', 28, 44],
   ['HEAD', 96, 48], ['HAIR', 64, 40], ['SKIRT', 72, 28],
   ['PACK', 48, 40], ['FOOT_L', 36, 24], ['FOOT_R', 36, 24], ['HAND_L', 24, 24], ['HAND_R', 24, 24], ['NECK', 32, 12],
-  ['HAT', 48, 20], ['MASK', 48, 24], ['COLLAR', 40, 10], ['GEAR', 16, 8], ['LIDS', 16, 6],
+  ['HAT', 48, 20], ['MASK', 48, 24], ['COLLAR', 40, 10], ['GEAR', 16, 8], ['LIDS', 16, 6], ['WATCH', 12, 8],
 ];
 export const REG = {} as Record<RegKey, Reg>;
 (() => {
@@ -512,6 +512,20 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
     });
     B.loft(rings, usFor(8), reg, 10 + (k > 0 ? 0 : 1), { start: [ua[0] - k * 0.012 * s, ua[1] + 0.02 * s, ua[2]], startW: [U, 0.8, BI.chest, 0.2] });
     hand(B, d, side, k, sh.gloves);
+    // wrist monitor: a chunky band and face on the back of the left wrist
+    if (side === 'L' && o.wrist) {
+      const r = sampleRows(ARM_ROWS, -0.47);
+      const fm2 = (1 - fem * 0.12) * (0.82 + 0.18 * mass);
+      const t = (sh.sleeve === 'long' ? sh.armThick : 0) + 0.006;
+      const band = [-0.452, -0.49].map((y, i) => {
+        const pts = ellRing(ua[1] + y * s, 0, ua[2], (r.rx * fm2 + t) * s, (r.rf * fm2 + t) * s, (r.rb * fm2 + t) * s, 8, 2, k);
+        for (const p of pts) p[0] += ua[0];
+        return { pts, v: i === 0 ? 0.45 : 0.0, w: [F, 1] as Wt };
+      });
+      B.loft(band, usFor(8), subReg(REG.WATCH, 0, 0, 1, 0.45), 15);
+      const fx = ua[0] + k * (r.rx * fm2 + t + 0.006) * s;
+      B.box([fx, ua[1] - 0.471 * s, ua[2]], [0.014 * s, 0.036 * s, 0.03 * s], null, REG.WATCH, [F, 1], [0, 0.5, 1, 1]);
+    }
     // splints on the forearm
     if (cond.splints.has('farm_' + side.toLowerCase()) || cond.splints.has('uarm_' + side.toLowerCase())) {
       const yy = cond.splints.has('farm_' + side.toLowerCase()) ? -0.41 : -0.14;

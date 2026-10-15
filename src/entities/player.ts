@@ -7,6 +7,7 @@ import { Container } from '../items/container';
 import { Item, itemDef, itemWeight, ItemDef, BODY_PARTS } from '../items/item';
 import { makeHeldMesh } from '../items/itemMeshes';
 import { uid } from '../core/rng';
+import { bus } from '../core/events';
 import { clamp, dampAngle, wrapAngle } from '../core/math';
 import { occupationByKey } from '../survival/traits';
 
@@ -14,6 +15,10 @@ import { occupationByKey } from '../survival/traits';
 export const WEAR_SLOTS = ['hat', 'eyes', 'mask', 'neck', 'tshirt', 'shirt', 'sweater', 'jacket', 'fullsuit', 'hands', 'pants', 'socks', 'shoes', 'back', 'belt', 'wrist',
   'head', 'face', 'torso_inner', 'torso', 'torso_outer', 'legs', 'feet'] as const;
 export type WearSlot = typeof WEAR_SLOTS[number];
+
+// gore splashes and panic attacks show on the body (each peer handles its own survivor's look)
+bus.on('bloodied', (p: Player, part: string, amount: number) => { if (p && typeof p.bloodied === 'function') p.bloodied(part, amount); });
+bus.on('panicAttack', (p: Player) => { p?.anim?.panicAttack?.(); });
 
 export interface PlayerNetState {
   x: number; z: number; f: number; sp: number; st: Stance; fb: FullBody; ac: ActionAnim; at: number; ad: number;
@@ -57,6 +62,24 @@ export class Player {
   /** visible condition mirrored onto the model (blood, bandages, splints, wet, pallor...) */
   cond: RigCondition | undefined;
   private condT = 0; private condKey = ''; private lastHealth = 100; private visT = 0; private lastNetT = -1; private lastAnim = '';
+  /** blood splashed onto body parts (0..1), fading over a few minutes */
+  splash: Record<string, number> = {};
+
+  /** gore hit / splash on a body part: stains the skin there and soaks the garment covering it */
+  bloodied(part: string, amount: number) {
+    if (this.remote) return;
+    this.splash[part] = Math.min(1, Math.max(this.splash[part] ?? 0, amount) + amount * 0.25);
+    let best: Item | null = null, rank = -1;
+    const order = ['tshirt', 'shirt', 'sweater', 'fullsuit', 'jacket', 'pants', 'shoes', 'hands', 'hat'];
+    for (const [slot, it] of this.worn) {
+      const c = itemDef(it.key).clothing;
+      if (!c || !(c.covers as string[]).includes(part)) continue;
+      const r = order.indexOf(slot);
+      if (r > rank) { rank = r; best = it; }
+    }
+    if (best) { best.bloody = Math.min(1, (best.bloody ?? 0) + amount * 0.3); this.outfitDirty = true; }
+    this.condT = 0;
+  }
   flashlightOn = false;
   lightItem: Item | null = null;
   carrying: string | null = null;
@@ -214,6 +237,7 @@ export class Player {
       const d = itemDef(it.key);
       const l = d.clothing?.look;
       if (d.bag && slot === 'back') { o.back = { tex: l?.tex || 'c_backpack', color: l?.color ?? d.tint ?? 0x4a5a6a, size: Math.min(1.2, 0.7 + d.bag.capacity / 40), item: it.key }; continue; }
+      if (slot === 'wrist') { o.wrist = { tex: l?.tex || 'watch', color: l?.color ?? 0x2e2a26, item: it.key }; continue; }
       if (!l) continue;
       const lp = { tex: l.tex, color: l.color, sleeve: l.sleeve, item: it.key, blood: q(it.bloody), wear: it.cond < 0.6 ? q(1 - it.cond) : undefined };
       switch (l.part) {
@@ -256,6 +280,8 @@ export class Player {
         if (bl > 0.02) bleeding[part] = Math.max(bleeding[part] ?? 0, bl > 0.5 ? 3 : bl > 0.2 ? 2 : 1);
       }
     }
+    // fresh splashes (gore 'bloodied' events) on top of the wounds' own stains
+    for (const [part, v] of Object.entries(this.splash)) if (v > 0.05) blood[part] = Math.max(blood[part] ?? 0, Math.min(3, Math.ceil(v * 3)));
     if (Object.keys(blood).length) c.blood = blood;
     if (Object.keys(bandage).length) c.bandage = bandage;
     if (Object.keys(bleeding).length) c.bleeding = bleeding;
@@ -293,6 +319,7 @@ export class Player {
   updateVisual(dt: number) {
     const local = !this.remote;
     if (local) {
+      for (const k in this.splash) { this.splash[k] -= dt / 240; if (this.splash[k] <= 0) delete this.splash[k]; }
       // visible condition follows the body twice a second (repaints only when something visible changed)
       this.condT -= dt;
       if (this.condT <= 0) {
@@ -353,7 +380,7 @@ export class Player {
       holding: !!this.handR, heldL: !!this.handL && this.handL !== this.handR, lookYaw: 0,
       weapon: w ? w.kind : this.handR ? 'tool' : 'unarmed', limpSide, armHurtL: armL, armHurtR: armR,
       exhausted: local ? Math.max(0, 1 - this.body.endurance / 0.3) : 0, drunk: m.drunk, hot: local && this.body.temp > 37.6 ? Math.min(1, (this.body.temp - 37.4) / 1.5) : 0,
-      turn: dt > 0 ? wrapAngle(Math.PI / 2 - this.facing - prevF) / dt : 0, hasWatch: [...this.worn.keys()].includes('wrist'),
+      turn: dt > 0 ? wrapAngle(Math.PI / 2 - this.facing - prevF) / dt : 0, hasWatch: !!this.rig.outfit.wrist,
       unconscious: this.body.dead || (this.body.downed && this.body.downedTime > 30),
     });
     this.rig.root.position.set(this.x, this.y, this.z);
@@ -387,6 +414,7 @@ export class Player {
     const cur = this.actions.current;
     if (cur?.started && cur.anim) return { ac: cur.anim, at: +cur.t.toFixed(2), ad: +cur.effDuration.toFixed(2) };
     if (this.actionAnim) return { ac: this.actionAnim, at: +this.actionT.toFixed(2), ad: +this.actionDur.toFixed(2) };
+    if (this.anim.panicking) return { ac: 'panic', at: 0, ad: 0 };
     const e = this.anim.emoteState;
     if (e) return { ac: ('emote:' + e.name) as ActionAnim, at: +e.t.toFixed(2), ad: 0 };
     return { ac: '', at: 0, ad: 0 };
