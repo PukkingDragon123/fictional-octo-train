@@ -57,7 +57,7 @@ export class BreatheAction extends TimedAction {
   private lastPh = -1;
   constructor(p: Player) {
     super(p);
-    this.name = 'Breathe'; this.duration = 16; this.fixedTime = true; this.anim = 'pray'; this.canMove = false;
+    this.name = 'Breathe'; this.duration = 16; this.fixedTime = true; this.anim = 'breathe'; this.canMove = false;
   }
   update() {
     const ph = Math.floor(this.t / 4) % 4;

@@ -551,14 +551,19 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
         set(P, 'spine', 0.08 + bend, 0, 0); set(P, 'chest', bend * 0.5, -0.1, 0); set(P, 'head', 0.1 + bend * 0.3, 0.1, 0);
         P.rootY = -0.06 * st;
       } else if (twoH) {
-        // horizontal bat swing
-        const tw = u < 0.32 ? lerp(-0.45, -1.0, wu) : u < 0.55 ? lerp(-1.0, 1.0, sk) : lerp(1.0, 0.2, rc);
-        const lift = u < 0.32 ? lerp(-0.5, -0.4, wu) : u < 0.55 ? lerp(-0.4, -1.4, sk) : lerp(-1.4, -0.9, rc);
-        const fore = u < 0.32 ? lerp(-2.0, -2.2, wu) : u < 0.55 ? lerp(-2.2, -0.35, sk) : lerp(-0.35, -1.2, rc);
-        const wr = u < 0.32 ? lerp(-0.4, -0.7, wu) : u < 0.55 ? lerp(-0.7, 1.35, sk) : lerp(1.35, 0.7, rc);
-        set(P, 'uarmR', lift, 0.4, -0.5 + st * 0.4); set(P, 'farmR', fore, 0.3, 0); set(P, 'handR', wr, 0, 0);
-        set(P, 'uarmL', lift - 0.3, -0.7 + st * 0.3, 0.5); set(P, 'farmL', fore + 0.4, 0, 0); set(P, 'handL', wr, 0, 0);
-        set(P, 'chest', 0.04, tw * 0.6, 0); set(P, 'spine', 0.12, tw * 0.35, 0); set(P, 'hips', 0, tw * 0.25, 0); set(P, 'head', 0.05, -tw * 0.5, 0);
+        // horizontal two-handed swing through keyframes: cocked, wound up, contact, follow-through
+        const K2: [number, Record<string, V>][] = [
+          [0, { uarmR: [-0.5, 0.35, -0.55], farmR: [-2.0, 0.3, 0], handR: [-0.5, 0, 0], uarmL: [-1.05, -0.75, 0.45], farmL: [-1.5, 0, 0], handL: [-0.4, 0, 0], chest: [0.04, -0.45, 0], spine: [0.1, -0.1, 0], hips: [0, 0, 0] }],
+          [0.32, { uarmR: [-0.6, 0.5, -0.8], farmR: [-2.2, 0.3, 0], handR: [-0.7, 0, 0], uarmL: [-1.2, -0.95, 0.5], farmL: [-1.7, 0, 0], handL: [-0.6, 0, 0], chest: [0.04, -0.85, 0], spine: [0.12, -0.3, 0], hips: [0, -0.15, 0] }],
+          [0.55, { uarmR: [-1.4, 0.55, 0.0], farmR: [-0.25, 0, 0], handR: [1.2, 0, 0], uarmL: [-1.45, -0.25, 0.2], farmL: [-0.3, 0, 0], handL: [1.2, 0, 0], chest: [0.06, 0.5, 0], spine: [0.14, 0.25, 0], hips: [0, 0.2, 0] }],
+          [1, { uarmR: [-1.6, 0.9, 0.2], farmR: [-1.3, 0, 0], handR: [0.6, 0, 0], uarmL: [-0.9, -0.2, 0.6], farmL: [-1.4, 0, 0], handL: [0.4, 0, 0], chest: [0.04, 0.95, 0], spine: [0.1, 0.35, 0], hips: [0, 0.25, 0] }],
+        ];
+        let i = 0; while (i < K2.length - 2 && u > K2[i + 1][0]) i++;
+        const [u0, a0] = K2[i], [u1, a1] = K2[i + 1];
+        const f = (u - u0) / (u1 - u0);
+        const kf = i === 1 ? f * f : ease(f);
+        for (const jn of Object.keys(a0)) { const A = a0[jn], Bv = a1[jn]; set(P, jn as JointName, lerp(A[0], Bv[0], kf), lerp(A[1], Bv[1], kf), lerp(A[2], Bv[2], kf)); }
+        set(P, 'head', 0.05, -(P.chest![1] * 0.6), 0);
         set(P, 'thighL', -0.2, 0, 0.12); set(P, 'shinL', 0.25, 0, 0); set(P, 'thighR', 0.15 - st * 0.1, 0, -0.12); set(P, 'shinR', 0.25 + st * 0.2, 0, 0); set(P, 'footR', -0.3 - st * 0.3, 0, 0);
         P.rootY = -0.05;
       } else {
