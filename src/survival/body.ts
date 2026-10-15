@@ -2,6 +2,7 @@ import { BodyPart, BODY_PARTS } from '../items/item';
 import { SkillKey, SKILLS, XP_PER_LEVEL } from './traits';
 import { clamp, clamp01 } from '../core/math';
 import { Rng, uid } from '../core/rng';
+import { MindState, newMind, ssriEffect, anxiolyticEffect } from './mind';
 
 export type InjuryType = 'scratch' | 'laceration' | 'deep' | 'bite' | 'burn' | 'fracture' | 'glass' | 'bullet' | 'bruise';
 
@@ -67,6 +68,14 @@ export interface Env {
   openSpace: boolean;
   entertained: boolean;   // reading / music / games / conversation
   heavyLoad: number;      // 0..1+ over capacity fraction
+  // ---- optional context gathered by the survival system for the mind
+  zone?: string;          // zone key
+  outdoor?: boolean;
+  nearSeat?: boolean;     // a chair, sofa or bed within reach
+  companion?: number;     // tamed creatures nearby
+  social?: number;        // 0..1 recent conversation (chat, voice, voices on the radio)
+  comfort?: number;       // comfort objects carried (plush, photo, charm)
+  breathing?: boolean;    // doing the breathing exercise
 }
 
 export interface Moodle { key: string; name: string; level: number; good?: boolean; desc: string; }
@@ -93,6 +102,8 @@ const LEVEL_NAMES: Record<string, string[]> = {
   corruption: ['', 'Static', 'Desyncing', 'Fragmenting', 'Deleting'],
   heavy: ['', 'Heavy Load', 'Very Heavy Load', 'Overloaded', 'Crushing Load'],
   stuffed: ['', 'Satiated', 'Full', 'Stuffed', 'Bloated'],
+  lonely: ['', 'Missing People', 'Lonely', 'Very Lonely', 'Isolated'],
+  attack: ['', '', '', '', 'Panic Attack'],
 };
 
 const DESC: Record<string, string> = {
@@ -117,6 +128,8 @@ const DESC: Record<string, string> = {
   corruption: 'Your data is degrading. Find a cure before it completes.',
   heavy: 'Too much weight. You are slow and loud.',
   stuffed: 'Too full to eat more.',
+  lonely: 'Talk to someone, keep a companion close, hold something familiar.',
+  attack: 'It will pass. Breathe slowly: in four, hold four, out four.',
 };
 
 export function moodleLevel(v: number, th: number[]): number {
@@ -150,6 +163,12 @@ export class Body {
   rng = new Rng(Math.random() * 1e9);
   hpLossRate = 0;   // for UI trend
   maxCarry = 12;
+  /** long-term mental state (see mind.ts) */
+  mind: MindState = newMind();
+  /** set each frame by the survival system (Lucky Socks) */
+  wearingSocks = true;
+  /** every XP gain (for lifetime stats / unlocks) */
+  onXpGain?: (skill: SkillKey, amount: number) => void;
 
   constructor() {
     for (const p of BODY_PARTS) this.parts[p] = { injuries: [] };
@@ -185,6 +204,9 @@ export class Body {
     }
     p += this.sickness > 50 ? (this.sickness - 50) * 0.3 : 0;
     p += this.corruption > 30 ? (this.corruption - 30) * 0.2 : 0;
+    // withdrawal headaches and hangovers (mind.ts)
+    if (this.has('coffee_dependent') && this.mind.sinceCaffeine > 12) p += Math.min(22, (this.mind.sinceCaffeine - 12) * 3);
+    if (this.mind.hangover > 0) p += 12;
     if (this.painkiller > 0) p -= 35;
     if (this.adrenaline > 0) p -= 25;
     return clamp(p, 0, 100);
@@ -217,10 +239,15 @@ export class Body {
   skill(k: SkillKey) { return this.skills[k]?.level ?? 0; }
   addXp(k: SkillKey, amount: number) {
     const s = this.skills[k]; if (!s || s.level >= 10) return;
+    this.onXpGain?.(k, amount);
     let mul = 1;
     if (this.has('fast_learner')) mul *= 1.3;
     if (this.has('slow_learner')) mul *= 0.7;
     if (this.perks.has('learner')) mul *= 1.2;
+    if (this.has('gym_rat') && (k === 'fitness' || k === 'sprinting')) mul *= 2;
+    if (this.has('couch_potato') && k === 'fitness') mul *= 0.5;
+    // a low mood makes everything harder to take in
+    mul *= 1 - clamp01(this.mind.depression) * 0.45;
     if (SKILLS.find((x) => x.key === k)?.passive) mul *= 0.25;
     s.xp += amount * mul;
     while (s.level < 10 && s.xp >= XP_PER_LEVEL[s.level]) {
@@ -234,6 +261,11 @@ export class Body {
   addInjury(part: BodyPart, type: InjuryType, sev: number, opts: { corruptChance?: number; dirty?: boolean } = {}): Injury {
     const info = INJURY_INFO[type];
     if (this.has('thin_skinned')) sev = Math.min(1, sev * 1.25);
+    // Lucky Socks: as long as they are on, fate pulls its punches
+    if (this.has('lucky_socks') && this.wearingSocks && type !== 'fracture') {
+      sev *= 0.78;
+      if ((type === 'scratch' || type === 'laceration' || type === 'bite') && this.rng.chance(0.2)) type = 'bruise';
+    }
     const inj: Injury = {
       id: uid(), type, part, sev: clamp01(sev), bleed: info.bleed * (0.6 + sev * 0.8),
       heal: 0, healTime: info.heal[0] + (info.heal[1] - info.heal[0]) * this.rng.next(),
@@ -255,8 +287,10 @@ export class Body {
     }
     this.parts[part].injuries.push(inj);
     if (inj.corrupt) this.corruptInfected = true;
-    this.panic = Math.min(100, this.panic + 10 + sev * 20);
-    this.stress = Math.min(100, this.stress + 5);
+    let scare = (10 + sev * 20) * (this.perks.has('steady') ? 0.45 : 1) * (this.has('hypochondriac') ? 2 : 1) * (this.has('dramatic') ? 1.5 : 1);
+    if (this.mind.anxiolytic > 0) scare *= 0.5;
+    this.panic = Math.min(100, this.panic + scare);
+    this.stress = Math.min(100, this.stress + 5 * (this.has('hypochondriac') ? 2 : 1));
     return inj;
   }
 
@@ -266,19 +300,24 @@ export class Body {
   }
 
   // ---------------- consumption ----------------
-  eat(f: { hunger: number; thirst?: number; calories: number; unhappy?: number; boredom?: number; stress?: number; poison?: number; alcohol?: number; lucidity?: number }, fraction: number, quality: { rotten?: boolean; stale?: boolean; raw?: boolean; burnt?: boolean; cooked?: boolean }) {
+  eat(f: { hunger: number; thirst?: number; calories: number; unhappy?: number; boredom?: number; stress?: number; poison?: number; alcohol?: number; lucidity?: number; ingredient?: string }, fraction: number, quality: { rotten?: boolean; stale?: boolean; raw?: boolean; burnt?: boolean; cooked?: boolean }) {
     const k = fraction;
     this.hunger = clamp(this.hunger - f.hunger * k, 0, 100);
     if (f.thirst) this.thirst = clamp(this.thirst - f.thirst * k, 0, 100);
     this.calories += f.calories * k;
     this.stuffed = clamp(this.stuffed + Math.max(0, f.hunger * k - this.hunger * 0.2) * 0.6, 0, 100);
     let unhappy = (f.unhappy ?? 0) * k;
+    const sweet = f.ingredient === 'sweet';
+    if (this.has('snack_goblin') && sweet && unhappy < 0) unhappy *= 2;
     if (quality.stale) unhappy += 4 * k;
     if (quality.rotten) unhappy += 12 * k;
     if (quality.burnt) unhappy += 6 * k;
-    if (quality.cooked) unhappy -= 4 * k;
+    if (quality.cooked) unhappy -= (this.perks.has('foodie') ? 9 : 4) * k;
+    // low mood dulls the joy of food (but not the comfort of a proper meal)
+    if (unhappy < 0) unhappy *= 1 - this.mind.depression * 0.45;
     this.unhappy = clamp(this.unhappy + unhappy, 0, 100);
-    if (f.boredom) this.boredom = clamp(this.boredom + f.boredom * k, 0, 100);
+    if (quality.cooked || f.calories * k >= 350) this.mind.sinceMeal = 0;
+    if (f.boredom) this.boredom = clamp(this.boredom + f.boredom * k * (this.has('snack_goblin') && sweet ? 2 : 1), 0, 100);
     if (f.stress) this.stress = clamp(this.stress + f.stress * k, 0, 100);
     if (f.lucidity) this.lucidity = clamp(this.lucidity + f.lucidity * k, 0, 100);
     if (f.alcohol) this.drunk = clamp(this.drunk + f.alcohol * k, 0, 100);
@@ -332,6 +371,7 @@ export class Body {
     let hungerRate = (env.asleep ? 1.7 : 3.4) * (1 + exert * 0.6);
     if (T('light_eater')) hungerRate *= 0.75;
     if (T('hearty_appetite')) hungerRate *= 1.3;
+    if (T('snack_goblin')) hungerRate *= 1.1;
     if (this.temp < 36) hungerRate *= 1.25;
     this.hunger = clamp(this.hunger + hungerRate * dh, 0, 100);
     let thirstRate = (env.asleep ? 2.4 : 4.6) * (1 + exert * 0.8) * (this.temp > 37.6 ? 1.6 : 1) * (this.drunk > 20 ? 1.3 : 1);
@@ -343,24 +383,39 @@ export class Body {
     if (this.calories < -2000) { this.weight -= (-2000 - this.calories) / 7700; this.calories = -2000; }
 
     // ---- sleep / fatigue ----
+    const mind = this.mind;
+    const nightOwl = T('night_owl') || this.perks.has('nightowl');
     if (env.asleep) {
-      let rec = (6 + env.bedQuality * 9) * (T('insomniac') ? 0.7 : 1) * (T('night_owl') ? 1.2 : 1);
+      const bed = this.perks.has('sleeper') ? Math.max(env.bedQuality, 0.65) : env.bedQuality;
+      let rec = (6 + bed * 9) * (T('insomniac') ? 0.7 : 1) * (nightOwl ? 1.2 : 1) * (T('heavy_sleeper') ? 1.25 : 1);
+      // the mind gets into bed too: broken sleep, caffeine, oversleeping with a low mood
+      rec *= 1 - mind.insomnia * 0.5;
+      if (mind.caffeine > 0) rec *= this.perks.has('barista') ? 0.9 : 0.7;
+      rec *= 1 - mind.depression * 0.3;
       this.fatigue = clamp(this.fatigue - rec * dh, 0, 100);
       this.sleepHours += dh;
-      this.unhappy = clamp(this.unhappy - 1.5 * dh * env.bedQuality, 0, 100);
-      this.stress = clamp(this.stress - 3 * dh, 0, 100);
+      this.unhappy = clamp(this.unhappy - 1.5 * dh * bed, 0, 100);
+      this.stress = clamp(this.stress - 3 * dh * (1 - mind.insomnia * 0.4), 0, 100);
       this.lucidity = clamp(this.lucidity + (T('lucid_dreamer') ? 4 : 1.5) * dh, 0, 100);
     } else {
-      let fr = (3.6 + exert * 3) * (T('night_owl') ? 0.8 : 1) * (this.sedated > 0 ? 3 : 1);
+      let fr = (3.6 + exert * 3) * (nightOwl ? 0.8 : 1) * (this.sedated > 0 ? 3 : 1);
       if (this.drunk > 30) fr *= 1.4;
+      if (mind.caffeine > 0) fr *= 0.55;
+      if (mind.anxiolytic > 0) fr *= 1.35;            // calm, but drowsy
+      fr *= 1 + mind.depression * 0.3 + mind.insomnia * 0.2;
       this.fatigue = clamp(this.fatigue + fr * dh, 0, 100);
+      if (mind.groggy > 0) this.fatigue = Math.max(this.fatigue, 22);
       this.sleepHours = 0;
     }
 
     // ---- endurance (real time) ----
     const fit = this.skill('fitness');
-    if (env.running) this.endurance -= dt * (0.024 - fit * 0.0012) * (1 + env.heavyLoad * 0.8);
-    else {
+    if (env.running) {
+      this.endurance -= dt * (0.024 - fit * 0.0012) * (1 + env.heavyLoad * 0.8) * (T('gym_rat') ? 0.85 : 1) * (T('couch_potato') ? 1.25 : 1) * (mind.hangover > 0 ? 1.2 : 1);
+      // running trains the legs and lungs (fitness is passive and slow)
+      this.addXp('sprinting', dt * 0.25);
+      this.addXp('fitness', dt * 0.15);
+    } else {
       let regen = env.resting || env.asleep ? 0.06 : env.moving ? 0.022 : 0.04;
       if (this.fatigue > 60) regen *= 0.6;
       if (this.hunger > 45) regen *= 0.7;
@@ -457,28 +512,52 @@ export class Body {
     if (this.corruption > 0 && !this.corruptInfected && env.corruptZone === 0) this.corruption = Math.max(0, this.corruption - 0.5 * dh);
 
     // ---- mind (real-time panic) ----
+    const ssri = ssriEffect(mind), calm = anxiolyticEffect(mind);
     let panicGain = env.threat * 55 * dt;
     if (env.darkness && T('nyctophobic')) panicGain += 6 * dt;
     if (env.smallRoom && T('claustrophobic')) panicGain += 5 * dt;
     if (env.openSpace && T('agoraphobic')) panicGain += 5 * dt;
     if (T('brave')) panicGain *= 0.5;
     if (T('cowardly')) panicGain *= 1.6;
+    if (T('dramatic')) panicGain *= 2;
+    if (this.perks.has('exterminator')) panicGain *= 0.7;
     if (env.nearTeam > 0) panicGain *= 0.7;
+    if ((env.companion ?? 0) > 0) panicGain *= T('cat_person') || T('dog_person') ? 0.7 : 0.85;
+    if ((env.comfort ?? 0) > 0) panicGain *= 0.88;
     if (this.sedated > 0) panicGain *= 0.4;
-    this.panic = clamp(this.panic + panicGain - (env.threat > 0.05 ? 1.5 : 7) * dt, 0, 100);
+    panicGain *= (1 + mind.anxiety * 0.6) * (1 - calm * 0.65) * (mind.caffeine > 0 && !this.perks.has('barista') ? 1.15 : 1);
+    let panicDecay = (env.threat > 0.05 ? 1.5 : 7) * (T('dramatic') ? 2 : 1) * (env.breathing ? 2.5 : 1);
+    this.panic = clamp(this.panic + panicGain - panicDecay * dt, 0, 100);
+    // chronic anxiety keeps a floor of unease under everything
+    const floor = mind.anxiety * (T('brave') ? 12 : 24) * (1 - calm * 0.7) * (env.breathing ? 0.4 : 1);
+    if (this.panic < floor) this.panic = Math.min(floor, this.panic + 4 * dt);
     // stress, unhappiness, boredom (game time)
-    this.stress = clamp(this.stress + (this.panic / 22 + (this.pain() / 25) + (this.hunger > 45 ? 1 : 0) + (this.corruption > 25 ? 2 : 0) - 3.2) * dh, 0, 100);
-    if (env.entertained) this.boredom = clamp(this.boredom - 12 * dh, 0, 100);
-    else this.boredom = clamp(this.boredom + (env.moving ? 1.5 : 3.5) * dh * (env.nearTeam > 0 ? 0.5 : 1), 0, 100);
-    let sad = (this.boredom > 50 ? (this.boredom - 50) / 25 : 0) + (this.stress > 60 ? 0.6 : 0) + (env.nearTeam > 0 ? -1.4 : (T('lonely') ? 1.0 : 0.3)) - (this.antidep > 0 ? 2.5 : 0);
+    const lonely = mind.loneliness / 100;
+    const stressUp = this.panic / 22 + this.pain() / 25 + (this.hunger > 45 ? 1 : 0) + (this.corruption > 25 ? 2 : 0) + mind.anxiety * 1.2 + (lonely > 0.7 ? 0.5 : 0) + (mind.hangover > 0 ? 0.6 : 0) + (mind.caffeine > 0 && !this.perks.has('barista') ? 0.4 : 0);
+    let stressDown = 3.2 * (T('worrier') ? 0.7 : 1) * (this.perks.has('therapist') ? 1.25 : 1) + calm * 2 + (env.resting && T('couch_potato') ? 6 : 0);
+    this.stress = clamp(this.stress + (stressUp * (T('unbothered') ? 0.7 : 1) - stressDown) * dh, 0, 100);
+    const enjoy = 1 - mind.depression * 0.5;
+    if (env.entertained) this.boredom = clamp(this.boredom - 12 * enjoy * dh, 0, 100);
+    else if (env.resting && T('couch_potato')) this.boredom = clamp(this.boredom - 6 * dh, 0, 100);
+    else if ((env.zone === 'mall' || env.zone === 'market') && T('mall_rat')) this.boredom = clamp(this.boredom - 4 * dh, 0, 100);
+    else this.boredom = clamp(this.boredom + (env.moving ? 1.5 * (this.perks.has('explorer') ? 0.4 : 1) : 3.5) * dh * (env.nearTeam > 0 ? 0.5 : 1), 0, 100);
+    let sad = (this.boredom > 50 ? (this.boredom - 50) / 25 : 0) + (this.stress > 60 ? 0.6 : 0)
+      + (env.nearTeam > 0 ? -1.4 : 0.1) + lonely * 1.3 + mind.depression * 0.9 + (mind.hangover > 0 ? 0.5 : 0) - ssri * 2.5;
+    if (sad > 0) sad *= (T('unbothered') ? 0.7 : 1) * (T('melancholic') ? 1.3 : 1);
+    else sad *= T('melancholic') ? 0.6 : 1;
+    if ((env.zone === 'mall' || env.zone === 'market') && T('mall_rat')) sad -= 0.6;
+    if (env.lightLevel > 0.6) sad -= env.outdoor ? (this.perks.has('outdoors') ? 0.8 : 0.35) : 0.1;  // bright light, daylight above all, helps
+    if (env.resting && T('couch_potato')) sad -= 1.2;
     this.unhappy = clamp(this.unhappy + sad * dh, 0, 100);
     // lucidity
     let luc = -0.4;
     if (env.darkness) luc -= T('nyctophobic') ? 5 : 2.5;
     if (env.lightLevel > 0.5) luc += 0.6;
-    luc -= env.anomaly * 6 + env.corruptZone * 8 + env.collapse * 2.5;
-    if (env.nearTeam > 0) luc += 2.5 + env.nearTeam * 0.5; else if (T('lonely')) luc -= 1.5;
-    if (this.perks.has('seams')) luc *= luc < 0 ? 0.7 : 1;
+    luc -= env.anomaly * 6 * (this.perks.has('investigator') ? 0.5 : 1) + env.corruptZone * 8 + env.collapse * 2.5;
+    if (env.nearTeam > 0) luc += 2.5 + env.nearTeam * 0.5;
+    else if (lonely > 0.5) luc -= (lonely - 0.5) * (T('lonely') ? 3 : 1.6);
+    if (mind.trauma > 0.4 && this.stress > 70) luc -= (mind.trauma - 0.3) * 2;   // dissociating under pressure
+    if (luc < 0) luc *= (this.perks.has('seams') ? 0.7 : 1) * (this.perks.has('deja_vu') ? 0.55 : 1) * (T('been_here_before') ? 0.75 : 1);
     if (env.asleep) luc = Math.max(luc, 1);
     this.lucidity = clamp(this.lucidity + luc * dh, 0, 100);
 
@@ -515,6 +594,7 @@ export class Body {
   carryCapacity(): number {
     let c = 6 + this.skill('strength') * 1.3;
     if (this.has('strong')) c += 2; if (this.has('weak')) c -= 2;
+    if (this.has('pocket_hoarder')) c += 2;
     return c;
   }
 
@@ -544,6 +624,8 @@ export class Body {
     add('corruption', moodleLevel(this.corruption, [1, 25, 55, 85]));
     add('heavy', heavy > 0 ? moodleLevel(heavy * 100, [1, 25, 50, 75]) : 0);
     add('stuffed', moodleLevel(this.stuffed, [20, 40, 60, 80]), true);
+    add('lonely', moodleLevel(this.mind.loneliness, [35, 55, 75, 90]));
+    add('attack', this.mind.attack > 0 ? 4 : 0);
     return out;
   }
 
@@ -568,9 +650,14 @@ export class Body {
     const cold = this.temp < 36.5 ? clamp01((36.5 - this.temp) / 8) : 0;
     let move = 1 - legs * 0.75 - fat * 0.15 - Math.max(0, heavyLoad) * 0.45 - cold * 0.25 - (this.endurance < 0.2 ? 0.2 : 0) - drunk * 0.2;
     if (this.wetness > 70) move -= 0.05;
-    const action = 1 + fat * 0.5 + arms * 0.8 + pain * 0.4 + panic * 0.3 + drunk * 0.5 + cold * 0.5 + (this.unhappy > 60 ? 0.25 : 0) + (this.boredom > 75 ? 0.15 : 0);
-    const attack = clamp(1 - arms * 0.6 - fat * 0.3 - pain * 0.3 - (this.endurance < 0.25 ? 0.35 : 0) - drunk * 0.2, 0.15, 1.3) * (1 + (this.skill('strength') - 5) * 0.06);
-    const aim = clamp(1 - panic * 0.6 - fat * 0.3 - drunk * 0.5 - pain * 0.2 - cold * 0.3, 0.1, 1);
+    const mind = this.mind;
+    const attackFit = mind.attack > 0 ? 1 : 0;
+    const action = 1 + fat * 0.5 + arms * 0.8 + pain * 0.4 + panic * 0.3 + drunk * 0.5 + cold * 0.5 + (this.unhappy > 60 ? 0.25 : 0) + (this.boredom > 75 ? 0.15 : 0)
+      + mind.depression * 0.35 + attackFit * 0.3 + (mind.groggy > 0 ? 0.15 : 0) + (mind.hangover > 0 ? 0.1 : 0);
+    const attack = clamp(1 - arms * 0.6 - fat * 0.3 - pain * 0.3 - (this.endurance < 0.25 ? 0.35 : 0) - drunk * 0.2 - attackFit * 0.2, 0.15, 1.3) * (1 + (this.skill('strength') - 5) * 0.06);
+    // shaking hands: chronic anxiety, a panic attack, too much coffee
+    const jitter = mind.anxiety * 0.15 + attackFit * 0.35 + (mind.caffeine > 0 && !this.perks.has('barista') ? 0.05 : 0) - anxiolyticEffect(mind) * 0.05;
+    const aim = clamp(1 - panic * 0.6 - fat * 0.3 - drunk * 0.5 - pain * 0.2 - cold * 0.3 - Math.max(0, jitter), 0.1, 1);
     const canRun = this.endurance > 0.05 && legs < 0.5 && heavyLoad < 0.75;
     return { move: clamp(move, 0.15, 1.2), action, attack, aim, canRun, tired: fat, limp: legs, panic, cold, drunk };
   }

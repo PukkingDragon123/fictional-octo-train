@@ -1,0 +1,131 @@
+/* KESTREL WM-7 wrist monitor (src/ui/watch/watch.ts).
+   A chunky gunmetal case on a rubber strap that runs off the left edge of the
+   screen like a forearm; amber LCD canvas scaled 2x with pixelated sampling;
+   four pushers hanging under the case; a BREATHE bar when it is needed.
+   Hard-edged shadows only, so it sits with the rest of the pixel UI. */
+
+.kw {
+  --kw-metal-hi: #7d848c; --kw-metal: #4a5057; --kw-metal-lo: #2b2f34; --kw-ink: #121417;
+  --kw-amber: #ffb238; --kw-accent: #d9782f;
+  position: fixed; left: 10px; top: 10px; z-index: 45;
+  width: 262px; pointer-events: auto;
+  font-family: var(--font-label, 'Silkscreen', 'Courier New', monospace);
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; touch-action: manipulation;
+  transition: opacity 0.35s steps(4), transform 0.2s;
+  transform-origin: 0 0;
+}
+.kw, .kw * { cursor: inherit; box-sizing: border-box; }
+.kw-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
+
+/* ---------------------------------------------------------------- strap */
+.kw-strap {
+  position: absolute; left: -10px; top: 26px; width: 40px; height: 72px;
+  background:
+    repeating-linear-gradient(90deg, rgba(0,0,0,0) 0 7px, rgba(0,0,0,0.35) 7px 9px),
+    linear-gradient(#34302b 0 4px, #24211e 4px 60px, #171513 60px);
+  border-top: 3px solid var(--kw-ink); border-bottom: 3px solid var(--kw-ink);
+}
+.kw-strap::after { /* the stub on the far side of the case */
+  content: ''; position: absolute; left: 258px; top: 0; width: 12px; height: 66px;
+  background: linear-gradient(#34302b 0 4px, #24211e 4px 60px, #171513 60px);
+  border-right: 3px solid var(--kw-ink);
+}
+
+/* ---------------------------------------------------------------- case */
+.kw-case {
+  position: relative; margin-left: 22px; width: 236px; height: 128px;
+  background:
+    linear-gradient(90deg, rgba(255,255,255,0.05) 0 2px, transparent 2px) 0 0 / 4px 100%,
+    linear-gradient(var(--kw-metal-hi) 0 3px, var(--kw-metal) 3px 70%, var(--kw-metal-lo));
+  border: 3px solid var(--kw-ink);
+  border-radius: 16px 16px 20px 20px / 12px 12px 16px 16px;
+  box-shadow: inset 3px 3px 0 #8f969e, inset -3px -3px 0 #1f2226, 5px 5px 0 rgba(0,0,0,0.55);
+}
+.kw-case::before { /* hazard stripe along the top bezel */
+  content: ''; position: absolute; left: 22px; right: 22px; top: 5px; height: 4px;
+  background: repeating-linear-gradient(90deg, var(--kw-accent) 0 9px, #2a2d31 9px 13px);
+  box-shadow: 0 1px 0 #1b1e21;
+}
+.kw-screw {
+  position: absolute; width: 8px; height: 8px; background: #a7adb3;
+  box-shadow: inset -2px -2px 0 #50565c, 1px 1px 0 #15171a;
+}
+.kw-screw::after { content: ''; position: absolute; left: 1px; top: 3px; width: 6px; height: 2px; background: #3b4045; transform: rotate(35deg); }
+.kw-screw.s1 { left: 6px; top: 6px; } .kw-screw.s2 { right: 6px; top: 6px; }
+.kw-screw.s3 { left: 6px; bottom: 6px; } .kw-screw.s4 { right: 6px; bottom: 6px; }
+.kw-label {
+  position: absolute; left: 20px; bottom: 3px; font-size: 8px; line-height: 8px; letter-spacing: 2px;
+  color: #b4bbc2; text-shadow: 1px 1px 0 var(--kw-ink);
+}
+.kw-label b { color: var(--kw-accent); font-weight: normal; margin-left: 6px; }
+.kw-led {
+  position: absolute; right: 20px; bottom: 4px; width: 8px; height: 6px; z-index: 1;
+  background: #3a1c0c; box-shadow: inset -1px -1px 0 #1a0c04, 0 0 0 1px var(--kw-ink);
+}
+
+/* ---------------------------------------------------------------- LCD */
+.kw-lcd {
+  position: absolute; left: 6px; top: 13px; width: 218px; height: 90px; padding: 2px;
+  background: #0a0602; border: 3px solid var(--kw-ink);
+  box-shadow: inset 0 0 0 1px #24160a, 0 0 0 2px #626970, 0 3px 0 2px #2a2e33;
+  overflow: hidden;
+}
+.kw-lcd canvas { display: block; width: 208px; height: 80px; image-rendering: pixelated; image-rendering: crisp-edges; }
+.kw-glare {
+  position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(118deg, rgba(255,240,210,0.09) 0 22%, rgba(0,0,0,0) 22% 100%);
+}
+.kw-fog {
+  position: absolute; inset: 2px; pointer-events: none; opacity: 0;
+  background: repeating-conic-gradient(rgba(196,206,214,0.55) 0 25%, rgba(0,0,0,0) 0 50%) 0 0 / 4px 4px;
+}
+.kw-crack {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 104 40' shape-rendering='crispEdges'%3E%3Cpath d='M62 0 L58 9 L66 14 L55 23 L61 31 L52 40 M58 9 L44 12 L36 8 M66 14 L80 17 L91 13 L104 16 M55 23 L41 27 L30 36' stroke='%23d8e2ea' stroke-width='1' fill='none' opacity='0.8'/%3E%3C/svg%3E") 0 0 / 100% 100% no-repeat;
+}
+.kw-cracked .kw-crack { opacity: 0.65; }
+.kw-broken .kw-crack { opacity: 1; }
+.kw-broken .kw-lcd { background: #050505; }
+.kw-lit .kw-lcd { box-shadow: inset 0 0 0 1px #3c4a14, 0 0 0 2px #626970, 0 3px 0 2px #2a2e33, 0 0 16px 3px rgba(214,255,140,0.28); }
+.kw-alert .kw-led, .kw-ring .kw-led { background: #ff5a2a; animation: kw-blink 0.5s steps(1) infinite; }
+.kw-ring .kw-case { animation: kw-buzz 0.14s steps(2) infinite; }
+
+/* ---------------------------------------------------------------- pushers */
+.kw-keys { display: flex; gap: 5px; width: 214px; margin: -3px 0 0 33px; position: relative; z-index: -1; }
+.kw-key {
+  flex: 1; height: 32px; padding: 6px 0 0; font: inherit; font-size: 9px; letter-spacing: 1px; color: #dde2e7;
+  background: linear-gradient(#59606777 0 3px, #474d53 3px, #33383d);
+  border: 3px solid var(--kw-ink); border-top: none; border-radius: 0 0 7px 7px;
+  box-shadow: inset 2px 0 0 #6f767e, inset -2px -2px 0 #22262a, 2px 3px 0 rgba(0,0,0,0.5);
+  text-shadow: 1px 1px 0 var(--kw-ink);
+}
+.kw-key:hover { color: var(--kw-amber); }
+.kw-key:active { transform: translateY(-3px); box-shadow: inset 2px 0 0 #6f767e, inset -2px -2px 0 #22262a; }
+.kw-key[data-k="light"] { color: #c9f08a; }
+
+/* ---------------------------------------------------------------- breathe */
+.kw-breathe {
+  display: none; margin: 7px 0 0 33px; width: 214px; height: 36px;
+  font: inherit; font-size: 13px; letter-spacing: 4px; color: #1c1004;
+  background: var(--kw-amber); border: 3px solid var(--kw-ink);
+  box-shadow: inset 3px 3px 0 #ffd99a, inset -3px -3px 0 #b5741c, 4px 4px 0 rgba(0,0,0,0.5);
+}
+.kw-breathe.on { display: block; }
+.kw-breathe.urgent { animation: kw-pulse 0.9s steps(2) infinite; }
+.kw-breathe:active { transform: translate(2px, 2px); box-shadow: inset 3px 3px 0 #ffd99a, inset -3px -3px 0 #b5741c; }
+
+@keyframes kw-blink { 50% { background: #3a1c0c; } }
+@keyframes kw-buzz { 0% { transform: translate(-1px, 0); } 100% { transform: translate(1px, 1px); } }
+@keyframes kw-pulse { 50% { background: #ff7a3a; } }
+
+/* ---------------------------------------------------------------- small screens / touch */
+@media (max-width: 760px), (max-height: 520px) {
+  .kw { transform: scale(0.74); }
+}
+/* touch: sit under the top-left button row; taller pushers and BREATHE bar for thumbs */
+html.nc-touch .kw { top: calc(env(safe-area-inset-top, 0px) + 66px); left: calc(env(safe-area-inset-left, 0px) + 6px); transform: scale(0.8); }
+html.nc-touch .kw-key { height: 46px; padding-top: 12px; font-size: 11px; }
+html.nc-touch .kw-breathe { height: 50px; font-size: 15px; }
+@media (max-width: 760px), (max-height: 520px) {
+  html.nc-touch .kw { top: calc(env(safe-area-inset-top, 0px) + 58px); transform: scale(0.68); }
+}

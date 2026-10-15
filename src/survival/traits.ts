@@ -42,19 +42,56 @@ export interface Occupation {
   unlock?: UnlockRule;
 }
 
+/**
+ * Occupations. Three are always on the intake form (Between Jobs, Student,
+ * Night Janitor); every other job is earned by doing something in a run and
+ * stays unlocked on this browser (profile id 'job:<key>', see unlocks.ts).
+ * Perks are plain strings checked by the body, the mind and the quirks system.
+ */
 export const OCCUPATIONS: Occupation[] = [
   { key: 'unemployed', name: 'Between Jobs', desc: 'No experience, no expectations. More room for personal quirks.', points: 8, skills: {}, items: [] },
-  { key: 'janitor', name: 'Night Janitor', desc: 'Knows the hidden corridors of every building. Quiet on their feet.', points: 0, skills: { carpentry: 1, sneaking: 1, mechanics: 1 }, items: ['flashlight', 'keyring', 'mop'], perks: ['lightstep'] },
-  { key: 'electrician', name: 'Electrician', desc: 'Breakers, fuses and wiring hold no secrets. Repairs power faster.', points: -2, skills: { electrical: 3, mechanics: 1 }, items: ['screwdriver', 'multimeter'] },
-  { key: 'nurse', name: 'Night-shift Nurse', desc: 'Calm with blood. Treats wounds quickly and cleanly.', points: -2, skills: { firstaid: 3, sneaking: 1 }, items: ['bandage', 'bandage', 'disinfectant'] },
-  { key: 'cook', name: 'Line Cook', desc: 'Turns scraps into real meals. Handy with a knife.', points: -2, skills: { cooking: 3, blade: 1 }, items: ['knife_kitchen'] },
-  { key: 'lifeguard', name: 'Lifeguard', desc: 'Strong swimmer, steady under pressure. Patches people up.', points: -2, skills: { fitness: 1, firstaid: 1, sprinting: 1 }, items: ['swim_goggles'], perks: ['swimmer'] },
-  { key: 'ranger', name: 'Park Ranger', desc: 'Reads the land, sets traps, finds food in the strangest fields.', points: -4, skills: { foraging: 2, trapping: 2, blade: 1 }, items: ['matches'] },
-  { key: 'carpenter', name: 'Carpenter', desc: 'Builds, barricades and dismantles faster than anyone.', points: -2, skills: { carpentry: 3, blunt: 1 }, items: ['hammer'] },
-  { key: 'security', name: 'Security Guard', desc: 'Used to long nights and empty hallways. Hits hard.', points: -2, skills: { blunt: 2, sprinting: 1 }, items: ['flashlight'], perks: ['nightowl'] },
-  { key: 'developer', name: 'Software Developer', desc: 'Sees the seams of the simulation. Scanner works better, lucidity drains slower.', points: -2, skills: { electrical: 1 }, items: ['handheld_game'], perks: ['seams'] },
-  { key: 'mechanic', name: 'Mechanic', desc: 'Engines, batteries and hotwiring. Knows every car part.', points: -2, skills: { mechanics: 3, electrical: 1 }, items: ['wrench'] },
-  { key: 'student', name: 'Student', desc: 'Learns everything faster, knows nothing yet.', points: 0, skills: {}, items: ['backpack_school', 'notebook'], perks: ['learner'] },
+  { key: 'student', name: 'Student', desc: 'Learns everything faster, knows nothing yet.', points: 0, skills: {}, items: ['backpack_school', 'notebook', 'pen'], perks: ['learner'] },
+  { key: 'janitor', name: 'Night Janitor', desc: 'Knows the hidden corridors of every building. Quiet on their feet, used to long nights alone.', points: 0, skills: { carpentry: 1, sneaking: 1, mechanics: 1 }, items: ['flashlight', 'keyring', 'mop'], perks: ['lightstep', 'nightowl'] },
+  // ---- earned in play
+  { key: 'electrician', name: 'Electrician', desc: 'Breakers, fuses and wiring hold no secrets. Repairs power faster.', points: -2, skills: { electrical: 3, mechanics: 1 }, items: ['screwdriver', 'multimeter'],
+    unlock: { hint: 'Restore power to the Lobby elevator circuit (First Light).' } },
+  { key: 'nurse', name: 'Night-shift Nurse', desc: 'Calm with blood: injuries barely raise their pulse. Treats wounds quickly and cleanly.', points: -2, skills: { firstaid: 3, sneaking: 1 }, items: ['bandage', 'bandage', 'disinfectant'], perks: ['steady'],
+    unlock: { hint: 'Treat eight wounds (yours or a friend\'s).' } },
+  { key: 'cook', name: 'Line Cook', desc: 'Turns scraps into real meals; a hot meal lifts them more than most. Handy with a knife.', points: -2, skills: { cooking: 3, blade: 1 }, items: ['knife_kitchen'], perks: ['foodie'],
+    unlock: { hint: 'Cook six meals.' } },
+  { key: 'lifeguard', name: 'Lifeguard', desc: 'Strong swimmer, steady under pressure. Patches people up.', points: -2, skills: { fitness: 1, firstaid: 1, sprinting: 1 }, items: ['swim_goggles'], perks: ['swimmer'],
+    unlock: { hint: 'Get the Poolrooms pumps running again.' } },
+  { key: 'ranger', name: 'Park Ranger', desc: 'Reads the land, sets traps, finds food in the strangest fields. Open sky calms them.', points: -4, skills: { foraging: 2, trapping: 2, blade: 1 }, items: ['matches'], perks: ['outdoors'],
+    unlock: { hint: 'Spend a full in-game day outdoors.' } },
+  { key: 'carpenter', name: 'Carpenter', desc: 'Builds, barricades and dismantles faster than anyone.', points: -2, skills: { carpentry: 3, blunt: 1 }, items: ['hammer'],
+    unlock: { hint: 'Build, barricade or take apart ten things.' } },
+  { key: 'security', name: 'Security Guard', desc: 'Used to long nights and empty hallways. Hits hard.', points: -2, skills: { blunt: 2, sprinting: 1 }, items: ['flashlight'], perks: ['nightowl'],
+    unlock: { hint: 'Down ten creatures (across all your runs).' } },
+  { key: 'developer', name: 'Software Developer', desc: 'Sees the seams of the simulation. Scanner works better, lucidity drains slower.', points: -2, skills: { electrical: 1 }, items: ['handheld_game'], perks: ['seams'],
+    unlock: { hint: 'Take render node SRV-1 offline.' } },
+  { key: 'mechanic', name: 'Mechanic', desc: 'Engines, batteries and hotwiring. Knows every car part.', points: -2, skills: { mechanics: 3, electrical: 1 }, items: ['wrench'],
+    unlock: { hint: 'Hotwire a car, or drive one for 300 metres.' } },
+  // ---- new jobs
+  { key: 'barista', name: 'Barista', desc: 'Runs on espresso. Caffeine lasts twice as long without the jitters, and coffee is a small daily joy.', points: 0, skills: { cooking: 1, nimble: 1 }, items: ['mug', 'coffee_beans'], perks: ['barista'],
+    unlock: { hint: 'Drink four caffeinated drinks.' } },
+  { key: 'mattress_tester', name: 'Mattress Tester', desc: 'Professionally rested. Sleeps well on anything, shrugs off insomnia, wakes up refreshed.', points: 2, skills: {}, items: ['pillow_item'], perks: ['sleeper'],
+    unlock: { hint: 'Sleep thirty hours in total (across your runs).' } },
+  { key: 'investigator', name: 'Paranormal Investigator', desc: 'Has waited a whole career for this. Anomalies drain less lucidity, cataloguing a new entity is thrilling, and hallucinations are just "data".', points: -2, skills: { sneaking: 1, electrical: 1 }, items: ['camera_polaroid', 'notebook'], perks: ['investigator'],
+    unlock: { hint: 'Catalogue five different entities with the SEER-9.' } },
+  { key: 'radio_host', name: 'Late-night Radio Host', desc: 'Talks to the dark for a living. Loneliness builds slowly; voices on the radio and in chat count as company.', points: 0, skills: { electrical: 1 }, items: ['radio_portable', 'headphones'], perks: ['radio_voice', 'nightowl'],
+    unlock: { hint: 'Lock onto three different radio signals.' } },
+  { key: 'therapist', name: 'Therapist', desc: 'Knows the techniques and, mostly, uses them. Breathing and journaling work twice as well; panic attacks pass faster.', points: -2, skills: { firstaid: 1 }, items: ['notebook', 'pen'], perks: ['therapist'],
+    unlock: { hint: 'Breathe your way through three panic attacks.' } },
+  { key: 'explorer', name: 'Urban Explorer', desc: 'Lives for abandoned places. A new zone lifts the mood; boredom fades on the move; shifting rooms are a thrill, not a threat.', points: -2, skills: { sprinting: 1, nimble: 1, foraging: 1 }, items: ['flashlight', 'chalk'], perks: ['explorer'],
+    unlock: { hint: 'Visit eight different zones in one run.' } },
+  { key: 'lab_tech', name: 'Lab Technician', desc: 'Used to work for Meridian. Knows how the simulation leaks: lucidity drains slower and the hum is just background.', points: -2, skills: { firstaid: 1, electrical: 2 }, items: ['lab_coat', 'gloves_rubber'], perks: ['seams'],
+    unlock: { hint: 'Get inside the Meridian laboratory.' } },
+  { key: 'returnee', name: 'Returnee', desc: 'Got out once. Came back anyway. Lucidity drains much slower, loops never rattle them, and they remember where the water is.', points: -4, skills: { sneaking: 1, foraging: 1 }, items: ['map_lobby', 'almond_water'], perks: ['deja_vu'],
+    unlock: { hint: 'Walk out through the exit door.' } },
+  { key: 'mime', name: 'Street Mime', desc: 'Silent on their feet and never short of imaginary company: loneliness builds slowly. Shouting breaks character (and their composure).', points: 0, skills: { nimble: 2, sneaking: 2 }, items: ['chalk'], perks: ['lightstep', 'mime'],
+    unlock: { hint: 'Spend ten minutes sneaking (across your runs).' } },
+  { key: 'exterminator', name: 'Exterminator', desc: 'Creepy-crawlies are a job, not a nightmare. Panics less at creatures, and downing one settles the nerves.', points: -2, skills: { blunt: 1, trapping: 2 }, items: ['bait', 'trap_box_item'], perks: ['exterminator'],
+    unlock: { hint: 'Down three different kinds of creature in one run.' } },
 ];
 
 export interface Trait { key: string; name: string; cost: number; desc: string; excl?: string[]; unlock?: UnlockRule; }
@@ -67,11 +104,11 @@ export const TRAITS: Trait[] = [
   { key: 'eagle_eyed', name: 'Eagle Eyed', cost: -4, desc: 'Wider vision cone, sees further in the dark.', excl: ['short_sighted'] },
   { key: 'light_eater', name: 'Light Eater', cost: -4, desc: 'Gets hungry less often.', excl: ['hearty_appetite'] },
   { key: 'fast_healer', name: 'Fast Healer', cost: -6, desc: 'Wounds heal faster.', excl: ['slow_healer'] },
-  { key: 'lucid_dreamer', name: 'Lucid Dreamer', cost: -4, desc: 'Sleep restores lucidity; dreams are kinder.' },
+  { key: 'lucid_dreamer', name: 'Lucid Dreamer', cost: -4, desc: 'Sleep restores lucidity; nightmares are rarer.' },
   { key: 'night_owl', name: 'Night Owl', cost: -4, desc: 'Needs less sleep.', excl: ['insomniac'] },
   { key: 'organized', name: 'Organized', cost: -6, desc: '+30% container capacity.', excl: ['disorganized'] },
   { key: 'dextrous', name: 'Dextrous', cost: -2, desc: 'Moves items between containers twice as fast.', excl: ['all_thumbs'] },
-  { key: 'brave', name: 'Brave', cost: -4, desc: 'Panics less.', excl: ['cowardly'] },
+  { key: 'brave', name: 'Brave', cost: -4, desc: 'Panics less, rarely has panic attacks and shakes off bad memories.', excl: ['cowardly'] },
   { key: 'outdoorsman', name: 'Outdoorsman', cost: -2, desc: 'Resists cold and rain; finds more when foraging.' },
   { key: 'fast_learner', name: 'Fast Learner', cost: -6, desc: '+30% skill experience.', excl: ['slow_learner'] },
   { key: 'handy', name: 'Handy', cost: -6, desc: 'Builds faster and stronger.' },
@@ -79,6 +116,25 @@ export const TRAITS: Trait[] = [
   { key: 'resilient', name: 'Resilient', cost: -4, desc: 'Corruption spreads slower in the body.' },
   { key: 'lucky', name: 'Lucky', cost: -4, desc: 'Finds a little more in every container.' },
   { key: 'graceful', name: 'Graceful', cost: -4, desc: 'Moves quietly.', excl: ['clumsy'] },
+  { key: 'mall_rat', name: 'Mall Rat', cost: -2, desc: 'Malls and supermarkets feel like home: never bored there, calmer and happier among the shelves.' },
+  { key: 'gym_rat', name: 'Gym Rat', cost: -4, desc: 'Double Fitness and Sprinting experience, tires a little slower. Grumpy after a day without a workout.', excl: ['couch_potato', 'unfit'] },
+  { key: 'speed_reader', name: 'Speed Reader', cost: -3, desc: 'Reads books and magazines twice as fast.' },
+  { key: 'heavy_sleeper', name: 'Heavy Sleeper', cost: -3, desc: 'Sleep restores 25% faster and almost nothing wakes you. Might sleep through the alarm.', excl: ['light_sleeper', 'insomniac'] },
+  { key: 'pocket_hoarder', name: 'Pocket Hoarder', cost: -3, desc: '+2 kg carrying capacity. Feels naked with nearly empty pockets.' },
+  { key: 'lucky_socks', name: 'Lucky Socks', cost: -2, desc: 'While wearing socks, injuries are less severe and some hits only bruise. Without socks: a nervous wreck.' },
+  { key: 'cat_person', name: 'Cat Person', cost: -2, desc: 'Small aloof creatures (Plushkins, Lamplighters) trust you after fewer treats. Pets calm you twice as much.', excl: ['dog_person'] },
+  { key: 'dog_person', name: 'Dog Person', cost: -2, desc: 'Lost Dogs trust you after fewer meals and hounds scare you less. Pets calm you twice as much.', excl: ['cat_person'] },
+  { key: 'snack_goblin', name: 'Snack Goblin', cost: -1, desc: 'Sweets and snacks cheer you up twice as much and vanish twice as fast. Gets hungry a bit sooner.' },
+  { key: 'talks_furniture', name: 'Talks to Furniture', cost: -2, desc: 'Never truly alone: a chair, sofa or bed within reach keeps loneliness away. It is a good listener.' },
+  { key: 'box_breather', name: 'Box Breather', cost: -3, desc: 'Knows the 4-4-4 trick. Breathing exercises work twice as well and panic attacks end sooner.' },
+  { key: 'iron_nerves', name: 'Iron Nerves', cost: -6, desc: 'Never has panic attacks. Bad memories fade twice as fast.', excl: ['cowardly', 'dramatic'],
+    unlock: { hint: 'Live through five panic attacks (across your runs).' } },
+  { key: 'been_here_before', name: 'Been Here Before', cost: -4, desc: 'You have been deleted before. Lucidity drains 25% slower and the loops never surprise you.',
+    unlock: { hint: 'Be deleted once.' } },
+  { key: 'creature_whisperer', name: 'Creature Whisperer', cost: -4, desc: 'Every tameable creature trusts you one meal sooner, and a companion nearby counts as company.',
+    unlock: { hint: 'Earn the trust of a creature.' } },
+  { key: 'unbothered', name: 'Unbothered', cost: -5, desc: 'Stress and unhappiness build 30% slower.', excl: ['worrier'],
+    unlock: { hint: 'Escape the simulation.' } },
   // negative (give points)
   { key: 'weak', name: 'Weak', cost: 6, desc: '-4 Strength.' },
   { key: 'unfit', name: 'Out of Shape', cost: 6, desc: '-4 Fitness.' },
@@ -86,11 +142,11 @@ export const TRAITS: Trait[] = [
   { key: 'short_sighted', name: 'Short Sighted', cost: 2, desc: 'Narrow, blurry vision at distance.' },
   { key: 'hearty_appetite', name: 'Hearty Appetite', cost: 4, desc: 'Gets hungry more often.' },
   { key: 'slow_healer', name: 'Slow Healer', cost: 6, desc: 'Wounds heal slower.' },
-  { key: 'insomniac', name: 'Restless Sleeper', cost: 4, desc: 'Sleep is less effective.' },
+  { key: 'insomniac', name: 'Restless Sleeper', cost: 4, desc: 'Sleep is less effective and insomnia never fully goes away.' },
   { key: 'claustrophobic', name: 'Claustrophobic', cost: 4, desc: 'Panics in small rooms and tunnels.', excl: ['agoraphobic'] },
   { key: 'agoraphobic', name: 'Agoraphobic', cost: 4, desc: 'Panics in wide open spaces.', excl: ['claustrophobic'] },
-  { key: 'nyctophobic', name: 'Afraid of the Dark', cost: 6, desc: 'Panics and loses lucidity in darkness.' },
-  { key: 'cowardly', name: 'Cowardly', cost: 2, desc: 'Panics easily.' },
+  { key: 'nyctophobic', name: 'Afraid of the Dark', cost: 6, desc: 'Panics and loses lucidity in darkness. Nightmares in dark rooms.' },
+  { key: 'cowardly', name: 'Cowardly', cost: 2, desc: 'Panics easily; panic attacks and bad memories hit harder.' },
   { key: 'clumsy', name: 'Clumsy', cost: 2, desc: 'Makes more noise.' },
   { key: 'all_thumbs', name: 'All Thumbs', cost: 2, desc: 'Moves items slowly.' },
   { key: 'disorganized', name: 'Disorganized', cost: 4, desc: '-30% container capacity.' },
@@ -99,8 +155,34 @@ export const TRAITS: Trait[] = [
   { key: 'thin_skinned', name: 'Thin-skinned', cost: 4, desc: 'Injuries are worse.' },
   { key: 'slow_learner', name: 'Slow Learner', cost: 6, desc: '-30% skill experience.' },
   { key: 'weak_stomach', name: 'Weak Stomach', cost: 3, desc: 'Food poisoning is more likely.' },
-  { key: 'lonely', name: 'Needs People', cost: 3, desc: 'Lucidity and mood drain faster when alone.' },
+  { key: 'lonely', name: 'Needs People', cost: 3, desc: 'Loneliness builds almost twice as fast; lucidity and mood suffer alone.' },
+  { key: 'sneezer', name: 'Sneezer', cost: 2, desc: 'Sneezes loudly at random moments, more in dusty carpeted places. Everything hears it.' },
+  { key: 'smells_pizza', name: 'Smells Like Pizza', cost: 3, desc: 'Something about you smells delicious. Creatures pick up your trail from much further away.' },
+  { key: 'night_light', name: 'Night Light', cost: 3, desc: 'Cannot sleep properly in the dark. Needs a lamp, a lit candle or a little night-light nearby.' },
+  { key: 'dramatic', name: 'Dramatic', cost: 1, desc: 'Panic spikes twice as hard but drains twice as fast. Narrates every crisis out loud.' },
+  { key: 'butterfingers', name: 'Butterfingers', cost: 2, desc: 'Drops whatever is in hand when panicking.' },
+  { key: 'couch_potato', name: 'Couch Potato', cost: 2, desc: 'Tires faster and builds Fitness slowly, but sitting down is pure bliss (stress and boredom melt away).', excl: ['athletic'] },
+  { key: 'worrier', name: 'Worrier', cost: 3, desc: 'Anxiety builds twice as fast and stress lingers.' },
+  { key: 'light_sleeper', name: 'Light Sleeper', cost: 2, desc: 'Wakes at the smallest noise; nightmares come more often.' },
+  { key: 'melancholic', name: 'Melancholic', cost: 3, desc: 'Low moods build faster and linger longer.' },
+  { key: 'hypochondriac', name: 'Hypochondriac', cost: 2, desc: 'Every scratch is a catastrophe: injuries spike panic and stress twice as much. Any pill calms you a little.', excl: ['iron_nerves'] },
+  { key: 'coffee_dependent', name: 'Coffee Dependent', cost: 2, desc: 'Headaches and grumpiness after twelve hours without caffeine. Coffee hits harder.' },
 ];
+
+// exclusions are symmetric: picking either side blocks the other on the intake form
+for (const t of TRAITS) for (const x of t.excl || []) {
+  const o = TRAITS.find((q) => q.key === x);
+  if (o && !(o.excl || []).includes(t.key)) (o.excl = o.excl || []).push(t.key);
+}
+
+/** human-readable perk descriptions (scanner profile, intake tooltips) */
+export const PERKS: Record<string, string> = {
+  learner: 'Learns 20% faster', lightstep: 'Quiet footsteps', nightowl: 'Needs less sleep', swimmer: 'Swims faster',
+  seams: 'Lucidity drains slower', steady: 'Injuries barely raise panic', foodie: 'Cooked meals lift mood more',
+  outdoors: 'Open sky calms stress and low mood', barista: 'Caffeine lasts longer, no jitters', sleeper: 'Sleeps well anywhere, resists insomnia',
+  investigator: 'Anomalies drain less, scanning lifts mood', radio_voice: 'Radio and chat count as company', therapist: 'Coping works twice as well',
+  explorer: 'New zones lift mood', deja_vu: 'Lucidity drains much slower', mime: 'Imaginary company', exterminator: 'Creatures panic you less',
+};
 
 export const traitByKey = (k: string) => TRAITS.find((t) => t.key === k);
 export const occupationByKey = (k: string) => OCCUPATIONS.find((o) => o.key === k) || OCCUPATIONS[0];

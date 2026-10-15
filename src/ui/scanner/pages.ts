@@ -3,12 +3,14 @@ import { Screen } from '../font5x7';
 import type { Scanner } from './scanner';
 import { BODY_PARTS, BodyPart, itemDef, itemName } from '../../items/item';
 import { PART_NAMES, INJURY_INFO, Injury } from '../../survival/body';
-import { SKILLS, occupationByKey, traitByKey } from '../../survival/traits';
+import { SKILLS, occupationByKey, traitByKey, PERKS } from '../../survival/traits';
 import { Player } from '../../entities/player';
 import { angleDiff, clamp } from '../../core/math';
 import { allSpecies } from '../../creatures/registry';
 import { injuryLabel } from '../../actions/medical';
 import { itemMenuOptions } from '../../interact/itemMenu';
+import { ensureMind, conditions, medsLines, moodGlyph, breathState, breathRate, topTrigger, ssriEffect } from '../../survival/mind';
+import { startBreathing } from '../../survival/mindSystem';
 
 export type PageKey = 'stat' | 'scan' | 'sig' | 'map' | 'log' | 'data';
 export const PAGES: { key: PageKey; name: string }[] = [
@@ -67,10 +69,23 @@ function drawStat(s: Screen, sc: Scanner, who: Player) {
   const b = who.body;
   const t = G.time;
   const ox = 4, oy = 4;
+  // BODY / MIND tabs (the mind is only known for yourself)
+  const self = who === G.local;
+  const tab = self ? (sc.st.statTab ?? 0) : 0;
+  if (self) {
+    ['BODY', 'MIND'].forEach((lb, i) => {
+      const x = 2 + i * 27, on = tab === i;
+      s.rect(x, 11, 25, 8, on ? DIM : BG);
+      s.text(lb, x + 1, 11, on ? HI : MID);
+      zone(sc, x, 10, 25, 10, () => { sc.st.statTab = i; sc.st.sel = 0; });
+    });
+    const m = ensureMind(b);
+    if (m.attack > 0 && tab === 0 && Math.floor(t * 3) % 2 === 0) s.rect(29, 18, 25, 1, AMB);
+  }
   const selIdx = ((sc.st.sel % (BODY_PARTS.length + 1)) + BODY_PARTS.length + 1) % (BODY_PARTS.length + 1);
   const selPart: BodyPart | null = selIdx === 0 ? null : BODY_PARTS[selIdx - 1];
-  // silhouette
-  for (const part of BODY_PARTS) {
+  // silhouette (the MIND view draws a face instead)
+  if (tab !== 1) for (const part of BODY_PARTS) {
     const [x, y, w, h] = PART_RECTS[part];
     const X = x + ox, Y = y + oy;
     const injs = b.parts[part].injuries;
@@ -99,7 +114,8 @@ function drawStat(s: Screen, sc: Scanner, who: Player) {
     if (v !== undefined) s.bar(vx, vy + 8, s.w - vx - 4, 3, v, color, BG);
     vy += v !== undefined ? 13 : 9;
   };
-  const pulse = Math.round(62 + b.panic * 0.7 + (1 - b.endurance) * 40 + (b.temp > 37.5 ? 12 : 0) - (b.asleep ? 8 : 0));
+  const pulse = Math.round(self ? ((G.survival as any)?.mind?.bpm ?? 70) : 62 + b.panic * 0.7 + (1 - b.endurance) * 40 + (b.temp > 37.5 ? 12 : 0) - (b.asleep ? 8 : 0));
+  if (tab === 1) { drawMind(s, sc, who, vx, pulse); return; }
   row('HEALTH', Math.round(b.health) + '%', b.health < 35 ? RED : HI, b.health / 100);
   row('BLOOD', Math.round(b.blood) + '%', b.blood < 70 ? AMB : HI, b.blood / 100);
   row('TEMP', b.temp.toFixed(1) + '°C', b.temp < 36 || b.temp > 38 ? AMB : HI);
@@ -133,6 +149,70 @@ function drawStat(s: Screen, sc: Scanner, who: Player) {
   s.text(who === G.local ? 'SELF' : who.name.toUpperCase(), 6, 112, MID, 1, 50);
   s.text(`${b.weight.toFixed(0)}KG`, 6, 121, DIM);
   footer(s, selPart ? 'DIAL:PART  CLICK:SELECT  TREAT' : 'DIAL/CLICK:SELECT BODY PART');
+}
+
+/** BIOMONITOR / MIND: heart, breathing, mood, long-term conditions, medication, triggers, coping */
+function drawMind(s: Screen, sc: Scanner, who: Player, vx: number, pulse: number) {
+  const b = who.body, m = ensureMind(b);
+  const mind = (G.survival as any)?.mind;
+  const breathing = !!mind?.breathing;
+  let vy = 13;
+  const br = breathState(b, who.running, breathing);
+  s.text('PULSE', vx, vy, MID); s.text(`${pulse} BPM`, s.w - 4 - s.textW(`${pulse} BPM`), vy, pulse > 125 ? AMB : HI); vy += 9;
+  s.text('BREATH', vx, vy, MID); s.text(`${br} ${breathRate(br)}`, s.w - 4 - s.textW(`${br} ${breathRate(br)}`), vy, br === 'CALM' || br === 'SLOW' || br === 'DEEP' ? HI : AMB); vy += 9;
+  const g = moodGlyph(b);
+  const mood = ({ ok: 'STEADY', meh: 'FLAT', sad: 'DOWN', low: 'LOW', fear: 'AFRAID', attack: 'PANIC ATTACK', dissoc: 'UNREAL', sleep: 'ASLEEP', lonely: 'LONELY', tense: 'TENSE' } as Record<string, string>)[g];
+  s.text('MOOD', vx, vy, MID); s.text(mood, s.w - 4 - s.textW(mood), vy, g === 'attack' || g === 'fear' ? (Math.floor(G.time * 3) % 2 ? AMB : RED) : HI); vy += 10;
+  s.hline(vx, s.w - 4, vy, DIM, 2); vy += 3;
+  if (m.attack > 0) {
+    s.text('PANIC ATTACK', vx, vy, Math.floor(G.time * 3) % 2 ? RED : AMB); vy += 9;
+    s.para('IT WILL PASS. BREATHE SLOWLY. NAME FIVE THINGS YOU CAN SEE.', vx, vy, s.w - vx - 4, HI, 8, 3); vy += 25;
+  }
+  const conds = conditions(b);
+  if (!conds.length && m.attack <= 0) { s.text('NO LASTING STRAIN', vx, vy, MID); vy += 9; }
+  const sel = conds.length ? ((sc.st.sel % conds.length) + conds.length) % conds.length : 0;
+  conds.slice(0, 5).forEach((c, i) => {
+    s.text(c.name.toUpperCase(), vx, vy, i === sel ? HI : c.level >= 3 ? AMB : MID, 1, s.w - vx - 30);
+    for (let k = 0; k < 4; k++) s.rect(s.w - 26 + k * 5, vy + 1, 4, 5, k < c.level ? (c.level >= 3 ? AMB : HI) : DIM);
+    zone(sc, vx, vy - 1, s.w - vx, 9, () => { sc.st.sel = i; });
+    vy += 9;
+  });
+  const meds = medsLines(b);
+  for (const ml of meds.slice(0, 2)) { s.text(ml, vx, vy, ssriEffect(m) > 0.5 && ml.startsWith('SSRI') ? HI : MID, 1, s.w - vx - 4); vy += 9; }
+  const trig = topTrigger(m);
+  if (trig && vy < s.h - 34) { s.text('TRIGGER: ' + trig[0].toUpperCase().replace('_', ' '), vx, vy, AMB, 1, s.w - vx - 4); vy += 9; }
+  // left column: a big mood face, then what helps with the selected condition
+  drawFace(s, g, 10, 24, 4, g === 'attack' || g === 'fear' ? AMB : HI);
+  const cur = conds[sel];
+  if (cur) { s.text('HELPS:', 4, 72, DIM); cur.tips.forEach((tp, i) => s.text(tp, 4, 81 + i * 9, MID, 1, 52)); }
+  else s.text(who === G.local ? 'SELF' : who.name.toUpperCase(), 6, 112, MID, 1, 50);
+  // breathe button
+  const bx = vx, by = s.h - 23;
+  if (breathing) {
+    const t = mind.breathT as number, ph = Math.floor(t / 4) % 4;
+    s.frame(bx, by, 64, 11, HI);
+    s.text(`${['IN', 'HOLD', 'OUT', 'HOLD'][ph]} ${4 - Math.floor(t % 4)}`, bx + 4, by + 2, HI);
+  } else {
+    s.frame(bx, by, 64, 11, m.attack > 0 && Math.floor(G.time * 3) % 2 ? AMB : HI);
+    s.text('BREATHE', bx + 11, by + 2, HI);
+    zone(sc, bx, by, 64, 11, () => { if (who === G.local) startBreathing(who); });
+  }
+  s.text('H', bx + 68, by + 2, DIM);
+  footer(s, 'JOURNAL:NOTEBOOK+PEN H:BREATHE');
+}
+
+const FACE_RING = ['..#####..', '.#.....#.', '#.......#', '#.......#', '#.......#', '#.......#', '#.......#', '.#.....#.', '..#####..'];
+const FACE_FEATURES: Record<string, [number, number][]> = {
+  ok: [[3, 3], [5, 3], [2, 5], [3, 6], [4, 6], [5, 6], [6, 5]], meh: [[3, 3], [5, 3], [3, 6], [4, 6], [5, 6]],
+  sad: [[3, 3], [5, 3], [3, 5], [4, 5], [5, 5], [2, 6], [6, 6]], low: [[2, 3], [3, 3], [5, 3], [6, 3], [3, 6], [4, 5], [5, 6], [6, 4]],
+  fear: [[3, 2], [3, 3], [5, 2], [5, 3], [4, 5], [3, 6], [5, 6], [4, 7]], attack: [[3, 3], [5, 3], [3, 5], [4, 5], [5, 5], [3, 6], [5, 6], [4, 6]],
+  dissoc: [[2, 3], [3, 2], [3, 4], [5, 3], [6, 2], [6, 4], [3, 6], [4, 6], [5, 6]], sleep: [[2, 4], [3, 4], [5, 4], [6, 4], [4, 6]],
+  lonely: [[3, 3], [5, 3], [6, 4], [6, 5], [3, 6], [4, 6]], tense: [[3, 3], [5, 3], [2, 6], [3, 5], [4, 6], [5, 5], [6, 6], [7, 2], [7, 3]],
+};
+function drawFace(s: Screen, g: string, x: number, y: number, sc: number, c: number) {
+  const dot = (i: number, j: number) => s.rect(x + i * sc, y + j * sc, sc - 1, sc - 1, c);
+  FACE_RING.forEach((r, j) => { for (let i = 0; i < 9; i++) if (r[i] === '#') dot(i, j); });
+  for (const [i, j] of FACE_FEATURES[g] || []) dot(i, j);
 }
 
 function describeInjury(inj: Injury): string {
@@ -415,6 +495,8 @@ function drawData(s: Screen, sc: Scanner, p: Player) {
     s.text('ROLE: ' + occ.name.toUpperCase(), 6, y, MID, 1, s.w - 12); y += 9;
     const traits = [...p.body.traits].map((t) => traitByKey(t)?.name || t).join(', ') || 'NONE';
     y += s.para('TRAITS: ' + traits.toUpperCase(), 6, y, s.w - 12, MID, 8, 3) * 8 + 2;
+    const perks = [...p.body.perks].map((k) => PERKS[k]).filter(Boolean).join(', ');
+    if (perks) y += s.para('PERKS: ' + perks.toUpperCase(), 6, y, s.w - 12, DIM, 8, 2) * 8 + 2;
     s.text(`SURVIVED ${Math.floor(G.clock.hours / 24)}D ${Math.floor(G.clock.hours % 24)}H`, 6, y, HI); y += 9;
     s.text(`ENTITIES DOWNED: ${p.kills}`, 6, y, MID); y += 9;
     s.text(`ZONES MAPPED: ${[...G.zones.keys()].length}`, 6, y, MID); y += 9;

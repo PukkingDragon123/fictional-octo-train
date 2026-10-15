@@ -14,6 +14,7 @@ import { bus } from '../core/events';
 import { CreatureSystem } from '../creatures/manager';
 import { CombatSystem } from './combat';
 import { Scanner } from '../ui/scanner/scanner';
+import { Watch } from '../ui/watch/watch';
 import { AudioEngine } from '../audio/audio';
 import { MissionSystem } from '../missions/missions';
 import '../missions/directives';
@@ -127,6 +128,7 @@ export function startSession(o: SessionOpts): Game {
   g.ui = ui;
   ui.inventory = new InventoryUI(ui);
   new Scanner();
+  new Watch();
   const interact = new Interact();
   new PauseMenu();
 
@@ -138,7 +140,7 @@ export function startSession(o: SessionOpts): Game {
   else {
     for (const t of o.traits || []) p.body.traits.add(t);
     p.setOccupation(o.occupation || 'unemployed');
-    const start = ['tshirt', 'jeans', 'sneakers', 'socks'];
+    const start = ['tshirt', 'jeans', 'sneakers', 'socks', 'wrist_monitor'];
     for (const k of start) if (hasItemDef(k)) { const it = newItem(k); p.inv.add(it); p.wear(it); }
     for (const k of ['water_bottle', 'almond_water', 'granola_bar']) if (hasItemDef(k)) p.inv.add(newItem(k));
     for (const k of occupationByKey(p.occupation).items) if (hasItemDef(k)) p.inv.add(newItem(k));

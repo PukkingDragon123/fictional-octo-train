@@ -5,6 +5,11 @@ import { bus } from '../core/events';
 import { clamp, clamp01 } from '../core/math';
 import { TF } from '../world/zone';
 import { itemDef } from '../items/item';
+import { objDef } from '../world/objects';
+import { MindSystem, startBreathing, isBreathing } from './mindSystem';
+import { Quirks } from './quirks';
+import { Unlocks } from './unlocks';
+import { ensureMind } from './mind';
 
 const THOUGHTS: Record<string, string[]> = {
   hunger: ['', 'I could eat something.', 'My stomach is growling.', "I really need to eat.", "I'm starving..."],
@@ -26,6 +31,7 @@ const THOUGHTS: Record<string, string[]> = {
   corruption: ['', 'My skin is... buzzing.', 'I can see pixels when I blink.', 'Parts of me are missing.', 'ERROR ERROR ERROR'],
   heavy: ['', 'This is heavy.', 'Too much weight.', "I can barely move.", "I can't carry all this."],
   drunk: ['', 'Feeling warm.', "Woah.", 'Everything is spinning.', '...'],
+  lonely: ['', 'It would be nice to hear a voice.', 'I feel so alone in here.', "Nobody knows I'm here.", 'Is there anyone left at all?'],
 };
 
 /**
@@ -38,8 +44,20 @@ export class SurvivalSystem implements GameSystem {
   threat = 0;
   anomaly = 0;
   entertained = 0;
+  /** long-term mind: panic attacks, trauma, hallucinations, coping (mindSystem.ts) */
+  mind = new MindSystem();
+  quirks = new Quirks();
+  unlocks = new Unlocks();
   private hookFor = new WeakSet<Player>();
   private lastHurt = 100;
+  /** slower scans of the surroundings (seats, companions, comfort items) */
+  private scanT = 0;
+  private nearSeat = false;
+  private companion = 0;
+  private comfort = 0;
+  /** tunnel vision: extra vignette layered over the zone's grade target */
+  private gradeRef: object | null = null;
+  private vigBase = 0;
 
   update(dt: number, dh: number) {
     const p = G.local;
@@ -51,6 +69,8 @@ export class SurvivalSystem implements GameSystem {
         bus.emit('moodle', p, key, level, prev);
       };
       p.body.onXp = (sk, lvl) => bus.emit('skillUp', p, sk, lvl);
+      p.body.onXpGain = (sk) => this.unlocks.onXpGain(sk);
+      ensureMind(p.body);
     }
     if (p.body.dead) return;
     const z = G.zone;
@@ -87,6 +107,19 @@ export class SurvivalSystem implements GameSystem {
     env.entertained = this.entertained > 0;
     env.heavyLoad = p.heavyLoad();
     this.entertained = Math.max(0, this.entertained - dt);
+    // context for the mind
+    this.scanT -= dt;
+    if (this.scanT <= 0) { this.scanT = 0.5; this.scanSurroundings(p); }
+    env.zone = z.key;
+    env.outdoor = outdoor;
+    env.nearSeat = this.nearSeat;
+    env.companion = this.companion;
+    env.comfort = this.comfort;
+    env.breathing = isBreathing(p);
+    const sc = G.ui?.scanner;
+    env.social = sc?.open && sc.page === 'sig' && (sc.st?.sigStrength ?? 0) > 0.6 ? (p.body.perks.has('radio_voice') ? 1 : 0.35) : 0;
+    p.body.wearingSocks = !!(p.worn.get('socks') || p.worn.get('feet'));
+    this.quirks.preBody(p, env);
     // flashlight drains batteries
     if (p.flashlightOn && p.lightItem) {
       const d = itemDef(p.lightItem.key);
@@ -97,6 +130,10 @@ export class SurvivalSystem implements GameSystem {
     // food in inventory ages (fridge handled by containers system)
     for (const it of p.allItems()) it.age += dh;
     p.body.update(dh, dt, env);
+    this.mind.update(p, env, dt, dh);
+    this.quirks.update(p, env, dt);
+    this.unlocks.update(p, env, dt, dh);
+    if (G.input.keyHit('KeyH') && !G.ui?.blocksMovement?.()) startBreathing(p);
     // death / downed
     if (p.body.health <= 0 && !p.body.dead && !p.body.downed) {
       if (G.role !== 'solo' && G.players.size > 1) { p.body.downed = true; p.body.downedTime = 0; bus.emit('downed', p); }
@@ -109,18 +146,48 @@ export class SurvivalSystem implements GameSystem {
     // screen effects reflecting the mind and body
     const fx = G.pr.fx;
     const b = p.body;
-    fx.panic = clamp01((b.panic - 25) / 75);
-    fx.desat = clamp01((b.unhappy - 40) / 80) * 0.6 + clamp01((50 - b.health) / 50) * 0.4;
-    fx.wobble = clamp01((60 - b.lucidity) / 60) * 1.2 + clamp01(b.drunk / 60) + clamp01((b.sickness - 50) / 50) * 0.5;
+    const mf = this.mind.fxOut;
+    fx.panic = Math.max(clamp01((b.panic - 25) / 75), mf.panic);
+    fx.desat = clamp01(clamp01((b.unhappy - 40) / 80) * 0.6 + clamp01((50 - b.health) / 50) * 0.4 + mf.desat);
+    fx.wobble = clamp01((60 - b.lucidity) / 60) * 1.2 + clamp01(b.drunk / 60) + clamp01((b.sickness - 50) / 50) * 0.5 + mf.wobble;
     fx.blink = b.fatigue > 85 && !p.sleeping ? Math.max(0, Math.sin(G.time * 0.7) - 0.85) * 4 : 0;
-    fx.glitch = Math.max(G.collapse * 0.25, clamp01((b.corruption - 20) / 80) * 0.6, (100 - b.lucidity) > 75 ? 0.15 : 0);
+    fx.glitch = Math.max(G.collapse * 0.25, clamp01((b.corruption - 20) / 80) * 0.6, (100 - b.lucidity) > 75 ? 0.15 : 0, mf.glitch);
+    fx.dream = clamp01(mf.dream);
     const hurt = b.health;
     if (hurt < this.lastHurt - 1.5) fx.hurt = Math.min(1, fx.hurt + (this.lastHurt - hurt) / 25);
     this.lastHurt = hurt;
     fx.hurt = Math.max(0, fx.hurt - dt * 1.5);
-    G.pr.shake = Math.max(G.pr.shake, fx.hurt * 0.5);
+    G.pr.shake = Math.max(G.pr.shake, fx.hurt * 0.5, mf.shake);
+    // tunnel vision: deepen the vignette on top of whatever the zone grade wants
+    const gt = G.pr.gradeTarget as any;
+    if (gt !== this.gradeRef) { this.gradeRef = gt; this.vigBase = gt.vignette; }
+    gt.vignette = this.vigBase + mf.vignette;
     // decay threat (creature system sets it every frame)
     this.threat = Math.max(0, this.threat - dt * 2);
     this.anomaly = Math.max(0, this.anomaly - dt * 0.5);
+  }
+
+  /** what is around the survivor that matters to the mind (2 Hz) */
+  private scanSurroundings(p: Player) {
+    const z = G.getZone(p.zoneKey);
+    // a seat or bed within reach (Talks to Furniture, couch potatoes)
+    this.nearSeat = false;
+    if (p.body.has('talks_furniture')) {
+      const tx = p.tileX(), ty = p.tileY();
+      outer: for (let y = ty - 2; y <= ty + 2; y++) for (let x = tx - 2; x <= tx + 2; x++) {
+        if (!z.inb(x, y)) continue;
+        for (const o of z.objectsAt(x, y)) { const d = objDef(o.key); if (d && (d.sit || d.sleep)) { this.nearSeat = true; break outer; } }
+      }
+    }
+    // tamed companions nearby
+    let n = 0;
+    for (const c of (G.creatures?.creatures?.values?.() || []) as Iterable<any>) {
+      if (!c.dead && c.tamedBy === p.id && c.zoneKey === p.zoneKey && Math.hypot(c.x - p.x, c.z - p.z) < 10) n++;
+    }
+    this.companion = n;
+    // comfort objects carried (plush, family photo, lucky charm...)
+    let k = 0;
+    for (const it of p.allItems()) if ((itemDef(it.key).tags || []).includes('comfort')) k++;
+    this.comfort = k;
   }
 }
