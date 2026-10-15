@@ -1021,7 +1021,6 @@ function headwear(B: SkinBuilder, d: Dims, sh: OutfitShape, tr: (p: V3) => V3, h
       const inner = ang.map((a) => tr(headPt(0.135, a, 0.024)));
       const outer = ang.map((a) => { const t = (a * Math.PI) / 180; const p = headPt(0.129, a, 0.024); const L = Math.abs(a) < 40 ? 0.045 : Math.abs(a) > 140 ? 0.035 : 0.018; return tr([p[0] + Math.sin(t) * L, p[1] - 0.006, p[2] + Math.cos(t) * L]); });
       B.loft([{ pts: inner, v: 0.2, w: [H, 1] }, { pts: outer, v: 0.0, w: [H, 1] }], us, reg, 125, { double: true });
-      B.box(tr([0, 0.236, -0.004]), [0.028, 0.03, 0.2], new THREE.Matrix4().makeRotationX(0.12), reg, [H, 1], [0.4, 0.6, 0.6, 1]);
       break;
     }
     case 'helmet': {

@@ -427,7 +427,7 @@ G.c_underwear = {
 function openFront(S: Surf, P: Paint, inner: number) {
   // the open front shows the layer underneath as a strip down the middle
   void inner;
-  for (const k of [-1, 1]) vline(S, k * 9, 1.46, P.sh.outerHem, P.R[1], 0.9);
+  for (const k of [-1, 1]) vline(S, k * 11, 1.46, P.sh.outerHem, P.R[2], 0.55);
 }
 G.c_jacket = {
   torso: (S, P) => {
@@ -549,7 +549,7 @@ function pantsLeg(S: Surf, P: Paint, k: Weave, o: PantsOpt) {
   vline(S, -90, -0.02, hemY, P.R[2], 0.4);
   if (o.jeans) { stitch(S, 96, 0.0, hemY, mixHex(P.R[3], 0xc8803a, 0.45)); for (let y = Math.round(S.Y(-0.38)); y < S.Y(-0.5); y++) for (let x = Math.round(S.X(-25)); x < S.X(25); x++) if (ph(x, y, 9) < 0.45) S.pc.blend(x, y, P.R[6], 0.45); }
   if (o.crease) vline(S, 0, -0.02, hemY, P.R[6], 0.5);
-  if (o.cargo) pocket(S, P, 80, -0.2, 6, 7, true);
+  if (o.cargo) pocket(S, P, 80, P.sh.legKind === 'shorts' ? -0.06 : -0.2, 6, P.sh.legKind === 'shorts' ? 5 : 7, true);
   if (hemY < -0.5) {
     wrinkles(S, P, [140, 220], -0.4, -0.5, 4, P.seed + 3);
     wrinkles(S, P, [-40, 40], -0.74, -0.82, 3, P.seed + 4);
@@ -575,7 +575,14 @@ G.c_skirt = {
   },
 };
 G.c_pajama.pelvis = (S, P) => pantsTorso(S, P, 'cotton', { elastic: true });
-G.c_uniform.pelvis = (S, P) => { if (!(P.lp.item || '').includes('janitor')) pantsTorso(S, P, 'canvas', {}); };
+G.c_uniform.pelvis = (S, P) => {
+  if (!(P.lp.item || '').includes('janitor')) { pantsTorso(S, P, 'canvas', {}); return; }
+  // coveralls: one piece down to the crotch, zip continues
+  cloth(S, P, 'canvas', 1.0, 0.8);
+  const x = Math.round(S.X(0) - 0.5);
+  for (let y = Math.round(S.Y(1.0)); y < S.Y(0.87); y++) S.pc.set(x, y, y % 2 ? 0xa8acb0 : 0x6a6e74);
+  for (const d of [-150, 150]) pocket(S, P, d, 0.95, 6, 5);
+};
 
 // ---- socks (feet: c_shirt), shoes
 function sockFoot(S: Surf, P: Paint) {

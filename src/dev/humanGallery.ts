@@ -73,6 +73,9 @@ const HOLD_SET: Spec[] = [
   { label: 'spear', wear: ['tshirt', 'jeans', 'sneakers'], hold: 'spear_wood', aim: true },
 ];
 
+const FULL_SET: Spec[] = (['sit', 'kneel', 'lie', 'lie_side', 'carried', 'vault'] as FullBody[]).map((f): Spec => ({ label: f, wear: ['shirt_office', 'jeans', 'sneakers'], full: f }))
+  .concat([{ label: 'swim', wear: ['tshirt', 'shorts'], stance: 'swim', speed: 1 }, { label: 'hardhat', wear: ['tshirt', 'jeans', 'boots_work', 'hard_hat', 'gloves_work'] }, { label: 'helmet', wear: ['tshirt', 'jeans', 'sneakers', 'helmet_bike', 'swim_goggles'] }]);
+
 function pickHold(keys: string[]) { for (const k of keys) if (hasItemDef(k)) return k; return ''; }
 
 /** co-op mirror check: a local survivor and a remote copy driven only by its netState() snapshots */
@@ -107,12 +110,48 @@ export async function netMirror(g: { pr: any; z: any; tgt: THREE.Vector3 }) {
   (window as any).__net = { A, B };
 }
 
+/** gait filmstrip: the same survivor at 8 phases of a cycle, seen from the side */
+export async function filmstrip(g: { pr: any; z: any; tgt: THREE.Vector3 }, speed = 2, stance: Stance = 'stand', wear = ['tshirt', 'jeans', 'sneakers'], extra?: (p: Player) => void) {
+  const app = randomAppearance(() => 0.37);
+  const ps: Player[] = [];
+  for (let i = 0; i < 8; i++) {
+    const p = new Player('f' + i, 'f' + i, app, false);
+    for (const k of wear) if (hasItemDef(k)) { const it = createItem(k); p.inv.add(it); p.wear(it); }
+    extra?.(p);
+    p.speed = speed; p.stance = stance; p.x = 3 + i * 0.75; p.z = 5; p.facing = -Math.PI / 4; // side-on to the camera
+    p.anim.phase = (i / 8) * Math.PI * 2;
+    g.pr.scene.add(p.rig.root); ps.push(p);
+  }
+  g.tgt.set(3 + 3.5 * 0.75, 0.9, 5);
+  let last = performance.now();
+  const tick = () => { const now = performance.now(); const dt = Math.min(0.05, (now - last) / 1000); last = now; for (const p of ps) { p.updateVisual(dt); p.anim.phase -= (p.speed / 1.42) * Math.PI * 2 * dt * 0.999; } requestAnimationFrame(tick); };
+  tick();
+}
+
+/** an action at 8 moments of its cycle (side view) */
+export async function actionStrip(g: { pr: any; z: any; tgt: THREE.Vector3 }, action: ActionAnim, hold = '', dur = 1.0, facing = -Math.PI / 4) {
+  const app = randomAppearance(() => 0.37);
+  const ps: Player[] = [];
+  for (let i = 0; i < 8; i++) {
+    const p = new Player('s' + i, 's' + i, app, false);
+    for (const k of ['tshirt', 'jeans', 'sneakers']) { const it = createItem(k); p.inv.add(it); p.wear(it); }
+    if (hold && hasItemDef(hold)) { const it = createItem(hold); p.inv.add(it); p.equip(it, 'R'); }
+    p.x = 3 + i * 0.85; p.z = 5; p.facing = facing; p.actionAnim = action; p.actionDur = dur;
+    g.pr.scene.add(p.rig.root); ps.push(p);
+  }
+  g.tgt.set(3 + 3.5 * 0.85, 1.0, 5);
+  let last = performance.now();
+  const tick = () => { const now = performance.now(); const dt = Math.min(0.05, (now - last) / 1000); last = now; ps.forEach((p, i) => { p.actionT = (i / 8) * dur; (p as any).visT = p.actionT; (p as any).lastAnim = action; p.updateVisual(dt); }); requestAnimationFrame(tick); };
+  tick();
+}
+
 export async function populate(g: { pr: any; z: any; tgt: THREE.Vector3 }, set = 'lineup', opts: { cols?: number; spacing?: number; seed?: number; only?: number[]; facing?: number } = {}) {
   let specs = set === 'anim' ? ANIMS : OUTFITS;
   if (set === 'emotes') specs = EMOTE_SET;
   if (set === 'cond') specs = COND_SET;
   if (set === 'hair') specs = HAIR_SET;
   if (set === 'hold') specs = HOLD_SET;
+  if (set === 'full') specs = FULL_SET;
   if (opts.only) specs = opts.only.map((i) => specs[i]);
   const rng = new Rng(opts.seed ?? 7);
   const cols = opts.cols ?? 6, sp = opts.spacing ?? 1.6;

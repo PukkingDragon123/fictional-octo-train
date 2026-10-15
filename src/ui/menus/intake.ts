@@ -212,9 +212,23 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       updateId();
     };
     const refreshOutfit = (react = '') => {
+      shownOcc = occ;
+      hudTL.innerHTML = 'SUBJECT VIEW · <b>CAM 01</b>';
       const { outfit, held } = outfitFor(occ);
       preview.setOutfit(outfit, held);
       if (react) preview.react(react);
+    };
+    // hovered occupation previews its outfit on the subject (debounced: rebuilding a rig costs a few ms)
+    let shownOcc = '', previewT = 0;
+    const previewOutfit = (key: string) => {
+      clearTimeout(previewT);
+      previewT = window.setTimeout(() => {
+        if (key === shownOcc) return;
+        shownOcc = key;
+        const { outfit, held } = outfitFor(key);
+        preview.setOutfit(outfit, held);
+        hudTL.innerHTML = key === occ ? 'SUBJECT VIEW · <b>CAM 01</b>' : `PREVIEW · <b>${esc(occupationByKey(key).name.toUpperCase())}</b>`;
+      }, 90);
     };
     const flashScan = () => { scanline.classList.remove('on'); void scanline.offsetWidth; scanline.classList.add('on'); };
 
@@ -358,10 +372,19 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
             : `<div class="pf-lock">${LOCK}<span>LOCKED · ${esc(o.unlock?.hint || 'Not yet available.')}</span></div>`);
         if (!avail) b.setAttribute('aria-disabled', 'true');
         hoverFocus(b);
+        // hover / focus preview: try the kit on before committing
+        if (avail) {
+          const tryOn = () => previewOutfit(o.key);
+          b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') tryOn(); });
+          b.addEventListener('focus', tryOn);
+          b.addEventListener('pointerleave', () => previewOutfit(occ));
+          b.addEventListener('blur', () => previewOutfit(occ));
+        }
         b.onclick = () => {
           if (!avail) { sfx('error'); b.classList.remove('deny'); void b.offsetWidth; b.classList.add('deny'); return; }
           if (occ === o.key) return;
           occ = o.key;
+          shownOcc = '';
           sfx('confirm');
           grid.querySelectorAll('.pf-occ').forEach((x) => x.classList.toggle('on', x === b));
           refreshOutfit('look'); flashScan();
@@ -525,6 +548,6 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     nav = new FocusNav(f.el, { onBack: () => close(null), onTab: (d) => t.select(t.index + d), autofocus: false });
     if (!matchMedia('(pointer: coarse)').matches) requestAnimationFrame(() => t.buttons[0]?.focus({ preventScroll: true }));
     sfx('open');
-    (window as any).__intake = { preview, randomizeAll, tabs: t, submit };
+    if (import.meta.env.DEV) (window as any).__intake = { preview, randomizeAll, tabs: t, submit };
   });
 }

@@ -34,6 +34,8 @@ export class Surf {
   seed: number;
   /** extra shading term per pixel in ramp steps (baked occlusion) */
   light: (x: number, y: number) => number = () => 0;
+  /** scales the occlusion for the next fills (skin wants it softer than cloth) */
+  lightMul = 1;
   constructor(key: RegKey, range: number[], side: number, seed: number) {
     const r = REG[key];
     this.key = key; this.w = r.w; this.h = r.h; this.range = range; this.side = side; this.seed = seed;
@@ -57,7 +59,7 @@ export class Surf {
     const a = Math.max(0, Math.floor(y0)), b = Math.min(this.h, Math.ceil(y1));
     for (let y = a; y < b; y++) for (let x = 0; x < this.w; x++) {
       if (mask && !mask(x, y)) continue;
-      this.put(x, y, R, fn(x, y) + this.light(x, y) * Math.min(1.2, R.length / 8));
+      this.put(x, y, R, fn(x, y) + this.light(x, y) * Math.min(1.2, R.length / 8) * this.lightMul);
     }
   }
   /** horizontal wrapped line across the whole circumference */
@@ -92,7 +94,9 @@ const SKIN_MID = 5.6;
 // ------------------------------------------------------------------ body skin
 function paintSkinBody(S: Surf, K: Skin) {
   const R = K.R;
-  S.fill(R, (x, y) => SKIN_MID + (S.fbm(x, y, 3, 2, 3) - 0.5) * 0.5 + (ph(x, y, K.seed) - 0.5) * 0.12);
+  S.lightMul = 0.7;
+  S.fill(R, (x, y) => SKIN_MID + (S.fbm(x, y, 3, 2, 3) - 0.5) * 0.45 + (ph(x, y, K.seed) - 0.5) * 0.1);
+  S.lightMul = 1;
 }
 
 function torsoLight(S: Surf, fem: number) {
@@ -174,12 +178,16 @@ function paintHead(S: Surf, K: Skin, o: Outfit, sh: OutfitShape, cond: RigCondit
     if (yy > cheekTop) return 0;
     return 1;
   };
-  const stubble = fh === 'stubble' ? 0.75 : fh === 'beard' || fh === 'goatee' || fh === 'moustache' ? 0.35 : Math.max(0, 0.5 - fem) * 0.25;
+  const stubble = fh === 'stubble' ? 0.8 : fh === 'beard' || fh === 'goatee' || fh === 'moustache' ? 0.4 : Math.max(0, 0.5 - fem) * 0.3;
   if (stubble > 0) {
-    const sc = mixHex(R[5], scaleHex(hairC, 0.75), 0.25 + stubble * 0.3);
+    // a cool shadow over the beard area, flecked with darker hair dots
+    const shadow = mixHex(R[4], 0x4a5058, 0.18 + stubble * 0.12);
+    const dot = mixHex(mixHex(R[3], 0x30343a, 0.3), scaleHex(hairC, 0.7), 0.45);
     for (let y = 0; y < S.h; y++) for (let x = 0; x < S.w; x++) {
       const a = beardArea(S.deg(x), S.yAt(y));
-      if (a > 0 && ph(x, y, K.seed + 7) < a * stubble * 0.5) S.pc.blend(x, y, sc, 0.55 + stubble * 0.3);
+      if (a <= 0) continue;
+      S.pc.blend(x, y, shadow, a * (0.25 + stubble * 0.35));
+      if (bayer(x, y) < a * stubble * 0.45) S.pc.blend(x, y, dot, 0.6);
     }
   }
   // ---- scalp under the hair: paint hair colour above the hairline so gaps never show skin

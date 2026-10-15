@@ -367,7 +367,11 @@ export class HumanAnimator {
 
     // ---------------- full-body states
     let full = inp.full;
-    if (full !== this.prevFull) { this.fullT = 0; this.prevFull = full; }
+    if (full !== this.prevFull) {
+      // already on the ground (crawling, or downed before dying): skip the fall / collapse
+      this.fullT = (full === 'downed' || full === 'dead') && (this.crawlW > 0.3 || this.prevFull === 'downed') ? 5 : 0;
+      this.prevFull = full;
+    }
     this.fullT += dt;
     if (full) this.lastFull = full;
     this.fullW = lerp(this.fullW, full ? 1 : 0, 1 - Math.exp(-(full === 'dead' || full === 'downed' ? 14 : 8) * dt));
@@ -577,7 +581,7 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
       const kick = a === 'shoot' ? (u < 0.12 ? u / 0.12 : 1 - ease((u - 0.12) / 0.88)) : 0;
       const sway = Math.sin(time * 1.3) * 0.015 * (1 + (inp.panic ?? 0) * 4) + Math.sin(time * 23) * 0.01 * (inp.panic ?? 0);
       set(P, 'uarmR', -1.5 - ap * 0.5 - kick * 0.3 + sway, 0.18, -0.08); set(P, 'farmR', -0.08 - kick * 0.3, 0, 0); set(P, 'handR', -0.05 + kick * 0.5, 0, 0);
-      set(P, 'uarmL', -1.38 - ap * 0.5 - kick * 0.25 + sway, -0.62, 0.25); set(P, 'farmL', -0.6, 0.2, 0); set(P, 'handL', 0, 0, 0.5);
+      set(P, 'uarmL', -1.42 - ap * 0.5 - kick * 0.25 + sway, -0.62, 0.12); set(P, 'farmL', -0.22, 0.2, 0); set(P, 'handL', 0, 0, 0.5);
       set(P, 'chest', 0.02 - kick * 0.05, -0.12, 0); set(P, 'spine', 0.04, 0, 0); set(P, 'head', 0.05, 0.14, 0.04);
       P.gripR = 1; P.gripL = 0.8;
       stanceLegs(0.6);

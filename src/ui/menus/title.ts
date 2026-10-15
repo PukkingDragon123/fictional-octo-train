@@ -100,7 +100,7 @@ class TitleMenu {
     this.nav = new FocusNav(this.panel, { onBack: () => this.setSide(null) });
     listSaves().then((s) => { this.saves = s; this.main(); }).catch(() => this.main());
     this.main(true);
-    (window as any).__title = this;
+    if (import.meta.env.DEV) (window as any).__title = this;
   }
   private logo() {
     return h('div', 't-logo', '<div class="t-logo-t" data-t="NOCLIP">NOCLIP</div><div class="t-logo-s">continuity survival simulation · <b>meridian institute</b> 1987</div>');
