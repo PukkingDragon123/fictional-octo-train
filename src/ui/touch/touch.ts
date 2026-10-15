@@ -76,7 +76,7 @@ export class TouchControls implements GameSystem {
   // attack button
   private atk: { id: number; x0: number; y0: number; dx: number; dy: number; drag: boolean } | null = null;
   private aimTarget: any = null;
-  private fireQueued = false; private fireDeadline = 0; private aimHoldUntil = 0;
+  private fireQueued = false; private fireDeadline = 0; private fireFrames = 0; private aimHoldUntil = 0;
   // use button
   private useTarget: PickTarget | null = null; private useT = 0; private useLabel = '';
   private useHold: { timer: number; fired: boolean } | null = null;
@@ -608,6 +608,7 @@ export class TouchControls implements GameSystem {
     if (cancelled) return;
     this.fireQueued = true;
     this.fireDeadline = performance.now() + 700;
+    this.fireFrames = 0;
   }
   private cancelAttack() {
     if (!this.atk && !this.fireQueued && !this.aimHoldUntil && !this.g.input.touchAim) return;
@@ -621,7 +622,8 @@ export class TouchControls implements GameSystem {
     if (this.fireQueued) {
       const cur = p.actions.current;
       const busy = cur?.started && cur.locks;
-      if (now > this.fireDeadline || p.body.dead || p.inVehicle) this.fireQueued = false;
+      // a strike waits out the cooldown briefly (at least a few frames, however slow they are)
+      if ((now > this.fireDeadline && ++this.fireFrames > 3) || p.body.dead || p.inVehicle) this.fireQueued = false;
       else if (p.aiming && p.attackCooldown <= 0 && !busy && !this.g.ui?.menuEl) {
         const ta = inp.touchAim;
         if (ta) p.facing = p.targetFacing = Math.atan2(ta.z - p.z, ta.x - p.x); // auto-aim snaps the swing
