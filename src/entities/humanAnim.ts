@@ -27,7 +27,21 @@ export type ActionAnim =
   | '' | 'aim_melee' | 'aim_gun' | 'aim_throw' | 'swing' | 'swing2h' | 'stab' | 'shoot' | 'throw' | 'shove' | 'eat' | 'drink'
   | 'loot' | 'pickup' | 'craft' | 'hammer' | 'saw' | 'read' | 'scanner' | 'carry' | 'push' | 'bandage' | 'dig' | 'pour'
   | 'flinch' | 'shiver' | 'cough' | 'wave' | 'hold_light' | 'hold_item' | 'type' | 'pray' | 'cover_ears' | 'reload'
-  | 'stitch' | 'cook' | 'mix' | 'breathe' | 'panic' | `emote:${string}`;
+  | 'stitch' | 'cook' | 'mix' | 'breathe' | 'panic' | `emote:${string}`
+  /** held by a creature, pulled, the limb tears away (limb loss) */
+  | 'torn_arm_l' | 'torn_arm_r' | 'torn_leg_l' | 'torn_leg_r';
+
+/** missing limbs and what replaces them (src/survival/limbs.ts) */
+export interface AnimLimbs {
+  /** loss level per limb: 0 whole, 1 hand / foot, 2 forearm / lower leg, 3 the whole limb */
+  armL: number; armR: number; legL: number; legR: number;
+  gait: 'walk' | 'peg' | 'prosthetic' | 'crutch' | 'hop' | 'crawl';
+  /** the right hand is gone: the left takes over (the whole pose is mirrored) */
+  mirror: boolean;
+  crutchL: boolean; crutchR: boolean;
+  pegL: boolean; pegR: boolean;
+  hookL?: boolean; hookR?: boolean;
+}
 
 export interface AnimInput {
   speed: number;          // horizontal m/s
@@ -59,6 +73,32 @@ export interface AnimInput {
   unconscious?: boolean;
   /** allow idle fidgets (false for remote players far away etc.) */
   fidget?: boolean;
+  /** limb loss: missing limbs, crutches, pegs (hop / crutch gaits, one-armed mirroring) */
+  limbs?: AnimLimbs;
+}
+
+const MIRROR_J: Record<JointName, JointName> = {
+  hips: 'hips', spine: 'spine', chest: 'chest', neck: 'neck', head: 'head',
+  uarmL: 'uarmR', farmL: 'farmR', handL: 'handR', uarmR: 'uarmL', farmR: 'farmL', handR: 'handL',
+  thighL: 'thighR', shinL: 'shinR', footL: 'footR', thighR: 'thighL', shinR: 'shinL', footR: 'footL',
+};
+const MIRROR_ACT: Record<string, ActionAnim> = { torn_arm_l: 'torn_arm_r', torn_arm_r: 'torn_arm_l', torn_leg_l: 'torn_leg_r', torn_leg_r: 'torn_leg_l' };
+/** the same input seen in a mirror (left and right swapped) */
+function mirrorInput(i: AnimInput): AnimInput {
+  const L = i.limbs!;
+  return {
+    ...i, limpSide: i.limpSide === 'L' ? 'R' : i.limpSide === 'R' ? 'L' : undefined, armHurtL: i.armHurtR, armHurtR: i.armHurtL,
+    turn: -(i.turn ?? 0), lookYaw: -i.lookYaw, action: (MIRROR_ACT[i.action] ?? i.action) as ActionAnim,
+    limbs: { ...L, armL: L.armR, armR: L.armL, legL: L.legR, legR: L.legL, crutchL: L.crutchR, crutchR: L.crutchL, pegL: L.pegR, pegR: L.pegL, hookL: L.hookR, hookR: L.hookL },
+  };
+}
+/** mirror a pose across the body's centre plane: swap sides, negate yaw and roll */
+function mirrorPose(p: Pose): Pose {
+  const q: Pose = { ...p };
+  for (const j of Object.keys(MIRROR_J) as JointName[]) { const v = p[j]; q[MIRROR_J[j]] = v ? [v[0], -v[1], -v[2]] : undefined; }
+  q.rootX = -(p.rootX ?? 0); q.bodyYaw = -(p.bodyYaw ?? 0); q.bodyRoll = -(p.bodyRoll ?? 0);
+  q.gripL = p.gripR; q.gripR = p.gripL;
+  return q;
 }
 
 type V = [number, number, number];
@@ -116,6 +156,8 @@ export class HumanAnimator {
   get emoteState(): { name: string; t: number } | null { return this.emote ? { name: this.emote.name, t: this.emote.t } : null; }
 
   update(dt: number, inp: AnimInput): Pose {
+    // one-armed with the right hand gone: animate the mirror image (the left does what the right would)
+    if (inp.limbs?.mirror) { const mi = mirrorInput(inp); mi.limbs!.mirror = false; return (this.pose = mirrorPose(this.update(dt, mi))); }
     this.time += dt;
     const t = this.time;
     const k8 = 1 - Math.exp(-8 * dt), k12 = 1 - Math.exp(-12 * dt);
@@ -215,6 +257,8 @@ export class HumanAnimator {
       const qw = Math.max(this.swimW, this.crawlW);
       blend(p, q, qw, ALL);
       for (const k of SCALARS) if (q[k] !== undefined) (p as any)[k] = lerp((p as any)[k] ?? 0, q[k] as number, qw);
+    } else if (inp.limbs && (inp.limbs.gait === 'hop' || inp.limbs.gait === 'crutch')) {
+      this.oneLegged(p, inp, dt, sp, moving);
     } else {
       // walk / run / sneak cycle (left leg phase = ph, right = ph + PI)
       const sL = Math.sin(ph), cL = Math.cos(ph);
@@ -225,7 +269,8 @@ export class HumanAnimator {
         const thigh = -s * amp;
         // knee: big bend mid-swing (thigh moving forward), small bend on loading
         const swing = Math.pow(Math.max(0, Math.cos(Math.atan2(s, c) + 0.35 * r)), 1.4);
-        const knee = (swing * (0.95 + r * 1.05) + Math.exp(-((Math.atan2(s, c) - 1.9) ** 2) * 3) * 0.16 * (1 - r)) * w * (inj ? 1 - limp * 0.55 : 1);
+        const stiff = inp.limbs && (side === 'L' ? inp.limbs.pegL && inp.limbs.legL >= 2 : inp.limbs.pegR && inp.limbs.legR >= 2);
+        const knee = (swing * (0.95 + r * 1.05) + Math.exp(-((Math.atan2(s, c) - 1.9) ** 2) * 3) * 0.16 * (1 - r)) * w * (inj ? 1 - limp * 0.55 : 1) * (stiff ? 0.12 : 1);
         // foot: flat in stance, heel-strike dorsiflexion, toe-off push
         const toeOff = Math.exp(-((Math.atan2(-s, -c) - 0.25) ** 2) * 6) * (0.45 + r * 0.25);
         const heel = Math.exp(-((Math.atan2(s, c) - 1.45) ** 2) * 8) * 0.28;
@@ -367,6 +412,8 @@ export class HumanAnimator {
       const mask = a.mask || UPPER;
       blend(p, a.pose, this.actW, mask);
       if (a.pose.rootY !== undefined) p.rootY = lerp(p.rootY ?? 0, a.pose.rootY, this.actW);
+      if (a.pose.rootZ !== undefined) p.rootZ = lerp(p.rootZ ?? 0, a.pose.rootZ, this.actW);
+      if (a.pose.bodyPitch !== undefined) p.bodyPitch = lerp(p.bodyPitch ?? 0, a.pose.bodyPitch, this.actW);
       if (a.pose.gripL !== undefined) p.gripL = lerp(p.gripL ?? 0, a.pose.gripL, this.actW);
       if (a.pose.gripR !== undefined) p.gripR = lerp(p.gripR ?? 0, a.pose.gripR, this.actW);
       if (a.pose.blink !== undefined && this.actW > 0.5) p.blink = a.pose.blink;
@@ -410,6 +457,69 @@ export class HumanAnimator {
     return p;
   }
 }
+
+export interface HumanAnimator {
+  /** hopping on one leg, or swinging through on crutches (limb loss) */
+  oneLegged(p: Pose, inp: AnimInput, dt: number, sp: number, moving: boolean): void;
+}
+HumanAnimator.prototype.oneLegged = function (this: HumanAnimator & { hopPh?: number }, p: Pose, inp: AnimInput, dt: number, sp: number, moving: boolean) {
+  const L = inp.limbs!;
+  // the leg you cannot stand on (missing, no prosthetic) and the good one
+  const M: 'L' | 'R' = L.legL > 0 && !L.pegL ? 'L' : 'R';
+  const G: 'L' | 'R' = M === 'L' ? 'R' : 'L';
+  const gs = G === 'L' ? 1 : -1;
+  const lvM = M === 'L' ? L.legL : L.legR;
+  const crutch = L.gait === 'crutch';
+  const both = L.crutchL && L.crutchR;
+  const stride = crutch ? 0.8 : 0.42;
+  this.hopPh = (this.hopPh ?? 0) + (moving ? (sp / stride) * Math.PI * 2 * dt : 0);
+  const h = this.hopPh, s = Math.sin(h), c = Math.cos(h);
+  const w = clamp(sp / 0.6, 0, 1);
+  const T = (x: 'L' | 'R', j: 'thigh' | 'shin' | 'foot') => (j + x) as JointName;
+  // the stump leg: tucked up out of the way (a whole-leg loss has no thigh to tuck)
+  if (lvM < 3) { add(p, T(M, 'thigh'), -0.38 - (moving ? 0.08 * s * w : 0), 0, -gs * 0.04); if (lvM < 2) { add(p, T(M, 'shin'), 1.05, 0, 0); add(p, T(M, 'foot'), 0.4, 0, 0); } }
+  // weight over the good leg
+  add(p, 'hips', 0, 0, gs * 0.06);
+  p.rootX = (p.rootX ?? 0) + gs * 0.03;
+  if (!crutch) {
+    // hop: compress on landing, spring, straight in the air; arms out for balance
+    const air = Math.max(0, s) * w, load = Math.max(0, -s) * w;
+    add(p, T(G, 'thigh'), -0.12 - load * 0.38 + air * 0.12, 0, gs * 0.02);
+    add(p, T(G, 'shin'), 0.12 + load * 0.75, 0, 0);
+    add(p, T(G, 'foot'), -0.05 - load * 0.36 + air * 0.3, 0, 0);
+    p.rootY = -0.03 + air * 0.08 - load * 0.1;
+    const out = 0.22 + w * 0.2 + air * 0.25;
+    add(p, 'uarmL', -0.2 * w + air * 0.2, 0, out); add(p, 'uarmR', -0.2 * w + air * 0.2, 0, -out);
+    add(p, 'farmL', -0.3, 0, 0); add(p, 'farmR', -0.3, 0, 0);
+    add(p, 'spine', 0.08 + 0.12 * w + load * 0.12, 0, gs * 0.06);
+    add(p, 'head', -0.06 * w, 0, -gs * 0.04);
+    return;
+  }
+  // crutches: plant them ahead with the stump, swing the good leg through
+  const reach = moving ? -0.3 - 0.26 * s : -0.12;
+  for (const side of ['L', 'R'] as const) {
+    const has = side === 'L' ? L.crutchL : L.crutchR;
+    const k = side === 'L' ? 1 : -1;
+    if (has) {
+      set(p, ('uarm' + side) as JointName, reach, 0, k * 0.16);
+      set(p, ('farm' + side) as JointName, -0.12 - (moving ? Math.max(0, c) * 0.15 : 0), 0, 0);
+      set(p, ('hand' + side) as JointName, 0.12, 0, k * 0.05);
+      if (side === 'L') p.gripL = 1; else p.gripR = 1;
+    } else if (!both) {
+      add(p, ('uarm' + side) as JointName, moving ? 0.2 * s * w : 0, 0, k * 0.05);
+    }
+  }
+  if (moving) {
+    const thigh = 0.28 * s - 0.08;
+    const knee = Math.max(0, -c) * 0.75 * w + 0.08;
+    add(p, T(G, 'thigh'), thigh * w, 0, 0);
+    add(p, T(G, 'shin'), knee, 0, 0);
+    add(p, T(G, 'foot'), -(thigh * w + knee) * 0.7, 0, 0);
+    p.rootY = -0.035 - Math.abs(c) * 0.03 * w;
+  } else p.rootY = -0.02;
+  add(p, 'spine', 0.14 + 0.06 * w, 0, 0);
+  add(p, 'chest', 0.04, 0, 0);
+};
 
 function blend(p: Pose, q: Pose, w: number, mask: JointName[]) {
   for (const j of mask) {
@@ -619,6 +729,53 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
       P.gripR = 1; P.gripL = 0.8;
       stanceLegs(0.6);
       return { pose: P, mask: WITH_LEGS };
+    }
+    case 'torn_arm_l': case 'torn_arm_r': {
+      const side = a.endsWith('_l') ? 'L' : 'R', o = side === 'L' ? 'R' : 'L', k = side === 'L' ? 1 : -1;
+      const ripT = Math.max(0.3, dur - 0.7);
+      const jerk = Math.sin(t * 24) * 0.05 + Math.sin(t * 13 + 1) * 0.05;
+      if (t < ripT) {
+        const pull = clamp(t / ripT, 0, 1);
+        // the arm dragged out ahead, the body hauled forward but leaning back against it, the free hand clawing at it
+        set(P, ('uarm' + side) as JointName, -1.4 - pull * 0.25 + jerk, 0, k * 0.15); set(P, ('farm' + side) as JointName, -0.05, 0, 0); set(P, ('hand' + side) as JointName, 0.3, 0, 0);
+        set(P, ('uarm' + o) as JointName, -1.25 + jerk, k * 0.7, -k * 0.2); set(P, ('farm' + o) as JointName, -1.0 - jerk * 2, 0, 0); set(P, ('hand' + o) as JointName, 0.3, 0, 0);
+        set(P, 'spine', -0.18 + pull * 0.12 + jerk * 0.6, k * 0.22, 0); set(P, 'chest', -0.06, k * 0.18, jerk); set(P, 'head', -0.3 + jerk, -k * 0.25, 0);
+        set(P, ('thigh' + side) as JointName, -0.45 - jerk, 0, k * 0.08); set(P, ('shin' + side) as JointName, 0.35, 0, 0); set(P, ('foot' + side) as JointName, 0.1, 0, 0);
+        set(P, ('thigh' + o) as JointName, 0.38, 0, -k * 0.08); set(P, ('shin' + o) as JointName, 0.35 + jerk, 0, 0); set(P, ('foot' + o) as JointName, -0.3, 0, 0);
+        P.rootY = -0.08 - pull * 0.06; P.rootZ = 0.06 * pull + jerk * 0.4; P.gripL = 0.9; P.gripR = 0.9;
+      } else {
+        const r = ease((t - ripT) / 0.7);
+        // it gives: staggering back, the stump clutched to the chest, doubled over
+        set(P, ('uarm' + side) as JointName, -0.5, -k * 0.6, k * 0.1); set(P, ('farm' + side) as JointName, -1.7, 0, 0);
+        set(P, ('uarm' + o) as JointName, -0.75, k * 0.85, -k * 0.25); set(P, ('farm' + o) as JointName, -1.9, 0, 0); set(P, ('hand' + o) as JointName, 0.3, 0, 0);
+        set(P, 'spine', 0.15 + 0.4 * r, 0, 0); set(P, 'chest', 0.15, 0, 0); set(P, 'head', 0.35, 0, 0);
+        set(P, 'thighL', -0.3 * r, 0, 0.06); set(P, 'shinL', 0.55 * r, 0, 0); set(P, 'thighR', -0.15 * r, 0, -0.06); set(P, 'shinR', 0.45 * r, 0, 0);
+        P.rootY = -0.06 - 0.1 * r; P.rootZ = -0.12 * (1 - r) - 0.05; P.gripL = 1; P.gripR = 1;
+      }
+      return { pose: P, mask: ALL };
+    }
+    case 'torn_leg_l': case 'torn_leg_r': {
+      const side = a.endsWith('_l') ? 'L' : 'R', o = side === 'L' ? 'R' : 'L', k = side === 'L' ? 1 : -1;
+      const ripT = Math.max(0.3, dur - 0.7);
+      const jerk = Math.sin(t * 22) * 0.06 + Math.sin(t * 11 + 2) * 0.05;
+      const down = ease(clamp(t / 0.35, 0, 1));
+      // yanked off your feet onto your back, the leg hauled out straight; you claw at the floor
+      P.rootY = -0.62 * down; P.bodyPitch = -0.35 * down;
+      set(P, ('thigh' + side) as JointName, -1.45 - jerk, 0, k * 0.1); set(P, ('shin' + side) as JointName, 0.05, 0, 0); set(P, ('foot' + side) as JointName, 0.3, 0, 0);
+      set(P, ('thigh' + o) as JointName, -1.1, 0, -k * 0.2); set(P, ('shin' + o) as JointName, 1.5 + jerk, 0, 0); set(P, ('foot' + o) as JointName, -0.2, 0, 0);
+      if (t < ripT) {
+        P.rootZ = jerk * 0.6 + 0.08 * clamp(t / ripT, 0, 1);
+        set(P, 'uarmL', 0.55 + jerk, 0, 0.45); set(P, 'uarmR', 0.55 - jerk, 0, -0.45); set(P, 'farmL', -0.35, 0, 0); set(P, 'farmR', -0.35, 0, 0);
+        set(P, 'spine', -0.2, k * 0.15, 0); set(P, 'head', 0.25 + jerk, -k * 0.3, 0);
+      } else {
+        const r = ease((t - ripT) / 0.7);
+        // curled around what is left, both hands on it
+        set(P, 'uarmL', -0.9 * r, 0, 0.25); set(P, 'uarmR', -0.9 * r, 0, -0.25); set(P, 'farmL', -1.2 * r, 0, 0); set(P, 'farmR', -1.2 * r, 0, 0);
+        set(P, 'spine', 0.45 * r, 0, 0); set(P, 'head', 0.5 * r, 0, 0);
+        P.rootZ = -0.05;
+      }
+      P.gripL = 1; P.gripR = 1;
+      return { pose: P, mask: ALL };
     }
     case 'aim_throw':
       set(P, 'uarmR', -2.5, 0.2, -0.45); set(P, 'farmR', -1.3, 0, 0); set(P, 'handR', -0.4, 0, 0);

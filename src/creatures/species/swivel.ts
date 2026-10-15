@@ -1,7 +1,9 @@
-import { def, newRig, part, Rig } from '../species';
+import * as THREE from 'three';
+import { def, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
 import { addTextureModule } from '../../gfx/textures/index';
 import { makeRamp, ph } from '../../gfx/pixel';
+import { worldMaterial } from '../../gfx/materials';
 import { tileFbm } from '../../core/rng';
 import { G } from '../../game/G';
 import { queueAt } from '../../actions/basic';
@@ -10,148 +12,353 @@ import type { Creature } from '../creature';
 import type { ModelBuilder } from '../../gfx/modelBuilder';
 import {
   CS, zoneOf, pulse, attack, nearestPlayer, stop, dist, faceTo, findSpot, objectsNear, walkable, anyPlayerSees,
-  creatureMenu, poke, poked, heardMargin, suppressSighting, galleryPose, lerp,
+  creatureMenu, poke, poked, heardMargin, suppressSighting, galleryPose,
 } from '../behaviors_a';
+import { SkinKit, KRig, tube, blob, spike, damp, approach, clamp01, smooth01, isLost, atkCurve, strikeShape, flinchOf, wrapPi, toLocal, V3 } from '../kit/anomalies';
+import { wetGlints, veins } from '../kit/anomalyTextures';
+import '../kit/anomalyTextures';
+import { creatureMaterial } from '../species';
 
 // =====================================================================================
-// SWIVEL — an office chair that grew a spider into itself. Five caster arms are
-// jointed legs, the seat is a mouth, the armrests are fangs, the "tufting
-// buttons" on the backrest are eyes. Sits among real chairs and bites ankles.
+// SWIVEL — an office chair that grew a spider into itself. Disguised it is the
+// office chair, part for part. Revealed, the caster arms lift into jointed legs
+// on telescoping chrome shins (the casters are its feet, with a hooked claw),
+// the armrests split lengthwise into fanged mandibles, the seat cushion hinges
+// up off a wet, toothed mouth with a tongue, and eight black eyes push out of
+// the backrest where the tufting buttons would be. Sits among real chairs and
+// bites ankles.
 // =====================================================================================
 
 addTextureModule(() => {
   const A = atlas();
-  // the inside of the seat: wet foam, gums and a ring of little flat teeth
+  // the mouth floor under the cushion: gums around the rim, a ribbed wet tongue-bed, the throat at the back
   A.add('c_swivel_maw', 32, 32, (pc) => {
     pc.wrap = false;
-    const R = makeRamp(0x6a1e22, 6, { hueShift: -0.03 });
-    pc.fillRamp(R, (x, y) => { const d = Math.hypot(x - 15.5, y - 15.5) / 16; return 0.15 + d * 0.7 + (tileFbm(x, y, 32, 32, 3, 2, 4) - 0.5) * 0.15; }, 0.8);
-    pc.ellipse(15.5, 15.5, 5, 4, 0x140406); // throat
-    // ribbed palate
-    for (let r = 7; r < 13; r += 2) for (let a = 0; a < 40; a++) { const t = (a / 40) * Math.PI * 2; pc.blend(Math.round(15.5 + Math.cos(t) * r), Math.round(15.5 + Math.sin(t) * r * 0.85), R[0], 0.35); }
-    // foam stuffing around the rim
-    for (let i = 0; i < 32; i++) { pc.set(i, 0, 0xd8c890); pc.set(i, 31, 0xc8b880); pc.set(0, i, 0xd8c890); pc.set(31, i, 0xc8b880); if (ph(i, 3, 2) < 0.5) { pc.set(i, 1, 0xb8a870); pc.set(1, i, 0xb8a870); } }
-    // teeth: small, flat and human
-    for (let i = 3; i < 29; i += 3) { for (const [x, y] of [[i, 3], [i, 28], [3, i], [28, i]]) { pc.rect(x, y, 2, 2, 0xe8e0c8); pc.set(x + 1, y + 1, 0xb8ae96); } }
+    const R = makeRamp(0x7a2026, 9, { hueShift: -0.03, spread: 0.7 });
+    const h = (x: number, y: number) => tileFbm(x, y, 32, 32, 4, 2, 301);
+    pc.fillRamp(R, (x, y) => {
+      const dx = (x - 15.5) / 16, dy = (y - 9) / 18;
+      const d = Math.hypot(dx, dy);
+      const ridge = Math.sin(y * 0.9 + Math.sin(x * 0.4) * 1.2) * 0.5 + 0.5;
+      return 0.05 + d * 0.5 + ridge * 0.14 + (h(x, y) - 0.5) * 0.22;
+    }, 0.7);
+    // the throat: a black hole at the back, folds of darker flesh around it
+    pc.ellipse(15.5, 7, 8, 5.5, 0x3a0a0e); pc.ellipse(15.5, 7, 6, 4, 0x1a0406); pc.ellipse(15.5, 7.4, 4, 2.6, 0x060102);
+    for (let x = 8; x < 24; x++) pc.blend(x, 13 + Math.round(Math.sin(x * 0.8) * 0.8), 0x2a0608, 0.55);
+    veins(pc, 302, 4, 0x3a0a20, 12, 0.45);
+    // torn foam and blue fabric fibres at the rim (where it grew into the chair)
+    for (let i = 0; i < 32; i++) for (const [x, y] of [[i, 0], [0, i], [31, i], [i, 31]]) { pc.set(x, y, ph(i, x + y, 3) < 0.5 ? 0xb8a878 : 0x988858); if (ph(i, 5, x) < 0.3) pc.set(x === 0 ? 1 : x === 31 ? 30 : x, y === 0 ? 1 : y === 31 ? 30 : y, 0x3b4f76); }
+    // saliva pooled in the tongue bed, a few wet glints
+    for (let i = 0; i < 14; i++) { const x = 5 + Math.floor(ph(i, 1, 303) * 22), y = 12 + Math.floor(ph(i, 2, 303) * 16); pc.blend(x, y, 0xe0b0a8, 0.7); pc.blend(x + 1, y, 0xc88a88, 0.4); }
   });
-  // backrest front: office fabric with a cluster of glossy black "buttons"
-  A.add('c_swivel_back', 16, 16, (pc) => {
+  // the cushion's underside: transverse palate ridges, pale and glistening
+  A.add('c_swivel_palate', 32, 32, (pc) => {
     pc.wrap = false;
-    const R = makeRamp(0x4b5f86, 6, { hueShift: 0.02 });
-    pc.fillRamp(R, (x, y) => 0.5 + (((x + y) & 1) ? 0.06 : -0.03) + (tileFbm(x, y, 16, 16, 2, 2, 9) - 0.5) * 0.2 - y * 0.01, 0.7);
-    // tufting buttons in a neat grid... plus two that should not be there. They are all wet.
-    const eyes: [number, number][] = [[4, 4], [11, 4], [4, 10], [11, 10], [7, 7], [8, 7], [6, 12], [10, 6]];
-    for (const [x, y] of eyes) {
-      pc.set(x, y, 0x0c0e18);
-      pc.set(x, y - 1, R[1]); pc.blend(x + 1, y, R[1], 0.6); pc.blend(x - 1, y, R[1], 0.6); // dimple
-    }
-    pc.set(7, 7, 0x9aa8c8); pc.set(10, 6, 0x9aa8c8); // the highlights give them away
-    for (let x = 1; x < 15; x++) pc.blend(x, 15, R[0], 0.5); // seam
+    const R = makeRamp(0x9a4048, 8, { hueShift: -0.03, spread: 0.6 });
+    pc.fillRamp(R, (x, y) => {
+      const ridge = Math.sin(y * 0.95 + Math.sin(x * 0.35) * 1.5) * 0.5 + 0.5;
+      return 0.18 + ridge * 0.4 + (tileFbm(x, y, 32, 32, 4, 2, 311) - 0.5) * 0.2 - Math.abs(x - 15.5) * 0.006;
+    }, 0.6);
+    for (let y = 0; y < 32; y++) pc.blend(15 + (y & 1), y, 0x4a1018, 0.5); // raphe down the middle
+    for (let i = 0; i < 32; i++) for (const [x, y] of [[i, 0], [0, i], [31, i], [i, 31]]) pc.set(x, y, 0xa89868);
+    for (let i = 0; i < 10; i++) pc.blend(4 + Math.floor(ph(i, 1, 312) * 24), 3 + Math.floor(ph(i, 2, 312) * 26), 0xf0c8c0, 0.6);
   });
+  // chitin hook on the casters
+  A.add('c_swivel_chitin', 8, 16, (pc) => {
+    const R = makeRamp(0x2a1a1e, 6, { hueShift: -0.03, spread: 0.55 });
+    pc.fillRamp(R, (x, y) => 0.2 + (y / 16) * 0.45 + (x === 2 ? 0.3 : 0) + (ph(x, y, 7) - 0.5) * 0.1, 0.4);
+    pc.vline(2, 2, 12, 0x8a6a70);
+  }, 8 / 64, 16 / 64);
 });
 
 const FAB = 'fabric_blue', TINT = { color: 0xb4b8c4 };
 const LEG_A = (i: number) => (i / 5) * Math.PI * 2 + 0.31;
-const SHIN = 0.58;
-
-function caster(mb: ModelBuilder, y = 0) {
-  mb.cylinderX(0, y + 0.026, 0, 0.026, 0.024, 6, 'rubber_black');
-  mb.box(0, y + 0.026, 0, 0.034, 0.032, 0.024, 'metal_dark');
-}
+/** spoke (femur) length, telescoping shin length at scale 1 */
+const L1 = 0.27, SHIN = 0.62;
+const HUB_Y = 0.0625;
+/** foot spread and lift when standing */
+const FOOT_R = 0.56, RISE = 0.24;
 
 function buildSwivel(): Rig {
-  const rig = newRig(1.0);
-  const hub = part(rig, 'hub', rig.body, [0, 0.06, 0], (mb) => {
-    mb.cylinder(0, -0.025, 0, 0.05, 0.05, 6, 'plastic_black');
-  });
-  for (let i = 0; i < 5; i++) {
-    const leg = part(rig, 'leg' + i, hub, [0, 0, 0], () => {});
-    leg.rotation.y = LEG_A(i);
-    const th = part(rig, 'thigh' + i, leg, [0, 0, 0], (mb) => {
-      mb.box(0, -0.018, 0.14, 0.045, 0.035, 0.27, 'plastic_black');
-      mb.box(0, 0.0, 0.25, 0.03, 0.012, 0.03, 'chrome'); // knuckle cap
-    });
-    // telescoping inner segment: slides out of the caster arm when it stands up
-    const ext = part(rig, 'ext' + i, th, [0, 0, 0], (mb) => {
-      mb.box(0, -0.016, 0.15, 0.036, 0.028, 0.24, 'metal_dark');
-      mb.box(0, -0.016, 0.265, 0.042, 0.034, 0.03, 'chrome');
-    });
-    const sh = part(rig, 'shin' + i, ext, [0, 0, 0.27], (mb) => {
-      // chrome gas-spring shin with a joint, tapering to the caster
-      mb.box(0, -SHIN, 0, 0.026, SHIN, 0.026, 'chrome');
-      mb.box(0, -SHIN * 0.45, 0, 0.034, 0.05, 0.034, 'metal_dark');
-    });
-    part(rig, 'foot' + i, sh, [0, -SHIN, 0], (mb) => caster(mb, -0.045));
+  const K = new SkinKit(1.0);
+  K.bone('hub', null, [0, HUB_Y, 0]);
+  K.bone('seat', 'hub', [0, 0.385 - HUB_Y, 0]);
+  K.bone('lid', 'seat', [0, 0.44 - 0.385, -0.205]);
+  K.bone('back', 'seat', [0, 0.38 - 0.385, -0.29]);
+  K.bone('eyes', 'back', [0, 0.4427, 0.0062]);
+  K.bone('tongue0', 'seat', [0, 0.456 - 0.385, -0.06]);
+  K.bone('tongue1', 'tongue0', [0, 0, 0.1]);
+  K.bone('tongue2', 'tongue1', [0, 0, 0.1]);
+  for (const s of [-1, 1]) {
+    const a = s < 0 ? 'armL' : 'armR', j = s < 0 ? 'jawL' : 'jawR', f = s < 0 ? 'fangL' : 'fangR';
+    K.bone(a, 'seat', [s * 0.255, 0.41 - 0.385, -0.03]);
+    K.bone(j, a, [0, 0.665 - 0.41, -0.145 + 0.03]);
+    K.bone(f, a, [0, 0.665 - 0.41, -0.01 + 0.03]);
   }
-  const stem = part(rig, 'stem', rig.body, [0, 0.06, 0], (mb) => {
-    mb.cylinder(0, 0.0, 0, 0.022, 0.3, 6, 'chrome');
-    mb.cylinder(0, 0.0, 0, 0.032, 0.1, 6, 'plastic_black');
+  for (let i = 0; i < 5; i++) {
+    const a = LEG_A(i);
+    K.bone('leg' + i, 'hub', [0, 0, 0], [0, a, 0]);
+    K.bone('shin' + i, 'leg' + i, [L1, 0, 0]);
+    K.bone('foot' + i, 'leg' + i, [L1, 0, 0]);
+    K.bone('toe' + i, 'foot' + i, [0, 0.026 - HUB_Y, 0]);
+  }
+
+  // ---------------------------------------------------------------- the chair, exactly as the real one (chair_office)
+  K.body('hub', (mb) => {
+    mb.cylinder(0, 0.035, 0, 0.05, 0.05, 6, 'plastic_black');
   });
-  void stem;
-  const seat = part(rig, 'seat', rig.body, [0, 0.36, 0], (mb) => {
-    mb.box(0, 0, 0, 0.2, 0.05, 0.22, 'metal_dark');
-    mb.box(0.12, 0.01, 0.08, 0.1, 0.012, 0.02, 'plastic_black'); // height lever
-    mb.box(0, 0.05, 0.01, 0.5, 0.03, 0.48, 'plastic_black'); // seat pan = lower jaw
-    mb.box(0, 0.081, 0.03, 0.44, 0.004, 0.4, { top: 'c_swivel_maw', all: 'plastic_black' }, { fit: { top: true } });
-    for (let k = 0; k < 7; k++) mb.box(-0.18 + k * 0.06, 0.08, 0.22, 0.026, 0.035, 0.02, 'white', { color: 0xe4dccb }); // lower teeth
-    mb.box(0, 0.02, -0.2, 0.08, 0.04, 0.16, 'metal_dark');
+  // gas-lift stem: bends with the seat
+  K.blend((mb) => { mb.cylinder(0, 0.08, 0, 0.022, 0.3, 6, 'chrome'); }, (p) => { const w = clamp01((p[1] - 0.2) / 0.18); return [['hub', 1 - w], ['seat', w]]; });
+  for (let i = 0; i < 5; i++) {
+    const a = LEG_A(i);
+    K.body('leg' + i, (mb) => { mb.push().rotateY(a); mb.box(0.14, 0.045, 0, 0.27, 0.035, 0.045, 'plastic_black'); mb.pop(); });
+    K.body('foot' + i, (mb) => {
+      const x = Math.cos(a) * 0.27, z = -Math.sin(a) * 0.27, r = 0.026;
+      mb.cylinderX(x, r, z, r, r * 0.9, 6, 'rubber_black');
+      mb.box(x, r, z, r * 1.3, r * 1.2, r * 0.9, 'metal_dark');
+    });
+  }
+  K.body('seat', (mb) => {
+    mb.box(0, 0.36, 0, 0.2, 0.05, 0.22, 'metal_dark');
+    mb.box(0.12, 0.37, 0.08, 0.1, 0.012, 0.02, 'plastic_black');
+    mb.box(0, 0.41, 0.01, 0.5, 0.03, 0.48, 'plastic_black');
+    mb.box(0, 0.38, -0.2, 0.08, 0.04, 0.16, 'metal_dark');
   });
-  const cushion = part(rig, 'cushion', seat, [0, 0.08, -0.215], (mb) => {
-    mb.box(0, 0, 0.235, 0.48, 0.07, 0.45, FAB, TINT);
-    for (let k = 0; k < 7; k++) mb.box(-0.18 + k * 0.06, -0.03, 0.43, 0.024, 0.032, 0.02, 'white', { color: 0xe4dccb }); // upper teeth
-  });
-  void cushion;
-  const back = part(rig, 'back', seat, [0, 0.02, -0.29], (mb) => {
-    mb.box(0, 0, 0, 0.07, 0.3, 0.03, 'metal_dark');
-    mb.push().translate(0, 0.24, 0).rotateX(-0.13);
-    mb.box(0, 0, 0, 0.45, 0.44, 0.07, { south: 'c_swivel_back', all: FAB }, { ...TINT, fit: { south: true } });
+  K.body('lid', (mb) => { mb.box(0, 0.44, 0.02, 0.48, 0.07, 0.45, { all: FAB, bottom: 'c_swivel_palate' }, { ...TINT, fit: { bottom: true } }); });
+  K.body('back', (mb) => {
+    mb.box(0, 0.38, -0.29, 0.07, 0.3, 0.03, 'metal_dark');
+    mb.push().translate(0, 0.6, -0.29).rotateX(-0.13);
+    mb.box(0, 0, 0, 0.45, 0.44, 0.07, FAB, TINT);
     mb.box(0, 0.03, -0.045, 0.41, 0.38, 0.02, 'plastic_black');
     mb.pop();
   });
-  void back;
   for (const s of [-1, 1]) {
-    part(rig, s < 0 ? 'armL' : 'armR', seat, [s * 0.255, 0.05, -0.03], (mb) => {
-      mb.box(0, 0, 0, 0.035, 0.24, 0.045, 'plastic_black');
-      mb.box(0, 0.24, 0.02, 0.065, 0.03, 0.27, 'plastic_black');
-      mb.box(0, 0.235, 0.16, 0.03, 0.03, 0.05, 'plastic_black'); // the end cap (a fang tip when it unfolds)
+    const a = s < 0 ? 'armL' : 'armR', j = s < 0 ? 'jawL' : 'jawR', f = s < 0 ? 'fangL' : 'fangR';
+    K.body(a, (mb) => {
+      mb.box(s * 0.255, 0.41, -0.03, 0.035, 0.24, 0.045, 'plastic_black');
+      mb.box(s * 0.255, 0.665, -0.01, 0.065, 0.015, 0.27, 'plastic_black'); // upper half of the pad
+    });
+    K.body(j, (mb) => {
+      mb.box(s * 0.255, 0.65, -0.01, 0.065, 0.015, 0.27, 'plastic_black'); // lower half: the moving jaw
+      // a serrated row on its upper edge, hidden inside the pad while it is closed
+      for (let k = 0; k < 6; k++) spike(mb, [s * (0.255 - 0.012), 0.662, -0.11 + k * 0.042], [0, 1, 0.25], 0.012, 0.008, 'c_an_tooth', 0xffffff, 0, 3);
+    });
+    K.body(f, (mb) => {
+      // fangs along the upper half's underside and a hooked tip where the end cap was
+      for (let k = 0; k < 6; k++) spike(mb, [s * (0.255 - 0.008), 0.666, -0.09 + k * 0.042], [0, -1, 0.3], 0.03, 0.009, 'c_an_tooth_dirty', 0xffffff, 0, 3);
+      spike(mb, [s * 0.255, 0.664, 0.12], [-s * 0.25, -0.75, 1], 0.11, 0.016, 'c_swivel_chitin', 0xffffff, -0.035, 4);
+      spike(mb, [s * 0.255, 0.672, 0.1], [-s * 0.6, -0.2, 1], 0.05, 0.01, 'c_an_tooth', 0xffffff, 0, 3);
     });
   }
+
+  // ---------------------------------------------------------------- what the chair is hiding (inside its own volumes at rest)
+  K.body('seat', (mb) => {
+    // mouth floor, raised gums around it, teeth pointing up
+    mb.box(0, 0.44, 0.015, 0.44, 0.003, 0.4, { top: 'c_swivel_maw', all: 'c_an_flesh' }, { fit: { top: true } });
+    for (const [x0, z0, x1, z1] of [[-0.21, 0.205, 0.21, 0.205], [-0.205, -0.17, -0.205, 0.2], [0.205, -0.17, 0.205, 0.2]] as const) {
+      const n = 8;
+      tube(mb, Array.from({ length: n + 1 }, (_, k) => [x0 + (x1 - x0) * k / n, 0.446, z0 + (z1 - z0) * k / n] as V3), 0.012, 6, 'c_an_gum', { squash: [0.6, 1] });
+    }
+    for (let k = 0; k < 9; k++) spike(mb, [-0.18 + k * 0.045, 0.452, 0.2], [0, 1, 0.15], 0.034, 0.013, k % 3 === 1 ? 'c_an_tooth_dirty' : 'c_an_tooth', 0xffffff, 0, 4);
+    for (const s of [-1, 1]) for (let k = 0; k < 6; k++) spike(mb, [s * 0.2, 0.452, -0.13 + k * 0.055], [-s * 0.1, 1, 0], 0.028, 0.012, 'c_an_tooth', 0xffffff, 0, 4);
+  });
+  K.body('lid', (mb) => {
+    // upper teeth on the cushion's underside, pointing down into the seat shell
+    for (let k = 0; k < 9; k++) spike(mb, [-0.18 + k * 0.045, 0.4405, 0.21], [0, -1, 0.1], 0.029, 0.013, k % 4 === 2 ? 'c_an_tooth_dirty' : 'c_an_tooth', 0xffffff, 0, 4);
+    for (const s of [-1, 1]) for (let k = 0; k < 5; k++) spike(mb, [s * 0.205, 0.4405, -0.1 + k * 0.06], [s * 0.1, -1, 0], 0.026, 0.011, 'c_an_tooth', 0xffffff, 0, 4);
+  });
+  // tongue: a flat wet tube lying on the mouth floor, bending through three bones
+  K.blend((mb) => {
+    const pts: V3[] = []; for (let k = 0; k <= 8; k++) pts.push([0, 0.455, -0.07 + k * 0.032]);
+    tube(mb, pts, (t) => 0.034 * (1 - t * 0.55), 7, 'c_an_tongue', { squash: [0.32, 1], capEnd: true, fitU: true, seam: Math.PI });
+  }, (p) => {
+    const z = p[2];
+    const w1 = clamp01((z + 0.0) / 0.1), w2 = clamp01((z - 0.1) / 0.08);
+    return [['tongue0', 1 - w1], ['tongue1', w1 * (1 - w2)], ['tongue2', w2]];
+  });
+  // strings of saliva between the jaws: stretched by the lid as it opens
+  K.blend((mb) => {
+    for (const [x, z] of [[-0.17, -0.06], [0.16, -0.1], [0.08, -0.03]]) tube(mb, [[x, 0.443, z], [x + 0.004, 0.46, z], [x, 0.478, z]], 0.0045, 4, 'c_an_mucus', { color: 0xa89878 });
+  }, (p) => { const w = clamp01((p[1] - 0.443) / 0.035); return [['seat', 1 - w], ['lid', w]]; });
+  // eight black eyes behind the tufting
+  K.local('eyes', (mb) => {
+    mb.push().rotateX(-0.13);
+    const E: [number, number, number][] = [[-0.045, 0.02, 0.034], [0.045, 0.02, 0.034], [-0.11, 0.07, 0.022], [0.11, 0.07, 0.022], [-0.09, -0.06, 0.02], [0.09, -0.06, 0.02], [-0.02, -0.1, 0.016], [0.03, 0.12, 0.016]];
+    for (const [x, y, r] of E) blob(mb, [x, y, 0.006], [r * 1.3, r * 1.3, r], 6, 3, 'c_an_eye_black', { fit: true, ao: false });
+    mb.pop();
+  });
+  // telescoping shins: knuckle, rubber bellows, two chrome stages and a collar (collapsed into the knee at rest)
+  for (let i = 0; i < 5; i++) {
+    K.local('shin' + i, (mb) => {
+      blob(mb, [0, 0, 0], [0.031, 0.031, 0.031], 7, 4, 'c_an_chrome', {});
+      tube(mb, [[0, -0.01, 0], [0, -0.085, 0]], 0.027, 7, 'c_an_bellows', { fitU: true });
+      tube(mb, [[0, -0.08, 0], [0, -0.33, 0]], 0.021, 7, 'c_an_chrome_rod', { fitU: true });
+      mb.cylinder(0, -0.35, 0, 0.026, 0.035, 7, 'metal_dark');
+      tube(mb, [[0, -0.33, 0], [0, -SHIN, 0]], 0.015, 6, 'c_an_chrome_rod', { fitU: true });
+      // a few stiff black bristles on the upper stage
+      for (let k = 0; k < 4; k++) { const ang = k * 1.7; spike(mb, [Math.cos(ang) * 0.014, -0.12 - k * 0.05, Math.sin(ang) * 0.014], [Math.cos(ang), -0.6, Math.sin(ang)], 0.035, 0.0035, 'plastic_black', 0xffffff, 0, 3); }
+    });
+    // the hook claw that unfolds from the caster fork
+    K.local('toe' + i, (mb) => {
+      spike(mb, [0.012, 0.0, 0], [1, -0.45, 0], 0.085, 0.012, 'c_swivel_chitin', 0xffffff, -0.03, 4);
+      spike(mb, [-0.01, -0.005, 0.01], [-0.6, -0.8, 0.5], 0.04, 0.007, 'c_swivel_chitin', 0xffffff, 0, 3);
+      spike(mb, [-0.01, -0.005, -0.01], [-0.6, -0.8, -0.5], 0.04, 0.007, 'c_swivel_chitin', 0xffffff, 0, 3);
+    });
+  }
+  const rig = K.finish({ sphere: [0, 0.5, 0, 1.4] });
+  rig.headY = 1.0;
   return rig;
 }
 
+// ---------------------------------------------------------------- animation
+const PROP_MAT = () => worldMaterial({ cutout: true });
+
+interface Feet { px: number[]; pz: number[]; fx: number[]; fz: number[]; tx: number[]; tz: number[]; t: number[]; on: boolean[] }
+
 /** k: 0 = an ordinary office chair, 1 = standing on its legs */
-function pose(rig: Rig, k: number, t: number, moving: number, bite: number, phase: number) {
+function pose(rig: KRig, c: Creature | null, k: number, t: number, dt: number, o: { moving: number; speed: number; open: number; lunge: number; lean: number; flinch: number; dead: number; phase: number }) {
   const P = rig.parts;
-  rig.body.position.y = 0.32 * k + (moving ? Math.abs(Math.sin(phase * 2.5)) * 0.03 * k : 0);
-  for (let i = 0; i < 5; i++) {
-    const off = (i / 5) * Math.PI * 2;
-    const lift = moving ? Math.max(0, Math.sin(phase * 2.5 + off)) * k : 0;
-    P['thigh' + i].rotation.x = -1.0 * k - lift * 0.35;
-    P['ext' + i].position.z = 0.27 * k;
-    P['shin' + i].rotation.x = 0.65 * k + lift * 0.3;
-    P['shin' + i].scale.y = lerp(0.05, 1.5, k);
-    P['foot' + i].position.y = -SHIN * 1; // scaled with the shin
-    P['foot' + i].scale.y = 1 / Math.max(0.05, P['shin' + i].scale.y); // keep the caster round
-    P['leg' + i].rotation.y = LEG_A(i) + (moving ? Math.sin(phase * 2.5 + off) * 0.18 * k : 0);
-  }
-  // the seat leans forward like a head; jaw opens when it is about to bite
-  P.seat.rotation.x = 0.28 * k + bite * 0.25;
-  P.cushion.rotation.x = -(0.12 * k + bite * 0.75);
-  P.back.rotation.x = 0.45 * k + Math.sin(t * 7) * 0.03 * k;
+  const rv = smooth01(k);
+  // body height and attitude
+  const bob = o.moving * Math.abs(Math.sin(o.phase * 2.5)) * 0.025;
+  const breathe = Math.sin(t * 2.3) * 0.008 * rv;
+  const by = RISE * rv + bob * rv + breathe - o.lunge * 0.06 * rv + (o.lunge < 0 ? o.lunge * 0.04 : 0);
+  rig.body.position.y = by;
+  rig.body.position.z = o.lunge * 0.16 * rv - o.flinch * 0.06;
+  let tiltX = (o.lean * 0.12 + o.lunge * 0.14) * rv - o.flinch * 0.25;
+  let tiltZ = o.moving * Math.sin(o.phase * 2.5) * 0.04 * rv;
+  // missing legs: it sags toward the gap
+  if (c) for (let i = 0; i < 5; i++) if (isLost(c, 'leg' + i)) { const a = LEG_A(i); tiltX += -Math.sin(a) * 0.1 * rv; tiltZ -= Math.cos(a) * 0.1 * rv; }
+  rig.body.rotation.set(tiltX, 0, tiltZ);
+  P.seat.rotation.set(0.12 * rv + o.lunge * 0.1 + Math.sin(t * 1.7) * 0.02 * rv, Math.sin(t * 0.9) * 0.05 * rv, 0);
+  // mouth
+  const open = clamp01(o.open);
+  P.lid.rotation.x = -(open * 1.05 + Math.sin(t * 13) * 0.025 * open * rv);
+  P.back.rotation.x = 0.42 * rv - open * 0.25 + Math.sin(t * 6.5) * 0.02 * rv;
+  const ey = Math.max(0.001, rv * (((t * 0.37) % 1) < 0.04 ? 0.25 : 1));
+  P.eyes.scale.set(Math.max(0.001, rv), ey, Math.max(0.001, rv));
+  // tongue: lolls over the lower teeth when the mouth is open, licks and writhes
+  const tl = open * rv;
+  P.tongue0.rotation.set(-tl * 0.25 + Math.sin(t * 4.1) * 0.08 * tl, Math.sin(t * 3.3) * 0.25 * tl, 0);
+  P.tongue1.rotation.set(tl * 0.55 + Math.sin(t * 5.3 + 1) * 0.25 * tl, Math.sin(t * 4.7 + 0.5) * 0.3 * tl, 0);
+  P.tongue2.rotation.set(tl * 0.65 + Math.sin(t * 6.1 + 2) * 0.35 * tl, Math.sin(t * 5.9 + 1) * 0.35 * tl, 0);
+  P.tongue0.position.z = -0.06 + tl * 0.13;
+  // armrests: swing forward into mandibles, the pads split and the fangs come out
+  const mand = rv;
+  const pinch = o.lunge > 0 ? 1 - o.lunge : 1;
   for (const s of [-1, 1]) {
-    const a = P[s < 0 ? 'armL' : 'armR'];
-    a.rotation.x = 1.15 * k - bite * 0.4;
-    a.rotation.z = -s * 0.25 * k + Math.sin(t * 11 + s) * 0.06 * k;
+    const a = P[s < 0 ? 'armL' : 'armR'], j = P[s < 0 ? 'jawL' : 'jawR'], f = P[s < 0 ? 'fangL' : 'fangR'];
+    a.rotation.set(1.25 * mand + o.lunge * 0.2 * mand, -s * (0.32 * mand) * pinch, -s * 0.18 * mand + Math.sin(t * 9 + s) * 0.05 * mand * (0.3 + open));
+    j.rotation.x = 0.55 * mand * (0.4 + 0.6 * Math.max(open, 0.3)) * pinch;
+    f.scale.setScalar(Math.max(0.001, mand));
+  }
+  // legs
+  const feet: Feet | null = c?.mem._feet ?? null;
+  const toeK = Math.max(0.001, rv);
+  rig.body.updateMatrix();
+  const bodyInv = TMP_M.copy(rig.body.matrix).invert();
+  for (let i = 0; i < 5; i++) {
+    const a = LEG_A(i);
+    const leg = P['leg' + i], shin = P['shin' + i], foot = P['foot' + i], toe = P['toe' + i];
+    // foot target in root space: planted feet when alive and walking, a fixed stance otherwise
+    let fx: number, fy: number, fz: number;
+    if (feet && rv > 0.01 && !o.dead) {
+      const [lx, lz] = toLocal(c!.x, c!.z, Math.PI / 2 - c!.facing, feet.fx[i], feet.fz[i]);
+      fx = lx; fz = lz; fy = HUB_Y + (feet.on[i] ? Math.sin(clamp01(feet.t[i]) * Math.PI) * 0.09 : 0);
+    } else {
+      const r = FOOT_R * (o.dead ? 0.7 : 1);
+      fx = Math.cos(a) * r; fz = -Math.sin(a) * r; fy = HUB_Y + (o.dead ? 0.15 : 0);
+    }
+    TMP_V.set(fx, fy, fz).applyMatrix4(bodyInv);
+    const hx = TMP_V.x, hz = TMP_V.z, dy = TMP_V.y - HUB_Y;
+    const yawF = Math.atan2(-hz, hx);
+    const h = Math.hypot(hx, hz);
+    // the femur rises steeply, the telescoping shin reaches the floor
+    const phi = (0.62 + (o.dead ? 0.7 : 0) + Math.max(0, -o.lunge) * 0.25 - o.flinch * 0.3) + (feet?.on[i] ? Math.sin(clamp01(feet.t[i]) * Math.PI) * 0.2 : 0);
+    const kx = Math.cos(phi) * L1, ky = Math.sin(phi) * L1;
+    const sx = h - kx, sy = dy - ky;
+    let len = Math.hypot(sx, sy);
+    let psi = Math.atan2(sx, -sy) - phi;
+    if (o.dead) { psi += 1.1; len *= 0.6; } // curled in like a dead spider
+    leg.rotation.set(0, a + wrapPi(yawF - a) * rv, phi * rv);
+    shin.rotation.set(0, 0, psi * rv);
+    const ls = Math.max(0.001, (len / SHIN) * rv);
+    const w = Math.max(0.001, Math.min(1, rv * 1.6));
+    shin.scale.set(w, ls, w);
+    const tl = (len / SHIN) * rv * SHIN;
+    const sp = Math.sin(psi * rv), cp = Math.cos(psi * rv);
+    foot.position.set(L1 + sp * tl, -cp * tl, 0);
+    foot.rotation.set(0, 0, -phi * rv);
+    toe.scale.setScalar(toeK);
+    toe.rotation.z = (feet?.on[i] ? -0.4 : 0.15) * rv + (o.dead ? -0.8 : 0);
+  }
+}
+const TMP_M = new THREE.Matrix4(), TMP_V = new THREE.Vector3();
+
+/** procedural foot planting: legs step in a wave, never two neighbours at once */
+function stepFeet(c: Creature, dt: number, rv: number) {
+  let F: Feet = c.mem._feet;
+  const ry = Math.PI / 2 - c.facing;
+  const cs = Math.cos(ry), sn = Math.sin(ry);
+  const want = (i: number, lead: number): [number, number] => {
+    const a = LEG_A(i);
+    const lx = Math.cos(a) * FOOT_R, lz = -Math.sin(a) * FOOT_R;
+    return [c.x + lx * cs + lz * sn + c.vx * lead, c.z - lx * sn + lz * cs + c.vz * lead];
+  };
+  if (!F || rv < 0.3) {
+    F = c.mem._feet = { px: [], pz: [], fx: [], fz: [], tx: [], tz: [], t: [], on: [] } as Feet;
+    for (let i = 0; i < 5; i++) { const [x, z] = want(i, 0); F.px[i] = F.fx[i] = F.tx[i] = x; F.pz[i] = F.fz[i] = F.tz[i] = z; F.t[i] = 0; F.on[i] = false; }
+    return;
+  }
+  const spd = Math.hypot(c.vx, c.vz);
+  const dur = spd > 2.5 ? 0.09 : spd > 0.8 ? 0.14 : 0.2;
+  const thr = spd > 2.5 ? 0.16 : 0.12;
+  let moving = 0;
+  for (let i = 0; i < 5; i++) if (F.on[i]) moving++;
+  for (let i = 0; i < 5; i++) {
+    if (isLost(c, 'leg' + i)) { F.on[i] = false; continue; }
+    if (F.on[i]) {
+      F.t[i] += dt / dur;
+      const [x, z] = want(i, 0.12);
+      F.tx[i] = x; F.tz[i] = z; // keep re-aiming while in the air
+      const e = smooth01(F.t[i]);
+      F.fx[i] = F.px[i] + (F.tx[i] - F.px[i]) * e; F.fz[i] = F.pz[i] + (F.tz[i] - F.pz[i]) * e;
+      if (F.t[i] >= 1) { F.on[i] = false; F.px[i] = F.fx[i] = F.tx[i]; F.pz[i] = F.fz[i] = F.tz[i]; moving--; }
+      continue;
+    }
+    const [x, z] = want(i, 0);
+    const d = Math.hypot(x - F.fx[i], z - F.fz[i]);
+    const nb = F.on[(i + 1) % 5] || F.on[(i + 4) % 5];
+    if ((d > thr && !nb && moving < 2) || d > 0.5) {
+      F.on[i] = true; F.t[i] = 0; F.px[i] = F.fx[i]; F.pz[i] = F.fz[i]; moving++;
+    }
   }
 }
 
 function animateSwivel(rig: Rig, c: Creature, t: number, dt: number) {
+  const R = rig as KRig;
   const hidden = c.state === 'disguised' || (c.state === 'hide' && !c.dead);
   suppressSighting(c, c.state === 'disguised');
   const target = hidden || c.dead ? 0 : 1;
-  c.mem._rv = c.mem._rv === undefined ? target : c.mem._rv + Math.sign(target - c.mem._rv) * Math.min(Math.abs(target - c.mem._rv), dt * (target ? 5 : 1.6));
-  const bite = c.attackPhase > 0 ? 1 : c.state === 'chase' ? 0.3 + Math.sin(t * 9) * 0.2 : 0;
-  pose(rig, c.mem._rv, t, c.speed > 0.2 ? 1 : 0, bite, c.phase);
+  const m = c.mem;
+  m._rv = m._rv === undefined ? target : approach(m._rv, target, target ? 5 : 1.6, dt);
+  const rv = c.dead ? Math.min(1, 0.6 + 0.4 * (m._rv ?? 0)) : m._rv;
+  // furniture shares the props' cut-away material so it vanishes with the real chairs
+  const skin = R.skins.n;
+  const want = rv < 0.02 && !c.dead ? PROP_MAT() : creatureMaterial(false);
+  if (skin && skin.material !== want) skin.material = want;
+  const { wind, rec } = atkCurve(c, dt, 0.4);
+  const lunge = strikeShape(wind, rec);
+  m._open = damp(m._open ?? 0, wind > 0 ? (wind < 0.7 ? 1 : 0.15) : rec > 0.4 ? 0.6 : c.state === 'chase' ? 0.35 + Math.sin(t * 7) * 0.12 : c.state === 'flee' ? 0.12 : 0, wind > 0.7 ? 30 : 9, dt);
+  stepFeet(c, dt, rv);
+  const fl = flinchOf(c);
+  const dead = c.dead ? 1 : 0;
+  // death throes: twitching for a couple of seconds, then still
+  const tw = c.dead && c.deathT < 2.5 ? Math.max(0, Math.sin(t * 31) * Math.sin(t * 7.3)) * (1 - c.deathT / 2.5) : 0;
+  pose(R, c.dead ? null : c, rv, t, dt, {
+    moving: c.speed > 0.2 ? 1 : 0, speed: c.speed, open: c.dead ? 0.45 + tw * 0.3 : m._open, lunge: c.dead ? 0 : lunge,
+    lean: c.state === 'chase' ? 1 : 0, flinch: Math.max(fl, tw), dead, phase: c.phase,
+  });
 }
 
 /** a dark spot next to real chairs and desks, away from survivors */
@@ -257,7 +464,7 @@ const sp = def({
   scan: {
     cls: 'Ambush mimic / furniture',
     notes: [
-      'An office chair. Five legs, eight eyes in the backrest tufting, a mouth under the cushion.',
+      'An office chair. Five caster arms that unfold into legs on telescoping chrome shins; eight eyes behind the backrest fabric; a mouth under the cushion.',
       'Lunges when someone walks right past it. Sneaking past at arm\'s length is usually safe.',
       'Bites once — always low, ankles and shins — then skitters off to hide among other chairs.',
       'A chair that faces you when it did not before is not a chair. Kick it before it moves.',
@@ -268,8 +475,28 @@ const sp = def({
   animate: animateSwivel,
   think: thinkSwivel,
 });
+
+/** gallery poses: disguised, revealed, walk, bite, reveal (loops the transformation), dead */
 (sp as any).animateGallery = (rig: Rig, t: number) => {
   const q = galleryPose('');
-  const k = q === 'disguised' ? 0 : q === 'revealed' ? 1 : q === 'bite' ? 1 : (Math.sin(t * 0.8) * 0.5 + 0.5);
-  pose(rig, k, t, q === 'walk' ? 1 : 0, q === 'bite' ? 1 : 0, t * 6);
+  const R = rig as KRig;
+  const k = q === 'disguised' ? 0 : q === 'reveal' || q === '' ? smooth01(clamp01(Math.sin(t * 0.7) * 1.4 + 0.5)) : 1;
+  const bite = q === 'bite' ? (t * 0.9) % 1 : 0;
+  const lunge = q === 'bite' ? (bite < 0.5 ? -Math.sin(bite / 0.5 * Math.PI * 0.5) : bite < 0.62 ? -1 + 2 * smooth01((bite - 0.5) / 0.12) : 1 - (bite - 0.62) / 0.38) : 0;
+  const open = q === 'bite' ? (bite < 0.55 ? 1 : 0.1) : q === 'revealed' ? 0.55 : q === 'walk' ? 0.3 : 0;
+  const fake: any = q === 'walk' ? { x: 0, z: 0, facing: Math.PI / 2, vx: 0, vz: 1.2, mem: {}, phase: t * 6 } : null;
+  if (fake) {
+    // walk in place: feet cycle in a wave under a stationary body
+    const F: Feet = { px: [], pz: [], fx: [], fz: [], tx: [], tz: [], t: [], on: [] };
+    for (let i = 0; i < 5; i++) {
+      const a = LEG_A(i), ph0 = ((t * 2.2 + i * 0.4) % 1);
+      const sw = ph0 < 0.35 ? ph0 / 0.35 : 1 - (ph0 - 0.35) / 0.65;
+      const off = (sw - 0.5) * 0.24;
+      // root frame is identity in the gallery: local == world
+      F.fx[i] = Math.cos(a) * FOOT_R; F.fz[i] = -Math.sin(a) * FOOT_R + off;
+      F.on[i] = ph0 < 0.35; F.t[i] = ph0 / 0.35;
+    }
+    fake.mem._feet = F;
+  }
+  pose(R, fake, k, t, 1 / 60, { moving: q === 'walk' ? 1 : 0, speed: 0, open, lunge, lean: q === 'walk' ? 1 : 0, flinch: 0, dead: q === 'dead' ? 1 : 0, phase: t * 6 });
 };

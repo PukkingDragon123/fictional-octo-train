@@ -3,6 +3,10 @@ import { G } from '../game/G';
 import { bus } from '../core/events';
 import { PixelCanvas, makeRamp } from '../gfx/pixel';
 import { tileFbm } from '../core/rng';
+import { allRecipes } from '../items/recipes';
+import { hasItemDef } from '../items/item';
+import { kitUrl } from './pixelkit';
+import { glyphUrl } from './pixelart';
 import { Player } from '../entities/player';
 import { pick, PickTarget, targetName } from '../game/picking';
 import { OCCUPATIONS, TRAITS } from '../survival/traits';
@@ -35,26 +39,22 @@ function weaveDataUrl(): string {
   return c.toDataURL();
 }
 
-function themeHex(): number {
-  try { const v = getComputedStyle(document.documentElement).getPropertyValue('--ph').trim(); if (/^#[0-9a-f]{6}$/i.test(v)) return parseInt(v.slice(1), 16); } catch { /* ignore */ }
-  return 0x6dff8e;
+type CursorKind = 'arrow' | 'hand' | 'aim' | 'busy';
+/** CSS value for a pixel cursor drawn by the kit (hardware cursor: no lag behind the mouse) */
+function cursorValue(kind: CursorKind): string {
+  return getComputedStyle(document.documentElement).getPropertyValue('--cur-' + kind).trim() || 'default';
 }
 
-function cursorDataUrl(kind: 'arrow' | 'hand' | 'aim' | 'busy'): string {
-  const pc = new PixelCanvas(24, 24); pc.wrap = false;
-  const K = 0x020803, W = 0xeef4e6, A = themeHex();
-  if (kind === 'aim') {
-    for (const [x, y] of [[11, 2], [11, 3], [11, 4], [11, 5], [11, 17], [11, 18], [11, 19], [11, 20], [2, 11], [3, 11], [4, 11], [5, 11], [17, 11], [18, 11], [19, 11], [20, 11]]) { pc.set(x, y, W); pc.set(x + 1, y, K); pc.set(x, y + 1, K); }
-    pc.set(11, 11, A); pc.set(12, 11, K); pc.set(11, 12, K);
-  } else {
-    // pixel arrow
-    const rows = ['X', 'XX', 'XWX', 'XWWX', 'XWWWX', 'XWWWWX', 'XWWWWWX', 'XWWWWWWX', 'XWWWWWWWX', 'XWWWWWXXXX', 'XWWXWWX', 'XWX XWWX', 'XX  XWWX', 'X    XWWX', '     XWWX', '      XX'];
-    rows.forEach((r, y) => { for (let x = 0; x < r.length; x++) { if (r[x] === 'X') pc.set(x + 1, y + 1, K); else if (r[x] === 'W') pc.set(x + 1, y + 1, kind === 'hand' ? A : W); } });
-    if (kind === 'busy') { pc.rect(14, 14, 6, 6, K); pc.rect(15, 15, 4, 4, A); }
+/** icons for context-menu lines: an explicit item key / URL, or the output of a recipe with that name */
+let recipeIcons: Map<string, string> | null = null;
+function menuIcon(o: { label: string; icon?: string }): string {
+  if (o.icon) return o.icon.startsWith('data:') || o.icon.startsWith('blob:') || o.icon.startsWith('/') ? o.icon : hasItemDef(o.icon) ? itemIcon(o.icon, '', 12) : '';
+  if (!recipeIcons) {
+    recipeIcons = new Map();
+    try { for (const r of allRecipes()) { const out = r.outputs?.[0]?.item; if (out && !recipeIcons.has(r.name)) recipeIcons.set(r.name, out); } } catch { /* recipes not loaded */ }
   }
-  const c = document.createElement('canvas'); c.width = 24; c.height = 24;
-  c.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
-  return c.toDataURL();
+  const k = recipeIcons.get(o.label);
+  return k && hasItemDef(k) ? itemIcon(k, '', 12) : '';
 }
 
 /**
@@ -72,6 +72,7 @@ export class UI {
   hoverLabel: HTMLDivElement;
   cursor: HTMLImageElement;
   cursors: Record<string, string> = {};
+  private cursorKind: CursorKind | '' = '';
   menuEl: HTMLDivElement | null = null;
   tipEl: HTMLDivElement | null = null;
   readerEl: HTMLDivElement | null = null;
@@ -88,14 +89,15 @@ export class UI {
     document.documentElement.style.setProperty('--weave', `url(${weaveDataUrl()})`);
     this.hoverLabel = document.createElement('div'); this.hoverLabel.id = 'hover-label';
     document.body.appendChild(this.hoverLabel);
-    for (const k of ['arrow', 'hand', 'aim', 'busy'] as const) this.cursors[k] = cursorDataUrl(k);
-    this.cursor = document.createElement('img'); this.cursor.id = 'cursor'; this.cursor.src = this.cursors.arrow;
+    // pixel cursors are CSS (hardware) cursors from the kit; the old follower image stays hidden for anything that looks it up
+    this.cursor = document.createElement('img'); this.cursor.id = 'cursor'; this.cursor.alt = '';
     document.body.appendChild(this.cursor);
-    bus.on('uiSettings', () => { for (const k of ['arrow', 'hand', 'aim', 'busy'] as const) this.cursors[k] = cursorDataUrl(k); this.cursor.src = this.cursors.arrow; });
+    const refreshCursor = () => { for (const k of ['arrow', 'hand', 'aim', 'busy'] as const) this.cursors[k] = kitUrl('cur-' + k + '-img'); this.cursorKind = ''; };
+    refreshCursor();
+    bus.on('uiSettings', refreshCursor);
+    bus.on('uiScale', refreshCursor);
     bus.on('unlocked', (id: string) => this.unlockToast(id));
     window.addEventListener('keydown', (e) => this.menuKey(e), true);
-    document.addEventListener('mousemove', (e) => { this.cursor.style.left = e.clientX + 'px'; this.cursor.style.top = e.clientY + 'px'; });
-    document.body.style.cursor = 'none';
     // track pointer over interactive UI so the world ignores clicks there
     this.root.addEventListener('mouseover', () => { G.input.pointerOverUI = true; });
     this.root.addEventListener('mouseout', () => { G.input.pointerOverUI = false; });
@@ -191,7 +193,7 @@ export class UI {
     // teletype the headline
     if (calm()) { tt.textContent = title; return; }
     let i = 0;
-    const step = () => { if (!el.isConnected) return; i = Math.min(title.length, i + 2); tt.textContent = title.slice(0, i) + (i < title.length ? '█' : ''); if (i < title.length) setTimeout(step, 18); };
+    const step = () => { if (!el.isConnected) return; i = Math.min(title.length, i + 2); tt.textContent = title.slice(0, i) + (i < title.length ? '▮' : ''); if (i < title.length) setTimeout(step, 18); };
     step();
   }
 
@@ -199,14 +201,14 @@ export class UI {
   unlockToast(id: string) {
     const [ns, key] = id.split(':');
     let kind = 'UNLOCK', name = key || id, icon = '';
-    if (ns === 'job') { const o = OCCUPATIONS.find((x) => x.key === key); kind = 'NEW OCCUPATION UNLOCKED'; name = o?.name || key; const k = o?.items?.[0]; if (k) { try { icon = itemIcon(k); } catch { /* no icon */ } } }
+    if (ns === 'job') { const o = OCCUPATIONS.find((x) => x.key === key); kind = 'NEW OCCUPATION UNLOCKED'; name = o?.name || key; const k = o?.items?.[0]; if (k) { try { icon = itemIcon(k, '', 18); } catch { /* no icon */ } } }
     else if (ns === 'trait') { const t = TRAITS.find((x) => x.key === key); kind = 'NEW TRAIT UNLOCKED'; name = t?.name || key; }
     this.lastUnlockAt = performance.now();
     // drop a plain notice another system may have just posted for the same unlock
     this.toastHost?.querySelectorAll('.k-toast:not(.unlock)').forEach((n) => { const e = n as HTMLElement; if (/UNLOCKED$/.test(e.dataset.t || '') && performance.now() - Number(e.dataset.at || 0) < 2000) e.remove(); });
     const el = document.createElement('div');
     el.className = 'k-toast unlock';
-    const star = '<svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.6 7.1.7-5.4 4.8 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.3l7.1-.7z"/></svg>';
+    const star = `<img src="${glyphUrl('star', 0xffd04a, 0x5a3a08)}" alt="" style="width:calc(var(--px) * 9);height:calc(var(--px) * 9)">`;
     el.innerHTML = `<div class="u-strip"><span>${escapeHtml(kind)}</span><i>MERIDIAN HR</i></div><div class="u-body"><div class="u-ico">${icon ? `<img src="${icon}" alt="">` : star}</div><div><div class="u-name">${escapeHtml(name)}</div><div class="u-sub">Now on the personnel file for your next run.</div></div><div class="u-sweep"></div></div>`;
     this.pushToast(el, 6.5);
     sfx('unlock');
@@ -214,10 +216,10 @@ export class UI {
   }
 
   // ---------------- context menu ----------------
-  openMenu(x: number, y: number, title: string, opts: MenuOption[]) {
+  openMenu(x: number, y: number, title: string, opts: MenuOption[], icon = '') {
     this.closeMenu();
     if (!opts.length) return;
-    const el = this.buildMenu(title, opts);
+    const el = this.buildMenu(title, opts, undefined, icon);
     document.body.appendChild(el);
     const r = el.getBoundingClientRect();
     el.style.left = Math.max(4, Math.min(x + 4, window.innerWidth - r.width - 6)) + 'px';
@@ -227,19 +229,26 @@ export class UI {
     G.audio?.ui?.('menu');
   }
   private menuKeyboard = false;
-  private buildMenu(title: string, opts: MenuOption[], parent?: HTMLDivElement): HTMLDivElement {
+  private buildMenu(title: string, opts: MenuOption[], parent?: HTMLDivElement, icon = ''): HTMLDivElement {
     const el = document.createElement('div');
     el.className = 'k-menu';
     el.setAttribute('role', 'menu');
     (el as any)._parent = parent || null;
     el.addEventListener('contextmenu', (e) => e.preventDefault());
-    if (title) { const h = document.createElement('div'); h.className = 'mh'; h.textContent = title; el.appendChild(h); }
+    if (title) {
+      const h = document.createElement('div'); h.className = 'mh';
+      if (icon) { const im = document.createElement('img'); im.src = icon; im.alt = ''; h.appendChild(im); }
+      h.appendChild(document.createTextNode(title));
+      el.appendChild(h);
+    }
     for (const o of opts) {
       if (o.label === '-') { const s = document.createElement('div'); s.className = 'sep'; el.appendChild(s); continue; }
       const mi = document.createElement('div');
       mi.className = 'mi' + (o.disabled ? ' dis' : '') + (o.danger ? ' danger' : '');
       mi.tabIndex = -1;
       mi.setAttribute('role', 'menuitem');
+      const ic = menuIcon(o);
+      if (ic) { const im = document.createElement('img'); im.className = 'ic'; im.src = ic; im.alt = ''; mi.appendChild(im); }
       mi.appendChild(document.createTextNode(o.label));
       if (typeof o.disabled === 'string') { const w = document.createElement('span'); w.className = 'why'; w.textContent = o.disabled; mi.appendChild(w); }
       const openSub = (focusFirst: boolean) => {
@@ -266,7 +275,7 @@ export class UI {
         if (!o.disabled) sfx('hover', 0.7);
       });
       if (o.sub && o.sub.length) {
-        const s = document.createElement('span'); s.className = 'sub'; s.textContent = '▸'; mi.appendChild(s);
+        const s = document.createElement('span'); s.className = 'sub'; mi.appendChild(s);
         mi.addEventListener('click', (e) => { e.stopPropagation(); (el as any)._subFor = mi; openSub(this.menuKeyboard); });
       }
       if (!o.disabled && o.action) mi.addEventListener('click', (e) => { e.stopPropagation(); this.closeMenu(); G.audio?.ui?.('click'); o.action!(); });
@@ -425,7 +434,7 @@ export class UI {
   private updateHover() {
     const g = G;
     const inp = g.input;
-    let kind: 'arrow' | 'hand' | 'aim' | 'busy' = 'arrow';
+    let kind: CursorKind = 'arrow';
     if (g.local.aiming) kind = 'aim';
     let t: PickTarget | null = null;
     if (!inp.pointerOverUI && !this.menuEl && !this.readerEl && !g.local.aiming) {
@@ -442,8 +451,13 @@ export class UI {
       this.hoverLabel.style.top = (inp.mouseY + 18) + 'px';
     } else this.hoverLabel.style.display = 'none';
     if (g.local.actions.current?.started && !g.local.aiming && kind === 'arrow') kind = 'busy';
-    const src = this.cursors[kind];
-    if (this.cursor.src !== src) { this.cursor.src = src; this.cursor.className = kind === 'aim' ? 'aim' : ''; }
+    if (kind !== this.cursorKind) {
+      this.cursorKind = kind;
+      const v = cursorValue(kind);
+      const cv = g.pr?.renderer?.domElement as HTMLCanvasElement | undefined;
+      if (cv) cv.style.cursor = v;
+      document.body.style.cursor = v;
+    }
     // highlight overlay for hovered objects
     const key = t?.kind === 'object' ? 'o' + t.obj.uid + ':' + t.obj.x + ',' + t.obj.y + ':' + t.obj.rot : '';
     if (key !== this.hlKey) {

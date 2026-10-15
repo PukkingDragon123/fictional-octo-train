@@ -16,6 +16,9 @@ import { Player } from '../entities/player';
 import { Clock } from './clock';
 import { setGame } from './G';
 import { itemDef } from '../items/item';
+import { CameraController } from './camera';
+import { SceneFx } from '../gfx/scenefx';
+import { gfxSettings } from '../ui/menus/common';
 
 export interface GameSystem {
   name: string;
@@ -75,7 +78,13 @@ export class Game {
   /** last frame's dynamic lights big enough to matter for gameplay light checks (fires, lanterns, muzzle flashes) */
   private pointPrev: { x: number; z: number; intensity: number; dist: number }[] = [];
   camZoom = 3;
+  /** kept for older callers (the intro resets it); the camera controller does the look-ahead now */
   camLead = new THREE.Vector3();
+  /** camera controller: follow, orbit, pitch, shake / punch / kick, peek, photo mode (src/game/camera.ts) */
+  camera: CameraController;
+  /** realism glue: wet map, contact shadows, rain (src/gfx/scenefx.ts) */
+  sceneFx: SceneFx;
+  private tmpPlayerPos = new THREE.Vector3();
   // ui / services attached later
   ui: any = null;
   audio: any = null;
@@ -124,6 +133,16 @@ export class Game {
       s.add(p); this.points.push(p);
     }
     this.pr.setZoomLevel(this.camZoom);
+    this.pr.spot = this.flashlights[0]; this.pr.sun = this.sun;
+    this.camera = new CameraController(this);
+    this.sceneFx = new SceneFx(this);
+    // stored picture settings (pixel size, quality preset, film grain, camera comfort)
+    try {
+      const gs = gfxSettings();
+      if (gs.pixelHeight && gs.pixelHeight !== this.pr.targetLowH) { this.pr.targetLowH = gs.pixelHeight; this.pr.resize(); }
+      this.pr.applySettings(gs as any);
+      this.camera.applySettings(gs as any);
+    } catch (e) { console.warn('gfx settings', e); }
   }
 
   addSystem(s: GameSystem) { this.systems.push(s); return s; }
@@ -163,6 +182,7 @@ export class Game {
     const g = { ...DEFAULT_GRADE, ...(GRADES[e.grade] || {}) } as Grade;
     this.pr.gradeTarget = JSON.parse(JSON.stringify(g));
     if (instant) this.pr.grade = JSON.parse(JSON.stringify(g));
+    this.pr.setZoneFx(e.grade, instant);
     this.sun.intensity = e.sky ? e.sunI : 0;
     this.sun.color.set(e.sun);
     this.hemi.intensity = e.sky ? 0.9 : 0;
@@ -281,6 +301,8 @@ export class Game {
     const z = this.zone;
     const inp = this.input;
     p.actions.update(dt);
+    // camera: quarter turns, zoom / Alt+wheel pitch, PageUp/PageDown, free orbit, P photo mode
+    this.camera.handleInput(inp);
     if (p.body.dead) { p.speed = 0; return; }
     const mods = p.body.mods(p.heavyLoad());
     const cur = p.actions.current;
@@ -302,7 +324,8 @@ export class Game {
     if (!locked && inp.hit('sneak')) p.sneaking = !p.sneaking;
     const f = z.floorAt(p.tileX(), p.tileY());
     const deep = f?.water === 'deep';
-    p.stance = p.body.downed ? 'crawl' : deep ? 'swim' : p.sneaking ? 'sneak' : 'stand';
+    // no legs to stand on (limb loss, src/survival/limbs.ts): crawl
+    p.stance = p.body.downed || mods.crawl ? 'crawl' : deep ? 'swim' : p.sneaking ? 'sneak' : 'stand';
     // run: Shift, the touch run latch, or the stick pushed to its rim; a latched run also speeds up tap-to-walk
     const autoWalk = !!(cur && cur.started && cur.name === 'Walk');
     const wantRun = inp.down('run') || inp.runLatch || (analog && mag >= 0.92);
@@ -334,10 +357,6 @@ export class Game {
     p.turn(dt, p.aiming ? 22 : 12);
     // flashlight
     if (!locked && inp.hit('flashlight')) this.toggleFlashlight(p);
-    // camera rotation & zoom
-    if (inp.hit('camLeft')) this.rotateCamera(1);
-    if (inp.hit('camRight')) this.rotateCamera(-1);
-    if (inp.wheel && !over) this.zoomCamera(-Math.sign(inp.wheel));
     // exertion for body sim
     if (p.running) p.exertionTimer = 1;
     p.exertionTimer = Math.max(0, p.exertionTimer - dt * 0.5);
@@ -346,7 +365,7 @@ export class Game {
   }
 
   /** quarter-turn the camera: +1 turns the view clockwise (Z), -1 counter-clockwise (X) */
-  rotateCamera(dir: number) { this.pr.yawTarget += (Math.PI / 2) * Math.sign(dir); }
+  rotateCamera(dir: number) { this.camera.rotate(dir); }
   /** step through the zoom levels: +1 closer, -1 further */
   zoomCamera(steps: number) {
     this.camZoom = clamp(this.camZoom + steps, 0, PixelRenderer.ZOOMS.length - 1);
@@ -420,17 +439,10 @@ export class Game {
     const v = this.view;
     if (!v || !this.local) return;
     const p = this.local;
-    // camera follow with slight look-ahead toward facing / aim
-    const leadDist = p.aiming ? 2.2 : p.speed > 0.3 ? 0.8 : 0.3;
-    const lx = Math.cos(p.facing) * leadDist, lz = Math.sin(p.facing) * leadDist;
-    this.camLead.x = damp(this.camLead.x, lx, 3, dt);
-    this.camLead.z = damp(this.camLead.z, lz, 3, dt);
-    const tgt = new THREE.Vector3(p.x + this.camLead.x, p.y, p.z + this.camLead.z);
-    this.pr.target.x = damp(this.pr.target.x, tgt.x, 10, dt);
-    this.pr.target.z = damp(this.pr.target.z, tgt.z, 10, dt);
-    this.pr.target.y = damp(this.pr.target.y, tgt.y, 10, dt);
-    this.pr.updateCamera(dt);
-    this.pr.updatePlayerView(new THREE.Vector3(p.x, p.y, p.z));
+    // camera: follow + look-ahead + aim peek, orbit, shake, punches, photo mode
+    this.camera.update(dt);
+    this.pr.updatePlayerView(this.tmpPlayerPos.set(p.x, p.y, p.z));
+    this.sceneFx.update(dt);
     const viewR = (this.pr.lowW * this.pr.pxSize) * 0.75 + 4;
     let t0 = performance.now();
     v.lg.update(dt, p.x, p.z, this.time);

@@ -3,8 +3,9 @@ import { SkillKey, SKILLS, XP_PER_LEVEL } from './traits';
 import { clamp, clamp01 } from '../core/math';
 import { Rng, uid } from '../core/rng';
 import { MindState, newMind, ssriEffect, anxiolyticEffect } from './mind';
+import { LimbAids, LimbState, limbState, noAids, aidsKey, redirectPart } from './limbs';
 
-export type InjuryType = 'scratch' | 'laceration' | 'deep' | 'bite' | 'burn' | 'fracture' | 'glass' | 'bullet' | 'bruise';
+export type InjuryType = 'scratch' | 'laceration' | 'deep' | 'bite' | 'burn' | 'fracture' | 'glass' | 'bullet' | 'bruise' | 'amputation';
 
 export interface Injury {
   id: number;
@@ -22,6 +23,12 @@ export interface Injury {
   infection: number;      // 0..1 wound infection
   corrupt: boolean;       // carries simulation corruption
   age: number;
+  /** tourniquet on (hours it has been on); amputation stumps and heavy limb bleeds (src/survival/limbs.ts) */
+  tq?: number | null;
+  /** cauterised with fire or a hot blade */
+  caut?: boolean;
+  /** what the tourniquet was (given back when it comes off) */
+  tqItem?: string | null;
 }
 
 export const INJURY_INFO: Record<InjuryType, { name: string; pain: number; bleed: number; heal: [number, number]; infect: number }> = {
@@ -34,6 +41,8 @@ export const INJURY_INFO: Record<InjuryType, { name: string; pain: number; bleed
   fracture: { name: 'Fracture', pain: 40, bleed: 0, heal: [720, 1440], infect: 0 },
   glass: { name: 'Glass Shard', pain: 18, bleed: 0.3, heal: [10, 18], infect: 0.08 },
   bullet: { name: 'Bullet Wound', pain: 35, bleed: 0.8, heal: [40, 60], infect: 0.1 },
+  // a stump: the cut part of a lost limb (Body.severed). Bleed is set per cut by limbs.stumpBleed.
+  amputation: { name: 'Amputation', pain: 70, bleed: 5, heal: [200, 360], infect: 0.14 },
 };
 
 export const PART_NAMES: Record<BodyPart, string> = {
@@ -149,6 +158,19 @@ export class Body {
   /** body parts that are gone (a lost upper arm lists the forearm and hand too). See src/survival/limbs.ts. */
   severed: BodyPart[] = [];
   isSevered(part: BodyPart) { return this.severed.includes(part); }
+  /** crutches and prosthetics in use (set every frame by the limb system from held / worn items) */
+  limbAids: LimbAids = noAids();
+  /** phantom limb pain: hours left of the current episode, and hours until the next one may start */
+  phantom = 0; phantomCd = 10;
+  /** what being without limbs does (cached; see limbs.ts) */
+  limbs(): LimbState {
+    const key = this.severed.join(',') + '#' + aidsKey(this.limbAids);
+    const c = (this as any)._limbC as { k: string; v: LimbState } | undefined;
+    if (c && c.k === key) return c.v;
+    const v = limbState(this.severed, this.limbAids);
+    Object.defineProperty(this, '_limbC', { value: { k: key, v }, enumerable: false, configurable: true, writable: true });
+    return v;
+  }
   boredom = 10; unhappy = 5; stress = 8; panic = 0;
   lucidity = 100; corruption = 0; corruptInfected = false;
   sickness = 0; temp = 37; wetness = 0; drunk = 0; stuffed = 0;
@@ -194,6 +216,7 @@ export class Body {
     let b = inj.bleed * (1 - inj.heal);
     if (inj.stitched) b *= 0.05;
     if (inj.bandage) b *= inj.bandage.soak > 0.95 ? 0.6 : 0.08;
+    if (inj.tq != null) b *= 0.03;
     return b;
   }
   pain(): number {
@@ -203,8 +226,12 @@ export class Body {
       let v = info.pain * (0.4 + inj.sev * 0.8) * (1 - inj.heal * 0.85);
       if (inj.splinted) v *= 0.5;
       if (inj.infection > 0.2) v += 15 * inj.infection;
+      // a tourniquet hurts, more the longer it stays on
+      if (inj.tq != null) v += 8 + Math.min(20, inj.tq * 6);
       p += v;
     }
+    // phantom limb pain: the hand that is not there cramps and burns
+    if (this.phantom > 0) p += 26;
     p += this.sickness > 50 ? (this.sickness - 50) * 0.3 : 0;
     p += this.corruption > 30 ? (this.corruption - 30) * 0.2 : 0;
     // withdrawal headaches and hangovers (mind.ts)
@@ -262,10 +289,12 @@ export class Body {
 
   // ---------------- injuries ----------------
   addInjury(part: BodyPart, type: InjuryType, sev: number, opts: { corruptChance?: number; dirty?: boolean } = {}): Injury {
+    // a wound on a part that is gone lands on the stump (the cut part stands for the stump)
+    if (type !== 'amputation' && this.severed.length && this.severed.includes(part)) part = redirectPart(this.severed, part);
     const info = INJURY_INFO[type];
     if (this.has('thin_skinned')) sev = Math.min(1, sev * 1.25);
     // Lucky Socks: as long as they are on, fate pulls its punches
-    if (this.has('lucky_socks') && this.wearingSocks && type !== 'fracture') {
+    if (this.has('lucky_socks') && this.wearingSocks && type !== 'fracture' && type !== 'amputation') {
       sev *= 0.78;
       if ((type === 'scratch' || type === 'laceration' || type === 'bite') && this.rng.chance(0.2)) type = 'bruise';
     }
@@ -453,6 +482,7 @@ export class Body {
     const healMul = (T('fast_healer') ? 1.5 : 1) * (T('slow_healer') ? 0.6 : 1) * (env.asleep ? 1.6 : 1) * (this.hunger > 45 ? 0.6 : 1) * (this.thirst > 45 ? 0.6 : 1);
     for (const inj of this.allInjuries()) {
       inj.age += dh;
+      if (inj.tq != null) inj.tq += dh;
       const b = this.injuryBleed(inj);
       bleedTotal += b;
       // scratches & minor wounds clot on their own
@@ -469,6 +499,8 @@ export class Body {
         let p = info.infect * dh * 0.25;
         if (!inj.bandage) p *= 1.6; else if (!inj.bandage.clean) p *= 3;
         if (inj.foreign) p *= 2;
+        if (inj.caut) p *= 0.35;
+        if (inj.tq != null && inj.tq > 3) p *= 2;   // tissue starved under a tourniquet left on too long
         if (T('prone_illness')) p *= 1.5;
         if (inj.infection === 0 && this.rng.chance(p)) inj.infection = 0.05;
       }
@@ -480,6 +512,8 @@ export class Body {
       let canHeal = !inj.foreign && inj.infection < 0.3;
       if (inj.type === 'deep' && !inj.stitched && inj.heal > 0.55) canHeal = false;
       if (inj.type === 'fracture' && !inj.splinted) { if (inj.heal > 0.3) canHeal = false; }
+      // a stump only closes once it is sealed (stitched or cauterised) and the tourniquet is off
+      if (inj.type === 'amputation' && ((!inj.stitched && !inj.caut && inj.heal > 0.15) || (inj.tq != null && inj.heal > 0.3))) canHeal = false;
       if (canHeal) {
         let rate = healMul / inj.healTime;
         if (inj.type === 'fracture' && inj.splinted) rate *= 2.2;
@@ -497,6 +531,7 @@ export class Body {
     this.sedated = Math.max(0, this.sedated - dh);
     this.antidep = Math.max(0, this.antidep - dh);
     this.adrenaline = Math.max(0, this.adrenaline - dh);
+    this.phantom = Math.max(0, this.phantom - dh * (this.painkiller > 0 ? 3 : 1));
     this.drunk = Math.max(0, this.drunk - 8 * dh);
     if (T('smoker')) {
       this.nicotine = Math.max(0, this.nicotine - dh);
@@ -661,7 +696,15 @@ export class Body {
     // shaking hands: chronic anxiety, a panic attack, too much coffee
     const jitter = mind.anxiety * 0.15 + attackFit * 0.35 + (mind.caffeine > 0 && !this.perks.has('barista') ? 0.05 : 0) - anxiolyticEffect(mind) * 0.05;
     const aim = clamp(1 - panic * 0.6 - fat * 0.3 - drunk * 0.5 - pain * 0.2 - cold * 0.3 - Math.max(0, jitter), 0.1, 1);
-    const canRun = this.endurance > 0.05 && legs < 0.5 && heavyLoad < 0.75;
-    return { move: clamp(move, 0.15, 1.2), action, attack, aim, canRun, tired: fat, limp: legs, panic, cold, drunk };
+    let canRun = this.endurance > 0.05 && legs < 0.5 && heavyLoad < 0.75;
+    // missing limbs (limbs.ts): hopping, crutches, crawling, one-handed everything
+    const L = this.severed.length || this.limbAids.crutchL || this.limbAids.crutchR ? this.limbs() : null;
+    let crawl = false, limbMove = 1;
+    if (L) { limbMove = L.move; canRun = canRun && L.canRun; crawl = L.crawl; }
+    const act = L ? action * L.action : action;
+    return {
+      move: clamp(move * limbMove, 0.12, 1.2), action: act, attack: L ? attack * L.attack : attack, aim: L ? clamp(aim * L.aim, 0.1, 1) : aim,
+      canRun, tired: fat, limp: legs, panic, cold, drunk, crawl, gait: L ? L.gait : 'walk',
+    };
   }
 }

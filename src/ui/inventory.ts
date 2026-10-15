@@ -2,7 +2,9 @@ import { G } from '../game/G';
 import { UI, escapeHtml } from './ui';
 import { Container } from '../items/container';
 import { Item, itemDef, itemName, itemWeight, freshness } from '../items/item';
-import { itemIcon, objIcon } from './icons';
+import { itemIcon, itemIconFor, objIcon } from './icons';
+import { PixelCanvas } from '../gfx/pixel';
+import { art } from './pixelkit';
 import { itemTooltip } from './itemTip';
 import { queueTransfers } from '../actions/transfer';
 import { floorContainer } from '../items/worldItems';
@@ -99,10 +101,10 @@ export class InventoryUI {
   private playerEntries(): Entry[] {
     const p = G.local;
     const out: Entry[] = [{ c: p.inv, name: 'Pockets & Hands', icon: this.pocketIcon() }];
-    for (const it of p.inv.items) if (it.inv && (p.isWorn(it) || p.handR === it || p.handL === it)) out.push({ c: it.inv, name: itemName(it), icon: itemIcon(it.key) });
+    for (const it of p.inv.items) if (it.inv && (p.isWorn(it) || p.handR === it || p.handL === it)) out.push({ c: it.inv, name: itemName(it), icon: itemIcon(it.key, '', 16) });
     return out;
   }
-  private pocketIcon() { return itemIcon('fanny_pack'); }
+  private pocketIcon() { return itemIcon('fanny_pack', '', 16); }
 
   private scanNearby() {
     const p = G.local;
@@ -129,9 +131,9 @@ export class InventoryUI {
     }
     const floor = floorContainer(z, p.x, p.z, 1.3);
     // bags on the floor become their own tabs
-    for (const it of floor.items) if (it.inv) out.push({ c: it.inv, name: itemName(it) + ' (floor)', icon: itemIcon(it.key) });
-    for (const corpse of G.creatures?.nearbyCorpses?.(p, R) || []) out.push({ c: corpse.inv, name: corpse.name, icon: itemIcon('skeleton') });
-    for (const v of G.items?.nearbyTrunks?.(p) || []) out.push({ c: v.c, name: v.name, icon: itemIcon('car_key') });
+    for (const it of floor.items) if (it.inv) out.push({ c: it.inv, name: itemName(it) + ' (floor)', icon: itemIcon(it.key, '', 16) });
+    for (const corpse of G.creatures?.nearbyCorpses?.(p, R) || []) out.push({ c: corpse.inv, name: corpse.name, icon: itemIcon('skeleton', '', 16) });
+    for (const v of G.items?.nearbyTrunks?.(p) || []) out.push({ c: v.c, name: v.name, icon: itemIcon('car_key', '', 16) });
     out.push({ c: floor, name: 'Floor', icon: this.floorIcon() });
     this.nearby = out;
     if (this.focusRef) {
@@ -144,11 +146,16 @@ export class InventoryUI {
   private _floorIcon = '';
   private floorIcon() {
     if (this._floorIcon) return this._floorIcon;
-    const c = document.createElement('canvas'); c.width = 40; c.height = 40;
-    const x = c.getContext('2d')!;
-    x.fillStyle = '#120e08'; x.beginPath(); x.moveTo(20, 8); x.lineTo(37, 18); x.lineTo(20, 28); x.lineTo(3, 18); x.closePath(); x.fill();
-    x.fillStyle = '#8a7a50'; x.beginPath(); x.moveTo(20, 10); x.lineTo(34, 18); x.lineTo(20, 26); x.lineTo(6, 18); x.closePath(); x.fill();
-    x.fillStyle = '#a89668'; x.fillRect(14, 16, 4, 2); x.fillRect(22, 18, 5, 2);
+    // a square of damp carpet in 3/4 view with a stain and a dropped scrap
+    const pc = new PixelCanvas(16, 16); pc.wrap = false;
+    art(pc, 0, 3, [
+      '.......kk.......', '.....kkbbkk.....', '...kkbbccbbkk...', '.kkbbccbbccbbkk.', 'kbbccbbccbbccbbk', 'kdbbccbbccbbccek', 'kddbbccbbccbbeek',
+      '.kddbbccbbccbeek', '..kkddbbccbeekk.', '....kkddbeekk...', '......kkdkk.....',
+    ], { k: 0x120e08, b: 0x8a7a50, c: 0x9c8b5c, d: 0x5e5233, e: 0x4a4028 });
+    art(pc, 5, 7, ['aa.', 'abb', '.b.'], { a: 0x6c5e3a, b: 0x5a4e30 });
+    art(pc, 9, 6, ['ff', 'fg'], { f: 0xe8e2cc, g: 0xa8a28c });
+    const c = document.createElement('canvas'); c.width = 16; c.height = 16;
+    c.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
     return (this._floorIcon = c.toDataURL());
   }
 
@@ -262,7 +269,7 @@ export class InventoryUI {
     const showCond = !!(d.durability || d.weapon || d.clothing);
     const cc = it.cond > 0.6 ? '' : it.cond > 0.25 ? 'mid' : 'low';
     const w = items.reduce((s, i) => s + itemWeight(i), 0);
-    r.innerHTML = `<img src="${itemIcon(it.key)}" alt=""><span class="nm">${escapeHtml(itemName(it))}</span><span class="tags">${tags.join('')}</span>${items.length > 1 ? `<span class="ct">×${items.length}</span>` : '<span class="ct"></span>'}<span class="wt">${w.toFixed(1)}</span>${showCond ? `<span class="cond"><i class="${cc}" style="width:${Math.round(it.cond * 100)}%"></i></span>` : ''}`;
+    r.innerHTML = `<img src="${itemIconFor(it, sub ? 14 : 18)}" alt=""><span class="nm">${escapeHtml(itemName(it))}</span><span class="tags">${tags.join('')}</span>${items.length > 1 ? `<span class="ct">×${items.length}</span>` : '<span class="ct"></span>'}<span class="wt">${w.toFixed(1)}</span>${showCond ? `<span class="cond"><i class="${cc}" style="width:${Math.round(it.cond * 100)}%"></i></span>` : ''}`;
     const tip = (x: number, y: number) => this.ui.showTip(itemTooltip(it, sub ? 1 : items.length), x, y);
     const quiet = () => !!this.press?.started || !!this.ui.menuEl;
     r.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && !quiet()) tip(e.clientX, e.clientY); });
@@ -329,7 +336,7 @@ export class InventoryUI {
   private openItemMenu(it: Item, c: Container, group: Item[], x: number, y: number) {
     this.ui.hideTip();
     const opts = itemMenuOptions(G.local, it, c, group);
-    this.ui.openMenu(x, y, itemName(it), opts);
+    this.ui.openMenu(x, y, itemName(it), opts, itemIconFor(it, 16));
   }
 
   /** the container on the opposite pane (for double-click moves) */
@@ -358,7 +365,7 @@ export class InventoryUI {
     const many = pr.stack ? pr.items : [pr.it];
     const ghost = document.createElement('div');
     ghost.id = 'drag-ghost';
-    ghost.innerHTML = `<img src="${itemIcon(pr.it.key)}" alt="">${many.length > 1 ? `<span>${many.length}</span>` : ''}`;
+    ghost.innerHTML = `<img src="${itemIconFor(pr.it, 18)}" alt="">${many.length > 1 ? `<span>${many.length}</span>` : ''}`;
     document.body.appendChild(ghost);
     pr.ghost = ghost;
     pr.row.classList.remove('press');

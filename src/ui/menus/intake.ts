@@ -12,6 +12,8 @@ import { itemIcon } from '../icons';
 import { h, esc, mbtn, kbtn, seg, toggle, tabs, swapPage, frame, FocusNav, sfx, hoverFocus } from './common';
 import { RigPreview } from './preview3d';
 import { G } from '../../game/G';
+import { glyph, glyphUrl, stampCanvas } from '../pixelart';
+import { toUrl, kitTheme, idPhoto } from '../pixelkit';
 
 export interface IntakeResult {
   name: string; app: Appearance; occupation: string; traits: string[];
@@ -36,14 +38,14 @@ const PRESETS: Record<string, { label: string; note: string; s: Record<string, n
   lost: { label: 'Lost and Alone', note: 'More of them, less of everything else. Water fails on day 3, power on day 14.', s: { dayLength: 60, creatures: 1.6, loot: 0.6, collapseSpeed: 1.3, startHour: 21, waterShutoffDays: 3, powerShutoffDays: 14, gore: 2 } },
 };
 
-const LOCK = '<svg viewBox="0 0 12 14"><path d="M3 6V4a3 3 0 0 1 6 0v2h1v8H2V6zm1.5 0h3V4a1.5 1.5 0 0 0-3 0z"/></svg>';
+const LOCK_ICON = () => `<i class="pxi lk" style="background-image:url(${glyphUrl('lock', 0xffd04a, -1)})"></i>`;
 const IC = {
-  dice: '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16"/><path d="M9 9h.01M15 9h.01M9 15h.01M15 15h.01M12 12h.01" stroke-width="3"/></svg>',
-  left: '<svg viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2-5M17 3v4h-4"/></svg>',
-  right: '<svg viewBox="0 0 24 24"><path d="M5 12a7 7 0 1 0 2-5M7 3v4h4"/></svg>',
-  plus: '<svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M10 7v6M7 10h6M15 15l5 5"/></svg>',
-  minus: '<svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="6"/><path d="M7 10h6M15 15l5 5"/></svg>',
-  play: '<svg viewBox="0 0 24 24"><path d="M7 5l11 7-11 7z"/></svg>',
+  get dice() { return glyph('dice'); },
+  get left() { return glyph('left'); },
+  get right() { return glyph('right'); },
+  get plus() { return glyph('plus'); },
+  get minus() { return glyph('minus'); },
+  get play() { return glyph('play'); },
 };
 
 // ---------------------------------------------------------------- appearance fields (incl. ones the rig may add later)
@@ -139,13 +141,32 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     const hudTR = h('div', 'pf-hud tr pf-rec', 'LIVE');
     const hudBL = h('div', 'pf-hud bl', 'ROT 000° · ZOOM 1.0×');
     const hudBR = h('div', 'pf-hud br', '');
-    const stamp = h('div', 'pf-stamp', esc(opts.submit || 'APPROVED'));
+    const stamp = h('div', 'pf-stamp');
+    {
+      const pc = stampCanvas((opts.submit || 'APPROVED').toUpperCase(), kitTheme().danger);
+      const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxn')) || 2;
+      const img = new Image(); img.src = toUrl(pc); img.alt = opts.submit || 'APPROVED';
+      img.style.width = pc.w * px * 2 + 'px'; img.style.height = pc.h * px * 2 + 'px';
+      stamp.append(img);
+    }
     const scanline = h('div', 'pf-scanline');
     const idBar = h('div', 'pf-id');
+    const photo = h('div', 'pf-id-photo');
+    photo.setAttribute('aria-hidden', 'true');
     const idT = h('div', 'pf-id-t', '<div class="pf-id-name"></div><div class="pf-id-job"></div>');
     const tools = h('div', 'pf-tools');
     viewer.append(h('div', 'pf-brackets'), hudTL, hudTR, hudBL, hudBR, scanline, stamp, idBar);
-    idBar.append(idT, tools);
+    idBar.append(photo, idT, tools);
+    // the ID photo is a pixel print of the live subject, retaken whenever the looks settle
+    let photoT = 0;
+    const takePhoto = () => {
+      clearTimeout(photoT);
+      photoT = window.setTimeout(() => {
+        const snap = preview.snapshot?.(18, 17);
+        if (!snap) return;
+        photo.style.backgroundImage = `url(${toUrl(idPhoto(kitTheme(), snap))})`;
+      }, 700);
+    };
     const preview = new RigPreview(viewer);
     viewer.insertBefore(preview.canvas, viewer.firstChild);
     preview.onInfo = (i) => {
@@ -167,9 +188,11 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
 
     // form chrome
     const head = h('div', 'pf-head');
+    const seal = h('div', 'pf-seal');
+    seal.setAttribute('aria-hidden', 'true');
     const headT = h('div', 'pf-head-t', `<h2>${esc(opts.title || 'FIELD PERSONNEL INTAKE')}</h2><small>"Thank you for your continuity."</small>`);
     const pts = h('div', 'pf-pts', '<b>00</b><span>POINTS</span>');
-    head.append(headT, pts);
+    head.append(seal, headT, pts);
     const pageNames = ['IDENTITY', 'OCCUPATION', 'TRAITS', ...(withSandbox ? ['SIMULATION'] : [])];
     let pageIdx = 0;
     const page = h('div', 'pf-page');
@@ -209,6 +232,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       rebuildT = window.setTimeout(() => {
         preview.setAppearance(app);
         if (react) preview.react(react);
+        takePhoto();
       }, 40);
       updateId();
     };
@@ -218,6 +242,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       const { outfit, held } = outfitFor(occ);
       preview.setOutfit(outfit, held);
       if (react) preview.react(react);
+      takePhoto();
     };
     // hovered occupation previews its outfit on the subject (debounced: rebuilding a rig costs a few ms)
     let shownOcc = '', previewT = 0;
@@ -367,10 +392,10 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
         const icon = o.items.find((k) => hasItemDef(k));
         const kit = o.items.filter((k) => hasItemDef(k)).slice(0, 5);
         const p = o.points;
-        b.innerHTML = `<div class="pf-occ-h">${icon ? `<img src="${itemIcon(icon)}" alt="">` : '<span class="ico-x"></span>'}<span class="pf-occ-n">${esc(o.name)}</span><span class="pf-occ-p ${p > 0 ? 'pos' : p < 0 ? 'neg' : ''}">${p > 0 ? '+' : ''}${p}</span></div>`
+        b.innerHTML = `<div class="pf-occ-h">${icon ? `<img src="${itemIcon(icon, '', 20)}" alt="">` : '<span class="ico-x"></span>'}<span class="pf-occ-n">${esc(o.name)}</span><span class="pf-occ-p ${p > 0 ? 'pos' : p < 0 ? 'neg' : ''}">${p > 0 ? '+' : ''}${p}</span></div>`
           + (avail
-            ? `<div class="pf-occ-d">${esc(o.desc)}</div><div class="pf-occ-s">${skillLine(o)}</div><div class="pf-occ-kit">${kit.map((k) => `<img src="${itemIcon(k)}" alt="" title="${esc(itemDef(k).name)}">`).join('')}</div>`
-            : `<div class="pf-lock">${LOCK}<span>LOCKED · ${esc(o.unlock?.hint || 'Not yet available.')}</span></div>`);
+            ? `<div class="pf-occ-d">${esc(o.desc)}</div><div class="pf-occ-s">${skillLine(o)}</div><div class="pf-occ-kit">${kit.map((k) => `<img src="${itemIcon(k, '', 16)}" alt="" title="${esc(itemDef(k).name)}">`).join('')}</div>`
+            : `<div class="pf-lock">${LOCK_ICON()}<span>LOCKED · ${esc(o.unlock?.hint || 'Not yet available.')}</span></div>`);
         if (!avail) b.setAttribute('aria-disabled', 'true');
         hoverFocus(b);
         // hover / focus preview: try the kit on before committing
@@ -421,7 +446,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
         const avail = traitAvailable(tr);
         const conflict = !on ? TRAITS.find((x) => traits.has(x.key) && ((tr.excl || []).includes(x.key) || (x.excl || []).includes(tr.key))) : undefined;
         const b = h('button', 'pf-trait' + (on ? ' on' : '') + (conflict ? ' blocked' : '') + (!avail ? ' locked' : ''),
-          `<span class="bx">${!avail ? LOCK : ''}</span><span class="nm">${esc(tr.name)}</span><span class="co">${tr.cost < 0 ? tr.cost : '+' + tr.cost}</span>`);
+          `<span class="bx"></span><span class="nm">${esc(tr.name)}</span><span class="co">${tr.cost < 0 ? tr.cost : '+' + tr.cost}</span>`);
         b.type = 'button';
         b.dataset.k = 'tr' + i;
         const why = !avail ? 'LOCKED · ' + (tr.unlock?.hint || 'Not yet available.') : conflict ? `Conflicts with ${conflict.name}.` : '';
@@ -469,6 +494,9 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       opt('Power fails', 'powerShutoffDays', [[0, 'never'], [7, 'day 7'], [14, 'day 14'], [30, 'day 30']]);
       opt('Gore', 'gore', [[0, 'off'], [1, 'normal'], [2, 'heavy']], (v) => ['No blood or wounds shown', 'Blood and wounds', 'Dismemberment, gibs, arterial spray'][v]);
       s.append(custom);
+      const ll = toggle('Limb loss', (sb.limbLoss ?? 1) !== 0, (v) => { sb.limbLoss = v ? 1 : 0; updatePoints(); }, 'survivors can lose hands, arms, feet and legs to bites and blades');
+      ll.dataset.k = 'limb';
+      s.append(ll);
       const dir = toggle('Directives', directives, (v) => { directives = v; updatePoints(); }, directives ? 'story mode: restore power, follow the signal, find the way out' : 'free survival: no mission chain');
       dir.dataset.k = 'dir';
       dir.addEventListener('click', () => { const sm = dir.querySelector('small'); if (sm) sm.textContent = directives ? 'story mode: restore power, follow the signal, find the way out' : 'free survival: no mission chain'; });

@@ -50,6 +50,9 @@ export class CombatSystem implements GameSystem {
 
   attack(p: Player) {
     const { it, w } = this.weapon(p);
+    // limb loss (src/survival/limbs.ts): a two-handed weapon needs two hands, or one and a hook to steady it
+    const L = p.body.severed.length ? p.body.limbs() : null;
+    if (L && it && ((w as any).twoHanded || itemDef(it.key).heavy) && !L.twoHand) { bus.emit('think', p, 'I can\'t swing that with one hand.'); p.attackCooldown = 0.6; return; }
     const mods = p.body.mods(p.heavyLoad());
     if (p.body.endurance < 0.05) bus.emit('think', p, 'Too tired to swing.');
     const speedMul = (1 + p.body.skill(skillFor(w.kind)) * 0.04) * (p.body.endurance < 0.25 ? 0.7 : 1);

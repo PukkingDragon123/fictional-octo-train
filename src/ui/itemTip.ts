@@ -1,6 +1,12 @@
 import { Item, itemDef, itemName, itemWeight, freshness, fluidName, BodyPart } from '../items/item';
 import { escapeHtml } from './ui';
 import { PART_NAMES } from '../survival/body';
+import { itemIconFor } from './icons';
+
+const CAT_LABEL: Record<string, string> = {
+  food: 'Food', drink: 'Drink', medical: 'Medical', weapon: 'Weapon', tool: 'Tool', clothing: 'Clothing', bag: 'Bag', material: 'Material', electronics: 'Electronics',
+  literature: 'Reading', misc: 'Item', ammo: 'Ammunition', key: 'Key', seed: 'Seeds', fuel: 'Fuel', light: 'Light', container: 'Container', lore: 'Document', trap: 'Trap', corpse: 'Remains', anomaly: 'Anomaly',
+};
 
 const pct = (v: number) => Math.round(v * 100);
 
@@ -66,5 +72,12 @@ export function itemTooltip(it: Item, count = 1): string {
   let coarse = false;
   try { coarse = matchMedia('(pointer: coarse)').matches; } catch { /* ignore */ }
   if (coarse) rows.push('<div class="tap">double-tap: move · hold: actions</div>');
-  return `<h4>${escapeHtml(itemName(it))}${count > 1 ? ' ×' + count : ''}</h4>${rows.join('')}`;
+  // the portrait sits beside the first readouts; the rest run full width below
+  const split = rows.findIndex((r) => r.startsWith('<div class="desc"'));
+  const head = rows.slice(0, Math.min(split < 0 ? rows.length : split, 4));
+  const rest = rows.slice(head.length);
+  let icon = '';
+  try { icon = itemIconFor(it, 40); } catch { /* no renderer yet */ }
+  const hero = `<div class="tip-hero">${icon ? `<img src="${icon}" alt="">` : ''}<div class="tip-rows"><div class="tip-cat">${escapeHtml(CAT_LABEL[d.cat] || d.cat)}</div>${head.join('')}</div></div>`;
+  return `<h4>${escapeHtml(itemName(it))}${count > 1 ? ' ×' + count : ''}</h4>${hero}${rest.join('')}`;
 }

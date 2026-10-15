@@ -4,7 +4,7 @@
 import { G } from '../../game/G';
 import { sfx, Sfx } from './sfx';
 import { FocusNav } from './nav';
-import { uiSettings, saveUiSettings, calm, UiTheme } from './settings';
+import { uiSettings, saveUiSettings, calm, UiTheme, currentPx } from './settings';
 import { getTouchSetting, setTouchSetting, TouchSetting } from '../touch/mode';
 
 export { sfx } from './sfx';
@@ -251,9 +251,23 @@ document.addEventListener('focusout', () => hideTip());
 document.addEventListener('pointerdown', () => hideTip(), true);
 
 // ---------------------------------------------------------------- persistent graphics settings
-export interface GfxSettings { pixelHeight: number; shake: boolean; grain: number }
+export interface GfxSettings {
+  pixelHeight: number; shake: boolean; grain: number;
+  /** render quality: 'auto' picks by device (phones low, tablets medium, desktops high) and steps down when frames run slow */
+  quality: 'auto' | 'low' | 'medium' | 'high';
+  /** camera shake intensity 0..1.5 (shake: false turns it off entirely) */
+  shakeAmt: number;
+  /** the view drifts toward the cursor / aim and looks ahead of your movement */
+  peek: boolean;
+  /** motion comfort: almost no shake, no breathing sway, gentler punches, push-ins and peek (on by default with prefers-reduced-motion) */
+  comfort: boolean;
+  /** after a free orbit (middle mouse / Alt+drag) keep the angle instead of easing back to the nearest quarter turn */
+  keepOrbit: boolean;
+}
 export function gfxSettings(): GfxSettings {
-  const d: GfxSettings = { pixelHeight: 360, shake: true, grain: 1 };
+  let rm = false;
+  try { rm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { /* ignore */ }
+  const d: GfxSettings = { pixelHeight: 360, shake: true, grain: 1, quality: 'auto', shakeAmt: 1, peek: true, comfort: rm, keepOrbit: false };
   try { return { ...d, ...JSON.parse(localStorage.getItem('noclip.gfx') || '{}') }; } catch { return d; }
 }
 export function saveGfx(s: GfxSettings) { try { localStorage.setItem('noclip.gfx', JSON.stringify(s)); } catch { /* ignore */ } applyGfx(s); }
@@ -262,6 +276,43 @@ export function applyGfx(s = gfxSettings()) {
   if (!pr) return;
   pr.targetLowH = s.pixelHeight;
   pr.resize?.();
+  pr.applySettings?.(s);
+  (G as any)?.camera?.applySettings?.(s);
+}
+
+const GFX_LABELS: Record<string, [string, string]> = {
+  peek: ['Look ahead', 'the view drifts toward your aim and where you are heading'],
+  comfort: ['Motion comfort', 'almost no shake or sway, gentler camera moves'],
+  keepOrbit: ['Keep camera angle', 'after a free orbit, stay there instead of snapping back'],
+};
+const GFX_HANDLED = new Set(['pixelHeight', 'shake', 'shakeAmt', 'grain', 'quality', 'peek', 'comfort', 'keepOrbit']);
+const humanizeKey = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+
+/** PICTURE: every field of GfxSettings gets a control (fields added later show up as generic switches / sliders) */
+function picturePage(f: DocumentFragment) {
+  const gs = gfxSettings() as GfxSettings & Record<string, any>;
+  const save = () => saveGfx(gs);
+  if ('quality' in gs) f.append(seg<string>('Quality', [['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], gs.quality, (v) => { gs.quality = v as GfxSettings['quality']; save(); },
+    { tip: (v) => ({ auto: 'Picked for this device, steps down when frames run slow', low: 'Fewest lights and effects: phones', medium: 'Balanced', high: 'Everything on' } as Record<string, string>)[v] || '' }));
+  f.append(slider('Pixel size', gs.pixelHeight, 240, 540, 30, (v) => (v <= 300 ? 'chunky' : v <= 390 ? 'classic' : v <= 450 ? 'fine' : 'very fine') + ` ${v}p`, (v) => { gs.pixelHeight = v; save(); }));
+  const shakeNow = gs.shake === false ? 0 : (gs.shakeAmt ?? 1);
+  f.append(seg<number>('Camera shake', [[0, 'Off'], [0.5, 'Low'], [1, 'Normal'], [1.5, 'Strong']], [0, 0.5, 1, 1.5].reduce((a, b) => Math.abs(b - shakeNow) < Math.abs(a - shakeNow) ? b : a, 1),
+    (v) => { gs.shake = v > 0; if (v > 0) gs.shakeAmt = v; save(); }));
+  if ('grain' in gs && typeof gs.grain === 'number') f.append(seg<number>('Film grain', [[0, 'Off'], [0.5, 'Low'], [1, 'Normal']], gs.grain <= 0.25 ? 0 : gs.grain <= 0.75 ? 0.5 : 1, (v) => { gs.grain = v; save(); }));
+  for (const k of ['peek', 'comfort', 'keepOrbit']) if (typeof gs[k] === 'boolean') {
+    const [l, sub] = GFX_LABELS[k];
+    f.append(toggle(l, gs[k], (v) => { gs[k] = v; save(); }, sub));
+  }
+  // anything the renderer adds later: booleans become switches, 0..1 numbers sliders, nested flag groups switches
+  for (const [k, v] of Object.entries(gs)) {
+    if (GFX_HANDLED.has(k)) continue;
+    if (typeof v === 'boolean') f.append(toggle(humanizeKey(k), v, (nv) => { gs[k] = nv; save(); }));
+    else if (typeof v === 'number' && v >= 0 && v <= 1) f.append(slider(humanizeKey(k), v, 0, 1, 0.05, (x) => Math.round(x * 100) + '%', (nv) => { gs[k] = nv; save(); }));
+    else if (v && typeof v === 'object' && !Array.isArray(v)) {
+      for (const [k2, v2] of Object.entries(v as Record<string, unknown>)) if (typeof v2 === 'boolean') f.append(toggle(humanizeKey(k2), v2, (nv) => { (gs[k] as Record<string, unknown>)[k2] = nv; save(); }));
+    }
+  }
+  f.append(h('p', 't-note', 'Lower pixel sizes and quality render fewer, bigger pixels and run faster on phones.'));
 }
 
 /** options content (sound, picture, interface, game), reused by the title and the pause menu */
@@ -282,21 +333,24 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
         f.append(slider(lbl, (vol as any)[k], 0, 1, 0.05, pct, (v) => G?.audio?.setVolume?.(k, v)));
       }
     } else if (name === 'PICTURE') {
-      const gs = gfxSettings();
-      f.append(slider('Pixel size', gs.pixelHeight, 240, 540, 30, (v) => (v <= 300 ? 'chunky' : v <= 390 ? 'classic' : v <= 450 ? 'fine' : 'very fine') + ` ${v}p`, (v) => { gs.pixelHeight = v; saveGfx(gs); }));
-      f.append(h('p', 't-note', 'Lower values render fewer, bigger pixels and run faster on phones.'));
+      picturePage(f);
     } else if (name === 'INTERFACE') {
       const us = uiSettings();
       f.append(seg<UiTheme>('Terminal', [['green', 'Phosphor green'], ['amber', 'Amber']], us.theme, (v) => { us.theme = v; saveUiSettings(us); }));
-      f.append(slider('UI scale', us.scale, 0.8, 1.4, 0.05, (v) => Math.round(v * 100) + '%', (v) => { us.scale = v; saveUiSettings(us); }));
+      f.append(seg<number>('UI size', [[0, 'Auto'], [2, '2×'], [3, '3×'], [4, '4×']], us.px ?? 0, (v) => { us.px = v; us.scale = 1; saveUiSettings(us); },
+        { tip: (v) => v === 0 ? `Pick for this screen (now ${currentPx({ ...us, px: 0 })}×)` : `Every interface pixel is ${v} screen pixels` }));
       f.append(toggle('Reduce flashing', us.reduceFlash, (v) => { us.reduceFlash = v; saveUiSettings(us); }, 'no flicker, glitches or blinking'));
       f.append(seg<TouchSetting>('Touch controls', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], getTouchSetting(), (v) => setTouchSetting(v),
         { tip: (v) => v === 'auto' ? 'Show on-screen controls on touch screens' : v === 'on' ? 'Always show on-screen controls' : 'Never show on-screen controls' }));
     } else if (name === 'GAME' && G?.sandbox) {
       const client = G.role === 'client';
-      const gore = seg<number>('Gore', [[0, 'Off'], [1, 'Normal'], [2, 'Heavy']], G.sandbox.gore ?? 2, (v) => { G.sandbox.gore = v; }, { tip: (v) => ['No blood or wounds shown', 'Blood and wounds', 'Dismemberment, gibs, arterial spray'][v as number] });
+      const sbx = G.sandbox as Record<string, number>;
+      const gore = seg<number>('Gore', [[0, 'Off'], [1, 'Normal'], [2, 'Heavy']], sbx.gore ?? 2, (v) => { sbx.gore = v; }, { tip: (v) => ['No blood or wounds shown', 'Blood and wounds', 'Dismemberment, gibs, arterial spray'][v as number] });
       if (client) gore.querySelectorAll('button').forEach((b) => { (b as HTMLButtonElement).disabled = true; });
       f.append(gore);
+      const limbs = toggle('Limb loss', (sbx.limbLoss ?? 1) !== 0, (v) => { sbx.limbLoss = v ? 1 : 0; }, 'survivors can lose hands, arms, feet and legs');
+      if (client) (limbs as HTMLButtonElement).disabled = true;
+      f.append(limbs);
       f.append(h('p', 't-note', client ? 'Set by the host for everyone in this world.' : 'Saved with this world (co-op guests use your setting).'));
     }
     swapPage(page, f, dir);

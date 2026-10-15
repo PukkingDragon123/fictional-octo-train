@@ -10,6 +10,22 @@ import { uid } from '../core/rng';
 import { bus } from '../core/events';
 import { clamp, dampAngle, wrapAngle } from '../core/math';
 import { occupationByKey } from '../survival/traits';
+import { cutParts, PROSTHETICS, prostFits, lossLevel, chainOf, Side, StumpCond, StumpLook } from '../survival/limbs';
+import { ModelBuilder } from '../gfx/modelBuilder';
+import { worldMaterial } from '../gfx/materials';
+import { crutchHeldModel } from './limbGear';
+
+/** elbow crutch held in the fist (shared geometry) */
+const CRUTCH_GEO: Record<string, THREE.BufferGeometry> = {};
+function crutchMesh(key: string, s: number): THREE.Object3D {
+  const wood = key.includes('wood');
+  const k = (wood ? 'w' : 'a') + Math.round(s * 100);
+  if (!CRUTCH_GEO[k]) { const mb = new ModelBuilder(); crutchHeldModel(mb, wood, s); CRUTCH_GEO[k] = mb.build(); }
+  const m = new THREE.Mesh(CRUTCH_GEO[k], worldMaterial({}));
+  m.castShadow = true;
+  return m;
+}
+const isCrutchKey = (k: string) => !!k && (itemDef(k).tags || []).includes('crutch');
 
 // item clothing slots (one item each): layered torso tshirt < shirt < sweater < jacket
 export const WEAR_SLOTS = ['hat', 'eyes', 'mask', 'neck', 'tshirt', 'shirt', 'sweater', 'jacket', 'fullsuit', 'hands', 'pants', 'socks', 'shoes', 'back', 'belt', 'wrist',
@@ -64,6 +80,9 @@ export class Player {
   private condT = 0; private condKey = ''; private lastHealth = 100; private visT = 0; private lastNetT = -1; private lastAnim = '';
   /** blood splashed onto body parts (0..1), fading over a few minutes */
   splash: Record<string, number> = {};
+
+  /** recompute the visible condition (limb loss, treatment) on the next frame */
+  refreshCondition() { this.condT = 0; }
 
   /** gore hit / splash on a body part: stains the skin there and soaks the garment covering it */
   bloodied(part: string, amount: number) {
@@ -185,6 +204,17 @@ export class Player {
 
   // ---------------- equipment ----------------
   equip(it: Item | null, hand: 'R' | 'L' = 'R') {
+    if (it && this.body.severed.length) {
+      // limb loss (src/survival/limbs.ts): one hand means one slot (the main one); two-handed things need two hands or a hook
+      const L = this.body.limbs();
+      const d = itemDef(it.key);
+      if (L.hands === 0) { if (this.isLocal) bus.emit('think', this, 'I have no hands to hold it with.'); return; }
+      if ((d.weapon?.twoHanded || d.heavy) && !L.twoHand) { if (this.isLocal) bus.emit('think', this, 'I can\'t hold that with one hand.'); return; }
+      if (L.hands === 1) {
+        hand = 'R';
+        if (this.handL && this.handL !== this.handR) { const o = this.handL; this.handL = null; if (!this.handR) this.handR = o; }
+      }
+    }
     if (it) {
       const d = itemDef(it.key);
       if (this.handR === it) this.handR = null;
@@ -204,6 +234,15 @@ export class Player {
     const d = itemDef(it.key);
     let slot: WearSlot | null = null;
     if (d.clothing) slot = d.clothing.slot as WearSlot;
+    const pd = PROSTHETICS[it.key];
+    if (pd) {
+      // strapped onto the stump it fits (a side that is not already wearing one)
+      const sides = (['l', 'r'] as Side[]).filter((sd) => prostFits(it.key, pd.limb, lossLevel(this.body.severed, pd.limb, sd)) && !this.worn.has(`prosth_${pd.limb}_${sd}` as WearSlot));
+      if (!sides.length) { if (this.isLocal) bus.emit('think', this, this.body.severed.length ? 'It doesn\'t fit what I\'ve lost.' : 'I don\'t need that. Thank god.'); return false; }
+      const raw = this.body.allInjuries().some((i) => i.type === 'amputation' && chainOf(i.part)?.kind === pd.limb && !i.stitched && !i.caut && i.heal < 0.35);
+      if (raw) { if (this.isLocal) bus.emit('think', this, 'The stump is still an open wound. It needs closing first.'); return false; }
+      slot = `prosth_${pd.limb}_${sides[0]}` as WearSlot;
+    }
     else if (d.bag) slot = d.bag.slot === 'back' ? 'back' : d.bag.slot === 'belt' || d.bag.slot === 'hip' ? 'belt' : null;
     if (!slot) return false;
     const prev = this.worn.get(slot);
@@ -291,6 +330,23 @@ export class Player {
     const pale = lv(100 - b.blood, 25, 45, 65); if (pale) c.pale = pale;
     const cor = lv(b.corruption, 10, 40, 70); if (cor) c.corrupt = cor;
     if (!b.dead) { if (b.downed || b.pain() > 65) c.expr = 'pain'; else if (b.panic > 70) c.expr = 'fear'; }
+    // limb loss: what is gone, how each stump looks, prosthetics (mirrored to co-op peers through the outfit)
+    if (b.severed.length) {
+      c.sev = [...b.severed].sort();
+      const stump: Record<string, StumpCond & { id?: number }> = {};
+      for (const cut of cutParts(b.severed)) {
+        const inj = b.parts[cut].injuries.find((i) => i.type === 'amputation');
+        let look: StumpLook = 'healed';
+        if (inj) look = inj.bandage ? (inj.bandage.soak > 0.6 || !inj.bandage.clean ? 'bandb' : 'band') : inj.stitched ? 'stitch' : inj.caut ? 'caut' : 'raw';
+        const sc: StumpCond & { id?: number } = { s: look };
+        if (inj && inj.tq != null) sc.tq = 1;
+        if (inj) sc.id = inj.id;
+        stump[cut] = sc;
+      }
+      c.stump = stump;
+      const pr = b.limbAids?.prost;
+      if (pr && Object.keys(pr).length) c.prost = { ...pr } as Record<string, string>;
+    }
     return c;
   }
 
@@ -300,10 +356,14 @@ export class Player {
       if (!this.remote) this.rig.setOutfit(this.computeOutfit());
       this.outfitDirty = false;
     }
-    const kr = this.handR ? this.handR.key : '', kl = this.handL && this.handL !== this.handR ? this.handL.key : '';
+    // with the right hand gone, the main item sits in the left hand (the animation mirrors to match)
+    const mirror = this.body.severed.length ? this.body.limbs().mirror : false;
+    const main = this.handR ? this.handR.key : '', off = this.handL && this.handL !== this.handR ? this.handL.key : '';
+    const kr = mirror ? off : main, kl = mirror ? main : off;
     const grip = (k: string) => { const d = itemDef(k); return d.weapon?.kind === 'firearm' || d.light ? 'along' as const : d.weapon && d.weapon.kind !== 'thrown' || d.tags?.includes('tool') ? 'perp' as const : 'auto' as const; };
-    if (kr !== this.heldKeyR) { this.heldKeyR = kr; this.rig.hold('R', kr ? makeHeldMesh(kr) : null, kr ? grip(kr) : 'auto'); }
-    if (kl !== this.heldKeyL) { this.heldKeyL = kl; this.rig.hold('L', kl ? makeHeldMesh(kl) : null, kl ? grip(kl) : 'auto'); }
+    const mesh = (k: string) => (isCrutchKey(k) ? crutchMesh(k, this.rig.s) : makeHeldMesh(k));
+    if (kr !== this.heldKeyR) { this.heldKeyR = kr; this.rig.hold('R', kr ? mesh(kr) : null, kr ? (isCrutchKey(kr) ? 'raw' : grip(kr)) : 'auto'); }
+    if (kl !== this.heldKeyL) { this.heldKeyL = kl; this.rig.hold('L', kl ? mesh(kl) : null, kl ? (isCrutchKey(kl) ? 'raw' : grip(kl)) : 'auto'); }
   }
 
   actionMul(): number { return this.body.mods(this.heavyLoad()).action; }
@@ -366,7 +426,14 @@ export class Player {
     if (this.sleeping && !full) full = 'lie';
     // which leg / arm hurts (for the limp side and a cradled arm)
     let limpSide: 'L' | 'R' | undefined, armL = 0, armR = 0;
-    if (local && (m.limp > 0.05 || this.body.armPenalty() > 0.1)) {
+    // missing limbs: hop, crutches, a peg's stiff limp, one-armed poses (src/survival/limbs.ts)
+    const LS = this.body.severed.length || this.body.limbAids?.crutchL || this.body.limbAids?.crutchR ? this.body.limbs() : null;
+    let limp = m.limp;
+    if (LS) {
+      if (LS.gait === 'peg') { limp = Math.max(limp, 0.42); limpSide = LS.legProst.l === 'peg' ? 'L' : 'R'; }
+      else if (LS.gait === 'prosthetic') { limp = Math.max(limp, 0.14); limpSide = LS.legProst.l ? 'L' : 'R'; }
+    }
+    if (local && !LS && (m.limp > 0.05 || this.body.armPenalty() > 0.1)) {
       const dmg = (ps: string[]) => ps.reduce((s, p) => s + this.body.partDamage(p as any), 0);
       limpSide = dmg(['thigh_l', 'shin_l', 'foot_l']) >= dmg(['thigh_r', 'shin_r', 'foot_r']) ? 'L' : 'R';
       const frac = (p: string[]) => Math.min(1, p.reduce((s, q) => s + this.body.parts[q as 'farm_l'].injuries.filter((i) => i.type === 'fracture' && i.heal < 0.8).length, 0) * 0.8 + dmg(p) / 120);
@@ -375,13 +442,18 @@ export class Player {
     const prevF = this.rig.root.rotation.y;
     this.rig.animate(dt, {
       speed: this.speed, stance: this.stance, full, action, actionT: this.visT, actionDur: this.actionDur,
-      twoHanded: !!(this.handR && this.handR === this.handL), limp: m.limp, tired: m.tired, panic: m.panic,
+      twoHanded: !!(this.handR && this.handR === this.handL), limp, tired: m.tired, panic: m.panic,
       cold: m.cold, aimPitch: 0, holdingLight: !!this.lightItem && this.flashlightOn && this.handR === this.lightItem,
       holding: !!this.handR, heldL: !!this.handL && this.handL !== this.handR, lookYaw: 0,
       weapon: w ? w.kind : this.handR ? 'tool' : 'unarmed', limpSide, armHurtL: armL, armHurtR: armR,
       exhausted: local ? Math.max(0, 1 - this.body.endurance / 0.3) : 0, drunk: m.drunk, hot: local && this.body.temp > 37.6 ? Math.min(1, (this.body.temp - 37.4) / 1.5) : 0,
-      turn: dt > 0 ? wrapAngle(Math.PI / 2 - this.facing - prevF) / dt : 0, hasWatch: !!this.rig.outfit.wrist,
+      turn: dt > 0 ? wrapAngle(Math.PI / 2 - this.facing - prevF) / dt : 0, hasWatch: !!this.rig.outfit.wrist && !(LS && LS.arm.l >= 2),
       unconscious: this.body.dead || (this.body.downed && this.body.downedTime > 30),
+      limbs: LS ? {
+        armL: LS.arm.l, armR: LS.arm.r, legL: LS.leg.l, legR: LS.leg.r, gait: LS.gait, mirror: LS.mirror,
+        crutchL: !!this.body.limbAids?.crutchL, crutchR: !!this.body.limbAids?.crutchR,
+        pegL: LS.legProst.l === 'peg', pegR: LS.legProst.r === 'peg', hookL: LS.hook.l, hookR: LS.hook.r,
+      } : undefined,
     });
     this.rig.root.position.set(this.x, this.y, this.z);
     this.rig.root.rotation.y = Math.PI / 2 - this.facing;

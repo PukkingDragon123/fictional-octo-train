@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { worldMaterial } from '../gfx/materials';
-import { BONES, BoneName, BONE_PARENT, Dims, rigDims, buildBody } from './humanModel';
+import { BONES, BoneName, BONE_PARENT, Dims, rigDims, buildBody, cutSpec } from './humanModel';
+import { ModelBuilder } from '../gfx/modelBuilder';
+import { stumpModel, pegModel, hookModel, prostHandModel, prostLegModel, footShell } from './limbGear';
+import { cutParts, StumpCond, PROSTHETICS, chainOf } from '../survival/limbs';
 import { bakePage, makePageTexture, EYE_COLORS, BakeCache } from './humanPaint';
 import { outfitShape } from './humanClothes';
 import { HumanAnimator, AnimInput, EMOTES } from './humanAnim';
@@ -77,6 +80,20 @@ export interface RigCondition {
   wet?: number; dirt?: number; pale?: number; corrupt?: number;
   /** baked facial expression */
   expr?: '' | 'pain' | 'fear';
+  /** severed body parts (src/survival/limbs.ts): the mesh drops them and caps the cut */
+  sev?: string[];
+  /** each cut (the most proximal missing part of a limb): how the stump looks, a tourniquet, the owner's injury id */
+  stump?: Record<string, StumpCond & { id?: number }>;
+  /** fitted prosthetics by limb ('arm_l' | 'arm_r' | 'leg_l' | 'leg_r' → item key) */
+  prost?: Record<string, string>;
+}
+
+/** stump / prosthetic geometry, shared between rigs (bucketed radius, look, skin tint) */
+const GEAR_GEO = new Map<string, THREE.BufferGeometry>();
+function gearGeo(key: string, fn: (mb: ModelBuilder) => void): THREE.BufferGeometry {
+  let g = GEAR_GEO.get(key);
+  if (!g) { const mb = new ModelBuilder(); fn(mb); g = mb.build(); GEAR_GEO.set(key, g); }
+  return g;
 }
 
 export const SKIN_TONES = [0xf3d2b8, 0xe8b98f, 0xd39b6c, 0xb67a4c, 0x8d5634, 0x5e3a24];
@@ -246,6 +263,11 @@ export class HumanRig {
   private sole = 0;
   private seed: number;
   private baseMat: THREE.Material;
+  /** stumps, tourniquets and prosthetics hung on the bones (limb loss) */
+  private gear: THREE.Mesh[] = [];
+  private gearKey = '';
+  /** gore is off: stumps are drawn as closed skin, never raw (set by the limb system) */
+  static gentle = false;
 
   constructor(app: Appearance, material?: THREE.Material) {
     this.app = normalizeAppearance(app);
@@ -352,13 +374,13 @@ export class HumanRig {
     const sh = outfitShape(full);
     const cond = this.outfit.cond || {};
     const appKey = JSON.stringify(this.app);
-    const gk = appKey + JSON.stringify(sh) + (cond.splint || []).join(',') + (full.wrist ? '|w' : '');
+    const gk = appKey + JSON.stringify(sh) + (cond.splint || []).join(',') + (full.wrist ? '|w' : '') + (cond.sev?.length ? '|s:' + cond.sev.join(',') : '');
     const { cond: _c, ...looks } = full;
     void _c;
-    const tk = appKey + JSON.stringify(looks) + JSON.stringify({ ...cond, bleeding: undefined });
+    const tk = appKey + JSON.stringify(looks) + JSON.stringify({ ...cond, bleeding: undefined, stump: undefined, prost: undefined, sev: undefined });
     if (gk !== this.geoKey) {
       this.geoKey = gk;
-      const res = buildBody(this.app, full, sh, this.dims, { splints: new Set(cond.splint || []), bandages: new Set(Object.keys(cond.bandage || {})) });
+      const res = buildBody(this.app, full, sh, this.dims, { splints: new Set(cond.splint || []), bandages: new Set(Object.keys(cond.bandage || {})), severed: new Set(cond.sev || []) });
       const old = this.mesh.geometry;
       this.mesh.geometry = res.geometry;
       old.dispose();
@@ -370,6 +392,63 @@ export class HumanRig {
       this.texKey = tk;
       bakePage({ app: this.app, outfit: full, shape: sh, cond, seed: this.seed }, this.page.data, this.bakeCache);
       this.page.tex.needsUpdate = true;
+    }
+    this.updateGear(cond, sh);
+  }
+
+  /** limb loss: a cap on every stump (raw, seared, stitched, bandaged, healed; a tourniquet), and the prosthetics */
+  private updateGear(cond: RigCondition, sh: ReturnType<typeof outfitShape>) {
+    const sev = cond.sev || [];
+    const stumpKey = (st: StumpCond | undefined) => st ? st.s + (st.tq ? '+tq' : '') : 'healed';
+    const key = sev.length ? JSON.stringify([sev, Object.entries(cond.stump || {}).map(([k, v]) => k + ':' + stumpKey(v)), cond.prost, this.app.skin, this.s, this.app.build, sh.sleeve, sh.legKind, HumanRig.gentle]) : '';
+    if (key === this.gearKey) return;
+    this.gearKey = key;
+    for (const m of this.gear) m.removeFromParent();
+    this.gear.length = 0;
+    if (!sev.length) return;
+    const skin = this.app.skin;
+    const q = (r: number) => Math.round(r * 200) / 200;
+    for (const cut of cutParts(sev)) {
+      const spec = cutSpec(cut, this.dims, sh);
+      if (!spec) continue;
+      const ch = chainOf(cut)!;
+      const pk = cond.prost?.[`${ch.kind}_${ch.side}`];
+      const pd = pk ? PROSTHETICS[pk] : null;
+      const level = 3 - ch.idx;
+      const fits = !!pd && level <= pd.maxLevel;
+      const st = cond.stump?.[cut];
+      let look = st?.s ?? 'healed';
+      if (HumanRig.gentle && (look === 'raw' || look === 'caut')) look = 'clean';
+      const r = q(spec.r);
+      const add = (geo: THREE.BufferGeometry, bone: BoneName, pos: [number, number, number]) => {
+        const m = new THREE.Mesh(geo, this.baseMat);
+        m.castShadow = true; m.position.set(pos[0], pos[1], pos[2]);
+        m.name = 'limbgear';
+        this.bones[bone].add(m);
+        this.gear.push(m);
+      };
+      // the stump itself (hidden inside a prosthetic socket, unless it is bandaged)
+      if (!fits || look === 'band' || look === 'bandb') add(gearGeo(`st:${look}:${st?.tq ? 1 : 0}:${r}:${skin}`, (mb) => stumpModel(mb, r, look as any, !!st?.tq, skin)), spec.bone, spec.pos);
+      if (!fits || !pd) continue;
+      const s = this.s;
+      if (pd.kind === 'peg') {
+        // to the floor: from the cut down (ankle cut: the rest of the shin and the foot; knee cut: the whole shin and the foot)
+        const len = (cut.startsWith('foot') ? 0.42 - 0.37 + 0.07 : 0.43 + 0.42 - 0.42 + 0.07) * s + 0.02;
+        add(gearGeo(`peg:${r}:${q(len)}`, (mb) => pegModel(mb, r, len)), spec.bone, spec.pos);
+      } else if (pd.kind === 'leg') {
+        if (cut.startsWith('foot')) add(gearGeo(`pl:f:${r}`, (mb) => prostLegModel(mb, r, 0, false)), spec.bone, spec.pos);
+        else {
+          // above the knee the socket rides the thigh (which still swings); below, it caps the knee stump
+          const above = cut.startsWith('thigh');
+          const lenToKnee = above ? 0.34 * s : 0.02;
+          add(gearGeo(`pl:s:${r}:${q(lenToKnee)}`, (mb) => prostLegModel(mb, r, lenToKnee, false)), above ? ('thigh' + spec.side) as BoneName : spec.bone, above ? [0, -0.07 * s, 0] : spec.pos);
+          // the shin pylon hangs off the knee and bends with it
+          const sb = ('shin' + spec.side) as BoneName;
+          add(gearGeo(`pl:p:${q(s)}`, (mb) => { mb.cylinder(0, -0.36 * s, 0, 0.016, 0.36 * s, 6, { sides: 'i_steel', top: 'i_steel', bottom: 'i_steel' }, { fit: true }); mb.cylinder(0, -0.04 * s, 0, 0.034, 0.05, 7, 'i_carbon', { fit: true }); }), sb, [0, 0, 0]);
+        }
+        add(gearGeo(`pl:foot`, (mb) => footShell(mb, 0)), ('foot' + spec.side) as BoneName, [0, 0, 0]);
+      } else if (pd.kind === 'hook') add(gearGeo(`hook:${r}:${cut.startsWith('farm') ? 1 : 0}`, (mb) => hookModel(mb, r, cut.startsWith('farm'))), spec.bone, spec.pos);
+      else if (pd.kind === 'hand') add(gearGeo(`ph:${r}:${cut.startsWith('farm') ? 1 : 0}`, (mb) => prostHandModel(mb, r, cut.startsWith('farm'))), spec.bone, spec.pos);
     }
   }
 
@@ -448,11 +527,15 @@ export class HumanRig {
     const b = this.outfit.cond?.bleeding;
     if (!b) return out;
     let updated = false;
+    const sev = this.outfit.cond?.sev;
     for (const [part, rate] of Object.entries(b)) {
       const at = WOUND_AT[part]; if (!at || !rate) continue;
       if (!updated) { this.root.updateMatrixWorld(true); updated = true; }
       const s = this.s;
-      const pos = new THREE.Vector3(at[1] * s, at[2] * s, at[3] * s).applyMatrix4(this.bones[at[0]].matrixWorld);
+      // a stump bleeds from the cut, not from where the missing part used to hang
+      const cs = sev?.includes(part) ? cutSpec(part, this.dims) : null;
+      const pos = cs ? new THREE.Vector3(cs.pos[0], cs.pos[1], cs.pos[2]).applyMatrix4(this.bones[cs.bone].matrixWorld)
+        : new THREE.Vector3(at[1] * s, at[2] * s, at[3] * s).applyMatrix4(this.bones[at[0]].matrixWorld);
       out.push({ part, pos, rate });
     }
     return out;

@@ -23,9 +23,20 @@ import { ButcherAction } from '../actions/world';
 import { queueAt } from '../actions/basic';
 import { UseObjectAction } from '../actions/world';
 import { itemDef } from '../items/item';
+import { tearDef, creatureLimbFx, CreatureLimbFx } from '../gore/tearing';
+import { redirectPart, isLimbPart } from '../survival/limbs';
 
 /** what a creature was hit with (passed to the gore system) */
-export interface GoreHit { dmg: number; kind: string; fx: number; fz: number; crit?: boolean; by?: string }
+export interface GoreHit { dmg: number; kind: string; fx: number; fz: number; crit?: boolean; by?: string; head?: boolean }
+
+/** what losing parts does to a living creature (c.mem.severed → c.mem.limbFx, see src/gore/tearing.ts) */
+export function limbFx(c: Creature): CreatureLimbFx | null {
+  const sv = c.mem.severed as string[] | undefined;
+  if (!sv?.length) return null;
+  let fx = c.mem.limbFx as (CreatureLimbFx & { n?: number }) | undefined;
+  if (!fx || fx.n !== sv.length) { fx = { ...creatureLimbFx(c.sp, sv), n: sv.length }; c.mem.limbFx = fx; }
+  return fx;
+}
 
 export interface NoiseEvent { x: number; z: number; radius: number; kind: string; zone: string; by?: string; t: number; }
 
@@ -212,6 +223,8 @@ export class CreatureSystem implements GameSystem {
     c.noiseCooldown = Math.max(0, c.noiseCooldown - dt);
     c.observed = this.observed(c, z, !!c.sp.flags?.weepingAngel);
     if (c.observed) c.lastObserved = G.time;
+    // holding a survivor and pulling (a tearing attack, src/gore/tearing.ts)
+    if (c.mem.tear) { this.tearStep(c, z, dt); return; }
     // attack in progress
     if (c.attackPhase > 0) {
       c.attackPhase -= dt;
@@ -436,7 +449,10 @@ export class CreatureSystem implements GameSystem {
     const turn = c.sp.turn ?? 8;
     c.facing = dampAngle(c.facing, c.targetFacing, turn, dt);
     if (c.speed <= 0.01) { c.vx *= 0.7; c.vz *= 0.7; }
-    const mvx = c.vx * dt, mvz = c.vz * dt;
+    // missing legs: it limps, crawls, drags itself
+    const lf = limbFx(c);
+    const lm = lf ? lf.move : 1;
+    const mvx = c.vx * dt * lm, mvz = c.vz * dt * lm;
     if (Math.abs(mvx) + Math.abs(mvz) > 1e-5) {
       const ox = c.x, oz = c.z;
       moveCircle(z, c, mvx, mvz, { creature: true, ghost: !!c.sp.flags?.ghost, ignoreLow: true });
@@ -513,9 +529,71 @@ export class CreatureSystem implements GameSystem {
     // dodge chance for nimble survivors
     const dodge = 0.06 + p.body.skill('nimble') * 0.025 + (p.aiming ? 0.04 : 0);
     if (this.rng.chance(dodge)) { if (p.isLocal) bus.emit('halo', p, 'Dodged!', 'good'); return; }
-    const hit = { dmg: this.rng.float(a.dmg[0], a.dmg[1]), kinds: a.kinds, corrupt: a.corrupt, height: c.height, knock: a.knock ?? 0.6, from: [c.x, c.z] as [number, number], grab: !!a.grab, parts: a.parts, by: c.sp.key };
+    const lf = limbFx(c);
+    if (lf && lf.atk <= 0.05) { if (p.isLocal) bus.emit('think', p, 'It flails at me, but it cannot hurt me any more.'); return; }
+    const hit: HitInfo = { dmg: this.rng.float(a.dmg[0], a.dmg[1]) * (lf ? lf.atk : 1), kinds: a.kinds, corrupt: a.corrupt, height: c.height, knock: a.knock ?? 0.6, from: [c.x, c.z] as [number, number], grab: !!a.grab, parts: a.parts, by: c.sp.key };
+    // a grab-and-rip: the victim is held, it pulls, a limb comes away
+    const tear = this.rollTear(c, p, hit.dmg);
+    if (tear) {
+      hit.tear = tear;
+      hit.grab = true;
+      c.mem.tear = { pid: p.id, t: 0, hold: tear.hold, part: tear.part };
+      G.gore?.tearStart?.(c, p.id, tear.part, tear.hold, tear.verb);
+    }
     if (p.isLocal) applyHitToPlayer(p, hit);
     else G.net?.sendHurt?.(p.id, hit);
+  }
+
+  /** host: does this hit turn into a tear? (species table, the creature still has its jaw / arms, the victim still has the limb) */
+  rollTear(c: Creature, p: Player, dmg: number, force = false): { part: string; hold: number; verb: string } | null {
+    if (!G.sandbox.limbLoss || p.body.dead || p.inVehicle) return null;
+    const d = tearDef(c.sp.key);
+    if (!d) return null;
+    const lf = limbFx(c);
+    if (lf && !lf.canTear) return null;
+    const cd = (p as any).mem_tearCd as number | undefined;
+    if (!force && cd && G.time < cd) return null;
+    const sev = p.body.severed as string[];
+    const opts = d.parts.filter(([pt]) => !sev.includes(pt));
+    if (!opts.length) return null;
+    const avg = c.sp.attack ? (c.sp.attack.dmg[0] + c.sp.attack.dmg[1]) / 2 : 10;
+    const ch = d.chance * clamp(dmg / Math.max(1, avg), 0.6, 1.6) * (p.body.downed ? 2.5 : 1) * (p.body.health < 40 ? 1.5 : 1) * (G.local === p || G.players.size <= 1 ? 1 : 0.9);
+    if (!force && !this.rng.chance(ch)) return null;
+    (p as any).mem_tearCd = G.time + 25;
+    return { part: this.rng.weighted(opts), hold: d.hold, verb: d.verb };
+  }
+
+  /** dev / tests: creature `cid` grabs survivor `pid` and tears `part` off (host) */
+  forceTear(cid: string, pid: string, part: string, hold?: number) {
+    const c = this.creatures.get(cid), p = G.players.get(pid);
+    if (!c || !p) return false;
+    const d = tearDef(c.sp.key);
+    const tear = { part, hold: hold ?? d?.hold ?? 1.4, verb: d?.verb ?? 'pull' };
+    const a = c.sp.attack;
+    const hit: HitInfo = { dmg: a ? a.dmg[0] : 8, kinds: a?.kinds ?? ['bite'], corrupt: 0, height: c.height, knock: 0.2, from: [c.x, c.z], grab: true, parts: a?.parts, by: c.sp.key, tear };
+    c.targetFacing = c.facing = Math.atan2(p.z - c.z, p.x - c.x);
+    c.mem.tear = { pid, t: 0, hold: tear.hold, part };
+    G.gore?.tearStart?.(c, pid, part, tear.hold, tear.verb);
+    if (p.isLocal) applyHitToPlayer(p, hit); else G.net?.sendHurt?.(pid, hit);
+    return true;
+  }
+
+  /** host: a creature hanging on to its victim; let go when the limb is off (or the victim is gone) */
+  private tearStep(c: Creature, z: Zone, dt: number) {
+    const t = c.mem.tear as { pid: string; t: number; hold: number; part: string };
+    t.t += dt;
+    const p = G.players.get(t.pid);
+    c.vx = c.vz = 0; c.speed = 0;
+    c.attackPhase = 0.2;   // the attack pose, and the 'at' flag for peers
+    if (p) c.targetFacing = Math.atan2(p.z - c.z, p.x - c.x);
+    // it braces and pulls back a little as the limb gives
+    if (p && t.t > t.hold * 0.6 && t.t < t.hold) { const a = Math.atan2(c.z - p.z, c.x - p.x); c.vx = Math.cos(a) * 0.5; c.vz = Math.sin(a) * 0.5; }
+    this.applyMove(c, z, dt);
+    if (!p || p.body.dead || p.zoneKey !== c.zoneKey || t.t > t.hold + 0.6 || c.stagger > 0.3) {
+      delete c.mem.tear;
+      c.attackPhase = 0;
+      c.attackT = Math.max(c.attackT, (c.sp.attack?.cooldown ?? 1) * 1.5);
+    }
   }
 
   /**
@@ -540,6 +618,14 @@ export class CreatureSystem implements GameSystem {
     if (!G.gore) {
       const drip = remainsTex(c, false);
       if (drip && this.rng.chance(0.5)) op('decal', { z: c.zoneKey, d: { x: c.x + this.rng.float(-0.4, 0.4), z: c.z + this.rng.float(-0.4, 0.4), w: 0.5 + amount * 0.03, d: 0.5 + amount * 0.03, rot: this.rng.float(0, 6), tex: drip } });
+    }
+    // heavy blows can take a part off a creature that lives through them (src/gore/tearing.ts)
+    if (c.hp > 0 && G.gore?.rollLiveSever) {
+      const lost: string[] | null = G.gore.rollLiveSever(c, hit);
+      if (lost?.length) {
+        if (G.gore.severFatal(c, lost)) { c.hp = 0; hit.head = true; }
+        else { G.gore.creatureSevered(c, lost, hit); c.stagger = Math.max(c.stagger, 0.7); if (c.mem.tear) delete c.mem.tear; }
+      }
     }
     if (c.hp <= 0) this.kill(c, z, byId, hit);
     else {
@@ -635,6 +721,7 @@ export class CreatureSystem implements GameSystem {
     if (s.d && !c.dead) { c.dead = true; c.inv = c.inv || new Container(uid(), c.sp.name, 'corpse', 30); c.inv.owner = 'corpse:' + c.id; }
     c.attackPhase = s.at ? 0.2 : 0;
     if (s.m) c.mem.netMem = s.m;
+    if (s.sv && s.sv.length !== (c.mem.severed?.length ?? 0)) G.gore?.syncCreatureSevered?.(c, s.sv);
   }
   private interpolate(c: Creature, dt: number) {
     if (!c.net) return;
@@ -669,6 +756,8 @@ export class CreatureSystem implements GameSystem {
       c.animT += dt;
       c.hitFlash = Math.max(0, c.hitFlash - dt);
       try { c.sp.animate(c.rig, c, c.animT, dt); } catch (e) { console.error('anim', c.sp.key, e); }
+      if (!c.dead) this.limbVisuals(c);
+      else if (c.rig.root.rotation.x || c.rig.root.rotation.z) { c.rig.root.rotation.x = 0; c.rig.root.rotation.z = 0; }
       if (c.dead) {
         const k = Math.min(1, c.deathT * 2 + (c.deathT > 0 ? 0 : 1));
         const rz = c.sp.flags?.flying ? 0 : Math.PI / 2;
@@ -684,6 +773,39 @@ export class CreatureSystem implements GameSystem {
         c.rig.body.position.y = restY * Math.min(1, k + 0.01);
       }
     }
+  }
+
+  /**
+   * Generic body language for missing limbs and tearing, layered over the species' own animation:
+   * a limp roll, a low dragging crawl, a jerking pull while it holds someone. Species that animate
+   * their own losses set `handlesSevered: true` on their def to opt out of the crawl part.
+   */
+  private limbVisuals(c: Creature) {
+    const root = c.rig!.root;
+    root.rotation.order = 'YXZ';
+    let pitch = 0, roll = 0, drop = 0, back = 0;
+    const lf = limbFx(c);
+    if (lf && lf.crawl && !(c.sp as any).handlesSevered) {
+      const k = lf.crawl === 2 ? 1 : 0.45;
+      const go = Math.min(1, c.speed);
+      drop = c.height * (lf.crawl === 2 ? 0.2 : 0.06) + Math.abs(Math.sin(c.phase)) * 0.04 * k * go;
+      pitch = (lf.crawl === 2 ? 0.26 : 0.08) + Math.sin(c.phase * 0.5) * 0.06 * k * go;
+      roll = lf.side * (lf.crawl === 2 ? 0.1 : 0.18) + Math.sin(c.phase) * 0.06 * k * go;
+    }
+    const tf = c.mem.tearFx as { until: number; t0: number } | undefined;
+    if (tf) {
+      if (G.time > tf.until) delete c.mem.tearFx;
+      else {
+        // braced, jerking backwards: the pull
+        const u = (G.time - tf.t0) / Math.max(0.2, tf.until - tf.t0);
+        back = Math.max(0, Math.sin(G.time * 22)) * 0.05 + u * 0.14;
+        pitch -= 0.14 * u;
+        roll += Math.sin(G.time * 17) * 0.06;
+      }
+    }
+    root.rotation.x = pitch; root.rotation.z = roll;
+    root.position.y -= drop;
+    if (back) { root.position.x -= Math.cos(c.facing) * back; root.position.z -= Math.sin(c.facing) * back; }
   }
 
   /** panic & lucidity pressure on the local player from visible creatures */
@@ -708,13 +830,15 @@ export class CreatureSystem implements GameSystem {
 }
 
 // ---------------------------------------------------------------- player injury application
-export interface HitInfo { dmg: number; kinds: InjuryType[]; corrupt: number; height: number; knock: number; from: [number, number]; grab: boolean; parts?: string[]; by: string; }
+export interface HitInfo { dmg: number; kinds: InjuryType[]; corrupt: number; height: number; knock: number; from: [number, number]; grab: boolean; parts?: string[]; by: string; tear?: { part: string; hold: number; verb: string } }
 
 /** Apply a creature's hit to a local player's body: protection, injury type, corruption, knockback, feedback. */
 export function applyHitToPlayer(p: Player, h: HitInfo) {
   const rng = new Rng(Math.random() * 1e9);
   const table = h.parts?.length ? h.parts.map((x) => [x as BodyPart, 1] as [BodyPart, number]) : h.height < 0.9 ? PART_WEIGHTS_LOW : h.height < 2.0 ? PART_WEIGHTS_MID : PART_WEIGHTS_HIGH;
-  const part = p.body.downed ? rng.pick(['torso_u', 'torso_l', 'head'] as BodyPart[]) : rng.weighted(table);
+  let part = h.tear ? h.tear.part as BodyPart : p.body.downed ? rng.pick(['torso_u', 'torso_l', 'head'] as BodyPart[]) : rng.weighted(table);
+  // the part it went for is already gone: it gets the stump, or something else
+  if (!h.tear && p.body.severed.includes(part)) part = rng.chance(0.5) ? redirectPart(p.body.severed, part) : rng.weighted(table.filter(([q]) => !p.body.severed.includes(q)).concat([['torso_u', 1]]) as [BodyPart, number][]);
   let kind = rng.pick(h.kinds);
   const prot = p.protection(part, kind === 'bite' ? 'bite' : 'scratch');
   // clothing can stop the attack from breaking skin entirely
@@ -738,6 +862,12 @@ export function applyHitToPlayer(p: Player, h: HitInfo) {
   if (G.gore) G.gore.playerHit?.(p, h, part, kind);
   else op('decal', { z: p.zoneKey, d: { x: p.x, z: p.z, w: 0.6, d: 0.6, rot: rng.float(0, 6), tex: 'decal_blood_drip' } });
   bus.emit('playerHit', p, part, kind, h);
+  // limb loss (src/survival/limbSystem.ts): a tearing grab, or a blow heavy enough to crush a limb off
+  const L = (G as any).limbs;
+  if (L && G.sandbox.limbLoss && !p.body.dead) {
+    if (h.tear) L.startTear(p, h);
+    else if (isLimbPart(part) && h.dmg >= 34 && (kind === 'fracture' || kind === 'deep' || kind === 'bite') && rng.chance((h.dmg - 34) / 160)) L.sever(p, part, { how: 'crush', by: h.by, from: h.from });
+  }
 }
 
 declare module '../entities/player' { interface Player { mem_grabbed?: number; } }

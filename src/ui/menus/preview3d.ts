@@ -282,7 +282,9 @@ export class RigPreview {
   private resize() {
     if (!this.renderer) return;
     const w = Math.max(1, this.host.clientWidth), h = Math.max(1, this.host.clientHeight);
-    const px = Math.max(2, Math.round(Math.min(w, h * 0.8) / 200));
+    // render pixels are whole UI art pixels (or a multiple of them on big screens)
+    const ui = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxn')) || 2;
+    const px = ui * Math.max(1, Math.round(Math.max(2, Math.round(Math.min(w, h * 0.8) / 200)) / ui));
     const lw = Math.max(32, Math.round(w / px)), lh = Math.max(32, Math.round(h / px));
     if (lw === this.lowW && lh === this.lowH) return;
     this.lowW = lw; this.lowH = lh;
@@ -395,6 +397,51 @@ export class RigPreview {
     if (!force && key === this.infoKey) return;
     this.infoKey = key;
     this.onInfo({ yaw: deg, zoom, emote: this.emoteName ? (EMOTES[this.emoteName]?.label ?? this.emoteName.toUpperCase()) : '' });
+  }
+
+  /**
+   * A small head-and-shoulders portrait of the subject (for the ID photo):
+   * rendered face-on at 2x and box-filtered down, returned as sRGB pixels.
+   */
+  snapshot(w: number, h: number): ImageData | null {
+    const r = this.renderer;
+    if (!r || !this.rig) return null;
+    const W = w * 2, H = h * 2;
+    const rt = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
+    const cam = new THREE.PerspectiveCamera(18, W / H, 0.1, 20);
+    const hh = 1.58 * (this.app?.height ?? 1);
+    cam.position.set(0.25, hh + 0.08, 2.35); cam.lookAt(0, hh - 0.04, 0);
+    const yaw = this.turn.rotation.y, stageVis = this.stage.children.map((c) => c.visible);
+    this.turn.rotation.y = 0;
+    this.stage.children.forEach((c) => { if (c !== this.turn) c.visible = false; });
+    const saved = { cut: U.uCutOn.value, vis: U.uVisOn.value, fn: U.uFogNear.value, ff: U.uFogFar.value, gs: U.uGridScale.value };
+    U.uCutOn.value = 0; U.uVisOn.value = 0; U.uFogNear.value = 1e4; U.uFogFar.value = 2e4; U.uGridScale.value = 0;
+    const px = new Uint8Array(W * H * 4);
+    try {
+      r.setRenderTarget(rt);
+      r.setClearColor(0x000000, 0);
+      r.clear(true, true, true);
+      r.render(this.scene, cam);
+      r.readRenderTargetPixels(rt, 0, 0, W, H, px);
+    } finally {
+      r.setRenderTarget(null);
+      U.uCutOn.value = saved.cut; U.uVisOn.value = saved.vis; U.uFogNear.value = saved.fn; U.uFogFar.value = saved.ff; U.uGridScale.value = saved.gs;
+      this.turn.rotation.y = yaw;
+      this.stage.children.forEach((c, i) => { c.visible = stageVis[i]; });
+      rt.dispose();
+    }
+    const toS = (v: number) => { v /= 255; v = v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055; return Math.max(0, Math.min(255, Math.round(v * 255))); };
+    const out = new ImageData(w, h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      let n = 0, R = 0, G = 0, B = 0;
+      for (let j = 0; j < 2; j++) for (let i = 0; i < 2; i++) {
+        const si = ((H - 1 - (y * 2 + j)) * W + x * 2 + i) * 4;
+        if (px[si + 3] > 100) { n++; R += px[si]; G += px[si + 1]; B += px[si + 2]; }
+      }
+      const di = (y * w + x) * 4;
+      if (n >= 2) { out.data[di] = toS(R / n); out.data[di + 1] = toS(G / n); out.data[di + 2] = toS(B / n); out.data[di + 3] = 255; }
+    }
+    return out;
   }
 
   /** debug/screenshot hook: freeze into a given emote at time t */

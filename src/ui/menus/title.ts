@@ -16,6 +16,9 @@ import { defaultServerUrl } from '../../net/net';
 import { intakeForm } from './intake';
 import { h, esc, mbtn, optionsPanel, controlsPanel, applyGfx, frame, confirmDialog, printIn, FocusNav, sfx } from './common';
 import { runBoot } from './boot';
+import { logoCanvas, Diorama } from '../pixelart';
+import { toUrl } from '../pixelkit';
+import { bus } from '../../core/events';
 import '../../world/zones';
 import '../../game/worldOps';
 
@@ -94,7 +97,7 @@ class TitleMenu {
     const f = frame('Meridian continuity terminal', 't-title-panel crt-host', 'T-07');
     this.panel = f.el;
     f.screen.classList.add('crt-on');
-    f.body.append(this.logo(), this.sysline(), this.menu, this.ticker(), this.foot());
+    f.body.append(this.logo(), this.diorama(), this.sysline(), this.menu, this.ticker(), this.foot());
     this.root.append(h('div', 't-title-scr'), this.panel, this.side);
     document.body.append(this.root);
     this.nav = new FocusNav(this.panel, { onBack: () => this.setSide(null) });
@@ -103,10 +106,46 @@ class TitleMenu {
     if (import.meta.env.DEV) (window as any).__title = this;
   }
   private logo() {
-    return h('div', 't-logo', '<div class="t-logo-t" data-t="NOCLIP">NOCLIP</div><div class="t-logo-s">continuity survival simulation · <b>meridian institute</b> 1987</div>');
+    const el = h('div', 't-logo', '<div class="t-logo-t">NOCLIP</div>');
+    const paint = () => {
+      el.querySelectorAll('img').forEach((i) => i.remove());
+      const pc = logoCanvas();
+      const url = toUrl(pc);
+      const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxn')) || 2;
+      for (const cls of ['t-logo-img', 't-logo-g a', 't-logo-g b']) {
+        const i = document.createElement('img'); i.className = cls; i.src = url; i.alt = cls === 't-logo-img' ? 'NOCLIP' : '';
+        i.style.width = pc.w * px + 'px'; i.style.height = pc.h * px + 'px';
+        el.insertBefore(i, el.firstChild);
+      }
+    };
+    paint();
+    bus.on('uiSettings', () => { if (el.isConnected) { paint(); this.dio?.retheme(); } });
+    bus.on('uiScale', () => { if (el.isConnected) { paint(); this.sizeDiorama(); } });
+    const sub = h('div', 't-logo-s', 'continuity survival simulation · <b>meridian institute</b> 1987');
+    const wrap = h('div', '');
+    wrap.append(el, sub);
+    return wrap;
+  }
+  private dio: Diorama | null = null;
+  private dioBox: HTMLElement | null = null;
+  private diorama() {
+    const box = h('div', 't-diorama');
+    this.dio = new Diorama(168, 52);
+    box.append(this.dio.canvas);
+    this.dioBox = box;
+    this.sizeDiorama();
+    this.dio.start();
+    return box;
+  }
+  private sizeDiorama() {
+    if (!this.dio) return;
+    const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxn')) || 2;
+    this.dio.canvas.style.width = this.dio.w * px + 'px';
+    this.dio.canvas.style.height = this.dio.h * px + 'px';
+    void this.dioBox;
   }
   private sysline() {
-    const el = h('div', 't-sysline', '<span>SIM LINK: <b>UNSTABLE</b></span><span class="clk"></span>');
+    const el = h('div', 't-sysline', '<span>SIM LINK <b>UNSTABLE</b></span><span class="clk"></span>');
     const clk = el.querySelector('.clk') as HTMLElement;
     const tick = () => {
       if (!el.isConnected && this.clockT) return;
@@ -282,5 +321,5 @@ function about(): HTMLElement {
   return h('div', 't-about', `
 <p><b>NOCLIP</b> is a survival sandbox about being lost inside CONTINUITY, a simulation that never stopped building rooms.</p>
 <p>Scavenge, craft, cook, farm, barricade and survive injuries, hunger, cold and fear. Study what lives in the halls. Restore the power, follow the signals, shut the render nodes down — or just live there.</p>
-<p class="t-small">Inspired by the systemic survival of <i>Project Zomboid</i>, the original 2019 “noclip into the backrooms” creepypasta, liminal-space photography and dreamcore. All names, places, creatures and story here are original. Built with three.js. Fonts: Workbench, Sixtyfour, Share Tech Mono, VT323, Big Shoulders Stencil (SIL Open Font License). Every texture, model and sound is generated in code.</p>`);
+<p class="t-small">Inspired by the systemic survival of <i>Project Zomboid</i>, the original 2019 “noclip into the backrooms” creepypasta, liminal-space photography and dreamcore. All names, places, creatures and story here are original. Built with three.js. Fonts: Micro 5, Tiny5 and Silkscreen (SIL Open Font License). Every texture, model, sound and every pixel of this interface is generated in code.</p>`);
 }

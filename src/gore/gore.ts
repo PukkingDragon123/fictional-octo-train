@@ -32,6 +32,9 @@ import { Gibs } from './gibs';
 import { KINDS, BloodKind, goreOf, kindOf, tex } from './kinds';
 import './goreTextures';
 import './goreSounds';
+import './limbSounds';
+import { creatureLimbFx, partRole, limbId, HEADLESS_OK } from './tearing';
+import { LimbSystem } from '../survival/limbSystem';
 import { synth } from '../audio/sounds';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
@@ -48,7 +51,13 @@ type GoreEv =
   | { t: 'p'; id: string; w: string; a: number; x: number; z: number; pt: string }
   | { t: 'b'; id: string; l: number; pt: string }
   | { t: 'd'; id: string; gb?: 1 }
-  | { t: 'g'; id: string };
+  | { t: 'g'; id: string }
+  /** a living creature lost parts (host → all) */
+  | { t: 'cs'; id: string; ls: string[]; w: string; x: number; z: number }
+  /** a creature has a survivor in its grip and is pulling (host → all) */
+  | { t: 'T'; id: string; pid: string; pt: string; h: number; v: string }
+  /** a survivor lost a limb (their machine → all) */
+  | { t: 'L'; id: string; pt: string; w: string; x: number; z: number };
 
 interface Artery { obj: THREE.Object3D; off: THREE.Vector3; dir: THREE.Vector3; t: number; dur: number; str: number; K: BloodKind; tint: number; zone: string; ph: number; f: number; acc: number; owner: boolean; dec: number; tag: string }
 
@@ -58,8 +67,13 @@ const PART_JOINT: Record<string, [string, number]> = {
   uarm_l: ['uarmL', -0.15], uarm_r: ['uarmR', -0.15], farm_l: ['farmL', -0.12], farm_r: ['farmR', -0.12], hand_l: ['handL', -0.05], hand_r: ['handR', -0.05],
   thigh_l: ['thighL', -0.22], thigh_r: ['thighR', -0.22], shin_l: ['shinL', -0.2], shin_r: ['shinR', -0.2], foot_l: ['footL', -0.06], foot_r: ['footR', -0.06],
 };
+/** a severed survivor part → the joint at the cut (its own joint's origin is where it hung from) */
+const SEV_JOINT: Record<string, string> = {
+  uarm_l: 'uarmL', uarm_r: 'uarmR', farm_l: 'farmL', farm_r: 'farmR', hand_l: 'handL', hand_r: 'handR',
+  thigh_l: 'thighL', thigh_r: 'thighR', shin_l: 'shinL', shin_r: 'shinR', foot_l: 'footL', foot_r: 'footR',
+};
 /** survivor injury type → how the blood comes out */
-const INJ_HIT: Record<string, string> = { bite: 'bite', laceration: 'claw', deep: 'claw', scratch: 'claw', bullet: 'firearm', glass: 'blade', bruise: 'blunt', fracture: 'blunt', burn: 'fire' };
+const INJ_HIT: Record<string, string> = { bite: 'bite', laceration: 'claw', deep: 'claw', scratch: 'claw', bullet: 'firearm', glass: 'blade', bruise: 'blunt', fracture: 'blunt', burn: 'fire', amputation: 'axe' };
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 const mulHex = (a: number, b: number) => b === 0xffffff ? a :
@@ -101,6 +115,8 @@ export class GoreSystem implements GameSystem {
     this.gibs.onOoze = (g, x, z) => { if (g.kind.liquid && Math.random() < 0.3) this.emit(g.kind, g.tint, x, g.obj.position.y, z, 0, 0.3, 0, 0.025, 1, 0); };
     bus.on('footstep', (p: Player) => this.footstep(p));
     bus.on('death', (p: Player) => this.localDeath(p));
+    // survivors losing limbs (runs whatever the gore level; it decides what to show)
+    if (!(G as any).limbs) G.addSystem(new LimbSystem());
   }
 
   /** 0 off, 1 normal, 2 heavy */
@@ -152,6 +168,9 @@ export class GoreSystem implements GameSystem {
         case 'b': { const b = this.bleed.get(ev.id); if (b) { b.l = ev.l; b.pt = ev.pt; } else this.bleed.set(ev.id, { l: ev.l, pt: ev.pt, acc: 0, dec: 0 }); break; }
         case 'd': this.applyPlayerDeath(ev); break;
         case 'g': this.applyCorpseGib(ev.id); break;
+        case 'cs': this.applyCreatureSevered(ev); break;
+        case 'T': this.applyTear(ev); break;
+        case 'L': this.applySurvivorSevered(ev); break;
       }
     } catch (e) { console.warn('gore fx', e); }
   }
@@ -366,7 +385,7 @@ export class GoreSystem implements GameSystem {
     const sp = c.sp, gd = goreOf(sp), K = KINDS[gd.blood];
     if (K.key === 'none') return;
     const r = this.rng, hk = info.kind, dmg = info.dmg;
-    const gone: string[] = c.mem.sev || [];
+    const gone: string[] = [...(c.mem.sev || []), ...(c.mem.severed || [])];
     // only parts that are actually on show (plushkin carries both a bear and a bunny rig)
     const shown = (n: string) => !c.rig || (!!c.rig.parts[n] && attached(c.rig.parts[n], c.rig.root) && visibleChain(c.rig.parts[n], c.rig.root));
     const sev = (gd.sever || []).filter((n) => n !== gd.head && !gone.includes(n) && shown(n));
@@ -393,6 +412,8 @@ export class GoreSystem implements GameSystem {
         for (let i = 0; i < nl; i++) { if (sev.length) out.push(sev.splice(r.int(0, sev.length - 1), 1)[0]); else ch += 2; }
       }
     } else if (this.lv === 1 && head && (hk === 'blade' || hk === 'axe') && (info.crit || dmg >= sp.hp * 0.5) && r.chance(0.35)) out.push(head);
+    // the blow took the head clean off (decided by rollLiveSever)
+    if ((info as any).head && head && !out.includes(head) && !gb) { out.push(head); hb = false; }
     const ev: GoreEv = { t: 'c', id: c.id, w: hk, a: Math.round(dmg * 10) / 10, x: Math.round(info.fx * 10) / 10, z: Math.round(info.fz * 10) / 10, k: 1 };
     if (info.crit) ev.cr = 1;
     if (out.length) ev.sv = out;
@@ -508,9 +529,164 @@ export class GoreSystem implements GameSystem {
 
   /** the rig was (re)built: re-apply missing parts as stumps, no gibs */
   onRigBuilt(c: Creature) {
-    if (!c.rig || !c.mem.sev?.length) return;
+    if (!c.rig || (!c.mem.sev?.length && !c.mem.severed?.length)) return;
     const K = kindOf(c.sp);
-    for (const n of c.mem.sev as string[]) this.sever(c, n, K, 0xffffff, 0, 0, false);
+    for (const n of [...(c.mem.severed || []), ...(c.mem.sev || [])] as string[]) this.sever(c, n, K, 0xffffff, 0, 0, false);
+  }
+
+  // ================================================================ living creatures losing parts (src/gore/tearing.ts)
+  /**
+   * Host: does this blow take a part off a creature that survives it? Heavy blades and axes,
+   * guns, big blunt hits and cars can. Returns the part names (a head only on a clean crit).
+   */
+  rollLiveSever(c: Creature, info: CreatureHitInfo): string[] | null {
+    if (this.lv <= 0 || c.dead) return null;
+    const sp = c.sp, gd = goreOf(sp), K = KINDS[gd.blood];
+    if (K.key === 'none' || sp.flags?.immortal) return null;
+    const base = ({ axe: 0.3, blade: 0.15, firearm: 0.1, blunt: 0.06, vehicle: 0.35, bite: 0.04, spear: 0.03 } as Record<string, number>)[info.kind] ?? 0;
+    if (!base || (info.kind === 'blunt' && info.dmg < 12)) return null;
+    const r = this.rng;
+    const ch = base * clamp(info.dmg / Math.max(8, sp.hp * 0.3), 0.4, 1.6) * (info.crit ? 1.8 : 1) * (this.lv >= 2 ? 1 : 0.55);
+    if (!r.chance(ch)) return null;
+    const gone: string[] = [...(c.mem.sev || []), ...(c.mem.severed || [])];
+    const shown = (n: string) => !c.rig || (!!c.rig.parts[n] && attached(c.rig.parts[n], c.rig.root) && visibleChain(c.rig.parts[n], c.rig.root));
+    const head = gd.head && !gone.includes(gd.head) && shown(gd.head) ? gd.head : null;
+    if (head && info.crit && ['axe', 'blade', 'firearm'].includes(info.kind) && r.chance(info.kind === 'axe' ? 0.35 : 0.18)) return [head];
+    const cand = (gd.sever || []).filter((n) => n !== gd.head && !gone.includes(n) && shown(n) && partRole(n, gd.head) !== 'other');
+    if (!cand.length) return null;
+    return [cand[r.int(0, cand.length - 1)]];
+  }
+
+  /** is losing these parts fatal for this creature (a head, for most things) */
+  severFatal(c: Creature, names: string[]): boolean {
+    const gd = goreOf(c.sp);
+    return !!gd.head && names.includes(gd.head) && !HEADLESS_OK.has(c.sp.key);
+  }
+
+  /** Host: a living creature loses parts: every peer cuts them off its rig (gib, stump, spurting) */
+  creatureSevered(c: Creature, names: string[], info: CreatureHitInfo) {
+    if (this.lv <= 0 || !names.length) return;
+    const ev: GoreEv = { t: 'cs', id: c.id, ls: names, w: info.kind, x: Math.round(info.fx * 10) / 10, z: Math.round(info.fz * 10) / 10 };
+    this.applyCreatureSevered(ev);
+    this.send(ev);
+    // where it came off: a splash on the floor
+    const gd = goreOf(c.sp), K = KINDS[gd.blood];
+    if (K.key !== 'none' && (K.pal || K.decal)) {
+      const z = G.getZone(c.zoneKey);
+      this.decals.commit(z, { x: c.x + this.rng.float(-0.3, 0.3), z: c.z + this.rng.float(-0.3, 0.3), w: 0.7, d: 0.7, rot: this.rng.float(0, 6.28), tex: tex(K, 'splat_a'), tint: gd.tint ?? K.tint }, 0.4);
+    }
+  }
+
+  private applyCreatureSevered(ev: Extract<GoreEv, { t: 'cs' }>) {
+    const c: Creature | undefined = G.creatures?.creatures?.get?.(ev.id);
+    if (!c) return;
+    const gd = goreOf(c.sp), K = KINDS[gd.blood], tint = gd.tint ?? K.tint;
+    const here = c.zoneKey === G.local?.zoneKey;
+    const [dx, dz] = this.dirFrom(c, ev.x, ev.z);
+    const sv: string[] = c.mem.severed = [...(c.mem.severed || [])];
+    let any = false;
+    for (const n of ev.ls) {
+      for (const m of this.withChildren(c, n)) {
+        if (sv.includes(m)) continue;
+        sv.push(m); any = true;
+        if (here && m === n) this.sever(c, n, K, tint, dx, dz, true);
+      }
+    }
+    if (!any) return;
+    c.mem.limbFx = creatureLimbFx(c.sp, sv);
+    if (here && K.key !== 'none') {
+      this.snd(K.snd.tear, c.x, c.z, 1, c.zoneKey);
+      this.snd(K.snd.heavy, c.x, c.z, 0.8, c.zoneKey);
+      const y = this.hitY(c);
+      this.jet(K, tint, c.x, y, c.z, dx, dz, Math.round(24 * this.mul), 3.2, 1.0, 1.8, 0.032, 0.07);
+      this.mist(K, tint, c.x, y, c.z, dx, dz, Math.round(8 * this.mul), 1.4);
+    }
+  }
+
+  /** snapshot catch-up (a peer that missed the event, or came into the zone later): cut without the show */
+  syncCreatureSevered(c: Creature, names: string[]) {
+    const sv: string[] = c.mem.severed = [...(c.mem.severed || [])];
+    const K = kindOf(c.sp);
+    let any = false;
+    for (const n of names) if (!sv.includes(n)) { sv.push(n); any = true; if (c.rig) this.sever(c, n, K, 0xffffff, 0, 0, false); }
+    if (any) c.mem.limbFx = creatureLimbFx(c.sp, sv);
+  }
+
+  /** a part and everything hanging off it that the species can lose (rig hierarchy, or list order by limb) */
+  private withChildren(c: Creature, name: string): string[] {
+    const gd = goreOf(c.sp);
+    const list = gd.sever || [];
+    const out = [name];
+    const rp = c.rig?.parts[name];
+    if (rp) { for (const n of list) { const q = c.rig!.parts[n]; if (q && q !== rp && isAncestor(rp, q)) out.push(n); } return out; }
+    const role = partRole(name, gd.head), id = limbId(name), i0 = list.indexOf(name);
+    if (role === 'leg' || role === 'arm') for (let i = i0 + 1; i < list.length; i++) if (partRole(list[i], gd.head) === role && limbId(list[i]) === id) out.push(list[i]);
+    return out;
+  }
+
+  /** host: a creature grabbed a survivor and is pulling (every peer sees it strain and hears it) */
+  tearStart(c: Creature, pid: string, part: string, hold: number, verb: string) {
+    const ev: GoreEv = { t: 'T', id: c.id, pid, pt: part, h: Math.round(hold * 100) / 100, v: verb };
+    this.applyTear(ev);
+    this.send(ev);
+  }
+  private applyTear(ev: Extract<GoreEv, { t: 'T' }>) {
+    const c: Creature | undefined = G.creatures?.creatures?.get?.(ev.id);
+    if (!c) return;
+    c.mem.tearFx = { until: G.time + ev.h + 0.3, pid: ev.pid, v: ev.v, t0: G.time };
+    if (c.zoneKey === G.local?.zoneKey && this.lv > 0) this.snd('gore_tear', c.x, c.z, 0.7, c.zoneKey);
+  }
+
+  // ================================================================ survivors losing limbs (src/survival/limbSystem.ts)
+  /** the victim's machine: a limb came off. Everyone sees the spray and hears it; the owner leaves the mess. */
+  survivorSevered(p: Player, part: string, how: string, from: [number, number]) {
+    const ev: GoreEv = { t: 'L', id: p.id, pt: part, w: how, x: Math.round(from[0] * 10) / 10, z: Math.round(from[1] * 10) / 10 };
+    this.applySurvivorSevered(ev);
+    this.send(ev);
+    if (this.lv <= 0) return;
+    const z = G.getZone(p.zoneKey);
+    const [dx, dz] = this.dirFrom(p, from[0], from[1]);
+    const wp = this.woundPos(p, part);
+    this.hitDecals(z, KINDS.red, 0xffffff, how === 'crush' ? 'vehicle' : 'axe', p.x, wp.y, p.z, dx, dz, 34);
+    this.hitDecals(z, KINDS.red, 0xffffff, 'blade', p.x, wp.y, p.z, -dz, dx, 24);
+    this.pool(z, p.x - dx * 0.2, p.z - dz * 0.2, this.lv >= 2 ? 1.3 : 1.0, KINDS.red, 0xffffff, 6);
+    this.lastHit = { dmg: 30, t: G.time };
+  }
+
+  private applySurvivorSevered(ev: Extract<GoreEv, { t: 'L' }>) {
+    const p = G.players.get(ev.id);
+    if (!p) return;
+    const here = p.zoneKey === G.local?.zoneKey;
+    // sounds play even with gore off (it is still horrible); the show needs gore on
+    if (here) {
+      this.snd(ev.w === 'crush' || ev.w === 'vehicle' ? 'limb_crush' : 'limb_rip', p.x, p.z, 1, p.zoneKey);
+      this.snd('gore_bone_crack', p.x, p.z, 0.9, p.zoneKey);
+      const rate = ((p.app as any)?.bodyShape ?? 0.3) > 0.6 ? 1.25 : 1;
+      if (p.isLocal) G.audio?.flat?.('limb_scream', 'voice', 0.9, rate);
+      else G.audio?.play?.('limb_scream', p.x, p.z, { zone: p.zoneKey, rate });
+    }
+    if (this.lv <= 0 || !here) return;
+    const K = KINDS.red, m = this.mul;
+    const [dx, dz] = this.dirFrom(p, ev.x, ev.z);
+    const jn = SEV_JOINT[ev.pt];
+    const j: THREE.Object3D | undefined = jn ? (p.rig as any)?.j?.[jn] : undefined;
+    let pos: THREE.Vector3;
+    if (j && inScene(j)) { j.updateWorldMatrix(true, false); pos = j.getWorldPosition(new THREE.Vector3()); }
+    else pos = this.woundPos(p, ev.pt);
+    // the limb comes away: a burst toward the attacker's pull, mist, bits of meat
+    this.jet(K, 0xffffff, pos.x, pos.y, pos.z, -dx, -dz, Math.round(46 * m), 3.6, 0.9, 2.2, 0.036, 0.08);
+    this.jet(K, 0xffffff, pos.x, pos.y, pos.z, dx, dz, Math.round(18 * m), 2.2, 1.4, 1.4, 0.03, 0.05);
+    this.mist(K, 0xffffff, pos.x, pos.y, pos.z, -dx, -dz, Math.round(16 * m), 1.8);
+    this.bits(K, 0xffffff, pos.x, pos.y, pos.z, -dx, -dz, Math.round(7 * m) + 1, 2.4);
+    this.gibs.chunks(p.zoneKey, K, 0xffffff, pos.x, pos.y, pos.z, Math.round(3 * m) + 1, v3.set(-dx, 0, -dz), 2.0, 1.8);
+    // the stump pumps: arterial spurts out along where the limb was
+    if (j && inScene(j)) {
+      for (let i = this.arteries.length - 1; i >= 0; i--) if (this.arteries[i].tag === 'p:' + p.id) this.arteries.splice(i, 1);
+      this.arteries.push({ obj: j, off: new THREE.Vector3(), dir: new THREE.Vector3((Math.random() - 0.5) * 0.4, -1, 0.25).normalize(), t: 0, dur: this.lv >= 2 ? 11 : 6, str: 1.5, K, tint: 0xffffff, zone: p.zoneKey, ph: 0, f: 1.35, acc: 0, owner: p.isLocal, dec: 0.4, tag: 'p:' + p.id });
+    }
+    bus.emit('bloodied', p, 'torso_u', 0.8);
+    bus.emit('bloodied', p, ev.pt, 1);
+    this.shake(p.x, p.z, p.isLocal ? 0.9 : 0.45);
   }
 
   /** cut a named part off a creature's rig: stump, gib, spurting */
@@ -764,11 +940,16 @@ export class GoreSystem implements GameSystem {
       // severe bleeding: arterial spurts from the worst wound
       if (here && st.l >= 3 && !this.arteries.some((a) => a.tag === 'p:' + p.id)) {
         const pj = PART_JOINT[st.pt] ?? PART_JOINT.torso_u;
-        const j: THREE.Object3D | undefined = (p.rig as any)?.j?.[pj[0]];
+        const stump = p.body.severed.includes(st.pt as any) && !!SEV_JOINT[st.pt];
+        const j: THREE.Object3D | undefined = (p.rig as any)?.j?.[stump ? SEV_JOINT[st.pt] : pj[0]];
         if (j && inScene(j)) {
-          const out = this.woundPos(p, st.pt).sub(v3.set(p.x, p.y + 1.0, p.z)); out.y = 0.4;
-          out.normalize().applyQuaternion(j.getWorldQuaternion(q4).invert());
-          this.arteries.push({ obj: j, off: new THREE.Vector3(0, pj[1], 0), dir: out, t: 0, dur: 4, str: st.l >= 4 ? 0.9 : 0.6, K: KINDS.red, tint: 0xffffff, zone: p.zoneKey, ph: 0, f: 1.2, acc: 0, owner: p.isLocal, dec: 1, tag: 'p:' + p.id });
+          let out: THREE.Vector3;
+          if (stump) out = new THREE.Vector3((Math.random() - 0.5) * 0.5, -1, 0.3).normalize();
+          else {
+            out = this.woundPos(p, st.pt).sub(v3.set(p.x, p.y + 1.0, p.z)); out.y = 0.4;
+            out.normalize().applyQuaternion(j.getWorldQuaternion(q4).invert());
+          }
+          this.arteries.push({ obj: j, off: new THREE.Vector3(0, stump ? 0 : pj[1], 0), dir: out, t: 0, dur: 4, str: st.l >= 4 ? 0.9 : 0.6, K: KINDS.red, tint: 0xffffff, zone: p.zoneKey, ph: 0, f: 1.2, acc: 0, owner: p.isLocal, dec: 1, tag: 'p:' + p.id });
         }
       }
       // persistent drips (my own survivor only), batched; downed and crawling smears

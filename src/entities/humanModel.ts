@@ -371,6 +371,34 @@ function ringYs(rows: Row[], breaks: number[]): { y: number; eps: number }[] {
 export interface BuildCond {
   splints: Set<string>;     // body part keys
   bandages: Set<string>;
+  /** severed body parts (limb loss): those segments are not built and the limb is capped at the cut */
+  severed?: Set<string>;
+}
+
+/** where a limb ends when a part is cut off (reference metres: arms in upper-arm space, legs in thigh space) */
+export const CUT_Y = { hand: -0.5, farm: -0.3, foot: -0.8, shin: -0.42 } as const;
+
+/**
+ * Where a stump sits for a severed part: the bone it hangs from, the position in that bone's space and
+ * the limb radius there (with clothing) — for stump caps, bandages, tourniquets and prosthetics.
+ */
+export function cutSpec(part: string, d: Dims, sh?: OutfitShape): { bone: BoneName; pos: [number, number, number]; r: number; side: 'L' | 'R' } | null {
+  const side = part.endsWith('_l') ? 'L' : 'R', k = side === 'L' ? 1 : -1;
+  const s = d.s, fem = d.fem;
+  const armFm = (1 - fem * 0.12) * (0.82 + 0.18 * d.mass), legFm = 0.85 + 0.15 * d.mass;
+  const sleeveY = !sh ? 999 : sh.sleeve === 'long' ? -0.515 : sh.sleeve === 'short' ? -0.15 : sh.sleeve === 'cap' ? -0.03 : 999;
+  const pantsHem = !sh ? 1 : sh.legKind === 'pants' ? -0.835 + sh.legLen : sh.legKind === 'shorts' ? -0.2 : sh.legKind === 'brief' ? 0.02 : 1;
+  const armR = (y: number) => { const r = sampleRows(ARM_ROWS, y); return (Math.max(r.rx, r.rf, r.rb) * armFm + (sh && y > sleeveY ? sh.armThick : 0)) * s; };
+  const legR = (y: number) => { const r = sampleRows(LEG_ROWS, y); return (Math.max(r.rx, r.rf, r.rb) * legFm + (sh && y > pantsHem ? sh.legThick : 0)) * s; };
+  switch (part.slice(0, -2)) {
+    case 'hand': return { bone: ('farm' + side) as BoneName, pos: [0, (CUT_Y.hand + 0.285) * s, 0], r: armR(CUT_Y.hand), side };
+    case 'farm': return { bone: ('uarm' + side) as BoneName, pos: [0, CUT_Y.farm * s, 0], r: armR(CUT_Y.farm), side };
+    case 'uarm': { const o = d.off[('uarm' + side) as BoneName]; return { bone: 'chest', pos: [o[0] + k * 0.012 * s, o[1] - 0.03 * s, o[2]], r: 0.05 * s * armFm, side }; }
+    case 'foot': return { bone: ('shin' + side) as BoneName, pos: [0, (CUT_Y.foot + 0.43) * s, 0], r: legR(CUT_Y.foot), side };
+    case 'shin': return { bone: ('thigh' + side) as BoneName, pos: [0, CUT_Y.shin * s, 0], r: legR(CUT_Y.shin), side };
+    case 'thigh': { const o = d.off[('thigh' + side) as BoneName]; return { bone: 'hips', pos: [o[0] + k * 0.01 * s, o[1] - 0.09 * s, o[2]], r: 0.075 * s * legFm, side }; }
+  }
+  return null;
 }
 
 export interface BuildResult { geometry: THREE.BufferGeometry; tris: number; sole: number }
@@ -481,20 +509,27 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
 
   // ---------------- arms + hands
   const sleeveY = sh.sleeve === 'long' ? -0.515 : sh.sleeve === 'short' ? -0.15 : sh.sleeve === 'cap' ? -0.03 : 999;
+  const sev = cond.severed;
   for (const [side, k] of [['L', 1], ['R', -1]] as const) {
     const U = BI[('uarm' + side) as BoneName], F = BI[('farm' + side) as BoneName], H = BI[('hand' + side) as BoneName];
     const ua = R[('uarm' + side) as BoneName];
     const reg = REG[('ARM_' + side) as RegKey];
+    const lc = side.toLowerCase();
+    // limb loss: no arm at all, or the arm ends at the elbow / wrist with a capped stump
+    if (sev?.has('uarm_' + lc)) continue;
+    const cutF = !!sev?.has('farm_' + lc), cutH = cutF || !!sev?.has('hand_' + lc);
+    const cutY = cutF ? CUT_Y.farm : cutH ? CUT_Y.hand : null;
     const breaks: number[] = [];
     if (sleeveY < 1) breaks.push(sleeveY);
-    if (sh.gloves) breaks.push(-0.485);
-    const ys = ringYs(ARM_ROWS, breaks);
+    if (sh.gloves && !cutH) breaks.push(-0.485);
+    let ys = ringYs(ARM_ROWS, breaks);
+    if (cutY !== null) { ys = ys.filter((r) => r.y > cutY + 0.008); ys.push({ y: cutY, eps: 0 }); }
     const fm = (1 - fem * 0.12) * (0.82 + 0.18 * mass);
     const wOf = (y: number): Wt => {
       if (y > 0.04) return [U, 0.8, BI.chest, 0.2];
-      if (y > -0.25) return [U, 1];
+      if (y > -0.25 || cutF) return [U, 1];
       if (y > -0.33) { const t = (y + 0.25) / -0.08; return [U, 1 - t, F, t]; }
-      if (y > -0.5) return [F, 1];
+      if (y > -0.5 || cutH) return [F, 1];
       const t = clamp01((y + 0.5) / -0.04); return [F, 1 - t * 0.5, H, t * 0.5];
     };
     const rings = ys.map(({ y, eps }) => {
@@ -510,10 +545,13 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       for (const p of pts) p[0] += ua[0];
       return { pts, v: vOf(VMAP.ARM, y), w: wOf(y) };
     });
-    B.loft(rings, usFor(8), reg, 10 + (k > 0 ? 0 : 1), { start: [ua[0] - k * 0.012 * s, ua[1] + 0.02 * s, ua[2]], startW: [U, 0.8, BI.chest, 0.2] });
-    hand(B, d, side, k, sh.gloves);
+    B.loft(rings, usFor(8), reg, 10 + (k > 0 ? 0 : 1), {
+      start: [ua[0] - k * 0.012 * s, ua[1] + 0.02 * s, ua[2]], startW: [U, 0.8, BI.chest, 0.2],
+      ...(cutY !== null ? { end: [ua[0], ua[1] + (cutY - 0.014) * s, ua[2]], endW: (cutF ? [U, 1] : [F, 1]) as Wt } : {}),
+    });
+    if (!cutH) hand(B, d, side, k, sh.gloves);
     // wrist monitor: a chunky band and face on the back of the left wrist
-    if (side === 'L' && o.wrist) {
+    if (side === 'L' && o.wrist && !cutF) {
       const r = sampleRows(ARM_ROWS, -0.47);
       const fm2 = (1 - fem * 0.12) * (0.82 + 0.18 * mass);
       const t = (sh.sleeve === 'long' ? sh.armThick : 0) + 0.006;
@@ -527,7 +565,7 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       B.box([fx, ua[1] - 0.471 * s, ua[2]], [0.014 * s, 0.036 * s, 0.03 * s], null, REG.WATCH, [F, 1], [0, 0.5, 1, 1]);
     }
     // splints on the forearm
-    if (cond.splints.has('farm_' + side.toLowerCase()) || cond.splints.has('uarm_' + side.toLowerCase())) {
+    if ((cond.splints.has('farm_' + side.toLowerCase()) && !cutF) || cond.splints.has('uarm_' + side.toLowerCase())) {
       const yy = cond.splints.has('farm_' + side.toLowerCase()) ? -0.41 : -0.14;
       const bone = yy < -0.3 ? F : U;
       for (const zz of [0.045, -0.045]) B.box([ua[0] + k * 0.005, ua[1] + yy * s, ua[2] + zz * s], [0.012 * s, 0.2 * s, 0.01 * s], null, REG.GEAR, [bone, 1], [0.55, 0, 1, 1]);
@@ -540,18 +578,24 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
     const T = BI[('thigh' + side) as BoneName], S = BI[('shin' + side) as BoneName], Ft = BI[('foot' + side) as BoneName];
     const th = R[('thigh' + side) as BoneName];
     const reg = REG[('LEG_' + side) as RegKey];
+    const lc = side.toLowerCase();
+    // limb loss: no leg, or it ends above the knee / at the ankle
+    if (sev?.has('thigh_' + lc)) continue;
+    const cutS = !!sev?.has('shin_' + lc), cutFt = cutS || !!sev?.has('foot_' + lc);
+    const cutY = cutS ? CUT_Y.shin : cutFt ? CUT_Y.foot : null;
     const breaks: number[] = [];
     if (sh.legKind === 'pants' || sh.legKind === 'shorts') breaks.push(pantsHem);
-    if (sh.feet === 'sock') breaks.push(-0.72);
-    const ys = ringYs(LEG_ROWS, breaks);
+    if (sh.feet === 'sock' && !cutFt) breaks.push(-0.72);
+    let ys = ringYs(LEG_ROWS, breaks);
+    if (cutY !== null) { ys = ys.filter((r) => r.y > cutY + 0.008); ys.push({ y: cutY, eps: 0 }); }
     const fm = (0.85 + 0.15 * mass);
     const femLeg = (y: number) => 1 + fem * (0.09 * gauss(y, -0.08, 0.12) - 0.05 * gauss(y, -0.6, 0.1));
     const wOf = (y: number): Wt => {
       if (y > 0.02) return [BI.hips, 0.5, T, 0.5];
       if (y > -0.05) { const t = (0.02 - y) / 0.07; return [BI.hips, 0.5 - t * 0.4, T, 0.5 + t * 0.4]; }
-      if (y > -0.39) return [BI.hips, y > -0.12 ? 0.1 * (1 - (-0.05 - y) / 0.07) : 0, T, 1];
+      if (y > -0.39 || cutS) return [BI.hips, y > -0.12 ? 0.1 * (1 - (-0.05 - y) / 0.07) : 0, T, 1];
       if (y > -0.48) { const t = (y + 0.39) / -0.09; return [T, 1 - t, S, t]; }
-      if (y > -0.8) return [S, 1];
+      if (y > -0.8 || cutFt) return [S, 1];
       const t = clamp01((y + 0.8) / -0.06); return [S, 1 - t * 0.6, Ft, t * 0.6];
     };
     const rings = ys.map(({ y, eps }) => {
@@ -572,9 +616,11 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       for (const p of pts) p[0] += th[0];
       return { pts, v: vOf(VMAP.LEG, y), w: wOf(y) };
     });
-    B.loft(rings, usFor(8), reg, 20 + (k > 0 ? 0 : 1), { start: [th[0], th[1] + 0.07 * s, th[2]], end: [th[0], th[1] - 0.875 * s, th[2] + 0.004], startW: [BI.hips, 0.6, T, 0.4], endW: [Ft, 1] });
-    foot(B, d, side, k, sh);
-    const sp = (p: string) => cond.splints.has(p + '_' + side.toLowerCase());
+    B.loft(rings, usFor(8), reg, 20 + (k > 0 ? 0 : 1), cutY !== null
+      ? { start: [th[0], th[1] + 0.07 * s, th[2]], end: [th[0], th[1] + (cutY - 0.016) * s, th[2]], startW: [BI.hips, 0.6, T, 0.4], endW: (cutS ? [T, 1] : [S, 1]) as Wt }
+      : { start: [th[0], th[1] + 0.07 * s, th[2]], end: [th[0], th[1] - 0.875 * s, th[2] + 0.004], startW: [BI.hips, 0.6, T, 0.4], endW: [Ft, 1] });
+    if (!cutFt) foot(B, d, side, k, sh);
+    const sp = (p: string) => cond.splints.has(p + '_' + side.toLowerCase()) && !sev?.has(p + '_' + side.toLowerCase());
     if (sp('shin') || sp('thigh') || sp('foot')) {
       const yy = sp('thigh') ? -0.22 : -0.62;
       const bone = yy > -0.43 ? T : S;
