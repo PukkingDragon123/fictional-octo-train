@@ -7,6 +7,7 @@ import { zoneSpec } from '../../world/worldGraph';
 import { occupationByKey } from '../../survival/traits';
 import { h, mbtn, optionsPanel, controlsPanel, esc, frame, tabs, swapPage, confirmDialog, FocusNav, sfx, printIn } from './common';
 import { bodyCanvas, moodleIcon, BODY_W, BODY_H } from '../moodles';
+import { lossSummary } from '../../survival/limbs';
 
 type Page = 'main' | 'options' | 'controls' | 'coop';
 
@@ -72,6 +73,8 @@ export class PauseMenu {
         ['Location', z?.name || p.zoneKey],
         ['Condition', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE'],
       ];
+      const lost = (p.body as any).severed?.length ? lossSummary((p.body as any).severed) : '';
+      if (lost) rows.push(['Lost', lost]);
       for (const [k, v] of rows) st.append(h('span', '', esc(k)), h('b', '', esc(v)));
       // condition readout: the body map and every status that is up, worst first
       const cond = h('div', 't-cond');

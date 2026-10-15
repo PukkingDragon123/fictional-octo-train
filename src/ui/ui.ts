@@ -6,6 +6,7 @@ import { tileFbm } from '../core/rng';
 import { allRecipes } from '../items/recipes';
 import { hasItemDef } from '../items/item';
 import { kitUrl } from './pixelkit';
+import { needsTwoHands } from '../survival/limbSystem';
 import { glyphUrl } from './pixelart';
 import { Player } from '../entities/player';
 import { pick, PickTarget, targetName } from '../game/picking';
@@ -47,6 +48,14 @@ function cursorValue(kind: CursorKind): string {
 
 /** icons for context-menu lines: an explicit item key / URL, or the output of a recipe with that name */
 let recipeIcons: Map<string, string> | null = null;
+let recipeByName: Map<string, any> | null = null;
+/** recipes that need two working hands are greyed out for survivors who no longer have them */
+function twoHandBlock(label: string): boolean {
+  if (!recipeByName) { recipeByName = new Map(); try { for (const r of allRecipes()) if (!recipeByName.has(r.name)) recipeByName.set(r.name, r); } catch { /* ignore */ } }
+  const r = recipeByName.get(label);
+  if (!r || !G.local) return false;
+  try { const two = (G.local.body as any).limbs?.().twoHand; return two === false && needsTwoHands(r); } catch { return false; }
+}
 function menuIcon(o: { label: string; icon?: string }): string {
   if (o.icon) return o.icon.startsWith('data:') || o.icon.startsWith('blob:') || o.icon.startsWith('/') ? o.icon : hasItemDef(o.icon) ? itemIcon(o.icon, '', 12) : '';
   if (!recipeIcons) {
@@ -241,7 +250,8 @@ export class UI {
       h.appendChild(document.createTextNode(title));
       el.appendChild(h);
     }
-    for (const o of opts) {
+    for (const o0 of opts) {
+      const o = !o0.disabled && o0.action && twoHandBlock(o0.label) ? { ...o0, disabled: 'needs two hands' } : o0;
       if (o.label === '-') { const s = document.createElement('div'); s.className = 'sep'; el.appendChild(s); continue; }
       const mi = document.createElement('div');
       mi.className = 'mi' + (o.disabled ? ' dis' : '') + (o.danger ? ' danger' : '');

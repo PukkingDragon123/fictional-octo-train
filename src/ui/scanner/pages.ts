@@ -7,7 +7,8 @@ import { SKILLS, occupationByKey, traitByKey, PERKS } from '../../survival/trait
 import { Player } from '../../entities/player';
 import { angleDiff, clamp } from '../../core/math';
 import { allSpecies } from '../../creatures/registry';
-import { injuryLabel } from '../../actions/medical';
+import { injuryLabel, stumpLabel } from '../../actions/medical';
+import { lossSummary } from '../../survival/limbs';
 import { itemMenuOptions } from '../../interact/itemMenu';
 import { ensureMind, conditions, medsLines, moodGlyph, breathState, breathRate, topTrigger, ssriEffect } from '../../survival/mind';
 import { startBreathing } from '../../survival/mindSystem';
@@ -106,6 +107,8 @@ function drawStat(s: Screen, sc: Scanner, who: Player) {
   row('PULSE', pulse + ' BPM', pulse > 120 ? AMB : HI);
   row('LUCIDITY', Math.round(b.lucidity) + '%', b.lucidity < 50 ? AMB : HI);
   if (b.corruption > 0) row('DESYNC', Math.round(b.corruption) + '%', RED);
+  const lost = (b as any).severed?.length ? lossSummary((b as any).severed) : '';
+  if (lost) { s.text('LOST ' + lost.toUpperCase(), vx, vy, AMB, 1, s.w - vx - 4); vy += 9; }
   // moodles or selected part detail
   vy += 1;
   s.hline(vx, s.w - 4, vy, DIM, 2); vy += 3;
@@ -203,6 +206,7 @@ function drawFace(s: Screen, g: string, x: number, y: number, sc: number, c: num
 }
 
 function describeInjury(inj: Injury): string {
+  if (inj.type === 'amputation') { try { return 'STUMP: ' + stumpLabel(inj).toUpperCase(); } catch { /* fall through */ } }
   let t = INJURY_INFO[inj.type].name.toUpperCase();
   if (inj.bandage) t += inj.bandage.clean ? ' [BAND]' : ' [DIRTY]';
   if (inj.stitched) t += ' [STITCH]';
