@@ -135,7 +135,14 @@ export function initSubtitles(ui: UiLike) {
     let style: string = s.style || '';
     if (!style) style = /bailiff|band/i.test(who) ? 'bailiff' : /voss|sergeant|handler/i.test(who) ? 'voss' : /guard|officer|custody/i.test(who) ? 'guard' : who && G.local && who === G.local.name ? 'self' : 'radio';
     const secs = Number(s.dur) > 0 ? Number(s.dur) : 2.2 + text.length * 0.055;
-    const at = typeof s.x === 'number' && typeof s.z === 'number' ? { x: s.x, y: (typeof s.y === 'number' ? s.y : 0) + 2.15, z: s.z } : null;
+    // a speaker position: feet (the handler) or already a head height (officers); text hangs just above the head
+    let at: { x: number; y: number; z: number } | null = null;
+    if (typeof s.x === 'number' && typeof s.z === 'number') {
+      let ground = 0;
+      try { ground = Number(G.zone?.heightAt?.(Math.floor(s.x), Math.floor(s.z))) || 0; } catch { /* no zone */ }
+      const y = typeof s.y === 'number' ? s.y : ground;
+      at = { x: s.x, y: y - ground > 1.2 ? y + 0.15 : y + 2.15, z: s.z };
+    }
     switch (style) {
       case 'bailiff':
         if (!G.holo?.visible) bandLine(text, secs);

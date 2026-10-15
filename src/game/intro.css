@@ -54,3 +54,7 @@
   .vx-time, .vx-cam { font-size: 15px; }
 }
 @media (prefers-reduced-motion: reduce) { .vx-root.track .vx-track { animation: none; opacity: 0; } }
+
+/* while the debtor has control on a touch screen, the corners belong to the controls */
+.vx-root.touch.play .vx-play, .vx-root.touch.play .vx-cam, .vx-root.touch.play .vx-time { opacity: 0 !important; }
+.vx-root.touch.play .vx-skip { top: calc(92px + env(safe-area-inset-top)); }

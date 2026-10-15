@@ -36,14 +36,18 @@ export class LensBlood {
     this.ensure();
     if (!this.cv) return;
     const k = Math.min(1, amount) * (lv >= 2 ? 1 : 0.5);
-    const big = Math.round(1 + k * 6), fine = Math.round(k * 40);
-    const cx = W * (0.5 + side * 0.25 + (Math.random() - 0.5) * 0.4), cy = H * (0.3 + Math.random() * 0.4);
+    const big = Math.round(1 + k * 4), fine = Math.round(4 + k * 16);
+    // one flick of blood: drops clustered round where it came from, a fine spray fanning out
+    const cx = W * (0.5 + side * 0.3 + (Math.random() - 0.5) * 0.3), cy = H * (0.25 + Math.random() * 0.45);
     for (let i = 0; i < big; i++) {
-      const a = Math.random() * Math.PI * 2, d = Math.random() * W * 0.32 * (0.4 + k);
-      const r = 1.5 + Math.random() * (2 + k * 5);
+      const a = Math.random() * Math.PI * 2, d = Math.pow(Math.random(), 0.7) * W * 0.16 * (0.5 + k);
+      const r = 1.6 + Math.random() * (1.5 + k * 3.5);
       this.add(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.7, r, col, false);
     }
-    for (let i = 0; i < fine; i++) this.add(Math.random() * W, Math.random() * H, 0.5 + Math.random() * 1.1, col, true);
+    for (let i = 0; i < fine; i++) {
+      const a = Math.random() * Math.PI * 2, d = Math.pow(Math.random(), 0.5) * W * 0.26;
+      this.add(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.6, 0.6 + Math.random() * 0.8, col, true);
+    }
     if (this.drops.length > 140) this.drops.splice(0, this.drops.length - 140);
   }
 
@@ -98,10 +102,19 @@ export class LensBlood {
         for (let k = -Math.round(w); k <= Math.round(w); k++) put(d.x + k, d.y - t, R * 0.8, Gc * 0.8, B * 0.8, Math.round(aEdge * (1 - t / (d.trail + 6))));
       }
       const r = d.r, r2 = r * r;
-      for (let y = -Math.ceil(r); y <= Math.ceil(r); y++) for (let x = -Math.ceil(r); x <= Math.ceil(r); x++) {
-        const q = x * x + y * y * 1.1;
+      if (r < 1.2) {
+        put(d.x, d.y, R * 0.8, Gc * 0.8, B * 0.8, aBody);
+        if (r > 0.9) put(d.x + 1, d.y, R * 0.6, Gc * 0.6, B * 0.6, aEdge);
+        continue;
+      }
+      const seed = (d.max * 1000) | 0;
+      for (let y = -Math.ceil(r) - 1; y <= Math.ceil(r) + 1; y++) for (let x = -Math.ceil(r) - 1; x <= Math.ceil(r) + 1; x++) {
+        // lumpy edge: a cheap angular wobble per drop
+        const ang = Math.atan2(y, x);
+        const wob = 1 + 0.22 * Math.sin(ang * 3 + seed) + 0.12 * Math.sin(ang * 5 + seed * 1.7);
+        const q = (x * x + y * y * 1.15) / (wob * wob);
         if (q > r2) continue;
-        const edge = q > r2 * 0.55;
+        const edge = q > r2 * 0.5;
         put(d.x + x, d.y + y, edge ? R * 0.55 : R, edge ? Gc * 0.5 : Gc, edge ? B * 0.5 : B, edge ? aEdge : aBody);
       }
       // a wet glint

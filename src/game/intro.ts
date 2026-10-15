@@ -347,7 +347,7 @@ export class Intro implements GameSystem {
   // ================================================================== dom
   private buildDom() {
     const root = this.root = document.createElement('div');
-    root.className = 'vx-root letterbox track';
+    root.className = 'vx-root letterbox track' + (this.touch ? ' touch' : '');
     const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = '') => { const e = document.createElement(tag); e.className = cls; e.innerHTML = html; return e; };
     this.shade = el('div', 'vx-shade');
     this.noise = el('canvas', 'vx-noise'); this.noise.width = 160; this.noise.height = 90;
@@ -374,7 +374,7 @@ export class Intro implements GameSystem {
     this.prompt.innerHTML = `<i>▶</i>${title}<small>${sub}</small>`;
     this.prompt.classList.add('on');
   }
-  private letterbox(on: boolean) { this.root.classList.toggle('letterbox', on); }
+  private letterbox(on: boolean) { this.root.classList.toggle('letterbox', on); this.root.classList.toggle('play', !on); }
   private paintDom(dt: number) {
     this.shade.style.opacity = String(clamp01(this.shadeA));
     if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) this.skipBtn.classList.remove('hot'); }
@@ -508,6 +508,7 @@ export class Intro implements GameSystem {
       this.go('walk');
       this.ctl = 'walk';
       (this.g as any).touch?.setHidden?.(false);
+      this.letterbox(false);
       this.frame(0, 0, 0, 1.5);
       this.setPrompt('WALK', this.touch ? 'push the stick forward' : 'W · forward');
     });
@@ -1225,6 +1226,7 @@ export class Intro implements GameSystem {
 
   // ================================================================== dev: jump around the script (screenshots)
   debugJump(phase: Phase, t = 0) {
+    if (phase !== 'walk' && phase !== 'voss' && phase !== 'done') { this.ctl = 'none'; (this.g as any).touch?.setHidden?.(true); this.letterbox(true); this.setPrompt(''); }
     const steps = Math.ceil(t / 0.05);
     const run = (n: number) => { for (let i = 0; i < n; i++) { this.update(0.05); this.p.updateVisual(0.05); } };
     switch (phase) {

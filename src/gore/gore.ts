@@ -847,9 +847,9 @@ export class GoreSystem implements GameSystem {
   lensNear(x: number, z: number, amount: number, K: BloodKind = KINDS.red) {
     const p = G.local; if (!p || !K.liquid) return;
     const d = Math.hypot(p.x - x, p.z - z);
-    if (d > 2.6) return;
-    const k = amount * (1 - d / 2.6);
-    if (k < 0.15 || Math.random() > 0.35 + k) return;
+    if (d > 2.2) return;
+    const k = amount * (1 - d / 2.2);
+    if (k < 0.2 || Math.random() > 0.2 + k * 0.6) return;
     // which side of the picture: screen-right of the camera is (cos yaw, -sin yaw)
     const yaw = G.pr.yaw, sx = (x - p.x) * Math.cos(yaw) - (z - p.z) * Math.sin(yaw);
     this.lens.splash(k, clamp(sx, -1, 1), K.drop[1] ?? 0x8a1214);
