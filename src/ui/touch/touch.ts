@@ -113,6 +113,7 @@ export class TouchControls implements GameSystem {
     if (fsOk) this.btn(tl, 'fs', 'fullscreen', { label: 'FULL', s: 0.85, on: 'up', tap: () => toggleFullscreen() });
     this.btn(tl, 'rotL', 'rotL', { label: 'TURN', s: 0.85, tap: () => this.g.rotateCamera(1) });
     this.btn(tl, 'rotR', 'rotR', { label: 'TURN', s: 0.85, tap: () => this.g.rotateCamera(-1) });
+    this.btn(tl, 'photo', 'photo', { label: 'PHOTO', s: 0.85, tap: () => (this.g as any).camera?.photo?.toggle?.() });
     const tr = this.group('tr', 'nc-group nc-row nc-tr');
     this.btn(tr, 'chat', 'chat', { label: 'CHAT', s: 0.95, on: 'up', tap: () => this.openChat() });
     this.btn(tr, 'map', 'map', { label: 'MAP', s: 0.95, tap: () => { const sc = this.g.ui?.scanner; if (sc?.open && sc.page === 'map') sc.toggle(false); else sc?.toggle(true, 'map'); } });
