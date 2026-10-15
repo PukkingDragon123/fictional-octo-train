@@ -6,6 +6,7 @@ import { saveGame } from '../../game/save';
 import { zoneSpec } from '../../world/worldGraph';
 import { occupationByKey } from '../../survival/traits';
 import { h, mbtn, optionsPanel, controlsPanel, esc, frame, tabs, swapPage, confirmDialog, FocusNav, sfx, printIn } from './common';
+import { bodyCanvas, moodleIcon, BODY_W, BODY_H } from '../moodles';
 
 type Page = 'main' | 'options' | 'controls' | 'coop';
 
@@ -72,7 +73,28 @@ export class PauseMenu {
         ['Condition', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE'],
       ];
       for (const [k, v] of rows) st.append(h('span', '', esc(k)), h('b', '', esc(v)));
-      out.push(st);
+      // condition readout: the body map and every status that is up, worst first
+      const cond = h('div', 't-cond');
+      const bodyBox = h('div', 't-cond-body');
+      try {
+        const pc = bodyCanvas(p.body, 0.2);
+        const cv = document.createElement('canvas'); cv.width = BODY_W; cv.height = BODY_H;
+        cv.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
+        bodyBox.append(cv);
+      } catch { /* body map unavailable */ }
+      const side = h('div', 't-cond-side');
+      side.append(st);
+      const moods = h('div', 't-moods');
+      let list: { key: string; name: string; level: number; good?: boolean }[] = [];
+      try { list = p.body.moodles(p.heavyLoad()).sort((a, b) => b.level - a.level); } catch { /* ignore */ }
+      if (!list.length) moods.append(h('div', 't-mood none', 'Nothing troubling you.'));
+      for (const m of list.slice(0, 8)) {
+        const el = h('div', 't-mood' + (m.level >= 3 && !m.good ? ' bad' : ''), `<img src="${moodleIcon(m.key, m.level, !!m.good)}" alt=""><span>${esc(m.name)}</span>`);
+        moods.append(el);
+      }
+      side.append(moods);
+      cond.append(bodyBox, side);
+      out.push(cond);
     }
     out.push(mbtn('Resume', () => this.close(), { key: 'ESC', primary: true }));
     if (G.role !== 'client') out.push(mbtn('Save', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', ok ? 'progress written to this browser' : '', 2); this.close(); }));

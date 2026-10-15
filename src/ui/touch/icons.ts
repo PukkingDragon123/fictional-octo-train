@@ -385,6 +385,11 @@ const ART: Record<string, string[]> = {
 
 const PAL: Record<string, string> = { '#': '#efe5c4', '+': '#f2b33d', g: '#9cff8a', '-': '#8a7d58', r: '#e0533a' };
 const OUTLINE = '#0e0c08';
+function shadeHex(hex: string, f: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const c = (v: number) => Math.max(0, Math.min(255, Math.round(v * f + (f > 1 ? 12 : 0))));
+  return '#' + ((c((n >> 16) & 255) << 16) | (c((n >> 8) & 255) << 8) | c(n & 255)).toString(16).padStart(6, '0');
+}
 const cache = new Map<string, string>();
 
 export type IconName = keyof typeof ART;
@@ -406,10 +411,15 @@ export function iconUrl(name: string, tint?: string): string {
     for (let dy = -1; dy <= 1 && !near; dy++) for (let dx = -1; dx <= 1; dx++) if (filled(x + dx, y + dy)) { near = true; break; }
     if (near) g.fillRect(x + 1, y + 1, 1, 1);
   }
+  // fill, then shade like hand-pixelled art: a light lip where the shape faces up-left, a shadow where it faces down-right
   for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) {
     const ch = art[y][x];
     if (!ch || ch === '.') continue;
-    g.fillStyle = tint && ch === '#' ? tint : PAL[ch] || PAL['#'];
+    const base = tint && ch === '#' ? tint : PAL[ch] || PAL['#'];
+    let col = base;
+    if (!filled(x, y - 1) || !filled(x - 1, y)) col = shadeHex(base, 1.18);
+    else if (!filled(x, y + 1) || !filled(x + 1, y)) col = shadeHex(base, 0.72);
+    g.fillStyle = col;
     g.fillRect(x + 1, y + 1, 1, 1);
   }
   const url = c.toDataURL();

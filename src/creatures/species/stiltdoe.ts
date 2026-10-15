@@ -108,14 +108,14 @@ function headGeo(ob: OB) {
   ob.blob([0, -0.02, 0.288], [0.028, 0.026, 0.016], 7, 4, P.reg('MUZ'));
   // one huge flat ear lying across the top of the head
   const E = P.reg('EAR');
-  const ew = 0.36, ed = 0.07;
+  const ew = 0.38, ed = 0.12;
   const cols = 6;
   const top: V3[] = [], bot: V3[] = [];
   for (let c = 0; c <= cols; c++) {
     const u = c / cols - 0.5;
     const x = u * ew, droop = -Math.pow(Math.abs(u) * 2, 2) * 0.05, w = ed * (1 - Math.pow(Math.abs(u) * 2, 3) * 0.6);
-    top.push([x, 0.085 + droop, 0.0 + w * 0.5]);
-    bot.push([x, 0.085 + droop - 0.006, 0.0 - w * 0.5]);
+    top.push([x, 0.085 + droop + Math.abs(u) * 0.02, 0.0 + w * 0.5]);
+    bot.push([x, 0.085 + droop + 0.012 - Math.abs(u) * 0.01, 0.0 - w * 0.5]);
   }
   ob.strip(top, bot, E, { double: true });
   // its root: a fleshy ridge where it joins the skull
@@ -233,7 +233,7 @@ function animateDoe(rig: Rig, c: Creature, t: number, dt: number) {
   const body = rig.body, torso = P.torso;
   const ph2 = gs.ph * Math.PI * 2, w = gs.w;
   const fl = m.flinch / 0.35;
-  const sink = g * 1.05 + (lameN ? 0.25 : 0) + rear * -0.15;
+  const sink = g * 1.05 + (lameN >= 2 ? 1.2 : lameN ? 0.25 : 0) + rear * -0.15;
   body.position.set(Math.sin(t * 50) * 0.02 * fl, -sink + (run ? Math.abs(Math.sin(ph2)) * 0.12 : Math.cos(ph2 * 2) * 0.02) * w, 0);
   body.rotation.set(0, 0, 0);
   torso.rotation.set(-rear * 0.55 + strike * 0.12 + (run ? Math.sin(ph2 + 0.5) * 0.08 * w : 0) + g * 0.1, Math.sin(ph2) * 0.03 * w, Math.sin(ph2) * 0.04 * w * (1 - m.run) + lameSide * 0.15);
@@ -307,7 +307,7 @@ PG.paint((Pt, v) => {
     const fr = (x: number) => -Math.cos(((x + 0.5) / r.w) * Math.PI * 2); // +1 throat, -1 crest
     const Ln = fillLv(Pt, r, HD, (u, vv, x, y) => M - fr(x) * 0.9 + (Pt.n(r, x, y, 2, 2, 5) - 0.5) * 0.8 - (1 - vv) * 0.3);
     for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) if (fr(x) > 0.55) Pt.put(r, x, y, WH, 5 + fr(x), 0.2);
-    for (let y = 0; y < r.h; y += 3) for (let x = 0; x < r.w; x++) if (fr(x) > 0.7) Pt.set(r, x, y, WH[3]); // windpipe rings
+    for (let y = 1; y < r.h; y += 4) for (let x = 0; x < r.w; x++) if (fr(x) > 0.75) Pt.blend(r, x, y, WH[2], 0.35); // windpipe rings
     Pt.strokes(r, HD, Ln.get, { density: 0.3, flow: () => [0, 1], len: [2, 4], dark: 1.3, light: 0.9, mask: (x) => fr(x) < 0.5, salt: 4 });
     for (let y = 0; y < r.h; y++) { const x = Math.floor(r.w * 0.0); Pt.set(r, x, y, HD[3]); } // mane line
   }
@@ -381,6 +381,7 @@ const S = def({
   build: buildDoe,
   animate: animateDoe,
 });
+(S as any).handlesSevered = true;
 S.animateGallery = galleryDriver('stilt_doe', ['walk', 'graze', 'run', 'idle', 'attack', 'watched', 'dead'], animateDoe, (pose, fc, t) => {
   fc.state = pose === 'walk' ? 'wander' : pose === 'run' ? 'flee' : pose === 'graze' ? 'graze' : pose === 'attack' ? 'attack' : pose === 'dead' ? 'dead' : 'idle';
   fc.speed = pose === 'walk' ? 1.1 : pose === 'run' ? 7 : 0;

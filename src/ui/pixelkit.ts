@@ -621,6 +621,44 @@ export function idPhoto(t: PkTheme, img?: ImageData): PixelCanvas {
   return pc;
 }
 
+/**
+ * On-screen touch pad, 16x16 (slice 5) or 24x24 round (slice 9): translucent dark rubber with a
+ * hard bevel. rim: accent colour for "on" states; down: pressed (bevel inverted, darker).
+ */
+function pad(round: boolean, rim: number | null, down: boolean, fill = 0x16130c, alpha = 150): PixelCanvas {
+  const S = round ? 24 : 16, r = round ? 9 : 4, pc = canvasOf(S, S);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (!inRound(x, y, S, S, r)) continue;
+    const outer = !inRound(x - 1, y - 1, S - 2, S - 2, r - 1);
+    if (outer) { pc.set(x, y, 0x080704, 235); continue; }
+    const rimPx = !inRound(x - 2, y - 2, S - 4, S - 4, r - 2);
+    const upper = x + y < S - 1;
+    if (rimPx) {
+      if (rim !== null) pc.set(x, y, rim, 255);
+      else pc.set(x, y, (down ? !upper : upper) ? 0xb8ae90 : 0x3a3428, down ? 170 : 190);
+      continue;
+    }
+    const inner2 = !inRound(x - 3, y - 3, S - 6, S - 6, Math.max(1, r - 3));
+    if (inner2 && rim !== null) { pc.set(x, y, mixHex(rim, 0x000000, 0.55), 200); continue; }
+    pc.set(x, y, down ? mixHex(fill, 0xf2b33d, 0.35) : fill, down ? alpha + 40 : alpha);
+  }
+  return pc;
+}
+/** stick plate 24x24 slice 10: ring with tick marks */
+function stickBase(): PixelCanvas {
+  const S = 24, pc = canvasOf(S, S);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (!inRound(x, y, S, S, 10)) continue;
+    const ring = !inRound(x - 1, y - 1, S - 2, S - 2, 9);
+    const ring2 = !inRound(x - 2, y - 2, S - 4, S - 4, 8);
+    if (ring) pc.set(x, y, 0x080704, 170);
+    else if (ring2) pc.set(x, y, 0xefe5c4, 80);
+    else pc.set(x, y, 0x0e0c08, (x + y) % 2 ? 40 : 60);
+  }
+  for (const [x, y] of [[11, 3], [12, 3], [3, 11], [3, 12], [20, 11], [20, 12], [11, 20], [12, 20]]) pc.set(x, y, 0xefe5c4, 120);
+  return pc;
+}
+
 // ------------------------------------------------------------------ cursors (art 1x; scaled when installed)
 const CUR_ARROW = [
   'k.........', 'kk........', 'kwk.......', 'kwwk......', 'kwwwk.....', 'kwwwwk....', 'kwwwwwk...', 'kwwwwwwk..', 'kwwwwwwwk.', 'kwwwwwwwwk',
@@ -714,6 +752,10 @@ export function installPixelKit(themeName: string, px: number) {
   set('paper', paper());
   set('dots', dots(t.dark)); set('dots-dim', dots(t.dim)); set('dots-metal', dots(MET[2])); set('etch', etch());
   set('sb-thumb', sbThumb(t)); set('sb-thumb-hover', sbThumb(t, true)); set('sb-track', sbTrack(t));
+  set('pad', pad(false, null, false)); set('pad-down', pad(false, null, true)); set('pad-on', pad(false, 0xf2b33d, false)); set('pad-rec', pad(false, 0xe0533a, false));
+  set('pad-round', pad(true, null, false)); set('pad-round-down', pad(true, null, true)); set('pad-round-on', pad(true, 0xf2b33d, false));
+  set('pad-scan', pad(false, null, false, mixHex(t.scr, 0x000000, 0.2), 205)); set('pad-scan-on', pad(false, t.ph, false, t.dark, 225));
+  set('stick-base', stickBase()); set('stick-knob', pad(true, null, false, 0x3a3428, 140));
   set('desk', wallpaper()); set('grid', gridTile(t)); set('seal', seal(t)); set('tape', cassette(t)); set('idphoto', idPhoto(t));
   // cursors: pre-scaled (CSS cursors are not resampled by image-rendering)
   const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));

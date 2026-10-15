@@ -338,7 +338,7 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
       const us = uiSettings();
       f.append(seg<UiTheme>('Terminal', [['green', 'Phosphor green'], ['amber', 'Amber']], us.theme, (v) => { us.theme = v; saveUiSettings(us); }));
       f.append(seg<number>('UI size', [[0, 'Auto'], [2, '2×'], [3, '3×'], [4, '4×']], us.px ?? 0, (v) => { us.px = v; us.scale = 1; saveUiSettings(us); },
-        { tip: (v) => v === 0 ? `Pick for this screen (now ${currentPx({ ...us, px: 0 })}×)` : `Every interface pixel is ${v} screen pixels` }));
+        { tip: (v) => v === 0 ? `Pick for this screen (now ${Math.round(currentPx({ ...us, px: 0 }) * 10) / 10}×)` : `Every interface pixel is ${v} screen pixels` }));
       f.append(toggle('Reduce flashing', us.reduceFlash, (v) => { us.reduceFlash = v; saveUiSettings(us); }, 'no flicker, glitches or blinking'));
       f.append(seg<TouchSetting>('Touch controls', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], getTouchSetting(), (v) => setTouchSetting(v),
         { tip: (v) => v === 'auto' ? 'Show on-screen controls on touch screens' : v === 'on' ? 'Always show on-screen controls' : 'Never show on-screen controls' }));

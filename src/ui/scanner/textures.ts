@@ -59,12 +59,23 @@ addTextureModule(() => {
     pc.strokeRect(30, 22, 36, 30, 0x2e3422); pc.rect(31, 23, 34, 28, 0x56603c); // battery door
     pc.rect(40, 28, 16, 6, 0xcfc7a8); pc.hline(41, 54, 31, 0x2a2618);
   });
+  // screen surround: moulded black rubber with a stepped lip into the tube, moulded tick marks and screws
   A.add('c_scanner_bezel', 72, 56, (pc) => {
     pc.wrap = false;
-    const R = makeRamp(0x22201c, 5, { spread: 0.3 });
-    pc.fillRamp(R, (x, y) => 0.45 + ((x + y) % 5 === 0 ? 0.08 : 0) + (ph(x, y, 4) - 0.5) * 0.08, 0.5);
-    pc.strokeRect(0, 0, 72, 56, 0x0c0b0a); pc.strokeRect(1, 1, 70, 54, 0x3a3832);
-    pc.hline(3, 68, 2, 0x4a4840);
+    const R = makeRamp(0x22201c, 6, { spread: 0.34 });
+    pc.fillRamp(R, (x, y) => 0.46 + ((x * 3 + y) % 7 === 0 ? 0.06 : 0) + (ph(x >> 1, y >> 1, 4) - 0.5) * 0.08 - y / 56 * 0.08, 0.5);
+    pc.strokeRect(0, 0, 72, 56, 0x0c0b0a);
+    pc.hline(1, 70, 1, R[5]); pc.vline(1, 1, 54, R[4]); pc.hline(1, 70, 54, R[1]); pc.vline(70, 1, 54, R[1]);
+    // stepped lip around the glass opening (the glass sits inside ~x 5..66, y 5..50)
+    for (let i = 0; i < 3; i++) {
+      const c = i === 0 ? R[0] : i === 1 ? 0x080706 : R[1];
+      pc.strokeRect(4 - i, 4 - i, 64 + i * 2, 48 + i * 2, c);
+    }
+    pc.hline(3, 68, 53 - 1, R[4]); pc.vline(68, 3, 52, R[3]);
+    // moulded ticks along the bottom
+    for (let x = 10; x < 62; x += 4) pc.set(x, 54, R[4]);
+    // corner screws
+    for (const [sx, sy] of [[2, 2], [68, 2], [2, 52], [68, 52]]) { pc.set(sx, sy, 0x8a8a80); pc.set(sx + 1, sy, 0x4a4a44); pc.set(sx, sy + 1, 0x4a4a44); }
   });
   A.add('c_scanner_rubber', 16, 16, (pc) => {
     const R = makeRamp(0x2a2826, 5, { spread: 0.3 });

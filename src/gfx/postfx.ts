@@ -309,11 +309,12 @@ void main() {
 #ifdef VOL_SHADOWS
         cone *= spotShadow(P);
 #endif
-        L += uSpotCol * cone * uSpotMul;
+        // a torch beam reads much denser than the room haze (dust kicked up close to you)
+        L += uSpotCol * cone * uSpotMul * 6.5;
       }
     }
 #ifdef VOL_SHADOWS
-    if (uSunOn > 0.0) L += uSunCol * (sunShadow(P) * uSunOn * uSunMul * 0.35);
+    if (uSunOn > 0.0) L += uSunCol * (sunShadow(P) * uSunOn * uSunMul * 0.2);
 #endif
     acc += L * dens * stepL;
   }
@@ -373,6 +374,11 @@ uniform float uSunOn;
 uniform vec3 uSunCol;
 uniform vec2 uSunDir2;
 uniform float uSunGlow;
+#ifdef SUN_SPLIT
+uniform sampler2DShadow tSunShadow;
+uniform mat4 uSunMat;
+uniform vec3 uSunDir3;
+#endif
 
 vec3 toSRGB(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
 
@@ -480,6 +486,18 @@ void main() {
   if (isHl) c = c * 1.18 + uHighlight * 0.06;
   if (hlEdge > 0.5) c = mix(c, uHighlight, 0.85);
 
+  // --- outdoors: warm where the sun lands, cool sky-fill in the shade ---
+#ifdef SUN_SPLIT
+  if (uSunOn > 0.0 && uSunGlow > 0.0 && !isVoid) {
+    vec4 sc = uSunMat * vec4(P + n * 0.06, 1.0);
+    float lit = 1.0;
+    if (sc.x > 0.0 && sc.x < 1.0 && sc.y > 0.0 && sc.y < 1.0 && sc.z < 1.0) lit = texture(tSunShadow, vec3(sc.xy, sc.z - 0.003));
+    lit *= smoothstep(0.0, 0.25, dot(n, uSunDir3));
+    float k = clamp(uSunGlow, 0.0, 1.2) * 0.5;
+    c *= mix(vec3(1.0), mix(vec3(0.84, 0.9, 1.1), vec3(1.08, 1.0, 0.86), lit), k);
+  }
+#endif
+
   // --- ground mist, lit by what's around it ---
 #ifdef MIST_ON
   if (!isVoid && uMistDens > 0.0) {
@@ -511,7 +529,7 @@ void main() {
       vec2 g = Q.xz * 2.1 + vec2(uTime * 0.05, uTime * 0.035) * (1.0 + fk * 0.5) + fk * 17.3;
       vec2 id = floor(g);
       float hs = h12(id + fk * 31.0);
-      if (hs < 0.8) continue;
+      if (hs < 0.88) continue;
       vec2 mp = vec2(h12(id + 3.1), h12(id + 7.7)) * 0.8 + 0.1 + vec2(sin(uTime * 0.8 + hs * 40.0), cos(uTime * 0.6 + hs * 30.0)) * 0.07;
       vec2 dl = (fract(g) - mp) / 2.1;
       vec3 d3 = vec3(dl.x, 0.0, dl.y);
@@ -522,7 +540,7 @@ void main() {
       if (uSunOn > 0.0) L += uSunCol * 0.45;
       float lum = dot(L, vec3(0.3, 0.5, 0.2));
       float tw = 0.55 + 0.45 * sin(uTime * 2.3 + hs * 60.0);
-      c += L * smoothstep(0.35, 1.6, lum) * uMotes * tw * 0.4 * visAt(Q.xz);
+      c += L * smoothstep(0.6, 2.2, lum) * uMotes * tw * 0.22 * visAt(Q.xz);
     }
   }
 #endif
@@ -530,7 +548,7 @@ void main() {
   // --- low sun: warm scattering toward the sun's side of the frame ---
   if (uSunGlow > 0.0 && uSunOn > 0.0) {
     float sg = clamp(dot(vUv - 0.5, uSunDir2) * 1.1 + 0.45, 0.0, 1.0);
-    c += uSunCol * (sg * sg * uSunGlow * 0.09);
+    c += uSunCol * (sg * sg * uSunGlow * 0.05) * visAt(P.xz);
   }
 
   // --- bloom + lens dirt ---
@@ -705,6 +723,7 @@ export class PostFX {
     if (on && q.bloom > 0) { d.BLOOM_ON = 1; if (q.dirt) d.DIRT_ON = 1; }
     if (on && q.vol > 0) d.VOL_ON = 1;
     if (on && q.motes) d.MOTES_ON = 1;
+    if (on && q.split) d.SUN_SPLIT = 1;
     if (q.mist) d.MIST_ON = 1;
     return d;
   }

@@ -59,7 +59,8 @@ export class CameraController {
   private orbiting = false;
   private orbitFrom = '';
   private lastMX = 0; private lastMY = 0;
-  private mouseMovedAt = 0;
+  /** peek follows the mouse only once it has actually moved (not a cursor parked at 0,0 on load) */
+  private mouseMovedAt = -1e9;
   // follow
   private look = new THREE.Vector2();
   private peek = new THREE.Vector2();
@@ -325,7 +326,7 @@ export class CameraController {
   private updatePeek(dt: number, off: boolean) {
     const g = this.g, p = g.local, pr = this.pr, inp = g.input;
     let px = 0, pz = 0;
-    if (this.peekOn && !off) {
+    if (this.peekOn && !off && !g.ui?.scanner?.open) {
       let firearm = false, ranged = false;
       if (p.aiming && p.handR) { const w = itemDef(p.handR.key).weapon; firearm = w?.kind === 'firearm'; ranged = firearm || w?.kind === 'thrown'; }
       const ta = inp.touchAim;

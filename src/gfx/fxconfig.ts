@@ -26,12 +26,14 @@ export interface FxQuality {
   mist: boolean;
   /** lens dirt lit by bloom */
   dirt: boolean;
+  /** outdoors: warm sunlit / cool shaded split (one shadow-map lookup per pixel) */
+  split: boolean;
 }
 
 export const QUALITY: Record<QualityLevel, FxQuality> = {
-  low: { ao: 0, aoHalf: true, blobs: 6, bloom: 0, vol: 0, volShadows: false, motes: false, ssr: 0, mist: true, dirt: false },
-  medium: { ao: 6, aoHalf: true, blobs: 10, bloom: 2, vol: 8, volShadows: false, motes: true, ssr: 10, mist: true, dirt: true },
-  high: { ao: 10, aoHalf: false, blobs: 16, bloom: 3, vol: 14, volShadows: true, motes: true, ssr: 18, mist: true, dirt: true },
+  low: { ao: 0, aoHalf: true, blobs: 6, bloom: 0, vol: 0, volShadows: false, motes: false, ssr: 0, mist: true, dirt: false, split: false },
+  medium: { ao: 6, aoHalf: true, blobs: 10, bloom: 2, vol: 8, volShadows: false, motes: true, ssr: 10, mist: true, dirt: true, split: true },
+  high: { ao: 12, aoHalf: true, blobs: 16, bloom: 3, vol: 14, volShadows: true, motes: true, ssr: 14, mist: true, dirt: true, split: true },
 };
 
 /** best first guess for this device: phones start low, tablets medium, desktops high */
@@ -98,11 +100,11 @@ export const ZONEFX: Record<string, Partial<ZoneFx>> = {
   // sodium haze hanging under the slabs
   parking: { haze: [1.15, 0.72, 0.32], hazeDens: 0.024, hazeFall: 0.05, volTop: 3.2, gridMul: 1.1, mist: [0.36, 0.22, 0.09], mistDens: 0.07, mistFall: 0.6, mistLit: 1.0, mistMax: 0.3, bloom: 0.95, bloomTh: 0.65, reflect: 0.7, sheen: 0.8, motes: 0.9, dirt: 0.8, ao: 1.0 },
   // late afternoon: warm shafts, pollen, a soft lilac ground haze
-  fields: { haze: [1.1, 0.95, 0.78], hazeDens: 0.01, hazeFall: 0.12, volTop: 6, gridMul: 0.6, sunShafts: 1, mist: [0.86, 0.8, 0.9], mistDens: 0.07, mistFall: 0.8, mistLit: 0.2, mistMax: 0.26, bloom: 0.6, bloomTh: 0.9, ao: 0.7, motes: 1.2, dirt: 0.7 },
-  suburbs: { haze: [1.05, 0.98, 0.9], hazeDens: 0.008, volTop: 6, gridMul: 0.6, sunShafts: 0.8, mist: [0.7, 0.72, 0.8], mistDens: 0.04, mistFall: 0.8, mistLit: 0.2, bloom: 0.55, ao: 0.75 },
+  fields: { haze: [1.1, 0.95, 0.78], hazeDens: 0.006, hazeFall: 0.15, volTop: 6, gridMul: 0.6, sunShafts: 1, mist: [0.86, 0.8, 0.9], mistDens: 0.03, mistFall: 1.0, mistLit: 0.2, mistMax: 0.16, bloom: 0.6, bloomTh: 0.9, ao: 0.7, motes: 1.2, dirt: 0.7 },
+  suburbs: { haze: [1.05, 0.98, 0.9], hazeDens: 0.006, volTop: 6, gridMul: 0.6, sunShafts: 0.8, mist: [0.7, 0.72, 0.8], mistDens: 0.025, mistFall: 0.8, mistLit: 0.2, bloom: 0.55, ao: 0.75 },
   office: { haze: [0.92, 0.98, 1.0], hazeDens: 0.012, gridMul: 0.9, mist: [0.3, 0.33, 0.35], mistDens: 0.03, bloom: 0.55, sheen: 0.4, motes: 0.7 },
   // cold concrete, steam pooling at ankle height
-  tunnels: { haze: [0.85, 0.92, 0.95], hazeDens: 0.022, hazeFall: 0.3, volTop: 3.0, gridMul: 1.1, mist: [0.3, 0.32, 0.33], mistDens: 0.12, mistFall: 1.8, mistLit: 1.0, mistMax: 0.32, bloom: 0.8, bloomTh: 0.7, reflect: 0.7, sheen: 0.7, motes: 1.0, dirt: 0.8, ao: 1.0 },
+  tunnels: { haze: [0.85, 0.92, 0.95], hazeDens: 0.022, hazeFall: 0.3, volTop: 3.0, gridMul: 1.1, mist: [0.3, 0.32, 0.33], mistDens: 0.07, mistFall: 1.8, mistLit: 0.7, mistMax: 0.24, bloom: 0.8, bloomTh: 0.7, reflect: 0.7, sheen: 0.7, motes: 1.0, dirt: 0.8, ao: 1.0 },
   mall: { haze: [1.0, 0.97, 1.0], hazeDens: 0.012, volTop: 5, gridMul: 0.9, mist: [0.5, 0.48, 0.52], mistDens: 0.02, bloom: 0.6, reflect: 0.6, sheen: 0.7 },
   market: { hazeDens: 0.01, mist: [0.4, 0.42, 0.42], mistDens: 0.02, bloom: 0.55, reflect: 0.5, sheen: 0.6 },
   school: { haze: [1.0, 0.96, 0.88], hazeDens: 0.012, mist: [0.4, 0.38, 0.33], mistDens: 0.02, sheen: 0.6, motes: 0.9 },

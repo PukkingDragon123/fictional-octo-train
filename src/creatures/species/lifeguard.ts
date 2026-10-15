@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { def, newRig, Rig } from '../species';
+import { Page, Reg, OB, V3, bpart, registerPage, clamp01, lerp, gauss, ramp, fillLv, applyLook, galleryDriver } from '../kit/beasts';
 import { atlas } from '../../gfx/atlas';
 import { addTextureModule } from '../../gfx/textures/index';
 import { makeRamp, ph } from '../../gfx/pixel';
@@ -47,21 +48,6 @@ addTextureModule(() => {
     pc.set(3, 4, 0xe8d8d0); pc.set(6, 4, 0xe8d8d0); pc.set(11, 4, 0xe8d8d0);
     pc.hline(0, 15, 0, R[1]); pc.hline(0, 15, 7, R[0]);
   });
-  A.add('c_lifeguard_skin', 16, 16, (pc) => {
-    const R = makeRamp(0xa8b4b8, 6, { hueShift: -0.03 });
-    pc.fillRamp(R, (x, y) => 0.6 + (ph(x >> 1, y >> 1, 6) - 0.5) * 0.18, 0.6);
-    for (let y = 2; y < 16; y += 5) for (let x = 0; x < 16; x++) if ((x + y) % 6 === 0) pc.set(x, y, R[2]); // pruned, waterlogged
-  });
-  A.add('c_lifeguard_face', 16, 16, (pc) => {
-    pc.wrap = false;
-    const R = makeRamp(0xb0bcc0, 6, { hueShift: -0.03 });
-    pc.fillRamp(R, (x, y) => 0.62 - y * 0.012, 0.5);
-    pc.rect(0, 0, 16, 5, 0xa8342a); pc.hline(0, 15, 5, 0x7a2018); // swim cap
-    pc.rect(3, 7, 3, 3, 0x0a0e10); pc.rect(10, 7, 3, 3, 0x0a0e10); // empty goggles-shaped eyes
-    pc.hline(6, 9, 8, 0x3a3e40);
-    pc.rect(5, 12, 6, 3, 0x14181a); // mouth, open
-    pc.set(7, 14, 0xd8d0b8); // the whistle, between its teeth
-  });
   A.add('c_lifeguard_ripple', 16, 16, (pc) => {
     pc.wrap = false;
     pc.clear();
@@ -73,6 +59,83 @@ addTextureModule(() => {
 });
 
 const S0 = 0.6; // water surface above the root (the manager sinks swimmers 0.6 m)
+
+// Model: a drowned lifeguard. A waterlogged upper body (ribs and collarbones
+// under bloated, pruned, blue-white skin marbled with livor), a faded red
+// guard's vest gone to holes, a whistle on a lanyard, a red swim cap over a
+// face with empty black sockets ringed by old goggle marks and a mouth that
+// stays open. Arms far too long, ending in long white fingers. Wet hair
+// strands trail from under the cap.
+const PG = registerPage(new Page('c_lifepg', 128, 128, [
+  ['TORSO', 64, 40], ['HEAD', 48, 30], ['ARM_U', 20, 36], ['ARM_L', 18, 36], ['HAND', 18, 12], ['HAIR', 12, 20], ['CUT', 14, 14], ['WHISTLE', 6, 6],
+], 2));
+const AU = 0.6, AF = 0.56; // upper arm / forearm (too long)
+
+function bodyGeo(ob: OB) {
+  // torso: waist to shoulders along +y; N faces front (u 0.5 = chest)
+  const path: V3[] = [[0, -0.62, 0.0], [0, -0.5, 0.0], [0, -0.36, 0.005], [0, -0.22, 0.012], [0, -0.1, 0.01], [0, -0.01, 0.0], [0, 0.05, -0.01]];
+  const rad: [number, number][] = [[0.1, 0.14], [0.1, 0.145], [0.105, 0.15], [0.12, 0.165], [0.12, 0.175], [0.1, 0.18], [0.06, 0.09]];
+  ob.tube(path, rad, 14, PG.reg('TORSO'), {
+    up: [0, 0, 1], th0: Math.PI, start: 'pole', end: 'pole', endBulge: 0.03, vflip: true,
+    bump: (i, th) => {
+      const front = Math.max(0, Math.cos(th)), side = Math.abs(Math.sin(th));
+      let b = 0;
+      if (i === 3 || i === 4) b += front * side * 0.1 * (i === 3 ? 1 : 0.6);   // ribs flaring under the skin
+      if (i === 5) b += Math.max(0, Math.cos(th)) ** 2 * 0.06 - front * (1 - side) * 0.05; // collarbones, sternal notch
+      if (i === 2) b += front * 0.08;                                           // bloated belly
+      return b;
+    },
+    col: (i, th) => 0.82 + 0.18 * Math.cos(th) - (i < 2 ? 0.1 : 0),
+  });
+  // lanyard and whistle
+  const W = PG.reg('WHISTLE');
+  ob.blob([0.03, -0.2, 0.135], [0.012, 0.022, 0.01], 5, 3, W);
+}
+
+function headGeo(ob: OB) {
+  // neck with a cut face at its root (shows when the head comes off)
+  ob.tube([[0, -0.1, -0.01], [0, -0.04, 0.0], [0, 0.03, 0.005]], [[0.05, 0.055], [0.05, 0.055], [0.052, 0.058]], 9, PG.reg('TORSO'), { up: [0, 0, 1], start: 'cut', cut: PG.reg('CUT'), vs: [0.99, 0.97, 0.96] });
+  const path: V3[] = [[0, 0.0, 0.012], [0, 0.04, 0.02], [0, 0.09, 0.022], [0, 0.14, 0.018], [0, 0.19, 0.01], [0, 0.23, 0.0], [0, 0.255, -0.01]];
+  const rad: [number, number][] = [[0.055, 0.05], [0.07, 0.065], [0.085, 0.078], [0.092, 0.084], [0.095, 0.088], [0.085, 0.08], [0.05, 0.05]];
+  ob.tube(path, rad, 14, PG.reg('HEAD'), {
+    up: [0, 0, 1], th0: Math.PI, start: 'pole', end: 'pole', endBulge: 0.025, vflip: true,
+    bump: (i, th) => {
+      const front = Math.max(0, Math.cos(th));
+      let b = 0;
+      if (i === 3) b -= gauss(Math.abs(Math.sin(th)), 0.45, 0.18) * front * 0.22;  // hollow eye sockets
+      if (i === 2) b += gauss(Math.abs(Math.sin(th)), 0.0, 0.2) * front * 0.12;    // nose ridge
+      if (i === 1) b -= gauss(Math.abs(Math.sin(th)), 0.0, 0.3) * front * 0.08;    // the open mouth
+      if (i === 5) b += 0.04;                                                      // the cap's rolled rim
+      return b;
+    },
+  });
+  // wet hair trailing from under the cap
+  const H = PG.reg('HAIR');
+  for (const [x, ry, l] of [[-0.06, -0.4, 0.2], [0.0, 0.0, 0.24], [0.06, 0.4, 0.18], [-0.03, -0.15, 0.16]] as [number, number, number][]) {
+    ob.push().translate(x, 0.19, -0.075).rotY(ry);
+    ob.quad([[-0.025, 0, 0], [0.025, 0, 0], [0.02, -l, -0.03], [-0.02, -l, -0.03]], H, [[0, 1], [1, 1], [1, 0], [0, 0]], { double: true });
+    ob.pop();
+  }
+}
+
+/** arm segment pointing up (+y) from its joint, knuckled at the far end */
+function armSeg(ob: OB, len: number, r0: number, r1: number, reg: string, cut: boolean) {
+  ob.tube([[0, -0.03, 0], [0, len * 0.15, 0.004], [0, len * 0.5, 0.006], [0, len * 0.85, 0.003], [0, len + 0.015, 0]],
+    [[r0 * 0.8, r0 * 0.8], [r0, r0 * 0.95], [lerp(r0, r1, 0.5), lerp(r0, r1, 0.5) * 0.92], [r1, r1 * 0.9], [r1 * 1.1, r1 * 1.05]], 8, PG.reg(reg), {
+      up: [0, 0, 1], start: cut ? 'cut' : 'pole', cut: PG.reg('CUT'), end: 'pole', endBulge: 0.01, vs: [0.02, 0.15, 0.5, 0.85, 0.98],
+    });
+}
+function handGeo(ob: OB) {
+  const H = PG.reg('HAND');
+  ob.blob([0, AF + 0.04, 0.005], [0.045, 0.05, 0.02], 7, 4, H);
+  // four long white fingers, slightly curled like hooks, and a thumb
+  for (let f = 0; f < 4; f++) {
+    const x = (f - 1.5) * 0.022, L = 0.16 + (f === 1 || f === 2 ? 0.02 : 0);
+    const y0 = AF + 0.08;
+    ob.tube([[x, y0, 0.0], [x * 1.1, y0 + L * 0.5, 0.012], [x * 1.15, y0 + L * 0.85, 0.035], [x * 1.15, y0 + L, 0.06]], [0.0095, 0.008, 0.007, 0.005], 5, H, { end: 'pole', endBulge: 0.005 });
+  }
+  ob.tube([[0.045, AF + 0.03, 0.01], [0.07, AF + 0.08, 0.03], [0.075, AF + 0.11, 0.05]], [0.011, 0.009, 0.006], 5, H, { end: 'pole', endBulge: 0.005 });
+}
 
 function buildLifeguard(): Rig {
   const rig = newRig(S0 + 0.4);
@@ -89,22 +152,100 @@ function buildLifeguard(): Rig {
   });
   for (let i = 0; i < 3; i++) partB(rig, 'ripple' + i, main, [0, S0 + 0.02, 0], (mb) => { mb.flat(0, 0, 0, 1, 1, 'c_lifeguard_ripple'); }, matB('dust'));
   // the body: below the surface (hidden by the water floor) until it reaches up
-  const body = part(rig, 'bodyG', main, [0, S0 - 1.2, 0], (mb) => {
-    mb.box(0, -0.5, 0, 0.34, 0.6, 0.2, 'c_lifeguard_skin');
-  });
-  part(rig, 'head', body, [0, 0.1, 0.02], (mb) => {
-    mb.box(0, 0, 0, 0.22, 0.27, 0.22, { south: 'c_lifeguard_face', all: 'c_lifeguard_skin', top: 'c_lifeguard_face' }, { fit: { south: true } });
-    mb.box(0, 0.2, 0, 0.23, 0.08, 0.23, 'c_lifeguard_skin', { color: 0xb8443a }); // cap
-  });
+  const body = bpart(rig, 'bodyG', main, [0, S0 - 1.2, 0], PG, 'body', bodyGeo);
+  bpart(rig, 'head', body, [0, 0.06, 0.0], PG, 'head', headGeo);
   for (const [s, side] of [[1, 'L'], [-1, 'R']] as const) {
-    const ua = part(rig, 'arm' + side, body, [0.19 * s, 0.0, 0], (mb) => { mb.box(0, 0, 0, 0.065, 0.62, 0.065, 'c_lifeguard_skin'); });
-    part(rig, 'fore' + side, ua, [0, 0.6, 0], (mb) => {
-      mb.box(0, 0, 0, 0.055, 0.6, 0.055, 'c_lifeguard_skin');
-      for (let f = 0; f < 4; f++) mb.box(-0.022 + f * 0.015, 0.58, 0, 0.012, 0.16, 0.012, 'c_lifeguard_skin'); // long white fingers
-    });
+    const ua = bpart(rig, 'arm' + side, body, [0.2 * s, -0.02, -0.01], PG, 'armU', (ob) => armSeg(ob, AU, 0.05, 0.036, 'ARM_U', true));
+    bpart(rig, 'fore' + side, ua, [0, AU, 0], PG, 'armF', (ob) => { armSeg(ob, AF, 0.036, 0.03, 'ARM_L', false); handGeo(ob); });
   }
   return rig;
 }
+
+PG.paint((Pt, v) => {
+  const rng = Pt.rng;
+  const SK = ramp(v ? 0x9eb0b2 : 0xaab8b6, 14, 0x161c26, 0.55);
+  const RD = ramp(v ? 0x9a3a2a : 0xa83a30, 10, 0x200808, 0.4);
+  const M = 7;
+  const LIV = 0x6a5a8a, VEIN = 0x4a5a8a;
+  const prune = (r: Reg, dens: number) => { for (let y = 1; y < r.h; y += 2) for (let x = 0; x < r.w; x++) if (Math.sin(x * 0.9 + y * 1.7 + Math.sin(y * 0.5) * 2) > 1 - dens) Pt.blend(r, x, y, SK[4], 0.35); };
+  const livor = (r: Reg, amt: number) => { for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { const f = Pt.n(r, x, y, 3, 2, 31); if (f > 0.62 - amt * 0.1) Pt.blend(r, x, y, LIV, clamp01((f - 0.6) * 4) * 0.45); } };
+  const veins = (r: Reg, n: number) => { for (let i = 0; i < n; i++) Pt.walk(r, rng.int(0, r.w - 1), rng.int(0, r.h - 1), rng.int(8, 16), rng.float(-1, 1), rng.float(-1, 1), VEIN, 0.45, 0.8, 0.25); };
+  const peel = (r: Reg, n: number) => { for (let i = 0; i < n; i++) { const x = rng.int(0, r.w - 1), y = rng.int(2, r.h - 3), w = rng.int(2, 4); Pt.spot(r, x, y, w, w * 0.6, SK[12], 0.9, true); for (let k = -w; k <= w; k++) Pt.set(r, x + k, y + Math.round(w * 0.6), SK[3]); } };
+  // ---------------- torso: skin, then the rotted guard's vest over the chest and back
+  {
+    const r = Pt.R('TORSO');
+    const fr = (x: number) => -Math.cos(((x + 0.5) / r.w) * Math.PI * 2); // +1 chest, -1 back
+    fillLv(Pt, r, SK, (u, vv, x, y) => M + fr(x) * 0.6 + (Pt.n(r, x, y, 3, 2, 1) - 0.5) * 1.0 + (vv > 0.62 && vv < 0.8 ? Math.sin(vv * 70) * 0.9 * Math.max(0, fr(x)) : 0));
+    livor(r, 1); veins(r, 10); prune(r, 0.15);
+    // the vest: a tank top from just under the collarbones to the waist, holes eaten through it
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+      const vv = 1 - (y + 0.5) / r.h, u = (x + 0.5) / r.w;
+      const strap = Math.abs(Math.abs(u - 0.5) - 0.25) < 0.07;
+      if (vv > 0.86 && !strap) continue;
+      if (vv > 0.74 && !strap && Math.abs(u - 0.5) < 0.17) continue; // neckline
+      if (vv < 0.04) continue;
+      if (Pt.n(r, x, y, 4, 2, 41) > 0.7) continue; // holes
+      Pt.put(r, x, y, RD, 5 + fr(x) * 0.6 + (Pt.n(r, x, y, 3, 2, 43) - 0.5) * 1.6 - (vv < 0.2 ? 1 : 0), 0.25);
+    }
+    // faded lettering across the chest (most of it gone)
+    const ly = Math.round(r.h * 0.42);
+    for (let k = 0; k < 9; k++) { if (rng.chance(0.4)) continue; const x = Math.round(r.w * 0.5 - 9 + k * 2); Pt.blend(r, x, ly, 0xe8e0d8, 0.7); Pt.blend(r, x, ly + 1, 0xe8e0d8, rng.chance(0.5) ? 0.6 : 0); }
+    // lanyard
+    for (let y = Math.round(r.h * 0.14); y < r.h * 0.55; y++) { const k = (y - r.h * 0.14) / (r.h * 0.41); Pt.set(r, r.w * 0.5 - 7 + k * 8, y, 0xe0e0d8); Pt.set(r, r.w * 0.5 + 7 - k * 6, y, 0xe0e0d8); }
+  }
+  // ---------------- head: red cap on top, the face below: empty sockets, open mouth
+  {
+    const r = Pt.R('HEAD');
+    const fr = (x: number) => -Math.cos(((x + 0.5) / r.w) * Math.PI * 2);
+    const side = (x: number) => Math.sin(((x + 0.5) / r.w) * Math.PI * 2);
+    fillLv(Pt, r, SK, (u, vv, x, y) => M + 0.4 + fr(x) * 0.5 + (Pt.n(r, x, y, 3, 2, 5) - 0.5) * 0.9);
+    livor(r, 0.6); veins(r, 4);
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+      const vv = 1 - (y + 0.5) / r.h;
+      if (vv > 0.66) Pt.put(r, x, y, RD, 5.4 + fr(x) * 0.5 + (vv > 0.9 ? 1.2 : 0) + (Math.abs(vv - 0.7) < 0.03 ? -1.5 : 0), 0.2);
+    }
+    // goggle marks and the sockets: black hollows ringed in bruise
+    const ey = Math.round((1 - 0.5) * r.h);
+    for (const sd of [1, -1]) {
+      const cx = r.w * 0.5 + sd * r.w * 0.075;
+      for (let dy = -4; dy <= 4; dy++) for (let dx = -5; dx <= 5; dx++) {
+        const e = (dx * dx) / 18 + (dy * dy) / 9;
+        if (e <= 1) Pt.set(r, cx + dx, ey + dy, e < 0.42 ? 0x040406 : e < 0.7 ? 0x241c2c : 0x5a4a62);
+      }
+      for (let k = 0; k < 7; k++) Pt.set(r, cx + sd * (4 + k), ey - 1 + Math.round(k * 0.2), 0x6a5a6e); // strap groove
+    }
+    // nose shadow, the open mouth (black, a glint of teeth), a dribble of water
+    Pt.set(r, r.w * 0.5, ey + 3, SK[4]); Pt.set(r, r.w * 0.5, ey + 4, SK[3]);
+    const my = Math.round((1 - 0.24) * r.h);
+    for (let dy = -2; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if ((dx * dx) / 10 + (dy * dy) / 7 <= 1) Pt.set(r, r.w * 0.5 + dx, my + dy, dy < 0 && Math.abs(dx) < 3 ? 0x1a0a0c : 0x060404);
+    Pt.set(r, r.w * 0.5 - 2, my - 2, 0xd8d0b8); Pt.set(r, r.w * 0.5 + 1, my - 2, 0xc8c0a8);
+    void side;
+  }
+  // ---------------- arms: bloated pale skin, pruned, veined, peeling; fingers bone-white
+  const arm = (name: string) => {
+    const r = Pt.R(name);
+    fillLv(Pt, r, SK, (u, vv, x, y) => M + Math.cos(u * Math.PI * 2) * -0.6 + (Pt.n(r, x, y, 3, 2, 11) - 0.5) * 1.0);
+    livor(r, 0.8); veins(r, 3); prune(r, 0.2); peel(r, 2);
+  };
+  arm('ARM_U'); arm('ARM_L');
+  {
+    const r = Pt.R('HAND');
+    fillLv(Pt, r, SK, (u, vv, x, y) => M + 2 + (Pt.n(r, x, y, 2, 2, 13) - 0.5) + vv);
+    prune(r, 0.4);
+    for (let x = 0; x < r.w; x += 3) Pt.set(r, x, 0, 0x8a8a8a);
+  }
+  {
+    const r = Pt.R('HAIR');
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+      const vv = 1 - (y + 0.5) / r.h;
+      if (ph(x, 1, v) > vv * 1.4 + 0.25 && vv < 0.7) continue; // ragged strand ends
+      if (x % 3 === 2 && vv < 0.85) continue;
+      Pt.set(r, x, y, (x + y) % 4 === 0 ? 0x2a2420 : 0x18140f);
+    }
+  }
+  fillLv(Pt, Pt.R('WHISTLE'), ramp(0xd8d0b8, 6, 0x302c24, 0.5), (u, vv) => 3 + vv);
+  Pt.cut(Pt.R('CUT'), SK[8], { meat: 0xb06a6a, fat: 0xe8dcd0, bone: 0xe0dccc });
+});
 
 function animateLifeguard(rig: Rig, c: Creature, t: number, dt: number) {
   const P = rig.parts;
@@ -113,18 +254,31 @@ function animateLifeguard(rig: Rig, c: Creature, t: number, dt: number) {
   const seed = hashId(c.id);
   const grabbing = !!n.g && !c.dead;
   const reaching = c.attackPhase > 0 || grabbing;
-  const riseT = c.dead ? 0.55 : reaching ? 1 : c.state === 'watch' ? 0.35 : 0;
-  ud.rise = (ud.rise ?? 0) + (riseT - (ud.rise ?? 0)) * Math.min(1, dt * (reaching ? 6 : 2));
+  applyLook(rig, c, PG, 0);
+  const riseT = c.dead ? 1.12 : reaching ? 1 : c.state === 'watch' ? 0.35 : 0;
+  ud.rise = (ud.rise ?? 0) + (riseT - (ud.rise ?? 0)) * Math.min(1, dt * (reaching ? 6 : c.dead ? 0.8 : 2));
   const rise = ud.rise;
-  // body: comes up through the surface; head breaks it, arms reach up and in
-  P.bodyG.position.y = S0 - 1.2 + rise * 1.05;
-  P.bodyG.rotation.x = c.dead ? -1.45 : reaching ? -0.35 : 0;
+  const am = rig.root.userData as Record<string, number>;
+  // body: comes up through the surface; head breaks it, arms reach up and in. Dead, it floats face down.
+  const yank = grabbing ? Math.max(0, Math.sin(t * 5.5)) : 0;   // pulling its victim under, in heaves
+  const sway = Math.sin(t * 0.8 + seed * 5);
+  P.bodyG.position.y = S0 - 1.2 + rise * 1.05 - yank * 0.12;
+  am.tilt = (am.tilt ?? 0) + ((c.dead ? 1.5 : reaching ? -0.3 - yank * 0.25 : sway * 0.08) - (am.tilt ?? 0)) * Math.min(1, dt * (c.dead ? 1.2 : 4));
+  P.bodyG.rotation.set(am.tilt, c.dead ? 0 : sway * 0.15, c.dead ? 0.1 : Math.sin(t * 1.3 + seed) * (reaching ? 0.12 : 0.05));
   for (const [i, side] of [[0, 'L'], [1, 'R']] as const) {
+    const sd = i ? 1 : -1;
     const claw = Math.sin(t * 9 + i * 2) * 0.25;
-    P['arm' + side].rotation.set(reaching ? 0.55 + claw : 0, 0, (i ? 1 : -1) * (reaching ? 0.3 : 1.35));
-    P['fore' + side].rotation.x = reaching ? 0.85 + claw : 0.1;
+    const scull = Math.sin(t * 0.9 + i * Math.PI + seed * 3) * 0.25;   // slow sculling, arms spread under the water
+    if (c.dead) { P['arm' + side].rotation.set(0.2, 0, sd * 1.3); P['fore' + side].rotation.x = 0.25; continue; }
+    // reaching: up and forward, clawing; grabbing: hauling down hand over hand
+    const rx = reaching ? (grabbing ? 0.9 + Math.sin(t * 5.5 + i * Math.PI) * 0.5 : 0.55 + claw) : 0.15 + scull * 0.4;
+    P['arm' + side].rotation.set(rx, 0, sd * (reaching ? 0.3 - (grabbing ? 0.1 : 0) : 1.35 + scull * 0.3));
+    P['fore' + side].rotation.x = reaching ? (grabbing ? 1.3 + Math.sin(t * 5.5 + i * Math.PI) * 0.4 : 0.85 + claw) : 0.15 + scull * 0.3;
   }
-  P.head.rotation.set(c.dead ? 0 : Math.sin(t * 0.7) * 0.1, Math.sin(t * 0.4 + seed * 6) * (c.state === 'watch' ? 0.6 : 0.2), 0);
+  // the head: lolling under water, tipped back with the mouth up when it surfaces, twitching while it holds on
+  const look = c.state === 'watch' ? Math.sin(t * 0.4 + seed * 6) * 0.6 : Math.sin(t * 0.4 + seed * 6) * 0.2;
+  const twitch = grabbing && Math.floor(t * 6) % 5 === 0 ? 0.3 : 0;
+  P.head.rotation.set(c.dead ? 0.3 : reaching ? -0.45 - yank * 0.2 : Math.sin(t * 0.7) * 0.12, look + twitch, Math.sin(t * 0.5 + seed) * 0.15);
   // shadow: stretched when it is swimming fast, faded when dead
   const fast = c.speed > 1.6;
   ud.fade = (ud.fade ?? 1) + ((c.dead ? 0 : 1) - (ud.fade ?? 1)) * Math.min(1, dt * 0.5);
@@ -305,10 +459,21 @@ const S = def({
   animate: animateLifeguard,
   think: thinkLifeguard,
 });
-(S as any).animateGallery = (rig: Rig, t: number) => {
-  // gallery shows it surfacing (in game it is only a shadow until it reaches for someone)
-  const c = fakeCreature(S, { id: 'g6', state: 'attack', speed: 0, mem: { netMem: { g: 'x' } } });
-  animateLifeguard(rig, c, t, 1 / 60);
+// gallery: in play it is only a shadow until it reaches for someone; here it is lifted
+// clear of the floor (no water to hide it) and cycles surfacing / holding on / drifting / dead
+S.animateGallery = galleryDriver('lifeguard', ['attack', 'grab', 'idle', 'dead'], animateLifeguard, (pose, fc, t) => {
+  fc.state = pose === 'idle' ? 'wander' : pose === 'dead' ? 'dead' : 'attack';
+  fc.dead = pose === 'dead';
+  fc.attackPhase = pose === 'attack' ? 0.2 : 0;
+  fc.mem.netMem = { g: pose === 'grab' ? 'x' : null };
+  void t;
+});
+const _galleryAnim = S.animateGallery;
+S.animateGallery = (rig: Rig, t: number) => {
+  _galleryAnim!(rig, t);
+  rig.body.rotation.z = 0; rig.body.position.y = 0;
+  rig.parts.bodyG.position.y += 0.95;
+  for (const n of ['shadow', 'ripple0', 'ripple1', 'ripple2']) rig.parts[n].visible = false;
 };
 
 // ---------------------------------------------------------------- spawning

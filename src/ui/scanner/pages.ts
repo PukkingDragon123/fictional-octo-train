@@ -11,6 +11,7 @@ import { injuryLabel } from '../../actions/medical';
 import { itemMenuOptions } from '../../interact/itemMenu';
 import { ensureMind, conditions, medsLines, moodGlyph, breathState, breathRate, topTrigger, ssriEffect } from '../../survival/mind';
 import { startBreathing } from '../../survival/mindSystem';
+import { paintBody, partAt, drawMoodleGlyph, BODY_W, BODY_H } from '../moodles';
 
 export type PageKey = 'stat' | 'scan' | 'sig' | 'map' | 'log' | 'data';
 export const PAGES: { key: PageKey; name: string }[] = [
@@ -57,13 +58,7 @@ function footer(s: Screen, txt: string) {
 function zone(sc: Scanner, x: number, y: number, w: number, h: number, fn: () => void) { (sc.st.clickZones as Zone[]).push({ x, y, w, h, fn }); }
 
 // ------------------------------------------------------------------ BIOMONITOR
-const PART_RECTS: Record<BodyPart, [number, number, number, number]> = {
-  head: [25, 15, 10, 10], neck: [28, 25, 4, 3], torso_u: [20, 28, 20, 13], torso_l: [21, 41, 18, 9], groin: [23, 50, 14, 5],
-  uarm_l: [41, 29, 5, 11], farm_l: [42, 40, 5, 11], hand_l: [42, 51, 5, 5],
-  uarm_r: [14, 29, 5, 11], farm_r: [13, 40, 5, 11], hand_r: [13, 51, 5, 5],
-  thigh_l: [31, 55, 7, 15], shin_l: [31, 70, 6, 15], foot_l: [31, 85, 8, 4],
-  thigh_r: [22, 55, 7, 15], shin_r: [23, 70, 6, 15], foot_r: [21, 85, 8, 4],
-};
+const BODY_X = 8, BODY_Y = 21;
 
 function drawStat(s: Screen, sc: Scanner, who: Player) {
   const b = who.body;
@@ -84,26 +79,15 @@ function drawStat(s: Screen, sc: Scanner, who: Player) {
   }
   const selIdx = ((sc.st.sel % (BODY_PARTS.length + 1)) + BODY_PARTS.length + 1) % (BODY_PARTS.length + 1);
   const selPart: BodyPart | null = selIdx === 0 ? null : BODY_PARTS[selIdx - 1];
-  // silhouette (the MIND view draws a face instead)
-  if (tab !== 1) for (const part of BODY_PARTS) {
-    const [x, y, w, h] = PART_RECTS[part];
-    const X = x + ox, Y = y + oy;
-    const injs = b.parts[part].injuries;
-    const dmg = b.partDamage(part) / 100;
-    const bleeding = injs.some((i) => b.injuryBleed(i) > 0.02);
-    const fract = injs.some((i) => i.type === 'fracture');
-    const infected = injs.some((i) => i.infection > 0.15);
-    const corrupt = injs.some((i) => i.corrupt);
-    for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
-      let c = FAINT;
-      if (dmg > 0) c = ((i + j) % 2 === 0 || dmg > 0.5) ? (dmg > 0.5 ? AMB : MID) : FAINT;
-      if (bleeding && Math.sin(t * 8) > 0) c = RED;
-      if (corrupt && Math.random() < 0.25) c = HI;
-      if (infected && (i + j * 2) % 4 === 0) c = AMB;
-      s.px(X + i, Y + j, c);
-    }
-    s.frame(X, Y, w, h, fract ? AMB : part === selPart ? HI : DIM);
-    zone(sc, X, Y, w, h, () => { sc.st.sel = BODY_PARTS.indexOf(part) + 1; });
+  // silhouette (the MIND view draws a face instead): every part shaded by its state, lost limbs as ghosts with a stump
+  if (tab !== 1) {
+    paintBody((x, y, c) => s.px(BODY_X + x, BODY_Y + y, c), b, { faint: FAINT, dim: DIM, mid: MID, hi: HI, amb: AMB, red: RED, bg: BG }, selPart, t);
+    zone(sc, BODY_X, BODY_Y, BODY_W, BODY_H, () => {
+      const hit = G.ui.scanner.hitTest(G.input.mouseX, G.input.mouseY);
+      if (!hit || hit.kind !== 'screen') return;
+      const part = partAt(Math.floor(hit.u! * s.w) - BODY_X, Math.floor(hit.v! * s.h) - BODY_Y);
+      if (part) sc.st.sel = BODY_PARTS.indexOf(part) + 1;
+    });
   }
   // vitals column
   const vx = 58;
@@ -128,7 +112,9 @@ function drawStat(s: Screen, sc: Scanner, who: Player) {
   if (selPart) {
     s.text(PART_NAMES[selPart].toUpperCase(), vx, vy, HI, 1, s.w - vx - 4); vy += 9;
     const injs = b.parts[selPart].injuries;
-    if (!injs.length) { s.text('NO DAMAGE', vx, vy, MID); vy += 9; }
+    const gone = !!((b as any).isSevered?.(selPart) ?? (b as any).severed?.includes?.(selPart));
+    if (gone && !injs.length) { s.text('LIMB LOST', vx, vy, AMB); vy += 9; }
+    else if (!injs.length) { s.text('NO DAMAGE', vx, vy, MID); vy += 9; }
     for (const inj of injs.slice(0, 4)) {
       const d = describeInjury(inj);
       s.text(d, vx, vy, b.injuryBleed(inj) > 0.02 ? RED : AMB, 1, s.w - vx - 4); vy += 9;
@@ -141,13 +127,14 @@ function drawStat(s: Screen, sc: Scanner, who: Player) {
     const moods = b.moodles(who.heavyLoad()).sort((a, c) => c.level - a.level).slice(0, 6);
     if (!moods.length) { s.text('NOMINAL', vx, vy, MID); }
     for (const m of moods) {
-      s.text(m.name.toUpperCase(), vx, vy, m.level >= 3 ? AMB : HI, 1, s.w - vx - 30);
+      drawMoodleGlyph(s, m.key, vx, vy, m.level >= 3 ? AMB : m.good ? MID : HI);
+      s.text(m.name.toUpperCase(), vx + 10, vy, m.level >= 3 ? AMB : HI, 1, s.w - vx - 40);
       for (let i = 0; i < 4; i++) s.rect(s.w - 26 + i * 5, vy + 1, 4, 5, i < m.level ? (m.level >= 3 ? AMB : HI) : DIM);
       vy += 9;
     }
   }
-  s.text(who === G.local ? 'SELF' : who.name.toUpperCase(), 6, 112, MID, 1, 50);
-  s.text(`${b.weight.toFixed(0)}KG`, 6, 121, DIM);
+  s.text(who === G.local ? 'SELF' : who.name.toUpperCase(), 4, 112, MID, 1, 52);
+  s.text(`${b.weight.toFixed(0)}KG`, 4, 121, DIM);
   footer(s, selPart ? 'DIAL:PART  CLICK:SELECT  TREAT' : 'DIAL/CLICK:SELECT BODY PART');
 }
 
@@ -221,6 +208,8 @@ function describeInjury(inj: Injury): string {
   if (inj.stitched) t += ' [STITCH]';
   if (inj.splinted) t += ' [SPLINT]';
   if (inj.foreign) t += ' [SHARD]';
+  if ((inj as any).tq != null) t += ' [TQ]';
+  if ((inj as any).caut) t += ' [SEARED]';
   if (inj.infection > 0.15) t += ' [INFECT]';
   return t;
 }

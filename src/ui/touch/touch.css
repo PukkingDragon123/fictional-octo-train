@@ -24,7 +24,7 @@ html.nc-touch #cursor, html.nc-touch #hover-label { display: none !important; }
   --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px);
   --gap: 8px;
   position: fixed; inset: 0; z-index: 11; pointer-events: none; display: none;
-  font-family: 'Silkscreen', monospace; color: #efe5c4;
+  font-family: 'Silkscreen', 'Tiny5', monospace; color: #efe5c4; image-rendering: pixelated;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 html.nc-touch #nc-touch { display: block; }
@@ -36,12 +36,11 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
   position: absolute; pointer-events: auto; touch-action: none;
   width: calc(var(--u) * var(--s, 1)); height: calc(var(--u) * var(--s, 1));
   right: calc(var(--u) * var(--x, 0)); bottom: calc(var(--u) * var(--y, 0));
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
-  background: rgba(22, 19, 12, 0.58);
-  border: 2px solid rgba(8, 7, 4, 0.92);
-  border-radius: 24%;
-  box-shadow: inset 0 0 0 2px rgba(239, 229, 196, 0.16), 0 2px 0 rgba(0, 0, 0, 0.45);
-  transition: transform 0.06s, background-color 0.1s, opacity 0.25s;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0;
+  /* pixel pad: translucent rubber with a hard bevel, drawn by src/ui/pixelkit.ts */
+  background: none; border: 2px solid transparent; border-radius: 0;
+  border-image: var(--pk-pad) 5 fill / calc(var(--px, 2px) * 5) / 0 repeat;
+  transition: opacity 0.25s steps(3);
 }
 .nc-btn > i {
   display: block; width: var(--ip); height: var(--ip); flex: none;
@@ -49,15 +48,18 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 }
 .nc-btn.big > i { width: var(--ipl); height: var(--ipl); }
 .nc-btn > b {
-  display: block; font-weight: 400; font-size: clamp(7px, calc(var(--u) * 0.16), 10px); line-height: 1;
-  letter-spacing: 0.5px; text-transform: uppercase; color: #d8cfb4; text-shadow: 1px 1px 0 #000;
+  display: block; font-weight: 400; font-size: 8px; line-height: 8px; margin-top: -1px;
+  letter-spacing: 0; text-transform: uppercase; color: #d8cfb4; text-shadow: 1px 1px 0 #000;
   max-width: 96%; overflow: hidden; white-space: nowrap; text-overflow: clip;
 }
-.nc-btn.round { border-radius: 50%; }
-.nc-btn.down { transform: scale(0.92); background: rgba(242, 179, 61, 0.38); }
-.nc-btn.on { box-shadow: inset 0 0 0 2px #f2b33d, 0 0 10px rgba(242, 179, 61, 0.35), 0 2px 0 rgba(0, 0, 0, 0.45); }
+.nc-btn.round { border-image: var(--pk-pad-round) 9 fill / calc(var(--px, 2px) * 9) / 0 repeat; }
+.nc-btn.down { border-image-source: var(--pk-pad-down); }
+.nc-btn.round.down { border-image-source: var(--pk-pad-round-down); }
+.nc-btn.down > i, .nc-btn.down > b { transform: translateY(2px); }
+.nc-btn.on { border-image-source: var(--pk-pad-on); }
+.nc-btn.round.on { border-image-source: var(--pk-pad-round-on); }
 .nc-btn.on > b { color: #f2b33d; }
-.nc-btn.danger.on, .nc-btn.rec.on { box-shadow: inset 0 0 0 2px #e0533a, 0 0 10px rgba(224, 83, 58, 0.45); }
+.nc-btn.danger.on, .nc-btn.rec.on { border-image-source: var(--pk-pad-rec); }
 
 /* clusters anchored to the corners (children use --x/--y/--s in button units) */
 .nc-group { position: absolute; pointer-events: none; transition: opacity 0.25s; }
@@ -70,8 +72,9 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 
 /* context actions: pills with icon + word */
 .nc-ctx { left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + var(--gap) + 4px); justify-content: center; }
-.nc-ctx > .nc-btn { flex-direction: row; width: auto; height: calc(var(--u) * 0.95); padding: 0 calc(var(--u) * 0.22) 0 calc(var(--u) * 0.14); gap: 6px; border-radius: 12px; }
-.nc-ctx > .nc-btn > b { font-size: clamp(9px, calc(var(--u) * 0.22), 13px); color: #efe5c4; }
+.nc-ctx > .nc-btn { flex-direction: row; width: auto; height: calc(var(--u) * 0.95); padding: 0 calc(var(--u) * 0.2) 0 calc(var(--u) * 0.12); gap: 6px; }
+.nc-ctx > .nc-btn > b { font-size: 8px; line-height: 8px; color: #efe5c4; }
+@media (min-resolution: 2dppx) and (min-width: 700px), (min-width: 1000px) { .nc-ctx > .nc-btn > b { font-size: 16px; line-height: 16px; } }
 @media (orientation: portrait) {
   /* stacked above the action cluster, clear of the survivor in the middle of the screen */
   .nc-ctx { left: auto; transform: none; right: calc(var(--sr) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--u) * 4.6); flex-wrap: wrap-reverse; justify-content: flex-end; max-width: calc(100vw - var(--sl) - var(--sr) - 2 * var(--gap)); }
@@ -82,42 +85,44 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 .nc-scan { left: 0; top: 0; width: 0; height: 0; }
 .nc-scan > div { position: absolute; left: 0; top: 0; display: flex; gap: 4px; pointer-events: none; }
 .nc-scan.side > div { flex-direction: column; }
-.nc-scan .nc-btn { position: relative; right: auto; bottom: auto; width: calc(var(--u) * 0.8); height: calc(var(--u) * 0.8); border-radius: 8px; background: rgba(5, 18, 9, 0.78); box-shadow: inset 0 0 0 2px rgba(156, 255, 138, 0.18); }
-.nc-scan .nc-btn > b { color: #9cff8a; font-size: clamp(8px, calc(var(--u) * 0.19), 11px); }
-.nc-scan .nc-btn.on { box-shadow: inset 0 0 0 2px #9cff8a, 0 0 8px rgba(156, 255, 138, 0.4); background: rgba(20, 60, 24, 0.9); }
+.nc-scan .nc-btn { position: relative; right: auto; bottom: auto; width: calc(var(--u) * 0.8); height: calc(var(--u) * 0.8); border-image-source: var(--pk-pad-scan); }
+.nc-scan .nc-btn > b { color: var(--ph, #9cff8a); font-size: 8px; line-height: 8px; }
+.nc-scan .nc-btn.on { border-image-source: var(--pk-pad-scan-on); }
 .nc-scan .nc-btn.txt > i { display: none; }
 
 /* ---------------------------------------------------------------- stick */
 .nc-stick { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
 .nc-stick-base {
-  position: absolute; left: 0; top: 0; border-radius: 50%;
+  position: absolute; left: 0; top: 0;
   width: calc(var(--R) * 2); height: calc(var(--R) * 2);
-  background: radial-gradient(circle, rgba(239, 229, 196, 0.06) 0 55%, rgba(239, 229, 196, 0.12) 56% 60%, rgba(0, 0, 0, 0.18) 61%);
-  border: 2px solid rgba(239, 229, 196, 0.22);
-  opacity: 0.55; transition: opacity 0.2s;
+  border: 2px solid transparent; border-image: var(--pk-stick-base) 10 fill / calc(var(--px, 2px) * 10) / 0 repeat;
+  opacity: 0.55; transition: opacity 0.2s steps(3);
   will-change: transform;
 }
 .nc-stick-knob {
-  position: absolute; left: 50%; top: 50%; border-radius: 50%;
+  position: absolute; left: 50%; top: 50%;
   width: calc(var(--R) * 0.9); height: calc(var(--R) * 0.9); margin: calc(var(--R) * -0.45) 0 0 calc(var(--R) * -0.45);
-  background: rgba(239, 229, 196, 0.32); border: 2px solid rgba(8, 7, 4, 0.8);
-  box-shadow: inset 0 0 0 2px rgba(239, 229, 196, 0.25);
+  border: 2px solid transparent; border-image: var(--pk-stick-knob) 9 fill / calc(var(--px, 2px) * 9) / 0 repeat;
   will-change: transform;
 }
 .nc-stick.live .nc-stick-base { opacity: 1; }
-.nc-stick.running .nc-stick-knob { background: rgba(242, 179, 61, 0.55); box-shadow: inset 0 0 0 2px #f2b33d; }
+.nc-stick.running .nc-stick-knob { border-image-source: var(--pk-pad-round-on); }
 .nc-runbtn { --s: 0.78; left: calc(var(--sl) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--R) * 2 + 26px); right: auto; }
 
 /* ---------------------------------------------------------------- feedback */
 .nc-ring { position: absolute; left: 0; top: 0; width: 64px; height: 64px; margin: -32px 0 0 -32px; pointer-events: none; display: none; }
-.nc-ring circle { fill: none; stroke: #f2b33d; stroke-width: 5; stroke-dasharray: 164; stroke-dashoffset: 164; transform: rotate(-90deg); transform-origin: 32px 32px; filter: drop-shadow(0 0 2px #000); }
+.nc-ring circle { fill: none; stroke: #f2b33d; stroke-width: 6; stroke-dasharray: 164; stroke-dashoffset: 164; transform: rotate(-90deg); transform-origin: 32px 32px; filter: drop-shadow(2px 2px 0 #000); shape-rendering: crispEdges; }
 .nc-ring circle.bg { stroke: rgba(0, 0, 0, 0.45); stroke-dashoffset: 0; }
 .nc-ring.go { display: block; }
-.nc-ring.go circle.fg { animation: nc-ring var(--ring-ms, 340ms) linear forwards; }
+.nc-ring.go circle.fg { animation: nc-ring var(--ring-ms, 340ms) steps(8) forwards; }
 @keyframes nc-ring { to { stroke-dashoffset: 0; } }
 
-.nc-mark { position: absolute; left: 0; top: 0; width: 26px; height: 14px; margin: -7px 0 0 -13px; border: 2px solid #efe5c4; border-radius: 50%; opacity: 0; pointer-events: none; }
-.nc-mark.go { animation: nc-mark 0.45s ease-out; }
+.nc-mark { position: absolute; left: 0; top: 0; width: 26px; height: 14px; margin: -7px 0 0 -13px; opacity: 0; pointer-events: none;
+  background: linear-gradient(#efe5c4, #efe5c4) 50% 0 / 10px 2px no-repeat, linear-gradient(#efe5c4, #efe5c4) 50% 100% / 10px 2px no-repeat,
+    linear-gradient(#efe5c4, #efe5c4) 0 50% / 2px 6px no-repeat, linear-gradient(#efe5c4, #efe5c4) 100% 50% / 2px 6px no-repeat,
+    linear-gradient(#efe5c4, #efe5c4) 4px 2px / 4px 2px no-repeat, linear-gradient(#efe5c4, #efe5c4) calc(100% - 4px) 2px / 4px 2px no-repeat,
+    linear-gradient(#efe5c4, #efe5c4) 4px calc(100% - 2px) / 4px 2px no-repeat, linear-gradient(#efe5c4, #efe5c4) calc(100% - 4px) calc(100% - 2px) / 4px 2px no-repeat; }
+.nc-mark.go { animation: nc-mark 0.45s steps(5); }
 @keyframes nc-mark { from { opacity: 0.9; transform: scale(0.4); } to { opacity: 0; transform: scale(1.6); } }
 
 .nc-reticle { position: absolute; left: 0; top: 0; width: 22px; height: 22px; margin: -11px 0 0 -11px; pointer-events: none; display: none;

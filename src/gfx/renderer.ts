@@ -161,7 +161,7 @@ export class PixelRenderer {
         uAOStr: { value: 1 }, uBloomStr: { value: 0.5 }, uDirtStr: { value: 0.5 }, uReflect: { value: 0.5 },
         uMistCol: { value: new THREE.Vector3(0.5, 0.5, 0.5) }, uMistDens: { value: 0 }, uMistFall: { value: 1 }, uMistLit: { value: 0.5 }, uMistMax: { value: 0.3 },
         uMotes: { value: 0 }, uSick: { value: 0 }, uFlicker: { value: 1 }, uFilm: { value: 1 }, uVoid: { value: new THREE.Color(0) },
-        uSunDir2: { value: new THREE.Vector2(1, 0) }, uSunGlow: { value: 0 },
+        uSunDir2: { value: new THREE.Vector2(1, 0) }, uSunGlow: { value: 0 }, uSunDir3: { value: new THREE.Vector3(0, 1, 0) },
       },
     });
     this.blitMat = new THREE.ShaderMaterial({
@@ -368,6 +368,7 @@ export class PixelRenderer {
       const sx = d.dot(CAMU.uCamR.value), sy = d.dot(CAMU.uCamU.value), sl = Math.hypot(sx, sy) || 1;
       const pu = this.postMat.uniforms;
       pu.uSunDir2.value.set(sx / sl, sy / sl);
+      pu.uSunDir3.value.copy(d);
       pu.uSunGlow.value = this.zoneFx.sunShafts * (1.2 - Math.min(1, Math.max(0, d.y)) * 0.8);
     } else { S.uSunOn.value = 0; this.postMat.uniforms.uSunGlow.value = 0; }
   }

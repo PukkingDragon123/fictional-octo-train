@@ -158,7 +158,7 @@ function torsoGeo(ob: OB, S: Plan) {
     z += inRibs ? S.ribP / 3 : 0.032;
   }
   zs.push(z1);
-  const n = 17;
+  const n = 15;
   const rings: LoftRing[] = zs.map((z) => {
     const r = sampleRows(S.torso, z);
     const bump = (th: number) => {
@@ -326,12 +326,12 @@ function jawGeo(ob: OB, S: Plan) {
 /** a paw: pad blob, four toes and claws (in the lower leg's frame, ground contact at `at`) */
 function paw(ob: OB, S: Plan, at: V3, s: number) {
   const P = S.page, PW = P.reg('PAW'), CL = P.reg('CLAW');
-  ob.blob([at[0], at[1] + 0.02 * s, at[2] + 0.012 * s], [0.026 * s, 0.022 * s, 0.034 * s], 7, 4, PW, { col: 0.9 });
+  ob.blob([at[0], at[1] + 0.02 * s, at[2] + 0.012 * s], [0.026 * s, 0.022 * s, 0.034 * s], 6, 3, PW, { col: 0.9 });
   for (let i = 0; i < 4; i++) {
     const x = (i - 1.5) * 0.013 * s, z = at[2] + (0.04 - Math.abs(i - 1.5) * 0.007) * s;
-    ob.blob([at[0] + x, at[1] + 0.011 * s, z], [0.0085 * s, 0.01 * s, 0.012 * s], 5, 3, PW, { col: 0.85 });
+    ob.blob([at[0] + x, at[1] + 0.011 * s, z], [0.0085 * s, 0.01 * s, 0.012 * s], 4, 2, PW, { col: 0.85 });
     const cl = S.dog ? 0.012 : 0.022;
-    ob.cone([at[0] + x, at[1] + 0.012 * s, z + 0.008 * s], [0, -0.55, 1], 0.004 * s, cl * s, 4, CL, { flat: 0.7 });
+    ob.cone([at[0] + x, at[1] + 0.012 * s, z + 0.008 * s], [0, -0.55, 1], 0.004 * s, cl * s, 3, CL, { flat: 0.7 });
   }
 }
 
@@ -524,7 +524,7 @@ function animateHound(S: Plan) {
     const sleep = st === 'sleep' ? 1 : 0;
     const eat = st === 'eat' ? 1 : 0;
     const dead = c.dead;
-    m.crouch = lerp(m.crouch ?? 0, dead ? 0 : (stalk * 0.11 + warn * 0.07 + flee * 0.03 + (lameN >= 2 ? 0.12 : lameN ? 0.03 : 0)), damp(4, dt));
+    m.crouch = lerp(m.crouch ?? 0, dead ? 0 : (stalk * 0.11 + warn * 0.07 + flee * 0.03 + (lameN >= 3 ? 0.4 : lameN >= 2 ? 0.15 : lameN ? 0.03 : 0)), damp(4, dt));
     m.sleep = lerp(m.sleep ?? 0, sleep, damp(1.5, dt));
     const run = gk === 'gallop' ? 1 : 0;
     m.run = lerp(m.run ?? 0, run, damp(5, dt));
@@ -642,10 +642,10 @@ function animateHound(S: Plan) {
 // =====================================================================================
 interface Pal { skin: number; fur: number; fur2: number; belly: number; pig: number; mange: number; sores: number; scars: number; blood: number; dirt: number }
 const HOUND_PALS: Pal[] = [
-  { skin: 0x9c8682, fur: 0x2e2422, fur2: 0x443630, belly: 0x86706e, pig: 0x5a4644, mange: 0.55, sores: 6, scars: 2, blood: 0.8, dirt: 0.5 },
-  { skin: 0x9e9274, fur: 0x3a3024, fur2: 0x524430, belly: 0x88785e, pig: 0x5e5236, mange: 0.45, sores: 4, scars: 3, blood: 0.6, dirt: 0.7 },
-  { skin: 0x887a84, fur: 0x221e22, fur2: 0x322a30, belly: 0x76686e, pig: 0x463a44, mange: 0.62, sores: 7, scars: 1, blood: 1, dirt: 0.4 },
-  { skin: 0xa88676, fur: 0x4a3628, fur2: 0x5e4836, belly: 0x94746a, pig: 0x664438, mange: 0.35, sores: 5, scars: 4, blood: 0.7, dirt: 0.6 },
+  { skin: 0xb8a6a0, fur: 0x2a201e, fur2: 0x443630, belly: 0x86706e, pig: 0x5a4644, mange: 0.55, sores: 6, scars: 2, blood: 0.8, dirt: 0.5 },
+  { skin: 0xb4aa8c, fur: 0x342a20, fur2: 0x524430, belly: 0x88785e, pig: 0x5e5236, mange: 0.45, sores: 4, scars: 3, blood: 0.6, dirt: 0.7 },
+  { skin: 0xa69ea8, fur: 0x1e1a1e, fur2: 0x322a30, belly: 0x76686e, pig: 0x463a44, mange: 0.62, sores: 7, scars: 1, blood: 1, dirt: 0.4 },
+  { skin: 0xc0a090, fur: 0x443024, fur2: 0x5e4836, belly: 0x94746a, pig: 0x664438, mange: 0.35, sores: 5, scars: 4, blood: 0.7, dirt: 0.6 },
 ];
 const DOG_PALS: Pal[] = [
   { skin: 0x6e4a2e, fur: 0x5a3a22, fur2: 0x8a6440, belly: 0xc6a47c, pig: 0x3a2414, mange: 0, sores: 0, scars: 1, blood: 0.15, dirt: 0.5 },
@@ -694,7 +694,7 @@ function paintHound(Pt: Painter, v: number, dog: boolean) {
         let l = SKM + (a / Math.PI - 0.55) * 2.4 + (Pt.n(r, x, y, 3, 2, 1) - 0.5) * 1.1;
         if (z > S.ribZ[0] && z < S.ribZ[1]) {
           const wv = Math.cos(((z - S.ribZ[0]) / S.ribP) * Math.PI * 2);
-          l += (wv > 0 ? wv * 1.0 : wv * 1.9) * gauss(a, 1.3, 0.45);
+          l += (wv > 0 ? wv * 1.2 : wv * 2.6) * gauss(a, 1.3, 0.45);
         }
         l += gauss(z, 0.2, 0.045) * gauss(a, 2.42, 0.24) * 2.2 - gauss(z, 0.14, 0.03) * gauss(a, 2.3, 0.3) * 1.2; // scapula + its shadow
         l += gauss(z, -0.33, 0.028) * gauss(a, 2.3, 0.2) * 2.8 - gauss(z, -0.29, 0.03) * gauss(a, 2.1, 0.3) * 1.2; // hip points
@@ -714,7 +714,7 @@ function paintHound(Pt: Painter, v: number, dog: boolean) {
         for (const dx of [-1, 0]) { Pt.set(r, xm + dx, y, SK[12]); Pt.set(r, xm + dx, y - 1, SK[10]); Pt.set(r, xm + dx, y + 1, SK[4]); }
       }
       // mange: clusters of coarse dark hair over the back, shoulders and haunches (dark core, lighter rim, stray hairs)
-      const mm = (x: number, y: number) => Pt.n(r, x, y, 2, 2, 9) * 0.8 + Pt.n(r, x, y, 4, 1, 19) * 0.2 + Math.cos(aOf(x) - Math.PI) * 0.3 - (1 - pal.mange) * 0.42;
+      const mm = (x: number, y: number) => Pt.n(r, x, y, 2, 2, 9) * 0.8 + Pt.n(r, x, y, 4, 1, 19) * 0.2 + Math.cos(aOf(x) - Math.PI) * 0.1 - (1 - pal.mange) * 0.3 - 0.11;
       fillLv(Pt, r, FR, (u, vv, x, y) => FRM - 1.5 + clamp01((mm(x, y) - 0.56) * 6) * -1 + (mm(x, y) < 0.6 ? 1.2 : 0), 0.15, (u, vv, x, y) => mm(x, y) > 0.56);
       Pt.strokes(r, FR, () => FRM - 0.5, { density: 0.2, flow: (x) => [((x + 0.5) / r.w < 0.5 ? -0.35 : 0.35), 1], len: [2, 3], dark: 1, light: 0.8, lightP: 0.3, mask: (x, y) => mm(x, y) > 0.5 && mm(x, y) < 0.6, salt: 1 });
       void L;
@@ -1026,6 +1026,7 @@ const SH = def({
   animate: animH,
 });
 SH.animateGallery = galleryAnim(HOUND_PLAN, animH, 'grinhound');
+(SH as any).handlesSevered = true;
 
 const SD = def({
   key: 'goodboy', name: 'Lost Dog', code: 'E-11b // CANID-STRAY', temperament: 'curious', threat: 0,
@@ -1041,4 +1042,5 @@ const SD = def({
   animate: animD,
 });
 SD.animateGallery = galleryAnim(DOG_PLAN, animD, 'goodboy');
+(SD as any).handlesSevered = true;
 void THREE;

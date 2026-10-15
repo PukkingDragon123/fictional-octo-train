@@ -64,7 +64,7 @@ function who(id: string): { app: Appearance; outfit: Outfit } {
   o.feet = { tex: 'c_shoes_dress', color: r.next() < 0.5 ? 0x2a2220 : 0x4a3424 };
   if (r.next() < 0.3) o.eyes = { tex: 'c_glasses', color: 0x2a2a2a, item: 'glasses' };
   // years under the tubes: pale, a little grimy, a little corrupted
-  o.cond = { pale: 2, dirt: 1 + Math.floor(r.next() * 2), corrupt: 1, blood: {} };
+  o.cond = { pale: 2, dirt: 1 + Math.floor(r.next() * 2), blood: {} };
   return { app, outfit: o };
 }
 
@@ -292,10 +292,10 @@ function animateHollow(rig: Rig, c: Creature, t: number, dt: number) {
   // glitch: slices of the body tear sideways, colour bands; worse when it is angry
   const seed = idHash(c) * 97;
   const pulseG = h01(Math.floor(t * 1.7), seed) < 0.12 ? 0.25 : 0;
-  R.hr.fx.value.x = c.dead ? Math.min(1, 0.3 + m.deadT * 0.3) : hostile ? 0.4 + snap * 0.6 : 0.08 + pulseG;
+  R.hr.fx.value.x = c.dead ? Math.min(1, 0.3 + m.deadT * 0.3) : hostile ? 0.32 + snap * 0.6 : 0.012 + pulseG;
   R.hr.fx.value.z = Math.min(1, c.hitFlash / 0.15) * 0.6;
   // translucent slices: it is not all here; when angry, it is more here than you want
-  R.U.value.set(c.dead ? Math.min(0.85, 0.15 + m.deadT * 0.22) : hostile ? 0.06 : 0.2, t, hostile ? 0.3 : 0.12 + pulseG, hostile ? (h01(Math.floor(t * 14), seed) < 0.75 ? 1 : 0) : h01(Math.floor(t * 3), seed) < 0.04 ? 1 : 0);
+  R.U.value.set(c.dead ? Math.min(0.85, 0.12 + m.deadT * 0.22) : hostile ? 0.0 : 0.1, t, hostile ? 0.22 : 0.09 + pulseG, hostile ? (h01(Math.floor(t * 14), seed) < 0.75 ? 1 : 0) : h01(Math.floor(t * 3), seed) < 0.04 ? 1 : 0);
   // the manager tips dead creatures on their side; this one already fell its own way
   if (c.dead) {
     const k = Math.min(1, c.deathT * 2 + (c.deathT > 0 ? 0 : 1));
@@ -372,9 +372,6 @@ function thinkHollow(c: Creature, dt: number): boolean {
   if (!c.mem.routine) c.mem.routine = buildRoutine(c);
   const R: Routine = c.mem.routine;
   const T = c.targetId ? G.players.get(c.targetId) ?? null : null;
-  // without legs it drags itself; with less of itself it is slower
-  const lost = lostParts(c);
-  const slow = lost.has('thighL') || lost.has('thighR') || lost.has('shinL') || lost.has('shinR') ? 0.3 : 1;
   if (c.state !== 'chase') {
     const whoP = annoyedBy(c, dt);
     if (whoP) { goHostile(c, whoP); return true; }
@@ -398,7 +395,7 @@ function thinkHollow(c: Creature, dt: number): boolean {
       if (G.time > (c.mem.calmAt ?? 0) || d > 16 || G.time - (c.mem.seenT ?? G.time) > 6) { calm(c); return true; }
       const reach = (c.sp.attack?.range ?? 0.85) + T.radius;
       if (d <= reach) { faceTo(c, T.x, T.z); stop(c); if (c.attackT <= 0) attack(c, T); return true; }
-      cs.moveTo(c, z, T.x, T.z, c.sp.run * slow, dt, reach * 0.8);
+      cs.moveTo(c, z, T.x, T.z, c.sp.run, dt, reach * 0.8);
       if (c.noiseCooldown <= 0 && cs.rng.chance(dt * 0.3)) { sayAngry(c); c.noiseCooldown = 4; }
       return true;
     }
@@ -415,7 +412,7 @@ function thinkHollow(c: Creature, dt: number): boolean {
         const p = playersIn(c).find((q) => dist(q.x, q.z, c.x, c.z) < 5.5 && lineOfSight(z, q.x, q.z, c.x, c.z));
         if (p) { c.targetId = p.id; c.setState('watch'); c.mem.watchFor = 3 + cs.rng.float(0, 2.5); if (cs.rng.chance(0.5)) sfx(c, 'hollow_moan', 0.7); return true; }
       }
-      return routine(c, R, dt, slow);
+      return routine(c, R, dt);
     }
   }
 }
@@ -426,7 +423,7 @@ function calm(c: Creature) {
 }
 
 /** walk the same short loop, sit at the same desk, for ever */
-function routine(c: Creature, R: Routine, dt: number, slow: number): boolean {
+function routine(c: Creature, R: Routine, dt: number): boolean {
   const cs = CS(), z = zoneOf(c);
   const steps = R.pts.length + (R.sit ? 1 : 0);
   const i = R.i % steps;
@@ -446,7 +443,7 @@ function routine(c: Creature, R: Routine, dt: number, slow: number): boolean {
   }
   if (c.state !== 'travel') c.setState('travel');
   netSet(c, 'sit', 0);
-  if (cs.moveTo(c, z, goal.x, goal.z, c.sp.walk * slow, dt, atDesk ? 0.15 : 0.4) || c.stateT > 30) {
+  if (cs.moveTo(c, z, goal.x, goal.z, c.sp.walk, dt, atDesk ? 0.15 : 0.4) || c.stateT > 30) {
     c.setState(atDesk ? 'nest' : 'idle');
   }
   return true;
@@ -485,6 +482,6 @@ const sp = def({
   const lost = new Set<string>(mode === 'crawl' ? ['shinR'] : []);
   const hostile = mode === 'grab' || mode === 'attack';
   drive(R, null, mode === 'attack' ? 'grab' : mode === 'crawl' ? 'walk' : mode as Mode, t, 1 / 60, { speed: mode === 'walk' ? 1 : mode === 'grab' ? 3 : mode === 'crawl' ? 0.4 : 0, yaw: 0.4, pitch: 0, hostile: 0, atk, flinch: 0, lost, deathT: t });
-  R.hr.fx.value.x = hostile ? 0.4 : 0.08;
-  R.U.value.set(hostile ? 0.06 : 0.2, t, hostile ? 0.3 : 0.12, hostile ? 1 : 0);
+  R.hr.fx.value.x = hostile ? 0.32 : 0.025;
+  R.U.value.set(hostile ? 0.0 : 0.1, t, hostile ? 0.22 : 0.09, hostile ? 1 : 0);
 };

@@ -501,9 +501,9 @@ HumanAnimator.prototype.oneLegged = function (this: HumanAnimator & { hopPh?: nu
     const has = side === 'L' ? L.crutchL : L.crutchR;
     const k = side === 'L' ? 1 : -1;
     if (has) {
-      set(p, ('uarm' + side) as JointName, reach, 0, k * 0.16);
+      set(p, ('uarm' + side) as JointName, reach, 0, k * 0.07);
       set(p, ('farm' + side) as JointName, -0.12 - (moving ? Math.max(0, c) * 0.15 : 0), 0, 0);
-      set(p, ('hand' + side) as JointName, 0.12, 0, k * 0.05);
+      set(p, ('hand' + side) as JointName, 0.12, 0, -k * 0.04);
       if (side === 'L') p.gripL = 1; else p.gripR = 1;
     } else if (!both) {
       add(p, ('uarm' + side) as JointName, moving ? 0.2 * s * w : 0, 0, k * 0.05);

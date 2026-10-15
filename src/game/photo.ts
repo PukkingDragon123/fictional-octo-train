@@ -182,7 +182,8 @@ export class PhotoMode {
       try {
         const a = document.createElement('a');
         a.href = url; a.download = name; a.rel = 'noopener';
-        document.body.append(a); a.click(); a.remove();
+        // inside our own bar so the capture-phase swallow lets the click through
+        (this.ui ?? document.body).append(a); a.click(); a.remove();
         this.toast('SAVED ' + name);
       } catch {
         const w = window.open(url, '_blank');

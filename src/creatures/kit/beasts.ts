@@ -300,7 +300,7 @@ export class OB {
    * (N starts from `up` projected off the tangent). th0 sets where u=0 sits.
    */
   tube(path: V3[], rad: ([number, number] | number)[], n: number, reg: Reg, o: LoftOpts & {
-    up?: V3; th0?: number; vs?: number[]; col?: (i: number, th: number) => number; bump?: (i: number, th: number) => number; emis?: number;
+    up?: V3; th0?: number; vs?: number[]; vflip?: boolean; col?: (i: number, th: number) => number; bump?: (i: number, th: number) => number; emis?: number;
   } = {}) {
     const frames = pathFrames(path, o.up ?? [0, 0, 1]);
     const th0 = o.th0 ?? Math.PI;
@@ -320,7 +320,7 @@ export class OB {
         pts.push([p[0] + N[0] * c + B[0] * s, p[1] + N[1] * c + B[1] * s, p[2] + N[2] * c + B[2] * s]);
         cols.push(o.col ? o.col(i, th) : 1);
       }
-      return { pts, v: o.vs ? o.vs[i] : 1 - acc / (total || 1), col: (j: number) => cols[j], emis: o.emis };
+      return { pts, v: o.vs ? o.vs[i] : o.vflip ? 0.02 + 0.96 * (acc / (total || 1)) : 1 - acc / (total || 1), col: (j: number) => cols[j], emis: o.emis };
     });
     return this.loft(rings, reg, o);
   }

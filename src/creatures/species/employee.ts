@@ -634,8 +634,6 @@ function thinkEmployee(c: Creature, dt: number): boolean {
     if (c.state === 'frozen') pickPose(c, tp ? tp.d : 20);
     c.setState(tp ? 'stalk' : 'wander');
   }
-  // without legs it drags itself, slowly
-  const slow = legless(lostParts(c)) ? 0.35 : 1;
   if (tp) {
     const p = tp.p;
     c.targetId = p.id;
@@ -647,14 +645,14 @@ function thinkEmployee(c: Creature, dt: number): boolean {
       return true;
     }
     if (c.state !== 'stalk') c.setState('stalk');
-    cs.moveTo(c, z, p.x, p.z, c.sp.run * slow, dt, reach * 0.85);
+    cs.moveTo(c, z, p.x, p.z, c.sp.run, dt, reach * 0.85);
     c.mem.moved = (c.mem.moved ?? 0) + c.speed * dt;
     if (c.mem.moved > 1.6) { c.mem.moved = 0; pickPose(c, tp.d); }
     return true;
   }
   // no one in range: drift through the cubicles, changing pose when unobserved
   if (c.state !== 'wander') c.setState('wander');
-  if (!c.goal || cs.moveTo(c, z, c.goal.x, c.goal.z, c.sp.walk * slow, dt, 0.6) || c.stateT > 25) { c.goal = cs.wanderSpot(c, z, 14); c.stateT = 0; }
+  if (!c.goal || cs.moveTo(c, z, c.goal.x, c.goal.z, c.sp.walk, dt, 0.6) || c.stateT > 25) { c.goal = cs.wanderSpot(c, z, 14); c.stateT = 0; }
   c.mem.moved = (c.mem.moved ?? 0) + c.speed * dt;
   if (c.mem.moved > 3) { c.mem.moved = 0; pickPose(c, 20); }
   return true;

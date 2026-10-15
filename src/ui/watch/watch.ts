@@ -19,6 +19,9 @@ import type { Player } from '../../entities/player';
 import type { Item } from '../../items/item';
 import { ensureMind, breathState, breathRate, moodGlyph, MoodGlyph, conditions, medsLines } from '../../survival/mind';
 import { startBreathing } from '../../survival/mindSystem';
+import { PixelCanvas, mixHex, bayer, ph } from '../../gfx/pixel';
+import { art, toUrl, MET, K, HAZ } from '../pixelkit';
+import { moodleIcon } from '../moodles';
 
 type Mode = 'time' | 'vital' | 'mind' | 'alarm';
 const MODES: Mode[] = ['time', 'vital', 'mind', 'alarm'];
@@ -64,30 +67,37 @@ export class Watch {
   private pal: Pal = AMBER;
   private shown = false;
 
+  private moods: HTMLDivElement;
+  private moodKey = '';
+  private moodT = 0;
+
   constructor() {
     const el = this.el = document.createElement('div');
     el.className = 'kw kw-hidden';
     el.innerHTML = `
-      <div class="kw-strap"></div>
       <div class="kw-case">
-        <i class="kw-screw s1"></i><i class="kw-screw s2"></i><i class="kw-screw s3"></i><i class="kw-screw s4"></i>
-        <div class="kw-label"><span>KESTREL</span><b>WM-7</b></div>
-        <div class="kw-led"></div>
         <div class="kw-lcd"><canvas width="${W}" height="${H}"></canvas><div class="kw-fog"></div><div class="kw-crack"></div><div class="kw-glare"></div></div>
+        <div class="kw-led"></div>
       </div>
       <div class="kw-keys">
-        <button class="kw-key" data-k="light" title="Backlight">LIGHT</button>
-        <button class="kw-key" data-k="mode" title="Next mode">MODE</button>
-        <button class="kw-key" data-k="set" title="Set the alarm">SET</button>
-        <button class="kw-key" data-k="alm" title="Alarm on / off">ALM</button>
+        <button class="kw-key" data-k="light" title="Backlight" aria-label="Backlight"></button>
+        <button class="kw-key" data-k="mode" title="Next mode" aria-label="Next mode"></button>
+        <button class="kw-key" data-k="set" title="Set the alarm" aria-label="Set the alarm"></button>
+        <button class="kw-key" data-k="alm" title="Alarm on / off" aria-label="Alarm on or off"></button>
       </div>
-      <button class="kw-breathe" title="Breathing exercise (H)">BREATHE</button>`;
+      <button class="kw-breathe" title="Breathing exercise (H)">BREATHE</button>
+      <div class="kw-moods" aria-label="Conditions"></div>`;
     document.body.appendChild(el);
     this.lcd = el.querySelector('.kw-lcd') as HTMLDivElement;
     this.canvas = el.querySelector('canvas') as HTMLCanvasElement;
     this.ctx = this.canvas.getContext('2d')!;
     this.fog = el.querySelector('.kw-fog') as HTMLDivElement;
     this.breatheBtn = el.querySelector('.kw-breathe') as HTMLButtonElement;
+    this.moods = el.querySelector('.kw-moods') as HTMLDivElement;
+    this.paintArt();
+    bus.on('uiSettings', () => this.paintArt());
+    bus.on('uiScale', () => this.fit());
+    window.addEventListener('resize', () => this.fit());
     // the world ignores pointer input over the watch
     el.addEventListener('pointerenter', () => { if (G.input) G.input.pointerOverUI = true; });
     el.addEventListener('pointerleave', () => { if (G.input) G.input.pointerOverUI = false; });
@@ -98,6 +108,42 @@ export class Watch {
     bus.on('playerHit', (p: Player, part: string) => { if (p?.isLocal) this.onHit(part); });
     G.addSystem({ name: 'watch', update: (dt) => this.update(dt) });
     (G as any).watch = this;
+  }
+
+  // ---------------------------------------------------------------- pixel art
+  /** art pixel size for the watch: whole device pixels, a bit smaller than the UI on phones */
+  private fit() {
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const ui = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxn')) || 2;
+    const small = Math.min(window.innerWidth, window.innerHeight) < 560;
+    const touch = document.documentElement.classList.contains('nc-touch');
+    const target = small ? (touch ? 1.34 : 1.5) : ui;
+    const k = Math.max(2, Math.round(target * dpr));
+    this.el.style.setProperty('--wpx', (k / dpr) + 'px');
+  }
+  private paintArt() {
+    const st = this.el.style;
+    st.setProperty('--kw-case', `url(${toUrl(caseArt())})`);
+    st.setProperty('--kw-crack', `url(${toUrl(crackArt())})`);
+    st.setProperty('--kw-fogimg', `url(${toUrl(fogArt())})`);
+    for (const b of this.el.querySelectorAll<HTMLButtonElement>('.kw-key')) {
+      const label = (b.dataset.k || '').toUpperCase();
+      b.style.setProperty('--up', `url(${toUrl(pusherArt(label, false))})`);
+      b.style.setProperty('--down', `url(${toUrl(pusherArt(label, true))})`);
+    }
+    this.fit();
+  }
+  /** condition badges under the watch: anything at level 2 or worse */
+  private updateMoods(p: Player, dt: number) {
+    this.moodT -= dt;
+    if (this.moodT > 0) return;
+    this.moodT = 0.6;
+    let list: { key: string; level: number; good?: boolean; name: string }[] = [];
+    try { list = p.body.moodles(p.heavyLoad()).filter((m) => m.level >= 2 && !m.good).sort((a, b) => b.level - a.level).slice(0, 6); } catch { /* ignore */ }
+    const key = list.map((m) => m.key + m.level).join(',');
+    if (key === this.moodKey) return;
+    this.moodKey = key;
+    this.moods.innerHTML = list.map((m) => `<img src="${moodleIcon(m.key, m.level)}" alt="${m.name}" title="${m.name}">`).join('');
   }
 
   // ---------------------------------------------------------------- the item
@@ -185,6 +231,7 @@ export class Watch {
     this.el.classList.toggle('kw-lit', this.light > 0 && !broken);
     this.el.classList.toggle('kw-broken', broken);
     this.el.classList.toggle('kw-cracked', !broken && it.cond < 0.35);
+    if (!broken && !b.dead) this.updateMoods(p, dt); else if (this.moodKey) { this.moodKey = ''; this.moods.innerHTML = ''; }
     this.fog.style.opacity = String(clamp01(d.wet * 1.1) * 0.85);
     // ECG trace samples
     const bpm = b.dead ? 0 : (mind?.bpm ?? 70);
@@ -504,4 +551,110 @@ function ecgWave(ph: number): number {
 function heading(facing: number): string {
   const deg = (((facing * 180) / Math.PI + 90) % 360 + 360) % 360;
   return ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'][Math.round(deg / 45) % 8];
+}
+
+// ---------------------------------------------------------------- watch pixel art
+/** 3x5 stencil letters for the case and the pushers */
+const MINI: Record<string, string> = {
+  A: '010101111101101', C: '011100100100011', D: '110101101101110', E: '111100110100111', G: '011100101101011', H: '101101111101101', I: '111010010010111',
+  K: '101101110101101', L: '100100100100111', M: '101111101101101', O: '010101101101010', R: '110101110101101', S: '011100010001110', T: '111010010010010',
+  W: '101101111111101', '-': '000000111000000', '7': '111001010010010', ' ': '000000000000000',
+};
+function mini(pc: PixelCanvas, x: number, y: number, text: string, c: number, shadow = -1) {
+  for (const ch of text) {
+    const g = MINI[ch] || MINI[' '];
+    for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (g[j * 3 + i] === '1') { if (shadow >= 0) pc.set(x + i + 1, y + j + 1, shadow); pc.set(x + i, y + j, c); }
+    x += 4;
+  }
+}
+export const CASE_W = 136, CASE_H = 64;
+/** the KESTREL case: gunmetal shell with a rubber strap running off-screen, bezel ring, screws, stencils and wear */
+function caseArt(): PixelCanvas {
+  const pc = new PixelCanvas(CASE_W, CASE_H); pc.wrap = false;
+  const STRAP = [0x0e0d0c, 0x1a1816, 0x242120, 0x2e2a27, 0x3a3531];
+  // strap (left, under the case) with ribs and two holes; stub on the right
+  for (let y = 17; y < 47; y++) for (let x = 0; x < 20; x++) {
+    const edge = y === 17 || y === 46;
+    const c = edge ? K : y === 18 ? STRAP[4] : y === 45 ? STRAP[0] : (x % 6 === 5 ? STRAP[1] : STRAP[2 + (ph(x, y, 4) > 0.8 ? 1 : 0)]);
+    pc.set(x, y, c);
+  }
+  for (const hx of [3, 11]) art(pc, hx, 29, ['.kkk.', 'kbbbk', 'kbbbh', '.khh.'], { k: K, b: 0x060505, h: STRAP[4] });
+  for (let y = 19; y < 45; y++) for (let x = 126; x < 136; x++) pc.set(x, y, y === 19 || y === 44 || x === 135 ? K : y === 20 ? STRAP[4] : STRAP[2]);
+  // shell
+  const x0 = 12, x1 = 129, y0 = 0, y1 = 63, w = x1 - x0 + 1, h = y1 - y0 + 1;
+  const inside = (x: number, y: number, r: number, ox: number, oy: number, ww: number, hh: number) => {
+    const lx = x - ox, ly = y - oy;
+    if (lx < 0 || ly < 0 || lx >= ww || ly >= hh) return false;
+    const cx = lx < r ? r - lx : lx >= ww - r ? lx - (ww - r - 1) : 0, cy = ly < r ? r - ly : ly >= hh - r ? ly - (hh - r - 1) : 0;
+    return cx * cx + cy * cy <= r * r + 1;
+  };
+  for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) {
+    if (!inside(x, y, 7, x0, y0, w, h)) continue;
+    const d = Math.min(x - x0, y - y0, x1 - x, y1 - y);
+    const outer = !inside(x, y, 6, x0 + 1, y0 + 1, w - 2, h - 2);
+    if (outer) { pc.set(x, y, K); continue; }
+    let c: number;
+    const n = (ph(x >> 2, y >> 1, 3) - 0.5) * 0.25 + (ph(x, y, 7) - 0.5) * 0.08;
+    const tone = 0.5 + n - (y - y0) / h * 0.25;
+    c = tone > 0.62 ? MET[7] : tone > 0.48 ? MET[6] : tone > 0.36 ? MET[5] : MET[4];
+    if (d === 1) c = (y - y0 === 1 || x - x0 === 1) && !(y1 - y === 1) && !(x1 - x === 1) ? MET[9] : MET[2];
+    else if (d === 2) c = (y - y0 === 2 || x - x0 === 2) && !(y1 - y <= 2) && !(x1 - x <= 2) ? MET[8] : MET[3];
+    pc.set(x, y, c);
+  }
+  // grime in the lower half, a few scratches and chips
+  for (let y = 30; y < 62; y++) for (let x = 14; x < 128; x++) if (pc.alpha(x, y) && ph(x >> 1, y >> 1, 11) > 0.86 && bayer(x, y) < 0.5) pc.set(x, y, MET[3]);
+  for (const [sx, sy, len] of [[30, 56, 7], [96, 4, 5], [118, 40, 4], [20, 20, 5]]) for (let k = 0; k < len; k++) { pc.set(sx + k, sy + (k >> 2), MET[9]); pc.set(sx + k, sy + (k >> 2) + 1, MET[3]); }
+  for (const [cx, cy] of [[14, 30], [127, 12], [60, 62], [100, 61]]) pc.set(cx, cy, MET[10]);
+  // bezel ring around the LCD (LCD sits at 19,10 size 104x40)
+  const bx0 = 15, by0 = 6, bx1 = 126, by1 = 53;
+  for (let y = by0; y <= by1; y++) for (let x = bx0; x <= bx1; x++) {
+    const d = Math.min(x - bx0, y - by0, bx1 - x, by1 - y);
+    if (d > 3) continue;
+    if ((x === bx0 || x === bx1) && (y === by0 || y === by1)) continue;
+    const top = y - by0 <= d && y - by0 < by1 - y, left = x - bx0 <= d && x - bx0 < bx1 - x;
+    pc.set(x, y, d === 0 ? MET[2] : d === 1 ? (top || left ? MET[3] : MET[8]) : d === 2 ? K : 0x1c140a);
+  }
+  // hazard stripe along the top bezel, stencils and LED housing along the bottom
+  for (let x = 24; x < 118; x++) for (let y = 2; y < 5; y++) { const sgm = (x + y) % 8; pc.set(x, y, y === 4 ? MET[2] : sgm < 4 ? (sgm === 0 ? 0xf0a050 : 0xd9782f) : HAZ.bHi); }
+  mini(pc, 24, 56, 'KESTREL', MET[9], MET[2]);
+  mini(pc, 56, 56, 'WM-7', 0xd9782f, MET[2]);
+  art(pc, 114, 56, ['kkkkkk', 'k....k', 'kkkkkk'], { k: K });
+  // screws
+  const sp: Record<string, number> = { k: MET[1], h: MET[9], m: MET[7], d: MET[5], x: MET[2] };
+  for (const [sx, sy, r] of [[14, 2, 0], [122, 2, 1], [14, 56, 1], [122, 56, 0]]) art(pc, sx, sy, r ? ['.kkk.', 'khxmk', 'kxhxk', 'kmxdk', '.kkk.'] : ['.kkk.', 'khhmk', 'kxxxk', 'kmmdk', '.kkk.'], sp);
+  // crown on the right flank
+  for (let y = 26; y < 38; y++) for (let x = 130; x < 134; x++) pc.set(x, y, x === 133 || y === 26 || y === 37 ? K : y % 2 ? MET[8] : MET[5]);
+  return pc;
+}
+/** a pusher hanging under the case: 26x13, engraved label; pressed sits 2px higher */
+export const KEY_W = 26, KEY_H = 13;
+function pusherArt(label: string, down: boolean): PixelCanvas {
+  const pc = new PixelCanvas(KEY_W, KEY_H); pc.wrap = false;
+  const top = down ? -2 : 0;
+  for (let y = 0; y < KEY_H + top; y++) for (let x = 0; x < KEY_W; x++) {
+    const yy = y - top;
+    const corner = yy >= KEY_H - 2 && (x < 2 - (KEY_H - 1 - yy) + 1 || x > KEY_W - 3 + (KEY_H - 1 - yy) - 1);
+    if (corner && yy === KEY_H - 1 && (x === 0 || x === KEY_W - 1)) continue;
+    const edge = x === 0 || x === KEY_W - 1 || y === KEY_H + top - 1;
+    let c = edge ? K : yy < 3 ? MET[3] : x === 1 ? MET[8] : x === KEY_W - 2 ? MET[3] : y === KEY_H + top - 2 ? MET[3] : MET[5 + (ph(x, y, 2) > 0.85 ? 1 : 0)];
+    if (yy === 3) c = edge ? K : MET[7];
+    pc.set(x, y, c);
+  }
+  const tw = label.length * 4 - 1;
+  mini(pc, Math.floor((KEY_W - tw) / 2), 5 + top, label, label === 'LIGHT' ? 0xc9f08a : 0xdde2e7, K);
+  return pc;
+}
+/** a crack across the glass in pixels */
+function crackArt(): PixelCanvas {
+  const pc = new PixelCanvas(104, 40); pc.wrap = false;
+  const pts: [number, number][][] = [[[62, 0], [58, 9], [66, 14], [55, 23], [61, 31], [52, 40]], [[58, 9], [44, 12], [36, 8]], [[66, 14], [80, 17], [91, 13], [104, 16]], [[55, 23], [41, 27], [30, 36]]];
+  for (const path of pts) for (let i = 1; i < path.length; i++) { pc.line(path[i - 1][0], path[i - 1][1], path[i][0], path[i][1], 0xd8e2ea, 220); }
+  for (const [x, y] of [[58, 9], [66, 14], [55, 23]]) { pc.set(x + 1, y, 0xffffff, 255); pc.set(x, y + 1, 0x8a96a0, 200); }
+  return pc;
+}
+/** condensation: an ordered-dither veil */
+function fogArt(): PixelCanvas {
+  const pc = new PixelCanvas(8, 8);
+  for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) if (bayer(x, y) < 0.5) pc.set(x, y, mixHex(0xc4ced6, 0xffffff, bayer(x * 3, y) * 0.4), 150);
+  return pc;
 }

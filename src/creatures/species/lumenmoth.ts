@@ -1,14 +1,16 @@
 import * as THREE from 'three';
-import { def, newRig, part, Rig } from '../species';
+import { def, newRig, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
 import { addTextureModule } from '../../gfx/textures/index';
-import { makeRamp } from '../../gfx/pixel';
+import { ph } from '../../gfx/pixel';
+import { ModelBuilder } from '../../gfx/modelBuilder';
+import { Page, Reg, OB, V3, registerPage, cachedGeo, beastMaterial, ramp, fillLv } from '../kit/beasts';
 import { G } from '../../game/G';
 import { itemDef } from '../../items/item';
 import type { Creature } from '../creature';
 import {
   net, netOf, snd, live, playersIn, lightOn, beamOn, heldFlame, dist, hold, face, hashId, localIn, thinkOnce,
-  matB, partB, fakeCreature, rng, lineOfSightB, fxPoll, fx, playAt,
+  matB, fakeCreature, rng, lineOfSightB, fxPoll, fx, playAt,
 } from '../behaviors_b';
 import '../../audio/sounds_creatures_b';
 
@@ -17,65 +19,83 @@ import '../../audio/sounds_creatures_b';
 // fires (at a respectful distance) and above all a survivor's flashlight, whose
 // battery they drain while crawling over the lens. Open flame scatters them.
 
+// Model: each moth is one small merged mesh (furred thorax and tapering
+// abdomen, feathered antennae, swept forewings and rounded hindwings painted
+// with soft eye spots, veins and a glowing scale rim), flapped by flipbook:
+// a handful of pre-built wing positions swapped per frame, so a whole swarm
+// costs a few draw calls. Falling glow dust is a single dynamic mesh.
 addTextureModule(() => {
-  const A = atlas();
-  // right wing seen from above (x = away from the body, y = tail→head):
-  // swept forewing + rounded hindwing, eye spot, glowing scale rim; the rest
-  // of the card stays transparent (alpha-tested)
-  A.add('c_lumenmoth_wing', 12, 12, (pc) => {
-    pc.wrap = false;
-    pc.clear();
-    const R = makeRamp(0xd8e6d4, 6, { hueShift: 0.03 });
-    const inWing = (x: number, y: number) => {
-      const fore = y >= 5 && x <= 11 && (y - 5) >= (x * 0.45) - 1 && y <= 11 - Math.max(0, x - 8) * 0.8; // swept forewing
-      const hind = Math.hypot((x - 3.5) / 3.8, (y - 3.5) / 3.6) < 1; // round hindwing
-      return fore || hind;
-    };
-    for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) {
-      if (!inWing(x, y)) continue;
-      const v = 0.8 - Math.hypot(x, y - 6) * 0.035;
-      pc.set(x, y, R[Math.max(0, Math.min(5, Math.round(v * 5)))]);
-    }
-    for (let y = 0; y < 12; y++) for (let x = 0; x < 12; x++) {
-      if (!inWing(x, y)) continue;
-      if (!inWing(x + 1, y) || !inWing(x, y + 1) || !inWing(x, y - 1)) pc.set(x, y, 0xeafff0); // glowing rim
-    }
-    pc.circle(7, 8, 1.2, 0x8aa898); pc.set(7, 8, 0x2e4038); // forewing eye spot
-    pc.set(3, 3, 0x9ab8a4); pc.set(2, 9, 0xbfd8c4);
-  });
-  A.add('c_lumenmoth_body', 4, 8, (pc) => {
-    pc.wrap = false;
-    const R = makeRamp(0xc4b8a0, 4);
-    pc.fillRamp(R, (x, y) => 0.7 - y * 0.06 + (x === 0 ? -0.15 : 0), 0.4);
-    for (let y = 2; y < 8; y += 2) pc.hline(0, 3, y, R[1]); // abdomen rings
-  });
-  A.add('c_lumenmoth_dust', 2, 2, (pc) => { pc.fill(0xc8ffe0); pc.set(0, 0, 0xffffff); });
+  atlas().add('c_lumenmoth_dust', 2, 2, (pc) => { pc.fill(0xc8ffe0); pc.set(0, 0, 0xffffff); });
 });
+const PG = registerPage(new Page('c_mothpg', 64, 64, [['FORE', 30, 18], ['HIND', 22, 16], ['BODY', 12, 18], ['ANT', 10, 10]], 2));
 
 const MOTHS = 8;
 const DUST = 6;
+/** flipbook wing angles (rad, up positive) and the play order (ping-pong) */
+const FLAPS = [1.0, 0.5, 0.0, -0.45];
+const ORDER = [0, 1, 2, 3, 2, 1];
+
+function mothGeo(ob: OB, wing: number) {
+  const P = PG;
+  // body: furred thorax, ringed abdomen, a small head
+  ob.tube([[0, 0, 0.034], [0, 0.002, 0.022], [0, 0.002, 0.008], [0, 0, -0.008], [0, -0.002, -0.026], [0, -0.004, -0.04]],
+    [[0.008, 0.009], [0.012, 0.012], [0.012, 0.011], [0.01, 0.009], [0.008, 0.007], [0.003, 0.003]], 7, P.reg('BODY'), { up: [0, 1, 0], start: 'pole', end: 'pole', emis: 0.25 });
+  // feathered antennae sweeping forward and out
+  for (const s of [1, -1]) {
+    ob.push().translate(s * 0.004, 0.006, 0.033).rotY(s * 0.45).rotX(-0.5);
+    ob.quad([[-0.006, 0, 0], [0.006, 0, 0], [0.006, 0, 0.032], [-0.006, 0, 0.032]], P.reg('ANT'), [[0, 0], [1, 0], [1, 1], [0, 1]], { double: true, emis: 0.4 });
+    ob.pop();
+  }
+  // wings hinge along the body axis: forewing swept forward-out, hindwing rounded behind
+  for (const s of [1, -1]) {
+    ob.push().rotZ(s * wing).translate(s * 0.006, 0.003, 0);
+    const F = P.reg('FORE'), H = P.reg('HIND');
+    // forewing: u = root (0) -> tip (1), v = trailing (0) -> leading (1)
+    const fw = (u: number, v: number): V3 => [s * u * 0.078, Math.sin(u * Math.PI) * 0.004, -0.012 + v * 0.042 + u * 0.012 - (1 - v) * u * 0.02];
+    for (let c = 0; c < 3; c++) {
+      const u0 = c / 3, u1 = (c + 1) / 3;
+      ob.quad([fw(u0, 0), fw(u1, 0), fw(u1, 1), fw(u0, 1)], F, [[u0, 0], [u1, 0], [u1, 1], [u0, 1]], { double: true, emis: 0.3 });
+    }
+    const hw = (u: number, v: number): V3 => [s * u * 0.058, -0.001 + Math.sin(u * Math.PI) * 0.003, -0.044 + v * 0.04 + u * 0.006];
+    for (let c = 0; c < 2; c++) {
+      const u0 = c / 2, u1 = (c + 1) / 2;
+      ob.quad([hw(u0, 0), hw(u1, 0), hw(u1, 1), hw(u0, 1)], H, [[u0, 0], [u1, 0], [u1, 1], [u0, 1]], { double: true, emis: 0.28 });
+    }
+    ob.pop();
+  }
+}
+const FRAME_GEO: THREE.BufferGeometry[] = [];
+function frames(): THREE.BufferGeometry[] {
+  if (!FRAME_GEO.length) {
+    for (let i = 0; i < FLAPS.length; i++) FRAME_GEO.push(cachedGeo('c_mothpg:f' + i, PG, (ob) => mothGeo(ob, FLAPS[i])));
+    FRAME_GEO.push(cachedGeo('c_mothpg:flat', PG, (ob) => mothGeo(ob, -0.05)));
+  }
+  return FRAME_GEO;
+}
 
 function buildMoth(rig: Rig, i: number, parent: THREE.Object3D): THREE.Group {
   const m = new THREE.Group();
   m.name = 'moth' + i;
   m.scale.setScalar(1.3); // hand-sized: readable as specks of light from the iso camera
+  const mesh = new THREE.Mesh(frames()[2], beastMaterial());
+  mesh.castShadow = false;
+  mesh.userData.gk = 'c_mothpg:f2'; mesh.userData.page = PG.key;
+  m.add(mesh);
   parent.add(m);
   rig.parts['moth' + i] = m;
-  part(rig, 'mb' + i, m, [0, 0, 0], (mb) => {
-    mb.box(0, -0.012, 0, 0.022, 0.024, 0.07, 'c_lumenmoth_body', { fit: true });
-    mb.box(0, -0.006, 0.042, 0.018, 0.018, 0.018, 'c_lumenmoth_body', { fit: true }); // head
-    mb.box(0.012, 0.008, 0.06, 0.004, 0.004, 0.04, 'c_lumenmoth_body', { color: 0x8a8070 }); // feelers
-    mb.box(-0.012, 0.008, 0.06, 0.004, 0.004, 0.04, 'c_lumenmoth_body', { color: 0x8a8070 });
-  });
-  // wings hinge on the body axis; shaped cards that glow faintly (dust)
-  const wing = (side: number) => (mb: import('../../gfx/modelBuilder').ModelBuilder) => {
-    mb.push().scale(side, 1, 1);
-    mb.quadRaw([[0, 0, -0.045], [0.12, 0, -0.045], [0.12, 0, 0.075], [0, 0, 0.075]], [[0, 1], [1, 1], [1, 0], [0, 0]], 'c_lumenmoth_wing', 0xffffff, 1, 0.8);
-    mb.pop();
-  };
-  partB(rig, 'wl' + i, m, [-0.008, 0, 0], wing(-1), matB('cardGlow'));
-  partB(rig, 'wr' + i, m, [0.008, 0, 0], wing(1), matB('cardGlow'));
   return m;
+}
+
+/** one dynamic mesh holding every glowing scale drifting down from the swarm */
+function dustMesh(): THREE.Mesh {
+  const mb = new ModelBuilder();
+  for (let i = 0; i < DUST; i++) mb.box(0, -0.009, 0, 0.018, 0.018, 0.018, 'c_lumenmoth_dust', { fit: true, emissive: 1.2 });
+  const g = mb.build();
+  g.userData.base = Float32Array.from(g.getAttribute('position').array as ArrayLike<number>);
+  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 1, 0), 3);
+  const mesh = new THREE.Mesh(g, matB('dust'));
+  mesh.frustumCulled = false;
+  return mesh;
 }
 
 function buildSwarm(): Rig {
@@ -87,7 +107,10 @@ function buildSwarm(): Rig {
   rig.root.add(swarm);
   rig.parts.swarm = swarm;
   for (let i = 0; i < MOTHS; i++) buildMoth(rig, i, swarm);
-  for (let i = 0; i < DUST; i++) partB(rig, 'dust' + i, swarm, [0, 0, 0], (mb) => { mb.box(0, 0, 0, 0.018, 0.018, 0.018, 'c_lumenmoth_dust', { fit: true, emissive: 1.2 }); }, matB('dust'));
+  const dust = new THREE.Group(); dust.name = 'dust';
+  const dm = dustMesh(); dust.add(dm);
+  swarm.add(dust);
+  rig.parts.dust = dust;
   rig.eyes = [swarm];
   return rig;
 }
@@ -101,7 +124,12 @@ function animateSwarm(rig: Rig, c: Creature, t: number, dt: number) {
   const s = ud.ms || (ud.ms = { h: n.h ?? 1.5, spread: 1, t: 0 });
   const seed = hashId(c.id);
   const count = 5 + Math.floor(seed * 3.99);
-  // swarm centre height and tightness by behaviour
+  if (rig.root.userData.lookId !== c.id) {
+    // individual swarms: one of the colour variants
+    const k = Math.floor(seed * 7) % PG.variants;
+    rig.root.userData.lookId = c.id;
+    for (let i = 0; i < MOTHS; i++) P['moth' + i].userData.variant = k;
+  }
   const follow = c.state === 'follow';
   const atLamp = c.state === 'curious';
   const fleeing = c.state === 'flee';
@@ -110,53 +138,130 @@ function animateSwarm(rig: Rig, c: Creature, t: number, dt: number) {
   const targetSpread = follow ? 0.55 : atLamp ? 0.75 : fleeing ? 1.6 : 1.1;
   s.spread += (targetSpread - s.spread) * Math.min(1, dt * 2);
   const swarm = P.swarm;
-  // the root is rotated by facing; orbits are computed in world-ish space by undoing it
   swarm.rotation.y = -rig.root.rotation.y;
-  // local-player effect: they swarm the lens and the battery suffers
   if (!c.dead) mothLocal(c, dt);
+  const F = frames();
   for (let i = 0; i < MOTHS; i++) {
     const m = P['moth' + i];
     m.visible = i < count;
     if (i >= count) continue;
+    const mesh = m.children[0] as THREE.Mesh;
     const k = (i * 7.31 + seed * 13) % 6.283;
     if (c.dead) {
       // dropped where they fell, wings flat, still faintly glowing
       m.position.set(Math.cos(k * 3) * 0.35 * (0.4 + (i % 3) * 0.3), 0.012, Math.sin(k * 3) * 0.35 * (0.4 + (i % 2) * 0.4));
-      m.rotation.set(0, k, i % 3 === 0 ? Math.PI : 0);
-      P['wl' + i].rotation.z = 0; P['wr' + i].rotation.z = 0;
+      m.rotation.set(0, k, i % 3 === 0 ? 0.25 : 0);
+      setFrame(mesh, F, 4, m.userData.variant ?? 0);
       continue;
     }
     const speed = (fleeing ? 4.5 : 1.6 + (i % 3) * 0.45) * (i % 2 ? 1 : -1);
     const r = (0.18 + ((i * 37) % 10) / 22) * s.spread;
     const a = t * speed + k;
-    // erratic lissajous loops: moths never fly in circles
+    // erratic lissajous loops: moths never fly in circles; every so often one stalls and drops a little
+    const stall = Math.sin(t * 0.9 + i * 2.1) > 0.92 ? 1 : 0;
     const x = Math.cos(a) * r + Math.sin(t * 3.1 + i) * 0.06;
     const z = Math.sin(a * 1.3) * r + Math.cos(t * 2.3 + i * 2) * 0.06;
-    const y = s.h + Math.sin(t * 2.2 + i * 1.7) * 0.18 * s.spread + Math.sin(t * 9 + i) * 0.03;
+    const y = s.h + Math.sin(t * 2.2 + i * 1.7) * 0.18 * s.spread + Math.sin(t * 9 + i) * 0.03 - stall * 0.12;
     m.position.set(x, y, z);
-    // head along the direction of travel
     const vx = -Math.sin(a) * speed, vz = Math.cos(a * 1.3) * 1.3 * speed;
-    m.rotation.set(Math.sin(t * 5 + i) * 0.3, Math.atan2(vx, vz), Math.sin(t * 7 + i) * 0.25);
-    const flap = Math.sin(t * (26 + (i % 4) * 3) + i) * 0.9 + 0.2;
-    P['wl' + i].rotation.z = -flap;
-    P['wr' + i].rotation.z = flap;
+    m.rotation.set(-0.25 + Math.sin(t * 5 + i) * 0.3, Math.atan2(vx, vz), Math.sin(t * 7 + i) * 0.35);
+    // flipbook flapping (about 9-14 beats a second, each moth its own rhythm; a stalled moth glides)
+    const hz = fleeing ? 11 : 6.5 + (i % 4) * 0.9;
+    const f = stall ? 1 : ORDER[Math.floor(t * hz * ORDER.length + i * 2.3) % ORDER.length];
+    setFrame(mesh, F, f, m.userData.variant ?? 0);
   }
-  // glowing scales drifting down through the air
-  for (let i = 0; i < DUST; i++) {
-    const d = P['dust' + i];
-    d.visible = !c.dead;
-    if (c.dead) continue;
-    const life = (t * 0.45 + i / DUST) % 1;
-    const a = i * 2.4 + seed * 6;
-    d.position.set(Math.cos(a) * 0.3 * s.spread + Math.sin(t + i) * 0.05, s.h - life * Math.max(0.4, s.h * 0.9), Math.sin(a) * 0.3 * s.spread);
-    d.scale.setScalar(1 - life * 0.7);
+  // glowing scales drifting down through the air (one dynamic mesh)
+  const dg = (P.dust.children[0] as THREE.Mesh).geometry;
+  P.dust.visible = !c.dead;
+  if (!c.dead) {
+    const pos = dg.getAttribute('position') as THREE.BufferAttribute, base = dg.userData.base as Float32Array;
+    const per = pos.count / DUST;
+    for (let i = 0; i < DUST; i++) {
+      const life = (t * 0.45 + i / DUST) % 1;
+      const a = i * 2.4 + seed * 6;
+      const ox = Math.cos(a) * 0.3 * s.spread + Math.sin(t + i) * 0.05, oy = s.h - life * Math.max(0.4, s.h * 0.9), oz = Math.sin(a) * 0.3 * s.spread;
+      const sc = 1 - life * 0.7;
+      for (let j = i * per; j < (i + 1) * per; j++) pos.setXYZ(j, base[j * 3] * sc + ox, base[j * 3 + 1] * sc + oy, base[j * 3 + 2] * sc + oz);
+    }
+    pos.needsUpdate = true;
   }
-  // a faint cold glow around the swarm in darkness
   if (live() && !c.dead && swarm.visible && G.view?.zone?.key === c.zoneKey && G.lightLevelAt(c.x, c.z) < 0.45) G.pointLight(c.x, c.y + s.h, c.z, 0xbfffd8, follow ? 0.35 : 0.22, 2.6);
   const e = fxPoll(rig, c);
   if (e) playAt(e.key, c, 0.9);
   void dt;
 }
+/** swap a moth onto flipbook frame f (in its colour variant) */
+function setFrame(mesh: THREE.Mesh, F: THREE.BufferGeometry[], f: number, k: number) {
+  const key = k ? 'v' + k + ':' + f : '';
+  if (mesh.userData.fk === key + '|' + f) return;
+  mesh.userData.fk = key + '|' + f;
+  mesh.geometry = k ? variantOf(F[f], f, k) : F[f];
+}
+const VAR = new Map<string, THREE.BufferGeometry>();
+function variantOf(g: THREE.BufferGeometry, f: number, k: number) {
+  const key = f + ':' + k;
+  let v = VAR.get(key);
+  if (!v) {
+    v = g.clone();
+    const r0 = atlas().get(PG.tex(0)), rk = atlas().get(PG.tex(k));
+    const A = v.getAttribute('aAtlas') as THREE.BufferAttribute;
+    for (let i = 0; i < A.count; i++) if (Math.abs(A.getX(i) - r0.u0) < 1e-6 && Math.abs(A.getY(i) - r0.v0) < 1e-6) A.setXY(i, rk.u0, rk.v0);
+    VAR.set(key, v);
+  }
+  return v;
+}
+
+PG.paint((Pt, v) => {
+  const base = v === 0 ? 0xdce8d6 : 0xd8d0e0;
+  const W = ramp(base, 10, 0x2a3430, 0.55);
+  const spot = v === 0 ? 0x6a8a7a : 0x7a6a8a;
+  const rim = v === 0 ? 0xeafff0 : 0xf4ecff;
+  /** alpha-shaped wing: inside(u, v) decides the outline */
+  const wingPaint = (r: Reg, inside: (u: number, vv: number) => boolean, eye: [number, number, number] | null) => {
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+      const u = (x + 0.5) / r.w, vv = 1 - (y + 0.5) / r.h;
+      if (!inside(u, vv)) continue;
+      const edge = !inside(u + 1.2 / r.w, vv) || !inside(u - 1.2 / r.w, vv) || !inside(u, vv + 1.2 / r.h) || !inside(u, vv - 1.2 / r.h);
+      if (edge) { Pt.set(r, x, y, rim); continue; }
+      // soft gradient from the dusky root to the pale outer wing, with fine scale texture
+      let l = 2.4 + u * 3.4 + (ph(x, y, 5 + v) - 0.5) * 0.7;
+      // veins radiating from the root
+      const ang = Math.atan2(vv - 0.5, u + 0.05);
+      if (Math.abs(Math.sin(ang * 7)) < 0.12 && u > 0.15) l -= 1.4;
+      // a pale submarginal band
+      if (inside(u + 4 / r.w, vv) && !inside(u + 6 / r.w, vv)) l += 1.5;
+      Pt.put(r, x, y, W, l, 0.25);
+    }
+    if (eye) {
+      const [cx, cy, rr] = eye;
+      Pt.spot(r, cx * r.w, (1 - cy) * r.h, rr + 1.6, rr + 1.1, W[8], 0.9, true);
+      Pt.spot(r, cx * r.w, (1 - cy) * r.h, rr + 0.8, rr + 0.5, spot, 1, true);
+      Pt.spot(r, cx * r.w, (1 - cy) * r.h, rr * 0.55, rr * 0.45, 0x1e2a26, 1, true);
+      Pt.set(r, cx * r.w - 1, (1 - cy) * r.h - 1, 0xffffff);
+    }
+  };
+  // forewing: swept, pointed tip, straight leading edge
+  wingPaint(Pt.R('FORE'), (u, vv) => u >= 0 && u <= 1 && vv >= 0 && vv <= 1 && vv > u * 0.72 - 0.08 && vv < 1 - u * 0.22 && !(u > 0.8 && vv < (u - 0.8) * 3.5 + 0.64), [0.58, 0.6, 2.4]);
+  // hindwing: rounded, a small eye spot, scalloped hem
+  wingPaint(Pt.R('HIND'), (u, vv) => { const d = Math.hypot((u - 0.35) / 0.68, (vv - 0.55) / 0.5); return u >= 0 && u <= 1 && vv >= 0 && vv <= 1 && d < 1 - (Math.sin(u * 28) > 0.6 ? 0.06 : 0); }, [0.55, 0.45, 1.2]);
+  // a faint blush across the hindwings (the eerie part: they are a little too pretty)
+  { const r = Pt.R('HIND'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { const vv = 1 - (y + 0.5) / r.h; if (Pt.pc.alpha(r.x + x, r.y + y) === 0) continue; Pt.blend(r, x, y, v === 0 ? 0xd8a8c0 : 0xa8d8d0, 0.25 * (1 - vv)); } }
+  // body: soft fur, darker rings on the abdomen
+  {
+    const r = Pt.R('BODY');
+    fillLv(Pt, r, W, (u, vv, x, y) => 4.5 + Math.cos(u * Math.PI * 2) * -0.8 + (ph(x, y, 3) - 0.5) * 1.2 - (vv < 0.5 && y % 3 === 0 ? 1.5 : 0));
+  }
+  // antenna: a feather, alpha shaped
+  {
+    const r = Pt.R('ANT');
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+      const u = (x + 0.5) / r.w, vv = 1 - (y + 0.5) / r.h;
+      const half = 0.08 + (1 - vv) * 0.35 * Math.sin(vv * Math.PI);
+      if (Math.abs(u - 0.5) > half) continue;
+      Pt.set(r, x, y, Math.abs(u - 0.5) < 0.08 ? W[3] : ((x + y) % 2 ? W[6] : W[8]));
+    }
+  }
+});
 
 /** the local survivor with a swarm on their flashlight */
 function mothLocal(c: Creature, dt: number) {
