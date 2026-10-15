@@ -614,7 +614,7 @@ function animateHound(S: Plan) {
       for (const [nm, sd] of [['earL', 1], ['earR', -1]] as const) {
         const e = P[nm]; if (!e) continue;
         const flop = Math.sin(gaitPh * 2 + sd) * 0.25 * w + Math.sin(t * 3 + sd) * 0.05;
-        e.rotation.set(0.1 - perk * 0.25 + flop + m.run * 0.6, 0, sd * (0.3 + perk * 0.45 + Math.abs(flop) * 0.4) + (fl ? sd * 0.5 * fl : 0));
+        e.rotation.set(0.1 - perk * 0.2 + flop * 0.7 + m.run * 0.5, 0, sd * (0.12 + perk * 0.22 + Math.abs(flop) * 0.25) + (fl ? sd * 0.4 * fl : 0));
       }
     }
     // ---------------- tail
@@ -729,7 +729,7 @@ function paintHound(Pt: Painter, v: number, dog: boolean) {
       const coat = (x: number, y: number) => {
         const a = aOf(x);
         const belly = a < 1.0 + (Pt.n(r, x, y, 3, 2, 4) - 0.5) * 0.6;
-        return { belly, l: belly ? FRM + 0.5 + a * 0.6 : FRM + (a / Math.PI) * 1.2 - gauss(a, Math.PI, 0.55) * (v === 1 ? 2.4 : 1.2) + (Pt.n(r, x, y, 3, 2, 6) - 0.5) * 1.2 };
+        return { belly, l: belly ? FRM + 0.5 + a * 0.6 : FRM + (a / Math.PI) * 1.2 - gauss(a, Math.PI, 0.55) * (v === 1 ? 2.4 : 1.2) + (Pt.n(r, x, y, 2, 2, 6) - 0.5) * 0.5 };
       };
       const L = new Lv(r);
       for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
@@ -737,8 +737,8 @@ function paintHound(Pt: Painter, v: number, dog: boolean) {
         Pt.put(r, x, y, c.belly ? BL : (v === 1 ? FR : FR2), c.l, 0.2);
       }
       const flow = (x: number): [number, number] => [((x + 0.5) / r.w < 0.5 ? -0.45 : 0.45), 1];
-      Pt.strokes(r, FR2, L.get, { density: 0.32, flow, len: [2, 5], dark: 1.6, light: 1.3, mask: (x, y) => !coat(x, y).belly && v !== 1, salt: 2 });
-      Pt.strokes(r, FR, L.get, { density: 0.32, flow, len: [2, 5], dark: 1.6, light: 1.3, mask: (x, y) => !coat(x, y).belly && v === 1, salt: 3 });
+      Pt.strokes(r, FR2, L.get, { density: 0.22, flow, len: [3, 5], dark: 1.1, light: 0.8, mask: (x, y) => !coat(x, y).belly && v !== 1, salt: 2 });
+      Pt.strokes(r, FR, L.get, { density: 0.22, flow, len: [3, 5], dark: 1.1, light: 0.8, mask: (x, y) => !coat(x, y).belly && v === 1, salt: 3 });
       Pt.strokes(r, BL, L.get, { density: 0.3, flow, len: [2, 4], dark: 1.4, light: 1.0, mask: (x, y) => coat(x, y).belly, salt: 4 });
       // matted clumps and burrs
       for (let i = 0; i < 8; i++) { const x = rng.int(0, r.w - 1), y = rng.int(2, r.h - 3); Pt.spot(r, x, y, 1.3, 1, scaleHex(pal.fur, 0.6), 0.8, true); Pt.set(r, x, y - 1, scaleHex(pal.fur2, 1.1)); }
@@ -896,8 +896,8 @@ function paintHound(Pt: Painter, v: number, dog: boolean) {
       if (rng.chance(0.5)) sore(r, rng.int(0, r.w - 1), rng.int(3, r.h - 4), 0.9);
     } else {
       const R = v === 1 && !upper ? BL : v === 1 ? FR : FR2;
-      const L = fillLv(Pt, r, R, (u, vv, x, y) => FRM + 0.4 - cth(x) * -0.6 + (Pt.n(r, x, y, 3, 2, 64) - 0.5) * 1.0 - (1 - vv) * 0.4 + (v === 1 && !upper ? 0.6 : 0));
-      Pt.strokes(r, R, L.get, { density: 0.4, flow: () => [0, 1], len: [2, 4], dark: 1.5, light: 1.1, salt: 12 });
+      const L = fillLv(Pt, r, R, (u, vv, x, y) => FRM + 0.4 - cth(x) * -0.6 + (Pt.n(r, x, y, 2, 2, 64) - 0.5) * 0.5 - (1 - vv) * 0.4 + (v === 1 && !upper ? 0.6 : 0));
+      Pt.strokes(r, R, L.get, { density: 0.3, flow: () => [0, 1], len: [2, 4], dark: 1.1, light: 0.8, salt: 12 });
     }
     dirt(r, (x, y) => ((y + 0.5) / r.h) * pal.dirt * (upper ? 0.5 : 1.2) - 0.15);
   };

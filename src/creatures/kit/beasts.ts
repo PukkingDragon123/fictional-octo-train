@@ -644,6 +644,7 @@ export function trackMotion(gs: GaitState, c: Creature, dt: number, fallback = t
   gs.turn += ((dt > 0 ? df / dt : 0) - gs.turn) * damp(8, dt);
 }
 
+const _chain: THREE.Object3D[] = new Array(8);
 const _M = new THREE.Matrix4(), _Mi = new THREE.Matrix4(), _p = new THREE.Vector3(), _q = new THREE.Vector3(), _ik = [0, 0];
 
 /** is a named part gone (cut off by gore, hidden by limb loss, or listed in mem.severed) */
@@ -682,9 +683,9 @@ export function poseLegs(rig: Rig, legs: LegSpec[], gs: GaitState, gp: GaitParam
     const par = up.parent!;
     // parent frame relative to the root: body * (torso ...)
     _M.identity();
-    const chain: THREE.Object3D[] = [];
-    for (let o2: THREE.Object3D | null = par; o2 && o2 !== rig.root; o2 = o2.parent) chain.push(o2);
-    for (let k = chain.length - 1; k >= 0; k--) { chain[k].updateMatrix(); _M.multiply(chain[k].matrix); }
+    let nc = 0;
+    for (let o2: THREE.Object3D | null = par; o2 && o2 !== rig.root && nc < _chain.length; o2 = o2.parent) _chain[nc++] = o2;
+    for (let k = nc - 1; k >= 0; k--) { _chain[k].updateMatrix(); _M.multiply(_chain[k].matrix); }
     // hip in root space
     _p.copy(up.position).applyMatrix4(_M);
     if (o.lame?.[i]) {
