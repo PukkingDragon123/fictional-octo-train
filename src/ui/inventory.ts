@@ -15,6 +15,12 @@ import { TileObject } from '../world/zone';
 
 interface Entry { c: Container; name: string; icon: string; obj?: TileObject; }
 interface Group { key: string; items: Item[]; }
+interface Press {
+  id: number; type: string; x: number; y: number; t: number;
+  row: HTMLDivElement; items: Item[]; it: Item; from: Container; sub: boolean; stack: boolean;
+  started: boolean; long: boolean; timer: number; ghost: HTMLDivElement | null;
+}
+const LONG_PRESS_MS = 480;
 
 /**
  * Project Zomboid-style two-pane inventory: your gear on the left (pockets
@@ -35,8 +41,12 @@ export class InventoryUI {
   private scanT = 0;
   private sig = '';
   private expanded = new Set<string>();
-  private drag: { items: Item[]; from: Container; ghost: HTMLDivElement; sx: number; sy: number; started: boolean } | null = null;
+  private press: Press | null = null;
   private focusRef = '';
+  /** selected row: container uid + group key */
+  private selKey = '';
+  private lastTap = { key: '', t: 0 };
+  private lastTouchAt = 0;
 
   constructor(ui: UI) {
     this.ui = ui;
@@ -45,12 +55,17 @@ export class InventoryUI {
     this.left = this.makePane('left');
     this.right = this.makePane('right');
     this.wrap.style.display = 'none';
-    ui.root.appendChild(this.wrap);
+    // above the HUD layers (watch, touch controls): the inventory is the screen while it is open
+    document.body.appendChild(this.wrap);
     bus.on('containerChanged', () => { this.sig = ''; });
     bus.on('inventoryChanged', () => { this.sig = ''; });
     bus.on('floorChanged', () => { this.scanT = 0; this.sig = ''; });
-    window.addEventListener('pointermove', (e) => this.onDragMove(e));
-    window.addEventListener('pointerup', (e) => this.onDragEnd(e));
+    window.addEventListener('pointermove', (e) => this.onPressMove(e));
+    window.addEventListener('pointerup', (e) => this.onPressEnd(e, false));
+    window.addEventListener('pointercancel', (e) => this.onPressEnd(e, true));
+    // once an item is being dragged by touch, the list must not scroll under the finger
+    // (after a short hold the finger owns the item, so cancel the scroll before the browser commits to it)
+    this.wrap.addEventListener('touchmove', (e) => { const pr = this.press; if (pr && (pr.started || (!pr.long && performance.now() - pr.t > 200))) e.preventDefault(); }, { passive: false });
   }
 
   private makePane(side: 'left' | 'right'): HTMLDivElement {
@@ -68,7 +83,7 @@ export class InventoryUI {
   toggle(v?: boolean) {
     this.open = v ?? !this.open;
     this.wrap.style.display = this.open ? '' : 'none';
-    if (!this.open) { G.input.pointerOverUI = false; this.ui.hideTip(); }
+    if (!this.open) { G.input.pointerOverUI = false; this.ui.hideTip(); this.cancelPress(); this.selKey = ''; }
     this.sig = ''; this.scanT = 0;
     G.audio?.ui?.(this.open ? 'bagOpen' : 'bagClose');
   }
@@ -163,7 +178,7 @@ export class InventoryUI {
     this.scanT -= dt;
     if (this.scanT <= 0) { this.scanT = 0.35; this.scanNearby(); }
     const pe = this.playerEntries();
-    const sig = this.signature(pe) + '||' + this.signature(this.nearby) + `|${this.leftSel}|${this.rightSel}|${[...this.expanded].join(',')}`;
+    const sig = this.signature(pe) + '||' + this.signature(this.nearby) + `|${this.leftSel}|${this.rightSel}|${[...this.expanded].join(',')}|${this.selKey}`;
     if (sig !== this.sig) { this.sig = sig; this.renderPane(this.left, pe, 'left'); this.renderPane(this.right, this.nearby, 'right'); }
   }
   private signature(es: Entry[]): string {
@@ -182,8 +197,9 @@ export class InventoryUI {
     entries.forEach((e, i) => {
       const t = document.createElement('div');
       t.className = 'inv-tab' + (i === sel ? ' active' : '');
-      t.dataset.name = e.name;
-      t.innerHTML = `<img src="${e.icon}">`;
+      t.dataset.tip = e.name;
+      t.setAttribute('aria-label', e.name);
+      t.innerHTML = `<img src="${e.icon}" alt="">`;
       t.onclick = () => { if (side === 'left') this.leftSel = i; else this.rightSel = i; this.sig = ''; G.audio?.ui?.('tab'); };
       (t as any)._container = e.c;
       tabs.appendChild(t);
@@ -202,7 +218,7 @@ export class InventoryUI {
     if (!entry) return;
     const head = document.createElement('div');
     head.className = 'inv-cname';
-    head.innerHTML = `<span>${escapeHtml(entry.name)}</span><span></span>`;
+    head.innerHTML = `<span>${escapeHtml(entry.name)}</span><span>${entry.c.items.length ? entry.c.items.length + ' ITEM' + (entry.c.items.length === 1 ? '' : 'S') : ''}</span>`;
     list.appendChild(head);
     const groups = this.groups(entry.c);
     if (!groups.length) {
@@ -223,6 +239,7 @@ export class InventoryUI {
       btn('Put all', () => target && queueTransfers(G.local, entry.c.items.filter((i) => !G.local.isWorn(i) && G.local.handR !== i && G.local.handL !== i), entry.c, target), !target);
     }
     btn('Close', () => this.toggle(false));
+    if (side === 'right') { const hint = document.createElement('span'); hint.className = 'inv-hint'; hint.textContent = 'hold: actions · drag: move'; foot.appendChild(hint); }
   }
 
   private row(items: Item[], c: Container, sub: boolean, gkey: string): HTMLDivElement {
@@ -230,7 +247,8 @@ export class InventoryUI {
     const d = itemDef(it.key);
     const p = G.local;
     const r = document.createElement('div');
-    r.className = 'inv-row' + (sub ? ' sub' : '');
+    const key = c.uid + '|' + (sub ? 'u' + it.uid : gkey);
+    r.className = 'inv-row' + (sub ? ' sub' : '') + (key === this.selKey ? ' sel' : '');
     const tags: string[] = [];
     if (p.isWorn(it)) tags.push('<span class="tag w">WORN</span>');
     if (p.handR === it && p.handL === it) tags.push('<span class="tag h">BOTH</span>');
@@ -244,35 +262,74 @@ export class InventoryUI {
     const showCond = !!(d.durability || d.weapon || d.clothing);
     const cc = it.cond > 0.6 ? '' : it.cond > 0.25 ? 'mid' : 'low';
     const w = items.reduce((s, i) => s + itemWeight(i), 0);
-    r.innerHTML = `${items.length > 1 && !sub ? '' : ''}<img src="${itemIcon(it.key)}"><span class="nm">${escapeHtml(itemName(it))}</span><span class="tags">${tags.join('')}</span>${items.length > 1 ? `<span class="ct">×${items.length}</span>` : '<span class="ct"></span>'}<span class="wt">${w.toFixed(1)}</span>${showCond ? `<span class="cond"><i class="${cc}" style="width:${Math.round(it.cond * 100)}%"></i></span>` : ''}`;
-    r.addEventListener('mouseenter', (e) => this.ui.showTip(itemTooltip(it, sub ? 1 : items.length), e.clientX, e.clientY));
-    r.addEventListener('mousemove', (e) => this.ui.showTip(itemTooltip(it, sub ? 1 : items.length), e.clientX, e.clientY));
-    r.addEventListener('mouseleave', () => this.ui.hideTip());
+    r.innerHTML = `<img src="${itemIcon(it.key)}" alt=""><span class="nm">${escapeHtml(itemName(it))}</span><span class="tags">${tags.join('')}</span>${items.length > 1 ? `<span class="ct">×${items.length}</span>` : '<span class="ct"></span>'}<span class="wt">${w.toFixed(1)}</span>${showCond ? `<span class="cond"><i class="${cc}" style="width:${Math.round(it.cond * 100)}%"></i></span>` : ''}`;
+    const tip = (x: number, y: number) => this.ui.showTip(itemTooltip(it, sub ? 1 : items.length), x, y);
+    const quiet = () => !!this.press?.started || !!this.ui.menuEl;
+    r.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && !quiet()) tip(e.clientX, e.clientY); });
+    r.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse' && !quiet()) tip(e.clientX, e.clientY); });
+    r.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') this.ui.hideTip(); });
     r.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
-      const ghost = document.createElement('div');
-      ghost.id = 'drag-ghost';
-      ghost.innerHTML = `<img src="${itemIcon(it.key)}" style="width:48px;height:48px;image-rendering:pixelated">${!sub && items.length > 1 ? `<span>${items.length}</span>` : ''}`;
-      // single item by default; shift-drag takes the whole stack
-      this.drag = { items: e.shiftKey && !sub ? items : [it], from: c, ghost, sx: e.clientX, sy: e.clientY, started: false };
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (e.pointerType !== 'mouse') this.lastTouchAt = performance.now();
+      if ((e.target as HTMLElement).classList.contains('ct') && items.length > 1 && !sub) return; // stack toggle
+      this.cancelPress();
+      const pr: Press = { id: e.pointerId, type: e.pointerType, x: e.clientX, y: e.clientY, t: performance.now(), row: r, items, it, from: c, sub, stack: e.shiftKey && !sub,
+        started: false, long: false, timer: 0, ghost: null };
+      r.classList.add('press');
+      if (e.pointerType !== 'mouse') {
+        // hold still: item actions
+        pr.timer = window.setTimeout(() => {
+          if (this.press !== pr || pr.started) return;
+          pr.long = true;
+          r.classList.remove('press');
+          this.select(key);
+          (navigator as any).vibrate?.(12);
+          this.openItemMenu(it, c, sub ? [it] : items, pr.x, pr.y);
+        }, LONG_PRESS_MS);
+      }
+      this.press = pr;
     });
-    r.addEventListener('dblclick', () => {
-      const target = this.otherSide(c);
-      if (target) queueTransfers(p, [it], c, target);
+    r.addEventListener('dblclick', (e) => {
+      if (performance.now() - this.lastTouchAt < 600) return; // touch double-taps are handled on pointerup
+      e.preventDefault();
+      this.transferOne(it, c);
     });
     r.addEventListener('contextmenu', (e) => {
       e.preventDefault();
-      this.ui.hideTip();
-      const opts = itemMenuOptions(p, it, c, sub ? [it] : items);
-      this.ui.openMenu(e.clientX, e.clientY, itemName(it), opts);
+      // a long-press on touch screens fires contextmenu too; the long-press timer handles that
+      if (performance.now() - this.lastTouchAt < 900) return;
+      this.select(key);
+      this.openItemMenu(it, c, sub ? [it] : items, e.clientX, e.clientY);
     });
     if (items.length > 1 && !sub) {
-      r.addEventListener('click', (e) => {
-        if ((e.target as HTMLElement).classList.contains('ct')) { if (this.expanded.has(gkey)) this.expanded.delete(gkey); else this.expanded.add(gkey); this.sig = ''; }
-      });
-      (r.querySelector('.ct') as HTMLElement).style.cursor = 'pointer';
+      const ct = r.querySelector('.ct') as HTMLElement;
+      ct.style.cursor = 'pointer';
+      ct.dataset.tip = 'Show each item';
+      ct.addEventListener('click', (e) => { e.stopPropagation(); if (this.expanded.has(gkey)) this.expanded.delete(gkey); else this.expanded.add(gkey); this.sig = ''; G.audio?.ui?.('tab'); });
     }
+    (r as any)._tap = (x: number, y: number, touch: boolean) => {
+      const now = performance.now();
+      const dbl = this.lastTap.key === key && now - this.lastTap.t < 380;
+      this.lastTap = { key, t: now };
+      if (dbl && touch) { this.lastTap.t = 0; this.transferOne(it, c); return; }
+      this.select(key);
+      if (touch) { const rr = r.getBoundingClientRect(); tip(Math.min(rr.right - 40, x), rr.bottom + 4); }
+      G.audio?.ui?.('tab', 0.35);
+      void y;
+    };
     return r;
+  }
+
+  private select(key: string) { if (this.selKey !== key) { this.selKey = key; this.sig = ''; } }
+  private transferOne(it: Item, c: Container) {
+    const target = this.otherSide(c);
+    if (target) queueTransfers(G.local, [it], c, target);
+    this.ui.hideTip();
+  }
+  private openItemMenu(it: Item, c: Container, group: Item[], x: number, y: number) {
+    this.ui.hideTip();
+    const opts = itemMenuOptions(G.local, it, c, group);
+    this.ui.openMenu(x, y, itemName(it), opts);
   }
 
   /** the container on the opposite pane (for double-click moves) */
@@ -284,22 +341,59 @@ export class InventoryUI {
     return left;
   }
 
-  private onDragMove(e: PointerEvent) {
-    const d = this.drag; if (!d) return;
-    if (!d.started && Math.abs(e.clientX - d.sx) + Math.abs(e.clientY - d.sy) > 6) {
-      d.started = true;
-      document.body.appendChild(d.ghost);
-      this.ui.hideTip();
-      G.audio?.ui?.('grab');
-    }
-    if (d.started) {
-      d.ghost.style.left = (e.clientX - 24) + 'px';
-      d.ghost.style.top = (e.clientY - 24) + 'px';
-      document.querySelectorAll('.inv-drop-hl').forEach((n) => n.classList.remove('inv-drop-hl'));
-      const tgt = this.dropTarget(e.clientX, e.clientY);
-      tgt?.el.classList.add('inv-drop-hl');
-    }
+  private cancelPress() {
+    const pr = this.press;
+    if (!pr) return;
+    clearTimeout(pr.timer);
+    pr.row.classList.remove('press', 'lifted');
+    pr.ghost?.remove();
+    document.querySelectorAll('.inv-drop-hl').forEach((n) => n.classList.remove('inv-drop-hl'));
+    this.press = null;
   }
+
+  private startDrag(pr: Press, e: PointerEvent) {
+    pr.started = true;
+    clearTimeout(pr.timer);
+    try { pr.row.setPointerCapture(pr.id); } catch { /* row re-rendered */ }
+    const many = pr.stack ? pr.items : [pr.it];
+    const ghost = document.createElement('div');
+    ghost.id = 'drag-ghost';
+    ghost.innerHTML = `<img src="${itemIcon(pr.it.key)}" alt="">${many.length > 1 ? `<span>${many.length}</span>` : ''}`;
+    document.body.appendChild(ghost);
+    pr.ghost = ghost;
+    pr.row.classList.remove('press');
+    pr.row.classList.add('lifted');
+    this.ui.hideTip();
+    G.audio?.ui?.('grab');
+    this.moveGhost(pr, e.clientX, e.clientY);
+  }
+
+  private moveGhost(pr: Press, x: number, y: number) {
+    if (!pr.ghost) return;
+    const off = pr.type === 'mouse' ? 24 : 56; // keep the item visible above a fingertip
+    pr.ghost.style.left = (x - pr.ghost.offsetWidth / 2) + 'px';
+    pr.ghost.style.top = (y - off) + 'px';
+    document.querySelectorAll('.inv-drop-hl').forEach((n) => n.classList.remove('inv-drop-hl'));
+    this.dropTarget(x, y)?.el.classList.add('inv-drop-hl');
+  }
+
+  private onPressMove(e: PointerEvent) {
+    const pr = this.press;
+    if (!pr || e.pointerId !== pr.id) return;
+    const dx = e.clientX - pr.x, dy = e.clientY - pr.y;
+    const dist = Math.abs(dx) + Math.abs(dy);
+    if (!pr.started && !pr.long) {
+      if (pr.type === 'mouse') { if (dist > 6) this.startDrag(pr, e); }
+      else {
+        const held = performance.now() - pr.t;
+        // sideways swipe or press-and-hold then move: drag. A quick vertical swipe scrolls the list.
+        if ((held > 200 && dist > 8) || (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.4)) this.startDrag(pr, e);
+        else if (dist > 10) { clearTimeout(pr.timer); pr.row.classList.remove('press'); this.press = null; }
+      }
+    }
+    if (pr.started) this.moveGhost(pr, e.clientX, e.clientY);
+  }
+
   private dropTarget(x: number, y: number): { el: HTMLElement; c: Container } | null {
     const el = document.elementFromPoint(x, y) as HTMLElement | null;
     if (!el) return null;
@@ -309,23 +403,32 @@ export class InventoryUI {
     if (list && (list as any)._container) return { el: list, c: (list as any)._container };
     return null;
   }
-  private onDragEnd(e: PointerEvent) {
-    const d = this.drag; if (!d) return;
-    this.drag = null;
-    d.ghost.remove();
+  private onPressEnd(e: PointerEvent, cancelled: boolean) {
+    const pr = this.press;
+    if (!pr || e.pointerId !== pr.id) return;
+    clearTimeout(pr.timer);
+    this.press = null;
+    pr.row.classList.remove('press', 'lifted');
+    pr.ghost?.remove();
     document.querySelectorAll('.inv-drop-hl').forEach((n) => n.classList.remove('inv-drop-hl'));
-    if (!d.started) return;
+    if (cancelled || pr.long) return;
+    if (!pr.started) {
+      // a tap / click on the row
+      (pr.row as any)._tap?.(e.clientX, e.clientY, pr.type !== 'mouse');
+      return;
+    }
+    const items = pr.stack ? pr.items : [pr.it];
     const tgt = this.dropTarget(e.clientX, e.clientY);
     const p = G.local;
     if (tgt) {
-      if (tgt.c !== d.from) queueTransfers(p, d.items, d.from, tgt.c);
+      if (tgt.c !== pr.from) queueTransfers(p, items, pr.from, tgt.c);
       return;
     }
     // dropped onto the world: put on the floor
     const overPanel = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest('.k-panel');
-    if (!overPanel && p.containers().includes(d.from)) {
+    if (!overPanel && p.containers().includes(pr.from)) {
       const floor = floorContainer(G.zone, p.x, p.z);
-      queueTransfers(p, d.items, d.from, floor);
+      queueTransfers(p, items, pr.from, floor);
     }
     void isWorldContainer;
   }

@@ -26,6 +26,7 @@ import { replayOps, op } from './ops';
 import { restorePlayer, restoreAfterLoad, saveGame, SaveData } from './save';
 import { occupationByKey } from '../survival/traits';
 import { PauseMenu } from '../ui/menus/pause';
+import { TouchControls } from '../ui/touch/touch';
 import type { Net, Welcome } from '../net/net';
 import { introWanted, startIntro, INTRO_ZONE } from './intro';
 import '../game/worldOps';
@@ -107,6 +108,8 @@ export function startSession(o: SessionOpts): Game {
   g.clock.hours = w?.hours ?? s?.hours ?? g.sandbox.startHour;
   g.collapse = w?.collapse ?? s?.collapse ?? 0;
 
+  // on-screen controls run first so their input is in place before other systems read it
+  g.addSystem(new TouchControls(g));
   const surv = new SurvivalSystem();
   g.survival = surv;
   g.addSystem(surv);

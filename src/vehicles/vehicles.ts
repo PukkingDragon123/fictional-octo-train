@@ -370,7 +370,9 @@ export class VehicleSystem implements GameSystem {
     else v.speed *= 1 - dt * (go ? 0.35 : 0.9);
     if (Math.abs(v.speed) < 0.02) v.speed = 0;
     // steering is relative to the car: A turns left, D turns right
-    const want = (left - right) * 0.55 * (1 - Math.min(0.55, Math.abs(v.speed) / t.maxSpeed * 0.6));
+    // the on-screen stick steers too (analog, x only: throttle and brake are buttons)
+    const steerIn = clamp(left - right - inp.stickX, -1, 1);
+    const want = steerIn * 0.55 * (1 - Math.min(0.55, Math.abs(v.speed) / t.maxSpeed * 0.6));
     v.steer = damp(v.steer, want, 7, dt);
     const yawRate = (v.speed / t.wheelbase) * Math.tan(v.steer);
     if (Math.abs(yawRate) > 0.9 && Math.abs(v.speed) > 7 && Math.random() < dt * 4) G.audio?.at?.('tire_screech', v.x, v.z, 0.6);

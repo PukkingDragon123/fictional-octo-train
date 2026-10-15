@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { Body, Env } from '../survival/body';
-import { HumanRig, Appearance, Outfit } from './humanRig';
+import { Body, Env, INJURY_INFO } from '../survival/body';
+import { HumanRig, Appearance, Outfit, RigCondition } from './humanRig';
 import { HumanAnimator, Stance, FullBody, ActionAnim } from './humanAnim';
 import { ActionQueue } from '../actions/action';
 import { Container } from '../items/container';
-import { Item, itemDef, itemWeight, ItemDef } from '../items/item';
+import { Item, itemDef, itemWeight, ItemDef, BODY_PARTS } from '../items/item';
 import { makeHeldMesh } from '../items/itemMeshes';
 import { uid } from '../core/rng';
 import { clamp, dampAngle, wrapAngle } from '../core/math';
@@ -52,7 +52,11 @@ export class Player {
   actionAnim: ActionAnim = '';
   actionT = 0; actionDur = 0;
   rig: HumanRig;
-  anim = new HumanAnimator();
+  /** the rig's animator (rig.anim) */
+  anim: HumanAnimator;
+  /** visible condition mirrored onto the model (blood, bandages, splints, wet, pallor...) */
+  cond: RigCondition | undefined;
+  private condT = 0; private condKey = ''; private lastHealth = 100; private visT = 0; private lastNetT = -1; private lastAnim = '';
   flashlightOn = false;
   lightItem: Item | null = null;
   carrying: string | null = null;
@@ -85,6 +89,7 @@ export class Player {
     this.inv.owner = 'player:' + id;
     this.actions = new ActionQueue(this);
     this.rig = new HumanRig(app);
+    this.anim = this.rig.anim;
     this.rig.root.userData.player = this;
   }
 
@@ -199,18 +204,18 @@ export class Player {
     return clamp(p, 0, 95);
   }
 
-  /** visual outfit from worn items */
+  /** visual outfit from worn items (plus the visible condition for the local survivor) */
   computeOutfit(): Outfit {
     const o: Outfit = {};
-    let torsoRank = -1;
+    let torsoRank = -1, feetRank = -1;
     let suit: Outfit['torso'] | null = null;
-    const look = (it?: Item) => it ? itemDef(it.key).clothing?.look : undefined;
+    const q = (v: number | undefined, steps = 4) => (v && v > 0.05 ? Math.round(v * steps) / steps : undefined);
     for (const [slot, it] of this.worn) {
       const d = itemDef(it.key);
       const l = d.clothing?.look;
-      if (d.bag && slot === 'back') { o.back = { tex: 'c_backpack', color: d.tint ?? 0x4a5a6a, size: Math.min(1.2, 0.7 + d.bag.capacity / 40) }; continue; }
+      if (d.bag && slot === 'back') { o.back = { tex: l?.tex || 'c_backpack', color: l?.color ?? d.tint ?? 0x4a5a6a, size: Math.min(1.2, 0.7 + d.bag.capacity / 40), item: it.key }; continue; }
       if (!l) continue;
-      const lp = { tex: l.tex, color: l.color, sleeve: l.sleeve };
+      const lp = { tex: l.tex, color: l.color, sleeve: l.sleeve, item: it.key, blood: q(it.bloody), wear: it.cond < 0.6 ? q(1 - it.cond) : undefined };
       switch (l.part) {
         case 'torso': {
           // layers: tshirt < shirt < sweater, jacket drawn over them; coveralls paint torso and legs
@@ -221,27 +226,58 @@ export class Player {
           break;
         }
         case 'legs': o.legs = lp; o.legsKind = l.tex.includes('short') ? 'shorts' : l.tex.includes('skirt') ? 'skirt' : 'pants'; break;
-        case 'feet': o.feet = lp; break;
+        case 'feet': { const rank = slot === 'socks' ? 0 : 1; if (rank >= feetRank) { o.feet = lp; feetRank = rank; } break; }
         case 'hands': o.hands = lp; break;
         case 'head': o.head = { ...lp, hat: (l.hat as any) || (l.tex.includes('beanie') ? 'beanie' : l.tex.includes('hardhat') ? 'hardhat' : l.tex.includes('helmet') ? 'helmet' : 'cap') }; break;
         case 'eyes': o.eyes = lp; break;
-        case 'face': o.face = lp; break;
+        case 'face': if (!o.face || slot === 'mask') o.face = lp; break;
         case 'back': o.back = { ...lp, size: 1 }; break;
       }
     }
-    if (suit && !o.legs) { o.legs = { tex: suit.tex, color: suit.color }; o.legsKind = 'pants'; }
-    void look;
+    if (suit && !o.legs) { o.legs = { tex: suit.tex, color: suit.color, item: suit.item, blood: suit.blood, wear: suit.wear }; o.legsKind = 'pants'; }
+    if (this.cond) o.cond = this.cond;
     return o;
+  }
+
+  /** visible condition from the body: blood on wounded parts, bandages, splints, wetness, pallor, corruption */
+  computeCondition(): RigCondition {
+    const b = this.body;
+    const c: RigCondition = {};
+    const blood: Record<string, number> = {}, bandage: Record<string, number> = {}, bleeding: Record<string, number> = {};
+    const splint: string[] = [];
+    for (const part of BODY_PARTS) {
+      for (const inj of b.parts[part].injuries) {
+        if (inj.heal > 0.85) continue;
+        const bl = b.injuryBleed(inj);
+        const info = INJURY_INFO[inj.type];
+        if (info.bleed > 0 && !inj.bandage) blood[part] = Math.max(blood[part] ?? 0, Math.min(3, Math.max(1, Math.round((inj.sev * 2.2 + (bl > 0.3 ? 1 : 0)) * (1 - inj.heal * 0.8)))));
+        if (inj.bandage) bandage[part] = Math.max(bandage[part] ?? 0, inj.bandage.soak > 0.7 ? 2 : inj.bandage.soak > 0.3 ? 1.5 : 1);
+        if (inj.splinted && !splint.includes(part)) splint.push(part);
+        if (bl > 0.02) bleeding[part] = Math.max(bleeding[part] ?? 0, bl > 0.5 ? 3 : bl > 0.2 ? 2 : 1);
+      }
+    }
+    if (Object.keys(blood).length) c.blood = blood;
+    if (Object.keys(bandage).length) c.bandage = bandage;
+    if (Object.keys(bleeding).length) c.bleeding = bleeding;
+    if (splint.length) c.splint = splint.sort();
+    const lv = (v: number, a: number, b2: number, c3: number) => (v >= c3 ? 3 : v >= b2 ? 2 : v >= a ? 1 : 0);
+    const wet = lv(b.wetness, 15, 40, 70); if (wet) c.wet = wet;
+    const pale = lv(100 - b.blood, 25, 45, 65); if (pale) c.pale = pale;
+    const cor = lv(b.corruption, 10, 40, 70); if (cor) c.corrupt = cor;
+    if (!b.dead) { if (b.downed || b.pain() > 65) c.expr = 'pain'; else if (b.panic > 70) c.expr = 'fear'; }
+    return c;
   }
 
   refreshVisuals() {
     if (this.outfitDirty) {
-      this.rig.setOutfit(this.computeOutfit());
+      // remote survivors get their look (and condition) from the network snapshot, not from an empty worn map
+      if (!this.remote) this.rig.setOutfit(this.computeOutfit());
       this.outfitDirty = false;
     }
     const kr = this.handR ? this.handR.key : '', kl = this.handL && this.handL !== this.handR ? this.handL.key : '';
-    if (kr !== this.heldKeyR) { this.heldKeyR = kr; this.rig.hold('R', kr ? makeHeldMesh(kr) : null); }
-    if (kl !== this.heldKeyL) { this.heldKeyL = kl; this.rig.hold('L', kl ? makeHeldMesh(kl) : null); }
+    const grip = (k: string) => { const d = itemDef(k); return d.weapon?.kind === 'firearm' || d.light ? 'along' as const : d.weapon && d.weapon.kind !== 'thrown' || d.tags?.includes('tool') ? 'perp' as const : 'auto' as const; };
+    if (kr !== this.heldKeyR) { this.heldKeyR = kr; this.rig.hold('R', kr ? makeHeldMesh(kr) : null, kr ? grip(kr) : 'auto'); }
+    if (kl !== this.heldKeyL) { this.heldKeyL = kl; this.rig.hold('L', kl ? makeHeldMesh(kl) : null, kl ? grip(kl) : 'auto'); }
   }
 
   actionMul(): number { return this.body.mods(this.heavyLoad()).action; }
@@ -253,16 +289,40 @@ export class Player {
     for (const p of occ.perks || []) this.body.perks.add(p);
   }
 
-  // ---------------- per-frame visual update ----------------
+  // ---------------- per-frame visual update
   updateVisual(dt: number) {
+    const local = !this.remote;
+    if (local) {
+      // visible condition follows the body twice a second (repaints only when something visible changed)
+      this.condT -= dt;
+      if (this.condT <= 0) {
+        this.condT = 0.5;
+        const c = this.computeCondition();
+        const k = JSON.stringify(c);
+        if (k !== this.condKey) { this.condKey = k; this.cond = Object.keys(c).length ? c : undefined; this.outfitDirty = true; }
+      }
+      if (this.body.health < this.lastHealth - 1.5) this.rig.fx.value.z = 0.8;
+      this.lastHealth = this.body.health;
+      this.rig.fx.value.x = this.body.corruption > 10 ? Math.min(1, (this.body.corruption - 10) / 80) : 0;
+    } else {
+      const cr = this.rig.outfit.cond?.corrupt ?? 0;
+      this.rig.fx.value.x = cr ? cr / 3 : 0;
+    }
+    this.rig.fx.value.z = Math.max(0, this.rig.fx.value.z - dt * 4);
     this.refreshVisuals();
     const m = this.body.mods(this.heavyLoad());
     const a = this.actions.current;
     let action: ActionAnim = this.actionAnim;
     let full: FullBody = this.full;
-    if (a && a.started && !this.remote) { action = a.anim; full = a.full || full; this.actionT = a.t; this.actionDur = a.effDuration; }
-    if (this.aiming && !action) {
-      const w = this.handR ? itemDef(this.handR.key).weapon : undefined;
+    if (a && a.started && !this.remote) { action = a.anim; full = a.full || full; this.actionT = a.t; this.actionDur = a.effDuration; this.visT = a.t; }
+    else if (action) {
+      // combat swings / remote actions: run the clock locally between updates
+      if (this.remote) { if (this.actionT !== this.lastNetT || action !== this.lastAnim) { this.lastNetT = this.actionT; this.visT = this.actionT; } else this.visT += dt; }
+      else { if (action !== this.lastAnim) this.visT = this.actionT; else this.visT += dt; this.actionT = this.visT; }
+    }
+    this.lastAnim = action;
+    const w = this.handR ? itemDef(this.handR.key).weapon : undefined;
+    if (this.aiming && (!action || action === 'aim_melee')) {
       action = w?.kind === 'firearm' ? 'aim_gun' : w?.kind === 'thrown' ? 'aim_throw' : 'aim_melee';
     }
     if (this.scannerOpen && !action) action = 'scanner';
@@ -271,13 +331,31 @@ export class Player {
       if (d.light && this.flashlightOn) action = 'hold_light';
     }
     if (this.carrying && !action) action = 'carry';
-    const pose = this.anim.update(dt, {
-      speed: this.speed, stance: this.stance, full, action, actionT: this.actionT, actionDur: this.actionDur,
+    if (!full) {
+      if (this.body.dead) full = 'dead';
+      else if (this.carriedBy) full = 'carried';
+      else if (this.body.downed && this.speed < 0.08) full = 'downed';
+    }
+    if (this.sleeping && !full) full = 'lie';
+    // which leg / arm hurts (for the limp side and a cradled arm)
+    let limpSide: 'L' | 'R' | undefined, armL = 0, armR = 0;
+    if (local && (m.limp > 0.05 || this.body.armPenalty() > 0.1)) {
+      const dmg = (ps: string[]) => ps.reduce((s, p) => s + this.body.partDamage(p as any), 0);
+      limpSide = dmg(['thigh_l', 'shin_l', 'foot_l']) >= dmg(['thigh_r', 'shin_r', 'foot_r']) ? 'L' : 'R';
+      const frac = (p: string[]) => Math.min(1, p.reduce((s, q) => s + this.body.parts[q as 'farm_l'].injuries.filter((i) => i.type === 'fracture' && i.heal < 0.8).length, 0) * 0.8 + dmg(p) / 120);
+      armL = frac(['uarm_l', 'farm_l']); armR = frac(['uarm_r', 'farm_r']);
+    }
+    const prevF = this.rig.root.rotation.y;
+    this.rig.animate(dt, {
+      speed: this.speed, stance: this.stance, full, action, actionT: this.visT, actionDur: this.actionDur,
       twoHanded: !!(this.handR && this.handR === this.handL), limp: m.limp, tired: m.tired, panic: m.panic,
       cold: m.cold, aimPitch: 0, holdingLight: !!this.lightItem && this.flashlightOn && this.handR === this.lightItem,
-      holding: !!this.handR, lookYaw: 0,
+      holding: !!this.handR, heldL: !!this.handL && this.handL !== this.handR, lookYaw: 0,
+      weapon: w ? w.kind : this.handR ? 'tool' : 'unarmed', limpSide, armHurtL: armL, armHurtR: armR,
+      exhausted: local ? Math.max(0, 1 - this.body.endurance / 0.3) : 0, drunk: m.drunk, hot: local && this.body.temp > 37.6 ? Math.min(1, (this.body.temp - 37.4) / 1.5) : 0,
+      turn: dt > 0 ? wrapAngle(Math.PI / 2 - this.facing - prevF) / dt : 0, hasWatch: [...this.worn.keys()].includes('wrist'),
+      unconscious: this.body.dead || (this.body.downed && this.body.downedTime > 30),
     });
-    this.rig.applyPose(pose);
     this.rig.root.position.set(this.x, this.y, this.z);
     this.rig.root.rotation.y = Math.PI / 2 - this.facing;
     // footsteps from locomotion phase
@@ -288,6 +366,9 @@ export class Player {
       if (this.speed > 0.3 && this.stance !== 'swim' && !full) this.footstepCb?.(this);
     }
   }
+
+  /** play an emote (wave, flex, dance, jumping_jacks, shrug, salute, point, facepalm, sit_wait, cheer, clap, bow); mirrored to co-op peers */
+  emote(name: string, loop?: boolean) { return this.rig.playEmote(name, loop); }
 
   /** smoothly turn toward target facing */
   turn(dt: number, rate = 14) { this.facing = dampAngle(this.facing, this.targetFacing, rate, dt); this.facing = wrapAngle(this.facing); }
@@ -301,11 +382,21 @@ export class Player {
     };
   }
 
+  /** action animation as mirrored to peers: timed actions, combat swings, then emotes */
+  private netAnim(): { ac: ActionAnim; at: number; ad: number } {
+    const cur = this.actions.current;
+    if (cur?.started && cur.anim) return { ac: cur.anim, at: +cur.t.toFixed(2), ad: +cur.effDuration.toFixed(2) };
+    if (this.actionAnim) return { ac: this.actionAnim, at: +this.actionT.toFixed(2), ad: +this.actionDur.toFixed(2) };
+    const e = this.anim.emoteState;
+    if (e) return { ac: ('emote:' + e.name) as ActionAnim, at: +e.t.toFixed(2), ad: 0 };
+    return { ac: '', at: 0, ad: 0 };
+  }
+
   netState(): PlayerNetState {
     return {
       x: +this.x.toFixed(3), z: +this.z.toFixed(3), f: +this.facing.toFixed(3), sp: +this.speed.toFixed(2), st: this.stance,
-      fb: this.full || (this.actions.current?.started ? this.actions.current.full : '') || '', ac: (this.actions.current?.started ? this.actions.current.anim : '') || (this.aiming ? 'aim_melee' : ''),
-      at: this.actions.current?.t ?? 0, ad: this.actions.current?.effDuration ?? 0,
+      fb: this.full || (this.actions.current?.started ? this.actions.current.full : '') || '',
+      ...this.netAnim(),
       run: this.running, light: this.flashlightOn, hr: this.handR?.key || '', hl: this.handL && this.handL !== this.handR ? this.handL.key : '',
       out: this.computeOutfit(), down: this.body.downed, dead: this.body.dead, zone: this.zoneKey, aim: this.aiming,
       carry: this.carrying || undefined, carriedBy: this.carriedBy || undefined, name: this.name, app: this.app, th: this.scannerOpen, veh: this.inVehicle || undefined,

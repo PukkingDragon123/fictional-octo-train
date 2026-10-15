@@ -237,9 +237,50 @@ export class Scanner {
     const hit = this.hitTest(e.clientX, e.clientY);
     if (!hit) return;
     e.stopPropagation(); e.preventDefault();
+    this.activate(hit, e.button === 2 ? -1 : 1);
+  }
+
+  /**
+   * A touch tap at CSS coords (the touch layer calls this; mice go through
+   * onMouse). Presses buttons and screen zones; the dial turns toward the
+   * side of the knob that was tapped. True when the tap landed on the device.
+   */
+  tapAt(cssX: number, cssY: number): boolean {
+    if (!this.open || this.raise < 0.7) return false;
+    const hit = this.hitTest(cssX, cssY);
+    if (!hit) return false;
+    let dir = 1;
+    if (hit.kind === 'dial') { const c = this.toCss(this.dial.getWorldPosition(new THREE.Vector3())); dir = cssX < c.x ? -1 : 1; }
+    this.activate(hit, dir);
+    return true;
+  }
+
+  private activate(hit: NonNullable<ReturnType<Scanner['hitTest']>>, dialDir: number) {
     if (hit.kind === 'button') this.press(hit.page!);
-    else if (hit.kind === 'dial') this.turnDial(e.button === 2 ? -1 : 1);
-    else if (hit.kind === 'screen') { this.screenClick(hit.u!, hit.v!, e); }
+    else if (hit.kind === 'dial') this.turnDial(dialDir);
+    else if (hit.kind === 'screen') this.screenClick(hit.u!, hit.v!);
+  }
+
+  /** overlay-space point to CSS pixels */
+  toCss(v: THREE.Vector3): { x: number; y: number } {
+    const pr = G.pr;
+    const RW = pr.lowW + pr.margin * 2, RH = pr.lowH + pr.margin * 2;
+    const n = v.clone().project(pr.overlayCamera);
+    const lx = (n.x + 1) / 2 * RW, ly = (n.y + 1) / 2 * RH;
+    return { x: (lx - pr.margin) * pr.scale / pr.dpr, y: window.innerHeight - (ly - pr.margin) * pr.scale / pr.dpr };
+  }
+
+  /** where the raised device sits on screen, in CSS pixels (null while lowered) */
+  deviceRect(): { left: number; top: number; right: number; bottom: number } | null {
+    if (this.raise < 0.05) return null;
+    this.group.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(this.device.children[0]); // the casing (no antenna)
+    let left = Infinity, top = Infinity, right = -Infinity, bottom = -Infinity;
+    for (let i = 0; i < 8; i++) {
+      const c = this.toCss(new THREE.Vector3(i & 1 ? b.max.x : b.min.x, i & 2 ? b.max.y : b.min.y, i & 4 ? b.max.z : b.min.z));
+      left = Math.min(left, c.x); right = Math.max(right, c.x); top = Math.min(top, c.y); bottom = Math.max(bottom, c.y);
+    }
+    return { left, top, right, bottom };
   }
 
   hitTest(cssX: number, cssY: number): { kind: 'button' | 'dial' | 'screen' | 'body'; page?: PageKey; u?: number; v?: number } | null {
@@ -258,7 +299,7 @@ export class Scanner {
     return { kind: 'body' };
   }
 
-  private screenClick(u: number, v: number, e: MouseEvent) {
+  private screenClick(u: number, v: number, e?: MouseEvent) {
     const x = Math.floor(u * SCR_W), y = Math.floor(v * SCR_H);
     const zones: { x: number; y: number; w: number; h: number; fn: () => void }[] = this.st.clickZones || [];
     for (const z of zones) if (x >= z.x && y >= z.y && x < z.x + z.w && y < z.y + z.h) { G.audio?.ui?.('scanClick'); z.fn(); this.drawT = 0; return; }

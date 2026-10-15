@@ -4,14 +4,14 @@ import { PART_NAMES } from '../survival/body';
 
 const pct = (v: number) => Math.round(v * 100);
 
-/** Paper-slip tooltip describing an item in Project Zomboid depth. */
+/** Terminal readout describing an item in Project Zomboid depth (phosphor bars, theme colours). */
 export function itemTooltip(it: Item, count = 1): string {
   const d = itemDef(it.key);
   const rows: string[] = [];
   const row = (a: string, b: string, cls = '') => rows.push(`<div class="row ${cls}"><span>${a}</span><span>${b}</span></div>`);
-  const bar = (v: number, color = '#3c7a34') => rows.push(`<div class="bar"><i style="width:${pct(Math.max(0, Math.min(1, v)))}%;background:${color}"></i></div>`);
+  const bar = (v: number, color = 'var(--ph)') => rows.push(`<div class="bar"><i style="width:${pct(Math.max(0, Math.min(1, v)))}%;background:${color}"></i></div>`);
   row('Weight', (itemWeight(it) * count).toFixed(2) + ' kg');
-  if (d.durability || d.weapon || d.clothing) { row('Condition', pct(it.cond) + '%'); bar(it.cond, it.cond > 0.6 ? '#3c7a34' : it.cond > 0.25 ? '#b08a1a' : '#a3271c'); }
+  if (d.durability || d.weapon || d.clothing) { row('Condition', pct(it.cond) + '%'); bar(it.cond, it.cond > 0.6 ? 'var(--ph)' : it.cond > 0.25 ? 'var(--warn)' : 'var(--danger)'); }
   if (d.food) {
     const f = d.food;
     const fr = freshness(it);
@@ -23,16 +23,16 @@ export function itemTooltip(it: Item, count = 1): string {
     row('Calories', Math.round(f.calories * left) + ' kcal');
     if (f.unhappy) row('Mood', f.unhappy > 0 ? 'unpleasant' : 'comforting', f.unhappy > 0 ? 'warn' : '');
     if (f.raw && !(it.cooked && it.cooked >= 1)) row('Raw', 'cook first', 'warn');
-    if (it.cooked !== undefined && it.cooked > 0 && it.cooked < 1) { row('Cooking', pct(it.cooked) + '%'); bar(it.cooked, '#b06a1a'); }
+    if (it.cooked !== undefined && it.cooked > 0 && it.cooked < 1) { row('Cooking', pct(it.cooked) + '%'); bar(it.cooked, 'var(--warn)'); }
     if (f.lucidity) row('Lucidity', '+' + f.lucidity);
   }
   if (d.fluidCap) {
     const amt = it.fluid?.amount ?? 0;
     row('Contents', it.fluid && amt > 0.001 ? `${fluidName(it.fluid.type)}` : 'Empty');
     row('Volume', `${amt.toFixed(2)} / ${d.fluidCap} L`);
-    bar(amt / d.fluidCap, it.fluid?.type === 'tainted' ? '#6b6b2a' : '#2a6a9a');
+    bar(amt / d.fluidCap, it.fluid?.type === 'tainted' ? '#b5c94a' : '#5ec8ff');
   }
-  if (d.uses !== undefined || d.light || d.battery) { const u = it.uses ?? 1; row(d.light || d.battery ? 'Battery' : 'Remaining', pct(u) + '%'); bar(u, '#b08a1a'); }
+  if (d.uses !== undefined || d.light || d.battery) { const u = it.uses ?? 1; row(d.light || d.battery ? 'Battery' : 'Remaining', pct(u) + '%'); bar(u, 'var(--warn)'); }
   if (d.weapon) {
     const w = d.weapon;
     row('Damage', `${w.dmg[0]}–${w.dmg[1]}`);
@@ -63,5 +63,8 @@ export function itemTooltip(it: Item, count = 1): string {
   const tags = (d.tags || []).filter((t) => !t.startsWith('_')).slice(0, 6);
   if (tags.length) rows.push(`<div class="desc">${tags.map((t) => '#' + t).join(' ')}</div>`);
   if (d.desc) rows.push(`<div class="desc">${escapeHtml(d.desc)}</div>`);
+  let coarse = false;
+  try { coarse = matchMedia('(pointer: coarse)').matches; } catch { /* ignore */ }
+  if (coarse) rows.push('<div class="tap">double-tap: move · hold: actions</div>');
   return `<h4>${escapeHtml(itemName(it))}${count > 1 ? ' ×' + count : ''}</h4>${rows.join('')}`;
 }

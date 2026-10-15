@@ -285,13 +285,11 @@ export class Game {
     const mods = p.body.mods(p.heavyLoad());
     const cur = p.actions.current;
     const locked = (cur && cur.started && cur.locks) || p.body.downed || this.transitioning || p.sleeping || p.carriedBy || p.inVehicle;
-    // camera-relative movement
-    let ix = 0, iy = 0;
+    // camera-relative movement (keys, or the analog on-screen stick)
+    let ix = 0, iy = 0, mag = 0, analog = false;
     if (!locked && !this.ui?.blocksMovement?.()) {
-      if (inp.down('up')) iy += 1;
-      if (inp.down('down')) iy -= 1;
-      if (inp.down('left')) ix -= 1;
-      if (inp.down('right')) ix += 1;
+      const mv = inp.moveAxis();
+      ix = mv.x; iy = mv.y; mag = mv.mag; analog = mv.analog;
     }
     const yaw = this.pr.yaw;
     const fwdX = -Math.sin(yaw), fwdZ = -Math.cos(yaw);
@@ -305,9 +303,14 @@ export class Game {
     const f = z.floorAt(p.tileX(), p.tileY());
     const deep = f?.water === 'deep';
     p.stance = p.body.downed ? 'crawl' : deep ? 'swim' : p.sneaking ? 'sneak' : 'stand';
-    p.running = moving && inp.down('run') && mods.canRun && p.stance === 'stand' && !p.aiming;
+    // run: Shift, the touch run latch, or the stick pushed to its rim; a latched run also speeds up tap-to-walk
+    const autoWalk = !!(cur && cur.started && cur.name === 'Walk');
+    const wantRun = inp.down('run') || inp.runLatch || (analog && mag >= 0.92);
+    p.running = (moving || (autoWalk && inp.runLatch)) && wantRun && mods.canRun && p.stance === 'stand' && !p.aiming;
     let speed = p.running ? 4.15 : p.stance === 'sneak' ? 1.15 : p.stance === 'swim' ? 1.05 * (p.body.perks.has('swimmer') ? 1.5 : 1) : p.stance === 'crawl' ? 0.35 : 2.0;
     speed *= mods.move * (f?.slow ?? 1);
+    // a small stick deflection creeps
+    if (analog && !p.running) speed *= 0.4 + 0.6 * clamp((mag - 0.15) / 0.65, 0, 1);
     if (p.aiming) speed *= 0.55;
     const tvx = mx * speed, tvz = mz * speed;
     p.vx = damp(p.vx, tvx, 14, dt); p.vz = damp(p.vz, tvz, 14, dt);
@@ -316,11 +319,15 @@ export class Game {
     }
     p.speed = Math.hypot(p.vx, p.vz);
     p.y = damp(p.y, z.heightAt(p.tileX(), p.tileY()) + (deep ? -0.9 : 0), 12, dt);
-    // aim (right mouse held)
+    // aim (right mouse held, or the on-screen attack button)
     const over = inp.pointerOverUI;
-    p.aiming = !locked && !over && inp.mouseDown[2] && inp.heldFor(2) > 140;
-    const wp = this.pr.screenToWorld(inp.mouseX, inp.mouseY, 0.9);
-    if (wp) { p.aimX = wp.x; p.aimZ = wp.z; }
+    const ta = inp.touchAim;
+    p.aiming = !locked && ((!over && inp.mouseDown[2] && inp.heldFor(2) > 140) || !!ta);
+    if (ta) { p.aimX = ta.x; p.aimZ = ta.z; }
+    else {
+      const wp = this.pr.screenToWorld(inp.mouseX, inp.mouseY, 0.9);
+      if (wp) { p.aimX = wp.x; p.aimZ = wp.z; }
+    }
     if (p.aiming) p.targetFacing = Math.atan2(p.aimZ - p.z, p.aimX - p.x);
     else if (moving) p.targetFacing = Math.atan2(mz, mx);
     else if (cur?.face && cur.started) p.targetFacing = Math.atan2(cur.face.z - p.z, cur.face.x - p.x);
@@ -328,17 +335,22 @@ export class Game {
     // flashlight
     if (!locked && inp.hit('flashlight')) this.toggleFlashlight(p);
     // camera rotation & zoom
-    if (inp.hit('camLeft')) this.pr.yawTarget += Math.PI / 2;
-    if (inp.hit('camRight')) this.pr.yawTarget -= Math.PI / 2;
-    if (inp.wheel && !over) {
-      this.camZoom = clamp(this.camZoom - Math.sign(inp.wheel), 0, PixelRenderer.ZOOMS.length - 1);
-      this.pr.setZoomLevel(this.camZoom);
-    }
+    if (inp.hit('camLeft')) this.rotateCamera(1);
+    if (inp.hit('camRight')) this.rotateCamera(-1);
+    if (inp.wheel && !over) this.zoomCamera(-Math.sign(inp.wheel));
     // exertion for body sim
     if (p.running) p.exertionTimer = 1;
     p.exertionTimer = Math.max(0, p.exertionTimer - dt * 0.5);
     // portals
     this.checkPortals(p);
+  }
+
+  /** quarter-turn the camera: +1 turns the view clockwise (Z), -1 counter-clockwise (X) */
+  rotateCamera(dir: number) { this.pr.yawTarget += (Math.PI / 2) * Math.sign(dir); }
+  /** step through the zoom levels: +1 closer, -1 further */
+  zoomCamera(steps: number) {
+    this.camZoom = clamp(this.camZoom + steps, 0, PixelRenderer.ZOOMS.length - 1);
+    this.pr.setZoomLevel(this.camZoom);
   }
 
   toggleFlashlight(p: Player) {

@@ -5,6 +5,10 @@ import { PixelCanvas, makeRamp } from '../gfx/pixel';
 import { tileFbm } from '../core/rng';
 import { Player } from '../entities/player';
 import { pick, PickTarget, targetName } from '../game/picking';
+import { OCCUPATIONS, TRAITS } from '../survival/traits';
+import { itemIcon } from './icons';
+import { sfx } from './menus/sfx';
+import { calm } from './menus/settings';
 
 export interface MenuOption {
   label: string;
@@ -31,9 +35,14 @@ function weaveDataUrl(): string {
   return c.toDataURL();
 }
 
+function themeHex(): number {
+  try { const v = getComputedStyle(document.documentElement).getPropertyValue('--ph').trim(); if (/^#[0-9a-f]{6}$/i.test(v)) return parseInt(v.slice(1), 16); } catch { /* ignore */ }
+  return 0x6dff8e;
+}
+
 function cursorDataUrl(kind: 'arrow' | 'hand' | 'aim' | 'busy'): string {
   const pc = new PixelCanvas(24, 24); pc.wrap = false;
-  const K = 0x0e0c08, W = 0xf2ecd8, A = 0xf2b33d;
+  const K = 0x020803, W = 0xeef4e6, A = themeHex();
   if (kind === 'aim') {
     for (const [x, y] of [[11, 2], [11, 3], [11, 4], [11, 5], [11, 17], [11, 18], [11, 19], [11, 20], [2, 11], [3, 11], [4, 11], [5, 11], [17, 11], [18, 11], [19, 11], [20, 11]]) { pc.set(x, y, W); pc.set(x + 1, y, K); pc.set(x, y + 1, K); }
     pc.set(11, 11, A); pc.set(12, 11, K); pc.set(11, 12, K);
@@ -82,6 +91,9 @@ export class UI {
     for (const k of ['arrow', 'hand', 'aim', 'busy'] as const) this.cursors[k] = cursorDataUrl(k);
     this.cursor = document.createElement('img'); this.cursor.id = 'cursor'; this.cursor.src = this.cursors.arrow;
     document.body.appendChild(this.cursor);
+    bus.on('uiSettings', () => { for (const k of ['arrow', 'hand', 'aim', 'busy'] as const) this.cursors[k] = cursorDataUrl(k); this.cursor.src = this.cursors.arrow; });
+    bus.on('unlocked', (id: string) => this.unlockToast(id));
+    window.addEventListener('keydown', (e) => this.menuKey(e), true);
     document.addEventListener('mousemove', (e) => { this.cursor.style.left = e.clientX + 'px'; this.cursor.style.top = e.clientY + 'px'; });
     document.body.style.cursor = 'none';
     // track pointer over interactive UI so the world ignores clicks there
@@ -152,13 +164,53 @@ export class UI {
     this.bubbles.push({ el, target: { x, y, z }, until: G.time + secs, born: G.time, rise: 0, kind });
   }
 
+  // ---------------- toasts ----------------
+  private toastHost: HTMLDivElement | null = null;
+  private lastUnlockAt = -1e9;
+  private host(): HTMLDivElement {
+    if (!this.toastHost || !this.toastHost.isConnected) { this.toastHost = document.createElement('div'); this.toastHost.className = 'k-toasts'; document.body.appendChild(this.toastHost); }
+    return this.toastHost;
+  }
+  private pushToast(el: HTMLDivElement, secs: number) {
+    const host = this.host();
+    host.appendChild(el);
+    while (host.children.length > 4) host.firstChild!.remove();
+    setTimeout(() => el.classList.add('out'), secs * 1000);
+    setTimeout(() => el.remove(), secs * 1000 + 700);
+  }
   toast(title: string, sub = '', secs = 3.5) {
+    // the unlock celebration below already covers plain "X UNLOCKED" notices
+    if (/UNLOCKED$/.test(title) && performance.now() - this.lastUnlockAt < 2000) return;
     const el = document.createElement('div');
     el.className = 'k-toast';
-    el.innerHTML = `${escapeHtml(title)}${sub ? `<small>${escapeHtml(sub)}</small>` : ''}`;
-    document.body.appendChild(el);
-    setTimeout(() => { el.style.opacity = '0'; }, secs * 1000);
-    setTimeout(() => el.remove(), secs * 1000 + 1400);
+    el.dataset.t = title;
+    el.dataset.at = String(performance.now());
+    el.innerHTML = `<span class="tt"></span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}`;
+    const tt = el.firstChild as HTMLElement;
+    this.pushToast(el, secs);
+    // teletype the headline
+    if (calm()) { tt.textContent = title; return; }
+    let i = 0;
+    const step = () => { if (!el.isConnected) return; i = Math.min(title.length, i + 2); tt.textContent = title.slice(0, i) + (i < title.length ? '█' : ''); if (i < title.length) setTimeout(step, 18); };
+    step();
+  }
+
+  /** profile unlock: a new occupation or trait is on the intake form */
+  unlockToast(id: string) {
+    const [ns, key] = id.split(':');
+    let kind = 'UNLOCK', name = key || id, icon = '';
+    if (ns === 'job') { const o = OCCUPATIONS.find((x) => x.key === key); kind = 'NEW OCCUPATION UNLOCKED'; name = o?.name || key; const k = o?.items?.[0]; if (k) { try { icon = itemIcon(k); } catch { /* no icon */ } } }
+    else if (ns === 'trait') { const t = TRAITS.find((x) => x.key === key); kind = 'NEW TRAIT UNLOCKED'; name = t?.name || key; }
+    this.lastUnlockAt = performance.now();
+    // drop a plain notice another system may have just posted for the same unlock
+    this.toastHost?.querySelectorAll('.k-toast:not(.unlock)').forEach((n) => { const e = n as HTMLElement; if (/UNLOCKED$/.test(e.dataset.t || '') && performance.now() - Number(e.dataset.at || 0) < 2000) e.remove(); });
+    const el = document.createElement('div');
+    el.className = 'k-toast unlock';
+    const star = '<svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.6 7.1.7-5.4 4.8 1.6 7-6.2-3.7-6.2 3.7 1.6-7L2 9.3l7.1-.7z"/></svg>';
+    el.innerHTML = `<div class="u-strip"><span>${escapeHtml(kind)}</span><i>MERIDIAN HR</i></div><div class="u-body"><div class="u-ico">${icon ? `<img src="${icon}" alt="">` : star}</div><div><div class="u-name">${escapeHtml(name)}</div><div class="u-sub">Now on the personnel file for your next run.</div></div><div class="u-sweep"></div></div>`;
+    this.pushToast(el, 6.5);
+    sfx('unlock');
+    G.audio?.ui?.('scanDone', 0.4);
   }
 
   // ---------------- context menu ----------------
@@ -168,44 +220,92 @@ export class UI {
     const el = this.buildMenu(title, opts);
     document.body.appendChild(el);
     const r = el.getBoundingClientRect();
-    el.style.left = Math.min(x + 4, window.innerWidth - r.width - 6) + 'px';
-    el.style.top = Math.min(y + 4, window.innerHeight - r.height - 6) + 'px';
+    el.style.left = Math.max(4, Math.min(x + 4, window.innerWidth - r.width - 6)) + 'px';
+    el.style.top = Math.max(4, Math.min(y + 4, window.innerHeight - r.height - 6)) + 'px';
     this.menuEl = el;
+    this.menuKeyboard = false;
     G.audio?.ui?.('menu');
   }
-  private buildMenu(title: string, opts: MenuOption[]): HTMLDivElement {
+  private menuKeyboard = false;
+  private buildMenu(title: string, opts: MenuOption[], parent?: HTMLDivElement): HTMLDivElement {
     const el = document.createElement('div');
     el.className = 'k-menu';
+    el.setAttribute('role', 'menu');
+    (el as any)._parent = parent || null;
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     if (title) { const h = document.createElement('div'); h.className = 'mh'; h.textContent = title; el.appendChild(h); }
     for (const o of opts) {
       if (o.label === '-') { const s = document.createElement('div'); s.className = 'sep'; el.appendChild(s); continue; }
       const mi = document.createElement('div');
       mi.className = 'mi' + (o.disabled ? ' dis' : '') + (o.danger ? ' danger' : '');
-      mi.textContent = o.label;
+      mi.tabIndex = -1;
+      mi.setAttribute('role', 'menuitem');
+      mi.appendChild(document.createTextNode(o.label));
       if (typeof o.disabled === 'string') { const w = document.createElement('span'); w.className = 'why'; w.textContent = o.disabled; mi.appendChild(w); }
+      const openSub = (focusFirst: boolean) => {
+        (el as any)._sub?.remove();
+        el.querySelectorAll('.mi.open').forEach((n) => n.classList.remove('open'));
+        const subEl = this.buildMenu('', o.sub!, el);
+        subEl.style.position = 'fixed';
+        document.body.appendChild(subEl);
+        const r = mi.getBoundingClientRect();
+        const sr = subEl.getBoundingClientRect();
+        let left = r.right + sr.width > window.innerWidth ? r.left - sr.width : r.right;
+        if (left < 4) left = Math.max(4, Math.min(window.innerWidth - sr.width - 4, r.left + 24));
+        subEl.style.left = left + 'px';
+        subEl.style.top = Math.max(4, Math.min(r.top - 4, window.innerHeight - sr.height - 6)) + 'px';
+        (el as any)._sub = subEl;
+        mi.classList.add('open');
+        if (focusFirst) (subEl.querySelector('.mi:not(.dis)') as HTMLElement | null)?.focus();
+      };
+      (mi as any)._openSub = o.sub && o.sub.length ? openSub : null;
+      mi.addEventListener('pointerenter', (e) => {
+        if (e.pointerType === 'mouse') mi.focus({ preventScroll: true });
+        if (o.sub && o.sub.length) { if ((el as any)._subFor !== mi) { (el as any)._subFor = mi; openSub(false); } }
+        else { (el as any)._sub?.remove(); (el as any)._sub = null; (el as any)._subFor = null; el.querySelectorAll('.mi.open').forEach((n) => n.classList.remove('open')); }
+        if (!o.disabled) sfx('hover', 0.7);
+      });
       if (o.sub && o.sub.length) {
         const s = document.createElement('span'); s.className = 'sub'; s.textContent = '▸'; mi.appendChild(s);
-        let subEl: HTMLDivElement | null = null;
-        mi.addEventListener('mouseenter', () => {
-          el.querySelectorAll(':scope > .k-menu').forEach((n) => n.remove());
-          subEl = this.buildMenu('', o.sub!);
-          subEl.style.position = 'fixed';
-          document.body.appendChild(subEl);
-          const r = mi.getBoundingClientRect();
-          const sr = subEl.getBoundingClientRect();
-          subEl.style.left = (r.right + sr.width > window.innerWidth ? r.left - sr.width : r.right) + 'px';
-          subEl.style.top = Math.min(r.top - 4, window.innerHeight - sr.height - 6) + 'px';
-          (el as any)._sub?.remove(); (el as any)._sub = subEl;
-          subEl.addEventListener('mouseleave', () => {});
-        });
-      } else {
-        mi.addEventListener('mouseenter', () => { (el as any)._sub?.remove(); });
+        mi.addEventListener('click', (e) => { e.stopPropagation(); (el as any)._subFor = mi; openSub(this.menuKeyboard); });
       }
       if (!o.disabled && o.action) mi.addEventListener('click', (e) => { e.stopPropagation(); this.closeMenu(); G.audio?.ui?.('click'); o.action!(); });
+      else if (o.disabled) mi.addEventListener('click', (e) => { e.stopPropagation(); sfx('error', 0.6); });
       el.appendChild(mi);
     }
     return el;
+  }
+  /** arrows / enter / esc drive an open context menu; those keys never reach the game meanwhile */
+  private menuKey(e: KeyboardEvent) {
+    if (!this.menuEl) return;
+    const k = e.key;
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape', ' '].includes(k)) return;
+    e.stopPropagation(); e.preventDefault();
+    this.menuKeyboard = true;
+    const active = document.activeElement as HTMLElement | null;
+    const cur = active?.classList.contains('mi') ? active : null;
+    const menu = (cur?.parentElement as HTMLDivElement | null) || this.deepestMenu();
+    const items = [...menu.querySelectorAll(':scope > .mi')] as HTMLElement[];
+    const i = cur ? items.indexOf(cur) : -1;
+    if (k === 'ArrowDown' || k === 'ArrowUp') {
+      const n = items.length;
+      if (!n) return;
+      const d = k === 'ArrowDown' ? 1 : -1;
+      let j = i < 0 ? (d > 0 ? 0 : n - 1) : (i + d + n) % n;
+      for (let tries = 0; tries < n && items[j].classList.contains('dis'); tries++) j = (j + d + n) % n;
+      items[j].focus();
+      sfx('hover', 0.7);
+    } else if (k === 'ArrowRight' && cur && (cur as any)._openSub) { (cur as any)._openSub(true); }
+    else if (k === 'ArrowLeft' || k === 'Escape') {
+      const parent = (menu as any)._parent as HTMLDivElement | null;
+      if (parent) { menu.remove(); (parent as any)._sub = null; (parent as any)._subFor = null; const opener = parent.querySelector('.mi.open') as HTMLElement | null; opener?.classList.remove('open'); opener?.focus(); }
+      else if (k === 'Escape') this.closeMenu();
+    } else if ((k === 'Enter' || k === ' ') && cur) cur.click();
+  }
+  private deepestMenu(): HTMLDivElement {
+    let m = this.menuEl!;
+    while ((m as any)._sub && (m as any)._sub.isConnected) m = (m as any)._sub;
+    return m;
   }
   closeMenu() {
     if (!this.menuEl) return;
@@ -229,13 +329,13 @@ export class UI {
   read(title: string, text: string, style: 'paper' | 'terminal' = 'paper') {
     this.closeReader();
     const el = document.createElement('div');
-    el.className = 'k-reader' + (style === 'terminal' ? ' terminal' : '');
-    el.innerHTML = `<div class="close">[ CLOSE ]</div><h3>${escapeHtml(title)}</h3><pre></pre>`;
+    el.className = 'k-reader ' + (style === 'terminal' ? 'terminal' : 'paper');
+    el.innerHTML = `<div class="close" role="button" tabindex="0">CLOSE · ESC</div><div class="k-rd"><h3>${escapeHtml(title)}</h3><pre></pre></div>${style === 'terminal' ? '<div class="fx"></div>' : ''}`;
     const pre = el.querySelector('pre')!;
-    if (style === 'terminal') {
+    if (style === 'terminal' && !calm()) {
       // typewriter effect on terminals
       let i = 0;
-      const tick = () => { if (!el.isConnected) return; i = Math.min(text.length, i + 6); pre.textContent = text.slice(0, i) + (i < text.length ? '█' : ''); if (i < text.length) setTimeout(tick, 16); };
+      const tick = () => { if (!el.isConnected) return; i = Math.min(text.length, i + 6); pre.textContent = text.slice(0, i) + (i < text.length ? '█' : ''); if (i % 24 === 0) sfx('type', 0.4); if (i < text.length) setTimeout(tick, 16); };
       tick();
     } else pre.textContent = text;
     el.querySelector('.close')!.addEventListener('click', () => this.closeReader());
@@ -250,10 +350,17 @@ export class UI {
   centerMessage(html: string, button?: { label: string; action: () => void }) {
     const el = document.createElement('div');
     el.className = 'k-center-msg';
-    el.innerHTML = html;
-    if (button) { const b = document.createElement('div'); b.className = 'k-btn'; b.textContent = button.label; b.onclick = () => { el.remove(); this.modal = null; button.action(); }; el.appendChild(b); }
+    el.innerHTML = `<div class="k-cm-t">${html}</div>`;
+    if (button) {
+      const b = document.createElement('div'); b.className = 'k-btn'; b.tabIndex = 0; b.setAttribute('role', 'button'); b.textContent = button.label;
+      b.onclick = () => { el.remove(); this.modal = null; sfx('confirm'); button.action(); };
+      b.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); b.click(); } });
+      el.appendChild(b);
+      setTimeout(() => b.focus(), 50);
+    }
     document.body.appendChild(el);
     this.modal = el;
+    sfx('error', 0.5);
     return el;
   }
 
