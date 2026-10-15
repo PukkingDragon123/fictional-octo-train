@@ -9,6 +9,7 @@ export default defineConfig({
     target: 'es2022',
     outDir: 'dist',
     assetsInlineLimit: 0,
+    cssCodeSplit: false, // one stylesheet, so single-page packaging can inline all of it
     chunkSizeWarningLimit: 4000,
   },
 });
