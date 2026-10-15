@@ -84,6 +84,7 @@ function onPlate(o: TileObject, x: number, z: number, m = 0.06) { return x >= o.
 /** objects that count as "pushed onto the plate" */
 function eatableObject(o: TileObject): boolean {
   if (o.key === 'hopper' || o.key === 'seam_door') return false;
+  if (o.key === 'debris_pile') return true; // smashed on the plate: the wreck goes down too
   const d = objDef(o.key);
   if (!d || d.onWall || d.ceiling) return false;
   const t = d.tags || [];
@@ -130,7 +131,7 @@ function geo(kind: 'needle' | 'glow' | 'pit' | 'scan' | 'curtain' | 'beacon' | '
     case 'scan': mb.flat(0, 0, 0, 1.92, 0.16, 'zd_scanline', o); break;
     case 'curtain': mb.panel(-0.92, 0, 0.92, 0, 0, 1.72, 'zd_curtain', o); mb.panel(0.92, 0, -0.92, 0, 0, 1.72, 'zd_curtain', o); break;
     case 'beacon': mb.cylinder(0, 0, 0, 0.065, 0.12, 8, 'zd_glow', o); break;
-    case 'lens': mb.sphere(0, 0, 0, 0.09, 8, 5, 'zd_glow', o); break;
+    case 'lens': mb.sphere(0, 0, 0, 0.045, 6, 4, 'zd_glow', o); break;
   }
   g = mb.build();
   GEO.set(k, g);
@@ -291,7 +292,7 @@ export class HopperSystem implements GameSystem {
     const scan = new THREE.Mesh(geo('scan', 0x6af0ff), ADD()); scan.position.set(0, 0.03, 0); scan.visible = false;
     const curtain = new THREE.Mesh(geo('curtain', 0x2a90b0), ADD()); curtain.visible = false;
     const beacon = new THREE.Mesh(geo('beacon', 0xffa020), ADD()); beacon.position.set(-0.4, 2.39, -0.88); beacon.visible = false;
-    const lens = new THREE.Mesh(geo('lens', 0x3ad0ff), ADD()); lens.position.set(0.86, 1.86, -0.66);
+    const lens = new THREE.Mesh(geo('lens', 0x1a90c0), ADD()); lens.position.set(0.86, 1.86, -0.62);
     for (const m of [glow, scan, curtain, beacon, lens]) { m.renderOrder = 6; (m as any).castShadow = false; }
     group.add(needle, glow, pit, scan, curtain, beacon, lens);
     this.root.add(group);

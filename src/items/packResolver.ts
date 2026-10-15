@@ -44,6 +44,15 @@ export function bestDest(p: Player, it: Item, exclude?: Container | null, count 
   return null;
 }
 
+/** the container (at any depth) that holds an item */
+function parentOf(c: Container, it: Item): Container | null {
+  for (const i of c.items) {
+    if (i === it) return c;
+    if (i.inv) { const r = parentOf(i.inv, it); if (r) return r; }
+  }
+  return null;
+}
+
 const pending = new Map<number, number>();
 const GRACE_MS = 1600;
 
@@ -53,9 +62,11 @@ export function settlePack(p: Player): boolean {
   let changed = false;
   const now = performance.now();
   // worn and held things live on the body (the main container), not inside a bag
-  for (const c of p.containers()) {
-    if (c === p.inv) continue;
-    for (const it of [...c.items]) if (isEquipped(it) && !it.inv) { c.remove(it); p.inv.items.push(it); it.parent = p.inv.uid; changed = true; }
+  for (const it of [...p.worn.values(), p.handR, p.handL]) {
+    if (!it || p.inv.items.includes(it)) continue;
+    const c = parentOf(p.inv, it);
+    if (!c) continue;
+    c.remove(it); p.inv.items.push(it); it.parent = p.inv.uid; changed = true;
   }
   const seen = new Set<number>();
   for (const c of p.containers()) {

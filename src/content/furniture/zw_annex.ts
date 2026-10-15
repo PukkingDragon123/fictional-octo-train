@@ -400,3 +400,18 @@ defObj({
     mb.box(0, 2.68, 0, 0.9, 0.02, 0.9, 'zw_black');
   },
 });
+
+defObj({
+  key: 'zw_annex_pillar', name: 'Column', height: 2.7, block: 'solid', movable: 0,
+  sound: 'metal', hp: 99999,
+  desc: 'A boxed-in column in the same beige as the walls, with a fire hose reel nobody has ever unrolled.',
+  tags: [...T, 'column', 'fixed'],
+  variant: (s) => String((s.v ?? 0) % 2),
+  model: (mb, s) => {
+    mb.box(0, 0, 0, 0.66, 2.7, 0.66, { sides: 'zw_wall_annex', top: 'wall_top' }, {});
+    if ((s.v ?? 0) % 2) {
+      mb.box(0, 1.0, 0.36, 0.42, 0.42, 0.06, 'metal_painted_green', { color: 0xc03028 });
+      mb.cylinderZ(0, 1.21, 0.39, 0.15, 0.04, 10, 'plastic_red', { caps: true });
+    } else mb.box(0, 1.9, 0.335, 0.2, 0.08, 0.01, 'zw_tag', { fit: true });
+  },
+});

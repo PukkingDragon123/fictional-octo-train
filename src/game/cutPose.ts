@@ -207,6 +207,19 @@ export function fallbackPose(name: string, u: number, t: number, k = 9): Pose | 
         gripL: 0, gripR: 0,
       });
     }
+    case 'cradle': {
+      // clutching the pierced wrist to the chest, rocking
+      const r = Math.sin(t * 2.4) * 0.05;
+      return P({
+        uarmL: [-0.75, -0.25, -0.1], farmL: [-1.7, -0.45, 0], handL: [0.2, 0, 0.3],
+        uarmR: [-0.55, 0.55, 0.1], farmR: [-1.55, 0.7, 0], handR: [0.3, 0, -0.4],
+        spine: [0.35 + r, 0, 0], chest: [0.2 + r, 0, 0], neck: [0.15, 0, 0], head: [0.35, 0.1, 0.05], gripL: 0.8, gripR: 0.95,
+      });
+    }
+    case 'hold_out_l': {
+      // the left arm held out, wrist up (the guard has it)
+      return P({ uarmL: [-1.2, 0.35, 0.05], farmL: [-0.35, 0.2, 0], handL: [0, 1.2, 0], chest: [0.05, 0.25, 0], head: [0.35, 0.3, 0], gripL: 0.6 });
+    }
     // ---- the handler's body language
     case 'arms_crossed': {
       const br = Math.sin(t * 1.4) * 0.015;

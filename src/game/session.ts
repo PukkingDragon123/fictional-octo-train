@@ -30,6 +30,8 @@ import { PauseMenu } from '../ui/menus/pause';
 import { TouchControls } from '../ui/touch/touch';
 import type { Net, Welcome } from '../net/net';
 import { introWanted, startIntro, INTRO_ZONE } from './intro';
+import { Handler } from './handler';
+import { SeamFx } from './seam';
 import '../game/worldOps';
 import '../world/zones';
 
@@ -163,6 +165,9 @@ export function startSession(o: SessionOpts): Game {
   }
   g.local = p;
   g.addPlayer(p);
+  // the Seam's overlays and Staff Sergeant Voss, the hologram handler (local to each player)
+  g.addSystem(new SeamFx());
+  g.addSystem(new Handler());
 
   // ---- the world: mission state, then every change ever made (op log)
   const mstate = w?.missions ?? s?.missions;

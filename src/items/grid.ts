@@ -38,6 +38,8 @@ export interface GridSpec {
   transient?: boolean;
   /** item key of the bag this grid belongs to */
   bagKey?: string;
+  /** what this grid will take at all (pockets don't take bags) */
+  accepts?: (it: Item) => boolean;
 }
 
 const clampI = (v: number, a: number, b: number) => Math.max(a, Math.min(b, Math.round(v)));
@@ -191,10 +193,12 @@ function pocketSpec(c: Container): GridSpec | null {
   }
   let w = 1, h = 1;
   for (const r of regions) { w = Math.max(w, r.x + r.w); h = Math.max(h, r.y + r.h); }
-  const spec = makeSpec(w, h, regions, 'pocket', 'pockets', sig);
+  const spec = makeSpec(w, h, regions, 'pocket', 'pockets', sig, { accepts: pocketAccepts });
   specCache.set(c, spec);
   return spec;
 }
+
+const pocketAccepts = (it: Item) => { const d = itemDef(it.key); return !d.bag && !d.heavy; };
 
 /** a bag's interior: hand-sized table or from its capacity */
 function bagSpec(c: Container): GridSpec {
@@ -282,7 +286,7 @@ export function occupancy(items: Item[], spec: GridSpec, skip?: Set<Item> | null
   for (const it of items) {
     if (skip?.has(it) || isEquipped(it)) continue;
     const p = pos(it);
-    if (!p) { bad.push(it); continue; }
+    if (!p || (spec.accepts && !spec.accepts(it))) { bad.push(it); continue; }
     const [w, h] = dimsOf(it, p.rot);
     const at = p.gx >= 0 && p.gy >= 0 && p.gx < spec.w && p.gy < spec.h ? cells[p.gy * spec.w + p.gx] : -1;
     if (at > 0) {
@@ -312,6 +316,7 @@ export type Fit = 'free' | 'stack' | 'blocked';
 /** can `count` of this item go at gx/gy/rot? */
 export function testFit(occ: Occ, it: Item, gx: number, gy: number, rot: Rot, count = 1): Fit {
   const spec = occ.spec;
+  if (spec.accepts && !spec.accepts(it)) return 'blocked';
   const [w, h] = dimsOf(it, rot);
   if (gx >= 0 && gy >= 0 && gx < spec.w && gy < spec.h) {
     const n = occ.cells[gy * spec.w + gx];
@@ -325,6 +330,7 @@ export function testFit(occ: Occ, it: Item, gx: number, gy: number, rot: Rot, co
 
 /** first spot that takes `count` of the item: an open stack of its kind, then the first free cell (both orientations) */
 export function findSpot(occ: Occ, it: Item, count = 1, prefer?: Rot): Placement | null {
+  if (occ.spec.accepts && !occ.spec.accepts(it)) return null;
   if (!isSolo(it) && stackMax(it.key) >= count + 1) {
     for (const a of occ.anchors) if (canStack(a.items[0], it) && a.items.length + count <= stackMax(it.key)) return { gx: a.gx, gy: a.gy, rot: a.rot };
   }

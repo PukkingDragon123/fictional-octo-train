@@ -144,7 +144,7 @@
 .ob-strip { display: grid; grid-template-columns: calc(var(--px) * 12) 1fr calc(var(--px) * 12); gap: var(--px); margin-top: var(--px); }
 .ob-strip-a { background: #1e201c; color: var(--dg-amber); border: 0; font-size: var(--t-body); line-height: calc(var(--px) * 13); }
 .ob-strip-a:hover, .ob-strip-a:focus-visible { background: var(--dg-amber); color: #1a1408; outline: none; }
-.ob-strip-v { display: grid; grid-template-columns: calc(var(--px) * 40) 1fr auto; align-items: center; gap: calc(var(--px) * 3); padding: calc(var(--px) * 2) calc(var(--px) * 4); border: 0; text-align: left;
+.ob-strip-v { display: grid; grid-template-columns: calc(var(--px) * 54) 1fr auto; align-items: center; gap: calc(var(--px) * 3); padding: calc(var(--px) * 2) calc(var(--px) * 4); border: 0; text-align: left;
   background: linear-gradient(var(--dg-paper), var(--dg-paper-2)); color: var(--dg-ink); }
 .ob-strip-v small { font-family: var(--font-stencil); font-size: var(--t-label); line-height: var(--t-label); color: var(--dg-red); }
 .ob-strip-v b { font-size: var(--t-body); line-height: var(--lh); font-weight: normal; }

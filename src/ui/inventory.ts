@@ -302,6 +302,8 @@ export class InventoryUI {
   private itemSignature(): string {
     const p = G.local;
     let s = '';
+    const fl = this.nearby[this.lootSel]?.c;
+    if (fl?.kind === 'floor') s += 'F' + fl.items.map((i) => i.uid).join(',');
     for (const v of this.views) {
       s += v.c.uid + ':';
       for (const it of v.c.items) s += it.uid + '.' + (it.gx ?? '_') + '.' + (it.gy ?? '_') + '.' + (it.rot ?? 0) + '.' + Math.round((it.uses ?? 1) * 20) + '.' + Math.round((it.fluid?.amount ?? 0) * 10) + '.' + Math.round(it.cond * 20) + ',';
@@ -335,7 +337,7 @@ export class InventoryUI {
     const bagW = bagArt ? bagArt.w : 96, bagH = bagArt ? bagArt.h : 80;
     const rigW = Math.max(bagW + 26, 110);
     const compactRig = innerHeight < 560;
-    const hookH = compactRig ? 0 : 12, scaleH = compactRig ? 0 : 40, strapH = compactRig ? 16 : 30;
+    const hookH = compactRig ? 0 : 12, scaleH = compactRig ? 0 : 40, strapH = compactRig ? 22 : 46;
     const rigH = hookH + scaleH + strapH + bagH + 6;
     const dollW = 20 + Art.DOLL_W, dollH = Art.DOLL_H;
     let lootSpec: GridSpec | null = null;
@@ -357,54 +359,63 @@ export class InventoryUI {
     let k = Math.floor(Math.min(W * 0.97 / fullW, H * 0.96 / fullH) * dpr);
     this.compact = k / dpr < 1.99 && W / dpr < 1400;
     let layoutW = fullW, layoutH = fullH;
+    const tapeH = 14;
     if (this.compact) {
-      const side = this.compactShow === 'body' ? dollW : lootW;
-      layoutW = side + gap + rigW + 30; layoutH = Math.max(this.compactShow === 'body' ? dollH : lootH, rigH) + 4;
-      k = Math.floor(Math.min(W * 0.98 / layoutW, H * 0.99 / layoutH) * dpr);
+      // phones: the bag, and beside it either your body or what you are looting (tapes switch)
+      const sideW = Math.max(this.compactShow === 'body' ? dollW : lootW, 120);
+      const sideH = (this.compactShow === 'body' ? dollH : lootH - 14) + tapeH;
+      layoutW = rigW + gap + sideW + 6; layoutH = Math.max(sideH, rigH) + 4;
+      k = Math.floor(Math.min(W * 0.99 / layoutW, H * 0.99 / layoutH) * dpr);
     }
     k = Math.max(2, k);
     this.bs = k / dpr;
     const bs = this.bs;
     this.root.style.setProperty('--bs', bs + 'px');
     const px = (v: number) => Math.round(v * bs) + 'px';
-    const stageW = Math.min(layoutW * bs, W), stageH = Math.min(layoutH * bs, H);
-    this.stage.style.left = Math.round((W - layoutW * bs) / 2) + 'px';
+    this.stage.style.left = Math.max(0, Math.round((W - layoutW * bs) / 2)) + 'px';
     this.stage.style.top = Math.max(0, Math.round((H - layoutH * bs) / 2)) + 'px';
     this.stage.style.width = px(layoutW); this.stage.style.height = px(layoutH);
-    void stageW; void stageH;
 
-    // --- columns
-    let x = 4;
-    const showDoll = !this.compact || this.compactShow === 'body';
-    const showLoot = !this.compact || this.compactShow === 'loot';
     if (this.compact) {
-      // a strip of tags on the far left switches between your body and what you're looting
-      const sw = document.createElement('div');
-      sw.className = 'bg-panel bg-tapes';
-      sw.style.left = px(2); sw.style.top = px(4); sw.style.flexDirection = 'column'; sw.style.alignItems = 'flex-start';
-      for (const [k2, label] of [['body', 'BODY'], ['loot', entry ? (entry.c.kind === 'floor' ? 'FLOOR' : entry.name) : 'LOOT']] as ['body' | 'loot', string][]) {
-        const t = document.createElement('div');
-        t.className = 'bg-tape';
-        t.style.setProperty('--r', k2 === 'body' ? '-90deg' : '-90deg');
-        const art = this.cachedArt('tape|' + label + '|' + (this.compactShow === k2), () => ({ pc: Art.paintTape(label, this.compactShow === k2) }));
-        t.appendChild(this.img(art.url, art.w, art.h));
-        t.style.transformOrigin = '0 0';
-        t.style.transform = 'rotate(-90deg)';
-        t.style.position = 'absolute'; t.style.left = '0'; t.style.top = px(k2 === 'body' ? 70 : 150);
-        t.addEventListener('click', () => { this.compactShow = k2; this.structSig = ''; G.audio?.ui?.('tab'); });
-        sw.appendChild(t);
-      }
-      this.stage.appendChild(sw);
-      x = 16;
+      this.buildRig(2, Math.max(0, layoutH - rigH - 2), rigW, hookH, scaleH, strapH, bags, bagC, bagSpec, bagArt, look, compactRig);
+      const sx = rigW + gap;
+      this.buildTapes(sx, 0, layoutW - sx, true);
+      if (this.compactShow === 'body') this.buildDoll(sx, tapeH + 2, p, bagItem);
+      else this.buildLoot(sx, tapeH - 12, entry, lootSpec, tray, lootStyle, false);
+      return;
     }
-    if (showDoll && !(this.compact && this.compactShow === 'loot')) {
-      this.buildDoll(x, layoutH - dollH - 4, p, bagItem);
-      x += dollW + gap;
-    }
-    const rigX = x;
-    this.buildRig(rigX, 0, rigW, hookH, scaleH, strapH, bags, bagC, bagSpec, bagArt, look, compactRig);
+    let x = 4;
+    this.buildDoll(x, layoutH - dollH - 4, p, bagItem);
+    x += dollW + gap;
+    this.buildRig(x, 0, rigW, hookH, scaleH, strapH, bags, bagC, bagSpec, bagArt, look, compactRig);
     x += rigW + gap;
-    if (showLoot && !(this.compact && this.compactShow === 'body')) this.buildLoot(x, Math.max(0, Math.round((layoutH - lootH) * 0.55)), entry, lootSpec, tray, lootStyle);
+    this.buildLoot(x, Math.max(0, Math.round((layoutH - lootH) * 0.55)), entry, lootSpec, tray, lootStyle, true);
+  }
+
+  /** the strip of masking-tape labels: every container in reach (and on phones, your body) */
+  private buildTapes(x0: number, y0: number, maxW: number, withBody: boolean) {
+    const tapes = document.createElement('div');
+    tapes.className = 'bg-panel bg-tapes';
+    this.place(tapes, x0, y0);
+    tapes.style.maxWidth = Math.round(maxW * this.bs) + 'px';
+    tapes.style.flexWrap = 'wrap';
+    const add = (label: string, on: boolean, i: number, pick: () => void, c?: Container) => {
+      const t = document.createElement('div');
+      t.className = 'bg-tape';
+      t.style.setProperty('--r', ((i * 37) % 7 - 3) + 'deg');
+      const a = this.cachedArt('tape|' + label + '|' + on, () => ({ pc: Art.paintTape(label, on) }));
+      t.appendChild(this.img(a.url, a.w, a.h));
+      t.addEventListener('pointerdown', (ev) => { if (this.drag) return; ev.stopPropagation(); pick(); G.audio?.ui?.('tab'); });
+      tapes.appendChild(t);
+      if (c) this.tabEls.push({ el: t, c });
+    };
+    if (withBody) add('body', this.compactShow === 'body', 99, () => { this.compactShow = 'body'; this.structSig = ''; });
+    this.nearby.forEach((e, i) => add(e.c.kind === 'floor' ? 'floor' : e.name, i === this.lootSel && (!withBody || this.compactShow === 'loot'), i, () => {
+      this.lootSel = i; this.compactShow = 'loot'; this.structSig = '';
+      if (e.obj) G.audio?.objSound?.(e.obj.key, 'open', e.obj.x, e.obj.y);
+    }, e.c));
+    this.stage.appendChild(tapes);
+    return tapes;
   }
 
   private img(url: string, w: number, h: number, cls = ''): HTMLImageElement {
@@ -481,7 +492,7 @@ export class InventoryUI {
       const two = it && p.handR === p.handL;
       const el = document.createElement('div');
       el.className = 'bg-hand';
-      const hx = hand === 'R' ? dx + 1 : dx + Art.DOLL_W - 35, hy = 146;
+      const hx = hand === 'R' ? dx + 1 : dx + Art.DOLL_W - 35, hy = 130;
       this.place(el, hx, hy, 34, 34);
       const slot = this.cachedArt('hand|' + hand + '|' + !!it, () => ({ pc: Art.paintHandSlot(hand, !!it) }));
       const sim = this.img(slot.url, slot.w, slot.h); sim.style.position = 'absolute'; el.appendChild(sim);
@@ -635,31 +646,13 @@ export class InventoryUI {
   }
 
   // ---------------------------------------------------------------- the loot side
-  private buildLoot(x0: number, y0: number, entry: Entry | undefined, spec: GridSpec | null, tray: { url: string; w: number; h: number; ix?: number; iy?: number } | null, style: string) {
+  private buildLoot(x0: number, y0: number, entry: Entry | undefined, spec: GridSpec | null, tray: { url: string; w: number; h: number; ix?: number; iy?: number } | null, style: string, withTapes: boolean) {
     const panel = document.createElement('div');
     panel.className = 'bg-panel bg-loot';
     const tw = tray ? tray.w : 80, th = tray ? tray.h : 60;
     this.place(panel, x0, y0, Math.max(tw, 110), th + 46);
     this.stage.appendChild(panel);
-    // tape labels for every container in reach
-    const tapes = document.createElement('div');
-    tapes.className = 'bg-tapes';
-    this.place(tapes, 0, 0);
-    this.nearby.forEach((e, i) => {
-      const label = e.c.kind === 'floor' ? 'floor' : e.name;
-      const t = document.createElement('div');
-      t.className = 'bg-tape';
-      t.style.setProperty('--r', ((i * 37) % 7 - 3) + 'deg');
-      const a = this.cachedArt('tape|' + label + '|' + (i === this.lootSel), () => ({ pc: Art.paintTape(label, i === this.lootSel) }));
-      t.appendChild(this.img(a.url, a.w, a.h));
-      t.addEventListener('pointerdown', (ev) => { if (this.drag) return; ev.stopPropagation(); this.lootSel = i; this.structSig = ''; G.audio?.ui?.('tab'); if (e.obj) G.audio?.objSound?.(e.obj.key, 'open', e.obj.x, e.obj.y); });
-      tapes.appendChild(t);
-      this.tabEls.push({ el: t, c: e.c });
-    });
-    // limit the strip to the panel; overflowing tapes wrap under each other
-    tapes.style.maxWidth = Math.round(Math.max(tw, 110) * this.bs) + 'px';
-    tapes.style.flexWrap = 'wrap';
-    panel.appendChild(tapes);
+    if (withTapes) { const tp = this.buildTapes(x0, y0, Math.max(tw, 110), false); tp.remove(); panel.appendChild(tp); tp.style.left = '0px'; tp.style.top = '0px'; }
     const ty = this.nearby.length > 4 ? 26 : 14;
     if (!entry || !spec || !tray) return;
     const trayIm = this.img(tray.url, tray.w, tray.h);
@@ -694,6 +687,9 @@ export class InventoryUI {
     for (const v of this.views) {
       let pos: ((it: Item) => Placement | undefined) | undefined;
       if (v.kind === 'floor') {
+        // the floor view is rebuilt from the world on every scan
+        const e = this.nearby[this.lootSel];
+        if (e?.c.kind === 'floor') v.c = e.c;
         const lay = packLayout(v.c.items, v.spec);
         v.layout = lay.at;
         pos = (it) => lay.at.get(it);
@@ -1376,6 +1372,29 @@ export class InventoryUI {
     this.svg.style.display = '';
   }
   private hideTag() { this.tagEl.classList.remove('on'); this.svg.style.display = 'none'; }
+
+  // ---------------------------------------------------------------- test hooks (scripts drive the bag with real pointer events)
+  /** screen rect of an item (by uid) as drawn in any grid */
+  rectOf(uid: number): { x: number; y: number; w: number; h: number } | null {
+    for (const v of this.views) for (const [, el] of v.els) {
+      const ref = this.anchorOf.get(el);
+      if (ref && ref.a.items.some((i) => i.uid === uid)) { const r = el.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; }
+    }
+    return null;
+  }
+  /** screen point at the centre of a cell of the grid showing container c (pockets: any pocket view holding the cell) */
+  cellPt(c: Container, gx: number, gy: number): { x: number; y: number } | null {
+    for (const v of this.views) if (v.c === c && v.contains(gx, gy)) {
+      const r = v.el.getBoundingClientRect(), s = v.cell * this.bs;
+      return { x: r.left + (gx - v.rx + 0.5) * s, y: r.top + (gy - v.ry + 0.5) * s };
+    }
+    return null;
+  }
+  /** which containers are on screen (bag, pockets, loot) */
+  shown(): { bag: Container | null; loot: Container | null } {
+    return { bag: this.views.find((v) => v.kind === 'bag')?.c ?? null, loot: this.views.find((v) => v.kind === 'loot' || v.kind === 'floor')?.c ?? null };
+  }
+  selectLoot(c: Container) { const i = this.nearby.findIndex((e) => e.c === c); if (i >= 0) { this.lootSel = i; this.structSig = ''; } }
 }
 
 /** an item's def (kept for other modules that imported it from here) */

@@ -298,7 +298,8 @@ export class HumanAnimator {
     const kw = 1 - Math.exp(-10 * dt);
     this.reachWL += (this.reachL.w - this.reachWL) * kw; this.reachWR += (this.reachR.w - this.reachWR) * kw;
     if (lod === 0) {
-      legIK(p, this.gait, D, { wL: this.ikL, wR: this.ikR, stiffL: this.stiffL, stiffR: this.stiffR, dt, maxDrop: 0.32 * D.s });
+      // on the move the pelvis may only sink a little to reach (a stretched trailing foot peels off instead); standing it can drop down a step
+      legIK(p, this.gait, D, { wL: this.ikL, wR: this.ikR, stiffL: this.stiffL, stiffR: this.stiffR, dt, maxDrop: lerp(0.3, 0.07 + 0.03 * this.sneakW, this.walkW) * D.s });
       if (this.reachWL > 0.01 || this.reachWR > 0.01) {
         chestFrame(p, D);
         this.doReach(p, D, 'L', this.reachL, this.reachWL);
@@ -418,9 +419,9 @@ export class HumanAnimator {
   private balance(p: Pose, dt: number, inp: AnimInput) {
     const up = (1 - this.fullW) * (1 - Math.max(this.swimW, this.crawlW)) * (this.oneLeg ? 0.5 : 1);
     const g = this.gait;
-    const leanT = clamp(g.acc * 0.028, -0.15, 0.13) * up;
+    const leanT = clamp(g.acc * 0.012, -0.07, 0.1) * up;
     const bankT = clamp(-g.v * g.turn * 0.02, -0.16, 0.16) * up;
-    this.bal[0] = spring(this.bal[0], this.balV, 0, leanT, 9, dt, 0.5);
+    this.bal[0] = spring(this.bal[0], this.balV, 0, leanT, 8, dt, 0.65);
     this.bal[1] = spring(this.bal[1], this.balV, 1, bankT, 8, dt, 0.75);
     p.bodyPitch = (p.bodyPitch ?? 0) + this.bal[0];
     p.bodyRoll = (p.bodyRoll ?? 0) + this.bal[1];
@@ -600,7 +601,7 @@ export class HumanAnimator {
       if (sn > 0.3) { add(p, 'uarmL', 0, 0, 0.12 * sn); add(p, 'uarmR', 0, 0, -0.12 * sn); }
       // body height (running: sink into each stance, float in flight)
       let ry = bob - sn * 0.24 - limp * Math.max(0, injL ? -sL : sL) * 0.05 * w - 0.015 * w;
-      ry += (-0.055 * this.gait.compress + 0.03 * this.gait.flight - 0.035) * r;
+      ry += (-0.04 * this.gait.compress + 0.025 * this.gait.flight - 0.015) * r;
       if (inp.drunk) ry -= 0.02 * inp.drunk;
       p.rootY = (p.rootY ?? 0) * (1 - w) + ry;
       // limp: torso leans over the injured leg during its stance, the hip hikes on the other
@@ -694,6 +695,11 @@ export class HumanAnimator {
     }
     if (inp.holding) p.gripR = 0.95;
     if (inp.heldL) p.gripL = 0.95;
+    // a bat, pipe or axe hangs from the fist pointing at the floor rather than jutting out forwards
+    const wk = inp.weapon;
+    if (inp.holding && !inp.holdingLight && (wk === 'blunt' || wk === 'axe' || wk === 'spear' || wk === 'tool') && !inp.twoHanded) {
+      add(p, 'handR', 0.85, 0, 0); add(p, 'farmR', -0.25, 0, 0); add(p, 'uarmR', 0, 0, -0.06);
+    }
     // a hand pressed to a bleeding wound (or a hungry stomach)
     const free = !inp.action && !inp.full && !this.emote && inp.stance !== 'swim' && inp.stance !== 'crawl' && !this.oneLeg && this.attackT <= 0;
     let clutch = free ? inp.clutch : undefined;

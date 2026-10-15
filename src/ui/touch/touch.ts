@@ -128,7 +128,7 @@ export class TouchControls implements GameSystem {
     this.stickBase = div(this.stick, 'nc-stick-base');
     this.stickKnob = div(this.stickBase, 'nc-stick-knob');
     this.groups.stick = this.stick;
-    this.btn(root, 'run', 'run', { label: 'RUN', cls: 'nc-runbtn', w: 1.0, h: 1.3, tap: () => this.toggleRun() });
+    this.btn(root, 'run', 'run', { label: 'RUN', cls: 'nc-runbtn', w: 1.15, h: 1.45, tap: () => this.toggleRun() });
 
     // ---- top bars
     const tl = this.group('tl', 'nc-group nc-row nc-tl');

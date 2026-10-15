@@ -29,7 +29,7 @@ export function text3(pc: PixelCanvas, s: string, x: number, y: number, c: numbe
 // ------------------------------------------------------------------ intake room textures
 /** the height chart behind the subject: 48 px per metre, 0..2.2 m */
 export function heightChart(): PixelCanvas {
-  const W = 88, H = 106, ppm = H / 2.2;
+  const W = 132, H = 242, ppm = H / 2.2;
   const pc = new PixelCanvas(W, H);
   pc.wrap = false;
   const bg = makeRamp(0xd6d2c2, 6, { spread: 0.35 });
@@ -38,23 +38,26 @@ export function heightChart(): PixelCanvas {
     pc.set(x, y, bg[n > 0.9 ? 1 : n > 0.25 ? 3 : 4]);
   }
   // water stains and a hand smear at shoulder height
-  for (let i = 0; i < 260; i++) { const x = Math.floor(ph(i, 1, 9) * W), y = Math.floor(H - 8 - ph(i, 2, 9) * 30); pc.blend(x, y, 0x8a7a50, 0.18); }
-  for (let i = 0; i < 40; i++) pc.blend(20 + Math.floor(ph(i, 3, 9) * 8), Math.floor(H - 1.45 * ppm + ph(i, 4, 9) * 10), 0x6a5a40, 0.25);
+  for (let i = 0; i < 700; i++) { const x = Math.floor(ph(i, 1, 9) * W), y = Math.floor(H - 8 - ph(i, 2, 9) * 50); pc.blend(x, y, 0x8a7a50, 0.18); }
+  for (let i = 0; i < 90; i++) pc.blend(30 + Math.floor(ph(i, 3, 9) * 14), Math.floor(H - 1.45 * ppm + ph(i, 4, 9) * 18), 0x6a5a40, 0.25);
+  // somebody scratched a tally into the paint
+  for (let i = 0; i < 9; i++) for (let j = 0; j < 7; j++) pc.blend(W - 16 + i * 1 + (i % 5 === 4 ? 0 : 0), H - 40 + j, 0x5a5040, i % 2 === 0 ? 0.55 : 0);
   const ink = 0x1e1c18;
   for (let cm = 0; cm <= 220; cm += 5) {
     const y = Math.round(H - 1 - (cm / 100) * ppm);
     const major = cm % 10 === 0;
-    const len = major ? (cm % 50 === 0 ? W : 18) : 9;
-    for (let x = 0; x < len; x++) pc.set(x, y, ink);
-    for (let x = W - len; x < W; x++) pc.set(x, y, ink);
+    const len = major ? (cm % 50 === 0 ? W : 22) : 10;
+    for (let x = 0; x < len; x++) pc.set(x, y, cm % 50 === 0 ? 0x8a1a14 : ink);
+    for (let x = W - len; x < W; x++) pc.set(x, y, cm % 50 === 0 ? 0x8a1a14 : ink);
     if (major && cm >= 100 && cm % 10 === 0) {
       const s = String(cm);
-      text3(pc, s, 20, y - 2, cm % 50 === 0 ? 0x8a1a14 : ink);
-      text3(pc, s, W - 20 - textW(s), y - 2, cm % 50 === 0 ? 0x8a1a14 : ink);
+      text3(pc, s, 25, y - 2, cm % 50 === 0 ? 0x8a1a14 : ink);
+      text3(pc, s, W - 25 - textW(s), y - 2, cm % 50 === 0 ? 0x8a1a14 : ink);
     }
   }
   // header
   for (let y = 0; y < 9; y++) for (let x = 0; x < W; x++) pc.set(x, y, y === 8 ? ink : 0x2a2826);
+  void ppm;
   text3(pc, 'MERIDIAN INTAKE B', Math.round(W / 2 - textW('MERIDIAN INTAKE B') / 2), 2, 0xe8b52a);
   return pc;
 }
@@ -226,3 +229,87 @@ export function stampWord(word: string, color: number, k = 2): PixelCanvas {
   void mixHex;
   return pc;
 }
+
+// ------------------------------------------------------------------ desk objects (title screen)
+type PC = PixelCanvas;
+function mk(w: number, h: number, draw: (pc: PC) => void): PC { const pc = new PixelCanvas(w, h); pc.wrap = false; draw(pc); return pc; }
+/** filled box with a 1px light top-left edge, dark bottom-right edge and a black outline */
+function bx(pc: PC, x: number, y: number, w: number, h: number, c: number, out = 0x0c0c0a) {
+  const R = makeRamp(c, 5, { spread: 0.5 });
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
+    const edge = i === 0 || j === 0 || i === w - 1 || j === h - 1;
+    pc.set(x + i, y + j, edge ? out : j === 1 || i === 1 ? R[4] : j === h - 2 || i === w - 2 ? R[1] : R[2 + (ph(x + i, y + j, 5) < 0.12 ? 1 : 0)]);
+  }
+}
+export const DESK_SPRITES: Record<string, () => PC> = {
+  folder: () => mk(34, 24, (pc) => {
+    bx(pc, 1, 2, 12, 5, 0xc8a86a);
+    bx(pc, 1, 5, 32, 18, 0xc8a86a);
+    for (let i = 0; i < 3; i++) for (let x = 4 + i; x < 30 - i; x++) pc.set(x, 4 - i, i === 0 ? 0xf0ece0 : 0xe0dccc);
+    bx(pc, 10, 10, 14, 6, 0xf4f0e2, 0x6a5a3a);
+    for (let x = 12; x < 22; x++) if (x % 3) pc.set(x, 12, 0x2a2826);
+    for (let x = 12; x < 19; x++) if (x % 2) pc.set(x, 13, 0x6a6458);
+  }),
+  release: () => mk(34, 24, (pc) => {
+    bx(pc, 1, 2, 12, 5, 0x8aa0b8);
+    bx(pc, 1, 5, 32, 18, 0x8aa0b8);
+    for (let x = 4; x < 30; x++) pc.set(x, 4, 0xf0ece0);
+    bx(pc, 9, 9, 16, 9, 0xf4f0e2, 0x3a4a5a);
+    for (let x = 11; x < 23; x++) pc.set(x, 12, 0xb8261e);
+    for (let x = 11; x < 20; x++) if (x % 2) pc.set(x, 14, 0x3a4a5a);
+  }),
+  phone: () => mk(34, 22, (pc) => {
+    bx(pc, 3, 10, 28, 11, 0x5a5e58);
+    bx(pc, 1, 4, 32, 6, 0x3a3e3a);
+    for (const x of [3, 27]) bx(pc, x, 2, 5, 4, 0x3a3e3a);
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 4; i++) bx(pc, 9 + i * 4, 12 + j * 3, 3, 2, 0xd8d4c4, 0x2a2826);
+    for (let i = 0; i < 8; i++) pc.set(31 + (i % 2), 14 + i, 0x2a2a2a);
+    pc.set(26, 12, 0xd8302a); pc.set(27, 12, 0xff5040);
+  }),
+  cabinet: () => mk(26, 34, (pc) => {
+    bx(pc, 1, 1, 24, 32, 0x5a6a5c);
+    for (let d = 0; d < 3; d++) {
+      bx(pc, 3, 3 + d * 10 - (d === 0 ? 2 : 0), 20, 9, 0x6a7a6c);
+      bx(pc, 9, 5 + d * 10 - (d === 0 ? 2 : 0), 8, 3, 0xe8e4d0, 0x2a2c28);
+      for (let x = 10; x < 16; x++) pc.set(x, 9 + d * 10 - (d === 0 ? 2 : 0), 0x1a1c18);
+    }
+    for (let i = 0; i < 5; i++) for (let x = 5 + i * 3; x < 7 + i * 3; x++) pc.set(x, 0, i % 2 ? 0xc8a86a : 0xe0c890);
+  }),
+  clipboard: () => mk(24, 32, (pc) => {
+    bx(pc, 1, 2, 22, 29, 0x8a6238);
+    bx(pc, 3, 5, 18, 24, 0xf0ece0, 0x8a846a);
+    bx(pc, 7, 0, 10, 5, 0xb8bab4);
+    for (let j = 0; j < 7; j++) for (let x = 5; x < 19; x++) if (ph(x, j, 3) > 0.3 || x < 9) pc.set(x, 9 + j * 3, j === 0 ? 0x2a2826 : 0x9a9688);
+    for (const j of [2, 4]) { pc.set(5, 9 + j * 3, 0xb8261e); pc.set(6, 8 + j * 3, 0xb8261e); }
+  }),
+  card: () => mk(28, 20, (pc) => {
+    bx(pc, 1, 1, 26, 18, 0xe8eef0, 0x3a4048);
+    for (let x = 2; x < 26; x++) pc.set(x, 4, 0x1c2a6a);
+    for (let j = 0; j < 4; j++) for (let x = 4; x < 24; x++) if ((x + j) % 5) pc.set(x, 7 + j * 3, 0x5a6470);
+    for (let i = 0; i < 6; i++) pc.blend(16 + i, 2 + i, 0xffffff, 0.7);
+  }),
+  vhs: () => mk(40, 24, (pc) => {
+    bx(pc, 1, 1, 38, 22, 0x1c1c1e);
+    bx(pc, 6, 3, 28, 9, 0xf0ece0, 0x5a5850);
+    for (const x of [10, 26]) { bx(pc, x, 14, 6, 6, 0x0e0e10, 0x2a2a2e); pc.set(x + 2, 16, 0x5a5a60); pc.set(x + 3, 17, 0x5a5a60); }
+    for (let x = 17; x < 24; x++) pc.set(x, 17, 0x3a3a40);
+    for (let x = 7; x < 33; x++) pc.set(x, 4, 0xb8261e);
+  }),
+  note: () => mk(20, 20, (pc) => {
+    for (let j = 0; j < 18; j++) for (let i = 0; i < 18; i++) if (i + j < 32) pc.set(1 + i, 1 + j, j === 0 ? 0xfff07a : 0xf4d84a);
+    for (let i = 0; i < 4; i++) for (let j = 0; j <= i; j++) pc.set(15 + i - j, 18 - j + 0, 0xc8a828);
+    for (let j = 0; j < 4; j++) for (let x = 4; x < 15 - (j === 3 ? 4 : 0); x++) if ((x * 7 + j) % 4) pc.set(x, 5 + j * 3, 0x3a3010);
+  }),
+  mug: () => mk(14, 14, (pc) => {
+    bx(pc, 1, 3, 10, 10, 0xe8e4d8);
+    for (let x = 2; x < 10; x++) pc.set(x, 4, 0x3a2414);
+    for (let j = 5; j < 10; j++) { pc.set(11, j, 0x0c0c0a); pc.set(12, j, j === 5 || j === 9 ? 0x0c0c0a : 0xd8d4c8); }
+    pc.set(13, 7, 0x0c0c0a);
+    for (let x = 3; x < 9; x++) pc.set(x, 8, 0xb8261e);
+  }),
+  ashtray: () => mk(18, 8, (pc) => {
+    bx(pc, 1, 3, 16, 4, 0x8a8e94);
+    for (let x = 4; x < 14; x++) pc.set(x, 4, 0x2a2a2a);
+    for (let x = 6; x < 15; x++) pc.set(x, 2, x > 12 ? 0xd85a2a : 0xe8e4d8);
+  }),
+};

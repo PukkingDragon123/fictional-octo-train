@@ -206,7 +206,7 @@ export function feetKitItems(a: Appearance): string[] {
     case 'boots': return ['socks', 'boots_work'];
     case 'socks': return ['socks'];
     case 'bare': return [];
-    default: return ['socks', 'slippers'];
+    default: return ['socks', 'canvas_slipons'];
   }
 }
 

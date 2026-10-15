@@ -12,7 +12,6 @@ import * as THREE from 'three';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { calm } from '../menus/settings';
-import type { Player } from '../../entities/player';
 
 interface UiLike { bubbles: any[]; root: HTMLElement }
 
@@ -163,12 +162,11 @@ export function initSubtitles(ui: UiLike) {
         let target: any = at;
         if (!target && style !== 'guard') {
           const v = new THREE.Vector3();
-          const ok = handlerPos(v);
-          if (ok) target = { x: v.x, y: v.y, z: v.z };
-          else if (G.local) {
-            const p: Player = G.local;
-            target = { get x() { return p.x + 0.9; }, get y() { return p.y + 2.5; }, get z() { return p.z - 0.4; } };
-          }
+          if (handlerPos(v)) target = { x: v.x, y: v.y, z: v.z };
+        }
+        if (!target && style !== 'guard') {
+          // nobody to hang it on: the sergeant is projected from the band, or (band down) from off screen
+          if (G.holo?.visible && G.holo.showLine) { G.holo.showLine(text, secs, 'voss', who || 'VOSS'); return; }
         }
         if (!target) {
           // an officer we cannot place: their voice comes from off screen, bottom of the picture

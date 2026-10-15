@@ -68,7 +68,7 @@ function prisonerOutfit(app: Appearance, inspect: boolean): Outfit {
     for (const k of ['torso', 'legs'] as const) if (outfit[k]) outfit[k] = { ...outfit[k]!, color: 0xd9a826 };
   }
   // canvas slip-ons: plain off-white shoes (the slippers item is pink and fluffy)
-  if ((app.feetKit ?? 'slipons') === 'slipons') outfit.feet = { tex: 'c_shoes_sneaker', color: 0xe4e0d4, item: 'slipons' };
+  if ((app.feetKit ?? 'slipons') === 'slipons' && !hasItemDef('canvas_slipons')) outfit.feet = { tex: 'c_shoes_sneaker', color: 0xe4e0d4, item: 'slipons' };
   if (inspect) {
     // examining body marks: the top half of the jumpsuit comes down
     outfit.torso = { tex: (app.bodyShape ?? 0.3) > 0.5 ? 'c_bandeau' : 'c_bare', color: 0xe8e4d8, sleeve: 'none' };

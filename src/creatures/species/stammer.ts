@@ -38,7 +38,7 @@ function bonesS(v: number): BoneSpec[] {
   ];
   for (const [s, k] of [['L', 1], ['R', -1]] as const) {
     b.push(
-      { name: 'arm' + s, parent: 'chest', at: [k * 0.17, 0.29, -0.01], cap: true },
+      { name: 'arm' + s, parent: 'chest', at: [k * 0.21, 0.29, -0.01], cap: true },
       { name: 'fore' + s, parent: 'arm' + s, at: [0, -0.56, 0], cap: true },
       { name: 'hand' + s, parent: 'fore' + s, at: [0, -0.74, 0], cap: true },
       { name: 'f1' + s, parent: 'hand' + s, at: [0, -0.1, 0] },
@@ -78,13 +78,13 @@ const TORSO_S: Row[] = [
   { y: 2.28, rx: 0.035, rf: 0.03, rb: 0.035 },
 ];
 const ARM_S = (L: number): Row[] => [
-  { y: 0.0, rx: 0.02, rf: 0.022, rb: 0.022 },
-  { y: -0.03, rx: 0.026, rf: 0.026, rb: 0.026 },
-  { y: -0.5, rx: 0.018, rf: 0.018, rb: 0.02 },
-  { y: -0.56, rx: 0.026, rf: 0.024, rb: 0.03 },   // elbows like knots
-  { y: -0.62, rx: 0.017, rf: 0.017, rb: 0.018 },
-  { y: -1.25 * L, rx: 0.012, rf: 0.013, rb: 0.013 },
-  { y: -1.3 * L, rx: 0.016, rf: 0.016, rb: 0.016 },
+  { y: 0.0, rx: 0.026, rf: 0.028, rb: 0.028 },
+  { y: -0.03, rx: 0.033, rf: 0.033, rb: 0.033 },
+  { y: -0.5, rx: 0.022, rf: 0.022, rb: 0.025 },
+  { y: -0.56, rx: 0.033, rf: 0.03, rb: 0.037 },   // elbows like knots
+  { y: -0.62, rx: 0.021, rf: 0.021, rb: 0.022 },
+  { y: -1.25 * L, rx: 0.015, rf: 0.016, rb: 0.016 },
+  { y: -1.3 * L, rx: 0.02, rf: 0.02, rb: 0.02 },
 ];
 const LEG_S: Row[] = [
   { y: 0.06, rx: 0.04, rf: 0.04, rb: 0.046 },
@@ -120,17 +120,17 @@ function buildS(B: SkinB, x: BuildCtx) {
     return [bi('chest'), 0.5, bi('neck'), 0.5];
   };
   // a ribcage you could count, a spine of knuckles
-  tube(B, { rows: TORSO_S, ys: [1.45, 1.5, 1.54, 1.58, 1.64, 1.7, 1.76, 1.84, 1.91, 1.98, 2.05, 2.12, 2.17, 2.2, 2.25, 2.28], n: 12, reg: R('TORSO'), vr: R('TORSO').range, at: [0, off, 0], w: (y) => tw(y), g: 1, start: [0, 1.445 + off, 0], end: [0, 2.29 + off, -0.004],
+  tube(B, { rows: TORSO_S.map((r) => ({ ...r, rx: r.rx * 1.3, rf: r.rf * 1.2, rb: r.rb * 1.25 })), ys: [1.45, 1.5, 1.54, 1.58, 1.64, 1.7, 1.76, 1.84, 1.91, 1.98, 2.05, 2.12, 2.17, 2.2, 2.25, 2.28], n: 12, reg: R('TORSO'), vr: R('TORSO').range, at: [0, off, 0], w: (y) => tw(y), g: 1, start: [0, 1.445 + off, 0], end: [0, 2.29 + off, -0.004],
     bump: (th, y) => (Math.cos(th) > -0.2 ? 0.09 * Math.pow(Math.max(0, Math.sin(y * 70)), 2) * gauss(y, 2.0, 0.12) : 0) + gauss(Math.abs(angd(th, Math.PI)), 0, 0.12) * 0.1 * Math.max(0, Math.sin(y * 95)) - gauss(y, 1.72, 0.06) * gauss(th, 0, 0.5) * 0.12 });
   tube(B, { rows: [{ y: -0.04, rx: 0.03, rf: 0.03, rb: 0.034 }, { y: 0.05, rx: 0.02, rf: 0.02, rb: 0.024 }, { y: 0.28, rx: 0.018, rf: 0.018, rb: 0.022 }, { y: 0.35, rx: 0.026, rf: 0.026, rb: 0.026 }],
     ys: [-0.04, 0.02, 0.08, 0.16, 0.24, 0.3, 0.35], n: 7, reg: R('NECK'), vr: R('NECK').range, at: x.rest('neck'), w: (y) => (y < 0.0 ? [bi('chest'), 0.5, bi('neck'), 0.5] : y > 0.3 ? [bi('neck'), 0.4, bi('head'), 0.6] : [bi('neck'), 1]), g: 4 });
   const hp = x.rest('head');
-  headLoft(B, { at: hp, rows: HEAD_S, reg: R('HEAD'), vr: R('HEAD').range, w: (y) => (y < 0.06 ? [bi('head'), 0.5, bi('jaw'), 0.5] : [bi('head'), 1]), g: 6, top: 0.235, bottom: -0.035,
+  headLoft(B, { at: hp, rows: HEAD_S, s: 1.3, reg: R('HEAD'), vr: R('HEAD').range, w: (y) => (y < 0.06 ? [bi('head'), 0.5, bi('jaw'), 0.5] : [bi('head'), 1]), g: 6, top: 0.235, bottom: -0.035,
     bump: (th, y) => -gauss(Math.abs(th), 0.32, 0.12) * gauss(y, 0.12, 0.018) * 0.22 - gauss(th, 0, 0.16) * gauss(y, 0.04, 0.03) * 0.16 });
   // the inside of the mouth: a long dark hole the jaw hangs open over
   {
     const J = bi('jaw'), z = hp[2] + 0.05;
-    B.quad([hp[0] - 0.024, hp[1] - 0.02, z], [hp[0] + 0.024, hp[1] - 0.02, z], [hp[0] + 0.024, hp[1] + 0.07, z], [hp[0] - 0.024, hp[1] + 0.07, z], R('MOUTH'), [0, 0, 1, 1], [J, 1]);
+    B.quad([hp[0] - 0.03, hp[1] - 0.03, z + 0.012], [hp[0] + 0.03, hp[1] - 0.03, z + 0.012], [hp[0] + 0.03, hp[1] + 0.09, z + 0.012], [hp[0] - 0.03, hp[1] + 0.09, z + 0.012], R('MOUTH'), [0, 0, 1, 1], [J, 1]);
   }
   for (const [s, k] of [['L', 1], ['R', -1]] as const) {
     const U = bi('arm' + s), F = bi('fore' + s), H = bi('hand' + s);
@@ -272,7 +272,7 @@ function animateStammer(rig: Rig, c: Creature, t: number, dt: number) {
   R('jaw', ud.jaw * 0.7, 0, 0);
   for (const [i, s, k] of [[0, 'L', 1], [1, 'R', -1]] as const) {
     // folded: upper arm down and forward, the forearm folded flat up against it, the hand at the chin
-    const ax = -0.25 * fold + (-1.55 - 0.1 * i) * (1 - fold) - cover * 1.3;
+    const ax = -0.25 * fold + (-2.05 - 0.1 * i) * (1 - fold) - cover * 1.3;
     const az = k * (0.18 * fold + 0.05 * (1 - fold) + cover * 0.25);
     R('arm' + s, ax, k * -0.15 * fold, az);
     R('fore' + s, -2.75 * fold - cover * 0.4 + 0.02, 0, 0);
@@ -296,7 +296,7 @@ function animateStammer(rig: Rig, c: Creature, t: number, dt: number) {
   // the picture tears on every skip, and a little all the time in the dark
   const F = K.kit.F.fx.value;
   F.y += dt;
-  F.x = skipK ? 0.85 : c.state === 'stalk' ? 0.03 : 0;
+  F.x = skipK ? 0.85 : 0;
   F.z = Math.min(1, c.hitFlash / 0.15) * 0.5;
   if (c.dead) {
     // it folds up like a deck chair and goes down
@@ -431,7 +431,7 @@ defDread('stammer', { stretch: { parts: ['foreL', 'foreR'], amount: 0.55 }, stin
 (S as any).animateGallery = (rig: Rig, t: number) => {
   const q = new URLSearchParams(location.search).get('pose') || '';
   const atk = q === 'attack' ? Math.max(0, 0.38 - (t % 1.4) * 0.5) : 0;
-  const c = fakeCreature(S, { id: 'g1', state: q === 'walk' ? 'flee' : 'stalk', speed: q === 'walk' ? 1 : 0, phase: t * 3, attackPhase: atk, mem: { netMem: { lit: q === 'lit' ? 1 : 0, sk: q === 'skip' ? Math.floor(t * 1.5) : 0 } } });
+  const c = fakeCreature(S, { id: 'g1', state: q === 'walk' ? 'flee' : 'stalk', speed: q === 'walk' ? 1 : 0, phase: t * 3, attackPhase: q === 'reach' ? 0.05 : atk, mem: { netMem: { lit: q === 'lit' ? 1 : 0, sk: q === 'skip' ? Math.floor(t * 1.5) : 0 } } });
   animateStammer(rig, c, t, 1 / 60);
 };
 void mixHex; void angleDiff; void seenByAny;

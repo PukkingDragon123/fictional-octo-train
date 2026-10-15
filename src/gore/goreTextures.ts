@@ -280,8 +280,114 @@ function chipBits(pc: PixelCanvas, P: Pal) {
   for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) pc.set(x, y, P.c[y === 0 ? 5 : x === 7 || y === 7 ? 1 : 2 + Math.floor(ph(x, y, 10) * 3)]);
 }
 
+// ---------------------------------------------------------------- wounds on bodies (fit-once cut-outs)
+/** a gash: dark slit, wet red flesh either side, a lighter cut rim, a few runs below */
+function gash(pc: PixelCanvas, rng: Rng, big: boolean) {
+  pc.wrap = false; pc.clear();
+  const R = PALS.red.c;
+  const cx = 8, cy = 7, len = big ? 7 : 5.5, a = rng.float(-0.5, 0.5);
+  for (let s = -len; s <= len; s++) {
+    const t = 1 - Math.abs(s) / (len + 1), w = Math.max(1, Math.round(t * (big ? 3 : 2)));
+    for (let j = -w; j <= w; j++) {
+      const x = Math.round(cx + Math.cos(a) * s - Math.sin(a) * j * 0.8), y = Math.round(cy + Math.sin(a) * s + Math.cos(a) * j);
+      const e = Math.abs(j) === w;
+      over(pc, x, y, e ? (j < 0 ? 0xd8a088 : R[2]) : Math.abs(j) <= w * 0.3 ? R[0] : R[3], 250);
+    }
+  }
+  for (let i = 0; i < (big ? 4 : 2); i++) { let x = cx + rng.float(-4, 4), y = cy + 2; const n = rng.int(2, 6); for (let k = 0; k < n; k++) over(pc, Math.round(x), Math.round(y++), k === n - 1 ? R[3] : R[2], 240); }
+  over(pc, cx - 1, cy - 1, PALS.red.hi, 250);
+}
+/** a bullet hole: a dark pit, a crushed ring, a halo of spatter */
+function hole(pc: PixelCanvas, rng: Rng) {
+  pc.wrap = false; pc.clear();
+  const R = PALS.red.c;
+  disc(pc, 8, 8, 3.2, R[2], 220); disc(pc, 8, 8, 2, R[1], 250); disc(pc, 8, 8, 1, 0x0a0303, 255);
+  for (let i = 0; i < 9; i++) { const a = rng.float(0, 6.28), d = rng.float(3.6, 6.5); over(pc, Math.round(8 + Math.cos(a) * d), Math.round(8 + Math.sin(a) * d), R[3], 230); }
+  for (let y = 10; y < 15; y++) over(pc, 8 + (y > 12 ? 1 : 0), y, R[2], 230);
+}
+/** tooth marks: two crescents of punctures, torn between */
+function bite(pc: PixelCanvas, rng: Rng) {
+  pc.wrap = false; pc.clear();
+  const R = PALS.red.c;
+  for (const [cy, sgn] of [[5, 1], [11, -1]] as const) for (let i = 0; i < 6; i++) {
+    const x = 3 + i * 2, y = cy + sgn * Math.round(Math.abs(i - 2.5) * 0.6);
+    over(pc, x, y, R[0], 255); over(pc, x, y + sgn, R[2], 240); over(pc, x + 1, y, R[3], 200);
+  }
+  for (let x = 4; x < 13; x++) if (rng.chance(0.6)) for (let y = 7; y <= 9; y++) over(pc, x, y, rng.chance(0.5) ? R[2] : R[3], 230);
+}
+/** crushed: purple-black bruise with a split down the middle */
+function crush(pc: PixelCanvas, rng: Rng) {
+  pc.wrap = false; pc.clear();
+  const R = PALS.red.c;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const m = blob(x, y, 8, 8, 6.5, 5.5, 3, 0.5);
+    if (m <= 0) continue;
+    over(pc, x, y, m > 0.55 ? 0x3a1020 : m > 0.25 ? 0x5a1a2e : 0x7a3a4a, Math.round(110 + m * 140));
+  }
+  let x = 4;
+  for (; x < 13; x++) { const y = 8 + Math.round(Math.sin(x * 1.3) * 0.8); over(pc, x, y, R[0], 255); over(pc, x, y + 1, R[3], 230); }
+  void rng;
+}
+/** opened up: a ragged hole with ribs across it and something wet and grey-pink behind */
+function opened(pc: PixelCanvas, rng: Rng) {
+  pc.wrap = false; pc.clear();
+  const R = PALS.red.c;
+  for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
+    const m = blob(x, y, 12, 12, 10, 9, 5, 0.55);
+    if (m <= 0) continue;
+    let c = m < 0.12 ? R[2] : m < 0.2 ? R[3] : (ph(x >> 1, y >> 1, 4) > 0.55 ? 0xb07a80 : 0x8a4a54);
+    if (m > 0.2 && ph(x, y, 9) > 0.86) c = PALS.red.hi;
+    over(pc, x, y, c, 250);
+  }
+  // ribs: pale curved bars with dark gaps
+  for (let k = 0; k < 4; k++) {
+    const y0 = 6 + k * 4;
+    for (let x = 4; x < 20; x++) {
+      const y = y0 + Math.round(Math.abs(x - 12) * 0.18);
+      if (blob(x, y, 12, 12, 10, 9, 5, 0.55) < 0.15) continue;
+      over(pc, x, y, 0xe8dcc8, 255); over(pc, x, y + 1, 0xb8a890, 255); over(pc, x, y - 1, R[0], 200);
+    }
+  }
+  for (let i = 0; i < 4; i++) over(pc, rng.int(6, 18), rng.int(6, 18), R[0], 255);
+}
+function guts(pc: PixelCanvas) {
+  // looped intestine: fat pink-grey tubes with dark creases and a wet sheen (tileable)
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
+    const v = Math.sin((x + Math.sin(y * 0.8) * 2) * 0.9) * 0.5 + 0.5;
+    const c = v > 0.82 ? 0xe0a8a8 : v > 0.5 ? 0xc07a80 : v > 0.2 ? 0x9a5260 : 0x5a2430;
+    pc.set(x, y, c);
+  }
+  for (const [x, y] of [[3, 2], [11, 5], [6, 10], [13, 13]]) pc.set(x, y, 0xffe0e0);
+}
+function ribs(pc: PixelCanvas) {
+  const R = PALS.red.c;
+  for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) pc.set(x, y, (y % 4) === 1 ? 0xe8dcc8 : (y % 4) === 2 ? 0xb8a890 : ph(x, y, 6) > 0.5 ? R[2] : R[1]);
+}
+/** a run of blood down a wall: thin line (tileable vertically) and the bead at its front */
+function runline(pc: PixelCanvas, P: Pal) {
+  pc.wrap = false; pc.clear();
+  for (let y = 0; y < 16; y++) { over(pc, 1, y, P.c[2], 245); over(pc, 2, y, y % 5 === 2 ? P.c[3] : P.c[1], 230); }
+}
+function bead(pc: PixelCanvas, P: Pal) {
+  pc.wrap = false; pc.clear();
+  over(pc, 1, 0, P.c[2], 245); over(pc, 2, 0, P.c[2], 245);
+  for (let x = 0; x < 4; x++) for (let y = 1; y < 4; y++) if (!(x === 0 && y === 3) && !(x === 3 && y === 3)) over(pc, x, y, y === 1 && x === 1 ? P.hi : P.c[3], 250);
+}
+
 addTextureModule(() => {
   const A = atlas();
+  A.add('gore_wound_gash', 16, 14, (pc, rng) => gash(pc, rng, false));
+  A.add('gore_wound_cleave', 16, 14, (pc, rng) => gash(pc, rng, true));
+  A.add('gore_wound_hole', 16, 16, (pc, rng) => hole(pc, rng));
+  A.add('gore_wound_bite', 16, 16, (pc, rng) => bite(pc, rng));
+  A.add('gore_wound_crush', 16, 16, (pc, rng) => crush(pc, rng));
+  A.add('gore_wound_open', 24, 24, (pc, rng) => opened(pc, rng));
+  A.add('gore_guts', 16, 16, (pc) => guts(pc));
+  A.add('gore_ribs', 16, 16, (pc) => ribs(pc));
+  for (const k of ['red', 'oil', 'glow']) {
+    A.add(`gore_${k}_runline`, 4, 16, (pc) => runline(pc, PALS[k]));
+    A.add(`gore_${k}_bead`, 4, 4, (pc) => bead(pc, PALS[k]));
+  }
   for (const k of GORE_PALETTES) {
     const P = PALS[k];
     A.add(`gore_${k}_splat_a`, 32, 32, (pc, rng) => splat(pc, P, k, rng, 3));

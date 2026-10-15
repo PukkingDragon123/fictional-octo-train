@@ -207,12 +207,6 @@ function soupGeo(s: Soup, c: THREE.Vector3): THREE.BufferGeometry {
 /** what the inside of a broken board / cushion / panel looks like */
 const INTERIOR: Record<Mat, string> = { wood: 'dbr_splinter', fabric: 'dbr_stuffing', paper: 'dbr_paper', metal: 'metal_grey', plastic: '', ceramic: 'porcelain', elec: 'dbr_pcb', glass: '', flesh: 'dbr_wax' };
 const FACES = ['top', 'bottom', 'north', 'south', 'east', 'west'] as const;
-function faceTexOf(spec: TexSpec, f: typeof FACES[number]): string {
-  if (typeof spec === 'string') return spec;
-  if (spec[f]) return spec[f]!;
-  if (f !== 'top' && f !== 'bottom' && spec.sides) return spec.sides;
-  return spec.all || 'white';
-}
 
 /** a ragged sub-box cut out of a recorded box (same spec, same transform: the texture carries across the cut; cut faces show the raw inside) */
 function subBox(r: NonNullable<Rec['box']>, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, mat: Mat, tex: string, rng: Rng, shrink: number): Soup {
@@ -231,7 +225,6 @@ function subBox(r: NonNullable<Rec['box']>, x0: number, x1: number, y0: number, 
   nb.box(cx, cy, cz, w, h, d, r.spec, { ...r.opts, skip });
   const keep = FACES.filter((f) => !inner[f]) as any;
   nb.box(cx, cy, cz, w, h, d, it, { skip: keep, uvOffset: [rng.float(0, 1), rng.float(0, 1)] });
-  void faceTexOf;
   return soupAll(nb, mat, tex);
 }
 

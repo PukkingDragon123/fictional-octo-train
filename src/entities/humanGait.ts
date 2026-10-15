@@ -161,9 +161,9 @@ export class Gait {
     // stride shortens when moving sideways or backwards (side-steps instead of crossing the legs)
     const fwd = Math.sin(f.yaw) * this.dirX + Math.cos(f.yaw) * this.dirZ;
     const side = 0.55 + 0.45 * Math.abs(fwd);
-    const Sw = Math.min(1.75, 0.62 + 0.48 * v) * s, Sr = (1.05 + 0.4 * v) * s;
+    const Sw = Math.min(1.6, 0.5 + 0.42 * v) * s, Sr = (0.95 + 0.38 * v) * s;
     this.S = Math.max(0.35, (Sw + (Sr - Sw) * run) * (1 - 0.14 * sn) * (1 - 0.28 * f.limp) * side * (1 - f.tired * 0.12));
-    this.beta = (0.6 + 0.06 * sn) * (1 - run) + 0.36 * run;
+    this.beta = (0.6 + 0.06 * sn) * (1 - run) + 0.32 * run;
     const beta = this.beta;
     if (!this.init) this.plantAll(f, D);
     if (!f.active) { this.plantAll(f, D); this.moving = false; this.output(f, D); return; }
@@ -274,7 +274,7 @@ export class Gait {
     const tRem = Math.max(0, 1 - ft.tau) * ft.dur;
     const px = this.trkX + this.vx * tRem, pz = this.trkZ + this.vz * tRem;
     const pyaw = this.yaw + this.turn * tRem * 0.8;
-    const lead = (0.5 - 0.1 * f.run) * this.beta * this.S;
+    const lead = (0.47 - 0.11 * f.run) * this.beta * this.S;
     const s = D.s;
     // feet land close to the midline at speed, wider when sneaking; a drunk weaves
     const w = ((0.085 - 0.035 * f.run + 0.03 * f.sneak) * s + f.drunk * 0.05 * Math.sin(this.cyc * 2.3 + i)) * ft.k;
@@ -298,7 +298,7 @@ export class Gait {
     if (ft.idle) { ft.dur = 0.26; ft.lift = FOOT_LIFT_IDLE * D.s; ft.landRoll = -0.08; }
     else {
       ft.dur = (1 - this.beta) * this.S / Math.max(0.3, this.v);
-      ft.lift = ((0.07 + 0.16 * f.run) * (1 - 0.35 * f.sneak) * (1 - 0.45 * f.tired)) * D.s;
+      ft.lift = ((0.075 + 0.3 * f.run) * (1 - 0.35 * f.sneak) * (1 - 0.45 * f.tired)) * D.s;
       ft.landRoll = f.run > 0.5 ? 0.06 : -0.24 * (1 - 0.5 * f.sneak);
     }
     this.stepCool = 0.06;
@@ -336,10 +336,10 @@ export class Gait {
       if (ft.sw) {
         const t = Math.min(1, ft.tau);
         // the foot peels up behind first, then swings through low and reaches for the ground
-        const hz = smooth(ft.idle ? t : Math.pow(t, 1.25 + 0.4 * f.run));
+        const hz = smooth(ft.idle ? t : Math.pow(t, 1.25 + 0.5 * f.run));
         x = ft.fx + (ft.tx - ft.fx) * hz; z = ft.fz + (ft.tz - ft.fz) * hz;
         const climb = Math.max(0, ft.ty - ft.fy);
-        const arc = Math.sin(Math.PI * Math.pow(t, ft.idle ? 1 : 0.72));
+        const arc = Math.sin(Math.PI * Math.pow(t, ft.idle ? 1 : 0.72 - 0.22 * f.run));
         y = ft.fy + (ft.ty - ft.fy) * smooth(t * 1.15) + (ft.lift + climb * 0.8) * arc;
         yaw = lerpA(ft.fyaw, ft.tyaw, hz);
         roll = ft.froll + (ft.landRoll - ft.froll) * smooth(t);

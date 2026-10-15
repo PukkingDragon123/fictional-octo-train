@@ -109,11 +109,17 @@ export class Ragdoll {
    * @param vel     world velocity of the whole body (m/s)
    * @param imp     extra world velocity for the struck part (m/s)
    * @param part    body part key that was struck ('' = none)
+   * @param collapse 0..1 how limply it folds (1: dead weight, knees buckling)
    */
-  start(bones: Record<BoneName, THREE.Object3D>, d: Dims, vel: THREE.Vector3, imp: THREE.Vector3, part = '') {
+  start(bones: Record<BoneName, THREE.Object3D>, d: Dims, vel: THREE.Vector3, imp: THREE.Vector3, part = '', collapse = 1) {
     this.dims = d;
     this.active = true; this.asleep = false; this.t = 0; this.calm = 0; this.acc = 0;
     const hitIdx = partParticles(part);
+    // the body's forward (hips z axis) and left (x axis) for the collapse: knees buckle forward, the pelvis drops, arms splay
+    const he = bones.hips.matrixWorld.elements;
+    const fx = he[8], fz = he[10], fl = Math.hypot(fx, fz) || 1;
+    const lx = he[0], lz = he[2], ll = Math.hypot(lx, lz) || 1;
+    const rnd = (k: number) => (Math.random() - 0.5) * 2 * k;
     for (let i = 0; i < N; i++) {
       const [b, x, y, z, r] = P[i];
       _a.set(x * d.s, y * d.s, z * d.s).applyMatrix4(bones[b].matrixWorld);
@@ -122,9 +128,15 @@ export class Ragdoll {
       // initial velocity: the body's, plus the blow on the part it hit (and a share of it everywhere)
       const k = hitIdx.includes(i) ? 1 : hitIdx.length ? 0.32 : 0.25;
       const h = 1 / 60;
-      this.prev[i * 3] = _a.x - (vel.x + imp.x * k) * h;
-      this.prev[i * 3 + 1] = _a.y - (vel.y + imp.y * k) * h;
-      this.prev[i * 3 + 2] = _a.z - (vel.z + imp.z * k) * h;
+      // the strings are cut: the pelvis drops, the knees go forward, the arms fly loose
+      let cx = 0, cy = 0, cz = 0;
+      if (i === 0 || i === 13 || i === 17) cy = -1.3 * collapse;
+      else if (i === 14 || i === 18) { const kk = (1.1 + rnd(0.5)) * collapse; cx = (fx / fl) * kk + (lx / ll) * rnd(0.4); cz = (fz / fl) * kk + (lz / ll) * rnd(0.4); cy = -0.6 * collapse; }
+      else if (i === 6 || i === 7 || i === 10 || i === 11) { const side = i < 9 ? 1 : -1; const kk = (0.6 + rnd(0.5)) * collapse; cx = (lx / ll) * side * kk + rnd(0.4); cz = (lz / ll) * side * kk + rnd(0.4); cy = rnd(0.5); }
+      else if (i === 3 || i === 4) cy = -0.4 * collapse;
+      this.prev[i * 3] = _a.x - (vel.x + imp.x * k + cx) * h;
+      this.prev[i * 3 + 1] = _a.y - (vel.y + imp.y * k + cy) * h;
+      this.prev[i * 3 + 2] = _a.z - (vel.z + imp.z * k + cz) * h;
     }
     for (let c = 0; c < CONS.length; c++) { this.restPos(CONS[c][0], d, _a); this.restPos(CONS[c][1], d, _b); this.rest[c] = _a.distanceTo(_b); }
     for (let c = 0; c < MINS.length; c++) {

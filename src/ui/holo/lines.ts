@@ -42,7 +42,11 @@ export const OVERDUE = ['Installment overdue. Corrective measures authorised.', 
 
 export const WARN: Record<string, string[]> = {
   escape: ['Boundary violation. Return to the remittance area.', 'You are leaving coverage. Turn back.'],
+  seam: ['Seam proximity. Step away from the wall.', 'That door is not for you. Step back.'],
+  exit: ['Unauthorised exit. Return to the remittance area.', 'You are leaving coverage. Turn back.'],
+  abscond: ['Absconding detected. Final notice.'],
   tamper: ['Tamper detected. Hands away from the unit.', 'Do not touch the band.'],
+  force: ['Tamper detected. Hands away from the unit.', 'Forced removal will be treated as default.'],
   overdue: ['Installment overdue. Correction pending.'],
   default: ['Warning. Non-compliance detected.', 'Final notice.'],
 };
@@ -57,7 +61,7 @@ export const LEAKS = [
   'There is no transport. Correction. Transport is available for purchase.',
   'Your heartbeat is not the only one I am reading.',
   'They made a copy of you in the next room. It is paying faster.',
-  'D-4471 was a person once. Do not worry. You will be again.',
+  '{id} was a person once. Do not worry. You will be again.',
   'Smile. You are being valued.',
   'Do not trust the sergeant. Disregard. Trust the sergeant.',
   'I was fitted to someone before you. I still hear them.',

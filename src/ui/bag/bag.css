@@ -161,3 +161,4 @@
 .bg-hud > div:active { transform: translateY(var(--bs)); box-shadow: inset var(--bs) var(--bs) 0 #a8966a; }
 .bg-hud > .n { background: #e8b52a; min-width: calc(var(--bs) * 16); border-radius: 0; }
 .bg-hud > .x { background: #c8a89a; }
+.bg-doll > img:first-child, .bg-loot > img, .bg-swing > img:nth-child(2) { filter: drop-shadow(calc(var(--bs) * 3) calc(var(--bs) * 4) 0 rgba(0, 0, 0, 0.55)); }

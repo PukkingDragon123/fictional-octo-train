@@ -44,7 +44,7 @@ export class Reactions {
     const r = Math.random() < 0.5 ? -1 : 1;
     this.since = 0;
     // every blow: the pelvis is shoved (the feet step to catch it), a flinch through the trunk
-    v[C.HX] += fx * 0.55 * s; v[C.HZ] += fz * 0.55 * s;
+    v[C.HX] += fx * 2.3 * s; v[C.HZ] += fz * 2.3 * s;
     v[C.TP] += -fz * 2.2 * s; v[C.TR] += -fx * 2.0 * s;
     v[C.AL] += 2.4 * s; v[C.AR] += 2.4 * s;
     switch (g) {
@@ -88,7 +88,7 @@ export class Reactions {
     let live = false;
     for (let i = 0; i < C.N; i++) {
       // stiffer for the head and arms, softer for the trunk and the pelvis
-      const w = i === C.HX || i === C.HZ || i === C.DIP ? 7 : i === C.SPIN ? 6 : i <= C.TY ? 10 : 13;
+      const w = i === C.HX || i === C.HZ ? 6 : i === C.DIP ? 7 : i === C.SPIN ? 6 : i <= C.TY ? 7.5 : 10;
       const z = i === C.SPIN ? 0.7 : i === C.HX || i === C.HZ ? 0.8 : 0.42;
       const k = w * w, c = 2 * z * w;
       const n = h > 0.025 ? 2 : 1, hh = h / n;

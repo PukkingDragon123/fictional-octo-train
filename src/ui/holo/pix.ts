@@ -26,6 +26,21 @@ const F3B = new Map<string, Uint8Array>();
 for (const [k, s] of Object.entries(F3)) { const b = new Uint8Array(15); for (let i = 0; i < 15; i++) b[i] = s[i] === '1' ? 1 : 0; F3B.set(k, b); }
 const F3Q = F3B.get('?')!;
 
+/** a 3x5 glyph as a white mask image (DOM text that needs the band's own signs, like scrip) */
+const glyph3Cache = new Map<string, string>();
+export function glyph3Url(ch: string, k = 4): string {
+  let u = glyph3Cache.get(ch);
+  if (u) return u;
+  const g = F3B.get(ch) || F3Q;
+  const c = document.createElement('canvas'); c.width = 3 * k; c.height = 5 * k;
+  const x = c.getContext('2d')!;
+  x.fillStyle = '#fff';
+  for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (g[j * 3 + i]) x.fillRect(i * k, j * k, k, k);
+  u = c.toDataURL();
+  glyph3Cache.set(ch, u);
+  return u;
+}
+
 export interface Ink { r: number; g: number; b: number }
 export const ink = (hex: number): Ink => ({ r: (hex >> 16) & 255, g: (hex >> 8) & 255, b: hex & 255 });
 export function mixInk(a: Ink, b: Ink, t: number, out: Ink = { r: 0, g: 0, b: 0 }): Ink {

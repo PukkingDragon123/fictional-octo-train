@@ -200,7 +200,7 @@ export class IntakeStage {
     // height chart (clickable)
     const chartPc = heightChart();
     const chartTex = this.texOf(chartPc);
-    const chart = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 2.2), new THREE.MeshLambertMaterial({ map: chartTex }));
+    const chart = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 2.2), new THREE.MeshLambertMaterial({ map: chartTex }));
     chart.position.set(0, 1.1, D0 + 0.012);
     chart.receiveShadow = true;
     chart.userData.pick = 'chart';
@@ -224,8 +224,8 @@ export class IntakeStage {
     this.turn.add(held);
     // folded uniform on the bench (clickable)
     const fold = new ModelBuilder();
-    fold.box(0, 0, 0, 0.36, 0.08, 0.3, 'fabric_grey', { color: 0xe0b030 });
-    fold.box(0, 0.08, 0, 0.34, 0.03, 0.28, 'fabric_grey', { color: 0xf0c040 });
+    fold.box(0, 0, 0, 0.36, 0.08, 0.3, 'plastic_white', { color: 0xe8a818 });
+    fold.box(0, 0.08, 0, 0.34, 0.03, 0.28, 'plastic_white', { color: 0xf8c030 });
     fold.box(-0.07, 0.11, 0.06, 0.1, 0.004, 0.05, 'paper', { color: 0xf0ece0 });
     fold.box(0.02, 0, 0.2, 0.3, 0.1, 0.16, 'plastic_white', { color: 0x8a8c88 }); // shoe tray
     fold.box(-0.03, 0.1, 0.2, 0.1, 0.04, 0.12, 'fabric_grey', { color: 0xe8e4d8 });
@@ -331,6 +331,16 @@ export class IntakeStage {
   }
   react(name: string) { if (this.emoteName === name && this.emoteT < 0.5) return; this.emote(name); }
   set idle(on: boolean) { this.idleOn = on; }
+  /** jump the eased camera and turn to their targets (screenshots, reduced motion) */
+  settle() {
+    const f = FRAMES[this.focusKey] || FRAMES.full;
+    const H = this.app?.height ?? 1;
+    this.camAt.set(f.at[0], f.at[1] * (f.at[1] > 0.4 ? H : 1), f.at[2]);
+    this.camDist = f.dist * this.zoomMul; this.camPitch = f.pitch;
+    this.shiftX = this.shiftTX; this.shiftY = this.shiftTY;
+    this.turn.rotation.y = f.yaw + this.yawUser + this.yaw;
+    this.holdW = this.holdKey ? 1 : 0;
+  }
   /** camera flash: white-out, a real light burst, the subject flinches */
   doFlash(flinch = true) {
     this.flash = 1;

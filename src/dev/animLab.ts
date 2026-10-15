@@ -15,6 +15,7 @@ import { createItem } from '../items/factory';
 import { hasItemDef } from '../items/item';
 import { setGame } from '../game/G';
 import { Rng } from '../core/rng';
+import { worldMaterial } from '../gfx/materials';
 
 type Ctl = (t: number, dt: number, p: Player) => void;
 export interface LabPlayer extends Player { ctl?: Ctl }
@@ -47,7 +48,10 @@ export async function init(g: { pr: any; z: any; tgt: THREE.Vector3 }) {
       for (let i = 0; i < n; i++) {
         lab.t += dt; fake.time = lab.t;
         for (const p of fake.players.values() as Iterable<LabPlayer>) {
-          if (p.ctl) p.ctl(lab.t, dt, p);
+          // controllers set a wanted velocity (tvx, tvz); like the game it is reached with damping
+          if (p.ctl) { p.ctl(lab.t, dt, p); }
+          const k = 1 - Math.exp(-14 * dt);
+          if ((p as any).tvx !== undefined) { p.vx += ((p as any).tvx - p.vx) * k; p.vz += ((p as any).tvz - p.vz) * k; }
           if (!p.body.dead) { p.x += p.vx * dt; p.z += p.vz * dt; }
           p.speed = Math.hypot(p.vx, p.vz);
           const zy = g.z.heightAt(Math.floor(p.x), Math.floor(p.z));
@@ -67,7 +71,7 @@ export async function init(g: { pr: any; z: any; tgt: THREE.Vector3 }) {
     creature(id: string, x: number, z: number, state = 'chase') {
       const c = { id, x, z, y: 0, zoneKey: g.z.key, dead: false, state, sp: { threat: 4, height: 1.9 }, radius: 0.4 };
       fake.creatures.creatures.set(id, c);
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.9, 8), new THREE.MeshLambertMaterial({ color: 0x552222 }));
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1.9, 8), worldMaterial({}));
       m.position.set(x, 0.95, z); g.pr.scene.add(m);
       return { c, m };
     },

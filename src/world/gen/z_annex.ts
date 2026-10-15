@@ -165,7 +165,7 @@ export function generateAnnex(z: Zone, seed: number) {
     for (let y = y0 + 1; y + 2 <= y1 - 1; y += 4) for (let x = x0 + 1; x + 2 <= x1 - 1; x += 4) {
       b.hwall(x, x + 2, y, 'cubicle'); b.vwall(x, y, y + 2, 'cubicle'); b.vwall(x + 3, y, y + 2, 'cubicle');
       const d = put(c, 'desk_office', x + 1, y, 2, {}); if (d && hh(x, y, 7101) < 0.7) f.onTop('computer', d, {});
-      put(c, 'chair_office', x + 1, y + 1, (hh(x, y, 7102) * 4) as Rot, {});
+      put(c, 'chair_office', x + 1, y + 1, (Math.floor(hh(x, y, 7102) * 4) as Rot), {});
       if (hh(x, y, 7103) < 0.25) put(c, 'plant_potted', x + 2, y + 2, 0, {});
       else if (hh(x, y, 7104) < 0.3) put(c, 'filing_cabinet', x + 2, y + 2, 0, {});
     }
@@ -203,7 +203,7 @@ export function generateAnnex(z: Zone, seed: number) {
   for (let y = EW_Y0; y <= EW_Y1; y++) b.gap(46, y, 1);
   for (let y = 40; y <= 70; y++) if (y < EW_Y0 - 1 || y > EW_Y1 + 1) { /* keep wall */ }
   // pillars of the open-plan floor
-  for (let y = CAMP.y0 + 4; y <= CAMP.y1 - 3; y += 8) for (let x = CAMP.x0 + 4; x <= CAMP.x1 - 2; x += 8) put(c, 'column_square', x, y, 0, {});
+  for (let y = CAMP.y0 + 4; y <= CAMP.y1 - 3; y += 8) for (let x = CAMP.x0 + 4; x <= CAMP.x1 - 2; x += 8) put(c, 'zw_annex_pillar', x, y, 0, { v: (x + y) % 2 });
   // cubicles that were pushed aside to make room: a stack of partitions along the north and south walls
   for (let x = CAMP.x0 + 1; x <= CAMP.x1 - 1; x += 2) { put(c, 'chair_stack', x, CAMP.y0, 0, {}); if (hh(x, 1, 7201) < 0.5) put(c, 'desk_office', x, CAMP.y1, 0, {}); }
   // the camp proper, centred on y 55
@@ -257,7 +257,7 @@ export function generateAnnex(z: Zone, seed: number) {
     const r = hh(x, y, 7301);
     const d = put(c, 'desk_office', x + 1, y, 2, {}); if (d && r < 0.6) f.onTop('computer', d, { on: false });
     if (r < 0.06) put(c, 'replica_seated', x + 1, y + 1, 0, { pose: 'sit_table', seat: 'chair_office' });
-    else put(c, 'chair_office', x + 1, y + 1, (hh(x, y, 7302) * 4) as Rot, {});
+    else put(c, 'chair_office', x + 1, y + 1, (Math.floor(hh(x, y, 7302) * 4) as Rot), {});
     if (r > 0.85) put(c, 'filing_cabinet', x + 2, y + 2, 0, {});
   }
   // every tube dead; the only light is the odd emergency lamp and the camp behind you
@@ -272,6 +272,8 @@ export function generateAnnex(z: Zone, seed: number) {
   b.obj('hole_floor', hx, hy, 0, { portal: 'p_annex_under' });
   b.portal({ id: 'p_annex_under', x: hx, y: hy, kind: 'hole', to: 'undercroft', tx: 40, ty: 40, label: 'Follow the rope down' });
   arrive(b, 'r_annex_under', hx - 3, hy, 'e', 2);
+  // a faint cold light comes up out of the hole: enough to find it by, not enough to see down
+  b.light(hx + 1.5, hy + 0.5, 'sky', { color: 0x9ab0c8, intensity: 0.35, radius: 3.2, y: 0.2, circuit: 0, flicker: 0.05 });
   for (const [dx, dy] of [[-1, -1], [-1, 1], [-1, 0], [3, 0], [1, -2], [1, 2]] as const) decal(z, 'zw_carpet_edge', hx + dx + 0.5, hy + dy + 0.5, 1.2, 1.2, Math.atan2(-dy, -dx) - Math.PI / 2, undefined, 1);
   for (let i = 0; i < 8; i++) decal(z, 'zw_debris', hx - 2 + rng.float(0, 5), hy - 3 + rng.float(0, 6), 1.1, 1.1, rng.float(0, 6));
   // the ropes: T1 and T2 stop short (one coiled, one cut), T3 goes over the edge

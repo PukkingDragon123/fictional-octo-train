@@ -31,12 +31,13 @@ import { startBreathing } from '../../survival/mindSystem';
 import { paintBody, BODY_W, BODY_H, drawMoodleGlyph } from '../moodles';
 import { Screen } from '../font5x7';
 import { calm } from '../menus/settings';
-import { HoloBuf, ink, Ink, mixInk } from './pix';
+import { HoloBuf, ink, Ink, mixInk, glyph3Url } from './pix';
 import { Trace, F_SPIKE, F_CRACKLE, F_DOT, F_DROP } from './trace';
 import { Vitals, emptyVitals, readVitals, statusTags, Tag } from './vitals';
 import { Bands } from './band3d';
 import { renderVoice, VoicePlayer, VoiceOpts } from './voice';
 import * as L from './lines';
+import { rigNumber } from '../../content/items/prisoner';
 
 const TW = 96;
 const CW = 100, CH = 45;
@@ -53,6 +54,8 @@ interface Particle { x: number; y: number; vx: number; vy: number; life: number;
 interface Floater { text: string; x: number; y: number; vx: number; vy: number; life: number; max: number; col: Ink; big: boolean }
 interface Warn { level: number; reason: string; countdown: number | null; t: number }
 
+/** what kind of trouble a band warning reason is */
+const warnKind = (r: string) => (/seam|exit|escape|abscond|bound/.test(r) ? 'escape' : /tamper|force|remov|cut/.test(r) ? 'tamper' : 'other');
 const fmt = (n: number) => Math.round(n).toLocaleString('en-US');
 function fmtLeft(h: number): string {
   if (h <= 0) return 'OVERDUE';
@@ -65,6 +68,8 @@ export function debtorNo(p: Player | null | undefined): string {
   const D = (G as any).debt;
   const given = (p as any).prisonerNo || (p as any).prisoner || D?.prisonerNo?.(p.id) || D?.debtorId;
   if (typeof given === 'string' && given) return given;
+  // the number stencilled on the jumpsuit (content/items/prisoner.ts) so patch, band and HUD agree
+  try { if (typeof (p.rig as any)?.seed === 'number') return rigNumber(p.rig); } catch { /* older rig */ }
   let h = 2166136261;
   for (const ch of p.name + '#' + (G.worldSeed ?? 0)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
   return 'D-' + (1000 + ((h >>> 0) % 9000));
@@ -113,6 +118,7 @@ export class Holo {
   private tags: Tag[] = [];
   private tagKey = '';
   private tagFocus: Tag | null = null;
+  private tagEls = new Map<string, HTMLButtonElement>();
   private worstLevel = 0;
   private drawT = 0;
   private beatFlash = 0;
@@ -197,6 +203,7 @@ export class Holo {
     const ls = svg.querySelectorAll('line');
     this.rayA = ls[0] as SVGLineElement; this.rayB = ls[1] as SVGLineElement;
     this.buf = new HoloBuf(CW, CH);
+    document.documentElement.style.setProperty('--nc-scrip', `url(${glyph3Url('¤')})`);
     this.resize();
 
     // ---- input: hover opens, leaving closes (unless pinned); tap / click / Enter pins
@@ -375,7 +382,7 @@ export class Holo {
 
   private onMoodle(key: string, level: number, prev: number) {
     if (level <= prev) return;
-    if (level >= 3) this.autoExpand(2.5);
+    if (level >= 4 || (key === 'bleeding' && level >= 2) || key === 'attack') this.autoExpand(2.5);
     const lines = L.STATE[key];
     if (!lines) return;
     const need = key === 'bleeding' || key === 'attack' || key === 'fever' ? 1 : key === 'panic' || key === 'pain' ? 3 : 2;
@@ -388,15 +395,20 @@ export class Holo {
     const g = (G as any).debt;
     let st: any = this.lastDebt;
     if (!st && g) st = (typeof g.state === 'function' ? g.state() : g.state) ?? g.snapshot?.() ?? (typeof g.owed === 'number' ? g : null);
-    if (!st || typeof st.owed !== 'number') return null;
+    if (!st || typeof st.owed !== 'number' || st.on === false) return null;
     let left: number | null = null;
     try {
-      const fromApi = g?.hoursLeft?.() ?? g?.countdown?.();
-      if (typeof fromApi === 'number') left = fromApi;
+      const hl = g?.hoursLeft;
+      if (typeof st.dueH === 'number') left = st.dueH - G.clock.hours;
+      else if (typeof hl === 'number') left = hl;
+      else if (typeof hl === 'function') left = hl.call(g);
       else if (typeof st.dueAt === 'number') left = st.dueAt - G.clock.hours;
       else if (typeof st.dueDay === 'number' && st.dueDay > 0) left = (st.dueDay - G.clock.startDay + 1) * 24 - G.clock.hours;
     } catch { left = null; }
-    return { owed: st.owed, paid: st.paid ?? 0, due: st.due ?? 0, dueDay: st.dueDay ?? 0, cleared: !!st.cleared || st.owed <= 0, hoursLeft: left };
+    // 'owed' is the contract total in the ledger; what is still owed is 'remaining'
+    const paid = st.paid ?? 0;
+    const remaining = typeof st.remaining === 'number' ? st.remaining : Math.max(0, st.owed - paid);
+    return { owed: remaining, paid, due: st.due ?? 0, dueDay: st.dueDay ?? 0, cleared: !!st.cleared || remaining <= 0, hoursLeft: left };
   }
 
   // =================================================================== per frame
@@ -641,9 +653,14 @@ export class Holo {
   }
   /** a band line, written in light just above the hologram */
   private showSay(text: string, dur: number) {
+    this.showLine(text, dur, /disregard|please|wearing you|copy of you|person once/i.test(text) ? 'leak' : '');
+  }
+  /** a line projected above the hologram: the band's ('' / 'leak') or the sergeant's ('voss', with who) */
+  showLine(text: string, dur: number, cls = '', who = '') {
     const el = document.createElement('div');
-    el.className = 'hb-line' + (/disregard|please|wearing you|copy of you|person once/i.test(text) ? ' leak' : '');
-    this.sayEl.textContent = '';
+    el.className = 'hb-line' + (cls ? ' ' + cls : '');
+    if (who) el.dataset.who = who.toUpperCase();
+    while (this.sayEl.childElementCount > 1) this.sayEl.firstElementChild!.remove();
     this.sayEl.appendChild(el);
     decode(el, text, Math.min(dur || 3, 0.4 + text.length * 0.045));
     const secs = Math.max(2.4, dur || 0.8 + text.length * 0.07);
@@ -682,8 +699,10 @@ export class Holo {
     this.glitch = Math.max(this.glitch, 0.5);
     this.drawT = 0;
   }
+  /** tests / screenshots: never open by itself */
+  autoOff = false;
   private autoExpand(secs: number) {
-    if (!this.visible && !this.fitted) return;
+    if (this.autoOff || (!this.visible && !this.fitted)) return;
     this.autoT = Math.max(this.autoT, secs);
     this.setExpanded(true);
   }
@@ -762,25 +781,34 @@ export class Holo {
       this.face.setAttribute('aria-label', `BAILIFF band. Pulse ${Math.round(mind?.bpm ?? 0)}. ${states || 'No alerts'}.${d ? ` Owed ${fmt(d.owed)} scrip${d.hoursLeft != null && !d.cleared ? `, next ${fmt(d.due)} due in ${fmtLeft(d.hoursLeft)}` : ''}.` : ''} Press L to ${this.expanded ? 'close' : 'open'}.`);
     }
     if (!this.expanded) return;
-    // tags
+    // tags: kept by key so a level change does not rebuild (or re-animate) the list
     const shown = this.tags.slice(0, 6);
     const key = shown.map((t) => t.key + t.level).join(',') + '|' + this.tags.length;
     if (key !== this.tagKey) {
       this.tagKey = key;
-      this.tagsEl.textContent = '';
+      const keep = new Set(shown.map((t) => t.key));
+      for (const [k, el] of this.tagEls) if (!keep.has(k)) { el.remove(); this.tagEls.delete(k); }
+      this.tagsEl.querySelectorAll('.hb-more').forEach((n) => n.remove());
       for (const t of shown) {
-        const el = document.createElement('button');
-        el.type = 'button';
+        let el = this.tagEls.get(t.key);
+        if (!el) {
+          el = document.createElement('button');
+          el.type = 'button';
+          el.setAttribute('role', 'listitem');
+          el.innerHTML = `<i style="--g:url(${glyphUrl(t.glyph)})"></i><b></b><s></s>`;
+          const btn = el;
+          const show = () => { const cur = (btn as any)._tag as Tag | undefined; if (cur) this.showTagTip(cur); };
+          el.addEventListener('pointerenter', show);
+          el.addEventListener('focus', show);
+          el.addEventListener('click', show);
+          el.addEventListener('blur', () => this.hideTagTip());
+          this.tagEls.set(t.key, el);
+        }
+        (el as any)._tag = t;
         el.className = `hb-tag lv${t.level} k-${t.kind}`;
-        el.setAttribute('role', 'listitem');
         el.setAttribute('aria-label', `${t.plain}. ${t.desc}`);
-        el.innerHTML = `<i style="--g:url(${glyphUrl(t.glyph)})"></i><b></b><s>${'|'.repeat(Math.min(4, t.level))}</s>`;
         (el.querySelector('b') as HTMLElement).textContent = t.label;
-        const show = () => this.showTagTip(t);
-        el.addEventListener('pointerenter', show);
-        el.addEventListener('focus', show);
-        el.addEventListener('click', show);
-        el.addEventListener('blur', () => this.hideTagTip());
+        (el.querySelector('s') as HTMLElement).textContent = '|'.repeat(Math.min(4, t.level));
         this.tagsEl.appendChild(el);
       }
       if (this.tags.length > shown.length) { const more = document.createElement('div'); more.className = 'hb-more'; more.textContent = `+${this.tags.length - shown.length} MORE`; this.tagsEl.appendChild(more); }
@@ -793,8 +821,9 @@ export class Holo {
       if (this.shownOwed < 0) this.shownOwed = d.owed;
       this.shownOwed = Math.abs(this.shownOwed - d.owed) < 1 ? d.owed : damp(this.shownOwed, d.owed, 3, dt);
       const owed = this.wrongT > 0 && this.vit.halluc > 0.2 ? this.wrong.owed : fmt(this.shownOwed);
-      const next = d.cleared ? 'CLEARED. TRANSPORT AUTHORISED.' : d.hoursLeft != null ? `NEXT ¤${fmt(d.due)} IN ${fmtLeft(d.hoursLeft)}` : `NEXT ¤${fmt(d.due)}`;
-      const html = `<div><span>OWED</span> <b>¤${owed}</b> <span>PAID</span> <b>¤${fmt(d.paid)}</b></div><div class="${d.hoursLeft != null && d.hoursLeft < 6 && !d.cleared ? 'hot' : ''}">${next}</div>`;
+      const S = '<i class="hb-scrip"></i>';
+      const next = d.cleared ? 'CLEARED. TRANSPORT AUTHORISED.' : d.hoursLeft != null ? `NEXT ${S}${fmt(d.due)} IN ${fmtLeft(d.hoursLeft)}` : `NEXT ${S}${fmt(d.due)}`;
+      const html = `<div><span>OWED</span> <b>${S}${owed}</b> <span>PAID</span> <b>${S}${fmt(d.paid)}</b></div><div class="${d.hoursLeft != null && d.hoursLeft < 6 && !d.cleared ? 'hot' : ''}">${next}</div>`;
       if (this.ledgerEl.innerHTML !== html) this.ledgerEl.innerHTML = html;
     } else if (this.ledgerEl.textContent !== '') this.ledgerEl.textContent = '';
     if (this.logDirty) {
@@ -975,7 +1004,7 @@ export class Holo {
       // the band's warning takes over the bottom row
       if (this.warn) {
         const cd = this.warn.countdown != null ? ' ' + Math.ceil(this.warn.countdown) : '';
-        const msg = (this.warn.reason === 'escape' ? 'RETURN' : this.warn.reason === 'tamper' ? 'HANDS OFF' : 'WARNING') + cd;
+        const msg = (warnKind(this.warn.reason) === 'escape' ? 'RETURN' : warnKind(this.warn.reason) === 'tamper' ? 'HANDS OFF' : 'WARNING') + cd;
         if (Math.floor(G.time * 4) % 2) B.text3(msg, Math.floor((W - HoloBuf.w3(msg)) / 2), 38, COL.red, 1, 0.04, 1);
       }
       return;
@@ -996,7 +1025,7 @@ export class Holo {
     B.text3(foot, 2, EH - 6, COL.dim, 0.45);
     if (this.warn) {
       const cd = this.warn.countdown != null ? Math.ceil(this.warn.countdown) : null;
-      const msg = (this.warn.reason === 'escape' ? 'RETURN TO COVERAGE' : this.warn.reason === 'tamper' ? 'DO NOT TAMPER' : 'NON-COMPLIANCE');
+      const msg = (warnKind(this.warn.reason) === 'escape' ? 'RETURN TO COVERAGE' : warnKind(this.warn.reason) === 'tamper' ? 'DO NOT TAMPER' : 'NON-COMPLIANCE');
       if (Math.floor(G.time * 3) % 3) B.text3(msg, 50, 24, COL.red, 1, 0.03, 1);
       if (cd != null) B.text7(String(cd), right - HoloBuf.w7(String(cd), 2) - 30, 8, COL.red, 1, 2, 1);
     }

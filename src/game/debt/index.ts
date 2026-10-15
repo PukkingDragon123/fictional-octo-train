@@ -13,7 +13,7 @@
 // Free survival (directives off) has no contract: hoppers stay cold, no band.
 import { bus } from '../../core/events';
 import { G } from '../G';
-import { op } from '../ops';
+import { op, isReplaying } from '../ops';
 import { addStat } from '../profile';
 import { createItem, serializeItem } from '../../items/factory';
 import { objDef } from '../../world/objects';
@@ -78,9 +78,10 @@ let saidSmash = false;
 /** furniture broke: whoever broke it shakes out what was hidden inside */
 function onBroken(z: Zone, o: TileObject, by: string | null, how: string) {
   void how;
-  if (!by || by !== G.local?.id || !o) return;
+  // only the one who broke it rolls the stash (once: replays of the break op must not roll again)
+  if (!by || by !== G.local?.id || !o || isReplaying()) return;
   G.missions?.set?.('tut:smash');
-  addStat('furniture_smashed');
+  if (!G.destruct) addStat('furniture_smashed'); // the destruction system counts its own breaks
   const d = objDef(o.key);
   if (!d || d.onWall || d.ceiling) return;
   const kind = stashKind(o, d);
@@ -104,7 +105,7 @@ function onBroken(z: Zone, o: TileObject, by: string | null, how: string) {
 /** dev: break an object as if the local survivor smashed it (when the destruction system is absent) */
 function devSmash(o: TileObject) {
   const z = G.getZone(G.local.zoneKey);
-  if (G.destruct?.breakObject) return G.destruct.breakObject(z, o, G.local.id, 'smash');
+  if (G.destruct?.damageObject) return G.destruct.damageObject(G.local, o, 99999, 'smash');
   op('objState', { z: z.key, uid: o.uid, patch: { broken: true } });
   bus.emit('objBroken', z, o, G.local.id, 'smash');
 }

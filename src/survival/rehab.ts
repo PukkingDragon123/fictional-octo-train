@@ -17,7 +17,7 @@ const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 export class RehabEffects {
   private lastPanic = 0;
   private lastVoss = -1;
-  private debt: { due: number; dueDay: number; cleared: boolean } | null = null;
+  private debt: { due: number; dueDay: number; dueH: number; cleared: boolean } | null = null;
   private thinkCd = 0;
   private cackleT = 120 + Math.random() * 240;
   private pickT = 5 + Math.random() * 6;
@@ -35,7 +35,14 @@ export class RehabEffects {
       if (b.has('hoarder')) { b.stress = clamp(b.stress + 7, 0, 100); b.unhappy = clamp(b.unhappy + 5, 0, 100); this.think(p, ['That was MINE.', 'I could have kept that.', 'Goodbye, little thing.'], true); }
       if (b.has('born_in_debt')) { b.panic = Math.max(0, b.panic - 22); b.stress = Math.max(0, b.stress - 9); this.think(p, ['Paid. Breathe.', 'A little less owed.', 'That feels better than food.']); }
     });
-    bus.on('debtChanged', (st: any) => { if (st && typeof st === 'object') this.debt = { due: Number(st.due) || 0, dueDay: Number(st.dueDay) || 0, cleared: !!st.cleared }; });
+    bus.on('debtChanged', (st: any) => { if (st && typeof st === 'object') this.debt = { due: Number(st.due) || 0, dueDay: Number(st.dueDay) || 0, dueH: Number(st.dueH) || 0, cleared: !!st.cleared }; });
+    // Fence: the host pays a fence's deposits 15% on top (the ledger is host-only, so this runs once)
+    bus.on('deposited', (d: any) => {
+      if (G.role === 'client' || !(d?.value > 0) || !d.by) return;
+      const p = G.players?.get?.(d.by) as Player | undefined;
+      if (!p || !(p.body?.perks?.has('fence') || p.occupation === 'fence')) return;
+      try { G.debt?.credit?.(Math.round(d.value * (scripRate(p) - 1)), 'fence', d.by); } catch { /* no contract */ }
+    });
     bus.on('objBroken', (_z: unknown, _o: unknown, by: unknown) => {
       if (!mine(by)) return;
       const p = G.local, b = p.body;
@@ -145,8 +152,8 @@ export class RehabEffects {
     }
     if (b.perks.has('ex_officer')) b.unhappy = clamp(b.unhappy + 0.35 * dh, 0, 100);
     // ---- Born in Debt: the deadline is a weight
-    if (T('born_in_debt') && this.debt && !this.debt.cleared && this.debt.due > 0 && this.debt.dueDay > 0) {
-      const left = this.debt.dueDay * 24 - hours;
+    if (T('born_in_debt') && this.debt && !this.debt.cleared && this.debt.due > 0 && this.debt.dueH > 0) {
+      const left = this.debt.dueH - hours;
       if (left > 0 && left < 24) b.stress = clamp(b.stress + 2.2 * dh, 0, 100);
     }
     this.lastPanic = b.panic;
@@ -155,5 +162,5 @@ export class RehabEffects {
 
 /** scrip multiplier for a depositor's programme (the debt contract may call this when it credits a deposit) */
 export function scripRate(p: Player | null | undefined): number {
-  return p?.body?.perks?.has('fence') ? 1.15 : 1;
+  return p?.body?.perks?.has('fence') || p?.occupation === 'fence' ? 1.15 : 1;
 }

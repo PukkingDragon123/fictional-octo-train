@@ -230,7 +230,7 @@ export function paintLid(look: BagLook, w: number, number: string): PixelCanvas 
     let c: number;
     if (edge) c = dk(look.trim, 0.75);
     else if (rim) { c = matTex(look.mat, look.shell, x, y, 9); c = scaleHex(c, 0.92 + (y / H) * 0.18); if (!inside(x - 3, y, 0, 0, w, H + R, R) || !inside(x, y - 3, 0, 0, w, H + R, R)) c = lt(c, 0.12); }
-    else { c = matTex(look.rigid ? 'plastic' : 'canvas', dk(look.lining, 0.82), x, y, 13); c = scaleHex(c, 0.72 + (y / H) * 0.32); }
+    else { c = matTex(look.rigid ? 'plastic' : 'canvas', look.lining, x, y, 13); c = scaleHex(c, 0.8 + (y / H) * 0.3); }
     pc.set(x, y, c);
   }
   // inner seam of the rim
@@ -314,7 +314,7 @@ export function paintStraps(look: BagLook, w: number, h: number, ax: number, bx0
   const sag = Math.max(0, 1 - tension) * 9;
   const strain = Math.max(0, tension - 1);
   const sw = tension > 1.4 ? 5 : 6;
-  const base = mixHex(look.trim, look.shell, 0.25);
+  const base = mixHex(mixHex(look.trim, look.shell, 0.3), 0x9a968a, 0.22);
   const strap = strain > 0 ? mixHex(base, 0x8a2a1e, Math.min(0.8, strain * 1.2)) : base;
   const pad = look.shell;
   for (const [x1, side] of [[bx0, -1], [bx1, 1]] as [number, number][]) {
@@ -331,7 +331,7 @@ export function paintStraps(look: BagLook, w: number, h: number, ax: number, bx0
       const col = padded ? pad : strap;
       for (let k = 0; k < ww; k++) {
         const xx = Math.round(x - ww / 2 + k), yy = Math.round(y);
-        let c = k === 0 ? lt(col, 0.35) : k === ww - 1 ? dk(col, 0.5) : k === 1 ? lt(col, 0.12) : col;
+        let c = k === 0 ? lt(col, 0.45) : k === ww - 1 ? dk(col, 0.5) : k === 1 ? lt(col, 0.18) : col;
         if (!padded && (yy & 1) && k > 0 && k < ww - 1) c = scaleHex(c, 0.92);
         if (padded && (yy % 5 === 0) && k > 0 && k < ww - 1) c = dk(col, 0.82);
         pc.set(xx, yy, c);
@@ -343,8 +343,9 @@ export function paintStraps(look: BagLook, w: number, h: number, ax: number, bx0
     const bt = 0.3;
     const bxx = Math.round((1 - bt) * (1 - bt) * x0 + 2 * (1 - bt) * bt * cx + bt * bt * x1);
     const byy = Math.round((1 - bt) * (1 - bt) * y0 + 2 * (1 - bt) * bt * cy + bt * bt * y1);
-    pc.rect(bxx - 4, byy, 9, 4, 0x1a1a1a); pc.rect(bxx - 3, byy + 1, 7, 1, 0x6a6a66); pc.rect(bxx - 3, byy + 2, 7, 1, 0x2e2e2c);
+    pc.rect(bxx - 4, byy, 9, 4, 0x1a1a1a); pc.rect(bxx - 3, byy + 1, 7, 1, 0x8a8a84); pc.rect(bxx - 3, byy + 2, 7, 1, 0x3e3e3a);
   }
+  pc.outline(0x0c0b09);
   return pc;
 }
 
@@ -369,7 +370,7 @@ export function paintScale(): PixelCanvas {
 }
 
 // ================================================================== doll
-export const DOLL_W = 144, DOLL_H = 214;
+export const DOLL_W = 144, DOLL_H = 190;
 export interface DollGarment { key: string; slot: string; part: string; color: number; sleeve?: string; tex?: string; uid: number }
 export interface DollPocket { x: number; y: number; w: number; h: number; color: number; label: string }
 
@@ -377,19 +378,19 @@ type Pt = [number, number];
 const CX = 72;
 // body proportions (art px)
 const B = {
-  head: [CX, 20] as Pt, headR: 11,
-  shoulderY: 38, torsoW: 46, waistW: 40, hipY: 100, torsoTop: 36,
-  armL: [[49, 42], [22, 108]] as Pt[], armR: [[95, 42], [122, 108]] as Pt[],
-  handL: [19, 115] as Pt, handR: [125, 115] as Pt,
-  legL: [[60, 100], [52, 188]] as Pt[], legR: [[84, 100], [92, 188]] as Pt[],
-  footL: [48, 196] as Pt, footR: [96, 196] as Pt,
+  head: [CX, 18] as Pt, headR: 11,
+  shoulderY: 35, torsoW: 46, waistW: 40, hipY: 92, torsoTop: 33,
+  armL: [[49, 39], [23, 100]] as Pt[], armR: [[95, 39], [121, 100]] as Pt[],
+  handL: [20, 107] as Pt, handR: [124, 107] as Pt,
+  legL: [[60, 92], [53, 166]] as Pt[], legR: [[84, 92], [91, 166]] as Pt[],
+  footL: [49, 173] as Pt, footR: [95, 173] as Pt,
 };
 /** where on the laid-out body each pocket's top-left goes (its size comes from the pocket) */
 const POCKET_AT: Record<string, Pt> = {
-  chest: [78, 46], chest_l: [54, 46], inner: [64, 52], pouch: [54, 80],
-  side_l: [43, 70], side_r: [73, 70],
-  hip_l: [50, 96], hip_r: [82, 96], seat: [60, 158],
-  thigh_l: [36, 116], thigh_r: [80, 116],
+  chest: [78, 42], chest_l: [54, 42], inner: [64, 48], pouch: [54, 72],
+  side_l: [43, 64], side_r: [73, 64],
+  hip_l: [50, 88], hip_r: [82, 88], seat: [60, 140],
+  thigh_l: [37, 106], thigh_r: [79, 106],
 };
 export function pocketAt(id: string, w: number, h: number, taken: { x: number; y: number; w: number; h: number }[]): { x: number; y: number } {
   const base = POCKET_AT[id] ?? [56, 130];
@@ -487,14 +488,6 @@ export function paintDoll(garments: DollGarment[], pockets: DollPocket[], number
   const order = ['socks', 'tshirt', 'shirt', 'sweater', 'pants', 'fullsuit', 'jacket', 'shoes', 'hands', 'neck', 'mask', 'eyes', 'hat', 'belt', 'wrist'];
   const sorted = [...garments].sort((a, b) => (order.indexOf(a.slot) + 99) % 99 - (order.indexOf(b.slot) + 99) % 99);
   for (const g of sorted) paintGarment(pc, g, number);
-  // the pack's shoulder straps cross the shoulders
-  if (flags.bag !== undefined) {
-    for (const sx of [CX - 14, CX + 13]) for (let y = 30; y < 74; y++) {
-      const xx = sx + Math.round((y - 30) * (sx < CX ? -0.05 : 0.05));
-      for (let k = 0; k < 4; k++) pc.set(xx + k, y, k === 0 ? lt(flags.bag, 0.25) : k === 3 ? dk(flags.bag, 0.55) : flags.bag);
-      if (y % 4 < 2) pc.set(xx + 1, y, mixHex(flags.bag, 0xd8d0b0, 0.4));
-    }
-  }
   // pockets sewn on: a patch with a stitched edge and a darker flap seam
   for (const p of pockets) {
     const W = p.w, H = p.h;

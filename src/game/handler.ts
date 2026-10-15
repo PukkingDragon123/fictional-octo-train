@@ -301,7 +301,8 @@ export class Handler implements GameSystem {
     const z = G.view.zone;
     if (z.key !== this.zoneKey) { this.zoneKey = z.key; }
     this.updateTalk(dt);
-    if (!this.scripted) { this.updateTutorial(dt); this.updateReactions(dt, p); }
+    // free survival (directives off) has no contract and no handler nagging
+    if (!this.scripted && G.missions?.enabled !== false) { this.updateTutorial(dt); this.updateReactions(dt, p); }
     // ---- visibility
     if (this.showGoal > 0) this.hidden = false;
     const rate = this.showGoal > this.show ? 1.6 : 2.4;
@@ -531,7 +532,6 @@ export class Handler implements GameSystem {
       if (!intro || intro.phase === 'done') {
         this.bootT += dt;
         if (this.bootT > 2.5) {
-          if (G.role !== 'client' && m && !m.flags?.has?.('contract:intake')) m.set?.('contract:intake');
           if (!m?.flags?.has?.('contract:first_deposit')) this.say('Debtor {n}. Staff Sergeant Voss. Smash the furniture, find what\'s worth something, feed the hopper. Don\'t try to leave. Questions? Good.');
           this.begin();
         }
