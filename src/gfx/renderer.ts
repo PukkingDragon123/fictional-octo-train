@@ -51,7 +51,7 @@ void main() {
 }
 `;
 
-const NUM_KEYS: (keyof ZoneFx)[] = ['hazeDens', 'hazeFall', 'volTop', 'gridMul', 'spotMul', 'sunShafts', 'mistDens', 'mistFall', 'mistLit', 'mistMax', 'bloom', 'bloomTh', 'ao', 'reflect', 'sheen', 'caustics', 'sick', 'motes', 'dirt'];
+const NUM_KEYS: (keyof ZoneFx)[] = ['blob', 'rim', 'hazeDens', 'hazeFall', 'volTop', 'gridMul', 'spotMul', 'sunShafts', 'mistDens', 'mistFall', 'mistLit', 'mistMax', 'bloom', 'bloomTh', 'ao', 'reflect', 'sheen', 'caustics', 'sick', 'motes', 'dirt'];
 const TAN36 = Math.tan(THREE.MathUtils.degToRad(36));
 
 export class PixelRenderer {
@@ -161,6 +161,7 @@ export class PixelRenderer {
         uAOStr: { value: 1 }, uBloomStr: { value: 0.5 }, uDirtStr: { value: 0.5 }, uReflect: { value: 0.5 },
         uMistCol: { value: new THREE.Vector3(0.5, 0.5, 0.5) }, uMistDens: { value: 0 }, uMistFall: { value: 1 }, uMistLit: { value: 0.5 }, uMistMax: { value: 0.3 },
         uMotes: { value: 0 }, uSick: { value: 0 }, uFlicker: { value: 1 }, uFilm: { value: 1 }, uVoid: { value: new THREE.Color(0) },
+        uBlobs: { value: this.postfx.blobs }, uBlobH: { value: this.postfx.blobH }, uBlobN: { value: 0 }, uRim: { value: 0 }, uRimTint: { value: new THREE.Vector3() },
         uSunDir2: { value: new THREE.Vector2(1, 0) }, uSunGlow: { value: 0 }, uSunDir3: { value: new THREE.Vector3(0, 1, 0) },
       },
     });
@@ -315,7 +316,7 @@ export class PixelRenderer {
     // atmosphere follows the zone the same way
     const z = this.zoneFx as any, zt = this.zoneFxTarget as any;
     for (const key of NUM_KEYS) z[key] = lerp(z[key], zt[key], k);
-    for (let i = 0; i < 3; i++) { z.haze[i] = lerp(z.haze[i], zt.haze[i], k); z.mist[i] = lerp(z.mist[i], zt.mist[i], k); }
+    for (let i = 0; i < 3; i++) { z.haze[i] = lerp(z.haze[i], zt.haze[i], k); z.mist[i] = lerp(z.mist[i], zt.mist[i], k); z.rimTint[i] = lerp(z.rimTint[i], zt.rimTint[i], k); }
     const u = this.postMat.uniforms;
     u.uLift.value.set(...g.lift); u.uGain.value.set(...g.gain); u.uGamma.value = g.gamma; u.uSat.value = g.sat;
     u.uTint.value.set(...g.tint); u.uLevels.value = g.levels;
@@ -334,6 +335,8 @@ export class PixelRenderer {
     u.uMistCol.value.set(z.mist[0], z.mist[1], z.mist[2]);
     u.uMistDens.value = z.mistDens; u.uMistFall.value = Math.max(0.05, z.mistFall); u.uMistLit.value = z.mistLit; u.uMistMax.value = z.mistMax;
     u.uMotes.value = z.motes;
+    u.uRim.value = z.rim; u.uRimTint.value.set(z.rimTint[0], z.rimTint[1], z.rimTint[2]);
+    u.uBlobN.value = Math.min(16, this.postfx.blobN);
     u.uSick.value = z.sick;
     u.uFlicker.value = this.calm ? 0 : 1;
     U.uCaustics.value = z.caustics;

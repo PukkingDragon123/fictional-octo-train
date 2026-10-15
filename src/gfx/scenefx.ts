@@ -15,7 +15,7 @@ export class SceneFx {
   readonly wet = new WetMap();
   private g: Game;
   private calmT = 0;
-  private cand: { x: number; y: number; z: number; r: number; d: number }[] = [];
+  private cand: { x: number; y: number; z: number; r: number; h: number; d: number }[] = [];
   private warm = new THREE.Color(0xffa860);
 
   constructor(g: Game) {
@@ -47,19 +47,19 @@ export class SceneFx {
     for (const pl of g.players.values()) {
       if (pl.zoneKey !== p.zoneKey || pl.inVehicle || !pl.rig.root.visible) continue;
       const lying = (pl as any).full === 'lie' || pl.body.downed || pl.body.dead;
-      c.push({ x: pl.x, y: pl.y - (pl.stance === 'swim' ? 0 : 0), z: pl.z, r: lying ? 0.62 : 0.34, d: Math.abs(pl.x - fx) + Math.abs(pl.z - fz) });
+      c.push({ x: pl.x, y: pl.y, z: pl.z, r: lying ? 0.62 : 0.34, h: lying ? 0.6 : 1.95, d: Math.abs(pl.x - fx) + Math.abs(pl.z - fz) });
     }
     const cs = g.creatures?.creatures as Map<string, any> | undefined;
     if (cs) for (const cr of cs.values()) {
       if (cr.dead || cr.zoneKey !== p.zoneKey || !cr.visibleToLocal) continue;
       const d = Math.abs(cr.x - fx) + Math.abs(cr.z - fz);
       if (d > R * 1.5) continue;
-      c.push({ x: cr.x, y: cr.y ?? 0, z: cr.z, r: Math.max(0.2, (cr.radius ?? 0.4) * 1.05), d });
+      c.push({ x: cr.x, y: cr.y ?? 0, z: cr.z, r: Math.max(0.2, (cr.radius ?? 0.4) * 1.05), h: Math.max(0.3, (cr.height ?? 1.2) * 1.1), d });
     }
     c.sort((a, b) => a.d - b.d);
     const fxp = pr.postfx;
     const n = Math.min(c.length, fxp.blobs.length);
-    for (let i = 0; i < n; i++) { const b = c[i]; fxp.blobs[i].set(b.x, b.y, b.z, b.r); }
+    for (let i = 0; i < n; i++) { const b = c[i]; fxp.blobs[i].set(b.x, b.y, b.z, b.r); fxp.blobH[i] = b.h; }
     fxp.blobN = n;
   }
 }

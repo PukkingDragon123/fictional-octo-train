@@ -374,6 +374,13 @@ uniform float uSunOn;
 uniform vec3 uSunCol;
 uniform vec2 uSunDir2;
 uniform float uSunGlow;
+#ifdef ACTOR_RIM
+uniform vec4 uBlobs[16];
+uniform float uBlobH[16];
+uniform int uBlobN;
+uniform float uRim;
+uniform vec3 uRimTint;
+#endif
 #ifdef SUN_SPLIT
 uniform sampler2DShadow tSunShadow;
 uniform mat4 uSunMat;
@@ -485,6 +492,26 @@ void main() {
   else c *= 1.0 + normalEdge * uEdgeLight;
   if (isHl) c = c * 1.18 + uHighlight * 0.06;
   if (hlEdge > 0.5) c = mix(c, uHighlight, 0.85);
+
+  // --- survivors and creatures: a soft top / rim light so they read against busy floors ---
+#ifdef ACTOR_RIM
+  if (uRim > 0.0 && !isVoid && outlineable > 0.5 && depthEdge < 0.5) {
+    float act = 0.0;
+    for (int i = 0; i < 16; i++) {
+      if (i >= uBlobN) break;
+      vec4 b = uBlobs[i];
+      float h = P.y - b.y;
+      if (h < 0.04 || h > uBlobH[i]) continue;
+      act = max(act, 1.0 - smoothstep(b.w * 1.1, b.w * 1.6, length(P.xz - b.xz)));
+    }
+    if (act > 0.0) {
+      float fres = 1.0 - clamp(abs(dot(n, uCamF)), 0.0, 1.0);
+      float top = clamp(n.y, 0.0, 1.0);
+      vec3 lit = min(gridAt(P.xz), vec3(1.5));
+      c += (lit * 0.6 + uRimTint) * (fres * fres * 0.55 + top * 0.22 + 0.04) * act * uRim;
+    }
+  }
+#endif
 
   // --- outdoors: warm where the sun lands, cool sky-fill in the shade ---
 #ifdef SUN_SPLIT
@@ -668,6 +695,8 @@ export class PostFX {
   zone!: ZoneFx;
   /** bodies for contact shadows: x, base y, z, radius */
   blobs: THREE.Vector4[] = Array.from({ length: 16 }, () => new THREE.Vector4());
+  /** body heights (m) for the actor rim light */
+  blobH = new Float32Array(16);
   blobN = 0;
   /** photo mode / debug: skip all realism passes */
   bypass = false;
@@ -724,6 +753,7 @@ export class PostFX {
     if (on && q.vol > 0) d.VOL_ON = 1;
     if (on && q.motes) d.MOTES_ON = 1;
     if (on && q.split) d.SUN_SPLIT = 1;
+    if (on) d.ACTOR_RIM = 1;
     if (q.mist) d.MIST_ON = 1;
     return d;
   }
@@ -773,7 +803,7 @@ export class PostFX {
     if (this.rtAO && this.rtAO2 && on && (q.ao > 0 || q.blobs > 0)) {
       const u = this.aoMat.uniforms;
       u.tDepth.value = inp.depth; u.tNormal.value = inp.normal;
-      u.uStrength.value = z.ao; u.uBlobN.value = Math.min(this.blobN, q.blobs);
+      u.uStrength.value = z.ao; u.uBlobN.value = Math.min(this.blobN, q.blobs); u.uBlobStr.value = z.blob;
       pass(this.aoMat, this.rtAO);
       const b = this.aoBlurMat.uniforms;
       b.tAO.value = this.rtAO.texture; b.tDepth.value = inp.depth; b.uTexel.value.set(1 / this.rtAO.width, 1 / this.rtAO.height);
