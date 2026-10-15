@@ -533,6 +533,7 @@ export class Intro implements GameSystem {
     if (this.phase === 'noclip' || this.phase === 'fall' || this.phase === 'wake' || this.phase === 'done') return;
     const g = this.g, p = this.p;
     this.phase = 'noclip'; this.t = 0; this.scripted = true;
+    (g as any).touch?.setHidden?.(true); // on-screen controls step aside for the cutscene
     this.setPrompt('', '');
     this.card.classList.remove('on');
     p.actions.clear();
@@ -703,6 +704,7 @@ export class Intro implements GameSystem {
     if (p.zoneKey === INTRO_ZONE) { this.phase = 'normal'; this.startWake(true); }
     this.phase = 'done';
     this.scripted = false;
+    (g as any).touch?.setHidden?.(false);
     g.attract = null;
     p.full = ''; p.actionAnim = '';
     p.y = g.getZone(p.zoneKey).heightAt(p.tileX(), p.tileY());
