@@ -12,7 +12,7 @@ import {
   CS, zoneOf, nm, netSet, pulse, attack, playersIn, stop, dist, faceTo, isAlone, instFlags, sfx, wallSpotsNear, WallSpot,
   hideRig, galleryPose, ease, lerp, suppressSighting, idHash,
 } from '../behaviors_a';
-import { matB } from '../behaviors_b';
+import { worldMaterial } from '../../gfx/materials';
 import {
   KitDef, KitRig, BoneSpec, SkinB, BuildCtx, Page, Region, Row, Wt, buildKitRig, kitSync, kitPersonalize, tube, headLoft, handLoft, footLoft,
   wLerp, gauss, angd, FOOT_BARE, lostParts, nearestSurvivor, lookAngles, attackCurve, flinchOf, hash, offset, smooth,
@@ -326,7 +326,8 @@ const craterGeo = (() => {
 })();
 function buildDrywall(): Rig {
   const rig = buildKitRig(DRYWALL_KIT, 0, 2.05);
-  const crater = new THREE.Mesh(craterGeo(), matB('card'));
+  // cut away with the wall it is painted on when the camera lowers that wall
+  const crater = new THREE.Mesh(craterGeo(), worldMaterial({ alphaTest: 0.5, doubleSide: true, cutout: true }));
   crater.name = 'crater'; crater.visible = false; crater.castShadow = false;
   rig.root.add(crater);
   rig.parts.crater = crater;
@@ -344,7 +345,7 @@ function poseD(rig: Rig, mode: DMode, k: number, moving: boolean, phase: number,
   if (mode === 'wall') {
     // pressed against the inside of the wallpaper: face and palms first, the rest of him in the board
     const breathe = Math.sin(t * 2.2) * 0.01;
-    offset(rig, 'hips', 0, 0.02, -0.18 - (1 - k) * 0.12 + breathe);
+    offset(rig, 'hips', 0, 0.02, -0.14 - (1 - k) * 0.08 + breathe);
     R('hips', 0); R('spine', 0.1); R('chest', 0.12); R('neck', 0.25); R('head', -0.3, o.yaw * 0.3, tilt * 0.6);
     R('uarmL', -0.32, 0, 0.75); R('farmL', 0.95, 0, 1.9); R('handL', -0.7, -1.4, 0);
     R('uarmR', -0.3, 0, -0.72); R('farmR', 0.95, 0, -1.95); R('handR', -0.7, 1.4, 0);

@@ -168,7 +168,7 @@ function buildC(B: SkinB, x: BuildCtx) {
       if (y > -0.76) return [F, 1];
       return [F, 0.5, H, 0.5];
     };
-    tube(B, { rows: ARM_C, ys: [0, -0.02, -0.08, -0.2, -0.32, -0.36, -0.39, -0.42, -0.46, -0.58, -0.7, -0.745, -0.745, -0.755, -0.78], n: 8, reg: R('ARM'), vr: R('ARM').range, at, w: wf, g: 10 + i * 2 + (k > 0 ? 0 : 1), mirror: k, start: [at[0] - k * 0.012, at[1] + 0.004, at[2]] });
+    tube(B, { rows: ARM_C, ys: [0, -0.02, -0.1, -0.3, -0.36, -0.42, -0.48, -0.7, -0.745, -0.745, -0.755, -0.78], n: 6, reg: R('ARM'), vr: R('ARM').range, at, w: wf, g: 10 + i * 2 + (k > 0 ? 0 : 1), mirror: k, start: [at[0] - k * 0.012, at[1] + 0.004, at[2]] });
     const hp = x.rest('hd' + n);
     handLoft(B, { k, at: [hp[0], hp[1] - 0.01, hp[2]], bones: { farm: F, hand: H, f1: bi('f1' + n), f2: bi('f2' + n), thumb: bi('th' + n) }, reg: R('GLOVE'), g: 40 + i * 20 + (k > 0 ? 0 : 10), s: 1.12, glove: 0.004,
       fingers: { n: 4, len: [0.085, 0.094, 0.09, 0.074], r: [0.0086, 0.009, 0.0086, 0.0074] } });
@@ -185,7 +185,7 @@ function buildC(B: SkinB, x: BuildCtx) {
       if (y > -1.12) return [S, 1];
       return [S, 0.5, Ft, 0.5];
     };
-    tube(B, { rows: LEG_C, ys: [0.06, -0.01, -0.08, -0.16, -0.28, -0.4, -0.52, -0.58, -0.62, -0.66, -0.72, -0.8, -0.9, -1.0, -1.08, -1.14, -1.19], n: 8, reg: R('LEG'), vr: R('LEG').range, at, w: wf, g: 30 + (k > 0 ? 0 : 1), mirror: k, start: [at[0], at[1] + 0.07, at[2]], startW: [bi('hips'), 0.6, T, 0.4],
+    tube(B, { rows: LEG_C, ys: [0.06, -0.01, -0.16, -0.4, -0.56, -0.62, -0.68, -0.8, -1.0, -1.14, -1.19], n: 8, reg: R('LEG'), vr: R('LEG').range, at, w: wf, g: 30 + (k > 0 ? 0 : 1), mirror: k, start: [at[0], at[1] + 0.07, at[2]], startW: [bi('hips'), 0.6, T, 0.4],
       bump: (th, y) => gauss(th, 0, 0.12) * 0.04 + gauss(y, -0.62, 0.03) * gauss(th, 0, 0.5) * 0.03 });
     footLoft(B, { k, at: x.rest('foot' + s), rows: SHOE_DRESS, ground: -0.08, sole: 0.018, lip: 0.003, reg: R('SHOE'), w: [Ft, 1], g: 36 + (k > 0 ? 0 : 1), s: 1.22, sx: 0.92 });
   }

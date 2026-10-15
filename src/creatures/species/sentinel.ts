@@ -134,7 +134,7 @@ function paintS(p: Page, x: BuildCtx) {
     const r = p.R('HEAD');
     r.fill(PL, (xx, yy) => {
       const deg = r.deg(xx), h = r.yAt(yy);
-      return 4.6 + 1.6 * Math.cos((deg * Math.PI) / 180) * 0.6 + (r.fbm(xx, yy, 2, 2, 13) - 0.5) * 0.4 - 1.2 * Math.max(0, (0.03 - h) / 0.05) + ((xx + (yy >> 1)) % 7 === 0 ? -0.35 : 0);
+      return 3.9 + 1.6 * Math.cos((deg * Math.PI) / 180) * 0.6 + (r.fbm(xx, yy, 2, 2, 13) - 0.5) * 0.4 - 1.2 * Math.max(0, (0.03 - h) / 0.05) + ((xx + (yy >> 1)) % 7 === 0 ? -0.35 : 0);
     }, undefined, 0.4);
     // stretched: faint vertical lines down the face, and two pinholes where it sees from
     for (const deg of [-30, -12, 12, 30]) for (let yy = 2; yy < r.h - 2; yy++) if (hash(yy, deg) < 0.6) r.blend(r.X(deg), yy, PL[2], 0.35);
@@ -153,8 +153,7 @@ function buildSentinel(): Rig {
   eyes.name = 'eyes';
   rig.root.add(eyes);
   rig.parts.eyes = eyes;
-  partB(rig, 'eyeL', eyes, [0.04, 0, 0], (mb) => { mb.box(0, 0, 0, 0.02, 0.02, 0.01, 'c_sentinel_eye', { fit: true, emissive: 1 }); }, matB('glow'));
-  partB(rig, 'eyeR', eyes, [-0.04, 0, 0], (mb) => { mb.box(0, 0, 0, 0.02, 0.02, 0.01, 'c_sentinel_eye', { fit: true, emissive: 1 }); }, matB('glow'));
+  partB(rig, 'eyePts', eyes, [0, 0, 0], (mb) => { for (const x of [0.04, -0.04]) mb.box(x, 0, 0, 0.02, 0.02, 0.01, 'c_sentinel_eye', { fit: true, emissive: 1 }); }, matB('glow'));
   rig.eyes = [eyes];
   return rig;
 }
