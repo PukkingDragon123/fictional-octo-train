@@ -244,7 +244,7 @@ const step = async (page, name, fn, arg) => {
   await step(page, 'the coach arrives; board; it leaves; the ending', async () => {
     const T = window.T, tr = T.D.tr;
     // fast-forward the arrival
-    const ff = setInterval(() => { const r = tr.ride; if (r && (r.phase === 'arrive' || r.phase === 'depart')) r.t += 0.5; }, 100);
+    const ff = setInterval(() => { const r = tr.ride; if (r && (r.phase === 'arrive' || r.phase === 'depart' || (r.phase === 'wait' && r.boarded.size))) r.t += 0.5; }, 100);
     await T.until(() => tr.ride.phase === 'wait', 120000, 'arrived');
     const [dx, dz] = tr.doorPos(tr.ride);
     T.p.x = dx; T.p.z = dz;

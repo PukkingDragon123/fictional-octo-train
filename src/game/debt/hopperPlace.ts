@@ -15,6 +15,14 @@ import { Zone, TF } from '../../world/zone';
 import { ZoneBuilder } from '../../world/gen/builder';
 import { Rng } from '../../core/rng';
 
+/** an anchor's facing (radians, the way an arriving survivor looks) as the quarter-turn an object needs (0..3, front +z at 0) */
+function quarterTurn(face: number | undefined): 0 | 1 | 2 | 3 {
+  if (face === undefined || !Number.isFinite(face)) return 0;
+  // rot 0 faces +z (pi/2), rot 1 faces -x (pi), rot 2 faces -z, rot 3 faces +x (0)
+  const q = Math.round((face - Math.PI / 2) / (Math.PI / 2));
+  return (((q % 4) + 4) % 4) as 0 | 1 | 2 | 3;
+}
+
 /** zones that never get a hopper */
 const SKIP = new Set(['reality', 'exit', 'gallery']);
 /** the hopper beacon the SEER-9 can lock onto (SIG page) */
@@ -185,7 +193,7 @@ export function placeContractProps(z: Zone, seed: number) {
     if (a) {
       for (let r = 0; r < 4 && !placed; r++) for (let dy = -r; dy <= r && !placed; dy++) for (let dx = -r; dx <= r && !placed; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
-        if (freeTile(z, a[0] + dx, a[1] + dy) && b.obj('ticket_kiosk', a[0] + dx, a[1] + dy, (a[2] as any) ?? 0, {})) placed = true;
+        if (freeTile(z, a[0] + dx, a[1] + dy) && b.obj('ticket_kiosk', a[0] + dx, a[1] + dy, quarterTurn(a[2]), {})) placed = true;
       }
     }
     if (!placed && hopper) placeKioskNear(z, b, hopper.x, hopper.y);

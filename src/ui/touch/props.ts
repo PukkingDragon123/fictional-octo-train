@@ -353,7 +353,9 @@ export class Arcade extends Thing {
       const a = i / SH_N * PI * 2, ux = Math.cos(a), uz = Math.sin(a);
       const d = ux * o + uz * o, disc = r * r - 2 * o * o + d * d;
       const rOut = clamp(disc > 0 ? d + Math.sqrt(disc) : 0, 0.272, 0.39);
-      arr.set([ux * 0.272, 0.211, uz * 0.272, ux * rOut, 0.211, uz * rOut], i * 6);
+      const j = i * 6;
+      arr[j] = ux * 0.272; arr[j + 1] = 0.211; arr[j + 2] = uz * 0.272;
+      arr[j + 3] = ux * rOut; arr[j + 4] = 0.211; arr[j + 5] = uz * rOut;
     }
     pos.needsUpdate = true;
   }

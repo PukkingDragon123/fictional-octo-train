@@ -308,14 +308,17 @@ defOp('lightSmash', (a: { z: string; id: number; by: string | null }) => {
 });
 
 // ================================================================ the debris pile
-const SETTLED = new Set<number>();
+/** piles whose debris is still tumbling here (drawn by the live mesh until it settles) */
+const ANIM = new Set<number>();
+/** the resting debris of every pile seen this session, by seed */
+const PILES = new Map<number, PileData>();
 defObj({
   key: PILE, name: 'Debris', w: 1, d: 1, height: 0.25, block: 'none', sound: 'wood',
   container: { capacity: 25, kind: 'pile' },
   tags: ['debris'],
   desc: 'What is left of it. Something might be buried in there.',
-  variant: (s) => 'p' + (s.seed ?? 0) + (SETTLED.has(s.seed ?? 0) ? 's' : ''),
-  model: (mb, s, o) => { G.destruct?.pileModel?.(mb, s, o); },
+  variant: (s) => 'p' + (s.seed ?? 0) + (ANIM.has(s.seed ?? 0) ? 'a' : ''),
+  model: (mb, s, o) => pileModel(mb, s, o),
 });
 
 // ================================================================ the system
@@ -337,7 +340,6 @@ export class DestructionSystem implements GameSystem {
   dust: Particles;
   sparks: Particles;
   live: LiveBreak[] = [];
-  piles = new Map<number, PileData>();
   flashes: Flash[] = [];
   sparkSrcs: SparkSrc[] = [];
   private overlayDirty = true;
@@ -676,15 +678,14 @@ export class DestructionSystem implements GameSystem {
     if (!isReplaying()) this.tidyPiles(z);
     const here = z === G.view?.zone && !isReplaying();
     const mat = objMat(d);
-    if (!here) { if (pile) SETTLED.add(a.seed); return; }
+    if (!here) return;
     const cx = m.elements[12], cy = m.elements[13], cz = m.elements[14];
     const h = Math.max(0.2, d.height);
     // the debris
     try {
-      const data = this.buildPile(z, o, d, m, a, pile);
+      const data = buildPileData(z, o, d, m, a, pile);
       if (data && pile) this.startLive(z, data.sim, data.pieces, a.seed, mat, pile);
-      else if (pile) SETTLED.add(a.seed);
-    } catch (e) { console.error('debris', e); if (pile) SETTLED.add(a.seed); }
+    } catch (e) { console.error('debris', e); if (pile) { ANIM.delete(a.seed); z.markDirty(pile.x, pile.y); } }
     // particles: a cloud, then what it was made of
     const q = this.quality, r = this.rng;
     const nd = q === 0 ? 40 : q === 2 ? 130 : 80;
@@ -832,84 +833,6 @@ export class DestructionSystem implements GameSystem {
     try { (G.camera as any)?.shake?.(amt * k, 0.25 + amt * 0.4); } catch { G.pr.shake = Math.max(G.pr.shake, amt * k); }
   }
 
-  // ================================================================ debris: fracture, sim, pile
-  /** fracture + simulate (break time, or lazily for a pile seen later) */
-  private buildPile(z: Zone, o: TileObject, d: ObjDef, m: THREE.Matrix4, a: { seed: number; dx: number; dz: number; how: string }, pile: TileObject | null): { sim: SimResult; pieces: Piece[] } | null {
-    const mat = objMat(d);
-    // the same on every machine (phones and desktops must agree on the heap)
-    const max = 18;
-    const pieces = fracture(d, { ...(o.state || {}), dmg: 0, held: undefined }, o, { max, seed: a.seed, mat });
-    // loose bits by material (splinters, stuffing tufts, shards, boards) join the sim
-    const bits = bitGeos(mat);
-    const nb = mat === 'fabric' ? 8 : mat === 'glass' || mat === 'elec' ? 7 : mat === 'metal' ? 4 : 6;
-    const rng = new Rng(a.seed ^ 0x2545f491);
-    const bb = new THREE.Box3();
-    for (let i = 0; i < nb; i++) {
-      const g = bits[i % bits.length];
-      bb.copy(g.boundingBox!);
-      const c = bb.getCenter(new THREE.Vector3());
-      const geo = g.clone(); geo.translate(-c.x, -c.y, -c.z);
-      const half = bb.getSize(new THREE.Vector3()).multiplyScalar(0.5).max(new THREE.Vector3(0.006, 0.006, 0.006));
-      pieces.push({ geo, c: new THREE.Vector3(rng.float(-0.3, 0.3) * (d.w ?? 1), rng.float(0.1, Math.max(0.2, d.height * 0.8)), rng.float(-0.2, 0.2) * (d.d ?? 1)), half, mat, tex: '', mass: 0.1 });
-    }
-    // starting state: where each piece sits in the intact model, flung out from the blow
-    const pw = POWER[a.how] ?? 2.2;
-    const centre = new THREE.Vector3(m.elements[12], m.elements[13] + d.height * 0.45, m.elements[14]);
-    const rotQ = new THREE.Quaternion().setFromRotationMatrix(tmpM.extractRotation(m));
-    const starts: SimStart[] = pieces.map((pc) => {
-      const p = pc.c.clone().applyMatrix4(m);
-      const rad = p.clone().sub(centre); rad.y = 0;
-      const rl = Math.sqrt(rad.x * rad.x + rad.z * rad.z) || 1;
-      const heavy = 1 / Math.sqrt(1 + pc.mass * 0.08);
-      const v = new THREE.Vector3(
-        (a.dx * pw * rng.float(0.35, 1.0) + (rad.x / rl) * rng.float(0.3, 1.4)) * heavy,
-        rng.float(0.6, 2.4) * Math.min(1.4, pw / 2.2) * heavy,
-        (a.dz * pw * rng.float(0.35, 1.0) + (rad.z / rl) * rng.float(0.3, 1.4)) * heavy,
-      );
-      const w = new THREE.Vector3(rng.float(-1, 1), rng.float(-1, 1), rng.float(-1, 1)).multiplyScalar(rng.float(3, 12) * heavy);
-      return { p, q: rotQ.clone(), v, w, half: pc.half };
-    });
-    const sim = simulate(z, starts, 4.5);
-    if (pile) {
-      const finals = sim.pieces.map((sp) => new THREE.Matrix4().compose(sp.p, sp.q, tmpS));
-      this.piles.set(pile.state.seed, { pieces, finals, mats: pieces.map((p) => p.mat), bits: [] });
-    }
-    return { sim, pieces };
-  }
-
-  /** the pile's geometry: every piece where it came to rest (model space of the pile object) */
-  pileModel(mb: ModelBuilder, s: ObjState, o?: TileObject) {
-    const seed = s.seed ?? 0;
-    // still tumbling: draw nothing (the live debris is showing it)
-    if (!SETTLED.has(seed) && this.live.some((l) => l.seed === seed)) return;
-    let data = this.piles.get(seed);
-    if (!data && o) {
-      // a pile from earlier (save, late join, another zone): rebuild it the same way
-      const z = [...G.zones.values()].find((zz) => zz.objects.get(o.uid) === o);
-      const d = s.of ? objDef(s.of) : undefined;
-      if (z && d && s.src) {
-        const fake: TileObject = { uid: s.src.uid ?? -1, key: s.of, x: s.src.x, y: s.src.y, rot: s.src.rot, state: { ...(s.os || {}), y: s.src.sy, yaw: s.src.yaw }, ox: s.src.ox || undefined, oz: s.src.oz || undefined };
-        const m = objectMatrix(z, fake, d).clone();
-        this.buildPile(z, fake, d, m, { seed, dx: s.ix ?? 0, dz: s.iz ?? 0, how: s.how ?? 'smash' }, o);
-        data = this.piles.get(seed);
-      }
-    }
-    if (!data || !o) {
-      // fallback heap (galleries, unknown source)
-      const r = new Rng(seed || 1);
-      for (let i = 0; i < 9; i++) { mb.push().translate(r.float(-0.35, 0.35), 0, r.float(-0.35, 0.35)).rotateY(r.float(0, 3)).rotateZ(r.float(-0.3, 0.3)); mb.box(0, 0, 0, r.float(0.1, 0.4), r.float(0.02, 0.06), r.float(0.05, 0.12), r.chance(0.5) ? 'dbr_splinter' : 'wood_dark'); mb.pop(); }
-      return;
-    }
-    // into the pile's own frame (anchor tile centre on the floor)
-    const z = [...G.zones.values()].find((zz) => zz.objects.get(o.uid) === o);
-    const fy = z ? z.heightAt(o.x, o.y) : 0;
-    const inv = new THREE.Matrix4().makeTranslation(-(o.x + 0.5), -fy, -(o.y + 0.5));
-    for (let i = 0; i < data.pieces.length; i++) {
-      tmpM.multiplyMatrices(inv, data.finals[i]);
-      mb.appendGeometry(data.pieces[i].geo, tmpM);
-    }
-  }
-
   // ---------------------------------------------------------------- live debris (one merged, CPU-posed mesh per break)
   private startLive(z: Zone, sim: SimResult, pieces: Piece[], seed: number, mat: Mat, pile: TileObject | null, cut = 0) {
     let vtot = 0, itot = 0;
@@ -943,6 +866,7 @@ export class DestructionSystem implements GameSystem {
     mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true;
     this.root.add(mesh);
     const dur = Math.max(0.5, (sim.frames - 1) * sim.dt);
+    if (seed >= 0 && pile) { ANIM.add(seed); z.markDirty(pile.x, pile.y); }
     const L: LiveBreak = { zone: z.key, seed, mesh, geo, rest: pos, restN: nor, ranges, sim, t: 0, dur: cut ? Math.min(dur, cut) : dur, li: 0, mats: pieces.map((p) => p.mat), pileTile: pile ? [pile.x, pile.y] : null, settled: false, wait: 0 };
     this.live.push(L);
     this.poseLive(L);
@@ -998,7 +922,7 @@ export class DestructionSystem implements GameSystem {
         this.poseLive(L);
         if (L.t >= L.dur) {
           L.settled = true;
-          if (L.seed >= 0) SETTLED.add(L.seed);
+          if (L.seed >= 0) ANIM.delete(L.seed);
           if (L.pileTile) z.markDirty(L.pileTile[0], L.pileTile[1]);
           else if (L.seed < 0) { L.wait = 6; }
         }
@@ -1014,8 +938,8 @@ export class DestructionSystem implements GameSystem {
   private endLive(L: LiveBreak, settle: boolean) {
     this.root.remove(L.mesh);
     L.geo.dispose();
-    if (settle && L.seed >= 0 && !SETTLED.has(L.seed)) {
-      SETTLED.add(L.seed);
+    if (settle && L.seed >= 0 && ANIM.has(L.seed)) {
+      ANIM.delete(L.seed);
       const z = G.zones.get(L.zone);
       if (z && L.pileTile) z.markDirty(L.pileTile[0], L.pileTile[1]);
     }
@@ -1071,3 +995,82 @@ export class DestructionSystem implements GameSystem {
   /** network: fx events piggyback on the gore channel ({ t: 'D', ... }) */
   onNet(ev: any) { this.push?.onNet?.(ev); }
 }
+
+// ================================================================ debris: fracture, sim, pile
+/** fracture + simulate (break time, or lazily for a pile seen later) */
+function buildPileData(z: Zone, o: TileObject, d: ObjDef, m: THREE.Matrix4, a: { seed: number; dx: number; dz: number; how: string }, pile: TileObject | null): { sim: SimResult; pieces: Piece[] } | null {
+    const mat = objMat(d);
+    // the same on every machine (phones and desktops must agree on the heap)
+    const max = 18;
+    const pieces = fracture(d, { ...(o.state || {}), dmg: 0, held: undefined }, o, { max, seed: a.seed, mat });
+    // loose bits by material (splinters, stuffing tufts, shards, boards) join the sim
+    const bits = bitGeos(mat);
+    const nb = mat === 'fabric' ? 8 : mat === 'glass' || mat === 'elec' ? 7 : mat === 'metal' ? 4 : 6;
+    const rng = new Rng(a.seed ^ 0x2545f491);
+    const bb = new THREE.Box3();
+    for (let i = 0; i < nb; i++) {
+      const g = bits[i % bits.length];
+      bb.copy(g.boundingBox!);
+      const c = bb.getCenter(new THREE.Vector3());
+      const geo = g.clone(); geo.translate(-c.x, -c.y, -c.z);
+      const half = bb.getSize(new THREE.Vector3()).multiplyScalar(0.5).max(new THREE.Vector3(0.006, 0.006, 0.006));
+      pieces.push({ geo, c: new THREE.Vector3(rng.float(-0.3, 0.3) * (d.w ?? 1), rng.float(0.1, Math.max(0.2, d.height * 0.8)), rng.float(-0.2, 0.2) * (d.d ?? 1)), half, mat, tex: '', mass: 0.1 });
+    }
+    // starting state: where each piece sits in the intact model, flung out from the blow
+    const pw = POWER[a.how] ?? 2.2;
+    const centre = new THREE.Vector3(m.elements[12], m.elements[13] + d.height * 0.45, m.elements[14]);
+    const rotQ = new THREE.Quaternion().setFromRotationMatrix(tmpM.extractRotation(m));
+    const starts: SimStart[] = pieces.map((pc) => {
+      const p = pc.c.clone().applyMatrix4(m);
+      const rad = p.clone().sub(centre); rad.y = 0;
+      const rl = Math.sqrt(rad.x * rad.x + rad.z * rad.z) || 1;
+      const heavy = 1 / Math.sqrt(1 + pc.mass * 0.08);
+      const v = new THREE.Vector3(
+        (a.dx * pw * rng.float(0.35, 1.0) + (rad.x / rl) * rng.float(0.3, 1.4)) * heavy,
+        rng.float(0.6, 2.4) * Math.min(1.4, pw / 2.2) * heavy,
+        (a.dz * pw * rng.float(0.35, 1.0) + (rad.z / rl) * rng.float(0.3, 1.4)) * heavy,
+      );
+      const w = new THREE.Vector3(rng.float(-1, 1), rng.float(-1, 1), rng.float(-1, 1)).multiplyScalar(rng.float(3, 12) * heavy);
+      return { p, q: rotQ.clone(), v, w, half: pc.half };
+    });
+    const sim = simulate(z, starts, 4.5);
+    if (pile) {
+      const finals = sim.pieces.map((sp) => new THREE.Matrix4().compose(sp.p, sp.q, tmpS));
+      PILES.set(pile.state.seed, { pieces, finals, mats: pieces.map((p) => p.mat), bits: [] });
+    }
+    return { sim, pieces };
+  }
+
+/** the pile's geometry: every piece where it came to rest (model space of the pile object) */
+function pileModel(mb: ModelBuilder, s: ObjState, o?: TileObject) {
+    const seed = s.seed ?? 0;
+    // still tumbling: draw nothing (the live debris is showing it)
+    if (ANIM.has(seed)) return;
+    let data = PILES.get(seed);
+    if (!data && o) {
+      // a pile from earlier (save, late join, another zone): rebuild it the same way
+      const z = [...G.zones.values()].find((zz) => zz.objects.get(o.uid) === o);
+      const d = s.of ? objDef(s.of) : undefined;
+      if (z && d && s.src) {
+        const fake: TileObject = { uid: s.src.uid ?? -1, key: s.of, x: s.src.x, y: s.src.y, rot: s.src.rot, state: { ...(s.os || {}), y: s.src.sy, yaw: s.src.yaw }, ox: s.src.ox || undefined, oz: s.src.oz || undefined };
+        const m = objectMatrix(z, fake, d).clone();
+        buildPileData(z, fake, d, m, { seed, dx: s.ix ?? 0, dz: s.iz ?? 0, how: s.how ?? 'smash' }, o);
+        data = PILES.get(seed);
+      }
+    }
+    if (!data || !o) {
+      // fallback heap (galleries, unknown source)
+      const r = new Rng(seed || 1);
+      for (let i = 0; i < 9; i++) { mb.push().translate(r.float(-0.35, 0.35), 0, r.float(-0.35, 0.35)).rotateY(r.float(0, 3)).rotateZ(r.float(-0.3, 0.3)); mb.box(0, 0, 0, r.float(0.1, 0.4), r.float(0.02, 0.06), r.float(0.05, 0.12), r.chance(0.5) ? 'dbr_splinter' : 'wood_dark'); mb.pop(); }
+      return;
+    }
+    // into the pile's own frame (anchor tile centre on the floor)
+    const z = [...G.zones.values()].find((zz) => zz.objects.get(o.uid) === o);
+    const fy = z ? z.heightAt(o.x, o.y) : 0;
+    const inv = new THREE.Matrix4().makeTranslation(-(o.x + 0.5), -fy, -(o.y + 0.5));
+    for (let i = 0; i < data.pieces.length; i++) {
+      tmpM.multiplyMatrices(inv, data.finals[i]);
+      mb.appendGeometry(data.pieces[i].geo, tmpM);
+    }
+  }
+

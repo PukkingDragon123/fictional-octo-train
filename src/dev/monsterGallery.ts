@@ -116,33 +116,13 @@ export function info() { return { zone: G.zone.key, x: G.local.x, z: G.local.z, 
 export function frame(x: number | null, z = 0, zoom?: number) {
   const g = G as any;
   const cam = g.camera;
-  if (!cam.__framed) {
+  // (re)hook: other systems (the intro) wrap and later delete cam.update
+  if (!cam.update.__framer) {
     const orig = cam.update.bind(cam);
-    cam.update = (dt: number) => { orig(dt); const f = g.__frame; if (f) { g.pr.target.x = f.x; g.pr.target.z = f.z; g.pr.updateCamera(dt); } };
-    cam.__framed = true;
+    const f = (dt: number) => { orig(dt); const fr = g.__frame; if (fr) { g.pr.target.x = fr.x; g.pr.target.z = fr.z; g.pr.updateCamera(dt); } };
+    (f as any).__framer = true;
+    cam.update = f;
   }
   g.__frame = x === null ? null : { x, z };
   if (zoom) g.pr.pxSizeTarget = 1 / zoom;
-}
-
-/** move the survivor to the centre of an open square (radius r tiles: floor, nothing solid, no walls) near them */
-export function arena(r = 3, maxR = 90) {
-  const z = G.zone, p = G.local;
-  const ok = (x0: number, y0: number) => {
-    for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
-      const x = x0 + dx, y = y0 + dy;
-      if (!z.inb(x, y)) return false;
-      const i = z.idx(x, y);
-      if (!z.floor[i] || z.solid[i] || z.objectsAt(x, y).length) return false;
-      if (dx < r && z.edgeBlocks(x, y, 1, 0, 'walk')) return false;
-      if (dy < r && z.edgeBlocks(x, y, 0, 1, 'walk')) return false;
-    }
-    return true;
-  };
-  const cx = Math.floor(p.x), cy = Math.floor(p.z);
-  for (let R = 0; R < maxR; R++) for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) {
-    if (Math.max(Math.abs(dx), Math.abs(dy)) !== R) continue;
-    if (ok(cx + dx, cy + dy)) { p.x = cx + dx + 0.5; p.z = cy + dy + 0.5; return [cx + dx, cy + dy]; }
-  }
-  return null;
 }
