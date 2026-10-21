@@ -204,7 +204,7 @@ export class Inspect {
     if (!G.local) return;
     clearTimeout(this.timer); this.timer = 0;
     this.build();
-    if (!this.open) { if (!fpClaim('inspect', 5)) return; }
+    if (!this.open) { if (!fpClaim('inspect', 5, { cinematic: 'glance' })) return; }
     this.open = true;
     G.hudBody?.setHidden?.('inspect', true);
     this.onClose = opts.onClose ?? this.onClose;
@@ -255,7 +255,8 @@ export class Inspect {
       this.qT.setFromEuler(_e.set(0.42, -0.75, 0));
     }
     this.turn.add(this.model);
-    this.turn.quaternion.copy(this.qT);
+    // it comes up into the hands turned away, and turns to face you
+    this.turn.quaternion.copy(this.qT).multiply(_q.setFromEuler(_e.set(0.9, -1.4, 0.3)));
     this.hold.position.set(0.04, -0.5, -this.dist);
     this.tw.add(0.32, (k) => { this.hold.position.y = -0.5 + 0.52 * k; }, easeBack);
     G.audio?.itemSound?.(s.kind === 'item' ? s.it.key : 'plank', 'pick', G.local);

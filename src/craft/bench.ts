@@ -145,7 +145,7 @@ export class Bench {
     const p = G.local;
     if (!p) return;
     this.build();
-    if (!fpClaim('bench', 3)) return;
+    if (!fpClaim('bench', 3, { cinematic: 'full' })) return;
     if (G.ui?.inventory?.open) G.ui.inventory.toggle(false);
     this.open = true; this.suspended = false;
     G.hudBody?.setHidden?.('bench', true);
@@ -166,7 +166,7 @@ export class Bench {
 
   private resume() {
     if (!this.open || fpOwner()) return;
-    if (!fpClaim('bench', 3)) return;
+    if (!fpClaim('bench', 3, { cinematic: 'none' })) return;
     this.suspended = false;
     this.root.classList.add('on');
     G.input.pointerOverUI = true;

@@ -7,7 +7,7 @@
 // lock on the target and a faint beam joins you to it.
 import * as THREE from 'three';
 import { G } from '../game/G';
-import { fpGroup, fpClaim, fpRelease, fpOwner } from '../fp/fp';
+import { fpGroup, fpClaim, fpRelease, fpOwner, fpBlend } from '../fp/fp';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
@@ -93,7 +93,7 @@ export class Scope {
   /** a sweep started / continues */
   sweep(t: ScopeTarget, prog: number) {
     this.t = t; this.prog = prog; this.want = true;
-    if (!this.owns) { this.owns = fpOwner() === 'scope' || fpClaim('scope', 1); if (this.owns) this.tube.power(true); }
+    if (!this.owns) { this.owns = fpOwner() === 'scope' || fpClaim('scope', 1, { cinematic: 'glance' }); if (this.owns) this.tube.power(true); }
   }
   /** the sweep ended without a result */
   drop() { if (this.cardT < 0) this.want = false; this.bracket.visible = false; this.beam.visible = false; }
@@ -114,7 +114,7 @@ export class Scope {
     else c.typed(`TOTAL ${r.total}`, 24, 42, PAL.ink, 7, CARD_W - 27);
     c.flush();
     this.cardT = 0; this.want = true; this.prog = 1;
-    if (!this.owns) { this.owns = fpOwner() === 'scope' || fpClaim('scope', 1); if (this.owns) this.tube.power(true); }
+    if (!this.owns) { this.owns = fpOwner() === 'scope' || fpClaim('scope', 1, { cinematic: 'glance' }); if (this.owns) this.tube.power(true); }
     this.bracket.visible = false; this.beam.visible = false;
   }
 
@@ -145,7 +145,7 @@ export class Scope {
       return;
     }
     if (!this.owns) return;
-    const k = ease(Math.min(1, this.raise));
+    const k = ease(Math.min(1, this.raise, Math.max(fpBlend(), this.want ? 0 : 1)));
     const bob = G.local && G.local.speed > 0.2 ? Math.sin(G.time * 7) * 0.003 : 0;
     this.dev.position.set(-0.115, -0.035 - (1 - k) * 0.25 + bob, -0.5);
     this.dev.rotation.set(-0.12 + (1 - k) * 0.6, 0.28, 0.05);

@@ -6,7 +6,7 @@
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
-import { fpGroup, fpClaim, fpRelease, fpCamera } from '../fp/fp';
+import { fpGroup, fpClaim, fpRelease, fpCamera, fpBlend } from '../fp/fp';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { hasUnlock } from '../game/research';
@@ -94,7 +94,7 @@ export class Remote {
   get forId() { return this.c?.id ?? null; }
 
   show(c: Creature) {
-    if (!fpClaim('remote', 4)) return;
+    if (!fpClaim('remote', 4, { cinematic: 'glance' })) return;
     this.c = c; this.sure = false; this.raise = 0;
     this.lcd.power(true);
     this.layer.on = true;
@@ -151,7 +151,7 @@ export class Remote {
     if (!p || c.dead || c.zoneKey !== p.zoneKey || Math.hypot(c.x - p.x, c.z - p.z) > 5 || !this.d.rec(c)) { this.close(); return; }
     const r = this.d.rec(c)!;
     this.raise = Math.min(1, this.raise + dt * 5);
-    const k = 1 - Math.pow(1 - this.raise, 3);
+    const k = Math.min(1 - Math.pow(1 - this.raise, 3), fpBlend());
     this.box.position.set(0.0, -0.02 - (1 - k) * 0.2, -0.42);
     this.box.rotation.set(-0.35 + (1 - k) * 0.5, -0.05, 0.02);
     // the toggles show the order it is under; pressed things dip

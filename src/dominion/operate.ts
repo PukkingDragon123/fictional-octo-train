@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
-import { fpGroup, fpClaim, fpRelease, fpCamera } from '../fp/fp';
+import { fpGroup, fpClaim, fpRelease, fpCamera, fpBlend } from '../fp/fp';
 import { worldMaterial } from '../gfx/materials';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { makeHeldMesh } from '../items/itemMeshes';
@@ -202,7 +202,7 @@ export class Operation {
 
   // ---------------------------------------------------------------- flow
   start(c: Creature, brainItem: Item, tier: 1 | 2 | 3, toolItem: Item) {
-    if (!fpClaim('dominion', 6)) { bus.emit('think', G.local, "Not now. My hands are full."); return; }
+    if (!fpClaim('dominion', 6, { cinematic: 'full' })) { bus.emit('think', G.local, "Not now. My hands are full."); return; }
     this.active = true; this.c = c; this.brainItem = brainItem; this.tier = tier;
     this.step = 'saw'; this.prog = 0; this.capA = 0; this.capFly = -1; this.brainFly = null; this.grabbed = false; this.waitT = -1; this.t = 0; this.stepT = 0;
     this.matSkin.color.setHex(this.skinColor(c));
@@ -476,6 +476,8 @@ export class Operation {
     // hand shake
     this.shakeT = Math.max(0, this.shakeT - dt);
     const s = this.shakeT * 0.04;
-    this.root.position.set((Math.random() - 0.5) * s, -0.025 + (Math.random() - 0.5) * s + Math.sin(this.t * 1.3) * 0.002, -0.88);
+    const fb = fpBlend();
+    this.root.position.set((Math.random() - 0.5) * s, -0.025 - (1 - fb) * 0.25 + (Math.random() - 0.5) * s + Math.sin(this.t * 1.3) * 0.002, -0.88);
+    this.root.rotation.x = 0.95 - (1 - fb) * 0.5;
   }
 }

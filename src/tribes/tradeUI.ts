@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
-import { fpGroup, fpClaim, fpRelease, fpCamera } from '../fp/fp';
+import { fpGroup, fpClaim, fpRelease, fpCamera, fpBlend } from '../fp/fp';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { itemDef } from '../items/item';
@@ -134,7 +134,7 @@ export class TradeUI {
     if (this.T.hostile(tribeOfCreature(c)!) && !c.tamedBy) { this.close(); bark(c, 'hostile', true); return; }
     if (this.dirty) { this.dirty = false; this.layout(); }
     this.raise = Math.min(1, this.raise + dt * 4);
-    const k = 1 - Math.pow(1 - this.raise, 3);
+    const k = Math.min(1 - Math.pow(1 - this.raise, 3), fpBlend());
     this.root.position.set(0.01, -0.06 - (1 - k) * 0.3, -0.84);
     this.root.rotation.set(1.02 - (1 - k) * 0.4, 0, 0);
     // hover lift, flying goods, the standing bead sliding along its rail
@@ -150,7 +150,7 @@ export class TradeUI {
   open(c: Creature) {
     const t = tribeOfCreature(c); if (!t) return;
     if (this.T.hostile(t) && !c.tamedBy) { bark(c, 'hostile', true); bus.emit('think', G.local, 'They are not in a talking mood.'); return; }
-    if (!fpClaim('trade', 3)) return;
+    if (!fpClaim('trade', 3, { cinematic: 'full' })) return;
     this.c = c; this.raise = 0; this.hover = null;
     this.T.meet(t);
     bark(c, 'trade', true);

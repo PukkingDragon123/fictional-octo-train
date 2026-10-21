@@ -28,6 +28,7 @@ import { metalMat } from '../craft/metal';
 import { Dymo, HoverTag, Gauge, ControlBox } from '../craft/props';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { debtorNo } from './holo/holo';
+import { kick } from '../gfx/juice';
 import { registerBagSounds } from './bag/bagSounds';
 
 /**
@@ -276,7 +277,7 @@ export class InventoryUI {
     const p = G.local;
     if (!p) return;
     this.build();
-    if (!fpClaim('pack', 1)) return;
+    if (!fpClaim('pack', 1, { cinematic: 'full' })) return;
     this.open = true; this.suspended = false;
     this.phase = 'opening';
     this.root.classList.add('on');
@@ -328,7 +329,7 @@ export class InventoryUI {
   /** come back after an inspection or the watch let go of the stage */
   resume() {
     if (!this.open || !this.suspended || fpOwner()) return;
-    if (!fpClaim('pack', 1)) return;
+    if (!fpClaim('pack', 1, { cinematic: 'none' })) return;
     this.suspended = false;
     this.root.classList.add('on');
     G.input.pointerOverUI = true;
@@ -357,7 +358,7 @@ export class InventoryUI {
     const tw = this.tw;
     tw.clear();
     this.cube.setLid(0); this.cube.setBolts(0); this.cube.setInside(0); this.cube.setScan(0, 0);
-    const sp = quick ? 0.45 : 1;
+    const sp = quick ? 0.5 : 0.8;
     let t = 0;
     const swing = (k: number) => {
       this.heldPose(1);
@@ -367,28 +368,28 @@ export class InventoryUI {
     swing(0);
     this.fade(0);
     // swing in from over the right shoulder
-    tw.add(0.4 * sp, (k) => { swing(k); this.fade(Math.min(1, k * 1.6)); }, easeBack, () => { G.audio?.ui?.(hasCube ? 'cube_clunk' : 'bag_zip', 0.55); this.shakeT = 0.18; });
-    t += 0.4 * sp;
+    tw.add(0.42, (k) => { swing(k); this.fade(Math.min(1, k * 1.6)); }, easeBack, () => { G.audio?.ui?.(hasCube ? 'cube_clunk' : 'bag_zip', 0.55); this.shakeT = 0.18; kick(0, -1, 0.06); });
+    t += 0.42;
     const setDown = (at: number) => {
-      tw.add(0.3 * sp, (k) => this.heldPose(1 - k), easeInOut, () => { this.heldPose(0); G.audio?.ui?.('cube_place', 0.5); this.shakeT = 0.12; }, at);
+      tw.add(0.26 * sp, (k) => this.heldPose(1 - k), easeInOut, () => { this.heldPose(0); G.audio?.ui?.('cube_place', 0.5); this.shakeT = 0.12; kick(0, 1, 0.04); }, at);
     };
     if (!hasCube) { setDown(t); tw.add(0.01, () => {}, easeOut, () => this.ready(), t + 0.32 * sp); return; }
     // thumb on the reader: the relays clack, the green line sweeps
-    const scanDur = 0.46 * sp;
-    tw.add(0.16 * sp, (k) => { this.thumb = k; }, easeOut, () => G.audio?.ui?.('cube_relay', 0.45), t);
-    t += 0.16 * sp;
+    const scanDur = 0.34 * sp;
+    tw.add(0.12 * sp, (k) => { this.thumb = k; }, easeOut, () => G.audio?.ui?.('cube_relay', 0.45), t);
+    t += 0.12 * sp;
     tw.add(scanDur, (k) => this.cube.setScan(k, Math.sin(k * Math.PI) * 0.9 + 0.1), (x) => x, () => { this.cube.setScan(1, 1); G.audio?.ui?.('cube_ok', 0.4); }, t);
     t += scanDur;
     tw.add(0.12 * sp, (k) => { this.thumb = 1 - k; }, easeOut, undefined, t);
     // bolts snap back one after another
-    for (let i = 0; i < 4; i++) tw.add(0.01, () => {}, easeOut, () => G.audio?.ui?.('cube_bolt', 0.35), t + i * 0.06 * sp);
-    tw.add(0.3 * sp, (k) => this.cube.setBolts(k), easeOut, undefined, t);
-    t += 0.3 * sp;
+    for (let i = 0; i < 4; i++) tw.add(0.01, () => {}, easeOut, () => { G.audio?.ui?.('cube_bolt', 0.35); this.shakeT = Math.max(this.shakeT, 0.06); kick(i % 2 ? 1 : -1, 0, 0.025); }, t + i * 0.05 * sp);
+    tw.add(0.22 * sp, (k) => this.cube.setBolts(k), easeOut, undefined, t);
+    t += 0.22 * sp;
     // down on the carpet, then the lid
     setDown(t);
-    t += 0.3 * sp;
+    t += 0.26 * sp;
     tw.add(0.01, () => {}, easeOut, () => G.audio?.ui?.('cube_hiss', 0.45), t);
-    tw.add(0.38 * sp, (k) => { this.cube.setLid(k); this.cube.setInside(k, Math.random() < 0.3 ? -1.2 : 0); }, easeOut, () => { this.cube.setInside(1); this.cube.setScan(0, 0.15); this.ready(); }, t);
+    tw.add(0.3 * sp, (k) => { this.cube.setLid(k); this.cube.setInside(k, Math.random() < 0.3 ? -1.2 : 0); }, easeOut, () => { this.cube.setInside(1); this.cube.setScan(0, 0.15); this.ready(); }, t);
   }
 
   private ready() {
