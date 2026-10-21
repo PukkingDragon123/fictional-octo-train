@@ -1,33 +1,15 @@
-// World-space combat marks, drawn as physical retro things in the scene itself
-// (no panels, no floating HUD text): typewriter keys for prompts, enamel
-// badges for what just happened, brass needle gauges for a charge or a
-// struggle, ink stamps for a finisher's name, chalk tally marks scratched on
-// the floor round the feet, and the weapon's own ember glow, sparks and
-// swing trails. Immediate mode: callers place marks every frame between
-// begin() and end(); sprites, materials, textures and particles are pooled
-// (no per-frame allocation in the hot path).
+// World-space combat marks, physical retro things drawn in the scene itself
+// (text is never drawn here: words float free in real type, src/combat/words.ts):
+// brass needle gauges for a charge or a struggle, an enamel hazard sign over
+// something winding up, an enamel skull over something you can finish, the
+// timed struggle's target and closing hoop, chalk tally marks scratched on
+// the floor round the feet, impact stars, and the weapon's own ember glow,
+// sparks and swing trails. Immediate mode: callers place marks every frame
+// between begin() and end(); sprites, materials, textures and particles are
+// pooled (no per-frame allocation in the hot path).
 import * as THREE from 'three';
 import { G } from '../game/G';
 
-// ------------------------------------------------------------------ a tiny 5x7 pixel font (uppercase, digits, a few signs)
-const F: Record<string, string> = {
-  ' ': '...................................', '!': '..#....#....#....#....#.........#..', '+': '.......#....#..#####..#....#.......',
-  '-': '...............#####...............', '.': '..........................##...##..', '0': '.###.#...##..###.#.###..##...#.###.',
-  '1': '..#...##....#....#....#....#...###.', '2': '.###.#...#....#...#...#...#...#####', '3': '#####...#...#.....#.....##...#.###.',
-  '4': '...#...##..#.#.#..#.#####...#....#.', '5': '######....####.....#....##...#.###.', '6': '..##..#...#....####.#...##...#.###.',
-  '7': '#####....#...#...#...#....#....#...', '8': '.###.#...##...#.###.#...##...#.###.', '9': '.###.#...##...#.####....#...#..##..',
-  '<': '...#...#...#...#.....#.....#.....#.', '>': '.#.....#.....#.....#...#...#...#...', A: '.###.#...##...##...#######...##...#',
-  B: '####.#...##...#####.#...##...#####.', C: '.###.#...##....#....#....#...#.###.', D: '###..#..#.#...##...##...##..#.###..',
-  E: '######....#....####.#....#....#####', F: '######....#....####.#....#....#....', G: '.###.#...##....#.####...##...#.####',
-  H: '#...##...##...#######...##...##...#', I: '.###...#....#....#....#....#...###.', J: '..###...#....#....#....#.#..#..##..',
-  K: '#...##..#.#.#..##...#.#..#..#.#...#', L: '#....#....#....#....#....#....#####', M: '#...###.###.#.##.#.##...##...##...#',
-  N: '#...##...###..##.#.##..###...##...#', O: '.###.#...##...##...##...##...#.###.', P: '####.#...##...#####.#....#....#....',
-  Q: '.###.#...##...##...##.#.##..#..##.#', R: '####.#...##...#####.#.#..#..#.#...#', S: '.#####....#.....###.....#....#####.',
-  T: '#####..#....#....#....#....#....#..', U: '#...##...##...##...##...##...#.###.', V: '#...##...##...##...##...#.#.#...#..',
-  W: '#...##...##...##.#.##.#.##.#.#.#.#.', X: '#...##...#.#.#...#...#.#.#...##...#', Y: '#...##...##...#.#.#...#....#....#..',
-  Z: '#####....#...#...#...#...#....#####',
-};
-const W = 5, H = 7;
 
 // warm, painted, enamel-and-brass palette
 const INK = 0x1c120a, CREAM = 0xeadcb4, CREAM_D = 0xbfa97c, CREAM_L = 0xfff4d8;
@@ -52,13 +34,6 @@ class Pix {
   on(x: number, y: number) { return x >= 0 && y >= 0 && x < this.w && y < this.h && this.d[(y * this.w + x) * 4 + 3] > 0; }
   rect(x: number, y: number, w: number, h: number, c: number, a = 255) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) this.px(x + i, y + j, c, a); }
   disc(cx: number, cy: number, r: number, c: number) { for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r + r * 0.6) this.px(cx + x, cy + y, c); }
-  text(s: string, x: number, y: number, c: number, bold = false) {
-    for (const ch of s) {
-      const g = F[ch] ?? F[' '];
-      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) if (g[j * W + i] === '#') { this.px(x + i, y + j, c); if (bold) this.px(x + i + 1, y + j, c); }
-      x += W + (bold ? 2 : 1);
-    }
-  }
   /** a 1px dark outline round everything drawn so far */
   outline(c = INK) {
     const src = this.d.slice();
@@ -91,42 +66,8 @@ class Pix {
 const hash = (x: number, y: number) => { const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return s - Math.floor(s); };
 
 // ------------------------------------------------------------------ the pieces
-/** an old typewriter key: chrome ring, cream face, the letter in ink. ' ' is the long space bar. */
-function typeKey(label: string): Pix {
-  if (label === 'SPACE') {
-    const w = 33, h = 11, P = new Pix(w + 2, h + 2);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-      const ex = Math.min(x, w - 1 - x), ey = Math.min(y, h - 1 - y);
-      if (ex + ey < 2) continue;
-      const rim = ex < 2 || ey < 2;
-      P.px(x, y, rim ? (y < h / 2 ? STEEL_L : STEEL_D) : y < 3 ? CREAM_L : y > h - 4 ? CREAM_D : CREAM);
-    }
-    P.outline(); P.shadow();
-    return P;
-  }
-  const r = 7, P = new Pix(r * 2 + 4, r * 2 + 4), c = r + 1;
-  for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) {
-    const d = Math.hypot(x, y);
-    if (d > r + 0.3) continue;
-    P.px(c + x, c + y, d > r - 1.6 ? (y + x < 0 ? STEEL_L : STEEL_D) : y < -3 ? CREAM_L : y > 3 ? CREAM_D : CREAM);
-  }
-  P.text(label.slice(0, 1), c - 2, c - 3, INK);
-  P.outline(); P.shadow();
-  return P;
-}
-
 /** small pictograms for the enamel badges */
 const ICON: Record<string, string[]> = {
-  star: ['....#....', '...###...', '#########', '.#######.', '..#####..', '.###.###.', '.##...##.', '#.......#'],
-  blades: ['#.......#', '.#.....#.', '..#...#..', '...#.#...', '....#....', '...#.#...', '.##...##.', '##.....##', '#.......#'],
-  dagger: ['.......##', '......###', '.....###.', '....###..', '.#.###...', '..###....', '.#.#.....', '#...#....'],
-  burst: ['....#....', '.#..#..#.', '..#####..', '.#######.', '####.####', '.#######.', '..#####..', '.#..#..#.', '....#....'],
-  down: ['#.......#', '.#.....#.', '..#...#..', '...#.#...', '#...#...#', '.#.....#.', '..#...#..', '...#.#...', '....#....'],
-  flurry: ['#..#..#..', '.#..#..#.', '..#..#..#', '.#..#..#.', '#..#..#..'],
-  swoosh: ['.....###.', '...##...#', '..#......', '.#..###..', '#..#.....', '#.#......', '..#......'],
-  free: ['.##.....##.', '#..#...#..#', '#..#.#.#..#', '#..#...#..#', '.##.....##.'],
-  chain: ['.##..##..##.', '#..##..##..#', '.##..##..##.'],
-  teeth: ['#########', '#.#.#.#.#', '.#.#.#.#.', '.........', '.#.#.#.#.', '#.#.#.#.#', '#########'],
   skull: ['..#####..', '.#######.', '#########', '#..#.#..#', '#..#.#..#', '#########', '.###.###.', '..#####..', '..#.#.#..'],
   bang: ['###', '###', '###', '###', '.#.', '...', '###'],
 };
@@ -195,54 +136,8 @@ function gauge(v: number, hot: boolean): Pix {
   return P;
 }
 
-/** a rubber ink stamp: the words in chunky letters inside a double border, worn and uneven */
-function stamp(text: string): Pix {
-  const tw = text.length * 7 - 2, w = tw + 8, h = 15, P = new Pix(w, h);
-  for (let x = 0; x < w; x++) { P.px(x, 0, BRICK); P.px(x, h - 1, BRICK); if (x > 1 && x < w - 2) { P.px(x, 2, BRICK); P.px(x, h - 3, BRICK); } }
-  for (let y = 0; y < h; y++) { P.px(0, y, BRICK); P.px(w - 1, y, BRICK); if (y > 1 && y < h - 2) { P.px(2, y, BRICK); P.px(w - 3, y, BRICK); } }
-  P.text(text, 4, 4, BRICK, true);
-  // worn rubber: ink drops out here and there, thicker in others
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (!P.on(x, y)) continue;
-    const n = hash(x + text.length * 3, y);
-    if (n < 0.13) P.px(x, y, 0, 0); else if (n > 0.9) P.px(x, y, BRICK_D);
-  }
-  return P;
-}
 
-/** chalk tally strokes (|||| and a slash for five) for the run of blows landed */
-function tally(n: number): Pix {
-  const groups = Math.ceil(n / 5), w = groups * 9 + 2, P = new Pix(w, 11);
-  for (let i = 0; i < n; i++) {
-    const g = Math.floor(i / 5), k = i % 5, x0 = 1 + g * 9;
-    if (k < 4) { const x = x0 + k * 2; for (let y = 1; y < 10; y++) P.px(x + (hash(i, y) > 0.8 ? 1 : 0), y, CHALK); }
-    else for (let t = 0; t < 9; t++) P.px(x0 - 1 + t, 8 - t, CHALK);
-  }
-  P.outline(); P.shadow();
-  return P;
-}
 
-function mouse(): Pix {
-  const rows = ['..ooooo..', '.o##o..o.', 'o###o...o', 'o###o...o', 'ooooooooo', 'o.......o', 'o.......o', 'o.......o', '.o.....o.', '..ooooo..'];
-  const P = new Pix(11, 13);
-  P.art(rows, 1, 2, MUSTARD, CREAM);
-  P.px(5, 1, STEEL_D); P.px(5, 0, STEEL_D);
-  P.outline(); P.shadow();
-  return P;
-}
-function finger(): Pix {
-  const rows = ['...oo....', '...oo....', '...oo....', '...oooooo', 'o..oooooo', 'oo.oooooo', '.oooooooo', '..ooooooo', '...ooooo.'];
-  const P = new Pix(11, 11);
-  P.art(rows, 1, 1, CREAM, CREAM);
-  P.outline(); P.shadow();
-  return P;
-}
-function arrowKey(left: boolean): Pix {
-  const P = typeKey(' ');
-  const c = 8;
-  for (let y = -3; y <= 3; y++) { const n = 3 - Math.abs(y); for (let i = 0; i <= n; i++) P.px(left ? c - 2 + i : c + 2 - i, c + y, INK); }
-  return P;
-}
 function star(): Pix {
   const P = new Pix(15, 15);
   for (let i = 0; i < 7; i++) { P.px(7, i, 0xffffff); P.px(7, 14 - i, 0xffffff); P.px(i, 7, 0xffffff); P.px(14 - i, 7, 0xffffff); }
@@ -282,31 +177,21 @@ function spiral(): Pix {
 interface Tex { tex: THREE.Texture; w: number; h: number }
 const cache = new Map<string, Tex>();
 const BADGES: Record<string, [string, number, number, ('round' | 'shield')?]> = {
-  perfect: ['star', BRICK, BRICK_D], counter: ['blades', NAVY, NAVY_D], crit: ['burst', BRICK, BRICK_D], backstab: ['dagger', OLIVE, OLIVE_D],
-  down: ['down', MUSTARD, MUSTARD_D], barrage: ['flurry', BRICK, BRICK_D], dodge: ['swoosh', NAVY, NAVY_D], free: ['free', OLIVE, OLIVE_D],
-  reversal: ['star', OLIVE, OLIVE_D], bitten: ['teeth', BRICK_D, 0x3a0e08], struggle: ['chain', MUSTARD, MUSTARD_D], skull: ['skull', BRICK, BRICK_D, 'shield'],
+  skull: ['skull', BRICK, BRICK_D, 'shield'],
 };
 
 /**
- * Cached glyph texture by name: 'key:SPACE' | 'key:E' (typewriter keys), 'keyL' / 'keyR' (arrow keys),
- * 'badge:<perfect|counter|crit|backstab|down|barrage|dodge|free|reversal|bitten|struggle|skull>',
- * 'gauge:<0..24>' / 'gauge:<n>:hot', 'stamp:<WORDS>', 'tally:<n>', 'warn', 'lmb', 'tap', 'star',
- * 'spark', 'glow', 'target', 'hoop', 'dizzy'.
+ * Cached glyph texture by name: 'badge:skull', 'gauge:<0..24>' / 'gauge:<n>:hot', 'warn', 'star',
+ * 'spark', 'glow', 'target', 'hoop', 'pip' / 'pip:on', 'dizzy'.
  */
 export function glyph(name: string): Tex {
   let t = cache.get(name);
   if (t) return t;
   let P: Pix;
   const [kind, arg, arg2] = name.split(':');
-  if (kind === 'key') P = typeKey(arg);
-  else if (kind === 'badge') { const b = BADGES[arg] ?? BADGES.crit; P = badge(b[0], b[1], b[2], b[3]); }
+  if (kind === 'badge') { const b = BADGES[arg] ?? BADGES.crit; P = badge(b[0], b[1], b[2], b[3]); }
   else if (kind === 'gauge') P = gauge(Number(arg) / 24, arg2 === 'hot');
-  else if (kind === 'stamp') P = stamp(arg.toUpperCase());
-  else if (kind === 'tally') P = tally(Math.max(1, Math.min(20, Number(arg) | 0)));
-  else if (name === 'keyL' || name === 'keyR') P = arrowKey(name === 'keyL');
   else if (name === 'warn') P = warnSign();
-  else if (name === 'lmb') P = mouse();
-  else if (name === 'tap') P = finger();
   else if (name === 'star') P = star();
   else if (name === 'spark') P = spark();
   else if (name === 'glow') P = glow();
@@ -327,14 +212,12 @@ export const gaugeName = (v: number, hot = false) => 'gauge:' + Math.round(Math.
 const TPM = 28;
 
 export interface MarkOpts { color?: number; opacity?: number; scale?: number; add?: boolean; rot?: number }
-interface Floater { name: string; x: number; y: number; z: number; t0: number; dur: number; scale: number; slam: boolean; rot: number }
 interface Spark { x: number; y: number; z: number; vx: number; vy: number; vz: number; t: number; life: number; c: number; s: number; grav: number }
 
 export class Marks {
   root = new THREE.Group();
   private sprites: THREE.Sprite[] = [];
   private n = 0;
-  private floaters: Floater[] = [];
   private sparks: Spark[] = [];
   private rings: { back: THREE.Mesh; fill: THREE.Mesh }[] = [];
   private nr = 0;
@@ -398,13 +281,6 @@ export class Marks {
     R.fill.userData.n = k;
   }
 
-  /** something that just happened: a badge pops up and rises, a stamp slams down */
-  float(name: string, x: number, y: number, z: number, dur = 0.9, scale = 1) {
-    if (this.floaters.length > 10) this.floaters.shift();
-    const slam = name.startsWith('stamp:');
-    this.floaters.push({ name, x, y, z, t0: performance.now(), dur, scale, slam, rot: slam ? -0.12 + Math.random() * 0.08 : 0 });
-  }
-
   /** a hot spark / ember (gravity pulls it down) or, with grav 0 and no speed, a swing-trail dab */
   spark(x: number, y: number, z: number, vx: number, vy: number, vz: number, life: number, c = 0xffb050, s = 1, grav = 9) {
     if (this.sparks.length > 64) this.sparks.shift();
@@ -415,18 +291,6 @@ export class Marks {
     const now = performance.now();
     const dt = Math.min(0.05, (now - this.lastT) / 1000);
     this.lastT = now;
-    for (let i = this.floaters.length - 1; i >= 0; i--) {
-      const f = this.floaters[i];
-      const u = (now - f.t0) / 1000 / f.dur;
-      if (u >= 1) { this.floaters.splice(i, 1); continue; }
-      if (f.slam) {
-        const k = u < 0.08 ? 1 + (1 - u / 0.08) * 0.8 : 1;
-        this.mark(f.name, f.x, f.y, f.z, { scale: f.scale * k, rot: f.rot, opacity: u > 0.75 ? 1 - (u - 0.75) / 0.25 : 1 });
-      } else {
-        const pop = u < 0.12 ? 0.6 + (u / 0.12) * 0.55 : u < 0.2 ? 1.15 - (u - 0.12) / 0.08 * 0.15 : 1;
-        this.mark(f.name, f.x, f.y + u * 0.5, f.z, { scale: f.scale * pop, opacity: u > 0.7 ? 1 - (u - 0.7) / 0.3 : 1 });
-      }
-    }
     for (let i = this.sparks.length - 1; i >= 0; i--) {
       const s = this.sparks[i];
       s.t += dt;

@@ -12,7 +12,6 @@ import type { GameSystem } from '../game/game';
 import type { Player } from '../entities/player';
 import { playLine, voiceFromApp } from './chipVoice';
 import { floatText } from './floatText';
-import { notes } from './pixtype';
 import { EmoteDial, type DialHit } from './dial';
 import './sounds';
 import './social.css';
@@ -128,7 +127,7 @@ export class SocialSystem implements GameSystem {
     for (let i = 0; i < n; i++) {
       const el = document.createElement('div');
       el.className = 'w-bubble ft-note';
-      el.style.backgroundImage = `url(${notes()[i % 2]})`;
+      el.textContent = i % 2 ? '♫' : '♪';
       el.style.setProperty('--nx', (i % 2 ? 1 : -1) * (8 + i * 6) + 'px');
       el.style.animationDelay = (i * 0.16).toFixed(2) + 's';
       ui.root.appendChild(el);
@@ -178,7 +177,7 @@ export class SocialSystem implements GameSystem {
         for (let i = ui.bubbles.length - 1; i >= 0; i--) {
           const b = ui.bubbles[i];
           if (b.target !== p || b.kind !== kind) continue;
-          const el = floatText(text, { kind: kind === 'shout' ? 'shout' : 'say', name: p.name, tint: p.id });
+          const el = floatText(text, { kind: kind === 'shout' ? 'shout' : 'say', name: p.name, tint: p.id, life: secs });
           b.el.replaceWith(el); b.el = el;
           break;
         }

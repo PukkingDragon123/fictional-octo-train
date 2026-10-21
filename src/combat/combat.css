@@ -1,0 +1,50 @@
+/* Fight text (src/combat/words.ts): free-floating, real type, no boxes. Warm
+   bone, mustard and blood-red ink with the dark halo from .nc-free-text. */
+.cbw-layer { position: fixed; inset: 0; pointer-events: none; z-index: 9; overflow: hidden; contain: layout style; }
+
+/* key prompts: the key in sign letters, a pencilled hint under it */
+.cbw-p { position: absolute; left: 0; top: 0; display: flex; flex-direction: column; align-items: center; white-space: nowrap; will-change: transform; transform-origin: 50% 50%; }
+.cbw-p b { font-family: var(--font-sign); font-weight: 600; font-size: clamp(17px, 2.1vw, 26px); letter-spacing: 0.14em; text-transform: uppercase; color: #efe4c8; line-height: 1; }
+.cbw-p i { font-family: var(--font-pen); font-style: normal; font-weight: 600; font-size: clamp(14px, 1.6vw, 19px); color: #d9c69a; line-height: 1.05; margin-top: 2px; letter-spacing: 0.01em; }
+.cbw-p.hot b { color: #fff3d2; }
+.cbw-p.dim { opacity: 0.42; }
+.cbw-p.hurry b { color: #f08a62; }
+.cbw-p.go b { color: #ffe2a0; }
+.cbw-p.small b { font-size: clamp(14px, 1.6vw, 20px); }
+
+/* things that just happened */
+.cbw-f { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform; }
+.cbw-f > span { position: absolute; left: 0; top: 0; white-space: nowrap; transform: translate(-50%, -50%); animation: cbw-rise 1s cubic-bezier(.2, .7, .3, 1) forwards; }
+.cbw-ev { font-family: var(--font-sign); font-weight: 700; font-size: clamp(17px, 2.2vw, 27px); letter-spacing: 0.16em; text-transform: uppercase; color: #efe2c0; }
+.cbw-perfect { color: #ffe7a8; }
+.cbw-counter { color: #d7e2d0; }
+.cbw-crit { color: #ffcf7a; }
+.cbw-down { color: #e8b25a; }
+.cbw-dodge { color: #e9e4d4; font-style: italic; }
+.cbw-free { color: #d8e0a8; }
+.cbw-bad { color: #e0583c; }
+.cbw-count { font-family: var(--font-poster); font-size: clamp(20px, 2.6vw, 32px); letter-spacing: 0.02em; color: #f0dfb4; }
+.cbw-count.hi { color: #f0a050; }
+.cbw-count.max { color: #e04a2c; }
+/* a finisher's name: a blood-red slab slammed down on the spot, slightly askew */
+.cbw-fin { font-family: var(--font-poster); font-size: clamp(30px, 4.2vw, 54px); letter-spacing: 0.03em; color: #c8301a; -webkit-text-stroke: 1px #2b0905; text-transform: uppercase; animation-name: cbw-slam !important; }
+
+@keyframes cbw-rise {
+  0% { transform: translate(-50%, -50%) translateY(6px) scale(0.55); opacity: 0; }
+  12% { transform: translate(-50%, -50%) translateY(-6px) scale(1.18); opacity: 1; }
+  22% { transform: translate(-50%, -50%) translateY(-10px) scale(1); opacity: 1; }
+  70% { opacity: 1; }
+  100% { transform: translate(-50%, -50%) translateY(-58px) scale(0.96); opacity: 0; }
+}
+@keyframes cbw-slam {
+  0% { transform: translate(-50%, -50%) rotate(-5deg) scale(2.6); opacity: 0; }
+  7% { transform: translate(-50%, -50%) rotate(-5deg) scale(0.94); opacity: 1; }
+  13% { transform: translate(-50%, -50%) rotate(-5deg) scale(1.05); }
+  19% { transform: translate(-50%, -50%) rotate(-5deg) scale(1); }
+  78% { transform: translate(-50%, -50%) rotate(-5deg) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(-5deg) translateY(-12px) scale(1.02); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cbw-f > span { animation-name: cbw-fade !important; }
+  @keyframes cbw-fade { 0% { opacity: 0; } 10%, 75% { opacity: 1; } 100% { opacity: 0; } }
+}

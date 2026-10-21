@@ -1,16 +1,52 @@
-/* The pixel-art interaction signs (src/interact/grab.ts, signs.ts) and the
-   label-tape verb picker that replaced popup context menus (verbTag.ts).
-   The art is drawn into tiny canvases at the game's pixel size; CSS only
-   places them and keeps the pixels square. No glow, no text. */
-#gx-hint {
-  position: fixed; left: 0; top: 0; z-index: 69; pointer-events: none; display: none;
-  will-change: transform; filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.5));
+/* The interaction hints (src/interact/grab.ts) and the one-word verb picker that
+   replaced popup context menus (verbTag.ts). Free text in real type (fonts.css)
+   with a soft halo and no box; the only "things" are physical: stencil
+   pictograms, little bakelite keys, a strain gauge with a needle, brass rivets. */
+#gx-hint, .gx-tag {
+  font-family: var(--font-sign, 'Oswald', sans-serif); font-weight: 500; font-size: 13px; line-height: 1.15;
+  text-transform: uppercase; letter-spacing: 0.08em; white-space: nowrap; color: #f3eedf;
 }
-#gx-hint canvas, .gx-tag canvas { display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+#gx-hint { position: fixed; left: 0; top: 0; z-index: 69; pointer-events: none; display: none; will-change: transform; padding-bottom: 6px; }
+#gx-hint > * { display: inline-flex; align-items: center; vertical-align: middle; }
+.gx-seg { gap: 3px; margin: 0 6px; }
+.gx-seg b, .gx-cyc b { font-weight: 500; }
+/* stencil pictograms: square pixels, a little halo so they read on any floor */
+.gx-g { width: 18px; height: 18px; image-rendering: pixelated; image-rendering: crisp-edges; filter: drop-shadow(0 1px 0 #000) drop-shadow(0 0 2px rgba(0, 0, 0, 0.85)); }
+/* a brown bakelite key with a cream letter printed on it */
+.gx-key {
+  display: inline-block; min-width: 15px; height: 16px; padding: 0 3px; margin-right: 2px; box-sizing: border-box;
+  font-family: var(--font-sign, 'Oswald', sans-serif); font-size: 11px; line-height: 16px; text-align: center; color: #efe6cc; text-shadow: none;
+  background: linear-gradient(#6a4a33, #3c2a1c 70%, #2a1d13); border-radius: 3px;
+  box-shadow: inset 0 1px 0 rgba(255, 232, 196, 0.35), inset 0 -2px 0 rgba(0, 0, 0, 0.45), 0 1px 0 #0c0805, 0 2px 3px rgba(0, 0, 0, 0.6);
+}
+.gx-key.on { background: linear-gradient(#c4473a, #8a2219 70%, #5e1912); transform: translateY(1px); }
+/* the strain gauge: a little half dial behind glass, black needle, red at the top end */
+.gx-gauge {
+  position: relative; width: 30px; height: 16px; margin-left: 6px; overflow: hidden; border-radius: 15px 15px 0 0;
+  background: conic-gradient(from -90deg at 50% 100%, #f1ead6 0 128deg, #c4473a 128deg 180deg, transparent 180deg);
+  box-shadow: inset 0 0 0 2px #2b2b29, inset 0 0 0 3px #8e8f88, 0 2px 3px rgba(0, 0, 0, 0.6);
+}
+.gx-gauge > i {
+  position: absolute; left: 50%; bottom: 0; width: 2px; height: 13px; margin-left: -1px; background: #111;
+  transform-origin: 50% 100%; transform: rotate(calc(-82deg + var(--e, 0) * 164deg)); transition: transform 0.18s cubic-bezier(.34, 1.56, .64, 1);
+}
+.gx-gauge::after { content: ''; position: absolute; left: 50%; bottom: -3px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: #2b2b29; }
+#gx-hint.strain .gx-gauge > i { animation: gx-shiver 0.09s steps(2) infinite; }
+@keyframes gx-shiver { 50% { margin-left: 0; } }
+/* stepping through verbs */
+.gx-cyc { gap: 5px; font-size: 16px; }
+.gx-cyc i { font-style: normal; color: #d8b25a; cursor: var(--cur-hand, pointer); padding: 0 2px; }
+.gx-pips { gap: 3px; margin-left: 8px; }
+.gx-pips i { width: 4px; height: 4px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #e9cf8a, #8a6a2a); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.8); }
+.gx-pips i.on { background: radial-gradient(circle at 35% 35%, #ff8a70, #9a2318); }
+/* why it cannot be done: red, as if stamped */
+.gx-why { display: block !important; font-family: var(--font-type, 'Special Elite', monospace); font-style: normal; text-transform: none; letter-spacing: 0; color: #e0634f; transform: rotate(-2deg); margin-top: 2px; }
 html.nc-touch #gx-hint { display: none !important; }
-.gx-tag {
-  position: fixed; z-index: 120; pointer-events: auto; user-select: none;
-  cursor: var(--cur-hand, pointer); transform: rotate(-1deg); transform-origin: 0 0;
-  filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.55)); animation: gx-in 0.12s steps(3);
-}
-@keyframes gx-in { from { transform: rotate(-1deg) scale(0.85); opacity: 0.4; } }
+/* the verb picker at the pointer (a list handed to G.ui.openMenu): the same free text */
+.gx-tag { position: fixed; z-index: 120; pointer-events: auto; user-select: none; animation: gx-in 0.14s cubic-bezier(.34, 1.56, .64, 1); }
+.gx-tag .gx-t { display: block; font-family: var(--font-type, 'Special Elite', monospace); text-transform: none; letter-spacing: 0; font-size: 12px; color: #c9c1a8; margin-bottom: 2px; }
+.gx-tag .gx-row { display: flex; align-items: center; }
+.gx-tag b { cursor: var(--cur-hand, pointer); }
+.gx-tag.dis .gx-cyc b { color: #9a937f; text-decoration: line-through; text-decoration-color: #e0634f; }
+.gx-tag.danger .gx-cyc b { color: #ff9b84; }
+@keyframes gx-in { from { transform: scale(0.9); opacity: 0.3; } }

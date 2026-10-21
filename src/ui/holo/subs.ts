@@ -1,11 +1,12 @@
-// Every line a character speaks, as typed floating text where it comes
-// from, with an 8-bit voice (src/social: chipVoice, floatText, pixtype). Bus event 'subtitle'
+// Every line a character speaks, as free-floating text where it comes from
+// (no box: real type with a halo), with an 8-bit voice (src/social:
+// chipVoice, floatText). Bus event 'subtitle'
 // ({ who, text, dur?, style?, x?, y?, z?, voiced?, pid? }):
-//   voss     white type on a black TV caption band by the sergeant
+//   voss     worn typewriter letters by the sergeant
 //   bailiff  the band (holo.ts draws it while the hologram is up; here the
 //            fallback near the survivor when it is down)
-//   guard    bold capitals on a manila tag near the officer (or off screen)
-//   radio    a yellow telegram strip over the survivor, from the radio
+//   guard    condensed sign capitals near the officer (or off screen)
+//   radio    typewriter letters over the survivor, from the radio
 //   self     the survivor, out loud, in their own voice
 //   pid      any other survivor by player id (co-op), in their voice
 // Also the shared builders ui.ts uses for thoughts, speech and shouts: they
@@ -42,10 +43,10 @@ export function speech(text: string, _cls: string): HTMLDivElement { return floa
 /** shouting: big shaking letters */
 export function shout(text: string): HTMLDivElement { return floatText(text, { kind: 'shout' }); }
 
-/** a line from the radio: a telegram strip over the survivor, in a crackly voice */
+/** a line from the radio: typed letters over the survivor, in a crackly voice */
 export function radioLine(who: string, text: string, secs = 5) {
   const p = G.local;
-  const el = floatText(text, { kind: 'radio', name: who || 'RX' });
+  const el = floatText(text, { kind: 'radio', name: who || 'RADIO', life: secs });
   playLine(text, voiceForStyle('radio', who), null, { vol: 0.75 });
   G.audio?.ui?.('static_burst', 0.12);
   if (uiRef && p) {
@@ -86,7 +87,7 @@ export function initSubtitles(ui: UiLike) {
         if (G.holo?.visible) break; // the hologram shows and voices it
         const p = G.local; if (!p) return;
         if (!s.voiced) playLine(text, voiceForStyle('bailiff'), null);
-        push(floatText(text, { kind: 'bailiff', name: 'BAILIFF' }), p, 'bailiff');
+        push(floatText(text, { kind: 'bailiff', name: 'BAILIFF', life: secs }), p, 'bailiff');
         break;
       }
       case 'radio':
@@ -97,12 +98,12 @@ export function initSubtitles(ui: UiLike) {
         if (!p) return;
         for (const b of ui.bubbles) if (b.target === p && (b.kind === 'think' || b.kind === 'say')) b.until = 0;
         playLine(text, voiceFromApp(p.app, p.id), p.isLocal ? null : { x: p.x, z: p.z });
-        push(floatText(text, { kind: 'say', name: p.isLocal ? undefined : p.name, tint: p.isLocal ? undefined : p.id }), p, 'say');
+        push(floatText(text, { kind: 'say', name: p.isLocal ? undefined : p.name, tint: p.isLocal ? undefined : p.id, life: secs }), p, 'say');
         break;
       }
       case 'voss': case 'guard': default: {
         const isGuard = style === 'guard';
-        const el = floatText(text, { kind: isGuard ? 'guard' : 'voss', name: isGuard ? (who && !/guard/i.test(who) ? who : '') || undefined : (who || 'SSGT. VOSS') });
+        const el = floatText(text, { kind: isGuard ? 'guard' : 'voss', name: isGuard ? (who && !/guard/i.test(who) ? who : '') || undefined : (who || 'SSGT. VOSS'), life: secs });
         // where is the speaker? given position, the handler's projection, or the band (the sergeant projects from it too)
         let target: any = at;
         if (!target && !isGuard) {

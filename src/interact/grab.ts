@@ -14,9 +14,10 @@
 //                        release does the one shown
 //  Left mouse + tool     what the tool does to it (src/interact/toolUse.ts)
 //
-// A small pixel-art enamel sign hangs over the thing: what the buttons will do,
-// as glyphs (src/interact/signs.ts); holding on, it shows push / pull / power
-// and a strain gauge; stepping through verbs, a strip of embossed label tape.
+// Over the thing hangs a hint in free text (a real typeface, no box): what the
+// buttons will do, with stencil pictograms (src/interact/signs.ts); holding on,
+// bakelite keys for push / pull / power / shove and a strain gauge with a needle;
+// stepping through verbs, ‹ the word › and a row of rivets for where you are.
 // Touch (src/ui/touch) drives the same calls: tap = primary, long-press / the
 // glove / holding USE = grab, swipe the USE cap = next verb.
 import './grab.css';
@@ -34,11 +35,10 @@ import { queueAt } from '../actions/basic';
 import { DoorAction } from '../actions/world';
 import { pushable } from '../world/destruction';
 import { PushAction, queueOn, Target } from '../world/destructActions';
-import { VerbTarget, Verb, verbsFor, primaryVerb, heldItem, openLoot, openBackpack } from './verbs';
+import { VerbTarget, Verb, verbsFor, primaryVerb, verbWord, heldItem, openLoot, openBackpack } from './verbs';
 import { toolVerb, noteStrike, toolHit } from './toolUse';
 import { punch, pop } from '../gfx/juice';
-import { enamelSign, labelTape, verbGlyph, show, SignPart } from './signs';
-import type { Screen } from '../ui/font5x7';
+import { verbGlyph, glyphUrl } from './signs';
 
 const HOLD_MS = 220;      // right button held this long on something grabbable = grab
 const TAP_MS = 650;       // released sooner than this (and not consumed) = the primary verb
@@ -71,17 +71,13 @@ export class GrabSystem implements GameSystem {
   private edge: HoldEdgeAction | null = null;
   private lmbClaim = false;
   private hint: HTMLDivElement;
-  private hintCv: HTMLCanvasElement;
   private hintKey = '';
-  private hintK = 0;
   private hover: { t: VerbTarget | null; key: string; prim: Verb | null; tool: string; grab: boolean; at: number } = { t: null, key: '', prim: null, tool: '', grab: false, at: 0 };
 
   constructor() {
     G.grab = this;
     this.hint = document.createElement('div');
     this.hint.id = 'gx-hint';
-    this.hintCv = document.createElement('canvas');
-    this.hint.appendChild(this.hintCv);
     document.body.appendChild(this.hint);
     // right button + wheel: step through the verbs (the camera does not zoom meanwhile)
     window.addEventListener('wheel', (e) => {
@@ -331,44 +327,44 @@ export class GrabSystem implements GameSystem {
     const touch = document.documentElement.classList.contains('nc-touch');
     const push = G.destruct?.push;
     const r = this.rmb;
-    let key = '', at: { x: number; y: number; z: number } | null = null;
-    let draw: (() => Screen) | null = null;
+    // free text in a real typeface over the thing, with stencil pictograms and the
+    // physical bits (a bakelite key, a strain gauge); never a box behind it
+    let html = '', cls = '', at: { x: number; y: number; z: number } | null = null;
     if (r?.verbs && r.verbs.length) {
-      // stepping through verbs: a strip of label tape
       const v = r.verbs[r.sel];
-      key = `c|${r.sel}|${v.label}|${v.why || ''}`;
-      at = this.anchor(r.t);
-      draw = () => labelTape(v.label.replace(/\s*\(.*?\)/g, ''), verbGlyph(v.label), r.sel, r.verbs!.length, v.why).scr;
+      html = `<span class="gx-cyc"><i>‹</i>${glyph(verbGlyph(v.label))}<b>${esc(clean(v.label))}</b><i>›</i></span>${pips(r.sel, r.verbs.length)}${v.why ? `<em class="gx-why">${esc(v.why)}</em>` : ''}`;
+      cls = 'cyc'; at = this.anchor(r.t);
     } else if (push?.holding && push.st) {
       const st = push.st;
       at = { x: st.cx, y: st.h + 0.3 + st.lift, z: st.cz };
       const pw = inp.down('power') || inp.down('run') || inp.runLatch;
-      const e = Math.round(push.effort * 8) / 8;
-      if (push.mode === 'carry') { key = `k|${pw}`; draw = () => enamelSign([{ g: 'mouseL' }, { gap: 1 }, { g: 'throw' }, { gap: 4 }, { g: pw ? 'power' : 'powerOff' }, { gap: 4 }, { g: 'mouseH' }, { gap: 1 }, { g: 'down' }]); }
-      else { key = `h|${pw}|${e}`; draw = () => enamelSign([{ g: 'push' }, { g: 'pull' }, { gap: 3 }, { g: pw ? 'power' : 'powerOff' }, { g: 'shove' }, { gap: 3 }, { gauge: e }]); }
+      if (push.mode === 'carry') html = `${seg(glyph('mouseL'), 'throw')}${seg(key('⇧', pw), 'harder')}${seg(glyph('mouseH'), 'let go: set down')}`;
+      else {
+        const e = Math.round(push.effort * 8) / 8;
+        html = `${seg(key('W'), 'push')}${seg(key('S'), 'pull')}${seg(key('⇧', pw), 'power')}${seg(key('␣'), 'shove')}<span class="gx-gauge" style="--e:${e}"><i></i></span>`;
+        if (push.effort > 0.92) cls = 'strain';
+      }
     } else if (this.edge?.started) {
-      key = 'e|' + this.edge.kind;
       at = this.anchor(this.edge.tgt);
-      draw = () => enamelSign(this.edge?.kind === 'lever' ? [{ g: 'pull' }, { gap: 1 }, { g: 'lever' }] : [{ g: 'push' }, { g: 'pull' }, { gap: 1 }, { g: 'door' }]);
+      html = this.edge.kind === 'lever' ? seg(key('S'), 'haul it down') : `${seg(key('W'), 'push')}${seg(key('S'), 'pull')}`;
     } else if (hv.t && !inp.pointerOverUI && !G.ui?.menuEl) {
-      const parts: SignPart[] = [];
-      if (hv.prim) parts.push({ g: 'mouseR' }, { gap: 1 }, { g: verbGlyph(hv.prim.label) });
-      if (hv.grab) { if (parts.length) parts.push({ gap: 5 }); parts.push({ g: 'mouseH' }, { gap: 1 }, { g: 'hand' }); }
-      if (tool) { if (parts.length) parts.push({ gap: 5 }); parts.push({ g: 'mouseL' }, { gap: 1 }, { g: verbGlyph(tool) }); }
-      if (parts.length) { key = 'v|' + JSON.stringify(parts); at = this.anchor(hv.t); draw = () => enamelSign(parts); }
+      if (hv.prim) html += seg(glyph('mouseR') + glyph(verbGlyph(hv.prim.label)), verbWord(hv.prim));
+      if (hv.grab) html += seg(glyph('mouseH') + glyph('hand'), 'grab');
+      if (tool) html += seg(glyph('mouseL') + glyph(verbGlyph(tool)), tool);
+      if (html) at = this.anchor(hv.t);
     }
-    if (touch || G.local?.aiming || !at) { key = ''; draw = null; }
-    const k = Math.max(2, Math.round((G.pr?.scale ?? 2) / (G.pr?.dpr ?? 1)));
-    if (key !== this.hintKey || k !== this.hintK) {
-      this.hintKey = key; this.hintK = k;
-      if (draw) show(this.hintCv, draw(), k);
-      el.style.display = draw ? 'block' : 'none';
-      if (draw) pop(this.hintCv, 1.06, 120);
+    if (touch || G.local?.aiming || !at) html = '';
+    const key0 = cls + '|' + html;
+    if (key0 !== this.hintKey) {
+      this.hintKey = key0;
+      el.innerHTML = html;
+      el.className = 'nc-free-text ' + cls;
+      el.style.display = html ? 'block' : 'none';
+      if (html) pop(el.firstElementChild as HTMLElement, 1.06, 120);
     }
-    if (draw && at) {
+    if (html && at) {
       const s = G.pr.worldToScreen(_v.set(at.x, at.y, at.z));
-      const w = this.hintCv.width * k, h = this.hintCv.height * k;
-      el.style.transform = `translate(${Math.round(s.x - w / 2)}px, ${Math.round(s.y - h - 6)}px)`;
+      el.style.transform = `translate(${Math.round(s.x)}px, ${Math.round(s.y)}px) translate(-50%, -100%)`;
     }
   }
 
@@ -391,3 +387,13 @@ export class GrabSystem implements GameSystem {
 }
 
 function cap(s: string) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
+function esc(s: string) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]); }
+const clean = (l: string) => l.replace(/\s*\(.*?\)/g, '');
+/** a stencil pictogram */
+const glyph = (name: string) => `<img class="gx-g" src="${glyphUrl(name)}" alt="">`;
+/** a bakelite key with its letter */
+const key = (k: string, on = false) => `<kbd class="gx-key${on ? ' on' : ''}">${k}</kbd>`;
+/** one control: its key or pictograms, then the word */
+const seg = (pre: string, word: string) => `<span class="gx-seg">${pre}<b>${esc(word)}</b></span>`;
+/** where you are in the list: brass rivets, the current one red */
+const pips = (i: number, n: number) => n > 1 ? `<span class="gx-pips">${Array.from({ length: Math.min(n, 12) }, (_, j) => `<i${j === (n > 12 ? Math.round(i / (n - 1) * 11) : i) ? ' class="on"' : ''}></i>`).join('')}</span>` : '';

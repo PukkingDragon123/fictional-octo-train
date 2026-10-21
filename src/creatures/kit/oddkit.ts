@@ -5,7 +5,7 @@
 // rotation helpers, floor markers drawn in world space from a rig, and the
 // chessboard maths.
 import * as THREE from 'three';
-import { Page, Painter, Reg, OB, V3, cachedGeo, ramp, clamp01, bpart as bpartOf } from './beasts';
+import { Page, Painter, Reg, OB, V3, cachedGeo, ramp, clamp01, bpart as bpartOf, beastMaterial } from './beasts';
 import { mixHex, ph } from '../../gfx/pixel';
 import { worldMaterial } from '../../gfx/materials';
 import type { Rig } from '../species';
@@ -22,9 +22,98 @@ const TMAT = new Map<string, THREE.Material>();
 export function filmMat(opacity = 0.5, additive = false): THREE.Material {
   const k = opacity + ':' + additive;
   let m = TMAT.get(k);
-  if (!m) { m = worldMaterial({ transparent: true, opacity, depthWrite: false, additive, outline: 0 }); TMAT.set(k, m); }
+  if (!m) { m = worldMaterial({ transparent: true, opacity, depthWrite: false, additive, outline: 0 }); m.userData.film = true; TMAT.set(k, m); }
   return m;
 }
+// ------------------------------------------------------------------ surface shading
+/**
+ * Realistic surfaces layered on the world material (same atlas, light grid,
+ * fog, visibility, outlines and normal buffer; only the final lighting is
+ * reshaded, in view space, before the colour is written):
+ *  - film: soap-bubble thin-film interference (colour bands that swirl and
+ *    shift with the viewing angle), fresnel edges, a sharp window highlight;
+ *    the middle of the film goes clear, the rim holds the colour.
+ *  - lacquer: polished stone / lacquer / metal: a hard clear-coat highlight
+ *    over a broad sheen, and the room reflected at grazing angles (fresnel).
+ *  - regolith: moon dust: flat back-scattering with an opposition glow, limb
+ *    brightening instead of shading, a pale dust bloom on the silhouette and
+ *    single grains that glint.
+ */
+export type Surface = 'film' | 'lacquer' | 'regolith';
+const SURF_COMMON = /* glsl */`
+  vec3 sNv = normalize(normal);
+  vec3 sVv = isOrthographic ? vec3(0.0, 0.0, 1.0) : normalize(vViewPosition);
+  float sCos = clamp(dot(sNv, sVv), 0.0, 1.0);
+  float sLum = clamp(dot(reflectedLight.directDiffuse + reflectedLight.indirectDiffuse, vec3(0.3, 0.59, 0.11)) / max(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11)), 0.04), 0.0, 3.0);
+  vec3 sLd = normalize((viewMatrix * vec4(0.25, 1.0, 0.35, 0.0)).xyz);
+#if NUM_DIR_LIGHTS > 0
+  sLd = normalize(mix(sLd, directionalLights[0].direction, 0.6));
+#endif
+  vec3 sH = normalize(sLd + sVv);
+  float sNH = max(dot(sNv, sH), 0.0);
+`;
+const SURF: Record<Surface, string> = {
+  film: /* glsl */`{
+${SURF_COMMON}
+  float sC = abs(dot(sNv, sVv));
+  float fres = pow(1.0 - sC, 3.0);
+  float th = 0.55 + 0.25 * sin(vWPos.y * 11.0 + vWPos.x * 6.0 + uTime * 0.7) + 0.2 * sin(vWPos.z * 9.0 - uTime * 0.45 + vWPos.y * 4.0);
+  float ph = th * 2.4 * sqrt(max(0.0, 1.0 - (1.0 - sC * sC) / 1.77));
+  vec3 irid = 0.5 + 0.5 * cos(6.28318 * (ph * vec3(1.0, 1.21, 1.47) + vec3(0.0, 0.1, 0.2)));
+  float spec = pow(sNH, 90.0) * 2.2 + pow(sNH, 12.0) * 0.18;
+  outgoingLight = mix(outgoingLight, irid * (0.35 + sLum * 0.55), 0.35 + 0.5 * fres) + vec3(spec) * (0.4 + sLum * 0.6);
+  diffuseColor.a *= clamp(0.35 + 0.65 * fres + spec * 0.5, 0.0, 1.0);
+}`,
+  lacquer: /* glsl */`{
+${SURF_COMMON}
+  float coat = pow(sNH, 140.0) * 1.6 + pow(sNH, 24.0) * 0.22;
+  float fres = 0.04 + 0.96 * pow(1.0 - sCos, 5.0);
+  vec3 sR = reflect(-sVv, sNv);
+  vec3 sRw = (vec4(sR, 0.0) * viewMatrix).xyz;
+  vec3 env = mix(vec3(0.04, 0.035, 0.03), vec3(0.92, 0.88, 0.8), smoothstep(-0.2, 0.6, sRw.y)) * (0.2 + sLum * 0.5);
+  outgoingLight = mix(outgoingLight, env, fres * 0.55) + vec3(coat) * (0.25 + sLum * 0.75);
+}`,
+  regolith: /* glsl */`{
+${SURF_COMMON}
+  float opp = pow(max(dot(sLd, sVv), 0.0), 6.0) * 0.25;
+  outgoingLight *= 0.9 + opp + 0.2 * (1.0 - sCos);
+  outgoingLight += vec3(0.55, 0.56, 0.6) * pow(1.0 - sCos, 3.0) * 0.2 * sLum;
+  vec3 gp = floor(vWPos * 70.0);
+  float gh = fract(sin(dot(gp, vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+  outgoingLight += vec3(step(0.985, gh) * pow(sNH, 8.0) * 1.4 * sLum);
+}`,
+};
+const SURF_CACHE = new Map<string, THREE.Material>();
+/** the world material `o` with a surface reshade (cached; shares the world material's uniforms) */
+export function surfaceMat(kind: Surface, o: Parameters<typeof worldMaterial>[0] = {}): THREE.Material {
+  const key = kind + JSON.stringify(o);
+  let m = SURF_CACHE.get(key);
+  if (m) return m;
+  const base = worldMaterial(o) as THREE.MeshLambertMaterial;
+  const mat = base.clone();
+  const baseKey = base.customProgramCacheKey();
+  mat.onBeforeCompile = (shader, r) => {
+    base.onBeforeCompile(shader, r);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <opaque_fragment>', SURF[kind] + '\n#include <opaque_fragment>');
+  };
+  mat.customProgramCacheKey = () => baseKey + ':surf:' + kind;
+  SURF_CACHE.set(key, mat);
+  return mat;
+}
+/** reshade a built rig: opaque beast parts get `solid`, see-through film parts get `film` (or keep theirs) */
+export function surface(rig: Rig, solid: Surface | null, filmToo = true) {
+  const beast = beastMaterial();
+  rig.root.traverse((o) => {
+    const m = o as THREE.Mesh;
+    if (!m.isMesh) return;
+    if (m.material === beast) { if (solid) m.material = surfaceMat(solid, { alphaTest: 0.5 }); }
+    else if (filmToo && (m.material as THREE.Material).userData?.film) {
+      const fm = m.material as THREE.Material;
+      if (!fm.blending || fm.blending === THREE.NormalBlending) m.material = surfaceMat('film', { transparent: true, opacity: fm.opacity, depthWrite: false, outline: 0 });
+    }
+  });
+}
+
 /** a rig part like bpart() with its own material */
 export function tpart(rig: Rig, name: string, parent: THREE.Object3D, at: V3, page: Page, key: string, mat: THREE.Material, fn: (ob: OB) => void): THREE.Group {
   const g = new THREE.Group();
