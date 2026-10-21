@@ -157,7 +157,7 @@ function cuffGeo(style: 'long' | 'rolled') {
   });
 }
 
-const nailGeo = () => cached('nail', () => { const g = new THREE.SphereGeometry(1, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2); g.scale(0.0056, 0.0018, 0.0068); g.rotateX(-Math.PI / 2); return g; });
+const nailGeo = () => cached('nail', () => { const g = new THREE.SphereGeometry(1, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2); g.scale(0.0048, 0.0013, 0.006); g.rotateX(-Math.PI / 2); return g; });
 
 // ---------------------------------------------------------------- the arm
 export interface FpArm {
@@ -185,7 +185,8 @@ export interface FpArmOpts { skin?: number; sleeve?: number | null; sleeveStyle?
 export function fpArm(side: 'right' | 'left' = 'right', o: FpArmOpts = {}): FpArm {
   const skinMat = new THREE.MeshStandardMaterial({ color: o.skin ?? 0xe8b98f, roughness: 0.62, metalness: 0, vertexColors: true });
   skinMat.emissive = new THREE.Color(o.skin ?? 0xe8b98f).multiplyScalar(0.05);
-  const nailMat = new THREE.MeshStandardMaterial({ color: 0xf2d6cc, roughness: 0.35, metalness: 0 });
+  const nailTint = (skin: number) => new THREE.Color(skin).lerp(new THREE.Color(0xf0d4cc), 0.4).multiplyScalar(0.95);
+  const nailMat = new THREE.MeshStandardMaterial({ color: nailTint(o.skin ?? 0xe8b98f), roughness: 0.3, metalness: 0 });
   const clothMat = new THREE.MeshStandardMaterial({ color: o.sleeve ?? 0xeeb415, roughness: 0.92, metalness: 0, vertexColors: true, side: THREE.DoubleSide });
 
   const root = new THREE.Group(); root.name = 'fpArm:' + side;
@@ -283,7 +284,7 @@ export function fpArm(side: 'right' | 'left' = 'right', o: FpArmOpts = {}): FpAr
       apply();
     },
     setLook(l) {
-      if (l.skin != null) { skinMat.color.setHex(l.skin); skinMat.emissive.setHex(l.skin).multiplyScalar(0.05); }
+      if (l.skin != null) { skinMat.color.setHex(l.skin); skinMat.emissive.setHex(l.skin).multiplyScalar(0.05); nailMat.color.copy(nailTint(l.skin)); }
       if (l.sleeve !== undefined) { if (l.sleeve === null) sleeveStyle = 'none'; else clothMat.color.setHex(l.sleeve); }
       if (l.sleeveStyle) sleeveStyle = l.sleeveStyle;
       buildSleeve();
