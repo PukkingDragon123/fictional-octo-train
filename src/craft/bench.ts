@@ -107,8 +107,8 @@ export class Bench {
     this.top.add(bulb);
     this.top.add(this.stageG);
     this.top.add(this.cube.root);
-    this.cube.root.scale.setScalar(0.72);
-    this.cube.root.position.set(-0.5, 0, -0.02);
+    this.cube.root.scale.setScalar(0.58);
+    this.cube.root.position.set(-0.52, 0, -0.04);
     g.add(this.top);
     // the pegboard behind: blueprints pinned up, two tags on hooks
     const pb = new ModelBuilder();
@@ -131,11 +131,11 @@ export class Bench {
   private layout() {
     const asp = window.innerWidth / Math.max(1, window.innerHeight);
     const k = Math.min(1, asp / 1.5);
-    this.top.position.set(asp < 1.2 ? 0 : -0.04, -0.4, -2.05);
-    this.top.rotation.set(0.78, 0, 0);
+    this.top.position.set(asp < 1.2 ? 0 : -0.04, -0.24, -2.0);
+    this.top.rotation.set(0.74, 0, 0);
     this.top.scale.setScalar(Math.max(0.55, k));
-    this.peg.position.set(0, 0.36, -1.75);
-    this.peg.scale.setScalar(Math.max(0.5, k) * 0.86);
+    this.peg.position.set(0, 0.29, -2.6);
+    this.peg.scale.setScalar(Math.max(0.5, k) * 1.3);
     this.slate.tag.mesh.position.set(0, -0.02, -1.15);
     this.dymo.place(0.2, -1.05);
   }
@@ -155,7 +155,7 @@ export class Bench {
     const back = p.worn.get('back' as any);
     this.cube.setContainer(back?.inv ?? null);
     this.cube.setLid(1); this.cube.setBolts(1); this.cube.setInside(1);
-    this.cube.root.rotation.set(0, 0.35, 0);
+    this.cube.root.rotation.set(0, 0.22, 0);
     this.layout();
     this.dirty = true;
     G.audio?.ui?.('cube_clunk', 0.5);
