@@ -107,6 +107,30 @@ function envMap(): THREE.Texture | null {
   } catch (e) { console.warn('watch env', e); }
   return ENV;
 }
+/**
+ * ModelBuilder geometry addresses the pixel atlas per face (aAtlas rect + a
+ * repeating uv); teach a stock PBR material to sample it the same way.
+ */
+function atlasAware<T extends THREE.MeshStandardMaterial>(m: T): T {
+  const size = atlas().size;
+  m.onBeforeCompile = (sh) => {
+    sh.uniforms.uAtlasSize = { value: size };
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec4 aAtlas;\nvarying vec4 vAtlas;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n  vAtlas = aAtlas;');
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uAtlasSize;\nvarying vec4 vAtlas;')
+      .replace('#include <map_fragment>', `#ifdef USE_MAP
+  vec2 texPx = max(vAtlas.zw * uAtlasSize, vec2(1.0));
+  vec2 fuv = fract(vMapUv);
+  fuv = (floor(fuv * texPx) + 0.5) / texPx;
+  vec2 auv = vAtlas.xy + vec2(fuv.x, 1.0 - fuv.y) * vAtlas.zw;
+  diffuseColor *= texture2D(map, auv);
+#endif`);
+  };
+  m.customProgramCacheKey = () => 'watch-atlas';
+  return m;
+}
 export function watchMats(): Record<MatKey, THREE.MeshStandardMaterial> {
   if (MATS) return MATS;
   const env = envMap();
@@ -122,6 +146,7 @@ export function watchMats(): Record<MatKey, THREE.MeshStandardMaterial> {
     cloth: new THREE.MeshPhysicalMaterial({ ...base, metalness: 0, roughness: 0.95, sheen: 0.6, sheenRoughness: 0.8, sheenColor: new THREE.Color(0xfff0a0), envMapIntensity: 0.25 }),
     paint: new THREE.MeshStandardMaterial({ ...base, metalness: 0.1, roughness: 0.55, envMapIntensity: 0.6 }),
   };
+  for (const m of Object.values(MATS)) atlasAware(m);
   return MATS;
 }
 
@@ -282,7 +307,7 @@ export function buildWatchModel(screen: THREE.Mesh): WatchModel {
     const ring = new THREE.Mesh(ringGeo, watchMats().chrome); ring.position.set(x, y, FRONT + 0.0006); root.add(ring);
     const m = new THREE.Mesh(lampGeo, glowMat(glass)); m.position.set(x, y, FRONT + 0.0012); root.add(m); return m;
   };
-  const lamps = { power: lamp(0, 0x1a3a1a), signal: lamp(1, 0x3a2a0a), alert: lamp(2, 0x3a0e08) };
+  const lamps = { power: lamp(0, 0x0e2a12), signal: lamp(1, 0x2a1e06), alert: lamp(2, 0x2a0a06) };
 
   // ---- the function dial: a knurled bakelite knob with a pointer
   const knob = new THREE.Group();

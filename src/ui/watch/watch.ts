@@ -98,7 +98,7 @@ export class Watch {
 
   constructor() {
     const k = tubeScale();
-    this.crt = crtScreen(SCREEN.w, SCREEN.h, { res: [Math.round(SCR_W * k), Math.round(SCR_H * k)], curvature: CURV, tint: 0xffffff, scan: 0.5, mask: 0.12, glow: 0.7, noise: 0.03, flicker: 0.4, vignette: 0.8, reflect: 0.65, bulge: 0.0022 });
+    this.crt = crtScreen(SCREEN.w, SCREEN.h, { res: [Math.round(SCR_W * k), Math.round(SCR_H * k)], curvature: CURV, tint: 0xffffff, scan: 0.45, mask: 0.1, glow: 0.45, noise: 0.025, flicker: 0.35, vignette: 0.8, reflect: 0.3, bulge: 0.0022 });
     this.crt.power(false, true);
     (this.crt.mat.uniforms.uRes.value as THREE.Vector2).set(SCR_W * 0.62, SCR_H * 0.62);
     this.tv = new Tube(this.crt.ctx, SCR_W, SCR_H, k);
@@ -579,11 +579,11 @@ export class Watch {
   /** jewel lamps, the function dial's detents, the needle, the toggles, the valves */
   private updateControls(p: Player, dt: number) {
     const m = this.model, L = m.lamps;
-    setLamp(L.power, this.power > 0.5 ? 0x7cff6a : 0x0c1a0c);
+    setLamp(L.power, this.power > 0.5 ? 0x3cb040 : 0x000000);
     const danger = !!this.threat || (G.survival?.threat ?? 0) > 0.2 || p.body.bleedRate() > 0.05;
-    setLamp(L.alert, danger && Math.sin(G.time * 10) > 0 ? 0xff3a1a : 0x1a0806);
+    setLamp(L.alert, danger && Math.sin(G.time * 10) > 0 ? 0xc02810 : 0x000000);
     const fresh = !!this.quests?.fresh.size && Math.sin(G.time * 5) > 0;
-    setLamp(L.signal, fresh || ((this.st.sigStrength ?? 0) > 0.3 && Math.sin(G.time * 12) > 0) ? 0xffb030 : 0x1a1206);
+    setLamp(L.signal, fresh || ((this.st.sigStrength ?? 0) > 0.3 && Math.sin(G.time * 12) > 0) ? 0xc08018 : 0x000000);
     // the function dial clicks round to the current function's detent
     const i = Math.max(0, this.pages.findIndex((q) => q.key === this.page));
     const target = -i * (Math.PI * 1.5 / 8) + Math.PI * 0.75;

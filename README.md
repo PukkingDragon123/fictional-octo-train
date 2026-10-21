@@ -85,8 +85,8 @@ controls: auto / on / off). The controls are found objects drawn in 3D:
 - a yellow work glove to grab (hold it: the stick pushes and pulls), a throttle lever for power
 - a squeeze bulb for the lung pump, a wristwatch, a riveted iron cube for the backpack,
   a spirit level for build mode and wind-up chattering teeth for emotes
-- a crash bar to shove, a slipper to sneak, a pull-chain bulb for the light and a whistle to shout
-- a camera, folded map, mini scanner and rucksack along the top
+- a crash bar to shove, a slipper to sneak, a pull-chain bulb for the light and a whistle (hold it to shout)
+- a camera and a folded map along the top, with the wristwatch and the iron cube
 
 They bleed, rust and twitch with what is happening to you. Tap to act or walk,
 hold on something to grab it (lift the finger to let go), swipe sideways to turn the camera and pinch

@@ -15,8 +15,9 @@ import { addStat } from '../../game/profile';
 import { CYBER_SLOTS, CyberSlot, SLOT_KIND, SLOT_CODE, cyberDef, cyberDefByItem, slotConflicts, loadoutOf, installPart, removePart } from '../../survival/cyber';
 import { SurgeryStage } from './stage';
 import { csfx } from './audio';
-import { TeleCrt } from './crt';
-import { CRT, ph, phButton, C } from './panel';
+import * as THREE from 'three';
+import { Crt3D, PH } from './instruments';
+import '../fonts.css';
 import './surgery.css';
 
 class SelfSurgery extends TimedAction {
@@ -69,48 +70,56 @@ export function fieldSurgery(p: Player) {
   let pick = 0;
   const log: string[] = [];
   let busy = false;
-  const crt = new TeleCrt((s, hit, hover, t) => {
-    const W = CRT.SW, blink = (t * 2) % 1 < 0.55;
-    s.text(busy ? 'OPERATING' : 'SELF-SURGERY', 3, 2, ph.hi);
-    s.text(busy ? (blink ? '*REC' : '') : 'NO ANAESTH.', W - 3 - s.textW(busy ? '*REC' : 'NO ANAESTH.'), 2, ph.mid);
-    s.hline(2, W - 3, 11, ph.dim);
+  const crt = new Crt3D((pen, t) => {
+    const W = pen.W, H = pen.H, X = 14, blink = (t * 2) % 1 < 0.55;
+    pen.text(busy ? 'OPERATING' : 'SELF-SURGERY', X, 10, PH.hi, 17);
+    pen.text(busy ? (blink ? '● REC' : '') : 'NO ANAESTHETIC', W - X, 12, PH.mid, 13, 'right');
+    pen.rule(34);
     if (busy) {
-      const n = Math.min(log.length, 11);
-      for (let i = 0; i < n; i++) s.text(cut(log[log.length - n + i], 27), 3, 15 + i * 9, i === n - 1 ? ph.hi : ph.mid);
+      const n = Math.min(log.length, 12);
+      for (let i = 0; i < n; i++) pen.text(cut(log[log.length - n + i], 38), X, 44 + i * 20, i === n - 1 ? PH.hi : PH.mid, 15);
       return;
     }
-    if (!rows.length) {
-      s.para('NOTHING TO FIT. FIND A PART OUT THERE OR BUILD A SCRAPJACK AT A WORKBENCH.', 3, 16, W - 6, ph.mid, 9);
-    }
+    if (!rows.length) pen.para('Nothing to fit. Find a part out there, or build a Scrapjack at a workbench.', X, 50, W - 2 * X, PH.mid, 15, 20);
     const vis = 5;
     crt.maxScroll = Math.max(0, rows.length - vis);
+    crt.scroll = Math.min(crt.scroll, crt.maxScroll);
     for (let i = 0; i < vis && crt.scroll + i < rows.length; i++) {
-      const idx = crt.scroll + i, r = rows[idx], y = 15 + i * 18;
-      if (idx === pick || hover === 'row:' + idx) s.rect(2, y - 1, W - 4, 18, idx === pick ? ph.dim : C(0x0c2a14));
-      s.text(cut(r.a, 27), 4, y, ph.hi);
-      s.text(cut(r.b, 27), 10, y + 8, ph.mid);
-      hit('row:' + idx, 2, y - 1, W - 4, 18);
+      const idx = crt.scroll + i, r = rows[idx], y = 44 + i * 42;
+      if (idx === pick || pen.hover === 'row:' + idx) pen.fill(8, y - 3, W - 16, 40, idx === pick ? '#0f3a1e' : '#0a2414');
+      pen.text(cut(r.a, 40), X, y, PH.hi, 15);
+      pen.text(cut(r.b, 44), X + 14, y + 19, PH.mid, 13);
+      pen.hit('row:' + idx, 8, y - 3, W - 16, 40);
     }
-    if (rows.length) { hit('go', 3, 113, 62, 11); phButton(s, 3, 113, 'BEGIN', hover === 'go', 62); }
-    hit('off', W - 61, 113, 58, 11); phButton(s, W - 61, 113, 'CLIMB OFF', hover === 'off', 58);
+    if (rows.length) pen.button('go', 'BEGIN ▸', X, H - 34, 140);
+    pen.button('off', 'CLIMB OFF', W - X - 140, H - 34, 140);
   }, (id) => {
     if (busy || ended) return;
     if (id === 'off') close();
     else if (id.startsWith('row:')) pick = Number(id.slice(4));
     else if (id === 'go' && rows[pick]) go(rows[pick]);
   });
-  root.append(crt.pix.el);
-  const k = Math.max(1, Math.min(3, Math.floor(Math.min((innerWidth * 0.36) / CRT.W, (innerHeight * 0.66) / CRT.H))));
-  crt.pix.setScale(k);
-  stage.setViewShift(innerWidth > innerHeight ? 0.12 : 0, 0);
-  let raf = 0, last = performance.now();
-  const tick = (now: number) => { raf = requestAnimationFrame(tick); const dt = (now - last) / 1000; if (dt < 1 / 15) return; last = now; crt.frame(dt); };
-  raf = requestAnimationFrame(tick);
+  const fgL = new THREE.Group();
+  const kl = new THREE.DirectionalLight(0xfff0dc, 2.2); kl.position.set(-2, 3, 2); fgL.add(kl, new THREE.AmbientLight(0x6a6458, 0.6));
+  stage.fg.add(fgL, crt.group);
+  stage.onFgHover = (id, hit) => crt.pointer(id, hit);
+  stage.onClick = (id, hit) => { if (id) crt.click(id, hit); };
+  const tanH = Math.tan((15 * Math.PI) / 180);
+  let lastAsp = 0;
+  stage.onFrame = (dt) => {
+    const asp = stage.fgCam.aspect;
+    if (asp !== lastAsp) {
+      lastAsp = asp;
+      const hh = tanH * 3, hw = hh * asp;
+      if (asp >= 0.9) { const sc = Math.min(1, (hw * 0.82) / 1.05); crt.group.scale.setScalar(sc); crt.group.position.set(hw - 0.58 * sc, 0.0, -3); crt.group.rotation.set(0, -0.22, 0); stage.setViewShift(0.12, 0); }
+      else { const sc = Math.min(1, (hw * 1.9) / 1.05); crt.group.scale.setScalar(sc); crt.group.position.set(0, -hh + 0.48 * sc, -3); crt.group.rotation.set(0, 0, 0); stage.setViewShift(0, -0.2); }
+    }
+    crt.frame(dt, busy);
+  };
 
   const close = () => {
     if (ended) return;
     ended = true;
-    cancelAnimationFrame(raf);
     window.removeEventListener('keydown', onKey, true);
     stage.dispose(); root.remove();
     fpRelease('surgery');

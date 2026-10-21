@@ -19,6 +19,7 @@ import { createPreviewRig } from '../../entities/humanRig';
 import { REG, PAD, PAGE } from '../../entities/humanModel';
 import type { RegKey } from '../../entities/humanModel';
 import { cosmeticGeometry } from '../../entities/cosmetics3d';
+import { crtScreen, phosphorText, fontsReady, type CrtScreen } from '../../gfx/crt';
 import { COSMETIC } from '../../game/cosmetics';
 import { U, worldMaterial } from '../../gfx/materials';
 import { blendPose } from './emotes';
@@ -28,8 +29,8 @@ import { sfx } from './sfx';
 import { calm } from './settings';
 import {
   ROOM, PHOS, roomGeometry, chairGeometry, armSegment, armBase, clawPalm, clawFinger, toolHead, sawBlade, pressGeometry, shutterGeometry,
-  gearGeometry, propGeometry, letterGeometry, tubeBaseGeometry, tvGeometry, screenGeometry, screenMaterial, dialPanelGeometry,
-  paintScreen, paintTape, paintBrass, paintGauge, canvasTex, bloodCanvas,
+  gearGeometry, propGeometry, tubeBaseGeometry, tvGeometry, dialPanelGeometry,
+  paintNixie, paintTape, paintBrass, paintGauge, canvasTex, bloodCanvas,
 } from './roomKit';
 
 export type { PartKey };
@@ -55,7 +56,7 @@ interface Arm {
 
 // ------------------------------------------------------------------ menu objects
 interface MenuObj {
-  item: MenuItem; group: THREE.Group; body: THREE.Object3D; mats: THREE.MeshBasicMaterial[]; screens: THREE.ShaderMaterial[]; needles: THREE.Object3D[]; anchor: THREE.Vector3; r: number;
+  item: MenuItem; group: THREE.Group; body: THREE.Object3D; mats: THREE.MeshBasicMaterial[]; crts: CrtScreen[]; needles: THREE.Object3D[]; anchor: THREE.Vector3; r: number;
   phase: number; hover: number; hoverT: number; press: number; glitch: number; nextGlitch: number; out: number; color: number;
 }
 
@@ -72,6 +73,8 @@ export class SubjectRoom {
   busy = false;
   /** stop drawing (another full-screen stage is up) */
   paused = false;
+  /** frame clock multiplier (tests on software GL run it faster) */
+  timeScale = 1;
   onPick?: (p: PartKey | null) => void;
   onHover?: (p: PartKey | null, x: number, y: number) => void;
   /** wheel / vertical swipe over the head: +1 next face, -1 previous */
@@ -326,10 +329,16 @@ export class SubjectRoom {
     const tubeGeo = new THREE.CylinderGeometry(r, r, 0.6, 14, 1, true);
     const domeGeo = new THREE.SphereGeometry(r, 14, 5, 0, Math.PI * 2, 0, Math.PI / 2);
     const baseGeo = tubeBaseGeometry(r);
+    const glyphs: (() => void)[] = [];
     'NOCLIP'.split('').forEach((ch, i) => {
       const g = new THREE.Group();
-      const glyph = new THREE.Mesh(letterGeometry(ch, 0.05, PHOS.nixie), this.mat);
-      glyph.position.y = 0.34;
+      const gc = document.createElement('canvas');
+      paintNixie(gc, ch);
+      const gt = canvasTex(gc);
+      gt.magFilter = THREE.LinearFilter; gt.minFilter = THREE.LinearFilter;
+      glyphs.push(() => { paintNixie(gc, ch); gt.needsUpdate = true; });
+      const glyph = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.4), new THREE.MeshBasicMaterial({ map: gt, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, toneMapped: false }));
+      glyph.position.y = 0.32;
       const tube = new THREE.Mesh(tubeGeo, glass); tube.position.y = 0.3;
       const dome = new THREE.Mesh(domeGeo, glass); dome.position.y = 0.6;
       g.add(new THREE.Mesh(baseGeo, this.mat), glyph, tube, dome);
@@ -351,7 +360,7 @@ export class SubjectRoom {
     this.nixieLight.position.set(0, 0.35, 0.35);
     this.titleG.add(this.nixieLight);
     // fonts may arrive late: repaint everything painted with them
-    document.fonts?.load?.('700 16px Silkscreen').then(() => { paint(); plateMat.map!.needsUpdate = true; this.repaintSigns(); }).catch(() => {});
+    fontsReady().then(() => { paint(); plateMat.map!.needsUpdate = true; for (const f of glyphs) f(); this.repaintSigns(); }).catch(() => {});
   }
   private nixieLight = new THREE.PointLight(PHOS.nixie, 0.5, 3.2, 2);
 
@@ -367,7 +376,7 @@ export class SubjectRoom {
   private addMenuObj(item: MenuItem, side: 'L' | 'R', i: number, n: number) {
     const g = new THREE.Group();
     const color = item.color ?? (item.primary ? PHOS.amber : i % 2 ? PHOS.green : PHOS.amber);
-    const mats: THREE.MeshBasicMaterial[] = [], screens: THREE.ShaderMaterial[] = [], needles: THREE.Object3D[] = [];
+    const mats: THREE.MeshBasicMaterial[] = [], crts: CrtScreen[] = [], needles: THREE.Object3D[] = [];
     const repaint: (() => void)[] = [];
     const body = new THREE.Group();
     let r = 0.4;
@@ -375,15 +384,35 @@ export class SubjectRoom {
       // a floating television set, the option glowing on its picture tube
       const kind = item.primary ? 'console' : i % 2 ? 'portable' : 'monitor';
       const sw = item.primary ? 0.78 : 0.6, sh = item.primary ? 0.54 : 0.42;
-      const cv = document.createElement('canvas');
-      const pw = item.primary ? 176 : 144, ph = item.primary ? 120 : 100;
-      const paint = () => paintScreen(cv, item.label, color, pw, ph, String(i + 2));
+      const W = 320, H = Math.round(320 * sh / sw);
+      const scr = crtScreen(sw, sh, { tint: color, res: [W, H], curvature: 0.16, glow: 0.9, noise: 0.04, reflect: 0.85, flicker: 0.6 });
+      scr.mesh.position.z = 0.012;
+      const paint = () => {
+        const c = scr.ctx;
+        c.fillStyle = '#020302'; c.fillRect(0, 0, W, H);
+        // two lines at most, big, centred
+        const words = item.label.split(' ');
+        let lines = [item.label];
+        c.font = `${Math.round(H * 0.2)}px 'IBM Plex Mono', monospace`;
+        if (c.measureText(item.label).width > W * 0.86 && words.length > 1) {
+          let best = 1, bestD = 1e9;
+          for (let k = 1; k < words.length; k++) { const d = Math.abs(words.slice(0, k).join(' ').length - words.slice(k).join(' ').length); if (d < bestD) { bestD = d; best = k; } }
+          lines = [words.slice(0, best).join(' '), words.slice(best).join(' ')];
+        }
+        let size = Math.round(H * (lines.length > 1 ? 0.17 : 0.2));
+        c.font = `${size}px 'IBM Plex Mono', monospace`;
+        while (Math.max(...lines.map((l) => c.measureText(l).width)) > W * 0.88 && size > 10) { size -= 1; c.font = `${size}px 'IBM Plex Mono', monospace`; }
+        const y0 = H / 2 - (lines.length * size * 1.15) / 2;
+        lines.forEach((l, k) => phosphorText(c, l, W / 2, y0 + k * size * 1.15, { size, color: '#ffffff', align: 'center', glow: 8 }));
+        phosphorText(c, 'CH ' + (i + 2), 10, 8, { size: 12, color: '#6a6a6a', glow: 2 });
+        phosphorText(c, item.primary ? 'ON AIR' : 'SIGNAL', W - 10, H - 20, { size: 11, color: '#5a5a5a', align: 'right', glow: 2 });
+        c.fillStyle = '#9a9a9a'; c.fillRect(W / 2 + Math.max(...lines.map((l) => c.measureText(l).width)) / 2 + 6, y0 + (lines.length - 1) * size * 1.15 + size * 0.15, size * 0.5, size * 0.85);
+        scr.flush();
+      };
       paint();
-      const sm = screenMaterial(canvasTex(cv), Math.random() * 10);
-      sm.uniforms.uLines.value = ph / 2;
-      repaint.push(() => { paint(); (sm.uniforms.map.value as THREE.Texture).needsUpdate = true; });
-      screens.push(sm);
-      body.add(new THREE.Mesh(tvGeometry(kind, sw, sh), this.mat), new THREE.Mesh(screenGeometry(sw, sh, 0.035), sm));
+      repaint.push(paint);
+      crts.push(scr);
+      body.add(new THREE.Mesh(tvGeometry(kind, sw, sh), this.mat), scr.mesh);
       r = Math.max(sw, sh) * 0.85;
     } else {
       let m: THREE.Mesh;
@@ -428,7 +457,7 @@ export class SubjectRoom {
     }
     g.add(body);
     g.userData.repaint = repaint;
-    const o: MenuObj = { item, group: g, body, mats, screens, needles, anchor: new THREE.Vector3(), r, phase: Math.random() * 10, hover: 0, hoverT: 0, press: 0, glitch: 0, nextGlitch: 4 + Math.random() * 8, out: 0, color };
+    const o: MenuObj = { item, group: g, body, mats, crts, needles, anchor: new THREE.Vector3(), r, phase: Math.random() * 10, hover: 0, hoverT: 0, press: 0, glitch: 0, nextGlitch: 4 + Math.random() * 8, out: 0, color };
     g.userData.side = side; g.userData.i = i; g.userData.n = n;
     this.menuG.add(g);
     this.menu.push(o);
@@ -839,7 +868,7 @@ export class SubjectRoom {
   private resize() {
     if (!this.renderer) return;
     const w = Math.max(1, this.host.clientWidth), h = Math.max(1, this.host.clientHeight);
-    const target = Math.min(gfxSettings().pixelHeight || 360, this.quality === 'low' ? 250 : 330);
+    const target = this.quality === 'low' ? 270 : this.quality === 'medium' ? 400 : 480;
     const px = Math.max(1, h / target);
     const lw = Math.max(64, Math.round(w / px)), lh = Math.max(64, Math.round(h / px));
     if (lw === this.lowW && lh === this.lowH) return;
@@ -907,8 +936,8 @@ export class SubjectRoom {
 
   private frame = (now: number) => {
     this.raf = requestAnimationFrame(this.frame);
-    const dt = Math.min(0.05, (now - this.last) / 1000);
-    if (dt < 1 / 62) return;
+    const dt = Math.min(0.05, (now - this.last) / 1000) * this.timeScale;
+    if (dt < this.timeScale / 62) return;
     this.last = now;
     if (document.hidden || this.paused || !this.renderer || !this.rt || !this.post) return;
     this.t += dt;
@@ -1076,11 +1105,11 @@ export class SubjectRoom {
       g.rotation.set(Math.sin(t * 0.55 + ph) * 0.05 - m.hover * 0.04 + pressK * 0.18, base * (1 - m.hover * 0.6) + Math.sin(t * 0.37 + ph) * 0.12, Math.sin(t * 0.5 + ph * 0.7) * 0.05 + out * dir);
       const sc0 = g.userData.sc0 ?? 1;
       g.scale.setScalar(sc0 * (1 + m.hover * 0.06 - m.press * 0.08) * (1 - out * 0.6));
-      for (const sm of m.screens) {
-        const u = sm.uniforms;
-        u.uTime.value = t;
-        u.uBright.value = 0.62 + m.hover * 0.55 + m.press * 1.4 + Math.sin(t * 2.3 + ph) * 0.03;
-        u.uStatic.value = m.glitch > 0 && !calmNow ? 0.55 : m.press * 0.3;
+      for (const sc of m.crts) {
+        const u = sc.mat.uniforms;
+        (u.uTint.value as THREE.Color).setHex(m.color).multiplyScalar(0.62 + m.hover * 0.6 + m.press * 1.2);
+        u.uNoise.value = m.glitch > 0 && !calmNow ? 0.35 : 0.04 + m.press * 0.2;
+        sc.power(out < 0.2);
       }
       const k = 0.5 + m.hover * 0.5 + m.press * 0.6;
       for (const mat of m.mats) mat.color.setRGB(k, k, k);
