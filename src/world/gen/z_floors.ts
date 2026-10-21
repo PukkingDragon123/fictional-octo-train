@@ -146,6 +146,10 @@ export function generateFloor(z: Zone, seed: number) {
   const L = findOpenRect(z, 3, 3, rng, 600, 1) || [W >> 1, H >> 1];
   const lx = L[0] + 1, ly = L[1] + 1;
   arrive(b, 'fall', lx, ly, 's', 3);
+  // where you are, on an enamel sign by where you land
+  const SIGN: Record<string, [number, number]> = { yellow: [0x2a4a3a, 0xf0e6c0], office: [0x1e2a44, 0xe8e4d8], pool: [0x2a6a7a, 0xf4f0e4], concrete: [0xc89a2a, 0x1a1410], red: [0x6a1a14, 0xf0d8b8], static: [0x101010, 0xd0d0d0] };
+  const [pc, ic] = SIGN[st.key] || SIGN.yellow;
+  if (!put(c, 'vx_sign', lx - 1, ly - 2, 0, { text: `SUBLEVEL ${n}|${st.title.toUpperCase()}`, c: pc, ink: ic })) force(c, 'vx_sign', lx + 1, ly - 2, 0, { text: `SUBLEVEL ${n}|${st.title.toUpperCase()}`, c: pc, ink: ic });
   const RP = findOpenRect(z, 1, 1, rng, 400, 1);
   if (RP) {
     force(c, 'zw_rope_hanging', RP[0], RP[1], 0, { v: 0, portal: 'vx_rope_up' });
@@ -195,6 +199,7 @@ const STAMPS: Record<string, (c: Ctx) => void> = {
     const p = findOpenRect(z, 4, 4, rng, 800, 2);
     if (p) {
       pit(c, p[0] + 2, p[1] + 2, 1.9, { to: deeperFloor('lobby', 0), shared: true, label: 'Jump into the hole in the carpet' }, 'vx_lobby_hole');
+      put(c, 'vx_sign', p[0] + 1, p[1] - 1, 0, { text: 'DO NOT|JUMP', c: 0xe8e0c8, ink: 0xa8281c });
       arrive(b, 'vx_return', p[0] + 2, p[1] + 5, 'n', 1);
     } else {
       const q = findOpenRect(z, 1, 1, rng, 800, 1);
@@ -212,11 +217,11 @@ const STAMPS: Record<string, (c: Ctx) => void> = {
   },
   fields: (c) => {
     const p = findOpenRect(c.z, 4, 4, c.rng, 900, 2);
-    if (p) pit(c, p[0] + 2, p[1] + 2, 1.9, { to: 'meadow', label: 'The grass at the bottom of this hole is greener' }, 'vx_fields_meadow');
+    if (p) { pit(c, p[0] + 2, p[1] + 2, 1.9, { to: 'meadow', label: 'The grass at the bottom of this hole is greener' }, 'vx_fields_meadow'); put(c, 'vx_sign', p[0] + 1, p[1] - 1, 0, { text: 'GREENER|THIS WAY', c: 0x3a8a4a, ink: 0xfff4f8 }); }
   },
   lab: (c) => {
     const p = findOpenRect(c.z, 4, 4, c.rng, 900, 1);
-    if (p) pit(c, p[0] + 2, p[1] + 2, 1.7, { to: 'moon', label: 'Cold air comes up out of this hole. There are stars in it.' }, 'vx_lab_moon');
+    if (p) { pit(c, p[0] + 2, p[1] + 2, 1.7, { to: 'moon', label: 'Cold air comes up out of this hole. There are stars in it.' }, 'vx_lab_moon'); put(c, 'vx_sign', p[0] + 1, p[1] - 1, 0, { text: 'EXPERIMENT 9|DO NOT LOOK DOWN', c: 0xe8e4d8, ink: 0x1e2a44 }); }
   },
   showroom: (c) => {
     const p = findOpenRect(c.z, 18, 20, c.rng, 900, 1);

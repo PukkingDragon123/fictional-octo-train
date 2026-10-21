@@ -12,9 +12,10 @@ import { clamp, lerp } from '../core/math';
 import { fpGroup, fpClaim, fpRelease, fpCamera } from '../fp/fp';
 import { worldMaterial } from '../gfx/materials';
 import { ModelBuilder } from '../gfx/modelBuilder';
-import { pop } from '../gfx/juice';
 import { itemDef, type Item } from '../items/item';
 import { createItem } from '../items/factory';
+import { itemGeometry } from '../items/itemMeshes';
+import { Sheet, sheetMesh, overlayRay } from '../build/paper';
 import { objDef } from '../world/objects';
 import { CROPS } from '../items/worldSystems';
 import { TimedAction } from '../actions/action';
@@ -23,7 +24,6 @@ import { classOf, matchRecipe, recipeKnown, RECIPES, type DishRecipe } from './r
 import { bump, mark } from '../build/progress';
 import type { Player } from '../entities/player';
 import type { TileObject, Zone } from '../world/zone';
-import './cook.css';
 
 const N_SLOTS = 8;
 const PAN_X = -0.17, POT_X = 0.27, PLATE = new THREE.Vector3(0.5, 0.0, 0.22);
@@ -68,10 +68,20 @@ export class CookView {
   private ray = new THREE.Raycaster();
   private ndc = new THREE.Vector2();
   private tmp = new THREE.Vector3();
-  private dom: HTMLDivElement;
-  private card: HTMLDivElement;
-  private hint: HTMLDivElement;
+  /** an empty element held as G.ui.modal while cooking (blocks walking and world clicks) */
+  private token = document.createElement('div');
+  private card = new Sheet(96, 124);
+  private cardM: THREE.Mesh;
   private cardSig = '';
+  private cardPop = 0;
+  private fresh = new Set<string>();
+  private knob = new THREE.Group();
+  private probe = new THREE.Group();
+  private probeNeedle = new THREE.Group();
+  private dishM: THREE.Mesh;
+  private flag = new Sheet(44, 11);
+  private flagM: THREE.Mesh;
+  private dishT = 0;
   private points: THREE.Points;
   private pPos: Float32Array; private pVel: Float32Array; private pLife: Float32Array; private pCol: Float32Array; private pN = 0;
   private bitMats: THREE.MeshLambertMaterial[] = [];
@@ -142,12 +152,32 @@ export class CookView {
     // camera framing: looking down at the stovetop
     this.rig.position.set(0, -0.06, -1.45);
     this.rig.rotation.x = 0.82;
-    // DOM: the recipe card + the hint line
-    this.dom = document.createElement('div'); this.dom.className = 'ck-root';
-    this.card = document.createElement('div'); this.card.className = 'ck-card';
-    this.hint = document.createElement('div'); this.hint.className = 'ck-hint';
-    this.dom.append(this.card, this.hint);
-    document.body.appendChild(this.dom);
+    // ---- the recipe card, propped against the back of the stove (typed, coffee-stained)
+    this.cardM = sheetMesh(this.card, 0.2, 0.2 * 124 / 96);
+    this.cardM.position.set(0.56, 0.12, -0.36); this.cardM.rotation.set(-0.35, -0.25, 0.04);
+    this.rig.add(this.cardM);
+    // ---- a strip of embossed label tape along the front edge: the controls
+    const tape = new Sheet(240, 9);
+    tape.scr.clear(0x141414);
+    const words = 'CLICK FOOD: FLIP  SPACE: TOSS  HOLD POT+CIRCLE: STIR  PLATE: SERVE  E: STEP BACK';
+    tape.scr.text(words, 120 - tape.scr.textW(words) / 2, 1, tape.c(0xe8e8e0));
+    tape.commit();
+    const tm = sheetMesh(tape, 0.96, 0.036); tm.position.set(-0.08, -0.03, 0.402); this.rig.add(tm);
+    // ---- the bakelite heat knob (stoves)
+    const kn = new ModelBuilder(); kn.cylinder(0, 0, 0, 0.034, 0.03, 12, 'plastic_black'); kn.box(0, 0.03, 0.018, 0.008, 0.004, 0.03, 'white', { color: 0xe8e0c8 });
+    const knm = new THREE.Mesh(kn.build(), M); knm.rotation.x = Math.PI / 2; this.knob.add(knm);
+    this.knob.position.set(0.62, -0.03, 0.4); this.rig.add(this.knob);
+    // ---- a probe thermometer that sticks into whatever you look at
+    const face = new Sheet(28, 28); face.gaugeFace('TEMP', 'high'); face.commit();
+    const pr = new ModelBuilder(); pr.cylinder(0, -0.09, 0, 0.003, 0.09, 5, 'chrome'); pr.cylinder(0, 0, 0, 0.028, 0.012, 14, 'chrome');
+    const prm = new THREE.Mesh(pr.build(), M); this.probe.add(prm);
+    const fm = new THREE.Mesh(new THREE.CircleGeometry(0.024, 14), new THREE.MeshLambertMaterial({ map: face.tex })); fm.rotation.x = -Math.PI / 2; fm.position.y = 0.0125; this.probe.add(fm);
+    const nd = new ModelBuilder(); nd.box(0, 0, -0.0095, 0.0022, 0.0016, 0.019, 'white', { color: 0xc8302a });
+    this.probeNeedle.add(new THREE.Mesh(nd.build(), M)); this.probeNeedle.position.y = 0.0135; this.probe.add(this.probeNeedle);
+    this.probe.rotation.x = -0.5; this.probe.visible = false; this.rig.add(this.probe);
+    // ---- the plated dish and its little paper flag
+    this.dishM = new THREE.Mesh(new THREE.BufferGeometry(), M); this.dishM.visible = false; this.rig.add(this.dishM);
+    this.flagM = sheetMesh(this.flag, 0.1, 0.025); this.flagM.visible = false; this.rig.add(this.flagM);
     window.addEventListener('mousedown', (e) => this.onDown(e), true);
     window.addEventListener('mouseup', (e) => this.onUp(e), true);
     window.addEventListener('wheel', (e) => { if (this.open && this.kind === 'stove') { this.heat = clamp(this.heat - Math.sign(e.deltaY) * 0.1, 0.2, 1.2); } }, { passive: true });
@@ -181,8 +211,8 @@ export class CookView {
     this.heat = kind === 'stove' ? 0.8 : 1;
     this.open = true;
     this.fillBoard(p);
-    this.dom.classList.add('on');
-    G.ui && (G.ui.modal = this.dom);
+    G.ui && (G.ui.modal = this.token);
+    this.knob.visible = kind === 'stove';
     p.actions.clear();
     p.actions.add(new CookingAction(p, () => this.open, o.x + 0.5, o.y + 0.5));
     this.rig.position.y = -0.5; // slides up into view
@@ -202,8 +232,8 @@ export class CookView {
     this.bits = []; this.pot = []; this.potC = 0; this.stick = 0;
     for (const s of this.slots) { if (s.mesh) this.rig.remove(s.mesh); s.mesh = null; s.it = null; }
     if (this.drag) { this.rig.remove(this.drag.mesh); this.drag = null; }
-    this.dom.classList.remove('on');
-    if (G.ui?.modal === this.dom) G.ui.modal = null;
+    if (G.ui?.modal === this.token) G.ui.modal = null;
+    this.dishM.visible = this.flagM.visible = false;
     fpRelease('cook');
     if (p && p.actions.current instanceof CookingAction) p.actions.clear();
     if (p) bus.emit('inventoryChanged', p);
@@ -384,7 +414,7 @@ export class CookView {
     for (const s of this.slots) if (s.mesh) { const on = hov?.slot === s; s.mesh.scale.setScalar(lerp(s.mesh.scale.x, on ? 1.25 : 1, 1 - Math.exp(-dt * 12))); s.mesh.position.y = 0.03 + (on ? 0.02 + Math.sin(G.time * 8) * 0.008 : 0); }
     this.plateM.scale.setScalar(lerp(this.plateM.scale.x, hov?.kind === 'plate' ? 1.12 : 1, 1 - Math.exp(-dt * 12)));
     this.updatePoints(dt);
-    this.renderDom(H, hov);
+    this.render3d(dt, H, hov);
   }
 
   private tint(m: THREE.MeshLambertMaterial, top: number, hi: number, meat: boolean) {
@@ -396,15 +426,8 @@ export class CookView {
   }
 
   // ================================================================= mouse
-  private toNdc(cx: number, cy: number) {
-    const pr = G.pr;
-    const RW = pr.lowW + pr.margin * 2, RH = pr.lowH + pr.margin * 2;
-    const lx = cx * pr.dpr / pr.scale + pr.margin, ly = (window.innerHeight - cy) * pr.dpr / pr.scale + pr.margin;
-    this.ndc.set(lx / RW * 2 - 1, ly / RH * 2 - 1);
-    this.ray.setFromCamera(this.ndc, fpCamera());
-  }
   private surfacePoint(): THREE.Vector3 | null {
-    this.toNdc(G.input.mouseX, G.input.mouseY);
+    overlayRay(this.ray, fpCamera(), G.input.mouseX, G.input.mouseY, this.ndc);
     const h = this.ray.intersectObject(this.surface, false)[0];
     if (!h) return null;
     return this.rig.worldToLocal(this.tmp.copy(h.point));
@@ -500,7 +523,6 @@ export class CookView {
       // no recipe: the pieces come back cooked on their own
       for (let i = 0; i < items.length; i++) { const sc = scores[i]; items[i].cooked = sc.burnt ? 1.7 : sc.raw ? 0.5 : 1; p.inv.add(items[i]); }
       this.clearVessel(fromPan);
-      bus.emit('halo', p, scores.some((s) => s.burnt) ? 'Charred' : 'Cooked', scores.some((s) => s.burnt) ? 'bad' : 'good');
       bus.emit('inventoryChanged', p);
       return;
     }
@@ -510,14 +532,13 @@ export class CookView {
     this.clearVessel(fromPan);
     // feedback
     const good = label === 'PERFECT' || label === 'GOOD';
-    bus.emit('halo', p, `${label}: ${out.name ?? itemDef(out.key).name}`, good ? 'good' : 'bad');
+    this.showDish(out.key, label);
     G.audio?.ui?.(good ? 'pan_toss' : 'dryfire', 0.6);
     this.plateM.position.y = 0.08; this.plateM.scale.setScalar(1.3);
     this.spatter(PLATE.x, 0.05, PLATE.z, good ? 14 : 4, good ? [1, 0.85, 0.4] : [0.3, 0.3, 0.3]);
-    pop(this.hint);
     p.body.addXp('cooking', good ? 10 : 4);
     if (good) { bump('cook_dish'); if (label === 'PERFECT') bump('cook_perfect'); }
-    if (discovered) { bump('cook_discover'); this.flash(`RECIPE DISCOVERED · ${discovered.name.toUpperCase()}`); }
+    if (discovered) { bump('cook_discover'); this.fresh.add(discovered.key); this.cardPop = 1; G.audio?.ui?.('elevator_ding', 0.5); bus.emit('think', p, `Huh. ${discovered.name}. Writing that down.`); }
     if (keys.some((k) => itemDef(k).tags?.includes('weirdpart'))) mark('cook:weird');
     this.cardSig = '';
     bus.emit('dishPlated', p, out, q);
@@ -528,10 +549,15 @@ export class CookView {
     if (pan) { for (const b of this.bits) this.rig.remove(b.mesh); this.bits = []; }
     else { this.pot = []; this.potC = 0; this.stick = 0; }
   }
-  private flash(text: string) {
-    const el = document.createElement('div'); el.className = 'ck-flash'; el.textContent = text;
-    this.dom.appendChild(el); setTimeout(() => el.remove(), 2600);
-    G.audio?.ui?.('elevator_ding', 0.5);
+  /** the dish sits on the plate for a moment under a typed paper flag */
+  private showDish(key: string, label: string) {
+    this.dishM.geometry = itemGeometry(key) ?? new THREE.BufferGeometry();
+    this.dishM.position.set(PLATE.x, 0.016, PLATE.z); this.dishM.scale.setScalar(1.6); this.dishM.visible = true;
+    const f = this.flag.scr; f.clear(0xf2ead2); f.frame(0, 0, 44, 11, this.flag.c(0x8a7a60));
+    const col = label === 'PERFECT' ? 0x2a7a2a : label === 'GOOD' ? 0x2a2622 : 0xa8302a;
+    f.text(label, 22 - f.textW(label) / 2, 2, this.flag.c(col)); this.flag.commit();
+    this.flagM.position.set(PLATE.x - 0.06, 0.09, PLATE.z - 0.02); this.flagM.rotation.set(-0.5, 0.2, 0); this.flagM.visible = true;
+    this.dishT = 2.2;
   }
 
   // ================================================================= particles (overlay points)
@@ -564,20 +590,39 @@ export class CookView {
   }
 
   // ================================================================= DOM
-  private renderDom(H: number, hov: ReturnType<CookView['hit']>) {
-    const heat = H <= 0 ? (this.kind === 'stove' ? 'NO POWER' : 'FIRE OUT') : '▮'.repeat(Math.round(H * 5)) + '▯'.repeat(Math.max(0, 6 - Math.round(H * 5)));
-    let tip = 'Drag food from the board into the pan or the pot.';
-    if (hov?.kind === 'bit' && hov.bit) { const b = hov.bit; const lo = Math.min(b.down, b.up), hi = Math.max(b.down, b.up); tip = `${itemDef(b.it.key).name}: underside ${this.word(b.down)}, top ${this.word(b.up)} — click to flip.${hi > 1.35 ? ' It\'s catching!' : lo >= 0.95 ? ' Done.' : ''}`; }
-    else if (hov?.kind === 'pot') tip = this.pot.length ? `Pot: ${this.pot.map((q) => itemDef(q.it.key).name).join(', ')} — ${this.word(this.potC)}${this.stick > 0.6 ? ', sticking!' : ''}. Hold and circle to stir.` : 'The pot. Stews and broths. Drag ingredients in.';
-    else if (hov?.kind === 'plate') { const keys = this.bits.length ? this.bits.map((b) => b.it.key) : this.pot.map((q) => q.it.key); const r = keys.length ? matchRecipe(keys, this.bits.length ? 'pan' : 'pot') : null; tip = keys.length ? `Plate it${r ? ': ' + (recipeKnown(r) ? r.name : '??? (a new recipe?)') : ' (no recipe: just cooked food)'}` : 'The plate. Click it to serve.'; }
-    else if (hov?.kind === 'slot' && hov.slot?.it) tip = `${itemDef(hov.slot.it.key).name} — drag to the pan or the pot (click: pan).`;
-    this.hint.innerHTML = `<span class="heat">${this.kind === 'stove' ? 'HOB' : 'FIRE'} ${heat}</span><span class="tip">${tip}</span><span class="keys">click piece: flip · SPACE toss · hold pot: stir${this.kind === 'stove' ? ' · wheel: heat' : ''} · E leave</span>`;
-    const sig = RECIPES.map((r) => (recipeKnown(r) ? 1 : 0)).join('');
-    if (sig !== this.cardSig) {
-      this.cardSig = sig;
-      this.card.innerHTML = `<h4>RECIPES</h4>` + RECIPES.map((r) => recipeKnown(r) ? `<p><b>${r.name}</b><i>${r.vessel === 'pot' ? 'POT' : 'PAN'} · ${r.hint}</i></p>` : `<p class="unk"><b>??? </b><i>${r.vessel === 'pot' ? 'POT' : 'PAN'} · undiscovered</i></p>`).join('');
+  private render3d(dt: number, H: number, hov: ReturnType<CookView['hit']>) {
+    // knob follows the heat
+    this.knob.rotation.z = lerp(this.knob.rotation.z, -(H / 1.2) * 4.2 + 2.1, 1 - Math.exp(-dt * 10));
+    // the probe: in the hovered piece (or the pot), its needle on how done it is
+    let target: { x: number; y: number; z: number; v: number } | null = null;
+    if (hov?.kind === 'bit' && hov.bit) target = { x: hov.bit.px, y: hov.bit.mesh.position.y + 0.03, z: hov.bit.pz, v: Math.max(hov.bit.down, hov.bit.up) };
+    else if (hov?.kind === 'pot' && this.pot.length) target = { x: POT_X + 0.04, y: 0.12, z: -0.04, v: this.potC + this.stick * 0.6 };
+    this.probe.visible = !!target;
+    if (target) {
+      this.probe.position.set(target.x, target.y + 0.09, target.z);
+      this.probeNeedle.rotation.y = Math.PI * (0.75 - clamp(target.v / 2, 0, 1) * 1.5);
     }
+    // plated dish and flag fade away
+    if (this.dishT > 0) { this.dishT -= dt; if (this.dishT <= 0) this.dishM.visible = this.flagM.visible = false; else this.dishM.rotation.y += dt * 0.8; }
+    // the card: redraw when what you know changes, pop when something new is written on it
+    this.cardPop = Math.max(0, this.cardPop - dt * 1.6);
+    this.cardM.scale.setScalar(1 + Math.sin(this.cardPop * Math.PI) * 0.12);
+    const sig = RECIPES.map((r) => (recipeKnown(r) ? 1 : 0)).join('') + [...this.fresh].join(',');
+    if (sig === this.cardSig) return;
+    this.cardSig = sig;
+    const c = this.card, sc = c.scr;
+    c.card(true);
+    sc.text('RECIPES', 12, 3, c.c(0xa8302a));
+    let y = 14;
+    for (const r of RECIPES) {
+      const known = recipeKnown(r);
+      const tag = r.vessel === 'pot' ? 'POT' : 'PAN';
+      sc.text(known ? r.name.toUpperCase() : '? ? ?', 12, y, c.c(known ? 0x2a2622 : 0x9a8e78), 1, 66);
+      sc.text(tag, 92 - sc.textW(tag), y, c.c(0x6a5a48));
+      if (this.fresh.has(r.key)) { sc.frame(10, y - 2, 84, 11, c.c(0xc8302a)); sc.text('NEW', 72, y - 1, c.c(0xc8302a)); }
+      y += 11;
+    }
+    c.commit();
   }
-  private word(c: number) { return c >= 1.6 ? 'BURNT' : c >= 1.35 ? 'dark' : c >= 0.95 ? 'golden' : c >= 0.6 ? 'browning' : c >= 0.25 ? 'warm' : 'raw'; }
 }
 

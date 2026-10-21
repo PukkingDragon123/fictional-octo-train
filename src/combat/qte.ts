@@ -10,7 +10,7 @@ import type { Player } from '../entities/player';
 import { TimedAction } from '../actions/action';
 import { TornAction } from '../survival/limbSystem';
 import { shake, punch, hitstop, slowmo } from '../gfx/juice';
-import type { Marks } from './glyphs';
+import { gaugeName, type Marks } from './glyphs';
 
 export type QteKind = 'mash' | 'alt' | 'timed';
 export interface Stage { kind: QteKind; need: number }
@@ -71,7 +71,7 @@ export class Struggles {
     G.camera?.pushIn?.(0.2, 0.35, -6);
     G.audio?.ui?.('cb_tick', 0.6);
     const p = G.local;
-    if (p) G.combat?.marks?.float(o.reason === 'tear' ? 'BREAK FREE' : o.reason === 'pin' ? 'THROW IT OFF' : 'STRUGGLE', p.x, p.y + 2.5, p.z, 0xff5040, 1.1, 1.2);
+    if (p) G.combat?.marks?.float('badge:struggle', p.x, p.y + 2.6, p.z, 1.0);
     return true;
   }
 
@@ -150,7 +150,7 @@ export class Struggles {
       c.si++; c.prog = 0; c.hits = 0; c.ring = 1.15;
       if (c.si >= c.stages.length) { this.finish(true); return; }
       hitstop(60); punch(0.05, 0.2); G.audio?.ui?.('cb_good', 0.8);
-      marks.float('AGAIN', p.x, p.y + 2.3, p.z, 0xffd040, 0.6);
+      marks.float('badge:struggle', p.x, p.y + 2.6, p.z, 0.6);
     }
     if (c.t >= c.dur) { this.finish(false); return; }
     this.draw(p, c, marks, rt);
@@ -166,32 +166,35 @@ export class Struggles {
     const touch = !!(G.systems.find((s) => s.name === 'touch') as any)?.active;
     const stage = c.stages[c.si];
     const now = performance.now() / 1000;
-    const hx = p.x, hy = p.y + 2.05, hz = p.z;
-    const pulse = 1 + Math.sin(now * 14) * 0.06 + c.pop * 0.35;
+    const hx = p.x, hy = p.y + 2.0, hz = p.z;
+    const pulse = 1 + c.pop * 0.25;
     const left = 1 - c.t / c.dur;
-    const danger = left < 0.3 ? (Math.sin(now * 22) > 0 ? 0xff3020 : 0xffd040) : 0xffd040;
+    // running out: the keys flush red on the beat
+    const hurry = left < 0.3 && Math.sin(now * 20) > 0 ? 0xffb8a0 : 0xffffff;
+    // the struggle as a pressure gauge: the needle climbs into the red as you fight loose
+    const fill = (c.si + Math.min(1, c.prog)) / c.stages.length;
+    const tremble = Math.sin(now * 47) * 0.012 * c.grip;
+    marks.mark(gaugeName(fill, fill > 0.78), hx + rt.x * tremble, hy + 0.55, hz + rt.z * tremble);
     if (stage.kind === 'mash') {
-      marks.mark(touch ? 'tap' : 'key:SPACE', hx, hy + c.pop * 0.08, hz, { color: danger, scale: pulse * 1.15 });
-      if (!touch) marks.mark('lmb', hx + rt.x * 0.75, hy - 0.05, hz + rt.z * 0.75, { color: 0xd8d0b8, opacity: 0.7, scale: 0.9 });
+      marks.mark(touch ? 'tap' : 'key:SPACE', hx, hy - 0.04 * c.pop, hz, { color: hurry, scale: pulse });
+      if (!touch) marks.mark('lmb', hx + rt.x * 0.85, hy - 0.04, hz + rt.z * 0.85, { color: 0xb8ac94, opacity: 0.85 });
     } else if (stage.kind === 'alt') {
       for (const side of ['L', 'R'] as const) {
         const s = side === 'L' ? -1 : 1, on = c.want === side;
-        const name = touch ? (side === 'L' ? 'arrowL' : 'arrowR') : side === 'L' ? 'key:A' : 'key:D';
-        marks.mark(name, hx + rt.x * 0.6 * s, hy - 0.1 + (on ? c.pop * 0.06 : 0), hz + rt.z * 0.6 * s, { color: on ? danger : 0x6a6458, opacity: on ? 1 : 0.6, scale: on ? pulse * 1.15 : 0.85 });
+        const name = touch ? (side === 'L' ? 'keyL' : 'keyR') : side === 'L' ? 'key:A' : 'key:D';
+        marks.mark(name, hx + rt.x * 0.55 * s, hy - (on ? 0.04 * c.pop : 0), hz + rt.z * 0.55 * s, { color: on ? hurry : 0x7a7060, opacity: on ? 1 : 0.75, scale: on ? pulse : 1 });
       }
     } else {
       const inBand = c.ring > 0.24 && c.ring < 0.46;
-      marks.mark('ring', hx, hy, hz, { color: 0xffffff, opacity: 0.9, scale: 0.5 });
-      marks.mark('ring', hx, hy, hz, { color: inBand ? 0xffffff : 0xff7040, opacity: 0.95, scale: Math.max(0.05, c.ring) * 1.45 });
-      marks.mark(touch ? 'tap' : 'key:SPACE', hx, hy - 0.62, hz, { color: inBand ? 0xffffff : 0xd8d0b8, scale: 0.85 + (inBand ? 0.15 : 0) });
-      for (let i = 0; i < stage.need; i++) marks.mark('word:.', hx + rt.x * (i - (stage.need - 1) / 2) * 0.22, hy + 0.55, hz + rt.z * (i - (stage.need - 1) / 2) * 0.22, { color: i < c.hits ? 0xffd040 : 0x504840, scale: 1.4 });
+      marks.mark('target', hx, hy, hz);
+      marks.mark('hoop', hx, hy, hz, { color: inBand ? 0xfff0d0 : 0xffffff, scale: Math.max(0.1, c.ring * 1.7) });
+      marks.mark(touch ? 'tap' : 'key:SPACE', hx, hy - 0.6, hz, { color: inBand ? 0xffffff : 0xb8ac94 });
+      for (let i = 0; i < stage.need; i++) { const o = (i - (stage.need - 1) / 2) * 0.28; marks.mark(i < c.hits ? 'pip:on' : 'pip', hx + rt.x * o, hy + 0.98, hz + rt.z * o); }
     }
-    // floor: how far along (amber) and how long is left (red, outside)
-    const fill = (c.si + Math.min(1, c.prog)) / c.stages.length;
-    marks.ring(p.x, p.y, p.z, 0.75, fill, 0xffc030, 0x301008, 0.9);
-    marks.ring(p.x, p.y, p.z, 0.95, left, left < 0.3 ? 0xff2010 : 0x9a2a18, 0x100404, 0.7);
-    // who has us
+    // the time left: chalk tally marks round the feet, rubbed out one by one
+    marks.ring(p.x, p.y, p.z, 0.85, left, left < 0.3 ? 0xd0583a : 0xe8dcc0, 0x2a2016, 0.9);
+    // what has us: a hazard sign over it
     const k = c.cid ? G.creatures?.creatures?.get?.(c.cid) : null;
-    if (k) marks.mark('word:!', k.x, k.y + Math.min(2.6, k.height + 0.35), k.z, { color: 0xff3020, scale: 1.2 + Math.sin(now * 18) * 0.15 });
+    if (k) marks.mark('warn', k.x, k.y + Math.min(2.6, k.height + 0.4) + Math.abs(Math.sin(now * 9)) * 0.05, k.z);
   }
 }

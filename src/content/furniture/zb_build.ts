@@ -304,15 +304,15 @@ defObj({
 });
 defObj({
   key: 'bld_hydro', name: 'Hydro Rack', height: 1.8, block: 'solid', sound: 'metal', flammable: 0, hp: 350,
-  tags: [...T, 'farm', 'bplanter', 'hydro', 'station'], desc: 'Two trays, a dripping pipe loop and a pink grow strip. Grows fast, drinks little.',
-  light: { color: 0xff7ad8, intensity: 0.45, radius: 2.5, y: 1.0, kind: 'neon', power: false },
+  tags: [...T, 'farm', 'bplanter', 'hydro', 'station'], desc: 'Two trays, a dripping pipe loop and a row of warm grow bulbs. Grows fast, drinks little.',
+  light: { color: 0xffb878, intensity: 0.45, radius: 2.5, y: 1.0, kind: 'bulb', power: false },
   variant: (s) => `${s.crop ?? ''}:${Math.floor(s.stage ?? 0)}:${s.dead ? 1 : 0}`,
   model: (mb, s) => {
     legs(mb, 0.86, 0.56, 1.75, 0.022, ST);
     for (const y of [0.25, 0.95]) {
       mb.box(0, y, 0, 0.9, 0.12, 0.6, { all: 'plastic_white', top: 'bt_soil' }, { color: 0xd8e8e8 });
       crops(mb, s, y + 0.12, 0.8, 3);
-      mb.box(0, y + 0.62, 0, 0.84, 0.03, 0.06, 'plastic_white', { emissive: 1.4, color: 0xff7ad8 });
+      mb.box(0, y + 0.64, 0, 0.84, 0.03, 0.08, 'metal_painted_green'); for (const bx of [-0.28, 0, 0.28]) mb.sphere(bx, y + 0.62, 0, 0.035, 6, 4, 'plastic_white', { emissive: 1.4, color: 0xffc890 });
     }
     P(mb, -0.45, 0.4, -0.3, -0.45, 1.6, -0.3, 0.02, 'chrome'); P(mb, -0.45, 1.6, -0.3, 0.45, 1.6, -0.3, 0.02, 'chrome');
     mb.cylinder(0.3, 0, -0.18, 0.12, 0.25, 8, 'plastic_blue');

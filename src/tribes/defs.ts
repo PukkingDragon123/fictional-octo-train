@@ -189,7 +189,7 @@ export const TRIBES: Record<TribeKey, TribeDef> = {
     names: ['Deacon Ohm', 'Sister Solder', 'Fan-Speaker', 'Relay', 'Capacitor Ruth', 'The Grounded', 'Little Diode', 'Brother Firmware', 'Reboot'],
     lines: {
       greet: ['The fan turns. The fan turns. Welcome, warm thing.', 'You carry a band of Institute iron. Crude. Beautiful.', 'Do you hear it? Under the hum? That is a mind waiting for a body.'],
-      trade: ['We sell minds. Small ones. Bring us copper and charge.', 'A cortex puck: put it where the meat was, and the meat will listen.', 'Parts for prayers. Prayers for parts.'],
+      trade: ['We sell minds. Small ones. Bring us copper and charge.', 'A cortex valve: put it where the meat was, and the meat will listen.', 'Parts for prayers. Prayers for parts.'],
       hostile: ['Disassemble them!', 'Short them out!', 'Return them to scrap!'],
       hurt: ['Fault! Fault!', 'You damage a vessel of the current!'],
       recruit: ['I will come. I want to see what you wire.'],

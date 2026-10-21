@@ -15,10 +15,12 @@ import { goreOf, KINDS } from '../gore/kinds';
 import { partRole, limbId } from '../gore/tearing';
 import { hitstop, shake, punch } from '../gfx/juice';
 import { bump, mark } from '../build/progress';
+import { ModelBuilder } from '../gfx/modelBuilder';
+import { worldMaterial } from '../gfx/materials';
 import type { Player } from '../entities/player';
 
 type Tool = 'knife' | 'saw' | 'axe';
-interface Cut { name: string; kind: 'limb' | 'head' | 'belly' | 'hide'; label: string; need: number; got: number; el: HTMLDivElement; sx: number; sy: number }
+interface Cut { name: string; kind: 'limb' | 'head' | 'belly' | 'hide'; label: string; need: number; got: number; ring: THREE.Group; sx: number; sy: number; hitT: number }
 interface Yield { meat?: string; human?: boolean; part?: string; hide?: string; organs?: boolean }
 
 /** what each kind of thing gives up */
@@ -62,17 +64,20 @@ const V = new THREE.Vector3();
 
 export class Butchery {
   active: { c: any; tool: Tool; toolIt: Item; cuts: Cut[]; y: Yield; gaveParts: boolean } | null = null;
-  private layer: HTMLDivElement;
-  private trail: HTMLDivElement;
+  /** grease-pencil cut marks drawn in the world over the body: dashes fill in as you cut */
+  private dashGeo: THREE.BufferGeometry;
+  private matDim: THREE.Material;
+  private matLit: THREE.Material;
+  private matHide: THREE.Material;
   private down = false;
   private lx = 0; private ly = 0;
   private passes = new Set<Cut>();
 
   constructor() {
-    this.layer = document.createElement('div'); this.layer.className = 'bt-layer';
-    this.trail = document.createElement('div'); this.trail.className = 'bt-hint';
-    this.layer.appendChild(this.trail);
-    document.body.appendChild(this.layer);
+    const db = new ModelBuilder(); db.box(0, -0.008, 0, 0.034, 0.016, 0.004, 'white', { emissive: 1, ao: false });
+    this.dashGeo = db.build();
+    const um = (tag: string, col: number) => { const m = worldMaterial({ unlit: true, outline: 0, noGrid: true, btTag: tag } as any) as THREE.MeshLambertMaterial; m.color.setHex(col); return m; };
+    this.matDim = um('dim', 0x8a1e16); this.matLit = um('lit', 0xff5a3a); this.matHide = um('hide', 0xd89a3a);
     window.addEventListener('mousedown', (e) => { if (this.active && e.button === 0) { this.down = true; this.lx = e.clientX; this.ly = e.clientY; this.passes.clear(); e.stopPropagation(); } }, true);
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.down = false; }, true);
     window.addEventListener('mousemove', (e) => { if (this.active && this.down) this.drag(e.clientX, e.clientY); });
@@ -108,22 +113,20 @@ export class Butchery {
     const cuts = this.cutsFor(c, t.tool, y);
     if (!cuts.length) return false;
     this.active = { c, tool: t.tool, toolIt: t.it, cuts, y, gaveParts: false };
-    for (const k of cuts) this.layer.appendChild(k.el);
-    this.layer.classList.add('on');
+    for (const k of cuts) G.pr.scene.add(k.ring);
     p.actions.clear();
     p.actions.add(new KneelAction(p, () => this.active?.c === c, c.x, c.z));
     if (p.handR !== t.it && !p.handR) p.equip(t.it, 'R');
     punch(0.06, 0.4);
     G.audio?.at?.('metal_clank', p.x, p.z, 0.3);
-    bus.emit('think', p, y.human ? 'It looks like a person. It isn\'t. Probably.' : 'Okay. Okay. Just meat.');
+    bus.emit('think', p, y.human ? 'It looks like a person. It isn\'t. Probably. Cut along the marks.' : t.tool === 'saw' ? 'Saw back and forth across the marks.' : t.tool === 'axe' ? 'One hard chop across each mark.' : 'Drag the blade across the marks.');
     return true;
   }
 
   stop() {
     if (!this.active) return;
-    for (const k of this.active.cuts) k.el.remove();
+    for (const k of this.active.cuts) G.pr.scene.remove(k.ring);
     this.active = null;
-    this.layer.classList.remove('on');
     const p = G.local;
     if (p && p.actions.current instanceof KneelAction) p.actions.clear();
   }
@@ -140,8 +143,15 @@ export class Butchery {
       return base;
     };
     const mk = (name: string, kind: Cut['kind'], label: string): Cut => {
-      const el = document.createElement('div'); el.className = 'bt-mark ' + kind; el.innerHTML = `<i></i><span>${label}</span>`;
-      return { name, kind, label, need: strokes(kind), got: 0, el, sx: -999, sy: -999 };
+      const ring = new THREE.Group();
+      const n = 12, r = kind === 'belly' || kind === 'hide' ? 0.17 : 0.11;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2, m = new THREE.Mesh(this.dashGeo, this.matDim);
+        m.position.set(Math.cos(a) * r, Math.sin(a) * r, 0); m.rotation.z = a + Math.PI / 2;
+        ring.add(m);
+      }
+      ring.renderOrder = 6;
+      return { name, kind, label, need: strokes(kind), got: 0, ring, sx: -999, sy: -999, hitT: 0 };
     };
     for (const n of gd.sever || []) {
       const role = partRole(n, gd.head);
@@ -174,14 +184,18 @@ export class Butchery {
     if (inp.keyHit('Escape') || inp.hit('interact') || inp.mouseReleased[2]) { inp.pressed.delete('Escape'); inp.pressed.delete('KeyE'); this.stop(); return; }
     if (inp.moveAxis().mag > 0.2) { this.stop(); return; }
     const cam = G.pr.camera as THREE.Camera;
+    const t = G.time;
     for (const k of a.cuts) {
-      this.posOf(c, k, V); V.project(cam);
+      this.posOf(c, k, V);
+      k.ring.position.copy(V);
+      k.ring.quaternion.copy(cam.quaternion);
+      k.hitT = Math.max(0, k.hitT - G.dt * 4);
+      k.ring.scale.setScalar(1 + k.hitT * 0.4 + Math.sin(t * 4 + k.name.length) * 0.04);
+      const lit = Math.round((k.got / k.need) * k.ring.children.length);
+      k.ring.children.forEach((m, i) => { (m as THREE.Mesh).material = i < lit ? this.matLit : k.kind === 'belly' || k.kind === 'hide' ? this.matHide : this.matDim; });
+      V.project(cam);
       k.sx = (V.x * 0.5 + 0.5) * window.innerWidth; k.sy = (-V.y * 0.5 + 0.5) * window.innerHeight;
-      k.el.style.transform = `translate(${k.sx | 0}px, ${k.sy | 0}px)`;
-      k.el.style.setProperty('--p', String(k.got / k.need));
     }
-    const verb = a.tool === 'saw' ? 'Saw back and forth across a mark' : a.tool === 'axe' ? 'Chop: swipe hard across a mark' : 'Drag the blade across a mark';
-    this.trail.textContent = `${verb} · E / Esc to stand up`;
   }
 
   // ---------------------------------------------------------------- strokes
@@ -223,7 +237,7 @@ export class Butchery {
     if (fin && (k.kind === 'limb' || k.kind === 'head')) G.audio?.at?.('bone_crunch', V.x, V.z, 0.9);
     hitstop(a.tool === 'axe' ? 70 : 40);
     shake(a.tool === 'axe' ? 0.3 : 0.12);
-    k.el.classList.remove('hit'); void k.el.offsetWidth; k.el.classList.add('hit');
+    k.hitT = 1;
     a.toolIt.cond = Math.max(0, a.toolIt.cond - 0.002);
     p.body.addXp('trapping', 1);
     if (fin) this.finish(k, wdx / n, wdz / n);
@@ -255,10 +269,9 @@ export class Butchery {
       op('dropFloor', { z: z.key, item: serializeItem(it), x: c.x + dx * 0.3, zz: c.z + dz * 0.3, y: 0.5, v: [Math.cos(ang) * sp, 1.6 + Math.random() * 1.4, Math.sin(ang) * sp] });
       if (itemDef(key).tags?.includes('weirdpart')) bump('butcher_part');
     }
-    if (out.length) bus.emit('halo', p, out.map((x) => itemDef(x).name).join(' · '), 'good');
     if (y.human) { p.body.stress = Math.min(100, (p.body.stress ?? 0) + 8); p.body.unhappy = Math.min(100, (p.body.unhappy ?? 0) + 6); }
     // done with this mark
-    k.el.remove();
+    G.pr.scene.remove(k.ring);
     a.cuts = a.cuts.filter((q) => q !== k);
     const spent = !a.cuts.some((q) => q.kind === 'belly' || q.kind === 'hide') || !a.cuts.length;
     op('butcherCut', { id: c.id, part: k.name, done: spent });

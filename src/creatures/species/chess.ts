@@ -36,7 +36,12 @@ PG.paint((P, v) => {
   eye(P, P.R('EYE'), v ? 0xffb040 : 0xff5a20, { pupil: 0xfff0c0, sclera: v ? 0x301804 : 0x300804, slit: true });
   { const r = P.R('MOUTH'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { const d = Math.hypot(x + 0.5 - r.w / 2, y + 0.5 - r.h / 2) / (r.w / 2); P.set(r, x, y, d < 0.5 ? 0x1a0204 : d < 0.8 ? 0x5a0a10 : 0x8a2028); } }
   flat(P, P.R('TOOTH'), v ? 0xc8c0b0 : 0xf4f0e4, 0.1);
-  P.fill(P.R('MANE'), ramp(base, 6, 0x101010, 0.3), (u, vv) => 1 + vv * 3 + (u > 0.5 ? 0.5 : 0));
+  {
+    // the mane blades: chiselled, a bright bevel down one edge, tool marks across
+    const r = P.R('MANE');
+    P.fill(r, ramp(base, 6, 0x101010, 0.3), (u, vv, x, y) => 1 + vv * 3 + (u > 0.5 ? 0.6 : -0.2) + (y % 5 === 0 ? -0.8 : 0) + (P.n(r, x, y, 2, 1, 4) - 0.5));
+    for (let y = 0; y < r.h; y++) P.blend(r, Math.floor(r.w / 2), y, 0xffffff, 0.35);
+  }
   P.cut(P.R('CUT'), base, { meat: v ? 0x403840 : 0xc8bca8, bone: v ? 0x605860 : 0xf0e8d8, marrow: 0x8a1c1c, fat: v ? 0x504850 : 0xd8ccb8 });
 });
 

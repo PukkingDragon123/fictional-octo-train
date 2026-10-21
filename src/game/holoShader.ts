@@ -1,11 +1,12 @@
-// The hologram look for Staff Sergeant Voss (src/game/handler.ts): a base
-// material for a HumanRig that keeps the world shader (visibility mask, normal
-// buffer) but throws the lit colour away and redraws the texels as projected
-// light: cyan by luminance with amber where the texture is warm (beret badge,
-// stripes, skin), screen-space scanlines, a bright band sweeping up the body,
-// a fresnel rim, flicker, and horizontal slices of the body that jump sideways
-// when the signal breaks up. Additive, no depth writes, no shadows. Plus the
-// projector cone and the floor chevrons the handler draws.
+// The projection look for Staff Sergeant Voss (src/game/handler.ts): an old
+// projector / CRT image, not a sci-fi hologram. A base material for a HumanRig
+// that keeps the world shader (visibility mask, normal buffer) but throws the
+// lit colour away and redraws the texels as warm phosphor light (pale amber by
+// luminance, deeper orange where the texture is warm), screen-space scanlines,
+// 24 fps film flicker, grain, the odd vertical scratch, a soft bright rim, the
+// gate weaving the whole picture a hair sideways, and, when the feed is bad,
+// the frame slipping. Additive, no depth writes, no shadows. Plus the dusty
+// projector beam and the floor arrows the handler draws, in the same light.
 import * as THREE from 'three';
 import { worldMaterial, U } from '../gfx/materials';
 import { atlas } from '../gfx/atlas';
@@ -14,17 +15,17 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import type { HumanRig } from '../entities/humanRig';
 
 /** x = brightness (0 hidden .. 1), y = slice glitch 0..1, z = unfold 0..1 (draws from the feet up), w = sweep speed */
-export const HOLO = { uHolo: { value: new THREE.Vector4(1, 0, 1, 1) }, uHoloTint: { value: new THREE.Color(0x5ee6ff) }, uHoloWarm: { value: new THREE.Color(0xffa83a) } };
+export const HOLO = { uHolo: { value: new THREE.Vector4(1, 0, 1, 1) }, uHoloTint: { value: new THREE.Color(0xffdca0) }, uHoloWarm: { value: new THREE.Color(0xff8a30) } };
 
 const VERT = /* glsl */`
 {
-  // the signal tears: whole horizontal bands of the body slide sideways for a frame or two
-  float band = floor(transformed.y * 8.0);
-  float ft = floor(uTime * 9.0);
-  float gh = fract(sin(band * 12.9898 + ft * 78.233) * 43758.5453);
-  if (gh < uHolo.y * 0.55) transformed.x += (fract(gh * 91.7) - 0.5) * 0.32 * uHolo.y;
-  float gh2 = fract(sin(band * 3.17 + ft * 1.913) * 9631.7);
-  if (gh2 < uHolo.y * 0.25) transformed.z += (fract(gh2 * 47.3) - 0.5) * 0.12 * uHolo.y;
+  // film in the gate: the whole picture weaves a hair sideways every frame (24 fps);
+  // a bad feed makes the frame slip up and judder
+  float ft = floor(uTime * 24.0);
+  float wv = fract(sin(ft * 12.9898) * 43758.5453) - 0.5;
+  transformed.x += wv * 0.008 + wv * 0.05 * uHolo.y;
+  float slip = fract(sin(ft * 3.17) * 9631.7);
+  if (slip < uHolo.y * 0.4) transformed.y += (fract(slip * 47.3) - 0.5) * 0.08 * uHolo.y;
 }
 `;
 const FRAG = /* glsl */`
@@ -32,25 +33,28 @@ const FRAG = /* glsl */`
   vec3 alb = diffuseColor.rgb;
   float lum = dot(alb, vec3(0.3, 0.59, 0.11));
   float warm = clamp((alb.r - alb.b) * 2.4 - 0.25, 0.0, 1.0);
-  vec3 col = mix(uHoloTint, uHoloWarm, warm * 0.85) * (0.45 + lum * 1.6);
+  vec3 col = mix(uHoloTint, uHoloWarm, warm * 0.85) * (0.4 + lum * 1.5);
   // rim: edges of the figure glow brighter
   vec3 vd = normalize(cameraPosition - vWPos);
   float rim = pow(1.0 - abs(dot(normalize(vWNormal), vd)), 2.0);
-  col += uHoloTint * rim * 0.8;
-  // scanlines (screen) and fine world bands
-  float scan = 0.62 + 0.38 * step(0.5, fract(gl_FragCoord.y * 0.5));
-  float bands = 0.85 + 0.15 * sin(vWPos.y * 90.0 - uTime * 6.0);
-  col *= scan * bands;
-  // a bright sweep climbing the body
-  float sw = fract(vWPos.y * 0.42 - uTime * 0.38 * uHolo.w);
-  col += uHoloTint * smoothstep(0.93, 1.0, sw) * 0.9;
+  col += uHoloTint * rim * 0.45;
+  // scanlines (screen), a slow rolling hum bar, grain, a scratch now and then
+  float scan = 0.66 + 0.34 * step(0.5, fract(gl_FragCoord.y * 0.5));
+  float hum = 0.9 + 0.1 * sin(vWPos.y * 3.0 - uTime * 1.3);
+  float fr = floor(uTime * 24.0);
+  float grain = fract(sin(dot(floor(gl_FragCoord.xy), vec2(12.9898, 78.233)) + fr * 1.618) * 43758.5453);
+  col *= scan * hum * (0.88 + grain * 0.24);
+  float scr = step(0.992, fract(sin(floor(gl_FragCoord.x * 0.5) * 7.13 + fr * 0.37) * 4375.85));
+  col = mix(col, uHoloTint * 1.4, scr * 0.5);
+  // the lamp breathes: 24 fps flicker
+  col *= 0.86 + 0.14 * fract(sin(fr * 91.7) * 43758.5);
   // unfolding from the floor up (appear / vanish)
   float top = uHolo.z * 2.3;
   float cut = vWPos.y - (uHoloBase + top);
   if (cut > 0.0) discard;
   col += uHoloTint * smoothstep(-0.06, 0.0, cut) * 2.0 * step(uHolo.z, 0.999);
   // flicker + visibility (only where the survivor can see)
-  float fl = uHolo.x * (0.9 + 0.1 * sin(uTime * 37.0) * sin(uTime * 13.0));
+  float fl = uHolo.x;
   #ifndef NOVIS
   if (uVisOn > 0.5) { vec2 vis = texture2D(uVisTex, (vWPos.xz - uVisInfo.xy) * uVisInfo.zw).rg; fl *= clamp(vis.r * 1.4, 0.0, 1.0); }
   #endif
@@ -116,8 +120,10 @@ addTextureModule(() => {
       const t = y / 31, a = Math.pow(1 - t, 1.6) * 0.75 + 0.06;
       const s = y % 3 === 0 ? 0.55 : 1;
       const c = Math.round(255 * a * s);
-      pc.setRGBA(x, y, Math.round(c * 0.35), Math.round(c * 0.9), c, 255);
+      pc.setRGBA(x, y, c, Math.round(c * 0.8), Math.round(c * 0.5), 255);
     }
+    // dust in the beam
+    for (let i = 0; i < 9; i++) { const x = (i * 5) % 8, y = (i * 11) % 32; pc.setRGBA(x, y, 255, 230, 190, 255); }
   });
   // a floor chevron (additive: black is nothing)
   A.add('zh_chevron', 16, 16, (pc) => {
@@ -125,10 +131,10 @@ addTextureModule(() => {
     pc.fill(0x000000);
     for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
       const d = Math.abs(y - 4 - Math.abs(x - 7.5) * 0.9);
-      if (d < 1.6 && y > 1 && y < 14) { const v = d < 0.8 ? 255 : 150; pc.setRGBA(x, y, Math.round(v * 0.35), Math.round(v * 0.9), v, 255); }
+      if (d < 1.6 && y > 1 && y < 14) { const v = d < 0.8 ? 255 : 150; pc.setRGBA(x, y, v, Math.round(v * 0.74), Math.round(v * 0.42), 255); }
     }
   });
-  A.add('zh_dot', 4, 4, (pc) => { pc.wrap = false; pc.fill(0x000000); pc.setRGBA(1, 1, 90, 230, 255, 255); pc.setRGBA(2, 1, 60, 160, 200, 255); pc.setRGBA(1, 2, 60, 160, 200, 255); pc.setRGBA(2, 2, 40, 110, 140, 255); });
+  A.add('zh_dot', 4, 4, (pc) => { pc.wrap = false; pc.fill(0x000000); pc.setRGBA(1, 1, 255, 210, 140, 255); pc.setRGBA(2, 1, 200, 150, 90, 255); pc.setRGBA(1, 2, 200, 150, 90, 255); pc.setRGBA(2, 2, 140, 100, 60, 255); });
   // the target marker: a bracketed square
   A.add('zh_mark', 16, 16, (pc) => {
     pc.wrap = false; pc.fill(0x000000);

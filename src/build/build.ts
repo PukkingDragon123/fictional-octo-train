@@ -18,12 +18,13 @@ import { wallDef, wallId } from '../world/defs';
 import { TF, type Zone, type TileObject } from '../world/zone';
 import { itemDef } from '../items/item';
 import { createItem } from '../items/factory';
-import { hasUnlock, researchNode } from '../game/research';
+import { hasUnlock } from '../game/research';
 import { pick, type PickTarget } from '../game/picking';
 import { queueAt } from '../actions/basic';
 import { UseObjectAction } from '../actions/world';
-import { shake, punch, pop } from '../gfx/juice';
-import { PIECES, piece, pieceForObj, CAT_NAMES, type Piece, type PieceCat } from './pieces';
+import { shake, punch } from '../gfx/juice';
+import { PIECES, piece, pieceForObj, type Piece, type PieceCat } from './pieces';
+import { Clipboard, type BoardHit, type BoardState } from './clipboard';
 import { WeldAction, welderFor, setVisor, sparks } from './weld';
 import { builtWalls, edgeKey } from './ops';
 import { Farm, isPlanter } from './farm';
@@ -63,9 +64,9 @@ export class BuildSystem implements GameSystem {
   private ghostKey = '';
   private matOk: THREE.MeshLambertMaterial;
   private matBad: THREE.MeshLambertMaterial;
-  private rail: HTMLDivElement | null = null;
-  private railT = 0;
-  private railSig = '';
+  /** the blueprint clipboard held in first person */
+  board = new Clipboard();
+  private boardOver = false;
   private mouseT = 0;
   private defT = 0;
   private stoveT = 0;
@@ -78,8 +79,8 @@ export class BuildSystem implements GameSystem {
       m.color.setHex(color); m.depthWrite = false;
       return m;
     };
-    this.matOk = mk('ok', 0x8affd0);
-    this.matBad = mk('bad', 0xff5a4a);
+    this.matOk = mk('ok', 0x86b8ff); // blueprint blue
+    this.matBad = mk('bad', 0xe0503a); // red pencil
     this.ghost = new THREE.Mesh(new THREE.BufferGeometry(), this.matOk);
     this.ghost.matrixAutoUpdate = false; this.ghost.visible = false; this.ghost.renderOrder = 5;
     G.pr.scene.add(this.ghost);
@@ -91,7 +92,7 @@ export class BuildSystem implements GameSystem {
     const cb = new ModelBuilder();
     for (let i = 0; i < 48; i++) { const a = (i / 48) * Math.PI * 2; cb.push().translate(Math.cos(a), 0.015, Math.sin(a)).rotateY(-a); cb.box(0, 0, 0, 0.012, 0.01, 0.07, 'white', { emissive: 1, ao: false }); cb.pop(); }
     this.claimRing = new THREE.Mesh(cb.build(), worldMaterial({ unlit: true, outline: 0, noGrid: true, transparent: true, opacity: 0.6, bldTag: 'claim' } as any));
-    (this.claimRing.material as THREE.MeshLambertMaterial).color.setHex(0xff6a4a);
+    (this.claimRing.material as THREE.MeshLambertMaterial).color.setHex(0xf0e8d0); // chalk
     this.claimRing.visible = false; G.pr.scene.add(this.claimRing);
     bus.on('travelEnd', () => this.toggle(false));
     bus.on('death', (p: Player) => { if (p === G.local) this.toggle(false); });
@@ -111,17 +112,16 @@ export class BuildSystem implements GameSystem {
     this.active = on;
     this.demolish = false;
     if (!on) { this.ghost.visible = false; this.ring.visible = false; this.claimRing.visible = false; setVisor(0); }
-    this.railEl().classList.toggle('on', on);
-    this.railSig = '';
-    G.audio?.ui?.(on ? 'click' : 'menu', 0.5);
-    if (on) { bus.emit('think', p, 'Build mode. Salvage in, welds out.'); this.renderRail(); }
+    this.board.show(on);
+    if (!on && this.boardOver) { G.input.pointerOverUI = false; this.boardOver = false; }
+    G.audio?.ui?.(on ? 'paper' : 'menu', 0.5);
     bus.emit('buildMode', on);
   }
   /** true while build mode owns the mouse (combat / grab should leave clicks alone) */
   captures() { return this.active; }
   current(): Piece { return PIECES[this.sel] ?? PIECES[0]; }
   unlocked(pc: Piece) { return !pc.node || hasUnlock(pc.node); }
-  select(key: string) { const i = PIECES.findIndex((p) => p.key === key); if (i >= 0) { this.sel = i; this.cat = PIECES[i].cat; this.ghostKey = ''; this.railSig = ''; this.demolish = false; } }
+  select(key: string) { const i = PIECES.findIndex((p) => p.key === key); if (i >= 0) { this.sel = i; this.cat = PIECES[i].cat; this.ghostKey = ''; this.demolish = false; } }
   private cycle(dir: number) {
     const list = PIECES.filter((p) => p.cat === this.cat);
     const i = list.indexOf(this.current());
@@ -166,7 +166,7 @@ export class BuildSystem implements GameSystem {
       for (let i = 0; i < m; i++) p.inv.add(createItem(k));
       if (m) got.push(`${m} ${d.name}`);
     }
-    if (got.length) bus.emit('halo', p, '+' + got.join(', '), 'good');
+    if (got.length) G.audio?.ui?.('rummage', 0.5);
     bus.emit('inventoryChanged', p);
   }
 
@@ -262,7 +262,6 @@ export class BuildSystem implements GameSystem {
     bump('bld_weld');
     if (pc.kind === 'obj' && pc.obj) mark('piece:' + pc.key);
     if (pc.cat === 'machine') mark('machine');
-    bus.emit('halo', G.local, pc.name.toUpperCase() + ' WELDED', 'good');
     if (pc.key === 'beacon') bus.emit('think', G.local, 'Twelve metres of the Backrooms. Mine.');
     void z; void o;
   }
@@ -355,7 +354,6 @@ export class BuildSystem implements GameSystem {
       if (p.isLocal) { shake(0.35); punch(0.04); }
       setTimeout(() => op('objState', { z: zk, uid: o.uid, patch: { down: false } }), 700);
       p.inv.add(createItem('sheet_metal'));
-      bus.emit('halo', p, '+1 Sheet Metal', 'good');
       bus.emit('inventoryChanged', p);
       bump('bld_compact');
     }), 1.5);
@@ -386,7 +384,7 @@ export class BuildSystem implements GameSystem {
     this.settle.update(dt, this.active);
     this.defT -= dt; if (this.defT <= 0) { this.defT = 0.5; this.defences(); }
     this.stoveT -= dt; this.stoves();
-    this.railT -= dt; if (this.railT <= 0 && this.active) { this.railT = 0.4; this.renderRail(); }
+    if (this.active && p) this.board.update(dt, this.boardState(p));
   }
 
   private updateMode(dt: number, p: Player) {
@@ -397,7 +395,12 @@ export class BuildSystem implements GameSystem {
     if (inp.hit('rotate')) { this.rot = ((this.rot + 1) % 4) as 0 | 1 | 2 | 3; G.audio?.ui?.('tab', 0.4); }
     if (inp.keyHit('BracketRight') || inp.keyHit('Period')) this.cycle(1);
     if (inp.keyHit('BracketLeft') || inp.keyHit('Comma')) this.cycle(-1);
-    if (inp.pointerOverUI && inp.wheel) { this.cycle(Math.sign(inp.wheel)); }
+    // the clipboard: the cursor over it is not pointing into the world (and the wheel turns its pages)
+    const bh = this.board.hit(inp.mouseX, inp.mouseY);
+    if (bh && !this.boardOver) { this.boardOver = true; inp.pointerOverUI = true; }
+    else if (!bh && this.boardOver) { this.boardOver = false; inp.pointerOverUI = false; }
+    if (bh && inp.wheel) this.cycle(Math.sign(inp.wheel));
+    if (bh && inp.mousePressed[0]) { this.boardClick(bh); inp.mousePressed[0] = false; }
     const over = inp.pointerOverUI;
     const t = over ? null : pick(inp.mouseX, inp.mouseY, { ignore: p });
     this.hover = this.hoverOf(t);
@@ -413,7 +416,7 @@ export class BuildSystem implements GameSystem {
       this.mouseT = performance.now();
       if (this.demolish) this.demolishAt(p, this.hover);
       else if (this.hover?.kind === 'frame') this.weld(p, this.hover.o);
-      else if (this.spot) { if (this.place(p, pc, this.spot)) pop(this.rail?.querySelector('.sel') as HTMLElement); }
+      else if (this.spot) this.place(p, pc, this.spot);
       // build mode owns the left button: systems after this one (grab / tool clicks) don't see the press
       inp.mousePressed[0] = false;
     }
@@ -447,9 +450,7 @@ export class BuildSystem implements GameSystem {
     this.ghost.matrixWorldNeedsUpdate = true;
     const good = s.ok && this.unlocked(pc) && !!G.local && this.canAfford(G.local, pc);
     this.ghost.material = good ? this.matOk : this.matBad;
-    (this.ring.material as THREE.MeshLambertMaterial).color.setHex(good ? 0x8affd0 : 0xff5a4a);
-    // a slow pulse so it reads as a hologram
-    this.matOk.opacity = 0.42 + Math.sin(G.time * 5) * 0.12;
+    (this.ring.material as THREE.MeshLambertMaterial).color.setHex(good ? 0xf0f4ff : 0xe0503a);
     this.ghost.visible = true;
   }
   private wallGhost(pc: Piece, side: 0 | 1): THREE.BufferGeometry {
@@ -510,53 +511,25 @@ export class BuildSystem implements GameSystem {
   }
   private litStoves: TileObject[] = [];
 
-  // ================================================================= the parts rail (DOM)
-  private railEl(): HTMLDivElement {
-    if (this.rail) return this.rail;
-    const el = document.createElement('div');
-    el.className = 'bld-rail';
-    el.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; });
-    el.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; });
-    el.addEventListener('click', (e) => {
-      const tEl = (e.target as HTMLElement).closest('[data-k]') as HTMLElement | null; if (!tEl) return;
-      const k = tEl.dataset.k!, p = G.local;
-      if (k.startsWith('cat:')) { this.cat = k.slice(4) as PieceCat; const first = PIECES.find((q) => q.cat === this.cat); if (first) this.select(first.key); }
-      else if (k === 'exit') this.toggle(false);
-      else if (k === 'rot') this.rot = ((this.rot + 1) % 4) as 0 | 1 | 2 | 3;
-      else if (k === 'demo') this.demolish = !this.demolish;
-      else {
-        this.select(k);
-        const pc = piece(k);
-        if (pc && !this.unlocked(pc) && p) { bus.emit('think', p, `Blueprint locked: ${researchNode(pc.node!)?.title ?? pc.name}. Research it on the watch.`); (G as any).watch?.openResearch?.('blueprint', pc.node); }
-      }
-      this.railSig = ''; this.renderRail(); pop(tEl);
-      G.audio?.ui?.('click', 0.45);
-    });
-    document.body.appendChild(el);
-    this.rail = el;
-    return el;
-  }
-  private renderRail() {
-    const p = G.local; if (!p) return;
-    const el = this.railEl();
+  // ================================================================= the clipboard
+  private boardClick(h: BoardHit) {
+    const p = G.local;
+    if (h.kind === 'tab') { this.cat = h.cat; const first = PIECES.find((q) => q.cat === h.cat); if (first) this.select(first.key); G.audio?.ui?.('paper', 0.5); }
+    else if (h.kind === 'prev' || h.kind === 'next') { this.cycle(h.kind === 'next' ? 1 : -1); G.audio?.ui?.('paper', 0.4); }
+    else if (h.kind === 'demo') { this.demolish = !this.demolish; G.audio?.ui?.('switch', 0.6); }
     const pc = this.current();
-    const cats = Object.keys(CAT_NAMES) as PieceCat[];
+    if (p && h.kind !== 'demo' && !this.unlocked(pc)) (G as any).watch?.openResearch?.('blueprint', pc.node);
+  }
+  private boardState(p: Player): BoardState {
+    const pc = this.current();
     const list = PIECES.filter((q) => q.cat === this.cat);
-    const welder = welderFor(p, pc);
-    const parts: string[] = [];
-    parts.push(`<div class="tabs">${cats.map((c) => `<button data-k="cat:${c}" class="${c === this.cat ? 'on' : ''}">${CAT_NAMES[c]}</button>`).join('')}<span class="sp"></span><button data-k="rot" title="R">⟳ ${this.rot * 90}°</button><button data-k="demo" class="${this.demolish ? 'warn on' : ''}" title="X">✂ DEMOLISH</button><button data-k="exit" title="B / Esc">✕</button></div>`);
-    parts.push('<div class="cards">');
-    for (const q of list) {
-      const lock = !this.unlocked(q);
-      const cost = q.cost.map(([k, n]) => { const have = this.countOf(p, k); return `<i class="${have >= n ? 'ok' : 'no'}">${n}×${itemDef(k).name}</i>`; }).join('');
-      const nd = lock ? researchNode(q.node!) : null;
-      parts.push(`<div data-k="${q.key}" class="card ${q === pc ? 'sel' : ''} ${lock ? 'lock' : ''}"><b>${q.name}</b><span class="cost">${lock ? `BLUEPRINT · ${nd?.cost ?? '?'} RP` : cost}</span></div>`);
-    }
-    parts.push('</div>');
-    const tool = welder ? (welder.kind === 'torch' ? `TORCH ${Math.round((welder.it.uses ?? 1) * 100)}% GAS` : welder.kind === 'laser' ? 'WATCH LASER' : 'HAMMER') : (pc.join === 'nail' ? 'NO HAMMER' : 'NO WELDER');
-    const hint = this.demolish ? 'Click a built piece or frame to take it down.' : this.hover?.kind === 'frame' ? `Hold the mouse on the frame to ${pc.join === 'nail' ? 'nail' : 'weld'} it.` : `${pc.desc}`;
-    parts.push(`<div class="info"><span class="tool ${welder ? '' : 'bad'}">${tool}</span><span class="hint">${hint}</span><span class="keys">LMB place · hold LMB weld · R rotate · [ ] piece · X demolish · B exit</span></div>`);
-    const html = parts.join('');
-    if (html !== this.railSig) { this.railSig = html; el.innerHTML = html; }
+    const w = welderFor(p, pc);
+    const L = this.settle.local();
+    return {
+      pc, idx: list.indexOf(pc), total: list.length, cat: this.cat, unlocked: this.unlocked(pc), have: (k) => this.countOf(p, k), demolish: this.demolish,
+      gas: w?.kind === 'torch' ? (w.it.uses ?? 1) : w?.kind === 'laser' ? 1 : null,
+      tool: w ? (w.kind === 'torch' ? 'TORCH' : w.kind === 'laser' ? 'LASER' : 'HAMMER') : pc.join === 'nail' ? 'NO HAMMER' : 'NO WELDER',
+      stats: L?.s ?? null, claimName: (L?.b.state.name as string) ?? '',
+    };
   }
 }

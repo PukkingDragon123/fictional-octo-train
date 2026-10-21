@@ -49,6 +49,7 @@ export function generateChess(z: Zone, seed: number) {
   force(c, 'zw_rope_hanging', sx + 5, sy + 3, 0, { v: 1, portal: 'vx_chess_up' });
   b.portal({ id: 'vx_chess_up', x: sx + 5, y: sy + 3, kind: 'ladder', to: 'lobby', tx: 80, ty: 80, anchor: 'vx_return', label: 'Climb the rope out of the board' });
   force(c, 'vx_chess_clock', sx - 7, oy + 8 * S + 1, 0, {});
+  force(c, 'vx_sign', sx - 2, sy + 4, 0, { text: 'THE BOARD|MIND THE RED SQUARE', c: 0x16131c, ink: 0xece4d0 });
   put(c, 'chair_wood', sx - 5, sy + 1, 1, {});
   f.floorItem('note', sx - 4, sy, { lore: 'vx_chess_note' });
 

@@ -1,9 +1,10 @@
 // Staff Sergeant Voss (projection): the debtor's handler for the rest of the
-// game. A flickering hologram soldier (fatigues, beret, cyan and amber,
-// scanlines, slices of him sliding sideways when the signal tears) projected
-// from the BAILIFF band on the survivor's wrist or from the projector on a
-// Remittance Press (object key 'hopper'), with a gruff procedural radio voice (src/game/vossVoice.ts) and
-// 'subtitle' lines in the 'voss' style. Local to each player.
+// game. A soldier projected like old film (fatigues, beret: warm phosphor
+// light, scanlines, 24 fps flicker and grain, the frame slipping when the feed
+// is bad) from the lens of the BAILIFF band on the survivor's wrist or from
+// the projector on a Remittance Press (object key 'hopper'), with a gruff
+// procedural radio voice (src/game/vossVoice.ts) and 'subtitle' lines in the
+// 'voss' style. Local to each player.
 //
 // API (G.handler):
 //   say(text, { at?, point?, dur?, key?, cd? })  queue a line (also bus 'handlerSay' { text })
@@ -459,8 +460,8 @@ export class Handler implements GameSystem {
     // ---- hologram signal
     this.glitchT -= dt;
     if (this.glitchT <= 0) {
-      this.glitchT = 3 + Math.random() * 6;
-      this.glitch = Math.max(this.glitch, 0.45 + Math.random() * 0.4);
+      this.glitchT = 5 + Math.random() * 9;
+      this.glitch = Math.max(this.glitch, 0.3 + Math.random() * 0.3);
       if (this.show > 0.9 && Math.random() < 0.5) G.audio?.play?.('holo_glitch', this.x, this.z, { vol: 0.25 });
     }
     this.glitch = Math.max(0, this.glitch - dt * 2.2);

@@ -1,6 +1,8 @@
 // The Remittance cube in first person: riveted iron walls, a hinged lid held
-// shut by four bolts, a thumb scanner on the front, and inside a 5x5x5 grid
-// of fist-sized cells lit from within. Items sit in their cells as their
+// shut by four bolts, an electromechanical thumb reader on the front (brass
+// bezel, green phosphor glass, relays that clack), and inside a 5x5x5 grid
+// of fist-sized cells: stamped steel dividers on the floor, chalked lines up
+// the walls, a bulb in the lid. Items sit in their cells as their
 // models; layers can be peeled off the top to see what is underneath.
 import * as THREE from 'three';
 import type { Item } from '../items/item';
@@ -8,22 +10,24 @@ import { type GridSpec, type Rot, dropSpot, extentIn } from '../items/grid';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { GridView3, type DropAt } from './gridView3';
 import { fpMat } from './fpKit';
+import { pixTag, type PixTag } from './tags';
 
 export const CELL = 0.085;
 const W = 0.024;
 
 let printTex: THREE.Texture | null = null;
-/** the scanner glass: a whorl of ridges */
+/** the reader's glass: a little round-cornered phosphor tube, ridges of an old print burnt in */
 function fingerprintTex(): THREE.Texture {
   if (printTex) return printTex;
-  const c = document.createElement('canvas'); c.width = 32; c.height = 32;
+  const c = document.createElement('canvas'); c.width = 24; c.height = 24;
   const x = c.getContext('2d')!;
-  x.fillStyle = '#06181a'; x.fillRect(0, 0, 32, 32);
-  for (let r = 2; r < 15; r += 2.2) {
-    x.strokeStyle = r % 4 < 2 ? '#2fd6c4' : '#1a8a80'; x.lineWidth = 1;
-    x.beginPath(); x.ellipse(16, 18, r * 0.8, r, 0.2, Math.PI * (0.1 + (r % 3) * 0.05), Math.PI * (1.9 - (r % 2) * 0.1)); x.stroke();
+  x.fillStyle = '#071208'; x.fillRect(0, 0, 24, 24);
+  for (let r = 2; r < 11; r += 1.8) {
+    x.strokeStyle = r % 3.6 < 1.8 ? '#1f4a22' : '#143018'; x.lineWidth = 1;
+    x.beginPath(); x.ellipse(12, 13, r * 0.8, r, 0.15, Math.PI * 0.1, Math.PI * 1.9); x.stroke();
   }
-  x.strokeStyle = '#9aa0a4'; x.strokeRect(0.5, 0.5, 31, 31);
+  // curved-glass highlight
+  x.fillStyle = 'rgba(200,255,200,0.18)'; x.fillRect(4, 3, 6, 2); x.fillRect(3, 5, 2, 4);
   printTex = new THREE.CanvasTexture(c);
   printTex.magFilter = THREE.NearestFilter; printTex.minFilter = THREE.NearestFilter; printTex.colorSpace = THREE.SRGBColorSpace;
   return printTex;
@@ -36,9 +40,12 @@ export class CubeView extends GridView3 {
   readonly pad: THREE.Mesh;
   readonly padMat: THREE.MeshBasicMaterial;
   readonly scan: THREE.Mesh;
-  readonly light = new THREE.PointLight(0x9ff0ff, 0, 1.4, 1.6);
+  readonly light = new THREE.PointLight(0xffd49a, 0, 1.4, 1.6);
+  /** the engraved brass plate on the front, and the instructions riveted inside the lid */
+  readonly plate: PixTag;
+  readonly lidPlate: PixTag;
   private grid: THREE.LineSegments | null = null;
-  private gridMat = new THREE.LineBasicMaterial({ color: 0x5ae0d0, transparent: true, opacity: 0.0, depthWrite: false });
+  private gridMat = new THREE.LineBasicMaterial({ color: 0xe8dcc0, transparent: true, opacity: 0.0, depthWrite: false });
   private peelPlane: THREE.Mesh;
   private peelGrid: THREE.LineSegments | null = null;
   private I = CELL * 5;
@@ -48,11 +55,21 @@ export class CubeView extends GridView3 {
     super();
     this.root.add(this.body);
     this.body.add(this.lid);
-    this.padMat = new THREE.MeshBasicMaterial({ map: fingerprintTex(), color: 0x6a8a88 });
-    this.pad = new THREE.Mesh(new THREE.PlaneGeometry(0.07, 0.07), this.padMat);
-    this.scan = new THREE.Mesh(new THREE.PlaneGeometry(0.072, 0.006), new THREE.MeshBasicMaterial({ color: 0x7affea, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.padMat = new THREE.MeshBasicMaterial({ map: fingerprintTex(), color: 0x7a8a7a });
+    this.pad = new THREE.Mesh(new THREE.PlaneGeometry(0.062, 0.062), this.padMat);
+    this.scan = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.005), new THREE.MeshBasicMaterial({ color: 0x8dff7a, transparent: true, opacity: 0, depthWrite: false }));
     this.body.add(this.pad, this.scan, this.light);
-    this.peelPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x5ae0d0, transparent: true, opacity: 0.07, depthWrite: false, side: THREE.DoubleSide }));
+    this.plate = pixTag('plate', 72, 22, 0.15);
+    this.plate.mesh.renderOrder = 2;
+    this.body.add(this.plate.mesh);
+    this.lidPlate = pixTag('plate', 96, 40, 0.3);
+    this.lid.add(this.lidPlate.mesh);
+    this.setPlate('----');
+    this.lidPlate.clear();
+    this.lidPlate.type('REMITTANCE CARRIER MK.II', 6, 4, undefined);
+    this.lidPlate.para('DRAG TO STOW. R TURN, T TIP, Y ROLL. WHEEL: LAYERS. DOUBLE-CLICK: INSPECT. SHIFT-CLICK: SWAP SIDES.', 6, 13, 86, undefined, 8, 3);
+    this.lidPlate.flush();
+    this.peelPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x3a3428, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
     this.peelPlane.rotation.x = -Math.PI / 2;
     this.peelPlane.visible = false;
     this.space.add(this.peelPlane);
@@ -83,10 +100,14 @@ export class CubeView extends GridView3 {
       const x = -O / 2 + 0.03 + i * ((O - 0.06) / 6);
       for (const y of [-W / 2, H - 0.03]) { mb.push().translate(x, y, O / 2 + 0.001).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.0055, 0.006, 6, band, { color: 0xb0b6bc }); mb.pop(); }
     }
-    // scanner housing on the front face
-    mb.box(0.11, H * 0.42, O / 2 + 0.004, 0.1, 0.1, 0.008, band, { color: 0x3a3e42 });
-    // stencil plate
-    mb.box(-0.1, H * 0.46, O / 2 + 0.003, 0.15, 0.05, 0.004, 'metal_brushed', { color: 0xc8b048 });
+    // stamped steel dividers raised along every cell seam on the floor of the box
+    for (let i = 1; i < spec.w; i++) { mb.box(-I / 2 + i * CELL, 0, 0, 0.003, 0.004, I, band, { color: 0x8a9096 }); mb.box(0, 0, -I / 2 + i * CELL, I, 0.004, 0.003, band, { color: 0x8a9096 }); }
+    // the thumb reader: a bakelite housing, a brass bezel round the phosphor glass, two relays on the side
+    mb.box(0.11, H * 0.42, O / 2 + 0.004, 0.1, 0.1, 0.008, 'rubber_black', { color: 0x4a3020 });
+    for (const [dx, dy, w, h] of [[0, 0.036, 0.08, 0.008], [0, -0.036, 0.08, 0.008], [0.036, 0, 0.008, 0.08], [-0.036, 0, 0.008, 0.08]] as [number, number, number, number][]) mb.box(0.11 + dx, H * 0.42 + 0.05 + dy - h / 2, O / 2 + 0.01, w, h, 0.006, 'metal_brass', { color: 0xd8b060 });
+    for (const dy of [0.02, 0.07]) { mb.box(0.175, H * 0.42 + dy, O / 2 + 0.008, 0.022, 0.022, 0.016, 'rubber_black', { color: 0x2a2a2a }); mb.push().translate(0.175, H * 0.42 + dy + 0.022, O / 2 + 0.012); mb.cylinder(0, 0, 0, 0.006, 0.01, 6, 'metal_brass', { color: 0xc87a3a }); mb.pop(); }
+    // the engraved plate sits on a dark backing
+    mb.box(-0.1, H * 0.46, O / 2 + 0.003, 0.16, 0.054, 0.004, 'metal_dark', { color: 0x3a3e42 });
     // bolt housings: two on the front, one each side
     const boltPos: [number, number, number, number][] = [[-0.14, H - 0.05, O / 2 + 0.012, 0], [0.04, H - 0.05, O / 2 + 0.012, 0], [-O / 2 - 0.012, H - 0.05, 0.05, 1], [O / 2 + 0.012, H - 0.05, -0.05, 1]];
     for (const [x, y, z, side] of boltPos) mb.box(x, y - 0.012, z, side ? 0.016 : 0.034, 0.036, side ? 0.034 : 0.016, band, { color: 0x4a4e52 });
@@ -114,9 +135,12 @@ export class CubeView extends GridView3 {
     for (let i = 0; i < 4; i++) lb.box(-0.15 + i * 0.1, -0.004, O / 2, 0.012, 0.004, O - 0.02, rust, { color: 0x8a7a6a });
     const lidMesh = new THREE.Mesh(lb.build(), mat);
     this.lid.add(lidMesh);
-    // scanner glass and its sweep
+    // scanner glass and its sweep, the plates
     this.pad.position.set(0.11, H * 0.42 + 0.05, O / 2 + 0.0095);
     this.scan.position.copy(this.pad.position); this.scan.position.z += 0.001;
+    this.plate.mesh.position.set(-0.1, H * 0.46 + 0.027, O / 2 + 0.0058);
+    this.lidPlate.mesh.position.set(0, -0.003, O / 2);
+    this.lidPlate.mesh.rotation.set(Math.PI / 2, 0, 0);
     this.light.position.set(0, H * 0.85, 0);
     // the grid inside: floor, back and side walls, every cell edge
     const pts: number[] = [];
@@ -135,7 +159,7 @@ export class CubeView extends GridView3 {
     const pg = new THREE.BufferGeometry();
     pg.setAttribute('position', new THREE.Float32BufferAttribute(pp, 3));
     if (this.peelGrid) this.space.remove(this.peelGrid);
-    this.peelGrid = new THREE.LineSegments(pg, new THREE.LineBasicMaterial({ color: 0x9ff8ec, transparent: true, opacity: 0.45, depthWrite: false }));
+    this.peelGrid = new THREE.LineSegments(pg, new THREE.LineBasicMaterial({ color: 0xf0e8d0, transparent: true, opacity: 0.6, depthWrite: false }));
     this.peelGrid.visible = false;
     this.space.add(this.peelGrid);
     this.peelPlane.scale.set(I, I, 1);
@@ -151,13 +175,21 @@ export class CubeView extends GridView3 {
   setScan(sweep: number, glow: number, ok = true) {
     const m = this.scan.material as THREE.MeshBasicMaterial;
     m.opacity = sweep > 0 && sweep < 1 ? 0.95 : 0;
-    m.color.setHex(ok ? 0x7affea : 0xff4a3a);
-    this.scan.position.y = this.pad.position.y + 0.032 - sweep * 0.064;
-    this.padMat.color.setRGB(0.42 + glow * 0.58, 0.55 + glow * 0.45, 0.54 + glow * 0.46);
+    m.color.setHex(ok ? 0x8dff7a : 0xff7a3a);
+    this.scan.position.y = this.pad.position.y + 0.028 - sweep * 0.056;
+    this.padMat.color.setRGB(0.45 + glow * 0.3, 0.52 + glow * 0.48, 0.45 + glow * 0.25);
+  }
+  /** the debtor's number engraved on the front plate */
+  setPlate(no: string) {
+    const t = this.plate;
+    t.clear();
+    t.type('REMITTANCE', 6, 3);
+    t.type('No.' + no, 6, 12);
+    t.flush();
   }
   /** the inside: grid lines and light */
   setInside(k: number, flicker = 0) {
-    this.gridMat.opacity = 0.32 * k;
+    this.gridMat.opacity = 0.42 * k;
     this.light.intensity = (1.6 + flicker) * k;
     this.itemsG.visible = k > 0.05;
   }

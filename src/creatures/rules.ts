@@ -12,9 +12,18 @@ import { species as getSpecies, allSpecies } from './registry';
 import type { Creature } from './creature';
 import type { SpeciesDef, CreatureRule } from './species';
 import type { Player } from '../entities/player';
-import { addStat, stat } from '../game/profile';
-import { grantResearch } from '../game/research';
 import { defQuest } from '../game/quests';
+// the profile touches window at load: fetched lazily so content tools running in node (zonecheck) can import species
+type ProfileMod = typeof import('../game/profile');
+type ResearchMod = typeof import('../game/research');
+let PROF: ProfileMod | null = null, RES: ResearchMod | null = null;
+if (typeof window !== 'undefined' && typeof (window as any).addEventListener === 'function') {
+  import('../game/profile').then((m) => { PROF = m; }).catch(() => {});
+  import('../game/research').then((m) => { RES = m; }).catch(() => {});
+}
+const stat = (k: string) => PROF?.stat(k) ?? 0;
+const addStat = (k: string, n: number) => PROF?.addStat(k, n);
+const grantResearch = (n: number, why: string) => RES?.grantResearch(n, why);
 import { dreadOnFrame } from './dread';
 
 export type RuleHow = 'scan' | 'witness' | 'survived' | 'watched' | 'dev';
@@ -33,7 +42,7 @@ export function allRules(): { key: string; species: string; rule: CreatureRule; 
 export function learnRule(key: string, how: RuleHow): boolean {
   const sp = spOf(key);
   const r = sp?.rule;
-  if (!sp || !r || ruleLearned(key)) return false;
+  if (!sp || !r || !PROF || ruleLearned(key)) return false;
   addStat('rule_' + key, 1);
   addStat('rules_learned', 1);
   grantResearch(3, 'Rule learned: ' + sp.name);

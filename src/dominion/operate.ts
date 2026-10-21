@@ -15,6 +15,8 @@ import type { Item } from '../items/item';
 import type { Creature } from '../creatures/creature';
 import type { DominionSystem } from './dominion';
 import { BRAIN_MODELS, brainTier } from './brains';
+import { PixTex, PAL, PointerLayer, flatMat } from '../scan/pix';
+import { Screen } from '../ui/font5x7';
 
 type Step = 'saw' | 'pry' | 'pull' | 'seat' | 'boot' | 'done';
 const STEPS: Step[] = ['saw', 'pry', 'pull', 'seat', 'boot'];
@@ -57,7 +59,10 @@ export class Operation {
   private tv1 = new THREE.Vector3(); private tv2 = new THREE.Vector3();
   private dashMat = new THREE.MeshBasicMaterial({ color: 0xff3030 });
   private dashCut = new THREE.MeshBasicMaterial({ color: 0x3a0606 });
-  private el: HTMLDivElement;
+  private layer: PointerLayer;
+  private card = new PixTex(120, 92);
+  private plunger = new THREE.Group();
+  private plungeT = 0;
   private ray = new THREE.Raycaster();
   private ndc = new THREE.Vector2();
   // pointer state
@@ -76,14 +81,7 @@ export class Operation {
     this.g = fpGroup('dominion');
     this.matBlood = new THREE.MeshBasicMaterial({ color: 0x8a0f0a });
     this.build();
-    this.el = document.createElement('div');
-    this.el.className = 'dom-op';
-    this.el.innerHTML = '<div class="do-tape"><b></b><i></i><span class="do-steps"></span></div><button class="do-abort">ABORT</button>';
-    document.body.append(this.el);
-    this.el.addEventListener('pointerdown', (e) => this.onDown(e));
-    this.el.addEventListener('pointermove', (e) => this.onMove(e));
-    window.addEventListener('pointerup', () => this.onUp());
-    (this.el.querySelector('.do-abort') as HTMLElement).addEventListener('pointerdown', (e) => { e.stopPropagation(); this.abort('I back off.'); });
+    this.layer = new PointerLayer('surgery', { down: (e) => this.onDown(e), move: (e) => this.onMove(e), up: () => this.onUp() });
     window.addEventListener('keydown', (e) => { if (this.active && e.code === 'Escape') { e.stopPropagation(); e.preventDefault(); this.abort('I back off.'); } }, true);
   }
 
@@ -153,6 +151,29 @@ export class Operation {
       this.tendrils.push(t); this.head.add(t);
     }
     this.head.add(this.mech);
+    // the clipboard with the procedure, left of the table; the abort plunger, right
+    const cb = new ModelBuilder();
+    cb.box(0, 0, 0, 0.13, 0.1, 0.004, 'wood_light', { color: 0xa8784a });
+    cb.box(0, 0.048, 0.004, 0.05, 0.012, 0.008, 'metal_brushed');
+    cb.box(0, 0.05, 0.009, 0.03, 0.006, 0.004, 'chrome');
+    const clip = new THREE.Group();
+    clip.add(new THREE.Mesh(cb.build(), this.matSteel));
+    const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.092), flatMat(this.card.tex));
+    sheet.position.set(0, -0.003, 0.0035); clip.add(sheet);
+    clip.position.set(-0.205, 0.02, -0.66); clip.rotation.set(-0.12, 0.42, 0.04);
+    this.g.add(clip);
+    const pb = new ModelBuilder();
+    pb.box(0, 0, 0, 0.06, 0.03, 0.05, 'metal_painted_green', { color: 0x4a5a48 });
+    pb.box(0, 0.016, 0.026, 0.05, 0.012, 0.002, 'plastic_yellow', { color: 0xe0b020 });
+    pb.cylinder(0, 0.015, 0, 0.012, 0.02, 10, 'chrome');
+    const base = new THREE.Mesh(pb.build(), this.matSteel);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.019, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xc0281a, emissive: 0x200000 }));
+    knob.position.y = 0.035; knob.name = 'abort';
+    this.plunger.add(base, knob);
+    const tag = new PixTex(40, 10); tag.s.clear(0xe0b020); tag.typed('ABORT', 5, 2, 0x1a140c, 1, 40, 2); tag.flush();
+    const tagM = new THREE.Mesh(new THREE.PlaneGeometry(0.048, 0.012), flatMat(tag.tex)); tagM.position.set(0, 0.016, 0.0275); this.plunger.add(tagM);
+    this.plunger.position.set(0.2, -0.105, -0.6); this.plunger.rotation.set(0.5, -0.35, 0);
+    this.g.add(this.plunger);
     this.root.add(this.tool);
     // blood and sparks
     for (let i = 0; i < 70; i++) { const m = new THREE.Mesh(this.dropGeo, this.matBlood); m.visible = false; this.root.add(m); this.drops.push({ m, vx: 0, vy: 0, vz: 0, life: 0 }); }
@@ -197,7 +218,8 @@ export class Operation {
     if (tm) { tm.scale.multiplyScalar(0.9); tm.rotation.set(0, 0, -Math.PI / 2); this.tool.add(tm); }
     this.tool.visible = false;
     for (const dr of this.drops) { dr.m.visible = false; dr.life = 0; }
-    this.el.classList.add('on');
+    this.layer.on = true;
+    this.plungeT = 0;
     this.label();
     const p = G.local!;
     this.prevFull = p.full; p.full = 'kneel';
@@ -205,20 +227,32 @@ export class Operation {
     G.audio?.at?.('dom_down', c.x, c.z, 0.35);
   }
 
+  /** the procedure card on the clipboard: typed steps, the done ones struck through in red pencil */
   private label() {
-    const [a, b] = TEXT[this.step];
-    (this.el.querySelector('.do-tape b') as HTMLElement).textContent = a;
-    (this.el.querySelector('.do-tape i') as HTMLElement).textContent = b;
-    const i = STEPS.indexOf(this.step);
-    (this.el.querySelector('.do-steps') as HTMLElement).textContent = STEPS.map((_, k) => (k < i ? '▮' : k === i ? '▣' : '▯')).join(' ');
-    this.el.dataset.step = this.step;
+    const p = this.card, s = p.s, i = STEPS.indexOf(this.step);
+    s.clear(PAL.paper);
+    p.paper(0, 0, p.w, p.h, PAL.paper, 7);
+    p.typed('PROCEDURE 7-C', 6, 4, PAL.ink, 1, 110, 1);
+    p.typed('CRANIAL REFIT', 6, 13, PAL.inkRed, 1, 110, 2);
+    s.hline(4, p.w - 5, 22, Screen.c(PAL.ink), 2);
+    STEPS.forEach((st, k) => {
+      const y = 26 + k * 10;
+      s.frame(5, y, 7, 7, Screen.c(PAL.ink));
+      if (k < i) { s.line(6, y + 3, 8, y + 5, Screen.c(PAL.inkRed)); s.line(8, y + 5, 12, y - 1, Screen.c(PAL.inkRed)); }
+      p.typed(TEXT[st][0], 15, y, k === i ? PAL.ink : k < i ? PAL.paperEdge : 0x6a5c44, 1, 104, k + 3);
+      if (k < i) s.hline(15, 15 + TEXT[st][0].length * 6, y + 3, Screen.c(PAL.inkRed));
+      if (k === i) { s.text('>', 1, y, Screen.c(PAL.inkRed)); }
+    });
+    if (this.step !== 'done') p.typedPara(TEXT[this.step][1], 6, 78, 110, PAL.inkBlue, 8, 2);
+    p.flush();
+    this.layer.cursor = this.step === 'pull' || this.step === 'seat' ? 'grab' : 'crosshair';
   }
 
   private next(s: Step) { this.step = s; this.stepT = 0; this.prog = 0; this.label(); }
 
   private end() {
     this.active = false; this.down = false;
-    this.el.classList.remove('on');
+    this.layer.on = false;
     fpRelease('dominion');
     const p = G.local; if (p && p.full === 'kneel') p.full = this.prevFull === 'kneel' ? '' : (this.prevFull as any);
     this.c = null; this.brainItem = null;
@@ -253,7 +287,8 @@ export class Operation {
 
   private onDown(e: PointerEvent) {
     if (!this.active) return;
-    e.preventDefault();
+    // the abort plunger
+    if (this.pick(e.clientX, e.clientY).intersectObject(this.plunger, true).length) { this.plungeT = 0.25; G.audio?.ui?.('click', 0.7); this.abort('I back off.'); return; }
     this.down = true; this.px = this.sx = e.clientX; this.py = this.sy = e.clientY; this.lastDir = 0;
     if (this.step === 'pull') { const s = this.screenOf(this.brain.position); this.grabbed = Math.hypot(s.x - e.clientX, s.y - e.clientY) < Math.max(70, innerWidth * 0.08); if (this.grabbed) G.audio?.ui?.('gore_squelch', 0.5); }
     if (this.step === 'seat') { const s = this.screenOf(this.mech.position); this.grabbed = Math.hypot(s.x - e.clientX, s.y - e.clientY) < Math.max(80, innerWidth * 0.09); }
@@ -436,6 +471,7 @@ export class Operation {
       d.m.position.x += d.vx * dt * 0.25; d.m.position.y += d.vy * dt * 0.25; d.m.position.z += d.vz * dt * 0.25;
       if (d.life <= 0) d.m.visible = false;
     }
+    this.plunger.children[1].position.y = 0.035 - Math.max(0, this.plungeT -= dt) * 0.04;
     // hand shake
     this.shakeT = Math.max(0, this.shakeT - dt);
     const s = this.shakeT * 0.04;

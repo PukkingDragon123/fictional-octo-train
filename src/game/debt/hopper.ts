@@ -13,9 +13,11 @@
 // alive on the plate is crushed: each peer kills its own survivor, the host its
 // creatures.
 //
-// The moving parts are local overlays on top of the static model
-// (src/content/furniture/zd_contract.ts): ram and piston rods, lever, gauge
-// needle, plate light, beacon, the seam shimmer and the projector lens.
+// Nothing about it is screen UI: the moving parts are local overlays on top
+// of the static model (src/content/furniture/zd_contract.ts): ram and piston
+// rods, the lever, the gauge needle, the plate's warning light, the beacon,
+// the mechanical counter in the crown that rolls up what the last load was
+// worth, the seam's shimmer and the projector lens.
 import * as THREE from 'three';
 import { bus } from '../../core/events';
 import { G } from '../G';
@@ -46,6 +48,8 @@ import './debt.css';
 /** the cycle, seconds after the lever: horn, slam, hold, back up */
 export const CYCLE = { horn: 0.3, drop: 0.95, impact: 1.13, rise: 1.75, done: 3.3 };
 const DIAL = new THREE.Vector3(...PRESS.gauge);
+/** the seam's shimmer: pale and oily, the colour of nothing in particular */
+const SEAM = 0xd8d0bc;
 
 interface SinkPiece { key?: string; obj?: string; state?: any; x: number; y: number; z: number; rot: number; objRot?: number }
 interface EatArgs { z: string; h: number; items: number[]; objs: number[]; value: number; keys: string[]; by: string; rej?: number[] }
@@ -129,7 +133,8 @@ interface Fx {
   loaded: boolean;
   ramY: number;
   sinks: { mesh: THREE.Mesh; y0: number; x: number; z: number; t: number }[];
-  label: HTMLElement | null;
+  drums: THREE.Mesh[];
+  digits: number[];
   roll: number;
   value: number;
   big: boolean;
@@ -141,7 +146,7 @@ interface Cycle { z: string; h: number; by: string; t: number; hit: boolean; rej
 
 const GEO = new Map<string, THREE.BufferGeometry>();
 /** overlay geometry, tinted per colour (additive overlays take their colour from the vertices) */
-function geo(kind: 'needle' | 'glow' | 'seam' | 'ring' | 'beacon' | 'lens' | 'ram' | 'rod' | 'lever', color = 0xffffff): THREE.BufferGeometry {
+function geo(kind: 'needle' | 'glow' | 'seam' | 'ring' | 'beacon' | 'lens' | 'ram' | 'rod' | 'lever' | 'drum', color = 0xffffff): THREE.BufferGeometry {
   const k = kind + ':' + color;
   let g = GEO.get(k);
   if (g) return g;
@@ -157,6 +162,7 @@ function geo(kind: 'needle' | 'glow' | 'seam' | 'ring' | 'beacon' | 'lens' | 'ra
     case 'ram': pressRamModel(mb); break;
     case 'rod': pressRodModel(mb); break;
     case 'lever': pressLeverModel(mb); break;
+    case 'drum': mb.box(0, -0.075, 0, 0.1, 0.15, 0.006, { south: 'zd_drum_' + color, all: 'metal_dark' }, { fit: { south: true }, emissive: 0.35, ao: false }); break;
   }
   g = mb.build();
   GEO.set(k, g);
@@ -455,7 +461,7 @@ export class HopperSystem implements GameSystem {
         this.root.add(m);
         f.sinks.push({ mesh: m, y0: 0.07, x: s.x, z: s.z, t: 0 });
       }
-      if (value > 0) { f.value = value; f.big = value >= 1000; this.label(f); }
+      if (value > 0) { f.value = value; f.big = value >= 1000; f.roll = 0; }
     }
     const here = z.key === G.local?.zoneKey;
     if (here && o) {
@@ -498,22 +504,24 @@ export class HopperSystem implements GameSystem {
     needle.add(nm);
     needle.position.copy(DIAL);
     const glow = new THREE.Mesh(geo('glow', 0xffb040), ADD()); glow.position.set(0, 0.068, 0); glow.scale.set(1.9, 1, 1.9);
-    const seam = new THREE.Mesh(geo('seam', 0x6af0e0), ADD()); seam.position.set(0, 0.07, 0); seam.scale.set(1.3, 1, 0.42); seam.visible = false;
-    const ring = new THREE.Mesh(geo('ring', 0x6af0e0), ADD()); ring.position.set(0, 0.072, 0); ring.visible = false;
+    const seam = new THREE.Mesh(geo('seam', SEAM), ADD()); seam.position.set(0, 0.07, 0); seam.scale.set(1.3, 1, 0.42); seam.visible = false;
+    const ring = new THREE.Mesh(geo('ring', SEAM), ADD()); ring.position.set(0, 0.072, 0); ring.visible = false;
     const [bx, by, bz] = PRESS.beacon;
     const beacon = new THREE.Mesh(geo('beacon', 0xffa020), ADD()); beacon.position.set(bx, by, bz); beacon.visible = false;
-    const lens = new THREE.Mesh(geo('lens', 0x1a90c0), ADD()); lens.position.set(0.86, 1.86, -0.6);
+    const lens = new THREE.Mesh(geo('lens', 0xc08030), ADD()); lens.position.set(0.86, 1.86, -0.6);
+    // the counter drums in the crown
+    const [cx0, cy0, cz0] = PRESS.counter;
+    const drums = [0, 1, 2, 3, 4].map((i) => { const m = new THREE.Mesh(geo('drum', 0), solid); m.position.set(cx0 + i * PRESS.drum, cy0 + 0.075, cz0); return m; });
     for (const m of [glow, seam, ring, beacon, lens]) { m.renderOrder = 6; (m as any).castShadow = false; }
-    group.add(ram, ...rods, lever, needle, glow, seam, ring, beacon, lens);
+    group.add(ram, ...rods, lever, needle, glow, seam, ring, beacon, lens, ...drums);
     this.root.add(group);
-    f = { o, zone: z.key, group, ram, rods, lever, needle, glow, seam, ring, beacon, lens, load: 0, needleA: 0, loaded: false, ramY: PRESS.ramUp, sinks: [], label: null, roll: 0, value: 0, big: false, checkT: 0, flash: 0 };
+    f = { o, zone: z.key, group, ram, rods, lever, needle, glow, seam, ring, beacon, lens, load: 0, needleA: 0, loaded: false, ramY: PRESS.ramUp, sinks: [], drums, digits: [0, 0, 0, 0, 0], roll: 9, value: 0, big: false, checkT: 0, flash: 0 };
     this.fx.set(o.uid, f);
     return f;
   }
   private dropFx(f: Fx) {
     this.root.remove(f.group);
     for (const s of f.sinks) this.root.remove(s.mesh);
-    f.label?.remove();
     this.fx.delete(f.o.uid);
   }
   private clearFx() { for (const f of [...this.fx.values()]) this.dropFx(f); }
@@ -528,7 +536,7 @@ export class HopperSystem implements GameSystem {
       const near = Math.abs(o.x + 1 - camX) < R && Math.abs(o.y + 1 - camZ) < R;
       const f = this.fx.get(o.uid);
       if (near && !f) this.ensureFx(z, o);
-      else if (!near && f && !this.cycles.has(o.uid) && !f.sinks.length && !f.label) this.dropFx(f);
+      else if (!near && f && !this.cycles.has(o.uid) && !f.sinks.length) this.dropFx(f);
     }
     const on = !!G.debt?.on;
     for (const f of this.fx.values()) {
@@ -575,11 +583,11 @@ export class HopperSystem implements GameSystem {
       f.seam.visible = seamK > 0.02;
       if (f.seam.visible) {
         const fl = 0.75 + 0.25 * Math.sin(G.time * 31) * Math.sin(G.time * 7);
-        f.seam.geometry = geo('seam', step(0x6af0e0, Math.min(1, seamK * fl + f.flash * 0.5)));
+        f.seam.geometry = geo('seam', step(SEAM, Math.min(1, seamK * fl + f.flash * 0.5)));
         f.seam.scale.set(1.3 + Math.sin(G.time * 13) * 0.04, 1, 0.3 + seamK * 0.25);
       }
       f.ring.visible = f.flash > 0.02;
-      if (f.ring.visible) { const s = 0.6 + (1 - f.flash) * 2.6; f.ring.scale.set(s, 1, s); f.ring.geometry = geo('ring', step(0x9af8f0, f.flash)); }
+      if (f.ring.visible) { const s = 0.6 + (1 - f.flash) * 2.6; f.ring.scale.set(s, 1, s); f.ring.geometry = geo('ring', step(SEAM, f.flash * 0.8)); }
       // the flattened load sinks once the ram lets go: down through the slot, squeezed toward the middle
       for (let i = f.sinks.length - 1; i >= 0; i--) {
         const s = f.sinks[i];
@@ -597,33 +605,20 @@ export class HopperSystem implements GameSystem {
       if (vis && G.local?.zoneKey === f.zone) {
         tv.set(...PRESS.beacon).applyMatrix4(f.group.matrix);
         if (cyc) G.pointLight(tv.x, tv.y, tv.z, 0xff7020, 1.4 * (Math.sin(G.time * 14) > 0 ? 1 : 0.25), 7);
-        if (seamK > 0.05 || f.flash > 0.05) G.pointLight(o.x + 1, 0.35, o.y + 1, 0x6af0e0, 0.6 + seamK * 1.4 + f.flash * 2, 5);
+        if (seamK > 0.05 || f.flash > 0.05) G.pointLight(o.x + 1, 0.35, o.y + 1, 0xd8ccb0, 0.5 + seamK * 1.1 + f.flash * 2, 5);
         else if (f.loaded && on) G.pointLight(o.x + 1, 0.4, o.y + 1, 0xffa030, 0.5 + 0.3 * Math.sin(G.time * 5), 4);
       }
-      // the number roll-up projected above the plate
-      if (f.label) {
+      // the counter in the crown rolls up to what the last load was worth (drums tick over, the last one blurs past)
+      if (f.roll < 1.6) {
         f.roll += dt;
-        const k = Math.min(1, f.roll / 1.1);
-        const shown = Math.round(f.value * (1 - Math.pow(1 - k, 3)));
-        const num = f.label.querySelector('b');
-        if (num) num.textContent = '+' + fmt(shown);
-        const sp = G.pr.worldToScreen(tv.set(o.x + 1, 1.1, o.y + 1.3));
-        f.label.style.left = sp.x + 'px'; f.label.style.top = sp.y + 'px';
-        f.label.style.opacity = String(vis ? Math.min(1, (3.2 - f.roll) * 2) : 0);
-        if (f.roll > 3.4) { f.label.remove(); f.label = null; }
+        const k = Math.min(1, f.roll / 1.4);
+        const shown = Math.min(99999, Math.round(f.value * (1 - Math.pow(1 - k, 3))));
+        for (let i = 0; i < 5; i++) {
+          const d = Math.floor(shown / Math.pow(10, 4 - i)) % 10;
+          if (d !== f.digits[i]) { f.digits[i] = d; f.drums[i].geometry = geo('drum', d); if (i === 4 && vis && G.local?.zoneKey === f.zone && Math.random() < 0.5) G.audio?.play?.('hopper_tally', o.x + 1, o.y + 1, { vol: 0.12, range: 10 }); }
+        }
       }
     }
-  }
-
-  private label(f: Fx) {
-    if (f.value <= 0) return;
-    f.label?.remove();
-    const el = document.createElement('div');
-    el.className = 'dbt-roll' + (f.big ? ' big' : '');
-    const owed = G.debt?.on ? (G.debt.cleared ? `SURPLUS ${fmt(G.debt.surplus)}` : `OWED ${fmt(G.debt.remaining)}`) : '';
-    el.innerHTML = `<b>+0</b><i>SCRIP · SENT THROUGH</i>${owed ? `<s>${owed}</s>` : ''}`;
-    document.body.appendChild(el);
-    f.label = el; f.roll = 0;
   }
 
   // ---------------------------------------------------------------- menus

@@ -17,7 +17,7 @@ import { shake, punch, hitstop, slowmo, kick } from '../gfx/juice';
 import '../combat/anims';
 import '../combat/sounds';
 import { wielded, MOVES, sizeClass, type MoveKind, type Wielded } from '../combat/moves';
-import { Marks } from '../combat/glyphs';
+import { Marks, gaugeName } from '../combat/glyphs';
 import { Combo } from '../combat/combos';
 import { Struggles, StruggleAction, type Stage } from '../combat/qte';
 import { Executions } from '../combat/executions';
@@ -262,7 +262,7 @@ export class CombatSystem implements GameSystem {
       if (br.queued > 0 && ready && br.jabs < 8 && G.time <= br.until) { br.queued--; br.jabs++; this.startMove(p, 'jab', w); }
       if ((G.time > br.until || br.jabs >= 8) && (!this.move || this.move.landed)) {
         this.combo.barrage = null;
-        if (br.jabs >= 3) { this.startMove(p, 'flurryEnd', w); this.marks.float('BARRAGE', p.x, p.y + 2.2, p.z, 0xff9030, 1); this.combo.note('barrage'); }
+        if (br.jabs >= 3) { this.startMove(p, 'flurryEnd', w); this.marks.float('badge:barrage', p.x, p.y + 2.2, p.z, 1); this.combo.note('barrage'); }
       }
       return;
     }
@@ -316,7 +316,7 @@ export class CombatSystem implements GameSystem {
       // the fourth in rhythm opens a barrage
       this.combo.barrage = { until: G.time + 1.5, jabs: 1, queued: 0 };
       this.combo.chain = 0;
-      this.marks.float('FLURRY', p.x, p.y + 2.2, p.z, 0xffb040, 0.8);
+      this.marks.float('badge:barrage', p.x, p.y + 2.2, p.z, 0.8);
       this.startMove(p, 'jab', w);
       return;
     }
@@ -414,7 +414,7 @@ export class CombatSystem implements GameSystem {
     p.facing = p.targetFacing = dir;
     const big = kind === 'heavy' || kind === 'lunge' || kind === 'flurryEnd' || kind === 'tackle';
     G.audio?.at?.(big ? 'cb_whoosh_big' : kind === 'shove' ? 'shove' : kind === 'stomp' ? 'cb_grunt' : 'swing', p.x, p.z, big ? 0.8 : 0.5);
-    if (perfect && kind === 'heavy') { this.marks.float('PERFECT', p.x, p.y + 2.2, p.z, 0xffffff, 0.8); G.audio?.at?.('cb_perfect', p.x, p.z, 0.6); }
+    if (perfect && kind === 'heavy') { this.marks.float('badge:perfect', p.x, p.y + 2.2, p.z, 0.8); G.audio?.at?.('cb_perfect', p.x, p.z, 0.6); }
     this.combo.note(kind, targetId);
     this.lastFight = G.time;
   }
@@ -552,7 +552,6 @@ export class CombatSystem implements GameSystem {
       this.combo.landed(n);
       if (w.it && k !== 'shove' && k !== 'tackle' && k !== 'stomp') this.wear(p, w.it, k === 'heavy' ? 2 : 1);
       p.anim?.impact?.(w.cls === 'blade' || w.cls === 'spear' ? 0.35 : 0.7);
-      if (this.combo.hits >= 3) this.marks.float('x' + this.combo.hits, p.x, p.y + 1.9, p.z, this.combo.hits >= 6 ? 0xff5030 : 0xffd040, 0.6, 0.9);
       if (aoe) { shake(0.8, 0.45); G.audio?.at?.('cb_impact', p.x, p.z, 1); }
     } else if (k === 'light' || k === 'heavy' || k === 'lunge') {
       // furniture, walls, windows in front
@@ -610,12 +609,15 @@ export class CombatSystem implements GameSystem {
     G.audio?.hit?.(kind === 'shove' || kind === 'unarmed' ? 'blunt' : kind, c.x, c.z, crit);
     if (big) G.audio?.at?.(k === 'stomp' ? 'cb_stomp' : 'cb_impact', c.x, c.z, k === 'heavy' ? 0.5 + m.power * 0.5 : 0.8);
     else if (k === 'jab') G.audio?.at?.('cb_jab', c.x, c.z, 0.7);
-    this.stars.push({ x: (c.x + p.x * 0.4) / 1.4, y: hy, z: (c.z + p.z * 0.4) / 1.4, t0: performance.now(), s: big ? 1.6 : 1, c: crit ? 0xffffff : 0xffd090 });
+    this.stars.push({ x: (c.x + p.x * 0.4) / 1.4, y: hy, z: (c.z + p.z * 0.4) / 1.4, t0: performance.now(), s: big ? 1.6 : 1, c: crit ? 0xfff0d0 : 0xffb868 });
+    // sparks off the blow (metal on bone)
+    const sx = (c.x + p.x * 0.4) / 1.4, sz = (c.z + p.z * 0.4) / 1.4;
+    for (let i = 0; i < (big ? 9 : crit ? 6 : 3); i++) { const a = dir + (Math.random() - 0.5) * 1.8, v = 1.5 + Math.random() * 2.5; this.marks.spark(sx, hy, sz, Math.cos(a) * v, 0.5 + Math.random() * 1.8, Math.sin(a) * v, 0.3 + Math.random() * 0.15, crit ? 0xfff0c0 : 0xffb050); }
     if (this.stars.length > 8) this.stars.shift();
     this.flashes.push({ x: c.x, y: hy, z: c.z, until: G.time + (big ? 0.09 : 0.05), c: crit ? 0xffffff : 0xffc080, i: big ? 1.5 : 0.8 });
     if (this.flashes.length > 6) this.flashes.shift();
-    if (crit && k !== 'jab') this.marks.float(behind ? 'BACKSTAB' : m.counter ? 'COUNTER' : 'CRIT', c.x, hy + 0.5, c.z, 0xfff0d0, 0.7, 0.9);
-    if (dn && size <= 2) this.marks.float('DOWN', c.x, hy + 0.4, c.z, 0xffa040, 0.7, 0.9);
+    if (crit && k !== 'jab') this.marks.float(behind ? 'badge:backstab' : m.counter ? 'badge:counter' : 'badge:crit', c.x, hy + 0.5, c.z, 0.7);
+    if (dn && size <= 2) this.marks.float('badge:down', c.x, hy + 0.4, c.z, 0.7);
     p.body.addXp(skillFor(w.w.kind), 3);
     bus.emit('combatHit', p, c, dmg, kind, crit);
   }
@@ -715,7 +717,7 @@ export class CombatSystem implements GameSystem {
     if (this.combo.counter && G.time < this.combo.counter.until) return;
     slowmo(0.3, 520);
     G.audio?.at?.('cb_perfect', p.x, p.z, 0.8);
-    this.marks.float('DODGE', p.x, p.y + 2.1, p.z, 0xd8f0ff, 0.9);
+    this.marks.float('badge:dodge', p.x, p.y + 2.1, p.z, 0.9);
     this.combo.counter = { until: G.time + 1.4, id };
     p.body.endurance = Math.min(1, p.body.endurance + 0.05);
     punch(-0.03, 0.3);
@@ -781,7 +783,7 @@ export class CombatSystem implements GameSystem {
         end();
         cbOp({ t: 'qte', id: c.id, pid: p.id, r: 'lose' });
         this.noTearQte = G.time + 4;
-        this.marks.float(reason === 'pin' ? 'MAULED' : 'BITTEN', p.x, p.y + 2.1, p.z, 0xff3020, 1);
+        this.marks.float('badge:bitten', p.x, p.y + 2.1, p.z, 1);
         shake(0.8, 0.4);
         if (reason === 'pin') p.playAnim('get_up', 1.4);
       },
@@ -809,7 +811,7 @@ export class CombatSystem implements GameSystem {
         if (c) { cbOp({ t: 'tearX', id: c.id, pid: p.id, perfect: perfect ? 1 : undefined }); this.brokeFree(p, c, perfect); }
         bus.emit('think', p, perfect ? 'NOT TODAY.' : 'I got it loose— move!');
       },
-      onLose: () => { this.marks.float('RIPPED', p.x, p.y + 2.1, p.z, 0xff2010, 1.2, 1.2); },
+      onLose: () => { this.marks.float('badge:bitten', p.x, p.y + 2.1, p.z, 1.2); },
     });
   }
 
@@ -819,7 +821,7 @@ export class CombatSystem implements GameSystem {
     kick(c.x - p.x, c.z - p.z, 0.4);
     G.audio?.at?.('cb_break', p.x, p.z, 1);
     flinch(c, c.x - p.x, c.z - p.z, 1.4);
-    this.marks.float(perfect ? 'REVERSAL' : 'BROKE FREE', p.x, p.y + 2.1, p.z, perfect ? 0xffffff : 0xffd040, 1.1, 1.1);
+    this.marks.float(perfect ? 'badge:reversal' : 'badge:free', p.x, p.y + 2.1, p.z, 1.1);
     if (perfect) {
       slowmo(0.35, 600);
       this.combo.counter = { until: G.time + 1.8, id: c.id };
@@ -839,16 +841,22 @@ export class CombatSystem implements GameSystem {
     if (this.state === 'charge') {
       const ch = this.charge;
       const full = ch.fullT >= 0, perfect = full && G.time - ch.fullT <= 0.3, over = full && !perfect;
-      const col = perfect ? (Math.sin(now / 30) > 0 ? 0xffffff : 0xfff0a0) : over ? 0xff6a30 : ch.lvl > 0.66 ? 0xffd060 : 0xffa040;
-      M.ring(p.x, p.y, p.z, 0.7, ch.lvl, col, 0x281006, 0.85);
+      // hot metal: dull red, orange, then white at the moment to let go
+      const col = perfect ? (Math.sin(now / 30) > 0 ? 0xfff4d8 : 0xffd890) : over ? 0xc84a20 : ch.lvl > 0.66 ? 0xffa040 : 0xd86030;
+      // a brass pressure gauge over the head: the needle climbs into the red; it rattles when held too long
+      const rattle = over ? Math.sin(now / 17) * 0.03 : 0;
+      M.mark(gaugeName(ch.lvl, perfect), p.x + rattle, p.y + 2.25 + (perfect ? 0.03 : 0), p.z, { scale: perfect ? 1.12 : 1 });
       this.glowAt(p, ch.lvl, col, now);
-      if (perfect && !ch.perfectShown) { ch.perfectShown = true; M.float('NOW', p.x, p.y + 2.2, p.z, 0xffffff, 0.35, 0.9); }
+      // the weapon heats: embers come off it, a shower of sparks at the moment to let go
+      const hand = this.handPos(p);
+      if (ch.lvl > 0.5 && Math.random() < ch.lvl * 0.35) M.spark(hand.x, hand.y, hand.z, (Math.random() - 0.5) * 0.8, 0.6 + Math.random() * 0.8, (Math.random() - 0.5) * 0.8, 0.35, 0xffa040, 1, 3);
+      if (perfect && !ch.perfectShown) { ch.perfectShown = true; for (let i = 0; i < 14; i++) { const a = Math.random() * 6.28, v = 1.5 + Math.random() * 2; M.spark(hand.x, hand.y, hand.z, Math.cos(a) * v, 1 + Math.random() * 2, Math.sin(a) * v, 0.45, 0xfff0c0, 1, 8); } }
     }
     // peers winding up
     for (const q of G.players.values()) {
       if (q.isLocal || q.zoneKey !== p.zoneKey || q.actionAnim !== 'cb_charge') continue;
       const lvl = Math.min(1, ((q as any).visT ?? q.actionT) / Math.max(0.2, q.actionDur || 1));
-      this.glowAt(q, lvl, lvl >= 1 ? 0xffffff : 0xffa040, now);
+      this.glowAt(q, lvl, lvl >= 1 ? 0xfff4d8 : 0xffa040, now);
     }
     // impact stars and flashes
     for (let i = this.stars.length - 1; i >= 0; i--) {
@@ -874,24 +882,35 @@ export class CombatSystem implements GameSystem {
       if (c.attackPhase > 0 && !pinning && !c.tamedBy) {
         let t0 = this.lastTel.get(c);
         if (t0 === undefined || G.time - t0 > 1.2) { t0 = G.time; this.lastTel.set(c, t0); if (d < 4) G.audio?.at?.('cb_tick', c.x, c.z, 0.5); }
-        if (G.time - t0 < 0.4) M.mark('word:!', c.x, top + 0.1, c.z, { color: 0xff3a20, scale: 1.3 + Math.sin(now / 40) * 0.15 });
+        if (G.time - t0 < 0.45) M.mark('warn', c.x, top + 0.15 + Math.max(0, 0.12 - (G.time - t0)), c.z, { scale: 1 + Math.max(0, 0.1 - (G.time - t0)) * 4 });
       }
-      if (isStunned(c)) M.mark('dizzy', c.x, top, c.z, { color: 0xfff0b0, rot: now / 200, scale: 1.1 });
+      if (isStunned(c)) M.mark('dizzy', c.x, top, c.z, { rot: Math.sin(now / 160) * 0.4 });
       if (!promptShown && !inExec(c) && d < 3.4 && executable(c)) {
         promptShown = true;
-        const pulse = 1 + Math.sin(now / 90) * 0.1;
-        M.mark('skull', c.x, top + 0.35, c.z, { color: d < 2.2 ? 0xff4030 : 0xb05040, scale: pulse * (d < 2.2 ? 1.2 : 0.9) });
-        if (d < 2.2) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; M.mark(touch ? 'tap' : 'key:E', c.x + rt.x * 0.45, top + 0.3, c.z + rt.z * 0.45, { color: 0xffffff, scale: 0.9 }); }
+        M.mark('badge:skull', c.x, top + 0.38 + (d < 2.2 ? Math.sin(now / 90) * 0.03 : 0), c.z, { color: d < 2.2 ? 0xffffff : 0x9a8c78 });
+        if (d < 2.2) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; M.mark(touch ? 'tap' : 'key:E', c.x + rt.x * 0.5, top + 0.3, c.z + rt.z * 0.5); }
       }
     }
     // a counter window is open
     const ctr = this.combo.counter;
-    if (ctr && G.time < ctr.until) M.ring(p.x, p.y, p.z, 0.85, (ctr.until - G.time) / 1.6, 0xd8f0ff, 0x101820, 0.6);
+    if (ctr && G.time < ctr.until) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; M.mark('badge:counter', p.x - rt.x * 0.55, p.y + 1.9, p.z - rt.z * 0.55, { opacity: Math.min(1, (ctr.until - G.time) * 2), scale: 1 + Math.max(0, Math.sin(now / 70)) * 0.08 }); }
+    // the run of blows: chalk tally strokes hanging by the shoulder
+    if (this.combo.hits >= 2 && G.time - this.combo.hitT < 1.6) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; M.mark('tally:' + Math.min(20, this.combo.hits), p.x + rt.x * 0.65, p.y + 1.75, p.z + rt.z * 0.65, { opacity: Math.min(1, (1.6 - (G.time - this.combo.hitT)) * 3) }); }
+    // a heavy swing leaves a smear of embers behind the weapon
+    const mv = this.move;
+    if (mv && (mv.kind === 'heavy' || mv.kind === 'lunge' || mv.kind === 'flurryEnd' || mv.kind === 'slash') && mv.t > mv.dur * (mv.hitAt - 0.2) && mv.t < mv.dur * (mv.hitAt + 0.12)) {
+      const h = this.handPos(p);
+      M.spark(h.x, h.y, h.z, 0, 0, 0, 0.16, mv.perfect ? 0xfff0c0 : 0xffa050, 2, 0);
+    }
   }
 
-  private glowAt(q: Player, lvl: number, col: number, now: number) {
+  private handPos(q: Player): THREE.Vector3 {
     const hand = (q.rig as any)?.j?.handR as THREE.Object3D | undefined;
     if (hand) hand.getWorldPosition(_v); else _v.set(q.x, q.y + 1.2, q.z);
+    return _v;
+  }
+  private glowAt(q: Player, lvl: number, col: number, now: number) {
+    this.handPos(q);
     const pulse = Math.sin(now / (lvl >= 1 ? 45 : 110)) * 0.15;
     this.marks.mark('glow', _v.x, _v.y, _v.z, { color: col, add: true, scale: 0.5 + lvl * 0.8 + pulse, opacity: 0.25 + lvl * 0.5 });
     G.pointLight(_v.x, _v.y, _v.z, col, 0.35 + lvl * 1.1 + pulse * 0.5, 2.6);

@@ -27,8 +27,9 @@ import { gfxSettings } from './common';
 import { sfx } from './sfx';
 import { calm } from './settings';
 import {
-  ROOM, NEON, roomGeometry, chairGeometry, armSegment, armBase, clawPalm, clawFinger, toolHead, sawBlade, pressGeometry, shutterGeometry,
-  gearGeometry, propGeometry, letterGeometry, paintSign, canvasTex, bloodCanvas,
+  ROOM, PHOS, roomGeometry, chairGeometry, armSegment, armBase, clawPalm, clawFinger, toolHead, sawBlade, pressGeometry, shutterGeometry,
+  gearGeometry, propGeometry, letterGeometry, tubeBaseGeometry, tvGeometry, screenGeometry, screenMaterial, dialPanelGeometry,
+  paintScreen, paintTape, paintBrass, paintGauge, canvasTex, bloodCanvas,
 } from './roomKit';
 
 export type { PartKey };
@@ -54,7 +55,7 @@ interface Arm {
 
 // ------------------------------------------------------------------ menu objects
 interface MenuObj {
-  item: MenuItem; group: THREE.Group; body: THREE.Object3D; mats: THREE.MeshBasicMaterial[]; anchor: THREE.Vector3; r: number;
+  item: MenuItem; group: THREE.Group; body: THREE.Object3D; mats: THREE.MeshBasicMaterial[]; screens: THREE.ShaderMaterial[]; needles: THREE.Object3D[]; anchor: THREE.Vector3; r: number;
   phase: number; hover: number; hoverT: number; press: number; glitch: number; nextGlitch: number; out: number; color: number;
 }
 
@@ -97,6 +98,14 @@ export class SubjectRoom {
   private tubeMat = new THREE.MeshBasicMaterial({ color: 0x0c0c0c, fog: false });
   private bulbMat = new THREE.MeshBasicMaterial({ color: 0x302010, fog: false });
   private hatchLightMat = new THREE.MeshBasicMaterial({ color: 0x3a0606, fog: false });
+  private faceSpot = new THREE.SpotLight(0xfff0d8, 0, 7, 0.11, 0.45, 1.3);
+  private bulbPivot = new THREE.Group();
+  private bulbMesh!: THREE.Mesh;
+  private shaft!: THREE.Mesh;
+  private dust!: THREE.Points; private dustPos!: Float32Array; private dustP!: Float32Array; private dustN = 0;
+  private flare = 0;
+  private focus = 4.8; private focusT = 4.8; private focusNext = 6; private focusOnMan = true;
+  private pushKey: string | null = null;
   private lit = 0; private litT = 0;
   private flicker = 0;
   // the subject
@@ -179,12 +188,33 @@ export class SubjectRoom {
       tube.position.set(x, ROOM.H - 0.05, z);
       this.scene.add(tube);
     }
-    const bulbM = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4), this.bulbMat);
-    bulbM.position.set(0.3, 3.15, -0.55);
-    const cord = new THREE.Mesh(new THREE.BoxGeometry(0.01, ROOM.H - 3.2, 0.01), new THREE.MeshBasicMaterial({ color: 0x080808 }));
-    cord.position.set(0.3, (ROOM.H + 3.2) / 2, -0.55);
-    this.scene.add(bulbM, cord);
-    this.bulb.position.set(0.3, 3.05, -0.55);
+    // a bare bulb on a long cord, swinging slowly over the chair
+    this.bulbPivot.position.set(0.22, ROOM.H, -0.25);
+    const cord = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.95, 0.008), new THREE.MeshBasicMaterial({ color: 0x080808 }));
+    cord.position.y = -0.475;
+    this.bulbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), this.bulbMat);
+    this.bulbMesh.position.y = -1.0;
+    this.bulbPivot.add(cord, this.bulbMesh);
+    this.scene.add(this.bulbPivot);
+    // the hard key: a narrow beam from a louvre high on the left, laid across his eyes, with dust in it
+    this.faceSpot.position.set(-0.85, 3.35, 1.05);
+    this.scene.add(this.faceSpot, this.faceSpot.target);
+    this.shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 1, 1, 16, 1, true).translate(0, -0.5, 0), new THREE.ShaderMaterial({
+      uniforms: { uInt: { value: 0 }, uColor: { value: new THREE.Color(0xfff0d8) } },
+      vertexShader: 'varying vec3 vN; varying vec3 vV; varying float vY; void main(){ vY = -position.y; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalMatrix * normal; vV = -mv.xyz; gl_Position = projectionMatrix * mv; }',
+      fragmentShader: 'uniform float uInt; uniform vec3 uColor; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float f = pow(abs(dot(normalize(vN), normalize(vV))), 2.0); float a = f * uInt * smoothstep(0.0, 0.25, vY) * (1.0 - smoothstep(0.75, 1.0, vY)); gl_FragColor = vec4(uColor * a, 1.0); }',
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+    }));
+    this.shaft.frustumCulled = false;
+    this.scene.add(this.shaft);
+    this.dustN = this.quality === 'low' ? 40 : 140;
+    this.dustPos = new Float32Array(this.dustN * 3);
+    this.dustP = new Float32Array(this.dustN * 4);
+    for (let i = 0; i < this.dustN; i++) { this.dustP[i * 4] = Math.random(); this.dustP[i * 4 + 1] = Math.random() * 6.28; this.dustP[i * 4 + 2] = Math.sqrt(Math.random()); this.dustP[i * 4 + 3] = 0.01 + Math.random() * 0.03; }
+    const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(this.dustPos, 3));
+    this.dust = new THREE.Points(dg, new THREE.PointsMaterial({ size: this.quality === 'low' ? 1 : 1.5, sizeAttenuation: false, color: 0xfff0d0, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+    this.dust.frustumCulled = false;
+    this.scene.add(this.dust);
     const hatchLamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.06), this.hatchLightMat);
     hatchLamp.position.set(0, ROOM.HATCH_H - 0.1, ROOM.BACK - 2.9);
     this.scene.add(hatchLamp);
@@ -289,31 +319,45 @@ export class SubjectRoom {
   get rigSeed(): number { return (this.rig as any)?.seed ?? 0; }
 
   // ================================================================== title menu
+  /** NOCLIP in six Nixie tubes on bakelite sockets, over an engraved brass plate */
   private buildTitle() {
-    const cell = 0.068;
+    const r = 0.2;
+    const glass = new THREE.MeshBasicMaterial({ color: 0xa8b8c0, transparent: true, opacity: 0.09, depthWrite: false, fog: false, side: THREE.DoubleSide });
+    const tubeGeo = new THREE.CylinderGeometry(r, r, 0.6, 14, 1, true);
+    const domeGeo = new THREE.SphereGeometry(r, 14, 5, 0, Math.PI * 2, 0, Math.PI / 2);
+    const baseGeo = tubeBaseGeometry(r);
     'NOCLIP'.split('').forEach((ch, i) => {
       const g = new THREE.Group();
-      const m = new THREE.Mesh(letterGeometry(ch, cell, i % 2 ? 0xd8fbff : 0x7ff6ff), this.mat);
-      g.add(m);
-      g.userData.home = new THREE.Vector3((i - 2.5) * cell * 6.4, 0, 0);
+      const glyph = new THREE.Mesh(letterGeometry(ch, 0.05, PHOS.nixie), this.mat);
+      glyph.position.y = 0.34;
+      const tube = new THREE.Mesh(tubeGeo, glass); tube.position.y = 0.3;
+      const dome = new THREE.Mesh(domeGeo, glass); dome.position.y = 0.6;
+      g.add(new THREE.Mesh(baseGeo, this.mat), glyph, tube, dome);
+      g.userData.home = new THREE.Vector3((i - 2.5) * 0.47, 0, 0);
+      g.userData.glyph = glyph;
       g.position.copy(g.userData.home);
       this.titleG.add(g);
       this.letters.push(g);
     });
-    // the line under the title
     const cv = document.createElement('canvas');
-    paintSign(cv, 'REMITTANCE PROGRAMME', 'subject intake · wing b · do not resist', NEON.magenta, 256, 32);
-    const sub = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.21), new THREE.MeshBasicMaterial({ map: canvasTex(cv), transparent: true, alphaTest: 0.5, fog: false }));
-    sub.position.set(0, -0.42, 0.05);
+    const paint = () => paintBrass(cv, 'REMITTANCE PROGRAMME', 'MERIDIAN INSTITUTE \u00B7 SUBJECT ROOM 4 \u00B7 DO NOT RESIST', 256, 40);
+    paint();
+    const plateMat = new THREE.MeshBasicMaterial({ map: canvasTex(cv), fog: false });
+    plateMat.color.setScalar(0.55);
+    const sub = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.3), plateMat);
+    sub.position.set(0, -0.28, 0.05);
     this.titleG.add(sub);
     this.titleG.userData.sub = sub;
-    // fonts may arrive late: repaint the signs when they do
-    document.fonts?.load?.('700 16px Silkscreen').then(() => { paintSign(cv, 'REMITTANCE PROGRAMME', 'subject intake · wing b · do not resist', NEON.magenta, 256, 32); ((sub.material as THREE.MeshBasicMaterial).map as THREE.Texture).needsUpdate = true; this.repaintSigns(); }).catch(() => {});
+    this.nixieLight.position.set(0, 0.35, 0.35);
+    this.titleG.add(this.nixieLight);
+    // fonts may arrive late: repaint everything painted with them
+    document.fonts?.load?.('700 16px Silkscreen').then(() => { paint(); plateMat.map!.needsUpdate = true; this.repaintSigns(); }).catch(() => {});
   }
+  private nixieLight = new THREE.PointLight(PHOS.nixie, 0.5, 3.2, 2);
 
   /** (re)build the floating menu objects */
   setMenu(items: MenuItem[]) {
-    for (const m of this.menu) { this.menuG.remove(m.group); m.group.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh && me.geometry && !(me.geometry as any).__shared) me.geometry.dispose(); }); }
+    for (const m of this.menu) { this.menuG.remove(m.group); m.group.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh && me.geometry) me.geometry.dispose(); }); }
     this.menu = [];
     const left = items.filter((i) => i.kind === 'sign'), right = items.filter((i) => i.kind !== 'sign');
     left.forEach((it, i) => this.addMenuObj(it, 'L', i, left.length));
@@ -322,52 +366,74 @@ export class SubjectRoom {
   }
   private addMenuObj(item: MenuItem, side: 'L' | 'R', i: number, n: number) {
     const g = new THREE.Group();
-    const color = item.color ?? (item.primary ? NEON.magenta : side === 'L' ? NEON.cyan : NEON.amber);
-    const mats: THREE.MeshBasicMaterial[] = [];
-    let body: THREE.Object3D;
+    const color = item.color ?? (item.primary ? PHOS.amber : i % 2 ? PHOS.green : PHOS.amber);
+    const mats: THREE.MeshBasicMaterial[] = [], screens: THREE.ShaderMaterial[] = [], needles: THREE.Object3D[] = [];
+    const repaint: (() => void)[] = [];
+    const body = new THREE.Group();
     let r = 0.4;
-    const face = (label: string, sub: string, w: number, h: number, pxW: number, pxH: number) => {
-      const cv = document.createElement('canvas');
-      paintSign(cv, label, sub, color, pxW, pxH);
-      const mat = new THREE.MeshBasicMaterial({ map: canvasTex(cv), transparent: true, alphaTest: 0.5, fog: false });
-      (mat as any).__cv = cv; (mat as any).__paint = () => paintSign(cv, label, sub, color, pxW, pxH);
-      mats.push(mat);
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
-      return m;
-    };
     if (item.kind === 'sign') {
-      const w = item.primary ? 1.5 : 1.22, h = item.primary ? 0.36 : 0.27;
-      const slab = new THREE.Mesh(new THREE.BoxGeometry(w * 0.98, h * 0.94, 0.05), new THREE.MeshLambertMaterial({ color: 0x1a1c20 }));
-      slab.position.z = -0.03;
-      const f = face(item.label, '', w, h, item.primary ? 200 : 168, item.primary ? 40 : 32);
-      body = new THREE.Group(); body.add(slab, f);
-      // two hanging wires up into the dark, like the sign was lowered on cables
-      for (const k of [-1, 1]) { const wire = new THREE.Mesh(new THREE.BoxGeometry(0.006, 3, 0.006), new THREE.MeshBasicMaterial({ color: 0x15171a })); wire.position.set(k * w * 0.42, 1.5 + h / 2, -0.03); body.add(wire); }
-      r = w * 0.5;
+      // a floating television set, the option glowing on its picture tube
+      const kind = item.primary ? 'console' : i % 2 ? 'portable' : 'monitor';
+      const sw = item.primary ? 0.78 : 0.6, sh = item.primary ? 0.54 : 0.42;
+      const cv = document.createElement('canvas');
+      const pw = item.primary ? 176 : 144, ph = item.primary ? 120 : 100;
+      const paint = () => paintScreen(cv, item.label, color, pw, ph, String(i + 2));
+      paint();
+      const sm = screenMaterial(canvasTex(cv), Math.random() * 10);
+      sm.uniforms.uLines.value = ph / 2;
+      repaint.push(() => { paint(); (sm.uniforms.map.value as THREE.Texture).needsUpdate = true; });
+      screens.push(sm);
+      body.add(new THREE.Mesh(tvGeometry(kind, sw, sh), this.mat), new THREE.Mesh(screenGeometry(sw, sh, 0.035), sm));
+      r = Math.max(sw, sh) * 0.85;
     } else {
-      body = new THREE.Group();
       let m: THREE.Mesh;
       if (item.kind === 'gear') {
-        m = new THREE.Mesh(gearGeometry(0.2, 12, 0.07), new THREE.MeshLambertMaterial({ color: 0x9aa4ac, emissive: 0x24343c }));
-        const hub = new THREE.Mesh(gearGeometry(0.09, 8, 0.1), new THREE.MeshLambertMaterial({ color: 0xc89a40, emissive: 0x3a2400 }));
+        // a heavy steel gear on a panel of dials
+        m = new THREE.Mesh(gearGeometry(0.2, 12, 0.07), new THREE.MeshLambertMaterial({ color: 0x8a8e90, emissive: 0x1a1c1c }));
+        const hub = new THREE.Mesh(gearGeometry(0.09, 8, 0.1), new THREE.MeshLambertMaterial({ color: 0xa8843a, emissive: 0x201400 }));
         hub.position.set(0.21, 0.13, 0.03);
-        body.add(hub);
+        const panel = new THREE.Mesh(dialPanelGeometry(), this.mat);
+        panel.position.set(0, 0.17, -0.06);
+        body.add(hub, panel);
         body.userData.hub = hub;
+        ['PSI', 'VOLT', 'HUM'].forEach((lab, k) => {
+          const gc = document.createElement('canvas'); paintGauge(gc, lab);
+          const gm = new THREE.MeshBasicMaterial({ map: canvasTex(gc), fog: false });
+          gm.color.setScalar(0.6); mats.push(gm);
+          const face = new THREE.Mesh(new THREE.CircleGeometry(0.085, 14), gm);
+          face.position.set(-0.26 + k * 0.26, 0.34, -0.065);
+          const needle = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.07, 0.004), new THREE.MeshBasicMaterial({ color: 0x9a1a10 }));
+          needle.geometry.translate(0, 0.03, 0);
+          needle.position.set(-0.26 + k * 0.26, 0.34, -0.06);
+          needles.push(needle);
+          body.add(face, needle);
+        });
+        m.position.z = 0.02;
       } else m = new THREE.Mesh(propGeometry(item.kind), this.mat);
       body.add(m);
       body.userData.spin = m;
-      const lab = face(item.label, '', 0.78, 0.17, 112, 24);
-      lab.position.set(0, item.kind === 'gear' ? -0.33 : -0.36, 0.02);
+      // the name on a strip of embossed label tape stuck under it
+      const tapeColor = item.kind === 'phone' ? 0x8a1a14 : item.kind === 'gear' ? 0x1a1a1a : item.kind === 'tape' ? 0x1e3470 : item.kind === 'key' ? 0x1e4a24 : 0x2a2a2a;
+      const tc = document.createElement('canvas');
+      const paint = () => paintTape(tc, item.label, tapeColor, 112, 20);
+      paint();
+      const tm = new THREE.MeshBasicMaterial({ map: canvasTex(tc), transparent: true, alphaTest: 0.5, fog: false });
+      mats.push(tm);
+      repaint.push(() => { paint(); tm.map!.needsUpdate = true; });
+      const lab = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.11), tm);
+      lab.position.set(0, item.kind === 'gear' ? -0.3 : -0.36, 0.03);
+      lab.rotation.z = (Math.random() - 0.5) * 0.08;
       g.add(lab);
       r = 0.32;
     }
     g.add(body);
-    const o: MenuObj = { item, group: g, body, mats, anchor: new THREE.Vector3(), r, phase: Math.random() * 10, hover: 0, hoverT: 0, press: 0, glitch: 0, nextGlitch: 2 + Math.random() * 6, out: 0, color };
+    g.userData.repaint = repaint;
+    const o: MenuObj = { item, group: g, body, mats, screens, needles, anchor: new THREE.Vector3(), r, phase: Math.random() * 10, hover: 0, hoverT: 0, press: 0, glitch: 0, nextGlitch: 4 + Math.random() * 8, out: 0, color };
     g.userData.side = side; g.userData.i = i; g.userData.n = n;
     this.menuG.add(g);
     this.menu.push(o);
   }
-  private repaintSigns() { for (const m of this.menu) for (const mat of m.mats) { (mat as any).__paint?.(); if (mat.map) mat.map.needsUpdate = true; } }
+  private repaintSigns() { for (const m of this.menu) for (const f of (m.group.userData.repaint || []) as (() => void)[]) f(); }
   /** spread the menu over the visible frustum (works from phones to ultrawide) */
   private layoutMenu() {
     const aspect = this.lowW && this.lowH ? this.lowW / this.lowH : 16 / 9;
@@ -415,6 +481,7 @@ export class SubjectRoom {
     const m = this.menu.find((o) => o.item.key === key);
     if (!m) return;
     m.press = 1;
+    this.pushKey = key;
     sfx('press');
     if (m.item.kind === 'gear') { (m.body.userData as any).kick = 14; sfx('gear'); }
     this.flash = Math.max(this.flash, calm() ? 0.05 : 0.12);
@@ -432,6 +499,8 @@ export class SubjectRoom {
     return { x: c.left + (this.v1.x * 0.5 + 0.5) * c.width, y: c.top + (-this.v1.y * 0.5 + 0.5) * c.height, r };
   }
   menuKeys() { return this.menu.map((m) => m.item.key); }
+  /** ease the camera in toward a menu object (null: back to the slow creep) */
+  pushTo(key: string | null) { this.pushKey = key; }
 
   // ================================================================== sequences
   /** the breaker: lights on, signs away, arms out, the subject lifted out of the chair and strapped in mid-air */
@@ -439,6 +508,7 @@ export class SubjectRoom {
     if (this.mode === 'lit') return;
     this.busy = true;
     this.mode = 'lit'; this.view = 'creator';
+    this.pushKey = null;
     this.hoverKey = null;
     sfx('breaker');
     this.shake = Math.max(this.shake, 0.25);
@@ -779,17 +849,28 @@ export class SubjectRoom {
     this.cam.fov = lw / lh < 1 ? 62 : 42;
     this.cam.updateProjectionMatrix();
     this.rt?.dispose();
-    this.rt = new THREE.WebGLRenderTarget(lw, lh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
+    this.rt = new THREE.WebGLRenderTarget(lw, lh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, depthTexture: new THREE.DepthTexture(lw, lh) });
     if (!this.post) {
       const mat = new THREE.ShaderMaterial({
-        uniforms: { tex: { value: null }, uTime: { value: 0 }, uFlash: { value: 0 }, uRed: { value: 0 }, uVig: { value: 1.2 }, uRes: { value: new THREE.Vector2() } },
+        uniforms: { tex: { value: null }, tDepth: { value: null }, uNear: { value: 0.05 }, uFar: { value: 40 }, uFocus: { value: 4 }, uAperture: { value: 1 }, uMaxBlur: { value: 0 }, uTime: { value: 0 }, uFlash: { value: 0 }, uRed: { value: 0 }, uVig: { value: 1.2 }, uRes: { value: new THREE.Vector2() } },
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
         fragmentShader: `
-          uniform sampler2D tex; uniform float uTime; uniform float uFlash; uniform float uRed; uniform float uVig; uniform vec2 uRes;
+          uniform sampler2D tex; uniform sampler2D tDepth; uniform float uNear; uniform float uFar; uniform float uFocus; uniform float uAperture; uniform float uMaxBlur; uniform float uTime; uniform float uFlash; uniform float uRed; uniform float uVig; uniform vec2 uRes;
+          float linD(vec2 uv) { float z = texture2D(tDepth, uv).x * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - z * (uFar - uNear)); }
           varying vec2 vUv;
           float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
           void main(){
             vec3 c = texture2D(tex, vUv).rgb;
+            // the lens: whatever is not at the focus distance goes soft (a cheap 8-tap disc)
+            if (uMaxBlur > 0.01) {
+              float d = linD(vUv);
+              float coc = clamp(abs(d - uFocus) / max(d, 0.1) * 2.6 * uAperture, 0.0, 1.0) * uMaxBlur;
+              if (coc > 0.25) {
+                vec3 acc = c;
+                for (int i = 0; i < 8; i++) { float a = float(i) * 0.785398; acc += texture2D(tex, vUv + vec2(cos(a), sin(a)) * coc / uRes).rgb; }
+                c = acc / 9.0;
+              }
+            }
             vec2 q = vUv - 0.5;
             c *= clamp(1.0 - dot(q, q) * uVig, 0.0, 1.0);
             // ordered grain, per art pixel
@@ -809,6 +890,8 @@ export class SubjectRoom {
     }
     this.post.mat.uniforms.tex.value = this.rt.texture;
     this.post.mat.uniforms.uRes.value.set(lw, lh);
+    this.post.mat.uniforms.tDepth.value = this.rt.depthTexture;
+    this.post.mat.uniforms.uMaxBlur.value = this.quality === 'low' ? 0 : 1.8;
     this.layoutMenu();
   }
 
@@ -847,6 +930,10 @@ export class SubjectRoom {
     const dark = this.mode === 'title';
     const bulbOn = dark ? (this.flicker < 0.12 && !calmNow ? 0.02 : 0.3 + Math.sin(t * 50) * 0.04) : 0.25;
     this.bulb.intensity = bulbOn;
+    this.bulbPivot.rotation.set(Math.sin(t * 0.83 + 1) * 0.1, 0, Math.sin(t * 1.27) * 0.2);
+    this.bulbMesh.getWorldPosition(this.bulb.position);
+    this.bulb.position.y -= 0.08;
+    this.updateBeam(dt);
     const bc = 0.15 + bulbOn * 1.4;
     this.bulbMat.color.setRGB(bc, bc * 0.7, bc * 0.4);
     // sparks from the cap while he sits in it
@@ -891,11 +978,56 @@ export class SubjectRoom {
     const pu = this.post.mat.uniforms;
     pu.uTime.value = t; pu.uFlash.value = this.flash; pu.uRed.value = this.redFlash;
     pu.uVig.value = 2.2 - this.lit * 1.1;
+    pu.uFocus.value = this.focus; pu.uAperture.value = this.mode === 'title' ? 1 : 0.35;
     this.render();
   };
 
+  /** the key light on his face, its visible shaft and the dust turning in it */
+  private updateBeam(dt: number) {
+    const t = this.t;
+    this.flare = Math.max(0, this.flare - dt * 2.5);
+    const dark = this.mode === 'title' ? 1 - this.lit : 0;
+    const head = this.v1;
+    if (this.rig) { this.rig.bones.head.getWorldPosition(head); head.y += 0.1 * (this.app?.height || 1); head.z += 0.04; } else head.set(0, 1.3, -0.5);
+    this.faceSpot.target.position.copy(head);
+    // it breathes a little (a fan turning in front of the louvre)
+    const fan = 0.82 + 0.18 * Math.abs(Math.sin(t * 2.1));
+    this.faceSpot.intensity = dark * (5.5 * fan + this.flare * 16);
+    this.faceSpot.angle = 0.1 + this.flare * 0.12;
+    const sh = this.shaft;
+    sh.visible = dark > 0.02;
+    if (!sh.visible) { this.dust.visible = false; return; }
+    const from = this.faceSpot.position;
+    const dir = this.v2.subVectors(head, from);
+    const len = dir.length() + 0.25;
+    dir.normalize();
+    const R = Math.tan(this.faceSpot.angle) * len;
+    sh.position.copy(from);
+    sh.quaternion.setFromUnitVectors(this.v3.set(0, -1, 0), dir);
+    sh.scale.set(R, len, R);
+    (sh.material as THREE.ShaderMaterial).uniforms.uInt.value = dark * (0.07 * fan + this.flare * 0.12);
+    // dust motes: drift along and round the beam
+    this.dust.visible = true;
+    const a = this.v3.set(0, 1, 0).cross(dir).normalize(), b = this.v4.crossVectors(dir, a);
+    const P = this.dustPos, D = this.dustP;
+    for (let i = 0; i < this.dustN; i++) {
+      const j = i * 4;
+      D[j] += D[j + 3] * dt * 0.4; if (D[j] > 1) D[j] -= 0.95;
+      D[j + 1] += dt * (0.2 + D[j + 3] * 4);
+      const u = 0.08 + D[j] * 0.92, rr = D[j + 2] * R * u * 0.9;
+      const ca = Math.cos(D[j + 1]) * rr, sa = Math.sin(D[j + 1]) * rr;
+      P[i * 3] = from.x + dir.x * u * len + a.x * ca + b.x * sa;
+      P[i * 3 + 1] = from.y + dir.y * u * len + a.y * ca + b.y * sa + Math.sin(t * 0.7 + i) * 0.01;
+      P[i * 3 + 2] = from.z + dir.z * u * len + a.z * ca + b.z * sa;
+    }
+    (this.dust.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
+    (this.dust.material as THREE.PointsMaterial).opacity = 0.75 * dark;
+  }
+
   private zap() {
     this.spark.intensity = 6 + Math.random() * 6;
+    this.flare = calm() ? 0.4 : 1;
+    this.shake = Math.max(this.shake, calm() ? 0 : 0.18);
     this.twitch = 1;
     this.sparkBurst(this.spark.position, 14);
     if (Math.random() < 0.7) { sfx('buzz', 0.5); sfx('spark', 0.6); }
@@ -906,66 +1038,76 @@ export class SubjectRoom {
     const out = this.menuOut;
     this.menuG.visible = this.titleG.visible = out < 0.98;
     if (!this.menuG.visible) return;
-    // parallax with the pointer
+    const calmNow = calm();
     this.parX = damp(this.parX, this.parTX, 3, dt); this.parY = damp(this.parY, this.parTY, 3, dt);
+    // the Nixie tubes: a soft hum of brightness, now and then one gutters
     this.letters.forEach((g, i) => {
       const h = g.userData.home as THREE.Vector3;
-      const gl = Math.random() < dt * 0.15 ? (Math.random() - 0.5) * 0.08 : 0;
-      g.position.set(h.x + gl + Math.sin(t * 0.9 + i) * 0.015, h.y + Math.sin(t * 1.3 + i * 0.8) * 0.04 + out * (1.5 + i * 0.2), h.z + Math.sin(t * 0.7 + i * 1.7) * 0.05);
-      g.rotation.set(Math.sin(t * 0.8 + i) * 0.12, Math.sin(t * 0.6 + i * 2.1) * 0.25 + out * 3, Math.sin(t * 0.5 + i) * 0.05);
+      g.position.set(h.x, h.y + Math.sin(t * 0.9 + i * 0.7) * 0.025 + out * (1.5 + i * 0.2), h.z + Math.sin(t * 0.6 + i * 1.7) * 0.03);
+      g.rotation.set(Math.sin(t * 0.5 + i) * 0.04, Math.sin(t * 0.4 + i * 2.1) * 0.12 + out * 3, Math.sin(t * 0.45 + i) * 0.03);
+      const glyph = g.userData.glyph as THREE.Mesh;
+      const ud = g.userData;
+      ud.gut = Math.max(0, (ud.gut || 0) - dt);
+      if (!calmNow && Math.random() < dt * 0.05) ud.gut = 0.08 + Math.random() * 0.2;
+      glyph.visible = !(ud.gut > 0 && Math.sin(t * 90 + i) > -0.2);
     });
+    this.nixieLight.intensity = (0.45 + Math.sin(t * 7.3) * 0.03) * (1 - out);
     const sub = this.titleG.userData.sub as THREE.Mesh;
-    sub.position.y = -0.42 + Math.sin(t * 1.1) * 0.02 - out;
+    sub.position.y = -0.28 + Math.sin(t * 1.1) * 0.012 - out;
     for (const m of this.menu) {
       const hov = m.item.key === this.hoverKey ? 1 : 0;
-      m.hover = damp(m.hover, hov, 10, dt);
-      m.press = Math.max(0, m.press - dt * 3.5);
-      // glitches: a short horizontal tear and a colour slip
+      m.hover = damp(m.hover, hov, 8, dt);
+      m.press = Math.max(0, m.press - dt * 3);
+      // interference: a burst of static and a roll on a set now and then
       m.nextGlitch -= dt;
-      if (m.nextGlitch < 0) { m.glitch = 0.12 + Math.random() * 0.18; m.nextGlitch = 2.5 + Math.random() * 7; }
+      if (m.nextGlitch < 0) { m.glitch = 0.15 + Math.random() * 0.3; m.nextGlitch = 5 + Math.random() * 10; }
       m.glitch = Math.max(0, m.glitch - dt);
       const g = m.group;
       const ph = m.phase;
       const pressK = Math.sin(Math.min(1, 1 - m.press) * Math.PI) * m.press;
-      const dir = (g.userData.side === 'L' ? -1 : 1);
+      const dir = g.userData.side === 'L' ? -1 : 1;
+      // floating: a slow bob and drift, a lean toward you when chosen
       g.position.set(
-        m.anchor.x + Math.sin(t * 0.37 + ph) * 0.05 + (m.glitch > 0 && !calm() ? (Math.random() - 0.5) * 0.06 : 0) + dir * out * 3 - this.parX * 0.08,
-        m.anchor.y + Math.sin(t * 0.9 + ph) * 0.05 + m.hover * 0.03 + this.parY * 0.05,
-        m.anchor.z + Math.sin(t * 0.53 + ph * 1.3) * 0.08 + m.hover * 0.18 - m.press * 0.22,
+        m.anchor.x + Math.sin(t * 0.31 + ph) * 0.05 + dir * out * 3 - this.parX * 0.06,
+        m.anchor.y + Math.sin(t * 0.7 + ph) * 0.045 + m.hover * 0.025 + this.parY * 0.04,
+        m.anchor.z + Math.sin(t * 0.43 + ph * 1.3) * 0.07 + m.hover * 0.16 - m.press * 0.2,
       );
-      const base = m.group.userData.side === 'L' ? 0.22 : -0.28;
-      g.rotation.set(Math.sin(t * 0.7 + ph) * 0.06 - m.hover * 0.05 + pressK * 0.2, base * (1 - m.hover * 0.7) + Math.sin(t * 0.45 + ph) * 0.14, Math.sin(t * 0.6 + ph * 0.7) * 0.04 + out * dir);
+      const base = g.userData.side === 'L' ? 0.32 : -0.34;
+      g.rotation.set(Math.sin(t * 0.55 + ph) * 0.05 - m.hover * 0.04 + pressK * 0.18, base * (1 - m.hover * 0.6) + Math.sin(t * 0.37 + ph) * 0.12, Math.sin(t * 0.5 + ph * 0.7) * 0.05 + out * dir);
       const sc0 = g.userData.sc0 ?? 1;
-      g.scale.setScalar(sc0 * (1 + m.hover * 0.08 - m.press * 0.1) * (1 - out * 0.6));
-      // the face: brighter when hovered, a colour slip in a glitch, a flare when pressed
-      const k = 0.62 + m.hover * 0.55 + m.press * 0.8 + (Math.sin(t * 3 + ph) * 0.04);
-      for (const mat of m.mats) {
-        if (m.glitch > 0 && !calm()) mat.color.setRGB(k * (Math.random() < 0.5 ? 1.4 : 0.5), k * 0.4, k * 1.3);
-        else mat.color.setRGB(k, k, k);
-        if (mat.map) mat.map.offset.x = m.glitch > 0 && !calm() ? (Math.random() - 0.5) * 0.03 : 0;
+      g.scale.setScalar(sc0 * (1 + m.hover * 0.06 - m.press * 0.08) * (1 - out * 0.6));
+      for (const sm of m.screens) {
+        const u = sm.uniforms;
+        u.uTime.value = t;
+        u.uBright.value = 0.62 + m.hover * 0.55 + m.press * 1.4 + Math.sin(t * 2.3 + ph) * 0.03;
+        u.uStatic.value = m.glitch > 0 && !calmNow ? 0.55 : m.press * 0.3;
       }
-      // the props turn; the gear grinds round (faster when hovered, a kick when pressed)
+      const k = 0.5 + m.hover * 0.5 + m.press * 0.6;
+      for (const mat of m.mats) mat.color.setRGB(k, k, k);
+      m.needles.forEach((nd, j) => { nd.rotation.z = -0.9 + Math.sin(t * (0.6 + j * 0.37) + j) * 0.5 + Math.sin(t * 13 + j) * 0.03 + m.hover * 0.6 - m.press * 1.2; });
       const spin = m.body.userData.spin as THREE.Object3D | undefined;
       if (m.item.kind === 'gear') {
         const ud = m.body.userData as any;
         ud.kick = Math.max(0, (ud.kick || 0) - dt * 10);
-        ud.ang = (ud.ang || 0) + dt * (0.35 + m.hover * 1.6 + ud.kick);
+        ud.ang = (ud.ang || 0) + dt * (0.25 + m.hover * 1.2 + ud.kick);
         spin!.rotation.z = -ud.ang;
         (ud.hub as THREE.Object3D).rotation.z = ud.ang * 12 / 8 + 0.2;
-        m.body.rotation.y = 0.35 + Math.sin(t * 0.4) * 0.2;
       } else if (spin) {
-        m.body.rotation.y = Math.sin(t * 0.5 + ph) * 0.5 + m.hover * Math.sin(t * 6) * 0.15;
-        m.body.rotation.x = 0.3 + Math.sin(t * 0.4 + ph) * 0.12;
+        m.body.rotation.y = Math.sin(t * 0.45 + ph) * 0.45 + m.hover * Math.sin(t * 5) * 0.1;
+        m.body.rotation.x = 0.3 + Math.sin(t * 0.4 + ph) * 0.1;
       }
     }
-    // the hovered object lights the dark (and him, a little)
+    // the sets' glow flickers on him: the chosen one, or the cluster on the left
     const hm = this.menu.find((m) => m.item.key === this.hoverKey);
-    if (hm && out < 0.5) {
-      hm.group.getWorldPosition(this.v1);
-      this.glow.position.lerp(this.v1.add(this.v2.set(0, 0, 0.35)), Math.min(1, dt * 10));
-      this.glow.color.setHex(hm.color);
-      this.glow.intensity = damp(this.glow.intensity, 1.1, 6, dt);
-    } else this.glow.intensity = damp(this.glow.intensity, out > 0.5 ? 0 : 0.3, 4, dt);
+    const tvs = this.menu.filter((m) => m.item.kind === 'sign');
+    const src = hm || tvs[0];
+    if (src && out < 0.5) {
+      src.group.getWorldPosition(this.v1);
+      this.glow.position.lerp(this.v1.add(this.v2.set(0, 0, -0.15)), Math.min(1, dt * 6));
+      this.glow.color.setHex(src.color);
+      const fl = 0.9 + Math.sin(t * 31) * 0.05 + (Math.random() < 0.05 ? -0.3 : 0);
+      this.glow.intensity = damp(this.glow.intensity, (hm ? 1.0 : 0.45) * fl, 6, dt);
+    } else this.glow.intensity = damp(this.glow.intensity, 0, 4, dt);
   }
 
   private updateSubject(dt: number) {
@@ -1167,7 +1309,19 @@ export class SubjectRoom {
     const H = this.app?.height || 1;
     const sy = this.subj.position.y;
     if (this.mode === 'title') {
-      this.camPosT.set(0, 1.5, portrait ? 5.2 : 4.4); this.camLookT.set(0, portrait ? 1.35 : 1.15, -0.4);
+      const t = this.t;
+      const creep = 0.5 - 0.5 * Math.cos(t * 0.04);
+      this.camPosT.set(Math.sin(t * 0.055) * 0.2, 1.5 + Math.sin(t * 0.07) * 0.05, (portrait ? 5.4 : 4.75) - creep * 0.5);
+      this.camLookT.set(Math.sin(t * 0.045) * 0.08, portrait ? 1.3 : 1.12, -0.45);
+      const pm = this.pushKey ? this.menu.find((m) => m.item.key === this.pushKey) : null;
+      if (pm) { pm.group.getWorldPosition(this.v1); this.camLookT.lerp(this.v1, 0.8); this.camPosT.lerp(this.v1, 0.4); }
+      // focus: on the chosen set, otherwise a slow pull between him and the sets
+      this.focusNext -= dt;
+      if (this.focusNext < 0) { this.focusOnMan = !this.focusOnMan; this.focusNext = 6 + Math.random() * 6; }
+      const hm = this.hoverKey ? this.menu.find((m) => m.item.key === this.hoverKey) : null;
+      if (pm || hm) this.focusT = this.cam.position.distanceTo((pm || hm)!.group.getWorldPosition(this.v1));
+      else if (this.focusOnMan && this.rig) this.focusT = this.cam.position.distanceTo(this.rig.bones.head.getWorldPosition(this.v1));
+      else this.focusT = 3.4;
     } else if (this.view === 'gender') {
       this.camPosT.set(0, 1.55, portrait ? 6.0 : 4.9); this.camLookT.set(0, portrait ? 1.0 : 0.95, ROOM.FLOAT_Z - 0.2);
     } else {
@@ -1184,7 +1338,9 @@ export class SubjectRoom {
       this.camPosT.x = this.camLookT.x + dx * c + dz * s;
       this.camPosT.z = this.camLookT.z - dx * s + dz * c;
     }
-    const k = this.mode === 'title' ? 2 : 3.2;
+    if (this.mode !== 'title' && this.rig) this.focusT = this.cam.position.distanceTo(this.rig.bones.chest.getWorldPosition(this.v1));
+    this.focus = damp(this.focus, this.focusT, 1.6, dt);
+    const k = this.mode === 'title' ? (this.pushKey ? 3 : 1.1) : 3.2;
     this.camPos.set(damp(this.camPos.x, this.camPosT.x, k, dt), damp(this.camPos.y, this.camPosT.y, k, dt), damp(this.camPos.z, this.camPosT.z, k, dt));
     this.camLook.set(damp(this.camLook.x, this.camLookT.x, k, dt), damp(this.camLook.y, this.camLookT.y, k, dt), damp(this.camLook.z, this.camLookT.z, k, dt));
     // handheld drift, parallax, shake
@@ -1197,6 +1353,7 @@ export class SubjectRoom {
       this.camPos.z,
     );
     this.cam.lookAt(this.camLook);
+    this.cam.rotateZ(Math.sin(t * 0.37) * 0.006 + Math.sin(t * 1.13) * 0.002);
   }
 
   private render() {

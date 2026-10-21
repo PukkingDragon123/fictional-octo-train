@@ -57,6 +57,7 @@ export function generateMeadow(z: Zone, seed: number) {
   landing(c, 'fall', cx, cy + 2, 3);
   arrive(b, 'r_meadow_return', cx - 3, cy + 2, 's', 2);
   force(c, 'vx_kiosk', cx + 3, cy - 3, 0, {});
+  force(c, 'vx_sign', cx - 1, cy + 5, 0, { text: 'THE MEADOW|HAVE A NICE FOREVER', c: 0xf4e8f4, ink: 0x6a4a9a });
   f.floorItem('note', cx + 2, cy - 2, { lore: 'vx_meadow_kiosk' });
   put(c, 'vx_bench', cx - 4, cy - 3, 0, {}); put(c, 'vx_bench', cx + 2, cy + 4, 2, {});
   force(c, 'zw_rope_hanging', cx - 2, cy - 4, 0, { v: 1, portal: 'vx_meadow_up' });

@@ -1,5 +1,6 @@
 // G.social: emotes, whistling, shouting, barks and the 8-bit voice of every
-// survivor. G opens the emote wheel (hold, aim, let go; or tap G and click);
+// survivor. G brings up the emote dial, a rotary telephone dial (hold G, aim,
+// let go to dial; or tap G and click a hole; the keys under it pick the call);
 // Q taps whistle your chosen call, holding Q shouts. Emote poses travel to
 // co-op peers in the player snapshot; whistles and barks travel as 'sx'
 // messages. Every 'say' and 'shout' speech line (chat included) gets the
@@ -12,20 +13,20 @@ import type { Player } from '../entities/player';
 import { playLine, voiceFromApp } from './chipVoice';
 import { floatText } from './floatText';
 import { notes } from './pixtype';
+import { EmoteDial, type DialHit } from './dial';
 import './sounds';
 import './social.css';
 
-interface Slot { key: string; emote: string; label: string; bark: string[]; color: string; icon: string }
-const I = (p: string) => `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="square">${p}</svg>`;
+interface Slot { key: string; emote: string; label: string; bark: string[] }
 export const EMOTE_SLOTS: Slot[] = [
-  { key: 'wave', emote: 'wave', label: 'Wave', bark: ['Hey!', 'Hi!', 'Over here!', 'Yo!'], color: '#3a8cff', icon: I('<path d="M5 14V6M8 14V3M11 14V5M13 9l-2 5H5L3 10"/>') },
-  { key: 'point', emote: 'point', label: 'Point', bark: ['There!', 'Look!', 'That way!'], color: '#ff9a2a', icon: I('<path d="M2 8h10M9 4l4 4-4 4"/>') },
-  { key: 'dance', emote: 'dance', label: 'Dance', bark: ['♪ ♫', 'la la la', '♫'], color: '#d04aff', icon: I('<path d="M6 13V3l7-1v9"/><circle cx="4.5" cy="13" r="1.5"/><circle cx="11.5" cy="11" r="1.5"/>') },
-  { key: 'sit', emote: 'sit_wait', label: 'Sit', bark: [], color: '#4ac08a', icon: I('<path d="M4 2v12M4 9h8v5M12 9V5"/>') },
-  { key: 'salute', emote: 'salute', label: 'Salute', bark: ['Sir!', 'Yes sir!', 'Reporting!'], color: '#d8c040', icon: I('<path d="M3 6h10M9 6l3-4M5 9v5h6V9"/>') },
-  { key: 'mock', emote: 'mock', label: 'Mock', bark: ['Nyeh nyeh!', 'Too slow!', 'Ha-HA!', 'Bleh!'], color: '#ff4a6a', icon: I('<circle cx="8" cy="8" r="6"/><path d="M5 6h1M10 6h1M6 10h4v2H8"/>') },
-  { key: 'cheer', emote: 'cheer', label: 'Cheer', bark: ['Woo!', 'Yeah!', 'Let\'s go!'], color: '#ff6ad8', icon: I('<path d="M3 2l3 5v7M13 2l-3 5v7M6 7h4"/>') },
-  { key: 'shrug', emote: 'shrug', label: 'Shrug', bark: ['Eh?', 'Dunno.', 'Huh.'], color: '#8a9ab0', icon: I('<path d="M2 6l3 3h6l3-3M8 9v5M7 3h2v2H7z"/>') },
+  { key: 'wave', emote: 'wave', label: 'Wave', bark: ['Hey!', 'Hi!', 'Over here!', 'Yo!'] },
+  { key: 'point', emote: 'point', label: 'Point', bark: ['There!', 'Look!', 'That way!'] },
+  { key: 'dance', emote: 'dance', label: 'Dance', bark: ['la la la!', 'dum de dum', 'doo-wop!'] },
+  { key: 'sit', emote: 'sit_wait', label: 'Sit', bark: [] },
+  { key: 'salute', emote: 'salute', label: 'Salute', bark: ['Sir!', 'Yes sir!', 'Reporting!'] },
+  { key: 'mock', emote: 'mock', label: 'Mock', bark: ['Nyeh nyeh!', 'Too slow!', 'Ha-HA!', 'Bleh!'] },
+  { key: 'cheer', emote: 'cheer', label: 'Cheer', bark: ['Woo!', 'Yeah!', 'Let\'s go!'] },
+  { key: 'shrug', emote: 'shrug', label: 'Shrug', bark: ['Eh?', 'Dunno.', 'Huh.'] },
 ];
 export const TUNES = ['Hey-o', 'Come', 'Alarm', 'Tune'];
 
@@ -35,9 +36,8 @@ const tmpV = new THREE.Vector3();
 export class SocialSystem implements GameSystem {
   name = 'social';
   tune = 0;
-  private wheel: HTMLDivElement | null = null;
+  private dialObj: EmoteDial | null = null;
   private wheelOpen = false;
-  private wheelAt = { x: 0, y: 0 };
   private wheelHeldT = 0;
   private wheelMoved = false;
   private hot = -1;
@@ -76,21 +76,20 @@ export class SocialSystem implements GameSystem {
       if (this.wheelOpen) this.closeWheel();
       else { this.openWheel(); this.wheelHeldT = 0; this.wheelMoved = false; }
     }
-    if (this.wheelOpen) {
+    if (this.dialObj) this.dialObj.update(dt);
+    if (this.wheelOpen && this.dialObj) {
+      const d = this.dialObj;
       if (busy) { this.closeWheel(); return; }
       this.wheelHeldT += dt;
-      const dx = inp.mouseX - this.wheelAt.x, dy = inp.mouseY - this.wheelAt.y;
-      const r = Math.hypot(dx, dy);
-      if (r > 44 && r < 200) {
-        this.wheelMoved = true;
-        let a = Math.atan2(dy, dx) + Math.PI / 2;
-        if (a < 0) a += Math.PI * 2;
-        this.setHot(Math.round(a / (Math.PI * 2 / EMOTE_SLOTS.length)) % EMOTE_SLOTS.length);
-      } else if (r <= 44) this.setHot(-1);
-      // hold-and-release: letting go of G on a slice plays it
-      if (!inp.down('emote') && this.wheelHeldT > 0.22 && this.wheelMoved) {
-        if (this.hot >= 0) this.emote(EMOTE_SLOTS[this.hot].key);
-        this.closeWheel();
+      // holding G: aim at a hole with the mouse direction from the dial's centre
+      if (inp.down('emote') && !d.busy) {
+        const i = d.holeToward(inp.mouseX, inp.mouseY);
+        if (i >= 0) { this.wheelMoved = true; this.setHot(i); }
+      }
+      // hold-and-release: letting go of G on a hole dials it
+      if (!inp.down('emote') && this.wheelHeldT > 0.22 && this.wheelMoved && !d.busy) {
+        this.wheelMoved = false;
+        if (this.hot >= 0) this.pick({ kind: 'hole', i: this.hot });
       }
       if (inp.hit('pause')) this.closeWheel();
     }
@@ -188,90 +187,60 @@ export class SocialSystem implements GameSystem {
     };
   }
 
-  // ---------------------------------------------------------------- the wheel
+  // ---------------------------------------------------------------- the dial
   toggleWheel() { if (this.wheelOpen) this.closeWheel(); else this.openWheel(); }
   get isWheelOpen() { return this.wheelOpen; }
   openWheel() {
-    if (!this.wheel) this.buildWheel();
-    const p = G.local; if (!p || !this.wheel) return;
+    const p = G.local; if (!p) return;
+    if (!this.dialObj) {
+      this.dialObj = new EmoteDial((h) => this.pick(h));
+      this.dialObj.el.addEventListener('pointerenter', () => { G.input.pointerOverUI = true; });
+      this.dialObj.el.addEventListener('pointerleave', () => { G.input.pointerOverUI = false; });
+    }
+    const d = this.dialObj;
     const s = G.pr.worldToScreen(tmpV.set(p.x, p.y + 1.1, p.z));
-    const W = window.innerWidth, H = window.innerHeight;
-    this.wheelAt = { x: Math.max(170, Math.min(W - 170, s.x)), y: Math.max(160, Math.min(H - 210, s.y)) };
-    this.wheel.style.transform = `translate(${this.wheelAt.x}px, ${this.wheelAt.y}px)`;
+    d.place(s.x, s.y);
+    d.tune = this.tune;
     this.wheelOpen = true;
-    this.setHot(-1);
-    this.renderCenter();
-    this.renderTunes();
-    this.wheel.classList.add('open');
+    this.hot = -1; d.hover = null;
+    this.renderCard();
+    d.el.classList.add('open');
     G.audio?.ui?.('tab', 0.3);
   }
   closeWheel() {
     this.wheelOpen = false;
-    this.wheel?.classList.remove('open');
+    this.dialObj?.el.classList.remove('open');
     G.input.pointerOverUI = false;
   }
   private setHot(i: number) {
-    if (i === this.hot || !this.wheel) return;
+    if (i === this.hot || !this.dialObj) return;
     this.hot = i;
-    this.wheel.querySelectorAll('.sx-slice.emo').forEach((el, k) => el.classList.toggle('hot', k === i));
-    this.renderCenter();
+    this.dialObj.hover = i >= 0 ? { kind: 'hole', i } : null;
+    this.dialObj.dirty = true;
     if (i >= 0) G.audio?.ui?.('tick', 0.15);
   }
-  private renderCenter() {
-    const c = this.wheel?.querySelector('.sx-center'); if (!c) return;
-    c.innerHTML = '';
-    if (this.hot >= 0) { const l = document.createElement('div'); l.className = 'lbl'; l.textContent = EMOTE_SLOTS[this.hot].label; c.append(l); return; }
-    const box = document.createElement('div');
-    const f = G.floors;
-    const st = f?.floorStatus?.() as string | undefined;
-    box.innerHTML = `<div class="lbl">EMOTE</div>`;
-    if (st === 'can-open') {
-      const b = document.createElement('button'); b.textContent = 'OPEN FLOOR';
-      b.title = 'List this floor on the relay: other players falling through holes can land here';
-      b.onclick = (e) => { e.stopPropagation(); f.openFloor?.(); this.closeWheel(); };
-      box.append(document.createElement('br'), b);
-    } else if (st && st.startsWith('open:')) {
-      const s2 = document.createElement('div'); s2.style.cssText = 'font-size:9px;color:#8ff6ff;margin-top:4px'; s2.textContent = 'FLOOR OPEN ' + st.slice(5);
-      box.append(s2);
+  /** a hole dialled, a whistle key pressed, the card (the line switch) */
+  private pick(h: DialHit) {
+    const d = this.dialObj; if (!d || !h) return;
+    if (h.kind === 'hole') {
+      if (d.busy) return;
+      const slot = EMOTE_SLOTS[h.i];
+      d.dial(h.i, () => { this.emote(slot.key); setTimeout(() => { if (!d.busy) this.closeWheel(); }, 120); });
+      setTimeout(() => this.closeWheel(), 1100);
+    } else if (h.kind === 'key') {
+      this.setTune(h.i); this.whistle(h.i);
+    } else if (h.kind === 'card') {
+      if (G.floors?.floorStatus?.() === 'can-open') { G.floors.openFloor?.(); this.closeWheel(); }
     }
-    c.append(box);
   }
-  private renderTunes() {
-    this.wheel?.querySelectorAll('.sx-slice.tune').forEach((el, k) => el.classList.toggle('sel', k === this.tune));
+  /** the paper card in the middle: DIAL, or the state of your floor's line */
+  private renderCard() {
+    const d = this.dialObj; if (!d) return;
+    const st = G.floors?.floorStatus?.() as string | undefined;
+    if (st === 'can-open') { d.card = ['OPEN', 'LINE']; d.cardRed = true; }
+    else if (st && st.startsWith('open:')) { d.card = ['LINE', st.slice(5, 10)]; d.cardRed = false; }
+    else { d.card = ['DIAL', '']; d.cardRed = false; }
+    d.dirty = true;
   }
-  private buildWheel() {
-    const w = document.createElement('div');
-    w.className = 'sx-wheel';
-    const ring = document.createElement('div'); ring.className = 'sx-ring'; w.append(ring);
-    const R = 112;
-    EMOTE_SLOTS.forEach((s, i) => {
-      const a = (i / EMOTE_SLOTS.length) * Math.PI * 2 - Math.PI / 2;
-      const el = document.createElement('div');
-      el.className = 'sx-slice emo';
-      el.style.left = Math.round(Math.cos(a) * R) + 'px';
-      el.style.top = Math.round(Math.sin(a) * R) + 'px';
-      el.style.setProperty('--sc', s.color);
-      el.style.setProperty('--sd', (i * 0.025).toFixed(3) + 's');
-      el.innerHTML = `${s.icon}<span>${s.label}</span>`;
-      el.addEventListener('pointerenter', () => this.setHot(i));
-      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); this.emote(s.key); this.closeWheel(); });
-      w.append(el);
-    });
-    TUNES.forEach((t, i) => {
-      const el = document.createElement('div');
-      el.className = 'sx-slice tune';
-      el.style.left = Math.round((i - 1.5) * 60) + 'px';
-      el.style.top = (R + 66) + 'px';
-      el.style.setProperty('--sd', (0.2 + i * 0.03).toFixed(3) + 's');
-      el.textContent = '♪ ' + t;
-      el.title = 'Whistle call (tap Q)';
-      el.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); this.setTune(i); this.whistle(i); });
-      w.append(el);
-    });
-    const c = document.createElement('div'); c.className = 'sx-center'; w.append(c);
-    w.addEventListener('pointerenter', () => { G.input.pointerOverUI = true; });
-    w.addEventListener('pointerleave', () => { G.input.pointerOverUI = false; });
-    document.body.appendChild(w);
-    this.wheel = w;
-  }
+  private renderTunes() { if (this.dialObj) { this.dialObj.tune = this.tune; this.dialObj.dirty = true; } }
 }

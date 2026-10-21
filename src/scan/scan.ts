@@ -7,7 +7,6 @@
 // as a bestiary (G.scan.entries()). Old SEER-9 creature scans feed the same
 // pipeline. Bus: 'scanEntry' {kind, key, title, first, data, rp},
 // 'scanned' (creature, as before), 'scanData' {data, total}.
-import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import type { GameSystem } from '../game/game';
@@ -17,7 +16,7 @@ import { objDef } from '../world/objects';
 import { itemDef } from '../items/item';
 import { species as getSpecies } from '../creatures/registry';
 import { scanSounds } from './sounds';
-import './scan.css';
+import { Scope } from './scope';
 
 export type ScanKind = 'creature' | 'tribe' | 'anomaly' | 'artefact' | 'object' | 'item' | 'survivor';
 
@@ -43,7 +42,6 @@ defNode({ key: 'scan_deep', branch: 'watch', title: 'DEEP SCAN', cost: 14, requi
 const MILESTONES: [number, number][] = [[40, 3], [120, 4], [250, 5], [450, 6], [700, 8], [1000, 10], [1500, 12], [2200, 15], [3000, 18], [4000, 22], [5500, 26], [7500, 30]];
 
 const ANOMALY_TAGS = ['anomaly', 'glitch', 'story', 'weird', 'wrong', 'replica', 'node'];
-const tmpV = new THREE.Vector3();
 
 /** registry for knowledge entries the scanner cannot derive from content (tribes, artefacts) */
 const EXTRA = new Map<string, { title: string; cls: string; notes: string[] }>();
@@ -52,11 +50,9 @@ export function defScanInfo(kind: ScanKind, key: string, info: { title: string; 
 export class ScanSystem implements GameSystem {
   name = 'scan';
   /** the sweep in progress */
-  active: { t: ScanTarget; prog: number; dur: number; lost: number } | null = null;
-  private el: HTMLDivElement;
-  private bar: HTMLDivElement;
-  private label: HTMLDivElement;
-  private chips: HTMLDivElement;
+  active: { t: ScanTarget; prog: number; dur: number; lost: number; hold: boolean } | null = null;
+  /** the handheld readout: CRT, needle, punch cards */
+  scope: Scope;
   private emitting = false;
   private humT = 0;
   private hintT = 0;
@@ -64,14 +60,7 @@ export class ScanSystem implements GameSystem {
   constructor() {
     G.scan = this;
     scanSounds();
-    this.el = document.createElement('div');
-    this.el.className = 'scan-ret';
-    this.el.innerHTML = '<i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i><div class="scan-lbl"></div><div class="scan-bar"><b></b></div>';
-    this.label = this.el.querySelector('.scan-lbl') as HTMLDivElement;
-    this.bar = this.el.querySelector('.scan-bar b') as HTMLDivElement;
-    this.chips = document.createElement('div');
-    this.chips.className = 'scan-chips';
-    document.body.append(this.el, this.chips);
+    this.scope = new Scope();
     // the SEER-9 (if it is still around) scans creatures its own way: count those too
     bus.on('scanned', (c: any) => { if (!this.emitting && c?.sp) this.complete(this.creatureTarget(c), true); });
   }
@@ -155,8 +144,8 @@ export class ScanSystem implements GameSystem {
     return best ? this.creatureTarget(best) : null;
   }
 
-  /** begin sweeping a target (the watch UI may call this directly) */
-  begin(t: ScanTarget | null): boolean {
+  /** begin sweeping a target (the watch UI may call this directly; hold = only while N is held) */
+  begin(t: ScanTarget | null, hold = false): boolean {
     if (!t) return false;
     if (!this.canScan()) {
       if (G.time > this.hintT) { this.hintT = G.time + 4; bus.emit('think', G.local, "Nothing to scan it with. The watch could learn to (research SCAN), or I find a probe."); }
@@ -164,7 +153,7 @@ export class ScanSystem implements GameSystem {
     }
     const base = t.kind === 'creature' ? 1.5 + (t.threat ?? 1) * 0.25 : t.kind === 'tribe' || t.kind === 'artefact' ? 1.4 : t.kind === 'anomaly' ? 1.2 : t.kind === 'item' ? 0.5 : 0.8;
     const dur = base * (hasUnlock('scan_deep') ? 0.7 : 1) * (hasUnlock('watch_scan') ? 1 : 1.35);
-    this.active = { t, prog: 0, dur, lost: 0 };
+    this.active = { t, prog: 0, dur, lost: 0, hold };
     G.audio?.ui?.('scan_start', 0.45);
     return true;
   }
@@ -175,9 +164,9 @@ export class ScanSystem implements GameSystem {
   update(dt: number) {
     const p = G.local;
     const inp = G.input;
-    if (!p || p.body?.dead) { this.active = null; this.el.style.display = 'none'; return; }
-    const held = !inp.textFocus && inp.down('scan' as any);
-    if (held && !this.active && inp.hit('scan' as any)) this.begin(this.pickTarget());
+    if (!p || p.body?.dead) { this.active = null; this.scope.drop(); this.scope.update(dt); return; }
+    const held = !inp.textFocus && inp.down('scan');
+    if (held && !this.active && inp.hit('scan')) this.begin(this.pickTarget(), true);
     const a = this.active;
     if (a) {
       // follow moving things
@@ -185,7 +174,7 @@ export class ScanSystem implements GameSystem {
       if (r && typeof r.x === 'number' && (a.t.kind === 'creature' || a.t.kind === 'tribe' || a.t.kind === 'survivor')) { a.t.x = r.x; a.t.z = r.z; }
       const d = Math.hypot(a.t.x - p.x, a.t.z - p.z);
       const ok = d <= this.range() && (!r?.zoneKey || r.zoneKey === p.zoneKey);
-      if (!held) { this.active = null; }
+      if (a.hold && !held) { this.active = null; }
       else if (ok) {
         a.prog += dt / a.dur; a.lost = 0;
         this.humT -= dt;
@@ -196,22 +185,15 @@ export class ScanSystem implements GameSystem {
         if (a.lost > 1.2) this.active = null;
       }
     }
-    this.draw(a && this.active ? a : null);
+    const cur = this.active;
+    if (cur) {
+      this.scope.sweep({ title: cur.t.title, cls: cur.t.cls, known: this.known(cur.t.kind, cur.t.key), kind: cur.t.kind }, cur.prog);
+      const r = cur.t.ref, size = r?.height ? Math.max(0.6, r.height * 1.2) : 0.9;
+      this.scope.mark(cur.t.x, cur.t.y, cur.t.z, size, { x: p.x, y: (p.y ?? 0) + 1.25, z: p.z });
+    } else if (a) this.scope.drop();
+    this.scope.update(dt);
   }
 
-  private draw(a: { t: ScanTarget; prog: number } | null) {
-    if (!a) { if (this.el.style.display !== 'none') this.el.style.display = 'none'; return; }
-    const s = G.pr.worldToScreen(tmpV.set(a.t.x, a.t.y, a.t.z));
-    const size = Math.max(46, Math.min(140, 2600 / Math.max(4, G.pr.camera.position.distanceTo(tmpV))));
-    this.el.style.display = 'block';
-    this.el.style.transform = `translate(${(s.x - size / 2) | 0}px, ${(s.y - size / 2) | 0}px)`;
-    this.el.style.width = this.el.style.height = (size | 0) + 'px';
-    const known = this.known(a.t.kind, a.t.key);
-    const txt = (known ? a.t.title.toUpperCase() : 'UNKNOWN SIGNATURE') + ' // ' + Math.floor(a.prog * 100) + '%';
-    if (this.label.textContent !== txt) this.label.textContent = txt;
-    this.bar.style.width = (a.prog * 100).toFixed(1) + '%';
-    this.el.classList.toggle('new', !known);
-  }
 
   // ---------------------------------------------------------------- results
   /** a finished scan: DATA, research for firsts and milestones, a knowledge entry */
@@ -234,7 +216,7 @@ export class ScanSystem implements GameSystem {
     if (data > 0) addStat('scan_data', data);
     // milestones
     let ms = stat('scan_ms');
-    while (ms < MILESTONES.length && this.data >= MILESTONES[ms][0]) { rp += MILESTONES[ms][1]; ms++; addStat('scan_ms', 1); this.chip(`DATA MILESTONE ${MILESTONES[ms - 1][0]}`, 'ms'); }
+    while (ms < MILESTONES.length && this.data >= MILESTONES[ms][0]) { rp += MILESTONES[ms][1]; ms++; addStat('scan_ms', 1); bus.emit('scanMilestone', MILESTONES[ms - 1][0]); }
     if (rp > 0) grantResearch(rp, `scan:${kind}:${key}`);
     // creatures: the old flags (codex, mission 'scan:<key>', creature rules)
     const c = t.ref;
@@ -243,19 +225,10 @@ export class ScanSystem implements GameSystem {
       if (!viaSeer) { G.missions?.onScan?.(c); this.emitting = true; try { bus.emit('scanned', c); } finally { this.emitting = false; } }
     }
     G.audio?.ui?.(first ? 'scan_new' : 'scanDone', 0.5);
-    this.chip(`${first ? 'NEW // ' : ''}${t.title.toUpperCase()}  +${data} DATA${rp ? `  +${rp} RP` : ''}`, first ? 'new' : '');
+    this.scope.result({ title: t.title, kind: kind === 'creature' ? (t.cls || 'ENTITY') : kind, data, rp, first, total: before + data });
     bus.emit('scanEntry', { kind, key, title: t.title, first, data, rp });
     bus.emit('scanData', { data, total: before + data });
     if (first && t.notes?.length && G.local) bus.emit('think', G.local, t.notes[0].length < 110 ? t.notes[0] : t.notes[0].slice(0, 107) + '...');
   }
 
-  private chip(text: string, cls = '') {
-    const d = document.createElement('div');
-    d.className = 'scan-chip ' + cls;
-    d.textContent = text;
-    this.chips.append(d);
-    setTimeout(() => d.classList.add('out'), 2600);
-    setTimeout(() => d.remove(), 3200);
-    while (this.chips.children.length > 4) this.chips.firstElementChild?.remove();
-  }
 }

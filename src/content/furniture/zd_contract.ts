@@ -49,8 +49,8 @@ addTextureModule(() => {
     for (let x = 13; x < 51; x++) {
       const w = x < 16 || x > 47 ? 1 : 2;
       for (let y = 32 - w; y < 32 + w; y++) pc.set(x, y, 0x020304);
-      pc.set(x, 32 - w - 1, x % 5 === 0 ? 0x9ef4ea : 0x2a6a6a);
-      pc.set(x, 32 + w, x % 7 === 0 ? 0x6ad0c8 : 0x1a4446);
+      pc.set(x, 32 - w - 1, x % 5 === 0 ? 0xb8b4a8 : 0x3a3a38);
+      pc.set(x, 32 + w, x % 7 === 0 ? 0x8a8678 : 0x2a2a28);
       pc.set(x, 29, S[5]); pc.set(x, 34, S[0]);
     }
     for (const [x, y] of [[13, 30], [49, 30], [13, 33], [49, 33]] as const) screw(pc, x, y, S[5], S[0], true);
@@ -116,13 +116,13 @@ addTextureModule(() => {
     hazard(pc, 0, 4, 8, 4, 4, 0.08, 832);
     for (let y = 12; y < 22; y += 2) pc.hline(1, 6, y, 0x14161a);
     pc.vline(0, 0, 31, S[4]); pc.vline(7, 0, 31, S[1]);
-    pc.set(3, 26, 0x6af0ff); pc.set(4, 26, 0x2a8aa0);
+    pc.set(3, 26, 0xffb040); pc.set(4, 26, 0x8a5a20);
   });
   // lens: deep cyan glass with a bright core
   A.add('zd_lens', 8, 8, (pc) => {
     pc.wrap = false;
-    pc.fill(0x0a2a34);
-    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { const d = Math.hypot(x + 0.5 - 4, y + 0.5 - 4); if (d < 3) pc.set(x, y, d < 1.2 ? 0xe8ffff : d < 2.2 ? 0x6af0ff : 0x1a8aa0); }
+    pc.fill(0x2a1a0a);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { const d = Math.hypot(x + 0.5 - 4, y + 0.5 - 4); if (d < 3) pc.set(x, y, d < 1.2 ? 0xfff4d8 : d < 2.2 ? 0xffc060 : 0x8a5a20); }
   });
 
   // ---- the passage kiosk
@@ -251,11 +251,22 @@ addTextureModule(() => {
   A.add('zd_crown_front', 64, 8, (pc) => {
     pc.wrap = false;
     plate(pc, 0, 0, 64, 8, 0x3a3e44, 851, { noise: 0.1 });
-    hazard(pc, 0, 0, 10, 8, 6, 0.1, 852); hazard(pc, 54, 0, 10, 8, 6, 0.1, 853);
-    pc.rect(12, 1, 40, 6, 0x1e2a36); pc.strokeRect(12, 1, 40, 6, 0x8a9098);
-    txt(pc, 'REMIT PRESS', 14, 2, 0xe8e4d8);
-    txt(pc, '07', 44, 2, HAZ_Y);
+    hazard(pc, 0, 0, 5, 8, 6, 0.1, 852); hazard(pc, 59, 0, 5, 8, 6, 0.1, 853);
+    // enamel name plate
+    pc.rect(6, 1, 25, 6, 0x1e2a36); pc.strokeRect(6, 1, 25, 6, 0x8a9098);
+    txt(pc, 'PRESS', 8, 1, 0xe8e4d8); txt(pc, '07', 24, 1, HAZ_Y);
+    // the counter's window: a black recess with a chrome lip (the drums turn inside it), SCRIP stamped beside
+    pc.rect(33, 1, 22, 6, 0x0a0a0c); pc.strokeRect(32, 0, 24, 8, 0xb8bcc2);
+    pc.set(57, 3, 0xd8d2bc); pc.set(57, 5, 0xd8d2bc);
   }, 1.98, 0.24);
+  // the counter drums: white digits on black, the drum's curve shaded top and bottom
+  for (let d = 0; d < 10; d++) A.add('zd_drum_' + d, 6, 8, (pc) => {
+    pc.wrap = false;
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 6; x++) pc.set(x, y, y === 0 || y === 7 ? 0x060606 : y === 1 || y === 6 ? 0x16161a : 0x222226);
+    pc.vline(0, 0, 7, 0x0a0a0a);
+    txt(pc, String(d), 1, 1, 0xf2ecd8);
+    for (let x = 1; x < 5; x++) { pc.blend(x, 1, 0x000000, 0.35); pc.blend(x, 6, 0x000000, 0.45); }
+  });
   A.add('zd_ram_face', 56, 8, (pc, rng) => {
     pc.wrap = false;
     hazard(pc, 0, 0, 56, 8, 8, 0.18, 861);
@@ -279,7 +290,7 @@ addTextureModule(() => {
       const edge = Math.max(0, 1 - Math.abs(v - 0.18) * 6) * (1 - u * u);
       const halo = Math.max(0, 1 - v) * (1 - u) * 0.35;
       const k = Math.min(1, edge + halo) * (0.75 + 0.25 * ((x * 7 + y * 3) % 4 === 0 ? 1 : 0));
-      pc.setRGBA(x, y, Math.round(120 * k), Math.round(255 * k), Math.round(235 * k), 255);
+      pc.setRGBA(x, y, Math.round(255 * k), Math.round(255 * k), Math.round(255 * k), 255);
     }
   });
 
@@ -299,6 +310,8 @@ export const PRESS = {
   lever: [1.075, 1.0, 0.84] as [number, number, number],
   leverRest: -0.42, leverPulled: 1.75,
   gauge: [-0.89, 1.375, 1.03] as [number, number, number],
+  /** the counter drums in the crown's window: first drum's centre, pitch between drums */
+  counter: [0.13, 2.32, 0.996] as [number, number, number], drum: 0.12,
   beacon: [-0.72, 2.47, 0.72] as [number, number, number],
 };
 

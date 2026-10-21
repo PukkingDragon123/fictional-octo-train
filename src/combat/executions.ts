@@ -238,7 +238,7 @@ export class Executions {
       p.body.addXp('strength', 3);
     }
     if (b.slow) slowmo(b.slow[0], b.slow[1]);
-    if (b.word) marks.float(b.word, c.x, c.y + Math.min(2.4, c.height + 0.4), c.z, 0xff4a30, 1.4, 1.3);
+    if (b.word) marks.float('stamp:' + b.word, c.x, c.y + Math.min(2.2, c.height + 0.3), c.z, 1.6);
   }
 
   end(p: Player) {

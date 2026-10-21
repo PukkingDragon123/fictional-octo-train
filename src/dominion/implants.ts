@@ -1,6 +1,6 @@
-// Visible cyberware on a dominated creature: a steel cranial plate bolted
-// over the cut, a status LED in the brain's tier colour, a whip antenna and a
-// cable run down the neck. Built once per tier (shared geometry), sized to the
+// Visible hardware on a dominated creature: a riveted steel skull cap bolted
+// over the cut, its vacuum valves glowing through the glass (one per tier), a
+// brass dial, a whip aerial and cloth-braided leads down the neck. Built once per tier (shared geometry), sized to the
 // body and parented to the head part so it moves with the animation.
 import * as THREE from 'three';
 import { ModelBuilder } from '../gfx/modelBuilder';
@@ -17,22 +17,33 @@ function implantGeo(tier: number): THREE.BufferGeometry {
   let g = GEO.get(tier);
   if (g) return g;
   const mb = new ModelBuilder();
-  const led = BRAINS[tier - 1].led;
-  // cranial plate (unit size: the head is ~1 wide)
-  mb.box(0, 0, 0, 0.62, 0.1, 0.7, 'metal_brushed', { color: 0xa8b0b8 });
-  mb.box(0, 0.06, 0, 0.5, 0.04, 0.56, 'metal_dark');
-  for (const [x, z] of [[-0.26, -0.3], [0.26, -0.3], [-0.26, 0.3], [0.26, 0.3]]) mb.cylinder(x, 0.05, z, 0.035, 0.04, 6, 'metal_brass');
-  // stitched seam showing under the rim
-  mb.box(0, -0.04, 0, 0.66, 0.03, 0.74, 'white', { color: 0x7a1a14 });
-  // status lights
-  for (let i = 0; i < tier + 1; i++) mb.box(-0.12 + i * 0.09, 0.09, 0.22, 0.05, 0.03, 0.05, 'white', { color: led, emissive: 2.2 });
-  // antenna
-  mb.cylinder(0.2, 0.08, -0.18, 0.02, 0.55 + tier * 0.12, 5, 'metal_grey');
-  mb.box(0.2, 0.66 + tier * 0.12, -0.18, 0.06, 0.06, 0.06, 'white', { color: led, emissive: 2.4 });
-  // cable run down the back of the neck
-  for (let i = 0; i < 4; i++) mb.box(-0.08, -0.08 - i * 0.14, -0.36 - i * 0.05, 0.07, 0.12, 0.07, 'rubber_black');
-  for (let i = 0; i < 4; i++) mb.box(0.08, -0.08 - i * 0.14, -0.36 - i * 0.05, 0.07, 0.12, 0.07, 'plastic_red', { color: 0xb02a20 });
-  if (tier >= 3) for (let i = 0; i < 4; i++) mb.box(-0.21 + i * 0.14, 0.14, -0.05, 0.03, 0.12, 0.4, 'metal_brushed');
+  const fil = BRAINS[tier - 1].led;
+  // a riveted steel skull cap (unit size: the head is ~1 wide), a brass collar where the cut was
+  mb.box(0, 0, 0, 0.66, 0.1, 0.74, 'metal_rusty', { color: 0x8a8880 });
+  mb.box(0, 0.07, 0, 0.5, 0.06, 0.58, 'metal_rusty', { color: 0x9a988e });
+  mb.box(0, -0.05, 0, 0.7, 0.04, 0.78, 'metal_brass', { color: 0xb8903e });
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; mb.box(Math.cos(a) * 0.31, 0.05, Math.sin(a) * 0.35, 0.04, 0.03, 0.04, 'metal_brass'); }
+  // the stitched seam under the collar
+  mb.box(0, -0.08, 0, 0.68, 0.025, 0.76, 'white', { color: 0x6a1a12 });
+  // vacuum valves standing out of the cap, one per tier, filaments glowing
+  for (let i = 0; i < tier; i++) {
+    const x = (i - (tier - 1) / 2) * 0.17, h = 0.26 + (i % 2) * 0.05;
+    mb.cylinder(x, 0.1, -0.05, 0.075, 0.05, 8, 'plastic_black', { color: 0x3a2418 });
+    mb.cylinder(x, 0.15, -0.05, 0.06, h, 8, 'glass', { color: 0xd0dcd6 });
+    mb.sphere(x, 0.15 + h, -0.05, 0.06, 8, 4, 'glass', { color: 0xd0dcd6, sy: 0.8 });
+    mb.box(x, 0.2 + h * 0.3, -0.05, 0.03, h * 0.45, 0.015, 'white', { color: fil, emissive: 1.8 });
+  }
+  // a brass needle dial on the brow
+  mb.push().translate(0.16, 0.1, 0.3).rotateX(1.1);
+  mb.cylinder(0, 0, 0, 0.09, 0.03, 10, 'metal_brass'); mb.cylinder(0, 0.03, 0, 0.07, 0.005, 10, 'paper', { color: 0xe8dcb8 });
+  mb.box(0.02, 0.036, 0.02, 0.07, 0.006, 0.01, 'plastic_black');
+  mb.pop();
+  // a whip aerial with a bulb
+  mb.cylinder(-0.24, 0.08, -0.22, 0.015, 0.5 + tier * 0.12, 5, 'metal_brass');
+  mb.sphere(-0.24, 0.6 + tier * 0.12, -0.22, 0.035, 6, 4, 'white', { color: fil, emissive: 1.6 });
+  // cloth-braided leads down the back of the neck
+  for (let i = 0; i < 5; i++) { mb.box(-0.09, -0.08 - i * 0.12, -0.36 - i * 0.05, 0.07, 0.11, 0.07, 'fabric_brown', { color: i % 2 ? 0x4a3a2a : 0x6a5238 }); mb.box(0.09, -0.08 - i * 0.12, -0.36 - i * 0.05, 0.07, 0.11, 0.07, 'rubber_black'); }
+  if (tier >= 3) for (let i = 0; i < 4; i++) mb.box(-0.27 + i * 0.18, 0.12, 0.18, 0.03, 0.1, 0.3, 'metal_brushed');
   g = mb.build();
   GEO.set(tier, g);
   return g;

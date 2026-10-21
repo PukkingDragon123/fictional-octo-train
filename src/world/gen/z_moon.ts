@@ -81,6 +81,7 @@ export function generateMoon(z: Zone, seed: number) {
   for (let y = ly - 6; y <= ly + 6; y++) for (let x = lx - 8; x <= lx + 8; x++) if (z.inb(x, y)) { if (!z.floor[z.idx(x, y)]) b.fillFloor(x, y, x, y, 'vx_regolith'); z.height[z.idx(x, y)] = 0; }
   force(c, 'vx_lander', lx, ly - 3, 0, {});
   put(c, 'vx_flag', lx + 4, ly - 3, 0, {});
+  force(c, 'vx_sign', lx - 3, ly - 2, 0, { text: 'SEA OF REMITTANCE|PROPERTY OF THE INSTITUTE', c: 0xd8d4c8, ink: 0x14161c });
   put(c, 'vx_suit_empty', lx + 3, ly + 2, 1, {});
   f.floorItem('journal', lx + 2, ly + 1, { lore: 'vx_moon_log' });
   landing(c, 'fall', lx, ly + 3, 3);

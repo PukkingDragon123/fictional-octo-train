@@ -243,10 +243,8 @@ export class SurgeryStage {
   private inspect = new THREE.PointLight(0xffe0a0, 0, 0.9, 1.6);
   private blood: Bits; private sparks: Bits;
   private loose: Loose[] = [];
-  private holo = new Map<Pick, THREE.LineSegments>();
   private monitor: { cv: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; t: number; x: number; last: number } ;
   private sign: THREE.Mesh | null = null;
-  private scan: THREE.Mesh;
   private app: Appearance | null = null;
   private outfit: Outfit = {};
   load: CyberLoad = {};
@@ -295,9 +293,8 @@ export class SurgeryStage {
     this.blood = new Bits(this.quality === 'low' ? 260 : 520, false);
     this.sparks = new Bits(this.quality === 'low' ? 120 : 240, true, 6);
     this.monitor = this.makeMonitor();
-    this.scan = new THREE.Mesh(new THREE.PlaneGeometry(0.02, 0.9), new THREE.MeshBasicMaterial({ color: 0x40ffe8, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
     this.buildRoom();
-    this.scene.add(this.saw.root, this.driver.root, this.subj, this.blood.mesh, this.sparks.mesh, this.scan);
+    this.scene.add(this.saw.root, this.driver.root, this.subj, this.blood.mesh, this.sparks.mesh);
     this.bindInput();
     this.ro = new ResizeObserver(() => this.resize());
     this.ro.observe(host);
@@ -504,7 +501,6 @@ export class SurgeryStage {
     this.rig.root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
     this.subj.add(this.rig.root);
     this.applyCond();
-    this.buildHolos();
     this.placeSubject(1, 0);
   }
   private applyCond() {
@@ -557,26 +553,7 @@ export class SurgeryStage {
     return p;
   }
 
-  // ---------------------------------------------------------------- holograms and anchors
-  private buildHolos() {
-    for (const h of this.holo.values()) h.removeFromParent();
-    this.holo.clear();
-    if (!this.rig) return;
-    const s = this.rig.s;
-    const mk = (w: number, h: number, d: number, bone: BoneName, pos: [number, number, number], key: Pick) => {
-      const g = new THREE.EdgesGeometry(new THREE.BoxGeometry(w * s, h * s, d * s));
-      const m = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0x40ffe8, transparent: true, opacity: 0.9, fog: false, depthTest: false }));
-      m.position.set(pos[0] * s, pos[1] * s, pos[2] * s); m.visible = false; m.renderOrder = 10;
-      this.rig!.bones[bone].add(m);
-      this.holo.set(key, m);
-    };
-    mk(0.13, 0.62, 0.13, 'uarmL', [0, -0.3, 0], 'arm_l'); mk(0.13, 0.62, 0.13, 'uarmR', [0, -0.3, 0], 'arm_r');
-    mk(0.08, 0.16, 0.12, 'handL', [0, -0.08, 0], 'hand_l'); mk(0.08, 0.16, 0.12, 'handR', [0, -0.08, 0], 'hand_r');
-    mk(0.17, 0.92, 0.17, 'thighL', [0, -0.45, 0.02], 'leg_l'); mk(0.17, 0.92, 0.17, 'thighR', [0, -0.45, 0.02], 'leg_r');
-    mk(0.17, 0.06, 0.05, 'head', [0, 0.1, 0.09], 'eyes'); mk(0.13, 0.07, 0.08, 'head', [0, 0.02, 0.06], 'jaw');
-    mk(0.2, 0.2, 0.2, 'head', [0, 0.17, 0], 'brain');
-    mk(0.08, 0.5, 0.06, 'chest', [0, 0.05, -0.11], 'spine'); mk(0.34, 0.36, 0.26, 'chest', [0, 0.12, 0], 'skin');
-  }
+  // ---------------------------------------------------------------- anchors
   /** world anchor of a pick target (for the DOM tags) */
   anchor(p: Pick, out = new THREE.Vector3()): THREE.Vector3 {
     const r = this.rig; if (!r) return out.set(0, 0, 0);
@@ -875,21 +852,18 @@ export class SurgeryStage {
           varying vec2 vUv;
           void main(){
             vec2 q = vUv - 0.5;
-            float ab = dot(q, q) * 0.012 + uHurt * 0.004;
-            vec3 c;
-            c.r = texture2D(tex, vUv + q * ab * 2.0).r;
-            c.g = texture2D(tex, vUv).g;
-            c.b = texture2D(tex, vUv - q * ab * 2.0).b;
-            // a cheap bloom for the neon: the brightest neighbours bleed
+            vec3 c = texture2D(tex, vUv).rgb;
+            // tungsten halation: the brightest neighbours bleed warm
             vec3 b = vec3(0.0);
             for (int i = -2; i <= 2; i++) for (int j = -2; j <= 2; j++) {
               vec3 s = texture2D(tex, vUv + vec2(float(i), float(j)) * texel * 1.5).rgb;
               b += max(s - 0.72, 0.0);
             }
-            c += b * 0.045;
-            // scanlines and a crawling interference band
-            c *= 0.92 + 0.08 * sin(vUv.y / texel.y * 3.14159);
-            c *= 1.0 - 0.06 * smoothstep(0.0, 0.02, abs(fract(vUv.y * 0.7 - uTime * 0.06) - 0.5) - 0.48);
+            c += b * vec3(0.06, 0.045, 0.03);
+            // film: a warm grade and a little grain
+            c = c * vec3(1.04, 1.0, 0.92);
+            float g = fract(sin(dot(floor(vUv / texel) + floor(uTime * 12.0), vec2(12.9898, 78.233))) * 43758.5453);
+            c += (g - 0.5) * 0.035;
             // pain: the edges go red; the cut flashes white
             float v = dot(q, q);
             c = mix(c, vec3(0.55, 0.0, 0.02), clamp(uHurt * smoothstep(0.04, 0.42, v) * 0.95, 0.0, 0.85));
@@ -948,17 +922,15 @@ export class SurgeryStage {
     // lights
     this.alarm.intensity = this.alarm.intensity > 0 ? 2 + Math.sin(this.t * 14) * 2 : 0;
     this.lamp.intensity = 11 + Math.sin(this.t * 41) * 0.2 + (Math.random() < 0.003 ? -5 : 0);
-    if (this.sign) (this.sign.material as THREE.MeshBasicMaterial).opacity = Math.random() < 0.02 ? 0.3 : 1;
     this.stress = Math.max(0.15, this.stress - dt * 0.06);
     this.drawMonitor(dt);
-    // holograms + the idle scan line
-    for (const [k, h] of this.holo) {
-      const on = !this.busy && (k === this.hoverP || k === this.selected);
-      h.visible = on;
-      if (on) (h.material as THREE.LineBasicMaterial).color.setHex(k === this.selected ? 0xff2a8a : 0x40ffe8);
-    }
-    this.scan.visible = !this.busy && this.mode === 'intake' && !!this.rig;
-    if (this.scan.visible) { const x = -0.95 + ((this.t * 0.35) % 1) * 2.0; this.scan.position.set(x, TABLE_Y + 0.25, 0); this.scan.rotation.set(-Math.PI / 2, 0, Math.PI / 2); this.scan.scale.set(1, 0.75, 1); }
+    // the hand lamp swings over the part under the pointer (or the one being worked on)
+    const lit = this.busy ? null : this.hoverP ?? this.selected;
+    if (lit && this.rig) {
+      const a = this.anchor(lit, _v2);
+      this.inspect.position.lerp(_v.set(a.x + 0.1, a.y + 0.32, a.z + 0.12), 1 - Math.exp(-dt * 10));
+      this.inspect.intensity = damp(this.inspect.intensity, lit === this.hoverP ? 3.2 : 2, 8, dt);
+    } else this.inspect.intensity = damp(this.inspect.intensity, 0, 6, dt);
     // camera
     if (this.mode === 'field' && this.rig && !this.busy) this.povAt(null);
     this.camPos.lerp(this.camPosT, 1 - Math.exp(-dt * 3));

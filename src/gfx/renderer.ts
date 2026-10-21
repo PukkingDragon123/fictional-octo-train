@@ -452,7 +452,11 @@ export class PixelRenderer {
       this.fsQuad.material = this.overlayBlitMat;
       r.render(this.fsScene, this.fsCam);
     }
+    // 6. small screen-space layers drawn with this same context (the body HUD): no second WebGL context
+    for (const f of this.afterRender) f(r);
   }
+  /** called at the end of every render with the renderer, default framebuffer bound */
+  readonly afterRender: ((r: THREE.WebGLRenderer) => void)[] = [];
 
   /** Convert CSS pixel coords to a world ray, intersect with horizontal plane y */
   screenToWorld(cssX: number, cssY: number, planeY = 0): THREE.Vector3 | null {

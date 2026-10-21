@@ -1,90 +1,66 @@
-/* Social layer: floating speech, the emote wheel, whistle notes, the fall. */
+/* Social layer: typed floating speech, whistle notes, the rotary emote dial,
+   the fall. Everything is pixel art scaled up crisp; no web-font text. */
 
-/* ---------------------------------------------------------------- floating speech */
+/* ---------------------------------------------------------------- typed floating speech */
 .w-bubble.ft {
-  --ftc: #fff6e0; --ftg: rgba(255, 220, 140, 0.35);
-  white-space: normal; width: max-content; max-width: min(380px, 62vw); text-align: center;
-  font-family: var(--font-body); font-size: calc(var(--px) * 9 + 2px); line-height: 1.05; letter-spacing: 0.02em; color: var(--ftc);
-  text-shadow: 2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 2px 2px 0 #000, -2px 2px 0 #000, 0 0 10px var(--ftg);
-  transition: opacity 0.45s ease, filter 0.45s ease;
+  --s: 2; --cw: 7; --sw: 700;
+  white-space: normal; width: max-content; max-width: min(calc(var(--cw) * var(--s) * 34px - var(--s) * 34px), 74vw); text-align: center;
+  font-size: 0; line-height: 0; letter-spacing: 0; text-shadow: none; color: transparent;
+  transition: opacity 0.45s steps(4);
 }
-.w-bubble.ft[style*="opacity: 0"] { filter: blur(1.5px); }
-.ft .ft-name { display: block; font-family: 'Tiny5', var(--font-body); font-weight: normal; font-size: calc(var(--px) * 6); letter-spacing: 0.08em; color: var(--ftc); opacity: 0.75; margin-bottom: 2px;
-  text-shadow: 1px 1px 0 #000, -1px 0 0 #000; animation: ft-tag 0.3s steps(3) both; }
-.ft .ft-w { display: inline-block; white-space: nowrap; }
-.ft i { display: inline-block; font-style: normal; opacity: 0; transform-origin: 50% 80%;
-  animation: ft-pop 0.26s cubic-bezier(0.18, 1.8, 0.4, 1) var(--d) forwards, ft-wob 2.2s ease-in-out calc(var(--d) + 0.26s - var(--i) * 0.11s) infinite; }
-@keyframes ft-pop {
-  0% { opacity: 0; scale: 0.2; rotate: -14deg; }
-  55% { opacity: 1; scale: 1.32; rotate: 5deg; }
-  100% { opacity: 1; scale: 1; rotate: 0deg; }
+.ft .ft-tape { display: inline; line-height: calc(var(--s) * 12px); box-decoration-break: clone; -webkit-box-decoration-break: clone;
+  padding: calc(var(--s) * 1px) calc(var(--s) * 3px); }
+.ft .ft-tape.papered { background-image: var(--paper); background-size: calc(var(--s) * 8px) calc(var(--s) * 8px); image-rendering: pixelated;
+  box-shadow: 0 calc(var(--s) * 1px) 0 rgba(20, 14, 8, 0.55), calc(var(--s) * 1px) 0 0 rgba(20, 14, 8, 0.25); }
+.ft .ft-w { display: inline-block; white-space: nowrap; vertical-align: top; }
+.ft .ft-sp { display: inline-block; width: calc(var(--s) * 4px); height: 1px; }
+.ft .ft-name { margin-right: calc(var(--s) * 1px); }
+.ft .ft-g { display: inline-block; vertical-align: top; width: calc(var(--cw) * var(--s) * 1px); height: calc(var(--s) * 10px); margin-right: calc(var(--s) * -1px);
+  background-image: var(--sheet); background-repeat: no-repeat; background-size: calc(var(--sw) * var(--s) * 1px) calc(var(--s) * 10px);
+  background-position: calc(var(--gx) * var(--cw) * var(--s) * -1px) 0; image-rendering: pixelated;
+  opacity: 0; translate: 0 calc(var(--jy, 0) * var(--s) * 1px);
+  animation: ft-strike 0.14s steps(3, end) var(--d) forwards; }
+/* a letter strikes the paper: jumps up off the type bar, slams down dark, settles to its ink */
+@keyframes ft-strike {
+  0% { opacity: 0; translate: 0 calc(var(--s) * -3px); filter: brightness(1.6); }
+  50% { opacity: 1; translate: 0 calc(var(--s) * 1px); filter: brightness(0.55); }
+  100% { opacity: var(--ink, 1); translate: 0 calc(var(--jy, 0) * var(--s) * 1px); filter: none; }
 }
-@keyframes ft-wob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -2px; } }
-@keyframes ft-tag { from { opacity: 0; translate: 0 3px; } }
 
-/* shouting: bigger, warm, every letter shaking */
-.w-bubble.ft.ft-shout { --ftc: #ffe9b0; --ftg: rgba(255, 140, 60, 0.6); font-size: calc(var(--px) * 13 + 2px); letter-spacing: 0.05em; text-transform: uppercase; }
-.ft-shout i { animation: ft-pop 0.2s cubic-bezier(0.18, 2.2, 0.4, 1) var(--d) forwards, ft-shake 0.16s steps(2) var(--d) infinite; }
-@keyframes ft-shake { 0% { translate: 0 0; rotate: 0deg; } 50% { translate: 1px -2px; rotate: -4deg; } 100% { translate: -1px 1px; rotate: 3deg; } }
+/* shouting: comic-strip capitals, no paper, every letter popping in and shaking */
+.ft-shout .ft-g { animation: ft-bang 0.18s steps(3, end) var(--d) forwards, ft-shake 0.2s steps(2) var(--d) infinite; }
+@keyframes ft-bang { 0% { opacity: 0; scale: 2.2; } 60% { opacity: 1; scale: 0.85; } 100% { opacity: 1; scale: 1; } }
+@keyframes ft-shake { 0% { translate: 0 0; } 50% { translate: calc(var(--s) * 1px) calc(var(--s) * -1px); } 100% { translate: calc(var(--s) * -1px) 0; } }
 
-/* thoughts: soft, slanted, they fade in rather than pop */
-.w-bubble.ft.ft-think { --ftc: #d6e4ff; --ftg: rgba(150, 180, 255, 0.4); font-style: italic; transform: translate(-50%, -100%) skewX(-8deg); font-size: calc(var(--px) * 8 + 2px); }
-.ft-think i { animation: ft-fade 0.4s ease-out var(--d) forwards, ft-wob 3.4s ease-in-out calc(var(--d) - var(--i) * 0.2s) infinite; }
-@keyframes ft-fade { from { opacity: 0; filter: blur(3px); translate: 0 4px; } to { opacity: 0.92; filter: none; } }
+/* thoughts: chalky letters drifting in, leaning */
+.w-bubble.ft.ft-think { transform: translate(-50%, -100%) skewX(-8deg); }
+.ft-think .ft-g { animation: ft-drift 0.5s steps(5, end) var(--d) forwards; }
+@keyframes ft-drift { from { opacity: 0; translate: 0 calc(var(--s) * 3px); } to { opacity: 0.9; translate: 0 0; } }
 
-/* the sergeant's hologram, the band, officers, the radio */
-.w-bubble.ft.ft-voss { --ftc: #ffd28a; --ftg: rgba(255, 170, 70, 0.75); }
-.ft-voss .ft-body { text-shadow: -1px 0 0 rgba(255, 60, 40, 0.55), 1px 0 0 rgba(60, 200, 255, 0.55), 2px 2px 0 #000, -2px 0 0 #000, 0 0 10px var(--ftg); }
-.w-bubble.ft.ft-bailiff { --ftc: #ff8a7a; --ftg: rgba(255, 60, 50, 0.7); font-family: 'Tiny5', var(--font-body); text-transform: uppercase; font-size: calc(var(--px) * 7 + 2px); }
-.ft-bailiff i { animation: ft-pop 0.12s steps(2) var(--d) forwards, ft-glitch 3s steps(1) calc(var(--d) + var(--i) * 0.37s) infinite; }
-@keyframes ft-glitch { 0%, 92%, 100% { translate: 0 0; } 94% { translate: 2px 0; } 96% { translate: -2px 1px; } }
-.w-bubble.ft.ft-guard { --ftc: #f2f0e6; --ftg: rgba(255, 80, 60, 0.35); font-family: var(--font-stamp); font-weight: 700; text-transform: uppercase; font-size: calc(var(--px) * 10 + 2px); }
-.ft-guard i { animation: ft-pop 0.16s cubic-bezier(0.2, 2, 0.4, 1) var(--d) forwards; }
-.w-bubble.ft.ft-radio { --ftc: #a8f4bc; --ftg: rgba(80, 255, 140, 0.45); font-size: calc(var(--px) * 8 + 2px); }
-.ft-radio .ft-name::before { content: '◂ '; }
-.w-bubble.ft.ft-emote { --ftc: #ffffff; font-size: calc(var(--px) * 8 + 2px); }
+/* the band's tape prints faster, all caps; officers' tags land hard */
+.ft-bailiff .ft-g { animation-duration: 0.08s; }
+
+/* lines from someone out of sight: pinned to the bottom of the picture */
 .w-bubble.ft.offscreen { position: fixed; left: 50%; bottom: 13vh; top: auto; transform: translateX(-50%); z-index: 62; }
-.w-bubble.ft.offscreen .ft-name::before { content: '◀ '; }
 
-/* whistle notes rising off the whistler */
-.w-bubble.ft-note { font-family: 'Tiny5', var(--font-body); font-size: calc(var(--px) * 9); color: #fff4c0; text-shadow: 1px 1px 0 #000, 0 0 8px rgba(255, 230, 120, 0.8); animation: ft-note 1.6s ease-out forwards; }
-@keyframes ft-note { 0% { opacity: 0; scale: 0.4; rotate: -20deg; } 20% { opacity: 1; scale: 1.2; } 100% { opacity: 0; scale: 1; rotate: 18deg; translate: var(--nx, 10px) -6px; } }
+/* whistle notes rising off the whistler (pixel-art notes) */
+.w-bubble.ft-note { width: 20px; height: 20px; background-size: 20px 20px; background-repeat: no-repeat; image-rendering: pixelated; animation: ft-note 1.6s steps(12, end) forwards; }
+@keyframes ft-note { 0% { opacity: 0; scale: 0.5; } 15% { opacity: 1; scale: 1.2; } 100% { opacity: 0; scale: 1; translate: var(--nx, 10px) -8px; rotate: 14deg; } }
 
 @media (prefers-reduced-motion: reduce) {
-  .ft i { animation: ft-fade 0.2s ease-out var(--d) forwards; }
+  .ft .ft-g { animation: ft-drift 0.2s steps(2) var(--d) forwards; }
 }
 
-/* ---------------------------------------------------------------- the emote wheel */
-.sx-wheel { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 80; pointer-events: none; font-family: 'Tiny5', var(--font-body); }
-.sx-wheel.open { pointer-events: auto; }
-.sx-ring { position: absolute; left: -150px; top: -150px; width: 300px; height: 300px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(10, 12, 18, 0) 0 30%, rgba(10, 12, 18, 0.55) 31% 70%, rgba(10, 12, 18, 0) 71%);
-  scale: 0.6; opacity: 0; transition: scale 0.22s cubic-bezier(0.2, 1.6, 0.4, 1), opacity 0.15s ease; }
-.sx-wheel.open .sx-ring { scale: 1; opacity: 1; }
-.sx-slice { position: absolute; width: 74px; height: 58px; margin: -29px 0 0 -37px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
-  color: #e8ecf4; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; border-radius: 12px;
-  background: rgba(20, 24, 34, 0.82); border: 2px solid rgba(255, 255, 255, 0.12); box-shadow: 0 3px 0 rgba(0, 0, 0, 0.5);
-  opacity: 0; scale: 0.3; transition: scale 0.18s cubic-bezier(0.2, 1.8, 0.4, 1), opacity 0.12s, background 0.1s, border-color 0.1s; transition-delay: var(--sd, 0s); }
-.sx-wheel.open .sx-slice { opacity: 1; scale: 1; }
-.sx-slice svg { width: 26px; height: 26px; }
-.sx-slice .k { position: absolute; top: 3px; left: 6px; font-size: 9px; opacity: 0.45; }
-.sx-slice.hot { background: var(--sc, #3a6aff); border-color: #fff; color: #fff; scale: 1.14; text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6); }
-.sx-slice.tune { width: 54px; height: 30px; margin: -15px 0 0 -27px; font-size: 10px; border-radius: 15px; background: rgba(40, 34, 14, 0.85); color: #ffe9a0; }
-.sx-slice.tune.sel { border-color: #ffd860; }
-.sx-center { position: absolute; left: -48px; top: -48px; width: 96px; height: 96px; border-radius: 50%; display: flex; align-items: center; justify-content: center; text-align: center;
-  color: #fff; font-size: 11px; line-height: 1.2; letter-spacing: 0.05em; text-transform: uppercase; background: rgba(8, 10, 16, 0.9); border: 2px solid rgba(255, 255, 255, 0.15);
-  opacity: 0; scale: 0.5; transition: scale 0.2s cubic-bezier(0.2, 1.6, 0.4, 1), opacity 0.15s; }
-.sx-wheel.open .sx-center { opacity: 1; scale: 1; }
-.sx-center button { all: unset; cursor: pointer; padding: 6px 8px; border-radius: 8px; color: #8ff6ff; font-size: 10px; border: 1px solid rgba(143, 246, 255, 0.4); }
-.sx-center button:hover { background: rgba(143, 246, 255, 0.15); }
-.sx-center .lbl { font-size: 13px; color: #fff; }
+/* ---------------------------------------------------------------- the rotary emote dial (a pixel-art canvas, src/social/dial.ts) */
+.sx-dial { position: fixed; left: 0; top: 0; z-index: 80; pointer-events: none; transform-origin: 50% 50%;
+  image-rendering: pixelated; opacity: 0; scale: 0.4; rotate: -25deg; transition: opacity 0.12s steps(3), scale 0.2s steps(5), rotate 0.2s steps(5); }
+.sx-dial.open { pointer-events: auto; opacity: 1; scale: 1; rotate: 0deg; }
+.sx-dial canvas { display: block; image-rendering: pixelated; cursor: pointer; }
 
 /* ---------------------------------------------------------------- falling */
-.vx-fall { position: fixed; inset: 0; z-index: 70; pointer-events: none; opacity: 0; transition: opacity 0.25s ease;
+.vx-fall { position: fixed; inset: 0; z-index: 70; pointer-events: none; opacity: 0; transition: opacity 0.25s steps(4);
   background: radial-gradient(ellipse at 50% 55%, rgba(0, 0, 0, 0) 0, rgba(0, 0, 0, 0.75) calc(var(--r, 60) * 1%), #000 calc(var(--r, 60) * 1% + 25%)); }
 .vx-fall.on { opacity: 1; }
-.vx-fall .streaks { position: absolute; inset: -20% 0; background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0) 0 37px, rgba(255, 255, 255, 0.08) 37px 38px, rgba(255, 255, 255, 0) 38px 83px, rgba(255, 255, 255, 0.05) 83px 84px);
-  background-size: 100% 220px; animation: vx-streak 0.32s linear infinite; mask-image: radial-gradient(ellipse at 50% 50%, transparent 20%, #000 70%); -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent 20%, #000 70%); }
+.vx-fall .streaks { position: absolute; inset: -20% 0; background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0) 0 37px, rgba(255, 240, 210, 0.08) 37px 40px, rgba(255, 255, 255, 0) 40px 83px, rgba(255, 240, 210, 0.05) 83px 85px);
+  background-size: 100% 220px; animation: vx-streak 0.32s steps(6) infinite; mask-image: radial-gradient(ellipse at 50% 50%, transparent 20%, #000 70%); -webkit-mask-image: radial-gradient(ellipse at 50% 50%, transparent 20%, #000 70%); }
 @keyframes vx-streak { from { transform: translateY(0); } to { transform: translateY(-220px); } }
-.vx-fall .where { position: absolute; left: 50%; top: 58%; transform: translateX(-50%); font-family: 'Tiny5', var(--font-body); color: #d8d4c8; font-size: 14px; letter-spacing: 0.3em; text-transform: uppercase; opacity: 0; transition: opacity 0.6s; text-shadow: 0 0 10px rgba(255, 255, 255, 0.3); white-space: nowrap; }
-.vx-fall .where.on { opacity: 0.85; }

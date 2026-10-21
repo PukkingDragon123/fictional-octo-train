@@ -27,8 +27,6 @@ export class Settlement {
   /** last computed stats per beacon uid */
   cache = new Map<number, SettleStats>();
   private t = 0;
-  private el: HTMLDivElement | null = null;
-  private shown = '';
 
   beacons(z: Zone): TileObject[] { const out: TileObject[] = []; for (const o of z.objects.values()) if (o.key === 'bld_beacon') out.push(o); return out; }
 
@@ -105,23 +103,7 @@ export class Settlement {
       if (s.rank === 'MEGA BASE') mark('settle:mega');
       if (s.crops >= 4) mark('settle:farm4');
     }
-    this.render(buildMode);
-  }
-
-  // ---------------------------------------------------------------- panel
-  private render(buildMode: boolean) {
-    const L = this.local();
-    if (!this.el) { this.el = document.createElement('div'); this.el.className = 'bld-settle'; document.body.appendChild(this.el); }
-    if (!L) { this.el.classList.remove('on'); return; }
-    this.el.classList.toggle('on', true);
-    this.el.classList.toggle('dim', !buildMode);
-    const { b, s } = L;
-    const bar = (k: string, v: number, max: number, cls: string) => `<div class="row ${cls}"><b>${k}</b><i style="--f:${Math.max(0, Math.min(1, v / max))}"></i><span>${v}</span></div>`;
-    const name = (b.state.name as string) || 'CLAIM ' + String(b.uid % 1000).padStart(3, '0');
-    const html = `<div class="hd"><span class="nm">${name}</span><span class="rk">${s.rank}</span></div>`
-      + bar('DEF', s.def, 40, 'def') + bar('COMFORT', s.comfort, 30, 'com') + bar('FOOD', s.food, 25, 'food') + bar('POWER', s.power, 12, s.power < 0 ? 'pow neg' : 'pow')
-      + `<div class="ft">${s.beds} beds · ${s.crops} crops · ${s.workers}/${s.stations} stations staffed</div>`;
-    if (html !== this.shown) { this.shown = html; this.el.innerHTML = html; }
+    void buildMode;
   }
 
   // ---------------------------------------------------------------- stations & workers (hooks for robot thralls)

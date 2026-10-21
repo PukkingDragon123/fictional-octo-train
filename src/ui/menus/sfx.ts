@@ -129,3 +129,49 @@ export function sfx(kind: Sfx, vol = 1) {
   }
   setTimeout(() => out.disconnect(), 2000);
 }
+
+// ---------------------------------------------------------------- the subject room's air: mains hum, the chair's buzz, distant drips
+let amb: { nodes: AudioNode[]; timer: number; out: GainNode } | null = null;
+/** start ('room') or stop (null) the menu ambience */
+export function ambience(kind: 'room' | null) {
+  if (amb) { clearTimeout(amb.timer); try { amb.out.gain.setTargetAtTime(0, amb.out.context.currentTime, 0.3); } catch { /* closed */ } const a = amb; setTimeout(() => a.nodes.forEach((n) => { try { (n as any).stop?.(); n.disconnect(); } catch { /* gone */ } }), 1500); amb = null; }
+  if (!kind) return;
+  const ctx = context();
+  if (!ctx) return;
+  const out = ctx.createGain();
+  out.gain.value = 0;
+  out.gain.setTargetAtTime(volume() * 0.9, ctx.currentTime + 0.1, 1.5);
+  out.connect(ctx.destination);
+  const nodes: AudioNode[] = [out];
+  const osc = (type: OscillatorType, f: number, g: number, lp = 0) => {
+    const o = ctx.createOscillator(), gn = ctx.createGain();
+    o.type = type; o.frequency.value = f; gn.gain.value = g;
+    if (lp) { const fl = ctx.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = lp; o.connect(fl); fl.connect(gn); nodes.push(fl); } else o.connect(gn);
+    gn.connect(out); o.start(); nodes.push(o, gn);
+    return { o, gn };
+  };
+  osc('sawtooth', 50, 0.02, 240);
+  osc('sine', 100, 0.018);
+  const wob = osc('sine', 150.6, 0.006);
+  // a slow beating in the hum
+  const lfo = ctx.createOscillator(), lg = ctx.createGain(); lfo.frequency.value = 0.21; lg.gain.value = 0.004; lfo.connect(lg); lg.connect(wob.gn.gain); lfo.start(); nodes.push(lfo, lg);
+  // drips somewhere behind the walls, through a little echo
+  const echo = ctx.createDelay(1); echo.delayTime.value = 0.23;
+  const fb = ctx.createGain(); fb.gain.value = 0.35;
+  const eg = ctx.createGain(); eg.gain.value = 0.5;
+  echo.connect(fb); fb.connect(echo); echo.connect(eg); eg.connect(out);
+  nodes.push(echo, fb, eg);
+  const drip = () => {
+    if (!amb) return;
+    const t = ctx.currentTime + 0.01;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    const f = 900 + Math.random() * 900;
+    o.type = 'sine'; o.frequency.setValueAtTime(f, t); o.frequency.exponentialRampToValueAtTime(f * 0.45, t + 0.08);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05 + Math.random() * 0.04, t + 0.004); g.gain.exponentialRampToValueAtTime(0.0005, t + 0.12);
+    o.connect(g); g.connect(out); g.connect(echo);
+    o.start(t); o.stop(t + 0.15);
+    amb.timer = window.setTimeout(drip, 1400 + Math.random() * 4200);
+  };
+  amb = { nodes, timer: 0, out };
+  amb.timer = window.setTimeout(drip, 2000);
+}
