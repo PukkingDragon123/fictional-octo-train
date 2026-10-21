@@ -13,7 +13,7 @@
 //  - right-hand action cluster: attack (tap strikes, hold readies with auto-aim,
 //    drag aims), use, shove, sneak, flashlight, shout, push-to-talk; top bars for
 //    map / scanner / inventory / chat / pause / fullscreen / photo
-//  - context actions: placing furniture, driving, riding, carrying, reading, reloading, throwing
+//  - context actions: placing furniture, driving, riding, carrying, reading, reloading (the strike button throws what you carry)
 //  - the physical overhaul (src/interact/grab.ts, no popups): a work glove to GRAB
 //    what is in reach (hold it and the stick pushes / pulls), a throttle for POWER
 //    (Shift), a squeeze bulb for the lung PUMP (H), the watch (Tab), the iron-cube
@@ -747,6 +747,9 @@ export class TouchControls implements GameSystem {
   private atkDown(e: PointerEvent) {
     const p = this.g.local;
     if (!p) return;
+    // carrying something: the strike button throws it
+    const push = this.g.destruct?.push;
+    if (push?.holding && push.mode === 'carry') { push.throw(p); return; }
     this.atk = { id: e.pointerId, x0: e.clientX, y0: e.clientY, dx: 0, dy: 0, drag: false };
     this.aimTarget = null;
     if (p.actions.current?.name === 'Walk') p.actions.clear();
@@ -984,9 +987,6 @@ export class TouchControls implements GameSystem {
         list.push(['pcancel', 'cross', 'CANCEL', () => items.cancelPlacing()]);
       } else if (mode === 'walk' && free) {
         if (p.carrying) list.push(['putdown', 'down', 'PUT DOWN', () => g.net?.toggleCarry?.(p.carrying)]);
-        const push = g.destruct?.push;
-        if (push?.holding && push.mode === 'carry') list.push(['throw', 'attack', 'THROW', () => push.throw(p)]);
-        if (push?.holding || (g as any).grab?.holding) list.push(['letgo', 'down', 'LET GO', () => (g as any).grab?.letGo?.()]);
         const h = p.handR;
         if (h && h.key === 'furniture' && items?.startPlacing) list.push(['fplace', 'down', 'PLACE', () => items.startPlacing(p, h)]);
         const w = h ? itemDef(h.key).weapon : null;

@@ -18,6 +18,7 @@ import { researchPoints } from '../../game/research';
 import { intakeForm, prisonerOutfitFor } from './intake';
 import { h, esc, optionsPanel, controlsPanel, applyGfx, confirmDialog, FocusNav, sfx, hoverFocus } from './common';
 import { runBoot } from './boot';
+import { uiSettings } from './settings';
 import { SubjectRoom, type MenuItem } from './room3d';
 import { installRetroKit, nixieHtml } from './retroKit';
 import { ambience } from './sfx';
@@ -161,7 +162,7 @@ class TitleRoom {
     this.over.className = 'nx-over on';
     const panel = h('div', 'nx-panel');
     panel.append(h('div', 'nx-panel-h', `<b>${esc(title)}</b><small>${esc(sub)}</small>`));
-    const body = h('div', 'nx-panel-b');
+    const body = h('div', 'nx-panel-b nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
     body.append(el);
     const close = h('button', 'nx-close', 'BACK <kbd>ESC</kbd>');
     close.type = 'button';

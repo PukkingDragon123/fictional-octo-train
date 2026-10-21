@@ -57,7 +57,7 @@ export class SocialSystem implements GameSystem {
     if (!p) return;
     this.whistleCd -= dt; this.shoutCd -= dt; this.barkCd -= dt;
     const inp = g.input;
-    const busy = p.body.dead || g.ui?.blocksMovement?.() || g.transitioning;
+    const busy = p.body.dead || g.ui?.blocksMovement?.() || g.transitioning || !!p.inVehicle;
     // ---- Q: tap = whistle, hold = shout
     const qDown = inp.down('whistle') || inp.down('shout');
     if ((inp.hit('whistle') || inp.hit('shout')) && !busy) { this.qT = 0; this.qShouted = false; }

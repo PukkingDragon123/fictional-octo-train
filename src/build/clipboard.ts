@@ -41,6 +41,7 @@ export class Clipboard {
   private mini = new THREE.Group();
   private miniMesh: THREE.Mesh;
   private miniKey = '';
+  private miniPivot = new THREE.Vector3();
   private gauges: Gauge[] = [];
   private rank: CrtScreen;
   private rankSig = '';
@@ -73,8 +74,8 @@ export class Clipboard {
     this.miniMesh = new THREE.Mesh(new THREE.BufferGeometry(), worldMaterial({ noVis: true, noFog: true, noGrid: true, bpTag: 'mini' } as any));
     (this.miniMesh.material as THREE.MeshLambertMaterial).color.setHex(0xcfe2ff);
     this.mini.add(this.miniMesh);
-    this.mini.rotation.x = Math.PI / 2;
-    this.mini.position.set(0, this.uvY(0.47), 0.012);
+    // the model stands in elevation on the drawing (up the page), turning on its own axis
+    this.mini.position.set(0, this.uvY(196 / SH), 0.006);
     this.rig.add(this.mini);
     // ---- gauge bar
     const gb = new ModelBuilder();
@@ -151,7 +152,8 @@ export class Clipboard {
     // scale model of the piece
     const mk = st.pc.key;
     if (mk !== this.miniKey) { this.miniKey = mk; this.buildMini(st.pc); }
-    this.mini.rotation.y = 0; this.miniMesh.rotation.y = G.time * 0.6;
+    this.mini.rotation.y = G.time * 0.6;
+    this.miniMesh.position.copy(this.miniPivot);
     (this.miniMesh.material as THREE.MeshLambertMaterial).color.setHex(st.unlocked ? 0xcfe2ff : 0x8a9ab8);
     // gauges
     const s = st.stats;
@@ -189,9 +191,11 @@ export class Clipboard {
     const bb = this.miniMesh.geometry.boundingBox;
     if (bb) {
       const sx = bb.max.x - bb.min.x, sy = bb.max.y - bb.min.y, sz = bb.max.z - bb.min.z;
-      const k = 0.075 / Math.max(0.2, sx, sy * 0.9, sz);
+      const k = Math.min(0.1 / Math.max(0.1, sy), 0.17 / Math.max(0.1, sx, sz));
       this.miniMesh.scale.setScalar(k);
-      this.miniMesh.position.set(-(bb.min.x + bb.max.x) / 2 * k, 0, -(bb.min.z + bb.max.z) / 2 * k);
+      // the turning axis through the footprint's middle; stand clear of the paper
+      this.miniPivot.set(-(bb.min.x + bb.max.x) / 2 * k, -bb.min.y * k, -(bb.min.z + bb.max.z) / 2 * k);
+      this.mini.position.z = 0.006 + Math.hypot(sx, sz) / 2 * k;
     }
   }
 

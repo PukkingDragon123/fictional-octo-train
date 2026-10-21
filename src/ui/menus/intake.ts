@@ -33,6 +33,7 @@ import { tattooImage, hairIcon } from './art';
 import { rehabStation, type RehabCtx } from './rehab';
 import { termsStation, type TermsCtx, PRESETS } from './terms';
 import { CONTRACT_SANDBOX } from '../../game/debt/defaults';
+import { uiSettings } from './settings';
 import './diegetic.css';
 import './noir.css';
 
@@ -154,7 +155,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     const left = h('aside', 'ik2-left nx-glass');
     const tabsRow = h('div', 'ik2-tabs');
     tabsRow.setAttribute('role', 'tablist');
-    const leftBody = h('div', 'ik2-body');
+    const leftBody = h('div', 'ik2-body nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
     left.append(h('div', 'ik2-h', '<b>BODY LAB</b><small>colours · faces · hair · build</small>'), tabsRow, leftBody);
     const right = h('aside', 'ik2-right nx-glass');
     const wardBody = h('div', 'ik2-ward');
@@ -162,13 +163,13 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     const bottom = h('div', 'ik2-bottom');
     const confirmBtn = h('button', 'ik2-go', '<b>CONFIRM APPEARANCE</b><small>then the body type ▶</small>');
     confirmBtn.type = 'button'; hoverFocus(confirmBtn); confirmBtn.onclick = () => toSex();
-    const hint = h('div', 'ik2-hint', '');
+    const hint = h('div', 'ik2-hint nc-free-text', '');
     bottom.append(hint, confirmBtn);
-    const hoverTag = h('div', 'ik2-hovertag');
-    const toast = h('div', 'ik2-toast');
+    const hoverTag = h('div', 'ik2-hovertag nc-free-text');
+    const toast = h('div', 'ik2-toast nc-free-text');
     // the body-type step
     const sex = h('div', 'ik2-sex');
-    const sexHead = h('div', 'ik2-sex-h', '<b>BODY TYPE</b><small>press a button: the press takes this one, the arms bring a fresh clone with the same choices</small>');
+    const sexHead = h('div', 'ik2-sex-h nc-free-text', '<b>BODY TYPE</b><small>press a button: the press takes this one, the arms bring a fresh clone with the same choices</small>');
     const pink = h('button', 'ik2-big pink', '<i></i><b>PINK</b><small>feminine frame</small>');
     const blue = h('button', 'ik2-big blue', '<i></i><b>BLUE</b><small>masculine frame</small>');
     for (const b of [pink, blue]) { b.type = 'button'; hoverFocus(b); }
@@ -673,7 +674,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       if (start) {
         root.style.display = 'none';
         stage.paused = true;
-        const ctx = { app, name: name.trim(), occupation: occ, traits: [...traits], directives, sandbox: sb, room: stage };
+        const ctx = { name: name.trim(), outfit: prisonerOutfitFor(app), occupation: occ, traits: [...traits] };
         const out: any = await new Promise((res) => {
           let done = false;
           const fin = (v?: unknown) => { if (!done) { done = true; res(v ?? null); } };
@@ -684,6 +685,12 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
         });
         stage.paused = false;
         root.style.display = '';
+        if (!out) {
+          // they climbed off the table: back to the body type
+          closing = false; phase = 'sex'; root.dataset.phase = 'sex';
+          requestAnimationFrame(() => finalBtn.focus({ preventScroll: true }));
+          return;
+        }
         if (out && typeof out === 'object') {
           if (typeof out.occupation === 'string') occ = out.occupation;
           if (Array.isArray(out.traits)) { traits.clear(); for (const t of out.traits) traits.add(t); }

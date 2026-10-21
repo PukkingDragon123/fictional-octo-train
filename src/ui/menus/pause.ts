@@ -16,6 +16,7 @@ import { lossSummary } from '../../survival/limbs';
 import './diegetic.css';
 import './desk.css';
 import './noir.css';
+import { uiSettings } from './settings';
 
 type Page = 'main' | 'options' | 'controls' | 'coop';
 const NAMES: Record<Page, string> = { main: 'STATUS', options: 'SETTINGS', controls: 'PROCEDURES', coop: 'CREW' };
@@ -38,7 +39,7 @@ export class PauseMenu {
       h('div', 'hp-beam'), h('div', 'hp-band'),
       h('div', 'hp-frozen', solo ? `TIME HELD · ${time}<small>nothing moves while the band projects</small>` : `TIME DOES NOT STOP · ${time}<small>the others are still out there</small>`),
     );
-    const panel = h('div', 'hp-panel holo');
+    const panel = h('div', 'hp-panel holo nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
     const p = G.local;
     const num = p ? suitNumber((p.rig as any)?.seed ?? 0) : 'D-____';
     panel.append(h('div', 'hp-head', `<b>BAILIFF · ${esc(num)}</b><span>${esc(time)}</span>`));

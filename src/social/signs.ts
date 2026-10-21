@@ -26,6 +26,7 @@ void main() {
   vV = normalize(cameraPosition - wp.xyz);
   gl_Position = projectionMatrix * viewMatrix * wp;
 }`;
+// (no glslVersion: three compiles ShaderMaterials as GLSL 3 and maps gl_FragColor to output 0, like src/gfx/crt.ts)
 const FRAG = /* glsl */`
 layout(location = 1) out highp vec4 gNormal;
 uniform sampler2D uTex;
@@ -133,7 +134,7 @@ export class SignSystem implements GameSystem {
     const text = String(o.state?.text || 'SIGN');
     const plate = Number(o.state?.c ?? 0x1e4a3a), ink = Number(o.state?.ink ?? 0xf0e8d0);
     const { W, H, yc } = signDims(text);
-    const mat = new THREE.ShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: VERT, fragmentShader: FRAG, toneMapped: false, uniforms: { uTex: { value: this.texture(text, plate, ink) }, uLight: { value: 1 } } });
+    const mat = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: FRAG, toneMapped: false, uniforms: { uTex: { value: this.texture(text, plate, ink) }, uLight: { value: 1 } } });
     const M = objectMatrix(z, o, d);
     const meshes: THREE.Mesh[] = [];
     for (const side of [1, -1]) {

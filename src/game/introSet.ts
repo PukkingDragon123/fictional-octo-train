@@ -56,22 +56,22 @@ for (let z = 2.2; z > -10.5; z -= 2.4) TUBES.push([0, IX.cor.h - 0.03, z]);
 // the sign over the holding-cell door: the title of the piece, as the Institute painted it
 addTextureModule(() => {
   const A = atlas();
-  A.add('ix_title', 96, 22, (pc, rng) => {
+  A.add('ix_title', 128, 32, (pc, rng) => {
     pc.wrap = false;
-    plate(pc, 0, 0, 96, 22, 0x2c3c34, 4401, { noise: 0.12 });
-    pc.strokeRect(1, 1, 94, 20, 0x1a241e);
-    pc.hline(2, 93, 2, 0x4a5c52); pc.vline(2, 2, 19, 0x4a5c52);
-    for (const [x, y] of [[3, 3], [91, 3], [3, 17], [91, 17]] as const) screw(pc, x, y, 0x8a9a90, 0x141a16, true);
+    plate(pc, 0, 0, 128, 32, 0x2c3c34, 4401, { noise: 0.12 });
+    pc.strokeRect(1, 1, 126, 30, 0x1a241e);
+    pc.hline(2, 125, 2, 0x4a5c52); pc.vline(2, 2, 29, 0x4a5c52);
+    for (const [x, y] of [[4, 4], [122, 4], [4, 26], [122, 26]] as const) screw(pc, x, y, 0x8a9a90, 0x141a16, true);
     const cream = 0xe8e0c4, amber = 0xd8a830;
-    txtC(pc, 'MERIDIAN INSTITUTE', 48, 3, cream);
-    txtC(pc, 'PROCESSING WING', 48, 9, amber);
-    txtC(pc, 'REMITTANCE - INTAKE', 48, 15, scale(cream, 0.8));
+    txtC(pc, 'MERIDIAN INSTITUTE', 64, 4, cream);
+    txtC(pc, 'PROCESSING WING', 64, 11, amber, 1, 2);
+    txtC(pc, 'REMITTANCE PROGRAMME - INTAKE', 64, 23, scale(cream, 0.8));
     // overspray, chips back to grey primer, a rust run from each lower bolt, somebody's thumbprint in red
-    for (let i = 0; i < 70; i++) { const x = rng.int(0, 95), y = rng.int(0, 21); if (pc.get(x, y) === cream || pc.get(x, y) === amber) { if (rng.chance(0.25)) pc.set(x, y, 0x6a7268); } else if (rng.chance(0.08)) pc.blend(x, y, 0x8a8a7a, 0.4); }
-    for (const x0 of [3, 91]) for (let k = 0; k < 4 + rng.int(0, 3); k++) pc.blend(x0, 19 + k, 0x7a4a2a, 0.5 - k * 0.08);
-    for (let k = 0; k < 6; k++) pc.blend(78 + (k % 3), 16 + Math.floor(k / 3), 0x7a1410, 0.55);
+    for (let i = 0; i < 110; i++) { const x = rng.int(0, 127), y = rng.int(0, 31); if (pc.get(x, y) === cream || pc.get(x, y) === amber) { if (rng.chance(0.2)) pc.set(x, y, 0x6a7268); } else if (rng.chance(0.08)) pc.blend(x, y, 0x8a8a7a, 0.4); }
+    for (const x0 of [4, 122]) for (let k = 0; k < 4 + rng.int(0, 3); k++) pc.blend(x0, 28 + k, 0x7a4a2a, 0.5 - k * 0.08);
+    for (let k = 0; k < 6; k++) pc.blend(108 + (k % 3), 25 + Math.floor(k / 3), 0x7a1410, 0.55);
     void makeRamp; void ph;
-  }, 2.4, 0.55);
+  }, 2.0, 0.5);
 });
 const scale = (c: number, f: number) => (Math.round(((c >> 16) & 255) * f) << 16) | (Math.round(((c >> 8) & 255) * f) << 8) | Math.round((c & 255) * f);
 
@@ -115,7 +115,9 @@ export class IntroSet {
     // the holding-cell door you came out of
     shell.box(0, 0, cor.z1 - 0.03, 1.0, 2.2, 0.06, 'metal_painted_green', { color: 0x7a8478 });
     shell.box(0, 1.5, cor.z1 - 0.07, 0.3, 0.2, 0.02, 'glass_dark');
-    shell.box(0, 2.1, cor.z1 - 0.06, 2.4, 0.55, 0.03, { north: 'ix_title', all: 'metal_dark' }, { fit: { north: true } });
+    // the enamel sign hung from the ceiling on two chains, just in front of the holding door
+    shell.box(0, 1.98, 0.6, 2.0, 0.5, 0.03, { north: 'ix_title', south: 'metal_painted_green', all: 'metal_dark' }, { fit: { north: true } });
+    for (const x of [-0.85, 0.85]) shell.box(x, 2.48, 0.6, 0.012, cor.h - 2.48, 0.012, 'chrome');
     // ---- the antechamber (tile), open to the wing and to the press room
     this.box(shell, ante.x0, ante.x1, ante.z0, ante.z1, ante.h, 'tile_white', 'concrete_wet', 'concrete', { n: [[door.x0, door.x1, door.h]], s: [[cor.x0, cor.x1, cor.h]] }, 0xb8b0a4);
     // ---- the press room: black, much too tall

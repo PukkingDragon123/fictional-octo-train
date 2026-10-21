@@ -51,19 +51,20 @@ function textures() {
     for (let i = 0; i < 6; i++) pc.blend(rng.int(0, 15), rng.int(0, 15), 0x664a34, 0.6);
   });
   A.add('wt_knurl', 16, 4, (pc) => { pc.each((x, y) => pc.set(x, y, x % 2 ? 0x2a2420 : (y === 0 ? 0x9a948c : 0x6a645c))); });
-  A.add('wt_knobtop', 12, 12, (pc) => {
-    pc.each((x, y) => { const d = Math.hypot(x - 5.5, y - 5.5); pc.set(x, y, d > 5.6 ? 0x1a120c : d > 4.6 ? 0x4a3a2c : 0x2e2018); });
-    for (let y = 1; y < 6; y++) { pc.set(5, y, 0xe8e0c8); pc.set(6, y, 0xe8e0c8); }
+  A.add('wt_knobtop', 24, 24, (pc) => {
+    pc.each((x, y) => { const d = Math.hypot(x - 11.5, y - 11.5); pc.set(x, y, d > 11.4 ? 0x1a120c : d > 9.6 ? 0x4a3a2c : d > 9 ? 0x5a4838 : 0x2e2018); });
+    for (let y = 2; y < 11; y++) { pc.set(11, y, 0xe8e0c8); pc.set(12, y, 0xe8e0c8); }
   });
   // the dial plate behind the function knob: detent ticks
-  A.add('wt_dialring', 16, 16, (pc) => {
+  A.add('wt_dialring', 32, 32, (pc) => {
     pc.fill(0x1c1410);
-    for (let i = 0; i < 9; i++) { const a = -Math.PI * 0.75 + i * (Math.PI * 1.5 / 8); for (let r = 6; r < 8; r++) pc.set(Math.round(7.5 + Math.cos(a) * r), Math.round(7.5 + Math.sin(a) * r), i === 0 ? 0xffb030 : 0xd8d0b8); }
+    for (let i = 0; i < 9; i++) { const a = -Math.PI * 0.75 + i * (Math.PI * 1.5 / 8); for (let r = 12.5; r < 15.5; r += 0.5) pc.set(Math.round(15.5 + Math.cos(a) * r), Math.round(15.5 + Math.sin(a) * r), i === 0 ? 0xffb030 : 0xd8d0b8); }
   });
   // gauge face: cream, a tick arc, a red zone
-  A.add('wt_gauge', 16, 16, (pc) => {
-    pc.each((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); pc.set(x, y, d > 7.6 ? 0x2a2420 : d > 6.8 ? 0x9a9488 : 0xe8dcbc); });
-    for (let i = 0; i <= 10; i++) { const a = Math.PI * (0.8 + i * 0.14); const r0 = i % 5 ? 5.2 : 4.4; for (let r = r0; r < 6.4; r += 0.6) pc.set(Math.round(7.5 + Math.cos(a) * r), Math.round(7.5 + Math.sin(a) * r), i < 2 ? 0xc02a1a : 0x2a2018); }
+  A.add('wt_gauge', 32, 32, (pc) => {
+    pc.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5); pc.set(x, y, d > 15.4 ? 0x2a2420 : d > 14 ? 0x9a9488 : 0xece2c4); });
+    for (let i = 0; i <= 20; i++) { const a = Math.PI * (0.8 + i * 0.07); const r0 = i % 5 ? 11 : 9; for (let r = r0; r < 13.2; r += 0.4) pc.set(Math.round(15.5 + Math.cos(a) * r), Math.round(15.5 + Math.sin(a) * r), i < 4 ? 0xc02a1a : 0x2a2018); }
+    for (let r = 12.6; r < 13.4; r += 0.4) for (let a = Math.PI * 0.8; a < Math.PI * 1.08; a += 0.02) pc.set(Math.round(15.5 + Math.cos(a) * r), Math.round(15.5 + Math.sin(a) * r), 0xc02a1a);
   });
   A.add('wt_grille', 16, 8, (pc) => { pc.fill(0x3a2a1e); pc.each((x, y) => { if ((x % 3 === 1) && (y % 3 === 1)) pc.set(x, y, 0x0a0806); else if ((x % 3 === 2) && (y % 3 === 2)) pc.set(x, y, 0x5a4434); }); });
   // stamped brass maker's plate (glyph-like embossing)
@@ -206,11 +207,11 @@ export function buildWatchModel(screen: THREE.Mesh): WatchModel {
     const sk = K.m('skin'), cl = K.m('cloth');
     // the forearm along X: rotate the builders so cylinders (built along Y) lie along +X
     for (const b of [sk, cl]) b.push().rotateZ(-Math.PI / 2);
-    sk.cylinder(0, -0.36, 0, ARM_R + 0.004, 0.24, 10, 'wt_skin', { color: skin, rTop: ARM_R, fit: true });
-    sk.cylinder(0, -0.12, 0, ARM_R, 0.13, 10, 'wt_skin', { color: skin, rTop: ARM_R * 0.86, fit: true });
+    sk.cylinder(0, -0.36, 0, ARM_R + 0.004, 0.24, 10, 'wt_skin', { color: skin, rTop: ARM_R, uvScale: 14 });
+    sk.cylinder(0, -0.12, 0, ARM_R, 0.13, 10, 'wt_skin', { color: skin, rTop: ARM_R * 0.86, uvScale: 14 });
     // the sleeve, shoved up past the elbow, with a rolled cuff
-    cl.cylinder(0, -0.46, 0, ARM_R + 0.012, 0.19, 10, 'wt_sleeve', { fit: true });
-    cl.cylinder(0, -0.285, 0, ARM_R + 0.016, 0.026, 10, 'wt_sleeve', { color: 0xd8d8d8, fit: true });
+    cl.cylinder(0, -0.46, 0, ARM_R + 0.012, 0.19, 10, 'wt_sleeve', { uvScale: 6 });
+    cl.cylinder(0, -0.285, 0, ARM_R + 0.016, 0.026, 10, 'wt_sleeve', { color: 0xd8d8d8, uvScale: 6 });
     for (const b of [sk, cl]) b.pop();
     K.into(arm);
   };
@@ -221,12 +222,12 @@ export function buildWatchModel(screen: THREE.Mesh): WatchModel {
     for (const c of [...hand.children]) { hand.remove(c); (c as THREE.Mesh).geometry?.dispose(); }
     const K = new Kit(), sk = K.m('skin');
     const hx = 0.03;
-    sk.box(hx + 0.034, -0.026, 0.0, 0.056, 0.052, 0.03, 'wt_skin', { color: skin, fit: true });
-    sk.box(hx + 0.066, -0.028, -0.004, 0.014, 0.056, 0.03, 'wt_skin', { color: scale(skin, 0.9), fit: true });
-    for (let i = 0; i < 4; i++) sk.box(hx + 0.069, 0.017 - i * 0.0135, 0.012, 0.01, 0.01, 0.007, 'wt_skin', { color: scale(skin, 0.86), fit: true });
-    sk.box(hx + 0.058, -0.03, -0.026, 0.026, 0.058, 0.024, 'wt_skin', { color: scale(skin, 0.75), fit: true });
+    sk.box(hx + 0.034, -0.026, 0.0, 0.056, 0.052, 0.03, 'wt_skin', { color: skin, uvScale: 14 });
+    sk.box(hx + 0.066, -0.028, -0.004, 0.014, 0.056, 0.03, 'wt_skin', { color: scale(skin, 0.9), uvScale: 14 });
+    for (let i = 0; i < 4; i++) sk.box(hx + 0.069, 0.017 - i * 0.0135, 0.012, 0.01, 0.01, 0.007, 'wt_skin', { color: scale(skin, 0.86), uvScale: 14 });
+    sk.box(hx + 0.058, -0.03, -0.026, 0.026, 0.058, 0.024, 'wt_skin', { color: scale(skin, 0.75), uvScale: 14 });
     sk.push().translate(hx + 0.024, 0.026, 0.004).rotateZ(-0.55);
-    sk.box(0, 0, 0, 0.042, 0.015, 0.019, 'wt_skin', { color: scale(skin, 0.92), fit: true });
+    sk.box(0, 0, 0, 0.042, 0.015, 0.019, 'wt_skin', { color: scale(skin, 0.92), uvScale: 14 });
     sk.pop();
     K.into(hand);
   };
@@ -255,22 +256,22 @@ export function buildWatchModel(screen: THREE.Mesh): WatchModel {
     rb.box(cx - 0.045, by - 0.007, 0.012, 0.016, 0.014, 0.003, 'wt_crust', { fit: true });
   }
   // steel shell, lacquered bakelite faceplate, a bright top rail, hazard-striped bottom rail
-  st.box(cx, -H.h / 2, TOP + H.d / 2 - 0.002, H.w, H.h, H.d - 0.004, 'wt_steel', { fit: true });
-  bk.box(cx, -H.h / 2 + 0.003, FRONT - 0.002, H.w - 0.006, H.h - 0.006, 0.004, 'wt_bake', { fit: true });
-  st.box(cx, H.h / 2 - 0.003, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_steel', { fit: true });
+  st.box(cx, -H.h / 2, TOP + H.d / 2 - 0.002, H.w, H.h, H.d - 0.004, 'wt_steel', { uvScale: 30 });
+  bk.box(cx, -H.h / 2 + 0.003, FRONT - 0.002, H.w - 0.006, H.h - 0.006, 0.004, 'wt_bake', { uvScale: 30 });
+  st.box(cx, H.h / 2 - 0.003, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_steel', { uvScale: 30 });
   pt.box(cx, -H.h / 2 - 0.002, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_haz', { fit: true });
-  for (const sx of [-1, 1]) rb.box(cx + sx * (H.w / 2 + 0.003), -0.026, TOP + H.d / 2 - 0.002, 0.006, 0.052, H.d - 0.006, 'wt_rubber', { fit: true });
+  for (const sx of [-1, 1]) rb.box(cx + sx * (H.w / 2 + 0.003), -0.026, TOP + H.d / 2 - 0.002, 0.006, 0.052, H.d - 0.006, 'wt_rubber', { uvScale: 30 });
   // the CRT bezel: a thick steel frame standing proud of the faceplate, riveted
   const bw = SCREEN.w + 0.012, bh = SCREEN.h + 0.012, sxc = SCREEN.x, syc = SCREEN.y;
-  st.box(sxc, syc + SCREEN.h / 2, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { fit: true });
-  st.box(sxc, syc - SCREEN.h / 2 - 0.006, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { fit: true, color: 0xd8d8d8 });
-  for (const sx of [-1, 1]) st.box(sxc + sx * (SCREEN.w / 2 + 0.003), syc - bh / 2 + 0.006, FRONT + 0.0015, 0.006, bh - 0.012, 0.003, 'wt_steel', { fit: true, color: sx < 0 ? 0xf0f0f0 : 0xd0d0d0 });
+  st.box(sxc, syc + SCREEN.h / 2, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { uvScale: 30 });
+  st.box(sxc, syc - SCREEN.h / 2 - 0.006, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { uvScale: 30, color: 0xd8d8d8 });
+  for (const sx of [-1, 1]) st.box(sxc + sx * (SCREEN.w / 2 + 0.003), syc - bh / 2 + 0.006, FRONT + 0.0015, 0.006, bh - 0.012, 0.003, 'wt_steel', { uvScale: 30, color: sx < 0 ? 0xf0f0f0 : 0xd0d0d0 });
   for (const [rx, ry] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
     br.push().translate(sxc + rx * (bw / 2 - 0.003), syc + ry * (bh / 2 - 0.003), FRONT + 0.003).rotateX(Math.PI / 2);
     br.cylinder(0, 0, 0, 0.0013, 0.0012, 6, 'wt_brass');
     br.pop();
   }
-  rb.box(sxc, syc - SCREEN.h / 2 - 0.001, FRONT - 0.0004, SCREEN.w + 0.002, SCREEN.h + 0.002, 0.0005, 'wt_rubber', { fit: true });
+  rb.box(sxc, syc - SCREEN.h / 2 - 0.001, FRONT - 0.0004, SCREEN.w + 0.002, SCREEN.h + 0.002, 0.0005, 'wt_rubber', { uvScale: 30 });
   // the control column: dial plate, gauge bezel and face
   pt.box(COL_X, 0.0035, FRONT + 0.0004, 0.026, 0.026, 0.0008, 'wt_dialring', { fit: true });
   st.push().translate(COL_X, -0.019, FRONT + 0.0005).rotateX(Math.PI / 2);
@@ -291,8 +292,8 @@ export function buildWatchModel(screen: THREE.Mesh): WatchModel {
     br.pop();
   }
   // armoured strap plates down the cuff
-  st.box(cx - H.w / 2 + 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { fit: true, color: 0xb0b0b0 });
-  st.box(cx + H.w / 2 - 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { fit: true, color: 0xb0b0b0 });
+  st.box(cx - H.w / 2 + 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { uvScale: 30, color: 0xb0b0b0 });
+  st.box(cx + H.w / 2 - 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { uvScale: 30, color: 0xb0b0b0 });
   K.into(root);
 
   // ---- the CRT (its own glass and shader)

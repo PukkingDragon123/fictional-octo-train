@@ -3,9 +3,7 @@
 // flicker after that. Any key, click or tap skips it.
 import { h, esc } from './common';
 import { sfx } from './sfx';
-import { calm } from './settings';
-import { logoCanvas } from '../pixelart';
-import { toUrl } from '../pixelkit';
+import { calm, uiSettings } from './settings';
 
 const LINES: [string, number][] = [
   ['MERIDIAN INSTITUTE  //  REMITTANCE PROGRAMME  //  SUBJECT ROOM 4', 0],
@@ -33,16 +31,10 @@ export function runBoot(): Promise<void> {
   try { first = !sessionStorage.getItem('noclip.booted'); sessionStorage.setItem('noclip.booted', '1'); } catch { /* storage blocked */ }
   return new Promise((resolve) => {
     const el = h('div', 't-boot');
-    const scr = h('div', 't-boot-scr');
+    const scr = h('div', 't-boot-scr nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
     const pre = h('pre');
-    const logo = h('div', 't-boot-logo');
-    {
-      const pc = logoCanvas();
-      const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxn')) || 2;
-      const k = Math.max(px, Math.min(px * 2, Math.floor((window.innerWidth * 0.8) / pc.w)));
-      const img = new Image(); img.src = toUrl(pc); img.alt = 'NOCLIP'; img.style.width = pc.w * k + 'px'; img.style.height = pc.h * k + 'px';
-      logo.append(img);
-    }
+    // the name on six Nixie tubes
+    const logo = h('div', 't-boot-logo', '<span class="nx-boot-logo">' + [...'NOCLIP'].map((c) => `<i>${c}</i>`).join('') + '</span>');
     scr.append(pre, logo, h('div', 'crt-fx'));
     el.append(scr, h('div', 't-boot-skip', 'press any key'));
     document.body.append(el);

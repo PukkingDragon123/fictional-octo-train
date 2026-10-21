@@ -59,8 +59,10 @@ export class Glove extends Thing {
     const goal = Math.max(this.press, this.on ? 1 : 0);
     this.curl = ease(this.curl, goal, dt * 12);
     const t = performance.now() * 0.03;
-    for (let i = 0; i < 4; i++) this.fingers[i].rotation.x = -this.curl * (1.5 + i * 0.05) + (this.on ? Math.sin(t + i) * 0.03 : 0);
-    this.thumb.rotation.z = this.curl * 0.9;
+    // open: fingers splayed flat; gripping: they rise into a claw (reads from above), trembling under load
+    for (let i = 0; i < 4; i++) { const f = this.fingers[i]; f.rotation.x = this.curl * (1.2 + i * 0.04) + (this.on ? Math.sin(t + i) * 0.04 : 0); f.rotation.y = (1 - this.curl) * (i - 1.5) * 0.12; }
+    this.thumb.rotation.x = this.curl * 0.9;
+    this.thumb.rotation.y = 0.7 - this.curl * 0.5;
     return Math.abs(goal - this.curl) > 0.003;
   }
 }

@@ -360,7 +360,7 @@ export class QuestRuntime {
         const fk = `obj:${d.key}:${o.id}`;
         if (flags.has(fk) && !this.seenObj.has(fk)) {
           this.seenObj.add(fk);
-          G.watch?.message?.('OBJECTIVE DONE', o.text, 'ok', 3);
+          G.watch?.message?.('OBJECTIVE DONE', o.text, 'ok', 3, true);
           G.audio?.ui?.('watchTick', 0.5);
         }
       }

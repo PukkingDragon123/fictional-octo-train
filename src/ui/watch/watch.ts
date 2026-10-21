@@ -90,6 +90,8 @@ export class Watch {
   private skin = -1;
   private hitFx = 0;
   private knobKick = 0;
+  /** 1 while the wrist is up only for a peek (smaller, further off) */
+  private peekMix = 0;
   private knobA = 0;
   private needleA = 0;
   private glow: THREE.PointLight;
@@ -266,12 +268,12 @@ export class Watch {
   // ================================================================ notifications
   /** a teletype line on the CRT (on the glance when the wrist is down: it comes up to show it) */
   msgs: { title: string; body: string; tone: 'ok' | 'warn' | 'rp'; until: number }[] = [];
-  message(title: string, body = '', tone: 'ok' | 'warn' | 'rp' = 'ok', secs = 3) {
+  message(title: string, body = '', tone: 'ok' | 'warn' | 'rp' = 'ok', secs = 3, raise = false) {
     this.msgs.push({ title: String(title).toUpperCase(), body: String(body).toUpperCase(), tone, until: G.time + secs });
     if (this.msgs.length > 4) this.msgs.shift();
     this.drawT = 0;
     const p = G.local;
-    if (p && !this.open && !this.peekKey && this.wearing(p) && !p.body.dead && (!fpOwner() || fpOwner() === 'watch')) { this.peekKey = '__msg'; this.peekT = secs; }
+    if (raise && p && !this.open && !this.peekKey && this.wearing(p) && !p.body.dead && (!fpOwner() || fpOwner() === 'watch')) { this.peekKey = '__msg'; this.peekT = secs; }
   }
   /** the message showing now (oldest first) */
   currentMsg() { while (this.msgs.length && this.msgs[0].until < G.time) this.msgs.shift(); return this.msgs[0] || null; }
@@ -288,7 +290,7 @@ export class Watch {
     this.syncPages();
     const n = researchNode(key);
     G.audio?.ui?.('nodeUnlock', 0.55);
-    this.message('FUNCTION UPLOADED', n?.title || key, 'rp', 3.5);
+    this.message('FUNCTION UPLOADED', n?.title || key, 'rp', 3.5, true);
     this.hitFx = 1;
     if (key === 'tool_torch') this.hookTorch(true);
   }
@@ -502,6 +504,9 @@ export class Watch {
     }
     this.raise = damp(this.raise, up ? 1 : 0, up ? 8 : 10, dt);
     this.zoom = damp(this.zoom, this.small ? 0 : 1, 7, dt);
+    // (held while it lowers again, so a peek drops away where it came up)
+    if (this.open) this.peekMix = damp(this.peekMix, 0, 9, dt);
+    else if (this.peekKey) this.peekMix = this.raise < 0.05 ? 1 : damp(this.peekMix, 1, 9, dt);
     this.power = damp(this.power, up && this.raise > 0.6 ? 1 : 0, 9, dt);
     // the first-person stage
     if (this.raise > 0.01 && !this.staged) { this.staged = fpClaim('watch', 1); if (!this.staged) { this.open = false; this.peekKey = null; p.scannerOpen = false; return; } }
@@ -533,13 +538,15 @@ export class Watch {
     const d1 = Math.max(SCREEN.h / (2 * tanH * 0.62), 0.106 / (2 * tanH * cam.aspect));
     const halfH = d1 * tanH;
     const fx = -0.0157, fy = -0.001, fz = -d1;
-    // small: right of centre (clear of the body HUD along the bottom), further away, tilted toward
-    // the eye, the forearm running off the bottom edge
-    const d2 = d1 * 2.6, h2 = d2 * tanH, w2 = h2 * cam.aspect;
-    const sx = w2 * 0.56, sy = -h2 * 0.1, sz = -d2;
+    // away from the face: held up on the move (Tab while walking), or a quick glance at the right
+    // edge when something lands by itself (a peek). Both tilt toward the eye with the forearm
+    // running steeply off the bottom edge, clear of the body HUD along the bottom.
+    const pm = this.peekMix;
+    const d2 = d1 * (2.8 + 1.6 * pm), h2 = d2 * tanH, w2 = h2 * cam.aspect;
+    const sx = w2 * (0.56 + 0.18 * pm), sy = -h2 * (0.1 + 0.04 * pm), sz = -d2;
     const k = this.zoom, e = k * k * (3 - 2 * k);
     let x = sx + (fx - sx) * e, y = sy + (fy - sy) * e, z = sz + (fz - sz) * e;
-    let rx = -0.3 * (1 - e), ry = -0.3 * (1 - e), rz = 0.42 * (1 - e);
+    let rx = -(0.28 + 0.06 * pm) * (1 - e), ry = -(0.36 + 0.2 * pm) * (1 - e), rz = (0.62 + 0.3 * pm) * (1 - e);
     // raise from below with a little overshoot
     const r = this.raise, c1 = 1.5, back = 1 + (c1 + 1) * Math.pow(r - 1, 3) + c1 * Math.pow(r - 1, 2);
     const lift = (1 - back) * (halfH * 1.6);

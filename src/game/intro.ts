@@ -370,7 +370,6 @@ export class Intro implements GameSystem {
     this.me.root.removeFromParent();
     this.me.dispose();
     this.band = null;
-    for (const q of [...this.lines]) this.dropLine(q);
     this.set.dispose();
     this.canvas.style.filter = '';
     G.audio?.positionalLoop?.('ix_drag', null); G.audio?.positionalLoop?.('ix_fluoro', null); G.audio?.positionalLoop?.('ix_drone', null);
@@ -466,66 +465,10 @@ export class Intro implements GameSystem {
   }
   private hotSkip() { this.skipHot = 2.6; this.skipBtn.classList.add('hot'); }
   private letterbox(on: boolean) { this.root.classList.toggle('letterbox', on); }
-  /** a spoken line: free floating text by whoever said it (no box), and bus 'subtitle' with fp: true for the voice */
+  /** a spoken line: bus 'subtitle' (the speech renderer draws it as free floating text, with a voice) */
   private say(who: string, text: string, style: LineStyle = 'guard', sound = true) {
-    const dur = readTime(text);
-    bus.emit('subtitle', { who: who === 'self' ? this.p.name : who, text, dur, style, ...(this.staged ? { fp: true } : {}) });
+    bus.emit('subtitle', { who: who === 'self' ? this.p.name : who, text, dur: readTime(text), style, ...(style === 'self' ? { pid: this.p.id } : {}) });
     if (sound && style === 'guard') G.audio?.flat?.('guard_bark', 'sfx', 0.7);
-    if (!this.staged) return;
-    const el = document.createElement('div');
-    el.className = 'nc-free-text ix-say ' + style;
-    el.textContent = text;
-    this.root.appendChild(el);
-    const gd = style === 'guard' ? this.speakerNear() : null;
-    // older lines drift up out of the way
-    for (const q of this.lines) q.lift += 1;
-    this.lines.push({ el, life: dur + 0.4, age: 0, gd, lift: 0 });
-    while (this.lines.length > 3) this.dropLine(this.lines[0]);
-  }
-  private lines: { el: HTMLDivElement; life: number; age: number; gd: Guard | null; lift: number }[] = [];
-  private lastBark: Guard | null = null;
-  /** the officer who is talking: the one nearer the middle of the picture (alternating on a tie) */
-  private speakerNear(): Guard {
-    const cam = fpCamera();
-    const score = (gd: Guard) => { gd.rig.jointWorld('head', v4); v4.project(cam); return v4.z > 1 ? 9 : Math.abs(v4.x) + Math.abs(v4.y) * 0.5; };
-    const a = score(this.A), b = score(this.B);
-    const gd = Math.abs(a - b) < 0.15 ? (this.lastBark === this.A ? this.B : this.A) : a < b ? this.A : this.B;
-    this.lastBark = gd;
-    return gd;
-  }
-  private dropLine(q: Intro['lines'][number]) {
-    q.el.remove();
-    const i = this.lines.indexOf(q); if (i >= 0) this.lines.splice(i, 1);
-  }
-  /** a stage point to CSS pixels (through the overlay's low-res target and its margin) */
-  private toScreen(v: THREE.Vector3, out: { x: number; y: number; behind: boolean }) {
-    const pr = this.g.pr as unknown as { lowW: number; lowH: number; margin: number; scale: number; dpr: number };
-    const RW = pr.lowW + pr.margin * 2, RH = pr.lowH + pr.margin * 2;
-    v3.copy(v).project(fpCamera());
-    out.behind = v3.z > 1;
-    out.x = (((v3.x * 0.5 + 0.5) * RW - pr.margin) * pr.scale) / pr.dpr;
-    out.y = innerHeight - (((v3.y * 0.5 + 0.5) * RH - pr.margin) * pr.scale) / pr.dpr;
-    return out;
-  }
-  private scr = { x: 0, y: 0, behind: false };
-  /** speech hangs over the officer's head (pinned to the edge of the picture when he is off it); your own words low in the middle */
-  private updLines(dt: number) {
-    for (const q of [...this.lines]) {
-      q.age += dt;
-      if (q.age > q.life) { this.dropLine(q); continue; }
-      let x = innerWidth / 2, y = innerHeight * 0.8;
-      if (q.gd) {
-        q.gd.rig.jointWorld('head', v4); v4.y += 0.36;
-        const s = this.toScreen(v4, this.scr);
-        x = s.behind ? (s.x < innerWidth / 2 ? innerWidth * 0.88 : innerWidth * 0.12) : s.x;
-        y = s.behind ? innerHeight * 0.3 : s.y;
-        x = Math.max(innerWidth * 0.14, Math.min(innerWidth * 0.86, x));
-        y = Math.max(innerHeight * 0.16, Math.min(innerHeight * 0.74, y));
-      }
-      const a = Math.min(1, (q.life - q.age) * 3, q.age * 10);
-      q.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%) translateY(${(-q.lift * 1.5 - q.age * 0.12).toFixed(2)}em)`;
-      q.el.style.opacity = a.toFixed(3);
-    }
   }
   private paintDom(dt: number) {
     this.shade.style.opacity = String(clamp01(this.shadeA));
@@ -711,7 +654,6 @@ export class Intro implements GameSystem {
       this.updBody(dt);
       this.set.update(dt, this.eye);
       this.updCamera(dt);
-      this.updLines(dt);
       // your heart, louder the worse it gets
       this.heartT -= dt;
       if (this.heartT <= 0 && this.phase !== 'drag') { this.heartT = 0.62 - Math.min(0.25, this.hurtA * 0.2); this.sfx('ix_heart', 0.25 + this.hurtA * 0.3); }

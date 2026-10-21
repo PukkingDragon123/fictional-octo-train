@@ -70,6 +70,8 @@ export class GrabSystem implements GameSystem {
   private pending: TimedAction | null = null;
   private edge: HoldEdgeAction | null = null;
   private lmbClaim = false;
+  /** the frame E let go of something */
+  eLetGo = -1;
   private hint: HTMLDivElement;
   private hintKey = '';
   private hover: { t: VerbTarget | null; key: string; prim: Verb | null; tool: string; grab: boolean; at: number } = { t: null, key: '', prim: null, tool: '', grab: false, at: 0 };
@@ -224,7 +226,8 @@ export class GrabSystem implements GameSystem {
     if (inp.hit('hold') && !this.holding) { const t = this.nearestGrab(p); if (t) this.grab(p, t, 'virtual'); else bus.emit('think', p, 'Nothing to get hold of.'); }
     if (inp.up('hold') && this.src === 'virtual') this.letGo();
 
-    // ---- while holding
+    // ---- while holding: E lets go (and only that: src/interact/world.ts defaultAction checks eLetGo)
+    if (inp.hit('interact') && this.holding) { this.letGo(); this.eLetGo = G.time; }
     const push = G.destruct?.push;
     if (push?.holding) {
       if (inp.hit('shove')) push.shove(p);

@@ -350,8 +350,8 @@ export class PushDrag {
     if (p.body.dead || p.body.downed || cur !== st.action) { this.end('lost'); return; }
     if (st.mode === 'carry') this.updateCarry(st, p, dt);
     else this.updatePush(st, p, dt);
+    if (this.st !== st) return; // let go (a drawer slid out, out of breath)
     this.send(st, dt);
-    if (G.input.hit('interact')) this.end('key');
   }
   private finishLost(st: PushState) { this.st = st; st.free = false; st.thrown = null; st.topple = null; this.finish(); }
 

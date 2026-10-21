@@ -1,6 +1,6 @@
 /* The first-person intake (src/game/intro.ts): letterbox, eyelids, impact flash, a red pulse at the
-   edges when it hurts, the black closing in at the end. No text boxes: speech floats free over
-   whoever said it, the skip is free text, the title is a sign painted on the wall. */
+   edges when it hurts, the black closing in at the end. No text boxes: speech goes out as bus
+   'subtitle' (drawn as free floating text), the skip is free text, the title is a sign on the wall. */
 .ix-root { position: fixed; inset: 0; pointer-events: none; z-index: 180; font-family: var(--font-speech); color: #eef3e6; overflow: hidden; }
 .ix-svg { position: absolute; width: 0; height: 0; }
 .ix-shade { position: absolute; inset: 0; background: #000; }
@@ -18,12 +18,6 @@
 .ix-bar.top { top: 0; }
 .ix-bar.bot { bottom: 0; }
 .ix-root.letterbox .ix-bar { height: 10vh; }
-
-/* speech floats free (fonts.css .nc-free-text: no box, a soft dark halo), over whoever said it */
-.ix-say { position: absolute; left: 0; top: 0; max-width: min(46ch, 70vw); text-align: center; white-space: normal; will-change: transform, opacity;
-  font-size: clamp(17px, 2.1vw, 25px); line-height: 1.15; opacity: 0; }
-.ix-say.guard { font-family: var(--font-speech); color: #e9e6dc; letter-spacing: .02em; }
-.ix-say.self { font-family: var(--font-type); color: #f1dc9a; font-size: clamp(16px, 1.9vw, 23px); }
 
 /* the skip: free text in the corner, brighter after a tap */
 .ix-skip { position: absolute; right: calc(14px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); pointer-events: auto; cursor: pointer; min-height: 44px; min-width: 44px;

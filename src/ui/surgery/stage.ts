@@ -19,7 +19,7 @@ import { CT, loosePartGeo } from '../../entities/cyberGear';
 import { CyberSlot, SLOT_KIND, SLOT_COVERS, cyberDef, CYBER_SLOTS } from '../../survival/cyberParts';
 import type { StumpCond } from '../../survival/limbs';
 import { csfx, csfxLoop } from './audio';
-import { Screen } from '../font5x7';
+import { fontsReady } from '../../gfx/crt';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { metalMat, type MetalKind } from '../../craft/metal';
 
@@ -425,13 +425,18 @@ export class SurgeryStage {
     scr.position.set(-1.65, 1.5, 0.55); scr.rotation.y = 0.35; scr.translateZ(0.24);
     this.scene.add(scr);
     // the IN USE lightbox over the door
-    const sc = document.createElement('canvas'); sc.width = 64; sc.height = 16;
-    const scrn = new Screen(64, 16);
-    scrn.clear(0x2a0806);
-    scrn.frame(0, 0, 64, 16, Screen.c(0x5a1a10));
-    scrn.text('IN USE', 32 - scrn.textW('IN USE', 1) / 2, 4, Screen.c(0xff5030));
-    sc.getContext('2d')!.putImageData(scrn.img, 0, 0);
-    const st = new THREE.CanvasTexture(sc); st.magFilter = THREE.NearestFilter; st.minFilter = THREE.NearestFilter; st.colorSpace = THREE.SRGBColorSpace;
+    // a lightbox: red-lit glass with the words in an enamel-sign face
+    const sc = document.createElement('canvas'); sc.width = 128; sc.height = 32;
+    const sx = sc.getContext('2d')!;
+    const paintSign = () => {
+      const g = sx.createRadialGradient(64, 16, 4, 64, 16, 70); g.addColorStop(0, '#5a1208'); g.addColorStop(1, '#200604');
+      sx.fillStyle = g; sx.fillRect(0, 0, 128, 32);
+      sx.font = "600 22px 'Oswald', 'Arial Narrow', sans-serif"; sx.textAlign = 'center'; sx.textBaseline = 'middle';
+      sx.shadowColor = '#ff6030'; sx.shadowBlur = 8; sx.fillStyle = '#ffb090'; sx.fillText('IN USE', 64, 17);
+      st.needsUpdate = true;
+    };
+    const st = new THREE.CanvasTexture(sc); st.colorSpace = THREE.SRGBColorSpace;
+    paintSign(); fontsReady().then(paintSign);
     this.sign = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.08), [this.mat, this.mat, this.mat, this.mat, new THREE.MeshBasicMaterial({ map: st, fog: false }), this.mat]);
     this.sign.position.set(-0.4, 2.62, D0 + 0.06);
     this.scene.add(this.sign);
@@ -514,7 +519,7 @@ export class SurgeryStage {
       M.last = M.t;
       c.fillStyle = '#020806'; c.fillRect(0, 34, 64, 12);
       c.fillStyle = this.stress > 0.7 ? '#ff4060' : '#40ff90';
-      c.font = '8px monospace';
+      c.font = "8px 'IBM Plex Mono', monospace";
       c.fillText(`HR ${Math.round(bpm)}`, 2, 42);
       c.fillStyle = '#30ffe0'; c.fillText(`SpO2 ${Math.round(98 - this.stress * 9)}`, 32, 42);
     }

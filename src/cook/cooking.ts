@@ -54,6 +54,8 @@ export class CookView {
   private flames: THREE.Mesh;
   private light = new THREE.PointLight(0xff7a2a, 1.2, 1.6, 2);
   private surface: THREE.Mesh;
+  private splashStove!: THREE.Mesh;
+  private splashFire!: THREE.Mesh;
   private slots: Slot[] = [];
   private bits: Bit[] = [];
   private pot: { it: Item; cls: string }[] = [];
@@ -97,8 +99,14 @@ export class CookView {
     const top = new ModelBuilder();
     top.box(0, -0.06, 0, 1.5, 0.06, 0.78, { all: 'metal_dark', top: 'bt_plate' }, { uvScale: 8 });
     top.box(0, -0.06, 0.39, 1.5, 0.06, 0.02, 'metal_grey');
+    top.box(0, -0.5, 0.2, 1.5, 0.44, 0.4, 'metal_dark');
     this.surface = new THREE.Mesh(top.build(), M);
     this.rig.add(this.surface);
+    // the wall behind: kitchen tile for a hob, soot-black brick for a fire
+    const bs = new ModelBuilder(); bs.box(0, -0.06, -0.41, 1.6, 0.62, 0.04, 'wall_pool', { uvScale: 1 });
+    this.splashStove = new THREE.Mesh(bs.build(), M); this.rig.add(this.splashStove);
+    const bf = new ModelBuilder(); bf.box(0, -0.06, -0.41, 1.6, 0.62, 0.04, 'wall_brick', { uvScale: 1, color: 0x8a7a70 });
+    this.splashFire = new THREE.Mesh(bf.build(), M); this.rig.add(this.splashFire);
     // burner rings under the pan and the pot
     const br = new ModelBuilder();
     for (const [x, r] of [[PAN_X, 0.15], [POT_X, 0.11]] as [number, number][]) for (let i = 0; i < 20; i++) { const a = (i / 20) * Math.PI * 2; br.box(x + Math.cos(a) * r, 0, Math.sin(a) * r, 0.03, 0.012, 0.03, 'white', { emissive: 1, ao: false }); }
@@ -106,7 +114,7 @@ export class CookView {
     this.rig.add(new THREE.Mesh(br.build(), this.burnerMat));
     // flames licking up (fire stations)
     const fl = new ModelBuilder();
-    for (let i = 0; i < 9; i++) { const a = i * 0.7 + 0.2; fl.cross(PAN_X + Math.cos(a) * 0.195, -0.01, Math.sin(a) * 0.195, 0.06, 0.075, 'fx_flame', { emissive: 1, rot: a }); }
+    for (let i = 0; i < 9; i++) { const a = i * 0.7 + 0.2; fl.cross(PAN_X + Math.cos(a) * 0.19, -0.012, Math.sin(a) * 0.19, 0.045, 0.06, 'fx_flame', { emissive: 1, rot: a }); }
     this.flames = new THREE.Mesh(fl.build(), worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true, cutout: true, doubleSide: true, ckTag: 'fl' } as any));
     this.rig.add(this.flames);
     // ---- cast-iron pan with a long handle
@@ -138,7 +146,7 @@ export class CookView {
     for (let i = 0; i < N_SLOTS; i++) this.slots.push({ it: null, mesh: null, x: -0.6 + i * 0.09, z: 0.3 });
     for (let i = 0; i < 10; i++) this.bitMats.push(cookMat('bit' + i));
     // light
-    this.light.position.set(PAN_X, 0.12, 0); this.rig.add(this.light);
+    this.light.position.set(PAN_X, -0.01, 0.02); this.rig.add(this.light);
     const key = new THREE.DirectionalLight(0xfff0e0, 0.9); key.position.set(-0.4, 1, 0.6); this.rig.add(key);
     this.rig.add(new THREE.AmbientLight(0x8a90a0, 0.5));
     // smoke / steam / spatter points
@@ -150,8 +158,8 @@ export class CookView {
     this.points = new THREE.Points(pg, new THREE.PointsMaterial({ size: 0.022, vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false }));
     this.points.frustumCulled = false; this.rig.add(this.points);
     // camera framing: looking down at the stovetop
-    this.rig.position.set(0, -0.08, -2.0);
-    this.rig.rotation.x = 0.82;
+    this.rig.position.set(0, 0.0, -1.75);
+    this.rig.rotation.x = 0.9;
     // ---- the recipe card, propped against the back of the stove (typed, coffee-stained)
     this.cardM = sheetMesh(this.card, 0.27, 0.27 * 330 / 320);
     this.cardM.position.set(0.6, 0.14, -0.34); this.cardM.rotation.set(-0.32, -0.22, 0.04);
@@ -214,6 +222,7 @@ export class CookView {
     this.fillBoard(p);
     G.ui && (G.ui.modal = this.token);
     this.knob.visible = kind === 'stove';
+    this.splashStove.visible = kind === 'stove'; this.splashFire.visible = kind !== 'stove';
     p.actions.clear();
     p.actions.add(new CookingAction(p, () => this.open, o.x + 0.5, o.y + 0.5));
     this.rig.position.y = -0.5; // slides up into view
@@ -353,7 +362,7 @@ export class CookView {
     if (inp.hit('shove')) this.toss();
     const H = this.stationHeat();
     // slide the rig into place, pan kick
-    this.rig.position.y = lerp(this.rig.position.y, -0.08, 1 - Math.exp(-dt * 9));
+    this.rig.position.y = lerp(this.rig.position.y, 0.0, 1 - Math.exp(-dt * 9));
     this.panKick = Math.max(0, this.panKick - dt * 3.5);
     const kick = Math.sin(this.panKick * Math.PI) * 0.06;
     this.panG.position.y = kick; this.panG.rotation.z = -kick * 1.5;
@@ -362,7 +371,7 @@ export class CookView {
     this.burnerMat.color.setRGB(H * 1.0 * fl, H * 0.35 * fl, H * 0.08);
     this.flames.visible = this.kind === 'fire' && H > 0;
     this.flames.scale.y = 0.6 + H * 0.6 * fl;
-    this.light.intensity = H * 1.4 * fl;
+    this.light.intensity = H * 0.9 * fl;
     // pan pieces: the side on the iron cooks
     const rate = H * 0.11;
     let sizzle = 0;

@@ -1,19 +1,5 @@
-/* SURGICAL THEATRE No.3 (src/ui/surgery). Only placement here: every readout
-   is a pixel-art instrument canvas (panel.ts) scaled by whole pixels. */
+/* SURGICAL THEATRE No.3 (src/ui/surgery). Placement only: everything you read
+   is on a 3D instrument in the stage's foreground layer (instruments.ts). */
 .sg-root { position: fixed; inset: 0; z-index: 220; background: #0c0a08; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
 .sg-view { position: absolute; inset: 0; }
-.sg-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
-.sg-pix { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; filter: drop-shadow(0 4px 0 rgba(0, 0, 0, 0.5)); transition: opacity 0.35s, transform 0.35s; }
-.sg-plate { left: 14px; top: 14px; pointer-events: none; }
-.sg-crt { right: 14px; top: 50%; transform: translateY(-54%); }
-.sg-con { left: 14px; bottom: 12px; }
-.sg-tag { left: 0; top: 0; pointer-events: none; filter: drop-shadow(1px 2px 0 rgba(0, 0, 0, 0.45)); transition: none; }
-.sg-stamp { left: 50%; top: 42%; transform: translate(-50%, -50%) scale(1.8); opacity: 0; pointer-events: none; filter: none; }
-.sg-stamp.on { opacity: 1; transform: translate(-50%, -50%) scale(1); transition: transform 0.16s cubic-bezier(.3, 1.6, .5, 1), opacity 0.08s; }
-.sg-root.intro .sg-crt, .sg-root.intro .sg-con { opacity: 0.55; }
-.sg-root.done .sg-crt, .sg-root.done .sg-con { opacity: 0; }
-.sg-root.portrait .sg-crt { left: 50%; right: auto; top: auto; bottom: calc(14px + var(--con-h, 64px)); transform: translateX(-50%); }
-.sg-root.portrait .sg-con { left: 50%; transform: translateX(-50%); }
-.sg-root.portrait .sg-plate { left: 50%; transform: translateX(-50%); }
-/* field surgery: the CRT only */
-.sg-root.field .sg-crt { right: 14px; }
+.sg-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }

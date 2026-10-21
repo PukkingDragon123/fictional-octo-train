@@ -126,6 +126,8 @@ export class Interact {
 
   // ---------------- default interaction (right click / E / USE): the primary verb ----------------
   defaultAction(p: Player, t: PickTarget) {
+    // E while holding something lets go of it
+    if (G.grab?.holding || G.grab?.eLetGo === G.time) { G.grab.letGo(); return; }
     const v = primaryVerb(p, t);
     if (v) { v.run(); return; }
     this.legacyDefault(p, t);
