@@ -1,12 +1,14 @@
-// What is left of the context menu: a one-word tag. Any system that still
-// hands a list of options to G.ui.openMenu (an item in the backpack, a radio,
-// a treat-this-wound picker) gets a small label at the pointer showing ONE verb
-// at a time: the wheel, the arrow keys or the ‹ › marks step through them, a
-// click / Enter does it, Esc or a click elsewhere puts it away. No list.
+// What is left of the context menu: a strip of embossed label tape. Any system
+// that still hands a list of options to G.ui.openMenu (an item in the backpack,
+// a radio, a treat-this-wound picker) gets a pixel-art tape at the pointer
+// showing ONE verb at a time with its glyph: the wheel, the arrow keys or the
+// ‹ › ends step through them, a click / Enter does it, Esc or a click elsewhere
+// puts it away. No list.
 import './grab.css';
 import { G } from '../game/G';
 import type { MenuOption } from '../ui/ui';
 import { flatten, Verb } from './verbs';
+import { labelTape, verbGlyph, show } from './signs';
 
 export interface VerbTagHandle { el: HTMLDivElement; close: () => void }
 
@@ -21,11 +23,16 @@ export function openVerbTag(x: number, y: number, title: string, opts: MenuOptio
   el.className = 'gx-tag';
   el.setAttribute('role', 'listbox');
   el.setAttribute('aria-label', title || 'Actions');
+  const cv = document.createElement('canvas');
+  el.appendChild(cv);
+  const k = Math.max(2, Math.round((G.pr?.scale ?? 2) / (G.pr?.dpr ?? 1)));
+  let zones = { leftEnd: 0, rightStart: 9999 };
   const draw = () => {
     const v = verbs[sel];
-    el.classList.toggle('dis', !!v.why);
-    el.classList.toggle('danger', !!v.danger);
-    el.innerHTML = `${title ? `<div class="gx-t">${icon ? `<img src="${icon}" alt="">` : ''}${esc(title)}</div>` : ''}<div class="gx-row">${verbs.length > 1 ? '<i data-d="-1">‹</i>' : ''}<b role="option" aria-selected="true">${esc(v.label)}</b>${verbs.length > 1 ? `<i data-d="1">›</i><em>${sel + 1}/${verbs.length}</em>` : ''}</div>${v.why ? `<div class="gx-why">${esc(String(v.why))}</div>` : ''}`;
+    el.setAttribute('aria-valuetext', v.label + (v.why ? ' (' + v.why + ')' : ''));
+    const t = labelTape(v.label.replace(/\s*\(.*?\)/g, ''), verbGlyph(v.label), sel, verbs.length, v.why, title);
+    zones = t;
+    show(cv, t.scr, k);
   };
   const step = (d: number) => { sel = (sel + d + verbs.length) % verbs.length; draw(); G.audio?.ui?.('hover', 0.5); };
   let closed = false;
@@ -55,8 +62,11 @@ export function openVerbTag(x: number, y: number, title: string, opts: MenuOptio
   const onWheel = (e: WheelEvent) => { e.preventDefault(); e.stopImmediatePropagation(); step(Math.sign(e.deltaY) || 1); };
   el.addEventListener('click', (e) => {
     e.stopPropagation();
-    const d = (e.target as HTMLElement).dataset?.d;
-    if (d) step(Number(d)); else run();
+    // the ‹ › ends of the tape step, the word does it
+    const x = (e.clientX - cv.getBoundingClientRect().left) / k;
+    if (verbs.length > 1 && x < zones.leftEnd) step(-1);
+    else if (verbs.length > 1 && x > zones.rightStart) step(1);
+    else run();
   });
   el.addEventListener('contextmenu', (e) => { e.preventDefault(); close(); });
   window.addEventListener('keydown', onKey, true);
@@ -70,4 +80,3 @@ export function openVerbTag(x: number, y: number, title: string, opts: MenuOptio
   return { el, close };
 }
 
-function esc(s: string) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]); }

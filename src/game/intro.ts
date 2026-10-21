@@ -59,6 +59,8 @@ import { fpGroup, fpClaim, fpRelease, fpCamera } from '../fp/fp';
 import { hitstop } from '../gfx/juice';
 import { IntroSet, IX, STAGE } from './introSet';
 import { worldMaterial } from '../gfx/materials';
+import { txt } from '../content/furniture/a_lib';
+import { pixelTex, speechTex, drawSkipKey, type PixelTex } from './pixelText';
 import type { SeamFx } from './seam';
 import './intro.css';
 
@@ -161,28 +163,63 @@ function fpPose(name: string, t: number, k = 9): Pose | null {
   return null;
 }
 
-/** the BAILIFF band as bolted on: chunky steel, a bolt head, a little screen */
-function bandMesh(): { g: THREE.Group; screen: THREE.Mesh; ctx: CanvasRenderingContext2D | null; tex: THREE.CanvasTexture } {
+/** the BAILIFF band as bolted on: a chunky 1970s wrist unit. A riveted steel housing on a hinged steel cuff,
+ *  a round amber-phosphor CRT the size of a coin, a signal needle in a little window, an amber lamp, the bolt head. */
+interface Band { g: THREE.Group; crt: PixelTex; needle: THREE.Object3D; lamp: THREE.Mesh; lampMat: THREE.MeshBasicMaterial }
+function bandMesh(): Band {
   const mb = new ModelBuilder();
-  mb.cylinder(0, -0.045, 0, 0.052, 0.07, 10, 'metal_grey', { color: 0x9aa0a6, caps: true });
-  mb.box(0, -0.035, 0.05, 0.06, 0.05, 0.025, 'metal_dark');
-  mb.cylinder(0.054, -0.02, 0, 0.012, 0.02, 6, 'chrome');
-  mb.cylinder(-0.054, -0.02, 0, 0.012, 0.02, 6, 'chrome');
-  mb.box(0, -0.045, -0.052, 0.035, 0.035, 0.012, 'zd_hazard');
+  // the cuff round the wrist (hand-local: the arm runs along y), two hinge knuckles, the bolt through it
+  mb.cylinder(0, -0.04, 0, 0.05, 0.062, 10, 'metal_grey', { color: 0x8a8e90, caps: true });
+  for (const y of [-0.036, 0.012]) mb.cylinder(0, y, 0, 0.053, 0.008, 10, 'metal_dark');
+  mb.cylinder(-0.052, -0.02, 0.0, 0.011, 0.024, 6, 'chrome');
+  mb.box(-0.06, -0.016, 0, 0.012, 0.016, 0.016, 'metal_brass');
+  // the housing on the back of the wrist: steel box, rivets, a stencilled serial plate
+  mb.box(0, -0.048, 0.044, 0.072, 0.07, 0.03, 'metal_dark', { color: 0x6a6e70 });
+  for (const [x, y] of [[-0.03, -0.044], [0.03, -0.044], [-0.03, 0.017], [0.03, 0.017]]) mb.box(x, y, 0.0595, 0.005, 0.005, 0.003, 'chrome');
+  mb.box(0, -0.046, 0.0592, 0.05, 0.008, 0.002, 'zd_hazard');
+  // the CRT bezel (a squat cone of black bakelite), the needle window, the lamp collar
+  mb.push().translate(-0.008, -0.004, 0.06).rotateX(Math.PI / 2);
+  mb.cylinder(0, 0, 0, 0.021, 0.008, 12, 'plastic_black', { rTop: 0.017 });
+  mb.pop();
+  mb.box(0.026, -0.03, 0.0595, 0.016, 0.022, 0.003, 'plastic_black');
+  mb.push().translate(0.026, 0.008, 0.06).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.007, 0.006, 8, 'chrome'); mb.pop();
   const g = new THREE.Group();
   const body = new THREE.Mesh(mb.build(), worldMaterial(STAGE));
-  const cv = document.createElement('canvas'); cv.width = 32; cv.height = 16;
-  const ctx = cv.getContext('2d');
-  const tex = new THREE.CanvasTexture(cv);
-  tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;
-  const sm = new THREE.MeshBasicMaterial({ map: tex });
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.056, 0.03), sm);
-  screen.position.set(0, -0.01, 0.0635); // on the face of the screen box
-  // the same read-out on the other side too (whichever way the wrist is turned, you see it)
-  const back = new THREE.Mesh(screen.geometry, sm);
-  back.position.set(0, -0.01, -0.0585); back.rotation.y = Math.PI;
-  g.add(body, screen, back);
-  return { g, screen, ctx, tex };
+  // the phosphor: a round 24x24 pixel face behind curved glass
+  const crt = pixelTex(24, 24);
+  const face = new THREE.Mesh(new THREE.CircleGeometry(0.0165, 16), new THREE.MeshBasicMaterial({ map: crt.tex }));
+  face.position.set(-0.008, -0.004, 0.0685);
+  // the needle in its window
+  const nb = new ModelBuilder(); nb.box(0, 0, 0, 0.0015, 0.016, 0.001, 'white', { color: 0xd02010 });
+  const needle = new THREE.Mesh(nb.build(), worldMaterial(STAGE));
+  needle.position.set(0.026, -0.04, 0.0615);
+  const wb = new ModelBuilder(); wb.box(0.026, -0.03, 0.0612, 0.013, 0.018, 0.0005, 'white', { color: 0xe8dcc0 });
+  const win = new THREE.Mesh(wb.build(), worldMaterial(STAGE));
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0x3a2008 });
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 6), lampMat);
+  lamp.position.set(0.026, 0.008, 0.066);
+  g.add(body, face, win, needle, lamp);
+  return { g, crt, needle, lamp, lampMat };
+}
+/** the phosphor read-out: amber on near-black, scanlines, bloom on the lit pixels */
+function drawCrt(c: PixelTex, t: number, mode: 'boot' | 'link' | 'signal', fill: number) {
+  const pc = c.pc, A = 0xffb347, D = 0x2a1606, BG = 0x0c0703;
+  for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
+    const d = Math.hypot(x - 11.5, y - 11.5);
+    pc.set(x, y, d > 11.6 ? 0x050302 : y % 2 ? BG : 0x120a04);
+  }
+  const ink = (s: string, y: number, col = A) => { const w = s.length * 4 - 1; txt(pc, s, Math.round(12 - w / 2), y, col); };
+  if (mode === 'boot') {
+    // the raster warming up: a bright line, then the words fading in
+    if (t < 0.5) { const w = Math.round(2 + t * 36); for (let x = 12 - w / 2; x < 12 + w / 2; x++) pc.set(x, 11, 0xffe8b0); }
+    else { ink('BAIL', 6, t < 0.8 ? D : A); ink('IFF', 12, t < 1.0 ? D : A); for (let x = 5; x < 5 + Math.floor(14 * fill); x++) pc.set(x, 18, A); }
+  } else {
+    ink(mode === 'signal' ? 'SIG' : 'LINK', 5);
+    // a signal trace across the tube
+    for (let x = 3; x < 21; x++) { const y = Math.round(14 + Math.sin(x * 0.9 + t * 8) * (mode === 'signal' ? 3 : 1)); pc.set(x, y, A); pc.blend(x, y + 1, A, 0.35); }
+    if (mode === 'signal' && Math.sin(t * 7) > 0) ink('<<', 18, 0xffe0a0);
+  }
+  c.flush();
 }
 
 const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3(), v4 = new THREE.Vector3();
@@ -212,8 +249,8 @@ export class Intro implements GameSystem {
   private bodyAt = new THREE.Vector3(); private bodyYaw = 0;
   private path: { pts: [number, number][]; s: number; len: number; speed: number } | null = null;
   private armL: { p: THREE.Vector3; w: number } | null = null;
-  private band: ReturnType<typeof bandMesh> | null = null;
-  private bandT = -1;
+  private band: Band | null = null;
+  private bandT = -1; private crtT = 0;
   // guards' grips: which of my wrists each one holds
   private gripA = 0; private gripB = 0;
   private strikes: Strike[] = [];
@@ -235,11 +272,10 @@ export class Intro implements GameSystem {
   // dom
   private root!: HTMLDivElement; private shade!: HTMLDivElement; private flashEl!: HTMLDivElement; private hurtEl!: HTMLDivElement;
   private lidT!: HTMLDivElement; private lidB!: HTMLDivElement; private wrapEl!: HTMLDivElement;
-  private card!: HTMLDivElement; private capEl!: HTMLDivElement; private skipBtn!: HTMLButtonElement;
+  private skipBtn!: HTMLButtonElement; private skipKey!: PixelTex; private skipLit = -1;
   private svgOff!: SVGFEOffsetElement;
   private shadeA = 1; private flashA = 0; private hurtA = 0; private lid = 1; private lidGoal = 1; private lidHit = 0; private wrapA = 0;
   private dbl = 0; private blur = 0; private desat = 0;
-  private capT = 0;
   private skipping = -1; private skipHot = 0;
   private touch = false;
   private warmQ = [...WARM];
@@ -333,6 +369,7 @@ export class Intro implements GameSystem {
     this.me.root.removeFromParent();
     this.me.dispose();
     this.band = null;
+    for (const q of [...this.lines]) this.dropLine(q);
     this.set.dispose();
     this.canvas.style.filter = '';
     G.audio?.positionalLoop?.('ix_drag', null); G.audio?.positionalLoop?.('ix_fluoro', null); G.audio?.positionalLoop?.('ix_drone', null);
@@ -411,38 +448,88 @@ export class Intro implements GameSystem {
     this.lidT = el('div', 'ix-lid top'); this.lidB = el('div', 'ix-lid bot');
     this.shade = el('div', 'ix-shade');
     const top = el('div', 'ix-bar top'), bot = el('div', 'ix-bar bot');
-    this.capEl = el('div', 'ix-cap');
-    this.card = el('div', 'ix-card', '<div class="l1">MERIDIAN INSTITUTE</div><div class="l2">PROCESSING WING</div><div class="l3">REMITTANCE PROGRAMME · INTAKE</div>');
-    const b = this.skipBtn = el('button', 'ix-skip', '<b>▶▶</b>SKIP' + (this.touch ? '' : '<small>ESC</small>'));
+    const b = this.skipBtn = el('button', 'ix-skip');
+    this.skipKey = pixelTex(46, 14);
+    this.skipKey.cv.className = 'ix-key';
+    b.appendChild(this.skipKey.cv);
+    this.paintKey(false);
     b.type = 'button';
     b.setAttribute('aria-label', 'Skip the intro');
     b.addEventListener('click', (e) => { e.stopPropagation(); this.skip(); });
     b.addEventListener('pointerdown', (e) => e.stopPropagation());
-    b.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; });
-    b.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; });
+    b.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; this.paintKey(true); });
+    b.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; this.paintKey(this.skipHot > 0); });
     // double vision: the picture plus a copy of itself, offset (dx driven per frame)
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'ix-svg');
     svg.innerHTML = '<defs><filter id="ix-dbl" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feOffset in="SourceGraphic" dx="0" dy="0" result="o"/><feComposite in="SourceGraphic" in2="o" operator="arithmetic" k1="0" k2="0.58" k3="0.42" k4="0"/></filter></defs>';
     this.svgOff = svg.querySelector('feOffset') as SVGFEOffsetElement;
-    root.append(svg, vig, this.hurtEl, this.wrapEl, this.flashEl, this.lidT, this.lidB, this.shade, top, bot, this.capEl, this.card, b);
+    root.append(svg, vig, this.hurtEl, this.wrapEl, this.flashEl, this.lidT, this.lidB, this.shade, top, bot, b);
     document.body.appendChild(root);
   }
-  private hotSkip() { this.skipHot = 2.6; this.skipBtn.classList.add('hot'); }
+  private hotSkip() { this.skipHot = 2.6; this.skipBtn.classList.add('hot'); this.paintKey(true); }
+  private paintKey(hot: boolean) { const k = hot ? 1 : 0; if (k === this.skipLit) return; this.skipLit = k; drawSkipKey(this.skipKey.pc, hot, !this.touch); this.skipKey.flush(); }
   private letterbox(on: boolean) { this.root.classList.toggle('letterbox', on); }
-  /** a spoken line: a caption in the letterbox, and bus 'subtitle' (fp: true — the stage draws its own) */
+  /** a spoken line: floating pixel lettering in the stage by whoever said it (and bus 'subtitle' with fp: true, for the voice) */
   private say(who: string, text: string, style: LineStyle = 'guard', sound = true) {
     const dur = readTime(text);
-    const label = who === 'self' ? '' : `<b>${who}</b>`;
-    this.capEl.innerHTML = `${label}<span>${text}</span>`;
-    this.capEl.className = 'ix-cap on ' + style;
-    this.capT = dur;
     bus.emit('subtitle', { who: who === 'self' ? this.p.name : who, text, dur, style, fp: true });
     if (sound && style === 'guard') G.audio?.flat?.('guard_bark', 'sfx', 0.7);
+    if (!this.staged) return;
+    const col = style === 'self' ? 0xf2dc96 : style === 'voss' ? 0xffc070 : 0xe8e4d8;
+    const { t, w, h } = speechTex(text, col);
+    const m = new THREE.Mesh(UNIT_PLANE, new THREE.MeshBasicMaterial({ map: t.tex, transparent: true, depthTest: false, depthWrite: false }));
+    m.renderOrder = 60; m.frustumCulled = false;
+    fpGroup(STAGE_NAME).add(m);
+    const gd = style === 'guard' ? this.speakerNear() : null;
+    // older lines drift up out of the way
+    for (const q of this.lines) q.lift += h + 2;
+    this.lines.push({ m, t, w, h, life: dur + 0.4, age: 0, gd, lift: 0 });
+    while (this.lines.length > 3) this.dropLine(this.lines[0]);
+  }
+  private lines: { m: THREE.Mesh; t: PixelTex; w: number; h: number; life: number; age: number; gd: Guard | null; lift: number }[] = [];
+  private lastBark: Guard | null = null;
+  /** the officer who is talking: the one closer to the middle of the picture (alternating when it is a tie) */
+  private speakerNear(): Guard {
+    const cam = fpCamera();
+    const score = (gd: Guard) => { gd.rig.jointWorld('head', v4); v4.project(cam); return v4.z > 1 ? 9 : Math.abs(v4.x) + Math.abs(v4.y) * 0.5; };
+    const a = score(this.A), b = score(this.B);
+    const gd = Math.abs(a - b) < 0.15 ? (this.lastBark === this.A ? this.B : this.A) : a < b ? this.A : this.B;
+    this.lastBark = gd;
+    return gd;
+  }
+  private dropLine(q: Intro['lines'][number]) {
+    q.m.removeFromParent(); (q.m.material as THREE.Material).dispose(); q.t.tex.dispose();
+    const i = this.lines.indexOf(q); if (i >= 0) this.lines.splice(i, 1);
+  }
+  /** keep the lettering at a steady size on screen: two low-res pixels per letter pixel, facing the camera */
+  private updLines(dt: number) {
+    const cam = fpCamera(), pr = this.g.pr;
+    const RH = pr.lowH + pr.margin * 2;
+    for (const q of [...this.lines]) {
+      q.age += dt;
+      if (q.age > q.life) { this.dropLine(q); continue; }
+      // where it hangs: over the officer's head (clamped into the picture), or low in front of your own eyes
+      if (q.gd) { q.gd.rig.jointWorld('head', v4); v4.y += 0.42; }
+      else v4.set(0, -0.2, -1.2).applyQuaternion(cam.quaternion).add(cam.position);
+      // a line said off screen is pinned to the edge of the picture on that side
+      v3.copy(v4).project(cam);
+      if (q.gd && (v3.z > 1 || Math.abs(v3.x) > 0.8 || Math.abs(v3.y) > 0.75)) {
+        const bx = v3.z > 1 ? -Math.sign(v3.x || 1) : Math.sign(v3.x);
+        v3.set(Math.max(-0.72, Math.min(0.72, v3.z > 1 ? bx * 0.72 : v3.x)), Math.max(-0.55, Math.min(0.62, v3.z > 1 ? 0.45 : v3.y)), 0.5).unproject(cam);
+        v4.copy(v3);
+      }
+      const d = Math.max(0.3, v4.distanceTo(cam.position));
+      const mpp = (2 * d * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))) / RH * 2;
+      q.m.position.copy(v4).addScaledVector(v2.set(0, 1, 0).applyQuaternion(cam.quaternion), (q.lift + q.age * 3) * mpp);
+      q.m.quaternion.copy(cam.quaternion);
+      q.m.scale.set(q.w * mpp, q.h * mpp, 1);
+      (q.m.material as THREE.MeshBasicMaterial).opacity = Math.min(1, (q.life - q.age) * 3, q.age * 12);
+    }
   }
   private paintDom(dt: number) {
     this.shade.style.opacity = String(clamp01(this.shadeA));
-    if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) this.skipBtn.classList.remove('hot'); }
+    if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) { this.skipBtn.classList.remove('hot'); this.paintKey(false); } }
     this.flashA = Math.max(0, this.flashA - dt * 3.2);
     this.flashEl.style.opacity = String(this.flashA);
     this.hurtA = Math.max(0, this.hurtA - dt * 0.9);
@@ -454,7 +541,6 @@ export class Intro implements GameSystem {
     this.lidT.style.height = lp; this.lidB.style.height = lp;
     this.wrapEl.style.opacity = String(clamp01(this.wrapA));
     this.wrapEl.style.transform = `scale(${(2.4 - this.wrapA * 1.6).toFixed(3)})`;
-    if (this.capT > 0) { this.capT -= dt; if (this.capT <= 0) this.capEl.classList.remove('on'); }
     // the picture itself: doubling, blur, the colour draining out
     this.dbl = Math.max(0, this.dbl - dt * 0.35);
     this.blur = Math.max(0, this.blur - dt * 0.8);
@@ -584,19 +670,15 @@ export class Intro implements GameSystem {
   private updBand(dt: number) {
     const b = this.band!;
     this.bandT += dt;
-    const c = b.ctx; if (!c) return;
     const t = this.bandT;
-    c.fillStyle = '#05080a'; c.fillRect(0, 0, 32, 16);
-    if (t < 0.8) { if (Math.sin(t * 40) > 0) { c.fillStyle = '#ffb040'; c.fillRect(2, 6, 28, 3); } }
-    else if (t < 2.2) {
-      c.fillStyle = '#ffb040'; c.font = '7px monospace'; c.fillText('BAILIFF', 2, 7);
-      c.fillRect(2, 10, Math.floor(28 * clamp01((t - 0.8) / 1.3)), 3);
-    } else {
-      c.fillStyle = '#6af0ff'; c.font = '7px monospace'; c.fillText(this.signalled ? 'SIGNAL' : 'LINKED', 2, 7);
-      if (Math.sin(t * 6) > 0) { c.beginPath(); c.arc(26, 11, 2.5, 0, 6.3); c.fill(); }
-      c.fillRect(2, 11, 3, 3); c.fillRect(6, 10, 3, 4); c.fillRect(10, 9, 3, 5);
-    }
-    b.tex.needsUpdate = true;
+    // repaint the tube a dozen times a second (it is a CRT, not a phone)
+    this.crtT -= dt;
+    if (this.crtT <= 0) { this.crtT = 0.08; drawCrt(b.crt, t, t < 2.2 ? 'boot' : this.signalled ? 'signal' : 'link', clamp01((t - 0.9) / 1.2)); }
+    // the needle twitches on the boot, swings hard on a signal; the lamp blinks
+    const want = t < 0.6 ? Math.sin(t * 30) * 0.5 : t < 2.2 ? -0.6 + (t - 0.6) * 0.5 : this.signalled ? 0.7 + Math.sin(t * 9) * 0.15 : 0.1 + Math.sin(t * 2) * 0.05;
+    b.needle.rotation.z += (want - b.needle.rotation.z) * Math.min(1, dt * 10);
+    const lit = t > 0.6 && (this.signalled ? Math.sin(t * 9) > 0 : t < 2.2 ? Math.sin(t * 16) > 0.4 : Math.sin(t * 1.5) > 0.9);
+    b.lampMat.color.setHex(lit ? 0xffb040 : 0x3a2008);
   }
 
   // ================================================================== the script
@@ -628,6 +710,7 @@ export class Intro implements GameSystem {
       this.updBody(dt);
       this.set.update(dt, this.eye);
       this.updCamera(dt);
+      this.updLines(dt);
       // your heart, louder the worse it gets
       this.heartT -= dt;
       if (this.heartT <= 0 && this.phase !== 'drag') { this.heartT = 0.62 - Math.min(0.25, this.hurtA * 0.2); this.sfx('ix_heart', 0.25 + this.hurtA * 0.3); }
@@ -638,18 +721,17 @@ export class Intro implements GameSystem {
   // ------------------------------------------------------------------ 1. the wing
   private updDragPhase(dt: number) {
     const t = this.t;
-    this.at(0.1, 1, () => { this.card.classList.add('on'); this.skipBtn.classList.add('on'); G.audio?.positionalLoop?.('ix_fluoro', 'ix_fluoro', this.p.x, this.p.z, 0.4); });
+    this.at(0.1, 1, () => { this.skipBtn.classList.add('on'); G.audio?.positionalLoop?.('ix_fluoro', 'ix_fluoro', this.p.x, this.p.z, 0.4); });
     this.at(0.7, 2, () => { this.lidGoal = 0.35; });
     this.at(1.0, 3, () => { this.lidGoal = 0.9; });
     this.at(1.35, 4, () => { this.lidGoal = 0.12; });
-    this.at(3.3, 5, () => this.card.classList.remove('on'));
     this.shadeA = Math.max(0, 1 - Math.max(0, t - 0.5) / 1.4);
     this.at(2.4, 6, () => this.say('OFFICER', 'Keep its feet off the paint.'));
     this.at(5.4, 7, () => this.say('OFFICER', 'This one\'s light.'));
     this.at(8.9, 8, () => this.say('self', '...where are you taking me...', 'self'));
     this.at(10.6, 9, () => this.say('OFFICER', 'Orientation.'));
     // where the head looks: down the body at the heels, over at the glass, back up at the gloves on your wrists
-    if (t < 3.6) this.aim(Math.PI + Math.sin(t * 0.8) * 0.08, -0.42, Math.sin(t * 1.3) * 0.05, 2);
+    if (t < 3.4) this.aim(Math.PI + Math.sin(t * 0.8) * 0.06, 0.2, Math.sin(t * 1.3) * 0.05, 2);
     else if (t < 5.6) this.aim(Math.PI - 0.95, -0.12, -0.1, 1.6);
     else if (t < 7.0) this.aim(Math.PI + 0.1, -0.38, 0.06, 2);
     else if (t < 8.8) this.aim(0.15, 0.95, 0.0, 1.8);
@@ -730,7 +812,7 @@ export class Intro implements GameSystem {
     if (t > 4.4 && this.pose === 'cover') { this.pose = 'limp'; this.poseK = 9; }
     this.at(0.35, 1, () => this.say('OFFICER', 'This is the orientation.'));
     this.at(2.9, 2, () => this.say('OFFICER', 'Nothing personal. It\'s itemised.'));
-    this.at(4.3, 3, () => this.say('self', 'Stop— please— STOP—', 'self'));
+    this.at(4.3, 3, () => this.say('self', 'Stop - please - STOP-', 'self'));
     this.at(6.9, 4, () => this.say('OFFICER', 'Arms. Get its arms.'));
     this.lidGoal = 0.08 + this.trauma * 0.12;
     if (t > BEAT_END) { this.beaten = true; this.startHaul(); }
@@ -835,7 +917,7 @@ export class Intro implements GameSystem {
       B.reachR = { p: (B.reachR?.p ?? new THREE.Vector3()).copy(this.wrist('L', v3)).add(v4.set(0, 0.07, -0.02)), w, pole: POLE_GUN };
     } else B.walkTo(eye.x - 0.6, eye.z - 1.1, 1.8, dt, 0.05);
     this.at(2.6, 2, () => this.say('OFFICER', 'Hold still. It only goes in once.'));
-    this.at(3.9, 3, () => this.say('self', 'no— no no no—', 'self'));
+    this.at(3.9, 3, () => this.say('self', 'no - no no no-', 'self'));
     this.at(4.3, 4, () => this.pierce());
     this.at(5.3, 5, () => { this.sfx('remit_chirp', 0.9); this.say('OFFICER', 'Fitted.'); });
     // look at it: the camera narrows on the wrist
@@ -917,7 +999,6 @@ export class Intro implements GameSystem {
   // ------------------------------------------------------------------ 7. through
   private startThrough() {
     this.go('through');
-    this.capEl.classList.remove('on');
   }
   private updThrough(dt: number) {
     const t = this.t, u = this.set.liqU;
@@ -1064,8 +1145,6 @@ export class Intro implements GameSystem {
     if (this.phase === 'done' || this.skipping >= 0) return;
     if (this.phase === 'voss') { (G.handler as any)?.hush?.(); this.finish(); return; }
     this.skipping = 0;
-    this.card.classList.remove('on');
-    this.capEl.classList.remove('on');
     this.skipBtn.classList.remove('on', 'hot');
     G.audio?.flat?.('static_burst', 'sfx', 0.3);
   }
@@ -1152,7 +1231,7 @@ export class Intro implements GameSystem {
   // ================================================================== dev: jump around the script (screenshots)
   debugJump(phase: Phase, t = 0) {
     const run = (n: number) => { for (let i = 0; i < n; i++) this.update(0.05); };
-    this.shadeA = 0; this.lidGoal = 0; this.lid = 0; this.card.classList.remove('on');
+    this.shadeA = 0; this.lidGoal = 0; this.lid = 0;
     const at = (pts: [number, number][], end = false) => { this.startDrag(pts, 1.3); if (end) { this.path!.s = this.path!.len; this.along(this.path!.s, this.bodyAt); } this.updBody(0.016); this.placeGuardsForDrag(true); };
     switch (phase) {
       case 'drag': break;
@@ -1170,5 +1249,6 @@ export class Intro implements GameSystem {
   }
 }
 const CYCLE_RISE = 0.62;
+const UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
 const POLE_A = new THREE.Vector3(0.3, -1, 0.4), POLE_B = new THREE.Vector3(-0.3, -1, 0.4), POLE_GUN = new THREE.Vector3(0.4, -1, -0.5);
 const wrapA = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };

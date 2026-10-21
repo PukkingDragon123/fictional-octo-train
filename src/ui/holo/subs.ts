@@ -1,11 +1,11 @@
-// Every line a character speaks, as floating text where it comes from, with
-// an 8-bit voice (src/social: chipVoice, floatText). Bus event 'subtitle'
+// Every line a character speaks, as typed floating text where it comes
+// from, with an 8-bit voice (src/social: chipVoice, floatText, pixtype). Bus event 'subtitle'
 // ({ who, text, dur?, style?, x?, y?, z?, voiced?, pid? }):
-//   voss     amber hologram letters by the sergeant's projection
+//   voss     white type on a black TV caption band by the sergeant
 //   bailiff  the band (holo.ts draws it while the hologram is up; here the
 //            fallback near the survivor when it is down)
-//   guard    stencil capitals near the officer (or from off screen)
-//   radio    green letters over the survivor, from the radio
+//   guard    bold capitals on a manila tag near the officer (or off screen)
+//   radio    a yellow telegram strip over the survivor, from the radio
 //   self     the survivor, out loud, in their own voice
 //   pid      any other survivor by player id (co-op), in their voice
 // Also the shared builders ui.ts uses for thoughts, speech and shouts: they
@@ -13,7 +13,7 @@
 import * as THREE from 'three';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
-import { floatText, speakerColor } from '../../social/floatText';
+import { floatText } from '../../social/floatText';
 import { playLine, voiceForStyle, voiceFromApp } from '../../social/chipVoice';
 
 interface UiLike { bubbles: any[]; root: HTMLElement }
@@ -42,7 +42,7 @@ export function speech(text: string, _cls: string): HTMLDivElement { return floa
 /** shouting: big shaking letters */
 export function shout(text: string): HTMLDivElement { return floatText(text, { kind: 'shout' }); }
 
-/** a line from the radio: green letters over the survivor, in a crackly voice */
+/** a line from the radio: a telegram strip over the survivor, in a crackly voice */
 export function radioLine(who: string, text: string, secs = 5) {
   const p = G.local;
   const el = floatText(text, { kind: 'radio', name: who || 'RX' });
@@ -97,7 +97,7 @@ export function initSubtitles(ui: UiLike) {
         if (!p) return;
         for (const b of ui.bubbles) if (b.target === p && (b.kind === 'think' || b.kind === 'say')) b.until = 0;
         playLine(text, voiceFromApp(p.app, p.id), p.isLocal ? null : { x: p.x, z: p.z });
-        push(floatText(text, { kind: 'say', name: p.isLocal ? undefined : p.name, color: p.isLocal ? undefined : speakerColor(p.id) }), p, 'say');
+        push(floatText(text, { kind: 'say', name: p.isLocal ? undefined : p.name, tint: p.isLocal ? undefined : p.id }), p, 'say');
         break;
       }
       case 'voss': case 'guard': default: {

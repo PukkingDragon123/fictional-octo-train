@@ -174,17 +174,63 @@ export function eye(P: Painter, r: Reg, iris: number, o: { pupil?: number; scler
 }
 /** the end of a cut part: a rim of skin round meat (or stone, or glass) */
 export function cutEnd(P: Painter, r: Reg, skinC: number, meat = 0x8a1c1c) { P.cut(r, skinC, { meat }); }
-/** flat colour block (teeth, gums, trims) with a little variation */
+/**
+ * A small hand-painted swatch for hard materials (teeth, brass, cloth, trims):
+ * lit from the top, a bright rim row, a dark lower edge, dithered wear and
+ * specks, so even the small parts read as painted rather than flat colour.
+ */
 export function flat(P: Painter, r: Reg, c: number, vary = 0.08) {
-  for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) P.set(r, x, y, mixHex(c, ph(x, y, 5) > 0.5 ? 0xffffff : 0x000000, ph(x, y, 7) * vary));
+  const R = ramp(c, 6, mixHex(c, 0x000000, 0.55), 0.4);
+  P.fill(r, R, (u, v, x, y) => {
+    let l = 1.6 + v * 2.2 + (P.n(r, x, y, 2, 2, 11) - 0.5) * (1 + vary * 10);
+    if (y === 0) l += 1.2;
+    if (y === r.h - 1 || x === 0) l -= 1;
+    if (ph(x, y, 13) < 0.06 + vary * 0.4) l -= 1.5;
+    return l;
+  }, 0.7);
+  if (r.w >= 6) P.glint(r, Math.floor(r.w * 0.2), Math.max(1, Math.floor(r.h * 0.2)), Math.max(1, Math.floor(r.w * 0.3)), 0xffffff, 0.5);
 }
 
 // ------------------------------------------------------------------ world-space markers drawn by a rig
 const MK_GEO = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
 const MK_MAT = new Map<number, THREE.MeshBasicMaterial>();
+let MK_TEX: THREE.Texture | null = null;
+/**
+ * The landing-square glow, painted: a warm lamp-lit square of light thrown on
+ * the floor, brighter at the edges like a filament, with dithered falloff,
+ * corner brackets and dust specks (48 px, nearest-filtered).
+ */
+function markerTex(): THREE.Texture {
+  if (MK_TEX) return MK_TEX;
+  const N = 48, cv = document.createElement('canvas');
+  cv.width = cv.height = N;
+  const g = cv.getContext('2d')!;
+  const img = g.createImageData(N, N);
+  const B = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const ex = Math.min(x, N - 1 - x), ey = Math.min(y, N - 1 - y), e = Math.min(ex, ey);
+    let a = e < 2 ? 1 : e < 4 ? 0.75 : Math.max(0, 0.42 - (e - 4) * 0.02);
+    const corner = (ex < 9 && ey < 3) || (ey < 9 && ex < 3);
+    if (corner) a = 1;
+    a += (ph(x >> 1, y >> 1, 31) - 0.5) * 0.18;
+    const q = B[(y & 3) * 4 + (x & 3)] / 16;
+    const on = a > q * 0.9 + 0.05;
+    const speck = ph(x, y, 37) > 0.97;
+    const i = (y * N + x) * 4;
+    const hot = e < 2 || corner;
+    img.data[i] = 255; img.data[i + 1] = hot ? 214 : 170; img.data[i + 2] = hot ? 150 : 96;
+    img.data[i + 3] = on ? Math.round(Math.min(1, a + (speck ? 0.3 : 0)) * 255) : 0;
+  }
+  g.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  t.colorSpace = THREE.SRGBColorSpace;
+  MK_TEX = t;
+  return t;
+}
 function markerMat(color: number) {
   let m = MK_MAT.get(color);
-  if (!m) { m = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }); MK_MAT.set(color, m); }
+  if (!m) { m = new THREE.MeshBasicMaterial({ color, map: markerTex(), transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending }); MK_MAT.set(color, m); }
   return m;
 }
 /**

@@ -1,4 +1,5 @@
-// Low-poly models for cyberware, shared by the survivor rig (humanRig.ts hangs
+// Low-poly models for cyberware (retro-industrial: riveted steel, cream enamel,
+// bakelite, brass, cloth-wrapped cables, valves and pilot lamps), shared by the survivor rig (humanRig.ts hangs
 // them on the bones so they swing, bend and curl with the animation), the
 // boxed parts as items (src/content/items/cyber.ts) and the operating table
 // (src/ui/surgery). One builder per style and bone role; every piece is built
@@ -13,6 +14,7 @@ import { CyberSlot, CyberStyle, SLOT_KIND, cyberDef, CYBER_SLOTS } from '../surv
 export const CT = {
   rust: 'i_cy_rust', paint: 'i_cy_paint', hazard: 'i_cy_hazard', pipe: 'i_cy_pipe', chrome: 'i_cy_chrome', shell: 'i_cy_shell',
   black: 'i_cy_black', hose: 'i_cy_hose', glow: 'i_cy_glow', teeth: 'i_cy_teeth', lens: 'i_cy_lens', wires: 'i_cy_wires', steel: 'i_cy_steel',
+  brass: 'i_cy_brass', mint: 'i_cy_mint', valve: 'i_cy_valve', gauge: 'i_cy_gauge',
 };
 type MB = ModelBuilder;
 export type Role = 'uarm' | 'farm' | 'hand' | 'f1' | 'f2' | 'th' | 'thigh' | 'shin' | 'foot' | 'head' | 'chest' | 'spine' | 'hips';
@@ -28,8 +30,21 @@ function bolt(mb: MB, x: number, y: number, z: number, axis: 'x' | 'z' = 'x', r 
   if (axis === 'x') mb.cylinderX(x, y, z, r, 0.012, 6, all(CT.chrome), { fit: true });
   else mb.cylinderZ(x, y, z, r, 0.012, 6, all(CT.chrome), { fit: true });
 }
+/** where a part shows it is alive: a short row of brass-ringed pilot lamps along the strip's long side */
 function glowStrip(mb: MB, x: number, y: number, z: number, w: number, h: number, d: number, col: number) {
-  box(mb, x, y, z, w, h, d, CT.glow, { color: col, emissive: 1.4 });
+  const L = Math.max(w, h, d), n = Math.max(1, Math.min(3, Math.round(L / 0.05)));
+  const ax = h >= w && h >= d ? 1 : w >= d ? 0 : 2;
+  for (let i = 0; i < n; i++) {
+    const o = (i - (n - 1) / 2) * Math.min(0.03, L / n);
+    const px = x + (ax === 0 ? o : 0), py = y - h / 2 + (ax === 1 ? o : 0) - 0.008, pz = z + (ax === 2 ? o : 0);
+    box(mb, px, py, pz, 0.017, 0.017, 0.017, CT.brass);
+    box(mb, px, py + 0.003, pz, 0.019, 0.011, 0.019, CT.glow, { color: col, emissive: 1.7 });
+  }
+}
+/** a vacuum valve standing in a brass socket, its filament glowing through the glass */
+function valve(mb: MB, x: number, y: number, z: number, col: number, len = 0.04) {
+  mb.cylinder(x, y, z, 0.012, 0.01, 6, all(CT.brass), { fit: true });
+  mb.cylinder(x, y + 0.01, z, 0.009, len, 6, { sides: CT.valve, top: CT.valve, bottom: CT.brass }, { fit: true, color: col, emissive: 1.1, rTop: 0.007 });
 }
 /** a hinge across the joint (axis x) */
 function hinge(mb: MB, r: number, len: number, t = CT.steel) { mb.cylinderX(0, 0, 0, r, len, 8, all(t), { fit: true }); }
@@ -79,14 +94,18 @@ function armServo(mb: MB, role: Role, k: number, glow: number) {
       mb.sphere(0, 0, 0, 0.06, 8, 6, CT.shell);
       mb.pop();
       rod(mb, 0, -0.06, -0.26, 0, 0.042, CT.shell, { rTop: 0.05, segs: 8 });
-      glowStrip(mb, k * 0.046, -0.24, 0.0, 0.004, 0.15, 0.01, glow);
+      for (const y of [-0.07, -0.25]) mb.cylinder(0, y, 0, 0.047, 0.012, 8, all(CT.brass), { fit: true });
+      rod(mb, -k * 0.035, -0.08, -0.24, -0.02, 0.007, CT.hose, { segs: 5 });
       rod(mb, 0, -0.25, -0.285, 0, 0.034, CT.black, { segs: 8 });
       break;
     case 'farm':
-      hinge(mb, 0.032, 0.07, CT.black);
+      hinge(mb, 0.032, 0.07, CT.brass);
       rod(mb, 0, -0.02, -0.235, 0, 0.032, CT.shell, { rTop: 0.042, segs: 8 });
-      glowStrip(mb, 0, -0.2, 0.038, 0.012, 0.14, 0.004, glow);
-      box(mb, -k * 0.03, -0.16, 0, 0.012, 0.06, 0.03, CT.black);
+      // the amplifier: a valve in a wire cage on the back of the forearm
+      box(mb, -k * 0.034, -0.17, 0, 0.022, 0.07, 0.04, CT.black);
+      valve(mb, -k * 0.046, -0.16, 0, glow, 0.045);
+      glowStrip(mb, 0, -0.06, 0.04, 0.004, 0.02, 0.004, glow);
+      mb.cylinder(0, -0.235, 0, 0.034, 0.012, 8, all(CT.brass), { fit: true });
       rod(mb, 0, -0.235, -0.255, 0, 0.026, CT.black, { segs: 8 });
       break;
     case 'hand': box(mb, 0, -0.088, 0, 0.026, 0.08, 0.068, CT.shell); box(mb, k * 0.014, -0.06, 0, 0.003, 0.03, 0.04, CT.glow, { color: glow, emissive: 1.4 }); break;
@@ -162,16 +181,19 @@ function legScrap(mb: MB, role: Role, k: number, glow: number) {
 function legCoil(mb: MB, role: Role, k: number, glow: number) {
   switch (role) {
     case 'thigh':
-      rod(mb, 0, -0.03, -0.41, 0, 0.05, CT.black, { rTop: 0.07, segs: 8 });
-      glowStrip(mb, k * 0.05, -0.36, 0.02, 0.004, 0.24, 0.012, glow);
+      rod(mb, 0, -0.03, -0.41, 0, 0.05, CT.shell, { rTop: 0.07, segs: 8 });
+      for (const y of [-0.1, -0.38]) mb.cylinder(0, y, 0, 0.058, 0.014, 8, all(CT.brass), { fit: true });
+      glowStrip(mb, k * 0.05, -0.2, 0.03, 0.004, 0.08, 0.012, glow);
       break;
     case 'shin': {
+      // a clockwork knee: a brass gear on the hinge
       hinge(mb, 0.044, 0.1, CT.chrome);
+      mb.cylinderX(k * 0.056, 0, 0, 0.05, 0.012, 10, all(CT.brass), { fit: true });
       // the running blade: a C-curve of carbon segments
       for (let i = 0; i < 8; i++) {
         const a = (i / 7) * 1.9, y = -0.04 - i * 0.05, z = -Math.sin(a) * 0.07;
         mb.push().translate(0, y, z).rotateX(-Math.cos(a) * 0.5);
-        box(mb, 0, -0.03, 0, 0.05, 0.055, 0.016, i % 3 === 1 ? CT.shell : CT.black);
+        box(mb, 0, -0.03, 0, 0.05, 0.055, 0.016, i % 3 === 1 ? CT.brass : CT.steel);
         mb.pop();
       }
       glowStrip(mb, 0, -0.2, 0.018, 0.012, 0.1, 0.003, glow);

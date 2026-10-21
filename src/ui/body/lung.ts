@@ -1,18 +1,23 @@
-// The lungs: stamina as a pair of rubber balloons on a windpipe. They breathe
-// with you, shrink as endurance runs out, swell and strain while you run, and
-// flutter in a panic. Blood that splashes on you gets in and pools at the
-// bottom (less room until you cough it out). H (or a tap on them) starts the
-// pump: a bead runs between OUT and IN, press as it hits each end. On the beat
-// you exhale / inhale and recover; off the beat you cough.
+// The lungs: stamina as a pair of rubber balloons on a brass valve. They
+// breathe with you, shrink as endurance runs out, swell and strain while you
+// run, and flutter in a panic. Blood that splashes on you gets in and pools at
+// the bottom (less room until you cough it out). Under them sits an air gauge:
+// at rest its needle reads how much air you have; H (or a tap) starts the pump
+// and the needle swings between OUT and IN like a metronome: press as it hits
+// each end. On the beat you exhale / inhale and recover (a jewel lamp flashes,
+// a Nixie tube counts the streak); off the beat you cough.
 import type { Player } from '../../entities/player';
-import { Pix, mix, shade, bayer } from './pix';
+import { Pix, mix, shade, bayer, hash, type3 } from './pix';
 
-export const LUNG_W = 50, LUNG_H = 76;
-const CXL = 13, CXR = 37, CY = 33, RX = 10.5, RY = 17;
+export const LUNG_W = 50, LUNG_H = 84;
+const CXL = 13, CXR = 37, CY = 38, RX = 10.5, RY = 18;
 const W_PERFECT = 0.085, W_GOOD = 0.19;
-
-/** 3x5 glyphs for the few letters the dial needs */
-const GL: Record<string, string> = { H: '101101111101101', I: '111010010010111', N: '110101101101101', O: '010101101101010', U: '101101101101111', T: '111010010010010' };
+const GX = 25, GY = 80, GR = 13;
+const BRASS = [0x5a3a12, 0x8a6020, 0xc0902e, 0xe8c060, 0xfff0b0];
+const NIX: Record<string, string> = {
+  '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001011001111', '4': '101101111001001',
+  '5': '111100111001111', '6': '111100111101111', '7': '111001010010010', '8': '111101111101111', '9': '111101111001111',
+};
 
 export type PumpResult = 'perfect' | 'good' | 'cough' | 'start';
 interface Puff { x: number; y: number; vx: number; vy: number; life: number; c: number; on: boolean }
@@ -138,26 +143,20 @@ export class Lungs {
     const t = this.t;
     const flutter = this.panic > 0.3 ? Math.sin(t * 46) * 0.035 * this.panic : 0;
     const s = Math.max(0.3, this.s + flutter);
-    // windpipe with cartilage rings, branching into two bronchi
-    for (let y = 0; y <= 11; y++) {
-      const ring = y % 3 === 0;
-      for (let x = -2; x <= 2; x++) P.set(ox + 25 + x, oy + y, ring ? 0xe8c8c0 : (x === -2 || x === 2 ? 0xa8707a : 0xd09aa2));
-    }
-    const sy = oy + CY - RY * s * 0.78;
-    for (const [cx, sg] of [[CXL, -1], [CXR, 1]] as const) {
-      const ex = ox + cx + sg * -1, ey = Math.min(oy + 18, sy + 3);
-      for (let i = -1; i <= 1; i++) P.line(ox + 25 + i, oy + 11, ex + i, ey, i === 0 ? 0xd09aa2 : 0xa8707a);
-    }
+    this.drawValve(P, ox, oy, s);
     // the two balloons
     const strainK = Math.max(0, this.strain - 0.4) / 0.6;
-    const rub = mix(mix(0xe2808f, 0xf6b0bc, strainK * 0.7), 0x9a6870, Math.max(0, 0.75 - this.cap) * 1.5);
+    const rub = mix(mix(0xd8707f, 0xf0a8b2, strainK * 0.7), 0x8a5a62, Math.max(0, 0.75 - this.cap) * 1.5);
     const shake = this.strain > 0.85 ? (Math.random() < 0.5 ? -1 : 1) : 0;
     for (let lobe = 0; lobe < 2; lobe++) {
       const cx = ox + (lobe ? CXR : CXL) + shake, cy = oy + CY + (1 - s) * 6;
       const rx = RX * (0.6 + 0.4 * s) * (1 + this.wob * 0.08 * Math.sin(t * 30)), ry = RY * (0.55 + 0.45 * s);
-      const med = lobe ? -1 : 1; // the inner side faces the windpipe
+      const med = lobe ? -1 : 1; // the inner side faces the valve
       const bloodTop = 1 - this.stain * 1.25 + Math.sin(t * 3 + lobe) * 0.04 + this.slosh * 0.05;
       const y0 = Math.floor(cy - ry - 1), y1 = Math.ceil(cy + ry + 1);
+      // the rolled rubber neck on its brass nozzle
+      const nx = ox + (lobe ? CXR - 3 : CXL + 3), ny = oy + 15;
+      for (let y = ny; y < Math.min(y0 + 3, ny + 5); y++) for (let x = nx - 1; x <= nx + 1; x++) P.set(x, y, shade(rub, y === ny + 1 ? 0.6 : 0.85 + (x - nx) * -0.1));
       for (let y = y0; y <= y1; y++) {
         const v = (y - cy) / ry;
         if (v < -1 || v > 1) continue;
@@ -171,55 +170,116 @@ export class Lungs {
         for (let x = xa; x <= xb; x++) {
           const u = (x - cx) / Math.max(1, half);
           const nz = Math.sqrt(Math.max(0, 1 - u * u * 0.85 - v * v * 0.6));
-          let l = 0.45 + 0.65 * Math.max(0, -0.45 * u - 0.55 * v + 0.7 * nz);
-          l = Math.round(l * 5 + bayer(x, y) - 0.5) / 5;
-          let c = shade(rub, 0.55 + l * 0.6);
+          let l = 0.42 + 0.68 * Math.max(0, -0.45 * u - 0.55 * v + 0.7 * nz);
+          l = Math.round(l * 6 + bayer(x, y) - 0.5) / 6;
+          let c = shade(rub, 0.5 + l * 0.62);
+          // the latex is thin: a warm glow where light passes through near the rim
+          if (nz < 0.35 && u * med < 0) c = mix(c, 0xf8c0a8, 0.25);
           // blood pooled inside, seen through the rubber
-          if (v > bloodTop) c = mix(c, v - bloodTop < 0.08 ? 0xd02a30 : 0x8a1018, 0.72);
-          // veins when stretched, wrinkles when spent
-          if (strainK > 0.2 && Math.abs(Math.sin(u * 7 + v * 3 + lobe * 2) + Math.sin(v * 11)) < 0.08 * strainK) c = 0xb02840;
-          if (this.cap < 0.75 && Math.abs(Math.sin(v * 9 + u * 1.5)) < 0.09) c = shade(c, 0.75);
-          // the shine
-          const hx = u + 0.42, hv = v + 0.5;
-          if (hx * hx + hv * hv < 0.035 * (0.7 + s * 0.4)) c = 0xfff0f2;
+          if (v > bloodTop) c = mix(c, v - bloodTop < 0.08 ? 0xc8282e : 0x7a0e16, 0.72);
+          // veins when stretched, wrinkles when spent, a seam down the middle
+          if (strainK > 0.2 && Math.abs(Math.sin(u * 7 + v * 3 + lobe * 2) + Math.sin(v * 11)) < 0.08 * strainK) c = 0xa02438;
+          if (this.cap < 0.75 && Math.abs(Math.sin(v * 9 + u * 1.5)) < 0.09) c = shade(c, 0.72);
+          if (Math.abs(u + 0.05) < 0.04 && v > -0.6) c = shade(c, 0.93);
+          // the shine: a hard window highlight and a soft bloom around it
+          const hx = u + 0.42, hv = v + 0.5, hd = hx * hx + hv * hv;
+          const r0 = 0.03 * (0.7 + s * 0.4);
+          if (hd < r0) c = 0xfff4f4; else if (hd < r0 * 2.6) c = mix(c, 0xffe0e4, 0.45);
           P.set(x, y, c);
         }
       }
       // splatter on the outside
-      for (const sp of this.spots) if (sp.lobe === lobe) P.disc(Math.round(cx + sp.u * rx * 0.6), Math.round(cy + sp.v * ry * 0.6), sp.r, 0x7a0a12, 0.85);
+      for (const sp of this.spots) if (sp.lobe === lobe) { const sx = Math.round(cx + sp.u * rx * 0.6), sy = Math.round(cy + sp.v * ry * 0.6); P.disc(sx, sy, sp.r, 0x6a0810, 0.9); P.set(sx, sy + Math.ceil(sp.r) + 1, 0x6a0810); }
     }
-    // puffs out of the windpipe
-    for (const q of this.puffs) if (q.on) P.blend(ox + q.x, oy + q.y, q.c, Math.min(1, q.life * 2));
-    // the pump dial
-    if (this.pumping || this.hint > 0) this.drawDial(P, ox, oy + 63, this.pumping ? 1 : this.hint);
-    void p;
+    // puffs out of the valve
+    for (const q of this.puffs) if (q.on) P.blend(ox + q.x, oy + q.y, q.c, Math.min(0.85, q.life * 2));
+    this.drawGauge(P, ox, oy, p);
   }
 
-  private drawDial(P: Pix, ox: number, y: number, a: number) {
-    const x0 = ox + 6, x1 = ox + 44;
-    P.rect(x0, y - 2, x1 - x0 + 1, 5, 0x161012, 0.75 * a);
-    P.hline(x0 + 3, x1 - 3, y, 0x4a3a40, a);
-    const endC = (end: number) => (this.flashT > 0 && this.flashEnd === end ? (this.flashGood ? 0x8aff7a : 0xff4a3a) : end ? 0xffc86a : 0x7ac8ff);
-    P.rect(x0, y - 2, 3, 5, endC(0), a); P.rect(x1 - 2, y - 2, 3, 5, endC(1), a);
-    if (this.flashT > 0 && this.flashEnd < 0) P.rect(x0 + 4, y - 1, x1 - x0 - 7, 3, 0xff4a3a, this.flashT * 2);
-    if (this.pumping) {
-      const bx = Math.round(x0 + 3 + this.pos * (x1 - x0 - 6));
-      P.rect(bx - 1, y - 1, 3, 3, 0xffffff);
-      P.blend(bx - this.dir * 2, y, 0xffffff, 0.4);
-      this.text(P, 'OUT', x0, y + 4, 0x7ac8ff, a);
-      this.text(P, 'IN', x1 - 6, y + 4, 0xffc86a, a);
-    } else {
-      // the key to press, blinking
-      if (Math.sin(this.t * 8) > -0.2) { P.rect(ox + 21, y - 4, 9, 9, 0xf2e6c8, a); P.rect(ox + 21, y + 4, 9, 1, 0x8a7a5a, a); this.text(P, 'H', ox + 24, y - 2, 0x201010, a); }
+  /** brass pipe from above, a red bakelite handwheel, a T splitting to two nozzles */
+  private drawValve(P: Pix, ox: number, oy: number, s: number) {
+    const B = BRASS;
+    const pipe = (x: number, y: number) => { P.set(x - 2, y, B[0]); P.set(x - 1, y, B[2]); P.set(x, y, B[3]); P.set(x + 1, y, B[2]); P.set(x + 2, y, B[1]); };
+    for (let y = 0; y <= 10; y++) pipe(ox + 25, oy + y);
+    // flange rings
+    for (const y of [1, 8]) { P.hline(ox + 22, ox + 28, oy + y, B[1]); P.set(ox + 23, oy + y, B[4]); }
+    // the handwheel, seen from the front: a bakelite rim with three spokes and a brass boss
+    const wy = oy + 4, wx = ox + 25, wr = 5;
+    for (let j = -2; j <= 2; j++) for (let i = -wr; i <= wr; i++) {
+      const e = (i * i) / (wr * wr) + (j * j) / 6.25;
+      if (e > 1.05) continue;
+      if (e > 0.55) P.set(wx + i, wy + j, j < 0 ? 0xc83a2a : j === 0 ? 0x9a2418 : 0x6a160e);
+    }
+    const spin = this.phase * 0.25;
+    for (let k = 0; k < 3; k++) { const a = spin + k * 2.094; P.set(Math.round(wx + Math.cos(a) * 3), wy + Math.round(Math.sin(a) * 1.2), 0x8a1a10); }
+    P.rect(wx - 1, wy - 1, 3, 2, B[3]); P.set(wx - 1, wy - 1, B[4]);
+    // the T and the two arms down to the balloon necks
+    P.rect(ox + 21, oy + 10, 9, 3, B[2]); P.hline(ox + 21, ox + 29, oy + 10, B[3]); P.hline(ox + 21, ox + 29, oy + 12, B[0]);
+    for (const [x0, x1] of [[21, 16], [29, 34]] as const) {
+      for (let i = 0; i <= 4; i++) { const x = Math.round(ox + x0 + (x1 - x0) * i / 4), y = oy + 11 + i; P.set(x, y, B[3]); P.set(x, y + 1, B[1]); P.set(x + (x1 > x0 ? -1 : 1), y, B[2]); }
+      P.rect(ox + x1 - 1, oy + 15, 3, 2, B[1]); P.set(ox + x1 - 1, oy + 15, B[4]);
+    }
+    void s;
+  }
+
+  /** the air gauge: steel bezel, cream face, OUT / IN, a red needle; a jewel lamp and a Nixie tube */
+  private drawGauge(P: Pix, ox: number, oy: number, p: Player) {
+    const cx = ox + GX, cy = oy + GY;
+    // bezel and face (upper half disc)
+    for (let j = -GR - 1; j <= 1; j++) for (let i = -GR - 1; i <= GR + 1; i++) {
+      const d = Math.sqrt(i * i + j * j);
+      if (d > GR + 1.3) continue;
+      let c: number;
+      if (j > 0) c = 0x3a3e44;
+      else if (d > GR - 0.4) c = j < -GR * 0.5 && i < 0 ? 0xe8eef2 : d > GR + 0.5 ? 0x4a5058 : 0xa8b0b8;
+      else { c = 0xf0e6c8; if (hash(i, j, 2) < 0.06) c = 0xe4d8b4; if (d < 4) c = mix(c, 0xd8ccaa, 0.4); }
+      P.set(cx + i, cy + j, c);
+    }
+    // the red arc near IN = full, ticks every 30 degrees, typed ends
+    for (let a = 0; a <= 6; a++) {
+      const ang = Math.PI + (a / 6) * Math.PI;
+      const c = Math.cos(ang), sn = Math.sin(ang);
+      P.line(cx + c * (GR - 3), cy + sn * (GR - 3), cx + c * (GR - 1.2), cy + sn * (GR - 1.2), 0x2a2018);
+    }
+    type3(P, 'OUT', cx - 11, cy - 6, 0x2a2018, 0.8, 0.3);
+    type3(P, 'IN', cx + 4, cy - 6, 0x2a2018, 0.8, 0.3);
+    // needle: the metronome while pumping, otherwise the air you have
+    const k = this.pumping ? this.pos : Math.max(0, Math.min(1, p.body.endurance));
+    const ang = Math.PI + k * Math.PI;
+    const nx = cx + Math.cos(ang) * (GR - 2), ny = cy + Math.sin(ang) * (GR - 2);
+    P.line(cx + 1, cy, nx + 1, ny + 1, 0x000000, 0.3);
+    P.line(cx, cy, nx, ny, 0xc0201a);
+    P.disc(cx, cy, 1.5, BRASS[2]); P.set(cx - 1, cy - 1, BRASS[4]);
+    // glass reflection over the face
+    P.line(cx - 9, cy - 8, cx - 5, cy - 11, 0xffffff, 0.45);
+    // jewel lamp (left): green perfect, amber good, red cough / miss
+    const lx = ox + 4, ly = cy - 4;
+    const lit = this.flashT > 0;
+    const lc = !lit ? 0x5a3a20 : !this.flashGood ? 0xff3a20 : this.flashEnd >= 0 && this.combo > 0 && this.lastQ === 'perfect' ? 0x7aff6a : 0xffb030;
+    P.rect(lx - 2, ly + 3, 5, 3, 0x2a2420); P.hline(lx - 2, lx + 2, ly + 3, 0x6a6058);
+    P.disc(lx, ly, 2.4, shade(lc, lit ? 1 : 0.8)); P.set(lx - 1, ly - 1, lit ? 0xffffff : mix(lc, 0xffffff, 0.4));
+    if (lit) P.ring(lx, ly, 3.6, lc, 0.35 * this.flashT * 4);
+    // Nixie tube (right): the streak, glowing orange in a glass envelope
+    const tx = ox + 42, ty = cy - 13;
+    for (let y = ty; y <= ty + 13; y++) for (let x = tx; x <= tx + 6; x++) {
+      const edge = x === tx || x === tx + 6 || (y === ty && (x === tx || x === tx + 6));
+      if (y === ty && (x === tx || x === tx + 6)) continue;
+      P.blend(x, y, edge ? 0xc8d8e0 : (x + y) % 2 ? 0x2a2e30 : 0x1a1c1e, edge ? 0.7 : 0.9);
+    }
+    P.rect(tx, ty + 14, 7, 2, 0x2a2420); P.hline(tx, tx + 6, ty + 14, 0x6a6058);
+    if (this.pumping && this.combo > 0) {
+      const g = NIX[String(Math.min(9, this.combo))];
+      for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (g[j * 3 + i] === '1') { P.set(tx + 2 + i, ty + 4 + j * 2, 0xffb050); P.set(tx + 2 + i, ty + 5 + j * 2, 0xff7a20); P.blend(tx + 1 + i, ty + 4 + j * 2, 0xff7a20, 0.25); }
+    } else P.set(tx + 3, ty + 7, 0x4a3a30);
+    P.vline(tx + 1, ty + 2, ty + 6, 0xffffff, 0.35);
+    // the H key: a bakelite cap that pops up when the lungs need pumping
+    if (!this.pumping && this.hint > 0 && Math.sin(this.t * 7) > -0.3) {
+      const kx = ox + 36, ky = oy + 1, a = this.hint;
+      P.rect(kx, ky, 9, 9, 0xe8dcc0, a); P.rect(kx, ky + 8, 9, 2, 0x8a7a5a, a); P.hline(kx, kx + 8, ky, 0xfff8e8, a);
+      type3(P, 'H', kx + 3, ky + 2, 0x2a1a10, a);
     }
   }
-  private text(P: Pix, s: string, x: number, y: number, c: number, a: number) {
-    for (const ch of s) {
-      const g = GL[ch];
-      if (g) for (let j = 0; j < 5; j++) for (let i = 0; i < 3; i++) if (g[j * 3 + i] === '1') P.blend(x + i, y + j, c, a);
-      x += 4;
-    }
-  }
+
   /** a point inside either balloon (logical cell px) */
   inside(lx: number, ly: number): boolean { return ly > 0 && ly < 62 && lx > 1 && lx < LUNG_W - 1; }
   dialPos(): number { return this.pos; }

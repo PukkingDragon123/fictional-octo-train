@@ -120,6 +120,9 @@ for (const [ch, s] of Object.entries(G)) {
   BITS.set(ch, b);
 }
 const FALLBACK = BITS.get('?')!;
+/** the 5x7 bitmap of a character (35 cells, row-major, 1 = ink); unknown characters give '?' (src/social uses it for typed speech and signs) */
+export function glyph5x7(ch: string): Uint8Array { return BITS.get(ch) || BITS.get(SUBST_EXPORT[ch] ?? '') || (ch.length === 1 && BITS.get(ch.toUpperCase())) || FALLBACK; }
+const SUBST_EXPORT: Record<string, string> = { '—': '-', '–': '-', '’': "'", '‘': "'", '“': '"', '”': '"', 'é': 'e', 'É': 'E', '·': '.', '♪': '♥', '♫': '♥' };
 
 /** RGBA pixel buffer the scanner draws into */
 const SUBST: Record<string, string> = { '—': '-', '–': '-', '’': "'", '‘': "'", '“': '"', '”': '"', 'é': 'E', 'É': 'E', '×': 'X', '·': '.' };

@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 
 export const ROOM = { W: 3.4, BACK: -2.4, FRONT: 6, H: 3.6, HATCH_W: 1.3, HATCH_H: 2.3, SEAT_Y: 0.47, CHAIR_Z: -0.45, FLOAT_Z: 0.45, PLATE_Y: 0.07 };
-export const NEON = { cyan: 0x7ff6ff, magenta: 0xff4fd8, amber: 0xffb43c, red: 0xff3a4a, green: 0x6dff8e, white: 0xe8f4ff };
+/** phosphor and lamp colours (no neon: tubes, filaments, phosphor) */
+export const PHOS = { amber: 0xffb43c, green: 0x8dff7a, white: 0xe8e4d0, nixie: 0xff7a2a, red: 0xff4a2a };
 
 const hz = (mb: ModelBuilder, x: number, y: number, z: number, w: number, h: number, d: number, n: number, axis: 'x' | 'z') => {
   // a hazard stripe: alternating yellow / black blocks
@@ -232,6 +233,103 @@ export function propGeometry(kind: string): THREE.BufferGeometry {
   return mb.build();
 }
 
+// ------------------------------------------------------------------ floating TV sets
+export interface TvSpec { w: number; h: number }
+/** a TV cabinet round a screen of w×h centred on the origin (the screen is a separate mesh) */
+export function tvGeometry(kind: 'console' | 'portable' | 'monitor', sw: number, sh: number): THREE.BufferGeometry {
+  const mb = new ModelBuilder();
+  const bz = 0.06, D = kind === 'console' ? 0.62 : 0.5;
+  const W = sw + bz * 2 + (kind === 'console' ? 0.26 : 0.12), H = sh + bz * 2 + (kind === 'portable' ? 0.16 : 0.12);
+  const cx = kind === 'console' ? 0.13 : 0, cy = kind === 'portable' ? -0.04 : -0.03;
+  const body = kind === 'console' ? { tex: 'wood_dark', color: 0x7a4a2a } : kind === 'portable' ? { tex: 'plastic_white', color: 0xe0d0aa } : { tex: 'metal_painted_green', color: 0x6a7462 };
+  // the cabinet (the back tapers like a picture tube's bell)
+  mb.box(cx, cy - H / 2, -D / 2 + 0.02, W, H, D * 0.55, body.tex, { color: body.color });
+  mb.box(cx, cy - H / 2 + H * 0.12, -D * 0.72, W * 0.7, H * 0.76, D * 0.4, body.tex, { color: body.color, ao: true });
+  // the bezel round the glass
+  const bez = kind === 'portable' ? 0xc8b890 : kind === 'console' ? 0xd8c8a0 : 0x3a3c38;
+  mb.box(0, sh / 2, 0.01, sw + bz * 2, bz, 0.05, 'plastic_beige', { color: bez });
+  mb.box(0, -sh / 2 - bz, 0.01, sw + bz * 2, bz, 0.05, 'plastic_beige', { color: bez });
+  for (const k of [-1, 1]) mb.box(k * (sw / 2 + bz / 2), -sh / 2, 0.01, bz, sh, 0.05, 'plastic_beige', { color: bez });
+  if (kind === 'console') {
+    // a control strip on the right: channel and volume knobs, a speaker grille
+    const kx = sw / 2 + bz + 0.13;
+    for (const [y, r] of [[0.12, 0.05], [-0.06, 0.04]] as const) { mb.cylinderZ(kx, y, 0.03, r, 0.05, 10, { sides: 'plastic_black', all: 'plastic_black' }, { color: 0x2a1a10 }); mb.box(kx, y + r * 0.6, 0.06, 0.008, r * 0.6, 0.01, 'chrome', { color: 0xd8dce0 }); }
+    mb.box(kx, -sh / 2 + 0.06, 0.012, 0.16, 0.16, 0.01, 'grate', { color: 0x8a6a40 });
+    for (const k of [-1, 1]) mb.cylinder(cx + k * W * 0.4, cy - H - 0.2, -0.1, 0.022, 0.2, 6, 'wood_dark', { color: 0x5a3420, rTop: 0.03 });
+  } else if (kind === 'portable') {
+    // carry handle, a round dial under the glass, rabbit ears
+    mb.box(0, sh / 2 + bz + 0.1, -0.15, 0.4, 0.035, 0.05, 'chrome', { color: 0xc8ccd0 });
+    for (const k of [-1, 1]) mb.box(k * 0.19, sh / 2 + bz + 0.04, -0.15, 0.035, 0.1, 0.05, 'chrome', { color: 0xc8ccd0 });
+    mb.cylinderZ(sw * 0.32, -sh / 2 - bz - 0.06, 0.02, 0.04, 0.04, 10, { sides: 'chrome', all: 'plastic_red' }, { color: 0xa83224 });
+    mb.box(-sw * 0.15, -sh / 2 - bz - 0.06, 0.012, sw * 0.4, 0.05, 0.01, 'grate', { color: 0x6a5a40 });
+  } else {
+    // vents, a toggle and a pilot lamp
+    for (let i = 0; i < 5; i++) mb.box(cx - W * 0.3 + i * 0.06, cy - 0.02, -D * 0.02, 0.035, 0.012, 0.01, 'metal_dark', { color: 0x222420 });
+    mb.box(sw * 0.38, -sh / 2 - bz - 0.045, 0.02, 0.025, 0.04, 0.03, 'chrome', { color: 0xc8ccd0 });
+    mb.box(sw * 0.2, -sh / 2 - bz - 0.045, 0.02, 0.025, 0.025, 0.02, 'led_red', { color: 0xff8a3a, emissive: 1.6 });
+  }
+  if (kind !== 'monitor') {
+    // rabbit ears
+    for (const k of [-1, 1]) {
+      const bx = cx + k * 0.06, by = cy + 0.0, len = 0.55;
+      mb.push().translate(bx, by, -D * 0.5).rotateZ(-k * 0.42);
+      mb.cylinder(0, 0, 0, 0.007, len, 5, 'chrome', { color: 0xd8dce0 });
+      mb.box(0, len, 0, 0.02, 0.02, 0.02, 'chrome', { color: 0xe8ecf0 });
+      mb.pop();
+    }
+    mb.cylinder(cx, cy - 0.02, -D * 0.5, 0.04, 0.03, 8, 'plastic_black', { color: 0x2a2a2a });
+  }
+  // the power cord trailing down into the dark (they float, but they are still plugged in)
+  mb.box(cx + 0.1, cy - H - 0.6, -D * 0.55, 0.012, 1.2, 0.012, 'rubber_black', { color: 0x141414 });
+  return mb.build();
+}
+/** a slightly bulged pane of picture tube glass */
+export function screenGeometry(w: number, h: number, bulge: number): THREE.BufferGeometry {
+  const g = new THREE.PlaneGeometry(w, h, 8, 6);
+  const p = g.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < p.count; i++) { const x = p.getX(i) / (w / 2), y = p.getY(i) / (h / 2); p.setZ(i, 0.02 + bulge * (1 - 0.5 * (x * x + y * y))); }
+  g.computeVertexNormals();
+  return g;
+}
+/** the CRT: barrel distortion, scanlines, a rolling bar, curved-glass vignette, mains flicker, static */
+export function screenMaterial(map: THREE.Texture, seed: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { map: { value: map }, uTime: { value: 0 }, uBright: { value: 1 }, uSeed: { value: seed }, uStatic: { value: 0 }, uLines: { value: 64 } },
+    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: `
+      uniform sampler2D map; uniform float uTime; uniform float uBright; uniform float uSeed; uniform float uStatic; uniform float uLines;
+      varying vec2 vUv;
+      float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+      void main(){
+        vec2 c = vUv - 0.5; float r2 = dot(c, c);
+        vec2 uv = 0.5 + c * (1.0 + r2 * 0.22);
+        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
+        vec3 col = texture2D(map, uv).rgb;
+        float roll = 0.86 + 0.14 * smoothstep(0.0, 0.25, abs(fract(uv.y * 0.6 + uTime * 0.11 + uSeed) - 0.5));
+        float scan = 0.78 + 0.22 * step(0.5, fract(uv.y * uLines));
+        float vig = clamp(1.0 - r2 * 2.4, 0.0, 1.0);
+        float flick = 0.95 + 0.05 * sin(uTime * 59.0 + uSeed * 7.0);
+        float st = h(floor(uv * vec2(90.0, 70.0)) + floor(uTime * 30.0));
+        col = mix(col, vec3(st) * vec3(0.9, 1.0, 0.85), uStatic);
+        col *= roll * scan * vig * flick * uBright;
+        col += vec3(0.02, 0.025, 0.02) * vig;
+        gl_FragColor = vec4(col, 1.0);
+        #include <colorspace_fragment>
+      }`,
+  });
+}
+
+// ------------------------------------------------------------------ the settings gear's dial panel
+export function dialPanelGeometry(): THREE.BufferGeometry {
+  const mb = new ModelBuilder();
+  mb.box(0, -0.32, -0.08, 0.86, 0.64, 0.05, 'metal_painted_green', { color: 0x5a6450 });
+  for (const [x, y] of [[-0.39, 0.27], [0.39, 0.27], [-0.39, -0.27], [0.39, -0.27]]) mb.cylinderZ(x, y, -0.05, 0.015, 0.012, 6, 'metal_grey', { color: 0xa0a4a0 });
+  for (const x of [-0.26, 0, 0.26]) mb.cylinderZ(x, 0.17, -0.05, 0.1, 0.03, 12, { sides: 'chrome', all: 'chrome' }, { color: 0xb0b4b8 });
+  for (let i = 0; i < 4; i++) mb.box(-0.3 + i * 0.2, -0.24, -0.04, 0.03, 0.05, 0.03, 'chrome', { color: 0xc8ccd0 });
+  mb.box(0, -0.24, -0.055, 0.7, 0.09, 0.01, 'metal_dark', { color: 0x2a2c28 });
+  return mb.build();
+}
+
 // ------------------------------------------------------------------ voxel title
 const LETTERS: Record<string, string[]> = {
   N: ['#...#', '##..#', '#.#.#', '#.#.#', '#..##', '#...#', '#...#'],
@@ -242,15 +340,28 @@ const LETTERS: Record<string, string[]> = {
   P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'],
 };
 /** one letter as voxels: glowing faces on a dark body (cell size c, centred on the origin) */
+/** a Nixie glyph: thin glowing filament strokes (cell size c, centred on the origin) */
 export function letterGeometry(ch: string, c: number, glow: number): THREE.BufferGeometry {
   const g = LETTERS[ch] || LETTERS.O;
   const mb = new ModelBuilder();
+  const on = (i: number, j: number) => i >= 0 && i < 5 && j >= 0 && j < 7 && g[j][i] === '#';
   for (let j = 0; j < 7; j++) for (let i = 0; i < 5; i++) {
-    if (g[j][i] !== '#') continue;
-    const x = (i - 2) * c, y = (3 - j) * c - c / 2;
-    mb.box(x, y, -c * 0.4, c * 0.96, c * 0.96, c * 1.1, 'metal_dark', { color: 0x2a2e34 });
-    mb.box(x, y + c * 0.08, c * 0.16, c * 0.8, c * 0.8, c * 0.05, 'plastic_white', { color: glow, emissive: 1.4 });
+    if (!on(i, j)) continue;
+    const x = (i - 2) * c, y = (3 - j) * c;
+    // a filament dot and wires to the lit neighbours (right, down)
+    mb.box(x, y - c * 0.2, 0, c * 0.4, c * 0.4, c * 0.4, 'plastic_white', { color: glow, emissive: 1.6 });
+    if (on(i + 1, j)) mb.box(x + c / 2, y - c * 0.12, 0, c, c * 0.24, c * 0.24, 'plastic_white', { color: glow, emissive: 1.4 });
+    if (on(i, j + 1)) mb.box(x, y - c, 0, c * 0.24, c, c * 0.24, 'plastic_white', { color: glow, emissive: 1.4 });
   }
+  return mb.build();
+}
+/** the Nixie tube a glyph sits in: bakelite socket, chrome ring, pins, the anode mesh behind */
+export function tubeBaseGeometry(r: number): THREE.BufferGeometry {
+  const mb = new ModelBuilder();
+  mb.cylinder(0, -0.06, 0, r * 1.08, 0.08, 12, 'plastic_black', { color: 0x3a2214 });
+  mb.cylinder(0, 0.02, 0, r * 1.02, 0.025, 12, 'chrome', { color: 0xb8bcc0 });
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; mb.box(Math.sin(a) * r * 0.6, -0.1, Math.cos(a) * r * 0.6, 0.01, 0.05, 0.01, 'metal_brass', { color: 0xc8a04a }); }
+  mb.box(0, 0.06, -r * 0.55, r * 1.3, r * 2.2, 0.004, 'grate', { color: 0x3a3028, emissive: 0.15 });
   return mb.build();
 }
 
@@ -269,42 +380,74 @@ export function canvasTex(c: HTMLCanvasElement): THREE.CanvasTexture {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-/** a sign face: smoked glass, a neon border, the label in Silkscreen, a small line under it */
-export function paintSign(cv: HTMLCanvasElement, label: string, sub: string, color: number, w: number, h: number) {
+/** a CRT picture: dark phosphor glass, the label glowing in phosphor, a channel number, a cursor */
+export function paintScreen(cv: HTMLCanvasElement, label: string, color: number, w: number, h: number, ch = '3') {
   cv.width = w; cv.height = h;
   const ctx = cv.getContext('2d')!;
   ctx.imageSmoothingEnabled = false;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = 'rgba(6,8,12,0.86)';
-  ctx.fillRect(1, 1, w - 2, h - 2);
-  // scan lines in the glass
-  ctx.fillStyle = css(color, 0.06);
-  for (let y = 2; y < h - 2; y += 2) ctx.fillRect(2, y, w - 4, 1);
-  ctx.strokeStyle = css(color, 1); ctx.lineWidth = 1;
-  ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
-  ctx.strokeStyle = css(color, 0.35);
-  ctx.strokeRect(3.5, 3.5, w - 7, h - 7);
-  // corner ticks
-  ctx.fillStyle = css(color, 1);
-  for (const [x, y] of [[0, 0], [w - 4, 0], [0, h - 4], [w - 4, h - 4]]) ctx.fillRect(x, y, 4, 4);
-  const big = Math.max(8, Math.floor(h * (sub ? 0.36 : 0.48) / 8) * 8);
-  ctx.font = `700 ${big}px Silkscreen, Tiny5, monospace`;
+  const bg = color === PHOS.green ? '#06110a' : '#120902';
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+  // phosphor grain
+  for (let i = 0; i < w * h * 0.04; i++) { ctx.fillStyle = css(color, 0.05 + Math.random() * 0.06); ctx.fillRect(Math.floor(Math.random() * w), Math.floor(Math.random() * h), 1, 1); }
+  const size = Math.max(8, Math.floor((h * 0.34) / 8) * 8);
+  let fs = size;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  let size = big;
-  while (ctx.measureText(label).width > w - 14 && size > 8) { size -= 8; ctx.font = `700 ${size}px Silkscreen, Tiny5, monospace`; }
-  const ty = sub ? Math.round(h * 0.42) : Math.round(h / 2);
-  ctx.fillStyle = css(0x000000, 1);
-  ctx.fillText(label, Math.round(w / 2) + 1, ty + 1);
+  ctx.font = `700 ${fs}px Silkscreen, Tiny5, monospace`;
+  while (ctx.measureText(label).width > w - 16 && fs > 8) { fs -= 8; ctx.font = `700 ${fs}px Silkscreen, Tiny5, monospace`; }
+  // bloom under the letters, then the letters
+  ctx.shadowColor = css(color, 0.9); ctx.shadowBlur = 6;
   ctx.fillStyle = css(color, 1);
-  ctx.fillText(label, Math.round(w / 2), ty);
-  if (sub) {
-    ctx.font = `400 8px Silkscreen, Tiny5, monospace`;
-    ctx.fillStyle = css(color, 0.7);
-    let s = sub.toUpperCase();
-    while (ctx.measureText(s).width > w - 12 && s.length > 4) s = s.slice(0, -2);
-    ctx.fillText(s, Math.round(w / 2), Math.round(h * 0.76));
-  }
+  ctx.fillText(label, Math.round(w / 2), Math.round(h * 0.48));
+  ctx.shadowBlur = 0;
+  ctx.font = `400 8px Tiny5, Silkscreen, monospace`;
+  ctx.fillStyle = css(color, 0.55);
+  ctx.textAlign = 'left'; ctx.fillText('CH ' + ch, 5, 8);
+  ctx.textAlign = 'right'; ctx.fillText('▶', w - 5, h - 8);
+  ctx.fillRect(Math.round(w / 2 + ctx.measureText(label).width * 0), 0, 0, 0);
+}
+/** a strip of embossed label tape (Dymo-style): raised white letters on coloured plastic */
+export function paintTape(cv: HTMLCanvasElement, label: string, tape: number, w: number, h: number) {
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d')!;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = css(tape); ctx.fillRect(0, 1, w, h - 2);
+  ctx.fillStyle = css(0xffffff, 0.12); ctx.fillRect(0, 1, w, 1);
+  ctx.fillStyle = css(0x000000, 0.35); ctx.fillRect(0, h - 2, w, 1);
+  // notched ends
+  ctx.clearRect(0, 0, 2, 2); ctx.clearRect(0, h - 2, 2, 2); ctx.clearRect(w - 2, 0, 2, 2); ctx.clearRect(w - 2, h - 2, 2, 2);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  let fs = Math.max(8, Math.floor((h * 0.62) / 8) * 8);
+  ctx.font = `700 ${fs}px Silkscreen, Tiny5, monospace`;
+  while (ctx.measureText(label).width > w - 8 && fs > 8) { fs -= 8; ctx.font = `700 ${fs}px Silkscreen, Tiny5, monospace`; }
+  ctx.fillStyle = css(0x000000, 0.5); ctx.fillText(label, Math.round(w / 2) + 1, Math.round(h / 2) + 1);
+  ctx.fillStyle = '#f4f0e6'; ctx.fillText(label, Math.round(w / 2), Math.round(h / 2));
   crisp(ctx, w, h);
+}
+/** an engraved brass plate with screws */
+export function paintBrass(cv: HTMLCanvasElement, line1: string, line2: string, w: number, h: number) {
+  cv.width = w; cv.height = h;
+  const ctx = cv.getContext('2d')!;
+  for (let y = 0; y < h; y++) { const t = y / h; ctx.fillStyle = `rgb(${Math.round(196 - t * 70)},${Math.round(150 - t * 56)},${Math.round(70 - t * 30)})`; ctx.fillRect(0, y, w, 1); }
+  for (let i = 0; i < w * 0.6; i++) { ctx.fillStyle = 'rgba(255,240,200,0.12)'; ctx.fillRect(Math.floor(Math.random() * w), Math.floor(Math.random() * h), Math.floor(2 + Math.random() * 8), 1); }
+  ctx.strokeStyle = '#4a3410'; ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
+  ctx.strokeStyle = 'rgba(255,230,170,0.6)'; ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
+  for (const [x, y] of [[4, 4], [w - 5, 4], [4, h - 5], [w - 5, h - 5]]) { ctx.fillStyle = '#5a4018'; ctx.fillRect(x - 2, y - 2, 4, 4); ctx.fillStyle = '#e8d090'; ctx.fillRect(x - 1, y - 2, 1, 4); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `700 16px Silkscreen, Tiny5, monospace`;
+  ctx.fillStyle = 'rgba(255,240,200,0.55)'; ctx.fillText(line1, Math.round(w / 2) + 1, Math.round(h * 0.4) + 1);
+  ctx.fillStyle = '#2a1c08'; ctx.fillText(line1, Math.round(w / 2), Math.round(h * 0.4));
+  ctx.font = `400 8px Tiny5, Silkscreen, monospace`;
+  ctx.fillStyle = '#3a2a10'; ctx.fillText(line2, Math.round(w / 2), Math.round(h * 0.76));
+}
+/** a gauge face: cream enamel, ticks, a red zone */
+export function paintGauge(cv: HTMLCanvasElement, label: string) {
+  const S = 48; cv.width = S; cv.height = S;
+  const ctx = cv.getContext('2d')!;
+  ctx.fillStyle = '#e8e0c8'; ctx.beginPath(); ctx.arc(S / 2, S / 2, S / 2 - 1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#2a2418';
+  for (let i = 0; i <= 10; i++) { const a = Math.PI * (0.8 + i * 0.14); const r0 = S * 0.36, r1 = i % 5 ? S * 0.41 : S * 0.44; ctx.beginPath(); ctx.moveTo(S / 2 + Math.cos(a) * r0, S / 2 + Math.sin(a) * r0); ctx.lineTo(S / 2 + Math.cos(a) * r1, S / 2 + Math.sin(a) * r1); ctx.stroke(); }
+  ctx.strokeStyle = '#b8261e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(S / 2, S / 2, S * 0.4, Math.PI * 2.0, Math.PI * 2.2); ctx.stroke();
+  ctx.font = `400 8px Tiny5, monospace`; ctx.fillStyle = '#2a2418'; ctx.textAlign = 'center'; ctx.fillText(label, S / 2, S * 0.72);
 }
 
 /** a blood splat (alpha) for decals: a core, drops flung outwards, a few runs */

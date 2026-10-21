@@ -38,12 +38,12 @@ export function learnRule(key: string, how: RuleHow): boolean {
   addStat('rules_learned', 1);
   grantResearch(3, 'Rule learned: ' + sp.name);
   bus.emit('ruleLearned', { key, species: sp.name, name: r.name, text: r.text, how });
+  // no info panel: the survivor mutters it to themselves (the watch's field notes carry the full rule)
   const p = G.local;
   if (p) {
-    const lead = how === 'survived' ? 'I lived through it. Now I see how it works.' : how === 'watched' ? 'I have watched it long enough.' : how === 'witness' ? 'There. That is how it works.' : '';
-    if (lead) bus.emit('think', p, lead);
-    bus.emit('halo', p, `RULE: ${r.name}`, 'good');
-    bus.emit('think', p, `${sp.name}: ${r.text}`);
+    const lead = how === 'survived' ? 'Lived through that. ' : how === 'watched' ? 'Watched it long enough. ' : how === 'witness' ? 'There. ' : '';
+    bus.emit('think', p, `${lead}${r.name.charAt(0) + r.name.slice(1).toLowerCase()}. That is its rule.`);
+    G.audio?.ui?.('scanDone');
   }
   return true;
 }

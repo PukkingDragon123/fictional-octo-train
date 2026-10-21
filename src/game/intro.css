@@ -1,5 +1,6 @@
-/* The first-person intake (src/game/intro.ts): letterbox, captions in the bottom bar, eyelids,
-   impact flash, a red pulse at the edges when it hurts, the black closing in at the end, a skip. */
+/* The first-person intake (src/game/intro.ts): letterbox, eyelids, impact flash, a red pulse at the
+   edges when it hurts, the black closing in at the end, and a pixel-art skip key. No text boxes:
+   speech floats in the stage as pixel lettering, the title is a sign on the wall. */
 .ix-root { position: fixed; inset: 0; pointer-events: none; z-index: 180; font-family: 'VT323', monospace; color: #eef3e6; overflow: hidden; }
 .ix-svg { position: absolute; width: 0; height: 0; }
 .ix-shade { position: absolute; inset: 0; background: #000; }
@@ -18,37 +19,15 @@
 .ix-bar.bot { bottom: 0; }
 .ix-root.letterbox .ix-bar { height: 10vh; }
 
-/* captions sit in the bottom bar */
-.ix-cap { position: absolute; left: 50%; bottom: calc(1.6vh + env(safe-area-inset-bottom)); transform: translateX(-50%); width: min(92vw, 980px); text-align: center;
-  font-size: clamp(18px, 2.4vw, 28px); letter-spacing: 1.5px; line-height: 1.1; opacity: 0; transition: opacity .25s; text-shadow: 2px 2px 0 #000; }
-.ix-root:not(.letterbox) .ix-cap { bottom: calc(12vh + env(safe-area-inset-bottom)); }
-.ix-cap.on { opacity: 1; }
-.ix-cap b { font-weight: 400; color: #8a949c; letter-spacing: 3px; margin-right: 12px; font-size: .78em; }
-.ix-cap.guard span { color: #dfe4e6; }
-.ix-cap.self span { color: #f0d890; font-style: italic; }
-.ix-cap.voss span { color: #7ef0ff; }
-
-/* the chapter card */
-.ix-card { position: absolute; left: 50%; top: 44%; transform: translate(-50%, -50%); text-align: center; opacity: 0; transition: opacity 1.4s; white-space: nowrap; text-shadow: 3px 3px 0 #000; line-height: 1.05; }
-.ix-card div { display: block; }
-.ix-card.on { opacity: 1; }
-.ix-card .l1 { font-size: clamp(15px, 2vw, 22px); letter-spacing: 6px; color: #b8b49a; }
-.ix-card .l2 { font-size: clamp(28px, 5.2vw, 58px); letter-spacing: 4px; color: #f4f0dc; margin: 6px 0 8px; }
-.ix-card .l3 { font-size: clamp(14px, 1.9vw, 21px); letter-spacing: 5px; color: #d8a830; }
-
-/* the skip: a fast-forward in the corner, brighter after a tap */
-.ix-skip { position: absolute; right: calc(12px + env(safe-area-inset-right)); top: calc(8px + env(safe-area-inset-top)); pointer-events: auto; cursor: pointer; min-height: 44px;
-  background: none; border: 0; padding: 6px 10px; font: inherit; font-size: clamp(17px, 2.3vw, 26px); letter-spacing: 2px; color: #eef3e6; opacity: 0; transition: opacity .5s, color .2s, transform .2s;
-  text-shadow: 2px 2px 0 rgba(0, 0, 0, .85); touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.ix-skip.on { opacity: .42; }
-.ix-skip.hot, .ix-skip:hover, .ix-skip:focus-visible { opacity: 1; outline: none; color: #fff; transform: translateX(-2px); }
-.ix-skip b { font-weight: 400; display: inline-block; margin-right: 6px; }
-.ix-skip.hot b { animation: ix-ff .35s steps(2) infinite; }
-.ix-skip small { font-size: .62em; opacity: .7; margin-left: 6px; }
-@keyframes ix-ff { 50% { transform: translateX(4px); } }
-
+/* the skip: a pixel-art rubber VCR key in the corner (src/game/pixelText.ts draws it), brighter after a tap */
+.ix-skip { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(8px + env(safe-area-inset-top)); pointer-events: auto; cursor: pointer;
+  background: none; border: 0; padding: 6px; opacity: 0; transition: opacity .5s, transform .12s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.ix-skip.on { opacity: .55; }
+.ix-skip.hot, .ix-skip:hover, .ix-skip:focus-visible { opacity: 1; outline: none; }
+.ix-skip:active { transform: translateY(2px); }
+.ix-key { display: block; width: 138px; height: 42px; image-rendering: pixelated; }
 @media (max-width: 640px), (max-height: 420px) {
-  .ix-card .l2 { letter-spacing: 2px; }
   .ix-root.letterbox .ix-bar { height: 12vh; }
+  .ix-key { width: 92px; height: 28px; }
 }
 @media (prefers-reduced-motion: reduce) { .ix-wrap { transition: none; } }

@@ -60,14 +60,15 @@ function buildMite(): Rig {
     }
   });
   void mite;
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.4;
-    bpart(rig, 'tendril' + i, fl, [Math.cos(a) * 0.12, -0.26, Math.sin(a) * 0.12], PG, 'tend', (ob) => {
+  // three glowing threads hanging from the film (one part: phones count draw calls)
+  bpart(rig, 'tendrils', fl, [0, -0.26, 0], PG, 'tend', (ob) => {
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2 + 0.4, ox = Math.cos(a) * 0.12, oz = Math.sin(a) * 0.12;
       const path: V3[] = [];
-      for (let k = 0; k <= 6; k++) path.push([Math.sin(k * 1.3) * 0.03, -k * 0.07, Math.cos(k * 1.1) * 0.02]);
+      for (let k = 0; k <= 6; k++) path.push([ox + Math.sin(k * 1.3 + i) * 0.03, -k * (0.06 + i * 0.012), oz + Math.cos(k * 1.1 + i) * 0.02]);
       ob.tube(path, path.map((_, k) => 0.012 * (1 - k / 8)), 5, PG.reg('TEND'), { start: 'pole', end: 'pole', emis: 0.7 });
-    });
-  }
+    }
+  });
   rig.eyes = [];
   return rig;
 }
@@ -86,7 +87,7 @@ function animateMite(rig: Rig, c: Creature, t: number, dt: number) {
     ud.dy = Math.max(-FLOAT_Y + 0.08, (ud.dy ?? 0) - dt * 3);
     fl.position.y = FLOAT_Y + ud.dy;
     rot(rig, 'mite', Math.PI, 0, 0.4);
-    for (let i = 0; i < 3; i++) vis(rig, 'tendril' + i, false);
+    vis(rig, 'tendrils', false);
     return;
   }
   vis(rig, 'bubble', true);
@@ -102,7 +103,7 @@ function animateMite(rig: Rig, c: Creature, t: number, dt: number) {
   const mite = rig.parts.mite;
   mite.rotation.set(Math.sin(t * 0.7) * 0.3, t * (n.hunt ? 2.2 : 0.6) + seed * 6, Math.sin(t * 1.1) * 0.3);
   mite.position.z = atk * 0.1;
-  for (let i = 0; i < 3; i++) rot(rig, 'tendril' + i, Math.sin(t * 2 + i * 2 + seed * 4) * 0.35 - ud.lean * 0.8, 0, Math.cos(t * 1.7 + i) * 0.3);
+  rot(rig, 'tendrils', Math.sin(t * 2 + seed * 4) * 0.25 - ud.lean * 0.8, t * 0.3, Math.cos(t * 1.7) * 0.2);
   if (c.hitFlash > 0) scl(rig, 'bubble', 1.15, 0.85, 1.15);
 }
 
@@ -183,12 +184,12 @@ const MITE = def({
   hp: 6, walk: 0.5, run: 2.7, turn: 3, radius: 0.32, height: 1.5, sight: 13, fov: 3.1, hearing: 0.6,
   rule: { name: 'DRIFTS TO MOTION', text: 'It floats toward whatever moves fastest. Stand still or creep and it drifts past. Any hit pops it, and the goo slows whoever stands in it.', tell: 'Bubbles. Drifting toward me every time I move.' },
   attack: { dmg: [3, 6], range: 0.55, cooldown: 1.4, kinds: ['burn', 'scratch'], corrupt: 0, knock: 0.25, parts: ['head', 'neck', 'torso_u', 'farm_l', 'farm_r'] },
-  zones: ['meadow'], weight: 3, group: [3, 6], maxPerZone: 14, diet: 'none',
+  zones: ['meadow'], weight: 3, group: [3, 6], maxPerZone: 10, diet: 'none',
   flags: { flying: true, noCorpse: true, pack: true },
   sounds: snd({ alert: 'bubble_wob', attack: 'bubble_wob', hurt: 'bubble_wob', death: 'bubble_pop', loop: 'bubble_drift' }),
   remains: 'none',
   scan: { cls: 'Floating drift / swarm', notes: ['A soap bubble with a pale mite curled up inside, trailing glowing threads.', 'It goes for the fastest mover it can see. Things that stand still are not there to it.', 'Any blow pops it. The goo sticks to boots.', 'A pop brings the rest of the drift.'] },
-  gore: { blood: 'glow', tint: 0xffc8f8, flesh: 0xffd8f0, sever: ['tendril0', 'tendril1', 'tendril2'], head: 'mite', gib: true },
+  gore: { blood: 'glow', tint: 0xffc8f8, flesh: 0xffd8f0, sever: ['tendrils'], head: 'mite', gib: true },
   build: buildMite, animate: animateMite, think: thinkMite,
 });
 MITE.animateGallery = galleryDriver('bubble_mite', ['drift', 'hunt', 'attack', 'dead'], animateMite, (pose, fc, t) => {

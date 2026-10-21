@@ -45,9 +45,17 @@ PG.paint((P) => {
   }
   flat(P, P.R('FRAME'), 0x3a2a24, 0.15);
   {
+    // star cracks on a clear ground (alpha-tested): bright edges with a dark seam
     const r = P.R('CRACK');
-    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) P.set(r, x, y, 0x000000);
-    for (let i = 0; i < 6; i++) P.walk(r, r.w / 2, r.h / 2, 10, Math.cos(i), Math.sin(i), 0xffffff, 1, 0.4, 0.2);
+    for (let i = 0; i < 7; i++) {
+      const a = i * 0.9 + P.rng.float(-0.2, 0.2);
+      let x = r.w / 2, y = r.h / 2;
+      for (let k = 0; k < 9; k++) {
+        P.set(r, x, y, k % 3 === 0 ? 0x2a3440 : 0xffffff);
+        if (k > 2 && P.rng.chance(0.3)) P.set(r, x + 1, y, 0xc8e0f0);
+        x += Math.cos(a + P.rng.float(-0.4, 0.4)); y += Math.sin(a + P.rng.float(-0.4, 0.4));
+      }
+    }
   }
   P.cut(P.R('CUT'), 0x9aa4b0, { meat: 0xb8c8d8, bone: 0xffffff, marrow: 0xe8f0f8, fat: 0x8a96a8 });
 });

@@ -19,6 +19,7 @@ import { CT, loosePartGeo } from '../../entities/cyberGear';
 import { CyberSlot, SLOT_KIND, SLOT_COVERS, cyberDef, CYBER_SLOTS } from '../../survival/cyberParts';
 import type { StumpCond } from '../../survival/limbs';
 import { csfx, csfxLoop } from './audio';
+import { Screen } from '../font5x7';
 
 export type Pick = CyberSlot | 'brain';
 export type CyberLoad = Partial<Record<CyberSlot, string>>;
@@ -116,34 +117,37 @@ class RobotArm {
   spinRate = 0;
   constructor(mat: THREE.Material, glow: number, kind: 'saw' | 'driver', toolLen: number) {
     const part = (fn: (mb: ModelBuilder) => void) => { const mb = new ModelBuilder(); fn(mb); const m = new THREE.Mesh(mb.build(), mat); m.castShadow = true; return m; };
-    const paint = { sides: CT.paint, top: CT.paint, bottom: CT.black };
+    const paint = { sides: CT.mint, top: CT.mint, bottom: CT.black };
     // base and turret
     this.root.add(part((mb) => {
       mb.cylinder(0, 0, 0, 0.32, 0.08, 10, { sides: CT.hazard, top: CT.steel, bottom: CT.steel }, { fit: true });
-      mb.cylinder(0, 0.08, 0, 0.2, 0.36, 10, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true, rTop: 0.17 });
+      mb.cylinder(0, 0.08, 0, 0.2, 0.36, 10, { sides: CT.mint, top: CT.steel, bottom: CT.steel }, { fit: true, rTop: 0.17 });
+      mb.box(0, 0.22, 0.19, 0.13, 0.13, 0.01, CT.gauge, { fit: true });
       for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; mb.cylinder(Math.cos(a) * 0.27, 0.08, Math.sin(a) * 0.27, 0.02, 0.025, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true }); }
     }));
     this.yaw.position.y = 0.44;
     this.root.add(this.yaw);
     this.yaw.add(part((mb) => {
       mb.cylinder(0, 0, 0, 0.19, 0.12, 10, paint, { fit: true });
-      mb.box(0, 0.1, 0, 0.26, 0.16, 0.3, CT.paint, { fit: true });
-      mb.box(0, 0.06, 0.152, 0.2, 0.02, 0.004, CT.glow, { fit: true, color: glow, emissive: 1.5 });
+      mb.box(0, 0.1, 0, 0.26, 0.16, 0.3, CT.mint, { fit: true });
+      mb.box(0.06, 0.14, 0.152, 0.025, 0.025, 0.006, CT.glow, { fit: true, color: glow, emissive: 1.6 });
+      mb.box(-0.06, 0.14, 0.152, 0.025, 0.025, 0.006, CT.brass, { fit: true });
     }));
     this.sh.position.y = BASE_H - 0.44;
     this.yaw.add(this.sh);
     this.sh.add(part((mb) => {
       mb.cylinderZ(0, 0, 0, 0.13, 0.34, 10, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
-      mb.box(L1 / 2, -0.08, 0, L1, 0.16, 0.2, CT.paint, { fit: true });
-      mb.box(L1 / 2, -0.03, 0.102, L1 * 0.7, 0.06, 0.004, CT.hazard, { fit: true });
-      mb.box(L1 * 0.45, 0.06, 0, 0.5, 0.04, 0.05, CT.hose, { fit: true });
-      mb.box(L1 * 0.3, -0.02, -0.103, 0.3, 0.012, 0.004, CT.glow, { fit: true, color: glow, emissive: 1.5 });
+      mb.box(L1 / 2, -0.08, 0, L1, 0.16, 0.2, CT.mint, { fit: true });
+      for (let i = 0; i < 6; i++) for (const z of [-0.101, 0.101]) mb.box(0.1 + i * 0.15, -0.075, z, 0.012, 0.012, 0.004, CT.brass, { fit: true });
+      mb.cylinderX(L1 * 0.45, 0.07, 0, 0.022, 0.6, 6, { sides: CT.hose, top: CT.brass, bottom: CT.brass }, { fit: true });
+      mb.cylinderX(L1 * 0.5, 0.015, 0.06, 0.028, 0.34, 8, { sides: CT.chrome, top: CT.brass, bottom: CT.brass }, { fit: true });
     }));
     this.el.position.x = L1;
     this.sh.add(this.el);
     this.el.add(part((mb) => {
       mb.cylinderZ(0, 0, 0, 0.1, 0.26, 10, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
-      mb.box(L2 / 2, -0.06, 0, L2, 0.12, 0.14, CT.paint, { fit: true });
+      mb.box(L2 / 2, -0.06, 0, L2, 0.12, 0.14, CT.mint, { fit: true });
+      for (let i = 0; i < 5; i++) mb.box(0.1 + i * 0.15, -0.055, 0.071, 0.012, 0.012, 0.004, CT.brass, { fit: true });
       mb.cylinderX(L2 * 0.5, 0.075, 0, 0.022, L2 * 0.7, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
     }));
     this.wr.position.x = L2;
@@ -158,6 +162,7 @@ class RobotArm {
       this.tool.add(part((mb) => {
         mb.box(toolLen * 0.4, -0.04, 0, toolLen * 0.8, 0.08, 0.08, CT.black, { fit: true });
         mb.box(toolLen * 0.75, 0.03, 0, 0.2, 0.06, 0.1, CT.hazard, { fit: true });
+        mb.cylinderX(toolLen * 0.3, 0.06, 0, 0.035, 0.18, 8, { sides: CT.black, top: CT.brass, bottom: CT.brass }, { fit: true });
       }));
       this.spin.position.set(toolLen * 0.85, 0, 0);
       this.spin.add(part((mb) => {
@@ -171,7 +176,8 @@ class RobotArm {
     } else {
       this.tool.add(part((mb) => {
         mb.box(toolLen * 0.35, -0.05, 0, toolLen * 0.7, 0.1, 0.12, CT.black, { fit: true });
-        mb.box(toolLen * 0.5, 0.05, 0, 0.12, 0.012, 0.13, CT.glow, { fit: true, color: glow, emissive: 1.6 });
+        mb.box(toolLen * 0.5, 0.05, 0, 0.12, 0.04, 0.1, CT.black, { fit: true });
+        mb.box(toolLen * 0.45, 0.09, 0, 0.03, 0.02, 0.03, CT.glow, { fit: true, color: glow, emissive: 1.6 });
       }));
       this.spin.position.set(toolLen * 0.75, 0, 0);
       this.spin.add(part((mb) => { mb.cylinderX(0.06, 0, 0, 0.012, 0.14, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true }); mb.box(0.13, -0.012, 0, 0.012, 0.024, 0.024, CT.glow, { fit: true, color: 0xffffff, emissive: 2 }); }));
@@ -179,7 +185,7 @@ class RobotArm {
       for (const k of [-1, 1]) {
         const f = new THREE.Group();
         f.position.set(toolLen * 0.62, 0, k * 0.07);
-        f.add(part((mb) => { mb.box(0.11, -0.015, 0, 0.22, 0.03, 0.025, CT.steel, { fit: true }); mb.box(0.21, -0.02, -k * 0.02, 0.03, 0.04, 0.04, CT.paint, { fit: true }); }));
+        f.add(part((mb) => { mb.box(0.11, -0.015, 0, 0.22, 0.03, 0.025, CT.steel, { fit: true }); mb.box(0.21, -0.02, -k * 0.02, 0.03, 0.04, 0.04, CT.rust, { fit: true }); }));
         this.tool.add(f);
         this.fingers.push(f);
       }
@@ -233,6 +239,8 @@ export class SurgeryStage {
   private gantry = new THREE.Group(); private trolley = new THREE.Group(); private claw = new THREE.Group(); private clawFingers: THREE.Group[] = [];
   private straps: THREE.Mesh[] = [];
   private lamp: THREE.SpotLight; private alarm: THREE.PointLight; private weld: THREE.PointLight;
+  /** a hand lamp that swings over whatever part the pointer is on */
+  private inspect = new THREE.PointLight(0xffe0a0, 0, 0.9, 1.6);
   private blood: Bits; private sparks: Bits;
   private loose: Loose[] = [];
   private holo = new Map<Pick, THREE.LineSegments>();
@@ -274,16 +282,16 @@ export class SurgeryStage {
       this.renderer.setPixelRatio(1);
       if (this.quality !== 'low') { this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFShadowMap; }
     } catch (e) { console.warn('surgery renderer unavailable', e); this.renderer = null; }
-    this.scene.background = new THREE.Color(0x05060a);
-    this.scene.fog = new THREE.Fog(0x05060a, 5, 11);
-    this.saw = new RobotArm(this.mat, 0xff2a6a, 'saw', 0.36);
-    this.driver = new RobotArm(this.mat, 0x2affe0, 'driver', 0.3);
+    this.scene.background = new THREE.Color(0x0c0a08);
+    this.scene.fog = new THREE.Fog(0x0c0a08, 6, 12);
+    this.saw = new RobotArm(this.mat, 0xff3020, 'saw', 0.36);
+    this.driver = new RobotArm(this.mat, 0x60ff60, 'driver', 0.3);
     this.saw.root.position.set(-0.55, 0, -1.25);
     this.driver.root.position.set(0.75, 0, -1.25);
     this.restArms(true);
     this.lamp = new THREE.SpotLight(0xfff2e0, 11, 6, 0.62, 0.6, 1.2);
-    this.alarm = new THREE.PointLight(0xff1030, 0, 7, 1.6);
-    this.weld = new THREE.PointLight(0x9adfff, 0, 3.5, 1.8);
+    this.alarm = new THREE.PointLight(0xff3018, 0, 7, 1.6);
+    this.weld = new THREE.PointLight(0xfff0c0, 0, 3.5, 1.8);
     this.blood = new Bits(this.quality === 'low' ? 260 : 520, false);
     this.sparks = new Bits(this.quality === 'low' ? 120 : 240, true, 6);
     this.monitor = this.makeMonitor();
@@ -300,116 +308,138 @@ export class SurgeryStage {
 
   // ---------------------------------------------------------------- the room
   private buildRoom() {
+    // a 1950s municipal theatre the Institute never finished paying for: mint tile to shoulder height,
+    // cream paint above, a terrazzo floor with a drain, tungsten light, chrome, bakelite and riveted steel
     const mb = new ModelBuilder();
     const W = 3.4, D0 = -2.0, D1 = 3.6, H = 3.1;
-    mb.box(0, -0.05, (D0 + D1) / 2, W * 2, 0.05, D1 - D0, { top: 'grate', sides: 'metal_dark' }, { color: 0x6a7080 });
-    mb.box(0, 0, D0 - 0.05, W * 2, H, 0.1, { south: 'concrete_b', all: 'metal_dark' }, { color: 0x4a4e5a });
-    for (const k of [-1, 1]) mb.box(k * W, 0, (D0 + D1) / 2, 0.1, H, D1 - D0, { east: 'concrete_b', west: 'concrete_b', all: 'metal_dark' }, { color: 0x3e424c });
-    mb.box(0, H, (D0 + D1) / 2, W * 2, 0.06, D1 - D0, 'metal_dark', { color: 0x2a2c32 });
-    // wall panels with hazard skirting, pipes and cable runs
-    mb.box(0, 0, D0 + 0.01, W * 2, 0.16, 0.03, CT.hazard, { fit: false });
-    for (let i = 0; i < 4; i++) mb.cylinderX(0, 2.2 + i * 0.13, D0 + 0.12, 0.045, W * 2, 8, { sides: i % 2 ? CT.pipe : CT.black, top: CT.steel, bottom: CT.steel }, {});
-    for (let x = -3; x <= 3; x += 1.5) mb.box(x, 0.16, D0 + 0.02, 0.05, H - 0.2, 0.06, 'metal_grey', { color: 0x5a5e68 });
-    // the operating slab on a hydraulic column
-    mb.cylinder(0.05, 0, 0, 0.18, TABLE_Y - 0.12, 10, { sides: CT.chrome, top: CT.steel, bottom: CT.steel }, { fit: true });
-    mb.box(0.05, 0, 0, 0.9, 0.06, 0.6, CT.hazard, { fit: true });
-    mb.box(0, TABLE_Y - 0.12, 0, 2.18, 0.08, 0.72, { top: 'metal_brushed', sides: CT.steel, bottom: CT.steel }, {});
-    mb.box(0, TABLE_Y - 0.04, 0, 2.12, 0.04, 0.68, { top: 'metal_brushed', sides: CT.chrome }, { color: 0xc8d0dc });
-    mb.box(0, TABLE_Y - 0.13, 0.37, 2.0, 0.025, 0.012, CT.glow, { color: 0x30ffe0, emissive: 1.4 });
-    mb.box(0, TABLE_Y - 0.13, -0.37, 2.0, 0.025, 0.012, CT.glow, { color: 0xff2a8a, emissive: 1.4 });
-    // the kidney tray on a stand
+    mb.box(0, -0.05, (D0 + D1) / 2, W * 2, 0.05, D1 - D0, { top: 'terrazzo', sides: 'concrete' }, { color: 0xb8b0a0 });
+    mb.box(0.05, 0.0, 0, 0.5, 0.008, 0.5, 'grate', { color: 0x6a6a62 });
+    mb.box(0, 0, D0 - 0.05, W * 2, 1.4, 0.1, { south: 'tile_white', all: 'concrete' }, { color: 0xa8d4bc });
+    mb.box(0, 1.4, D0 - 0.05, W * 2, H - 1.4, 0.1, { south: 'concrete_b', all: 'concrete' }, { color: 0xd8ccb0 });
+    mb.box(0, 1.38, D0 + 0.0, W * 2, 0.06, 0.04, CT.mint, {});
+    for (const k of [-1, 1]) {
+      mb.box(k * W, 0, (D0 + D1) / 2, 0.1, 1.4, D1 - D0, { east: 'tile_white', west: 'tile_white', all: 'concrete' }, { color: 0xa8d4bc });
+      mb.box(k * W, 1.4, (D0 + D1) / 2, 0.1, H - 1.4, D1 - D0, { east: 'concrete_b', west: 'concrete_b', all: 'concrete' }, { color: 0xc8bca0 });
+    }
+    mb.box(0, H, (D0 + D1) / 2, W * 2, 0.06, D1 - D0, 'concrete_b', { color: 0x8a8274 });
+    // pipes along the back wall, painted and lagged, with valve wheels
+    for (let i = 0; i < 3; i++) mb.cylinderX(0, 2.3 + i * 0.16, D0 + 0.12, 0.05, W * 2, 8, { sides: i === 1 ? 'metal_painted_green' : CT.pipe, top: CT.steel, bottom: CT.steel }, {});
+    for (const x of [-1.6, 1.9]) { mb.cylinderZ(x, 2.46, D0 + 0.22, 0.09, 0.02, 10, { sides: 'metal_rusty', top: 'metal_rusty', bottom: 'metal_rusty' }, { fit: true, color: 0xb02020 }); }
+    // the operating table: mint enamel pedestal, chrome top, a drain lip
+    mb.cylinder(0.05, 0, 0, 0.3, 0.08, 12, { sides: CT.mint, top: CT.mint, bottom: CT.steel }, { fit: true });
+    mb.cylinder(0.05, 0.08, 0, 0.16, TABLE_Y - 0.2, 10, { sides: CT.chrome, top: CT.steel, bottom: CT.steel }, { fit: true });
+    mb.box(0.05, TABLE_Y - 0.26, 0, 0.6, 0.12, 0.4, CT.mint, { fit: true });
+    mb.cylinderZ(0.36, TABLE_Y - 0.2, 0.21, 0.05, 0.02, 10, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+    mb.box(0, TABLE_Y - 0.12, 0, 2.18, 0.08, 0.72, { top: 'metal_brushed', sides: CT.mint, bottom: CT.steel }, {});
+    mb.box(0, TABLE_Y - 0.04, 0, 2.12, 0.04, 0.68, { top: 'metal_brushed', sides: CT.chrome }, { color: 0xd0d4d8 });
+    for (const z of [-0.37, 0.37]) mb.box(0, TABLE_Y - 0.06, z, 2.14, 0.05, 0.02, CT.chrome, { fit: true });
+    // the kidney tray on a chrome stand
     const T = this.trayPos;
     mb.cylinder(T.x, 0, T.z, 0.03, T.y - 0.05, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+    mb.cylinder(T.x, 0, T.z, 0.22, 0.03, 8, { sides: CT.chrome, top: CT.steel, bottom: CT.steel }, { fit: true });
     mb.box(T.x, T.y - 0.05, T.z, 0.95, 0.03, 0.42, CT.steel, { fit: true });
     for (const [x, z, w, d] of [[0, 0.2, 0.95, 0.02], [0, -0.2, 0.95, 0.02], [0.47, 0, 0.02, 0.42], [-0.47, 0, 0.02, 0.42]]) mb.box(T.x + x, T.y - 0.02, T.z + z, w, 0.07, d, CT.chrome, { fit: true });
-    // the parts rack on the back wall
-    mb.box(-2.4, 0.4, D0 + 0.25, 1.4, 0.05, 0.3, CT.steel, {});
-    mb.box(-2.4, 1.9, D0 + 0.12, 1.4, 0.04, 0.06, CT.steel, {});
-    for (const x of [-3.05, -1.75]) mb.box(x, 0, D0 + 0.25, 0.05, 1.95, 0.05, CT.steel, {});
-    // monitor stand
-    mb.box(-1.65, 0, 0.55, 0.05, 1.45, 0.05, 'metal_dark', {});
-    mb.box(-1.65, 1.42, 0.55, 0.52, 0.4, 0.14, CT.black, {});
-    // ceiling gantry rail
-    mb.box(-0.6, H - 0.18, 0, 6.0, 0.12, 0.16, { sides: CT.hazard, all: CT.steel }, { fit: false });
-    // the ring lamp housing
-    mb.cylinder(0.05, 2.32, 0, 0.42, 0.1, 14, { sides: CT.black, top: CT.black, bottom: CT.steel }, { fit: true });
-    mb.cylinder(0.05, 2.42, 0, 0.04, H - 2.42, 6, { sides: CT.steel, top: CT.steel, bottom: CT.steel }, { fit: true });
+    // the parts rack: a pegboard on the back wall
+    mb.box(-2.4, 0.95, D0 + 0.02, 1.5, 1.1, 0.03, 'wood_trim', { color: 0x8a7a5a });
+    mb.box(-2.4, 0.85, D0 + 0.18, 1.5, 0.04, 0.3, CT.steel, {});
+    // the instrument wall: a riveted panel of gauges and toggles
+    mb.box(1.85, 1.05, D0 + 0.02, 1.3, 0.75, 0.06, CT.mint, {});
+    for (let i = 0; i < 4; i++) mb.box(1.35 + i * 0.33, 1.42, D0 + 0.055, 0.24, 0.24, 0.01, CT.gauge, { fit: true });
+    for (let i = 0; i < 8; i++) { mb.box(1.32 + i * 0.12, 1.14, D0 + 0.055, 0.05, 0.08, 0.012, 'metal_grey', { fit: true }); mb.box(1.32 + i * 0.12, 1.2, D0 + 0.07, 0.012, 0.035, 0.03, CT.chrome, { fit: true }); }
+    // the vitals CRT on a trolley: bakelite cabinet, cream bezel, two knobs
+    mb.box(-1.65, 0, 0.55, 0.06, 1.25, 0.06, CT.chrome, {});
+    mb.box(-1.65, 0.0, 0.55, 0.5, 0.05, 0.4, CT.mint, {});
+    mb.box(-1.65, 1.25, 0.55, 0.62, 0.5, 0.44, CT.black, { fit: true });
+    mb.push().translate(-1.65, 1.25, 0.55).rotateY(0.35);
+    mb.box(0, 0.04, 0.22, 0.58, 0.42, 0.03, CT.shell, { fit: true });
+    for (const x of [-0.2, 0.2]) mb.cylinderZ(x, 0.1, 0.25, 0.03, 0.03, 8, { sides: CT.black, top: CT.brass, bottom: CT.brass }, { fit: true });
+    mb.pop();
+    // ceiling gantry: a riveted I-beam with a chain hoist
+    mb.box(-0.6, H - 0.2, 0, 6.0, 0.14, 0.08, CT.steel, { fit: false });
+    mb.box(-0.6, H - 0.22, 0, 6.0, 0.02, 0.2, CT.steel, { fit: false });
+    mb.box(-0.6, H - 0.08, 0, 6.0, 0.02, 0.2, CT.steel, { fit: false });
+    // the theatre lamp: a chrome dome on a counterweighted arm
+    mb.cylinder(0.05, 2.28, 0, 0.5, 0.14, 14, { sides: CT.chrome, top: CT.chrome, bottom: CT.steel }, { fit: true, rTop: 0.28 });
+    mb.cylinder(0.05, 2.42, 0, 0.04, H - 2.42, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+    mb.cylinderX(0.05, 2.5, 0, 0.03, 0.9, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+    mb.cylinder(0.5, 2.38, 0, 0.08, 0.14, 8, { sides: CT.black, top: CT.black, bottom: CT.black }, { fit: true });
     const room = new THREE.Mesh(mb.build(), this.mat);
     room.receiveShadow = true;
     this.scene.add(room);
-    // neon: tubes on the walls, the lamp ring, rack lights (unlit, they bloom in the post)
+    // tungsten: caged bulbs on the walls, the lamp's bulbs, pilot lamps, the IN USE box (unlit, they glow)
     const nb = new ModelBuilder();
-    const tube = (x: number, y: number, z: number, w: number, h: number, d: number, c: number) => nb.box(x, y, z, w, h, d, CT.glow, { color: c, emissive: 1.6 });
-    tube(-1.2, 2.0, D0 + 0.07, 1.8, 0.035, 0.035, 0xff2a8a);
-    tube(1.6, 1.15, D0 + 0.07, 1.4, 0.035, 0.035, 0x30ffe0);
-    tube(-W + 0.07, 0.3, 0.8, 0.035, 2.2, 0.035, 0x30ffe0);
-    tube(W - 0.07, 0.3, -0.6, 0.035, 2.4, 0.035, 0xff2a8a);
-    tube(-2.4, 1.88, D0 + 0.16, 1.3, 0.02, 0.02, 0xffc23a);
-    for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; nb.box(0.05 + Math.cos(a) * 0.36, 2.305, Math.sin(a) * 0.36, 0.09, 0.02, 0.09, CT.glow, { color: 0xfff6e8, emissive: 2 }); }
+    const bulb = (x: number, y: number, z: number) => {
+      nb.box(x, y, z, 0.08, 0.1, 0.08, CT.glow, { color: 0xffd890, emissive: 1.5 });
+      for (const k of [-1, 1]) { nb.box(x + k * 0.045, y - 0.01, z, 0.006, 0.13, 0.006, CT.steel, { fit: true }); nb.box(x, y - 0.01, z + k * 0.045, 0.006, 0.13, 0.006, CT.steel, { fit: true }); }
+    };
+    bulb(-1.2, 2.0, D0 + 0.1); bulb(0.6, 2.0, D0 + 0.1); bulb(-W + 0.1, 2.0, 0.6); bulb(W - 0.1, 2.0, -0.4);
+    for (let i = 0; i < 7; i++) { const a = (i / 7) * Math.PI * 2; nb.box(0.05 + Math.cos(a) * 0.32, 2.26, Math.sin(a) * 0.32, 0.1, 0.03, 0.1, CT.glow, { color: 0xfff0d0, emissive: 2 }); }
+    nb.box(0.05, 2.255, 0, 0.12, 0.03, 0.12, CT.glow, { color: 0xffffff, emissive: 2 });
+    for (let i = 0; i < 6; i++) nb.box(1.4 + i * 0.18, 0.9, D0 + 0.06, 0.03, 0.03, 0.02, CT.glow, { color: [0xff3020, 0x60ff60, 0xffb030][i % 3], emissive: 1.8 });
     const neon = new THREE.Mesh(nb.build(), this.glowMat);
     this.scene.add(neon);
-    // the rack's hardware: every part on a hook (locked ones go dark later via setRack)
     this.rack = new THREE.Group();
-    this.rack.position.set(-2.95, 1.75, D0 + 0.3);
+    this.rack.position.set(-3.0, 1.45, D0 + 0.12);
     this.scene.add(this.rack);
-    // straps across the slab
+    // leather restraint straps across the slab (they buckle shut when the subject is down)
     for (const [x, hgt] of [[-0.22, 0.22], [0.4, 0.17], [0.78, 0.13]] as const) {
       const sb = new ModelBuilder();
-      sb.box(0, hgt, 0, 0.09, 0.014, 0.66, { top: CT.hose, sides: CT.black }, { fit: true });
-      for (const k of [-1, 1]) sb.box(0, 0, k * 0.33, 0.09, hgt + 0.01, 0.014, CT.black, { fit: true });
-      sb.box(0, hgt + 0.012, 0.12, 0.1, 0.01, 0.06, CT.chrome, { fit: true });
+      sb.box(0, hgt, 0, 0.09, 0.014, 0.66, { top: 'i_leather', sides: 'i_leather' }, { fit: true });
+      for (const k of [-1, 1]) sb.box(0, 0, k * 0.33, 0.09, hgt + 0.01, 0.014, 'i_leather', { fit: true });
+      sb.box(0, hgt + 0.012, 0.12, 0.1, 0.01, 0.06, CT.brass, { fit: true });
       const s = new THREE.Mesh(sb.build(), this.mat);
       s.position.set(x, TABLE_Y - 0.02, 0); s.scale.z = 0.01; s.visible = false;
       this.scene.add(s); this.straps.push(s);
     }
-    // the monitor screen
+    // the vitals screen
     const scr = new THREE.Mesh(new THREE.PlaneGeometry(0.46, 0.33), new THREE.MeshBasicMaterial({ map: this.monitor.tex, fog: false }));
-    scr.position.set(-1.65, 1.62, 0.625); scr.rotation.y = 0.35;
+    scr.position.set(-1.65, 1.5, 0.55); scr.rotation.y = 0.35; scr.translateZ(0.24);
     this.scene.add(scr);
-    // the sign
-    const sc = document.createElement('canvas'); sc.width = 128; sc.height = 24;
-    const sx = sc.getContext('2d')!;
-    sx.fillStyle = '#000'; sx.fillRect(0, 0, 128, 24);
-    sx.font = 'bold 13px monospace'; sx.textAlign = 'center'; sx.textBaseline = 'middle';
-    sx.fillStyle = '#ff2a8a'; sx.fillText('AUGMENT BAY 03', 64, 12);
+    // the IN USE lightbox over the door
+    const sc = document.createElement('canvas'); sc.width = 64; sc.height = 16;
+    const scrn = new Screen(64, 16);
+    scrn.clear(0x2a0806);
+    scrn.frame(0, 0, 64, 16, Screen.c(0x5a1a10));
+    scrn.text('IN USE', 32 - scrn.textW('IN USE', 1) / 2, 4, Screen.c(0xff5030));
+    sc.getContext('2d')!.putImageData(scrn.img, 0, 0);
     const st = new THREE.CanvasTexture(sc); st.magFilter = THREE.NearestFilter; st.minFilter = THREE.NearestFilter; st.colorSpace = THREE.SRGBColorSpace;
-    this.sign = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.3), new THREE.MeshBasicMaterial({ map: st, fog: false, transparent: true, blending: THREE.AdditiveBlending }));
-    this.sign.position.set(0.9, 2.55, D0 + 0.08);
+    this.sign = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.2, 0.08), [this.mat, this.mat, this.mat, this.mat, new THREE.MeshBasicMaterial({ map: st, fog: false }), this.mat]);
+    this.sign.position.set(-0.4, 2.62, D0 + 0.06);
     this.scene.add(this.sign);
-    // gantry: trolley on the rail, piston, claw
+    // gantry: trolley on the beam, a chain hoist, a riveted claw
     this.trolley.position.set(-2.6, H - 0.24, 0);
     const tb = new ModelBuilder();
-    tb.box(0, -0.2, 0, 0.4, 0.2, 0.3, CT.paint, { fit: true });
-    tb.cylinder(0, -1.0, 0, 0.05, 0.82, 8, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+    tb.box(0, -0.2, 0, 0.4, 0.2, 0.3, CT.mint, { fit: true });
+    tb.cylinderZ(0, -0.1, 0, 0.09, 0.32, 10, { sides: CT.black, top: CT.brass, bottom: CT.brass }, { fit: true });
+    for (let i = 0; i < 9; i++) tb.box(0, -0.3 - i * 0.075, 0, i % 2 ? 0.012 : 0.03, 0.07, i % 2 ? 0.03 : 0.012, CT.steel, { fit: true });
     this.trolley.add(new THREE.Mesh(tb.build(), this.mat));
     this.claw.position.y = -1.0;
     const cb = new ModelBuilder();
-    cb.box(0, -0.08, 0, 0.36, 0.1, 0.16, CT.black, { fit: true });
-    cb.box(0, -0.05, 0.082, 0.3, 0.02, 0.004, CT.glow, { fit: true, color: 0xffc23a, emissive: 1.6 });
+    cb.box(0, -0.08, 0, 0.36, 0.1, 0.16, CT.mint, { fit: true });
+    cb.box(0, -0.06, 0.081, 0.3, 0.06, 0.004, CT.hazard, { fit: true });
     this.claw.add(new THREE.Mesh(cb.build(), this.mat));
     for (const k of [-1, 1]) {
       const f = new THREE.Group(); f.position.set(0, -0.08, k * 0.07);
       const fb = new ModelBuilder();
       fb.box(0, -0.22, k * 0.06, 0.08, 0.24, 0.03, CT.steel, { fit: true });
-      fb.box(0, -0.25, k * 0.03, 0.08, 0.03, 0.07, CT.paint, { fit: true });
+      fb.box(0, -0.25, k * 0.03, 0.08, 0.03, 0.07, CT.rust, { fit: true });
       f.add(new THREE.Mesh(fb.build(), this.mat));
       this.claw.add(f); this.clawFingers.push(f);
     }
     this.trolley.add(this.claw);
     this.gantry.add(this.trolley);
     this.scene.add(this.gantry);
-    // lights
-    this.scene.add(new THREE.AmbientLight(0x48506e, 0.8));
-    const hemi = new THREE.HemisphereLight(0x6a5aff, 0x200810, 0.35); this.scene.add(hemi);
-    const rimC = new THREE.PointLight(0x30ffe0, 7, 7, 1.5); rimC.position.set(-2.6, 1.6, 1.0); this.scene.add(rimC);
-    const rimM = new THREE.PointLight(0xff2a8a, 7, 7, 1.5); rimM.position.set(2.8, 1.8, -0.8); this.scene.add(rimM);
-    this.lamp.position.set(0.05, 2.3, 0);
+    // lights: tungsten key, a cool fill from the frosted window side, the wall bulbs
+    this.scene.add(new THREE.AmbientLight(0x6a6458, 0.75));
+    this.scene.add(new THREE.HemisphereLight(0xfff0d8, 0x2a2018, 0.45));
+    const fill = new THREE.PointLight(0x9ac8ff, 4, 7, 1.5); fill.position.set(-2.6, 1.8, 1.4); this.scene.add(fill);
+    const wall = new THREE.PointLight(0xffc070, 5, 6, 1.5); wall.position.set(1.2, 2.0, -1.5); this.scene.add(wall);
+    this.lamp.position.set(0.05, 2.25, 0);
     this.lamp.target.position.set(0.05, 0, 0);
     if (this.quality !== 'low') { this.lamp.castShadow = true; this.lamp.shadow.mapSize.set(512, 512); this.lamp.shadow.bias = -0.002; }
     this.scene.add(this.lamp, this.lamp.target);
-    this.alarm.position.set(0.9, 2.6, -1.6); this.scene.add(this.alarm);
-    this.scene.add(this.weld);
-    // holograms around each pickable part (shown on hover / select)
+    this.alarm.position.set(-0.4, 2.5, -1.6); this.scene.add(this.alarm);
+    this.scene.add(this.weld, this.inspect);
   }
   private rack!: THREE.Group;
 

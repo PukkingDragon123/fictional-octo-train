@@ -6,11 +6,12 @@
 import type { Player } from '../../entities/player';
 import type { Injury } from '../../survival/body';
 import type { BodyPart } from '../../items/item';
-import { Pix, mix, shade, bayer, hash } from './pix';
+import { Pix, mix, shade, bayer, hash, type3, typeW } from './pix';
 import { needsCare } from './treat';
 
-export const BAG_W = 46, BAG_H = 76;
-const CX = 23, Y0 = 7, Y1 = 53, HW = 16;
+export const BAG_W = 46, BAG_H = 84;
+/** bag top seam / bottom, half width; the body pictogram starts FY below the seam (the label sits above it) */
+const CX = 23, Y0 = 8, Y1 = 64, HW = 16, FY = 14;
 const NCOL = HW * 2 + 4;
 
 /** pictogram position of each body part (x from the bag centre, y from the top seam); the survivor faces you */
@@ -103,8 +104,9 @@ export class IvBag {
   }
   private holeAt(inj: Injury): [number, number] {
     const a = PART_AT[inj.part] || [0, 20];
+    const fy = Y0 + FY;
     const ox = Math.round((hash(inj.id, 3) - 0.5) * 3), oy = Math.round((hash(inj.id, 9) - 0.5) * 3);
-    return [CX + a[0] + ox, Y0 + a[1] + oy];
+    return [CX + a[0] + ox, fy + a[1] + oy];
   }
   /** row offset from the swing (pixels) */
   private sx(y: number) { return Math.round(Math.sin(this.ang) * (y - 1) * 0.4); }
@@ -123,11 +125,13 @@ export class IvBag {
     const C = this.col;
     const jit = this.tremble > 0 && Math.random() < this.tremble * 0.5 ? (Math.random() < 0.5 ? -1 : 1) : 0;
     const X = ox + jit;
-    // hook and hanger
-    P.vline(X + CX + this.sx(0), oy, oy + 3, 0x8a8f96);
-    P.set(X + CX + 1 + this.sx(1), oy + 1, 0xc8ccd2);
-    P.set(X + CX - 1 + this.sx(3), oy + 3, 0x8a8f96);
-    P.hline(X + CX - 2 + this.sx(4), X + CX + 2 + this.sx(4), oy + 4, 0x6a6f76);
+    // the chrome IV-stand arm with its clamp, and the steel S-hook the bag swings on
+    for (let x = 0; x < BAG_W; x++) { P.set(ox + x, oy, 0x6a727a); P.set(ox + x, oy + 1, x % 9 === 3 ? 0xffffff : 0xdfe6ec); P.set(ox + x, oy + 2, 0x9aa4ac); P.set(ox + x, oy + 3, 0x4a525a); }
+    P.rect(ox + 1, oy - 1, 5, 6, 0x3a3228); P.rect(ox + 2, oy, 3, 4, 0x7a5a2a); P.set(ox + 2, oy, 0xc8a050); P.set(ox + 3, oy + 5, 0x2a2420);
+    const hk = (y: number) => X + CX + this.sx(y);
+    P.set(hk(2) - 1, oy + 2, 0x2a2e33); P.set(hk(2) + 1, oy + 2, 0x2a2e33); P.set(hk(3) + 1, oy + 3, 0xc8ccd2);
+    P.vline(hk(4), oy + 4, oy + 6, 0xb8c0c8); P.set(hk(5) + 1, oy + 5, 0x6a727a);
+    P.set(hk(6) - 1, oy + 6, 0xe8eef2); P.set(hk(7) - 1, oy + 7, 0x8a9298);
     // bag body
     const lvl = this.shown;
     const span = Y1 - Y0 - 3;
@@ -169,6 +173,8 @@ export class IvBag {
     const so = this.sx(Y0);
     for (let x = CX - HW + 3; x <= CX + HW - 3; x++) { P.set(X + x + so, oy + Y0, 0xcfd6d8); P.set(X + x + so, oy + Y0 + 1, 0xaab3b6); }
     P.set(X + CX + so, oy + Y0, 0x2a2e33); P.set(X + CX + so - 1, oy + Y0, 0x2a2e33); P.set(X + CX + so + 1, oy + Y0, 0x2a2e33);
+    // the typed paper label: red cross stamp, contents, volume
+    this.drawLabel(P, X, oy);
     // graduation ticks on the right edge
     for (let i = 1; i < 5; i++) { const y = Math.round(Y1 - (span * i) / 5); P.hline(X + CX + HW - 4 + this.sx(y), X + CX + HW - 2 + this.sx(y), oy + y, 0x1a1a1a, 0.45); }
     // the printed body pictogram (faint ink on the plastic; severed parts are a dashed seam)
@@ -200,12 +206,16 @@ export class IvBag {
     const pxo = this.sx(Y1 + 2);
     P.rect(X + CX - 1 + pxo, oy + Y1 + 1, 3, 3, 0xd8dcdc);
     P.set(X + CX + pxo, oy + Y1 + 2, C.base);
-    const cx = X + CX + this.sx(62), top = oy + 57, bot = oy + 67;
+    P.vline(X + CX + pxo, oy + Y1 + 4, oy + 65, 0xa8b8bc);
+    // a steel roller clamp on the line, then the glass drip chamber with steel caps
+    const cx = X + CX + this.sx(72), top = oy + 69, bot = oy + 78;
+    P.rect(cx - 2, top - 3, 5, 2, 0x8a929a); P.hline(cx - 2, cx + 2, top - 3, 0xd8dee4); P.set(cx + 2, top - 2, 0x4a525a);
     const hyd = Math.max(0, Math.min(1, 1 - b.thirst / 100));
     for (let y = top; y <= bot; y++) for (let x = cx - 3; x <= cx + 3; x++) {
       const e = x === cx - 3 || x === cx + 3 || y === top || y === bot;
       const wl = bot - 1 - hyd * (bot - top - 3);
-      if (e) P.set(x, y, 0xb8c4c8);
+      if (y === top || y === bot) P.set(x, y, x === cx - 2 ? 0xe8eef2 : 0x7a828a);
+      else if (e) P.set(x, y, 0xb8c4c8);
       else if (y >= wl) P.set(x, y, mix(hyd < 0.25 ? 0xd8b060 : 0x7ab8d8, 0xffffff, x === cx - 2 ? 0.4 : 0));
       else P.blend(x, y, 0xeef6f8, 0.25);
     }
@@ -224,10 +234,31 @@ export class IvBag {
     }
   }
 
+  private drawLabel(P: Pix, X: number, oy: number) {
+    const x0 = CX - 15, x1 = CX + 14, y0 = Y0 + 3, y1 = Y0 + 16;
+    for (let y = y0; y <= y1; y++) {
+      const o = this.sx(y);
+      for (let x = x0; x <= x1; x++) {
+        let c = 0xeee4c6;
+        if (y === y0 || y === y1) c = 0xc8b890;
+        else if (hash(x, y, 4) < 0.08) c = 0xe0d4b0;
+        if (x === x0 || x === x1) c = shade(c, 0.88);
+        P.set(X + x + o, oy + y, c);
+      }
+    }
+    // red cross stamp, slightly off register
+    const sx0 = X + x0 + 1 + this.sx(y0 + 4), sy0 = oy + y0 + 3;
+    P.rect(sx0 + 2, sy0, 2, 6, 0xb82a22, 0.9); P.rect(sx0, sy0 + 2, 6, 2, 0xb82a22, 0.9);
+    const ink = 0x2a2018;
+    type3(P, 'BLOOD', X + x0 + 9 + this.sx(y0 + 4), oy + y0 + 2, ink, 0.95, 0.4);
+    type3(P, '500ML', X + x0 + 9 + this.sx(y0 + 9), oy + y0 + 8, ink, 0.85, 0.5);
+    void typeW;
+  }
+
   private drawFigure(P: Pix, X: number, oy: number, severed: BodyPart[]) {
     const ink = 0x200a0a, a = 0.22;
     const at = (part: BodyPart) => PART_AT[part];
-    const pt = (dx: number, dy: number) => [X + CX + dx + this.sx(Y0 + dy), oy + Y0 + dy] as const;
+    const pt = (dx: number, dy: number) => [X + CX + dx + this.sx(Y0 + FY + dy), oy + Y0 + FY + dy] as const;
     // head
     const [hx, hy] = pt(0, 7);
     P.ring(hx, hy, 2.6, ink, a);

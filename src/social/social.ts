@@ -10,7 +10,8 @@ import { bus } from '../core/events';
 import type { GameSystem } from '../game/game';
 import type { Player } from '../entities/player';
 import { playLine, voiceFromApp } from './chipVoice';
-import { speakerColor } from './floatText';
+import { floatText } from './floatText';
+import { notes } from './pixtype';
 import './sounds';
 import './social.css';
 
@@ -128,7 +129,7 @@ export class SocialSystem implements GameSystem {
     for (let i = 0; i < n; i++) {
       const el = document.createElement('div');
       el.className = 'w-bubble ft-note';
-      el.textContent = i % 2 ? '♫' : '♪';
+      el.style.backgroundImage = `url(${notes()[i % 2]})`;
       el.style.setProperty('--nx', (i % 2 ? 1 : -1) * (8 + i * 6) + 'px');
       el.style.animationDelay = (i * 0.16).toFixed(2) + 's';
       ui.root.appendChild(el);
@@ -173,13 +174,13 @@ export class SocialSystem implements GameSystem {
     ui.say = (p: Player, text: string, kind: 'say' | 'think' | 'shout' | 'radio' = 'say', secs = 3.5) => {
       orig(p, text, kind, secs);
       if (!p || !text || (kind !== 'say' && kind !== 'shout')) return;
-      // colour and name tag for other survivors
+      // other survivors: their name stamped on the strip, the paper in their tint
       if (!p.isLocal) {
         for (let i = ui.bubbles.length - 1; i >= 0; i--) {
           const b = ui.bubbles[i];
           if (b.target !== p || b.kind !== kind) continue;
-          b.el.style.setProperty('--ftc', speakerColor(p.id));
-          if (!b.el.querySelector('.ft-name')) { const n = document.createElement('b'); n.className = 'ft-name'; n.textContent = String(p.name || '').toUpperCase(); b.el.prepend(n); }
+          const el = floatText(text, { kind: kind === 'shout' ? 'shout' : 'say', name: p.name, tint: p.id });
+          b.el.replaceWith(el); b.el = el;
           break;
         }
       }

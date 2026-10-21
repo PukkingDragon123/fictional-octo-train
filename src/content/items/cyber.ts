@@ -33,15 +33,47 @@ tex(CT.chrome, 8, 8, (pc) => {
   pc.each((x, y) => pc.set(x, y, C[x]));
 }, true);
 tex(CT.shell, 8, 8, (pc) => {
-  pc.fill(0xe8eaec);
-  pc.hline(0, 7, 0, 0xffffff); pc.hline(0, 7, 7, 0xb8bcc4);
-  pc.vline(5, 1, 6, 0xc8ccd4); pc.set(2, 3, 0xd8dce0); pc.set(6, 5, 0xdadde2);
+  // cream hospital enamel, yellowed at the seams, a rivet at each corner
+  pc.each((x, y) => pc.set(x, y, ph(x, y, 341) < 0.12 ? 0xd8c8a0 : 0xe8dcbc));
+  pc.hline(0, 7, 0, 0xf4ecd4); pc.hline(0, 7, 7, 0xb8a882);
+  pc.vline(5, 1, 6, 0xcbbc98);
+  for (const [x, y] of [[1, 1], [6, 1], [1, 6], [6, 6]]) { pc.set(x, y, 0x9a8a6a); pc.set(x - 1, y - 1, 0xfff6e0); }
 }, true);
 tex(CT.black, 8, 8, (pc) => {
-  pc.each((x, y) => pc.set(x, y, (x + y) % 2 ? 0x22242a : 0x2a2c34));
-  pc.hline(0, 7, 3, 0x16181c); pc.set(1, 1, 0x3a3e48); pc.set(6, 6, 0x3a3e48);
+  // bakelite: oxblood-brown, mottled, a glossy streak
+  pc.each((x, y) => { const v = ph(x >> 1, y, 351); pc.set(x, y, v < 0.3 ? 0x2a140c : v < 0.75 ? 0x3a1c10 : 0x4a2616); });
+  pc.hline(1, 4, 1, 0x6a3a22); pc.set(6, 6, 0x1a0c06);
 }, true);
-tex(CT.hose, 8, 8, (pc) => { pc.each((x, y) => pc.set(x, y, y % 2 ? 0x18181a : 0x303034)); pc.set(2, 2, 0x3c3c42); }, true);
+tex(CT.hose, 8, 8, (pc) => {
+  // cloth-braided cable
+  pc.each((x, y) => pc.set(x, y, ((x + y) & 3) === 0 ? 0x1a140e : ((x - y) & 3) === 0 ? 0x5a4630 : 0x3a2c1e));
+}, true);
+tex(CT.brass, 8, 8, (pc) => {
+  const R = [0x5a3e14, 0x8a6424, 0xb48a3a, 0xd8b45a, 0xf0d888];
+  pc.each((x, y) => pc.set(x, y, R[x < 2 ? 1 : x < 4 ? 3 : x < 5 ? 4 : 2]));
+  pc.set(2, 5, 0x4a7a5a); pc.set(6, 2, 0x4a7a5a); pc.set(3, 6, 0x6a5a2a);
+}, true);
+tex(CT.mint, 8, 8, (pc) => {
+  // 1950s equipment green, chipped to bare steel, rivet line
+  pc.each((x, y) => { const v = ph(x, y >> 1, 361); pc.set(x, y, v < 0.08 ? 0x7a8088 : v < 0.14 ? 0x5a4a3a : y === 0 ? 0xb8dcc8 : 0x9cc4ae); });
+  for (let x = 1; x < 8; x += 3) { pc.set(x, 6, 0x5a7a68); pc.set(x, 5, 0xd0ece0); }
+}, true);
+tex(CT.valve, 6, 8, (pc) => {
+  // a glass envelope: dark getter at the top, the glowing filament and grid inside
+  pc.fill(0x8a6a4a);
+  pc.rect(0, 0, 6, 2, 0x3a3a3a);
+  pc.vline(2, 2, 7, 0xfff0c0); pc.vline(3, 3, 6, 0xffffff);
+  pc.vline(1, 2, 7, 0xc08850); pc.vline(4, 2, 7, 0xc08850);
+  pc.set(0, 3, 0xffffff); pc.set(5, 5, 0xe0d0b0);
+});
+tex(CT.gauge, 12, 12, (pc) => {
+  // a pressure gauge: chrome bezel, cream face, ticks, a red needle
+  pc.fill(0x2a2a2a);
+  pc.each((x, y) => { const d = Math.hypot(x - 5.5, y - 5.5); if (d < 6) pc.set(x, y, d > 4.9 ? 0xc8d0d8 : 0xf0e8d0); });
+  for (let a = 0; a < 7; a++) { const t = Math.PI * (0.8 + a * 0.233); pc.set(Math.round(5.5 + Math.cos(t) * 4), Math.round(5.5 + Math.sin(t) * 4), 0x2a2a2a); }
+  pc.line(6, 6, 8, 3, 0xc02020);
+  pc.set(5, 6, 0x2a2a2a); pc.set(6, 6, 0x2a2a2a);
+});
 tex(CT.glow, 4, 4, (pc) => { pc.fill(0xffffff); pc.set(0, 0, 0xd0d0d0); pc.set(3, 3, 0xd0d0d0); }, true);
 tex(CT.teeth, 8, 4, (pc) => {
   pc.fill(0x2a2a2e);

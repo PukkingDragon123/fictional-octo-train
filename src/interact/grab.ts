@@ -14,7 +14,9 @@
 //                        release does the one shown
 //  Left mouse + tool     what the tool does to it (src/interact/toolUse.ts)
 //
-// A small world-space hint near the cursor says what the buttons will do.
+// A small pixel-art enamel sign hangs over the thing: what the buttons will do,
+// as glyphs (src/interact/signs.ts); holding on, it shows push / pull / power
+// and a strain gauge; stepping through verbs, a strip of embossed label tape.
 // Touch (src/ui/touch) drives the same calls: tap = primary, long-press / the
 // glove / holding USE = grab, swipe the USE cap = next verb.
 import './grab.css';
@@ -32,9 +34,11 @@ import { queueAt } from '../actions/basic';
 import { DoorAction } from '../actions/world';
 import { pushable } from '../world/destruction';
 import { PushAction, queueOn, Target } from '../world/destructActions';
-import { VerbTarget, Verb, verbsFor, primaryVerb, verbWord, heldItem, openLoot, openBackpack, verbTargetName } from './verbs';
+import { VerbTarget, Verb, verbsFor, primaryVerb, heldItem, openLoot, openBackpack } from './verbs';
 import { toolVerb, noteStrike, toolHit } from './toolUse';
-import { punch } from '../gfx/juice';
+import { punch, pop } from '../gfx/juice';
+import { enamelSign, labelTape, verbGlyph, show, SignPart } from './signs';
+import type { Screen } from '../ui/font5x7';
 
 const HOLD_MS = 220;      // right button held this long on something grabbable = grab
 const TAP_MS = 650;       // released sooner than this (and not consumed) = the primary verb
@@ -67,13 +71,17 @@ export class GrabSystem implements GameSystem {
   private edge: HoldEdgeAction | null = null;
   private lmbClaim = false;
   private hint: HTMLDivElement;
+  private hintCv: HTMLCanvasElement;
   private hintKey = '';
+  private hintK = 0;
   private hover: { t: VerbTarget | null; key: string; prim: Verb | null; tool: string; grab: boolean; at: number } = { t: null, key: '', prim: null, tool: '', grab: false, at: 0 };
 
   constructor() {
     G.grab = this;
     this.hint = document.createElement('div');
     this.hint.id = 'gx-hint';
+    this.hintCv = document.createElement('canvas');
+    this.hint.appendChild(this.hintCv);
     document.body.appendChild(this.hint);
     // right button + wheel: step through the verbs (the camera does not zoom meanwhile)
     window.addEventListener('wheel', (e) => {
@@ -321,44 +329,65 @@ export class GrabSystem implements GameSystem {
     const el = this.hint;
     const inp = G.input;
     const touch = document.documentElement.classList.contains('nc-touch');
-    let html = '', x = inp.mouseX + 16, y = inp.mouseY + 36, cls = '';
     const push = G.destruct?.push;
     const r = this.rmb;
+    let key = '', at: { x: number; y: number; z: number } | null = null;
+    let draw: (() => Screen) | null = null;
     if (r?.verbs && r.verbs.length) {
+      // stepping through verbs: a strip of label tape
       const v = r.verbs[r.sel];
-      html = `<b class="gx-name">${esc(verbTargetName(r.t))}</b><span class="gx-cyc"><i>‹</i>${esc(v.label)}<i>›</i><em>${r.sel + 1}/${r.verbs.length}</em></span>${v.why ? `<span class="gx-why">${esc(v.why)}</span>` : ''}`;
-      cls = 'cyc';
+      key = `c|${r.sel}|${v.label}|${v.why || ''}`;
+      at = this.anchor(r.t);
+      draw = () => labelTape(v.label.replace(/\s*\(.*?\)/g, ''), verbGlyph(v.label), r.sel, r.verbs!.length, v.why).scr;
     } else if (push?.holding && push.st) {
       const st = push.st;
-      const s = G.pr.worldToScreen(_v.set(st.cx, st.h + 0.3 + st.lift, st.cz));
-      x = s.x + 14; y = s.y - 10;
+      at = { x: st.cx, y: st.h + 0.3 + st.lift, z: st.cz };
       const pw = inp.down('power') || inp.down('run') || inp.runLatch;
-      if (push.mode === 'carry') html = `<span class="gx-k">L</span>throw <span class="gx-k">⇧</span>harder <span class="gx-k gx-r"></span>let go to set down`;
-      else html = `<span class="gx-k">W</span>push <span class="gx-k">S</span>pull <span class="gx-k${pw ? ' on' : ''}">⇧</span>power <span class="gx-k">␣</span>shove`;
-      const e = Math.round(push.effort * 10);
-      html += `<span class="gx-eff"><span style="width:${e * 10}%"></span></span>`;
-      cls = 'hold' + (push.effort > 0.92 ? ' strain' : '');
+      const e = Math.round(push.effort * 8) / 8;
+      if (push.mode === 'carry') { key = `k|${pw}`; draw = () => enamelSign([{ g: 'mouseL' }, { gap: 1 }, { g: 'throw' }, { gap: 4 }, { g: pw ? 'power' : 'powerOff' }, { gap: 4 }, { g: 'mouseH' }, { gap: 1 }, { g: 'down' }]); }
+      else { key = `h|${pw}|${e}`; draw = () => enamelSign([{ g: 'push' }, { g: 'pull' }, { gap: 3 }, { g: pw ? 'power' : 'powerOff' }, { g: 'shove' }, { gap: 3 }, { gauge: e }]); }
     } else if (this.edge?.started) {
-      html = this.edge.kind === 'lever' ? `<span class="gx-k">S</span>haul it down` : `<span class="gx-k">W</span>push <span class="gx-k">S</span>pull`;
-      cls = 'hold';
+      key = 'e|' + this.edge.kind;
+      at = this.anchor(this.edge.tgt);
+      draw = () => enamelSign(this.edge?.kind === 'lever' ? [{ g: 'pull' }, { gap: 1 }, { g: 'lever' }] : [{ g: 'push' }, { g: 'pull' }, { gap: 1 }, { g: 'door' }]);
     } else if (hv.t && !inp.pointerOverUI && !G.ui?.menuEl) {
-      const parts: string[] = [];
-      if (hv.prim) parts.push(`<span class="gx-k gx-r"></span>${esc(verbWord(hv.prim))}`);
-      if (hv.grab) parts.push(`<span class="gx-k gx-r gx-hold"></span>grab`);
-      if (tool) parts.push(`<span class="gx-k gx-l"></span>${esc(tool)}`);
-      html = parts.join(' ');
+      const parts: SignPart[] = [];
+      if (hv.prim) parts.push({ g: 'mouseR' }, { gap: 1 }, { g: verbGlyph(hv.prim.label) });
+      if (hv.grab) { if (parts.length) parts.push({ gap: 5 }); parts.push({ g: 'mouseH' }, { gap: 1 }, { g: 'hand' }); }
+      if (tool) { if (parts.length) parts.push({ gap: 5 }); parts.push({ g: 'mouseL' }, { gap: 1 }, { g: verbGlyph(tool) }); }
+      if (parts.length) { key = 'v|' + JSON.stringify(parts); at = this.anchor(hv.t); draw = () => enamelSign(parts); }
     }
-    if (touch || G.local?.aiming) html = '';
-    const key = cls + '|' + html;
-    if (key !== this.hintKey) {
-      this.hintKey = key;
-      el.innerHTML = html;
-      el.className = cls;
-      el.style.display = html ? 'block' : 'none';
+    if (touch || G.local?.aiming || !at) { key = ''; draw = null; }
+    const k = Math.max(2, Math.round((G.pr?.scale ?? 2) / (G.pr?.dpr ?? 1)));
+    if (key !== this.hintKey || k !== this.hintK) {
+      this.hintKey = key; this.hintK = k;
+      if (draw) show(this.hintCv, draw(), k);
+      el.style.display = draw ? 'block' : 'none';
+      if (draw) pop(this.hintCv, 1.06, 120);
     }
-    if (html) el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
+    if (draw && at) {
+      const s = G.pr.worldToScreen(_v.set(at.x, at.y, at.z));
+      const w = this.hintCv.width * k, h = this.hintCv.height * k;
+      el.style.transform = `translate(${Math.round(s.x - w / 2)}px, ${Math.round(s.y - h - 6)}px)`;
+    }
+  }
+
+  /** where a sign hangs: just over the top of the thing */
+  private anchor(t: VerbTarget | null): { x: number; y: number; z: number } | null {
+    if (!t) return null;
+    const p = G.local;
+    switch (t.kind) {
+      case 'self': return { x: p.x, y: p.y + 2.05, z: p.z };
+      case 'object': { const d = objDef(t.obj.key); const c = targetPos(t); return { x: c.x, y: G.getZone(p.zoneKey).heightAt(t.obj.x, t.obj.y) + (t.obj.state?.y ?? 0) + Math.min(2.3, (d?.height ?? 1) + 0.25), z: c.z }; }
+      case 'edge': { const c = targetPos(t); return { x: c.x, y: 2.35, z: c.z }; }
+      case 'item': return { x: t.wi.x, y: t.wi.y + 0.45, z: t.wi.z };
+      case 'creature': { const c: any = t.c; return { x: c.x, y: (c.y ?? 0) + (c.height ?? 1.2) + 0.3, z: c.z }; }
+      case 'player': return { x: t.p.x, y: t.p.y + 2.05, z: t.p.z };
+      case 'vehicle': return { x: t.v.x, y: 1.8, z: t.v.z };
+      case 'tile': return { x: t.point.x, y: t.point.y + 0.4, z: t.point.z };
+    }
+    return null;
   }
 }
 
-function esc(s: string) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]); }
 function cap(s: string) { return s ? s[0].toUpperCase() + s.slice(1) : s; }

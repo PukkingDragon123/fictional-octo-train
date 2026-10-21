@@ -1,7 +1,7 @@
 // More found-object controls for the physical overhaul (see props.ts for the
 // style): a yellow rubber work glove to GRAB (its fingers close into a fist
 // while you hold on), a throttle lever for POWER, a rubber squeeze bulb for the
-// lung PUMP, a chunky wristwatch for the WATCH, a riveted iron cube for the
+// lung PUMP, a chunky steel wristwatch for the WATCH, a riveted iron cube for the
 // backpack, a spirit level for BUILD and a pair of wind-up chattering teeth
 // for EMOTE.
 import * as THREE from 'three';
@@ -151,7 +151,8 @@ export class WristWatch extends Thing {
     for (const [x, z] of [[-0.22, -0.22], [0.22, -0.22], [-0.22, 0.22], [0.22, 0.22]]) m.add(cyl(0.025, 0.02, 6), M(x, 0.235, z), 0xd2d4cc, CHROME);
     this.mesh(m, this.mat({ wear: 0.55 }));
     this.faceM = this.mat();
-    this.mesh(new Mold().add(box(0.38, 0.012, 0.36), M(0, 0.232, 0), (x, _y, z) => ((Math.round(z * 50) & 1) ? 0x4fd0c2 : 0x3cb4a8), GLASS, 1), this.faceM);
+    // a cream enamel dial with painted hour marks (no screen: it is a 1960s watch)
+    this.mesh(new Mold().add(box(0.38, 0.012, 0.36), M(0, 0.232, 0), (x, _y, z) => (Math.abs(Math.abs(x) - 0.15) < 0.02 && Math.abs(z) < 0.03 || Math.abs(Math.abs(z) - 0.14) < 0.02 && Math.abs(x) < 0.03 ? 0x2a2620 : 0xe6dcc0), GLASS, 1), this.faceM);
     this.hand.position.set(0, 0.24, 0);
     this.body.add(this.hand);
     this.mesh(new Mold().add(box(0.02, 0.01, 0.15), M(0, 0, -0.07), 0x10221f, PLASTIC), this.mat(), this.hand);
@@ -165,7 +166,8 @@ export class WristWatch extends Thing {
     this.crown.position.x = 0.3 - this.press * 0.05;
     const t = performance.now() * 0.001;
     this.hand.rotation.y = -t * 0.8;
-    setGlow(this.faceM, 0x7ff5e6, this.on ? 0.85 + Math.sin(t * 7) * 0.06 : 0.18 + (Math.sin(t * 1.1) > 0.98 ? 0.3 : 0));
+    // radium lume: a faint green warmth while it is up, nothing more
+    setGlow(this.faceM, 0x9fd48a, this.on ? 0.32 : 0);
     return false;
   }
 }
