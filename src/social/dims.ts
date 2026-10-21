@@ -18,6 +18,7 @@ import type { GameSystem } from '../game/game';
 import { GRADES } from '../game/game';
 import { ZONEFX } from '../gfx/fxconfig';
 import { ModelBuilder } from '../gfx/modelBuilder';
+import { lathe, blob, tube } from '../creatures/kit/anomalies';
 import { MAT, worldMaterial } from '../gfx/materials';
 import { moveCircle } from '../world/collision';
 import { shake, punch, hitstop } from '../gfx/juice';
@@ -55,54 +56,66 @@ const HEIGHT: Record<ChessPiece['t'], number> = { P: 3.0, R: 3.8, N: 4.2, B: 4.6
 
 interface BoardState { pieces: ChessPiece[]; phase: 'idle' | 'warn' | 'move' | 'mate'; mover: number; from: [number, number]; to: [number, number]; t: number; clock: number; mateT: number }
 
+/** a turned piece: smooth lathed bodies, the knight's head carved from rounded forms; black pieces have eyes */
 function pieceGeo(t: ChessPiece['t'], c: 'w' | 'b'): THREE.BufferGeometry {
   const key = 'vxpiece|' + t + c;
   const cached = geoCache.get(key); if (cached) return cached;
   const mb = new ModelBuilder();
   const tex = c === 'w' ? 'vx_chess_w' : 'vx_chess_b';
   const col = c === 'w' ? 0xf4ecda : 0x3a3444;
+  const dark = c === 'w' ? 0xd8ccb0 : 0x18141e;
   const H = HEIGHT[t];
-  mb.cylinder(0, 0, 0, 1.55, 0.3, 16, tex, { color: col });
-  mb.cylinder(0, 0.3, 0, 1.3, 0.25, 16, tex, { color: col, rTop: 1.15 });
-  const bodyTop = H * 0.62;
-  mb.cylinder(0, 0.55, 0, 1.05, bodyTop - 0.55, 14, tex, { color: col, rTop: t === 'R' ? 0.9 : 0.5 });
-  mb.cylinder(0, bodyTop, 0, t === 'R' ? 1.0 : 0.85, 0.22, 14, tex, { color: col });
-  const hy = bodyTop + 0.22;
+  const o = { color: col };
+  // the common foot: a stepped, rounded base with a bead
+  const foot: [number, number][] = [[0, 0], [1.55, 0], [1.58, 0.12], [1.5, 0.26], [1.3, 0.34], [1.32, 0.44], [1.18, 0.52], [1.05, 0.62]];
+  const top = H * 0.62;
   switch (t) {
-    case 'P': mb.sphere(0, hy + 0.6, 0, 0.7, 12, 8, tex, { color: col }); break;
+    case 'P':
+      lathe(mb, [0, 0, 0], [...foot, [0.72, 1.2], [0.5, top - 0.2], [0.82, top - 0.06], [0.84, top + 0.04], [0.5, top + 0.12], [0, top + 0.12]], 20, tex, o);
+      blob(mb, [0, top + 0.72, 0], [0.72, 0.72, 0.72], 20, 14, tex, o);
+      break;
     case 'R':
-      mb.cylinder(0, hy, 0, 1.0, H - hy - 0.35, 14, tex, { color: col });
-      for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; mb.box(Math.cos(a) * 0.78, H - 0.35, Math.sin(a) * 0.78, 0.42, 0.45, 0.42, tex, { color: col }); }
+      lathe(mb, [0, 0, 0], [...foot, [0.95, 1.2], [0.86, top], [0.98, top + 0.1], [1.06, H - 0.55], [1.12, H - 0.45], [0.7, H - 0.4], [0, H - 0.4]], 20, tex, o);
+      // merlons: rounded-off blocks round the rim
+      for (let k = 0; k < 6; k++) {
+        const a = (k / 6) * Math.PI * 2 + Math.PI / 6;
+        blob(mb, [Math.cos(a) * 0.86, H - 0.2, Math.sin(a) * 0.86], [0.26, 0.24, 0.22], 8, 6, tex, { color: col, flat: true });
+      }
       break;
-    case 'N':
-      mb.push(); mb.translate(0, hy, 0.1); mb.rotateX(-0.35);
-      mb.box(0, 0, 0, 0.95, 1.9, 1.1, tex, { color: col });
-      mb.box(0, 1.25, 0.55, 0.85, 0.75, 1.4, tex, { color: col });
-      mb.box(-0.3, 1.9, -0.1, 0.18, 0.4, 0.2, tex, { color: col }); mb.box(0.3, 1.9, -0.1, 0.18, 0.4, 0.2, tex, { color: col });
-      mb.box(0, 1.1, -0.55, 0.3, 1.4, 0.3, tex, { color: c === 'w' ? 0xd8ccb0 : 0x18141e });
-      mb.pop();
+    case 'N': {
+      lathe(mb, [0, 0, 0], [...foot, [0.8, 1.0], [0.7, 1.35], [0.92, 1.45], [0.6, 1.55], [0, 1.55]], 20, tex, o);
+      // neck curving up and forward, a long head with a rounded muzzle, ears, a mane ridge
+      tube(mb, [[0, 1.4, -0.2], [0, 2.2, -0.15], [0, 2.9, 0.05], [0, 3.3, 0.25]], (u) => 0.62 - u * 0.2, 14, tex, { color: col, capEnd: true, squash: [0.75, 1] });
+      blob(mb, [0, 3.35, 0.55], [0.38, 0.42, 0.7], 16, 10, tex, o);
+      blob(mb, [0, 3.12, 1.05], [0.3, 0.3, 0.32], 12, 8, tex, o);
+      for (const ex of [-0.18, 0.18]) tube(mb, [[ex, 3.65, 0.35], [ex * 1.2, 4.05, 0.3]], (u) => 0.1 - u * 0.08, 6, tex, { color: col, capEnd: true });
+      tube(mb, [[0, 1.6, -0.62], [0, 2.4, -0.62], [0, 3.1, -0.35], [0, 3.6, 0.1]], 0.12, 6, tex, { color: dark, squash: [0.5, 1] });
       break;
+    }
     case 'B':
-      mb.sphere(0, hy + 0.95, 0, 0.75, 12, 10, tex, { color: col, sy: 1.45 });
-      mb.sphere(0, hy + 2.15, 0, 0.18, 6, 4, tex, { color: col });
-      mb.box(0.3, hy + 1.2, 0, 0.12, 0.7, 1.4, 'white', { color: c === 'w' ? 0x8a8070 : 0x0a080c });
+      lathe(mb, [0, 0, 0], [...foot, [0.6, 1.4], [0.42, top - 0.1], [0.78, top], [0.8, top + 0.1], [0.4, top + 0.18]], 20, tex, o);
+      blob(mb, [0, top + 1.0, 0], [0.7, 1.05, 0.7], 20, 14, tex, o);
+      blob(mb, [0, top + 2.15, 0], [0.18, 0.18, 0.18], 10, 7, tex, o);
+      // the mitre's cut: a dark wedge across the cap
+      blob(mb, [0.32, top + 1.25, 0], [0.08, 0.55, 0.5], 8, 6, 'white', { color: dark });
       break;
     case 'Q':
-      mb.cylinder(0, hy, 0, 0.6, 0.9, 14, tex, { color: col, rTop: 0.95 });
-      for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2; mb.sphere(Math.cos(a) * 0.85, hy + 1.05, Math.sin(a) * 0.85, 0.17, 6, 4, tex, { color: col }); }
-      mb.sphere(0, hy + 1.2, 0, 0.42, 10, 6, tex, { color: col });
+      lathe(mb, [0, 0, 0], [...foot, [0.62, 1.4], [0.42, top], [0.8, top + 0.1], [0.82, top + 0.2], [0.5, top + 0.3], [0.62, top + 0.8], [0.95, top + 1.15], [0.6, top + 1.2], [0, top + 1.25]], 22, tex, o);
+      for (let k = 0; k < 9; k++) { const a = (k / 9) * Math.PI * 2; blob(mb, [Math.cos(a) * 0.88, top + 1.22, Math.sin(a) * 0.88], [0.15, 0.15, 0.15], 8, 6, tex, o); }
+      blob(mb, [0, top + 1.42, 0], [0.38, 0.38, 0.38], 14, 10, tex, o);
       break;
     case 'K':
-      mb.cylinder(0, hy, 0, 0.62, 1.0, 14, tex, { color: col, rTop: 0.9 });
-      mb.box(0, hy + 1.0, 0, 0.32, 1.0, 0.32, tex, { color: col });
-      mb.box(0, hy + 1.45, 0, 0.95, 0.3, 0.32, tex, { color: col });
+      lathe(mb, [0, 0, 0], [...foot, [0.64, 1.4], [0.44, top], [0.82, top + 0.1], [0.84, top + 0.2], [0.52, top + 0.3], [0.66, top + 0.9], [0.9, top + 1.1], [0.5, top + 1.18], [0, top + 1.2]], 22, tex, o);
+      // a rounded cross
+      tube(mb, [[0, top + 1.15, 0], [0, top + 2.2, 0]], 0.17, 8, tex, { color: col, capEnd: true });
+      tube(mb, [[-0.48, top + 1.82, 0], [0.48, top + 1.82, 0]], 0.15, 8, tex, { color: col, capStart: true, capEnd: true });
       break;
   }
-  // black pieces look at you
+  // black pieces look at you: two hot slits under the brow
   if (c === 'b') {
-    const ey = t === 'N' ? hy + 1.5 : t === 'R' ? H - 0.9 : t === 'P' ? hy + 0.7 : hy + 0.5;
-    const ez = t === 'N' ? 1.15 : t === 'R' ? 1.0 : t === 'P' ? 0.66 : 0.66;
-    for (const ex of [-0.22, 0.22]) mb.box(ex, ey, ez, 0.16, 0.08, 0.06, 'white', { color: 0xff3030, emissive: 1 });
+    const ey = t === 'N' ? 3.45 : t === 'R' ? H - 0.95 : t === 'P' ? top + 0.78 : t === 'B' ? top + 1.05 : top + 0.6;
+    const ez = t === 'N' ? 0.95 : t === 'R' ? 1.0 : t === 'P' ? 0.66 : t === 'B' ? 0.66 : 0.6;
+    for (const ex of [-0.22, 0.22]) blob(mb, [ex, ey, ez], [0.09, 0.04, 0.04], 8, 4, 'white', { color: 0xff3030, emissive: 1 });
   }
   const g = mb.build();
   geoCache.set(key, g);

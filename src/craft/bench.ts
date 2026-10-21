@@ -20,6 +20,8 @@ import { CubeView } from './cubeView';
 import { HAND_OPS, type HandOp, matches, pickTool, pickParts, partLabel, toolLabel } from './handOps';
 import { Tweens, easeOut, easeBack, makeArm, poseArm, type Arm, makeBackdrop, makeItemObj, fitItemObj, type ItemObj, pointerRay, Particles, fpMat } from './fpKit';
 import { pixTag, stamp, disposeTag, type PixTag } from './tags';
+import { metalMat } from './metal';
+import { Shape } from './shapes';
 import { Dymo, Slate, HoverTag, clickTag } from './props';
 import { recipeHint } from './knowledge';
 
@@ -89,9 +91,7 @@ export class Bench {
     mb.box(0, -0.06, 0.315, 1.52, 0.06, 0.02, 'metal_grey', { color: 0x7a7e80 });
     for (let i = 0; i < 6; i++) mb.box(-0.6 + i * 0.24, -0.0005, 0, 0.004, 0.001, 0.6, 'wood_dark', { color: 0x5a3a1a });
     for (const [x, z, w, d, c] of [[0.42, -0.1, 0.3, 0.22, 0x2a2016], [0.1, 0.12, 0.12, 0.08, 0x3a2a1a], [-0.25, -0.18, 0.18, 0.1, 0x30241a], [0.55, 0.18, 0.1, 0.07, 0x1e1810]] as [number, number, number, number, number][]) mb.box(x, -0.0002, z, w, 0.0006, d, 'wood_dark', { color: c });
-    mb.box(0.62, 0, -0.18, 0.16, 0.06, 0.12, 'metal_painted_green', { color: 0x3a5a4a });
-    mb.box(0.62, 0.06, -0.12, 0.14, 0.05, 0.02, 'metal_grey'); mb.box(0.62, 0.06, -0.24, 0.14, 0.05, 0.02, 'metal_grey');
-    mb.box(0.62, 0.03, -0.04, 0.012, 0.012, 0.2, 'metal_brushed');
+
     // scattered nuts and bolts
     for (let i = 0; i < 7; i++) mb.cylinder(0.3 + Math.sin(i * 7.1) * 0.2, 0, 0.2 + Math.cos(i * 3.3) * 0.08, 0.006, 0.006, 6, 'metal_grey', { color: 0x8a8a84 });
     // gooseneck lamp: weighted base, a jointed arm, an enamel shade
@@ -100,6 +100,15 @@ export class Bench {
     mb.push().translate(0.58, 0.33, 0.12).rotateZ(1.2); mb.cylinder(0, 0, 0, 0.006, 0.22, 6, 'metal_brushed', { color: 0x9a9a92 }); mb.pop();
     mb.push().translate(0.38, 0.4, 0.12).rotateZ(2.6); mb.cylinder(0, 0, 0, 0.06, 0.09, 10, 'metal_painted_green', { color: 0x2a5a4a, rTop: 0.02 }); mb.pop();
     this.top.add(new THREE.Mesh(mb.build(), fpMat()));
+    // the vice: painted cast iron jaws, a steel screw with a tommy bar
+    const vice = new Shape(4);
+    vice.box(0.62, 0, -0.18, 0.16, 0.06, 0.12, 0xffffff, 0.012);
+    vice.box(0.62, 0.06, -0.12, 0.14, 0.05, 0.022, 0xffffff, 0.006); vice.box(0.62, 0.06, -0.24, 0.14, 0.05, 0.022, 0xffffff, 0.006);
+    this.top.add(new THREE.Mesh(vice.build(), metalMat('enamel', 1)));
+    const screw = new Shape(4);
+    screw.cyl(0.62, 0.03, -0.12, 0.007, 0.16, 0xffffff, 12, [Math.PI / 2, 0, 0]);
+    screw.capsule(0.55, 0.03, 0.04, 0.0045, 0.14, 0xffffff, [0, 0, -Math.PI / 2]);
+    this.top.add(new THREE.Mesh(screw.build(), metalMat('chrome', 1)));
     this.lamp.position.set(0.32, 0.3, 0.12);
     this.top.add(this.lamp);
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff0c0 }));
@@ -532,7 +541,7 @@ export class Bench {
     else if (h?.down) rt = this.top.localToWorld((this.benchAt(this.px, this.py) || _w.set(0.2, 0, 0)).clone().setY(0.05 + Math.abs(Math.sin(now * 0.02)) * 0.05));
     else rt = this.top.localToWorld(_w.set(0.35, 0.04, 0.12));
     aR.target.lerp(rt, 1 - Math.exp(-14 * dt));
-    aL.grip = 0.3; aR.grip = d?.live || h?.down ? 0.9 : 0.4;
-    poseArm(aL, 1.3); poseArm(aR, -1.3);
+    aL.want = 'flat'; aR.want = d?.live ? 'pinch' : h?.down ? 'fist' : 'relaxed';
+    poseArm(aL, Math.PI, dt); poseArm(aR, d?.live ? -Math.PI / 2 : Math.PI, dt);
   }
 }

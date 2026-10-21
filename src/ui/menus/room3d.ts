@@ -20,6 +20,8 @@ import { REG, PAD, PAGE } from '../../entities/humanModel';
 import type { RegKey } from '../../entities/humanModel';
 import { cosmeticGeometry } from '../../entities/cosmetics3d';
 import { crtScreen, phosphorText, fontsReady, type CrtScreen } from '../../gfx/crt';
+import { makeMats, type Mats } from './smoothKit';
+import { armSegment, armBase, clawPalm, clawFinger, toolHead, sawBlade, pressModel, shutterModel, chairModel, tvModel, propModel, dialPanelModel, tubeBaseModel } from './roomParts';
 import { COSMETIC } from '../../game/cosmetics';
 import { U, worldMaterial } from '../../gfx/materials';
 import { blendPose } from './emotes';
@@ -28,8 +30,7 @@ import { gfxSettings } from './common';
 import { sfx } from './sfx';
 import { calm } from './settings';
 import {
-  ROOM, PHOS, roomGeometry, chairGeometry, armSegment, armBase, clawPalm, clawFinger, toolHead, sawBlade, pressGeometry, shutterGeometry,
-  gearGeometry, propGeometry, tubeBaseGeometry, tvGeometry, dialPanelGeometry,
+  ROOM, PHOS, roomGeometry, gearGeometry,
   paintNixie, paintTape, paintBrass, paintGauge, canvasTex, bloodCanvas,
 } from './roomKit';
 
@@ -47,7 +48,7 @@ const FLOAT_Y = 0.34;
 // ------------------------------------------------------------------ the arms
 interface Arm {
   name: string; base: THREE.Vector3; L1: number; L2: number; pole: THREE.Vector3;
-  seg1: THREE.Mesh; seg2: THREE.Mesh; head: THREE.Group; fingers: THREE.Mesh[]; saw: THREE.Mesh | null;
+  seg1: THREE.Object3D; seg2: THREE.Object3D; head: THREE.Group; fingers: THREE.Object3D[]; saw: THREE.Object3D | null;
   tip: THREE.Vector3; vel: THREE.Vector3; goal: THREE.Vector3; stow: THREE.Vector3;
   /** what the goal follows */
   follow: { kind: 'stow' } | { kind: 'point'; p: THREE.Vector3 } | { kind: 'bone'; bone: string; off: THREE.Vector3 } | { kind: 'tool' };
@@ -89,6 +90,7 @@ export class SubjectRoom {
   private ro: ResizeObserver;
   private quality = 'high';
   private mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
+  private mats!: Mats;
   // lights
   private hemi = new THREE.HemisphereLight(0x9aa8c0, 0x201810, 0.05);
   private key = new THREE.DirectionalLight(0xfff2e0, 0);
@@ -125,14 +127,14 @@ export class SubjectRoom {
   private harness: THREE.Mesh;
   private chains: THREE.Mesh[] = [];
   private chainsOn = 0;
-  private chairStraps: THREE.Mesh; private chairBare: THREE.Mesh;
+  private chairStraps: THREE.Object3D; private chairBare: THREE.Object3D;
   // arms
   private arms: Arm[] = [];
   private toolGoal = new THREE.Vector3(); private toolPart = 'idle';
   private maulT = -1; private maulPt = new THREE.Vector3(); private maulN = new THREE.Vector3();
   // press, hatch
   private pressG = new THREE.Group(); private pressY = ROOM.H + 0.05; private pressBloody: THREE.Mesh;
-  private shutter: THREE.Mesh; private hatchOpen = 0; private hatchT = 0;
+  private shutter: THREE.Object3D; private hatchOpen = 0; private hatchT = 0;
   // menu
   private menu: MenuObj[] = [];
   private letters: THREE.Group[] = [];
@@ -181,8 +183,9 @@ export class SubjectRoom {
     // ---- room
     const room = new THREE.Mesh(roomGeometry(), this.mat);
     this.scene.add(room);
-    this.chairStraps = new THREE.Mesh(chairGeometry(true), this.mat);
-    this.chairBare = new THREE.Mesh(chairGeometry(false), this.mat);
+    this.mats = makeMats(this.quality === 'low');
+    this.chairStraps = chairModel(this.mats, true);
+    this.chairBare = chairModel(this.mats, false);
     this.chairBare.visible = false;
     this.scene.add(this.chairStraps, this.chairBare);
     // tube fixtures and the bulb
@@ -221,7 +224,7 @@ export class SubjectRoom {
     const hatchLamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.06), this.hatchLightMat);
     hatchLamp.position.set(0, ROOM.HATCH_H - 0.1, ROOM.BACK - 2.9);
     this.scene.add(hatchLamp);
-    this.shutter = new THREE.Mesh(shutterGeometry(), this.mat);
+    this.shutter = shutterModel(this.mats);
     this.shutter.position.set(0, 0, ROOM.BACK - 0.02);
     this.scene.add(this.shutter);
     // lights
@@ -232,7 +235,7 @@ export class SubjectRoom {
     this.alarm.position.set(-1.5, ROOM.H - 0.2, 0.5); this.alarm.target.position.set(0, 0, ROOM.FLOAT_Z);
     this.scene.add(this.hemi, this.key, this.key.target, this.fill, this.rim, this.rim.target, this.bulb, this.spark, this.glow, this.alarm, this.alarm.target);
     // ---- the press, its bloody underside
-    this.pressG.add(new THREE.Mesh(pressGeometry(), this.mat));
+    this.pressG.add(pressModel(this.mats));
     const bm = new THREE.MeshLambertMaterial({ map: canvasTex(bloodCanvas(77, 96, true)), transparent: true, alphaTest: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     this.pressBloody = new THREE.Mesh(new THREE.PlaneGeometry(1.25, 0.95), bm);
     this.pressBloody.rotation.x = Math.PI / 2; this.pressBloody.position.y = -0.003; this.pressBloody.visible = false;
@@ -250,16 +253,16 @@ export class SubjectRoom {
     for (let i = 0; i < 2; i++) { const ch = new THREE.Mesh(new THREE.BoxGeometry(0.025, 1, 0.025), chainMat); ch.visible = false; this.chains.push(ch); this.scene.add(ch); }
     // ---- arms: wrists from the back wall, a harness arm and a tool arm from the ceiling
     const mk = (name: string, base: [number, number, number], L1: number, L2: number, pole: [number, number, number], stow: [number, number, number], tool = false) => {
-      const b = new THREE.Mesh(armBase(), this.mat);
+      const b = armBase(this.mats);
       b.position.set(...base);
       b.quaternion.setFromUnitVectors(UP, new THREE.Vector3(stow[0] - base[0], stow[1] - base[1], stow[2] - base[2]).normalize().negate());
-      const seg1 = new THREE.Mesh(armSegment(L1, 0.15), this.mat), seg2 = new THREE.Mesh(armSegment(L2, 0.12), this.mat);
+      const seg1 = armSegment(this.mats, L1, 0.15), seg2 = armSegment(this.mats, L2, 0.12);
       const head = new THREE.Group();
-      head.add(new THREE.Mesh(tool ? toolHead() : clawPalm(), this.mat));
-      const fingers: THREE.Mesh[] = [];
-      let saw: THREE.Mesh | null = null;
-      if (tool) { saw = new THREE.Mesh(sawBlade(), this.mat); saw.position.set(-0.02, 0.27, 0.02); head.add(saw); }
-      else for (const k of [-1, 1]) { const f = new THREE.Mesh(clawFinger(), this.mat); f.position.set(k * 0.06, 0.1, 0); head.add(f); fingers.push(f); }
+      head.add(tool ? toolHead(this.mats) : clawPalm(this.mats));
+      const fingers: THREE.Object3D[] = [];
+      let saw: THREE.Object3D | null = null;
+      if (tool) { saw = sawBlade(this.mats); saw.position.set(-0.02, 0.27, 0.02); head.add(saw); }
+      else for (const k of [-1, 1]) { const f = clawFinger(this.mats); f.position.set(k * 0.06, 0.1, 0); head.add(f); fingers.push(f); }
       this.scene.add(b, seg1, seg2, head);
       const sv = new THREE.Vector3(...stow);
       const arm: Arm = { name, base: new THREE.Vector3(...base), L1, L2, pole: new THREE.Vector3(...pole).normalize(), seg1, seg2, head, fingers, saw,
@@ -328,7 +331,7 @@ export class SubjectRoom {
     const glass = new THREE.MeshBasicMaterial({ color: 0xa8b8c0, transparent: true, opacity: 0.05, depthWrite: false, fog: false, side: THREE.DoubleSide });
     const tubeGeo = new THREE.CylinderGeometry(r, r, 0.6, 14, 1, true);
     const domeGeo = new THREE.SphereGeometry(r, 14, 5, 0, Math.PI * 2, 0, Math.PI / 2);
-    const baseGeo = tubeBaseGeometry(r);
+    const baseModel = tubeBaseModel(this.mats, r);
     const glyphs: (() => void)[] = [];
     'NOCLIP'.split('').forEach((ch, i) => {
       const g = new THREE.Group();
@@ -341,7 +344,7 @@ export class SubjectRoom {
       glyph.position.y = 0.32;
       const tube = new THREE.Mesh(tubeGeo, glass); tube.position.y = 0.3;
       const dome = new THREE.Mesh(domeGeo, glass); dome.position.y = 0.6;
-      g.add(new THREE.Mesh(baseGeo, this.mat), glyph, tube, dome);
+      g.add(baseModel.clone(), glyph, tube, dome);
       g.userData.home = new THREE.Vector3((i - 2.5) * 0.47, 0, 0);
       g.userData.glyph = glyph;
       g.position.copy(g.userData.home);
@@ -412,16 +415,18 @@ export class SubjectRoom {
       paint();
       repaint.push(paint);
       crts.push(scr);
-      body.add(new THREE.Mesh(tvGeometry(kind, sw, sh), this.mat), scr.mesh);
+      body.add(tvModel(this.mats, kind, sw, sh), scr.mesh);
       r = Math.max(sw, sh) * 0.85;
     } else {
-      let m: THREE.Mesh;
+      let m: THREE.Object3D;
       if (item.kind === 'gear') {
         // a heavy steel gear on a panel of dials
-        m = new THREE.Mesh(gearGeometry(0.2, 12, 0.07), new THREE.MeshLambertMaterial({ color: 0x8a8e90, emissive: 0x1a1c1c }));
-        const hub = new THREE.Mesh(gearGeometry(0.09, 8, 0.1), new THREE.MeshLambertMaterial({ color: 0xa8843a, emissive: 0x201400 }));
+        const steel = this.quality === 'low' ? new THREE.MeshLambertMaterial({ color: 0x8a8e90, emissive: 0x1a1c1c }) : new THREE.MeshStandardMaterial({ color: 0x9a9ea2, metalness: 0.75, roughness: 0.35, emissive: 0x101214 });
+        const brass = this.quality === 'low' ? new THREE.MeshLambertMaterial({ color: 0xa8843a, emissive: 0x201400 }) : new THREE.MeshStandardMaterial({ color: 0xc89a48, metalness: 0.8, roughness: 0.3, emissive: 0x140a00 });
+        m = new THREE.Mesh(gearGeometry(0.2, 16, 0.07), steel);
+        const hub = new THREE.Mesh(gearGeometry(0.09, 10, 0.1), brass);
         hub.position.set(0.21, 0.13, 0.03);
-        const panel = new THREE.Mesh(dialPanelGeometry(), this.mat);
+        const panel = dialPanelModel(this.mats);
         panel.position.set(0, 0.17, -0.06);
         body.add(hub, panel);
         body.userData.hub = hub;
@@ -438,7 +443,7 @@ export class SubjectRoom {
           body.add(face, needle);
         });
         m.position.z = 0.02;
-      } else m = new THREE.Mesh(propGeometry(item.kind), this.mat);
+      } else m = propModel(this.mats, item.kind);
       body.add(m);
       body.userData.spin = m;
       // the name on a strip of embossed label tape stuck under it

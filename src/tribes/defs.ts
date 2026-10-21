@@ -7,6 +7,7 @@
 import type { Appearance, Outfit } from '../entities/humanRig';
 import { HAIR_COLORS, SKIN_TONES } from '../entities/humanRig';
 import type { ModelBuilder } from '../gfx/modelBuilder';
+import { rbox, capsule, ring, dome, blob } from '../scan/shapes';
 import { GUARD_GREY } from '../content/items/prisoner';
 
 export type TribeKey = 'tally' | 'wax' | 'turnkey' | 'cog';
@@ -63,12 +64,14 @@ export const TRIBES: Record<TribeKey, TribeDef> = {
     }),
     head: (mb) => {
       // a forehead strap of bottle caps and white tally ticks
-      mb.box(0, 0.115, 0.0, 0.205, 0.03, 0.215, 'leather_brown', { color: 0x4a3420 });
-      for (let i = 0; i < 5; i++) mb.box(-0.06 + i * 0.03, 0.118, 0.107, 0.006, 0.026, 0.004, 'white', { color: 0xf2f0e8 });
-      mb.box(0, 0.118, 0.108, 0.14, 0.004, 0.004, 'white', { color: 0xf2f0e8 });
-      for (const s of [-1, 1]) mb.cylinder(s * 0.1, 0.11, 0.05, 0.014, 0.006, 8, 'metal_brass', { color: 0xc8a040 });
+      mb.push().translate(0, 0.13, 0).scale(1, 1, 1.05);
+      ring(mb, 0, 0, 0, 0.104, 0.014, 'leather_brown', { color: 0x4a3420 }, 18);
+      mb.pop();
+      for (let i = 0; i < 5; i++) capsule(mb, [-0.06 + i * 0.03, 0.12, 0.113], [-0.06 + i * 0.03, 0.142, 0.111], 0.0032, 'white', { color: 0xf2f0e8 }, 4);
+      capsule(mb, [-0.07, 0.124, 0.115], [0.07, 0.138, 0.113], 0.003, 'white', { color: 0xf2f0e8 }, 4);
+      for (const s of [-1, 1]) { mb.push().translate(s * 0.1, 0.13, 0.05).rotateZ(s * Math.PI / 2); mb.cylinder(0, 0, 0, 0.014, 0.006, 12, 'metal_brass', { color: 0xc8a040 }); mb.pop(); }
     },
-    gear: { joint: 'chest', build: (mb) => { for (let i = 0; i < 3; i++) mb.box(0.09 - i * 0.03, -0.02 - i * 0.02, 0.13, 0.024, 0.03, 0.018, 'metal_rusty'); } },
+    gear: { joint: 'chest', build: (mb) => { for (let i = 0; i < 3; i++) { mb.push().translate(0.09 - i * 0.03, -0.02 - i * 0.02, 0.135).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.013, 0.012, 10, 'metal_rusty'); mb.pop(); } capsule(mb, [-0.1, 0.12, 0.13], [0.13, -0.08, 0.135], 0.006, 'leather_brown', { color: 0x4a3420 }, 5); } },
     weapon: 'pipe_lead', weaponKind: 'blunt',
     names: ['Ninety', 'Tuesday-Count', 'Ledger Jo', 'Fourteen', 'Abacus', 'Mags', 'Tick', 'Old Sixty', 'Penny Tally', 'Dozen'],
     lines: {
@@ -99,15 +102,16 @@ export const TRIBES: Record<TribeKey, TribeDef> = {
     }),
     head: (mb, v) => {
       // a blank wax mask with dribbles, a crown of three lit candles
-      mb.box(0, 0.06, 0.112, 0.16, 0.2, 0.02, 'white', { color: 0xf0e6d0 });
-      for (const s of [-1, 1]) mb.box(s * 0.035, 0.085, 0.123, 0.016, 0.006, 0.004, 'plastic_black');
-      mb.box(0, 0.02, 0.123, 0.03, 0.003, 0.004, 'plastic_black');
-      for (let i = 0; i < 4; i++) mb.box(-0.06 + i * 0.04, -0.045 - (i % 2) * 0.02, 0.118, 0.012, 0.03 + (i % 2) * 0.03, 0.012, 'white', { color: 0xe8dcc4 });
+      blob(mb, 0, 0.07, 0.1, 0.085, 0.11, 0.035, 'white', { color: 0xf0e6d0 }, 14);
+      for (const s of [-1, 1]) blob(mb, s * 0.034, 0.088, 0.133, 0.011, 0.004, 0.003, 'plastic_black', {}, 6);
+      blob(mb, 0, 0.025, 0.133, 0.014, 0.002, 0.003, 'plastic_black', {}, 6);
+      for (let i = 0; i < 4; i++) capsule(mb, [-0.055 + i * 0.037, -0.02, 0.118], [-0.055 + i * 0.037, -0.05 - (i % 2) * 0.03, 0.115], 0.007, 'white', { color: 0xe8dcc4 }, 6);
       for (let i = 0; i < 3; i++) {
         const a = -0.6 + i * 0.6, x = Math.sin(a) * 0.07, z = Math.cos(a) * 0.04 - 0.01;
         const h = 0.07 + ((i + v) % 3) * 0.025;
-        mb.cylinder(x, 0.2, z, 0.014, h, 6, 'white', { color: 0xf4ecd8 });
-        mb.cylinder(x, 0.2 + h, z, 0.01, 0.035, 5, 'white', { rTop: 0, color: 0xffb040, emissive: 2.2, caps: false });
+        mb.cylinder(x, 0.2, z, 0.014, h, 10, 'white', { color: 0xf4ecd8 });
+        dome(mb, x, 0.2 + h, z, 0.014, 'white', { color: 0xf4ecd8, sy: 0.5 }, 8);
+        mb.cylinder(x, 0.2 + h + 0.005, z, 0.009, 0.035, 8, 'white', { rTop: 0, color: 0xffb040, emissive: 2.2, caps: false });
       }
     },
     weapon: 'knife_kitchen', weaponKind: 'blade',
@@ -141,11 +145,11 @@ export const TRIBES: Record<TribeKey, TribeDef> = {
     head: (mb) => {
       // the visor shoved up, cracked; a chalked-out badge number on it
       mb.push().translate(0, 0.19, 0.06).rotateX(-1.05);
-      mb.box(0, 0, 0, 0.17, 0.12, 0.016, 'glass_dark', { color: 0x3a4250 });
-      mb.box(0.02, 0.01, 0.009, 0.08, 0.004, 0.003, 'white', { color: 0xd8d8d0 });
+      rbox(mb, 0, -0.06, 0, 0.17, 0.12, 0.016, 'glass_dark', { color: 0x3a4250 }, 0.02, 2);
+      capsule(mb, [-0.02, 0.01, 0.009], [0.06, 0.012, 0.009], 0.002, 'white', { color: 0xd8d8d0 }, 4);
       mb.pop();
     },
-    gear: { joint: 'uarmL', build: (mb) => { mb.cylinder(0, -0.08, 0, 0.052, 0.05, 8, 'fabric_red', { color: 0xc82a20 }); } },
+    gear: { joint: 'uarmL', build: (mb) => { mb.cylinder(0, -0.08, 0, 0.052, 0.05, 14, 'fabric_red', { color: 0xc82a20 }); } },
     weapon: 'custody_baton', weaponKind: 'blunt',
     names: ['Sergeant Nobody', 'Ex-Officer Brand', 'Keys', 'Unit Nine', 'Halloran', 'Quartermaster Deel', 'Second Shift', 'Riot', 'Corporal Ash'],
     lines: {
@@ -176,15 +180,22 @@ export const TRIBES: Record<TribeKey, TribeDef> = {
     }),
     head: (mb, v) => {
       // welding goggles with amber lenses and a copper-wire halo of little filament bulbs
-      mb.box(0, 0.075, 0.105, 0.17, 0.035, 0.02, 'rubber_black');
-      for (const s of [-1, 1]) { mb.cylinder(s * 0.04, 0.075, 0.12, 0.024, 0.02, 8, 'metal_dark'); mb.box(s * 0.04, 0.075, 0.131, 0.03, 0.03, 0.004, 'glass', { color: 0xc87a2a, emissive: 0.5 }); }
+      mb.push().translate(0, 0.075, 0).scale(1, 0.6, 1.08);
+      ring(mb, 0, 0, 0, 0.106, 0.012, 'rubber_black', {}, 18);
+      mb.pop();
+      for (const s of [-1, 1]) {
+        mb.push().translate(s * 0.04, 0.075, 0.108).rotateX(Math.PI / 2);
+        mb.cylinder(0, 0, 0, 0.025, 0.022, 14, 'metal_dark', { rTop: 0.022 });
+        mb.cylinder(0, 0.022, 0, 0.019, 0.002, 14, 'glass', { color: 0xc87a2a, emissive: 0.5 });
+        mb.pop();
+      }
+      ring(mb, 0, 0.26, 0, 0.12, 0.006, 'metal_brass', { color: 0xc87a3a }, 20);
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2;
-        mb.box(Math.cos(a) * 0.12, 0.26 + Math.sin(a * 3 + v) * 0.01, Math.sin(a) * 0.12, 0.02, 0.008, 0.02, 'metal_brass', { color: 0xc87a3a });
-        if (i % 3 === 0) mb.sphere(Math.cos(a) * 0.12, 0.275, Math.sin(a) * 0.12, 0.009, 6, 4, 'white', { color: 0xffb050, emissive: 1.6 });
+        if (i % 3 === 0) blob(mb, Math.cos(a) * 0.12, 0.275 + Math.sin(a * 3 + v) * 0.006, Math.sin(a) * 0.12, 0.01, 0.012, 0.01, 'white', { color: 0xffb050, emissive: 1.6 }, 8);
       }
     },
-    gear: { joint: 'chest', build: (mb) => { mb.box(0, 0.02, -0.15, 0.16, 0.2, 0.06, 'metal_dark'); mb.box(0, 0.06, -0.185, 0.1, 0.03, 0.01, 'metal_brass'); for (let i = 0; i < 2; i++) mb.cylinder(-0.03 + i * 0.06, 0.09, -0.15, 0.012, 0.05, 6, 'glass', { color: 0xd8e0d8 }), mb.box(-0.03 + i * 0.06, 0.11, -0.15, 0.006, 0.02, 0.006, 'white', { color: 0xffa040, emissive: 1.6 }); for (const s of [-1, 1]) mb.cylinder(s * 0.06, 0.13, -0.15, 0.012, 0.12, 5, 'metal_grey'); } },
+    gear: { joint: 'chest', build: (mb) => { rbox(mb, 0, 0.02, -0.15, 0.16, 0.2, 0.06, 'metal_dark', {}, 0.02, 2); rbox(mb, 0, 0.12, -0.182, 0.1, 0.03, 0.01, 'metal_brass', {}, 0.004, 1); for (let i = 0; i < 2; i++) { mb.cylinder(-0.03 + i * 0.06, 0.22, -0.15, 0.012, 0.05, 10, 'glass', { color: 0xd8e0d8 }); capsule(mb, [-0.03 + i * 0.06, 0.23, -0.15], [-0.03 + i * 0.06, 0.255, -0.15], 0.003, 'white', { color: 0xffa040, emissive: 1.6 }, 4); } for (const s of [-1, 1]) capsule(mb, [s * 0.06, 0.22, -0.15], [s * 0.08, 0.36, -0.16], 0.01, 'metal_grey', {}, 6); } },
     weapon: 'wrench', weaponKind: 'blunt',
     names: ['Deacon Ohm', 'Sister Solder', 'Fan-Speaker', 'Relay', 'Capacitor Ruth', 'The Grounded', 'Little Diode', 'Brother Firmware', 'Reboot'],
     lines: {

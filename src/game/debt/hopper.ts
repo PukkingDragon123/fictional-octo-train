@@ -171,7 +171,7 @@ function geo(kind: 'needle' | 'glow' | 'seam' | 'ring' | 'beacon' | 'lens' | 'ra
         mb.cylinder(x, -0.055, 0.03, 0.044, 0.135, 10, 'glass', { color: 0xd8c8b0, emissive: 0.08 });
         mb.sphere(x, 0.08, 0.03, 0.044, 8, 3, 'glass', { color: 0xd8c8b0, sy: 0.5 });
       }
-      mb.box(0, -0.095, 0.02, 0.64, 0.03, 0.07, 'metal_dark');
+      mb.cylinderX(0, -0.08, 0.025, 0.035, 0.6, 8, 'metal_dark');
       break;
     }
   }
@@ -540,7 +540,7 @@ export class HopperSystem implements GameSystem {
     const lens = new THREE.Mesh(geo('lens', 0xc08030), ADD()); lens.position.set(0.86, 1.86, -0.6);
     // the counter drums in the crown
     const [cx0, cy0, cz0] = PRESS.counter;
-    const nixie = crtScreen(0.6, 0.15, { tint: 0xffb070, res: [160, 40], curvature: 0.03, bulge: 0.003, scan: 0.12, mask: 0.12, glow: 1.5, noise: 0.012, flicker: 0.25, vignette: 0.2, reflect: 0.5 });
+    const nixie = crtScreen(0.55, 0.15, { tint: 0xffb070, res: [160, 40], curvature: 0.03, bulge: 0.003, scan: 0.12, mask: 0.12, glow: 1.5, noise: 0.012, flicker: 0.25, vignette: 0.2, reflect: 0.5 });
     nixie.mesh.position.set(cx0, cy0, cz0 + 0.003);
     const tubes = new THREE.Mesh(geo('drum'), worldMaterial({ transparent: true, opacity: 0.35, depthWrite: false, outline: 0 }));
     tubes.position.set(cx0, cy0, cz0); tubes.renderOrder = 7;

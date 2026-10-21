@@ -192,7 +192,7 @@ export function crtScreen(w: number, h: number, o: CrtOpts & { res?: [number, nu
 /** glowing phosphor text on a CRT canvas (the bloom comes from the tube) */
 export function phosphorText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, o: { size?: number; color?: string; font?: string; align?: CanvasTextAlign; glow?: number } = {}) {
   ctx.save();
-  ctx.font = `${o.size ?? 16}px ${o.font ?? "'IBM Plex Mono', 'Courier Prime', monospace"}`;
+  ctx.font = `${o.size ?? 16}px ${o.font ?? cssFont('--font-crt', "'IBM Plex Mono', 'Courier Prime', monospace")}`;
   ctx.textAlign = o.align ?? 'left';
   ctx.textBaseline = 'top';
   ctx.fillStyle = o.color ?? '#9dffb5';
@@ -209,4 +209,9 @@ export function fontsReady(): Promise<unknown> {
   const f = (document as Document & { fonts?: FontFaceSet }).fonts;
   if (!f) return Promise.resolve();
   return Promise.all(["16px 'IBM Plex Mono'", "16px 'Courier Prime'", "16px 'Special Elite'", "16px 'Nixie One'", "16px 'Oswald'", "16px 'Alfa Slab One'", "16px 'Caveat'"].map((s) => f.load(s).catch(() => null)));
+}
+
+/** the family list behind one of the type tokens in src/ui/fonts.css (so canvas text follows a font swap) */
+export function cssFont(token: string, fallback = 'monospace'): string {
+  try { const v = getComputedStyle(document.documentElement).getPropertyValue(token).trim(); return v || fallback; } catch { return fallback; }
 }

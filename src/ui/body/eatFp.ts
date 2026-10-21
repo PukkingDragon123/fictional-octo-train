@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera, fpBlendLinear } from '../../fp/fp';
+import { fpArmsFor, type FpArm, type HandPose } from '../../fp/hands';
 import { itemDef, freshness, type Item, type FluidType } from '../../items/item';
 import { punch, shake } from '../../gfx/juice';
 import { mix, shade } from './pix';
@@ -143,6 +144,9 @@ function build(r: Recipe, seed: number): Vox[] {
 }
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
+const _t = new THREE.Vector3(), _d = new THREE.Vector3(), _z = new THREE.Vector3(), _x = new THREE.Vector3(), _g = new THREE.Vector3(), _mb = new THREE.Matrix4();
+/** half-length (voxels) of the long foods: they are held by the far end */
+const HALF: Partial<Record<string, number>> = { bar: 7, long: 9, meat: 6, fish: 7, loaf: 5, sandwich: 5, cookie: 4 };
 const _c = new THREE.Color();
 
 export class EatFp {
@@ -158,9 +162,8 @@ export class EatFp {
   private vox: Vox[] = [];
   private edible = 0; private left = 0;
   private crumbs: Crumb[] = [];
-  private handR = new THREE.Group(); private handL = new THREE.Group();
-  private skinMat = new THREE.MeshLambertMaterial({ color: 0xc89a7a });
-  private suitMat = new THREE.MeshLambertMaterial({ color: 0xd8b428 });
+  /** the shared smooth first-person arms (src/fp/hands.ts) */
+  private arms: { right: FpArm; left: FpArm } | null = null;
   private props = new Map<string, THREE.Object3D>();
   private prop: THREE.Object3D | null = null;
   private liquid: THREE.Mesh | null = null;
@@ -214,7 +217,7 @@ export class EatFp {
     this.pendingJar.length = 0;
     for (const c of this.crumbs) c.on = false;
     const p = G.local;
-    if (p) this.skinMat.color.setHex(p.app?.skin ?? 0xc89a7a);
+    if (p && this.arms) { const look = { skin: p.app?.skin ?? 0xe8b98f, sleeve: 0xeeb415 }; this.arms.right.setLook(look); this.arms.left.setLook(look); }
     this.root!.visible = true;
   }
   /** the action ended (moved away, Esc, item gone) */
@@ -241,42 +244,27 @@ export class EatFp {
     g.add(new THREE.HemisphereLight(0xfff0d8, 0x3a2a24, 1.15));
     const key = new THREE.DirectionalLight(0xfff4e0, 1.6); key.position.set(-0.5, 0.8, 0.6); g.add(key);
     const rim = new THREE.DirectionalLight(0x8ab0ff, 0.6); rim.position.set(0.6, 0.2, -0.8); g.add(rim);
-    const box = new THREE.BoxGeometry(1, 1, 1);
-    const vm = this.vMesh = new THREE.InstancedMesh(box, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXV);
+    // food is built from little faceted lumps, not cubes: it crumbles like food
+    const lumpGeo = new THREE.IcosahedronGeometry(0.74, 0);
+    const vm = this.vMesh = new THREE.InstancedMesh(lumpGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXV);
     vm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); vm.count = 0; vm.frustumCulled = false;
     vm.setColorAt(0, _c.setHex(0xffffff));
-    const cm = this.cMesh = new THREE.InstancedMesh(box, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXC);
+    const cm = this.cMesh = new THREE.InstancedMesh(lumpGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXC);
     cm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); cm.count = 0; cm.frustumCulled = false;
     cm.setColorAt(0, _c.setHex(0xffffff));
     for (let i = 0; i < MAXC; i++) this.crumbs.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), life: 0, s: 1, c: new THREE.Color(), g: 1, on: false });
     this.food.add(vm);
     this.grip.add(this.food);
-    g.add(this.grip, this.handR, this.handL, cm);
-    this.buildHand(this.handR, 1);
-    this.buildHand(this.handL, -1);
+    g.add(this.grip, cm);
+    this.arms = fpArmsFor(G.local);
+    g.add(this.arms.right.root, this.arms.left.root);
     // spoon for cans and bowls
     const sp = this.spoon = new THREE.Group();
     const steel = new THREE.MeshLambertMaterial({ color: 0xc8ccd2 });
-    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.006, 0.13), steel); handle.position.z = 0.07; sp.add(handle);
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0035, 0.13, 8), steel); handle.scale.set(1.4, 1, 0.55); handle.rotation.x = Math.PI / 2; handle.position.z = 0.07; sp.add(handle);
     const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 4, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), steel); bowl.scale.set(1, 0.5, 1.4); bowl.rotation.x = Math.PI; sp.add(bowl);
-    const lump = this.lump = new THREE.Mesh(new THREE.BoxGeometry(0.022, 0.012, 0.026), new THREE.MeshLambertMaterial({ color: 0xc86a3a })); lump.position.y = 0.004; sp.add(lump);
+    const lump = this.lump = new THREE.Mesh(new THREE.IcosahedronGeometry(0.013, 1), new THREE.MeshLambertMaterial({ color: 0xc86a3a })); lump.scale.set(1, 0.55, 1.2); lump.position.y = 0.004; sp.add(lump);
     g.add(sp);
-  }
-  private buildHand(h: THREE.Group, side: 1 | -1) {
-    const palm = new THREE.Mesh(new THREE.BoxGeometry(0.075, 0.026, 0.085), this.skinMat); h.add(palm);
-    for (let i = 0; i < 4; i++) {
-      const f = new THREE.Group();
-      f.position.set(-0.028 + i * 0.019, 0, -0.045); f.rotation.x = -1.1 - (i === 0 ? 0 : 0.1);
-      const a = new THREE.Mesh(new THREE.BoxGeometry(0.016, 0.016, 0.034), this.skinMat); a.position.z = -0.016; f.add(a);
-      const b = new THREE.Group(); b.position.z = -0.032; b.rotation.x = -1; f.add(b);
-      const c = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.015, 0.026), this.skinMat); c.position.z = -0.012; b.add(c);
-      h.add(f);
-    }
-    const th = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.018, 0.045), this.skinMat);
-    th.position.set(-side * 0.04, 0.012, -0.02); th.rotation.set(-0.4, side * 0.7, 0); h.add(th);
-    const wrist = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.06), this.skinMat); wrist.position.z = 0.06; h.add(wrist);
-    const cuff = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.05, 0.2), this.suitMat); cuff.position.z = 0.18; h.add(cuff);
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.088, 0.052, 0.012), new THREE.MeshLambertMaterial({ color: 0x2a2a2a })); stripe.position.z = 0.11; h.add(stripe);
   }
   private propFor(kind: string): THREE.Object3D {
     let o = this.props.get(kind);
@@ -556,6 +544,11 @@ export class EatFp {
     if (this.refuse >= 0) { this.refuse += dt / 0.5; if (this.refuse >= 1) this.refuse = -1; }
     if (this.lowerT >= 0) { this.lowerT += dt / 0.32; if (this.lowerT >= 1) { const act = this.act; this.finish(false); if (act) act.done = true; return; } }
     this.pose(dt);
+    if (this.arms) {
+      const tr = Math.max(0, ((G.local?.body.panic ?? 0) - 40) / 60);
+      this.arms.right.tremor = tr; this.arms.left.tremor = tr;
+      this.arms.right.update(dt); this.arms.left.update(dt);
+    }
     // a hot meal steams; rotten food has a few flies
     const r = this.rec;
     if (r?.hot && Math.random() < dt * 7) this.spawnCrumb(_w.set(this.grip.position.x + (Math.random() - 0.5) * 0.06, this.grip.position.y + 0.04, this.grip.position.z), 0xf4f4f0, -0.12, 0.9, _v.set((Math.random() - 0.5) * 0.04, 0.05, 0.02));
@@ -591,8 +584,8 @@ export class EatFp {
         this.liquid.scale.set(1, h, 1);
         this.liquid.position.y = (this.liquidKind === 'mug' ? -0.043 : -0.078) + h / 2;
       }
-      this.placeHand(this.handR, 0.075 + sway, -0.1 + bob + yOff + g * 0.03, -0.33 + g * 0.06, 0.2 + g * 0.6, 0.5, 1.3);
-      this.placeHand(this.handL, -0.12, -0.2 + yOff * 1.4, -0.36, 0.2, -0.3, -0.4);
+      this.holdAt('right', 'grip', this.food, 0, -0.035, 0.0, [0.22, -0.34, -0.12], [-0.8, 0.2, 0.6]);
+      this.rest('left', yOff);
       return;
     }
     const cont = r && (r.kind === 'can' || r.kind === 'bowl');
@@ -605,18 +598,51 @@ export class EatFp {
       sp.position.set(0.05 - s * 0.04, -0.07 + s * 0.05 + yOff, -0.33 + s * 0.16);
       sp.rotation.set(0.3 - s * 0.4, -0.4, 0.1);
       this.lump!.visible = this.lunge >= 0 && this.lunge < 0.5;
-      this.placeHand(this.handR, 0.075 - s * 0.03, -0.095 + s * 0.05 + yOff, -0.25 + s * 0.14, 0.2, -0.4, 0.9);
-      this.placeHand(this.handL, -0.05 + sway, -0.17 + bob + yOff, -0.35, 0.5, 0.3, -1.4);
+      this.holdAt('right', 'pinch', sp, 0, 0, 0.1, [0.2, -0.36, -0.08], [-0.5, 0.6, 0.6]);
+      this.holdAt('left', 'cup', this.food, 0, -0.012, 0, [-0.16, -0.38, -0.2], [0.4, 0.9, 0.2]);
       return;
     }
     // held food: angled so the near end points at the mouth; it lunges in on a bite
     this.grip.position.set(0.02 + sway - lunge * 0.012, -0.04 + bob + yOff + lunge * 0.018, -0.42 + lunge * 0.13);
     this.grip.rotation.set(0.25 + lunge * 0.2, 0.75 + Math.sin(t * 0.7) * 0.05, 0.2);
     this.food.position.set(0, 0, 0);
-    this.placeHand(this.handR, 0.07 + sway - lunge * 0.012, -0.075 + bob + yOff + lunge * 0.018, -0.38 + lunge * 0.13, 0.35 + lunge * 0.2, 0.25, 0.6);
-    this.placeHand(this.handL, -0.065 + sway * 0.6, -0.09 + bob + yOff * 1.2 + lunge * 0.01, -0.38 + lunge * 0.07, 0.4, -0.4, -0.7);
+    const long = r ? HALF[r.kind] ?? 0 : 0;
+    if (long) {
+      // the held end is the far (+x) end; the left hand rests low
+      this.holdAt('right', 'grip', this.food, long * 0.62 * VS, -0.4 * VS, 0, [0.22, -0.34, -0.1], [-0.7, 0.3, 0.6]);
+      this.rest('left', yOff);
+    } else {
+      // round things: the right hand holds it from behind, the left cups it from below
+      this.holdAt('right', 'grip', this.food, 2.6 * VS, -2.4 * VS, -2.4 * VS, [0.24, -0.32, -0.16], [-0.85, 0.2, 0.45]);
+      this.holdAt('left', 'cup', this.food, -1 * VS, -4.6 * VS, 0.5 * VS, [-0.18, -0.38, -0.18], [0.25, 0.95, 0.15]);
+    }
   }
-  private placeHand(h: THREE.Group, x: number, y: number, z: number, rx: number, ry: number, rz: number) { h.position.set(x, y, z); h.rotation.set(rx, ry, rz); }
+
+  /** put an arm's grip on a point of an object: the forearm comes from below toward it, the palm toward palmHint */
+  private holdAt(side: 'right' | 'left', pose: HandPose, on: THREE.Object3D, lx: number, ly: number, lz: number, elbow: [number, number, number], palmHint: [number, number, number]) {
+    const arm = this.arms?.[side]; if (!arm) return;
+    arm.pose(pose);
+    this.root!.updateMatrixWorld(true);
+    const target = on.localToWorld(_t.set(lx, ly, lz));
+    const dir = _d.set(target.x - elbow[0], target.y - elbow[1], target.z - elbow[2]).normalize();
+    const z = _z.set(palmHint[0], palmHint[1], palmHint[2]);
+    z.addScaledVector(dir, -z.dot(dir)).normalize();
+    const x = _x.crossVectors(dir, z).normalize();
+    _mb.makeBasis(x, dir, z);
+    arm.root.quaternion.setFromRotationMatrix(_mb);
+    arm.root.position.set(elbow[0], elbow[1], elbow[2]);
+    arm.root.updateMatrixWorld(true);
+    const g = arm.grip.getWorldPosition(_g);
+    arm.root.position.x += target.x - g.x; arm.root.position.y += target.y - g.y; arm.root.position.z += target.z - g.z;
+  }
+  /** an arm at rest, low in the frame */
+  private rest(side: 'right' | 'left', yOff: number) {
+    const arm = this.arms?.[side]; if (!arm) return;
+    arm.pose('relaxed');
+    const s = side === 'left' ? -1 : 1;
+    arm.root.position.set(s * 0.17, -0.42 + yOff * 0.6 + Math.sin(this.t * 1.7) * 0.003, -0.3);
+    arm.root.rotation.set(-0.35, 0, -s * 0.35);
+  }
 
   private stepCrumbs(dt: number) {
     const m = this.cMesh!;

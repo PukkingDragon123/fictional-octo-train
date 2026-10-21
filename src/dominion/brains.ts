@@ -6,6 +6,7 @@ import { defItem, itemDef } from '../items/item';
 import { defRecipe } from '../items/recipes';
 import { defNode, hasUnlock } from '../game/research';
 import type { ModelBuilder } from '../gfx/modelBuilder';
+import { rbox, capsule, ring, dome, blob } from '../scan/shapes';
 import type { Creature } from '../creatures/creature';
 
 export interface BrainTier { tier: 1 | 2 | 3; key: string; name: string; maxHp: number; led: number; node: string }
@@ -54,48 +55,56 @@ export const maxThralls = () => (hasUnlock('tame_pack') ? 6 : 3);
 
 // ---------------------------------------------------------------- items
 const FIL = 0xffa040;
-/** a glass vacuum tube with a glowing filament, standing on a bakelite socket */
+/** a glass vacuum valve with a glowing filament, standing in a bakelite socket */
 function tube(mb: ModelBuilder, x: number, y: number, z: number, h: number, r = 0.011) {
-  mb.cylinder(x, y, z, r * 1.25, 0.008, 8, 'plastic_black', { color: 0x3a2418 });
-  mb.cylinder(x, y + 0.008, z, r, h, 8, 'glass', { color: 0xd8e4e0 });
-  mb.sphere(x, y + 0.008 + h, z, r, 8, 4, 'glass', { color: 0xd8e4e0, sy: 0.8 });
-  mb.box(x, y + 0.012 + h * 0.35, z, r * 0.7, h * 0.45, r * 0.25, 'metal_grey', { color: 0x6a6a64 });
-  mb.box(x, y + 0.012 + h * 0.5, z, r * 0.3, h * 0.25, r * 0.3, 'white', { color: FIL, emissive: 1.6 });
+  mb.cylinder(x, y, z, r * 1.3, 0.008, 14, 'plastic_black', { color: 0x3a2418, rTop: r * 1.15 });
+  mb.cylinder(x, y + 0.008, z, r, h, 14, 'glass', { color: 0xd8e4e0 });
+  mb.sphere(x, y + 0.008 + h, z, r, 12, 6, 'glass', { color: 0xd8e4e0, sy: 0.9 });
+  rbox(mb, x, y + 0.012 + h * 0.15, z, r * 1.1, h * 0.6, r * 0.35, 'metal_grey', { color: 0x6a6a64 }, r * 0.12);
+  capsule(mb, [x, y + 0.016 + h * 0.3, z + r * 0.25], [x, y + 0.016 + h * 0.65, z + r * 0.25], r * 0.14, 'white', { color: FIL, emissive: 1.7 }, 6);
+  blob(mb, x, y + 0.008 + h + r * 0.75, z, r * 0.25, r * 0.18, r * 0.25, 'glass', { color: 0x9aa8a4 }, 8);
 }
-function rivets(mb: ModelBuilder, r: number, y: number, n: number) { for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; mb.box(Math.cos(a) * r, y, Math.sin(a) * r, 0.005, 0.005, 0.005, 'metal_brass'); } }
+function rivets(mb: ModelBuilder, r: number, y: number, n: number, rv = 0.0032) { for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; blob(mb, Math.cos(a) * r, y, Math.sin(a) * r, rv, rv, rv, 'metal_brass', {}, 6); } }
 function dial(mb: ModelBuilder, x: number, y: number, z: number, r: number) {
   mb.push().translate(x, y, z).rotateX(Math.PI / 2);
-  mb.cylinder(0, 0, 0, r, 0.004, 10, 'metal_brass'); mb.cylinder(0, 0.004, 0, r * 0.8, 0.001, 10, 'paper', { color: 0xe8dcb8 });
+  mb.cylinder(0, 0, 0, r, 0.004, 16, 'metal_brass'); mb.cylinder(0, 0.004, 0, r * 0.8, 0.0012, 16, 'paper', { color: 0xe8dcb8 });
+  ring(mb, 0, 0.0045, 0, r * 0.88, r * 0.1, 'metal_brass', {}, 16);
   mb.pop();
-  mb.box(x + r * 0.3, y + r * 0.2, z + 0.003, r * 0.9, 0.0015, 0.001, 'plastic_black');
+  capsule(mb, [x, y, z + 0.0055], [x + r * 0.55, y + r * 0.35, z + 0.0055], r * 0.06, 'plastic_black', {}, 5);
 }
-/** MK-I: a riveted steel drum, one valve */
+/** MK-I: a riveted steel drum with a rolled brass rim, one valve, four contact pins */
 function valve1(mb: ModelBuilder) {
-  mb.cylinder(0, 0, 0, 0.046, 0.03, 12, 'metal_rusty', { color: 0x9a9890 });
-  mb.cylinder(0, 0.03, 0, 0.048, 0.005, 12, 'metal_brass');
+  mb.cylinder(0, 0, 0, 0.046, 0.03, 20, 'metal_rusty', { color: 0x9a9890 });
+  ring(mb, 0, 0.03, 0, 0.046, 0.004, 'metal_brass', {}, 20);
+  ring(mb, 0, 0.001, 0, 0.046, 0.003, 'metal_dark', {}, 20);
+  dome(mb, 0, 0.03, 0, 0.044, 'metal_rusty', { color: 0x8a8880, sy: 0.18 }, 18);
   rivets(mb, 0.047, 0.015, 10);
-  tube(mb, 0, 0.035, 0, 0.04);
-  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.4; mb.cylinder(Math.cos(a) * 0.03, -0.012, Math.sin(a) * 0.03, 0.003, 0.012, 5, 'metal_brass'); }
+  tube(mb, 0, 0.036, 0, 0.04);
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.4; capsule(mb, [Math.cos(a) * 0.03, -0.012, Math.sin(a) * 0.03], [Math.cos(a) * 0.03, 0.002, Math.sin(a) * 0.03], 0.0028, 'metal_brass', {}, 6); }
   dial(mb, 0.0, 0.016, 0.047, 0.01);
 }
 /** MK-II: a riveted dome, two valves behind a brass collar, braided leads */
 function valve2(mb: ModelBuilder) {
-  mb.sphere(0, 0.012, 0, 0.056, 12, 6, 'metal_rusty', { color: 0x8a8a84, sy: 0.62 });
-  mb.cylinder(0, 0, 0, 0.06, 0.014, 14, 'metal_brass');
-  rivets(mb, 0.058, 0.008, 14);
-  tube(mb, -0.02, 0.035, 0, 0.042); tube(mb, 0.02, 0.035, 0, 0.042);
-  for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) mb.box(sx * (0.062 + i * 0.01), 0.004 - i * 0.004, 0.0, 0.012, 0.008, 0.008, 'fabric_brown', { color: 0x4a3a2a });
+  dome(mb, 0, 0.012, 0, 0.056, 'metal_rusty', { color: 0x8a8a84, sy: 0.6 }, 20);
+  mb.cylinder(0, 0, 0, 0.06, 0.014, 22, 'metal_brass');
+  ring(mb, 0, 0.014, 0, 0.059, 0.004, 'metal_brass', {}, 22);
+  rivets(mb, 0.06, 0.007, 14);
+  ring(mb, 0, 0.034, 0, 0.034, 0.0045, 'metal_brass', {}, 16);
+  tube(mb, -0.019, 0.03, 0, 0.044); tube(mb, 0.019, 0.03, 0, 0.044);
+  for (const sx of [-1, 1]) capsule(mb, [sx * 0.058, 0.006, 0], [sx * 0.085, -0.012, 0.01], 0.006, 'fabric_brown', { color: 0x4a3a2a }, 8);
   dial(mb, 0, 0.022, 0.05, 0.012);
 }
-/** MK-III: a boxy chassis, three tall valves in a wire cage, heat fins, terminal posts */
+/** MK-III: a rounded chassis, three tall valves in a wire cage, heat fins, terminal posts */
 function valve3(mb: ModelBuilder) {
-  mb.box(0, 0.02, 0, 0.13, 0.04, 0.1, 'metal_painted_green', { color: 0x5a6250 });
-  for (const [x, z] of [[-0.06, -0.045], [0.06, -0.045], [-0.06, 0.045], [0.06, 0.045]]) mb.box(x, 0.041, z, 0.006, 0.004, 0.006, 'metal_brass');
-  for (let i = 0; i < 3; i++) tube(mb, -0.035 + i * 0.035, 0.04, -0.01, 0.06, 0.013);
-  for (let i = 0; i < 5; i++) mb.box(-0.05 + i * 0.025, 0.07, -0.01, 0.002, 0.07, 0.05, 'metal_grey', { color: 0x8a8a84 });
-  for (let i = 0; i < 6; i++) mb.box(0.067, 0.008 + i * 0.006, 0, 0.004, 0.003, 0.09, 'metal_brushed');
-  dial(mb, -0.03, 0.022, 0.051, 0.014); dial(mb, 0.025, 0.022, 0.051, 0.01);
-  for (const x of [-0.05, 0.05]) mb.cylinder(x, 0.04, 0.035, 0.005, 0.016, 6, 'metal_brass');
+  rbox(mb, 0, 0, 0, 0.13, 0.042, 0.1, 'metal_painted_green', { color: 0x5a6250 }, 0.01, 3);
+  for (const [x, z] of [[-0.06, -0.045], [0.06, -0.045], [-0.06, 0.045], [0.06, 0.045]]) blob(mb, x, 0.042, z, 0.004, 0.003, 0.004, 'metal_brass', {}, 6);
+  for (let i = 0; i < 3; i++) tube(mb, -0.035 + i * 0.035, 0.042, -0.012, 0.06, 0.013);
+  // the cage: brass hoops on four posts
+  for (const [x, z] of [[-0.058, -0.04], [0.058, -0.04], [-0.058, 0.018], [0.058, 0.018]]) capsule(mb, [x, 0.042, z], [x, 0.13, z], 0.0018, 'metal_brass', {}, 5);
+  for (const y of [0.075, 0.128]) { capsule(mb, [-0.058, y, -0.04], [0.058, y, -0.04], 0.0016, 'metal_brass', {}, 4); capsule(mb, [-0.058, y, 0.018], [0.058, y, 0.018], 0.0016, 'metal_brass', {}, 4); }
+  for (let i = 0; i < 6; i++) rbox(mb, 0.067, 0.006 + i * 0.006, 0, 0.006, 0.003, 0.09, 'metal_brushed', {}, 0.0012, 1);
+  dial(mb, -0.03, 0.02, 0.051, 0.014); dial(mb, 0.025, 0.02, 0.051, 0.01);
+  for (const x of [-0.05, 0.05]) { mb.cylinder(x, 0.042, 0.035, 0.005, 0.014, 10, 'metal_brass'); blob(mb, x, 0.058, 0.035, 0.006, 0.004, 0.006, 'plastic_red', { color: 0xa02a1a }, 8); }
 }
 export const BRAIN_MODELS: Record<string, (mb: ModelBuilder) => void> = {
   brain_mk1: valve1,

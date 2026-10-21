@@ -32,34 +32,43 @@ let visorGeo: THREE.BufferGeometry | null = null, taserGeo: THREE.BufferGeometry
 function visor(): THREE.BufferGeometry {
   if (visorGeo) return visorGeo;
   const mb = new ModelBuilder();
-  // three facets curving round the face, a rim on top
-  mb.box(0, 0.06, 0.112, 0.15, 0.14, 0.018, 'glass_dark', { color: 0x3a4250 });
-  for (const s of [-1, 1]) { mb.push().translate(s * 0.095, 0.06, 0.08).rotateY(s * 0.62); mb.box(0, 0, 0, 0.07, 0.14, 0.016, 'glass_dark', { color: 0x30363e }); mb.pop(); }
-  mb.box(0, 0.2, 0.1, 0.2, 0.025, 0.04, 'plastic_black');
-  mb.box(0, 0.075, 0.123, 0.12, 0.012, 0.004, 'white', { color: 0x8a9aaa, emissive: 0.25 });
+  // a curved smoked face shield: narrow panels round an arc, a rolled rim on top, a chin edge
+  const N = 9, R = 0.118, span = 2.3;
+  for (let i = 0; i < N; i++) {
+    const a = -span / 2 + (i + 0.5) * span / N;
+    mb.push().rotateY(a);
+    mb.box(0, -0.01, R, (span / N) * R * 1.06, 0.15, 0.012, 'glass_dark', { color: 0x343c48 });
+    mb.box(0, 0.138, R - 0.004, (span / N) * R * 1.1, 0.018, 0.026, 'plastic_black');
+    mb.pop();
+  }
+  for (const s of [-1, 1]) { mb.push().translate(s * 0.12, 0.13, 0.0); mb.cylinderX(0, 0, 0, 0.018, 0.02, 8, 'plastic_black'); mb.pop(); }
+  mb.push().rotateY(0); mb.box(0, 0.065, R + 0.008, 0.11, 0.008, 0.004, 'white', { color: 0x8a9aaa, emissive: 0.25 }); mb.pop();
   visorGeo = mb.build();
   return visorGeo;
 }
 function taserMesh(): THREE.Object3D {
   if (!taserGeo) {
     const mb = new ModelBuilder();
-    mb.box(0.02, -0.03, 0, 0.16, 0.05, 0.035, 'plastic_black', { color: 0xd8c040 });
-    mb.box(-0.04, -0.09, 0, 0.04, 0.08, 0.032, 'plastic_black');
-    mb.box(0.105, -0.022, 0, 0.012, 0.02, 0.03, 'metal_grey');
+    // a stubby yellow body with a rounded snout, a rubber grip, two prongs
+    mb.cylinderX(0.02, -0.03, 0, 0.026, 0.15, 10, 'plastic_black', { color: 0xd8c040 });
+    mb.sphere(0.095, -0.03, 0, 0.026, 10, 6, 'plastic_black', { color: 0xd8c040 });
+    mb.push().translate(-0.04, -0.05, 0).rotateZ(0.25); mb.cylinder(0, -0.07, 0, 0.018, 0.075, 8, 'rubber_black'); mb.pop();
+    for (const s of [-1, 1]) mb.cylinderX(0.125, -0.022, s * 0.01, 0.003, 0.02, 4, 'metal_grey');
     taserGeo = mb.build();
   }
   return new THREE.Mesh(taserGeo, worldMaterial({}));
 }
-/** the BAILIFF fitting gun: a squat grey tool with a C-shaped jaw and an amber light */
+/** the BAILIFF fitting gun: a squat grey tool with a C-shaped jaw, a pistol grip and an amber light */
 function gunMesh(): THREE.Object3D {
   if (!gunGeo) {
     const mb = new ModelBuilder();
-    mb.box(0, -0.04, 0, 0.22, 0.09, 0.07, 'metal_grey', { color: 0x9aa0a4 });
-    mb.box(-0.06, -0.15, 0, 0.05, 0.12, 0.05, 'plastic_black');
-    mb.box(0.13, -0.06, 0, 0.05, 0.13, 0.08, 'metal_dark');
-    mb.box(0.15, -0.09, 0, 0.03, 0.05, 0.08, 'metal_grey');
-    mb.box(0.0, 0.01, 0.036, 0.04, 0.02, 0.004, 'white', { color: 0xffa040, emissive: 1.4 });
-    mb.box(-0.02, 0.02, 0, 0.12, 0.012, 0.075, 'plastic_black', { color: 0xc89030 });
+    mb.cylinderX(0, -0.0, 0, 0.045, 0.22, 12, 'metal_grey', { color: 0x9aa0a4 });
+    mb.sphere(-0.11, 0, 0, 0.045, 10, 6, 'metal_grey', { color: 0x9aa0a4 });
+    mb.push().translate(-0.06, -0.03, 0).rotateZ(0.2); mb.cylinder(0, -0.12, 0, 0.022, 0.12, 8, 'rubber_black'); mb.pop();
+    // the jaw: a C of thick steel at the muzzle
+    for (let i = 0; i < 7; i++) { const a = -Math.PI * 0.7 + i * (Math.PI * 1.4 / 6); mb.push().translate(0.15, 0, 0).rotateX(a); mb.cylinderX(0, 0.055, 0, 0.016, 0.06, 8, 'metal_dark'); mb.pop(); }
+    mb.sphere(0.0, 0.045, 0.0, 0.012, 8, 6, 'white', { color: 0xffa040, emissive: 1.4 });
+    mb.cylinderX(-0.02, 0.04, 0, 0.012, 0.12, 8, 'plastic_black', { color: 0xc89030 });
     gunGeo = mb.build();
   }
   return new THREE.Mesh(gunGeo, worldMaterial({}));

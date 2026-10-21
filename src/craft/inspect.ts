@@ -27,10 +27,11 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { hasUnlock, researchNode, grantResearch } from '../game/research';
 import { shake as camShake } from '../gfx/juice';
 import { type HandOp, opsForItem, opsForObject, opWork, pickTool, pickParts, type PartPick, partLabel, toolLabel } from './handOps';
-import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, type Arm, makeBackdrop, makeItemObj, type ItemObj, itemAlign, Particles, fpMat, damp, pointerRay } from './fpKit';
+import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, holdInGrip, type Arm, makeBackdrop, makeItemObj, type ItemObj, itemAlign, Particles, fpMat, damp, pointerRay } from './fpKit';
 import { pixTag, tagString, setString, stamp, type PixTag } from './tags';
 import { Dymo, Slate, clickTag } from './props';
 import { metalMat } from './metal';
+import { Shape } from './shapes';
 import type { MenuOption } from '../ui/ui';
 
 export type Subject = { kind: 'item'; it: Item; c: Container | null } | { kind: 'obj'; o: TileObject };
@@ -61,18 +62,18 @@ function workPose(a: number, out: THREE.Quaternion) {
 function chairProxy(o: TileObject): { g: THREE.Group; leg: THREE.Mesh; a: THREE.Vector3; b: THREE.Vector3 } {
   const d = objDef(o.key);
   const snd = (d as any)?.sound || 'wood';
-  const tex = snd === 'plastic' ? 'plastic_white' : snd === 'metal' ? 'metal_grey' : 'wood_light';
-  const col = snd === 'plastic' ? 0xf2f0ea : snd === 'metal' ? 0xa0a6ac : 0xd8b888;
-  const mb = new ModelBuilder();
-  mb.box(0, 0, 0, 0.42, 0.04, 0.42, tex, { color: col });
-  mb.box(0, -0.4, -0.19, 0.4, 0.4, 0.035, tex, { color: col });
-  for (const [x, z] of [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17]]) mb.cylinder(x, 0.04, z, 0.018, 0.42, 6, tex, { color: col, rTop: 0.014 });
-  mb.box(0, 0.16, -0.17, 0.32, 0.02, 0.02, tex, { color: col });
+  const kind = snd === 'plastic' ? 'plastic' : snd === 'metal' ? 'steel' : 'wood';
+  const sh = new Shape(3);
+  sh.box(0, 0, 0, 0.42, 0.04, 0.42, 0xffffff, 0.012);
+  sh.box(0, -0.4, -0.19, 0.4, 0.4, 0.035, 0xf0f0f0, 0.012);
+  for (const [x, z] of [[-0.17, -0.17], [0.17, -0.17], [-0.17, 0.17]]) sh.cyl(x, 0.04, z, 0.018, 0.42, 0xffffff, 10, undefined, 0.014);
+  sh.capsule(-0.16, 0.16, -0.17, 0.009, 0.32, 0xe8e8e8, [0, 0, -Math.PI / 2]);
+  const mat = metalMat(kind as any, 1);
   const g = new THREE.Group();
-  g.add(new THREE.Mesh(mb.build(), fpMat()));
-  const lb = new ModelBuilder();
-  lb.cylinder(0, 0, 0, 0.018, 0.42, 6, tex, { color: col, rTop: 0.014 });
-  const leg = new THREE.Mesh(lb.build(), fpMat());
+  g.add(new THREE.Mesh(sh.build(), mat));
+  const lb = new Shape(3);
+  lb.cyl(0, 0, 0, 0.018, 0.42, 0xffffff, 10, undefined, 0.014);
+  const leg = new THREE.Mesh(lb.build(), mat);
   leg.position.set(0.17, 0.04, 0.17);
   g.add(leg);
   return { g, leg, a: new THREE.Vector3(0.12, 0.1, 0.17), b: new THREE.Vector3(0.22, 0.1, 0.17) };
@@ -149,11 +150,11 @@ export class Inspect {
     const key = new THREE.DirectionalLight(0xffe8c8, 1.25); key.position.set(-0.6, 1.2, 0.9); g.add(key);
     const rim = new THREE.DirectionalLight(0xffb060, 0.45); rim.position.set(0.9, 0.2, -0.4); g.add(rim);
     g.add(this.hold); this.hold.add(this.turn);
-    const ab = new ModelBuilder();
-    ab.setFaceShading(false);
-    ab.box(0, -0.05, 0, 0.24, 0.05, 0.11, 'metal_dark');
-    ab.box(0, -0.09, 0, 0.15, 0.04, 0.08, 'metal_dark', { color: 0xb0b0b0 });
-    ab.box(0.15, -0.035, 0, 0.07, 0.035, 0.05, 'metal_dark');
+    const ab = new Shape(3);
+    ab.box(0, -0.05, 0, 0.22, 0.05, 0.11, 0xffffff, 0.008);
+    ab.box(0, -0.09, 0, 0.13, 0.042, 0.08, 0xb0b0b0, 0.006);
+    ab.box(0, -0.1, 0, 0.19, 0.012, 0.12, 0x909090, 0.004);
+    ab.cyl(0.11, -0.025, 0, 0.022, 0.07, 0xffffff, 12, [0, 0, -Math.PI / 2], 0.004);
     this.anvil = new THREE.Mesh(ab.build(), metalMat('iron', 2));
     this.anvil.visible = false;
     this.hold.add(this.anvil);
@@ -164,10 +165,11 @@ export class Inspect {
     for (const x of [-0.53, 0.53]) cb.box(x, -0.004, 0, 0.02, 0.006, 0.22, 'fabric_brown', { color: 0x6a5030 });
     this.cloth.add(new THREE.Mesh(cb.build(), fpMat()));
     g.add(this.cloth);
-    const nb = new ModelBuilder();
-    nb.box(0, -0.2, -0.01, 0.1, 0.42, 0.016, 'wood_dark', { color: 0x7a5232 });
-    for (let i = 0; i < 6; i++) nb.cylinder(-0.02, -0.0 - i * 0.065, 0.0, 0.0025, 0.012, 4, 'metal_grey', { color: 0x9a9a92 });
-    this.nails.add(new THREE.Mesh(nb.build(), fpMat()));
+    const nb = new Shape(3);
+    nb.box(0, -0.2, -0.01, 0.1, 0.42, 0.016, 0xffffff, 0.006);
+    const nm = new Shape(6);
+    for (let i = 0; i < 6; i++) nm.cyl(-0.02, -i * 0.068, 0.0, 0.0022, 0.014, 0xffffff, 6, [Math.PI / 2, 0, 0]);
+    this.nails.add(new THREE.Mesh(nb.build(), metalMat('wood', 1)), new THREE.Mesh(nm.build(), metalMat('steel', 1)));
     g.add(this.nails);
     this.info = pixTag('tag', 110, 96, 0.34);
     this.info.mesh.renderOrder = 12;
@@ -431,12 +433,13 @@ export class Inspect {
       this.model.add(kerf); w.kerf = kerf;
     }
     this.work = w;
-    if (this.toolObj) { this.toolG.remove(this.toolObj.outer); this.toolObj = null; }
+    if (this.toolObj) { this.toolObj.outer.removeFromParent(); this.toolObj = null; }
     if (w.tool) {
       const to = makeItemObj(w.tool.key);
       const al = itemAlign(w.tool.key);
-      to.outer.scale.setScalar(0.17 / Math.max(0.05, al ? Math.max(...al.base) : 0.2));
-      this.toolG.add(to.outer);
+      const len = 0.17;
+      to.outer.scale.setScalar(len / Math.max(0.05, al ? Math.max(...al.base) : 0.2) / this.arms[0].scale);
+      holdInGrip(this.arms[0], to, len);
       this.toolObj = to;
     }
     this.toolG.visible = true;
@@ -456,6 +459,8 @@ export class Inspect {
     this.guide.visible = false;
     this.toolG.visible = false;
     this.anvil.visible = false;
+    if (this.toolObj) { this.toolObj.outer.removeFromParent(); this.toolObj = null; }
+    this.arms[0].fp.wrist.rotation.x = 0;
     if (w.head) w.head.outer.parent?.remove(w.head.outer);
     for (const b of w.bands) b.parent?.remove(b);
     if (w.kerf) w.kerf.parent?.remove(w.kerf);
@@ -561,6 +566,8 @@ export class Inspect {
     }
     this.work = null;
     this.guide.visible = false; this.toolG.visible = false; this.anvil.visible = false;
+    if (this.toolObj) { this.toolObj.outer.removeFromParent(); this.toolObj = null; }
+    this.arms[0].fp.wrist.rotation.x = 0;
     this.slate.hide();
     if (w.head) w.head.outer.parent?.remove(w.head.outer);
     // look at what you made
@@ -737,17 +744,19 @@ export class Inspect {
       this.guide.visible = w.phase !== 'finish' && (w.h.verb !== 'wrap' || w.phase === 'go');
     }
     if (w && this.toolObj) {
+      // the tool is in the right hand: the hand follows the pointer so the business end is under it
       const z = this.worldOf(w.joint, _v).z;
       const at = this.pointerAt(this.px, this.py, z, _w);
-      const o = this.toolObj.outer;
-      if (w.h.verb === 'strike') { o.position.set(at.x + 0.05, at.y + 0.1 * (1 - w.swing) + 0.02, at.z + 0.06); o.rotation.set(0.2, 0.4, 0.9 - w.swing * 0.8); }
-      else if (w.h.verb === 'saw' || w.h.verb === 'grind') { o.position.lerp(_v.set(at.x, at.y + 0.015, at.z + 0.04), 1 - Math.exp(-30 * dt)); o.rotation.set(0, Math.PI / 2, 0.08); }
-      else { o.position.lerp(_v.set(at.x + 0.06, at.y - 0.04, at.z + 0.08), 1 - Math.exp(-20 * dt)); o.rotation.set(0.3, 0.6, 0.4); }
+      const wr = this.arms[0].fp.wrist;
+      if (w.h.verb === 'strike') { this.toolAt.set(at.x + 0.06, at.y - 0.06 + 0.12 * (1 - w.swing), at.z + 0.1); wr.rotation.x = -0.7 * (1 - w.swing) + 0.25; }
+      else if (w.h.verb === 'saw' || w.h.verb === 'grind') { this.toolAt.set(at.x + 0.05, at.y - 0.07, at.z + 0.09); wr.rotation.x = 0.1; }
+      else { this.toolAt.set(at.x + 0.06, at.y - 0.08, at.z + 0.1); wr.rotation.x = 0; }
     }
     this.poseHands(dt);
   }
 
   private gl = new THREE.Vector3(-0.3, -0.25, -1); private gr = new THREE.Vector3(0.3, -0.25, -1);
+  private toolAt = new THREE.Vector3(0.3, -0.25, -1);
   private poseHands(dt: number) {
     const [aR, aL] = this.arms;
     const w = this.work;
@@ -757,7 +766,7 @@ export class Inspect {
     const L = al ? al.base[1] : 0.5;
     const lt = this.chair ? this.worldOf(_v.set(-0.2, 0.02, 0.15), new THREE.Vector3()) : this.worldOf(_v.set(0, 0, -L * 0.42), new THREE.Vector3());
     let rt: THREE.Vector3;
-    if (w && this.toolObj) rt = this.toolObj.outer.getWorldPosition(new THREE.Vector3()).add(_v.set(0.03, -0.05, 0.02));
+    if (w && this.toolObj) rt = this.toolAt.clone();
     else if (w && w.h.verb === 'tear') {
       rt = this.worldOf(_v.set(0, 0, L * 0.42), new THREE.Vector3());
       const k = w.pulling ? Math.min(1, Math.abs(this.px - w.pullX) / (window.innerWidth * 0.26)) : 0;
@@ -770,7 +779,9 @@ export class Inspect {
     if (this.chair && !w) rt.set(0.32, -0.32, -0.95);
     this.gl.lerp(lt, 1 - Math.exp(-16 * dt)); this.gr.lerp(rt, 1 - Math.exp(-16 * dt));
     aL.target.copy(this.gl); aR.target.copy(this.gr);
-    aL.grip = 0.85; aR.grip = w && w.h.verb === 'strike' && !w.tool ? 1 : 0.85;
-    poseArm(aL, 1.2); poseArm(aR, -1.2);
+    const v = w?.h.verb;
+    aL.want = v === 'tear' || v === 'wrap' || v === 'braid' ? 'pinch' : 'grip';
+    aR.want = !w ? 'grip' : this.toolObj ? 'grip' : v === 'strike' ? 'fist' : 'pinch';
+    poseArm(aL, -Math.PI / 2, dt); poseArm(aR, -Math.PI / 2, dt);
   }
 }

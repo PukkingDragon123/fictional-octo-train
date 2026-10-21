@@ -241,7 +241,8 @@ export class Cubes {
   n = 0;
   private m = new THREE.Matrix4(); private q = new THREE.Quaternion(); private e = new THREE.Euler(); private v = new THREE.Vector3(); private s = new THREE.Vector3();
   constructor(readonly max: number, mat: THREE.ShaderMaterial) {
-    const geo = new THREE.BoxGeometry(1, 1, 1);
+    // little rounded lumps (drops, bubbles, crumbs, chunks): never cubes
+    const geo = new THREE.IcosahedronGeometry(0.62, 0);
     this.pc = new THREE.InstancedBufferAttribute(new Float32Array(max * 4), 4);
     geo.setAttribute('aPC', this.pc);
     this.mesh = new THREE.InstancedMesh(geo, mat, max);

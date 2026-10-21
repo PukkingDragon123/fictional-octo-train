@@ -18,6 +18,8 @@ import { questDefs } from '../game/quests';
 import { op } from '../game/ops';
 import { PixTex, PAL, PointerLayer, WorldTag, flatMat, overlayRay } from '../scan/pix';
 import { Screen } from '../ui/font5x7';
+import { rbox, blob } from '../scan/shapes';
+import { StageArms } from '../scan/arms';
 import type { Creature } from '../creatures/creature';
 import { TRIBES, type TribeKey } from './defs';
 import { bark, memberName, tribeOfCreature } from './npc';
@@ -42,7 +44,7 @@ let _mat: THREE.Material | null = null;
 const itemMat = () => (_mat ??= worldMaterial({ noVis: true, noFog: true, noGrid: true }));
 // shared pieces (the cloth is laid out again after every trade: nothing per-layout but the job cards)
 const HIT = new THREE.MeshBasicMaterial({ visible: false });
-const GEO = { hit: new THREE.BoxGeometry(0.07, 0.05, 0.05), tag: new THREE.PlaneGeometry(0.042, 0.018), bow: new THREE.BoxGeometry(0.012, 0.004, 0.006), card: new THREE.PlaneGeometry(0.11, 0.073), pin: new THREE.SphereGeometry(0.004, 6, 4), tokTag: new THREE.PlaneGeometry(0.036, 0.0145), tokHit: new THREE.BoxGeometry(0.06, 0.04, 0.06) };
+const GEO = { hit: new THREE.BoxGeometry(0.07, 0.05, 0.05), tag: new THREE.PlaneGeometry(0.042, 0.018), bow: new THREE.TorusKnotGeometry(0.004, 0.0013, 24, 4, 2, 3), card: new THREE.PlaneGeometry(0.11, 0.073), pin: new THREE.SphereGeometry(0.004, 6, 4), tokTag: new THREE.PlaneGeometry(0.036, 0.0145), tokHit: new THREE.BoxGeometry(0.06, 0.04, 0.06) };
 const RED = new THREE.MeshLambertMaterial({ color: 0xb02018 });
 const tagMats = new Map<PixTex, THREE.Material>();
 const cachedMats = new Set<THREE.Material>();
@@ -70,20 +72,24 @@ export class TradeUI {
   private dirty = false;
   private flying: { g: THREE.Group; to: THREE.Vector3; t: number }[] = [];
   private beadX = 0.215;
+  private arms: StageArms;
+  private pinchT = 0;
+  private tw = new THREE.Vector3();
 
   constructor(private T: TribeSystem) {
     this.g = fpGroup('trade');
     this.g.add(new THREE.AmbientLight(0xd8c8a8, 0.7));
     const lamp = new THREE.PointLight(0xffc880, 2.4, 1.6, 1.4); lamp.position.set(0.12, 0.3, -0.35); this.g.add(lamp);
     this.g.add(this.root);
+    this.arms = new StageArms(this.g);
     const mat = itemMat();
     // the board and the cloth
     const mb = new ModelBuilder();
-    mb.box(0, -0.03, 0, TW + 0.06, 0.03, TD + 0.06, 'wood_crate');
-    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mb.box(x * (TW / 2 + 0.02), -0.004, z * (TD / 2 + 0.02), 0.012, 0.008, 0.012, 'stone_rough');
+    rbox(mb, 0, -0.03, 0, TW + 0.06, 0.03, TD + 0.06, 'wood_crate', {}, 0.012, 2);
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) blob(mb, x * (TW / 2 + 0.02), 0.0, z * (TD / 2 + 0.02), 0.012, 0.007, 0.012, 'stone_rough', {}, 8);
     // slate in its frame, the standing rail
-    mb.box(0.215, 0.001, -0.075, 0.115, 0.006, 0.09, 'wood_dark');
-    mb.box(0.215, 0.001, 0.105, 0.13, 0.006, 0.034, 'wood_light');
+    rbox(mb, 0.215, 0.001, -0.075, 0.115, 0.006, 0.09, 'wood_dark', {}, 0.0029, 2);
+    rbox(mb, 0.215, 0.001, 0.105, 0.13, 0.006, 0.034, 'wood_light', {}, 0.0029, 2);
     this.root.add(new THREE.Mesh(mb.build(), mat));
     const cl = new THREE.Mesh(new THREE.PlaneGeometry(TW, TD), flatMat(this.cloth.tex)); cl.rotation.x = -Math.PI / 2; cl.position.y = 0.0005; this.root.add(cl);
     const sl = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.075), flatMat(this.slate.tex)); sl.rotation.x = -Math.PI / 2; sl.position.set(0.215, 0.0075, -0.075); this.root.add(sl);
@@ -145,6 +151,14 @@ export class TradeUI {
       if (f2.t >= 1) { f2.g.removeFromParent(); this.flying.splice(i, 1); }
     }
     this.bead.position.x += (this.beadX - this.bead.position.x) * Math.min(1, dt * 6);
+    // hands: the left rests flat on the cloth, the right points at what you are looking at and picks it up
+    const A = this.arms, kk = Math.min(1, dt * 10);
+    this.root.updateMatrixWorld(true);
+    A.aim('left', 'flat', 'grip', this.root.localToWorld(this.tw.set(-TW / 2 + 0.07, 0.014, TD / 2 - 0.02)), [-0.34, -0.5, -0.62], [0, -0.52, -0.85], kk);
+    if (this.hover) { this.hover.g.getWorldPosition(this.tw); this.tw.y += 0.035; this.tw.z += 0.02; A.aim('right', this.pinchT > 0 ? 'pinch' : 'point', 'tip', this.tw, [0.3, -0.5, -0.6], [0, -0.52, -0.85], kk); }
+    else A.rest('right', kk, 0.05);
+    this.pinchT -= dt;
+    A.update(dt);
   }
 
   open(c: Creature) {
@@ -152,6 +166,7 @@ export class TradeUI {
     if (this.T.hostile(t) && !c.tamedBy) { bark(c, 'hostile', true); bus.emit('think', G.local, 'They are not in a talking mood.'); return; }
     if (!fpClaim('trade', 3, { cinematic: 'full' })) return;
     this.c = c; this.raise = 0; this.hover = null;
+    this.arms.dress();
     this.T.meet(t);
     bark(c, 'trade', true);
     this.drawCloth(t);
@@ -293,6 +308,7 @@ export class TradeUI {
       return;
     }
     const p = G.local!;
+    this.pinchT = 0.35;
     if (s.kind === 'buy') {
       if (this.T.buy(t, s.key)) this.fly(s, 0.12);
       else { bark(c, 'trade', true); s.g.position.x += 0.006; G.audio?.ui?.('click', 0.4); }

@@ -11,6 +11,8 @@ import { atlas } from '../../gfx/atlas';
 import { addTextureModule } from '../../gfx/textures/index';
 import { makeRamp, mixHex, scaleHex, ph, text, textC, glow, rockBlob, discY, rod, torus, fillNoise } from './b_common';
 import type { PixelCanvas } from '../../gfx/pixel';
+import type { ModelBuilder } from '../../gfx/modelBuilder';
+import { lathe, blob, tube, surf, type V3 } from '../../creatures/kit/anomalies';
 
 const T = ['vx', 'dimension'];
 
@@ -152,17 +154,61 @@ addTextureModule(() => {
   });
 });
 
+// ---------------------------------------------------------------- shared forms: nothing here is a raw box
+/** a box with chamfered edges and corners (bevel c), standing on y0, centred on (cx, cz) */
+export function chamferBox(mb: ModelBuilder, cx: number, y0: number, cz: number, w: number, h: number, d: number, c: number, tex: string, o: { color?: number; emissive?: number } = {}) {
+  const hx = w / 2, hy = h / 2, hz = d / 2, cy = y0 + hy;
+  c = Math.min(c, hx * 0.45, hy * 0.45, hz * 0.45);
+  const ix = hx - c, iy = hy - c, iz = hz - c;
+  const col = o.color ?? 0xffffff, em = o.emissive ?? 0;
+  const put = (pts: number[][]) => {
+    const p = pts.map((q) => [cx + q[0], cy + q[1], cz + q[2]]);
+    // outward winding: compare the face normal with the direction from the centre
+    const a = p[1].map((v, k) => v - p[0][k]), b = p[2].map((v, k) => v - p[0][k]);
+    const n = [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+    const m = pts.reduce((s, q) => [s[0] + q[0], s[1] + q[1], s[2] + q[2]], [0, 0, 0]);
+    if (n[0] * m[0] + n[1] * m[1] + n[2] * m[2] < 0) p.reverse();
+    const ax = Math.abs(n[0]) > Math.abs(n[1]) && Math.abs(n[0]) > Math.abs(n[2]) ? 0 : Math.abs(n[1]) > Math.abs(n[2]) ? 1 : 2;
+    const uvs = p.map((q) => (ax === 0 ? [q[2], q[1]] : ax === 1 ? [q[0], q[2]] : [q[0], q[1]]));
+    const shade = 0.82 + 0.18 * Math.max(0, n[1] / (Math.hypot(n[0], n[1], n[2]) || 1));
+    if (p.length === 4) mb.quadRaw(p, uvs, tex, col, shade, em); else mb.triRaw(p, uvs, tex, col, shade, em);
+  };
+  for (const s of [1, -1]) {
+    put([[-ix, s * hy, -iz], [ix, s * hy, -iz], [ix, s * hy, iz], [-ix, s * hy, iz]]);
+    put([[s * hx, -iy, -iz], [s * hx, iy, -iz], [s * hx, iy, iz], [s * hx, -iy, iz]]);
+    put([[-ix, -iy, s * hz], [ix, -iy, s * hz], [ix, iy, s * hz], [-ix, iy, s * hz]]);
+  }
+  for (const sx of [1, -1]) for (const sy of [1, -1]) {
+    put([[sx * ix, sy * hy, -iz], [sx * ix, sy * hy, iz], [sx * hx, sy * iy, iz], [sx * hx, sy * iy, -iz]]);
+    put([[-ix, sy * hy, sx * iz], [ix, sy * hy, sx * iz], [ix, sy * iy, sx * hz], [-ix, sy * iy, sx * hz]]);
+    put([[sx * hx, -iy, sy * iz], [sx * hx, iy, sy * iz], [sx * ix, iy, sy * hz], [sx * ix, -iy, sy * hz]]);
+    for (const sz of [1, -1]) put([[sx * ix, sy * hy, sz * iz], [sx * hx, sy * iy, sz * iz], [sx * ix, sy * iy, sz * hz]]);
+  }
+}
+/** a rounded post: a smooth lathe with a domed top and a flared foot */
+function post(mb: ModelBuilder, x: number, z: number, r: number, h: number, tex: string, color: number) {
+  lathe(mb, [x, 0, z], [[0, 0], [r * 1.5, 0], [r * 1.4, r * 0.8], [r, r * 1.6], [r, h - r], [r * 0.7, h - r * 0.25], [0, h]], 10, tex, { color });
+}
+
 // ---------------------------------------------------------------- the chessboard
 defObj({
   key: 'vx_chess_clock', name: 'Chess Clock', w: 2, d: 1, height: 3.2, block: 'solid', blocksSight: true, tall: true, movable: 0, hp: 99999,
   sound: 'wood', tags: [...T, 'chess', 'fixed'],
   desc: 'A chess clock as tall as a door. Both buttons are down. It still ticks, and on every tick something on the board decides.',
   model: (mb) => {
-    mb.box(0, 0, 0, 1.95, 0.3, 0.95, 'wood_dark', { color: 0x6a4a2a });
-    mb.box(0, 0.3, 0, 1.9, 1.6, 0.9, 'wood_dark', { color: 0x7a5434 });
-    mb.box(0, 0.55, 0.455, 1.7, 0.85, 0.02, 'vx_clockface', { fit: true, emissive: 0.5 });
-    mb.box(0, 0.55, -0.455, 1.7, 0.85, 0.02, 'vx_clockface', { fit: true, emissive: 0.5 });
-    for (const sx of [-0.5, 0.5]) { mb.cylinder(sx, 1.9, 0, 0.12, 0.25, 8, 'metal_grey', { color: 0xc8a050 }); mb.cylinder(sx, 2.15, 0, 0.2, 0.08, 10, 'metal_grey', { color: 0xd8b060 }); }
+    chamferBox(mb, 0, 0, 0, 1.95, 0.3, 0.95, 0.06, 'wood_dark', { color: 0x6a4a2a });
+    chamferBox(mb, 0, 0.3, 0, 1.9, 1.6, 0.9, 0.12, 'wood_dark', { color: 0x7a5434 });
+    // two dials in round brass bezels, front and back
+    for (const z of [0.452, -0.452]) for (const sx of [-0.45, 0.45]) {
+      mb.push(); mb.translate(sx, 1.0, z); mb.rotateX(Math.PI / 2 * (z > 0 ? 1 : -1));
+      mb.cylinder(0, -0.02, 0, 0.38, 0.04, 20, 'metal_grey', { color: 0xc8a050 });
+      mb.pop();
+    }
+    mb.box(0, 0.6, 0.47, 1.7, 0.85, 0.01, 'vx_clockface', { fit: true, emissive: 0.5 });
+    mb.box(0, 0.6, -0.47, 1.7, 0.85, 0.01, 'vx_clockface', { fit: true, emissive: 0.5 });
+    for (const sx of [-0.5, 0.5]) {
+      lathe(mb, [sx, 1.9, 0], [[0, 0], [0.13, 0], [0.11, 0.2], [0.21, 0.24], [0.22, 0.3], [0.15, 0.34], [0, 0.35]], 14, 'metal_grey', { color: 0xd8b060 });
+    }
   },
 });
 
@@ -176,10 +222,9 @@ defObj({
   variant: (s) => String((s.v ?? 0) % 5),
   model: (mb, s) => {
     const c = PASTEL[(s.v ?? 0) % 5];
-    mb.cylinder(0, 0, 0, 0.26, 0.12, 12, 'white', { color: 0xf4f4f8 });
-    mb.cylinder(0, 0.12, 0, 0.16, 2.8, 12, 'white', { color: 0xfafafc, rTop: 0.1 });
-    mb.sphere(0, 3.08, 0, 0.26, 12, 8, 'white', { color: c, emissive: 0.9 });
-    torus(mb, 0, 3.08, 0, 0.42, 0.025, 16, 4, 'white', { color: c, emissive: 0.6 });
+    lathe(mb, [0, 0, 0], [[0, 0], [0.3, 0], [0.3, 0.06], [0.2, 0.2], [0.13, 0.6], [0.1, 2.6], [0.14, 2.82], [0.08, 2.9], [0, 2.9]], 16, 'white', { color: 0xfafafc });
+    blob(mb, [0, 3.1, 0], [0.26, 0.26, 0.26], 16, 10, 'white', { color: c, emissive: 0.9 });
+    torus(mb, 0, 3.1, 0, 0.42, 0.025, 20, 5, 'white', { color: c, emissive: 0.6 });
   },
 });
 defObj({
@@ -190,11 +235,13 @@ defObj({
   model: (mb, s) => {
     const v = (s.v ?? 0) % 5, c = PASTEL[v];
     const h = 2.2 + (v % 3) * 0.25;
-    rod(mb, 0, 0, 0, 0.08, h, 0.04, 0.05, 6, 'white', { color: 0x58c870 });
-    mb.box(0.15, h * 0.45, 0, 0.42, 0.03, 0.18, 'white', { color: 0x6ad880 });
+    // a curving stem, two soft leaves, a head of rounded petals round a domed seed face
+    tube(mb, [[0, 0, 0], [0.03, h * 0.35, 0.02], [0.1, h * 0.7, 0.02], [0.08, h, 0.04]], (t) => 0.055 - t * 0.02, 7, 'white', { color: 0x58c870 });
+    blob(mb, [0.2, h * 0.42, 0.02], [0.24, 0.035, 0.1], 10, 5, 'white', { color: 0x6ad880 });
+    blob(mb, [-0.16, h * 0.28, 0.0], [0.2, 0.03, 0.09], 10, 5, 'white', { color: 0x5cd070 });
     mb.push(); mb.translate(0.08, h, 0.04); mb.rotateX(-1.1);
-    for (let k = 0; k < 10; k++) { mb.push(); mb.rotateY((k / 10) * Math.PI * 2); mb.box(0, 0, 0.42, 0.22, 0.04, 0.62, 'white', { color: k % 2 ? 0xffffff : c }); mb.pop(); }
-    mb.cylinder(0, -0.02, 0, 0.24, 0.1, 12, 'white', { color: 0xffd040, emissive: 0.3 });
+    for (let k = 0; k < 12; k++) { const a = (k / 12) * Math.PI * 2; blob(mb, [Math.sin(a) * 0.42, 0, Math.cos(a) * 0.42], [0.13, 0.03, 0.3], 8, 4, 'white', { color: k % 2 ? 0xffffff : c }); }
+    blob(mb, [0, 0.03, 0], [0.24, 0.09, 0.24], 14, 7, 'white', { color: 0xffd040, emissive: 0.3 });
     mb.pop();
   },
 });
@@ -203,9 +250,9 @@ defObj({
   tags: [...T, 'meadow', 'seat'],
   desc: 'One continuous piece of warm white plastic. There is a dent in it exactly your size.',
   model: (mb) => {
-    mb.box(0, 0.36, 0, 1.8, 0.12, 0.6, 'white', { color: 0xf8f6f2 });
-    mb.box(0, 0.48, -0.26, 1.8, 0.4, 0.08, 'white', { color: 0xf4f2ee });
-    for (const sx of [-0.7, 0.7]) mb.cylinder(sx, 0, 0, 0.12, 0.36, 10, 'white', { color: 0xe8e6e2, rTop: 0.2 });
+    chamferBox(mb, 0, 0.32, 0.02, 1.8, 0.12, 0.56, 0.05, 'white', { color: 0xf8f6f2 });
+    chamferBox(mb, 0, 0.44, -0.24, 1.8, 0.42, 0.08, 0.035, 'white', { color: 0xf4f2ee });
+    for (const sx of [-0.7, 0.7]) lathe(mb, [sx, 0, 0], [[0, 0], [0.2, 0], [0.18, 0.04], [0.11, 0.18], [0.14, 0.3], [0.2, 0.33], [0, 0.33]], 12, 'white', { color: 0xe8e6e2 });
   },
 });
 defObj({
@@ -215,8 +262,8 @@ defObj({
   variant: (s) => String((s.v ?? 0) % 5),
   model: (mb, s) => {
     const c = PASTEL[(s.v ?? 0) % 5];
-    mb.cylinder(0, 0, 0, 0.32, 0.7, 10, 'white', { color: 0xf6f6fa, rTop: 0.22 });
-    mb.sphere(0, 1.1, 0, 0.42, 14, 10, 'white', { color: c, emissive: 0.55 });
+    lathe(mb, [0, 0, 0], [[0, 0], [0.34, 0], [0.34, 0.06], [0.26, 0.14], [0.22, 0.62], [0.3, 0.68], [0.18, 0.72], [0, 0.72]], 16, 'white', { color: 0xf6f6fa });
+    blob(mb, [0, 1.12, 0], [0.42, 0.42, 0.42], 18, 12, 'white', { color: c, emissive: 0.55 });
   },
 });
 defObj({
@@ -224,9 +271,9 @@ defObj({
   tags: [...T, 'meadow', 'screen'],
   desc: 'A kiosk with a smiling screen. HAVE A NICE FOREVER, it says, and the smile gets wider when you leave.',
   model: (mb) => {
-    mb.box(0, 0, 0, 0.7, 1.2, 0.5, 'white', { color: 0xfafafc });
-    mb.box(0, 1.2, 0, 0.9, 0.75, 0.16, 'white', { color: 0xf0eef4 });
-    mb.box(0, 1.24, 0.09, 0.8, 0.66, 0.01, 'vx_smile', { fit: true, emissive: 0.8 });
+    lathe(mb, [0, 0, 0], [[0, 0], [0.42, 0], [0.4, 0.06], [0.24, 0.3], [0.2, 1.1], [0, 1.1]], 14, 'white', { color: 0xfafafc });
+    chamferBox(mb, 0, 1.1, 0, 0.92, 0.78, 0.2, 0.08, 'white', { color: 0xf0eef4 });
+    mb.box(0, 1.17, 0.102, 0.78, 0.62, 0.01, 'vx_smile', { fit: true, emissive: 0.8 });
   },
 });
 
@@ -238,8 +285,8 @@ defObj({
   variant: (s) => String((s.v ?? 0) % 6),
   model: (mb, s) => {
     const v = (s.v ?? 0) % 6;
-    rockBlob(mb, 0, 0, 0, 0.32 + (v % 3) * 0.1, 0.4 + (v % 2) * 0.25, 0.3 + (v % 3) * 0.08, 9301 + v, 'vx_regolith_side', 7, 4, { jit: 0.35 });
-    if (v > 2) rockBlob(mb, 0.28, 0, 0.2, 0.16, 0.2, 0.14, 9311 + v, 'vx_regolith_side', 6, 3);
+    rockBlob(mb, 0, 0, 0, 0.32 + (v % 3) * 0.1, 0.4 + (v % 2) * 0.25, 0.3 + (v % 3) * 0.08, 9301 + v, 'vx_regolith_side', 10, 6, { jit: 0.3 });
+    if (v > 2) rockBlob(mb, 0.28, 0, 0.2, 0.16, 0.2, 0.14, 9311 + v, 'vx_regolith_side', 8, 4);
   },
 });
 defObj({
@@ -247,21 +294,26 @@ defObj({
   tags: [...T, 'moon', 'rock', 'fixed'],
   desc: 'A boulder that rolled here a billion years ago and stopped exactly here, next to your footprints.',
   variant: (s) => String((s.v ?? 0) % 3),
-  model: (mb, s) => { const v = (s.v ?? 0) % 3; rockBlob(mb, 0, 0, 0, 0.92, 1.5 + v * 0.2, 0.86, 9321 + v, 'vx_regolith_side', 9, 5, { jit: 0.3 }); },
+  model: (mb, s) => { const v = (s.v ?? 0) % 3; rockBlob(mb, 0, 0, 0, 0.92, 1.5 + v * 0.2, 0.86, 9321 + v, 'vx_regolith_side', 12, 7, { jit: 0.26 }); },
 });
 defObj({
   key: 'vx_lander', name: 'Remittance Lander', w: 2, d: 2, height: 3.2, block: 'solid', blocksSight: true, tall: true, movable: 0, hp: 99999, sound: 'metal',
   tags: [...T, 'moon', 'vehicle', 'fixed'],
   desc: 'A landing module with REMITTANCE stencilled on the foil. The hatch is open. The ladder is folded up from the inside.',
   model: (mb) => {
-    for (const [lx, lz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) { rod(mb, lx * 0.6, 1.0, lz * 0.6, lx, 0.08, lz, 0.04, 5, 'metal_grey'); discY(mb, lx, 0.02, lz, 0.18, 8, 'metal_grey', { color: 0xb8b8b8 }); }
-    mb.cylinder(0, 0.8, 0, 0.78, 0.8, 8, 'vx_lander_foil', { color: 0xffffff });
-    mb.box(0, 1.6, 0, 1.2, 0.9, 1.2, { sides: 'metal_grey', top: 'metal_grey' }, { color: 0xd8d8dc });
-    mb.box(0, 1.85, 0.61, 0.9, 0.22, 0.01, 'vx_stencil', { fit: true });
-    mb.box(0, 1.62, 0.61, 0.5, 0.2, 0.02, 'white', { color: 0x101014 });
-    mb.cylinder(0, 2.5, 0, 0.22, 0.5, 8, 'metal_grey', { color: 0xc8c8cc, rTop: 0.04 });
-    mb.box(0.55, 2.55, -0.3, 0.06, 0.6, 0.06, 'metal_grey');
-    mb.sphere(0.55, 2.95, -0.3, 0.09, 6, 4, 'white', { color: 0xff3020, emissive: 1 });
+    // legs: struts to round footpads
+    for (const [lx, lz] of [[-0.8, -0.8], [0.8, -0.8], [-0.8, 0.8], [0.8, 0.8]]) {
+      tube(mb, [[lx * 0.55, 1.05, lz * 0.55], [lx * 0.85, 0.5, lz * 0.85], [lx, 0.1, lz]], 0.045, 6, 'metal_grey', { color: 0xc8c8cc });
+      lathe(mb, [lx, 0, lz], [[0, 0], [0.2, 0], [0.18, 0.05], [0.06, 0.1], [0, 0.11]], 12, 'metal_grey', { color: 0xb8b8b8 });
+    }
+    // gold-foil descent stage (octagonal, chamfered), the crew cabin above with a stencil band and a dark hatch
+    lathe(mb, [0, 0.75, 0], [[0, 0], [0.8, 0], [0.82, 0.06], [0.82, 0.78], [0.76, 0.86], [0, 0.86]], 8, 'vx_lander_foil', { color: 0xffffff, flat: true });
+    chamferBox(mb, 0, 1.6, 0, 1.2, 0.9, 1.2, 0.12, 'metal_grey', { color: 0xd8d8dc });
+    mb.box(0, 1.86, 0.605, 0.9, 0.22, 0.01, 'vx_stencil', { fit: true });
+    chamferBox(mb, 0, 1.64, 0.59, 0.5, 0.22, 0.04, 0.015, 'white', { color: 0x101014 });
+    lathe(mb, [0, 2.5, 0], [[0, 0], [0.24, 0], [0.22, 0.12], [0.1, 0.42], [0.04, 0.5], [0, 0.52]], 12, 'metal_grey', { color: 0xc8c8cc });
+    tube(mb, [[0.55, 2.5, -0.3], [0.55, 3.05, -0.3]], 0.025, 5, 'metal_grey', { color: 0xa8a8ac });
+    blob(mb, [0.55, 3.08, -0.3], [0.08, 0.08, 0.08], 8, 5, 'white', { color: 0xff3020, emissive: 1 });
   },
 });
 defObj({
@@ -269,9 +321,11 @@ defObj({
   tags: [...T, 'moon', 'fixed'],
   desc: 'The Meridian Institute planted its flag here. There is no wind, so a wire holds it out. The wire is the only thing that moves.',
   model: (mb) => {
-    rod(mb, 0, 0, 0, 0, 2.3, 0, 0.025, 5, 'metal_grey', { color: 0xd8d8d8 });
-    rod(mb, 0, 2.25, 0, 0.9, 2.25, 0, 0.012, 4, 'metal_grey');
-    mb.box(0.45, 1.65, 0, 0.9, 0.6, 0.01, 'vx_flag_tex', { fit: true });
+    post(mb, 0, 0, 0.025, 2.35, 'metal_grey', 0xd8d8d8);
+    tube(mb, [[0, 2.25, 0], [0.92, 2.25, 0]], 0.012, 5, 'metal_grey', { color: 0xb8b8b8 });
+    // the cloth: a few ripples frozen in vacuum
+    surf(mb, 8, 2, (i, j) => [0.02 + (i / 8) * 0.9, 2.22 - (j / 2) * 0.6, Math.sin(i * 1.3) * 0.035], (i, j) => [i / 8, 1 - j / 2], 'vx_flag_tex', { inside: null, flat: false });
+    surf(mb, 8, 2, (i, j) => [0.02 + (i / 8) * 0.9, 2.22 - (j / 2) * 0.6, Math.sin(i * 1.3) * 0.035 - 0.004], (i, j) => [i / 8, 1 - j / 2], 'vx_flag_tex', { inside: null, flip: true });
   },
 });
 defObj({
@@ -281,12 +335,15 @@ defObj({
   desc: 'A yellow debtor jumpsuit lying flat in the dust, arms out, as if whoever was inside it simply left. The band is still on the cuff.',
   model: (mb) => {
     const Y = 0xd8b020;
-    mb.box(0, 0, 0, 0.42, 0.12, 0.7, 'white', { color: Y });
-    mb.push(); mb.translate(-0.32, 0, 0.1); mb.rotateY(0.6); mb.box(0, 0, 0, 0.14, 0.09, 0.5, 'white', { color: Y }); mb.pop();
-    mb.push(); mb.translate(0.32, 0, 0.12); mb.rotateY(-0.5); mb.box(0, 0, 0, 0.14, 0.09, 0.5, 'white', { color: Y }); mb.pop();
-    for (const sx of [-0.12, 0.12]) mb.box(sx, 0, -0.62, 0.15, 0.09, 0.6, 'white', { color: scaleHex(Y, 0.9) });
-    mb.box(0.42, 0.06, 0.32, 0.08, 0.06, 0.08, 'white', { color: 0x30343a, emissive: 0.2 });
-    mb.sphere(0, 0.1, 0.48, 0.14, 8, 5, 'white', { color: 0xe8e8ea, sy: 0.6 });
+    // a deflated suit: a flattened torso, sleeves and legs as squashed tubes lying in the dust, an empty hood
+    blob(mb, [0, 0.06, 0.05], [0.22, 0.06, 0.34], 12, 6, 'white', { color: Y });
+    const flat = (pts: V3[], r: number, c: number) => tube(mb, pts, r, 7, 'white', { color: c, squash: [1, 0.45], capStart: true, capEnd: true });
+    flat([[-0.18, 0.05, 0.3], [-0.38, 0.04, 0.4], [-0.55, 0.035, 0.32]], 0.07, Y);
+    flat([[0.18, 0.05, 0.3], [0.36, 0.04, 0.46], [0.56, 0.035, 0.52]], 0.07, Y);
+    flat([[-0.1, 0.05, -0.25], [-0.13, 0.04, -0.55], [-0.16, 0.035, -0.85]], 0.08, scaleHex(Y, 0.92));
+    flat([[0.1, 0.05, -0.25], [0.16, 0.04, -0.55], [0.24, 0.035, -0.82]], 0.08, scaleHex(Y, 0.92));
+    lathe(mb, [0.57, 0.02, 0.53], [[0, 0], [0.05, 0], [0.055, 0.03], [0.045, 0.07], [0, 0.07]], 10, 'metal_grey', { color: 0x30343a, emissive: 0.2 });
+    blob(mb, [0, 0.06, 0.5], [0.13, 0.05, 0.12], 10, 5, 'white', { color: 0xe8e8ea });
   },
 });
 
@@ -297,11 +354,13 @@ defObj({
   desc: 'An ordinary wooden kitchen chair, five metres tall. The seat is above your head. There is gum under it, the size of a pillow.',
   model: (mb) => {
     const W = 0x9a6a3c;
-    for (const [lx, lz] of [[-1.1, -1.1], [1.1, -1.1], [-1.1, 1.1], [1.1, 1.1]]) mb.box(lx, 0, lz, 0.22, 2.7, 0.22, 'wood_dark', { color: W });
-    mb.box(0, 2.7, 0, 2.7, 0.2, 2.7, 'wood_light', { color: W });
-    for (const lx of [-1.1, 1.1]) mb.box(lx, 2.9, -1.1, 0.22, 2.7, 0.22, 'wood_dark', { color: W });
-    for (const y of [3.9, 4.8, 5.4]) mb.box(0, y, -1.1, 2.4, 0.22, 0.16, 'wood_light', { color: W });
-    mb.box(0, 1.0, 0, 2.3, 0.12, 0.12, 'wood_dark', { color: scaleHex(W, 0.85) });
+    // turned legs (lathed), a chamfered seat, a curved back of three rails on two posts
+    for (const [lx, lz] of [[-1.1, -1.1], [1.1, -1.1], [-1.1, 1.1], [1.1, 1.1]]) lathe(mb, [lx, 0, lz], [[0, 0], [0.1, 0], [0.11, 0.3], [0.13, 0.9], [0.1, 1.3], [0.14, 1.6], [0.12, 2.7], [0, 2.7]], 10, 'wood_dark', { color: W });
+    chamferBox(mb, 0, 2.7, 0, 2.7, 0.2, 2.7, 0.07, 'wood_light', { color: W });
+    for (const lx of [-1.1, 1.1]) lathe(mb, [lx, 2.9, -1.1], [[0, 0], [0.12, 0], [0.11, 1.0], [0.13, 2.4], [0.09, 2.62], [0, 2.7]], 10, 'wood_dark', { color: W });
+    for (const y of [3.9, 4.75, 5.35]) tube(mb, [[-1.15, y, -1.1], [0, y + 0.04, -1.22], [1.15, y, -1.1]], 0.09, 6, 'wood_light', { color: W, squash: [1.6, 1] });
+    tube(mb, [[-1.1, 1.0, 0], [1.1, 1.0, 0]], 0.07, 6, 'wood_dark', { color: scaleHex(W, 0.85) });
+    blob(mb, [0.4, 2.62, 0.3], [0.3, 0.08, 0.24], 10, 5, 'white', { color: 0xe890a8 });
   },
 });
 defObj({
@@ -309,11 +368,11 @@ defObj({
   tags: [...T, 'scale', 'fixed', 'portal_like'],
   desc: 'A door frame seven metres tall with nothing in it but black. Whatever it was built for has not needed it in a while.',
   model: (mb) => {
-    mb.box(-1.45, 0, 0, 0.3, 7.0, 0.4, 'wood_dark', { color: 0xe8e0c8 });
-    mb.box(1.45, 0, 0, 0.3, 7.0, 0.4, 'wood_dark', { color: 0xe8e0c8 });
-    mb.box(0, 7.0, 0, 3.2, 0.3, 0.4, 'wood_dark', { color: 0xe8e0c8 });
+    chamferBox(mb, -1.45, 0, 0, 0.3, 7.0, 0.4, 0.05, 'wood_dark', { color: 0xe8e0c8 });
+    chamferBox(mb, 1.45, 0, 0, 0.3, 7.0, 0.4, 0.05, 'wood_dark', { color: 0xe8e0c8 });
+    chamferBox(mb, 0, 7.0, 0, 3.3, 0.3, 0.44, 0.06, 'wood_dark', { color: 0xe8e0c8 });
     mb.box(0, 0, 0, 2.6, 7.0, 0.04, 'white', { color: 0x020203, ao: false });
-    mb.cylinder(0.9, 3.3, 0.25, 0.12, 0.12, 8, 'metal_grey', { color: 0xc8a050 });
+    lathe(mb, [0.9, 3.3, 0.02], [[0, 0], [0.06, 0], [0.12, 0.08], [0.12, 0.14], [0, 0.22]], 12, 'metal_grey', { color: 0xc8a050 });
   },
 });
 defObj({
@@ -321,10 +380,21 @@ defObj({
   tags: [...T, 'sign'],
   desc: 'A sign on a pole: UP. There is no UP. There is only further.',
   model: (mb) => {
-    rod(mb, 0, 0, 0, 0, 2.0, 0, 0.03, 5, 'metal_grey');
-    mb.box(0, 1.6, 0.04, 0.7, 0.4, 0.03, 'white', { color: 0x2a6a3a });
-    mb.box(0, 1.72, 0.06, 0.06, 0.18, 0.01, 'white', { color: 0xffffff, emissive: 0.4 });
-    mb.box(0, 1.58, 0.06, 0.4, 0.05, 0.01, 'white', { color: 0xffffff, emissive: 0.4 });
+    post(mb, 0, 0, 0.03, 2.0, 'metal_grey', 0x8a8a84);
+    chamferBox(mb, 0, 1.4, 0.04, 0.7, 0.4, 0.03, 0.04, 'white', { color: 0x2a6a3a });
+    // a raised arrow pointing up, rounded
+    tube(mb, [[0, 1.48, 0.06], [0, 1.72, 0.06]], 0.025, 6, 'white', { color: 0xffffff, emissive: 0.4, capStart: true, capEnd: true });
+    tube(mb, [[-0.09, 1.63, 0.06], [0, 1.72, 0.06], [0.09, 1.63, 0.06]], 0.022, 6, 'white', { color: 0xffffff, emissive: 0.4, capStart: true, capEnd: true });
+  },
+});
+/** the rounded stone nosing on each step of the giant stairs (faces down the flight) */
+defObj({
+  key: 'vx_step_nosing', name: 'Step', height: 0.12, block: 'none', movable: 0, hp: 99999, sound: 'metal',
+  tags: [...T, 'stairs', 'fixed', 'decor'], noShadow: true,
+  desc: 'A stone step, worn smooth at the edge by nobody.',
+  model: (mb) => {
+    tube(mb, [[-0.5, -0.05, 0.44], [0.5, -0.05, 0.44]], 0.07, 8, 'vx_step', { color: 0xd8d0c0 });
+    chamferBox(mb, 0, -0.02, 0.36, 1.0, 0.04, 0.12, 0.015, 'vx_step', { color: 0xc8c0b0 });
   },
 });
 
@@ -345,12 +415,11 @@ defObj({
   model: (mb, s) => {
     const { W, H, yc } = signDims(String(s.text || 'SIGN'));
     const plate = Number(s.c ?? 0x1e4a3a);
-    // posts, the plate with a rolled rim and bolts; the lettering is painted on by src/social/signs.ts
-    for (const sx of [-W / 2 + 0.12, W / 2 - 0.12]) mb.box(sx, 0, -0.06, 0.07, yc + H / 2 + 0.05, 0.07, 'metal_grey', { color: 0x6a6a64 });
-    mb.box(0, yc - H / 2, 0, W, H, 0.05, 'white', { color: plate });
-    mb.box(0, yc + H / 2 - 0.02, 0, W + 0.04, 0.035, 0.07, 'metal_grey', { color: 0xb0b0a8 });
-    mb.box(0, yc - H / 2 - 0.015, 0, W + 0.04, 0.035, 0.07, 'metal_grey', { color: 0xb0b0a8 });
-    for (const sx of [-W / 2 + 0.06, W / 2 - 0.06]) for (const sy of [yc - H / 2 + 0.06, yc + H / 2 - 0.07]) for (const z of [0.03, -0.03]) mb.box(sx, sy, z, 0.03, 0.03, 0.012, 'white', { color: 0xb8b8b0 });
+    // round posts with domed caps, a plate with softened edges in a rolled rim, bolt heads; the lettering is painted on by src/social/signs.ts
+    for (const sx of [-W / 2 + 0.12, W / 2 - 0.12]) post(mb, sx, -0.06, 0.04, yc + H / 2 + 0.08, 'metal_grey', 0x6a6a64);
+    chamferBox(mb, 0, yc - H / 2, 0, W, H, 0.05, 0.02, 'white', { color: plate });
+    for (const y of [yc + H / 2, yc - H / 2]) tube(mb, [[-W / 2 - 0.02, y, 0], [W / 2 + 0.02, y, 0]], 0.022, 6, 'metal_grey', { color: 0xb0b0a8, capStart: true, capEnd: true });
+    for (const sx of [-W / 2 + 0.06, W / 2 - 0.06]) for (const sy of [yc - H / 2 + 0.06, yc + H / 2 - 0.07]) for (const z of [0.03, -0.03]) blob(mb, [sx, sy, z], [0.018, 0.018, 0.008], 6, 3, 'white', { color: 0xb8b8b0 });
   },
 });
-void mixHex;
+void mixHex; void discY; void rod;

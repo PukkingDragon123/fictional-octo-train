@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { G } from '../game/G';
 
-export type MetalKind = 'iron' | 'steel' | 'brass' | 'rust' | 'chrome' | 'bakelite' | 'enamel';
+export type MetalKind = 'iron' | 'steel' | 'brass' | 'rust' | 'chrome' | 'bakelite' | 'enamel' | 'wood' | 'plastic';
 
 let env: THREE.Texture | null = null;
 /** a small prefiltered workshop: soft overhead panels and a warm wall (overlay materials only) */
@@ -40,6 +40,7 @@ function maps(kind: MetalKind): Maps {
   const cc = mk(), rc = mk();
   const cx = cc.getContext('2d')!, rx = rc.getContext('2d')!;
   const base: Record<MetalKind, [string, number]> = {
+    wood: ['#a87848', 0.78], plastic: ['#e8e4dc', 0.5],
     iron: ['#4a4e52', 0.46], steel: ['#7e868c', 0.4], brass: ['#a8823a', 0.36], rust: ['#4e3222', 0.88], chrome: ['#d8dde2', 0.14], bakelite: ['#3a2216', 0.42], enamel: ['#2e5a4a', 0.3],
   };
   const [col, rough] = base[kind];
@@ -56,8 +57,17 @@ function maps(kind: MetalKind): Maps {
     gr.addColorStop(0, dark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
     rx.fillStyle = gr; rx.fillRect(x - r, y - r, r * 2, r * 2);
   }
+  // wood: long grain streaks and a knot or two
+  if (kind === 'wood') {
+    for (let i = 0; i < 90; i++) {
+      const y = rnd() * N, a = (rnd() - 0.5) * 0.06;
+      cx.strokeStyle = rnd() < 0.5 ? 'rgba(70,40,18,0.25)' : 'rgba(220,170,110,0.18)'; cx.lineWidth = 0.6 + rnd() * 1.4;
+      cx.beginPath(); cx.moveTo(0, y); cx.bezierCurveTo(N * 0.3, y + a * N + rnd() * 6, N * 0.7, y - a * N + rnd() * 6, N, y); cx.stroke();
+    }
+    for (let i = 0; i < 3; i++) { const x = rnd() * N, y = rnd() * N; cx.strokeStyle = 'rgba(60,34,14,0.45)'; cx.lineWidth = 1.2; for (let r = 2; r < 9; r += 2.5) { cx.beginPath(); cx.ellipse(x, y, r * 1.8, r, 0, 0, Math.PI * 2); cx.stroke(); } }
+  }
   // scratches: bright in colour (bare metal), smooth in roughness
-  const scratches = kind === 'bakelite' || kind === 'enamel' ? 60 : kind === 'chrome' ? 40 : 180;
+  const scratches = kind === 'bakelite' || kind === 'enamel' || kind === 'plastic' ? 60 : kind === 'wood' ? 30 : kind === 'chrome' ? 40 : 180;
   for (let i = 0; i < scratches; i++) {
     const x = rnd() * N, y = rnd() * N, a = (rnd() < 0.7 ? 0.2 : 1.4) + (rnd() - 0.5) * 0.5, l = 6 + rnd() * 48;
     const x1 = x + Math.cos(a) * l, y1 = y + Math.sin(a) * l;
@@ -96,7 +106,7 @@ export function metalMat(kind: MetalKind, repeat = 1): THREE.MeshStandardMateria
   const hit = matCache.get(key);
   if (hit) return hit;
   const mp = maps(kind);
-  const metal = kind === 'bakelite' || kind === 'enamel' ? 0.05 : kind === 'rust' ? 0.35 : 0.88;
+  const metal = kind === 'bakelite' || kind === 'enamel' || kind === 'wood' || kind === 'plastic' ? 0.02 : kind === 'rust' ? 0.35 : 0.88;
   const m = new THREE.MeshStandardMaterial({
     map: mp.color, roughnessMap: mp.rough, roughness: 1, metalness: metal,
     vertexColors: true, envMap: metalEnv(), envMapIntensity: kind === 'chrome' ? 1.4 : 0.9,

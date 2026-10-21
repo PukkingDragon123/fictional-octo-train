@@ -84,7 +84,7 @@ export class Jar3D {
     this.paintFace();
     const fm = new THREE.Mesh(new THREE.CircleGeometry(4, 18), st.solid({ map: this.face.tex, wear: 0.15 }));
     fm.position.set(0, 11.4, 0.95); this.lid.add(fm);
-    this.needle = solidMesh(st, new Mold().add(new THREE.BoxGeometry(0.6, 3.4, 0.3), M(0, 1.5, 0), 0xb8201a, BRASS));
+    this.needle = solidMesh(st, new Mold().add(new THREE.CylinderGeometry(0.12, 0.38, 3.4, 6), M(0, 1.5, 0, 0, 0, 0, 1, 1, 0.5), 0xb8201a, BRASS));
     this.needle.position.set(0, 10.6, 1.2); this.lid.add(this.needle);
     const cover = new THREE.Mesh(new Mold().add(new THREE.CircleGeometry(4.2, 16), null, 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.03 }));
     cover.position.set(0, 11.4, 1.4); cover.renderOrder = 8; this.lid.add(cover);

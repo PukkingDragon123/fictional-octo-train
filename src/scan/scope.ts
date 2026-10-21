@@ -12,6 +12,8 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { PixTex, PAL, flatMat, FONT } from './pix';
+import { rbox, capsule } from './shapes';
+import { StageArms } from './arms';
 import { Screen } from '../ui/font5x7';
 
 const CARD_W = 96, CARD_H = 52;
@@ -36,6 +38,8 @@ export class Scope {
   private cardT = -1;
   private drawT = 0;
   private owns = false;
+  private arms: StageArms;
+  private tw = new THREE.Vector3();
   // world marks
   private bracket: THREE.Sprite;
   private beam: THREE.Line;
@@ -46,21 +50,23 @@ export class Scope {
     this.g.add(new THREE.AmbientLight(0xc8c0b0, 0.7));
     const key = new THREE.DirectionalLight(0xfff0d8, 1.2); key.position.set(-0.4, 0.8, 1); this.g.add(key);
     this.g.add(this.dev);
+    this.arms = new StageArms(this.g);
+    this.arms.right.root.visible = false;
     const mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
     // body: cream bakelite with a brown belly band, chrome trim and a carrying handle
     const mb = new ModelBuilder();
-    mb.box(0, -0.15, 0, 0.13, 0.15, 0.04, 'plastic_beige', { color: 0xe2d4b4 });
-    mb.box(0, -0.13, 0.001, 0.134, 0.03, 0.042, 'plastic_beige', { color: 0x5a3a22 });
-    mb.box(0, 0.0, 0.0, 0.134, 0.006, 0.044, 'chrome');
-    mb.box(0.0, 0.004, 0.0, 0.07, 0.004, 0.01, 'metal_dark'); // card slot
-    mb.box(-0.022, -0.096, 0.02, 0.086, 0.07, 0.008, 'chrome'); // tube bezel
-    mb.box(-0.022, -0.092, 0.024, 0.076, 0.062, 0.002, 'plastic_black');
-    mb.box(0.042, -0.04, 0.021, 0.036, 0.024, 0.006, 'metal_dark'); // meter housing
+    rbox(mb, 0, -0.15, 0, 0.13, 0.15, 0.04, 'plastic_beige', { color: 0xe2d4b4 }, 0.014, 3);
+    rbox(mb, 0, -0.132, 0, 0.134, 0.03, 0.044, 'plastic_beige', { color: 0x5a3a22 }, 0.01, 2);
+    rbox(mb, 0, -0.004, 0, 0.12, 0.008, 0.042, 'chrome', {}, 0.003, 2);
+    rbox(mb, 0.0, 0.002, 0.0, 0.07, 0.004, 0.01, 'metal_dark', {}, 0.0015, 1); // card slot
+    rbox(mb, -0.022, -0.096, 0.016, 0.088, 0.072, 0.012, 'chrome', {}, 0.008, 2); // tube bezel
+    rbox(mb, -0.022, -0.092, 0.022, 0.078, 0.064, 0.004, 'plastic_black', {}, 0.006, 2);
+    rbox(mb, 0.042, -0.042, 0.018, 0.038, 0.026, 0.008, 'metal_dark', {}, 0.004, 2); // meter housing
     for (const [x, y] of [[0.045, -0.095], [0.045, -0.118]]) { mb.push().translate(x, y, 0.021).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.008, 0.01, 8, 'plastic_black'); mb.pop(); }
-    mb.box(0.025, -0.124, 0.024, 0.004, 0.012, 0.004, 'chrome'); // toggle
-    mb.box(-0.068, -0.12, 0, 0.01, 0.12, 0.03, 'rubber_black'); // grip strap
-    for (const x of [-0.05, 0.05]) mb.box(x, 0.006, 0, 0.008, 0.028, 0.01, 'chrome');
-    mb.box(0, 0.032, 0, 0.11, 0.008, 0.014, 'leather_black'); // handle
+    capsule(mb, [0.025, -0.124, 0.022], [0.025, -0.112, 0.028], 0.0022, 'chrome', {}, 6); // toggle
+    rbox(mb, -0.068, -0.13, 0, 0.012, 0.12, 0.03, 'rubber_black', {}, 0.005, 2); // grip strap
+    for (const x of [-0.05, 0.05]) capsule(mb, [x, 0.0, 0], [x, 0.028, 0], 0.004, 'chrome', {}, 6);
+    capsule(mb, [-0.05, 0.034, 0], [0.05, 0.034, 0], 0.007, 'leather_black', {}, 8); // handle
     this.dev.add(new THREE.Mesh(mb.build(), mat));
     // the tube
     this.tube = crtScreen(0.072, 0.056, { res: [216, 168], tint: 0x9cffb0, curvature: 0.24, glow: 1.0, noise: 0.05 });
@@ -149,6 +155,10 @@ export class Scope {
     const bob = G.local && G.local.speed > 0.2 ? Math.sin(G.time * 7) * 0.003 : 0;
     this.dev.position.set(-0.115, -0.035 - (1 - k) * 0.25 + bob, -0.5);
     this.dev.rotation.set(-0.12 + (1 - k) * 0.6, 0.28, 0.05);
+    // held in the left hand by its strap
+    this.dev.updateMatrixWorld(true);
+    this.arms.aim('left', 'grip', 'grip', this.dev.localToWorld(this.tw.set(-0.072, -0.075, 0.004)), [-0.36, -0.46, -0.36], [1, 0.15, 0.25]);
+    this.arms.left.update(dt);
     // needle: signal strength rides the progress, with a nervous flutter
     const v = Math.min(1, this.prog) * 0.85 + (this.cardT < 0 && this.want ? Math.sin(G.time * 23) * 0.04 : 0);
     this.needle.rotation.z = 0.9 - v * 1.8;

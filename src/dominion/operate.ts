@@ -16,6 +16,8 @@ import type { Creature } from '../creatures/creature';
 import type { DominionSystem } from './dominion';
 import { BRAIN_MODELS, brainTier } from './brains';
 import { PixTex, PAL, PointerLayer, flatMat } from '../scan/pix';
+import { StageArms } from '../scan/arms';
+import { rbox, blob } from '../scan/shapes';
 import { Screen } from '../ui/font5x7';
 
 type Step = 'saw' | 'pry' | 'pull' | 'seat' | 'boot' | 'done';
@@ -50,8 +52,11 @@ export class Operation {
   private mech = new THREE.Group();
   private lever = new THREE.Group();
   private tool = new THREE.Group();
+  private arms!: StageArms;
+  private wv = new THREE.Vector3();
+  private sawPt = new THREE.Vector3();
   private drops: Drop[] = [];
-  private dropGeo = new THREE.BoxGeometry(0.006, 0.006, 0.006);
+  private dropGeo = new THREE.IcosahedronGeometry(0.0035, 0);
   private matBlood: THREE.MeshBasicMaterial;
   private matSpark = new THREE.MeshBasicMaterial({ color: 0xffe080 });
   private matSkin = new THREE.MeshLambertMaterial({ color: 0x9c7c6a });
@@ -100,18 +105,19 @@ export class Operation {
     g.add(this.root);
     // slab under the head
     const mb = new ModelBuilder();
-    mb.box(0, -R * 1.05, 0, 0.46, 0.03, 0.36, 'metal_brushed', { color: 0x5e6468 });
-    for (const sx of [-1, 1]) mb.box(sx * 0.235, -R * 1.05, 0, 0.012, 0.045, 0.36, 'metal_brushed', { color: 0x4a5054 });
-    mb.box(0, -R * 1.02, 0.02, 0.36, 0.004, 0.3, 'white', { color: 0x5a0a08 });
+    rbox(mb, 0, -R * 1.05, 0, 0.46, 0.03, 0.36, 'metal_brushed', { color: 0x5e6468 }, 0.012, 2);
+    for (const sx of [-1, 1]) rbox(mb, sx * 0.235, -R * 1.05, 0, 0.014, 0.045, 0.36, 'metal_brushed', { color: 0x4a5054 }, 0.006, 2);
+    rbox(mb, 0, -R * 1.02, 0.02, 0.36, 0.004, 0.3, 'white', { color: 0x5a0a08 }, 0.0019, 1);
     const slab = new THREE.Mesh(mb.build(), this.matSteel); this.root.add(slab);
     this.root.add(this.head);
     // lower skull with a snout and shut eyes (tinted per creature in start())
     const base = lit(new THREE.Mesh(new THREE.SphereGeometry(R, 18, 12, 0, Math.PI * 2, CAP * 0.96, Math.PI - CAP)));
     base.scale.set(1, 0.78, 1.15); base.name = 'skin'; this.head.add(base);
-    const snout = lit(new THREE.Mesh(new THREE.BoxGeometry(R * 1.1, R * 0.7, R * 0.9)));
+    const snout = lit(new THREE.Mesh(new THREE.SphereGeometry(R * 0.6, 14, 10)));
+    snout.scale.set(0.95, 0.62, 0.85);
     snout.position.set(0, -R * 0.35, R * 1.05); snout.name = 'skin'; this.head.add(snout);
     for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.BoxGeometry(R * 0.28, R * 0.06, R * 0.05), new THREE.MeshBasicMaterial({ color: 0x1a0806 }));
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(R * 0.13, 10, 6), new THREE.MeshBasicMaterial({ color: 0x1a0806 })); eye.scale.set(1, 0.25, 0.4);
       eye.position.set(s * R * 0.42, -R * 0.02, R * 1.02); eye.rotation.z = s * 0.2; this.head.add(eye);
     }
     // the cavity
@@ -129,7 +135,7 @@ export class Operation {
     hinge.add(capM, inner); this.cap.add(hinge); this.cap.userData.hinge = hinge;
     this.head.add(this.cap);
     // the cut line
-    const dg = new THREE.BoxGeometry(0.008, 0.004, 0.003);
+    const dg = new THREE.CapsuleGeometry(0.0016, 0.006, 2, 6); dg.rotateZ(Math.PI / 2);
     for (let i = 0; i < 28; i++) {
       const a = (i / 28) * Math.PI * 2;
       const m = new THREE.Mesh(dg, this.dashMat);
@@ -154,9 +160,9 @@ export class Operation {
     this.head.add(this.mech);
     // the clipboard with the procedure, left of the table; the abort plunger, right
     const cb = new ModelBuilder();
-    cb.box(0, 0, 0, 0.13, 0.1, 0.004, 'wood_light', { color: 0xa8784a });
-    cb.box(0, 0.088, 0.004, 0.05, 0.012, 0.008, 'metal_brushed');
-    cb.box(0, 0.09, 0.009, 0.03, 0.006, 0.004, 'chrome');
+    rbox(cb, 0, 0, 0, 0.13, 0.1, 0.004, 'wood_light', { color: 0xa8784a }, 0.0019, 2);
+    rbox(cb, 0, 0.086, 0.004, 0.05, 0.014, 0.008, 'metal_brushed', {}, 0.003, 2);
+    blob(cb, 0, 0.098, 0.009, 0.015, 0.004, 0.003, 'chrome', {}, 8);
     const clip = new THREE.Group();
     clip.add(new THREE.Mesh(cb.build(), this.matSteel));
     const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.092), flatMat(this.card.tex));
@@ -164,8 +170,8 @@ export class Operation {
     clip.position.set(-0.27, 0.035, -0.86); clip.rotation.set(-0.1, 0.38, 0.04);
     this.g.add(clip);
     const pb = new ModelBuilder();
-    pb.box(0, 0, 0, 0.06, 0.03, 0.05, 'metal_rusty', { color: 0x5a6058 });
-    pb.box(0, 0.016, 0.026, 0.05, 0.012, 0.002, 'plastic_yellow', { color: 0xe0b020 });
+    rbox(pb, 0, 0, 0, 0.06, 0.03, 0.05, 'metal_rusty', { color: 0x5a6058 }, 0.008, 2);
+    rbox(pb, 0, 0.012, 0.025, 0.052, 0.014, 0.003, 'plastic_yellow', { color: 0xe0b020 }, 0.0014, 1);
     pb.cylinder(0, 0.015, 0, 0.012, 0.02, 10, 'chrome');
     const pbase = new THREE.Mesh(pb.build(), this.matSteel);
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.019, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xc0281a, emissive: 0x200000 }));
@@ -175,7 +181,8 @@ export class Operation {
     const tagM = new THREE.Mesh(new THREE.PlaneGeometry(0.048, 0.012), flatMat(tag.tex)); tagM.position.set(0, 0.016, 0.0275); this.plunger.add(tagM);
     this.plunger.position.set(0.27, -0.05, -0.8); this.plunger.rotation.set(0.55, -0.4, 0);
     this.g.add(this.plunger);
-    this.root.add(this.tool);
+    this.arms = new StageArms(this.g);
+    this.arms.right.grip.add(this.tool);
     // blood and sparks
     for (let i = 0; i < 70; i++) { const m = new THREE.Mesh(this.dropGeo, this.matBlood); m.visible = false; this.root.add(m); this.drops.push({ m, vx: 0, vy: 0, vz: 0, life: 0 }); }
   }
@@ -216,8 +223,10 @@ export class Operation {
     this.setMech(brainTier(tier).key);
     this.tool.clear();
     const tm = makeHeldMesh(toolItem.key);
-    if (tm) { tm.scale.multiplyScalar(0.9); tm.rotation.set(0, 0, -Math.PI / 2); this.tool.add(tm); }
-    this.tool.visible = false;
+    if (tm) { tm.rotation.set(Math.PI / 2, 0, 0); this.tool.add(tm); }
+    this.tool.visible = true;
+    this.arms.dress();
+    this.sawPt.set(0.12, ringY + 0.04, 0.06);
     for (const dr of this.drops) { dr.m.visible = false; dr.life = 0; }
     this.layer.on = true;
     this.plungeT = 0;
@@ -382,6 +391,30 @@ export class Operation {
     this.d.install(c, this.tier);
   }
 
+  // ---------------------------------------------------------------- the hands
+  /** the left hand steadies the head; the right does the work: the blade, the pry, the pinch, the seat, the switch */
+  private armsStep(dt: number) {
+    const A = this.arms, k = Math.min(1, dt * 12), H = this.head;
+    A.aim('left', 'flat', 'grip', H.localToWorld(this.wv.set(-R * 1.15, -R * 0.1, R * 0.15)), [-0.34, -0.42, -0.62], [1, -0.1, 0.1], k);
+    this.tool.visible = this.step === 'saw';
+    const w = this.wv;
+    switch (this.step) {
+      case 'saw': {
+        if (this.down) { const pt = this.onPlane(this.px, this.py, this.tv1.set(0, ringY, 0), this.tv2); if (pt) this.sawPt.copy(pt); }
+        w.copy(this.sawPt); w.y = Math.max(w.y, ringY); H.localToWorld(w);
+        A.aim('right', 'grip', 'grip', w, [0.3, -0.45, -0.58], [-0.6, -0.3, 0.6], k);
+        if (this.down) this.tool.rotation.z = Math.sin(this.t * 30) * 0.12;
+        break;
+      }
+      case 'pry': A.aim('right', 'claw', 'tip', H.localToWorld(w.set(0, ringY + 0.01 + this.capA * 0.03, ringR * 1.1)), [0.2, -0.48, -0.5], [0, -0.4, -1], k); break;
+      case 'pull': A.aim('right', this.grabbed ? 'pinch' : 'open', 'tip', H.localToWorld(w.copy(this.brain.position).add(this.tv1.set(0, 0.03, 0.01))), [0.22, -0.45, -0.52], [0, -0.6, -0.8], k); break;
+      case 'seat': A.aim('right', 'grip', 'grip', H.localToWorld(w.copy(this.mech.position).add(this.tv1.set(0.01, 0.03, 0.02))), [0.3, -0.45, -0.55], [-0.5, -0.5, 0.5], k); break;
+      case 'boot': case 'done': A.aim('right', 'press', 'tip', H.localToWorld(w.copy(this.mech.position).add(this.lever.position).add(this.tv1.set(0, 0.035, 0))), [0.24, -0.45, -0.55], [0, -0.6, -0.8], k); break;
+    }
+    A.right.tremor = this.step === 'pull' && this.grabbed ? 0.4 : 0;
+    A.update(dt);
+  }
+
   // ---------------------------------------------------------------- particles
   private spray(at: THREE.Vector3, n: number, power: number) {
     let k = 0;
@@ -440,12 +473,7 @@ export class Operation {
       t.scale.set(1 - Math.min(0.6, len * 4), len, 1 - Math.min(0.6, len * 4));
       t.lookAt(this.head.localToWorld(this.tv1.copy(b))); t.rotateX(Math.PI / 2);
     }
-    // the tool rides the pointer while sawing
-    this.tool.visible = this.step === 'saw' && this.down;
-    if (this.tool.visible) {
-      const pt = this.onPlane(this.px, this.py, this.tv1.set(0, ringY, 0), this.tv2);
-      if (pt) { this.tool.position.copy(pt).multiplyScalar(this.head.scale.x).add(this.head.position); this.tool.rotation.y = Math.sin(this.t * 30) * 0.15; }
-    }
+    this.armsStep(dt);
     // mech idle bob
     if (this.mech.visible && this.step === 'seat' && !this.grabbed) this.mech.position.lerp(this.mechHome, Math.min(1, dt * 8));
     if (this.step === 'done') {

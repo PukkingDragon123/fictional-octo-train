@@ -24,6 +24,8 @@ export interface HoleSpec {
 export interface HoleRec extends HoleSpec { id: string; cx: number; cy: number; r: number; x0: number; y0: number; x1: number; y1: number }
 
 const DIRS: Record<Side, [number, number]> = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] };
+/** rotation of a step's nosing for a flight climbing along (dx, dy): it faces back down the flight */
+const NOSE_ROT: Record<string, 0 | 1 | 2 | 3> = { '0,-1': 0, '1,0': 1, '0,1': 2, '-1,0': 3 };
 
 /** is a tile part of a hole registered on this zone? */
 export function holeAt(z: Zone, x: number, y: number): HoleRec | null {
@@ -120,13 +122,15 @@ export function giantStairs(c: Ctx, x0: number, y0: number, x1: number, y1: numb
   b.flag(x0, y0, x1, y1, TF.NOSPAWN | TF.NOBUILD | TF.STAIRS);
   let x = sx, y = sy, h = o.base ?? rise;
   const lay = (cx: number, cy: number, d: [number, number], hv: number) => {
-    // a row of W tiles across the direction of travel
+    // a row of W tiles across the direction of travel, each with a rounded stone nosing facing down the flight
     const px = d[1] !== 0 ? 1 : 0, py = d[0] !== 0 ? 1 : 0;
+    const rot = NOSE_ROT[d[0] + ',' + d[1]] ?? 0;
     for (let k = 0; k < W; k++) {
       const X = cx + px * (k - (W >> 1)), Y = cy + py * (k - (W >> 1));
       if (!z.inb(X, Y)) continue;
       b.fillFloor(X, Y, X, Y, floor);
       z.height[z.idx(X, Y)] = Math.min(127, hv);
+      b.obj('vx_step_nosing', X, Y, rot, {});
     }
   };
   let last: [number, number] = [x, y];
@@ -185,6 +189,7 @@ export function stairsToNowhere(c: Ctx, x: number, y: number, dir: Side, steps =
     b.fillFloor(X, Y, X, Y, floor);
     z.height[z.idx(X, Y)] = Math.min(127, (i + 1) * 4);
     b.flag(X, Y, X, Y, TF.STAIRS | TF.NOBUILD);
+    b.obj('vx_step_nosing', X, Y, NOSE_ROT[d[0] + ',' + d[1]] ?? 0, {});
   }
   const tx = x + d[0] * (steps - 1), ty = y + d[1] * (steps - 1);
   put(c, 'vx_stair_sign', tx + px * width, ty + py * width, 0, {});

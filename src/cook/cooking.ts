@@ -16,7 +16,9 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { itemDef, type Item } from '../items/item';
 import { createItem } from '../items/factory';
 import { itemGeometry } from '../items/itemMeshes';
-import { Sheet, sheetMesh, overlayRay, shinyMaterial, whenFonts, FONT } from '../build/paper';
+import { Sheet, sheetMesh, overlayRay, whenFonts, FONT } from '../build/paper';
+import { std, lathe, rod, ring, roundPlate, aimY } from '../build/shapes';
+import { fpArmsFor, type FpArm } from '../fp/hands';
 import { objDef } from '../world/objects';
 import { CROPS } from '../items/worldSystems';
 import { TimedAction } from '../actions/action';
@@ -85,6 +87,13 @@ export class CookView {
   private flag = new Sheet(176, 44);
   private flagM: THREE.Mesh;
   private dishT = 0;
+  /** your own hands: the left holds the skillet's handle, the right reaches for whatever you point at */
+  private armL: FpArm | null = null;
+  private armR: FpArm | null = null;
+  private armSkin = -1;
+  private rHand = new THREE.Vector3(0.1, 0.25, 0.45);
+  private rGoal = new THREE.Vector3();
+  private rDir = new THREE.Vector3();
   private points: THREE.Points;
   private pPos: Float32Array; private pVel: Float32Array; private pLife: Float32Array; private pCol: Float32Array; private pN = 0;
   private bitMats: THREE.MeshLambertMaterial[] = [];
@@ -119,32 +128,29 @@ export class CookView {
     for (let i = 0; i < 9; i++) { const a = i * 0.7 + 0.2; fl.cross(PAN_X + Math.cos(a) * 0.19, -0.012, Math.sin(a) * 0.19, 0.045, 0.06, 'fx_flame', { emissive: 1, rot: a }); }
     this.flames = new THREE.Mesh(fl.build(), worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true, cutout: true, doubleSide: true, ckTag: 'fl' } as any));
     this.rig.add(this.flames);
-    // ---- cast-iron pan with a long handle
-    const pb = new ModelBuilder();
-    pb.cylinder(0, 0, 0, 0.17, 0.012, 18, { sides: 'metal_dark', top: 'metal_dark', bottom: 'metal_dark' });
-    for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; pb.push().translate(Math.cos(a) * 0.17, 0.0, Math.sin(a) * 0.17).rotateY(-a); pb.box(0, 0, 0, 0.012, 0.045, 0.048, 'metal_dark'); pb.pop(); }
-    pb.box(-0.32, 0.03, 0.04, 0.3, 0.018, 0.04, 'metal_dark'); pb.box(-0.47, 0.025, 0.05, 0.08, 0.03, 0.05, 'wood_dark');
-    this.panG.add(new THREE.Mesh(pb.build(), shinyMaterial(0x34302e, 36, 0x8a8682)));
+    // ---- cast-iron skillet, lathed: a thick base, a flared lip, a riveted handle with a hanging loop
+    const IRON = std(0x2e2b29, 0.42, 0.65), STEEL = std(0xb4b8bc, 0.25, 0.85), WOOD = std(0x7a4e2c, 0.7, 0), PORC = std(0xf2eee4, 0.25, 0);
+    const pan = new THREE.Mesh(lathe('skillet', [[0, 0.0], [0.15, 0.0], [0.163, 0.004], [0.17, 0.018], [0.178, 0.042], [0.184, 0.048], [0.18, 0.05], [0.172, 0.044], [0.162, 0.016], [0.15, 0.01], [0, 0.01]], 32), IRON);
+    this.panG.add(pan);
+    const handle = new THREE.Mesh(rod(0.013, 0.26, 10), IRON); handle.position.set(-0.32, 0.04, 0.0); handle.rotation.z = -0.12; this.panG.add(handle);
+    const hole = new THREE.Mesh(ring(0.012, 0.0045, 14), IRON); hole.rotation.x = Math.PI / 2; hole.position.set(-0.475, 0.058, 0); this.panG.add(hole);
     this.panG.position.set(PAN_X, 0.0, 0);
     this.rig.add(this.panG);
-    // ---- pot with broth and a wooden spoon
-    const kb = new ModelBuilder();
-    kb.cylinder(0, 0, 0, 0.11, 0.13, 14, { sides: 'metal_grey', top: 'metal_dark', bottom: 'metal_dark' }, { caps: false });
-    kb.cylinder(0, 0, 0, 0.11, 0.004, 14, 'metal_dark');
-    for (const s of [-1, 1]) kb.box(s * 0.125, 0.1, 0, 0.03, 0.015, 0.04, 'metal_dark');
-    this.potG.add(new THREE.Mesh(kb.build(), shinyMaterial(0xa8acb0, 90, 0xe0e0e0)));
-    const bb = new ModelBuilder(); bb.cylinder(0, 0, 0, 0.102, 0.004, 14, 'white');
+    // ---- stock pot: steel, a rolled rim, two loop handles; broth and a wooden spoon
+    this.potG.add(new THREE.Mesh(lathe('pot', [[0, 0], [0.1, 0], [0.108, 0.006], [0.11, 0.02], [0.11, 0.128], [0.116, 0.132], [0.112, 0.136], [0.104, 0.13], [0.104, 0.012], [0, 0.012]], 28), STEEL));
+    for (const sx of [-1, 1]) { const h = new THREE.Mesh(ring(0.018, 0.0045, 12), STEEL); h.position.set(sx * 0.122, 0.108, 0); h.rotation.y = Math.PI / 2; this.potG.add(h); }
     this.brothMat = cookMat('broth');
+    const bb = new ModelBuilder(); bb.cylinder(0, 0, 0, 0.102, 0.004, 20, 'white');
     this.broth = new THREE.Mesh(bb.build(), this.brothMat); this.broth.position.y = 0.03; this.potG.add(this.broth);
-    const sb = new ModelBuilder(); sb.box(0, 0, 0, 0.018, 0.26, 0.012, 'wood_light'); sb.box(0, -0.02, 0, 0.04, 0.05, 0.01, 'wood_light');
-    const sm = new THREE.Mesh(sb.build(), M); sm.rotation.z = 0.35; this.spoon.add(sm); this.spoon.position.set(0.05, 0.02, 0); this.potG.add(this.spoon);
+    const sp = new THREE.Mesh(lathe('spoon', [[0, 0], [0.016, 0.008], [0.019, 0.03], [0.012, 0.052], [0.006, 0.06], [0.0065, 0.26], [0.004, 0.27], [0, 0.272]], 8), WOOD);
+    sp.rotation.z = 0.35; this.spoon.add(sp); this.spoon.position.set(0.05, 0.02, 0); this.potG.add(this.spoon);
     this.potG.position.set(POT_X, 0, -0.04);
     this.rig.add(this.potG);
-    // ---- cutting board (left front) and the plate (right front)
-    const wb = new ModelBuilder(); wb.box(0, 0, 0, 0.78, 0.025, 0.16, 'wood_light', { uvScale: 2 }); wb.box(0.37, 0.005, 0, 0.03, 0.018, 0.03, 'metal_grey');
-    const wbm = new THREE.Mesh(wb.build(), M); wbm.position.set(-0.28, 0.0, 0.3); this.rig.add(wbm);
-    const pl = new ModelBuilder(); pl.cylinder(0, 0, 0, 0.11, 0.014, 16, { sides: 'porcelain', top: 'i_dish_plate', bottom: 'porcelain' }, { fit: { top: true } });
-    this.plateM = new THREE.Mesh(pl.build(), M); this.plateM.position.copy(PLATE); this.rig.add(this.plateM);
+    // ---- end-grain cutting board (rounded, bevelled) and a porcelain plate
+    const wbm = new THREE.Mesh(roundPlate(0.78, 0.16, 0.03, 0.026, 0.006), std(0xb88a58, 0.75, 0));
+    wbm.rotation.x = -Math.PI / 2; wbm.position.set(-0.28, 0.013, 0.3); this.rig.add(wbm);
+    this.plateM = new THREE.Mesh(lathe('plate', [[0, 0], [0.07, 0], [0.074, 0.004], [0.09, 0.008], [0.11, 0.016], [0.113, 0.018], [0.108, 0.019], [0.088, 0.012], [0.07, 0.006], [0, 0.006]], 32), PORC);
+    this.plateM.position.copy(PLATE); this.rig.add(this.plateM);
     for (let i = 0; i < N_SLOTS; i++) this.slots.push({ it: null, mesh: null, x: -0.6 + i * 0.09, z: 0.3 });
     for (let i = 0; i < 10; i++) this.bitMats.push(cookMat('bit' + i));
     // light
@@ -175,13 +181,13 @@ export class CookView {
     });
     const tm = sheetMesh(tape, 0.96, 0.036); tm.position.set(-0.08, -0.03, 0.402); this.rig.add(tm);
     // ---- the bakelite heat knob (stoves)
-    const kn = new ModelBuilder(); kn.cylinder(0, 0, 0, 0.034, 0.03, 12, 'plastic_black'); kn.box(0, 0.03, 0.018, 0.008, 0.004, 0.03, 'white', { color: 0xe8e0c8 });
-    const knm = new THREE.Mesh(kn.build(), M); knm.rotation.x = Math.PI / 2; this.knob.add(knm);
+    const knm = new THREE.Mesh(lathe('knob', [[0, 0], [0.034, 0], [0.036, 0.006], [0.033, 0.022], [0.026, 0.03], [0, 0.031]], 20), std(0x1a1816, 0.3, 0.05));
+    const tick = new THREE.Mesh(rod(0.0028, 0.022, 6), std(0xe8e0c8, 0.4, 0)); tick.rotation.y = Math.PI / 2; tick.position.set(0, 0.031, 0.013); knm.add(tick);
+    knm.rotation.x = Math.PI / 2; this.knob.add(knm);
     this.knob.position.set(0.62, -0.03, 0.4); this.rig.add(this.knob);
     // ---- a probe thermometer that sticks into whatever you look at
     const face = new Sheet(96, 96); whenFonts(() => { face.gaugeFace('°F', 'high'); face.commit(); });
-    const pr = new ModelBuilder(); pr.cylinder(0, -0.09, 0, 0.003, 0.09, 5, 'chrome'); pr.cylinder(0, 0, 0, 0.028, 0.012, 14, 'chrome');
-    const prm = new THREE.Mesh(pr.build(), shinyMaterial(0xc8ccd0, 90, 0xffffff)); this.probe.add(prm);
+    const prm = new THREE.Mesh(lathe('probe', [[0, -0.095], [0.0018, -0.093], [0.003, -0.08], [0.003, -0.004], [0.026, -0.002], [0.029, 0.004], [0.028, 0.012], [0.024, 0.013], [0, 0.013]], 18), std(0xc8ccd0, 0.25, 0.85)); this.probe.add(prm);
     const fm = new THREE.Mesh(new THREE.CircleGeometry(0.024, 14), new THREE.MeshLambertMaterial({ map: face.tex })); fm.rotation.x = -Math.PI / 2; fm.position.y = 0.0125; this.probe.add(fm);
     const nd = new ModelBuilder(); nd.box(0, 0, -0.0095, 0.0022, 0.0016, 0.019, 'white', { color: 0xc8302a });
     this.probeNeedle.add(new THREE.Mesh(nd.build(), M)); this.probeNeedle.position.y = 0.0135; this.probe.add(this.probeNeedle);
@@ -212,8 +218,40 @@ export class CookView {
     return null;
   }
 
+  private ensureArms(p: Player) {
+    const skin = (p as any).app?.skin ?? 0xe8b98f;
+    if (this.armL && this.armSkin === skin) return;
+    if (this.armL) { this.armL.root.removeFromParent(); this.armR!.root.removeFromParent(); this.armL.dispose(); this.armR!.dispose(); }
+    const a = fpArmsFor(p as any);
+    this.armL = a.left; this.armR = a.right; this.armSkin = skin;
+    // left hand round the skillet's handle (it rides the pan when you toss)
+    const hand = new THREE.Vector3(-0.45, 0.05, 0.0), dir = new THREE.Vector3(0.12, -0.16, -0.3).normalize();
+    aimY(this.armL.root, dir, new THREE.Vector3(0, -1, 0.2));
+    this.armL.root.position.copy(hand).addScaledVector(dir, -0.3);
+    this.panG.add(this.armL.root);
+    this.armL.pose('grip', true);
+    this.rig.add(this.armR.root);
+    this.armR.pose('relaxed', true);
+  }
+  /** the right arm reaches for the cursor: the hand eases toward the goal, the elbow trails toward you */
+  private updateArms(dt: number, hov: ReturnType<CookView['hit']>) {
+    const L = this.armL, R = this.armR; if (!L || !R) return;
+    const pt = this.drag ? this.drag.mesh.position : this.stirring ? null : this.lastPt;
+    if (this.stirring) { this.spoon.getWorldPosition(this.rGoal); this.rig.worldToLocal(this.rGoal); this.rGoal.y += 0.2; this.rGoal.x += Math.sin(this.stirA) * 0.03; this.rGoal.z += Math.cos(this.stirA) * 0.03; }
+    else if (pt) this.rGoal.set(pt.x + 0.02, (this.drag ? pt.y : 0.02) + 0.09, pt.z + 0.06);
+    else this.rGoal.set(0.15, 0.22, 0.42);
+    this.rHand.lerp(this.rGoal, 1 - Math.exp(-dt * 10));
+    this.rDir.set(0.1, -0.2, -0.32).normalize();
+    aimY(R.root, this.rDir, new THREE.Vector3(0, -1, 0.15));
+    R.root.position.copy(this.rHand).addScaledVector(this.rDir, -0.3);
+    R.pose(this.drag ? 'pinch' : this.stirring ? 'grip' : hov?.kind === 'bit' ? 'point' : hov?.kind === 'slot' ? 'open' : 'relaxed');
+    L.update(dt); R.update(dt);
+  }
+  private lastPt: THREE.Vector3 | null = null;
+
   openAt(p: Player, o: TileObject): boolean {
     const kind = this.stationKind(o); if (!kind || this.open) return false;
+    this.ensureArms(p);
     const z = G.getZone(p.zoneKey);
     // light a cold fire on the way in if we can
     if (kind === 'fire' && !this.litAt(z, o.x, o.y)) {
@@ -323,8 +361,10 @@ export class CookView {
       const col = itemDef(it.key).tint ?? 0x8a2234;
       mb.sphere(0, 0.024, 0, 0.042, 7, 5, c === 'organ' ? 'i_bt_organ' : 'white', { color: c === 'organ' ? 0xffffff : col, sy: 0.6, emissive: c === 'glow' ? 0.8 : 0 });
     } else {
-      mb.box(0, 0, 0, 0.11, 0.032, 0.07, c === 'human' ? 'i_bt_pale' : 'i_bt_marble', { uvScale: 3 });
-      mb.box(0.02, 0.032, 0.005, 0.05, 0.01, 0.04, c === 'human' ? 'i_bt_pale' : 'i_bt_marble', { uvScale: 3, color: 0xf2e0d8 });
+      // a rounded cut: a plump slab with a fat cap along one edge
+      const t = c === 'human' ? 'i_bt_pale' : 'i_bt_marble';
+      mb.push().scale(1.35, 1, 0.9); mb.sphere(0, 0.017, 0, 0.042, 10, 6, t, { sy: 0.42 }); mb.pop();
+      mb.push().translate(0.0, 0.02, 0.03).scale(1.3, 1, 0.45); mb.sphere(0, 0, 0, 0.034, 8, 4, t, { sy: 0.35, color: 0xf2e0d8 }); mb.pop();
     }
     g = mb.build(); this.geoCache.set(key, g);
     return g;
@@ -433,6 +473,7 @@ export class CookView {
     const hov = this.hit();
     for (const s of this.slots) if (s.mesh) { const on = hov?.slot === s; s.mesh.scale.setScalar(lerp(s.mesh.scale.x, on ? 1.25 : 1, 1 - Math.exp(-dt * 12))); s.mesh.position.y = 0.03 + (on ? 0.02 + Math.sin(G.time * 8) * 0.008 : 0); }
     this.plateM.scale.setScalar(lerp(this.plateM.scale.x, hov?.kind === 'plate' ? 1.12 : 1, 1 - Math.exp(-dt * 12)));
+    this.updateArms(dt, hov);
     this.updatePoints(dt);
     this.render3d(dt, H, hov);
   }
@@ -454,7 +495,8 @@ export class CookView {
   }
   /** what the mouse is over: a board slot, a pan piece, the pan, the pot, the plate */
   private hit(): { kind: 'slot' | 'bit' | 'pan' | 'pot' | 'plate'; slot?: Slot; bit?: Bit } | null {
-    const pt = this.surfacePoint(); if (!pt) return null;
+    const pt = this.surfacePoint(); if (!pt) { this.lastPt = null; return null; }
+    this.lastPt = pt;
     let best: Bit | null = null, bd = 0.06;
     for (const b of this.bits) { const d = Math.hypot(pt.x - b.px, pt.z - b.pz); if (d < bd) { bd = d; best = b; } }
     if (best) return { kind: 'bit', bit: best };

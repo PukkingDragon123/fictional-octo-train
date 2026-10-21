@@ -63,9 +63,15 @@ defWall({ key: 'bld_scrap_plate', name: 'Scrap-Plate Wall', tex: 'bw_scrap_plate
 
 // ---------------------------------------------------------------- helpers
 const M = 'metal_rusty', ST = 'metal_grey', DK = 'metal_dark';
-const P = (mb: ModelBuilder, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, r = 0.025, t = M) => rod(mb, x0, y0, z0, x1, y1, z1, r, 5, t);
+const P = (mb: ModelBuilder, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, r = 0.025, t = M) => rod(mb, x0, y0, z0, x1, y1, z1, r, 8, t);
 /** a bright weld bead at a joint */
-const bead = (mb: ModelBuilder, x: number, y: number, z: number, r = 0.03) => mb.sphere(x, y, z, r, 5, 3, 'bt_seam', { color: SEAM, emissive: 0.25 });
+const bead = (mb: ModelBuilder, x: number, y: number, z: number, r = 0.03) => mb.sphere(x, y, z, r, 7, 4, 'bt_seam', { color: SEAM, emissive: 0.25 });
+/** a rolled steel rim round a w x d rectangle at height y (no sharp sheet edges) */
+function rim(mb: ModelBuilder, w: number, d: number, y: number, r = 0.016, t = DK) {
+  P(mb, -w / 2, y, -d / 2, w / 2, y, -d / 2, r, t); P(mb, -w / 2, y, d / 2, w / 2, y, d / 2, r, t);
+  P(mb, -w / 2, y, -d / 2, -w / 2, y, d / 2, r, t); P(mb, w / 2, y, -d / 2, w / 2, y, d / 2, r, t);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) mb.sphere(sx * w / 2, y, sz * d / 2, r * 1.05, 7, 4, t);
+}
 /** four pipe legs + a top frame */
 function legs(mb: ModelBuilder, w: number, d: number, h: number, r = 0.025, t = M) {
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) { P(mb, sx * w / 2, 0, sz * d / 2, sx * w / 2, h, sz * d / 2, r, t); bead(mb, sx * w / 2, h, sz * d / 2, r * 1.3); }
@@ -199,8 +205,8 @@ defObj({
     for (let i = 0; i < 3; i++) { const a = i * 2.094; P(mb, Math.cos(a) * 0.4, 0, Math.sin(a) * 0.4, 0, 0.8, 0, 0.025, M); }
     mb.cylinder(0, 0.8, 0, 0.12, 0.16, 10, 'plastic_blue'); bead(mb, 0, 0.8, 0, 0.05);
     mb.push().translate(0, 1.0, 0).rotateY(-((s.yq ?? 0) & 7) * Math.PI / 4);
-    mb.box(0, -0.04, 0, 0.3, 0.2, 0.34, { all: 'metal_painted_green', north: 'bt_hazard' });
-    for (const [dx, dy] of [[-0.05, 0.03], [0.05, 0.03], [0, -0.04]]) mb.cylinderZ(dx, dy + 0.06, 0.38, 0.03, 0.46, 6, ST);
+    mb.cylinderX(0, 0.06, 0, 0.12, 0.3, 12, 'metal_painted_green'); mb.sphere(0, 0.06, -0.12, 0.1, 10, 6, 'metal_painted_green', { sy: 0.9 }); mb.box(0, 0.17, -0.05, 0.12, 0.012, 0.16, 'bt_hazard');
+    for (const [dx, dy] of [[-0.05, 0.03], [0.05, 0.03], [0, -0.04]]) mb.cylinderZ(dx, dy + 0.06, 0.38, 0.03, 0.46, 10, ST);
     mb.box(0.1, 0.16, 0, 0.06, 0.05, 0.06, 'led_red', { emissive: 1.5 });
     mb.pop();
   },
@@ -233,6 +239,8 @@ defObj({
   container: { capacity: 40, kind: 'locker', name: 'Locker' }, tags: [...T, 'station'], desc: 'Sheet steel folded and seam-welded into a box with a door. Yours.',
   model: (mb) => {
     mb.box(0, 0, 0, 0.8, 1.8, 0.6, { all: 'metal_painted_green', south: 'bt_plate' }, { uvScale: 2 });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) P(mb, sx * 0.4, 0, sz * 0.3, sx * 0.4, 1.8, sz * 0.3, 0.02, 'metal_painted_green');
+    rim(mb, 0.8, 0.6, 1.8, 0.02, 'metal_painted_green');
     for (let i = 0; i < 4; i++) mb.box(-0.15, 1.4 + i * 0.05, 0.302, 0.3, 0.015, 0.005, DK);
     mb.box(0.28, 0.9, 0.31, 0.04, 0.16, 0.03, 'chrome');
     for (const y of [0.01, 1.79]) for (const x of [-0.4, 0.4]) bead(mb, x, y, 0.3, 0.025);
@@ -255,8 +263,8 @@ defObj({
   model: (mb) => {
     mb.box(0, 0, 0, 0.4, 0.05, 0.4, 'bt_plate');
     P(mb, 0, 0.05, 0, 0, 1.9, 0, 0.022, ST); bead(mb, 0, 0.05, 0, 0.03);
-    mb.box(0, 1.88, 0, 1.0, 0.06, 0.1, 'metal_painted_green');
-    mb.box(0, 1.86, 0, 0.92, 0.025, 0.05, 'plastic_white', { emissive: 1.6, color: 0xf2fff4 });
+    mb.box(0, 1.9, 0, 1.0, 0.04, 0.11, 'metal_painted_green'); for (const z of [-0.055, 0.055]) mb.cylinderX(0, 1.905, z, 0.012, 1.0, 8, 'metal_painted_green');
+    mb.cylinderX(0, 1.875, 0, 0.016, 0.92, 10, 'plastic_white', { emissive: 1.6, color: 0xf2fff4 });
     rod(mb, 0, 1.9, 0, 0.2, 0.03, 0.15, 0.008, 4, 'rubber_black');
   },
 });
@@ -275,7 +283,7 @@ defObj({
 defObj({
   key: 'bld_table', name: 'Steel Table', height: 0.85, block: 'table', surface: 0.82, sound: 'metal', flammable: 0, hp: 300,
   tags: [...T], desc: 'A sheet of steel on four pipe legs, weld beads at every joint.',
-  model: (mb) => { legs(mb, 0.84, 0.84, 0.78, 0.024); mb.box(0, 0.78, 0, 0.96, 0.04, 0.96, { all: DK, top: 'bt_plate' }); },
+  model: (mb) => { legs(mb, 0.84, 0.84, 0.78, 0.024); mb.box(0, 0.785, 0, 0.94, 0.03, 0.94, { all: DK, top: 'bt_plate' }); rim(mb, 0.94, 0.94, 0.8, 0.018); },
 });
 
 // ---------------------------------------------------------------- farm: state.crop, state.cc (crop colour), state.stage 0..5, state.dead
@@ -298,6 +306,7 @@ defObj({
   model: (mb, s) => {
     legs(mb, 0.84, 0.6, 0.18, 0.02);
     mb.box(0, 0.18, 0, 0.92, 0.3, 0.66, { all: 'bt_plate', top: (s.water ?? 0) > 20 ? 'bt_soil' : 'q_soil_bed' }, { color: 0xffffff });
+    rim(mb, 0.92, 0.66, 0.48, 0.022, M);
     for (const x of [-0.46, 0.46]) bead(mb, x, 0.48, 0, 0.025);
     crops(mb, s, 0.48, 0.8, 3);
   },

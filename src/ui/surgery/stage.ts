@@ -15,7 +15,7 @@ import type { BoneName } from '../../entities/humanModel';
 import { U, worldMaterial } from '../../gfx/materials';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 import { limbItemModel } from '../../entities/limbGear';
-import { CT, loosePartGeo } from '../../entities/cyberGear';
+import { CT, loosePartGeo, shapes, smoothNormals } from '../../entities/cyberGear';
 import { CyberSlot, SLOT_KIND, SLOT_COVERS, cyberDef, CYBER_SLOTS } from '../../survival/cyberParts';
 import type { StumpCond } from '../../survival/limbs';
 import { csfx, csfxLoop } from './audio';
@@ -125,78 +125,104 @@ class RobotArm {
       const mb = new ModelBuilder(), cm = new ModelBuilder();
       fn(mb, cm);
       const g = new THREE.Group();
-      for (const [b, m] of [[mb, mat], [cm, chrome]] as const) if (!b.isEmpty) { const me = new THREE.Mesh(b.build(), m); me.castShadow = true; g.add(me); }
+      for (const [b, m] of [[mb, mat], [cm, chrome]] as const) if (!b.isEmpty) { const me = new THREE.Mesh(smoothNormals(b.build()), m); me.castShadow = true; g.add(me); }
       return g;
     };
+    const { hull, lump, capsule } = shapes;
     const paint = { sides: CT.mint, top: CT.mint, bottom: CT.black };
-    // base and turret
+    /** a link along +x from 0 to len: a riveted, tapered hull with a rounded nose */
+    const link = (mb: ModelBuilder, len: number, w: number, d: number, y: number) => {
+      mb.push().translate(0, y, 0).rotateZ(-Math.PI / 2);
+      hull(mb, 0, len, 0, 0, w, d, CT.mint, { taper: 1.12 });
+      mb.pop();
+      lump(mb, len, y, 0, w * 0.42, w * 0.5, d * 0.5, CT.mint);
+      for (let i = 0; i < Math.floor(len / 0.15); i++) for (const z of [-d / 2 - 0.002, d / 2 + 0.002]) lump(mb, 0.1 + i * 0.15, y + w * 0.3, z, 0.007, 0.007, 0.004, CT.brass);
+    };
+    // base and turret: a lathed pedestal with a gauge, chrome bolts round the foot
     this.root.add(part((mb, cm) => {
-      mb.cylinder(0, 0, 0, 0.32, 0.08, 10, { sides: CT.hazard, top: CT.steel, bottom: CT.steel }, { fit: true });
-      mb.cylinder(0, 0.08, 0, 0.2, 0.36, 10, { sides: CT.mint, top: CT.steel, bottom: CT.steel }, { fit: true, rTop: 0.17 });
-      mb.box(0, 0.22, 0.19, 0.13, 0.13, 0.01, CT.gauge, { fit: true });
-      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; cm.cylinder(Math.cos(a) * 0.27, 0.08, Math.sin(a) * 0.27, 0.02, 0.025, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true }); }
+      mb.cylinder(0, 0, 0, 0.32, 0.06, 16, { sides: CT.hazard, top: CT.steel, bottom: CT.steel }, { fit: true, rTop: 0.3 });
+      mb.cylinder(0, 0.06, 0, 0.21, 0.36, 14, { sides: CT.mint, top: CT.steel, bottom: CT.steel }, { fit: true, rTop: 0.17 });
+      lump(mb, 0, 0.42, 0, 0.17, 0.04, 0.17, CT.mint);
+      mb.push().translate(0, 0.24, 0.185).rotateX(-0.1); mb.cylinderZ(0, 0, 0, 0.06, 0.02, 14, { sides: CT.brass, top: CT.gauge, bottom: CT.brass }, { fit: true }); mb.pop();
+      for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; lump(cm, Math.cos(a) * 0.27, 0.07, Math.sin(a) * 0.27, 0.018, 0.012, 0.018, CT.chrome); }
     }));
     this.yaw.position.y = 0.44;
     this.root.add(this.yaw);
-    this.yaw.add(part((mb, cm) => {
-      mb.cylinder(0, 0, 0, 0.19, 0.12, 10, paint, { fit: true });
-      mb.box(0, 0.1, 0, 0.26, 0.16, 0.3, CT.mint, { fit: true });
-      mb.box(0.06, 0.14, 0.152, 0.025, 0.025, 0.006, CT.glow, { fit: true, color: glow, emissive: 1.6 });
-      mb.box(-0.06, 0.14, 0.152, 0.025, 0.025, 0.006, CT.brass, { fit: true });
+    this.yaw.add(part((mb) => {
+      mb.cylinder(0, 0, 0, 0.19, 0.08, 14, paint, { fit: true });
+      mb.cylinder(0, 0.08, 0, 0.16, 0.12, 14, { sides: CT.mint, top: CT.mint, bottom: CT.mint }, { fit: true, rTop: 0.12 });
+      for (const z of [-0.12, 0.12]) { mb.push().translate(0, 0.18, z); mb.cylinderZ(0, 0, 0, 0.1, 0.05, 14, { sides: CT.mint, top: CT.steel, bottom: CT.steel }, { fit: true }); mb.pop(); }
+      lump(mb, 0.08, 0.13, 0.15, 0.014, 0.014, 0.01, CT.glow, { color: glow, emissive: 1.6 });
+      lump(mb, -0.06, 0.13, 0.15, 0.016, 0.016, 0.01, CT.brass);
     }));
     this.sh.position.y = BASE_H - 0.44;
     this.yaw.add(this.sh);
     this.sh.add(part((mb, cm) => {
-      mb.cylinderZ(0, 0, 0, 0.13, 0.34, 10, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
-      mb.box(L1 / 2, -0.08, 0, L1, 0.16, 0.2, CT.mint, { fit: true });
-      for (let i = 0; i < 6; i++) for (const z of [-0.101, 0.101]) mb.box(0.1 + i * 0.15, -0.075, z, 0.012, 0.012, 0.004, CT.brass, { fit: true });
-      mb.cylinderX(L1 * 0.45, 0.07, 0, 0.022, 0.6, 6, { sides: CT.hose, top: CT.brass, bottom: CT.brass }, { fit: true });
-      cm.cylinderX(L1 * 0.5, 0.015, 0.06, 0.028, 0.34, 8, { sides: CT.chrome, top: CT.brass, bottom: CT.brass }, { fit: true });
+      mb.cylinderZ(0, 0, 0, 0.13, 0.2, 16, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
+      for (const z of [-0.105, 0.105]) cm.cylinderZ(0, 0, z, 0.06, 0.02, 14, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+      link(mb, L1, 0.16, 0.19, -0.02);
+      mb.cylinderX(L1 * 0.45, 0.075, 0.0, 0.02, 0.6, 8, { sides: CT.hose, top: CT.brass, bottom: CT.brass }, { fit: true });
+      cm.cylinderX(L1 * 0.5, 0.02, 0.07, 0.026, 0.36, 12, { sides: CT.chrome, top: CT.brass, bottom: CT.brass }, { fit: true });
+      cm.cylinderX(L1 * 0.28, 0.02, 0.07, 0.034, 0.1, 12, { sides: CT.black, top: CT.brass, bottom: CT.brass }, { fit: true });
     }));
     this.el.position.x = L1;
     this.sh.add(this.el);
     this.el.add(part((mb, cm) => {
-      mb.cylinderZ(0, 0, 0, 0.1, 0.26, 10, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
-      mb.box(L2 / 2, -0.06, 0, L2, 0.12, 0.14, CT.mint, { fit: true });
-      for (let i = 0; i < 5; i++) mb.box(0.1 + i * 0.15, -0.055, 0.071, 0.012, 0.012, 0.004, CT.brass, { fit: true });
-      cm.cylinderX(L2 * 0.5, 0.075, 0, 0.022, L2 * 0.7, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+      mb.cylinderZ(0, 0, 0, 0.1, 0.17, 16, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
+      for (const z of [-0.09, 0.09]) cm.cylinderZ(0, 0, z, 0.045, 0.016, 14, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+      link(mb, L2, 0.12, 0.13, -0.01);
+      cm.cylinderX(L2 * 0.5, 0.07, 0, 0.02, L2 * 0.7, 12, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
     }));
     this.wr.position.x = L2;
     this.el.add(this.wr);
     this.wr.add(part((mb, cm) => {
-      mb.cylinderZ(0, 0, 0, 0.07, 0.18, 8, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
-      mb.cylinderX(0.08, 0, 0, 0.055, 0.12, 8, { sides: CT.steel, top: CT.steel, bottom: CT.steel }, { fit: true });
+      lump(mb, 0, 0, 0, 0.075, 0.075, 0.08, CT.black);
+      mb.cylinderX(0.08, 0, 0, 0.055, 0.12, 14, { sides: CT.steel, top: CT.steel, bottom: CT.steel }, { fit: true });
+      cm.cylinderX(0.145, 0, 0, 0.06, 0.012, 14, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
     }));
     this.tool.position.x = 0.14;
     this.wr.add(this.tool);
     if (kind === 'saw') {
-      this.tool.add(part((mb, cm) => {
-        mb.box(toolLen * 0.4, -0.04, 0, toolLen * 0.8, 0.08, 0.08, CT.black, { fit: true });
-        mb.box(toolLen * 0.75, 0.03, 0, 0.2, 0.06, 0.1, CT.hazard, { fit: true });
-        mb.cylinderX(toolLen * 0.3, 0.06, 0, 0.035, 0.18, 8, { sides: CT.black, top: CT.brass, bottom: CT.brass }, { fit: true });
+      this.tool.add(part((mb) => {
+        mb.push().rotateZ(-Math.PI / 2);
+        hull(mb, 0, toolLen * 0.82, 0, 0, 0.085, 0.085, CT.black, { taper: 1.15 });
+        mb.pop();
+        // the blade guard: a hazard-striped half-shroud over the disc
+        mb.push().translate(toolLen * 0.85, 0.012, 0);
+        mb.cylinder(0, 0, 0, 0.175, 0.03, 16, { sides: CT.hazard, top: CT.hazard, bottom: CT.black }, { fit: true });
+        mb.pop();
+        mb.cylinderX(toolLen * 0.3, 0.06, 0, 0.035, 0.18, 12, { sides: CT.black, top: CT.brass, bottom: CT.brass }, { fit: true });
+        lump(mb, toolLen * 0.3 + 0.09, 0.06, 0, 0.02, 0.035, 0.035, CT.brass);
       }));
-      this.spin.position.set(toolLen * 0.85, 0, 0);
+      this.spin.position.set(toolLen * 0.85, -0.012, 0);
       this.spin.add(part((mb, cm) => {
         // the disc turns about the tool's y, so it faces whoever watches the arm come down
-        cm.cylinder(0, -0.004, 0, 0.16, 0.008, 16, { sides: CT.steel, top: CT.chrome, bottom: CT.chrome }, { fit: true });
-        for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; mb.push().translate(Math.cos(a) * 0.165, 0, Math.sin(a) * 0.165).rotateY(-a); mb.box(0, -0.006, 0, 0.026, 0.012, 0.014, CT.steel, { fit: true }); mb.pop(); }
-        mb.cylinder(0, -0.02, 0, 0.035, 0.04, 8, { sides: CT.black, top: CT.hazard, bottom: CT.black }, { fit: true });
+        cm.cylinder(0, -0.004, 0, 0.16, 0.008, 24, { sides: CT.steel, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+        for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; mb.push().translate(Math.cos(a) * 0.163, -0.004, Math.sin(a) * 0.163).rotateY(-a + 0.6); mb.cylinder(0, 0, 0, 0.009, 0.008, 3, { sides: CT.steel, top: CT.steel, bottom: CT.steel }, { fit: true }); mb.pop(); }
+        mb.cylinder(0, -0.02, 0, 0.035, 0.04, 12, { sides: CT.black, top: CT.brass, bottom: CT.black }, { fit: true });
       }));
       this.tool.add(this.spin);
       this.tip.position.set(toolLen * 0.85 + 0.16, 0, 0);
     } else {
-      this.tool.add(part((mb, cm) => {
-        mb.box(toolLen * 0.35, -0.05, 0, toolLen * 0.7, 0.1, 0.12, CT.black, { fit: true });
-        mb.box(toolLen * 0.5, 0.05, 0, 0.12, 0.04, 0.1, CT.black, { fit: true });
-        mb.box(toolLen * 0.45, 0.09, 0, 0.03, 0.02, 0.03, CT.glow, { fit: true, color: glow, emissive: 1.6 });
+      this.tool.add(part((mb) => {
+        mb.push().rotateZ(-Math.PI / 2);
+        hull(mb, 0, toolLen * 0.7, 0, 0, 0.1, 0.12, CT.black, { taper: 1.1 });
+        mb.pop();
+        lump(mb, toolLen * 0.5, 0.06, 0, 0.06, 0.025, 0.05, CT.black);
+        lump(mb, toolLen * 0.45, 0.085, 0, 0.012, 0.012, 0.012, CT.glow, { color: glow, emissive: 1.6 });
       }));
       this.spin.position.set(toolLen * 0.75, 0, 0);
-      this.spin.add(part((mb, cm) => { cm.cylinderX(0.06, 0, 0, 0.012, 0.14, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true }); mb.box(0.13, -0.012, 0, 0.012, 0.024, 0.024, CT.glow, { fit: true, color: 0xffffff, emissive: 2 }); }));
+      this.spin.add(part((mb, cm) => { cm.cylinderX(0.06, 0, 0, 0.012, 0.14, 10, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true }); lump(mb, 0.13, 0, 0, 0.012, 0.012, 0.012, CT.glow, { color: 0xffffff, emissive: 2 }); }));
       this.tool.add(this.spin);
       for (const k of [-1, 1]) {
         const f = new THREE.Group();
         f.position.set(toolLen * 0.62, 0, k * 0.07);
-        f.add(part((mb, cm) => { mb.box(0.11, -0.015, 0, 0.22, 0.03, 0.025, CT.steel, { fit: true }); mb.box(0.21, -0.02, -k * 0.02, 0.03, 0.04, 0.04, CT.rust, { fit: true }); }));
+        // a jointed claw finger: two capsules and a rubber pad
+        f.add(part((mb) => {
+          mb.push().rotateZ(-Math.PI / 2); capsule(mb, 0, 0.12, 0.0, 0, 0.016, CT.steel); mb.pop();
+          mb.push().translate(0.12, 0, 0).rotateZ(-Math.PI / 2); capsule(mb, 0, 0.1, 0.0, -k * 0.012, 0.013, CT.steel); mb.pop();
+          lump(mb, 0.21, 0, -k * 0.022, 0.022, 0.02, 0.012, CT.rust);
+        }));
         this.tool.add(f);
         this.fingers.push(f);
       }

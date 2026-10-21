@@ -8,7 +8,7 @@
 // The press also places itself: a post-generation hook (src/game/debt/
 // hopperPlace.ts) drops one into every zone that does not already have one.
 import { defObj } from '../../world/objects';
-import { atlas, addTextureModule, makeRamp, mixHex, scaleHex, ph, tileFbm, txt, txtC, txtW, fillR, plate, screw, scribble, crtGlass, type ModelBuilder } from './a_lib';
+import { atlas, addTextureModule, makeRamp, mixHex, scaleHex, ph, tileFbm, txt, txtC, txtW, fillR, plate, screw, scribble, crtGlass, type ModelBuilder, type PrimOpts, type TexSpec } from './a_lib';
 import { installHopperPlacement } from '../../game/debt/hopperPlace';
 
 const T = ['contract', 'zd'];
@@ -303,71 +303,97 @@ export const PRESS = {
   leverRest: -0.42, leverPulled: 1.75,
   gauge: [-0.89, 1.375, 1.03] as [number, number, number],
   /** the nixie display in the crown's window: its centre, and the pitch between tubes */
-  counter: [0.37, 2.32, 0.996] as [number, number, number], drum: 0.12,
+  counter: [0.34, 2.32, 0.996] as [number, number, number], drum: 0.11,
   beacon: [-0.72, 2.47, 0.72] as [number, number, number],
 };
 
+/** a box with its four vertical edges rounded off (radius r): two crossed boxes and four corner cylinders */
+export function roundBox(mb: ModelBuilder, x: number, y: number, z: number, w: number, h: number, d: number, r: number, tex: TexSpec, o: PrimOpts = {}, segs = 6) {
+  r = Math.min(r, w / 2 - 0.001, d / 2 - 0.001);
+  mb.box(x, y, z, w - 2 * r, h, d, tex, o);
+  mb.box(x, y, z, w, h, d - 2 * r, tex, { ...o, fit: false, skip: [...(o.skip || []), 'top', 'bottom', 'north', 'south'] });
+  for (const sx of [-1, 1]) {
+    if (!(o.skip || []).includes('top')) mb.flat(x + sx * (w / 2 - r / 2), y + h, z, r, d - 2 * r, typeof tex === 'string' ? tex : (tex.top ?? tex.all ?? 'metal_dark'), { fit: false, color: o.color });
+    for (const sz of [-1, 1]) mb.cylinder(x + sx * (w / 2 - r), y, z + sz * (d / 2 - r), r, h, segs, typeof tex === 'string' ? tex : (tex.all ?? tex.sides ?? 'metal_dark'), { color: o.color, caps: true });
+  }
+  return mb;
+}
+
 /** model of the Remittance Press (2 x 2 tiles, front +z): a four-column hydraulic press over a striped
- *  loading plate with the seam slot in it. The ram, its rods, the lever and the lights are overlays. */
+ *  loading plate with the seam slot in it. Round columns, rounded slabs, bolts, collars. The ram, its rods,
+ *  the lever, the gauge needle, the nixies and the lights are overlays. */
 export function hopperModel(mb: ModelBuilder) {
-  // the bed: thick steel, hazard skirt, the plate on top
+  // the bed: thick steel, hazard skirt, a rolled lip round the plate
   mb.box(0, 0, 0, 1.98, 0.06, 1.98, { top: 'zd_hopper_plate', all: 'zd_hazard' }, { fit: { top: true } });
-  // four columns with feet and guide collars
+  for (const s of [-1, 1]) { mb.cylinderX(0, 0.06, s * 0.985, 0.018, 1.96, 6, 'metal_dark', { caps: false }); mb.cylinderZ(s * 0.985, 0.06, 0, 0.018, 1.96, 6, 'metal_dark', { caps: false }); }
+  // four round columns: a flared foot bolted down, a guide collar half way, a cap under the crown
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
     const x = sx * 0.89, z = sz * 0.89;
-    mb.box(x, 0.06, z, 0.15, 2.14, 0.15, 'zd_steel', { skip: ['bottom'] });
-    mb.box(x, 0.0, z, 0.24, 0.1, 0.24, 'metal_dark');
-    for (const k of [-1, 1]) mb.box(x + k * 0.085, 0.1, z + k * 0.085, 0.025, 0.025, 0.025, 'chrome');
-    mb.box(x, 2.1, z, 0.21, 0.1, 0.21, 'metal_dark');
+    mb.cylinder(x, 0.0, z, 0.15, 0.1, 12, 'metal_dark', { rTop: 0.1 });
+    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; mb.cylinder(x + Math.cos(a) * 0.12, 0.04, z + Math.sin(a) * 0.12, 0.016, 0.03, 6, 'chrome'); }
+    mb.cylinder(x, 0.06, z, 0.075, 2.14, 12, 'zd_steel', { caps: false });
+    mb.cylinder(x, 1.0, z, 0.092, 0.07, 12, 'zd_hazard');
+    mb.cylinder(x, 2.08, z, 0.1, 0.12, 12, 'metal_dark', { rTop: 0.12 });
   }
-  // the crown: a slab of steel across the tops, the name plate, two cylinder housings
-  mb.box(0, 2.2, 0, 1.98, 0.24, 1.98, { all: 'zd_steel', south: 'zd_crown_front' }, { fit: { south: true } });
+  // the crown: a rounded slab across the tops, the name plate and the nixie window, two cylinder housings
+  roundBox(mb, 0, 2.2, 0, 1.98, 0.24, 1.98, 0.08, { all: 'zd_steel', south: 'zd_crown_front' }, { fit: { south: true } }, 8);
+  for (const s of [-1, 1]) mb.cylinderX(0, 2.44, s * 0.9, 0.02, 1.82, 6, 'metal_dark', { caps: false });
   for (const [x] of PRESS.rods) {
-    mb.cylinder(x, 2.44, 0, 0.16, 0.12, 10, 'zd_steel');
-    mb.cylinder(x, 2.56, 0, 0.1, 0.03, 10, 'metal_dark');
-    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; mb.box(x + Math.cos(a) * 0.13, 2.555, Math.sin(a) * 0.13, 0.02, 0.02, 0.02, 'chrome'); }
+    mb.cylinder(x, 2.44, 0, 0.17, 0.04, 14, 'metal_dark');
+    mb.cylinder(x, 2.48, 0, 0.15, 0.08, 14, 'zd_steel', { rTop: 0.12 });
+    mb.cylinder(x, 2.56, 0, 0.09, 0.03, 12, 'metal_dark', { rTop: 0.07 });
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; mb.cylinder(x + Math.cos(a) * 0.155, 2.48, Math.sin(a) * 0.155, 0.011, 0.012, 6, 'chrome'); }
   }
-  // hydraulic pump at the back, hoses up the back-right column into the crown
-  mb.box(0.36, 0.06, -0.86, 0.5, 0.4, 0.22, 'zd_steel', { color: 0x9aa890 });
-  mb.box(0.36, 0.46, -0.86, 0.44, 0.03, 0.18, 'metal_dark');
-  mb.cylinder(0.2, 0.49, -0.86, 0.05, 0.1, 6, 'chrome');
-  for (const dx of [0.6, 0.66]) mb.box(dx, 0.3, -0.97, 0.035, 1.92, 0.035, 'rubber_black');
-  // the pressure gauge on the front-left column (needle drawn as an overlay)
-  mb.box(-0.89, 1.24, 0.99, 0.28, 0.28, 0.06, 'zd_steel');
-  mb.box(-0.89, 1.255, 1.021, 0.24, 0.24, 0.004, 'zd_dial', { fit: true });
-  // the lever's housing, bolted to the outside of the front-right column
-  mb.box(0.995, 0.86, 0.84, 0.06, 0.28, 0.2, 'metal_dark');
-  mb.box(1.04, 0.92, 0.84, 0.06, 0.16, 0.14, 'zd_hazard');
-  mb.box(1.05, 0.7, 0.84, 0.04, 0.12, 0.06, 'metal_grey');
-  // amber beacon cage on the crown (the lamp flashes as an overlay)
+  // hydraulic pump at the back: a rounded tank, the motor on its side, hoses looping up into the crown
+  roundBox(mb, 0.36, 0.06, -0.86, 0.5, 0.36, 0.22, 0.07, 'zd_steel', { color: 0x9aa890 });
+  mb.cylinderX(0.36, 0.5, -0.86, 0.075, 0.34, 10, 'metal_dark');
+  mb.cylinder(0.2, 0.42, -0.86, 0.045, 0.1, 8, 'chrome', { rTop: 0.03 });
+  for (const dx of [0.6, 0.66]) mb.cylinder(dx, 0.3, -0.97, 0.02, 1.92, 6, 'rubber_black', { caps: false });
+  // the pressure gauge on the front-left column: a round brass-rimmed case (needle drawn as an overlay)
+  const [gx, gy, gz] = PRESS.gauge;
+  mb.cylinderZ(gx, gy, gz - 0.035, 0.15, 0.06, 16, 'zd_steel');
+  mb.cylinderZ(gx, gy, gz - 0.002, 0.152, 0.012, 16, 'metal_brass', { caps: false });
+  mb.push().translate(gx, gy, gz - 0.004).rotateX(Math.PI / 2);
+  mb.cylinder(0, 0, 0, 0.13, 0.002, 16, { sides: 'metal_dark', bottom: 'zd_dial', top: 'zd_dial' }, { fit: true });
+  mb.pop();
+  // the lever's mount, bolted to the outside of the front-right column: a round hub on a rounded plate
+  roundBox(mb, 0.995, 0.82, 0.84, 0.06, 0.34, 0.22, 0.025, 'metal_dark');
+  const [lx, ly, lz] = PRESS.lever;
+  mb.cylinderX(lx - 0.03, ly, lz, 0.06, 0.05, 12, 'zd_hazard');
+  mb.cylinderX(lx, ly, lz, 0.035, 0.07, 10, 'chrome');
+  // amber beacon on the crown: a ribbed glass dome in a wire cage (the lamp flashes as an overlay)
   const [bx, by, bz] = PRESS.beacon;
-  mb.cylinder(bx, by - 0.03, bz, 0.07, 0.03, 8, 'metal_dark');
-  mb.cylinder(bx, by, bz, 0.06, 0.12, 8, 'glass', { color: 0xffb040, emissive: 0.25 });
-  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; mb.box(bx + Math.cos(a) * 0.065, by, bz + Math.sin(a) * 0.065, 0.01, 0.13, 0.01, 'metal_dark'); }
-  // the handler's projector: an arm off the back-right column, the lens looking out over the plate
-  mb.box(0.89, 1.83, -0.74, 0.06, 0.06, 0.24, 'metal_dark');
-  mb.box(0.86, 1.8, -0.66, 0.12, 0.12, 0.12, { all: 'zd_pylon', top: 'metal_dark' }, { fit: { south: true, north: true, east: true, west: true } });
+  mb.cylinder(bx, by - 0.03, bz, 0.075, 0.035, 12, 'metal_dark', { rTop: 0.07 });
+  mb.cylinder(bx, by, bz, 0.06, 0.1, 12, 'glass', { color: 0xffb040, emissive: 0.25, rTop: 0.055 });
+  mb.sphere(bx, by + 0.1, bz, 0.055, 10, 4, 'glass', { color: 0xffb040, emissive: 0.25, sy: 0.6 });
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; mb.cylinder(bx + Math.cos(a) * 0.068, by, bz + Math.sin(a) * 0.068, 0.006, 0.15, 4, 'metal_dark'); }
+  // the handler's projector: an arm off the back-right column and a round lamp housing, the lens looking out over the plate
+  mb.cylinderZ(0.89, 1.86, -0.76, 0.022, 0.2, 6, 'metal_dark');
+  mb.cylinderZ(0.86, 1.86, -0.66, 0.07, 0.14, 12, { sides: 'zd_pylon', top: 'metal_dark', bottom: 'metal_dark' });
   mb.push().translate(0.86, 1.86, -0.6).rotateX(Math.PI / 2);
-  mb.cylinder(0, 0, 0, 0.05, 0.02, 8, { sides: 'chrome', top: 'zd_lens', bottom: 'zd_lens' }, { fit: true, emissive: 1.2 });
+  mb.cylinder(0, 0, 0, 0.05, 0.02, 12, { sides: 'chrome', top: 'zd_lens', bottom: 'zd_lens' }, { fit: true, emissive: 1.2 });
   mb.pop();
 }
-/** the ram: origin at the centre of its underside */
+/** the ram: origin at the centre of its underside; rounded edges, round guide sleeves riding the columns */
 export function pressRamModel(mb: ModelBuilder) {
   const W = 1.62, H = PRESS.ramH;
-  mb.box(0, 0, 0, W, H, W, { all: 'zd_ram_face', top: 'zd_steel', bottom: 'zd_ram_under' }, { fit: true });
-  for (const sx of [-1, 1]) for (const sz of [-1, 1]) mb.box(sx * 0.89, 0.02, sz * 0.89, 0.23, H - 0.04, 0.23, 'metal_dark');
-  mb.box(0, H, 0, 1.5, 0.07, 0.2, 'zd_steel');
-  mb.box(0, H, 0, 0.2, 0.07, 1.5, 'zd_steel');
-  for (const [x] of PRESS.rods) mb.cylinder(x, H, 0, 0.12, 0.06, 10, 'metal_dark');
+  roundBox(mb, 0, 0, 0, W, H, W, 0.1, { all: 'zd_ram_face', top: 'zd_steel', bottom: 'zd_ram_under' }, { fit: true }, 8);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    mb.cylinder(sx * 0.89, 0.0, sz * 0.89, 0.115, H, 12, 'metal_dark');
+    mb.cylinder(sx * 0.89, H * 0.45, sz * 0.89, 0.122, 0.03, 12, 'chrome', { caps: false });
+  }
+  roundBox(mb, 0, H, 0, 1.5, 0.07, 0.2, 0.05, 'zd_steel');
+  roundBox(mb, 0, H, 0, 0.2, 0.07, 1.5, 0.05, 'zd_steel');
+  for (const [x] of PRESS.rods) mb.cylinder(x, H, 0, 0.12, 0.06, 14, 'metal_dark', { rTop: 0.09 });
 }
 /** a piston rod, one metre tall (scaled to the gap between ram and crown) */
-export function pressRodModel(mb: ModelBuilder) { mb.cylinder(0, 0, 0, 0.065, 1, 10, 'chrome'); }
+export function pressRodModel(mb: ModelBuilder) { mb.cylinder(0, 0, 0, 0.065, 1, 12, 'chrome'); }
 /** the lever: origin at its pivot, the arm up +y */
 export function pressLeverModel(mb: ModelBuilder) {
-  mb.box(0, -0.035, 0, 0.07, 0.07, 0.07, 'metal_dark');
-  mb.box(0, 0, 0, 0.035, 0.6, 0.035, 'chrome');
-  mb.cylinder(0, 0.58, 0, 0.03, 0.14, 8, 'rubber_black');
-  mb.sphere(0, 0.74, 0, 0.055, 8, 6, 'plastic_red', { color: 0xff3a24 });
+  mb.cylinderX(0, 0, 0, 0.042, 0.06, 10, 'metal_dark');
+  mb.cylinder(0, 0, 0, 0.02, 0.6, 8, 'chrome', { rTop: 0.016 });
+  mb.cylinder(0, 0.56, 0, 0.032, 0.16, 10, 'rubber_black', { rTop: 0.028 });
+  mb.sphere(0, 0.76, 0, 0.055, 12, 8, 'plastic_red', { color: 0xff3a24 });
 }
 
 defObj({

@@ -5,8 +5,8 @@ import * as THREE from 'three';
 import { worldMaterial } from '../gfx/materials';
 import { itemGeometry } from '../items/itemMeshes';
 import { ORIENT, type Rot } from '../items/grid';
-import { ModelBuilder } from '../gfx/modelBuilder';
 import { G } from '../game/G';
+import { fpArm, type FpArm, type HandPose } from '../fp/hands';
 
 export const fpMat = () => worldMaterial({ noVis: true, noFog: true, noGrid: true });
 export const fpGlow = () => worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true });
@@ -121,65 +121,38 @@ export function fitItemObj(o: ItemObj, rot: Rot, bx: number, by: number, bz: num
 }
 
 // ---------------------------------------------------------------- forearms and hands
-export interface Arm { root: THREE.Group; fore: THREE.Mesh; hand: THREE.Group; thumb: THREE.Group; fingers: THREE.Group; side: 1 | -1; elbow: THREE.Vector3; target: THREE.Vector3; grip: number }
-let armGeo: { fore: THREE.BufferGeometry; palm: THREE.BufferGeometry; thumb: THREE.BufferGeometry; fingers: THREE.BufferGeometry } | null = null;
+/**
+ * The survivor's arms in a close-up: the shared smooth arms (src/fp/hands.ts),
+ * laid from a shoulder-side anchor (`elbow`, off the bottom of the frame) so
+ * the wrist lands on `target`; `want` is the hand pose, `roll` turns the palm.
+ */
+export interface Arm { fp: FpArm; root: THREE.Group; side: 1 | -1; elbow: THREE.Vector3; target: THREE.Vector3; want: HandPose; scale: number }
+const FOREARM_LEN = 0.26;
 
-function buildArmGeo(skin: number, suit: number) {
-  const fore = new ModelBuilder();
-  // sleeve from the elbow (y=0) to the cuff (y=1), unit length; the cuff band and a strip of wrist
-  fore.cylinder(0, 0, 0, 0.036, 0.84, 8, 'fabric_grey', { color: suit, rTop: 0.03 });
-  fore.cylinder(0, 0.84, 0, 0.032, 0.06, 8, 'fabric_grey', { color: (suit & 0xfefefe) >> 1 | 0x202020 });
-  fore.cylinder(0, 0.9, 0, 0.024, 0.1, 8, 'plastic_white', { color: skin });
-  const palm = new ModelBuilder();
-  palm.box(0, -0.01, 0, 0.06, 0.075, 0.024, 'plastic_white', { color: skin });
-  const thumb = new ModelBuilder();
-  thumb.box(0, 0, 0, 0.018, 0.042, 0.018, 'plastic_white', { color: skin });
-  thumb.box(0, 0.038, 0, 0.016, 0.012, 0.016, 'plastic_white', { color: (skin & 0xfefefe) >> 1 | 0x505050 });
-  const fingers = new ModelBuilder();
-  for (let i = 0; i < 4; i++) fingers.box(-0.021 + i * 0.014, 0, 0, 0.013, 0.05 - Math.abs(i - 1.5) * 0.007, 0.017, 'plastic_white', { color: skin });
-  armGeo = { fore: fore.build(), palm: palm.build(), thumb: thumb.build(), fingers: fingers.build() };
+export function makeArm(side: 1 | -1, scale = 1.25): Arm {
+  const p: any = G.local;
+  const skin = p?.app?.skin ?? 0xe8b98f;
+  const fp = fpArm(side === 1 ? 'right' : 'left', { skin, sleeve: 0xeeb415, sleeveStyle: p?.app?.suit?.sleeves === 'rolled' ? 'rolled' : 'long', scale });
+  return { fp, root: fp.root, side, elbow: new THREE.Vector3(side * 0.42, -0.62, -0.9), target: new THREE.Vector3(side * 0.2, -0.2, -1.2), want: 'relaxed', scale };
 }
 
-/** a forearm reaching in from below the frame to a hand that you place (target) */
-export function makeArm(side: 1 | -1): Arm {
-  if (!armGeo) {
-    const skin = (G.local as any)?.app?.skin ?? 0xc89a78;
-    buildArmGeo(skin, 0xeeb415);
-  }
-  const mat = fpMat();
-  const root = new THREE.Group();
-  const fore = new THREE.Mesh(armGeo!.fore, mat);
-  root.add(fore);
-  const hand = new THREE.Group();
-  const palm = new THREE.Mesh(armGeo!.palm, mat);
-  hand.add(palm);
-  const thumb = new THREE.Group();
-  thumb.add(new THREE.Mesh(armGeo!.thumb, mat));
-  thumb.position.set(-side * 0.04, -0.01, 0.012);
-  thumb.rotation.z = side * 0.6;
-  hand.add(thumb);
-  const fingers = new THREE.Group();
-  fingers.add(new THREE.Mesh(armGeo!.fingers, mat));
-  fingers.position.set(0, 0.035, 0);
-  hand.add(fingers);
-  root.add(hand);
-  return { root, fore, hand, thumb, fingers, side, elbow: new THREE.Vector3(side * 0.42, -0.62, -0.9), target: new THREE.Vector3(side * 0.2, -0.2, -1.2), grip: 0 };
+const _d = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0), _rq = new THREE.Quaternion();
+const lastPose = new WeakMap<Arm, HandPose>();
+/** lay the forearm toward the target (wrist on it), turn the palm by roll, ease the hand into its pose */
+export function poseArm(a: Arm, roll = 0, dt = 1 / 60) {
+  _d.subVectors(a.target, a.elbow).normalize();
+  a.root.position.copy(a.target).addScaledVector(_d, -FOREARM_LEN * a.scale);
+  a.root.quaternion.setFromUnitVectors(_up, _d).multiply(_rq.setFromAxisAngle(_up, roll * a.side));
+  if (lastPose.get(a) !== a.want) { lastPose.set(a, a.want); a.fp.pose(a.want); }
+  a.fp.update(dt);
 }
 
-const _d = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
-/** lay the forearm from the elbow to the hand target; grip 0 = open, 1 = fist */
-export function poseArm(a: Arm, handRoll = 0) {
-  _d.subVectors(a.target, a.elbow);
-  const len = Math.max(0.05, _d.length());
-  _d.normalize();
-  a.fore.position.copy(a.elbow);
-  a.fore.quaternion.setFromUnitVectors(_up, _d);
-  a.fore.scale.set(1, len, 1);
-  a.hand.position.copy(a.target);
-  a.hand.quaternion.copy(a.fore.quaternion);
-  a.hand.rotateY(handRoll + a.side * 0.3);
-  a.fingers.rotation.x = -a.grip * 1.3;
-  a.thumb.rotation.x = -a.grip * 0.6;
+/** hold an item model in a hand: handle across the palm, head out past the thumb */
+export function holdInGrip(a: Arm, o: ItemObj, length = 0.16) {
+  a.fp.grip.add(o.outer);
+  o.outer.position.set(0, 0, 0);
+  o.outer.rotation.set(0, Math.PI / 2, 0);
+  o.outer.position.x = -length * 0.28 * (a.side === 1 ? 1 : -1);
 }
 
 // ---------------------------------------------------------------- pixel particles

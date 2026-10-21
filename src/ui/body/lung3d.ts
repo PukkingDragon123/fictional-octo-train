@@ -55,7 +55,7 @@ export class Lung3D {
     r.add(solidMesh(this.st, pipe));
     // the red bakelite handwheel (it turns as you breathe)
     const wh = new Mold().add(ring(3.6, 0.75, 14), null, 0xa8281a, PLASTIC);
-    for (let k = 0; k < 3; k++) wh.add(box(0.7, 3.4, 0.6), M(Math.cos(k * 2.094 + R90) * 1.7, Math.sin(k * 2.094 + R90) * 1.7, 0, 0, 0, k * 2.094), 0x8a1a10, PLASTIC);
+    for (let k = 0; k < 3; k++) wh.add(cyl(0.35, 3.4, 6), M(Math.cos(k * 2.094 + R90) * 1.7, Math.sin(k * 2.094 + R90) * 1.7, 0, 0, 0, k * 2.094), 0x8a1a10, PLASTIC);
     wh.add(cyl(1, 1.6, 8), M(0, 0, 0, R90, 0, 0), brass, BRASS);
     this.wheel.add(solidMesh(this.st, wh));
     this.wheel.position.set(0, -4, 1.8);
@@ -68,18 +68,18 @@ export class Lung3D {
     const g = new Mold()
       .add(cyl(7.6, 2.2, 18), M(0, GAUGE_Y, 0, R90, 0, 0), 0xb8c0c8, CHROME)
       .add(cyl(6.9, 0.6, 18), M(0, GAUGE_Y, 1.2, R90, 0, 0), 0xe8eef2, CHROME)
-      .add(box(3, GAUGE_Y - 7 - LUNG_FLOOR, 3), M(0, (GAUGE_Y - 7 + LUNG_FLOOR) / 2, -1.5), 0x3a2418, PLASTIC)
+      .add(cyl(1.4, GAUGE_Y - 7 - LUNG_FLOOR, 10), M(0, (GAUGE_Y - 7 + LUNG_FLOOR) / 2, -1.5), 0x3a2418, PLASTIC)
       .add(box(30, 2.4, 8), M(0, LUNG_FLOOR + 1.2, 0), 0x2a1a12, PLASTIC)
       .add(box(26, 0.6, 8.2), M(0, LUNG_FLOOR + 2.5, 0), 0x4a3424, PLASTIC)
-      .add(box(1.8, GAUGE_Y + 2 - LUNG_FLOOR, 1.8), M(-11, (GAUGE_Y + 2 + LUNG_FLOOR) / 2, -0.5), 0x2a1a12, PLASTIC)
+      .add(cyl(0.9, GAUGE_Y + 2 - LUNG_FLOOR, 8), M(-11, (GAUGE_Y + 2 + LUNG_FLOOR) / 2, -0.5), 0x2a1a12, PLASTIC)
       .add(box(3.6, 2, 3.6), M(-11, GAUGE_Y + 2.4, 0), 0x2a1a12, PLASTIC)
       .add(cyl(2.3, 1, 10), M(-11, GAUGE_Y + 3.6, 0), 0xc0902e, BRASS)
       .add(cyl(2.9, 1.4, 10), M(11.5, GAUGE_Y - 5.2, 0), 0x1a1612, PLASTIC)
-      .add(box(1.8, GAUGE_Y - 6 - LUNG_FLOOR, 1.8), M(11.5, (GAUGE_Y - 6 + LUNG_FLOOR) / 2, -0.5), 0x2a1a12, PLASTIC);
+      .add(cyl(0.9, GAUGE_Y - 6 - LUNG_FLOOR, 8), M(11.5, (GAUGE_Y - 6 + LUNG_FLOOR) / 2, -0.5), 0x2a1a12, PLASTIC);
     this.base = solidMesh(this.st, g); r.add(this.base);
     const faceMesh = new THREE.Mesh(new THREE.CircleGeometry(6.6, 20), this.st.solid({ map: face.tex, wear: 0.2 }));
     faceMesh.position.set(0, GAUGE_Y, 1.25); r.add(faceMesh);
-    const ng = new Mold().add(box(0.8, 5.4, 0.4), M(0, 2.5, 0), 0xb8201a, PLASTIC).add(cyl(0.9, 0.6, 8), M(0, 0, 0.2, R90, 0, 0), 0xc0902e, BRASS);
+    const ng = new Mold().add(new THREE.CylinderGeometry(0.15, 0.5, 5.4, 6), M(0, 2.5, 0, 0, 0, 0, 1, 1, 0.5), 0xb8201a, PLASTIC).add(cyl(0.9, 0.6, 8), M(0, 0, 0.2, R90, 0, 0), 0xc0902e, BRASS);
     this.needle = solidMesh(this.st, ng);
     this.needle.position.set(0, GAUGE_Y - 1.4, 1.7); r.add(this.needle);
     const cover = new THREE.Mesh(new Mold().add(new THREE.SphereGeometry(6.8, 16, 6, 0, Math.PI * 2, 0, 0.5), M(0, 0, -6, R90, 0, 0), 0xffffff, GLASS).build(), this.st.surf('glass', { alpha: 0.03, color: 0xe8f0ee }));

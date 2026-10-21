@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import type { Item } from '../items/item';
 import { type GridSpec, type Rot, dropSpot, extentIn } from '../items/grid';
-import { ModelBuilder } from '../gfx/modelBuilder';
+import { Shape } from './shapes';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { GridView3, type DropAt } from './gridView3';
 import { pixTag, type PixTag } from './tags';
@@ -71,64 +71,63 @@ export class CubeView extends GridView3 {
     for (const m of this.shell) m.parent?.remove(m);
     this.shell = [];
     const O = I + 2 * W;
-    const add = (mb: ModelBuilder, mat: THREE.Material, parent: THREE.Object3D = this.body) => { const m = new THREE.Mesh(mb.build(), mat); parent.add(m); this.shell.push(m); return m; };
-    const B = () => { const b = new ModelBuilder(); b.setFaceShading(false); return b; };
-    // iron: the walls and floor
-    const iron = B();
-    iron.box(0, -W, 0, O, W, O, 'metal_dark');
-    iron.box(0, -W, -I / 2 - W / 2, O, H + W, W, 'metal_dark');
-    iron.box(0, -W, I / 2 + W / 2, O, H + W, W, 'metal_dark');
-    for (const s of [-1, 1]) iron.box(s * (I / 2 + W / 2), -W, 0, W, H + W, I, 'metal_dark', { color: 0xf0f0f0 });
-    add(iron, metalMat('iron', 2));
+    const add = (sh: Shape, mat: THREE.Material, parent: THREE.Object3D = this.body) => { const m = new THREE.Mesh(sh.build(), mat); parent.add(m); this.shell.push(m); return m; };
+    // iron: the walls and floor, edges rolled
+    const iron = new Shape(2);
+    iron.box(0, -W, 0, O, W, O, 0xffffff, 0.006);
+    iron.box(0, -W, -I / 2 - W / 2, O, H + W, W, 0xffffff, 0.006);
+    iron.box(0, -W, I / 2 + W / 2, O, H + W, W, 0xffffff, 0.006);
+    for (const s2 of [-1, 1]) iron.box(s2 * (I / 2 + W / 2), -W, 0, W, H + W, I, 0xf0f0f0, 0.006);
+    add(iron, metalMat('iron', 1));
     // rust bloom on the floor of the box where damp things sat
-    const rust = B();
-    rust.box(0, 0.0005, 0, I, 0.002, I, 'metal_rusty');
-    add(rust, metalMat('rust', 3));
-    // steel: corner posts, the rim band, rivets, the stamped dividers on the floor
-    const steel = B();
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) steel.box(sx * (O / 2), -W - 0.002, sz * (O / 2), 0.03, H + W + 0.006, 0.03, 'metal_grey', { color: 0xc8ccd0 });
-    for (const sz of [-1, 1]) steel.box(0, H - 0.012, sz * (O / 2 + 0.002), O + 0.01, 0.016, 0.008, 'metal_grey');
-    for (const sx of [-1, 1]) steel.box(sx * (O / 2 + 0.002), H - 0.012, 0, 0.008, 0.016, O + 0.01, 'metal_grey');
+    const rust = new Shape(3);
+    rust.box(0, 0.0005, 0, I, 0.002, I, 0xffffff, 0.0008);
+    add(rust, metalMat('rust', 1));
+    // steel: corner posts, the rim band, domed rivets, the stamped dividers on the floor, bolt housings
+    const steel = new Shape(3);
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) steel.box(sx * (O / 2), -W - 0.002, sz * (O / 2), 0.03, H + W + 0.006, 0.03, 0xc8ccd0, 0.008);
+    for (const sz of [-1, 1]) steel.box(0, H - 0.012, sz * (O / 2 + 0.002), O + 0.01, 0.016, 0.008, 0xffffff, 0.003);
+    for (const sx of [-1, 1]) steel.box(sx * (O / 2 + 0.002), H - 0.012, 0, 0.008, 0.016, O + 0.01, 0xffffff, 0.003);
     for (let i = 0; i < 7; i++) {
       const x = -O / 2 + 0.03 + i * ((O - 0.06) / 6);
-      for (const y of [-W / 2, H - 0.03]) { steel.push().translate(x, y, O / 2 + 0.001).rotateX(Math.PI / 2); steel.cylinder(0, 0, 0, 0.0055, 0.006, 6, 'metal_grey'); steel.pop(); }
+      for (const y of [-W / 2, H - 0.022]) { steel.dome(x, y, O / 2 + 0.001, 0.0058); steel.dome(x, y, -O / 2 - 0.001, 0.0058, 0xffffff, [-Math.PI / 2, 0, 0]); }
     }
-    for (let i = 1; i < spec.w; i++) { steel.box(-I / 2 + i * CELL, 0, 0, 0.003, 0.005, I, 'metal_grey', { color: 0xb0b4b8 }); steel.box(0, 0, -I / 2 + i * CELL, I, 0.005, 0.003, 'metal_grey', { color: 0xb0b4b8 }); }
-    // bolt housings: two on the front, one each side
+    for (let i = 1; i < spec.w; i++) { steel.box(-I / 2 + i * CELL, 0, 0, 0.003, 0.005, I, 0xb0b4b8, 0.0012); steel.box(0, 0, -I / 2 + i * CELL, I, 0.005, 0.003, 0xb0b4b8, 0.0012); }
     const boltPos: [number, number, number, number][] = [[-0.14, H - 0.05, O / 2 + 0.012, 0], [0.04, H - 0.05, O / 2 + 0.012, 0], [-O / 2 - 0.012, H - 0.05, 0.05, 1], [O / 2 + 0.012, H - 0.05, -0.05, 1]];
-    for (const [x, y, z, side] of boltPos) steel.box(x, y - 0.012, z, side ? 0.016 : 0.034, 0.036, side ? 0.034 : 0.016, 'metal_grey', { color: 0x9a9ea2 });
-    // the backing for the brass name plate
-    steel.box(-0.1, H * 0.46, O / 2 + 0.003, 0.16, 0.054, 0.004, 'metal_grey', { color: 0x606468 });
-    add(steel, metalMat('steel', 3));
-    // the reader: a bakelite housing, a brass bezel round the tube, two relays
-    const bak = B();
-    bak.box(0.11, H * 0.42, O / 2 + 0.004, 0.1, 0.1, 0.008, 'rubber_black');
-    for (const dy of [0.02, 0.07]) bak.box(0.175, H * 0.42 + dy, O / 2 + 0.008, 0.022, 0.022, 0.016, 'rubber_black', { color: 0x606060 });
-    add(bak, metalMat('bakelite', 4));
-    const brass = B();
-    for (const [dx, dy, w, h] of [[0, 0.036, 0.08, 0.008], [0, -0.036, 0.08, 0.008], [0.036, 0, 0.008, 0.08], [-0.036, 0, 0.008, 0.08]] as [number, number, number, number][]) brass.box(0.11 + dx, H * 0.42 + 0.05 + dy - h / 2, O / 2 + 0.01, w, h, 0.006, 'metal_brass');
-    for (const dy of [0.02, 0.07]) { brass.push().translate(0.175, H * 0.42 + dy + 0.022, O / 2 + 0.012); brass.cylinder(0, 0, 0, 0.006, 0.01, 8, 'metal_brass', { color: 0xd88a50 }); brass.pop(); }
-    add(brass, metalMat('brass', 4));
-    // the bolt pins (they ride up into the lid when locked)
-    const bg = B();
-    bg.cylinder(0, 0, 0, 0.007, 0.05, 8, 'metal_brushed');
+    for (const [x, y, z, side] of boltPos) steel.box(x, y - 0.012, z, side ? 0.016 : 0.034, 0.036, side ? 0.034 : 0.016, 0x9a9ea2, 0.004);
+    steel.box(-0.1, H * 0.46, O / 2 + 0.003, 0.16, 0.054, 0.004, 0x606468, 0.0015);
+    add(steel, metalMat('steel', 1));
+    // the reader: a bakelite housing, a brass bezel round the tube, two relays with copper coils
+    const bak = new Shape(4);
+    bak.box(0.11, H * 0.42, O / 2 + 0.004, 0.1, 0.1, 0.01, 0xffffff, 0.005);
+    for (const dy of [0.02, 0.07]) bak.box(0.175, H * 0.42 + dy, O / 2 + 0.008, 0.022, 0.022, 0.016, 0x707070, 0.004);
+    add(bak, metalMat('bakelite', 1));
+    const brass = new Shape(4);
+    brass.ring(0.11, H * 0.42 + 0.05, O / 2 + 0.0105, 0.044, 0.0042, 0xffffff, 4, [0, 0, Math.PI / 4]);
+    for (const dy of [0.02, 0.07]) brass.cyl(0.175, H * 0.42 + dy + 0.022, O / 2 + 0.012, 0.006, 0.01, 0xd88a50, 12);
+    for (const [dx, dy] of [[-0.04, -0.04], [0.04, -0.04], [-0.04, 0.04], [0.04, 0.04]]) brass.dome(0.11 + dx, H * 0.42 + 0.05 + dy, O / 2 + 0.0095, 0.004);
+    add(brass, metalMat('brass', 1));
+    // the bolt pins: round-ended chrome rods (they ride up into the lid when locked)
+    const bg = new Shape(4);
+    bg.capsule(0, 0, 0, 0.0068, 0.05);
     const bgeo = bg.build();
     this.bolts.length = 0; this.boltRest.length = 0;
     for (const [x, y, z] of boltPos) {
-      const m = new THREE.Mesh(bgeo, metalMat('chrome', 2));
+      const m = new THREE.Mesh(bgeo, metalMat('chrome', 1));
       m.position.set(x, y - 0.006, z);
       this.body.add(m); this.shell.push(m); this.bolts.push(m); this.boltRest.push(y - 0.006);
     }
-    // the lid, hinged along the back top edge
+    // the lid, hinged along the back top edge: a rolled-edge iron slab, two steel straps, a handle
     this.lid.position.set(0, H, -O / 2);
-    const li = B();
-    li.box(0, 0, O / 2, O + 0.008, W * 1.1, O + 0.008, 'metal_dark');
-    add(li, metalMat('iron', 2), this.lid);
-    const ls = B();
-    ls.box(0, W * 1.1, O / 2, O - 0.05, 0.006, O - 0.05, 'metal_grey', { color: 0xb8bcc0 });
-    ls.box(0, W * 1.1 + 0.006, O / 2 + 0.04, 0.16, 0.022, 0.024, 'metal_grey', { color: 0x8a8e92 });
-    for (const x of [-0.19, 0.19]) ls.box(x, -0.004, O / 2, 0.012, 0.004, O - 0.02, 'metal_grey', { color: 0x9a9ea2 });
-    add(ls, metalMat('steel', 3), this.lid);
+    const li = new Shape(2);
+    li.box(0, 0, O / 2, O + 0.008, W * 1.1, O + 0.008, 0xffffff, 0.007);
+    add(li, metalMat('iron', 1), this.lid);
+    const ls = new Shape(3);
+    ls.box(0, W * 1.1 - 0.001, O / 2, O - 0.05, 0.006, O - 0.05, 0xb8bcc0, 0.0025);
+    ls.capsule(-0.08, W * 1.1 + 0.022, O / 2 + 0.04, 0.007, 0.16, 0x8a8e92, [0, 0, -Math.PI / 2]);
+    for (const x of [-0.08, 0.08]) ls.cyl(x, W * 1.1, O / 2 + 0.04, 0.006, 0.024, 0x8a8e92, 10);
+    for (const x of [-0.19, 0.19]) ls.box(x, -0.004, O / 2, 0.012, 0.004, O - 0.02, 0x9a9ea2, 0.0018);
+    add(ls, metalMat('steel', 1), this.lid);
     // a bulb in a wire cage under the lid
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.01, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd890 }));
     bulb.position.set(0, -0.016, O * 0.62);

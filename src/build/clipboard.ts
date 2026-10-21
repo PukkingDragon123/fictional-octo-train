@@ -15,7 +15,9 @@ import { objDef, objectGeometry } from '../world/objects';
 import { itemDef } from '../items/item';
 import { researchNode } from '../game/research';
 import { lerp, clamp } from '../core/math';
-import { Sheet, sheetMesh, overlayRay, shinyMaterial, whenFonts, FONT } from './paper';
+import { Sheet, sheetMesh, overlayRay, whenFonts, FONT } from './paper';
+import { std, roundPlate, rod, ring, capsule } from './shapes';
+import { fpArmsFor, fpLightRig, type FpArm } from '../fp/hands';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { PIECES, CAT_NAMES, type Piece, type PieceCat } from './pieces';
 import type { SettleStats } from './settlement';
@@ -51,24 +53,23 @@ export class Clipboard {
   private ray = new THREE.Raycaster();
   private hits: THREE.Object3D[] = [];
   private toggleM: THREE.Mesh;
+  private arm: FpArm | null = null;
+  private armSkin = -1;
+  private hold = new THREE.Group();
 
   constructor() {
     this.g = fpGroup('build');
     this.g.add(this.rig);
-    const M = worldMaterial({ noVis: true, noFog: true, noGrid: true, bpTag: 'board' } as any);
-    const S = shinyMaterial(0xb8bcc0, 80, 0xd0d0d0);
-    // ---- masonite board, steel clip
-    const bb = new ModelBuilder();
-    bb.box(0, -0.2, 0, 0.3, 0.4, 0.008, 'wood_dark', { color: 0x8a6a4a });
-    bb.box(0, 0.17, 0.006, 0.12, 0.035, 0.012, 'metal_grey');
-    for (const x of [-0.05, 0.05]) bb.box(x, 0.16, 0.012, 0.01, 0.01, 0.006, 'metal_dark');
-    this.board = new THREE.Mesh(bb.build(), M);
-    const clip = new ModelBuilder(); clip.cylinderX(0, 0.172, 0.014, 0.006, 0.1, 8, 'chrome'); clip.box(0, 0.168, 0.017, 0.07, 0.004, 0.012, 'chrome');
-    this.rig.add(new THREE.Mesh(clip.build(), S));
-    this.board.rotation.x = 0; this.rig.add(this.board);
+    const CHROME = std(0xc8ccd0, 0.28, 0.75), STEEL = std(0x3a3e40, 0.45, 0.6), GREEN = std(0x4e6250, 0.55, 0.3), BAKE = std(0x1c1a18, 0.35, 0.05);
+    const mesh = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); this.rig.add(o); return o; };
+    // ---- masonite board (rounded, bevelled), a sprung steel clip
+    this.board = mesh(roundPlate(0.3, 0.4, 0.018, 0.007), std(0x7a5a3c, 0.82, 0), 0, 0, 0);
+    mesh(roundPlate(0.12, 0.034, 0.01, 0.007, 0.002), CHROME, 0, 0.178, 0.006);
+    const roll = mesh(rod(0.0055, 0.09), CHROME, 0, 0.165, 0.011); void roll;
+    for (const x of [-0.045, 0.045]) mesh(new THREE.SphereGeometry(0.0035, 8, 6), STEEL, x, 0.186, 0.0105);
     // ---- the blueprint sheet (slightly curled: two planes, one tilted)
     this.sheetM = sheetMesh(this.sheet, PW, PH);
-    this.sheetM.position.set(0, 0.145 - PH / 2, 0.0055);
+    this.sheetM.position.set(0, 0.145 - PH / 2, 0.0042);
     this.rig.add(this.sheetM);
     // ---- the scale model stands on the paper
     this.miniMesh = new THREE.Mesh(new THREE.BufferGeometry(), worldMaterial({ noVis: true, noFog: true, noGrid: true, bpTag: 'mini' } as any));
@@ -77,44 +78,44 @@ export class Clipboard {
     // the model stands in elevation on the drawing (up the page), turning on its own axis
     this.mini.position.set(0, this.uvY(196 / SH), 0.006);
     this.rig.add(this.mini);
-    // ---- gauge bar
-    const gb = new ModelBuilder();
-    gb.box(0, 0.19, -0.004, 0.31, 0.09, 0.016, 'metal_painted_green');
-    for (const x of [-0.15, 0.15]) gb.cylinder(x, 0.19, 0.005, 0.006, 0.006, 6, 'chrome');
-    gb.box(0, 0.19, -0.012, 0.02, 0.04, 0.02, 'metal_dark');
-    this.rig.add(new THREE.Mesh(gb.build(), M));
+    // ---- gauge bar: painted steel, chrome-ringed dials with red needles
+    mesh(roundPlate(0.31, 0.09, 0.016, 0.012), GREEN, 0, 0.235, -0.004);
+    for (const x of [-0.145, 0.145]) mesh(new THREE.SphereGeometry(0.004, 8, 6), CHROME, x, 0.272, 0.003);
     const labels: [string, 'low' | 'high' | 'none'][] = [['DEF', 'low'], ['CMF', 'low'], ['FOOD', 'low'], ['PWR', 'low'], ['GAS', 'low']];
+    const needleGeo = (() => { const sh = new THREE.Shape(); sh.moveTo(-0.0016, 0); sh.lineTo(0, 0.02); sh.lineTo(0.0016, 0); sh.lineTo(0, -0.004); sh.lineTo(-0.0016, 0); return new THREE.ExtrudeGeometry(sh, { depth: 0.0008, bevelEnabled: false }); })();
+    const domeGeo = new THREE.SphereGeometry(0.046, 16, 3, 0, Math.PI * 2, 0, 0.5).translate(0, -0.046 * Math.cos(0.5), 0);
+    const glass = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.14 });
     labels.forEach(([lab, red], i) => {
-      const x = -0.12 + i * 0.06, y = 0.24;
-      const bez = new ModelBuilder(); bez.cylinder(0, 0, 0, 0.026, 0.01, 14, 'chrome');
-      const bm = new THREE.Mesh(bez.build(), S); bm.rotation.x = Math.PI / 2; bm.position.set(x, y, -0.002); this.rig.add(bm);
+      const x = -0.12 + i * 0.06, y = 0.245;
+      mesh(ring(0.0235, 0.0032), CHROME, x, y, 0.0035);
       const face = new Sheet(96, 96); whenFonts(() => { face.gaugeFace(lab, red); face.commit(); });
-      const fm = new THREE.Mesh(new THREE.CircleGeometry(0.022, 16), new THREE.MeshLambertMaterial({ map: face.tex }));
-      fm.position.set(x, y, 0.0096); this.rig.add(fm);
-      const nb = new ModelBuilder(); nb.box(0, 0, 0, 0.0025, 0.019, 0.001, 'white', { color: 0xc8302a });
-      const needle = new THREE.Group(); const nm = new THREE.Mesh(nb.build(), M); needle.add(nm);
-      needle.position.set(x, y - 0.002, 0.0105); this.rig.add(needle);
-      const hub = new ModelBuilder(); hub.cylinder(0, 0, 0, 0.003, 0.002, 6, 'metal_dark');
-      const hm = new THREE.Mesh(hub.build(), M); hm.rotation.x = Math.PI / 2; hm.position.set(x, y - 0.002, 0.011); this.rig.add(hm);
+      const fm = new THREE.Mesh(new THREE.CircleGeometry(0.022, 20), new THREE.MeshStandardMaterial({ map: face.tex, roughness: 0.4 }));
+      fm.position.set(x, y, 0.0026); this.rig.add(fm);
+      const needle = new THREE.Group(); needle.add(new THREE.Mesh(needleGeo, std(0xc0281e, 0.4, 0)));
+      needle.position.set(x, y - 0.002, 0.0032); this.rig.add(needle);
+      mesh(new THREE.SphereGeometry(0.0028, 8, 6), STEEL, x, y - 0.002, 0.0042);
+      // a domed glass over each dial
+      const gl = new THREE.Mesh(domeGeo, glass);
+      gl.rotation.x = Math.PI / 2; gl.position.set(x, y, 0.0026); this.rig.add(gl);
       this.gauges.push({ needle, v: 0, target: 0 });
     });
     // the rank readout: a little amber tube in a steel bezel on the clip
     this.rank = crtScreen(0.1, 0.022, { tint: 0xffc070, res: [256, 56], curvature: 0.12, reflect: 0.5, glow: 1 });
-    const rb = new ModelBuilder(); rb.box(0, -0.016, -0.004, 0.112, 0.032, 0.008, 'metal_dark');
-    const rbm = new THREE.Mesh(rb.build(), S); rbm.position.set(0, 0.19, 0.016); this.rig.add(rbm);
-    this.rank.mesh.position.set(0, 0.19, 0.0165); this.rig.add(this.rank.mesh);
-    // ---- demolish toggle on the right edge (bakelite base, steel lever)
-    const tb = new ModelBuilder(); tb.box(0, -0.016, 0, 0.034, 0.032, 0.014, 'plastic_black'); tb.box(0, 0.02, 0.002, 0.03, 0.012, 0.003, 'bt_hazard', { fit: true });
-    this.toggleM = new THREE.Mesh(tb.build(), M); this.toggleM.position.set(0.168, -0.05, 0.006); this.rig.add(this.toggleM);
-    const lb = new ModelBuilder(); lb.cylinder(0, 0, 0, 0.004, 0.026, 6, 'chrome'); lb.sphere(0, 0.027, 0, 0.0065, 6, 4, 'plastic_red');
-    const lm = new THREE.Mesh(lb.build(), S); this.lever.add(lm); this.lever.position.set(0.168, -0.05, 0.014); this.rig.add(this.lever);
+    mesh(roundPlate(0.114, 0.034, 0.006, 0.008, 0.002), STEEL, 0, 0.2, 0.012);
+    this.rank.mesh.position.set(0, 0.2, 0.0165); this.rig.add(this.rank.mesh);
+    // ---- demolish toggle on the right edge: bakelite boss, chrome bat lever, hazard plate
+    this.toggleM = mesh(roundPlate(0.034, 0.04, 0.008, 0.014, 0.003), BAKE, 0.168, -0.05, 0.006);
+    const lm = new THREE.Mesh(capsule(0.0035, 0.022), CHROME); this.lever.add(lm);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.0062, 10, 8), std(0xb8261c, 0.35, 0)); knob.position.y = 0.03; this.lever.add(knob);
+    this.lever.position.set(0.168, -0.05, 0.013); this.rig.add(this.lever);
+    // ---- the left hand holds the board by its edge (made when first shown: the survivor's own skin)
+    this.hold.position.set(-0.19, -0.33, -0.02); this.hold.rotation.z = -0.32; this.rig.add(this.hold);
     // lights of its own (the stage may have none)
-    const key = new THREE.DirectionalLight(0xfff2e0, 1.0); key.position.set(-0.5, 0.8, 1); this.g.add(key);
-    this.g.add(new THREE.AmbientLight(0xb8c0d0, 0.55));
+    this.g.add(fpLightRig());
     // held low and to the left (the body gauges live on the right), tilted toward you
     this.rig.scale.setScalar(0.78);
     this.rig.rotation.set(-0.28, 0.32, -0.05);
-    this.hits = [this.board, this.sheetM, this.toggleM, lm];
+    this.hits = [this.board, this.sheetM, this.toggleM, lm, knob];
     bus.on('fpChange', (n: string | null) => { if (n === null && this.shown) setTimeout(() => { if (this.shown && !fpOwner()) fpClaim('build', 2, { cinematic: 'none' }); }, 0); });
   }
 
@@ -123,7 +124,16 @@ export class Clipboard {
   show(on: boolean) {
     if (on === this.shown) return;
     this.shown = on;
-    if (on) { fpClaim('build', 2, { cinematic: 'none' }); this.raise = 0; this.sig = ''; }
+    if (on) {
+      const skin = (G.local as any)?.app?.skin ?? 0xe8b98f;
+      if (!this.arm || skin !== this.armSkin) {
+        if (this.arm) { this.arm.root.removeFromParent(); this.arm.dispose(); }
+        this.arm = fpArmsFor(G.local as any).left; this.armSkin = skin;
+        this.arm.root.rotation.set(0.15, Math.PI, 0); this.hold.add(this.arm.root);
+        this.arm.pose('grip', true);
+      }
+      fpClaim('build', 2, { cinematic: 'glance' }); this.raise = 0; this.sig = '';
+    }
     else fpRelease('build');
   }
 
@@ -164,6 +174,7 @@ export class Clipboard {
       gg.needle.rotation.z = Math.PI * (0.75 - gg.v * 1.5) + Math.sin(G.time * 23 + i) * 0.01;
     });
     this.lever.rotation.z = lerp(this.lever.rotation.z, st.demolish ? -0.6 : 0.6, 1 - Math.exp(-dt * 14));
+    this.arm?.update(dt);
     // the paper (redrawn only when something on it changes)
     const cost = st.pc.cost.map(([k, n]) => `${k}:${n}:${Math.min(n, st.have(k))}`).join(',');
     const sig = [mk, st.cat, st.idx, st.unlocked, cost, st.demolish, st.tool, s?.rank ?? '-', st.claimName].join('|');

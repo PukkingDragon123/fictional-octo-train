@@ -10,6 +10,7 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { pixTag, dialFace, tagString, setString, type PixTag } from './tags';
 import { damp } from './fpKit';
 import { metalMat, metalEnv } from './metal';
+import { Shape } from './shapes';
 
 const _v = new THREE.Vector3();
 
@@ -185,15 +186,13 @@ export class ControlBox {
   private button: THREE.Object3D;
   private face: PixTag;
   constructor() {
-    const mb = new ModelBuilder();
-    mb.setFaceShading(false);
-    mb.box(0, -0.028, 0, 0.26, 0.028, 0.1, 'rubber_black');
-    this.g.add(new THREE.Mesh(mb.build(), metalMat('bakelite', 3)));
-    const rim = new ModelBuilder();
-    rim.setFaceShading(false);
-    rim.box(0, -0.004, 0, 0.27, 0.006, 0.11, 'metal_grey');
-    for (const [x, z] of [[-0.125, -0.045], [0.125, -0.045], [-0.125, 0.045], [0.125, 0.045]]) rim.cylinder(x, 0.002, z, 0.004, 0.002, 6, 'metal_grey', { color: 0xd0d0c8 });
-    this.g.add(new THREE.Mesh(rim.build(), metalMat('steel', 3)));
+    const body = new Shape(4);
+    body.box(0, -0.03, 0, 0.26, 0.03, 0.1, 0xffffff, 0.009);
+    this.g.add(new THREE.Mesh(body.build(), metalMat('bakelite', 1)));
+    const rim = new Shape(4);
+    rim.box(0, -0.004, 0, 0.27, 0.006, 0.11, 0xffffff, 0.0028);
+    for (const [x, z] of [[-0.125, -0.045], [0.125, -0.045], [-0.125, 0.045], [0.125, 0.045]]) rim.dome(x, 0.002, z, 0.0042, 0xd0d0c8, [0, 0, 0]);
+    this.g.add(new THREE.Mesh(rim.build(), metalMat('steel', 1)));
     this.face = pixTag('bakelite', 104, 40, 0.26);
     this.face.mesh.rotation.x = -Math.PI / 2;
     this.face.mesh.position.y = 0.0025;
@@ -206,9 +205,9 @@ export class ControlBox {
     t.flush();
     const lever = new ModelBuilder();
     lever.setFaceShading(false);
-    lever.cylinder(0, 0, 0, 0.009, 0.006, 8, 'metal_brushed', { color: 0xc8c8c0 });
-    lever.cylinder(0, 0.004, 0, 0.003, 0.034, 6, 'metal_brushed', { color: 0xe0e0d8, rTop: 0.0025 });
-    lever.sphere(0, 0.04, 0, 0.0055, 6, 4, 'metal_brushed', { color: 0xe8e8e0 });
+    lever.cylinder(0, 0, 0, 0.009, 0.006, 14, 'metal_brushed', { color: 0xc8c8c0 });
+    lever.cylinder(0, 0.004, 0, 0.003, 0.034, 10, 'metal_brushed', { color: 0xe0e0d8, rTop: 0.0025 });
+    lever.sphere(0, 0.04, 0, 0.0055, 10, 7, 'metal_brushed', { color: 0xe8e8e0 });
     const lg = lever.build();
     const tx = [-0.09, -0.032, 0.025];
     ['turn', 'tip', 'roll'].forEach((k, i) => {
@@ -220,7 +219,7 @@ export class ControlBox {
     });
     const kb = new ModelBuilder();
     kb.setFaceShading(false);
-    kb.cylinder(0, 0, 0, 0.02, 0.016, 12, 'rubber_black', { color: 0x2a1a10 });
+    kb.cylinder(0, 0, 0, 0.02, 0.016, 18, 'rubber_black', { color: 0x2a1a10, rTop: 0.017 });
     kb.box(0, 0.016, -0.01, 0.004, 0.003, 0.02, 'plastic_white', { color: 0xf0e8d0 });
     this.knob = new THREE.Mesh(kb.build(), metalMat('bakelite', 2));
     this.knob.position.set(0.075, 0.003, -0.012);
@@ -228,8 +227,9 @@ export class ControlBox {
     this.g.add(this.knob); this.ctl.push(this.knob);
     const bb = new ModelBuilder();
     bb.setFaceShading(false);
-    bb.cylinder(0, 0, 0, 0.012, 0.012, 8, 'metal_grey', { color: 0x6a6a6a });
-    bb.cylinder(0, 0.012, 0, 0.017, 0.012, 12, 'plastic_white', { color: 0xc8281c, rTop: 0.014 });
+    bb.cylinder(0, 0, 0, 0.012, 0.012, 14, 'metal_grey', { color: 0x6a6a6a });
+    bb.cylinder(0, 0.012, 0, 0.017, 0.008, 16, 'plastic_white', { color: 0xc8281c, rTop: 0.0165 });
+    bb.push().translate(0, 0.02, 0).scale(1, 0.45, 1); bb.sphere(0, 0, 0, 0.0165, 16, 8, 'plastic_white', { color: 0xc8281c }); bb.pop();
     this.button = new THREE.Mesh(bb.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0, envMap: metalEnv(), envMapIntensity: 0.7 }));
     this.button.position.set(0.093, 0.003, 0.006);
     this.button.userData.ctl = 'shake';

@@ -56,8 +56,10 @@ import { rigNumber } from '../content/items/prisoner';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { createPreviewRig, type HumanRig, type Pose } from '../entities/humanRig';
 import { fpGroup, fpClaim, fpRelease, fpCamera, fpOwner } from '../fp/fp';
+import { fpArmsFor, type FpArm, type HandPose } from '../fp/hands';
 import { hitstop } from '../gfx/juice';
 import { IntroSet, IX, STAGE } from './introSet';
+import { roundBox } from '../content/furniture/zd_contract';
 import { worldMaterial } from '../gfx/materials';
 import { crtScreen, phosphorText, fontsReady, type CrtScreen } from '../gfx/crt';
 import type { SeamFx } from './seam';
@@ -173,12 +175,12 @@ function bandMesh(): Band {
   mb.cylinder(-0.052, -0.02, 0.0, 0.011, 0.024, 6, 'chrome');
   mb.box(-0.06, -0.016, 0, 0.012, 0.016, 0.016, 'metal_brass');
   // the housing on the back of the wrist: steel box, rivets, a hazard-striped tag
-  mb.box(0, -0.05, 0.044, 0.078, 0.074, 0.03, 'metal_dark', { color: 0x6a6e70 });
-  for (const [x, y] of [[-0.033, -0.046], [0.033, -0.046], [-0.033, 0.019], [0.033, 0.019]]) mb.box(x, y, 0.0595, 0.005, 0.005, 0.003, 'chrome');
+  roundBox(mb, 0, -0.05, 0.044, 0.078, 0.074, 0.03, 0.009, 'metal_dark', { color: 0x6a6e70 });
+  for (const [x, y] of [[-0.031, -0.046], [0.031, -0.046], [-0.031, 0.019], [0.031, 0.019]]) mb.cylinderZ(x, y, 0.0598, 0.003, 0.004, 6, 'chrome');
   mb.box(0, -0.049, 0.0592, 0.05, 0.007, 0.002, 'zd_hazard');
   // the tube's bezel: black bakelite round a small screen, the needle window, the lamp collar
-  mb.box(-0.008, -0.03, 0.0598, 0.044, 0.038, 0.004, 'plastic_black');
-  mb.box(0.026, -0.03, 0.0598, 0.016, 0.026, 0.003, 'plastic_black');
+  roundBox(mb, -0.008, -0.03, 0.0578, 0.044, 0.038, 0.006, 0.005, 'plastic_black');
+  roundBox(mb, 0.026, -0.03, 0.0578, 0.016, 0.026, 0.005, 0.004, 'plastic_black');
   mb.push().translate(0.026, 0.009, 0.06).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.007, 0.006, 8, 'chrome'); mb.pop();
   const g = new THREE.Group();
   const body = new THREE.Mesh(mb.build(), worldMaterial(STAGE));
@@ -252,6 +254,7 @@ export class Intro implements GameSystem {
   private path: { pts: [number, number][]; s: number; len: number; speed: number } | null = null;
   private armL: { p: THREE.Vector3; w: number } | null = null;
   private band: Band | null = null;
+  private arms: { arm: FpArm; farm: THREE.Object3D; hold: THREE.Group; side: 'L' | 'R' }[] = [];
   private bandT = -1; private crtT = 0;
   // guards' grips: which of my wrists each one holds
   private gripA = 0; private gripB = 0;
@@ -311,6 +314,18 @@ export class Intro implements GameSystem {
     this.me = createPreviewRig(p.app, p.computeOutfit());
     (this.me.bones as Record<string, THREE.Object3D>).head.scale.setScalar(0.001);
     root.add(this.me.root);
+    // your own forearms and hands: the shared smooth first-person arms (src/fp/hands.ts), riding the double's elbows
+    const arms = fpArmsFor(p);
+    for (const [arm, side] of [[arms.left, 'L'], [arms.right, 'R']] as [FpArm, 'L' | 'R'][]) {
+      const farm = this.me.j[side === 'L' ? 'farmL' : 'farmR'];
+      const hold = new THREE.Group();
+      farm.parent!.add(hold);
+      hold.add(arm.root);
+      // the rig's forearm hangs down its bone's -Y with the palm turned in; the fp arm runs up +Y, palm +Z
+      arm.root.rotation.set(0, side === 'L' ? -Math.PI / 2 : Math.PI / 2, Math.PI);
+      this.arms.push({ arm, farm, hold, side });
+    }
+    this.hands('claw', 'claw', 0.3);
     this.A = new Guard('A', 3, root);
     this.B = new Guard('B', 7, root);
     this.A.setHeld('baton'); this.B.setHeld('baton');
@@ -369,6 +384,8 @@ export class Intro implements GameSystem {
     for (const o of this.hiddenLights.splice(0)) o.visible = true;
     this.g.pr.scene.visible = true;
     this.A.dispose(); this.B.dispose();
+    for (const a of this.arms) a.arm.dispose();
+    this.arms.length = 0;
     this.me.root.removeFromParent();
     this.me.dispose();
     this.band = null;
@@ -505,7 +522,7 @@ export class Intro implements GameSystem {
   private sfx(key: string, vol = 1) { G.audio?.flat?.(key, 'sfx', vol); }
   private aim(yaw: number, pitch: number, roll = 0, rate = 3) { this.goal.yaw = yaw; this.goal.pitch = pitch; this.goal.roll = roll; this.goal.rate = rate; }
   private get seamFx(): SeamFx | null { return (G as unknown as { seamFx?: SeamFx }).seamFx ?? null; }
-  private wrist(side: 'L' | 'R', out: THREE.Vector3) { return palm(this.me, side, out); }
+  private wrist(side: 'L' | 'R', out: THREE.Vector3) { const a = this.arms.find((q) => q.side === side); return a ? a.arm.wrist.getWorldPosition(out) : palm(this.me, side, out); }
 
   /** a hard cut: the eyes shut for a beat (black), then open soft and pull into focus */
   private cutBlack(secs: number, soft = 0.9) { this.lidHold = secs; this.lid = 1; this.focus = Math.max(this.focus, soft); }
@@ -567,9 +584,15 @@ export class Intro implements GameSystem {
     }
   }
 
+  /** both hands' poses (eased by the arms themselves) and how badly they shake */
+  private hands(l: HandPose, r: HandPose, tremor = 0) {
+    for (const a of this.arms) { a.arm.pose(a.side === 'L' ? l : r); a.arm.tremor = tremor; }
+  }
   /** pose and place my own body, then the officers' hands on it */
   private updBody(dt: number) {
     const me = this.me, A = this.A, B = this.B;
+    // the double's own forearms are solved at full size, then folded away under the fp arms
+    for (const a of this.arms) a.farm.scale.setScalar(1);
     me.root.position.copy(this.bodyAt);
     me.root.rotation.y = this.bodyYaw;
     me.animate(dt, { speed: 0, stance: 'stand', full: '', action: '' as never, actionT: 0, actionDur: 1, twoHanded: false, limp: 0, tired: 0.6, panic: 0.8, cold: 0, aimPitch: 0, holdingLight: false, holding: false, lookYaw: 0, fidget: false });
@@ -578,6 +601,8 @@ export class Intro implements GameSystem {
     if (ps) overlay(me, ps, this.poseW);
     me.root.updateMatrixWorld(true);
     if (this.armL) { reachArm(me, 'L', this.armL.p, this.armL.w, v4.set(0.6, -1, 0.1)); me.root.updateMatrixWorld(true); }
+    for (const a of this.arms) { a.hold.position.copy(a.farm.position); a.hold.quaternion.copy(a.farm.quaternion); a.farm.scale.setScalar(0.001); a.arm.update(dt); }
+    me.root.updateMatrixWorld(true);
     // the officers' grips
     if (this.gripA > 0.01) A.reachR = { p: this.wrist('L', A.reachR?.p ?? new THREE.Vector3()), w: this.gripA, pole: POLE_A }; else if (A.reachR) A.reachR = null;
     if (this.gripB > 0.01) B.reachL = { p: this.wrist('R', B.reachL?.p ?? new THREE.Vector3()), w: this.gripB, pole: POLE_B }; else B.reachL = null;
@@ -617,8 +642,11 @@ export class Intro implements GameSystem {
   private fitBandMesh() {
     if (this.band) return;
     const b = this.band = bandMesh();
-    b.g.position.set(0, 0.075, 0);
-    this.me.j.handL.add(b.g);
+    // strapped on just behind the left wrist, the housing on the back of the arm
+    b.g.position.set(0, -0.012, 0); b.g.rotation.y = Math.PI;
+    if (this.arms.some((q) => q.side === 'L')) b.g.scale.x = -1; // the left arm is a mirrored right one: un-mirror the read-out
+    const left = this.arms.find((q) => q.side === 'L');
+    (left ? left.arm.wrist : this.me.j.handL).add(b.g);
     this.bandT = 0;
   }
   private updBand(dt: number) {
@@ -706,6 +734,7 @@ export class Intro implements GameSystem {
   private throwFrom = new THREE.Vector3();
   private startThrow() {
     this.go('throw');
+    this.hands('open', 'open', 0.4);
     this.say('OFFICER', 'Down.');
     this.throwFrom.copy(this.bodyAt);
     G.audio?.positionalLoop?.('ix_drag', null);
@@ -740,6 +769,7 @@ export class Intro implements GameSystem {
   // ------------------------------------------------------------------ 3. the beating
   private startBeat() {
     this.go('beat');
+    this.hands('fist', 'fist', 0.85);
     this.strikes = STRIKES.map((s) => ({ ...s }));
   }
   private updBeat(dt: number) {
@@ -767,7 +797,7 @@ export class Intro implements GameSystem {
       const yawTo = Math.atan2(-dx, -dz);
       this.aim(lerp(Math.PI, yawTo, 0.45), 0.95, next.who === 0 ? 0.18 : -0.18, 3);
     } else this.aim(Math.PI + 0.3, 1.1, 0.25, 1.2);
-    if (t > 4.4 && this.pose === 'cover') { this.pose = 'limp'; this.poseK = 9; }
+    if (t > 4.4 && this.pose === 'cover') { this.pose = 'limp'; this.poseK = 9; this.hands('relaxed', 'claw', 0.5); }
     this.at(0.35, 1, () => this.say('OFFICER', 'This is the orientation.'));
     this.at(2.9, 2, () => this.say('OFFICER', 'Nothing personal. It\'s itemised.'));
     this.at(4.3, 3, () => this.say('self', 'Stop - please - STOP-', 'self'));
@@ -801,6 +831,7 @@ export class Intro implements GameSystem {
   // ------------------------------------------------------------------ 4. into the press room
   private startHaul() {
     this.go('haul');
+    this.hands('claw', 'claw', 0.4);
     this.pose = 'drag'; this.poseK = 9;
     this.startDrag(IX.drag2, 1.25);
     this.set.startPress(3.4);
@@ -857,7 +888,7 @@ export class Intro implements GameSystem {
     } else { this.pose = 'kneel'; this.poseW = 1; this.bodyYaw = -Math.PI / 2; }
     this.aim(Math.PI / 2 + 0.6, -0.05, 0, 2.5);
     // A takes the left wrist and pulls the arm out in front; B comes in with the fitting gun
-    this.at(1.3, 1, () => { A.setHeld(null); B.setHeld('gun'); this.say('OFFICER', 'Left arm.'); });
+    this.at(1.3, 1, () => { A.setHeld(null); B.setHeld('gun'); this.say('OFFICER', 'Left arm.'); this.hands('open', 'fist', 0.7); });
     const eye = this.eye, fwdX = -1, fwdZ = 0;
     const tgt = v2.set(eye.x + fwdX * 0.46, eye.y - 0.32, eye.z + fwdZ * 0.46 + 0.1);
     if (t > 1.4) {
@@ -893,6 +924,7 @@ export class Intro implements GameSystem {
     this.sfx('remit_pierce', 1); this.sfx('bone_crunch', 1);
     setTimeout(() => this.sfx('debtor_scream', 1), 110);
     this.fitBandMesh();
+    this.hands('claw', 'fist', 1);
     const w = this.wrist('L', v1);
     if ((G.sandbox.gore ?? 2) > 0) {
       this.set.bleed(w.x, w.y, w.z, 0.1, 0.8, 0.9, 26, 2.8, 0.6);
@@ -925,6 +957,7 @@ export class Intro implements GameSystem {
     this.tapeFrom.copy(this.bodyAt);
     this.pose = 'stand'; this.poseW = 0;
     this.cutBlack(0.18, 0.7);
+    this.hands('relaxed', 'relaxed', 0.45);
     G.audio?.positionalLoop?.('ix_drone', 'seam_drone', this.p.x, this.p.z, 0.2);
   }
   private updTape(dt: number) {
@@ -959,6 +992,7 @@ export class Intro implements GameSystem {
   // ------------------------------------------------------------------ 7. through
   private startThrough() {
     this.go('through');
+    this.hands('open', 'open', 0.2);
   }
   private updThrough(dt: number) {
     const t = this.t, u = this.set.liqU;

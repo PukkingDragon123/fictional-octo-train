@@ -22,7 +22,7 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { buildObjGeometry } from '../world/objects';
 import { WZ, addTextureModule, atlas, makeRamp, ph, plate, screw, txtC } from '../content/furniture/a_lib';
-import { hopperModel, PRESS } from '../content/furniture/zd_contract';
+import { hopperModel, PRESS, roundBox } from '../content/furniture/zd_contract';
 import { pressPartGeo, ramAt, CYCLE } from './debt/hopper';
 import { Particles, PK } from '../gore/particles';
 import type { Zone } from '../world/zone';
@@ -134,8 +134,8 @@ export class IntroSet {
     // ceiling tubes in the wing (emissive) and a caged bulb in the antechamber
     const tube = new ModelBuilder();
     for (const [x, y, z] of TUBES) {
-      tube.box(x, y - 0.06, z, 0.3, 0.06, 1.24, 'metal_dark');
-      tube.box(x, y - 0.075, z, 0.2, 0.02, 1.18, 'white', { color: 0xe8f4ff, emissive: 1 });
+      roundBox(tube, x, y - 0.06, z, 0.3, 0.06, 1.24, 0.03, 'metal_dark');
+      for (const dx of [-0.055, 0.055]) tube.cylinderZ(x + dx, y - 0.085, z, 0.018, 1.16, 8, 'white', { color: 0xe8f4ff, emissive: 1 });
     }
     const tubes = add(tube); this.tubes.push(tubes);
     shell.cylinder(IX.drain[0], ante.h - 0.25, IX.drain[1], 0.09, 0.2, 7, 'metal_dark');
@@ -271,11 +271,11 @@ export class IntroSet {
     this.press = { g, ram, rods, lever, t: 99, period: 6.5, on: false, hits: 0 };
     // what is under it: a yellow bundle, a sleeve hanging out
     const b = new ModelBuilder();
-    b.box(0, 0, 0, 1.3, 0.55, 0.8, 'fabric_grey', { color: 0xd9a826 });
-    b.box(0.2, 0.5, 0.05, 0.7, 0.25, 0.55, 'fabric_grey', { color: 0xc89820 });
-    b.push().translate(0.62, 0.15, 0.32).rotateZ(-0.5); b.box(0, 0, 0, 0.5, 0.14, 0.14, 'fabric_grey', { color: 0xd9a826 }); b.pop();
-    b.box(0.92, 0.0, 0.42, 0.12, 0.08, 0.1, 'white', { color: 0xc89070 });
-    b.box(-0.3, 0.02, -0.1, 0.5, 0.3, 0.5, 'gore_flesh');
+    // a lumpy yellow bundle (what is left of the last one), a sleeve hanging out, a hand
+    for (const [x, y, z, r, sy] of [[0, 0.22, 0, 0.42, 0.6], [0.35, 0.2, 0.08, 0.33, 0.62], [-0.38, 0.18, -0.06, 0.32, 0.55], [0.1, 0.42, 0.04, 0.3, 0.55], [-0.1, 0.16, 0.22, 0.28, 0.5]] as [number, number, number, number, number][]) b.sphere(x, y, z, r, 12, 8, 'fabric_grey', { color: 0xd9a826, sy });
+    b.push().translate(0.6, 0.14, 0.3).rotateZ(-1.2).rotateX(0.3); b.cylinder(0, 0, 0, 0.07, 0.42, 10, 'fabric_grey', { color: 0xc89820, rTop: 0.06 }); b.pop();
+    b.sphere(0.98, 0.04, 0.42, 0.055, 10, 6, 'white', { color: 0xc89070, sy: 0.55 });
+    b.sphere(-0.3, 0.12, -0.18, 0.2, 10, 6, 'gore_flesh', { sy: 0.6 });
     this.bundle = new THREE.Mesh(b.build(), S);
     this.bundle.position.set(x, 0.12 * s, z);
     this.bundle.rotation.y = 0.3;

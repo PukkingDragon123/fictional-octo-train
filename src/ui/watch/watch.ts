@@ -14,6 +14,7 @@ import { damp, clamp, angleDiff } from '../../core/math';
 import { crtScreen, fontsReady, type CrtScreen } from '../../gfx/crt';
 import { Tube } from './tube';
 import { fpGroup, fpClaim, fpRelease, fpOwner } from '../../fp/fp';
+import { fpArm, type FpArm } from '../../fp/hands';
 import { hasUnlock, buyNode, researchNode, grantResearch } from '../../game/research';
 import { itemDef } from '../../items/item';
 import { punch } from '../../gfx/juice';
@@ -54,6 +55,9 @@ const CURV = 0.16;
 /** canvas pixels per layout unit (sharper type on better hardware) */
 const tubeScale = () => (G.pr?.quality === 'low' ? 1.25 : 1.5);
 
+/** is this mesh part of the given arm (the hit test sees only the watch itself) */
+function isArm(o: THREE.Object3D | null, arm: FpArm) { for (; o; o = o.parent) if (o === arm.root) return true; return false; }
+
 export class Watch {
   // ---- the old scanner's surface (touch layer, creature menus, session hotkeys)
   open = false;
@@ -91,6 +95,11 @@ export class Watch {
   private skin = -1;
   private hitFx = 0;
   private knobKick = 0;
+  /** the shared first-person arms: the watch arm and the finger that works the controls */
+  private armL!: FpArm;
+  private armR!: FpArm;
+  private poke: { at: THREE.Vector3; from: THREE.Vector3; t: number } | null = null;
+  private pokeQ = new THREE.Quaternion();
   private cine: 'full' | 'glance' = 'full';
   private lowerT = 0;
   private settleT = -1;
@@ -112,9 +121,14 @@ export class Watch {
     (this.crt.mat.uniforms.uRes.value as THREE.Vector2).set(SCR_W * 0.62, SCR_H * 0.62);
     this.tv = new Tube(this.crt.ctx, SCR_W, SCR_H, k);
     fontsReady().then(() => { this.tv.fontsOk = true; this.drawT = 0; });
-    this.model = buildWatchModel(this.crt.mesh);
+    // the shared smooth arms (src/fp/hands.ts): the left one wears the watch, the right one presses its keys
+    this.armL = fpArm('left', { skin: 0xe8b98f, sleeve: 0xeeb415, sleeveStyle: 'rolled' });
+    this.armR = fpArm('right', { skin: 0xe8b98f, sleeve: 0xeeb415, sleeveStyle: 'long' });
+    this.model = buildWatchModel(this.crt.mesh, this.armL);
     this.group = fpGroup('watch');
     this.group.add(this.model.root);
+    this.armR.root.visible = false;
+    this.group.add(this.armR.root);
     this.glow = new THREE.PointLight(0x7cff6a, 0, 0.25, 2);
     this.group.add(this.glow);
     // the overlay stage's shared lights (other first-person views rely on them too)
@@ -402,6 +416,7 @@ export class Watch {
   }
   /** a click / tap on the watch itself: the CRT, the function dial, a toggle switch */
   private physical(hit: NonNullable<ReturnType<Watch['hitTest']>>, dir: number) {
+    if (hit.point && !this.small && hit.kind !== 'body') this.reach(hit.point);
     if (hit.kind === 'dial') { this.cycle(dir); this.knobKick = dir; return; }
     if (hit.kind === 'toggle') {
       if (hit.page === 'torch') { if (hasUnlock('tool_torch')) this.toggleTorch(); else { G.audio?.ui?.('watchDeny'); this.message('NO LAMP FITTED', 'RESEARCH WRIST TORCH', 'warn'); } }
@@ -459,7 +474,7 @@ export class Watch {
     }
     return { left, top, right, bottom };
   }
-  hitTest(cssX: number, cssY: number): { kind: 'screen' | 'body' | 'dial' | 'toggle' | 'button'; page?: string; u?: number; v?: number } | null {
+  hitTest(cssX: number, cssY: number): { kind: 'screen' | 'body' | 'dial' | 'toggle' | 'button'; page?: string; u?: number; v?: number; point?: THREE.Vector3 } | null {
     if (this.raise < 0.05) return null;
     const pr = G.pr;
     const RW = pr.lowW + pr.margin * 2, RH = pr.lowH + pr.margin * 2;
@@ -467,15 +482,15 @@ export class Watch {
     this.v2.set(lx / RW * 2 - 1, ly / RH * 2 - 1);
     this.group.updateMatrixWorld(true);
     this.ray.setFromCamera(this.v2, pr.overlayCamera);
-    const hits = this.ray.intersectObject(this.model.root, true);
+    const hits = this.ray.intersectObject(this.model.root, true).filter((x) => !isArm(x.object, this.armL));
     if (!hits.length) return null;
     const h = hits[0];
-    if (h.object === this.model.screen && h.uv) return { kind: 'screen', u: h.uv.x, v: 1 - h.uv.y };
+    if (h.object === this.model.screen && h.uv) return { kind: 'screen', u: h.uv.x, v: 1 - h.uv.y, point: h.point };
     for (let o: THREE.Object3D | null = h.object; o && o !== this.model.root; o = o.parent) {
-      if (o.userData.hit === 'dial') return { kind: 'dial' };
-      if (o.userData.hit === 'toggle') return { kind: 'toggle', page: o.userData.which };
+      if (o.userData.hit === 'dial') return { kind: 'dial', point: h.point };
+      if (o.userData.hit === 'toggle') return { kind: 'toggle', page: o.userData.which, point: h.point };
     }
-    return { kind: 'body' };
+    return { kind: 'body', point: h.point };
   }
   private screenClick(u: number, v: number) {
     // the same barrel warp as the tube shader, so a click lands on what it shows
@@ -547,7 +562,7 @@ export class Watch {
     this.power = this.crt.mat.crt.on;
     if (this.raise <= 0 && !up && this.staged) { this.staged = false; fpRelease('watch'); }
     if (!this.staged) return;
-    if (this.skin !== p.app.skin) { this.skin = p.app.skin; this.model.rebuildArm(p.app.skin); }
+    if (this.skin !== p.app.skin) { this.skin = p.app.skin; this.armL.setLook({ skin: p.app.skin }); this.armR.setLook({ skin: p.app.skin }); }
     this.pose(p, dt);
     this.updateControls(p, dt);
     const u = this.crt.mat.uniforms;
@@ -620,7 +635,11 @@ export class Watch {
       y += Math.sin(this.settleT * 19) * 0.0018 * k2;
     }
     // fingers flex as the arm comes up, then rest
-    this.model.hand.rotation.z = -0.22 * (1 - r) + Math.sin(Math.min(1, r) * Math.PI) * 0.08;
+    this.armL.pose(r < 0.75 ? 'open' : 'relaxed');
+    this.armL.wrist.rotation.x = -0.25 * (1 - r) + Math.sin(Math.min(1, r) * Math.PI) * 0.12;
+    this.armL.tremor = clamp((p.body.panic ?? 0) / 100, 0, 1);
+    this.armL.update(dt);
+    this.updatePoke(dt);
     // breathing at rest, swinging when you walk or run
     const moving = p.speed > 0.2;
     const amp = moving ? (p.running ? 2.2 : 1) : 0.15;
@@ -632,7 +651,7 @@ export class Watch {
     const sev: string[] = (p.body as any).severed || [];
     const side = sev.includes('farm_l') || sev.includes('uarm_l') ? -1 : 1;
     const handGone = side > 0 ? sev.includes('hand_l') : sev.includes('hand_r');
-    this.model.hand.visible = !handGone; this.model.stump.visible = handGone;
+    this.armL.palm.visible = !handGone; this.model.stump.visible = handGone;
     const root = this.model.root;
     root.scale.x = side; this.model.screen.scale.x = side;
     if (side < 0) { rz = -rz; ry = -ry; }
@@ -651,6 +670,38 @@ export class Watch {
     this.model.antenna.rotation.y += dt * (hasUnlock('watch_radar') ? 4 : 0);
     m.dish.rotation.y += dt * (this.scanTarget ? 9 : 1.2);
     void w2;
+  }
+
+  /** the right hand comes in and presses where you clicked (the finger lands a beat after the click) */
+  private reach(at: THREE.Vector3) {
+    // in from the lower right, toward the eye, the forefinger leading
+    const from = at.clone().add(new THREE.Vector3(0.16, -0.2, 0.1));
+    const dir = at.clone().sub(from).normalize();
+    const palm = new THREE.Vector3(-0.25, -1, -0.7);
+    palm.sub(dir.clone().multiplyScalar(palm.dot(dir))).normalize();
+    const x = new THREE.Vector3().crossVectors(dir, palm);
+    this.pokeQ.setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, dir, palm));
+    this.poke = { at: at.clone(), from, t: 0 };
+    this.armR.pose('point');
+    this.armR.root.visible = true;
+  }
+  private updatePoke(dt: number) {
+    const pk = this.poke, R = this.armR;
+    if (!pk) { R.root.visible = false; return; }
+    pk.t += dt;
+    const IN = 0.13, HOLD = 0.09, OUT = 0.2;
+    const t = pk.t;
+    if (t > IN + HOLD + OUT) { this.poke = null; R.root.visible = false; R.pose('relaxed', true); return; }
+    // how far along the approach: ease in, a small push past the surface, ease back out
+    const k = t < IN ? 1 - Math.pow(1 - t / IN, 3) : t < IN + HOLD ? 1 + 0.02 * Math.sin(((t - IN) / HOLD) * Math.PI) : 1 - Math.pow((t - IN - HOLD) / OUT, 2);
+    R.root.quaternion.copy(this.pokeQ);
+    R.root.position.set(0, 0, 0);
+    R.update(dt);
+    R.root.updateMatrixWorld(true);
+    const tip = R.tip.getWorldPosition(this.v3);
+    // the tip (not the elbow) travels from far off to the point
+    const goal = pk.from.clone().lerp(pk.at, k);
+    R.root.position.copy(goal.sub(tip));
   }
 
   /** jewel lamps, the function dial's detents, the needle, the toggles, the valves */

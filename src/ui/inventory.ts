@@ -517,13 +517,19 @@ export class InventoryUI {
     const gl = this.cube.root.localToWorld(_v.set(-O / 2 - 0.012, H * 0.42, 0.06)).lerp(this.palm.L, 1 - k);
     aL.target.lerp(gl, 1 - Math.exp(-20 * dt));
     const gr = this.cube.root.localToWorld(_v2.set(O / 2 + 0.012, H * 0.42, 0.06)).lerp(this.palm.R, 1 - k);
-    if (this.thumb > 0) gr.lerp(this.cube.pad.getWorldPosition(_s).add(_v.set(0.03, -0.05, 0.05)), this.thumb);
+    if (this.thumb > 0) {
+      // the thumb tip goes on the reader's glass: aim the wrist so the tip lands there
+      const pad = this.cube.pad.getWorldPosition(_s);
+      const tip = aR.fp.thumbTip.getWorldPosition(this.tmpA), wr = aR.fp.wrist.getWorldPosition(this.tmpB);
+      gr.lerp(pad.sub(tip.sub(wr)).add(_v.set(0, 0, 0.004)), this.thumb);
+    }
     aR.target.lerp(gr, 1 - Math.exp(-18 * dt));
     for (const a of this.arms) a.elbow.set(a.side * 0.48, -0.66, -0.75);
-    aL.grip = 0.8 * k + 0.25 * (1 - k); aR.grip = this.thumb > 0 ? 0.6 : 0.8 * k + 0.25 * (1 - k);
-    poseArm(aL, 1.4 * k + 2.6 * (1 - k)); poseArm(aR, -1.4 * k - 2.6 * (1 - k));
-    aR.thumb.rotation.z = aR.side * (0.6 - this.thumb * 1.1);
+    aL.want = k > 0.5 ? 'grip' : 'relaxed';
+    aR.want = this.thumb > 0.3 ? 'press' : k > 0.5 ? 'grip' : 'relaxed';
+    poseArm(aL, -Math.PI / 2 * k, dt); poseArm(aR, -Math.PI / 2 * k, dt);
   }
+  private tmpA = new THREE.Vector3(); private tmpB = new THREE.Vector3();
 
   /** what is held sits in the open palm */
   private poseHeld(dt: number) {
@@ -541,7 +547,8 @@ export class InventoryUI {
       const o = this.heldObjs[h];
       if (o) {
         o.outer.visible = this.held < 0.5 && !(this.drag?.src === 'hand' && this.drag.hand === h);
-        o.outer.position.lerp(_v.copy(this.arms[h === 'R' ? 0 : 1].target).add(_s.set(0, 0.05, 0.02)), 1 - Math.exp(-16 * dt));
+        this.arms[h === 'R' ? 0 : 1].fp.grip.getWorldPosition(_v).add(_s.set(0, 0.035, 0.01));
+        o.outer.position.lerp(_v, 1 - Math.exp(-16 * dt));
         o.outer.rotation.set(0.9, h === 'R' ? -0.5 : 0.5, 0);
       }
     }

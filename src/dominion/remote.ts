@@ -13,6 +13,8 @@ import { hasUnlock } from '../game/research';
 import { shake } from '../gfx/juice';
 import { PixTex, PAL, PointerLayer, flatMat, overlayRay, FONT } from '../scan/pix';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
+import { rbox, blob } from '../scan/shapes';
+import { StageArms } from '../scan/arms';
 import { Screen } from '../ui/font5x7';
 import type { Creature } from '../creatures/creature';
 import type { DominionSystem, StationKind } from './dominion';
@@ -38,17 +40,22 @@ export class Remote {
   private sure = false;
   private press = new Map<string, number>();
   private lcdT = 0;
+  private arms: StageArms;
+  private hoverObj: THREE.Object3D | null = null;
+  private pressT = 0;
+  private tw = new THREE.Vector3();
 
   constructor(private d: DominionSystem) {
     this.g = fpGroup('remote');
     this.g.add(new THREE.AmbientLight(0xd0c8b8, 0.75));
     const key = new THREE.DirectionalLight(0xfff0d8, 1.1); key.position.set(-0.3, 0.9, 1); this.g.add(key);
     this.g.add(this.box);
+    this.arms = new StageArms(this.g);
     const mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
     const mb = new ModelBuilder();
-    mb.box(0, -PH / M - 0.006, -0.018, PW / M + 0.012, PH / M + 0.012, 0.032, 'plastic_black', { color: 0x4a2e1c });
-    mb.box(0, -PH / M / 2 + 0.03, -0.034, 0.03, 0.06, 0.02, 'plastic_black', { color: 0x3a2416 }); // handle lug
-    for (const [x, y] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) mb.box(x * (PW / M / 2 - 0.004), y * (PH / M / 2 - 0.004) - PH / M / 2 + 0.0, 0.0, 0.004, 0.004, 0.002, 'chrome');
+    rbox(mb, 0, -PH / M - 0.006, -0.018, PW / M + 0.012, PH / M + 0.012, 0.032, 'plastic_black', { color: 0x4a2e1c }, 0.012, 3);
+    rbox(mb, 0, -PH / M / 2 - 0.03, -0.04, 0.05, 0.06, 0.02, 'plastic_black', { color: 0x3a2416 }, 0.008, 2); // handle lug
+    for (const [x, y] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) blob(mb, x * (PW / M / 2 - 0.004), y * (PH / M / 2 - 0.004) - PH / M / 2, 0.0005, 0.0025, 0.0025, 0.0012, 'chrome', {}, 6);
     mb.cylinder(-0.06, 0.004, -0.02, 0.003, 0.06, 5, 'chrome'); // aerial
     this.box.add(new THREE.Mesh(mb.build(), mat));
     const face = new THREE.Mesh(new THREE.PlaneGeometry(PW / M, PH / M), flatMat(this.plate.tex));
@@ -82,11 +89,12 @@ export class Remote {
     const sb = new ModelBuilder(); sb.cylinder(0, 0, 0, 0.004, 0.006, 8, 'chrome'); sb.sphere(0, 0.007, 0, 0.011, 10, 5, 'plastic_red', { color: 0xc0281a, sy: 0.6 });
     const scram = new THREE.Mesh(sb.build(), mat); scram.name = 'scram'; scram.rotation.x = Math.PI / 2;
     scram.position.copy(at(132, 84)).add(new THREE.Vector3(0, -PH / M / 2, 0.002)); this.box.add(scram);
-    const cv = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.03, 0.014), new THREE.MeshLambertMaterial({ color: 0xffe8a0, transparent: true, opacity: 0.35 }));
-    cv.name = 'scram'; cv.position.set(0, -0.015, 0.007); this.cover.add(cv);
+    const cvg = new THREE.SphereGeometry(0.017, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2); cvg.rotateX(Math.PI / 2); cvg.translate(0, -0.015, 0);
+    const cv = new THREE.Mesh(cvg, new THREE.MeshLambertMaterial({ color: 0xffe8a0, transparent: true, opacity: 0.35 }));
+    cv.name = 'scram'; this.cover.add(cv);
     this.cover.position.copy(at(132, 69)).add(new THREE.Vector3(0, -PH / M / 2, 0.003)); this.box.add(this.cover);
     this.drawPlate();
-    this.layer = new PointerLayer('remote', { down: (e) => this.click(e) });
+    this.layer = new PointerLayer('remote', { down: (e) => this.click(e), move: (e) => { const h = overlayRay(e.clientX, e.clientY, fpCamera()).intersectObject(this.box, true)[0]; let o: THREE.Object3D | null = h?.object ?? null; while (o && !o.name) o = o.parent; this.hoverObj = o && o !== this.box ? o : null; } });
     window.addEventListener('keydown', (e) => { if (this.c && e.code === 'Escape') { e.stopPropagation(); this.close(); } }, true);
   }
 
@@ -96,6 +104,7 @@ export class Remote {
   show(c: Creature) {
     if (!fpClaim('remote', 4, { cinematic: 'glance' })) return;
     this.c = c; this.sure = false; this.raise = 0;
+    this.arms.dress();
     this.lcd.power(true);
     this.layer.on = true;
     this.lcdT = 0;
@@ -117,6 +126,7 @@ export class Remote {
     const r = this.d.rec(c); if (!r) return this.close();
     const p = G.local!;
     this.press.set(name, 0.18);
+    this.pressT = 0.22; this.hoverObj = hit.object;
     G.audio?.ui?.('click', 0.7);
     if (name.startsWith('tg:')) {
       const k = name.slice(3);
@@ -165,6 +175,15 @@ export class Remote {
     this.knob.rotation.z += (wantK - this.knob.rotation.z) * Math.min(1, dt * 14);
     this.cover.rotation.x += ((this.sure ? -1.9 : 0) - this.cover.rotation.x) * Math.min(1, dt * 14);
     for (const [n, t] of this.press) { const v = Math.max(0, t - dt); this.press.set(n, v); if (n === 'cargo') this.cargoBtn.position.z = at(84, 84).z + 0.002 - v * 0.02; }
+    // the left hand holds it by the lug; the right forefinger hovers over the controls and presses them
+    const A = this.arms, kk = Math.min(1, dt * 12);
+    this.box.updateMatrixWorld(true);
+    A.aim('left', 'grip', 'grip', this.box.localToWorld(this.tw.set(0, -PH / M - 0.02, -0.04)), [-0.12, -0.46, -0.26], [0.2, 0.4, 1], kk);
+    const tgt = this.hoverObj ?? this.toggles.get('follow')!;
+    tgt.getWorldPosition(this.tw); this.tw.z += this.pressT > 0 ? 0.004 : 0.022; this.tw.y -= 0.004;
+    A.aim('right', this.pressT > 0 ? 'press' : 'point', 'tip', this.tw, [0.28, -0.46, -0.28], [0, -0.55, -0.8], kk);
+    this.pressT -= dt;
+    A.update(dt);
     this.lcdT -= dt;
     if (this.lcdT <= 0) { this.lcdT = 0.25; this.drawLcd(c, r); }
   }

@@ -92,7 +92,12 @@ export function wielded(p: Player): Wielded {
   else cls = 'unarmed';
   let dmgMul = 1, speedMul = 1, poiseMul = 1, stamMul = 1, hitKind = '';
   let cy: CyberCombat | null = null;
-  try { cy = (G as any).cyber?.combat?.(p) ?? null; } catch { cy = null; }
+  try {
+    const C = (G as any).cyber;
+    cy = C?.combat?.(p) ?? null;
+    // no explicit hook: metal arms (src/survival/cyber.ts live effects) turn fists into pistons
+    if (!cy && C?.fx) { const L = C.fx(p); if (L && (L.attack >= 1.25 || L.kick >= 0.35)) cy = { cls: 'cyber', poiseMul: 1 + (L.kick ?? 0) }; }
+  } catch { cy = null; }
   if (cy) {
     if (cls === 'unarmed' && cy.cls) cls = cy.cls;
     dmgMul *= cy.dmgMul ?? 1; speedMul *= cy.speedMul ?? 1; poiseMul *= cy.poiseMul ?? 1; stamMul *= cy.stamMul ?? 1;

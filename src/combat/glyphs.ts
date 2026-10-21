@@ -77,8 +77,11 @@ function badge(icon: string, fill: number, fillD: number, shape: 'round' | 'shie
     let inside: boolean, edge: number;
     if (shape === 'shield') {
       const yy = y < 0 ? y : y * 1.4;
-      inside = y < 1 ? Math.abs(x) <= r && y >= -r : Math.hypot(x * 0.9, yy) <= r + 0.2;
-      edge = y < 1 ? Math.min(r - Math.abs(x), y + r) : r + 0.2 - Math.hypot(x * 0.9, yy);
+      // a rounded-shouldered shield: soft top corners, a curved point
+      const k = 3.5, cx = Math.abs(x) - (r - k), cy = y + r - k;
+      const corner = cx > 0 && cy < 0;
+      inside = y < 1 ? (corner ? Math.hypot(cx, cy) <= k + 0.2 : Math.abs(x) <= r && y >= -r) : Math.hypot(x * 0.9, yy) <= r + 0.2;
+      edge = y < 1 ? (corner ? k + 0.2 - Math.hypot(cx, cy) : Math.min(r - Math.abs(x), y + r)) : r + 0.2 - Math.hypot(x * 0.9, yy);
     } else { const d = Math.hypot(x, y); inside = d <= r + 0.3; edge = r + 0.3 - d; }
     if (!inside) continue;
     const rim = edge < 1.8;
