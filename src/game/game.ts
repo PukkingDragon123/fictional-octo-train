@@ -139,6 +139,8 @@ export class Game {
   dominion: any = null;
   /** scanning for DATA: research for first scans, the knowledge entries (src/scan) */
   scan: any = null;
+  /** the Remittance Presses (src/game/debt/hopper.ts): pull(p, press | uid) throws a lever */
+  press: any = null;
   collapse = 0;
   /** title-screen mode: replaces player control with a scripted wanderer */
   attract: ((dt: number) => void) | null = null;

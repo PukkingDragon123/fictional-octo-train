@@ -9,7 +9,7 @@ import { consume } from './keys';
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
-import { op } from '../game/ops';
+import { op, isReplaying } from '../game/ops';
 import { uid } from '../core/rng';
 import { objDef, objectGeometry } from '../world/objects';
 import { objectMatrix } from '../world/chunkMesher';
@@ -18,7 +18,7 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { wallDef, wallId } from '../world/defs';
 import { TF, type Zone, type TileObject } from '../world/zone';
 import { itemDef } from '../items/item';
-import { createItem } from '../items/factory';
+import { createItem, serializeItem } from '../items/factory';
 import { hasUnlock } from '../game/research';
 import { pick, type PickTarget } from '../game/picking';
 import { queueAt } from '../actions/basic';
@@ -99,6 +99,8 @@ export class BuildSystem implements GameSystem {
     bus.on('death', (p: Player) => { if (p === G.local) this.toggle(false); });
     bus.on('bldWelded', (z: Zone, pc: Piece, o: TileObject, by: string | null) => this.onWelded(z, pc, o, by));
     bus.on('objectMenu', (p: Player, o: TileObject, out: MenuOption[]) => this.menuFor(p, o, out));
+    // a wall smashed open spills what was inside it: studs, wiring, a length of pipe
+    bus.on('wallBroken', (z: Zone, x: number, y: number, side: 0 | 1, by: string | null) => { if (by && by === G.local?.id && !isReplaying()) this.wallSalvage(z, x, y, side); });
   }
 
   // ================================================================= mode
@@ -379,6 +381,35 @@ export class BuildSystem implements GameSystem {
     return null;
   }
 
+  private wallSalvage(z: Zone, x: number, y: number, side: 0 | 1) {
+    const out = ['plank'];
+    if (Math.random() < 0.35) out.push('wire');
+    if (Math.random() < 0.22) out.push('pipe');
+    if (Math.random() < 0.18) out.push('scrap_metal');
+    if (Math.random() < 0.06) out.push('steel_frame');
+    const cx = side === 0 ? x + 0.5 : x, cz = side === 0 ? y : y + 0.5;
+    for (const k of out) {
+      const a = Math.random() * Math.PI * 2, sp = 0.6 + Math.random();
+      op('dropFloor', { z: z.key, item: serializeItem(createItem(k)), x: cx, zz: cz, y: 1.1, v: [Math.cos(a) * sp, 1 + Math.random(), Math.sin(a) * sp] });
+    }
+  }
+
+  /** a wall this crew built under the cursor (walls are not pickable edges): sample the ray at mid-wall height and at the floor */
+  private wallUnderCursor(p: Player): Hover {
+    const z = G.zones.get(p.zoneKey); if (!z) return null;
+    const W = builtWalls(z);
+    if (!Object.keys(W).length) return null;
+    const h = z.heightAt(Math.floor(p.x), Math.floor(p.z));
+    for (const yy of [h + 1.3, h + 0.6, h]) {
+      const wp = G.pr.screenToWorld(G.input.mouseX, G.input.mouseY, yy); if (!wp) continue;
+      const tx = Math.floor(wp.x), ty = Math.floor(wp.z), fx = wp.x - tx, fy = wp.z - ty;
+      const cands: [number, number, 0 | 1, number][] = [[tx, ty, 0, fy], [tx, ty + 1, 0, 1 - fy], [tx, ty, 1, fx], [tx + 1, ty, 1, 1 - fx]];
+      cands.sort((a, b) => a[3] - b[3]);
+      for (const [x, y, side, d] of cands) { if (d > 0.3) break; const k = W[edgeKey(x, y, side)]; if (k) return { kind: 'wall', x, y, side, key: k }; }
+    }
+    return null;
+  }
+
   // ================================================================= update
   update(dt: number, dh: number) {
     const inp = G.input, p = G.local;
@@ -407,7 +438,7 @@ export class BuildSystem implements GameSystem {
     if (bh && inp.mousePressed[0]) { this.boardClick(bh); inp.mousePressed[0] = false; }
     const over = inp.pointerOverUI;
     const t = over ? null : pick(inp.mouseX, inp.mouseY, { ignore: p });
-    this.hover = this.hoverOf(t);
+    this.hover = this.hoverOf(t) ?? (over ? null : this.wallUnderCursor(p));
     if (inp.keyHit('KeyX') || inp.keyHit('Delete')) this.demolishAt(p, this.hover);
     const pc = this.current();
     const z = G.getZone(p.zoneKey);

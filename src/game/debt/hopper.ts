@@ -279,6 +279,7 @@ export class HopperSystem implements GameSystem {
   private nagT = 0;
 
   constructor() {
+    G.press = this;
     this.root.name = 'hoppers';
     G.pr.scene.add(this.root);
     this.glints = new Glints(this.root);
@@ -343,10 +344,11 @@ export class HopperSystem implements GameSystem {
     const rx = -dz, rz = dx;
     return [o.x + 1 + rx * 1.55 + dx * 0.85, o.y + 1 + rz * 1.55 + dz * 0.85];
   }
-  /** throw the lever now (the interaction system's grab verb, the menu, the walkthrough); false while it is cycling */
-  pull(p: Player | null, o: TileObject): boolean {
-    if (!o || o.key !== 'hopper' || this.busy(o)) return false;
+  /** throw the lever now (G.press.pull: the grab verb, the menu, the walkthrough): a press object or its uid; false while it is cycling */
+  pull(p: Player | null, press: TileObject | number): boolean {
     const z = G.zones.get(p?.zoneKey ?? G.view?.zone.key ?? '');
+    const o = typeof press === 'number' ? z?.objects.get(press) : press;
+    if (!o || o.key !== 'hopper' || this.busy(o)) return false;
     if (!z || !z.objects.has(o.uid)) return false;
     op('pressCycle', { z: z.key, h: o.uid, by: p?.id ?? '' } as CycleArgs);
     return true;

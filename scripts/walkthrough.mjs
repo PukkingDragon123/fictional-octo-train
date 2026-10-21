@@ -30,7 +30,17 @@ async function session() {
       ev, wi,
       get g() { return window.__game; }, get p() { return window.__game.local; }, get D() { return window.__debt; },
       sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
-      async until(fn, ms = 120000, what = '') { const t = performance.now(); while (!fn()) { if (performance.now() - t > ms) throw new Error('timeout ' + what); await T.sleep(200); } },
+      /** wait for a condition; the timeout counts game time (a loaded machine runs the game slowly), with a real-time backstop */
+      async until(fn, ms = 120000, what = '') {
+        const t = performance.now(), g0 = T.g?.time ?? 0;
+        while (!fn()) {
+          const real = performance.now() - t, game = ((T.g?.time ?? 0) - g0) * 1000;
+          if ((game > ms && real > ms * 0.25) || real > ms * 6) throw new Error('timeout ' + what);
+          await T.sleep(200);
+        }
+      },
+      /** throw a press machine's lever (the press agent's G.press.pull, else the hopper system's) */
+      pull(o) { const P = T.g.press; return P?.pull ? P.pull(T.p, o) : T.D.hop.pull(T.p, o); },
       objs(zone, pred) { return [...T.g.getZone(zone).objects.values()].filter(pred); },
       obj(zone, pred, what) { const o = T.objs(zone, pred)[0]; if (!o) throw new Error('no object: ' + what + ' in ' + zone); return o; },
       near(o) { const g = T.g, z = g.getZone(T.p.zoneKey); const [x, y] = g.nearestWalkable(z, o.x, o.y); g.placePlayer(T.p, z.key, x, y, 0); },
@@ -176,8 +186,10 @@ const step = async (page, name, fn, arg) => {
     window.__dev.op('objRelease', { z: 'lobby', uid: uidv, x: h.x + 1, y: h.y + 1, by: T.p.id });
     // then the lever (the press only goes when somebody pulls it)
     await T.sleep(300);
-    if (T.D.hop.pull && !T.D.hop.pull(T.p, h)) throw new Error('lever would not pull');
-    await T.until(() => !z.objects.has(uidv), 120000, 'cabinet taken');
+    if (!T.pull(h)) throw new Error('lever would not pull');
+    // (pull again if a cycle ran before the cabinet had settled on the bed)
+    let nextPull = T.g.time + 6;
+    await T.until(() => { if (!z.objects.has(uidv)) return true; if (T.g.time > nextPull) { nextPull = T.g.time + 6; T.pull(h); } return false; }, 120000, 'cabinet taken');
     await T.until(() => T.g.debt.paid + T.g.debt.surplus > paid0, 30000, 'credited');
     return { credited: T.g.debt.paid + T.g.debt.surplus - paid0 };
   });
