@@ -172,7 +172,6 @@ export class FloorSystem implements GameSystem {
       }
       case 'black': {
         p.y = f.y0 - 12;
-        if (f.t > 0.35 && !this.overlay?.querySelector('.where')?.classList.contains('on')) this.where(f);
         if (f.t > 0.9 && f.dest) this.arrive(f);
         else if (f.t > 4 && !f.dest) f.dest = { kind: 'zone', key: f.spec.to, anchor: f.spec.anchor || 'fall' };
         break;
@@ -190,17 +189,6 @@ export class FloorSystem implements GameSystem {
         break;
       }
     }
-  }
-
-  private where(f: Fall) {
-    const d = f.dest;
-    let txt = '';
-    if (!d) txt = '…';
-    else if (d.kind === 'remote') txt = `${d.name}${d.zone ? ' · ' + d.zone : ''}`;
-    else if (d.kind === 'home') txt = 'HOME';
-    else txt = zoneSpec(d.key)?.name || d.key;
-    const el = this.overlay?.querySelector('.where') as HTMLElement | null;
-    if (el) { el.textContent = txt; el.classList.add('on'); }
   }
 
   private async arrive(f: Fall) {
@@ -265,12 +253,11 @@ export class FloorSystem implements GameSystem {
     if (!this.overlay) {
       const el = document.createElement('div');
       el.className = 'vx-fall';
-      el.innerHTML = '<div class="streaks"></div><div class="where"></div>';
+      el.innerHTML = '<div class="streaks"></div>';
       document.body.appendChild(el);
       this.overlay = el;
     }
     this.overlay.classList.toggle('on', on);
-    if (!on) this.overlay.querySelector('.where')?.classList.remove('on');
     if (on) this.setOverlay(60);
   }
   private setOverlay(r: number) { this.overlay?.style.setProperty('--r', r.toFixed(1)); }
@@ -284,7 +271,9 @@ export class FloorSystem implements GameSystem {
     this.beginLanding(this.fall, z, Math.floor(p.x), Math.floor(p.z));
     this.showOverlay(true);
     setTimeout(() => this.showOverlay(false), 250);
-    G.ui?.toast?.('YOU FELL INTO ' + String(this.fell?.name || 'SOMEONE ELSE\'S FLOOR').toUpperCase(), this.fell?.home ? 'a shared hole here takes you back home' : '', 5);
+    // no notices: you say it out loud, and they hear you
+    const line = ['Hello?! Whose floor is this?', 'Where... where am I?', 'Ow. Hello? Anyone?'][Math.floor(Math.random() * 3)];
+    setTimeout(() => { G.ui?.say?.(p, line, 'shout', 3); G.net?.social?.({ t: 'bark', text: line, kind: 'shout' }); }, 1600);
     G.net?.floorsMsg?.({ t: 'fellIn', name: p.name }, 'all');
   }
 
@@ -292,10 +281,9 @@ export class FloorSystem implements GameSystem {
   dims: any = null;
   onNet(from: string, d: any) {
     if (typeof d?.t === 'string' && d.t.startsWith('chess')) { this.dims?.onNet?.(from, d); return; }
-    if (d?.t === 'fellIn') {
-      const who = G.players.get(from);
-      G.ui?.toast?.(`${String(d.name || 'SOMEONE').toUpperCase()} FELL THROUGH YOUR CEILING`, 'a stranger from another floor', 4);
-      if (who) G.ui?.say?.(who, 'Hello?! Where am I?', 'shout', 2.5);
+    if (d?.t === 'fellIn' && G.local) {
+      G.audio?.ui?.('vx_land', 0.5);
+      setTimeout(() => G.local && G.ui?.say?.(G.local, 'Something just came through the ceiling...', 'think', 4), 900);
     }
   }
 
@@ -309,7 +297,6 @@ export class FloorSystem implements GameSystem {
   }
   async openFloor() {
     if (G.role !== 'solo' || !relayHttp()) return;
-    G.ui?.toast?.('OPENING YOUR FLOOR…', 'calling the relay', 2);
     try {
       const { Net, defaultServerUrl } = await import('../net/net');
       const net = await Net.host(defaultServerUrl(), `${G.local?.name || 'Someone'}'s floor`, { public: true });
@@ -317,9 +304,10 @@ export class FloorSystem implements GameSystem {
       G.addSystem(net);
       this.lastAdvert = '';
       this.advertise(G.zone);
-      G.ui?.toast?.('FLOOR OPEN · ROOM ' + net.room, 'people falling through shared holes can land on your floor', 6);
+      if (G.local) G.ui?.say?.(G.local, `Line ${net.room} is open. Anyone who falls could land here now.`, 'think', 5);
     } catch (e: any) {
-      G.ui?.toast?.('NOBODY PICKED UP', String(e?.message || 'the relay could not be reached'), 4);
+      console.warn('open floor', e);
+      if (G.local) G.ui?.say?.(G.local, 'Nobody is picking up.', 'think', 3);
     }
   }
   /** a host tells the relay which floor it is on (shown in the directory) */

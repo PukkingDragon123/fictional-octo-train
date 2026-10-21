@@ -312,7 +312,6 @@ class Board {
     p.body.dead = true; p.body.downed = false;
     bus.emit('death', p);
     try { if ((G.sandbox?.gore ?? 1) >= 2) G.gore?.gibPlayer?.(p); else G.gore?.pool?.(G.zone, p.x, p.z, 1.6, undefined, 0xffffff, 2); } catch { /* gore optional */ }
-    G.ui?.toast?.('FLATTENED', 'you were standing on the square it wanted', 4);
   }
   private afterPush(i: number, cap: boolean, mate: boolean) {
     const m = this.meta(); const pc = this.st?.pieces[i]; if (!pc) return;
@@ -322,7 +321,7 @@ class Board {
     if (mate && G.local?.zoneKey === 'chess') {
       G.audio?.at?.('vx_slam', cx, cz, 1);
       shake(0.9, 0.8);
-      G.ui?.toast?.('CHECKMATE', 'the board goes still', 5);
+      G.ui?.say?.(G.local, 'CHECKMATE!', 'shout', 3);
       G.missions?.set?.('vx:checkmate');
       try { grantResearch(30, 'Checkmate on the Board'); } catch { /* research optional */ }
       bus.emit('subtitle', { who: 'SSGT. VOSS', text: 'Checkmate. Huh. Nobody told me you could play.', style: 'voss' });
