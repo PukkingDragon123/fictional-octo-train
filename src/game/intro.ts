@@ -59,8 +59,7 @@ import { fpGroup, fpClaim, fpRelease, fpCamera } from '../fp/fp';
 import { hitstop } from '../gfx/juice';
 import { IntroSet, IX, STAGE } from './introSet';
 import { worldMaterial } from '../gfx/materials';
-import { txt } from '../content/furniture/a_lib';
-import { pixelTex, speechTex, drawSkipKey, type PixelTex } from './pixelText';
+import { crtScreen, phosphorText, fontsReady, type CrtScreen } from '../gfx/crt';
 import type { SeamFx } from './seam';
 import './intro.css';
 
@@ -165,7 +164,7 @@ function fpPose(name: string, t: number, k = 9): Pose | null {
 
 /** the BAILIFF band as bolted on: a chunky 1970s wrist unit. A riveted steel housing on a hinged steel cuff,
  *  a round amber-phosphor CRT the size of a coin, a signal needle in a little window, an amber lamp, the bolt head. */
-interface Band { g: THREE.Group; crt: PixelTex; needle: THREE.Object3D; lamp: THREE.Mesh; lampMat: THREE.MeshBasicMaterial }
+interface Band { g: THREE.Group; crt: CrtScreen; needle: THREE.Object3D; lamp: THREE.Mesh; lampMat: THREE.MeshBasicMaterial }
 function bandMesh(): Band {
   const mb = new ModelBuilder();
   // the cuff round the wrist (hand-local: the arm runs along y), two hinge knuckles, the bolt through it
@@ -173,51 +172,53 @@ function bandMesh(): Band {
   for (const y of [-0.036, 0.012]) mb.cylinder(0, y, 0, 0.053, 0.008, 10, 'metal_dark');
   mb.cylinder(-0.052, -0.02, 0.0, 0.011, 0.024, 6, 'chrome');
   mb.box(-0.06, -0.016, 0, 0.012, 0.016, 0.016, 'metal_brass');
-  // the housing on the back of the wrist: steel box, rivets, a stencilled serial plate
-  mb.box(0, -0.048, 0.044, 0.072, 0.07, 0.03, 'metal_dark', { color: 0x6a6e70 });
-  for (const [x, y] of [[-0.03, -0.044], [0.03, -0.044], [-0.03, 0.017], [0.03, 0.017]]) mb.box(x, y, 0.0595, 0.005, 0.005, 0.003, 'chrome');
-  mb.box(0, -0.046, 0.0592, 0.05, 0.008, 0.002, 'zd_hazard');
-  // the CRT bezel (a squat cone of black bakelite), the needle window, the lamp collar
-  mb.push().translate(-0.008, -0.004, 0.06).rotateX(Math.PI / 2);
-  mb.cylinder(0, 0, 0, 0.021, 0.008, 12, 'plastic_black', { rTop: 0.017 });
-  mb.pop();
-  mb.box(0.026, -0.03, 0.0595, 0.016, 0.022, 0.003, 'plastic_black');
-  mb.push().translate(0.026, 0.008, 0.06).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.007, 0.006, 8, 'chrome'); mb.pop();
+  // the housing on the back of the wrist: steel box, rivets, a hazard-striped tag
+  mb.box(0, -0.05, 0.044, 0.078, 0.074, 0.03, 'metal_dark', { color: 0x6a6e70 });
+  for (const [x, y] of [[-0.033, -0.046], [0.033, -0.046], [-0.033, 0.019], [0.033, 0.019]]) mb.box(x, y, 0.0595, 0.005, 0.005, 0.003, 'chrome');
+  mb.box(0, -0.049, 0.0592, 0.05, 0.007, 0.002, 'zd_hazard');
+  // the tube's bezel: black bakelite round a small screen, the needle window, the lamp collar
+  mb.box(-0.008, -0.03, 0.0598, 0.044, 0.038, 0.004, 'plastic_black');
+  mb.box(0.026, -0.03, 0.0598, 0.016, 0.026, 0.003, 'plastic_black');
+  mb.push().translate(0.026, 0.009, 0.06).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.007, 0.006, 8, 'chrome'); mb.pop();
   const g = new THREE.Group();
   const body = new THREE.Mesh(mb.build(), worldMaterial(STAGE));
-  // the phosphor: a round 24x24 pixel face behind curved glass
-  const crt = pixelTex(24, 24);
-  const face = new THREE.Mesh(new THREE.CircleGeometry(0.0165, 16), new THREE.MeshBasicMaterial({ map: crt.tex }));
-  face.position.set(-0.008, -0.004, 0.0685);
+  // the screen: a real little tube (curved glass, scanlines, bloom, a power-on collapse), amber phosphor
+  const crt = crtScreen(0.036, 0.03, { tint: 0xffc070, res: [128, 104], curvature: 0.3, glow: 1.3, scan: 0.75, noise: 0.05, flicker: 0.6, reflect: 0.8 });
+  crt.mesh.position.set(-0.008, -0.011, 0.0622);
+  crt.power(false, true);
   // the needle in its window
-  const nb = new ModelBuilder(); nb.box(0, 0, 0, 0.0015, 0.016, 0.001, 'white', { color: 0xd02010 });
+  const nb = new ModelBuilder(); nb.box(0, 0, 0, 0.0015, 0.018, 0.001, 'white', { color: 0xd02010 });
   const needle = new THREE.Mesh(nb.build(), worldMaterial(STAGE));
-  needle.position.set(0.026, -0.04, 0.0615);
-  const wb = new ModelBuilder(); wb.box(0.026, -0.03, 0.0612, 0.013, 0.018, 0.0005, 'white', { color: 0xe8dcc0 });
+  needle.position.set(0.026, -0.042, 0.0618);
+  const wb = new ModelBuilder(); wb.box(0.026, -0.042, 0.0615, 0.013, 0.022, 0.0005, 'white', { color: 0xe8dcc0 });
   const win = new THREE.Mesh(wb.build(), worldMaterial(STAGE));
   const lampMat = new THREE.MeshBasicMaterial({ color: 0x3a2008 });
   const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 6), lampMat);
-  lamp.position.set(0.026, 0.008, 0.066);
-  g.add(body, face, win, needle, lamp);
+  lamp.position.set(0.026, 0.009, 0.066);
+  g.add(body, crt.mesh, win, needle, lamp);
   return { g, crt, needle, lamp, lampMat };
 }
-/** the phosphor read-out: amber on near-black, scanlines, bloom on the lit pixels */
-function drawCrt(c: PixelTex, t: number, mode: 'boot' | 'link' | 'signal', fill: number) {
-  const pc = c.pc, A = 0xffb347, D = 0x2a1606, BG = 0x0c0703;
-  for (let y = 0; y < 24; y++) for (let x = 0; x < 24; x++) {
-    const d = Math.hypot(x - 11.5, y - 11.5);
-    pc.set(x, y, d > 11.6 ? 0x050302 : y % 2 ? BG : 0x120a04);
-  }
-  const ink = (s: string, y: number, col = A) => { const w = s.length * 4 - 1; txt(pc, s, Math.round(12 - w / 2), y, col); };
-  if (mode === 'boot') {
-    // the raster warming up: a bright line, then the words fading in
-    if (t < 0.5) { const w = Math.round(2 + t * 36); for (let x = 12 - w / 2; x < 12 + w / 2; x++) pc.set(x, 11, 0xffe8b0); }
-    else { ink('BAIL', 6, t < 0.8 ? D : A); ink('IFF', 12, t < 1.0 ? D : A); for (let x = 5; x < 5 + Math.floor(14 * fill); x++) pc.set(x, 18, A); }
+let fontsOk = false;
+void fontsReady().then(() => { fontsOk = true; });
+/** what the tube shows: the raster warming up, BAILIFF, then the link and a signal trace */
+function drawCrt(c: CrtScreen, t: number, mode: 'boot' | 'link' | 'signal', fill: number) {
+  const x = c.ctx, W = c.canvas.width, H = c.canvas.height;
+  const A = '#ffb347';
+  x.fillStyle = '#090502'; x.fillRect(0, 0, W, H);
+  if (mode === 'boot' && t < 0.6) {
+    x.fillStyle = '#ffe2b0'; const w = 8 + t * 220; x.fillRect(W / 2 - w / 2, H / 2 - 1, w, 2);
+  } else if (mode === 'boot') {
+    if (fontsOk) phosphorText(x, 'BAILIFF', W / 2, 20, { size: 22, color: A, align: 'center', glow: 8 });
+    if (fontsOk) phosphorText(x, 'REMITTANCE', W / 2, 46, { size: 11, color: '#c88a3a', align: 'center', glow: 4 });
+    x.fillStyle = A; x.fillRect(16, 72, (W - 32) * fill, 7);
+    x.strokeStyle = '#7a4a1a'; x.strokeRect(15.5, 71.5, W - 31, 8);
   } else {
-    ink(mode === 'signal' ? 'SIG' : 'LINK', 5);
-    // a signal trace across the tube
-    for (let x = 3; x < 21; x++) { const y = Math.round(14 + Math.sin(x * 0.9 + t * 8) * (mode === 'signal' ? 3 : 1)); pc.set(x, y, A); pc.blend(x, y + 1, A, 0.35); }
-    if (mode === 'signal' && Math.sin(t * 7) > 0) ink('<<', 18, 0xffe0a0);
+    if (fontsOk) phosphorText(x, mode === 'signal' ? 'SIGNAL' : 'LINKED', W / 2, 10, { size: 18, color: A, align: 'center', glow: 7 });
+    x.strokeStyle = A; x.lineWidth = 2; x.shadowColor = A; x.shadowBlur = 6;
+    x.beginPath();
+    for (let i = 0; i <= 48; i++) { const px = 10 + i * (W - 20) / 48, py = 66 + Math.sin(i * 0.55 + t * 9) * (mode === 'signal' ? 14 : 3) * (mode === 'signal' ? Math.sin(i * 0.13 + 0.4) : 1); if (i) x.lineTo(px, py); else x.moveTo(px, py); }
+    x.stroke(); x.shadowBlur = 0;
+    if (mode === 'signal' && Math.sin(t * 7) > 0 && fontsOk) phosphorText(x, 'VOSS', W / 2, 84, { size: 12, color: '#ffe0a0', align: 'center', glow: 5 });
   }
   c.flush();
 }
@@ -272,7 +273,7 @@ export class Intro implements GameSystem {
   // dom
   private root!: HTMLDivElement; private shade!: HTMLDivElement; private flashEl!: HTMLDivElement; private hurtEl!: HTMLDivElement;
   private lidT!: HTMLDivElement; private lidB!: HTMLDivElement; private wrapEl!: HTMLDivElement;
-  private skipBtn!: HTMLButtonElement; private skipKey!: PixelTex; private skipLit = -1;
+  private skipBtn!: HTMLButtonElement;
   private svgOff!: SVGFEOffsetElement;
   private shadeA = 1; private flashA = 0; private hurtA = 0; private lid = 1; private lidGoal = 1; private lidHit = 0; private wrapA = 0;
   private dbl = 0; private blur = 0; private desat = 0;
@@ -448,17 +449,13 @@ export class Intro implements GameSystem {
     this.lidT = el('div', 'ix-lid top'); this.lidB = el('div', 'ix-lid bot');
     this.shade = el('div', 'ix-shade');
     const top = el('div', 'ix-bar top'), bot = el('div', 'ix-bar bot');
-    const b = this.skipBtn = el('button', 'ix-skip');
-    this.skipKey = pixelTex(46, 14);
-    this.skipKey.cv.className = 'ix-key';
-    b.appendChild(this.skipKey.cv);
-    this.paintKey(false);
+    const b = this.skipBtn = el('button', 'ix-skip nc-free-text', '<b>▸▸</b> skip' + (this.touch ? '' : ' <small>esc</small>'));
     b.type = 'button';
     b.setAttribute('aria-label', 'Skip the intro');
     b.addEventListener('click', (e) => { e.stopPropagation(); this.skip(); });
     b.addEventListener('pointerdown', (e) => e.stopPropagation());
-    b.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; this.paintKey(true); });
-    b.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; this.paintKey(this.skipHot > 0); });
+    b.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; });
+    b.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; });
     // double vision: the picture plus a copy of itself, offset (dx driven per frame)
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('class', 'ix-svg');
@@ -467,29 +464,27 @@ export class Intro implements GameSystem {
     root.append(svg, vig, this.hurtEl, this.wrapEl, this.flashEl, this.lidT, this.lidB, this.shade, top, bot, b);
     document.body.appendChild(root);
   }
-  private hotSkip() { this.skipHot = 2.6; this.skipBtn.classList.add('hot'); this.paintKey(true); }
-  private paintKey(hot: boolean) { const k = hot ? 1 : 0; if (k === this.skipLit) return; this.skipLit = k; drawSkipKey(this.skipKey.pc, hot, !this.touch); this.skipKey.flush(); }
+  private hotSkip() { this.skipHot = 2.6; this.skipBtn.classList.add('hot'); }
   private letterbox(on: boolean) { this.root.classList.toggle('letterbox', on); }
-  /** a spoken line: floating pixel lettering in the stage by whoever said it (and bus 'subtitle' with fp: true, for the voice) */
+  /** a spoken line: free floating text by whoever said it (no box), and bus 'subtitle' with fp: true for the voice */
   private say(who: string, text: string, style: LineStyle = 'guard', sound = true) {
     const dur = readTime(text);
-    bus.emit('subtitle', { who: who === 'self' ? this.p.name : who, text, dur, style, fp: true });
+    bus.emit('subtitle', { who: who === 'self' ? this.p.name : who, text, dur, style, ...(this.staged ? { fp: true } : {}) });
     if (sound && style === 'guard') G.audio?.flat?.('guard_bark', 'sfx', 0.7);
     if (!this.staged) return;
-    const col = style === 'self' ? 0xf2dc96 : style === 'voss' ? 0xffc070 : 0xe8e4d8;
-    const { t, w, h } = speechTex(text, col);
-    const m = new THREE.Mesh(UNIT_PLANE, new THREE.MeshBasicMaterial({ map: t.tex, transparent: true, depthTest: false, depthWrite: false }));
-    m.renderOrder = 60; m.frustumCulled = false;
-    fpGroup(STAGE_NAME).add(m);
+    const el = document.createElement('div');
+    el.className = 'nc-free-text ix-say ' + style;
+    el.textContent = text;
+    this.root.appendChild(el);
     const gd = style === 'guard' ? this.speakerNear() : null;
     // older lines drift up out of the way
-    for (const q of this.lines) q.lift += h + 2;
-    this.lines.push({ m, t, w, h, life: dur + 0.4, age: 0, gd, lift: 0 });
+    for (const q of this.lines) q.lift += 1;
+    this.lines.push({ el, life: dur + 0.4, age: 0, gd, lift: 0 });
     while (this.lines.length > 3) this.dropLine(this.lines[0]);
   }
-  private lines: { m: THREE.Mesh; t: PixelTex; w: number; h: number; life: number; age: number; gd: Guard | null; lift: number }[] = [];
+  private lines: { el: HTMLDivElement; life: number; age: number; gd: Guard | null; lift: number }[] = [];
   private lastBark: Guard | null = null;
-  /** the officer who is talking: the one closer to the middle of the picture (alternating when it is a tie) */
+  /** the officer who is talking: the one nearer the middle of the picture (alternating on a tie) */
   private speakerNear(): Guard {
     const cam = fpCamera();
     const score = (gd: Guard) => { gd.rig.jointWorld('head', v4); v4.project(cam); return v4.z > 1 ? 9 : Math.abs(v4.x) + Math.abs(v4.y) * 0.5; };
@@ -499,37 +494,42 @@ export class Intro implements GameSystem {
     return gd;
   }
   private dropLine(q: Intro['lines'][number]) {
-    q.m.removeFromParent(); (q.m.material as THREE.Material).dispose(); q.t.tex.dispose();
+    q.el.remove();
     const i = this.lines.indexOf(q); if (i >= 0) this.lines.splice(i, 1);
   }
-  /** keep the lettering at a steady size on screen: two low-res pixels per letter pixel, facing the camera */
+  /** a stage point to CSS pixels (through the overlay's low-res target and its margin) */
+  private toScreen(v: THREE.Vector3, out: { x: number; y: number; behind: boolean }) {
+    const pr = this.g.pr as unknown as { lowW: number; lowH: number; margin: number; scale: number; dpr: number };
+    const RW = pr.lowW + pr.margin * 2, RH = pr.lowH + pr.margin * 2;
+    v3.copy(v).project(fpCamera());
+    out.behind = v3.z > 1;
+    out.x = (((v3.x * 0.5 + 0.5) * RW - pr.margin) * pr.scale) / pr.dpr;
+    out.y = innerHeight - (((v3.y * 0.5 + 0.5) * RH - pr.margin) * pr.scale) / pr.dpr;
+    return out;
+  }
+  private scr = { x: 0, y: 0, behind: false };
+  /** speech hangs over the officer's head (pinned to the edge of the picture when he is off it); your own words low in the middle */
   private updLines(dt: number) {
-    const cam = fpCamera(), pr = this.g.pr;
-    const RH = pr.lowH + pr.margin * 2;
     for (const q of [...this.lines]) {
       q.age += dt;
       if (q.age > q.life) { this.dropLine(q); continue; }
-      // where it hangs: over the officer's head (clamped into the picture), or low in front of your own eyes
-      if (q.gd) { q.gd.rig.jointWorld('head', v4); v4.y += 0.42; }
-      else v4.set(0, -0.2, -1.2).applyQuaternion(cam.quaternion).add(cam.position);
-      // a line said off screen is pinned to the edge of the picture on that side
-      v3.copy(v4).project(cam);
-      if (q.gd && (v3.z > 1 || Math.abs(v3.x) > 0.8 || Math.abs(v3.y) > 0.75)) {
-        const bx = v3.z > 1 ? -Math.sign(v3.x || 1) : Math.sign(v3.x);
-        v3.set(Math.max(-0.72, Math.min(0.72, v3.z > 1 ? bx * 0.72 : v3.x)), Math.max(-0.55, Math.min(0.62, v3.z > 1 ? 0.45 : v3.y)), 0.5).unproject(cam);
-        v4.copy(v3);
+      let x = innerWidth / 2, y = innerHeight * 0.8;
+      if (q.gd) {
+        q.gd.rig.jointWorld('head', v4); v4.y += 0.36;
+        const s = this.toScreen(v4, this.scr);
+        x = s.behind ? (s.x < innerWidth / 2 ? innerWidth * 0.88 : innerWidth * 0.12) : s.x;
+        y = s.behind ? innerHeight * 0.3 : s.y;
+        x = Math.max(innerWidth * 0.14, Math.min(innerWidth * 0.86, x));
+        y = Math.max(innerHeight * 0.16, Math.min(innerHeight * 0.74, y));
       }
-      const d = Math.max(0.3, v4.distanceTo(cam.position));
-      const mpp = (2 * d * Math.tan(THREE.MathUtils.degToRad(cam.fov / 2))) / RH * 2;
-      q.m.position.copy(v4).addScaledVector(v2.set(0, 1, 0).applyQuaternion(cam.quaternion), (q.lift + q.age * 3) * mpp);
-      q.m.quaternion.copy(cam.quaternion);
-      q.m.scale.set(q.w * mpp, q.h * mpp, 1);
-      (q.m.material as THREE.MeshBasicMaterial).opacity = Math.min(1, (q.life - q.age) * 3, q.age * 12);
+      const a = Math.min(1, (q.life - q.age) * 3, q.age * 10);
+      q.el.style.transform = `translate(${x.toFixed(1)}px, ${y.toFixed(1)}px) translate(-50%, -100%) translateY(${(-q.lift * 1.5 - q.age * 0.12).toFixed(2)}em)`;
+      q.el.style.opacity = a.toFixed(3);
     }
   }
   private paintDom(dt: number) {
     this.shade.style.opacity = String(clamp01(this.shadeA));
-    if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) { this.skipBtn.classList.remove('hot'); this.paintKey(false); } }
+    if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) this.skipBtn.classList.remove('hot'); }
     this.flashA = Math.max(0, this.flashA - dt * 3.2);
     this.flashEl.style.opacity = String(this.flashA);
     this.hurtA = Math.max(0, this.hurtA - dt * 0.9);
@@ -673,7 +673,8 @@ export class Intro implements GameSystem {
     const t = this.bandT;
     // repaint the tube a dozen times a second (it is a CRT, not a phone)
     this.crtT -= dt;
-    if (this.crtT <= 0) { this.crtT = 0.08; drawCrt(b.crt, t, t < 2.2 ? 'boot' : this.signalled ? 'signal' : 'link', clamp01((t - 0.9) / 1.2)); }
+    if (t > 0.05 && b.crt.mat.crt.target === 0) b.crt.power(true);
+    if (this.crtT <= 0) { this.crtT = 0.06; drawCrt(b.crt, t, t < 2.2 ? 'boot' : this.signalled ? 'signal' : 'link', clamp01((t - 0.9) / 1.2)); }
     // the needle twitches on the boot, swings hard on a signal; the lamp blinks
     const want = t < 0.6 ? Math.sin(t * 30) * 0.5 : t < 2.2 ? -0.6 + (t - 0.6) * 0.5 : this.signalled ? 0.7 + Math.sin(t * 9) * 0.15 : 0.1 + Math.sin(t * 2) * 0.05;
     b.needle.rotation.z += (want - b.needle.rotation.z) * Math.min(1, dt * 10);
@@ -1249,6 +1250,5 @@ export class Intro implements GameSystem {
   }
 }
 const CYCLE_RISE = 0.62;
-const UNIT_PLANE = new THREE.PlaneGeometry(1, 1);
 const POLE_A = new THREE.Vector3(0.3, -1, 0.4), POLE_B = new THREE.Vector3(-0.3, -1, 0.4), POLE_GUN = new THREE.Vector3(0.4, -1, -0.5);
 const wrapA = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };

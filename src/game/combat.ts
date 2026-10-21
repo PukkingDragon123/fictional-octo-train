@@ -18,6 +18,7 @@ import '../combat/anims';
 import '../combat/sounds';
 import { wielded, MOVES, sizeClass, type MoveKind, type Wielded } from '../combat/moves';
 import { Marks, gaugeName } from '../combat/glyphs';
+import { Words } from '../combat/words';
 import { Combo } from '../combat/combos';
 import { Struggles, StruggleAction, type Stage } from '../combat/qte';
 import { Executions } from '../combat/executions';
@@ -62,6 +63,7 @@ export class CombatSystem implements GameSystem {
   name = 'combat';
   rng = new Rng(Math.random() * 1e9);
   marks = new Marks();
+  words = new Words();
   qte = new Struggles();
   exec = new Executions();
   combo = new Combo();
@@ -135,9 +137,11 @@ export class CombatSystem implements GameSystem {
   update(dt: number) {
     this.marks.attach();
     this.marks.begin();
+    this.words.begin();
     try { this.frame(dt); } finally {
       try { this.drawWorld(dt); } catch (e) { console.error('combat marks', e); }
       this.marks.end();
+      this.words.end();
     }
   }
 
@@ -151,9 +155,9 @@ export class CombatSystem implements GameSystem {
     if (p.body.dead || p.inVehicle) { this.qte.cancel(); if (this.exec.active) this.exec.end(p); this.resetMoves(p); return; }
     this.applySlow(p);
     this.pollTear(p);
-    if (this.qte.active) { this.resetMoves(p); this.qte.update(dt, this.marks); G.input.mouseReleased[0] = false; this.endFrame(p); return; }
+    if (this.qte.active) { this.resetMoves(p); this.qte.update(dt, this.marks, this.words); G.input.mouseReleased[0] = false; this.endFrame(p); return; }
     if (p.body.downed) { this.resetMoves(p); this.endFrame(p); return; }
-    if (this.exec.active) { this.resetMoves(p); this.exec.update(dt, p, this.marks); this.slowK = 0; this.endFrame(p); return; }
+    if (this.exec.active) { this.resetMoves(p); this.exec.update(dt, p, this.marks, this.words); this.slowK = 0; this.endFrame(p); return; }
     const inp = G.input;
     const cur = p.actions.current;
     const busy = !!(cur?.started && cur.locks);
@@ -262,7 +266,7 @@ export class CombatSystem implements GameSystem {
       if (br.queued > 0 && ready && br.jabs < 8 && G.time <= br.until) { br.queued--; br.jabs++; this.startMove(p, 'jab', w); }
       if ((G.time > br.until || br.jabs >= 8) && (!this.move || this.move.landed)) {
         this.combo.barrage = null;
-        if (br.jabs >= 3) { this.startMove(p, 'flurryEnd', w); this.marks.float('badge:barrage', p.x, p.y + 2.2, p.z, 1); this.combo.note('barrage'); }
+        if (br.jabs >= 3) { this.startMove(p, 'flurryEnd', w); this.words.pop('Barrage', p.x, p.y + 2.3, p.z, 'ev crit', 1); this.combo.note('barrage'); }
       }
       return;
     }
@@ -316,7 +320,7 @@ export class CombatSystem implements GameSystem {
       // the fourth in rhythm opens a barrage
       this.combo.barrage = { until: G.time + 1.5, jabs: 1, queued: 0 };
       this.combo.chain = 0;
-      this.marks.float('badge:barrage', p.x, p.y + 2.2, p.z, 0.8);
+      this.words.pop('Flurry', p.x, p.y + 2.3, p.z, 'ev', 0.8);
       this.startMove(p, 'jab', w);
       return;
     }
@@ -414,7 +418,7 @@ export class CombatSystem implements GameSystem {
     p.facing = p.targetFacing = dir;
     const big = kind === 'heavy' || kind === 'lunge' || kind === 'flurryEnd' || kind === 'tackle';
     G.audio?.at?.(big ? 'cb_whoosh_big' : kind === 'shove' ? 'shove' : kind === 'stomp' ? 'cb_grunt' : 'swing', p.x, p.z, big ? 0.8 : 0.5);
-    if (perfect && kind === 'heavy') { this.marks.float('badge:perfect', p.x, p.y + 2.2, p.z, 0.8); G.audio?.at?.('cb_perfect', p.x, p.z, 0.6); }
+    if (perfect && kind === 'heavy') { this.words.pop('Perfect', p.x, p.y + 2.3, p.z, 'ev perfect', 0.9); G.audio?.at?.('cb_perfect', p.x, p.z, 0.6); }
     this.combo.note(kind, targetId);
     this.lastFight = G.time;
   }
@@ -616,8 +620,8 @@ export class CombatSystem implements GameSystem {
     if (this.stars.length > 8) this.stars.shift();
     this.flashes.push({ x: c.x, y: hy, z: c.z, until: G.time + (big ? 0.09 : 0.05), c: crit ? 0xffffff : 0xffc080, i: big ? 1.5 : 0.8 });
     if (this.flashes.length > 6) this.flashes.shift();
-    if (crit && k !== 'jab') this.marks.float(behind ? 'badge:backstab' : m.counter ? 'badge:counter' : 'badge:crit', c.x, hy + 0.5, c.z, 0.7);
-    if (dn && size <= 2) this.marks.float('badge:down', c.x, hy + 0.4, c.z, 0.7);
+    if (crit && k !== 'jab') this.words.pop(behind ? 'Backstab' : m.counter ? 'Counter' : 'Crit', c.x, hy + 0.55, c.z, m.counter ? 'ev counter' : 'ev crit', 0.8);
+    if (dn && size <= 2) this.words.pop('Down', c.x, hy + 0.35, c.z, 'ev down', 0.8);
     p.body.addXp(skillFor(w.w.kind), 3);
     bus.emit('combatHit', p, c, dmg, kind, crit);
   }
@@ -717,7 +721,7 @@ export class CombatSystem implements GameSystem {
     if (this.combo.counter && G.time < this.combo.counter.until) return;
     slowmo(0.3, 520);
     G.audio?.at?.('cb_perfect', p.x, p.z, 0.8);
-    this.marks.float('badge:dodge', p.x, p.y + 2.1, p.z, 0.9);
+    this.words.pop('Dodge', p.x, p.y + 2.2, p.z, 'ev dodge', 0.9);
     this.combo.counter = { until: G.time + 1.4, id };
     p.body.endurance = Math.min(1, p.body.endurance + 0.05);
     punch(-0.03, 0.3);
@@ -783,7 +787,7 @@ export class CombatSystem implements GameSystem {
         end();
         cbOp({ t: 'qte', id: c.id, pid: p.id, r: 'lose' });
         this.noTearQte = G.time + 4;
-        this.marks.float('badge:bitten', p.x, p.y + 2.1, p.z, 1);
+        this.words.pop(reason === 'pin' ? 'Mauled' : 'Bitten', p.x, p.y + 2.2, p.z, 'ev bad', 1);
         shake(0.8, 0.4);
         if (reason === 'pin') p.playAnim('get_up', 1.4);
       },
@@ -811,7 +815,7 @@ export class CombatSystem implements GameSystem {
         if (c) { cbOp({ t: 'tearX', id: c.id, pid: p.id, perfect: perfect ? 1 : undefined }); this.brokeFree(p, c, perfect); }
         bus.emit('think', p, perfect ? 'NOT TODAY.' : 'I got it loose— move!');
       },
-      onLose: () => { this.marks.float('badge:bitten', p.x, p.y + 2.1, p.z, 1.2); },
+      onLose: () => { this.words.pop('Ripped', p.x, p.y + 2.2, p.z, 'ev bad', 1.2); },
     });
   }
 
@@ -821,7 +825,7 @@ export class CombatSystem implements GameSystem {
     kick(c.x - p.x, c.z - p.z, 0.4);
     G.audio?.at?.('cb_break', p.x, p.z, 1);
     flinch(c, c.x - p.x, c.z - p.z, 1.4);
-    this.marks.float(perfect ? 'badge:reversal' : 'badge:free', p.x, p.y + 2.1, p.z, 1.1);
+    this.words.pop(perfect ? 'Reversal' : 'Broke free', p.x, p.y + 2.2, p.z, perfect ? 'ev perfect' : 'ev free', 1.1);
     if (perfect) {
       slowmo(0.35, 600);
       this.combo.counter = { until: G.time + 1.8, id: c.id };
@@ -888,14 +892,18 @@ export class CombatSystem implements GameSystem {
       if (!promptShown && !inExec(c) && d < 3.4 && executable(c)) {
         promptShown = true;
         M.mark('badge:skull', c.x, top + 0.38 + (d < 2.2 ? Math.sin(now / 90) * 0.03 : 0), c.z, { color: d < 2.2 ? 0xffffff : 0x9a8c78 });
-        if (d < 2.2) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; M.mark(touch ? 'tap' : 'key:E', c.x + rt.x * 0.5, top + 0.3, c.z + rt.z * 0.5); }
+        if (d < 2.2) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; this.words.prompt(touch ? 'Tap' : (G.input.keyName('interact') || 'E').toUpperCase(), 'finish it', c.x + rt.x * 0.55, top + 0.3, c.z + rt.z * 0.55, 'hot'); }
       }
     }
     // a counter window is open
     const ctr = this.combo.counter;
     if (ctr && G.time < ctr.until) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; M.mark('badge:counter', p.x - rt.x * 0.55, p.y + 1.9, p.z - rt.z * 0.55, { opacity: Math.min(1, (ctr.until - G.time) * 2), scale: 1 + Math.max(0, Math.sin(now / 70)) * 0.08 }); }
-    // the run of blows: chalk tally strokes hanging by the shoulder
-    if (this.combo.hits >= 2 && G.time - this.combo.hitT < 1.6) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; M.mark('tally:' + Math.min(20, this.combo.hits), p.x + rt.x * 0.65, p.y + 1.75, p.z + rt.z * 0.65, { opacity: Math.min(1, (1.6 - (G.time - this.combo.hitT)) * 3) }); }
+    // the run of blows: a count hanging by the shoulder
+    if (this.combo.hits >= 2 && G.time - this.combo.hitT < 1.6) {
+      const n = this.combo.hits, rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) };
+      const bump = 1 + Math.max(0, 0.18 - (G.time - this.combo.hitT)) * 2.2;
+      this.words.prompt('\u00d7' + n, '', p.x + rt.x * 0.75, p.y + 1.75, p.z + rt.z * 0.75, 'count' + (n >= 8 ? ' max' : n >= 5 ? ' hi' : ''), bump);
+    }
     // a heavy swing leaves a smear of embers behind the weapon
     const mv = this.move;
     if (mv && (mv.kind === 'heavy' || mv.kind === 'lunge' || mv.kind === 'flurryEnd' || mv.kind === 'slash') && mv.t > mv.dur * (mv.hitAt - 0.2) && mv.t < mv.dur * (mv.hitAt + 0.12)) {

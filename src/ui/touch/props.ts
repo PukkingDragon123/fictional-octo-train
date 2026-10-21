@@ -10,6 +10,7 @@ import {
   PAINT, STEEL, CHROME, BRASS, RUBBER, PLASTIC, CLOTH, PAPER, GLASS, CERAMIC, Surf,
 } from './stage3d';
 import { sfx, haptic } from './sfx';
+import { typeText, typeW, onTypeReady } from './realtype';
 import { clamp, wrapAngle } from '../../core/math';
 
 const PI = Math.PI;
@@ -45,8 +46,11 @@ function drawTape(s: Screen, text: string, fg = 0xe6e3d6, bg = 0x141311) {
   s.hline(1, w - 2, 0, C(0x2c2a26));
   s.hline(1, w - 2, h - 1, C(0x0a0a09));
   s.px(0, 0, 0); s.px(w - 1, 0, 0); s.px(0, h - 1, 0); s.px(w - 1, h - 1, 0);
-  s.text(text, 3, 3, C(0x050505));
-  s.text(text, 2, 2, C(fg));
+  // punched letters in real type, centred: a dark lip under each raised letter
+  const tw = typeW(text, h - 5);
+  const x = Math.max(2, Math.round((w - tw) / 2));
+  typeText(s, text, x + 1, 3, h - 5, 0x050505);
+  typeText(s, text, x, 2, h - 5, fg);
 }
 
 interface Decal { mesh: THREE.Mesh; w: number; h: number; orient: 'up' | 'front'; tilt: number }
@@ -75,6 +79,7 @@ export class Thing extends Prop {
   /** a flat pixel decal of w x h low-res pixels at (x, y, z), lying on the panel ('up') or facing the viewer ('front') */
   decal(w: number, h: number, draw: (s: Screen) => void, x: number, y: number, z: number, orient: 'up' | 'front' = 'up', parent: THREE.Object3D = this.body, tilt = 0) {
     const t = pixTex(w, h, draw);
+    onTypeReady(() => { t.redraw(); this.busy = true; });
     const g = new THREE.PlaneGeometry(1, 1);
     if (orient === 'up') g.rotateX(-PI / 2);
     const mo = new Mold().add(g, null, 0xffffff, [0.1, 0.4, 0.12, 0]);
@@ -537,6 +542,7 @@ export class BottleCap extends Thing {
     this.mesh(new Mold().add(g.top, null, 0xffffff, (x, _y, z) => [0.45, 0.6, 0.9, Math.max(0, 1 - (x * x + z * z) / (0.37 * 0.37))]), this.topM);
     this.tex = liveTex(this, this.topM);
     this.retex(60);
+    onTypeReady(() => { this.retex(this.s || 60); this.busy = true; });
   }
   /** what the cap says (the target in reach), or a word that isn't there */
   setWord(word: string, weird = false) {
@@ -550,7 +556,7 @@ export class BottleCap extends Thing {
   }
   protected retex(s: number) {
     const w = 0.74 * s, h = 0.74 * s * Math.sin(this.elev);
-    const word = this.shownWord.slice(0, Math.max(3, Math.floor((w - 4) / 6)));
+    const word = this.shownWord.slice(0, Math.max(3, Math.floor((w - 4) / 4)));
     const weird = this.weird, brand = this.brand;
     this.tex(w, h, (sc) => {
       const W = sc.w, H = sc.h, cx = (W - 1) / 2, cy = (H - 1) / 2, rx = W / 2, ry = H / 2;
@@ -567,14 +573,18 @@ export class BottleCap extends Thing {
         sc.px(x, y, C(c));
       }
       // tiny brand on the banner (5x7 font, may not fit on small caps: then just a dotted line)
-      const bw = sc.textW(brand);
-      const by = Math.round(cy - ry * 0.44 - 3);
-      if (bw < W * 0.6) sc.text(brand, Math.round(cx - bw / 2 + 0.5), by, C(0xe8dcc0, 200));
+      const capB = Math.max(4, Math.round(H * 0.11));
+      const bw = typeW(brand, capB, 500);
+      const by = Math.round(cy - ry * 0.44 - capB / 2);
+      if (bw < W * 0.6) typeText(sc, brand, Math.round(cx - bw / 2 + 0.5), by, capB, 0xe8dcc0, 200, 500);
       else for (let x = Math.round(cx - rx * 0.4); x < cx + rx * 0.4; x += 2) sc.px(x, Math.round(cy - ry * 0.44), C(0xe8dcc0));
-      const tw = sc.textW(word) - 1;
-      const tx = Math.round(cx - tw / 2), ty = Math.round(cy - 1);
-      sc.text(word, tx + 1, ty + 1, C(0xe9dfc4));
-      sc.text(word, tx, ty, C(weird ? 0x2a0503 : 0x3b1d14));
+      // the word in reach, printed in the cap: as big as fits
+      let capW = Math.max(5, Math.round(H * 0.2));
+      while (capW > 5 && typeW(word, capW) > W * 0.78) capW--;
+      const tw = typeW(word, capW);
+      const tx = Math.round(cx - tw / 2), ty = Math.round(cy - capW / 2 + 1);
+      typeText(sc, word, tx + 1, ty + 1, capW, 0xe9dfc4);
+      typeText(sc, word, tx, ty, capW, weird ? 0x2a0503 : 0x3b1d14);
     });
   }
   protected onDown() { sfx('tc_cap', 0.5, 1, 0.04); haptic(14); }

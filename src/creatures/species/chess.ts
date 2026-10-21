@@ -17,7 +17,7 @@ import { G } from '../../game/G';
 import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
 import { Page, OB, V3, bpart, registerPage, applyLook, galleryDriver, lerp, damp, ramp } from '../kit/beasts';
-import { rot, lathe, obox, marble, flat, eye, marker, placeMarker, boardOf, sqOf, sqCenter, sqFree, hitPlayer, playersNear, type Board } from '../kit/oddkit';
+import { rot, lathe, obox, marble, flat, eye, marker, placeMarker, boardOf, sqOf, sqCenter, sqFree, hitPlayer, playersNear, surface, type Board } from '../kit/oddkit';
 import { net, netOf, snd, playersIn, dist, hold, face, hashId, rng, fx, fxPoll, playAt, live } from '../behaviors_b';
 import { pulse } from '../behaviors_a';
 import { ruleShown } from '../rules';
@@ -104,6 +104,7 @@ function thinkPiece(c: Creature, dt: number, knight: boolean): boolean {
       if (sqFree(z, b, i0 + di, j0 + dj)) { [c.x, c.z] = sqCenter(b, i0 + di, j0 + dj); found = true; }
     }
     m.ph = 'wait'; m.tick = Math.floor((G.time + (knight ? PERIOD / 2 : 0)) / PERIOD);
+    n.cell = b.cell;
   }
   const p = target(c);
   const [i, j] = sqOf(b, c.x, c.z);
@@ -191,6 +192,7 @@ function buildRook(): Rig {
   });
   void crown;
   bpart(rig, 'throat', tower, [0, 1.12, 0], PG, 'rthroat', (ob) => ob.quad([[-0.26, 0, 0.26], [0.26, 0, 0.26], [0.26, 0, -0.26], [-0.26, 0, -0.26]], PG.reg('MOUTH'), undefined, { emis: 0.5 }));
+  surface(rig, 'lacquer');
   return rig;
 }
 function buildKnight(): Rig {
@@ -215,6 +217,7 @@ function buildKnight(): Rig {
     for (let k = 0; k < 5; k++) for (const s of [-1, 1]) ob.cone([s * 0.04, -0.01, 0.1 + k * 0.06], [0, 1, 0], 0.012, 0.04, 3, PG.reg('TOOTH'));
   });
   for (const [s, k] of [['L', 1], ['R', -1]] as const) bpart(rig, 'ear' + s, head, [k * 0.08, 0.17, -0.06], PG, 'kear', (ob) => ob.cone([0, 0, 0], [k * 0.2, 1, -0.25], 0.055, 0.2, 5, S));
+  surface(rig, 'lacquer');
   return rig;
 }
 
@@ -238,6 +241,9 @@ function boardFx(rig: Rig, c: Creature, t: number, dt: number) {
     }
   }
   ud.slam = Math.max(0, (ud.slam ?? 0) - dt * 3);
+  // pieces are sized to their board: a four-metre square gets a piece half again as tall
+  const cell = n.cell ?? 2;
+  if (ud.bs !== cell) { ud.bs = cell; rig.body.scale.setScalar((ud.size ?? 1) * Math.max(1, Math.min(1.8, cell / 2.4))); }
   // the landing square, glowing under where it will come down
   const mk = marker(rig, 'to', 0xc8501e);
   ud.mkA = lerp(ud.mkA ?? 0, n.mk && !c.dead ? 0.42 + (Math.sin(t * 9) > 0.6 ? 0.12 : 0) + Math.sin(t * 2.3) * 0.05 : 0, damp(n.mk ? 12 : 4, dt));

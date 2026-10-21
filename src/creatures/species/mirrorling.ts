@@ -10,7 +10,7 @@ import { G } from '../../game/G';
 import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
 import { Page, V3, bpart, registerPage, applyLook, galleryDriver, lerp, damp, ramp } from '../kit/beasts';
-import { rot, vis, skin, flat, buildHumanoid, humWalk } from '../kit/oddkit';
+import { rot, vis, skin, flat, buildHumanoid, humWalk, surface } from '../kit/oddkit';
 import { net, netOf, snd, playersIn, dist, hold, hashId, rng, fx, fxPoll, playAt, walkable } from '../behaviors_b';
 import { pulse, attack } from '../behaviors_a';
 import { ruleShown } from '../rules';
@@ -80,6 +80,7 @@ function buildMirror(): Rig {
       ob.quad([[-0.07, -0.07, 0], [0.07, -0.07, 0], [0.07, 0.07, 0], [-0.07, 0.07, 0]], PG.reg('CRACK'), undefined, { emis: 0.8 });
     });
   }
+  surface(rig, 'lacquer');
   return rig;
 }
 function animateMirror(rig: Rig, c: Creature, t: number, dt: number) {

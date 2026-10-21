@@ -11,6 +11,7 @@ import { TimedAction } from '../actions/action';
 import { TornAction } from '../survival/limbSystem';
 import { shake, punch, hitstop, slowmo } from '../gfx/juice';
 import { gaugeName, type Marks } from './glyphs';
+import type { Words } from './words';
 
 export type QteKind = 'mash' | 'alt' | 'timed';
 export interface Stage { kind: QteKind; need: number }
@@ -71,7 +72,7 @@ export class Struggles {
     G.camera?.pushIn?.(0.2, 0.35, -6);
     G.audio?.ui?.('cb_tick', 0.6);
     const p = G.local;
-    if (p) G.combat?.marks?.float('badge:struggle', p.x, p.y + 2.6, p.z, 1.0);
+    if (p) G.combat?.words?.pop(o.reason === 'tear' ? 'Break free' : o.reason === 'pin' ? 'Throw it off' : 'Struggle', p.x, p.y + 2.7, p.z, 'ev bad', 1.1);
     return true;
   }
 
@@ -97,7 +98,7 @@ export class Struggles {
     return Math.max(0.5, m);
   }
 
-  update(dt: number, marks: Marks) {
+  update(dt: number, marks: Marks, words: Words) {
     const c = this.cur;
     const p = G.local;
     if (!c || c.done || !p) { this.taps.length = 0; return; }
@@ -150,10 +151,10 @@ export class Struggles {
       c.si++; c.prog = 0; c.hits = 0; c.ring = 1.15;
       if (c.si >= c.stages.length) { this.finish(true); return; }
       hitstop(60); punch(0.05, 0.2); G.audio?.ui?.('cb_good', 0.8);
-      marks.float('badge:struggle', p.x, p.y + 2.6, p.z, 0.6);
+      words.pop('Again', p.x, p.y + 2.7, p.z, 'ev', 0.6);
     }
     if (c.t >= c.dur) { this.finish(false); return; }
-    this.draw(p, c, marks, rt);
+    this.draw(p, c, marks, words, rt);
   }
 
   private feel(p: Player, k: number) {
@@ -162,7 +163,7 @@ export class Struggles {
     if (p.isLocal) p.body.endurance = Math.max(0, p.body.endurance - 0.006);
   }
 
-  private draw(p: Player, c: Cur, marks: Marks, rt: { x: number; z: number }) {
+  private draw(p: Player, c: Cur, marks: Marks, words: Words, rt: { x: number; z: number }) {
     const touch = !!(G.systems.find((s) => s.name === 'touch') as any)?.active;
     const stage = c.stages[c.si];
     const now = performance.now() / 1000;
@@ -170,25 +171,25 @@ export class Struggles {
     const pulse = 1 + c.pop * 0.25;
     const left = 1 - c.t / c.dur;
     // running out: the keys flush red on the beat
-    const hurry = left < 0.3 && Math.sin(now * 20) > 0 ? 0xffb8a0 : 0xffffff;
+    const hurry = left < 0.3 && Math.sin(now * 20) > 0 ? 'hurry' : 'hot';
+    const kn = (a: string) => (G.input.keyName(a as any) || '?').toUpperCase();
     // the struggle as a pressure gauge: the needle climbs into the red as you fight loose
     const fill = (c.si + Math.min(1, c.prog)) / c.stages.length;
     const tremble = Math.sin(now * 47) * 0.012 * c.grip;
     marks.mark(gaugeName(fill, fill > 0.78), hx + rt.x * tremble, hy + 0.55, hz + rt.z * tremble);
     if (stage.kind === 'mash') {
-      marks.mark(touch ? 'tap' : 'key:SPACE', hx, hy - 0.04 * c.pop, hz, { color: hurry, scale: pulse });
-      if (!touch) marks.mark('lmb', hx + rt.x * 0.85, hy - 0.04, hz + rt.z * 0.85, { color: 0xb8ac94, opacity: 0.85 });
+      words.prompt(touch ? 'Tap' : kn('shove'), touch ? 'hammer it' : 'hammer it', hx, hy - 0.04 * c.pop, hz, hurry, pulse);
     } else if (stage.kind === 'alt') {
       for (const side of ['L', 'R'] as const) {
         const s = side === 'L' ? -1 : 1, on = c.want === side;
-        const name = touch ? (side === 'L' ? 'keyL' : 'keyR') : side === 'L' ? 'key:A' : 'key:D';
-        marks.mark(name, hx + rt.x * 0.55 * s, hy - (on ? 0.04 * c.pop : 0), hz + rt.z * 0.55 * s, { color: on ? hurry : 0x7a7060, opacity: on ? 1 : 0.75, scale: on ? pulse : 1 });
+        const name = touch ? (side === 'L' ? '< Tap' : 'Tap >') : kn(side === 'L' ? 'left' : 'right');
+        words.prompt(name, on ? 'rock it' : '', hx + rt.x * 0.6 * s, hy - (on ? 0.04 * c.pop : 0), hz + rt.z * 0.6 * s, on ? hurry : 'dim', on ? pulse : 0.9);
       }
     } else {
       const inBand = c.ring > 0.24 && c.ring < 0.46;
       marks.mark('target', hx, hy, hz);
       marks.mark('hoop', hx, hy, hz, { color: inBand ? 0xfff0d0 : 0xffffff, scale: Math.max(0.1, c.ring * 1.7) });
-      marks.mark(touch ? 'tap' : 'key:SPACE', hx, hy - 0.6, hz, { color: inBand ? 0xffffff : 0xb8ac94 });
+      words.prompt(touch ? 'Tap' : kn('shove'), 'on the mark', hx, hy - 0.62, hz, inBand ? 'go' : 'small', inBand ? 1.12 : 1);
       for (let i = 0; i < stage.need; i++) { const o = (i - (stage.need - 1) / 2) * 0.28; marks.mark(i < c.hits ? 'pip:on' : 'pip', hx + rt.x * o, hy + 0.98, hz + rt.z * o); }
     }
     // the time left: chalk tally marks round the feet, rubbed out one by one

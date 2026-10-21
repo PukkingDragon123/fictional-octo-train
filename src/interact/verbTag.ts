@@ -1,14 +1,14 @@
-// What is left of the context menu: a strip of embossed label tape. Any system
-// that still hands a list of options to G.ui.openMenu (an item in the backpack,
-// a radio, a treat-this-wound picker) gets a pixel-art tape at the pointer
-// showing ONE verb at a time with its glyph: the wheel, the arrow keys or the
-// ‹ › ends step through them, a click / Enter does it, Esc or a click elsewhere
-// puts it away. No list.
+// What is left of the context menu: one word. Any system that still hands a
+// list of options to G.ui.openMenu (an item in the backpack, a radio, a
+// treat-this-wound picker) gets free text at the pointer (a real typeface, no
+// box) showing ONE verb at a time with its stencil pictogram and a row of
+// rivets for where it is in the list: the wheel, the arrow keys or ‹ › step,
+// a click / Enter does it, Esc or a click elsewhere puts it away. No list.
 import './grab.css';
 import { G } from '../game/G';
 import type { MenuOption } from '../ui/ui';
 import { flatten, Verb } from './verbs';
-import { labelTape, verbGlyph, show } from './signs';
+import { verbGlyph, glyphUrl } from './signs';
 
 export interface VerbTagHandle { el: HTMLDivElement; close: () => void }
 
@@ -20,19 +20,16 @@ export function openVerbTag(x: number, y: number, title: string, opts: MenuOptio
   if (!verbs.length) return null;
   let sel = Math.max(0, verbs.findIndex((v) => !v.why));
   const el = document.createElement('div');
-  el.className = 'gx-tag';
+  el.className = 'gx-tag nc-free-text';
   el.setAttribute('role', 'listbox');
   el.setAttribute('aria-label', title || 'Actions');
-  const cv = document.createElement('canvas');
-  el.appendChild(cv);
-  const k = Math.max(2, Math.round((G.pr?.scale ?? 2) / (G.pr?.dpr ?? 1)));
-  let zones = { leftEnd: 0, rightStart: 9999 };
   const draw = () => {
     const v = verbs[sel];
-    el.setAttribute('aria-valuetext', v.label + (v.why ? ' (' + v.why + ')' : ''));
-    const t = labelTape(v.label.replace(/\s*\(.*?\)/g, ''), verbGlyph(v.label), sel, verbs.length, v.why, title);
-    zones = t;
-    show(cv, t.scr, k);
+    el.classList.toggle('dis', !!v.why);
+    el.classList.toggle('danger', !!v.danger);
+    const n = verbs.length;
+    const pip = n > 1 ? `<span class="gx-pips">${Array.from({ length: Math.min(n, 12) }, (_, j) => `<i${j === (n > 12 ? Math.round(sel / (n - 1) * 11) : sel) ? ' class="on"' : ''}></i>`).join('')}</span>` : '';
+    el.innerHTML = `${title ? `<span class="gx-t">${esc(title)}</span>` : ''}<span class="gx-row"><span class="gx-cyc">${n > 1 ? '<i data-d="-1">‹</i>' : ''}<img class="gx-g" src="${glyphUrl(verbGlyph(v.label))}" alt=""><b role="option" aria-selected="true">${esc(v.label.replace(/\s*\(.*?\)/g, ''))}</b>${n > 1 ? '<i data-d="1">›</i>' : ''}</span>${pip}</span>${v.why ? `<em class="gx-why">${esc(String(v.why))}</em>` : ''}`;
   };
   const step = (d: number) => { sel = (sel + d + verbs.length) % verbs.length; draw(); G.audio?.ui?.('hover', 0.5); };
   let closed = false;
@@ -62,11 +59,9 @@ export function openVerbTag(x: number, y: number, title: string, opts: MenuOptio
   const onWheel = (e: WheelEvent) => { e.preventDefault(); e.stopImmediatePropagation(); step(Math.sign(e.deltaY) || 1); };
   el.addEventListener('click', (e) => {
     e.stopPropagation();
-    // the ‹ › ends of the tape step, the word does it
-    const x = (e.clientX - cv.getBoundingClientRect().left) / k;
-    if (verbs.length > 1 && x < zones.leftEnd) step(-1);
-    else if (verbs.length > 1 && x > zones.rightStart) step(1);
-    else run();
+    // ‹ › step, the word does it
+    const d = (e.target as HTMLElement).dataset?.d;
+    if (d) step(Number(d)); else run();
   });
   el.addEventListener('contextmenu', (e) => { e.preventDefault(); close(); });
   window.addEventListener('keydown', onKey, true);
@@ -80,3 +75,5 @@ export function openVerbTag(x: number, y: number, title: string, opts: MenuOptio
   return { el, close };
 }
 
+
+function esc(s: string) { return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]); }

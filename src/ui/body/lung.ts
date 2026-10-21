@@ -8,6 +8,7 @@
 // a Nixie tube counts the streak); off the beat you cough.
 import type { Player } from '../../entities/player';
 
+export const LUNG_W = 50, LUNG_H = 84;
 const W_PERFECT = 0.085, W_GOOD = 0.19;
 
 export type PumpResult = 'perfect' | 'good' | 'cough' | 'start';

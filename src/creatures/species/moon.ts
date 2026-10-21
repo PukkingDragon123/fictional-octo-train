@@ -17,7 +17,7 @@ import { bus } from '../../core/events';
 import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
 import { Page, V3, bpart, registerPage, applyLook, galleryDriver, lerp, damp, ramp } from '../kit/beasts';
-import { filmMat, tpart, rot, scl, skin, eye, flat, hitPlayer, playersNear } from '../kit/oddkit';
+import { filmMat, tpart, rot, scl, skin, eye, flat, hitPlayer, playersNear, surface } from '../kit/oddkit';
 import { net, netOf, snd, playersIn, dist, hold, face, hashId, rng, fx, fxPoll, playAt, walkable, live } from '../behaviors_b';
 import { pulse, attack, onPlayerHit } from '../behaviors_a';
 import { ruleShown } from '../rules';
@@ -86,6 +86,7 @@ function buildWisp(): Rig {
       for (let f = 0; f < 4; f++) ob.cone([(f - 1.5) * 0.012, -0.2, 0.04], [0, -1, 0.2], 0.006, 0.05, 3, PG.reg('HAND'));
     });
   }
+  surface(rig, 'regolith', false);
   rig.eyes = [];
   return rig;
 }
@@ -204,6 +205,7 @@ function buildStrider(): Rig {
     void arm;
   }
   void head;
+  surface(rig, 'regolith');
   return rig;
 }
 function animateStrider(rig: Rig, c: Creature, t: number, dt: number) {

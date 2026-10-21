@@ -23,7 +23,8 @@ import type { GridView3, DropAt } from '../craft/gridView3';
 import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, type Arm, makeBackdrop, makeItemObj, fitItemObj, type ItemObj, boxEdges, pointerRay, damp, fpMat } from '../craft/fpKit';
 import { registerCraftSounds } from '../craft/craftSounds';
 import { craftSystem } from '../craft/craft';
-import { pixTag, type PixTag } from '../craft/tags';
+import { pixTag, stamp, type PixTag } from '../craft/tags';
+import { metalMat } from '../craft/metal';
 import { Dymo, HoverTag, Gauge, ControlBox } from '../craft/props';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { debtorNo } from './holo/holo';
@@ -115,6 +116,8 @@ export class InventoryUI {
   private rail = new THREE.Group();
   private sideTags: { t: PixTag; e: Entry }[] = [];
   private wornBoard = new THREE.Group();
+  private howTo = pixTag('card', 80, 50, 0.27);
+  private opens = 0;
   private wornObjs: { it: Item; obj: ItemObj }[] = [];
   private palm = { R: new THREE.Vector3(), L: new THREE.Vector3() };
   private heldObjs: { R: ItemObj | null; L: ItemObj | null } = { R: null, L: null };
@@ -186,16 +189,24 @@ export class InventoryUI {
     this.ground = new THREE.Mesh(mb.build(), fpMat());
     this.floor.add(this.ground);
     g.add(this.floor);
-    this.floor.add(this.cubeSpin, this.rollHold, this.trayHold, this.rail);
+    this.floor.add(this.cubeSpin, this.rollHold, this.trayHold);
     this.cubeSpin.add(this.cube.root);
     this.rollHold.add(this.roll.root);
     this.trayHold.add(this.tray.root);
     this.views = [this.cube, this.roll, this.tray];
-    // the wire the container tags hang from
+    // the brass rod down the right edge the container tags hang from
     const wb = new ModelBuilder();
-    for (const x of [-0.24, 0.24]) wb.cylinder(x, 0, 0, 0.005, 0.2, 6, 'metal_grey', { color: 0x8a8a80 });
-    wb.push().translate(-0.24, 0.2, 0).rotateZ(-Math.PI / 2); wb.cylinder(0, 0, 0, 0.0018, 0.48, 4, 'metal_grey', { color: 0xb0b0a8 }); wb.pop();
-    this.rail.add(new THREE.Mesh(wb.build(), fpMat()));
+    wb.setFaceShading(false);
+    wb.cylinder(0, -0.36, 0, 0.004, 0.38, 6, 'metal_brass');
+    for (let i = 0; i < 5; i++) { wb.push().translate(0, -0.02 - i * 0.07, 0).rotateZ(Math.PI / 2); wb.cylinder(0, 0, 0, 0.0022, 0.022, 5, 'metal_brass'); wb.pop(); }
+    this.rail.add(new THREE.Mesh(wb.build(), metalMat('brass', 4)));
+    // the instruction card tucked under the scale (the first few times)
+    const card = this.howTo;
+    card.clear();
+    card.type('Stowing the cube', 12, 5, '#7a2a1a', 7.5);
+    card.para('Drag things in: they drop to the bottom. R turn, T tip, Y roll. Wheel or knob: peel layers. Double-click: work on it. Tap the lid to shut.', 12, 15, 64, undefined, 7.4, 5, 6.2);
+    card.flush();
+    g.add(card.mesh);
     // the hook board for what you wear
     const hb = new ModelBuilder();
     hb.box(0, -0.03, 0, 0.26, 0.06, 0.014, 'wood_dark', { color: 0x8a6038 });
@@ -204,7 +215,7 @@ export class InventoryUI {
     const wl = pixTag('tag', 40, 18, 0.07); wl.clear(); wl.type('WORN', 8, 8); wl.flush();
     wl.mesh.position.set(0.11, -0.055, 0.01); wl.mesh.rotation.z = -0.15;
     this.wornBoard.add(wl.mesh);
-    g.add(this.wornBoard, this.box.g, this.gauge.g);
+    g.add(this.wornBoard, this.box.g, this.gauge.g, this.rail);
     this.dymo = new Dymo(g);
     this.hoverTag = new HoverTag(g);
     for (const s of [1, -1] as const) { const a = makeArm(s); g.add(a.root); this.arms.push(a); }
@@ -220,19 +231,19 @@ export class InventoryUI {
     const k = wide ? 1 : Math.max(0.55, asp / 1.2);
     this.floor.position.set(0, wide ? -0.36 : -0.18, wide ? -1.75 : -2.1);
     this.cubeSpin.position.set(0, 0, -0.06);
-    const sideX = wide ? Math.min(0.72, 0.42 + (asp - 1.2) * 0.4) : 0.34;
+    const sideX = wide ? Math.min(0.66, 0.42 + (asp - 1.2) * 0.34) : 0.34;
     const sideZ = wide ? 0.04 : 0.42;
     this.rollHold.position.set(-sideX, 0.002, sideZ + 0.02); this.rollHold.rotation.set(0, wide ? 0.3 : 0.1, 0);
     this.trayHold.position.set(sideX, 0.002, sideZ); this.trayHold.rotation.set(0, wide ? -0.3 : -0.1, 0);
     this.fitSide(this.roll, this.rollHold, wide ? 0.4 : 0.3, 0.3);
-    this.fitSide(this.tray, this.trayHold, wide ? 0.5 : 0.34, 0.42);
-    this.rail.position.set(sideX, 0, sideZ - 0.3);
-    this.rail.rotation.y = wide ? -0.3 : -0.1;
+    this.fitSide(this.tray, this.trayHold, wide ? 0.46 : 0.34, 0.42);
+    this.rail.position.set(halfW - 0.035 * k, halfH * 0.92, -D); this.rail.scale.setScalar(k);
+    this.howTo.mesh.position.set(-halfW + 0.15 * k, halfH - 0.33 * k, -D); this.howTo.mesh.scale.setScalar(k); this.howTo.mesh.rotation.z = 0.04;
     // camera-space props along the bottom and top
     this.palm.L.set(-halfW * 0.78, -halfH * 0.72, -D);
     this.palm.R.set(halfW * 0.78, -halfH * 0.72, -D);
     this.wornBoard.position.set(-halfW * 0.36, -halfH * 0.8, -D); this.wornBoard.rotation.set(-0.25, 0.1, 0); this.wornBoard.scale.setScalar(k);
-    this.box.g.position.set(halfW * 0.34, -halfH * 0.86, -D); this.box.g.rotation.set(0.9, -0.08, 0); this.box.g.scale.setScalar(k);
+    this.box.g.position.set(halfW * 0.34, -halfH * 0.84, -D); this.box.g.rotation.set(0.62, -0.08, 0); this.box.g.scale.setScalar(k * 1.25);
     this.gauge.g.position.set(-halfW + 0.11 * k, halfH - 0.11 * k, -D); this.gauge.g.scale.setScalar(k);
     this.dymo.place(halfH - 0.05, -D + 0.01);
   }
@@ -288,6 +299,8 @@ export class InventoryUI {
     this.floor.rotation.x = this.tilt;
     this.sideSig = ''; this.wornSig = '';
     this.renderSide(); this.renderWorn();
+    try { this.opens = Number(localStorage.getItem('nc.cubeOpens') || '0') + 1; localStorage.setItem('nc.cubeOpens', String(this.opens)); } catch { this.opens++; }
+    this.howTo.mesh.visible = this.opens <= 6;
     this.openSeq(performance.now() - this.lastClose < 30000);
   }
 
@@ -335,6 +348,7 @@ export class InventoryUI {
     this.ground.visible = on;
     this.rollHold.visible = this.trayHold.visible = this.rail.visible = all;
     this.wornBoard.visible = this.box.g.visible = this.gauge.g.visible = all;
+    this.howTo.mesh.visible = all && this.opens <= 6;
   }
 
   /** the cube held up to your face (k = 1) or set down on the carpet (k = 0), in carpet space */
@@ -497,7 +511,7 @@ export class InventoryUI {
     this.gauge.update(dt);
     this.dymo.update(dt);
     // the side tags sway a little on their wire
-    this.sideTags.forEach((s, i) => { s.t.mesh.rotation.z = Math.sin(now * 0.0016 + i) * 0.04; });
+    this.sideTags.forEach((s, i) => { s.t.mesh.rotation.z = Math.sin(now * 0.0016 + i) * 0.03; });
   }
 
   private poseArms(dt: number) {
@@ -546,18 +560,19 @@ export class InventoryUI {
     this.sideSig = sig;
     for (const s of this.sideTags) this.rail.remove(s.t.mesh);
     this.sideTags = [];
-    const list = this.side.slice(0, 7);
-    const n = list.length;
-    list.forEach((e, i) => {
-      const t = pixTag('tag', 44, 30, 0.085);
+    // at most five tags fit the rod: pockets, the floor, and what is nearest
+    const idx = this.side.map((_, i) => i);
+    const show = idx.length <= 5 ? idx : [0, ...idx.slice(1, -1).slice(0, 3), idx.length - 1];
+    if (!show.includes(this.sideSel)) show[show.length - 2] = this.sideSel;
+    show.forEach((i, row) => {
+      const e = this.side[i];
+      const t = pixTag('tag', 66, 26, 0.17);
       t.clear();
-      t.para(e.name, 4, 9, 38, undefined, 8, 2);
-      if (i === this.sideSel) t.scr.frame(2, 6, 40, 22, (0xff000000 | 0x1c28c8) >>> 0);
+      t.para(e.name, 6, 9, 56, undefined, 7.5, 2, 7);
+      if (i === this.sideSel) stamp(t, 'OPEN', 40, 3, '#b8281c');
       t.flush();
-      const x = n > 1 ? -0.21 + (0.42 * i) / (n - 1) : 0;
-      t.mesh.geometry.translate(0, -0.03, 0);
-      t.mesh.position.set(x, 0.2 - (i === this.sideSel ? 0.02 : 0), 0);
-      t.mesh.rotation.x = -TILT * 0.7;
+      t.mesh.geometry.translate(-0.085, -0.03, 0);
+      t.mesh.position.set(-0.012 - (i === this.sideSel ? 0.025 : 0), -0.02 - row * 0.07, 0.006 + row * 0.002);
       t.mesh.userData.side = i;
       this.rail.add(t.mesh);
       this.sideTags.push({ t, e });

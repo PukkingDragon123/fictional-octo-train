@@ -158,30 +158,32 @@ export class Inspect {
     for (let i = 0; i < 6; i++) nb.cylinder(-0.02, -0.0 - i * 0.065, 0.0, 0.0025, 0.012, 4, 'metal_grey', { color: 0x9a9a92 });
     this.nails.add(new THREE.Mesh(nb.build(), fpMat()));
     g.add(this.nails);
-    this.info = pixTag('tag', 110, 96, 0.27);
+    this.info = pixTag('tag', 110, 96, 0.34);
     this.info.mesh.renderOrder = 12;
     this.infoString = tagString();
     g.add(this.info.mesh, this.infoString);
     this.slate = new Slate(g);
     this.dymo = new Dymo(g);
     // the two tags that are always there
-    const flip = clickTag('FLIP  F', 'tag', 50, 0.11), back = clickTag('PUT DOWN', 'tag', 56, 0.12, 'ESC');
+    const flip = clickTag('Flip it  (F)', 'tag', 64, 0.16), back = clickTag('Put it down', 'tag', 70, 0.17, '(Esc)');
     g.add(flip.mesh, back.mesh);
     this.fixed = [{ mesh: flip.mesh, click: () => this.flip() }, { mesh: back.mesh, click: () => this.close() }];
     for (const s of [1, -1] as const) { const a = makeArm(s); g.add(a.root); this.arms.push(a); }
   }
 
+  private lay = { halfW: 0.5, halfH: 0.28, D: 1.05, k: 1 };
   private layout() {
     const asp = window.innerWidth / Math.max(1, window.innerHeight);
     const D = 1.05, halfH = Math.tan((fpCamera().fov * Math.PI) / 360) * D, halfW = halfH * asp;
     const k = Math.min(1, asp / 1.5);
+    this.lay = { halfW, halfH, D, k };
     this.cloth.position.set(0, -halfH * 0.86, -D); this.cloth.rotation.x = 0.95; this.cloth.scale.setScalar(Math.max(0.6, k));
     this.nails.position.set(halfW * 0.86, halfH * 0.42, -D - 0.02); this.nails.scale.setScalar(Math.max(0.6, k));
     this.info.mesh.position.set(-halfW * 0.66, halfH * 0.16, -D + 0.02); this.info.mesh.scale.setScalar(Math.max(0.65, k)); this.info.mesh.rotation.z = 0.05;
     this.slate.tag.mesh.position.set(0, halfH * 0.76, -D); this.slate.tag.mesh.scale.setScalar(Math.max(0.7, k));
     this.dymo.place(halfH * 0.5, -D + 0.03);
-    this.fixed[0].mesh.position.set(halfW * 0.84 - 0.13 * k, halfH * 0.84, -D + 0.01);
-    this.fixed[1].mesh.position.set(halfW * 0.84, halfH * 0.84, -D + 0.01);
+    this.fixed[0].mesh.position.set(halfW - 0.3 * Math.max(0.7, k), halfH * 0.82, -D + 0.01);
+    this.fixed[1].mesh.position.set(halfW - 0.11 * Math.max(0.7, k), halfH * 0.8, -D + 0.01);
     for (const f of this.fixed) f.mesh.scale.setScalar(Math.max(0.7, k));
   }
 
@@ -298,32 +300,34 @@ export class Inspect {
       else if (!mine) why = 'TAKE IT';
       else if (!tool) why = 'NEED TOOL';
       else if (missing.length) why = 'NEED PARTS';
-      const card = pixTag('card', 76, 46, 0.19);
+      const card = pixTag('card', 76, 46, 0.2);
       card.clear();
-      card.para(h.name, 11, 6, 62, undefined, 8, 2);
+      card.para(h.name, 11, 7, 62, undefined, 8.5, 2, 8);
       const sub = why === 'RESEARCH' ? (researchNode(h.requires!)?.title || '') : why === 'NEED TOOL' ? toolLabel(h) : why === 'NEED PARTS' ? missing.map((m) => partLabel(m.req)).join(', ') : tool?.it ? 'with ' + itemName(tool.it) : 'bare hands';
-      card.para(sub, 11, 24, 62, 0x5a4a3a, 7, 2);
-      if (why) stamp(card, why, 12, 36); else stamp(card, 'READY', 12, 36, 0x2a6a2a);
+      card.para(sub, 11, 25, 62, '#5a4a3a', 6.5, 2, 6);
+      if (why) stamp(card, why, 14, 36); else stamp(card, 'ready', 14, 36, '#2a6a2a');
       card.flush();
-      const x = (n > 1 ? (i - (n - 1) / 2) * 0.21 : 0);
-      card.mesh.rotation.set(-Math.PI / 2, 0, (i % 2 ? 0.04 : -0.05));
-      card.mesh.position.set(x, 0.002, 0.02);
-      this.cloth.add(card.mesh);
+      const L = this.lay, ck = Math.max(0.6, L.k);
+      const x = (n > 1 ? (i - (n - 1) / 2) * 0.22 * ck : 0);
+      card.mesh.scale.setScalar(ck);
+      card.mesh.position.set(x, -L.halfH * 0.58, -L.D + 0.03);
+      card.mesh.rotation.set(-0.18, 0, (i % 2 ? 0.035 : -0.04));
+      this.g.add(card.mesh);
       this.props.push({ mesh: card.mesh, click: () => { if (!why) this.startOp(h); else this.dymo.show(why === 'TAKE IT' ? 'take it first' : why.toLowerCase() + ': ' + sub, true); } });
       if (tool?.it) {
         const to = makeItemObj(tool.it.key);
         const al = itemAlign(tool.it.key);
         to.outer.scale.setScalar(0.12 / Math.max(0.05, al ? Math.max(...al.base) : 0.2));
-        to.outer.position.set(x + 0.04, 0.02, -0.06);
+        to.outer.position.set(x / Math.max(0.6, L.k) + 0.03, 0.02, 0.03);
         to.outer.rotation.set(0, 0.6, 0);
         this.cloth.add(to.outer);
         this.props.push({ mesh: to.outer, click: () => { if (!why) this.startOp(h); } });
       }
     });
     if (!n) {
-      const t = pixTag('card', 76, 24, 0.19); t.clear(); t.para('Nothing to work on here by hand.', 11, 5, 62, 0x5a4a3a, 8, 2); t.flush();
-      t.mesh.rotation.set(-Math.PI / 2, 0, 0.03); t.mesh.position.set(0, 0.002, 0.02);
-      this.cloth.add(t.mesh); this.props.push({ mesh: t.mesh, click: () => {} });
+      const t = pixTag('card', 76, 26, 0.2); t.clear(); t.para('Nothing your hands can do to this.', 11, 7, 62, '#5a4a3a', 8, 2, 7); t.flush();
+      t.mesh.rotation.set(-0.18, 0, 0.03); t.mesh.position.set(0, -this.lay.halfH * 0.6, -this.lay.D + 0.03);
+      this.g.add(t.mesh); this.props.push({ mesh: t.mesh, click: () => {} });
     }
     // the ordinary things, hung on nails
     if (it && s.kind === 'item') {
@@ -337,9 +341,9 @@ export class Inspect {
         for (const o of flat.filter((q) => q.action && !q.disabled).slice(0, 6)) acts.push({ label: o.label, fn: () => { this.close(); o.action!(); } });
       }
       acts.forEach((a, i) => {
-        const t = clickTag(a.label.toUpperCase(), 'tag', 60, 0.115);
+        const t = clickTag(a.label, 'tag', 64, 0.15);
         t.mesh.geometry.translate(0, -0.03, 0);
-        t.mesh.position.set(-0.02, -i * 0.065, 0.012);
+        t.mesh.position.set(-0.05, -i * 0.068, 0.012);
         t.mesh.rotation.z = (i % 2 ? 0.08 : -0.06);
         this.nails.add(t.mesh);
         this.props.push({ mesh: t.mesh, click: a.fn });
@@ -351,6 +355,7 @@ export class Inspect {
 
   private setPropsVisible(on: boolean) {
     this.cloth.visible = on;
+    for (const p of this.props) if (p.mesh.parent === this.g) p.mesh.visible = on;
     this.nails.visible = on && this.props.some((p) => p.mesh.parent === this.nails);
     this.info.mesh.visible = on; this.infoString.visible = on;
     this.fixed[0].mesh.visible = on;

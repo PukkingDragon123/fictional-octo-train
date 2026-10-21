@@ -1,151 +1,147 @@
-// The Remittance cube in first person: riveted iron walls, a hinged lid held
-// shut by four bolts, an electromechanical thumb reader on the front (brass
-// bezel, green phosphor glass, relays that clack), and inside a 5x5x5 grid
-// of fist-sized cells: stamped steel dividers on the floor, chalked lines up
-// the walls, a bulb in the lid. Items sit in their cells as their
-// models; layers can be peeled off the top to see what is underneath.
+// The Remittance cube in first person: riveted iron walls in real metal
+// (mill scale, scratches, grime, rust at the seams, proper speculars), a
+// hinged lid held shut by four steel bolts, and an electromechanical thumb
+// reader on the front — a little green-phosphor tube behind a brass bezel,
+// two relays that clack. Inside, a 5x5x5 grid of fist-sized cells: stamped
+// steel dividers on the floor, chalked lines up the walls, a bulb in the lid.
+// Items sit in their cells as their models; layers peel off the top.
 import * as THREE from 'three';
 import type { Item } from '../items/item';
 import { type GridSpec, type Rot, dropSpot, extentIn } from '../items/grid';
 import { ModelBuilder } from '../gfx/modelBuilder';
+import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { GridView3, type DropAt } from './gridView3';
-import { fpMat } from './fpKit';
 import { pixTag, type PixTag } from './tags';
+import { metalMat } from './metal';
 
 export const CELL = 0.085;
 const W = 0.024;
-
-let printTex: THREE.Texture | null = null;
-/** the reader's glass: a little round-cornered phosphor tube, ridges of an old print burnt in */
-function fingerprintTex(): THREE.Texture {
-  if (printTex) return printTex;
-  const c = document.createElement('canvas'); c.width = 24; c.height = 24;
-  const x = c.getContext('2d')!;
-  x.fillStyle = '#071208'; x.fillRect(0, 0, 24, 24);
-  for (let r = 2; r < 11; r += 1.8) {
-    x.strokeStyle = r % 3.6 < 1.8 ? '#1f4a22' : '#143018'; x.lineWidth = 1;
-    x.beginPath(); x.ellipse(12, 13, r * 0.8, r, 0.15, Math.PI * 0.1, Math.PI * 1.9); x.stroke();
-  }
-  // curved-glass highlight
-  x.fillStyle = 'rgba(200,255,200,0.18)'; x.fillRect(4, 3, 6, 2); x.fillRect(3, 5, 2, 4);
-  printTex = new THREE.CanvasTexture(c);
-  printTex.magFilter = THREE.NearestFilter; printTex.minFilter = THREE.NearestFilter; printTex.colorSpace = THREE.SRGBColorSpace;
-  return printTex;
-}
 
 export class CubeView extends GridView3 {
   readonly body = new THREE.Group();
   readonly lid = new THREE.Group();
   readonly bolts: THREE.Mesh[] = [];
+  /** the reader's tube (its mesh is `pad`, where the thumb goes) */
+  readonly reader: CrtScreen;
   readonly pad: THREE.Mesh;
-  readonly padMat: THREE.MeshBasicMaterial;
-  readonly scan: THREE.Mesh;
   readonly light = new THREE.PointLight(0xffd49a, 0, 1.4, 1.6);
-  /** the engraved brass plate on the front, and the instructions riveted inside the lid */
+  /** the engraved brass plate on the front, and the maker's plate inside the lid */
   readonly plate: PixTag;
   readonly lidPlate: PixTag;
+  private shell: THREE.Object3D[] = [];
   private grid: THREE.LineSegments | null = null;
   private gridMat = new THREE.LineBasicMaterial({ color: 0xe8dcc0, transparent: true, opacity: 0.0, depthWrite: false });
   private peelPlane: THREE.Mesh;
   private peelGrid: THREE.LineSegments | null = null;
-  private I = CELL * 5;
   private boltRest: number[] = [];
+  private no = '----';
+  private scanState = '';
 
   constructor() {
     super();
     this.root.add(this.body);
     this.body.add(this.lid);
-    this.padMat = new THREE.MeshBasicMaterial({ map: fingerprintTex(), color: 0x7a8a7a });
-    this.pad = new THREE.Mesh(new THREE.PlaneGeometry(0.062, 0.062), this.padMat);
-    this.scan = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.005), new THREE.MeshBasicMaterial({ color: 0x8dff7a, transparent: true, opacity: 0, depthWrite: false }));
-    this.body.add(this.pad, this.scan, this.light);
+    this.reader = crtScreen(0.062, 0.062, { res: [128, 128], tint: 0x8cffb0, curvature: 0.3, glow: 1.1, noise: 0.05, scan: 0.7, mask: 0.25, reflect: 0.8 });
+    this.pad = this.reader.mesh;
+    this.reader.power(false, true);
+    this.body.add(this.pad, this.light);
     this.plate = pixTag('plate', 72, 22, 0.15);
-    this.plate.mesh.renderOrder = 2;
     this.body.add(this.plate.mesh);
-    this.lidPlate = pixTag('plate', 96, 40, 0.3);
+    this.lidPlate = pixTag('plate', 96, 30, 0.3);
     this.lid.add(this.lidPlate.mesh);
     this.setPlate('----');
-    this.lidPlate.clear();
-    this.lidPlate.type('REMITTANCE CARRIER MK.II', 6, 4, undefined);
-    this.lidPlate.para('DRAG TO STOW. R TURN, T TIP, Y ROLL. WHEEL: LAYERS. DOUBLE-CLICK: INSPECT. SHIFT-CLICK: SWAP SIDES.', 6, 13, 86, undefined, 8, 3);
-    this.lidPlate.flush();
-    this.peelPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x3a3428, transparent: true, opacity: 0.18, depthWrite: false, side: THREE.DoubleSide }));
+    const lp = this.lidPlate;
+    lp.clear();
+    lp.type('Remittance Carrier Mk. II', 8, 6, undefined, 8);
+    lp.type('Property of the Meridian Institute', 8, 17, '#4a3410', 6);
+    lp.flush();
+    this.peelPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));
     this.peelPlane.rotation.x = -Math.PI / 2;
     this.peelPlane.visible = false;
     this.space.add(this.peelPlane);
+    this.drawReader(0, 'idle');
   }
 
   cellSize(): [number, number, number] { return [CELL, CELL, CELL]; }
 
   protected buildShell(spec: GridSpec) {
-    const I = (this.I = spec.w * CELL);
+    const I = spec.w * CELL;
     const H = spec.d * CELL;
     this.space.position.set(-I / 2, 0, -I / 2);
-    for (const ch of [...this.body.children]) if ((ch as any).userData.shell) this.body.remove(ch);
-    const mat = fpMat();
-    const iron = 'metal_dark', band = 'metal_grey', rust = 'metal_rusty';
-    const mb = new ModelBuilder();
+    for (const m of this.shell) m.parent?.remove(m);
+    this.shell = [];
     const O = I + 2 * W;
-    mb.box(0, -W, 0, O, W, O, iron, { color: 0x8a9096 });
-    mb.box(0, -W, -I / 2 - W / 2, O, H + W, W, iron, { color: 0x9aa0a6 });
-    mb.box(0, -W, I / 2 + W / 2, O, H + W, W, iron, { color: 0x9aa0a6 });
-    for (const s of [-1, 1]) mb.box(s * (I / 2 + W / 2), -W, 0, W, H + W, I, iron, { color: 0x949aa0 });
-    // inner lining: darker, with rust bloom at the floor seams
-    mb.box(0, 0.0005, 0, I, 0.002, I, rust, { color: 0x6a5a50 });
-    // corner posts, rim band, rivet rows
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) mb.box(sx * (O / 2), -W - 0.002, sz * (O / 2), 0.03, H + W + 0.006, 0.03, band, { color: 0x6a7076 });
-    for (const sz of [-1, 1]) mb.box(0, H - 0.012, sz * (O / 2 + 0.002), O + 0.01, 0.016, 0.008, band, { color: 0x7a8086 });
-    for (const sx of [-1, 1]) mb.box(sx * (O / 2 + 0.002), H - 0.012, 0, 0.008, 0.016, O + 0.01, band, { color: 0x7a8086 });
+    const add = (mb: ModelBuilder, mat: THREE.Material, parent: THREE.Object3D = this.body) => { const m = new THREE.Mesh(mb.build(), mat); parent.add(m); this.shell.push(m); return m; };
+    const B = () => { const b = new ModelBuilder(); b.setFaceShading(false); return b; };
+    // iron: the walls and floor
+    const iron = B();
+    iron.box(0, -W, 0, O, W, O, 'metal_dark');
+    iron.box(0, -W, -I / 2 - W / 2, O, H + W, W, 'metal_dark');
+    iron.box(0, -W, I / 2 + W / 2, O, H + W, W, 'metal_dark');
+    for (const s of [-1, 1]) iron.box(s * (I / 2 + W / 2), -W, 0, W, H + W, I, 'metal_dark', { color: 0xf0f0f0 });
+    add(iron, metalMat('iron', 2));
+    // rust bloom on the floor of the box where damp things sat
+    const rust = B();
+    rust.box(0, 0.0005, 0, I, 0.002, I, 'metal_rusty');
+    add(rust, metalMat('rust', 3));
+    // steel: corner posts, the rim band, rivets, the stamped dividers on the floor
+    const steel = B();
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) steel.box(sx * (O / 2), -W - 0.002, sz * (O / 2), 0.03, H + W + 0.006, 0.03, 'metal_grey', { color: 0xc8ccd0 });
+    for (const sz of [-1, 1]) steel.box(0, H - 0.012, sz * (O / 2 + 0.002), O + 0.01, 0.016, 0.008, 'metal_grey');
+    for (const sx of [-1, 1]) steel.box(sx * (O / 2 + 0.002), H - 0.012, 0, 0.008, 0.016, O + 0.01, 'metal_grey');
     for (let i = 0; i < 7; i++) {
       const x = -O / 2 + 0.03 + i * ((O - 0.06) / 6);
-      for (const y of [-W / 2, H - 0.03]) { mb.push().translate(x, y, O / 2 + 0.001).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.0055, 0.006, 6, band, { color: 0xb0b6bc }); mb.pop(); }
+      for (const y of [-W / 2, H - 0.03]) { steel.push().translate(x, y, O / 2 + 0.001).rotateX(Math.PI / 2); steel.cylinder(0, 0, 0, 0.0055, 0.006, 6, 'metal_grey'); steel.pop(); }
     }
-    // stamped steel dividers raised along every cell seam on the floor of the box
-    for (let i = 1; i < spec.w; i++) { mb.box(-I / 2 + i * CELL, 0, 0, 0.003, 0.004, I, band, { color: 0x8a9096 }); mb.box(0, 0, -I / 2 + i * CELL, I, 0.004, 0.003, band, { color: 0x8a9096 }); }
-    // the thumb reader: a bakelite housing, a brass bezel round the phosphor glass, two relays on the side
-    mb.box(0.11, H * 0.42, O / 2 + 0.004, 0.1, 0.1, 0.008, 'rubber_black', { color: 0x4a3020 });
-    for (const [dx, dy, w, h] of [[0, 0.036, 0.08, 0.008], [0, -0.036, 0.08, 0.008], [0.036, 0, 0.008, 0.08], [-0.036, 0, 0.008, 0.08]] as [number, number, number, number][]) mb.box(0.11 + dx, H * 0.42 + 0.05 + dy - h / 2, O / 2 + 0.01, w, h, 0.006, 'metal_brass', { color: 0xd8b060 });
-    for (const dy of [0.02, 0.07]) { mb.box(0.175, H * 0.42 + dy, O / 2 + 0.008, 0.022, 0.022, 0.016, 'rubber_black', { color: 0x2a2a2a }); mb.push().translate(0.175, H * 0.42 + dy + 0.022, O / 2 + 0.012); mb.cylinder(0, 0, 0, 0.006, 0.01, 6, 'metal_brass', { color: 0xc87a3a }); mb.pop(); }
-    // the engraved plate sits on a dark backing
-    mb.box(-0.1, H * 0.46, O / 2 + 0.003, 0.16, 0.054, 0.004, 'metal_dark', { color: 0x3a3e42 });
+    for (let i = 1; i < spec.w; i++) { steel.box(-I / 2 + i * CELL, 0, 0, 0.003, 0.005, I, 'metal_grey', { color: 0xb0b4b8 }); steel.box(0, 0, -I / 2 + i * CELL, I, 0.005, 0.003, 'metal_grey', { color: 0xb0b4b8 }); }
     // bolt housings: two on the front, one each side
     const boltPos: [number, number, number, number][] = [[-0.14, H - 0.05, O / 2 + 0.012, 0], [0.04, H - 0.05, O / 2 + 0.012, 0], [-O / 2 - 0.012, H - 0.05, 0.05, 1], [O / 2 + 0.012, H - 0.05, -0.05, 1]];
-    for (const [x, y, z, side] of boltPos) mb.box(x, y - 0.012, z, side ? 0.016 : 0.034, 0.036, side ? 0.034 : 0.016, band, { color: 0x4a4e52 });
-    const shell = new THREE.Mesh(mb.build(), mat);
-    shell.userData.shell = true;
-    this.body.add(shell);
+    for (const [x, y, z, side] of boltPos) steel.box(x, y - 0.012, z, side ? 0.016 : 0.034, 0.036, side ? 0.034 : 0.016, 'metal_grey', { color: 0x9a9ea2 });
+    // the backing for the brass name plate
+    steel.box(-0.1, H * 0.46, O / 2 + 0.003, 0.16, 0.054, 0.004, 'metal_grey', { color: 0x606468 });
+    add(steel, metalMat('steel', 3));
+    // the reader: a bakelite housing, a brass bezel round the tube, two relays
+    const bak = B();
+    bak.box(0.11, H * 0.42, O / 2 + 0.004, 0.1, 0.1, 0.008, 'rubber_black');
+    for (const dy of [0.02, 0.07]) bak.box(0.175, H * 0.42 + dy, O / 2 + 0.008, 0.022, 0.022, 0.016, 'rubber_black', { color: 0x606060 });
+    add(bak, metalMat('bakelite', 4));
+    const brass = B();
+    for (const [dx, dy, w, h] of [[0, 0.036, 0.08, 0.008], [0, -0.036, 0.08, 0.008], [0.036, 0, 0.008, 0.08], [-0.036, 0, 0.008, 0.08]] as [number, number, number, number][]) brass.box(0.11 + dx, H * 0.42 + 0.05 + dy - h / 2, O / 2 + 0.01, w, h, 0.006, 'metal_brass');
+    for (const dy of [0.02, 0.07]) { brass.push().translate(0.175, H * 0.42 + dy + 0.022, O / 2 + 0.012); brass.cylinder(0, 0, 0, 0.006, 0.01, 8, 'metal_brass', { color: 0xd88a50 }); brass.pop(); }
+    add(brass, metalMat('brass', 4));
     // the bolt pins (they ride up into the lid when locked)
-    const bg = new ModelBuilder();
-    bg.cylinder(0, 0, 0, 0.007, 0.05, 6, 'metal_brushed', { color: 0xe0e4e8 });
+    const bg = B();
+    bg.cylinder(0, 0, 0, 0.007, 0.05, 8, 'metal_brushed');
     const bgeo = bg.build();
     this.bolts.length = 0; this.boltRest.length = 0;
     for (const [x, y, z] of boltPos) {
-      const m = new THREE.Mesh(bgeo, mat);
+      const m = new THREE.Mesh(bgeo, metalMat('chrome', 2));
       m.position.set(x, y - 0.006, z);
-      m.userData.shell = true;
-      this.body.add(m); this.bolts.push(m); this.boltRest.push(y - 0.006);
+      this.body.add(m); this.shell.push(m); this.bolts.push(m); this.boltRest.push(y - 0.006);
     }
     // the lid, hinged along the back top edge
     this.lid.position.set(0, H, -O / 2);
-    for (const ch of [...this.lid.children]) this.lid.remove(ch);
-    const lb = new ModelBuilder();
-    lb.box(0, 0, O / 2, O + 0.008, W * 1.1, O + 0.008, iron, { color: 0x9aa0a6 });
-    lb.box(0, W * 1.1, O / 2, O - 0.05, 0.006, O - 0.05, band, { color: 0x6a7076 });
-    lb.box(0, W * 1.1 + 0.006, O / 2 + 0.04, 0.16, 0.022, 0.024, band, { color: 0x3a3e42 });
-    for (let i = 0; i < 4; i++) lb.box(-0.15 + i * 0.1, -0.004, O / 2, 0.012, 0.004, O - 0.02, rust, { color: 0x8a7a6a });
-    const lidMesh = new THREE.Mesh(lb.build(), mat);
-    this.lid.add(lidMesh);
-    // scanner glass and its sweep, the plates
-    this.pad.position.set(0.11, H * 0.42 + 0.05, O / 2 + 0.0095);
-    this.scan.position.copy(this.pad.position); this.scan.position.z += 0.001;
+    const li = B();
+    li.box(0, 0, O / 2, O + 0.008, W * 1.1, O + 0.008, 'metal_dark');
+    add(li, metalMat('iron', 2), this.lid);
+    const ls = B();
+    ls.box(0, W * 1.1, O / 2, O - 0.05, 0.006, O - 0.05, 'metal_grey', { color: 0xb8bcc0 });
+    ls.box(0, W * 1.1 + 0.006, O / 2 + 0.04, 0.16, 0.022, 0.024, 'metal_grey', { color: 0x8a8e92 });
+    for (let i = 0; i < 4; i++) ls.box(-0.15 + i * 0.1, -0.004, O / 2, 0.012, 0.004, O - 0.02, 'metal_grey', { color: 0x9a9ea2 });
+    add(ls, metalMat('steel', 3), this.lid);
+    // a bulb in a wire cage under the lid
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe8b0 }));
+    bulb.position.set(0, -0.016, O * 0.62);
+    this.lid.add(bulb); this.shell.push(bulb);
+    // the tube, the plates
+    this.pad.position.set(0.11, H * 0.42 + 0.05, O / 2 + 0.0085);
     this.plate.mesh.position.set(-0.1, H * 0.46 + 0.027, O / 2 + 0.0058);
-    this.lidPlate.mesh.position.set(0, -0.003, O / 2);
+    this.lidPlate.mesh.position.set(0, -0.003, O * 0.42);
     this.lidPlate.mesh.rotation.set(Math.PI / 2, 0, 0);
     this.light.position.set(0, H * 0.85, 0);
-    // the grid inside: floor, back and side walls, every cell edge
+    // the grid inside: chalk on the walls, every cell edge
     const pts: number[] = [];
     const L = (a: number[], b: number[]) => pts.push(a[0], a[1], a[2], b[0], b[1], b[2]);
-    for (let i = 0; i <= spec.w; i++) { const t = i * CELL; L([t, 0.002, 0], [t, 0.002, I]); L([0, 0.002, t], [I, 0.002, t]); }
     for (let i = 0; i <= spec.d; i++) { const y = i * CELL; L([0, y, 0.002], [I, y, 0.002]); L([0.002, y, 0], [0.002, y, I]); L([I - 0.002, y, 0], [I - 0.002, y, I]); }
     for (let i = 0; i <= spec.w; i++) { const t = i * CELL; L([t, 0, 0.002], [t, H, 0.002]); L([0.002, 0, t], [0.002, H, t]); L([I - 0.002, 0, t], [I - 0.002, H, t]); }
     const gg = new THREE.BufferGeometry();
@@ -153,7 +149,7 @@ export class CubeView extends GridView3 {
     if (this.grid) this.space.remove(this.grid);
     this.grid = new THREE.LineSegments(gg, this.gridMat);
     this.space.add(this.grid);
-    // the cut plane drawn where layers are peeled away
+    // the cut drawn where layers are peeled away
     const pp: number[] = [];
     for (let i = 0; i <= spec.w; i++) { const t = i * CELL; pp.push(t, 0, 0, t, 0, I, 0, 0, t, I, 0, t); }
     const pg = new THREE.BufferGeometry();
@@ -171,23 +167,51 @@ export class CubeView extends GridView3 {
   setLid(k: number) { this.lid.rotation.x = -k * 1.95; }
   /** 0 = locked (pins up in the lid), 1 = withdrawn */
   setBolts(k: number) { this.bolts.forEach((b, i) => { b.position.y = this.boltRest[i] + 0.022 * (1 - Math.min(1, Math.max(0, k * 1.6 - i * 0.18))); }); }
-  /** the scanner reading a thumb: sweep 0..1, glow 0..1 */
+
+  /** the reader reading a thumb: sweep 0..1 (0 = idle, 1 = done), glow 0..1 */
   setScan(sweep: number, glow: number, ok = true) {
-    const m = this.scan.material as THREE.MeshBasicMaterial;
-    m.opacity = sweep > 0 && sweep < 1 ? 0.95 : 0;
-    m.color.setHex(ok ? 0x8dff7a : 0xff7a3a);
-    this.scan.position.y = this.pad.position.y + 0.028 - sweep * 0.056;
-    this.padMat.color.setRGB(0.45 + glow * 0.3, 0.52 + glow * 0.48, 0.45 + glow * 0.25);
+    const state = sweep <= 0 ? (glow > 0.12 ? 'idle' : 'off') : sweep >= 1 ? (ok ? 'ok' : 'bad') : 'read';
+    if (state === 'off') { if (this.scanState !== 'off') { this.reader.power(false); this.scanState = 'off'; } return; }
+    if (this.scanState === 'off' || this.scanState === '') this.reader.power(true);
+    if (state === 'read' || state !== this.scanState) this.drawReader(sweep, state);
+    this.scanState = state;
   }
+  private drawReader(sweep: number, state: string) {
+    const { ctx, canvas } = this.reader;
+    const w = canvas.width, h = canvas.height;
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
+    // the print burnt into the phosphor
+    ctx.save();
+    ctx.strokeStyle = state === 'read' ? '#2c7a3a' : '#16401e'; ctx.lineWidth = 2;
+    for (let r = 6; r < 46; r += 6) { ctx.beginPath(); ctx.ellipse(w / 2, h * 0.5, r * 0.78, r, 0.15, Math.PI * 0.12, Math.PI * 1.88); ctx.stroke(); }
+    ctx.restore();
+    if (state === 'read') {
+      const y = 10 + sweep * (h - 20);
+      const g = ctx.createLinearGradient(0, y - 10, 0, y + 3);
+      g.addColorStop(0, 'rgba(120,255,150,0)'); g.addColorStop(0.8, 'rgba(150,255,170,0.55)'); g.addColorStop(1, 'rgba(220,255,225,1)');
+      ctx.fillStyle = g; ctx.fillRect(4, y - 10, w - 8, 13);
+      phosphorText(ctx, 'READING', w / 2, h - 22, { size: 15, align: 'center', color: '#9dffb5' });
+    } else if (state === 'ok') {
+      phosphorText(ctx, 'ACCEPTED', w / 2, 30, { size: 17, align: 'center', color: '#c8ffd4', glow: 9 });
+      phosphorText(ctx, 'No.' + this.no, w / 2, 62, { size: 15, align: 'center', color: '#9dffb5' });
+    } else if (state === 'bad') {
+      phosphorText(ctx, 'NO MATCH', w / 2, 46, { size: 16, align: 'center', color: '#ffb080', glow: 9 });
+    } else {
+      phosphorText(ctx, 'THUMB', w / 2, h - 24, { size: 14, align: 'center', color: '#5ad87a' });
+    }
+    this.reader.flush();
+  }
+
   /** the debtor's number engraved on the front plate */
   setPlate(no: string) {
+    this.no = no;
     const t = this.plate;
     t.clear();
-    t.type('REMITTANCE', 6, 3);
-    t.type('No.' + no, 6, 12);
+    t.type('Remittance', 6, 3, undefined, 7.5);
+    t.type('No. ' + no, 6, 12, '#4a3410', 6.5);
     t.flush();
   }
-  /** the inside: grid lines and light */
+  /** the inside: chalk lines and the bulb */
   setInside(k: number, flicker = 0) {
     this.gridMat.opacity = 0.42 * k;
     this.light.intensity = (1.6 + flicker) * k;

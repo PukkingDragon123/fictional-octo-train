@@ -11,7 +11,8 @@ import * as THREE from 'three';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { damp, clamp, angleDiff } from '../../core/math';
-import { Screen } from '../font5x7';
+import { crtScreen, fontsReady, type CrtScreen } from '../../gfx/crt';
+import { Tube } from './tube';
 import { fpGroup, fpClaim, fpRelease, fpOwner } from '../../fp/fp';
 import { hasUnlock, buyNode, researchNode, grantResearch } from '../../game/research';
 import { itemDef } from '../../items/item';
@@ -19,14 +20,14 @@ import { punch } from '../../gfx/juice';
 import type { Player } from '../../entities/player';
 import type { QuestRuntime } from '../../missions/questRuntime';
 import { buildWatchModel, setLamp, SCR_W, SCR_H, SCREEN, type WatchModel } from './model';
-import { drawWatch, drawQuests, drawResearch, layoutBranch, type Zone } from './screen';
+import { drawWatch, drawQuests, drawResearch, layoutBranch, PAL, type Zone } from './screen';
 import { drawMap, drawScan, drawSig, drawBio, drawLog, drawTool, drawFab, contacts, type Contact } from './apps';
 import { BRANCHES } from './nodes';
 import { WatchLaser, WatchFab } from './tool';
 import './nodes';
 import './sounds';
 
-export interface WatchFn { key: string; name: string; label: string; node: string | (() => boolean); draw: (s: Screen, w: Watch) => void }
+export interface WatchFn { key: string; name: string; label: string; node: string | (() => boolean); draw: (s: Tube, w: Watch) => void }
 
 /** every function the watch can run, in dock order; locked ones are simply absent */
 export const FUNCTIONS: WatchFn[] = [
@@ -47,41 +48,10 @@ const owned = (f: WatchFn) => (typeof f.node === 'string' ? hasUnlock(f.node) : 
 /** the live list of owned functions (the touch layer's strip reads it as the old scanner's PAGES) */
 export const WATCH_PAGES: { key: string; name: string; label: string }[] = [];
 
-const SCREEN_VERT = /* glsl */`
-varying vec2 vUv;
-void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
-`;
-const SCREEN_FRAG = /* glsl */`
-precision highp float;
-uniform sampler2D tScreen;
-uniform float uTime, uPower, uGlitch, uHit;
-varying vec2 vUv;
-float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-// the tube bulges: a gentle barrel warp, rounded corners
-vec2 curve(vec2 uv) { uv = uv * 2.0 - 1.0; vec2 off = abs(uv.yx) / vec2(7.5, 6.0); uv += uv * off * off; return uv * 0.5 + 0.5; }
-void main() {
-  vec2 uv = curve(vUv);
-  vec2 q = abs(uv - 0.5) * 2.0;
-  vec2 c = max(q - vec2(0.9, 0.85), 0.0);
-  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0 || length(c / vec2(0.1, 0.15)) > 1.0) { gl_FragColor = vec4(0.014, 0.018, 0.012, 1.0); return; }
-  float open = smoothstep(0.0, 1.0, uPower);
-  // power-on: a bright line across the middle that opens into the picture
-  float band = abs(uv.y - 0.5) * 2.0;
-  if (band > open * 1.02 + 0.006) { gl_FragColor = vec4(0.012, 0.026, 0.014, 1.0); return; }
-  // interference: a rolling tear when the simulation frays
-  if (uGlitch > 0.0) { float row = floor(uv.y * 68.0); float t = floor(uTime * 12.0); if (h(vec2(row, t)) < uGlitch * 0.25) uv.x += (h(vec2(t, row)) - 0.5) * 0.04; }
-  vec3 col = texture2D(tScreen, vec2(clamp(uv.x, 0.0, 1.0), 1.0 - uv.y)).rgb;
-  vec2 cc = uv - 0.5;
-  col *= 1.0 - dot(cc, cc) * 0.95;                                   // tube vignette
-  col *= 0.93 + 0.07 * smoothstep(-0.2, 1.0, sin((uv.y - uTime * 0.11) * 6.2831)); // slow rolling bar
-  col *= 0.975 + 0.025 * sin(uTime * 59.0);                           // mains flicker
-  col += vec3(0.02, 0.05, 0.02) * (h(floor(vUv * vec2(224.0, 136.0)) + fract(uTime * 7.0)) - 0.5);
-  col += vec3(0.02, 0.05, 0.025);                                     // the phosphor never goes fully black
-  col = mix(col, vec3(0.75, 1.0, 0.7), (1.0 - open) * 0.7 * step(band, 0.04));
-  col += vec3(0.45, 1.0, 0.4) * uHit * 0.09;
-  gl_FragColor = vec4(col, 1.0);
-}
-`;
+/** the tube's bulge (src/gfx/crt.ts uCurv): clicks are warped the same way */
+const CURV = 0.16;
+/** canvas pixels per layout unit (sharper type on better hardware) */
+const tubeScale = () => (G.pr?.quality === 'low' ? 1.25 : 1.5);
 
 export class Watch {
   // ---- the old scanner's surface (touch layer, creature menus, session hotkeys)
@@ -107,11 +77,9 @@ export class Watch {
   lastHit: { x: number; y: number } | null = null;
   readonly model: WatchModel;
   readonly group: THREE.Group;
-  screen = new Screen(SCR_W, SCR_H);
-  private canvas: HTMLCanvasElement;
-  private tex: THREE.CanvasTexture;
-  private screenMat: THREE.ShaderMaterial;
-  private scratch = new Uint8ClampedArray(SCR_W * SCR_H * 4);
+  /** the CRT (src/gfx/crt.ts) and the pen that writes on it */
+  readonly crt: CrtScreen;
+  readonly tv: Tube;
   private ray = new THREE.Raycaster();
   private drawT = 0;
   private staged = false;
@@ -129,17 +97,13 @@ export class Watch {
   private v2 = new THREE.Vector2();
 
   constructor() {
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = SCR_W; this.canvas.height = SCR_H;
-    this.tex = new THREE.CanvasTexture(this.canvas);
-    this.tex.magFilter = THREE.NearestFilter; this.tex.minFilter = THREE.NearestFilter; this.tex.generateMipmaps = false;
-    this.tex.colorSpace = THREE.SRGBColorSpace;
-    this.tex.flipY = false;
-    this.screenMat = new THREE.ShaderMaterial({
-      vertexShader: SCREEN_VERT, fragmentShader: SCREEN_FRAG,
-      uniforms: { tScreen: { value: this.tex }, uTime: { value: 0 }, uPower: { value: 0 }, uGlitch: { value: 0 }, uHit: { value: 0 } },
-    });
-    this.model = buildWatchModel(this.screenMat);
+    const k = tubeScale();
+    this.crt = crtScreen(SCREEN.w, SCREEN.h, { res: [Math.round(SCR_W * k), Math.round(SCR_H * k)], curvature: CURV, tint: 0xffffff, scan: 0.5, mask: 0.12, glow: 0.7, noise: 0.03, flicker: 0.4, vignette: 0.8, reflect: 0.65, bulge: 0.0022 });
+    this.crt.power(false, true);
+    (this.crt.mat.uniforms.uRes.value as THREE.Vector2).set(SCR_W * 0.62, SCR_H * 0.62);
+    this.tv = new Tube(this.crt.ctx, SCR_W, SCR_H, k);
+    fontsReady().then(() => { this.tv.fontsOk = true; this.drawT = 0; });
+    this.model = buildWatchModel(this.crt.mesh);
     this.group = fpGroup('watch');
     this.group.add(this.model.root);
     this.glow = new THREE.PointLight(0x7cff6a, 0, 0.25, 2);
@@ -499,7 +463,7 @@ export class Watch {
   private screenClick(u: number, v: number) {
     // the same barrel warp as the tube shader, so a click lands on what it shows
     let cu = u * 2 - 1, cv = v * 2 - 1;
-    const ou = Math.abs(cv) / 7.5, ov = Math.abs(cu) / 6;
+    const ou = Math.abs(cv) * CURV, ov = Math.abs(cu) * CURV;
     cu += cu * ou * ou; cv += cv * ov * ov;
     const x = Math.floor((cu * 0.5 + 0.5) * SCR_W), y = Math.floor((cv * 0.5 + 0.5) * SCR_H);
     this.lastHit = { x, y };
@@ -546,60 +510,47 @@ export class Watch {
     if (this.skin !== p.app.skin) { this.skin = p.app.skin; this.model.rebuildArm(p.app.skin); }
     this.pose(p, dt);
     this.updateControls(p, dt);
-    const u = this.screenMat.uniforms;
-    u.uTime.value = G.time; u.uPower.value = this.power;
-    u.uGlitch.value = Math.max(G.collapse * 0.5, p.body.corruption > 30 ? 0.3 : 0);
-    this.hitFx = Math.max(0, this.hitFx - dt * 3); u.uHit.value = this.hitFx;
+    const u = this.crt.mat.uniforms;
+    u.uNoise.value = 0.03 + Math.max(G.collapse * 0.12, p.body.corruption > 30 ? 0.08 : 0);
+    this.crt.power(up && this.raise > 0.55);
+    this.hitFx = Math.max(0, this.hitFx - dt * 3);
     this.glow.intensity = 0.0006 * this.power;
-    // redraw at ~15 fps
+    // redraw at ~15 fps (the tube animates itself in between)
     this.drawT -= dt;
     if (this.drawT <= 0 && this.power > 0.05) {
       this.drawT = 1 / 15;
-      drawWatch(this.screen, this);
-      this.postFx();
-      this.canvas.getContext('2d')!.putImageData(this.screen.img, 0, 0);
-      this.tex.needsUpdate = true;
+      drawWatch(this.tv, this);
+      this.tv.wash(PAL.HI, this.hitFx * 0.12);
+      this.crt.flush();
     }
   }
 
-  /** place the wrist: full close-up (pixel-true screen) or the small glance, raised from below */
+  /** place the wrist: the full close-up (the tube fills most of the view) or the small glance, raised from below */
   private pose(p: Player, dt: number) {
     const pr = G.pr, cam = pr.overlayCamera;
-    const RH = pr.lowH + pr.margin * 2, RW = pr.lowW + pr.margin * 2;
     const tanH = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
-    // the distance at which one LCD pixel is one low-res pixel, backed off if the view is too narrow
-    const fit = Math.min(1, (RW * 0.92) / SCR_W, (RH * 0.66) / SCR_H);
-    const d1 = SCREEN.w * RH / (2 * SCR_W * tanH) / fit;
-    const halfH = d1 * tanH, halfW = halfH * cam.aspect;
-    const mpp = (2 * d1 * tanH) / RH;
-    // full: centred a touch right and low (the body HUD lives bottom-left), square to the eye
-    const fx = halfW * 0.1, fy = -halfH * 0.08, fz = -d1;
+    // full: the tube about 62% of the view's height, the case's control column still in frame
+    const d1 = Math.max(SCREEN.h / (2 * tanH * 0.62), 0.106 / (2 * tanH * cam.aspect));
+    const halfH = d1 * tanH;
+    const fx = -0.0157, fy = -0.001, fz = -d1;
     // small: right of centre (clear of the body HUD along the bottom), further away, tilted toward
     // the eye, the forearm running off the bottom edge
-    const d2 = d1 * 2.3, h2 = d2 * tanH, w2 = h2 * cam.aspect;
+    const d2 = d1 * 2.6, h2 = d2 * tanH, w2 = h2 * cam.aspect;
     const sx = w2 * 0.56, sy = -h2 * 0.1, sz = -d2;
     const k = this.zoom, e = k * k * (3 - 2 * k);
     let x = sx + (fx - sx) * e, y = sy + (fy - sy) * e, z = sz + (fz - sz) * e;
     let rx = -0.3 * (1 - e), ry = -0.3 * (1 - e), rz = 0.42 * (1 - e);
     // raise from below with a little overshoot
     const r = this.raise, c1 = 1.5, back = 1 + (c1 + 1) * Math.pow(r - 1, 3) + c1 * Math.pow(r - 1, 2);
-    const lift = (1 - back) * (halfH * 1.4);
+    const lift = (1 - back) * (halfH * 1.6);
     y -= lift; rx -= (1 - r) * 0.9; rz += (1 - r) * 0.3;
-    // walking / running sway (never when reading at rest, so the text stays pixel-true)
+    // breathing at rest, swinging when you walk or run
     const moving = p.speed > 0.2;
-    if (moving) {
-      const amp = p.running ? 2.2 : 1;
-      y += Math.abs(Math.sin(G.time * (p.running ? 9 : 7))) * 0.004 * amp;
-      x += Math.sin(G.time * (p.running ? 4.5 : 3.5)) * 0.003 * amp;
-      rz += Math.sin(G.time * 3.5) * 0.02 * amp;
-    }
-    // pixel-align the screen when fully up and still
-    if (e > 0.985 && r > 0.985 && !moving) {
-      const sx0 = (x - SCREEN.w / 2) / mpp, sy0 = (y + SCREEN.h / 2) / mpp;
-      x += (Math.round(sx0 + RW / 2) - (sx0 + RW / 2)) * mpp;
-      y += (Math.round(sy0 + RH / 2) - (sy0 + RH / 2)) * mpp;
-      rx = ry = rz = 0;
-    }
+    const amp = moving ? (p.running ? 2.2 : 1) : 0.15;
+    y += Math.abs(Math.sin(G.time * (p.running ? 9 : moving ? 7 : 1.6))) * 0.004 * amp;
+    x += Math.sin(G.time * (p.running ? 4.5 : moving ? 3.5 : 0.8)) * 0.003 * amp;
+    rz += Math.sin(G.time * 3.5) * 0.02 * amp;
+    rx += Math.sin(G.time * 1.3) * 0.006 * amp;
     // the band moves to the right arm when the left forearm is gone: mirror the wrist (not the LCD)
     const sev: string[] = (p.body as any).severed || [];
     const side = sev.includes('farm_l') || sev.includes('uarm_l') ? -1 : 1;
@@ -622,7 +573,7 @@ export class Watch {
     m.cell.visible = hasUnlock('tool_cell');
     this.model.antenna.rotation.y += dt * (hasUnlock('watch_radar') ? 4 : 0);
     m.dish.rotation.y += dt * (this.scanTarget ? 9 : 1.2);
-    void halfW; void w2;
+    void w2;
   }
 
   /** jewel lamps, the function dial's detents, the needle, the toggles, the valves */
@@ -695,20 +646,5 @@ export class Watch {
     if (!own.some((f) => f.key === this.page) && this.page !== 'rnd') this.page = 'qst';
   }
 
-  /** cheap phosphor glow and interlace on the CPU buffer (scratch buffer, no allocation) */
-  private postFx() {
-    const d = this.screen.img.data, src = this.scratch;
-    src.set(d);
-    const W = SCR_W, H = SCR_H;
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-      const i = (y * W + x) * 4;
-      let g = 0, b = 0;
-      if (x > 0) { g += src[i - 3]; b += src[i - 2]; } if (x < W - 1) { g += src[i + 5]; b += src[i + 6]; }
-      if (y > 0) { g += src[i - W * 4 + 1]; b += src[i - W * 4 + 2]; } if (y < H - 1) { g += src[i + W * 4 + 1]; b += src[i + W * 4 + 2]; }
-      const il = (y & 1) ? 0.88 : 1;
-      d[i] = Math.min(255, (src[i] + g * 0.02) * il);
-      d[i + 1] = Math.min(255, (src[i + 1] + g * 0.05) * il);
-      d[i + 2] = Math.min(255, (src[i + 2] + b * 0.05) * il);
-    }
-  }
+
 }

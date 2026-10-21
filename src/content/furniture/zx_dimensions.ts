@@ -11,8 +11,6 @@ import { atlas } from '../../gfx/atlas';
 import { addTextureModule } from '../../gfx/textures/index';
 import { makeRamp, mixHex, scaleHex, ph, text, textC, glow, rockBlob, discY, rod, torus, fillNoise } from './b_common';
 import type { PixelCanvas } from '../../gfx/pixel';
-import type { ModelBuilder } from '../../gfx/modelBuilder';
-import { glyph5x7 } from '../../ui/font5x7';
 
 const T = ['vx', 'dimension'];
 
@@ -330,54 +328,29 @@ defObj({
   },
 });
 
-// ---------------------------------------------------------------- signs: where you are, in raised enamel letters
-/** raised pixel lettering (the 5x7 type, one block per run of pixels) on the plane z = zf, facing +z (or -z with back) */
-export function pixelLetters(mb: ModelBuilder, text: string, cx: number, cy: number, zf: number, px: number, ink: number, back = false) {
-  const n = [...text].length;
-  const w = n * 6 * px - px;
-  let x0 = cx - w / 2;
-  const top = cy + 3.5 * px;
-  for (const ch of text) {
-    const bits = glyph5x7(ch);
-    for (let j = 0; j < 7; j++) {
-      let i = 0;
-      while (i < 5) {
-        if (!bits[j * 5 + i]) { i++; continue; }
-        let k = i; while (k < 5 && bits[j * 5 + k]) k++;
-        const bx = x0 + ((i + k) / 2) * px;
-        const sx = back ? -bx : bx;
-        mb.box(sx, top - (j + 1) * px, back ? -zf : zf, (k - i) * px, px, px * 0.9, 'white', { color: ink });
-        i = k;
-      }
-    }
-    x0 += 6 * px;
-  }
+// ---------------------------------------------------------------- signs: where you are, on enamel
+/** plate size for a sign's text ('LINE ONE|LINE TWO'): the face texture (src/social/signs.ts) is painted to the same size */
+export function signDims(text: string): { lines: string[]; W: number; H: number; yc: number; lh: number[] } {
+  const lines = String(text || 'SIGN').toUpperCase().split('|').slice(0, 3);
+  const lh = lines.map((_, k) => (k === 0 ? 0.26 : 0.17));
+  const W = Math.max(1.0, Math.max(...lines.map((l, k) => l.length * lh[k] * 0.5)) + 0.34);
+  const H = lh.reduce((a, b) => a + b, 0) + 0.16;
+  return { lines, W, H, yc: 1.55, lh };
 }
 defObj({
   key: 'vx_sign', name: 'Sign', w: 2, d: 1, height: 2.4, block: 'low', movable: 0, hp: 600, sound: 'metal',
   tags: [...T, 'sign', 'fixed'],
-  desc: 'An enamel sign on two posts, the letters stamped up out of the metal. Someone put it here before anyone arrived.',
-  variant: (s) => `${s.text}|${s.c}|${s.ink}`,
+  desc: 'An enamel sign on two posts. Someone put it here before anyone arrived.',
+  variant: (s) => `${s.text}|${s.c}`,
   model: (mb, s) => {
-    const lines = String(s.text || 'SIGN').toUpperCase().split('|').slice(0, 3);
-    const plate = Number(s.c ?? 0x1e4a3a), ink = Number(s.ink ?? 0xf0e8d0);
-    const px = 0.034;
-    const longest = Math.max(...lines.map((l) => l.length));
-    const W = Math.max(1.0, longest * 6 * px + 0.22), LH = 9 * px;
-    const Hh = lines.length * LH + 0.14;
-    const yc = 1.55;
-    // posts, the plate with a rolled rim, bolts
-    for (const sx of [-W / 2 + 0.12, W / 2 - 0.12]) mb.box(sx, 0, -0.06, 0.07, yc + Hh / 2 + 0.05, 0.07, 'metal_grey', { color: 0x6a6a64 });
-    mb.box(0, yc - Hh / 2, 0, W, Hh, 0.05, 'white', { color: plate });
-    mb.box(0, yc + Hh / 2 - 0.02, 0, W + 0.04, 0.035, 0.07, 'white', { color: scaleHex(ink, 0.92) });
-    mb.box(0, yc - Hh / 2 - 0.015, 0, W + 0.04, 0.035, 0.07, 'white', { color: scaleHex(ink, 0.92) });
-    for (const sx of [-W / 2 + 0.06, W / 2 - 0.06]) for (const sy of [yc - Hh / 2 + 0.06, yc + Hh / 2 - 0.07]) for (const z of [0.03, -0.03]) mb.box(sx, sy, z, 0.03, 0.03, 0.012, 'white', { color: 0xb8b8b0 });
-    lines.forEach((l, k) => {
-      const cy = yc + ((lines.length - 1) / 2 - k) * LH;
-      const sc = k === 0 ? px : px * 0.8;
-      pixelLetters(mb, l, 0, cy, 0.03, sc, ink);
-      pixelLetters(mb, l, 0, cy, 0.03, sc, ink, true);
-    });
+    const { W, H, yc } = signDims(String(s.text || 'SIGN'));
+    const plate = Number(s.c ?? 0x1e4a3a);
+    // posts, the plate with a rolled rim and bolts; the lettering is painted on by src/social/signs.ts
+    for (const sx of [-W / 2 + 0.12, W / 2 - 0.12]) mb.box(sx, 0, -0.06, 0.07, yc + H / 2 + 0.05, 0.07, 'metal_grey', { color: 0x6a6a64 });
+    mb.box(0, yc - H / 2, 0, W, H, 0.05, 'white', { color: plate });
+    mb.box(0, yc + H / 2 - 0.02, 0, W + 0.04, 0.035, 0.07, 'metal_grey', { color: 0xb0b0a8 });
+    mb.box(0, yc - H / 2 - 0.015, 0, W + 0.04, 0.035, 0.07, 'metal_grey', { color: 0xb0b0a8 });
+    for (const sx of [-W / 2 + 0.06, W / 2 - 0.06]) for (const sy of [yc - H / 2 + 0.06, yc + H / 2 - 0.07]) for (const z of [0.03, -0.03]) mb.box(sx, sy, z, 0.03, 0.03, 0.012, 'white', { color: 0xb8b8b0 });
   },
 });
 void mixHex;

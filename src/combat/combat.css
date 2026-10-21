@@ -23,9 +23,9 @@
 .cbw-dodge { color: #e9e4d4; font-style: italic; }
 .cbw-free { color: #d8e0a8; }
 .cbw-bad { color: #e0583c; }
-.cbw-count { font-family: var(--font-poster); font-size: clamp(20px, 2.6vw, 32px); letter-spacing: 0.02em; color: #f0dfb4; }
-.cbw-count.hi { color: #f0a050; }
-.cbw-count.max { color: #e04a2c; }
+.cbw-p.count b { font-family: var(--font-poster); font-weight: 400; font-size: clamp(20px, 2.6vw, 32px); letter-spacing: 0.02em; color: #f0dfb4; }
+.cbw-p.count.hi b { color: #f0a050; }
+.cbw-p.count.max b { color: #e04a2c; }
 /* a finisher's name: a blood-red slab slammed down on the spot, slightly askew */
 .cbw-fin { font-family: var(--font-poster); font-size: clamp(30px, 4.2vw, 54px); letter-spacing: 0.03em; color: #c8301a; -webkit-text-stroke: 1px #2b0905; text-transform: uppercase; animation-name: cbw-slam !important; }
 

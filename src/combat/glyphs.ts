@@ -14,11 +14,9 @@ import { G } from '../game/G';
 // warm, painted, enamel-and-brass palette
 const INK = 0x1c120a, CREAM = 0xeadcb4, CREAM_D = 0xbfa97c, CREAM_L = 0xfff4d8;
 const BRASS = 0xb8902c, BRASS_L = 0xe8c860, BRASS_D = 0x6a4e16;
-const STEEL = 0x9a988a, STEEL_L = 0xd4d2c4, STEEL_D = 0x55544a;
+const STEEL = 0x9a988a, STEEL_D = 0x55544a;
 const BRICK = 0xa8321e, BRICK_L = 0xd0583a, BRICK_D = 0x641a10;
-const MUSTARD = 0xd89a28, MUSTARD_D = 0x8a5a14;
-const OLIVE = 0x5e6e34, OLIVE_D = 0x3a4420;
-const NAVY = 0x2c3c58, NAVY_D = 0x1a2436;
+const MUSTARD = 0xd89a28;
 const CHALK = 0xe8dcc0;
 
 /** a little RGBA canvas we draw pixels into, turned into a crisp texture */

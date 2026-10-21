@@ -4,7 +4,7 @@
 // pressure, the diagnosis AI and the mind monitor as further research),
 // LOGBOOK (skills, codex, file), TOOL (the multi-tool) and FAB (field crafting).
 import { G } from '../../game/G';
-import { Screen } from '../font5x7';
+import type { Tube } from './tube';
 import { BODY_PARTS, BodyPart, itemDef, itemName } from '../../items/item';
 import { PART_NAMES, INJURY_INFO, Injury } from '../../survival/body';
 import { SKILLS, occupationByKey, traitByKey, PERKS } from '../../survival/traits';
@@ -26,7 +26,7 @@ import type { Watch } from './watch';
 const { BG, PANEL, FAINT, DIM, MID, HI, AMB, RED, MAG, GRN } = PAL;
 const blink = (hz = 2) => Math.floor(G.time * hz) % 2 === 0;
 
-function tabs(s: Screen, w: Watch, key: string, labels: string[], avail: boolean[]) {
+function tabs(s: Tube, w: Watch, key: string, labels: string[], avail: boolean[]) {
   let x = 2;
   const cur = ((w.st[key] ?? 0) % labels.length + labels.length) % labels.length;
   labels.forEach((lb, i) => {
@@ -40,7 +40,7 @@ function tabs(s: Screen, w: Watch, key: string, labels: string[], avail: boolean
 }
 
 // ================================================================ CARTOGRAPHY
-export function drawMap(s: Screen, w: Watch) {
+export function drawMap(s: Tube, w: Watch) {
   const p = G.local, z = G.getZone(p.zoneKey);
   const zoom = w.st.mapZoom as number;
   const vw = s.w - 8, vh = BOT - TOP - 2;
@@ -53,11 +53,7 @@ export function drawMap(s: Screen, w: Watch) {
     const k = z.idx(x, y);
     if (!z.explored[k]) continue;
     const sx = ox + i * zoom, sy = oy + j * zoom;
-    if (z.floor[k]) {
-      const water = z.floorAt(x, y)?.water;
-      for (let b = 0; b < zoom; b++) for (let a = 0; a < zoom; a++) if (((a + b + x + y) & 1) === 0 || zoom === 1) s.px(sx + a, sy + b, water ? MID : FAINT);
-      if (z.solid[k] === 1 || z.solid[k] === 3) s.rect(sx, sy, zoom, zoom, DIM);
-    }
+    if (z.floor[k]) s.rect(sx, sy, zoom, zoom, z.solid[k] === 1 || z.solid[k] === 3 ? DIM : z.floorAt(x, y)?.water ? MID : FAINT);
     if (z.wallN[k]) s.hline(sx, sx + zoom - 1, sy, z.edge(x, y, 0) ? AMB : MID);
     if (z.wallW[k]) s.vline(sx, sy, sy + zoom - 1, z.edge(x, y, 1) ? AMB : MID);
   }
@@ -114,7 +110,7 @@ export function contacts(w: Watch, p: Player, range: number): Contact[] {
   return out;
 }
 
-export function drawScan(s: Screen, w: Watch) {
+export function drawScan(s: Tube, w: Watch) {
   const p = G.local;
   const range = w.scanRange();
   const cx = 62, cy = 74, R = 50;
@@ -127,7 +123,7 @@ export function drawScan(s: Screen, w: Watch) {
   const na = -Math.PI / 2 - p.facing - Math.PI / 2;
   s.text('N', cx + Math.cos(na) * (R + 1) - 2, cy + Math.sin(na) * (R + 1) - 3, MID);
   const sweepA = (t * 2.4) % (Math.PI * 2);
-  for (let r = 4; r < R; r++) s.px(cx + Math.sin(sweepA) * r, cy - Math.cos(sweepA) * r, r % 3 === 0 ? HI : MID);
+  for (let k2 = 0; k2 < 5; k2++) { const a = sweepA - k2 * 0.07; s.line(cx, cy, cx + Math.sin(a) * R, cy - Math.cos(a) * R, k2 ? (k2 < 3 ? MID : DIM) : HI); }
   const list = contacts(w, p, range);
   const logged: Set<string> = w.logged;
   for (const ct of list) {
@@ -201,7 +197,8 @@ export function signalStrength(p: Player, freq: number) {
   return { strength: best, sig: bestSig, dir };
 }
 
-export function drawSig(s: Screen, w: Watch) {
+const WAVE: number[] = [];
+export function drawSig(s: Tube, w: Watch) {
   const p = G.local;
   const f = w.st.freq as number;
   const { strength, sig, dir } = signalStrength(p, f);
@@ -217,11 +214,14 @@ export function drawSig(s: Screen, w: Watch) {
   void bx;
   const wy = TOP + 31, wh = 24;
   s.frame(4, wy, s.w - 8, wh, DIM);
-  for (let x = 6; x < s.w - 6; x++) {
+  const wave = WAVE;
+  wave.length = 0;
+  for (let x = 6; x < s.w - 6; x += 2) {
     const n = (Math.random() - 0.5) * (1 - strength) * wh * 0.8;
     const sine = Math.sin(x * 0.35 + G.time * 9) * strength * wh * 0.38 * (sig?.pattern === 'pulse' ? (Math.sin(G.time * 3) > 0 ? 1 : 0.2) : 1);
-    s.px(x, wy + wh / 2 + n * 0.6 + sine, strength > 0.6 ? HI : MID);
+    wave.push(x, wy + wh / 2 + n * 0.6 + sine);
   }
+  s.poly(wave, strength > 0.6 ? HI : MID);
   s.text('STRENGTH', 4, wy + 28, MID);
   for (let i = 0; i < 20; i++) s.rect(60 + i * 7, wy + 28, 5, 7, i / 20 < strength ? (i > 14 ? AMB : HI) : DIM);
   const ay = wy + 52;
@@ -245,7 +245,7 @@ export function drawSig(s: Screen, w: Watch) {
 // ================================================================ BIOMONITOR
 const BODY_X = 6, BODY_Y = TOP + 12;
 
-export function drawBio(s: Screen, w: Watch) {
+export function drawBio(s: Tube, w: Watch) {
   const who: Player = w.healthOf || G.local;
   const self = who === G.local;
   const diag = hasUnlock('watch_diag'), mind = hasUnlock('watch_mind') && self;
@@ -293,7 +293,7 @@ export function drawBio(s: Screen, w: Watch) {
   // worst moodles at the bottom left
   const moods = b.moodles(who.heavyLoad()).sort((a: any, c: any) => c.level - a.level).slice(0, Math.max(0, Math.floor((BOT - 2 - y) / 9)));
   for (const m of moods) {
-    drawMoodleGlyph(s, m.key, L, y, m.level >= 3 ? AMB : m.good ? MID : HI);
+    drawMoodleGlyph(s as any, m.key, L, y, m.level >= 3 ? AMB : m.good ? MID : HI);
     s.text(m.name.toUpperCase(), L + 10, y, m.level >= 3 ? AMB : HI, 1, R - L - 32);
     for (let i = 0; i < 4; i++) s.rect(R - 20 + i * 5, y + 1, 4, 5, i < m.level ? (m.level >= 3 ? AMB : HI) : DIM);
     y += 9;
@@ -301,7 +301,7 @@ export function drawBio(s: Screen, w: Watch) {
   footer(s, self ? 'BIOMONITOR  · RESEARCH MORE SENSORS ON R&D' : 'READING ' + who.name.toUpperCase());
 }
 
-function lockedRow(s: Screen, x: number, y: number, name: string) { icon(s, 'lock', x, y, DIM); s.text(name, x + 8, y, FAINT); s.text('RESEARCH ON R&D', x, y + 9, FAINT); }
+function lockedRow(s: Tube, x: number, y: number, name: string) { icon(s, 'lock', x, y, DIM); s.text(name, x + 8, y, FAINT); s.text('RESEARCH ON R&D', x, y + 9, FAINT); }
 
 export function pulseOf(who: Player) {
   const b = who.body;
@@ -319,7 +319,7 @@ export function bloodPressure(who: Player): [number, number] {
 function burnRate(who: Player) { return 70 + (who.running ? 380 : who.speed > 0.2 ? 160 : 0) + (who.body.temp < 36 ? 60 : 0); }
 
 /** DIAGNOSIS AI: body map, per-part findings and the AI's triage advice, TREAT */
-function drawDiag(s: Screen, w: Watch, who: Player) {
+function drawDiag(s: Tube, w: Watch, who: Player) {
   const b = who.body, t = G.time;
   const selIdx = ((w.st.sel % (BODY_PARTS.length + 1)) + BODY_PARTS.length + 1) % (BODY_PARTS.length + 1);
   const selPart: BodyPart | null = selIdx === 0 ? null : BODY_PARTS[selIdx - 1];
@@ -402,7 +402,7 @@ function openTreatMenu(who: Player, part: BodyPart) {
 }
 
 /** MIND MONITOR: heart, breathing, mood, conditions, medication, triggers, the breathing coach */
-function drawMind(s: Screen, w: Watch, who: Player) {
+function drawMind(s: Tube, w: Watch, who: Player) {
   const b = who.body, m = ensureMind(b);
   const mind = (G.survival as any)?.mind;
   const breathing = !!mind?.breathing;
@@ -450,14 +450,14 @@ const FACE_FEATURES: Record<string, [number, number][]> = {
   dissoc: [[2, 3], [3, 2], [3, 4], [5, 3], [6, 2], [6, 4], [3, 6], [4, 6], [5, 6]], sleep: [[2, 4], [3, 4], [5, 4], [6, 4], [4, 6]],
   lonely: [[3, 3], [5, 3], [6, 4], [6, 5], [3, 6], [4, 6]], tense: [[3, 3], [5, 3], [2, 6], [3, 5], [4, 6], [5, 5], [6, 6], [7, 2], [7, 3]],
 };
-function drawFace(s: Screen, g: string, x: number, y: number, sc: number, c: number) {
+function drawFace(s: Tube, g: string, x: number, y: number, sc: number, c: number) {
   const dot = (i: number, j: number) => s.rect(x + i * sc, y + j * sc, sc - 1, sc - 1, c);
   FACE_RING.forEach((r, j) => { for (let i = 0; i < 9; i++) if (r[i] === '#') dot(i, j); });
   for (const [i, j] of FACE_FEATURES[g] || []) dot(i, j);
 }
 
 // ================================================================ LOGBOOK
-export function drawLog(s: Screen, w: Watch) {
+export function drawLog(s: Tube, w: Watch) {
   const p = G.local;
   const tab = tabs(s, w, 'dataTab', ['SKILLS', 'CODEX', 'FILE'], [true, true, true]);
   let y = TOP + 13;
@@ -500,7 +500,7 @@ export function drawLog(s: Screen, w: Watch) {
 }
 
 // ================================================================ TOOL (the multi-tool)
-export function drawTool(s: Screen, w: Watch) {
+export function drawTool(s: Tube, w: Watch) {
   const L = w.laser;
   let y = TOP + 2;
   s.text('MULTI-TOOL', 4, y, HI);
@@ -541,7 +541,7 @@ export function drawTool(s: Screen, w: Watch) {
 }
 
 // ================================================================ FAB (field crafting)
-export function drawFab(s: Screen, w: Watch) {
+export function drawFab(s: Tube, w: Watch) {
   const p = G.local;
   const list = w.fab.list();
   if (!list.length) { s.para('NO FIELD PATTERNS LOADED. RECIPES THE FABRICATOR CAN FOLD APPEAR HERE.', 6, TOP + 6, s.w - 12, MID); footer(s, 'FAB'); return; }

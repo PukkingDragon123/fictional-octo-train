@@ -170,7 +170,7 @@ export class Operation {
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.019, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xc0281a, emissive: 0x200000 }));
     knob.position.y = 0.035; knob.name = 'abort';
     this.plunger.add(pbase, knob);
-    const tag = new PixTex(40, 10); tag.s.clear(0xe0b020); tag.typed('ABORT', 5, 2, 0x1a140c, 1, 40, 2); tag.flush();
+    const tag = new PixTex(40, 10); tag.reset(0xe0b020); tag.sign('ABORT', 20, 1, 0x1a140c, 8, { align: 'center' }); tag.flush();
     const tagM = new THREE.Mesh(new THREE.PlaneGeometry(0.048, 0.012), flatMat(tag.tex)); tagM.position.set(0, 0.016, 0.0275); this.plunger.add(tagM);
     this.plunger.position.set(0.2, -0.105, -0.6); this.plunger.rotation.set(0.5, -0.35, 0);
     this.g.add(this.plunger);
@@ -230,20 +230,20 @@ export class Operation {
   /** the procedure card on the clipboard: typed steps, the done ones struck through in red pencil */
   private label() {
     const p = this.card, s = p.s, i = STEPS.indexOf(this.step);
-    s.clear(PAL.paper);
+    p.reset(PAL.paper);
     p.paper(0, 0, p.w, p.h, PAL.paper, 7);
-    p.typed('PROCEDURE 7-C', 6, 4, PAL.ink, 1, 110, 1);
-    p.typed('CRANIAL REFIT', 6, 13, PAL.inkRed, 1, 110, 2);
+    p.typed('PROCEDURE 7-C', 6, 3, PAL.ink, 9, 110);
+    p.typed('CRANIAL REFIT', 6, 12, PAL.inkRed, 9, 110);
     s.hline(4, p.w - 5, 22, Screen.c(PAL.ink), 2);
     STEPS.forEach((st, k) => {
       const y = 26 + k * 10;
       s.frame(5, y, 7, 7, Screen.c(PAL.ink));
       if (k < i) { s.line(6, y + 3, 8, y + 5, Screen.c(PAL.inkRed)); s.line(8, y + 5, 12, y - 1, Screen.c(PAL.inkRed)); }
-      p.typed(TEXT[st][0], 15, y, k === i ? PAL.ink : k < i ? PAL.paperEdge : 0x6a5c44, 1, 104, k + 3);
-      if (k < i) s.hline(15, 15 + TEXT[st][0].length * 6, y + 3, Screen.c(PAL.inkRed));
-      if (k === i) { s.text('>', 1, y, Screen.c(PAL.inkRed)); }
+      p.typed(TEXT[st][0], 15, y - 0.5, k === i ? PAL.ink : k < i ? PAL.paperEdge : 0x6a5c44, 8, 104);
+      if (k < i) s.hline(15, 15 + TEXT[st][0].length * 5, y + 3, Screen.c(PAL.inkRed));
+      if (k === i) p.pen('>', 1, y - 3, PAL.inkRed, 11);
     });
-    if (this.step !== 'done') p.typedPara(TEXT[this.step][1], 6, 78, 110, PAL.inkBlue, 8, 2);
+    if (this.step !== 'done') p.pen(TEXT[this.step][1], 6, 76, PAL.inkBlue, 11, { maxW: 110 });
     p.flush();
     this.layer.cursor = this.step === 'pull' || this.step === 'seat' ? 'grab' : 'crosshair';
   }

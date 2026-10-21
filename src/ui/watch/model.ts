@@ -1,30 +1,36 @@
 // The watch in first person: your left forearm raised in front of your face,
 // yellow jumpsuit sleeve shoved up, the BAILIFF band bolted through the wrist,
 // and on it a chunky retro-futurist wrist computer: a scratched steel case with
-// a bakelite faceplate, a curved phosphor CRT behind a riveted bezel, a big
-// knurled function dial, a needle gauge, two bat-handle toggle switches, three
-// jewel lamps, a speaker grille, a stamped brass maker's plate and a telescopic
-// antenna. Multi-tool modules bolt on as they are researched: a chrome lamp, a
-// brass laser emitter fed by two vacuum tubes, a scanner dish, fabricator
-// pincers and a bakelite battery.
+// a lacquered bakelite faceplate, a curved phosphor CRT (src/gfx/crt.ts) behind
+// a riveted bezel, a big knurled function dial, a needle gauge under glass,
+// two bat-handle toggle switches, three jewel lamps, a speaker grille, a stamped
+// brass maker's plate and a telescopic antenna. Multi-tool modules bolt on as
+// they are researched: a chrome lamp, a brass laser emitter fed by two vacuum
+// tubes, a scanner dish, fabricator pincers and a bakelite battery.
+//
+// Materials are physically based (metal with real speculars and a room
+// reflection, clear-lacquered bakelite, glass with fresnel), textured from the
+// pixel atlas for grime and scratches.
 //
 // Device space: X runs along the forearm (elbow at -X, hand at +X), Y up,
 // Z toward the eye. The screen sits at SCREEN (centre) facing +Z.
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { ModelBuilder } from '../../gfx/modelBuilder';
-import { worldMaterial } from '../../gfx/materials';
 import { atlas } from '../../gfx/atlas';
+import { G } from '../../game/G';
 
+/** the tube's character field (layout units) */
 export const SCR_W = 224, SCR_H = 136;
-/** metres per screen pixel (the CRT is 67 x 41 mm) */
+/** metres per layout unit (the CRT is 67 x 41 mm) */
 export const SCR_PX = 0.0003;
 export const SCREEN = { w: SCR_W * SCR_PX, h: SCR_H * SCR_PX, x: -0.036, y: 0.003, z: 0.0 };
 
 const ARM_R = 0.031;
 const TOP = ARM_R + 0.003;            // underside of the case
-const HOUSE = { w: 0.124, h: 0.076, d: 0.024, cx: SCREEN.x + 0.015 };
+export const HOUSE = { w: 0.124, h: 0.076, d: 0.024, cx: SCREEN.x + 0.015 };
 const FRONT = TOP + HOUSE.d;          // the faceplate
-SCREEN.z = FRONT + 0.0004;
+SCREEN.z = FRONT + 0.0002;
 /** the right-hand control column (function dial above, needle gauge below) */
 const COL_X = HOUSE.cx + HOUSE.w / 2 - 0.02;
 
@@ -35,16 +41,14 @@ function textures() {
   const A = atlas();
   // scratched, brushed steel
   A.add('wt_steel', 16, 16, (pc, rng) => {
-    pc.each((x, y) => { const n = rng.next(); const streak = (y * 7 + (x >> 3)) % 5 === 0 ? 10 : 0; pc.set(x, y, n < 0.1 ? 0x6c7174 : n < 0.3 ? 0x8a8f90 + streak : 0x7c8183 + streak); });
-    for (let i = 0; i < 7; i++) { const x = rng.int(0, 15), y = rng.int(0, 15); for (let k = 0; k < 5; k++) pc.blend(x + k, y + (k >> 2), 0xc8cccc, 0.55); }
-    for (let i = 0; i < 4; i++) pc.blend(rng.int(0, 15), rng.int(0, 15), 0x4a3a2a, 0.5);
-    pc.hline(0, 15, 0, 0xa4a8a8); pc.hline(0, 15, 15, 0x4c5052);
+    pc.each((x, y) => { const n = rng.next(); const streak = (y * 7 + (x >> 3)) % 5 === 0 ? 10 : 0; pc.set(x, y, n < 0.1 ? 0x9ca0a2 : n < 0.3 ? 0xbcc0c0 + streak : 0xb0b4b6 + streak); });
+    for (let i = 0; i < 7; i++) { const x = rng.int(0, 15), y = rng.int(0, 15); for (let k = 0; k < 5; k++) pc.blend(x + k, y + (k >> 2), 0xe8ecec, 0.55); }
+    for (let i = 0; i < 5; i++) pc.blend(rng.int(0, 15), rng.int(0, 15), 0x5a4632, 0.55);
   });
-  // bakelite: warm near-black brown, mottled, rubbed shiny at the edges
+  // bakelite: warm near-black brown, mottled
   A.add('wt_bake', 16, 16, (pc, rng) => {
-    pc.each((x, y) => { const n = rng.next(); pc.set(x, y, n < 0.15 ? 0x241812 : n < 0.3 ? 0x3a2a1e : 0x2e2018); });
-    for (let i = 0; i < 6; i++) pc.blend(rng.int(0, 15), rng.int(0, 15), 0x5a4232, 0.6);
-    pc.hline(0, 15, 0, 0x5a4434); pc.vline(0, 0, 15, 0x4a3628);
+    pc.each((x, y) => { const n = rng.next(); pc.set(x, y, n < 0.15 ? 0x2a1a12 : n < 0.3 ? 0x42301f : 0x36261a); });
+    for (let i = 0; i < 6; i++) pc.blend(rng.int(0, 15), rng.int(0, 15), 0x664a34, 0.6);
   });
   A.add('wt_knurl', 16, 4, (pc) => { pc.each((x, y) => pc.set(x, y, x % 2 ? 0x2a2420 : (y === 0 ? 0x9a948c : 0x6a645c))); });
   A.add('wt_knobtop', 12, 12, (pc) => {
@@ -60,21 +64,21 @@ function textures() {
   A.add('wt_gauge', 16, 16, (pc) => {
     pc.each((x, y) => { const d = Math.hypot(x - 7.5, y - 7.5); pc.set(x, y, d > 7.6 ? 0x2a2420 : d > 6.8 ? 0x9a9488 : 0xe8dcbc); });
     for (let i = 0; i <= 10; i++) { const a = Math.PI * (0.8 + i * 0.14); const r0 = i % 5 ? 5.2 : 4.4; for (let r = r0; r < 6.4; r += 0.6) pc.set(Math.round(7.5 + Math.cos(a) * r), Math.round(7.5 + Math.sin(a) * r), i < 2 ? 0xc02a1a : 0x2a2018); }
-    pc.set(6, 10, 0x2a2018); pc.set(7, 10, 0x2a2018); pc.set(8, 10, 0x2a2018); pc.set(7, 11, 0x2a2018);
   });
   A.add('wt_grille', 16, 8, (pc) => { pc.fill(0x3a2a1e); pc.each((x, y) => { if ((x % 3 === 1) && (y % 3 === 1)) pc.set(x, y, 0x0a0806); else if ((x % 3 === 2) && (y % 3 === 2)) pc.set(x, y, 0x5a4434); }); });
   // stamped brass maker's plate (glyph-like embossing)
   A.add('wt_plate', 24, 8, (pc, rng) => {
     pc.each((x, y) => pc.set(x, y, y === 0 ? 0xf0d080 : y === 7 ? 0x7a5a20 : 0xc8a048));
     for (let x = 2; x < 22; x++) for (let y = 2; y < 6; y++) if ((x % 4 !== 1) && rng.next() < 0.55) pc.set(x, y, rng.next() < 0.5 ? 0x7a5a20 : 0xf0d080);
-    pc.set(1, 1, 0x6a4a18); pc.set(22, 1, 0x6a4a18); pc.set(1, 6, 0x6a4a18); pc.set(22, 6, 0x6a4a18);
   });
-  A.add('wt_brass', 8, 8, (pc, rng) => { pc.each((x, y) => { const n = rng.next(); pc.set(x, y, y === 0 ? 0xf8e098 : n < 0.2 ? 0x9a7428 : n < 0.5 ? 0xd0a848 : 0xb88e34); }); });
-  A.add('wt_copper', 8, 8, (pc) => { pc.each((x, y) => pc.set(x, y, y % 2 ? 0x7a3a18 : 0xd07a40)); });
+  A.add('wt_brass', 8, 8, (pc, rng) => { pc.each((x, y) => { const n = rng.next(); pc.set(x, y, n < 0.2 ? 0xb08a3a : n < 0.5 ? 0xe0bc60 : 0xd0aa50); }); });
+  A.add('wt_copper', 8, 8, (pc) => { pc.each((x, y) => pc.set(x, y, y % 2 ? 0x8a4a28 : 0xe08a50)); });
+  A.add('wt_chrome', 8, 8, (pc, rng) => { pc.each((x, y) => pc.set(x, y, rng.next() < 0.15 ? 0xc8ccd0 : 0xf0f2f4)); });
   A.add('wt_haz', 16, 4, (pc) => { pc.each((x, y) => pc.set(x, y, ((x + y) >> 1) % 2 ? 0xd8a42a : 0x17150f)); });
   A.add('wt_cuff', 24, 8, (pc, rng) => {
-    pc.each((x, y) => { const n = rng.next(); pc.set(x, y, y === 0 ? 0x8f979e : y === 7 ? 0x2a3035 : n < 0.15 ? 0x545c62 : 0x646c72); });
-    for (const x of [3, 11, 19]) { pc.set(x, 2, 0xcfd6da); pc.set(x, 5, 0xcfd6da); }
+    pc.each((x, y) => { const n = rng.next(); pc.set(x, y, n < 0.15 ? 0x8a9298 : 0xa2aab0); });
+    for (let x = 0; x < 24; x++) { const c = ((x >> 1) % 2) === 0 ? 0xd8a42a : 0x17150f; pc.set(x, 3, c); pc.set(x, 4, c); }
+    for (const x of [3, 11, 19]) { pc.set(x, 1, 0xe8eef0); pc.set(x, 6, 0xe8eef0); }
     for (let i = 0; i < 6; i++) pc.set(rng.int(0, 23), rng.int(1, 6), 0x5a2a1a);
   });
   A.add('wt_sleeve', 16, 16, (pc, rng) => {
@@ -82,17 +86,56 @@ function textures() {
     for (let x = 0; x < 16; x += 2) pc.set(x, 13, 0x8a6a12);
     for (let i = 0; i < 5; i++) pc.blend(rng.int(0, 15), rng.int(0, 15), 0x5a4a2a, 0.5);
   });
-  A.add('wt_skin', 8, 8, (pc, rng) => { pc.each((x, y) => { const n = rng.next(); pc.set(x, y, n < 0.1 ? 0xd8d0c8 : n < 0.16 ? 0xb8aca2 : 0xeee6de); }); });
+  A.add('wt_skin', 8, 8, (pc, rng) => { pc.each((x, y) => { const n = rng.next(); pc.set(x, y, n < 0.1 ? 0xd8d0c8 : n < 0.16 ? 0xc0b4aa : 0xeee6de); }); });
   A.add('wt_crust', 8, 8, (pc, rng) => {
     pc.each((x, y) => { const d = Math.hypot(x - 3.5, y - 3.5) / 4.5 + rng.next() * 0.3; pc.set(x, y, d < 0.45 ? 0x7a0d0a : d < 0.8 ? 0x4a0a08 : 0x2a1a14); });
   });
-  A.add('wt_rubber', 8, 8, (pc, rng) => { pc.each((x, y) => pc.set(x, y, rng.next() < 0.2 ? 0x141210 : 0x1e1a17)); });
+  A.add('wt_rubber', 8, 8, (pc, rng) => { pc.each((x, y) => pc.set(x, y, rng.next() < 0.2 ? 0x181614 : 0x24201c)); });
+}
+
+// ---------------------------------------------------------------- physically based materials
+type MatKey = 'steel' | 'bake' | 'brass' | 'chrome' | 'rubber' | 'skin' | 'cloth' | 'paint';
+let ENV: THREE.Texture | null = null;
+let MATS: Record<MatKey, THREE.MeshStandardMaterial> | null = null;
+/** a small room to reflect: real speculars on the metal, a sheen on the lacquer */
+function envMap(): THREE.Texture | null {
+  if (ENV) return ENV;
+  try {
+    const pm = new THREE.PMREMGenerator(G.pr.renderer);
+    ENV = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+    pm.dispose();
+  } catch (e) { console.warn('watch env', e); }
+  return ENV;
+}
+export function watchMats(): Record<MatKey, THREE.MeshStandardMaterial> {
+  if (MATS) return MATS;
+  const env = envMap();
+  const map = atlas().texture;
+  const base = { map, vertexColors: true, envMap: env, side: THREE.DoubleSide };
+  MATS = {
+    steel: new THREE.MeshStandardMaterial({ ...base, metalness: 0.85, roughness: 0.38, envMapIntensity: 1.0 }),
+    bake: new THREE.MeshPhysicalMaterial({ ...base, metalness: 0, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.18, envMapIntensity: 0.8 }),
+    brass: new THREE.MeshStandardMaterial({ ...base, metalness: 0.92, roughness: 0.3, envMapIntensity: 1.1 }),
+    chrome: new THREE.MeshStandardMaterial({ ...base, metalness: 1, roughness: 0.12, envMapIntensity: 1.2 }),
+    rubber: new THREE.MeshStandardMaterial({ ...base, metalness: 0, roughness: 0.92, envMapIntensity: 0.3 }),
+    skin: new THREE.MeshPhysicalMaterial({ ...base, metalness: 0, roughness: 0.6, sheen: 0.4, sheenRoughness: 0.6, sheenColor: new THREE.Color(0xffd0b0), envMapIntensity: 0.35 }),
+    cloth: new THREE.MeshPhysicalMaterial({ ...base, metalness: 0, roughness: 0.95, sheen: 0.6, sheenRoughness: 0.8, sheenColor: new THREE.Color(0xfff0a0), envMapIntensity: 0.25 }),
+    paint: new THREE.MeshStandardMaterial({ ...base, metalness: 0.1, roughness: 0.55, envMapIntensity: 0.6 }),
+  };
+  return MATS;
+}
+
+/** one ModelBuilder per material, each built into its own mesh */
+class Kit {
+  private b = new Map<MatKey, ModelBuilder>();
+  m(k: MatKey): ModelBuilder { let b = this.b.get(k); if (!b) { b = new ModelBuilder(); b.setFaceShading(false); this.b.set(k, b); } return b; }
+  into(g: THREE.Object3D) { const M = watchMats(); for (const [k, b] of this.b) g.add(new THREE.Mesh(b.build(), M[k])); return g; }
 }
 
 export interface WatchModel {
   root: THREE.Group;
-  arm: THREE.Mesh;
-  hand: THREE.Mesh;
+  arm: THREE.Group;
+  hand: THREE.Group;
   stump: THREE.Mesh;
   screen: THREE.Mesh;
   /** jewel lamps: red alert, amber signal, green power */
@@ -106,172 +149,190 @@ export interface WatchModel {
   mods: { torch: THREE.Object3D; laser: THREE.Object3D; dish: THREE.Object3D; fab: THREE.Object3D; cell: THREE.Object3D };
   laserTip: THREE.Object3D;
   torchLens: THREE.Mesh;
-  /** vacuum-tube filaments and the emitter's lens (glow when armed) */
-  filaments: THREE.MeshBasicMaterial;
+  /** vacuum-tube filaments (glow when armed) */
+  filaments: THREE.MeshStandardMaterial;
   laserLens: THREE.Mesh;
   antenna: THREE.Object3D;
   rebuildArm(skin: number): void;
 }
 
-const basic = (c: number, o: Partial<THREE.MeshBasicMaterialParameters> = {}) => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide, ...o });
 const scale = (c: number, f: number) => (Math.round(((c >> 16) & 255) * f) << 16) | (Math.round(((c >> 8) & 255) * f) << 8) | Math.round((c & 255) * f);
+const glowMat = (c: number) => new THREE.MeshStandardMaterial({ color: c, emissive: 0x000000, roughness: 0.15, metalness: 0, side: THREE.DoubleSide });
+const glassMat = () => new THREE.MeshPhysicalMaterial({ color: 0xe8f0e8, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.22, depthWrite: false, envMap: envMap(), envMapIntensity: 1.4, side: THREE.DoubleSide });
 
-export function buildWatchModel(screenMat: THREE.Material): WatchModel {
+/** set a lamp's lit colour (emissive) */
+export function setLamp(m: THREE.Mesh, c: number) {
+  const mat = m.material as THREE.MeshStandardMaterial;
+  if (mat.userData.c === c) return;
+  mat.userData.c = c;
+  mat.emissive.setHex(c);
+}
+
+export function buildWatchModel(screen: THREE.Mesh): WatchModel {
   textures();
-  // double-sided: the whole wrist is mirrored when the band has moved to the right arm
-  const mat = worldMaterial({ noVis: true, noFog: true, noGrid: true, doubleSide: true });
   const root = new THREE.Group();
   const H = HOUSE, cx = H.cx;
 
-  // ---- forearm, sleeve, the case (rebuilt when the skin tone changes)
-  const armGeo = (skin: number) => {
-    const mb = new ModelBuilder();
-    // forearm along X: rotate the builder so cylinders (built along Y) lie along +X
-    mb.push().rotateZ(-Math.PI / 2);
-    mb.cylinder(0, -0.36, 0, ARM_R + 0.004, 0.24, 9, 'wt_skin', { color: skin, rTop: ARM_R, fit: true });
-    mb.cylinder(0, -0.12, 0, ARM_R, 0.13, 9, 'wt_skin', { color: skin, rTop: ARM_R * 0.86, fit: true });
+  // ---- forearm and sleeve (rebuilt when the skin tone changes)
+  const arm = new THREE.Group();
+  const buildArm = (skin: number) => {
+    for (const c of [...arm.children]) { arm.remove(c); (c as THREE.Mesh).geometry?.dispose(); }
+    const K = new Kit();
+    const sk = K.m('skin'), cl = K.m('cloth');
+    // the forearm along X: rotate the builders so cylinders (built along Y) lie along +X
+    for (const b of [sk, cl]) b.push().rotateZ(-Math.PI / 2);
+    sk.cylinder(0, -0.36, 0, ARM_R + 0.004, 0.24, 10, 'wt_skin', { color: skin, rTop: ARM_R, fit: true });
+    sk.cylinder(0, -0.12, 0, ARM_R, 0.13, 10, 'wt_skin', { color: skin, rTop: ARM_R * 0.86, fit: true });
     // the sleeve, shoved up past the elbow, with a rolled cuff
-    mb.cylinder(0, -0.46, 0, ARM_R + 0.012, 0.19, 9, 'wt_sleeve', { fit: true });
-    mb.cylinder(0, -0.285, 0, ARM_R + 0.016, 0.026, 9, 'wt_sleeve', { color: 0xd8d8d8, fit: true });
-    // the BAILIFF cuff round the wrist
-    mb.cylinder(0, -0.09, 0, ARM_R + 0.0035, 0.07, 10, { sides: 'wt_cuff', top: 'wt_steel', bottom: 'wt_steel' }, { fit: true });
-    mb.pop();
-    // ---- the case: steel shell, bakelite faceplate, chamfers
-    mb.box(cx, -H.h / 2, TOP + H.d / 2 - 0.002, H.w, H.h, H.d - 0.004, 'wt_steel', { fit: true });
-    mb.box(cx, -H.h / 2 + 0.003, FRONT - 0.002, H.w - 0.006, H.h - 0.006, 0.004, { all: 'wt_bake', south: 'wt_bake' }, { fit: true });
-    mb.box(cx, H.h / 2 - 0.003, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_steel', { fit: true, color: 0xc8c8c0 });
-    mb.box(cx, -H.h / 2 - 0.002, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_haz', { fit: true });
-    for (const sx of [-1, 1]) mb.box(cx + sx * (H.w / 2 + 0.003), -0.026, TOP + H.d / 2 - 0.002, 0.006, 0.052, H.d - 0.006, 'wt_rubber', { fit: true });
-    // the CRT bezel: a thick steel frame standing proud of the faceplate, riveted
-    const bw = SCREEN.w + 0.012, bh = SCREEN.h + 0.012, sxc = SCREEN.x, syc = SCREEN.y;
-    mb.box(sxc, syc + SCREEN.h / 2, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { fit: true, color: 0xb8b8b0 });
-    mb.box(sxc, syc - SCREEN.h / 2 - 0.006, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { fit: true, color: 0x9a9a94 });
-    for (const sx of [-1, 1]) mb.box(sxc + sx * (SCREEN.w / 2 + 0.003), syc - bh / 2 + 0.006, FRONT + 0.0015, 0.006, bh - 0.012, 0.003, 'wt_steel', { fit: true, color: sx < 0 ? 0xa8a8a0 : 0x8c8c86 });
-    for (const [rx, ry] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mb.cylinder(sxc + rx * (bw / 2 - 0.003), syc + ry * (bh / 2 - 0.003), FRONT + 0.003, 0.0013, 0.0012, 6, 'wt_brass');
-    // the dark rim inside the bezel, round-cornered by the screen shader
-    mb.box(sxc, syc - SCREEN.h / 2 - 0.001, FRONT - 0.0002, SCREEN.w + 0.002, SCREEN.h + 0.002, 0.0005, 'wt_rubber', { fit: true });
-    // the control column: dial plate, gauge bezel
-    mb.box(COL_X, 0.0035, FRONT + 0.0004, 0.026, 0.026, 0.0008, 'wt_dialring', { fit: true });
-    mb.push().translate(COL_X, -0.019, FRONT + 0.0005).rotateX(Math.PI / 2);
-    mb.cylinder(0, 0, 0, 0.0115, 0.0016, 12, 'wt_steel', { color: 0xd0d0c8 });
-    mb.pop();
-    // speaker grille and the maker's plate along the bottom strip
-    mb.box(SCREEN.x - 0.014, -H.h / 2 + 0.006, FRONT + 0.0003, 0.036, 0.008, 0.0008, 'wt_grille', { fit: true });
-    mb.box(SCREEN.x + 0.021, -H.h / 2 + 0.0065, FRONT + 0.0004, 0.026, 0.0072, 0.001, 'wt_plate', { fit: true });
-    // toggle-switch bases on the top rail
-    for (const tx of [cx - 0.006, cx + 0.008]) mb.box(tx, H.h / 2, TOP + H.d * 0.55, 0.009, 0.003, 0.009, 'wt_steel', { fit: true, color: 0xa0a0a0 });
-    // case corner rivets
-    for (const [rx, ry] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) mb.cylinder(cx + rx * (H.w / 2 - 0.004), ry * (H.h / 2 - 0.004), FRONT, 0.0016, 0.0014, 6, 'wt_brass');
-    // bolts through the forearm, with what came out around them
-    for (const sy of [1, -1]) {
-      const by = sy * (ARM_R + 0.002);
-      mb.push().translate(cx - 0.045, by, 0).rotateX(Math.PI / 2 * sy);
-      mb.cylinder(0, 0, 0, 0.006, 0.007, 6, 'metal_dark');
-      mb.pop();
-      mb.box(cx - 0.045, by - 0.007, 0.012, 0.016, 0.014, 0.003, 'wt_crust', { fit: true });
-    }
-    // armoured strap plates down the cuff
-    mb.box(cx - H.w / 2 + 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { fit: true });
-    mb.box(cx + H.w / 2 - 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { fit: true });
-    return mb.build();
+    cl.cylinder(0, -0.46, 0, ARM_R + 0.012, 0.19, 10, 'wt_sleeve', { fit: true });
+    cl.cylinder(0, -0.285, 0, ARM_R + 0.016, 0.026, 10, 'wt_sleeve', { color: 0xd8d8d8, fit: true });
+    for (const b of [sk, cl]) b.pop();
+    K.into(arm);
   };
-  // hand: a loose fist, back of the hand toward the eye, knuckles, curled fingers, thumb on top
-  const handGeo = (skin: number) => {
-    const mb = new ModelBuilder();
+  buildArm(0xc8a080);
+  // the hand: a loose fist, back of the hand toward the eye, knuckles, curled fingers, thumb on top
+  const hand = new THREE.Group();
+  const buildHand = (skin: number) => {
+    for (const c of [...hand.children]) { hand.remove(c); (c as THREE.Mesh).geometry?.dispose(); }
+    const K = new Kit(), sk = K.m('skin');
     const hx = 0.03;
-    mb.box(hx + 0.034, -0.026, 0.0, 0.056, 0.052, 0.03, 'wt_skin', { color: skin, fit: true });
-    mb.box(hx + 0.066, -0.028, -0.004, 0.014, 0.056, 0.03, 'wt_skin', { color: scale(skin, 0.9), fit: true });
-    for (let i = 0; i < 4; i++) mb.box(hx + 0.069, 0.017 - i * 0.0135, 0.012, 0.01, 0.01, 0.007, 'wt_skin', { color: scale(skin, 0.82), fit: true });
-    mb.box(hx + 0.058, -0.03, -0.026, 0.026, 0.058, 0.024, 'wt_skin', { color: scale(skin, 0.7), fit: true });
-    mb.push().translate(hx + 0.024, 0.026, 0.004).rotateZ(-0.55);
-    mb.box(0, 0, 0, 0.042, 0.015, 0.019, 'wt_skin', { color: scale(skin, 0.92), fit: true });
-    mb.pop();
-    return mb.build();
+    sk.box(hx + 0.034, -0.026, 0.0, 0.056, 0.052, 0.03, 'wt_skin', { color: skin, fit: true });
+    sk.box(hx + 0.066, -0.028, -0.004, 0.014, 0.056, 0.03, 'wt_skin', { color: scale(skin, 0.9), fit: true });
+    for (let i = 0; i < 4; i++) sk.box(hx + 0.069, 0.017 - i * 0.0135, 0.012, 0.01, 0.01, 0.007, 'wt_skin', { color: scale(skin, 0.86), fit: true });
+    sk.box(hx + 0.058, -0.03, -0.026, 0.026, 0.058, 0.024, 'wt_skin', { color: scale(skin, 0.75), fit: true });
+    sk.push().translate(hx + 0.024, 0.026, 0.004).rotateZ(-0.55);
+    sk.box(0, 0, 0, 0.042, 0.015, 0.019, 'wt_skin', { color: scale(skin, 0.92), fit: true });
+    sk.pop();
+    K.into(hand);
   };
-  const arm = new THREE.Mesh(armGeo(0xc8a080), mat);
-  const hand = new THREE.Mesh(handGeo(0xc8a080), mat);
+  buildHand(0xc8a080);
   // where the hand was: a cauterised, bound stump
-  const sm = new ModelBuilder();
+  const sm = new ModelBuilder(); sm.setFaceShading(false);
   sm.push().rotateZ(-Math.PI / 2);
-  sm.cylinder(0, 0.012, 0, ARM_R * 0.86, 0.016, 9, { sides: 'wt_rubber', top: 'wt_crust', bottom: 'wt_crust' }, { fit: true, color: 0xb8a890 });
+  sm.cylinder(0, 0.012, 0, ARM_R * 0.86, 0.016, 10, { sides: 'wt_rubber', top: 'wt_crust', bottom: 'wt_crust' }, { fit: true, color: 0xb8a890 });
   sm.pop();
-  const stump = new THREE.Mesh(sm.build(), mat);
+  const stump = new THREE.Mesh(sm.build(), watchMats().rubber);
   stump.visible = false;
   root.add(arm, hand, stump);
 
-  // ---- the CRT
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(SCREEN.w, SCREEN.h), screenMat);
+  // ---- the case and everything fixed to it
+  const K = new Kit();
+  const st = K.m('steel'), bk = K.m('bake'), br = K.m('brass'), ch = K.m('chrome'), rb = K.m('rubber'), pt = K.m('paint');
+  // the BAILIFF cuff round the wrist, bolted through
+  st.push().rotateZ(-Math.PI / 2);
+  st.cylinder(0, -0.09, 0, ARM_R + 0.0035, 0.07, 12, { sides: 'wt_cuff', top: 'wt_steel', bottom: 'wt_steel' }, { fit: true });
+  st.pop();
+  for (const sy of [1, -1]) {
+    const by = sy * (ARM_R + 0.002);
+    st.push().translate(cx - 0.045, by, 0).rotateX(Math.PI / 2 * sy);
+    st.cylinder(0, 0, 0, 0.006, 0.007, 6, 'wt_steel', { color: 0x707070 });
+    st.pop();
+    rb.box(cx - 0.045, by - 0.007, 0.012, 0.016, 0.014, 0.003, 'wt_crust', { fit: true });
+  }
+  // steel shell, lacquered bakelite faceplate, a bright top rail, hazard-striped bottom rail
+  st.box(cx, -H.h / 2, TOP + H.d / 2 - 0.002, H.w, H.h, H.d - 0.004, 'wt_steel', { fit: true });
+  bk.box(cx, -H.h / 2 + 0.003, FRONT - 0.002, H.w - 0.006, H.h - 0.006, 0.004, 'wt_bake', { fit: true });
+  st.box(cx, H.h / 2 - 0.003, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_steel', { fit: true });
+  pt.box(cx, -H.h / 2 - 0.002, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_haz', { fit: true });
+  for (const sx of [-1, 1]) rb.box(cx + sx * (H.w / 2 + 0.003), -0.026, TOP + H.d / 2 - 0.002, 0.006, 0.052, H.d - 0.006, 'wt_rubber', { fit: true });
+  // the CRT bezel: a thick steel frame standing proud of the faceplate, riveted
+  const bw = SCREEN.w + 0.012, bh = SCREEN.h + 0.012, sxc = SCREEN.x, syc = SCREEN.y;
+  st.box(sxc, syc + SCREEN.h / 2, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { fit: true });
+  st.box(sxc, syc - SCREEN.h / 2 - 0.006, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { fit: true, color: 0xd8d8d8 });
+  for (const sx of [-1, 1]) st.box(sxc + sx * (SCREEN.w / 2 + 0.003), syc - bh / 2 + 0.006, FRONT + 0.0015, 0.006, bh - 0.012, 0.003, 'wt_steel', { fit: true, color: sx < 0 ? 0xf0f0f0 : 0xd0d0d0 });
+  for (const [rx, ry] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    br.push().translate(sxc + rx * (bw / 2 - 0.003), syc + ry * (bh / 2 - 0.003), FRONT + 0.003).rotateX(Math.PI / 2);
+    br.cylinder(0, 0, 0, 0.0013, 0.0012, 6, 'wt_brass');
+    br.pop();
+  }
+  rb.box(sxc, syc - SCREEN.h / 2 - 0.001, FRONT - 0.0004, SCREEN.w + 0.002, SCREEN.h + 0.002, 0.0005, 'wt_rubber', { fit: true });
+  // the control column: dial plate, gauge bezel and face
+  pt.box(COL_X, 0.0035, FRONT + 0.0004, 0.026, 0.026, 0.0008, 'wt_dialring', { fit: true });
+  st.push().translate(COL_X, -0.019, FRONT + 0.0005).rotateX(Math.PI / 2);
+  st.cylinder(0, 0, 0, 0.0115, 0.0016, 16, 'wt_steel');
+  st.pop();
+  pt.push().translate(COL_X, -0.019, FRONT + 0.0012).rotateX(Math.PI / 2);
+  pt.cylinder(0, 0, 0, 0.0098, 0.0016, 16, { sides: 'wt_steel', top: 'wt_gauge', bottom: 'wt_steel' }, { fit: true });
+  pt.pop();
+  // speaker grille and the maker's plate along the bottom strip
+  bk.box(SCREEN.x - 0.014, -H.h / 2 + 0.006, FRONT + 0.0003, 0.036, 0.008, 0.0008, 'wt_grille', { fit: true });
+  br.box(SCREEN.x + 0.021, -H.h / 2 + 0.0065, FRONT + 0.0004, 0.026, 0.0072, 0.001, 'wt_plate', { fit: true });
+  // toggle-switch bases on the top rail
+  for (const tx of [cx - 0.006, cx + 0.008]) ch.box(tx, H.h / 2, TOP + H.d * 0.55, 0.009, 0.003, 0.009, 'wt_chrome', { fit: true });
+  // case corner rivets
+  for (const [rx, ry] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    br.push().translate(cx + rx * (H.w / 2 - 0.004), ry * (H.h / 2 - 0.004), FRONT).rotateX(Math.PI / 2);
+    br.cylinder(0, 0, 0, 0.0016, 0.0014, 6, 'wt_brass');
+    br.pop();
+  }
+  // armoured strap plates down the cuff
+  st.box(cx - H.w / 2 + 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { fit: true, color: 0xb0b0b0 });
+  st.box(cx + H.w / 2 - 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { fit: true, color: 0xb0b0b0 });
+  K.into(root);
+
+  // ---- the CRT (its own glass and shader)
   screen.position.set(SCREEN.x, SCREEN.y, SCREEN.z);
   root.add(screen);
-  // a sliver of curved glass catching the light
-  const glass = new THREE.Mesh(new THREE.PlaneGeometry(0.004, SCREEN.h * 0.7), basic(0xffffff, { transparent: true, opacity: 0.06, depthWrite: false }));
-  glass.position.set(SCREEN.x - SCREEN.w * 0.28, SCREEN.y + 0.002, SCREEN.z + 0.0015); glass.rotation.z = -0.35;
-  root.add(glass);
 
-  // ---- jewel lamps (glass domes) on the top strip
-  const lampGeo = new THREE.SphereGeometry(0.0023, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2);
-  const ringGeo = new THREE.CylinderGeometry(0.0031, 0.0031, 0.0012, 10).rotateX(Math.PI / 2);
-  const ringMat = basic(0x8a8a84);
-  const lamp = (i: number) => {
+  // ---- jewel lamps (glass domes in chrome collars) on the top strip
+  const lampGeo = new THREE.SphereGeometry(0.0023, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2);
+  const ringGeo = new THREE.CylinderGeometry(0.0031, 0.0031, 0.0012, 12).rotateX(Math.PI / 2);
+  const lamp = (i: number, glass: number) => {
     const x = SCREEN.x - SCREEN.w / 2 + 0.004 + i * 0.0085, y = SCREEN.y + SCREEN.h / 2 + 0.0105;
-    const ring = new THREE.Mesh(ringGeo, ringMat); ring.position.set(x, y, FRONT + 0.0006); root.add(ring);
-    const m = new THREE.Mesh(lampGeo, basic(0x101010)); m.position.set(x, y, FRONT + 0.0012); root.add(m); return m;
+    const ring = new THREE.Mesh(ringGeo, watchMats().chrome); ring.position.set(x, y, FRONT + 0.0006); root.add(ring);
+    const m = new THREE.Mesh(lampGeo, glowMat(glass)); m.position.set(x, y, FRONT + 0.0012); root.add(m); return m;
   };
-  const lamps = { power: lamp(0), signal: lamp(1), alert: lamp(2) };
+  const lamps = { power: lamp(0, 0x1a3a1a), signal: lamp(1, 0x3a2a0a), alert: lamp(2, 0x3a0e08) };
 
   // ---- the function dial: a knurled bakelite knob with a pointer
   const knob = new THREE.Group();
   {
-    const mb = new ModelBuilder();
-    mb.push().rotateX(Math.PI / 2);
-    mb.cylinder(0, 0, 0, 0.0082, 0.006, 14, { sides: 'wt_knurl', top: 'wt_knobtop', bottom: 'wt_bake' }, { fit: true });
-    mb.cylinder(0, 0.006, 0, 0.0066, 0.002, 14, { sides: 'wt_bake', top: 'wt_knobtop', bottom: 'wt_bake' }, { fit: true });
-    mb.pop();
-    knob.add(new THREE.Mesh(mb.build(), mat));
-    knob.children[0].rotation.x = Math.PI; // the builder's +Y became -Z: face it toward the eye
-    knob.children[0].position.z = 0.0085;
+    const KK = new Kit(), b = KK.m('bake');
+    b.push().rotateX(Math.PI / 2);
+    b.cylinder(0, 0, 0, 0.0082, 0.006, 16, { sides: 'wt_knurl', top: 'wt_knobtop', bottom: 'wt_bake' }, { fit: true });
+    b.cylinder(0, 0.006, 0, 0.0066, 0.002, 16, { sides: 'wt_bake', top: 'wt_knobtop', bottom: 'wt_bake' }, { fit: true });
+    b.pop();
+    KK.into(knob);
   }
   knob.position.set(COL_X, 0.0165, FRONT);
   knob.userData.hit = 'dial';
   root.add(knob);
 
-  // ---- needle gauge: cream face, glass, a red needle
-  {
-    const mb = new ModelBuilder();
-    mb.push().translate(COL_X, -0.019, FRONT + 0.0012).rotateX(Math.PI / 2);
-    mb.cylinder(0, 0, 0, 0.0098, 0.0016, 16, { sides: 'wt_steel', top: 'wt_gauge', bottom: 'wt_steel' }, { fit: true });
-    mb.pop();
-    root.add(new THREE.Mesh(mb.build(), mat));
-  }
+  // ---- needle gauge: a red needle under a glass cover
   const needle = new THREE.Group();
   {
-    const n = new THREE.Mesh(new THREE.BoxGeometry(0.0006, 0.0082, 0.0004).translate(0, 0.0036, 0), basic(0xb01810));
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.0008, 8).rotateX(Math.PI / 2), basic(0x1a1410));
+    const n = new THREE.Mesh(new THREE.BoxGeometry(0.0006, 0.0082, 0.0004).translate(0, 0.0036, 0), glowMat(0x9a1810));
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.0008, 8).rotateX(Math.PI / 2), watchMats().brass);
     needle.add(n, hub);
   }
   needle.position.set(COL_X, -0.0215, FRONT + 0.0032);
   root.add(needle);
+  const cover = new THREE.Mesh(new THREE.CircleGeometry(0.0098, 18), glassMat());
+  cover.position.set(COL_X, -0.019, FRONT + 0.0042);
+  root.add(cover);
 
   // ---- bat-handle toggles on the top rail (pivot at the base, flick along Z)
-  const toggle = (x: number) => {
+  const toggle = (x: number, which: string) => {
     const piv = new THREE.Group();
-    const mb = new ModelBuilder();
-    mb.cylinder(0, 0, 0, 0.0011, 0.0085, 6, 'chrome', { rTop: 0.0017 });
-    piv.add(new THREE.Mesh(mb.build(), mat));
+    const KK = new Kit();
+    KK.m('chrome').cylinder(0, 0, 0, 0.0011, 0.0085, 8, 'wt_chrome', { rTop: 0.0017 });
+    KK.into(piv);
     piv.position.set(x, H.h / 2 + 0.0028, TOP + H.d * 0.55);
-    piv.userData.hit = 'toggle';
+    piv.userData.hit = 'toggle'; piv.userData.which = which;
     root.add(piv);
     return piv;
   };
-  const toggles = { torch: toggle(cx - 0.006), laser: toggle(cx + 0.008) };
-  toggles.torch.userData.which = 'torch'; toggles.laser.userData.which = 'laser';
+  const toggles = { torch: toggle(cx - 0.006, 'torch'), laser: toggle(cx + 0.008, 'laser') };
 
   // ---- telescopic antenna at the elbow end
-  const am = new ModelBuilder();
-  am.cylinder(0, 0, 0, 0.0016, 0.012, 6, 'chrome');
-  am.cylinder(0, 0.012, 0, 0.0011, 0.014, 6, 'chrome');
-  am.sphere(0, 0.027, 0, 0.0026, 6, 4, 'wt_brass');
-  const antenna = new THREE.Mesh(am.build(), mat);
+  const antenna = new THREE.Group();
+  {
+    const KK = new Kit();
+    KK.m('chrome').cylinder(0, 0, 0, 0.0016, 0.012, 8, 'wt_chrome');
+    KK.m('chrome').cylinder(0, 0.012, 0, 0.0011, 0.014, 8, 'wt_chrome');
+    KK.m('brass').sphere(0, 0.027, 0, 0.0026, 8, 5, 'wt_brass');
+    KK.into(antenna);
+  }
   antenna.position.set(cx - H.w / 2 + 0.008, H.h / 2 + 0.001, TOP + H.d * 0.4);
   antenna.rotation.z = 0.25;
   root.add(antenna);
@@ -279,36 +340,41 @@ export function buildWatchModel(screenMat: THREE.Material): WatchModel {
   // ---- multi-tool modules
   // torch: a chrome lamp on the hand-end of the case, lens facing along +X
   const torch = new THREE.Group();
-  { const mb = new ModelBuilder(); mb.push().rotateZ(-Math.PI / 2); mb.cylinder(0, -0.006, 0, 0.0075, 0.012, 10, 'chrome', { rTop: 0.0085 }); mb.pop(); mb.box(-0.004, -0.009, 0, 0.006, 0.004, 0.01, 'wt_bake', { fit: true }); torch.add(new THREE.Mesh(mb.build(), mat)); }
-  const torchLens = new THREE.Mesh(new THREE.CircleGeometry(0.0072, 10).rotateY(Math.PI / 2), basic(0x3a3630));
+  {
+    const KK = new Kit(), c = KK.m('chrome');
+    c.push().rotateZ(-Math.PI / 2); c.cylinder(0, -0.006, 0, 0.0075, 0.012, 12, 'wt_chrome', { rTop: 0.0085 }); c.pop();
+    KK.m('bake').box(-0.004, -0.009, 0, 0.006, 0.004, 0.01, 'wt_bake', { fit: true });
+    KK.into(torch);
+  }
+  const torchLens = new THREE.Mesh(new THREE.CircleGeometry(0.0072, 12).rotateY(Math.PI / 2), glowMat(0x3a3630));
   torchLens.position.set(0.0062, 0, 0); torch.add(torchLens);
   torch.position.set(cx + H.w / 2 + 0.008, 0.016, TOP + H.d * 0.55);
   root.add(torch);
   // laser: a brass emitter barrel along the top rail, wound with copper, fed by two vacuum tubes
   const laser = new THREE.Group();
-  const filaments = basic(0x3a1a08);
+  const filaments = glowMat(0x2a1a10);
   {
-    const mb = new ModelBuilder();
-    mb.box(-0.012, 0, 0, 0.022, 0.006, 0.012, 'wt_bake', { fit: true });          // tube socket block
-    mb.push().translate(0, 0.0105, 0).rotateZ(-Math.PI / 2);
-    mb.cylinder(0, -0.024, 0, 0.0042, 0.05, 10, 'wt_brass');
-    for (let i = 0; i < 6; i++) mb.cylinder(0, -0.006 + i * 0.0036, 0, 0.0052, 0.0018, 10, 'wt_copper');
-    mb.cylinder(0, 0.026, 0, 0.0058, 0.008, 10, 'wt_brass', { rTop: 0.0026 });
-    mb.pop();
-    laser.add(new THREE.Mesh(mb.build(), mat));
+    const KK = new Kit(), b = KK.m('brass');
+    KK.m('bake').box(-0.012, 0, 0, 0.022, 0.006, 0.012, 'wt_bake', { fit: true });          // tube socket block
+    b.push().translate(0, 0.0105, 0).rotateZ(-Math.PI / 2);
+    b.cylinder(0, -0.024, 0, 0.0042, 0.05, 12, 'wt_brass');
+    for (let i = 0; i < 6; i++) b.cylinder(0, -0.006 + i * 0.0036, 0, 0.0052, 0.0018, 12, 'wt_copper');
+    b.cylinder(0, 0.026, 0, 0.0058, 0.008, 12, 'wt_brass', { rTop: 0.0026 });
+    b.pop();
+    KK.into(laser);
     // the tubes: glass envelopes over glowing filaments
-    const env = basic(0xc8d8c8, { transparent: true, opacity: 0.28, depthWrite: false });
+    const env = glassMat();
     for (const tx of [-0.018, -0.007]) {
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.0034, 0.0034, 0.016, 10), env);
-      tube.position.set(tx, 0.014, 0);
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.0034, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2), env);
-      cap.position.set(tx, 0.022, 0);
       const fil = new THREE.Mesh(new THREE.BoxGeometry(0.0012, 0.01, 0.0012), filaments);
       fil.position.set(tx, 0.014, 0);
-      laser.add(tube, cap, fil);
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.0034, 0.0034, 0.016, 12), env);
+      tube.position.set(tx, 0.014, 0);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.0034, 12, 6, 0, Math.PI * 2, 0, Math.PI / 2), env);
+      cap.position.set(tx, 0.022, 0);
+      laser.add(fil, tube, cap);
     }
   }
-  const laserLens = new THREE.Mesh(new THREE.CircleGeometry(0.0024, 8).rotateY(Math.PI / 2), basic(0x401008));
+  const laserLens = new THREE.Mesh(new THREE.CircleGeometry(0.0024, 10).rotateY(Math.PI / 2), glowMat(0x401008));
   laserLens.position.set(0.0341, 0.0105, 0); laser.add(laserLens);
   const laserTip = new THREE.Object3D(); laserTip.position.set(0.036, 0.0105, 0); laser.add(laserTip);
   laser.position.set(cx + 0.03, H.h / 2 + 0.001, TOP + H.d * 0.45);
@@ -316,33 +382,33 @@ export function buildWatchModel(screenMat: THREE.Material): WatchModel {
   // scanner dish: brass, on a stalk by the antenna
   const dish = new THREE.Group();
   {
-    const mb = new ModelBuilder();
-    mb.cylinder(0, 0, 0, 0.0016, 0.007, 6, 'chrome');
-    mb.cylinder(0, 0.007, 0, 0.003, 0.004, 12, 'wt_brass', { rTop: 0.01 });
-    mb.sphere(0, 0.0105, 0, 0.0014, 6, 4, 'wt_brass');
-    dish.add(new THREE.Mesh(mb.build(), mat));
+    const KK = new Kit();
+    KK.m('chrome').cylinder(0, 0, 0, 0.0016, 0.007, 8, 'wt_chrome');
+    KK.m('brass').cylinder(0, 0.007, 0, 0.003, 0.004, 14, 'wt_brass', { rTop: 0.01 });
+    KK.m('brass').sphere(0, 0.0105, 0, 0.0014, 8, 5, 'wt_brass');
+    KK.into(dish);
   }
   dish.position.set(cx - H.w / 2 + 0.024, H.h / 2 + 0.001, TOP + H.d * 0.5);
   root.add(dish);
   // fabricator: brass pincers over the knuckles
   const fab = new THREE.Group();
   {
-    const mb = new ModelBuilder();
-    mb.box(0, 0, 0, 0.03, 0.01, 0.012, 'wt_bake', { fit: true });
-    for (const s of [-1, 1]) { mb.push().translate(0.016, 0.005 + s * 0.006, 0.004).rotateZ(s * 0.5); mb.box(0.008, -0.002, 0, 0.018, 0.004, 0.006, 'wt_brass'); mb.pop(); }
-    mb.cylinder(-0.006, 0.01, 0.004, 0.003, 0.003, 8, 'wt_copper');
-    fab.add(new THREE.Mesh(mb.build(), mat));
+    const KK = new Kit(), b = KK.m('brass');
+    KK.m('bake').box(0, 0, 0, 0.03, 0.01, 0.012, 'wt_bake', { fit: true });
+    for (const s of [-1, 1]) { b.push().translate(0.016, 0.005 + s * 0.006, 0.004).rotateZ(s * 0.5); b.box(0.008, -0.002, 0, 0.018, 0.004, 0.006, 'wt_brass'); b.pop(); }
+    b.cylinder(-0.006, 0.01, 0.004, 0.003, 0.003, 10, 'wt_copper');
+    KK.into(fab);
   }
   fab.position.set(cx + H.w / 2 + 0.034, -0.024, TOP + 0.006);
   root.add(fab);
   // battery: a bakelite cell with brass terminals strapped on behind the case
   const cell = new THREE.Group();
   {
-    const mb = new ModelBuilder();
-    mb.box(0, -0.016, 0, 0.034, 0.032, 0.012, 'wt_bake', { fit: true });
-    mb.box(0, -0.011, 0.0062, 0.026, 0.005, 0.001, 'wt_haz', { fit: true });
-    for (const tx of [-0.01, 0.01]) mb.cylinder(tx, 0.016, 0, 0.0026, 0.004, 8, 'wt_brass');
-    cell.add(new THREE.Mesh(mb.build(), mat));
+    const KK = new Kit();
+    KK.m('bake').box(0, -0.016, 0, 0.034, 0.032, 0.012, 'wt_bake', { fit: true });
+    KK.m('paint').box(0, -0.011, 0.0062, 0.026, 0.005, 0.001, 'wt_haz', { fit: true });
+    for (const tx of [-0.01, 0.01]) KK.m('brass').cylinder(tx, 0.016, 0, 0.0026, 0.004, 10, 'wt_brass');
+    KK.into(cell);
   }
   cell.position.set(cx - H.w / 2 - 0.03, 0.0, TOP + 0.004);
   root.add(cell);
@@ -352,8 +418,6 @@ export function buildWatchModel(screenMat: THREE.Material): WatchModel {
   return {
     root, arm, hand, stump, screen, lamps, knob, needle, toggles, antenna, laserTip, torchLens, laserLens, filaments,
     mods: { torch, laser, dish, fab, cell },
-    rebuildArm(skin: number) { arm.geometry.dispose(); arm.geometry = armGeo(skin); hand.geometry.dispose(); hand.geometry = handGeo(skin); },
+    rebuildArm(skin: number) { buildArm(skin); buildHand(skin); },
   };
 }
-
-export function setLamp(m: THREE.Mesh, c: number) { (m.material as THREE.MeshBasicMaterial).color.setHex(c); }

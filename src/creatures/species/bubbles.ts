@@ -16,7 +16,7 @@ import { bus } from '../../core/events';
 import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
 import { Page, OB, V3, bpart, registerPage, applyLook, galleryDriver, clamp01, lerp, damp, ramp } from '../kit/beasts';
-import { filmMat, tpart, rot, scl, vis, skin, film, eye, flat, hitPlayer, playersNear } from '../kit/oddkit';
+import { filmMat, tpart, rot, scl, vis, skin, film, eye, flat, hitPlayer, playersNear, surface } from '../kit/oddkit';
 import { net, netOf, snd, playersIn, dist, hold, hashId, rng, fx, fxPoll, playAt } from '../behaviors_b';
 import { pulse, attack, onKilled } from '../behaviors_a';
 import { scaredThink } from '../kit/scared';
@@ -69,6 +69,7 @@ function buildMite(): Rig {
       ob.tube(path, path.map((_, k) => 0.012 * (1 - k / 8)), 5, PG.reg('TEND'), { start: 'pole', end: 'pole', emis: 0.7 });
     }
   });
+  surface(rig, null);
   rig.eyes = [];
   return rig;
 }
@@ -225,6 +226,7 @@ function buildRabbit(): Rig {
     bpart(rig, 'legF' + s, body, [k * 0.06, -0.13, 0.12], PG, 'rlegf', (ob) => ob.blob([0, -0.02, 0.01], [0.03, 0.03, 0.04], 6, 4, PE, { emis: 0.12 }));
   }
   bpart(rig, 'tail', body, [0, 0.03, -0.2], PG, 'rtail', (ob) => ob.blob([0, 0, 0], [0.05, 0.05, 0.05], 6, 4, PG.reg('FILM'), { emis: 0.4 }));
+  surface(rig, 'lacquer');
   return rig;
 }
 

@@ -1,5 +1,6 @@
 // What the watch's CRT shows: a green phosphor tube with amber highlights,
-// drawn in the 5x7 teletype font into the shared Screen buffer. A header line
+// typed in IBM Plex Mono (Nixie One for big digits) through the Tube pen
+// (./tube.ts) onto a real tube (src/gfx/crt.ts). A header line
 // in inverse video (function, research points, clock), the strip of functions
 // you own, the page, a footer of hints that doubles as the teletype line for
 // messages. On the move it shrinks to a GLANCE: big type, the tracked quest's
@@ -8,14 +9,15 @@
 // Pages register clickable zones in screen pixels; the watch maps clicks and
 // taps (and the CRT's curvature) onto them.
 import { G } from '../../game/G';
-import { Screen } from '../font5x7';
+import type { Tube } from './tube';
 import { researchPoints, researchNodes, hasUnlock, canBuy, type ResearchNode } from '../../game/research';
 import { BRANCHES } from './nodes';
 import type { Watch } from './watch';
 import type { QView } from '../../missions/questRuntime';
 import { angleDiff } from '../../core/math';
 
-const C = (h: number) => Screen.c(h);
+/** colours packed like font5x7's Screen.c (the Tube pen unpacks them) */
+const C = (h: number) => (((255 << 24) | ((h & 0xff) << 16) | (h & 0xff00) | ((h >> 16) & 0xff)) >>> 0);
 /** phosphor: green P1 with amber for money, warnings and anything that wants your attention */
 export const PAL = {
   BG: C(0x041207), PANEL: C(0x07200e), FAINT: C(0x0b2c14), DIM: C(0x1d6a30), MID: C(0x45c25a), HI: C(0xc0ffb4),
@@ -44,7 +46,7 @@ const ICONS: Record<string, string[]> = {
   skull: ['.###.', '#####', '#.#.#', '#####', '.###.', '.#.#.', '.....'],
 };
 const CAT_ICON: Record<string, string> = { contract: 'badge', research: 'flask', side: 'radio', permit: 'stamp', bribe: 'coin', tribe: 'totem', floors: 'stairs' };
-export function icon(s: Screen, k: string, x: number, y: number, c: number, sc = 1) {
+export function icon(s: Tube, k: string, x: number, y: number, c: number, sc = 1) {
   const rows = ICONS[k]; if (!rows) return;
   for (let j = 0; j < 7; j++) for (let i = 0; i < 5; i++) if (rows[j][i] === '#') { if (sc === 1) s.px(x + i, y + j, c); else s.rect(x + i * sc, y + j * sc, sc, sc, c); }
 }
@@ -52,7 +54,7 @@ export function icon(s: Screen, k: string, x: number, y: number, c: number, sc =
 export type Zone = { x: number; y: number; w: number; h: number; fn: () => void };
 export function zone(w: Watch, x: number, y: number, ww: number, h: number, fn: () => void) { (w.st.clickZones as Zone[]).push({ x, y, w: ww, h, fn }); }
 /** a terminal key: inverse video with notched corners; dim and hollow when it cannot be pressed */
-export function button(s: Screen, w: Watch, label: string, x: number, y: number, c: number, fn: (() => void) | null, minW = 0) {
+export function button(s: Tube, w: Watch, label: string, x: number, y: number, c: number, fn: (() => void) | null, minW = 0) {
   const bw = Math.max(minW, s.textW(label) + 6);
   if (fn) {
     s.rect(x, y, bw, 11, c);
@@ -66,7 +68,7 @@ export function button(s: Screen, w: Watch, label: string, x: number, y: number,
   }
   return bw;
 }
-export function footer(s: Screen, txt: string) {
+export function footer(s: Tube, txt: string) {
   s.rect(0, BOT + 1, s.w, s.h - BOT - 1, BG);
   s.hline(2, s.w - 3, BOT + 1, DIM, 2);
   s.text(txt, 3, BOT + 3, DIM, 1, s.w - 6);
@@ -76,7 +78,7 @@ const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 const toneCol = (t: string) => (t === 'warn' ? AMB : t === 'rp' ? MAG : HI);
 
 // ================================================================ the frame
-export function drawWatch(s: Screen, w: Watch) {
+export function drawWatch(s: Tube, w: Watch) {
   s.clear(0x041207);
   w.st.clickZones = [] as Zone[];
   if (w.small) { drawGlance(s, w); return; }
@@ -119,7 +121,7 @@ export function drawWatch(s: Screen, w: Watch) {
 }
 
 // ================================================================ glance (on the move)
-function drawGlance(s: Screen, w: Watch) {
+function drawGlance(s: Tube, w: Watch) {
   const Q = w.quests, p = G.local;
   // threat radar takes over when something is close
   const threat = w.threat;
@@ -168,7 +170,7 @@ function drawGlance(s: Screen, w: Watch) {
   }
   if (!v) {
     const t = G.clock.timeString();
-    s.text(t, (s.w - s.textW(t, 4)) / 2, 44, HI, 4);
+    s.text(t, 40, 34, HI, 4, 9999, 'nixie');
     s.text('NO ACTIVE QUEST', (s.w - s.textW('NO ACTIVE QUEST', 1)) / 2, 90, MID);
     return;
   }
@@ -200,7 +202,7 @@ function drawGlance(s: Screen, w: Watch) {
   s.text(t, s.w - 4 - s.textW(t, 2), 108, DIM, 2);
 }
 
-function paraBig(s: Screen, txt: string, x: number, y: number, w: number, c: number, sc: number, maxLines = 2) {
+function paraBig(s: Tube, txt: string, x: number, y: number, w: number, c: number, sc: number, maxLines = 2) {
   const words = txt.split(/\s+/); let line = '', n = 0;
   const lh = 8 * sc + 2;
   for (const wd of words) {
@@ -210,7 +212,7 @@ function paraBig(s: Screen, txt: string, x: number, y: number, w: number, c: num
   if (line && n < maxLines) s.text(line, x, y + n * lh, c, sc, w);
 }
 
-export function arrow(s: Screen, cx: number, cy: number, r: number, rel: number, c: number) {
+export function arrow(s: Tube, cx: number, cy: number, r: number, rel: number, c: number) {
   s.circle(cx, cy, r, DIM);
   const ex = cx + Math.sin(rel) * r * 0.85, ey = cy - Math.cos(rel) * r * 0.85;
   s.line(cx, cy, ex, ey, c);
@@ -221,7 +223,7 @@ export function arrow(s: Screen, cx: number, cy: number, r: number, rel: number,
 const QTABS = ['ACTIVE', 'OFFERS', 'DONE'] as const;
 const QTAB_KEYS = ['active', 'offers', 'done'] as const;
 
-export function drawQuests(s: Screen, w: Watch) {
+export function drawQuests(s: Tube, w: Watch) {
   const Q = w.quests;
   if (!Q) { s.text('NO UPLINK', 6, 30, RED); return; }
   const st = w.st;
@@ -266,7 +268,7 @@ export function drawQuests(s: Screen, w: Watch) {
   footer(s, 'CLICK:OPEN  WHEEL:SELECT  DIAL:FUNCTION');
 }
 
-function drawRowGlyph(s: Screen, w: Watch, v: QView, x: number, y: number, on: boolean, focus: string | null) {
+function drawRowGlyph(s: Tube, w: Watch, v: QView, x: number, y: number, on: boolean, focus: string | null) {
   const Q = w.quests!;
   if (v.status === 'ready') { icon(s, 'scrip', x, y, AMB); return; }
   if (v.status === 'done') { icon(s, 'check', x, y, GRN); return; }
@@ -276,7 +278,7 @@ function drawRowGlyph(s: Screen, w: Watch, v: QView, x: number, y: number, on: b
   s.text(on ? '▸' : '•', x, y, on ? HI : MID);
 }
 
-function drawQuestDetail(s: Screen, w: Watch, key: string) {
+function drawQuestDetail(s: Tube, w: Watch, key: string) {
   const Q = w.quests!, st = w.st;
   const v = Q.view(key);
   if (!v || !v.rec) { st.qOpen = null; return; }
@@ -340,7 +342,7 @@ function drawQuestDetail(s: Screen, w: Watch, key: string) {
   st.dAct = v.status;
 }
 
-export function wrap(s: Screen, txt: string, w: number): string[] {
+export function wrap(s: Tube, txt: string, w: number): string[] {
   const out: string[] = []; let line = '';
   for (const wd of txt.split(/\s+/)) {
     const t = line ? line + ' ' + wd : wd;
@@ -387,7 +389,7 @@ export function layoutBranch(branch: string): Laid[] {
 const CARD_W = 21, CARD_H = 11, COL_W = 37, ROW_H = 14, GX = 9;
 
 /** a punched card: clipped corner, two rows of holes, the node's code; owned cards are solid */
-function card(s: Screen, x: number, y: number, code: string, fg: number, solid: boolean, seed: number) {
+function card(s: Tube, x: number, y: number, code: string, fg: number, solid: boolean, seed: number) {
   if (solid) s.rect(x, y, CARD_W, CARD_H, fg); else { s.rect(x, y, CARD_W, CARD_H, BG); s.frame(x, y, CARD_W, CARD_H, fg); }
   // the clipped corner
   s.px(x, y, BG); s.px(x + 1, y, BG); s.px(x, y + 1, BG);
@@ -398,7 +400,7 @@ function card(s: Screen, x: number, y: number, code: string, fg: number, solid: 
   s.text(code, x + Math.floor((CARD_W - s.textW(code)) / 2) + 1, y + 2, solid ? BG : fg);
 }
 
-export function drawResearch(s: Screen, w: Watch) {
+export function drawResearch(s: Tube, w: Watch) {
   const st = w.st;
   const bi = ((st.branch ?? 0) % BRANCHES.length + BRANCHES.length) % BRANCHES.length;
   const br = BRANCHES[bi];

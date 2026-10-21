@@ -9,7 +9,15 @@ import { G } from '../../game/G';
 import { Prop, type PropMatOpts } from '../touch/stage3d';
 import { Pix } from './pix';
 
-const CLEAR_VERT = /* glsl */`
+const NOISE = /* glsl */`
+float h3(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
+float vn(vec3 p) {
+  vec3 i = floor(p); vec3 f = fract(p); f = f * f * (3.0 - 2.0 * f);
+  return mix(mix(mix(h3(i), h3(i + vec3(1.0, 0.0, 0.0)), f.x), mix(h3(i + vec3(0.0, 1.0, 0.0)), h3(i + vec3(1.0, 1.0, 0.0)), f.x), f.y),
+             mix(mix(h3(i + vec3(0.0, 0.0, 1.0)), h3(i + vec3(1.0, 0.0, 1.0)), f.x), mix(h3(i + vec3(0.0, 1.0, 1.0)), h3(i + vec3(1.0, 1.0, 1.0)), f.x), f.y), f.z);
+}
+`;
+const SURF_VERT = /* glsl */`
 attribute vec3 aCol;
 varying vec3 vN; varying vec3 vCol; varying vec2 vUv; varying vec3 vLoc;
 void main() {
@@ -17,41 +25,107 @@ void main() {
   vN = normalize(normalMatrix * normal);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
 }`;
-/** see-through things: bag plastic, glass, fluids. Fresnel edges, banded light, a hard specular. */
-const CLEAR_FRAG = /* glsl */`
-uniform vec3 uKey; uniform float uLight; uniform vec3 uTint; uniform float uAlpha; uniform float uFres; uniform vec3 uMul;
-uniform float uSpec; uniform float uSpark; uniform float uTime; uniform float uDeep;
+const HEAD = /* glsl */`
+uniform vec3 uKey; uniform float uLight; uniform vec3 uTint; uniform float uTime; uniform float uAlpha; uniform vec3 uMul;
+varying vec3 vN; varying vec3 vCol; varying vec2 vUv; varying vec3 vLoc;
+${NOISE}
+vec3 nrm() { vec3 n = normalize(vN); return gl_FrontFacing ? n : -n; }
+`;
+/** glass: thick green-grey edges, fresnel, a window reflection band and a bright line, a hot specular; cracks from the map */
+const GLASS_FRAG = HEAD + /* glsl */`
 #ifdef USE_MAP
 uniform sampler2D uMap;
 #endif
-varying vec3 vN; varying vec3 vCol; varying vec2 vUv; varying vec3 vLoc;
-float h2(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {
-  vec3 n = normalize(vN);
-  if (!gl_FrontFacing) n = -n;
-  vec3 base = vCol * uMul;
-  float a = uAlpha;
+  vec3 n = nrm();
+  float ndv = abs(n.z), fr = pow(1.0 - ndv, 3.0);
+  vec3 col = uMul * (0.45 + 0.4 * ndv);
+  float a = uAlpha + fr * 0.8;
+  // the room's fluorescent tube reflected down the curve, and a thin bright edge on the far side
+  float band = smoothstep(0.2, 0.02, abs(n.x + 0.42)) * (0.45 + 0.55 * smoothstep(-0.7, 0.5, n.y));
+  col = mix(col, vec3(1.0, 0.99, 0.94), band * 0.7); a = max(a, band * 0.5);
+  float line = smoothstep(0.06, 0.0, abs(n.x - 0.66));
+  col = mix(col, vec3(0.95), line * 0.6); a = max(a, line * 0.4);
+  vec3 hv = normalize(uKey + vec3(0.0, 0.0, 1.0));
+  float sp = pow(max(dot(n, hv), 0.0), 70.0);
+  col += sp * 1.3; a = max(a, min(1.0, sp * 1.6));
+  // grime: finger smudges dull it in patches
+  float g = vn(vLoc * 0.4 + 3.0);
+  a += smoothstep(0.6, 0.9, g) * 0.08;
 #ifdef USE_MAP
   vec4 t = texture2D(uMap, vUv);
-  base = mix(base, t.rgb, t.a);
-  a = max(a, t.a);
+  col = mix(col, t.rgb, t.a); a = max(a, t.a);
 #endif
-  // depth: fluids darken toward the bottom
-  base *= 1.0 - uDeep * clamp(-vLoc.y * 0.02, 0.0, 0.5);
-  float lam = clamp(dot(n, uKey), 0.0, 1.0);
-  lam = floor(lam * 4.0 + 0.55) / 4.0;
-  vec3 col = base * (0.38 + lam * 0.78) * uLight * uTint;
-  float fr = 1.0 - abs(n.z);
-  fr = fr * fr;
-  a = clamp(a + fr * uFres, 0.0, 1.0);
-  col = mix(col, vec3(0.92, 0.95, 0.9) * uLight, fr * uFres * 0.5);
+  gl_FragColor = vec4(col * uLight * uTint, clamp(a, 0.0, 1.0));
+}`;
+/** liquid: thin edges let the light through, it darkens with depth, a bright meniscus at the surface, caustic glints, foam, sparks */
+const LIQUID_FRAG = HEAD + /* glsl */`
+uniform vec3 uDeepC; uniform float uSurf; uniform float uGlint; uniform float uFoam; uniform float uSpark; uniform float uThick;
+float h2(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void main() {
+  vec3 n = nrm();
+  float ndv = abs(n.z);
+  float depth = clamp((uSurf - vLoc.y) * uThick, 0.0, 1.0);
+  vec3 col = mix(uMul * 1.3, uDeepC, clamp(ndv * 0.55 + depth * 0.5, 0.0, 1.0));
+  float lam = dot(n, uKey) * 0.5 + 0.5;
+  col *= 0.6 + 0.55 * lam;
+  // meniscus: the surface climbs the wall and catches the light
+  float m = smoothstep(1.3, 0.0, uSurf - vLoc.y);
+  col = mix(col, uMul * 1.9 + 0.12, m * 0.75);
+  // caustic glints: moving cells of light, strongest just under the surface
+  float c = vn(vec3(vLoc.x * 0.8, vLoc.y * 0.8 + uTime * 0.6, uTime * 1.1)) * vn(vec3(vLoc.x * 1.7 - uTime * 0.4, vLoc.y * 1.5, 3.0));
+  float glint = smoothstep(0.42, 0.55, c) * uGlint * (0.35 + 0.65 * smoothstep(-18.0, 0.0, vLoc.y - uSurf));
+  col += glint * vec3(1.0, 0.97, 0.85) * 0.7;
+  // foam on an inflamed surface
+  if (uFoam > 0.0) { float f = vn(vec3(vLoc.xz * 1.6, uTime * 2.0)); col = mix(col, vec3(0.97, 0.95, 0.88), step(1.0 - uFoam * 0.7, f) * smoothstep(2.2, 0.0, uSurf - vLoc.y)); }
   vec3 hv = normalize(uKey + vec3(0.0, 0.0, 1.0));
-  float sp = pow(max(dot(n, hv), 0.0), 34.0);
-  float s = step(0.55, sp) * uSpec;
-  col = mix(col, vec3(1.0, 0.98, 0.9) * uLight, s * 0.85);
-  a = max(a, s * 0.9);
-  if (uSpark > 0.0) { float k = h2(floor(gl_FragCoord.xy) + floor(uTime * 12.0)); if (k < uSpark * 0.08) { col = k < uSpark * 0.04 ? vec3(0.55, 1.0, 0.62) : vec3(0.9, 1.0, 0.85); a = 1.0; } }
-  gl_FragColor = vec4(col, a);
+  float sp = pow(max(dot(n, hv), 0.0), 50.0);
+  col += sp * 0.9;
+  float a = uAlpha;
+  if (uSpark > 0.0) { float k = h2(floor(gl_FragCoord.xy) + floor(uTime * 12.0)); if (k < uSpark * 0.06) { col = k < uSpark * 0.03 ? vec3(0.55, 1.0, 0.62) : vec3(0.92, 1.0, 0.88); a = 1.0; } }
+  gl_FragColor = vec4(col * uLight * uTint, a);
+}`;
+/** latex: wrapped soft light, warm light through the thin rim, a broad sheen and a small hard highlight */
+const RUBBER_FRAG = HEAD + /* glsl */`
+void main() {
+  vec3 n = nrm();
+  vec3 base = vCol * uMul;
+  float lam = dot(n, uKey) * 0.5 + 0.5;
+  vec3 col = base * (0.28 + 0.82 * lam * lam);
+  float fr = pow(1.0 - abs(n.z), 2.2);
+  col += base * vec3(1.0, 0.62, 0.55) * fr * 0.5;
+  vec3 hv = normalize(uKey + vec3(0.0, 0.0, 1.0));
+  float sp = max(dot(n, hv), 0.0);
+  col += vec3(1.0, 0.93, 0.92) * (pow(sp, 9.0) * 0.22 + pow(sp, 110.0) * 0.95);
+  // talc dust and a few scuffs
+  col *= 0.93 + 0.1 * vn(vLoc * 2.2);
+  gl_FragColor = vec4(col * uLight * uTint, uAlpha);
+}`;
+/** PVC bag: crinkled, yellowed, translucent; whitens at grazing angles; streaky highlights; the print is opaque paper and ink */
+const PLASTIC_FRAG = HEAD + /* glsl */`
+#ifdef USE_MAP
+uniform sampler2D uMap;
+#endif
+void main() {
+  vec3 n = nrm();
+  // crinkles: the normal wanders
+  vec3 w = vec3(vn(vLoc * 0.32) - 0.5, vn(vLoc * 0.32 + 7.0) - 0.5, 0.0) * 0.9 + vec3(vn(vLoc * 0.9 + 2.0) - 0.5, 0.0, 0.0) * 0.4;
+  n = normalize(n + w);
+  float ndv = abs(n.z), fr = pow(1.0 - ndv, 2.0);
+  vec3 col = uMul * (0.55 + 0.45 * (dot(n, uKey) * 0.5 + 0.5));
+  float a = uAlpha + fr * 0.55;
+  col = mix(col, vec3(0.97, 0.98, 0.95), fr * 0.6);
+  float streak = pow(max(0.0, 1.0 - abs(n.x + 0.32) * 3.5), 3.0);
+  col = mix(col, vec3(1.0), streak * 0.6); a = max(a, streak * 0.45);
+  vec3 hv = normalize(uKey + vec3(0.0, 0.0, 1.0));
+  float sp = pow(max(dot(n, hv), 0.0), 60.0);
+  col += sp; a = max(a, min(1.0, sp * 1.4));
+#ifdef USE_MAP
+  vec4 t = texture2D(uMap, vUv);
+  vec3 pc = t.rgb * (0.7 + 0.35 * (dot(normalize(vN), uKey) * 0.5 + 0.5));
+  col = mix(col, pc, t.a); a = max(a, t.a);
+#endif
+  gl_FragColor = vec4(col * uLight * uTint, clamp(a, 0.0, 1.0));
 }`;
 
 /** instanced cubes: drops, crumbs, chunks, bubbles (per-instance colour + alpha) */
@@ -105,7 +179,8 @@ void main() {
   gl_FragColor = vec4(col * a, a);
 }`;
 
-export interface ClearOpts { map?: THREE.Texture | null; alpha?: number; fres?: number; spec?: number; deep?: number; color?: number; side?: THREE.Side; depthWrite?: boolean }
+export type SurfKind = 'glass' | 'liquid' | 'rubber' | 'plastic';
+export interface SurfOpts { map?: THREE.Texture | null; alpha?: number; color?: number; deep?: number; side?: THREE.Side; depthWrite?: boolean; glint?: number; thick?: number }
 
 /** a pixel canvas that becomes a texture (labels, gauge faces, the bag's print, cracks) */
 export class PixTex {
@@ -122,6 +197,59 @@ export class PixTex {
     this.tex.colorSpace = THREE.NoColorSpace;
   }
   commit() { this.ctx.putImageData(this.pix.img, 0, 0); this.tex.needsUpdate = true; }
+}
+
+/**
+ * A texture painted at k times a Pix's resolution: the pixel art is scaled up crisp,
+ * then real type (typewriter labels, gauge numerals, Nixie digits) is drawn over it
+ * with the canvas font engine at the full resolution.
+ */
+export class PrintTex {
+  readonly pix: Pix;
+  readonly tex: THREE.CanvasTexture;
+  readonly cv: HTMLCanvasElement;
+  private small: HTMLCanvasElement;
+  private sctx: CanvasRenderingContext2D;
+  private ctx: CanvasRenderingContext2D;
+  constructor(w: number, h: number, readonly k = 2) {
+    this.pix = new Pix(w, h);
+    this.small = document.createElement('canvas'); this.small.width = w; this.small.height = h;
+    this.sctx = this.small.getContext('2d')!;
+    this.cv = document.createElement('canvas'); this.cv.width = w * k; this.cv.height = h * k;
+    this.ctx = this.cv.getContext('2d')!;
+    this.ctx.imageSmoothingEnabled = false;
+    this.tex = new THREE.CanvasTexture(this.cv);
+    this.tex.magFilter = THREE.NearestFilter; this.tex.minFilter = THREE.LinearFilter; this.tex.generateMipmaps = false;
+    this.tex.colorSpace = THREE.NoColorSpace;
+  }
+  commit(type?: (ctx: CanvasRenderingContext2D, k: number) => void) {
+    this.sctx.putImageData(this.pix.img, 0, 0);
+    const c = this.ctx;
+    c.clearRect(0, 0, this.cv.width, this.cv.height);
+    c.imageSmoothingEnabled = false;
+    c.drawImage(this.small, 0, 0, this.cv.width, this.cv.height);
+    if (type) { c.save(); type(c, this.k); c.restore(); }
+    this.tex.needsUpdate = true;
+  }
+}
+
+/** real type for things printed on the props (canvas font strings from src/ui/fonts.css) */
+export const FONT = {
+  type: "'Special Elite', 'Courier Prime', monospace",
+  typeset: "'Courier Prime', 'Courier New', monospace",
+  sign: "'Oswald', 'Arial Narrow', sans-serif",
+  nixie: "'Nixie One', 'IBM Plex Mono', monospace",
+};
+/** ink on paper: a slightly uneven strike, as a typewriter leaves it */
+export function inkText(c: CanvasRenderingContext2D, text: string, x: number, y: number, px: number, font: string, color = '#231a12', align: CanvasTextAlign = 'left', weight = '') {
+  c.font = `${weight}${weight ? ' ' : ''}${px}px ${font}`;
+  c.textAlign = align; c.textBaseline = 'alphabetic';
+  c.fillStyle = color;
+  c.globalAlpha = 0.92;
+  c.fillText(text, x, y);
+  c.globalAlpha = 0.25;
+  c.fillText(text, x + 0.4, y + 0.3);
+  c.globalAlpha = 1;
 }
 
 export class Cubes {
@@ -188,36 +316,48 @@ export class BodyStage {
     m.uniforms.uRust = { value: 0 }; m.uniforms.uBlood = { value: 0 };
     return m;
   }
-  clear(o: ClearOpts = {}): THREE.ShaderMaterial {
-    const c = new THREE.Color(o.color ?? 0xffffff);
+  /** the realistic surfaces: glass, liquid, latex, PVC */
+  surf(kind: SurfKind, o: SurfOpts = {}): THREE.ShaderMaterial {
+    const c = new THREE.Color(o.color ?? 0xffffff), d = new THREE.Color(o.deep ?? 0x000000);
+    const frag = kind === 'glass' ? GLASS_FRAG : kind === 'liquid' ? LIQUID_FRAG : kind === 'rubber' ? RUBBER_FRAG : PLASTIC_FRAG;
+    const opaque = kind === 'rubber';
     return new THREE.ShaderMaterial({
-      vertexShader: CLEAR_VERT, fragmentShader: CLEAR_FRAG, transparent: true, depthWrite: o.depthWrite ?? false,
+      vertexShader: SURF_VERT, fragmentShader: frag, transparent: !opaque, depthWrite: o.depthWrite ?? opaque,
       side: o.side ?? THREE.DoubleSide, defines: o.map ? { USE_MAP: '' } : {},
       uniforms: {
         uKey: this.uKey, uLight: this.uLight, uTint: this.uTint, uTime: this.uTime, uMap: { value: o.map ?? null },
-        uAlpha: { value: o.alpha ?? 0.3 }, uFres: { value: o.fres ?? 0.5 }, uSpec: { value: o.spec ?? 1 }, uMul: { value: new THREE.Vector3(c.r, c.g, c.b) },
-        uSpark: { value: 0 }, uDeep: { value: o.deep ?? 0 },
+        uAlpha: { value: o.alpha ?? (opaque ? 1 : 0.2) }, uMul: { value: new THREE.Vector3(c.r, c.g, c.b) },
+        uDeepC: { value: new THREE.Vector3(d.r, d.g, d.b) }, uSurf: { value: 0 }, uGlint: { value: o.glint ?? 0 }, uFoam: { value: 0 }, uSpark: { value: 0 },
+        uThick: { value: o.thick ?? 0.05 },
       },
     });
   }
 
-  /** place the stage: CSS rect (top-left, size) and pixel size (device px per low-res px) */
-  layout(x: number, y: number, W: number, H: number, px: number) {
+  /**
+   * place the stage: CSS position (top-left), size in units, and device px per unit (the
+   * game's pixel size). The target holds `detail` texels per unit so real type stays legible.
+   */
+  layout(x: number, y: number, W: number, H: number, unitPx: number) {
     const dpr = G.pr?.dpr ?? 1;
-    this.W = W; this.H = H; this.px = px;
-    this.css = { x, y, w: W * px / dpr, h: H * px / dpr };
+    this.detail = unitPx % 2 === 0 ? 2 : unitPx >= 3 ? 3 : 1;
+    this.W = W; this.H = H; this.px = unitPx;
+    this.css = { x, y, w: W * unitPx / dpr, h: H * unitPx / dpr };
     this.cam.left = 0; this.cam.right = W; this.cam.top = 0; this.cam.bottom = -H;
     this.cam.updateProjectionMatrix();
-    if (!this.rt || this.rt.width !== W || this.rt.height !== H) {
+    const rw = Math.ceil(W * this.detail), rh = Math.ceil(H * this.detail);
+    if (!this.rt || this.rt.width !== rw || this.rt.height !== rh) {
       this.rt?.dispose();
-      this.rt = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
-      this.post.mat.uniforms.uRes.value.set(W, H);
+      this.rt = new THREE.WebGLRenderTarget(rw, rh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
+      this.post.mat.uniforms.uRes.value.set(rw, rh);
     }
   }
+  detail = 2;
+  private vpFull = new THREE.Vector4();
 
   render(r: THREE.WebGLRenderer) {
     if (!this.rt || this.fade <= 0.01) return;
     const dpr = G.pr?.dpr ?? 1;
+    this.uTime.value = performance.now() / 1000;
     const prevAuto = r.autoClear;
     r.autoClear = false;
     r.setRenderTarget(this.rt);
@@ -227,12 +367,12 @@ export class BodyStage {
     r.setRenderTarget(null);
     const vw = Math.round(this.W * this.px), vh = Math.round(this.H * this.px);
     const vx = Math.round(this.css.x * dpr), vy = Math.round(window.innerHeight * dpr - this.css.y * dpr - vh);
-    const full = new THREE.Vector4(); r.getViewport(full);
+    r.getViewport(this.vpFull);
     r.setViewport(vx, vy, vw, vh);
     this.post.mat.uniforms.tSrc.value = this.rt.texture;
     this.post.mat.uniforms.uFade.value = this.fade;
     r.render(this.post.scene, this.post.cam);
-    r.setViewport(full);
+    r.setViewport(this.vpFull);
     r.autoClear = prevAuto;
   }
 

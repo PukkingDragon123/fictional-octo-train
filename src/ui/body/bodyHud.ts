@@ -263,8 +263,8 @@ export class BodyHud {
     P.clear();
     const hovInj = this.hover.cell === 'bag' ? this.hover.inj : this.cardInj;
     this.bag.draw(P, XB, 0, p, hovInj);
-    this.lungs.draw(P, XL, 0, p);
-    this.jar.draw(P, XJ, 0);
+    (this.lungs as any).draw?.(P, XL, 0, p);
+    (this.jar as any).draw?.(P, XJ, 0);
     for (const s of this.sparks) { const k = Math.max(0, s.t); P.blend(Math.round(s.x + (s.x - XB) * 0), Math.round(s.y - (0.4 - k) * 10), s.c, Math.min(1, k * 4)); }
     P.outline(0x120a0c, 0.3);
     this.ctx.putImageData(P.img, 0, 0);

@@ -255,18 +255,10 @@ addTextureModule(() => {
     // enamel name plate
     pc.rect(6, 1, 25, 6, 0x1e2a36); pc.strokeRect(6, 1, 25, 6, 0x8a9098);
     txt(pc, 'PRESS', 8, 1, 0xe8e4d8); txt(pc, '07', 24, 1, HAZ_Y);
-    // the counter's window: a black recess with a chrome lip (the drums turn inside it), SCRIP stamped beside
+    // the nixie window: a black recess with a chrome lip (the tubes stand in it), SCRIP stamped beside
     pc.rect(33, 1, 22, 6, 0x0a0a0c); pc.strokeRect(32, 0, 24, 8, 0xb8bcc2);
     pc.set(57, 3, 0xd8d2bc); pc.set(57, 5, 0xd8d2bc);
   }, 1.98, 0.24);
-  // the counter drums: white digits on black, the drum's curve shaded top and bottom
-  for (let d = 0; d < 10; d++) A.add('zd_drum_' + d, 6, 8, (pc) => {
-    pc.wrap = false;
-    for (let y = 0; y < 8; y++) for (let x = 0; x < 6; x++) pc.set(x, y, y === 0 || y === 7 ? 0x060606 : y === 1 || y === 6 ? 0x16161a : 0x222226);
-    pc.vline(0, 0, 7, 0x0a0a0a);
-    txt(pc, String(d), 1, 1, 0xf2ecd8);
-    for (let x = 1; x < 5; x++) { pc.blend(x, 1, 0x000000, 0.35); pc.blend(x, 6, 0x000000, 0.45); }
-  });
   A.add('zd_ram_face', 56, 8, (pc, rng) => {
     pc.wrap = false;
     hazard(pc, 0, 0, 56, 8, 8, 0.18, 861);
@@ -310,8 +302,8 @@ export const PRESS = {
   lever: [1.075, 1.0, 0.84] as [number, number, number],
   leverRest: -0.42, leverPulled: 1.75,
   gauge: [-0.89, 1.375, 1.03] as [number, number, number],
-  /** the counter drums in the crown's window: first drum's centre, pitch between drums */
-  counter: [0.13, 2.32, 0.996] as [number, number, number], drum: 0.12,
+  /** the nixie display in the crown's window: its centre, and the pitch between tubes */
+  counter: [0.37, 2.32, 0.996] as [number, number, number], drum: 0.12,
   beacon: [-0.72, 2.47, 0.72] as [number, number, number],
 };
 

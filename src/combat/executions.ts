@@ -14,6 +14,7 @@ import { shake, punch, hitstop, slowmo, kick } from '../gfx/juice';
 import { cbOp, flinch, killable, flag } from './creatureState';
 import { sizeClass, type WClass, type Wielded } from './moves';
 import type { Marks } from './glyphs';
+import type { Words } from './words';
 
 interface Beat {
   at: number;
@@ -183,7 +184,7 @@ export class Executions {
     return def.key;
   }
 
-  update(dt: number, p: Player, marks: Marks) {
+  update(dt: number, p: Player, marks: Marks, words: Words) {
     const e = this.cur; if (!e) return;
     e.t += dt;
     const c = e.c;
@@ -194,11 +195,11 @@ export class Executions {
     moveCircle(z, p, (tx - p.x) * k, (tz - p.z) * k, { ignoreLow: false });
     p.vx = p.vz = 0; p.speed = 0; p.running = false;
     p.facing = p.targetFacing = Math.atan2(c.z - p.z, c.x - p.x);
-    while (e.bi < e.beats.length && e.t >= e.beats[e.bi].at) this.fire(e, e.beats[e.bi++], p, marks);
+    while (e.bi < e.beats.length && e.t >= e.beats[e.bi].at) this.fire(e, e.beats[e.bi++], p, marks, words);
     if (e.t >= e.def.dur || p.body.dead) this.end(p);
   }
 
-  private fire(e: Running, b: Beat, p: Player, marks: Marks) {
+  private fire(e: Running, b: Beat, p: Player, marks: Marks, words: Words) {
     const c = e.c;
     const kind = b.kind || e.w.hitKind;
     const dx = c.x - p.x, dz = c.z - p.z;
@@ -238,7 +239,8 @@ export class Executions {
       p.body.addXp('strength', 3);
     }
     if (b.slow) slowmo(b.slow[0], b.slow[1]);
-    if (b.word) marks.float('stamp:' + b.word, c.x, c.y + Math.min(2.2, c.height + 0.3), c.z, 1.6);
+    if (b.word) words.pop(b.word, c.x, c.y + Math.min(2.2, c.height + 0.3), c.z, 'fin', 1.7);
+    void marks;
   }
 
   end(p: Player) {

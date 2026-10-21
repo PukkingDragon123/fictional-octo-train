@@ -1,7 +1,7 @@
 /* The first-person intake (src/game/intro.ts): letterbox, eyelids, impact flash, a red pulse at the
-   edges when it hurts, the black closing in at the end, and a pixel-art skip key. No text boxes:
-   speech floats in the stage as pixel lettering, the title is a sign on the wall. */
-.ix-root { position: fixed; inset: 0; pointer-events: none; z-index: 180; font-family: 'VT323', monospace; color: #eef3e6; overflow: hidden; }
+   edges when it hurts, the black closing in at the end. No text boxes: speech floats free over
+   whoever said it, the skip is free text, the title is a sign painted on the wall. */
+.ix-root { position: fixed; inset: 0; pointer-events: none; z-index: 180; font-family: var(--font-speech); color: #eef3e6; overflow: hidden; }
 .ix-svg { position: absolute; width: 0; height: 0; }
 .ix-shade { position: absolute; inset: 0; background: #000; }
 .ix-root.world .ix-vig, .ix-root.world .ix-lid { display: none; }
@@ -19,15 +19,23 @@
 .ix-bar.bot { bottom: 0; }
 .ix-root.letterbox .ix-bar { height: 10vh; }
 
-/* the skip: a pixel-art rubber VCR key in the corner (src/game/pixelText.ts draws it), brighter after a tap */
-.ix-skip { position: absolute; right: calc(10px + env(safe-area-inset-right)); top: calc(8px + env(safe-area-inset-top)); pointer-events: auto; cursor: pointer;
-  background: none; border: 0; padding: 6px; opacity: 0; transition: opacity .5s, transform .12s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
-.ix-skip.on { opacity: .55; }
+/* speech floats free (fonts.css .nc-free-text: no box, a soft dark halo), over whoever said it */
+.ix-say { position: absolute; left: 0; top: 0; max-width: min(46ch, 70vw); text-align: center; white-space: normal; will-change: transform, opacity;
+  font-size: clamp(17px, 2.1vw, 25px); line-height: 1.15; opacity: 0; }
+.ix-say.guard { font-family: var(--font-speech); color: #e9e6dc; letter-spacing: .02em; }
+.ix-say.self { font-family: var(--font-type); color: #f1dc9a; font-size: clamp(16px, 1.9vw, 23px); }
+
+/* the skip: free text in the corner, brighter after a tap */
+.ix-skip { position: absolute; right: calc(14px + env(safe-area-inset-right)); top: calc(10px + env(safe-area-inset-top)); pointer-events: auto; cursor: pointer; min-height: 44px; min-width: 44px;
+  padding: 8px 6px; font-family: var(--font-type); font-size: clamp(17px, 2vw, 23px); color: #e8e2d0; opacity: 0; transition: opacity .5s, transform .12s; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+.ix-skip.on { opacity: .5; }
 .ix-skip.hot, .ix-skip:hover, .ix-skip:focus-visible { opacity: 1; outline: none; }
-.ix-skip:active { transform: translateY(2px); }
-.ix-key { display: block; width: 138px; height: 42px; image-rendering: pixelated; }
+.ix-skip:active { transform: translateY(1px); }
+.ix-skip b { font-weight: 400; letter-spacing: -.12em; margin-right: .2em; }
+.ix-skip.hot b { animation: ix-ff .35s steps(2) infinite; display: inline-block; }
+.ix-skip small { font-size: .7em; opacity: .6; margin-left: .3em; }
+@keyframes ix-ff { 50% { transform: translateX(3px); } }
 @media (max-width: 640px), (max-height: 420px) {
   .ix-root.letterbox .ix-bar { height: 12vh; }
-  .ix-key { width: 92px; height: 28px; }
 }
 @media (prefers-reduced-motion: reduce) { .ix-wrap { transition: none; } }

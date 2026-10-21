@@ -111,7 +111,7 @@ export type CrtMaterial = THREE.ShaderMaterial & { crt: { on: number; target: nu
 /** a tube material over any texture (canvas, render target...) */
 export function crtMaterial(tex: THREE.Texture, o: CrtOpts = {}, res: [number, number] = [320, 240]): CrtMaterial {
   const m = new THREE.ShaderMaterial({
-    glslVersion: THREE.GLSL3,
+    // (no glslVersion: three then compiles ShaderMaterials as GLSL 3 and maps gl_FragColor to output 0)
     vertexShader: VERT,
     fragmentShader: FRAG,
     toneMapped: false,

@@ -30,10 +30,10 @@ function priceTag(text: string, ink: number) {
   const k = text + '|' + ink;
   let t = tagCache.get(k);
   if (!t) {
-    t = new PixTex(26, 11);
-    t.clearAlpha(); t.paper(0, 0, 26, 11, PAL.paper, text.length * 7 + ink);
+    t = new PixTex(26, 11, 4);
+    t.reset(); t.paper(0, 0, 26, 11, PAL.paper, text.length * 7 + ink);
     t.s.disc(3, 5, 1, Screen.c(PAL.hole));
-    t.typed(text, 7, 2, ink, 1, 19, text.length);
+    t.pen(text, 16, -1.5, ink, 11, { align: 'center' });
     t.flush(); tagCache.set(k, t);
   }
   return t;
@@ -48,10 +48,10 @@ export class TradeUI {
   private g: THREE.Group;
   private root = new THREE.Group();
   private goods = new THREE.Group();
-  private cloth = new PixTex(112, 80);
-  private slate = new PixTex(48, 34);
-  private rail = new PixTex(64, 12);
-  private slip = new PixTex(120, 12);
+  private cloth = new PixTex(112, 80, 1);
+  private slate = new PixTex(48, 34, 4);
+  private rail = new PixTex(64, 12, 3);
+  private slip = new PixTex(120, 12, 3);
   private bead: THREE.Mesh;
   private slots: Slot[] = [];
   private hover: Slot | null = null;
@@ -231,13 +231,13 @@ export class TradeUI {
 
   private jobCard(key: string, title: string, reward: string, st: string, locked: boolean, x: number) {
     const pt = new PixTex(60, 40);
-    pt.clearAlpha(); pt.paper(0, 0, 60, 40, 0xefe6cc, title.length);
-    pt.s.hline(2, 57, 9, Screen.c(PAL.inkRed));
-    pt.typedPara(title, 3, 1, 56, PAL.ink, 8, 1);
-    pt.typedPara(reward, 3, 12, 56, PAL.inkBlue, 8, 2);
+    pt.reset(); pt.paper(0, 0, 60, 40, 0xefe6cc, title.length);
+    pt.s.hline(2, 57, 10, Screen.c(PAL.inkRed));
+    pt.typed(title.toUpperCase(), 3, 2, PAL.ink, 7, 55);
+    pt.typedPara(reward, 3, 13, 55, PAL.inkBlue, 7, 2, 6);
     const stamp = st === 'done' ? 'DONE' : st === 'ready' ? 'READY' : st === 'active' ? 'TAKEN' : locked ? 'LATER' : '';
-    if (stamp) { const col = stamp === 'LATER' ? 0x6a5a40 : PAL.inkRed; pt.s.frame(14, 28, stamp.length * 6 + 4, 10, Screen.c(col)); pt.typed(stamp, 16, 30, col, 1, 50, 2); }
-    else pt.typed('TAKE IT', 12, 30, PAL.ink, 1, 50, 3);
+    if (stamp) { const col = stamp === 'LATER' ? 0x6a5a40 : PAL.inkRed; pt.s.frame(16, 28, 30, 10, Screen.c(col)); pt.sign(stamp, 31, 28.5, col, 7, { align: 'center' }); }
+    else pt.pen('take it', 30, 26, PAL.ink, 11, { align: 'center' });
     pt.flush();
     const g = new THREE.Group();
     g.add(new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.073), flatMat(pt.tex)));
@@ -253,7 +253,7 @@ export class TradeUI {
     mb.cylinder(0, 0, 0, 0.022, 0.012, 12, 'wood_dark', { color: 0x7a5232 });
     mb.cylinder(0, 0.012, 0, 0.017, 0.002, 12, 'wood_light');
     g.add(new THREE.Mesh(mb.build(), itemMat()));
-    const pt = new PixTex(30, 12); pt.clearAlpha(); pt.paper(0, 0, 30, 12, PAL.paper, 5); pt.typed(face, 4, 3, ok ? PAL.ink : PAL.inkRed, 1, 26, 1); pt.flush();
+    const pt = new PixTex(30, 12, 4); pt.reset(); pt.paper(0, 0, 30, 12, PAL.paper, 5); pt.pen(face, 15, -1, ok ? PAL.ink : PAL.inkRed, 11, { align: 'center' }); pt.flush();
     const tg = new THREE.Mesh(new THREE.PlaneGeometry(0.036, 0.0145), flatMat(pt.tex)); tg.rotation.x = -Math.PI / 2; tg.position.set(0, 0.0005, 0.03); g.add(tg);
     const hit = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.06), new THREE.MeshBasicMaterial({ visible: false })); g.add(hit);
     g.position.set(0.215, 0.002, 0.16);
@@ -347,12 +347,11 @@ export class TradeUI {
   }
   private drawSlate(t: TribeKey, tab: number) {
     const p = this.slate, s = p.s;
-    s.clear(PAL.slate);
-    for (let i = 0; i < 40; i++) s.px((i * 37) % p.w, (i * 23) % p.h, Screen.c(0x3e4642));
-    s.text(TRIBES[t].member.toUpperCase().slice(0, 7), 3, 2, Screen.c(0xb8b8aa));
-    s.text('TAB', 3, 13, Screen.c(0xb8b8aa));
-    const n = String(Math.min(9999, tab));
-    s.text(n, Math.max(2, p.w - 3 - n.length * 12), 15, Screen.c(PAL.chalk), 2);
+    p.reset(PAL.slate);
+    for (let i = 0; i < 60; i++) s.px((i * 37) % p.w, (i * 23) % p.h, Screen.c(i % 3 ? 0x3e4642 : 0x4a524e));
+    p.pen(TRIBES[t].member, 3, -1, 0xc8c8b8, 9);
+    p.pen('owes you', 3, 9, 0xb0b0a2, 8);
+    p.pen(String(Math.min(9999, tab)), p.w - 4, 12, PAL.chalk, 20, { align: 'right' });
     p.flush();
   }
   private drawRail() {
@@ -360,13 +359,13 @@ export class TradeUI {
     const bands = [0x8a2a1a, 0xb04a28, 0xb8963a, 0x7a9a3a, 0x4a8a3a];
     for (let i = 0; i < 5; i++) s.rect(Math.round(i * p.w / 5), 0, Math.ceil(p.w / 5), p.h, Screen.c(bands[i]));
     for (let x = 0; x < p.w; x += 4) s.px(x, p.h - 2, Screen.c(0x1a140c));
-    s.text('-', 3, 2, Screen.c(0xf0e6d0)); s.text('+', p.w - 8, 2, Screen.c(0xf0e6d0));
+    p.sign('FEUD', 2, 2, 0xf0e6d0, 6); p.sign('KIN', p.w - 2, 2, 0xf0e6d0, 6, { align: 'right' });
     p.flush();
   }
   private drawSlip(text: string) {
     const p = this.slip;
-    p.clearAlpha(); p.paper(0, 0, p.w, p.h, PAL.paper, 9);
-    p.typed(text, 3, 2, PAL.ink, 1, p.w - 6, text.length);
+    p.reset(); p.paper(0, 0, p.w, p.h, PAL.paper, 9);
+    p.typed(text, 3, 2.5, PAL.ink, 7, p.w - 6);
     p.flush();
   }
 }

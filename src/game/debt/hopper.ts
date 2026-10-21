@@ -16,7 +16,7 @@
 // Nothing about it is screen UI: the moving parts are local overlays on top
 // of the static model (src/content/furniture/zd_contract.ts): ram and piston
 // rods, the lever, the gauge needle, the plate's warning light, the beacon,
-// the mechanical counter in the crown that rolls up what the last load was
+// the row of nixie tubes in the crown that counts up what the last load was
 // worth, the seam's shimmer and the projector lens.
 import * as THREE from 'three';
 import { bus } from '../../core/events';
@@ -43,6 +43,7 @@ import type { MenuOption } from '../../ui/ui';
 import { itemValue, objectValue, objKeyValue, isRejected } from './values';
 import { voss, bailiff, pick, fmt, L } from './voice';
 import '../../audio/sounds_press';
+import { crtScreen, phosphorText, fontsReady, type CrtScreen } from '../../gfx/crt';
 import './debt.css';
 
 /** the cycle, seconds after the lever: horn, slam, hold, back up */
@@ -133,8 +134,8 @@ interface Fx {
   loaded: boolean;
   ramY: number;
   sinks: { mesh: THREE.Mesh; y0: number; x: number; z: number; t: number }[];
-  drums: THREE.Mesh[];
-  digits: number[];
+  nixie: CrtScreen;
+  shownN: number;
   roll: number;
   value: number;
   big: boolean;
@@ -162,7 +163,17 @@ function geo(kind: 'needle' | 'glow' | 'seam' | 'ring' | 'beacon' | 'lens' | 'ra
     case 'ram': pressRamModel(mb); break;
     case 'rod': pressRodModel(mb); break;
     case 'lever': pressLeverModel(mb); break;
-    case 'drum': mb.box(0, -0.075, 0, 0.1, 0.15, 0.006, { south: 'zd_drum_' + color, all: 'metal_dark' }, { fit: { south: true }, emissive: 0.35, ao: false }); break;
+    case 'drum': {
+      // the nixie tubes' glass envelopes and their sockets (the glow behind is a canvas on a tube material)
+      for (let i = 0; i < 5; i++) {
+        const x = (i - 2) * PRESS.drum;
+        mb.cylinder(x, -0.085, 0.03, 0.05, 0.03, 8, 'metal_dark');
+        mb.cylinder(x, -0.055, 0.03, 0.044, 0.135, 10, 'glass', { color: 0xd8c8b0, emissive: 0.08 });
+        mb.sphere(x, 0.08, 0.03, 0.044, 8, 3, 'glass', { color: 0xd8c8b0, sy: 0.5 });
+      }
+      mb.box(0, -0.095, 0.02, 0.64, 0.03, 0.07, 'metal_dark');
+      break;
+    }
   }
   g = mb.build();
   GEO.set(k, g);
@@ -170,6 +181,22 @@ function geo(kind: 'needle' | 'glow' | 'seam' | 'ring' | 'beacon' | 'lens' | 'ra
 }
 /** the press's moving parts as geometry (the intro builds its giant press from these too) */
 export function pressPartGeo(kind: 'ram' | 'rod' | 'lever'): THREE.BufferGeometry { return geo(kind); }
+let nixieFonts = false;
+void fontsReady().then(() => { nixieFonts = true; });
+/** five nixie tubes: every cathode faintly there, the lit digit glowing orange (n < 0: all dark) */
+function drawNixie(c: CrtScreen, n: number) {
+  const x = c.ctx, W = c.canvas.width, H = c.canvas.height;
+  x.fillStyle = '#0a0604'; x.fillRect(0, 0, W, H);
+  const font = "'Nixie One', 'IBM Plex Mono', monospace";
+  const s = n < 0 ? '' : String(n).padStart(5, '0');
+  for (let i = 0; i < 5; i++) {
+    const cx = W * (0.1 + i * 0.2);
+    // the stacked cathodes behind the lit one
+    if (nixieFonts) for (const d of ['8', '0', '3']) phosphorText(x, d, cx, 4, { size: 30, color: '#2a160c', align: 'center', glow: 0, font });
+    if (s && nixieFonts) phosphorText(x, s[i], cx, 4, { size: 30, color: '#ff9a3a', align: 'center', glow: 10, font });
+  }
+  c.flush();
+}
 /** a colour scaled to a brightness step (keeps the number of cached geometries small) */
 const step = (c: number, k: number) => { const q = Math.max(0, Math.min(8, Math.round(k * 8))) / 8; return (Math.round(((c >> 16) & 255) * q) << 16) | (Math.round(((c >> 8) & 255) * q) << 8) | Math.round((c & 255) * q); };
 const ADD = () => worldMaterial({ additive: true, outline: 0, unlit: true });
@@ -511,17 +538,22 @@ export class HopperSystem implements GameSystem {
     const lens = new THREE.Mesh(geo('lens', 0xc08030), ADD()); lens.position.set(0.86, 1.86, -0.6);
     // the counter drums in the crown
     const [cx0, cy0, cz0] = PRESS.counter;
-    const drums = [0, 1, 2, 3, 4].map((i) => { const m = new THREE.Mesh(geo('drum', 0), solid); m.position.set(cx0 + i * PRESS.drum, cy0 + 0.075, cz0); return m; });
+    const nixie = crtScreen(0.6, 0.15, { tint: 0xffb070, res: [160, 40], curvature: 0.03, bulge: 0.003, scan: 0.12, mask: 0.12, glow: 1.5, noise: 0.012, flicker: 0.25, vignette: 0.2, reflect: 0.5 });
+    nixie.mesh.position.set(cx0, cy0, cz0 + 0.003);
+    const tubes = new THREE.Mesh(geo('drum'), worldMaterial({ transparent: true, opacity: 0.35, depthWrite: false, outline: 0 }));
+    tubes.position.set(cx0, cy0, cz0); tubes.renderOrder = 7;
+    drawNixie(nixie, -1);
     for (const m of [glow, seam, ring, beacon, lens]) { m.renderOrder = 6; (m as any).castShadow = false; }
-    group.add(ram, ...rods, lever, needle, glow, seam, ring, beacon, lens, ...drums);
+    group.add(ram, ...rods, lever, needle, glow, seam, ring, beacon, lens, nixie.mesh, tubes);
     this.root.add(group);
-    f = { o, zone: z.key, group, ram, rods, lever, needle, glow, seam, ring, beacon, lens, load: 0, needleA: 0, loaded: false, ramY: PRESS.ramUp, sinks: [], drums, digits: [0, 0, 0, 0, 0], roll: 9, value: 0, big: false, checkT: 0, flash: 0 };
+    f = { o, zone: z.key, group, ram, rods, lever, needle, glow, seam, ring, beacon, lens, load: 0, needleA: 0, loaded: false, ramY: PRESS.ramUp, sinks: [], nixie, shownN: -1, roll: 9, value: 0, big: false, checkT: 0, flash: 0 };
     this.fx.set(o.uid, f);
     return f;
   }
   private dropFx(f: Fx) {
     this.root.remove(f.group);
     for (const s of f.sinks) this.root.remove(s.mesh);
+    f.nixie.tex.dispose(); f.nixie.mat.dispose(); f.nixie.mesh.geometry.dispose();
     this.fx.delete(f.o.uid);
   }
   private clearFx() { for (const f of [...this.fx.values()]) this.dropFx(f); }
@@ -608,14 +640,14 @@ export class HopperSystem implements GameSystem {
         if (seamK > 0.05 || f.flash > 0.05) G.pointLight(o.x + 1, 0.35, o.y + 1, 0xd8ccb0, 0.5 + seamK * 1.1 + f.flash * 2, 5);
         else if (f.loaded && on) G.pointLight(o.x + 1, 0.4, o.y + 1, 0xffa030, 0.5 + 0.3 * Math.sin(G.time * 5), 4);
       }
-      // the counter in the crown rolls up to what the last load was worth (drums tick over, the last one blurs past)
+      // the nixie tubes in the crown count up to what the last load was worth
       if (f.roll < 1.6) {
         f.roll += dt;
         const k = Math.min(1, f.roll / 1.4);
         const shown = Math.min(99999, Math.round(f.value * (1 - Math.pow(1 - k, 3))));
-        for (let i = 0; i < 5; i++) {
-          const d = Math.floor(shown / Math.pow(10, 4 - i)) % 10;
-          if (d !== f.digits[i]) { f.digits[i] = d; f.drums[i].geometry = geo('drum', d); if (i === 4 && vis && G.local?.zoneKey === f.zone && Math.random() < 0.5) G.audio?.play?.('hopper_tally', o.x + 1, o.y + 1, { vol: 0.12, range: 10 }); }
+        if (shown !== f.shownN) {
+          if (vis && G.local?.zoneKey === f.zone && (shown % 7 === 0 || k >= 1)) G.audio?.play?.('hopper_tally', o.x + 1, o.y + 1, { vol: 0.1, range: 10 });
+          f.shownN = shown; drawNixie(f.nixie, shown);
         }
       }
     }

@@ -1,28 +1,31 @@
 // The Phosphor Scope: what a scan looks like in your hands. A cream bakelite
-// handheld with a round green CRT, a needle meter and a card slot. It comes up
-// in the corner while you sweep (the target's signature traced on the glass,
-// the needle climbing), and when the sample is in it types a punch card and
-// feeds it out of the slot: what it was, the DATA, the research it paid.
-// In the world: amber brackets lock on the target and a faint beam joins you.
+// handheld with a little green tube (src/gfx/crt.ts: curved glass, scanlines,
+// bloom), a needle meter and a card slot. It comes up in the corner while you
+// sweep (the target's signature traced on the tube, the needle climbing), and
+// when the sample is in it types a punch card and feeds it out of the slot:
+// what it was, the DATA, the research it paid. In the world: amber brackets
+// lock on the target and a faint beam joins you to it.
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { fpGroup, fpClaim, fpRelease, fpOwner } from '../fp/fp';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
-import { PixTex, PAL, flatMat } from './pix';
+import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
+import { PixTex, PAL, flatMat, FONT } from './pix';
 import { Screen } from '../ui/font5x7';
 
-const CRT = 64, METER_W = 40, METER_H = 22, CARD_W = 96, CARD_H = 52;
+const CARD_W = 96, CARD_H = 52;
 const ease = (k: number) => 1 - Math.pow(1 - k, 3);
+const GREEN = '#9dffb5', DIM = 'rgba(110,220,140,0.45)';
 
 export interface ScopeTarget { title: string; cls: string; known: boolean; kind: string }
 
 export class Scope {
   private g: THREE.Group;
   private dev = new THREE.Group();
-  private crt = new PixTex(CRT, CRT);
-  private meter = new PixTex(METER_W, METER_H);
-  private card = new PixTex(CARD_W, CARD_H);
+  private tube: CrtScreen;
+  private meter = new PixTex(40, 22, 3);
+  private card = new PixTex(CARD_W, CARD_H, 3);
   private needle: THREE.Mesh;
   private cardMesh: THREE.Mesh;
   private lamp: THREE.Mesh;
@@ -31,7 +34,6 @@ export class Scope {
   private t: ScopeTarget | null = null;
   private prog = 0;
   private cardT = -1;
-  private holdT = 0;
   private drawT = 0;
   private owns = false;
   // world marks
@@ -45,36 +47,41 @@ export class Scope {
     const key = new THREE.DirectionalLight(0xfff0d8, 1.2); key.position.set(-0.4, 0.8, 1); this.g.add(key);
     this.g.add(this.dev);
     const mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
-    // body: cream bakelite with a brown belly band and chrome trim
+    // body: cream bakelite with a brown belly band, chrome trim and a carrying handle
     const mb = new ModelBuilder();
     mb.box(0, -0.15, 0, 0.13, 0.15, 0.04, 'plastic_beige', { color: 0xe2d4b4 });
     mb.box(0, -0.13, 0.001, 0.134, 0.03, 0.042, 'plastic_beige', { color: 0x5a3a22 });
     mb.box(0, 0.0, 0.0, 0.134, 0.006, 0.044, 'chrome');
-    mb.box(0.0, 0.004, 0.0, 0.07, 0.004, 0.01, 'metal_dark');
-    mb.push().translate(-0.022, -0.06, 0.021).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.042, 0.012, 16, 'chrome'); mb.pop(); // CRT bezel
+    mb.box(0.0, 0.004, 0.0, 0.07, 0.004, 0.01, 'metal_dark'); // card slot
+    mb.box(-0.022, -0.096, 0.02, 0.086, 0.07, 0.008, 'chrome'); // tube bezel
+    mb.box(-0.022, -0.092, 0.024, 0.076, 0.062, 0.002, 'plastic_black');
     mb.box(0.042, -0.04, 0.021, 0.036, 0.024, 0.006, 'metal_dark'); // meter housing
     for (const [x, y] of [[0.045, -0.095], [0.045, -0.118]]) { mb.push().translate(x, y, 0.021).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.008, 0.01, 8, 'plastic_black'); mb.pop(); }
-    mb.box(0.025, -0.118, 0.024, 0.004, 0.012, 0.004, 'chrome'); // toggle
-    mb.box(-0.068, -0.08, 0, 0.01, 0.12, 0.03, 'rubber_black'); // grip strap
+    mb.box(0.025, -0.124, 0.024, 0.004, 0.012, 0.004, 'chrome'); // toggle
+    mb.box(-0.068, -0.12, 0, 0.01, 0.12, 0.03, 'rubber_black'); // grip strap
+    for (const x of [-0.05, 0.05]) mb.box(x, 0.006, 0, 0.008, 0.028, 0.01, 'chrome');
+    mb.box(0, 0.032, 0, 0.11, 0.008, 0.014, 'leather_black'); // handle
     this.dev.add(new THREE.Mesh(mb.build(), mat));
-    // the round CRT and the meter face, pixel surfaces
-    const scr = new THREE.Mesh(new THREE.CircleGeometry(0.036, 24), flatMat(this.crt.tex, true));
-    scr.position.set(-0.022, -0.06, 0.0335); this.dev.add(scr);
+    // the tube
+    this.tube = crtScreen(0.072, 0.056, { res: [216, 168], tint: 0x9cffb0, curvature: 0.24, glow: 1.0, noise: 0.05 });
+    this.tube.mesh.position.set(-0.022, -0.061, 0.0262); this.dev.add(this.tube.mesh);
+    // the meter
     const met = new THREE.Mesh(new THREE.PlaneGeometry(0.032, 0.018), flatMat(this.meter.tex));
     met.position.set(0.042, -0.028, 0.0245); this.dev.add(met);
     this.needle = new THREE.Mesh(new THREE.BoxGeometry(0.0008, 0.014, 0.0005), new THREE.MeshBasicMaterial({ color: 0x1a1008 }));
     this.needle.geometry.translate(0, 0.007, 0);
     this.needle.position.set(0.042, -0.036, 0.0252); this.dev.add(this.needle);
     this.lamp = new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 6), new THREE.MeshBasicMaterial({ color: 0x5a2a10 }));
-    this.lamp.position.set(0.055, -0.118, 0.025); this.dev.add(this.lamp);
+    this.lamp.position.set(0.055, -0.124, 0.025); this.dev.add(this.lamp);
     // the punch card that feeds out of the slot
     this.cardMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.096, 0.052), flatMat(this.card.tex));
     this.cardMesh.visible = false; this.dev.add(this.cardMesh);
     this.drawMeter();
     // world: the bracket sprite and the beam
-    const br = new PixTex(32, 32);
+    const br = new PixTex(32, 32, 1);
     const a = Screen.c(PAL.amber), d = Screen.c(PAL.amberDk);
     for (const [x, y, sx, sy] of [[1, 1, 1, 1], [30, 1, -1, 1], [1, 30, 1, -1], [30, 30, -1, -1]] as const) for (let k = 0; k < 8; k++) { br.s.px(x + sx * k, y, a); br.s.px(x, y + sy * k, a); br.s.px(x + sx * k, y + sy, d); br.s.px(x + sx, y + sy * k, d); }
+    br.tex.magFilter = THREE.NearestFilter; br.tex.minFilter = THREE.NearestFilter; br.tex.generateMipmaps = false;
     br.flush();
     this.bracket = new THREE.Sprite(new THREE.SpriteMaterial({ map: br.tex, transparent: true, depthTest: false, depthWrite: false, fog: false }));
     this.bracket.renderOrder = 998; this.bracket.visible = false; G.pr.scene.add(this.bracket);
@@ -85,29 +92,29 @@ export class Scope {
 
   /** a sweep started / continues */
   sweep(t: ScopeTarget, prog: number) {
-    this.t = t; this.prog = prog; this.want = true; this.holdT = 0;
-    if (!this.owns) this.owns = fpOwner() === 'scope' || fpClaim('scope', 1);
+    this.t = t; this.prog = prog; this.want = true;
+    if (!this.owns) { this.owns = fpOwner() === 'scope' || fpClaim('scope', 1); if (this.owns) this.tube.power(true); }
   }
   /** the sweep ended without a result */
   drop() { if (this.cardT < 0) this.want = false; this.bracket.visible = false; this.beam.visible = false; }
   /** a finished scan: type the card, feed it out */
   result(r: { title: string; kind: string; data: number; rp: number; first: boolean; total: number }) {
-    const c = this.card, s = c.s;
-    s.clear(PAL.card);
+    const c = this.card;
+    c.reset();
     c.paper(0, 0, CARD_W, CARD_H, PAL.card, r.data + r.title.length);
     // punched columns down the left: a code for the kind
     const code = [...(r.kind + r.title)].map((ch) => ch.charCodeAt(0));
-    for (let col = 0; col < 7; col++) for (let row = 0; row < 6; row++) if ((code[col % code.length] >> row) & 1) c.hole(3 + col * 3, 4 + row * 7, 2, 4);
-    s.hline(26, CARD_W - 3, 12, Screen.c(PAL.inkRed));
-    c.typed(r.first ? 'NEW SPECIMEN' : 'RE-SAMPLE', 27, 3, r.first ? PAL.inkRed : PAL.ink, 1, CARD_W - 30, 1);
-    c.typed(r.title, 27, 15, PAL.ink, 1, CARD_W - 30, 2);
-    c.typed(r.kind, 27, 24, PAL.inkBlue, 1, CARD_W - 30, 4);
-    c.typed(`DATA +${r.data}`, 27, 34, PAL.ink, 1, CARD_W - 30, 5);
-    if (r.rp) c.typed(`R.P. +${r.rp}`, 27, 43, PAL.inkRed, 1, CARD_W - 30, 6);
-    else c.typed(`TOT ${r.total}`, 27, 43, PAL.ink, 1, CARD_W - 30, 6);
+    for (let col = 0; col < 6; col++) for (let row = 0; row < 6; row++) if ((code[col % code.length] >> row) & 1) c.hole(3 + col * 3, 5 + row * 7, 2, 4);
+    c.s.hline(24, CARD_W - 3, 13, Screen.c(PAL.inkRed));
+    c.typed(r.first ? 'NEW SPECIMEN' : 'RE-SAMPLE', 24, 3, r.first ? PAL.inkRed : PAL.ink, 8, CARD_W - 27);
+    c.typed(r.title.toUpperCase(), 24, 15, PAL.ink, 8, CARD_W - 27);
+    c.typed(r.kind, 24, 24, PAL.inkBlue, 7, CARD_W - 27);
+    c.typed(`DATA +${r.data}`, 24, 33, PAL.ink, 8, CARD_W - 27);
+    if (r.rp) c.pen(`+${r.rp} R.P.!`, 24, 41, PAL.inkRed, 10);
+    else c.typed(`TOTAL ${r.total}`, 24, 42, PAL.ink, 7, CARD_W - 27);
     c.flush();
     this.cardT = 0; this.want = true; this.prog = 1;
-    if (!this.owns) this.owns = fpOwner() === 'scope' || fpClaim('scope', 1);
+    if (!this.owns) { this.owns = fpOwner() === 'scope' || fpClaim('scope', 1); if (this.owns) this.tube.power(true); }
     this.bracket.visible = false; this.beam.visible = false;
   }
 
@@ -129,12 +136,12 @@ export class Scope {
     if (this.cardT >= 0) {
       this.cardT += dt;
       if (this.cardT > 3.2) { this.cardT = -1; this.want = false; }
-    } else if (!this.want) this.holdT += dt;
+    }
     // the device rides up from below the frame
     const target = this.want ? 1 : 0;
     this.raise += (target - this.raise) * Math.min(1, dt * 9);
     if (this.raise < 0.01 && !this.want) {
-      if (this.owns) { fpRelease('scope'); this.owns = false; }
+      if (this.owns) { fpRelease('scope'); this.owns = false; this.tube.power(false, true); }
       return;
     }
     if (!this.owns) return;
@@ -154,37 +161,42 @@ export class Scope {
       this.cardMesh.rotation.set(0, 0, out * 0.6);
     } else this.cardMesh.visible = false;
     this.drawT -= dt;
-    if (this.drawT <= 0) { this.drawT = 1 / 12; this.drawCrt(); }
+    if (this.drawT <= 0) { this.drawT = 1 / 12; this.drawTube(); }
   }
 
-  private drawCrt() {
-    const p = this.crt, s = p.s;
-    p.crt(0, 0, CRT, CRT, true);
-    const t = this.t, tm = G.time;
-    const c = Screen.c(PAL.phos), dim = Screen.c(0x3a8a30);
-    if (!t) { p.flush(); return; }
-    // a rotating sweep and the target's trace, sharpening as the sample comes in
-    const cx = CRT / 2, cy = 30, r = 15;
-    s.circle(cx, cy, r, dim, 3); s.circle(cx, cy, r * 0.5, dim, 4);
+  /** the tube: a rotating sweep, the target's trace sharpening as the sample comes in */
+  private drawTube() {
+    const { ctx, canvas } = this.tube, W = canvas.width, H = canvas.height, t = this.t, tm = G.time;
+    ctx.fillStyle = '#020803'; ctx.fillRect(0, 0, W, H);
+    if (!t) { this.tube.flush(); return; }
+    const cx = W / 2, cy = H * 0.56, r = H * 0.3, q = Math.min(1, this.prog);
+    ctx.strokeStyle = DIM; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
     const a = tm * 4;
-    s.line(cx, cy, cx + Math.cos(a) * r, cy + Math.sin(a) * r, c);
-    const q = Math.min(1, this.prog);
-    for (let i = 0; i < 40; i++) {
-      const u = i / 40 * Math.PI * 2, n = Math.sin(u * 5 + tm * 2) * (1 - q) * 5 + Math.sin(u * 3) * 3;
-      s.px(cx + Math.cos(u) * (7 + n), cy + Math.sin(u) * (6 + n * 0.6), q > 0.5 || i % 2 ? c : dim);
+    ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5; ctx.shadowColor = GREEN; ctx.shadowBlur = 8;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); ctx.stroke();
+    ctx.beginPath();
+    for (let i = 0; i <= 48; i++) {
+      const u = (i / 48) * Math.PI * 2, n = Math.sin(u * 5 + tm * 2) * (1 - q) * 9 + Math.sin(u * 3) * 4;
+      const x = cx + Math.cos(u) * (r * 0.45 + n), y = cy + Math.sin(u) * (r * 0.36 + n * 0.6);
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
     }
-    const title = this.cardT >= 0 ? 'SAMPLED' : t.known ? t.title : 'UNKNOWN';
-    const w = title.length * 6;
-    p.phos(title.slice(0, 9), Math.max(4, cx - w / 2), 5, PAL.phos, 1, 56);
-    s.bar(14, 50, 36, 5, q, c, Screen.c(PAL.phosBg));
-    p.flush();
+    ctx.stroke(); ctx.shadowBlur = 0;
+    const title = this.cardT >= 0 ? 'SAMPLED' : t.known ? t.title.toUpperCase() : 'UNKNOWN SIGNATURE';
+    phosphorText(ctx, title.length > 18 ? title.slice(0, 17) + '…' : title, cx, 8, { size: 17, align: 'center', font: FONT.crt });
+    // progress along the bottom
+    ctx.strokeStyle = GREEN; ctx.lineWidth = 2; ctx.strokeRect(24, H - 20, W - 48, 10);
+    ctx.fillStyle = GREEN; ctx.fillRect(27, H - 17, (W - 54) * q, 4);
+    this.tube.flush();
   }
 
   private drawMeter() {
     const p = this.meter, s = p.s;
-    s.clear(0xe8dcb8);
-    for (let i = 0; i <= 10; i++) { const a = -0.9 + (i / 10) * 1.8, x = METER_W / 2 + Math.sin(a) * 16, y = METER_H - 2 - Math.cos(a) * 16; s.px(x, y, Screen.c(i > 7 ? PAL.inkRed : PAL.ink)); if (i % 5 === 0) s.px(x, y + 1, Screen.c(PAL.ink)); }
-    p.typed('SIG', 14, 12, PAL.ink, 1, 30, 2);
+    p.reset(0xe8dcb8);
+    for (let i = 0; i <= 10; i++) { const a = -0.9 + (i / 10) * 1.8, x = 20 + Math.sin(a) * 16, y = 20 - Math.cos(a) * 16; s.px(x, y, Screen.c(i > 7 ? PAL.inkRed : PAL.ink)); if (i % 5 === 0) s.px(x, y + 1, Screen.c(PAL.ink)); }
+    p.sign('SIG', 20, 11, PAL.ink, 6, { align: 'center' });
     p.flush();
   }
 }

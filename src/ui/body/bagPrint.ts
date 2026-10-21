@@ -5,7 +5,8 @@
 // creases, shards; tape crosses, stitches, iodine rings, splints, clips.
 import type { Injury } from '../../survival/body';
 import type { BodyPart } from '../../items/item';
-import { Pix, mix, shade, hash, type3 } from './pix';
+import { Pix, mix, shade, hash } from './pix';
+import { inkText, FONT } from './stage';
 import { needsCare } from './treat';
 
 export const PRINT_W = 32, PRINT_H = 56;
@@ -43,8 +44,11 @@ export class BagPrint {
       P.set(x, y, c);
     }
     P.rect(x0 + 3, y0 + 3, 2, 6, 0xb82a22, 0.9); P.rect(x0 + 1, y0 + 5, 6, 2, 0xb82a22, 0.9);
-    type3(P, 'BLOOD', x0 + 9, y0 + 2, 0x2a2018, 0.95, 0.4);
-    type3(P, '500ML', x0 + 9, y0 + 7, 0x2a2018, 0.85, 0.5);
+  }
+  /** the label's typed lines, in real type at the texture's full resolution */
+  type(c: CanvasRenderingContext2D, k: number) {
+    inkText(c, 'WHOLE BLOOD', 11 * k, 6.4 * k, 4.6 * k, FONT.type);
+    inkText(c, '500 ml  ·  O neg', 11 * k, 11.4 * k, 3.6 * k, FONT.typeset);
   }
   private drawFigure(P: Pix, severed: BodyPart[]) {
     const ink = 0x200a0a, a = 0.3;

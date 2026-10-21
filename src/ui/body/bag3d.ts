@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import type { Player } from '../../entities/player';
 import type { Injury } from '../../survival/body';
 import type { BodyStage, Cubes } from './stage';
-import { PixTex } from './stage';
+import { PrintTex } from './stage';
 import { Mold, M, CHROME, STEEL, PLASTIC, R90, cyl, box, ring, pillow, solidMesh } from './models';
 import { BagPrint, holeAt, PRINT_W, PRINT_H } from './bagPrint';
 import { mix } from './pix';
@@ -20,7 +20,7 @@ export class Bag3D {
   readonly root = new THREE.Group();
   readonly swing = new THREE.Group();
   readonly hit: THREE.Mesh;
-  private print = new PixTex(PRINT_W, PRINT_H);
+  private print = new PrintTex(PRINT_W, PRINT_H, 2);
   private painter = new BagPrint();
   private fluid: THREE.Mesh;
   private fluidGeo: THREE.BufferGeometry;
@@ -67,12 +67,12 @@ export class Bag3D {
     s.add(solidMesh(st, seams));
     // blood (dynamic), drawn first, then the clear plastic over it
     this.fluidGeo = this.makeFluidGeo();
-    this.fluidMat = st.clear({ alpha: 0.94, fres: 0.15, spec: 0.6, deep: 0.6, color: 0x8e0f17, depthWrite: true, side: THREE.DoubleSide });
+    this.fluidMat = st.surf('liquid', { alpha: 0.96, color: 0xb0222a, deep: 0x3a0408, depthWrite: true, glint: 0.35, thick: 0.035 });
     this.fluid = new THREE.Mesh(this.fluidGeo, this.fluidMat); this.fluid.frustumCulled = false; this.fluid.renderOrder = 1;
     s.add(this.fluid);
-    const back = new THREE.Mesh(this.panelGeo(-1), st.clear({ alpha: 0.18, fres: 0.5, spec: 0.5, color: 0xe6ecdc }));
+    const back = new THREE.Mesh(this.panelGeo(-1), st.surf('plastic', { alpha: 0.12, color: 0xe4e6d2 }));
     back.renderOrder = 0; s.add(back);
-    const front = new THREE.Mesh(this.panelGeo(1), st.clear({ alpha: 0.16, fres: 0.55, spec: 1, color: 0xeef2e4, map: this.print.tex }));
+    const front = new THREE.Mesh(this.panelGeo(1), st.surf('plastic', { alpha: 0.1, color: 0xeef0de, map: this.print.tex }));
     front.renderOrder = 2; s.add(front);
     // port, roller clamp, drip chamber with steel caps, the line
     const by = TOP - BH;
@@ -83,20 +83,20 @@ export class Bag3D {
       .add(cyl(2.7, 1, 10), M(0, by - 7.2, 0), 0xc8ccd2, CHROME)
       .add(cyl(2.7, 1, 10), M(0, by - 16.4, 0), 0xc8ccd2, CHROME);
     s.add(solidMesh(st, kit));
-    const glass = new THREE.Mesh(new Mold().add(cyl(2.4, 8.4, 10, true), M(0, by - 11.8, 0), 0xe8f4f4, PLASTIC).build(), st.clear({ alpha: 0.12, fres: 0.7, spec: 1 }));
+    const glass = new THREE.Mesh(new Mold().add(cyl(2.4, 8.4, 10, true), M(0, by - 11.8, 0), 0xe8f4f4, PLASTIC).build(), st.surf('glass', { alpha: 0.05, color: 0xd8ece6 }));
     glass.renderOrder = 3; s.add(glass);
-    this.chamberMat = st.clear({ alpha: 0.85, fres: 0.2, spec: 0.8, color: 0x8ac8f0, depthWrite: true });
+    this.chamberMat = st.surf('liquid', { alpha: 0.88, color: 0x9ad4f4, deep: 0x2a6a9a, glint: 0.6, thick: 0.2 });
     this.chamber = new THREE.Mesh(new Mold().add(cyl(2, 1, 10), M(0, 0.5, 0), 0xffffff, PLASTIC).build(), this.chamberMat);
     this.chamber.position.y = by - 16; s.add(this.chamber);
     this.lineTop = by - 17;
-    const line = new THREE.Mesh(new Mold().add(cyl(0.55, 1, 6), M(0, -0.5, 0), 0xd8e4e4, PLASTIC).build(), st.clear({ alpha: 0.55, fres: 0.4, spec: 0.8, color: 0xd8e8e8 }));
+    const line = new THREE.Mesh(new Mold().add(cyl(0.55, 1, 6), M(0, -0.5, 0), 0xd8e4e4, PLASTIC).build(), st.surf('plastic', { alpha: 0.35, color: 0xdce6e0 }));
     line.renderOrder = 3; this.line = line; s.add(line);
     // invisible pick box over the bag
     this.hit = new THREE.Mesh(new THREE.BoxGeometry(BW + 2, BH + 4, 9), new THREE.MeshBasicMaterial());
     this.hit.position.set(0, TOP - BH / 2, 0); this.hit.visible = false;
     s.add(this.hit);
     // the puddle on the shelf
-    this.puddleMat = st.clear({ alpha: 0.95, fres: 0.1, spec: 1, color: 0x6a0a10, depthWrite: true });
+    this.puddleMat = st.surf('liquid', { alpha: 0.96, color: 0x9a1820, deep: 0x3a0408, glint: 0.3, thick: 0.1 });
     this.puddle = new THREE.Mesh(new Mold().add(cyl(1, 0.5, 10), null, 0xffffff, PLASTIC).build(), this.puddleMat);
     this.puddle.scale.set(0.01, 1, 0.01);
     r.add(this.puddle);
@@ -174,7 +174,11 @@ export class Bag3D {
     if (cor > 0.04) { base = mix(base, 0x10141c, Math.min(1, cor * 1.4)); hi = mix(hi, 0x2a3446, Math.min(1, cor * 1.4)); }
     this.col.base = base; this.col.hi = hi;
     const U = this.fluidMat.uniforms;
-    U.uMul.value.set(((base >> 16) & 255) / 255, ((base >> 8) & 255) / 255, (base & 255) / 255);
+    const lite = mix(hi, base, 0.35);
+    U.uMul.value.set(((lite >> 16) & 255) / 255, ((lite >> 8) & 255) / 255, (lite & 255) / 255);
+    const deep = mix(base, 0x000000, 0.62);
+    U.uDeepC.value.set(((deep >> 16) & 255) / 255, ((deep >> 8) & 255) / 255, (deep & 255) / 255);
+    U.uSurf.value = TOP - BH + 1.2 + this.shown * (BH - 3);
     U.uSpark.value = cor > 0.04 ? cor : 0;
     const cc = this.hydr < 0.25 ? 0xd8b060 : 0x8ac8f0;
     this.chamberMat.uniforms.uMul.value.set(((cc >> 16) & 255) / 255, ((cc >> 8) & 255) / 255, (cc & 255) / 255);
@@ -206,7 +210,7 @@ export class Bag3D {
     this.puddleMat.uniforms.uMul.value.set(((base >> 16) & 255) / 255 * 0.8, ((base >> 8) & 255) / 255 * 0.8, (base & 255) / 255 * 0.8);
     // repaint the print a few times a second (holes blink when they want care)
     this.paintT -= dt;
-    if (this.paintT <= 0) { this.paintT = 0.16; this.painter.paint(this.print.pix, this.injuries, b.severed, this.hover, this.t); this.print.commit(); }
+    if (this.paintT <= 0) { this.paintT = 0.16; this.painter.paint(this.print.pix, this.injuries, b.severed, this.hover, this.t); this.print.commit((ctx, k) => this.painter.type(ctx, k)); }
   }
 
   private writeFluid() {

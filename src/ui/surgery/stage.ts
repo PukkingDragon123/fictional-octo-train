@@ -20,6 +20,8 @@ import { CyberSlot, SLOT_KIND, SLOT_COVERS, cyberDef, CYBER_SLOTS } from '../../
 import type { StumpCond } from '../../survival/limbs';
 import { csfx, csfxLoop } from './audio';
 import { Screen } from '../font5x7';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { metalMat, type MetalKind } from '../../craft/metal';
 
 export type Pick = CyberSlot | 'brain';
 export type CyberLoad = Partial<Record<CyberSlot, string>>;
@@ -28,6 +30,9 @@ const TABLE_Y = 0.9;
 const ease = (t: number) => (t < 0 ? 0 : t > 1 ? 1 : t * t * (3 - 2 * t));
 const easeOut = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
+/** a physically based metal from the craft kit, re-lit by this stage's own environment */
+export function pbr(kind: MetalKind): THREE.MeshStandardMaterial { const m = metalMat(kind).clone(); m.envMap = null; return m; }
+const _ndc = new THREE.Vector2();
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _q = new THREE.Quaternion(), _m = new THREE.Matrix4(), _s = new THREE.Vector3();
 
 function gfxQuality(): 'low' | 'high' {
@@ -115,19 +120,25 @@ class RobotArm {
   cur = new THREE.Vector3();
   pitch = -Math.PI / 2;
   spinRate = 0;
-  constructor(mat: THREE.Material, glow: number, kind: 'saw' | 'driver', toolLen: number) {
-    const part = (fn: (mb: ModelBuilder) => void) => { const mb = new ModelBuilder(); fn(mb); const m = new THREE.Mesh(mb.build(), mat); m.castShadow = true; return m; };
+  constructor(mat: THREE.Material, chrome: THREE.Material, glow: number, kind: 'saw' | 'driver', toolLen: number) {
+    const part = (fn: (mb: ModelBuilder, cm: ModelBuilder) => void) => {
+      const mb = new ModelBuilder(), cm = new ModelBuilder();
+      fn(mb, cm);
+      const g = new THREE.Group();
+      for (const [b, m] of [[mb, mat], [cm, chrome]] as const) if (!b.isEmpty) { const me = new THREE.Mesh(b.build(), m); me.castShadow = true; g.add(me); }
+      return g;
+    };
     const paint = { sides: CT.mint, top: CT.mint, bottom: CT.black };
     // base and turret
-    this.root.add(part((mb) => {
+    this.root.add(part((mb, cm) => {
       mb.cylinder(0, 0, 0, 0.32, 0.08, 10, { sides: CT.hazard, top: CT.steel, bottom: CT.steel }, { fit: true });
       mb.cylinder(0, 0.08, 0, 0.2, 0.36, 10, { sides: CT.mint, top: CT.steel, bottom: CT.steel }, { fit: true, rTop: 0.17 });
       mb.box(0, 0.22, 0.19, 0.13, 0.13, 0.01, CT.gauge, { fit: true });
-      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; mb.cylinder(Math.cos(a) * 0.27, 0.08, Math.sin(a) * 0.27, 0.02, 0.025, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true }); }
+      for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; cm.cylinder(Math.cos(a) * 0.27, 0.08, Math.sin(a) * 0.27, 0.02, 0.025, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true }); }
     }));
     this.yaw.position.y = 0.44;
     this.root.add(this.yaw);
-    this.yaw.add(part((mb) => {
+    this.yaw.add(part((mb, cm) => {
       mb.cylinder(0, 0, 0, 0.19, 0.12, 10, paint, { fit: true });
       mb.box(0, 0.1, 0, 0.26, 0.16, 0.3, CT.mint, { fit: true });
       mb.box(0.06, 0.14, 0.152, 0.025, 0.025, 0.006, CT.glow, { fit: true, color: glow, emissive: 1.6 });
@@ -135,57 +146,57 @@ class RobotArm {
     }));
     this.sh.position.y = BASE_H - 0.44;
     this.yaw.add(this.sh);
-    this.sh.add(part((mb) => {
+    this.sh.add(part((mb, cm) => {
       mb.cylinderZ(0, 0, 0, 0.13, 0.34, 10, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
       mb.box(L1 / 2, -0.08, 0, L1, 0.16, 0.2, CT.mint, { fit: true });
       for (let i = 0; i < 6; i++) for (const z of [-0.101, 0.101]) mb.box(0.1 + i * 0.15, -0.075, z, 0.012, 0.012, 0.004, CT.brass, { fit: true });
       mb.cylinderX(L1 * 0.45, 0.07, 0, 0.022, 0.6, 6, { sides: CT.hose, top: CT.brass, bottom: CT.brass }, { fit: true });
-      mb.cylinderX(L1 * 0.5, 0.015, 0.06, 0.028, 0.34, 8, { sides: CT.chrome, top: CT.brass, bottom: CT.brass }, { fit: true });
+      cm.cylinderX(L1 * 0.5, 0.015, 0.06, 0.028, 0.34, 8, { sides: CT.chrome, top: CT.brass, bottom: CT.brass }, { fit: true });
     }));
     this.el.position.x = L1;
     this.sh.add(this.el);
-    this.el.add(part((mb) => {
+    this.el.add(part((mb, cm) => {
       mb.cylinderZ(0, 0, 0, 0.1, 0.26, 10, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
       mb.box(L2 / 2, -0.06, 0, L2, 0.12, 0.14, CT.mint, { fit: true });
       for (let i = 0; i < 5; i++) mb.box(0.1 + i * 0.15, -0.055, 0.071, 0.012, 0.012, 0.004, CT.brass, { fit: true });
-      mb.cylinderX(L2 * 0.5, 0.075, 0, 0.022, L2 * 0.7, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+      cm.cylinderX(L2 * 0.5, 0.075, 0, 0.022, L2 * 0.7, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
     }));
     this.wr.position.x = L2;
     this.el.add(this.wr);
-    this.wr.add(part((mb) => {
+    this.wr.add(part((mb, cm) => {
       mb.cylinderZ(0, 0, 0, 0.07, 0.18, 8, { sides: CT.black, top: CT.steel, bottom: CT.steel }, { fit: true });
       mb.cylinderX(0.08, 0, 0, 0.055, 0.12, 8, { sides: CT.steel, top: CT.steel, bottom: CT.steel }, { fit: true });
     }));
     this.tool.position.x = 0.14;
     this.wr.add(this.tool);
     if (kind === 'saw') {
-      this.tool.add(part((mb) => {
+      this.tool.add(part((mb, cm) => {
         mb.box(toolLen * 0.4, -0.04, 0, toolLen * 0.8, 0.08, 0.08, CT.black, { fit: true });
         mb.box(toolLen * 0.75, 0.03, 0, 0.2, 0.06, 0.1, CT.hazard, { fit: true });
         mb.cylinderX(toolLen * 0.3, 0.06, 0, 0.035, 0.18, 8, { sides: CT.black, top: CT.brass, bottom: CT.brass }, { fit: true });
       }));
       this.spin.position.set(toolLen * 0.85, 0, 0);
-      this.spin.add(part((mb) => {
+      this.spin.add(part((mb, cm) => {
         // the disc turns about the tool's y, so it faces whoever watches the arm come down
-        mb.cylinder(0, -0.004, 0, 0.16, 0.008, 16, { sides: CT.steel, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+        cm.cylinder(0, -0.004, 0, 0.16, 0.008, 16, { sides: CT.steel, top: CT.chrome, bottom: CT.chrome }, { fit: true });
         for (let i = 0; i < 16; i++) { const a = (i / 16) * Math.PI * 2; mb.push().translate(Math.cos(a) * 0.165, 0, Math.sin(a) * 0.165).rotateY(-a); mb.box(0, -0.006, 0, 0.026, 0.012, 0.014, CT.steel, { fit: true }); mb.pop(); }
         mb.cylinder(0, -0.02, 0, 0.035, 0.04, 8, { sides: CT.black, top: CT.hazard, bottom: CT.black }, { fit: true });
       }));
       this.tool.add(this.spin);
       this.tip.position.set(toolLen * 0.85 + 0.16, 0, 0);
     } else {
-      this.tool.add(part((mb) => {
+      this.tool.add(part((mb, cm) => {
         mb.box(toolLen * 0.35, -0.05, 0, toolLen * 0.7, 0.1, 0.12, CT.black, { fit: true });
         mb.box(toolLen * 0.5, 0.05, 0, 0.12, 0.04, 0.1, CT.black, { fit: true });
         mb.box(toolLen * 0.45, 0.09, 0, 0.03, 0.02, 0.03, CT.glow, { fit: true, color: glow, emissive: 1.6 });
       }));
       this.spin.position.set(toolLen * 0.75, 0, 0);
-      this.spin.add(part((mb) => { mb.cylinderX(0.06, 0, 0, 0.012, 0.14, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true }); mb.box(0.13, -0.012, 0, 0.012, 0.024, 0.024, CT.glow, { fit: true, color: 0xffffff, emissive: 2 }); }));
+      this.spin.add(part((mb, cm) => { cm.cylinderX(0.06, 0, 0, 0.012, 0.14, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true }); mb.box(0.13, -0.012, 0, 0.012, 0.024, 0.024, CT.glow, { fit: true, color: 0xffffff, emissive: 2 }); }));
       this.tool.add(this.spin);
       for (const k of [-1, 1]) {
         const f = new THREE.Group();
         f.position.set(toolLen * 0.62, 0, k * 0.07);
-        f.add(part((mb) => { mb.box(0.11, -0.015, 0, 0.22, 0.03, 0.025, CT.steel, { fit: true }); mb.box(0.21, -0.02, -k * 0.02, 0.03, 0.04, 0.04, CT.rust, { fit: true }); }));
+        f.add(part((mb, cm) => { mb.box(0.11, -0.015, 0, 0.22, 0.03, 0.025, CT.steel, { fit: true }); mb.box(0.21, -0.02, -k * 0.02, 0.03, 0.04, 0.04, CT.rust, { fit: true }); }));
         this.tool.add(f);
         this.fingers.push(f);
       }
@@ -232,6 +243,19 @@ export class SurgeryStage {
   private scene = new THREE.Scene();
   private cam = new THREE.PerspectiveCamera(34, 1, 0.05, 40);
   private mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
+  private chromeMat = pbr('chrome');
+  private steelMat = pbr('steel');
+  /** the instruments' layer: rendered at full resolution over the pixel-rendered room */
+  fg = new THREE.Scene();
+  fgCam = new THREE.PerspectiveCamera(30, 1, 0.05, 30);
+  /** per-frame hook for the instruments */
+  onFrame?: (dt: number) => void;
+  /** a click: on an instrument (id + hit), else on the subject (pick) */
+  onClick?: (id: string | null, hit: THREE.Intersection | null, pick: Pick | null) => void;
+  onFgHover?: (id: string | null, hit: THREE.Intersection | null) => void;
+  private fgRay = new THREE.Raycaster();
+  private fgHoverId: string | null = null;
+  private env: THREE.Texture | null = null;
   private glowMat = worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true });
   private rt: THREE.WebGLRenderTarget | null = null;
   private post: { scene: THREE.Scene; cam: THREE.OrthographicCamera; mat: THREE.ShaderMaterial } | null = null;
@@ -277,13 +301,18 @@ export class SurgeryStage {
     try {
       this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, alpha: false, powerPreference: this.quality === 'low' ? 'low-power' : 'default' });
       this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-      this.renderer.setPixelRatio(1);
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, gfxQuality() === 'low' ? 1.25 : 1.75));
       if (this.quality !== 'low') { this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.PCFShadowMap; }
+      // a small prefiltered room for metal and glass reflections (this context's own)
+      const pm = new THREE.PMREMGenerator(this.renderer);
+      this.env = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+      pm.dispose();
+      this.scene.environment = this.env; this.fg.environment = this.env;
     } catch (e) { console.warn('surgery renderer unavailable', e); this.renderer = null; }
     this.scene.background = new THREE.Color(0x0c0a08);
     this.scene.fog = new THREE.Fog(0x0c0a08, 6, 12);
-    this.saw = new RobotArm(this.mat, 0xff3020, 'saw', 0.36);
-    this.driver = new RobotArm(this.mat, 0x60ff60, 'driver', 0.3);
+    this.saw = new RobotArm(this.mat, this.chromeMat, 0xff3020, 'saw', 0.36);
+    this.driver = new RobotArm(this.mat, this.chromeMat, 0x60ff60, 'driver', 0.3);
     this.saw.root.position.set(-0.55, 0, -1.25);
     this.driver.root.position.set(0.75, 0, -1.25);
     this.restArms(true);
@@ -307,7 +336,7 @@ export class SurgeryStage {
   private buildRoom() {
     // a 1950s municipal theatre the Institute never finished paying for: mint tile to shoulder height,
     // cream paint above, a terrazzo floor with a drain, tungsten light, chrome, bakelite and riveted steel
-    const mb = new ModelBuilder();
+    const mb = new ModelBuilder(), cm = new ModelBuilder(), sm = new ModelBuilder();
     const W = 3.4, D0 = -2.0, D1 = 3.6, H = 3.1;
     mb.box(0, -0.05, (D0 + D1) / 2, W * 2, 0.05, D1 - D0, { top: 'terrazzo', sides: 'concrete' }, { color: 0xb8b0a0 });
     mb.box(0.05, 0.0, 0, 0.5, 0.008, 0.5, 'grate', { color: 0x6a6a62 });
@@ -324,27 +353,27 @@ export class SurgeryStage {
     for (const x of [-1.6, 1.9]) { mb.cylinderZ(x, 2.46, D0 + 0.22, 0.09, 0.02, 10, { sides: 'metal_rusty', top: 'metal_rusty', bottom: 'metal_rusty' }, { fit: true, color: 0xb02020 }); }
     // the operating table: mint enamel pedestal, chrome top, a drain lip
     mb.cylinder(0.05, 0, 0, 0.3, 0.08, 12, { sides: CT.mint, top: CT.mint, bottom: CT.steel }, { fit: true });
-    mb.cylinder(0.05, 0.08, 0, 0.16, TABLE_Y - 0.2, 10, { sides: CT.chrome, top: CT.steel, bottom: CT.steel }, { fit: true });
+    cm.cylinder(0.05, 0.08, 0, 0.16, TABLE_Y - 0.2, 10, { sides: CT.chrome, top: CT.steel, bottom: CT.steel }, { fit: true });
     mb.box(0.05, TABLE_Y - 0.26, 0, 0.6, 0.12, 0.4, CT.mint, { fit: true });
-    mb.cylinderZ(0.36, TABLE_Y - 0.2, 0.21, 0.05, 0.02, 10, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
-    mb.box(0, TABLE_Y - 0.12, 0, 2.18, 0.08, 0.72, { top: 'metal_brushed', sides: CT.mint, bottom: CT.steel }, {});
-    mb.box(0, TABLE_Y - 0.04, 0, 2.12, 0.04, 0.68, { top: 'metal_brushed', sides: CT.chrome }, { color: 0xd0d4d8 });
-    for (const z of [-0.37, 0.37]) mb.box(0, TABLE_Y - 0.06, z, 2.14, 0.05, 0.02, CT.chrome, { fit: true });
+    cm.cylinderZ(0.36, TABLE_Y - 0.2, 0.21, 0.05, 0.02, 10, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+    sm.box(0, TABLE_Y - 0.12, 0, 2.18, 0.08, 0.72, { top: 'metal_brushed', sides: CT.mint, bottom: CT.steel }, {});
+    cm.box(0, TABLE_Y - 0.04, 0, 2.12, 0.04, 0.68, { top: 'metal_brushed', sides: CT.chrome }, { color: 0xd0d4d8 });
+    for (const z of [-0.37, 0.37]) cm.box(0, TABLE_Y - 0.06, z, 2.14, 0.05, 0.02, CT.chrome, { fit: true });
     // the kidney tray on a chrome stand
     const T = this.trayPos;
-    mb.cylinder(T.x, 0, T.z, 0.03, T.y - 0.05, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
-    mb.cylinder(T.x, 0, T.z, 0.22, 0.03, 8, { sides: CT.chrome, top: CT.steel, bottom: CT.steel }, { fit: true });
+    cm.cylinder(T.x, 0, T.z, 0.03, T.y - 0.05, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+    cm.cylinder(T.x, 0, T.z, 0.22, 0.03, 8, { sides: CT.chrome, top: CT.steel, bottom: CT.steel }, { fit: true });
     mb.box(T.x, T.y - 0.05, T.z, 0.95, 0.03, 0.42, CT.steel, { fit: true });
-    for (const [x, z, w, d] of [[0, 0.2, 0.95, 0.02], [0, -0.2, 0.95, 0.02], [0.47, 0, 0.02, 0.42], [-0.47, 0, 0.02, 0.42]]) mb.box(T.x + x, T.y - 0.02, T.z + z, w, 0.07, d, CT.chrome, { fit: true });
+    for (const [x, z, w, d] of [[0, 0.2, 0.95, 0.02], [0, -0.2, 0.95, 0.02], [0.47, 0, 0.02, 0.42], [-0.47, 0, 0.02, 0.42]]) cm.box(T.x + x, T.y - 0.02, T.z + z, w, 0.07, d, CT.chrome, { fit: true });
     // the parts rack: a pegboard on the back wall
     mb.box(-2.4, 0.95, D0 + 0.02, 1.5, 1.1, 0.03, 'wood_trim', { color: 0x8a7a5a });
     mb.box(-2.4, 0.85, D0 + 0.18, 1.5, 0.04, 0.3, CT.steel, {});
     // the instrument wall: a riveted panel of gauges and toggles
     mb.box(1.85, 1.05, D0 + 0.02, 1.3, 0.75, 0.06, CT.mint, {});
     for (let i = 0; i < 4; i++) mb.box(1.35 + i * 0.33, 1.42, D0 + 0.055, 0.24, 0.24, 0.01, CT.gauge, { fit: true });
-    for (let i = 0; i < 8; i++) { mb.box(1.32 + i * 0.12, 1.14, D0 + 0.055, 0.05, 0.08, 0.012, 'metal_grey', { fit: true }); mb.box(1.32 + i * 0.12, 1.2, D0 + 0.07, 0.012, 0.035, 0.03, CT.chrome, { fit: true }); }
+    for (let i = 0; i < 8; i++) { mb.box(1.32 + i * 0.12, 1.14, D0 + 0.055, 0.05, 0.08, 0.012, 'metal_grey', { fit: true }); cm.box(1.32 + i * 0.12, 1.2, D0 + 0.07, 0.012, 0.035, 0.03, CT.chrome, { fit: true }); }
     // the vitals CRT on a trolley: bakelite cabinet, cream bezel, two knobs
-    mb.box(-1.65, 0, 0.55, 0.06, 1.25, 0.06, CT.chrome, {});
+    cm.box(-1.65, 0, 0.55, 0.06, 1.25, 0.06, CT.chrome, {});
     mb.box(-1.65, 0.0, 0.55, 0.5, 0.05, 0.4, CT.mint, {});
     mb.box(-1.65, 1.25, 0.55, 0.62, 0.5, 0.44, CT.black, { fit: true });
     mb.push().translate(-1.65, 1.25, 0.55).rotateY(0.35);
@@ -356,13 +385,15 @@ export class SurgeryStage {
     mb.box(-0.6, H - 0.22, 0, 6.0, 0.02, 0.2, CT.steel, { fit: false });
     mb.box(-0.6, H - 0.08, 0, 6.0, 0.02, 0.2, CT.steel, { fit: false });
     // the theatre lamp: a chrome dome on a counterweighted arm
-    mb.cylinder(0.05, 2.28, 0, 0.5, 0.14, 14, { sides: CT.chrome, top: CT.chrome, bottom: CT.steel }, { fit: true, rTop: 0.28 });
-    mb.cylinder(0.05, 2.42, 0, 0.04, H - 2.42, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
-    mb.cylinderX(0.05, 2.5, 0, 0.03, 0.9, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+    cm.cylinder(0.05, 2.28, 0, 0.5, 0.14, 14, { sides: CT.chrome, top: CT.chrome, bottom: CT.steel }, { fit: true, rTop: 0.28 });
+    cm.cylinder(0.05, 2.42, 0, 0.04, H - 2.42, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
+    cm.cylinderX(0.05, 2.5, 0, 0.03, 0.9, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
     mb.cylinder(0.5, 2.38, 0, 0.08, 0.14, 8, { sides: CT.black, top: CT.black, bottom: CT.black }, { fit: true });
     const room = new THREE.Mesh(mb.build(), this.mat);
     room.receiveShadow = true;
     this.scene.add(room);
+    // the chrome and the brushed steel get real metal (lit by a prefiltered room)
+    for (const [b, m] of [[cm, this.chromeMat], [sm, this.steelMat]] as const) { const me = new THREE.Mesh(b.build(), m); me.receiveShadow = true; me.castShadow = true; this.scene.add(me); }
     // tungsten: caged bulbs on the walls, the lamp's bulbs, pilot lamps, the IN USE box (unlit, they glow)
     const nb = new ModelBuilder();
     const bulb = (x: number, y: number, z: number) => {
@@ -600,8 +631,37 @@ export class SurgeryStage {
 
   private bindInput() {
     const local = (e: PointerEvent) => { const r = this.canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-    this.canvas.addEventListener('pointermove', (e) => { if (e.pointerType === 'touch') return; const l = local(e); const p = this.pickAt(l.x, l.y, 46); if (p !== this.hoverP) { this.hoverP = p; this.onHover?.(p); } });
-    this.canvas.addEventListener('pointerleave', () => { this.hoverP = null; this.onHover?.(null); });
+    this.canvas.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') return;
+      const l = local(e);
+      const fh = this.fgHit(l.x, l.y);
+      const id = fh ? fh.id : null;
+      if (id !== this.fgHoverId || id) { this.fgHoverId = id; this.onFgHover?.(id, fh?.hit ?? null); }
+      const p = fh ? null : this.pickAt(l.x, l.y, 46);
+      if (p !== this.hoverP) { this.hoverP = p; this.onHover?.(p); }
+      this.canvas.style.cursor = id || p ? 'pointer' : '';
+    });
+    this.canvas.addEventListener('pointerleave', () => { this.hoverP = null; this.onHover?.(null); this.fgHoverId = null; this.onFgHover?.(null, null); });
+    this.canvas.addEventListener('click', (e) => {
+      const l = local(e);
+      const fh = this.fgHit(l.x, l.y);
+      if (fh) { this.onClick?.(fh.id, fh.hit, null); return; }
+      if (this.busy) { this.hurry = true; return; }
+      this.onClick?.(null, null, this.pickAt(l.x, l.y));
+    });
+  }
+  /** the instrument under a point (CSS px in the canvas): the nearest object carrying userData.pick */
+  private fgHit(x: number, y: number): { id: string; hit: THREE.Intersection } | null {
+    const r = this.canvas.getBoundingClientRect();
+    this.fgRay.setFromCamera(_ndc.set((x / r.width) * 2 - 1, -(y / r.height) * 2 + 1), this.fgCam);
+    const hits = this.fgRay.intersectObjects(this.fg.children, true);
+    for (const h of hits) {
+      let o: THREE.Object3D | null = h.object;
+      while (o && !o.userData.pick) o = o.parent;
+      if (o) return { id: o.userData.pick as string, hit: h };
+      if ((h.object as THREE.Mesh).isMesh && h.object.visible) return null;
+    }
+    return null;
   }
 
   // ---------------------------------------------------------------- camera
@@ -862,8 +922,9 @@ export class SurgeryStage {
     const lw = Math.max(64, Math.round(w / px)), lh = Math.max(64, Math.round(h / px));
     if (lw === this.lowW && lh === this.lowH) return;
     this.lowW = lw; this.lowH = lh;
-    this.renderer.setSize(lw, lh, false);
+    this.renderer.setSize(w, h, false);
     this.cam.aspect = lw / lh;
+    this.fgCam.aspect = w / h; this.fgCam.updateProjectionMatrix();
     this.cam.fov = lw / lh < 0.8 ? 52 : this.mode === 'field' ? 62 : 34;
     this.cam.updateProjectionMatrix();
     this.rt?.dispose();
@@ -949,6 +1010,7 @@ export class SurgeryStage {
     this.lamp.intensity = 11 + Math.sin(this.t * 41) * 0.2 + (Math.random() < 0.003 ? -5 : 0);
     this.stress = Math.max(0.15, this.stress - dt * 0.06);
     this.drawMonitor(dt);
+    this.onFrame?.(dt);
     // the hand lamp swings over the part under the pointer (or the one being worked on)
     const lit = this.busy ? null : this.hoverP ?? this.selected;
     if (lit && this.rig) {
@@ -984,6 +1046,7 @@ export class SurgeryStage {
       r.render(this.scene, this.cam);
       r.setRenderTarget(null);
       r.render(this.post!.scene, this.post!.cam);
+      if (this.fg.children.length) { r.autoClear = false; r.clearDepth(); r.render(this.fg, this.fgCam); r.autoClear = true; }
     } finally {
       U.uCutOn.value = saved.cut; U.uVisOn.value = saved.vis; U.uFogNear.value = saved.fn; U.uFogFar.value = saved.ff; U.uGridScale.value = saved.gs; U.uCollapse.value = saved.col; U.uSnapOn.value = saved.snap;
     }

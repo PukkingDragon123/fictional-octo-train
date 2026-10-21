@@ -112,13 +112,13 @@ export class Bench {
     g.add(this.top);
     // the pegboard behind: blueprints pinned up, two tags on hooks
     const pb = new ModelBuilder();
-    pb.box(0, -0.2, 0, 1.3, 0.4, 0.012, 'cardboard', { color: 0x8a7050 });
-    for (let y = 0; y < 7; y++) for (let x = 0; x < 22; x++) pb.box(-0.62 + x * 0.059, -0.18 + y * 0.055, 0.0065, 0.008, 0.008, 0.001, 'rubber_black', { color: 0x2a2018 });
+    pb.box(0, -0.26, 0, 1.3, 0.5, 0.012, 'cardboard', { color: 0x8a7050 });
+    for (let y = 0; y < 9; y++) for (let x = 0; x < 22; x++) pb.box(-0.62 + x * 0.059, -0.24 + y * 0.055, 0.0065, 0.008, 0.008, 0.001, 'rubber_black', { color: 0x2a2018 });
     this.peg.add(new THREE.Mesh(pb.build(), fpMat()));
     g.add(this.peg);
-    const sweep = clickTag('SWEEP INTO CUBE', 'tag', 96, 0.18), away = clickTag('STEP AWAY', 'tag', 64, 0.13, 'ESC');
-    sweep.mesh.position.set(-0.52, -0.06, 0.01); sweep.mesh.rotation.z = 0.06;
-    away.mesh.position.set(0.55, -0.06, 0.01); away.mesh.rotation.z = -0.05;
+    const sweep = clickTag('Sweep back into the cube', 'tag', 110, 0.22), away = clickTag('Step away', 'tag', 70, 0.17, '(Esc)');
+    sweep.mesh.position.set(-0.5, -0.1, 0.01); sweep.mesh.rotation.z = 0.06;
+    away.mesh.position.set(0.52, -0.1, 0.01); away.mesh.rotation.z = -0.05;
     this.peg.add(sweep.mesh, away.mesh);
     this.fixed = [{ t: sweep, run: () => this.clear() }, { t: away, run: () => this.close() }];
     g.add(this.dust.points, this.sparks.points);
@@ -134,9 +134,9 @@ export class Bench {
     this.top.position.set(asp < 1.2 ? 0 : -0.06, -0.24, -1.55);
     this.top.rotation.set(0.72, 0, 0);
     this.top.scale.setScalar(Math.max(0.55, k));
-    this.peg.position.set(0, 0.34, -1.9);
+    this.peg.position.set(0, 0.25, -1.4);
     this.peg.scale.setScalar(Math.max(0.55, k));
-    this.slate.tag.mesh.position.set(0, 0.06, -1.2);
+    this.slate.tag.mesh.position.set(0, 0.04, -1.1);
     this.dymo.place(0.2, -1.05);
   }
 
@@ -279,14 +279,14 @@ export class Bench {
     this.sheets = [];
     const list = rows.length ? rows.slice(0, 6) : [{ title: 'Empty bench', lines: 'drag things out of the cube onto the boards', mark: '', ok: false, score: 0, run: () => {} }];
     list.forEach((row, i) => {
-      const t = pixTag('blueprint', 84, 56, 0.21);
+      const t = pixTag('blueprint', 84, 56, 0.27);
       t.clear();
-      t.para(row.title, 5, 7, 76, undefined, 8, 2);
-      t.para(row.lines, 5, 25, 76, 0xb8c8e8, 7, 3);
-      if (row.mark) stamp(t, row.mark, 6, 46, row.ok ? 0x8ae88a : row.mark === 'PULL PARTS' || row.mark === 'BY HAND' ? 0xffd860 : 0xff6a5a);
+      t.type(row.title, 5, 7, undefined, 8.5, 'sign');
+      t.para(row.lines, 5, 18, 76, '#c8d8f0', 7.5, 3, 6.5);
+      if (row.mark) stamp(t, row.mark, 7, 45, row.ok ? '#8ae88a' : row.mark === 'PULL PARTS' || row.mark === 'BY HAND' ? '#ffd860' : '#ff7a6a');
       t.flush();
       const col = i % 3, ln = Math.floor(i / 3);
-      t.mesh.position.set(-0.24 + col * 0.24, 0.09 - ln * 0.17, 0.012);
+      t.mesh.position.set(-0.29 + col * 0.29, 0.1 - ln * 0.2, 0.012);
       t.mesh.rotation.z = (i % 2 ? 0.03 : -0.025);
       this.peg.add(t.mesh);
       this.sheets.push({ t, run: row.run });

@@ -114,6 +114,12 @@ export function surface(rig: Rig, solid: Surface | null, filmToo = true) {
   });
 }
 
+/** reshade one part's own mesh (not its child parts) */
+export function surfacePart(rig: Rig, name: string, kind: Surface) {
+  const g = rig.parts[name];
+  if (g) for (const ch of g.children) if ((ch as THREE.Mesh).isMesh) (ch as THREE.Mesh).material = surfaceMat(kind, { alphaTest: 0.5 });
+}
+
 /** a rig part like bpart() with its own material */
 export function tpart(rig: Rig, name: string, parent: THREE.Object3D, at: V3, page: Page, key: string, mat: THREE.Material, fn: (ob: OB) => void): THREE.Group {
   const g = new THREE.Group();

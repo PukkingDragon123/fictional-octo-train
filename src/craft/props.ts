@@ -8,8 +8,8 @@ import { itemDef, itemName, itemWeight } from '../items/item';
 import { size3 } from '../items/grid';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { pixTag, dialFace, tagString, setString, type PixTag } from './tags';
-import { fpMat, damp } from './fpKit';
-import { Screen } from '../ui/font5x7';
+import { damp } from './fpKit';
+import { metalMat, metalEnv } from './metal';
 
 const _v = new THREE.Vector3();
 
@@ -39,9 +39,9 @@ export class Dymo {
   }
 }
 
-/** a manila tag on a string: what the thing you point at is */
+/** a manila tag on a string: what the thing you point at is (hung at arm's length, tied back to it) */
 export class HoverTag {
-  readonly tag = pixTag('tag', 78, 46, 0.17);
+  readonly tag = pixTag('tag', 80, 50, 0.25);
   readonly line = tagString();
   private key = '';
   constructor(parent: THREE.Object3D) { parent.add(this.tag.mesh, this.line); this.hide(); this.tag.mesh.renderOrder = 18; }
@@ -54,11 +54,12 @@ export class HoverTag {
       const d = itemDef(it.key);
       const t = this.tag;
       t.clear();
-      t.para(itemName(it) + (n > 1 ? ' x' + n : ''), 4, 9, 70, undefined, 8, 2);
+      const lines = t.para(itemName(it) + (n > 1 ? ' ×' + n : ''), 6, 10, 70, undefined, 8.5, 2, 8);
       const s = size3(it.key);
-      t.type(itemWeight(it).toFixed(1) + 'KG ' + s[0] + 'x' + s[1] + 'x' + s[2], 4, 27);
-      const extra = d.durability || d.weapon ? 'COND ' + Math.round(it.cond * 100) + '%' : d.value ? d.value + ' SCRIP' : (d.cat || '').toUpperCase();
-      t.type(extra, 4, 36, 0x6a3a1a);
+      const y = 12 + lines * 8.5;
+      t.type(itemWeight(it).toFixed(1) + ' kg · ' + s[0] + '×' + s[1] + '×' + s[2], 6, y, '#5a3418', 6.5);
+      const extra = d.durability || d.weapon ? 'condition ' + Math.round(it.cond * 100) + '%' : d.value ? d.value + ' scrip' : (d.cat || '');
+      t.type(extra, 6, y + 8, '#5a3418', 6.5);
       t.flush();
     }
     this.place(at);
@@ -69,7 +70,7 @@ export class HoverTag {
       this.key = k;
       const t = this.tag;
       t.clear();
-      lines.slice(0, 4).forEach((l, i) => t.type(l.slice(0, 12), 4, 9 + i * 9, i === 0 ? undefined : 0x6a3a1a));
+      lines.slice(0, 4).forEach((l, i) => t.type(l, 6, 10 + i * 9, i === 0 ? undefined : '#5a3418', i === 0 ? 8 : 6.5));
       t.flush();
     }
     this.place(at);
@@ -77,10 +78,13 @@ export class HoverTag {
   private place(at: THREE.Vector3) {
     const m = this.tag.mesh;
     m.visible = true; this.line.visible = true;
-    const tx = at.x + (at.x > 0.25 ? -0.14 : 0.13), ty = at.y + 0.1;
-    m.position.set(tx, ty, at.z + 0.05);
-    m.rotation.z = (at.x > 0.25 ? 0.12 : -0.12);
-    _v.set(tx, ty + 0.06, at.z + 0.05);
+    // same spot on screen as the thing, pulled to arm's length so the type is big enough to read
+    const k = -1.0 / Math.min(-0.2, at.z);
+    _v.copy(at).multiplyScalar(k);
+    const right = _v.x > 0.2;
+    m.position.set(_v.x + (right ? -0.17 : 0.17), _v.y + 0.09, -1.0);
+    m.rotation.z = right ? 0.08 : -0.08;
+    _v.set(m.position.x, m.position.y + 0.1, -1.0);
     setString(this.line, _v, at);
   }
 }
@@ -92,28 +96,27 @@ export class Slate {
   draw(title: string, done: number, need: number, hint: string) {
     const t = this.tag;
     t.clear();
-    t.type(title.slice(0, 15), 6, 5);
+    t.type(title, 6, 4, undefined, 9);
     const n = Math.min(need, Math.floor(done));
     for (let i = 0; i < need; i++) {
       const g = Math.floor(i / 5), k = i % 5;
-      const x = 7 + g * 16 + (k < 4 ? k * 3 : 0), on = i < n;
-      const col = on ? 0xf0ece0 : 0x4a5450;
-      if (k < 4) t.scr.vline(x, 15, 22, Screen32(col)); else t.scr.line(x - 1, 21, x + 11, 15, Screen32(col));
+      const x = 7 + g * 15 + (k < 4 ? k * 2.6 : 0), on = i < n;
+      const col = on ? '#f2f0e6' : 'rgba(200,210,200,0.22)';
+      if (k < 4) t.line(x, 16, x + 0.4, 24, col, 0.9); else t.line(x - 1.2, 23, x + 9.5, 16.5, col, 0.9);
     }
-    t.para(hint, 6, 26, 90, 0xc8d0c8, 7, 2);
+    t.para(hint, 6, 27, 90, '#c8d0c8', 6.5, 2, 6.5);
     t.flush();
     t.mesh.visible = true;
   }
   hide() { this.tag.mesh.visible = false; }
 }
-const Screen32 = (rgb: number) => Screen.c(rgb);
 
 /** a typed tag you can click: its mesh carries userData.click */
 export function clickTag(text: string, kind: 'tag' | 'card' = 'tag', w = 54, size = 0.12, sub = ''): PixTag {
-  const t = pixTag(kind, w, sub ? 28 : 20, size);
+  const t = pixTag(kind, w, sub ? 28 : 21, size);
   t.clear();
-  t.type(text.slice(0, Math.floor((w - 6) / 6)), 4, kind === 'tag' ? 9 : 6);
-  if (sub) t.type(sub.slice(0, Math.floor((w - 6) / 6)), 4, 18, 0x8a3a1a);
+  t.type(text, 6, kind === 'tag' ? 9.5 : 6, undefined, 7.5);
+  if (sub) t.type(sub, 6, 18.5, '#7a3a1a', 6);
   t.flush();
   return t;
 }
@@ -129,9 +132,15 @@ export class Gauge {
   constructor() {
     this.face = dialFace(20);
     const mb = new ModelBuilder();
-    mb.push().rotateX(Math.PI / 2); mb.cylinder(0, -0.012, 0, 0.088, 0.012, 16, 'metal_brass', { color: 0xc8a050 }); mb.pop();
-    mb.box(0, 0.085, -0.006, 0.02, 0.03, 0.012, 'metal_brass', { color: 0xa88030 });
-    this.g.add(new THREE.Mesh(mb.build(), fpMat()));
+    mb.setFaceShading(false);
+    mb.push().rotateX(Math.PI / 2); mb.cylinder(0, -0.012, 0, 0.088, 0.012, 20, 'metal_brass'); mb.pop();
+    mb.push().rotateX(Math.PI / 2); mb.cylinder(0, 0.0, 0, 0.084, 0.004, 20, 'metal_brass', { color: 0xe8d8b0 }); mb.pop();
+    mb.box(0, 0.085, -0.006, 0.02, 0.03, 0.012, 'metal_brass', { color: 0xc8b090 });
+    this.g.add(new THREE.Mesh(mb.build(), metalMat('brass', 3)));
+    // the glass over the face: a faint specular sheen
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.08, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, roughness: 0.05, metalness: 0, envMap: metalEnv(), envMapIntensity: 1.5 }));
+    glass.position.z = 0.008;
+    this.g.add(glass);
     this.face.mesh.position.z = 0.001;
     this.g.add(this.face.mesh);
     const nm = new THREE.MeshBasicMaterial({ color: 0x1a1a1a });
@@ -174,43 +183,51 @@ export class ControlBox {
   private face: PixTag;
   constructor() {
     const mb = new ModelBuilder();
-    mb.box(0, -0.028, 0, 0.26, 0.028, 0.1, 'rubber_black', { color: 0x5a3a24 });
-    mb.box(0, -0.004, 0, 0.27, 0.006, 0.11, 'metal_grey', { color: 0x8a8070 });
-    this.g.add(new THREE.Mesh(mb.build(), fpMat()));
+    mb.setFaceShading(false);
+    mb.box(0, -0.028, 0, 0.26, 0.028, 0.1, 'rubber_black');
+    this.g.add(new THREE.Mesh(mb.build(), metalMat('bakelite', 3)));
+    const rim = new ModelBuilder();
+    rim.setFaceShading(false);
+    rim.box(0, -0.004, 0, 0.27, 0.006, 0.11, 'metal_grey');
+    for (const [x, z] of [[-0.125, -0.045], [0.125, -0.045], [-0.125, 0.045], [0.125, 0.045]]) rim.cylinder(x, 0.002, z, 0.004, 0.002, 6, 'metal_grey', { color: 0xd0d0c8 });
+    this.g.add(new THREE.Mesh(rim.build(), metalMat('steel', 3)));
     this.face = pixTag('bakelite', 104, 40, 0.26);
     this.face.mesh.rotation.x = -Math.PI / 2;
     this.face.mesh.position.y = 0.0025;
     this.g.add(this.face.mesh);
     const t = this.face;
     t.clear();
-    t.type('TURN', 4, 30); t.type('TIP', 30, 30); t.type('ROLL', 50, 30);
-    t.type('LAYER', 74, 2); t.type('SHAKE', 74, 33);
-    for (let i = 1; i <= 5; i++) { const a = -Math.PI * 0.9 + (i - 1) * 0.45; t.type(String(i), Math.round(84 + Math.cos(a) * 10), Math.round(16 + Math.sin(a) * 9)); }
+    t.type('TURN', 6, 29, undefined, 7.5); t.type('TIP', 30, 29, undefined, 7.5); t.type('ROLL', 50, 29, undefined, 7.5);
+    t.type('LAYER', 72, 1.5, undefined, 6.5); t.type('SHAKE', 76, 31, undefined, 6.5);
+    for (let i = 1; i <= 5; i++) { const a = -Math.PI * 0.9 + (i - 1) * 0.45; t.type(String(i), 82 + Math.cos(a) * 11, 13 + Math.sin(a) * 9.5, undefined, 5.5); }
     t.flush();
     const lever = new ModelBuilder();
+    lever.setFaceShading(false);
     lever.cylinder(0, 0, 0, 0.009, 0.006, 8, 'metal_brushed', { color: 0xc8c8c0 });
     lever.cylinder(0, 0.004, 0, 0.003, 0.034, 6, 'metal_brushed', { color: 0xe0e0d8, rTop: 0.0025 });
     lever.sphere(0, 0.04, 0, 0.0055, 6, 4, 'metal_brushed', { color: 0xe8e8e0 });
     const lg = lever.build();
     const tx = [-0.09, -0.032, 0.025];
     ['turn', 'tip', 'roll'].forEach((k, i) => {
-      const m = new THREE.Mesh(lg, fpMat());
+      const m = new THREE.Mesh(lg, metalMat('chrome', 2));
       m.position.set(tx[i], 0.003, -0.005);
       m.rotation.x = -0.45;
       m.userData.ctl = k;
       this.g.add(m); this.ctl.push(m); this.toggles[k] = m;
     });
     const kb = new ModelBuilder();
+    kb.setFaceShading(false);
     kb.cylinder(0, 0, 0, 0.02, 0.016, 12, 'rubber_black', { color: 0x2a1a10 });
     kb.box(0, 0.016, -0.01, 0.004, 0.003, 0.02, 'plastic_white', { color: 0xf0e8d0 });
-    this.knob = new THREE.Mesh(kb.build(), fpMat());
+    this.knob = new THREE.Mesh(kb.build(), metalMat('bakelite', 2));
     this.knob.position.set(0.075, 0.003, -0.012);
     this.knob.userData.ctl = 'layer';
     this.g.add(this.knob); this.ctl.push(this.knob);
     const bb = new ModelBuilder();
+    bb.setFaceShading(false);
     bb.cylinder(0, 0, 0, 0.012, 0.012, 8, 'metal_grey', { color: 0x6a6a6a });
-    bb.cylinder(0, 0.012, 0, 0.017, 0.012, 10, 'plastic_white', { color: 0xc8281c, rTop: 0.014 });
-    this.button = new THREE.Mesh(bb.build(), fpMat());
+    bb.cylinder(0, 0.012, 0, 0.017, 0.012, 12, 'plastic_white', { color: 0xc8281c, rTop: 0.014 });
+    this.button = new THREE.Mesh(bb.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0, envMap: metalEnv(), envMapIntensity: 0.7 }));
     this.button.position.set(0.093, 0.003, 0.006);
     this.button.userData.ctl = 'shake';
     this.g.add(this.button); this.ctl.push(this.button);

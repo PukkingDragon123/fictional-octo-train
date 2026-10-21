@@ -8,7 +8,7 @@ import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import type { Creature } from '../creature';
 import { Page, V3, bpart, registerPage, applyLook, galleryDriver, lerp, damp, ramp } from '../kit/beasts';
-import { rot, skin, buildHumanoid, humWalk } from '../kit/oddkit';
+import { rot, skin, buildHumanoid, humWalk, surfacePart } from '../kit/oddkit';
 import { net, netOf, snd, playersIn, dist, hold, face, hashId, rng, fx, fxPoll, playAt } from '../behaviors_b';
 import { pulse, attack } from '../behaviors_a';
 import { ruleShown } from '../rules';
@@ -55,6 +55,8 @@ function buildHush(): Rig {
       ob.blob([0, 0.285, 0.38], [0.27, 0.27, 0.05], 14, 6, PG.reg('EAR'), { rot: [Math.PI / 2 - 0.12, 0, 0], emis: 0.08 });
     },
   });
+  // brass and wet folds: the horn shines
+  surfacePart(rig, 'head', 'lacquer');
   return rig;
 }
 function animateHush(rig: Rig, c: Creature, t: number, dt: number) {
