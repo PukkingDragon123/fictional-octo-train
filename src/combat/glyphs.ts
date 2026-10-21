@@ -187,7 +187,7 @@ export function glyph(name: string): Tex {
   if (t) return t;
   let P: Pix;
   const [kind, arg, arg2] = name.split(':');
-  if (kind === 'badge') { const b = BADGES[arg] ?? BADGES.crit; P = badge(b[0], b[1], b[2], b[3]); }
+  if (kind === 'badge') { const b = BADGES[arg] ?? BADGES.skull; P = badge(b[0], b[1], b[2], b[3]); }
   else if (kind === 'gauge') P = gauge(Number(arg) / 24, arg2 === 'hot');
   else if (name === 'warn') P = warnSign();
   else if (name === 'star') P = star();

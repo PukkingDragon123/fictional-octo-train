@@ -51,7 +51,7 @@ export function setVisor(on: number, wx = 0, wy = 0, wz = 0) {
   _v.set(wx, wy, wz).project(G.pr.camera as THREE.Camera);
   const sx = (_v.x * 0.5 + 0.5) * window.innerWidth, sy = (-_v.y * 0.5 + 0.5) * window.innerHeight;
   const r = 40 + Math.random() * 30;
-  el.style.background = `radial-gradient(circle at ${sx | 0}px ${sy | 0}px, rgba(235,245,255,.75) 0, rgba(150,200,255,.35) ${r | 0}px, rgba(20,40,60,.25) ${(r * 3) | 0}px, rgba(4,10,16,.62) ${(r * 7) | 0}px)`;
+  el.style.background = `radial-gradient(circle at ${sx | 0}px ${sy | 0}px, rgba(235,245,255,.75) 0, rgba(150,200,255,.35) ${r | 0}px, rgba(20,40,60,.25) ${(r * 3) | 0}px, rgba(4,10,16,.5) ${(r * 7) | 0}px)`;
   el.style.opacity = String(Math.min(1, on));
 }
 export function visorActive() { return visorOn > 0; }

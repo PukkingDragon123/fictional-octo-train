@@ -1,100 +1,121 @@
-// The body HUD (G.hudBody): three physical objects in the corner instead of
-// bars. The IV blood bag is health and blood (wounds are holes you click to
-// treat), the lungs are stamina (H pumps them on the beat), the acid jar is the
-// stomach. Drawn pixel by pixel into one small canvas, scaled up crisp.
+// The body HUD (G.hudBody): three real little objects on a shelf in the corner
+// instead of bars, drawn in 3D through the game's own renderer (stage.ts).
+// The IV blood bag is health and blood: every wound is a hole in it, dripping
+// or pouring; click / tap a hole to treat it (a first-aid pegboard swings in
+// with what you could use). The lungs are stamina: rubber balloons on a brass
+// valve; H (or a thumb on them) pumps them on the beat of the air gauge. The
+// acid jar is the stomach. Hover anything for a line of free-floating type.
 //
-// API: pumpPress(), pumping, canEat(), jar/bag/lungs, eatStart(action) /
-// drinkStart(action) (first-person close-ups, eatFp.ts), setHidden(key, on),
-// warm(secs) for tests and screenshots.
+// API: pumpPress(), pumping, canEat(), lungs / jar (sims), eatStart(action) /
+// drinkStart(action) (first-person close-ups, eatFp.ts), vomit(p),
+// setHidden(key, on), warm(secs), holeScreen(inj), why.
 import './body.css';
 import './sounds';
+import * as THREE from 'three';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import type { Player } from '../../entities/player';
 import type { Injury } from '../../survival/body';
-import { Pix } from './pix';
-import { IvBag, BAG_W } from './ivBag';
-import { Lungs, LUNG_W, type PumpResult } from './lung';
-import { Jar, JAR_W, JAR_H } from './jar';
+import { Lungs, type PumpResult } from './lung';
+import { Jar } from './jar';
+import { BodyStage, Cubes } from './stage';
+import { Bag3D } from './bag3d';
+import { Lung3D } from './lung3d';
+import { Jar3D } from './jar3d';
+import { Board3D } from './board3d';
+import { Mold, M, CHROME, PAINT, STEEL, box, solidMesh } from './models';
 import { treatOptions, bestTreatment, woundTitle, type TreatOpt } from './treat';
 import { breathHit, breathDone } from '../../survival/mindSystem';
 import { ensureMind } from '../../survival/mind';
-import { shake, pop } from '../../gfx/juice';
-import { calm } from '../menus/settings';
+import { shake } from '../../gfx/juice';
+import { fontsReady } from '../../gfx/crt';
+import { itemDef } from '../../items/item';
 import { EatFp } from './eatFp';
 
-const GAP = 3;
-const XB = 0, XL = BAG_W + GAP, XJ = BAG_W + GAP + LUNG_W + GAP;
-const W = XJ + JAR_W, H = JAR_H;
-type Cell = 'bag' | 'lung' | 'jar' | null;
+/** the stage, in units (k = 1); the shelf top is FLOOR */
+const SW = 140, SH = 90, FLOOR = -84;
+const BAG_AT: [number, number] = [44, -10], LUNG_AT: [number, number] = [82, -10], JAR_AT: [number, number] = [121, FLOOR], BOARD_AT: [number, number] = [15, -14];
+
+type Kind = 'bag' | 'lung' | 'gauge' | 'jar' | 'tool';
+interface Hover { kind: Kind | null; inj: Injury | null; slot: number }
 
 export class BodyHud {
   name = 'hudBody';
-  readonly bag = new IvBag();
   readonly lungs = new Lungs();
   readonly jar = new Jar();
   readonly eat: EatFp;
-  private el: HTMLDivElement;
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private pix = new Pix(W, H);
-  private tip: HTMLDivElement;
-  private card: HTMLDivElement;
-  private pops: HTMLDivElement;
-  private k = 2;
+  readonly st = new BodyStage();
+  private world = new THREE.Group();
+  private bagV: Bag3D; private lungV: Lung3D; private jarV: Jar3D; private board: Board3D;
+  private cubes: Cubes;
+  private say: HTMLDivElement;
+  private sayKey = '';
   private shown = false;
   private hidden = new Set<string>();
-  private drawT = 0;
   private beatT = 0;
-  private hover: { cell: Cell; inj: Injury | null; x: number; y: number } = { cell: null, inj: null, x: 0, y: 0 };
-  private cardInj: Injury | null = null;
-  private cardT = 0;
+  private hover: Hover = { kind: null, inj: null, slot: -1 };
+  private boardInj: Injury | null = null;
+  private boardT = 0;
   private sig = new Map<number, string>();
-  private sparks: { x: number; y: number; t: number; c: number }[] = [];
   private coughCd = 0;
   private pumpAttack = false;
   private lastV = { x: 0, z: 0 };
   private deadT = 0;
   private bodyOf: Player | null = null;
-  private touchT = 0;
+  private k = 1; private touch = false;
+  private layoutT = 0;
+  private down: { kind: Kind; x: number; y: number; moved: number; id: number; inj: Injury | null } | null = null;
+  private overUI = false;
+  private zoomT = 0;
+  private flick = 0;
+  private recent: string[] = [];
+  private sparks: { x: number; y: number; t: number; c: number }[] = [];
+  private v = new THREE.Vector3();
   /** why the HUD is hidden right now ('' when shown; for tests) */
   why = '';
 
   constructor() {
-    const el = this.el = document.createElement('div');
-    el.className = 'bh bh-hidden';
-    el.setAttribute('role', 'group');
-    el.setAttribute('aria-label', 'Body: blood bag, lungs, stomach');
-    el.innerHTML = '<canvas></canvas><div class="bh-pops"></div><div class="bh-tip" role="status"></div><div class="bh-card" role="menu"></div>';
-    document.body.appendChild(el);
-    this.canvas = el.querySelector('canvas') as HTMLCanvasElement;
-    this.canvas.width = W; this.canvas.height = H;
-    this.ctx = this.canvas.getContext('2d')!;
-    this.tip = el.querySelector('.bh-tip') as HTMLDivElement;
-    this.card = el.querySelector('.bh-card') as HTMLDivElement;
-    this.pops = el.querySelector('.bh-pops') as HTMLDivElement;
-    this.eat = new EatFp(this);
-    this.resize();
-    window.addEventListener('resize', () => this.resize());
-    bus.on('uiScale', () => this.resize());
-    bus.on('uiSettings', () => this.resize());
+    const st = this.st;
+    st.scene.add(this.world);
+    this.bagV = new Bag3D(st); this.lungV = new Lung3D(st); this.jarV = new Jar3D(st); this.board = new Board3D(st);
+    this.world.add(this.bagV.root, this.lungV.root, this.jarV.root, this.board.root);
+    this.bagV.root.position.set(BAG_AT[0], BAG_AT[1], 0);
+    this.lungV.root.position.set(LUNG_AT[0], LUNG_AT[1], 0);
+    this.jarV.root.position.set(JAR_AT[0], JAR_AT[1], 0);
+    this.board.root.position.set(BOARD_AT[0], BOARD_AT[1], -2);
+    this.bagV.floorY = FLOOR;
+    // a yellowed laminate shelf with a chrome nosing, on two steel brackets
+    const shelf = new Mold()
+      .add(box(SW - 30, 2.6, 13), M(SW / 2 + 12, FLOOR - 1.3, -2), (_x, _y, z) => (z > 4.4 ? 0xd2c496 : 0xc4b484), PAINT)
+      .add(box(SW - 30, 0.9, 0.7), M(SW / 2 + 12, FLOOR - 1.6, 4.6), 0xd8dee4, CHROME)
+      .add(box(1.6, 5, 9), M(40, FLOOR - 5, -3, 0.5, 0, 0), 0x6a6e72, STEEL)
+      .add(box(1.6, 5, 9), M(SW - 10, FLOOR - 5, -3, 0.5, 0, 0), 0x6a6e72, STEEL);
+    this.world.add(solidMesh(st, shelf, { wear: 0.8 }));
+    this.cubes = new Cubes(260, st.cubeMat);
+    this.world.add(this.cubes.mesh);
 
-    // ---- pointer: hover reads out, click treats / pumps
-    const c = this.canvas;
-    c.addEventListener('pointerenter', () => { if (G.input) G.input.pointerOverUI = true; });
-    c.addEventListener('pointerleave', () => { if (G.input && !this.card.matches(':hover')) G.input.pointerOverUI = false; this.setHover(null, null, 0, 0); });
-    c.addEventListener('pointermove', (e) => this.onMove(e));
-    c.addEventListener('pointerdown', (e) => this.onDown(e));
-    c.addEventListener('contextmenu', (e) => e.preventDefault());
-    this.card.addEventListener('pointerenter', () => { if (G.input) G.input.pointerOverUI = true; });
-    this.card.addEventListener('pointerleave', () => { if (G.input) G.input.pointerOverUI = false; });
-    window.addEventListener('pointerdown', (e) => { if (this.cardInj && !this.el.contains(e.target as Node)) this.closeCard(); }, true);
+    const say = this.say = document.createElement('div');
+    say.className = 'bh-say nc-free-text';
+    say.setAttribute('role', 'status');
+    document.body.appendChild(say);
+    this.eat = new EatFp(this);
+    this.relayout();
+    window.addEventListener('resize', () => this.relayout());
+    bus.on('uiScale', () => this.relayout());
+    fontsReady().then(() => { this.lungV.repaintType(); this.jarV.repaintType(); });
+
+    // ---- pointer: the world never sees a press that lands on a prop
+    window.addEventListener('pointerdown', (e) => this.onDown(e), true);
+    window.addEventListener('pointermove', (e) => this.onMove(e), true);
+    window.addEventListener('pointerup', (e) => this.onUp(e), true);
+    window.addEventListener('pointercancel', (e) => this.onUp(e), true);
+    window.addEventListener('contextmenu', (e) => { if (this.pickAt(e.clientX, e.clientY).kind) e.preventDefault(); }, true);
 
     // ---- the world reaches the body
     bus.on('playerHit', (p: Player, _part: string, _kind: string, h: any) => {
       if (!p?.isLocal) return;
       const k = Math.min(1, (Number(h?.dmg) || 8) / 22);
-      this.bag.slosh(0.4 + k); this.bag.swing((Math.random() - 0.5) * 2 * (0.5 + k));
+      this.bagV.kick((Math.random() - 0.5) * 3 * (0.5 + k), 0.4 + k);
     });
     bus.on('bloodied', (p: Player, _part: string, amt: number) => { if (p?.isLocal) this.lungs.splash(Math.min(0.2, (Number(amt) || 0.5) * 0.09)); });
     bus.on('creatureKilled', (c: any) => {
@@ -103,7 +124,7 @@ export class BodyHud {
       if (d < 2.6 && (G.sandbox?.gore ?? 1) > 0) this.lungs.splash(0.14 * (1 - d / 2.6) + 0.04);
     });
     bus.on('consumed', (p: Player, key: string) => { if (p?.isLocal && !this.eat.active && key) this.jar.pill(0xe8e0d0); });
-    bus.on('death', (p: Player) => { if (p?.isLocal) this.bag.slosh(1); });
+    bus.on('death', (p: Player) => { if (p?.isLocal) this.bagV.kick(1.5, 1); });
 
     G.addSystem({ name: 'hudBody', update: (dt) => this.update(dt) });
     (G as any).hudBody = this;
@@ -113,20 +134,36 @@ export class BodyHud {
   get pumping(): boolean { return this.lungs.pumping; }
   canEat(): boolean { return this.jar.canEat(); }
   setHidden(key: string, on: boolean) { if (on) this.hidden.add(key); else this.hidden.delete(key); }
-  /** H, the scanner's breathe button, a tap on the lungs */
+  /** H, the scanner's breathe button, a thumb on the lungs */
   pumpPress() {
     const p = G.local; if (!p || p.body.dead) return;
     const wasOn = this.lungs.pumping;
-    const r = this.lungs.press();
-    this.onPump(p, r, wasOn);
+    this.onPump(p, this.lungs.press(), wasOn);
   }
-  eatStart(a: any): boolean { return this.eat.startEat(a); }
+  eatStart(a: any): boolean { const ok = this.eat.startEat(a); if (ok && a?.it) this.noteFood(a.it.key); return ok; }
   drinkStart(a: any): boolean { return this.eat.startDrink(a); }
   /** tests / screenshots: run the objects forward */
-  warm(secs = 2) {
-    const p = G.local; if (!p) return;
-    for (let t = 0; t < secs; t += 1 / 30) this.step(1 / 30, p);
-    this.drawT = 0;
+  warm(secs = 2) { const p = G.local; if (!p) return; for (let t = 0; t < secs; t += 1 / 30) this.step(1 / 30, p); }
+  /** where a wound's hole is on screen (CSS px) */
+  holeScreen(inj: Injury): { x: number; y: number } {
+    this.world.updateMatrixWorld(true);
+    const w = this.bagV.holeWorld(inj, this.v);
+    return this.st.toScreen(w.x, w.y);
+  }
+  /** a prop's centre on screen (CSS px), for tests and pointers */
+  propScreen(kind: 'bag' | 'lung' | 'jar'): { x: number; y: number } {
+    const a = kind === 'bag' ? [BAG_AT[0], BAG_AT[1] - 30] : kind === 'lung' ? [LUNG_AT[0], LUNG_AT[1] - 26] : [JAR_AT[0], JAR_AT[1] + 16];
+    return this.st.toScreen(a[0] * this.k, a[1] * this.k);
+  }
+  /** the jar's mouth on screen (eating aims the bites there) */
+  jarScreen(): { x: number; y: number } {
+    this.world.updateMatrixWorld(true);
+    const w = this.jarV.topWorld(this.v);
+    return this.st.toScreen(w.x, w.y);
+  }
+  private noteFood(key: string) {
+    try { this.recent.unshift(itemDef(key).name.toLowerCase()); } catch { this.recent.unshift(key.replace(/_/g, ' ')); }
+    this.recent = [...new Set(this.recent)].slice(0, 3);
   }
 
   // =================================================================== per frame
@@ -138,46 +175,60 @@ export class BodyHud {
     this.why = !p ? 'nobody' : G.attract ? 'attract' : introOn ? 'intro' : this.hidden.size ? [...this.hidden].join(',') : this.deadT >= 6 ? 'dead' : show ? '' : 'photo';
     if (show !== this.shown) {
       this.shown = show;
-      this.el.classList.toggle('bh-hidden', !show);
-      if (!show) { this.closeCard(); this.setHover(null, null, 0, 0); if (G.input && this.el.matches(':hover')) G.input.pointerOverUI = false; }
+      if (!show) { this.closeBoard(); this.setSay(''); this.setOver(false); }
     }
+    this.st.fade += ((show ? 1 : 0) - this.st.fade) * Math.min(1, dt * 6);
     if (!p) return;
-    // touch mode can switch on after we were built (first touch): re-place
-    this.touchT -= dt;
-    if (this.touchT <= 0) { this.touchT = 1; if (document.documentElement.classList.contains('nc-touch') !== this.el.classList.contains('bh-touch')) this.resize(); }
+    this.layoutT -= dt;
+    if (this.layoutT <= 0) { this.layoutT = 1; this.relayout(); }
     if (p !== this.bodyOf) { this.bodyOf = p; this.deadT = 0; this.sig.clear(); }
     if (p.body.dead) this.deadT += dt; else this.deadT = 0;
     this.step(dt, p);
     this.eat.update(dt);
-    if (!show) return;
-    if (this.cardInj) { this.cardT -= dt; if (this.cardT <= 0 && !this.card.matches(':hover')) this.closeCard(); else if (!p.body.allInjuries().includes(this.cardInj)) this.closeCard(); }
-    this.drawT -= dt;
-    if (this.drawT > 0) return;
-    this.drawT = calm() ? 1 / 15 : 1 / 30;
-    this.draw(p);
+    if (this.boardInj) { this.boardT -= dt; if ((this.boardT <= 0 && this.hover.kind !== 'tool') || !p.body.allInjuries().includes(this.boardInj)) this.closeBoard(); }
+    if (show && this.hover.kind) this.updateSay(p);
   }
 
   private step(dt: number, p: Player) {
     const b = p.body;
-    // heartbeat drives the drip chamber and a pulse in the bag
+    // the fluorescent tube over the shelf hums and now and then dips (more when you are scared)
+    const fear = Math.max(0, (b.panic - 40) / 60);
+    this.st.uLight.value = Math.random() < dt * (0.15 + fear * 2) ? 0.72 : Math.min(1, this.st.uLight.value + dt * 6);
+    // heartbeat: the drip chamber and a pulse in the bag
     const bpm = b.dead ? 0 : (G.survival?.mind?.bpm ?? 70);
-    if (bpm > 0) { this.beatT += dt * bpm / 60; if (this.beatT >= 1) { this.beatT -= 1; this.bag.beat(bpm > 110 ? 1.5 : 1); } }
-    // the bag swings as you start and stop
+    if (bpm > 0) { this.beatT += dt * bpm / 60; if (this.beatT >= 1) { this.beatT -= 1; this.bagV.beat(bpm > 110 ? 1.5 : 1); } }
+    // the bag swings as you start, stop and turn
     const ax = (p.vx ?? 0) - this.lastV.x, az = (p.vz ?? 0) - this.lastV.z;
     this.lastV.x = p.vx ?? 0; this.lastV.z = p.vz ?? 0;
     const yaw = G.pr?.yaw ?? 0;
     const sx = ax * Math.cos(yaw) - az * Math.sin(yaw);
-    if (Math.abs(sx) > 0.05) { this.bag.swing(-sx * 0.25); if (Math.abs(sx) > 1.5) this.bag.slosh(0.15); }
-    this.bag.update(dt, p);
+    if (Math.abs(sx) > 0.05) this.bagV.kick(-sx * 0.35, Math.abs(sx) > 1.5 ? 0.15 : 0);
+    if (p.running && Math.random() < dt * 3) this.bagV.kick((Math.random() - 0.5) * 0.4, 0.05);
+    this.bagV.hover = this.hover.kind === 'bag' ? this.hover.inj : this.boardInj;
+    this.bagV.update(dt, p);
     const exertion = p.running ? 1 : (p.speed ?? 0) > 0.5 ? 0.3 : 0;
+    if (p.running && Math.random() < dt * 4) this.lungs.sv += (Math.random() - 0.5) * 0.6;
+    const want = this.down && (this.down.kind === 'lung' || this.down.kind === 'gauge') ? 1 : 0;
+    this.lungs.squeeze += (want - this.lungs.squeeze) * Math.min(1, dt * 18);
     const ev = this.lungs.update(dt, p, exertion);
     if (ev === 'miss') G.audio?.ui?.('band_tick', 0.25);
     if (ev === 'end') this.pumpEnded(p);
+    this.lungV.update(dt, this.lungs, p, this.lungs.panic);
     if (this.jar.update(dt, p) === 'gurgle') G.audio?.ui?.('bh_gurgle', 0.5);
+    this.zoomT = Math.max(0, this.zoomT - dt);
+    this.jarV.zoom += ((this.zoomT > 0 ? 1 : 0) - this.jarV.zoom) * Math.min(1, dt * 8);
+    this.jarV.update(dt, this.jar);
+    this.board.update(dt);
     this.applyBody(dt, p);
     this.watchWounds(p);
-    for (const s of this.sparks) s.t -= dt;
+    // one batch of little cubes: drops, puffs, chunks, bubbles, sparks
+    this.world.updateMatrixWorld(true);
+    const C = this.cubes;
+    C.begin();
+    this.bagV.cubes(C); this.lungV.cubes(C, this.lungs); this.jarV.cubes(C, this.jar);
+    for (const s of this.sparks) if (s.t > 0) { s.t -= dt; s.y += dt * 8; C.put(s.x, s.y, 6, 0.8, 0.8, 0.8, s.t * 9, s.c, Math.min(1, s.t * 4)); }
     if (this.sparks.length && this.sparks[0].t <= 0) this.sparks = this.sparks.filter((s) => s.t > 0);
+    C.end();
   }
 
   /** what the objects do back to the body */
@@ -185,10 +236,9 @@ export class BodyHud {
     const b = p.body;
     if (b.dead) return;
     const L = this.lungs;
-    // blood in the lungs leaves less room for air
+    // blood in the lungs leaves less room for air; over-full lungs burn stamina; at the limit you cough
     const cap = 1 - L.stain * 0.45;
     if (b.endurance > cap) b.endurance = Math.max(cap, b.endurance - dt * 0.2);
-    // over-full lungs burn stamina; at the limit you cough whether you like it or not
     if (p.running && L.strain > 0.55) b.endurance = Math.max(0, b.endurance - dt * 0.02 * (L.strain - 0.55) / 0.45);
     this.coughCd = Math.max(0, this.coughCd - dt);
     if (L.strain >= 0.99 && this.coughCd <= 0) { this.coughCd = 4; L.strain = 0.7; this.coughFx(p, L.cough(), 0.06); }
@@ -201,7 +251,6 @@ export class BodyHud {
     p.body.endurance = Math.max(0, p.body.endurance - cost);
     G.audio?.flat?.('cough', 'voice', 0.5, 0.9 + Math.random() * 0.2);
     shake(0.12, 0.2);
-    this.popText(blood ? 'COUGH (blood)' : 'COUGH', 'bad', XL + LUNG_W / 2);
     bus.emit('cough', p, blood);
   }
   vomit(p: Player) {
@@ -216,207 +265,184 @@ export class BodyHud {
     G.audio?.flat?.('bh_vomit', 'voice', 0.7);
     shake(0.35, 0.5);
     if (this.eat.active) this.eat.abort('retch');
+    this.recent.length = 0;
     bus.emit('think', p, ['Hhgk— oh no. Oh no.', 'Everything came back up.', 'That was not food.'][Math.floor(Math.random() * 3)]);
     bus.emit('vomit', p);
   }
 
   private onPump(p: Player, r: PumpResult, wasOn: boolean) {
     const b = p.body;
-    if (!wasOn) { this.pumpAttack = (ensureMind(b).attack ?? 0) > 0; G.audio?.ui?.('band_tick', 0.35); this.popText('BREATHE', 'info', XL + LUNG_W / 2); return; }
-    if (r === 'cough') {
-      const blood = this.lungs.stain > 0 || false;
-      this.coughFx(p, blood, 0.02);
-      b.panic = Math.min(100, b.panic + 2);
-      return;
-    }
+    if (!wasOn) { this.pumpAttack = (ensureMind(b).attack ?? 0) > 0; G.audio?.ui?.('band_tick', 0.35); return; }
+    if (r === 'cough') { this.coughFx(p, this.lungs.stain > 0, 0.02); b.panic = Math.min(100, b.panic + 2); return; }
     const q = r === 'perfect' ? 2 : 1;
     b.endurance = Math.min(1 - this.lungs.stain * 0.45, b.endurance + (q === 2 ? 0.055 : 0.032));
     breathHit(p, q);
     const combo = this.lungs.combo;
     G.audio?.ui?.(q === 2 ? 'bh_perfect' : 'bh_good', 0.35 + Math.min(0.2, combo * 0.02));
-    G.audio?.flat?.(this.lungs.dialPos() > 0.5 ? 'bh_in' : 'bh_out', 'voice', 0.35, 0.95 + Math.random() * 0.1);
-    this.popText(q === 2 ? (combo > 3 ? `PERFECT x${combo}` : 'PERFECT') : 'GOOD', q === 2 ? 'great' : 'good', XL + LUNG_W / 2);
-    pop(this.canvas, 1.03, 140);
+    G.audio?.flat?.(this.lungs.pos > 0.5 ? 'bh_in' : 'bh_out', 'voice', 0.35, 0.95 + Math.random() * 0.1);
   }
-  private pumpEnded(p: Player) {
-    breathDone(p, this.lungs.hits, this.pumpAttack);
-    this.pumpAttack = false;
-  }
+  private pumpEnded(p: Player) { breathDone(p, this.lungs.hits, this.pumpAttack); this.pumpAttack = false; }
 
-  /** a treatment landed (bandage on, stitched, splinted, cleaned): a little flourish on the hole */
+  /** a treatment landed: sparks on the hole, a rip of tape, the bag jolts */
   private watchWounds(p: Player) {
     for (const inj of p.body.allInjuries()) {
       const s = `${inj.bandage ? (inj.bandage.clean ? 'B' : 'b') : ''}${inj.stitched ? 'S' : ''}${inj.splinted ? 'P' : ''}${inj.disinfected > 0 ? 'D' : ''}${inj.foreign ? 'F' : ''}${inj.tq != null ? 'T' : ''}${inj.caut ? 'C' : ''}`;
       const prev = this.sig.get(inj.id);
       if (prev !== undefined && prev !== s && s.length >= prev.length - (prev.includes('F') && !s.includes('F') ? 1 : 0)) {
-        const h = this.bag.holePos(inj);
-        if (h) for (let i = 0; i < 8; i++) this.sparks.push({ x: XB + h.x + Math.cos(i * 0.785) * 3, y: h.y + Math.sin(i * 0.785) * 3, t: 0.35 + i * 0.02, c: i % 2 ? 0xffffff : 0xfff0a0 });
+        const w = this.bagV.holeWorld(inj, this.v);
+        for (let i = 0; i < 8; i++) this.sparks.push({ x: w.x + Math.cos(i * 0.785) * 2.4, y: w.y + Math.sin(i * 0.785) * 2.4, t: 0.35 + i * 0.02, c: i % 2 ? 0xffffff : 0xfff0a0 });
+        if (this.sparks.length > 40) this.sparks.splice(0, this.sparks.length - 40);
         G.audio?.ui?.(s.includes('B') && !prev.includes('B') ? 'bh_tape' : 'bh_squelch', 0.45);
-        pop(this.canvas, 1.04, 160);
+        this.bagV.kick(0.6, 0.2);
       }
       this.sig.set(inj.id, s);
     }
   }
 
-  private draw(p: Player) {
-    const P = this.pix;
-    P.clear();
-    const hovInj = this.hover.cell === 'bag' ? this.hover.inj : this.cardInj;
-    this.bag.draw(P, XB, 0, p, hovInj);
-    (this.lungs as any).draw?.(P, XL, 0, p);
-    (this.jar as any).draw?.(P, XJ, 0);
-    for (const s of this.sparks) { const k = Math.max(0, s.t); P.blend(Math.round(s.x + (s.x - XB) * 0), Math.round(s.y - (0.4 - k) * 10), s.c, Math.min(1, k * 4)); }
-    P.outline(0x120a0c, 0.3);
-    this.ctx.putImageData(P.img, 0, 0);
-    if (this.hover.cell) this.updateTip(p);
-  }
-
   // =================================================================== layout
-  private resize() {
-    const dpr = Math.max(1, window.devicePixelRatio || 1);
-    const ui = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--pxn')) || 2;
+  private relayout() {
     const touch = document.documentElement.classList.contains('nc-touch');
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const small = Math.min(vw, vh) < 560;
-    let target = small ? 1.5 : Math.max(2, Math.min(3, ui));
-    // on a phone the HUD sits top-centre between the corner buttons: fit the gap
-    if (touch) target = Math.max(1, Math.min(target, (vw - 240) / W, vh * 0.22 / H));
-    const k = Math.max(1, Math.round(target * dpr)) / dpr;
-    this.k = k;
-    this.canvas.style.width = W * k + 'px';
-    this.canvas.style.height = H * k + 'px';
-    this.el.style.setProperty('--bh-k', String(k));
-    this.el.classList.toggle('bh-touch', touch);
+    const dpr = G.pr?.dpr ?? Math.min(2, window.devicePixelRatio || 1);
+    const game = G.pr?.scale ?? 2;
+    const k = touch ? 1.3 : 1;
+    const W = Math.round(SW * k), H = Math.round(SH * k);
+    // the game's pixel size, but never more than about a quarter of the screen's width
+    const unitPx = touch ? Math.max(1, game) : Math.max(1, Math.min(game, Math.floor(window.innerWidth * dpr * 0.24 / W)));
+    const cw = W * unitPx / dpr, ch = H * unitPx / dpr;
+    const x = touch ? Math.round((window.innerWidth - cw) / 2) : Math.round(window.innerWidth - cw - 8);
+    const y = touch ? 2 : Math.round(window.innerHeight - ch - 4);
+    if (touch === this.touch && k === this.k && x === this.st.css.x && y === this.st.css.y && unitPx === this.st.px && W === this.st.W) return;
+    this.touch = touch; this.k = k;
+    this.world.scale.setScalar(k);
+    this.st.layout(x, y, W, H, unitPx);
   }
 
   // =================================================================== input
-  private local(e: PointerEvent): { lx: number; ly: number; cell: Cell; cx: number } {
-    const r = this.canvas.getBoundingClientRect();
-    const lx = (e.clientX - r.left) / this.k, ly = (e.clientY - r.top) / this.k;
-    const cell: Cell = lx < XB + BAG_W ? 'bag' : lx >= XL && lx < XL + LUNG_W ? 'lung' : lx >= XJ ? 'jar' : null;
-    return { lx, ly, cell, cx: cell === 'bag' ? lx - XB : cell === 'lung' ? lx - XL : lx - XJ };
+  private pickAt(cx: number, cy: number): Hover {
+    if (!this.shown || this.st.fade < 0.5) return { kind: null, inj: null, slot: -1 };
+    this.world.updateMatrixWorld(true);
+    const targets: THREE.Object3D[] = [...this.board.hits, this.bagV.hit, this.lungV.hit, this.lungV.gaugeHit, this.jarV.hit];
+    const h = this.st.pick(cx, cy, targets);
+    if (!h) return { kind: null, inj: null, slot: -1 };
+    const o = h.object;
+    const slot = this.board.slotOf(o);
+    if (slot >= 0) return { kind: 'tool', inj: this.boardInj, slot };
+    if (o === this.bagV.hit) return { kind: 'bag', inj: this.bagV.holeUnder(h.point), slot: -1 };
+    if (o === this.lungV.hit) return { kind: 'lung', inj: null, slot: -1 };
+    if (o === this.lungV.gaugeHit) return { kind: 'gauge', inj: null, slot: -1 };
+    return { kind: 'jar', inj: null, slot: -1 };
+  }
+  private setOver(on: boolean) {
+    if (on === this.overUI) return;
+    this.overUI = on;
+    if (G.input) G.input.pointerOverUI = on;
+    document.body.classList.toggle('bh-hover', on);
   }
   private onMove(e: PointerEvent) {
-    if (e.pointerType === 'touch') return;
-    const { cell, cx, ly } = this.local(e);
-    const inj = cell === 'bag' ? this.bag.hit(cx, ly) : null;
-    this.setHover(cell, inj, e.clientX, e.clientY);
-    this.canvas.style.cursor = inj || cell === 'lung' ? 'pointer' : 'default';
-  }
-  private onDown(e: PointerEvent) {
-    const p = G.local; if (!p) return;
-    e.preventDefault(); e.stopPropagation();
-    const { cell, cx, ly } = this.local(e);
-    const touch = e.pointerType === 'touch';
-    if (cell === 'bag') {
-      const inj = this.bag.hit(cx, ly);
-      if (!inj) { this.setHover('bag', null, e.clientX, e.clientY); this.bag.slosh(0.3); G.audio?.ui?.('bh_squelch', 0.25); return; }
-      const opts = treatOptions(p, inj);
-      const best = bestTreatment(inj, opts);
-      // a plain click does the next sensible thing; right-click, a tap, or nothing doable opens the choices
-      if (!touch && e.button === 0 && best && !(this.cardInj === inj)) { this.runOpt(p, inj, best); return; }
-      this.openCard(p, inj, opts, best);
+    if (this.down) {
+      const d = this.down;
+      const dx = e.clientX - d.x;
+      d.moved = Math.max(d.moved, Math.hypot(dx, e.clientY - d.y));
+      // flicking the bag: it swings after your finger
+      if (d.kind === 'bag' && d.moved > 6) { this.bagV.kick((dx - this.flick) * 0.012, 0.05); this.flick = dx; }
+      e.preventDefault(); e.stopPropagation();
       return;
     }
-    if (cell === 'lung') { this.pumpPress(); return; }
-    if (cell === 'jar') { this.setHover('jar', null, e.clientX, e.clientY); this.jar.poke(); G.audio?.ui?.('bh_plop', 0.25); return; }
+    if (e.pointerType === 'touch') return;
+    const h = this.pickAt(e.clientX, e.clientY);
+    this.hover = h;
+    this.board.hover = h.kind === 'tool' ? h.slot : -1;
+    this.setOver(!!h.kind);
+    if (!h.kind) this.setSay('');
   }
-  private runOpt(p: Player, inj: Injury, o: TreatOpt) {
-    if (!o.run) return;
-    o.run();
-    this.closeCard();
-    G.audio?.ui?.('bh_wrap', 0.35);
-    this.popText(o.label.toUpperCase(), 'info', XB + (this.bag.holePos(inj)?.x ?? BAG_W / 2));
-    void p;
-  }
-  private openCard(p: Player, inj: Injury, opts: TreatOpt[], best: TreatOpt | null) {
-    this.cardInj = inj; this.cardT = 7;
-    const c = this.card;
-    c.innerHTML = '';
-    const h = document.createElement('div'); h.className = 'bh-card-h'; h.textContent = woundTitle(inj); c.appendChild(h);
-    if (!opts.length) { const n = document.createElement('div'); n.className = 'bh-card-n'; n.textContent = inj.type === 'bruise' ? 'It will fade on its own.' : 'Nothing more to do. Let it heal.'; c.appendChild(n); }
-    for (const o of opts) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'bh-opt' + (o === best ? ' best' : '') + (o.missing ? ' off' : '');
-      btn.innerHTML = '<b></b><small></small>';
-      (btn.querySelector('b') as HTMLElement).textContent = o.label;
-      (btn.querySelector('small') as HTMLElement).textContent = o.missing ? 'needs ' + o.missing : o.using ? 'with ' + o.using : '';
-      btn.disabled = !!o.missing;
-      btn.addEventListener('click', (ev) => { ev.stopPropagation(); this.runOpt(p, inj, o); });
-      c.appendChild(btn);
+  private onDown(e: PointerEvent) {
+    const h = this.pickAt(e.clientX, e.clientY);
+    if (!h.kind) { if (this.boardInj && e.button === 0) this.closeBoard(); return; }
+    e.preventDefault(); e.stopPropagation();
+    const p = G.local; if (!p) return;
+    this.hover = h;
+    this.down = { kind: h.kind, x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId, inj: h.inj };
+    this.flick = 0;
+    const touch = e.pointerType === 'touch';
+    if (h.kind === 'lung' || h.kind === 'gauge') { this.pumpPress(); this.lungs.wob = 0.6; G.audio?.ui?.('bh_squelch', 0.2); }
+    else if (h.kind === 'tool') { const o = this.board.slots[h.slot]?.opt; if (o && this.boardInj) this.runOpt(o); }
+    else if (h.kind === 'jar') { this.zoomT = 2.6; this.jar.poke(); G.audio?.ui?.('bh_plop', 0.25); }
+    else if (h.kind === 'bag' && h.inj) {
+      const opts = treatOptions(p, h.inj);
+      const best = bestTreatment(h.inj, opts);
+      // a plain click does the next sensible thing; right-click, a tap, or nothing doable shows the pegboard
+      if (!touch && e.button === 0 && best && this.boardInj !== h.inj) { this.boardInj = h.inj; this.runOpt(best); }
+      else this.openBoard(h.inj, opts, best);
     }
-    const hp = this.bag.holePos(inj);
-    c.style.left = Math.round((XB + (hp?.x ?? 20)) * this.k + 10) + 'px';
-    c.style.setProperty('--hy', Math.round((hp?.y ?? 30) * this.k) + 'px');
-    c.classList.add('on');
-    this.tip.classList.remove('on');
+    if (touch) this.updateSay(p);
+  }
+  private onUp(e: PointerEvent) {
+    const d = this.down;
+    if (!d || d.id !== e.pointerId) return;
+    this.down = null;
+    e.preventDefault(); e.stopPropagation();
+    if (d.kind === 'bag' && !d.inj && d.moved < 6) { this.bagV.kick((Math.random() - 0.5) * 1.6, 0.4); G.audio?.ui?.('bh_squelch', 0.25); }
+    if (e.pointerType === 'touch') { this.hover = { kind: null, inj: null, slot: -1 }; this.setOver(false); setTimeout(() => { if (!this.down) this.setSay(''); }, 1800); }
+  }
+  private runOpt(o: TreatOpt) {
+    if (!o.run) { G.audio?.ui?.('band_tick', 0.3); return; }
+    o.run();
+    G.audio?.ui?.('bh_wrap', 0.35);
+    this.closeBoard();
+  }
+  private openBoard(inj: Injury, opts: TreatOpt[], best: TreatOpt | null) {
+    this.boardInj = inj; this.boardT = 8;
+    this.board.show(opts.slice(0, 6), best);
     G.audio?.ui?.('bh_squelch', 0.3);
   }
-  private closeCard() { if (!this.cardInj) return; this.cardInj = null; this.card.classList.remove('on'); }
+  private closeBoard() { if (!this.boardInj && !this.board.open) return; this.boardInj = null; this.board.hide(); }
 
-  private setHover(cell: Cell, inj: Injury | null, x: number, y: number) {
-    this.hover.cell = cell; this.hover.inj = inj; this.hover.x = x; this.hover.y = y;
-    if (!cell || this.cardInj) this.tip.classList.remove('on');
+  // =================================================================== free-floating type (no box)
+  private setSay(text: string, x = 0, y = 0) {
+    if (text !== this.sayKey) { this.sayKey = text; this.say.textContent = text; }
+    this.say.classList.toggle('on', !!text);
+    if (text) { this.say.style.left = Math.round(x) + 'px'; this.say.style.top = Math.round(y) + 'px'; }
   }
-  private updateTip(p: Player) {
-    const b = p.body;
-    const cell = this.hover.cell;
+  private updateSay(p: Player) {
+    const b = p.body, h = this.hover;
     const lines: string[] = [];
-    if (cell === 'bag') {
-      const inj = this.hover.inj;
+    let at = { x: 0, y: 0 };
+    if (h.kind === 'tool') {
+      const o = this.board.slots[h.slot]?.opt;
+      if (o) lines.push(o.label + (o.missing ? ' — needs ' + o.missing : o.using ? ' — ' + o.using.toLowerCase() : ''));
+      at = this.st.toScreen(BOARD_AT[0] * this.k, BOARD_AT[1] * this.k);
+    } else if (h.kind === 'bag') {
+      const inj = h.inj;
       if (inj) {
-        lines.push(woundTitle(inj));
         const r = b.injuryBleed(inj);
-        lines.push(r > 0.5 ? 'pouring out' : r > 0.15 ? 'bleeding' : r > 0.01 ? 'oozing' : inj.infection > 0.15 ? 'infected' : 'not bleeding');
+        const t = woundTitle(inj).split(' · ');
+        lines.push(`${t[0]}, ${t[1].toLowerCase()}` + (r > 0.5 ? ' — pouring' : r > 0.15 ? ' — bleeding' : r > 0.01 ? ' — oozing' : inj.infection > 0.15 ? ' — infected' : ''));
         const best = bestTreatment(inj, treatOptions(p, inj));
-        lines.push(best ? `click: ${best.label.toLowerCase()}${best.using ? ' (' + best.using + ')' : ''}` : 'right-click: options');
+        lines.push(best ? `${this.touch ? 'tap' : 'click'}: ${best.label.toLowerCase()}${best.using ? ' with ' + best.using.toLowerCase() : ''}` : 'you have nothing for it');
       } else {
-        lines.push(`BLOOD ${Math.round(b.blood)}%  HEALTH ${Math.round(b.health)}%`);
+        lines.push(`Blood ${Math.round(b.blood)}%  ·  health ${Math.round(b.health)}%  ·  water ${Math.round(100 - b.thirst)}%`);
         const n = b.allInjuries().filter((i) => i.type !== 'bruise').length;
-        lines.push(n ? `${n} wound${n > 1 ? 's' : ''}: click a hole to treat it` : 'no open wounds');
         const bits: string[] = [];
-        if (b.fever() > 0.15) bits.push('infection');
-        if (b.sickness > 20) bits.push('food poisoning');
-        if (b.corruption > 10) bits.push('corruption');
-        if (bits.length) lines.push('blood: ' + bits.join(', '));
-        lines.push(`hydration ${Math.round(100 - b.thirst)}% (drip chamber)`);
+        if (b.fever() > 0.15) bits.push('infected');
+        if (b.sickness > 20) bits.push('poisoned');
+        if (b.corruption > 10) bits.push('corrupted');
+        lines.push((n ? `${n} hole${n > 1 ? 's' : ''} in the bag` : 'no holes') + (bits.length ? '  ·  blood ' + bits.join(', ') : ''));
       }
-    } else if (cell === 'lung') {
-      lines.push(`STAMINA ${Math.round(b.endurance * 100)}%`);
-      if (this.lungs.pumping) lines.push('press H as the bead hits OUT / IN');
-      else lines.push(this.lungs.strain > 0.45 ? 'straining: press H to pump it out' : 'H: breathe (calms panic)');
-      if (this.lungs.stain > 0.05) lines.push(`blood in the lungs (-${Math.round(this.lungs.stain * 45)}% air): cough it out`);
-    } else if (cell === 'jar') {
-      const hunger = b.hunger;
-      lines.push(`STOMACH ${hunger < 15 ? 'full' : hunger < 30 ? 'fed' : hunger < 50 ? 'peckish' : hunger < 75 ? 'hungry' : 'starving'}`);
-      lines.push(this.jar.canEat() ? `room for ${Math.max(0, Math.round((0.93 - this.jar.fill) * 100))}%` : 'too full to eat');
-      if (this.jar.acid > 0.32) lines.push('acid rising: inflamed, eat little');
-      if (this.jar.poisoned) lines.push('cracked: something you ate was bad');
+      at = this.st.toScreen(BAG_AT[0] * this.k, BAG_AT[1] * this.k);
+    } else if (h.kind === 'lung' || h.kind === 'gauge') {
+      lines.push(`Air ${Math.round(b.endurance * 100)}%` + (this.lungs.stain > 0.05 ? ' — blood in the lungs, cough it up' : ''));
+      lines.push(this.lungs.pumping ? 'press as the needle hits OUT, then IN' : this.lungs.strain > 0.45 ? 'straining — H to pump it out' : `H${this.touch ? ' or a thumb' : ''}: breathe on the beat`);
+      at = this.st.toScreen(LUNG_AT[0] * this.k, LUNG_AT[1] * this.k);
+    } else if (h.kind === 'jar') {
+      const hu = b.hunger;
+      lines.push(`Stomach ${hu < 15 ? 'full' : hu < 30 ? 'fed' : hu < 50 ? 'peckish' : hu < 75 ? 'hungry' : 'starving'}` + (this.jar.canEat() ? '' : ' — no room for more'));
+      const bits: string[] = [];
+      if (this.recent.length) bits.push('in it: ' + this.recent.join(', '));
+      if (this.jar.acid > 0.32) bits.push('acid rising');
+      if (this.jar.poisoned) bits.push('cracked');
+      if (bits.length) lines.push(bits.join('  ·  '));
+      at = this.st.toScreen(JAR_AT[0] * this.k, (JAR_AT[1] + 50) * this.k);
     }
-    const txt = lines.join('\n');
-    if (this.tip.textContent !== txt) this.tip.textContent = txt;
-    const r = this.el.getBoundingClientRect();
-    const cx = cell === 'bag' ? XB + BAG_W / 2 : cell === 'lung' ? XL + LUNG_W / 2 : XJ + JAR_W / 2;
-    const tw = this.tip.offsetWidth || 120;
-    this.tip.style.left = Math.round(Math.max(tw / 2 + 4 - r.left, Math.min(window.innerWidth - r.left - tw / 2 - 4, cx * this.k))) + 'px';
-    this.tip.classList.toggle('below', r.top < 120);
-    this.tip.classList.add('on');
-  }
-  private popCount = 0;
-  popText(text: string, kind: 'good' | 'great' | 'bad' | 'info', x: number) {
-    if (this.popCount > 4) return;
-    const d = document.createElement('div');
-    d.className = 'bh-pop ' + kind;
-    d.textContent = text;
-    d.style.left = Math.round(x * this.k) + 'px';
-    this.pops.appendChild(d);
-    this.popCount++;
-    setTimeout(() => { d.remove(); this.popCount--; }, 900);
-  }
-  /** the jar's top in screen space (eating aims crumbs there) */
-  jarScreen(): { x: number; y: number } {
-    const r = this.canvas.getBoundingClientRect();
-    return { x: r.left + (XJ + JAR_W / 2) * this.k, y: r.top + 10 * this.k };
+    this.setSay(lines.join('\n'), at.x, Math.max(4, Math.min(at.y, this.st.css.y) - 6));
   }
 }

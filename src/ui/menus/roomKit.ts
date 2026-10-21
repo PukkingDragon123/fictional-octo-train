@@ -283,42 +283,6 @@ export function tvGeometry(kind: 'console' | 'portable' | 'monitor', sw: number,
   mb.box(cx + 0.1, cy - H - 0.6, -D * 0.55, 0.012, 1.2, 0.012, 'rubber_black', { color: 0x141414 });
   return mb.build();
 }
-/** a slightly bulged pane of picture tube glass */
-export function screenGeometry(w: number, h: number, bulge: number): THREE.BufferGeometry {
-  const g = new THREE.PlaneGeometry(w, h, 8, 6);
-  const p = g.attributes.position as THREE.BufferAttribute;
-  for (let i = 0; i < p.count; i++) { const x = p.getX(i) / (w / 2), y = p.getY(i) / (h / 2); p.setZ(i, 0.02 + bulge * (1 - 0.5 * (x * x + y * y))); }
-  g.computeVertexNormals();
-  return g;
-}
-/** the CRT: barrel distortion, scanlines, a rolling bar, curved-glass vignette, mains flicker, static */
-export function screenMaterial(map: THREE.Texture, seed: number): THREE.ShaderMaterial {
-  return new THREE.ShaderMaterial({
-    uniforms: { map: { value: map }, uTime: { value: 0 }, uBright: { value: 1 }, uSeed: { value: seed }, uStatic: { value: 0 }, uLines: { value: 64 } },
-    vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-    fragmentShader: `
-      uniform sampler2D map; uniform float uTime; uniform float uBright; uniform float uSeed; uniform float uStatic; uniform float uLines;
-      varying vec2 vUv;
-      float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-      void main(){
-        vec2 c = vUv - 0.5; float r2 = dot(c, c);
-        vec2 uv = 0.5 + c * (1.0 + r2 * 0.22);
-        if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); return; }
-        vec3 col = texture2D(map, uv).rgb;
-        float roll = 0.86 + 0.14 * smoothstep(0.0, 0.25, abs(fract(uv.y * 0.6 + uTime * 0.11 + uSeed) - 0.5));
-        float scan = 0.78 + 0.22 * step(0.5, fract(uv.y * uLines));
-        float vig = clamp(1.0 - r2 * 2.4, 0.0, 1.0);
-        float flick = 0.95 + 0.05 * sin(uTime * 59.0 + uSeed * 7.0);
-        float st = h(floor(uv * vec2(90.0, 70.0)) + floor(uTime * 30.0));
-        col = mix(col, vec3(st) * vec3(0.9, 1.0, 0.85), uStatic);
-        col *= roll * scan * vig * flick * uBright;
-        col += vec3(0.02, 0.025, 0.02) * vig;
-        gl_FragColor = vec4(col, 1.0);
-        #include <colorspace_fragment>
-      }`,
-  });
-}
-
 // ------------------------------------------------------------------ the settings gear's dial panel
 export function dialPanelGeometry(): THREE.BufferGeometry {
   const mb = new ModelBuilder();
@@ -380,30 +344,29 @@ export function canvasTex(c: HTMLCanvasElement): THREE.CanvasTexture {
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-/** a CRT picture: dark phosphor glass, the label glowing in phosphor, a channel number, a cursor */
-export function paintScreen(cv: HTMLCanvasElement, label: string, color: number, w: number, h: number, ch = '3') {
-  cv.width = w; cv.height = h;
+/** a Nixie tube's cathode stack: the lit letter in glowing wire, the unlit cathodes behind it */
+export function paintNixie(cv: HTMLCanvasElement, ch: string) {
+  const W = 96, H = 128;
+  cv.width = W; cv.height = H;
   const ctx = cv.getContext('2d')!;
-  ctx.imageSmoothingEnabled = false;
-  const bg = color === PHOS.green ? '#06110a' : '#120902';
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-  // phosphor grain
-  for (let i = 0; i < w * h * 0.04; i++) { ctx.fillStyle = css(color, 0.05 + Math.random() * 0.06); ctx.fillRect(Math.floor(Math.random() * w), Math.floor(Math.random() * h), 1, 1); }
-  const size = Math.max(8, Math.floor((h * 0.34) / 8) * 8);
-  let fs = size;
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `700 ${fs}px Silkscreen, Tiny5, monospace`;
-  while (ctx.measureText(label).width > w - 16 && fs > 8) { fs -= 8; ctx.font = `700 ${fs}px Silkscreen, Tiny5, monospace`; }
-  // bloom under the letters, then the letters
-  ctx.shadowColor = css(color, 0.9); ctx.shadowBlur = 6;
-  ctx.fillStyle = css(color, 1);
-  ctx.fillText(label, Math.round(w / 2), Math.round(h * 0.48));
-  ctx.shadowBlur = 0;
-  ctx.font = `400 8px Tiny5, Silkscreen, monospace`;
-  ctx.fillStyle = css(color, 0.55);
-  ctx.textAlign = 'left'; ctx.fillText('CH ' + ch, 5, 8);
-  ctx.textAlign = 'right'; ctx.fillText('▶', w - 5, h - 8);
-  ctx.fillRect(Math.round(w / 2 + ctx.measureText(label).width * 0), 0, 0, 0);
+  ctx.font = "104px 'Nixie One', 'IBM Plex Mono', monospace";
+  // the dark cathodes stacked behind the lit one
+  ctx.fillStyle = 'rgba(120, 70, 40, 0.22)';
+  for (const c of ['8', '0', 'A', 'X']) if (c !== ch) ctx.fillText(c, W / 2 + (Math.random() - 0.5) * 3, H / 2 + 4);
+  // the anode mesh
+  ctx.strokeStyle = 'rgba(90, 60, 40, 0.25)'; ctx.lineWidth = 1;
+  for (let x = 4; x < W; x += 7) { ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x, H - 6); ctx.stroke(); }
+  for (let y = 6; y < H; y += 7) { ctx.beginPath(); ctx.moveTo(4, y); ctx.lineTo(W - 4, y); ctx.stroke(); }
+  // the glow: a wide orange haze, then the hot core of the wire
+  ctx.shadowColor = '#ff5a10'; ctx.shadowBlur = 18; ctx.fillStyle = '#ff7a2a';
+  ctx.fillText(ch, W / 2, H / 2 + 4);
+  ctx.shadowBlur = 6; ctx.fillStyle = '#ffb070';
+  ctx.fillText(ch, W / 2, H / 2 + 4);
+  ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255, 236, 200, 0.85)';
+  ctx.font = "100px 'Nixie One', 'IBM Plex Mono', monospace";
+  ctx.fillText(ch, W / 2, H / 2 + 4);
 }
 /** a strip of embossed label tape (Dymo-style): raised white letters on coloured plastic */
 export function paintTape(cv: HTMLCanvasElement, label: string, tape: number, w: number, h: number) {
@@ -416,12 +379,13 @@ export function paintTape(cv: HTMLCanvasElement, label: string, tape: number, w:
   // notched ends
   ctx.clearRect(0, 0, 2, 2); ctx.clearRect(0, h - 2, 2, 2); ctx.clearRect(w - 2, 0, 2, 2); ctx.clearRect(w - 2, h - 2, 2, 2);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  let fs = Math.max(8, Math.floor((h * 0.62) / 8) * 8);
-  ctx.font = `700 ${fs}px Silkscreen, Tiny5, monospace`;
-  while (ctx.measureText(label).width > w - 8 && fs > 8) { fs -= 8; ctx.font = `700 ${fs}px Silkscreen, Tiny5, monospace`; }
-  ctx.fillStyle = css(0x000000, 0.5); ctx.fillText(label, Math.round(w / 2) + 1, Math.round(h / 2) + 1);
-  ctx.fillStyle = '#f4f0e6'; ctx.fillText(label, Math.round(w / 2), Math.round(h / 2));
-  crisp(ctx, w, h);
+  let fs = Math.round(h * 0.7);
+  const font = (n: number) => `600 ${n}px Oswald, 'Arial Narrow', sans-serif`;
+  ctx.font = font(fs);
+  while (ctx.measureText(label).width > w - 10 && fs > 8) ctx.font = font(--fs);
+  // raised letters: a dark undercut, then the stretched-white plastic
+  ctx.fillStyle = css(0x000000, 0.55); ctx.fillText(label, w / 2 + 1, h / 2 + 1.5);
+  ctx.fillStyle = '#f4f0e6'; ctx.fillText(label, w / 2, h / 2 + 0.5);
 }
 /** an engraved brass plate with screws */
 export function paintBrass(cv: HTMLCanvasElement, line1: string, line2: string, w: number, h: number) {
@@ -433,10 +397,10 @@ export function paintBrass(cv: HTMLCanvasElement, line1: string, line2: string, 
   ctx.strokeStyle = 'rgba(255,230,170,0.6)'; ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
   for (const [x, y] of [[4, 4], [w - 5, 4], [4, h - 5], [w - 5, h - 5]]) { ctx.fillStyle = '#5a4018'; ctx.fillRect(x - 2, y - 2, 4, 4); ctx.fillStyle = '#e8d090'; ctx.fillRect(x - 1, y - 2, 1, 4); }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `700 16px Silkscreen, Tiny5, monospace`;
+  ctx.font = `${Math.round(h * 0.4)}px 'Alfa Slab One', Oswald, serif`;
   ctx.fillStyle = 'rgba(255,240,200,0.55)'; ctx.fillText(line1, Math.round(w / 2) + 1, Math.round(h * 0.4) + 1);
   ctx.fillStyle = '#2a1c08'; ctx.fillText(line1, Math.round(w / 2), Math.round(h * 0.4));
-  ctx.font = `400 8px Tiny5, Silkscreen, monospace`;
+  ctx.font = `500 ${Math.round(h * 0.2)}px Oswald, 'Arial Narrow', sans-serif`;
   ctx.fillStyle = '#3a2a10'; ctx.fillText(line2, Math.round(w / 2), Math.round(h * 0.76));
 }
 /** a gauge face: cream enamel, ticks, a red zone */
@@ -447,7 +411,7 @@ export function paintGauge(cv: HTMLCanvasElement, label: string) {
   ctx.strokeStyle = '#2a2418';
   for (let i = 0; i <= 10; i++) { const a = Math.PI * (0.8 + i * 0.14); const r0 = S * 0.36, r1 = i % 5 ? S * 0.41 : S * 0.44; ctx.beginPath(); ctx.moveTo(S / 2 + Math.cos(a) * r0, S / 2 + Math.sin(a) * r0); ctx.lineTo(S / 2 + Math.cos(a) * r1, S / 2 + Math.sin(a) * r1); ctx.stroke(); }
   ctx.strokeStyle = '#b8261e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(S / 2, S / 2, S * 0.4, Math.PI * 2.0, Math.PI * 2.2); ctx.stroke();
-  ctx.font = `400 8px Tiny5, monospace`; ctx.fillStyle = '#2a2418'; ctx.textAlign = 'center'; ctx.fillText(label, S / 2, S * 0.72);
+  ctx.font = `500 9px Oswald, sans-serif`; ctx.fillStyle = '#2a2418'; ctx.textAlign = 'center'; ctx.fillText(label, S / 2, S * 0.74);
 }
 
 /** a blood splat (alpha) for decals: a core, drops flung outwards, a few runs */

@@ -146,6 +146,7 @@ const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vect
 const _c = new THREE.Color();
 
 export class EatFp {
+  static hints = 0;
   active = false;
   private mode: 'eat' | 'drink' = 'eat';
   private act: any = null;
@@ -189,7 +190,7 @@ export class EatFp {
     this.mode = 'eat'; this.act = a; this.rec = recipe(it);
     this.begin();
     this.buildFood(it);
-    this.openDom(this.rec.label, G.input && (document.documentElement.classList.contains('nc-touch')) ? 'TAP TO BITE' : 'CLICK TO BITE · ESC TO STOP');
+    this.openDom(document.documentElement.classList.contains('nc-touch') ? 'tap to take a bite' : 'click to take a bite  ·  esc to stop');
     if (this.rec.bad === 'rotten') bus.emit('think', a.p, ['It smells wrong.', 'Is that... fuzz?', 'Don\'t look at it. Just eat.'][Math.floor(Math.random() * 3)]);
     G.audio?.ui?.('bh_wrap', 0.4);
     return true;
@@ -203,7 +204,7 @@ export class EatFp {
     this.fluidType = it.fluid.type; this.fluidC = FLUID[it.fluid.type] ?? 0x8ac8f0;
     this.begin();
     this.buildDrink(it);
-    this.openDom(itemDef(it.key).name, document.documentElement.classList.contains('nc-touch') ? 'TAP TO GULP' : 'CLICK TO GULP · ESC TO STOP');
+    this.openDom(document.documentElement.classList.contains('nc-touch') ? 'tap to drink' : 'click to drink  ·  esc to stop');
     G.audio?.ui?.('band_tick', 0.2);
     return true;
   }
@@ -415,12 +416,16 @@ export class EatFp {
   }
 
   // =================================================================== input
-  private openDom(name: string, hint: string) {
+  private openDom(hint: string) {
     const c = this.catcher = document.createElement('div');
     c.className = 'bh-eat';
-    c.innerHTML = '<div class="bh-eat-name"></div><div class="bh-eat-hint"></div>';
-    (c.querySelector('.bh-eat-name') as HTMLElement).textContent = name;
-    const h = this.hintEl = c.querySelector('.bh-eat-hint') as HTMLDivElement; h.textContent = hint;
+    // the hint is free type, and only until you have got the idea
+    if (EatFp.hints < 3) {
+      EatFp.hints++;
+      const h = this.hintEl = document.createElement('div');
+      h.className = 'bh-eat-hint nc-free-text'; h.textContent = hint;
+      c.appendChild(h);
+    }
     c.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (e.button === 2) { this.stopByUser(); return; } this.click(); });
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     c.addEventListener('pointerenter', () => { if (G.input) G.input.pointerOverUI = true; });
@@ -473,8 +478,7 @@ export class EatFp {
     if (r.juicy) for (let i = 0; i < 6; i++) this.spawnCrumb(_w.set((Math.random() - 0.5) * 0.04, -0.03 + Math.random() * 0.02, -0.25), mix(r.flesh, 0xffffff, 0.35), 1.4, 0.6, _v.set((Math.random() - 0.5) * 0.6, 0.2 + Math.random() * 0.3, 0.6 + Math.random() * 0.5));
     if (r.bad) for (let i = 0; i < 5; i++) this.spawnCrumb(_w.set((Math.random() - 0.5) * 0.06, 0, -0.3), 0x8ab84a, -0.3, 0.8, _v.set((Math.random() - 0.5) * 0.2, 0.15 + Math.random() * 0.2, 0.1));
     punch(crunchy ? 0.025 : 0.015, 0.14);
-    if (byClick && this.combo >= 3) this.popAt(this.combo >= 5 ? `GOBBLE x${this.combo}` : `NOM x${this.combo}`, false);
-    if (r.bad && this.bites === 1) this.popAt(r.bad === 'rotten' ? 'ROTTEN' : r.bad === 'raw' ? 'RAW' : 'TASTES WRONG', true);
+    if (r.bad && this.bites === 1) bus.emit('think', a.p, r.bad === 'rotten' ? 'Rotten. Keep it down.' : r.bad === 'raw' ? 'Raw. That will cost me.' : 'That tastes wrong.');
     // the bite goes down to the jar a moment later
     const bad = !!r.bad && (r.bad === 'rotten' ? Math.random() < 0.8 : Math.random() < 0.45) && this.bites <= 2;
     this.pendingJar.push({ t: 0.5, c: res.col, s: Math.min(1.4, amt * 6), bad });
@@ -496,23 +500,13 @@ export class EatFp {
     punch(0.012, 0.18);
     setTimeout(() => this.hud.jar.gulp(this.fluidC), 380);
     this.flyToJar(this.fluidC);
-    if (byClick && this.bites >= 3 && this.bites % 3 === 0) this.popAt('GULP', false);
-    if (this.fluidType === 'bleach' || this.fluidType === 'gasoline' || this.fluidType === 'coolant') { shake(0.3, 0.4); this.popAt('BURNS', true); if (Math.random() < 0.6) setTimeout(() => this.hud.jar.crack(), 400); }
+    if (this.fluidType === 'bleach' || this.fluidType === 'gasoline' || this.fluidType === 'coolant') { shake(0.3, 0.4); if (this.bites === 1) bus.emit('think', a.p, 'It burns. It burns all the way down.'); if (Math.random() < 0.6) setTimeout(() => this.hud.jar.crack(), 400); }
     if (this.drunk >= target - 0.005 || !it.fluid || it.fluid.amount <= 0.005) setTimeout(() => this.act === a && this.lowerFinish(), 700);
   }
   private lowerFinish() {
     if (!this.active || this.lowerT >= 0) return;
     this.lowerT = 0;
     if (this.mode === 'eat' && this.left <= 0) { G.audio?.ui?.('bh_wrap', 0.35); G.audio?.flat?.('bh_swallow', 'voice', 0.45); }
-  }
-  private popAt(text: string, bad: boolean) {
-    if (!this.catcher) return;
-    const d = document.createElement('div');
-    d.className = 'bh-eat-pop' + (bad ? ' bad' : '');
-    d.textContent = text;
-    d.style.left = 44 + Math.random() * 12 + '%'; d.style.top = 38 + Math.random() * 8 + '%';
-    this.catcher.appendChild(d);
-    setTimeout(() => d.remove(), 800);
   }
   /** a pixel of the bite flies from the mouth to the stomach jar */
   private flyToJar(col: number) {

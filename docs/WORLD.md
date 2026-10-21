@@ -468,8 +468,9 @@ Holes are pits of void tiles (`pit()`): walk into one and you fall
 at the target's `fall` anchor). `z.meta.holes` records where each leads;
 a `hole` portal records the link for zonecheck. `shared` holes, online, can
 drop a solo player onto another player's open floor (relay `/floors`
-directory; "Open floor" in the emote wheel). Every older `hole` portal now
-plays the fall too.
+directory; "OPEN LINE" on the emote dial's card). Every older `hole` portal
+now plays the fall too. Floor and dimension names are on enamel signs
+(`vx_sign`, faces painted by `src/social/signs.ts`) where you land.
 * `floor~<n>` (64×64, a zone family, `defZoneFamily`): a generated floor per
   number — yellow / office / drained pools / sodium / red / static styles, BSP
   rooms with doorway gaps, one weird room (`giantStairs` over a void with a

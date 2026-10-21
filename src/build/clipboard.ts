@@ -111,7 +111,7 @@ export class Clipboard {
     const key = new THREE.DirectionalLight(0xfff2e0, 1.0); key.position.set(-0.5, 0.8, 1); this.g.add(key);
     this.g.add(new THREE.AmbientLight(0xb8c0d0, 0.55));
     // held low and to the left (the body gauges live on the right), tilted toward you
-    this.rig.scale.setScalar(0.86);
+    this.rig.scale.setScalar(0.78);
     this.rig.rotation.set(-0.28, 0.32, -0.05);
     this.hits = [this.board, this.sheetM, this.toggleM, lm];
     bus.on('fpChange', (n: string | null) => { if (n === null && this.shown) setTimeout(() => { if (this.shown && !fpOwner()) fpClaim('build', 2); }, 0); });
@@ -147,7 +147,7 @@ export class Clipboard {
     if (fpOwner() !== 'build') { if (!fpOwner()) fpClaim('build', 2); return; }
     this.raise = Math.min(1, this.raise + dt * 3.5);
     const e = 1 - Math.pow(1 - this.raise, 3);
-    this.rig.position.set(-0.37, lerp(-0.62, -0.13, e) + Math.sin(G.time * 1.3) * 0.003, -1.02);
+    this.rig.position.set(-0.36, lerp(-0.62, -0.075, e) + Math.sin(G.time * 1.3) * 0.003, -1.02);
     // scale model of the piece
     const mk = st.pc.key;
     if (mk !== this.miniKey) { this.miniKey = mk; this.buildMini(st.pc); }

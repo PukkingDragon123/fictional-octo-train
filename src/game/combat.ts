@@ -897,7 +897,8 @@ export class CombatSystem implements GameSystem {
     }
     // a counter window is open
     const ctr = this.combo.counter;
-    if (ctr && G.time < ctr.until) { const rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) }; M.mark('badge:counter', p.x - rt.x * 0.55, p.y + 1.9, p.z - rt.z * 0.55, { opacity: Math.min(1, (ctr.until - G.time) * 2), scale: 1 + Math.max(0, Math.sin(now / 70)) * 0.08 }); }
+    // a counter is open: pale chalk scratches round the feet, rubbed out as the moment passes
+    if (ctr && G.time < ctr.until) M.ring(p.x, p.y, p.z, 0.9, (ctr.until - G.time) / 1.6, 0xf2ead0, 0x2a2016, 0.8);
     // the run of blows: a count hanging by the shoulder
     if (this.combo.hits >= 2 && G.time - this.combo.hitT < 1.6) {
       const n = this.combo.hits, rt = { x: Math.cos(G.pr.yaw), z: -Math.sin(G.pr.yaw) };
