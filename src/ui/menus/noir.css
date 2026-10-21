@@ -59,14 +59,14 @@
 .nx-panel-h b { font-family: var(--font-stencil); font-size: var(--t-label); line-height: calc(var(--px) * 9); letter-spacing: calc(var(--px) * 2); font-weight: normal; }
 .nx-panel-h small { font-family: var(--font-readout); font-size: var(--t-label); line-height: calc(var(--px) * 7); opacity: 0.8; }
 .nx-panel-b { position: relative; flex: 1; min-height: 0; overflow: auto; padding: calc(var(--px) * 6) calc(var(--px) * 7); color: var(--ph); scrollbar-color: var(--ph-dim) transparent; scrollbar-width: thin; }
-.nx-close, .nx-btn, .ik2-btn, .ik2-tab-b, .hp-tab, .hp-btn { border: calc(var(--px) * 3) solid transparent; border-image: var(--rk-key) 5 fill / calc(var(--px) * 5) stretch; background: none;
+.nx-close, .nx-btn, .ik2-btn, .ik2-tab-b { border: calc(var(--px) * 3) solid transparent; border-image: var(--rk-key) 5 fill / calc(var(--px) * 5) stretch; background: none;
   padding: 0 calc(var(--px) * 4) calc(var(--px) * 2); font-family: var(--font-stencil); font-size: var(--t-label); line-height: calc(var(--px) * 9); color: var(--ink); text-shadow: 0 var(--px) 0 rgba(255, 255, 255, 0.5); }
-.nx-close:hover, .nx-close:focus-visible, .nx-btn:hover, .nx-btn:focus-visible, .ik2-btn:hover, .ik2-btn:focus-visible, .ik2-tab-b:hover, .ik2-tab-b:focus-visible, .hp-tab:hover, .hp-tab:focus-visible, .hp-btn:hover, .hp-btn:focus-visible { outline: none; filter: brightness(1.1); color: var(--ink); border-color: transparent; }
-.nx-close:focus-visible, .nx-btn:focus-visible, .ik2-btn:focus-visible, .ik2-tab-b:focus-visible, .hp-tab:focus-visible, .hp-btn:focus-visible { box-shadow: 0 0 0 var(--px) #ffd27a; }
-.nx-close:active, .nx-btn:active, .ik2-btn:active, .ik2-tab-b.on, .hp-tab.on, .hp-btn:active { border-image-source: var(--rk-key-down); padding-top: calc(var(--px) * 2); padding-bottom: 0; }
-.nx-btn.no, .hp-btn.primary, .hp-btn.danger { border-image-source: var(--rk-key-red); color: #fff0e0; text-shadow: 0 calc(var(--px) * -1) 0 rgba(0, 0, 0, 0.5); }
-.nx-btn.no:hover, .nx-btn.no:focus-visible, .hp-btn.primary:hover, .hp-btn.primary:focus-visible, .hp-btn.danger:hover, .hp-btn.danger:focus-visible { color: #fff0e0; }
-.nx-btn.no:active, .hp-btn.primary:active, .hp-btn.danger:active { border-image-source: var(--rk-key-red-down); }
+.nx-close:hover, .nx-close:focus-visible, .nx-btn:hover, .nx-btn:focus-visible, .ik2-btn:hover, .ik2-btn:focus-visible, .ik2-tab-b:hover, .ik2-tab-b:focus-visible { outline: none; filter: brightness(1.1); color: var(--ink); border-color: transparent; }
+.nx-close:focus-visible, .nx-btn:focus-visible, .ik2-btn:focus-visible, .ik2-tab-b:focus-visible { box-shadow: 0 0 0 var(--px) #ffd27a; }
+.nx-close:active, .nx-btn:active, .ik2-btn:active, .ik2-tab-b.on { border-image-source: var(--rk-key-down); padding-top: calc(var(--px) * 2); padding-bottom: 0; }
+.nx-btn.no { border-image-source: var(--rk-key-red); color: #fff0e0; text-shadow: 0 calc(var(--px) * -1) 0 rgba(0, 0, 0, 0.5); }
+.nx-btn.no:hover, .nx-btn.no:focus-visible { color: #fff0e0; }
+.nx-btn.no:active { border-image-source: var(--rk-key-red-down); }
 .nx-close { align-self: flex-end; }
 .nx-close kbd { font-family: var(--font-readout); opacity: 0.7; border: 0; }
 .nx-about p { margin: 0 0 calc(var(--px) * 5); line-height: var(--lh-loose); }
@@ -305,9 +305,13 @@ html.reduce-flash .rm-lens { display: none; }
 .hp-head { border-bottom: var(--px) dashed rgba(var(--ph-rgb), 0.4); }
 .hp-head b { color: var(--ph-hi); }
 .hp-head span { color: var(--ph-dim); }
-.hp-tab.on { color: #7a1a10; }
-.hp-btn small { color: var(--ink-2); }
-.hp-btn.primary small, .hp-btn.danger small { color: #ffd0c0; }
+/* the band's controls are drawn on its tube: phosphor outlines, inverse video when chosen */
+.hp-tab, .hp-btn { background: transparent; border: 1px solid rgba(var(--ph-rgb), 0.45); border-image: none; color: var(--ph); text-shadow: 0 0 2px currentColor; }
+.hp-tab.on, .hp-btn.primary { background: var(--ph); color: var(--scr); text-shadow: none; border-color: var(--ph); }
+.hp-tab:hover, .hp-tab:focus-visible, .hp-btn:hover, .hp-btn:focus-visible { border-color: var(--ph-hi); color: var(--ph-hi); background: rgba(var(--ph-rgb), 0.12); outline: none; }
+.hp-tab.on:hover, .hp-tab.on:focus-visible, .hp-btn.primary:hover, .hp-btn.primary:focus-visible { background: var(--ph-hi); color: var(--scr); }
+.hp-btn.danger { border-color: #ff7a5a; color: #ff9a7a; }
+.hp-btn small { color: inherit; opacity: 0.7; }
 .hp-grid b { color: var(--ph-hi); }
 .hp-grid span { color: var(--ph-dim); }
 html.reduce-flash .hp-panel { animation: none; }
@@ -324,7 +328,7 @@ html.reduce-flash .hp-panel { animation: none; }
 .rk-tape, .ik2-slot b, .ik2-right .ik2-h b, .ik2-big b { font-family: var(--font-sign); font-weight: 600; letter-spacing: 0.08em; font-size: var(--t-label); }
 .ik2-plate b, .nx-panel-h b, .ik2-left .ik2-h b { font-family: var(--font-poster); font-weight: 400; letter-spacing: 0.06em; font-size: var(--t-label); }
 .ik2-plate span, .nx-panel-h small, .ik2-left .ik2-h small { font-family: var(--font-sign); letter-spacing: 0.04em; }
-.nx-close, .nx-btn, .ik2-btn, .ik2-tab-b, .hp-tab, .hp-btn, .ik2-exit, .ik2-go b, .ik2-buy, .ik2-card-b .st { font-family: var(--font-sign); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.nx-close, .nx-btn, .ik2-btn, .ik2-tab-b, .ik2-exit, .ik2-go b, .ik2-buy, .ik2-card-b .st { font-family: var(--font-sign); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
 .ik2-go small { font-family: var(--font-type); }
 .nx-cap small, .ik2-card-b .nm, .ik2-big small, .ik2-right .ik2-h small { font-family: var(--font-type); }
 .rk-nixie i { font-family: var(--font-nixie); font-size: calc(var(--px) * 12); }
@@ -353,3 +357,6 @@ html.reduce-flash .hp-panel { animation: none; }
   .ik2-body { padding: 6px 8px 10px; }
   .ik2-cards { grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); }
 }
+/* rubber stamps in real type */
+.nx-stamp { display: inline-block; padding: 1px 8px 0; border: 3px double currentColor; border-radius: 3px; font-family: var(--font-stamp); font-weight: 700; font-size: calc(var(--px) * 9); line-height: 1.1; letter-spacing: 0.14em; text-transform: uppercase; transform: rotate(-9deg); opacity: 0.82; mix-blend-mode: multiply; }
+.nx-stamp.red { color: #b8261e; } .nx-stamp.green { color: #2a6a34; } .nx-stamp.blue { color: #2a3a8a; }

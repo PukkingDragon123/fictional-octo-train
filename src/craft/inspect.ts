@@ -42,6 +42,7 @@ interface Work {
 }
 interface Prop { mesh: THREE.Object3D; click: () => void }
 
+const _X = new THREE.Vector3(1, 0, 0);
 const coarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
 const VERB_LABEL: Record<string, string> = { saw: 'SAWING', grind: 'GRINDING', strike: 'STRIKING', tear: 'TEARING', wrap: 'BINDING', braid: 'BRAIDING' };
@@ -96,8 +97,9 @@ export class Inspect {
   private toolG = new THREE.Group();
   private anvil!: THREE.Mesh;
   private toolObj: ItemObj | null = null;
-  private guide: THREE.Line;
-  private guideMat = new THREE.LineBasicMaterial({ color: 0xf0e8d0, transparent: true, opacity: 0.9, depthTest: false });
+  /** the chalk line where the work goes: a thick soft stroke, pulsing */
+  private guide: THREE.Mesh;
+  private guideMat = new THREE.MeshBasicMaterial({ color: 0xf0e8d0, transparent: true, opacity: 0.9, depthTest: false });
   private work: Work | null = null;
   private drag: { id: number; x: number; y: number } | null = null;
   private px = 0; private py = 0; private down = false;
@@ -130,8 +132,7 @@ export class Inspect {
     r.addEventListener('wheel', (e) => { e.preventDefault(); if (!this.work) this.distT = Math.max(0.75, Math.min(1.6, this.distT + (e.deltaY > 0 ? 0.08 : -0.08))); }, { passive: false });
     r.addEventListener('contextmenu', (e) => e.preventDefault());
     r.addEventListener('touchmove', (e) => { if (this.open) e.preventDefault(); }, { passive: false });
-    const gg = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(1, 0, 0)]);
-    this.guide = new THREE.Line(gg, this.guideMat);
+    this.guide = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), this.guideMat);
     this.guide.renderOrder = 8;
     this.guide.visible = false;
     bus.on('fpLost', (n: string) => { if (n === 'inspect' && this.open) this.close(true); });
@@ -728,9 +729,10 @@ export class Inspect {
     const w = this.work;
     if (w && this.model) {
       this.worldOf(w.a, _v); this.worldOf(w.b, _w);
-      const pos = this.guide.geometry.attributes.position as THREE.BufferAttribute;
-      pos.setXYZ(0, _v.x, _v.y, _v.z); pos.setXYZ(1, _w.x, _w.y, _w.z); pos.needsUpdate = true;
-      this.guide.geometry.computeBoundingSphere();
+      const len = _v.distanceTo(_w);
+      this.guide.position.copy(_v).add(_w).multiplyScalar(0.5);
+      this.guide.quaternion.setFromUnitVectors(_X, _w.sub(_v).normalize());
+      this.guide.scale.set(len, 0.006, 0.006);
       this.guideMat.opacity = 0.55 + 0.4 * Math.sin(now * 0.008);
       this.guide.visible = w.phase !== 'finish' && (w.h.verb !== 'wrap' || w.phase === 'go');
     }

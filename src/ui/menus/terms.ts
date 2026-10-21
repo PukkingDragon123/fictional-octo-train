@@ -3,8 +3,6 @@
 // sandbox ('contract', 'debt', 'installmentDays', 'bandLethal' or anything
 // else) get rows of their own, so nothing new is ever unreachable.
 import { h, esc, sfx, hoverFocus } from './common';
-import { toUrl } from '../pixelkit';
-import { stampWord } from './art';
 
 export const PRESETS: Record<string, { label: string; note: string; s: Record<string, number> }> = {
   standard: { label: 'Standard', note: 'The programme as designed.', s: { dayLength: 60, creatures: 1, loot: 1, collapseSpeed: 1, startHour: 8.5, waterShutoffDays: 7, powerShutoffDays: 0, gore: 2 } },
@@ -123,7 +121,7 @@ export function termsStation(ctx: TermsCtx) {
     sr.append(si, dice);
     paper.append(sr);
     const sig = h('div', 'tm-sig', `<span>SIGNED</span><em>${esc(ctx.name || '')}</em><span class="x">X</span>`);
-    const st = new Image(); st.src = toUrl(stampWord('RECEIVED', 0x2a3a8a, 2)); st.alt = ''; st.className = 'tm-recv';
+    const st = h('span', 'tm-recv nx-stamp blue', 'RECEIVED');
     sig.append(st);
     paper.append(sig);
     paper.scrollTop = scroll;

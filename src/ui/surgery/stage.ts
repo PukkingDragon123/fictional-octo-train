@@ -286,6 +286,13 @@ export class SurgeryStage {
   private camPos = new THREE.Vector3(0.75, 2.35, 2.25); private camAt = new THREE.Vector3(0.05, 0.92, 0.05);
   private camPosT = new THREE.Vector3(0.75, 2.35, 2.25); private camAtT = new THREE.Vector3(0.05, 0.92, 0.05);
   private shakeT = 0; private flash = 0; private hurt = 0;
+  // cinematography: spring dollies, a focus pull on whatever is framed, punches and hit-stops on the cuts, letterbox bars
+  private camVel = new THREE.Vector3(); private atVel = new THREE.Vector3();
+  private punchK = 0; private stopT = 0; private bars = 0; private baseFov = 34;
+  /** field mode: 0..1 how far the view has come in (synced to the game's first-person cut) */
+  entrance = 1;
+  /** a hit: camera punch, a beat of frozen time, a little flash */
+  impact(k: number, stopMs = 0) { this.punchK = Math.max(this.punchK, k); this.stopT = Math.max(this.stopT, stopMs / 1000); this.flash = Math.max(this.flash, k * 0.12); this.shake(k * 0.5); }
   // subject placement and pose
   private subj = new THREE.Group();
   private lying = 1;
@@ -805,6 +812,7 @@ export class SurgeryStage {
     this.twitch.push({ bone: '*', t: T(1300) / 1000, amp: 0.12 }, { bone: limb ? rootBone : 'head', t: T(1300) / 1000, amp: 0.5 });
     const cutEnd = this.t + T(limb ? 1250 : 900) / 1000;
     this.phase = 'cut';
+    this.impact(0.6, 90);
     while (this.t < cutEnd) {
       const p = this.saw.tipWorld(new THREE.Vector3());
       if (flesh || (!limb && !had)) { this.spray(p, 9, 1.1); for (const b of BLOOD[kind] || []) this.bloodOn[b] = Math.min(3, (this.bloodOn[b] ?? 0) + 0.25); this.applyCondSoon(); } else this.spark(p, 6);
@@ -832,6 +840,7 @@ export class SurgeryStage {
       if (!had) this.bleeding = cut;
       this.applyCond();
       csfx(had ? 'cy_rip' : 'cy_splat', 0.9);
+      this.impact(1, 150);
       this.shake(0.5); this.hurt = had ? 0.3 : 1; this.flash = 0.25;
       if (!had) this.spray(j0, 40, 1.6);
     } else if (had) {
@@ -873,6 +882,7 @@ export class SurgeryStage {
     const bolts = limb ? 3 : 2;
     for (let i = 0; i < bolts; i++) {
       csfx(key ? 'cy_bolt' : 'cy_splat', 0.8);
+      this.impact(0.35, 60);
       const t1 = this.t + T(380) / 1000;
       while (this.t < t1) {
         const p = this.driver.tipWorld(new THREE.Vector3());
@@ -935,23 +945,37 @@ export class SurgeryStage {
     this.renderer.setSize(w, h, false);
     this.cam.aspect = lw / lh;
     this.fgCam.aspect = w / h; this.fgCam.updateProjectionMatrix();
-    this.cam.fov = lw / lh < 0.8 ? 52 : this.mode === 'field' ? 62 : 34;
+    this.cam.fov = this.baseFov = lw / lh < 0.8 ? 52 : this.mode === 'field' ? 62 : 34;
     this.cam.updateProjectionMatrix();
     this.rt?.dispose(); this.rt2?.dispose();
     this.rt = new THREE.WebGLRenderTarget(lw, lh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
+    this.rt.depthTexture = new THREE.DepthTexture(lw, lh);
     this.rt2 = new THREE.WebGLRenderTarget(lw, lh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false });
     if (!this.blit) { const bm = new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false, toneMapped: false }); const bs = new THREE.Scene(); const bq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bm); bq.position.z = -0.5; bq.frustumCulled = false; bs.add(bq); this.blit = { scene: bs, mat: bm }; }
     this.blit.mat.map = this.rt2.texture; this.blit.mat.needsUpdate = true;
     if (!this.post) {
       const mat = new THREE.ShaderMaterial({
-        uniforms: { tex: { value: null }, texel: { value: new THREE.Vector2() }, uTime: { value: 0 }, uHurt: { value: 0 }, uFlash: { value: 0 } },
+        uniforms: { tex: { value: null }, uDepth: { value: null }, texel: { value: new THREE.Vector2() }, uTime: { value: 0 }, uHurt: { value: 0 }, uFlash: { value: 0 }, uNear: { value: 0.05 }, uFar: { value: 40 }, uFocus: { value: 3 }, uAperture: { value: 1 }, uBars: { value: 0 } },
         vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
         fragmentShader: `
-          uniform sampler2D tex; uniform vec2 texel; uniform float uTime; uniform float uHurt; uniform float uFlash;
+          uniform sampler2D tex; uniform sampler2D uDepth; uniform vec2 texel; uniform float uTime; uniform float uHurt; uniform float uFlash;
+          uniform float uNear; uniform float uFar; uniform float uFocus; uniform float uAperture; uniform float uBars;
+          float lin(vec2 uv) { float z = texture2D(uDepth, uv).r * 2.0 - 1.0; return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear)); }
           varying vec2 vUv;
           void main(){
             vec2 q = vUv - 0.5;
             vec3 c = texture2D(tex, vUv).rgb;
+            // the lens: whatever is not at the focus distance goes soft (a focus pull follows the framing)
+            float coc = clamp(abs(lin(vUv) - uFocus) / max(uFocus, 0.5) * uAperture, 0.0, 1.0);
+            if (coc > 0.06) {
+              vec3 acc = c; float wsum = 1.0;
+              for (int k = 0; k < 10; k++) {
+                float a = float(k) * 2.39996;
+                vec2 o = vec2(cos(a), sin(a)) * sqrt(float(k) + 0.5) * 0.75 * coc * texel * 2.6;
+                acc += texture2D(tex, vUv + o).rgb; wsum += 1.0;
+              }
+              c = acc / wsum;
+            }
             // tungsten halation: the brightest neighbours bleed warm
             vec3 b = vec3(0.0);
             for (int i = -2; i <= 2; i++) for (int j = -2; j <= 2; j++) {
@@ -968,6 +992,9 @@ export class SurgeryStage {
             c = mix(c, vec3(0.55, 0.0, 0.02), clamp(uHurt * smoothstep(0.04, 0.42, v) * 0.95, 0.0, 0.85));
             c = mix(c, vec3(1.0, 0.96, 0.92), clamp(uFlash, 0.0, 1.0));
             c *= 1.0 - v * 1.15;
+            // letterbox while the machines work
+            float bh = uBars * 0.085;
+            if (vUv.y < bh || vUv.y > 1.0 - bh) c = vec3(0.0);
             gl_FragColor = vec4(c, 1.0);
             #include <colorspace_fragment>
           }`,
@@ -978,6 +1005,7 @@ export class SurgeryStage {
       this.post = { scene, cam: new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), mat };
     }
     this.post.mat.uniforms.tex.value = this.rt.texture;
+    this.post.mat.uniforms.uDepth.value = this.rt.depthTexture;
     this.post.mat.uniforms.texel.value.set(1 / lw, 1 / lh);
   }
 
@@ -987,8 +1015,11 @@ export class SurgeryStage {
     if (dt < 1 / 60) return;
     this.last = now;
     if (document.hidden || !this.renderer || !this.rt || !this.post) return;
-    this.t += dt;
-    for (const f of this.tweens.splice(0)) f();
+    // hit-stop: the world holds its breath for a beat, the camera does not
+    const sdt = this.stopT > 0 ? 0 : dt;
+    this.stopT -= dt;
+    this.t += sdt;
+    if (sdt > 0) for (const f of this.tweens.splice(0)) f();
     if (this.rig) {
       this.placeSubject(this.lying, 0);
       this.rig.applyPose(this.pose(dt));
@@ -1035,8 +1066,18 @@ export class SurgeryStage {
     } else this.inspect.intensity = damp(this.inspect.intensity, 0, 6, dt);
     // camera
     if (this.mode === 'field' && this.rig && !this.busy) this.povAt(null);
-    this.camPos.lerp(this.camPosT, 1 - Math.exp(-dt * 3));
-    this.camAt.lerp(this.camAtT, 1 - Math.exp(-dt * 3.5));
+    // spring dolly (eases in and out), the field view comes in with the game's cut
+    const spring = (p: THREE.Vector3, v: THREE.Vector3, t: THREE.Vector3, w: number) => {
+      v.x += ((t.x - p.x) * w * w - 2 * w * v.x) * dt; v.y += ((t.y - p.y) * w * w - 2 * w * v.y) * dt; v.z += ((t.z - p.z) * w * w - 2 * w * v.z) * dt;
+      p.addScaledVector(v, dt);
+    };
+    if (this.mode === 'field' && this.entrance < 1) { const k = 1 - this.entrance; _v.copy(this.camPosT).add(_v2.set(-0.5 * k, 0.9 * k, 0.6 * k)); spring(this.camPos, this.camVel, _v, 3.6); }
+    else spring(this.camPos, this.camVel, this.camPosT, 3.2);
+    spring(this.camAt, this.atVel, this.camAtT, 3.8);
+    this.punchK = Math.max(0, this.punchK - dt * 3.5);
+    const fov = this.baseFov * (1 - this.punchK * 0.14);
+    if (Math.abs(this.cam.fov - fov) > 0.01) { this.cam.fov = fov; this.cam.updateProjectionMatrix(); }
+    this.bars += ((this.busy && this.phase && this.phase !== 'intro' ? 1 : 0) - this.bars) * Math.min(1, dt * 4);
     this.shakeT = Math.max(0, this.shakeT - dt * 1.6);
     const sh = this.shakeT * this.shakeT * 0.06;
     this.cam.position.set(this.camPos.x + (Math.random() - 0.5) * sh, this.camPos.y + (Math.random() - 0.5) * sh + Math.sin(this.t * 0.5) * 0.01, this.camPos.z + (Math.random() - 0.5) * sh);
@@ -1046,7 +1087,9 @@ export class SurgeryStage {
     this.hurt = Math.max(0, this.hurt - dt * 0.8);
     this.flash = Math.max(0, this.flash - dt * 3);
     const pu = this.post.mat.uniforms;
-    pu.uTime.value = this.t; pu.uHurt.value = this.hurt; pu.uFlash.value = this.flash;
+    pu.uTime.value = this.t; pu.uHurt.value = this.hurt; pu.uFlash.value = this.flash; pu.uBars.value = this.bars;
+    pu.uFocus.value = this.camPos.distanceTo(this.camAt); pu.uAperture.value = this.mode === 'field' ? 0.7 : 1.1;
+    pu.uNear.value = this.cam.near; pu.uFar.value = this.cam.far;
     this.render();
   };
 

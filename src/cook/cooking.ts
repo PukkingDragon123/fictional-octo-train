@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import { clamp, lerp } from '../core/math';
-import { fpGroup, fpClaim, fpRelease, fpCamera } from '../fp/fp';
+import { fpGroup, fpClaim, fpRelease, fpCamera, fpBlend } from '../fp/fp';
 import { worldMaterial } from '../gfx/materials';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { itemDef, type Item } from '../items/item';
@@ -222,7 +222,7 @@ export class CookView {
       if (igniter && (fuel || (o.state.fuel ?? 0) > 0 || o.key === 'campfire_unlit')) G.items?.lightFire?.(p, o, igniter, fuel);
       else { bus.emit('think', p, 'Cold. I need something to light it, and something to burn.'); return true; }
     }
-    if (!fpClaim('cook', 3)) return false;
+    if (!fpClaim('cook', 3, { cinematic: 'full' })) return false;
     this.kind = kind;
     this.station = { zk: z.key, x: o.x, y: o.y, uid: o.uid };
     this.heat = kind === 'stove' ? 0.8 : 1;
@@ -371,7 +371,8 @@ export class CookView {
     if (inp.hit('shove')) this.toss();
     const H = this.stationHeat();
     // slide the rig into place, pan kick
-    this.rig.position.y = lerp(this.rig.position.y, 0.0, 1 - Math.exp(-dt * 9));
+    // the stove rises into view with the cut-in
+    this.rig.position.y = lerp(-0.5, 0.0, fpBlend());
     this.panKick = Math.max(0, this.panKick - dt * 3.5);
     const kick = Math.sin(this.panKick * Math.PI) * 0.06;
     this.panG.position.y = kick; this.panG.rotation.z = -kick * 1.5;

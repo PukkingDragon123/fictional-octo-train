@@ -47,6 +47,7 @@ export const IX = {
   drag1: [[0, 1.8], [0, -10.6], [0.1, -12.9]] as [number, number][],
   drag2: [[0.25, -12.1], [0.3, -14.6], [0.55, -19.0], [0.9, -22.4]] as [number, number][],
 };
+const NEAR: [number, number, number][] = [];
 /** observation windows in the wing's left wall (centres, z) */
 const WINDOWS = [-4.6, -7.4];
 /** corridor fixtures (ceiling tubes), the antechamber bulb, the press-room lamps */
@@ -378,7 +379,8 @@ export class IntroSet {
   update(dt: number, cam: THREE.Vector3) {
     this.t += dt;
     // nearest tubes get the three pooled lights
-    const near = [...TUBES].sort((a, b) => Math.abs(a[2] - cam.z) - Math.abs(b[2] - cam.z));
+    const near = NEAR; for (let i = 0; i < TUBES.length; i++) near[i] = TUBES[i];
+    near.sort((a, b) => Math.abs(a[2] - cam.z) - Math.abs(b[2] - cam.z));
     this.flick -= dt;
     const bad = TUBES[3];
     for (let i = 0; i < this.pool.length; i++) {

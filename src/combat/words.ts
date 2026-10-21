@@ -33,7 +33,8 @@ export class Words {
   private prompts: Prompt[] = [];
   private n = 0;
   private floats: Floater[] = [];
-  private lastUpdate = 0;
+  /** animation frames since the fight last drew (the game ticks once per frame; more means it is paused or gone) */
+  private idle = 0;
   private hidden = false;
 
   constructor() {
@@ -44,14 +45,14 @@ export class Words {
     document.body.appendChild(this.root);
     // nothing drives the layer while the game is paused or gone: hide it then
     const watch = () => {
-      const stale = !G || (G as any).paused || performance.now() - this.lastUpdate > 1500;
+      const stale = !G || (G as any).paused || ++this.idle > 3;
       if (stale !== this.hidden) { this.hidden = stale; this.root.style.visibility = stale ? 'hidden' : ''; }
       requestAnimationFrame(watch);
     };
     requestAnimationFrame(watch);
   }
 
-  begin() { this.n = 0; this.lastUpdate = performance.now(); }
+  begin() { this.n = 0; this.idle = 0; }
 
   /**
    * A key prompt this frame at a world point: `key` in sign letters ("SPACE", "E", "TAP"),

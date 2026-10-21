@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
-import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera } from '../../fp/fp';
+import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera, fpBlendLinear } from '../../fp/fp';
 import { itemDef, freshness, type Item, type FluidType } from '../../items/item';
 import { punch, shake } from '../../gfx/juice';
 import { mix, shade } from './pix';
@@ -185,7 +185,7 @@ export class EatFp {
     const d = itemDef(it.key);
     if (!d.food || d.food.pills || !G.pr?.overlayScene || this.active) return false;
     if (!this.hud.canEat()) { bus.emit('think', a.p, ['I can\'t. Not another bite.', 'My stomach says no.', 'Too full.'][Math.floor(Math.random() * 3)]); G.audio?.flat?.('bh_swallow', 'voice', 0.4, 0.7); a.done = true; return true; }
-    if (!fpClaim('eat', 5)) return false;
+    if (!fpClaim('eat', 5, { cinematic: 'full' })) return false;
     this.ensure();
     this.mode = 'eat'; this.act = a; this.rec = recipe(it);
     this.begin();
@@ -198,7 +198,7 @@ export class EatFp {
   startDrink(a: any): boolean {
     const it: Item = a.it;
     if (!it?.fluid || !G.pr?.overlayScene || this.active) return false;
-    if (!fpClaim('eat', 5)) return false;
+    if (!fpClaim('eat', 5, { cinematic: 'full' })) return false;
     this.ensure();
     this.mode = 'drink'; this.act = a; this.rec = null;
     this.fluidType = it.fluid.type; this.fluidC = FLUID[it.fluid.type] ?? 0x8ac8f0;
@@ -230,7 +230,7 @@ export class EatFp {
     if (this.catcher) { const c = this.catcher; this.catcher = null; c.classList.add('out'); setTimeout(() => c.remove(), 400); }
     window.removeEventListener('keydown', this.key, true);
     if (G.input) G.input.pointerOverUI = false;
-    if (!lost && fpOwner() === 'eat') { const cam = fpCamera(); cam.position.set(0, 0, 0); cam.rotation.set(0, 0, 0); fpRelease('eat'); }
+    if (!lost && fpOwner() === 'eat') { const cam = fpCamera(); cam.position.set(0, 0, 0); cam.rotation.set(0, 0, 0); if (cam.fov !== 30) { cam.fov = 30; cam.updateProjectionMatrix(); } fpRelease('eat'); }
     if (this.root) this.root.visible = false;
   }
 
@@ -534,7 +534,8 @@ export class EatFp {
     this.t += dt;
     const a = this.act;
     if (!a) { this.finish(false); return; }
-    this.raise = Math.min(1, this.raise + dt / 0.35);
+    // the shared cut (fp.ts) drives the entrance: the food comes up with the hands as the camera pushes in
+    this.raise = Math.max(this.raise, Math.min(1, fpBlendLinear() * 1.05));
     // swallowed bites reach the jar
     for (let i = this.pendingJar.length - 1; i >= 0; i--) {
       const j = this.pendingJar[i];
@@ -573,6 +574,9 @@ export class EatFp {
     // chewing bobs the view; a gulp tips the head back
     const chew = this.chew >= 0 ? Math.abs(Math.sin(this.chew * Math.PI * 3)) * (1 - this.chew) : 0;
     const g = this.gulpT >= 0 ? Math.sin(Math.min(1, this.gulpT) * Math.PI) : 0;
+    // focus pull: the lens settles onto the food as it arrives
+    const fov = 30 + (1 - up) * 7;
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
     cam.position.set(0, -chew * 0.006, 0);
     cam.rotation.set(chew * 0.03 + g * 0.18, no * 0.12, Math.sin(t * 0.9) * 0.006);
     const yOff = (1 - up) * -0.22;

@@ -110,8 +110,9 @@ function step(now: number) {
 function paint() {
   if (!bars) return;
   const k = ease(blend);
-  const h = (mode === 'glance' ? FP_CUT.glanceBars : FP_CUT.bars) * k;
+  // 'none' claims (props held while you keep playing) show no bars or vignette
+  const h = mode === 'none' ? 0 : (mode === 'glance' ? FP_CUT.glanceBars : FP_CUT.bars) * k;
   (bars.children[0] as HTMLElement).style.height = h + 'vh';
   (bars.children[1] as HTMLElement).style.height = h + 'vh';
-  (bars.children[2] as HTMLElement).style.opacity = String((mode === 'glance' ? 0.35 : 1) * k);
+  (bars.children[2] as HTMLElement).style.opacity = String(mode === 'none' ? 0 : (mode === 'glance' ? 0.35 : 1) * k);
 }

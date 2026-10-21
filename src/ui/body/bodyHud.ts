@@ -64,6 +64,8 @@ export class BodyHud {
   private bodyOf: Player | null = null;
   private k = 1; private touch = false;
   private layoutT = 0;
+  private baseY = 0;
+  private barEl: HTMLElement | null = null;
   private down: { kind: Kind; x: number; y: number; moved: number; id: number; inj: Injury | null } | null = null;
   private overUI = false;
   private zoomT = 0;
@@ -186,6 +188,12 @@ export class BodyHud {
     if (p.body.dead) this.deadT += dt; else this.deadT = 0;
     this.step(dt, p);
     this.eat.update(dt);
+    // a first-person cut's cinema bar slides up over the corner: the shelf rides up above it
+    if (!this.touch) {
+      if (!this.barEl) this.barEl = document.querySelector('.fp-cut .b');
+      const bar = this.barEl ? (parseFloat(this.barEl.style.height) || 0) * window.innerHeight / 100 : 0;
+      this.st.css.y = this.baseY - bar;
+    }
     if (this.boardInj) { this.boardT -= dt; if ((this.boardT <= 0 && this.hover.kind !== 'tool') || !p.body.allInjuries().includes(this.boardInj)) this.closeBoard(); }
     if (show && this.hover.kind) this.updateSay(p);
   }
@@ -312,8 +320,8 @@ export class BodyHud {
     const cw = W * unitPx / dpr, ch = H * unitPx / dpr;
     const x = touch ? Math.round((window.innerWidth - cw) / 2) : Math.round(window.innerWidth - cw - 8);
     const y = touch ? 2 : Math.round(window.innerHeight - ch - 4);
-    if (touch === this.touch && k === this.k && x === this.st.css.x && y === this.st.css.y && unitPx === this.st.px && W === this.st.W) return;
-    this.touch = touch; this.k = k;
+    if (touch === this.touch && k === this.k && x === this.st.css.x && y === this.baseY && unitPx === this.st.px && W === this.st.W) return;
+    this.touch = touch; this.k = k; this.baseY = y;
     this.world.scale.setScalar(k);
     this.st.layout(x, y, W, H, unitPx);
   }
@@ -445,6 +453,6 @@ export class BodyHud {
       if (bits.length) lines.push(bits.join('  ·  '));
       at = this.st.toScreen(JAR_AT[0] * this.k, (JAR_AT[1] + 50) * this.k);
     }
-    this.setSay(lines.join('\n'), at.x, Math.max(4, Math.min(at.y, this.st.css.y) - 6));
+    this.setSay(lines.join('\n'), at.x, this.touch ? this.st.css.y + this.st.css.h + 4 : Math.max(4, Math.min(at.y, this.st.css.y) - 6));
   }
 }

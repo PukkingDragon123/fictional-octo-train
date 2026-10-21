@@ -55,7 +55,7 @@ addTextureModule(() => {
   A.add('bt_hazard', 16, 4, (pc) => { pc.each((x, y) => pc.set(x, y, ((x + y) >> 1) % 2 ? 0x1a1a1a : 0xe8c020)); });
   A.add('bt_seam', 4, 4, (pc) => { pc.each((x, y) => pc.set(x, y, (x + y) % 2 ? 0xf2e0a0 : 0xc8a860)); });
   A.add('bt_soil', 16, 16, (pc) => {
-    pc.each((x, y) => { const n = ph(x, y, 51); pc.set(x, y, n < 0.15 ? 0xd8c040 : n < 0.5 ? 0x3a2a1e : n < 0.8 ? 0x2a1e16 : 0x4a3a2a); });
+    pc.each((x, y) => { const n = ph(x, y, 51); pc.set(x, y, n < 0.04 ? 0x8a7a48 : n < 0.5 ? 0x3a2a1e : n < 0.8 ? 0x2a1e16 : 0x4a3a2a); });
   });
 });
 

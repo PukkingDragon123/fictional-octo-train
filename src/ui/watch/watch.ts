@@ -91,6 +91,12 @@ export class Watch {
   private skin = -1;
   private hitFx = 0;
   private knobKick = 0;
+  private cine: 'full' | 'glance' = 'full';
+  private lowerT = 0;
+  private settleT = -1;
+  private tubeWas = false;
+  private typeT = 1;
+  private rollT = 0;
   /** 1 while the wrist is up only for a peek (smaller, further off) */
   private peekMix = 0;
   private knobA = 0;
@@ -148,7 +154,8 @@ export class Watch {
     if (want && p && !this.wearing(p)) { bus.emit('think', p, 'My wrist is bare. No watch, no quests.'); return; }
     if (page) this.goto(page);
     if (want === this.open) return;
-    if (want && fpOwner() && fpOwner() !== 'watch' && !fpClaim('watch', 1)) return;
+    if (want && fpOwner() && fpOwner() !== 'watch' && !fpClaim('watch', 1, { cinematic: this.still >= 0.3 ? 'full' : 'glance' })) return;
+    if (want && this.staged) this.cine = 'glance'; // re-cut to full once it is up (from a peek)
     this.open = want;
     this.peekKey = null;
     if (p) p.scannerOpen = want;
@@ -165,7 +172,13 @@ export class Watch {
     if (node) this.selectNode(node);
     if (G.local && this.open) bus.emit('think', G.local, `My watch can't do that yet. ${researchNode(node || '')?.title || 'Research'} is on the R&D uplink.`);
   }
-  press(page: string) { this.goto(page); G.audio?.ui?.('watchTick', 0.45); this.drawT = 0; }
+  press(page: string) {
+    const was = this.page;
+    this.goto(page);
+    G.audio?.ui?.('watchTick', 0.45);
+    if (this.page !== was) { this.rollT = 1; this.typeT = Math.min(this.typeT, 0.4); this.knobKick = 1; G.audio?.ui?.('dial', 0.4); }
+    this.drawT = 0;
+  }
   cycle(dir: number) {
     const i = this.pages.findIndex((p) => p.key === this.page);
     const n = this.pages.length; if (!n) return;
@@ -504,34 +517,77 @@ export class Watch {
       if (this.hitTest(G.input.mouseX, G.input.mouseY)) G.input.pointerOverUI = true;
       else if (!G.ui.inventory?.open && !G.ui.menuEl) G.input.pointerOverUI = false;
     }
-    this.raise = damp(this.raise, up ? 1 : 0, up ? 8 : 10, dt);
+    // ---- the cut: claim the stage (full on Tab while standing, a glance on the move or for a peek)
+    const cine = this.open && !this.small ? 'full' : 'glance';
+    if (up && !this.staged) {
+      this.staged = fpClaim('watch', 1, { cinematic: cine });
+      if (!this.staged) { this.open = false; this.peekKey = null; p.scannerOpen = false; return; }
+      this.cine = cine; this.raise = 0; this.settleT = -1;
+    } else if (up && this.staged && cine !== this.cine && this.raise > 0.9) { fpClaim('watch', 1, { cinematic: cine }); this.cine = cine; }
+    // ---- the arm: up in ~0.45 s with weight; down after the tube has collapsed to a dot
+    if (up) { this.lowerT = 0.14; this.raise = Math.min(1, this.raise + dt / 0.45); }
+    else if (this.lowerT > 0) this.lowerT -= dt;
+    else this.raise = Math.max(0, this.raise - dt / 0.26);
+    if (this.raise >= 1 && this.settleT < 0) this.settleT = 0;
+    if (this.settleT >= 0) this.settleT += dt;
     // (lowered, it simply starts from the right pose)
     if (this.raise < 0.05) this.zoom = this.small ? 0 : 1;
     this.zoom = damp(this.zoom, this.small ? 0 : 1, 7, dt);
     // (held while it lowers again, so a peek drops away where it came up)
     if (this.open) this.peekMix = damp(this.peekMix, 0, 9, dt);
     else if (this.peekKey) this.peekMix = this.raise < 0.05 ? 1 : damp(this.peekMix, 1, 9, dt);
-    this.power = damp(this.power, up && this.raise > 0.6 ? 1 : 0, 9, dt);
-    // the first-person stage
-    if (this.raise > 0.01 && !this.staged) { this.staged = fpClaim('watch', 1); if (!this.staged) { this.open = false; this.peekKey = null; p.scannerOpen = false; return; } }
-    if (this.raise <= 0.01 && !up && this.staged) { this.staged = false; fpRelease('watch'); }
+    // ---- the tube: relay click and hum as it comes up; collapses to a dot first when lowered
+    const tubeOn = up && this.raise > 0.55;
+    if (tubeOn !== this.tubeWas) {
+      this.tubeWas = tubeOn;
+      this.crt.power(tubeOn);
+      G.audio?.ui?.(tubeOn ? 'crtOn' : 'crtOff', 0.45);
+      if (tubeOn) { this.typeT = 0; this.drawT = 0; }
+    }
+    this.power = this.crt.mat.crt.on;
+    if (this.raise <= 0 && !up && this.staged) { this.staged = false; fpRelease('watch'); }
     if (!this.staged) return;
     if (this.skin !== p.app.skin) { this.skin = p.app.skin; this.model.rebuildArm(p.app.skin); }
     this.pose(p, dt);
     this.updateControls(p, dt);
     const u = this.crt.mat.uniforms;
     u.uNoise.value = 0.03 + Math.max(G.collapse * 0.12, p.body.corruption > 30 ? 0.08 : 0);
-    this.crt.power(up && this.raise > 0.55);
     this.hitFx = Math.max(0, this.hitFx - dt * 3);
     this.glow.intensity = 0.0006 * this.power;
-    // redraw at ~15 fps (the tube animates itself in between)
+    this.typeT = Math.min(1, this.typeT + dt / 0.38);
+    this.rollT = Math.max(0, this.rollT - dt * 4.5);
+    // redraw at ~15 fps (the tube animates itself in between), faster while it types on or rolls
     this.drawT -= dt;
-    if (this.drawT <= 0 && this.power > 0.05) {
-      this.drawT = 1 / 15;
-      drawWatch(this.tv, this);
-      this.tv.wash(PAL.HI, this.hitFx * 0.12);
-      this.crt.flush();
+    if (this.drawT <= 0 && this.power > 0.02) {
+      this.drawT = this.typeT < 1 || this.rollT > 0 ? 1 / 30 : 1 / 15;
+      this.paint();
     }
+  }
+
+  /** draw a frame onto the tube: the page, then the entrance effects (focus pull, type-on, vertical roll) */
+  private paint() {
+    const tv = this.tv, g = tv.ctx;
+    const focus = clamp((this.raise - 0.55) / 0.45, 0, 1);
+    const roll = this.rollT * this.rollT;
+    g.save();
+    if (focus < 1 && 'filter' in g) g.filter = `blur(${((1 - focus) * 2.2 * tv.k).toFixed(2)}px)`;
+    if (roll > 0) g.translate(0, -roll * SCR_H * 0.45);
+    drawWatch(tv, this);
+    g.restore();
+    if (roll > 0) {
+      // the frame slips: the next one rolls up from below past a bright retrace line
+      const y = SCR_H * (1 - roll * 0.45);
+      tv.rect(0, y, SCR_W, SCR_H - y, PAL.BG);
+      tv.rect(0, y, SCR_W, 2, PAL.HI);
+    }
+    if (this.typeT < 1) {
+      // type-on: rows appear top to bottom behind a block cursor
+      const y = Math.floor(this.typeT * (SCR_H + 9));
+      if (y < SCR_H) tv.rect(0, y, SCR_W, SCR_H - y, PAL.BG);
+      if (Math.floor(G.time * 12) % 2 === 0) tv.rect(3 + ((y * 7) % (SCR_W - 12)), Math.min(SCR_H - 8, y), 5, 7, PAL.HI);
+    }
+    tv.wash(PAL.HI, this.hitFx * 0.12);
+    this.crt.flush();
   }
 
   /** place the wrist: the full close-up (the tube fills most of the view) or the small glance, raised from below */
@@ -554,7 +610,17 @@ export class Watch {
     // raise from below with a little overshoot
     const r = this.raise, c1 = 1.5, back = 1 + (c1 + 1) * Math.pow(r - 1, 3) + c1 * Math.pow(r - 1, 2);
     const lift = (1 - back) * (halfH * 1.6);
-    y -= lift; rx -= (1 - r) * 0.9; rz += (1 - r) * 0.3;
+    // the wrist turns to face you on the way up
+    const turn = 1 - Math.min(1, back);
+    y -= lift; rx -= (1 - r) * 0.9 + turn * 0.2; ry += turn * 0.55; rz += (1 - r) * 0.3;
+    // and settles with a little weight when it arrives
+    if (this.settleT >= 0 && this.settleT < 1.2) {
+      const k2 = Math.exp(-this.settleT * 7);
+      rz += Math.sin(this.settleT * 22) * 0.03 * k2;
+      y += Math.sin(this.settleT * 19) * 0.0018 * k2;
+    }
+    // fingers flex as the arm comes up, then rest
+    this.model.hand.rotation.z = -0.22 * (1 - r) + Math.sin(Math.min(1, r) * Math.PI) * 0.08;
     // breathing at rest, swinging when you walk or run
     const moving = p.speed > 0.2;
     const amp = moving ? (p.running ? 2.2 : 1) : 0.15;

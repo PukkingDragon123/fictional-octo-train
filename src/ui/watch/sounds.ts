@@ -60,3 +60,22 @@ defSound('laserHum', () => {
   const n = noise(0.32, 'pink'); highpass(n, 1800); b.mix(n, 0, 0.06);
   return b.normalize(0.32);
 });
+
+// the tube: a relay clunks, the flyback whines up, the hum settles in
+defSound('crtOn', () => {
+  const b = new Buf(0.9);
+  b.mix(kit.thump(0.12, 160, 60, 30), 0, 0.5);
+  b.mix(kit.clickS(900, 0.02), 0.005, 0.5);
+  const whine = osc(0.7, 'sine', (t) => 9000 + t * 6000); whine.env(adsr(0.08, 0.2, 0.25, 0.3, 0.7)); b.mix(whine, 0.06, 0.05);
+  const hum = osc(0.8, 'saw', 100); lowpass(hum, 400); hum.env(adsr(0.1, 0.2, 0.4, 0.4, 0.8)); b.mix(hum, 0.05, 0.1);
+  const crackle = noise(0.25, 'white'); highpass(crackle, 4000); crackle.env(decay(14)); b.mix(crackle, 0.04, 0.12);
+  return b.normalize(0.42);
+});
+// switched off: a zap and the whine falling away
+defSound('crtOff', () => {
+  const b = new Buf(0.5);
+  const z = osc(0.3, 'sine', (t) => 12000 - t * 30000); z.env(decay(12)); b.mix(z, 0, 0.06);
+  b.mix(kit.clickS(700, 0.02), 0, 0.45);
+  const n = noise(0.12, 'white'); highpass(n, 2500); n.env(decay(30)); b.mix(n, 0, 0.15);
+  return b.normalize(0.36);
+});

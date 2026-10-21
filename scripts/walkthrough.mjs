@@ -186,6 +186,8 @@ const step = async (page, name, fn, arg) => {
     window.__dev.op('objRelease', { z: 'lobby', uid: uidv, x: h.x + 1, y: h.y + 1, by: T.p.id });
     // then the lever (the press only goes when somebody pulls it)
     await T.sleep(300);
+    // (the lever is locked while the ram from the last deposit is still moving)
+    await T.until(() => !(T.g.press ?? T.D.hop).busy(h), 60000, 'press idle');
     if (!T.pull(h)) throw new Error('lever would not pull');
     // (pull again if a cycle ran before the cabinet had settled on the bed)
     let nextPull = T.g.time + 6;

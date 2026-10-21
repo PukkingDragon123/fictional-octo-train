@@ -10,7 +10,7 @@ import { bus } from '../../core/events';
 import { TimedAction } from '../../actions/action';
 import type { Player } from '../../entities/player';
 import type { Item } from '../../items/item';
-import { fpClaim, fpRelease } from '../../fp/fp';
+import { fpClaim, fpRelease, fpBlend } from '../../fp/fp';
 import { addStat } from '../../game/profile';
 import { CYBER_SLOTS, CyberSlot, SLOT_KIND, SLOT_CODE, cyberDef, cyberDefByItem, slotConflicts, loadoutOf, installPart, removePart } from '../../survival/cyber';
 import { SurgeryStage } from './stage';
@@ -44,7 +44,10 @@ export function fieldSurgery(p: Player) {
   const view = document.createElement('div'); view.className = 'sg-view';
   root.append(view);
   document.body.append(root);
-  fpClaim('surgery', 5);
+  // the game's own first-person cut (dolly, bars, vignette) plays under us; the theatre fades in with it
+  fpClaim('surgery', 5, { cinematic: 'full' });
+  root.style.opacity = '0';
+  let leaving = false;
   const stage = new SurgeryStage(view, 'field');
   const { cond: _c, ...outfit } = p.computeOutfit() as any;
   void _c;
@@ -115,14 +118,18 @@ export function fieldSurgery(p: Player) {
       else { const sc = Math.min(1, (hw * 1.9) / 1.05); crt.group.scale.setScalar(sc); crt.group.position.set(0, -hh + 0.48 * sc, -3); crt.group.rotation.set(0, 0, 0); stage.setViewShift(0, -0.2); }
     }
     crt.frame(dt, busy);
+    if (!leaving) { const k = fpBlend(); root.style.opacity = String(Math.min(1, k * 1.15)); stage.entrance = k; }
   };
 
   const close = () => {
     if (ended) return;
     ended = true;
     window.removeEventListener('keydown', onKey, true);
-    stage.dispose(); root.remove();
+    // out the way it came in: the cut reverses while the theatre fades
+    leaving = true;
     fpRelease('surgery');
+    root.style.transition = 'opacity 0.3s ease-in'; root.style.opacity = '0';
+    setTimeout(() => { stage.dispose(); root.remove(); }, 320);
     openNow = false;
     if (action && !action.finished) { action.finished = true; action.cancelled = true; }
   };

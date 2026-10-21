@@ -240,6 +240,7 @@ export class Intro implements GameSystem {
   private staged = true;
   // the first-person camera: scripted look (yaw, pitch, roll) + a handheld wobble + trauma shake
   private look = { yaw: Math.PI, pitch: -0.3, roll: 0 };
+  private lookV = { yaw: 0, pitch: 0, roll: 0 };
   private goal = { yaw: Math.PI, pitch: -0.3, roll: 0, rate: 3 };
   private trauma = 0;
   private camSave: { fov: number; near: number; far: number } | null = null;
@@ -274,7 +275,7 @@ export class Intro implements GameSystem {
   private lidT!: HTMLDivElement; private lidB!: HTMLDivElement; private wrapEl!: HTMLDivElement;
   private skipBtn!: HTMLButtonElement;
   private svgOff!: SVGFEOffsetElement;
-  private shadeA = 1; private flashA = 0; private hurtA = 0; private lid = 1; private lidGoal = 1; private lidHit = 0; private wrapA = 0;
+  private shadeA = 1; private flashA = 0; private hurtA = 0; private lid = 1; private lidGoal = 1; private lidHit = 0; private lidHold = 0; private focus = 0; private wrapA = 0;
   private dbl = 0; private blur = 0; private desat = 0;
   private skipping = -1; private skipHot = 0;
   private touch = false;
@@ -346,7 +347,7 @@ export class Intro implements GameSystem {
 
   // ================================================================== the stage
   private claimStage() {
-    fpClaim(STAGE_NAME, 100);
+    fpClaim(STAGE_NAME, 100, { cinematic: 'none' });
     const cam = fpCamera();
     this.camSave = { fov: cam.fov, near: cam.near, far: cam.far };
     cam.fov = 64; cam.near = 0.035; cam.far = 60; cam.updateProjectionMatrix();
@@ -479,7 +480,8 @@ export class Intro implements GameSystem {
     this.hurtA = Math.max(0, this.hurtA - dt * 0.9);
     this.hurtEl.style.opacity = String(clamp01(this.hurtA));
     this.lidHit = Math.max(0, this.lidHit - dt * 1.8);
-    const lg = Math.max(this.lidGoal, this.lidHit);
+    this.lidHold = Math.max(0, this.lidHold - dt);
+    const lg = this.lidHold > 0 ? 1 : Math.max(this.lidGoal, this.lidHit);
     this.lid += (lg - this.lid) * Math.min(1, dt * (lg > this.lid ? 18 : 6));
     const lp = (this.lid * 50).toFixed(2) + '%';
     this.lidT.style.height = lp; this.lidB.style.height = lp;
@@ -488,7 +490,8 @@ export class Intro implements GameSystem {
     // the picture itself: doubling, blur, the colour draining out
     this.dbl = Math.max(0, this.dbl - dt * 0.35);
     this.blur = Math.max(0, this.blur - dt * 0.8);
-    const d = this.dbl, bl = this.blur;
+    this.focus = Math.max(0, this.focus - dt * 0.75);
+    const d = this.dbl, bl = Math.max(this.blur, this.focus * this.focus);
     if (this.staged && (d > 0.01 || bl > 0.02 || this.desat > 0.01)) {
       this.svgOff.setAttribute('dx', (Math.sin(this.T * 1.7) * 14 * d + 6 * d).toFixed(1));
       this.svgOff.setAttribute('dy', (Math.sin(this.T * 2.3) * 4 * d).toFixed(1));
@@ -503,6 +506,11 @@ export class Intro implements GameSystem {
   private aim(yaw: number, pitch: number, roll = 0, rate = 3) { this.goal.yaw = yaw; this.goal.pitch = pitch; this.goal.roll = roll; this.goal.rate = rate; }
   private get seamFx(): SeamFx | null { return (G as unknown as { seamFx?: SeamFx }).seamFx ?? null; }
   private wrist(side: 'L' | 'R', out: THREE.Vector3) { return palm(this.me, side, out); }
+
+  /** a hard cut: the eyes shut for a beat (black), then open soft and pull into focus */
+  private cutBlack(secs: number, soft = 0.9) { this.lidHold = secs; this.lid = 1; this.focus = Math.max(this.focus, soft); }
+  /** rack focus: from soft to sharp over about a second */
+  private pullFocus(from = 1) { this.focus = Math.max(this.focus, from); }
 
   /** a blow, a slam, a bolt: freeze a beat, shake the head, flash, blood on the lens */
   private hit(power: number, side = 0, flash = 0.5) {
@@ -586,8 +594,10 @@ export class Intro implements GameSystem {
     head.getWorldQuaternion(qa);
     this.eye.add(v2.set(0, 0.07, 0.085).applyQuaternion(qa));
     const L = this.look, Gl = this.goal;
-    const k = Math.min(1, dt * Gl.rate);
-    L.yaw += wrapA(Gl.yaw - L.yaw) * k; L.pitch += (Gl.pitch - L.pitch) * k; L.roll += (Gl.roll - L.roll) * k;
+    const w = Gl.rate * 1.6, kk = w * w, c = 2 * w, h = Math.min(dt, 0.05);
+    const V = this.lookV;
+    V.yaw += (kk * wrapA(Gl.yaw - L.yaw) - c * V.yaw) * h; V.pitch += (kk * (Gl.pitch - L.pitch) - c * V.pitch) * h; V.roll += (kk * (Gl.roll - L.roll) - c * V.roll) * h;
+    L.yaw += V.yaw * h; L.pitch += V.pitch * h; L.roll += V.roll * h;
     // handheld: breathing, the pulse, a slow drift; trauma shake on top (squared)
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     const s = this.trauma * this.trauma, t = this.T;
@@ -653,7 +663,7 @@ export class Intro implements GameSystem {
     }
     if (this.staged) {
       // nothing else gets the first-person stage while the intake is playing
-      if (fpOwner() !== STAGE_NAME) fpClaim(STAGE_NAME, 1000);
+      if (fpOwner() !== STAGE_NAME) fpClaim(STAGE_NAME, 1000, { cinematic: 'none' });
       this.lightT -= dt;
       if (this.lightT <= 0) { this.lightT = 1; this.hideForeignLights(); }
       this.updBody(dt);
@@ -670,7 +680,7 @@ export class Intro implements GameSystem {
   private updDragPhase(dt: number) {
     const t = this.t;
     this.at(0.1, 1, () => { this.skipBtn.classList.add('on'); G.audio?.positionalLoop?.('ix_fluoro', 'ix_fluoro', this.p.x, this.p.z, 0.4); });
-    this.at(0.7, 2, () => { this.lidGoal = 0.35; });
+    this.at(0.7, 2, () => { this.lidGoal = 0.35; this.pullFocus(1.3); });
     this.at(1.0, 3, () => { this.lidGoal = 0.9; });
     this.at(1.35, 4, () => { this.lidGoal = 0.12; });
     this.shadeA = Math.max(0, 1 - Math.max(0, t - 0.5) / 1.4);
@@ -715,7 +725,7 @@ export class Intro implements GameSystem {
       this.bodyYaw = 0;
       this.sfx('body_thud', 1); this.sfx('debtor_gasp', 0.9);
       this.hit(0.9, 0, 0.25);
-      this.lidHit = 0.9;
+      this.cutBlack(0.22, 1.1);
       this.look.roll = 0.5;
       this.aim(Math.PI, 1.18, 0.3, 6);
     });
@@ -794,6 +804,7 @@ export class Intro implements GameSystem {
     this.pose = 'drag'; this.poseK = 9;
     this.startDrag(IX.drag2, 1.25);
     this.set.startPress(3.4);
+    this.cutBlack(0.4, 1);
   }
   private updHaul(dt: number) {
     const t = this.t;
@@ -867,7 +878,7 @@ export class Intro implements GameSystem {
     this.at(2.6, 2, () => this.say('OFFICER', 'Hold still. It only goes in once.'));
     this.at(3.9, 3, () => this.say('self', 'no - no no no-', 'self'));
     this.at(4.3, 4, () => this.pierce());
-    this.at(5.3, 5, () => { this.sfx('remit_chirp', 0.9); this.say('OFFICER', 'Fitted.'); });
+    this.at(5.3, 5, () => { this.sfx('remit_chirp', 0.9); this.say('OFFICER', 'Fitted.'); this.pullFocus(1.1); });
     // look at it: the camera narrows on the wrist
     if (t > 4.6 && t < 7.0) { const cam = fpCamera(); cam.fov += (50 - cam.fov) * Math.min(1, dt * 2); cam.updateProjectionMatrix(); }
     else if (t >= 7.0) { const cam = fpCamera(); cam.fov += (64 - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix(); }
@@ -913,6 +924,7 @@ export class Intro implements GameSystem {
     this.go('tape');
     this.tapeFrom.copy(this.bodyAt);
     this.pose = 'stand'; this.poseW = 0;
+    this.cutBlack(0.18, 0.7);
     G.audio?.positionalLoop?.('ix_drone', 'seam_drone', this.p.x, this.p.z, 0.2);
   }
   private updTape(dt: number) {

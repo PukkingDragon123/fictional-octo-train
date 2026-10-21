@@ -10,7 +10,7 @@ import { hasItemDef, itemDef } from '../../items/item';
 import { itemIcon } from '../icons';
 import { h, esc, sfx, hoverFocus } from './common';
 import { toUrl, kitTheme, idPhoto } from '../pixelkit';
-import { xrayFilm, xrayOf, stampWord } from './art';
+import { xrayFilm, xrayOf } from './art';
 
 export interface RehabCtx {
   occ: string;
@@ -22,8 +22,7 @@ export interface RehabCtx {
 }
 
 const cr = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n)}`;
-let stampCache: Record<string, string> = {};
-const stampUrl = (w: string, c: number) => (stampCache[w + c] ||= toUrl(stampWord(w, c, 2)));
+const stamp = (w: string, cls: string) => `<span class="nx-stamp ${cls}">${w}</span>`;
 const filmCache = new Map<string, string>();
 const filmUrl = (t: Trait) => {
   let u = filmCache.get(t.key);
@@ -32,7 +31,6 @@ const filmUrl = (t: Trait) => {
 };
 
 export function rehabStation(ctx: RehabCtx) {
-  stampCache = {};
   const el = h('div', 'rh-wrap');
   const top = h('div', 'rh-top', '<div class="rh-sign"><b>REHAB SECTION</b><span>programmes · conditions · credits</span></div><div class="rh-tip">Every programme and condition gives you something <i class="g">✚</i> and takes something <i class="b">✖</i>. Programmes cost or give credits; assets cost credits, liabilities pay them back. Finish at 0 or above.</div>');
   const cols = h('div', 'rh-cols');
@@ -69,7 +67,7 @@ export function rehabStation(ctx: RehabCtx) {
       <div class="rh-skills">${skills}</div>
       ${kit ? `<div class="rh-kit"><small>ISSUED</small>${kit}</div>` : ''}
       ${avail ? '' : `<div class="rh-sealed"><b>SEALED</b><span>${esc(o.unlock?.hint || 'Not yet available.')}</span>${prog ? `<i style="--p:${prog}%"></i>` : ''}</div>`}
-      <div class="rh-file-stamp ${stampKind ? 'on' : chosen && avail ? 'on still' : ''}">${stampKind === 'DENIED' || (!avail && stampKind) ? `<img src="${stampUrl('DENIED', 0xc8261e)}" alt="DENIED">` : chosen || stampKind ? `<img src="${stampUrl('APPROVED', 0x2a7a3a)}" alt="APPROVED">` : ''}</div>`;
+      <div class="rh-file-stamp ${stampKind ? 'on' : chosen && avail ? 'on still' : ''}">${stampKind === 'DENIED' || (!avail && stampKind) ? stamp('DENIED', 'red') : chosen || stampKind ? stamp('APPROVED', 'green') : ''}</div>`;
   };
   const tabs: HTMLButtonElement[] = [];
   OCCUPATIONS.forEach((o) => {
