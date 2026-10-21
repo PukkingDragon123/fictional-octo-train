@@ -22,7 +22,7 @@ import type { SettleStats } from './settlement';
 const SW = 120, SH = 148;           // sheet pixels
 const PW = 0.27, PH = PW * SH / SW; // sheet metres
 const CATS = Object.keys(CAT_NAMES) as PieceCat[];
-const TAB: Record<PieceCat, string> = { struct: 'STRC', machine: 'MACH', defense: 'DEF', living: 'LIVE', farm: 'FARM' };
+const TAB: Record<PieceCat, string> = { struct: 'STR', machine: 'MCH', defense: 'DEF', living: 'LIV', farm: 'FRM' };
 const WHITE = 0xe8f0ff, PALE = 0x9fc0ea, RED = 0xe0503a;
 
 export interface BoardState { pc: Piece; idx: number; total: number; cat: PieceCat; unlocked: boolean; have: (k: string) => number; demolish: boolean; gas: number | null; tool: string; stats: SettleStats | null; claimName: string }
@@ -82,7 +82,7 @@ export class Clipboard {
     labels.forEach(([lab, red], i) => {
       const x = -0.12 + i * 0.06, y = 0.24;
       const bez = new ModelBuilder(); bez.cylinder(0, 0, 0, 0.026, 0.01, 14, 'chrome');
-      const bm = new THREE.Mesh(bez.build(), M); bm.rotation.x = Math.PI / 2; bm.position.set(x, y, 0.004); this.rig.add(bm);
+      const bm = new THREE.Mesh(bez.build(), M); bm.rotation.x = Math.PI / 2; bm.position.set(x, y, -0.002); this.rig.add(bm);
       const face = new Sheet(32, 32); face.gaugeFace(lab, red); face.commit();
       const fm = new THREE.Mesh(new THREE.CircleGeometry(0.022, 16), new THREE.MeshLambertMaterial({ map: face.tex }));
       fm.position.set(x, y, 0.0096); this.rig.add(fm);
@@ -102,9 +102,9 @@ export class Clipboard {
     // lights of its own (the stage may have none)
     const key = new THREE.DirectionalLight(0xfff2e0, 1.0); key.position.set(-0.5, 0.8, 1); this.g.add(key);
     this.g.add(new THREE.AmbientLight(0xb8c0d0, 0.55));
-    // held low and to the right, tilted toward you
+    // held low and to the left (the body gauges live on the right), tilted toward you
     this.rig.scale.setScalar(0.86);
-    this.rig.rotation.set(-0.28, -0.32, 0.05);
+    this.rig.rotation.set(-0.28, 0.32, -0.05);
     this.hits = [this.board, this.sheetM, this.toggleM, lm];
     bus.on('fpChange', (n: string | null) => { if (n === null && this.shown) setTimeout(() => { if (this.shown && !fpOwner()) fpClaim('build', 2); }, 0); });
   }
@@ -139,7 +139,7 @@ export class Clipboard {
     if (fpOwner() !== 'build') { if (!fpOwner()) fpClaim('build', 2); return; }
     this.raise = Math.min(1, this.raise + dt * 3.5);
     const e = 1 - Math.pow(1 - this.raise, 3);
-    this.rig.position.set(0.37, lerp(-0.62, -0.13, e) + Math.sin(G.time * 1.3) * 0.003, -1.02);
+    this.rig.position.set(-0.37, lerp(-0.62, -0.13, e) + Math.sin(G.time * 1.3) * 0.003, -1.02);
     // scale model of the piece
     const mk = st.pc.key;
     if (mk !== this.miniKey) { this.miniKey = mk; this.buildMini(st.pc); }
