@@ -257,7 +257,6 @@ export class Intro implements GameSystem {
   private strikes: Strike[] = [];
   private beaten = false; private pierced = false; private fitted = false; private sealed = false;
   // world state to restore
-  private hours: number;
   private missions: any = null;
   private missionsAt = -1;
   private offs: (() => void)[] = [];
@@ -291,8 +290,6 @@ export class Intro implements GameSystem {
     this.num = (p as unknown as { prisonerNo?: string }).prisonerNo || rigNumber(p.rig);
     (p as unknown as { prisonerNo: string }).prisonerNo = this.num;
     paintMugshot({ skin: p.app.skin, hair: p.app.hair, hairStyle: p.app.hairStyle, number: this.num });
-    this.hours = g.clock.hours;
-    g.clock.hours = Math.floor(this.hours / 24) * 24 + 3 + 12 / 60;
     this.dress();
     // directives wait until the contract starts (no radio chatter in the processing wing)
     const m = g.missions;
@@ -1146,7 +1143,6 @@ export class Intro implements GameSystem {
     const fx = g.pr.fx;
     fx.corruptFlash = 0; fx.glitch = 0; fx.dream = 0;
     U.uCollapse.value = 0;
-    g.clock.hours = this.hours;
     if (this.seamL && !this.sealed) { this.sealed = true; this.seamFx?.setState(this.seamL, true); }
     this.canvas.style.filter = '';
     this.root.remove();

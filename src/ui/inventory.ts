@@ -116,7 +116,7 @@ export class InventoryUI {
   private rail = new THREE.Group();
   private sideTags: { t: PixTag; e: Entry }[] = [];
   private wornBoard = new THREE.Group();
-  private howTo = pixTag('card', 80, 50, 0.27);
+  private howTo = pixTag('card', 80, 62, 0.27);
   private opens = 0;
   private wornObjs: { it: Item; obj: ItemObj }[] = [];
   private palm = { R: new THREE.Vector3(), L: new THREE.Vector3() };
@@ -204,7 +204,7 @@ export class InventoryUI {
     const card = this.howTo;
     card.clear();
     card.type('Stowing the cube', 12, 5, '#7a2a1a', 7.5);
-    card.para('Drag things in: they drop to the bottom. R turn, T tip, Y roll. Wheel or knob: peel layers. Double-click: work on it. Tap the lid to shut.', 12, 15, 64, undefined, 7.4, 5, 6.2);
+    card.para('Drag things in: they drop to the bottom. R turn, T tip, Y roll. Wheel: peel layers. Double-click: work on it. Tap the lid to shut.', 12, 15, 64, undefined, 7.2, 6, 5.8);
     card.flush();
     g.add(card.mesh);
     // the hook board for what you wear
@@ -229,9 +229,9 @@ export class InventoryUI {
     const halfH = Math.tan((cam.fov * Math.PI) / 360) * D, halfW = halfH * asp;
     const wide = asp >= 1.2;
     const k = wide ? 1 : Math.max(0.55, asp / 1.2);
-    this.floor.position.set(0, wide ? -0.36 : -0.18, wide ? -1.75 : -2.1);
+    this.floor.position.set(0, wide ? -0.4 : -0.2, wide ? -2.05 : -2.3);
     this.cubeSpin.position.set(0, 0, -0.06);
-    const sideX = wide ? Math.min(0.66, 0.42 + (asp - 1.2) * 0.34) : 0.34;
+    const sideX = wide ? Math.min(0.6, 0.42 + (asp - 1.2) * 0.3) : 0.34;
     const sideZ = wide ? 0.04 : 0.42;
     this.rollHold.position.set(-sideX, 0.002, sideZ + 0.02); this.rollHold.rotation.set(0, wide ? 0.3 : 0.1, 0);
     this.trayHold.position.set(sideX, 0.002, sideZ); this.trayHold.rotation.set(0, wide ? -0.3 : -0.1, 0);
@@ -287,6 +287,7 @@ export class InventoryUI {
     this.open = true; this.suspended = false;
     this.phase = 'opening';
     this.root.classList.add('on');
+    G.hudBody?.setHidden?.('pack', true);
     G.input.pointerOverUI = true;
     this.scanNearby(); this.dirty = true;
     this.cube.setContainer(this.cubeC());
@@ -324,6 +325,7 @@ export class InventoryUI {
     this.lastClose = performance.now();
     this.cubeSpin.rotation.set(0, 0, 0);
     this.cube.setScan(0, 0);
+    G.hudBody?.setHidden?.('pack', false);
     this.ui.closeMenu?.();
   }
 

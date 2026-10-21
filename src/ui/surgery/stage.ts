@@ -1018,6 +1018,8 @@ export class SurgeryStage {
     }
     // lights
     this.alarm.intensity = this.alarm.intensity > 0 ? 2 + Math.sin(this.t * 14) * 2 : 0;
+    // dark lights cost as much as lit ones: take them out of the shaders while they are off
+    this.alarm.visible = this.alarm.intensity > 0.01; this.weld.visible = this.weld.intensity > 0.01; this.inspect.visible = this.inspect.intensity > 0.02;
     this.lamp.intensity = 11 + Math.sin(this.t * 41) * 0.2 + (Math.random() < 0.003 ? -5 : 0);
     this.stress = Math.max(0.15, this.stress - dt * 0.06);
     this.drawMonitor(dt);

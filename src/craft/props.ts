@@ -20,6 +20,7 @@ export class Dymo {
   private y0 = 0.36; private y1 = 0.25;
   constructor(parent: THREE.Object3D, z = -1.1) { this.tag.mesh.position.set(0, this.y0, z); this.tag.mesh.renderOrder = 20; parent.add(this.tag.mesh); this.tag.mesh.visible = false; }
   place(y: number, z: number) { this.y1 = y; this.y0 = y + 0.12; this.tag.mesh.position.z = z; }
+  hide() { this.t = 0; this.tag.mesh.visible = false; }
   show(text: string, bad = false) {
     const t = this.tag;
     t.clear();
@@ -134,9 +135,11 @@ export class Gauge {
     const mb = new ModelBuilder();
     mb.setFaceShading(false);
     mb.push().rotateX(Math.PI / 2); mb.cylinder(0, -0.012, 0, 0.088, 0.012, 20, 'metal_brass'); mb.pop();
-    mb.push().rotateX(Math.PI / 2); mb.cylinder(0, 0.0, 0, 0.084, 0.004, 20, 'metal_brass', { color: 0xe8d8b0 }); mb.pop();
     mb.box(0, 0.085, -0.006, 0.02, 0.03, 0.012, 'metal_brass', { color: 0xc8b090 });
     this.g.add(new THREE.Mesh(mb.build(), metalMat('brass', 3)));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.083, 0.0055, 6, 28), metalMat('brass', 3));
+    ring.position.z = 0.003;
+    this.g.add(ring);
     // the glass over the face: a faint specular sheen
     const glass = new THREE.Mesh(new THREE.CircleGeometry(0.08, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, roughness: 0.05, metalness: 0, envMap: metalEnv(), envMapIntensity: 1.5 }));
     glass.position.z = 0.008;

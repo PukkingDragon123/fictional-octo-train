@@ -138,14 +138,22 @@ export function watchMats(): Record<MatKey, THREE.MeshStandardMaterial> {
   const env = envMap();
   const map = atlas().texture;
   const base = { map, vertexColors: true, envMap: env, side: THREE.DoubleSide };
+  // phones on low quality get plain PBR: no clearcoat or sheen layers
+  const low = G.pr?.quality === 'low';
+  const phys = (o: THREE.MeshPhysicalMaterialParameters): THREE.MeshStandardMaterial => {
+    if (!low) return new THREE.MeshPhysicalMaterial(o);
+    const { clearcoat, clearcoatRoughness, sheen, sheenRoughness, sheenColor, ...rest } = o;
+    void clearcoat; void clearcoatRoughness; void sheen; void sheenRoughness; void sheenColor;
+    return new THREE.MeshStandardMaterial(rest as THREE.MeshStandardMaterialParameters);
+  };
   MATS = {
     steel: new THREE.MeshStandardMaterial({ ...base, metalness: 0.85, roughness: 0.38, envMapIntensity: 1.0 }),
-    bake: new THREE.MeshPhysicalMaterial({ ...base, metalness: 0, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.18, envMapIntensity: 0.8 }),
+    bake: phys({ ...base, metalness: 0, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.18, envMapIntensity: 0.8 }),
     brass: new THREE.MeshStandardMaterial({ ...base, metalness: 0.92, roughness: 0.3, envMapIntensity: 1.1 }),
     chrome: new THREE.MeshStandardMaterial({ ...base, metalness: 1, roughness: 0.12, envMapIntensity: 1.2 }),
     rubber: new THREE.MeshStandardMaterial({ ...base, metalness: 0, roughness: 0.92, envMapIntensity: 0.3 }),
-    skin: new THREE.MeshPhysicalMaterial({ ...base, metalness: 0, roughness: 0.6, sheen: 0.4, sheenRoughness: 0.6, sheenColor: new THREE.Color(0xffd0b0), envMapIntensity: 0.35 }),
-    cloth: new THREE.MeshPhysicalMaterial({ ...base, metalness: 0, roughness: 0.95, sheen: 0.6, sheenRoughness: 0.8, sheenColor: new THREE.Color(0xfff0a0), envMapIntensity: 0.25 }),
+    skin: phys({ ...base, metalness: 0, roughness: 0.6, sheen: 0.4, sheenRoughness: 0.6, sheenColor: new THREE.Color(0xffd0b0), envMapIntensity: 0.35 }),
+    cloth: phys({ ...base, metalness: 0, roughness: 0.95, sheen: 0.6, sheenRoughness: 0.8, sheenColor: new THREE.Color(0xfff0a0), envMapIntensity: 0.25 }),
     paint: new THREE.MeshStandardMaterial({ ...base, metalness: 0.1, roughness: 0.55, envMapIntensity: 0.6 }),
   };
   for (const m of Object.values(MATS)) atlasAware(m);

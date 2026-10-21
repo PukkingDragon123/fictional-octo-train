@@ -87,11 +87,15 @@ export const hasCyber = (b: Body | null | undefined) => { const st = cyberState(
 // ------------------------------------------------------------------ live effects (cached on the state, rebuilt when it changes)
 interface Live {
   sig: string;
+  frame: number;
   attack: number; move: number; action: number; aim: number; carry: number; armor: number; kick: number;
   noise: number; drain: number; cold: number; fatigue: number; lucid: number; noRun: boolean;
   grants: Set<string>; revokes: Set<string>;
 }
 const LIVE = new WeakMap<CyberState, Live>();
+let frameNo = 1;
+/** forget cached effects after a change (install, removal, oil, a new battery) */
+const invalidate = (st: CyberState | undefined) => { if (st) LIVE.delete(st); };
 const q = (v: number | undefined, n = 4) => Math.round((v ?? 0) * n);
 function sigOf(st: CyberState) {
   let s = st.charge > 0 ? '+' : '-';
@@ -101,10 +105,12 @@ function sigOf(st: CyberState) {
 export function liveFx(b: Body): Live | null {
   const st = cyberState(b);
   if (!st) return null;
-  const sig = sigOf(st);
   let L = LIVE.get(st);
-  if (L && L.sig === sig) return L;
-  L = { sig, attack: 1, move: 1, action: 1, aim: 1, carry: 0, armor: 0, kick: 0, noise: 0, drain: 0, cold: 0, fatigue: 0, lucid: 0, noRun: false, grants: new Set(), revokes: new Set() };
+  // Body.has / mods run many times a frame: the signature is checked once a frame
+  if (L && L.frame === frameNo) return L;
+  const sig = sigOf(st);
+  if (L && L.sig === sig) { L.frame = frameNo; return L; }
+  L = { sig, frame: frameNo, attack: 1, move: 1, action: 1, aim: 1, carry: 0, armor: 0, kick: 0, noise: 0, drain: 0, cold: 0, fatigue: 0, lucid: 0, noRun: false, grants: new Set(), revokes: new Set() };
   for (const slot of CYBER_SLOTS) {
     const ps = st.parts[slot]; const d = cyberDef(ps?.k);
     if (!ps || !d) continue;
@@ -183,6 +189,7 @@ export function installPart(p: Player, slot: CyberSlot, key: string, opts: { ite
     for (const part of covers) b.parts[part].injuries = [];
   }
   st.parts[slot] = { k: key, rust: 0, wear: 0 };
+  invalidate(st);
   if (opts.item) p.removeItem(opts.item);
   changed(p);
   return true;
@@ -193,6 +200,7 @@ export function removePart(p: Player, slot: CyberSlot, giveBack = true): boolean
   if (!st || !ps) return false;
   const d = cyberDef(ps.k);
   delete st.parts[slot];
+  invalidate(st);
   const covers = SLOT_COVERS[slot];
   if (covers.length) p.body.severed = [...new Set([...p.body.severed, ...covers])];
   if (giveBack && d) giveOrDrop(p, d.item);
@@ -216,6 +224,7 @@ function ripPart(p: Player, slot: CyberSlot, how: string, from?: [number, number
     if (it) { p.removeItem(it); op('dropFloor', { z: p.zoneKey, item: serializeItem(it), x: p.x, zz: p.z, y: p.y + 0.9, v: [(Math.random() - 0.5) * 2, 1.5, (Math.random() - 0.5) * 2] }); }
   }
   delete st.parts[slot];
+  invalidate(st);
   const covers = SLOT_COVERS[slot];
   if (covers.length) p.body.severed = [...new Set([...p.body.severed, ...covers])];
   if (d && hasItemDef(d.item)) {
@@ -338,8 +347,8 @@ function installWraps() {
 // ------------------------------------------------------------------ the system
 const THINK: Record<string, string[]> = {
   rust: ['The joint is grinding. It needs oil.', 'Rust. I can hear it in the elbow.', 'It squeals every time I move it.'],
-  flat: ['The cell is flat. The hardware is dead weight.', 'Power\'s gone. It just hangs there.'],
-  low: ['Cell is under a fifth. I need a battery.'],
+  flat: ['The battery is flat. The hardware is dead weight.', 'Power\'s gone. It just hangs there.'],
+  low: ['The battery is under a fifth. I need a fresh one.'],
 };
 const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const NEAR_TABLE = new Set(['operating_table', 'gurney']);
@@ -365,6 +374,7 @@ export class CyberSystem implements GameSystem {
   charge(p: Player) { return cyberState(p.body)?.charge ?? 0; }
 
   update(dt: number, dh: number) {
+    frameNo++;
     const p = G.local as Player | null;
     if (!p) return;
     // peers' hardware comes in through the outfit; nothing to simulate for them
@@ -422,7 +432,7 @@ export class CyberSystem implements GameSystem {
     const site = table || this.surgerySite(p);
     const kits = p.allItems().filter((it) => !!cyberDefByItem(it.key));
     if (site || table) {
-      const label = table ? 'Lie on the table: cyber surgery' : 'Self-surgery (surgery rig)';
+      const label = table ? 'Operate (lie on the table)' : 'Self-surgery';
       subs.push({ label, disabled: !kits.length && !hasCyber(p.body) ? 'no hardware to fit (find or build a part)' : false, action: () => this.openField(p) });
     } else if (kits.length) {
       subs.push({ label: 'Fit hardware', disabled: 'needs an operating table or a surgery rig', action: undefined });
@@ -433,10 +443,12 @@ export class CyberSystem implements GameSystem {
       if (rusty > 0.05) subs.push({ label: `Oil the joints (rust ${Math.round(rusty * 100)}%)`, disabled: !oil ? 'needs machine oil' : false, action: oil ? () => this.oil(p, oil) : undefined });
       if (liveFx(p.body)!.drain > 0) {
         const cell = p.findTool('#battery', 0.05) || p.findItem((it) => it.key === 'battery' && (it.uses ?? 1) > 0.05);
-        subs.push({ label: `Swap the cell (${Math.round(st.charge)}%)`, disabled: !cell ? 'needs a battery' : st.charge > 95 ? 'cell is full' : false, action: cell ? () => this.swapCell(p, cell) : undefined });
+        subs.push({ label: `Swap the battery (${Math.round(st.charge)}%)`, disabled: !cell ? 'needs a battery' : st.charge > 95 ? 'battery is full' : false, action: cell ? () => this.swapCell(p, cell) : undefined });
       }
     }
-    if (subs.length) opts.push({ label: 'Cyberware', sub: subs });
+    // flat verbs (the verb wheel steps through them); on the table itself, surgery is the primary verb
+    if (table && subs.length) { opts.unshift(subs[0]); opts.push(...subs.slice(1)); }
+    else opts.push(...subs);
   }
 
   /** an operating table or gurney within reach, or a surgery rig in the pack */
@@ -454,6 +466,7 @@ export class CyberSystem implements GameSystem {
   private oil(p: Player, oil: Item) {
     const st = cyberState(p.body); if (!st) return;
     for (const s of CYBER_SLOTS) { const ps = st.parts[s]; if (ps) ps.rust = 0; }
+    invalidate(st);
     oil.uses = Math.max(0, (oil.uses ?? 1) - 0.2);
     if (oil.uses <= 0.01) p.removeItem(oil);
     for (const k of [...this.warned]) if (k.startsWith('rust')) this.warned.delete(k);
@@ -465,6 +478,7 @@ export class CyberSystem implements GameSystem {
     const st = cyberState(p.body); if (!st) return;
     const add = (cell.uses ?? 1) * 100;
     st.charge = clamp(st.charge + add, 0, 100);
+    invalidate(st);
     cell.uses = 0;
     p.removeItem(cell);
     G.audio?.at?.('cy_powerup', p.x, p.z, 0.8);

@@ -62,7 +62,7 @@ export function fieldSurgery(p: Player) {
     seen.add(d.key);
     for (const slot of CYBER_SLOTS) {
       if (SLOT_KIND[slot] !== d.kind || load[slot] === d.key) continue;
-      if (d.kind === 'hand' && b.severed.includes(`farm_${slot.slice(-1)}` as any)) continue;
+      if (d.kind === 'hand' && (b.severed.includes(`farm_${slot.slice(-1)}` as any) || load[`arm_${slot.slice(-1)}` as CyberSlot])) continue;
       rows.push({ a: 'FIT ' + up(d.name), b: SLOT_CODE[slot] + (load[slot] || slotConflicts(slot).some((s) => load[s]) ? ' REPLACES METAL' : b.severed.some((x) => x.endsWith(slot.slice(-2))) && SLOT_KIND[slot] !== 'eyes' ? ' ON THE STUMP' : ' CUTS FLESH'), slot, key: d.key, item: it });
     }
   }
@@ -136,7 +136,8 @@ export function fieldSurgery(p: Player) {
     action = new SelfSurgery(p, r.key ? 'Self-surgery' : 'Removing hardware');
     p.actions.clear(); p.actions.add(action);
     bus.emit('subtitle', { who: p.name, text: r.key ? 'Okay. Okay okay okay.' : 'Get it OFF me.', x: p.x, y: p.y + 1.8, z: p.z });
-    for (const s of slotConflicts(r.slot)) if (stage.load[s]) await stage.swap(s, null);
+    // a whole arm comes off with any hand fitted on it
+    for (const s of slotConflicts(r.slot)) delete stage.load[s];
     await stage.swap(r.slot, r.key, (ph) => {
       const L: Record<string, string> = { approach: '> SAW ARM DOWN', cut: '> CUTTING. SCREAMING.', drop: '> SPECIMEN TO TRAY', bring: '> HARDWARE IN', bolt: '> BOLTING', test: '> SERVO TEST' };
       if (L[ph]) log.push(L[ph]);

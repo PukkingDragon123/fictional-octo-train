@@ -30,6 +30,7 @@ import { type HandOp, opsForItem, opsForObject, opWork, pickTool, pickParts, typ
 import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, type Arm, makeBackdrop, makeItemObj, type ItemObj, itemAlign, Particles, fpMat, damp, pointerRay } from './fpKit';
 import { pixTag, tagString, setString, stamp, type PixTag } from './tags';
 import { Dymo, Slate, clickTag } from './props';
+import { metalMat } from './metal';
 import type { MenuOption } from '../ui/ui';
 
 export type Subject = { kind: 'item'; it: Item; c: Container | null } | { kind: 'obj'; o: TileObject };
@@ -93,6 +94,7 @@ export class Inspect {
   private sparks = new Particles(140, true, 3);
   private dust = new Particles(120, false, 2);
   private toolG = new THREE.Group();
+  private anvil!: THREE.Mesh;
   private toolObj: ItemObj | null = null;
   private guide: THREE.Line;
   private guideMat = new THREE.LineBasicMaterial({ color: 0xf0e8d0, transparent: true, opacity: 0.9, depthTest: false });
@@ -146,6 +148,13 @@ export class Inspect {
     const key = new THREE.DirectionalLight(0xffe8c8, 1.25); key.position.set(-0.6, 1.2, 0.9); g.add(key);
     const rim = new THREE.DirectionalLight(0xffb060, 0.45); rim.position.set(0.9, 0.2, -0.4); g.add(rim);
     g.add(this.hold); this.hold.add(this.turn);
+    const ab = new ModelBuilder();
+    ab.setFaceShading(false);
+    ab.box(0, -0.12, 0, 0.42, 0.12, 0.2, 'metal_dark');
+    ab.box(0, -0.2, 0, 0.28, 0.08, 0.14, 'metal_dark', { color: 0xb0b0b0 });
+    this.anvil = new THREE.Mesh(ab.build(), metalMat('iron', 2));
+    this.anvil.visible = false;
+    this.hold.add(this.anvil);
     g.add(this.toolG, this.sparks.points, this.dust.points, this.guide);
     // the work cloth along the bottom and the nail strip on the right
     const cb = new ModelBuilder();
@@ -181,7 +190,7 @@ export class Inspect {
     this.nails.position.set(halfW * 0.86, halfH * 0.42, -D - 0.02); this.nails.scale.setScalar(Math.max(0.6, k));
     this.info.mesh.position.set(-halfW * 0.66, halfH * 0.16, -D + 0.02); this.info.mesh.scale.setScalar(Math.max(0.65, k)); this.info.mesh.rotation.z = 0.05;
     this.slate.tag.mesh.position.set(0, halfH * 0.76, -D); this.slate.tag.mesh.scale.setScalar(Math.max(0.7, k));
-    this.dymo.place(halfH * 0.5, -D + 0.03);
+    this.dymo.place(-halfH * 0.36, -D + 0.03);
     this.fixed[0].mesh.position.set(halfW - 0.3 * Math.max(0.7, k), halfH * 0.82, -D + 0.01);
     this.fixed[1].mesh.position.set(halfW - 0.11 * Math.max(0.7, k), halfH * 0.8, -D + 0.01);
     for (const f of this.fixed) f.mesh.scale.setScalar(Math.max(0.7, k));
@@ -196,6 +205,7 @@ export class Inspect {
     this.build();
     if (!this.open) { if (!fpClaim('inspect', 5)) return; }
     this.open = true;
+    G.hudBody?.setHidden?.('inspect', true);
     this.onClose = opts.onClose ?? this.onClose;
     this.root.classList.add('on');
     G.input.pointerOverUI = true;
@@ -213,6 +223,8 @@ export class Inspect {
     if (!this.open) return;
     this.endWork(false);
     this.open = false;
+    this.dymo?.hide();
+    G.hudBody?.setHidden?.('inspect', false);
     this.root.classList.remove('on');
     if (!lost) fpRelease('inspect');
     if (this.model) { this.turn.remove(this.model); this.model = null; }
@@ -231,7 +243,7 @@ export class Inspect {
       const o = makeItemObj(s.it.key);
       const al = itemAlign(s.it.key);
       const big = al ? Math.max(...al.base) : 0.2;
-      o.outer.scale.setScalar(0.4 / Math.max(0.05, big));
+      o.outer.scale.setScalar(0.3 / Math.max(0.05, big));
       this.itemObj = o; this.model = o.outer;
       workPose(0.55, this.qT);
     } else {
@@ -412,12 +424,14 @@ export class Inspect {
     if (w.tool) {
       const to = makeItemObj(w.tool.key);
       const al = itemAlign(w.tool.key);
-      to.outer.scale.setScalar(0.3 / Math.max(0.05, al ? Math.max(...al.base) : 0.2));
+      to.outer.scale.setScalar(0.17 / Math.max(0.05, al ? Math.max(...al.base) : 0.2));
       this.toolG.add(to.outer);
       this.toolObj = to;
     }
     this.toolG.visible = true;
     this.guide.visible = true;
+    this.anvil.visible = !this.chair && (h.verb === 'strike' || h.verb === 'grind');
+    if (this.anvil.visible && this.itemObj) { const al = itemAlign(this.itemObj.key); this.anvil.position.set(0, -(al ? al.base[0] : 0.05) * this.itemObj.outer.scale.x * 0.6 - 0.005, -0.06); }
     this.guideMat.color.setHex(h.verb === 'strike' ? 0xffd8a0 : 0xf0e8d0);
     this.setPropsVisible(false);
     this.updProg(w.phase === 'seat' ? 'click the head to seat it on the handle' : VERB_HINT[h.verb]);
@@ -430,6 +444,7 @@ export class Inspect {
     this.work = null;
     this.guide.visible = false;
     this.toolG.visible = false;
+    this.anvil.visible = false;
     if (w.head) w.head.outer.parent?.remove(w.head.outer);
     for (const b of w.bands) b.parent?.remove(b);
     if (w.kerf) w.kerf.parent?.remove(w.kerf);
@@ -534,7 +549,7 @@ export class Inspect {
       try { G.destruct?.damageObject?.(p, s.o, 999, 'saw'); } catch (e) { console.warn('chair break', e); }
     }
     this.work = null;
-    this.guide.visible = false; this.toolG.visible = false;
+    this.guide.visible = false; this.toolG.visible = false; this.anvil.visible = false;
     this.slate.hide();
     if (w.head) w.head.outer.parent?.remove(w.head.outer);
     // look at what you made

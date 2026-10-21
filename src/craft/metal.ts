@@ -40,7 +40,7 @@ function maps(kind: MetalKind): Maps {
   const cc = mk(), rc = mk();
   const cx = cc.getContext('2d')!, rx = rc.getContext('2d')!;
   const base: Record<MetalKind, [string, number]> = {
-    iron: ['#6c7176', 0.62], steel: ['#9aa1a8', 0.38], brass: ['#b8903e', 0.34], rust: ['#7a4a2c', 0.85], chrome: ['#d8dde2', 0.14], bakelite: ['#3a2216', 0.42], enamel: ['#2e5a4a', 0.3],
+    iron: ['#4a4e52', 0.58], steel: ['#7e868c', 0.4], brass: ['#a8823a', 0.36], rust: ['#4e3222', 0.88], chrome: ['#d8dde2', 0.14], bakelite: ['#3a2216', 0.42], enamel: ['#2e5a4a', 0.3],
   };
   const [col, rough] = base[kind];
   cx.fillStyle = col; cx.fillRect(0, 0, N, N);
@@ -61,7 +61,7 @@ function maps(kind: MetalKind): Maps {
   for (let i = 0; i < scratches; i++) {
     const x = rnd() * N, y = rnd() * N, a = (rnd() < 0.7 ? 0.2 : 1.4) + (rnd() - 0.5) * 0.5, l = 6 + rnd() * 48;
     const x1 = x + Math.cos(a) * l, y1 = y + Math.sin(a) * l;
-    cx.strokeStyle = `rgba(235,235,225,${0.06 + rnd() * 0.14})`; cx.lineWidth = rnd() < 0.85 ? 0.6 : 1.2;
+    cx.strokeStyle = `rgba(200,200,190,${0.03 + rnd() * 0.07})`; cx.lineWidth = rnd() < 0.85 ? 0.5 : 1.0;
     cx.beginPath(); cx.moveTo(x, y); cx.lineTo(x1, y1); cx.stroke();
     rx.strokeStyle = `rgba(0,0,0,${0.15 + rnd() * 0.3})`; rx.lineWidth = 0.8;
     rx.beginPath(); rx.moveTo(x, y); rx.lineTo(x1, y1); rx.stroke();
@@ -71,7 +71,7 @@ function maps(kind: MetalKind): Maps {
     for (let i = 0; i < (kind === 'rust' ? 70 : 22); i++) {
       const x = rnd() * N, y = rnd() * N, r = 2 + rnd() * (kind === 'rust' ? 18 : 9);
       const g = cx.createRadialGradient(x, y, 0, x, y, r);
-      g.addColorStop(0, 'rgba(150,70,24,0.55)'); g.addColorStop(0.6, 'rgba(110,52,22,0.25)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+      g.addColorStop(0, 'rgba(110,52,22,0.5)'); g.addColorStop(0.6, 'rgba(80,40,20,0.22)'); g.addColorStop(1, 'rgba(0,0,0,0)');
       cx.fillStyle = g; cx.fillRect(x - r, y - r, r * 2, r * 2);
       rx.fillStyle = 'rgba(255,255,255,0.3)'; rx.beginPath(); rx.arc(x, y, r * 0.6, 0, Math.PI * 2); rx.fill();
       if (rnd() < 0.5) { cx.fillStyle = 'rgba(120,58,24,0.18)'; cx.fillRect(x - 0.8, y, 1.6, r * 3 + rnd() * 20); }

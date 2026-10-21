@@ -117,8 +117,8 @@ export class Bench {
     this.peg.add(new THREE.Mesh(pb.build(), fpMat()));
     g.add(this.peg);
     const sweep = clickTag('Sweep back into the cube', 'tag', 110, 0.22), away = clickTag('Step away', 'tag', 70, 0.17, '(Esc)');
-    sweep.mesh.position.set(-0.5, -0.1, 0.01); sweep.mesh.rotation.z = 0.06;
-    away.mesh.position.set(0.52, -0.1, 0.01); away.mesh.rotation.z = -0.05;
+    sweep.mesh.position.set(-0.56, -0.12, 0.01); sweep.mesh.rotation.z = 0.06;
+    away.mesh.position.set(0.56, -0.12, 0.01); away.mesh.rotation.z = -0.05;
     this.peg.add(sweep.mesh, away.mesh);
     this.fixed = [{ t: sweep, run: () => this.clear() }, { t: away, run: () => this.close() }];
     g.add(this.dust.points, this.sparks.points);
@@ -131,12 +131,12 @@ export class Bench {
   private layout() {
     const asp = window.innerWidth / Math.max(1, window.innerHeight);
     const k = Math.min(1, asp / 1.5);
-    this.top.position.set(asp < 1.2 ? 0 : -0.06, -0.24, -1.55);
-    this.top.rotation.set(0.72, 0, 0);
+    this.top.position.set(asp < 1.2 ? 0 : -0.04, -0.4, -2.05);
+    this.top.rotation.set(0.78, 0, 0);
     this.top.scale.setScalar(Math.max(0.55, k));
-    this.peg.position.set(0, 0.25, -1.4);
-    this.peg.scale.setScalar(Math.max(0.55, k));
-    this.slate.tag.mesh.position.set(0, 0.04, -1.1);
+    this.peg.position.set(0, 0.36, -1.75);
+    this.peg.scale.setScalar(Math.max(0.5, k) * 0.86);
+    this.slate.tag.mesh.position.set(0, -0.02, -1.15);
     this.dymo.place(0.2, -1.05);
   }
 
@@ -148,6 +148,7 @@ export class Bench {
     if (!fpClaim('bench', 3)) return;
     if (G.ui?.inventory?.open) G.ui.inventory.toggle(false);
     this.open = true; this.suspended = false;
+    G.hudBody?.setHidden?.('bench', true);
     this.obj = o;
     this.root.classList.add('on');
     G.input.pointerOverUI = true;
@@ -175,6 +176,7 @@ export class Bench {
   close() {
     if (!this.open) return;
     this.open = false; this.hold = null;
+    G.hudBody?.setHidden?.('bench', false);
     this.cancelDrag();
     this.root.classList.remove('on');
     this.slate.hide(); this.tag.hide();
@@ -279,14 +281,14 @@ export class Bench {
     this.sheets = [];
     const list = rows.length ? rows.slice(0, 6) : [{ title: 'Empty bench', lines: 'drag things out of the cube onto the boards', mark: '', ok: false, score: 0, run: () => {} }];
     list.forEach((row, i) => {
-      const t = pixTag('blueprint', 84, 56, 0.27);
+      const t = pixTag('blueprint', 84, 56, 0.3);
       t.clear();
       t.type(row.title, 5, 7, undefined, 8.5, 'sign');
       t.para(row.lines, 5, 18, 76, '#c8d8f0', 7.5, 3, 6.5);
       if (row.mark) stamp(t, row.mark, 7, 45, row.ok ? '#8ae88a' : row.mark === 'PULL PARTS' || row.mark === 'BY HAND' ? '#ffd860' : '#ff7a6a');
       t.flush();
       const col = i % 3, ln = Math.floor(i / 3);
-      t.mesh.position.set(-0.29 + col * 0.29, 0.1 - ln * 0.2, 0.012);
+      t.mesh.position.set(-0.32 + col * 0.32, 0.09 - ln * 0.215, 0.012);
       t.mesh.rotation.z = (i % 2 ? 0.03 : -0.025);
       this.peg.add(t.mesh);
       this.sheets.push({ t, run: row.run });

@@ -24,7 +24,7 @@ export class CubeView extends GridView3 {
   /** the reader's tube (its mesh is `pad`, where the thumb goes) */
   readonly reader: CrtScreen;
   readonly pad: THREE.Mesh;
-  readonly light = new THREE.PointLight(0xffd49a, 0, 1.4, 1.6);
+  readonly light = new THREE.PointLight(0xffd49a, 0, 0.9, 2);
   /** the engraved brass plate on the front, and the maker's plate inside the lid */
   readonly plate: PixTag;
   readonly lidPlate: PixTag;
@@ -52,8 +52,8 @@ export class CubeView extends GridView3 {
     this.setPlate('----');
     const lp = this.lidPlate;
     lp.clear();
-    lp.type('Remittance Carrier Mk. II', 8, 6, undefined, 8);
-    lp.type('Property of the Meridian Institute', 8, 17, '#4a3410', 6);
+    lp.type('Remittance Carrier Mk. II', 8, 6, undefined, 6.8);
+    lp.type('Property of the Meridian Institute', 8, 17, '#4a3410', 5);
     lp.flush();
     this.peelPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));
     this.peelPlane.rotation.x = -Math.PI / 2;
@@ -130,7 +130,7 @@ export class CubeView extends GridView3 {
     for (let i = 0; i < 4; i++) ls.box(-0.15 + i * 0.1, -0.004, O / 2, 0.012, 0.004, O - 0.02, 'metal_grey', { color: 0x9a9ea2 });
     add(ls, metalMat('steel', 3), this.lid);
     // a bulb in a wire cage under the lid
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffe8b0 }));
+    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.01, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd890 }));
     bulb.position.set(0, -0.016, O * 0.62);
     this.lid.add(bulb); this.shell.push(bulb);
     // the tube, the plates
@@ -214,7 +214,7 @@ export class CubeView extends GridView3 {
   /** the inside: chalk lines and the bulb */
   setInside(k: number, flicker = 0) {
     this.gridMat.opacity = 0.42 * k;
-    this.light.intensity = (1.6 + flicker) * k;
+    this.light.intensity = (0.55 + flicker * 0.3) * k;
     this.itemsG.visible = k > 0.05;
   }
 

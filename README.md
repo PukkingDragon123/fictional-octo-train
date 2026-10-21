@@ -226,17 +226,20 @@ and an ignition key.
   tribe totems, strangers. The Phosphor Scope's tube traces it and types a
   punch card: DATA for everything, research for first scans and milestones,
   and a knowledge entry for the watch.
-- **The watch.** The BAILIFF band is also a chunky wrist computer. Tab raises
-  your wrist into a first-person close-up; standing still it zooms in, on the
-  move it stays up small as a glance with your next objective and a bearing.
+- **The watch.** The BAILIFF band is also a chunky retro wrist computer: steel
+  and bakelite, a curved green phosphor CRT, a knurled function dial, a needle
+  gauge, toggle switches and jewel lamps. Tab raises your wrist into a
+  first-person close-up; standing still it zooms in, on the move it stays up
+  small as a glance with your next objective and a bearing.
   Its one base function is QUESTS: work uploads with a chime (from Voss, Meridian
   R&D, the radio, tribes), and you accept, decline, track, pay and turn in.
   Quests pay Research Points (RP, kept across runs), and the watch's R&D tree
   spends them: a self-drawing map and sonar survey, anomaly scan, signal trace,
   biomonitor with calorie count, blood pressure, a diagnosis AI and a mind
-  monitor, a logbook, and the multi-tool (wrist torch, scanner beam, laser
-  cutter, arc welder, field fabricator). Blueprints, recipes, cyberware and
-  domination tech sit in the same tree.
+  monitor, a logbook, and the multi-tool bolted on piece by piece (a chrome
+  torch, a scanner dish, a brass laser emitter fed by vacuum tubes that cuts
+  and welds, field fabricator pincers). Blueprints, recipes, cyberware and
+  domination tech print on the same punched-card tree.
 - **Co-op.** Shared world and bases, give items, carry and revive downed
   friends, proximity voice with wall occlusion, walkie-talkie channels with
   radio crackle, and chat.
