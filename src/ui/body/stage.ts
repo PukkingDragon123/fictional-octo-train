@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { G } from '../../game/G';
 import { Prop, type PropMatOpts } from '../touch/stage3d';
 import { Pix } from './pix';
+import { cssFont } from '../../gfx/crt';
 
 const NOISE = /* glsl */`
 float h3(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
@@ -218,10 +219,10 @@ export class PrintTex {
 
 /** real type for things printed on the props (canvas font strings from src/ui/fonts.css) */
 export const FONT = {
-  type: "'Special Elite', 'Courier Prime', monospace",
-  typeset: "'Courier Prime', 'Courier New', monospace",
-  sign: "'Oswald', 'Arial Narrow', sans-serif",
-  nixie: "'Nixie One', 'IBM Plex Mono', monospace",
+  get type() { return cssFont('--font-type'); },
+  get typeset() { return cssFont('--font-typeset'); },
+  get sign() { return cssFont('--font-sign', 'sans-serif'); },
+  get nixie() { return cssFont('--font-nixie'); },
 };
 /** ink on paper: a slightly uneven strike, as a typewriter leaves it */
 export function inkText(c: CanvasRenderingContext2D, text: string, x: number, y: number, px: number, font: string, color = '#231a12', align: CanvasTextAlign = 'left', weight = '') {

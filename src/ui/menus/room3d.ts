@@ -19,7 +19,7 @@ import { createPreviewRig } from '../../entities/humanRig';
 import { REG, PAD, PAGE } from '../../entities/humanModel';
 import type { RegKey } from '../../entities/humanModel';
 import { cosmeticGeometry } from '../../entities/cosmetics3d';
-import { crtScreen, phosphorText, fontsReady, type CrtScreen } from '../../gfx/crt';
+import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../../gfx/crt';
 import { makeMats, type Mats } from './smoothKit';
 import { armSegment, armBase, clawPalm, clawFinger, toolHead, sawBlade, pressModel, shutterModel, chairModel, tvModel, propModel, dialPanelModel, tubeBaseModel } from './roomParts';
 import { COSMETIC } from '../../game/cosmetics';
@@ -396,15 +396,15 @@ export class SubjectRoom {
         // two lines at most, big, centred
         const words = item.label.split(' ');
         let lines = [item.label];
-        c.font = `${Math.round(H * 0.2)}px 'IBM Plex Mono', monospace`;
+        c.font = `${Math.round(H * 0.2)}px ${cssFont('--font-crt')}`;
         if (c.measureText(item.label).width > W * 0.86 && words.length > 1) {
           let best = 1, bestD = 1e9;
           for (let k = 1; k < words.length; k++) { const d = Math.abs(words.slice(0, k).join(' ').length - words.slice(k).join(' ').length); if (d < bestD) { bestD = d; best = k; } }
           lines = [words.slice(0, best).join(' '), words.slice(best).join(' ')];
         }
         let size = Math.round(H * (lines.length > 1 ? 0.17 : 0.2));
-        c.font = `${size}px 'IBM Plex Mono', monospace`;
-        while (Math.max(...lines.map((l) => c.measureText(l).width)) > W * 0.88 && size > 10) { size -= 1; c.font = `${size}px 'IBM Plex Mono', monospace`; }
+        c.font = `${size}px ${cssFont('--font-crt')}`;
+        while (Math.max(...lines.map((l) => c.measureText(l).width)) > W * 0.88 && size > 10) { size -= 1; c.font = `${size}px ${cssFont('--font-crt')}`; }
         const y0 = H / 2 - (lines.length * size * 1.15) / 2;
         lines.forEach((l, k) => phosphorText(c, l, W / 2, y0 + k * size * 1.15, { size, color: '#ffffff', align: 'center', glow: 8 }));
         phosphorText(c, 'CH ' + (i + 2), 10, 8, { size: 12, color: '#6a6a6a', glow: 2 });

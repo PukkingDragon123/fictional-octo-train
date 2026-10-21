@@ -392,16 +392,16 @@ export class SurgeryStage {
     // the operating table: mint enamel pedestal, chrome top, a drain lip
     mb.cylinder(0.05, 0, 0, 0.3, 0.08, 12, { sides: CT.mint, top: CT.mint, bottom: CT.steel }, { fit: true });
     cm.cylinder(0.05, 0.08, 0, 0.16, TABLE_Y - 0.2, 10, { sides: CT.chrome, top: CT.steel, bottom: CT.steel }, { fit: true });
-    mb.box(0.05, TABLE_Y - 0.26, 0, 0.6, 0.12, 0.4, CT.mint, { fit: true });
+    shapes.rbox(mb, 0.05, TABLE_Y - 0.26, 0, 0.6, 0.12, 0.4, 0.06, CT.mint);
     cm.cylinderZ(0.36, TABLE_Y - 0.2, 0.21, 0.05, 0.02, 10, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
-    sm.box(0, TABLE_Y - 0.12, 0, 2.18, 0.08, 0.72, { top: 'metal_brushed', sides: CT.mint, bottom: CT.steel }, {});
-    cm.box(0, TABLE_Y - 0.04, 0, 2.12, 0.04, 0.68, { top: 'metal_brushed', sides: CT.chrome }, { color: 0xd0d4d8 });
+    shapes.rbox(sm, 0, TABLE_Y - 0.12, 0, 2.18, 0.08, 0.72, 0.12, 'metal_brushed');
+    shapes.rbox(cm, 0, TABLE_Y - 0.04, 0, 2.12, 0.04, 0.68, 0.11, 'metal_brushed', { color: 0xd0d4d8 });
     for (const z of [-0.37, 0.37]) cm.box(0, TABLE_Y - 0.06, z, 2.14, 0.05, 0.02, CT.chrome, { fit: true });
     // the kidney tray on a chrome stand
     const T = this.trayPos;
     cm.cylinder(T.x, 0, T.z, 0.03, T.y - 0.05, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
     cm.cylinder(T.x, 0, T.z, 0.22, 0.03, 8, { sides: CT.chrome, top: CT.steel, bottom: CT.steel }, { fit: true });
-    mb.box(T.x, T.y - 0.05, T.z, 0.95, 0.03, 0.42, CT.steel, { fit: true });
+    shapes.rbox(mb, T.x, T.y - 0.05, T.z, 0.95, 0.03, 0.42, 0.14, CT.steel);
     for (const [x, z, w, d] of [[0, 0.2, 0.95, 0.02], [0, -0.2, 0.95, 0.02], [0.47, 0, 0.02, 0.42], [-0.47, 0, 0.02, 0.42]]) cm.box(T.x + x, T.y - 0.02, T.z + z, w, 0.07, d, CT.chrome, { fit: true });
     // the parts rack: a pegboard on the back wall
     mb.box(-2.4, 0.95, D0 + 0.02, 1.5, 1.1, 0.03, 'wood_trim', { color: 0x8a7a5a });
@@ -412,8 +412,8 @@ export class SurgeryStage {
     for (let i = 0; i < 8; i++) { mb.box(1.32 + i * 0.12, 1.14, D0 + 0.055, 0.05, 0.08, 0.012, 'metal_grey', { fit: true }); cm.box(1.32 + i * 0.12, 1.2, D0 + 0.07, 0.012, 0.035, 0.03, CT.chrome, { fit: true }); }
     // the vitals CRT on a trolley: bakelite cabinet, cream bezel, two knobs
     cm.box(-1.65, 0, 0.55, 0.06, 1.25, 0.06, CT.chrome, {});
-    mb.box(-1.65, 0.0, 0.55, 0.5, 0.05, 0.4, CT.mint, {});
-    mb.box(-1.65, 1.25, 0.55, 0.62, 0.5, 0.44, CT.black, { fit: true });
+    shapes.rbox(mb, -1.65, 0.0, 0.55, 0.5, 0.05, 0.4, 0.06, CT.mint);
+    shapes.rbox(mb, -1.65, 1.25, 0.55, 0.62, 0.5, 0.44, 0.07, CT.black);
     mb.push().translate(-1.65, 1.25, 0.55).rotateY(0.35);
     mb.box(0, 0.04, 0.22, 0.58, 0.42, 0.03, CT.shell, { fit: true });
     for (const x of [-0.2, 0.2]) mb.cylinderZ(x, 0.1, 0.25, 0.03, 0.03, 8, { sides: CT.black, top: CT.brass, bottom: CT.brass }, { fit: true });
@@ -427,11 +427,11 @@ export class SurgeryStage {
     cm.cylinder(0.05, 2.42, 0, 0.04, H - 2.42, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
     cm.cylinderX(0.05, 2.5, 0, 0.03, 0.9, 6, { sides: CT.chrome, top: CT.chrome, bottom: CT.chrome }, { fit: true });
     mb.cylinder(0.5, 2.38, 0, 0.08, 0.14, 8, { sides: CT.black, top: CT.black, bottom: CT.black }, { fit: true });
-    const room = new THREE.Mesh(mb.build(), this.mat);
+    const room = new THREE.Mesh(smoothNormals(mb.build()), this.mat);
     room.receiveShadow = true;
     this.scene.add(room);
     // the chrome and the brushed steel get real metal (lit by a prefiltered room)
-    for (const [b, m] of [[cm, this.chromeMat], [sm, this.steelMat]] as const) { const me = new THREE.Mesh(b.build(), m); me.receiveShadow = true; me.castShadow = true; this.scene.add(me); }
+    for (const [b, m] of [[cm, this.chromeMat], [sm, this.steelMat]] as const) { const me = new THREE.Mesh(smoothNormals(b.build()), m); me.receiveShadow = true; me.castShadow = true; this.scene.add(me); }
     // tungsten: caged bulbs on the walls, the lamp's bulbs, pilot lamps, the IN USE box (unlit, they glow)
     const nb = new ModelBuilder();
     const bulb = (x: number, y: number, z: number) => {
@@ -481,21 +481,24 @@ export class SurgeryStage {
     // gantry: trolley on the beam, a chain hoist, a riveted claw
     this.trolley.position.set(-2.6, H - 0.24, 0);
     const tb = new ModelBuilder();
-    tb.box(0, -0.2, 0, 0.4, 0.2, 0.3, CT.mint, { fit: true });
+    shapes.rbox(tb, 0, -0.2, 0, 0.4, 0.2, 0.3, 0.06, CT.mint);
+    for (const x of [-0.13, 0.13]) tb.cylinderZ(x, 0.0, 0, 0.05, 0.34, 12, { sides: CT.steel, top: CT.brass, bottom: CT.brass }, { fit: true });
     tb.cylinderZ(0, -0.1, 0, 0.09, 0.32, 10, { sides: CT.black, top: CT.brass, bottom: CT.brass }, { fit: true });
     for (let i = 0; i < 9; i++) tb.box(0, -0.3 - i * 0.075, 0, i % 2 ? 0.012 : 0.03, 0.07, i % 2 ? 0.03 : 0.012, CT.steel, { fit: true });
-    this.trolley.add(new THREE.Mesh(tb.build(), this.mat));
+    this.trolley.add(new THREE.Mesh(smoothNormals(tb.build()), this.mat));
     this.claw.position.y = -1.0;
     const cb = new ModelBuilder();
-    cb.box(0, -0.08, 0, 0.36, 0.1, 0.16, CT.mint, { fit: true });
+    shapes.rbox(cb, 0, -0.08, 0, 0.36, 0.1, 0.16, 0.05, CT.mint);
+    shapes.lump(cb, 0, 0.02, 0, 0.08, 0.04, 0.08, CT.mint);
     cb.box(0, -0.06, 0.081, 0.3, 0.06, 0.004, CT.hazard, { fit: true });
-    this.claw.add(new THREE.Mesh(cb.build(), this.mat));
+    this.claw.add(new THREE.Mesh(smoothNormals(cb.build()), this.mat));
     for (const k of [-1, 1]) {
       const f = new THREE.Group(); f.position.set(0, -0.08, k * 0.07);
       const fb = new ModelBuilder();
-      fb.box(0, -0.22, k * 0.06, 0.08, 0.24, 0.03, CT.steel, { fit: true });
-      fb.box(0, -0.25, k * 0.03, 0.08, 0.03, 0.07, CT.rust, { fit: true });
-      f.add(new THREE.Mesh(fb.build(), this.mat));
+      shapes.hull(fb, 0, -0.1, -0.24, k * 0.06, 0.07, 0.03, CT.steel, { taper: 0.8 });
+      shapes.lump(fb, 0, -0.1, k * 0.06, 0.03, 0.03, 0.03, CT.steel);
+      shapes.capsule(fb, 0, -0.25, -0.25, k * 0.03, 0.02, CT.rust);
+      f.add(new THREE.Mesh(smoothNormals(fb.build()), this.mat));
       this.claw.add(f); this.clawFingers.push(f);
     }
     this.trolley.add(this.claw);

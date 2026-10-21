@@ -4,6 +4,7 @@
 // the world atlas, or tiny canvases drawn once; nothing here runs per frame.
 import * as THREE from 'three';
 import { ModelBuilder } from '../../gfx/modelBuilder';
+import { cssFont } from '../../gfx/crt';
 
 export const ROOM = { W: 3.4, BACK: -2.4, FRONT: 6, H: 3.6, HATCH_W: 1.3, HATCH_H: 2.3, SEAT_Y: 0.47, CHAIR_Z: -0.45, FLOAT_Z: 0.45, PLATE_Y: 0.07 };
 /** phosphor and lamp colours (no neon: tubes, filaments, phosphor) */
@@ -351,7 +352,7 @@ export function paintNixie(cv: HTMLCanvasElement, ch: string) {
   const ctx = cv.getContext('2d')!;
   ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = "104px 'Nixie One', 'IBM Plex Mono', monospace";
+  ctx.font = `104px ${cssFont('--font-nixie')}`;
   // the dark cathodes stacked behind the lit one
   ctx.fillStyle = 'rgba(120, 70, 40, 0.22)';
   for (const c of ['8', '0', 'A', 'X']) if (c !== ch) ctx.fillText(c, W / 2 + (Math.random() - 0.5) * 3, H / 2 + 4);
@@ -365,7 +366,7 @@ export function paintNixie(cv: HTMLCanvasElement, ch: string) {
   ctx.shadowBlur = 6; ctx.fillStyle = '#ffb070';
   ctx.fillText(ch, W / 2, H / 2 + 4);
   ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255, 236, 200, 0.85)';
-  ctx.font = "100px 'Nixie One', 'IBM Plex Mono', monospace";
+  ctx.font = `100px ${cssFont('--font-nixie')}`;
   ctx.fillText(ch, W / 2, H / 2 + 4);
 }
 /** a strip of embossed label tape (Dymo-style): raised white letters on coloured plastic */
@@ -380,7 +381,7 @@ export function paintTape(cv: HTMLCanvasElement, label: string, tape: number, w:
   ctx.clearRect(0, 0, 2, 2); ctx.clearRect(0, h - 2, 2, 2); ctx.clearRect(w - 2, 0, 2, 2); ctx.clearRect(w - 2, h - 2, 2, 2);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   let fs = Math.round(h * 0.7);
-  const font = (n: number) => `600 ${n}px Oswald, 'Arial Narrow', sans-serif`;
+  const font = (n: number) => `600 ${n}px ${cssFont('--font-sign', 'sans-serif')}`;
   ctx.font = font(fs);
   while (ctx.measureText(label).width > w - 10 && fs > 8) ctx.font = font(--fs);
   // raised letters: a dark undercut, then the stretched-white plastic
@@ -397,10 +398,10 @@ export function paintBrass(cv: HTMLCanvasElement, line1: string, line2: string, 
   ctx.strokeStyle = 'rgba(255,230,170,0.6)'; ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
   for (const [x, y] of [[4, 4], [w - 5, 4], [4, h - 5], [w - 5, h - 5]]) { ctx.fillStyle = '#5a4018'; ctx.fillRect(x - 2, y - 2, 4, 4); ctx.fillStyle = '#e8d090'; ctx.fillRect(x - 1, y - 2, 1, 4); }
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `${Math.round(h * 0.4)}px 'Alfa Slab One', Oswald, serif`;
+  ctx.font = `${Math.round(h * 0.4)}px ${cssFont('--font-poster', 'serif')}`;
   ctx.fillStyle = 'rgba(255,240,200,0.55)'; ctx.fillText(line1, Math.round(w / 2) + 1, Math.round(h * 0.4) + 1);
   ctx.fillStyle = '#2a1c08'; ctx.fillText(line1, Math.round(w / 2), Math.round(h * 0.4));
-  ctx.font = `500 ${Math.round(h * 0.2)}px Oswald, 'Arial Narrow', sans-serif`;
+  ctx.font = `500 ${Math.round(h * 0.2)}px ${cssFont('--font-sign', 'sans-serif')}`;
   ctx.fillStyle = '#3a2a10'; ctx.fillText(line2, Math.round(w / 2), Math.round(h * 0.76));
 }
 /** a gauge face: cream enamel, ticks, a red zone */
@@ -411,7 +412,7 @@ export function paintGauge(cv: HTMLCanvasElement, label: string) {
   ctx.strokeStyle = '#2a2418';
   for (let i = 0; i <= 10; i++) { const a = Math.PI * (0.8 + i * 0.14); const r0 = S * 0.36, r1 = i % 5 ? S * 0.41 : S * 0.44; ctx.beginPath(); ctx.moveTo(S / 2 + Math.cos(a) * r0, S / 2 + Math.sin(a) * r0); ctx.lineTo(S / 2 + Math.cos(a) * r1, S / 2 + Math.sin(a) * r1); ctx.stroke(); }
   ctx.strokeStyle = '#b8261e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(S / 2, S / 2, S * 0.4, Math.PI * 2.0, Math.PI * 2.2); ctx.stroke();
-  ctx.font = `500 9px Oswald, sans-serif`; ctx.fillStyle = '#2a2418'; ctx.textAlign = 'center'; ctx.fillText(label, S / 2, S * 0.74);
+  ctx.font = `500 9px ${cssFont('--font-sign', 'sans-serif')}`; ctx.fillStyle = '#2a2418'; ctx.textAlign = 'center'; ctx.fillText(label, S / 2, S * 0.74);
 }
 
 /** a blood splat (alpha) for decals: a core, drops flung outwards, a few runs */
