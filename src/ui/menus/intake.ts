@@ -155,8 +155,10 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     const left = h('aside', 'ik2-left nx-glass');
     const tabsRow = h('div', 'ik2-tabs');
     tabsRow.setAttribute('role', 'tablist');
-    const leftBody = h('div', 'ik2-body nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
-    left.append(h('div', 'ik2-h', '<b>BODY LAB</b><small>colours · faces · hair · build</small>'), tabsRow, leftBody);
+    const leftBody = h('div', 'ik2-body');
+    const leftScreen = h('div', 'ik2-screen nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
+    leftScreen.append(leftBody);
+    left.append(h('div', 'ik2-h', '<b>BODY LAB</b><small>colours · faces · hair · build</small>'), tabsRow, leftScreen);
     const right = h('aside', 'ik2-right nx-glass');
     const wardBody = h('div', 'ik2-ward');
     right.append(h('div', 'ik2-h', '<b>WARDROBE</b><small>scroll the collection · buy with research points</small>'), wardBody);

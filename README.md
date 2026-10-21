@@ -112,17 +112,21 @@ and an ignition key.
   Seam and it counts down; cut it off with bolt cutters if you dare.
   Staff Sergeant Voss, a scanline hologram in a beret, teaches you the job and
   comments on how you're doing it.
-- **Your body in the corner.** No bars. Health is an IV bag of blood: every
-  wound is a hole in it, dripping or pouring by how hard it bleeds; click a
-  hole to bandage, disinfect, stitch, splint or pull the shard out (right-click
-  for every option and what it needs). Infection greens the blood, food
-  poisoning muddies it, corruption turns it black and sparking; the drip
-  chamber under it is your hydration. Stamina is a pair of rubber lungs that
-  strain while you run: press H on the beat to pump them out (off the beat you
-  cough), and blood that splashes on you gets inside until you cough it up.
-  The stomach is a jar of acid: food drops in and dissolves, bad food cracks
+- **Your body on a shelf.** No bars: three small 3D props in the corner, lit
+  by a humming tube. Health is an IV bag of blood on a hook: every wound is a
+  hole in it, dripping or pouring by how hard it bleeds; click a hole to
+  bandage, disinfect, stitch, splint or pull the shard out, or right-click /
+  tap it and a first-aid pegboard swings in with what you could use (what you
+  lack is only an outline). Infection greens the blood, food poisoning muddies
+  it, corruption turns it black and sparking; the drip chamber under it is
+  your hydration. Stamina is a pair of rubber lungs on a brass valve that
+  strain while you run: press H (or put a thumb on them) as the air gauge's
+  needle hits OUT and IN to pump them (off the beat you cough), and blood that
+  splashes on you gets inside until you cough it up. The stomach is a jar of
+  acid with a gauge on its lid: food tumbles in and dissolves, bad food cracks
   it, food poisoning raises the acid so you can't eat much, and overdoing it
-  brings everything back up.
+  brings everything back up. The bag swings when you move or get hit, the
+  fluids slosh, drips pool on the shelf.
 - **Eating is first person.** Your hands hold the food up, built from little
   voxels: click or tap to bite (crunch, crumbs, juice, the view bobbing as you
   chew), and each bite flies down into the jar. Drinks tip up for gulps.

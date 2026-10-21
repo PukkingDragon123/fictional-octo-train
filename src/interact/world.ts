@@ -220,7 +220,8 @@ export class Interact {
     }
     if (tags.includes('portal')) out.push({ label: portalVerb(o.key), action: () => this.usePortalObject(p, o) });
     // levers (press machines: their pull() sends the goods across)
-    if (tags.includes('lever') || ((G as any).press?.pull && (tags.includes('press') || o.key.includes('press')))) out.push({ label: 'Pull the lever', action: at(new UseObjectAction(p, 'Pull', 0.6, 'drag', () => this.pullLever(p, o)), 1.4) });
+    const lever: MenuOption | null = tags.includes('lever') || ((G as any).press?.pull && (tags.includes('press') || o.key.includes('press'))) ? { label: 'Pull the lever', action: at(new UseObjectAction(p, 'Pull', 0.6, 'drag', () => this.pullLever(p, o)), 1.4), generic: true } as MenuOption : null;
+    if (lever) out.push(lever);
     const seated = p.sittingOn === o.uid && p.actions.current?.name === 'Sit';
     if (d.sit && !seated) out.push({ label: 'Sit', action: at(new SitAction(p, o), 1.6) });
     if (d.sleep) {
@@ -313,6 +314,8 @@ export class Interact {
       out.push({ label: 'Disassemble', disabled: missing.length ? 'needs ' + missing.map((m) => m.replace('#', '')).join(', ') : false, action: at(new DisassembleAction(p, o)) });
     }
     bus.emit('objectMenu', p, o, out);
+    // the machine's own lever verb wins over the generic one
+    if (lever && out.some((q) => q !== lever && /^Pull the lever/.test(q.label))) out.splice(out.indexOf(lever), 1);
     return out;
   }
 
@@ -466,7 +469,13 @@ export class Interact {
   /** a lever: a press machine's own pull() when it has one; everyone hears it either way */
   pullLever(p: Player, o: TileObject) {
     G.audio?.at?.('metal_clank', o.x + 0.5, o.y + 0.5, 0.8);
-    if ((G as any).press?.pull) (G as any).press.pull(p, o);
+    const press = (G as any).press;
+    if (press?.pull) press.pull(p, o);
+    else {
+      // the machine's own lever verb (its menu hook), done directly
+      const own = this.objectOptions(p, o).find((q) => !(q as any).generic && /^Pull the lever/.test(q.label) && q.action && !q.disabled);
+      own?.action?.();
+    }
     bus.emit('leverPull', p, o);
   }
 

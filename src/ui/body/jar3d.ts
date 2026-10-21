@@ -164,12 +164,8 @@ export class Jar3D {
 
   /** chunks, bubbles, splashes, the pour, acid weeping from the cracks */
   cubes(C: Cubes, J: Jar) {
-    const b = this.body;
-    const put = (x: number, y: number, zz: number, s: number, rot: number, c: number, a = 1) => {
-      this.v.set(x, y, zz); b.localToWorld(this.v);
-      const k = b.scale.x;
-      C.put(this.v.x, this.v.y, this.v.z, s * k, s * k, s * k, rot, c, a);
-    };
+    this.C = C;
+    const put = this.put;
     for (let i = 0; i < J.chunks.length; i++) {
       const c = J.chunks[i];
       if (!c.on) continue;
@@ -193,6 +189,13 @@ export class Jar3D {
       for (let y = 0; y < len; y += 1.2) put(x0, y0 - y, 7, 0.7, 0, J.acidCol(), 0.9);
     }
   }
+  private C: Cubes | null = null;
+  private put = (x: number, y: number, zz: number, sz: number, rot: number, c: number, a = 1) => {
+    const b = this.body;
+    this.v.set(x, y, zz); b.localToWorld(this.v); this.root.parent?.worldToLocal(this.v);
+    const k = b.scale.x;
+    this.C!.put(this.v.x, this.v.y, this.v.z, sz * k, sz * k, sz * k, rot, c, a);
+  };
   /** the top of the jar on screen (stage space), where bites drop in */
   topWorld(out: THREE.Vector3) { out.set(0, 36, 0); return this.body.localToWorld(out); }
 }

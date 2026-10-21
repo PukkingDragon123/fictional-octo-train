@@ -111,7 +111,8 @@ export class GrabSystem implements GameSystem {
     if (!t) return null;
     if (t.kind === 'object') {
       const d = objDef(t.obj.key); if (!d) return null;
-      if (d.tags?.includes('lever')) return 'lever';
+      // levers, and press machines (their lever: src/game/debt hopper / G.press)
+      if (d.tags?.some((tg) => tg === 'lever' || tg === 'press' || tg === 'hopper') || t.obj.key === 'hopper') return 'lever';
       if (!pushable(d, t.obj)) return null;
       const power = G.input.down('power') || G.input.down('run');
       return G.destruct?.push?.liftable?.(p, t.obj, power) ? 'carry' : 'push';

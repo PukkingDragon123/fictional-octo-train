@@ -290,7 +290,7 @@ export class BodyHud {
       const s = `${inj.bandage ? (inj.bandage.clean ? 'B' : 'b') : ''}${inj.stitched ? 'S' : ''}${inj.splinted ? 'P' : ''}${inj.disinfected > 0 ? 'D' : ''}${inj.foreign ? 'F' : ''}${inj.tq != null ? 'T' : ''}${inj.caut ? 'C' : ''}`;
       const prev = this.sig.get(inj.id);
       if (prev !== undefined && prev !== s && s.length >= prev.length - (prev.includes('F') && !s.includes('F') ? 1 : 0)) {
-        const w = this.bagV.holeWorld(inj, this.v);
+        const w = this.world.worldToLocal(this.bagV.holeWorld(inj, this.v));
         for (let i = 0; i < 8; i++) this.sparks.push({ x: w.x + Math.cos(i * 0.785) * 2.4, y: w.y + Math.sin(i * 0.785) * 2.4, t: 0.35 + i * 0.02, c: i % 2 ? 0xffffff : 0xfff0a0 });
         if (this.sparks.length > 40) this.sparks.splice(0, this.sparks.length - 40);
         G.audio?.ui?.(s.includes('B') && !prev.includes('B') ? 'bh_tape' : 'bh_squelch', 0.45);

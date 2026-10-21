@@ -182,23 +182,6 @@ void main() {
 export type SurfKind = 'glass' | 'liquid' | 'rubber' | 'plastic';
 export interface SurfOpts { map?: THREE.Texture | null; alpha?: number; color?: number; deep?: number; side?: THREE.Side; depthWrite?: boolean; glint?: number; thick?: number }
 
-/** a pixel canvas that becomes a texture (labels, gauge faces, the bag's print, cracks) */
-export class PixTex {
-  readonly pix: Pix;
-  readonly tex: THREE.CanvasTexture;
-  private cv: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  constructor(w: number, h: number) {
-    this.pix = new Pix(w, h);
-    this.cv = document.createElement('canvas'); this.cv.width = w; this.cv.height = h;
-    this.ctx = this.cv.getContext('2d')!;
-    this.tex = new THREE.CanvasTexture(this.cv);
-    this.tex.magFilter = THREE.NearestFilter; this.tex.minFilter = THREE.NearestFilter; this.tex.generateMipmaps = false;
-    this.tex.colorSpace = THREE.NoColorSpace;
-  }
-  commit() { this.ctx.putImageData(this.pix.img, 0, 0); this.tex.needsUpdate = true; }
-}
-
 /**
  * A texture painted at k times a Pix's resolution: the pixel art is scaled up crisp,
  * then real type (typewriter labels, gauge numerals, Nixie digits) is drawn over it

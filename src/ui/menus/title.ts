@@ -162,13 +162,15 @@ class TitleRoom {
     this.over.className = 'nx-over on';
     const panel = h('div', 'nx-panel');
     panel.append(h('div', 'nx-panel-h', `<b>${esc(title)}</b><small>${esc(sub)}</small>`));
-    const body = h('div', 'nx-panel-b nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
+    const body = h('div', 'nx-panel-b');
+    const screen = h('div', 'nx-panel-s nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
+    screen.append(body);
     body.append(el);
     const close = h('button', 'nx-close', 'BACK <kbd>ESC</kbd>');
     close.type = 'button';
     hoverFocus(close);
     close.onclick = () => this.closeOver();
-    panel.append(body, close);
+    panel.append(screen, close);
     this.over.append(panel);
     this.over.onpointerdown = (e) => { if (e.target === this.over) this.closeOver(); };
     this.root.classList.add('paneled');

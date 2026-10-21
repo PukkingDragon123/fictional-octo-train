@@ -239,6 +239,6 @@ export class Lung3D {
   repaintType() { this.paintFace(); this.paintKey(); this.lastDigit = '?'; }
   /** puffs of air (or blood) out of the valve */
   cubes(C: Cubes, L: Lungs) {
-    for (const q of L.puffs) if (q.on) { this.v.set(q.x - 25, 2 - q.y, 2); this.root.localToWorld(this.v); C.put(this.v.x, this.v.y, this.v.z, 1, 1, 1, q.life * 4, q.c, Math.min(0.9, q.life * 2)); }
+    for (const q of L.puffs) if (q.on) { this.v.set(q.x - 25, 2 - q.y, 2); this.root.localToWorld(this.v); this.root.parent?.worldToLocal(this.v); C.put(this.v.x, this.v.y, this.v.z, 1, 1, 1, q.life * 4, q.c, Math.min(0.9, q.life * 2)); }
   }
 }

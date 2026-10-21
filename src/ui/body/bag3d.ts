@@ -186,7 +186,8 @@ export class Bag3D {
     // chamber level and the beat's drop
     this.chamber.scale.y = Math.max(0.05, this.hydr * 7.2);
     if (this.chamberY >= 0) { this.chamberY += dt * 2.6; if (this.chamberY > 1) this.chamberY = -1; }
-    const lineLen = Math.max(1, this.lineTop - this.floorY + 2);
+    const fl = this.floorY - this.root.position.y;
+    const lineLen = Math.max(1, this.lineTop - fl + 2);
     this.line.position.y = this.lineTop; this.line.scale.y = lineLen;
     // leaks
     for (const inj of this.injuries) {
@@ -205,7 +206,7 @@ export class Bag3D {
     }
     this.puddleK = Math.max(0, this.puddleK - dt * 0.01);
     const pk = this.puddleK;
-    this.puddle.position.set(0, this.floorY + 0.25, 1);
+    this.puddle.position.set(0, fl + 0.25, 1);
     this.puddle.scale.set(0.01 + pk * 9, 1, 0.01 + pk * 4);
     this.puddleMat.uniforms.uMul.value.set(((base >> 16) & 255) / 255 * 0.8, ((base >> 8) & 255) / 255 * 0.8, (base & 255) / 255 * 0.8);
     // repaint the print a few times a second (holes blink when they want care)
@@ -237,6 +238,7 @@ export class Bag3D {
 
   private drip(inj: Injury, c: number) {
     const w = this.holeWorld(inj, this.v);
+    this.root.parent?.worldToLocal(w);
     for (const d of this.drops) if (!d.on) { d.on = true; d.splash = false; d.x = w.x + (Math.random() - 0.5) * 0.6; d.y = w.y - 0.5; d.z = w.z + 0.5; d.vx = (Math.random() - 0.5) * 3; d.vy = -2 - Math.random() * 6; d.c = c; return; }
   }
   /** a wound's hole in stage space */
@@ -259,7 +261,7 @@ export class Bag3D {
     for (const d of this.drops) if (d.on) C.put(d.x, d.y, d.z, 0.9, d.splash ? 0.9 : 1.6, 0.9, 0, d.c);
     if (this.chamberY >= 0) {
       this.v.set(0, TOP - BH - 8.4 - this.chamberY * Math.max(1.5, 7.5 - this.hydr * 6.5), 0);
-      this.swing.localToWorld(this.v);
+      this.swing.localToWorld(this.v); this.root.parent?.worldToLocal(this.v);
       C.put(this.v.x, this.v.y, this.v.z, 0.8, 1.2, 0.8, 0, this.hydr < 0.15 ? 0xd8b060 : 0xa8d8f8);
     }
   }
