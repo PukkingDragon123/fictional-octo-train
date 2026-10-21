@@ -5,6 +5,7 @@
 // X demolishes (frames refund in full, finished pieces about half). Pieces
 // are unlocked by blueprints on the watch's research tree (branch 'blueprint').
 // Also runs the rest of the settlement: farms, turrets, spikes, stoves, workers.
+import { consume } from './keys';
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -302,6 +303,9 @@ export class BuildSystem implements GameSystem {
     if (performance.now() - this.mouseT < 450) return true; // desktop: handled from raw mouse in update()
     const p = G.local; if (!p) return true;
     if (b === 2) return false;
+    // a tap on the clipboard (touch: the finger is the cursor)
+    const bh = this.board.hit(G.input.mouseX, G.input.mouseY);
+    if (bh) { this.boardClick(bh); return true; }
     // touch tap
     if (this.demolish) { this.demolishAt(p, this.hoverOf(t)); return true; }
     if (t.kind === 'object' && objDef(t.obj.key)?.tags?.includes('bld_frame')) { this.weld(p, t.obj, () => true); return true; }
@@ -391,7 +395,7 @@ export class BuildSystem implements GameSystem {
     const inp = G.input;
     if (p.body.dead || p.inVehicle) { this.toggle(false); return; }
     // keys
-    if (inp.keyHit('Escape')) { inp.pressed.delete('Escape'); this.toggle(false); return; }
+    if (inp.hit('pause')) { consume('pause'); this.toggle(false); return; }
     if (inp.hit('rotate')) { this.rot = ((this.rot + 1) % 4) as 0 | 1 | 2 | 3; G.audio?.ui?.('tab', 0.4); }
     if (inp.keyHit('BracketRight') || inp.keyHit('Period')) this.cycle(1);
     if (inp.keyHit('BracketLeft') || inp.keyHit('Comma')) this.cycle(-1);

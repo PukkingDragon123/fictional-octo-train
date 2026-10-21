@@ -4,6 +4,7 @@
 // gore through G.gore), a knife needs a few passes, a saw wants back-and-forth,
 // an axe chops through in one or two. When it gives, the part actually comes
 // off the body and the meat lands on the floor next to you.
+import { consume } from '../build/keys';
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -65,7 +66,8 @@ const V = new THREE.Vector3();
 export class Butchery {
   active: { c: any; tool: Tool; toolIt: Item; cuts: Cut[]; y: Yield; gaveParts: boolean } | null = null;
   /** grease-pencil cut marks drawn in the world over the body: dashes fill in as you cut */
-  private dashGeo: THREE.BufferGeometry;
+  /** arcs of k dashes (k = 0..12) for the two ring sizes, shared by every mark: two draw calls a mark */
+  private arcs: THREE.BufferGeometry[][] = [];
   private matDim: THREE.Material;
   private matLit: THREE.Material;
   private matHide: THREE.Material;
@@ -74,8 +76,15 @@ export class Butchery {
   private passes = new Set<Cut>();
 
   constructor() {
-    const db = new ModelBuilder(); db.box(0, -0.008, 0, 0.034, 0.016, 0.004, 'white', { emissive: 1, ao: false });
-    this.dashGeo = db.build();
+    for (const r of [0.11, 0.17]) {
+      const row: THREE.BufferGeometry[] = [];
+      for (let k = 0; k <= 12; k++) {
+        const mb = new ModelBuilder();
+        for (let i = 0; i < k; i++) { const a = (i / 12) * Math.PI * 2 + Math.PI / 2; mb.push().translate(Math.cos(a) * r, Math.sin(a) * r, 0).rotateZ(a + Math.PI / 2); mb.box(0, -0.008, 0, 0.034, 0.016, 0.004, 'white', { emissive: 1, ao: false }); mb.pop(); }
+        row.push(k ? mb.build() : new THREE.BufferGeometry());
+      }
+      this.arcs.push(row);
+    }
     const um = (tag: string, col: number) => { const m = worldMaterial({ unlit: true, outline: 0, noGrid: true, btTag: tag } as any) as THREE.MeshLambertMaterial; m.color.setHex(col); return m; };
     this.matDim = um('dim', 0x8a1e16); this.matLit = um('lit', 0xff5a3a); this.matHide = um('hide', 0xd89a3a);
     window.addEventListener('mousedown', (e) => { if (this.active && e.button === 0) { this.down = true; this.lx = e.clientX; this.ly = e.clientY; this.passes.clear(); e.stopPropagation(); } }, true);
@@ -144,12 +153,10 @@ export class Butchery {
     };
     const mk = (name: string, kind: Cut['kind'], label: string): Cut => {
       const ring = new THREE.Group();
-      const n = 12, r = kind === 'belly' || kind === 'hide' ? 0.17 : 0.11;
-      for (let i = 0; i < n; i++) {
-        const a = (i / n) * Math.PI * 2, m = new THREE.Mesh(this.dashGeo, this.matDim);
-        m.position.set(Math.cos(a) * r, Math.sin(a) * r, 0); m.rotation.z = a + Math.PI / 2;
-        ring.add(m);
-      }
+      const big = kind === 'belly' || kind === 'hide' ? 1 : 0;
+      const dim = new THREE.Mesh(this.arcs[big][12], big ? this.matHide : this.matDim);
+      const lit = new THREE.Mesh(this.arcs[big][0], this.matLit); lit.position.z = 0.003; lit.userData.big = big;
+      ring.add(dim, lit);
       ring.renderOrder = 6;
       return { name, kind, label, need: strokes(kind), got: 0, ring, sx: -999, sy: -999, hitT: 0 };
     };
@@ -181,7 +188,7 @@ export class Butchery {
     const a = this.active; if (!a) return;
     const p = G.local, c = a.c, inp = G.input;
     if (!p || p.body.dead || !c || c.butchered || p.zoneKey !== c.zoneKey || Math.hypot(p.x - c.x, p.z - c.z) > 2.6) { this.stop(); return; }
-    if (inp.keyHit('Escape') || inp.hit('interact') || inp.mouseReleased[2]) { inp.pressed.delete('Escape'); inp.pressed.delete('KeyE'); this.stop(); return; }
+    if (inp.hit('pause') || inp.hit('interact') || inp.mouseReleased[2]) { consume('pause', 'interact'); this.stop(); return; }
     if (inp.moveAxis().mag > 0.2) { this.stop(); return; }
     const cam = G.pr.camera as THREE.Camera;
     const t = G.time;
@@ -191,8 +198,8 @@ export class Butchery {
       k.ring.quaternion.copy(cam.quaternion);
       k.hitT = Math.max(0, k.hitT - G.dt * 4);
       k.ring.scale.setScalar(1 + k.hitT * 0.4 + Math.sin(t * 4 + k.name.length) * 0.04);
-      const lit = Math.round((k.got / k.need) * k.ring.children.length);
-      k.ring.children.forEach((m, i) => { (m as THREE.Mesh).material = i < lit ? this.matLit : k.kind === 'belly' || k.kind === 'hide' ? this.matHide : this.matDim; });
+      const litM = k.ring.children[1] as THREE.Mesh;
+      litM.geometry = this.arcs[litM.userData.big][Math.min(12, Math.round((k.got / k.need) * 12))];
       V.project(cam);
       k.sx = (V.x * 0.5 + 0.5) * window.innerWidth; k.sy = (-V.y * 0.5 + 0.5) * window.innerHeight;
     }

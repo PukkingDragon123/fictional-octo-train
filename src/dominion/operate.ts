@@ -95,12 +95,13 @@ export class Operation {
     g.add(new THREE.AmbientLight(0xa0a8b4, 0.55));
     const lamp = new THREE.PointLight(0xfff1d8, 2.2, 2, 1.6); lamp.position.set(0.05, 0.22, -0.4); g.add(lamp);
     const rim = new THREE.DirectionalLight(0x5ae0ff, 0.6); rim.position.set(-0.5, -0.3, 0.2); g.add(rim);
-    this.root.position.set(0, -0.035, -0.62);
+    this.root.position.set(0, -0.025, -0.88);
     this.root.rotation.x = 0.95;
     g.add(this.root);
     // slab under the head
     const mb = new ModelBuilder();
-    mb.box(0, -R * 1.05, 0, 0.5, 0.03, 0.42, 'metal_brushed', { color: 0x8a9096 });
+    mb.box(0, -R * 1.05, 0, 0.46, 0.03, 0.36, 'metal_brushed', { color: 0x5e6468 });
+    for (const sx of [-1, 1]) mb.box(sx * 0.235, -R * 1.05, 0, 0.012, 0.045, 0.36, 'metal_brushed', { color: 0x4a5054 });
     mb.box(0, -R * 1.02, 0.02, 0.36, 0.004, 0.3, 'white', { color: 0x5a0a08 });
     const slab = new THREE.Mesh(mb.build(), this.matSteel); this.root.add(slab);
     this.root.add(this.head);
@@ -160,10 +161,10 @@ export class Operation {
     clip.add(new THREE.Mesh(cb.build(), this.matSteel));
     const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.092), flatMat(this.card.tex));
     sheet.position.set(0, 0.046, 0.0035); clip.add(sheet);
-    clip.position.set(-0.205, 0.02, -0.66); clip.rotation.set(-0.12, 0.42, 0.04);
+    clip.position.set(-0.27, 0.035, -0.86); clip.rotation.set(-0.1, 0.38, 0.04);
     this.g.add(clip);
     const pb = new ModelBuilder();
-    pb.box(0, 0, 0, 0.06, 0.03, 0.05, 'metal_painted_green', { color: 0x4a5a48 });
+    pb.box(0, 0, 0, 0.06, 0.03, 0.05, 'metal_rusty', { color: 0x5a6058 });
     pb.box(0, 0.016, 0.026, 0.05, 0.012, 0.002, 'plastic_yellow', { color: 0xe0b020 });
     pb.cylinder(0, 0.015, 0, 0.012, 0.02, 10, 'chrome');
     const pbase = new THREE.Mesh(pb.build(), this.matSteel);
@@ -172,7 +173,7 @@ export class Operation {
     this.plunger.add(pbase, knob);
     const tag = new PixTex(40, 10); tag.reset(0xe0b020); tag.sign('ABORT', 20, 1, 0x1a140c, 8, { align: 'center' }); tag.flush();
     const tagM = new THREE.Mesh(new THREE.PlaneGeometry(0.048, 0.012), flatMat(tag.tex)); tagM.position.set(0, 0.016, 0.0275); this.plunger.add(tagM);
-    this.plunger.position.set(0.2, -0.105, -0.6); this.plunger.rotation.set(0.5, -0.35, 0);
+    this.plunger.position.set(0.27, -0.05, -0.8); this.plunger.rotation.set(0.55, -0.4, 0);
     this.g.add(this.plunger);
     this.root.add(this.tool);
     // blood and sparks
@@ -475,6 +476,6 @@ export class Operation {
     // hand shake
     this.shakeT = Math.max(0, this.shakeT - dt);
     const s = this.shakeT * 0.04;
-    this.root.position.set((Math.random() - 0.5) * s, -0.035 + (Math.random() - 0.5) * s + Math.sin(this.t * 1.3) * 0.002, -0.62);
+    this.root.position.set((Math.random() - 0.5) * s, -0.025 + (Math.random() - 0.5) * s + Math.sin(this.t * 1.3) * 0.002, -0.88);
   }
 }

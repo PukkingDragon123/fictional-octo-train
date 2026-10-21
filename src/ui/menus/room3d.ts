@@ -325,7 +325,7 @@ export class SubjectRoom {
   /** NOCLIP in six Nixie tubes on bakelite sockets, over an engraved brass plate */
   private buildTitle() {
     const r = 0.2;
-    const glass = new THREE.MeshBasicMaterial({ color: 0xa8b8c0, transparent: true, opacity: 0.09, depthWrite: false, fog: false, side: THREE.DoubleSide });
+    const glass = new THREE.MeshBasicMaterial({ color: 0xa8b8c0, transparent: true, opacity: 0.05, depthWrite: false, fog: false, side: THREE.DoubleSide });
     const tubeGeo = new THREE.CylinderGeometry(r, r, 0.6, 14, 1, true);
     const domeGeo = new THREE.SphereGeometry(r, 14, 5, 0, Math.PI * 2, 0, Math.PI / 2);
     const baseGeo = tubeBaseGeometry(r);
@@ -1136,7 +1136,7 @@ export class SubjectRoom {
       this.glow.position.lerp(this.v1.add(this.v2.set(0, 0, -0.15)), Math.min(1, dt * 6));
       this.glow.color.setHex(src.color);
       const fl = 0.9 + Math.sin(t * 31) * 0.05 + (Math.random() < 0.05 ? -0.3 : 0);
-      this.glow.intensity = damp(this.glow.intensity, (hm ? 1.0 : 0.45) * fl, 6, dt);
+      this.glow.intensity = damp(this.glow.intensity, (hm ? 0.6 : 0.25) * fl, 6, dt);
     } else this.glow.intensity = damp(this.glow.intensity, 0, 4, dt);
   }
 
@@ -1245,12 +1245,15 @@ export class SubjectRoom {
     else if (f.kind === 'bone') {
       if (this.rig && this.subj.visible) { this.rig.bones[f.bone as 'head'].getWorldPosition(a.goal); a.goal.add(f.off); } else a.goal.copy(a.stow);
     } else this.toolTarget(a.goal);
-    // ---- spring
+    // ---- spring (sub-stepped: stiff grips and slow frames stay stable)
     const k = a.k, c = a.c;
-    a.vel.x += ((a.goal.x - a.tip.x) * k - a.vel.x * c) * dt;
-    a.vel.y += ((a.goal.y - a.tip.y) * k - a.vel.y * c) * dt;
-    a.vel.z += ((a.goal.z - a.tip.z) * k - a.vel.z * c) * dt;
-    a.tip.addScaledVector(a.vel, dt);
+    for (let rem = dt; rem > 1e-5; rem -= 1 / 90) {
+      const h = Math.min(rem, 1 / 90);
+      a.vel.x += ((a.goal.x - a.tip.x) * k - a.vel.x * c) * h;
+      a.vel.y += ((a.goal.y - a.tip.y) * k - a.vel.y * c) * h;
+      a.vel.z += ((a.goal.z - a.tip.z) * k - a.vel.z * c) * h;
+      a.tip.addScaledVector(a.vel, h);
+    }
     // gripping a wrist: stick to it
     if (f.kind === 'bone' && a.gripT > 0.5) a.tip.lerp(a.goal, Math.min(1, dt * 25));
     a.grip = damp(a.grip, a.gripT, 12, dt);

@@ -606,11 +606,11 @@ export class EatFp {
       return;
     }
     // held food: angled so the near end points at the mouth; it lunges in on a bite
-    this.grip.position.set(0.02 + sway - lunge * 0.012, -0.07 + bob + yOff + lunge * 0.018, -0.4 + lunge * 0.13);
+    this.grip.position.set(0.02 + sway - lunge * 0.012, -0.04 + bob + yOff + lunge * 0.018, -0.42 + lunge * 0.13);
     this.grip.rotation.set(0.25 + lunge * 0.2, 0.75 + Math.sin(t * 0.7) * 0.05, 0.2);
     this.food.position.set(0, 0, 0);
-    this.placeHand(this.handR, 0.075 + sway - lunge * 0.012, -0.1 + bob + yOff + lunge * 0.018, -0.36 + lunge * 0.13, 0.35 + lunge * 0.2, 0.25, 0.6);
-    this.placeHand(this.handL, -0.07 + sway * 0.6, -0.12 + bob + yOff * 1.2 + lunge * 0.01, -0.36 + lunge * 0.07, 0.4, -0.4, -0.7);
+    this.placeHand(this.handR, 0.07 + sway - lunge * 0.012, -0.075 + bob + yOff + lunge * 0.018, -0.38 + lunge * 0.13, 0.35 + lunge * 0.2, 0.25, 0.6);
+    this.placeHand(this.handL, -0.065 + sway * 0.6, -0.09 + bob + yOff * 1.2 + lunge * 0.01, -0.38 + lunge * 0.07, 0.4, -0.4, -0.7);
   }
   private placeHand(h: THREE.Group, x: number, y: number, z: number, rx: number, ry: number, rz: number) { h.position.set(x, y, z); h.rotation.set(rx, ry, rz); }
 

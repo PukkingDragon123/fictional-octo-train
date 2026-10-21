@@ -23,7 +23,7 @@ import type { GridView3, DropAt } from '../craft/gridView3';
 import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, type Arm, makeBackdrop, makeItemObj, fitItemObj, type ItemObj, boxEdges, pointerRay, damp, fpMat } from '../craft/fpKit';
 import { registerCraftSounds } from '../craft/craftSounds';
 import { craftSystem } from '../craft/craft';
-import { pixTag, stamp, type PixTag } from '../craft/tags';
+import { pixTag, stamp, disposeTag, type PixTag } from '../craft/tags';
 import { metalMat } from '../craft/metal';
 import { Dymo, HoverTag, Gauge, ControlBox } from '../craft/props';
 import { ModelBuilder } from '../gfx/modelBuilder';
@@ -116,8 +116,7 @@ export class InventoryUI {
   private rail = new THREE.Group();
   private sideTags: { t: PixTag; e: Entry }[] = [];
   private wornBoard = new THREE.Group();
-  private howTo = pixTag('card', 80, 62, 0.27);
-  private opens = 0;
+
   private wornObjs: { it: Item; obj: ItemObj }[] = [];
   private palm = { R: new THREE.Vector3(), L: new THREE.Vector3() };
   private heldObjs: { R: ItemObj | null; L: ItemObj | null } = { R: null, L: null };
@@ -200,13 +199,7 @@ export class InventoryUI {
     wb.cylinder(0, -0.36, 0, 0.004, 0.38, 6, 'metal_brass');
     for (let i = 0; i < 5; i++) { wb.push().translate(0, -0.02 - i * 0.07, 0).rotateZ(Math.PI / 2); wb.cylinder(0, 0, 0, 0.0022, 0.022, 5, 'metal_brass'); wb.pop(); }
     this.rail.add(new THREE.Mesh(wb.build(), metalMat('brass', 4)));
-    // the instruction card tucked under the scale (the first few times)
-    const card = this.howTo;
-    card.clear();
-    card.type('Stowing the cube', 12, 5, '#7a2a1a', 7.5);
-    card.para('Drag things in: they drop to the bottom. R turn, T tip, Y roll. Wheel: peel layers. Double-click: work on it. Tap the lid to shut.', 12, 15, 64, undefined, 7.2, 6, 5.8);
-    card.flush();
-    g.add(card.mesh);
+
     // the hook board for what you wear
     const hb = new ModelBuilder();
     hb.box(0, -0.03, 0, 0.26, 0.06, 0.014, 'wood_dark', { color: 0x8a6038 });
@@ -229,16 +222,16 @@ export class InventoryUI {
     const halfH = Math.tan((cam.fov * Math.PI) / 360) * D, halfW = halfH * asp;
     const wide = asp >= 1.2;
     const k = wide ? 1 : Math.max(0.55, asp / 1.2);
-    this.floor.position.set(0, wide ? -0.4 : -0.2, wide ? -2.05 : -2.3);
+    this.floor.position.set(0, wide ? -0.3 : -0.16, wide ? -2.05 : -2.3);
     this.cubeSpin.position.set(0, 0, -0.06);
     const sideX = wide ? Math.min(0.6, 0.42 + (asp - 1.2) * 0.3) : 0.34;
-    const sideZ = wide ? 0.04 : 0.42;
+    const sideZ = wide ? -0.22 : 0.42;
     this.rollHold.position.set(-sideX, 0.002, sideZ + 0.02); this.rollHold.rotation.set(0, wide ? 0.3 : 0.1, 0);
     this.trayHold.position.set(sideX, 0.002, sideZ); this.trayHold.rotation.set(0, wide ? -0.3 : -0.1, 0);
     this.fitSide(this.roll, this.rollHold, wide ? 0.4 : 0.3, 0.3);
     this.fitSide(this.tray, this.trayHold, wide ? 0.46 : 0.34, 0.42);
     this.rail.position.set(halfW - 0.035 * k, halfH * 0.92, -D); this.rail.scale.setScalar(k);
-    this.howTo.mesh.position.set(-halfW + 0.15 * k, halfH - 0.33 * k, -D); this.howTo.mesh.scale.setScalar(k); this.howTo.mesh.rotation.z = 0.04;
+
     // camera-space props along the bottom and top
     this.palm.L.set(-halfW * 0.78, -halfH * 0.72, -D);
     this.palm.R.set(halfW * 0.78, -halfH * 0.72, -D);
@@ -300,8 +293,6 @@ export class InventoryUI {
     this.floor.rotation.x = this.tilt;
     this.sideSig = ''; this.wornSig = '';
     this.renderSide(); this.renderWorn();
-    try { this.opens = Number(localStorage.getItem('nc.cubeOpens') || '0') + 1; localStorage.setItem('nc.cubeOpens', String(this.opens)); } catch { this.opens++; }
-    this.howTo.mesh.visible = this.opens <= 6;
     this.openSeq(performance.now() - this.lastClose < 30000);
   }
 
@@ -351,7 +342,6 @@ export class InventoryUI {
     this.ground.visible = on;
     this.rollHold.visible = this.trayHold.visible = this.rail.visible = all;
     this.wornBoard.visible = this.box.g.visible = this.gauge.g.visible = all;
-    this.howTo.mesh.visible = all && this.opens <= 6;
   }
 
   /** the cube held up to your face (k = 1) or set down on the carpet (k = 0), in carpet space */
@@ -561,7 +551,7 @@ export class InventoryUI {
     const sig = this.side.map((e) => e.c.uid + e.name).join('|') + '#' + this.sideSel;
     if (sig === this.sideSig) return;
     this.sideSig = sig;
-    for (const s of this.sideTags) this.rail.remove(s.t.mesh);
+    for (const s of this.sideTags) disposeTag(s.t);
     this.sideTags = [];
     // at most five tags fit the rod: pockets, the floor, and what is nearest
     const idx = this.side.map((_, i) => i);

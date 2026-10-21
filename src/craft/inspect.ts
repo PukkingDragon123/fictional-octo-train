@@ -298,7 +298,14 @@ export class Inspect {
     t.flush();
   }
 
-  private clearProps() { for (const p of this.props) p.mesh.parent?.remove(p.mesh); this.props = []; }
+  private clearProps() {
+    for (const p of this.props) {
+      p.mesh.parent?.remove(p.mesh);
+      const m = (p.mesh as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+      if (m && (p.mesh as THREE.Mesh).isMesh && m.map instanceof THREE.CanvasTexture) { m.map.dispose(); m.dispose(); (p.mesh as THREE.Mesh).geometry.dispose(); }
+    }
+    this.props = [];
+  }
 
   private renderProps() {
     this.clearProps();

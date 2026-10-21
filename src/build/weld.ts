@@ -17,13 +17,11 @@ import type { TileObject } from '../world/zone';
 
 export type Welder = { kind: 'torch'; it: Item } | { kind: 'laser' } | { kind: 'hammer'; it: Item };
 
-/** the watch laser counts as a welder once the watch agent exposes it (G.watch.laser) */
+/** the watch's welding arc counts as a welder once researched and charged (G.watch.laser) */
 export function laserReady(): boolean {
   const l = (G as any).watch?.laser;
-  if (!l) return false;
-  if (typeof l === 'function') return !!l();
-  if (typeof l === 'object') return !!(l.unlocked ?? l.ready ?? l.enabled ?? (typeof l.can === 'function' ? l.can() : false));
-  return !!l;
+  if (!l?.can) return false;
+  return !!l.can('weld') && (l.charge ?? 1) > 0.01;
 }
 
 /** what this survivor can join a piece with (nail pieces want a hammer) */
@@ -131,11 +129,12 @@ export class WeldAction extends TimedAction {
   start() { G.audio?.at?.(this.tool.kind === 'hammer' ? 'hammer' : 'whoosh', this.o.x + 0.5, this.o.y + 0.5, 0.7); }
   update(dt: number) {
     const local = this.p.isLocal;
-    // gas
+    // gas, or the watch's charge (it draws its own beam from the wrist to the bead)
     if (this.tool.kind === 'torch') this.tool.it.uses = Math.max(0, (this.tool.it.uses ?? 1) - dt / (itemDef('welding_torch').uses ?? 60));
     // fx
     this.fxT -= dt; this.sndT -= dt; this.sendT -= dt;
     beadPoint(this.o, this.pc, this.pt);
+    if (this.tool.kind === 'laser' && local && !(G as any).watch?.laser?.fire?.('weld', this.pt, dt)) { this.cancelled = true; this.p.actions.clear(); return; }
     const hammer = this.tool.kind === 'hammer';
     if (this.fxT <= 0) {
       this.fxT = hammer ? 0.5 : 0.045;

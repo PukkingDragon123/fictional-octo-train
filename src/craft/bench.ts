@@ -19,7 +19,7 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { CubeView } from './cubeView';
 import { HAND_OPS, type HandOp, matches, pickTool, pickParts, partLabel, toolLabel } from './handOps';
 import { Tweens, easeOut, easeBack, makeArm, poseArm, type Arm, makeBackdrop, makeItemObj, fitItemObj, type ItemObj, pointerRay, Particles, fpMat } from './fpKit';
-import { pixTag, stamp, type PixTag } from './tags';
+import { pixTag, stamp, disposeTag, type PixTag } from './tags';
 import { Dymo, Slate, HoverTag, clickTag } from './props';
 import { recipeHint } from './knowledge';
 
@@ -277,7 +277,7 @@ export class Bench {
       });
     }
     rows.sort((a, b) => b.score - a.score);
-    for (const s of this.sheets) s.t.mesh.parent?.remove(s.t.mesh);
+    for (const s of this.sheets) disposeTag(s.t);
     this.sheets = [];
     const list = rows.length ? rows.slice(0, 6) : [{ title: 'Empty bench', lines: 'drag things out of the cube onto the boards', mark: '', ok: false, score: 0, run: () => {} }];
     list.forEach((row, i) => {

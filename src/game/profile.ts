@@ -56,7 +56,7 @@ export function maxStat(key: string, v: number) {
   if (!flushTimer) flushTimer = setTimeout(() => { flushTimer = null; if (dirty) persist(); }, 8000);
 }
 export function flushStats() { if (dirty) persist(); }
-if (typeof window !== 'undefined') {
+if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
   window.addEventListener('pagehide', flushStats);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushStats(); });
 }

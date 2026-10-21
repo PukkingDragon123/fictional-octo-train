@@ -40,6 +40,14 @@ function priceTag(text: string, ink: number) {
 }
 let _mat: THREE.Material | null = null;
 const itemMat = () => (_mat ??= worldMaterial({ noVis: true, noFog: true, noGrid: true }));
+// shared pieces (the cloth is laid out again after every trade: nothing per-layout but the job cards)
+const HIT = new THREE.MeshBasicMaterial({ visible: false });
+const GEO = { hit: new THREE.BoxGeometry(0.07, 0.05, 0.05), tag: new THREE.PlaneGeometry(0.042, 0.018), bow: new THREE.BoxGeometry(0.012, 0.004, 0.006), card: new THREE.PlaneGeometry(0.11, 0.073), pin: new THREE.SphereGeometry(0.004, 6, 4), tokTag: new THREE.PlaneGeometry(0.036, 0.0145), tokHit: new THREE.BoxGeometry(0.06, 0.04, 0.06) };
+const RED = new THREE.MeshLambertMaterial({ color: 0xb02018 });
+const tagMats = new Map<PixTex, THREE.Material>();
+const cachedMats = new Set<THREE.Material>();
+const tagMat = (p: PixTex) => { let m = tagMats.get(p); if (!m) { m = flatMat(p.tex); tagMats.set(p, m); cachedMats.add(m); } return m; };
+let tokenGeo: THREE.BufferGeometry | null = null;
 
 interface Slot { g: THREE.Group; kind: 'buy' | 'sell' | 'job' | 'join'; key: string; it?: Item; price: number; label: string; y0: number; ok: boolean }
 
@@ -175,7 +183,11 @@ export class TradeUI {
     const c = this.c; if (!c) return;
     const p = G.local!;
     const t = tribeOfCreature(c)!;
-    for (const s of this.slots) s.g.removeFromParent();
+    for (const s of this.slots) {
+      s.g.removeFromParent();
+      // job cards and the token tag are drawn per layout: free them
+      if (s.kind === 'job' || s.kind === 'join') s.g.traverse((o) => { const m = (o as THREE.Mesh).material as THREE.MeshBasicMaterial | undefined; if (m?.map && !cachedMats.has(m)) { m.map.dispose(); m.dispose(); } });
+    }
     this.slots = [];
     const tab = this.T.tab(t);
     // their goods: two rows on the far half
@@ -220,10 +232,10 @@ export class TradeUI {
       g.add(m);
     }
     // a fat invisible box to make it easy to tap
-    const hit = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.05), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 0.02; g.add(hit);
-    const tg = new THREE.Mesh(new THREE.PlaneGeometry(0.042, 0.018), flatMat(priceTag(tagText, ink).tex));
+    const hit = new THREE.Mesh(GEO.hit, HIT); hit.position.y = 0.02; g.add(hit);
+    const tg = new THREE.Mesh(GEO.tag, tagMat(priceTag(tagText, ink)));
     tg.rotation.x = -Math.PI / 2; tg.rotation.z = Math.sin(x * 40 + z * 13) * 0.25; tg.position.set(0.012, 0.001, 0.03); g.add(tg);
-    if (want) { const bow = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.004, 0.006), new THREE.MeshLambertMaterial({ color: 0xb02018 })); bow.position.set(-0.004, 0.003, 0.03); g.add(bow); }
+    if (want) { const bow = new THREE.Mesh(GEO.bow, RED); bow.position.set(-0.004, 0.003, 0.03); g.add(bow); }
     g.position.set(x, 0, z);
     this.goods.add(g);
     this.slots.push({ g, kind, key, it, price, label, y0: 0, ok });
@@ -240,8 +252,8 @@ export class TradeUI {
     else pt.pen('take it', 30, 26, PAL.ink, 11, { align: 'center' });
     pt.flush();
     const g = new THREE.Group();
-    g.add(new THREE.Mesh(new THREE.PlaneGeometry(0.11, 0.073), flatMat(pt.tex)));
-    const pin = new THREE.Mesh(new THREE.SphereGeometry(0.004, 6, 4), new THREE.MeshLambertMaterial({ color: 0xc02818 })); pin.position.set(0, 0.03, 0.003); g.add(pin);
+    g.add(new THREE.Mesh(GEO.card, flatMat(pt.tex)));
+    const pin = new THREE.Mesh(GEO.pin, RED); pin.position.set(0, 0.03, 0.003); g.add(pin);
     g.position.set(x, 0.035, -TD / 2 - 0.01); g.rotation.x = -0.35;
     this.goods.add(g);
     this.slots.push({ g, kind: 'job', key, price: 0, label: `JOB: ${title}  -  ${reward}`, y0: 0.035, ok: !stamp });
@@ -249,13 +261,11 @@ export class TradeUI {
 
   private token(face: string, label: string, ok: boolean) {
     const g = new THREE.Group();
-    const mb = new ModelBuilder();
-    mb.cylinder(0, 0, 0, 0.022, 0.012, 12, 'wood_dark', { color: 0x7a5232 });
-    mb.cylinder(0, 0.012, 0, 0.017, 0.002, 12, 'wood_light');
-    g.add(new THREE.Mesh(mb.build(), itemMat()));
+    if (!tokenGeo) { const mb = new ModelBuilder(); mb.cylinder(0, 0, 0, 0.022, 0.012, 12, 'wood_dark', { color: 0x7a5232 }); mb.cylinder(0, 0.012, 0, 0.017, 0.002, 12, 'wood_light'); tokenGeo = mb.build(); }
+    g.add(new THREE.Mesh(tokenGeo, itemMat()));
     const pt = new PixTex(30, 12, 4); pt.reset(); pt.paper(0, 0, 30, 12, PAL.paper, 5); pt.pen(face, 15, -1, ok ? PAL.ink : PAL.inkRed, 11, { align: 'center' }); pt.flush();
-    const tg = new THREE.Mesh(new THREE.PlaneGeometry(0.036, 0.0145), flatMat(pt.tex)); tg.rotation.x = -Math.PI / 2; tg.position.set(0, 0.0005, 0.03); g.add(tg);
-    const hit = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.04, 0.06), new THREE.MeshBasicMaterial({ visible: false })); g.add(hit);
+    const tg = new THREE.Mesh(GEO.tokTag, flatMat(pt.tex)); tg.rotation.x = -Math.PI / 2; tg.position.set(0, 0.0005, 0.03); g.add(tg);
+    const hit = new THREE.Mesh(GEO.tokHit, HIT); g.add(hit);
     g.position.set(0.215, 0.002, 0.16);
     this.goods.add(g);
     this.slots.push({ g, kind: 'join', key: 'join', price: RECRUIT_COST, label, y0: 0.002, ok });

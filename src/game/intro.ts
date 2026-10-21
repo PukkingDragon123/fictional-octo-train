@@ -55,7 +55,7 @@ import { paintMugshot } from '../content/furniture/zp_processing';
 import { rigNumber } from '../content/items/prisoner';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { createPreviewRig, type HumanRig, type Pose } from '../entities/humanRig';
-import { fpGroup, fpClaim, fpRelease, fpCamera } from '../fp/fp';
+import { fpGroup, fpClaim, fpRelease, fpCamera, fpOwner } from '../fp/fp';
 import { hitstop } from '../gfx/juice';
 import { IntroSet, IX, STAGE } from './introSet';
 import { worldMaterial } from '../gfx/materials';
@@ -350,11 +350,15 @@ export class Intro implements GameSystem {
     const cam = fpCamera();
     this.camSave = { fov: cam.fov, near: cam.near, far: cam.far };
     cam.fov = 64; cam.near = 0.035; cam.far = 60; cam.updateProjectionMatrix();
-    // other owners' lights in the overlay scene (the held devices) would flatten the set: off while we own it
-    const mine = fpGroup(STAGE_NAME);
-    for (const o of this.g.pr.overlayScene.children) if (o !== mine && (o as THREE.Light).isLight && o.visible) { o.visible = false; this.hiddenLights.push(o); }
+    this.hideForeignLights();
     this.g.pr.scene.visible = false;
   }
+  /** other owners' lights loose in the overlay scene (the held devices) would flatten the set: off while we own it */
+  private hideForeignLights() {
+    const mine = fpGroup(STAGE_NAME);
+    for (const o of this.g.pr.overlayScene.children) if (o !== mine && (o as THREE.Light).isLight && o.visible) { o.visible = false; this.hiddenLights.push(o); }
+  }
+  private lightT = 1;
   private releaseStage() {
     if (!this.staged) return;
     this.staged = false;
@@ -648,6 +652,10 @@ export class Intro implements GameSystem {
       case 'voss': this.updVoss(dt); break;
     }
     if (this.staged) {
+      // nothing else gets the first-person stage while the intake is playing
+      if (fpOwner() !== STAGE_NAME) fpClaim(STAGE_NAME, 1000);
+      this.lightT -= dt;
+      if (this.lightT <= 0) { this.lightT = 1; this.hideForeignLights(); }
       this.updBody(dt);
       this.set.update(dt, this.eye);
       this.updCamera(dt);

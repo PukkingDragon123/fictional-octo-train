@@ -47,13 +47,13 @@ export class CubeView extends GridView3 {
     this.body.add(this.pad, this.light);
     this.plate = pixTag('plate', 72, 22, 0.15);
     this.body.add(this.plate.mesh);
-    this.lidPlate = pixTag('plate', 96, 30, 0.3);
+    this.lidPlate = pixTag('plate', 100, 34, 0.4);
     this.lid.add(this.lidPlate.mesh);
     this.setPlate('----');
     const lp = this.lidPlate;
     lp.clear();
-    lp.type('Remittance Carrier Mk. II', 8, 6, undefined, 6.8);
-    lp.type('Property of the Meridian Institute', 8, 17, '#4a3410', 5);
+    lp.type('R turn · T tip · Y roll', 7, 5, undefined, 8.5);
+    lp.type('Double-click: work on it', 7, 18, '#4a3410', 7.5);
     lp.flush();
     this.peelPlane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: 0x1a1612, transparent: true, opacity: 0.22, depthWrite: false, side: THREE.DoubleSide }));
     this.peelPlane.rotation.x = -Math.PI / 2;
@@ -127,7 +127,7 @@ export class CubeView extends GridView3 {
     const ls = B();
     ls.box(0, W * 1.1, O / 2, O - 0.05, 0.006, O - 0.05, 'metal_grey', { color: 0xb8bcc0 });
     ls.box(0, W * 1.1 + 0.006, O / 2 + 0.04, 0.16, 0.022, 0.024, 'metal_grey', { color: 0x8a8e92 });
-    for (let i = 0; i < 4; i++) ls.box(-0.15 + i * 0.1, -0.004, O / 2, 0.012, 0.004, O - 0.02, 'metal_grey', { color: 0x9a9ea2 });
+    for (const x of [-0.19, 0.19]) ls.box(x, -0.004, O / 2, 0.012, 0.004, O - 0.02, 'metal_grey', { color: 0x9a9ea2 });
     add(ls, metalMat('steel', 3), this.lid);
     // a bulb in a wire cage under the lid
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.01, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffd890 }));
@@ -136,7 +136,7 @@ export class CubeView extends GridView3 {
     // the tube, the plates
     this.pad.position.set(0.11, H * 0.42 + 0.05, O / 2 + 0.0085);
     this.plate.mesh.position.set(-0.1, H * 0.46 + 0.027, O / 2 + 0.0058);
-    this.lidPlate.mesh.position.set(0, -0.003, O * 0.42);
+    this.lidPlate.mesh.position.set(0, -0.0065, O * 0.42);
     this.lidPlate.mesh.rotation.set(Math.PI / 2, 0, 0);
     this.light.position.set(0, H * 0.85, 0);
     // the grid inside: chalk on the walls, every cell edge

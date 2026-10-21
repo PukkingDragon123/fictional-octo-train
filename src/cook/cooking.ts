@@ -5,6 +5,7 @@
 // to flip it (Space tosses the whole pan). Hold the mouse on the pot and circle
 // to stir or it catches. Raw, cooked, perfect, burnt: you can see it happen.
 // Click the plate to serve: what you plated decides the dish (recipes.ts).
+import { consume } from '../build/keys';
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -26,7 +27,7 @@ import type { Player } from '../entities/player';
 import type { TileObject, Zone } from '../world/zone';
 
 const N_SLOTS = 8;
-const PAN_X = -0.17, POT_X = 0.27, PLATE = new THREE.Vector3(0.5, 0.0, 0.22);
+const PAN_X = -0.17, POT_X = 0.27, PLATE = new THREE.Vector3(0.56, 0.0, 0.06);
 const MEATY = new Set(['meat', 'organ', 'human', 'marrow', 'tallow']);
 interface Bit { it: Item; mesh: THREE.Mesh; mat: THREE.MeshLambertMaterial; base: THREE.Color; down: number; up: number; flip: number; px: number; pz: number; spin: number; meat: boolean }
 interface Slot { it: Item | null; mesh: THREE.Mesh | null; x: number; z: number }
@@ -104,7 +105,7 @@ export class CookView {
     this.rig.add(this.surface);
     // a fire's grate over glowing coals (instead of the hob's steel top)
     const fg = new ModelBuilder();
-    fg.box(0, -0.06, 0, 1.4, 0.035, 0.7, 'q_embers', { emissive: 0.85, uvScale: 5 });
+    fg.box(0, -0.06, 0, 1.4, 0.035, 0.7, 'q_embers', { emissive: 0.85, uvScale: 2.2 });
     for (const [x, z, w, d] of [[0, -0.37, 1.5, 0.04], [0, 0.37, 1.5, 0.04], [-0.73, 0, 0.04, 0.78], [0.73, 0, 0.04, 0.78]] as const) fg.box(x, -0.06, z, w, 0.06, d, 'metal_rusty');
     for (let x = -0.69; x <= 0.69; x += 0.06) fg.box(x, -0.016, 0, 0.012, 0.012, 0.74, 'metal_dark');
     this.grate = new THREE.Mesh(fg.build(), M); this.grate.visible = false; this.rig.add(this.grate);
@@ -359,7 +360,7 @@ export class CookView {
     const inp = G.input;
     if (!p || p.body.dead) { this.close(); return; }
     // leave
-    if (inp.keyHit('Escape') || inp.hit('interact')) { inp.pressed.delete('Escape'); inp.pressed.delete('KeyE'); this.close(); return; }
+    if (inp.hit('pause') || inp.hit('interact')) { consume('pause', 'interact'); this.close(); return; }
     if (inp.mouseReleased[2] && !this.drag) { this.close(); return; }
     if (inp.hit('shove')) this.toss();
     const H = this.stationHeat();

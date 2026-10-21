@@ -230,6 +230,13 @@ function typePara(ctx: CanvasRenderingContext2D, str: string, x: number, y: numb
   return out.length;
 }
 
+/** free a tag's canvas texture, material and plane */
+export function disposeTag(t: PixTag) {
+  t.mesh.parent?.remove(t.mesh);
+  const m = t.mesh.material as THREE.MeshStandardMaterial;
+  m.map?.dispose(); m.dispose(); t.mesh.geometry.dispose();
+}
+
 /** a string from a tag's eyelet to whatever it is tied to */
 export function tagString(color = 0x8a7a5a): THREE.Line {
   const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]);

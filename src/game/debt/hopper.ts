@@ -636,7 +636,7 @@ export class HopperSystem implements GameSystem {
       f.lens.scale.setScalar((on ? 0.6 + 0.1 * Math.sin(G.time * 3) : 0.25) + (cyc ? 0.4 : 0));
       if (vis && G.local?.zoneKey === f.zone) {
         tv.set(...PRESS.beacon).applyMatrix4(f.group.matrix);
-        if (cyc) G.pointLight(tv.x, tv.y, tv.z, 0xff7020, 1.4 * (Math.sin(G.time * 14) > 0 ? 1 : 0.25), 7);
+        if (cyc && Math.sin(G.time * 14) > 0) G.pointLight(tv.x, tv.y, tv.z, 0xff8a30, 0.8, 4.5);
         if (seamK > 0.05 || f.flash > 0.05) G.pointLight(o.x + 1, 0.35, o.y + 1, 0xd8ccb0, 0.5 + seamK * 1.1 + f.flash * 2, 5);
         else if (f.loaded && on) G.pointLight(o.x + 1, 0.4, o.y + 1, 0xffa030, 0.5 + 0.3 * Math.sin(G.time * 5), 4);
       }

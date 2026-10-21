@@ -40,7 +40,7 @@ function maps(kind: MetalKind): Maps {
   const cc = mk(), rc = mk();
   const cx = cc.getContext('2d')!, rx = rc.getContext('2d')!;
   const base: Record<MetalKind, [string, number]> = {
-    iron: ['#4a4e52', 0.58], steel: ['#7e868c', 0.4], brass: ['#a8823a', 0.36], rust: ['#4e3222', 0.88], chrome: ['#d8dde2', 0.14], bakelite: ['#3a2216', 0.42], enamel: ['#2e5a4a', 0.3],
+    iron: ['#4a4e52', 0.46], steel: ['#7e868c', 0.4], brass: ['#a8823a', 0.36], rust: ['#4e3222', 0.88], chrome: ['#d8dde2', 0.14], bakelite: ['#3a2216', 0.42], enamel: ['#2e5a4a', 0.3],
   };
   const [col, rough] = base[kind];
   cx.fillStyle = col; cx.fillRect(0, 0, N, N);
