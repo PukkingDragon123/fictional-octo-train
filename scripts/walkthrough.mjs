@@ -1,7 +1,9 @@
 // Main-chain walkthrough for the Remittance contract (src/game/debt, src/missions):
 //   quick start (band fitted at intake) → smash furniture → pick up a valuable → deposit it in a hopper
 //   → pay the installments (scrip topped up through page JS for pacing; one deadline is missed on purpose)
-//   → clear the debt → buy passage at the kiosk → the transport arrives → board → the ending,
+//   → the watch (Tab, first-person stage) and its quests: a paid permit (Survey Licence) that uploads a
+//   watch function, a courier run to another level → clear the debt → buy passage at the kiosk
+//   → the transport arrives → board → the ending,
 // plus the BAILIFF band (warning at the Seam, detonation, a replacement band at a hopper) and, on a
 // second page, the side chain (fuses → numbers → render nodes → root key → core → bands unlatch → exit).
 // Timed actions and the transport's timeline are fast-forwarded once started.
@@ -70,7 +72,9 @@ async function session() {
       flags() { return [...T.g.missions.flags]; },
       has(f) { return T.g.missions.flags.has(f); },
       emitInv() { ev.bus.emit('inventoryChanged', T.p); },
-      /** a directive finished (the host evaluates twice a second of game time) */
+      /** the watch's quest runtime */
+      get Q() { return window.__game.missions.quests; },
+      /** a quest (or old directive) finished (the host evaluates twice a second of game time) */
       async done(key, ms = 120000) { await T.until(() => T.has('done:' + key), ms, 'done:' + key); },
     };
     // fast-forward any timed action once it has started (walks and the seat aboard excluded)
@@ -134,7 +138,8 @@ const step = async (page, name, fn, arg) => {
   await step(page, 'pick up a valuable', async () => {
     const T = window.T, z = T.g.getZone('lobby');
     // let the toss land, then pick it up through the real floor → inventory transfer
-    await T.until(() => [...T.wi.floorItems(z).values()].every((w) => w.vy === undefined), 60000, 'landed');
+    // (only what fell near us: floor physics runs around the camera, so far-off items may stay airborne)
+    await T.until(() => [...T.wi.floorItems(z).values()].every((w) => w.vy === undefined || Math.hypot(w.x - T.p.x, w.z - T.p.z) > 6), 60000, 'landed');
     const w = [...T.wi.floorItems(z).values()].find((q) => ['wedding_ring', 'cash_roll', 'gold_watch'].includes(q.item.key));
     const { transferItem } = await import('/src/game/worldOps.ts');
     const fc = T.wi.floorContainer(z, w.x, w.z, 0.5);
@@ -157,7 +162,7 @@ const step = async (page, name, fn, arg) => {
     const it = window.__dev.newItem('pocket_watch'); T.p.inv.add(it); T.emitInv();
     const { itemMenuOptions } = await import('/src/interact/itemMenu.ts');
     const labels = itemMenuOptions(T.p, it, T.p.inv, [it]).map((o) => o.label);
-    const dep = labels.find((l) => l.startsWith('Deposit in hopper'));
+    const dep = labels.find((l) => /^Deposit in (hopper|press)/.test(l));
     if (!dep) throw new Error('no deposit option: ' + labels.join(' | '));
     return dep;
   });
@@ -168,9 +173,50 @@ const step = async (page, name, fn, arg) => {
     window.__dev.op('objAdd', { z: 'lobby', obj: { uid: uidv, key: 'filing_cabinet', x: h.x + 1, y: h.y + 3, rot: 0, state: {} } });
     // the push ends with the cabinet released on the plate (the destruction system's objRelease op)
     window.__dev.op('objRelease', { z: 'lobby', uid: uidv, x: h.x + 1, y: h.y + 1, by: T.p.id });
+    // then the lever (the press only goes when somebody pulls it)
+    await T.sleep(300);
+    if (T.D.hop.pull && !T.D.hop.pull(T.p, h)) throw new Error('lever would not pull');
     await T.until(() => !z.objects.has(uidv), 120000, 'cabinet taken');
     await T.until(() => T.g.debt.paid + T.g.debt.surplus > paid0, 30000, 'credited');
     return { credited: T.g.debt.paid + T.g.debt.surplus - paid0 };
+  });
+  await step(page, 'watch: Tab raises it into first person; quests are listed', async () => {
+    const T = window.T, w = T.g.watch, fp = await import('/src/fp/fp.ts');
+    w.toggle(true, 'qst');
+    await T.until(() => w.raise > 0.5, 60000, 'raised');
+    if (fp.fpOwner() !== 'watch') throw new Error('stage owner ' + fp.fpOwner());
+    const active = T.Q.list('active').map((v) => v.key), offers = T.Q.list('offers').map((v) => v.key);
+    w.toggle(false);
+    if (!T.Q.completed('first_haul')) throw new Error('first_haul not completed');
+    return { pages: w.pages.map((p) => p.key), active, offers };
+  });
+  await step(page, 'watch: accept a permit, pay to complete it, a function is uploaded (Survey Licence)', async () => {
+    const T = window.T, Q = T.Q, R = await import('/src/game/research.ts');
+    await T.until(() => Q.status('rd_licence') === 'off', 30000, 'licence offered');
+    const rp0 = R.researchPoints(), owed0 = T.g.debt.owed;
+    const e1 = Q.request('rd_licence', 'accept'); if (e1) throw new Error('accept: ' + e1);
+    await T.until(() => Q.status('rd_licence') === 'ready', 30000, 'ready to pay');
+    const e2 = Q.request('rd_licence', 'pay'); if (e2) throw new Error('pay: ' + e2);
+    await T.until(() => Q.status('rd_licence') === 'done', 30000, 'licence done');
+    await T.until(() => R.hasUnlock('watch_map'), 10000, 'map uploaded');
+    await T.until(() => T.g.watch.pages.some((p) => p.key === 'map'), 10000, 'map function');
+    return { rp: R.researchPoints() - rp0, billed: T.g.debt.owed - owed0 };
+  });
+  await step(page, 'watch: courier run (carry the sealed case to another level, hand it in)', async () => {
+    const T = window.T, Q = T.Q;
+    const { courierDest } = await import('/src/missions/researchQuests.ts');
+    await T.until(() => Q.status('rd_courier') === 'off', 30000, 'courier offered');
+    const credit0 = T.g.debt.paid + T.g.debt.surplus;
+    const e1 = Q.request('rd_courier', 'accept'); if (e1) throw new Error('accept: ' + e1);
+    await T.until(() => Q.status('rd_courier') === 'act' && T.p.allItems().some((i) => i.key === 'sealed_case'), 30000, 'case handed over');
+    const dest = courierDest();
+    await T.go(dest);
+    await T.until(() => Q.status('rd_courier') === 'ready', 60000, 'delivered');
+    const e2 = Q.request('rd_courier', 'pay'); if (e2) throw new Error('hand in: ' + e2);
+    await T.until(() => Q.status('rd_courier') === 'done', 30000, 'courier done');
+    const handed = !T.p.allItems().some((i) => i.key === 'sealed_case');
+    await T.go('lobby', 10, 10);
+    return { dest, handed, credited: T.g.debt.paid + T.g.debt.surplus - credit0, tally: [...Q.tallies] };
   });
   for (let n = 1; n <= 4; n++) {
     await step(page, `installment ${n}`, async (n) => {
@@ -269,6 +315,9 @@ if (!mainOnly) {
     await T.until(() => T.has('start:first_haul'), 60000, 'first_haul');
     for (const f of ['tut:smash', 'tut:valuable', 'contract:first_deposit']) T.g.missions.set(f);
     await T.done('first_haul');
+    // the side chain's first quest is offered on the watch and has to be accepted
+    await T.until(() => T.Q.status('first_light') === 'off', 30000, 'side chain offered');
+    T.Q.request('first_light', 'accept');
     await T.until(() => T.has('start:first_light'), 30000, 'side chain');
   });
   const S = (name, fn) => step(page, 'side: ' + name, fn);

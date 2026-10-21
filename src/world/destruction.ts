@@ -423,6 +423,8 @@ export class DestructionSystem implements GameSystem {
 
   /** a melee swing that hit no creature: furniture, walls, windows in front (combat.ts) */
   meleeWorld(p: Player, w: any, it: Item | null): boolean {
+    // the tool in hand decides what the blow does to furniture (chop, pry, slash...): src/interact/toolUse.ts
+    try { if (G.grab?.toolHit?.(p, w, it)) return true; } catch (e) { console.warn('toolHit', e); }
     const z = G.getZone(p.zoneKey);
     const reach = (w.range ?? 0.85) + 0.35;
     const fx = Math.cos(p.facing), fz = Math.sin(p.facing);

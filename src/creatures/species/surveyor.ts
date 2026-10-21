@@ -533,6 +533,7 @@ function endDrag(c: Creature) {
 }
 const S = def({
   key: 'surveyor', name: 'Surveyor', code: 'SV-04 // SUIT, OCCUPIED', temperament: 'ambush', threat: 4,
+  rule: { name: 'WHEN THE LAMP GOES OUT', text: 'Its light is bait. Keep your distance; when its lamp goes dark, it is coming. Run.' },
   hp: 80, walk: 0.85, run: 3.9, turn: 4, radius: 0.32, height: 1.9, sight: 20, fov: 1.3, hearing: 1.4, nightVision: true,
   attack: { dmg: [7, 12], range: 1.0, cooldown: 2.0, kinds: ['bruise', 'laceration'], corrupt: 0.05, knock: 0.3, grab: true, parts: ['uarm_l', 'uarm_r', 'torso_u', 'neck'] },
   zones: ['tunnels', 'lab', 'pools', 'lobby', 'parking', 'fields', 'office'], weight: 1, maxPerZone: 2, diet: 'none',

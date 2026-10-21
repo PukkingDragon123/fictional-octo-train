@@ -49,7 +49,7 @@ export class WalkToAction extends TimedAction {
     const ddx = tx - p.x, ddz = tz - p.z;
     const dist = Math.hypot(ddx, ddz);
     if (dist < 0.18) { this.idx++; return; }
-    const sp = (p.running ? 4.0 : 2.0) * p.body.mods(p.heavyLoad()).move;
+    const sp = (p.running ? 4.0 : 2.0) * p.body.mods(p.heavyLoad()).move * (p.packSlow?.() ?? 1);
     const step = Math.min(dist, sp * dt);
     const ox = p.x, oz = p.z;
     moveCircle(z, p, (ddx / dist) * step, (ddz / dist) * step);
@@ -81,17 +81,34 @@ export class EatAction extends TimedAction {
     this.anim = 'eat';
     this.sound = d.food?.pills ? 'pills' : 'eat';
   }
-  isValid() { return !!this.p.containerOf(this.it); }
-  start() { G.audio?.loop?.('eat', this.p, true); }
-  stop() { this.apply(this.progress); G.audio?.loop?.('eat', this.p, false); }
-  perform() { this.apply(1); G.audio?.loop?.('eat', this.p, false); }
+  /** first-person close-up (src/ui/body/eatFp.ts): bites come from clicks, not the timer */
+  fp = false;
+  /** fraction of the whole item eaten by bites so far */
+  bitten = 0;
+  isValid() { return this.fp || !!this.p.containerOf(this.it); }
+  start() {
+    if (this.p.isLocal && !itemDef(this.it.key).food?.pills && G.hudBody?.eatStart?.(this)) { this.fp = true; this.duration = 1e9; this.fixedTime = true; this.showBar = false; return; }
+    G.audio?.loop?.('eat', this.p, true);
+  }
+  stop() { if (this.fp) { G.hudBody?.eat?.end?.(this); return; } this.apply(this.progress); G.audio?.loop?.('eat', this.p, false); }
+  perform() { if (this.fp) return; this.apply(1); G.audio?.loop?.('eat', this.p, false); }
+  /** one bite: `amt` of the whole item */
+  bite(amt: number) {
+    if (!this.p.containerOf(this.it)) return;
+    const left = 1 - (this.it.eaten ?? 0);
+    const eatNow = Math.min(left, amt);
+    this.eatAmount(eatNow);
+    this.bitten += eatNow;
+  }
   private apply(frac: number) {
+    const left = 1 - (this.it.eaten ?? 0);
+    this.eatAmount(Math.min(left, this.portion * left > 0 ? this.portion * frac : 0));
+  }
+  private eatAmount(eatNow: number) {
     const d = itemDef(this.it.key);
     const f = d.food;
     if (!f) return;
-    const left = 1 - (this.it.eaten ?? 0);
-    const eatNow = Math.min(left, this.portion * left > 0 ? this.portion * frac : 0);
-    if (eatNow <= 0.01) return;
+    if (eatNow <= 0.004) return;
     const fr = freshness(this.it);
     const cooked = (this.it.cooked ?? 0) >= 1 && (this.it.cooked ?? 0) < 1.6;
     const burnt = (this.it.cooked ?? 0) >= 1.6;
@@ -104,7 +121,7 @@ export class EatAction extends TimedAction {
     }
     bus.emit('inventoryChanged', this.p);
     bus.emit('consumed', this.p, this.it.key);
-    if (fr === 'rotten') bus.emit('think', this.p, 'That tasted rotten...');
+    if (fr === 'rotten' && this.bitten <= 0) bus.emit('think', this.p, 'That tasted rotten...');
   }
 }
 
@@ -115,13 +132,28 @@ export class DrinkAction extends TimedAction {
     this.duration = 1.2 + litres * 5;
     this.anim = 'drink';
   }
-  isValid() { return !!this.p.containerOf(this.it) && !!this.it.fluid && this.it.fluid.amount > 0.001; }
-  start() { G.audio?.loop?.('drink', this.p, true); }
-  stop() { this.apply(this.progress); G.audio?.loop?.('drink', this.p, false); }
-  perform() { this.apply(1); G.audio?.loop?.('drink', this.p, false); }
+  /** first-person close-up (src/ui/body/eatFp.ts): gulps come from clicks */
+  fp = false;
+  isValid() { return this.fp || (!!this.p.containerOf(this.it) && !!this.it.fluid && this.it.fluid.amount > 0.001); }
+  start() {
+    if (this.p.isLocal && G.hudBody?.drinkStart?.(this)) { this.fp = true; this.duration = 1e9; this.fixedTime = true; this.showBar = false; return; }
+    G.audio?.loop?.('drink', this.p, true);
+  }
+  stop() { if (this.fp) { G.hudBody?.eat?.end?.(this); return; } this.apply(this.progress); G.audio?.loop?.('drink', this.p, false); }
+  perform() { if (this.fp) return; this.apply(1); G.audio?.loop?.('drink', this.p, false); }
+  /** one gulp of up to `l` litres; returns what went down */
+  gulp(l: number): number {
+    const fl = this.it.fluid; if (!fl || !this.p.containerOf(this.it)) return 0;
+    const amt = Math.min(fl.amount, l);
+    this.applyL(amt);
+    return amt;
+  }
   private apply(frac: number) {
     const fl = this.it.fluid; if (!fl) return;
-    const amt = Math.min(fl.amount, this.litres * frac);
+    this.applyL(Math.min(fl.amount, this.litres * frac));
+  }
+  private applyL(amt: number) {
+    const fl = this.it.fluid; if (!fl) return;
     if (amt <= 0.005) return;
     fl.amount -= amt;
     this.p.body.drink(fl.type, amt);

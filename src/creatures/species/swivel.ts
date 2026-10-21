@@ -456,6 +456,7 @@ creatureMenu('swivel', (p, c, opts) => {
 
 const sp = def({
   key: 'swivel', name: 'Swivel', code: 'E-23 // ARACH-ERGONOMIC', temperament: 'ambush', threat: 2,
+  rule: { name: 'WALK-PAST LUNGE', text: "It lunges at whoever walks right past it. Sneak by at arm's length, or kick a chair that turned to face you." },
   hp: 24, walk: 1.6, run: 6.6, turn: 16, radius: 0.32, height: 1.05, sight: 6, fov: 2.6, hearing: 1.0, vibration: true,
   attack: { dmg: [4, 9], range: 0.85, cooldown: 0.9, kinds: ['bite', 'laceration', 'scratch'], corrupt: 0.05, knock: 0.2, parts: ['foot_l', 'foot_r', 'shin_l', 'shin_r'] },
   zones: ['office', 'school', 'market'], weight: 3, group: [1, 2], maxPerZone: 5, diet: 'meat',

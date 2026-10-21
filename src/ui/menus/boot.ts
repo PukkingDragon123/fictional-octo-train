@@ -1,5 +1,5 @@
-// Title boot sequence: the security desk's monitor warming up and a tape
-// going into the deck, over the attract-mode world. Full POST on the first visit of a session, a short
+// Title boot sequence: the subject room's terminal coming up before the
+// lights go down. Full POST on the first visit of a session, a short
 // flicker after that. Any key, click or tap skips it.
 import { h, esc } from './common';
 import { sfx } from './sfx';
@@ -8,18 +8,19 @@ import { logoCanvas } from '../pixelart';
 import { toUrl } from '../pixelkit';
 
 const LINES: [string, number][] = [
-  ['MERIDIAN INSTITUTE  //  SECURITY DESK B  //  M-14 MONITOR', 0],
-  ['PROPERTY OF THE REMITTANCE OFFICE. DO NOT REMOVE TAPES.', 0],
+  ['MERIDIAN INSTITUTE  //  REMITTANCE PROGRAMME  //  SUBJECT ROOM 4', 0],
+  ['ALL SUBJECTS ARE TEMPORARY. ALL DEBTS ARE NOT.', 0],
   ['', 0],
-  ['TAPE 07 ............. {ok:INSERTED}', 1],
-  ['TRACKING ............ {ok:AUTO}', 1],
-  ['CAM 03 PROCESSING ... {ok:SIGNAL}', 1],
-  ['DEBTORS ON FILE ..... 4,294,967,295 {hi:(AND COUNTING)}', 1],
-  ['CAM 09 THE SEAM ..... {bad:[ NO SIGNAL ]}', 2],
-  ['CAM 09 THE SEAM ..... {bad:[ SOMETHING IS IN FRONT OF THE LENS ]}', 2],
-  ['{hi:>> REWINDING}', 1],
+  ['ROOM POWER ......... {ok:LOW}', 1],
+  ['CHAIR 4 ............ {ok:OCCUPIED}', 1],
+  ['ARMS A-D ........... {ok:STOWED}', 1],
+  ['PRESS .............. {ok:ARMED}', 1],
+  ['SUBJECTS ON FILE ... 4,294,967,295 {hi:(AND COUNTING)}', 1],
+  ['HATCH 2 ............ {bad:[ NO SIGNAL ]}', 2],
+  ['HATCH 2 ............ {bad:[ SOMETHING IS BEHIND IT ]}', 2],
+  ['{hi:>> DIMMING THE LIGHTS}', 1],
   ['', 0],
-  ['PLAY ▶  SP', 0],
+  ['WAKE UP ▶', 0],
 ];
 
 function fmt(s: string) {

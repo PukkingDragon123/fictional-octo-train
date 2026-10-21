@@ -142,10 +142,11 @@ export interface Item {
   data?: Record<string, any>;
   eaten?: number;            // fraction already consumed
   opened?: boolean;
-  /** grid placement inside its container (cell x, y; rot 1 = turned 90 degrees) */
+  /** grid placement inside its container (cell x, y; rot 1 = turned 90 degrees; gz = layer and rot 2..5 = orientations in the iron cube, src/items/grid.ts) */
   gx?: number;
   gy?: number;
-  rot?: 0 | 1;
+  gz?: number;
+  rot?: 0 | 1 | 2 | 3 | 4 | 5;
 }
 
 const REG = new Map<string, ItemDef>();

@@ -41,10 +41,11 @@ export function fmt(n: number) { return Math.round(n).toLocaleString('en-GB'); }
 
 // ---------------------------------------------------------------- lines
 export const L = {
-  deposit: ['Logged. Keep it moving, convict.', 'Weighed and taken. That is a start.', 'That will do. Bring me more.', 'Good. The ledger likes you a little more.', 'Taken. Again.', 'Acceptable. Barely.'],
+  deposit: ['Logged. Keep it moving, convict.', 'Pressed and sent. That is a start.', 'That will do. Bring me more.', 'Good. The ledger likes you a little more.', 'Taken. Again.', 'Acceptable. Barely.'],
   depositBig: ['Now THAT is a haul. Do it again.', 'Somebody found the good drawer. Keep that energy.', 'Big number. Don\'t let it go to your head.'],
-  reject: ['That is worth nothing to me.', 'No resale value. Take it back.', 'The hopper does not want that. Neither do I.'],
-  firstDeposit: 'That is how it works. You find it, you bring it, the plate takes it. Every piece takes you closer to zero.',
+  reject: ['That is worth nothing to me.', 'No resale value. Take it back.', 'The press spat that back. So would I.'],
+  firstDeposit: 'That is how it works. You find it, you put it on the plate, you pull the lever. It goes through to the other side and your number goes down. Every load takes you closer to zero.',
+  lever: 'It does not go through by itself, debtor. The lever. On the side of the press. Pull it. And get off the plate first.',
   installment: (n: number, c: number) => `Installment ${n} of ${c} received. You get to keep both wrists another day.`,
   installmentBailiff: (n: number) => `INSTALLMENT ${n} CLEARED. SCHEDULE UPDATED.`,
   missed: ['You missed a payment. You felt that. Next time it will be worse.', 'Late. The Programme charges for late. You just paid in kind.', 'Did you think I would forget? I never forget.'],
@@ -59,9 +60,9 @@ export const L = {
   boomVoss: ['I warned you. I always warn them.', 'That is what the band is for.', 'Get up. You still owe.'],
   tamperStart: 'TAMPER DETECTED.',
   tamperFail: 'TAMPER CONFIRMED.',
-  removed: ['...signal lost. Convict? CONVICT. You have no idea what you have done.', 'I can still see you. Not for long. You will come crawling back to a hopper.'],
+  removed: ['...signal lost. Convict? CONVICT. You have no idea what you have done.', 'I can still see you. Not for long. You will come crawling back to a press.'],
   removedBailiff: 'CARRIER LOST. SUBJECT FLAGGED: ABSCONDED.',
-  lost: 'Unit lost with the limb. Get to a hopper. You will be refitted.',
+  lost: 'Unit lost with the limb. Get to a press. You will be refitted.',
   refit: 'Hold still. New unit. Other wrist. Don\'t make me do it twice.',
   kiosk: 'Passage. Pick your ride. They all go somewhere.',
   boarded: 'Sit down. Don\'t look at the other passengers.',

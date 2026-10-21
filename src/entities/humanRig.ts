@@ -1,9 +1,12 @@
 import * as THREE from 'three';
+import { cosmeticOutfit, syncCosmetics } from './cosmetics3d';
 import { worldMaterial } from '../gfx/materials';
 import { BONES, BoneName, BONE_PARENT, BI, Dims, rigDims, buildBody, cutSpec, REG, PAGE } from './humanModel';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { stumpModel, pegModel, hookModel, prostHandModel, prostLegModel, footShell } from './limbGear';
 import { cutParts, StumpCond, PROSTHETICS, chainOf } from '../survival/limbs';
+import { cyberPieces } from './cyberGear';
+import { coveredParts } from '../survival/cyberParts';
 import { bakePage, makePageTexture, EYE_COLORS, BakeCache } from './humanPaint';
 import { outfitShape } from './humanClothes';
 import { HumanAnimator, AnimInput, EMOTES } from './humanAnim';
@@ -88,6 +91,8 @@ export interface RigCondition {
   stump?: Record<string, StumpCond & { id?: number }>;
   /** fitted prosthetics by limb ('arm_l' | 'arm_r' | 'leg_l' | 'leg_r' → item key) */
   prost?: Record<string, string>;
+  /** installed cyberware ({slot: part key}, src/survival/cyberParts.ts): the flesh it replaces is dropped, the hardware hangs on the bones */
+  cyber?: Record<string, string>;
 }
 
 /** stump / prosthetic geometry, shared between rigs (bucketed radius, look, skin tint) */
@@ -437,17 +442,17 @@ export class HumanRig {
   /** Rebuild the body for an outfit (cheap when nothing visible changed). */
   setOutfit(o: Outfit) {
     this.outfit = o || {};
-    const full = withDefaults(this.outfit);
+    const full = cosmeticOutfit(withDefaults(this.outfit), this.app);
     const sh = outfitShape(full);
     const cond = this.outfit.cond || {};
     const appKey = JSON.stringify(this.app);
-    const gk = appKey + JSON.stringify(sh) + (cond.splint || []).join(',') + (full.wrist ? '|w' : '') + (cond.sev?.length ? '|s:' + cond.sev.join(',') : '');
+    const gk = appKey + JSON.stringify(sh) + (cond.splint || []).join(',') + (full.wrist ? '|w' : '') + (cond.sev?.length ? '|s:' + cond.sev.join(',') : '') + (cond.cyber ? '|c:' + coveredParts(cond.cyber).join(',') : '');
     const { cond: _c, ...looks } = full;
     void _c;
-    const tk = appKey + JSON.stringify(looks) + JSON.stringify({ ...cond, bleeding: undefined, stump: undefined, prost: undefined, sev: undefined });
+    const tk = appKey + JSON.stringify(looks) + JSON.stringify({ ...cond, bleeding: undefined, stump: undefined, prost: undefined, sev: undefined, cyber: undefined });
     if (gk !== this.geoKey) {
       this.geoKey = gk;
-      const res = buildBody(this.app, full, sh, this.dims, { splints: new Set(cond.splint || []), bandages: new Set(Object.keys(cond.bandage || {})), severed: new Set(cond.sev || []) });
+      const res = buildBody(this.app, full, sh, this.dims, { splints: new Set(cond.splint || []), bandages: new Set(Object.keys(cond.bandage || {})), severed: new Set([...(cond.sev || []), ...coveredParts(cond.cyber)]) });
       const old = this.mesh.geometry;
       this.mesh.geometry = res.geometry;
       old.dispose();
@@ -463,17 +468,25 @@ export class HumanRig {
       this.page.tex.needsUpdate = true;
     }
     this.updateGear(cond, sh);
+    syncCosmetics(this, full, this.baseMat);
   }
 
   /** limb loss: a cap on every stump (raw, seared, stitched, bandaged, healed; a tourniquet), and the prosthetics */
   private updateGear(cond: RigCondition, sh: ReturnType<typeof outfitShape>) {
     const sev = cond.sev || [];
     const stumpKey = (st: StumpCond | undefined) => st ? st.s + (st.tq ? '+tq' : '') : 'healed';
-    const key = sev.length ? JSON.stringify([sev, Object.entries(cond.stump || {}).map(([k, v]) => k + ':' + stumpKey(v)), cond.prost, this.app.skin, this.s, this.app.build, sh.sleeve, sh.legKind, HumanRig.gentle]) : '';
+    const key = sev.length || cond.cyber ? JSON.stringify([cond.cyber, sev, Object.entries(cond.stump || {}).map(([k, v]) => k + ':' + stumpKey(v)), cond.prost, this.app.skin, this.s, this.app.build, sh.sleeve, sh.legKind, HumanRig.gentle]) : '';
     if (key === this.gearKey) return;
     this.gearKey = key;
     for (const m of this.gear) m.removeFromParent();
     this.gear.length = 0;
+    // cyberware: every piece rides its bone
+    for (const pc of cyberPieces(cond.cyber, this.dims)) {
+      const m = new THREE.Mesh(pc.geo, this.baseMat);
+      m.castShadow = true; m.name = 'cybergear';
+      this.bones[pc.bone].add(m);
+      this.gear.push(m);
+    }
     if (!sev.length) return;
     const skin = this.app.skin;
     const q = (r: number) => Math.round(r * 200) / 200;

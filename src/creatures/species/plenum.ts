@@ -373,6 +373,7 @@ function thinkPlenum(c: Creature, dt: number): boolean {
 
 const S = def({
   key: 'plenum', name: 'Plenum Crawler', code: 'PL-08 // CEILING VOID FAUNA', temperament: 'ambush', threat: 4,
+  rule: { name: 'NO CEILING, NO PLENUM', text: 'It lives above drop ceilings and drops on you. It cannot follow you outdoors, where there is no ceiling.' },
   hp: 60, walk: 1.6, run: 4.4, turn: 9, radius: 0.42, height: 0.7, sight: 14, fov: 2.0, hearing: 1.8, vibration: true,
   attack: { dmg: [9, 15], range: 0.95, cooldown: 1.3, kinds: ['bite', 'laceration', 'scratch'], corrupt: 0.05, knock: 0.6, parts: ['shin_l', 'shin_r', 'thigh_l', 'thigh_r', 'farm_l', 'farm_r', 'hand_l', 'hand_r'] },
   zones: ['office', 'lobby', 'school', 'hospital', 'mall', 'market', 'lab'], weight: 1, maxPerZone: 2, diet: 'meat',

@@ -485,6 +485,7 @@ function arrive(c: Creature, s: Spot, p: Player, n: Record<string, any>) {
 
 const S = def({
   key: 'plushkin', name: 'Plushkin', code: 'E-12 // PLUSH-STILL', temperament: 'curious', threat: 0,
+  rule: { name: 'MOVES UNSEEN', text: 'It only moves when nobody looks. Harmless; three sweets and it is yours.' },
   hp: 10, walk: 1.6, run: 3.2, turn: 20, radius: 0.16, height: 0.42, sight: 18, fov: 3.1, hearing: 1.0, nightVision: true,
   zones: ['house', 'school', 'fields', 'mall', 'lobby'], weight: 1, group: [1, 2], maxPerZone: 3, diet: 'items',
   tame: { food: ['candy_bar', 'candy_dream', 'cookies', 'donut', 'birthday_cake', 'popsicle', 'ice_cream', 'gum'], feeds: 3 },

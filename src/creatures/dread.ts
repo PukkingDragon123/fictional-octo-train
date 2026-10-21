@@ -382,9 +382,13 @@ export function dreadFlickStep(c: Creature, dt: number, moveTo: (gx: number, gz:
 
 // ---------------------------------------------------------------- per frame (all peers)
 let hooked = false;
-export function dreadFrame(_dt: number) {
+const FRAME: ((dt: number) => void)[] = [];
+/** per-frame work of creature modules on every peer (goo puddles, rule learning, board markers) */
+export function dreadOnFrame(fn: (dt: number) => void) { FRAME.push(fn); }
+export function dreadFrame(dt: number) {
   if (!live() || !G.local) return;
   if (!hooked) hookRender();
+  for (const f of FRAME) { try { f(dt); } catch (e) { console.error('dread frame', e); } }
   // restore the tubes after the stutter
   if (flicker.lights.size && G.time > flicker.until) {
     for (const [l, f] of flicker.lights) l.flicker = f;

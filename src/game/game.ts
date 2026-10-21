@@ -69,7 +69,9 @@ export class Game {
   /** gore: 0 off, 1 normal, 2 heavy (dismemberment, gibs, arterial spray); limbLoss: 1 = survivors can lose limbs */
   sandbox = { dayLength: 60, creatures: 1, loot: 1, startHour: 8.5, collapseSpeed: 1, waterShutoffDays: 14, powerShutoffDays: 10, gore: 2, limbLoss: 1,
     /** debt contract (src/game/debt): starting debt in scrip, installment interval in in-game days, band detonation 0 maims / 1 kills, final deadline 1 = lethal */
-    debt: 25000, debtDays: 2, bandLethal: 0, finalLethal: 0 };
+    debt: 25000, debtDays: 2, bandLethal: 0, finalLethal: 0,
+    /** co-op: survivors' blows hurt each other (src/game/combat.ts) */
+    friendlyFire: 0 };
   // lights
   ambient = new THREE.AmbientLight(0xffffff, 1);
   hemi = new THREE.HemisphereLight(0xbfd8ff, 0x405030, 0);
@@ -111,6 +113,32 @@ export class Game {
   band: any = null;
   /** BAILIFF band hologram HUD: boot(), ping(kind, value), expand(), collapse(), say(), toast() (src/ui/holo) */
   holo: any = null;
+  /** the iron-cube backpack: toggle(), focus(c), quickDraw(), open (src/ui/inventory.ts) */
+  pack: any = null;
+  /** hands-on crafting: inspect(it, c), workObject(o), bench(o), busy() (src/craft) */
+  craft: any = null;
+  /** build mode, welding, settlements, farming (src/build) */
+  build: any = null;
+  /** cooking at stoves and fires, butchering corpses (src/cook) */
+  cook: any = null;
+  /** physical interaction: right-click primary verbs, grab / push / pull / carry, tool clicks (src/interact/grab.ts) */
+  grab: any = null;
+  /** body HUD: IV blood bag, lung pump, acid-jar stomach, first-person eating (src/ui/body) */
+  hudBody: any = null;
+  /** cyberware: installed parts, effects, field surgery (src/survival/cyber.ts) */
+  cyber: any = null;
+  /** the watch: quests, the research tree, unlockable functions, the multi-tool (laser, fab) (src/ui/watch) */
+  watch: any = null;
+  /** emotes, whistling, shouting, the 8-bit voice and floating speech (src/social) */
+  social: any = null;
+  /** shared floors: holes, falling, generated floors, other players' floors, dimensions (src/social/floors.ts) */
+  floors: any = null;
+  /** the four survivor tribes: standing, tabs, camps, raids, recruits (src/tribes) */
+  tribes: any = null;
+  /** brain-swap domination: knock-downs, the operation, thralls and their stations (src/dominion) */
+  dominion: any = null;
+  /** scanning for DATA: research for first scans, the knowledge entries (src/scan) */
+  scan: any = null;
   collapse = 0;
   /** title-screen mode: replaces player control with a scripted wanderer */
   attract: ((dt: number) => void) | null = null;
@@ -344,7 +372,7 @@ export class Game {
     const wantRun = inp.down('run') || inp.runLatch || (analog && mag >= 0.92);
     p.running = (moving || (autoWalk && inp.runLatch)) && wantRun && mods.canRun && p.stance === 'stand' && !p.aiming;
     let speed = p.running ? 4.15 : p.stance === 'sneak' ? 1.15 : p.stance === 'swim' ? 1.05 * (p.body.perks.has('swimmer') ? 1.5 : 1) : p.stance === 'crawl' ? 0.35 : 2.0;
-    speed *= mods.move * (f?.slow ?? 1);
+    speed *= mods.move * (f?.slow ?? 1) * (p.packSlow?.() ?? 1);
     // a small stick deflection creeps
     if (analog && !p.running) speed *= 0.4 + 0.6 * clamp((mag - 0.15) / 0.65, 0, 1);
     if (p.aiming) speed *= 0.55;
@@ -358,7 +386,7 @@ export class Game {
     // aim (right mouse held, or the on-screen attack button)
     const over = inp.pointerOverUI;
     const ta = inp.touchAim;
-    p.aiming = !locked && ((!over && inp.mouseDown[2] && inp.heldFor(2) > 140) || !!ta);
+    p.aiming = !locked && ((!over && inp.mouseDown[2] && inp.heldFor(2) > 140 && !this.grab?.ownsRmb?.()) || !!ta);
     if (ta) { p.aimX = ta.x; p.aimZ = ta.z; }
     else {
       const wp = this.pr.screenToWorld(inp.mouseX, inp.mouseY, 0.9);
@@ -423,6 +451,8 @@ export class Game {
       this.missions?.ending?.(p);
       return;
     }
+    // holes: the fall (src/social/floors.ts)
+    if (portal.kind === 'hole' && this.floors?.jumpPortal?.(p, portal)) return;
     this.travel(p, portal.to, portal.tx, portal.ty, portal.face, portal.locked, portal.anchor ?? portal.id);
   }
 

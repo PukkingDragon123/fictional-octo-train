@@ -293,6 +293,7 @@ function thinkGloam(c: Creature, dt: number): boolean {
 
 const S = def({
   key: 'gloam', name: 'Gloam', code: 'GL-13 // UMBRAL PREDATOR', temperament: 'stalker', threat: 4,
+  rule: { name: 'LIGHT-SHY', text: 'A beam on it or a lit room and it flees. It closes in only while you stand in the dark, or while your light stutters.' },
   hp: 55, walk: 1.3, run: 5.0, turn: 8, radius: 0.36, height: 1.1, sight: 18, fov: 1.6, hearing: 1.6, nightVision: true, light: 'repelled',
   attack: { dmg: [12, 20], range: 1.0, cooldown: 1.6, kinds: ['bite', 'deep', 'laceration'], corrupt: 0.05, knock: 0.7, parts: ['farm_l', 'farm_r', 'hand_l', 'hand_r', 'thigh_l', 'thigh_r', 'torso_l', 'neck'] },
   zones: ['tunnels', 'parking', 'stairwell', 'lobby', 'suburbs', 'house', 'corrupt'], weight: 1, maxPerZone: 2, diet: 'meat',

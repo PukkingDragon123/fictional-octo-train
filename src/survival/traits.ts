@@ -107,6 +107,12 @@ export const OCCUPATIONS: Occupation[] = [
     skills: { blunt: 2, fitness: 1 }, items: ['flashlight', 'whistle'], perks: ['ex_officer', 'nightowl'],
     good: 'Blunt 2, Fitness 1, needs less sleep. Knows the drill: BAILIFF warnings and shocks rattle you far less.', bad: 'Costs 2 credits. Guilty conscience: low mood creeps up a little every day.',
     unlock: { hint: 'Clear a whole debt.' } },
+  // ---- cyberware programme (earned in the field)
+  { key: 'chop_doc', name: 'Back-Alley Surgeon', desc: 'Fitted hardware in a parking garage for cash. Steady with a saw, even on themselves.', points: -4,
+    skills: { firstaid: 2, mechanics: 1 }, items: ['surgery_rig'], perks: ['chop_doc'],
+    good: 'Self-surgery hurts half as much and goes quicker. First Aid 2, Mechanics 1. Comes with a field surgery rig.',
+    bad: 'Costs 4 credits. A reputation: the Institute logs every limb you take off.',
+    unlock: { hint: 'Fit three pieces of hardware in the field (across your runs).' } },
 ];
 
 export interface Trait {
@@ -206,6 +212,11 @@ export const TRAITS: Trait[] = [
   { key: 'melancholic', name: 'Melancholic', cost: 3, desc: 'Low moods build faster and linger longer.' },
   { key: 'hypochondriac', name: 'Hypochondriac', cost: 2, desc: 'Every scratch is a catastrophe: injuries spike panic and stress twice as much. Any pill calms you a little.', excl: ['iron_nerves'] },
   { key: 'coffee_dependent', name: 'Coffee Dependent', cost: 2, desc: 'Headaches and grumpiness after twelve hours without caffeine. Coffee hits harder.' },
+  // cyberware conditions (effects in src/survival/cyber.ts; they only matter once metal is fitted)
+  { key: 'machine_affinity', name: 'Machine Affinity', cost: -3, desc: 'Hardware takes to you: cyber parts rust and wear 40% slower and their cells last longer.', excl: ['tissue_rejection'],
+    good: 'Cyber parts rust and wear 40% slower; cells drain 25% slower.', bad: 'Costs 3 credits. Flesh-and-blood perks only: nothing without hardware.' },
+  { key: 'tissue_rejection', name: 'Tissue Rejection', cost: 3, desc: 'Your body fights the metal: every socket aches, cells drain faster.', excl: ['machine_affinity'],
+    good: 'Pays 3 credits back. Harmless while you stay flesh.', bad: 'Every fitted part keeps you stressed and sore; cells drain 25% faster.' },
 ];
 
 // ---- the Rehab Section shows every programme and condition as a good line and a bad line
@@ -270,9 +281,16 @@ export const PERKS: Record<string, string> = {
   investigator: 'Anomalies drain less, scanning lifts mood', radio_voice: 'Radio and chat count as company', therapist: 'Coping works twice as well',
   explorer: 'New zones lift mood', deja_vu: 'Lucidity drains much slower', mime: 'Imaginary company', exterminator: 'Creatures panic you less',
   fence: 'Better scrip rates at the Hopper', mover: 'Built for hauling (bad back)', ex_officer: 'BAILIFF warnings rattle you less',
+  chop_doc: 'Self-surgery hurts half as much',
 };
 
 export const traitByKey = (k: string) => TRAITS.find((t) => t.key === k);
+
+// ---- the operating table shows programmes as chips and conditions as wares (src/ui/surgery)
+/** "PRG-07" style code of a programme chip */
+export const chipCode = (o: Occupation) => `PRG-${String(OCCUPATIONS.indexOf(o) + 1).padStart(2, '0')}`;
+/** "WR+04" (assets) / "WR-11" (liabilities) code of a condition ware */
+export const wareCode = (t: Trait) => `WR${t.cost <= 0 ? '+' : '-'}${String(TRAITS.indexOf(t) + 1).padStart(2, '0')}`;
 export const occupationByKey = (k: string) => OCCUPATIONS.find((o) => o.key === k) || OCCUPATIONS[0];
 
 /** Is this job / trait available on this browser's profile? */

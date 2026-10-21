@@ -463,6 +463,7 @@ onPlayerHit('underlay', (p) => {
 
 const sp = def({
   key: 'underlay', name: 'Underlay', code: 'E-26 // SUBSTRATE-DWELLER', temperament: 'ambush', threat: 3,
+  rule: { name: 'FEELS FOOTSTEPS', text: 'Blind; it feels steps through the carpet. Stand still or sneak and it loses you. It cannot follow onto hard floors.' },
   hp: 38, walk: 2.4, run: 3.6, turn: 6, radius: 0.16, height: 0.3, sight: 0, fov: 3.1, hearing: 1.2, vibration: true,
   attack: { dmg: [6, 12], range: 0.8, cooldown: 2.0, kinds: ['laceration', 'scratch', 'bite'], corrupt: 0.08, knock: -0.35, grab: true, parts: ['foot_l', 'foot_r', 'shin_l', 'shin_r'] },
   zones: ['lobby', 'office', 'house', 'tunnels', 'hospital'], weight: 2, maxPerZone: 3, diet: 'meat',

@@ -51,6 +51,7 @@ export const UNLOCK_RULES: Rule[] = [
   { id: 'trait:been_here_before', stat: ['deaths', 1] },
   { id: 'trait:creature_whisperer', count: ['tamed:', 1] },
   { id: 'trait:unbothered', flags: ['contract:debt_cleared', 'escaped'] },
+  { id: 'job:chop_doc', stat: ['cyber_fitted', 3] },
 ];
 
 /** display name of an unlock id ('job:nurse' -> 'Night-shift Nurse') */

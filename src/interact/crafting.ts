@@ -16,11 +16,13 @@ function matches(it: Item, key: string): boolean {
 export interface CraftCheck { ok: boolean; missing: string[]; picks: { inp: RecipeInput; items: Item[] }[]; }
 
 /** Can the player craft this recipe right now? Also chooses which items get used. */
-export function checkRecipe(p: Player, r: Recipe): CraftCheck {
+export function checkRecipe(p: Player, r: Recipe, prefer?: Item[] | null): CraftCheck {
   const missing: string[] = [];
   const picks: CraftCheck['picks'] = [];
   const used = new Set<Item>();
-  const pool = p.allItems().filter((i) => !p.isWorn(i));
+  let pool = p.allItems().filter((i) => !p.isWorn(i));
+  // things laid out on the workbench get used first
+  if (prefer?.length) { const pref = new Set(prefer); pool = [...pool.filter((i) => pref.has(i)), ...pool.filter((i) => !pref.has(i))]; }
   for (const inp of r.inputs) {
     const need = inp.count ?? 1;
     const cands = pool.filter((i) => !used.has(i) && matches(i, inp.item) && (i.cond > 0 || !itemDef(i.key).durability));
@@ -47,6 +49,8 @@ export function checkRecipe(p: Player, r: Recipe): CraftCheck {
 }
 
 export class CraftAction extends TimedAction {
+  /** items to use first (laid out on the workbench, src/craft/bench.ts) */
+  prefer: Item[] | null = null;
   constructor(p: Player, public r: Recipe, public times = 1) {
     super(p);
     this.name = r.name;
@@ -60,7 +64,7 @@ export class CraftAction extends TimedAction {
   stop() { G.audio?.loop?.(this.r.sound || 'craft', this.p, false); }
   perform() {
     G.audio?.loop?.(this.r.sound || 'craft', this.p, false);
-    const chk = checkRecipe(this.p, this.r);
+    const chk = checkRecipe(this.p, this.r, this.prefer);
     if (!chk.ok) return;
     let condFrom: Item | null = null;
     // kept inputs an output refers to are changed in place (boiling, purifying, repairs, patches, charging)

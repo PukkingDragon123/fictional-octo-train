@@ -34,6 +34,8 @@ declare module './humanRig' {
     suit?: SuitLooks;
     /** issued footwear (FEET_KIT key), applied by whoever dresses the prisoner */
     feetKit?: string;
+    /** worn cosmetics (src/game/cosmetics.ts keys, one per slot) */
+    cos?: string[];
   }
 }
 

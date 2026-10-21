@@ -141,3 +141,6 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 #nc-touch.nc-3d .nc-btn.nc-3dbtn { border-image: none; border-color: transparent; background: none; }
 #nc-touch.nc-3d .nc-btn.nc-3dbtn > i, #nc-touch.nc-3d .nc-btn.nc-3dbtn > b { visibility: hidden; }
 #nc-touch.nc-3d .nc-stick-base { visibility: hidden; }
+
+/* POWER (Shift) sits above RUN, next to the stick */
+.nc-powbtn { left: calc(var(--sl) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--R) * 2 + 26px + var(--u) * 1.55); right: auto; }

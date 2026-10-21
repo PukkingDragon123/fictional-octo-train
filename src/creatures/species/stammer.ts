@@ -408,6 +408,7 @@ function thinkStammer(c: Creature, dt: number): boolean {
 
 const S = def({
   key: 'stammer', name: 'Stammer', code: 'ST-02 // FRAME-SKIP ENTITY', temperament: 'stalker', threat: 4,
+  rule: { name: 'SKIPS WHEN YOU LOOK AWAY', text: 'It jumps closer when you look away and every time your light stutters. Keep your eyes and a steady light on it.' },
   hp: 95, walk: 0.9, run: 1.6, turn: 5, radius: 0.3, height: 2.6, sight: 22, fov: 1.4, hearing: 1.2, nightVision: true,
   attack: { dmg: [14, 22], range: 1.9, cooldown: 2.2, kinds: ['laceration', 'deep', 'fracture'], corrupt: 0.1, knock: 1.1, parts: ['torso_u', 'neck', 'head', 'uarm_l', 'uarm_r'] },
   zones: ['lobby', 'office', 'stairwell', 'hospital', 'parking', 'corrupt', 'school'], weight: 1, maxPerZone: 2, diet: 'none',

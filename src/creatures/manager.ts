@@ -230,6 +230,10 @@ export class CreatureSystem implements GameSystem {
     if (c.observed) c.lastObserved = G.time;
     // holding a survivor and pulling (a tearing attack, src/gore/tearing.ts)
     if (c.mem.tear) { this.tearStep(c, z, dt); return; }
+    // knocked down, staggered, being executed, pinning someone in a struggle (src/combat/creatureState.ts)
+    if (c.mem.cb && G.combat?.creatureStep?.(c, dt)) { this.applyMove(c, z, dt); return; }
+    // wired with a mechanical brain: a thrall obeys its owner, not its species (src/dominion)
+    if (c.mem.dom && G.dominion?.step?.(c, z, dt)) { this.applyMove(c, z, dt); return; }
     // attack in progress
     if (c.attackPhase > 0) {
       c.attackPhase -= dt;
@@ -644,6 +648,8 @@ export class CreatureSystem implements GameSystem {
       const T = c.sp.temperament;
       if (T === 'peaceful' || T === 'skittish' || T === 'curious') { c.setState('flee'); c.goal = this.fleeSpot(c, z, fx, fz); }
       else if (T !== 'hazard') c.setState('chase');
+      // a blow it lived through (knock-downs for domination, tribe standing: src/dominion, src/tribes)
+      bus.emit('creatureHurt', c, hit);
     }
   }
 
@@ -691,7 +697,7 @@ export class CreatureSystem implements GameSystem {
 
   menuOptions(p: Player, c: Creature): MenuOption[] {
     const out: MenuOption[] = [];
-    if (G.ui?.scanner) out.push({ label: 'Scan with SEER-9', action: () => G.ui.scanner.scanCreature?.(c) });
+    if (G.ui?.scanner) out.push({ label: 'Scan with the watch', action: () => G.ui.scanner.scanCreature?.(c) });
     if (c.dead) {
       out.push({ label: 'Search', action: () => queueAt(p, c.x, c.z, new UseObjectAction(p, 'Search', 0.6, 'loot', () => G.ui?.inventory?.toggle(true)), 1.4, false) });
       if (c.sp.meat && !c.butchered) out.push({ label: 'Butcher', disabled: !p.findTool('#knife') ? 'needs a knife' : false, action: () => queueAt(p, c.x, c.z, new ButcherAction(p, c), 1.4, false) });
@@ -772,7 +778,7 @@ export class CreatureSystem implements GameSystem {
       c.animT += dt;
       c.hitFlash = Math.max(0, c.hitFlash - dt);
       if (!held) try { c.sp.animate(c.rig, c, c.animT, dt); } catch (e) { console.error('anim', c.sp.key, e); }
-      if (!c.dead) { if (!held) this.limbVisuals(c); }
+      if (!c.dead) { if (!held) { this.limbVisuals(c); G.combat?.creaturePose?.(c, dt); } }
       else if (c.rig.root.rotation.x || c.rig.root.rotation.z) { c.rig.root.rotation.x = 0; c.rig.root.rotation.z = 0; }
       try { dreadAfter(c, dt); dreadFlickPoll(c); } catch (e) { console.error('dread', c.sp.key, e); }
       if (c.dead) {
@@ -851,6 +857,8 @@ export interface HitInfo { dmg: number; kinds: InjuryType[]; corrupt: number; he
 
 /** Apply a creature's hit to a local player's body: protection, injury type, corruption, knockback, feedback. */
 export function applyHitToPlayer(p: Player, h: HitInfo) {
+  // a dodge's i-frames, an execution in progress (src/game/combat.ts)
+  if (G.combat?.evade?.(p, h)) return;
   const rng = new Rng(Math.random() * 1e9);
   const table = h.parts?.length ? h.parts.map((x) => [x as BodyPart, 1] as [BodyPart, number]) : h.height < 0.9 ? PART_WEIGHTS_LOW : h.height < 2.0 ? PART_WEIGHTS_MID : PART_WEIGHTS_HIGH;
   let part = h.tear ? h.tear.part as BodyPart : p.body.downed ? rng.pick(['torso_u', 'torso_l', 'head'] as BodyPart[]) : rng.weighted(table);

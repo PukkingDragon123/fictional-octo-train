@@ -1,0 +1,23 @@
+/* scan reticle: four bracket corners locked on the target, a readout and a sweep bar */
+.scan-ret { position: fixed; left: 0; top: 0; z-index: 40; pointer-events: none; display: none; --sc: #6ef2e4; will-change: transform; }
+.scan-ret.new { --sc: #ffc34a; }
+.scan-ret .c { position: absolute; width: 12px; height: 12px; border: 2px solid var(--sc); filter: drop-shadow(0 0 3px var(--sc)); animation: scan-breathe 0.6s ease-in-out infinite alternate; }
+.scan-ret .tl { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+.scan-ret .tr { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+.scan-ret .bl { left: 0; bottom: 0; border-right: 0; border-top: 0; }
+.scan-ret .br { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+.scan-ret::after { content: ''; position: absolute; left: 4px; right: 4px; height: 2px; top: 0; background: var(--sc); opacity: 0.55; box-shadow: 0 0 8px var(--sc); animation: scan-sweep 0.9s linear infinite; }
+.scan-lbl { position: absolute; left: 50%; bottom: calc(100% + 6px); transform: translateX(-50%); white-space: nowrap; font: 16px 'Micro 5', monospace; letter-spacing: 1px; color: var(--sc); text-shadow: 0 0 4px #000, 0 0 6px var(--sc); }
+.scan-bar { position: absolute; left: 0; right: 0; top: calc(100% + 5px); height: 4px; background: rgba(0, 0, 0, 0.55); outline: 1px solid var(--sc); }
+.scan-bar b { display: block; height: 100%; width: 0; background: var(--sc); box-shadow: 0 0 6px var(--sc); }
+@keyframes scan-sweep { 0% { top: 0; } 50% { top: calc(100% - 2px); } 100% { top: 0; } }
+@keyframes scan-breathe { from { transform: scale(1); } to { transform: scale(1.18); } }
+
+/* result chips stacking up on the right edge */
+.scan-chips { position: fixed; right: 16px; top: 34%; z-index: 41; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; pointer-events: none; }
+.scan-chip { font: 16px 'Micro 5', monospace; letter-spacing: 1px; color: #6ef2e4; background: linear-gradient(90deg, rgba(6, 20, 22, 0), rgba(6, 20, 22, 0.88) 18%); padding: 3px 10px 3px 26px; border-right: 3px solid #6ef2e4; text-shadow: 0 0 6px rgba(110, 242, 228, 0.6); animation: scan-chip-in 0.28s cubic-bezier(.2, 1.4, .4, 1); transition: opacity 0.5s, transform 0.5s; }
+.scan-chip.new { color: #ffc34a; border-color: #ffc34a; text-shadow: 0 0 6px rgba(255, 195, 74, 0.7); }
+.scan-chip.ms { color: #ff6ad5; border-color: #ff6ad5; text-shadow: 0 0 6px rgba(255, 106, 213, 0.7); }
+.scan-chip.out { opacity: 0; transform: translateX(30px); }
+@keyframes scan-chip-in { from { transform: translateX(60px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 640px) { .scan-chip { font-size: 14px; } .scan-chips { top: 22%; } }

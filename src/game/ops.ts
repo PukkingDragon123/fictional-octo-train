@@ -19,7 +19,7 @@ export const HOST_ONLY = new Set<string>();
 /** every applied world op in order (host/solo): replayed by late joiners and save games */
 export const opLog: string[] = [];
 /** transient ops that are not worth replaying */
-const NOLOG = new Set(['fire', 'openContainer', 'creatureHit']);
+const NOLOG = new Set(['fire', 'openContainer', 'creatureHit', 'cb']);
 let replay = false;
 /** true while a log is being replayed (handlers must not hand items to the local player again) */
 export function isReplaying() { return replay; }

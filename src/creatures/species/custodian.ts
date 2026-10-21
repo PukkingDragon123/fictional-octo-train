@@ -611,6 +611,7 @@ function tidy(c: Creature, dt: number): boolean {
 
 const sp = def({
   key: 'custodian', name: 'The Custodian', code: 'M-00 // MAINTENANCE PROCESS', temperament: 'neutral', threat: 4,
+  rule: { name: 'TIDY OR TARGETED', text: 'It ignores tidy survivors. Carry anomalies or stand in corruption and it notices you. Three quick blows make it lose its place.' },
   hp: 999, walk: 1.05, run: 2.9, turn: 5, radius: 0.34, height: 2.6, sight: 18, fov: 1.5, hearing: 1.0, nightVision: true,
   attack: { dmg: [8, 15], range: 1.1, cooldown: 2.1, kinds: ['bruise', 'fracture', 'laceration'], corrupt: 0.25, knock: 1.1, parts: ['torso_u', 'head', 'neck', 'uarm_l', 'uarm_r'] },
   zones: ['office', 'mall', 'hospital', 'lab', 'server', 'corrupt'], weight: 1, maxPerZone: 2, diet: 'none',

@@ -1,10 +1,11 @@
-// Props for the debt contract (src/game/debt): the Remittance Hopper (the
-// deposit plate every zone has one of), the depot's passage kiosk and the
-// three transports the kiosk sells. The hopper's moving parts (scale needle,
-// plate light, scan line, beacon, projector lens) are drawn as overlays by
-// src/game/debt/hopper.ts; everything static is here.
+// Props for the debt contract (src/game/debt): the Remittance Press (the
+// object key stays 'hopper' so saves and zones keep working: a four-column
+// hydraulic press over a loading plate, one in every zone), the depot's
+// passage kiosk and the three transports the kiosk sells. The press's moving
+// parts (ram, piston rods, lever, gauge needle, beacon, the seam shimmer) are
+// overlays drawn by src/game/debt/hopper.ts; everything static is here.
 //
-// The hopper also places itself: a post-generation hook (src/game/debt/
+// The press also places itself: a post-generation hook (src/game/debt/
 // hopperPlace.ts) drops one into every zone that does not already have one.
 import { defObj } from '../../world/objects';
 import { atlas, addTextureModule, makeRamp, mixHex, scaleHex, ph, tileFbm, txt, txtC, txtW, fillR, plate, screw, scribble, crtGlass, type ModelBuilder } from './a_lib';
@@ -41,16 +42,19 @@ addTextureModule(() => {
     hazard(pc, 0, 0, 64, 6, 8, 0.12, 802); hazard(pc, 0, 58, 64, 6, 8, 0.12, 803);
     hazard(pc, 0, 6, 6, 52, 8, 0.12, 804); hazard(pc, 58, 6, 6, 52, 8, 0.12, 805);
     pc.strokeRect(6, 6, 52, 52, 0x2a2c30);
-    // the trapdoor: two leaves with a seam and a grate of slots, pitch dark underneath
-    const g0 = 17, g1 = 47;
-    pc.rect(g0 - 1, g0 - 1, g1 - g0 + 2, g1 - g0 + 2, 0x24262a);
-    for (let y = g0; y < g1; y++) for (let x = g0; x < g1; x++) {
-      const slot = (x - g0) % 3 === 1 && (y - g0) % 6 !== 0;
-      pc.set(x, y, slot ? 0x07080a : (x + y) % 7 === 0 ? S[3] : S[2]);
+    // the seam slot: a long black slit across the middle of the bed, lips of bright worn steel,
+    // a cold teal sheen where the other side leaks through, and old brown stains crusted round it
+    for (let i = 0; i < 340; i++) { const x = rng.int(12, 51), y = rng.int(22, 41); if (rng.chance(0.55)) pc.blend(x, y, rng.chance(0.5) ? 0x4a1a12 : 0x5a2416, 0.28 + rng.next() * 0.25); }
+    pc.rect(12, 29, 40, 6, 0x24262a);
+    for (let x = 13; x < 51; x++) {
+      const w = x < 16 || x > 47 ? 1 : 2;
+      for (let y = 32 - w; y < 32 + w; y++) pc.set(x, y, 0x020304);
+      pc.set(x, 32 - w - 1, x % 5 === 0 ? 0x9ef4ea : 0x2a6a6a);
+      pc.set(x, 32 + w, x % 7 === 0 ? 0x6ad0c8 : 0x1a4446);
+      pc.set(x, 29, S[5]); pc.set(x, 34, S[0]);
     }
-    pc.vline(32, g0, g1 - 1, 0x0e0f12); pc.vline(31, g0, g1 - 1, S[4]);
-    for (const [x, y] of [[g0, g0], [g1 - 2, g0], [g0, g1 - 2], [g1 - 2, g1 - 2]] as const) screw(pc, x, y, S[5], S[0], true);
-    // stencilled arrows pointing in and the word REMIT
+    for (const [x, y] of [[13, 30], [49, 30], [13, 33], [49, 33]] as const) screw(pc, x, y, S[5], S[0], true);
+    // stencilled arrows pointing in, STAND CLEAR on the lip
     const ink = 0xd8d2bc;
     for (const [cx, cy, dx, dy] of [[32, 10, 0, 1], [32, 53, 0, -1], [10, 32, 1, 0], [53, 32, -1, 0]] as const) {
       for (let k = 0; k < 4; k++) {
@@ -58,7 +62,8 @@ addTextureModule(() => {
         if (dx === 0) { pc.hline(px - (3 - k), px + (3 - k), py, ink); } else { pc.vline(px, py - (3 - k), py + (3 - k), ink); }
       }
     }
-    txtC(pc, 'REMIT', 32, 50, scaleHex(ink, 0.85));
+    txtC(pc, 'STAND CLEAR', 32, 44, scaleHex(ink, 0.85));
+    txtC(pc, 'PRESS', 32, 15, scaleHex(ink, 0.7));
     for (let x = 7; x < 57; x += 6) { screw(pc, x, 7, S[5], S[0]); screw(pc, x, 56, S[5], S[0]); }
   }, 2, 2);
 
@@ -242,6 +247,42 @@ addTextureModule(() => {
   });
   A.add('zd_needle', 4, 8, (pc) => { pc.wrap = false; pc.fill(0xb81e14); pc.vline(0, 0, 7, 0xe8402a); pc.rect(0, 6, 4, 2, 0x1a1a1a); });
 
+  // ---- the Remittance Press: the crown's front plate, the ram's faces and its scarred underside
+  A.add('zd_crown_front', 64, 8, (pc) => {
+    pc.wrap = false;
+    plate(pc, 0, 0, 64, 8, 0x3a3e44, 851, { noise: 0.1 });
+    hazard(pc, 0, 0, 10, 8, 6, 0.1, 852); hazard(pc, 54, 0, 10, 8, 6, 0.1, 853);
+    pc.rect(12, 1, 40, 6, 0x1e2a36); pc.strokeRect(12, 1, 40, 6, 0x8a9098);
+    txt(pc, 'REMIT PRESS', 14, 2, 0xe8e4d8);
+    txt(pc, '07', 44, 2, HAZ_Y);
+  }, 1.98, 0.24);
+  A.add('zd_ram_face', 56, 8, (pc, rng) => {
+    pc.wrap = false;
+    hazard(pc, 0, 0, 56, 8, 8, 0.18, 861);
+    pc.hline(0, 55, 0, 0x8a8e94); pc.hline(0, 55, 7, 0x16181c);
+    for (let x = 3; x < 56; x += 7) { screw(pc, x, 2, 0xb8bcc2, 0x2a2c30, true); }
+    for (let i = 0; i < 14; i++) pc.blend(rng.int(0, 55), rng.int(1, 6), 0x5a2416, 0.45);
+  }, 1.74, 0.26);
+  A.add('zd_ram_under', 32, 32, (pc, rng) => {
+    const S = makeRamp(0x50545a, 5, { spread: 0.4 });
+    fillR(pc, 0, 0, 32, 32, S, (x, y) => 0.45 + (tileFbm(x, y, 32, 32, 4, 2, 871) - 0.5) * 0.5, 0.8);
+    for (let y = 2; y < 32; y += 6) pc.hline(0, 31, y, S[0]);
+    // what it has met before: brown-black crust and a few bright gouges
+    for (let i = 0; i < 90; i++) { const x = rng.int(0, 31), y = rng.int(0, 31); pc.blend(x, y, rng.chance(0.6) ? 0x3a0e0a : 0x5a1a12, 0.5); }
+    for (let i = 0; i < 6; i++) { const x = rng.int(0, 28), y = rng.int(0, 31); for (let k = 0; k < 4; k++) pc.set(x + k, y, 0xa8acb2); }
+  }, 1.74, 1.74);
+  // the seam opening under the plate (additive: black shows nothing)
+  A.add('zd_seam', 32, 16, (pc) => {
+    pc.wrap = false;
+    for (let y = 0; y < 16; y++) for (let x = 0; x < 32; x++) {
+      const v = Math.abs(y + 0.5 - 8) / 8, u = Math.abs(x + 0.5 - 16) / 16;
+      const edge = Math.max(0, 1 - Math.abs(v - 0.18) * 6) * (1 - u * u);
+      const halo = Math.max(0, 1 - v) * (1 - u) * 0.35;
+      const k = Math.min(1, edge + halo) * (0.75 + 0.25 * ((x * 7 + y * 3) % 4 === 0 ? 1 : 0));
+      pc.setRGBA(x, y, Math.round(120 * k), Math.round(255 * k), Math.round(235 * k), 255);
+    }
+  });
+
   // freight cage mesh and its warning gate
   A.add('zd_cage_mesh', 16, 16, (pc) => {
     pc.fill(0x000000, 0);
@@ -249,56 +290,85 @@ addTextureModule(() => {
   }, 1, 1);
 });
 
-// ================================================================ the hopper
-/** model of the Remittance Hopper (2 x 2 tiles, front +z). The animated bits are overlays. */
+// ================================================================ the press
+/** the Remittance Press's moving parts, in model space (front +z): the ram's underside at rest and on the
+ *  plate, the lever's pivot (outside the front-right column, so you never stand on the plate to pull it) */
+export const PRESS = {
+  ramUp: 1.86, ramDown: 0.065, ramH: 0.26, crownY: 2.2,
+  rods: [[-0.5, 0], [0.5, 0]] as [number, number][],
+  lever: [1.075, 1.0, 0.84] as [number, number, number],
+  leverRest: -0.42, leverPulled: 1.75,
+  gauge: [-0.89, 1.375, 1.03] as [number, number, number],
+  beacon: [-0.72, 2.47, 0.72] as [number, number, number],
+};
+
+/** model of the Remittance Press (2 x 2 tiles, front +z): a four-column hydraulic press over a striped
+ *  loading plate with the seam slot in it. The ram, its rods, the lever and the lights are overlays. */
 export function hopperModel(mb: ModelBuilder) {
-  // plate: a thin steel deck, hazard edges
-  mb.box(0, 0, 0, 1.98, 0.02, 1.98, { top: 'zd_hopper_plate', all: 'zd_hazard' }, { fit: { top: true } });
-  // front corner bollards (low, so things can be shoved in between)
-  for (const s of [-1, 1]) {
-    mb.cylinder(s * 0.9, 0.02, 0.9, 0.05, 0.26, 7, 'plastic_yellow', { color: 0xffd040 });
-    mb.cylinder(s * 0.9, 0.2, 0.9, 0.052, 0.04, 7, 'plastic_black');
+  // the bed: thick steel, hazard skirt, the plate on top
+  mb.box(0, 0, 0, 1.98, 0.06, 1.98, { top: 'zd_hopper_plate', all: 'zd_hazard' }, { fit: { top: true } });
+  // four columns with feet and guide collars
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const x = sx * 0.89, z = sz * 0.89;
+    mb.box(x, 0.06, z, 0.15, 2.14, 0.15, 'zd_steel', { skip: ['bottom'] });
+    mb.box(x, 0.0, z, 0.24, 0.1, 0.24, 'metal_dark');
+    for (const k of [-1, 1]) mb.box(x + k * 0.085, 0.1, z + k * 0.085, 0.025, 0.025, 0.025, 'chrome');
+    mb.box(x, 2.1, z, 0.21, 0.1, 0.21, 'metal_dark');
   }
-  // gantry: two posts at the back with a crossbar
-  const px = 0.86, pz = -0.88;
-  for (const s of [-1, 1]) {
-    mb.box(s * px, 0.02, pz, 0.1, 2.32, 0.1, 'zd_steel', { skip: ['bottom'] });
-    mb.box(s * px, 0.02, pz, 0.2, 0.03, 0.2, 'zd_steel'); // foot plate
-    for (const k of [-1, 1]) mb.box(s * px + k * 0.07, 0.05, pz + k * 0.07, 0.02, 0.02, 0.02, 'chrome');
+  // the crown: a slab of steel across the tops, the name plate, two cylinder housings
+  mb.box(0, 2.2, 0, 1.98, 0.24, 1.98, { all: 'zd_steel', south: 'zd_crown_front' }, { fit: { south: true } });
+  for (const [x] of PRESS.rods) {
+    mb.cylinder(x, 2.44, 0, 0.16, 0.12, 10, 'zd_steel');
+    mb.cylinder(x, 2.56, 0, 0.1, 0.03, 10, 'metal_dark');
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; mb.box(x + Math.cos(a) * 0.13, 2.555, Math.sin(a) * 0.13, 0.02, 0.02, 0.02, 'chrome'); }
   }
-  mb.box(0, 2.24, pz, 1.84, 0.12, 0.12, 'zd_steel');
-  mb.box(0, 2.255, pz + 0.062, 1.2, 0.09, 0.006, 'zd_hopper_sign', { fit: true });
-  // the intake hood hanging from the crossbar, skirts and the ribbed duct up into the dark
-  mb.box(0, 1.9, -0.6, 1.4, 0.34, 0.5, 'zd_steel');
-  mb.wedge(0, 1.72, -0.6, 1.3, 0.48, 0.0, 0.18, 'zd_steel');
-  mb.box(0, 1.86, -0.34, 1.42, 0.06, 0.04, 'metal_dark');
-  mb.cylinder(0, 2.24, -0.6, 0.22, 0.5, 9, 'zd_duct');
-  for (const s of [-1, 1]) mb.box(s * 0.5, 1.6, -0.62, 0.03, 0.3, 0.03, 'chrome'); // hanger rods
-  // the scale: dial housing on the left post, needle drawn as an overlay
-  mb.box(-px + 0.02, 1.2, pz + 0.12, 0.36, 0.38, 0.14, 'zd_steel');
-  mb.box(-px + 0.02, 1.215, pz + 0.191, 0.32, 0.32, 0.004, 'zd_dial', { fit: true });
-  mb.box(-px + 0.02, 1.58, pz + 0.12, 0.38, 0.03, 0.16, 'metal_dark');
-  mb.box(-px + 0.02, 1.13, pz + 0.12, 0.1, 0.08, 0.06, 'metal_dark');
-  // conduit from the dial down into the plate and across to the pylon
-  mb.box(-px - 0.06, 0.02, pz + 0.06, 0.03, 1.2, 0.03, 'metal_dark');
-  mb.box(0, 0.025, pz + 0.07, 1.6, 0.03, 0.03, 'metal_dark');
-  // the projector pylon on the right: slim housing, hazard band, the lens head
-  mb.box(px, 0.02, pz + 0.16, 0.16, 1.72, 0.16, { all: 'zd_pylon', top: 'metal_dark' }, { fit: { south: true, north: true, east: true, west: true } });
-  mb.cylinder(px, 1.74, pz + 0.16, 0.11, 0.08, 8, 'metal_dark');
-  mb.cylinder(px, 1.82, pz + 0.16, 0.08, 0.12, 8, 'zd_steel', { rTop: 0.06 });
-  mb.push().translate(px, 1.86, pz + 0.24).rotateX(Math.PI / 2);
+  // hydraulic pump at the back, hoses up the back-right column into the crown
+  mb.box(0.36, 0.06, -0.86, 0.5, 0.4, 0.22, 'zd_steel', { color: 0x9aa890 });
+  mb.box(0.36, 0.46, -0.86, 0.44, 0.03, 0.18, 'metal_dark');
+  mb.cylinder(0.2, 0.49, -0.86, 0.05, 0.1, 6, 'chrome');
+  for (const dx of [0.6, 0.66]) mb.box(dx, 0.3, -0.97, 0.035, 1.92, 0.035, 'rubber_black');
+  // the pressure gauge on the front-left column (needle drawn as an overlay)
+  mb.box(-0.89, 1.24, 0.99, 0.28, 0.28, 0.06, 'zd_steel');
+  mb.box(-0.89, 1.255, 1.021, 0.24, 0.24, 0.004, 'zd_dial', { fit: true });
+  // the lever's housing, bolted to the outside of the front-right column
+  mb.box(0.995, 0.86, 0.84, 0.06, 0.28, 0.2, 'metal_dark');
+  mb.box(1.04, 0.92, 0.84, 0.06, 0.16, 0.14, 'zd_hazard');
+  mb.box(1.05, 0.7, 0.84, 0.04, 0.12, 0.06, 'metal_grey');
+  // amber beacon cage on the crown (the lamp flashes as an overlay)
+  const [bx, by, bz] = PRESS.beacon;
+  mb.cylinder(bx, by - 0.03, bz, 0.07, 0.03, 8, 'metal_dark');
+  mb.cylinder(bx, by, bz, 0.06, 0.12, 8, 'glass', { color: 0xffb040, emissive: 0.25 });
+  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; mb.box(bx + Math.cos(a) * 0.065, by, bz + Math.sin(a) * 0.065, 0.01, 0.13, 0.01, 'metal_dark'); }
+  // the handler's projector: an arm off the back-right column, the lens looking out over the plate
+  mb.box(0.89, 1.83, -0.74, 0.06, 0.06, 0.24, 'metal_dark');
+  mb.box(0.86, 1.8, -0.66, 0.12, 0.12, 0.12, { all: 'zd_pylon', top: 'metal_dark' }, { fit: { south: true, north: true, east: true, west: true } });
+  mb.push().translate(0.86, 1.86, -0.6).rotateX(Math.PI / 2);
   mb.cylinder(0, 0, 0, 0.05, 0.02, 8, { sides: 'chrome', top: 'zd_lens', bottom: 'zd_lens' }, { fit: true, emissive: 1.2 });
   mb.pop();
-  // amber beacon cage on top of the crossbar (the lamp itself flashes as an overlay)
-  mb.cylinder(-0.4, 2.36, pz, 0.07, 0.03, 8, 'metal_dark');
-  mb.cylinder(-0.4, 2.39, pz, 0.06, 0.12, 8, 'glass', { color: 0xffb040, emissive: 0.25 });
-  for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2; mb.box(-0.4 + Math.cos(a) * 0.065, 2.39, pz + Math.sin(a) * 0.065, 0.01, 0.13, 0.01, 'metal_dark'); }
+}
+/** the ram: origin at the centre of its underside */
+export function pressRamModel(mb: ModelBuilder) {
+  const W = 1.62, H = PRESS.ramH;
+  mb.box(0, 0, 0, W, H, W, { all: 'zd_ram_face', top: 'zd_steel', bottom: 'zd_ram_under' }, { fit: true });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) mb.box(sx * 0.89, 0.02, sz * 0.89, 0.23, H - 0.04, 0.23, 'metal_dark');
+  mb.box(0, H, 0, 1.5, 0.07, 0.2, 'zd_steel');
+  mb.box(0, H, 0, 0.2, 0.07, 1.5, 'zd_steel');
+  for (const [x] of PRESS.rods) mb.cylinder(x, H, 0, 0.12, 0.06, 10, 'metal_dark');
+}
+/** a piston rod, one metre tall (scaled to the gap between ram and crown) */
+export function pressRodModel(mb: ModelBuilder) { mb.cylinder(0, 0, 0, 0.065, 1, 10, 'chrome'); }
+/** the lever: origin at its pivot, the arm up +y */
+export function pressLeverModel(mb: ModelBuilder) {
+  mb.box(0, -0.035, 0, 0.07, 0.07, 0.07, 'metal_dark');
+  mb.box(0, 0, 0, 0.035, 0.6, 0.035, 'chrome');
+  mb.cylinder(0, 0.58, 0, 0.03, 0.14, 8, 'rubber_black');
+  mb.sphere(0, 0.74, 0, 0.055, 8, 6, 'plastic_red', { color: 0xff3a24 });
 }
 
 defObj({
-  key: 'hopper', name: 'Remittance Hopper', w: 2, d: 2, height: 2.6, block: 'none', hp: 99999, sound: 'metal', flammable: 0,
-  desc: 'A hazard-striped steel plate with a scale and an intake hood over it. Put things on the plate. They are weighed, scanned and taken. The ledger on your wrist goes down.',
-  tags: [...T, 'hopper', 'machine'],
+  key: 'hopper', name: 'Remittance Press', w: 2, d: 2, height: 2.6, block: 'none', hp: 99999, sound: 'metal', flammable: 0,
+  desc: 'A four-column hydraulic press over a striped loading plate with a black slit in it. Put things on the plate and pull the lever. The ram comes down, and what was on the plate goes through to the other side. The ledger on your wrist goes down. Stand clear.',
+  tags: [...T, 'hopper', 'press', 'machine', 'lever'],
   noShadow: false,
   light: { color: 0xffc070, intensity: 0.28, radius: 3.2, y: 2.1, kind: 'emergency', power: false },
   model: (mb) => hopperModel(mb),

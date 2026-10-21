@@ -20,13 +20,25 @@ export interface ZoneSpec {
 
 const SPECS = new Map<string, ZoneSpec>();
 export function defZone(s: ZoneSpec) { SPECS.set(s.key, s); return s; }
-export function zoneSpec(key: string) { return SPECS.get(key); }
-export function allZoneSpecs() { return [...SPECS.values()]; }
+/**
+ * Zone families: keys made at runtime ('floor~1234' = generated floor 1234,
+ * src/world/gen/z_floors.ts). The family builds the spec from the key the
+ * first time it is asked for; generation stays deterministic per key + seed.
+ */
+const FAMILIES: { prefix: string; make: (key: string) => ZoneSpec | undefined }[] = [];
+export function defZoneFamily(prefix: string, make: (key: string) => ZoneSpec | undefined) { FAMILIES.push({ prefix, make }); }
+export function zoneSpec(key: string) {
+  let s = SPECS.get(key);
+  if (!s && typeof key === 'string') for (const f of FAMILIES) if (key.startsWith(f.prefix)) { s = f.make(key); if (s) { s.key = key; SPECS.set(key, s); } break; }
+  return s;
+}
+export function allZoneSpecs() { return [...SPECS.values()].filter((s) => !FAMILIES.some((f) => s.key.startsWith(f.prefix))); }
 
 const ZONE_INDEX: Record<string, number> = {
   lobby: 1, pools: 2, fields: 3, house: 4, suburbs: 5, school: 6, office: 7, stairwell: 8, mall: 9,
   market: 10, parking: 11, hospital: 12, tunnels: 13, lab: 14, server: 15, corrupt: 16, exit: 17,
   depot: 18, showroom: 19, homestead: 20, annex: 21, undercroft: 22,
+  chess: 23, meadow: 24, moon: 25,
 };
 function zoneIndex(key: string) { return ZONE_INDEX[key] ?? 100 + (hashStr(key) % 3800); }
 
@@ -35,7 +47,7 @@ const POST_GEN: ((z: Zone, seed: number) => void)[] = [];
 export function onZoneGenerated(fn: (z: Zone, seed: number) => void) { if (!POST_GEN.includes(fn)) POST_GEN.push(fn); }
 
 export function generateZone(key: string, worldSeed: number): Zone {
-  const spec = SPECS.get(key);
+  const spec = zoneSpec(key);
   if (!spec) throw new Error('unknown zone ' + key);
   const seed = hash3(worldSeed, hashStr(key), 7);
   const z = new Zone(key, spec.W, spec.H, seed);

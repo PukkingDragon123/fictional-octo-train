@@ -603,6 +603,7 @@ function thinkDrywall(c: Creature, dt: number): boolean {
 
 const sp = def({
   key: 'drywall_man', name: 'Drywall Man', code: 'E-27 // PARIETAL', temperament: 'stalker', threat: 3,
+  rule: { name: 'TAKES THE LONE ONE', text: 'He only steps out of the wall for someone alone. Stay close to a friend; hit the face in the wallpaper and he pulls back.' },
   hp: 55, walk: 1.3, run: 3.9, turn: 9, radius: 0.28, height: 2.05, sight: 14, fov: 1.6, hearing: 1.6,
   attack: { dmg: [8, 15], range: 0.95, cooldown: 1.2, kinds: ['laceration', 'scratch', 'deep'], corrupt: 0.15, knock: -0.3 },
   zones: ['office', 'tunnels', 'corrupt', 'house', 'school'], weight: 1.5, maxPerZone: 2, diet: 'meat',

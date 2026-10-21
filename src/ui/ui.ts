@@ -17,6 +17,7 @@ import { calm } from './menus/settings';
 import './holo/diegetic.css';
 import { initSubtitles, scrawl, speech, shout, radioLine } from './holo/subs';
 import { debtorNo } from './holo/holo';
+import { openVerbTag } from '../interact/verbTag';
 
 export interface MenuOption {
   label: string;
@@ -148,7 +149,6 @@ export class UI {
     bus.on('uiSettings', refreshCursor);
     bus.on('uiScale', refreshCursor);
     bus.on('unlocked', (id: string) => this.unlockToast(id));
-    window.addEventListener('keydown', (e) => this.menuKey(e), true);
     // track pointer over interactive UI so the world ignores clicks there
     this.root.addEventListener('mouseover', () => { G.input.pointerOverUI = true; });
     this.root.addEventListener('mouseout', () => { G.input.pointerOverUI = false; });
@@ -278,6 +278,8 @@ export class UI {
   /** profile unlock: a new occupation or trait is on the intake form */
   unlockToast(id: string) {
     const [ns, key] = id.split(':');
+    // research ('rp:') and scan knowledge ('scan:') are presented by the watch and the scanner
+    if (ns === 'rp' || ns === 'scan') return;
     let kind = 'UNLOCK', name = key || id, icon = '';
     if (ns === 'job') { const o = OCCUPATIONS.find((x) => x.key === key); kind = 'NEW OCCUPATION UNLOCKED'; name = o?.name || key; const k = o?.items?.[0]; if (k) { try { icon = itemIcon(k, '', 18); } catch { /* no icon */ } } }
     else if (ns === 'trait') { const t = TRAITS.find((x) => x.key === key); kind = 'NEW TRAIT UNLOCKED'; name = t?.name || key; }
@@ -294,124 +296,24 @@ export class UI {
     G.audio?.ui?.('scanDone', 0.4);
   }
 
-  // ---------------- context menu ----------------
+  // ---------------- context menu (neutralised) ----------------
+  // No popup lists: a list handed in here becomes a one-word verb tag at the
+  // pointer (wheel / arrows step through it, click does it); see src/interact/verbTag.ts.
   openMenu(x: number, y: number, title: string, opts: MenuOption[], icon = '') {
     this.closeMenu();
     if (!opts.length) return;
-    const el = this.buildMenu(title, opts, undefined, icon);
-    document.body.appendChild(el);
-    const r = el.getBoundingClientRect();
-    el.style.left = Math.max(4, Math.min(x + 4, window.innerWidth - r.width - 6)) + 'px';
-    el.style.top = Math.max(4, Math.min(y + 4, window.innerHeight - r.height - 6)) + 'px';
-    this.menuEl = el;
-    this.menuKeyboard = false;
-    G.audio?.ui?.('menu');
-  }
-  private menuKeyboard = false;
-  private buildMenu(title: string, opts: MenuOption[], parent?: HTMLDivElement, icon = ''): HTMLDivElement {
-    const el = document.createElement('div');
-    el.className = 'k-menu tg' + (parent ? ' sub' : '');
-    el.setAttribute('role', 'menu');
-    if (title) el.setAttribute('aria-label', title);
-    (el as any)._parent = parent || null;
-    el.addEventListener('contextmenu', (e) => e.preventDefault());
-    if (title) {
-      const h = document.createElement('div'); h.className = 'mh';
-      if (icon) { const im = document.createElement('img'); im.src = icon; im.alt = ''; h.appendChild(im); }
-      h.appendChild(document.createTextNode(title));
-      el.appendChild(h);
-    }
-    for (const o0 of opts) {
-      const o = !o0.disabled && o0.action && twoHandBlock(o0.label) ? { ...o0, disabled: 'needs two hands' } : o0;
-      if (o.label === '-') { const s = document.createElement('div'); s.className = 'sep'; el.appendChild(s); continue; }
-      const mi = document.createElement('div');
-      mi.className = 'mi' + (o.disabled ? ' dis' : '') + (o.danger ? ' danger' : '');
-      mi.tabIndex = -1;
-      mi.setAttribute('role', 'menuitem');
-      const ic = menuIcon(o);
-      if (ic) { const im = document.createElement('img'); im.className = 'ic'; im.src = ic; im.alt = ''; mi.appendChild(im); }
-      mi.appendChild(document.createTextNode(o.label));
-      if (typeof o.disabled === 'string') { const w = document.createElement('span'); w.className = 'why'; w.textContent = o.disabled; mi.appendChild(w); }
-      const openSub = (focusFirst: boolean) => {
-        (el as any)._sub?.remove();
-        el.querySelectorAll('.mi.open').forEach((n) => n.classList.remove('open'));
-        const subEl = this.buildMenu('', o.sub!, el);
-        subEl.style.position = 'fixed';
-        document.body.appendChild(subEl);
-        const r = mi.getBoundingClientRect();
-        const sr = subEl.getBoundingClientRect();
-        let left = r.right + sr.width > window.innerWidth ? r.left - sr.width : r.right;
-        if (left < 4) left = Math.max(4, Math.min(window.innerWidth - sr.width - 4, r.left + 24));
-        subEl.style.left = left + 'px';
-        subEl.style.top = Math.max(4, Math.min(r.top - 4, window.innerHeight - sr.height - 6)) + 'px';
-        (el as any)._sub = subEl;
-        mi.classList.add('open');
-        if (focusFirst) (subEl.querySelector('.mi:not(.dis)') as HTMLElement | null)?.focus();
-      };
-      (mi as any)._openSub = o.sub && o.sub.length ? openSub : null;
-      mi.addEventListener('pointerenter', (e) => {
-        if (e.pointerType === 'mouse') mi.focus({ preventScroll: true });
-        if (o.sub && o.sub.length) { if ((el as any)._subFor !== mi) { (el as any)._subFor = mi; openSub(false); } }
-        else { (el as any)._sub?.remove(); (el as any)._sub = null; (el as any)._subFor = null; el.querySelectorAll('.mi.open').forEach((n) => n.classList.remove('open')); }
-        if (!o.disabled) sfx('hover', 0.7);
-      });
-      if (o.sub && o.sub.length) {
-        const s = document.createElement('span'); s.className = 'sub'; mi.appendChild(s);
-        mi.addEventListener('click', (e) => { e.stopPropagation(); (el as any)._subFor = mi; openSub(this.menuKeyboard); });
-      }
-      if (!o.disabled && o.action) mi.addEventListener('click', (e) => { e.stopPropagation(); this.closeMenu(); G.audio?.ui?.('click'); o.action!(); });
-      else if (o.disabled) mi.addEventListener('click', (e) => { e.stopPropagation(); sfx('error', 0.6); });
-      el.appendChild(mi);
-    }
-    // deal the tags out in a loose fan: the middle ones stick out furthest, each a little crooked
-    const tags = [...el.querySelectorAll(':scope > .mi')] as HTMLElement[];
-    const n = tags.length;
-    const reach = Math.min(14, 3 + n * 1.5);
-    tags.forEach((mi, i) => {
-      const u = n > 1 ? (i / (n - 1)) * 2 - 1 : 0;
-      mi.style.setProperty('--dx', String(Math.round((1 - u * u) * reach)));
-      mi.style.setProperty('--r', (((strHash(title + (mi.textContent || '') + i) % 9) - 4) * 0.55).toFixed(2) + 'deg');
-      mi.style.animationDelay = calm() ? '0s' : (i * 0.022).toFixed(3) + 's';
-    });
-    return el;
-  }
-  /** arrows / enter / esc drive an open context menu; those keys never reach the game meanwhile */
-  private menuKey(e: KeyboardEvent) {
-    if (!this.menuEl) return;
-    const k = e.key;
-    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', 'Escape', ' '].includes(k)) return;
-    e.stopPropagation(); e.preventDefault();
-    this.menuKeyboard = true;
-    const active = document.activeElement as HTMLElement | null;
-    const cur = active?.classList.contains('mi') ? active : null;
-    const menu = (cur?.parentElement as HTMLDivElement | null) || this.deepestMenu();
-    const items = [...menu.querySelectorAll(':scope > .mi')] as HTMLElement[];
-    const i = cur ? items.indexOf(cur) : -1;
-    if (k === 'ArrowDown' || k === 'ArrowUp') {
-      const n = items.length;
-      if (!n) return;
-      const d = k === 'ArrowDown' ? 1 : -1;
-      let j = i < 0 ? (d > 0 ? 0 : n - 1) : (i + d + n) % n;
-      for (let tries = 0; tries < n && items[j].classList.contains('dis'); tries++) j = (j + d + n) % n;
-      items[j].focus();
-      sfx('hover', 0.7);
-    } else if (k === 'ArrowRight' && cur && (cur as any)._openSub) { (cur as any)._openSub(true); }
-    else if (k === 'ArrowLeft' || k === 'Escape') {
-      const parent = (menu as any)._parent as HTMLDivElement | null;
-      if (parent) { menu.remove(); (parent as any)._sub = null; (parent as any)._subFor = null; const opener = parent.querySelector('.mi.open') as HTMLElement | null; opener?.classList.remove('open'); opener?.focus(); }
-      else if (k === 'Escape') this.closeMenu();
-    } else if ((k === 'Enter' || k === ' ') && cur) cur.click();
-  }
-  private deepestMenu(): HTMLDivElement {
-    let m = this.menuEl!;
-    while ((m as any)._sub && (m as any)._sub.isConnected) m = (m as any)._sub;
-    return m;
+    const checked = opts.map((o) => (!o.disabled && o.action && twoHandBlock(o.label) ? { ...o, disabled: 'needs two hands' } : o));
+    const tag = openVerbTag(x, y, title, checked, icon, () => { if (this.menuEl === tag?.el) this.menuEl = null; });
+    if (!tag) return;
+    this.menuEl = tag.el;
+    (tag.el as any)._close = tag.close;
   }
   closeMenu() {
     if (!this.menuEl) return;
-    (this.menuEl as any)._sub?.remove();
-    document.querySelectorAll('.k-menu').forEach((n) => n.remove());
+    const el = this.menuEl;
     this.menuEl = null;
+    (el as any)._close?.();
+    el.remove();
   }
 
   // ---------------- tooltip ----------------

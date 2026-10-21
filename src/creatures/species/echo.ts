@@ -546,6 +546,7 @@ function nearestTo(c: Creature) {
 
 const S = def({
   key: 'echo', name: 'Echo', code: 'E-09 // MIMIC-VOX', temperament: 'stalker', threat: 3,
+  rule: { name: 'BEHIND, IN THE DARK', text: 'It only strikes from behind, in the dark. Turn and put a light on it and it runs. The voice is never where it is.' },
   hp: 45, walk: 1.4, run: 5.2, turn: 7, radius: 0.32, height: 2.2, sight: 20, fov: 1.6, hearing: 2.4, nightVision: true,
   attack: { dmg: [12, 20], range: 1.1, cooldown: 2.5, kinds: ['laceration', 'deep', 'scratch'], corrupt: 0.15, knock: 0.9, parts: ['torso_u', 'neck', 'uarm_l', 'uarm_r', 'head'] },
   zones: ['pools', 'school', 'stairwell', 'hospital', 'lab', 'corrupt', 'house', 'lobby'], weight: 1, maxPerZone: 2, diet: 'meat',

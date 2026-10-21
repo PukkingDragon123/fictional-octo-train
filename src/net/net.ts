@@ -128,6 +128,12 @@ export class Net implements GameSystem {
   }
   /** a shout everyone in the zone can hear (bubble + voice) */
   shout(text: string) { this.to('all', { k: 'shout', text }); }
+  /** social layer (src/social/social.ts): whistles, emote barks */
+  social(d: any) { this.to('all', { k: 'sx', ...d }); }
+  /** shared floors and dimensions (src/social): to 'all', 'host' or a player id */
+  floorsMsg(d: any, to = 'all') { this.to(to, { k: 'vx', ...d }); }
+  /** host: tell the relay's public floor directory which floor this room is on */
+  floor(zone: string, name: string, depth = 0) { if (this.isHost) this.raw({ t: 'floor', zone, name, depth }); }
   /** walkie-talkie: pick a channel / switch on (item menu) */
   radioMenu(p: Player, it: Item) {
     const d = itemDef(it.key);
@@ -178,6 +184,8 @@ export class Net implements GameSystem {
       case 'chat': { const p = G.players.get(from); if (p) G.ui?.say?.(p, d.text, 'say', 5); G.ui?.chatLine?.(p?.name || from, d.text); break; }
       case 'shout': { const p = G.players.get(from); if (p && G.local && p.zoneKey === G.local.zoneKey) { G.ui?.say?.(p, String(d.text).slice(0, 40), 'shout', 2.5); G.audio?.at?.('shout', p.x, p.z, 1); } break; }
       case 'rtc': this.voice.onSignal(from, d); break;
+      case 'sx': G.social?.onNet?.(from, d); break;
+      case 'vx': G.floors?.onNet?.(from, d); break;
       case 'left': this.dropPeer(from); break;
     }
   }
@@ -314,6 +322,7 @@ export class Net implements GameSystem {
     if (kind === 'csnd') { const c = G.creatures?.creatures?.get?.(d.id); if (c) G.audio?.creature?.(d.s, c); }
     else if (kind === 'sound') G.audio?.at?.(d.key, d.x, d.z, d.vol ?? 1);
     else if (kind === 'gore') G.gore?.onNet?.(d);
+    else bus.emit('netFx', kind, d);
   }
   private applyMedical(inj: any) {
     const me = G.local; if (!me || !inj) return;

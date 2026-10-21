@@ -554,6 +554,7 @@ function thinkSL(c: Creature, dt: number): boolean {
 
 const sp = def({
   key: 'still_life', name: 'Still Life', code: 'SL-11 // REPLICATED OCCUPANT', temperament: 'neutral', threat: 2,
+  rule: { name: 'HEADS THAT TURN', text: 'Most never move while you look straight at them. Keep facing the room and back out.' },
   hp: 70, walk: 1.05, run: 2.6, turn: 6, radius: 0.27, height: 1.75, sight: 10, fov: 1.0, hearing: 0.3,
   attack: { dmg: [5, 8], range: 0.8, cooldown: 1.2, kinds: ['bruise'], corrupt: 0, knock: 0, grab: true, parts: ['neck'] },
   zones: ['house', 'suburbs', 'school', 'hospital'], weight: 1.5, maxPerZone: 7, group: [1, 3], diet: 'none',

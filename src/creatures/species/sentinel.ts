@@ -321,6 +321,7 @@ function thinkSentinel(c: Creature, dt: number): boolean {
 
 const S = def({
   key: 'sentinel', name: 'Far Sentinel', code: 'E-30 // OBSERVER-FAR', temperament: 'neutral', threat: 2,
+  rule: { name: 'ONLY WATCHES', text: 'It never moves while watched and is gone if you walk at it. It cannot hurt you, but watching it wears you down.' },
   hp: 999, walk: 0, run: 0, turn: 0.4, radius: 0.35, height: 5.3, sight: 60, fov: 3.14, hearing: 0.2,
   zones: ['fields', 'parking', 'server', 'suburbs'], weight: 1, maxPerZone: 1,
   flags: { watcher: true, immortal: true, noCorpse: true },

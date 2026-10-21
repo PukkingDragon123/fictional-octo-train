@@ -40,7 +40,7 @@ const CONTRACT_ROWS: Record<string, { label: string; vals?: (d: number) => [numb
   bandLethal: { label: 'Band detonation', bool: ['takes the hand', 'kills'] },
   finalLethal: { label: 'Final deadline', bool: ['forgiving', 'lethal'] },
 };
-const KNOWN = new Set([...ROWS.map((r) => r.key), 'limbLoss', 'directives']);
+const KNOWN = new Set([...ROWS.map((r) => r.key), 'limbLoss', 'directives', 'friendlyFire']);
 const humanize = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
 export function termsStation(ctx: TermsCtx) {
@@ -86,6 +86,7 @@ export function termsStation(ctx: TermsCtx) {
     const custom = (k: string, v: number) => { ctx.sb[k] = v; if (ctx.preset !== 'custom') { ctx.preset = 'custom'; render(); } };
     for (const R of ROWS) row(R.label, R.key, R.vals, ctx.sb[R.key], (v) => custom(R.key, v), R.tip);
     row('Limb loss', 'limbLoss', [[1, 'yes'], [0, 'no']], (ctx.sb.limbLoss ?? 1) !== 0 ? 1 : 0, (v) => { ctx.sb.limbLoss = v; });
+    row('Friendly fire', 'friendlyFire', [[0, 'no'], [1, 'yes']], ctx.sb.friendlyFire ? 1 : 0, (v) => { ctx.sb.friendlyFire = v; }, (v) => v ? 'In co-op, your blows hurt each other' : 'Your blows pass your crew by');
     row('Directives', 'directives', [[1, 'the contract (story)'], [0, 'free survival']], ctx.directives ? 1 : 0, (v) => { ctx.directives = v === 1; });
     // §3: the debt contract's own fields, whatever they are
     const extra = Object.keys(ctx.sb).filter((k) => !KNOWN.has(k) && typeof ctx.sb[k] === 'number');

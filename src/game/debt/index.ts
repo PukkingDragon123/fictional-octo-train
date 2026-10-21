@@ -66,7 +66,9 @@ export function issueKit(p: Player, add: (key: string, wear?: boolean) => Item |
   let feet: string[] = ['canvas_slipons'];
   try { feet = feetKitItems(p.app); } catch { /* older appearance: issue slip-ons */ }
   for (const k of feet) add(k, true);
-  add('issue_pack', true);
+  // the Remittance cube (iron, thumbprint lock; src/ui/inventory.ts) and a tool roll for the hip
+  add('iron_cube', true);
+  add('tool_roll', true);
   add('ration_bar');
   add('water_pouch');
 }

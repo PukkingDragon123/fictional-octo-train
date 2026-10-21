@@ -1,0 +1,42 @@
+/* Cooking view (recipe card + hint line) and butchery cut marks. */
+.ck-root { position: fixed; inset: 0; z-index: 38; pointer-events: none; opacity: 0; transition: opacity .25s; font-family: 'Micro 5', 'Tiny5', monospace; }
+.ck-root.on { opacity: 1; }
+.ck-card {
+  position: absolute; right: 14px; top: 14px; width: 230px; padding: 8px 10px 6px; color: #3a2a1e;
+  background: linear-gradient(180deg, #f2ead2 0 22px, #ede4c8 22px), #ede4c8;
+  background-image: repeating-linear-gradient(180deg, transparent 0 15px, rgba(90, 140, 200, .35) 15px 16px);
+  box-shadow: 2px 3px 0 rgba(0, 0, 0, .35), inset 0 0 18px rgba(120, 80, 30, .18); transform: rotate(1.2deg);
+  max-height: 46vh; overflow: hidden;
+}
+.ck-card::after { content: ''; position: absolute; left: 26px; top: 40%; width: 40px; height: 30px; border-radius: 50%; background: rgba(140, 80, 30, .14); }
+.ck-card h4 { margin: 0 0 3px; font-weight: normal; font-size: 17px; color: #a8302a; letter-spacing: 2px; }
+.ck-card p { margin: 0; font-size: 13px; line-height: 15px; }
+.ck-card p b { font-weight: normal; color: #2a1e14; margin-right: 4px; }
+.ck-card p i { font-style: normal; color: #6a5a48; }
+.ck-card p.unk b, .ck-card p.unk i { color: #a89a80; }
+.ck-hint {
+  position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: calc(100vw - 28px);
+  display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; justify-content: center;
+  padding: 6px 12px; color: #ffe8c8; font-size: 15px; background: rgba(20, 10, 6, .78); border: 1px solid #6a3a1e;
+  box-shadow: 0 0 18px rgba(255, 120, 40, .2);
+}
+.ck-hint .heat { color: #ff8a3a; text-shadow: 0 0 6px rgba(255, 110, 30, .8); }
+.ck-hint .keys { color: #a87a5a; font-size: 13px; }
+@media (pointer: coarse) { .ck-hint .keys { display: none; } .ck-card { width: 180px; font-size: 12px; } }
+.ck-flash {
+  position: absolute; left: 50%; top: 22%; transform: translateX(-50%); color: #ffe070; font-size: 30px; letter-spacing: 3px;
+  text-shadow: 0 0 12px rgba(255, 200, 60, .9), 2px 2px 0 #5a2a0a; animation: ck-flash 2.6s ease-out forwards; white-space: nowrap;
+}
+@keyframes ck-flash { 0% { opacity: 0; transform: translate(-50%, 12px) scale(.8); } 12% { opacity: 1; transform: translate(-50%, 0) scale(1.08); } 20% { transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -16px); } }
+
+.bt-layer { position: fixed; inset: 0; z-index: 36; pointer-events: none; display: none; font-family: 'Micro 5', 'Tiny5', monospace; }
+.bt-layer.on { display: block; cursor: crosshair; }
+.bt-mark { position: absolute; left: -18px; top: -18px; width: 36px; height: 36px; will-change: transform; }
+.bt-mark i { position: absolute; inset: 4px; border: 2px dashed #ff4a3a; border-radius: 50%; animation: bt-spin 3s linear infinite;
+  background: conic-gradient(rgba(255, 60, 40, .55) calc(var(--p, 0) * 360deg), transparent 0); }
+.bt-mark.belly i, .bt-mark.hide i { border-color: #ffb03a; background: conic-gradient(rgba(255, 170, 40, .55) calc(var(--p, 0) * 360deg), transparent 0); }
+.bt-mark span { position: absolute; left: 50%; top: 38px; transform: translateX(-50%); color: #ffd8c8; font-size: 13px; text-shadow: 1px 1px 0 #000, 0 0 6px #a00; white-space: nowrap; }
+.bt-mark.hit i { animation: bt-hit .22s ease-out, bt-spin 3s linear infinite; }
+@keyframes bt-spin { to { transform: rotate(360deg); } }
+@keyframes bt-hit { 0% { transform: scale(1.5); border-color: #fff; } 100% { transform: scale(1); } }
+.bt-hint { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); color: #ffd0c0; font-size: 15px; padding: 5px 12px; background: rgba(30, 6, 6, .78); border: 1px solid #7a1a1a; white-space: nowrap; }

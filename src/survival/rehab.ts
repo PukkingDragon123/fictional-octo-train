@@ -1,5 +1,6 @@
-// Effects of the Remittance-era conditions and programmes chosen in the Rehab
-// Section (traits.ts): each one has an upside and a downside. Everything here
+// Effects of the Remittance-era conditions and programmes, installed as wares
+// through the brain at the operating table (src/ui/surgery; data in traits.ts):
+// each one has an upside and a downside. Everything here
 // touches only the local survivor's own body and mind, so it is the same on
 // every peer. Driven by Unlocks.update (once per frame for the local player)
 // and by the contract bus events ('deposited', 'debtChanged', 'objBroken',

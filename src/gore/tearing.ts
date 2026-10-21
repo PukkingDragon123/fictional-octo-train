@@ -55,6 +55,14 @@ export const TEARS: Record<string, TearDef> = {
   plenum: { parts: [['hand_l', 2], ['hand_r', 2], ['foot_l', 2], ['foot_r', 2], ['shin_l', 1], ['shin_r', 1]], chance: 0.07, hold: 1.2, verb: 'bite', with: /head|jaw/i, line: 'It is chewing— under the face— it is CHEWING—' },
   gloam: { parts: [['hand_l', 3], ['hand_r', 3], ['farm_l', 2], ['farm_r', 2]], chance: 0.09, hold: 1.3, verb: 'bite', with: /head|jaw/i, line: 'Teeth in the dark— my hand is in the TEETH—' },
   still_life: { parts: [['hand_l', 1], ['hand_r', 1]], chance: 0.015, hold: 2.2, verb: 'wrench', with: /arm|hand/i, line: 'Wax fingers— they will not open—' },
+  // the rule-bound ones and the dimension creatures (src/creatures/species/tallyman.ts, mirrorling.ts, lintel.ts, tithe.ts, hush.ts, chess.ts, moon.ts)
+  tallyman: { parts: [['hand_l', 2], ['hand_r', 2], ['farm_l', 1], ['farm_r', 1]], chance: 0.06, hold: 1.4, verb: 'snap', with: /fore|hand/i, line: 'It is counting my fingers— one— two—' },
+  mirrorling: { parts: [['hand_l', 2], ['hand_r', 2], ['farm_l', 1], ['farm_r', 1]], chance: 0.05, hold: 1.5, verb: 'pull', with: /arm|fore/i, line: 'It has my hand— the same hand— it is pulling me INTO it—' },
+  lintel: { parts: [['uarm_l', 2], ['uarm_r', 2], ['shin_l', 1], ['shin_r', 1]], chance: 0.1, hold: 1.3, verb: 'crush', with: /arm|jaw/i, line: 'The door— it shut ON me—' },
+  tithe: { parts: [['hand_l', 3], ['hand_r', 3]], chance: 0.06, hold: 1.2, verb: 'bite', with: /head|jaw/i, line: 'It wants what is in my hand— it is taking the HAND—' },
+  hush: { parts: [['hand_l', 1], ['hand_r', 1], ['farm_l', 2], ['farm_r', 2]], chance: 0.06, hold: 1.6, verb: 'wrench', with: /arm|fore|hand/i, line: 'Shhh— shhh— it is twisting— shhhh—' },
+  chess_knight: { parts: [['hand_l', 1], ['hand_r', 1], ['farm_l', 1], ['farm_r', 1]], chance: 0.05, hold: 1.0, verb: 'bite', with: /head|jaw/i, line: 'Stone teeth— my arm is in the HORSE—' },
+  moon_strider: { parts: [['foot_l', 2], ['foot_r', 2], ['shin_l', 2], ['shin_r', 2]], chance: 0.07, hold: 1.4, verb: 'bite', with: /jaw|head/i, line: 'It landed on my leg— it is chewing sideways—' },
 };
 export const tearDef = (key: string): TearDef | null => TEARS[key] ?? null;
 
@@ -78,7 +86,7 @@ export function limbId(name: string): string {
 }
 
 /** things that keep going without a head */
-export const HEADLESS_OK = new Set(['employee', 'davenport', 'swivel', 'plushkin', 'custodian', 'occupant', 'lamplighter', 'still_life', 'surveyor']);
+export const HEADLESS_OK = new Set(['employee', 'davenport', 'swivel', 'plushkin', 'custodian', 'occupant', 'lamplighter', 'still_life', 'surveyor', 'lintel']);
 
 export interface CreatureLimbFx {
   /** movement multiplier */

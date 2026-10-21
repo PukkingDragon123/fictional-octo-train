@@ -3,7 +3,8 @@ import { Container } from './container';
 import { Item, itemDef, itemName } from './item';
 import { G } from '../game/G';
 import { bus } from '../core/events';
-import { Placement, gridSpec, occupancy, findSpot, claim, setPlace, footprintOf, weightOk, isEquipped } from './grid';
+import { Placement, gridSpec, occupancy, findSpot, claim, setPlace, footprintOf, weightOk, isEquipped, settleGravity } from './grid';
+import { isToolDef } from './footprints';
 import { transferItem } from '../game/worldOps';
 import { floorContainer } from './worldItems';
 
@@ -24,9 +25,12 @@ export function carriedOrder(p: Player, it?: Item): Container[] {
   for (const h of [p.handR, p.handL]) if (h?.inv && !bags.includes(h.inv)) bags.push(h.inv);
   if (belt?.inv && !bags.includes(belt.inv)) bags.push(belt.inv);
   for (const c of p.containers()) if (c !== p.inv && !bags.includes(c)) bags.push(c);
-  let small = false;
-  if (it) { const [w, h] = footprintOf(it); small = w * h <= 1; }
-  const out = small ? [p.inv, ...bags] : [...bags, p.inv];
+  let small = false, tool = false;
+  if (it) { const [w, h] = footprintOf(it); small = w * h <= 1; tool = isToolDef(itemDef(it.key)); }
+  // tools go to the tool roll's loops first, everything else skips it (its loops only take tools anyway)
+  const roll = bags.findIndex((c) => c.name === itemDef('tool_roll').name);
+  if (roll >= 0) { const [r] = bags.splice(roll, 1); if (tool) bags.unshift(r); else bags.push(r); }
+  const out = small && !tool ? [p.inv, ...bags] : [...bags, p.inv];
   // a bag never goes inside itself
   return it?.inv ? out.filter((c) => c !== it.inv) : out;
 }
@@ -96,6 +100,8 @@ export function settlePack(p: Player): boolean {
     }
   }
   for (const k of pending.keys()) if (!seen.has(k)) pending.delete(k);
+  // in the cube, whatever lost what held it up falls
+  for (const c of p.containers()) if (settleGravity(c)) changed = true;
   if (changed) bus.emit('inventoryChanged', p);
   return changed;
 }

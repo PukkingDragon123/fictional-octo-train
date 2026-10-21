@@ -660,6 +660,7 @@ function thinkEmployee(c: Creature, dt: number): boolean {
 
 const sp = def({
   key: 'employee', name: 'The Employee', code: 'E-21 // MANNEQUIN-STAFF', temperament: 'stalker', threat: 4,
+  rule: { name: 'ONLY WHEN UNWATCHED', text: 'It cannot move while you look at it in the light. Darkness, sleep and turning your back all count as not looking. It cannot open doors.' },
   hp: 85, walk: 2.4, run: 6.2, turn: 30, radius: 0.3, height: 1.95, sight: 30, fov: 3.1, hearing: 0.6, nightVision: true,
   attack: { dmg: [11, 19], range: 0.85, cooldown: 1.4, kinds: ['laceration', 'bruise', 'deep'], corrupt: 0.12, knock: 0.9, parts: ['neck', 'head', 'torso_u', 'uarm_l', 'uarm_r'] },
   zones: ['office', 'school', 'stairwell', 'mall', 'hospital', 'lab'], weight: 1, maxPerZone: 2, diet: 'none',

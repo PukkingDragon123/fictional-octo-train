@@ -1,8 +1,8 @@
 import { G } from '../game/G';
-import { MenuOption } from '../ui/ui';
+import type { MenuOption } from '../ui/ui';
 import type { Player } from '../entities/player';
 import { Item, itemDef, itemName, freshness } from '../items/item';
-import { Container } from '../items/container';
+import type { Container } from '../items/container';
 import { EatAction, DrinkAction, WearAction, EquipAction, ReadAction, OpenCanAction, RipAction, PourAction, FillAction } from '../actions/basic';
 import { BandageAction, DisinfectAction, StitchAction, SplintAction, RemoveForeignAction, PillAction, injuryLabel, RemoveBandageAction } from '../actions/medical';
 import { queueTransfers } from '../actions/transfer';
@@ -15,8 +15,9 @@ import { itemMenuHook } from '../game/debt';
 const hasTag = (it: Item, t: string) => (itemDef(it.key).tags || []).includes(t) || itemDef(it.key).key === t;
 
 /**
- * Right-click options for an item in any container — the heart of Project
- * Zomboid's "you can do almost anything" feel.
+ * Everything an item can be used for, as data (no popup lists: the backpack
+ * shows the primary verb on the item and steps through the rest one word at a
+ * time; src/interact/verbs.ts uses the same list for what is in hand).
  */
 export function itemMenuOptions(p: Player, it: Item, c: Container, group: Item[]): MenuOption[] {
   const d = itemDef(it.key);
@@ -178,4 +179,50 @@ function inspectText(it: Item): string {
   const lines = [d.desc || 'Nothing remarkable about it.', '', `Category: ${d.cat}`, `Weight: ${d.weight} kg`];
   if (d.tags?.length) lines.push(`Useful as: ${d.tags.join(', ')}`);
   return lines.join('\n');
+}
+
+// ---------------------------------------------------------------- direct use (no menus)
+const PRIMARY: RegExp[] = [
+  /^Open$/, /^(Eat|Take)( \(.*\))?(: All)?$/, /^Drink: Gulp/,
+  /^(Apply bandage|Disinfect|Stitch|Apply splint|Remove shard): (?!.* — )/, /^Read$/,
+  /^Wear( on back)?$/, /^Turn (on|off)$/, /^Reload$/, /^Place$/, /^Plant$/, /^(Use|Play solitaire)$/,
+  /^Radio/, /^Equip (primary|two-handed)$/, /^Study/,
+];
+function flat(opts: MenuOption[], prefix = ''): { label: string; action?: () => void; disabled?: string | boolean }[] {
+  const out: { label: string; action?: () => void; disabled?: string | boolean }[] = [];
+  for (const o of opts) {
+    if (!o || o.label === '-') continue;
+    const label = prefix ? prefix + ': ' + o.label : o.label;
+    if (o.sub?.length) out.push(...flat(o.sub, label)); else out.push({ label, action: o.action, disabled: o.disabled });
+  }
+  return out;
+}
+
+/**
+ * The one thing an item is for, done directly: eat it, drink it, treat
+ * yourself with it, read it, wear it, switch it on, reload it, place it.
+ * Eating, drinking and treating go through the body HUD (G.hudBody: eat /
+ * drink / treat) when it is in, so they play first person.
+ */
+export function itemPrimaryVerb(p: Player, it: Item): { label: string; run: () => void } | null {
+  const d = itemDef(it.key);
+  const hb = G.hudBody;
+  if (d.food && !d.medical && !(d.food.canned && !it.opened) && hb?.eat) return { label: d.food.pills ? 'Take' : 'Eat', run: () => hb.eat(p, it) };
+  if (d.fluidCap && (it.fluid?.amount ?? 0) > 0.01 && !d.food && hb?.drink) return { label: 'Drink', run: () => hb.drink(p, it) };
+  if (d.medical && hb?.treat) return { label: 'Treat', run: () => hb.treat(p, it, p) };
+  const opts = flat(itemMenuOptions(p, it, p.containerOf(it) || p.inv, [it])).filter((o) => o.action && !o.disabled);
+  for (const re of PRIMARY) {
+    const o = opts.find((q) => re.test(q.label));
+    if (o) return { label: o.label.replace(/: (All|Gulp.*)$/, ''), run: o.action! };
+  }
+  return null;
+}
+
+/** every verb for an item, primary first (for the backpack's item verbs) */
+export function itemVerbs(p: Player, it: Item, c: Container, group: Item[] = [it]): { label: string; run: () => void; why: string | false }[] {
+  const all = flat(itemMenuOptions(p, it, c, group)).map((o) => ({ label: o.label, run: o.action || (() => {}), why: o.disabled ? (typeof o.disabled === 'string' ? o.disabled : 'not now') : false as string | false }));
+  const pv = itemPrimaryVerb(p, it);
+  if (pv) all.unshift({ label: pv.label, run: pv.run, why: false });
+  const seen = new Set<string>();
+  return all.filter((v) => (seen.has(v.label) ? false : (seen.add(v.label), true)));
 }

@@ -1,0 +1,268 @@
+// Shared pieces for the first-person close-ups of src/craft and the iron cube
+// (src/ui/inventory.ts): materials, item meshes fitted into cells, the
+// survivor's forearms and hands, tweens, pixel particles and a little shake.
+import * as THREE from 'three';
+import { worldMaterial } from '../gfx/materials';
+import { itemGeometry } from '../items/itemMeshes';
+import { ORIENT, type Rot } from '../items/grid';
+import { ModelBuilder } from '../gfx/modelBuilder';
+import { G } from '../game/G';
+
+export const fpMat = () => worldMaterial({ noVis: true, noFog: true, noGrid: true });
+export const fpGlow = () => worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true });
+
+// ---------------------------------------------------------------- easing / tweens
+export const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+export const easeOut = (t: number) => 1 - Math.pow(1 - t, 3);
+export const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+export const easeBack = (t: number) => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+export const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
+
+interface Tw { t: number; dur: number; fn: (k: number) => void; ease: (t: number) => number; done?: () => void; delay: number }
+export class Tweens {
+  private list: Tw[] = [];
+  add(dur: number, fn: (k: number) => void, ease: (t: number) => number = easeOut, done?: () => void, delay = 0) {
+    this.list.push({ t: 0, dur: Math.max(1e-3, dur), fn, ease, done, delay });
+  }
+  get busy() { return this.list.length > 0; }
+  clear() { this.list.length = 0; }
+  /** run every tween to its end at once */
+  finish() { const l = this.list; this.list = []; for (const w of l) { w.fn(w.ease(1)); w.done?.(); } }
+  update(dt: number) {
+    if (!this.list.length) return;
+    const l = this.list;
+    for (let i = 0; i < l.length; i++) {
+      const w = l[i];
+      if (w.delay > 0) { w.delay -= dt; if (w.delay > 0) continue; }
+      w.t += dt;
+      const k = clamp01(w.t / w.dur);
+      w.fn(w.ease(k));
+      if (k >= 1) { l.splice(i, 1); i--; w.done?.(); }
+    }
+  }
+}
+
+// ---------------------------------------------------------------- item meshes fitted into cells
+interface Align { q: THREE.Quaternion; center: THREE.Vector3; base: [number, number, number] }
+const alignCache = new Map<string, Align | null>();
+const AX = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+
+/**
+ * How a model is laid into its box: longest side along the rows (z),
+ * the middle one across (x), the thinnest up (y). base = model sizes
+ * along [w, l, t] after that.
+ */
+export function itemAlign(key: string): Align | null {
+  let a = alignCache.get(key);
+  if (a !== undefined) return a;
+  const g = itemGeometry(key);
+  if (!g) { alignCache.set(key, null); return null; }
+  if (!g.boundingBox) g.computeBoundingBox();
+  const b = g.boundingBox!;
+  const size = [b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z].map((v) => Math.max(0.004, v));
+  const order = [0, 1, 2].sort((i, j) => size[j] - size[i]); // L, M, S
+  const [L, M, S] = order;
+  const img: THREE.Vector3[] = [];
+  img[L] = new THREE.Vector3(0, 0, 1); img[M] = new THREE.Vector3(1, 0, 0); img[S] = new THREE.Vector3(0, 1, 0);
+  const m = new THREE.Matrix4().makeBasis(img[0], img[1], img[2]);
+  if (m.determinant() < 0) { img[M].negate(); m.makeBasis(img[0], img[1], img[2]); }
+  const q = new THREE.Quaternion().setFromRotationMatrix(m);
+  a = { q, center: b.getCenter(new THREE.Vector3()), base: [size[M], size[L], size[S]] };
+  alignCache.set(key, a);
+  return a;
+}
+
+const orientQ: THREE.Quaternion[] = [];
+const BASE_VEC = [AX[0], AX[2], AX[1]]; // base axes w, l, t in the aligned frame
+/** rotation taking an aligned model to grid orientation rot (grid x -> X, rows -> Z, layers -> Y) */
+export function orientQuat(rot: Rot): THREE.Quaternion {
+  if (orientQ[rot]) return orientQ[rot];
+  const o = ORIENT[rot];
+  const A = new THREE.Matrix4().makeBasis(BASE_VEC[o[0]], BASE_VEC[o[2]], BASE_VEC[o[1]]);
+  const tx = new THREE.Vector3(1, 0, 0);
+  let B = new THREE.Matrix4().makeBasis(tx, AX[1], AX[2]);
+  let R = B.clone().multiply(A.clone().transpose());
+  if (R.determinant() < 0) { tx.negate(); B = new THREE.Matrix4().makeBasis(tx, AX[1], AX[2]); R = B.multiply(A.transpose()); }
+  orientQ[rot] = new THREE.Quaternion().setFromRotationMatrix(R);
+  return orientQ[rot];
+}
+
+export interface ItemObj { outer: THREE.Group; mesh: THREE.Mesh | null; key: string }
+const fallbackGeo = new THREE.BoxGeometry(1, 1, 1);
+/** an item model wrapped for fitting: position/scale/quaternion go on `outer` */
+export function makeItemObj(key: string, mat?: THREE.Material): ItemObj {
+  const outer = new THREE.Group();
+  const mid = new THREE.Group();
+  outer.add(mid);
+  const a = itemAlign(key);
+  const g = itemGeometry(key);
+  let mesh: THREE.Mesh;
+  if (g && a) {
+    mesh = new THREE.Mesh(g, mat || fpMat());
+    mesh.position.copy(a.center).negate();
+    mid.quaternion.copy(a.q);
+  } else {
+    mesh = new THREE.Mesh(fallbackGeo, mat || new THREE.MeshLambertMaterial({ color: 0x9a9080 }));
+    mesh.scale.set(0.1, 0.05, 0.14);
+  }
+  mid.add(mesh);
+  outer.userData.key = key;
+  return { outer, mesh, key };
+}
+
+/** fit an item model into a box bx (x) * by (rows, z) * bz (layers, y) scene units big, with a margin */
+export function fitItemObj(o: ItemObj, rot: Rot, bx: number, by: number, bz: number, maxScale = 1.25) {
+  const a = itemAlign(o.key);
+  o.outer.quaternion.copy(orientQuat(rot));
+  if (!a) { o.outer.scale.setScalar(Math.min(bx, by, bz) * 4); return; }
+  const ori = ORIENT[rot];
+  const sx = bx / a.base[ori[0]], sz = by / a.base[ori[1]], sy = bz / a.base[ori[2]];
+  o.outer.scale.setScalar(Math.min(maxScale, Math.min(sx, sy, sz) * 0.88));
+}
+
+// ---------------------------------------------------------------- forearms and hands
+export interface Arm { root: THREE.Group; fore: THREE.Mesh; hand: THREE.Group; thumb: THREE.Group; fingers: THREE.Group; side: 1 | -1; elbow: THREE.Vector3; target: THREE.Vector3; grip: number }
+let armGeo: { fore: THREE.BufferGeometry; palm: THREE.BufferGeometry; thumb: THREE.BufferGeometry; fingers: THREE.BufferGeometry } | null = null;
+
+function buildArmGeo(skin: number, suit: number) {
+  const fore = new ModelBuilder();
+  // sleeve from the elbow (y=0) to the cuff (y=1), unit length; the cuff band and a strip of wrist
+  fore.cylinder(0, 0, 0, 0.05, 0.86, 8, 'fabric_grey', { color: suit, rTop: 0.042 });
+  fore.cylinder(0, 0.86, 0, 0.044, 0.06, 8, 'fabric_grey', { color: (suit & 0xfefefe) >> 1 | 0x202020 });
+  fore.cylinder(0, 0.92, 0, 0.032, 0.08, 8, 'plastic_white', { color: skin });
+  const palm = new ModelBuilder();
+  palm.box(0, -0.01, 0, 0.075, 0.09, 0.03, 'plastic_white', { color: skin });
+  const thumb = new ModelBuilder();
+  thumb.box(0, 0, 0, 0.022, 0.05, 0.022, 'plastic_white', { color: skin });
+  thumb.box(0, 0.045, 0, 0.02, 0.016, 0.02, 'plastic_white', { color: (skin & 0xfefefe) >> 1 | 0x505050 });
+  const fingers = new ModelBuilder();
+  for (let i = 0; i < 4; i++) fingers.box(-0.026 + i * 0.0175, 0, 0, 0.016, 0.06 - Math.abs(i - 1.5) * 0.008, 0.02, 'plastic_white', { color: skin });
+  armGeo = { fore: fore.build(), palm: palm.build(), thumb: thumb.build(), fingers: fingers.build() };
+}
+
+/** a forearm reaching in from below the frame to a hand that you place (target) */
+export function makeArm(side: 1 | -1): Arm {
+  if (!armGeo) {
+    const skin = (G.local as any)?.app?.skin ?? 0xc89a78;
+    buildArmGeo(skin, 0xeeb415);
+  }
+  const mat = fpMat();
+  const root = new THREE.Group();
+  const fore = new THREE.Mesh(armGeo!.fore, mat);
+  root.add(fore);
+  const hand = new THREE.Group();
+  const palm = new THREE.Mesh(armGeo!.palm, mat);
+  hand.add(palm);
+  const thumb = new THREE.Group();
+  thumb.add(new THREE.Mesh(armGeo!.thumb, mat));
+  thumb.position.set(-side * 0.04, -0.01, 0.012);
+  thumb.rotation.z = side * 0.6;
+  hand.add(thumb);
+  const fingers = new THREE.Group();
+  fingers.add(new THREE.Mesh(armGeo!.fingers, mat));
+  fingers.position.set(0, 0.035, 0);
+  hand.add(fingers);
+  root.add(hand);
+  return { root, fore, hand, thumb, fingers, side, elbow: new THREE.Vector3(side * 0.42, -0.62, -0.9), target: new THREE.Vector3(side * 0.2, -0.2, -1.2), grip: 0 };
+}
+
+const _d = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+/** lay the forearm from the elbow to the hand target; grip 0 = open, 1 = fist */
+export function poseArm(a: Arm, handRoll = 0) {
+  _d.subVectors(a.target, a.elbow);
+  const len = Math.max(0.05, _d.length());
+  _d.normalize();
+  a.fore.position.copy(a.elbow);
+  a.fore.quaternion.setFromUnitVectors(_up, _d);
+  a.fore.scale.set(1, len, 1);
+  a.hand.position.copy(a.target);
+  a.hand.quaternion.copy(a.fore.quaternion);
+  a.hand.rotateY(handRoll + a.side * 0.3);
+  a.fingers.rotation.x = -a.grip * 1.3;
+  a.thumb.rotation.x = -a.grip * 0.6;
+}
+
+// ---------------------------------------------------------------- pixel particles
+export class Particles {
+  readonly points: THREE.Points;
+  private pos: Float32Array;
+  private col: Float32Array;
+  private vel: Float32Array;
+  private life: Float32Array;
+  private base: Float32Array;
+  private next = 0;
+  constructor(public n = 160, additive = true, size = 3) {
+    const g = new THREE.BufferGeometry();
+    this.pos = new Float32Array(n * 3); this.col = new Float32Array(n * 3);
+    this.vel = new Float32Array(n * 3); this.life = new Float32Array(n); this.base = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) this.pos[i * 3 + 1] = -999;
+    g.setAttribute('position', new THREE.BufferAttribute(this.pos, 3));
+    g.setAttribute('color', new THREE.BufferAttribute(this.col, 3));
+    const m = new THREE.PointsMaterial({ size, sizeAttenuation: false, vertexColors: true, transparent: true, depthWrite: false, blending: additive ? THREE.AdditiveBlending : THREE.NormalBlending });
+    this.points = new THREE.Points(g, m);
+    this.points.frustumCulled = false;
+  }
+  /** spray k particles from a point (local space of the points' parent) */
+  emit(x: number, y: number, z: number, k: number, color: number, speed = 1, up = 0.6, spread = 1) {
+    const r = ((color >> 16) & 255) / 255, gg = ((color >> 8) & 255) / 255, b = (color & 255) / 255;
+    for (let j = 0; j < k; j++) {
+      const i = this.next; this.next = (this.next + 1) % this.n;
+      const a = Math.random() * Math.PI * 2, s = (0.3 + Math.random()) * speed;
+      this.pos[i * 3] = x; this.pos[i * 3 + 1] = y; this.pos[i * 3 + 2] = z;
+      this.vel[i * 3] = Math.cos(a) * s * spread; this.vel[i * 3 + 1] = (up + Math.random() * 0.6) * speed; this.vel[i * 3 + 2] = Math.sin(a) * s * spread;
+      const f = 0.75 + Math.random() * 0.25;
+      this.base[i * 3] = r * f; this.base[i * 3 + 1] = gg * f; this.base[i * 3 + 2] = b * f;
+      this.life[i] = 0.35 + Math.random() * 0.45;
+    }
+  }
+  update(dt: number, gravity = 2.2) {
+    let any = false;
+    for (let i = 0; i < this.n; i++) {
+      if (this.life[i] <= 0) continue;
+      any = true;
+      this.life[i] -= dt;
+      const k = i * 3;
+      if (this.life[i] <= 0) { this.pos[k + 1] = -999; continue; }
+      this.vel[k + 1] -= gravity * dt;
+      this.pos[k] += this.vel[k] * dt; this.pos[k + 1] += this.vel[k + 1] * dt; this.pos[k + 2] += this.vel[k + 2] * dt;
+      const f = Math.min(1, this.life[i] * 2.5);
+      this.col[k] = this.base[k] * f; this.col[k + 1] = this.base[k + 1] * f; this.col[k + 2] = this.base[k + 2] * f;
+    }
+    if (any) { (this.points.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true; (this.points.geometry.attributes.color as THREE.BufferAttribute).needsUpdate = true; }
+  }
+}
+
+// ---------------------------------------------------------------- a shared backdrop
+let backTex: THREE.Texture | null = null;
+/** what is behind a close-up: the room gone dark and soft, warm carpet light at the bottom */
+export function makeBackdrop(): THREE.Mesh {
+  if (!backTex) {
+    const c = document.createElement('canvas'); c.width = 4; c.height = 64;
+    const x = c.getContext('2d')!;
+    const gr = x.createLinearGradient(0, 0, 0, 64);
+    gr.addColorStop(0, '#0b0b0d'); gr.addColorStop(0.55, '#141310'); gr.addColorStop(0.8, '#3a3018'); gr.addColorStop(1, '#5a4a20');
+    x.fillStyle = gr; x.fillRect(0, 0, 4, 64);
+    backTex = new THREE.CanvasTexture(c);
+    backTex.colorSpace = THREE.SRGBColorSpace;
+  }
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: backTex, transparent: true, opacity: 0, depthWrite: false }));
+  m.position.set(0, 0, -6);
+  m.scale.set(12, 7, 1);
+  m.renderOrder = -10;
+  return m;
+}
+
+/** a unit box outline (for hover / ghost / cut guides) */
+let edgeGeo: THREE.BufferGeometry | null = null;
+export function boxEdges(color: number, opacity = 1): THREE.LineSegments {
+  if (!edgeGeo) edgeGeo = new THREE.EdgesGeometry(new THREE.BoxGeometry(1, 1, 1));
+  return new THREE.LineSegments(edgeGeo, new THREE.LineBasicMaterial({ color, transparent: opacity < 1, opacity, depthTest: false }));
+}
+
+/** pointer -> ray in overlay-camera space */
+const _ndc = new THREE.Vector2();
+export function pointerRay(rc: THREE.Raycaster, cam: THREE.Camera, x: number, y: number) {
+  _ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  rc.setFromCamera(_ndc, cam);
+  return rc.ray;
+}

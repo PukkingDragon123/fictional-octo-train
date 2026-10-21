@@ -16,6 +16,7 @@ import { CombatSystem } from './combat';
 import { GoreSystem } from '../gore/gore';
 import { Scanner } from '../ui/scanner/scanner';
 import { Holo } from '../ui/holo/holo';
+import { BodyHud } from '../ui/body/bodyHud';
 import { AudioEngine } from '../audio/audio';
 import { MissionSystem } from '../missions/missions';
 import '../missions/directives';
@@ -26,12 +27,18 @@ import { VehicleSystem } from '../vehicles/vehicles';
 import { replayOps, op } from './ops';
 import { restorePlayer, restoreAfterLoad, saveGame, SaveData } from './save';
 import { occupationByKey } from '../survival/traits';
+import { installCyber, applyLoadout, takePendingLoadout } from '../survival/cyber';
 import { PauseMenu } from '../ui/menus/pause';
+import { GrabSystem } from '../interact/grab';
+import { installBuild } from '../build';
+import { installCook } from '../cook';
 import { TouchControls } from '../ui/touch/touch';
 import type { Net, Welcome } from '../net/net';
 import { introWanted, startIntro, INTRO_ZONE } from './intro';
 import { Handler } from './handler';
 import { SeamFx } from './seam';
+import { installSocial } from '../social';
+import { installFactions } from '../tribes/install';
 import '../game/worldOps';
 import '../world/zones';
 
@@ -41,6 +48,8 @@ export interface SessionOpts {
   app?: Appearance;
   occupation?: string;
   traits?: string[];
+  /** cyberware fitted on the operating table ({slot: part key}, src/ui/surgery) */
+  cyber?: Record<string, string>;
   seed?: number;
   sandbox?: Partial<Game['sandbox']>;
   directives?: boolean;
@@ -49,7 +58,7 @@ export interface SessionOpts {
   save?: SaveData;
 }
 /** kept for dev entry points */
-export interface NewGameOpts { name: string; app?: Appearance; occupation?: string; traits?: string[]; seed?: number }
+export interface NewGameOpts { name: string; app?: Appearance; occupation?: string; traits?: string[]; seed?: number; cyber?: Record<string, string> }
 
 export function newItem(key: string, extra: Partial<Item> = {}): Item {
   return { ...createItem(key, undefined, { pristine: true }), ...extra };
@@ -73,7 +82,8 @@ class WorldExtras implements GameSystem {
     if (inp.hit('map')) g.ui?.scanner?.toggle?.(true, 'map');
     // Q: shout. Friends hear it across the floor; so does everything else.
     this.shoutT -= dt;
-    if (inp.hit('shout') && this.shoutT <= 0 && !g.local.body.dead && !g.ui?.scanner?.open) {
+    // (with the social layer installed, Q is tap = whistle / hold = shout: src/social/social.ts)
+    if (!g.social && inp.hit('shout') && this.shoutT <= 0 && !g.local.body.dead && !g.ui?.scanner?.open) {
       this.shoutT = 2.5;
       const p = g.local;
       const alone = g.players.size <= 1;
@@ -129,6 +139,8 @@ export function startSession(o: SessionOpts): Game {
   g.addSystem(missions);
   // the debt contract: ledger, BAILIFF band, hoppers, transport (src/game/debt)
   installContract(g);
+  // cyberware: installed parts and their effects, field surgery (src/survival/cyber.ts)
+  installCyber(g);
   g.addSystem(new ShiftSystem());
   const items = new WorldSystems();
   g.items = items;
@@ -140,7 +152,13 @@ export function startSession(o: SessionOpts): Game {
   ui.inventory = new InventoryUI(ui);
   new Scanner();
   g.holo = new Holo();
+  g.hudBody = new BodyHud();
   const interact = new Interact();
+  // physical interaction, no popups: right click = primary verb, hold = grab, tools on left click (src/interact/grab.ts)
+  // build mode, welding, settlements, farming; cooking and butchery (src/build, src/cook). Before grab: build mode owns the left button
+  installBuild(g);
+  installCook(g);
+  g.addSystem(new GrabSystem());
   new PauseMenu();
 
   // ---- the survivor
@@ -151,6 +169,8 @@ export function startSession(o: SessionOpts): Game {
   else {
     for (const t of o.traits || []) p.body.traits.add(t);
     p.setOccupation(o.occupation || 'unemployed');
+    // the operating table's hardware (passed in, or left by the last surgery)
+    applyLoadout(p, (o.cyber as any) ?? takePendingLoadout());
     // a Remittance debtor's intake kit (src/game/debt): jumpsuit, slip-ons, issue pack, a ration bar, a water pouch
     issueKit(p, (k, wear) => { if (!hasItemDef(k)) return null; const it = newItem(k); p.inv.add(it); if (wear) p.wear(it); return it; });
     // free survival has no BAILIFF band: a plain wrist monitor projects the vitals instead
@@ -170,6 +190,10 @@ export function startSession(o: SessionOpts): Game {
   // the Seam's overlays and Staff Sergeant Voss, the hologram handler (local to each player)
   g.addSystem(new SeamFx());
   g.addSystem(new Handler());
+  // emotes, whistles, the 8-bit voice, holes and shared floors, the dimensions (src/social)
+  installSocial(g);
+  // scanning for data, brain-swap domination and thralls, the tribes (src/scan, src/dominion, src/tribes)
+  installFactions(g);
 
   // ---- the world: mission state, then every change ever made (op log)
   const mstate = w?.missions ?? s?.missions;
@@ -185,9 +209,10 @@ export function startSession(o: SessionOpts): Game {
   ui.onWorldClick = (t, b) => {
     if (p.body.dead) return;
     if (items.placing && items.placementClick(b)) return;
+    if (g.build?.click?.(t, b)) return;
     if (ui.scanner?.open && t.kind === 'creature' && b === 0) { ui.scanner.scanCreature(t.c); return; }
-    if (b === 2) { const m = interact.menu(p, t); ui.openMenu(g.input.mouseX, g.input.mouseY, m.title, m.opts); }
-    else interact.defaultAction(p, t);
+    // the right button (tap = primary verb, hold = grab) and a tool on the left button are G.grab's (src/interact/grab.ts)
+    void t;
   };
   ui.onInteractKey = () => {
     if (p.inVehicle) return;

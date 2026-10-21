@@ -451,6 +451,7 @@ function routine(c: Creature, R: Routine, dt: number): boolean {
 
 const sp = def({
   key: 'hollow', name: 'Hollow', code: 'H-00 // DESYNCED STAFF', temperament: 'neutral', threat: 2,
+  rule: { name: 'NOT IN THE FACE', text: 'Harmless unless you get close in the dark or shine a light in its face. Point the torch at the floor and walk past.' },
   hp: 45, walk: 1.0, run: 3.4, turn: 7, radius: 0.28, height: 1.8, sight: 12, fov: 1.2, hearing: 0.8,
   attack: { dmg: [5, 10], range: 0.85, cooldown: 1.4, kinds: ['scratch', 'bruise', 'bite'], corrupt: 0.4, knock: 0.2, grab: true, parts: ['uarm_l', 'uarm_r', 'farm_l', 'farm_r', 'neck', 'torso_u'] },
   zones: ['office', 'pools', 'suburbs', 'stairwell', 'mall', 'market', 'parking', 'hospital', 'lab', 'corrupt'], weight: 2, maxPerZone: 4, diet: 'none',

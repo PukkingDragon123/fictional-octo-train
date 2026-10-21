@@ -440,6 +440,7 @@ function moveInWater(c: Creature, z: Zone, gx: number, gz: number, speed: number
 
 const S = def({
   key: 'lifeguard', name: 'The Lifeguard', code: 'E-14 // NATATOR', temperament: 'ambush', threat: 4,
+  rule: { name: 'DEEP WATER ONLY', text: 'It cannot leave deep water. When the whistle blows, get to the shallows or the edge.' },
   hp: 70, walk: 1.0, run: 3.0, turn: 6, radius: 0.45, height: 1.2, sight: 22, fov: 3.1, hearing: 2.0, nightVision: true,
   attack: { dmg: [5, 9], range: 0.9, cooldown: 3.2, kinds: ['bruise', 'scratch'], corrupt: 0.05, knock: 0, grab: true, parts: ['shin_l', 'shin_r', 'foot_l', 'foot_r', 'thigh_l', 'thigh_r'] },
   zones: ['pools'], weight: 2, maxPerZone: 3, diet: 'meat',

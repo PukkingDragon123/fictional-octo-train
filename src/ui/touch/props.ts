@@ -752,7 +752,7 @@ export class Whistle extends Thing {
     const cord: [number, number, number][] = [[-0.68, 0.11, 0], [-0.7, -0.05, 0.05], [-0.6, -0.22, 0.08], [-0.42, -0.32, 0.1], [-0.2, -0.36, 0.1], [0.05, -0.4, 0.08], [0.32, -0.42, 0.05]];
     for (let i = 0; i < cord.length - 1; i++) rod(m, cord[i], cord[i + 1], 0.024, 0xa3261c, CLOTH, 5);
     this.mesh(m, this.mat({ wear: 0.45 }), this.wg);
-    this.tape('SHOUT', 0.1, -0.33, 0.25, 'front');
+    this.tape('WHISTLE', 0.1, -0.33, 0.25, 'front');
   }
   protected onDown() {
     sfx('tc_pea', 0.45); haptic(10); this.shake = 1;

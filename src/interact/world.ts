@@ -1,5 +1,5 @@
 import { G } from '../game/G';
-import { MenuOption } from '../ui/ui';
+import type { MenuOption } from '../ui/ui';
 import type { Player } from '../entities/player';
 import { PickTarget, targetPos, targetName } from '../game/picking';
 import { objDef } from '../world/objects';
@@ -15,11 +15,13 @@ import { lineOfSight } from '../world/collision';
 import { lore } from '../content/loreRegistry';
 import { TimedAction } from '../actions/action';
 import { createItem } from '../items/factory';
+import { primaryVerb, LootAction } from './verbs';
 
 /**
- * World interactions: right-click menus for furniture, doors, windows,
- * floor items, creatures, teammates and bare floor tiles, the default
- * left-click/E interaction, and helper queries (water, heat, power).
+ * World interactions as data: the ordered verbs of furniture, doors, windows,
+ * floor items, creatures, teammates and bare floor tiles (no popup menus: a
+ * right click / E / the USE cap does the first one, src/interact/verbs.ts and
+ * grab.ts reach the rest), and helper queries (water, heat, power).
  */
 export class Interact {
   constructor() {
@@ -122,8 +124,13 @@ export class Interact {
     queueAt(p, side === 0 ? x + 0.5 : x, side === 0 ? y : y + 0.5, a, 1.4);
   }
 
-  // ---------------- default interaction (left click / E) ----------------
+  // ---------------- default interaction (right click / E / USE): the primary verb ----------------
   defaultAction(p: Player, t: PickTarget) {
+    const v = primaryVerb(p, t);
+    if (v) { v.run(); return; }
+    this.legacyDefault(p, t);
+  }
+  private legacyDefault(p: Player, t: PickTarget) {
     const pos = targetPos(t);
     switch (t.kind) {
       case 'edge': {
@@ -140,7 +147,7 @@ export class Interact {
         const d = objDef(t.obj.key);
         if (!d) return;
         if (d.tags?.includes('portal')) { this.usePortalObject(p, t.obj); return; }
-        if (t.obj.inv) { queueAt(p, pos.x, pos.z, new SearchAction(p, t.obj), 1.5); return; }
+        if (t.obj.inv) { queueAt(p, pos.x, pos.z, new LootAction(p, t.obj.inv, t.obj), 1.5); return; }
         const opts = this.objectOptions(p, t.obj);
         const first = opts.find((o) => o.action && !o.disabled);
         first?.action?.();
@@ -210,14 +217,23 @@ export class Interact {
       if (mo.length) return mo;
     }
     if (tags.includes('portal')) out.push({ label: portalVerb(o.key), action: () => this.usePortalObject(p, o) });
+    // levers (press machines: their pull() sends the goods across)
+    if (tags.includes('lever') || ((G as any).press?.pull && (tags.includes('press') || o.key.includes('press')))) out.push({ label: 'Pull the lever', action: at(new UseObjectAction(p, 'Pull', 0.6, 'drag', () => this.pullLever(p, o)), 1.4) });
+    const seated = p.sittingOn === o.uid && p.actions.current?.name === 'Sit';
+    if (d.sit && !seated) out.push({ label: 'Sit', action: at(new SitAction(p, o), 1.6) });
+    if (d.sleep) {
+      const tired = p.body.fatigue >= 30;
+      if (tired || !d.sit) out.push({ label: 'Sleep', action: at(new SleepAction(p, o, d.sleep), 1.6), disabled: !tired ? 'not tired' : false });
+    }
     if (o.inv) {
       const locked = o.inv.locked;
-      out.push({ label: locked ? 'Search (locked)' : 'Search ' + d.name, action: at(new SearchAction(p, o)) });
+      const hasKey = locked && !!o.state.keyId && !!p.findItem((i) => i.data?.keyId === o.state.keyId);
+      out.push({ label: locked ? 'Search (locked)' : 'Search ' + d.name, disabled: hasKey ? 'locked' : false, action: at(new LootAction(p, o.inv, o)) });
       if (locked) {
         // a matching key, a crowbar, or something heavy enough to break the lock
         const keyId = o.state.keyId as string | undefined;
         const key = keyId ? p.findItem((i) => i.data?.keyId === keyId) : null;
-        const unlock = (how: string) => { op('invLock', { z: z.key, uid: o.uid, locked: false }); bus.emit('think', p, how); };
+        const unlock = (how: string) => this.unlockObj(p, o, how);
         if (key) out.push({ label: 'Unlock with ' + itemName(key), action: at(new UseObjectAction(p, 'Unlock', 1.5, 'craft', () => { G.audio?.at?.('lock', cx, cz, 0.6); unlock('Unlocked.'); })) });
         const bar = p.findTool('#crowbar');
         out.push({ label: 'Pry it open', disabled: !bar ? 'needs a crowbar' : false, action: at(new UseObjectAction(p, 'Pry open', 7, 'push', () => {
@@ -242,12 +258,8 @@ export class Interact {
       out.push({ label: 'Insert coins', disabled: !p.findTool('coins') ? 'no coins' : false, action: at(new VendAction(p, o, false)) });
       if (!o.state.broken) out.push({ label: 'Smash the glass', action: at(new VendAction(p, o, true)) });
     }
-    if (d.sit) out.push({ label: 'Sit', action: at(new SitAction(p, o), 1.6) });
-    if (d.sleep) {
-      out.push({ label: 'Sleep', action: at(new SleepAction(p, o, d.sleep), 1.6), disabled: p.body.fatigue < 30 ? 'not tired' : false });
-    }
     if (d.water) {
-      const src = this.nearWaterFor(z, o);
+      const src = this.waterOf(z, o);
       if (src) {
         out.push({ label: 'Drink', action: at(new DrinkFromSourceAction(p, src.fluid, src.take)) });
         const vessels = p.allItems().filter((i) => itemDef(i.key).fluidCap && (i.fluid?.amount ?? 0) < (itemDef(i.key).fluidCap ?? 0) - 0.01);
@@ -275,7 +287,7 @@ export class Interact {
           out.push({ label: 'Light fire', disabled: !igniter ? 'needs lighter/matches' : !fuel && !(o.state.fuel > 0) ? 'needs fuel' : false, action: at(new UseObjectAction(p, 'Light fire', 4, 'craft', () => G.items?.lightFire?.(p, o, igniter, fuel))) });
         }
         const fuels = p.allItems().filter((i) => itemDef(i.key).burn);
-        if (fuels.length) out.push({ label: 'Add fuel', sub: fuels.slice(0, 8).map((f) => ({ label: itemName(f), action: at(new UseObjectAction(p, 'Add fuel', 1.5, 'craft', () => { p.removeItem(f); op('objState', { z: z.key, uid: o.uid, patch: { fuel: (o.state.fuel ?? 0) + (itemDef(f.key).burn ?? 0.5) } }); })) })) });
+        if (fuels.length) out.push({ label: 'Add fuel', sub: fuels.slice(0, 8).map((f) => ({ label: itemName(f), action: at(new UseObjectAction(p, 'Add fuel', 1.5, 'craft', () => { p.removeItem(f); this.addFuel(p, o, f); })) })) });
       } else {
         out.push({ label: o.state.on ? 'Turn off' : 'Turn on', disabled: !powered ? 'no power' : false, action: at(new SwitchAction(p, () => op('objState', { z: z.key, uid: o.uid, patch: { on: !o.state.on } }))) });
       }
@@ -302,7 +314,8 @@ export class Interact {
     return out;
   }
 
-  private nearWaterFor(z: Zone, o: TileObject) {
+  /** what water an object gives right now (taps need the water main) */
+  waterOf(z: Zone, o: TileObject) {
     const d = objDef(o.key)!;
     if (d.water!.tap && z.waterOn) return { name: d.name, fluid: (d.water!.tainted ? 'tainted' : 'water') as FluidType, available: Infinity, take: undefined as any };
     const stored = o.state.water ?? (d.water!.capacity * 0.6);
@@ -318,9 +331,10 @@ export class Interact {
     const out: MenuOption[] = [];
     if (e.kind === 'door' || e.kind === 'gate') {
       if (e.portal) out.push({ label: 'Go through', action: () => this.enterPortal(p, e.portal!, { x: px, z: pz }) });
-      out.push({ label: e.open ? 'Close' : 'Open', action: at(new DoorAction(p, x, y, side, 'toggle')), disabled: e.barricade ? 'barricaded' : false });
       const key = e.keyId ? p.findItem((i) => i.data?.keyId === e.keyId || i.key === 'keyring') : null;
-      if (e.locked) out.push({ label: 'Unlock', disabled: !key ? 'no key' : false, action: at(new DoorAction(p, x, y, side, 'unlock')) });
+      if (e.locked && key) out.push({ label: 'Unlock', action: at(new DoorAction(p, x, y, side, 'unlock')) });
+      out.push({ label: e.open ? 'Close' : 'Open', action: at(new DoorAction(p, x, y, side, 'toggle')), disabled: e.barricade ? 'barricaded' : false });
+      if (e.locked && !key) out.push({ label: 'Unlock', disabled: 'no key', action: at(new DoorAction(p, x, y, side, 'unlock')) });
       else if (!e.open) out.push({ label: 'Lock', disabled: !key && e.keyId ? 'no key' : false, action: at(new DoorAction(p, x, y, side, 'lock')) });
       out.push({ label: 'Knock', action: at(new DoorAction(p, x, y, side, 'knock')) });
       if (e.locked && !e.open) out.push({ label: 'Kick down', danger: true, action: at(new DoorAction(p, x, y, side, 'kick')) });
@@ -359,13 +373,13 @@ export class Interact {
   playerOptions(p: Player, o: Player): MenuOption[] {
     const out: MenuOption[] = [];
     const at = (a: TimedAction) => () => queueAt(p, o.x, o.z, a, 1.4, false);
-    out.push({ label: 'Check health', action: () => G.ui?.scanner?.showHealthOf?.(o) });
-    const meds = p.allItems().filter((i) => itemDef(i.key).medical);
-    if (meds.length) out.push({ label: 'Treat wounds…', action: () => G.ui?.scanner?.showHealthOf?.(o) });
     if (o.body.downed || o.remote?.state?.down) {
       out.push({ label: 'Revive', action: at(new UseObjectAction(p, 'Revive', 6, 'bandage', () => G.net?.revive?.(o.id))) });
       out.push({ label: p.carrying === o.id ? 'Put down' : 'Carry over shoulder', action: () => G.net?.toggleCarry?.(o.id) });
     }
+    out.push({ label: 'Check health', action: () => ((G as any).watch?.showHealthOf ? (G as any).watch.showHealthOf(o) : G.ui?.scanner?.showHealthOf?.(o)) });
+    const meds = p.allItems().filter((i) => itemDef(i.key).medical);
+    if (meds.length) out.push({ label: 'Treat wounds…', action: () => ((G as any).watch?.showHealthOf ? (G as any).watch.showHealthOf(o) : G.ui?.scanner?.showHealthOf?.(o)) });
     const gives = p.allItems().filter((i) => !p.isWorn(i)).slice(0, 14);
     if (gives.length) out.push({ label: 'Give', sub: gives.map((i) => ({ label: itemName(i), action: at(new UseObjectAction(p, 'Give', 1, 'hold_item', () => G.net?.giveItem?.(o.id, i))) })) });
     return out;
@@ -437,6 +451,21 @@ export class Interact {
       bus.emit('halo', p, it.cooked >= 1.6 ? 'Burnt!' : 'Cooked', it.cooked >= 1.6 ? 'bad' : 'good');
       bus.emit('inventoryChanged', p);
     }, () => { if (Math.random() < 0.05) G.audio?.at?.('sizzle', ho.x, ho.y); }), 1.5);
+  }
+
+  addFuel(p: Player, o: TileObject, f: Item) {
+    op('objState', { z: p.zoneKey, uid: o.uid, patch: { fuel: (o.state.fuel ?? 0) + (itemDef(f.key).burn ?? 0.5) } });
+    G.audio?.at?.('fire_crackle', o.x + 0.5, o.y + 0.5, 0.5);
+  }
+  unlockObj(p: Player, o: TileObject, how = 'Unlocked.') {
+    op('invLock', { z: p.zoneKey, uid: o.uid, locked: false });
+    bus.emit('think', p, how);
+  }
+  /** a lever: a press machine's own pull() when it has one; everyone hears it either way */
+  pullLever(p: Player, o: TileObject) {
+    G.audio?.at?.('metal_clank', o.x + 0.5, o.y + 0.5, 0.8);
+    if ((G as any).press?.pull) (G as any).press.pull(p, o);
+    bus.emit('leverPull', p, o);
   }
 
   startPlacing(p: Player, it: Item) { G.items?.startPlacing?.(p, it); }

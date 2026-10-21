@@ -379,6 +379,7 @@ function thinkSwarm(c: Creature, dt: number): boolean {
 
 const S = def({
   key: 'lumenmoth', name: 'Lumenmoth', code: 'E-21 // LEPIDOPTERA-LUX', temperament: 'peaceful', threat: 0,
+  rule: { name: 'DRAWN TO LIGHT', text: 'They swarm any light and drain your battery. Switch off to lose them; open flame scatters them.' },
   hp: 5, walk: 0.9, run: 3.4, turn: 6, radius: 0.22, height: 0.4, sight: 18, fov: 3.1, hearing: 0.6,
   light: 'attracted', diet: 'light',
   zones: ['lobby', 'pools', 'mall', 'office', 'house', 'suburbs', 'fields'], weight: 2, group: [1, 2], maxPerZone: 5,

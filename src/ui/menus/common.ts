@@ -351,11 +351,14 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
       const limbs = toggle('Limb loss', (sbx.limbLoss ?? 1) !== 0, (v) => { sbx.limbLoss = v ? 1 : 0; }, 'survivors can lose hands, arms, feet and legs');
       if (client) (limbs as HTMLButtonElement).disabled = true;
       f.append(limbs);
+      const ff = toggle('Friendly fire', !!sbx.friendlyFire, (v) => { sbx.friendlyFire = v ? 1 : 0; G.combat?.setFriendlyFire?.(v); }, 'in co-op, survivors\' blows hurt each other');
+      if (client) (ff as HTMLButtonElement).disabled = true;
+      f.append(ff);
       f.append(h('p', 't-note', client ? 'Set by the host for everyone in this world.' : 'Saved with this world (co-op guests use your setting).'));
       // the rest of the sentencing terms (world rules, the debt contract's own fields): fixed at intake, shown for reference
       const TERM_LABELS: Record<string, string> = { dayLength: 'Day length (min)', creatures: 'Entities', loot: 'Valuables', startHour: 'Arrived at', collapseSpeed: 'Collapse', waterShutoffDays: 'Water fails (day)', powerShutoffDays: 'Power fails (day)',
         contract: 'Contract', debt: 'Debt owed (scrip)', debtDays: 'Days per installment', installmentDays: 'Days per installment', bandLethal: 'Band detonation kills', finalLethal: 'Final deadline lethal' };
-      const rest = Object.entries(sbx).filter(([k, v]) => typeof v === 'number' && k !== 'gore' && k !== 'limbLoss');
+      const rest = Object.entries(sbx).filter(([k, v]) => typeof v === 'number' && k !== 'gore' && k !== 'limbLoss' && k !== 'friendlyFire');
       if (rest.length) {
         f.append(h('div', 't-ctl-h', 'SENTENCING TERMS · fixed at intake'));
         for (const [k, v] of rest) f.append(h('div', 't-ctl', `<kbd>${esc(TERM_LABELS[k] || humanizeKey(k))}</kbd><span>${esc(String(Math.round(v * 100) / 100))}</span>`));
@@ -371,12 +374,12 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
 }
 
 export const CONTROLS: [string, string][] = [
-  ['WASD', 'walk'], ['Shift', 'run'], ['C / Ctrl', 'sneak'], ['Right mouse (hold)', 'aim / ready weapon'], ['Left mouse', 'attack while aiming · interact'],
-  ['Right click', 'context menu'], ['E', 'interact with what is in front of you'], ['Space', 'shove'], ['F', 'flashlight'],
-  ['Tab', 'raise the SEER-9 scanner'], ['1–6 / Q E / wheel', 'scanner pages · dial'], ['I', 'inventory'], ['M', 'map'],
-  ['R', 'reload · rotate when placing'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'],
+  ['WASD', 'walk'], ['Shift', 'sprint · push harder'], ['C / Ctrl', 'sneak'],
+  ['Left mouse', 'use the tool in hand · attack (hold to charge)'], ['Right mouse', 'grab · push · pull'], ['E', 'interact with what is in front of you'], ['Space', 'shove · kick'],
+  ['F', 'flashlight'], ['Tab', 'the watch: quests and research'], ['I', 'backpack'], ['H', 'lung pump · breathing'], ['Q', 'whistle (hold: shout)'],
+  ['G', 'emote wheel'], ['B', 'build mode'], ['M', 'map'], ['R', 'reload · rotate when placing'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'],
   ['Middle mouse / Alt+drag', 'orbit the camera'], ['PageUp / PageDown · Alt+wheel', 'camera pitch'], ['P', 'photo mode'], ['V (hold)', 'talk (co-op voice, walkie when switched on)'],
-  ['Q', 'shout (scanner closed)'], ['H', 'breathing exercise (calms panic)'], ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
+  ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
 ];
 export const TOUCH_CONTROLS: [string, string][] = [
   ['Stick', 'move · push fully or double-tap to run'], ['Tap', 'act on a thing · walk to a spot'], ['Hold', 'context menu'],

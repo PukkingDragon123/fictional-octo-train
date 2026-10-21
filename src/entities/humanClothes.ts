@@ -18,7 +18,7 @@ export interface OutfitShape {
   legKind: 'none' | 'pants' | 'shorts' | 'skirt' | 'brief'; legThick: number; legLen: number; legFlare: number; tuckPants: boolean;
   feet: 'bare' | 'sock' | 'sneaker' | 'boot' | 'dress' | 'slipper'; sole: number;
   gloves: boolean;
-  hat: '' | 'cap' | 'beanie' | 'hardhat' | 'helmet';
+  hat: '' | 'cap' | 'beanie' | 'hardhat' | 'helmet' | 'flat';
   eyes: '' | 'glasses' | 'sunglasses' | 'goggles';
   face: '' | 'mask' | 'gasmask' | 'scarf';
   back: number; backKind: '' | 'pack' | 'hiking';
@@ -89,6 +89,7 @@ export function outfitShape(o: Outfit): OutfitShape {
   if (sh.feet === 'boot' && sh.legKind === 'pants') sh.tuckPants = false;
   sh.gloves = !!o.hands;
   if (o.head) sh.hat = (o.head.hat as OutfitShape['hat']) || 'cap';
+  else if ((o as { hatFlat?: boolean }).hatFlat) sh.hat = 'flat'; // a cosmetic hat (cosmetics3d): hair pressed flat, no painted hat
   if (o.eyes) {
     const it = o.eyes.item || '';
     sh.eyes = it.includes('goggle') ? 'goggles' : it.includes('sun') ? 'sunglasses' : it ? 'glasses'

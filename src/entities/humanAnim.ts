@@ -29,7 +29,7 @@ import * as THREE from 'three';
 
 export type Stance = 'stand' | 'sneak' | 'swim' | 'crawl';
 export type FullBody = '' | 'sit' | 'lie' | 'dead' | 'downed' | 'carried' | 'vault' | 'kneel' | 'drive' | 'fall' | 'lie_side';
-export const EMOTES = ['wave', 'flex', 'dance', 'jumping_jacks', 'shrug', 'salute', 'point', 'facepalm', 'sit_wait', 'cheer', 'clap', 'bow'] as const;
+export const EMOTES = ['wave', 'flex', 'dance', 'jumping_jacks', 'shrug', 'salute', 'point', 'facepalm', 'sit_wait', 'cheer', 'clap', 'bow', 'mock'] as const;
 export type EmoteName = typeof EMOTES[number];
 export type ActionAnim =
   | '' | 'aim_melee' | 'aim_gun' | 'aim_throw' | 'swing' | 'swing2h' | 'stab' | 'shoot' | 'throw' | 'shove' | 'eat' | 'drink'
@@ -62,7 +62,21 @@ export const ANIM_NAMES: readonly string[] = [
   'pray', 'cover_ears', 'reload', 'stitch', 'cook', 'mix', 'breathe', 'panic', 'torn_arm_l', 'torn_arm_r', 'torn_leg_l', 'torn_leg_r',
   'drag', 'smash', 'kick_obj', 'dragged', 'beaten', 'kneel', 'fall_land', 'get_up', 'stagger', 'shocked',
 ];
-export const hasAnim = (name: string) => ANIM_NAMES.includes(name) || name.startsWith('emote:');
+export const hasAnim = (name: string) => ANIM_NAMES.includes(name) || name.startsWith('emote:') || EXT_POSES.has(name);
+
+/**
+ * Named poses registered by other modules (combat moves: src/combat/anims.ts). `fn(t, dur, inp, time)`
+ * returns the action pose (and joint mask, default upper body). `noIK` releases the planted feet,
+ * `aim` uses the fighting-stance foot placement, `dur` is the natural length for playAnim().
+ */
+export type PoseFn = (t: number, dur: number, inp: AnimInput, time: number) => { pose: Pose; mask?: JointName[] };
+const EXT_POSES = new Map<string, PoseFn>();
+export function registerPose(name: string, fn: PoseFn, o: { noIK?: boolean; aim?: boolean; dur?: number } = {}) {
+  EXT_POSES.set(name, fn);
+  if (o.noIK) NO_IK.add(name);
+  if (o.aim) AIM_ACTS.add(name);
+  if (o.dur) ANIM_DUR[name] = o.dur;
+}
 
 /** missing limbs and what replaces them (src/survival/limbs.ts) */
 export interface AnimLimbs {
@@ -1481,13 +1495,15 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
       P.rootY = -0.04 * e - 0.16 * ease((u2 - 0.6) / 0.4) * (1 - ease((u2 - 0.92) / 0.08)); P.gripL = 0.15; P.gripR = 0.4; P.blink = 1;
       return { pose: P };
     }
-    default:
-      return { pose: P };
+    default: {
+      const ext = EXT_POSES.get(a);
+      return ext ? ext(t, dur, inp, time) : { pose: P };
+    }
   }
 }
 
 // ------------------------------------------------------------------ emotes
-const EMOTE_DUR: Record<EmoteName, number> = { wave: 2.4, flex: 2.6, dance: 6, jumping_jacks: 5, shrug: 1.8, salute: 2.2, point: 2.2, facepalm: 2.2, sit_wait: 10, cheer: 2.2, clap: 3, bow: 2 };
+const EMOTE_DUR: Record<EmoteName, number> = { wave: 2.4, flex: 2.6, dance: 6, jumping_jacks: 5, shrug: 1.8, salute: 2.2, point: 2.2, facepalm: 2.2, sit_wait: 10, cheer: 2.2, clap: 3, bow: 2, mock: 2.6 };
 
 function emotePose(name: EmoteName, et: number, time: number): { pose: Pose; mask: JointName[] } {
   const P: Pose = {};
@@ -1591,6 +1607,15 @@ function emotePose(name: EmoteName, et: number, time: number): { pose: Pose; mas
       set(P, 'uarmL', -0.7, -0.25 - c * 0.15, 0.15); set(P, 'uarmR', -0.7, 0.25 + c * 0.15, -0.15);
       P.gripL = 0; P.gripR = 0;
       return { pose: P, mask: ARMS };
+    }
+    case 'mock': {
+      // thumb on the nose, fingers waggling, the other hand on the hip, bouncing on the toes (src/social)
+      const wag = Math.sin(time * 16), bob = Math.abs(Math.sin(time * 5)) * e;
+      set(P, 'uarmR', -1.05 * e, 0.5 * e, -0.25 * e); set(P, 'farmR', -2.25 * e, 0, 0); set(P, 'handR', 0.2 * e, wag * 0.5 * e, -0.4 * e);
+      set(P, 'uarmL', 0.1 * e, 0, 0.6 * e); set(P, 'farmL', -1.5 * e, 0.4 * e, 0); set(P, 'handL', 0, 0, 0.5 * e);
+      set(P, 'chest', -0.12 * e, 0.15 * e, 0.1 * e); set(P, 'head', -0.1 * e, Math.sin(time * 5) * 0.15 * e, 0.22 * e);
+      P.rootY = bob * 0.05; P.gripR = 0; P.gripL = 0.6;
+      return { pose: P, mask: UPPER };
     }
     case 'bow': {
       const b = Math.sin(u * Math.PI);

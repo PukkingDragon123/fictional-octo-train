@@ -15,6 +15,7 @@ import { cutParts, PROSTHETICS, prostFits, lossLevel, chainOf, Side, StumpCond, 
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { crutchHeldModel } from './limbGear';
+import { size3 } from '../items/grid';
 
 /** elbow crutch held in the fist (shared geometry) */
 const CRUTCH_GEO: Record<string, THREE.BufferGeometry> = {};
@@ -268,6 +269,20 @@ export class Player {
     return c;
   }
   heavyLoad(): number { return Math.max(0, this.carriedWeight() / this.capacity() - 1); }
+  private packSlowT = -1e9; private packSlowV = 1;
+  /** walking pace from what you carry (1 = unburdened): weight against what you can carry, and how full the iron cube is */
+  packSlow(): number {
+    const now = performance.now();
+    if (now - this.packSlowT < 250) return this.packSlowV;
+    this.packSlowT = now;
+    const load = this.carriedWeight() / Math.max(1, this.capacity());
+    const back = this.worn.get('back');
+    let fill = 0;
+    if (back?.inv && back.key === 'iron_cube') { let v = 0; for (const it of back.inv.items) { const s = size3(it.key); v += s[0] * s[1] * s[2]; } fill = Math.min(1, v / 125); }
+    const k = clamp((load - 0.3) / 0.7, 0, 1);
+    this.packSlowV = clamp(1 - 0.26 * k * k * (3 - 2 * k) - 0.14 * Math.pow(fill, 1.4), 0.55, 1);
+    return this.packSlowV;
+  }
 
   // ---------------- equipment ----------------
   equip(it: Item | null, hand: 'R' | 'L' = 'R') {
@@ -313,6 +328,8 @@ export class Player {
     else if (d.bag) slot = d.bag.slot === 'back' ? 'back' : d.bag.slot === 'belt' || d.bag.slot === 'hip' ? 'belt' : null;
     if (!slot) return false;
     const prev = this.worn.get(slot);
+    // the Remittance cube is bolted to its harness: other packs get carried, not swapped in
+    if (prev && prev !== it && prev.key === 'iron_cube' && it.key !== 'iron_cube') { if (this.isLocal) bus.emit('think', this, 'The cube is bolted to my harness. That one goes in my hands.'); return false; }
     if (prev) this.worn.delete(slot);
     if (this.handR === it) this.handR = null;
     if (this.handL === it) this.handL = null;

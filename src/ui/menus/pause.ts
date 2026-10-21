@@ -15,6 +15,7 @@ import { bodyCanvas, moodleIcon, BODY_W, BODY_H } from '../moodles';
 import { lossSummary } from '../../survival/limbs';
 import './diegetic.css';
 import './desk.css';
+import './noir.css';
 
 type Page = 'main' | 'options' | 'controls' | 'coop';
 const NAMES: Record<Page, string> = { main: 'STATUS', options: 'SETTINGS', controls: 'PROCEDURES', coop: 'CREW' };

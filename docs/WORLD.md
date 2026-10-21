@@ -462,6 +462,41 @@ Hopper by hand near the Level 0 rope. Very dark: bring light.
 * Grade `tunnels`, ambience `tunnels`, reverb `void`, music `drone`. Spawn:
   still_life 2, hollow 1.5, occupant 1, underlay 1, echo 1, grinhound 0.5, gloam 1.5, surveyor 0.8.
 
+### Shared floors and dimensions — `void_kit.ts`, `z_floors.ts`, `z_chess.ts`, `z_meadow.ts`, `z_moon.ts`
+Holes are pits of void tiles (`pit()`): walk into one and you fall
+(`src/social/floors.ts`: tip, drop, black with wind, come down out of the dark
+at the target's `fall` anchor). `z.meta.holes` records where each leads;
+a `hole` portal records the link for zonecheck. `shared` holes, online, can
+drop a solo player onto another player's open floor (relay `/floors`
+directory; "Open floor" in the emote wheel). Every older `hole` portal now
+plays the fall too.
+* `floor~<n>` (64×64, a zone family, `defZoneFamily`): a generated floor per
+  number — yellow / office / drained pools / sodium / red / static styles, BSP
+  rooms with doorway gaps, one weird room (`giantStairs` over a void with a
+  hole at the top and the void itself a way down, `scaleHall` with
+  `vx_giant_chair` / `vx_giant_frame`, or three `stairsToNowhere`), 2–3
+  shared holes deeper, sometimes a hole into a dimension, and a rope back up
+  to the Lobby (`vx_return`). Anchor `fall`.
+* `chess` — The Board (56×72): 8×8 squares of 4 m in violet void, start
+  landing south, far side north (stash, hole). The board runtime
+  (`src/social/dims.ts`) runs a turn clock: a black piece telegraphs its move
+  with a red square, then slams; whoever stands there dies. White pieces are
+  pushed (E, or Shift + walk into them); taking the king is checkmate
+  (+30 RP, flag `vx:checkmate`). Initial endgame in `z.meta.chess`.
+  Spawn chess_rook, chess_knight.
+* `meadow` — The Meadow (96×96, outdoor): too-green terraced grass island in
+  pastel void, pastel paths, humming `vx_pylon`s, `vx_daisy`, `vx_orb`,
+  `vx_kiosk`, a mint pond, a hole down. Spawn bubble_mite, bubble_rabbit.
+* `moon` — The Moon (96×96, outdoor): regolith and mare, craters (negative
+  heights), cracks to the void showing the Earth under the ground, the
+  Remittance lander (`vx_lander`, `vx_flag`, `vx_suit_empty`), a hole in the
+  big crater. `z.meta.lowGravity`: every step is a bound. Spawn moon_wisp,
+  moon_strider.
+* Stamped into older zones (post-gen hook in `z_floors.ts`): Lobby (shared
+  hole + `vx_return` anchor + stairs to nowhere), Undercroft (giant stairs →
+  `chess`), Fields (hole → `meadow`), Lab (hole → `moon`), Showroom (scale
+  hall with a hole).
+
 ### Wrong rooms — `wrong_kit.ts`, `lobbyWrong.ts`
 A library of rooms that are wrong in one specific way: `high_door`
 (`zw_high_door`), `ceiling_stairs` (`zw_stairs_ceiling`), `chairs_corner`

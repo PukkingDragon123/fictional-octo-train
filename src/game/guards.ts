@@ -4,6 +4,9 @@
 // the BAILIFF fitting gun in hand. They use the shared animator for walking
 // and named actions when it has them, the cutscene poses (cutPose.ts) when it
 // does not, and two-bone IK so a gloved hand actually closes on a wrist.
+// Built with a `stage` parent they live outside the world (the first-person
+// intake set in the renderer's overlay scene): stage coordinates, no zone,
+// materials that ignore the zone's light grid, visibility mask and fog.
 import * as THREE from 'three';
 import { G } from './G';
 import { HumanRig, type Appearance, type Outfit, SKIN_TONES } from '../entities/humanRig';
@@ -65,8 +68,17 @@ function gunMesh(): THREE.Object3D {
 export type GuardHeld = 'baton' | 'taser' | 'gun' | null;
 const tv = new THREE.Vector3();
 
+const STAGE_MAT = { noVis: true, noFog: true, noGrid: true };
+/** swap world materials (that read the zone's visibility / light grid) for stage-safe ones */
+function stageMats(o: THREE.Object3D) {
+  const safe = worldMaterial(STAGE_MAT);
+  o.traverse((m) => { const mm = m as THREE.Mesh; if (mm.isMesh && !Array.isArray(mm.material) && !(mm.material as THREE.Material).transparent) mm.material = safe; });
+}
+
 export class Guard {
   readonly rig: HumanRig;
+  /** lives on a first-person stage, not in a zone */
+  readonly staged: boolean;
   x = 0; z = 0; y = 0; facing = 0;
   zoneKey = '';
   speed = 0;
@@ -82,20 +94,21 @@ export class Guard {
   full: FullBody = '';
   private moved = 0;
 
-  constructor(public label: string, seed: number) {
+  constructor(public label: string, seed: number, stage?: THREE.Object3D) {
+    this.staged = !!stage;
     const r = (k: number) => { const s = Math.sin(seed * 91.7 + k * 13.1) * 43758.5453; return s - Math.floor(s); };
     const app: Appearance = {
       skin: SKIN_TONES[Math.floor(r(1) * SKIN_TONES.length)], hair: 0x2a2018, hairStyle: 'buzz', face: Math.floor(r(2) * 6), build: 'broad',
       height: 1.04 + r(3) * 0.05, beard: false, bodyShape: 0.08, facialHair: 'none', age: 0.3,
     };
-    this.rig = new HumanRig(app);
+    this.rig = stage ? new HumanRig(app, worldMaterial(STAGE_MAT)) : new HumanRig(app);
     this.rig.setOutfit(GUARD_OUTFIT);
-    const v = new THREE.Mesh(visor(), worldMaterial({}));
+    const v = new THREE.Mesh(visor(), worldMaterial(stage ? STAGE_MAT : {}));
     v.scale.setScalar(this.rig.s);
     v.castShadow = true;
     this.rig.j.head.add(v);
-    this.rig.root.visible = false;
-    G.pr.scene.add(this.rig.root);
+    this.rig.root.visible = !!stage;
+    (stage ?? G.pr.scene).add(this.rig.root);
   }
 
   setHeld(k: GuardHeld) {
@@ -104,11 +117,12 @@ export class Guard {
     const m = k === 'baton' ? makeHeldMesh('custody_baton') ?? makeHeldMesh('baton') : k === 'taser' ? taserMesh() : k === 'gun' ? gunMesh() : null;
     this.rig.hold('R', m, k === 'baton' ? 'perp' : 'raw');
     if (m && k !== 'baton') { m.rotation.set(0, Math.PI / 2, -Math.PI / 2); m.position.set(0, -0.05, 0.02); }
+    if (m && this.staged) stageMats(m);
   }
 
   place(zoneKey: string, x: number, z: number, facing = this.facing) {
     this.zoneKey = zoneKey; this.x = x; this.z = z; this.facing = facing;
-    this.y = G.getZone(zoneKey).heightAt(Math.floor(x), Math.floor(z));
+    this.y = this.staged ? 0 : G.getZone(zoneKey).heightAt(Math.floor(x), Math.floor(z));
   }
   face(x: number, z: number) { this.facing = Math.atan2(z - this.z, x - this.x); }
 
@@ -129,13 +143,16 @@ export class Guard {
   bark(text: string, sound = true) {
     this.rig.root.updateMatrixWorld(true);
     const h = this.rig.jointWorld('head', tv);
+    if (this.staged) { line('OFFICER', text, 'guard', readTime(text)); if (sound) G.audio?.flat?.('guard_bark', 'sfx', 0.75); return; }
     line('OFFICER', text, 'guard', readTime(text), { x: h.x, y: h.y + 0.3, z: h.z });
     if (sound) G.audio?.play?.('guard_bark', this.x, this.z, { vol: 0.75, range: 18 });
   }
 
   update(dt: number) {
-    const vz = G.view?.zone.key;
-    this.rig.root.visible = vz === this.zoneKey;
+    if (!this.staged) {
+      const vz = G.view?.zone.key;
+      this.rig.root.visible = vz === this.zoneKey;
+    }
     if (!this.rig.root.visible) return;
     // speed from how far we actually moved this frame
     const inst = dt > 0 ? this.moved / dt : 0;
@@ -169,7 +186,7 @@ export class Guard {
   }
 
   dispose() {
-    G.pr.scene.remove(this.rig.root);
+    this.rig.root.removeFromParent();
     this.rig.dispose();
   }
 }

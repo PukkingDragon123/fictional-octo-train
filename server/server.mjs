@@ -24,6 +24,12 @@ const TYPES = {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', 'http://x');
   if (url.pathname === '/health') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('ok'); return; }
+  if (url.pathname === '/floors') {
+    // the public floor directory: open rooms (no password) and the floor each host is on
+    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(publicFloors()));
+    return;
+  }
   if (url.pathname === '/rooms') {
     res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
     res.end(JSON.stringify(publicRooms()));
@@ -40,11 +46,15 @@ const server = http.createServer((req, res) => {
   fs.createReadStream(file).pipe(res);
 });
 
-/** @type {Map<string, { code: string, name: string, host: any, peers: Map<string, any>, next: number, open: boolean, pass: string }>} */
+/** @type {Map<string, { code: string, name: string, host: any, peers: Map<string, any>, next: number, open: boolean, pass: string, floor: { zone: string, name: string, depth: number } | null, since: number }>} */
 const rooms = new Map();
 
 function publicRooms() {
   return [...rooms.values()].filter((r) => r.open).map((r) => ({ room: r.code, name: r.name, players: r.peers.size + 1, max: MAX_PLAYERS, locked: !!r.pass }));
+}
+function publicFloors() {
+  return [...rooms.values()].filter((r) => r.open && !r.pass && r.peers.size + 1 < MAX_PLAYERS)
+    .map((r) => ({ room: r.code, name: r.name, players: r.peers.size + 1, max: MAX_PLAYERS, zone: r.floor?.zone || '', zoneName: r.floor?.name || '', depth: r.floor?.depth ?? 0, since: r.since }));
 }
 function code() {
   const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -62,7 +72,7 @@ wss.on('connection', (ws) => {
     try { m = JSON.parse(raw.toString()); } catch { return; }
     switch (m.t) {
       case 'host': {
-        const room = { code: code(), name: String(m.name || 'NOCLIP').slice(0, 40), host: ws, peers: new Map(), next: 2, open: m.public !== false, pass: String(m.pass || '') };
+        const room = { code: code(), name: String(m.name || 'NOCLIP').slice(0, 40), host: ws, peers: new Map(), next: 2, open: m.public !== false, pass: String(m.pass || ''), floor: null, since: Date.now() };
         rooms.set(room.code, room);
         ws.room = room; ws.pid = 'p1';
         send(ws, { t: 'hosted', room: room.code, id: 'p1' });
@@ -92,6 +102,12 @@ wss.on('connection', (ws) => {
       case 'kick': {
         const room = ws.room; if (!room || room.host !== ws) return;
         const p = room.peers.get(m.id); if (p) { send(p, { t: 'error', error: 'Removed by the host.' }); p.close(); }
+        break;
+      }
+      case 'floor': {
+        // a host says which floor it is on (for the public floor directory)
+        const room = ws.room; if (!room || room.host !== ws) return;
+        room.floor = { zone: String(m.zone || '').slice(0, 40), name: String(m.name || '').slice(0, 60), depth: Number(m.depth) || 0 };
         break;
       }
       case 'ping': send(ws, { t: 'pong', at: m.at }); break;

@@ -10,12 +10,12 @@ import { objDef } from '../world/objects';
 import { bus } from '../core/events';
 import { Player } from '../entities/player';
 import { setUidBase } from '../core/rng';
-import { Placement, setPlace, containerOcc, testFit, autoPack } from '../items/grid';
+import { Placement, Rot, setPlace, containerOcc, testFit, autoPack } from '../items/grid';
 
 /** grid placement carried by item-moving ops (backpack inventory) */
-type At = { gx?: number; gy?: number; rot?: 0 | 1 };
-const atOf = (a: At): Placement | undefined => (a.gx === undefined || a.gy === undefined ? undefined : { gx: a.gx, gy: a.gy, rot: a.rot ?? 0 });
-const atArgs = (p?: Placement | null): At => (p ? { gx: p.gx, gy: p.gy, rot: p.rot } : {});
+type At = { gx?: number; gy?: number; gz?: number; rot?: Rot };
+const atOf = (a: At): Placement | undefined => (a.gx === undefined || a.gy === undefined ? undefined : { gx: a.gx, gy: a.gy, rot: a.rot ?? 0, gz: a.gz });
+const atArgs = (p?: Placement | null): At => (p ? (p.gz ? { gx: p.gx, gy: p.gy, gz: p.gz, rot: p.rot } : { gx: p.gx, gy: p.gy, rot: p.rot }) : {});
 
 // ---------------- container references ----------------
 export function containerRef(c: Container): string { return c.owner; }
@@ -147,14 +147,14 @@ export function receiveGive(a: { item: any; dest?: number } & At) {
 }
 
 /** rearrange (or split a stack) inside a world container: every peer applies the same check */
-defOp('gridPlace', (a: { z: string; ref: string; uids: number[]; gx: number; gy: number; rot: 0 | 1 }) => {
+defOp('gridPlace', (a: { z: string; ref: string; uids: number[]; gx: number; gy: number; rot: Rot; gz?: number }) => {
   const z = G.zones.get(a.z); if (!z) return;
   const c = resolveContainer(z, a.ref); if (!c) return;
   const items = a.uids.map((u) => c.items.find((i) => i.uid === u)).filter((i): i is Item => !!i);
   if (!items.length) return;
   const occ = containerOcc(c, new Set(items)); if (!occ) return;
-  if (testFit(occ, items[0], a.gx, a.gy, a.rot, items.length) === 'blocked') return;
-  for (const it of items) setPlace(it, { gx: a.gx, gy: a.gy, rot: a.rot });
+  if (testFit(occ, items[0], a.gx, a.gy, a.rot, items.length, a.gz ?? 0) === 'blocked') return;
+  for (const it of items) setPlace(it, { gx: a.gx, gy: a.gy, rot: a.rot, gz: a.gz });
   bus.emit('containerChanged', c);
 });
 /** shake a world container: deterministic re-pack */

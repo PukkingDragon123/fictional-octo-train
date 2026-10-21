@@ -327,6 +327,7 @@ function thinkBird(c: Creature, dt: number): boolean {
 
 const S = def({
   key: 'wrongbird', name: 'Wrongbird', code: 'E-17 // AVES-INCORRECT', temperament: 'skittish', threat: 0,
+  rule: { name: 'SCATTERS AT NOISE', text: 'Noise or running scatters the flock. Sneak to get close enough to catch one.' },
   hp: 4, walk: 0.6, run: 6.5, turn: 30, radius: 0.12, height: 0.25, sight: 14, fov: 3.0, hearing: 1.6,
   zones: ['fields', 'suburbs', 'parking'], weight: 3, group: [3, 6], maxPerZone: 12, diet: 'grass',
   meat: [['small_meat_raw', 1]],

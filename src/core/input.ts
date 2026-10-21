@@ -5,7 +5,14 @@
 export type Action =
   | 'up' | 'down' | 'left' | 'right' | 'run' | 'sneak' | 'shove' | 'interact' | 'flashlight'
   | 'scanner' | 'inventory' | 'map' | 'reload' | 'shout' | 'camLeft' | 'camRight' | 'talk' | 'chat'
-  | 'pause' | 'hot1' | 'hot2' | 'hot3' | 'hot4' | 'hot5' | 'rotate' | 'grab' | 'walkToggle' | 'craft' | 'sleep';
+  | 'pause' | 'hot1' | 'hot2' | 'hot3' | 'hot4' | 'hot5' | 'rotate' | 'grab' | 'walkToggle' | 'craft' | 'sleep'
+  // the physical overhaul (additive): Shift = power, H = lung pump, Q = whistle (hold = shout), B = build mode,
+  // G = emote wheel, Tab = the watch; 'hold' / 'primary' have no keys (touch props press them; rebindable)
+  | 'power' | 'breathe' | 'whistle' | 'build' | 'emote' | 'watch' | 'hold' | 'primary'
+  // the iron cube (additive): draw / holster the tool in the tool roll's quick-draw holster
+  | 'toolDraw'
+  // tribes / domination / scanning (additive): N = scan (hold), K = order your thralls
+  | 'scan' | 'command';
 
 export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
@@ -14,6 +21,10 @@ export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   camLeft: ['KeyZ'], camRight: ['KeyX'], talk: ['KeyV'], chat: ['Enter', 'KeyT'], pause: ['Escape'],
   hot1: ['Digit1'], hot2: ['Digit2'], hot3: ['Digit3'], hot4: ['Digit4'], hot5: ['Digit5'],
   rotate: ['KeyR'], grab: ['KeyG'], walkToggle: ['CapsLock'], craft: ['KeyB'], sleep: ['KeyZ'],
+  power: ['ShiftLeft', 'ShiftRight'], breathe: ['KeyH'], whistle: ['KeyQ'], build: ['KeyB'], emote: ['KeyG'], watch: ['Tab'],
+  hold: [], primary: [],
+  toolDraw: ['Backquote', 'KeyY'],
+  scan: ['KeyN'], command: ['KeyK'],
 };
 
 /** combined movement input: unit direction (x right, y forward) plus strength 0..1 */
@@ -83,6 +94,7 @@ export class Input {
     try {
       const saved = localStorage.getItem('noclip.bindings');
       if (saved) Object.assign(this.bindings, JSON.parse(saved));
+      for (const k of Object.keys(DEFAULT_BINDINGS) as Action[]) if (!Array.isArray(this.bindings[k])) this.bindings[k] = [...DEFAULT_BINDINGS[k]];
     } catch { /* storage unavailable */ }
   }
 

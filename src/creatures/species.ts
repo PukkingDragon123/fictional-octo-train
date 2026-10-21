@@ -48,6 +48,11 @@ export interface SpeciesDef {
   /** behaviour flags */
   flags?: Partial<{ weepingAngel: boolean; wallHider: boolean; vents: boolean; mimic: boolean; watcher: boolean; leviathan: boolean; flying: boolean; swimmer: boolean; underCarpet: boolean; thief: boolean; furniture: string; ghost: boolean; immortal: boolean; noCorpse: boolean; nocturnal: boolean; pack: boolean; custodian: boolean; glitch: boolean; plush: boolean; companion: boolean }>;
   sounds?: { idle?: string; alert?: string; attack?: string; hurt?: string; death?: string; step?: string; call?: string; loop?: string };
+  /**
+   * The one learnable rule of this thing: what it obeys, what you can exploit
+   * (src/creatures/rules.ts teaches it: scanning, witnessing it, surviving it).
+   */
+  rule?: CreatureRule;
   /** death decal ('none' for plush, glass, dust…); default is a blood pool */
   remains?: string;
   /** what it bleeds and what can be cut off it (gore system, src/gore) */
@@ -61,6 +66,9 @@ export interface SpeciesDef {
   /** optional custom brain; return true if handled (skips default) */
   think?(c: Creature, dt: number): boolean;
 }
+
+/** a creature's rule: a short name ('LIGHT-SHY'), the rule itself, and the first-sighting thought that hints at it */
+export interface CreatureRule { name: string; text: string; tell?: string }
 
 /**
  * What comes out of a creature when it is hurt:

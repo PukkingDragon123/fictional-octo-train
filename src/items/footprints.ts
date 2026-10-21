@@ -1,6 +1,6 @@
-// Backpack-grid data: hand-picked footprints for items whose shape the
-// heuristic in grid.ts would get wrong, bag interiors, and the pockets each
-// garment carries. Footprints are [w, h] in cells at rot 0 (h is the long
+// Backpack-grid data: hand-picked footprints (and 3D sizes for the iron cube)
+// for items whose shape the heuristic in grid.ts would get wrong, bag
+// interiors, the tool roll, and the pockets each garment carries. Footprints are [w, h] in cells at rot 0 (h is the long
 // side for long things: a rifle is 2 wide and 5 tall). A cell is roughly the
 // size of a fist; a can or a pill bottle fills one.
 
@@ -41,6 +41,37 @@ export const FOOT: Record<string, [number, number]> = {
   limb_leg: [2, 5], limb_leg_rot: [2, 5], limb_arm: [1, 4], limb_arm_rot: [1, 4], limb_shin: [1, 3], limb_shin_rot: [1, 3],
   furniture: [6, 6],
 };
+
+/**
+ * item key -> 3D size [w, l, t] where the footprint table's guess is wrong
+ * (t = how tall it stands lying flat; anything else gets t from its model).
+ * Other systems may also call setSize3() in src/items/grid.ts.
+ */
+export const FOOT3: Record<string, [number, number, number]> = {
+  bucket: [2, 2, 2], water_jug: [2, 2, 3], gas_can: [2, 2, 3], fire_extinguisher: [2, 3, 2], car_battery: [2, 2, 2],
+  toolbox_item: [3, 2, 2], first_aid_kit: [2, 2, 1], radio_portable: [2, 2, 2], laptop: [2, 2, 1], thermos: [1, 2, 1],
+  basketball: [2, 2, 2], teddy_bear: [2, 2, 2], pillow_item: [2, 2, 1], blanket: [2, 2, 1], sleeping_bag_item: [2, 3, 2],
+  tent_kit: [2, 4, 2], birthday_cake: [2, 2, 2], frying_pan: [2, 3, 1], helmet_bike: [2, 2, 2], hard_hat: [2, 2, 2], gas_mask: [2, 2, 1],
+  backpack_school: [3, 3, 2], backpack_crafted: [3, 3, 2], backpack_hiking: [3, 4, 2], duffel_bag: [4, 3, 2], briefcase: [3, 2, 1],
+  sledgehammer: [2, 4, 1], axe: [2, 4, 1], fire_axe: [2, 4, 1], shovel: [2, 5, 1],
+  iron_cube: [5, 5, 5], tool_roll: [2, 3, 1], crude_axe: [2, 4, 1], chair_leg: [1, 4, 1], sharp_iron: [1, 2, 1], cloth_strips: [1, 1, 1],
+};
+
+/** the iron cube and anything built like it: interior [w, l, layers] */
+export const BAG_GRID3: Record<string, [number, number, number]> = { iron_cube: [5, 5, 5] };
+
+/** loops on the tool roll (plus one quick-draw holster) */
+export const TOOL_ROLL_LOOPS = 6;
+
+const TOOL_TAGS = new Set(['hammer', 'saw', 'sharp', 'knife', 'screwdriver', 'wrench', 'pliers', 'crowbar', 'axe', 'whetstone', 'scissors', 'can_opener', 'multitool',
+  'needle', 'bolt_cutters', 'shovel', 'sledge', 'tapemeasure', 'lockpick', 'torch', 'flashlight', 'soldering', 'multimeter', 'trowel', 'file', 'chisel', 'hard']);
+/** what goes in the tool roll's loops: tools, hand weapons, a torch (not bags, not food, nothing huge) */
+export function isToolDef(d: { cat: string; tags?: string[]; weapon?: { kind: string; twoHanded?: boolean }; heavy?: boolean; bag?: unknown; light?: unknown; key: string }): boolean {
+  if (d.heavy || d.bag) return false;
+  if (d.cat === 'tool' || d.cat === 'light') return true;
+  if (d.weapon && d.weapon.kind !== 'firearm' && d.weapon.kind !== 'thrown') return true;
+  return (d.tags || []).some((t) => TOOL_TAGS.has(t));
+}
 
 /** bag item key -> interior grid [w, h] (unknown bags are sized from their capacity) */
 export const BAG_GRID: Record<string, [number, number]> = {

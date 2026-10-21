@@ -428,6 +428,7 @@ onPlayerHit('davenport', (p) => {
 
 const sp = def({
   key: 'davenport', name: 'Davenport', code: 'E-24 // URSID-UPHOLSTERED', temperament: 'ambush', threat: 4,
+  rule: { name: 'TOO WIDE FOR DOORS', text: 'Never sit on a sofa that breathes. If one wakes, get through a doorway: it is too wide to follow.' },
   hp: 120, walk: 1.5, run: 5.0, turn: 3.2, radius: 0.5, height: 0.9, sight: 10, fov: 1.4, hearing: 1.4,
   attack: { dmg: [14, 24], range: 1.0, cooldown: 1.9, kinds: ['bite', 'bruise', 'fracture', 'laceration'], corrupt: 0.06, knock: 2.0, parts: ['thigh_l', 'thigh_r', 'torso_l', 'torso_u', 'groin', 'farm_l', 'farm_r'] },
   zones: ['house', 'mall', 'suburbs'], weight: 1.5, maxPerZone: 2, diet: 'meat',

@@ -13,9 +13,17 @@
 //  - right-hand action cluster: attack (tap strikes, hold readies with auto-aim,
 //    drag aims), use, shove, sneak, flashlight, shout, push-to-talk; top bars for
 //    map / scanner / inventory / chat / pause / fullscreen / photo
-//  - context actions: placing furniture, driving, riding, carrying, reading, reloading
-//  - world gestures: tap = left-click default (walk to / interact / pick up),
-//    long-press = right-click context menu, double-tap = toggle run,
+//  - context actions: placing furniture, driving, riding, carrying, reading, reloading, throwing
+//  - the physical overhaul (src/interact/grab.ts, no popups): a work glove to GRAB
+//    what is in reach (hold it and the stick pushes / pulls), a throttle for POWER
+//    (Shift), a squeeze bulb for the lung PUMP (H), the watch (Tab), the iron-cube
+//    backpack (I), a spirit level for BUILD (B), chattering teeth for EMOTE (G);
+//    the whistle is the whistle (Q, hold = shout)
+//  - USE (bottle cap): tap = the primary verb of what is in reach, hold = grab it,
+//    swipe sideways across it = step through its other verbs (the cap shows the word)
+//  - world gestures: tap = the primary verb there (walk to a bare floor),
+//    long-press = grab it while the finger stays down (or its verbs one word at a time),
+//    double-tap = toggle run,
 //    one-finger sideways swipe = turn the camera (snaps to the nearest view on release),
 //    two-finger pinch = zoom, two-finger twist = turn the camera
 //  - scanner: tap its buttons / screen / dial directly, swipe the screen to scroll,
@@ -40,6 +48,8 @@ import { objDef } from '../../world/objects';
 import { PAGES } from '../scanner/pages';
 import { iconUrl } from './icons';
 import { isTouchMode, buzz, installTouchMode, lastTouchTime } from './mode';
+import type { MenuOption } from '../ui';
+import { startBreathing } from '../../survival/mindSystem';
 import { Touch3D } from './touch3d';
 
 export { getTouchSetting, setTouchSetting, isTouchMode } from './mode';
@@ -59,6 +69,8 @@ type Role = 'world' | 'stickPending' | 'stick' | 'gesture' | 'scanner' | 'swipe'
 interface TP {
   id: number; x0: number; y0: number; x: number; y: number; ly: number; t0: number;
   role: Role; moved: boolean; long: boolean; longDue: boolean; timer: number; ringTimer: number; acc: number;
+  /** a long-press took hold of something: lifting the finger lets go */
+  grab?: boolean;
 }
 interface BtnOpts {
   label?: string; x?: number; y?: number; s?: number; cls?: string;
@@ -102,7 +114,7 @@ export class TouchControls implements GameSystem {
   private fireQueued = false; private fireDeadline = 0; private fireFrames = 0; private aimHoldUntil = 0;
   // use button
   private useTarget: PickTarget | null = null; private useT = 0; private useLabel = '';
-  private useHold: { timer: number; fired: boolean } | null = null;
+  private useHold: { timer: number; fired: boolean; grab: boolean; x0: number; verbs: any[] | null; sel: number } | null = null;
   private hl: THREE.Mesh | null = null; private hlKey = '';
   // context row / scanner strip
   private ctxSig = ''; private scanSig = '';
@@ -129,6 +141,8 @@ export class TouchControls implements GameSystem {
     this.stickKnob = div(this.stickBase, 'nc-stick-knob');
     this.groups.stick = this.stick;
     this.btn(root, 'run', 'run', { label: 'RUN', cls: 'nc-runbtn', w: 1.15, h: 1.45, tap: () => this.toggleRun() });
+    // POWER (Shift): push harder while holding something, sprint otherwise
+    this.btn(root, 'power', 'power', { label: 'POWER', cls: 'nc-powbtn', w: 1.15, h: 1.3, down: () => { this.g.input.press('power'); this.g.input.press('run'); }, up: () => { this.g.input.release('power'); this.g.input.release('run'); } });
 
     // ---- top bars
     const tl = this.group('tl', 'nc-group nc-row nc-tl');
@@ -136,20 +150,27 @@ export class TouchControls implements GameSystem {
     const fsOk = !!(document.fullscreenEnabled || (document as any).webkitFullscreenEnabled);
     if (fsOk) this.btn(tl, 'fs', 'fullscreen', { label: 'FULL', s: 0.85, on: 'up', tap: () => toggleFullscreen() });
     this.btn(tl, 'photo', 'photo', { label: 'PHOTO', s: 0.85, tap: () => (this.g as any).camera?.photo?.toggle?.() });
+    this.btn(tl, 'build', 'build', { label: 'BUILD', s: 0.85, tap: () => this.sys('build', 'toggle') });
+    this.btn(tl, 'emote', 'emote', { label: 'EMOTE', s: 0.85, tap: () => this.sys('social', 'emoteWheel', 'emote') });
     const tr = this.group('tr', 'nc-group nc-row nc-tr');
     this.btn(tr, 'chat', 'chat', { label: 'CHAT', s: 0.95, on: 'up', tap: () => this.openChat() });
     this.btn(tr, 'map', 'map', { label: 'MAP', s: 0.95, tap: () => { const sc = this.g.ui?.scanner; if (sc?.open && sc.page === 'map') sc.toggle(false); else sc?.toggle(true, 'map'); } });
-    this.btn(tr, 'scanner', 'scanner', { label: 'SEER', s: 0.95, tap: () => this.g.ui?.scanner?.toggle?.() });
-    this.btn(tr, 'inv', 'inventory', { label: 'PACK', s: 0.95, tap: () => this.g.ui?.inventory?.toggle?.() });
+    this.btn(tr, 'scanner', 'watch', { label: 'WATCH', s: 0.95, tap: () => { const w = (this.g as any).watch; if (w?.toggle) w.toggle(); else this.g.ui?.scanner?.toggle?.(); } });
+    this.btn(tr, 'inv', 'inventory', { label: 'PACK', s: 0.95, tap: () => { const pk = (this.g as any).pack; if (pk?.toggle) pk.toggle(); else this.g.ui?.inventory?.toggle?.(); } });
 
     // ---- on foot
     const act = this.group('act', 'nc-group nc-br');
     this.btn(act, 'attack', 'attack', { x: 0.05, y: 0.05, s: 1.6, cls: 'round big', down: (e) => this.atkDown(e), move: (e) => this.atkMove(e), up: (_e, c) => this.atkUp(c) });
-    this.btn(act, 'use', 'use', { label: 'USE', x: 1.85, y: 0.0, s: 1.3, cls: 'big', down: () => this.useDown(), up: (_e, c) => this.useUp(c) });
+    this.btn(act, 'use', 'use', { label: 'USE', x: 1.85, y: 0.0, s: 1.3, cls: 'big', down: (e) => this.useDown(e), move: (e) => this.useMove(e), up: (_e, c) => this.useUp(c) });
     this.btn(act, 'shove', 'shove', { label: 'SHOVE', x: 0.0, y: 1.78, w: 1.8, h: 0.82, tap: () => this.g.input.tap('shove') });
     this.btn(act, 'sneak', 'sneak', { label: 'SNEAK', x: 1.95, y: 1.45, s: 1.05, tap: () => this.g.input.tap('sneak') });
     this.btn(act, 'light', 'light', { label: 'LIGHT', x: 3.3, y: 0.08, w: 0.9, h: 2.15, tap: () => this.g.input.tap('flashlight') });
-    this.btn(act, 'shout', 'shout', { label: 'SHOUT', x: 0.3, y: 2.75, s: 1.05, tap: () => this.g.input.tap('shout') });
+    // the whistle: Q (whistle, hold to shout) is bound to both actions, so the prop presses both
+    this.btn(act, 'shout', 'shout', { label: 'WHISTLE', x: 0.3, y: 2.75, s: 1.05, down: () => { this.g.input.press('whistle'); this.g.input.press('shout'); }, up: () => { this.g.input.release('whistle'); this.g.input.release('shout'); } });
+    // GRAB: hold on to what is in reach while the glove is held (the stick pushes / pulls it)
+    this.btn(act, 'grab', 'grab', { label: 'GRAB', x: 3.25, y: 2.35, s: 1.05, hold: 'hold' });
+    // the lung pump (H)
+    this.btn(act, 'pump', 'pump', { label: 'PUMP', x: 3.35, y: 3.5, s: 0.95, hold: 'breathe', tap: () => { if (!this.g.hudBody && this.g.local) startBreathing(this.g.local); } });
     this.btn(act, 'talk', 'talk', { label: 'TALK', x: 1.75, y: 2.6, s: 1.0, cls: 'rec', hold: 'talk' });
 
     // ---- driver's seat (the stick steers)
@@ -328,6 +349,7 @@ export class TouchControls implements GameSystem {
     const scanCovers = scan && portrait;
     this.show('stick', free && (mode === 'walk' || mode === 'drive') && !scanCovers);
     this.show('run', free && mode === 'walk' && !scanCovers);
+    this.show('power', free && mode === 'walk' && !scanCovers);
     this.show('act', free && mode === 'walk' && !scanCovers);
     this.show('drive', free && mode === 'drive');
     this.show('ride', free && mode === 'ride');
@@ -344,9 +366,13 @@ export class TouchControls implements GameSystem {
     this.setOn('light', p.flashlightOn);
     this.setOn('run', inp.runLatch);
     this.setOn('talk', inp.heldVirtual('talk'));
-    this.setOn('scanner', scan);
+    const gr = (g as any).grab;
+    this.setOn('grab', !!gr?.holding);
+    this.setOn('power', inp.heldVirtual('power') || inp.down('power'));
+    this.setOn('build', !!(g as any).build?.active);
+    this.setOn('scanner', scan || !!(g as any).watch?.open);
     this.setOn('map', scan && sc.page === 'map');
-    this.setOn('inv', inv);
+    this.setOn('inv', inv || !!(g as any).pack?.open);
     if (seat) {
       this.setOn('hlights', !!seat.v.lights);
       this.setOn('ign', !!seat.v.running);
@@ -478,7 +504,10 @@ export class TouchControls implements GameSystem {
       case 'stickPending': if (!cancelled && dur < TAP_MS) this.tap(tp.x, tp.y, at); break;
       case 'stick': this.stickEnd(); break;
       case 'swipe': if (this.swipe?.id === tp.id) this.endSwipe(cancelled); break;
-      case 'world': if (!cancelled && !tp.moved && !tp.long && dur < LONG_MS) this.tap(tp.x, tp.y, at); break;
+      case 'world':
+        if (tp.grab) { (this.g as any).grab?.touchRelease?.(); break; }
+        if (!cancelled && !tp.moved && !tp.long && dur < LONG_MS) this.tap(tp.x, tp.y, at);
+        break;
       case 'gesture': {
         // lifting one finger ends the gesture; the other one is spent
         const gs = this.gesture;
@@ -530,9 +559,12 @@ export class TouchControls implements GameSystem {
     if (ui.readerEl) { ui.closeReader(); return; }
     inp.mouseX = x; inp.mouseY = y;
     if (g.items?.placing) return; // the ghost follows the finger; PLACE confirms
-    const t = this.pickAt(x, y);
+    const gr = (g as any).grab;
+    const self = gr?.pickAt?.(x, y);
+    const t = self?.kind === 'self' ? self : this.pickAt(x, y);
     if (t) {
       if (t.kind === 'tile') this.walkTo(p, t.x, t.y, x, y);
+      else if (gr) gr.touchPrimary(t);
       else ui.onWorldClick?.(t, 0);
     }
     this.park();
@@ -558,9 +590,28 @@ export class TouchControls implements GameSystem {
     if (!ui || ui.modal || !g.local || g.local.body.dead) return;
     if (ui.readerEl) ui.closeReader();
     inp.mouseX = tp.x; inp.mouseY = tp.y;
-    const t = this.pickAt(tp.x, tp.y);
-    if (t) ui.onWorldClick?.(t, 2);
+    const gr = (g as any).grab;
+    const self = gr?.pickAt?.(tp.x, tp.y);
+    const t = self?.kind === 'self' ? self : this.pickAt(tp.x, tp.y);
+    if (t && gr?.touchGrab?.(t)) { tp.grab = true; buzz(20); }
+    else if (t && gr) this.verbTag(t, tp.x, tp.y);
     if (!g.items?.placing) this.park();
+  }
+
+  /** the verbs of a target as the one-word tag (tap ‹ › to step, tap the word to do it) */
+  private verbTag(t: any, x: number, y: number) {
+    const gr = (this.g as any).grab, ui = this.g.ui;
+    const verbs: { label: string; run: () => void; why?: string | false }[] = gr?.verbsOf?.(t) || [];
+    if (!verbs.length || !ui) return;
+    const opts: MenuOption[] = verbs.map((v) => ({ label: v.label, action: v.run, disabled: v.why || false }));
+    ui.openMenu(x, y, t.kind === 'self' ? 'You' : targetName(t), opts);
+  }
+
+  /** a system's method if it is in, else a virtual key tap (build mode, the emote wheel) */
+  private sys(name: string, fn: string, action?: Action) {
+    const s = (this.g as any)[name];
+    if (s?.[fn]) s[fn]();
+    else this.g.input.tap(action ?? (name as Action));
   }
 
   private showRing(tp: TP) {
@@ -802,42 +853,67 @@ export class TouchControls implements GameSystem {
   }
 
   // ---------------------------------------------------------------- use
-  private useDown() {
+  // tap = the primary verb of what is in reach; hold = grab it (or its verbs as a one-word tag);
+  // swipe sideways across the cap = step through its verbs (the cap shows the word), lift = do it
+  private useDown(e: PointerEvent) {
     const timer = window.setTimeout(() => {
-      if (!this.useHold) return;
-      this.useHold.fired = true;
+      const h = this.useHold;
+      if (!h || h.verbs) return;
+      h.fired = true;
       buzz(14);
-      this.useMenu();
+      this.useLong(h);
     }, LONG_MS);
-    this.useHold = { timer, fired: false };
+    this.useHold = { timer, fired: false, grab: false, x0: e.clientX, verbs: null, sel: 0 };
+  }
+  private useMove(e: PointerEvent) {
+    const h = this.useHold; if (!h || h.fired) return;
+    const dx = e.clientX - h.x0;
+    if (Math.abs(dx) < 28) return;
+    h.x0 = e.clientX;
+    clearTimeout(h.timer);
+    const gr = (this.g as any).grab;
+    if (!h.verbs) { h.verbs = this.useTarget ? gr?.verbsOf?.(this.useTarget) || [] : []; h.sel = Math.max(0, h.verbs.findIndex((v: any) => !v.why)); }
+    else if (h.verbs.length) h.sel = (h.sel + Math.sign(dx) + h.verbs.length) % h.verbs.length;
+    const v = h.verbs[h.sel];
+    const word = v ? verbShort(v.label) : 'USE';
+    this.t3.label('use', word);
+    const b = this.btns.use?.querySelector('b'); if (b) b.textContent = word;
+    this.useLabel = '';
+    buzz(6);
   }
   private useUp(cancelled: boolean) {
     const h = this.useHold; this.useHold = null;
     if (!h) return;
     clearTimeout(h.timer);
+    const g = this.g, p = g.local, gr = (g as any).grab;
+    if (h.grab) { gr?.touchRelease?.(); return; }
     if (cancelled || h.fired) return;
-    const g = this.g, p = g.local;
     if (!p || p.body.dead) return;
+    if (h.verbs) { const v = h.verbs[h.sel]; if (v && !v.why) v.run(); else if (v?.why) bus.emit('think', p, v.why); return; }
     if (p.inVehicle) { g.input.tap('interact'); return; }
     const t = this.findUseTarget(p);
-    if (t) g.interact?.defaultAction?.(p, t);
+    if (t && gr) gr.touchPrimary(t);
+    else if (t) g.interact?.defaultAction?.(p, t);
     else g.input.tap('interact');
   }
-  /** hold USE: the context menu for whatever is in reach */
-  private useMenu() {
-    const g = this.g, p = g.local, ui = g.ui;
-    if (!p || !ui || !g.interact) return;
+  /** hold USE: grab what is in reach (lifting the thumb lets go), else its verbs one word at a time */
+  private useLong(h: { grab: boolean }) {
+    const g = this.g, p = g.local, gr = (g as any).grab;
+    if (!p || !gr) return;
     const t = this.findUseTarget(p);
     if (!t) return;
-    const m = g.interact.menu(p, t);
+    if (gr.touchGrab(t)) { h.grab = true; return; }
     const r = this.btns.use.getBoundingClientRect();
-    ui.openMenu(Math.max(8, r.left - 240), Math.max(8, r.top - 220), m.title, m.opts);
+    this.verbTag(t, Math.max(8, r.left - 160), Math.max(8, r.top - 60));
   }
 
   private refreshUse(p: Player, enabled: boolean) {
+    if (this.useHold?.verbs) return; // a swipe is showing its verbs
     const t = enabled ? this.findUseTarget(p) : null;
     this.useTarget = t;
-    const label = t ? shortName(targetName(t)) : 'USE';
+    const gr = (this.g as any).grab;
+    const pv = t && gr ? gr.primaryOf(t) : null;
+    const label = pv ? verbShort(pv.label) : t ? shortName(targetName(t)) : 'USE';
     this.t3.label('use', label);
     if (label !== this.useLabel) {
       this.useLabel = label;
@@ -908,6 +984,9 @@ export class TouchControls implements GameSystem {
         list.push(['pcancel', 'cross', 'CANCEL', () => items.cancelPlacing()]);
       } else if (mode === 'walk' && free) {
         if (p.carrying) list.push(['putdown', 'down', 'PUT DOWN', () => g.net?.toggleCarry?.(p.carrying)]);
+        const push = g.destruct?.push;
+        if (push?.holding && push.mode === 'carry') list.push(['throw', 'attack', 'THROW', () => push.throw(p)]);
+        if (push?.holding || (g as any).grab?.holding) list.push(['letgo', 'down', 'LET GO', () => (g as any).grab?.letGo?.()]);
         const h = p.handR;
         if (h && h.key === 'furniture' && items?.startPlacing) list.push(['fplace', 'down', 'PLACE', () => items.startPlacing(p, h)]);
         const w = h ? itemDef(h.key).weapon : null;
@@ -1007,6 +1086,13 @@ export class TouchControls implements GameSystem {
 }
 
 /** a button-sized name: 'Office Chair (Broken)' -> 'CHAIR' */
+/** a verb for the cap: 'Search Filing Cabinet' -> 'SEARCH', 'Pick up Water Bottle' -> 'PICK UP' */
+function verbShort(n: string) {
+  const words = (n || '').replace(/\s*\(.*?\)/g, '').replace(/:.*$/, '').trim().toUpperCase().split(/\s+/);
+  let out = words[0] || 'USE';
+  for (let i = 1; i < words.length && (out + ' ' + words[i]).length <= 9; i++) out += ' ' + words[i];
+  return out.slice(0, 9);
+}
 function shortName(n: string) {
   let s = (n || '').replace(/\s*\(.*?\)/g, '').trim().toUpperCase();
   if (s.length > 9) s = s.split(/\s+/).pop() || s;

@@ -52,18 +52,19 @@ URL flags: `?quick` skips the title and the intro and starts a fresh run (band a
 |---|---|
 | WASD | walk (Shift run, C/Ctrl sneak) |
 | Right mouse (hold) + Left mouse | ready weapon, attack / fire |
-| Right click | context menu on anything: loot, open, barricade, dismantle, cook, treat… |
+| Right click | the obvious thing, no menus: open a box (loot view), sit, swing a door, flip a switch, pick up, search a body, pull a lever; on yourself, the backpack (or use what is in hand: eat, drink, read, treat). What you hold changes it: a bottle at a tap fills, food at a lit stove cooks, fuel feeds a fire, a plank on a door barricades it, a key unlocks |
 | E | interact with what's in front of you |
-| Right click on furniture | Smash it, Kick it, Push, Drag (Let go to release), smash through drywall, smash a light |
+| Right mouse (hold) | grab it: W pushes, S pulls (a gentle pull slides a drawer out), A/D side-step, Shift is power, Space shoves it away, release to let go. It has weight and the floor has friction: heavy things need Shift, slide on when let go, bang into things, and tall ones topple. Small things are lifted and carried (left click throws). Doors swing, levers haul down (S) |
+| Right held + wheel | step through the other verbs one word at a time; release does the one shown |
+| Left click with a tool | hammer or pipe smashes, axe chops (firewood), crowbar pries locks, boards and doors, saw cuts a piece off (a chair loses a leg), knife slashes upholstery open and butchers, screwdriver / wrench takes apart, shovel digs, sledge goes through walls; small and fragile things break in one hit |
 | Space | shove |
 | F | flashlight |
-| Tab | raise the SEER-9 scanner (1–6 / Q E / wheel to change pages) |
+| Tab | raise the watch (first person; wheel / arrows select, Enter acts, [ ] or 1–9 switch functions) |
 | I | open the backpack (drag to place, R or right-click to turn while dragging, Shift-drag takes half, Ctrl-drag takes one, double-click quick-moves) |
-| L | expand / collapse the BAILIFF hologram (body map, status, debt ledger) |
 | M | map |
 | R | reload; rotate while placing furniture |
 | Q | shout |
-| H | breathing exercise (calms a panic attack) |
+| H | pump the lungs: press as the bead hits OUT / IN (recovers stamina, calms a panic attack) |
 | Z / X, wheel | rotate camera, zoom |
 | Middle mouse or Alt+drag | orbit the camera freely (snaps back on release) |
 | PageUp / PageDown, Alt+wheel | camera pitch |
@@ -80,12 +81,15 @@ controls: auto / on / off). The controls are found objects drawn in 3D:
 - a red valve wheel to move
 - a domed industrial button to attack (tap to strike, hold to aim with target lock)
 - a toggle switch under a flip-up cover to run
-- a bottle cap to use whatever is in reach
+- a bottle cap for the obvious thing in reach (hold it to grab, swipe across it for its other verbs)
+- a yellow work glove to grab (hold it: the stick pushes and pulls), a throttle lever for power
+- a squeeze bulb for the lung pump, a wristwatch, a riveted iron cube for the backpack,
+  a spirit level for build mode and wind-up chattering teeth for emotes
 - a crash bar to shove, a slipper to sneak, a pull-chain bulb for the light and a whistle to shout
 - a camera, folded map, mini scanner and rucksack along the top
 
 They bleed, rust and twitch with what is happening to you. Tap to act or walk,
-hold anywhere for the context menu, swipe sideways to turn the camera and pinch
+hold on something to grab it (lift the finger to let go), swipe sideways to turn the camera and pinch
 to zoom. Driving swaps in a steering wheel, pedals, a horn, a headlight knob
 and an ignition key.
 
@@ -103,13 +107,25 @@ and an ignition key.
   Five installments come due on a timer, and missing one shocks every band.
   Clear the debt, buy passage at the depot (a freight lift, the night coach,
   or the Quiet Car) and board before it leaves.
-- **The band and Voss.** The BAILIFF band talks in a cold synthetic voice and
-  projects a hologram from your wrist. A heartbeat trace runs at your real
-  pulse, and hunger, thirst, pain, bleeding, cold, panic and sickness all
-  change its shape. Expand it for the body map and the ledger. Go near the
+- **The band and Voss.** The BAILIFF band talks in a cold synthetic voice,
+  its lens blinking with your pulse. Go near the
   Seam and it counts down; cut it off with bolt cutters if you dare.
   Staff Sergeant Voss, a scanline hologram in a beret, teaches you the job and
   comments on how you're doing it.
+- **Your body in the corner.** No bars. Health is an IV bag of blood: every
+  wound is a hole in it, dripping or pouring by how hard it bleeds; click a
+  hole to bandage, disinfect, stitch, splint or pull the shard out (right-click
+  for every option and what it needs). Infection greens the blood, food
+  poisoning muddies it, corruption turns it black and sparking; the drip
+  chamber under it is your hydration. Stamina is a pair of rubber lungs that
+  strain while you run: press H on the beat to pump them out (off the beat you
+  cough), and blood that splashes on you gets inside until you cough it up.
+  The stomach is a jar of acid: food drops in and dissolves, bad food cracks
+  it, food poisoning raises the acid so you can't eat much, and overdoing it
+  brings everything back up.
+- **Eating is first person.** Your hands hold the food up, built from little
+  voxels: click or tap to bite (crunch, crumbs, juice, the view bobbing as you
+  chew), and each bite flies down into the jar. Drinks tip up for gulps.
 - **Your mind matters.** Anxiety, low mood, insomnia, trauma flashbacks,
   loneliness and private hallucinations build from what happens to you;
   panic attacks race your heart and blur your aim. Sleep, food, light,
@@ -127,7 +143,11 @@ and an ignition key.
 - **Destruction.** Furniture dents, cracks and then breaks into real
   pieces with splinters, stuffing, sparks and glass. Contents spill. Drywall
   can be smashed through, lights put out, windows shattered. Grab furniture to
-  push or drag it, slowly, scraping.
+  push or drag it: it has weight, the floor has friction, Shift puts your back
+  into it, it scrapes and scuffs, slides on when let go, bangs into things and
+  tall pieces topple over and smash. Small things are picked up, carried and
+  thrown. Tools do what tools do: an axe chops, a crowbar pries, a saw takes a
+  chair apart a leg at a time.
 - **Monsters that look the part.** Twenty-three species. Still Lifes are wax
   copies of people (sometimes of you) sitting at dinner tables, which turn
   their heads when you look away. The Stammer frame-skips toward you in the
@@ -153,8 +173,8 @@ and an ignition key.
   pause freezes the world inside the band's hologram. The backpack swings in
   hanging from a spring scale, unzips, and is a stitched canvas grid where
   every item takes its real space. Pockets are on the jumpsuit, and a drawer
-  you loot is a wooden tray. Context menus are tags fanned out from what you
-  clicked, and progress is tally marks scratched round your feet.
+  you loot is a wooden tray. There are no context menus: a right click does the obvious thing, holding grabs, the wheel steps through the rest one word at a time,
+  and progress is tally marks scratched round your feet.
 - **Survival you have to manage.** Hunger, thirst, fatigue, temperature,
   wetness, exhaustion, panic, stress, boredom and sickness. Body-part injuries
   (scratches, lacerations, bites, burns, fractures) bleed and get infected
@@ -181,15 +201,25 @@ and an ignition key.
   some patient. Some imitate your friends' voices, watch from far away, or only
   move when nobody's looking. Rare ones can be studied with the scanner,
   trapped or tamed.
-- **The SEER-9.** A 3D handheld scanner with a pixel CRT, issued to find
-  hoppers (they beacon on 77.7 MHz): health, anomaly scans, radio signals, a
-  self-drawing map, directives and the log. Apart from the band's hologram
-  there is no HUD.
+- **The watch.** The BAILIFF band is also a chunky wrist computer. Tab raises
+  your wrist into a first-person close-up; standing still it zooms in, on the
+  move it stays up small as a glance with your next objective and a bearing.
+  Its one base function is QUESTS: work uploads with a chime (from Voss, Meridian
+  R&D, the radio, tribes), and you accept, decline, track, pay and turn in.
+  Quests pay Research Points (RP, kept across runs), and the watch's R&D tree
+  spends them: a self-drawing map and sonar survey, anomaly scan, signal trace,
+  biomonitor with calorie count, blood pressure, a diagnosis AI and a mind
+  monitor, a logbook, and the multi-tool (wrist torch, scanner beam, laser
+  cutter, arc welder, field fabricator). Blueprints, recipes, cyberware and
+  domination tech sit in the same tree.
 - **Co-op.** Shared world and bases, give items, carry and revive downed
   friends, proximity voice with wall occlusion, walkie-talkie channels with
   radio crackle, and chat.
-- **Directives.** The contract is the main chain: first haul, five
-  installments, discharge, passage. A side chain is the way out they don't
+- **Quests.** The contract is the main chain: first haul, five
+  installments, discharge, passage. Research missions pay RP and scrip: courier
+  a sealed case to another level, press a quota, scan entities and log
+  anomalies, bring back samples, and permits and bribes you pay scrip to
+  complete (billed to your balance). A side chain is the way out they don't
   want you to find: restore power, follow the numbers station, take the
   render nodes offline, find the root key and shut the core down. That kills
   every band and opens the other ending. Choose RELEASE on the title for free
@@ -211,7 +241,7 @@ src/
   items/       item model, containers, crafting, world systems (fire, power,
                farming, traps, building, furniture)
   creatures/   creature manager, behaviours, species
-  missions/    directives, flags, mission objects, collapse
+  missions/    quest runtime, the story and research quests, flags, mission objects, collapse
   audio/       procedural WebAudio: sounds, ambience, reverb, music
   net/         relay client, replication, WebRTC voice
   vehicles/    driveable cars

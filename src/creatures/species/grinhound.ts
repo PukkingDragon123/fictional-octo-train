@@ -1015,6 +1015,7 @@ function galleryAnim(S: Plan, anim: (rig: Rig, c: Creature, t: number, dt: numbe
 
 const SH = def({
   key: 'grinhound', name: 'Grinhound', code: 'E-11 // CANID-WRONG', temperament: 'hostile', threat: 3,
+  rule: { name: 'NOSE AND FIRE', text: 'It follows your scent trail, not your face. Open flame turns it away; its laugh calls the pack.' },
   hp: 34, walk: 1.6, run: 5.2, turn: 10, radius: 0.35, height: 0.85, sight: 16, fov: 1.2, hearing: 1.3, smell: true,
   attack: { dmg: [7, 13], range: 0.9, cooldown: 1.0, kinds: ['bite', 'laceration', 'scratch'], corrupt: 0.12, knock: 0.5 },
   zones: ['lobby', 'suburbs', 'office', 'tunnels', 'parking'], weight: 3, group: [2, 4], maxPerZone: 8, diet: 'meat',
@@ -1030,6 +1031,7 @@ SH.animateGallery = galleryAnim(HOUND_PLAN, animH, 'grinhound');
 
 const SD = def({
   key: 'goodboy', name: 'Lost Dog', code: 'E-11b // CANID-STRAY', temperament: 'curious', threat: 0,
+  rule: { name: 'FEED IT', text: 'Harmless and hungry. Feed it meat three times and it follows you and growls at what you cannot see yet.' },
   hp: 26, walk: 1.5, run: 5.0, radius: 0.3, height: 0.7, sight: 14, fov: 1.3, hearing: 1.4, smell: true,
   attack: { dmg: [5, 9], range: 0.9, cooldown: 1.1, kinds: ['bite'], corrupt: 0 },
   zones: ['suburbs', 'fields', 'lobby'], weight: 0.6, maxPerZone: 1, diet: 'meat',

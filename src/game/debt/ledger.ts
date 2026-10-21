@@ -136,6 +136,23 @@ export class DebtSystem implements GameSystem {
     return true;
   }
 
+  /**
+   * host: bill the account for a quest fee, permit or bribe. Surplus pays first;
+   * before discharge the rest is added to the balance (the Programme always
+   * lends). After discharge only surplus can pay. False when it cannot be paid.
+   */
+  charge(v: number, what = '', by?: string): boolean {
+    v = Math.round(v);
+    if (!this.host || !this.s.on || !(v > 0)) return false;
+    const s = this.s;
+    if (s.cleared && s.surplus < v) return false;
+    const fromSurplus = Math.min(s.surplus, v);
+    s.surplus -= fromSurplus;
+    s.owed += v - fromSurplus;
+    this.publish([{ k: 'spend', v, by, what }]);
+    return true;
+  }
+
   /** dev / pacing helper: set the remaining balance (host) */
   devCredit(v: number) { return this.credit(v, 'dev'); }
 

@@ -58,7 +58,7 @@ export function resolveTarget(p: Player, it: Item, from: Container, to: Containe
   if (!weightOk(to, it)) return null;
   const occ = containerOcc(to, new Set([it]));
   if (!occ) return { c: to, at: at ?? null }; // no grid known yet: let the container settle it
-  if (at && testFit(occ, it, at.gx, at.gy, at.rot as Rot) !== 'blocked') return { c: to, at };
+  if (at && testFit(occ, it, at.gx, at.gy, at.rot as Rot, 1, at.gz ?? 0) !== 'blocked') return { c: to, at };
   const spot = findSpot(occ, it, 1, at?.rot);
   if (spot) return { c: to, at: spot };
   // the pockets are full but a bag may not be

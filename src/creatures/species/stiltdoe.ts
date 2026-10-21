@@ -371,6 +371,7 @@ PG.paint((Pt, v) => {
 
 const S = def({
   key: 'stilt_doe', name: 'Stilt Doe', code: 'E-04 // CERVID-TALL', temperament: 'skittish', threat: 1,
+  rule: { name: 'SPOOKS AT RUNNING', text: 'Running footsteps send it bounding off. Sneak up for the meat, but corner it and it kicks.' },
   hp: 40, walk: 1.1, run: 7.5, turn: 3, radius: 0.45, height: 3.3, sight: 26, fov: 2.6, hearing: 1.6,
   attack: { dmg: [10, 18], range: 1.4, cooldown: 2.2, kinds: ['fracture', 'laceration'], corrupt: 0, knock: 1.2, parts: ['torso_u', 'head', 'uarm_l', 'uarm_r'] },
   zones: ['fields', 'suburbs', 'parking'], weight: 4, group: [1, 3], maxPerZone: 9, diet: 'grass',

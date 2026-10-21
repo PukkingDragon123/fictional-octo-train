@@ -306,6 +306,7 @@ function thinkLamp(c: Creature, dt: number): boolean {
 
 const S = def({
   key: 'lamplighter', name: 'Lamplighter', code: 'E-07 // NIGHT-LIGHT', temperament: 'peaceful', threat: 0,
+  rule: { name: 'IT DIMS FOR DANGER', text: 'Gentle. When its light goes out and it hides, something hostile is near.' },
   hp: 14, walk: 1.2, run: 3.4, turn: 6, radius: 0.18, height: 0.45, sight: 14, fov: 3.1, hearing: 1.2, nightVision: true,
   zones: ['house', 'school', 'lobby', 'suburbs', 'fields', 'hospital'], weight: 1, maxPerZone: 2, diet: 'none',
   tame: { food: ['candy_bar', 'candy_dream', 'cookies', 'donut', 'birthday_cake', 'popsicle', 'ice_cream'], feeds: 2 },

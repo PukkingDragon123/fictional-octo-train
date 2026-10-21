@@ -1,15 +1,15 @@
 // Staff Sergeant Voss (projection): the debtor's handler for the rest of the
 // game. A flickering hologram soldier (fatigues, beret, cyan and amber,
 // scanlines, slices of him sliding sideways when the signal tears) projected
-// from the BAILIFF band on the survivor's wrist or from the pylon at a
-// hopper, with a gruff procedural radio voice (src/game/vossVoice.ts) and
+// from the BAILIFF band on the survivor's wrist or from the projector on a
+// Remittance Press (object key 'hopper'), with a gruff procedural radio voice (src/game/vossVoice.ts) and
 // 'subtitle' lines in the 'voss' style. Local to each player.
 //
 // API (G.handler):
 //   say(text, { at?, point?, dur?, key?, cd? })  queue a line (also bus 'handlerSay' { text })
 //   appear('band' | 'pylon' | { x, z }), vanish(), point(x, z)
 //   guide(target | null)   a holographic chevron path on the floor toward a target
-//   begin()                the post-intro tutorial: smash something, find a valuable, use the hopper
+//   begin()                the post-intro tutorial: smash something, find a valuable, load the press, pull the lever
 //   worldPos(), visible    (the HUD hangs his subtitles above him)
 // Reactions with cooldowns: furniture broken by you, deposits, debt
 // milestones, band warnings, low health, a creature in sight, idling, a new zone.
@@ -59,7 +59,7 @@ export function debtorNumber(p: Player | null | undefined = G.local): string {
 // ------------------------------------------------------------------ lines
 const L = {
   smashed: ['Good. Now go through the pieces.', 'That\'s the spirit. Destruction is a growth industry.', 'Again. The Institute has a lot of furniture and you have a lot of debt.', 'Listen to that. That\'s the sound of your balance going down. Slightly.'],
-  deposit: ['Credited.', 'The plate took it. Next.', 'Weighed, scanned, gone. Keep feeding it.', 'Noted on your file. In pencil.'],
+  deposit: ['Credited.', 'Pressed. Sent. Next.', 'Through to the other side. Keep loading it.', 'Noted on your file. In pencil.'],
   milestone: ['A quarter of the way. Don\'t celebrate, it makes you slow.', 'Halfway. I\'ve seen debtors die closer than this.', 'Three quarters. Now I\'m almost interested.'],
   warn: ['Wrong way, debtor. Turn around.', 'That\'s the edge of the work area. The band can count.', 'Back. Inside. Now.'],
   lowHealth: ['You\'re bleeding on Institute time. Patch yourself up.', 'Don\'t die. Dead debtors are an accounting nightmare.', 'Find a bandage. That\'s an order, not advice.'],
@@ -254,7 +254,7 @@ export class Handler implements GameSystem {
         break;
       case 2: {
         const h = this.nearestHopper();
-        if (h) { this.guide(h); if (quiet) this.say('Hopper. Striped plate on the floor, a pylon with my face on it. Push it on, or drop it on.', { point: h }); }
+        if (h) { this.guide(h); if (quiet) this.say('The press. Striped plate under a ram, red lever on the side. Put it on the plate, step off, pull the lever. It goes through to the other side.', { point: h }); }
         break;
       }
       case 3:
@@ -559,7 +559,7 @@ export class Handler implements GameSystem {
       if (!intro || intro.phase === 'done') {
         this.bootT += dt;
         if (this.bootT > 2.5) {
-          if (!m?.flags?.has?.('contract:first_deposit')) this.say('Debtor {n}. Staff Sergeant Voss. Smash the furniture, find what\'s worth something, feed the hopper. Don\'t try to leave. Questions? Good.');
+          if (!m?.flags?.has?.('contract:first_deposit')) this.say('Debtor {n}. Staff Sergeant Voss. Smash the furniture, find what\'s worth something, put it on the press and pull the lever. Don\'t try to leave. Questions? Good.');
           this.begin();
         }
       }

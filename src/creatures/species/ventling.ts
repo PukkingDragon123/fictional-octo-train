@@ -554,6 +554,7 @@ onKilled('ventling', (c) => {
 
 const sp = def({
   key: 'ventling', name: 'Ventling', code: 'E-28 // DUCT-SCAVENGER', temperament: 'skittish', threat: 1,
+  rule: { name: 'COWARD AND THIEF', text: 'It flees when approached and only bites when cornered. It steals floor items into the vents; bait a box trap.' },
   hp: 14, walk: 1.7, run: 5.6, turn: 14, radius: 0.22, height: 0.35, sight: 12, fov: 1.8, hearing: 1.8, nightVision: true,
   attack: { dmg: [3, 6], range: 0.6, cooldown: 1.2, kinds: ['bite', 'scratch'], corrupt: 0.04, knock: 0.1, parts: ['hand_l', 'hand_r', 'farm_l', 'farm_r', 'shin_l', 'shin_r'] },
   zones: ['office', 'tunnels', 'mall', 'market', 'hospital'], weight: 2, group: [1, 2], maxPerZone: 4, diet: 'items',

@@ -20,6 +20,7 @@ import type { Player } from '../entities/player';
 import type { TileObject, Zone } from '../world/zone';
 import type { MenuOption } from '../ui/ui';
 import { voss } from '../game/debt/voice';
+import { QuestRuntime } from './questRuntime';
 
 export interface Objective {
   id: string;
@@ -86,8 +87,11 @@ export class MissionSystem implements GameSystem {
   private glitchT = 20;
   private roomKey = '';
   private endingStarted = false;
+  /** the watch's quests (src/missions/questRuntime.ts); the contract chain lives there now */
+  quests: QuestRuntime;
 
   constructor() {
+    this.quests = new QuestRuntime(this);
     bus.on('loreRead', (p: Player, id: string) => this.onLore(p, id));
     bus.on('scanned', (c: any) => { if (c?.sp?.key) this.set('scan:' + c.sp.key); });
     bus.on('enterZone', (z: Zone, p: Player) => { if (p?.isLocal) { this.set('visit:' + z.key); this.zoneBlurb(z); } });
@@ -154,6 +158,13 @@ export class MissionSystem implements GameSystem {
       if (Number.isNaN(x)) continue;
       out.push({ id: s.id, freq: s.freq, x, z: zz, range: s.range ?? 120, name: s.name, text: s.text });
     }
+    for (const s of this.quests.signals()) {
+      if (s.zone !== zoneKey || !z) continue;
+      const a = s.anchor ? z.meta.anchors?.[s.anchor] : null;
+      const x = s.x ?? (a ? a[0] + 0.5 : NaN), zz = s.z ?? (a ? a[1] + 0.5 : NaN);
+      if (Number.isNaN(x)) continue;
+      out.push({ id: s.id, freq: s.freq, x, z: zz, range: s.range ?? 120, name: s.name, text: s.text });
+    }
     return out;
   }
   onSignalLock(sig: any) { if (sig?.id) this.set('sig:' + sig.id); }
@@ -200,10 +211,12 @@ export class MissionSystem implements GameSystem {
       }
       if (all) { this.set('done:' + d.key); d.onDone?.(this); }
     }
+    this.quests.evaluate();
   }
 
   /** local presentation of flag changes (toasts, chirps, radio lines) */
   private present() {
+    this.quests.present();
     for (const d of DEFS) {
       const sk = 'start:' + d.key, dk = 'done:' + d.key;
       if (this.flags.has(sk) && !this.notified.has(sk)) {
@@ -282,6 +295,7 @@ export class MissionSystem implements GameSystem {
     if (this.checkT <= 0) {
       this.checkT = 0.5;
       if (G.role !== 'client') this.evaluate();
+      else this.quests.latch();
       this.present();
     }
     this.updateCollapse(dt);
@@ -455,13 +469,14 @@ export class MissionSystem implements GameSystem {
   }
 
   // ---------------------------------------------------------------- persistence
-  serialize() { return { flags: [...this.flags], codex: this.codex, enabled: this.enabled }; }
+  serialize() { return { flags: [...this.flags], codex: this.codex, enabled: this.enabled, quests: this.quests.serialize() }; }
   load(s: any) {
     if (!s) return;
     this.flags = new Set(s.flags || []);
     this.codex = s.codex || [];
     this.enabled = s.enabled ?? true;
     for (const f of this.flags) this.notified.add(f);
+    this.quests.load(s.quests);
   }
 }
 

@@ -82,13 +82,43 @@ export class BreatheAction extends TimedAction {
   }
 }
 
-/** queue a breathing exercise (watch button, scanner, H key) */
+/**
+ * H / the scanner button / a tap on the lungs: the lung pump (src/ui/body/lung.ts), a rhythm minigame on
+ * the body HUD. The first press starts it, every press after that is a beat. Without the HUD (tests,
+ * headless) it falls back to the old 16-second box breathing action.
+ */
 export function startBreathing(p: Player) {
   if (!p || p.body.dead || p.sleeping || p.inVehicle) return;
+  const hud = G.hudBody;
+  if (p.isLocal && hud?.pumpPress) { hud.pumpPress(); return; }
   if (p.actions.current?.name === 'Breathe') return;
   p.actions.set(new BreatheAction(p));
 }
-export function isBreathing(p: Player) { const a = p.actions.current; return !!a && a.started && a.name === 'Breathe'; }
+export function isBreathing(p: Player) {
+  if (p?.isLocal && G.hudBody?.pumping) return true;
+  const a = p.actions.current; return !!a && a.started && a.name === 'Breathe';
+}
+
+/** one pump on the beat (q 1 good, 2 perfect): a slice of the box-breathing calm, sized like the old exercise */
+export function breathHit(p: Player, q: 1 | 2) {
+  const b = p.body, m = ensureMind(b);
+  let k = (q === 2 ? 0.26 : 0.17) * clamp(m.sinceBreath / 1.5 + 0.35, 0.35, 1);
+  if (b.has('box_breather')) k *= 2;
+  if (b.perks.has('therapist')) k *= 2;
+  b.panic = Math.max(0, b.panic - 28 * k);
+  b.stress = Math.max(0, b.stress - 7 * k);
+  m.anxiety = Math.max(0, m.anxiety - 0.012 * k);
+  m.flash = Math.max(0, m.flash - 0.3); m.dissoc = Math.max(0, m.dissoc - 0.3);
+  if (m.attack > 0) m.attack = Math.max(Math.min(m.attack, 2.5), m.attack - 4 * k * 3);
+}
+/** a pump session ends: it counts as having breathed (once it was a real one) */
+export function breathDone(p: Player, hits: number, hadAttack: boolean) {
+  if (hits < 4) return;
+  const m = ensureMind(p.body);
+  m.sinceBreath = 0;
+  if (hadAttack) addStat('panic_calmed');
+  bus.emit('think', p, pick(LINES.breathe));
+}
 
 export interface MindFx { panic: number; desat: number; wobble: number; dream: number; glitch: number; vignette: number; shake: number; deaf: number; }
 
@@ -342,7 +372,7 @@ export class MindSystem {
     this.wakeCd = Math.max(0, this.wakeCd - dt);
     this.breathing = isBreathing(p);
     this.nearSeat = !!env.nearSeat;
-    this.breathT = this.breathing ? (p.actions.current!.t) : 0;
+    this.breathT = this.breathing ? (p.actions.current?.name === 'Breathe' ? p.actions.current.t : (G.hudBody?.lungs?.hits ?? 0) * 2) : 0;
     const T = (t: string) => b.has(t);
     const calm = anxiolyticEffect(m), ssri = ssriEffect(m);
     const asleep = env.asleep;
@@ -592,7 +622,7 @@ export class MindSystem {
     m.anxiety = clamp01(m.anxiety + 0.04);     // fear of the fear
     p.body.panic = Math.max(p.body.panic, 85);
     bus.emit('think', p, pick(LINES.attackStart));
-    G.ui?.toast?.('PANIC ATTACK', 'It will pass. Breathe: press H or tap BREATHE on the watch.', 4.5);
+    G.ui?.toast?.('PANIC ATTACK', 'It will pass. Breathe: press H on the beat (or tap the lungs).', 4.5);
     bus.emit('panicAttack', p);
   }
 

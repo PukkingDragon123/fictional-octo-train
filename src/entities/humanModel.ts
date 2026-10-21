@@ -1042,7 +1042,7 @@ function hair(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape, tr: (p:
   };
   const thick = st === 'buzz' || st === 'cornrows' ? 0.0035 : st === 'curly' ? 0.024 : st === 'afro' ? 0.044 : st === 'short' || st === 'spiky' ? 0.011
     : st === 'undercut' ? 0.017 : st === 'receding' ? 0.008 : st === 'topknot' ? 0.008 : 0.012;
-  const hatLine = hat === 'cap' ? 0.132 : hat === 'beanie' ? 0.124 : hat === 'hardhat' ? 0.135 : hat === 'helmet' ? 0.13 : 99;
+  const hatLine = hat === 'cap' ? 0.132 : hat === 'beanie' ? 0.124 : hat === 'hardhat' ? 0.135 : hat === 'helmet' ? 0.13 : hat === 'flat' ? 0.128 : 99;
   const ys = [-0.25, -0.14, -0.05, 0.0, 0.035, 0.07, 0.105, 0.14, 0.17, 0.198];
   const minY = Math.min(...HEAD_ANG.map((a) => line(a)));
   const rowYs = ys.filter((y) => y >= minY - 0.03);

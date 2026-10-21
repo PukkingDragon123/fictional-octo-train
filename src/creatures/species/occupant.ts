@@ -498,6 +498,7 @@ function thinkOccupant(c: Creature, dt: number): boolean {
 
 const S = def({
   key: 'occupant', name: 'The Occupant', code: 'E-00 // OCCUPANT', temperament: 'hazard', threat: 5,
+  rule: { name: 'NO SIDE ROOMS', text: 'It cannot be hurt, but it never turns into side rooms or opens doors. Noise turns it your way: stay quiet and let it pass.' },
   hp: 9999, walk: 0.85, run: 1.3, turn: 1.4, radius: 1.1, height: 2.5, sight: 8, fov: 1, hearing: 1.4,
   attack: { dmg: [55, 80], range: 2.7, cooldown: 1.4, kinds: ['fracture', 'deep', 'bruise'], corrupt: 0.25, knock: 2.8, parts: ['torso_u', 'torso_l', 'head', 'uarm_l', 'uarm_r', 'thigh_l', 'thigh_r'] },
   zones: ['lobby', 'tunnels', 'stairwell', 'parking', 'corrupt'], weight: 0.2, maxPerZone: 1,

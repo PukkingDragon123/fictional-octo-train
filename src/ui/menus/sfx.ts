@@ -4,7 +4,9 @@
 // UI/master volume) and its own otherwise (title boot before a game exists).
 import { G } from '../../game/G';
 
-export type Sfx = 'hover' | 'click' | 'confirm' | 'back' | 'type' | 'error' | 'boot' | 'tab' | 'toggle' | 'unlock' | 'open' | 'tick' | 'stamp' | 'shutter' | 'hum' | 'freeze';
+export type Sfx = 'hover' | 'click' | 'confirm' | 'back' | 'type' | 'error' | 'boot' | 'tab' | 'toggle' | 'unlock' | 'open' | 'tick' | 'stamp' | 'shutter' | 'hum' | 'freeze'
+  // the subject room (title / creator / press)
+  | 'servo' | 'clamp' | 'slam' | 'squelch' | 'grind' | 'spark' | 'breaker' | 'press' | 'gear' | 'klaxon' | 'hiss' | 'buzz';
 
 let own: AudioContext | null = null;
 let gestureHooked = false;
@@ -105,6 +107,21 @@ export function sfx(kind: Sfx, vol = 1) {
       tone('sawtooth', 220, 40, 0, 0.45, 0.03);
       noise(0, 0.15, 0.3, 6000, 0.5);
       break;
+    case 'servo': tone('sawtooth', 140, 330, 0, 0.42, 0.035); tone('square', 70, 160, 0, 0.42, 0.02); noise(0, 0.4, 0.12, 1400, 2); break;
+    case 'clamp': noise(0, 0.05, 0.9, 3200, 0.9); tone('square', 320, 110, 0, 0.08, 0.08); tone('triangle', 1260, 1200, 0.01, 0.25, 0.03); break;
+    case 'slam':
+      tone('sine', 78, 26, 0, 0.9, 0.5); noise(0, 0.35, 1, 260, 0.5); noise(0, 0.08, 0.8, 2200, 0.6);
+      tone('triangle', 410, 400, 0.01, 0.9, 0.05); tone('triangle', 637, 630, 0.01, 0.7, 0.035);
+      break;
+    case 'squelch': for (let i = 0; i < 4; i++) noise(i * 0.045 + Math.random() * 0.02, 0.07, 0.7, 380 + Math.random() * 500, 3.5); tone('sine', 220, 70, 0, 0.25, 0.12); break;
+    case 'grind': tone('sawtooth', 820, 1350, 0, 0.55, 0.04); tone('sawtooth', 1640, 2500, 0, 0.55, 0.015); noise(0, 0.55, 0.35, 3800, 1.5); break;
+    case 'spark': for (let i = 0; i < 6; i++) noise(Math.random() * 0.22, 0.012, 0.6 + Math.random() * 0.4, 4500 + Math.random() * 4000, 1.2); break;
+    case 'breaker': noise(0, 0.1, 1, 340, 0.6); tone('sine', 110, 48, 0, 0.3, 0.3); tone('sawtooth', 60, 60, 0.12, 1.1, 0.03); tone('sine', 120, 120, 0.12, 1.1, 0.04); break;
+    case 'press': tone('sine', 240, 90, 0, 0.14, 0.2); noise(0, 0.03, 0.6, 1300, 0.8); tone('square', 1800, 1800, 0.05, 0.03, 0.03); break;
+    case 'gear': for (let i = 0; i < 7; i++) { noise(i * 0.055, 0.015, 0.7, 2600 + i * 120, 1); tone('square', 900 - i * 40, 700, i * 0.055, 0.02, 0.03); } break;
+    case 'klaxon': for (let i = 0; i < 4; i++) tone('square', i % 2 ? 520 : 690, i % 2 ? 520 : 690, i * 0.21, 0.2, 0.05); break;
+    case 'hiss': noise(0, 0.8, 0.45, 5200, 0.6); noise(0, 0.3, 0.3, 900, 0.8); break;
+    case 'buzz': tone('sawtooth', 118, 122, 0, 0.32, 0.05); tone('square', 236, 240, 0, 0.32, 0.025); noise(0, 0.3, 0.2, 6000, 0.8); break;
     case 'unlock':
       [523, 659, 784, 1046].forEach((f, i) => tone('square', f, f, i * 0.07, 0.16, 0.05));
       tone('triangle', 1568, 1568, 0.3, 0.5, 0.04);
