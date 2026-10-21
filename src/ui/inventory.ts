@@ -323,6 +323,7 @@ export class InventoryUI {
     G.input.pointerOverUI = false;
     this.lastClose = performance.now();
     this.cubeSpin.rotation.set(0, 0, 0);
+    this.cube.setScan(0, 0);
     this.ui.closeMenu?.();
   }
 
