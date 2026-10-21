@@ -19,6 +19,7 @@ import { itemDef } from '../items/item';
 import { CameraController } from './camera';
 import { SceneFx } from '../gfx/scenefx';
 import { gfxSettings } from '../ui/menus/common';
+import { timeScale } from '../gfx/juice';
 
 export interface GameSystem {
   name: string;
@@ -255,7 +256,7 @@ export class Game {
     let last = performance.now();
     const frame = () => {
       const now = performance.now();
-      const dt = Math.min(0.05, (now - last) / 1000);
+      const dt = Math.min(0.05, (now - last) / 1000) * timeScale();
       last = now;
       try { this.step(dt); } catch (e) { console.error(e); }
       requestAnimationFrame(frame);
