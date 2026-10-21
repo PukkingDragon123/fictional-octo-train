@@ -388,16 +388,16 @@ export function layoutBranch(branch: string): Laid[] {
 
 const CARD_W = 21, CARD_H = 11, COL_W = 37, ROW_H = 14, GX = 9;
 
-/** a punched card: clipped corner, two rows of holes, the node's code; owned cards are solid */
+/** a punched card: clipped corner, two rows of punched holes, the node's code; owned cards are solid */
 function card(s: Tube, x: number, y: number, code: string, fg: number, solid: boolean, seed: number) {
-  if (solid) s.rect(x, y, CARD_W, CARD_H, fg); else { s.rect(x, y, CARD_W, CARD_H, BG); s.frame(x, y, CARD_W, CARD_H, fg); }
+  s.rect(x, y, CARD_W, CARD_H, solid ? fg : FAINT);
+  if (!solid) s.frame(x, y, CARD_W, CARD_H, fg);
   // the clipped corner
-  s.px(x, y, BG); s.px(x + 1, y, BG); s.px(x, y + 1, BG);
-  if (!solid) s.px(x + 1, y + 1, fg);
-  // punched holes (a pattern from the key)
-  const hole = solid ? BG : fg;
-  for (let i = 0; i < 6; i++) { if ((seed >> i) & 1) s.px(x + 3 + i * 3, y + 2, hole); if ((seed >> (i + 6)) & 1) s.px(x + 3 + i * 3, y + 8, hole); }
-  s.text(code, x + Math.floor((CARD_W - s.textW(code)) / 2) + 1, y + 2, solid ? BG : fg);
+  s.rect(x, y, 3, 1, BG); s.rect(x, y + 1, 2, 1, BG); s.px(x, y + 2, BG);
+  // punched holes (a pattern from the key), top and bottom rows
+  const hole = solid ? BG : DIM;
+  for (let i = 0; i < 6; i++) { if ((seed >> i) & 1) s.rect(x + 3 + i * 3, y + 1, 2, 1, hole); if ((seed >> (i + 6)) & 1) s.rect(x + 3 + i * 3, y + CARD_H - 2, 2, 1, hole); }
+  if (code) s.text(code, x + Math.floor((CARD_W - s.textW(code)) / 2) + 1, y + 2, solid ? BG : fg);
 }
 
 export function drawResearch(s: Tube, w: Watch) {
@@ -420,7 +420,7 @@ export function drawResearch(s: Tube, w: Watch) {
   // the continuous-feed paper: tractor holes down both margins, greenbar bands
   const feed = Math.floor((G.time * 3) % 6);
   for (let yy = gTop; yy < gBot; yy++) if (Math.floor((yy - gTop + (st.rScroll ?? 0) * ROW_H) / ROW_H) % 2 === 0) s.hline(GX - 1, s.w - GX, yy, FAINT, 0);
-  for (let yy = gTop + 2 - feed % 6; yy < gBot; yy += 6) { if (yy < gTop) continue; s.circle(3, yy, 1, DIM); s.circle(s.w - 4, yy, 1, DIM); }
+  for (let yy = gTop + 3 - feed % 6; yy < gBot - 1; yy += 6) { if (yy < gTop + 1) continue; for (const hx of [3, s.w - 4]) { s.disc(hx, yy, 1.4, DIM); s.px(hx, yy, BG); } }
   s.vline(GX - 2, gTop, gBot, DIM); s.vline(s.w - GX + 1, gTop, gBot, DIM);
   if (!laid.length) {
     s.text(br.name, GX + 2, gTop + 3, HI);

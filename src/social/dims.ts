@@ -445,6 +445,8 @@ export class DimensionSystem implements GameSystem {
   private pad: { nodes: AudioNode[]; gain: GainNode } | null = null;
   private tmpM = new THREE.Matrix4();
   private tmpV = new THREE.Vector3();
+  private tmpU = new THREE.Vector3();
+  private tmpR = new THREE.Vector3();
 
   update(dt: number) {
     const p = G.local;
@@ -480,8 +482,11 @@ export class DimensionSystem implements GameSystem {
     const fall = G.floors?.fall;
     if (this.moon.earth) {
       // far behind the ground along the view: it fills the picture wherever the ground is missing
-      const e = this.moon.earth, F = G.pr.forward(this.tmpV);
-      e.position.set(G.pr.target.x + F.x * 80 + Math.cos(G.pr.yaw) * 9, G.pr.target.y + F.y * 80, G.pr.target.z + F.z * 80 - Math.sin(G.pr.yaw) * 9);
+      // (to the left and up in the picture, clear of the hand-held things on the right)
+      const e = this.moon.earth, F = G.pr.forward(this.tmpV), cam = (G.pr as any).camera as THREE.Camera | undefined;
+      if (cam) { this.tmpU.setFromMatrixColumn(cam.matrixWorld, 1); this.tmpR.setFromMatrixColumn(cam.matrixWorld, 0); } else { this.tmpU.set(0, 1, 0); this.tmpR.set(1, 0, 0); }
+      const t = G.pr.target;
+      e.position.set(t.x + F.x * 80 - this.tmpR.x * 13 + this.tmpU.x * 5, t.y + F.y * 80 - this.tmpR.y * 13 + this.tmpU.y * 5, t.z + F.z * 80 - this.tmpR.z * 13 + this.tmpU.z * 5);
       e.rotation.y += dt * 0.02;
     }
     if (fall || p.body.dead || p.inVehicle || G.transitioning) { this.moon.base = p.y; return; }

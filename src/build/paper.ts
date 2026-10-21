@@ -4,7 +4,6 @@
 // paper grain, ruling and stains, so text only ever exists ON something.
 import * as THREE from 'three';
 import { G } from '../game/G';
-import { atlas } from '../gfx/atlas';
 import { fontsReady } from '../gfx/crt';
 
 export const FONT = {
@@ -130,9 +129,10 @@ export function sheetMesh(sheet: Sheet, w: number, h: number, opts: { transparen
   return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: sheet.tex, transparent: !!opts.transparent }));
 }
 
-/** polished metal for first-person props (overlay only): the atlas texture with real speculars */
-export function shinyMaterial(shininess = 70, specular = 0x9a9a9a): THREE.MeshPhongMaterial {
-  return new THREE.MeshPhongMaterial({ map: atlas().texture, vertexColors: true, shininess, specular });
+/** polished metal for first-person props (overlay only): a smooth base colour (the model's baked
+ *  shading kept in its vertex colours) with real specular highlights from the scene's lights */
+export function shinyMaterial(color: number, shininess = 70, specular = 0x9a9a9a): THREE.MeshPhongMaterial {
+  return new THREE.MeshPhongMaterial({ color, vertexColors: true, shininess, specular });
 }
 
 /** aim a raycaster from CSS pixel coordinates through the first-person overlay camera */

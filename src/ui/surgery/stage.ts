@@ -258,6 +258,9 @@ export class SurgeryStage {
   private env: THREE.Texture | null = null;
   private glowMat = worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true });
   private rt: THREE.WebGLRenderTarget | null = null;
+  /** the graded picture, still at low resolution; one nearest-neighbour copy blows it up to the canvas */
+  private rt2: THREE.WebGLRenderTarget | null = null;
+  private blit: { scene: THREE.Scene; mat: THREE.MeshBasicMaterial } | null = null;
   private post: { scene: THREE.Scene; cam: THREE.OrthographicCamera; mat: THREE.ShaderMaterial } | null = null;
   private saw: RobotArm; private driver: RobotArm;
   private gantry = new THREE.Group(); private trolley = new THREE.Group(); private claw = new THREE.Group(); private clawFingers: THREE.Group[] = [];
@@ -932,8 +935,11 @@ export class SurgeryStage {
     this.fgCam.aspect = w / h; this.fgCam.updateProjectionMatrix();
     this.cam.fov = lw / lh < 0.8 ? 52 : this.mode === 'field' ? 62 : 34;
     this.cam.updateProjectionMatrix();
-    this.rt?.dispose();
+    this.rt?.dispose(); this.rt2?.dispose();
     this.rt = new THREE.WebGLRenderTarget(lw, lh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
+    this.rt2 = new THREE.WebGLRenderTarget(lw, lh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false });
+    if (!this.blit) { const bm = new THREE.MeshBasicMaterial({ depthTest: false, depthWrite: false, toneMapped: false }); const bs = new THREE.Scene(); const bq = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), bm); bq.position.z = -0.5; bq.frustumCulled = false; bs.add(bq); this.blit = { scene: bs, mat: bm }; }
+    this.blit.mat.map = this.rt2.texture; this.blit.mat.needsUpdate = true;
     if (!this.post) {
       const mat = new THREE.ShaderMaterial({
         uniforms: { tex: { value: null }, texel: { value: new THREE.Vector2() }, uTime: { value: 0 }, uHurt: { value: 0 }, uFlash: { value: 0 } },
@@ -1050,7 +1056,10 @@ export class SurgeryStage {
       r.clear(true, true, true);
       r.render(this.scene, this.cam);
       r.setRenderTarget(null);
+      r.setRenderTarget(this.rt2);
       r.render(this.post!.scene, this.post!.cam);
+      r.setRenderTarget(null);
+      r.render(this.blit!.scene, this.post!.cam);
       if (this.fg.children.length) { r.autoClear = false; r.clearDepth(); r.render(this.fg, this.fgCam); r.autoClear = true; }
     } finally {
       U.uCutOn.value = saved.cut; U.uVisOn.value = saved.vis; U.uFogNear.value = saved.fn; U.uFogFar.value = saved.ff; U.uGridScale.value = saved.gs; U.uCollapse.value = saved.col; U.uSnapOn.value = saved.snap;
@@ -1062,7 +1071,7 @@ export class SurgeryStage {
     this.ro.disconnect();
     if (this.rig) { this.subj.remove(this.rig.root); this.rig.dispose(); this.rig = null; }
     this.monitor.tex.dispose();
-    this.rt?.dispose();
+    this.rt?.dispose(); this.rt2?.dispose();
     this.blood.mesh.geometry.dispose(); this.sparks.mesh.geometry.dispose();
     if (this.renderer) { this.renderer.dispose(); this.renderer.forceContextLoss(); this.renderer = null; }
     this.canvas.remove();

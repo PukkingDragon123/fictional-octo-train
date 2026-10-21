@@ -40,15 +40,16 @@ function textures() {
   texReady = true;
   const A = atlas();
   // scratched, brushed steel
-  A.add('wt_steel', 16, 16, (pc, rng) => {
-    pc.each((x, y) => { const n = rng.next(); const streak = (y * 7 + (x >> 3)) % 5 === 0 ? 10 : 0; pc.set(x, y, n < 0.1 ? 0x9ca0a2 : n < 0.3 ? 0xbcc0c0 + streak : 0xb0b4b6 + streak); });
-    for (let i = 0; i < 7; i++) { const x = rng.int(0, 15), y = rng.int(0, 15); for (let k = 0; k < 5; k++) pc.blend(x + k, y + (k >> 2), 0xe8ecec, 0.55); }
-    for (let i = 0; i < 5; i++) pc.blend(rng.int(0, 15), rng.int(0, 15), 0x5a4632, 0.55);
+  A.add('wt_steel', 32, 32, (pc, rng) => {
+    // brushed along X: long faint streaks, a few scratches, a little grime
+    for (let y = 0; y < 32; y++) { const row = 0xb2b6b8 + (((y * 37) % 7) - 3) * 0x020202; for (let x = 0; x < 32; x++) pc.set(x, y, rng.next() < 0.08 ? row + 0x060606 : row); }
+    for (let i = 0; i < 6; i++) { const x = rng.int(0, 31), y = rng.int(0, 31); for (let k = 0; k < 7; k++) pc.blend(x + k, y + (k >> 2), 0xe2e6e8, 0.35); }
+    for (let i = 0; i < 4; i++) pc.blend(rng.int(0, 31), rng.int(0, 31), 0x6a5a48, 0.3);
   });
   // bakelite: warm near-black brown, mottled
-  A.add('wt_bake', 16, 16, (pc, rng) => {
-    pc.each((x, y) => { const n = rng.next(); pc.set(x, y, n < 0.15 ? 0x2a1a12 : n < 0.3 ? 0x42301f : 0x36261a); });
-    for (let i = 0; i < 6; i++) pc.blend(rng.int(0, 15), rng.int(0, 15), 0x664a34, 0.6);
+  A.add('wt_bake', 32, 32, (pc, rng) => {
+    pc.each((x, y) => { const n = rng.next(); pc.set(x, y, n < 0.12 ? 0x30201a : n < 0.24 ? 0x3c2a1e : 0x36251a); });
+    for (let i = 0; i < 10; i++) pc.blend(rng.int(0, 31), rng.int(0, 31), 0x4e3828, 0.4);
   });
   A.add('wt_knurl', 16, 4, (pc) => { pc.each((x, y) => pc.set(x, y, x % 2 ? 0x2a2420 : (y === 0 ? 0x9a948c : 0x6a645c))); });
   A.add('wt_knobtop', 24, 24, (pc) => {
@@ -256,22 +257,22 @@ export function buildWatchModel(screen: THREE.Mesh): WatchModel {
     rb.box(cx - 0.045, by - 0.007, 0.012, 0.016, 0.014, 0.003, 'wt_crust', { fit: true });
   }
   // steel shell, lacquered bakelite faceplate, a bright top rail, hazard-striped bottom rail
-  st.box(cx, -H.h / 2, TOP + H.d / 2 - 0.002, H.w, H.h, H.d - 0.004, 'wt_steel', { uvScale: 30 });
-  bk.box(cx, -H.h / 2 + 0.003, FRONT - 0.002, H.w - 0.006, H.h - 0.006, 0.004, 'wt_bake', { uvScale: 30 });
-  st.box(cx, H.h / 2 - 0.003, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_steel', { uvScale: 30 });
+  st.box(cx, -H.h / 2, TOP + H.d / 2 - 0.002, H.w, H.h, H.d - 0.004, 'wt_steel', { uvScale: 24 });
+  bk.box(cx, -H.h / 2 + 0.003, FRONT - 0.002, H.w - 0.006, H.h - 0.006, 0.004, 'wt_bake', { uvScale: 24 });
+  st.box(cx, H.h / 2 - 0.003, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_steel', { uvScale: 24 });
   pt.box(cx, -H.h / 2 - 0.002, TOP + H.d / 2 - 0.002, H.w - 0.008, 0.005, H.d - 0.002, 'wt_haz', { fit: true });
-  for (const sx of [-1, 1]) rb.box(cx + sx * (H.w / 2 + 0.003), -0.026, TOP + H.d / 2 - 0.002, 0.006, 0.052, H.d - 0.006, 'wt_rubber', { uvScale: 30 });
+  for (const sx of [-1, 1]) rb.box(cx + sx * (H.w / 2 + 0.003), -0.026, TOP + H.d / 2 - 0.002, 0.006, 0.052, H.d - 0.006, 'wt_rubber', { uvScale: 40 });
   // the CRT bezel: a thick steel frame standing proud of the faceplate, riveted
   const bw = SCREEN.w + 0.012, bh = SCREEN.h + 0.012, sxc = SCREEN.x, syc = SCREEN.y;
-  st.box(sxc, syc + SCREEN.h / 2, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { uvScale: 30 });
-  st.box(sxc, syc - SCREEN.h / 2 - 0.006, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { uvScale: 30, color: 0xd8d8d8 });
-  for (const sx of [-1, 1]) st.box(sxc + sx * (SCREEN.w / 2 + 0.003), syc - bh / 2 + 0.006, FRONT + 0.0015, 0.006, bh - 0.012, 0.003, 'wt_steel', { uvScale: 30, color: sx < 0 ? 0xf0f0f0 : 0xd0d0d0 });
+  st.box(sxc, syc + SCREEN.h / 2, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { uvScale: 24 });
+  st.box(sxc, syc - SCREEN.h / 2 - 0.006, FRONT + 0.0015, bw, 0.006, 0.003, 'wt_steel', { uvScale: 24, color: 0xd8d8d8 });
+  for (const sx of [-1, 1]) st.box(sxc + sx * (SCREEN.w / 2 + 0.003), syc - bh / 2 + 0.006, FRONT + 0.0015, 0.006, bh - 0.012, 0.003, 'wt_steel', { uvScale: 24, color: sx < 0 ? 0xf0f0f0 : 0xd0d0d0 });
   for (const [rx, ry] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
     br.push().translate(sxc + rx * (bw / 2 - 0.003), syc + ry * (bh / 2 - 0.003), FRONT + 0.003).rotateX(Math.PI / 2);
     br.cylinder(0, 0, 0, 0.0013, 0.0012, 6, 'wt_brass');
     br.pop();
   }
-  rb.box(sxc, syc - SCREEN.h / 2 - 0.001, FRONT - 0.0004, SCREEN.w + 0.002, SCREEN.h + 0.002, 0.0005, 'wt_rubber', { uvScale: 30 });
+  rb.box(sxc, syc - SCREEN.h / 2 - 0.001, FRONT - 0.0004, SCREEN.w + 0.002, SCREEN.h + 0.002, 0.0005, 'wt_rubber', { uvScale: 40 });
   // the control column: dial plate, gauge bezel and face
   pt.box(COL_X, 0.0035, FRONT + 0.0004, 0.026, 0.026, 0.0008, 'wt_dialring', { fit: true });
   st.push().translate(COL_X, -0.019, FRONT + 0.0005).rotateX(Math.PI / 2);
@@ -292,8 +293,8 @@ export function buildWatchModel(screen: THREE.Mesh): WatchModel {
     br.pop();
   }
   // armoured strap plates down the cuff
-  st.box(cx - H.w / 2 + 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { uvScale: 30, color: 0xb0b0b0 });
-  st.box(cx + H.w / 2 - 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { uvScale: 30, color: 0xb0b0b0 });
+  st.box(cx - H.w / 2 + 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { uvScale: 24, color: 0xb0b0b0 });
+  st.box(cx + H.w / 2 - 0.008, -ARM_R - 0.003, 0, 0.016, 0.006, ARM_R * 1.6, 'wt_steel', { uvScale: 24, color: 0xb0b0b0 });
   K.into(root);
 
   // ---- the CRT (its own glass and shader)

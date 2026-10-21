@@ -5,7 +5,7 @@
    and red bakelite keys, Nixie tubes. Text on glass glows in the phosphor
    colour of the player's terminal theme (green or amber). */
 .nx { --ink: #2a2418; --ink-2: #5a4e38; --tape-ink: #f4f0e6; --brass-ink: #2a1c08; color: var(--ph); }
-.nx button { font: inherit; color: inherit; cursor: var(--cur-hand); }
+.nx :where(button) { font: inherit; color: inherit; cursor: var(--cur-hand); }
 
 /* ---------------------------------------------------------------- shared parts */
 .rk-nixie { display: inline-flex; gap: var(--px); }
@@ -119,7 +119,7 @@
 .ik2-h small { font-family: var(--font-readout); font-size: var(--t-label); line-height: calc(var(--px) * 7); }
 .ik2-right .ik2-h b { padding: 0 calc(var(--px) * 3); border: calc(var(--px) * 2) solid transparent; border-image: var(--rk-tape) 3 fill / calc(var(--px) * 3) stretch; color: var(--tape-ink); text-shadow: var(--px) var(--px) 0 rgba(0, 0, 0, 0.6); line-height: calc(var(--px) * 8); }
 .ik2-right .ik2-h small { margin-top: var(--px); padding: 0 calc(var(--px) * 3); border: calc(var(--px) * 2) solid transparent; border-image: var(--rk-paper) 4 fill / calc(var(--px) * 4) stretch; color: var(--ink); transform: rotate(0.6deg); }
-.ik2-tabs { order: 3; display: flex; gap: var(--px); padding-top: var(--px); }
+.ik2-tabs { order: 3; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--px); padding-top: var(--px); }
 .ik2-tab-b { flex: 1 1 0; min-width: 0; padding-left: 0; padding-right: 0; font-size: calc(var(--t-label) * 0.9); overflow: hidden; }
 .ik2-tab-b.on { color: #7a1a10; }
 .ik2-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: calc(var(--px) * 5) calc(var(--px) * 6) calc(var(--px) * 8); color: var(--ph); scrollbar-color: var(--ph-dim) transparent; scrollbar-width: thin; overscroll-behavior: contain; }

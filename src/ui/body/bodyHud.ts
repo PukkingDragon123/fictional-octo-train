@@ -355,6 +355,7 @@ export class BodyHud {
     this.board.hover = h.kind === 'tool' ? h.slot : -1;
     this.setOver(!!h.kind);
     if (!h.kind) this.setSay('');
+    else if (G.local) this.updateSay(G.local);
   }
   private onDown(e: PointerEvent) {
     const h = this.pickAt(e.clientX, e.clientY);

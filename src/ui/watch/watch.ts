@@ -503,6 +503,8 @@ export class Watch {
       else if (!G.ui.inventory?.open && !G.ui.menuEl) G.input.pointerOverUI = false;
     }
     this.raise = damp(this.raise, up ? 1 : 0, up ? 8 : 10, dt);
+    // (lowered, it simply starts from the right pose)
+    if (this.raise < 0.05) this.zoom = this.small ? 0 : 1;
     this.zoom = damp(this.zoom, this.small ? 0 : 1, 7, dt);
     // (held while it lowers again, so a peek drops away where it came up)
     if (this.open) this.peekMix = damp(this.peekMix, 0, 9, dt);

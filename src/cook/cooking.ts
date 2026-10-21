@@ -54,8 +54,8 @@ export class CookView {
   private flames: THREE.Mesh;
   private light = new THREE.PointLight(0xff7a2a, 1.2, 1.6, 2);
   private surface: THREE.Mesh;
-  private splashStove!: THREE.Mesh;
-  private splashFire!: THREE.Mesh;
+  private grate!: THREE.Mesh;
+  private hob!: THREE.Mesh;
   private slots: Slot[] = [];
   private bits: Bit[] = [];
   private pot: { it: Item; cls: string }[] = [];
@@ -100,13 +100,14 @@ export class CookView {
     top.box(0, -0.06, 0, 1.5, 0.06, 0.78, { all: 'metal_dark', top: 'bt_plate' }, { uvScale: 8 });
     top.box(0, -0.06, 0.39, 1.5, 0.06, 0.02, 'metal_grey');
     top.box(0, -0.5, 0.2, 1.5, 0.44, 0.4, 'metal_dark');
-    this.surface = new THREE.Mesh(top.build(), M);
+    this.surface = this.hob = new THREE.Mesh(top.build(), M);
     this.rig.add(this.surface);
-    // the wall behind: kitchen tile for a hob, soot-black brick for a fire
-    const bs = new ModelBuilder(); bs.box(0, -0.06, -0.41, 1.6, 0.62, 0.04, 'wall_pool', { uvScale: 1 });
-    this.splashStove = new THREE.Mesh(bs.build(), M); this.rig.add(this.splashStove);
-    const bf = new ModelBuilder(); bf.box(0, -0.06, -0.41, 1.6, 0.62, 0.04, 'wall_brick', { uvScale: 1, color: 0x8a7a70 });
-    this.splashFire = new THREE.Mesh(bf.build(), M); this.rig.add(this.splashFire);
+    // a fire's grate over glowing coals (instead of the hob's steel top)
+    const fg = new ModelBuilder();
+    fg.box(0, -0.06, 0, 1.4, 0.035, 0.7, 'q_embers', { emissive: 0.85, uvScale: 5 });
+    for (const [x, z, w, d] of [[0, -0.37, 1.5, 0.04], [0, 0.37, 1.5, 0.04], [-0.73, 0, 0.04, 0.78], [0.73, 0, 0.04, 0.78]] as const) fg.box(x, -0.06, z, w, 0.06, d, 'metal_rusty');
+    for (let x = -0.69; x <= 0.69; x += 0.06) fg.box(x, -0.016, 0, 0.012, 0.012, 0.74, 'metal_dark');
+    this.grate = new THREE.Mesh(fg.build(), M); this.grate.visible = false; this.rig.add(this.grate);
     // burner rings under the pan and the pot
     const br = new ModelBuilder();
     for (const [x, r] of [[PAN_X, 0.15], [POT_X, 0.11]] as [number, number][]) for (let i = 0; i < 20; i++) { const a = (i / 20) * Math.PI * 2; br.box(x + Math.cos(a) * r, 0, Math.sin(a) * r, 0.03, 0.012, 0.03, 'white', { emissive: 1, ao: false }); }
@@ -122,7 +123,7 @@ export class CookView {
     pb.cylinder(0, 0, 0, 0.17, 0.012, 18, { sides: 'metal_dark', top: 'metal_dark', bottom: 'metal_dark' });
     for (let i = 0; i < 24; i++) { const a = (i / 24) * Math.PI * 2; pb.push().translate(Math.cos(a) * 0.17, 0.0, Math.sin(a) * 0.17).rotateY(-a); pb.box(0, 0, 0, 0.012, 0.045, 0.048, 'metal_dark'); pb.pop(); }
     pb.box(-0.32, 0.03, 0.04, 0.3, 0.018, 0.04, 'metal_dark'); pb.box(-0.47, 0.025, 0.05, 0.08, 0.03, 0.05, 'wood_dark');
-    this.panG.add(new THREE.Mesh(pb.build(), shinyMaterial(40, 0x6a6a6a)));
+    this.panG.add(new THREE.Mesh(pb.build(), shinyMaterial(0x34302e, 36, 0x8a8682)));
     this.panG.position.set(PAN_X, 0.0, 0);
     this.rig.add(this.panG);
     // ---- pot with broth and a wooden spoon
@@ -130,7 +131,7 @@ export class CookView {
     kb.cylinder(0, 0, 0, 0.11, 0.13, 14, { sides: 'metal_grey', top: 'metal_dark', bottom: 'metal_dark' }, { caps: false });
     kb.cylinder(0, 0, 0, 0.11, 0.004, 14, 'metal_dark');
     for (const s of [-1, 1]) kb.box(s * 0.125, 0.1, 0, 0.03, 0.015, 0.04, 'metal_dark');
-    this.potG.add(new THREE.Mesh(kb.build(), shinyMaterial(90, 0xc0c0c0)));
+    this.potG.add(new THREE.Mesh(kb.build(), shinyMaterial(0xa8acb0, 90, 0xe0e0e0)));
     const bb = new ModelBuilder(); bb.cylinder(0, 0, 0, 0.102, 0.004, 14, 'white');
     this.brothMat = cookMat('broth');
     this.broth = new THREE.Mesh(bb.build(), this.brothMat); this.broth.position.y = 0.03; this.potG.add(this.broth);
@@ -179,7 +180,7 @@ export class CookView {
     // ---- a probe thermometer that sticks into whatever you look at
     const face = new Sheet(96, 96); whenFonts(() => { face.gaugeFace('°F', 'high'); face.commit(); });
     const pr = new ModelBuilder(); pr.cylinder(0, -0.09, 0, 0.003, 0.09, 5, 'chrome'); pr.cylinder(0, 0, 0, 0.028, 0.012, 14, 'chrome');
-    const prm = new THREE.Mesh(pr.build(), shinyMaterial(90, 0xd0d0d0)); this.probe.add(prm);
+    const prm = new THREE.Mesh(pr.build(), shinyMaterial(0xc8ccd0, 90, 0xffffff)); this.probe.add(prm);
     const fm = new THREE.Mesh(new THREE.CircleGeometry(0.024, 14), new THREE.MeshLambertMaterial({ map: face.tex })); fm.rotation.x = -Math.PI / 2; fm.position.y = 0.0125; this.probe.add(fm);
     const nd = new ModelBuilder(); nd.box(0, 0, -0.0095, 0.0022, 0.0016, 0.019, 'white', { color: 0xc8302a });
     this.probeNeedle.add(new THREE.Mesh(nd.build(), M)); this.probeNeedle.position.y = 0.0135; this.probe.add(this.probeNeedle);
@@ -222,7 +223,8 @@ export class CookView {
     this.fillBoard(p);
     G.ui && (G.ui.modal = this.token);
     this.knob.visible = kind === 'stove';
-    this.splashStove.visible = kind === 'stove'; this.splashFire.visible = kind !== 'stove';
+    this.hob.visible = kind === 'stove'; this.grate.visible = kind !== 'stove';
+    this.surface = kind === 'stove' ? this.hob : this.grate;
     p.actions.clear();
     p.actions.add(new CookingAction(p, () => this.open, o.x + 0.5, o.y + 0.5));
     this.rig.position.y = -0.5; // slides up into view

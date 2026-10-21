@@ -71,7 +71,7 @@ export class Jar3D {
     const front = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R, R, 32, 20, 1, true, Math.PI, Math.PI * 2), M(0, 16, 0), 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.05, color: 0xdcece6, side: THREE.FrontSide, map: this.cracks.tex }));
     front.renderOrder = 6; b.add(front);
     // the paper label, wrapped round the front
-    const lab = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R + 0.12, R + 0.12, 9, 12, 1, true, Math.PI - 0.85, 1.7), M(0, 20, 0), 0xffffff, PAPER).build(), st.solid({ map: this.label.tex, wear: 0.3 }));
+    const lab = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R + 0.12, R + 0.12, 9, 12, 1, true, Math.PI * 2 - 0.85, 1.7), M(0, 20, 0), 0xffffff, PAPER).build(), st.solid({ map: this.label.tex, wear: 0.3 }));
     lab.renderOrder = 7; b.add(lab);
     this.paintLabel();
     // the lid: knurled brass, a stem and a gauge

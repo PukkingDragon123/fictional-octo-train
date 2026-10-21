@@ -56,7 +56,7 @@ export class Clipboard {
     this.g = fpGroup('build');
     this.g.add(this.rig);
     const M = worldMaterial({ noVis: true, noFog: true, noGrid: true, bpTag: 'board' } as any);
-    const S = shinyMaterial(80, 0xb0b0b0);
+    const S = shinyMaterial(0xb8bcc0, 80, 0xd0d0d0);
     // ---- masonite board, steel clip
     const bb = new ModelBuilder();
     bb.box(0, -0.2, 0, 0.3, 0.4, 0.008, 'wood_dark', { color: 0x8a6a4a });

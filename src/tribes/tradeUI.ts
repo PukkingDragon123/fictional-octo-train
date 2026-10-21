@@ -127,8 +127,8 @@ export class TradeUI {
     if (this.dirty) { this.dirty = false; this.layout(); }
     this.raise = Math.min(1, this.raise + dt * 4);
     const k = 1 - Math.pow(1 - this.raise, 3);
-    this.root.position.set(0, -0.075 - (1 - k) * 0.3, -0.62);
-    this.root.rotation.set(0.95 - (1 - k) * 0.4, 0, 0);
+    this.root.position.set(0.01, -0.06 - (1 - k) * 0.3, -0.84);
+    this.root.rotation.set(1.02 - (1 - k) * 0.4, 0, 0);
     // hover lift, flying goods, the standing bead sliding along its rail
     for (const s of this.slots) { const want = s === this.hover ? s.y0 + 0.014 : s.y0; s.g.position.y += (want - s.g.position.y) * Math.min(1, dt * 16); }
     for (let i = this.flying.length - 1; i >= 0; i--) {
@@ -221,7 +221,7 @@ export class TradeUI {
     }
     // a fat invisible box to make it easy to tap
     const hit = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.05, 0.05), new THREE.MeshBasicMaterial({ visible: false })); hit.position.y = 0.02; g.add(hit);
-    const tg = new THREE.Mesh(new THREE.PlaneGeometry(0.034, 0.0145), flatMat(priceTag(tagText, ink).tex));
+    const tg = new THREE.Mesh(new THREE.PlaneGeometry(0.042, 0.018), flatMat(priceTag(tagText, ink).tex));
     tg.rotation.x = -Math.PI / 2; tg.rotation.z = Math.sin(x * 40 + z * 13) * 0.25; tg.position.set(0.012, 0.001, 0.03); g.add(tg);
     if (want) { const bow = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.004, 0.006), new THREE.MeshLambertMaterial({ color: 0xb02018 })); bow.position.set(-0.004, 0.003, 0.03); g.add(bow); }
     g.position.set(x, 0, z);

@@ -179,7 +179,8 @@ export class CombatSystem implements GameSystem {
       this.claimsClick = true;
       if (!inp.mouseDown[0] || inp.mouseReleased[0]) { release = true; this.owned = false; inp.mouseReleased[0] = false; }
     }
-    if (busy || over) { if (this.state === 'charge') this.state = 'idle'; this.btn = null; }
+    // a timed action or a menu takes the hands; the cursor merely crossing the HUD does not
+    if (busy || G.ui?.menuEl) { if (this.state === 'charge') this.state = 'idle'; this.btn = null; }
     if (press) this.btn = { t0: G.time, up: false, upT: 0 };
     if (release && this.btn && !this.btn.up) { this.btn.up = true; this.btn.upT = G.time; }
     const held = !!this.btn && !this.btn.up;

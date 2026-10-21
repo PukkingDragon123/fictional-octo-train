@@ -59,6 +59,8 @@ URL flags: `?quick` skips the title and the intro and starts a fresh run (band a
 | Left click with a tool | hammer or pipe smashes, axe chops (firewood), crowbar pries locks, boards and doors, saw cuts a piece off (a chair loses a leg), knife slashes upholstery open and butchers, screwdriver / wrench takes apart, shovel digs, sledge goes through walls; small and fragile things break in one hit |
 | Space | shove |
 | F | flashlight |
+| N (hold) | scan what you point at (the watch's SCAN research, or a Phosphor Scope): DATA, research for firsts, a punch card with the result |
+| K | order your thralls: on a creature, sic them all; on the floor, post them there; on nothing, call them back |
 | Tab | raise the watch (first person; wheel / arrows select, Enter acts, [ ] or 1–9 switch functions) |
 | I | open the backpack (drag to place, R or right-click to turn while dragging, Shift-drag takes half, Ctrl-drag takes one, double-click quick-moves) |
 | M | map |
@@ -205,6 +207,25 @@ and an ignition key.
   some patient. Some imitate your friends' voices, watch from far away, or only
   move when nobody's looking. Rare ones can be studied with the scanner,
   trapped or tamed.
+- **Tribes.** Four camps of survivors: the Tallymen (scavengers who count
+  everything), the Waxen Choir (wax-masked, they worship the Still Lifes), the
+  Turnkeys (deserted Meridian guards) and the Sprocket Congregation (machine
+  worshippers who sell mechanical brains). Lean over a barter cloth to trade
+  against a chalked tab, take their jobs (typed cards pinned to the cloth),
+  recruit one to walk with you. Hurt them and the camp turns; kill them and
+  raiding parties come looking. Their rivals notice.
+- **Domination.** Beat a monster to the floor, kneel, saw round its skull,
+  pry the cap off, tear the brain out and seat a vacuum-valve cortex (three
+  sizes: bigger bodies need bigger lobes). It gets up wired: a riveted steel
+  cap, glowing valves, a whip aerial. Thralls follow, guard, fight what you
+  fight, carry cargo, can be ridden (SADDLE PROTOCOL) and take standing orders
+  at a station: guard, haul loose loot into a crate, crank a generator, water
+  the crops. A bakelite remote does the ordering; SCRAM shuts one down and
+  leaves the cortex in the body.
+- **Scanning.** Point at anything and hold N: creatures, anomalies, furniture,
+  tribe totems, strangers. The Phosphor Scope's tube traces it and types a
+  punch card: DATA for everything, research for first scans and milestones,
+  and a knowledge entry for the watch.
 - **The watch.** The BAILIFF band is also a chunky wrist computer. Tab raises
   your wrist into a first-person close-up; standing still it zooms in, on the
   move it stays up small as a glance with your next objective and a bearing.
@@ -245,6 +266,9 @@ src/
   items/       item model, containers, crafting, world systems (fire, power,
                farming, traps, building, furniture)
   creatures/   creature manager, behaviours, species
+  tribes/      the four survivor factions: camps, members, standing, barter cloth, raids, jobs
+  dominion/    knock-downs, the brain-swap operation, thralls, stations, the bakelite remote
+  scan/        scanning for DATA, the Phosphor Scope, printed tags and cards
   missions/    quest runtime, the story and research quests, flags, mission objects, collapse
   audio/       procedural WebAudio: sounds, ambience, reverb, music
   net/         relay client, replication, WebRTC voice

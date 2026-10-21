@@ -192,6 +192,7 @@ export class Inspect {
   /** open the close-up on an item (c = where it is) or a world object */
   show(s: Subject, opts: { op?: string; onClose?: () => void; bench?: boolean } = {}) {
     if (!G.local) return;
+    clearTimeout(this.timer); this.timer = 0;
     this.build();
     if (!this.open) { if (!fpClaim('inspect', 5)) return; }
     this.open = true;
@@ -203,7 +204,12 @@ export class Inspect {
     if (opts.op) { const h = this.opsFor().find((o) => o.key === opts.op); if (h) this.startOp(h); }
   }
 
+  /** one pending follow-up at a time; closing or starting anew cancels it */
+  private timer = 0;
+  private later(f: () => void, ms: number) { clearTimeout(this.timer); this.timer = window.setTimeout(() => { this.timer = 0; f(); }, ms); }
+
   close(lost = false) {
+    clearTimeout(this.timer); this.timer = 0;
     if (!this.open) return;
     this.endWork(false);
     this.open = false;
@@ -459,7 +465,7 @@ export class Inspect {
     if ((v === 'wrap' || v === 'braid') && Math.floor(w.done) > before) this.addBand(w);
     if (v === 'tear' && Math.floor(w.done) > before) this.flyStrip();
     if (Math.floor(w.done) > before) this.updProg();
-    if (w.done >= w.need - 1e-6 && w.phase !== 'finish') { w.phase = 'finish'; setTimeout(() => this.finish(), v === 'saw' || v === 'strike' ? 220 : 120); }
+    if (w.done >= w.need - 1e-6 && w.phase !== 'finish') { w.phase = 'finish'; this.later(() => { if (this.work === w) this.finish(); }, v === 'saw' || v === 'strike' ? 220 : 120); }
   }
 
   private addBand(w: Work) {
@@ -532,7 +538,7 @@ export class Inspect {
     this.slate.hide();
     if (w.head) w.head.outer.parent?.remove(w.head.outer);
     // look at what you made
-    setTimeout(() => { if (this.open && out0) this.setSubject({ kind: 'item', it: out0, c: p.containerOf(out0) || p.inv }); else if (this.open) { this.setPropsVisible(true); this.renderProps(); } }, s.kind === 'obj' ? 600 : 250);
+    this.later(() => { if (this.open && out0) this.setSubject({ kind: 'item', it: out0, c: p.containerOf(out0) || p.inv }); else if (this.open) { this.setPropsVisible(true); this.renderProps(); } }, s.kind === 'obj' ? 600 : 250);
   }
 
   // ---------------------------------------------------------------- input

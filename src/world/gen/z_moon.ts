@@ -62,11 +62,11 @@ export function generateMoon(z: Zone, seed: number) {
       if (s % 3 === 0 && z.inb(X + 1, Y)) z.floor[z.idx(X + 1, Y)] = 0;
     }
   }
-  // one long crack right past where you land: look down
+  // one long crack right past where you land (north-west of it): look down
   {
-    let x = cx + 2, y = cy + 8;
-    for (let s = 0; s < 22; s++) {
-      x += 0.45 + Math.sin(s * 0.9) * 0.5; y += 0.9;
+    let x = cx - 18, y = cy + 4;
+    for (let s = 0; s < 24; s++) {
+      x += 0.2 + Math.sin(s * 0.9) * 0.5; y += 0.9;
       const X = Math.round(x), Y = Math.round(y);
       if (!z.inb(X, Y)) break;
       z.floor[z.idx(X, Y)] = 0;

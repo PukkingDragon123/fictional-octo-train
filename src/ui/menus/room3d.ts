@@ -101,7 +101,7 @@ export class SubjectRoom {
   private tubeMat = new THREE.MeshBasicMaterial({ color: 0x0c0c0c, fog: false });
   private bulbMat = new THREE.MeshBasicMaterial({ color: 0x302010, fog: false });
   private hatchLightMat = new THREE.MeshBasicMaterial({ color: 0x3a0606, fog: false });
-  private faceSpot = new THREE.SpotLight(0xfff0d8, 0, 7, 0.11, 0.45, 1.3);
+  private faceSpot = new THREE.SpotLight(0xfff0d8, 0, 7, 0.12, 0.4, 1.2);
   private bulbPivot = new THREE.Group();
   private bulbMesh!: THREE.Mesh;
   private shaft!: THREE.Mesh;
@@ -192,7 +192,7 @@ export class SubjectRoom {
       this.scene.add(tube);
     }
     // a bare bulb on a long cord, swinging slowly over the chair
-    this.bulbPivot.position.set(0.22, ROOM.H, -0.25);
+    this.bulbPivot.position.set(0.95, ROOM.H, -0.85);
     const cord = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.95, 0.008), new THREE.MeshBasicMaterial({ color: 0x080808 }));
     cord.position.y = -0.475;
     this.bulbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), this.bulbMat);
@@ -200,7 +200,7 @@ export class SubjectRoom {
     this.bulbPivot.add(cord, this.bulbMesh);
     this.scene.add(this.bulbPivot);
     // the hard key: a narrow beam from a louvre high on the left, laid across his eyes, with dust in it
-    this.faceSpot.position.set(-0.85, 3.35, 1.05);
+    this.faceSpot.position.set(-1.35, 2.15, 1.25);
     this.scene.add(this.faceSpot, this.faceSpot.target);
     this.shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 1, 1, 16, 1, true).translate(0, -0.5, 0), new THREE.ShaderMaterial({
       uniforms: { uInt: { value: 0 }, uColor: { value: new THREE.Color(0xfff0d8) } },
@@ -270,12 +270,12 @@ export class SubjectRoom {
     mk('L', [1.75, 2.75, ROOM.BACK + 0.02], 1.7, 1.6, [0.6, 0.8, -0.6], [1.75, 2.6, ROOM.BACK - 1.2]);
     mk('R', [-1.75, 2.75, ROOM.BACK + 0.02], 1.7, 1.6, [-0.6, 0.8, -0.6], [-1.75, 2.6, ROOM.BACK - 1.2]);
     mk('H', [0, ROOM.H - 0.02, -0.95], 1.35, 1.25, [0, 0.4, -1], [0, ROOM.H + 1.2, -0.95]);
-    mk('T', [0, ROOM.H - 0.02, 1.75], 1.75, 1.7, [1, 0.5, 0.2], [0, ROOM.H + 1.4, 1.75], true);
+    mk('T', [-1.75, ROOM.H - 0.02, 0.9], 1.75, 1.7, [-1, 0.4, 0.3], [-1.75, ROOM.H + 1.4, 0.9], true);
     // ---- particles
     this.pGeo.setAttribute('position', new THREE.BufferAttribute(this.pPos, 3));
     this.pGeo.setAttribute('color', new THREE.BufferAttribute(this.pCol, 3));
     for (let i = 0; i < NP; i++) this.pPos[i * 3 + 1] = -50;
-    const pts = new THREE.Points(this.pGeo, new THREE.PointsMaterial({ size: 3, sizeAttenuation: false, vertexColors: true, fog: false }));
+    const pts = new THREE.Points(this.pGeo, new THREE.PointsMaterial({ size: this.quality === 'low' ? 3 : 4, sizeAttenuation: false, vertexColors: true, fog: false }));
     pts.frustumCulled = false;
     this.scene.add(pts);
     for (let i = 0; i < 4; i++) this.decalMats.push(new THREE.MeshLambertMaterial({ map: canvasTex(bloodCanvas(i * 13 + 5, 64, i % 2 === 1)), transparent: true, alphaTest: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 - i * 0.1 }));
@@ -496,8 +496,8 @@ export class SubjectRoom {
       m.group.position.copy(m.anchor);
       m.group.scale.setScalar(sc);
     }
-    at(0, portrait ? 0.74 : 0.7, 4.0, this.titleG.position);
-    this.titleG.scale.setScalar(Math.max(0.5, Math.min(1, widthAt(4.0) / (portrait ? 2.6 : 4.6))));
+    at(0, portrait ? 0.62 : 0.5, 4.0, this.titleG.position);
+    this.titleG.scale.setScalar(Math.max(0.45, Math.min(0.85, widthAt(4.0) / (portrait ? 3.2 : 5.6))));
   }
   private layCam = new THREE.PerspectiveCamera(42, 1, 0.05, 40);
   /** highlight a menu object (DOM focus or pointer) */
@@ -643,6 +643,7 @@ export class SubjectRoom {
     this.rig.setOutfit(this.dress());
     await this.wait(380);
     sfx('squelch'); sfx('grind');
+    this.splatLens(2);
     apply();
     await this.wait(380);
     sfx('spark');
@@ -681,7 +682,7 @@ export class SubjectRoom {
     this.state = 'gone'; this.subj.visible = false; this.chainsOn = 0; this.cuffs[2].visible = this.cuffs[3].visible = false;
     sfx('slam'); sfx('squelch');
     this.shake = calm() ? 0.3 : 1.2;
-    this.flash = calm() ? 0.15 : 0.5; this.redFlash = calm() ? 0.3 : 1;
+    this.flash = calm() ? 0.15 : 0.45; this.redFlash = calm() ? 0.25 : 0.7;
     this.splatter();
     this.pressBloody.visible = true;
     await this.wait(650);
@@ -1021,8 +1022,8 @@ export class SubjectRoom {
     this.faceSpot.target.position.copy(head);
     // it breathes a little (a fan turning in front of the louvre)
     const fan = 0.82 + 0.18 * Math.abs(Math.sin(t * 2.1));
-    this.faceSpot.intensity = dark * (5.5 * fan + this.flare * 16);
-    this.faceSpot.angle = 0.1 + this.flare * 0.12;
+    this.faceSpot.intensity = dark * (7 * fan + this.flare * 18);
+    this.faceSpot.angle = 0.12 + this.flare * 0.12;
     const sh = this.shaft;
     sh.visible = dark > 0.02;
     if (!sh.visible) { this.dust.visible = false; return; }
@@ -1207,16 +1208,16 @@ export class SubjectRoom {
       this.maulN.set(0, 0, 1).applyQuaternion(rig.bones.head.getWorldQuaternion(this.q1));
       const fp = this.v1.copy(this.maulPt).addScaledVector(this.maulN, 0.1 * s);
       if (this.maulT > 0.25 && this.maulT < 1.0) {
-        if (Math.random() < 0.6) this.bloodBurst(fp, this.maulN, 3, 1.4, 2.2);
-        if (Math.random() < 0.35) this.sparkBurst(fp, 3);
-        if (Math.random() < 0.02) this.decal((Math.random() - 0.5) * 1.6, 0.006, ROOM.FLOAT_Z + 0.5 + Math.random(), 'y', 0.25 + Math.random() * 0.3);
+        this.bloodBurst(fp, this.maulN, 5, 1.6, 2.6);
+        if (Math.random() < 0.45) this.sparkBurst(fp, 4);
+        if (Math.random() < 0.06) this.decal((Math.random() - 0.5) * 1.6, 0.006, ROOM.FLOAT_Z + 0.5 + Math.random(), 'y', 0.25 + Math.random() * 0.3);
       }
     }
   }
   private seatPose(t: number): Pose {
     const br = Math.sin(t * 1.4) * 0.02;
     return {
-      spine: [0.08 + br, 0, 0], chest: [0.06, 0, 0.02], neck: [0.12, 0, 0], head: [0.34 + Math.sin(t * 0.3) * 0.04, 0.12, 0.08],
+      spine: [0.06 + br, 0, 0], chest: [0.04, 0, 0.02], neck: [0.06, 0, 0], head: [0.16 + Math.sin(t * 0.3) * 0.05, 0.1 + Math.sin(t * 0.17) * 0.08, 0.06],
       thighL: [-1.5, 0, 0.07], thighR: [-1.5, 0, -0.07], shinL: [1.45, 0, 0], shinR: [1.45, 0, 0], footL: [0.12, 0, 0], footR: [0.12, 0, 0],
       uarmL: [-0.32, 0, 0.32], uarmR: [-0.32, 0, -0.32], farmL: [-1.28, 0, -0.05], farmR: [-1.28, 0, 0.05], handL: [0.1, 0, 0.2], handR: [0.1, 0, -0.2],
       gripL: 0.85, gripR: 0.85,
