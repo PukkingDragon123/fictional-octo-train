@@ -47,10 +47,9 @@ export class Scope {
     const mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
     // body: cream bakelite with a brown belly band and chrome trim
     const mb = new ModelBuilder();
-    mb.box(0, -0.075, 0, 0.13, 0.15, 0.04, 'plastic_beige', { color: 0xe2d4b4 });
+    mb.box(0, -0.15, 0, 0.13, 0.15, 0.04, 'plastic_beige', { color: 0xe2d4b4 });
     mb.box(0, -0.13, 0.001, 0.134, 0.03, 0.042, 'plastic_beige', { color: 0x5a3a22 });
     mb.box(0, 0.0, 0.0, 0.134, 0.006, 0.044, 'chrome');
-    mb.cylinder(-0.008, 0.0, 0.0, 0.006, 0.016, 6, 'metal_dark'); // card slot lips
     mb.box(0.0, 0.004, 0.0, 0.07, 0.004, 0.01, 'metal_dark');
     mb.push().translate(-0.022, -0.06, 0.021).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.042, 0.012, 16, 'chrome'); mb.pop(); // CRT bezel
     mb.box(0.042, -0.04, 0.021, 0.036, 0.024, 0.006, 'metal_dark'); // meter housing
@@ -60,12 +59,12 @@ export class Scope {
     this.dev.add(new THREE.Mesh(mb.build(), mat));
     // the round CRT and the meter face, pixel surfaces
     const scr = new THREE.Mesh(new THREE.CircleGeometry(0.036, 24), flatMat(this.crt.tex, true));
-    scr.position.set(-0.022, -0.06, 0.0285); this.dev.add(scr);
+    scr.position.set(-0.022, -0.06, 0.0335); this.dev.add(scr);
     const met = new THREE.Mesh(new THREE.PlaneGeometry(0.032, 0.018), flatMat(this.meter.tex));
-    met.position.set(0.042, -0.04, 0.0245); this.dev.add(met);
+    met.position.set(0.042, -0.028, 0.0245); this.dev.add(met);
     this.needle = new THREE.Mesh(new THREE.BoxGeometry(0.0008, 0.014, 0.0005), new THREE.MeshBasicMaterial({ color: 0x1a1008 }));
     this.needle.geometry.translate(0, 0.007, 0);
-    this.needle.position.set(0.042, -0.048, 0.0252); this.dev.add(this.needle);
+    this.needle.position.set(0.042, -0.036, 0.0252); this.dev.add(this.needle);
     this.lamp = new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 6), new THREE.MeshBasicMaterial({ color: 0x5a2a10 }));
     this.lamp.position.set(0.055, -0.118, 0.025); this.dev.add(this.lamp);
     // the punch card that feeds out of the slot

@@ -360,7 +360,7 @@ export class QuestRuntime {
         const fk = `obj:${d.key}:${o.id}`;
         if (flags.has(fk) && !this.seenObj.has(fk)) {
           this.seenObj.add(fk);
-          G.ui?.toast?.('✓ ' + o.text, d.title, 2.8);
+          G.watch?.message?.('OBJECTIVE DONE', o.text, 'ok', 3);
           G.audio?.ui?.('watchTick', 0.5);
         }
       }
@@ -374,18 +374,16 @@ export class QuestRuntime {
       case 'off':
         this.fresh.add(d.key);
         this.m.unread = true;
-        G.ui?.toast?.(d.main ? 'OBJECTIVE UPLOADED' : 'QUEST UPLOADED', `${d.title} — ${d.giver || 'UNKNOWN'}`, 4.5);
         G.audio?.ui?.('questChime', 0.6);
         w?.notify?.(d.key, 'offer');
         if (d.intro && d.voice) this.line(d, d.intro, 7);
         break;
       case 'act':
-        if (prevS === 'off' || prevS === 'decl') { G.ui?.toast?.('QUEST ACCEPTED', d.title, 3); G.audio?.ui?.('watchTick', 0.6); }
+        if (prevS === 'off' || prevS === 'decl') { G.watch?.message?.('QUEST ACCEPTED', d.title, 'ok', 2.5); G.audio?.ui?.('watchTick', 0.6); }
         else {
           // auto quests (the contract) arrive already accepted
           this.fresh.add(d.key);
           this.m.unread = true;
-          G.ui?.toast?.(d.main ? 'OBJECTIVE UPLOADED' : 'QUEST UPLOADED', d.title, 4.5);
           G.audio?.ui?.('questChime', 0.6);
           w?.notify?.(d.key, 'offer');
           if (d.intro) this.line(d, d.intro, 7);
@@ -394,12 +392,10 @@ export class QuestRuntime {
         for (const o of d.objectives) { const fk = `obj:${d.key}:${o.id}`; if (this.m.flags.has(fk)) this.seenObj.add(fk); }
         break;
       case 'ready':
-        G.ui?.toast?.('READY TO TURN IN', `${d.title} — ${costText(d)}`, 4);
         G.audio?.ui?.('questChime', 0.45);
         w?.notify?.(d.key, 'ready');
         break;
       case 'done': {
-        G.ui?.toast?.('QUEST COMPLETE', `${d.title}${rewardText(d) ? ' — ' + rewardText(d) : ''}`, 5);
         G.audio?.ui?.('questDone', 0.6);
         w?.notify?.(d.key, 'done');
         if (d.outro) setTimeout(() => this.line(d, d.outro!, 8), 2200);

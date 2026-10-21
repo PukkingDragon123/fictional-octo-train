@@ -1,36 +1,36 @@
-// The stomach: a glass jar of acid. Food you eat drops in through the lid and
+// The stomach's simulation (jar3d.ts draws it, in the jar's own 2D side-view coordinates): a glass jar of acid. Food you eat drops in through the lid and
 // slowly dissolves (bubbling, shrinking, settling into the murk at the bottom,
 // whose height is how fed you are). Bad food cracks the jar; inflammation and
 // food poisoning raise the acid so the jar fills sooner and you cannot eat
 // much; vomiting throws the lot out.
 import type { Player } from '../../entities/player';
-import { Pix, mix, shade, bayer, hash } from './pix';
+import { mix, shade } from './pix';
 
 export const JAR_W = 44, JAR_H = 76;
-const CX = 22, TOP = 13, BOT = 71, HW = 16;
-const IH = BOT - TOP - 2;
+export const CX = 22, TOP = 13, BOT = 71, HW = 16;
+export const IH = BOT - TOP - 2;
 
-interface Chunk { x: number; y: number; vx: number; vy: number; r: number; c: number; wet: boolean; spin: number; on: boolean }
-interface Part { x: number; y: number; vx: number; vy: number; life: number; c: number; out: boolean; on: boolean }
-interface Crack { pts: number[]; born: number }
+export interface Chunk { x: number; y: number; vx: number; vy: number; r: number; c: number; wet: boolean; spin: number; on: boolean }
+export interface Part { x: number; y: number; vx: number; vy: number; life: number; c: number; out: boolean; on: boolean }
+export interface Crack { pts: number[]; born: number }
 
 export class Jar {
   acid = 0.22;
-  private acidShown = 0.22;
+  acidShown = 0.22;
   sed = 0.1;
-  private sedShown = 0.1;
-  private sedCol = 0x8a6a3a;
-  private chunks: Chunk[] = [];
-  private parts: Part[] = [];
+  sedShown = 0.1;
+  sedCol = 0x8a6a3a;
+  chunks: Chunk[] = [];
+  parts: Part[] = [];
   cracks: Crack[] = [];
-  private lidY = 0; private lidV = 0;
-  private t = 0; private shake = 0; private stream = 0; private streamC = 0x9ad0f0;
-  private swirl = 0; private swirlC = 0x9ad0f0;
+  lidY = 0; lidV = 0;
+  t = 0; shake = 0; stream = 0; streamC = 0x9ad0f0;
+  swirl = 0; swirlC = 0x9ad0f0;
   vomitT = -1;
-  private inflam = 0;
-  private gurgle = 6;
+  inflam = 0;
+  gurgle = 6;
   /** recent eating fills the jar until it settles (0..1 of the jar) */
-  private recent = 0;
+  recent = 0;
   constructor() {
     for (let i = 0; i < 40; i++) this.chunks.push({ x: 0, y: 0, vx: 0, vy: 0, r: 0, c: 0, wet: false, spin: 0, on: false });
     for (let i = 0; i < 90; i++) this.parts.push({ x: 0, y: 0, vx: 0, vy: 0, life: 0, c: 0, out: false, on: false });
@@ -74,7 +74,7 @@ export class Jar {
   private part(x: number, y: number, vx: number, vy: number, life: number, c: number, out = false) {
     for (const q of this.parts) if (!q.on) { q.on = true; q.x = x; q.y = y; q.vx = vx; q.vy = vy; q.life = life; q.c = c; q.out = out; return; }
   }
-  private surfaceY(): number { return BOT - 1 - (this.acidShown + this.sedShown) * IH; }
+  surfaceY(): number { return BOT - 1 - (this.acidShown + this.sedShown) * IH; }
 
   /** returns 'gurgle' when an empty stomach complains (the HUD plays it) */
   update(dt: number, p: Player): 'gurgle' | null {
@@ -143,84 +143,10 @@ export class Jar {
     this.swirl = Math.max(0, this.swirl - dt * 0.4);
     return ev;
   }
-  private acidCol(): number {
+  acidCol(): number {
     let c = mix(0xb4dc28, 0xe08a2a, this.inflam);
     if (this.swirl > 0) c = mix(c, this.swirlC, this.swirl * 0.5);
     return c;
   }
 
-  draw(P: Pix, ox: number, oy: number) {
-    const sx = this.shake > 0 ? Math.round((Math.random() - 0.5) * 2 * Math.min(1, this.shake * 2)) : 0;
-    const X = ox + sx;
-    const surf = this.surfaceY();
-    const sedTop = BOT - 1 - this.sedShown * IH;
-    const ac = this.acidCol(), acHi = mix(ac, 0xffffff, 0.35), acDk = shade(ac, 0.6);
-    const t = this.t;
-    for (let y = TOP; y <= BOT; y++) {
-      let hw = HW;
-      const top = y - TOP, bot = BOT - y;
-      if (top < 3) hw -= 3 - Math.sqrt(Math.max(0, 9 - (3 - top) * (3 - top)));
-      if (bot < 5) hw -= 5 - Math.sqrt(Math.max(0, 25 - (5 - bot) * (5 - bot)));
-      const xl = Math.round(CX - hw), xr = Math.round(CX + hw);
-      for (let x = xl; x <= xr; x++) {
-        const nx = (x - CX) / hw;
-        const edge = x === xl || x === xr || y === BOT;
-        const px = X + x, py = oy + y;
-        const wave = Math.sin(x * 0.7 + t * 3) * 0.6 + Math.sin(x * 0.3 - t * 2) * 0.5 * (1 + this.inflam);
-        if (!edge && y > sedTop) {
-          // the murk: half-dissolved food
-          let c = mix(this.sedCol, ac, 0.25);
-          if (hash(x, y, 1) < 0.18) c = shade(c, 0.7);
-          if (bayer(x, y) < 0.3) c = shade(c, 0.88);
-          P.set(px, py, shade(c, 0.85 + 0.25 * (1 - nx * nx)));
-        } else if (!edge && y > surf + wave) {
-          let c = ac;
-          const d = y - (surf + wave);
-          if (d < 1) c = acHi;
-          else if (bayer(x, y) < d / 50) c = mix(ac, acDk, 0.5);
-          if (this.inflam > 0.3 && d < 2.5 && hash(x, (t * 10) | 0, y) < this.inflam * 0.6) c = 0xfff4e0; // foam
-          P.set(px, py, shade(c, 0.8 + 0.3 * (1 - nx * nx)));
-        } else {
-          P.blend(px, py, 0xd8f0f0, edge ? 0.8 : 0.16);
-        }
-        // glass shine and the dark far edge
-        if (nx > -0.82 && nx < -0.62 && y > TOP + 3 && y < BOT - 4) P.blend(px, py, 0xffffff, 0.5);
-        if (nx > 0.86 && !edge) P.blend(px, py, 0x203038, 0.25);
-      }
-    }
-    // the rim and the lid (it hops when something goes in, flies off when you throw up)
-    P.hline(X + CX - HW + 2, X + CX + HW - 2, oy + TOP, 0xe8f8f8, 0.9);
-    const ly = oy + 5 + Math.min(2, Math.round(this.lidY * 0.15));
-    const lw = HW - 1;
-    for (let y = 0; y < 6; y++) for (let x = -lw; x <= lw; x++) {
-      const ridge = (x & 1) === 0 && y > 0 && y < 5;
-      const c = y === 0 ? 0xd8dce0 : ridge ? 0x7a828a : 0xa8b0b8;
-      P.set(X + CX + x, ly + y, Math.abs(x) === lw ? shade(c, 0.7) : c);
-    }
-    P.hline(X + CX - lw + 2, X + CX - lw + 6, ly + 1, 0xffffff, 0.7);
-    // pouring in
-    if (this.stream > 0) for (let y = ly + 6; y < surf + oy; y++) P.set(X + CX + Math.round(Math.sin(y * 0.6 + t * 20) * 0.6), y, this.streamC);
-    // chunks
-    for (const c of this.chunks) {
-      if (!c.on) continue;
-      P.disc(Math.round(X + c.x), Math.round(oy + c.y), c.r, c.c, 1);
-      P.set(Math.round(X + c.x - c.r * 0.4), Math.round(oy + c.y - c.r * 0.4), mix(c.c, 0xffffff, 0.45));
-      if (c.wet) P.ring(Math.round(X + c.x), Math.round(oy + c.y), c.r, shade(c.c, 0.6), 0.5);
-    }
-    // bubbles, splashes, sick
-    for (const q of this.parts) if (q.on) P.blend(Math.round(X + q.x), Math.round(oy + q.y), q.c, q.out ? 1 : Math.min(1, q.life * 1.5));
-    // cracks, with acid seeping out of the worst
-    for (let i = 0; i < this.cracks.length; i++) {
-      const k = this.cracks[i].pts;
-      for (let j = 2; j < k.length; j += 2) { P.line(X + k[j - 2], oy + k[j - 1], X + k[j], oy + k[j + 1], 0xffffff, 0.9); P.line(X + k[j - 2] + 1, oy + k[j - 1] + 1, X + k[j] + 1, oy + k[j + 1] + 1, 0x203038, 0.5); }
-      if (k[1] > surf) {
-        const sx0 = Math.round(X + k[0]);
-        const len = 2 + ((t * 9 + i * 5) % 12);
-        for (let y = 0; y < len; y++) P.set(sx0 + (k[0] < CX ? -1 : 1), Math.round(oy + k[1] + y), y === Math.floor(len) - 1 ? acHi : ac);
-      }
-    }
-    // full: the lid rattles
-    if (this.fill > 0.93 && Math.sin(t * 30) > 0.6) P.hline(X + CX - lw, X + CX + lw, ly - 1, 0xffffff, 0.35);
-  }
-  inside(lx: number, ly: number) { return lx > 3 && lx < JAR_W - 3 && ly > 3 && ly < JAR_H - 3; }
 }

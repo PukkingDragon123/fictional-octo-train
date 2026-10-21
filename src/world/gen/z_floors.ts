@@ -209,10 +209,12 @@ const STAMPS: Record<string, (c: Ctx) => void> = {
     if (s) stairsToNowhere(c, s[0] + 1, s[1] + 8, 'n', 8, 3);
   },
   undercroft: (c) => {
-    const { z, rng } = c;
-    const p = findOpenRect(z, 14, 20, rng, 900, 2);
-    if (!p) return;
-    const [x0, y0] = p, x1 = x0 + 13, y1 = y0 + 19;
+    const { z, b } = c;
+    // east of the pit, between the pillars (the pillars in the way are knocked out)
+    const x0 = 62, y0 = 30, x1 = x0 + 13, y1 = y0 + 19;
+    b.clearObjects(x0 - 2, y0 - 2, x1 + 2, y1 + 2);
+    for (let y = y0 - 2; y <= y1 + 2; y++) for (let x = x0 - 2; x <= x1 + 2; x++) if (z.inb(x, y) && !z.floor[z.idx(x, y)]) b.fillFloor(x, y, x, y, 'concrete');
+    z.lights = z.lights.filter((l) => !(l.x >= x0 && l.x <= x1 + 1 && l.z >= y0 && l.z <= y1 + 1));
     giantStairs(c, x0, y0, x1, y1, x0 + 4, y1, { path: [['n', 11], ['e', 4], ['n', 3]], width: 3, rise: 6, top: 'hole', hole: { to: 'chess', label: 'At the top of the stairs: a hole, and a ticking down there' }, holeId: 'vx_under_chess' });
   },
   fields: (c) => {

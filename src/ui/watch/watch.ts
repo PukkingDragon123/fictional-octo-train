@@ -18,7 +18,7 @@ import { itemDef } from '../../items/item';
 import { punch } from '../../gfx/juice';
 import type { Player } from '../../entities/player';
 import type { QuestRuntime } from '../../missions/questRuntime';
-import { buildWatchModel, setLed, SCR_W, SCR_H, SCREEN, type WatchModel } from './model';
+import { buildWatchModel, setLamp, SCR_W, SCR_H, SCREEN, type WatchModel } from './model';
 import { drawWatch, drawQuests, drawResearch, layoutBranch, type Zone } from './screen';
 import { drawMap, drawScan, drawSig, drawBio, drawLog, drawTool, drawFab, contacts, type Contact } from './apps';
 import { BRANCHES } from './nodes';
@@ -57,20 +57,28 @@ uniform sampler2D tScreen;
 uniform float uTime, uPower, uGlitch, uHit;
 varying vec2 vUv;
 float h(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+// the tube bulges: a gentle barrel warp, rounded corners
+vec2 curve(vec2 uv) { uv = uv * 2.0 - 1.0; vec2 off = abs(uv.yx) / vec2(7.5, 6.0); uv += uv * off * off; return uv * 0.5 + 0.5; }
 void main() {
-  vec2 uv = vUv;
+  vec2 uv = curve(vUv);
+  vec2 q = abs(uv - 0.5) * 2.0;
+  vec2 c = max(q - vec2(0.9, 0.85), 0.0);
+  if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0 || length(c / vec2(0.1, 0.15)) > 1.0) { gl_FragColor = vec4(0.014, 0.018, 0.012, 1.0); return; }
   float open = smoothstep(0.0, 1.0, uPower);
-  // power-on: the picture unfolds from the centre column
-  float band = abs(uv.x - 0.5) * 2.0;
-  if (band > open * 1.02 + 0.01) { gl_FragColor = vec4(0.01, 0.014, 0.02, 1.0); return; }
-  if (uGlitch > 0.0) { float row = floor(uv.y * 136.0); if (h(vec2(row, floor(uTime * 15.0))) < uGlitch * 0.2) uv.x += (h(vec2(floor(uTime * 15.0), row)) - 0.5) * 0.05; }
+  // power-on: a bright line across the middle that opens into the picture
+  float band = abs(uv.y - 0.5) * 2.0;
+  if (band > open * 1.02 + 0.006) { gl_FragColor = vec4(0.012, 0.026, 0.014, 1.0); return; }
+  // interference: a rolling tear when the simulation frays
+  if (uGlitch > 0.0) { float row = floor(uv.y * 68.0); float t = floor(uTime * 12.0); if (h(vec2(row, t)) < uGlitch * 0.25) uv.x += (h(vec2(t, row)) - 0.5) * 0.04; }
   vec3 col = texture2D(tScreen, vec2(clamp(uv.x, 0.0, 1.0), 1.0 - uv.y)).rgb;
-  vec2 cc = vUv - 0.5;
-  col *= 1.0 - dot(cc, cc) * 0.6;
-  col *= 0.97 + 0.03 * sin(uTime * 61.0);
-  col += (h(floor(vUv * vec2(224.0, 136.0)) + fract(uTime * 7.0)) - 0.5) * 0.012;
-  col = mix(col, vec3(0.7, 1.0, 1.0), (1.0 - open) * 0.6 * step(band, 0.03));
-  col += vec3(1.0, 0.35, 0.85) * uHit * 0.12;
+  vec2 cc = uv - 0.5;
+  col *= 1.0 - dot(cc, cc) * 0.95;                                   // tube vignette
+  col *= 0.93 + 0.07 * smoothstep(-0.2, 1.0, sin((uv.y - uTime * 0.11) * 6.2831)); // slow rolling bar
+  col *= 0.975 + 0.025 * sin(uTime * 59.0);                           // mains flicker
+  col += vec3(0.02, 0.05, 0.02) * (h(floor(vUv * vec2(224.0, 136.0)) + fract(uTime * 7.0)) - 0.5);
+  col += vec3(0.02, 0.05, 0.025);                                     // the phosphor never goes fully black
+  col = mix(col, vec3(0.75, 1.0, 0.7), (1.0 - open) * 0.7 * step(band, 0.04));
+  col += vec3(0.45, 1.0, 0.4) * uHit * 0.09;
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -113,6 +121,9 @@ export class Watch {
   private pageSig = '';
   private skin = -1;
   private hitFx = 0;
+  private knobKick = 0;
+  private knobA = 0;
+  private needleA = 0;
   private glow: THREE.PointLight;
   private v3 = new THREE.Vector3();
   private v2 = new THREE.Vector2();
@@ -131,7 +142,7 @@ export class Watch {
     this.model = buildWatchModel(this.screenMat);
     this.group = fpGroup('watch');
     this.group.add(this.model.root);
-    this.glow = new THREE.PointLight(0x5ff0ff, 0, 0.25, 2);
+    this.glow = new THREE.PointLight(0x7cff6a, 0, 0.25, 2);
     this.group.add(this.glow);
     // the overlay stage's shared lights (other first-person views rely on them too)
     const os = G.pr.overlayScene;
@@ -154,7 +165,7 @@ export class Watch {
     window.addEventListener('keydown', (e) => this.onKey(e), true);
     bus.on('fpLost', (name: string) => { if (name === 'watch') { this.staged = false; this.open = false; this.peekKey = null; this.raise = 0; if (G.local) G.local.scannerOpen = false; } });
     bus.on('researchUnlocked', (key: string) => this.onUnlocked(key));
-    bus.on('research', (e: { n: number; reason: string }) => { const why = String(e?.reason || ''); if (e?.n > 0 && !/^(quest|scan|node):/.test(why)) G.ui?.toast?.(`+${e.n} RP`, 'RESEARCH CREDIT', 1.8); });
+    bus.on('research', (e: { n: number; reason: string }) => { const why = String(e?.reason || ''); if (e?.n > 0 && !/^(quest|node):/.test(why)) this.message(`+${e.n} RP`, /^scan/.test(why) ? 'SCAN DATA FILED' : 'RESEARCH CREDIT', 'rp', 2.4); });
   }
 
   get quests(): QuestRuntime | null { return G.missions?.quests ?? null; }
@@ -245,14 +256,14 @@ export class Watch {
   openQuest(k: string) { this.st.qOpen = k; this.st.dScroll = 0; this.quests?.fresh.delete(k); G.audio?.ui?.('watchTick', 0.4); }
   questAct(k: string, act: 'accept' | 'decline' | 'pay' | 'abandon') {
     const err = this.quests?.request(k, act);
-    if (err) { G.audio?.ui?.('watchDeny'); G.ui?.toast?.('CANNOT ' + act.toUpperCase(), err, 2.5); this.hitFx = 0.6; return; }
+    if (err) { G.audio?.ui?.('watchDeny'); this.message('CANNOT ' + act.toUpperCase(), err, 'warn', 2.5); this.hitFx = 0.6; return; }
     G.audio?.ui?.(act === 'pay' ? 'hopper_tally' : 'watchTick', 0.5);
     if (act === 'accept') { this.quests?.track(k); punch(0.02); }
     if (act === 'decline' || act === 'abandon') this.st.qOpen = null;
     this.hitFx = 0.4;
   }
   buyResearch(key: string) {
-    if (!buyNode(key)) { G.audio?.ui?.('watchDeny'); this.hitFx = 0.5; return; }
+    if (!buyNode(key)) { G.audio?.ui?.('watchDeny'); this.hitFx = 0.5; this.st.denyT = G.time; return; }
     punch(0.03);
     this.hitFx = 1;
   }
@@ -289,6 +300,17 @@ export class Watch {
   }
 
   // ================================================================ notifications
+  /** a teletype line on the CRT (on the glance when the wrist is down: it comes up to show it) */
+  msgs: { title: string; body: string; tone: 'ok' | 'warn' | 'rp'; until: number }[] = [];
+  message(title: string, body = '', tone: 'ok' | 'warn' | 'rp' = 'ok', secs = 3) {
+    this.msgs.push({ title: String(title).toUpperCase(), body: String(body).toUpperCase(), tone, until: G.time + secs });
+    if (this.msgs.length > 4) this.msgs.shift();
+    this.drawT = 0;
+    const p = G.local;
+    if (p && !this.open && !this.peekKey && this.wearing(p) && !p.body.dead && (!fpOwner() || fpOwner() === 'watch')) { this.peekKey = '__msg'; this.peekT = secs; }
+  }
+  /** the message showing now (oldest first) */
+  currentMsg() { while (this.msgs.length && this.msgs[0].until < G.time) this.msgs.shift(); return this.msgs[0] || null; }
   /** a quest arrived / is ready / finished: chime is the runtime's; the wrist comes up for a glance */
   notify(k: string, kind: 'offer' | 'ready' | 'done') {
     this.syncPages();
@@ -302,7 +324,7 @@ export class Watch {
     this.syncPages();
     const n = researchNode(key);
     G.audio?.ui?.('nodeUnlock', 0.55);
-    G.ui?.toast?.('FUNCTION UPLOADED', (n?.title || key).toUpperCase(), 3.5);
+    this.message('FUNCTION UPLOADED', n?.title || key, 'rp', 3.5);
     this.hitFx = 1;
     if (key === 'tool_torch') this.hookTorch(true);
   }
@@ -379,8 +401,7 @@ export class Watch {
     const hit = this.hitTest(e.clientX, e.clientY);
     if (hit) {
       e.stopPropagation(); e.preventDefault();
-      if (hit.kind === 'screen' && !this.small) this.screenClick(hit.u!, hit.v!);
-      else if (this.small) this.still = 1; // a click on the glance: hold still to read
+      this.physical(hit, e.button === 2 ? -1 : 1);
       return;
     }
     // armed multi-tool: the click goes into the world as a beam
@@ -391,9 +412,25 @@ export class Watch {
   }
   private onWheel(e: WheelEvent) {
     if (!this.open || this.raise < 0.6 || this.small) return;
-    if (!this.hitTest(e.clientX, e.clientY)) return;
+    const hit = this.hitTest(e.clientX, e.clientY);
+    if (!hit) return;
     e.stopPropagation(); e.preventDefault();
-    this.turnDial(Math.sign(e.deltaY));
+    // the wheel over the function dial turns it; anywhere else on the watch it scrolls the page
+    if (hit.kind === 'dial') this.cycle(Math.sign(e.deltaY));
+    else this.turnDial(Math.sign(e.deltaY));
+  }
+  /** a click / tap on the watch itself: the CRT, the function dial, a toggle switch */
+  private physical(hit: NonNullable<ReturnType<Watch['hitTest']>>, dir: number) {
+    if (hit.kind === 'dial') { this.cycle(dir); this.knobKick = dir; return; }
+    if (hit.kind === 'toggle') {
+      if (hit.page === 'torch') { if (hasUnlock('tool_torch')) this.toggleTorch(); else { G.audio?.ui?.('watchDeny'); this.message('NO LAMP FITTED', 'RESEARCH WRIST TORCH', 'warn'); } }
+      else if (hasUnlock('tool_laser')) this.laser.arm(!this.laser.armed);
+      else { G.audio?.ui?.('watchDeny'); this.message('NO EMITTER FITTED', 'RESEARCH LASER CUTTER', 'warn'); }
+      G.audio?.ui?.('watchTick', 0.6);
+      return;
+    }
+    if (hit.kind === 'screen' && !this.small) this.screenClick(hit.u!, hit.v!);
+    else if (this.small) this.still = 1; // a click on the glance: hold still to read
   }
   private onKey(e: KeyboardEvent) {
     if (!this.interactive() || G.input.textFocus || e.repeat && !e.code.startsWith('Arrow')) return;
@@ -417,7 +454,7 @@ export class Watch {
     if (!this.open || this.raise < 0.6) return false;
     const hit = this.hitTest(cssX, cssY);
     if (!hit) return false;
-    if (hit.kind === 'screen') { if (this.small) this.still = 1; else this.screenClick(hit.u!, hit.v!); }
+    this.physical(hit, 1);
     return true;
   }
   /** overlay-space point to CSS pixels */
@@ -441,7 +478,7 @@ export class Watch {
     }
     return { left, top, right, bottom };
   }
-  hitTest(cssX: number, cssY: number): { kind: 'screen' | 'body' | 'dial' | 'button'; page?: string; u?: number; v?: number } | null {
+  hitTest(cssX: number, cssY: number): { kind: 'screen' | 'body' | 'dial' | 'toggle' | 'button'; page?: string; u?: number; v?: number } | null {
     if (this.raise < 0.05) return null;
     const pr = G.pr;
     const RW = pr.lowW + pr.margin * 2, RH = pr.lowH + pr.margin * 2;
@@ -453,10 +490,18 @@ export class Watch {
     if (!hits.length) return null;
     const h = hits[0];
     if (h.object === this.model.screen && h.uv) return { kind: 'screen', u: h.uv.x, v: 1 - h.uv.y };
+    for (let o: THREE.Object3D | null = h.object; o && o !== this.model.root; o = o.parent) {
+      if (o.userData.hit === 'dial') return { kind: 'dial' };
+      if (o.userData.hit === 'toggle') return { kind: 'toggle', page: o.userData.which };
+    }
     return { kind: 'body' };
   }
   private screenClick(u: number, v: number) {
-    const x = Math.floor(u * SCR_W), y = Math.floor(v * SCR_H);
+    // the same barrel warp as the tube shader, so a click lands on what it shows
+    let cu = u * 2 - 1, cv = v * 2 - 1;
+    const ou = Math.abs(cv) / 7.5, ov = Math.abs(cu) / 6;
+    cu += cu * ou * ou; cv += cv * ov * ov;
+    const x = Math.floor((cu * 0.5 + 0.5) * SCR_W), y = Math.floor((cv * 0.5 + 0.5) * SCR_H);
     this.lastHit = { x, y };
     const zones: Zone[] = this.st.clickZones || [];
     for (let i = zones.length - 1; i >= 0; i--) {
@@ -500,7 +545,7 @@ export class Watch {
     if (!this.staged) return;
     if (this.skin !== p.app.skin) { this.skin = p.app.skin; this.model.rebuildArm(p.app.skin); }
     this.pose(p, dt);
-    this.updateLeds(p);
+    this.updateControls(p, dt);
     const u = this.screenMat.uniforms;
     u.uTime.value = G.time; u.uPower.value = this.power;
     u.uGlitch.value = Math.max(G.collapse * 0.5, p.body.corruption > 30 ? 0.3 : 0);
@@ -580,15 +625,34 @@ export class Watch {
     void halfW; void w2;
   }
 
-  private updateLeds(p: Player) {
-    const L = this.model.leds;
-    setLed(L.power, this.power > 0.5 ? 0x5ff0ff : 0x101418);
+  /** jewel lamps, the function dial's detents, the needle, the toggles, the valves */
+  private updateControls(p: Player, dt: number) {
+    const m = this.model, L = m.lamps;
+    setLamp(L.power, this.power > 0.5 ? 0x7cff6a : 0x0c1a0c);
     const danger = !!this.threat || (G.survival?.threat ?? 0) > 0.2 || p.body.bleedRate() > 0.05;
-    setLed(L.alert, danger && Math.sin(G.time * 10) > 0 ? 0xff3048 : 0x180808);
+    setLamp(L.alert, danger && Math.sin(G.time * 10) > 0 ? 0xff3a1a : 0x1a0806);
     const fresh = !!this.quests?.fresh.size && Math.sin(G.time * 5) > 0;
-    setLed(L.signal, fresh ? 0xff5ad8 : (this.st.sigStrength ?? 0) > 0.3 && Math.sin(G.time * 12) > 0 ? 0xffb84a : 0x141008);
-    (this.model.torchLens.material as THREE.MeshBasicMaterial).color.setHex(this.torchOwned() && p.flashlightOn ? 0xfff6e0 : 0x404040);
-    (this.model.laserLens.material as THREE.MeshBasicMaterial).color.setHex(this.laser.armed ? (Math.sin(G.time * 8) > 0 ? 0xff3048 : 0xa01020) : 0x401010);
+    setLamp(L.signal, fresh || ((this.st.sigStrength ?? 0) > 0.3 && Math.sin(G.time * 12) > 0) ? 0xffb030 : 0x1a1206);
+    // the function dial clicks round to the current function's detent
+    const i = Math.max(0, this.pages.findIndex((q) => q.key === this.page));
+    const target = -i * (Math.PI * 1.5 / 8) + Math.PI * 0.75;
+    this.knobA = damp(this.knobA, target, 14, dt);
+    m.knob.rotation.z = this.knobA + Math.sin(G.time * 60) * 0.02 * Math.abs(this.knobKick);
+    this.knobKick = damp(this.knobKick, 0, 10, dt);
+    // the needle: the multi-tool's charge, else the uplink's carrier (busy when something is new)
+    const want = this.laser.can('cut') ? this.laser.charge / this.laser.capacity()
+      : clamp(0.35 + (this.quests?.fresh.size ? 0.4 : 0) + (this.st.sigStrength ?? 0) * 0.3 + Math.sin(G.time * 1.7) * 0.04, 0, 1);
+    this.needleA = damp(this.needleA, want, 5, dt);
+    m.needle.rotation.z = 1.9 - this.needleA * 3.8 + (Math.random() - 0.5) * 0.02;
+    // toggles flick toward you when on
+    const on = (v: boolean) => (v ? 0.55 : -0.55);
+    m.toggles.torch.rotation.x = damp(m.toggles.torch.rotation.x, on(this.torchOwned() && p.flashlightOn), 18, dt);
+    m.toggles.laser.rotation.x = damp(m.toggles.laser.rotation.x, on(this.laser.armed), 18, dt);
+    (m.torchLens.material as THREE.MeshBasicMaterial).color.setHex(this.torchOwned() && p.flashlightOn ? 0xfff0c8 : 0x3a3630);
+    // the vacuum tubes warm up when the emitter is armed; the lens glows while it fires
+    const glow = this.laser.armed ? 0.75 + Math.sin(G.time * 23) * 0.08 + Math.random() * 0.06 : 0.12;
+    m.filaments.color.setRGB(glow, glow * 0.45, glow * 0.12);
+    (m.laserLens.material as THREE.MeshBasicMaterial).color.setHex(this.laser.firing ? 0xffd080 : this.laser.armed ? 0xa02a10 : 0x401008);
   }
 
   /** twice a second: the function list, the threat radar, sonar mapping, the torch */

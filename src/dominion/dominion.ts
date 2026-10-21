@@ -28,7 +28,6 @@ import { domSounds } from './sounds';
 import { syncImplants, dropImplant } from './implants';
 import { DomUI } from './domUI';
 import { Operation } from './operate';
-import './dominion.css';
 
 export type ThrallMode = 'follow' | 'stay' | 'guard' | 'station';
 export type StationKind = 'guard' | 'haul' | 'power' | 'farm';

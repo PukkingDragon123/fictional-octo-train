@@ -1,0 +1,64 @@
+/* Real-world type for a physical, retro world (OFL / Apache, files in /public/fonts):
+   typewritten tags, terminal phosphor, nixie tubes, enamel and stencilled signs,
+   1950s poster slabs, pen. Text never sits in a box: it is printed on things, glows on
+   a tube, or floats free with a soft shadow. */
+@font-face { font-family: 'Special Elite'; src: url('/fonts/specialelite-400.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Courier Prime'; src: url('/fonts/courierprime-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'Courier Prime'; src: url('/fonts/courierprime-700.woff2') format('woff2'); font-weight: 700; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibmplexmono-400.woff2') format('woff2'); font-weight: 400; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibmplexmono-500.woff2') format('woff2'); font-weight: 500; font-display: swap; }
+@font-face { font-family: 'IBM Plex Mono'; src: url('/fonts/ibmplexmono-600.woff2') format('woff2'); font-weight: 600 700; font-display: swap; }
+@font-face { font-family: 'Nixie One'; src: url('/fonts/nixieone-400.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Oswald'; src: url('/fonts/oswald.woff2') format('woff2'); font-weight: 200 700; font-display: swap; }
+@font-face { font-family: 'Alfa Slab One'; src: url('/fonts/alfaslabone-400.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'Caveat'; src: url('/fonts/caveat.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+
+/* html:root outranks every :root block, wherever it loads */
+html:root {
+  --font-type: 'Special Elite', 'Courier Prime', 'Courier New', monospace;
+  --font-typeset: 'Courier Prime', 'Courier New', monospace;
+  --font-crt: 'IBM Plex Mono', 'Courier Prime', monospace;
+  --font-nixie: 'Nixie One', 'IBM Plex Mono', monospace;
+  --font-sign: 'Oswald', 'Arial Narrow', sans-serif;
+  --font-poster: 'Alfa Slab One', 'Oswald', serif;
+  --font-pen: 'Caveat', 'Comic Sans MS', cursive;
+  --font-speech: 'Courier Prime', 'Courier New', monospace;
+  /* the older names, remapped onto real type */
+  --font-body: var(--font-typeset);
+  --font-ui: var(--font-typeset);
+  --font-display: var(--font-poster);
+  --font-term: var(--font-crt);
+  --font-mono: var(--font-crt);
+  --font-readout: var(--font-crt);
+  --font-vhs: var(--font-crt);
+  --font-stamp: var(--font-sign);
+  --font-stencil: 'NC Stencil', var(--font-sign);
+  --font-label: var(--font-sign);
+  --font-hand: var(--font-pen);
+  /* free-floating text: no box, just a halo that keeps it readable on any floor */
+  --text-halo: 0 1px 0 rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.7), 0 0 14px rgba(0, 0, 0, 0.45);
+}
+
+/* use for any text that floats in the world: speech, names, short prompts */
+.nc-free-text {
+  background: none !important; border: 0 !important; box-shadow: none !important; border-image: none !important;
+  font-family: var(--font-speech); color: #f3eedf; text-shadow: var(--text-halo);
+  letter-spacing: 0.01em; -webkit-font-smoothing: antialiased;
+}
+
+/* a DOM element that should read as a lit tube (prefer src/gfx/crt.ts for 3D screens) */
+.nc-crt-dom {
+  position: relative; overflow: hidden; border-radius: 6% / 9%;
+  background: radial-gradient(ellipse at 50% 45%, #0b1410 0%, #050806 70%, #020302 100%);
+  color: #9dffb5; font-family: var(--font-crt);
+  text-shadow: 0 0 2px currentColor, 0 0 8px rgba(120, 255, 160, 0.45);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.9), inset 0 0 3px rgba(150, 255, 190, 0.25);
+  animation: nc-crt-flicker 4s steps(1) infinite;
+}
+.nc-crt-dom::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.32) 0 1px, transparent 1px 3px); mix-blend-mode: multiply; }
+.nc-crt-dom::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07) 0%, transparent 32%), radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.55) 100%); }
+.nc-crt-dom.amber { color: #ffc070; text-shadow: 0 0 2px currentColor, 0 0 8px rgba(255, 170, 80, 0.45); }
+@keyframes nc-crt-flicker { 0%, 100% { filter: brightness(1); } 47% { filter: brightness(0.96); } 48% { filter: brightness(1.04); } 73% { filter: brightness(0.98); } }
+@media (prefers-reduced-motion: reduce) { .nc-crt-dom { animation: none; } }

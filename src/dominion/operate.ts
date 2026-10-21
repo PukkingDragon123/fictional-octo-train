@@ -154,22 +154,22 @@ export class Operation {
     // the clipboard with the procedure, left of the table; the abort plunger, right
     const cb = new ModelBuilder();
     cb.box(0, 0, 0, 0.13, 0.1, 0.004, 'wood_light', { color: 0xa8784a });
-    cb.box(0, 0.048, 0.004, 0.05, 0.012, 0.008, 'metal_brushed');
-    cb.box(0, 0.05, 0.009, 0.03, 0.006, 0.004, 'chrome');
+    cb.box(0, 0.088, 0.004, 0.05, 0.012, 0.008, 'metal_brushed');
+    cb.box(0, 0.09, 0.009, 0.03, 0.006, 0.004, 'chrome');
     const clip = new THREE.Group();
     clip.add(new THREE.Mesh(cb.build(), this.matSteel));
     const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.092), flatMat(this.card.tex));
-    sheet.position.set(0, -0.003, 0.0035); clip.add(sheet);
+    sheet.position.set(0, 0.046, 0.0035); clip.add(sheet);
     clip.position.set(-0.205, 0.02, -0.66); clip.rotation.set(-0.12, 0.42, 0.04);
     this.g.add(clip);
     const pb = new ModelBuilder();
     pb.box(0, 0, 0, 0.06, 0.03, 0.05, 'metal_painted_green', { color: 0x4a5a48 });
     pb.box(0, 0.016, 0.026, 0.05, 0.012, 0.002, 'plastic_yellow', { color: 0xe0b020 });
     pb.cylinder(0, 0.015, 0, 0.012, 0.02, 10, 'chrome');
-    const base = new THREE.Mesh(pb.build(), this.matSteel);
+    const pbase = new THREE.Mesh(pb.build(), this.matSteel);
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.019, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xc0281a, emissive: 0x200000 }));
     knob.position.y = 0.035; knob.name = 'abort';
-    this.plunger.add(base, knob);
+    this.plunger.add(pbase, knob);
     const tag = new PixTex(40, 10); tag.s.clear(0xe0b020); tag.typed('ABORT', 5, 2, 0x1a140c, 1, 40, 2); tag.flush();
     const tagM = new THREE.Mesh(new THREE.PlaneGeometry(0.048, 0.012), flatMat(tag.tex)); tagM.position.set(0, 0.016, 0.0275); this.plunger.add(tagM);
     this.plunger.position.set(0.2, -0.105, -0.6); this.plunger.rotation.set(0.5, -0.35, 0);

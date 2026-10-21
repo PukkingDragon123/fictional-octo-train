@@ -61,7 +61,7 @@ defObj({
 
 defObj({
   key: 'tribe_totem_cog', name: 'Machine Shrine', w: 1, d: 1, height: 2.1, block: 'solid', sound: 'metal', hp: 450,
-  light: { color: 0x5aff8a, intensity: 0.8, radius: 5, y: 1.2, kind: 'screen', flicker: 0.15, power: false },
+  light: { color: 0x9ce07a, intensity: 0.75, radius: 5, y: 1.2, kind: 'screen', flicker: 0.15, power: false },
   desc: 'Dead monitors stacked into an altar, wired to a car battery. Every screen shows the same green line, rising and falling like breath.', tags: [...T, 'cog'],
   model: (mb) => {
     mb.box(0, 0, 0, 0.62, 0.45, 0.5, 'metal_dark', { color: 0x4a4a48 });
@@ -69,11 +69,11 @@ defObj({
       const y = 0.45 + i * 0.42, s = 1 - i * 0.18;
       mb.box(0, y, 0, 0.5 * s, 0.4 * s, 0.4 * s, 'plastic_beige', { color: 0xb8b0a0 });
       mb.box(0, y + 0.06 * s, 0.2 * s + 0.002, 0.38 * s, 0.26 * s, 0.006, 'white', { color: 0x1a4a2a, emissive: 0.6 });
-      mb.box(0, y + 0.19 * s, 0.2 * s + 0.005, 0.3 * s, 0.012, 0.004, 'white', { color: 0x5aff8a, emissive: 2.2 });
+      mb.box(0, y + 0.19 * s, 0.2 * s + 0.005, 0.3 * s, 0.012, 0.004, 'white', { color: 0x9ce07a, emissive: 1.4 });
     }
     for (let i = 0; i < 5; i++) mb.cylinder(-0.25 + i * 0.12, 0.05, -0.27, 0.012, 1.1 + (i % 2) * 0.4, 5, 'rubber_black');
     mb.cylinder(0, 1.72, 0, 0.02, 0.35, 5, 'metal_brass');
-    mb.box(0, 2.08, 0, 0.06, 0.06, 0.06, 'white', { color: 0x5aff8a, emissive: 2.6 });
+    mb.sphere(0, 2.08, 0, 0.04, 8, 5, 'glass', { color: 0xd8e0d8 }); mb.box(0, 2.08, 0, 0.012, 0.03, 0.012, 'white', { color: 0xffa040, emissive: 2.2 });
   },
 });
 

@@ -165,7 +165,7 @@ export const TRIBES: Record<TribeKey, TribeDef> = {
     lore: { cls: 'Deserted custody officers', notes: ['Meridian guards who walked through the Seam after the debtors and never walked back.', 'They still keep ranks, rotas and a requisition desk. Nobody signs anything.', 'They know how the BAILIFF band is built. They will not say.'] },
   },
   cog: {
-    key: 'cog', name: 'The Sprocket Congregation', member: 'Sprocket', color: 0x4a3a2a, accent: 0x5aff8a, css: '#5adf7a',
+    key: 'cog', name: 'The Sprocket Congregation', member: 'Sprocket', color: 0x4a3a2a, accent: 0xffa040, css: '#9ce07a',
     camps: [{ zone: 'tunnels', size: 5 }, { zone: 'office', size: 2 }],
     app: (r) => app(r, { hairStyle: pick(r, ['buzz', 'bald', 'short'] as const) }),
     outfit: (r) => ({
@@ -175,16 +175,16 @@ export const TRIBES: Record<TribeKey, TribeDef> = {
       cond: { dirt: 2 },
     }),
     head: (mb, v) => {
-      // welding goggles with green lenses and a copper-wire halo of LEDs
+      // welding goggles with amber lenses and a copper-wire halo of little filament bulbs
       mb.box(0, 0.075, 0.105, 0.17, 0.035, 0.02, 'rubber_black');
-      for (const s of [-1, 1]) { mb.cylinder(s * 0.04, 0.075, 0.12, 0.024, 0.02, 8, 'metal_dark'); mb.box(s * 0.04, 0.075, 0.131, 0.03, 0.03, 0.004, 'white', { color: 0x5aff8a, emissive: 1.8 }); }
+      for (const s of [-1, 1]) { mb.cylinder(s * 0.04, 0.075, 0.12, 0.024, 0.02, 8, 'metal_dark'); mb.box(s * 0.04, 0.075, 0.131, 0.03, 0.03, 0.004, 'glass', { color: 0xc87a2a, emissive: 0.5 }); }
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * Math.PI * 2;
         mb.box(Math.cos(a) * 0.12, 0.26 + Math.sin(a * 3 + v) * 0.01, Math.sin(a) * 0.12, 0.02, 0.008, 0.02, 'metal_brass', { color: 0xc87a3a });
-        if (i % 3 === 0) mb.box(Math.cos(a) * 0.12, 0.272, Math.sin(a) * 0.12, 0.012, 0.012, 0.012, 'white', { color: 0x5aff8a, emissive: 2 });
+        if (i % 3 === 0) mb.sphere(Math.cos(a) * 0.12, 0.275, Math.sin(a) * 0.12, 0.009, 6, 4, 'white', { color: 0xffb050, emissive: 1.6 });
       }
     },
-    gear: { joint: 'chest', build: (mb) => { mb.box(0, 0.02, -0.15, 0.16, 0.2, 0.06, 'metal_dark'); mb.box(0, 0.06, -0.185, 0.1, 0.03, 0.01, 'white', { color: 0x5aff8a, emissive: 1.4 }); for (const s of [-1, 1]) mb.cylinder(s * 0.06, 0.13, -0.15, 0.012, 0.12, 5, 'metal_grey'); } },
+    gear: { joint: 'chest', build: (mb) => { mb.box(0, 0.02, -0.15, 0.16, 0.2, 0.06, 'metal_dark'); mb.box(0, 0.06, -0.185, 0.1, 0.03, 0.01, 'metal_brass'); for (let i = 0; i < 2; i++) mb.cylinder(-0.03 + i * 0.06, 0.09, -0.15, 0.012, 0.05, 6, 'glass', { color: 0xd8e0d8 }), mb.box(-0.03 + i * 0.06, 0.11, -0.15, 0.006, 0.02, 0.006, 'white', { color: 0xffa040, emissive: 1.6 }); for (const s of [-1, 1]) mb.cylinder(s * 0.06, 0.13, -0.15, 0.012, 0.12, 5, 'metal_grey'); } },
     weapon: 'wrench', weaponKind: 'blunt',
     names: ['Deacon Ohm', 'Sister Solder', 'Fan-Speaker', 'Relay', 'Capacitor Ruth', 'The Grounded', 'Little Diode', 'Brother Firmware', 'Reboot'],
     lines: {
@@ -201,7 +201,7 @@ export const TRIBES: Record<TribeKey, TribeDef> = {
     wares: [['brain_mk1', -12], ['data_probe', -12], ['wire', -12], ['electronics_scrap', -12], ['power_bank', 0], ['battery', -12], ['multimeter', 0], ['soldering_iron', 12], ['screwdriver', -12], ['glowstick', -12], ['brain_mk2', 35]],
     wants: ['electronics', 'battery', 'material', 'anomaly'],
     startRep: 2, rival: 'wax', hp: 55, dmg: [6, 12],
-    lore: { cls: 'Machine worshippers', notes: ['They believe the Backrooms are a machine that has not finished booting, and that minds are better in metal.', 'They build mechanical brains and will sell you one. What you put it in is your business.', 'Their camps hum. Their eyes glow green behind welding glass.'] },
+    lore: { cls: 'Machine worshippers', notes: ['They believe the Backrooms are a machine that has not finished booting, and that minds are better in metal.', 'They build mechanical brains and will sell you one. What you put it in is your business.', 'Their camps hum. Their eyes glow amber behind welding glass.'] },
   },
 };
 

@@ -1,3 +1,4 @@
+import './ui/fonts.css';
 import { registerContent } from './content/index';
 
 const params = new URLSearchParams(location.search);

@@ -19,6 +19,8 @@ import { intakeForm, prisonerOutfitFor } from './intake';
 import { h, esc, optionsPanel, controlsPanel, applyGfx, confirmDialog, FocusNav, sfx, hoverFocus } from './common';
 import { runBoot } from './boot';
 import { SubjectRoom, type MenuItem } from './room3d';
+import { installRetroKit, nixieHtml } from './retroKit';
+import { ambience } from './sfx';
 import '../../world/zones';
 import '../../game/worldOps';
 import './diegetic.css';
@@ -30,6 +32,7 @@ export function showTitle() {
   const g = new Game(canvas);
   g.worldSeed = 1000 + Math.floor(Math.random() * 9000);
   applyGfx();
+  installRetroKit();
   const audio = new AudioEngine();
   g.audio = audio;
   // the world itself never draws behind the title: the room is its own small scene
@@ -46,7 +49,7 @@ class TitleRoom {
   hits = h('div', 'nx-hits');
   cap = h('div', 'nx-cap');
   over = h('div', 'nx-over');
-  foot = h('div', 'nx-foot', '<span>↑↓←→ · enter · esc</span><span class="rp"></span><span class="blk">MERIDIAN INSTITUTE · ANNEX B</span>');
+  foot = h('div', 'nx-foot', '<span class="rk-tape">ARROWS · ENTER · ESC</span><span class="rp"></span><span class="rk-tape">MERIDIAN INSTITUTE · ROOM 4</span>');
   room: SubjectRoom;
   saves: SaveMeta[] = [];
   nav: FocusNav | null = null;
@@ -76,6 +79,7 @@ class TitleRoom {
     this.root.classList.add('on');
     this.nav = new FocusNav(this.root, { onBack: () => this.closeOver() });
     this.focusKey(this.lastKey);
+    ambience('room');
     this.loop();
   }
 
@@ -109,7 +113,7 @@ class TitleRoom {
       this.btns.set(it.key, b);
     }
     const rp = this.foot.querySelector('.rp') as HTMLElement;
-    rp.innerHTML = `RESEARCH <b>${researchPoints()}</b> RP`;
+    rp.innerHTML = `<span class="rk-tape red">RESEARCH</span>${nixieHtml(researchPoints())}`;
     if (this.live) this.focusKey(this.btns.has(this.lastKey) ? this.lastKey : 'new');
   }
   private focusKey(k: string) { requestAnimationFrame(() => this.btns.get(k)?.focus({ preventScroll: true })); }
@@ -176,6 +180,7 @@ class TitleRoom {
     this.over.className = 'nx-over';
     this.over.innerHTML = '';
     this.root.classList.remove('paneled');
+    this.room.pushTo(null);
     sfx('back');
     this.focusKey(this.lastKey);
   }

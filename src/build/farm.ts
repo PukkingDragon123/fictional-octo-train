@@ -126,7 +126,7 @@ export class Farm {
       const mul = (isHydro(o) ? 1.5 : 1) * (1 + skill * 0.08);
       const n = Math.max(1, Math.round((c.yield[0] + Math.random() * (c.yield[1] - c.yield[0])) * mul));
       if (hasItemDef(c.item)) for (let i = 0; i < n; i++) p.inv.add(createItem(c.item));
-      bus.emit('halo', p, `+${n} ${itemDef(c.item).name}`, 'good');
+      G.audio?.at?.('rummage', o.x + 0.5, o.y + 0.5, 0.7);
       // a few seeds come back
       const seedKey = Object.keys(CROPS).includes(o.state.crop) ? findSeedFor(o.state.crop) : null;
       if (seedKey && Math.random() < 0.6) p.inv.add(createItem(seedKey));

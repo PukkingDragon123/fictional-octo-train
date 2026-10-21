@@ -381,9 +381,10 @@ export class SurgeryStage {
     // leather restraint straps across the slab (they buckle shut when the subject is down)
     for (const [x, hgt] of [[-0.22, 0.22], [0.4, 0.17], [0.78, 0.13]] as const) {
       const sb = new ModelBuilder();
-      sb.box(0, hgt, 0, 0.09, 0.014, 0.66, { top: 'i_leather', sides: 'i_leather' }, { fit: true });
-      for (const k of [-1, 1]) sb.box(0, 0, k * 0.33, 0.09, hgt + 0.01, 0.014, 'i_leather', { fit: true });
-      sb.box(0, hgt + 0.012, 0.12, 0.1, 0.01, 0.06, CT.brass, { fit: true });
+      sb.box(0, hgt, 0, 0.065, 0.01, 0.64, { top: 'i_leather', sides: 'i_leather' }, { fit: true });
+      for (const k of [-1, 1]) sb.box(0, 0, k * 0.322, 0.065, hgt + 0.008, 0.008, 'i_leather', { fit: true });
+      sb.box(0, hgt + 0.008, 0.14, 0.075, 0.008, 0.05, CT.brass, { fit: true });
+      sb.box(0, hgt + 0.012, 0.14, 0.012, 0.006, 0.03, CT.steel, { fit: true });
       const s = new THREE.Mesh(sb.build(), this.mat);
       s.position.set(x, TABLE_Y - 0.02, 0); s.scale.z = 0.01; s.visible = false;
       this.scene.add(s); this.straps.push(s);
@@ -512,10 +513,17 @@ export class SurgeryStage {
     if (!this.sev.length) { delete cond.sev; delete cond.stump; }
     if (!Object.keys(this.load).length) delete cond.cyber;
     if (this.bleeding) cond.bleeding = { [this.bleeding]: 3 };
+    const bl: Record<string, number> = { ...(cond.blood || {}) };
+    for (const [k, v] of Object.entries(this.bloodOn)) if (v >= 1) bl[k] = Math.max(bl[k] ?? 0, Math.floor(v));
+    if (Object.keys(bl).length) cond.blood = bl;
     this.rig.setOutfit({ ...this.outfit, cond });
     this.rig.root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; } });
   }
   private bleeding = '';
+  private bloodOn: Record<string, number> = {};
+  private condT = 0;
+  /** rebuild the rig's condition at most a few times a second (blood soaking in) */
+  private applyCondSoon() { if (this.t - this.condT > 0.3) { this.condT = this.t; this.applyCond(); } }
 
   /** lying (1) or hanging from the claw (0); y lift above the slab */
   private placeSubject(lie: number, lift: number) {
@@ -669,16 +677,23 @@ export class SurgeryStage {
   private wait(ms: number): Promise<void> { return this.tween(ms, () => {}); }
   private tweens: (() => void)[] = [];
   /** what the current sequence is doing ('' idle; intro, approach, cut, drop, bring, bolt, test) */
-  phase = '';
+  private _phase = '';
+  private onPhase?: (ph: string) => void;
+  get phase() { return this._phase; }
+  set phase(v: string) { if (v !== this._phase) { this._phase = v; if (v) this.onPhase?.(v); } }
+  private viewShift = [0, 0];
+  /** slide the picture so the subject sits clear of the instruments (fractions of the view) */
+  setViewShift(x: number, y: number) { this.viewShift = [x, y]; }
   /** skip the rest of a sequence quickly (click while busy) */
   hurry = false;
 
   // ---------------------------------------------------------------- the swap
   /** take what is in a slot off (flesh or hardware) and fit a part, or flesh back (key null) */
-  async swap(slot: CyberSlot, key: string | null) {
+  async swap(slot: CyberSlot, key: string | null, onPhase?: (ph: string) => void) {
     const r = this.rig;
     if (!r || this.busy) return;
     this.busy = true;
+    this.onPhase = onPhase;
     this.hurry = false;
     const kind = SLOT_KIND[slot];
     const S = slot.endsWith('_l') ? 'L' : 'R';
@@ -687,7 +702,16 @@ export class SurgeryStage {
     const limb = kind === 'arm' || kind === 'hand' || kind === 'leg';
     const rootBone = ((kind === 'arm' ? 'uarm' : kind === 'hand' ? 'hand' : kind === 'leg' ? 'thigh' : kind === 'eyes' || kind === 'jaw' ? 'head' : 'chest') + (limb ? S : '')) as BoneName;
     const joint = () => { r.root.updateMatrixWorld(true); return r.bones[rootBone].getWorldPosition(new THREE.Vector3()); };
-    if (this.mode === 'field') this.povAt(slot); else this.focus(slot);
+    if (this.mode === 'field') this.povAt(slot);
+    else {
+      // in close for the work
+      const a = this.anchor(slot, new THREE.Vector3());
+      this.camAtT.copy(a);
+      this.camPosT.set(a.x + 0.45, a.y + 0.85, a.z + (slot.endsWith('_l') ? -0.75 : 0.95));
+      if (slot.endsWith('_l')) this.camPosT.z = Math.max(this.camPosT.z, -0.5);
+    }
+    // the work bloodies the subject around it (and it stays)
+    const BLOOD: Record<string, string[]> = { arm: ['torso_u', 'neck'], hand: ['farm_' + S.toLowerCase()], leg: ['groin', 'torso_l'], eyes: ['head', 'neck'], jaw: ['head', 'neck'], spine: ['torso_u'], skin: ['torso_u', 'torso_l'] };
     this.stress = Math.max(this.stress, 0.45);
     const T = (ms: number) => (this.hurry ? ms * 0.25 : ms);
     // ---- 1. the saw (or the laser) comes down
@@ -713,7 +737,7 @@ export class SurgeryStage {
     this.phase = 'cut';
     while (this.t < cutEnd) {
       const p = this.saw.tipWorld(new THREE.Vector3());
-      if (flesh || (!limb && !had)) this.spray(p, 7, 1.0); else this.spark(p, 6);
+      if (flesh || (!limb && !had)) { this.spray(p, 9, 1.1); for (const b of BLOOD[kind] || []) this.bloodOn[b] = Math.min(3, (this.bloodOn[b] ?? 0) + 0.25); this.applyCondSoon(); } else this.spark(p, 6);
       this.shake(0.12); this.hurt = Math.max(this.hurt, flesh ? 0.55 : 0.2);
       this.saw.target.y = cutAt.y + 0.03 + Math.sin(this.t * 17) * 0.015;
       await this.wait(50);
@@ -803,6 +827,7 @@ export class SurgeryStage {
     if (key) csfx('cy_powerup', 0.8);
     // a servo test: the new part flexes
     if (key && limb) {
+      this.phase = 'test';
       const fk = kind === 'leg' ? 'shin' + S : 'grip' + S;
       const fk2 = kind === 'arm' ? 'farm' + S : '';
       await this.tween(T(700), (t) => { const w = Math.sin(t * Math.PI * 2) * (1 - t); this.flex[fk] = Math.max(0, w) * (kind === 'leg' ? 0.9 : 0.85); if (fk2) this.flex[fk2] = Math.max(0, w) * 1.2; });
@@ -818,7 +843,7 @@ export class SurgeryStage {
   spray(p: THREE.Vector3, n: number, power = 1) {
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, s = (0.3 + Math.random() * 1.1) * power;
-      this.blood.add(p.x, p.y, p.z, Math.cos(a) * s, 0.6 + Math.random() * 1.8 * power, Math.sin(a) * s, 0.008 + Math.random() * 0.018, 6 + Math.random() * 30, Math.random() < 0.3 ? 0x5a0808 : 0x8a0e12);
+      this.blood.add(p.x, p.y, p.z, Math.cos(a) * s, 0.6 + Math.random() * 1.8 * power, Math.sin(a) * s, 0.012 + Math.random() * 0.026, 6 + Math.random() * 30, Math.random() < 0.3 ? 0x5a0808 : 0x8a0e12);
     }
   }
   spark(p: THREE.Vector3, n: number) {
@@ -939,6 +964,8 @@ export class SurgeryStage {
     const sh = this.shakeT * this.shakeT * 0.06;
     this.cam.position.set(this.camPos.x + (Math.random() - 0.5) * sh, this.camPos.y + (Math.random() - 0.5) * sh + Math.sin(this.t * 0.5) * 0.01, this.camPos.z + (Math.random() - 0.5) * sh);
     this.cam.lookAt(this.camAt);
+    if (this.viewShift[0] || this.viewShift[1]) this.cam.setViewOffset(this.lowW, this.lowH, this.viewShift[0] * this.lowW, this.viewShift[1] * this.lowH, this.lowW, this.lowH);
+    else if (this.cam.view) this.cam.clearViewOffset();
     this.hurt = Math.max(0, this.hurt - dt * 0.8);
     this.flash = Math.max(0, this.flash - dt * 3);
     const pu = this.post.mat.uniforms;

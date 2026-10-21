@@ -211,7 +211,6 @@ function nixie(s: Screen, x: number, y: number, ch: string, off: boolean, t: num
     const flick = 0.85 + 0.15 * Math.sin(t * 37);
     const glow = C((Math.round(0x7a * flick) << 16) | (Math.round(0x28 * flick) << 8) | 0x08);
     // halo first, then the digit
-    for (const [ox, oy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) s.text(ch, x + 3 + ox, y + 6 + oy, glow, 2 > 1 ? 1 : 1);
     bigChar(s, ch, x + 3, y + 5, C(0xffa040), glow);
   }
   s.px(x + 3, y + 3, C(0x8a7a6a)); s.px(x + 4, y + 2, C(0x8a7a6a));

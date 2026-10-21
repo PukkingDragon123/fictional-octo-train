@@ -23,6 +23,16 @@ export function registerCraftSounds() {
     lowpass(b, 5000);
     return b.normalize(0.24);
   });
+  // the reader's relays pulling in: two hard clacks and a coil buzz
+  defSound('cube_relay', () => {
+    const b = new Buf(0.2);
+    b.mix(kit.clickS(1400 + rnd() * 300, 0.012), 0, 0.7);
+    b.mix(kit.thump(0.05, 260, 120, 60), 0, 0.4);
+    const hum = osc(0.08, 'square', 100); lowpass(hum, 600); hum.env(decay(30));
+    b.mix(hum, 0.01, 0.25);
+    b.mix(kit.clickS(1100 + rnd() * 300, 0.012), 0.06, 0.55);
+    return b.normalize(0.4);
+  });
   defSound('cube_deny', () => { const b = osc(0.3, 'saw', (t) => 220 - t * 80); lowpass(b, 1200); b.env(decay(8)); return b.normalize(0.3); });
   // a bolt snapping back into its housing
   defSound('cube_bolt', () => {

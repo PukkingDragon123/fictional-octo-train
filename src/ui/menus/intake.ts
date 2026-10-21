@@ -26,6 +26,7 @@ import { researchPoints } from '../../game/research';
 import { bus } from '../../core/events';
 import { h, esc, FocusNav, sfx, hoverFocus, confirmDialog } from './common';
 import { SubjectRoom, type PartKey } from './room3d';
+import { installRetroKit, nixieHtml } from './retroKit';
 import { G } from '../../game/G';
 import { toUrl } from '../pixelkit';
 import { tattooImage, hairIcon } from './art';
@@ -121,6 +122,7 @@ function suitIcon(def: CosmeticDef): string {
 /** show the intake; resolves with the processed subject or null if they withdrew */
 export function intakeForm(opts: { title?: string; sandbox?: boolean; directives?: boolean; submit?: string; room?: SubjectRoom; app?: Appearance } = {}): Promise<IntakeResult | null> {
   return new Promise((resolve) => {
+    installRetroKit();
     const app: Appearance = opts.app ? { ...opts.app } : { ...randomAppearance(Math.random), ...randomLooks(Math.random, Math.random() < 0.5) };
     if (!app.cos) app.cos = [];
     let name = randomName();
@@ -183,7 +185,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     root.append(top, left, right, bottom, hoverTag, toast, sex, sheet, stampEl);
 
     // ---------------- helpers
-    const refreshRp = () => { rpEl.innerHTML = `<small>RESEARCH</small><b>${researchPoints()}</b><small>RP</small>`; };
+    const refreshRp = () => { rpEl.innerHTML = `<span class="rk-tape red">RESEARCH</span>${nixieHtml(researchPoints())}`; };
     let toastT = 0;
     const say = (s: string) => { toast.innerHTML = s; toast.classList.add('on'); clearTimeout(toastT); toastT = window.setTimeout(() => toast.classList.remove('on'), 3200); };
     let looksT = 0;

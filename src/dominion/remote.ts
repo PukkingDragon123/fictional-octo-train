@@ -45,7 +45,7 @@ export class Remote {
     this.g.add(this.box);
     const mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
     const mb = new ModelBuilder();
-    mb.box(0, -PH / M / 2 - 0.004, -0.018, PW / M + 0.012, PH / M + 0.012, 0.032, 'plastic_black', { color: 0x4a2e1c });
+    mb.box(0, -PH / M - 0.006, -0.018, PW / M + 0.012, PH / M + 0.012, 0.032, 'plastic_black', { color: 0x4a2e1c });
     mb.box(0, -PH / M / 2 + 0.03, -0.034, 0.03, 0.06, 0.02, 'plastic_black', { color: 0x3a2416 }); // handle lug
     for (const [x, y] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) mb.box(x * (PW / M / 2 - 0.004), y * (PH / M / 2 - 0.004) - PH / M / 2 + 0.0, 0.0, 0.004, 0.004, 0.002, 'chrome');
     mb.cylinder(-0.06, 0.004, -0.02, 0.003, 0.06, 5, 'chrome'); // aerial
@@ -201,7 +201,6 @@ export class Remote {
     p.typed('CARGO', 70, 99, PAL.ink, 1, 40, 4);
     for (let a = 0; a < 24; a++) { const u = (a / 24) * Math.PI * 2; s.line(132 + Math.cos(u) * 12, 84 + Math.sin(u) * 12, 132 + Math.cos(u) * 15, 84 + Math.sin(u) * 15, Screen.c(a % 2 ? 0x17150f : 0xe8b52a)); }
     p.typed('SCRAM', 118, 101, PAL.inkRed, 1, 40, 5);
-    p.typed('MERIDIAN DOMINION SET  MOD 3', 4, 30, 0x5a4a30, 1, 156, 6);
     p.flush();
   }
 }

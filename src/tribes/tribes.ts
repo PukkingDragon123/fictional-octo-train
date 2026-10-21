@@ -19,7 +19,6 @@ import { TRIBES, TRIBE_KEYS, standing, type TribeKey, type TribeDef } from './de
 import type { Camp } from './camp';
 import { bark, memberName, prunePool, tribeOfCreature } from './npc';
 import { TradeUI } from './tradeUI';
-import './tribes.css';
 
 export interface TribeState {
   rep: Record<string, number>;

@@ -153,7 +153,7 @@ export function buildWatchModel(screenMat: THREE.Material): WatchModel {
     // the control column: dial plate, gauge bezel
     mb.box(COL_X, 0.0035, FRONT + 0.0004, 0.026, 0.026, 0.0008, 'wt_dialring', { fit: true });
     mb.push().translate(COL_X, -0.019, FRONT + 0.0005).rotateX(Math.PI / 2);
-    mb.cylinder(0, 0, 0, 0.0115, 0.0024, 12, 'wt_steel', { color: 0xd0d0c8 });
+    mb.cylinder(0, 0, 0, 0.0115, 0.0016, 12, 'wt_steel', { color: 0xd0d0c8 });
     mb.pop();
     // speaker grille and the maker's plate along the bottom strip
     mb.box(SCREEN.x - 0.014, -H.h / 2 + 0.006, FRONT + 0.0003, 0.036, 0.008, 0.0008, 'wt_grille', { fit: true });
@@ -237,15 +237,11 @@ export function buildWatchModel(screenMat: THREE.Material): WatchModel {
 
   // ---- needle gauge: cream face, glass, a red needle
   {
-    const face = new THREE.Mesh(new THREE.CircleGeometry(0.0098, 16), worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true }));
-    const uv = atlas().get('wt_gauge');
-    const g = face.geometry as THREE.BufferGeometry;
-    const pos = g.getAttribute('position'), uvA = g.getAttribute('uv');
-    for (let i = 0; i < uvA.count; i++) uvA.setXY(i, uv.u0 + (pos.getX(i) / 0.0196 + 0.5) * (uv.u1 - uv.u0), uv.v0 + (pos.getY(i) / 0.0196 + 0.5) * (uv.v1 - uv.v0));
-    const col = new Float32Array(pos.count * 3).fill(1);
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-    face.position.set(COL_X, -0.019 + 0.0012, FRONT + 0.0028);
-    root.add(face);
+    const mb = new ModelBuilder();
+    mb.push().translate(COL_X, -0.019, FRONT + 0.0012).rotateX(Math.PI / 2);
+    mb.cylinder(0, 0, 0, 0.0098, 0.0016, 16, { sides: 'wt_steel', top: 'wt_gauge', bottom: 'wt_steel' }, { fit: true });
+    mb.pop();
+    root.add(new THREE.Mesh(mb.build(), mat));
   }
   const needle = new THREE.Group();
   {
@@ -253,7 +249,7 @@ export function buildWatchModel(screenMat: THREE.Material): WatchModel {
     const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.0008, 8).rotateX(Math.PI / 2), basic(0x1a1410));
     needle.add(n, hub);
   }
-  needle.position.set(COL_X, -0.019 - 0.0015, FRONT + 0.0034);
+  needle.position.set(COL_X, -0.0215, FRONT + 0.0032);
   root.add(needle);
 
   // ---- bat-handle toggles on the top rail (pivot at the base, flick along Z)

@@ -18,7 +18,7 @@ import { CraftAction } from '../../interact/crafting';
 import { shake } from '../../gfx/juice';
 
 export type LaserMode = 'cut' | 'weld' | 'scan';
-const COL: Record<LaserMode, number> = { cut: 0xff3048, weld: 0x9fe8ff, scan: 0x4ff0ff };
+const COL: Record<LaserMode, number> = { cut: 0xff4a18, weld: 0xfff0b0, scan: 0x7cff6a };
 
 export class WatchLaser {
   armed = false;
@@ -65,6 +65,8 @@ export class WatchLaser {
     G.audio?.ui?.(on ? 'laserZap' : 'watchTick', on ? 0.35 : 0.5);
   }
   stop() { this.onT = 0; this.holding = false; }
+  /** the beam is on this frame */
+  get firing() { return this.onT > 0; }
 
   /** the local survivor's wrist in world space (left forearm, raised a little) */
   wrist(out: THREE.Vector3) {
@@ -163,7 +165,7 @@ export class WatchFab {
   craft(r: Recipe) {
     const p = G.local; if (!p) return;
     const L = G.watch?.laser as WatchLaser | undefined;
-    if (L && L.charge < 0.1) { G.audio?.ui?.('watchDeny'); G.ui?.toast?.('LOW CHARGE', 'The fabricator needs 10% charge.', 2); return; }
+    if (L && L.charge < 0.1) { G.audio?.ui?.('watchDeny'); G.watch?.message?.('LOW CHARGE', 'THE FABRICATOR NEEDS 10%', 'warn', 2.5); return; }
     if (L) L.charge -= 0.1;
     this.pending = r.key;
     const a = new CraftAction(p, r);

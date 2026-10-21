@@ -138,9 +138,10 @@ const step = async (page, name, fn, arg) => {
   await step(page, 'pick up a valuable', async () => {
     const T = window.T, z = T.g.getZone('lobby');
     // let the toss land, then pick it up through the real floor → inventory transfer
-    // (only what fell near us: floor physics runs around the camera, so far-off items may stay airborne)
-    await T.until(() => [...T.wi.floorItems(z).values()].every((w) => w.vy === undefined || Math.hypot(w.x - T.p.x, w.z - T.p.z) > 6), 60000, 'landed');
-    const w = [...T.wi.floorItems(z).values()].find((q) => ['wedding_ring', 'cash_roll', 'gold_watch'].includes(q.item.key));
+    // (a valuable that has come to rest: other spilled things may still be bouncing or getting kicked about)
+    const VAL = ['wedding_ring', 'cash_roll', 'gold_watch'];
+    await T.until(() => [...T.wi.floorItems(z).values()].some((w) => VAL.includes(w.item.key) && w.vy === undefined), 60000, 'landed');
+    const w = [...T.wi.floorItems(z).values()].find((q) => VAL.includes(q.item.key) && q.vy === undefined);
     const { transferItem } = await import('/src/game/worldOps.ts');
     const fc = T.wi.floorContainer(z, w.x, w.z, 0.5);
     transferItem(T.p, w.item, fc, T.p.inv);
