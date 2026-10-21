@@ -44,7 +44,7 @@ export class Words {
     document.body.appendChild(this.root);
     // nothing drives the layer while the game is paused or gone: hide it then
     const watch = () => {
-      const stale = !G || (G as any).paused || performance.now() - this.lastUpdate > 150;
+      const stale = !G || (G as any).paused || performance.now() - this.lastUpdate > 1500;
       if (stale !== this.hidden) { this.hidden = stale; this.root.style.visibility = stale ? 'hidden' : ''; }
       requestAnimationFrame(watch);
     };

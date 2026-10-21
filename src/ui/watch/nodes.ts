@@ -35,6 +35,7 @@ W('watch_diag', 'DIAGNOSIS AI', 5, 'A body map of every wound with the AI\'s tri
 W('watch_mind', 'MIND MONITOR', 3, 'Breathing, mood, panic, lasting conditions, medication and the breathing coach.', ['watch_vitals'], 'MD');
 // ---- records
 W('watch_log', 'LOGBOOK', 2, 'Skills, the entity codex and your file.', undefined, 'LG');
+W('watch_notes', 'FIELD NOTES', 2, 'Every entity here obeys one rule. The rules you have learned (by scanning, watching, surviving) typed up; the rest redacted until you do.', undefined, 'FN');
 // ---- the multi-tool
 W('tool_torch', 'WRIST TORCH', 3, 'A white LED in the bezel. F toggles it when you have no other light.', undefined, 'TO');
 W('tool_beam', 'SCANNER BEAM', 4, 'Scans reach twice as far and finish twice as fast, with a visible beam.', ['watch_scan', 'tool_torch'], 'BM');

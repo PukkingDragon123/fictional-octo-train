@@ -96,7 +96,7 @@ export function generateMeadow(z: Zone, seed: number) {
     sky: true, sun: 0xfff0f4, sunI: 0.95, skyColor: 0xd8f0ff, outdoorAmbient: 0xe8e0ff,
     grade: 'meadow', reverb: 'outdoor', ambience: 'fields', music: '', weather: 'none',
   };
-  z.spawnTable = [['bubble_mite', 4], ['bubble_rabbit', 3]];
+  z.spawnTable = [['bubble_mite', 4], ['bubble_rabbit', 3], ['cowerling', 0.5]];
   z.creatureCap = 9;
   z.meta.dimension = 'meadow';
 }

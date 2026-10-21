@@ -267,18 +267,23 @@ export class Console3D {
     const label = (s: string, x: number, y: number, w = 40) => { const p = sheet('plate', w, 9, w * 0.0062); p.type(s, 4, 1.9, undefined, 5.2); p.flush(); p.mesh.position.set(x, y, 0.004); this.group.add(p.mesh); };
     // ---- three Nixie tubes: the sign and two digits
     label('WARE CREDITS', -0.5, 0.07, 46);
-    const glass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.16, depthWrite: false, envMapIntensity: 1.6 });
+    const glass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.06, metalness: 0, transparent: true, opacity: 0.1, depthWrite: false, envMapIntensity: 0.45 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x140c08, roughness: 0.85, metalness: 0.3 });
     for (let i = 0; i < 3; i++) {
       const x = -0.63 + i * 0.13, y = -0.11;
       const tube = new THREE.Group(); tube.position.set(x, y, 0.06);
       tube.add(mesh((mb) => { mb.cylinder(0, -0.115, 0, 0.055, 0.03, 14, 'metal_grey', { fit: true }); }, bake));
+      // the anode mesh: a dark cage the cathodes glow in front of
+      const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.17, 14, 1, true, Math.PI * 0.15, Math.PI * 0.7), dark);
+      cage.rotation.y = Math.PI; cage.position.y = -0.005; tube.add(cage);
       const d = nixieDigit();
       const face = new THREE.Mesh(new THREE.PlaneGeometry(0.085, 0.128), new THREE.MeshBasicMaterial({ map: d.tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+      face.renderOrder = 2;
       face.position.set(0, -0.005, 0);
       tube.add(face);
       const mesh2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.19, 18, 1, true), glass);
-      mesh2.position.y = -0.0; tube.add(mesh2);
-      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), glass); cap.position.y = 0.095; tube.add(cap);
+      mesh2.position.y = -0.0; mesh2.renderOrder = 3; tube.add(mesh2);
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.05, 18, 8, 0, Math.PI * 2, 0, Math.PI / 2), glass); cap.position.y = 0.095; cap.renderOrder = 3; tube.add(cap);
       this.group.add(tube);
       this.nix.push(d);
     }
@@ -287,12 +292,12 @@ export class Console3D {
     this.group.add(this.glow);
     // ---- research points: a three-drum counter behind a window
     label('RESEARCH', -0.06, 0.07, 36);
-    this.group.add(mesh((mb) => { mb.box(-0.06, -0.19, 0.0, 0.26, 0.15, 0.03, 'metal_grey', { fit: true, color: 0x404040 }); }, bake));
+    this.group.add(mesh((mb) => { mb.box(-0.06, -0.2, -0.05, 0.27, 0.17, 0.04, 'metal_grey', { fit: true, color: 0x303030 }); for (const y of [-0.2, -0.04]) mb.box(-0.06, y, -0.01, 0.27, 0.012, 0.03, 'metal_grey', { fit: true }); }, bake));
     const dt = drumTex();
     for (let i = 0; i < 3; i++) {
-      const dm = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.062, 24, 1), [new THREE.MeshStandardMaterial({ map: dt, roughness: 0.55 }), steel, steel]);
+      const dm = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.072, 28, 1), [new THREE.MeshStandardMaterial({ map: dt, roughness: 0.55 }), steel, steel]);
       dm.rotation.z = Math.PI / 2;
-      dm.position.set(-0.13 + i * 0.07, -0.115, -0.022);
+      dm.position.set(-0.14 + i * 0.08, -0.12, -0.045);
       this.group.add(dm); this.drums.push(dm);
     }
     // ---- the DEAL lever in a brass quadrant
@@ -304,7 +309,7 @@ export class Console3D {
     const ball = new THREE.Mesh(new THREE.SphereGeometry(0.034, 16, 12), new THREE.MeshPhysicalMaterial({ color: 0xb01808, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08 }));
     ball.position.y = 0.22; ball.castShadow = true;
     this.lever.add(ball);
-    this.lever.rotation.x = -0.55;
+    this.lever.rotation.x = 0.3;
     this.lever.userData.pick = 'lever';
     this.group.add(this.lever);
     // ---- DISCHARGE: the red mushroom button on a hazard collar
@@ -351,7 +356,7 @@ export class Console3D {
     // lever: pulled down, springs back
     this.leverT += (this.leverV - this.leverT) * Math.min(1, dt * 16);
     if (this.leverT > 0.95) this.leverV = 0;
-    this.lever.rotation.x = -0.55 + this.leverT * 1.15;
+    this.lever.rotation.x = 0.3 + this.leverT * 0.9;
     this.press = Math.max(0, this.press - dt);
     this.button.position.z = 0.04 - (this.press > 0 ? 0.018 : 0) + (this.hover === 'go' ? 0.004 : 0);
   }

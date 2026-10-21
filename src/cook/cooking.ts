@@ -191,6 +191,12 @@ export class CookView {
     this.flagM = sheetMesh(this.flag, 0.1, 0.025); this.flagM.visible = false; this.rig.add(this.flagM);
     window.addEventListener('mousedown', (e) => this.onDown(e), true);
     window.addEventListener('mouseup', (e) => this.onUp(e), true);
+    // touch: the finger is the cursor (drag food, circle the pot); swallow the emulated mouse events
+    const fake = (t: Touch, e: TouchEvent) => ({ button: 0, clientX: t.clientX, clientY: t.clientY, stopPropagation: () => e.stopPropagation() }) as unknown as MouseEvent;
+    const aim = (t: Touch) => { G.input.mouseX = t.clientX; G.input.mouseY = t.clientY; };
+    window.addEventListener('touchstart', (e) => { const t = e.changedTouches[0]; if (!this.open || !t) return; aim(t); if (this.hit()) { e.preventDefault(); this.onDown(fake(t, e)); } }, { capture: true, passive: false });
+    window.addEventListener('touchmove', (e) => { const t = e.changedTouches[0]; if (!this.open || !t || (!this.drag && !this.stirring)) return; aim(t); e.preventDefault(); }, { capture: true, passive: false });
+    window.addEventListener('touchend', (e) => { const t = e.changedTouches[0]; if (!this.open || !t || (!this.drag && !this.stirring)) return; aim(t); e.preventDefault(); this.onUp(fake(t, e)); }, { capture: true, passive: false });
     window.addEventListener('wheel', (e) => { if (this.open && this.kind === 'stove') { this.heat = clamp(this.heat - Math.sign(e.deltaY) * 0.1, 0.2, 1.2); } }, { passive: true });
     bus.on('fpLost', (n: string) => { if (n === 'cook' && this.open) this.close(); });
     bus.on('travelEnd', () => this.close());

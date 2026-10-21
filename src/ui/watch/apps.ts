@@ -20,6 +20,7 @@ import { paintBody, partAt, drawMoodleGlyph, BODY_W, BODY_H } from '../moodles';
 import { hasUnlock } from '../../game/research';
 import { checkRecipe } from '../../interact/crafting';
 import { floorItems } from '../../items/worldItems';
+import { allRules } from '../../creatures/rules';
 import { PAL, TOP, BOT, zone, footer, button, icon, wrap } from './screen';
 import type { Watch } from './watch';
 
@@ -497,6 +498,45 @@ export function drawLog(s: Tube, w: Watch) {
     s.text(`CARRY ${p.carriedWeight().toFixed(1)}/${p.capacity().toFixed(0)} KG`, 6, y, MID);
   }
   footer(s, 'WHEEL:SCROLL  CLICK TABS');
+}
+
+// ================================================================ FIELD NOTES (creature rules)
+export function drawNotes(s: Tube, w: Watch) {
+  const rules = allRules().sort((a, b) => Number(b.learned) - Number(a.learned) || a.species.localeCompare(b.species));
+  const known = rules.filter((r) => r.learned).length;
+  s.text('ENTITY RULES', 4, TOP + 1, HI);
+  const cnt = `${known}/${rules.length} LEARNED`;
+  s.text(cnt, s.w - 4 - s.textW(cnt), TOP + 1, known ? MAG : DIM);
+  if (!rules.length) { s.para('NO RULES ON FILE.', 6, TOP + 14, s.w - 12, MID); footer(s, 'FIELD NOTES'); return; }
+  const sel = ((w.st.sel % rules.length) + rules.length) % rules.length;
+  w.st.sel = sel;
+  // the index down the left, the selected entry typed out on the right
+  const rows = 11, start = Math.max(0, Math.min(sel - 5, rules.length - rows));
+  let y = TOP + 12;
+  rules.slice(start, start + rows).forEach((r, j) => {
+    const i = start + j, on = i === sel;
+    if (on) s.rect(0, y - 1, 82, 9, FAINT);
+    if (r.learned) s.text(r.species.toUpperCase(), 4, y, on ? HI : MID, 1, 76);
+    else { for (let k = 0; k < 4 + (i * 7) % 6; k++) s.rect(4 + k * 6, y + 1, 5, 6, on ? DIM : FAINT); }
+    zone(w, 0, y - 1, 82, 9, () => { w.st.sel = i; });
+    y += 9;
+  });
+  s.vline(84, TOP + 11, BOT - 1, DIM);
+  const r = rules[sel];
+  const x = 89, tw = s.w - x - 4;
+  if (r.learned) {
+    s.text(r.species.toUpperCase(), x, TOP + 12, HI, 1, tw);
+    s.text('RULE // ' + r.rule.name.toUpperCase(), x, TOP + 22, AMB, 1, tw);
+    let yy = TOP + 33;
+    for (const ln of wrap(s, r.rule.text.toUpperCase(), tw).slice(0, 8)) { s.text(ln, x, yy, MID); yy += 9; }
+    if (r.rule.tell && yy < BOT - 10) { for (const ln of wrap(s, 'TELL: ' + r.rule.tell.toUpperCase(), tw).slice(0, 2)) { s.text(ln, x, yy, DIM); yy += 9; } }
+  } else {
+    s.text('[REDACTED]', x, TOP + 12, DIM);
+    let yy = TOP + 24;
+    for (let k = 0; k < 6; k++) { const len = 10 + ((sel * 13 + k * 7) % 9); for (let c = 0; c < len && x + c * 6 < s.w - 6; c++) s.rect(x + c * 6, yy + 1, 5, 6, (c + k) % 5 ? FAINT : DIM); yy += 9; }
+    s.para('SCAN IT, WATCH IT, OR LIVE THROUGH IT.', x, BOT - 20, tw, DIM, 9, 2);
+  }
+  footer(s, 'WHEEL:ENTRY  RULES PAY RESEARCH');
 }
 
 // ================================================================ TOOL (the multi-tool)

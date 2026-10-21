@@ -30,8 +30,8 @@ export class Board3D {
     const tex = new PrintTex(BW, BH, 2);
     const P = tex.pix;
     for (let y = 0; y < BH; y++) for (let x = 0; x < BW; x++) {
-      let c = hash(x, y, 1) < 0.25 ? 0x8a6640 : 0x9a7448;
-      if ((x % 3 === 1) && (y % 3 === 1)) c = 0x2a1a0e;
+      let c = hash(x, y, 1) < 0.25 ? 0x5e4024 : 0x6e4c2c;
+      if ((x % 3 === 1) && (y % 3 === 1)) c = 0x140a04;
       P.set(x, y, c);
     }
     tex.commit();

@@ -21,7 +21,7 @@ import type { Player } from '../../entities/player';
 import type { QuestRuntime } from '../../missions/questRuntime';
 import { buildWatchModel, setLamp, SCR_W, SCR_H, SCREEN, type WatchModel } from './model';
 import { drawWatch, drawQuests, drawResearch, layoutBranch, PAL, type Zone } from './screen';
-import { drawMap, drawScan, drawSig, drawBio, drawLog, drawTool, drawFab, contacts, type Contact } from './apps';
+import { drawMap, drawScan, drawSig, drawBio, drawLog, drawNotes, drawTool, drawFab, contacts, type Contact } from './apps';
 import { BRANCHES } from './nodes';
 import { WatchLaser, WatchFab } from './tool';
 import './nodes';
@@ -38,11 +38,12 @@ export const FUNCTIONS: WatchFn[] = [
   { key: 'sig', name: 'SIGNAL TRACE', label: 'SIG', node: 'watch_signals', draw: drawSig },
   { key: 'stat', name: 'BIOMONITOR', label: 'BIO', node: 'watch_vitals', draw: drawBio },
   { key: 'log', name: 'LOGBOOK', label: 'LOG', node: 'watch_log', draw: drawLog },
+  { key: 'note', name: 'FIELD NOTES', label: 'NOTE', node: 'watch_notes', draw: drawNotes },
   { key: 'tool', name: 'MULTI-TOOL', label: 'TOOL', node: () => hasUnlock('tool_torch') || hasUnlock('tool_laser') || hasUnlock('tool_beam'), draw: drawTool },
   { key: 'fab', name: 'FABRICATOR', label: 'FAB', node: 'tool_fab', draw: drawFab },
 ];
 /** where a locked function is researched */
-const NODE_OF: Record<string, string> = { map: 'watch_map', scan: 'watch_scan', sig: 'watch_signals', stat: 'watch_vitals', log: 'watch_log', tool: 'tool_torch', fab: 'tool_fab' };
+const NODE_OF: Record<string, string> = { map: 'watch_map', scan: 'watch_scan', sig: 'watch_signals', stat: 'watch_vitals', log: 'watch_log', note: 'watch_notes', tool: 'tool_torch', fab: 'tool_fab' };
 const owned = (f: WatchFn) => (typeof f.node === 'string' ? hasUnlock(f.node) : f.node());
 
 /** the live list of owned functions (the touch layer's strip reads it as the old scanner's PAGES) */
@@ -131,6 +132,7 @@ export class Watch {
     window.addEventListener('keydown', (e) => this.onKey(e), true);
     bus.on('fpLost', (name: string) => { if (name === 'watch') { this.staged = false; this.open = false; this.peekKey = null; this.raise = 0; if (G.local) G.local.scannerOpen = false; } });
     bus.on('researchUnlocked', (key: string) => this.onUnlocked(key));
+    bus.on('ruleLearned', (r: { name?: string; species?: string }) => this.message('RULE LEARNED', `${r?.species ?? ''}: ${r?.name ?? ''}`, 'rp', 3.5, hasUnlock('watch_notes')));
     bus.on('research', (e: { n: number; reason: string }) => { const why = String(e?.reason || ''); if (e?.n > 0 && !/^(quest|node):/.test(why)) this.message(`+${e.n} RP`, /^scan/.test(why) ? 'SCAN DATA FILED' : 'RESEARCH CREDIT', 'rp', 2.4); });
   }
 

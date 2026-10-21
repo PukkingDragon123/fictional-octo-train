@@ -310,7 +310,9 @@ export class SurgeryStage {
       const pm = new THREE.PMREMGenerator(this.renderer);
       this.env = pm.fromScene(new RoomEnvironment(), 0.04).texture;
       pm.dispose();
-      this.scene.environment = this.env; this.fg.environment = this.env;
+      // (not scene.environment for the room: three applies that to Lambert too and it would wash the pixel art out)
+      for (const m of [this.chromeMat, this.steelMat]) { m.envMap = this.env; m.needsUpdate = true; }
+      this.fg.environment = this.env;
     } catch (e) { console.warn('surgery renderer unavailable', e); this.renderer = null; }
     this.scene.background = new THREE.Color(0x0c0a08);
     this.scene.fog = new THREE.Fog(0x0c0a08, 6, 12);

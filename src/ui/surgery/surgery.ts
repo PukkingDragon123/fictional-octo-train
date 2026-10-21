@@ -99,7 +99,7 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
   const desk = new Console3D('SURGICAL THEATRE No.3', 'SUBJECT ' + subject);
   const tag = new Tag3D();
   const fgLights = new THREE.Group();
-  const key = new THREE.DirectionalLight(0xfff0dc, 2.2); key.position.set(-2, 3, 2); fgLights.add(key);
+  const key = new THREE.DirectionalLight(0xfff0dc, 1.5); key.position.set(-2, 3, 2); fgLights.add(key);
   const rim = new THREE.DirectionalLight(0x9ab8ff, 0.6); rim.position.set(3, 1, -1); fgLights.add(rim);
   fgLights.add(new THREE.AmbientLight(0x6a6458, 0.6));
   stage.fg.add(fgLights, crt.group, desk.group, tag.group);
@@ -292,6 +292,7 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
       preview = firstFit >= 0 ? firstFit : Math.max(0, i);
     }
     if (p) csfx('cy_servo', 0.2);
+    stage.onHover?.(null);
   };
   const doSwap = async (sl: CyberSlot, key: string | null) => {
     if (stage.busy || closed) return;
@@ -309,7 +310,9 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
 
   // ---------------- pointer: the instruments, else the subject
   let tagFor: Pick | null = null;
-  stage.onHover = (p) => {
+  stage.onHover = (hp) => {
+    // the tag follows the pointer, and stays on the part being worked on (touch has no hover)
+    const p = hp ?? selected;
     tagFor = p;
     if (!p) { tag.group.visible = false; return; }
     if (p === 'brain') tag.write('BRAIN', chipCode(occupationByKey(occ)), `${traits.size} cards punched`);

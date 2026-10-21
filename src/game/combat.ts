@@ -192,7 +192,7 @@ export class CombatSystem implements GameSystem {
     // ---- dodge: tap Shift, or double-tap a direction (in a fight)
     if (!busy) this.dodgeInput(p);
     // ---- shove / tackle / stomp
-    if (!busy && inp.hit('shove') && this.state !== 'charge') {
+    if (!busy && inp.hit('shove') && this.state !== 'charge' && !G.grab?.holding) {
       if (!G.interact?.tryVault?.(p)) this.shove(p);
     }
     // ---- moves in progress
@@ -241,9 +241,20 @@ export class CombatSystem implements GameSystem {
   wantsClick(p: Player): boolean {
     if (p.inVehicle || p.body.dead || p.body.downed) return false;
     const w = wielded(p);
-    if (w.ranged) return w.w.kind === 'firearm' || p.aiming;
-    if (p.aiming || w.armed || w.cls === 'cyber') return true;
+    // a tool verb on what is under the cursor, or something carried to throw: the grab system's click (src/interact/grab.ts)
+    if (G.grab?.claimsLmb?.() && !this.enemyAtCursor(p)) return false;
+    if (w.ranged || p.aiming || w.armed || w.cls === 'cyber') return true;
     return this.engaged(p);
+  }
+
+  /** a creature (or a survivor, with friendly fire) right where the cursor points, in reach */
+  private enemyAtCursor(p: Player): boolean {
+    for (const c0 of G.creatures?.creatures?.values?.() || []) {
+      const c = c0 as Creature;
+      if (c.dead || c.zoneKey !== p.zoneKey || c.tamedBy) continue;
+      if (Math.hypot(c.x - p.aimX, c.z - p.aimZ) < c.radius + 0.7 && Math.hypot(c.x - p.x, c.z - p.z) < 4) return true;
+    }
+    return false;
   }
 
   // ================================================================ the attack button
@@ -254,7 +265,7 @@ export class CombatSystem implements GameSystem {
     if (w.ranged) {
       if (b && !b.up && this.rangedCd <= 0 && !this.move) {
         if (w.w.kind === 'firearm') this.shoot(p, w.it!, w.w);
-        else if (p.aiming) this.throwItem(p, w.it!);
+        else this.throwItem(p, w.it!);
         this.btn = null;
       }
       return;

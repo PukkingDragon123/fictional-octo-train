@@ -206,6 +206,17 @@ export function glyph(name: string): Tex {
 export const gaugeName = (v: number, hot = false) => 'gauge:' + Math.round(Math.max(0, Math.min(1, v)) * 24) + (hot ? ':hot' : '');
 
 // ------------------------------------------------------------------ the mark layer
+/**
+ * The main pass draws into two targets (colour + the normal / outline buffer, src/gfx/materials.ts):
+ * every fragment shader has to write both. Ours leave the normal buffer as it was (alpha 0 blends away).
+ */
+function mrtSafe<T extends THREE.Material>(m: T): T {
+  m.onBeforeCompile = (sh) => {
+    sh.fragmentShader = 'layout(location = 1) out highp vec4 gNormal;\n' + sh.fragmentShader.replace(/\}\s*$/, '  gNormal = vec4(0.0);\n}\n');
+  };
+  m.customProgramCacheKey = () => 'cb-mrt-' + m.type;
+  return m;
+}
 /** texels per metre the glyph art is drawn for (the default camera zoom) */
 const TPM = 28;
 
@@ -235,7 +246,7 @@ export class Marks {
   mark(name: string, x: number, y: number, z: number, o: MarkOpts = {}) {
     let s = this.sprites[this.n];
     if (!s) {
-      const m = new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false, fog: false });
+      const m = mrtSafe(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false, fog: false }));
       s = new THREE.Sprite(m);
       s.renderOrder = 995;
       s.frustumCulled = false;
@@ -261,7 +272,7 @@ export class Marks {
   ring(x: number, y: number, z: number, r: number, fill: number, col = CHALK, back = 0x2a2016, op = 0.9) {
     let R = this.rings[this.nr];
     if (!R) {
-      const mk = (c: number, o: number, ord: number) => { const m = new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, depthTest: false, side: THREE.DoubleSide, fog: false }); const me = new THREE.Mesh(this.tickGeo, m); me.renderOrder = ord; me.frustumCulled = false; this.root.add(me); return me; };
+      const mk = (c: number, o: number, ord: number) => { const m = mrtSafe(new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, depthWrite: false, depthTest: false, side: THREE.DoubleSide, fog: false })); const me = new THREE.Mesh(this.tickGeo, m); me.renderOrder = ord; me.frustumCulled = false; this.root.add(me); return me; };
       const fillM = mk(col, 0.9, 993);
       fillM.userData.n = 0;
       // the scratches run round the circle: draw only the first n

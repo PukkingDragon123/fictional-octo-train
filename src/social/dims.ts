@@ -128,7 +128,9 @@ class Board {
   ensureState() {
     if (this.st) return;
     const m = this.meta(); if (!m) return;
-    this.st = { pieces: m.pieces.map((p: ChessPiece) => ({ ...p })), phase: 'idle', mover: -1, from: [0, 0], to: [0, 0], t: 0, clock: 2, mateT: 0 };
+    // the living pieces (src/creatures/species/chess.ts) read meta.chess.pieces: keep it the live board; the opening stays in meta.chess.initial
+    if (!m.initial) m.initial = m.pieces.map((p: ChessPiece) => ({ ...p }));
+    this.st = { pieces: m.pieces, phase: 'idle', mover: -1, from: [0, 0], to: [0, 0], t: 0, clock: 2, mateT: 0 };
   }
 
   update(dt: number) {
@@ -150,7 +152,7 @@ class Board {
     s.t += dt;
     if (s.phase === 'mate') {
       this.resetT += dt;
-      if (this.resetT > 120) { const m = this.meta(); s.pieces = m.pieces.map((p: ChessPiece) => ({ ...p })); s.phase = 'idle'; s.clock = 3; this.resetT = 0; this.broadcast(); }
+      if (this.resetT > 120) { const m = this.meta(); s.pieces = m.pieces = m.initial.map((p: ChessPiece) => ({ ...p })); s.phase = 'idle'; s.clock = 3; this.resetT = 0; this.broadcast(); }
       return;
     }
     if (s.phase === 'idle') {
@@ -281,6 +283,7 @@ class Board {
     if (d.t !== 'chess' || G.role !== 'client' || !d.s) return;
     const prev = this.st;
     this.st = d.s; this.st!.t = 0;
+    const m = this.meta(); if (m) { if (!m.initial) m.initial = m.pieces.map((p: ChessPiece) => ({ ...p })); m.pieces = this.st!.pieces; }
     const ev = d.ev || {};
     if (ev.slam && G.local?.zoneKey === 'chess') this.slam(ev.slam[0], ev.slam[1], !!ev.cap);
     if (ev.pushed && G.local?.zoneKey === 'chess') this.afterPush(ev.pushed[0], !!ev.cap, !!ev.mate);

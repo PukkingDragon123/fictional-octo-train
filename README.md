@@ -51,13 +51,16 @@ URL flags: `?quick` skips the title and the intro and starts a fresh run (band a
 | key | action |
 |---|---|
 | WASD | walk (Shift run, C/Ctrl sneak) |
-| Right mouse (hold) + Left mouse | ready weapon, attack / fire |
+| Left mouse | attack toward the cursor (tap: light strike, strikes in rhythm chain into a flurry; hold: charge a heavy, let go when the gauge hits the red), fire a gun, throw; on something staggered or on the floor, finish it |
+| Shift + Left mouse | sprinting lunge / stab |
 | Right click | the obvious thing, no menus: open a box (loot view), sit, swing a door, flip a switch, pick up, search a body, pull a lever; on yourself, the backpack (or use what is in hand: eat, drink, read, treat). What you hold changes it: a bottle at a tap fills, food at a lit stove cooks, fuel feeds a fire, a plank on a door barricades it, a key unlocks |
 | E | interact with what's in front of you |
 | Right mouse (hold) | grab it: W pushes, S pulls (a gentle pull slides a drawer out), A/D side-step, Shift is power, Space shoves it away, release to let go. It has weight and the floor has friction: heavy things need Shift, slide on when let go, bang into things, and tall ones topple. Small things are lifted and carried (left click throws). Doors swing, levers haul down (S) |
 | Right held + wheel | step through the other verbs one word at a time; release does the one shown |
 | Left click with a tool | hammer or pipe smashes, axe chops (firewood), crowbar pries locks, boards and doors, saw cuts a piece off (a chair loses a leg), knife slashes upholstery open and butchers, screwdriver / wrench takes apart, shovel digs, sledge goes through walls; small and fragile things break in one hit |
-| Space | shove |
+| Space | shove; sprinting: shoulder tackle; on something knocked down: stomp (shove, stomp, strike = finisher). In a struggle: hammer it |
+| Tap Shift (or double-tap a direction) | dodge in a fight; just before a blow lands it slows the world and opens a counter |
+| E (on a staggered or downed creature) | execute it |
 | F | flashlight |
 | N (hold) | scan what you point at (the watch's SCAN research, or a Phosphor Scope): DATA, research for firsts, a punch card with the result |
 | K | order your thralls: on a creature, sic them all; on the floor, post them there; on nothing, call them back |
@@ -138,6 +141,18 @@ and an ignition key.
   company, comfort items, music, journaling, breathing and pets help, and
   medication has real side effects. The band's hologram shows your pulse
   and state of mind, and lies to you when you hallucinate.
+- **Fighting with weight.** Every class of thing in your hand fights differently:
+  fists and arm hardware, blades, clubs, axes, spears, sledges, whatever you
+  picked up. Tap to strike, strike in rhythm and it opens into a flurry; hold to
+  charge (the weapon heats, a gauge needle climbs) and let go on the red for a
+  perfect blow; sprint into a lunge or a shoulder tackle; shove things over,
+  stomp them, and finish them. Dodge a telegraphed blow at the last moment and
+  the world slows for a counter. Grabs, pins and limb-tearing grips become
+  struggles you hammer, rock or time your way out of. Staggered, downed or dying
+  creatures can be executed: brutal finishers by size and weapon that take limbs
+  and heads, open them up or cut them in two, and the corpse keeps every wound.
+  Frightened creatures run when hurt; chase them or let them go. Friendly fire
+  is a sandbox setting in co-op.
 - **Gore and limb loss** (Gore: Off / Normal / Heavy; Limb loss: on / off):
   weapon-specific blood, arterial sprays, blood running down walls, pools
   that creep out under corpses, bloody footprints, wounds that stay on
