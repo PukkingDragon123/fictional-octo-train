@@ -150,8 +150,9 @@ export class Inspect {
     g.add(this.hold); this.hold.add(this.turn);
     const ab = new ModelBuilder();
     ab.setFaceShading(false);
-    ab.box(0, -0.12, 0, 0.42, 0.12, 0.2, 'metal_dark');
-    ab.box(0, -0.2, 0, 0.28, 0.08, 0.14, 'metal_dark', { color: 0xb0b0b0 });
+    ab.box(0, -0.05, 0, 0.24, 0.05, 0.11, 'metal_dark');
+    ab.box(0, -0.09, 0, 0.15, 0.04, 0.08, 'metal_dark', { color: 0xb0b0b0 });
+    ab.box(0.15, -0.035, 0, 0.07, 0.035, 0.05, 'metal_dark');
     this.anvil = new THREE.Mesh(ab.build(), metalMat('iron', 2));
     this.anvil.visible = false;
     this.hold.add(this.anvil);
@@ -221,6 +222,7 @@ export class Inspect {
   close(lost = false) {
     clearTimeout(this.timer); this.timer = 0;
     if (!this.open) return;
+    this.tw.finish();
     this.endWork(false);
     this.open = false;
     this.dymo?.hide();

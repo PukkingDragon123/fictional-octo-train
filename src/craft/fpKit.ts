@@ -127,16 +127,16 @@ let armGeo: { fore: THREE.BufferGeometry; palm: THREE.BufferGeometry; thumb: THR
 function buildArmGeo(skin: number, suit: number) {
   const fore = new ModelBuilder();
   // sleeve from the elbow (y=0) to the cuff (y=1), unit length; the cuff band and a strip of wrist
-  fore.cylinder(0, 0, 0, 0.05, 0.86, 8, 'fabric_grey', { color: suit, rTop: 0.042 });
-  fore.cylinder(0, 0.86, 0, 0.044, 0.06, 8, 'fabric_grey', { color: (suit & 0xfefefe) >> 1 | 0x202020 });
-  fore.cylinder(0, 0.92, 0, 0.032, 0.08, 8, 'plastic_white', { color: skin });
+  fore.cylinder(0, 0, 0, 0.036, 0.84, 8, 'fabric_grey', { color: suit, rTop: 0.03 });
+  fore.cylinder(0, 0.84, 0, 0.032, 0.06, 8, 'fabric_grey', { color: (suit & 0xfefefe) >> 1 | 0x202020 });
+  fore.cylinder(0, 0.9, 0, 0.024, 0.1, 8, 'plastic_white', { color: skin });
   const palm = new ModelBuilder();
-  palm.box(0, -0.01, 0, 0.075, 0.09, 0.03, 'plastic_white', { color: skin });
+  palm.box(0, -0.01, 0, 0.06, 0.075, 0.024, 'plastic_white', { color: skin });
   const thumb = new ModelBuilder();
-  thumb.box(0, 0, 0, 0.022, 0.05, 0.022, 'plastic_white', { color: skin });
-  thumb.box(0, 0.045, 0, 0.02, 0.016, 0.02, 'plastic_white', { color: (skin & 0xfefefe) >> 1 | 0x505050 });
+  thumb.box(0, 0, 0, 0.018, 0.042, 0.018, 'plastic_white', { color: skin });
+  thumb.box(0, 0.038, 0, 0.016, 0.012, 0.016, 'plastic_white', { color: (skin & 0xfefefe) >> 1 | 0x505050 });
   const fingers = new ModelBuilder();
-  for (let i = 0; i < 4; i++) fingers.box(-0.026 + i * 0.0175, 0, 0, 0.016, 0.06 - Math.abs(i - 1.5) * 0.008, 0.02, 'plastic_white', { color: skin });
+  for (let i = 0; i < 4; i++) fingers.box(-0.021 + i * 0.014, 0, 0, 0.013, 0.05 - Math.abs(i - 1.5) * 0.007, 0.017, 'plastic_white', { color: skin });
   armGeo = { fore: fore.build(), palm: palm.build(), thumb: thumb.build(), fingers: fingers.build() };
 }
 
