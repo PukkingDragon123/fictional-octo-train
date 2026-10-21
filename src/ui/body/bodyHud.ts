@@ -33,8 +33,8 @@ import { itemDef } from '../../items/item';
 import { EatFp } from './eatFp';
 
 /** the stage, in units (k = 1); the shelf top is FLOOR */
-const SW = 140, SH = 90, FLOOR = -84;
-const BAG_AT: [number, number] = [44, -10], LUNG_AT: [number, number] = [82, -10], JAR_AT: [number, number] = [121, FLOOR], BOARD_AT: [number, number] = [15, -14];
+const SW = 130, SH = 90, FLOOR = -84;
+const BAG_AT: [number, number] = [34, -10], LUNG_AT: [number, number] = [73, -10], JAR_AT: [number, number] = [113, FLOOR], BOARD_AT: [number, number] = [73, -16];
 
 type Kind = 'bag' | 'lung' | 'gauge' | 'jar' | 'tool';
 interface Hover { kind: Kind | null; inj: Injury | null; slot: number }
@@ -82,13 +82,14 @@ export class BodyHud {
     this.bagV.root.position.set(BAG_AT[0], BAG_AT[1], 0);
     this.lungV.root.position.set(LUNG_AT[0], LUNG_AT[1], 0);
     this.jarV.root.position.set(JAR_AT[0], JAR_AT[1], 0);
-    this.board.root.position.set(BOARD_AT[0], BOARD_AT[1], -2);
+    // the pegboard hangs in front of the lungs while you pick a treatment
+    this.board.root.position.set(BOARD_AT[0], BOARD_AT[1], 16);
     this.bagV.floorY = FLOOR;
     // a yellowed laminate shelf with a chrome nosing, on two steel brackets
     const shelf = new Mold()
-      .add(box(SW - 30, 2.6, 13), M(SW / 2 + 12, FLOOR - 1.3, -2), (_x, _y, z) => (z > 4.4 ? 0xd2c496 : 0xc4b484), PAINT)
-      .add(box(SW - 30, 0.9, 0.7), M(SW / 2 + 12, FLOOR - 1.6, 4.6), 0xd8dee4, CHROME)
-      .add(box(1.6, 5, 9), M(40, FLOOR - 5, -3, 0.5, 0, 0), 0x6a6e72, STEEL)
+      .add(box(SW - 18, 2.6, 13), M(SW / 2 + 6, FLOOR - 1.3, -2), (_x, _y, z) => (z > 4.4 ? 0xd2c496 : 0xc4b484), PAINT)
+      .add(box(SW - 18, 0.9, 0.7), M(SW / 2 + 6, FLOOR - 1.6, 4.6), 0xd8dee4, CHROME)
+      .add(box(1.6, 5, 9), M(26, FLOOR - 5, -3, 0.5, 0, 0), 0x6a6e72, STEEL)
       .add(box(1.6, 5, 9), M(SW - 10, FLOOR - 5, -3, 0.5, 0, 0), 0x6a6e72, STEEL);
     this.world.add(solidMesh(st, shelf, { wear: 0.8 }));
     this.cubes = new Cubes(260, st.cubeMat);
@@ -304,10 +305,10 @@ export class BodyHud {
     const touch = document.documentElement.classList.contains('nc-touch');
     const dpr = G.pr?.dpr ?? Math.min(2, window.devicePixelRatio || 1);
     const game = G.pr?.scale ?? 2;
-    const k = touch ? 1.3 : 1;
+    const k = touch ? 1.45 : 1.3;
     const W = Math.round(SW * k), H = Math.round(SH * k);
     // the game's pixel size, but never more than about a quarter of the screen's width
-    const unitPx = touch ? Math.max(1, game) : Math.max(1, Math.min(game, Math.floor(window.innerWidth * dpr * 0.24 / W)));
+    const unitPx = touch ? Math.max(1, game) : Math.max(1, Math.min(game, Math.floor(window.innerWidth * dpr * 0.27 / W)));
     const cw = W * unitPx / dpr, ch = H * unitPx / dpr;
     const x = touch ? Math.round((window.innerWidth - cw) / 2) : Math.round(window.innerWidth - cw - 8);
     const y = touch ? 2 : Math.round(window.innerHeight - ch - 4);

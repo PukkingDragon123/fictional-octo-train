@@ -12,7 +12,7 @@ import { PrintTex, FONT, inkText } from './stage';
 import { Mold, M, BRASS, RUBBER, PLASTIC, STEEL, CHROME, GLASS, R90, cyl, box, ring, ball, solidMesh } from './models';
 import { mix, shade, hash } from './pix';
 
-const LOBE_X = 9, NECK_Y = -14.6, RX = 8.2, RY = 8.6, RZ = 6.8;
+const LOBE_X = 10, NECK_Y = -14.6, RX = 9.6, RY = 10, RZ = 8;
 const GAUGE_Y = -48;
 /** the shelf, in this prop's space (the HUD puts the valve 74 units above it) */
 export const LUNG_FLOOR = -74;
@@ -63,7 +63,7 @@ export class Lung3D {
     // two balloons
     for (const med of [1, -1]) this.lobes.push(this.makeLobe(med));
     // the gauge on its stand, the lamp, the Nixie tube
-    const face = this.face = new PrintTex(28, 28, 3);
+    const face = this.face = new PrintTex(28, 28, 2);
     this.paintFace();
     const g = new Mold()
       .add(cyl(7.6, 2.2, 18), M(0, GAUGE_Y, 0, R90, 0, 0), 0xb8c0c8, CHROME)
@@ -82,7 +82,7 @@ export class Lung3D {
     const ng = new Mold().add(box(0.8, 5.4, 0.4), M(0, 2.5, 0), 0xb8201a, PLASTIC).add(cyl(0.9, 0.6, 8), M(0, 0, 0.2, R90, 0, 0), 0xc0902e, BRASS);
     this.needle = solidMesh(this.st, ng);
     this.needle.position.set(0, GAUGE_Y - 1.4, 1.7); r.add(this.needle);
-    const cover = new THREE.Mesh(new Mold().add(new THREE.CircleGeometry(6.8, 18), null, 0xffffff, GLASS).build(), this.st.surf('glass', { alpha: 0.03, color: 0xe8f0ee }));
+    const cover = new THREE.Mesh(new Mold().add(new THREE.SphereGeometry(6.8, 16, 6, 0, Math.PI * 2, 0, 0.5), M(0, 0, -6, R90, 0, 0), 0xffffff, GLASS).build(), this.st.surf('glass', { alpha: 0.03, color: 0xe8f0ee }));
     cover.position.set(0, GAUGE_Y, 2.1); cover.renderOrder = 4; r.add(cover);
     this.lampMat = this.st.solid({ wear: 0.1 });
     const lamp = new THREE.Mesh(new Mold().add(ball(1.8, 1), null, 0x8a5a20, GLASS, 1).build(), this.lampMat);
@@ -111,7 +111,9 @@ export class Lung3D {
 
   private makeLobe(med: number): Lobe {
     // a lung-shaped balloon: narrow apex, broad base, the inner side flattened
-    const geo = new Mold().add(ball(1, 2), null, 0xd8707f, RUBBER).build();
+    // a smooth, indexed sphere (soft latex shading needs shared normals)
+    const geo = new THREE.SphereGeometry(1, 18, 14);
+    geo.setAttribute('aCol', new THREE.Float32BufferAttribute(new Float32Array(geo.getAttribute('position').count * 3).fill(0.85), 3));
     const P = geo.getAttribute('position') as THREE.BufferAttribute;
     for (let i = 0; i < P.count; i++) {
       let x = P.getX(i), y = P.getY(i);

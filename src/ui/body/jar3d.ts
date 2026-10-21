@@ -48,7 +48,7 @@ export class Jar3D {
   private murkMat: THREE.ShaderMaterial; private acidMat: THREE.ShaderMaterial;
   private cracks = new PrintTex(96, 48, 1);
   private crackN = -1;
-  private label = new PrintTex(48, 16, 4);
+  private label = new PrintTex(36, 18, 2);
   private face = new PrintTex(20, 20, 3);
   private v = new THREE.Vector3();
   private tilt = 0; private tiltV = 0;
@@ -71,7 +71,7 @@ export class Jar3D {
     const front = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R, R, 32, 20, 1, true, Math.PI, Math.PI * 2), M(0, 16, 0), 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.05, color: 0xdcece6, side: THREE.FrontSide, map: this.cracks.tex }));
     front.renderOrder = 6; b.add(front);
     // the paper label, wrapped round the front
-    const lab = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R + 0.12, R + 0.12, 8, 12, 1, true, Math.PI - 0.85, 1.7), M(0, 21, 0), 0xffffff, PAPER).build(), st.solid({ map: this.label.tex, wear: 0.3 }));
+    const lab = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R + 0.12, R + 0.12, 9, 12, 1, true, Math.PI - 0.85, 1.7), M(0, 20, 0), 0xffffff, PAPER).build(), st.solid({ map: this.label.tex, wear: 0.3 }));
     lab.renderOrder = 7; b.add(lab);
     this.paintLabel();
     // the lid: knurled brass, a stem and a gauge
@@ -97,12 +97,11 @@ export class Jar3D {
   private paintLabel() {
     const P = this.label.pix;
     P.clear();
-    for (let y = 0; y < 16; y++) for (let x = 0; x < 48; x++) P.set(x, y, y === 0 || y === 15 ? 0xc8b890 : hash(x, y, 9) < 0.07 ? 0xe2d6b2 : 0xeee4c6);
-    P.rect(2, 3, 6, 10, 0xb8862a, 0.85); P.rect(3, 4, 4, 8, 0xeee4c6);
+    for (let y = 0; y < 18; y++) for (let x = 0; x < 36; x++) P.set(x, y, y === 0 || y === 17 ? 0xc8b890 : hash(x, y, 9) < 0.07 ? 0xe2d6b2 : 0xeee4c6);
+    // a black-and-yellow hazard stripe along the bottom
+    for (let x = 0; x < 36; x++) for (let y = 13; y < 16; y++) P.set(x, y, ((x + y) >> 1) % 2 ? 0x1a1610 : 0xd8a828);
     this.label.commit((c, k) => {
-      inkText(c, 'GASTRIC', 26 * k, 8.4 * k, 6.4 * k, FONT.type, '#231a12', 'center');
-      inkText(c, 'No. 4  ·  corrosive', 26 * k, 13.4 * k, 3.4 * k, FONT.typeset, '#4a3a2a', 'center');
-      inkText(c, '!', 5 * k, 11 * k, 7 * k, FONT.sign, '#231a12', 'center', '700');
+      inkText(c, 'ACID', 18 * k, 11 * k, 10 * k, FONT.sign, '#1a140e', 'center', '700');
     });
   }
   private paintFace() {
