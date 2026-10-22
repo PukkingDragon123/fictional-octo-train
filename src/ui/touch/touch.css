@@ -24,7 +24,7 @@ html.nc-touch #cursor, html.nc-touch #hover-label { display: none !important; }
   --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px);
   --gap: 8px;
   position: fixed; inset: 0; z-index: 11; pointer-events: none; display: none;
-  font-family: 'Silkscreen', 'Tiny5', monospace; color: #efe5c4; image-rendering: pixelated;
+  font-family: var(--font-new); color: #efe5c4; image-rendering: pixelated;
   -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
 }
 html.nc-touch #nc-touch { display: block; }
@@ -48,16 +48,16 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 }
 .nc-btn.big > i { width: var(--ipl); height: var(--ipl); }
 .nc-btn > b {
-  display: block; font-weight: 400; font-size: 8px; line-height: 8px; margin-top: -1px;
-  letter-spacing: 0; text-transform: uppercase; color: #d8cfb4; text-shadow: 1px 1px 0 #000;
+  display: block; font-weight: 600; font-size: 11px; line-height: 11px; margin-top: -1px;
+  letter-spacing: 0.04em; text-transform: uppercase; color: #d8cfb4; text-shadow: var(--text-halo, 1px 1px 0 #000);
   max-width: 96%; overflow: hidden; white-space: nowrap; text-overflow: clip;
 }
-.nc-btn.round { border-image: var(--pk-pad-round) 9 fill / calc(var(--px, 2px) * 9) / 0 repeat; }
+.nc-btn.round { border-image: var(--pk-pad) 5 fill / calc(var(--px, 2px) * 5) / 0 repeat; }
 .nc-btn.down { border-image-source: var(--pk-pad-down); }
-.nc-btn.round.down { border-image-source: var(--pk-pad-round-down); }
+.nc-btn.round.down { border-image-source: var(--pk-pad-down); }
 .nc-btn.down > i, .nc-btn.down > b { transform: translateY(2px); }
 .nc-btn.on { border-image-source: var(--pk-pad-on); }
-.nc-btn.round.on { border-image-source: var(--pk-pad-round-on); }
+.nc-btn.round.on { border-image-source: var(--pk-pad-on); }
 .nc-btn.on > b { color: #f2b33d; }
 .nc-btn.danger.on, .nc-btn.rec.on { border-image-source: var(--pk-pad-rec); }
 
@@ -73,8 +73,8 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 /* context actions: pills with icon + word */
 .nc-ctx { left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + var(--gap) + 4px); justify-content: center; }
 .nc-ctx > .nc-btn { flex-direction: row; width: auto; height: calc(var(--u) * 0.95); padding: 0 calc(var(--u) * 0.2) 0 calc(var(--u) * 0.12); gap: 6px; }
-.nc-ctx > .nc-btn > b { font-size: 8px; line-height: 8px; color: #efe5c4; }
-@media (min-resolution: 2dppx) and (min-width: 700px), (min-width: 1000px) { .nc-ctx > .nc-btn > b { font-size: 16px; line-height: 16px; } }
+.nc-ctx > .nc-btn > b { font-size: 12px; line-height: 12px; color: #efe5c4; text-transform: none; font-style: italic; }
+@media (min-resolution: 2dppx) and (min-width: 700px), (min-width: 1000px) { .nc-ctx > .nc-btn > b { font-size: 17px; line-height: 17px; } }
 @media (orientation: portrait) {
   /* stacked above the action cluster, clear of the survivor in the middle of the screen */
   .nc-ctx { left: auto; transform: none; right: calc(var(--sr) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--u) * 4.6); flex-wrap: wrap-reverse; justify-content: flex-end; max-width: calc(100vw - var(--sl) - var(--sr) - 2 * var(--gap)); }
@@ -86,7 +86,7 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 .nc-scan > div { position: absolute; left: 0; top: 0; display: flex; gap: 4px; pointer-events: none; }
 .nc-scan.side > div { flex-direction: column; }
 .nc-scan .nc-btn { position: relative; right: auto; bottom: auto; width: calc(var(--u) * 0.8); height: calc(var(--u) * 0.8); border-image-source: var(--pk-pad-scan); }
-.nc-scan .nc-btn > b { color: var(--ph, #9cff8a); font-size: 8px; line-height: 8px; }
+.nc-scan .nc-btn > b { color: var(--ph, #9cff8a); font-size: 11px; line-height: 11px; }
 .nc-scan .nc-btn.on { border-image-source: var(--pk-pad-scan-on); }
 .nc-scan .nc-btn.txt > i { display: none; }
 
@@ -95,27 +95,34 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 .nc-stick-base {
   position: absolute; left: 0; top: 0;
   width: calc(var(--R) * 2); height: calc(var(--R) * 2);
-  border: 2px solid transparent; border-image: var(--pk-stick-base) 10 fill / calc(var(--px, 2px) * 10) / 0 repeat;
+  border: 2px solid transparent; border-image: var(--pk-pad) 5 fill / calc(var(--px, 2px) * 5) / 0 repeat;
   opacity: 0.55; transition: opacity 0.2s steps(3);
   will-change: transform;
 }
 .nc-stick-knob {
   position: absolute; left: 50%; top: 50%;
   width: calc(var(--R) * 0.9); height: calc(var(--R) * 0.9); margin: calc(var(--R) * -0.45) 0 0 calc(var(--R) * -0.45);
-  border: 2px solid transparent; border-image: var(--pk-stick-knob) 9 fill / calc(var(--px, 2px) * 9) / 0 repeat;
+  border: 2px solid transparent; border-image: var(--pk-pad) 5 fill / calc(var(--px, 2px) * 5) / 0 repeat;
   will-change: transform;
 }
 .nc-stick.live .nc-stick-base { opacity: 1; }
-.nc-stick.running .nc-stick-knob { border-image-source: var(--pk-pad-round-on); }
+.nc-stick.running .nc-stick-knob { border-image-source: var(--pk-pad-on); }
 .nc-runbtn { left: calc(var(--sl) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--R) * 2 + 26px); right: auto; }
 
 /* ---------------------------------------------------------------- feedback */
-.nc-ring { position: absolute; left: 0; top: 0; width: 64px; height: 64px; margin: -32px 0 0 -32px; pointer-events: none; display: none; }
-.nc-ring circle { fill: none; stroke: #f2b33d; stroke-width: 6; stroke-dasharray: 164; stroke-dashoffset: 164; transform: rotate(-90deg); transform-origin: 32px 32px; filter: drop-shadow(2px 2px 0 #000); shape-rendering: crispEdges; }
-.nc-ring circle.bg { stroke: rgba(0, 0, 0, 0.45); stroke-dashoffset: 0; }
+@property --nc-ring-p { syntax: '<number>'; inherits: false; initial-value: 0; }
+.nc-ring { position: absolute; left: 0; top: 0; width: 64px; height: 64px; margin: -32px 0 0 -32px; pointer-events: none; display: none;
+  filter: drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000); }
+.nc-ring svg { display: none; }
+.nc-ring::before, .nc-ring::after { content: ''; position: absolute; inset: 4px;
+  clip-path: polygon(evenodd, 29.3% 0, 70.7% 0, 100% 29.3%, 100% 70.7%, 70.7% 100%, 29.3% 100%, 0 70.7%, 0 29.3%, 29.3% 0,
+    34.3% 13%, 13% 34.3%, 13% 65.7%, 34.3% 87%, 65.7% 87%, 87% 65.7%, 87% 34.3%, 65.7% 13%, 34.3% 13%, 29.3% 0); }
+.nc-ring::before { background: rgba(10, 8, 4, 0.55); }
+.nc-ring::after { background: linear-gradient(#ffd27a 0 18%, #f2b33d 18% 82%, #a8741c 82%);
+  -webkit-mask: conic-gradient(#000 calc(var(--nc-ring-p) * 1turn), transparent 0); mask: conic-gradient(#000 calc(var(--nc-ring-p) * 1turn), transparent 0); }
 .nc-ring.go { display: block; }
-.nc-ring.go circle.fg { animation: nc-ring var(--ring-ms, 340ms) steps(8) forwards; }
-@keyframes nc-ring { to { stroke-dashoffset: 0; } }
+.nc-ring.go::after { animation: nc-ring var(--ring-ms, 340ms) steps(8) forwards; }
+@keyframes nc-ring { from { --nc-ring-p: 0; } to { --nc-ring-p: 1; } }
 
 .nc-mark { position: absolute; left: 0; top: 0; width: 26px; height: 14px; margin: -7px 0 0 -13px; opacity: 0; pointer-events: none;
   background: linear-gradient(#efe5c4, #efe5c4) 50% 0 / 10px 2px no-repeat, linear-gradient(#efe5c4, #efe5c4) 50% 100% / 10px 2px no-repeat,

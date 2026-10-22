@@ -40,6 +40,8 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
   const decals = new ModelBuilder();
   const glass = new ModelBuilder();
   const alphaWalls = new ModelBuilder();
+  // building fabric stays square so walls, tiles and frames butt cleanly (furniture brings its own facets)
+  for (const mb of [floors, walls, decals, glass, alphaWalls, foliage]) mb.setFacets(false);
   const x0 = cx * CHUNK, y0 = cy * CHUNK;
   const x1 = Math.min(zone.W, x0 + CHUNK), y1 = Math.min(zone.H, y0 + CHUNK);
 

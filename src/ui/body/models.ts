@@ -2,18 +2,21 @@
 // (per-vertex colour + surface: metal, rust, blood uptake) so they share their
 // banded light and grime. Units: low-res pixels.
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { fcyl, fbox, gem, fring, flat, flathe, jitter, segs } from '../touch/facet';
 import { Mold, M, STEEL, CHROME, BRASS, RUBBER, PLASTIC, PAPER, GLASS, CERAMIC, PAINT, CLOTH } from '../touch/stage3d';
 import type { BodyStage } from './stage';
 
 export { Mold, M, STEEL, CHROME, BRASS, RUBBER, PLASTIC, PAPER, GLASS, CERAMIC, PAINT, CLOTH };
 export const R90 = Math.PI / 2;
 
-export const cyl = (r: number, h: number, seg = 10, open = false) => new THREE.CylinderGeometry(r, r, h, seg, 1, open);
-/** a bevelled block: nothing here is a raw cube */
-export const box = (w: number, h: number, d: number) => new RoundedBoxGeometry(w, h, d, 2, Math.min(w, h, d) * 0.3);
-export const ball = (r: number, detail = 1) => new THREE.IcosahedronGeometry(r, detail);
-export const ring = (r: number, tube: number, seg = 12, arc = Math.PI * 2) => new THREE.TorusGeometry(r, tube, 4, seg, arc);
+// faceted low-poly primitives (src/ui/touch/facet.ts): few sides, chamfered rims, flat facets
+export const cyl = (r: number, h: number, seg = 10, open = false) => fcyl(r, h, segs(seg), r, open ? 0 : 0.18, open);
+/** a bevelled block with corner facets: nothing here is a raw cube */
+export const box = (w: number, h: number, d: number) => fbox(w, h, d, 0.2);
+/** a cut gem / faceted knob */
+export const ball = (r: number, detail = 1) => gem(r, Math.min(1, detail), 0.06);
+export const ring = (r: number, tube: number, seg = 12, arc = Math.PI * 2) => fring(r, tube, Math.min(10, Math.max(5, Math.round(seg * 0.75))), 4, arc);
+export { fcyl, fbox, gem, fring, flat, flathe, jitter };
 
 /** a pillow panel (front +1 / back -1): w x h, bulging by depth in the middle */
 export function pillow(w: number, h: number, depth: number, side: 1 | -1, sx = 6, sy = 10): THREE.BufferGeometry {
@@ -24,8 +27,8 @@ export function pillow(w: number, h: number, depth: number, side: 1 | -1, sx = 6
     p.setZ(i, side * depth * (1 - x ** 4) * (1 - y ** 4));
   }
   if (side < 0) { g.scale(-1, 1, 1); }
-  g.computeVertexNormals();
-  return g;
+  // faceted: every quad of the pillow catches the light on its own
+  return flat(g);
 }
 
 /** mesh from a mold with a solid (touch-prop) material */

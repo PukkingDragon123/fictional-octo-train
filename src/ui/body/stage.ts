@@ -151,8 +151,9 @@ void main() {
 const POST_VERT = /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 /** outline, dithered drop shadow, ordered dither; premultiplied output */
 const POST_FRAG = /* glsl */`
-uniform sampler2D tSrc; uniform vec2 uRes; uniform float uFade;
+uniform sampler2D tSrc; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uFade; uniform float uRange; uniform float uEdge;
 varying vec2 vUv;
+float dz(vec2 uv) { return texture2D(tDepth, uv).x * uRange; }
 float bay(vec2 p) {
   vec2 q = mod(p, 4.0);
   float x = q.x, y = q.y;
@@ -174,6 +175,13 @@ void main() {
     return;
   }
   vec3 col = c.rgb;
+  // inked contours inside the silhouette: a nearer part's edge (a depth step, not a slope)
+  if (a > 0.5) {
+    float d0 = dz(vUv), dl = dz(vUv - vec2(px.x, 0.0)), dr = dz(vUv + vec2(px.x, 0.0)), dd = dz(vUv - vec2(0.0, px.y)), du = dz(vUv + vec2(0.0, px.y));
+    float near = d0 - min(min(dl, dr), min(dd, du));
+    float lap = max(abs(dl + dr - 2.0 * d0), abs(dd + du - 2.0 * d0));
+    if (near > uEdge && lap > uEdge) { float o = 0.95 * uFade; gl_FragColor = vec4(vec3(0.035, 0.028, 0.02) * o, o); return; }
+  }
   float d = bay(floor(gl_FragCoord.xy)) - 0.5;
   col = floor(clamp(col, 0.0, 1.0) * 28.0 + 0.5 + d * 0.9) / 28.0;
   a *= uFade;
@@ -203,7 +211,7 @@ export class PrintTex {
     this.ctx = this.cv.getContext('2d')!;
     this.ctx.imageSmoothingEnabled = false;
     this.tex = new THREE.CanvasTexture(this.cv);
-    this.tex.magFilter = THREE.NearestFilter; this.tex.minFilter = THREE.LinearFilter; this.tex.generateMipmaps = false;
+    this.tex.magFilter = THREE.NearestFilter; this.tex.minFilter = THREE.NearestFilter; this.tex.generateMipmaps = false;
     this.tex.colorSpace = THREE.NoColorSpace;
   }
   commit(type?: (ctx: CanvasRenderingContext2D, k: number) => void) {
@@ -229,10 +237,8 @@ export function inkText(c: CanvasRenderingContext2D, text: string, x: number, y:
   c.font = `${weight}${weight ? ' ' : ''}${px}px ${font}`;
   c.textAlign = align; c.textBaseline = 'alphabetic';
   c.fillStyle = color;
-  c.globalAlpha = 0.92;
-  c.fillText(text, x, y);
-  c.globalAlpha = 0.25;
-  c.fillText(text, x + 0.4, y + 0.3);
+  c.globalAlpha = 0.96;
+  c.fillText(text, Math.round(x), Math.round(y));
   c.globalAlpha = 1;
 }
 
@@ -282,11 +288,12 @@ export class BodyStage {
 
   constructor() {
     this.cam.position.set(0, 0, 500);
-    this.cubeMat = new THREE.ShaderMaterial({ vertexShader: CUBE_VERT, fragmentShader: CUBE_FRAG, uniforms: { uKey: this.uKey, uLight: this.uLight, uTint: this.uTint } });
+    // drops, bubbles and crumbs don't write depth: no inked contour rings round every bubble in the jar
+    this.cubeMat = new THREE.ShaderMaterial({ vertexShader: CUBE_VERT, fragmentShader: CUBE_FRAG, depthWrite: false, uniforms: { uKey: this.uKey, uLight: this.uLight, uTint: this.uTint } });
     const mat = new THREE.ShaderMaterial({
       vertexShader: POST_VERT, fragmentShader: POST_FRAG, depthTest: false, depthWrite: false, transparent: true,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
-      uniforms: { tSrc: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uFade: { value: 1 } },
+      uniforms: { tSrc: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uFade: { value: 1 }, uRange: { value: 4000 }, uEdge: { value: 1.6 } },
     });
     const ps = new THREE.Scene();
     const q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); q.frustumCulled = false; ps.add(q);
@@ -332,8 +339,12 @@ export class BodyStage {
     const rw = Math.ceil(W * this.detail), rh = Math.ceil(H * this.detail);
     if (!this.rt || this.rt.width !== rw || this.rt.height !== rh) {
       this.rt?.dispose();
-      this.rt = new THREE.WebGLRenderTarget(rw, rh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
+      const dt = new THREE.DepthTexture(rw, rh);
+      dt.minFilter = dt.magFilter = THREE.NearestFilter;
+      this.rt = new THREE.WebGLRenderTarget(rw, rh, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, depthTexture: dt });
       this.post.mat.uniforms.uRes.value.set(rw, rh);
+      this.post.mat.uniforms.tDepth.value = dt;
+      this.post.mat.uniforms.uRange.value = this.cam.far - this.cam.near;
     }
   }
   detail = 2;

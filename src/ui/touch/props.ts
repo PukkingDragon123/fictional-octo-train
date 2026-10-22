@@ -11,14 +11,24 @@ import {
 } from './stage3d';
 import { sfx, haptic } from './sfx';
 import { typeText, typeW, onTypeReady } from './realtype';
+import { fontsReady } from '../../gfx/crt';
 import { clamp, wrapAngle } from '../../core/math';
+import { fcyl, fbox, flathe, fring, flat, gem, jitter, ngon, face, segs } from './facet';
 
 const PI = Math.PI;
-const cyl = (r: number, h: number, seg = 14, rb = r, open = false) => new THREE.CylinderGeometry(r, rb, h, seg, 1, open);
-const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
-const sph = (r: number, ws = 10, hs = 7, t0 = 0, tl = PI) => new THREE.SphereGeometry(r, ws, hs, 0, PI * 2, t0, tl);
-const tor = (R: number, r: number, rs = 6, ts = 24) => new THREE.TorusGeometry(R, r, rs, ts);
-const lathe = (pts: number[][], seg = 18) => new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(Math.max(0, r), y)), seg);
+// faceted low-poly primitives (src/ui/touch/facet.ts): few sides, chamfered rims, flat facets
+export { segs };
+const cyl = (r: number, h: number, seg = 14, rb = r, open = false) => fcyl(r, h, segs(seg), rb, open ? 0 : 0.16, open);
+const box = (w: number, h: number, d: number) => fbox(w, h, d, 0.16);
+/** a faceted ball / ball segment (theta from the top, like SphereGeometry) */
+const sph = (r: number, ws = 10, hs = 7, t0 = 0, tl = PI) => {
+  const w = Math.max(5, Math.min(8, Math.round(ws * 0.6))), h = Math.max(2, Math.min(5, Math.round(hs * 0.6)));
+  const prof: number[][] = [];
+  for (let i = h; i >= 0; i--) { const th = t0 + tl * i / h; prof.push([Math.sin(th) * r, Math.cos(th) * r]); }
+  return flathe(prof, w);
+};
+const tor = (R: number, r: number, _rs = 6, ts = 24) => fring(R, r, Math.max(6, Math.min(12, Math.round(ts * 0.45))), 4);
+const lathe = (pts: number[][], seg = 18) => flathe(pts, segs(seg));
 const smooth = (t: number) => { const x = clamp(t, 0, 1); return x * x * (3 - 2 * x); };
 const hash = (x: number, y: number, z = 0) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
 const _v = new THREE.Vector3(), _ax = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
@@ -32,26 +42,30 @@ function rod(m: Mold, a: [number, number, number], b: [number, number, number], 
   const len = d.length();
   const q = new THREE.Quaternion().setFromUnitVectors(_up, d.clone().normalize());
   const mat = new THREE.Matrix4().compose(new THREE.Vector3((a[0] + b[0]) / 2, (a[1] + b[1]) / 2, (a[2] + b[2]) / 2), q, new THREE.Vector3(1, len, 1));
-  m.add(cyl(r, 1, seg), mat, color, surf);
+  m.add(fcyl(r, 1, seg, r, 0), mat, color, surf);
 }
 
 let PARTS: Particles | null = null;
 export function bindParticles(p: Particles) { PARTS = p; }
 const spark = () => PARTS;
 
-/** black embossing tape with raised letters */
-function drawTape(s: Screen, text: string, fg = 0xe6e3d6, bg = 0x141311) {
-  const w = s.w, h = s.h;
-  s.rect(0, 0, w, h, C(bg));
-  s.hline(1, w - 2, 0, C(0x2c2a26));
-  s.hline(1, w - 2, h - 1, C(0x0a0a09));
-  s.px(0, 0, 0); s.px(w - 1, 0, 0); s.px(0, h - 1, 0); s.px(w - 1, h - 1, 0);
-  // punched letters in real type, centred: a dark lip under each raised letter
-  const tw = typeW(text, h - 5);
-  const x = Math.max(2, Math.round((w - tw) / 2));
-  typeText(s, text, x + 1, 3, h - 5, 0x050505);
-  typeText(s, text, x, 2, h - 5, fg);
+/**
+ * a label: stencilled letters, no box behind them. Bone-white EB Garamond with
+ * a dark drop under each letter; the stage composite inks a 1px black outline
+ * round them, so the word floats free over anything.
+ */
+const LABEL_CAP = 8;
+function drawTape(s: Screen, text: string, fg = 0xefe5c4, _bg?: number) {
+  const cap = Math.min(LABEL_CAP, s.h - 3);
+  const tw = typeW(text, cap, 700, 1);
+  const x = Math.max(1, Math.round((s.w - tw) / 2));
+  typeText(s, text, x + 1, 2, cap, 0x0a0806, 255, 700, 1);
+  typeText(s, text, x, 1, cap, fg, 255, 700, 1);
 }
+/** the label's width in low-res pixels (generous: the web font may still be loading) */
+const tapeW = (text: string) => Math.max([...text].length * 8 + 6, typeW(text, LABEL_CAP, 700, 1) + 6);
+/** run fn when the type faces are in (the shared listener, and EB Garamond itself) */
+function whenType(fn: () => void) { onTypeReady(fn); fontsReady().then(fn, () => null); }
 
 interface Decal { mesh: THREE.Mesh; w: number; h: number; orient: 'up' | 'front'; tilt: number }
 
@@ -79,7 +93,7 @@ export class Thing extends Prop {
   /** a flat pixel decal of w x h low-res pixels at (x, y, z), lying on the panel ('up') or facing the viewer ('front') */
   decal(w: number, h: number, draw: (s: Screen) => void, x: number, y: number, z: number, orient: 'up' | 'front' = 'up', parent: THREE.Object3D = this.body, tilt = 0) {
     const t = pixTex(w, h, draw);
-    onTypeReady(() => { t.redraw(); this.busy = true; });
+    whenType(() => { t.redraw(); this.busy = true; });
     const g = new THREE.PlaneGeometry(1, 1);
     if (orient === 'up') g.rotateX(-PI / 2);
     const mo = new Mold().add(g, null, 0xffffff, [0.1, 0.4, 0.12, 0]);
@@ -91,7 +105,7 @@ export class Thing extends Prop {
     return { mesh, redraw: t.redraw, scr: t.scr };
   }
   tape(text: string, x: number, y: number, z: number, orient: 'up' | 'front' = 'up', parent: THREE.Object3D = this.body, fg?: number, bg?: number, tilt = 0) {
-    return this.decal([...text].length * 6 + 4, 11, (s) => drawTape(s, text, fg, bg), x, y, z, orient, parent, tilt);
+    return this.decal(tapeW(text), LABEL_CAP + 4, (s) => drawTape(s, text, fg, bg), x, y, z, orient, parent, tilt);
   }
   /** size-dependent textures (printed caps, plates, dials) */
   protected retex(_s: number) { /* override */ }
@@ -120,12 +134,13 @@ function liveTex(prop: Thing, mat: THREE.ShaderMaterial) {
   };
 }
 
-/** a small panel lamp (dome lens on a chrome ring); returns the lens material */
+/** a small panel lamp: a cut jewel lens in a hex chrome collar; returns the lens material */
 function lamp(p: Thing, x: number, y: number, z: number, r: number, lens: number, parent: THREE.Object3D = p.body) {
-  const ring = new Mold().add(cyl(r * 1.25, r * 0.5, 10), M(x, y + r * 0.25, z), 0x9a9d94, CHROME);
+  const ring = new Mold().add(fcyl(r * 1.35, r * 0.5, 6, r * 1.45, 0.2), M(x, y + r * 0.25, z), 0x9a9d94, CHROME);
   p.mesh(ring, p.mat(), parent);
   const lm = p.mat();
-  const lo = new Mold().add(sph(r, 10, 6, 0, PI / 2), M(x, y + r * 0.45, z), lens, GLASS, 1);
+  // a rose-cut jewel: table, crown facets, girdle
+  const lo = new Mold().add(flathe([[r, 0], [r * 0.98, r * 0.18], [r * 0.7, r * 0.5], [r * 0.38, r * 0.64], [0, r * 0.66]], 8), M(x, y + r * 0.45, z), lens, GLASS, 1);
   p.mesh(lo, lm, parent);
   return lm;
 }
@@ -137,7 +152,7 @@ const setGlow = (m: THREE.ShaderMaterial, rgb: number, k: number) => {
 // VALVE WHEEL: the movement stick
 // =====================================================================
 const IRON = 0x3c4a3e, VRED = 0xa3241a;
-const SH_N = 32;
+const SH_N = 8;
 export class Valve extends Thing {
   private wheel = new THREE.Group();
   private spin = new THREE.Group();
@@ -159,22 +174,23 @@ export class Valve extends Thing {
     this.elev = 64 * DEG; this.fit = 1.0; this.bloodK = 1.15;
     // cast-iron valve body on a bolted flange
     const b = new Mold();
-    b.add(cyl(0.3, 0.05, 18, 0.33), M(0, 0.025, 0), IRON, PAINT);
+    b.add(fcyl(0.3, 0.05, 8, 0.33, 0.2), M(0, 0.025, 0), IRON, PAINT);
     for (let i = 0; i < 6; i++) { const a = i / 6 * PI * 2 + 0.3; b.add(cyl(0.03, 0.03, 6), M(Math.cos(a) * 0.27, 0.06, Math.sin(a) * 0.27), 0x8b8e86, STEEL); }
     b.add(cyl(0.1, 0.16, 12, 0.15), M(0, 0.13, 0), IRON, PAINT);
     b.add(cyl(0.085, 0.05, 6), M(0, 0.225, 0), 0xa9894a, BRASS);
     // a pipe out to the pressure gauge (upper right, clear of the thumb)
     rod(b, [0.3, 0.07, -0.2], [0.37, 0.08, -0.29], 0.024, 0x3a3e37, STEEL);
-    b.add(cyl(0.13, 0.06, 18), M(0.42, 0.1, -0.35), 0xb7bab0, CHROME);
+    b.add(fcyl(0.13, 0.06, 6, 0.135, 0.22, false, 0), M(0.42, 0.1, -0.35), chromeC(0xd8dbd2, 0x9a9d94, 0x55584f), CHROME);
     b.add(cyl(0.02, 0.04, 6), M(0.42, 0.06, -0.21, PI / 2, 0, 0), 0x6f746b, STEEL);
     this.mesh(b, this.mat({ wear: 0.7 }));
-    const face = this.mat();
-    const fm = new Mold().add(new THREE.CircleGeometry(0.112, 18).rotateX(-PI / 2), M(0.42, 0.131, -0.35), 0xffffff, [0.1, 0.4, 0.3, 0]);
-    const fmesh = this.mesh(fm, face);
-    face.defines = { USE_MAP: '' }; face.needsUpdate = true;
-    // UVs of a circle already span the square: the dial texture fills it
+    const faceM = this.mat();
+    // a hex dial under the bezel (no round faces)
+    const fm = new Mold().add(face(ngon(6, 0.106, 0)).rotateX(-PI / 2), M(0.42, 0.131, -0.35), 0xffffff, [0.1, 0.4, 0.3, 0]);
+    const fmesh = this.mesh(fm, faceM);
+    faceM.defines = { USE_MAP: '' }; faceM.needsUpdate = true;
+    // the face's uvs span its bounding box: the dial texture is drawn hex-shaped
     void fmesh;
-    this.faceTex = liveTex(this, face);
+    this.faceTex = liveTex(this, faceM);
     const nd = new Mold().add(box(0.016, 0.012, 0.1), M(0, 0, -0.04), 0xc0281c, PLASTIC).add(cyl(0.018, 0.016, 8), M(0, 0.004, 0), 0x222222, STEEL);
     this.needle.position.set(0.42, 0.14, -0.35);
     this.body.add(this.needle);
@@ -196,14 +212,17 @@ export class Valve extends Thing {
   }
 
   protected retex(s: number) {
-    const d = 0.224 * s;
-    this.faceTex(d, d * Math.sin(this.elev), (sc) => {
+    const d = 0.212 * s;
+    this.faceTex(d, d * 0.866 * Math.sin(this.elev), (sc) => {
       const W = sc.w, H = sc.h, cx = (W - 1) / 2, cy = (H - 1) / 2;
-      const rx = W / 2 - 0.5, ry = H / 2 - 0.5;
+      const rx = W / 2 - 0.5, ry = (H / 2 - 0.5) / 0.866;
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const nx = (x - cx) / rx, ny = (y - cy) / ry, r = Math.hypot(nx, ny);
-        if (r > 1) continue;
-        sc.px(x, y, C(r > 0.86 ? 0x8f8a78 : 0xd9d2b8));
+        // inside the hexagon: flats top and bottom, corners left and right
+        const nx = Math.abs((x - cx) / rx), ny = Math.abs((y - cy) / ry);
+        const e = Math.max(ny / 0.866, nx + ny * 0.577);
+        if (e > 1) continue;
+        const n = hash(x, y, 31);
+        sc.px(x, y, C(e > 0.84 ? 0x5a574c : e > 0.78 ? 0x8f8a78 : n > 0.9 ? 0xc9c1a4 : y < cy * 0.5 && n > 0.6 ? 0xe4dcc2 : 0xd9d2b8));
       }
       // ticks over 270 degrees, the last fifth in red
       for (let i = 0; i <= 10; i++) {
@@ -212,6 +231,8 @@ export class Valve extends Thing {
         for (const k of [0.62, 0.74]) sc.px(Math.round(cx + Math.cos(a) * rx * k), Math.round(cy + Math.sin(a) * ry * k), C(red ? 0xb3261c : 0x2a2620));
       }
       for (let i = 0; i <= 12; i++) { const a = (135 + (0.8 + i / 60) * 270) * DEG; sc.px(Math.round(cx + Math.cos(a) * rx * 0.7), Math.round(cy + Math.sin(a) * ry * 0.7), C(0xb3261c)); }
+      // a printed PSI under the hub
+      if (W >= 14) typeText(sc, 'PSI', Math.round(cx - typeW('PSI', Math.max(4, Math.round(H * 0.16))) / 2), Math.round(cy + ry * 0.28), Math.max(4, Math.round(H * 0.16)), 0x3a3428, 255, 500);
     });
   }
 
@@ -355,7 +376,7 @@ export class Arcade extends Thing {
     const pos = this.shadowM.geometry.getAttribute('position') as THREE.BufferAttribute;
     const arr = pos.array as Float32Array;
     for (let i = 0; i < SH_N; i++) {
-      const a = i / SH_N * PI * 2, ux = Math.cos(a), uz = Math.sin(a);
+      const a = (i + 0.5) / SH_N * PI * 2, ux = Math.cos(a), uz = Math.sin(a);
       const d = ux * o + uz * o, disc = r * r - 2 * o * o + d * d;
       const rOut = clamp(disc > 0 ? d + Math.sqrt(disc) : 0, 0.272, 0.39);
       const j = i * 6;
@@ -373,9 +394,15 @@ export class Arcade extends Thing {
     this.mesh(plate, pm);
     this.plateTex = liveTex(this, pm);
     const hw = new Mold();
-    for (const [x, z] of [[-0.41, -0.41], [0.41, -0.41], [-0.41, 0.41], [0.41, 0.41]]) hw.add(cyl(0.038, 0.03, 6), M(x, 0.08, z, 0, 0.4), 0x8e9189, STEEL);
-    hw.add(lathe([[0.27, 0.07], [0.375, 0.07], [0.39, 0.11], [0.375, 0.19], [0.335, 0.208], [0.285, 0.205], [0.27, 0.17]], 24), null, chromeC(0xc6c9c0, 0x868982, 0x3c3e3a), CHROME);
-    hw.add(cyl(0.272, 0.02, 20), M(0, 0.1, 0), 0x0e0d0c, RUBBER);
+    for (const [x, z] of [[-0.41, -0.41], [0.41, -0.41], [-0.41, 0.41], [0.41, 0.41]]) {
+      hw.add(fcyl(0.038, 0.03, 6, 0.04, 0.2), M(x, 0.08, z, 0, 0.4), 0x8e9189, STEEL);
+      hw.add(fbox(0.05, 0.008, 0.012, 0.1), M(x, 0.097, z, 0, 0.4 + 0.8), 0x2a2b27, STEEL); // the slot
+    }
+    // an octagonal chrome bezel (stepped, faceted) with a rubber gasket inside
+    hw.add(flathe([[0.27, 0.07], [0.375, 0.07], [0.395, 0.1], [0.395, 0.13], [0.37, 0.19], [0.335, 0.208], [0.285, 0.205], [0.27, 0.17]], 8), null, chromeC(0xc6c9c0, 0x868982, 0x3c3e3a), CHROME);
+    hw.add(fcyl(0.272, 0.02, 8, 0.272, 0), M(0, 0.1, 0), 0x0e0d0c, RUBBER);
+    // four little lugs holding the bezel down
+    for (let i = 0; i < 4; i++) { const a = i / 4 * PI * 2 + PI / 4; hw.add(fbox(0.07, 0.04, 0.05, 0.2), M(Math.cos(a) * 0.4, 0.09, Math.sin(a) * 0.4, 0, -a), 0x5f625b, STEEL); }
     this.mesh(hw, this.mat({ wear: 0.4 }));
     // the cap's shadow on the bezel ring: a crescent that shrinks as the cap goes down
     const sg = new THREE.BufferGeometry();
@@ -389,8 +416,9 @@ export class Arcade extends Thing {
     this.cap.position.set(0, 0.1, 0);
     this.body.add(this.cap);
     this.capMat = this.mat({ wear: 0.25 });
-    const cm = new Mold().add(lathe([[0.262, 0.0], [0.266, 0.11], [0.256, 0.162], [0.226, 0.204], [0.17, 0.236], [0.09, 0.252], [0.0, 0.257]], 26), null, this.capColor, [0.55, 0, 1.1, 0], 1);
-    cm.add(tor(0.25, 0.012, 4, 26), M(0, 0.15, 0, PI / 2), 0xe8e2d0, [0.4, 0, 0.6, 0], 0.4);
+    // an octagonal mushroom cap, cut like a jewel: skirt, girdle, crown facets, a flat table
+    const cm = new Mold().add(flathe([[0.262, 0.0], [0.266, 0.11], [0.262, 0.15], [0.226, 0.204], [0.15, 0.24], [0.11, 0.252], [0.0, 0.254]], 8), null, this.capColor, [0.55, 0, 1.1, 0], 1);
+    cm.add(fring(0.262, 0.013, 8, 4), M(0, 0.13, 0, PI / 2, 0, PI / 8), 0xe8e2d0, [0.4, 0, 0.6, 0], 0.4);
     this.mesh(cm, this.capMat, this.cap);
     this.retex(70);
   }
@@ -485,43 +513,21 @@ export class Toggle extends Thing {
 }
 
 // =====================================================================
-// USE: a crimped bottle cap with a faded print and a word
+// USE: a stamped tin nameplate (clipped corners, four rivets) printed with
+// the word in reach; it dents in under the thumb
 // =====================================================================
-function crown(): { top: THREE.BufferGeometry; skirt: THREE.BufferGeometry } {
-  const N = 126, R0 = 0.37;
-  const crimp = (a: number) => { const c = Math.cos(21 * a); return 0.026 * Math.sign(c) * Math.pow(Math.abs(c), 0.55); };
-  // top: concentric rings, slightly domed
-  const tp: number[] = [], tuv: number[] = [], ti: number[] = [];
-  const rings = [0, 0.09, 0.18, 0.26, 0.32, R0];
-  tp.push(0, 0.172, 0); tuv.push(0.5, 0.5);
-  for (let r = 1; r < rings.length; r++) for (let i = 0; i < N; i++) {
-    const a = i / N * PI * 2, rr = rings[r];
-    const x = Math.cos(a) * rr, z = Math.sin(a) * rr;
-    tp.push(x, 0.172 - 0.012 * (rr / R0) ** 2, z);
-    tuv.push(0.5 + x / (R0 * 2), 0.5 - z / (R0 * 2));
+const TAG_W = 0.8, TAG_D = 0.52, TAG_C = 0.09;
+/** the plate's printable top: a grid (so the dent can bow it) with the corners clipped */
+function tagTop(): THREE.BufferGeometry {
+  const g = new THREE.PlaneGeometry(TAG_W, TAG_D, 8, 6).rotateX(-PI / 2);
+  const P = g.getAttribute('position') as THREE.BufferAttribute;
+  const W = TAG_W / 2, D = TAG_D / 2;
+  for (let i = 0; i < P.count; i++) {
+    const x = P.getX(i), z = P.getZ(i);
+    let ex = Math.abs(x) - (W - TAG_C), ez = Math.abs(z) - (D - TAG_C);
+    if (ex > 0 && ez > 0 && ex + ez > TAG_C) { const t = TAG_C / (ex + ez); ex *= t; ez *= t; P.setX(i, Math.sign(x) * (W - TAG_C + ex)); P.setZ(i, Math.sign(z) * (D - TAG_C + ez)); }
   }
-  for (let i = 0; i < N; i++) ti.push(0, 1 + (i + 1) % N, 1 + i);
-  for (let r = 1; r < rings.length - 1; r++) for (let i = 0; i < N; i++) {
-    const a = 1 + (r - 1) * N + i, b = 1 + (r - 1) * N + (i + 1) % N, c = 1 + r * N + i, d = 1 + r * N + (i + 1) % N;
-    ti.push(a, b, d, a, d, c);
-  }
-  const top = new THREE.BufferGeometry();
-  top.setAttribute('position', new THREE.Float32BufferAttribute(tp, 3));
-  top.setAttribute('uv', new THREE.Float32BufferAttribute(tuv, 2));
-  top.setIndex(ti); top.computeVertexNormals();
-  // skirt: shoulder, then the crimped flutes flaring out
-  const sp: number[] = [], si: number[] = [];
-  const prof = (a: number) => [[R0, 0.16, 0], [0.4, 0.148, 0], [0.425, 0.12, 0.4], [0.44, 0.06, 0.9], [0.462, 0.0, 1.25]].map(([r, y, k]) => [r + crimp(a) * k, y]);
-  const rows = 5;
-  for (let i = 0; i < N; i++) { const a = i / N * PI * 2; for (const [r, y] of prof(a)) sp.push(Math.cos(a) * r, y, Math.sin(a) * r); }
-  for (let i = 0; i < N; i++) for (let j = 0; j < rows - 1; j++) {
-    const a = i * rows + j, b = ((i + 1) % N) * rows + j;
-    si.push(a, b, a + 1, b, b + 1, a + 1);
-  }
-  const skirt = new THREE.BufferGeometry();
-  skirt.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
-  skirt.setIndex(si); skirt.computeVertexNormals();
-  return { top, skirt };
+  return g;
 }
 
 const CAP_BRANDS = ['MERIDIAN', 'PALE', 'SOLACE'];
@@ -534,17 +540,28 @@ export class BottleCap extends Thing {
   constructor() {
     super('use');
     this.elev = 60 * DEG; this.fit = 1.05; this.k = 2000; this.bloodK = 0.6;
-    const g = crown();
+    // the stamped tin blank: a raised, bevelled rim round the printed field
     const tin = (x: number, _y: number, z: number) => (hash(Math.round(x * 30), Math.round(z * 30)) > 0.8 ? 0x8f8a74 : 0xc2bb9f);
-    this.mesh(new Mold().add(g.skirt, null, tin, [0.9, 0.9, 0.6, 0]), this.mat({ wear: 0.5 }));
+    const base = new Mold();
+    const blank = new THREE.Shape();
+    const W = TAG_W / 2 + 0.07, D = TAG_D / 2 + 0.07, Cc = TAG_C + 0.05;
+    const pts = [[-W + Cc, -D], [W - Cc, -D], [W, -D + Cc], [W, D - Cc], [W - Cc, D], [-W + Cc, D], [-W, D - Cc], [-W, -D + Cc]];
+    blank.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) blank.lineTo(pts[i][0], pts[i][1]);
+    const bg = new THREE.ExtrudeGeometry(blank, { depth: 0.05, bevelEnabled: true, bevelThickness: 0.025, bevelSize: 0.03, bevelOffset: -0.03, bevelSegments: 1, curveSegments: 1 });
+    bg.rotateX(-PI / 2);
+    base.add(flat(bg), M(0, 0.025, 0), tin, [0.9, 0.9, 0.6, 0]);
+    // rivets in the clipped corners, and a little hanging hole at the top
+    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) base.add(fcyl(0.032, 0.03, 6, 0.04, 0.3), M(x * (W - 0.075), 0.11, z * (D - 0.06)), 0x77746a, STEEL);
+    this.mesh(base, this.mat({ wear: 0.5 }));
     this.topM = this.mat({ wear: 0.3 });
     this.topM.defines = { USE_MAP: '' };
-    this.mesh(new Mold().add(g.top, null, 0xffffff, (x, _y, z) => [0.45, 0.6, 0.9, Math.max(0, 1 - (x * x + z * z) / (0.37 * 0.37))]), this.topM);
+    const rx = TAG_W / 2, rz = TAG_D / 2;
+    this.mesh(new Mold().add(tagTop(), M(0, 0.104, 0), 0xffffff, (x, _y, z) => [0.45, 0.6, 0.9, Math.max(0, 1 - (x * x) / (rx * rx) - (z * z) / (rz * rz))]), this.topM);
     this.tex = liveTex(this, this.topM);
     this.retex(60);
-    onTypeReady(() => { this.retex(this.s || 60); this.busy = true; });
+    whenType(() => { this.retex(this.s || 60); this.busy = true; });
   }
-  /** what the cap says (the target in reach), or a word that isn't there */
+  /** what the plate says (the target in reach), or a word that isn't there */
   setWord(word: string, weird = false) {
     if (word === this.shownWord && weird === this.weird) return;
     const fresh = !weird && word !== this.word && word !== 'USE';
@@ -555,42 +572,50 @@ export class BottleCap extends Thing {
     this.busy = true;
   }
   protected retex(s: number) {
-    const w = 0.74 * s, h = 0.74 * s * Math.sin(this.elev);
-    const word = this.shownWord.slice(0, Math.max(3, Math.floor((w - 4) / 4)));
+    const w = TAG_W * s, h = TAG_D * s * Math.sin(this.elev);
+    const word = this.shownWord.slice(0, Math.max(3, Math.floor((w - 4) / 3)));
     const weird = this.weird, brand = this.brand;
     this.tex(w, h, (sc) => {
-      const W = sc.w, H = sc.h, cx = (W - 1) / 2, cy = (H - 1) / 2, rx = W / 2, ry = H / 2;
+      const W = sc.w, H = sc.h;
+      const cw = Math.max(2, Math.round(W * TAG_C / TAG_W)), chh = Math.max(2, Math.round(H * TAG_C / TAG_D));
+      const band = Math.max(4, Math.round(H * 0.26));
       for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const nx = (x - cx) / rx, ny = (y - cy) / ry, r = Math.hypot(nx, ny);
-        let c = weird ? 0xcfc4a8 : 0xd8cdaa;
-        if (r > 0.92) c = 0xa69c80;
-        else if (r > 0.74 && r < 0.86) c = weird ? 0x5b1410 : 0xa5372a; // faded logo ring
-        else if (r <= 0.74 && ny < -0.25 && ny > -0.62) c = weird ? 0x6a1712 : 0xb04a33; // red banner
-        // fade and scratches
+        // clipped corners stay bare tin
+        const ex = Math.min(x, W - 1 - x), ey = Math.min(y, H - 1 - y);
+        const cut = ex / cw + ey / chh < 1;
+        let c = weird ? 0xcfc4a8 : 0xddd2b0;
+        if (y < band) c = weird ? 0x5b1410 : 0x9a2e22; // the enamel banner
+        if (y === band) c = 0x3a1a12;
+        if (ex === 0 || ey === 0 || cut) c = 0x6e6a5a;
+        else if (ex === 1 || ey === 1) c = y < H / 2 ? 0xf0e8d0 : 0x8a8270; // the stamped lip: lit above, shade below
+        // chips in the enamel, rust freckles, scratches
         const n = hash(x, y, 11);
-        if (n > 0.86) c = 0xc9bea0;
-        if (n < 0.05) c = 0x8c836a;
+        if (!cut && ex > 1 && ey > 1) {
+          if (n > 0.95) c = 0x9a9480;
+          else if (n < 0.025) c = 0x7a4a2a;
+          else if (n > 0.88 && y >= band) c = weird ? 0xbcb294 : 0xcfc4a2;
+        }
         sc.px(x, y, C(c));
       }
-      // tiny brand on the banner (5x7 font, may not fit on small caps: then just a dotted line)
-      const capB = Math.max(4, Math.round(H * 0.11));
+      // brand on the banner (or a dotted line when it won't fit)
+      const capB = Math.max(4, Math.round(band * 0.62));
       const bw = typeW(brand, capB, 500);
-      const by = Math.round(cy - ry * 0.44 - capB / 2);
-      if (bw < W * 0.6) typeText(sc, brand, Math.round(cx - bw / 2 + 0.5), by, capB, 0xe8dcc0, 200, 500);
-      else for (let x = Math.round(cx - rx * 0.4); x < cx + rx * 0.4; x += 2) sc.px(x, Math.round(cy - ry * 0.44), C(0xe8dcc0));
-      // the word in reach, printed in the cap: as big as fits
-      let capW = Math.max(5, Math.round(H * 0.2));
-      while (capW > 5 && typeW(word, capW) > W * 0.78) capW--;
+      if (capB >= 7 && bw < W * 0.7) typeText(sc, brand, Math.round(W / 2 - bw / 2 + 0.5), Math.round((band - capB) / 2), capB, 0xf0e2c0, 220, 600);
+      else for (let x = Math.round(W * 0.12); x < W * 0.88; x += 3) { sc.px(x, Math.round(band / 2), C(0xf0e2c0)); sc.px(x, Math.round(band / 2) + 1, C(0x5a1a10)); }
+      // the word in reach, stamped as big as fits under the banner
+      const room = H - band - 3;
+      let capW = Math.max(5, Math.round(room * 0.62));
+      while (capW > 5 && typeW(word, capW) > W * 0.84) capW--;
       const tw = typeW(word, capW);
-      const tx = Math.round(cx - tw / 2), ty = Math.round(cy - capW / 2 + 1);
-      typeText(sc, word, tx + 1, ty + 1, capW, 0xe9dfc4);
-      typeText(sc, word, tx, ty, capW, weird ? 0x2a0503 : 0x3b1d14);
+      const tx = Math.round(W / 2 - tw / 2), ty = Math.round(band + 1 + (room - capW) / 2);
+      typeText(sc, word, tx + 1, ty + 1, capW, 0xf4ecd4);
+      typeText(sc, word, tx, ty, capW, weird ? 0x2a0503 : 0x2b1610);
     });
   }
   protected onDown() { sfx('tc_cap', 0.5, 1, 0.04); haptic(14); }
   protected onUp(cancelled: boolean) { if (!cancelled) sfx('tc_cap', 0.35, 1.3, 0.04); this.dent = Math.min(0.02, this.dent + 0.004); }
   protected animate(dt: number) {
-    this.topM.uniforms.uDent.value = this.press * 0.095 + this.dent;
+    this.topM.uniforms.uDent.value = this.press * 0.05 + this.dent;
     // a little hop when something new comes into reach
     const k = 320, c = 2 * Math.sqrt(k) * 0.35;
     this.hv += (-k * this.hop - c * this.hv) * dt; this.hop += this.hv * dt;
@@ -650,16 +675,16 @@ export class Slipper extends Thing {
     const terry = (x: number, y: number, z: number) => { const n = hash(Math.round(x * 14), Math.round(y * 14), Math.round(z * 14)); return n > 0.86 ? 0x8a6a5c : n > 0.72 ? 0xb58b8b : 0xcfa3a3; };
     const s = new Mold();
     // a thick, scuffed rubber sole and a cream insole, open at the heel
-    s.add(cyl(1, 1, 18), M(0, 0.03, 0, 0, 0, 0, 0.21, 0.06, 0.47), 0x4d463d, RUBBER);
-    s.add(cyl(1, 1, 18), M(0, 0.068, 0.01, 0, 0, 0, 0.19, 0.02, 0.44), (x, _y, z) => (hash(Math.round(x * 20), Math.round(z * 20), 2) > 0.8 ? 0xa89574 : 0xd9ccb2), CLOTH);
+    s.add(jitter(fcyl(1, 1, 10, 1, 0.25), 0.04, 9), M(0, 0.03, 0, 0, 0, 0, 0.21, 0.06, 0.47), 0x4d463d, RUBBER);
+    s.add(fcyl(1, 1, 10, 1, 0), M(0, 0.068, 0.01, 0, 0, 0, 0.19, 0.02, 0.44), (x, _y, z) => (hash(Math.round(x * 20), Math.round(z * 20), 2) > 0.8 ? 0xa89574 : 0xd9ccb2), CLOTH);
     // the toe cap: the front half of a dome, its open edge is the throat
-    s.add(new THREE.SphereGeometry(1, 14, 7, PI, PI, 0, PI / 2), M(0, 0.07, 0.02, 0, 0, 0, 0.215, 0.2, 0.42), terry, SURF(CLOTH, 1));
-    s.add(new THREE.TorusGeometry(0.205, 0.03, 4, 12, PI), M(0, 0.07, 0.02, 0, 0, 0, 1, 0.98, 1), 0x9c6f72, CLOTH);
+    s.add(jitter(flat(new THREE.SphereGeometry(1, 8, 4, PI, PI, 0, PI / 2)), 0.05, 4), M(0, 0.07, 0.02, 0, 0, 0, 0.215, 0.2, 0.42), terry, SURF(CLOTH, 1));
+    s.add(fring(0.205, 0.03, 6, 4, PI), M(0, 0.07, 0.02, 0, 0, 0, 1, 0.98, 1), 0x9c6f72, CLOTH);
     // a dark heel print in the insole
-    s.add(cyl(1, 1, 12), M(0, 0.08, 0.27, 0, 0, 0, 0.1, 0.004, 0.12), 0x8a7558, CLOTH);
+    s.add(fcyl(1, 1, 7, 1, 0), M(0, 0.08, 0.27, 0, 0, 0, 0.1, 0.004, 0.12), 0x8a7558, CLOTH);
     this.mesh(s, this.mat({ wear: 0.9 }), this.shoe);
     this.pomM = this.mat();
-    this.mesh(new Mold().add(sph(0.1, 8, 6), M(0, 0.25, -0.18), (x, y, z) => (hash(Math.round(x * 40), Math.round(y * 40), Math.round(z * 40)) > 0.6 ? 0xf0cfd2 : 0xd9aeb3), CLOTH, 1), this.pomM, this.shoe);
+    this.mesh(new Mold().add(gem(0.1, 1, 0.22, 5), M(0, 0.25, -0.18), (x, y, z) => (hash(Math.round(x * 40), Math.round(y * 40), Math.round(z * 40)) > 0.6 ? 0xf0cfd2 : 0xd9aeb3), CLOTH, 1), this.pomM, this.shoe);
     this.tape('SNEAK', 0, 0.004, 0.47);
   }
   protected onDown() { sfx('tc_squish', 0.45); haptic(8); }
@@ -702,7 +727,7 @@ export class PullChain extends Thing {
     b.add(cyl(0.035, 0.05, 6), M(0.15, -0.47, 0.0, 0, 0, PI / 2), 0x8c8a80, STEEL);
     for (let i = 0; i < 3; i++) b.add(cyl(0.095, 0.03, 12), M(0, -0.66 - i * 0.035, 0), i & 1 ? 0x8a6f38 : 0xb8994e, BRASS);
     this.mesh(b, this.mat({ wear: 0.6 }), this.lampG);
-    this.halo = this.shadow(new THREE.CircleGeometry(0.62, 20), this.lampG, 0.3, 0xf5c463);
+    this.halo = this.shadow(face(ngon(8, 0.62)), this.lampG, 0.3, 0xf5c463);
     this.halo.position.set(0, -0.98, -0.4);
     this.halo.visible = false;
     this.bulbM = this.mat();
@@ -713,7 +738,7 @@ export class PullChain extends Thing {
     this.chain.position.set(0.19, 0.59, 0.02);
     this.body.add(this.chain);
     const ch = new Mold();
-    for (let i = 0; i < 16; i++) ch.add(sph(0.03, 6, 4), M(0, -0.04 - i * 0.08, 0), 0xa08d58, BRASS);
+    for (let i = 0; i < 16; i++) ch.add(gem(0.032, 0, 0), M(0, -0.04 - i * 0.08, 0, i * 0.7, i * 0.3), 0xa08d58, BRASS);
     ch.add(lathe([[0, 0], [0.06, 0.015], [0.078, 0.09], [0.055, 0.17], [0.016, 0.2]], 10), M(0, -1.5, 0), 0xb0974f, SURF(BRASS, 1));
     this.mesh(ch, this.mat({ wear: 0.5 }), this.chain);
     this.tape('LIGHT', -0.18, -0.98, 0.15, 'front');
@@ -962,11 +987,11 @@ export class Rucksack extends Thing {
     this.elev = 24 * DEG; this.fit = 1.05; this.k = 900;
     const m = new Mold();
     const canvas = (x: number, y: number, z: number) => (hash(Math.round(x * 16), Math.round(y * 16), Math.round(z * 16)) > 0.82 ? 0x4c5030 : 0x5f6439);
-    m.add(box(0.64, 0.6, 0.36), M(0, -0.12, 0), canvas, SURF(CLOTH, 0.8));
-    m.add(sph(1, 12, 6, 0, PI / 2), M(0, 0.18, 0, 0, 0, 0, 0.32, 0.16, 0.18), canvas, CLOTH);
+    m.add(jitter(fbox(0.64, 0.6, 0.36, 0.2), 0.025, 2), M(0, -0.12, 0), canvas, SURF(CLOTH, 0.8));
+    m.add(jitter(sph(1, 12, 6, 0, PI / 2), 0.06, 6), M(0, 0.18, 0, 0, 0, 0, 0.32, 0.16, 0.18), canvas, CLOTH);
     m.add(box(0.46, 0.26, 0.12), M(0, -0.25, 0.22), 0x575c33, CLOTH);
     for (const x of [-0.36, 0.36]) m.add(box(0.1, 0.3, 0.26), M(x, -0.24, 0.0), 0x535830, CLOTH);
-    m.add(new THREE.TorusGeometry(0.09, 0.022, 4, 10, PI), M(0, 0.32, 0), 0x3d2c1c, CLOTH);
+    m.add(fring(0.09, 0.022, 5, 4, PI), M(0, 0.32, 0), 0x3d2c1c, CLOTH);
     this.mesh(m, this.mat({ wear: 0.85 }));
     this.flap.position.set(0, 0.3, -0.16);
     this.body.add(this.flap);

@@ -9,11 +9,18 @@ import type { Player } from '../../entities/player';
 import type { Lungs } from './lung';
 import type { BodyStage, Cubes } from './stage';
 import { PrintTex, FONT, inkText } from './stage';
-import { Mold, M, BRASS, RUBBER, PLASTIC, STEEL, CHROME, GLASS, R90, cyl, box, ring, ball, solidMesh } from './models';
+import { Mold, M, BRASS, RUBBER, PLASTIC, STEEL, CHROME, GLASS, PAINT, R90, cyl, box, ring, ball, solidMesh, fcyl, fbox, gem } from './models';
+import { plate, face as polyFace, clipRect, flathe, ngon } from '../touch/facet';
 import { mix, shade, hash } from './pix';
 
 const LOBE_X = 10, NECK_Y = -14.6, RX = 9.6, RY = 10, RZ = 8;
-const GAUGE_Y = -48;
+const GAUGE_Y = -47;
+/** the meter case and its face window (units) */
+const CW = 24, CH = 17, FW = 19, FH = 12;
+/** the Nixie tube's post, beside the meter */
+const NIX_X = 15.5, NIX_Y = -50;
+/** the needle's sweep either side of upright (radians) */
+const SWEEP = 0.9;
 /** the shelf, in this prop's space (the HUD puts the valve 74 units above it) */
 export const LUNG_FLOOR = -74;
 
@@ -32,7 +39,7 @@ export class Lung3D {
   private nixieMesh: THREE.Mesh;
   private key: THREE.Group;
   private colT = 0; private lastDigit = '';
-  private spotGeo = new Mold().add(new THREE.CircleGeometry(1, 6), null, 0x6a0810, RUBBER).build();
+  private spotGeo = new Mold().add(polyFace(ngon(5, 1, 0.3)), null, 0x6a0810, RUBBER).build();
   private spotMat: THREE.ShaderMaterial;
   private v = new THREE.Vector3();
   floorY = -70;
@@ -62,35 +69,51 @@ export class Lung3D {
     r.add(this.wheel);
     // two balloons
     for (const med of [1, -1]) this.lobes.push(this.makeLobe(med));
-    // the gauge on its stand, the lamp, the Nixie tube
-    const face = this.face = new PrintTex(28, 28, 2);
+    // the air meter: a rectangular panel meter in a bakelite case on a stand,
+    // a jewel lamp on its shoulder and a Nixie tube on a post beside it
+    const face = this.face = new PrintTex(FW * 2, FH * 2, 1);
     this.paintFace();
+    const gy = GAUGE_Y;
     const g = new Mold()
-      .add(cyl(7.6, 2.2, 18), M(0, GAUGE_Y, 0, R90, 0, 0), 0xb8c0c8, CHROME)
-      .add(cyl(6.9, 0.6, 18), M(0, GAUGE_Y, 1.2, R90, 0, 0), 0xe8eef2, CHROME)
-      .add(cyl(1.4, GAUGE_Y - 7 - LUNG_FLOOR, 10), M(0, (GAUGE_Y - 7 + LUNG_FLOOR) / 2, -1.5), 0x3a2418, PLASTIC)
-      .add(box(30, 2.4, 8), M(0, LUNG_FLOOR + 1.2, 0), 0x2a1a12, PLASTIC)
-      .add(box(26, 0.6, 8.2), M(0, LUNG_FLOOR + 2.5, 0), 0x4a3424, PLASTIC)
-      .add(cyl(0.9, GAUGE_Y + 2 - LUNG_FLOOR, 8), M(-11, (GAUGE_Y + 2 + LUNG_FLOOR) / 2, -0.5), 0x2a1a12, PLASTIC)
-      .add(box(3.6, 2, 3.6), M(-11, GAUGE_Y + 2.4, 0), 0x2a1a12, PLASTIC)
-      .add(cyl(2.3, 1, 10), M(-11, GAUGE_Y + 3.6, 0), 0xc0902e, BRASS)
-      .add(cyl(2.9, 1.4, 10), M(11.5, GAUGE_Y - 5.2, 0), 0x1a1612, PLASTIC)
-      .add(cyl(0.9, GAUGE_Y - 6 - LUNG_FLOOR, 8), M(11.5, (GAUGE_Y - 6 + LUNG_FLOOR) / 2, -0.5), 0x2a1a12, PLASTIC);
+      // bakelite case, a chrome bezel with a clipped-corner window, four screws
+      .add(fbox(CW, CH, 4.2, 0.22), M(0, gy, -1.2), (_x, y) => (y > gy + CH / 2 - 1.2 ? 0x4a3020 : 0x2c1c12), PLASTIC)
+      .add(plate(clipRect(CW - 1.6, CH - 1.6, 2), 0.9, 0.3, [clipRect(FW + 0.3, FH + 0.3, 1.4)]), M(0, gy, 0.9), (_x, y) => (y > gy + 2 ? 0xe4e8ea : y > gy - 3 ? 0xa8b0b6 : 0x5e6468), CHROME)
+      .add(fcyl(0.55, 0.5, 6, 0.6, 0.3), M(-CW / 2 + 1.5, gy + CH / 2 - 1.5, 1.9, R90), 0xc0902e, BRASS)
+      .add(fcyl(0.55, 0.5, 6, 0.6, 0.3), M(CW / 2 - 1.5, gy + CH / 2 - 1.5, 1.9, R90), 0xc0902e, BRASS)
+      .add(fcyl(0.55, 0.5, 6, 0.6, 0.3), M(-CW / 2 + 1.5, gy - CH / 2 + 1.5, 1.9, R90), 0xc0902e, BRASS)
+      .add(fcyl(0.55, 0.5, 6, 0.6, 0.3), M(CW / 2 - 1.5, gy - CH / 2 + 1.5, 1.9, R90), 0xc0902e, BRASS)
+      // a zero-adjust screw under the window
+      .add(fcyl(0.8, 0.6, 6, 0.9, 0.3), M(0, gy - CH / 2 + 1.2, 1.4, R90), 0x1a1612, PLASTIC)
+      // the stand: a square bakelite column, a stepped plinth with a chrome kick plate
+      .add(fbox(2.6, GAUGE_Y - CH / 2 - LUNG_FLOOR - 2, 2.6, 0.25), M(0, (GAUGE_Y - CH / 2 + LUNG_FLOOR + 2) / 2, -1.5), 0x3a2418, PLASTIC)
+      .add(fbox(30, 2.4, 8, 0.25), M(0, LUNG_FLOOR + 1.2, 0), 0x2a1a12, PLASTIC)
+      .add(fbox(26, 0.8, 8.2, 0.3), M(0, LUNG_FLOOR + 2.6, 0), 0x4a3424, PLASTIC)
+      .add(fbox(28, 0.7, 0.5, 0.3), M(0, LUNG_FLOOR + 1.3, 4.1), 0xd8dee4, CHROME)
+      .add(fbox(4, 2.2, 4, 0.25), M(0, gy - CH / 2 - 0.6, -1.2), 0x2a1a12, PLASTIC)
+      // the lamp's chrome collar on the case's shoulder
+      .add(fcyl(1.9, 1.2, 6, 2.2, 0.25), M(-CW / 2 + 2.6, gy + CH / 2 + 0.5, -0.4), 0xb8c0c8, CHROME)
+      // the Nixie's post and its socket
+      .add(fcyl(0.9, NIX_Y - 6 - LUNG_FLOOR, 6), M(NIX_X, (NIX_Y - 6 + LUNG_FLOOR) / 2, -0.5), 0x2a1a12, PLASTIC)
+      .add(fcyl(2.9, 1.4, 8, 3.1, 0.25), M(NIX_X, NIX_Y - 5.2, 0), 0x1a1612, PLASTIC)
+      .add(fbox(1.6, 2, 1, 0.3), M(NIX_X - 3.2, NIX_Y - 5.8, 0), 0x5a4a32, PLASTIC);
     this.base = solidMesh(this.st, g); r.add(this.base);
-    const faceMesh = new THREE.Mesh(new THREE.CircleGeometry(6.6, 20), this.st.solid({ map: face.tex, wear: 0.2 }));
-    faceMesh.position.set(0, GAUGE_Y, 1.25); r.add(faceMesh);
-    const ng = new Mold().add(new THREE.CylinderGeometry(0.15, 0.5, 5.4, 6), M(0, 2.5, 0, 0, 0, 0, 1, 1, 0.5), 0xb8201a, PLASTIC).add(cyl(0.9, 0.6, 8), M(0, 0, 0.2, R90, 0, 0), 0xc0902e, BRASS);
+    const faceMesh = new THREE.Mesh(new Mold().add(polyFace(clipRect(FW, FH, 1.2)), null, 0xffffff, PAINT).build(), this.st.solid({ map: face.tex, wear: 0.2 }));
+    faceMesh.position.set(0, gy, 1.0); r.add(faceMesh);
+    // the needle: a tapered blade on a brass hex boss, pivoting under the scale
+    const ng = new Mold()
+      .add(fcyl(0.12, FH - 2.4, 4, 0.42, 0), M(0, (FH - 2.4) / 2, 0, 0, 0, 0, 1, 1, 0.45), 0xb8201a, PAINT)
+      .add(fcyl(0.95, 0.7, 6, 1.05, 0.3), M(0, 0, 0.2, R90), 0xc0902e, BRASS);
     this.needle = solidMesh(this.st, ng);
-    this.needle.position.set(0, GAUGE_Y - 1.4, 1.7); r.add(this.needle);
-    const cover = new THREE.Mesh(new Mold().add(new THREE.SphereGeometry(6.8, 16, 6, 0, Math.PI * 2, 0, 0.5), M(0, 0, -6, R90, 0, 0), 0xffffff, GLASS).build(), this.st.surf('glass', { alpha: 0.03, color: 0xe8f0ee }));
-    cover.position.set(0, GAUGE_Y, 2.1); cover.renderOrder = 4; r.add(cover);
+    this.needle.position.set(0, gy - FH / 2 + 1.1, 1.35); r.add(this.needle);
+    const cover = new THREE.Mesh(new Mold().add(polyFace(clipRect(FW + 0.3, FH + 0.3, 1.4)), null, 0xffffff, GLASS).build(), this.st.surf('glass', { alpha: 0.04, color: 0xe8f0ee }));
+    cover.position.set(0, gy, 1.75); cover.renderOrder = 4; r.add(cover);
     this.lampMat = this.st.solid({ wear: 0.1 });
-    const lamp = new THREE.Mesh(new Mold().add(ball(1.8, 1), null, 0x8a5a20, GLASS, 1).build(), this.lampMat);
-    lamp.position.set(-11, GAUGE_Y + 5.4, 0.4); r.add(lamp);
+    const lamp = new THREE.Mesh(new Mold().add(flathe([[1.7, 0], [1.75, 0.5], [1.2, 1.4], [0.6, 1.8], [0, 1.85]], 6), null, 0x8a5a20, GLASS, 1).build(), this.lampMat);
+    lamp.position.set(-CW / 2 + 2.6, gy + CH / 2 + 1.1, -0.4); r.add(lamp);
     this.nixie = new PrintTex(8, 12, 4);
     this.nixieMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 4.8), new THREE.MeshBasicMaterial({ map: this.nixie.tex, transparent: true, depthWrite: false }));
-    this.nixieMesh.position.set(11.5, GAUGE_Y - 0.6, 0.1); r.add(this.nixieMesh);
-    const tube = new THREE.Mesh(new Mold().add(cyl(2.5, 8.6, 10, true), M(11.5, GAUGE_Y - 0.4, 0), 0xe8f4f4, GLASS).add(ball(2.5, 1), M(11.5, GAUGE_Y + 3.9, 0, 0, 0, 0, 1, 0.6, 1), 0xe8f4f4, GLASS).build(), this.st.surf('glass', { alpha: 0.05, color: 0xe0eeea }));
+    this.nixieMesh.position.set(NIX_X, NIX_Y - 0.6, 0.1); r.add(this.nixieMesh);
+    const tube = new THREE.Mesh(new Mold().add(fcyl(2.5, 8.6, 8, 2.5, 0, true), M(NIX_X, NIX_Y - 0.4, 0), 0xe8f4f4, GLASS).add(flathe([[2.5, 0], [2.2, 1.2], [1.3, 2.1], [0.3, 2.4], [0, 2.5]], 8), M(NIX_X, NIX_Y + 3.9, 0), 0xe8f4f4, GLASS).build(), this.st.surf('glass', { alpha: 0.05, color: 0xe0eeea }));
     tube.renderOrder = 4; r.add(tube);
     // the H key: a bakelite cap that pops up when the lungs need pumping
     const kt = this.keyTex = new PrintTex(9, 9, 4);
@@ -103,18 +126,17 @@ export class Lung3D {
     // pick volume: balloons and valve
     this.hit = new THREE.Mesh(new THREE.BoxGeometry(2 * (LOBE_X + RX) + 2, 34, 16), new THREE.MeshBasicMaterial());
     this.hit.position.set(0, -18, 0); this.hit.visible = false; r.add(this.hit);
-    this.gaugeHit = new THREE.Mesh(new THREE.BoxGeometry(32, 18, 6), new THREE.MeshBasicMaterial());
+    this.gaugeHit = new THREE.Mesh(new THREE.BoxGeometry(36, 20, 6), new THREE.MeshBasicMaterial());
     this.gaugeHit.position.set(0, GAUGE_Y, 0); this.gaugeHit.visible = false; r.add(this.gaugeHit);
   }
   readonly gaugeHit: THREE.Mesh;
   private base: THREE.Mesh;
 
   private makeLobe(med: number): Lobe {
-    // a lung-shaped balloon: narrow apex, broad base, the inner side flattened
-    // a smooth, indexed sphere (soft latex shading needs shared normals)
-    const geo = new THREE.SphereGeometry(1, 18, 14);
-    geo.setAttribute('aCol', new THREE.Float32BufferAttribute(new Float32Array(geo.getAttribute('position').count * 3).fill(0.85), 3));
-    const P = geo.getAttribute('position') as THREE.BufferAttribute;
+    // a lung-shaped balloon: narrow apex, broad base, the inner side flattened;
+    // low-poly latex: a few-sided ball cut into flat facets that each catch the light
+    let geo: THREE.BufferGeometry = new THREE.SphereGeometry(1, 11, 8);
+    let P = geo.getAttribute('position') as THREE.BufferAttribute;
     for (let i = 0; i < P.count; i++) {
       let x = P.getX(i), y = P.getY(i);
       const z = P.getZ(i);
@@ -124,7 +146,10 @@ export class Lung3D {
       y *= 1.3;
       P.setXYZ(i, x, y - 1.25, z);
     }
+    const ng = geo.toNonIndexed(); geo.dispose(); geo = ng;
     geo.computeVertexNormals();
+    P = geo.getAttribute('position') as THREE.BufferAttribute;
+    geo.setAttribute('aCol', new THREE.Float32BufferAttribute(new Float32Array(P.count * 3).fill(0.85), 3));
     const col = geo.getAttribute('aCol') as THREE.BufferAttribute;
     const mesh = new THREE.Mesh(geo, this.st.surf('rubber'));
     mesh.frustumCulled = false;
@@ -138,25 +163,39 @@ export class Lung3D {
     return { g, mesh, base: (P.array as Float32Array).slice(), col, spots, spotN: -1, med };
   }
 
+  /** the meter's printed card: an arc scale OUT..IN over the needle's pivot, a red zone, maker's type */
   private paintFace() {
-    const t = this.face, P = t.pix, cx = 14, cy = 17, R = 12;
+    const t = this.face, P = t.pix, W = FW * 2, H = FH * 2;
+    // the pivot sits 1.1 units above the bottom of the window
+    const cx = W / 2 - 0.5, cy = H - 2.2 - 0.5, R = H - 6;
     P.clear();
-    for (let y = 0; y < 28; y++) for (let x = 0; x < 28; x++) {
-      const d = Math.hypot(x - cx, y - 14);
-      if (d > 13.6) continue;
-      P.set(x, y, hash(x, y, 2) < 0.07 ? 0xe4d8b4 : 0xf0e6c8);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const e = Math.min(x, y, W - 1 - x, H - 1 - y);
+      let c = hash(x, y, 2) < 0.07 ? 0xe4d8b4 : 0xf0e6c8;
+      if (e === 0) c = 0x8a7a5a; else if (e === 1) c = 0xd8ccaa;
+      if (hash(x >> 2, y >> 2, 6) > 0.9 && e > 1) c = mix(c, 0xc8a870, 0.35); // foxing
+      // clipped corners (the window's shape)
+      if (Math.min(x, W - 1 - x) + Math.min(y, H - 1 - y) < 2) continue;
+      P.set(x, y, c);
     }
-    // red band near IN (full) on the arc, ticks, the typed scale
-    for (let a = 0; a <= 1.0001; a += 0.02) { const ang = Math.PI + a * Math.PI; if (a > 0.8) P.set(Math.round(cx + Math.cos(ang) * (R - 1)), Math.round(cy + Math.sin(ang) * (R - 1)), 0xb82a22); }
-    for (let k = 0; k <= 10; k++) {
-      const ang = Math.PI + (k / 10) * Math.PI, c = Math.cos(ang), s = Math.sin(ang);
-      const l = k % 5 === 0 ? 3 : 1.6;
-      P.line(cx + c * (R - l), cy + s * (R - l), cx + c * R, cy + s * R, 0x2a2018);
+    // the scale: a double arc, the red zone at IN (full), ticks every tenth, long every fifth
+    const ang = (k: number) => -SWEEP + k * 2 * SWEEP;
+    for (let k = 0; k <= 1.0001; k += 0.01) {
+      const a = ang(k), sx = Math.sin(a), sy = -Math.cos(a);
+      P.set(Math.round(cx + sx * R), Math.round(cy + sy * R), 0x2a2018);
+      if (k > 0.8) { P.set(Math.round(cx + sx * (R - 1)), Math.round(cy + sy * (R - 1)), 0xb82a22); P.set(Math.round(cx + sx * (R - 2)), Math.round(cy + sy * (R - 2)), 0xb82a22); }
     }
+    for (let i = 0; i <= 10; i++) {
+      const a = ang(i / 10), sx = Math.sin(a), sy = -Math.cos(a);
+      const l = i % 5 === 0 ? 3.2 : 1.6;
+      P.line(cx + sx * (R + 0.4), cy + sy * (R + 0.4), cx + sx * (R - l), cy + sy * (R - l), i > 8 ? 0x8a1a12 : 0x2a2018);
+    }
+    // the pivot's shadow on the card
+    P.rect(Math.round(cx) - 1, Math.round(cy) - 1, 3, 3, 0x6a5a40, 0.5);
     t.commit((c, k) => {
-      inkText(c, 'OUT', 5.2 * k, 23.6 * k, 4.4 * k, FONT.sign, '#2a2018', 'center', '500');
-      inkText(c, 'IN', 22.8 * k, 23.6 * k, 4.4 * k, FONT.sign, '#2a2018', 'center', '500');
-      inkText(c, 'AIR', 14 * k, 12.6 * k, 3.4 * k, FONT.typeset, '#6a5a48', 'center');
+      inkText(c, 'OUT', (cx - R * 0.74) * k, (cy - 1) * k, 7 * k, FONT.sign, '#2a2018', 'center', '700');
+      inkText(c, 'IN', (cx + R * 0.76) * k, (cy - 1) * k, 7 * k, FONT.sign, '#8a1a12', 'center', '700');
+      inkText(c, 'Air', cx * k, (cy - R * 0.36) * k, 7 * k, FONT.typeset, '#4a3a28', 'center', 'italic 600');
     });
   }
 
@@ -208,7 +247,7 @@ export class Lung3D {
     // the handwheel turns with the breath; the needle reads air, or swings as the metronome
     this.wheel.rotation.z = L.phase * 0.12 + (L.pumping ? L.pos * 1.5 : 0);
     const k = L.pumping ? L.pos : Math.max(0, Math.min(1, p.body.endurance));
-    const target = R90 - k * Math.PI;
+    const target = SWEEP - k * 2 * SWEEP;
     this.needle.rotation.z += (target - this.needle.rotation.z) * Math.min(1, dt * (L.pumping ? 40 : 6));
     // jewel lamp: green perfect, amber good, red cough / miss
     const lit = L.flashT > 0;

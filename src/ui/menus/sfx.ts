@@ -6,7 +6,9 @@ import { G } from '../../game/G';
 
 export type Sfx = 'hover' | 'click' | 'confirm' | 'back' | 'type' | 'error' | 'boot' | 'tab' | 'toggle' | 'unlock' | 'open' | 'tick' | 'stamp' | 'shutter' | 'hum' | 'freeze'
   // the subject room (title / creator / press)
-  | 'servo' | 'clamp' | 'slam' | 'squelch' | 'grind' | 'spark' | 'breaker' | 'press' | 'gear' | 'klaxon' | 'hiss' | 'buzz';
+  | 'servo' | 'clamp' | 'slam' | 'squelch' | 'grind' | 'spark' | 'breaker' | 'press' | 'gear' | 'klaxon' | 'hiss' | 'buzz'
+  // the pixel-art switchgear (btnKit / terminal): plate keys, rocker keys, the big levers, a keyboard clack
+  | 'plate' | 'rocker' | 'lever' | 'key' | 'relay';
 
 let own: AudioContext | null = null;
 let gestureHooked = false;
@@ -122,6 +124,15 @@ export function sfx(kind: Sfx, vol = 1) {
     case 'klaxon': for (let i = 0; i < 4; i++) tone('square', i % 2 ? 520 : 690, i % 2 ? 520 : 690, i * 0.21, 0.2, 0.05); break;
     case 'hiss': noise(0, 0.8, 0.45, 5200, 0.6); noise(0, 0.3, 0.3, 900, 0.8); break;
     case 'buzz': tone('sawtooth', 118, 122, 0, 0.32, 0.05); tone('square', 236, 240, 0, 0.32, 0.025); noise(0, 0.3, 0.2, 6000, 0.8); break;
+    case 'plate': noise(0, 0.03, 0.8, 1400, 0.7); tone('square', 420, 180, 0, 0.05, 0.07); noise(0.035, 0.02, 0.35, 3000, 1); break;
+    case 'rocker': noise(0, 0.018, 0.7, 2600, 1.1); tone('square', 1500, 1100, 0, 0.018, 0.04); noise(0.028, 0.012, 0.3, 4200, 1.2); break;
+    case 'key': noise(0, 0.022, 0.75 + Math.random() * 0.2, 1900 + Math.random() * 900, 1); tone('triangle', 260 + Math.random() * 40, 140, 0, 0.04, 0.06); break;
+    case 'relay': noise(0, 0.012, 0.8, 3600, 1.4); noise(0.022, 0.01, 0.5, 2400, 1.4); tone('square', 60, 60, 0, 0.05, 0.02); break;
+    case 'lever':
+      // a big knife-switch lever: the ratchet, the throw, the contact block slamming home
+      for (let i = 0; i < 4; i++) noise(i * 0.035, 0.012, 0.5, 2200 + i * 200, 1.3);
+      noise(0.16, 0.09, 1, 420, 0.6); tone('sine', 110, 46, 0.16, 0.28, 0.28); tone('square', 2400, 2400, 0.17, 0.02, 0.03);
+      break;
     case 'unlock':
       [523, 659, 784, 1046].forEach((f, i) => tone('square', f, f, i * 0.07, 0.16, 0.05));
       tone('triangle', 1568, 1568, 0.3, 0.5, 0.04);

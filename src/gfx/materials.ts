@@ -199,7 +199,8 @@ if (uCutOn > 0.5 && vWPos.y > uCutFloor) {
     cut = smoothstep(-0.1, -0.5, fwd) * smoothstep(-5.2 * uCutScale, -3.6 * uCutScale, fwd) * smoothstep(uCutRadius, uCutRadius * 0.45, abs(lat));
   }
   float hfade = smoothstep(uCutFloor, uCutFloor + 0.25, vWPos.y);
-  if (cut * hfade > bayer4(gl_FragCoord.xy)) discard;
+  // a clean cut line (no screen-door dither): the wall reads as sawn off around the survivor
+  if (cut * hfade > 0.5) discard;
 }
 #endif
 `;
@@ -234,11 +235,26 @@ float causticAt(vec2 p, float t) {
 const FRAG_LIGHTGRID = /* glsl */`
 #if defined( RE_IndirectDiffuse ) && !defined(UNLIT) && !defined(NOGRID)
 {
+  vec3 wn = normalize(vWNormal);
+  // ambient bounce reaches up-facing surfaces best: facets of a low-poly model separate even in the dark
+  irradiance *= 0.8 + 0.2 * wn.y;
   vec2 lgp = vWPos.xz + vWNormal.xz * 0.28;
-  vec3 gt = texture2D(uLightTex, (lgp - uLightInfo.xy) * uLightInfo.zw).rgb;
+  vec2 luv = (lgp - uLightInfo.xy) * uLightInfo.zw;
+  vec3 gt = texture2D(uLightTex, luv).rgb;
   vec3 grid = gt * gt * uGridScale;
   // ceiling fixtures: surfaces higher up the walls catch a bit more light
-  grid *= 0.82 + 0.18 * clamp(vWPos.y / 2.6, 0.0, 1.0);
+  grid *= 0.8 + 0.2 * clamp(vWPos.y / 2.6, 0.0, 1.0);
+  // directional light out of the grid itself: it arrives from where the grid gets brighter, so faces
+  // turned toward a fixture catch it, faces turned away fall into shade and light pools get a rim
+  {
+    float e = 0.45 * uLightInfo.z;
+    vec3 LW = vec3(0.3, 0.5, 0.2);
+    float gx = dot(texture2D(uLightTex, luv + vec2(e, 0.0)).rgb - texture2D(uLightTex, luv - vec2(e, 0.0)).rgb, LW);
+    float gz = dot(texture2D(uLightTex, luv + vec2(0.0, e)).rgb - texture2D(uLightTex, luv - vec2(0.0, e)).rgb, LW);
+    float g0 = dot(gt, LW) + 0.04;
+    vec3 Ld = normalize(vec3(gx / g0 * 1.7, 1.0, gz / g0 * 1.7));
+    grid *= clamp(0.66 + 0.52 * dot(wn, Ld), 0.28, 1.2);
+  }
   irradiance += grid * PI;
 #if defined(FLOOR)
   // wet / polished floors mirror the fixtures overhead: sample the light grid where the reflected view ray meets the ceiling
@@ -283,12 +299,11 @@ if (uVisOn > 0.5) {
   vec3 col = gl_FragColor.rgb;
   float lum = dot(col, vec3(0.3, 0.59, 0.11));
   vec3 remembered = mix(vec3(lum), col, 0.35) * uRememberTint * uRememberAmt;
-  vec3 unexplored = mix(vec3(lum), col, 0.15) * uRememberTint * uRememberAmt * 0.45;
+  vec3 unexplored = mix(vec3(lum), col, 0.15) * uRememberTint * uRememberAmt * 0.2;
   // hidden areas sink toward the zone's void colour (near-black indoors, haze outdoors) without washing out
   vec3 res = mix(mix(unexplored, remembered, vis.g), uVoidColor, 0.08 + 0.22 * (1.0 - vis.g));
-  // dithered transition keeps the pixel-art feel at vision edges
-  float v = vis.r;
-  v = clamp(v + (bayer4(gl_FragCoord.xy) - 0.5) * 0.18, 0.0, 1.0);
+  // a short clean ramp at the vision edge (the final posterise steps it into a couple of bands)
+  float v = smoothstep(0.08, 0.92, vis.r);
   gl_FragColor.rgb = mix(res, col, v);
 }
 #endif

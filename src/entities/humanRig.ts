@@ -132,13 +132,29 @@ const clampN = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
 // ------------------------------------------------------------------ material
 let warnedMap = false;
+/**
+ * Faceted shading for the low-poly body: lights shade every polygon flat
+ * (flatShading), and the room's ambient / light-grid term is modulated per
+ * facet against a fixed overhead key so the planes of the face, the folds of
+ * the clothes and the chamfers of the boots read even under flat indoor light.
+ */
+const FACET_GLSL = /* glsl */`
+{
+  vec3 fN = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
+  float fk = dot(fN, vec3(-0.38, 0.8, 0.46));
+  float fr = 1.0 - abs(dot(fN, normalize(cameraPosition - vWPos)));
+  float facet = 0.82 + 0.24 * fk + 0.06 * fN.y - 0.08 * fr * fr;
+  irradiance *= clamp(facet, 0.42, 1.3);
+}
+`;
 function humanMaterial(map: THREE.Texture, base: THREE.Material, uHuman: { value: THREE.Vector4 }): THREE.MeshLambertMaterial {
-  const m = new THREE.MeshLambertMaterial({ map, vertexColors: true });
+  const m = new THREE.MeshLambertMaterial({ map, vertexColors: true, flatShading: true });
   const b = base as any;
   m.onBeforeCompile = (shader, renderer) => {
     b.onBeforeCompile?.(shader, renderer);
     shader.uniforms.uHuman = uHuman;
     let vs = shader.vertexShader, fs = shader.fragmentShader;
+    if (fs.includes('#include <lights_fragment_end>')) fs = fs.replace('#include <lights_fragment_end>', FACET_GLSL + '#include <lights_fragment_end>');
     vs = vs.replace('#include <common>', '#include <common>\nuniform vec4 uHuman;');
     vs = vs.replace('vec4 nWp = vec4( transformed, 1.0 );', `
 if (uHuman.x > 0.001) {
@@ -162,8 +178,57 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.3, 0.25), uHuman.z);`);
     shader.vertexShader = vs; shader.fragmentShader = fs;
   };
   const key = b.customProgramCacheKey ? b.customProgramCacheKey() : 'base';
-  m.customProgramCacheKey = () => key + '|human1';
+  m.customProgramCacheKey = () => key + '|human2';
   return m;
+}
+
+// ------------------------------------------------------------------ outline hull (standalone scenes)
+/**
+ * A black silhouette outline for scenes that do not run the world renderer's
+ * edge pass (menus, the operating table, cutscenes): an inverted hull drawn
+ * with back faces only, its vertices pushed out along the skinned normal by a
+ * constant number of render-target pixels, so it stays one crisp low-res
+ * pixel wide at any distance.
+ */
+const OUTLINE_VS_DECL = 'uniform vec3 uOutline;\n';
+const OUTLINE_VS = /* glsl */`
+{
+#if defined( USE_ENVMAP ) || defined( USE_SKINNING )
+  vec3 oObjN = objectNormal;
+#else
+  vec3 oObjN = normal;
+#endif
+  vec3 oN = normalize(mat3(modelMatrix) * oObjN);
+  vec4 cN = projectionMatrix * (viewMatrix * vec4(oN, 0.0));
+  float l = length(cN.xy);
+  if (l > 1e-6) gl_Position.xy += cN.xy / l * uOutline.xy * gl_Position.w;
+  gl_Position.z += uOutline.z * gl_Position.w;
+}
+`;
+const _osz = new THREE.Vector2();
+/** an outline material (skinned or rigid); px = width in render-target pixels */
+export function outlineMaterial(px = 1, color = 0x050404): THREE.MeshBasicMaterial {
+  const u = { value: new THREE.Vector3(0, 0, 0.0004) };
+  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide, fog: false });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uOutline = u;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\n' + OUTLINE_VS_DECL)
+      .replace('#include <project_vertex>', '#include <project_vertex>\n' + OUTLINE_VS);
+  };
+  m.customProgramCacheKey = () => 'human-outline';
+  (m as any).userData = { px, u };
+  return m;
+}
+/** keep an outline material's pixel width right for whatever target it renders into */
+function outlineSize(mesh: THREE.Object3D, mat: THREE.MeshBasicMaterial) {
+  mesh.onBeforeRender = (renderer) => {
+    const rt = renderer.getRenderTarget();
+    if (rt) _osz.set(rt.width, rt.height); else renderer.getDrawingBufferSize(_osz);
+    const d = (mat as any).userData as { px: number; u: { value: THREE.Vector3 } };
+    d.u.value.x = (2 * d.px) / Math.max(1, _osz.x);
+    d.u.value.y = (2 * d.px) / Math.max(1, _osz.y);
+  };
 }
 const EMPTY_GEO = new THREE.BufferGeometry();
 const _rv = new THREE.Vector3();
@@ -288,6 +353,10 @@ export class HumanRig {
   ragWorld: RagWorld | null = null;
   private ragRecover = Infinity;
   private flat = { y: 0, ground: (_x: number, _z: number) => this.flat.y };
+  /** black silhouette outline for standalone scenes (setOutline) */
+  private hull: THREE.SkinnedMesh | null = null;
+  private hullMat: THREE.MeshBasicMaterial | null = null;
+  private hullRigid: THREE.MeshBasicMaterial | null = null;
 
   constructor(app: Appearance, material?: THREE.Material, opts: { secondary?: boolean } = {}) {
     this.app = normalizeAppearance(app);
@@ -326,6 +395,53 @@ export class HumanRig {
       this.meshes.set(jn, proxy);
     }
     this.setOutfit({});
+  }
+
+  /**
+   * Draw a black outline round the silhouette (an inverted hull that follows
+   * the skin, plus the rigid pieces hung on the bones). For scenes that do not
+   * run the world renderer's edge pass: menus, the operating table,
+   * cutscenes. px is the width in render-target pixels; false removes it.
+   */
+  setOutline(px: number | false = 1) {
+    if (px === false || px <= 0) {
+      if (this.hull) { this.hull.removeFromParent(); this.hull = null; }
+      this.body.traverse((o) => { if ((o as any).userData?.isHull) o.visible = false; });
+      return;
+    }
+    if (!this.hullMat) { this.hullMat = outlineMaterial(px); this.hullRigid = outlineMaterial(px); }
+    (this.hullMat as any).userData.px = px; (this.hullRigid as any).userData.px = px;
+    if (!this.hull) {
+      const h = new THREE.SkinnedMesh(this.mesh.geometry, this.hullMat);
+      h.name = 'outline'; h.userData.isHull = true;
+      h.frustumCulled = false; h.castShadow = false; h.receiveShadow = false;
+      h.bind(this.skeleton, new THREE.Matrix4());
+      outlineSize(h, this.hullMat);
+      this.body.add(h);
+      this.hull = h;
+    }
+    this.refreshOutlines();
+  }
+  get outlined() { return !!this.hull; }
+
+  /** give every rigid piece on the bones (cosmetics, stumps, cyberware) an outline child */
+  private refreshOutlines() {
+    const mat = this.hullRigid;
+    if (!this.hull || !mat) return;
+    const add: THREE.Mesh[] = [];
+    this.body.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (!m.isMesh || (m as THREE.SkinnedMesh).isSkinnedMesh || m.userData.isHull || m.userData.hull || !m.visible) return;
+      if (!/^(cosmetic:|limbgear|cybergear)/.test(m.name)) return;
+      if ((m.material as THREE.Material & { isMeshBasicMaterial?: boolean }).isMeshBasicMaterial) return;
+      add.push(m);
+    });
+    for (const m of add) {
+      const h = new THREE.Mesh(m.geometry, mat);
+      h.userData.isHull = true; h.name = 'outline';
+      outlineSize(h, mat);
+      m.add(h); m.userData.hull = h;
+    }
   }
 
   /** the visible skinned body mesh */
@@ -435,6 +551,7 @@ export class HumanRig {
     this.skeleton.dispose();
     this.skeleton = this.makeSkeleton();
     this.mesh.bind(this.skeleton, new THREE.Matrix4());
+    this.hull?.bind(this.skeleton, new THREE.Matrix4());
     this.geoKey = ''; this.texKey = '';
     this.setOutfit(this.outfit);
   }
@@ -455,6 +572,7 @@ export class HumanRig {
       const res = buildBody(this.app, full, sh, this.dims, { splints: new Set(cond.splint || []), bandages: new Set(Object.keys(cond.bandage || {})), severed: new Set([...(cond.sev || []), ...coveredParts(cond.cyber)]) });
       const old = this.mesh.geometry;
       this.mesh.geometry = res.geometry;
+      if (this.hull) this.hull.geometry = res.geometry;
       old.dispose();
       this.tris = res.tris;
       this.sole = sh.sole;
@@ -469,6 +587,7 @@ export class HumanRig {
     }
     this.updateGear(cond, sh);
     syncCosmetics(this, full, this.baseMat);
+    if (this.hull) this.refreshOutlines();
   }
 
   /** limb loss: a cap on every stump (raw, seared, stitched, bandaged, healed; a tourniquet), and the prosthetics */
@@ -585,6 +704,7 @@ export class HumanRig {
     const pose = this.anim.update(dt, input);
     this.fx.value.y += dt;
     this.applyPose(pose);
+    if (this.hull) { this.hull.layers.mask = this.mesh.layers.mask; this.hull.visible = this.mesh.visible; }
     if (this.ragdoll?.active) this.driveRagdoll(dt);
     return pose;
   }
@@ -678,6 +798,7 @@ export class HumanRig {
     this.page.tex.dispose();
     this.material.dispose();
     this.skeleton.dispose();
+    this.hullMat?.dispose(); this.hullRigid?.dispose();
   }
 }
 
@@ -734,8 +855,10 @@ export function randomAppearance(rnd: () => number): Appearance {
  * frame (idle breathing, fidgets, blinking, emotes via `rig.playEmote(name)`),
  * and `rig.dispose()` when done.
  */
-export function createPreviewRig(app: Appearance, outfit: Outfit = {}): HumanRig {
+export function createPreviewRig(app: Appearance, outfit: Outfit = {}, opts: { outline?: number | false } = {}): HumanRig {
   const rig = new HumanRig(app, worldMaterial({ noVis: true, noFog: true, noGrid: true }), { secondary: true });
   rig.setOutfit(outfit);
+  // standalone scenes have no edge pass of their own: the rig brings its black outline
+  rig.setOutline(opts.outline ?? 1);
   return rig;
 }

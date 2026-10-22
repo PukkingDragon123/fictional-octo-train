@@ -150,8 +150,10 @@ void main() {
 
 const POST_VERT = /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 const POST_FRAG = /* glsl */`
-uniform sampler2D tSrc; uniform vec2 uRes; uniform float uChroma; uniform float uStatic; uniform float uTime; uniform vec2 uShadow;
+uniform sampler2D tSrc; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uChroma; uniform float uStatic; uniform float uTime; uniform vec2 uShadow; uniform float uRange; uniform float uEdge;
 varying vec2 vUv;
+// depth in low-res pixels (ortho camera: linear)
+float dz(vec2 uv) { return texture2D(tDepth, uv).x * uRange; }
 float bay(vec2 p) {
   vec2 q = mod(p, 4.0);
   float x = q.x, y = q.y;
@@ -186,6 +188,14 @@ void main() {
     return;
   }
   vec3 col = c.rgb;
+  // black contour lines inside the silhouette: wherever a nearer part's edge
+  // steps over this pixel (a depth step, not a slope), like an inked outline
+  if (uEdge > 0.0 && a > 0.5) {
+    float d0 = dz(uv), dl = dz(uv - vec2(px.x, 0.0)), dr = dz(uv + vec2(px.x, 0.0)), dd = dz(uv - vec2(0.0, px.y)), du = dz(uv + vec2(0.0, px.y));
+    float near = d0 - min(min(dl, dr), min(dd, du));
+    float lap = max(abs(dl + dr - 2.0 * d0), abs(dd + du - 2.0 * d0));
+    if (near > uEdge && lap > uEdge) { gl_FragColor = vec4(vec3(0.035, 0.028, 0.02) * a, a); return; }
+  }
   if (uStatic > 0.0) col = mix(col, vec3(hh(floor(uv * uRes) + fract(uTime * 7.0))), uStatic * 0.18);
   float d = bay(floor(gl_FragCoord.xy)) - 0.5;
   col = floor(clamp(col, 0.0, 1.0) * 30.0 + 0.5 + d * 0.9) / 30.0;
@@ -211,21 +221,48 @@ export type ColorFn = (x: number, y: number, z: number, nx: number, ny: number, 
 
 const _v = new THREE.Vector3(), _n = new THREE.Vector3(), _nm = new THREE.Matrix3();
 
-/** builds one mesh's geometry from transformed primitives, each with a colour and a surface */
+/**
+ * builds one mesh's geometry from transformed primitives, each with a colour and a surface.
+ * Faceted by default: every triangle gets its own normal (low-poly flat shading; the
+ * colour functions see the facet's normal too, so chrome bands per facet).
+ */
 export class Mold {
   private p: number[] = []; private n: number[] = []; private c: number[] = []; private u: number[] = []; private s: number[] = []; private gl: number[] = [];
+  constructor(readonly flat = true) {}
   add(src: THREE.BufferGeometry, m: THREE.Matrix4 | null, color: number | ColorFn, surf: Surf | ((x: number, y: number, z: number) => Surf) = PAINT, glow = 0): this {
     const g = src.index ? src.toNonIndexed() : src;
     const P = g.getAttribute('position'), N = g.getAttribute('normal'), UV = g.getAttribute('uv');
     if (m) _nm.getNormalMatrix(m);
-    for (let i = 0; i < P.count; i++) {
+    const cnt = P.count;
+    const pos = new Float32Array(cnt * 3), nor = new Float32Array(cnt * 3);
+    for (let i = 0; i < cnt; i++) {
       _v.fromBufferAttribute(P, i); if (m) _v.applyMatrix4(m);
       if (N) { _n.fromBufferAttribute(N, i); if (m) _n.applyMatrix3(_nm).normalize(); } else _n.set(0, 1, 0);
-      this.p.push(_v.x, _v.y, _v.z); this.n.push(_n.x, _n.y, _n.z);
-      const hex = typeof color === 'number' ? color : color(_v.x, _v.y, _v.z, _n.x, _n.y, _n.z);
+      pos[i * 3] = _v.x; pos[i * 3 + 1] = _v.y; pos[i * 3 + 2] = _v.z;
+      nor[i * 3] = _n.x; nor[i * 3 + 1] = _n.y; nor[i * 3 + 2] = _n.z;
+    }
+    if (this.flat) {
+      for (let t = 0; t + 2 < cnt; t += 3) {
+        const a = t * 3, b = a + 3, c = a + 6;
+        const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2];
+        const vx = pos[c] - pos[a], vy = pos[c + 1] - pos[a + 1], vz = pos[c + 2] - pos[a + 2];
+        let fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+        const l = Math.hypot(fx, fy, fz);
+        if (l < 1e-12) continue;
+        fx /= l; fy /= l; fz /= l;
+        // keep the side the source normals meant (mirrored transforms flip the winding)
+        const sx = nor[a] + nor[b] + nor[c], sy = nor[a + 1] + nor[b + 1] + nor[c + 1], sz = nor[a + 2] + nor[b + 2] + nor[c + 2];
+        if (fx * sx + fy * sy + fz * sz < 0) { fx = -fx; fy = -fy; fz = -fz; }
+        for (const o of [a, b, c]) { nor[o] = fx; nor[o + 1] = fy; nor[o + 2] = fz; }
+      }
+    }
+    for (let i = 0; i < cnt; i++) {
+      const x = pos[i * 3], y = pos[i * 3 + 1], z = pos[i * 3 + 2];
+      this.p.push(x, y, z); this.n.push(nor[i * 3], nor[i * 3 + 1], nor[i * 3 + 2]);
+      const hex = typeof color === 'number' ? color : color(x, y, z, nor[i * 3], nor[i * 3 + 1], nor[i * 3 + 2]);
       this.c.push(((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255);
       if (UV) this.u.push(UV.getX(i), UV.getY(i)); else this.u.push(0, 0);
-      const sf = typeof surf === 'function' ? surf(_v.x, _v.y, _v.z) : surf;
+      const sf = typeof surf === 'function' ? surf(x, y, z) : surf;
       this.s.push(sf[0], sf[1], sf[2], sf[3]);
       this.gl.push(glow);
     }
@@ -515,7 +552,7 @@ export class Stage {
     this.scene.add(this.parts.mesh);
     const mat = new THREE.ShaderMaterial({
       vertexShader: POST_VERT, fragmentShader: POST_FRAG, depthTest: false, depthWrite: false, transparent: false,
-      uniforms: { tSrc: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uChroma: { value: 0 }, uStatic: { value: 0 }, uTime: SHARED.uTime, uShadow: { value: new THREE.Vector2(2, 3) } },
+      uniforms: { tSrc: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uChroma: { value: 0 }, uStatic: { value: 0 }, uTime: SHARED.uTime, uShadow: { value: new THREE.Vector2(2, 3) }, uRange: { value: 8000 }, uEdge: { value: 1.4 } },
     });
     const ps = new THREE.Scene();
     const q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); q.frustumCulled = false; ps.add(q);
@@ -536,8 +573,12 @@ export class Stage {
     this.cam.left = 0; this.cam.right = W; this.cam.top = 0; this.cam.bottom = -H;
     this.cam.updateProjectionMatrix();
     this.rt?.dispose();
-    this.rt = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, type: THREE.UnsignedByteType });
+    const dt = new THREE.DepthTexture(W, H);
+    dt.minFilter = dt.magFilter = THREE.NearestFilter;
+    this.rt = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, depthTexture: dt, type: THREE.UnsignedByteType });
     this.post!.mat.uniforms.uRes.value.set(W, H);
+    this.post!.mat.uniforms.tDepth.value = dt;
+    this.post!.mat.uniforms.uRange.value = this.cam.far - this.cam.near;
     this.post!.mat.uniforms.uShadow.value.set(Math.max(1, Math.round(2 / px)) , Math.max(1, Math.round(3 / px)));
     for (const p of this.props.values()) p.place(p.cx, p.cy, p.w, p.h, px);
     this.dirty = true;

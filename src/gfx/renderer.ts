@@ -17,7 +17,7 @@ export interface Grade {
 }
 
 export const DEFAULT_GRADE: Grade = {
-  lift: [0.0, 0.0, 0.0], gain: [1, 1, 1], gamma: 1, sat: 1, tint: [1, 1, 1], vignette: 0.35, levels: 56, grain: 0.012,
+  lift: [0.0, 0.0, 0.0], gain: [1, 1, 1], gamma: 1, sat: 1, tint: [1, 1, 1], vignette: 0.35, levels: 64, grain: 0.012,
 };
 
 const BLIT_FRAG = /* glsl */`
@@ -85,8 +85,8 @@ void main() {
   vec2 q = uv - 0.5;
   s *= 1.0 - dot(q, q) * 2.0 * uVignette;
   float gl2 = dot(s, vec3(0.299, 0.587, 0.114));
-  s += (h12(px + floor(uTime * 24.0) * 7.31) - 0.5) * uGrain * (0.55 + 1.8 * gl2 * (1.0 - gl2));
-  s = floor(s * uLevels + bayer4(px)) / uLevels;
+  s = floor(max(s, 0.0) * uLevels + 0.5) / uLevels;
+  s += (h12(px + floor(uTime * 12.0) * 7.31) - 0.5) * min(uGrain, 0.35 / uLevels) * (0.4 + gl2);
   gl_FragColor = vec4(s, c.a);
 }
 `;
@@ -140,7 +140,7 @@ export class PixelRenderer {
   shake = 0;
   grade: Grade = { ...DEFAULT_GRADE };
   gradeTarget: Grade = { ...DEFAULT_GRADE };
-  fx = { glitch: 0, panic: 0, hurt: 0, desat: 0, wobble: 0, blink: 0, corruptFlash: 0, dream: 0, outline: 1, edgeLight: 0.32 };
+  fx = { glitch: 0, panic: 0, hurt: 0, desat: 0, wobble: 0, blink: 0, corruptFlash: 0, dream: 0, outline: 1, edgeLight: 0.2 };
   /** user setting: target internal height in px */
   targetLowH = 360;
   dpr = 1;
@@ -235,14 +235,17 @@ export class PixelRenderer {
   }
 
   resize() {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // the backing store matches the device pixels exactly (fractional DPR laptops, 3x phones): the
+    // browser must never resample the finished frame, or every pixel edge goes soft
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
     this.dpr = dpr;
-    const W = Math.floor(window.innerWidth * dpr), H = Math.floor(window.innerHeight * dpr);
+    const W = Math.max(1, Math.floor(window.innerWidth * dpr)), H = Math.max(1, Math.floor(window.innerHeight * dpr));
     this.renderer.setPixelRatio(1);
     this.renderer.setSize(W, H, false);
     const canvas = this.renderer.domElement;
-    canvas.style.width = window.innerWidth + 'px';
-    canvas.style.height = window.innerHeight + 'px';
+    canvas.style.width = (W / dpr) + 'px';
+    canvas.style.height = (H / dpr) + 'px';
+    canvas.style.imageRendering = 'pixelated';
     this.scale = Math.max(1, Math.round(H / this.targetLowH));
     this.lowW = Math.ceil(W / this.scale);
     this.lowH = Math.ceil(H / this.scale);
@@ -371,14 +374,14 @@ export class PixelRenderer {
     u.uTint.value.set(...g.tint); u.uLevels.value = g.levels;
     const clean = this.clean;
     u.uVignette.value = clean ? g.vignette * 0.5 : g.vignette;
-    u.uGrain.value = (g.grain + 0.012) * (clean ? 0 : 1);
+    u.uGrain.value = (g.grain * 0.5 + 0.004) * (clean ? 0 : 1);
     u.uFilm.value = this.film;
     u.uGlitch.value = this.fx.glitch; u.uPanic.value = clean ? 0 : this.fx.panic; u.uHurt.value = clean ? 0 : this.fx.hurt; u.uDesat.value = this.fx.desat;
     u.uWobble.value = this.fx.wobble; u.uBlink.value = clean ? 0 : this.fx.blink; u.uCorruptFlash.value = this.fx.corruptFlash; u.uDream.value = this.fx.dream;
     u.uOutline.value = this.fx.outline; u.uEdgeLight.value = this.fx.edgeLight;
     // zone atmosphere
     u.uAOStr.value = 1;
-    u.uBloomStr.value = z.bloom * 0.45;
+    u.uBloomStr.value = z.bloom * 0.3;
     u.uDirtStr.value = clean ? 0 : z.dirt * 0.35 * this.film;
     u.uReflect.value = z.reflect;
     u.uMistCol.value.set(z.mist[0], z.mist[1], z.mist[2]);
@@ -546,7 +549,7 @@ export class PixelRenderer {
   cssPerMetre() { return (this.scale / this.pxSize) / this.dpr; }
 
   /** zoom levels expressed as low-res pixels per metre */
-  static readonly ZOOMS = [14, 18, 23, 28, 32, 40, 48];
+  static readonly ZOOMS = [18, 24, 32, 40, 48, 58, 70];
   setZoomLevel(level: number) {
     const z = PixelRenderer.ZOOMS;
     this.pxSizeTarget = 1 / z[clamp(Math.round(level), 0, z.length - 1)];

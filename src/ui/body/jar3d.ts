@@ -11,10 +11,13 @@ import type { Jar } from './jar';
 import { CX as SCX, BOT as SBOT, HW as SHW, IH as SIH } from './jar';
 import type { BodyStage, Cubes } from './stage';
 import { PrintTex, FONT, inkText } from './stage';
-import { Mold, M, BRASS, PAPER, GLASS, R90, cyl, ring, solidMesh } from './models';
+import { Mold, M, BRASS, PAPER, GLASS, RUBBER, STEEL, PAINT, R90, solidMesh, fcyl, fring } from './models';
+import { face as polyFace, ngon, frod } from '../touch/facet';
 import { mix, hash } from './pix';
 
 const R = 11, RI = 10.1, IHT = 30, FLOOR = 1.3;
+/** an octagonal apothecary jar: the glass, the fluids and the label share these facets */
+const SIDES = 8, PH = Math.PI / SIDES;
 const toX = (x: number) => ((x - SCX) / SHW) * RI;
 const toY = (y: number) => FLOOR + ((SBOT - 1 - y) / SIH) * IHT;
 
@@ -23,7 +26,7 @@ class Column {
   readonly mesh: THREE.Mesh;
   private base: Float32Array;
   constructor(r: number, mat: THREE.ShaderMaterial) {
-    const geo = new Mold().add(new THREE.CylinderGeometry(r, r, 1, 18, 1), null, 0xffffff, GLASS).build();
+    const geo = new Mold().add(new THREE.CylinderGeometry(r, r, 1, SIDES, 1, false, PH), null, 0xffffff, GLASS).build();
     this.base = (geo.getAttribute('position').array as Float32Array).slice();
     this.mesh = new THREE.Mesh(geo, mat);
     this.mesh.frustumCulled = false;
@@ -49,7 +52,7 @@ export class Jar3D {
   private cracks = new PrintTex(96, 48, 1);
   private crackN = -1;
   private label = new PrintTex(36, 18, 2);
-  private face = new PrintTex(20, 20, 3);
+  private face = new PrintTex(16, 14, 1);
   private v = new THREE.Vector3();
   private tilt = 0; private tiltV = 0;
   private t = 0;
@@ -60,34 +63,46 @@ export class Jar3D {
     r.add(this.body);
     const b = this.body;
     // glass: the back wall first, the contents, then the front wall with its cracks
-    const back = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R, R, 32, 20, 1, true, Math.PI, Math.PI * 2), M(0, 16, 0), 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.05, color: 0xcfe2da, side: THREE.BackSide }));
+    const back = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R, R, 32, SIDES, 1, true, Math.PI + PH, Math.PI * 2), M(0, 16, 0), 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.05, color: 0xcfe2da, side: THREE.BackSide }));
     back.renderOrder = 1; b.add(back);
-    const floor = new THREE.Mesh(new Mold().add(cyl(R, FLOOR, 20), M(0, FLOOR / 2, 0), 0xffffff, GLASS).add(ring(R - 0.4, 0.9, 20), M(0, 32, 0, R90, 0, 0), 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.2, color: 0xb8d0c8 }));
+    const floor = new THREE.Mesh(new Mold().add(fcyl(R, FLOOR, SIDES, R, 0.3), M(0, FLOOR / 2, 0), 0xffffff, GLASS).add(fring(R - 0.3, 0.9, SIDES, 4), M(0, 32, 0, R90, 0, PH), 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.2, color: 0xb8d0c8 }));
     floor.renderOrder = 2; b.add(floor);
     this.murkMat = st.surf('liquid', { alpha: 0.97, color: 0x8a6a3a, deep: 0x2a1a0a, glint: 0.1, thick: 0.08, depthWrite: true });
     this.acidMat = st.surf('liquid', { alpha: 0.82, color: 0xc8f040, deep: 0x4a6a08, glint: 0.8, thick: 0.03 });
     this.murk = new Column(RI, this.murkMat); this.murk.mesh.renderOrder = 2; b.add(this.murk.mesh);
     this.acid = new Column(RI, this.acidMat); this.acid.mesh.renderOrder = 3; b.add(this.acid.mesh);
-    const front = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R, R, 32, 20, 1, true, Math.PI, Math.PI * 2), M(0, 16, 0), 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.05, color: 0xdcece6, side: THREE.FrontSide, map: this.cracks.tex }));
+    const front = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R, R, 32, SIDES, 1, true, Math.PI + PH, Math.PI * 2), M(0, 16, 0), 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.05, color: 0xdcece6, side: THREE.FrontSide, map: this.cracks.tex }));
     front.renderOrder = 6; b.add(front);
-    // the paper label, wrapped round the front
-    const lab = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R + 0.12, R + 0.12, 9, 12, 1, true, Math.PI * 2 - 0.85, 1.7), M(0, 20, 0), 0xffffff, PAPER).build(), st.solid({ map: this.label.tex, wear: 0.3 }));
+    // the paper label, pasted flat across the three front facets
+    const lab = new THREE.Mesh(new Mold().add(new THREE.CylinderGeometry(R + 0.16, R + 0.16, 9, 3, 1, true, -3 * PH, 6 * PH), M(0, 20, 0), 0xffffff, PAPER).build(), st.solid({ map: this.label.tex, wear: 0.3 }));
     lab.renderOrder = 7; b.add(lab);
     this.paintLabel();
-    // the lid: knurled brass, a stem and a gauge
+    // the lid: an octagonal brass cap over a red rubber gasket, bolted, with a
+    // stem and a hex pressure gauge
     const lid = new Mold()
-      .add(cyl(R + 0.7, 3.6, 24), M(0, 1.8, 0), (x, y, z) => (Math.round(Math.atan2(z, x) * 12) % 2 ? 0xc89a3a : 0x8a6420), BRASS)
-      .add(cyl(R - 0.5, 0.6, 20), M(0, 3.8, 0), 0xd8aa4a, BRASS)
-      .add(cyl(0.8, 3.4, 8), M(0, 5.6, 0), 0x9a7a3a, BRASS)
-      .add(cyl(4.6, 1.8, 18), M(0, 11.4, 0, R90, 0, 0), 0xb8c0c8, BRASS);
+      .add(fring(R + 0.2, 0.7, SIDES, 4), M(0, 0.2, 0, R90, 0, PH), 0x8a2018, RUBBER)
+      .add(fcyl(R + 0.9, 3.4, SIDES, R + 1.1, 0.22), M(0, 1.9, 0), (_x, y, _z, nx, ny) => (ny > 0.5 ? 0xd8aa4a : ny < -0.5 ? 0x5a4018 : Math.abs(nx) > 0.6 ? 0xa87a2a : 0xc89a3a), BRASS)
+      .add(fcyl(R - 1.2, 0.8, SIDES, R - 0.6, 0.3), M(0, 4, 0), 0xd8aa4a, BRASS)
+      .add(fcyl(0.9, 3.4, 6, 1.1, 0.1), M(0, 5.8, 0), 0x9a7a3a, BRASS)
+      .add(fcyl(4.6, 1.8, 6, 4.9, 0.2), M(0, 11.4, -0.2, R90, 0, 0), 0xb8c0c8, STEEL);
+    // hex bolt heads round the rim
+    for (let i = 0; i < SIDES; i++) { const a = PH + (i / SIDES) * Math.PI * 2; lid.add(fcyl(0.75, 0.7, 6, 0.85, 0.3), M(Math.sin(a) * (R - 0.4), 3.9, Math.cos(a) * (R - 0.4)), 0x6a5020, STEEL); }
     this.lid.add(solidMesh(st, lid));
     this.paintFace();
-    const fm = new THREE.Mesh(new THREE.CircleGeometry(4, 18), st.solid({ map: this.face.tex, wear: 0.15 }));
-    fm.position.set(0, 11.4, 0.95); this.lid.add(fm);
-    this.needle = solidMesh(st, new Mold().add(new THREE.CylinderGeometry(0.12, 0.38, 3.4, 6), M(0, 1.5, 0, 0, 0, 0, 1, 1, 0.5), 0xb8201a, BRASS));
-    this.needle.position.set(0, 10.6, 1.2); this.lid.add(this.needle);
-    const cover = new THREE.Mesh(new Mold().add(new THREE.CircleGeometry(4.2, 16), null, 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.03 }));
-    cover.position.set(0, 11.4, 1.4); cover.renderOrder = 8; this.lid.add(cover);
+    const fm = new THREE.Mesh(new Mold().add(polyFace(ngon(6, 4, 0)), null, 0xffffff, PAINT).build(), st.solid({ map: this.face.tex, wear: 0.15 }));
+    fm.position.set(0, 11.4, 0.75); this.lid.add(fm);
+    this.needle = solidMesh(st, new Mold().add(fcyl(0.12, 3.4, 4, 0.38, 0), M(0, 1.5, 0, 0, 0, 0, 1, 1, 0.5), 0xb8201a, BRASS).add(fcyl(0.55, 0.4, 6, 0.6, 0.3), M(0, 0, 0.1, R90), 0xc89a3a, BRASS));
+    this.needle.position.set(0, 10.6, 1.0); this.lid.add(this.needle);
+    const cover = new THREE.Mesh(new Mold().add(polyFace(ngon(6, 4.2, 0)), null, 0xffffff, GLASS).build(), st.surf('glass', { alpha: 0.03 }));
+    cover.position.set(0, 11.4, 1.3); cover.renderOrder = 8; this.lid.add(cover);
+    // a wire bail clamp up the sides (it rides with the jar, not the lid)
+    const bail = new Mold();
+    for (const sx of [-1, 1]) {
+      bail.add(frod([sx * (R + 0.5), 22, 0], [sx * (R + 0.5), 31.2, 0], 0.35, 4), null, 0xb8bcc2, STEEL);
+      bail.add(frod([sx * (R + 0.5), 31.2, 0], [sx * (R - 2.5), 33.6, 0], 0.35, 4), null, 0xb8bcc2, STEEL);
+      bail.add(fcyl(0.9, 1.6, 6, 0.9, 0.3), M(sx * (R + 0.4), 22, 0, 0, 0, R90), 0x8a8e94, STEEL);
+    }
+    b.add(solidMesh(st, bail));
     this.lid.position.y = 32;
     b.add(this.lid);
     this.hit = new THREE.Mesh(new THREE.CylinderGeometry(R + 1.5, R + 1.5, 50, 8), new THREE.MeshBasicMaterial());
@@ -104,16 +119,21 @@ export class Jar3D {
       inkText(c, 'ACID', 18 * k, 11 * k, 10 * k, FONT.sign, '#1a140e', 'center', '700');
     });
   }
+  /** the hex gauge's card: E..F over the top half, the last quarter red */
   private paintFace() {
-    const P = this.face.pix, cx = 10, cy = 11, Rr = 8;
+    const P = this.face.pix, W = 16, H = 14, cx = 7.5, cy = 8, Rr = 6.2;
     P.clear();
-    for (let y = 0; y < 20; y++) for (let x = 0; x < 20; x++) if (Math.hypot(x - 9.5, y - 9.5) < 9.6) P.set(x, y, hash(x, y, 5) < 0.06 ? 0xe4d8b4 : 0xf0e6c8);
-    for (let a = 0.75; a <= 1.0001; a += 0.02) { const ang = Math.PI + a * Math.PI; P.set(Math.round(cx + Math.cos(ang) * (Rr - 1)), Math.round(cy + Math.sin(ang) * (Rr - 1)), 0xb82a22); P.set(Math.round(cx + Math.cos(ang) * (Rr - 2)), Math.round(cy + Math.sin(ang) * (Rr - 2)), 0xb82a22); }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const nx = Math.abs((x - 7.5) / 8), ny = Math.abs((y - 6.5) / 7) * 0.866;
+      const e = Math.max(ny / 0.866, nx + ny * 0.577);
+      if (e > 1) continue;
+      P.set(x, y, e > 0.86 ? 0x8a7a5a : hash(x, y, 5) < 0.08 ? 0xe4d8b4 : 0xf0e6c8);
+    }
+    for (let a = 0.75; a <= 1.0001; a += 0.04) { const ang = Math.PI + a * Math.PI; P.set(Math.round(cx + Math.cos(ang) * (Rr - 0.5)), Math.round(cy + Math.sin(ang) * (Rr - 0.5)), 0xb82a22); }
     for (let k = 0; k <= 4; k++) { const ang = Math.PI + (k / 4) * Math.PI; P.line(cx + Math.cos(ang) * (Rr - 2), cy + Math.sin(ang) * (Rr - 2), cx + Math.cos(ang) * Rr, cy + Math.sin(ang) * Rr, 0x2a2018); }
-    this.face.commit((c, k) => {
-      inkText(c, 'E', 3.6 * k, 15.6 * k, 4.4 * k, FONT.sign, '#2a2018', 'center', '500');
-      inkText(c, 'F', 16.4 * k, 15.6 * k, 4.4 * k, FONT.sign, '#8a1a12', 'center', '500');
-    });
+    P.set(2, 10, 0x2a2018); P.set(2, 11, 0x2a2018); P.set(3, 10, 0x2a2018); P.set(3, 11, 0x2a2018); // E (a pixel mark: too small for type)
+    P.set(13, 10, 0x8a1a12); P.set(13, 11, 0x8a1a12); P.set(12, 10, 0x8a1a12);
+    this.face.commit();
   }
   repaintType() { this.paintLabel(); this.paintFace(); }
 
@@ -152,7 +172,7 @@ export class Jar3D {
     if (J.cracks.length !== this.crackN) {
       this.crackN = J.cracks.length;
       const P = this.cracks.pix; P.clear();
-      const u = (x: number) => (0.5 + Math.asin(Math.max(-1, Math.min(1, (x - SCX) / SHW))) / (Math.PI * 2)) * 96;
+      const u = (x: number) => (0.5 - PH / (Math.PI * 2) + Math.asin(Math.max(-1, Math.min(1, (x - SCX) / SHW))) / (Math.PI * 2)) * 96;
       const v = (y: number) => 48 - ((toY(y) / 32) * 48);
       for (const ck of J.cracks) {
         const k = ck.pts;

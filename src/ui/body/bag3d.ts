@@ -10,7 +10,7 @@ import type { Player } from '../../entities/player';
 import type { Injury } from '../../survival/body';
 import type { BodyStage, Cubes } from './stage';
 import { PrintTex } from './stage';
-import { Mold, M, CHROME, STEEL, PLASTIC, R90, cyl, box, ring, pillow, solidMesh } from './models';
+import { Mold, M, CHROME, STEEL, PLASTIC, BRASS, R90, cyl, box, ring, pillow, solidMesh, fcyl, fbox, jitter } from './models';
 import { BagPrint, holeAt, PRINT_W, PRINT_H } from './bagPrint';
 import { mix } from './pix';
 
@@ -48,9 +48,15 @@ export class Bag3D {
     const r = this.root;
     // stand arm (fixed) and S-hook
     const arm = new Mold()
-      .add(cyl(1, 34, 8), M(-2, 3, -1, 0, 0, R90), 0xd8dee4, CHROME)
+      .add(fcyl(1, 34, 6, 1, 0.1), M(-2, 3, -1, 0, 0, R90), (_x, _y, _z, _nx, ny) => (ny > 0.4 ? 0xf0f4f6 : ny < -0.4 ? 0x6a7076 : 0xb8c0c6), CHROME)
+      .add(fcyl(1.5, 1.2, 6, 1.5, 0.3), M(15.4, 3, -1, 0, 0, R90), 0xa8b0b6, CHROME)
+      // a bakelite clamp block with a brass wing screw, bolted to a steel plate
+      .add(fbox(2, 9, 1.4, 0.3), M(-18, 3, -2.6), 0x6a6e72, STEEL)
       .add(box(4, 5, 4), M(-18, 3, -1), 0x5a4a32, PLASTIC)
-      .add(cyl(1.2, 2.4, 6), M(-18, 3, 1.6, R90, 0, 0), 0xc89a3a, STEEL);
+      .add(fcyl(1.2, 2.4, 6, 1.3, 0.25), M(-18, 3, 1.6, R90, 0, 0), 0xc89a3a, BRASS)
+      .add(fbox(4.2, 0.9, 0.7, 0.3), M(-18, 3, 3.1), 0xd8aa4a, BRASS)
+      .add(fcyl(0.5, 0.5, 6, 0.55, 0.3), M(-18, 6.4, -1.8, R90), 0x9aa2aa, STEEL)
+      .add(fcyl(0.5, 0.5, 6, 0.55, 0.3), M(-18, -0.4, -1.8, R90), 0x9aa2aa, STEEL);
     r.add(solidMesh(st, arm));
     const hook = new Mold()
       .add(ring(1.6, 0.45, 8), M(0, 0.8, 0, 0, R90, 0), 0xc8ccd2, CHROME)
@@ -77,19 +83,24 @@ export class Bag3D {
     // port, roller clamp, drip chamber with steel caps, the line
     const by = TOP - BH;
     const kit = new Mold()
-      .add(cyl(1.3, 3.4, 8), M(0, by - 1.8, 0), 0xe8e4d4, PLASTIC)
-      .add(box(3.4, 2.2, 2.4), M(0, by - 5, 0), 0x9aa2aa, STEEL)
-      .add(cyl(0.8, 2.6, 8), M(0, by - 5, 1.4, R90, 0, 0), 0x4a525a, STEEL)
-      .add(cyl(2.7, 1, 10), M(0, by - 7.2, 0), 0xc8ccd2, CHROME)
-      .add(cyl(2.7, 1, 10), M(0, by - 16.4, 0), 0xc8ccd2, CHROME);
+      // the spike port and a second, capped injection port beside it
+      .add(fcyl(1.3, 3.4, 6, 1.4, 0.2), M(0, by - 1.8, 0), 0xe8e4d4, PLASTIC)
+      .add(fcyl(0.8, 2.4, 6, 0.9, 0.2), M(4.2, by - 1.2, 0, 0, 0, 0.3), 0xe0dccc, PLASTIC)
+      .add(fcyl(1.1, 1.2, 6, 1.1, 0.3), M(4.6, by - 2.4, 0, 0, 0, 0.3), 0xb82a22, PLASTIC)
+      // the roller clamp: a housing and its knurled wheel
+      .add(fbox(3.4, 2.4, 2.4, 0.25), M(0, by - 5, 0), 0x9aa2aa, STEEL)
+      .add(fcyl(1, 1.6, 8, 1, 0.2), M(0, by - 5, 1.4, R90, 0, 0), (_x, _y, z) => (z > 1.9 ? 0x6a727a : 0x3a4048), STEEL)
+      // the drip chamber's chrome collars
+      .add(fcyl(2.7, 1, 8, 2.8, 0.3), M(0, by - 7.2, 0), 0xc8ccd2, CHROME)
+      .add(fcyl(2.7, 1, 8, 2.8, 0.3), M(0, by - 16.4, 0), 0xc8ccd2, CHROME);
     s.add(solidMesh(st, kit));
     const glass = new THREE.Mesh(new Mold().add(cyl(2.4, 8.4, 10, true), M(0, by - 11.8, 0), 0xe8f4f4, PLASTIC).build(), st.surf('glass', { alpha: 0.05, color: 0xd8ece6 }));
     glass.renderOrder = 3; s.add(glass);
     this.chamberMat = st.surf('liquid', { alpha: 0.88, color: 0x9ad4f4, deep: 0x2a6a9a, glint: 0.6, thick: 0.2 });
-    this.chamber = new THREE.Mesh(new Mold().add(cyl(2, 1, 10), M(0, 0.5, 0), 0xffffff, PLASTIC).build(), this.chamberMat);
+    this.chamber = new THREE.Mesh(new Mold().add(fcyl(2, 1, 8, 2, 0), M(0, 0.5, 0), 0xffffff, PLASTIC).build(), this.chamberMat);
     this.chamber.position.y = by - 16; s.add(this.chamber);
     this.lineTop = by - 17;
-    const line = new THREE.Mesh(new Mold().add(cyl(0.55, 1, 6), M(0, -0.5, 0), 0xd8e4e4, PLASTIC).build(), st.surf('plastic', { alpha: 0.35, color: 0xdce6e0 }));
+    const line = new THREE.Mesh(new Mold().add(fcyl(0.55, 1, 6, 0.55, 0), M(0, -0.5, 0), 0xd8e4e4, PLASTIC).build(), st.surf('plastic', { alpha: 0.35, color: 0xdce6e0 }));
     line.renderOrder = 3; this.line = line; s.add(line);
     // invisible pick box over the bag
     this.hit = new THREE.Mesh(new THREE.BoxGeometry(BW + 2, BH + 4, 9), new THREE.MeshBasicMaterial());
@@ -97,7 +108,8 @@ export class Bag3D {
     s.add(this.hit);
     // the puddle on the shelf
     this.puddleMat = st.surf('liquid', { alpha: 0.96, color: 0x9a1820, deep: 0x3a0408, glint: 0.3, thick: 0.1 });
-    this.puddle = new THREE.Mesh(new Mold().add(cyl(1, 0.5, 10), null, 0xffffff, PLASTIC).build(), this.puddleMat);
+    // an irregular splat, not a disc
+    this.puddle = new THREE.Mesh(new Mold().add(jitter(fcyl(1, 0.5, 9, 1, 0), 0.18, 5), null, 0xffffff, PLASTIC).build(), this.puddleMat);
     this.puddle.scale.set(0.01, 1, 0.01);
     r.add(this.puddle);
     for (let i = 0; i < 48; i++) this.drops.push({ x: 0, y: 0, z: 0, vx: 0, vy: 0, c: 0, on: false, splash: false });

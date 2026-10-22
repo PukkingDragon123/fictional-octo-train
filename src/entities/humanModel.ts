@@ -7,7 +7,7 @@
 import * as THREE from 'three';
 import type { Appearance, Outfit } from './humanRig';
 import { OutfitShape } from './humanClothes';
-import { shapeOf, noseOf, noseK, earK, suitLooks } from './humanLooks';
+import { shapeOf, noseOf, noseK, earK, suitLooks, mouthOf } from './humanLooks';
 
 // ------------------------------------------------------------------ skeleton
 export const BONES = [
@@ -77,22 +77,26 @@ export const PAD = 4;
 export interface Reg { x: number; y: number; w: number; h: number }
 export type RegKey = 'HEAD' | 'HAIR' | 'TORSO' | 'NECK' | 'ARM_L' | 'ARM_R' | 'LEG_L' | 'LEG_R' | 'HAND_L' | 'HAND_R'
   | 'FOOT_L' | 'FOOT_R' | 'SKIRT' | 'HAT' | 'MASK' | 'COLLAR' | 'GEAR' | 'PACK' | 'LIDS' | 'WATCH';
-const REG_SIZES: [RegKey, number, number][] = [
-  ['LEG_L', 36, 60], ['LEG_R', 36, 60], ['TORSO', 72, 56], ['ARM_L', 28, 44], ['ARM_R', 28, 44],
-  ['HEAD', 96, 48], ['HAIR', 64, 40], ['SKIRT', 72, 28],
-  ['PACK', 48, 40], ['FOOT_L', 36, 24], ['FOOT_R', 36, 24], ['HAND_L', 24, 24], ['HAND_R', 24, 24], ['NECK', 32, 12],
-  ['HAT', 48, 20], ['MASK', 48, 24], ['COLLAR', 40, 10], ['GEAR', 16, 8], ['LIDS', 16, 6], ['WATCH', 12, 8],
-];
+/**
+ * Region rectangles (x, y, w, h; PAD free pixels round each). The face is
+ * painted at twice the body's texel density (HEAD 192 x 96, LIDS to match):
+ * it is what the close-ups look at. Packed by hand into one 256 x 256 page.
+ */
+const LAYOUT: Record<RegKey, [number, number, number, number]> = {
+  HEAD: [4, 4, 192, 96], LEG_L: [204, 4, 36, 60], LEG_R: [204, 72, 36, 60], TORSO: [4, 108, 72, 56],
+  ARM_L: [84, 108, 28, 44], ARM_R: [120, 108, 28, 44], HAIR: [156, 140, 64, 40], PACK: [84, 160, 48, 40],
+  SKIRT: [4, 172, 72, 28], MASK: [140, 188, 48, 24], FOOT_L: [196, 188, 36, 24], FOOT_R: [4, 208, 36, 24],
+  HAND_L: [48, 208, 24, 24], HAND_R: [80, 208, 24, 24], HAT: [112, 220, 48, 20], NECK: [168, 220, 32, 12],
+  LIDS: [208, 220, 32, 12], COLLAR: [4, 240, 40, 10], GEAR: [52, 240, 16, 8], WATCH: [76, 240, 12, 8],
+};
+/** texels per pixel-art pixel in a region (the face is painted at 2x) */
+export const REG_K: Partial<Record<RegKey, number>> = { HEAD: 2, LIDS: 2 };
 export const REG = {} as Record<RegKey, Reg>;
 (() => {
-  let x = 0, y = 0, rowH = 0;
-  for (const [k, w, h] of REG_SIZES) {
-    const W = w + PAD * 2, H = h + PAD * 2;
-    if (x + W > PAGE) { x = 0; y += rowH; rowH = 0; }
-    REG[k] = { x: x + PAD, y: y + PAD, w, h };
-    x += W; rowH = Math.max(rowH, H);
+  for (const [k, [x, y, w, h]] of Object.entries(LAYOUT) as [RegKey, number[]][]) {
+    REG[k] = { x, y, w, h };
+    if (x - PAD < 0 || y - PAD < 0 || x + w + PAD > PAGE || y + h + PAD > PAGE) throw new Error('human page overflow: ' + k);
   }
-  if (y + rowH > PAGE) throw new Error('human page overflow');
 })();
 
 /** ranges (reference metres) mapped onto each region's v axis (v=0 bottom row, 1 top row) */
@@ -146,7 +150,7 @@ export class SkinBuilder {
    * u coordinate per point. Poles close the ends.
    */
   loft(rings: { pts: V3[]; v: number; w: Wt | ((p: V3, j: number) => Wt); c?: number }[], us: number[], reg: Reg, g: number,
-    o: { start?: V3 | null; end?: V3 | null; startV?: number; endV?: number; startW?: Wt; endW?: Wt; double?: boolean; doubleRows?: (i: number) => boolean; flip?: boolean; skip?: (j: number) => boolean } = {}) {
+    o: { start?: V3 | null; end?: V3 | null; startV?: number; endV?: number; startW?: Wt; endW?: Wt; double?: boolean; doubleRows?: (i: number) => boolean; flip?: boolean; skip?: (j: number) => boolean; alt?: boolean } = {}) {
     const n = us.length;
     const idx: number[][] = [];
     const cents: V3[] = rings.map((r) => centroid(r.pts.slice(0, n - 1)));
@@ -172,7 +176,9 @@ export class SkinBuilder {
           if (len(nrm) < 1e-10) nrm = cross(sub(C, A), sub(D, A));
           const m = sub(mid(A, C), ins);
           const out = dot(nrm, m) >= 0;
-          if (out !== flip) { this.tri(a, b, c); this.tri(a, c, d); } else { this.tri(a, c, b); this.tri(a, d, c); }
+          // checkerboard diagonals: the facets read as triangles, not as stripes round the body
+          if (o.alt && ((i + j) & 1)) { if (out !== flip) { this.tri(a, b, d); this.tri(b, c, d); } else { this.tri(a, d, b); this.tri(b, d, c); } }
+          else if (out !== flip) { this.tri(a, b, c); this.tri(a, c, d); } else { this.tri(a, c, b); this.tri(a, d, c); }
         }
       }
       void gg;
@@ -468,7 +474,7 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       const pts = ellRing(y * s, 0, (r.cz ?? 0) * s, rx * s, rf * s, rb * s, n, r.sq ?? 2.2, 1, (th) => bump(th, y));
       return { pts, v: vOf(VMAP.TORSO, y), w: wOf(y) };
     });
-    B.loft(rings, usFor(n), reg, 1, { start: [0, 0.8 * s, -0.005], end: [0, 1.5 * s, -0.006 * s], startW: [BI.hips, 1], endW: [BI.chest, 0.5, BI.neck, 0.5] });
+    B.loft(rings, usFor(n), reg, 1, { start: [0, 0.8 * s, -0.005], end: [0, 1.5 * s, -0.006 * s], startW: [BI.hips, 1], endW: [BI.chest, 0.5, BI.neck, 0.5], alt: true });
   }
 
   // ---------------- neck (+ collar / scarf)
@@ -855,16 +861,64 @@ function sampleHead(y: number): HeadRow {
   return R[0];
 }
 
+// the sculpted head: rows and columns crowd round the eyes, nose and mouth (head-local metres / degrees from the face)
+const FACE_ROWS = [-0.03, -0.015, 0.003, 0.018, 0.028, 0.0355, 0.0425, 0.051, 0.062, 0.077, 0.09, 0.0995, 0.108, 0.118, 0.134, 0.154, 0.176, 0.2];
+const FACE_ANG = [-180, -150, -122, -101, -86, -72, -59, -47, -36, -26, -17, -8, 0, 8, 17, 26, 36, 47, 59, 72, 86, 101, 122, 150, 180];
+const FACE_ROWS_LO = [-0.03, -0.013, 0.008, 0.033, 0.058, 0.078, 0.096, 0.114, 0.143, 0.173, 0.199];
+const FACE_ANG_LO = HEAD_ANG;
+/** level of detail for heads built from now on (0 sculpted, 1 coarse: crowds, distant NPCs) */
+export let HEAD_LOD = 0;
+export function setHeadLod(l: number) { HEAD_LOD = l; }
+
+/**
+ * Anatomy laid over the base skull (radial offset in head-local metres):
+ * brow ridge, eye sockets with the eyeball under the lids, cheekbones and the
+ * hollows under them, the muzzle of the teeth, lips and the line between
+ * them, the dip under the lower lip, chin, jaw corners and temples.
+ */
+export function faceRelief(y: number, deg: number, fem: number, sk: { hollow: number }, mouth = 0): number {
+  const a = Math.abs(deg);
+  if (a > 112 || y < -0.035 || y > 0.15) return 0;
+  const g = (x: number, c: number, w: number) => Math.exp(-((x - c) * (x - c)) / (2 * w * w));
+  const masc = 1 - fem;
+  let r = 0;
+  // brow ridge: a bar over both eyes fading out at the temples, heavier on masculine skulls
+  r += (0.0035 + 0.0035 * masc) * g(y, 0.116, 0.0062) * (a < 46 ? 1 : g(a, 46, 11)) * (0.75 + 0.25 * g(a, 20, 12));
+  r -= 0.0013 * g(y, 0.108, 0.006) * g(a, 0, 5);
+  // the sockets: the eye sits deep under the brow, the ball bulges a little under the lids
+  r -= 0.0085 * g(y, 0.099, 0.0072) * g(a, 18, 9);
+  r += 0.0034 * g(y, 0.098, 0.0036) * g(a, 18, 5.5);
+  // cheekbones, the hollow under them (gaunt faces sink), the nasolabial fold
+  r += (0.0042 + 0.0012 * fem) * g(y, 0.077, 0.0085) * g(a, 43, 12);
+  r -= (0.0018 + 0.004 * sk.hollow) * g(y, 0.05, 0.011) * g(a, 47, 13);
+  r -= 0.0016 * g(y, 0.052 - (a - 22) * 0.0006, 0.004) * g(a, 24, 6);
+  // the muzzle over the teeth, lips and the line between them
+  r += 0.0028 * g(y, 0.04, 0.018) * g(a, 0, 25);
+  const full = mouth === 3 ? 1.35 : mouth === 2 ? 0.6 : 1;
+  r += (0.0028 + 0.0012 * fem) * full * g(y, 0.0455, 0.0042) * g(a, 0, 13);
+  r += (0.0034 + 0.0014 * fem) * full * g(y, 0.0305, 0.0045) * g(a, 0, 11);
+  r -= 0.0032 * g(y, 0.0375, 0.0022) * g(a, 0, 15);
+  // under the lower lip, the chin, the corners of the jaw
+  r -= 0.0024 * g(y, 0.02, 0.0038) * g(a, 0, 12);
+  r += (0.0032 + 0.0022 * masc) * g(y, 0.006, 0.0085) * g(a, 0, 13);
+  r += 0.003 * masc * g(y, 0.006, 0.01) * g(a, 74, 9);
+  // temples
+  r -= 0.0026 * g(y, 0.124, 0.014) * g(a, 74, 12);
+  return r;
+}
+
 function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
   const hs = d.s * d.headS;
   const hp = d.rest.head;
   const fem = d.fem;
   const H = BI.head;
+  const lod = HEAD_LOD;
   // shape tweaks: jaw width, chin, cheekbones per face shape (humanLooks) / body shape
   const SK = shapeOf(app);
   const jaw = (1 - fem * 0.12) * SK.jaw;
   const chin = (1 - fem * 0.06) * SK.chin;
   const cheek = SK.cheek + fem * 0.01;
+  const mouthK = mouthOf(app);
   const tweak = (row: HeadRow, deg: number) => {
     let r = headR(row, deg);
     const a = Math.abs(deg);
@@ -880,18 +934,21 @@ function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
   // a longer / shorter lower face stretches the rows under the cheekbones
   const longY = (y: number) => (SK.long !== 1 && y < 0.07 ? 0.07 + (y - 0.07) * SK.long : y);
   const tr = (p: V3): V3 => [hp[0] + p[0] * hs, hp[1] + longY(p[1]) * hs, hp[2] + p[2] * hs];
-  const headPt = (y: number, deg: number, off = 0): V3 => {
+  /** a point on the skull at height y and angle deg, `off` metres out from the skin; relief adds the face's anatomy */
+  const skull = (y: number, deg: number, off = 0, relief = true): V3 => {
     const row = sampleHead(y);
     const t = (deg * Math.PI) / 180;
-    const r = tweak(row, deg) + off;
+    const r = tweak(row, deg) + off + (relief && lod === 0 ? faceRelief(y, deg, fem, SK, mouthK) : 0);
     return [Math.sin(t) * r, y, row.zc + Math.cos(t) * r];
   };
-  const us = HEAD_ANG.map((a) => 0.5 + a / 360);
-  const rings = HEAD_ROWS.map((row, i) => ({
-    pts: HEAD_ANG.map((a) => tr(headPt(row.y, a))), v: vOf(VMAP.HEAD, row.y),
+  const headPt = (y: number, deg: number, off = 0): V3 => skull(y, deg, off);
+  const ROWS = lod ? FACE_ROWS_LO : FACE_ROWS, ANG = lod ? FACE_ANG_LO : FACE_ANG;
+  const us = ANG.map((a) => 0.5 + a / 360);
+  const rings = ROWS.map((y, i) => ({
+    pts: ANG.map((a) => tr(skull(y, a))), v: vOf(VMAP.HEAD, y),
     w: (i === 0 ? [H, 0.7, BI.neck, 0.3] : [H, 1]) as Wt,
   }));
-  B.loft(rings, us, REG.HEAD, 70, { end: tr([0, 0.215, -0.006]), endW: [H, 1], endV: 1, start: tr([0, -0.034, -0.01]), startW: [H, 0.6, BI.neck, 0.4], startV: 0 });
+  B.loft(rings, us, REG.HEAD, 70, { end: tr([0, 0.215, -0.006]), endW: [H, 1], endV: 1, start: tr([0, -0.034, -0.01]), startW: [H, 0.6, BI.neck, 0.4], startV: 0, alt: true });
 
   // projection helpers into the head region
   const projUV = (p: V3): [number, number] => {
@@ -903,50 +960,64 @@ function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
   const vP = (p: V3, g: number, w: Wt = [H, 1]) => { const [px, py] = projUV(p); return B.vert(p, px, py, w, g); };
   const centre = tr([0, 0.08, 0.0]);
 
-  // nose
+  // nose: root between the brows, a bridge with a ridge, the tip, the wings round the nostrils, the columella
   {
-    const f = (y: number) => tweak(sampleHead(y), 0) + sampleHead(y).zc;
     const NK = noseK(noseOf(app));
-    const nw = 0.016 * NK.w * (1 - fem * 0.12);
-    const len_ = 0.021 * NK.len * (1 - fem * 0.15) * (1 - NK.flat * 0.35);
+    const sf = (y: number, deg = 0) => skull(y, deg)[2];
+    const sx = (y: number, deg: number) => skull(y, deg)[0];
+    const nw = 0.0155 * NK.w * (1 - fem * 0.12);
+    const L = 0.022 * NK.len * (1 - fem * 0.15) * (1 - NK.flat * 0.35);
     const cx = NK.crook;
-    const top = tr([0, 0.1, f(0.1) - 0.002]);
-    const tip = tr([cx, 0.058, f(0.058) + len_]);
-    const bot = tr([cx * 0.8, 0.047, f(0.047) + len_ * 0.45]);
-    const l = tr([nw + cx * 0.5, 0.052, f(0.052) - 0.006]);
-    const r = tr([-nw + cx * 0.5, 0.052, f(0.052) - 0.006]);
-    const ml = tr([nw * 0.55 + cx * 0.6, 0.08, f(0.08) + len_ * 0.25 + NK.bump]);
-    const mr = tr([-nw * 0.55 + cx * 0.6, 0.08, f(0.08) + len_ * 0.25 + NK.bump]);
-    const P = [top, tip, bot, l, r, ml, mr].map((p) => vP(p, 80));
-    const [T, Tp, Bt, L, Rr, ML, MR] = P;
-    const ins = tr([0, 0.07, f(0.07) - 0.03]);
-    for (const t of [[T, ML, Tp], [T, Tp, MR], [ML, L, Tp], [MR, Tp, Rr], [L, Bt, Tp], [Rr, Tp, Bt], [T, MR, Rr], [T, L, ML]] as number[][]) B.triOut(t[0], t[1], t[2], ins);
+    const pt = (x: number, y: number, z: number): V3 => tr([x, y, z]);
+    const root = pt(0, 0.106, sf(0.106) + 0.001);
+    const brL = pt(nw * 0.42, 0.094, sf(0.094, 6) + 0.002), brR = pt(-nw * 0.42, 0.094, sf(0.094, -6) + 0.002);
+    const ridge = pt(cx * 0.5, 0.08, sf(0.08) + L * 0.38 + NK.bump);
+    const tipT = pt(cx, 0.062, sf(0.062) + L * 0.92);
+    const tip = pt(cx, 0.056, sf(0.056) + L);
+    const tipL = pt(cx + nw * 0.42, 0.057, sf(0.057) + L * 0.8), tipR = pt(cx - nw * 0.42, 0.057, sf(0.057) + L * 0.8);
+    const sideL = pt(cx * 0.7 + nw * 0.62, 0.074, sf(0.074, 9) + L * 0.25), sideR = pt(cx * 0.7 - nw * 0.62, 0.074, sf(0.074, -9) + L * 0.25);
+    const alaL = pt(cx * 0.4 + nw * 1.05, 0.054, Math.max(sf(0.054, 12) + 0.002, sf(0.054) + L * 0.22)), alaR = pt(cx * 0.4 - nw * 1.05, 0.054, Math.max(sf(0.054, -12) + 0.002, sf(0.054) + L * 0.22));
+    const baseL = pt(sx(0.05, 10) * 0.6 + cx * 0.3, 0.049, sf(0.049, 8) + 0.002), baseR = pt(sx(0.05, -10) * 0.6 + cx * 0.3, 0.049, sf(0.049, -8) + 0.002);
+    const col = pt(cx * 0.8, 0.05, sf(0.05) + L * 0.5);
+    const P = [root, brL, brR, ridge, tipT, tip, tipL, tipR, sideL, sideR, alaL, alaR, baseL, baseR, col].map((p) => vP(p, 80));
+    const [RT, BL, BR, RG, TT, TP, TL, TR, SL, SR, AL, AR, NL, NR, CO] = P;
+    const ins = tr([0, 0.075, sf(0.075) - 0.03]);
+    const T = (a: number, b: number, c: number) => B.triOut(a, b, c, ins);
+    T(RT, BL, RG); T(RT, RG, BR); T(BL, SL, RG); T(BR, RG, SR);
+    T(RG, SL, TT); T(RG, TT, SR); T(SL, TL, TT); T(SR, TT, TR); T(TT, TL, TP); T(TT, TP, TR);
+    T(SL, AL, TL); T(SR, TR, AR); T(TL, AL, CO); T(TR, CO, AR); T(TL, CO, TP); T(TR, TP, CO);
+    T(AL, NL, CO); T(AR, CO, NR); T(BL, AL, SL); T(BR, SR, AR); T(BL, NL, AL); T(BR, AR, NR);
   }
-  // ears
+  // ears: a rim (helix) curling back from the side of the head, the bowl inside it, a lobe; both faces drawn
   const EK = earK(app.ears ?? 0);
   for (const k of [1, -1]) {
     const a = k * 95;
-    const ys = EK.size, ym = 0.081;
-    const p0 = headPt(ym + (0.104 - ym) * ys, a), p1 = headPt(ym + (0.058 - ym) * ys, a);
-    const out = 0.014 * EK.out + EK.lump * 0.004;
-    const e0 = tr([p0[0], p0[1], p0[2] + 0.004]), e1 = tr([p1[0], p1[1], p1[2] + 0.002]);
-    const e2 = tr([p0[0] + k * out, ym + (0.1 - ym) * ys, p0[2] - 0.018 * ys]), e3 = tr([p1[0] + k * out * 0.7, ym + (0.062 - ym) * ys, p1[2] - 0.012 * ys]);
-    const e4 = tr([p0[0] + k * (0.002 + EK.lump * 0.004), ym + (0.11 - ym) * ys, p0[2] - 0.028 * ys]);
-    const ids = [e0, e1, e2, e3, e4].map((p) => vP(p, -1));
-    const ins = tr([0, 0.08, -0.01]);
-    B.triOut(ids[0], ids[2], ids[1], ins); B.triOut(ids[1], ids[2], ids[3], ins); B.triOut(ids[0], ids[4], ids[2], ins);
-    B.triOut(ids[1], ids[3], ids[0], centre, true);
+    const es = EK.size, ym = 0.08;
+    const Y = (y: number) => ym + (y - ym) * es;
+    const out = (0.013 * EK.out + EK.lump * 0.004);
+    const base = (y: number, back: number) => { const p = skull(Y(y), a - k * back, -0.002, false); return p; };
+    const rim = (y: number, o: number, back: number) => { const p = skull(Y(y), a - k * back, 0, false); return [p[0] + k * o, p[1], p[2]] as V3; };
+    const pts: V3[] = [
+      base(0.106, 2), base(0.082, 0), base(0.058, 2),                       // 0..2 root on the skull
+      rim(0.116, out * 0.55, 10), rim(0.108, out * 0.95, 22), rim(0.088, out * 1.05, 27), rim(0.068, out * 0.9, 22), rim(0.052, out * 0.55, 12), // 3..7 helix
+      rim(0.092, out * 0.45, 12), rim(0.074, out * 0.42, 11),               // 8..9 bowl
+      rim(0.046, out * 0.3, 5),                                             // 10 lobe tip
+    ].map((p) => tr(p));
+    const F = pts.map((p) => vP(p, -1)), Bk = pts.map((p) => vP(p, -1));
+    const tris = [[0, 3, 8], [3, 4, 8], [4, 5, 8], [8, 5, 9], [5, 6, 9], [6, 7, 9], [9, 7, 2], [8, 9, 1], [0, 8, 1], [1, 9, 2], [2, 7, 10]];
+    const outside = tr([k * 0.2, 0.08, 0.02]);
+    for (const t of tris) { B.triOut(F[t[0]], F[t[1]], F[t[2]], centre); B.triOut(Bk[t[0]], Bk[t[1]], Bk[t[2]], outside); }
   }
   // eyelids (collapse onto the lid line unless blinking / asleep)
   {
     const reg = REG.LIDS;
     const L = BI.lids;
     for (const k of [1, -1]) {
-      const cols = [10, 18, 28].map((a) => k * a);
-      const top = cols.map((a) => tr(headPt(0.104, a, 0.0035)));
-      const bot = cols.map((a) => tr(headPt(0.087, a, 0.004)));
-      const ids: number[][] = [top, bot].map((row, ri) => row.map((p, ci) => B.vert(p, reg.x + (k > 0 ? 0.5 + ci / 4 : 0.5 - ci / 4) * reg.w, reg.y + (ri === 0 ? 0.1 : 0.9) * reg.h, [L, 1], 90)));
-      for (let c = 0; c < 2; c++) { B.triOut(ids[0][c], ids[1][c], ids[1][c + 1], centre); B.triOut(ids[0][c], ids[1][c + 1], ids[0][c + 1], centre); }
+      const cols = [9, 14, 19, 24, 29].map((a) => k * a);
+      const top = cols.map((a, i) => tr(headPt(0.105, a, 0.0028 + (i === 0 || i === 4 ? 0 : 0.0008))));
+      const bot = cols.map((a, i) => tr(headPt(0.0905, a, 0.0032 + (i === 0 || i === 4 ? 0 : 0.0012))));
+      const ids: number[][] = [top, bot].map((row, ri) => row.map((p, ci) => B.vert(p, reg.x + (k > 0 ? 0.5 + ci / 9 : 0.5 - ci / 9) * reg.w, reg.y + (ri === 0 ? 0.1 : 0.9) * reg.h, [L, 1], 90)));
+      for (let c = 0; c < cols.length - 1; c++) { B.triOut(ids[0][c], ids[1][c], ids[1][c + 1], centre); B.triOut(ids[0][c], ids[1][c + 1], ids[0][c + 1], centre); }
     }
   }
   // facial hair geometry (stubble and soul patches are painted)
@@ -1074,7 +1145,7 @@ function hair(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape, tr: (p:
     return { pts, v: vOf(VMAP.HAIR, y), w: hairW };
   });
   const capOff = hat ? null : tr([0, 0.215 + thick + (st === 'curly' ? 0.01 : st === 'afro' ? 0.02 : st === 'spiky' ? 0.012 : 0), -0.008]);
-  B.loft(rings, us, REG.HAIR, 110, { end: capOff, endW: [H, 1], endV: 1, double: longish || st === 'afro', doubleRows: (i) => rowYs[i] < 0.02 });
+  B.loft(rings, us, REG.HAIR, 110, { end: capOff, endW: [H, 1], endV: 1, double: longish || st === 'afro', doubleRows: (i) => rowYs[i] < 0.02, alt: true });
   // fringe / bangs
   if (!hat && (st === 'bob' || st === 'long' || st === 'curly' || st === 'afro')) {
     const ang = [-50, -30, -12, 0, 12, 30, 50];

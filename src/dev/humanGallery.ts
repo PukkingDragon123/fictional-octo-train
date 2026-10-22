@@ -194,3 +194,74 @@ export async function populate(g: { pr: any; z: any; tgt: THREE.Vector3 }, set =
   (window as any).__humans = players;
   return players.length;
 }
+
+// ------------------------------------------------------------------ studio: standalone close-ups (menu-scene lighting)
+/**
+ * A standalone lit stage like the menus and the operating table use: the
+ * scene rendered at low resolution and upscaled with nearest filtering, a warm
+ * key, a cold rim, a weak fill, preview rigs with their own black outline.
+ *   ?gallery=humans then: (await import('/src/dev/humanGallery.ts')).studio({ mode: 'heads' })
+ * modes: 'lineup' (full bodies), 'heads' (faces, 3/4 view), 'one' (one subject, waist up), 'anim' (an action loop)
+ */
+export async function studio(o: { mode?: string; n?: number; seed?: number; scale?: number; wear?: string[][]; yaw?: number; app?: Partial<Appearance>[]; action?: string; t?: number; emote?: string } = {}) {
+  const { createPreviewRig } = await import('../entities/humanRig');
+  const mode = o.mode || 'lineup';
+  const scale = o.scale ?? 3;
+  const W = Math.floor(innerWidth / scale), H = Math.floor(innerHeight / scale);
+  const cv = document.createElement('canvas');
+  cv.style.cssText = `position:fixed;left:0;top:0;width:${W * scale}px;height:${H * scale}px;image-rendering:pixelated;z-index:30`;
+  document.body.appendChild(cv);
+  const r = new THREE.WebGLRenderer({ canvas: cv, antialias: false });
+  r.setPixelRatio(1); r.setSize(W, H, false);
+  r.outputColorSpace = THREE.SRGBColorSpace;
+  r.shadowMap.enabled = true;
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x14160f);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshLambertMaterial({ color: 0x2a2a22 }));
+  floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+  const wall = new THREE.Mesh(new THREE.PlaneGeometry(30, 10), new THREE.MeshLambertMaterial({ color: 0x23261c }));
+  wall.position.set(0, 5, -3); scene.add(wall);
+  scene.add(new THREE.HemisphereLight(0x8a96a8, 0x2a2018, 0.55));
+  const key = new THREE.DirectionalLight(0xffe6c8, 2.1); key.position.set(-2.2, 3.2, 3); key.castShadow = true; scene.add(key);
+  key.shadow.mapSize.set(1024, 1024); key.shadow.camera.left = -4; key.shadow.camera.right = 4; key.shadow.camera.top = 4; key.shadow.camera.bottom = -1;
+  const rim = new THREE.DirectionalLight(0x7aa0ff, 1.3); rim.position.set(2.5, 2, -2.5); scene.add(rim);
+  const fill = new THREE.DirectionalLight(0x9ab090, 0.35); fill.position.set(2.5, 0.8, 2); scene.add(fill);
+  const rng = new Rng(o.seed ?? 11);
+  const WEAR = o.wear ?? [
+    ['prison_jumpsuit', 'socks', 'canvas_slipons'], ['tshirt', 'jeans', 'sneakers'], ['hoodie', 'sweatpants', 'boots_work'], ['shirt_office', 'slacks', 'dress_shoes', 'glasses'],
+    ['jacket_leather', 'tshirt', 'jeans', 'boots_work'], ['guard_uniform', 'boots_work'], ['scrubs_top', 'scrubs_pants', 'sneakers'], ['sweater', 'skirt', 'sneakers', 'beanie'],
+  ];
+  const n = o.n ?? (mode === 'heads' ? 4 : mode === 'one' || mode === 'anim' ? 1 : 6);
+  const rigs: any[] = [];
+  for (let i = 0; i < n; i++) {
+    const app = { ...randomAppearance(() => rng.next()), ...((o.app && o.app[i % o.app.length]) || {}) } as Appearance;
+    const p = new Player('st' + i, 'st' + i, app, false);
+    for (const k of WEAR[i % WEAR.length]) if (hasItemDef(k)) { const it = createItem(k); p.inv.add(it); p.wear(it); }
+    const rig = createPreviewRig(p.app, p.computeOutfit());
+    rig.skin.castShadow = true;
+    const sp = mode === 'heads' ? 0.36 : 0.85;
+    rig.root.position.set((i - (n - 1) / 2) * sp, 0, 0);
+    rig.root.rotation.y = o.yaw ?? (mode === 'heads' ? 0.45 : 0.3);
+    scene.add(rig.root);
+    rigs.push(rig);
+  }
+  const cam = new THREE.PerspectiveCamera(mode === 'heads' ? 18 : mode === 'one' ? 24 : 30, W / H, 0.05, 50);
+  if (mode === 'heads') { cam.position.set(0, 1.62, 2.1); cam.lookAt(0, 1.58, 0); }
+  else if (mode === 'one') { cam.position.set(0, 1.4, 2.0); cam.lookAt(0, 1.3, 0); }
+  else if (mode === 'anim') { cam.position.set(0, 1.2, 4.2); cam.lookAt(0, 0.9, 0); }
+  else { cam.position.set(0, 1.25, 4.6 + n * 0.35); cam.lookAt(0, 0.92, 0); }
+  let last = performance.now(), t = 0;
+  const loop = () => {
+    const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+    for (const rig of rigs) {
+      if (o.action) rig.update(dt, { action: o.action, actionT: o.t ?? (t % 1.2), actionDur: 1.2, holding: true });
+      else rig.update(dt);
+    }
+    r.render(scene, cam);
+    requestAnimationFrame(loop);
+  };
+  if (o.emote) for (const rig of rigs) rig.playEmote(o.emote, true);
+  loop();
+  (window as any).__studio = { scene, cam, rigs, r, key, rim, fill };
+  return rigs.length;
+}

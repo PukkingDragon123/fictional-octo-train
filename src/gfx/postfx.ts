@@ -465,37 +465,49 @@ void main() {
   }
 #endif
 
-  // --- outlines ---
+  // --- outlines: one low-res pixel, like hand-drawn sprites ---
+  // silhouettes: the pixel just OUTSIDE anything outlineable that stands clearly in front of it turns
+  // near-black, so the object keeps every pixel of its own detail; creases: a concave fold (wall meets
+  // floor, a drawer in its carcass) gets a dark line on its far side, a convex top edge a 1px light lip.
+  // Everything keys off depth + gNormal at the snapped low-res grid, so it is stable while the camera pans.
   vec2 offs[4] = vec2[4](vec2(0.0, px.y), vec2(0.0, -px.y), vec2(px.x, 0.0), vec2(-px.x, 0.0));
-  float depthEdge = 0.0;
-  float normalEdge = 0.0;
-  float hlEdge = 0.0;
+  float sil = 0.0, crease = 0.0, lip = 0.0, hlEdge = 0.0;
   bool isHl = abs(fl.x - 0.5) < 0.1;
+  float outlineable = step(0.25, fl.x);
+  float thr = 0.06 + uPxM * 2.6 + d * 0.0015;
   for (int i = 0; i < 4; i++) {
     vec2 o = uv + offs[i];
-    float dn = lin(texture2D(tDepth, o).r);
+    float dnr = texture2D(tDepth, o).r;
+    float dn = lin(dnr);
     vec4 nb = texture2D(tNormal, o);
     float nbFlag = unpackFlags(nb.a).x;
-    float dd = dn - d;
-    if (dd > 0.14 + d * 0.004) depthEdge = 1.0;
-    vec3 nn = nb.xyz * 2.0 - 1.0;
-    if (abs(dd) < 0.25) {
-      float ne = clamp(dot(n - nn, vec3(0.55, 0.9, 0.45)), 0.0, 1.0);
-      normalEdge += ne * step(-0.01, dd);
+    float dd = d - dn;                        // > 0: the neighbour is nearer the camera
+    bool nbLine = nbFlag > 0.25 && dnr < 0.99999;
+    // a clear step in depth, or the edge where an object stands on (or hangs over) un-inked ground
+    if (nbLine && (dd > thr || (outlineable < 0.5 && !isVoid && dd > -thr))) sil = 1.0;
+    if (!isVoid && outlineable > 0.5 && nbLine && abs(dd) < thr) {
+      vec3 nn = nb.xyz * 2.0 - 1.0;
+      float bend = 1.0 - dot(n, nn);
+      if (bend > 0.22) {
+        float side = dot(wpos(o, dn) - P, n);
+        float k = smoothstep(0.22, 0.6, bend);
+        if (side > uPxM * 0.12) { if (dd >= 0.0) crease = max(crease, k); }
+        else if (side < -uPxM * 0.12 && n.y > 0.45) lip = max(lip, k);
+      }
     }
     bool nbHl = abs(nbFlag - 0.5) < 0.1;
     if (nbHl && !isHl) hlEdge = 1.0;
   }
-  float outlineable = step(0.25, fl.x);
-  normalEdge = clamp(normalEdge, 0.0, 1.0) * outlineable;
-  if (depthEdge > 0.5 && outlineable > 0.5) c *= (1.0 - 0.55 * uOutline);
-  else c *= 1.0 + normalEdge * uEdgeLight;
+  c *= 1.0 - crease * 0.42 * uOutline;
+  c *= 1.0 + lip * uEdgeLight;
+  // the silhouette itself is inked after the grade (below) so haze, bloom and lift never wash it out
+  float silK = sil * uOutline * (1.0 - smoothstep(uFogNear, uFogFar, length(P.xz - uPlayerPos.xz)) * 0.85);
   if (isHl) c = c * 1.18 + uHighlight * 0.06;
   if (hlEdge > 0.5) c = mix(c, uHighlight, 0.85);
 
   // --- survivors and creatures: a soft top / rim light so they read against busy floors ---
 #ifdef ACTOR_RIM
-  if (uRim > 0.0 && !isVoid && outlineable > 0.5 && depthEdge < 0.5) {
+  if (uRim > 0.0 && !isVoid && outlineable > 0.5 && sil < 0.5) {
     float act = 0.0;
     for (int i = 0; i < 16; i++) {
       if (i >= uBlobN) break;
@@ -536,12 +548,20 @@ void main() {
     float fogF = smoothstep(uFogNear, uFogFar, length(P.xz - uPlayerPos.xz));
     m *= visAt(P.xz) * (1.0 - fogF * 0.6);
     c = mix(c, mc, m);
+    silK *= 1.0 - m * 0.8;
   }
 #endif
 
   // --- volumetric light (haze, cones, shafts) ---
 #ifdef VOL_ON
-  c += texture2D(tVol, vUv).rgb;
+  // the march is jittered per pixel at half resolution: a 4-tap box over one jitter period
+  // gives smooth haze instead of a screen-door pattern on flat walls
+  {
+    vec2 hv = px * 1.0;
+    vec3 vol = texture2D(tVol, vUv + vec2(-hv.x, -hv.y)).rgb + texture2D(tVol, vUv + vec2(hv.x, -hv.y)).rgb
+             + texture2D(tVol, vUv + vec2(-hv.x, hv.y)).rgb + texture2D(tVol, vUv + vec2(hv.x, hv.y)).rgb;
+    c += vol * 0.25;
+  }
 #endif
 
   // --- dust motes drifting in the beams ---
@@ -580,8 +600,10 @@ void main() {
 
   // --- bloom + lens dirt ---
 #ifdef BLOOM_ON
-  vec3 bl = texture2D(tBloom, vUv).rgb;
-  c += bl * uBloomStr;
+  // a tight glow, stepped into a few bands so it reads as pixel-art halo rings instead of a smear
+  vec3 bl = texture2D(tBloom, uv).rgb * uBloomStr;
+  float blm = max(bl.r, max(bl.g, bl.b));
+  c += bl * (floor(blm * 10.0 + 0.35) / 10.0) / max(blm, 1e-4);
 #ifdef DIRT_ON
   c += texture2D(tDirt, vUv).rgb * texture2D(tBloomWide, vUv).rgb * uDirtStr;
 #endif
@@ -629,13 +651,21 @@ void main() {
     float lid = abs(vUv.y - 0.5) * 2.0;
     c *= smoothstep(1.0 - uBlink * 1.1, 1.0 - uBlink * 1.1 + 0.15, 1.0 - lid);
   }
-  // --- film grain: per low-res pixel, at film cadence, strongest in the mid tones ---
+  // --- dark-art contrast: a gentle S-curve, cool shadows, warm light ---
+  {
+    vec3 sc = clamp(c, 0.0, 1.0);
+    c = mix(c, sc * sc * (3.0 - 2.0 * sc), 0.22);
+    float ly = dot(c, vec3(0.299, 0.587, 0.114));
+    c *= mix(vec3(0.9, 0.97, 1.1), vec3(1.0), smoothstep(0.04, 0.4, ly));
+    c *= mix(vec3(1.0), vec3(1.05, 1.0, 0.92), smoothstep(0.45, 0.9, ly));
+  }
+  // --- ink: the silhouette outline (computed above), true near-black after the grade ---
+  c = mix(c, uLift * 0.35, clamp(silK, 0.0, 1.0) * 0.95);
+  // --- posterise to a clean palette: round to the nearest level, no ordered dither (no screen-door
+  // pattern on flat walls); a whisper of grain below one level step so it never flickers band edges ---
+  c = floor(max(c, 0.0) * uLevels + 0.5) / uLevels;
   float gl2 = dot(c, vec3(0.299, 0.587, 0.114));
-  float gw = 0.55 + 1.8 * gl2 * (1.0 - gl2);
-  c += (h12(floor(vUv * uRes) + floor(uTime * 24.0) * 7.31) - 0.5) * uGrain * gw * uFilm;
-  // --- quantise with ordered dither (15-bit-ish PS1 palette) ---
-  float b = bayer4(gl_FragCoord.xy);
-  c = floor(c * uLevels + b) / uLevels;
+  c += (h12(floor(vUv * uRes) + floor(uTime * 12.0) * 7.31) - 0.5) * min(uGrain * uFilm, 0.35 / uLevels) * (0.4 + gl2);
   gl_FragColor = vec4(c, 1.0);
 }
 `;
@@ -749,7 +779,8 @@ export class PostFX {
     const d: Record<string, any> = { SSR_N: on ? q.ssr : 0 };
     if (this.debugView) d.DEBUG_VIEW = this.debugView;
     if (on && (q.ao > 0 || q.blobs > 0)) d.AO_ON = 1;
-    if (on && q.bloom > 0) { d.BLOOM_ON = 1; if (q.dirt) d.DIRT_ON = 1; }
+    // lens dirt is a smear over the whole frame: never in the crisp pixel look
+    if (on && q.bloom > 0) d.BLOOM_ON = 1;
     if (on && q.vol > 0) d.VOL_ON = 1;
     if (on && q.motes) d.MOTES_ON = 1;
     if (on && q.split) d.SUN_SPLIT = 1;

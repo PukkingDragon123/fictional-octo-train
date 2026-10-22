@@ -1,206 +1,183 @@
-// Parts for the subject room (room3d.ts): the concrete cell (ModelBuilder on
-// the world atlas), the settings gear, the painted faces of things (Nixie
-// glyphs, label tape, brass, gauges) and the blood. The machines and props
-// are smooth models in roomParts.ts. Nothing here runs per frame.
+// The subject room's shell and its fixed dressing as faceted models on
+// pixel-art textures (scene/facet.ts, scene/pixtex.ts): glazed tile up to the
+// dado, board-formed concrete above, a slab floor with saw cuts, a riveted
+// I-beam ceiling with the press well, the hatch and the arm slots, pipe runs
+// with flanges and a handwheel, a louvre, the die plate, the drain, the brine
+// bucket, the instrument stand, the monitor cart, the breaker, signs. Also
+// the blood decals. Nothing here runs per frame.
 import * as THREE from 'three';
-import { ModelBuilder } from '../../gfx/modelBuilder';
-import { cssFont } from '../../gfx/crt';
+import {
+  FacetBuilder, at, cbox, prism, extrude, ngon, band, bolt, pipeRun, valveWheel, COL,
+  breakerModel, trayModel, bucketModel, drainModel, signModel, monitorModel, fixtureModel, type Mats,
+} from './roomParts';
 
-export const ROOM = { W: 3.4, BACK: -2.4, FRONT: 6, H: 3.6, HATCH_W: 1.3, HATCH_H: 2.3, SEAT_Y: 0.47, CHAIR_Z: -0.45, FLOAT_Z: 0.45, PLATE_Y: 0.07 };
+export const ROOM = { W: 3.4, BACK: -2.4, FRONT: 6, H: 3.6, HATCH_W: 1.3, HATCH_H: 2.3, SEAT_Y: 0.47, CHAIR_Z: -0.45, FLOAT_Z: 0.45, PLATE_Y: 0.07, TILE_H: 1.5 };
 /** phosphor and lamp colours (no neon: tubes, filaments, phosphor) */
 export const PHOS = { amber: 0xffb43c, green: 0x8dff7a, white: 0xe8e4d0, nixie: 0xff7a2a, red: 0xff4a2a };
-
-const hz = (mb: ModelBuilder, x: number, y: number, z: number, w: number, h: number, d: number, n: number, axis: 'x' | 'z') => {
-  // a hazard stripe: alternating yellow / black blocks
-  for (let i = 0; i < n; i++) {
-    const t = (i + 0.5) / n - 0.5;
-    const c = i % 2 ? 0x17150f : 0xe8b52a;
-    if (axis === 'x') mb.box(x + t * w, y, z, w / n + 0.001, h, d, 'plastic_white', { color: c });
-    else mb.box(x, y, z + t * d, w, h, d / n + 0.001, 'plastic_white', { color: c });
-  }
+/** where things stand (world) */
+export const SPOT = {
+  breaker: new THREE.Vector3(-ROOM.W + 0.01, 1.25, -1.3),
+  lever: new THREE.Vector3(-ROOM.W + 0.24, 1.18, -1.3),
+  monitor: { x: 1.32, z: -0.62, ry: -0.95 },
+  fixtures: [[-1.6, -1.2], [1.6, -1.2], [-1.6, 1.6], [1.6, 1.6]] as [number, number][],
+  hatchLamp: new THREE.Vector3(0, ROOM.HATCH_H + 0.17, ROOM.BACK + 0.08),
 };
 
-/** the cell: floor, walls round a hatch in the back wall, a low ceiling with the press housing, pipes, the die plate */
-export function roomGeometry(): THREE.BufferGeometry {
-  const { W, BACK, FRONT, H, HATCH_W, HATCH_H, FLOAT_Z, PLATE_Y } = ROOM;
-  const mb = new ModelBuilder();
-  const zc = (BACK + FRONT) / 2, D = FRONT - BACK;
-  mb.box(0, -0.05, zc, W * 2, 0.05, D, { top: 'concrete_wet', all: 'concrete' }, { color: 0x8a8c84 });
-  // back wall in four pieces round the hatch
-  const hw = HATCH_W / 2;
-  const wallTex = { south: 'p_tile_wall', all: 'concrete' };
-  mb.box((-W - hw) / 2, 0, BACK - 0.1, W - hw, 1.3, 0.2, wallTex, { color: 0x7a8078 });
-  mb.box((W + hw) / 2, 0, BACK - 0.1, W - hw, 1.3, 0.2, wallTex, { color: 0x7a8078 });
-  mb.box((-W - hw) / 2, 1.3, BACK - 0.1, W - hw, H - 1.3, 0.2, { south: 'concrete_b', all: 'concrete' }, { color: 0x6a6c66 });
-  mb.box((W + hw) / 2, 1.3, BACK - 0.1, W - hw, H - 1.3, 0.2, { south: 'concrete_b', all: 'concrete' }, { color: 0x6a6c66 });
-  mb.box(0, HATCH_H, BACK - 0.1, HATCH_W, H - HATCH_H, 0.2, { south: 'concrete_b', all: 'concrete' }, { color: 0x6a6c66 });
-  // hatch frame and its hazard lintel
-  for (const k of [-1, 1]) mb.box(k * (hw + 0.06), 0, BACK + 0.02, 0.12, HATCH_H + 0.06, 0.08, 'metal_dark', { color: 0x4a4c48 });
-  hz(mb, 0, HATCH_H + 0.02, BACK + 0.04, HATCH_W + 0.24, 0.1, 0.06, 12, 'x');
-  // the tunnel behind the hatch (a dark throat)
-  mb.box(0, 0, BACK - 1.6, HATCH_W + 0.2, 0.04, 3, 'grate', { color: 0x3a3c38 });
-  for (const k of [-1, 1]) mb.box(k * (hw + 0.1), 0, BACK - 1.6, 0.04, HATCH_H + 0.2, 3, 'metal_dark', { color: 0x2a2c2a });
-  mb.box(0, HATCH_H + 0.1, BACK - 1.6, HATCH_W + 0.2, 0.04, 3, 'metal_dark', { color: 0x222422 });
-  mb.box(0, 0, BACK - 3.05, HATCH_W + 0.2, HATCH_H + 0.2, 0.05, 'metal_dark', { color: 0x1a1a1a });
-  // side walls, skirting
-  for (const k of [-1, 1]) {
-    mb.box(k * (W + 0.1), 0, zc, 0.2, H, D, { east: 'concrete_b', west: 'concrete_b', all: 'concrete' }, { color: 0x6a6e68 });
-    mb.box(k * (W - 0.01), 0, zc, 0.02, 0.14, D, 'metal_painted_green', { color: 0x30342c });
-  }
-  // ceiling with the press housing (a square well) and tube fixtures
-  const pw = 1.5, pd = 1.2;
-  mb.box((-W - pw / 2) / 2, H, zc, W - pw / 2, 0.1, D, 'metal_dark', { color: 0x3a3c3a });
-  mb.box((W + pw / 2) / 2, H, zc, W - pw / 2, 0.1, D, 'metal_dark', { color: 0x3a3c3a });
-  mb.box(0, H, (BACK + FLOAT_Z - pd / 2) / 2, pw, 0.1, FLOAT_Z - pd / 2 - BACK, 'metal_dark', { color: 0x3a3c3a });
-  mb.box(0, H, (FLOAT_Z + pd / 2 + FRONT) / 2, pw, 0.1, FRONT - FLOAT_Z - pd / 2, 'metal_dark', { color: 0x3a3c3a });
-  for (const k of [-1, 1]) { mb.box(k * (pw / 2 + 0.05), H - 0.25, FLOAT_Z, 0.1, 0.25, pd + 0.2, 'metal_rusty', { color: 0x6a5a4a }); mb.box(0, H - 0.25, FLOAT_Z + k * (pd / 2 + 0.05), pw, 0.25, 0.1, 'metal_rusty', { color: 0x6a5a4a }); }
-  mb.box(0, H + 1.2, FLOAT_Z, pw, 0.05, pd, 'metal_dark', { color: 0x111111 });
-  for (const k of [-1, 1]) mb.box(k * (pw / 2), H, FLOAT_Z, 0.02, 1.2, pd, 'metal_dark', { color: 0x161616 });
-  // pipes and conduits
-  for (const [x, z, r] of [[-W + 0.18, -1.0, 0.07], [-W + 0.32, -1.0, 0.04], [W - 0.2, 1.4, 0.06]] as const) {
-    mb.cylinder(x, 0, z, r, H, 8, 'metal_rusty', { color: 0x7a6a5a });
-  }
-  mb.cylinderX(0, H - 0.18, BACK + 0.2, 0.06, W * 2, 8, 'metal_grey', { color: 0x5a5e60 });
-  mb.cylinderX(0, H - 0.34, BACK + 0.14, 0.035, W * 2, 6, 'metal_rusty', { color: 0x6a5040 });
-  // the breaker panel on the left wall, with a fat cable to the chair
-  mb.box(-W + 0.06, 1.1, -1.3, 0.12, 0.7, 0.5, 'metal_painted_green', { color: 0x3a4a3a });
-  mb.box(-W + 0.14, 1.35, -1.3, 0.05, 0.25, 0.08, 'metal_dark', {});
-  mb.box(-W + 0.18, 1.55, -1.3, 0.08, 0.04, 0.04, 'plastic_red', { color: 0xa81a1a });
-  hz(mb, -W + 0.125, 1.04, -1.3, 0.01, 0.04, 0.5, 8, 'z');
-  // arm slots (dark mouths in the wall the arms come out of)
-  for (const k of [-1, 1]) { mb.box(k * 1.75, 2.75, BACK + 0.005, 0.7, 0.7, 0.02, 'metal_dark', { color: 0x0a0a0a }); hz(mb, k * 1.75, 3.12, BACK + 0.02, 0.8, 0.05, 0.03, 8, 'x'); }
-  mb.box(0, H - 0.01, -0.95, 0.6, 0.02, 0.6, 'metal_dark', { color: 0x0a0a0a });
-  mb.box(0, H - 0.01, 1.75, 0.6, 0.02, 0.6, 'metal_dark', { color: 0x0a0a0a });
-  // the press die: a steel plate on the floor with hazard edging and anchors for the ankle chains
-  mb.box(0, 0, FLOAT_Z, 1.4, PLATE_Y, 1.1, { top: 'metal_brushed', all: 'metal_dark' }, { color: 0x8a8e90 });
-  hz(mb, 0, PLATE_Y, FLOAT_Z + 0.58, 1.5, 0.012, 0.06, 14, 'x');
-  hz(mb, 0, PLATE_Y, FLOAT_Z - 0.58, 1.5, 0.012, 0.06, 14, 'x');
-  for (const k of [-1, 1]) mb.cylinder(k * 0.34, PLATE_Y, FLOAT_Z + 0.1, 0.035, 0.05, 6, 'metal_rusty', { color: 0x7a6050 });
-  // drain grate, a bucket, a stained mop sink corner
-  mb.box(1.6, 0.003, 1.6, 0.4, 0.006, 0.4, 'q_floor_grate', { fit: true });
-  mb.cylinder(-2.4, 0, 1.2, 0.16, 0.34, 8, 'metal_grey', { color: 0x6a6e70, rTop: 0.19 });
-  return mb.build();
+/** a world-space slab (UVs follow world coordinates, so tiles and seams line up across pieces) */
+function slab(b: FacetBuilder, key: Parameters<FacetBuilder['add']>[0], x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, color: number, c = 0.004) {
+  const g = cbox(Math.abs(x1 - x0), Math.abs(y1 - y0), Math.abs(z1 - z0), c);
+  g.translate((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+  b.add(key, g, color, undefined, { uv0: [0, 0], tone: 0.04, seed: 1 });
 }
 
-
-
-
-/** a cog with n teeth, extruded (the settings gear) */
-export function gearGeometry(r: number, n: number, depth: number): THREE.BufferGeometry {
-  const s = new THREE.Shape();
-  const r0 = r * 0.8, r1 = r;
-  for (let i = 0; i < n; i++) {
-    const a0 = (i / n) * Math.PI * 2, a1 = ((i + 0.25) / n) * Math.PI * 2, a2 = ((i + 0.5) / n) * Math.PI * 2, a3 = ((i + 0.75) / n) * Math.PI * 2;
-    const p = (a: number, rr: number) => [Math.cos(a) * rr, Math.sin(a) * rr] as const;
-    if (i === 0) s.moveTo(...p(a0, r0)); else s.lineTo(...p(a0, r0));
-    s.lineTo(...p(a1, r1)); s.lineTo(...p(a2, r1)); s.lineTo(...p(a3, r0));
+/** the cell and everything bolted down in it (static, merged per material) */
+export function roomModel(mats: Mats): THREE.Group {
+  const { W, BACK, FRONT, H, HATCH_W, HATCH_H, FLOAT_Z, PLATE_Y, TILE_H } = ROOM;
+  const b = new FacetBuilder();
+  const TILE = 0xd8e0cc, CONC = 0xb8b4aa, hw = HATCH_W / 2;
+  // floor
+  slab(b, 'floor', -W, W, -0.1, 0, BACK - 0.2, FRONT, 0xd0d0d0);
+  // back wall round the hatch: glazed tile to the dado, concrete above
+  slab(b, 'tile', -W, -hw, 0, TILE_H, BACK - 0.2, BACK, TILE);
+  slab(b, 'tile', hw, W, 0, TILE_H, BACK - 0.2, BACK, TILE);
+  slab(b, 'concrete', -W, -hw, TILE_H, H, BACK - 0.2, BACK, CONC);
+  slab(b, 'concrete', hw, W, TILE_H, H, BACK - 0.2, BACK, CONC);
+  slab(b, 'concrete', -hw, hw, HATCH_H, H, BACK - 0.2, BACK, CONC);
+  // side and front walls
+  for (const k of [-1, 1]) {
+    slab(b, 'tile', k * W, k * (W + 0.2), 0, TILE_H, BACK - 0.2, FRONT, TILE);
+    slab(b, 'concrete', k * W, k * (W + 0.2), TILE_H, H, BACK - 0.2, FRONT, CONC);
   }
-  s.closePath();
-  const hole = new THREE.Path();
-  hole.absarc(0, 0, r * 0.32, 0, Math.PI * 2, true);
-  s.holes.push(hole);
-  const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: true, bevelThickness: depth * 0.2, bevelSize: r * 0.03, bevelSegments: 1, curveSegments: 10 });
-  g.translate(0, 0, -depth / 2);
+  slab(b, 'tile', -W, W, 0, TILE_H, FRONT, FRONT + 0.2, TILE);
+  slab(b, 'concrete', -W, W, TILE_H, H, FRONT, FRONT + 0.2, CONC);
+  // the dado: a bullnose of dark green glazed cap tiles, and a skirting
+  const capRun = (x0: number, x1: number, z0: number, z1: number) => { slab(b, 'tile', x0, x1, TILE_H - 0.02, TILE_H + 0.05, z0, z1, 0x6a8a5a, 0.012); slab(b, 'tile', x0, x1, 0, 0.12, z0, z1, 0x5a6a4e, 0.01); };
+  capRun(-W, -hw - 0.12, BACK, BACK + 0.04); capRun(hw + 0.12, W, BACK, BACK + 0.04);
+  for (const k of [-1, 1]) capRun(k * W - (k > 0 ? 0.04 : 0), k * W + (k < 0 ? 0.04 : 0), BACK, FRONT);
+  capRun(-W, W, FRONT - 0.04, FRONT);
+  // ceiling round the press well, riveted I-beams under it
+  const pw = 1.5, pd = 1.2;
+  slab(b, 'concrete', -W, -pw / 2, H, H + 0.15, BACK - 0.2, FRONT, 0x6a6862);
+  slab(b, 'concrete', pw / 2, W, H, H + 0.15, BACK - 0.2, FRONT, 0x6a6862);
+  slab(b, 'concrete', -pw / 2, pw / 2, H, H + 0.15, BACK - 0.2, FLOAT_Z - pd / 2, 0x6a6862);
+  slab(b, 'concrete', -pw / 2, pw / 2, H, H + 0.15, FLOAT_Z + pd / 2, FRONT, 0x6a6862);
+  const I: [number, number][] = [[-0.07, -0.11], [0.07, -0.11], [0.07, -0.09], [0.008, -0.09], [0.008, 0.09], [0.07, 0.09], [0.07, 0.11], [-0.07, 0.11], [-0.07, 0.09], [-0.008, 0.09], [-0.008, -0.09], [-0.07, -0.09]];
+  for (const x of [-2.4, -1.0, 1.0, 2.4]) {
+    b.add('rust', extrude(I, FRONT - BACK, 0.003), 0x9a8a7a, at(x, H - 0.11, (FRONT + BACK) / 2), { grain: 'z' });
+    for (let z = BACK + 0.4; z < FRONT; z += 0.7) for (const dx of [-0.045, 0.045]) b.add('metal', bolt(0.01, 0.008), COL.dark, at(x + dx, H - 0.215, z, Math.PI));
+  }
+  // the press well: steel sides going up into the dark, a hazard collar
+  for (const k of [-1, 1]) {
+    slab(b, 'metal', k * pw / 2 - 0.02, k * pw / 2 + 0.02, H - 0.25, H + 1.3, FLOAT_Z - pd / 2, FLOAT_Z + pd / 2, 0x5a5c5a);
+    slab(b, 'metal', -pw / 2, pw / 2, H - 0.25, H + 1.3, FLOAT_Z + k * pd / 2 - 0.02, FLOAT_Z + k * pd / 2 + 0.02, 0x5a5c5a);
+  }
+  for (const k of [-1, 1]) { slab(b, 'hazard', k * (pw / 2 + 0.04) - 0.04, k * (pw / 2 + 0.04) + 0.04, H - 0.32, H - 0.2, FLOAT_Z - pd / 2 - 0.08, FLOAT_Z + pd / 2 + 0.08, 0xffffff, 0.01); slab(b, 'hazard', -pw / 2 - 0.08, pw / 2 + 0.08, H - 0.32, H - 0.2, FLOAT_Z + k * (pd / 2 + 0.04) - 0.04, FLOAT_Z + k * (pd / 2 + 0.04) + 0.04, 0xffffff, 0.01); }
+  slab(b, 'rubber', -pw / 2, pw / 2, H + 1.25, H + 1.3, FLOAT_Z - pd / 2, FLOAT_Z + pd / 2, 0x222222);
+  // the hatch: channel frame, hazard lintel, the throat behind with a grate floor
+  for (const k of [-1, 1]) {
+    b.add('paint', cbox(0.12, HATCH_H + 0.08, 0.1, 0.02), COL.oliveDark, at(k * (hw + 0.06), (HATCH_H + 0.08) / 2, BACK + 0.04));
+    for (let y = 0.3; y < HATCH_H; y += 0.5) b.add('metal', bolt(0.014, 0.01), COL.steel, at(k * (hw + 0.06), y, BACK + 0.095, Math.PI / 2));
+  }
+  b.add('hazard', cbox(HATCH_W + 0.26, 0.12, 0.1, 0.02), 0xffffff, at(0, HATCH_H + 0.06, BACK + 0.04), { rep: 0.24 });
+  slab(b, 'rust', -hw - 0.1, hw + 0.1, -0.02, 0.02, BACK - 3.1, BACK - 0.2, 0x8a8a8a);
+  for (const k of [-1, 1]) slab(b, 'metal', k * (hw + 0.1) - 0.02, k * (hw + 0.1) + 0.02, 0, HATCH_H + 0.2, BACK - 3.1, BACK - 0.2, 0x3a3c3a);
+  slab(b, 'metal', -hw - 0.1, hw + 0.1, HATCH_H + 0.1, HATCH_H + 0.2, BACK - 3.1, BACK - 0.2, 0x2a2c2a);
+  slab(b, 'metal', -hw - 0.1, hw + 0.1, 0, HATCH_H + 0.2, BACK - 3.15, BACK - 3.1, 0x1a1a1a);
+  b.add('metal', cbox(0.34, 0.08, 0.08, 0.012), COL.dark, at(0, HATCH_H + 0.17, BACK + 0.04));
+  // the arm slots: framed black mouths, a hazard strip above each
+  for (const k of [-1, 1]) {
+    b.add('metal', extrude([[-0.4, -0.4], [0.4, -0.4], [0.4, 0.4], [-0.4, 0.4]], 0.06, 0.012, [[[-0.32, -0.32], [0.32, -0.32], [0.32, 0.32], [-0.32, 0.32]]]), COL.dark, at(k * 1.75, 2.75, BACK + 0.03));
+    slab(b, 'rubber', k * 1.75 - 0.33, k * 1.75 + 0.33, 2.42, 3.08, BACK - 0.05, BACK + 0.004, 0x0a0a0a);
+    b.add('hazard', cbox(0.84, 0.06, 0.04, 0.01), 0xffffff, at(k * 1.75, 3.2, BACK + 0.03), { rep: 0.2 });
+  }
+  for (const [x, z] of [[0, -0.95], [-1.75, 0.9]]) {
+    b.add('metal', extrude([[-0.38, -0.38], [0.38, -0.38], [0.38, 0.38], [-0.38, 0.38]], 0.05, 0.01, [[[-0.3, -0.3], [0.3, -0.3], [0.3, 0.3], [-0.3, 0.3]]]), COL.dark, at(x, H - 0.02, z, Math.PI / 2));
+    slab(b, 'rubber', x - 0.31, x + 0.31, H - 0.005, H + 0.05, z - 0.31, z + 0.31, 0x0a0a0a);
+  }
+  // pipe runs: two risers in the back left corner, one on the right, a main along the back wall with a handwheel
+  pipeRun(b, [[-W + 0.17, 0, BACK + 0.17], [-W + 0.17, H - 0.25, BACK + 0.17], [W - 0.6, H - 0.25, BACK + 0.17]], 0.07, 'rust', 0xffffff);
+  pipeRun(b, [[-W + 0.36, 0, BACK + 0.12], [-W + 0.36, H - 0.45, BACK + 0.12], [-1.2, H - 0.45, BACK + 0.12], [-1.2, 1.9, BACK + 0.12]], 0.035, 'paint', 0x6a7a5a);
+  pipeRun(b, [[W - 0.2, 0, BACK + 0.2], [W - 0.2, H - 0.6, BACK + 0.2], [W - 0.2, H - 0.6, 2.0]], 0.055, 'paint', 0x8a5a3a);
+  valveWheel(b, at(-1.2, 1.88, BACK + 0.2), 0.11);
+  b.add('metal', prism(0.05, 0.08, 8), COL.dark, at(-1.2, 1.88, BACK + 0.12, Math.PI / 2));
+  // junction boxes and conduit on the back wall
+  for (const [x, y] of [[1.25, 2.1], [-2.3, 1.85]]) {
+    b.add('paint', cbox(0.22, 0.28, 0.1, 0.015), COL.oliveDark, at(x, y, BACK + 0.05));
+    for (const [dx, dy] of [[-0.08, 0.11], [0.08, 0.11], [-0.08, -0.11], [0.08, -0.11]]) b.add('metal', bolt(0.008, 0.006), COL.steel, at(x + dx, y + dy, BACK + 0.1, Math.PI / 2));
+    b.add('metal', prism(0.016, H - y - 0.14, 6), COL.steel, at(x, (H + y + 0.14) / 2, BACK + 0.04));
+  }
+  // a louvre high on the right wall
+  b.add('metal', extrude([[-0.35, -0.25], [0.35, -0.25], [0.35, 0.25], [-0.35, 0.25]], 0.06, 0.012, [[[-0.3, -0.2], [0.3, -0.2], [0.3, 0.2], [-0.3, 0.2]]]), COL.dark, at(W - 0.03, 2.75, -0.2, 0, -Math.PI / 2));
+  for (let i = 0; i < 7; i++) b.add('metal', cbox(0.05, 0.012, 0.6, 0.004), COL.steel, at(W - 0.03, 2.58 + i * 0.056, -0.2, 0, 0, 0.6));
+  slab(b, 'rubber', W - 0.01, W + 0.02, 2.55, 2.95, -0.5, 0.1, 0x050505);
+  // the die plate under the press: a steel slab with hazard edges and chain eyes
+  b.add('metal', cbox(1.4, PLATE_Y, 1.1, 0.012), 0x9a9e9e, at(0, PLATE_Y / 2, FLOAT_Z), { rep: 0.6 });
+  for (const k of [-1, 1]) b.add('hazard', cbox(1.5, 0.014, 0.07, 0.004), 0xffffff, at(0, PLATE_Y + 0.004, FLOAT_Z + k * 0.58), { rep: 0.2 });
+  for (const k of [-1, 1]) {
+    b.add('metal', bolt(0.035, 0.03), COL.dark, at(k * 0.34, PLATE_Y, FLOAT_Z + 0.1));
+    b.add('metal', band(0.022, 0.022, 0.012, 0.012, 6), COL.steel, at(k * 0.34, PLATE_Y + 0.05, FLOAT_Z + 0.1, Math.PI / 2));
+  }
+  for (const [x, z] of [[-0.62, -0.47], [0.62, -0.47], [-0.62, 0.47], [0.62, 0.47]]) b.add('metal', bolt(0.02, 0.012), COL.steel, at(x, PLATE_Y, FLOAT_Z + z));
+  const g = b.build(mats, { cast: false });
+  // the bolted-down things with their own pivots
+  const put = (o: THREE.Object3D, x: number, y: number, z: number, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; g.add(o); return o; };
+  g.add(breakerModel(mats));
+  put(trayModel(mats), -0.98, 0, -0.42, 0.5);
+  put(bucketModel(mats), 0.8, 0, -0.62);
+  put(drainModel(mats), 0.95, 0, 0.12);
+  put(signModel(mats, ['DANGER', '2400 VOLTS'], 0.28, 0.14, { bg: 0xc8a030 }), -ROOM.W + 0.012, 1.86, -1.3, Math.PI / 2);
+  put(signModel(mats, ['CHAIR No. 4'], 0.42, 0.11, { bg: 0xc8c0a0 }), 1.3, 2.62, BACK + 0.012);
+  put(signModel(mats, ['KEEP CLEAR'], 0.36, 0.09, { bg: 0xc8a030 }), 0, HATCH_H + 0.36, BACK + 0.012);
+  const fx = fixtureModel(mats);
+  for (const [x, z] of SPOT.fixtures) { const f = fx.group.clone(); put(f, x, H - 0.25, z); }
   return g;
 }
 
+/** the tube fixtures' glowing tubes, one merged geometry for all four (world space) */
+export function fixtureTubes(mats: Mats): THREE.BufferGeometry {
+  const { tubeGeo } = fixtureModel(mats);
+  const parts: number[] = [];
+  const p = tubeGeo.attributes.position as THREE.BufferAttribute;
+  for (const [x, z] of SPOT.fixtures) for (let i = 0; i < p.count; i++) parts.push(p.getX(i) + x, p.getY(i) + ROOM.H - 0.25, p.getZ(i) + z);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(parts, 3)); g.computeVertexNormals();
+  return g;
+}
+export { monitorModel };
 
-// ------------------------------------------------------------------ painted faces
-const css = (c: number, a = 1) => `rgba(${(c >> 16) & 255},${(c >> 8) & 255},${c & 255},${a})`;
+// ------------------------------------------------------------------ blood
 export function canvasTex(c: HTMLCanvasElement): THREE.CanvasTexture {
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
-/** a Nixie tube's cathode stack: the lit letter in glowing wire, the unlit cathodes behind it */
-export function paintNixie(cv: HTMLCanvasElement, ch: string) {
-  const W = 96, H = 128;
-  cv.width = W; cv.height = H;
-  const ctx = cv.getContext('2d')!;
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `104px ${cssFont('--font-nixie')}`;
-  // the dark cathodes stacked behind the lit one
-  ctx.fillStyle = 'rgba(120, 70, 40, 0.22)';
-  for (const c of ['8', '0', 'A', 'X']) if (c !== ch) ctx.fillText(c, W / 2 + (Math.random() - 0.5) * 3, H / 2 + 4);
-  // the anode mesh
-  ctx.strokeStyle = 'rgba(90, 60, 40, 0.25)'; ctx.lineWidth = 1;
-  for (let x = 4; x < W; x += 7) { ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x, H - 6); ctx.stroke(); }
-  for (let y = 6; y < H; y += 7) { ctx.beginPath(); ctx.moveTo(4, y); ctx.lineTo(W - 4, y); ctx.stroke(); }
-  // the glow: a wide orange haze, then the hot core of the wire
-  ctx.shadowColor = '#ff5a10'; ctx.shadowBlur = 18; ctx.fillStyle = '#ff7a2a';
-  ctx.fillText(ch, W / 2, H / 2 + 4);
-  ctx.shadowBlur = 6; ctx.fillStyle = '#ffb070';
-  ctx.fillText(ch, W / 2, H / 2 + 4);
-  ctx.shadowBlur = 0; ctx.fillStyle = 'rgba(255, 236, 200, 0.85)';
-  ctx.font = `100px ${cssFont('--font-nixie')}`;
-  ctx.fillText(ch, W / 2, H / 2 + 4);
-}
-/** a strip of embossed label tape (Dymo-style): raised white letters on coloured plastic */
-export function paintTape(cv: HTMLCanvasElement, label: string, tape: number, w: number, h: number) {
-  cv.width = w; cv.height = h;
-  const ctx = cv.getContext('2d')!;
-  ctx.clearRect(0, 0, w, h);
-  ctx.fillStyle = css(tape); ctx.fillRect(0, 1, w, h - 2);
-  ctx.fillStyle = css(0xffffff, 0.12); ctx.fillRect(0, 1, w, 1);
-  ctx.fillStyle = css(0x000000, 0.35); ctx.fillRect(0, h - 2, w, 1);
-  // notched ends
-  ctx.clearRect(0, 0, 2, 2); ctx.clearRect(0, h - 2, 2, 2); ctx.clearRect(w - 2, 0, 2, 2); ctx.clearRect(w - 2, h - 2, 2, 2);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  let fs = Math.round(h * 0.7);
-  const font = (n: number) => `600 ${n}px ${cssFont('--font-sign', 'sans-serif')}`;
-  ctx.font = font(fs);
-  while (ctx.measureText(label).width > w - 10 && fs > 8) ctx.font = font(--fs);
-  // raised letters: a dark undercut, then the stretched-white plastic
-  ctx.fillStyle = css(0x000000, 0.55); ctx.fillText(label, w / 2 + 1, h / 2 + 1.5);
-  ctx.fillStyle = '#f4f0e6'; ctx.fillText(label, w / 2, h / 2 + 0.5);
-}
-/** an engraved brass plate with screws */
-export function paintBrass(cv: HTMLCanvasElement, line1: string, line2: string, w: number, h: number) {
-  cv.width = w; cv.height = h;
-  const ctx = cv.getContext('2d')!;
-  for (let y = 0; y < h; y++) { const t = y / h; ctx.fillStyle = `rgb(${Math.round(196 - t * 70)},${Math.round(150 - t * 56)},${Math.round(70 - t * 30)})`; ctx.fillRect(0, y, w, 1); }
-  for (let i = 0; i < w * 0.6; i++) { ctx.fillStyle = 'rgba(255,240,200,0.12)'; ctx.fillRect(Math.floor(Math.random() * w), Math.floor(Math.random() * h), Math.floor(2 + Math.random() * 8), 1); }
-  ctx.strokeStyle = '#4a3410'; ctx.strokeRect(0.5, 0.5, w - 1, h - 1);
-  ctx.strokeStyle = 'rgba(255,230,170,0.6)'; ctx.strokeRect(1.5, 1.5, w - 3, h - 3);
-  for (const [x, y] of [[4, 4], [w - 5, 4], [4, h - 5], [w - 5, h - 5]]) { ctx.fillStyle = '#5a4018'; ctx.fillRect(x - 2, y - 2, 4, 4); ctx.fillStyle = '#e8d090'; ctx.fillRect(x - 1, y - 2, 1, 4); }
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `${Math.round(h * 0.4)}px ${cssFont('--font-poster', 'serif')}`;
-  ctx.fillStyle = 'rgba(255,240,200,0.55)'; ctx.fillText(line1, Math.round(w / 2) + 1, Math.round(h * 0.4) + 1);
-  ctx.fillStyle = '#2a1c08'; ctx.fillText(line1, Math.round(w / 2), Math.round(h * 0.4));
-  ctx.font = `500 ${Math.round(h * 0.2)}px ${cssFont('--font-sign', 'sans-serif')}`;
-  ctx.fillStyle = '#3a2a10'; ctx.fillText(line2, Math.round(w / 2), Math.round(h * 0.76));
-}
-/** a gauge face: cream enamel, ticks, a red zone */
-export function paintGauge(cv: HTMLCanvasElement, label: string) {
-  const S = 48; cv.width = S; cv.height = S;
-  const ctx = cv.getContext('2d')!;
-  ctx.fillStyle = '#e8e0c8'; ctx.beginPath(); ctx.arc(S / 2, S / 2, S / 2 - 1, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = '#2a2418';
-  for (let i = 0; i <= 10; i++) { const a = Math.PI * (0.8 + i * 0.14); const r0 = S * 0.36, r1 = i % 5 ? S * 0.41 : S * 0.44; ctx.beginPath(); ctx.moveTo(S / 2 + Math.cos(a) * r0, S / 2 + Math.sin(a) * r0); ctx.lineTo(S / 2 + Math.cos(a) * r1, S / 2 + Math.sin(a) * r1); ctx.stroke(); }
-  ctx.strokeStyle = '#b8261e'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(S / 2, S / 2, S * 0.4, Math.PI * 2.0, Math.PI * 2.2); ctx.stroke();
-  ctx.font = `500 9px ${cssFont('--font-sign', 'sans-serif')}`; ctx.fillStyle = '#2a2418'; ctx.textAlign = 'center'; ctx.fillText(label, S / 2, S * 0.74);
-}
-
-/** a blood splat (alpha) for decals: a core, drops flung outwards, a few runs */
+/** a blood splat (alpha) for decals: a faceted core, drops flung outwards, a few runs; pixel-hard edges */
 export function bloodCanvas(seed: number, size = 64, drip = false): HTMLCanvasElement {
   const cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
   const ctx = cv.getContext('2d')!;
   let s = seed * 9301 + 49297;
   const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
-  const cols = ['#5a0606', '#7a0a0a', '#8e1010', '#4a0404'];
-  const blob = (x: number, y: number, r: number) => { ctx.fillStyle = cols[Math.floor(rnd() * cols.length)]; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); };
+  const cols = ['#4a0606', '#6a0a0a', '#7e1010', '#3a0404'];
+  const blob = (x: number, y: number, r: number) => {
+    ctx.fillStyle = cols[Math.floor(rnd() * cols.length)];
+    const n = 5 + Math.floor(rnd() * 3);
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2 + rnd() * 0.5, rr = r * (0.7 + rnd() * 0.5); ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
+    ctx.closePath(); ctx.fill();
+  };
   const c = size / 2;
   for (let i = 0; i < 9; i++) blob(c + (rnd() - 0.5) * size * 0.25, c + (rnd() - 0.5) * size * 0.25, size * (0.08 + rnd() * 0.12));
-  for (let i = 0; i < 26; i++) {
-    const a = rnd() * Math.PI * 2, d = size * (0.18 + rnd() * 0.3);
-    blob(c + Math.cos(a) * d, c + Math.sin(a) * d, 0.7 + rnd() * size * 0.035);
-  }
+  for (let i = 0; i < 26; i++) { const a = rnd() * Math.PI * 2, d = size * (0.18 + rnd() * 0.3); blob(c + Math.cos(a) * d, c + Math.sin(a) * d, 0.8 + rnd() * size * 0.035); }
   if (drip) for (let i = 0; i < 5; i++) { const x = c + (rnd() - 0.5) * size * 0.4; ctx.fillStyle = cols[1]; ctx.fillRect(Math.round(x), c, 1 + Math.floor(rnd() * 2), Math.round(size * (0.2 + rnd() * 0.3))); }
   const d = ctx.getImageData(0, 0, size, size);
-  for (let i = 3; i < d.data.length; i += 4) d.data[i] = d.data[i] > 90 ? 255 : 0;
+  for (let i = 0; i < d.data.length; i += 4) {
+    d.data[i + 3] = d.data[i + 3] > 90 ? 255 : 0;
+    // a wet highlight speck here and there
+    if (d.data[i + 3] && Math.random() < 0.015) { d.data[i] = 150; d.data[i + 1] = 40; d.data[i + 2] = 40; }
+  }
   ctx.putImageData(d, 0, 0);
   return cv;
 }
+
+export { ngon };

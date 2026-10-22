@@ -7,12 +7,14 @@
 import * as THREE from 'three';
 import { Mold, M, DEG, PAINT, STEEL, CHROME, BRASS, RUBBER, PLASTIC, GLASS, Surf } from './stage3d';
 import { Thing } from './props';
+import { fcyl, fbox, fball, jitter, gem, flathe, segs } from './facet';
 import { sfx, haptic } from './sfx';
 
 const PI = Math.PI;
-const cyl = (r: number, h: number, seg = 12, rb = r) => new THREE.CylinderGeometry(r, rb, h, seg, 1, false);
-const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d);
-const sph = (r: number, ws = 10, hs = 7) => new THREE.SphereGeometry(r, ws, hs);
+// faceted low-poly primitives (facet.ts): few sides, chamfers, flat facets
+const cyl = (r: number, h: number, seg = 12, rb = r) => fcyl(r, h, segs(seg), rb, 0.16);
+const box = (w: number, h: number, d: number) => fbox(w, h, d, 0.16);
+const sph = (r: number, ws = 10, hs = 7) => fball(r, Math.max(5, Math.min(8, Math.round(ws * 0.6))), Math.max(3, Math.min(5, Math.round(hs * 0.6))));
 const hash = (x: number, y: number, z = 0) => { const s = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return s - Math.floor(s); };
 const SURF = (base: Surf, blood: number): Surf => [base[0], base[1], blood, base[3]];
 const setGlow = (m: THREE.ShaderMaterial, rgb: number, k: number) => {
@@ -32,7 +34,7 @@ export class Glove extends Thing {
     this.elev = 52 * DEG; this.fit = 1.1; this.k = 1000; this.bloodK = 0.6;
     const rub = (x: number, y: number, z: number) => (hash(Math.round(x * 30), Math.round(y * 30), Math.round(z * 30)) > 0.88 ? 0xb88f1c : 0xe2b21f);
     const palm = new Mold();
-    palm.add(box(0.5, 0.14, 0.46), M(0, 0.08, 0.1), rub, SURF(RUBBER, 1));
+    palm.add(jitter(fbox(0.5, 0.14, 0.46, 0.3), 0.018, 3), M(0, 0.08, 0.1), rub, SURF(RUBBER, 1));
     palm.add(cyl(0.2, 0.36, 10), M(0, 0.08, 0.48, PI / 2, 0, 0, 1.25, 1, 0.55), 0xc99a17, RUBBER); // the cuff
     palm.add(box(0.5, 0.02, 0.06), M(0, 0.155, 0.36), 0x9a7413, RUBBER);
     this.mesh(palm, this.mat({ wear: 0.75 }));
@@ -41,15 +43,17 @@ export class Glove extends Thing {
       const g = new THREE.Group();
       g.position.set(xs[i], 0.08, -0.13);
       const f = new Mold();
-      f.add(box(0.1, 0.1, ls[i]), M(0, 0, -ls[i] / 2), rub, SURF(RUBBER, 1));
-      f.add(sph(0.05, 8, 5), M(0, 0, -ls[i]), 0xe0ae1c, RUBBER);
+      f.add(jitter(fcyl(0.05, ls[i], 6, 0.055, 0.1), 0.008, 11 + i), M(0, 0, -ls[i] / 2, PI / 2), rub, SURF(RUBBER, 1));
+      f.add(gem(0.052, 0, 0.1, i), M(0, 0, -ls[i]), 0xe0ae1c, RUBBER);
+      // knuckle creases
+      f.add(fbox(0.104, 0.012, 0.012, 0.2), M(0, 0.045, -ls[i] * 0.45), 0xb88f1c, RUBBER);
       this.mesh(f, this.mat({ wear: 0.75 }), g);
       this.body.add(g);
       this.fingers.push(g);
     }
     this.thumb.position.set(-0.26, 0.07, 0.12);
     this.thumb.rotation.y = 0.7;
-    this.mesh(new Mold().add(box(0.11, 0.1, 0.24), M(0, 0, -0.12), rub, SURF(RUBBER, 1)).add(sph(0.055, 8, 5), M(0, 0, -0.24), 0xe0ae1c, RUBBER), this.mat({ wear: 0.75 }), this.thumb);
+    this.mesh(new Mold().add(jitter(fcyl(0.055, 0.24, 6, 0.06, 0.1), 0.008, 21), M(0, 0, -0.12, PI / 2), rub, SURF(RUBBER, 1)).add(gem(0.056, 0, 0.1, 9), M(0, 0, -0.24), 0xe0ae1c, RUBBER), this.mat({ wear: 0.75 }), this.thumb);
     this.body.add(this.thumb);
     this.tape('GRAB', 0, 0.162, 0.2);
   }
@@ -88,10 +92,10 @@ export class Throttle extends Thing {
     this.body.add(this.lever);
     const l = new Mold();
     l.add(cyl(0.035, 0.62, 8), M(0, 0.31, 0), 0x8e918a, SURF(STEEL, 0.6));
-    l.add(sph(0.12, 12, 8), M(0, 0.66, 0), 0xb3221a, SURF(PLASTIC, 1));
+    l.add(gem(0.12, 1, 0.04, 2), M(0, 0.66, 0), 0xb3221a, SURF(PLASTIC, 1));
     this.mesh(l, this.mat({ wear: 0.5 }), this.lever);
     this.lampM = this.mat();
-    this.mesh(new Mold().add(cyl(0.05, 0.04, 10), M(-0.16, 0.14, -0.34), 0x3a1206, GLASS, 1), this.lampM);
+    this.mesh(new Mold().add(flathe([[0.05, 0], [0.048, 0.02], [0.03, 0.04], [0, 0.045]], 6), M(-0.16, 0.12, -0.34), 0x3a1206, GLASS, 1), this.lampM);
     this.tape('POWER', 0, 0.004, 0.52);
   }
   protected onDown() { sfx('tc_ratchet', 0.5, 0.9); haptic(14); }
@@ -116,7 +120,7 @@ export class Bulb extends Thing {
     this.bulb.position.set(0.05, 0.0, 0);
     this.body.add(this.bulb);
     const b = new Mold();
-    b.add(sph(1, 14, 10), M(0, 0, 0, 0, 0, 0, 0.32, 0.27, 0.27), (x, y) => (y > 0.12 ? 0x3a3733 : hash(Math.round(x * 20), Math.round(y * 20)) > 0.85 ? 0x1a1917 : 0x262422), SURF(RUBBER, 1));
+    b.add(jitter(fball(1, 8, 6), 0.05, 7), M(0, 0, 0, 0, 0, PI / 2, 0.27, 0.32, 0.27), (x, y) => (y > 0.12 ? 0x3a3733 : hash(Math.round(x * 20), Math.round(y * 20)) > 0.85 ? 0x1a1917 : 0x262422), SURF(RUBBER, 1));
     this.mesh(b, this.mat({ wear: 0.4 }), this.bulb);
     const v = new Mold();
     v.add(cyl(0.07, 0.16, 10), M(-0.38, 0, 0, 0, 0, PI / 2), 0xb3b5ad, CHROME);
@@ -229,7 +233,7 @@ export class Level extends Thing {
     this.mesh(new Mold().add(box(0.24, 0.05, 0.08), M(0, 0.17, 0), 0x9fe08a, GLASS, 0.4), this.mat());
     this.bubble.position.set(0, 0.2, 0);
     this.body.add(this.bubble);
-    this.mesh(new Mold().add(sph(0.03, 8, 5), null, 0xf4ffe8, GLASS, 1), this.mat(), this.bubble);
+    this.mesh(new Mold().add(gem(0.03, 0, 0), M(0, 0, 0, 0, 0, 0, 1.6, 0.8, 1), 0xf4ffe8, GLASS, 1), this.mat(), this.bubble);
     this.tape('BUILD', 0, 0.004, 0.24);
   }
   protected onDown() { sfx('tc_knob', 0.4, 0.8); haptic(8); }
