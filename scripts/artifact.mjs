@@ -14,7 +14,7 @@ style = style.replace(/url\((['"]?)\.?\.?\/?fonts\/([^'")]+)\1\)/g, (_, _q, file
   const b = fs.readFileSync(path.join(dist, 'fonts', file));
   return `url(data:font/woff2;base64,${b.toString('base64')})`;
 });
-const page = `<title>NOCLIP</title>
+const page = `<title>Limbo Phobia</title>
 <meta name="description" content="An isometric survival sandbox inside a liminal simulation that is coming apart.">
 <style>
 ${style}
