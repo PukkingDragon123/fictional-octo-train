@@ -1,7 +1,7 @@
 // First-person eating and drinking. Eating something opens a close-up on the
-// overlay stage (src/fp/fp.ts): your hands holding the food, built out of
-// little voxels so every bite takes a real chunk out of it (crust outside,
-// crumb, flesh or filling inside). Click / tap / Space to bite: the food lunges,
+// overlay stage (src/fp/fp.ts): the shared smooth arms holding a smooth
+// low-poly model of the food (foodMesh.ts); every bite dents it for real and
+// shows the inside (crumb, flesh, filling). Click / tap / Space to bite: the food lunges,
 // CHOMP, crumbs fly, the view bobs as you chew, and the bite drops into the
 // stomach jar. Drinking tilts a bottle up for gulps. Leave it alone and you
 // keep eating slowly; move or press Esc to stop.
@@ -14,14 +14,13 @@ import { itemDef, freshness, type Item, type FluidType } from '../../items/item'
 import { punch, shake } from '../../gfx/juice';
 import { mix, shade } from './pix';
 import type { BodyHud } from './bodyHud';
+import { FoodModel, type Kind, type Recipe } from './foodMesh';
 
-const VS = 0.0085;
-const MAXV = 1100, MAXC = 120;
+const MAXC = 120;
+/** crumb size (m) */
+const CS = 0.006;
 const AUTO_BITE = 2.4, AUTO_GULP = 1.8;
 
-type Kind = 'bar' | 'loaf' | 'sandwich' | 'fruit' | 'long' | 'meat' | 'fish' | 'can' | 'bowl' | 'cookie' | 'cheese' | 'egg' | 'weird' | 'blob';
-interface Recipe { kind: Kind; skin: number; flesh: number; wrap: number; extra: number; crunchy: boolean; juicy: boolean; hot: boolean; bad: '' | 'rotten' | 'raw' | 'poison'; label: string }
-interface Vox { x: number; y: number; z: number; c: number; e: boolean }
 interface Crumb { p: THREE.Vector3; v: THREE.Vector3; life: number; s: number; c: THREE.Color; g: number; on: boolean }
 
 /** keyword → [kind, skin, flesh] */
@@ -76,77 +75,11 @@ function recipe(it: Item): Recipe {
   };
 }
 
-/** the voxels of a food (centred on 0, x long axis: the bitten end is -x) */
-function build(r: Recipe, seed: number): Vox[] {
-  const out: Vox[] = [];
-  let s = seed | 0;
-  const rnd = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
-  const add = (x: number, y: number, z: number, c: number, e = true) => out.push({ x, y, z, c, e });
-  const ell = (rx: number, ry: number, rz: number, wob = 0, skinD = 1) => {
-    for (let x = -rx; x <= rx; x++) for (let y = -ry; y <= ry; y++) for (let z = -rz; z <= rz; z++) {
-      const n = (x * x) / (rx * rx) + (y * y) / (ry * ry) + (z * z) / (rz * rz);
-      const w = wob ? (rnd() - 0.5) * wob : 0;
-      if (n > 1 + w) continue;
-      const inner = ((Math.abs(x) + skinD) ** 2) / (rx * rx) + ((Math.abs(y) + skinD) ** 2) / (ry * ry) + ((Math.abs(z) + skinD) ** 2) / (rz * rz);
-      add(x, y, z, inner > 1 ? r.skin : r.flesh);
-    }
-  };
-  const box = (lx: number, ly: number, lz: number, skin: number, flesh: number, y0 = 0) => {
-    for (let x = -lx; x <= lx; x++) for (let y = -ly; y <= ly; y++) for (let z = -lz; z <= lz; z++) {
-      const edge = Math.abs(x) === lx || Math.abs(y) === ly || Math.abs(z) === lz;
-      add(x, y + y0, z, edge ? skin : flesh);
-    }
-  };
-  switch (r.kind) {
-    case 'bar': {
-      for (let x = -7; x <= 7; x++) for (let y = -1; y <= 1; y++) for (let z = -3; z <= 3; z++) {
-        const edge = Math.abs(y) === 1 || Math.abs(z) === 3;
-        // the back half is still in its wrapper (crinkled where it is torn)
-        if (x >= 1 && edge) add(x, y + (x === 1 && rnd() < 0.5 ? 0 : 0), z, x === 1 ? shade(r.wrap, 1.25) : (x + z) % 4 === 0 ? shade(r.wrap, 0.85) : r.wrap, false);
-        else add(x, y, z, edge ? r.skin : (rnd() < 0.15 ? shade(r.flesh, 1.2) : r.flesh));
-      }
-      break;
-    }
-    case 'loaf': box(5, 3, 3, r.skin, r.flesh); break;
-    case 'cookie': for (let x = -4; x <= 4; x++) for (let z = -4; z <= 4; z++) if (x * x + z * z <= 18) for (let y = -1; y <= 0; y++) add(x, y, z, rnd() < 0.12 ? r.extra : (y === 0 || x * x + z * z > 12) ? r.skin : r.flesh); break;
-    case 'sandwich': {
-      for (let x = -5; x <= 5; x++) for (let z = -4; z <= 4; z++) {
-        if (x + z > 5) continue; // a cut triangle
-        add(x, -2, z, r.skin); add(x, -1, z, r.flesh);
-        add(x, 0, z, (x + z) % 3 === 0 ? r.extra : 0xf0c040);
-        add(x, 1, z, 0xe08a8a);
-        add(x, 2, z, r.flesh); add(x, 3, z, r.skin);
-      }
-      break;
-    }
-    case 'fruit': ell(5, 5, 5); add(0, 6, 0, 0x5a3a1a, false); add(1, 6, 0, 0x4a9a2a, false); add(2, 6, 1, 0x4a9a2a, false); break;
-    case 'long': {
-      for (let i = -9; i <= 9; i++) {
-        const cy = Math.round(-(i * i) / 22) + 2, rr = i < -7 || i > 7 ? 1 : 2;
-        for (let y = -rr; y <= rr; y++) for (let z = -rr; z <= rr; z++) if (y * y + z * z <= rr * rr + 1) add(i, cy + y, z, y * y + z * z >= rr * rr ? r.skin : r.flesh, !(i > 2 && y * y + z * z >= rr * rr && r.skin === 0xf0d040));
-      }
-      break;
-    }
-    case 'meat': ell(6, 3, 4, 0.35); if (/bone|leg|rib|drumstick|chop/.test(r.label.toLowerCase())) for (let x = 6; x <= 10; x++) add(x, 0, 0, 0xf2ecd8, false); break;
-    case 'fish': ell(7, 2, 3); for (let y = -2; y <= 2; y++) add(8, y, 0, 0x8a949c, false); add(-6, 1, 2, 0x101010, false); break;
-    case 'cheese': for (let x = -4; x <= 4; x++) for (let y = -2; y <= 2; y++) for (let z = -4; z <= 4; z++) { if (z > x) continue; if (Math.abs(y) < 2 && Math.abs(x) < 3 && rnd() < 0.08) continue; add(x, y, z, Math.abs(y) === 2 || z === x ? r.flesh : r.skin); } break;
-    case 'egg': ell(3, 4, 3); for (const v of out) if (v.x * v.x + v.y * v.y + v.z * v.z < 4) v.c = r.flesh; else v.c = r.skin; break;
-    case 'weird': ell(4, 4, 4, 0.6); for (const v of out) v.c = rnd() < 0.5 ? r.skin : r.flesh; break;
-    case 'can': case 'bowl': {
-      const R = r.kind === 'can' ? 4 : 6, Hh = r.kind === 'can' ? 7 : 3;
-      for (let y = 0; y < Hh; y++) for (let x = -R; x <= R; x++) for (let z = -R; z <= R; z++) if (x * x + z * z <= R * R - (r.kind === 'bowl' ? (Hh - y) * 4 : 0)) add(x, y, z, rnd() < 0.3 ? r.flesh : rnd() < 0.15 ? shade(r.skin, 0.8) : r.skin);
-      break;
-    }
-    default: ell(5, 3, 4, 0.4);
-  }
-  if (r.bad === 'rotten') for (const v of out) if (v.e && rnd() < 0.08) v.c = rnd() < 0.5 ? 0x9ab868 : 0x5a7a3a;
-  return out;
-}
-
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _v = new THREE.Vector3(), _w = new THREE.Vector3();
+const _hd = new THREE.Vector3(0.04, 0.03, 0.04);
 const _t = new THREE.Vector3(), _d = new THREE.Vector3(), _z = new THREE.Vector3(), _x = new THREE.Vector3(), _g = new THREE.Vector3(), _mb = new THREE.Matrix4();
-/** half-length (voxels) of the long foods: they are held by the far end */
-const HALF: Partial<Record<string, number>> = { bar: 7, long: 9, meat: 6, fish: 7, loaf: 5, sandwich: 5, cookie: 4 };
+/** long foods are held by the far end */
+const LONG = new Set<Kind>(['bar', 'long', 'meat', 'fish', 'loaf', 'sandwich']);
 const _c = new THREE.Color();
 
 export class EatFp {
@@ -157,10 +90,10 @@ export class EatFp {
   private root: THREE.Group | null = null;
   private grip = new THREE.Group();
   private food = new THREE.Group();
-  private vMesh: THREE.InstancedMesh | null = null;
   private cMesh: THREE.InstancedMesh | null = null;
-  private vox: Vox[] = [];
-  private edible = 0; private left = 0;
+  private model: FoodModel | null = null;
+  /** how much of the item is left (0..1) */
+  private left = 1;
   private crumbs: Crumb[] = [];
   /** the shared smooth first-person arms (src/fp/hands.ts) */
   private arms: { right: FpArm; left: FpArm } | null = null;
@@ -244,16 +177,12 @@ export class EatFp {
     g.add(new THREE.HemisphereLight(0xfff0d8, 0x3a2a24, 1.15));
     const key = new THREE.DirectionalLight(0xfff4e0, 1.6); key.position.set(-0.5, 0.8, 0.6); g.add(key);
     const rim = new THREE.DirectionalLight(0x8ab0ff, 0.6); rim.position.set(0.6, 0.2, -0.8); g.add(rim);
-    // food is built from little faceted lumps, not cubes: it crumbles like food
-    const lumpGeo = new THREE.IcosahedronGeometry(0.74, 0);
-    const vm = this.vMesh = new THREE.InstancedMesh(lumpGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXV);
-    vm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); vm.count = 0; vm.frustumCulled = false;
-    vm.setColorAt(0, _c.setHex(0xffffff));
+    // crumbs: small soft lumps
+    const lumpGeo = new THREE.IcosahedronGeometry(0.5, 1);
     const cm = this.cMesh = new THREE.InstancedMesh(lumpGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXC);
     cm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); cm.count = 0; cm.frustumCulled = false;
     cm.setColorAt(0, _c.setHex(0xffffff));
     for (let i = 0; i < MAXC; i++) this.crumbs.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), life: 0, s: 1, c: new THREE.Color(), g: 1, on: false });
-    this.food.add(vm);
     this.grip.add(this.food);
     g.add(this.grip, cm);
     this.arms = fpArmsFor(G.local);
@@ -299,16 +228,18 @@ export class EatFp {
     return g;
   }
 
+  private clearModel() { if (this.model) { this.model.dispose(); this.model = null; } }
   private buildFood(it: Item) {
     const r = this.rec!;
-    this.vox = build(r, (Math.random() * 1e6) | 0);
-    this.edible = this.vox.reduce((n, v) => n + (v.e ? 1 : 0), 0) || 1;
-    if (this.vox.length > MAXV) this.vox.length = MAXV;
+    this.clearModel();
+    const m = this.model = new FoodModel(r, (Math.random() * 1e6) | 0);
+    this.food.add(m.group);
+    m.group.position.set(0, r.kind === 'can' ? 0.07 - m.half.y : r.kind === 'bowl' ? 0.032 : 0, 0);
     // a half-eaten thing comes back half-eaten
     const eaten = Math.max(0, Math.min(0.95, it.eaten ?? 0));
-    this.left = this.edible;
-    if (eaten > 0) this.removeAround(this.biteCentre(), 0, Math.round(this.edible * eaten), false);
-    this.syncVox();
+    this.left = 1 - eaten;
+    for (let i = 0; i < Math.round(eaten * 8); i++) m.bite(this.mouthFor(m), 1, () => {});
+    m.setLevel(this.left);
     this.food.rotation.set(0, 0, 0); this.food.position.set(0, 0, 0); this.food.scale.setScalar(1);
     for (const p of this.props.values()) p.visible = false;
     this.prop = null; this.liquid = null;
@@ -324,7 +255,7 @@ export class EatFp {
   private buildDrink(it: Item) {
     const s = (it.key + ' ' + itemDef(it.key).name).toLowerCase();
     const kind = /mug|cup|thermos|kettle/.test(s) ? 'mug' : /soda|cola|beer|\bcan\b/.test(s) ? 'dcan' : /canteen|flask/.test(s) ? 'canteen' : 'bottle';
-    this.vox = []; this.edible = 1; this.left = 1; this.syncVox();
+    this.clearModel(); this.left = 1;
     for (const p of this.props.values()) p.visible = false;
     this.spoon!.visible = false;
     this.prop = this.propFor(kind); this.prop.visible = true;
@@ -342,62 +273,22 @@ export class EatFp {
   }
   private liquidFrac = 1; private liquidKind = 'bottle';
 
-  private syncVox() {
-    const m = this.vMesh!;
-    const n = this.vox.length;
-    for (let i = 0; i < n; i++) {
-      const v = this.vox[i];
-      _m.compose(_v.set(v.x * VS, v.y * VS, v.z * VS), _q.identity(), _s.setScalar(VS * 0.97));
-      m.setMatrixAt(i, _m);
-      m.setColorAt(i, _c.setHex(v.c));
-    }
-    m.count = n;
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
-  }
-  /** the voxel nearest the mouth (the camera) in food space */
-  private biteCentre(): THREE.Vector3 {
-    const r = this.rec;
-    if (r && (r.kind === 'can' || r.kind === 'bowl')) {
-      let top = -99;
-      for (const v of this.vox) if (v.e && v.y > top) top = v.y;
-      return new THREE.Vector3((Math.random() - 0.5) * 3, top, (Math.random() - 0.5) * 3);
-    }
-    // mouth in food-local voxel units
+  /** where the bite comes from, in the model's space: the mouth, or a spoon above the bowl */
+  private mouthFor(m: FoodModel): THREE.Vector3 {
+    const k = m.r.kind;
+    if (k === 'can' || k === 'bowl') return _w.set((Math.random() - 0.5) * m.half.x, m.half.y + 0.05, (Math.random() - 0.5) * m.half.z);
     this.root!.updateMatrixWorld(true);
-    const mouth = _w.set(0, -0.02, 0.05);
-    this.food.worldToLocal(mouth).multiplyScalar(1 / VS);
-    let best: Vox | null = null, bd = 1e9;
-    for (const v of this.vox) { if (!v.e) continue; const d = (v.x - mouth.x) ** 2 + (v.y - mouth.y) ** 2 + (v.z - mouth.z) ** 2; if (d < bd) { bd = d; best = v; } }
-    return best ? new THREE.Vector3(best.x, best.y, best.z) : new THREE.Vector3();
+    return m.mesh.worldToLocal(_w.set(0, -0.02, 0.05));
   }
-  /** take a bite: remove `want` edible voxels nearest the centre (with a ragged tooth edge), return colours eaten */
-  private removeAround(c: THREE.Vector3, _r: number, want: number, fx: boolean): { n: number; col: number } {
-    const scored: { v: Vox; d: number }[] = [];
-    for (const v of this.vox) scored.push({ v, d: Math.sqrt((v.x - c.x) ** 2 + (v.y - c.y) ** 2 * 1.4 + (v.z - c.z) ** 2) + Math.random() * 0.9 });
-    scored.sort((a, b) => a.d - b.d);
-    let n = 0, rr = 0, gg = 0, bb = 0, k = 0;
-    const gone = new Set<Vox>();
-    for (const s of scored) {
-      if (n >= want) break;
-      gone.add(s.v);
-      if (s.v.e) { n++; if (k < 40) { rr += (s.v.c >> 16) & 255; gg += (s.v.c >> 8) & 255; bb += s.v.c & 255; k++; } }
-      if (fx && Math.random() < 0.45) this.crumbAt(s.v);
-    }
-    this.vox = this.vox.filter((v) => !gone.has(v));
-    this.left = Math.max(0, this.left - n);
-    const col = k ? (Math.round(rr / k) << 16) | (Math.round(gg / k) << 8) | Math.round(bb / k) : 0xa08060;
-    return { n, col };
-  }
-  private crumbAt(v: Vox) {
-    _v.set(v.x * VS, v.y * VS, v.z * VS);
-    this.food.localToWorld(_v);
-    this.root!.worldToLocal(_v);
-    this.spawnCrumb(_v, v.c, 1);
+  private crumbFrom(m: FoodModel) {
+    return (x: number, y: number, z: number, c: number) => {
+      _v.set(x, y, z); m.mesh.localToWorld(_v); this.root!.worldToLocal(_v);
+      this.spawnCrumb(_v, c, 1);
+    };
   }
   private spawnCrumb(at: THREE.Vector3, col: number, g: number, sc = 0.6, vel?: THREE.Vector3) {
     for (const c of this.crumbs) if (!c.on) {
-      c.on = true; c.p.copy(at); c.c.setHex(col); c.life = 0.7 + Math.random() * 0.6; c.s = VS * sc * (0.6 + Math.random() * 0.7); c.g = g;
+      c.on = true; c.p.copy(at); c.c.setHex(col); c.life = 0.7 + Math.random() * 0.6; c.s = CS * sc * (0.6 + Math.random() * 0.7); c.g = g;
       if (vel) c.v.copy(vel); else c.v.set((Math.random() - 0.5) * 0.5, Math.random() * 0.35 - 0.05, 0.1 + Math.random() * 0.45);
       return;
     }
@@ -453,13 +344,17 @@ export class EatFp {
     this.lunge = 0; this.chew = 0;
     this.bites++;
     // how much one bite takes: about eight bites to a whole thing, a third more when wolfed down
-    const per = Math.max(3, Math.round(this.edible / 8 * (fast ? 1.3 : 1)));
+    const m = this.model;
     const portionLeft = Math.max(0, (a.portion ?? 1) - (a.bitten ?? 0));
-    const want = Math.min(per, Math.ceil(portionLeft * this.edible + 0.5), this.left);
-    const res = this.removeAround(this.biteCentre(), 0, want, true);
-    this.syncVox();
-    const amt = res.n / this.edible;
+    let amt = Math.min(0.125 * (fast ? 1.3 : 1), portionLeft, this.left);
+    if (m) {
+      const moved = m.bite(this.mouthFor(m), fast ? 1.15 : 1, this.crumbFrom(m));
+      if (!moved) amt = this.left;
+    }
+    this.left = Math.max(0, this.left - amt);
+    if (m) { m.setLevel(this.left); if (this.left <= 0.001) m.group.visible = false; }
     if (amt > 0) a.bite?.(amt);
+    const res = { col: mix(r.flesh, r.skin, 0.3) };
     // juice: crunch, crumbs, a punch of the camera
     const crunchy = r.crunchy;
     G.audio?.flat?.(crunchy ? 'bh_crunch' : 'bh_soft', 'sfx', 0.75, (0.92 + Math.random() * 0.16) * (1 + Math.min(4, this.combo - 1) * 0.04));
@@ -606,15 +501,15 @@ export class EatFp {
     this.grip.position.set(0.02 + sway - lunge * 0.012, -0.04 + bob + yOff + lunge * 0.018, -0.42 + lunge * 0.13);
     this.grip.rotation.set(0.25 + lunge * 0.2, 0.75 + Math.sin(t * 0.7) * 0.05, 0.2);
     this.food.position.set(0, 0, 0);
-    const long = r ? HALF[r.kind] ?? 0 : 0;
-    if (long) {
+    const h = this.model?.half ?? _hd;
+    if (r && LONG.has(r.kind)) {
       // the held end is the far (+x) end; the left hand rests low
-      this.holdAt('right', 'grip', this.food, long * 0.62 * VS, -0.4 * VS, 0, [0.22, -0.34, -0.1], [-0.7, 0.3, 0.6]);
+      this.holdAt('right', 'grip', this.food, h.x * 0.62, -h.y * 0.3, 0, [0.22, -0.34, -0.1], [-0.7, 0.3, 0.6]);
       this.rest('left', yOff);
     } else {
       // round things: the right hand holds it from behind, the left cups it from below
-      this.holdAt('right', 'grip', this.food, 2.6 * VS, -2.4 * VS, -2.4 * VS, [0.24, -0.32, -0.16], [-0.85, 0.2, 0.45]);
-      this.holdAt('left', 'cup', this.food, -1 * VS, -4.6 * VS, 0.5 * VS, [-0.18, -0.38, -0.18], [0.25, 0.95, 0.15]);
+      this.holdAt('right', 'grip', this.food, h.x * 0.55, -h.y * 0.5, -h.z * 0.55, [0.24, -0.32, -0.16], [-0.85, 0.2, 0.45]);
+      this.holdAt('left', 'cup', this.food, -h.x * 0.2, -h.y * 1.1, h.z * 0.1, [-0.18, -0.38, -0.18], [0.25, 0.95, 0.15]);
     }
   }
 

@@ -114,6 +114,7 @@ export class FloorSystem implements GameSystem {
     G.transitioning = true;
     p.actions.clear();
     p.vx = p.vz = 0;
+    G.hudBody?.setHidden?.('vxfall', true);
     const lowG = G.zone.meta.lowGravity as number | undefined;
     this.fall = { phase: 'tip', t: 0, spec, sx: p.x, sz: p.z, cx, cz, y0: p.y, dest: null, g: lowG ? 5 : 16, ground: 0, y: p.y, vy: 0 };
     bus.emit('holeJump', p, spec);
@@ -185,7 +186,7 @@ export class FloorSystem implements GameSystem {
         break;
       }
       case 'up': {
-        if (f.t > 0.9) { this.fall = null; G.transitioning = false; }
+        if (f.t > 0.9) { this.fall = null; G.transitioning = false; G.hudBody?.setHidden?.('vxfall', false); }
         break;
       }
     }
@@ -268,6 +269,7 @@ export class FloorSystem implements GameSystem {
     if (!p || !z) return;
     this.fall = { phase: 'land', t: 0, spec: { to: z.key }, sx: p.x, sz: p.z, cx: p.x, cz: p.z, y0: p.y, dest: null, g: 18, ground: 0, y: 0, vy: 0 };
     G.transitioning = true;
+    G.hudBody?.setHidden?.('vxfall', true);
     this.beginLanding(this.fall, z, Math.floor(p.x), Math.floor(p.z));
     this.showOverlay(true);
     setTimeout(() => this.showOverlay(false), 250);

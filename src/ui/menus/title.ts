@@ -1,6 +1,6 @@
 // Title screen: the subject room in the dark (room3d.ts). A figure is strapped
 // in an electric chair you can barely see; the menu floats in front of him
-// as neon signs and objects. The signs start a run (CREATE NEW SUBJECT, the
+// as old TV sets and objects. The sets start a run (CREATE NEW SUBJECT, the
 // contract) or a free one (RELEASE), the handset calls another cell (co-op),
 // the tape holds the case files (saves), the gear is the settings, the keycap
 // the controls, the card says who made this. Every object has an invisible

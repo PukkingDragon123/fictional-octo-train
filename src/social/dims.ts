@@ -20,6 +20,7 @@ import { ZONEFX } from '../gfx/fxconfig';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { lathe, blob, tube } from '../creatures/kit/anomalies';
 import { MAT, worldMaterial } from '../gfx/materials';
+import { atlas } from '../gfx/atlas';
 import { moveCircle } from '../world/collision';
 import { shake, punch, hitstop } from '../gfx/juice';
 import { grantResearch } from '../game/research';
@@ -30,7 +31,7 @@ import type { ChessPiece } from '../world/gen/z_chess';
 // ---------------------------------------------------------------- looks
 GRADES.chess = { lift: [0.03, 0.0, 0.06], gain: [1.06, 1.0, 1.12], gamma: 0.95, sat: 0.7, tint: [1.0, 0.96, 1.08], vignette: 0.6 };
 GRADES.meadow = { lift: [0.035, 0.03, 0.05], gain: [0.95, 1.04, 0.98], gamma: 1.0, sat: 1.4, tint: [1.0, 1.04, 1.0], vignette: 0.2 };
-GRADES.moon = { lift: [0.0, 0.0, 0.01], gain: [1.1, 1.1, 1.14], gamma: 1.05, sat: 0.12, tint: [1.0, 1.0, 1.04], vignette: 0.62 };
+GRADES.moon = { lift: [0.0, 0.0, 0.01], gain: [1.1, 1.1, 1.14], gamma: 1.05, sat: 0.45, tint: [1.0, 1.0, 1.04], vignette: 0.62 };
 ZONEFX.chess = { haze: [0.95, 0.85, 1.15], hazeDens: 0.004, volTop: 8, sunShafts: 0.5, mistDens: 0, bloom: 0.85, bloomTh: 0.7, ao: 1.05, sick: 0, motes: 0.2, dirt: 0.3, rim: 1.1, rimTint: [0.08, 0.04, 0.14], reflect: 0.8, sheen: 0.9 };
 ZONEFX.meadow = { haze: [1.1, 1.0, 1.12], hazeDens: 0.006, hazeFall: 0.12, volTop: 6, gridMul: 0.4, sunShafts: 0.6, mist: [0.9, 0.8, 0.92], mistDens: 0.03, mistFall: 0.9, mistMax: 0.16, bloom: 0.7, bloomTh: 0.9, ao: 0.55, sick: 0, motes: 1.5, dirt: 0.15, rim: 0.5, blob: 0.35 };
 ZONEFX.moon = { hazeDens: 0.0, mistDens: 0.0, sunShafts: 0, bloom: 0.45, bloomTh: 0.9, ao: 1.15, sick: 0, motes: 0, dirt: 0.9, rim: 0.25, blob: 0.85, reflect: 0.1, sheen: 0.1 };
@@ -449,6 +450,41 @@ class Board {
   }
 }
 
+// ---------------------------------------------------------------- things far below the ground (the Earth, the stars)
+// They are seen only through holes in the world, so they skip the screen-space AO and outlines (zero normal in
+// the normal buffer) and ignore light and fog: atlas colour times vertex colour, a little brighter than lit.
+// (no glslVersion: three compiles ShaderMaterials as GLSL 3 and maps gl_FragColor to output 0, like src/gfx/crt.ts)
+let skyMat: THREE.ShaderMaterial | null = null;
+function skyMaterial(): THREE.ShaderMaterial {
+  if (skyMat) return skyMat;
+  skyMat = new THREE.ShaderMaterial({
+    vertexColors: true, toneMapped: false,
+    uniforms: { uAtlas: { value: atlas().texture }, uGain: { value: 1.15 } },
+    vertexShader: `
+attribute vec4 aAtlas;
+varying vec2 vUv; varying vec4 vAtlas; varying vec3 vCol;
+void main() {
+  vUv = uv; vAtlas = aAtlas; vCol = color;
+  vec4 p = vec4(position, 1.0);
+#ifdef USE_INSTANCING
+  p = instanceMatrix * p;
+#endif
+  gl_Position = projectionMatrix * modelViewMatrix * p;
+}`,
+    fragmentShader: `
+layout(location = 1) out highp vec4 gNormal;
+uniform sampler2D uAtlas; uniform float uGain;
+varying vec2 vUv; varying vec4 vAtlas; varying vec3 vCol;
+void main() {
+  vec2 f = fract(vUv);
+  vec4 t = texture2D(uAtlas, vAtlas.xy + vec2(f.x, 1.0 - f.y) * vAtlas.zw);
+  gl_FragColor = vec4(t.rgb * vCol * uGain, 1.0);
+  gNormal = vec4(0.5, 0.5, 0.5, 0.0);
+}`,
+  });
+  return skyMat;
+}
+
 // ---------------------------------------------------------------- the dimension system
 export class DimensionSystem implements GameSystem {
   name = 'dims';
@@ -556,7 +592,7 @@ export class DimensionSystem implements GameSystem {
     const N = 420;
     const mb = new ModelBuilder();
     mb.box(0, 0, 0, 0.35, 0.35, 0.35, 'white', { color: 0xffffff, emissive: 1 });
-    const st = new THREE.InstancedMesh(mb.build(), worldMaterial({ unlit: true, noVis: true, noFog: true, outline: 0 }), N);
+    const st = new THREE.InstancedMesh(mb.build(), skyMaterial(), N);
     for (let i = 0; i < N; i++) {
       const s = 0.5 + Math.random() * 1.2;
       this.tmpM.makeScale(s, s, s).setPosition((Math.random() - 0.5) * 220, -25 - Math.random() * 70, (Math.random() - 0.5) * 220);
@@ -568,8 +604,8 @@ export class DimensionSystem implements GameSystem {
   }
   private buildEarth() {
     const mb = new ModelBuilder();
-    mb.sphere(0, 0, 0, 24, 28, 18, 'vx_earth', { fit: true, emissive: 1 });
-    const e = new THREE.Mesh(mb.build(), worldMaterial({ unlit: true, noVis: true, noFog: true, outline: 0 }));
+    mb.sphere(0, 0, 0, 24, 32, 22, 'vx_earth', { fit: true });
+    const e = new THREE.Mesh(mb.build(), skyMaterial());
     e.rotation.z = Math.PI * 0.82; // the wrong way up
     e.frustumCulled = false;
     G.pr.scene.add(e);

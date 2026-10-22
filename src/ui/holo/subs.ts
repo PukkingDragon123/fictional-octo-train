@@ -3,8 +3,8 @@
 // chipVoice, floatText). Bus event 'subtitle'
 // ({ who, text, dur?, style?, x?, y?, z?, voiced?, pid? }):
 //   voss     worn typewriter letters by the sergeant
-//   bailiff  the band (holo.ts draws it while the hologram is up; here the
-//            fallback near the survivor when it is down)
+//   bailiff  the band, voiced here (cold, clipped; glitching when `leak`),
+//            the words rising off the survivor's wrist
 //   guard    condensed sign capitals near the officer (or off screen)
 //   radio    typewriter letters over the survivor, from the radio
 //   self     the survivor, out loud, in their own voice
@@ -84,10 +84,13 @@ export function initSubtitles(ui: UiLike) {
     const push = (el: HTMLDivElement, target: any, kind: string) => { ui.root.appendChild(el); ui.bubbles.push({ el, target, until: G.time + secs, born: G.time, rise: 0, kind }); };
     switch (style) {
       case 'bailiff': {
-        if (G.holo?.visible) break; // the hologram shows and voices it
+        // the band on the wrist: a cold, clipped synthetic voice (glitching when it leaks), the words rising off the cuff
         const p = G.local; if (!p) return;
-        if (!s.voiced) playLine(text, voiceForStyle('bailiff'), null);
-        push(floatText(text, { kind: 'bailiff', name: 'BAILIFF', life: secs }), p, 'bailiff');
+        const leak = !!s.leak || s.voice === 'leak';
+        if (!s.voiced) playLine(text, voiceForStyle(leak ? 'bailiff_leak' : 'bailiff'), null, { glitch: leak });
+        for (const b of ui.bubbles) if (b.kind === 'bailiff') b.until = 0;
+        const wrist = { get x() { return p.x + Math.cos(p.facing + Math.PI / 2) * 0.3; }, get y() { return p.y + 1.05; }, get z() { return p.z + Math.sin(p.facing + Math.PI / 2) * 0.3; } };
+        push(floatText(text, { kind: 'bailiff', name: 'BAILIFF', life: secs }), wrist, 'bailiff');
         break;
       }
       case 'radio':

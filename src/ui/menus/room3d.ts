@@ -1,10 +1,12 @@
 // THE SUBJECT ROOM. One small three.js scene, rendered at low resolution and
 // blown up with hard pixels like the game, that is the whole front end:
-//  · TITLE    near-black concrete cell, one weak bulb, a figure strapped in an
-//             electric chair that is mostly shadow; the cap hums and sparks and
-//             for a frame you see him. The menu floats in front of him: voxel
-//             NOCLIP letters, smoked-glass neon signs, a gear, a handset, a
-//             tape, a card, a keycap. Each bobs, drifts and glitches on its own.
+//  · TITLE    near-black concrete cell, a bare bulb swinging, a figure strapped
+//             in an electric chair that is mostly shadow; one hard beam with dust
+//             in it lays a slit of light across his face, the cap crackles and
+//             the light flares. Letterboxed, a slow creeping dolly, focus pulls.
+//             The menu floats in front of him: NOCLIP on six Nixie tubes, old
+//             TV sets (real CRT tubes, src/gfx/crt.ts), a steel gear on a panel
+//             of dials, a bakelite handset, a cassette, a card, a keycap.
 //  · CREATOR  the breaker slams, the tubes stutter on, four arms unfold out of
 //             the walls and ceiling, unbuckle him, lift him out of the chair and
 //             hold him in mid-air by the wrists and a chest harness, ankles
@@ -463,6 +465,17 @@ export class SubjectRoom {
     }
     g.add(body);
     g.userData.repaint = repaint;
+    // things floating in the dark keep a faint self-light (their own lamp, the screens' spill); the chosen one is lit up
+    const lit: THREE.Material[] = [];
+    body.traverse((o) => {
+      const me = o as THREE.Mesh;
+      if (!me.isMesh || crts.some((c) => c.mesh === me)) return;
+      const mm = me.material as THREE.MeshStandardMaterial;
+      if (!mm || !('emissive' in mm) || (mm as any).isMeshBasicMaterial) return;
+      const c = mm.clone(); c.emissive = new THREE.Color(0x2a2420); c.emissiveIntensity = 0.5;
+      me.material = c; lit.push(c);
+    });
+    g.userData.lit = lit;
     const o: MenuObj = { item, group: g, body, mats, crts, needles, anchor: new THREE.Vector3(), r, phase: Math.random() * 10, hover: 0, hoverT: 0, press: 0, glitch: 0, nextGlitch: 4 + Math.random() * 8, out: 0, color };
     g.userData.side = side; g.userData.i = i; g.userData.n = n;
     this.menuG.add(g);
@@ -1120,6 +1133,7 @@ export class SubjectRoom {
       }
       const k = 0.5 + m.hover * 0.5 + m.press * 0.6;
       for (const mat of m.mats) mat.color.setRGB(k, k, k);
+      for (const mat of g.userData.lit as THREE.MeshStandardMaterial[]) mat.emissiveIntensity = 0.45 + m.hover * 1.1 + m.press * 2;
       m.needles.forEach((nd, j) => { nd.rotation.z = -0.9 + Math.sin(t * (0.6 + j * 0.37) + j) * 0.5 + Math.sin(t * 13 + j) * 0.03 + m.hover * 0.6 - m.press * 1.2; });
       const spin = m.body.userData.spin as THREE.Object3D | undefined;
       if (m.item.kind === 'gear') {

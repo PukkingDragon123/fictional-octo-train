@@ -52,7 +52,8 @@ export function voiceFromApp(app?: Partial<Appearance> | null, salt = ''): ChipV
 export function voiceForStyle(style: string, who = ''): ChipVoice {
   switch (style) {
     case 'voss': return { base: 118, wave: 'pulse', duty: 0.18, wobble: 0.1, range: 3, bits: 4, vol: 0.9 };
-    case 'bailiff': return { base: 92, wave: 'square', duty: 0.5, wobble: 0, range: 1.5, bits: 3, vol: 0.9 };
+    case 'bailiff': return { base: 104, wave: 'pulse', duty: 0.12, wobble: 0, range: 1.2, bits: 3, vol: 0.85 };
+    case 'bailiff_leak': return { base: 78, wave: 'pulse', duty: 0.08, wobble: 1.4, range: 9, bits: 2, vol: 0.85 };
     case 'guard': return { base: 98, wave: 'saw', duty: 0.5, wobble: 0.05, range: 2.5, bits: 4, vol: 1.1 };
     case 'radio': return { base: 140 + (hashStr(who) % 60), wave: 'pulse', duty: 0.12, wobble: 0.3, range: 5, bits: 3, vol: 0.7 };
     default: return voiceFromApp(null, who || style);
@@ -76,7 +77,7 @@ export function letterTimes(text: string): { t: number[]; dur: number } {
 const VOWEL_SEMI: Record<string, number> = { a: 0, e: 4, i: 7, o: -3, u: -5, y: 5 };
 
 /** render one line to samples */
-export function renderLine(text: string, v: ChipVoice, opts: { shout?: boolean; whisper?: boolean } = {}): Float32Array {
+export function renderLine(text: string, v: ChipVoice, opts: { shout?: boolean; whisper?: boolean; glitch?: boolean } = {}): Float32Array {
   const { t, dur } = letterTimes(text);
   const n = Math.max(1, Math.floor(dur * SR));
   const out = new Float32Array(n);
@@ -119,6 +120,15 @@ export function renderLine(text: string, v: ChipVoice, opts: { shout?: boolean; 
       out[i] += s * env * (opts.whisper ? 0.4 : 1) * (bang ? 1.15 : 1);
     }
   }
+  // a leaking band: stutters and dropouts, chunk by chunk
+  if (opts.glitch) {
+    const ch = Math.floor(0.05 * SR);
+    for (let at = ch; at < n - ch * 3; at += ch) {
+      const r = Math.random();
+      if (r < 0.14) { for (let j = 0; j < ch && at + ch + j < n; j++) out[at + ch + j] = out[at + j]; at += ch; }
+      else if (r < 0.22) for (let j = 0; j < ch; j++) out[at + j] = 0;
+    }
+  }
   // crush to a few bits and hold every other sample: the cheap speaker sound
   const qn = Math.pow(2, v.bits - 1);
   let hold = 0;
@@ -132,7 +142,7 @@ export function renderLine(text: string, v: ChipVoice, opts: { shout?: boolean; 
 // ---------------------------------------------------------------- playback
 let live = 0;
 /** play a line; position (x, z) fades and pans it by distance from the listener. Returns its duration. */
-export function playLine(text: string, v: ChipVoice, at?: { x: number; z: number } | null, opts: { shout?: boolean; whisper?: boolean; vol?: number } = {}): number {
+export function playLine(text: string, v: ChipVoice, at?: { x: number; z: number } | null, opts: { shout?: boolean; whisper?: boolean; glitch?: boolean; vol?: number } = {}): number {
   const dur = letterTimes(text).dur;
   const a = G?.audio as any;
   const ctx: AudioContext | null = a?.ctx ?? null;

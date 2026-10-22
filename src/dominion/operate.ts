@@ -402,7 +402,7 @@ export class Operation {
   /** the left hand steadies the head; the right does the work: the blade, the pry, the pinch, the seat, the switch */
   private armsStep(dt: number) {
     const A = this.arms, k = Math.min(1, dt * 12), H = this.head;
-    A.aim('left', 'flat', 'grip', H.localToWorld(this.wv.set(-R * 1.15, -R * 0.1, R * 0.15)), [-0.34, -0.42, -0.62], [1, -0.1, 0.1], k);
+    A.aim('left', 'flat', 'grip', H.localToWorld(this.wv.set(-R * 0.75, R * 0.45, -R * 0.75)), [-0.36, -0.36, -0.72], [0.6, -0.7, 0.3], k);
     this.tool.visible = this.step === 'saw';
     const w = this.wv;
     switch (this.step) {

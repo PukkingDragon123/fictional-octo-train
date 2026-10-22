@@ -129,18 +129,18 @@ addTextureModule(() => {
     pc.set(12, 7, 0xe8c050); pc.set(12, 8, 0xe8c050); pc.set(12, 9, 0xe8c050);
   });
   // Earth, the way it should not look: equirect, oceans too dark, a scar
-  A.add('vx_earth', 64, 32, (pc) => {
+  A.add('vx_earth', 128, 64, (pc) => {
     pc.wrap = true;
     pc.each((x, y) => {
-      const lat = (y / 32 - 0.5) * Math.PI;
-      const n = ph(x >> 3, y >> 2, 9221) * 0.55 + ph(x >> 2, y >> 1, 9222) * 0.3 + ph(x, y, 9223) * 0.15;
+      const lat = (y / 64 - 0.5) * Math.PI;
+      const n = ph(x >> 4, y >> 3, 9221) * 0.55 + ph(x >> 3, y >> 2, 9222) * 0.3 + ph(x >> 1, y >> 1, 9223) * 0.15;
       const ice = Math.abs(lat) > 1.2;
       let c = n > 0.58 ? mixHex(0x4a7a3a, 0xb09a68, ph(x >> 2, y >> 2, 9224)) : mixHex(0x10305a, 0x1c4a8a, n);
       if (ice) c = 0xe8f0f4;
-      if (ph(x >> 1, y, 9225) > 0.9) c = mixHex(c, 0xffffff, 0.7); // cloud
+      if (ph(x >> 2, y >> 1, 9225) > 0.88) c = mixHex(c, 0xffffff, 0.7); // cloud
       pc.set(x, y, c);
     });
-    for (let x = 20; x < 44; x++) { const y = Math.round(16 + Math.sin(x * 0.4) * 2); pc.set(x, y, 0xff5a2a); pc.blend(x, y + 1, 0x3a0a04, 0.7); }
+    for (let x = 40; x < 88; x++) { const y = Math.round(32 + Math.sin(x * 0.2) * 4); pc.set(x, y, 0xff5a2a); pc.blend(x, y + 1, 0x3a0a04, 0.7); pc.blend(x, y - 1, 0xffa060, 0.4); }
   });
   A.add('vx_lander_foil', 16, 16, (pc) => {
     pc.each((x, y) => {
