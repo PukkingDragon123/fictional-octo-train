@@ -20,7 +20,7 @@ import { itemDef } from '../../items/item';
 import { punch } from '../../gfx/juice';
 import type { Player } from '../../entities/player';
 import type { QuestRuntime } from '../../missions/questRuntime';
-import { buildWatchModel, setLamp, SCR_W, SCR_H, SCREEN, type WatchModel } from './model';
+import { buildWatchModel, setLamp, refreshPrinted, SCR_W, SCR_H, SCREEN, type WatchModel } from './model';
 import { drawWatch, drawQuests, drawResearch, layoutBranch, PAL, type Zone } from './screen';
 import { drawMap, drawScan, drawSig, drawBio, drawLog, drawNotes, drawTool, drawFab, contacts, type Contact } from './apps';
 import { BRANCHES } from './nodes';
@@ -120,7 +120,7 @@ export class Watch {
     this.crt.power(false, true);
     (this.crt.mat.uniforms.uRes.value as THREE.Vector2).set(SCR_W * 0.62, SCR_H * 0.62);
     this.tv = new Tube(this.crt.ctx, SCR_W, SCR_H, k);
-    fontsReady().then(() => { this.tv.fontsOk = true; this.drawT = 0; });
+    fontsReady().then(() => { this.tv.fontsOk = true; this.drawT = 0; refreshPrinted(); });
     // the shared smooth arms (src/fp/hands.ts): the left one wears the watch, the right one presses its keys
     this.armL = fpArm('left', { skin: 0xe8b98f, sleeve: 0xeeb415, sleeveStyle: 'rolled' });
     this.armR = fpArm('right', { skin: 0xe8b98f, sleeve: 0xeeb415, sleeveStyle: 'long' });

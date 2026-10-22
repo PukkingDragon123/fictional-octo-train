@@ -1,5 +1,5 @@
 // What the watch's CRT shows: a green phosphor tube with amber highlights,
-// typed in IBM Plex Mono (Nixie One for big digits) through the Tube pen
+// typed in the CRT face (the tube-digit face for big digits) through the Tube pen
 // (./tube.ts) onto a real tube (src/gfx/crt.ts). A header line
 // in inverse video (function, research points, clock), the strip of functions
 // you own, the page, a footer of hints that doubles as the teletype line for

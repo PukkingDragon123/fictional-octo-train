@@ -20,17 +20,18 @@ type MB = ModelBuilder;
 interface Piece { bone: BoneName; build: (mb: MB) => void; flatHair?: boolean; glow?: { color: number; make: () => THREE.BufferGeometry } }
 const TAU = Math.PI * 2;
 
-/** a ring of n boxes around the y axis (straps, bands, crowns) */
-function ring(mb: MB, y: number, r: number, h: number, t: number, n: number, tex: string, color: number, emissive = 0) {
-  const w = (TAU * r) / n + 0.004;
-  for (let i = 0; i < n; i++) {
-    const a = (i / n) * TAU;
-    mb.push().translate(Math.sin(a) * r, y, Math.cos(a) * r).rotateY(a);
-    mb.box(0, 0, 0, w, h, t, tex, { color, emissive, fit: true });
-    mb.pop();
+/** a smooth band round the y axis (radius r, height h, centred at y); an arc a0..a1 (0 = the face, +x the subject's left); sx squeezes it to the head's oval */
+function ring(mb: MB, y: number, r: number, h: number, t: number, n: number, tex: string, color: number, emissive = 0, a0 = 0, a1 = TAU, sx = 1) {
+  const segs = Math.max(10, Math.round(n * 1.6 * Math.abs(a1 - a0) / TAU));
+  const ro = r + t / 2;
+  for (let i = 0; i < segs; i++) {
+    const A = a0 + ((a1 - a0) * i) / segs, B = a0 + ((a1 - a0) * (i + 1)) / segs;
+    const pa = [Math.sin(A) * ro * sx, Math.cos(A) * ro], pb = [Math.sin(B) * ro * sx, Math.cos(B) * ro];
+    mb.quadRaw([[pa[0], y - h / 2, pa[1]], [pb[0], y - h / 2, pb[1]], [pb[0], y + h / 2, pb[1]], [pa[0], y + h / 2, pa[1]]],
+      [[i / segs, 0], [(i + 1) / segs, 0], [(i + 1) / segs, 1], [i / segs, 1]], tex, color, 1, emissive);
   }
 }
-/** a thin rod between two points */
+/** a round rod between two points */
 function rod(mb: MB, a: number[], b: number[], r: number, tex: string, color: number, emissive = 0) {
   const dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
   const L = Math.hypot(dx, dy, dz);
@@ -38,8 +39,19 @@ function rod(mb: MB, a: number[], b: number[], r: number, tex: string, color: nu
   const m = new THREE.Matrix4().makeRotationFromQuaternion(q);
   mb.push().translate(a[0], a[1], a[2]);
   (mb as any).m.multiply(m);
-  mb.box(0, 0, 0, r * 2, L, r * 2, tex, { color, emissive, fit: true });
+  mb.cylinder(0, 0, 0, r, L, 6, tex, { color, emissive, fit: true });
   mb.pop();
+}
+/** a curved plate following the face (masks): angles a0..a1, heights y0..y1, an oval a little off the skin; paint(i, j) may recolour (-1 skips a cell: a hole) */
+function shell(mb: MB, a0: number, a1: number, y0: number, y1: number, off: number, nA: number, nY: number, tex: string, color: number, paint?: (i: number, j: number) => number) {
+  const rz = (y: number) => 0.1 + off - Math.max(0, y - 0.13) * 0.45 - Math.max(0, 0.03 - y) * 0.6;
+  for (let j = 0; j < nY; j++) for (let i = 0; i < nA; i++) {
+    const c = paint ? paint(i, j) : color;
+    if (c < 0) continue;
+    const A = a0 + ((a1 - a0) * i) / nA, B = a0 + ((a1 - a0) * (i + 1)) / nA, Y0 = y0 + ((y1 - y0) * j) / nY, Y1 = y0 + ((y1 - y0) * (j + 1)) / nY;
+    const P = (a: number, y: number) => [Math.sin(a) * rz(y) * 0.86, y, 0.006 + Math.cos(a) * rz(y)];
+    mb.quadRaw([P(A, Y0), P(B, Y0), P(B, Y1), P(A, Y1)], [[i / nA, j / nY], [(i + 1) / nA, j / nY], [(i + 1) / nA, (j + 1) / nY], [i / nA, (j + 1) / nY]], tex, c);
+  }
 }
 /** a two-sided flat panel (wings, plates) */
 function plate(mb: MB, x0: number, z0: number, x1: number, z1: number, y0: number, y1: number, tex: string, color: number) {
@@ -61,13 +73,13 @@ const PIECES: Record<string, Piece> = {
     ring(mb, 0.14, 0.109, 0.016, 0.006, 12, 'fabric_grey', 0x4a3e2a);
   } },
   hat_crown: { bone: 'head', flatHair: true, build: (mb) => {
-    ring(mb, 0.138, 0.106, 0.045, 0.006, 12, 'paper', 0xe8c84a);
+    ring(mb, 0.138, 0.106, 0.045, 0.006, 14, 'paper', 0xe8c84a);
     for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * TAU;
-      mb.push().translate(Math.sin(a) * 0.106, 0.183, Math.cos(a) * 0.106).rotateY(a);
-      mb.wedge(0, 0, 0, 0.034, 0.006, 0.05, 0.05, 'paper', { color: 0xf0d860 });
-      mb.box(0, 0.05, 0, 0.012, 0.012, 0.012, 'plastic_red', { color: 0xc83a2a });
-      mb.pop();
+      const a = (i / 7) * TAU, w = 0.22;
+      const L = [Math.sin(a - w) * 0.11, 0.16, Math.cos(a - w) * 0.11], R = [Math.sin(a + w) * 0.11, 0.16, Math.cos(a + w) * 0.11], T = [Math.sin(a) * 0.115, 0.215, Math.cos(a) * 0.115];
+      mb.triRaw([L, R, T], [[0, 0], [1, 0], [0.5, 1]], 'paper', 0xf0d860);
+      mb.triRaw([R, L, T], [[0, 0], [1, 0], [0.5, 1]], 'paper', 0xb89a40);
+      mb.sphere(T[0], T[1] + 0.006, T[2], 0.008, 6, 4, 'plastic_red', { color: 0xc83a2a });
     }
   } },
   hat_cone: { bone: 'head', flatHair: true, build: (mb) => {
@@ -90,21 +102,22 @@ const PIECES: Record<string, Piece> = {
   } },
   hat_halo: { bone: 'head', build: () => { /* glow only */ }, glow: { color: 0x7ff6ff, make: () => new THREE.TorusGeometry(0.11, 0.012, 4, 20).rotateX(Math.PI / 2).translate(0, 0.33, -0.01) } },
   eyes_shades: { bone: 'head', build: (mb) => {
-    mb.box(0, 0.085, 0.1, 0.19, 0.036, 0.016, 'plastic_black', { color: 0x141414 });
-    for (const k of [1, -1]) { mb.box(k * 0.096, 0.095, 0.045, 0.008, 0.012, 0.11, 'plastic_black', { color: 0x1a1a1a }); mb.box(k * 0.05, 0.1, 0.109, 0.06, 0.008, 0.004, 'chrome', { color: 0x8a9aa8, emissive: 0.4 }); }
+    ring(mb, 0.095, 0.104, 0.036, 0.012, 14, 'plastic_black', 0x141414, 0, -1.3, 1.3, 0.86);
+    ring(mb, 0.1, 0.11, 0.008, 0.004, 14, 'chrome', 0x8a9aa8, 0.4, -0.9, 0.9, 0.86);
+    ring(mb, 0.1, 0.1, 0.01, 0.004, 14, 'plastic_black', 0x1a1a1a, 0, 1.3, TAU - 1.3, 0.86);
   } },
   eyes_cinema: { bone: 'head', build: (mb) => {
-    mb.box(0, 0.1, 0.103, 0.17, 0.04, 0.01, 'plastic_white', { color: 0xf0ece0 });
-    mb.box(0.042, 0.1, 0.109, 0.05, 0.026, 0.004, 'plastic_white', { color: 0xe83a3a, emissive: 0.6 });
-    mb.box(-0.042, 0.1, 0.109, 0.05, 0.026, 0.004, 'plastic_white', { color: 0x3ad8e8, emissive: 0.6 });
-    for (const k of [1, -1]) mb.box(k * 0.088, 0.104, 0.05, 0.007, 0.01, 0.1, 'plastic_white', { color: 0xe8e4d8 });
+    ring(mb, 0.1, 0.103, 0.042, 0.01, 14, 'plastic_white', 0xf0ece0, 0, -1.2, 1.2, 0.86);
+    ring(mb, 0.1, 0.112, 0.026, 0.003, 10, 'plastic_white', 0xe83a3a, 0.6, 0.12, 0.72, 0.86);
+    ring(mb, 0.1, 0.112, 0.026, 0.003, 10, 'plastic_white', 0x3ad8e8, 0.6, -0.72, -0.12, 0.86);
+    ring(mb, 0.104, 0.1, 0.01, 0.004, 14, 'plastic_white', 0xe8e4d8, 0, 1.2, TAU - 1.2, 0.86);
   } },
   eyes_goggles: { bone: 'head', build: (mb) => {
     for (const k of [1, -1]) {
       mb.cylinderZ(k * 0.04, 0.1, 0.104, 0.029, 0.03, 8, { sides: 'metal_dark', all: 'glass_dark' }, { color: 0x4a5a4a });
       mb.box(k * 0.04, 0.1, 0.12, 0.034, 0.034, 0.003, 'glass_dark', { color: 0x2a3a2a, emissive: 0.25 });
     }
-    ring(mb, 0.1, 0.104, 0.02, 0.006, 14, 'leather_black', 0x2a2420);
+    ring(mb, 0.1, 0.104, 0.02, 0.006, 14, 'leather_black', 0x2a2420, 0, 0, TAU, 0.82);
   } },
   eyes_monocle: { bone: 'head', build: (mb) => {
     mb.cylinderZ(0.04, 0.1, 0.106, 0.026, 0.008, 10, { sides: 'metal_brass', all: 'glass' }, { color: 0xc8a04a });
@@ -112,41 +125,44 @@ const PIECES: Record<string, Piece> = {
     rod(mb, [0.066, 0.09, 0.104], [0.09, -0.02, 0.07], 0.002, 'metal_brass', 0xc8a04a);
   } },
   eyes_led: { bone: 'head', build: (mb) => {
-    mb.box(0, 0.1, 0.103, 0.18, 0.032, 0.014, 'plastic_black', { color: 0x101010 });
-    mb.box(0, 0.1, 0.111, 0.16, 0.012, 0.004, 'led_red', { color: 0xff3a4a, emissive: 1.6 });
-    ring(mb, 0.1, 0.103, 0.022, 0.005, 14, 'plastic_black', 0x161616);
+    ring(mb, 0.1, 0.104, 0.034, 0.014, 14, 'plastic_black', 0x101010, 0, -1.2, 1.2, 0.86);
+    ring(mb, 0.1, 0.113, 0.012, 0.003, 14, 'led_red', 0xff3a4a, 1.6, -0.95, 0.95, 0.86);
+    ring(mb, 0.1, 0.103, 0.022, 0.005, 14, 'plastic_black', 0x161616, 0, 0, TAU, 0.82);
   } },
   face_bandana: { bone: 'head', build: (mb) => {
-    ring(mb, 0.05, 0.104, 0.05, 0.006, 14, 'fabric_red', 0x8a2a2a);
-    mb.push().translate(0, 0.03, 0.105).rotateX(0.12); mb.wedge(0, -0.04, 0, 0.16, 0.012, 0.0, 0.07, 'fabric_red', { color: 0x9a3030 }); mb.pop();
+    ring(mb, 0.05, 0.104, 0.05, 0.006, 14, 'fabric_red', 0x8a2a2a, 0, 0, TAU, 0.82);
+    shell(mb, -1.1, 1.1, 0.0, 0.075, 0.012, 10, 3, 'fabric_red', 0x9a3030);
+    mb.triRaw([[-0.07, 0.0, 0.11], [0.07, 0.0, 0.11], [0, -0.06, 0.1]], [[0, 1], [1, 1], [0.5, 0]], 'fabric_red', 0x8a2828);
   } },
   face_resp: { bone: 'head', build: (mb) => {
-    mb.box(0, 0.02, 0.1, 0.085, 0.07, 0.035, 'rubber_black', { color: 0x3a3e40 });
+    mb.cylinderZ(0, 0.025, 0.112, 0.04, 0.04, 12, 'rubber_black', { color: 0x3a3e40 });
+    shell(mb, -0.8, 0.8, -0.01, 0.07, 0.006, 8, 3, 'rubber_black', 0x2e3234);
     for (const k of [1, -1]) { mb.push().translate(k * 0.052, 0.025, 0.11).rotateY(k * 0.5).rotateX(0.4); mb.cylinderZ(0, 0, 0.02, 0.022, 0.035, 8, { sides: 'metal_grey', all: 'grate' }, { color: 0x6a7074 }); mb.pop(); }
-    ring(mb, 0.065, 0.102, 0.012, 0.004, 14, 'rubber_black', 0x222424);
+    ring(mb, 0.065, 0.102, 0.012, 0.004, 14, 'rubber_black', 0x222424, 0, 0, TAU, 0.82);
   } },
   face_muzzle: { bone: 'head', build: (mb) => {
-    ring(mb, 0.058, 0.108, 0.01, 0.004, 14, 'metal_grey', 0x6a6460);
-    for (let i = -2; i <= 2; i++) { const a = i * 0.32; mb.push().rotateY(a); mb.box(0, -0.02, 0.118, 0.006, 0.08, 0.006, 'metal_grey', { color: 0x7a746e }); mb.pop(); }
-    ring(mb, 0.0, 0.1, 0.008, 0.004, 14, 'metal_grey', 0x6a6460);
-    mb.box(0, -0.025, 0.1, 0.07, 0.008, 0.03, 'metal_grey', { color: 0x5a544e });
+    ring(mb, 0.058, 0.108, 0.01, 0.004, 14, 'metal_grey', 0x6a6460, 0, 0, TAU, 0.82);
+    for (let i = -3; i <= 3; i++) { const a = i * 0.24; rod(mb, [Math.sin(a) * 0.11, 0.058, Math.cos(a) * 0.11], [Math.sin(a) * 0.09, -0.005, Math.cos(a) * 0.105], 0.004, 'metal_grey', 0x7a746e); }
+    ring(mb, 0.0, 0.1, 0.008, 0.004, 14, 'metal_grey', 0x6a6460, 0, 0, TAU, 0.82);
+    ring(mb, -0.004, 0.1, 0.008, 0.004, 12, 'metal_grey', 0x5a544e, 0, -0.8, 0.8, 0.9);
   } },
   face_goalie: { bone: 'head', build: (mb) => {
-    mb.box(0, -0.01, 0.1, 0.15, 0.21, 0.02, 'plastic_white', { color: 0xe8e4d8 });
-    for (const k of [1, -1]) {
-      mb.push().translate(k * 0.075, -0.01, 0.085).rotateY(k * 0.7); mb.box(0, 0, 0, 0.05, 0.19, 0.016, 'plastic_white', { color: 0xd8d4c8 }); mb.pop();
-      mb.box(k * 0.038, 0.1, 0.111, 0.034, 0.018, 0.004, 'plastic_black', { color: 0x0a0a0a });
-      mb.box(k * 0.02, 0.0, 0.111, 0.008, 0.008, 0.004, 'plastic_black', { color: 0x0a0a0a });
-      mb.box(k * 0.05, 0.045, 0.111, 0.007, 0.007, 0.004, 'plastic_red', { color: 0xa82a22 });
-    }
-    mb.box(0, 0.03, 0.111, 0.008, 0.008, 0.004, 'plastic_black', { color: 0x0a0a0a });
+    // 10 columns across the face, 8 rows from chin to brow: eye slots and breathing holes are left open, chevrons painted red
+    shell(mb, -1.25, 1.25, -0.03, 0.2, 0.014, 10, 8, 'plastic_white', 0xe8e4d8, (i, j) => {
+      if (j === 5 && (i === 2 || i === 3 || i === 6 || i === 7)) return -1;
+      if ((j === 1 || j === 2) && (i === 4 || i === 5) && (i + j) % 2) return -1;
+      if (j === 3 && (i === 1 || i === 8)) return 0xa82a22;
+      return j === 0 ? 0xd8d4c8 : 0xe8e4d8;
+    });
   } },
   face_smile: { bone: 'head', build: (mb) => {
-    mb.box(0, -0.015, 0.1, 0.17, 0.22, 0.016, 'chrome', { color: 0xb8bcc0 });
-    for (const k of [1, -1]) mb.box(k * 0.04, 0.105, 0.109, 0.04, 0.008, 0.004, 'plastic_black', { color: 0x050505 });
-    // the painted smile: a curve of dark blocks
-    for (let i = -4; i <= 4; i++) mb.box(i * 0.012, 0.03 + (i * i) * 0.0018, 0.109, 0.012, 0.008, 0.004, 'plastic_black', { color: 0x1a0a0a });
-    for (const k of [1, -1]) mb.box(k * 0.058, 0.064, 0.109, 0.008, 0.012, 0.004, 'plastic_black', { color: 0x1a0a0a });
+    // a polished plate with eye slits and a painted grin (the grin curves up at the corners)
+    shell(mb, -1.2, 1.2, -0.04, 0.2, 0.012, 12, 12, 'chrome', 0xb8bcc0, (i, j) => {
+      if (j === 8 && (i === 3 || i === 4 || i === 7 || i === 8)) return 0x050505;
+      const grin = Math.round(2.6 + Math.pow((i - 5.5) / 4.2, 2) * 2.2);
+      if (i >= 2 && i <= 9 && j === grin) return 0x1a0a0a;
+      return 0xb8bcc0;
+    });
   } },
   // neck-local: y 0 at the base of the neck, the collarbones a little below
   neck_tags: { bone: 'neck', build: (mb) => {

@@ -7,7 +7,7 @@
 // whistle call. Dialling pulls the wheel round to the stop and lets it run
 // back, ticking.
 import { G } from '../game/G';
-import { fontsReady } from '../gfx/crt';
+import { fontsReady, cssFont } from '../gfx/crt';
 
 const W = 280, H = 352, CX = 140, CY = 140;
 const STOP = (60 * Math.PI) / 180;
@@ -162,7 +162,7 @@ export class EmoteDial {
       g.strokeStyle = INK; g.fillStyle = INK; g.lineWidth = 2.3;
       ICONS[i](g);
       g.restore();
-      g.font = "700 9px 'Courier Prime', monospace"; g.fillStyle = 'rgba(43,34,25,0.75)'; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.font = `700 9px ${cssFont('--font-typeset')}`; g.fillStyle = 'rgba(43,34,25,0.75)'; g.textAlign = 'center'; g.textBaseline = 'middle';
       g.fillText(String(i + 1), x + 12, y + 12);
     });
     // the typed paper strip over the whistle keys, and the keys' wooden bed
@@ -173,7 +173,7 @@ export class EmoteDial {
     g.fillStyle = wood; roundRect(g, 12, sy - 6, W - 24, 78, 9); g.fill();
     g.fillStyle = '#efe5cb'; g.fillRect(18, sy - 1, W - 36, 18);
     g.strokeStyle = 'rgba(0,0,0,0.25)'; g.lineWidth = 1; g.strokeRect(18.5, sy - 0.5, W - 37, 17);
-    g.font = "12px 'Special Elite', 'Courier Prime', monospace"; g.fillStyle = INK; g.textBaseline = 'middle';
+    g.font = `12px ${cssFont('--font-type')}`; g.fillStyle = INK; g.textBaseline = 'middle';
     KEYS.forEach((k, i) => g.fillText(TUNE_LABELS[i], k.x + k.w / 2, sy + 8.5));
     return c;
   }
@@ -218,7 +218,7 @@ export class EmoteDial {
     g.beginPath(); g.arc(CX, CY, R_CARD, 0, Math.PI * 2); g.fillStyle = cg; g.fill();
     g.textAlign = 'center'; g.textBaseline = 'middle';
     const hv = this.hover;
-    const type = (s: string, y: number, size: number, col: string) => { g.font = `${size}px 'Special Elite', 'Courier Prime', monospace`; g.fillStyle = col; g.fillText(s, CX, y); };
+    const type = (s: string, y: number, size: number, col: string) => { g.font = `${size}px ${cssFont('--font-type')}`; g.fillStyle = col; g.fillText(s, CX, y); };
     if (hv?.kind === 'hole') type(LABELS[hv.i], CY + 1, 20, RED);
     else if (hv?.kind === 'key') { type('WHISTLE', CY - 9, 13, INK); type(TUNE_LABELS[hv.i], CY + 11, 17, RED); }
     else { type(this.card[0], CY - (this.card[1] ? 9 : 0), this.card[1] ? 17 : 20, this.cardRed ? RED : INK); if (this.card[1]) type(this.card[1], CY + 12, 15, this.cardRed ? RED : INK); }

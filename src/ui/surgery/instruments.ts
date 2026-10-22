@@ -1,6 +1,6 @@
 // The theatre's instruments, as physical objects in the stage's full-resolution
 // foreground layer (stage.fg): a green-enamel tele-diagnostic CRT (a real tube
-// from src/gfx/crt.ts, phosphor text in IBM Plex Mono, two bakelite knobs), a
+// from src/gfx/crt.ts, phosphor text in the --font-crt face, two bakelite knobs), a
 // riveted control desk with Nixie-tube credits, a drum counter for research
 // points, the DEAL lever and the red DISCHARGE mushroom button under engraved
 // brass plates, the typewritten manila tag that hangs off whatever part of the
@@ -8,15 +8,18 @@
 // Plates, tags and slips are printed with the craft kit (src/craft/tags.ts),
 // metals are physically based (src/craft/metal.ts via stage.pbr).
 import * as THREE from 'three';
-import { crtScreen, phosphorText, fontsReady, type CrtScreen } from '../../gfx/crt';
+import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../../gfx/crt';
 import { pixTag, tagString, setString, stamp, type PixTag, type TagKind } from '../../craft/tags';
 import { ModelBuilder } from '../../gfx/modelBuilder';
+import { shapes, smoothNormals } from '../../entities/cyberGear';
 import { pbr } from './stage';
+import { fpArm, type FpArm, type HandPose } from '../../fp/hands';
 import { csfx } from './audio';
 
-export const FONT_CRT = "'IBM Plex Mono', 'Courier Prime', monospace";
-const FONT_NIXIE = "'Nixie One', 'IBM Plex Mono', monospace";
-const FONT_TYPE = "'Courier Prime', 'Courier New', monospace";
+// type comes from the font tokens (src/ui/fonts.css), read when drawn so a face swap just works
+const fCrt = () => cssFont('--font-crt');
+const fNixie = () => cssFont('--font-nixie');
+const fType = () => cssFont('--font-typeset');
 export const PH = { hi: '#c8ffd4', mid: '#62e48e', dim: '#23743e', inv: '#06140a' };
 
 /** a printed sheet / plate whose material is lit by this stage (the craft kit's env belongs to the game's renderer) */
@@ -26,7 +29,13 @@ function sheet(kind: TagKind, w: number, h: number, size: number): PixTag {
   if (m.envMap) { m.envMap = null; m.needsUpdate = true; }
   return t;
 }
-function mesh(fn: (mb: ModelBuilder) => void, mat: THREE.Material) { const mb = new ModelBuilder(); fn(mb); const m = new THREE.Mesh(mb.build(), mat); m.castShadow = true; m.receiveShadow = true; return m; }
+/** a front-facing slab with rounded corners: x, y centre, from z0 back to z0 - depth, radius r */
+function panel(mb: ModelBuilder, x: number, y: number, z0: number, w: number, h: number, depth: number, r: number, t = 'metal_grey', o: { color?: number } = {}) {
+  mb.push().translate(x, y, z0).rotateX(Math.PI / 2);
+  shapes.rbox(mb, 0, -depth, 0, w, depth, h, r, t, o);
+  mb.pop();
+}
+function mesh(fn: (mb: ModelBuilder) => void, mat: THREE.Material) { const mb = new ModelBuilder(); fn(mb); const m = new THREE.Mesh(smoothNormals(mb.build()), mat); m.castShadow = true; m.receiveShadow = true; return m; }
 
 // ------------------------------------------------------------------ the CRT
 export interface CrtRegion { id: string; x: number; y: number; w: number; h: number }
@@ -34,10 +43,10 @@ export interface CrtRegion { id: string; x: number; y: number; w: number; h: num
 export class CrtPen {
   regions: CrtRegion[] = [];
   constructor(public ctx: CanvasRenderingContext2D, public W: number, public H: number, public hover: string) {}
-  font(size: number, weight = 500) { return `${weight} ${size}px ${FONT_CRT}`; }
+  font(size: number, weight = 500) { return `${weight} ${size}px ${fCrt()}`; }
   width(s: string, size = 15, weight = 500) { this.ctx.font = this.font(size, weight); return this.ctx.measureText(s).width; }
   text(s: string, x: number, y: number, c = PH.mid, size = 15, align: CanvasTextAlign = 'left', weight = 500) {
-    phosphorText(this.ctx, s, x, y, { size, color: c, font: `${FONT_CRT}`, align, glow: c === PH.hi ? 7 : 4 });
+    phosphorText(this.ctx, s, x, y, { size, color: c, font: fCrt(), align, glow: c === PH.hi ? 7 : 4 });
     void weight;
   }
   /** wrapped text; returns lines drawn */
@@ -105,28 +114,28 @@ export class Crt3D {
     const CW = 1.02, CH = 0.86, CD = 0.5;
     // the cabinet: green enamel with a radiused front, a bakelite surround round the tube, chrome trim
     this.group.add(mesh((mb) => {
-      mb.box(0, -CH / 2, -CD, CW, CH, CD, 'metal_grey', { fit: true });
-      mb.box(0, -CH / 2 + 0.03, -0.02, CW - 0.06, CH - 0.06, 0.04, 'metal_grey', { fit: true });
-      for (const x of [-0.42, 0.42]) mb.box(x, -CH / 2 - 0.05, -CD * 0.6, 0.08, 0.06, 0.24, 'metal_grey', { fit: true });
+      panel(mb, 0, 0, -0.02, CW, CH, CD, 0.09);
+      panel(mb, 0, 0, 0.0, CW - 0.05, CH - 0.05, 0.03, 0.075);
+      // splayed tapered feet
+      for (const x of [-0.4, 0.4]) { mb.push().translate(x, -CH / 2 - 0.0, -CD * 0.4).rotateZ(x < 0 ? 0.12 : -0.12); shapes.rod(mb, 0, 0, -0.08, 0, 0.02, 'metal_grey', { rTop: 0.026 }); mb.pop(); }
       // speaker slots
-      for (let i = 0; i < 5; i++) mb.box(0.36, -0.36 + i * 0.022, 0.021, 0.12, 0.008, 0.004, 'metal_dark', { fit: true, color: 0x101010 });
+      for (let i = 0; i < 5; i++) panel(mb, 0.36, -0.355 + i * 0.016, 0.033, 0.11, 0.007, 0.004, 0.003, 'metal_dark', { color: 0x101010 });
     }, enamel));
     this.group.add(mesh((mb) => {
-      mb.box(0, -0.31, 0.0, 0.84, 0.66, 0.05, 'metal_grey', { fit: true });
+      panel(mb, 0, 0.02, 0.03, 0.84, 0.66, 0.035, 0.07);
     }, bake));
     this.group.add(mesh((mb) => {
-      mb.box(0, -0.315, 0.026, 0.86, 0.012, 0.012, 'metal_grey', { fit: true });
-      mb.box(0, 0.335, 0.026, 0.86, 0.012, 0.012, 'metal_grey', { fit: true });
+      for (const y of [-0.315, 0.355]) mb.cylinderX(0, y, 0.034, 0.007, 0.8, 8, 'metal_grey', { fit: true });
     }, chrome));
     const sw = 0.76, sh = 0.57;
     this.scr = crtScreen(sw, sh, { tint: 0xa8ffc0, res: [this.W, this.H], scan: 0.42, mask: 0.22, glow: 0.7, curvature: this.curv, noise: 0.03, reflect: 0.55 });
-    this.scr.mesh.position.set(0, 0.02, 0.03);
+    this.scr.mesh.position.set(0, 0.02, 0.036);
     this.scr.mesh.userData.pick = 'crt';
     this.group.add(this.scr.mesh);
     // two knobs under the tube, a pilot lamp and the maker's plate
     for (const [i, x] of [[0, -0.36], [1, 0.36]] as const) {
       const k = new THREE.Group();
-      k.add(mesh((mb) => { mb.cylinderZ(0, 0, 0.0, 0.045, 0.05, 14, 'metal_grey', { fit: true }); mb.box(0, 0.012, 0.026, 0.008, 0.03, 0.004, 'metal_grey', { fit: true, color: 0xe8dcc0 }); }, bake));
+      k.add(mesh((mb) => { mb.cylinderZ(0, 0, 0.0, 0.045, 0.05, 14, 'metal_grey', { fit: true }); shapes.lump(mb, 0, 0.022, 0.026, 0.004, 0.012, 0.003, 'metal_grey', { color: 0xe8dcc0 }); }, bake));
       k.add(mesh((mb) => { mb.cylinderZ(0, 0, 0.027, 0.018, 0.006, 12, 'metal_grey', { fit: true }); }, chrome));
       k.position.set(x, -0.38, 0.03);
       k.userData.pick = i ? 'down' : 'up';
@@ -200,7 +209,7 @@ function nixieDigit(): { tex: THREE.CanvasTexture; set: (ch: string, lit: boolea
     last = k;
     g.clearRect(0, 0, 64, 96);
     g.textAlign = 'center'; g.textBaseline = 'middle';
-    g.font = `80px ${FONT_NIXIE}`;
+    g.font = `80px ${fNixie()}`;
     // the unlit cathodes stacked behind
     g.globalAlpha = 0.16; g.fillStyle = '#6a5040';
     for (const c of ['8', '0']) g.fillText(c, 32, 50);
@@ -220,7 +229,7 @@ function drumTex(): THREE.CanvasTexture {
   const g = cv.getContext('2d')!;
   const paint = () => {
     g.fillStyle = '#ece4cc'; g.fillRect(0, 0, 400, 64);
-    g.font = `700 34px ${FONT_TYPE}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `700 34px ${fType()}`; g.textAlign = 'center'; g.textBaseline = 'middle';
     for (let d = 0; d < 10; d++) {
       g.save(); g.translate(d * 40 + 20, 32); g.rotate(Math.PI / 2); g.fillStyle = '#1a1612'; g.fillText(String(d), 0, 2); g.restore();
       g.fillStyle = 'rgba(0,0,0,0.14)'; g.fillRect(d * 40, 0, 1, 64);
@@ -241,6 +250,9 @@ export class Console3D {
   private lever = new THREE.Group();
   private leverT = 0; private leverV = 0;
   private button = new THREE.Group();
+  /** the lever's knob and the button's dome: where a hand goes */
+  ball!: THREE.Mesh;
+  get buttonTop() { return this.button; }
   private press = 0;
   private glow: THREE.PointLight;
   private credits = 0;
@@ -250,11 +262,11 @@ export class Console3D {
     const W = 1.56, H = 0.62;
     // the desk: a slanted green-enamel panel with a chrome edge and rivets
     this.group.add(mesh((mb) => {
-      mb.box(0, -H / 2, -0.12, W, H, 0.12, 'metal_grey', { fit: true });
-      mb.box(0, -H / 2 - 0.08, -0.4, W + 0.04, 0.1, 0.52, 'metal_grey', { fit: true });
+      panel(mb, 0, 0, 0, W, H, 0.12, 0.07);
+      panel(mb, 0, -H / 2 - 0.03, -0.14, W + 0.04, 0.1, 0.4, 0.04);
     }, enamel));
     this.group.add(mesh((mb) => {
-      mb.box(0, H / 2 - 0.006, -0.11, W + 0.02, 0.014, 0.12, 'metal_grey', { fit: true });
+      mb.cylinderX(0, H / 2 - 0.012, -0.002, 0.01, W - 0.1, 10, 'metal_grey', { fit: true });
       for (const x of [-W / 2 + 0.04, W / 2 - 0.04]) for (const y of [-H / 2 + 0.04, H / 2 - 0.05]) mb.cylinderZ(x, y, 0.002, 0.012, 0.008, 8, 'metal_grey', { fit: true });
     }, chrome));
     // the title plate
@@ -292,7 +304,7 @@ export class Console3D {
     this.group.add(this.glow);
     // ---- research points: a three-drum counter behind a window
     label('RESEARCH', -0.06, 0.07, 36);
-    this.group.add(mesh((mb) => { mb.box(-0.06, -0.2, -0.05, 0.27, 0.17, 0.04, 'metal_grey', { fit: true, color: 0x303030 }); for (const y of [-0.2, -0.04]) mb.box(-0.06, y, -0.01, 0.27, 0.012, 0.03, 'metal_grey', { fit: true }); }, bake));
+    this.group.add(mesh((mb) => { panel(mb, -0.06, -0.12, -0.03, 0.29, 0.17, 0.04, 0.03, 'metal_grey', { color: 0x303030 }); for (const y of [-0.2, -0.04]) mb.cylinderX(-0.06, y, 0.0, 0.009, 0.27, 8, 'metal_grey', { fit: true }); }, bake));
     const dt = drumTex();
     for (let i = 0; i < 3; i++) {
       const dm = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.072, 28, 1), [new THREE.MeshStandardMaterial({ map: dt, roughness: 0.55 }), steel, steel]);
@@ -302,12 +314,13 @@ export class Console3D {
     }
     // ---- the DEAL lever in a brass quadrant
     label('DEAL', 0.24, 0.07, 24);
-    this.group.add(mesh((mb) => { mb.box(0.24, -0.25, 0.0, 0.07, 0.24, 0.025, 'metal_grey', { fit: true }); }, pbr('brass')));
-    this.group.add(mesh((mb) => { mb.box(0.24, -0.24, 0.026, 0.016, 0.2, 0.004, 'metal_grey', { fit: true, color: 0x101010 }); }, bake));
+    this.group.add(mesh((mb) => { panel(mb, 0.24, -0.13, 0.025, 0.08, 0.24, 0.025, 0.035); }, pbr('brass')));
+    this.group.add(mesh((mb) => { panel(mb, 0.24, -0.14, 0.029, 0.018, 0.2, 0.004, 0.008, 'metal_grey', { color: 0x101010 }); }, bake));
     this.lever.position.set(0.24, -0.24, 0.03);
     this.lever.add(mesh((mb) => { mb.cylinder(0, 0, 0, 0.011, 0.21, 8, 'metal_grey', { fit: true }); }, chrome));
     const ball = new THREE.Mesh(new THREE.SphereGeometry(0.034, 16, 12), new THREE.MeshPhysicalMaterial({ color: 0xb01808, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08 }));
     ball.position.y = 0.22; ball.castShadow = true;
+    this.ball = ball;
     this.lever.add(ball);
     this.lever.rotation.x = 0.3;
     this.lever.userData.pick = 'lever';
@@ -408,4 +421,64 @@ export function dischargeSlip(lines: string[]): PixTag {
   stamp(t, 'DISCHARGED', 62, 56, '#b81c12');
   t.flush();
   return t;
+}
+
+// ------------------------------------------------------------------ hands near the camera (src/fp/hands.ts)
+const _t = new THREE.Vector3(), _w = new THREE.Vector3(), _up = new THREE.Vector3(0, 1, 0);
+const easeOut = (t: number) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3);
+const easeIn = (t: number) => Math.pow(Math.min(1, Math.max(0, t)), 2);
+/**
+ * The theatre operator's gloved hand: it reaches in from below the frame to
+ * press DISCHARGE with a fingertip or take the DEAL lever by the knob, does the
+ * thing at the moment of contact, and withdraws. The fingertip (or grip) is
+ * steered onto its target every frame, so it lands wherever the desk sits.
+ */
+export class OperatorHand {
+  arm: FpArm;
+  private t = -1;
+  private target: () => THREE.Vector3 = () => _t;
+  private kind: 'press' | 'grip' = 'press';
+  private contact?: () => void;
+  private fired = false;
+  private from = new THREE.Vector3(0.3, -0.9, 0.5);
+  constructor(scene: THREE.Object3D) {
+    this.arm = fpArm('right', { skin: 0xd8ceb0, sleeve: 0xe8e4d8, sleeveStyle: 'long' });
+    this.arm.root.visible = false;
+    scene.add(this.arm.root);
+  }
+  get busy() { return this.t >= 0; }
+  reach(target: () => THREE.Vector3, kind: 'press' | 'grip', contact: () => void, scale = 1) {
+    this.target = target; this.kind = kind; this.contact = contact; this.fired = false; this.t = 0;
+    this.arm.root.scale.setScalar(scale);
+    this.arm.pose(kind === 'press' ? 'point' : 'open', true);
+    this.arm.root.visible = true;
+  }
+  frame(dt: number) {
+    if (this.t < 0) return;
+    this.t += dt;
+    const IN = 0.34, HOLD = this.kind === 'grip' ? 0.45 : 0.28, OUT = 0.36;
+    const t = this.t;
+    let k = 1;
+    if (t < IN) k = easeOut(t / IN); else if (t > IN + HOLD) k = 1 - easeIn((t - IN - HOLD) / OUT);
+    if (t >= IN && !this.fired) { this.fired = true; this.arm.pose(this.kind === 'press' ? 'press' : 'grip'); this.contact?.(); }
+    if (t > IN + HOLD + OUT) { this.t = -1; this.arm.root.visible = false; return; }
+    const r = this.arm.root;
+    // the forearm points from below-front at the target
+    r.quaternion.setFromUnitVectors(_up, _w.copy(this.from).multiplyScalar(-1).normalize());
+    this.arm.update(dt);
+    const goal = _t.copy(this.target()).addScaledVector(this.from, (1 - k) * 0.9 * r.scale.x);
+    r.updateMatrixWorld(true);
+    const tip = (this.kind === 'press' ? this.arm.tip : this.arm.grip).getWorldPosition(_w);
+    r.position.add(goal.sub(tip));
+  }
+}
+
+/** the patient's own hand at the edge of the view, clenched on the table (field surgery's point of view) */
+export function patientHand(scene: THREE.Object3D, skin: number, sleeve: number | null, pose: HandPose = 'fist'): FpArm {
+  const a = fpArm('left', { skin, sleeve, sleeveStyle: sleeve === null ? 'none' : 'long' });
+  a.root.position.set(-0.42, -0.62, -0.95);
+  a.root.rotation.set(-1.05, 0.2, 0.5);
+  a.pose(pose, true);
+  scene.add(a.root);
+  return a;
 }

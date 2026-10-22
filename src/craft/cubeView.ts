@@ -9,7 +9,8 @@ import * as THREE from 'three';
 import type { Item } from '../items/item';
 import { type GridSpec, type Rot, dropSpot, extentIn } from '../items/grid';
 import { Shape } from './shapes';
-import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
+import { crtScreen, phosphorText, cssFont, type CrtScreen } from '../gfx/crt';
+const CRT = () => cssFont('--font-crt', 'monospace');
 import { GridView3, type DropAt } from './gridView3';
 import { pixTag, type PixTag } from './tags';
 import { metalMat } from './metal';
@@ -189,14 +190,14 @@ export class CubeView extends GridView3 {
       const g = ctx.createLinearGradient(0, y - 10, 0, y + 3);
       g.addColorStop(0, 'rgba(120,255,150,0)'); g.addColorStop(0.8, 'rgba(150,255,170,0.55)'); g.addColorStop(1, 'rgba(220,255,225,1)');
       ctx.fillStyle = g; ctx.fillRect(4, y - 10, w - 8, 13);
-      phosphorText(ctx, 'READING', w / 2, h - 22, { size: 15, align: 'center', color: '#9dffb5' });
+      phosphorText(ctx, 'READING', w / 2, h - 22, { size: 15, align: 'center', color: '#9dffb5', font: CRT() });
     } else if (state === 'ok') {
-      phosphorText(ctx, 'ACCEPTED', w / 2, 30, { size: 17, align: 'center', color: '#c8ffd4', glow: 9 });
-      phosphorText(ctx, 'No.' + this.no, w / 2, 62, { size: 15, align: 'center', color: '#9dffb5' });
+      phosphorText(ctx, 'ACCEPTED', w / 2, 30, { size: 17, align: 'center', color: '#c8ffd4', glow: 9, font: CRT() });
+      phosphorText(ctx, 'No.' + this.no, w / 2, 62, { size: 15, align: 'center', color: '#9dffb5', font: CRT() });
     } else if (state === 'bad') {
-      phosphorText(ctx, 'NO MATCH', w / 2, 46, { size: 16, align: 'center', color: '#ffb080', glow: 9 });
+      phosphorText(ctx, 'NO MATCH', w / 2, 46, { size: 16, align: 'center', color: '#ffb080', glow: 9, font: CRT() });
     } else {
-      phosphorText(ctx, 'THUMB', w / 2, h - 24, { size: 14, align: 'center', color: '#5ad87a' });
+      phosphorText(ctx, 'THUMB', w / 2, h - 24, { size: 14, align: 'center', color: '#5ad87a', font: CRT() });
     }
     this.reader.flush();
   }

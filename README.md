@@ -2,11 +2,12 @@
 
 An isometric survival-horror sandbox set in endless liminal rooms. You are
 a debtor in a yellow jumpsuit. Meridian Institute guards drag you through a
-1990 processing wing, beat you, and shove you through a black seam in a wall.
-You land on damp yellow carpet with a BAILIFF band bolted through your wrist.
-It will blow your arm off if you try to leave. A flickering hologram sergeant
-tells you the deal: smash the furniture, find what's worth something, and feed
-it to the hoppers until the debt is paid. Then buy a ride out. The building goes
+processing wing, beat you, bolt a BAILIFF band through your wrist next to a
+press that is still crushing the last debtor, and shove you into a taped-off
+section of wall that turns to liquid. You land on damp yellow carpet. The band
+will blow your arm off if you try to leave. A sergeant projected out of it like
+old film tells you the deal: find what's worth something, put it on a press,
+pull the lever, and it goes through to the other side, until the debt is paid. Then buy a ride out. The building goes
 on forever, rooms repeat, corridors loop, the people sitting at the dinner
 tables are not people, and other things live here.
 
@@ -65,7 +66,9 @@ URL flags: `?quick` skips the title and the intro and starts a fresh run (band a
 | N (hold) | scan what you point at (the watch's SCAN research, or a Phosphor Scope): DATA, research for firsts, a punch card with the result |
 | K | order your thralls: on a creature, sic them all; on the floor, post them there; on nothing, call them back |
 | Tab | raise the watch (first person; wheel / arrows select, Enter acts, [ ] or 1–9 switch functions) |
-| I | open the backpack (drag to place, R or right-click to turn while dragging, Shift-drag takes half, Ctrl-drag takes one, double-click quick-moves) |
+| I | open the iron cube in first person (thumb on the reader; drag items in, R / T / Y turn, tip and roll, wheel peels layers, Shift-click swaps sides, double-click inspects and works on an item) |
+| ` or Y | draw the tool in the quick-draw holster on your hip, or holster what you hold |
+| double-click | in the world: inspect an item on the floor, work on a chair, stand at a workbench |
 | M | map |
 | R | reload; rotate while placing furniture |
 | Q | shout |
@@ -100,15 +103,20 @@ and an ignition key.
 
 ## What's in it
 
-- **Intake.** A new game opens on intake camera 2: cuffed, marched down a
-  wet concrete corridor between two guards, beaten, and shoved through the
-  Seam. A guard steps out after you and bolts the BAILIFF band through your
-  wrist. Skippable; `?intro` forces it, `?quick` skips it.
+- **Intake.** A new contract run opens in first person: hauled backwards by
+  the wrists down the processing wing, thrown down by the drain and beaten
+  (blood on the lens, the picture doubling, real injuries), dragged past a
+  giant press into the press room, the BAILIFF band bolted through your wrist,
+  then shoved into a door-shaped section of wall taped off in hazard tape: it
+  turns liquid and you go through, and get up in the Lobby. Skippable;
+  `?intro` forces it, `?quick` skips it.
 - **The debt.** You and your crew owe the Institute 25,000 scrip (Terms
   screen: amount, days per installment, how lethal the band is). Smash
   furniture to shake out what was hidden in it: rings in the sofa cushions,
-  watches in desks, boards and copper in TVs. Push loot, or whole pieces of
-  furniture, onto a Remittance Hopper, which weighs, scans and swallows them.
+  watches in desks, boards and copper in TVs. Put loot, or whole pieces of
+  furniture, on the plate of a Remittance Press and pull its lever: the ram
+  slams down and the load goes through the seam under the plate (anything
+  alive on the plate is crushed); nixie tubes count up the credit.
   Five installments come due on a timer, and missing one shocks every band.
   Clear the debt, buy passage at the depot (a freight lift, the night coach,
   or the Quiet Car) and board before it leaves.
@@ -191,10 +199,17 @@ and an ignition key.
   until you earn them, and stay unlocked across runs.
 - **No traditional UI.** The title is a security desk with a CCTV monitor,
   settings are clipboards you stamp, saves are case files in a cabinet, and
-  pause freezes the world inside the band's hologram. The backpack swings in
-  hanging from a spring scale, unzips, and is a stitched canvas grid where
-  every item takes its real space. Pockets are on the jumpsuit, and a drawer
-  you loot is a wooden tray. There are no context menus: a right click does the obvious thing, holding grabs, the wheel steps through the rest one word at a time,
+  pause freezes the world inside the band's hologram. The backpack is a riveted
+  iron cube: your arms swing it round, your thumb goes on its phosphor reader,
+  the bolts snap back and the lid opens on a 5x5x5 grid where every item takes
+  its real width, length and height and rests on what is under it; the fuller
+  and heavier it is, the slower you walk. Tools ride in a roll on your hip with
+  a quick-draw holster, and a drawer you loot is a tray beside the cube.
+  Crafting is by hand: double-click something to hold it up close, then saw a
+  leg off a chair, beat scrap to an edge with a rock, tear a shirt into strips
+  and bind them into an axe; every recipe can be laid out and assembled on a
+  workbench, and the watch's research tree teaches better methods and
+  blueprints. There are no context menus: a right click does the obvious thing, holding grabs, the wheel steps through the rest one word at a time,
   and progress is tally marks scratched round your feet.
 - **Survival you have to manage.** Hunger, thirst, fatigue, temperature,
   wetness, exhaustion, panic, stress, boredom and sickness. Body-part injuries

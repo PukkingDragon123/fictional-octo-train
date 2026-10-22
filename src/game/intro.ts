@@ -61,7 +61,7 @@ import { hitstop } from '../gfx/juice';
 import { IntroSet, IX, STAGE } from './introSet';
 import { roundBox } from '../content/furniture/zd_contract';
 import { worldMaterial } from '../gfx/materials';
-import { crtScreen, phosphorText, fontsReady, type CrtScreen } from '../gfx/crt';
+import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../gfx/crt';
 import type { SeamFx } from './seam';
 import './intro.css';
 
@@ -210,17 +210,17 @@ function drawCrt(c: CrtScreen, t: number, mode: 'boot' | 'link' | 'signal', fill
   if (mode === 'boot' && t < 0.6) {
     x.fillStyle = '#ffe2b0'; const w = 8 + t * 220; x.fillRect(W / 2 - w / 2, H / 2 - 1, w, 2);
   } else if (mode === 'boot') {
-    if (fontsOk) phosphorText(x, 'BAILIFF', W / 2, 20, { size: 22, color: A, align: 'center', glow: 8 });
-    if (fontsOk) phosphorText(x, 'REMITTANCE', W / 2, 46, { size: 11, color: '#c88a3a', align: 'center', glow: 4 });
+    if (fontsOk) phosphorText(x, 'BAILIFF', W / 2, 20, { size: 22, color: A, align: 'center', glow: 8, font: cssFont('--font-crt') });
+    if (fontsOk) phosphorText(x, 'REMITTANCE', W / 2, 46, { size: 11, color: '#c88a3a', align: 'center', glow: 4, font: cssFont('--font-crt') });
     x.fillStyle = A; x.fillRect(16, 72, (W - 32) * fill, 7);
     x.strokeStyle = '#7a4a1a'; x.strokeRect(15.5, 71.5, W - 31, 8);
   } else {
-    if (fontsOk) phosphorText(x, mode === 'signal' ? 'SIGNAL' : 'LINKED', W / 2, 10, { size: 18, color: A, align: 'center', glow: 7 });
+    if (fontsOk) phosphorText(x, mode === 'signal' ? 'SIGNAL' : 'LINKED', W / 2, 10, { size: 18, color: A, align: 'center', glow: 7, font: cssFont('--font-crt') });
     x.strokeStyle = A; x.lineWidth = 2; x.shadowColor = A; x.shadowBlur = 6;
     x.beginPath();
     for (let i = 0; i <= 48; i++) { const px = 10 + i * (W - 20) / 48, py = 66 + Math.sin(i * 0.55 + t * 9) * (mode === 'signal' ? 14 : 3) * (mode === 'signal' ? Math.sin(i * 0.13 + 0.4) : 1); if (i) x.lineTo(px, py); else x.moveTo(px, py); }
     x.stroke(); x.shadowBlur = 0;
-    if (mode === 'signal' && Math.sin(t * 7) > 0 && fontsOk) phosphorText(x, 'VOSS', W / 2, 84, { size: 12, color: '#ffe0a0', align: 'center', glow: 5 });
+    if (mode === 'signal' && Math.sin(t * 7) > 0 && fontsOk) phosphorText(x, 'VOSS', W / 2, 84, { size: 12, color: '#ffe0a0', align: 'center', glow: 5, font: cssFont('--font-crt') });
   }
   c.flush();
 }
@@ -254,7 +254,8 @@ export class Intro implements GameSystem {
   private path: { pts: [number, number][]; s: number; len: number; speed: number } | null = null;
   private armL: { p: THREE.Vector3; w: number } | null = null;
   private band: Band | null = null;
-  private arms: { arm: FpArm; farm: THREE.Object3D; hold: THREE.Group; side: 'L' | 'R' }[] = [];
+  /** the fp arms on the double's elbows; roll turns the forearm about its own axis (pronation) */
+  private arms: { arm: FpArm; farm: THREE.Object3D; hold: THREE.Group; side: 'L' | 'R'; base: number; roll: number; rollGoal: number }[] = [];
   private bandT = -1; private crtT = 0;
   // guards' grips: which of my wrists each one holds
   private gripA = 0; private gripB = 0;
@@ -309,7 +310,7 @@ export class Intro implements GameSystem {
     this.canvas = g.pr.renderer.domElement;
     // the stage
     const root = fpGroup(STAGE_NAME);
-    this.set = new IntroSet(root);
+    this.set = new IntroSet(root, (g.pr as unknown as { quality?: string }).quality === 'low');
     this.set.onSlam = (d) => this.pressSlam(d);
     this.me = createPreviewRig(p.app, p.computeOutfit());
     (this.me.bones as Record<string, THREE.Object3D>).head.scale.setScalar(0.001);
@@ -323,7 +324,7 @@ export class Intro implements GameSystem {
       hold.add(arm.root);
       // the rig's forearm hangs down its bone's -Y with the palm turned in; the fp arm runs up +Y, palm +Z
       arm.root.rotation.set(0, side === 'L' ? -Math.PI / 2 : Math.PI / 2, Math.PI);
-      this.arms.push({ arm, farm, hold, side });
+      this.arms.push({ arm, farm, hold, side, base: arm.root.rotation.y, roll: 0, rollGoal: 0 });
     }
     this.hands('claw', 'claw', 0.3);
     this.A = new Guard('A', 3, root);
@@ -601,7 +602,12 @@ export class Intro implements GameSystem {
     if (ps) overlay(me, ps, this.poseW);
     me.root.updateMatrixWorld(true);
     if (this.armL) { reachArm(me, 'L', this.armL.p, this.armL.w, v4.set(0.6, -1, 0.1)); me.root.updateMatrixWorld(true); }
-    for (const a of this.arms) { a.hold.position.copy(a.farm.position); a.hold.quaternion.copy(a.farm.quaternion); a.farm.scale.setScalar(0.001); a.arm.update(dt); }
+    for (const a of this.arms) {
+      a.hold.position.copy(a.farm.position); a.hold.quaternion.copy(a.farm.quaternion); a.farm.scale.setScalar(0.001);
+      a.roll += (a.rollGoal - a.roll) * Math.min(1, dt * 5);
+      a.arm.root.rotation.y = a.base + a.roll;
+      a.arm.update(dt);
+    }
     me.root.updateMatrixWorld(true);
     // the officers' grips
     if (this.gripA > 0.01) A.reachR = { p: this.wrist('L', A.reachR?.p ?? new THREE.Vector3()), w: this.gripA, pole: POLE_A }; else if (A.reachR) A.reachR = null;
@@ -888,7 +894,7 @@ export class Intro implements GameSystem {
     } else { this.pose = 'kneel'; this.poseW = 1; this.bodyYaw = -Math.PI / 2; }
     this.aim(Math.PI / 2 + 0.6, -0.05, 0, 2.5);
     // A takes the left wrist and pulls the arm out in front; B comes in with the fitting gun
-    this.at(1.3, 1, () => { A.setHeld(null); B.setHeld('gun'); this.say('OFFICER', 'Left arm.'); this.hands('open', 'fist', 0.7); });
+    this.at(1.3, 1, () => { A.setHeld(null); B.setHeld('gun'); this.say('OFFICER', 'Left arm.'); this.hands('open', 'fist', 0.7); const l = this.arms.find((q) => q.side === 'L'); if (l) l.rollGoal = Math.PI; });
     const eye = this.eye, fwdX = -1, fwdZ = 0;
     const tgt = v2.set(eye.x + fwdX * 0.46, eye.y - 0.32, eye.z + fwdZ * 0.46 + 0.1);
     if (t > 1.4) {
@@ -914,7 +920,7 @@ export class Intro implements GameSystem {
     if (t > 4.6 && t < 7.0) { const cam = fpCamera(); cam.fov += (50 - cam.fov) * Math.min(1, dt * 2); cam.updateProjectionMatrix(); }
     else if (t >= 7.0) { const cam = fpCamera(); cam.fov += (64 - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix(); }
     this.at(7.1, 6, () => { this.say('OFFICER', 'Up.'); B.setHeld('baton'); });
-    if (t > 7.9) { this.armL = null; this.startTape(); }
+    if (t > 7.9) { this.armL = null; for (const a of this.arms) a.rollGoal = 0; this.startTape(); }
   }
   /** the band goes through the wrist */
   private pierce() {

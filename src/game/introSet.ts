@@ -97,9 +97,10 @@ export class IntroSet {
   private flick = 0;
   private t = 0;
 
-  constructor(root: THREE.Group) {
+  /** low: the phone path (one roaming light instead of three, fewer drops) */
+  constructor(root: THREE.Group, private low = false) {
     this.root = root;
-    this.blood = new Particles(220, false);
+    this.blood = new Particles(low ? 90 : 220, false);
     this.blood.mesh.material = worldMaterial({ outline: 0, ...STAGE });
     root.add(this.blood.mesh);
     this.build();
@@ -160,7 +161,7 @@ export class IntroSet {
     // lights
     this.amb = new THREE.AmbientLight(0x9aa4b0, 0.22);
     this.root.add(this.amb);
-    for (let i = 0; i < 3; i++) { const l = new THREE.PointLight(0xdfeaff, 0, 6.5, 1.6); this.pool.push(l); this.root.add(l); }
+    for (let i = 0; i < (this.low ? 1 : 3); i++) { const l = new THREE.PointLight(0xdfeaff, 0, 6.5, 1.6); this.pool.push(l); this.root.add(l); }
     this.bulb = new THREE.PointLight(0xffc880, 3.2, 7, 1.5); this.bulb.position.set(IX.drain[0], ante.h - 0.45, IX.drain[1]);
     this.red = new THREE.PointLight(0xff2a18, 0, 12, 1.4);
     this.work = new THREE.PointLight(0xffe0b0, 9, 9, 1.4); this.work.position.set(IX.press.x + 0.4, 5.0, IX.press.z);

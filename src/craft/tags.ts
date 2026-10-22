@@ -6,24 +6,21 @@
 // brass or tape with fibre, grime and ink bleed, mapped onto a plane in the
 // overlay scene. Never a box on screen: the text lives on the object.
 import * as THREE from 'three';
-import { fontsReady } from '../gfx/crt';
+import { fontsReady, cssFont } from '../gfx/crt';
 import { metalEnv } from './metal';
 
 export type TagKind = 'tag' | 'card' | 'plate' | 'dymo' | 'slate' | 'blueprint' | 'bakelite';
 
 /** canvas pixels per layout unit (layout units are the sizes callers pass) */
 const S = 4;
-const fontVar = (name: string, fb: string) => {
-  try { const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim(); return v || fb; } catch { return fb; }
-};
 let FONTS: Record<string, string> | null = null;
 function fonts() {
   if (!FONTS) FONTS = {
-    type: fontVar('--font-type', "'Special Elite', 'Courier Prime', monospace"),
-    typeset: fontVar('--font-typeset', "'Courier Prime', monospace"),
-    sign: fontVar('--font-sign', "'Oswald', 'Arial Narrow', sans-serif"),
-    pen: fontVar('--font-pen', "'Caveat', cursive"),
-    nixie: fontVar('--font-nixie', "'Nixie One', monospace"),
+    type: cssFont('--font-type', 'monospace'),
+    typeset: cssFont('--font-typeset', 'monospace'),
+    sign: cssFont('--font-sign', 'sans-serif'),
+    pen: cssFont('--font-pen', 'cursive'),
+    nixie: cssFont('--font-nixie', 'monospace'),
   };
   return FONTS;
 }

@@ -212,7 +212,7 @@ export class InventoryUI {
     g.add(this.wornBoard, this.box.g, this.gauge.g, this.rail);
     this.dymo = new Dymo(g);
     this.hoverTag = new HoverTag(g);
-    for (const s of [1, -1] as const) { const a = makeArm(s); g.add(a.root); this.arms.push(a); }
+    for (const s of [1, -1] as const) { const a = makeArm(s, 1.05); g.add(a.root); this.arms.push(a); }
   }
 
   /** where things sit on screen for this aspect */
@@ -234,8 +234,8 @@ export class InventoryUI {
     this.rail.position.set(halfW - 0.035 * k, halfH * 0.92, -D); this.rail.scale.setScalar(k);
 
     // camera-space props along the bottom and top
-    this.palm.L.set(-halfW * 0.78, -halfH * 0.72, -D);
-    this.palm.R.set(halfW * 0.78, -halfH * 0.72, -D);
+    this.palm.L.set(-halfW * 0.74, -halfH * 0.8, -D);
+    this.palm.R.set(halfW * 0.74, -halfH * 0.8, -D);
     this.wornBoard.position.set(-halfW * 0.36, -halfH * 0.8, -D); this.wornBoard.rotation.set(-0.25, 0.1, 0); this.wornBoard.scale.setScalar(k);
     this.box.g.position.set(halfW * 0.34, -halfH * 0.84, -D); this.box.g.rotation.set(0.62, -0.08, 0); this.box.g.scale.setScalar(k * 1.25);
     this.gauge.g.position.set(-halfW + 0.11 * k, halfH - 0.11 * k, -D); this.gauge.g.scale.setScalar(k);
@@ -524,7 +524,8 @@ export class InventoryUI {
       gr.lerp(pad.sub(tip.sub(wr)).add(_v.set(0, 0, 0.004)), this.thumb);
     }
     aR.target.lerp(gr, 1 - Math.exp(-18 * dt));
-    for (const a of this.arms) a.elbow.set(a.side * 0.48, -0.66, -0.75);
+    // the elbows sit low and near, so resting forearms reach forward and the palms turn up
+    for (const a of this.arms) a.elbow.set(a.side * 0.34, -0.44 + k * 0.1, -0.5 - k * 0.2);
     aL.want = k > 0.5 ? 'grip' : 'relaxed';
     aR.want = this.thumb > 0.3 ? 'press' : k > 0.5 ? 'grip' : 'relaxed';
     poseArm(aL, -Math.PI / 2 * k, dt); poseArm(aR, -Math.PI / 2 * k, dt);

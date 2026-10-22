@@ -22,6 +22,7 @@ import { ModelBuilder } from '../../gfx/modelBuilder';
 import { atlas } from '../../gfx/atlas';
 import { G } from '../../game/G';
 import type { FpArm } from '../../fp/hands';
+import { cssFont } from '../../gfx/crt';
 
 /** the tube's character field (layout units) */
 export const SCR_W = 224, SCR_H = 136;
@@ -72,11 +73,15 @@ function textures() {
 
 /** a small procedural canvas texture (cached), tiled */
 const TEX = new Map<string, THREE.CanvasTexture>();
-function canvasTex(key: string, w: number, h: number, draw: (g: CanvasRenderingContext2D, w: number, h: number) => void, srgb = true): THREE.CanvasTexture {
+const REDRAW: (() => void)[] = [];
+/** repaint the printed parts (after the web fonts arrive) */
+export function refreshPrinted() { for (const f of REDRAW) f(); }
+function canvasTex(key: string, w: number, h: number, draw: (g: CanvasRenderingContext2D, w: number, h: number) => void, srgb = true, printed = false): THREE.CanvasTexture {
   let t = TEX.get(key);
   if (t) return t;
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   draw(c.getContext('2d')!, w, h);
+  if (printed) REDRAW.push(() => { draw(c.getContext('2d')!, w, h); for (const [, tx] of TEX) if (tx.image === c) tx.needsUpdate = true; for (const m of Object.values(SM || {})) if (m.map?.image === c) m.map.needsUpdate = true; });
   t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
@@ -112,14 +117,15 @@ const grille = () => canvasTex('wt_grillet', 64, 16, (g, w, h) => {
 });
 /** the stamped brass maker's plate (original lettering) */
 const plate = () => canvasTex('wt_platet', 128, 36, (g, w, h) => {
+  g.clearRect(0, 0, w, h);
   const grd = g.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, '#f0d488'); grd.addColorStop(1, '#a8803a');
   g.fillStyle = grd; g.fillRect(0, 0, w, h);
-  g.font = "bold 13px 'Oswald', 'Courier Prime', monospace"; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.font = `bold 13px ${cssFont('--font-sign', 'sans-serif')}`; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillStyle = 'rgba(255,240,200,0.6)'; g.fillText('BAILIFF  MK·IX', w / 2 + 0.6, h * 0.36 + 0.6);
   g.fillStyle = '#5a3e14'; g.fillText('BAILIFF  MK·IX', w / 2, h * 0.36);
-  g.font = "9px 'Courier Prime', monospace"; g.fillText('MERIDIAN INSTITUTE · REMITTANCE', w / 2, h * 0.74);
+  g.font = `9px ${cssFont('--font-typeset', 'monospace')}`; g.fillText('MERIDIAN INSTITUTE · REMITTANCE', w / 2, h * 0.74);
   for (const [x, y] of [[5, 5], [w - 5, 5], [5, h - 5], [w - 5, h - 5]]) { g.fillStyle = '#6a4a18'; g.beginPath(); g.arc(x, y, 2.2, 0, Math.PI * 2); g.fill(); }
-});
+}, true, true);
 
 // ---------------------------------------------------------------- materials
 type MatKey = 'steel' | 'bake' | 'brass' | 'chrome' | 'rubber' | 'paint';

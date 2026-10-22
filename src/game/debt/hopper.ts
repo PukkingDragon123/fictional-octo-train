@@ -43,7 +43,7 @@ import type { MenuOption } from '../../ui/ui';
 import { itemValue, objectValue, objKeyValue, isRejected } from './values';
 import { voss, bailiff, pick, fmt, L } from './voice';
 import '../../audio/sounds_press';
-import { crtScreen, phosphorText, fontsReady, type CrtScreen } from '../../gfx/crt';
+import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../../gfx/crt';
 import './debt.css';
 
 /** the cycle, seconds after the lever: horn, slam, hold, back up */
@@ -187,7 +187,7 @@ void fontsReady().then(() => { nixieFonts = true; });
 function drawNixie(c: CrtScreen, n: number) {
   const x = c.ctx, W = c.canvas.width, H = c.canvas.height;
   x.fillStyle = '#0a0604'; x.fillRect(0, 0, W, H);
-  const font = "'Nixie One', 'IBM Plex Mono', monospace";
+  const font = cssFont('--font-nixie');
   const s = n < 0 ? '' : String(n).padStart(5, '0');
   for (let i = 0; i < 5; i++) {
     const cx = W * (0.1 + i * 0.2);

@@ -208,7 +208,7 @@ export function phosphorText(ctx: CanvasRenderingContext2D, text: string, x: num
 export function fontsReady(): Promise<unknown> {
   const f = (document as Document & { fonts?: FontFaceSet }).fonts;
   if (!f) return Promise.resolve();
-  return Promise.all(["16px 'IBM Plex Mono'", "16px 'Courier Prime'", "16px 'Special Elite'", "16px 'Nixie One'", "16px 'Oswald'", "16px 'Alfa Slab One'", "16px 'Caveat'"].map((s) => f.load(s).catch(() => null)));
+  return Promise.all(["16px 'IBM Plex Mono'", "16px 'Courier Prime'", "italic 16px 'EB Garamond'", "16px 'EB Garamond'", "16px 'Special Elite'", "16px 'Nixie One'", "16px 'Oswald'", "16px 'Alfa Slab One'", "16px 'Caveat'"].map((s) => f.load(s).catch(() => null)));
 }
 
 /** the family list behind one of the type tokens in src/ui/fonts.css (so canvas text follows a font swap) */

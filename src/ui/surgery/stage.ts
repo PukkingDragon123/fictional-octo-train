@@ -19,7 +19,7 @@ import { CT, loosePartGeo, shapes, smoothNormals } from '../../entities/cyberGea
 import { CyberSlot, SLOT_KIND, SLOT_COVERS, cyberDef, CYBER_SLOTS } from '../../survival/cyberParts';
 import type { StumpCond } from '../../survival/limbs';
 import { csfx, csfxLoop } from './audio';
-import { fontsReady } from '../../gfx/crt';
+import { fontsReady, cssFont } from '../../gfx/crt';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { metalMat, type MetalKind } from '../../craft/metal';
 
@@ -469,7 +469,7 @@ export class SurgeryStage {
     const paintSign = () => {
       const g = sx.createRadialGradient(64, 16, 4, 64, 16, 70); g.addColorStop(0, '#5a1208'); g.addColorStop(1, '#200604');
       sx.fillStyle = g; sx.fillRect(0, 0, 128, 32);
-      sx.font = "600 22px 'Oswald', 'Arial Narrow', sans-serif"; sx.textAlign = 'center'; sx.textBaseline = 'middle';
+      sx.font = `600 22px ${cssFont('--font-sign', 'sans-serif')}`; sx.textAlign = 'center'; sx.textBaseline = 'middle';
       sx.shadowColor = '#ff6030'; sx.shadowBlur = 8; sx.fillStyle = '#ffb090'; sx.fillText('IN USE', 64, 17);
       st.needsUpdate = true;
     };
@@ -560,7 +560,7 @@ export class SurgeryStage {
       M.last = M.t;
       c.fillStyle = '#020806'; c.fillRect(0, 34, 64, 12);
       c.fillStyle = this.stress > 0.7 ? '#ff4060' : '#40ff90';
-      c.font = "8px 'IBM Plex Mono', monospace";
+      c.font = `8px ${cssFont('--font-crt')}`;
       c.fillText(`HR ${Math.round(bpm)}`, 2, 42);
       c.fillStyle = '#30ffe0'; c.fillText(`SpO2 ${Math.round(98 - this.stress * 9)}`, 32, 42);
     }

@@ -109,7 +109,7 @@ export class Clipboard {
     const knob = new THREE.Mesh(new THREE.SphereGeometry(0.0062, 10, 8), std(0xb8261c, 0.35, 0)); knob.position.y = 0.03; this.lever.add(knob);
     this.lever.position.set(0.168, -0.05, 0.013); this.rig.add(this.lever);
     // ---- the left hand holds the board by its edge (made when first shown: the survivor's own skin)
-    this.hold.position.set(-0.19, -0.33, -0.02); this.hold.rotation.z = -0.32; this.rig.add(this.hold);
+    this.hold.position.set(-0.29, -0.5, -0.03); this.hold.rotation.z = -0.62; this.rig.add(this.hold);
     // lights of its own (the stage may have none)
     this.g.add(fpLightRig());
     // held low and to the left (the body gauges live on the right), tilted toward you
@@ -129,7 +129,7 @@ export class Clipboard {
       if (!this.arm || skin !== this.armSkin) {
         if (this.arm) { this.arm.root.removeFromParent(); this.arm.dispose(); }
         this.arm = fpArmsFor(G.local as any).left; this.armSkin = skin;
-        this.arm.root.rotation.set(0.15, Math.PI, 0); this.hold.add(this.arm.root);
+        this.arm.root.rotation.set(0.1, 0, 0); this.hold.add(this.arm.root);
         this.arm.pose('grip', true);
       }
       fpClaim('build', 2, { cinematic: 'glance' }); this.raise = 0; this.sig = '';

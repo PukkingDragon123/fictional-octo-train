@@ -1,5 +1,5 @@
 // Enamel sign faces: every 'vx_sign' in the zone on view gets its lettering
-// painted onto a canvas in a real sign face (Oswald, via src/ui/fonts.css):
+// painted onto a canvas in the sign face (the --font-sign token, src/ui/fonts.css):
 // enamel colour with a little bloom of age, a pinstripe border, letters with
 // a stamped edge, chips at the corners. The face is a plane on each side of
 // the plate, lit by the light where the sign stands (dimmed out of sight),
@@ -13,7 +13,7 @@ import type { Zone, TileObject } from '../world/zone';
 import { objDef } from '../world/objects';
 import { objectMatrix } from '../world/chunkMesher';
 import { signDims } from '../content/furniture/zx_dimensions';
-import { fontsReady } from '../gfx/crt';
+import { fontsReady, cssFont } from '../gfx/crt';
 
 const VERT = /* glsl */`
 varying vec2 vUv;
@@ -70,7 +70,7 @@ function paintFace(text: string, plate: number, ink: number): HTMLCanvasElement 
   let y = (H - total) / 2 * s;
   lines.forEach((l, k) => {
     const size = lh[k] * s * 0.82;
-    g.font = `${k === 0 ? 600 : 500} ${size.toFixed(1)}px 'Oswald', 'Arial Narrow', sans-serif`;
+    g.font = `${k === 0 ? 600 : 500} ${size.toFixed(1)}px ${cssFont('--font-sign', 'sans-serif')}`;
     (g as any).letterSpacing = (k === 0 ? 0.06 : 0.12) * size + 'px';
     g.textAlign = 'center'; g.textBaseline = 'middle';
     const cy = y + lh[k] * s * 0.5;

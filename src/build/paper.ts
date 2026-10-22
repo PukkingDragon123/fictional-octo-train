@@ -4,15 +4,16 @@
 // paper grain, ruling and stains, so text only ever exists ON something.
 import * as THREE from 'three';
 import { G } from '../game/G';
-import { fontsReady } from '../gfx/crt';
+import { fontsReady, cssFont } from '../gfx/crt';
 
+/** font families come from the game's type tokens (src/ui/fonts.css), resolved when drawing so a face swap just works */
 export const FONT = {
-  type: "'Special Elite', 'Courier Prime', 'Courier New', monospace",
-  typeset: "'Courier Prime', 'Courier New', monospace",
-  sign: "'Oswald', 'Arial Narrow', sans-serif",
-  pen: "'Caveat', 'Comic Sans MS', cursive",
-  nixie: "'Nixie One', 'IBM Plex Mono', monospace",
-  crt: "'IBM Plex Mono', 'Courier Prime', monospace",
+  get type() { return cssFont('--font-type', 'monospace'); },
+  get typeset() { return cssFont('--font-typeset', 'monospace'); },
+  get sign() { return cssFont('--font-sign', 'sans-serif'); },
+  get pen() { return cssFont('--font-pen', 'cursive'); },
+  get nixie() { return cssFont('--font-nixie', 'monospace'); },
+  get crt() { return cssFont('--font-crt', 'monospace'); },
 };
 let fontsOk = false;
 const waiting = new Set<() => void>();

@@ -11,7 +11,7 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { hasUnlock } from '../game/research';
 import { shake } from '../gfx/juice';
-import { PixTex, PAL, PointerLayer, flatMat, overlayRay, FONT } from '../scan/pix';
+import { PixTex, PAL, PointerLayer, flatMat, overlayRay } from '../scan/pix';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { rbox, blob } from '../scan/shapes';
 import { StageArms } from '../scan/arms';
@@ -193,9 +193,9 @@ export class Remote {
     ctx.fillStyle = '#020803'; ctx.fillRect(0, 0, W, H);
     const hp = Math.round((c.hp / c.sp.hp) * 100);
     const mode = r.rider ? 'RIDDEN' : r.mode === 'station' && r.station ? 'STATION ' + r.station.kind.toUpperCase() : r.mode.toUpperCase();
-    phosphorText(ctx, r.name, 10, 6, { size: 20, font: FONT.crt });
-    phosphorText(ctx, `BODY ${hp}%`, W - 10, 6, { size: 20, font: FONT.crt, align: 'right', color: hp < 35 ? '#ffc070' : '#9dffb5' });
-    phosphorText(ctx, mode + (Math.sin(G.time * 6) > 0 ? ' _' : ''), 10, 30, { size: 16, font: FONT.crt, color: '#6fd88a' });
+    phosphorText(ctx, r.name, 10, 6, { size: 20 });
+    phosphorText(ctx, `BODY ${hp}%`, W - 10, 6, { size: 20, align: 'right', color: hp < 35 ? '#ffc070' : '#9dffb5' });
+    phosphorText(ctx, mode + (Math.sin(G.time * 6) > 0 ? ' _' : ''), 10, 30, { size: 16, color: '#6fd88a' });
     this.lcd.flush();
   }
 

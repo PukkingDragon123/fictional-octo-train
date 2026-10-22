@@ -11,7 +11,7 @@ import { fpGroup, fpClaim, fpRelease, fpOwner, fpBlend } from '../fp/fp';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
-import { PixTex, PAL, flatMat, FONT } from './pix';
+import { PixTex, PAL, flatMat } from './pix';
 import { rbox, capsule } from './shapes';
 import { StageArms } from './arms';
 import { Screen } from '../ui/font5x7';
@@ -195,7 +195,7 @@ export class Scope {
     }
     ctx.stroke(); ctx.shadowBlur = 0;
     const title = this.cardT >= 0 ? 'SAMPLED' : t.known ? t.title.toUpperCase() : 'UNKNOWN SIGNATURE';
-    phosphorText(ctx, title.length > 18 ? title.slice(0, 17) + '…' : title, cx, 8, { size: 17, align: 'center', font: FONT.crt });
+    phosphorText(ctx, title.length > 18 ? title.slice(0, 17) + '…' : title, cx, 8, { size: 17, align: 'center' });
     // progress along the bottom
     ctx.strokeStyle = GREEN; ctx.lineWidth = 2; ctx.strokeRect(24, H - 20, W - 48, 10);
     ctx.fillStyle = GREEN; ctx.fillRect(27, H - 17, (W - 54) * q, 4);

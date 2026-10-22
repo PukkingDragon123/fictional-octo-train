@@ -55,6 +55,7 @@ export class Operation {
   private arms!: StageArms;
   private wv = new THREE.Vector3();
   private sawPt = new THREE.Vector3();
+  private tq = new THREE.Quaternion(); private tq2 = new THREE.Quaternion(); private down0 = new THREE.Vector3(0, 1, 0);
   private drops: Drop[] = [];
   private dropGeo = new THREE.IcosahedronGeometry(0.0035, 0);
   private matBlood: THREE.MeshBasicMaterial;
@@ -80,7 +81,7 @@ export class Operation {
   private t = 0; private stepT = 0; private shakeT = 0; private waitT = -1;
   private prevFull = '';
   private tmp = new THREE.Vector3();
-  private home = new THREE.Vector3(0, ringY - 0.012, 0);
+  private home = new THREE.Vector3(0, ringY - 0.03, 0);
 
   constructor(private d: DominionSystem) {
     this.g = fpGroup('dominion');
@@ -149,12 +150,13 @@ export class Operation {
     for (const [x, y, z, r] of lobes) { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 7), bm); s.position.set(x, y, z); s.scale.y = 0.72; this.brain.add(s); }
     const fold = new THREE.MeshBasicMaterial({ color: 0x9a5a60 });
     for (let i = 0; i < 9; i++) { const f = new THREE.Mesh(new THREE.TorusGeometry(0.014 + (i % 3) * 0.006, 0.0018, 3, 10, Math.PI), fold); f.position.set((i % 3 - 1) * 0.022, 0.03, (Math.floor(i / 3) - 1) * 0.022); f.rotation.set(-Math.PI / 2, 0, i); this.brain.add(f); }
-    this.brain.position.set(0, ringY - 0.012, 0);
+    this.brain.position.set(0, ringY - 0.03, 0);
+    this.brain.scale.setScalar(0.82);
     this.head.add(this.brain);
     const tm = new THREE.MeshLambertMaterial({ color: 0xa83038 });
     for (let i = 0; i < 6; i++) {
       const t = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.004, 1, 5), tm);
-      t.userData.a = new THREE.Vector3(Math.cos(i) * ringR * 0.6, ringY - 0.03, Math.sin(i) * ringR * 0.6);
+      t.userData.a = new THREE.Vector3(Math.cos(i) * ringR * 0.6, ringY - 0.06, Math.sin(i) * ringR * 0.6);
       this.tendrils.push(t); this.head.add(t);
     }
     this.head.add(this.mech);
@@ -218,12 +220,17 @@ export class Operation {
     this.head.scale.setScalar(hs);
     for (const m of this.dashes) { m.material = this.dashMat; m.visible = true; }
     const hinge = this.cap.userData.hinge as THREE.Group; hinge.rotation.set(0, 0, 0); hinge.position.set(0, ringY, -ringR * 1.1); this.cap.visible = true;
-    this.brain.visible = true; this.brain.position.set(0, ringY - 0.012, 0); this.brain.rotation.set(0, 0, 0);
+    this.brain.visible = true; this.brain.position.set(0, ringY - 0.03, 0); this.brain.rotation.set(0, 0, 0);
     for (const t of this.tendrils) t.visible = true;
     this.setMech(brainTier(tier).key);
     this.tool.clear();
     const tm = makeHeldMesh(toolItem.key);
-    if (tm) { tm.rotation.set(Math.PI / 2, 0, 0); this.tool.add(tm); }
+    if (tm) {
+      // hold it by the handle: the blade end (+Y on a held mesh) reaches out past the fist
+      const L = new THREE.Box3().setFromObject(tm).getSize(this.tv1).length();
+      tm.position.y = L > 0.25 ? L * 0.4 : 0.02;
+      this.tool.add(tm);
+    }
     this.tool.visible = true;
     this.arms.dress();
     this.sawPt.set(0.12, ringY + 0.04, 0.06);
@@ -401,9 +408,20 @@ export class Operation {
     switch (this.step) {
       case 'saw': {
         if (this.down) { const pt = this.onPlane(this.px, this.py, this.tv1.set(0, ringY, 0), this.tv2); if (pt) this.sawPt.copy(pt); }
-        w.copy(this.sawPt); w.y = Math.max(w.y, ringY); H.localToWorld(w);
+        // the blade rests on the cut line; the fist sits up and out from it
+        const ax = this.sawPt.x, az = this.sawPt.z / 1.15, al = Math.hypot(ax, az) || 1;
+        const edge = this.tv1.set((ax / al) * ringR, ringY, (az / al) * ringR * 1.15);
+        w.copy(edge).add(this.tv2.set((ax / al) * 0.05, 0.075, (az / al) * 0.05 + 0.03));
+        H.localToWorld(w); H.localToWorld(edge);
         A.aim('right', 'grip', 'grip', w, [0.3, -0.45, -0.58], [-0.6, -0.3, 0.6], k);
-        if (this.down) this.tool.rotation.z = Math.sin(this.t * 30) * 0.12;
+        // point the blade from the fist at the line, sawing back and forth
+        A.right.root.updateMatrixWorld(true);
+        const gp = A.right.grip.getWorldPosition(this.tv2);
+        const dir = edge.sub(gp).normalize();
+        this.tq.setFromUnitVectors(this.down0, dir);
+        A.right.grip.getWorldQuaternion(this.tq2).invert();
+        this.tool.quaternion.copy(this.tq2.multiply(this.tq));
+        if (this.down) this.tool.position.set(0, Math.sin(this.t * 30) * 0.012, 0); else this.tool.position.set(0, 0, 0);
         break;
       }
       case 'pry': A.aim('right', 'claw', 'tip', H.localToWorld(w.set(0, ringY + 0.01 + this.capA * 0.03, ringR * 1.1)), [0.2, -0.48, -0.5], [0, -0.4, -1], k); break;

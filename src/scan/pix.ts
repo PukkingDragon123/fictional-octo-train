@@ -8,7 +8,7 @@
 // tables and devices listen through.
 import * as THREE from 'three';
 import { Screen } from '../ui/font5x7';
-import { fontsReady } from '../gfx/crt';
+import { fontsReady, cssFont } from '../gfx/crt';
 import { G } from '../game/G';
 
 export const PAL = {
@@ -17,13 +17,14 @@ export const PAL = {
   amber: 0xffb347, amberDk: 0x8a4a12, phos: 0x8cf07a, phosDk: 0x163a12, phosBg: 0x0a1a08,
   brass: 0xc8a050, steel: 0x8a9096,
 };
+/** the faces come from the CSS tokens (src/ui/fonts.css), read at draw time so a font swap follows */
 export const FONT = {
-  type: "'Special Elite', 'Courier Prime', monospace",
-  pen: "'Caveat', 'Comic Sans MS', cursive",
-  sign: "'Oswald', 'Arial Narrow', sans-serif",
-  mono: "'Courier Prime', 'Courier New', monospace",
-  crt: "'IBM Plex Mono', 'Courier Prime', monospace",
-  poster: "'Alfa Slab One', 'Oswald', serif",
+  get type() { return cssFont('--font-type', 'monospace'); },
+  get pen() { return cssFont('--font-pen', 'cursive'); },
+  get sign() { return cssFont('--font-sign', 'sans-serif'); },
+  get mono() { return cssFont('--font-typeset', 'monospace'); },
+  get crt() { return cssFont('--font-crt', 'monospace'); },
+  get poster() { return cssFont('--font-poster', 'serif'); },
 };
 
 const h01 = (x: number, y: number, s: number) => { const v = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453; return v - Math.floor(v); };

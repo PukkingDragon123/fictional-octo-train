@@ -11,6 +11,8 @@
 @font-face { font-family: 'Nixie One'; src: url('/fonts/nixieone-400.woff2') format('woff2'); font-display: swap; }
 @font-face { font-family: 'Oswald'; src: url('/fonts/oswald.woff2') format('woff2'); font-weight: 200 700; font-display: swap; }
 @font-face { font-family: 'Alfa Slab One'; src: url('/fonts/alfaslabone-400.woff2') format('woff2'); font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('/fonts/ebgaramond-normal.woff2') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('/fonts/ebgaramond-italic.woff2') format('woff2'); font-weight: 400 700; font-style: italic; font-display: swap; }
 @font-face { font-family: 'Caveat'; src: url('/fonts/caveat.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 
 /* html:root outranks every :root block, wherever it loads */
@@ -22,7 +24,9 @@ html:root {
   --font-sign: 'Oswald', 'Arial Narrow', sans-serif;
   --font-poster: 'Alfa Slab One', 'Oswald', serif;
   --font-pen: 'Caveat', 'Comic Sans MS', cursive;
-  --font-speech: 'Courier Prime', 'Courier New', monospace;
+  /* picked by the user: EB Garamond italic for everything characters say */
+  --font-speech: 'EB Garamond', Garamond, 'Times New Roman', serif;
+  --font-speech-style: italic;
   /* the older names, remapped onto real type */
   --font-body: var(--font-typeset);
   --font-ui: var(--font-typeset);
@@ -42,7 +46,7 @@ html:root {
 /* use for any text that floats in the world: speech, names, short prompts */
 .nc-free-text {
   background: none !important; border: 0 !important; box-shadow: none !important; border-image: none !important;
-  font-family: var(--font-speech); color: #f3eedf; text-shadow: var(--text-halo);
+  font-family: var(--font-speech); font-style: var(--font-speech-style, normal); color: #f3eedf; text-shadow: var(--text-halo);
   letter-spacing: 0.01em; -webkit-font-smoothing: antialiased;
 }
 

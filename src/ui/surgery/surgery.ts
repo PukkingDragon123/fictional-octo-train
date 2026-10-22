@@ -24,7 +24,7 @@ import { Player } from '../../entities/player';
 import { hasItemDef } from '../../items/item';
 import { SurgeryStage, Pick } from './stage';
 import { csfx } from './audio';
-import { Crt3D, CrtPen, Console3D, Tag3D, dischargeSlip, PH } from './instruments';
+import { Crt3D, CrtPen, Console3D, Tag3D, OperatorHand, dischargeSlip, PH } from './instruments';
 import '../fonts.css';
 import './surgery.css';
 
@@ -103,6 +103,9 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
   const rim = new THREE.DirectionalLight(0x9ab8ff, 0.6); rim.position.set(3, 1, -1); fgLights.add(rim);
   fgLights.add(new THREE.AmbientLight(0x6a6458, 0.6));
   stage.fg.add(fgLights, crt.group, desk.group, tag.group);
+  // the operator's gloved hand works the desk controls
+  const op = new OperatorHand(stage.fg);
+  const _h = new THREE.Vector3();
   let slip: THREE.Mesh | null = null;
 
   function slotOptions(sl: CyberSlot) { return [null, ...partsFor(sl)] as (CyberDef | null)[]; }
@@ -336,7 +339,9 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
   };
 
   // ---------------- the desk controls
-  const deal = () => {
+  const deal = () => { if (!op.busy) op.reach(() => desk.ball.getWorldPosition(_h), 'grip', dealNow, desk.group.scale.x); };
+  const discharge = () => { if (!op.busy) op.reach(() => desk.buttonTop.localToWorld(_h.set(0, 0, 0.07)), 'press', dischargeNow, desk.group.scale.x); };
+  const dealNow = () => {
     desk.pull();
     const jobs = OCCUPATIONS.filter(occupationAvailable);
     const pos = TRAITS.filter((t) => traitAvailable(t) && t.cost < 0), neg = TRAITS.filter((t) => traitAvailable(t) && t.cost > 0);
@@ -351,7 +356,7 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
     setTimeout(() => { csfx('cy_spark', 0.4); stage.shake(0.2); }, 250);
   };
   let slipT = 0;
-  const discharge = () => {
+  const dischargeNow = () => {
     desk.push();
     if (points() < 0) { csfx('cy_powerdown', 0.5); deny = 2.5; brainTab = 'cards'; open('brain'); return; }
     closed = true;
@@ -399,6 +404,7 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
     crt.frame(dt, stage.busy);
     desk.set(points(), researchPoints());
     desk.frame(dt);
+    op.frame(dt);
     // the tag hangs off the part under the pointer (projected into this layer)
     if (tagFor && !stage.busy && tag.group.visible) {
       const sp = stage.toScreen(stage.anchor(tagFor, _a));

@@ -2,11 +2,21 @@
 // beam scanlines, aperture grille, bloom, roll, flicker); this is the pen: a
 // small 2D API in "character-cell" units (a 224 x 136 field, 6-unit monospace
 // advance, 9-unit lines) that paints into the tube's canvas at a higher
-// resolution with real typefaces: IBM Plex Mono for the terminal, Nixie One for
-// big digits. Colours are packed the way Screen.c packs them (font5x7), so the
+// resolution with the game's typefaces: the CRT face (--font-crt) for the
+// terminal, the tube-digit face (--font-nixie) for big digits (font tokens from
+// src/ui/fonts.css, read through cssFont so a font swap reaches the watch). Colours are packed the way Screen.c packs them (font5x7), so the
 // page code can pass the same palette values.
-const MONO = "'IBM Plex Mono', 'Courier Prime', monospace";
-const NIXIE = "'Nixie One', 'IBM Plex Mono', monospace";
+import { cssFont } from '../../gfx/crt';
+
+/** the font tokens, re-read now and then (the user can change faces at runtime) */
+let MONO = 'monospace', NIXIE = 'monospace', fontAt = -1e9;
+function faces() {
+  const now = performance.now();
+  if (now - fontAt < 2000) return;
+  fontAt = now;
+  MONO = cssFont('--font-crt', 'monospace');
+  NIXIE = cssFont('--font-nixie', MONO);
+}
 
 export class Tube {
   private css = new Map<number, string>();
@@ -63,6 +73,7 @@ export class Tube {
     let str = String(s);
     if (str.length * adv > maxW) { const n = Math.max(0, Math.floor(maxW / adv) - 1); str = str.slice(0, n) + '…'; }
     const g = this.ctx;
+    faces();
     g.fillStyle = this.col(c);
     if (font === 'nixie') {
       g.font = `${Math.round(13 * scale)}px ${NIXIE}`;

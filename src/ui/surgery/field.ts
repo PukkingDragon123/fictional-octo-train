@@ -16,7 +16,7 @@ import { CYBER_SLOTS, CyberSlot, SLOT_KIND, SLOT_CODE, cyberDef, cyberDefByItem,
 import { SurgeryStage } from './stage';
 import { csfx } from './audio';
 import * as THREE from 'three';
-import { Crt3D, PH } from './instruments';
+import { Crt3D, PH, patientHand } from './instruments';
 import '../fonts.css';
 import './surgery.css';
 
@@ -105,6 +105,9 @@ export function fieldSurgery(p: Player) {
   const fgL = new THREE.Group();
   const kl = new THREE.DirectionalLight(0xfff0dc, 2.2); kl.position.set(-2, 3, 2); fgL.add(kl, new THREE.AmbientLight(0x6a6458, 0.6));
   stage.fg.add(fgL, crt.group);
+  // your own other hand at the edge of the view, clenched on the table edge
+  const hand = patientHand(stage.fg, p.app?.skin ?? 0xe8b98f, 0xeeb415, 'fist');
+  let handPose = '';
   stage.onFgHover = (id, hit) => crt.pointer(id, hit);
   stage.onClick = (id, hit) => { if (id) crt.click(id, hit); };
   const tanH = Math.tan((15 * Math.PI) / 180);
@@ -118,6 +121,10 @@ export function fieldSurgery(p: Player) {
       else { const sc = Math.min(1, (hw * 1.9) / 1.05); crt.group.scale.setScalar(sc); crt.group.position.set(0, -hh + 0.48 * sc, -3); crt.group.rotation.set(0, 0, 0); stage.setViewShift(0, -0.2); }
     }
     crt.frame(dt, busy);
+    const want = busy && (stage.phase === 'cut' || stage.phase === 'bolt') ? 'claw' : 'fist';
+    if (want !== handPose) { handPose = want; hand.pose(want); }
+    hand.tremor = busy ? (want === 'claw' ? 1 : 0.55) : 0.15;
+    hand.update(dt);
     if (!leaving) { const k = fpBlend(); root.style.opacity = String(Math.min(1, k * 1.15)); stage.entrance = k; }
   };
 
