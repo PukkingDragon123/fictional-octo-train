@@ -190,13 +190,14 @@ export class SubjectRoom {
     this.scene.add(this.chairStraps, this.chairBare);
     // tube fixtures and the bulb
     for (const [x, z] of [[-1.6, -1.2], [1.6, -1.2], [-1.6, 1.6], [1.6, 1.6]]) {
-      const tube = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.05, 1.3), this.tubeMat);
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.028, 1.3, 10).rotateX(Math.PI / 2), this.tubeMat);
+      for (const k of [-1, 1]) { const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.05, 10).rotateX(Math.PI / 2), this.mats.metal); cap.position.set(x, ROOM.H - 0.05, z + k * 0.66); this.scene.add(cap); }
       tube.position.set(x, ROOM.H - 0.05, z);
       this.scene.add(tube);
     }
     // a bare bulb on a long cord, swinging slowly over the chair
     this.bulbPivot.position.set(0.95, ROOM.H, -0.85);
-    const cord = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.95, 0.008), new THREE.MeshBasicMaterial({ color: 0x080808 }));
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.95, 5), new THREE.MeshBasicMaterial({ color: 0x080808 }));
     cord.position.y = -0.475;
     this.bulbMesh = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 4), this.bulbMat);
     this.bulbMesh.position.y = -1.0;
@@ -221,7 +222,7 @@ export class SubjectRoom {
     this.dust = new THREE.Points(dg, new THREE.PointsMaterial({ size: this.quality === 'low' ? 1 : 1.5, sizeAttenuation: false, color: 0xfff0d0, transparent: true, opacity: 0.75, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
     this.dust.frustumCulled = false;
     this.scene.add(this.dust);
-    const hatchLamp = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.06), this.hatchLightMat);
+    const hatchLamp = new THREE.Mesh(new THREE.CapsuleGeometry(0.035, 0.24, 3, 8).rotateZ(Math.PI / 2), this.hatchLightMat);
     hatchLamp.position.set(0, ROOM.HATCH_H - 0.1, ROOM.BACK - 2.9);
     this.scene.add(hatchLamp);
     this.shutter = shutterModel(this.mats);
@@ -250,7 +251,7 @@ export class SubjectRoom {
     this.harness = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.08, 10, 1, true), cuffMat);
     this.harness.visible = false;
     const chainMat = new THREE.MeshLambertMaterial({ color: 0x6a6e70 });
-    for (let i = 0; i < 2; i++) { const ch = new THREE.Mesh(new THREE.BoxGeometry(0.025, 1, 0.025), chainMat); ch.visible = false; this.chains.push(ch); this.scene.add(ch); }
+    for (let i = 0; i < 2; i++) { const ch = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 1, 6), chainMat); ch.visible = false; this.chains.push(ch); this.scene.add(ch); }
     // ---- arms: wrists from the back wall, a harness arm and a tool arm from the ceiling
     const mk = (name: string, base: [number, number, number], L1: number, L2: number, pole: [number, number, number], stow: [number, number, number], tool = false) => {
       const b = armBase(this.mats);
@@ -436,7 +437,7 @@ export class SubjectRoom {
           gm.color.setScalar(0.6); mats.push(gm);
           const face = new THREE.Mesh(new THREE.CircleGeometry(0.085, 14), gm);
           face.position.set(-0.26 + k * 0.26, 0.34, -0.065);
-          const needle = new THREE.Mesh(new THREE.BoxGeometry(0.006, 0.07, 0.004), new THREE.MeshBasicMaterial({ color: 0x9a1a10 }));
+          const needle = new THREE.Mesh(new THREE.ConeGeometry(0.005, 0.07, 4), new THREE.MeshBasicMaterial({ color: 0x9a1a10 }));
           needle.geometry.translate(0, 0.03, 0);
           needle.position.set(-0.26 + k * 0.26, 0.34, -0.06);
           needles.push(needle);
