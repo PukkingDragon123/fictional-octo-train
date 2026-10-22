@@ -116,7 +116,7 @@ export class Clipboard {
     this.rig.scale.setScalar(0.78);
     this.rig.rotation.set(-0.28, 0.32, -0.05);
     this.hits = [this.board, this.sheetM, this.toggleM, lm, knob];
-    bus.on('fpChange', (n: string | null) => { if (n === null && this.shown) setTimeout(() => { if (this.shown && !fpOwner()) fpClaim('build', 2, { cinematic: 'none' }); }, 0); });
+    bus.on('fpChange', (n: string | null) => { if (n === null && this.shown) setTimeout(() => { if (this.shown && !fpOwner()) fpClaim('build', 0, { cinematic: 'none' }); }, 0); });
   }
 
   private uvY(v: number) { return this.sheetM.position.y + (0.5 - v) * PH; }
@@ -132,7 +132,7 @@ export class Clipboard {
         this.arm.root.rotation.set(0.1, 0, 0); this.hold.add(this.arm.root);
         this.arm.pose('grip', true);
       }
-      fpClaim('build', 2, { cinematic: 'glance' }); this.raise = 0; this.sig = '';
+      fpClaim('build', 0, { cinematic: 'glance' }); this.raise = 0; this.sig = '';
     }
     else fpRelease('build');
   }
@@ -155,7 +155,7 @@ export class Clipboard {
 
   update(dt: number, st: BoardState) {
     if (!this.shown) return;
-    if (fpOwner() !== 'build') { if (!fpOwner()) fpClaim('build', 2, { cinematic: 'none' }); return; }
+    if (fpOwner() !== 'build') { if (!fpOwner()) fpClaim('build', 0, { cinematic: 'none' }); return; }
     this.raise = Math.min(1, this.raise + dt * 3.5);
     const e = 1 - Math.pow(1 - this.raise, 3);
     this.rig.position.set(-0.36, lerp(-0.62, -0.075, e) + Math.sin(G.time * 1.3) * 0.003, -1.02);

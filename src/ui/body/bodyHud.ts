@@ -14,6 +14,9 @@ import './sounds';
 import * as THREE from 'three';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
+import { fpOwner } from '../../fp/fp';
+
+const FULL_FP = new Set(['pack', 'inspect', 'bench', 'cook', 'trade', 'dominion', 'surgery', 'remote']);
 import type { Player } from '../../entities/player';
 import type { Injury } from '../../survival/body';
 import { Lungs, type PumpResult } from './lung';
@@ -172,6 +175,11 @@ export class BodyHud {
   // =================================================================== per frame
   private update(dt: number) {
     const p = G.local;
+    // full first-person close-ups get the whole picture: the watch held up to the eye, the cube,
+    // the bench, cooking, trading, surgery (eating keeps the jar in view: bites land in it)
+    const fp = fpOwner();
+    const w: any = (G as any).watch;
+    this.setHidden('fp', !!fp && (FULL_FP.has(fp) || (fp === 'watch' && !!w?.open && !w?.small)));
     const intro: any = G.systems.find((s) => s.name === 'intro');
     const introOn = !!intro && intro.phase !== 'done' && !intro.done && !intro.finished;
     const show = !!p && !G.attract && !introOn && !this.hidden.size && !document.body.classList.contains('photo-mode') && this.deadT < 6;

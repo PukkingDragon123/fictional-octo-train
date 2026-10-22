@@ -243,6 +243,8 @@ export class CombatSystem implements GameSystem {
     const w = wielded(p);
     // a tool verb on what is under the cursor, or something carried to throw: the grab system's click (src/interact/grab.ts)
     if (G.grab?.claimsLmb?.() && !this.enemyAtCursor(p)) return false;
+    // build mode and the stove take the click for themselves
+    if ((G as any).build?.captures?.() || (G as any).cook?.captures?.()) return false;
     if (w.ranged || p.aiming || w.armed || w.cls === 'cyber') return true;
     return this.engaged(p);
   }

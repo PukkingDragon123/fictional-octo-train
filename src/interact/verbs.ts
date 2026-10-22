@@ -83,6 +83,17 @@ export function verbsFor(p: Player, t: VerbTarget | null): Verb[] {
       base = base.filter((v) => !/^Scan with/.test(v.label));
       if (c.dead) base = base.map((v) => v.label === 'Search' ? { ...v, run: () => queueAt(p, c.x, c.z, new LootAction(p, c.inv, c), 1.4, false) } : v);
     }
+    // hands-on crafting (src/craft): a workbench puts you at the bench; anything else can be looked at closely
+    const craft: any = (G as any).craft;
+    if (craft && t.kind === 'object') {
+      const o = (t as any).obj, od = objDef(o.key);
+      if (od?.tags?.includes('workbench')) base.unshift({ label: 'Work at the bench', run: () => craft.bench(o) });
+      else if (craft.workObject) base.push({ label: 'Look closer', late: true, run: () => craft.workObject(o) });
+    }
+    if (craft && t.kind === 'item' && craft.inspect) {
+      const wi: any = (t as any).wi;
+      if (wi?.item) base.push({ label: 'Look closer', late: true, run: () => craft.inspect(wi.item, null) });
+    }
     // housekeeping verbs are offered, never the right-click default (grabbing replaced picking furniture up)
     const LATE = /^(Rotate|Pick up|Disassemble|Walk here)$/;
     out.push(...base.map((v) => (t.kind !== 'tile' && LATE.test(v.label) ? { ...v, late: true } : v)));

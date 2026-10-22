@@ -313,7 +313,7 @@ export class Watch {
     if (!p || !this.wearing(p) || p.body.dead) return;
     if (this.open && !this.small) return;
     if (fpOwner() && fpOwner() !== 'watch') return;
-    this.peekKey = k; this.peekT = kind === 'done' ? 3.2 : 4.2;
+    this.peekKey = k; this.peekT = kind === 'done' ? 2.4 : 3.0;
   }
   private onUnlocked(key: string) {
     this.syncPages();
@@ -617,8 +617,8 @@ export class Watch {
     // edge when something lands by itself (a peek). Both tilt toward the eye with the forearm
     // running steeply off the bottom edge, clear of the body HUD along the bottom.
     const pm = this.peekMix;
-    const d2 = d1 * (2.8 + 1.6 * pm), h2 = d2 * tanH, w2 = h2 * cam.aspect;
-    const sx = w2 * (0.56 + 0.18 * pm), sy = -h2 * (0.1 + 0.04 * pm), sz = -d2;
+    const d2 = d1 * (2.8 + 3.6 * pm), h2 = d2 * tanH, w2 = h2 * cam.aspect;
+    const sx = w2 * (0.56 + 0.25 * pm), sy = -h2 * (0.1 + 0.17 * pm), sz = -d2;
     const k = this.zoom, e = k * k * (3 - 2 * k);
     let x = sx + (fx - sx) * e, y = sy + (fy - sy) * e, z = sz + (fz - sz) * e;
     let rx = -(0.28 + 0.06 * pm) * (1 - e), ry = -(0.36 + 0.2 * pm) * (1 - e), rz = (0.62 + 0.3 * pm) * (1 - e);

@@ -151,7 +151,7 @@ export class TouchControls implements GameSystem {
     if (fsOk) this.btn(tl, 'fs', 'fullscreen', { label: 'FULL', s: 0.85, on: 'up', tap: () => toggleFullscreen() });
     this.btn(tl, 'photo', 'photo', { label: 'PHOTO', s: 0.85, tap: () => (this.g as any).camera?.photo?.toggle?.() });
     this.btn(tl, 'build', 'build', { label: 'BUILD', s: 0.85, tap: () => this.sys('build', 'toggle') });
-    this.btn(tl, 'emote', 'emote', { label: 'EMOTE', s: 0.85, tap: () => this.sys('social', 'emoteWheel', 'emote') });
+    this.btn(tl, 'emote', 'emote', { label: 'EMOTE', s: 0.85, tap: () => this.sys('social', 'toggleWheel', 'emote') });
     const tr = this.group('tr', 'nc-group nc-row nc-tr');
     this.btn(tr, 'chat', 'chat', { label: 'CHAT', s: 0.95, on: 'up', tap: () => this.openChat() });
     this.btn(tr, 'map', 'map', { label: 'MAP', s: 0.95, tap: () => { const sc = this.g.ui?.scanner; if (sc?.open && sc.page === 'map') sc.toggle(false); else sc?.toggle(true, 'map'); } });
@@ -559,6 +559,9 @@ export class TouchControls implements GameSystem {
     if (ui.readerEl) { ui.closeReader(); return; }
     inp.mouseX = x; inp.mouseY = y;
     if (g.items?.placing) return; // the ghost follows the finger; PLACE confirms
+    // build mode owns the finger: a tap places / welds / picks on the clipboard
+    const bld = (g as any).build;
+    if (bld?.captures?.()) { const bt = this.pickAt(x, y); if (bt) bld.click(bt, 0); return; }
     const gr = (g as any).grab;
     const self = gr?.pickAt?.(x, y);
     const t = self?.kind === 'self' ? self : this.pickAt(x, y);
