@@ -3,7 +3,7 @@
 // shown (whole device pixels per art pixel), with screws, vents, a speaker
 // grille, toggle switches, a power lamp, a paper inventory sticker and a
 // life's worth of chips, scratches and grime. The screen is real DOM: crisp
-// EB Garamond glowing green on the glass, scanlines, no boxes around text.
+// Pixelify Sans glowing green on the glass, scanlines, no boxes around text.
 // Plate keys (btnKit) sit on the housing's lower strip.
 import { PixelCanvas, mixHex, bayer } from '../../gfx/pixel';
 import { kitScale, artH, strSeed } from './btnKit';

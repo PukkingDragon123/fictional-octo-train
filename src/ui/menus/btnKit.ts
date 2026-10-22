@@ -11,7 +11,7 @@
 //  lever     a big knife-switch lever on a riveted base plate (up, mid, down).
 //  chipUrl   a square paint chip for colour values (no round swatches).
 //
-// Labels are real text (EB Garamond, crisp), engraved / stencilled on the
+// Labels are real text (Pixelify Sans, crisp), engraved / stencilled on the
 // plate with CSS. Sprites are cached and repainted when the scale changes.
 import { PixelCanvas, mixHex, bayer } from '../../gfx/pixel';
 import { sfx, type Sfx } from './sfx';

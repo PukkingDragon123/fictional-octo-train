@@ -65,14 +65,14 @@ function send(ws, msg) { if (ws && ws.readyState === 1) ws.send(typeof msg === '
 const wss = new WebSocketServer({ server, path: '/ws', maxPayload: 32 * 1024 * 1024 });
 
 wss.on('connection', (ws) => {
-  ws.alive = true;
-  ws.on('pong', () => { ws.alive = true; });
+  ws.missed = 0;
+  ws.on('pong', () => { ws.missed = 0; });
   ws.on('message', (raw) => {
     let m;
     try { m = JSON.parse(raw.toString()); } catch { return; }
     switch (m.t) {
       case 'host': {
-        const room = { code: code(), name: String(m.name || 'NOCLIP').slice(0, 40), host: ws, peers: new Map(), next: 2, open: m.public !== false, pass: String(m.pass || ''), floor: null, since: Date.now() };
+        const room = { code: code(), name: String(m.name || 'Limbo Phobia').slice(0, 40), host: ws, peers: new Map(), next: 2, open: m.public !== false, pass: String(m.pass || ''), floor: null, since: Date.now() };
         rooms.set(room.code, room);
         ws.room = room; ws.pid = 'p1';
         send(ws, { t: 'hosted', room: room.code, id: 'p1' });
@@ -126,8 +126,11 @@ wss.on('connection', (ws) => {
   });
 });
 
+// heartbeat: a socket that has not answered for about a minute is gone. A tab that is busy
+// building the world (shader compiles on a slow phone) can stall for tens of seconds and
+// must not be dropped right after it was welcomed.
 setInterval(() => {
-  for (const ws of wss.clients) { if (!ws.alive) { ws.terminate(); continue; } ws.alive = false; ws.ping(); }
+  for (const ws of wss.clients) { if (ws.missed >= 4) { ws.terminate(); continue; } ws.missed++; ws.ping(); }
 }, 15000);
 
-server.listen(PORT, () => console.log(`NOCLIP server on http://localhost:${PORT}  (relay at ws://localhost:${PORT}/ws)`));
+server.listen(PORT, () => console.log(`Limbo Phobia server on http://localhost:${PORT}  (relay at ws://localhost:${PORT}/ws)`));
