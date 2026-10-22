@@ -25,7 +25,7 @@ export function onTypeReady(fn: () => void) {
 try {
   const fs = (document as any).fonts;
   const done = () => { loaded = true; for (const f of listeners) { try { f(); } catch { /* a prop gone */ } } };
-  if (fs?.load) Promise.all([fs.load(`600 16px Oswald`), fs.load(`500 16px Oswald`)]).then(done, done);
+  if (fs?.load) Promise.all([fs.load(`600 16px 'EB Garamond'`), fs.load(`500 16px 'EB Garamond'`), fs.load(`italic 500 16px 'EB Garamond'`)]).then(done, done);
   else loaded = true;
 } catch { loaded = true; }
 

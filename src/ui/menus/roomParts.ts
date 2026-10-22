@@ -96,7 +96,7 @@ export function capModel(mats: Mats, chin: boolean): THREE.Group {
   const b = new FacetBuilder();
   const tilt = at(0, -0.012, -0.006, -0.2);
   const T = (m: THREE.Matrix4) => tilt.clone().multiply(m);
-  b.add('metal', lathe([[0.121, 0.122], [0.126, 0.136], [0.12, 0.165], [0.106, 0.196], [0.082, 0.222], [0.046, 0.238], [0.0, 0.243]], 10), 0xb0a898, tilt, { rep: 0.12 });
+  b.add('metal', lathe([[0.121, 0.122], [0.126, 0.136], [0.12, 0.165], [0.106, 0.196], [0.082, 0.222], [0.046, 0.238], [0.0, 0.243]], 10), 0x7e766a, tilt, { rep: 0.12 });
   b.add('brass', band(0.124, 0.124, 0.012, 0.01, 10, 1, Math.PI / 10), 0xffffff, T(at(0, 0.128, 0)));
   b.add('sponge', band(0.115, 0.115, 0.014, 0.008, 10, 1, Math.PI / 10), 0xffffff, T(at(0, 0.116, 0)));
   b.add('copper', band(0.117, 0.117, 0.018, 0.008, 10, 1, Math.PI / 10), 0xffffff, T(at(0, 0.168, 0)));
@@ -153,7 +153,7 @@ export function bulbModel(mats: Mats, L: number): { group: THREE.Group; bulbGeo:
   const cy = y0 - 0.16;
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2, s = Math.sin(a), c = Math.cos(a);
-    b.add('metal', tube([[s * 0.19, cy, c * 0.19], [s * 0.15, cy - 0.08, c * 0.15], [s * 0.07, cy - 0.16, c * 0.07], [0, cy - 0.185, 0]], 0.0055, 5, 3), 0x5a5a5a);
+    b.add('metal', tube([[s * 0.19, cy, c * 0.19], [s * 0.15, cy - 0.08, c * 0.15], [s * 0.07, cy - 0.16, c * 0.07], [0, cy - 0.185, 0]], 0.0038, 5, 3), 0x5a5a5a);
   }
   b.add('metal', band(0.155, 0.155, 0.008, 0.008, 8, 1, Math.PI / 8), 0x5a5a5a, at(0, cy - 0.08, 0));
   b.add('metal', band(0.075, 0.075, 0.007, 0.007, 6, 1, Math.PI / 6), 0x5a5a5a, at(0, cy - 0.155, 0));

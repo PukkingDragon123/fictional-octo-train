@@ -103,9 +103,9 @@ function concretePix(seed = 'conc', base = 0x77746a): PixelCanvas {
 function floorPix(): PixelCanvas {
   const N = 128, pc = new PixelCanvas(N, N), rng = new Rng('floor');
   const ramp = makeRamp(0x4e4c44, 7, { spread: 0.55, hueShift: 0.03 });
-  pc.fillRamp(ramp, (x, y) => 0.3 + tileFbm(x, y, N, N, 4, 4, 15) * 0.45 + tileFbm(x, y, N, N, 32, 1, 19) * 0.22, 1);
+  pc.fillRamp(ramp, (x, y) => 0.32 + tileFbm(x, y, N, N, 4, 4, 15) * 0.4 + tileFbm(x, y, N, N, 32, 1, 19) * 0.1, 0.6);
   // aggregate
-  for (let i = 0; i < 420; i++) pc.set(rng.int(0, N - 1), rng.int(0, N - 1), rng.chance(0.5) ? ramp[5] : ramp[1]);
+  for (let i = 0; i < 160; i++) pc.set(rng.int(0, N - 1), rng.int(0, N - 1), rng.chance(0.5) ? ramp[4] : ramp[2]);
   // saw-cut joints
   for (let i = 0; i < N; i++) { pc.set(i, 0, 0x121110); pc.set(i, 1, ramp[5]); pc.set(0, i, 0x121110); pc.set(1, i, ramp[5]); }
   // wet patches and oil

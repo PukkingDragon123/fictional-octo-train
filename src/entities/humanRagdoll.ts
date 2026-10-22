@@ -241,19 +241,20 @@ export class Ragdoll {
     _x.set(p[13 * 3] - p[17 * 3], p[13 * 3 + 1] - p[17 * 3 + 1], p[13 * 3 + 2] - p[17 * 3 + 2]).normalize();
     _y.set(p[3] - p[0], p[4] - p[1], p[5] - p[2]).normalize();
     _z.crossVectors(_x, _y).normalize();
-    if (this.dead) {
-      const on = Math.min(1, down / 8) * Math.min(1, t / 0.5) * Math.max(0, 1 - Math.max(0, t - 1.1) / 1.1);
+    if (this.dead || t > 0.45) {
+      const on = Math.min(1, down / 8) * Math.min(1, t / 0.5) * Math.max(0, 1 - Math.max(0, t - 1.3) / 1.2) * (this.dead ? 1 : 0.6);
       if (on > 0) {
         for (const [ki, side] of [[14, this.kneeOut[0]], [18, this.kneeOut[1]]] as const) {
           // the knee falls out to the side, the foot slides away from the hip
           push(ki, _x.x * side * 6 * on, -2 * on, _x.z * side * 6 * on);
           const fi = ki + 1, hi = ki - 1;
-          push(fi, (p[fi * 3] - p[hi * 3]) * 3 * on, 0, (p[fi * 3 + 2] - p[hi * 3 + 2]) * 3 * on);
+          push(fi, (p[fi * 3] - p[hi * 3]) * 6 * on, -1.5 * on, (p[fi * 3 + 2] - p[hi * 3 + 2]) * 6 * on);
         }
         // arms drift off the trunk
         for (const [ei, side] of [[6, 1], [10, -1], [7, 1], [11, -1]] as const) push(ei, _x.x * side * 3 * on, 0, _x.z * side * 3 * on);
       }
-    } else if (t < 0.45) {
+    }
+    if (!this.dead && t < 0.45) {
       // break the fall: hands out and down along the fall, the chin tucked
       const k = 1 - t / 0.45;
       for (const wi of [7, 11, 8, 12]) {
@@ -332,7 +333,7 @@ export class Ragdoll {
         // friction: a hard landing grabs, a slow slide keeps going a little (limbs slide out straight)
         const sx = p[o] - q[o], sz = p[o + 2] - q[o + 2];
         const sp = Math.hypot(sx, sz);
-        const keep = sp < 0.0015 ? 0 : pen > 0.004 ? 0.45 : sp > 0.012 ? 0.62 : 0.5;
+        const keep = sp < 0.0015 ? 0.2 : pen > 0.004 ? 0.45 : sp > 0.012 ? 0.62 : 0.5;
         q[o] = p[o] - sx * keep;
         q[o + 2] = p[o + 2] - sz * keep;
         if (q[o + 1] < p[o + 1]) q[o + 1] = p[o + 1] + (q[o + 1] - p[o + 1]) * -0.18;

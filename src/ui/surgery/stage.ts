@@ -207,6 +207,8 @@ export class SurgeryStage {
   private voices: Voice[] = [];
   private wS: Voice | null = null; private wO: Voice | null = null; private hum: Voice | null = null;
   speed = 1;
+  /** dev: run the whole stage faster (tests on slow software GL) */
+  timeScale = 1;
   disposed = false;
 
   constructor(host: HTMLElement, mode: 'intake' | 'field' = 'intake') {
@@ -989,44 +991,19 @@ export class SurgeryStage {
     if (rdt < 1 / 65) return;
     this.last = now;
     if (document.hidden || !this.renderer || !this.rtS || !this.post) return;
-    const dt = rdt * this.speed;
+    const dt = rdt * this.speed * this.timeScale;
     // hit-stop: the world holds its breath, the camera does not
     const sdt = this.stopT > 0 ? 0 : dt;
-    this.stopT -= rdt;
-    this.t += sdt;
-    if (sdt > 0) for (const f of this.tweens.splice(0)) f();
-    // the gantry and what hangs from it
-    this.gantry.update(sdt);
-    if (this.rig) {
-      if (this.carry) {
-        const b = this.gantry.bar;
-        b.updateMatrixWorld(true);
-        this.subj.position.copy(b.localToWorld(_v.set(0.8, -0.45 + 0.1, 0)));
-        this.subj.quaternion.copy(b.getWorldQuaternion(_q2)).multiply(Q_LIE);
-      }
-      if (sdt > 0 || this.rig.ragdolling) this.poseRig(Math.max(sdt, 0.0001));
-    }
-    this.straps.update(sdt);
-    this.surgeon.update(sdt); this.orderly.update(sdt);
-    // servo whine follows the effort
+    this.stopT -= rdt * this.timeScale;
+    // fixed substeps keep the springs, the arms and the ragdoll stable on slow frames
+    const n = sdt > 0 ? Math.min(10, Math.ceil(sdt / 0.025)) : 1, h = sdt / n;
+    for (let i = 0; i < n; i++) this.step(h);
+    // servo whine follows the effort; the room hums
     this.wS?.set(Math.min(0.22, this.surgeon.effort * 0.3), 0.7 + this.surgeon.effort * 0.9);
     this.wO?.set(Math.min(0.22, this.orderly.effort * 0.3), 0.6 + this.orderly.effort * 0.8);
     this.hum?.set(0.16, 1);
-    // loose limbs fall into the tray
-    for (const l of this.loose) {
-      if (l.rest) continue;
-      l.v.y -= 9.8 * sdt;
-      l.mesh.position.addScaledVector(l.v, sdt);
-      l.mesh.rotation.x += l.spin.x * sdt; l.mesh.rotation.y += l.spin.y * sdt; l.mesh.rotation.z += l.spin.z * sdt;
-      const fy = surfaceY(l.mesh.position.x, l.mesh.position.z, l.mesh.position.y + 0.1);
-      if (l.mesh.position.y < fy + 0.04 && l.v.y < 0) {
-        l.mesh.position.y = fy + 0.04; l.rest = true;
-        l.mesh.quaternion.setFromEuler(_e.set(Math.PI / 2 + (Math.random() - 0.5) * 0.4, 0, Math.PI / 2 + (Math.random() - 0.5) * 0.6));
-        csfx('cy_splat', 0.7); this.fx.blood(l.mesh.position, 12, 0.5); this.shake(0.08);
-      }
-    }
+    const cdt = Math.min(0.08, rdt * this.timeScale);
     while (this.loose.length > 5) { const o = this.loose.shift()!; this.scene.remove(o.mesh); }
-    this.fx.update(sdt);
     if (this.bleeding && this.rig && Math.random() < sdt * 14) {
       const b = this.bleeding;
       const p = this.anchor(b.startsWith('thigh') ? (b.endsWith('_l') ? 'leg_l' : 'leg_r') : b.startsWith('hand') ? (b.endsWith('_l') ? 'hand_l' : 'hand_r') : (b.endsWith('_l') ? 'arm_l' : 'arm_r'), _v);
@@ -1048,36 +1025,36 @@ export class SurgeryStage {
     this.room.motes.uniforms.uTime.value = this.t; this.room.motes.uniforms.uI.value = 0.9 * lampK;
     this.stress = Math.max(0.15, this.stress - rdt * 0.06);
     this.drawVitals(sdt);
-    this.onFrame?.(rdt);
+    this.onFrame?.(cdt);
     // the hand lamp swings over the part under the pointer
     const lit = this.busy ? null : this.hoverP ?? this.selected;
     if (lit && this.rig) {
       const a = this.anchor(lit, _v2);
-      this.inspect.position.lerp(_v.set(a.x + 0.1, a.y + 0.35, a.z + 0.15), 1 - Math.exp(-rdt * 10));
-      this.inspect.intensity = damp(this.inspect.intensity, lit === this.hoverP ? 2.6 : 1.6, 8, rdt);
-    } else this.inspect.intensity = damp(this.inspect.intensity, 0, 6, rdt);
+      this.inspect.position.lerp(_v.set(a.x + 0.1, a.y + 0.35, a.z + 0.15), 1 - Math.exp(-cdt * 10));
+      this.inspect.intensity = damp(this.inspect.intensity, lit === this.hoverP ? 2.6 : 1.6, 8, cdt);
+    } else this.inspect.intensity = damp(this.inspect.intensity, 0, 6, cdt);
     // camera: spring dolly, punch, shake
     if (this.mode === 'field' && this.rig && !this.busy) this.povAt(null);
     const spring = (p: THREE.Vector3, v: THREE.Vector3, t: THREE.Vector3, w: number) => {
-      v.x += ((t.x - p.x) * w * w - 2 * w * v.x) * rdt; v.y += ((t.y - p.y) * w * w - 2 * w * v.y) * rdt; v.z += ((t.z - p.z) * w * w - 2 * w * v.z) * rdt;
-      p.addScaledVector(v, rdt);
+      v.x += ((t.x - p.x) * w * w - 2 * w * v.x) * cdt; v.y += ((t.y - p.y) * w * w - 2 * w * v.y) * cdt; v.z += ((t.z - p.z) * w * w - 2 * w * v.z) * cdt;
+      p.addScaledVector(v, cdt);
     };
     const W = this.camW * (this.speed > 1 ? 1.6 : 1);
     if (this.mode === 'field' && this.entrance < 1) { const k = 1 - this.entrance; _v.copy(this.camPosT).add(_v2.set(-0.5 * k, 0.9 * k, 0.6 * k)); spring(this.camPos, this.camVel, _v, 3.6); }
     else spring(this.camPos, this.camVel, this.camPosT, W);
     spring(this.camAt, this.atVel, this.camAtT, W * 1.15);
-    this.punchK = Math.max(0, this.punchK - rdt * 2.6);
+    this.punchK = Math.max(0, this.punchK - cdt * 2.6);
     const fov = this.baseFov * (1 - this.punchK * 0.2);
     if (Math.abs(this.cam.fov - fov) > 0.01) { this.cam.fov = fov; this.cam.updateProjectionMatrix(); }
-    this.bars += ((this.cinematic ? 1 : 0) - this.bars) * Math.min(1, rdt * 5);
-    this.shakeT = Math.max(0, this.shakeT - rdt * 1.7);
+    this.bars += ((this.cinematic ? 1 : 0) - this.bars) * Math.min(1, cdt * 5);
+    this.shakeT = Math.max(0, this.shakeT - cdt * 1.7);
     const sh = this.shakeT * this.shakeT * 0.07;
     this.cam.position.set(this.camPos.x + (Math.random() - 0.5) * sh, this.camPos.y + (Math.random() - 0.5) * sh + Math.sin(this.t * 0.5) * 0.008, this.camPos.z + (Math.random() - 0.5) * sh);
     this.cam.lookAt(this.camAt);
     if (this.viewShift[0] || this.viewShift[1]) this.cam.setViewOffset(this.lowW, this.lowH, Math.round(this.viewShift[0] * this.lowW), Math.round(this.viewShift[1] * this.lowH), this.lowW, this.lowH);
     else if (this.cam.view) this.cam.clearViewOffset();
-    this.hurt = Math.max(0, this.hurt - rdt * 0.8);
-    this.flash = Math.max(0, this.flash - rdt * 3);
+    this.hurt = Math.max(0, this.hurt - cdt * 0.8);
+    this.flash = Math.max(0, this.flash - cdt * 3);
     const pu = this.post.mat.uniforms;
     pu.uTime.value = this.t; pu.uHurt.value = this.hurt; pu.uFlash.value = this.flash; pu.uBars.value = this.bars; pu.uFade.value = this.fade;
     pu.uExpo.value = 1.15; pu.uFgOn.value = this.fg.children.length > 3 ? 1 : 0;
@@ -1091,6 +1068,38 @@ export class SurgeryStage {
     }
   };
   private fluoroK = 1;
+
+  /** one simulation step (h seconds of stage time; 0 during a hit-stop) */
+  private step(h: number) {
+    this.t += h;
+    if (h > 0) for (const f of this.tweens.splice(0)) f();
+    this.gantry.update(h);
+    if (this.rig) {
+      if (this.carry) {
+        const b = this.gantry.bar;
+        b.updateMatrixWorld(true);
+        this.subj.position.copy(b.localToWorld(_v.set(0.8, -0.45 + 0.1, 0)));
+        this.subj.quaternion.copy(b.getWorldQuaternion(_q2)).multiply(Q_LIE);
+      }
+      if (h > 0 || this.rig.ragdolling) this.poseRig(Math.max(h, 0.0001));
+    }
+    this.straps.update(h);
+    this.surgeon.update(h); this.orderly.update(h);
+    // loose limbs fall into the tray
+    for (const l of this.loose) {
+      if (l.rest) continue;
+      l.v.y -= 9.8 * h;
+      l.mesh.position.addScaledVector(l.v, h);
+      l.mesh.rotation.x += l.spin.x * h; l.mesh.rotation.y += l.spin.y * h; l.mesh.rotation.z += l.spin.z * h;
+      const fy = surfaceY(l.mesh.position.x, l.mesh.position.z, l.mesh.position.y + 0.1);
+      if (l.mesh.position.y < fy + 0.04 && l.v.y < 0) {
+        l.mesh.position.y = fy + 0.04; l.rest = true;
+        l.mesh.quaternion.setFromEuler(_e.set(Math.PI / 2 + (Math.random() - 0.5) * 0.4, 0, Math.PI / 2 + (Math.random() - 0.5) * 0.6));
+        csfx('cy_splat', 0.7); this.fx.blood(l.mesh.position, 12, 0.5); this.shake(0.08);
+      }
+    }
+    this.fx.update(h);
+  }
 
   private render() {
     const r = this.renderer!;

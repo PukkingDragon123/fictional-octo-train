@@ -276,13 +276,17 @@ export function dialFace(max: number): PixTag {
   const f = fonts();
   const draw = () => {
     const W = 64 * S, c = W / 2, R = W / 2;
+    // an octagonal brass bezel and face (never a round dial)
+    const oct = (x: number, y: number, r: number) => { ctx.beginPath(); for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + (i / 8) * Math.PI * 2; ctx[i ? 'lineTo' : 'moveTo'](x + Math.cos(a) * r, y + Math.sin(a) * r); } ctx.closePath(); };
     ctx.clearRect(0, 0, W, W);
     ctx.save();
     const rg = ctx.createLinearGradient(0, 0, W, W); rg.addColorStop(0, '#f0d080'); rg.addColorStop(0.5, '#9a7428'); rg.addColorStop(1, '#d8b058');
-    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(c, c, R, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rg; oct(c, c, R); ctx.fill();
+    ctx.strokeStyle = '#0c0a08'; ctx.lineWidth = S; oct(c, c, R - S / 2); ctx.stroke();
     const fg = ctx.createRadialGradient(c - R * 0.2, c - R * 0.3, R * 0.1, c, c, R * 0.9);
     fg.addColorStop(0, '#f6efdc'); fg.addColorStop(1, '#ddd2b4');
-    ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(c, c, R * 0.86, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = fg; oct(c, c, R * 0.86); ctx.fill();
+    ctx.strokeStyle = '#3a2c14'; ctx.lineWidth = S * 0.6; oct(c, c, R * 0.86); ctx.stroke();
     ctx.lineCap = 'round';
     for (let i = 0; i <= 40; i++) {
       const a = Math.PI * 0.75 + (i / 40) * Math.PI * 1.5;
@@ -296,11 +300,11 @@ export function dialFace(max: number): PixTag {
     ctx.font = `${6 * S}px ${f.type}`; ctx.fillStyle = '#5a4020'; ctx.fillText('KG', c, c + R * 0.18);
     // PACE sub-dial
     const sc = c + R * 0.5;
-    ctx.strokeStyle = '#6a6050'; ctx.lineWidth = S * 0.5; ctx.beginPath(); ctx.arc(c, sc, R * 0.2, Math.PI, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#6a6050'; ctx.lineWidth = S * 0.5; ctx.beginPath(); ctx.moveTo(c - R * 0.2, sc); ctx.lineTo(c - R * 0.14, sc - R * 0.14); ctx.lineTo(c + R * 0.14, sc - R * 0.14); ctx.lineTo(c + R * 0.2, sc); ctx.stroke();
     ctx.font = `${4 * S}px ${f.sign}`; ctx.fillStyle = '#6a5a40'; ctx.fillText('PACE', c, sc + R * 0.1);
-    ctx.fillStyle = '#b8281c'; ctx.beginPath(); ctx.arc(c - R * 0.2, sc, S * 0.8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#b8281c'; ctx.fillRect(c - R * 0.2 - S * 0.8, sc - S * 0.8, S * 1.6, S * 1.6);
     // glass glint
-    ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.beginPath(); ctx.ellipse(c - R * 0.3, c - R * 0.45, R * 0.35, R * 0.12, -0.6, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.beginPath(); ctx.moveTo(c - R * 0.62, c - R * 0.3); ctx.lineTo(c - R * 0.3, c - R * 0.62); ctx.lineTo(c - R * 0.12, c - R * 0.56); ctx.lineTo(c - R * 0.56, c - R * 0.12); ctx.closePath(); ctx.fill();
     ctx.restore();
   };
   draw();

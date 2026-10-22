@@ -43,7 +43,7 @@ export function showTitle() {
 interface Item { key: string; label: string; sub: string; act: () => void; finish?: Finish; size?: Size; gap?: boolean }
 
 /** the room's camera hooks (the scene worker adds them; older rooms simply lack them) */
-type RoomCam = { shot?: (k: string, ms?: number) => void; setFraming?: (dx: number) => void };
+type RoomCam = { shot?: (k: string, ms?: number) => void; setFraming?: (dx: number | null, dy?: number | null) => void };
 
 class TitleRoom {
   root = h('div', 'nx nx-title');
@@ -79,9 +79,9 @@ class TitleRoom {
 
   private get cam() { return this.room as unknown as RoomCam; }
   private portrait() { return window.innerHeight > window.innerWidth * 1.05; }
-  /** keep the subject on the lit side, away from the buttons */
+  /** keep the subject on the lit side, away from the buttons (the room's automatic title framing does exactly that) */
   private frame(ms: number) {
-    this.cam.setFraming?.(this.portrait() ? 0 : 0.38);
+    this.cam.setFraming?.(null, null);
     this.cam.shot?.('title', ms);
   }
 

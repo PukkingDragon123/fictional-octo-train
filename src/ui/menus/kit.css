@@ -179,3 +179,15 @@
 @keyframes kd-drop { from { transform: translateY(calc(var(--ks) * -12)); } }
 .kd-term .ct-body { display: flex; flex-direction: column; justify-content: center; }
 .kd-term p { margin: 0; font-size: 1.04em; }
+
+/* narrow glass (phones): labels above their controls, sliders full width */
+@media (max-width: 560px) {
+  .ct-scr { font-size: calc(var(--ks) * 5.2); }
+  .ct-scr .t-seg-row { grid-template-columns: 1fr; gap: 0.1em; margin: 0.5em 0; }
+  .ct-scr .t-slider { grid-template-columns: 1fr auto; gap: 0.1em 1em; margin: 0.5em 0; }
+  .ct-scr .t-slider input { grid-column: 1 / -1; grid-row: 2; }
+  .ct-scr .t-tabs { gap: 0.2em 1em; }
+  .ct-scr .t-ctl { grid-template-columns: 1fr; gap: 0; padding: 0.25em 0; }
+  .ct-head small { display: none; }
+  .ct-in { padding-left: calc(var(--ks) * 4); padding-right: calc(var(--ks) * 4); }
+}

@@ -1,5 +1,5 @@
 // Research points (RP): the persistent meta currency. Missions, scans and quests
-// grant them; the watch's skill tree and the cosmetics catalogue spend them.
+// grant them; the watch's skill tree spends them.
 // Both live in the browser profile, so they carry across runs.
 import { bus } from '../core/events';
 import { addStat, stat, isUnlocked, unlock } from './profile';
@@ -19,7 +19,7 @@ export function spendResearch(n: number, reason = ''): boolean {
   return true;
 }
 
-/** a node in the research tree: watch functions, blueprints, recipes, knowledge, cyberware, cosmetics */
+/** a node in the research tree: watch functions, blueprints, recipes, knowledge, cyberware */
 export interface ResearchNode {
   key: string;
   branch: string;

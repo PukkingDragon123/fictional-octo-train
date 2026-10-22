@@ -125,7 +125,7 @@ function colourName(c: number, kind: 'skin' | 'eye' | 'hair'): string {
 }
 
 /** the room's camera hooks (the scene worker adds them; older rooms simply lack them) */
-type RoomCam = { shot?: (k: string, ms?: number) => void; setFraming?: (dx: number) => void };
+type RoomCam = { shot?: (k: string, ms?: number) => void; setFraming?: (dx: number | null, dy?: number | null) => void };
 
 /** show the intake; resolves with the processed subject or null if they withdrew */
 export function intakeForm(opts: { title?: string; sandbox?: boolean; directives?: boolean; submit?: string; room?: SubjectRoom; app?: Appearance } = {}): Promise<IntakeResult | null> {
@@ -355,7 +355,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       tabBtns.clear();
       for (const k of pageList()) {
         const label = k === 'ward' ? 'Wardrobe' : PAGES.find((p) => p[0] === k)![1];
-        const b = plateBtn(label, () => setPage(k), { finish: k === 'ward' ? 'olive' : 'steel', size: 'sm', lamp: false, shape: 'key', full: true, cls: 'pb-c', sound: 'rocker', hover: '' });
+        const b = plateBtn(label, () => setPage(k), { finish: k === 'ward' ? 'olive' : 'steel', size: 'sm', lamp: false, shape: 'key', full: true, tight: true, cls: 'pb-c', sound: 'rocker', hover: '' });
         b.setAttribute('role', 'tab');
         b.classList.toggle('on', k === page);
         tabsEl.append(b);
@@ -382,8 +382,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       if (sound) sfx('tab');
     };
     // the two plates under the page
-    const sawBtn = plateBtn('New face', () => newFace(1), { glyph: 'saw', lamp: false, size: 'sm', finish: 'steel', aria: 'Saw on a new face (or scroll on the head)' });
-    const someBtn = plateBtn('Somebody else', () => randomizeLooks(), { glyph: 'dice', lamp: false, size: 'sm', finish: 'steel' });
+    const sawBtn = plateBtn('New face', () => newFace(1), { glyph: 'saw', lamp: false, size: 'sm', finish: 'steel', tight: true, aria: 'Saw on a new face (or scroll on the head)' });
+    const someBtn = plateBtn('Somebody else', () => randomizeLooks(), { glyph: 'dice', lamp: false, size: 'sm', finish: 'steel', tight: true });
     actions.append(sawBtn, someBtn);
 
     // ---------------- the issue store (right)
@@ -401,8 +401,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
 
     // ---------------- the body type levers
     const fem = () => (app.bodyShape ?? 0.3) > 0.5;
-    const lvF: Lever = lever('Female', 'frame', () => clone(true), { handle: 'oxblood', seed: 31 });
-    const lvM: Lever = lever('Male', 'frame', () => clone(false), { handle: 'navy', seed: 57 });
+    const lvF: Lever = lever('Female', 'body type', () => clone(true), { handle: 'oxblood', seed: 31 });
+    const lvM: Lever = lever('Male', 'body type', () => clone(false), { handle: 'navy', seed: 57 });
     lvF.el.classList.add('l'); lvM.el.classList.add('r');
     levers.append(lvF.el, lvM.el);
     const paintSex = () => { lvF.set(fem()); lvM.set(!fem()); };
@@ -454,10 +454,14 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       setPage(page, false);
     };
     const layout = () => {
-      root.classList.toggle('portrait', portrait());
+      const pt = portrait();
+      root.classList.toggle('portrait', pt);
       const had = page;
       buildTabs();
-      cam.setFraming?.(0);
+      // portrait: the page covers the lower half, so the subject rides up
+      cam.setFraming?.(0, pt ? 0.5 : 0);
+      termsBtn.setLabel(pt ? 'Terms' : 'Sentencing terms');
+      confirmBtn.setLabel('Confirm', pt ? '' : 'to the operating table');
       if (had === 'ward' && !portrait()) setPage('face', false);
       else if (phase === 'look') setPage(had, false);
     };

@@ -349,6 +349,8 @@ export interface PlateOpts {
   /** minimum width in art pixels */
   minW?: number;
   wear?: number;
+  /** narrow side margins, no rivets (tabs, tight rows) */
+  tight?: boolean;
 }
 export type PlateButton = HTMLButtonElement & { setLabel: (l: string, sub?: string) => void; paint: () => void };
 
@@ -386,8 +388,8 @@ export function plateBtn(label: string, onClick: (b: PlateButton) => void, o: Pl
     b.style.setProperty('--bh', hPx + 'px');
     b.style.fontSize = labelPx(ah, s, hasSub) + 'px';
     const iconOnly = !lab.textContent && !!o.glyph;
-    const padL = iconOnly ? 0 : (lamp || o.glyph ? 10 : 7) + (shape === 'arrowL' ? Math.floor((ah - 2) / 2) - 2 : 0);
-    const padR = iconOnly ? 0 : 8 + (shape === 'arrowR' ? Math.floor((ah - 2) / 2) - 2 : 0);
+    const padL = iconOnly ? 0 : (o.tight ? (lamp || o.glyph ? 9 : 4) : (lamp || o.glyph ? 10 : 7)) + (shape === 'arrowL' ? Math.floor((ah - 2) / 2) - 2 : 0);
+    const padR = iconOnly ? 0 : (o.tight ? 4 : 8) + (shape === 'arrowR' ? Math.floor((ah - 2) / 2) - 2 : 0);
     b.style.paddingLeft = padL * s + 'px';
     b.style.paddingRight = padR * s + 'px';
     let aw: number;
@@ -402,7 +404,7 @@ export function plateBtn(label: string, onClick: (b: PlateButton) => void, o: Pl
     const k = `${aw}|${ah}|${s}`;
     if (k === key) return;
     key = k;
-    const url = plateSheet({ W: aw, H: ah, finish, shape, seed, lamp: iconOnly ? false : lamp, glyph: o.glyph, glyphAt: iconOnly ? 'center' : 'left', wear: o.wear, rivets: iconOnly ? false : undefined });
+    const url = plateSheet({ W: aw, H: ah, finish, shape, seed, lamp: iconOnly ? false : lamp, glyph: o.glyph, glyphAt: iconOnly ? 'center' : 'left', wear: o.wear, rivets: iconOnly || o.tight ? false : undefined });
     b.style.backgroundImage = `url(${url})`;
     b.style.backgroundSize = `${aw * s}px ${ah * s * 4}px`;
   };

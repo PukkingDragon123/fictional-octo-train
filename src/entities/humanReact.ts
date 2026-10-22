@@ -43,19 +43,23 @@ export class Reactions {
     const g = partGroup(part);
     const r = Math.random() < 0.5 ? -1 : 1;
     this.since = 0;
-    // every blow: the pelvis is shoved (the feet step to catch it), a flinch through the trunk
-    v[C.HX] += fx * 2.3 * s; v[C.HZ] += fz * 2.3 * s;
-    v[C.TP] += -fz * 2.2 * s; v[C.TR] += -fx * 2.0 * s;
-    v[C.AL] += 2.4 * s; v[C.AR] += 2.4 * s;
+    // every blow: the pelvis is shoved (the feet step to catch it), a flinch through the trunk, the knees give a little,
+    // the arms fly up on the far side to catch the balance
+    v[C.HX] += fx * 2.9 * s; v[C.HZ] += fz * 2.9 * s;
+    v[C.TP] += -fz * 2.6 * s; v[C.TR] += -fx * 2.6 * s;
+    v[C.AL] += 2.8 * s; v[C.AR] += 2.8 * s;
+    v[C.ALO] += Math.max(0, -fx) * 4.5 * s + 1.2 * s; v[C.ARO] += Math.max(0, fx) * 4.5 * s + 1.2 * s;
+    v[C.DIP] += -0.35 * s;
     switch (g) {
       case 'head':
-        v[C.HP] += (-fz * 11 - 2) * s; v[C.HR] += -fx * 10 * s; v[C.HY] += (fx * 9 + r * 3) * s;
-        v[C.TP] += -fz * 2 * s;
+        // the head snaps away and twists, the shoulders follow it round
+        v[C.HP] += (-fz * 13 - 2.5) * s; v[C.HR] += -fx * 13 * s; v[C.HY] += (fx * 11 + r * 4) * s;
+        v[C.TP] += -fz * 2.6 * s; v[C.TY] += (fx * 3 + r * 1.5) * s; v[C.TR] += -fx * 1.5 * s;
         break;
       case 'chest':
-        v[C.TP] += -fz * 5.5 * s; v[C.TR] += -fx * 4 * s; v[C.TY] += r * 3 * s;
-        v[C.HP] += -fz * 4 * s;
-        v[C.ALO] += 2.5 * s; v[C.ARO] += 2.5 * s;
+        v[C.TP] += -fz * 6.5 * s; v[C.TR] += -fx * 5 * s; v[C.TY] += r * 3.5 * s;
+        v[C.HP] += -fz * 5 * s; v[C.HR] += -fx * 3 * s;
+        v[C.ALO] += 3 * s; v[C.ARO] += 3 * s;
         break;
       case 'belly':
         // doubles over whichever way it came from

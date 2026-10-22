@@ -203,7 +203,7 @@ export async function populate(g: { pr: any; z: any; tgt: THREE.Vector3 }, set =
  *   ?gallery=humans then: (await import('/src/dev/humanGallery.ts')).studio({ mode: 'heads' })
  * modes: 'lineup' (full bodies), 'heads' (faces, 3/4 view), 'one' (one subject, waist up), 'anim' (an action loop)
  */
-export async function studio(o: { mode?: string; n?: number; seed?: number; scale?: number; wear?: string[][]; yaw?: number; app?: Partial<Appearance>[]; action?: string; t?: number; emote?: string; cam?: number[]; look?: number[]; fov?: number; pose?: Record<string, number[]>; sp?: number; hold?: string; dur?: number; weapon?: string; twoHanded?: boolean; rag?: { at: number; imp: number[]; part?: string; recover?: number } } = {}) {
+export async function studio(o: { mode?: string; n?: number; seed?: number; scale?: number; wear?: string[][]; yaw?: number; app?: Partial<Appearance>[]; action?: string; t?: number; emote?: string; cam?: number[]; look?: number[]; fov?: number; pose?: Record<string, number[]>; sp?: number; hold?: string; dur?: number; weapon?: string; twoHanded?: boolean; rag?: { at: number; imp: number[]; part?: string; recover?: number }; hit?: { at: number; dir: number[]; part: string; s: number } } = {}) {
   const { createPreviewRig } = await import('../entities/humanRig');
   await import('../combat/anims');
   const { makeHeldMesh } = await import('../items/itemMeshes');
@@ -273,6 +273,13 @@ export async function studio(o: { mode?: string; n?: number; seed?: number; scal
   };
   if (o.emote) for (const rig of rigs) rig.playEmote(o.emote, true);
   // ragdoll strip: every rig falls the same way; rig i is photographed i * step seconds in (frames are stepped by hand)
+  if (o.hit) {
+    const Hh = o.hit;
+    for (let f = 0; f < 30; f++) for (const rig of rigs) rig.update(1 / 60);
+    rigs.forEach((rig: any, i: number) => { rig.root.rotation.y = 0; rig.hit(Hh.dir[0], Hh.dir[1], Hh.part, Hh.s); const steps = Math.round(i * Hh.at * 60); for (let f = 0; f < steps; f++) rig.update(1 / 60); });
+    r.render(scene, cam);
+    return rigs.length;
+  }
   if (o.rag) {
     const R = o.rag;
     for (let f = 0; f < 30; f++) for (const rig of rigs) rig.update(1 / 60);

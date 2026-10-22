@@ -28,6 +28,7 @@
 //       normalised screen units (-1..1, +dx right, +dy up), so it stays in
 //       the part of the screen the 2D UI leaves free. null = automatic
 //       (title: face right of centre on landscape, upper half on portrait).
+//       lightsOn() / lightsOff() reset it to automatic: set it again after.
 // The old 3D menu calls are kept as no-ops so callers still compile:
 //   setMenu (stores the items, draws nothing), hoverItem (the lamp flares a
 //   little), pressItem (a crackle off the cap; resolves quickly), itemRect
@@ -111,6 +112,7 @@ export class SubjectRoom {
   private mats: FMats;
   // ---- lights
   private hemi = new THREE.HemisphereLight(0x8a9ab8, 0x1a1410, 0.03);
+  private hemiDark = new THREE.Color(0x8a9ab8); private hemiLit = new THREE.Color(0xc4cec0);
   private key = new THREE.SpotLight(0xffc88a, 0, 0, 0.98, 0.45, 2);
   private rimL = new THREE.SpotLight(0x9ab2ff, 0, 0, 0.32, 0.6, 2);
   private rimR = new THREE.SpotLight(0x5a74d0, 0, 0, 0.3, 0.6, 2);
@@ -119,9 +121,9 @@ export class SubjectRoom {
   private crt = new THREE.PointLight(0x78e09a, 0, 3.6, 2);
   private surge = new THREE.PointLight(0xbfe0ff, 0, 5, 2);
   private hatchL = new THREE.PointLight(0xff2a10, 0.25, 3.2, 2);
-  private sun = new THREE.DirectionalLight(0xe4ecff, 0);
-  private fill = new THREE.DirectionalLight(0xb8c8e8, 0);
-  private back = new THREE.DirectionalLight(0x8aa0ff, 0);
+  private sun = new THREE.DirectionalLight(0xf0f4e6, 0);
+  private fill = new THREE.DirectionalLight(0xc8d4c8, 0);
+  private back = new THREE.DirectionalLight(0xa0b4d8, 0);
   private alarm = new THREE.SpotLight(0xff2a1a, 0, 9, 0.6, 0.6, 1.2);
   private tubeMat = new THREE.MeshBasicMaterial({ color: 0x0c0c0c, toneMapped: false });
   private bulbMat = new THREE.MeshBasicMaterial({ color: 0x302010, toneMapped: false });
@@ -459,6 +461,7 @@ export class SubjectRoom {
     if (this.mode === 'lit') return;
     this.busy = true;
     this.mode = 'lit'; this.view = 'creator';
+    this.frXSet = this.frYSet = null;
     this.hoverKey = null;
     this.surgeT = 0;
     sfx('breaker');
@@ -504,6 +507,7 @@ export class SubjectRoom {
   async lightsOff() {
     if (this.mode === 'title') return;
     this.busy = true;
+    this.frXSet = this.frYSet = null;
     const [L, R, H, T] = this.arms;
     T.follow = { kind: 'stow' };
     H.gripT = 0; this.harness.visible = false; H.follow = { kind: 'stow' };
@@ -807,7 +811,11 @@ export class SubjectRoom {
 
   /** lighting for a level of "lit" (0 title dark .. 1 tubes full on) */
   private applyLight(l: number) {
-    this.hemi.intensity = 0.035 + l * 0.55;
+    this.hemi.intensity = 0.035 + l * 0.5;
+    this.hemi.color.lerpColors(this.hemiDark, this.hemiLit, l);
+    const u = this.post.u;
+    u.uLift.value.set(0.86 + l * 0.1, 0.96 + l * 0.04, 1.14 - l * 0.12);
+    u.uGain.value.set(1.08 - l * 0.06, 1.0 + l * 0.02, 0.86 + l * 0.08);
     this.sun.intensity = l * 2.1;
     this.fill.intensity = l * 0.55;
     this.back.intensity = l * 0.9;
@@ -882,6 +890,7 @@ export class SubjectRoom {
   private updateLamp(dt: number) {
     const t = this.t, calmNow = calm();
     this.swingA = damp(this.swingA, 0.085, 0.08, dt); this.swingB = damp(this.swingB, 0.05, 0.08, dt);
+    this.bulbPivot.position.y = ROOM.H + this.lit * 0.85;
     const w = Math.sqrt(9.8 / LAMP.L);
     this.bulbPivot.rotation.set(Math.sin(t * w + 1.1) * this.swingB, 0, Math.sin(t * w) * this.swingA);
     this.flk -= dt;
@@ -1234,13 +1243,21 @@ export class SubjectRoom {
     if (name === 'face') { at = bone('head', 0, 0.1, 0.03); dist = portrait ? 1.25 : 0.95; lift = 0.04; fov = portrait ? 40 : 30; }
     else if (name === 'body') { at = bone('chest', 0, 0.06, 0); dist = portrait ? 2.5 : 1.85; lift = 0.06; fov = portrait ? 44 : 32; }
     else if (name === 'feet') { at = this.v1.lerpVectors(rig ? rig.bones.shinL.getWorldPosition(this.v3) : this.v3.set(0, 0.6, ROOM.FLOAT_Z), rig ? rig.bones.footR.getWorldPosition(this.v4) : this.v4.set(0, 0.4, ROOM.FLOAT_Z), 0.55); dist = portrait ? 2.0 : 1.55; lift = 0.32; fov = portrait ? 44 : 32; }
-    else { at = bone('hips', 0, 0.3, 0); dist = portrait ? 4.6 : 3.7; lift = 0.12; fov = portrait ? 50 : 34; }
+    else { at = bone('hips', 0, 0.28, 0); dist = portrait ? 5.0 : 4.35; lift = 0.1; fov = portrait ? 50 : 34; }
     look.copy(at);
     pos.copy(at).add(this.v2.set(0.06, lift, 1).normalize().multiplyScalar(dist * this.zoom));
     return fov;
   }
 
+  /** dev: pin the camera somewhere ({ pos, look, fov }) to inspect the set */
+  debugCam: { pos: [number, number, number]; look: [number, number, number]; fov?: number } | null = null;
   private updateCamera(dt: number) {
+    if (this.debugCam) {
+      const d = this.debugCam;
+      this.cam.position.set(...d.pos); this.cam.lookAt(...d.look); this.cam.fov = d.fov ?? 40;
+      this.cam.aspect = this.lowW / Math.max(1, this.lowH); this.cam.updateProjectionMatrix();
+      return;
+    }
     const portrait = this.lowW / Math.max(1, this.lowH) < 1;
     const t = this.t;
     if (this.mode === 'title' && this.shotName !== 'title' && this.lit < 0.05) this.setShot('title', 1500);

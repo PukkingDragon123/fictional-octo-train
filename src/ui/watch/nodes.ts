@@ -1,6 +1,6 @@
 // The watch's own research branch: functions uploaded to the wrist computer
 // and the multi-tool modules bolted onto it. Other systems file their nodes
-// under 'blueprint', 'recipe', 'cyber', 'tame' and 'cosmetic'; the watch's
+// under 'blueprint', 'recipe', 'cyber', and 'tame'; the watch's
 // R&D page shows every branch in one tree.
 import { defNode, researchNode } from '../../game/research';
 
@@ -11,7 +11,6 @@ export const BRANCHES: { key: string; label: string; name: string }[] = [
   { key: 'recipe', label: 'RCPE', name: 'RECIPES & KNOWLEDGE' },
   { key: 'cyber', label: 'CYBR', name: 'CYBERWARE' },
   { key: 'tame', label: 'TAME', name: 'DOMINION' },
-  { key: 'cosmetic', label: 'COSM', name: 'COSMETICS' },
 ];
 
 const W = (key: string, title: string, cost: number, desc: string, requires?: string[], icon?: string) =>
