@@ -120,9 +120,9 @@ function envScene(): THREE.Scene {
   s.add(box);
   const panel = (c: number, k: number, w: number, h: number, p: THREE.Vector3, r: THREE.Euler) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(k), side: THREE.DoubleSide })); m.position.copy(p); m.rotation.copy(r); s.add(m); };
   panel(0xfff0d8, 9, 1.6, 1.6, V(0, 2.9, 0), new THREE.Euler(Math.PI / 2, 0, 0));
-  panel(0x60ff98, 1.2, 1.4, 1.0, V(4.9, 0.4, -1), new THREE.Euler(0, -Math.PI / 2, 0));
+  panel(0x80c8a0, 0.35, 1.4, 1.0, V(4.9, 0.4, -1), new THREE.Euler(0, -Math.PI / 2, 0));
   panel(0x8ab0ff, 0.6, 3, 1.5, V(-4.9, 1.2, 0), new THREE.Euler(0, Math.PI / 2, 0));
-  panel(0xd8ffe8, 2.5, 2.0, 0.2, V(1, 2.3, -4.9), new THREE.Euler(0, 0, 0));
+  panel(0xf0f4ec, 2.0, 2.0, 0.2, V(1, 2.3, -4.9), new THREE.Euler(0, 0, 0));
   return s;
 }
 
@@ -209,6 +209,7 @@ export class SurgeryStage {
   speed = 1;
   /** dev: run the whole stage faster (tests on slow software GL) */
   timeScale = 1;
+  uiDt = 0;
   disposed = false;
 
   constructor(host: HTMLElement, mode: 'intake' | 'field' = 'intake') {
@@ -254,8 +255,8 @@ export class SurgeryStage {
     this.lamp.shadow.mapSize.set(this.quality === 'low' ? 512 : 1024, this.quality === 'low' ? 512 : 1024);
     this.lamp.shadow.bias = -0.0015; this.lamp.shadow.normalBias = 0.02; this.lamp.shadow.camera.near = 0.3; this.lamp.shadow.camera.far = 4;
     this.scene.add(this.lamp, this.lamp.target);
-    this.fluoroL = new THREE.PointLight(0xc8ffe0, 3.5, 5, 2); this.fluoroL.position.set(1.15, 2.1, -2.05); this.scene.add(this.fluoroL);
-    this.vitalsL = new THREE.PointLight(0x50ff88, 2.2, 3, 2); this.vitalsL.position.set(1.85, 1.35, -0.45); this.scene.add(this.vitalsL);
+    this.fluoroL = new THREE.PointLight(0xe0f0e0, 3.5, 5, 2); this.fluoroL.position.set(1.15, 2.1, -2.05); this.scene.add(this.fluoroL);
+    this.vitalsL = new THREE.PointLight(0x50ff88, 0.9, 2.2, 2); this.vitalsL.position.set(1.85, 1.35, -0.45); this.scene.add(this.vitalsL);
     const bulb = new THREE.PointLight(0xffa850, 2.5, 4, 2); bulb.position.set(-3.2, 2.1, 1.0); this.scene.add(bulb);
     this.alarm = new THREE.PointLight(0xff2010, 0, 6, 1.8); this.alarm.position.set(-0.4, 2.55, -2.1); this.scene.add(this.alarm);
     this.weld = new THREE.PointLight(0xa8c8ff, 0, 3, 1.8); this.scene.add(this.weld, this.inspect);
@@ -485,8 +486,8 @@ export class SurgeryStage {
   // ---------------------------------------------------------------- camera
   /** the resting wide shot */
   private home(): [THREE.Vector3, THREE.Vector3] {
-    if (this.portrait) return [V(2.15, 2.35, 0.95), V(-0.12, 0.95, -0.05)];
-    return [V(1.32, 2.05, 2.3), V(-0.1, 0.96, -0.08)];
+    if (this.portrait) return [V(2.35, 2.75, 1.25), V(-0.15, 0.98, -0.2)];
+    return [V(1.55, 2.45, 2.85), V(-0.12, 1.0, -0.3)];
   }
   focus(p: Pick | null) {
     if (this.mode === 'field') return;
@@ -1002,7 +1003,7 @@ export class SurgeryStage {
     this.wS?.set(Math.min(0.22, this.surgeon.effort * 0.3), 0.7 + this.surgeon.effort * 0.9);
     this.wO?.set(Math.min(0.22, this.orderly.effort * 0.3), 0.6 + this.orderly.effort * 0.8);
     this.hum?.set(0.16, 1);
-    const cdt = Math.min(0.08, rdt * this.timeScale);
+    const cdt = Math.min(0.4, rdt * this.timeScale);
     while (this.loose.length > 5) { const o = this.loose.shift()!; this.scene.remove(o.mesh); }
     if (this.bleeding && this.rig && Math.random() < sdt * 14) {
       const b = this.bleeding;
@@ -1035,18 +1036,23 @@ export class SurgeryStage {
     } else this.inspect.intensity = damp(this.inspect.intensity, 0, 6, cdt);
     // camera: spring dolly, punch, shake
     if (this.mode === 'field' && this.rig && !this.busy) this.povAt(null);
-    const spring = (p: THREE.Vector3, v: THREE.Vector3, t: THREE.Vector3, w: number) => {
-      v.x += ((t.x - p.x) * w * w - 2 * w * v.x) * cdt; v.y += ((t.y - p.y) * w * w - 2 * w * v.y) * cdt; v.z += ((t.z - p.z) * w * w - 2 * w * v.z) * cdt;
-      p.addScaledVector(v, cdt);
-    };
     const W = this.camW * (this.speed > 1 ? 1.6 : 1);
-    if (this.mode === 'field' && this.entrance < 1) { const k = 1 - this.entrance; _v.copy(this.camPosT).add(_v2.set(-0.5 * k, 0.9 * k, 0.6 * k)); spring(this.camPos, this.camVel, _v, 3.6); }
-    else spring(this.camPos, this.camVel, this.camPosT, W);
-    spring(this.camAt, this.atVel, this.camAtT, W * 1.15);
+    const cn = Math.max(1, Math.ceil(cdt / 0.02)), cdt0 = cdt;
+    for (let i = 0; i < cn; i++) {
+      const cdt = cdt0 / cn;
+      const spring = (p: THREE.Vector3, v: THREE.Vector3, t: THREE.Vector3, w: number) => {
+        v.x += ((t.x - p.x) * w * w - 2 * w * v.x) * cdt; v.y += ((t.y - p.y) * w * w - 2 * w * v.y) * cdt; v.z += ((t.z - p.z) * w * w - 2 * w * v.z) * cdt;
+        p.addScaledVector(v, cdt);
+      };
+      if (this.mode === 'field' && this.entrance < 1) { const k = 1 - this.entrance; _v.copy(this.camPosT).add(_v2.set(-0.5 * k, 0.9 * k, 0.6 * k)); spring(this.camPos, this.camVel, _v, 3.6); }
+      else spring(this.camPos, this.camVel, this.camPosT, W);
+      spring(this.camAt, this.atVel, this.camAtT, W * 1.15);
+    }
     this.punchK = Math.max(0, this.punchK - cdt * 2.6);
     const fov = this.baseFov * (1 - this.punchK * 0.2);
     if (Math.abs(this.cam.fov - fov) > 0.01) { this.cam.fov = fov; this.cam.updateProjectionMatrix(); }
     this.bars += ((this.cinematic ? 1 : 0) - this.bars) * Math.min(1, cdt * 5);
+    this.uiDt = cdt;
     this.shakeT = Math.max(0, this.shakeT - cdt * 1.7);
     const sh = this.shakeT * this.shakeT * 0.07;
     this.cam.position.set(this.camPos.x + (Math.random() - 0.5) * sh, this.camPos.y + (Math.random() - 0.5) * sh + Math.sin(this.t * 0.5) * 0.008, this.camPos.z + (Math.random() - 0.5) * sh);

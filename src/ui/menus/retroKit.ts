@@ -2,8 +2,7 @@
 // installed as CSS images (--rk-*): a bakelite CRT cabinet, olive enamel
 // switchboard steel, embossed label tape, typewriter paper, cream and red
 // bakelite keys (up and down), a brass plate, Nixie tube cells, jewel lamps,
-// porthole glass and the two big pink and blue push buttons. Everything on
-// screen sits on one of these: there are no bare boxes.
+// (the creator's switchgear itself now lives in btnKit.ts / terminal.ts).
 import { PixelCanvas, bayer, mixHex } from '../../gfx/pixel';
 import { toUrl } from '../pixelkit';
 
@@ -130,53 +129,6 @@ function nixie(on: boolean) {
   }
   return pc;
 }
-function lamp(on: boolean) {
-  const S = 7, pc = canvas(S, S);
-  const c = on ? [0x5a2a00, 0xc86a10, 0xffb43c, 0xfff0a0] : [0x1a1008, 0x3a2410, 0x5a3a1a, 0x8a6a40];
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const dx = x - 3, dy = y - 3, r = dx * dx + dy * dy;
-    if (r > 10) continue;
-    pc.set(x, y, r > 6 ? 0x8a8c90 : r > 3 ? c[1] : c[2]);
-  }
-  pc.set(2, 2, c[3]);
-  return pc;
-}
-function porthole() {
-  const S = 26, pc = canvas(S, S);
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const dx = x - 12.5, dy = y - 12.5, r = Math.sqrt(dx * dx + dy * dy);
-    if (r > 12.6) continue;
-    const lit = dx + dy < 0;
-    pc.set(x, y, r > 11.6 ? K : r > 10 ? (lit ? 0xd8dce0 : 0x6a6e72) : r > 9.2 ? 0x101410 : (r < 3 && dx < 0 && dy < 0 ? 0x1a2a1c : 0x0c1810));
-  }
-  pc.set(8, 6, 0x4a5a4c); pc.set(7, 7, 0x4a5a4c); pc.set(6, 8, 0x3a4a3c);
-  return pc;
-}
-function bigButton(c: number, d: number, down: boolean) {
-  // 36x28: a big domed bakelite push button in a chrome bezel on a steel collar
-  const W = 36, H = 28, pc = canvas(W, H);
-  const cx = 17.5, cy = 13;
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const ex = (x - cx) / 17.5, ey = (y - cy - 1) / 12.5, er = ex * ex + ey * ey;
-    if (er > 1) continue;
-    // collar (dark steel) and chrome bezel
-    if (er > 0.8) { pc.set(x, y, er > 0.93 ? K : (ey < 0 ? 0xc8ccd0 : 0x5a5e62)); continue; }
-    const lift = down ? 2 : 0;
-    const bx = (x - cx) / 14, by = (y - (cy - 3 + lift)) / 9.5, br = bx * bx + by * by;
-    if (br <= 1) {
-      // the dome: highlight top-left, shadow bottom-right, dithered
-      const l = 0.6 - bx * 0.35 - by * 0.55 - br * 0.25;
-      let col = l > 0.75 ? mixHex(c, 0xffffff, 0.55) : l > 0.45 ? mixHex(c, 0xffffff, 0.15 * (bayer(x, y) < 0.5 ? 1 : 0)) : l > 0.1 ? c : mixHex(c, d, 0.6);
-      if (br > 0.82) col = mixHex(c, d, 0.75);
-      pc.set(x, y, col);
-    } else {
-      // the skirt under the dome
-      pc.set(x, y, y > cy + 2 ? mixHex(d, K, 0.35) : 0x1a1c1e);
-    }
-  }
-  if (!down) { pc.set(9, 7, 0xffffff); pc.set(10, 6, 0xffffff); pc.set(11, 6, mixHex(c, 0xffffff, 0.7)); }
-  return pc;
-}
 
 let installed = false;
 /** put the parts on :root as --rk-* image variables (once) */
@@ -194,10 +146,7 @@ export function installRetroKit() {
   set('key-red', key(RED, false)); set('key-red-down', key(RED, true));
   set('brass', plateBrass());
   set('nixie', nixie(false)); set('nixie-on', nixie(true));
-  set('lamp', lamp(false)); set('lamp-on', lamp(true));
-  set('porthole', porthole());
-  set('pink', bigButton(0xf070b0, 0x7a1450, false)); set('pink-down', bigButton(0xf070b0, 0x7a1450, true));
-  set('blue', bigButton(0x4a90e0, 0x102c6a, false)); set('blue-down', bigButton(0x4a90e0, 0x102c6a, true));
+  // (the round porthole and the pink / blue dome buttons are gone: no round controls anywhere)
 }
 
 /** a number on Nixie tubes (markup; style .rk-nixie) */

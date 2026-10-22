@@ -56,26 +56,26 @@ const R: Record<string, Recipe> = {};
 function enamel(base: number, seed: number, seam = true): PixelCanvas {
   const pc = new PixelCanvas(64, 64), rng = rnd(seed);
   const r = makeRamp(base, 7, { spread: 0.42, hueShift: 0.05 });
-  pc.fillRamp(r, (x, y) => 0.5 + (fb(x, y, 64, 64, 4, seed) - 0.5) * 0.5 + (fb(x, y, 64, 64, 16, seed + 9, 2) - 0.5) * 0.18, 1);
+  pc.fillRamp(r, (x, y) => 0.52 + (fb(x, y, 64, 64, 3, seed) - 0.5) * 0.2 + (fb(x, y, 64, 64, 16, seed + 9, 2) - 0.5) * 0.07, 0.6);
   if (seam) {
     pc.hline(0, 63, 0, scaleHex(r[0], 0.6)); pc.hline(0, 63, 1, r[5]);
     pc.vline(0, 0, 63, scaleHex(r[1], 0.85)); pc.vline(1, 0, 63, r[4]);
     for (let x = 4; x < 64; x += 10) rivet(pc, x, 4, r);
   }
-  for (let i = 0; i < 9; i++) chip(pc, rng, rng.int(4, 60), rng.int(6, 60), rng.int(1, 3), mixHex(0x2c2a26, r[0], 0.3), r[6]);
-  scratch(pc, rng, r[5], 10);
-  scratch(pc, rng, r[1], 6, 4);
-  pc.grime(0x15120c, 0.7, 4, seed + 3, 0.5);
+  for (let i = 0; i < 6; i++) chip(pc, rng, rng.int(4, 60), rng.int(6, 60), rng.int(1, 2), mixHex(0x2c2a26, r[0], 0.3), r[6]);
+  scratch(pc, rng, r[5], 7);
+  scratch(pc, rng, r[2], 4, 4);
+  pc.grime(0x15120c, 0.35, 3, seed + 3, 0.6);
   for (let i = 0; i < 14; i++) pc.set(rng.int(0, 63), rng.int(0, 63), rng.pick([0x6a3418, 0x8a4a20, r[0]]));
   return pc;
 }
-R.olive = () => enamel(0x5c6438, 11);
+R.olive = () => enamel(0x5a5e40, 11);
 R.yellow = () => enamel(0xc49a28, 12);
 R.cream = () => enamel(0xc6bc98, 13);
 R.mint = () => enamel(0x7fa894, 14);
 R.red = () => enamel(0x8e2a1e, 15);
 R.gunmetal = () => enamel(0x3a3e40, 16);
-R.olivePlain = () => enamel(0x5c6438, 17, false);
+R.olivePlain = () => enamel(0x5a5e40, 17, false);
 R.creamPlain = () => enamel(0xc6bc98, 18, false);
 
 R.steel = () => {
@@ -146,13 +146,13 @@ R.hazard = () => {
 R.tile = () => {
   // glazed wall tile, 4 x 4 tiles of 16 px: grout, a lit glaze lip, cracks, grime and rust runs
   const pc = new PixelCanvas(64, 64), rng = rnd(71);
-  const r = makeRamp(0x9cb4a4, 7, { spread: 0.45, hueShift: 0.04 });
+  const r = makeRamp(0xa8b4a4, 7, { spread: 0.45, hueShift: 0.03 });
   const g = 0x262a24;
   pc.each((x, y) => {
     const tx = x >> 4, ty = y >> 4, lx = x & 15, ly = y & 15;
     if (lx === 15 || ly === 15) { pc.set(x, y, g); return; }
-    const tb = (hashf(tx, ty, 72) - 0.5) * 0.25;
-    let v = 0.55 + tb + (fb(x, y, 64, 64, 4, 73) - 0.5) * 0.3;
+    const tb = (hashf(tx, ty, 72) - 0.5) * 0.16;
+    let v = 0.55 + tb + (fb(x, y, 64, 64, 4, 73) - 0.5) * 0.14;
     if (lx === 0 || ly === 0) v += 0.22; else if (lx === 14 || ly === 14) v -= 0.22;
     const f = Math.max(0, Math.min(1, v)) * (r.length - 1);
     pc.set(x, y, r[Math.min(r.length - 1, Math.floor(f + bayer(x, y) - 0.5))]);
@@ -163,8 +163,8 @@ R.tile = () => {
   const mx = 2 * 16, my = 1 * 16;
   for (let j = 0; j < 15; j++) for (let i = 0; i < 15; i++) pc.set(mx + i, my + j, mixHex(0x3a3830, 0x24221e, hashf(i, j, 74)));
   pc.hline(mx, mx + 14, my, K); pc.vline(mx, my, my + 14, K);
-  pc.grime(0x1a1c12, 0.9, 4, 75, 0.45);
-  pc.drips(rng, 0x4a2a12, 6, 0, 40, 0.4);
+  pc.grime(0x1a1c12, 0.45, 3, 75, 0.55);
+  pc.drips(rng, 0x4a2a12, 4, 0, 40, 0.3);
   return pc;
 };
 R.floor = () => {
@@ -174,13 +174,13 @@ R.floor = () => {
   pc.each((x, y) => {
     const lx = x & 31, ly = y & 31;
     if (lx === 31 || ly === 31) { pc.set(x, y, 0x1a1a16); return; }
-    let v = 0.5 + (fb(x, y, 64, 64, 4, 82) - 0.5) * 0.45 + (hashf(x >> 5, y >> 5, 83) - 0.5) * 0.15;
+    let v = 0.5 + (fb(x, y, 64, 64, 4, 82) - 0.5) * 0.25 + (hashf(x >> 5, y >> 5, 83) - 0.5) * 0.12;
     if (lx === 0 || ly === 0) v += 0.15;
     pc.set(x, y, r[Math.max(0, Math.min(5, Math.floor(v * 6 + bayer(x, y) - 0.5)))]);
   });
   pc.speckle(rng, [0x9a9282, 0x2c2a24, 0x7a5a3a, 0xb0a890, 0x4a5a4a], 0.08);
   for (let k = 0; k < 3; k++) pc.stain(rng.int(4, 60), rng.int(4, 60), rng.int(3, 7), 0x3a1410, 0x260c08, 85 + k);
-  pc.grime(0x0e0c08, 0.9, 4, 86, 0.45);
+  pc.grime(0x0e0c08, 0.5, 3, 86, 0.55);
   return pc;
 };
 R.plaster = () => {
@@ -322,7 +322,7 @@ R.flesh = () => {
 };
 R.panel = () => {
   // instrument panel face: olive enamel with a recessed seam grid and screw heads
-  const pc = enamel(0x4e5636, 231, false), r = makeRamp(0x4e5636, 7, { spread: 0.42 });
+  const pc = enamel(0x50543c, 231, false), r = makeRamp(0x50543c, 7, { spread: 0.42 });
   for (let i = 0; i < 64; i++) { pc.set(i, 31, K); pc.set(i, 32, r[5]); pc.set(31, i, K); pc.set(32, i, r[5]); }
   for (const [x, y] of [[3, 3], [59, 3], [3, 59], [59, 59], [35, 35], [27, 27]]) rivet(pc, x, y, r);
   return pc;

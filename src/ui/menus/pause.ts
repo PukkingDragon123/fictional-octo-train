@@ -15,6 +15,7 @@ import { bodyCanvas, moodleIcon, BODY_W, BODY_H } from '../moodles';
 import { lossSummary } from '../../survival/limbs';
 import { plateBtn, type PlateButton } from './btnKit';
 import { terminal, type Terminal } from './terminal';
+import './diegetic.css';
 import './noir.css';
 
 type Page = 'main' | 'options' | 'controls' | 'coop';

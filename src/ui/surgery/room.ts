@@ -146,8 +146,14 @@ export function buildRoom(M: Mats): Room {
   k.put(M.darksteel, cbox(0.75, 0.03, 0.05, 0.01), 2.95, 0.95, -2.03);
   // ---- specimen cabinet (left back): glass doors, jars inside
   const cx = -2.85, cz = -1.6;
-  k.put(M.cream, cbox(0.62, 1.9, 0.42, 0.03), cx, 0.95, cz, { tile: 0.8 });
-  k.put(M.darksteel, cbox(0.56, 1.7, 0.38, 0.02), cx + 0.03, 1.0, cz);
+  // carcass: back, sides, top and plinth, open at the front
+  k.put(M.cream, cbox(0.06, 1.9, 0.42, 0.015), cx - 0.28, 0.95, cz, { tile: 0.8 });
+  k.put(M.cream, cbox(0.6, 1.9, 0.04, 0.012), cx, 0.95, cz - 0.21, { tile: 0.8 });
+  k.put(M.cream, cbox(0.6, 1.9, 0.04, 0.012), cx, 0.95, cz + 0.21, { tile: 0.8 });
+  k.put(M.cream, cbox(0.64, 0.06, 0.46, 0.015), cx, 1.92, cz);
+  k.put(M.darksteel, cbox(0.62, 0.22, 0.44, 0.015), cx, 0.11, cz);
+  k.put(M.darksteel, cbox(0.03, 1.66, 0.03, 0.006), cx + 0.3, 1.05, cz - 0.19);
+  k.put(M.darksteel, cbox(0.03, 1.66, 0.03, 0.006), cx + 0.3, 1.05, cz + 0.19);
   for (let s = 0; s < 3; s++) {
     k.put(M.steel, cbox(0.5, 0.02, 0.34, 0.005), cx + 0.03, 0.42 + s * 0.52, cz);
     for (let j = 0; j < 3; j++) {
@@ -157,7 +163,6 @@ export function buildRoom(M: Mats): Room {
       k.put(M.label, cbox(0.005, 0.05, 0.06, 0.002), jx + 0.05, jy + 0.09, jz);
     }
   }
-  k.put(M.glass, cbox(0.02, 1.6, 0.4, 0.005), cx + 0.31, 1.0, cz);
   // ---- instrument trolley with the kidney tray (foot of the table)
   const T = TRAY_POS;
   k.put(M.chrome, ccyl(0.02, T.y - 0.05, 6), T.x, 0.06, T.z);

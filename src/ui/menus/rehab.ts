@@ -11,6 +11,7 @@ import { itemIcon } from '../icons';
 import { h, esc, sfx, hoverFocus } from './common';
 import { toUrl, kitTheme, idPhoto } from '../pixelkit';
 import { xrayFilm, xrayOf } from './art';
+import './diegetic.css';
 
 export interface RehabCtx {
   occ: string;

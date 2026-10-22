@@ -47,8 +47,10 @@ float bayer4(vec2 p) { int x = int(mod(p.x, 4.0)), y = int(mod(p.y, 4.0)); int i
 void main() {
   vec4 t = texture2D(map, vUv);
   float a = t.a * vAlpha;
-  if (a < bayer4(gl_FragCoord.xy)) discard;
-  gl_FragColor = vec4(vCol * t.rgb, 1.0);
+  if (a < 0.06) discard;
+  // a few hard alpha steps, never a smooth gradient
+  a = floor(a * 4.0 + bayer4(gl_FragCoord.xy) * 0.6) / 4.0;
+  gl_FragColor = vec4(vCol * t.rgb, a * 0.7);
 }`;
 function puffTexture(): THREE.DataTexture {
   const pc = new PixelCanvas(16, 16); pc.wrap = false;
@@ -82,7 +84,7 @@ class Puffs {
     g.instanceCount = 0;
     this.geo = g;
     this.max = new Float32Array(cap); this.grow = new Float32Array(cap); this.a0 = new Float32Array(cap); this.spin = new Float32Array(cap); this.lift = new Float32Array(cap);
-    const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: puffTexture() } }, vertexShader: PUFF_VS, fragmentShader: PUFF_FS, depthWrite: false, transparent: false, toneMapped: false });
+    const mat = new THREE.ShaderMaterial({ uniforms: { map: { value: puffTexture() } }, vertexShader: PUFF_VS, fragmentShader: PUFF_FS, depthWrite: false, transparent: true, toneMapped: false });
     this.mesh = new THREE.Mesh(g, mat);
     this.mesh.frustumCulled = false; this.mesh.renderOrder = 4;
   }

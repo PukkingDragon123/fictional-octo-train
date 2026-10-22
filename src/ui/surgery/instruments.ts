@@ -138,8 +138,8 @@ export class Crt3D {
     const sw = 1.1, sh = 1.0;
     const k = new Kit();
     // a bulky cabinet: radiused front, a tapered back, a bezel round the tube
-    k.put(M.olive, cbox(sw + 0.26, sh + 0.5, 0.36, 0.06), 0, -0.1, -0.18, { tile: 0.7 });
-    k.put(M.olive, tbox(sw + 0.1, 0.6, sh + 0.3, sw * 0.6, sh * 0.6, 0.05), 0, -0.05, -0.6, { rx: Math.PI / 2 });
+    k.put(M.creamPlain, cbox(sw + 0.26, sh + 0.5, 0.36, 0.06), 0, -0.1, -0.18, { tile: 0.9 });
+    k.put(M.creamPlain, tbox(sw + 0.1, 0.6, sh + 0.3, sw * 0.6, sh * 0.6, 0.05), 0, -0.05, -0.6, { rx: Math.PI / 2, tile: 0.9 });
     k.put(M.darksteel, cbox(sw + 0.08, 0.05, 0.05, 0.012), 0, sh / 2 + 0.035, 0.01);
     k.put(M.darksteel, cbox(sw + 0.08, 0.05, 0.05, 0.012), 0, -sh / 2 - 0.035, 0.01);
     k.put(M.darksteel, cbox(0.05, sh + 0.12, 0.05, 0.012), -sw / 2 - 0.035, 0, 0.01);
