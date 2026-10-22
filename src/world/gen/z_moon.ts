@@ -57,9 +57,10 @@ export function generateMoon(z: Zone, seed: number) {
     for (let s = 0; s < len; s++) {
       a += rng.float(-0.35, 0.35); x += Math.cos(a); y += Math.sin(a);
       const X = Math.round(x), Y = Math.round(y);
-      if (!z.inb(X, Y) || Math.hypot(X - cx, Y - (cy + 18)) < 7) continue;
-      z.floor[z.idx(X, Y)] = 0;
-      if (s % 3 === 0 && z.inb(X + 1, Y)) z.floor[z.idx(X + 1, Y)] = 0;
+      if (!z.inb(X, Y) || Math.hypot(X - cx, Y - (cy + 18)) < 9) continue;
+      // chasms, not cracks: wide enough to see past their walls to what is underneath
+      const w = 1.6 + Math.sin(s * 0.7) * 0.8;
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) if (dx * dx + dy * dy <= w * w && z.inb(X + dx, Y + dy)) z.floor[z.idx(X + dx, Y + dy)] = 0;
     }
   }
   // one long crack right past where you land (north-west of it): look down
@@ -69,9 +70,8 @@ export function generateMoon(z: Zone, seed: number) {
       x += 0.2 + Math.sin(s * 0.9) * 0.5; y += 0.9;
       const X = Math.round(x), Y = Math.round(y);
       if (!z.inb(X, Y)) break;
-      z.floor[z.idx(X, Y)] = 0;
-      if (s % 2 === 0 && z.inb(X + 1, Y)) z.floor[z.idx(X + 1, Y)] = 0;
-      if (s > 6 && s < 14 && z.inb(X - 1, Y)) z.floor[z.idx(X - 1, Y)] = 0;
+      const w = s > 5 && s < 16 ? 2.4 : 1.5;
+      for (let dy = -3; dy <= 3; dy++) for (let dx = -3; dx <= 3; dx++) if (dx * dx + dy * dy <= w * w && z.inb(X + dx, Y + dy)) z.floor[z.idx(X + dx, Y + dy)] = 0;
     }
   }
   b.flag(0, 0, W - 1, H - 1, TF.OUTDOOR);

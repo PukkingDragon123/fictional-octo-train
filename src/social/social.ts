@@ -49,6 +49,21 @@ export class SocialSystem implements GameSystem {
   constructor() {
     try { const t = Number(localStorage.getItem('noclip.tune')); if (t >= 0 && t < TUNES.length) this.tune = t; } catch { /* storage blocked */ }
     this.patchSay();
+    // keep floating lines inside the picture: after the UI has placed them each frame, nudge any that hang off an edge
+    const keepIn = () => {
+      requestAnimationFrame(keepIn);
+      const ui = G.ui; if (!ui?.bubbles?.length) return;
+      const W = window.innerWidth;
+      for (const b of ui.bubbles) {
+        const el = b.el as HTMLElement;
+        if (!el.classList.contains('ft') || el.classList.contains('offscreen') || el.style.display === 'none') continue;
+        const x = parseFloat(el.style.left); if (!isFinite(x)) continue;
+        const half = el.offsetWidth / 2 + 10;
+        const cx = Math.max(half, Math.min(W - half, x));
+        if (cx !== x) el.style.left = cx + 'px';
+      }
+    };
+    requestAnimationFrame(keepIn);
   }
 
   // ---------------------------------------------------------------- per frame

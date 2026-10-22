@@ -289,7 +289,7 @@ export class EatFp {
   private spawnCrumb(at: THREE.Vector3, col: number, g: number, sc = 0.6, vel?: THREE.Vector3) {
     for (const c of this.crumbs) if (!c.on) {
       c.on = true; c.p.copy(at); c.c.setHex(col); c.life = 0.7 + Math.random() * 0.6; c.s = CS * sc * (0.6 + Math.random() * 0.7); c.g = g;
-      if (vel) c.v.copy(vel); else c.v.set((Math.random() - 0.5) * 0.5, Math.random() * 0.35 - 0.05, 0.1 + Math.random() * 0.45);
+      if (vel) c.v.copy(vel); else c.v.set((Math.random() - 0.5) * 0.4, Math.random() * 0.3 - 0.05, 0.02 + Math.random() * 0.12);
       return;
     }
   }
@@ -358,7 +358,7 @@ export class EatFp {
     // juice: crunch, crumbs, a punch of the camera
     const crunchy = r.crunchy;
     G.audio?.flat?.(crunchy ? 'bh_crunch' : 'bh_soft', 'sfx', 0.75, (0.92 + Math.random() * 0.16) * (1 + Math.min(4, this.combo - 1) * 0.04));
-    if (r.juicy) for (let i = 0; i < 6; i++) this.spawnCrumb(_w.set((Math.random() - 0.5) * 0.04, -0.03 + Math.random() * 0.02, -0.25), mix(r.flesh, 0xffffff, 0.35), 1.4, 0.6, _v.set((Math.random() - 0.5) * 0.6, 0.2 + Math.random() * 0.3, 0.6 + Math.random() * 0.5));
+    if (r.juicy) for (let i = 0; i < 6; i++) this.spawnCrumb(_w.set((Math.random() - 0.5) * 0.04, -0.03 + Math.random() * 0.02, -0.25), mix(r.flesh, 0xffffff, 0.35), 1.4, 0.35, _v.set((Math.random() - 0.5) * 0.5, 0.15 + Math.random() * 0.25, 0.05 + Math.random() * 0.15));
     if (r.bad) for (let i = 0; i < 5; i++) this.spawnCrumb(_w.set((Math.random() - 0.5) * 0.06, 0, -0.3), 0x8ab84a, -0.3, 0.8, _v.set((Math.random() - 0.5) * 0.2, 0.15 + Math.random() * 0.2, 0.1));
     punch(crunchy ? 0.025 : 0.015, 0.14);
     if (r.bad && this.bites === 1) bus.emit('think', a.p, r.bad === 'rotten' ? 'Rotten. Keep it down.' : r.bad === 'raw' ? 'Raw. That will cost me.' : 'That tastes wrong.');
@@ -545,7 +545,7 @@ export class EatFp {
     for (const c of this.crumbs) {
       if (!c.on) continue;
       c.life -= dt;
-      if (c.life <= 0) { c.on = false; continue; }
+      if (c.life <= 0 || c.p.z > -0.14) { c.on = false; continue; }
       c.v.y -= 2.6 * c.g * dt;
       c.p.addScaledVector(c.v, dt);
       _m.compose(c.p, _q.setFromAxisAngle(_w.set(0.3, 1, 0.2).normalize(), c.life * 9), _s.setScalar(c.s * Math.min(1, c.life * 3)));
