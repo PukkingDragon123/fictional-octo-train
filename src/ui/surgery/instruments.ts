@@ -306,7 +306,8 @@ export class Console3D {
     this.group.add(this.glow);
     // ---- research points: a three-drum counter behind a window
     label('RESEARCH', -0.06, 0.07, 36);
-    this.group.add(mesh((mb) => { panel(mb, -0.06, -0.12, -0.03, 0.29, 0.17, 0.04, 0.03, 'metal_grey', { color: 0x303030 }); for (const y of [-0.16, -0.08]) { mb.push().translate(-0.06, y + (y < -0.12 ? -0.04 : 0.04), 0.004); shapes.rbox(mb, 0, -0.04, 0, 0.29, 0.08, 0.03, 0.01, 'metal_grey'); mb.pop(); } }, bake));
+    this.group.add(mesh((mb) => { panel(mb, -0.06, -0.12, -0.03, 0.29, 0.17, 0.04, 0.03, 'metal_grey', { color: 0x303030 }); // a slot that shows one digit per drum
+      for (const y0 of [-0.225, -0.096]) { mb.push().translate(-0.06, y0, 0.004).rotateX(Math.PI / 2); shapes.rbox(mb, 0, -0.04, -0.04, 0.29, 0.04, 0.08, 0.012, 'metal_grey'); mb.pop(); } }, bake));
     const dt = drumTex();
     for (let i = 0; i < 3; i++) {
       const dm = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.072, 28, 1), [new THREE.MeshStandardMaterial({ map: dt, roughness: 0.55 }), steel, steel]);

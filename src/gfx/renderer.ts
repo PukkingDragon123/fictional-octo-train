@@ -69,7 +69,9 @@ void main() {
   }
   vec3 l = max(c.rgb, 0.0);
   vec3 s = mix(l * 12.92, 1.055 * pow(l, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, l));
-  s *= uLight;
+  // the room's light dims what you hold up, but glowing things (screens, lamps, embers) keep their glow
+  float glow = smoothstep(0.55, 0.95, max(max(s.r, s.g), s.b));
+  s *= mix(uLight, 1.0, glow);
   s = max(s * uGain + uLift, 0.0);
   s = pow(s, vec3(1.0 / uGamma));
   float y = dot(s, vec3(0.299, 0.587, 0.114));
