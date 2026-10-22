@@ -377,7 +377,7 @@ export function signModel(mats: Mats, lines: string[], w: number, h: number, o: 
   const b = new FacetBuilder();
   b.add('metal', cbox(w + 0.02, h + 0.02, 0.012, 0.004), COL.dark, at(0, 0, -0.006));
   g.add(b.build(mats, { cast: false }));
-  const px = o.px ?? [Math.round(w * 220), Math.round(h * 220)];
+  const px = o.px ?? [Math.round(w * 400), Math.round(h * 400)];
   const tex = plateTex(lines, { w: px[0], h: px[1], bg: o.bg, ink: o.ink });
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshLambertMaterial({ map: tex }));
   m.position.z = 0.001;

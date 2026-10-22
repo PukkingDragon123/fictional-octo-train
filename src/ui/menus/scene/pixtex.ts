@@ -72,7 +72,7 @@ function tilePix(): PixelCanvas {
     }
     if (dirty > 0.75) for (let y = 0; y < T - 1; y++) for (let x = 0; x < T - 1; x++) if ((dirty - 0.75) * 3 > bayer(tx * T + x, ty * T + y) + 0.25) pc.blend(tx * T + x, ty * T + y, 0x5a5238, 0.35);
   }
-  pc.grime(0x3e3626, 0.9, 4, 23, 0.5);
+  pc.grime(0x3e3626, 0.55, 4, 23, 0.6);
   // rust runs from the fixings
   for (let k = 0; k < 7; k++) {
     const x = rng.int(0, N - 1), y0 = rng.int(0, N - 1), len = rng.int(10, 40);
@@ -84,7 +84,7 @@ function tilePix(): PixelCanvas {
 function concretePix(seed = 'conc', base = 0x77746a): PixelCanvas {
   const N = 128, pc = new PixelCanvas(N, N), rng = new Rng(seed);
   const ramp = makeRamp(base, 7, { spread: 0.55, hueShift: 0.03 });
-  pc.fillRamp(ramp, (x, y) => 0.25 + tileFbm(x, y, N, N, 4, 4, 5) * 0.55 + tileFbm(x, y, N, N, 16, 2, 9) * 0.2, 1);
+  pc.fillRamp(ramp, (x, y) => 0.36 + tileFbm(x, y, N, N, 4, 3, 5) * 0.22 + tileFbm(x, y, N, N, 16, 2, 9) * 0.16 + tileFbm(x, y, N, N, 64, 1, 13) * 0.1, 0.7);
   // board-form joints
   for (const y of [31, 63, 95, 127]) for (let x = 0; x < N; x++) { pc.shade(x, y, 0.7); pc.blend(x, y + 1, ramp[5], 0.25); }
   // form-tie holes
@@ -96,7 +96,7 @@ function concretePix(seed = 'conc', base = 0x77746a): PixelCanvas {
   for (let i = 0; i < 3; i++) crack(pc, rng, rng.int(0, N), rng.int(0, N), rng.int(16, 40), ramp[0], ramp[5]);
   for (let i = 0; i < 4; i++) pc.stain(rng.int(0, N), rng.int(0, N), rng.int(6, 16), 0x3a3428, 0x2a2418, i + 3);
   pc.drips(rng, 0x2e2618, 10, 0, 60, 0.3);
-  pc.grime(0x221e16, 0.7, 3, 41, 0.55);
+  pc.grime(0x221e16, 0.45, 3, 41, 0.62);
   return pc;
 }
 
@@ -113,7 +113,7 @@ function floorPix(): PixelCanvas {
   for (let i = 0; i < 3; i++) pc.stain(rng.int(0, N), rng.int(0, N), rng.int(5, 12), 0x1a1a1e, 0x101012, i + 31);
   // scuffs (rubber heels, dragged things)
   for (let i = 0; i < 26; i++) { const x = rng.int(0, N), y = rng.int(0, N), l = rng.int(3, 9); for (let k = 0; k < l; k++) pc.blend(x + k, y + (k >> 2), rng.chance(0.5) ? 0x18171a : ramp[5], 0.45); }
-  pc.grime(0x1a1810, 0.8, 4, 7, 0.5);
+  pc.grime(0x1a1810, 0.5, 4, 7, 0.6);
   return pc;
 }
 
@@ -133,8 +133,8 @@ function paintPix(): PixelCanvas {
   const ramp = makeRamp(0xc8c8c0, 6, { spread: 0.35, hueShift: 0.0 });
   pc.fillRamp(ramp, (x, y) => 0.55 + tileFbm(x, y, N, N, 4, 3, 21) * 0.2 - 0.1, 0.7);
   // chips through to the primer and rust, with a lit paint edge above and a dark lip below
-  for (let i = 0; i < 16; i++) {
-    const cx = rng.int(0, N), cy = rng.int(0, N), r = rng.float(1, 4.5);
+  for (let i = 0; i < 12; i++) {
+    const cx = rng.int(0, N), cy = rng.int(0, N), r = rng.float(0.8, 2.6);
     for (let y = -6; y <= 6; y++) for (let x = -6; x <= 6; x++) {
       const d = Math.hypot(x, y * 1.3) + (rng.next() - 0.5) * 1.5;
       if (d < r) pc.set(cx + x, cy + y, d < r - 1.5 ? 0x4a2e1c : 0x6a5040);
@@ -144,7 +144,7 @@ function paintPix(): PixelCanvas {
   }
   for (let i = 0; i < 12; i++) { const x = rng.int(0, N), y = rng.int(0, N), l = rng.int(3, 10); for (let k = 0; k < l; k++) pc.set(x + k, y - (k >> 2), ramp[1]); }
   pc.drips(rng, 0x4a4030, 8, 0, 40, 0.25);
-  pc.grime(0x3a3428, 0.7, 3, 29, 0.52);
+  pc.grime(0x3a3428, 0.45, 3, 29, 0.6);
   return pc;
 }
 

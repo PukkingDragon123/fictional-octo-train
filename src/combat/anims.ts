@@ -18,18 +18,46 @@ const LEGS: JointName[] = ['hips', 'thighL', 'shinL', 'footL', 'thighR', 'shinR'
 const ALL: JointName[] = [...UPPER, ...LEGS];
 
 type KF = [number, Partial<Record<JointName, V>> & { rootY?: number; rootZ?: number; bodyPitch?: number; bodyY?: number; bodyRoll?: number }];
-/** keyframe track: piecewise smooth interpolation, `sharp` keys use an ease-in (the strike) */
+/** Catmull-Rom through four keys: motion flows through a key instead of stopping on it (arcs, follow-through) */
+const cr = (p0: number, p1: number, p2: number, p3: number, t: number) => {
+  const t2 = t * t, t3 = t2 * t;
+  return 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t2 + (-p0 + 3 * p1 - 3 * p2 + p3) * t3);
+};
+/**
+ * keyframe track. Segments flow through their keys on a spline (eased into
+ * the first key and out of the last); `sharp` marks the strike: it
+ * accelerates hard into its end key (an ease-in snap) for the impact.
+ */
 function track(K: KF[], u: number, P: Pose, sharp = -1) {
   let i = 0; while (i < K.length - 2 && u > K[i + 1][0]) i++;
   const [u0, A] = K[i], [u1, B] = K[i + 1];
+  const Z = K[Math.max(0, i - 1)][1], W = K[Math.min(K.length - 1, i + 2)][1];
   const f0 = clamp((u - u0) / Math.max(1e-4, u1 - u0), 0, 1);
-  const f = i === sharp ? f0 * f0 * f0 : ease(f0);
+  const edge = i === 0 || i === K.length - 2;
+  const f = i === sharp ? f0 * f0 * f0 : edge ? ease(f0) : f0;
   const keys = new Set([...Object.keys(A), ...Object.keys(B)]);
+  const val = (o: any, k: string, j: number, d: number) => { const v = o[k]; return v === undefined ? d : typeof v === 'number' ? v : v[j]; };
   for (const k of keys) {
     const a = (A as any)[k], b = (B as any)[k];
-    if (typeof a === 'number' || typeof b === 'number') (P as any)[k] = lerp(a ?? 0, b ?? 0, f);
-    else { const av: V = a ?? [0, 0, 0], bv: V = b ?? [0, 0, 0]; S(P, k as JointName, lerp(av[0], bv[0], f), lerp(av[1], bv[1], f), lerp(av[2], bv[2], f)); }
+    const num = typeof a === 'number' || typeof b === 'number';
+    const one = (j: number) => {
+      const pa = val(A, k, j, 0), pb = val(B, k, j, 0);
+      if (i === sharp) return lerp(pa, pb, f);
+      return cr(val(Z, k, j, pa), pa, pb, val(W, k, j, pb), f);
+    };
+    if (num) (P as any)[k] = one(0);
+    else S(P, k as JointName, one(0), one(1), one(2));
   }
+}
+/** weight shift: the hips turn under the chest over planted feet, the pelvis slides toward the lead foot */
+function hipTwist(P: Pose, k = 0.4) {
+  const cy = P.chest?.[1] ?? 0, sy = P.spine?.[1] ?? 0;
+  const tw = (cy + sy) * k;
+  const h = P.hips ?? [0, 0, 0];
+  P.hips = [h[0], h[1] + tw, h[2] - tw * 0.12];
+  if (P.chest) P.chest = [P.chest[0], P.chest[1] - tw * 0.6, P.chest[2]];
+  if (P.spine) P.spine = [P.spine[0], P.spine[1] - tw * 0.4, P.spine[2]];
+  P.rootX = (P.rootX ?? 0) - tw * 0.05;
 }
 
 /** which way the weapon class swings: thrust (fists, blades, spears) or chop (everything with weight) */
@@ -104,6 +132,9 @@ registerPose('cb_heavy', (t, dur, inp) => {
   track(HEAVY[st], u, P, 0);
   const s = u < 0.4 ? ease(u / 0.4) : 1 - ease((u - 0.65) / 0.35);
   S(P, 'thighL', -0.55 * s - 0.2, 0, 0.12); S(P, 'shinL', 0.5 * s + 0.25); S(P, 'thighR', 0.35 * s + 0.15, 0, -0.1); S(P, 'shinR', 0.25 + 0.2 * s); S(P, 'footR', -0.3 - 0.3 * s, -0.3);
+  hipTwist(P, 0.45);
+  // the impact shudders back up the arms for a moment after contact
+  if (u > 0.4 && u < 0.55) { const j = Math.sin((u - 0.4) * 140) * (0.55 - u) * 0.5; P.uarmR![0] += j; if (P.chest) P.chest[0] += j * 0.3; }
   P.gripR = 1; P.gripL = st === 'chop2' ? 1 : 0.8;
   return { pose: P, mask: ALL };
 }, { aim: true, dur: 0.5 });
@@ -112,7 +143,8 @@ registerPose('cb_heavy', (t, dur, inp) => {
 const jab = (left: boolean) => (t: number, dur: number, inp: AnimInput, time: number) => {
   const P: Pose = {};
   const u = dur > 0 ? clamp(t / dur, 0, 1) : 1;
-  const k = u < 0.45 ? ease(u / 0.45) : 1 - ease((u - 0.45) / 0.55);
+  // a hitch back first (anticipation), snap out, ease home
+  const k = u < 0.12 ? -0.22 * ease(u / 0.12) : u < 0.42 ? lerp(-0.22, 1, ((u - 0.12) / 0.3) ** 0.6) : 1 - ease((u - 0.42) / 0.58);
   const w = inp.weapon || 'unarmed';
   const bob = Math.sin(time * 9) * 0.02;
   if (w === 'unarmed' || left) {
@@ -129,6 +161,7 @@ const jab = (left: boolean) => (t: number, dur: number, inp: AnimInput, time: nu
     S(P, 'chest', 0.08, lerp(-0.25, 0.35, k), 0); S(P, 'spine', 0.12 + k * 0.08, 0, 0);
   }
   braced(P, 0.8);
+  hipTwist(P, 0.35);
   P.rootZ = 0.04 * k; P.gripL = 1; P.gripR = 1;
   return { pose: P, mask: ALL };
 };
@@ -156,6 +189,7 @@ registerPose('cb_lunge', (t, dur, inp) => {
   S(P, 'spine', 0.2 + k * 0.25, 0, 0); S(P, 'head', -0.1 * k, 0, 0);
   S(P, 'thighL', -0.9 * k - 0.1, 0, 0.1); S(P, 'shinL', 0.7 * k + 0.2); S(P, 'footL', 0.2 * k);
   S(P, 'thighR', 0.7 * k, 0, -0.08); S(P, 'shinR', 0.25 + 0.15 * k); S(P, 'footR', -0.5 * k);
+  hipTwist(P, 0.3);
   P.rootY = -0.28 * k; P.rootZ = 0.18 * k; P.gripR = 1; P.gripL = inp.twoHanded ? 1 : 0.4;
   return { pose: P, mask: ALL };
 }, { aim: true, noIK: true, dur: 0.5 });

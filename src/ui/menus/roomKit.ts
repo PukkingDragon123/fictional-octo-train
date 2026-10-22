@@ -126,7 +126,7 @@ export function roomModel(mats: Mats): THREE.Group {
   put(bucketModel(mats), 0.8, 0, -0.62);
   put(drainModel(mats), 0.95, 0, 0.12);
   put(signModel(mats, ['DANGER', '2400 VOLTS'], 0.28, 0.14, { bg: 0xc8a030 }), -ROOM.W + 0.012, 1.86, -1.3, Math.PI / 2);
-  put(signModel(mats, ['CHAIR No. 4'], 0.42, 0.11, { bg: 0xc8c0a0 }), 1.3, 2.62, BACK + 0.012);
+  put(signModel(mats, ['CHAIR No. 4'], 0.42, 0.11, { bg: 0xc8c0a0 }), 0.9, 2.62, BACK + 0.012);
   put(signModel(mats, ['KEEP CLEAR'], 0.36, 0.09, { bg: 0xc8a030 }), 0, HATCH_H + 0.36, BACK + 0.012);
   const fx = fixtureModel(mats);
   for (const [x, z] of SPOT.fixtures) { const f = fx.group.clone(); put(f, x, H - 0.25, z); }
