@@ -124,7 +124,7 @@ const SHOTS: Partial<Record<Phase, [number, number, string][]>> = {
   drag: [[0, 4.4, 'establish']],
   beat: [[2.15, 3.72, 'beatWide'], [4.55, 6.05, 'beatTop']],
   haul: [[1.9, 5.4, 'haulCrane']],
-  fit: [[1.45, 3.75, 'fitClose'], [4.18, 6.95, 'fitPierce']],
+  fit: [[1.45, 3.9, 'fitClose'], [3.9, 6.95, 'fitPierce']],
   tape: [[1.0, 3.6, 'tapeWide']],
 };
 
@@ -589,7 +589,7 @@ export class Intro implements GameSystem {
     this.lights().strobe(0.5 + power * 0.6, v5.copy(this.eye).add(v4.set(side * 0.4, 0.9, 0.3)));
     // the whip: the view snaps away from the blow
     this.whip.vy += side * 2.4 * power; this.whip.vr += side * 1.6 * power; this.whip.vp += -1.2 * power;
-    if ((G.sandbox.gore ?? 2) > 0) G.gore?.lens?.splash?.(0.35 + power * 0.5, side);
+    if ((G.sandbox.gore ?? 2) > 0 && !this.shot) G.gore?.lens?.splash?.(0.15 + power * 0.3, side);
   }
   private lights() { return this.set.lights; }
 
@@ -736,7 +736,7 @@ export class Intro implements GameSystem {
     const head = this.me.j.head.getWorldPosition(v3);
     switch (name) {
       case 'establish': {
-        // floor level ahead of the procession, backing away slower than they come: they haul you at the lens
+        // high in a corner ahead of the procession
         // a high corner ahead of the procession, tracking back with it (a slow dolly that lets them gain):
         // over the officers' helmets to the body sliding on the wet floor, the tubes, the counter's bars
         pos.set(0.32 - t * 0.03, 2.42 - t * 0.05, head.z - 3.5 + t * 0.22);
@@ -795,6 +795,8 @@ export class Intro implements GameSystem {
     for (const [a, b, name] of SHOTS[this.phase] ?? []) if (this.t >= a && this.t < b) want = name;
     if (want === this.shot) return;
     this.shot = want; this.shotT = 0;
+    // a cut wipes the lens: an operator's camera is not your eyes
+    if (want) G.gore?.lens?.clear?.();
     this.whip.yaw = this.whip.pitch = this.whip.roll = 0; this.whip.vy = this.whip.vp = this.whip.vr = 0;
     const cam = fpCamera();
     if (!want) { cam.fov = this.phase === 'fit' && this.t > 4.6 ? cam.fov : 64; cam.updateProjectionMatrix(); }
@@ -928,12 +930,12 @@ export class Intro implements GameSystem {
     this.at(11.0, 9, () => this.say('OFFICER', 'Orientation.'));
     // where the head looks: down the body at the heels, over at the counter and the glass, back up at the gloves on your wrists
     const f = t - 4.4;
-    if (f < 2.2) this.aim(Math.PI + Math.sin(t * 0.8) * 0.06, 0.2, Math.sin(t * 1.3) * 0.05, 2);
+    if (f < 2.2) this.aim(Math.PI + Math.sin(t * 0.8) * 0.06, 0.42, Math.sin(t * 1.3) * 0.05, 2);
     else if (f < 3.6) this.aim(Math.PI + 0.85, -0.1, 0.1, 1.6);
     else if (f < 4.6) this.aim(Math.PI - 0.95, -0.12, -0.1, 1.6);
     else if (f < 5.2) this.aim(Math.PI + 0.1, -0.38, 0.06, 2);
     else if (f < 6.6) this.aim(0.15, 0.95, 0.0, 1.8);
-    else this.aim(Math.PI - 0.2, -0.4, 0.05, 2.2);
+    else this.aim(Math.PI - 0.2, 0.1, 0.05, 2.2);
     this.gripA = this.gripB = 1;
     if (f > 5.2 && f < 5.9) this.lidGoal = 0.55;
     if (f > 5.9 && f < 6.0) this.lidGoal = 0.1;
@@ -1066,6 +1068,7 @@ export class Intro implements GameSystem {
     this.startDrag(IX.drag2, 1.25);
     this.set.startPress(2.6);
     this.cutBlack(0.4, 1);
+    G.gore?.lens?.clear?.();
     this.hand = 1;
   }
   private updHaul(dt: number) {
@@ -1095,7 +1098,6 @@ export class Intro implements GameSystem {
     this.sfx('cy_spark', 0.3 + k * 0.5);
     setTimeout(() => this.sfx('press_hiss', 0.5 * (0.4 + k)), (CYCLE_RISE) * 1000);
     if (k > 0.05) { hitstop(30 + 60 * k); this.trauma = Math.min(1, this.trauma + k * 0.7); this.stage.pulse(0.25 * k, 0xffb070, 4); }
-    if (k > 0.55 && (G.sandbox.gore ?? 2) > 0) G.gore?.lens?.splash?.(k * 0.5, 1);
   }
 
   // ------------------------------------------------------------------ 5. the band
@@ -1138,7 +1140,8 @@ export class Intro implements GameSystem {
       if (t < 6.95) this.aim(Math.PI / 2 + 0.25, -0.3, 0.05, 2.2);
       else this.aim(Math.PI / 2 + 0.75, -0.05, 0.08, 2.4);
     } else A.walkTo(this.eye.x - 0.8, this.eye.z + 0.6, 2, dt, 0.05);
-    if (t > 2.2) { B.walkTo(tgt.x - 0.5, tgt.z - 0.75, 1.6, dt, 0.04); B.face(tgt.x, tgt.z); }
+    // B stands back by the rig's column with the pendant (out of the way of the wide shots)
+    if (t > 2.2) { B.walkTo(tgt.x - 1.0, tgt.z - 0.3, 1.6, dt, 0.04); B.face(tgt.x, tgt.z); }
     else B.walkTo(this.eye.x - 0.6, this.eye.z - 1.1, 1.8, dt, 0.05);
     // the jaws close round the wrist, the driver comes down through it, the jaws let go
     const close = t < 2.6 ? 0 : t < 2.8 ? ease((t - 2.6) / 0.2) : t < 7.0 ? 1 : Math.max(0, 1 - (t - 7.0) / 0.3);

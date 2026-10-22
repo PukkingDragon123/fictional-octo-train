@@ -14,6 +14,7 @@ import { damp, clamp, angleDiff } from '../../core/math';
 import { crtScreen, fontsReady, type CrtScreen } from '../../gfx/crt';
 import { Tube } from './tube';
 import { fpGroup, fpClaim, fpRelease, fpOwner } from '../../fp/fp';
+import { eyeActive } from '../../fp/eye';
 import { fpArm, type FpArm } from '../../fp/hands';
 import { hasUnlock, buyNode, researchNode, grantResearch } from '../../game/research';
 import { itemDef } from '../../items/item';
@@ -609,10 +610,14 @@ export class Watch {
   private pose(p: Player, dt: number) {
     const pr = G.pr, cam = pr.overlayCamera;
     const tanH = Math.tan(THREE.MathUtils.degToRad(cam.fov / 2));
-    // full: the tube about 62% of the view's height, the case's control column still in frame
-    const d1 = Math.max(SCREEN.h / (2 * tanH * 0.62), 0.106 / (2 * tanH * cam.aspect));
+    // full: the tube about 62% of the view's height, the case's control column still in frame.
+    // Seen from the survivor's own eyes (fp/eye.ts) the wrist is held lower and further off,
+    // tilted toward you, so the forearm and the room behind it stay in the shot.
+    const eye = eyeActive();
+    const frac = eye ? 0.34 : 0.62;
+    const d1 = Math.max(SCREEN.h / (2 * tanH * frac), 0.106 / (2 * tanH * cam.aspect * (eye ? 0.42 : 1)));
     const halfH = d1 * tanH;
-    const fx = -0.0157, fy = -0.001, fz = -d1;
+    const fx = eye ? -0.0157 - halfH * cam.aspect * 0.12 : -0.0157, fy = eye ? -halfH * 0.3 : -0.001, fz = -d1;
     // away from the face: held up on the move (Tab while walking), or a quick glance at the right
     // edge when something lands by itself (a peek). Both tilt toward the eye with the forearm
     // running steeply off the bottom edge, clear of the body HUD along the bottom.
@@ -622,6 +627,7 @@ export class Watch {
     const k = this.zoom, e = k * k * (3 - 2 * k);
     let x = sx + (fx - sx) * e, y = sy + (fy - sy) * e, z = sz + (fz - sz) * e;
     let rx = -(0.28 + 0.06 * pm) * (1 - e), ry = -(0.36 + 0.2 * pm) * (1 - e), rz = (0.62 + 0.3 * pm) * (1 - e);
+    if (eye) { rx -= 0.22 * e; ry += 0.16 * e; rz += 0.08 * e; }
     // raise from below with a little overshoot
     const r = this.raise, c1 = 1.5, back = 1 + (c1 + 1) * Math.pow(r - 1, 3) + c1 * Math.pow(r - 1, 2);
     const lift = (1 - back) * (halfH * 1.6);
