@@ -200,19 +200,22 @@ and an ignition key.
   pitch, look-ahead toward your aim, push-ins when you go down, and photo
   mode; ambient occlusion, bloom, volumetric light and flashlight beams,
   wet-floor reflections and pool caustics, with quality presets for phones.
-- **The subject room.** The title is a dark cell: a man strapped in an
-  electric chair, his face cut out of the dark by one hard beam, the menu on
-  floating old TV sets and a steel gear. CREATE NEW SUBJECT slams the lights
-  on and robot arms lift the subject into mid-air in the jumpsuit. The left
-  monitor changes face, hair, body and colours (scroll on the head and a saw
-  arm takes the old face off), the right wardrobe holds 31 wearables bought
-  with research points. Pink and blue buttons drop the press on the subject
-  and the arms bring a fresh clone of the other body type. Then the operating
-  table: click a limb to have it sawn off and a robotic one bolted on (one
-  scrap limb to start, with good and bad sides), click the brain to slot
-  programme and condition cartridges (the old jobs and traits, each with what
-  it gives and what it costs). Most of it is locked until you earn it, and
-  stays unlocked across runs.
+- **The subject room.** The title is a dark cell: the camera pushes in on the
+  face of a man strapped in an electric chair, lit from above by a swinging
+  caged bulb, sparks spitting from the cap on his head, a cold rim light
+  behind him and the odd power surge; the menu is a column of riveted
+  pixel-art plates beside him (the game's name is never shown).
+  CREATE NEW SUBJECT slams the lights on and robot arms lift the subject into
+  mid-air in the jumpsuit. One page holds the whole creator: face, hair, skin,
+  body and marks on rocker keys, two lever switches for the female and male
+  frame (the press drops and the arms bring a fresh clone), and a green
+  phosphor terminal, the Issue Store, where every jumpsuit, hat, mask and pack
+  is free to wear. Then the operating table (SKIP at any time): two jointed
+  industrial arms, a three-finger orderly and a surgeon with a saw, drill,
+  welder and clamp turret, lay the limp subject on the table and strap him
+  down; touch a limb to have it sawn off and a robotic one bolted on (one
+  scrap limb to start, more found or researched), touch the brain to slot a
+  programme and up to four condition cards (at most two of them gifts).
 - **Physical, retro UI.** Old CRT tubes with scanlines and phosphor glow,
   bakelite, enamel signs, needle gauges, Nixie tubes and typewritten tags;
   speech floats as plain text set in EB Garamond, with an 8-bit voice. Every
@@ -291,12 +294,16 @@ and an ignition key.
   and a knowledge entry for the watch.
 - **The watch.** The BAILIFF band is also a chunky retro wrist computer: steel
   and bakelite, a curved green phosphor CRT, a knurled function dial, a needle
-  gauge, toggle switches and jewel lamps. Tab raises your wrist into a
-  first-person close-up; standing still it zooms in, on the move it stays up
-  small as a glance with your next objective and a bearing.
+  gauge, toggle switches and jewel lamps. Tab raises your wrist; standing
+  still the camera dives into your head, your eyes blink and the world is seen
+  through them (full height walls, dropped ceilings, fluorescent panels that
+  flicker with the power), the wrist held up in front of you; on the move it
+  stays up small as a glance with your next objective and a bearing. The pack,
+  eating, the bench, cooking, trading and field surgery open the same way.
   Its one base function is QUESTS: work uploads with a chime (from Voss, Meridian
   R&D, the radio, tribes), and you accept, decline, track, pay and turn in.
   Quests pay Research Points (RP, kept across runs), and the watch's R&D tree
+  (the only thing that spends them)
   spends them: a self-drawing map and sonar survey, anomaly scan, signal trace,
   biomonitor with calorie count, blood pressure, a diagnosis AI and a mind
   monitor, a logbook, and the multi-tool bolted on piece by piece (a chrome
