@@ -23,6 +23,20 @@ function fill(pc: PixelCanvas, ramp: number[], seed: number, amp = 0.35, cells =
     pc.set(x, y, ramp[Math.min(n - 1, i)]);
   }
 }
+/** brushed metal: vertical streaks (a value per column, drifting slowly down it), a gentle mottle */
+function brushed(pc: PixelCanvas, ramp: number[], seed: number, amp = 0.5) {
+  const n = ramp.length;
+  for (let x = 0; x < pc.w; x++) {
+    const col = ph(x, 0, seed) - 0.5;
+    for (let y = 0; y < pc.h; y++) {
+      const v = 0.5 + col * amp * 0.5 + (ph(x, Math.floor(y / 6), seed + 1) - 0.5) * amp * 0.25 + (tileFbm(x, y, pc.w, pc.h, 2, 2, seed) - 0.5) * amp * 0.5;
+      const f = Math.max(0, Math.min(1, v)) * (n - 1);
+      let i = Math.floor(f);
+      if (f - i > bayer(x, y)) i++;
+      pc.set(x, y, ramp[Math.min(n - 1, i)]);
+    }
+  }
+}
 /** a domed rivet: 1 px highlight, body, dark underside, black foot */
 function rivet(pc: PixelCanvas, x: number, y: number, hi: number, mid: number, lo: number) {
   pc.set(x, y, hi); pc.set(x + 1, y, mid); pc.set(x, y + 1, mid); pc.set(x + 1, y + 1, lo);
@@ -70,12 +84,13 @@ addTextureModule(() => {
   const A = atlas();
 
   // ---------------------------------------------------------------- metal
-  // heavy painted gunmetal, chipped, scratched, a rust run or two
+  // heavy painted gunmetal: vertical brushing, a few chips, a rust run or two
   A.add('ix_steel', 32, 32, (pc, rng) => {
-    fill(pc, makeRamp(0x3c4240, 6, { spread: 0.3 }), 9101, 0.18, 3);
-    chips(pc, rng, 9, 0x7a8078, 0x1a1c1a);
-    scratches(pc, rng, 8, 0x8a9088, 0.25);
-    rustRuns(pc, rng, 3, [3, 12, 21, 28], 9);
+    const R = makeRamp(0x3c4240, 6, { spread: 0.28 });
+    brushed(pc, R, 9101, 0.5);
+    chips(pc, rng, 5, R[4], R[0]);
+    scratches(pc, rng, 5, R[5], 0.25);
+    rustRuns(pc, rng, 2, [3, 21], 9);
   });
   // riveted panels: a seam every metre with a rivet row along it
   A.add('ix_plate', 32, 32, (pc, rng) => {
@@ -114,16 +129,13 @@ addTextureModule(() => {
     for (let i = 0; i < 40; i++) pc.set(rng.int(0, 31), rng.int(0, 31), rng.pick([0x3a3836, 0x524e48, 0x1a0c06]));
     pc.grime(0x140806, 0.9, 4, 9110, 0.5);
   });
-  // portal frame steel: blackened, weld beads along the seams, heat tint round the bolts
+  // portal frame steel: blackened and brushed, a weld bead across the middle, four bolts
   A.add('ix_frame', 32, 32, (pc, rng) => {
-    const R = makeRamp(0x2c3034, 6, { spread: 0.32 });
-    fill(pc, R, 9111, 0.2, 3);
+    const R = makeRamp(0x2c3034, 6, { spread: 0.3 });
+    brushed(pc, R, 9111, 0.45);
     for (let x = 0; x < 32; x++) { const b = (x % 3 === 0) ? R[5] : R[4]; pc.set(x, 15, b); pc.set(x, 16, R[1]); pc.blend(x, 17, K, 0.5); }
-    for (const [x, y] of [[6, 6], [24, 6], [6, 24], [24, 24]]) {
-      for (let k = -3; k <= 3; k++) for (let j = -3; j <= 3; j++) if (k * k + j * j < 11) pc.blend(x + k, y + j, (k + j) % 2 ? 0x5a3a6a : 0x2a4a6a, 0.25);
-      pc.rect(x - 1, y - 1, 3, 3, R[4]); pc.set(x - 1, y - 1, R[5]); pc.set(x + 1, y + 1, R[1]); pc.blend(x, y + 2, K, 0.6); pc.blend(x + 1, y + 2, K, 0.6);
-    }
-    scratches(pc, rng, 8, 0x8a9098, 0.3);
+    for (const [x, y] of [[6, 6], [24, 6], [6, 24], [24, 24]]) { pc.rect(x - 1, y - 1, 3, 3, R[4]); pc.set(x - 1, y - 1, R[5]); pc.set(x + 1, y + 1, R[1]); pc.blend(x, y + 2, K, 0.6); pc.blend(x + 1, y + 2, K, 0.6); }
+    scratches(pc, rng, 4, R[5], 0.25);
   });
 
   // ---------------------------------------------------------------- the press line

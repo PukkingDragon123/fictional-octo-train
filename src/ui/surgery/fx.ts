@@ -133,7 +133,7 @@ export class FX {
   puffs: Puffs;
   constructor(low: boolean) {
     // blood drops: faceted, wet; they do not write depth (no outline on a one-pixel drop)
-    const dropMat = new THREE.MeshStandardMaterial({ color: 0x6a0608, roughness: 0.18, metalness: 0.1, flatShading: true, depthWrite: false });
+    const dropMat = new THREE.MeshStandardMaterial({ color: 0x4a0406, roughness: 0.25, metalness: 0.1, flatShading: true, depthWrite: false });
     const dg = prep(gem(0.5, 0.5, 0.5), null, 1, 0xffffff);
     this.dp = new Pool(low ? 260 : 500);
     this.drops = new THREE.InstancedMesh(dg, dropMat, this.dp.cap);
@@ -141,7 +141,7 @@ export class FX {
     // splats: irregular flat polygons that stay where they land
     const blob: [number, number][] = ngon(9, 0.5).map(([x, y], i) => { const k = 0.55 + hashf(i, 3, 17) * 0.55; return [x * k, y * k] as [number, number]; });
     const sg = prep(prism(blob, 0.002).rotateX(-Math.PI / 2), null, 1, 0xffffff);
-    const splatMat = new THREE.MeshStandardMaterial({ color: 0x4a0406, roughness: 0.12, metalness: 0.15, flatShading: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+    const splatMat = new THREE.MeshStandardMaterial({ color: 0x2c0304, roughness: 0.3, metalness: 0.1, flatShading: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.scap = low ? 180 : 360;
     this.splats = new THREE.InstancedMesh(sg, splatMat, this.scap);
     this.splats.count = 0; this.splats.frustumCulled = false; this.splats.receiveShadow = true;
@@ -216,7 +216,7 @@ export class FX {
       const x = D.p[i * 3] += D.v[i * 3] * dt, y = D.p[i * 3 + 1] += D.v[i * 3 + 1] * dt, z = D.p[i * 3 + 2] += D.v[i * 3 + 2] * dt;
       const fy = surfaceY(x, z, y - D.v[i * 3 + 1] * dt);
       if (y <= fy || D.life[i] <= 0) {
-        if (y <= fy + 0.01 && Math.random() < 0.55) this.splat(x, fy, z, D.size[i] * (2.5 + Math.random() * 3));
+        if (y <= fy + 0.01 && Math.random() < 0.35) this.splat(x, fy, z, D.size[i] * (2 + Math.random() * 2.5));
         D.kill(i); i--; continue;
       }
     }

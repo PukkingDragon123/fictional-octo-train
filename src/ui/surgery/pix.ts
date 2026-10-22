@@ -159,10 +159,6 @@ R.tile = () => {
   });
   // cracks
   for (let k = 0; k < 4; k++) { let x = rng.int(0, 63), y = rng.int(0, 63); for (let i = 0; i < rng.int(6, 14); i++) { pc.set(x, y, 0x30342c); x += rng.int(-1, 1); y += 1; } }
-  // a missing tile showing the mortar bed
-  const mx = 2 * 16, my = 1 * 16;
-  for (let j = 0; j < 15; j++) for (let i = 0; i < 15; i++) pc.set(mx + i, my + j, mixHex(0x3a3830, 0x24221e, hashf(i, j, 74)));
-  pc.hline(mx, mx + 14, my, K); pc.vline(mx, my, my + 14, K);
   pc.grime(0x1a1c12, 0.45, 3, 75, 0.55);
   pc.drips(rng, 0x4a2a12, 4, 0, 40, 0.3);
   return pc;

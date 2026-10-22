@@ -366,7 +366,7 @@ export class Gantry {
   slack = 0;
   /** pendulum swing of the hanging load about the trolley (radians, about z) */
   swing = 0; swingV = 0;
-  private lastX = 0; private vx = 0;
+  private lastX = -3.6; private vx = 0;
   constructor(M: Mats) {
     const k = new Kit();
     k.put(M.yellow, cbox(0.5, 0.2, 0.34, 0.03), 0, -0.2, 0);
@@ -411,14 +411,14 @@ export class Gantry {
   /** world position the hanging body's hips should sit at */
   update(dt: number) {
     const x = this.trolley.position.x;
-    const v = dt > 0 ? (x - this.lastX) / dt : 0;
-    const acc = dt > 0 ? (v - this.vx) / dt : 0;
+    const v = dt > 0 ? (x - this.lastX) / dt : this.vx;
+    const acc = dt > 0 ? Math.max(-5, Math.min(5, (v - this.vx) / dt)) : 0;
     this.lastX = x; this.vx = v;
     // a pendulum driven by the trolley's acceleration
     const L = this.drop + 0.4;
     this.swingV += (-(9.8 / L) * Math.sin(this.swing) - acc / L * Math.cos(this.swing) * 0.6) * dt;
     this.swingV *= Math.exp(-dt * 0.9);
-    this.swing += this.swingV * dt;
+    this.swing = Math.max(-0.45, Math.min(0.45, this.swing + this.swingV * dt));
     const tp = this.trolley.position;
     this.bar.position.set(tp.x + Math.sin(this.swing) * this.drop, tp.y - 0.4 - Math.cos(this.swing) * this.drop, 0);
     this.bar.rotation.z = this.swing * 0.6;

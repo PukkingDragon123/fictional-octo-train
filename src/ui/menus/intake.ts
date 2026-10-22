@@ -155,8 +155,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     const shot = (k: Shot, part?: string) => {
       curShot = k;
       stage.setFocus(part ?? SHOT_PART[k]);
-      // portrait: the page covers the lower half, the close shots would hide behind it; keep the whole subject up top
-      cam.shot?.(portrait() && (k === 'face' || k === 'body') ? 'full' : k, 700);
+      // portrait: the room frames every shot in the upper half (setFraming(0, 0.5) in layout())
+      cam.shot?.(k, 700);
     };
 
     // ---------------- skeleton

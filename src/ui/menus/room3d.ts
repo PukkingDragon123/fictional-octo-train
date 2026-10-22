@@ -66,7 +66,7 @@ const easeIn = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t);
 const UP = new THREE.Vector3(0, 1, 0);
 const FLOAT_Y = 0.34;
 /** the lamp: pivot in the ceiling, cord length (bulb about 0.65 m over his head, a little in front) */
-const LAMP = { x: 0.08, z: -0.06, L: 1.64 };
+const LAMP = { x: -0.16, z: -0.1, L: 1.64 };
 const CAP_ANCHOR = new THREE.Vector3(0.1, ROOM.H - 0.02, -0.62);
 const JUNCTION = new THREE.Vector3(0.06, 0.93, ROOM.CHAIR_Z - 0.47);
 
@@ -269,7 +269,7 @@ export class SubjectRoom {
     this.shaft.mesh.position.set(0, lamp.bulbY - 0.05, 0);
     this.bulbPivot.add(this.shaft.mesh);
     // rims from behind, the green spill, the surge
-    this.rimL.position.set(-1.25, 2.55, -2.1); this.rimR.position.set(1.35, 2.2, -2.15);
+    this.rimL.position.set(1.3, 2.5, -2.05); this.rimR.position.set(-1.35, 2.2, -2.15);
     this.bounce.position.set(0.12, 0.92, -0.1);
     S.add(this.bounce, this.hemi, this.rimL, this.rimL.target, this.rimR, this.rimR.target, this.crt, this.surge, this.hatchL, this.sun, this.sun.target, this.fill, this.back, this.alarm, this.alarm.target);
     this.sun.position.set(0.8, 3.4, 3.4); this.sun.target.position.set(0, 1.0, ROOM.FLOAT_Z);
@@ -820,7 +820,7 @@ export class SubjectRoom {
 
   /** lighting for a level of "lit" (0 title dark .. 1 tubes full on) */
   private applyLight(l: number) {
-    this.hemi.intensity = 0.035 + l * 0.5;
+    this.hemi.intensity = 0.06 + l * 0.48;
     this.hemi.color.lerpColors(this.hemiDark, this.hemiLit, l);
     const u = this.post.u;
     u.uLift.value.set(0.86 + l * 0.1, 0.96 + l * 0.04, 1.14 - l * 0.12);
@@ -922,10 +922,10 @@ export class SubjectRoom {
     this.shaft.mesh.scale.set(Math.tan(0.52) * 1.7, 1.7, Math.tan(0.52) * 1.7);
     this.shaft.u.uInt.value = 0.02 * this.bulbLevel * (0.2 + title * 0.8);
     // the rims and the dust
-    this.rimL.intensity = (5.5 + this.lit * 1.5) * (1 - this.surgeK * 0.3);
-    this.rimR.intensity = 2.4 + this.lit * 0.8;
-    this.leakL.intensity = 2.2 * (1 - this.lit * 0.7);
-    this.leak.u.uInt.value = 0.09 * (0.3 + title * 0.7) * (0.9 + Math.sin(t * 0.7) * 0.1);
+    this.rimL.intensity = (8 + this.lit * 1.5) * (1 - this.surgeK * 0.3);
+    this.rimR.intensity = 4.5 + this.lit * 0.8;
+    this.leakL.intensity = 3.4 * (1 - this.lit * 0.7);
+    this.leak.u.uInt.value = 0.14 * (0.3 + title * 0.7) * (0.9 + Math.sin(t * 0.7) * 0.1);
     if (this.rig) { this.rig.bones.head.getWorldPosition(this.v1); this.rimL.target.position.copy(this.v1); this.rimR.target.position.copy(this.v1); }
     else { this.rimL.target.position.set(0, 1.3, -0.55); this.rimR.target.position.set(0, 1.3, -0.55); }
     this.bulbPivot.updateMatrixWorld(true);
@@ -1191,11 +1191,13 @@ export class SubjectRoom {
     const part = this.toolPart;
     const bone = part === 'head' || part === 'face' || part === 'eyes' ? 'head' : part === 'hair' ? 'head' : part === 'torso' || part === 'body' || part === 'marks' ? 'chest'
       : part === 'handL' || part === 'hands' ? 'handL' : part === 'legL' || part === 'legs' || part === 'build' ? 'shinL' : part === 'feet' ? 'footR' : '';
-    if (!bone) { rig.bones.head.getWorldPosition(out); out.x += -0.45; out.y += 0.25 + Math.sin(t * 0.8) * 0.06; out.z += 0.35 + Math.sin(t * 0.6) * 0.05; return; }
+    // it waits beside what is being edited, never between the camera and it (the saw reaches past the wrist, toward the subject)
+    if (!bone) { rig.bones.head.getWorldPosition(out); out.x += -0.62; out.y += 0.32 + Math.sin(t * 0.8) * 0.05; out.z += 0.04 + Math.sin(t * 0.6) * 0.04; return; }
     rig.bones[bone as 'head'].getWorldPosition(out);
-    if (part === 'hair') { out.y += 0.42 * s; out.z += 0.12; }
-    else if (bone === 'head') { out.y += 0.12 * s; out.z += 0.42; out.x -= 0.18; }
-    else out.z += 0.4;
+    if (part === 'hair') { out.x -= 0.36; out.y += 0.56 * s; out.z += 0.0; }
+    else if (bone === 'head') { out.x -= 0.56; out.y += 0.3 * s; out.z += 0.05; }
+    else if (bone === 'chest') { out.x -= 0.58; out.y += 0.22 * s; out.z += 0.1; }
+    else { out.x -= 0.5; out.y += 0.18; out.z += 0.15; }
     out.x += Math.sin(t * 1.3) * 0.03; out.y += Math.sin(t * 1.7) * 0.03;
   }
 
@@ -1248,16 +1250,16 @@ export class SubjectRoom {
     if (name === 'title') {
       // the push: from head and shoulders to the eyes, over about forty seconds
       const k = easeIO(Math.min(1, Math.max(0, (this.t - this.titleT0) / 40)));
-      const d = (portrait ? 1.95 - 0.75 * k : 1.3 - 0.58 * k) - this.nudge * 0.03 + Math.sin(this.t * 0.21) * 0.015;
-      if (rig) look.copy(bone('head', 0, 0.105, 0.05)); else look.set(0, 1.3, -0.55);
+      const d = (portrait ? 1.95 - 0.7 * k : 1.38 - 0.5 * k) - this.nudge * 0.03 + Math.sin(this.t * 0.21) * 0.015;
+      if (rig) look.copy(bone('head', 0, 0.125, 0.04)); else look.set(0, 1.3, -0.55);
       pos.copy(look).add(this.v2.set(0.24, -0.07, 1).normalize().multiplyScalar(d));
       return portrait ? 44 : 30;
     }
     if (name === 'press') { look.set(0, 1.05, ROOM.FLOAT_Z - 0.2); pos.set(0.1, 1.55, ROOM.FLOAT_Z + (portrait ? 5.6 : 4.5)); return portrait ? 56 : 40; }
     let at: THREE.Vector3, dist: number, lift: number, fov: number;
-    if (name === 'face') { at = bone('head', 0, 0.1, 0.03); dist = portrait ? 1.25 : 0.95; lift = 0.04; fov = portrait ? 40 : 30; }
-    else if (name === 'body') { at = bone('chest', 0, 0.06, 0); dist = portrait ? 2.5 : 1.85; lift = 0.06; fov = portrait ? 44 : 32; }
-    else if (name === 'feet') { at = this.v1.lerpVectors(rig ? rig.bones.shinL.getWorldPosition(this.v3) : this.v3.set(0, 0.6, ROOM.FLOAT_Z), rig ? rig.bones.footR.getWorldPosition(this.v4) : this.v4.set(0, 0.4, ROOM.FLOAT_Z), 0.55); dist = portrait ? 2.0 : 1.55; lift = 0.32; fov = portrait ? 44 : 32; }
+    if (name === 'face') { at = bone('head', 0, 0.1, 0.03); dist = portrait ? 1.65 : 0.95; lift = 0.04; fov = portrait ? 40 : 30; }
+    else if (name === 'body') { at = bone('chest', 0, 0.14, 0); dist = portrait ? 3.0 : 2.05; lift = 0.06; fov = portrait ? 44 : 32; }
+    else if (name === 'feet') { at = this.v1.lerpVectors(rig ? rig.bones.shinL.getWorldPosition(this.v3) : this.v3.set(0, 0.6, ROOM.FLOAT_Z), rig ? rig.bones.footR.getWorldPosition(this.v4) : this.v4.set(0, 0.4, ROOM.FLOAT_Z), 0.55); dist = portrait ? 2.6 : 1.55; lift = 0.32; fov = portrait ? 44 : 32; }
     else { at = bone('hips', 0, 0.02, 0); dist = portrait ? 5.0 : 4.4; lift = 0.1; fov = portrait ? 50 : 34; }
     look.copy(at);
     pos.copy(at).add(this.v2.set(0.06, lift, 1).normalize().multiplyScalar(dist * this.zoom));

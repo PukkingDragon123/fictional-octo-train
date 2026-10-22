@@ -54,7 +54,10 @@ function jumpsuitOutfit(): Outfit {
 const up = (s: string) => s.toUpperCase();
 const cut = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
 /** the upside text, never a price */
-const goodOf = (e: { good?: string; desc: string }) => (e.good && !/credit|point/i.test(e.good) ? e.good : e.desc);
+const noPrice = (s = '') => s.replace(/[^.]*\b\d+\s*(credits?|points?)\b[^.]*\.?\s*/gi, '').trim();
+const goodOf = (e: { good?: string; desc: string }) => noPrice(e.good) || noPrice(e.desc) || e.desc;
+/** the downside text, never a price */
+const badOf = (e: { bad?: string }) => noPrice(e.bad);
 function statLine(d: CyberDef): string {
   const f = d.fx, o: string[] = [];
   const p = (v: number) => `${v > 0 ? '+' : '−'}${Math.round(Math.abs(v) * 100)}%`;
@@ -236,7 +239,8 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
         pen.text(cut(`${code}${sk ? '  ' + sk : ''}`, 52), X, y, PH.mid, 13, 'left', 500, true); y += 18;
         const ml = 2;
         y += 18 * pen.para('+ ' + goodOf(e), X, y, W - 2 * X, PH.hi, 14, 18, ml);
-        if (e.bad) pen.para('− ' + e.bad, X, y, W - 2 * X, PH.mid, 14, 18, 1);
+        const bad = badOf(e);
+        if (bad) pen.para('− ' + bad, X, y, W - 2 * X, PH.mid, 14, 18, 1);
       }
       pen.button('back', 'BACK', W - X - 90, H - 30, 90);
       return;
@@ -430,10 +434,11 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
     if (key !== lastKey) { lastKey = key; desk.build(portrait ? 'tall' : 'wide'); skip.scale(stage.art); }
     let sx = 0, sy = 0;
     if (!portrait) {
-      const cw = Math.min(Math.max(W * 0.34, 250), 560), topGap = 52 + pad;
+      const short = H < 520;
+      const cw = Math.min(Math.max(W * (short ? 0.37 : 0.34), 250), 560), topGap = (short ? 44 : 52) + pad;
       const ch = Math.min(H - topGap - pad, cw * 1.12);
       placeCrt(W - cw - pad, topGap + (H - topGap - pad - ch) / 2 - (H - topGap - pad - ch) * 0.3, cw, ch, k);
-      const dw = W - cw - pad * 3, dh = Math.min(H * 0.3, dw / 4.3);
+      const dw = W - cw - pad * 3, dh = Math.min(H * (short ? 0.4 : 0.3), dw / (short ? 3.4 : 4.3));
       desk.place(stage, pad, H - dh - pad + k * (dh + pad * 2), dw, dh);
       const cx = (W - cw - pad) / 2, cy = (H - dh) / 2;
       sx = ((W / 2 - cx) / W) * easeIO(uiK); sy = ((H / 2 - cy) / H) * easeIO(uiK);

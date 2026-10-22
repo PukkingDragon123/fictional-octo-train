@@ -1170,10 +1170,10 @@ function head(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape) {
     const base = (y: number, back: number) => { const p = skull(Y(y), a - k * back, -0.002, false); return p; };
     const rim = (y: number, o: number, back: number) => { const p = skull(Y(y), a - k * back, 0, false); return [p[0] + k * o, p[1], p[2]] as V3; };
     const pts: V3[] = [
-      base(0.106, 2), base(0.082, 0), base(0.058, 2),                       // 0..2 root on the skull
-      rim(0.116, out * 0.55, 10), rim(0.108, out * 0.95, 22), rim(0.088, out * 1.05, 27), rim(0.068, out * 0.9, 22), rim(0.052, out * 0.55, 12), // 3..7 helix
-      rim(0.092, out * 0.45, 12), rim(0.074, out * 0.42, 11),               // 8..9 bowl
-      rim(0.046, out * 0.3, 5),                                             // 10 lobe tip
+      base(0.104, 2), base(0.082, 0), base(0.058, 2),                       // 0..2 root on the skull
+      rim(0.111, out * 0.6, 9), rim(0.107, out * 0.92, 19), rim(0.092, out * 1.05, 25), rim(0.07, out * 0.95, 23), rim(0.054, out * 0.6, 13), // 3..7 helix
+      rim(0.09, out * 0.42, 12), rim(0.073, out * 0.4, 11),                 // 8..9 bowl
+      rim(0.046, out * 0.32, 6),                                            // 10 lobe tip
     ].map((p) => tr(p));
     const F = pts.map((p) => vP(p, -1)), Bk = pts.map((p) => vP(p, -1));
     const tris = [[0, 3, 8], [3, 4, 8], [4, 5, 8], [8, 5, 9], [5, 6, 9], [6, 7, 9], [9, 7, 2], [8, 9, 1], [0, 8, 1], [1, 9, 2], [2, 7, 10]];

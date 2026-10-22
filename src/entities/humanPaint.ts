@@ -108,7 +108,7 @@ function torsoLight(S: Surf, fem: number) {
     // armpits / sides under the arms
     l -= 1.1 * Math.exp(-((yy - 1.33) ** 2) / 0.003) * Math.exp(-((Math.abs(th) - Math.PI / 2) ** 2) / 0.12);
     // crotch and between the legs
-    l -= 1.4 * Math.max(0, (0.875 - yy) / 0.06) * (0.4 + 0.6 * Math.abs(Math.cos(th)));
+    l -= 0.7 * Math.min(1.2, Math.max(0, (0.875 - yy) / 0.06)) * (0.4 + 0.6 * Math.abs(Math.cos(th)));
     // under bust / pecs
     l -= (0.6 * fem + 0.25) * Math.exp(-((yy - 1.2) ** 2) / 0.0006) * Math.exp(-((Math.abs(th) - 0.48) ** 2) / 0.12) * (Math.cos(th) > 0 ? 1 : 0);
     // top of shoulders catch light
@@ -128,7 +128,7 @@ function limbLight(S: Surf, kind: 'arm' | 'leg') {
       l -= 0.6 * Math.exp(-((yy + 0.285) ** 2) / 0.0006) * Math.max(0, Math.cos(th) * 0.7 - Math.sin(th) * 0.3); // inner elbow
       l += 0.25 * Math.max(0, (yy - 0.0) / 0.06) * Math.max(0, Math.sin(th)); // shoulder cap
     } else {
-      l -= 1.2 * Math.max(0, (yy + 0.02) / 0.07) * Math.max(0, -Math.sin(th) * 0.8 + 0.2); // crotch
+      l -= 0.7 * Math.max(0, (yy + 0.02) / 0.07) * Math.max(0, -Math.sin(th) * 0.8 + 0.2); // crotch
       l -= 0.8 * Math.exp(-((yy + 0.45) ** 2) / 0.0008) * Math.max(0, -Math.cos(th)); // back of knee
       l += 0.25 * Math.exp(-((yy + 0.43) ** 2) / 0.0008) * Math.max(0, Math.cos(th)); // kneecap highlight
       l -= 0.3 * Math.max(0, (-0.8 - yy) / 0.06);
@@ -944,9 +944,9 @@ function suitOverlay(S: Surf, kind: 'TORSO' | 'ARM' | 'LEG', suit: NonNullable<A
 }
 
 // ------------------------------------------------------------------ texture object
-export function makePageTexture(): { tex: THREE.DataTexture; data: Uint8Array } {
-  const data = new Uint8Array(PAGE * PAGE * 4);
-  const tex = new THREE.DataTexture(data, PAGE, PAGE, THREE.RGBAFormat, THREE.UnsignedByteType);
+export function makePageTexture(size = PAGE): { tex: THREE.DataTexture; data: Uint8Array } {
+  const data = new Uint8Array(size * size * 4);
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
   tex.magFilter = THREE.NearestFilter;
   tex.minFilter = THREE.NearestMipmapNearestFilter;
   tex.generateMipmaps = true;
@@ -954,4 +954,28 @@ export function makePageTexture(): { tex: THREE.DataTexture; data: Uint8Array } 
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   return { tex, data };
+}
+
+/**
+ * Scale2x (EPX) a page into one twice the size: hard pixel edges stay hard,
+ * stair-stepped diagonals (seams, letters, lids, pocket corners) are cut
+ * finer. Used for the high-resolution pages of close-up rigs (menus, the
+ * operating table); UVs are page-relative so the geometry is unchanged.
+ */
+export function scale2x(src: Uint8Array, size: number, dst: Uint8Array) {
+  const s32 = new Uint32Array(src.buffer, src.byteOffset, size * size);
+  const d32 = new Uint32Array(dst.buffer, dst.byteOffset, size * size * 4);
+  const W = size * 2;
+  for (let y = 0; y < size; y++) {
+    const ym = y > 0 ? y - 1 : y, yp = y < size - 1 ? y + 1 : y;
+    for (let x = 0; x < size; x++) {
+      const xm = x > 0 ? x - 1 : x, xp = x < size - 1 ? x + 1 : x;
+      const P = s32[y * size + x], A = s32[ym * size + x], B = s32[y * size + xp], C = s32[y * size + xm], D = s32[yp * size + x];
+      const o = y * 2 * W + x * 2;
+      d32[o] = C === A && C !== D && A !== B ? A : P;
+      d32[o + 1] = A === B && A !== C && B !== D ? B : P;
+      d32[o + W] = D === C && D !== B && C !== A ? C : P;
+      d32[o + W + 1] = B === D && B !== A && D !== C ? D : P;
+    }
+  }
 }

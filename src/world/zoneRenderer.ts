@@ -5,6 +5,7 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { MAT, worldMaterial } from '../gfx/materials';
 import { wallDef, WALL_H } from './defs';
 import { objDef, objectGeometry } from './objects';
+import { G } from '../game/G';
 
 interface DynEdge { mesh: THREE.Object3D; key: number; style: string; barricade: number; curtains?: string; }
 
@@ -34,6 +35,8 @@ export class ZoneRenderer {
 
   update(camX: number, camZ: number, viewRadius: number, dt: number) {
     const z = this.zone;
+    // the first-person eye looks down corridors well past the iso frame: keep doors and props out to the fog
+    if (G?.pr?.eyeCamera) viewRadius = Math.max(viewRadius, 30);
     const ccx = Math.floor(camX / CHUNK), ccy = Math.floor(camZ / CHUNK);
     const r = Math.ceil(viewRadius / CHUNK) + 1;
     this.radiusChunks = r;

@@ -584,7 +584,7 @@ export class Intro implements GameSystem {
     this.trauma = Math.min(1.2, this.trauma + power);
     this.hurtA = Math.min(1.2, this.hurtA + power * 0.8);
     this.desat = Math.min(0.8, this.desat + power * 0.08);
-    this.stage.pulse(flash * 0.9, 0xfff2e6, 5);
+    this.stage.pulse(flash * (this.shot ? 0.45 : 0.9), 0xfff2e6, 5);
     this.lights().strobe(0.5 + power * 0.6, v5.copy(this.eye).add(v4.set(side * 0.4, 0.9, 0.3)));
     // the whip: the view snaps away from the blow
     this.whip.vy += side * 2.4 * power; this.whip.vr += side * 1.6 * power; this.whip.vp += -1.2 * power;
@@ -736,10 +736,11 @@ export class Intro implements GameSystem {
     switch (name) {
       case 'establish': {
         // floor level ahead of the procession, backing away slower than they come: they haul you at the lens
-        // from the glass side, low: the procession crossing frame, the counter's bars and the amber desk lamps behind
-        pos.set(-1.22 + t * 0.03, 0.46 + t * 0.03, head.z - 2.1 + t * 0.18);
-        look.set(0.55 - t * 0.05, 0.78, head.z + 0.75);
-        return 60;
+        // a high corner ahead of the procession, tracking back with it (a slow dolly that lets them gain):
+        // over the officers' helmets to the body sliding on the wet floor, the tubes, the counter's bars
+        pos.set(0.32 - t * 0.03, 2.42 - t * 0.05, head.z - 3.5 + t * 0.22);
+        look.set(0.02, 0.15 + t * 0.06, head.z + 0.75);
+        return 56;
       }
       case 'beatWide': {
         // on the tiles by the wall, low: the two of them over you, the caged lamp behind their heads
@@ -809,7 +810,7 @@ export class Intro implements GameSystem {
     SU.uRimStr.value = room === 'portal' ? 0.7 + this.glow * 1.1 : room === 'press' ? 0.85 + 0.5 * L.beaconK * Math.max(0, Math.cos(L.beaconSpin * 2)) : 0.85;
     L.hemi.color.setHex(room === 'press' ? 0x3a2418 : room === 'portal' ? 0x1a3440 : 0x34444e);
     L.hemi.groundColor.setHex(room === 'press' ? 0x0a0806 : 0x14100c);
-    L.hemi.intensity = room === 'press' ? 0.3 : 0.38;
+    L.hemi.intensity = room === 'press' ? 0.42 : 0.4;
     // the key light: the lamp over the body
     if (room === 'wing') {
       let tz = 0, bd = 99;
@@ -817,7 +818,7 @@ export class Intro implements GameSystem {
       L.setKey([0, IX.cor.h - 0.32, tz], [0, 0, tz - 0.4], 0xd8f0ff, 16, 1.15);
     } else if (room === 'ante') L.setKey([IX.drain[0], IX.ante.h - 0.62, IX.drain[1]], [IX.drain[0] + 0.1, 0, IX.drain[1] - 0.6], 0xffd090, 20, 1.05);
     else if (room === 'press') {
-      if (ph === 'fit') { const c = this.set.rig.cradle; L.setKey([IX.fit[0] - 0.55, 2.2, IX.fit[1] - 0.35], [c.x + 0.2, 0.3, c.z], 0xffd8a0, 13, 0.95); }
+      if (ph === 'fit') { const c = this.set.rig.cradle; L.setKey([IX.fit[0] - 0.55, 2.2, IX.fit[1] - 0.35], [c.x + 0.2, 0.3, c.z], 0xffd8a0, 7, 0.95); }
       else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
     } else {
       // the portal is the key: it throws the officers' shadows back at you
@@ -852,7 +853,7 @@ export class Intro implements GameSystem {
     const lit = t > 0.6 && (this.signalled ? Math.sin(t * 9) > 0 : t < 2.2 ? Math.sin(t * 16) > 0.4 : Math.sin(t * 1.5) > 0.9);
     b.lampMat.uniforms.uK.value = lit ? 3 : 0.15;
     // the amber light it throws while it boots
-    if (t < 2.4) this.lights().flare(b.lamp.getWorldPosition(v1), lit ? 0.5 : 0.2);
+    if (t < 2.4) this.lights().flare(b.lamp.getWorldPosition(v1).add(v4.set(0, 0.18, 0)), lit ? 0.35 : 0.12);
   }
 
   // ================================================================== the script
@@ -1030,12 +1031,13 @@ export class Intro implements GameSystem {
     if (s.inj !== 'bruise') bus.emit('playerHit', p, s.part, 'blunt', { dmg, from: [p.x + 1, p.z], knock: 0.25, by: 'custody' });
     else (p as any).registerHit?.(p.x + 1, p.z, s.part, 0.5);
     // blood from where it landed, flicked up toward the camera
-    const at = s.part === 'head' ? this.eye : this.wrist(s.part.endsWith('_r') ? 'R' : 'L', v1);
     const dx = Math.sign(this.eye.x - gd.x) || 1;
-    if (G.sandbox.gore > 0) this.set.bleed(at.x, Math.max(0.15, at.y - 0.05), at.z, dx * 0.6, 1.0, 0.2, s.inj === 'laceration' ? 22 : 10, 2.4, s.inj === 'laceration' ? 0.45 : 0.25);
+    // (never right at the lens: a drop on the near plane is a red wall)
+    const at = s.part === 'head' ? v1.copy(this.eye).add(v4.set(gd.x - this.eye.x, 0, gd.z - this.eye.z).normalize().multiplyScalar(0.35)).setY(Math.max(0.12, this.eye.y - 0.12)) : this.wrist(s.part.endsWith('_r') ? 'R' : 'L', v1);
+    if (G.sandbox.gore > 0) this.set.bleed(at.x, Math.max(0.15, at.y - 0.05), at.z, -dx * 0.5, 0.7, 0.2, s.inj === 'laceration' ? 12 : 6, 2.0, s.inj === 'laceration' ? 0.45 : 0.25);
     const power = s.part === 'head' ? 1 : s.kind === 'kick' ? 0.75 : 0.6;
     this.hit(power, dx, s.part === 'head' ? 0.75 : 0.4);
-    if (s.part === 'head') this.stage.pulse(0.5, 0xff6050, 3);
+    if (s.part === 'head') this.stage.pulse(this.shot ? 0.2 : 0.5, 0xff6050, 3);
     // the body takes it (the springs), the officer's arm takes the recoil
     this.jolt(dx * 0.8, -0.3, s.part, power * 1.2);
     gd.recoil(s.kind === 'kick' ? 0.4 : 1);
@@ -1121,7 +1123,7 @@ export class Intro implements GameSystem {
       const sh = this.set.rig.close > 0.5 ? 0.0015 : 0.004;
       this.armL.p.x += Math.sin(this.T * 23) * sh * w; this.armL.p.y += Math.sin(this.T * 19) * sh * w;
       this.gripA = w;
-      A.walkTo(tgt.x - 0.35, tgt.z + 0.45, 2, dt, 0.04); A.face(tgt.x, tgt.z);
+      A.walkTo(tgt.x - 0.5, tgt.z + 0.6, 2, dt, 0.04); A.face(tgt.x, tgt.z);
       this.aim(Math.PI / 2 + 0.2, -0.62, 0.05, 2.2);
     } else A.walkTo(this.eye.x - 0.8, this.eye.z + 0.6, 2, dt, 0.05);
     if (t > 2.2) { B.walkTo(tgt.x - 0.5, tgt.z - 0.75, 1.6, dt, 0.04); B.face(tgt.x, tgt.z); }
@@ -1173,7 +1175,7 @@ export class Intro implements GameSystem {
   /** the band arms: an amber flare off its lamp, the room's light swallowed by it for a moment */
   private armFlare() {
     const b = this.band;
-    if (b) this.lights().flare(b.lamp.getWorldPosition(v1), 1.4);
+    if (b) this.lights().flare(b.lamp.getWorldPosition(v1).add(v4.set(0, 0.2, 0)), 1.0);
     this.stage.pulse(0.3, 0xffa040, 1.6);
     this.stage.expo = Math.max(this.stage.expo, 1.25);
     this.lights().brownout(0.35, 0.25, ['fit', 'press']);
@@ -1195,7 +1197,7 @@ export class Intro implements GameSystem {
     this.go('tape');
     this.tapeFrom.copy(this.bodyAt);
     this.pose = 'stand'; this.poseW = 0;
-    this.cutBlack(0.18, 0.7);
+    this.cutBlack(0.5, 0.7);
     this.hands('relaxed', 'relaxed', 0.45);
     G.audio?.positionalLoop?.('ix_drone', 'seam_drone', this.p.x, this.p.z, 0.2);
   }
@@ -1255,7 +1257,7 @@ export class Intro implements GameSystem {
       this.sfx('ix_liquid', 1); this.sfx('seam_ripple', 0.9);
       hitstop(70);
       this.trauma = Math.max(this.trauma, 0.6);
-      this.stage.pulse(0.7, 0xa0f0ff, 3);
+      this.stage.pulse(0.3, 0xa0f0ff, 3);
     });
     if (t > 0.3) {
       u.uHitT.value += dt;
@@ -1271,6 +1273,8 @@ export class Intro implements GameSystem {
       this.stage.kill = clamp01((t - 0.9) / 0.5);
       this.aim(0.0, -0.08, 0.25 * d, 2);
     }
+    // inside it the light goes out of it: cold, then dark
+    if (t > 0.3) { this.glow = Math.max(0, this.glow - dt * 1.4); this.set.liqU.uGlow.value = this.glow; SU.uPortStr.value = this.glow * 0.75; }
     this.at(0.7, 2, () => this.sfx('seam_through', 1));
     if (t > 1.25) this.shadeA = Math.min(1, (t - 1.25) / 0.25);
     this.at(1.6, 3, () => { this.toLobby(); });

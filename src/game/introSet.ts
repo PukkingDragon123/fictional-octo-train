@@ -359,7 +359,7 @@ export class IntroSet {
       const sh = new ModelBuilder();
       shaftGeo(sh, IX.fit[0] - 0.55, 2.05, IX.fit[1] - 0.35, 0.3, 0.3, 0.0, 1.9, 1.9);
       for (let i = 0; i < 16; i++) cbox(body, IX.fit[0] - 0.55, 2.7 + i * 0.4, IX.fit[1] - 0.35, 0.02, 0.3, 0.02, 0.004, 'metal_dark');
-      this.fx.fitLamp = L.add({ name: 'fitLamp', at: f.at, col: 0xffd8a0, power: 6, range: 5, glowK: 2.4, circuit: 'fit', shaftK: 0.08, haloS: 0.4 }, f.glow, sh);
+      this.fx.fitLamp = L.add({ name: 'fitLamp', at: f.at, col: 0xffd8a0, power: 3.5, range: 5, glowK: 2.4, circuit: 'fit', shaftK: 0.08, haloS: 0.4 }, f.glow, sh);
       // the beacon on the press crown's front corner (model -1.9, 6.6, 1.75 turned to face +x)
       const [bx, by, bz] = GP.beacon;
       const wx = IX.press.x + bz, wz = IX.press.z - bx;
@@ -506,7 +506,6 @@ export class IntroSet {
     };
     for (let i = 0; i < 5; i++) W(IX.room.x0, 0.4 + r() * 2.2, z - 2 + r() * 4, 1.6, 1.4, r() < 0.5 ? 'gore_red_wallspray' : 'gore_red_wall', 'e');
     for (let i = 0; i < 4; i++) W(-1 + r() * 4, 0.3 + r() * 1.6, IX.room.z0, 1.4, 1.6, 'gore_red_wallspray', 'n');
-    W(IX.tape.x, 0.0, IX.tape.z + 0.02, 1.0, 1.7, 'gore_red_runline', 'n');
     for (let i = 0; i < 4; i++) W(IX.ante.x0, 0.2 + r() * 1.4, -12 - r() * 3.6, 0.9, 1.0, 'gore_red_wallspray', 'e');
     for (let i = 0; i < 3; i++) W(IX.ante.x1, 0.2 + r() * 1.2, -12 - r() * 3.6, 0.9, 1.0, 'gore_red_wall', 'w');
     const m = new THREE.Mesh(D.build(), DECAL()); m.renderOrder = 1; m.frustumCulled = false; m.receiveShadow = !this.low; this.root.add(m);
@@ -698,7 +697,7 @@ void main() {
   // light from inside it: a cold glow with a moving web, brightest in the middle
   float c = caus(vP + vec2(0.0, uTime * 0.05), uTime);
   float mid = 1.0 - smoothstep(0.2, 0.9, length(vP * vec2(1.4, 0.8)));
-  col += vec3(0.25, 0.75, 1.0) * uGlow * (0.18 + 0.5 * mid + c * 1.1) * vL;
+  col += vec3(0.2, 0.62, 0.9) * uGlow * (0.08 + 0.32 * mid + c * 0.75) * vL;
   col += vec3(0.1, 0.09, 0.08) * pow(max(0.0, sin(vP.y * 40.0 + uTime * 3.0 + sin(vP.x * 7.0) * 2.0)), 12.0) * 0.6;
   col *= 1.0 - uDark;
   gl_FragColor = vec4(col, 1.0);

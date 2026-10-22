@@ -7,7 +7,7 @@ import { stumpModel, pegModel, hookModel, prostHandModel, prostLegModel, footShe
 import { cutParts, StumpCond, PROSTHETICS, chainOf } from '../survival/limbs';
 import { cyberPieces } from './cyberGear';
 import { coveredParts } from '../survival/cyberParts';
-import { bakePage, makePageTexture, EYE_COLORS, BakeCache } from './humanPaint';
+import { bakePage, makePageTexture, scale2x, EYE_COLORS, BakeCache } from './humanPaint';
 import { outfitShape } from './humanClothes';
 import { HumanAnimator, AnimInput, EMOTES } from './humanAnim';
 import { legDimsFrom } from './humanGait';
@@ -332,7 +332,9 @@ export class HumanRig {
   dims: Dims;
   private mesh: THREE.SkinnedMesh;
   private skeleton: THREE.Skeleton;
-  private page = makePageTexture();
+  private page: { tex: THREE.DataTexture; data: Uint8Array };
+  /** close-up rigs (menus, the operating table) get a page at twice the resolution (Scale2x of the painted page) */
+  private hd: Uint8Array | null = null;
   private bakeCache: BakeCache = { key: '', base: [] };
   private geoKey = ''; private texKey = '';
   private sole = 0;
@@ -361,8 +363,10 @@ export class HumanRig {
   /** level of detail of the body mesh (0 sculpted, 1 coarse: crowds, far NPCs); see setLod() */
   lod = 0;
 
-  constructor(app: Appearance, material?: THREE.Material, opts: { secondary?: boolean; lod?: number } = {}) {
+  constructor(app: Appearance, material?: THREE.Material, opts: { secondary?: boolean; lod?: number; hd?: boolean } = {}) {
     this.lod = opts.lod ?? 0;
+    this.page = makePageTexture(opts.hd ? PAGE * 2 : PAGE);
+    if (opts.hd) this.hd = new Uint8Array(PAGE * PAGE * 4);
     this.app = normalizeAppearance(app);
     this.s = this.app.height;
     this.seed = hashApp(this.app);
@@ -589,7 +593,8 @@ export class HumanRig {
     }
     if (tk !== this.texKey) {
       this.texKey = tk;
-      bakePage({ app: this.app, outfit: full, shape: sh, cond, seed: this.seed }, this.page.data, this.bakeCache);
+      bakePage({ app: this.app, outfit: full, shape: sh, cond, seed: this.seed }, this.hd ?? this.page.data, this.bakeCache);
+      if (this.hd) scale2x(this.hd, PAGE, this.page.data);
       this.page.tex.needsUpdate = true;
     }
     this.updateGear(cond, sh);
@@ -863,7 +868,7 @@ export function randomAppearance(rnd: () => number): Appearance {
  * and `rig.dispose()` when done.
  */
 export function createPreviewRig(app: Appearance, outfit: Outfit = {}, opts: { outline?: number | false } = {}): HumanRig {
-  const rig = new HumanRig(app, worldMaterial({ noVis: true, noFog: true, noGrid: true }), { secondary: true });
+  const rig = new HumanRig(app, worldMaterial({ noVis: true, noFog: true, noGrid: true }), { secondary: true, hd: true });
   rig.setOutfit(outfit);
   // standalone scenes have no edge pass of their own: the rig brings its black outline
   rig.setOutline(opts.outline ?? 1);

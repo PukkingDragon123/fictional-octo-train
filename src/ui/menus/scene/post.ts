@@ -86,7 +86,7 @@ export class LensBlood {
   private drops: { x: number; y: number; r: number; pts: number[]; run: number; speed: number; t: number; life: number }[] = [];
   constructor() {
     this.canvas.width = 4; this.canvas.height = 4;
-    this.ctx = this.canvas.getContext('2d')!;
+    this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
     this.tex = new THREE.CanvasTexture(this.canvas);
     this.tex.magFilter = this.tex.minFilter = THREE.NearestFilter; this.tex.generateMipmaps = false;
   }

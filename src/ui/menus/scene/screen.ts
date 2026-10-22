@@ -22,7 +22,7 @@ export class PhosphorScreen {
   private tcv = document.createElement('canvas');
   constructor(w: number, h: number) {
     this.cv.width = W; this.cv.height = H;
-    this.ctx = this.cv.getContext('2d')!;
+    this.ctx = this.cv.getContext('2d', { willReadFrequently: true })!;
     this.tex = new THREE.CanvasTexture(this.cv);
     this.tex.magFilter = this.tex.minFilter = THREE.NearestFilter; this.tex.generateMipmaps = false;
     this.tex.colorSpace = THREE.SRGBColorSpace;
@@ -39,7 +39,7 @@ export class PhosphorScreen {
   }
   /** the readout, in EB Garamond, thresholded to hard pixels */
   private text(n: string): Uint8ClampedArray {
-    const c = this.tcv.getContext('2d')!;
+    const c = this.tcv.getContext('2d', { willReadFrequently: true })!;
     c.clearRect(0, 0, W, H);
     c.textBaseline = 'top'; c.fillStyle = '#fff';
     c.font = "600 11px 'EB Garamond', Garamond, serif";

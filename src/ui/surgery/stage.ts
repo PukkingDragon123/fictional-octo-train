@@ -580,20 +580,26 @@ export class SurgeryStage {
       this.shake(0.05);
     }
     await this.wait(250);
-    // the gantry brings the subject in, hanging limp in the slings
-    this.cut(V(0.6, 1.85, 3.0), V(-1.6, 1.6, 0), 0.05);
-    this.dolly(V(1.0, 1.9, 2.7), V(-0.2, 1.55, 0), 1.6);
-    csfx('cy_servo', 0.5, 0.7);
+    // the gantry brings the subject in, hanging limp in the slings; the camera rides along with it
+    const body = (out: THREE.Vector3) => { this.subj.updateMatrixWorld(true); return this.rig ? this.rig.j.spine.getWorldPosition(out) : out.set(0, 1.5, 0); };
     const from = -3.7, to = ROOT_X - 0.8;
-    await this.tween(2100, (t) => { G.trolley.position.x = from + (to - from) * easeOut(t); });
+    G.trolley.position.x = from;
+    const b0 = body(new THREE.Vector3());
+    this.cut(V(b0.x + 1.4, 1.75, 2.9), V(b0.x, b0.y - 0.05, 0), 0.05);
+    csfx('cy_servo', 0.5, 0.7);
+    await this.tween(2100, (t) => {
+      G.trolley.position.x = from + (to - from) * (t < 0.5 ? ease(t) * 0.9 : 0.45 + 0.55 * easeOut((t - 0.5) / 0.5));
+      const b = body(_v3);
+      this.dolly(V(b.x * 0.55 + 1.2, 1.8, 2.75), V(b.x * 0.8, b.y - 0.1, 0), 2.6);
+    });
     csfx('cy_thunk', 0.8); this.shake(0.12);
-    await this.wait(500);
+    await this.wait(550);
     // lowered onto the pad: the left arm and the legs fold onto it, the right arm stays over the edge
-    this.cut(V(1.45, 1.5, 1.85), V(0.0, 1.05, 0.05));
-    this.dolly(V(1.35, 1.45, 1.7), V(0.0, 1.0, 0.05), 1.4);
+    this.cut(V(1.1, 1.9, 2.75), V(0.0, 1.3, 0.0));
+    this.dolly(V(0.95, 1.7, 2.45), V(0.0, 1.1, 0.0), 1.2);
     csfx('cy_hiss', 0.6);
-    const d0 = G.drop;
-    await this.tween(1300, (t) => { const k = ease(t); G.drop = d0 + this.dropToTable() * k; this.lowerK = Math.min(1, k * 1.15); });
+    const d0 = G.drop, total = this.dropToTable();
+    await this.tween(1300, (t) => { const k = ease(t); G.drop = d0 + total * k; this.lowerK = Math.min(1, k * 1.15); });
     // the slings let go: dead weight hits the pad
     G.slack = 0.01;
     csfx('cy_hiss', 0.8, 1.2);
@@ -879,7 +885,7 @@ export class SurgeryStage {
       }
       this.impact(1.0, 170);
       this.flash = 0.45;
-      this.fx.steam(rj, 6, 1.2);
+      this.fx.steam(rj, 3, 0.9);
       csfx('cy_hiss', 0.8);
       await this.arch(0.75);
       this.convulse(0.4, 0.3);
@@ -1024,7 +1030,7 @@ export class SurgeryStage {
     this.room.beacon.color.setRGB(1, 0.2, 0.06).multiplyScalar(this.alarm.intensity > 0 ? 0.5 + Math.max(0, Math.sin(this.t * 14)) * 3 : 0.3);
     this.gantry.beacon.color.setRGB(1, 0.62, 0.1).multiplyScalar(this.carry && Math.sin(this.t * 9) > 0 ? 3 : 0.4);
     this.alarm.visible = this.alarm.intensity > 0.01; this.weld.visible = this.weld.intensity > 0.01; this.inspect.visible = this.inspect.intensity > 0.02;
-    for (const h of this.room.haze) { h.uniforms.uTime.value = this.t; h.uniforms.uI.value = (h === this.room.haze[0] ? 0.11 : 0.07) * lampK; }
+    for (const h of this.room.haze) { h.uniforms.uTime.value = this.t; h.uniforms.uI.value = (h === this.room.haze[0] ? 0.075 : 0.05) * lampK; }
     this.room.motes.uniforms.uTime.value = this.t; this.room.motes.uniforms.uI.value = 0.9 * lampK;
     this.stress = Math.max(0.15, this.stress - rdt * 0.06);
     this.drawVitals(sdt);

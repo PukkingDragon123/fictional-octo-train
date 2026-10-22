@@ -110,8 +110,8 @@ export class LightDirector {
     this.portal = new THREE.PointLight(0x5ad8ff, 0, 11, 1.3);
     this.spark = new THREE.PointLight(0xffb060, 0, 7, 1.5);
     this.strobeL = new THREE.PointLight(0xf4f8ff, 0, 6, 1.4);
-    this.flareL = new THREE.PointLight(0xffa040, 0, 2.5, 1.6);
-    this.hemi = new THREE.HemisphereLight(0x3a4a5a, 0x1a120c, 0.35);
+    this.flareL = new THREE.PointLight(0xffa040, 0, 1.4, 2);
+    this.hemi = new THREE.HemisphereLight(0x3a4a5a, 0x1a120c, 0.4);
     root.add(this.portal, this.spark, this.strobeL, this.flareL, this.hemi);
     root.add(this.beamGroup);
   }
@@ -292,7 +292,7 @@ export class LightDirector {
     this.strobeK = Math.max(0, this.strobeK - dt * 9);
     this.strobeL.intensity = 30 * this.strobeK;
     this.flareK = Math.max(0, this.flareK - dt * 1.6);
-    this.flareL.intensity = 3 * this.flareK;
+    this.flareL.intensity = 1.1 * this.flareK;
     // the portal's light follows the caustic uniforms
     this.portal.position.copy(SU.uPortPos.value).addScaledVector(SU.uPortN.value, 0.4);
     this.portal.intensity = SU.uPortStr.value * 6 * (0.85 + 0.15 * Math.sin(this.t * 7.3) * Math.sin(this.t * 3.1));
