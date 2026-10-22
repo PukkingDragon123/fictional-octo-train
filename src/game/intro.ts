@@ -342,6 +342,7 @@ export class Intro implements GameSystem {
   private heartT = 0;
   private stepT = 0;
   private glow = 0;
+  private padT = 0;
 
   constructor(public g: Game, public p: Player, public spawn: [number, number]) {
     const z = this.z = g.getZone(INTRO_ZONE);
@@ -871,7 +872,9 @@ export class Intro implements GameSystem {
     // a gamepad can skip too
     const pad = pollPadSkip();
     if (pad === 'skip') this.skip(); else if (pad === 'wake') this.hotSkip();
-    if (pad && !this.touch) this.plate.setKey('Start');
+    // a pad plugged in mid-way: the plate shows its button
+    this.padT -= dt;
+    if (!this.touch && (pad || this.padT <= 0)) { this.padT = 1; if (pad || padConnected()) this.plate.setKey('Start'); }
     if (this.skipping >= 0) {
       this.skipping += dt;
       this.shadeA = Math.max(this.shadeA, this.skipping / 0.3);

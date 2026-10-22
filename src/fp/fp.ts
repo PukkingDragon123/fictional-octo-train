@@ -15,7 +15,7 @@ export type FpCinematic = 'full' | 'glance' | 'none';
 export interface FpClaimOpts { cinematic?: FpCinematic }
 
 /** tunables for the cut */
-export const FP_CUT = { inSecs: 0.42, outSecs: 0.3, push: 0.42, pitch: 9, glancePush: 0.12, bars: 9, glanceBars: 0 };
+export const FP_CUT = { inSecs: 0.42, outSecs: 0.3, push: 0.42, pitch: 9, glancePush: 0.12, bars: 9, glanceBars: 0, vignette: 1, glanceVignette: 0.35 };
 
 let owner: string | null = null;
 let ownerPrio = 0;
@@ -80,7 +80,8 @@ function ensureBars() {
   st.textContent = `.fp-cut{position:fixed;inset:0;pointer-events:none;z-index:30}
 .fp-cut i{position:absolute;left:0;right:0;background:#000;height:0}
 .fp-cut .t{top:0}.fp-cut .b{bottom:0}
-.fp-cut .v{inset:0;height:auto;background:radial-gradient(ellipse at 50% 55%,transparent 52%,rgba(0,0,0,.62) 100%);opacity:0}`;
+/* the close-up's edges fall off to a warm black (lamp-lit rooms), harder toward the corners: the eye goes to the lit middle */
+.fp-cut .v{inset:0;height:auto;background:radial-gradient(ellipse 72% 68% at 50% 55%,transparent 58%,rgba(8,5,2,.42) 78%,rgba(5,3,1,.74) 100%);opacity:0}`;
   document.head.appendChild(st);
   document.body.appendChild(bars);
 }
@@ -114,5 +115,5 @@ function paint() {
   const h = mode === 'none' ? 0 : (mode === 'glance' ? FP_CUT.glanceBars : FP_CUT.bars) * k;
   (bars.children[0] as HTMLElement).style.height = h + 'vh';
   (bars.children[1] as HTMLElement).style.height = h + 'vh';
-  (bars.children[2] as HTMLElement).style.opacity = String(mode === 'none' ? 0 : (mode === 'glance' ? 0.35 : 1) * k);
+  (bars.children[2] as HTMLElement).style.opacity = String(mode === 'none' ? 0 : (mode === 'glance' ? FP_CUT.glanceVignette : FP_CUT.vignette) * k);
 }

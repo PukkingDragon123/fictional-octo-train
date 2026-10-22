@@ -283,7 +283,7 @@ export class SurgeryStage {
     this.app = app; this.app0 = app; this.outfit = outfit; this.load = { ...load }; this.sev = [...sev];
     for (const s of sev) this.stump[s] = { s: 'healed' };
     if (this.rig) { this.subj.remove(this.rig.root); this.rig.dispose(); }
-    this.rig = createPreviewRig(app, outfit);
+    this.rig = createPreviewRig(app, outfit, { outline: false });
     this.rig.root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
     this.subj.add(this.rig.root);
     for (const j of JOINTS) this.off[j] = { x: new THREE.Vector3(), v: new THREE.Vector3(), t: new THREE.Vector3() };
@@ -963,7 +963,7 @@ export class SurgeryStage {
     this.renderer.setSize(lw, lh, false);
     this.canvas.style.width = `${(lw * P) / dpr}px`; this.canvas.style.height = `${(lh * P) / dpr}px`;
     this.cam.aspect = lw / lh;
-    this.baseFov = this.mode === 'field' ? 62 : this.portrait ? 50 : 36;
+    this.baseFov = this.mode === 'field' ? 62 : this.portrait ? 66 : 36;
     this.cam.fov = this.baseFov; this.cam.updateProjectionMatrix();
     this.fgCam.aspect = lw / lh; this.fgCam.updateProjectionMatrix();
     const mk = () => {
