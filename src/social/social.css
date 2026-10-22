@@ -5,7 +5,7 @@
 .w-bubble.ft.nc-free-text {
   --ftc: #f3eedf;
   white-space: normal; width: max-content; max-width: min(420px, 70vw); text-align: center;
-  font-family: var(--font-speech-say, var(--font-speech)); font-size: calc(var(--px, 2px) * 7 + 4px); line-height: 1.12; font-weight: 700;
+  font-family: var(--font-speech-say, var(--font-speech)); font-style: var(--font-speech-style, normal); font-size: calc(var(--px, 2px) * 8 + 6px); line-height: 1.1; font-weight: 600; letter-spacing: 0;
   color: var(--ftc); transition: opacity 0.5s ease, filter 0.5s ease;
 }
 .w-bubble.ft.nc-free-text[style*="opacity: 0"] { filter: blur(1px); }
@@ -13,7 +13,7 @@
 @keyframes ft-rise { from { translate: 0 0; } to { translate: 0 -12px; } }
 .ft .ft-name { display: block; font-family: var(--font-speech-name, var(--font-sign)); font-weight: 500; font-size: 0.62em; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.8; margin-bottom: 1px; }
 .ft .ft-w { display: inline-block; white-space: nowrap; }
-.ft i { display: inline-block; font-style: normal; opacity: 0; transform-origin: 50% 85%;
+.ft i { display: inline-block; font-style: inherit; opacity: 0; transform-origin: 50% 85%;
   animation: ft-pop 0.24s cubic-bezier(0.2, 1.9, 0.4, 1) var(--d) forwards, ft-wob 2.4s ease-in-out calc(var(--d) + 0.24s - var(--i) * 0.11s) infinite; }
 @keyframes ft-pop {
   0% { opacity: 0; scale: 0.25; rotate: var(--r, 0deg); }
@@ -23,21 +23,21 @@
 @keyframes ft-wob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -1.5px; } }
 
 /* every voice is var(--font-speech); a speaker type may override it with --font-speech-<type> (say, voss, radio, bailiff, guard, shout, think, name) */
-.w-bubble.ft.ft-voss { --ftc: #f6e6c2; font-family: var(--font-speech-voss, var(--font-speech)); }
-.w-bubble.ft.ft-radio { --ftc: #d4ecc4; font-family: var(--font-speech-radio, var(--font-speech)); }
-.w-bubble.ft.ft-bailiff { --ftc: #ff9a84; font-family: var(--font-speech-bailiff, var(--font-speech)); letter-spacing: 0.04em; }
+.w-bubble.ft.ft-voss { --ftc: #f6e6c2; font-family: var(--font-speech-voss, var(--font-speech)); font-weight: 500; }
+.w-bubble.ft.ft-radio { --ftc: #d4ecc4; font-family: var(--font-speech-radio, var(--font-speech)); font-weight: 500; }
+.w-bubble.ft.ft-bailiff { --ftc: #ff9a84; font-family: var(--font-speech-bailiff, var(--font-speech)); font-weight: 600; letter-spacing: 0.01em; }
 .ft-bailiff i { animation-duration: 0.12s, 2.4s; }
-.w-bubble.ft.ft-guard { --ftc: #f2efe6; font-family: var(--font-speech-guard, var(--font-speech)); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; font-size: calc(var(--px, 2px) * 8 + 4px); }
+.w-bubble.ft.ft-guard { --ftc: #f2efe6; font-family: var(--font-speech-guard, var(--font-speech)); font-style: normal; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; font-size: calc(var(--px, 2px) * 8 + 5px); }
 .ft-guard i { animation: ft-pop 0.16s cubic-bezier(0.2, 2.2, 0.4, 1) var(--d) forwards; }
 .w-bubble.ft.ft-emote { --ftc: #fff4dc; }
 
 /* shouting: big, every letter shaking */
-.w-bubble.ft.ft-shout { --ftc: #ffd75a; font-family: var(--font-speech-shout, var(--font-speech)); font-weight: 700; font-size: calc(var(--px, 2px) * 11 + 6px); letter-spacing: 0.03em; text-transform: uppercase; }
+.w-bubble.ft.ft-shout { --ftc: #ffd75a; font-family: var(--font-speech-shout, var(--font-speech)); font-style: normal; font-weight: 700; font-size: calc(var(--px, 2px) * 12 + 8px); letter-spacing: 0.02em; text-transform: uppercase; }
 .ft-shout i { animation: ft-pop 0.2s cubic-bezier(0.18, 2.4, 0.4, 1) var(--d) forwards, ft-shake 0.18s steps(2) var(--d) infinite; }
 @keyframes ft-shake { 0% { translate: 0 0; rotate: 0deg; } 50% { translate: 1px -2px; rotate: -3deg; } 100% { translate: -1px 1px; rotate: 2deg; } }
 
 /* thoughts: leaning, drifting in */
-.w-bubble.ft.ft-think { --ftc: #dfe8f6; font-family: var(--font-speech-think, var(--font-speech)); font-weight: 400; font-style: italic; font-size: calc(var(--px, 2px) * 9 + 6px); line-height: 1; transform: translate(-50%, -100%) rotate(-2deg); }
+.w-bubble.ft.ft-think { --ftc: #dfe8f6; font-family: var(--font-speech-think, var(--font-speech)); font-weight: 500; font-style: italic; font-size: calc(var(--px, 2px) * 8 + 6px); line-height: 1.05; transform: translate(-50%, -100%) rotate(-2deg); }
 .ft-think i { animation: ft-drift 0.45s ease-out var(--d) forwards, ft-wob 3.4s ease-in-out calc(var(--d) - var(--i) * 0.2s) infinite; }
 @keyframes ft-drift { from { opacity: 0; translate: 0 4px; filter: blur(2px); } to { opacity: 0.94; translate: 0 0; filter: none; } }
 
