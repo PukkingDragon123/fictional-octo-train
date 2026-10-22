@@ -203,7 +203,7 @@ export async function populate(g: { pr: any; z: any; tgt: THREE.Vector3 }, set =
  *   ?gallery=humans then: (await import('/src/dev/humanGallery.ts')).studio({ mode: 'heads' })
  * modes: 'lineup' (full bodies), 'heads' (faces, 3/4 view), 'one' (one subject, waist up), 'anim' (an action loop)
  */
-export async function studio(o: { mode?: string; n?: number; seed?: number; scale?: number; wear?: string[][]; yaw?: number; app?: Partial<Appearance>[]; action?: string; t?: number; emote?: string } = {}) {
+export async function studio(o: { mode?: string; n?: number; seed?: number; scale?: number; wear?: string[][]; yaw?: number; app?: Partial<Appearance>[]; action?: string; t?: number; emote?: string; cam?: number[]; look?: number[]; fov?: number; pose?: Record<string, number[]>; sp?: number } = {}) {
   const { createPreviewRig } = await import('../entities/humanRig');
   const mode = o.mode || 'lineup';
   const scale = o.scale ?? 3;
@@ -239,7 +239,7 @@ export async function studio(o: { mode?: string; n?: number; seed?: number; scal
     for (const k of WEAR[i % WEAR.length]) if (hasItemDef(k)) { const it = createItem(k); p.inv.add(it); p.wear(it); }
     const rig = createPreviewRig(p.app, p.computeOutfit());
     rig.skin.castShadow = true;
-    const sp = mode === 'heads' ? 0.36 : 0.85;
+    const sp = o.sp ?? (mode === 'heads' ? 0.36 : 0.85);
     rig.root.position.set((i - (n - 1) / 2) * sp, 0, 0);
     rig.root.rotation.y = o.yaw ?? (mode === 'heads' ? 0.45 : 0.3);
     scene.add(rig.root);
@@ -250,12 +250,15 @@ export async function studio(o: { mode?: string; n?: number; seed?: number; scal
   else if (mode === 'one') { cam.position.set(0, 1.4, 2.0); cam.lookAt(0, 1.3, 0); }
   else if (mode === 'anim') { cam.position.set(0, 1.2, 4.2); cam.lookAt(0, 0.9, 0); }
   else { cam.position.set(0, 1.25, 4.6 + n * 0.35); cam.lookAt(0, 0.92, 0); }
+  if (o.cam) { cam.position.set(o.cam[0], o.cam[1], o.cam[2]); const l = o.look || [0, 1, 0]; cam.lookAt(l[0], l[1], l[2]); }
+  if (o.fov) { cam.fov = o.fov; cam.updateProjectionMatrix(); }
   let last = performance.now(), t = 0;
   const loop = () => {
     const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     for (const rig of rigs) {
       if (o.action) rig.update(dt, { action: o.action, actionT: o.t ?? (t % 1.2), actionDur: 1.2, holding: true });
       else rig.update(dt);
+      if (o.pose) { for (const [j, v] of Object.entries(o.pose)) rig.bones[j]?.rotation.set(v[0], v[1], v[2]); }
     }
     r.render(scene, cam);
     requestAnimationFrame(loop);

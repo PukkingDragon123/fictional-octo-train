@@ -1,11 +1,14 @@
 // Shared kit for the terminal menus: typed menu lines, segmented switches,
-// sliders, tabs with a sliding cursor, in-page confirm dialogs, tooltips,
-// teletype text, and the metal-framed CRT screen every menu sits in.
+// sliders, tabs with a sliding cursor, in-page confirm dialogs (a small
+// phosphor terminal with plate keys), tooltips and teletype text. On a
+// terminal.ts screen the widgets restyle as phosphor (kit.css).
 import { G } from '../../game/G';
 import { sfx, Sfx } from './sfx';
 import { FocusNav } from './nav';
 import { uiSettings, saveUiSettings, calm, UiTheme, currentPx } from './settings';
 import { getTouchSetting, setTouchSetting, TouchSetting } from '../touch/mode';
+import { plateBtn } from './btnKit';
+import { terminal } from './terminal';
 
 export { sfx } from './sfx';
 export { FocusNav } from './nav';
@@ -199,25 +202,24 @@ export function printIn(els: HTMLElement[], step = 45) {
   els.forEach((e, i) => { e.style.animationDelay = (i * step) + 'ms'; e.classList.add('t-print'); });
 }
 
-// ---------------------------------------------------------------- in-page dialogs
+// ---------------------------------------------------------------- in-page dialogs: a small phosphor terminal, two plate keys
 export interface ConfirmOpts { title: string; body?: string; ok?: string; cancel?: string; danger?: boolean }
 export function confirmDialog(o: ConfirmOpts): Promise<boolean> {
   return new Promise((resolve) => {
-    const veil = h('div', 't-veil');
-    const { el, body } = frame(o.title, 't-dialog' + (o.danger ? ' danger' : ''));
-    veil.append(el);
-    if (o.body) body.append(h('p', 't-dialog-p', o.body));
-    const row = h('div', 't-dialog-row');
+    const veil = h('div', 'kd-veil');
+    const t = terminal({ title: o.title, cls: 'kd-term' + (o.danger ? ' danger' : ''), model: 'Meridian · Confirm' });
+    if (o.body) t.body.append(h('p', '', esc(o.body)));
     let nav: FocusNav;
-    const done = (v: boolean) => { nav.destroy(); veil.classList.add('out'); setTimeout(() => veil.remove(), 160); resolve(v); };
-    const cancel = mbtn(o.cancel || 'Cancel', () => done(false));
-    const ok = mbtn(o.ok || 'OK', () => done(true), { danger: o.danger, primary: !o.danger });
-    row.append(cancel, ok);
-    body.append(row);
+    let fin = false;
+    const done = (v: boolean) => { if (fin) return; fin = true; nav.destroy(); veil.classList.add('out'); setTimeout(() => veil.remove(), 160); resolve(v); };
+    const cancel = plateBtn(o.cancel || 'Cancel', () => done(false), { finish: 'cream', size: 'md', lamp: false, sound: 'back' });
+    const ok = plateBtn(o.ok || 'OK', () => done(true), { finish: o.danger ? 'oxblood' : 'brass', size: 'md', lamp: o.danger ? 'red' : 'green', sound: o.danger ? 'plate' : 'confirm' });
+    t.keys.append(cancel, ok);
+    veil.append(t.el);
     veil.addEventListener('pointerdown', (e) => { if (e.target === veil) done(false); });
     document.body.append(veil);
     sfx(o.danger ? 'error' : 'open', 0.6);
-    nav = new FocusNav(el, { onBack: () => done(false), autofocus: o.danger ? cancel : ok });
+    nav = new FocusNav(veil, { onBack: () => done(false), autofocus: o.danger ? cancel : ok });
   });
 }
 

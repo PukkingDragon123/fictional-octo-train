@@ -159,7 +159,7 @@ function rustPix(): PixelCanvas {
 
 function woodPix(): PixelCanvas {
   const N = 64, pc = new PixelCanvas(N, N), rng = new Rng('oak');
-  const ramp = makeRamp(0x6e4626, 7, { spread: 0.6, hueShift: 0.04 });
+  const ramp = makeRamp(0x5e4430, 7, { spread: 0.6, hueShift: 0.04 });
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
     const warp = tileFbm(x, y, N, N, 2, 3, 7) * 9 + Math.sin((y / N) * Math.PI * 2) * 1.5;
     const g = ((x + warp) % 6 + 6) % 6;

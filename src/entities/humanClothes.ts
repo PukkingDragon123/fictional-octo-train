@@ -22,6 +22,88 @@ export interface OutfitShape {
   eyes: '' | 'glasses' | 'sunglasses' | 'goggles';
   face: '' | 'mask' | 'gasmask' | 'scarf';
   back: number; backKind: '' | 'pack' | 'hiking';
+  /** modelled details on the garment shells: pockets, zips, plackets, belts, tapes (see SHELLS) */
+  feats?: ShellFeat[];
+}
+
+// ------------------------------------------------------------------ modelled shell details
+/**
+ * A detail that stands proud of a garment: a patch pocket (with a flap), a zip
+ * or button placket, a belt or waistband, a strip of tape. Placed exactly
+ * where the garment's painter draws it (angle in degrees, 0 = front, +90 =
+ * the character's left / a limb's outer side; y = top edge in reference
+ * metres; w / h in region pixels, as rectAt / pocket take them), so the paint
+ * lands on the raised panel.
+ */
+export interface ShellFeat {
+  part: 'torso' | 'arm' | 'leg';
+  kind: 'patch' | 'zip' | 'band' | 'flap' | 'box';
+  deg: number; y: number; w: number; h: number;
+  /** zips and plackets: where they end (reference metres) */
+  y1?: number;
+  /** how far it stands off the cloth (m) */
+  t?: number;
+  /** the layer it belongs to: inner tops hide under a jacket, waistband details under an untucked hem */
+  layer?: 'top' | 'outer' | 'legs';
+}
+type ShellFn = (lp: LookPart, sh: OutfitShape) => ShellFeat[];
+const SHELLS: Record<string, ShellFn> = {};
+/** register the modelled details of a look (content modules may add their own) */
+export function defShell(tex: string, fn: ShellFn) { SHELLS[tex] = fn; }
+const pk = (part: ShellFeat['part'], deg: number, y: number, w: number, h: number, flap = false, t = 0.0045): ShellFeat[] =>
+  flap ? [{ part, kind: 'patch', deg, y, w, h, t }, { part, kind: 'flap', deg, y: y + 0.004, w: w + 1, h: Math.max(2, Math.round(h * 0.38)), t: t * 1.7 }] : [{ part, kind: 'patch', deg, y, w, h, t }];
+const zip = (part: ShellFeat['part'], deg: number, y0: number, y1: number, w = 2, t = 0.003): ShellFeat => ({ part, kind: 'zip', deg, y: y0, y1, w, h: 0, t });
+const band = (part: ShellFeat['part'], y: number, h: number, t = 0.005): ShellFeat => ({ part, kind: 'band', deg: 0, y, w: 0, h, t });
+const box = (part: ShellFeat['part'], deg: number, y: number, w: number, h: number, t = 0.012): ShellFeat => ({ part, kind: 'box', deg, y, w, h, t });
+const placket = (_sh: OutfitShape, hem: number) => zip('torso', 0, 1.45, hem, 2, 0.0025);
+defShell('c_shirt_button', (_l, sh) => [placket(sh, sh.topHem), ...pk('torso', -32, 1.33, 5, 5)]);
+defShell('c_pajama', (_l, sh) => [placket(sh, sh.topHem), ...pk('torso', -32, 1.33, 5, 5)]);
+defShell('c_scrubs', () => pk('torso', -30, 1.33, 5, 5));
+defShell('c_uniform', (l, sh) => (l.item || '').includes('janitor') || (sh.legKind === 'pants' && !sh.tuck)
+  ? [zip('torso', 0, 1.46, 0.86), ...pk('torso', 34, 1.33, 6, 6, true), { part: 'torso', kind: 'patch', deg: -34, y: 1.33, w: 7, h: 3, t: 0.0015 }]
+  : [placket(sh, sh.topHem), ...pk('torso', -34, 1.35, 6, 6, true), ...pk('torso', 34, 1.35, 6, 6, true), { part: 'arm', kind: 'patch', deg: 90, y: -0.04, w: 4, h: 4, t: 0.002 }, ...pk('leg', 80, -0.2, 6, 7, true)]);
+defShell('c_hoodie', () => [{ part: 'torso', kind: 'patch', deg: 0, y: 1.13, w: 14, h: 10, t: 0.005 }]);
+defShell('c_jacket', (_l, sh) => [...pk('torso', 34, 1.36, 7, 6, true), ...pk('torso', -34, 1.36, 7, 6, true), band('torso', sh.outerHem + 0.03, 3, 0.004)]);
+defShell('c_jacket_leather', (_l, sh) => [zip('torso', -14, 1.44, sh.outerHem, 2, 0.003), { part: 'torso', kind: 'patch', deg: 40, y: 1.12, w: 6, h: 2, t: 0.003 }, { part: 'torso', kind: 'patch', deg: -40, y: 1.12, w: 6, h: 2, t: 0.003 }, band('torso', sh.outerHem + 0.024, 2, 0.004)]);
+defShell('c_coat', (_l, sh) => [...pk('torso', 40, 1.02, 7, 3, true), ...pk('torso', -40, 1.02, 7, 3, true), zip('torso', 4, 1.46, sh.outerHem, 3, 0.003)]);
+defShell('c_labcoat', () => [...pk('torso', -34, 1.32, 6, 6), ...pk('torso', 48, 1.05, 7, 6), ...pk('torso', -48, 1.05, 7, 6)]);
+defShell('c_vest_hiviz', (_l, sh) => [band('torso', 1.2, 2, 0.002), band('torso', 1.08, 2, 0.002), band('torso', sh.outerHem + 0.012, 1, 0.003)]);
+const beltFeats = (sh: OutfitShape, jeans: boolean): ShellFeat[] => [band('torso', sh.waist + 0.004, 3, 0.006), box('torso', 0, sh.waist + 0.006, 3, 3, 0.009),
+  ...(jeans ? [...pk('torso', -148, 0.955, 6, 5, false, 0.003), ...pk('torso', 148, 0.955, 6, 5, false, 0.003)] : [])].map((f) => ({ ...f, layer: 'legs' as const }));
+defShell('c_jeans', (_l, sh) => beltFeats(sh, true));
+defShell('c_slacks', (_l, sh) => [...beltFeats(sh, false), ...pk('torso', -148, 0.955, 6, 5, false, 0.002).map((f) => ({ ...f, layer: 'legs' as const })), ...pk('torso', 148, 0.955, 6, 5, false, 0.002).map((f) => ({ ...f, layer: 'legs' as const }))]);
+defShell('c_shorts', (l, sh) => [...beltFeats(sh, false), ...(ph(hashLp(l), 1, 1) < 0.5 ? pk('leg', 80, -0.06, 6, 5, true) : [])]);
+defShell('c_sweatpants', (_l, sh) => [{ ...band('torso', sh.waist + 0.004, 3, 0.005), layer: 'legs' }]);
+// the Remittance jumpsuit (painted in src/content/items/prisoner.ts): zip, number tape, breast pocket, seat pockets, the waist cinch, reflective arm stripes
+defShell('c_jumpsuit', () => [zip('torso', 0, 1.47, 0.86, 2, 0.003), { part: 'torso', kind: 'patch', deg: -30, y: 1.36, w: 15, h: 7, t: 0.0018 }, ...pk('torso', 32, 1.3, 7, 6),
+  ...pk('torso', -150, 0.93, 6, 5, false, 0.003), ...pk('torso', 150, 0.93, 6, 5, false, 0.003), band('torso', 0.966, 1, 0.003), { part: 'arm', kind: 'patch', deg: 90, y: -0.05, w: 9, h: 2, t: 0.0015 }]);
+for (const t of ['c_jsuit_stripe', 'c_jsuit_hazard', 'c_jsuit_circuit']) SHELLS[t] = SHELLS.c_jumpsuit;
+// the Custody Officer uniform: placket, flap pockets, the duty belt with its pouches, epaulettes, cargo pockets
+defShell('c_guard', (_l, sh) => [placket(sh, sh.topHem), ...pk('torso', -34, 1.35, 7, 6, true), ...pk('torso', 34, 1.35, 7, 6, true),
+  { part: 'torso', kind: 'patch', deg: 70, y: 1.475, w: 5, h: 2, t: 0.004 }, { part: 'torso', kind: 'patch', deg: -70, y: 1.475, w: 5, h: 2, t: 0.004 },
+  { ...band('torso', sh.waist, 3, 0.008), layer: 'legs' }, ...[-60, 60, -120, 120].map((d) => ({ ...box('torso', d, sh.waist - 0.004, 4, 4, 0.016), layer: 'legs' as const })),
+  { part: 'arm', kind: 'patch', deg: 90, y: -0.035, w: 5, h: 5, t: 0.002 }, ...pk('leg', 80, -0.2, 6, 7, true)]);
+const hashLp = (l: LookPart) => { let h = 7; for (const c of l.tex + (l.item || '')) h = (h * 31 + c.charCodeAt(0)) | 0; return h; };
+
+/** the modelled details of the outfit's visible layers (an inner top's details hide under a jacket) */
+function shellFeats(o: Outfit, sh: OutfitShape): ShellFeat[] {
+  const out: ShellFeat[] = [];
+  const add = (lp: LookPart | undefined, layer: 'top' | 'outer' | 'legs') => {
+    const fn = lp && SHELLS[lp.tex];
+    if (!fn) return;
+    for (const f of fn(lp!, sh)) {
+      const L = f.layer ?? layer;
+      if (f.part === 'torso' && L === 'top' && sh.outer) continue;
+      if (f.part === 'arm' && L === 'top' && sh.outer && sh.sleeve !== 'none' && o.torsoOuter?.sleeve !== 'none') continue;
+      // waistband details hide under an untucked top
+      if (f.part === 'torso' && L === 'legs' && !sh.tuck && (sh.top || sh.outer) && f.y > Math.min(sh.topHem, sh.outerHem) - 0.004 && f.y < 1.2) continue;
+      out.push({ ...f, layer: L });
+    }
+  };
+  add(o.torso, 'top');
+  add(o.torsoOuter, 'outer');
+  if (o.legs && o.legs.tex !== o.torso?.tex) add(o.legs, 'legs');
+  return out;
 }
 
 interface TopInfo { sleeve: OutfitShape['sleeve']; thick: number; hem: number; collar: OutfitShape['collar']; tuck?: boolean; tails?: number; open?: boolean }
@@ -101,6 +183,8 @@ export function outfitShape(o: Outfit): OutfitShape {
       : o.face.color === 0x3a3a3a ? 'gasmask' : o.face.color === 0xa83a3a ? 'scarf' : 'mask';
   }
   if (o.back) { sh.back = o.back.size ?? 1; sh.backKind = (o.back.item || '').includes('hiking') ? 'hiking' : 'pack'; }
+  const feats = shellFeats(o, sh);
+  if (feats.length) sh.feats = feats;
   return sh;
 }
 const lum = (c: number) => (((c >> 16) & 255) * 0.3 + ((c >> 8) & 255) * 0.59 + (c & 255) * 0.11) / 255;

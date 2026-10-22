@@ -16,7 +16,7 @@ type V3 = [number, number, number];
 export type Mats = FMats;
 
 export const COL = {
-  oak: 0xe0d0c0, oakDark: 0xa89078, leather: 0xffffff, brass: 0xffffff, steel: 0x8e9294, dark: 0x4a4e50, olive: 0x76804e, oliveDark: 0x4e5636,
+  oak: 0xc8bcb0, oakDark: 0x9a8a78, leather: 0xffffff, brass: 0xffffff, steel: 0x8e9294, dark: 0x4a4e50, olive: 0x76804e, oliveDark: 0x4e5636,
   beige: 0xd8ccb0, rubber: 0xffffff, chrome: 0xffffff, red: 0xb83a24, green: 0x4a7a40,
 };
 
@@ -101,12 +101,12 @@ export function capModel(mats: Mats, chin: boolean): THREE.Group {
   b.add('sponge', band(0.115, 0.115, 0.014, 0.008, 10, 1, Math.PI / 10), 0xffffff, T(at(0, 0.116, 0)));
   b.add('copper', band(0.117, 0.117, 0.018, 0.008, 10, 1, Math.PI / 10), 0xffffff, T(at(0, 0.168, 0)));
   for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 + Math.PI / 10; b.add('brass', gem(0.006, 5, 0.005), 0xffffff, T(at(Math.sin(a) * 0.112, 0.19, Math.cos(a) * 0.112, Math.cos(a) * 0.9, 0, -Math.sin(a) * 0.9))); }
-  // the terminal: bakelite insulator, brass post, wing nut
-  b.add('bakelite', lathe([[0, 0], [0.03, 0], [0.032, 0.012], [0.022, 0.02], [0.026, 0.032], [0.016, 0.045], [0, 0.046]], 6), 0xffffff, T(at(0, 0.238, -0.004)));
-  b.add('brass', prism(0.007, 0.05, 6), 0xffffff, T(at(0, 0.3, -0.004)));
-  b.add('brass', extrude([[-0.03, -0.004], [-0.012, -0.008], [0.012, -0.008], [0.03, -0.004], [0.03, 0.012], [0.012, 0.004], [-0.012, 0.004], [-0.03, 0.012]], 0.008, 0.001), 0xffffff, T(at(0, 0.3, -0.004)));
+  // the terminal: a squat bakelite insulator, a brass collar and the clamp nut the cable is screwed into
+  b.add('bakelite', lathe([[0, 0], [0.034, 0], [0.036, 0.01], [0.026, 0.016], [0.03, 0.026], [0.02, 0.036], [0, 0.037]], 6), 0xffffff, T(at(0, 0.236, -0.004)));
+  b.add('brass', lathe([[0, 0], [0.016, 0], [0.016, 0.012], [0.011, 0.018], [0, 0.018]], 6), 0xffffff, T(at(0, 0.272, -0.004)));
+  b.add('brass', bolt(0.012, 0.01), 0xffffff, T(at(0, 0.288, -0.004)));
   // the cable boot
-  b.add('rubber', lathe([[0.012, 0], [0.016, 0.02], [0.012, 0.05], [0.011, 0.06]], 5), 0x7a7a7a, T(at(0.02, 0.27, -0.03, 0, 0, -0.5)));
+  b.add('rubber', lathe([[0.013, 0], [0.016, 0.016], [0.013, 0.03], [0.012, 0.036]], 5), 0x7a7a7a, T(at(0, 0.296, -0.004)));
   if (chin) {
     // the chin strap: down the cheeks, under the jaw, a buckle on the left cheek
     const strap = band(0.094, 0.15, 0.026, 0.008, 16, 0.5, -Math.PI / 2);

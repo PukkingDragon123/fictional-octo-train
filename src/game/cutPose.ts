@@ -181,26 +181,36 @@ export function fallbackPose(name: string, u: number, t: number, k = 9): Pose | 
       });
     }
     case 'baton_chop': {
-      // a guard's overhead strike down at somebody on the floor: k = 0..1 through the swing
-      const up = ease(k / 0.4), dn = ease((k - 0.4) / 0.2), rc = ease((k - 0.65) / 0.35);
-      const arm = k < 0.4 ? lerp(-1.2, -3.0, up) : k < 0.65 ? lerp(-3.0, -0.9, dn) : lerp(-0.9, -1.1, rc);
-      const fore = k < 0.4 ? lerp(-1.4, -1.6, up) : k < 0.65 ? lerp(-1.6, -0.25, dn) : lerp(-0.25, -0.9, rc);
-      const bend = k < 0.4 ? lerp(0.05, -0.12, up) : k < 0.65 ? lerp(-0.12, 0.55, dn) : lerp(0.55, 0.3, rc);
+      // a guard's overhead strike down at somebody on the floor, with his whole weight: k = 0..1 through the swing.
+      // wind-up (0 .. 0.42): the arm goes up and back, the trunk coils away and leans back, weight on the back foot;
+      // the strike (0.42 .. 0.6): everything uncoils at once, the trunk drives down, a step in, knees give;
+      // follow-through and recovery (0.6 .. 1)
+      const up = ease(k / 0.42), dn = ease((k - 0.42) / 0.18), rc = ease((k - 0.62) / 0.38);
+      const arm = k < 0.42 ? lerp(-1.2, -3.05, up) : k < 0.6 ? lerp(-3.05, -0.75, dn) : lerp(-0.75, -1.1, rc);
+      const fore = k < 0.42 ? lerp(-1.4, -1.75, up) : k < 0.6 ? lerp(-1.75, -0.15, dn) : lerp(-0.15, -0.9, rc);
+      const bend = k < 0.42 ? lerp(0.05, -0.2, up) : k < 0.6 ? lerp(-0.2, 0.7, dn) : lerp(0.7, 0.28, rc);
+      const twist = k < 0.42 ? lerp(0, 0.38, up) : k < 0.6 ? lerp(0.38, -0.32, dn) : lerp(-0.32, -0.08, rc);
+      const step = k < 0.42 ? -0.05 * up : k < 0.6 ? lerp(-0.05, 0.16, dn) : lerp(0.16, 0.06, rc);
+      const sag = k < 0.42 ? 0.02 * up : k < 0.6 ? lerp(0.02, -0.12, dn) : lerp(-0.12, -0.05, rc);
       return P({
-        uarmR: [arm, 0.15, -0.2], farmR: [fore, 0, 0], handR: [k < 0.4 ? -0.5 * up : lerp(-0.5, 0.9, dn), 0, 0],
-        uarmL: [-0.5, 0, 0.45], farmL: [-1.1, 0, 0],
-        spine: [0.12 + bend, 0, 0], chest: [bend * 0.5, -0.15, 0], head: [0.25 + bend * 0.4, 0.1, 0],
-        thighL: [-0.35, 0, 0.08], shinL: [0.4, 0, 0], thighR: [0.15, 0, -0.08], shinR: [0.3, 0, 0], rootY: -0.06 - bend * 0.08,
+        uarmR: [arm, 0.15, -0.2 - twist * 0.3], farmR: [fore, 0, 0], handR: [k < 0.42 ? -0.6 * up : lerp(-0.6, 1.0, dn), 0, 0],
+        uarmL: [-0.5 - bend * 0.4, 0, 0.5 + twist * 0.3], farmL: [-1.2, 0, 0],
+        spine: [0.1 + bend * 0.7, twist * 0.6, 0], chest: [bend * 0.45, twist * 0.7 - 0.1, 0], head: [0.25 + bend * 0.35, -twist * 0.5, 0],
+        thighL: [-0.35 - Math.max(0, bend) * 0.4, 0, 0.08], shinL: [0.4 + Math.max(0, bend) * 0.5, 0, 0], thighR: [0.15 + Math.max(0, bend) * 0.15, 0, -0.08], shinR: [0.3 + Math.max(0, bend) * 0.4, 0, 0],
+        rootY: sag, rootZ: step,
         gripR: 1,
       });
     }
     case 'kick_low': {
-      // a kick into somebody on the floor
-      const a = ease(u / 0.35), b = ease((u - 0.35) / 0.2), c = ease((u - 0.6) / 0.4);
-      const th = u < 0.35 ? lerp(0, 0.6, a) : u < 0.6 ? lerp(0.6, -1.0, b) : lerp(-1.0, 0, c);
+      // a stamping kick into somebody on the floor: chamber, drive through, plant, the arms out for balance
+      const a = ease(u / 0.38), b = ease((u - 0.38) / 0.16), c = ease((u - 0.56) / 0.44);
+      const th = u < 0.38 ? lerp(0, 0.75, a) : u < 0.56 ? lerp(0.75, -1.05, b) : lerp(-1.05, 0, c);
+      const lean = u < 0.38 ? -0.18 * a : u < 0.56 ? lerp(-0.18, 0.3, b) : lerp(0.3, 0, c);
       return P({
-        thighR: [th, 0, -0.05], shinR: [u < 0.35 ? 1.2 * a : lerp(1.2, 0.2, b) * (1 - c), 0, 0], footR: [-0.4, 0, 0],
-        spine: [0.15 - th * 0.12, 0, 0], uarmL: [-0.6, 0, 0.6], uarmR: [0.2, 0, -0.5], farmL: [-0.8, 0, 0], farmR: [-0.6, 0, 0], gripR: 1,
+        thighR: [th, 0, -0.05], shinR: [u < 0.38 ? 1.35 * a : lerp(1.35, 0.15, b) * (1 - c), 0, 0], footR: [-0.5, 0, 0],
+        thighL: [-0.1 - Math.max(0, lean) * 0.4, 0, 0.06], shinL: [0.25 + Math.max(0, lean) * 0.5, 0, 0],
+        spine: [0.12 + lean, 0, 0], chest: [lean * 0.4, 0, 0], uarmL: [-0.7, 0, 0.75], uarmR: [0.3, 0, -0.6], farmL: [-0.8, 0, 0], farmR: [-0.6, 0, 0],
+        rootY: -0.05 * Math.max(0, lean) * 3, rootZ: u < 0.38 ? -0.04 * a : lerp(-0.04, 0.12, b) * (1 - c * 0.5), gripR: 1,
       });
     }
     case 'taser_aim': {
@@ -313,6 +323,24 @@ export function overlay(rig: HumanRig, pose: Pose, w: number) {
     if (f2) f2.rotation.z = lerp(f2.rotation.z, -kk * gv * 1.6, w);
   }
   if (pose.blink !== undefined && bones.lids) bones.lids.scale.y = Math.max(0.02, lerp(bones.lids.scale.y, pose.blink, w));
+}
+
+/**
+ * Add a (partial) pose ON TOP of what the rig already shows (a reaction's
+ * jolt, a recoil): each joint's rotation is turned further by the pose's
+ * angles, root offsets shift the hips. w scales it.
+ */
+export function addPose(rig: HumanRig, pose: Pose, w = 1) {
+  if (w <= 0.001) return;
+  for (const k of JOINT_LIST) {
+    const r = pose[k];
+    if (!r) continue;
+    qb.setFromEuler(eu.set(r[0] * w, r[1] * w, r[2] * w));
+    rig.j[k].quaternion.multiply(qb);
+  }
+  const hp = rig.j.hips.position;
+  hp.x += (pose.rootX ?? 0) * w; hp.y += (pose.rootY ?? 0) * w; hp.z += (pose.rootZ ?? 0) * w;
+  if (pose.bodyYaw) rig.body.rotation.y += pose.bodyYaw * w;
 }
 
 // ------------------------------------------------------------------ two-bone arm IK

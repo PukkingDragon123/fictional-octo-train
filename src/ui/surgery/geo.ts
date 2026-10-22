@@ -70,6 +70,7 @@ export class Kit {
   ry(a: number) { this.m.multiply(new THREE.Matrix4().makeRotationY(a)); return this; }
   rz(a: number) { this.m.multiply(new THREE.Matrix4().makeRotationZ(a)); return this; }
   sc(x: number, y = x, z = x) { this.m.multiply(new THREE.Matrix4().makeScale(x, y, z)); return this; }
+  mul(m: THREE.Matrix4) { this.m.multiply(m); return this; }
   /** add a piece at the current transform (the geometry is consumed) */
   add(mat: THREE.Material, g: THREE.BufferGeometry, o: AddOpts = {}) {
     const p = prep(g, this.m, o.tile ?? this.defTile, o.tint ?? 0xffffff, o.uv);

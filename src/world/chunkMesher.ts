@@ -84,7 +84,7 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       const texOut = faceTex(zone, ox, oy, w, side);
       const target = w.alpha ? alphaWalls : walls;
       target.swayDefault = side === 0 ? 1 : 2;
-      emitWall(zone, target, glass, x, y, side, w, texIn, texOut, e, wid !== 0);
+      emitWall(zone, target, glass, x, y, side, w, texIn, texOut, e, wid !== 0, w.alpha ? null : decals);
       target.swayDefault = 0;
     }
     // ---- static objects anchored on this tile
@@ -180,16 +180,33 @@ function faceTex(zone: Zone, x: number, y: number, w: WallDef, _side: number): s
  * with each face textured from the room it faces. Openings (doors, windows,
  * arches) leave holes with lintels/sills and frames.
  */
-function emitWall(zone: Zone, mb: ModelBuilder, glass: ModelBuilder, x: number, y: number, side: 0 | 1, w: WallDef, texIn: string, texOut: string, e: EdgeObj | undefined, hasWall: boolean) {
+function emitWall(zone: Zone, mb: ModelBuilder, glass: ModelBuilder, x: number, y: number, side: 0 | 1, w: WallDef, texIn: string, texOut: string, e: EdgeObj | undefined, hasWall: boolean, ao: ModelBuilder | null = null) {
   const H = w.height ?? WALL_H;
   const T = w.thick ?? 0.12;
   const baseH = Math.max(zone.heightAt(x, y), zone.heightAt(side === 1 ? x - 1 : x, side === 0 ? y - 1 : y));
   // local frame: along = +x for north edge, +z for west edge.
   // "in" face looks into tile (x,y): +z for north edge, +x for west edge.
   const vIn = wallVariant(texIn, x, y, side), vOut = wallVariant(texOut, x, y, side + 2);
+  // contact shadow where a wall stands on a floor: a stepped dark strip on each side (pixel-art AO)
+  const floorAt = (tx: number, ty: number) => zone.inb(tx, ty) && zone.floor[zone.idx(tx, ty)] !== 0 && Math.abs(zone.heightAt(tx, ty) - baseH) < 0.05;
+  const aoIn = !!ao && floorAt(x, y), aoOut = !!ao && floorAt(side === 1 ? x - 1 : x, side === 0 ? y - 1 : y);
+  const AOW = 0.26, fy = baseH + 0.004;
+  const aoStrip = (a0: number, a1: number) => {
+    if (!ao) return;
+    if (side === 0) {
+      // along x; the in side looks toward +z
+      if (aoIn) ao.quadRaw([[x + a0, fy, y + T / 2 + AOW], [x + a1, fy, y + T / 2 + AOW], [x + a1, fy, y + T / 2], [x + a0, fy, y + T / 2]], [[0.995, 0], [0.995, 1], [0.005, 1], [0.005, 0]], 'ao_strip', 0xffffff, 1, 0, 0, [0, 1, 0]);
+      if (aoOut) ao.quadRaw([[x + a0, fy, y - T / 2], [x + a1, fy, y - T / 2], [x + a1, fy, y - T / 2 - AOW], [x + a0, fy, y - T / 2 - AOW]], [[0.005, 0], [0.005, 1], [0.995, 1], [0.995, 0]], 'ao_strip', 0xffffff, 1, 0, 0, [0, 1, 0]);
+    } else {
+      // along z; the in side looks toward +x
+      if (aoIn) ao.quadRaw([[x + T / 2, fy, y + a1], [x + T / 2 + AOW, fy, y + a1], [x + T / 2 + AOW, fy, y + a0], [x + T / 2, fy, y + a0]], [[0.005, 1], [0.995, 1], [0.995, 0], [0.005, 0]], 'ao_strip', 0xffffff, 1, 0, 0, [0, 1, 0]);
+      if (aoOut) ao.quadRaw([[x - T / 2 - AOW, fy, y + a1], [x - T / 2, fy, y + a1], [x - T / 2, fy, y + a0], [x - T / 2 - AOW, fy, y + a0]], [[0.995, 1], [0.005, 1], [0.005, 0], [0.995, 0]], 'ao_strip', 0xffffff, 1, 0, 0, [0, 1, 0]);
+    }
+  };
   const seg = (a0: number, a1: number, h0: number, h1: number, ext0 = 0, ext1 = 0) => {
     // a0..a1 along the edge (0..1), h0..h1 vertical
     const A0 = a0 - ext0, A1 = a1 + ext1;
+    if (h0 === 0 && !w.low) aoStrip(a0, a1);
     if (side === 0) {
       mb.boxMinMax(x + A0, baseH + h0, y - T / 2, x + A1, baseH + h1, y + T / 2,
         { south: vIn, north: vOut, east: vIn, west: vIn, top: w.top, bottom: w.top }, { uvOffset: [0, -baseH], ao: true });

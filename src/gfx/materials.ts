@@ -253,7 +253,7 @@ const FRAG_LIGHTGRID = /* glsl */`
     float gz = dot(texture2D(uLightTex, luv + vec2(0.0, e)).rgb - texture2D(uLightTex, luv - vec2(0.0, e)).rgb, LW);
     float g0 = dot(gt, LW) + 0.04;
     vec3 Ld = normalize(vec3(gx / g0 * 1.7, 1.0, gz / g0 * 1.7));
-    grid *= clamp(0.66 + 0.52 * dot(wn, Ld), 0.28, 1.2);
+    grid *= clamp(0.74 + 0.46 * dot(wn, Ld), 0.3, 1.2);
   }
   irradiance += grid * PI;
 #if defined(FLOOR)

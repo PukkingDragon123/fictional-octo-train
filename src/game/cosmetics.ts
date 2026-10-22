@@ -1,17 +1,15 @@
-// Cosmetics: wearables bought with Research Points (RP) and kept across runs.
-// The catalogue lives here (names, slots, prices) so the watch's research
-// tree can list it without loading three.js; the models are in
-// src/entities/cosmetics3d.ts. Each priced cosmetic is a research node on the
-// 'cosmetic' branch (key 'cos_<key>'), so buying one goes through the same
-// persistent unlocks as the rest of the tree. What a debtor wears is part of
-// their Appearance (`app.cos`, a list of keys, one per slot), which saves,
+// Cosmetics: wearables issued at intake. Every piece is free: there is no
+// research-point price, no purchase and no research node for any of them
+// (the watch's research tree no longer lists cosmetics). The catalogue lives
+// here (names, slots, colours) without three.js; the models are in
+// src/entities/cosmetics3d.ts. What a debtor wears is part of their
+// Appearance (`app.cos`, a list of keys, one per slot), which saves,
 // replicates in co-op and dresses the in-game rig like any other looks.
-import { defNode, hasUnlock, buyNode, researchPoints } from './research';
 
 export type CosSlot = 'suit' | 'hat' | 'eyes' | 'face' | 'neck' | 'back';
 export interface CosmeticDef {
   key: string; slot: CosSlot; name: string; desc: string;
-  /** RP; 0 = standard issue, always owned */
+  /** always 0: every piece is free (kept so older callers still compile) */
   cost: number;
   /** main colour (thumbnails, suit tint) */
   color: number;
@@ -19,7 +17,8 @@ export interface CosmeticDef {
 
 export const COS_SLOTS: [CosSlot, string][] = [['suit', 'JUMPSUITS'], ['hat', 'HEADWEAR'], ['eyes', 'EYEWEAR'], ['face', 'FACE'], ['neck', 'NECK'], ['back', 'BACK']];
 
-const C = (key: string, slot: CosSlot, name: string, cost: number, color: number, desc: string): CosmeticDef => ({ key, slot, name, cost, color, desc });
+// the old price column stays in the table below for reference; every piece is issued free
+const C = (key: string, slot: CosSlot, name: string, _oldCost: number, color: number, desc: string): CosmeticDef => ({ key, slot, name, cost: 0, color, desc });
 export const COSMETICS: CosmeticDef[] = [
   // the jumpsuit itself (re-dyed or re-woven Remittance issue)
   C('suit_std', 'suit', 'Standard Issue', 0, 0xeeb415, 'Programme yellow. Visible from every tower.'),
@@ -62,12 +61,12 @@ export const COSMETICS: CosmeticDef[] = [
 export const COSMETIC = new Map(COSMETICS.map((c) => [c.key, c]));
 const SLOT_DEFAULT: Partial<Record<CosSlot, string>> = { suit: 'suit_std' };
 
-for (const c of COSMETICS) if (c.cost > 0) defNode({ key: 'cos_' + c.key, branch: 'cosmetic', title: c.name, desc: c.desc, cost: c.cost, icon: c.slot });
-
-export function ownsCosmetic(key: string): boolean { const c = COSMETIC.get(key); return !!c && (c.cost <= 0 || hasUnlock('cos_' + key)); }
-export function canAffordCosmetic(key: string): boolean { const c = COSMETIC.get(key); return !!c && researchPoints() >= c.cost; }
-/** spend RP on a cosmetic (persistent); false if it is owned already or there are not enough points */
-export function buyCosmetic(key: string): boolean { return !ownsCosmetic(key) && buyNode('cos_' + key); }
+/** every catalogued piece is owned */
+export function ownsCosmetic(key: string): boolean { return COSMETIC.has(key); }
+/** nothing costs anything */
+export function canAffordCosmetic(key: string): boolean { return COSMETIC.has(key); }
+/** nothing to buy: true for any catalogued piece, no points are spent */
+export function buyCosmetic(key: string): boolean { return COSMETIC.has(key); }
 
 type WithCos = { cos?: string[] };
 /** the key worn in a slot (or null) */
@@ -80,7 +79,7 @@ export function setWorn(app: WithCos, slot: CosSlot, key: string | null) {
   const rest = (app.cos || []).filter((x) => COSMETIC.get(x)?.slot !== slot);
   app.cos = key ? [...rest, key] : rest;
 }
-/** drop everything this browser does not own (try-ons) and return what was dropped */
+/** drop unknown keys (pieces no longer in the catalogue) and return what was dropped */
 export function stripUnowned(app: WithCos): string[] {
   const out = (app.cos || []).filter((k) => !ownsCosmetic(k));
   if (out.length) app.cos = (app.cos || []).filter((k) => ownsCosmetic(k));

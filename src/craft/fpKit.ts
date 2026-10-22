@@ -2,6 +2,7 @@
 // (src/ui/inventory.ts): materials, item meshes fitted into cells, the
 // survivor's forearms and hands, tweens, pixel particles and a little shake.
 import * as THREE from 'three';
+import { fbox } from '../ui/touch/facet';
 import { worldMaterial } from '../gfx/materials';
 import { itemGeometry } from '../items/itemMeshes';
 import { ORIENT, type Rot } from '../items/grid';
@@ -88,7 +89,8 @@ export function orientQuat(rot: Rot): THREE.Quaternion {
 }
 
 export interface ItemObj { outer: THREE.Group; mesh: THREE.Mesh | null; key: string }
-const fallbackGeo = new THREE.BoxGeometry(1, 1, 1);
+/** an unknown item: a chamfered, faceted crate shape (never a raw cube) */
+const fallbackGeo = fbox(1, 1, 1, 0.18);
 /** an item model wrapped for fitting: position/scale/quaternion go on `outer` */
 export function makeItemObj(key: string, mat?: THREE.Material): ItemObj {
   const outer = new THREE.Group();
@@ -102,7 +104,7 @@ export function makeItemObj(key: string, mat?: THREE.Material): ItemObj {
     mesh.position.copy(a.center).negate();
     mid.quaternion.copy(a.q);
   } else {
-    mesh = new THREE.Mesh(fallbackGeo, mat || new THREE.MeshLambertMaterial({ color: 0x9a9080 }));
+    mesh = new THREE.Mesh(fallbackGeo, mat || new THREE.MeshLambertMaterial({ color: 0x9a9080, flatShading: true }));
     mesh.scale.set(0.1, 0.05, 0.14);
   }
   mid.add(mesh);

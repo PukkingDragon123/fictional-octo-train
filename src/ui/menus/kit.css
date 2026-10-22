@@ -95,9 +95,9 @@
 .ct-body { position: relative; flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--ct-dim) transparent; overscroll-behavior: contain; padding-right: calc(var(--ks) * 2); }
 .ct-body::-webkit-scrollbar { width: calc(var(--ks) * 2); }
 .ct-body::-webkit-scrollbar-thumb { background: var(--ct-dark); }
-.ct-plate { position: absolute; z-index: 1; display: flex; align-items: center; pointer-events: none; white-space: nowrap;
-  font-family: var(--font-new); font-weight: 600; font-size: calc(var(--ks) * 3.6); letter-spacing: 0.22em; text-transform: uppercase;
-  color: #1c2012; text-shadow: 0 1px 0 rgba(170, 186, 140, 0.35), 0 -1px 0 rgba(0, 0, 0, 0.5); }
+.ct-plate { position: absolute; z-index: 1; display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none; white-space: nowrap;
+  font-family: var(--font-new); font-weight: 700; font-size: calc(var(--ks) * 3.5); letter-spacing: 0.16em; text-transform: uppercase;
+  color: #2c1c06; text-shadow: 0 1px 0 rgba(255, 240, 190, 0.55), 0 -1px 0 rgba(60, 36, 4, 0.35); }
 .ct-plate[hidden], .ct-keys[hidden] { display: none; }
 .ct-keys { position: absolute; z-index: 2; display: flex; align-items: center; justify-content: flex-end; gap: calc(var(--ks) * 3); }
 

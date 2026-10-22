@@ -1,10 +1,11 @@
-// First-person food as smooth low-poly models (no voxels): every food is a
-// dense, rounded superellipsoid bent into its shape (an apple with a dimple,
+// First-person food as faceted low-poly models (no voxels): every food is a
+// flat-shaded superellipsoid bent into its shape (an apple with a dimple,
 // stem and leaf; a wrapped ration bar; a domed loaf; a banana's curve), with
-// smooth normals and vertex colours (skin, streaks, crust, wrapper). A bite is
+// flat facets and vertex colours (skin, streaks, crust, wrapper). A bite is
 // a real dent: the vertices inside a bite-shaped ellipsoid are pushed in onto
 // its far wall with a scalloped tooth edge and turn the colour of the inside.
 import * as THREE from 'three';
+import { gem, fcapsule } from '../touch/facet';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mix, hash } from './pix';
 
@@ -37,7 +38,8 @@ export class FoodModel {
     const sh = SHAPE[r.kind];
     this.half = new THREE.Vector3(...sh.h);
     // a dense sphere, squared off into a superellipsoid and shaped per kind
-    let g: THREE.BufferGeometry = new THREE.SphereGeometry(1, 26, 18);
+    // low-poly: few enough rings that every facet shows under flat shading, enough for a bite to dent
+    let g: THREE.BufferGeometry = new THREE.SphereGeometry(1, 16, 11);
     g.deleteAttribute('uv'); g.deleteAttribute('normal');
     g = mergeVertices(g, 1e-6);
     const P = g.getAttribute('position') as THREE.BufferAttribute;
@@ -103,31 +105,32 @@ export class FoodModel {
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     g.computeVertexNormals();
     this.geo = g;
-    this.mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    this.mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ flatShading: true, vertexColors: true }));
     this.mesh.frustumCulled = false;
     this.group.add(this.mesh);
     this.biteR = Math.max(0.011, Math.min(0.026, Math.max(hx, hy, hz) * 0.42));
     this.extras();
   }
 
-  /** stems, leaves, a bone, a tail: smooth little parts */
+  /** stems, leaves, a bone, a tail: faceted little parts */
   private extras() {
     const r = this.r, h = this.half;
     const add = (geo: THREE.BufferGeometry, color: number, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0) => {
-      const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color })); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); this.group.add(m);
+      const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ flatShading: true, color })); m.position.set(x, y, z); m.rotation.set(rx, ry, rz); this.group.add(m);
     };
     if (r.kind === 'fruit') {
       add(new THREE.CylinderGeometry(0.0016, 0.0022, 0.016, 6), 0x5a3a1a, 0.001, h.y - 0.004, 0, 0, 0, -0.25);
-      const leaf = new THREE.SphereGeometry(1, 10, 6); leaf.scale(0.013, 0.0016, 0.006);
+      const leaf = gem(1, 0, 0.1, 2); leaf.scale(0.013, 0.0016, 0.006);
       add(leaf, 0x4a9a2a, 0.01, h.y + 0.002, 0.002, 0, 0.4, 0.35);
     } else if (r.kind === 'meat' && /bone|leg|rib|drumstick|chop/i.test(r.label)) {
-      add(new THREE.CapsuleGeometry(0.006, 0.04, 4, 10), 0xf2ecd8, h.x + 0.016, 0, 0, 0, 0, Math.PI / 2);
+      add(fcapsule(0.006, 0.052, 6).translate(0, -0.026, 0), 0xf2ecd8, h.x + 0.016, 0, 0, 0, 0, Math.PI / 2);
+      add(gem(0.008, 0, 0.15, 3), 0xe8e0c8, h.x + 0.044, 0, 0);
     } else if (r.kind === 'fish') {
-      const tail = new THREE.ConeGeometry(0.016, 0.028, 10); tail.scale(1, 1, 0.25);
+      const tail = new THREE.ConeGeometry(0.016, 0.028, 5); tail.scale(1, 1, 0.25);
       add(tail, 0x8a949c, h.x + 0.008, 0, 0, 0, 0, Math.PI / 2);
-      add(new THREE.SphereGeometry(0.003, 8, 6), 0x101010, -h.x * 0.72, h.y * 0.3, h.z * 0.62);
+      add(gem(0.003, 0, 0), 0x101010, -h.x * 0.72, h.y * 0.3, h.z * 0.62);
     } else if (r.kind === 'long' && /carrot/i.test(r.label)) {
-      for (let i = 0; i < 3; i++) add(new THREE.ConeGeometry(0.004, 0.03, 6), 0x4a9a2a, h.x + 0.012, (i - 1) * 0.004, (i - 1) * 0.003, 0, 0, -Math.PI / 2 + (i - 1) * 0.3);
+      for (let i = 0; i < 3; i++) add(new THREE.ConeGeometry(0.004, 0.03, 4), 0x4a9a2a, h.x + 0.012, (i - 1) * 0.004, (i - 1) * 0.003, 0, 0, -Math.PI / 2 + (i - 1) * 0.3);
     }
   }
 

@@ -6,6 +6,7 @@
 // stomach jar. Drinking tilts a bottle up for gulps. Leave it alone and you
 // keep eating slowly; move or press Esc to stop.
 import * as THREE from 'three';
+import { fring } from '../touch/facet';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera, fpBlendLinear } from '../../fp/fp';
@@ -178,8 +179,8 @@ export class EatFp {
     const key = new THREE.DirectionalLight(0xfff4e0, 1.6); key.position.set(-0.5, 0.8, 0.6); g.add(key);
     const rim = new THREE.DirectionalLight(0x8ab0ff, 0.6); rim.position.set(0.6, 0.2, -0.8); g.add(rim);
     // crumbs: small soft lumps
-    const lumpGeo = new THREE.IcosahedronGeometry(0.5, 1);
-    const cm = this.cMesh = new THREE.InstancedMesh(lumpGeo, new THREE.MeshLambertMaterial({ color: 0xffffff }), MAXC);
+    const lumpGeo = new THREE.IcosahedronGeometry(0.5, 0);
+    const cm = this.cMesh = new THREE.InstancedMesh(lumpGeo, new THREE.MeshLambertMaterial({ flatShading: true, color: 0xffffff }), MAXC);
     cm.instanceMatrix.setUsage(THREE.DynamicDrawUsage); cm.count = 0; cm.frustumCulled = false;
     cm.setColorAt(0, _c.setHex(0xffffff));
     for (let i = 0; i < MAXC; i++) this.crumbs.push({ p: new THREE.Vector3(), v: new THREE.Vector3(), life: 0, s: 1, c: new THREE.Color(), g: 1, on: false });
@@ -189,38 +190,43 @@ export class EatFp {
     g.add(this.arms.right.root, this.arms.left.root);
     // spoon for cans and bowls
     const sp = this.spoon = new THREE.Group();
-    const steel = new THREE.MeshLambertMaterial({ color: 0xc8ccd2 });
+    const steel = new THREE.MeshLambertMaterial({ flatShading: true, color: 0xc8ccd2 });
     const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0035, 0.13, 8), steel); handle.scale.set(1.4, 1, 0.55); handle.rotation.x = Math.PI / 2; handle.position.z = 0.07; sp.add(handle);
-    const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 4, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), steel); bowl.scale.set(1, 0.5, 1.4); bowl.rotation.x = Math.PI; sp.add(bowl);
-    const lump = this.lump = new THREE.Mesh(new THREE.IcosahedronGeometry(0.013, 1), new THREE.MeshLambertMaterial({ color: 0xc86a3a })); lump.scale.set(1, 0.55, 1.2); lump.position.y = 0.004; sp.add(lump);
+    const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 2, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), steel); bowl.scale.set(1, 0.5, 1.4); bowl.rotation.x = Math.PI; sp.add(bowl);
+    const lump = this.lump = new THREE.Mesh(new THREE.IcosahedronGeometry(0.013, 0), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xc86a3a })); lump.scale.set(1, 0.55, 1.2); lump.position.y = 0.004; sp.add(lump);
     g.add(sp);
   }
   private propFor(kind: string): THREE.Object3D {
     let o = this.props.get(kind);
     if (o) return o;
     const g = new THREE.Group();
-    const metal = new THREE.MeshLambertMaterial({ color: 0xb8bcc2 });
+    const metal = new THREE.MeshLambertMaterial({ flatShading: true, color: 0xb8bcc2 });
     if (kind === 'can') {
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.09, 14, 1, true), metal); c.position.y = 0.03; g.add(c);
-      const label = new THREE.Mesh(new THREE.CylinderGeometry(0.0425, 0.0425, 0.06, 14, 1, true), new THREE.MeshLambertMaterial({ color: 0xc83a2a })); label.position.y = 0.025; g.add(label);
-      const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.004, 14), metal); bot.position.y = -0.014; g.add(bot);
-      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.002, 14), metal); lid.position.set(0.02, 0.09, -0.03); lid.rotation.x = -1.1; g.add(lid);
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.09, 8, 1, true), metal); c.position.y = 0.03; g.add(c);
+      const label = new THREE.Mesh(new THREE.CylinderGeometry(0.0425, 0.0425, 0.06, 8, 1, true), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xc83a2a })); label.position.y = 0.025; g.add(label);
+      const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.004, 8), metal); bot.position.y = -0.014; g.add(bot);
+      const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.002, 8), metal); lid.position.set(0.02, 0.09, -0.03); lid.rotation.x = -1.1; g.add(lid);
+      // rolled rims top and bottom, and the ribs pressed round the tin
+      const rimG = fring(0.0425, 0.0025, 8, 4).rotateX(Math.PI / 2);
+      for (const y of [0.075, -0.012]) { const rm = new THREE.Mesh(rimG, metal); rm.position.y = y; g.add(rm); }
+      for (const y of [0.064, -0.004]) { const rb = new THREE.Mesh(fring(0.0428, 0.0012, 8, 3).rotateX(Math.PI / 2), metal); rb.position.y = y; g.add(rb); }
     } else if (kind === 'bowl') {
-      const b = new THREE.Mesh(new THREE.SphereGeometry(0.075, 14, 6, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xe8e0d0, side: THREE.DoubleSide }));
+      const b = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 3, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xe8e0d0, side: THREE.DoubleSide }));
       b.rotation.x = Math.PI; b.position.y = 0.035; b.scale.y = 0.7; g.add(b);
     } else if (kind === 'bottle' || kind === 'canteen') {
-      const glass = new THREE.MeshLambertMaterial({ color: kind === 'canteen' ? 0x5a6a3a : 0xd8f0f8, transparent: kind !== 'canteen', opacity: 0.35, depthWrite: false });
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.16, 12, 1, true), glass); g.add(body);
-      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.03, 0.05, 12, 1, true), glass); neck.position.y = 0.105; g.add(neck);
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.016, 10), new THREE.MeshLambertMaterial({ color: kind === 'canteen' ? 0x2a2a2a : 0x2a7ad8 })); cap.position.y = 0.14; cap.rotation.z = 0.8; cap.position.x = 0.03; g.add(cap);
-      const lab = new THREE.Mesh(new THREE.CylinderGeometry(0.0345, 0.0345, 0.05, 12, 1, true), new THREE.MeshLambertMaterial({ color: kind === 'canteen' ? 0x4a5a2a : 0xf2f2f2 })); g.add(lab);
+      const glass = new THREE.MeshLambertMaterial({ flatShading: true, color: kind === 'canteen' ? 0x5a6a3a : 0xd8f0f8, transparent: kind !== 'canteen', opacity: 0.35, depthWrite: false });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.16, 8, 1, true), glass); g.add(body);
+      const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.03, 0.05, 8, 1, true), glass); neck.position.y = 0.105; g.add(neck);
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.016, 8), new THREE.MeshLambertMaterial({ flatShading: true, color: kind === 'canteen' ? 0x2a2a2a : 0x2a7ad8 })); cap.position.y = 0.14; cap.rotation.z = 0.8; cap.position.x = 0.03; g.add(cap);
+      const lab = new THREE.Mesh(new THREE.CylinderGeometry(0.0345, 0.0345, 0.05, 8, 1, true), new THREE.MeshLambertMaterial({ flatShading: true, color: kind === 'canteen' ? 0x4a5a2a : 0xf2f2f2 })); g.add(lab);
     } else if (kind === 'dcan') {
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.12, 14), new THREE.MeshLambertMaterial({ color: 0xc82a2a })); g.add(c);
-      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.033, 0.01, 14), metal); top.position.y = 0.064; g.add(top);
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.12, 8), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xc82a2a })); g.add(c);
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.033, 0.01, 8), metal); top.position.y = 0.064; g.add(top);
     } else if (kind === 'mug') {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.036, 0.09, 14, 1, true), new THREE.MeshLambertMaterial({ color: 0xe8e4dc, side: THREE.DoubleSide })); g.add(m);
-      const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.004, 14), m.material as THREE.Material); bot.position.y = -0.044; g.add(bot);
-      const h = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 4, 10, Math.PI), m.material as THREE.Material); h.position.x = 0.04; h.rotation.z = -Math.PI / 2; g.add(h);
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.036, 0.09, 8, 1, true), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xe8e4dc, side: THREE.DoubleSide })); g.add(m);
+      const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.004, 8), m.material as THREE.Material); bot.position.y = -0.044; g.add(bot);
+      const h = new THREE.Mesh(fring(0.022, 0.006, 5, 4, Math.PI), m.material as THREE.Material); h.position.x = 0.04; h.rotation.z = -Math.PI / 2; g.add(h);
+      const lip = new THREE.Mesh(fring(0.04, 0.003, 8, 4).rotateX(Math.PI / 2), m.material as THREE.Material); lip.position.y = 0.045; g.add(lip);
     }
     g.visible = false;
     this.root!.add(g);
@@ -262,7 +268,7 @@ export class EatFp {
     this.food.add(this.prop);
     this.food.rotation.set(0, 0, 0); this.food.position.set(0, 0, 0);
     if (!this.liquid) {
-      this.liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 1, 12), new THREE.MeshLambertMaterial({ color: 0x8ac8f0, transparent: true, opacity: 0.85 }));
+      this.liquid = new THREE.Mesh(new THREE.CylinderGeometry(0.031, 0.031, 1, 8), new THREE.MeshLambertMaterial({ flatShading: true, color: 0x8ac8f0, transparent: true, opacity: 0.85 }));
       this.food.add(this.liquid);
     }
     this.liquid.visible = kind === 'bottle' || kind === 'mug';

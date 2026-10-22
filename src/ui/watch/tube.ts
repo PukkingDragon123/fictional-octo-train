@@ -54,16 +54,27 @@ export class Tube {
     const g = this.ctx; g.strokeStyle = this.col(c); g.lineWidth = w;
     g.beginPath(); g.moveTo(x0 + 0.5, y0 + 0.5); g.lineTo(x1 + 0.5, y1 + 0.5); g.stroke();
   }
+  /** a ring on the tube: drawn as a polygon (octagon, more sides when big), never a smooth circle */
   circle(cx: number, cy: number, r: number, c: number, dash = 0) {
-    const g = this.ctx; g.strokeStyle = this.col(c); g.lineWidth = 1;
+    const g = this.ctx; g.strokeStyle = this.col(c); g.lineWidth = 1; g.lineJoin = 'miter';
     if (dash) g.setLineDash([dash * 0.6, dash * 0.6]);
-    g.beginPath(); g.arc(cx + 0.5, cy + 0.5, r, 0, Math.PI * 2); g.stroke();
+    const n = r > 40 ? 12 : r > 14 ? 10 : 8;
+    g.beginPath();
+    for (let i = 0; i <= n; i++) { const a = Math.PI / n + (i / n) * Math.PI * 2, x = cx + 0.5 + Math.cos(a) * r, y = cy + 0.5 + Math.sin(a) * r; if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+    g.stroke();
     if (dash) g.setLineDash([]);
   }
-  disc(cx: number, cy: number, r: number, c: number) { const g = this.ctx; g.fillStyle = this.col(c); g.beginPath(); g.arc(cx + 0.5, cy + 0.5, Math.max(0.7, r + 0.4), 0, Math.PI * 2); g.fill(); }
+  /** a dot / blip: a diamond for small ones, a filled octagon for big ones */
+  disc(cx: number, cy: number, r: number, c: number) {
+    const g = this.ctx; g.fillStyle = this.col(c);
+    const R = Math.max(0.7, r + 0.4), n = R > 3 ? 8 : 4;
+    g.beginPath();
+    for (let i = 0; i < n; i++) { const a = (n === 4 ? 0 : Math.PI / 8) + (i / n) * Math.PI * 2, x = cx + 0.5 + Math.cos(a) * R, y = cy + 0.5 + Math.sin(a) * R; if (i) g.lineTo(x, y); else g.moveTo(x, y); }
+    g.closePath(); g.fill();
+  }
   /** a polyline through [x, y, x, y, ...] */
   poly(pts: number[], c: number, w = 1) {
-    const g = this.ctx; g.strokeStyle = this.col(c); g.lineWidth = w; g.lineJoin = 'round';
+    const g = this.ctx; g.strokeStyle = this.col(c); g.lineWidth = w; g.lineJoin = 'miter';
     g.beginPath(); for (let i = 0; i < pts.length; i += 2) { if (i) g.lineTo(pts[i], pts[i + 1]); else g.moveTo(pts[i], pts[i + 1]); } g.stroke();
   }
 

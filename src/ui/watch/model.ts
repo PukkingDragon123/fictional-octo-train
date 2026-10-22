@@ -17,7 +17,7 @@
 // Z toward the eye. The screen sits at SCREEN (centre) facing +Z.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { RoundedBoxGeometry } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { fbox, fcyl, fring, flathe, fdome, gem, plate, clipRect, face, ngon, fcapsule, hull } from '../touch/facet';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 import { atlas } from '../../gfx/atlas';
 import { G } from '../../game/G';
@@ -41,24 +41,32 @@ const COL_X = HOUSE.cx + HOUSE.w / 2 - 0.02;
 export const WRIST_X = HOUSE.cx + HOUSE.w / 2 + 0.004;
 
 // ---------------------------------------------------------------- textures
+/** a point's distance from the centre in "polygon radius" units: R on the edge of a regular n-gon (a corner at `phase`) */
+function pd(dx: number, dy: number, n: number, phase = 0): number {
+  const seg = (Math.PI * 2) / n;
+  let a = Math.atan2(dy, dx) - phase;
+  a = ((a % seg) + seg) % seg;
+  return Math.hypot(dx, dy) * Math.cos(a - seg / 2) / Math.cos(seg / 2);
+}
 let texReady = false;
-/** atlas pictures for the small printed parts (dial ring, gauge face, cuff hazard band, knob tops) */
+/** atlas pictures for the small printed parts (dial plate, gauge face, cuff hazard band, knob tops): polygons, never discs */
 function textures() {
   if (texReady) return;
   texReady = true;
   const A = atlas();
   A.add('wt_knurl', 16, 4, (pc) => { pc.each((x, y) => pc.set(x, y, x % 2 ? 0x2a2420 : (y === 0 ? 0x9a948c : 0x6a645c))); });
   A.add('wt_knobtop', 24, 24, (pc) => {
-    pc.each((x, y) => { const d = Math.hypot(x - 11.5, y - 11.5); pc.set(x, y, d > 11.4 ? 0x1a120c : d > 9.6 ? 0x4a3a2c : d > 9 ? 0x5a4838 : 0x2e2018); });
+    pc.each((x, y) => { const d = pd(x - 11.5, y - 11.5, 8); pc.set(x, y, d > 11.4 ? 0x1a120c : d > 9.6 ? 0x4a3a2c : d > 8.8 ? 0x6a5640 : (x + y) % 7 === 0 ? 0x3a2a1e : 0x2e2018); });
     for (let y = 2; y < 11; y++) { pc.set(11, y, 0xe8e0c8); pc.set(12, y, 0xe8e0c8); }
+    pc.set(11, 1, 0xfff4d8); pc.set(12, 1, 0xfff4d8);
   });
   A.add('wt_dialring', 32, 32, (pc) => {
-    pc.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5); pc.set(x, y, d > 15.6 ? 0x14100c : 0x1c1410); });
-    for (let i = 0; i < 9; i++) { const a = -Math.PI * 0.75 + i * (Math.PI * 1.5 / 8); for (let r = 12; r < 15; r += 0.5) pc.set(Math.round(15.5 + Math.cos(a) * r), Math.round(15.5 + Math.sin(a) * r), i === 0 ? 0xffb030 : 0xd8d0b8); }
+    pc.each((x, y) => { const d = pd(x - 15.5, y - 15.5, 8); pc.set(x, y, d > 15.2 ? 0x14100c : d > 14.4 ? 0x3a2c22 : (x * 7 + y * 3) % 11 === 0 ? 0x241a14 : 0x1c1410); });
+    for (let i = 0; i < 9; i++) { const a = -Math.PI * 0.75 + i * (Math.PI * 1.5 / 8); for (let r = 10.5; r < 13.5; r += 0.5) pc.set(Math.round(15.5 + Math.cos(a) * r), Math.round(15.5 + Math.sin(a) * r), i === 0 ? 0xffb030 : 0xd8d0b8); }
   });
   A.add('wt_gauge', 32, 32, (pc) => {
-    pc.each((x, y) => { const d = Math.hypot(x - 15.5, y - 15.5); pc.set(x, y, d > 15.4 ? 0x2a2420 : d > 14 ? 0x9a9488 : 0xece2c4); });
-    for (let i = 0; i <= 20; i++) { const a = Math.PI * (0.8 + i * 0.07); const r0 = i % 5 ? 11 : 9; for (let r = r0; r < 13.2; r += 0.4) pc.set(Math.round(15.5 + Math.cos(a) * r), Math.round(15.5 + Math.sin(a) * r), i < 4 ? 0xc02a1a : 0x2a2018); }
+    pc.each((x, y) => { const d = pd(x - 15.5, y - 15.5, 6); pc.set(x, y, d > 15.2 ? 0x2a2420 : d > 13.6 ? 0x9a9488 : d > 13 ? 0x6a6458 : (x * 5 + y * 11) % 13 === 0 ? 0xdcd2b2 : 0xece2c4); });
+    for (let i = 0; i <= 20; i++) { const a = Math.PI * (0.8 + i * 0.07); const r0 = i % 5 ? 10 : 8; for (let r = r0; r < 12; r += 0.4) pc.set(Math.round(15.5 + Math.cos(a) * r), Math.round(15.5 + Math.sin(a) * r), i < 4 ? 0xc02a1a : 0x2a2018); }
   });
   A.add('wt_cuff', 24, 8, (pc, rng) => {
     pc.each((x, y) => { const n = rng.next(); pc.set(x, y, n < 0.15 ? 0x8a9298 : 0xa2aab0); });
@@ -67,11 +75,11 @@ function textures() {
     for (let i = 0; i < 6; i++) pc.set(rng.int(0, 23), rng.int(1, 6), 0x5a2a1a);
   });
   A.add('wt_crust', 8, 8, (pc, rng) => {
-    pc.each((x, y) => { const d = Math.hypot(x - 3.5, y - 3.5) / 4.5 + rng.next() * 0.3; pc.set(x, y, d < 0.45 ? 0x7a0d0a : d < 0.8 ? 0x4a0a08 : 0x2a1a14); });
+    pc.each((x, y) => { const d = pd(x - 3.5, y - 3.5, 6) / 4.5 + rng.next() * 0.3; pc.set(x, y, d < 0.45 ? 0x7a0d0a : d < 0.8 ? 0x4a0a08 : 0x2a1a14); });
   });
 }
 
-/** a small procedural canvas texture (cached), tiled */
+/** a small procedural pixel texture (cached, nearest-filtered, tiled) */
 const TEX = new Map<string, THREE.CanvasTexture>();
 const REDRAW: (() => void)[] = [];
 /** repaint the printed parts (after the web fonts arrive) */
@@ -80,51 +88,54 @@ function canvasTex(key: string, w: number, h: number, draw: (g: CanvasRenderingC
   let t = TEX.get(key);
   if (t) return t;
   const c = document.createElement('canvas'); c.width = w; c.height = h;
-  draw(c.getContext('2d')!, w, h);
-  if (printed) REDRAW.push(() => { draw(c.getContext('2d')!, w, h); for (const [, tx] of TEX) if (tx.image === c) tx.needsUpdate = true; for (const m of Object.values(SM || {})) if (m.map?.image === c) m.map.needsUpdate = true; });
+  const g0 = c.getContext('2d')!; g0.imageSmoothingEnabled = false;
+  draw(g0, w, h);
+  if (printed) REDRAW.push(() => { const g = c.getContext('2d')!; g.clearRect(0, 0, w, h); draw(g, w, h); for (const [, tx] of TEX) if (tx.image === c) tx.needsUpdate = true; for (const m of Object.values(SM || {})) if (m.map?.image === c) m.map.needsUpdate = true; });
   t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 4;
   TEX.set(key, t);
   return t;
 }
 let seed = 7;
 const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-/** brushed steel: long fine streaks, a few scratches, grime in the corners */
-const brushed = () => canvasTex('wt_brushed', 256, 256, (g, w, h) => {
-  g.fillStyle = '#a9adb0'; g.fillRect(0, 0, w, h);
-  for (let y = 0; y < h; y++) { const v = 150 + rnd() * 40; g.fillStyle = `rgba(${v},${v + 3},${v + 6},0.35)`; g.fillRect(0, y, w, 1); }
-  for (let i = 0; i < 40; i++) { g.strokeStyle = `rgba(235,240,242,${0.2 + rnd() * 0.3})`; g.lineWidth = 0.6; g.beginPath(); const x = rnd() * w, y = rnd() * h; g.moveTo(x, y); g.lineTo(x + 8 + rnd() * 30, y + (rnd() - 0.5) * 6); g.stroke(); }
-  for (let i = 0; i < 18; i++) { g.fillStyle = `rgba(70,58,44,${0.06 + rnd() * 0.08})`; g.beginPath(); g.arc(rnd() * w, rnd() * h, 6 + rnd() * 18, 0, Math.PI * 2); g.fill(); }
+const hexc = (r: number, g: number, b: number) => `rgb(${r | 0},${g | 0},${b | 0})`;
+/** brushed steel, pixel by pixel: each row its own grey, bright scratch runs, grime specks */
+const brushed = () => canvasTex('wt_brushed', 32, 32, (g, w, h) => {
+  for (let y = 0; y < h; y++) {
+    const v = 156 + rnd() * 22;
+    for (let x = 0; x < w; x++) { const k = v + (rnd() < 0.1 ? 9 : 0); g.fillStyle = hexc(k, k + 3, k + 6); g.fillRect(x, y, 1, 1); }
+  }
+  for (let i = 0; i < 4; i++) { g.fillStyle = '#d4d9dc'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 2 + ((rnd() * 5) | 0), 1); }
+  for (let i = 0; i < 14; i++) { g.fillStyle = 'rgba(60,48,36,0.55)'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1, 1); }
 });
-/** bakelite: dark brown, mottled, with a fine grain */
-const bakelite = () => canvasTex('wt_bakelite', 128, 128, (g, w, h) => {
+/** bakelite: dark brown, mottled in two-pixel flecks */
+const bakelite = () => canvasTex('wt_bakelite', 32, 32, (g, w, h) => {
   g.fillStyle = '#35241a'; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(${70 + rnd() * 40},${46 + rnd() * 20},${30 + rnd() * 14},${0.08 + rnd() * 0.12})`; g.beginPath(); g.arc(rnd() * w, rnd() * h, 2 + rnd() * 9, 0, Math.PI * 2); g.fill(); }
+  for (let i = 0; i < 70; i++) { g.fillStyle = hexc(62 + rnd() * 34, 42 + rnd() * 16, 28 + rnd() * 10); g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1 + ((rnd() * 2) | 0), 1); }
+  for (let i = 0; i < 20; i++) { g.fillStyle = '#24170f'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1, 1); }
 });
-/** hazard stripes */
-const hazard = () => canvasTex('wt_hazard', 64, 16, (g, w, h) => {
-  g.fillStyle = '#17150f'; g.fillRect(0, 0, w, h);
-  g.fillStyle = '#d8a42a';
-  for (let x = -h; x < w + h; x += 16) { g.beginPath(); g.moveTo(x, h); g.lineTo(x + 8, h); g.lineTo(x + 8 + h, 0); g.lineTo(x + h, 0); g.fill(); }
-  g.fillStyle = 'rgba(40,30,20,0.25)'; for (let i = 0; i < 30; i++) g.fillRect(rnd() * w, rnd() * h, 2, 1);
+/** hazard stripes, stepped diagonals */
+const hazard = () => canvasTex('wt_hazard', 16, 4, (g, w, h) => {
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { g.fillStyle = ((x + y) >> 2) % 2 ? '#17150f' : '#d8a42a'; g.fillRect(x, y, 1, 1); }
+  g.fillStyle = '#7a5a18'; g.fillRect(3, 1, 1, 1); g.fillRect(12, 2, 1, 1);
 });
-/** a speaker grille: punched holes in bakelite */
-const grille = () => canvasTex('wt_grillet', 64, 16, (g, w, h) => {
+/** a speaker grille: square punched holes, each with a lit lower lip */
+const grille = () => canvasTex('wt_grillet', 24, 6, (g, w, h) => {
   g.fillStyle = '#3a281c'; g.fillRect(0, 0, w, h);
-  for (let y = 2; y < h; y += 4) for (let x = 2 + ((y >> 2) % 2) * 2; x < w; x += 4) { g.fillStyle = '#0a0806'; g.beginPath(); g.arc(x, y, 1.1, 0, Math.PI * 2); g.fill(); g.fillStyle = 'rgba(120,90,60,0.4)'; g.fillRect(x - 1, y + 1, 2, 0.6); }
+  for (let y = 1; y < h - 1; y += 2) for (let x = 1 + ((y >> 1) % 2); x < w - 1; x += 2) { g.fillStyle = '#0a0806'; g.fillRect(x, y, 1, 1); g.fillStyle = '#6a4e36'; g.fillRect(x, y + 1, 1, 1); }
 });
 /** the stamped brass maker's plate (original lettering) */
-const plate = () => canvasTex('wt_platet', 128, 36, (g, w, h) => {
+const plateTex = () => canvasTex('wt_platet', 128, 36, (g, w, h) => {
   g.clearRect(0, 0, w, h);
-  const grd = g.createLinearGradient(0, 0, 0, h); grd.addColorStop(0, '#f0d488'); grd.addColorStop(1, '#a8803a');
-  g.fillStyle = grd; g.fillRect(0, 0, w, h);
-  g.font = `bold 13px ${cssFont('--font-sign', 'sans-serif')}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = 'rgba(255,240,200,0.6)'; g.fillText('BAILIFF  MK·IX', w / 2 + 0.6, h * 0.36 + 0.6);
-  g.fillStyle = '#5a3e14'; g.fillText('BAILIFF  MK·IX', w / 2, h * 0.36);
-  g.font = `9px ${cssFont('--font-typeset', 'monospace')}`; g.fillText('MERIDIAN INSTITUTE · REMITTANCE', w / 2, h * 0.74);
-  for (const [x, y] of [[5, 5], [w - 5, 5], [5, h - 5], [w - 5, h - 5]]) { g.fillStyle = '#6a4a18'; g.beginPath(); g.arc(x, y, 2.2, 0, Math.PI * 2); g.fill(); }
+  for (let y = 0; y < h; y++) { const k = y / h; g.fillStyle = hexc(240 - k * 70, 212 - k * 84, 136 - k * 78); g.fillRect(0, y, w, 1); }
+  g.fillStyle = '#5a3e14'; g.fillRect(0, 0, w, 1); g.fillRect(0, h - 1, w, 1); g.fillRect(0, 0, 1, h); g.fillRect(w - 1, 0, 1, h);
+  g.font = `700 14px ${cssFont('--font-new', 'serif')}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = 'rgba(255,240,200,0.7)'; g.fillText('BAILIFF  MK·IX', w / 2 + 1, h * 0.38 + 1);
+  g.fillStyle = '#4a3010'; g.fillText('BAILIFF  MK·IX', w / 2, h * 0.38);
+  g.font = `italic 600 10px ${cssFont('--font-new', 'serif')}`; g.fillText('Meridian Institute · Remittance', w / 2, h * 0.76);
+  for (const [x, y] of [[4, 4], [w - 6, 4], [4, h - 6], [w - 6, h - 6]]) { g.fillStyle = '#6a4a18'; g.fillRect(x, y, 2, 2); g.fillStyle = '#f8e0a0'; g.fillRect(x, y, 1, 1); }
 }, true, true);
 
 // ---------------------------------------------------------------- materials
@@ -168,17 +179,17 @@ function atlasAware<T extends THREE.MeshStandardMaterial>(m: T): T {
 const lowQ = () => G.pr?.quality === 'low';
 /** clearcoat / sheen layers only off the low quality setting */
 function phys(o: THREE.MeshPhysicalMaterialParameters): THREE.MeshStandardMaterial {
-  if (!lowQ()) return new THREE.MeshPhysicalMaterial(o);
+  if (!lowQ()) return new THREE.MeshPhysicalMaterial({ flatShading: true, ...o });
   const { clearcoat, clearcoatRoughness, sheen, sheenRoughness, sheenColor, ...rest } = o;
   void clearcoat; void clearcoatRoughness; void sheen; void sheenRoughness; void sheenColor;
-  return new THREE.MeshStandardMaterial(rest as THREE.MeshStandardMaterialParameters);
+  return new THREE.MeshStandardMaterial({ flatShading: true, ...(rest as THREE.MeshStandardMaterialParameters) });
 }
-/** atlas-textured PBR for ModelBuilder parts (lathed knobs, cylinders, printed faces) */
+/** atlas-textured PBR for ModelBuilder parts (lathed knobs, cylinders, printed faces); flat-shaded facets */
 export function watchMats(): Record<MatKey, THREE.MeshStandardMaterial> {
   if (MATS) return MATS;
   const env = envMap();
   const map = atlas().texture;
-  const base = { map, vertexColors: true, envMap: env, side: THREE.DoubleSide };
+  const base = { map, vertexColors: true, envMap: env, side: THREE.DoubleSide, flatShading: true };
   MATS = {
     steel: new THREE.MeshStandardMaterial({ ...base, metalness: 0.85, roughness: 0.36, envMapIntensity: 1.0 }),
     bake: phys({ ...base, metalness: 0, roughness: 0.42, clearcoat: 0.7, clearcoatRoughness: 0.18, envMapIntensity: 0.8 }),
@@ -190,54 +201,56 @@ export function watchMats(): Record<MatKey, THREE.MeshStandardMaterial> {
   for (const m of Object.values(MATS)) atlasAware(m);
   return MATS;
 }
-/** plain PBR for the rounded, bevelled parts (their own uvs; procedural canvas maps) */
+/** plain PBR for the faceted parts (their own 0..1 uvs; pixel canvas maps) */
 let SM: Record<string, THREE.MeshStandardMaterial> | null = null;
 function solids() {
   if (SM) return SM;
   const env = envMap();
   const rep = (t: THREE.Texture, x: number, y: number) => { const c = t.clone(); c.repeat.set(x, y); c.needsUpdate = true; return c; };
   const b = brushed(), bk = bakelite();
+  const F = { side: THREE.DoubleSide, flatShading: true, envMap: env } as const;
   SM = {
-    // extruded shapes carry uvs in metres; rounded boxes 0..1 per face
-    steelM: new THREE.MeshStandardMaterial({ map: rep(b, 9, 9), roughnessMap: rep(b, 9, 9), color: 0xd8dcdf, metalness: 0.88, roughness: 0.42, envMap: env, envMapIntensity: 1.05, side: THREE.DoubleSide }),
-    steelB: new THREE.MeshStandardMaterial({ map: rep(b, 1.4, 1.4), roughnessMap: rep(b, 1.4, 1.4), color: 0xc8ccd0, metalness: 0.86, roughness: 0.45, envMap: env, envMapIntensity: 1.0, side: THREE.DoubleSide }),
-    bakeM: phys({ map: rep(bk, 14, 14), color: 0xffffff, metalness: 0, roughness: 0.38, clearcoat: 0.8, clearcoatRoughness: 0.15, envMap: env, envMapIntensity: 0.8, side: THREE.DoubleSide }),
-    bakeB: phys({ map: rep(bk, 1.2, 1.2), color: 0xffffff, metalness: 0, roughness: 0.38, clearcoat: 0.8, clearcoatRoughness: 0.15, envMap: env, envMapIntensity: 0.8, side: THREE.DoubleSide }),
-    rubber: new THREE.MeshStandardMaterial({ color: 0x1e1b18, metalness: 0, roughness: 0.9, envMap: env, envMapIntensity: 0.25, side: THREE.DoubleSide }),
-    hazard: new THREE.MeshStandardMaterial({ map: rep(hazard(), 4, 1), metalness: 0.15, roughness: 0.5, envMap: env, envMapIntensity: 0.5, side: THREE.DoubleSide }),
-    grille: new THREE.MeshStandardMaterial({ map: rep(grille(), 1, 1), metalness: 0, roughness: 0.6, envMap: env, envMapIntensity: 0.4, side: THREE.DoubleSide }),
-    plate: new THREE.MeshStandardMaterial({ map: rep(plate(), 1, 1), metalness: 0.75, roughness: 0.32, envMap: env, envMapIntensity: 1.0, side: THREE.DoubleSide }),
-    brass: new THREE.MeshStandardMaterial({ color: 0xd8b060, metalness: 0.92, roughness: 0.28, envMap: env, envMapIntensity: 1.1, side: THREE.DoubleSide }),
-    chrome: new THREE.MeshStandardMaterial({ color: 0xf0f2f4, metalness: 1, roughness: 0.1, envMap: env, envMapIntensity: 1.25, side: THREE.DoubleSide }),
-    crust: new THREE.MeshStandardMaterial({ color: 0x4a0c08, metalness: 0, roughness: 0.55, envMap: env, envMapIntensity: 0.4, side: THREE.DoubleSide }),
+    steelM: new THREE.MeshStandardMaterial({ ...F, map: rep(b, 2, 2), roughnessMap: rep(b, 2, 2), color: 0xd8dcdf, metalness: 0.88, roughness: 0.42, envMapIntensity: 1.05 }),
+    steelB: new THREE.MeshStandardMaterial({ ...F, map: rep(b, 1.5, 1.5), roughnessMap: rep(b, 1.5, 1.5), color: 0xc8ccd0, metalness: 0.86, roughness: 0.45, envMapIntensity: 1.0 }),
+    bakeM: phys({ ...F, map: rep(bk, 3, 2), color: 0xffffff, metalness: 0, roughness: 0.38, clearcoat: 0.8, clearcoatRoughness: 0.15, envMapIntensity: 0.8 }),
+    bakeB: phys({ ...F, map: rep(bk, 1, 1), color: 0xffffff, metalness: 0, roughness: 0.38, clearcoat: 0.8, clearcoatRoughness: 0.15, envMapIntensity: 0.8 }),
+    rubber: new THREE.MeshStandardMaterial({ ...F, color: 0x1e1b18, metalness: 0, roughness: 0.9, envMapIntensity: 0.25 }),
+    hazard: new THREE.MeshStandardMaterial({ ...F, map: rep(hazard(), 6, 1), metalness: 0.15, roughness: 0.5, envMapIntensity: 0.5 }),
+    grille: new THREE.MeshStandardMaterial({ ...F, map: rep(grille(), 1, 1), metalness: 0, roughness: 0.6, envMapIntensity: 0.4 }),
+    plate: new THREE.MeshStandardMaterial({ ...F, map: rep(plateTex(), 1, 1), metalness: 0.75, roughness: 0.32, envMapIntensity: 1.0 }),
+    brass: new THREE.MeshStandardMaterial({ ...F, color: 0xd8b060, metalness: 0.92, roughness: 0.28, envMapIntensity: 1.1 }),
+    chrome: new THREE.MeshStandardMaterial({ ...F, color: 0xf0f2f4, metalness: 1, roughness: 0.1, envMapIntensity: 1.25 }),
+    crust: new THREE.MeshStandardMaterial({ ...F, color: 0x4a0c08, metalness: 0, roughness: 0.55, envMapIntensity: 0.4 }),
+    copper: new THREE.MeshStandardMaterial({ ...F, color: 0xd8824a, metalness: 0.9, roughness: 0.32, envMapIntensity: 1.0 }),
+    gauze: new THREE.MeshStandardMaterial({ ...F, color: 0xc8b8a0, roughness: 0.95, envMap: null }),
   };
   return SM;
 }
 
-// ---------------------------------------------------------------- rounded / bevelled shapes
+// ---------------------------------------------------------------- faceted shapes (no rounded primitives)
 const GEO = new Map<string, THREE.BufferGeometry>();
 const geo = (key: string, make: () => THREE.BufferGeometry) => { let g = GEO.get(key); if (!g) { g = make(); GEO.set(key, g); } return g; };
-function roundRect(w: number, h: number, r: number, cx = 0, cy = 0): THREE.Shape {
-  const s = new THREE.Shape(), x = cx - w / 2, y = cy - h / 2;
-  s.moveTo(x + r, y); s.lineTo(x + w - r, y); s.absarc(x + w - r, y + r, r, -Math.PI / 2, 0, false);
-  s.lineTo(x + w, y + h - r); s.absarc(x + w - r, y + h - r, r, 0, Math.PI / 2, false);
-  s.lineTo(x + r, y + h); s.absarc(x + r, y + h - r, r, Math.PI / 2, Math.PI, false);
-  s.lineTo(x, y + r); s.absarc(x + r, y + r, r, Math.PI, Math.PI * 1.5, false);
-  return s;
-}
-/** a bevelled slab (a rounded rectangle extruded along +Z from z = 0), optionally with a rounded hole */
+/** a bevelled slab with clipped corners (extruded along +Z from z = 0), optionally with a clipped-corner window */
 function slab(w: number, h: number, r: number, depth: number, bevel: number, hole?: { w: number; h: number; r: number }) {
   const key = `slab:${w}:${h}:${r}:${depth}:${bevel}:${hole ? hole.w + ':' + hole.h + ':' + hole.r : ''}`;
-  return geo(key, () => {
-    const s = roundRect(w, h, r);
-    if (hole) s.holes.push(roundRect(hole.w, hole.h, hole.r) as unknown as THREE.Path);
-    const g = new THREE.ExtrudeGeometry(s, { depth, bevelEnabled: bevel > 0, bevelThickness: bevel, bevelSize: bevel, bevelSegments: 3, curveSegments: 6 });
-    g.computeVertexNormals();
-    return g;
-  });
+  return geo(key, () => plate(clipRect(w, h, r), depth + bevel * 2, bevel, hole ? [clipRect(hole.w, hole.h, hole.r)] : []));
 }
-const rbox = (w: number, h: number, d: number, r: number) => geo(`rbox:${w}:${h}:${d}:${r}`, () => new RoundedBoxGeometry(w, h, d, 3, r));
+/** a chamfered block (absolute chamfer r) */
+const rbox = (w: number, h: number, d: number, r: number) => geo(`rbox:${w}:${h}:${d}:${r}`, () => fbox(w, h, d, r, true));
 const mesh = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); return o; };
+/** an inked outline: the part's shell pushed out a hair and drawn back-faces-only in black */
+const INK = new THREE.MeshBasicMaterial({ color: 0x050403, side: THREE.BackSide });
+const INK_W = 0.0007;
+function ink<T extends THREE.Mesh>(o: T, w = INK_W): T {
+  const g = o.geometry;
+  let h = HULLS.get(g);
+  if (!h) { h = hull(g, w); HULLS.set(g, h); }
+  const m = new THREE.Mesh(h, INK);
+  m.raycast = () => { /* never picked */ };
+  o.add(m);
+  return o;
+}
+const HULLS = new Map<THREE.BufferGeometry, THREE.BufferGeometry>();
 
 /** one ModelBuilder per material, each built into its own mesh (lathed and cylindrical parts) */
 class Kit {
@@ -269,8 +282,8 @@ export interface WatchModel {
   antenna: THREE.Object3D;
 }
 
-const glowMat = (c: number) => new THREE.MeshStandardMaterial({ color: c, emissive: 0x000000, roughness: 0.15, metalness: 0, side: THREE.DoubleSide });
-const glassMat = () => new THREE.MeshPhysicalMaterial({ color: 0xe8f0e8, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.22, depthWrite: false, envMap: envMap(), envMapIntensity: 1.4, side: THREE.DoubleSide });
+const glowMat = (c: number) => new THREE.MeshStandardMaterial({ color: c, emissive: 0x000000, roughness: 0.15, metalness: 0, side: THREE.DoubleSide, flatShading: true });
+const glassMat = () => new THREE.MeshPhysicalMaterial({ color: 0xe8f0e8, roughness: 0.04, metalness: 0, transparent: true, opacity: 0.22, depthWrite: false, envMap: envMap(), envMapIntensity: 1.4, side: THREE.DoubleSide, flatShading: true });
 
 /** set a lamp's lit colour (emissive) */
 export function setLamp(m: THREE.Mesh, c: number) {
@@ -299,99 +312,94 @@ export function buildWatchModel(screen: THREE.Mesh, arm: FpArm): WatchModel {
   // where the hand was: a cauterised, bound stump at the wrist
   const stump = new THREE.Group();
   {
-    const g = new THREE.SphereGeometry(0.026, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2);
-    g.rotateZ(-Math.PI / 2); g.scale(0.45, 1, 0.8);
+    const g = fdome(0.026, 7, 3).rotateZ(-Math.PI / 2); g.scale(0.45, 1, 0.8);
     stump.add(mesh(g, S.crust, WRIST_X - 0.004, 0, 0));
-    const wrap = new THREE.CylinderGeometry(0.0275, 0.0265, 0.016, 16, 1, true); wrap.rotateZ(-Math.PI / 2); wrap.scale(1, 1, 0.8);
-    stump.add(mesh(wrap, new THREE.MeshStandardMaterial({ color: 0xc8b8a0, roughness: 0.95, side: THREE.DoubleSide }), WRIST_X - 0.012, 0, 0));
+    const wrap = fcyl(0.0275, 0.016, 8, 0.0265, 0, true).rotateZ(-Math.PI / 2); wrap.scale(1, 1, 0.8);
+    stump.add(mesh(wrap, S.gauze, WRIST_X - 0.012, 0, 0));
   }
   stump.visible = false;
   root.add(stump);
 
-  // ---- the BAILIFF cuff round the wrist, bolted through (lathed, flattened to the forearm)
+  // ---- the BAILIFF cuff round the wrist, bolted through (a ten-sided band, flattened to the forearm)
   const K = new Kit();
   const st = K.m('steel');
   st.push().translate(0, 0, 0).scale(1, 1, 0.82).rotateZ(-Math.PI / 2);
-  st.cylinder(0, cx - 0.04, 0, ARM_R + 0.004, 0.08, 20, { sides: 'wt_cuff', top: 'wt_cuff', bottom: 'wt_cuff' }, { fit: true });
+  st.cylinder(0, cx - 0.04, 0, ARM_R + 0.004, 0.08, 10, { sides: 'wt_cuff', top: 'wt_cuff', bottom: 'wt_cuff' }, { fit: true });
   st.pop();
   K.into(root);
   for (const sy of [1, -1]) {
     const by = sy * (ARM_R * 0.82 + 0.004);
-    const bolt = new THREE.CylinderGeometry(0.0055, 0.0062, 0.006, 6); // hex head
-    root.add(mesh(bolt, S.chrome, cx - 0.045, by, 0));
-    const crust = new THREE.SphereGeometry(0.008, 10, 6); crust.scale(1.4, 0.4, 1);
+    root.add(mesh(fcyl(0.0055, 0.006, 6, 0.0062, 0.25), S.chrome, cx - 0.045, by, 0)); // hex head
+    const crust = gem(0.008, 0, 0.25, sy + 3); crust.scale(1.4, 0.4, 1);
     root.add(mesh(crust, S.crust, cx - 0.045, by - sy * 0.002, 0.006));
   }
 
-  // ---- the case: a rounded brushed-steel shell, a bevelled bakelite faceplate
-  root.add(mesh(rbox(H.w, H.h, H.d, 0.007), S.steelB, cx, 0, TOP + H.d / 2));
-  root.add(mesh(slab(H.w - 0.01, H.h - 0.01, 0.006, 0.0012, 0.0012), S.bakeM, cx, 0, FRONT - 0.0004));
-  // bright top rail and hazard-striped bottom rail, rounded
-  root.add(mesh(rbox(H.w - 0.012, 0.005, H.d * 0.7, 0.0024), S.chrome, cx, H.h / 2 + 0.0008, TOP + H.d / 2));
-  root.add(mesh(rbox(H.w - 0.012, 0.005, H.d * 0.7, 0.0024), S.hazard, cx, -H.h / 2 - 0.0008, TOP + H.d / 2));
-  // rubber grips down the ends
-  for (const sx of [-1, 1]) root.add(mesh(rbox(0.007, 0.05, H.d * 0.8, 0.003), S.rubber, cx + sx * (H.w / 2 + 0.002), -0.004, TOP + H.d / 2));
-  // the CRT bezel: a bevelled steel frame with a rounded window, standing proud of the faceplate
-  root.add(mesh(slab(SCREEN.w + 0.012, SCREEN.h + 0.012, 0.005, 0.0016, 0.0014, { w: SCREEN.w + 0.0006, h: SCREEN.h + 0.0006, r: 0.0036 }), S.steelM, SCREEN.x, SCREEN.y, FRONT + 0.0008));
-  // the tube's dark surround inside the window
-  root.add(mesh(slab(SCREEN.w + 0.002, SCREEN.h + 0.002, 0.0038, 0.0008, 0), S.rubber, SCREEN.x, SCREEN.y, FRONT + 0.0006));
-  // speaker grille and the maker's plate along the bottom strip
-  root.add(mesh(slab(0.036, 0.0078, 0.0025, 0.0006, 0.0005), S.grille, SCREEN.x - 0.014, -H.h / 2 + 0.0095, FRONT + 0.0008));
-  {
-    const pg = slab(0.027, 0.0076, 0.0016, 0.0006, 0.0004);
-    // map the plate texture once across its face
-    const g2 = pg.clone(); const uv = g2.attributes.uv as THREE.BufferAttribute;
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, (uv.getX(i) + 0.0135) / 0.027, (uv.getY(i) + 0.0038) / 0.0076);
-    root.add(mesh(g2, S.plate, SCREEN.x + 0.022, -H.h / 2 + 0.0095, FRONT + 0.0008));
+  // ---- the case: a chamfered brushed-steel shell, a bevelled bakelite faceplate
+  root.add(ink(mesh(rbox(H.w, H.h, H.d, 0.004), S.steelB, cx, 0, TOP + H.d / 2)));
+  root.add(ink(mesh(slab(H.w - 0.01, H.h - 0.01, 0.006, 0.0012, 0.0006), S.bakeM, cx, 0, FRONT - 0.0004)));
+  // bright top rail and hazard-striped bottom rail
+  root.add(ink(mesh(rbox(H.w - 0.012, 0.005, H.d * 0.7, 0.0015), S.chrome, cx, H.h / 2 + 0.0008, TOP + H.d / 2)));
+  root.add(ink(mesh(rbox(H.w - 0.012, 0.005, H.d * 0.7, 0.0015), S.hazard, cx, -H.h / 2 - 0.0008, TOP + H.d / 2)));
+  // ribbed rubber grips down the ends
+  for (const sx of [-1, 1]) {
+    root.add(ink(mesh(rbox(0.007, 0.05, H.d * 0.8, 0.002), S.rubber, cx + sx * (H.w / 2 + 0.002), -0.004, TOP + H.d / 2)));
+    for (let i = 0; i < 5; i++) root.add(mesh(rbox(0.0024, 0.004, H.d * 0.84, 0.0008), S.rubber, cx + sx * (H.w / 2 + 0.0052), -0.022 + i * 0.009, TOP + H.d / 2));
   }
-  // the control column: a dial plate (round, with detent ticks) and the gauge's bezel and face
+  // the CRT bezel: a bevelled steel frame with a clipped-corner window, standing proud of the faceplate
+  root.add(ink(mesh(slab(SCREEN.w + 0.012, SCREEN.h + 0.012, 0.005, 0.0016, 0.0007, { w: SCREEN.w + 0.0006, h: SCREEN.h + 0.0006, r: 0.0032 }), S.steelM, SCREEN.x, SCREEN.y, FRONT + 0.0004)));
+  // the tube's dark surround inside the window
+  root.add(mesh(slab(SCREEN.w + 0.002, SCREEN.h + 0.002, 0.0034, 0.0008, 0), S.rubber, SCREEN.x, SCREEN.y, FRONT + 0.0006));
+  // speaker grille and the maker's plate along the bottom strip
+  root.add(ink(mesh(slab(0.036, 0.0078, 0.0022, 0.0006, 0.0003), S.grille, SCREEN.x - 0.014, -H.h / 2 + 0.0095, FRONT + 0.0006)));
+  root.add(ink(mesh(slab(0.027, 0.0076, 0.0016, 0.0006, 0.0003), S.plate, SCREEN.x + 0.022, -H.h / 2 + 0.0095, FRONT + 0.0006)));
+  // the control column: an octagonal dial plate (detent ticks) and the gauge's hex bezel and face
   {
     const KK = new Kit();
     const pt = KK.m('paint');
     pt.push().translate(COL_X, 0.0165, FRONT + 0.0004).rotateX(Math.PI / 2);
-    pt.cylinder(0, 0, 0, 0.0135, 0.0008, 28, { sides: 'wt_dialring', top: 'wt_dialring', bottom: 'wt_dialring' }, { fit: true });
+    pt.cylinder(0, 0, 0, 0.0135, 0.0008, 8, { sides: 'wt_dialring', top: 'wt_dialring', bottom: 'wt_dialring' }, { fit: true });
     pt.pop();
     const sg = KK.m('steel');
     sg.push().translate(COL_X, -0.019, FRONT + 0.0004).rotateX(Math.PI / 2);
-    sg.cylinder(0, 0, 0, 0.0118, 0.0018, 28, { sides: 'wt_knurl', top: 'wt_knurl', bottom: 'wt_knurl' }, { color: 0xe8e8e8, fit: true });
+    sg.cylinder(0, 0, 0, 0.0124, 0.0018, 6, { sides: 'wt_knurl', top: 'wt_knurl', bottom: 'wt_knurl' }, { color: 0xe8e8e8, fit: true });
     sg.pop();
     pt.push().translate(COL_X, -0.019, FRONT + 0.0012).rotateX(Math.PI / 2);
-    pt.cylinder(0, 0, 0, 0.0099, 0.0016, 28, { sides: 'wt_gauge', top: 'wt_gauge', bottom: 'wt_gauge' }, { fit: true });
+    pt.cylinder(0, 0, 0, 0.0105, 0.0016, 6, { sides: 'wt_gauge', top: 'wt_gauge', bottom: 'wt_gauge' }, { fit: true });
     pt.pop();
     KK.into(root);
   }
-  // toggle-switch collars on the top rail
-  for (const tx of [cx - 0.006, cx + 0.008]) root.add(mesh(new THREE.CylinderGeometry(0.0034, 0.0042, 0.0028, 16), S.chrome, tx, H.h / 2 + 0.0024, TOP + H.d * 0.55));
-  // rivets: domed brass heads
-  const rivet = new THREE.SphereGeometry(0.0016, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2);
+  // toggle-switch collars on the top rail: hex nuts
+  for (const tx of [cx - 0.006, cx + 0.008]) root.add(mesh(fcyl(0.0036, 0.0028, 6, 0.0044, 0.25), S.chrome, tx, H.h / 2 + 0.0024, TOP + H.d * 0.55));
+  // hex-head screws in the faceplate corners and round the bezel
+  const screw = geo('w_screw', () => fcyl(0.0017, 0.0009, 6, 0.0019, 0.35).rotateX(Math.PI / 2));
   for (const [rx, ry] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-    root.add(mesh(rivet, S.brass, cx + rx * (H.w / 2 - 0.0045), ry * (H.h / 2 - 0.0045), FRONT + 0.0009));
-    root.add(mesh(rivet, S.brass, SCREEN.x + rx * (SCREEN.w / 2 + 0.0032), SCREEN.y + ry * (SCREEN.h / 2 + 0.0032), FRONT + 0.0032));
+    root.add(mesh(screw, S.brass, cx + rx * (H.w / 2 - 0.0045), ry * (H.h / 2 - 0.0045), FRONT + 0.0009));
+    root.add(mesh(screw, S.brass, SCREEN.x + rx * (SCREEN.w / 2 + 0.0032), SCREEN.y + ry * (SCREEN.h / 2 + 0.0032), FRONT + 0.0028));
   }
   // armoured strap plates down the cuff
-  for (const sx of [-1, 1]) root.add(mesh(rbox(0.016, 0.005, ARM_R * 1.4, 0.002), S.steelB, cx + sx * (H.w / 2 - 0.009), -ARM_R * 0.82 - 0.004, 0.004));
+  for (const sx of [-1, 1]) root.add(ink(mesh(rbox(0.016, 0.005, ARM_R * 1.4, 0.0012), S.steelB, cx + sx * (H.w / 2 - 0.009), -ARM_R * 0.82 - 0.004, 0.004)));
 
   // ---- the CRT (its own glass and shader)
   screen.position.set(SCREEN.x, SCREEN.y, SCREEN.z);
   root.add(screen);
 
-  // ---- jewel lamps (glass domes in chrome collars) on the top strip
-  const lampGeo = new THREE.SphereGeometry(0.0023, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2);
-  const ringGeo = new THREE.TorusGeometry(0.0027, 0.0007, 8, 18);
+  // ---- jewel lamps: rose-cut glass in hex chrome collars on the top strip
+  const lampGeo = geo('w_jewel', () => flathe([[0.0024, 0], [0.0024, 0.0005], [0.0016, 0.0014], [0.0008, 0.0019], [0, 0.002]], 6).rotateX(Math.PI / 2));
+  const ringGeo = geo('w_collar', () => fring(0.0027, 0.0007, 6, 4));
   const lamp = (i: number, glass: number) => {
     const x = SCREEN.x - SCREEN.w / 2 + 0.004 + i * 0.0085, y = SCREEN.y + SCREEN.h / 2 + 0.0105;
     root.add(mesh(ringGeo, S.chrome, x, y, FRONT + 0.0009));
-    const m = new THREE.Mesh(lampGeo, glowMat(glass)); m.position.set(x, y, FRONT + 0.0009); root.add(m); return m;
+    const m = new THREE.Mesh(lampGeo, glowMat(glass)); m.position.set(x, y, FRONT + 0.0006); root.add(m); return m;
   };
   const lamps = { power: lamp(0, 0x0e2a12), signal: lamp(1, 0x2a1e06), alert: lamp(2, 0x2a0a06) };
 
-  // ---- the function dial: a knurled bakelite knob with a pointer
+  // ---- the function dial: an octagonal knurled bakelite knob with a pointer
   const knob = new THREE.Group();
   {
     const KK = new Kit(), b = KK.m('bake');
     b.push().rotateX(Math.PI / 2);
-    b.cylinder(0, 0, 0, 0.0084, 0.006, 24, { sides: 'wt_knurl', top: 'wt_knobtop', bottom: 'wt_knobtop' }, { fit: true });
-    b.cylinder(0, 0.006, 0, 0.0068, 0.0022, 24, { sides: 'wt_knobtop', top: 'wt_knobtop', bottom: 'wt_knobtop' }, { fit: true, rTop: 0.0058 });
+    b.cylinder(0, 0, 0, 0.0084, 0.006, 8, { sides: 'wt_knurl', top: 'wt_knobtop', bottom: 'wt_knobtop' }, { fit: true });
+    b.cylinder(0, 0.006, 0, 0.0068, 0.0022, 8, { sides: 'wt_knobtop', top: 'wt_knobtop', bottom: 'wt_knobtop' }, { fit: true, rTop: 0.0058 });
     b.pop();
     KK.into(knob);
   }
@@ -399,25 +407,24 @@ export function buildWatchModel(screen: THREE.Mesh, arm: FpArm): WatchModel {
   knob.userData.hit = 'dial';
   root.add(knob);
 
-  // ---- needle gauge: a tapered red needle under a domed glass cover
+  // ---- needle gauge: a tapered red blade on a hex brass boss, under a flat hex glass
   const needle = new THREE.Group();
   {
-    const n = new THREE.Mesh(new THREE.CylinderGeometry(0.00012, 0.0004, 0.0084, 6).translate(0, 0.0038, 0), glowMat(0x9a1810));
-    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.0012, 0.0012, 0.0008, 12).rotateX(Math.PI / 2), S.brass);
+    const n = new THREE.Mesh(fcyl(0.00012, 0.0084, 4, 0.0004, 0).translate(0, 0.0038, 0), glowMat(0x9a1810));
+    const hub = new THREE.Mesh(fcyl(0.0012, 0.0008, 6, 0.0013, 0.3).rotateX(Math.PI / 2), S.brass);
     needle.add(n, hub);
   }
   needle.position.set(COL_X, -0.0215, FRONT + 0.0032);
   root.add(needle);
-  const cover = new THREE.Mesh(new THREE.SphereGeometry(0.0099, 20, 6, 0, Math.PI * 2, 0, Math.PI * 0.18).rotateX(Math.PI / 2), glassMat());
-  cover.scale.z = 0.5;
-  cover.position.set(COL_X, -0.019, FRONT + 0.0012);
+  const cover = new THREE.Mesh(face(ngon(6, 0.0104, 0)), glassMat());
+  cover.position.set(COL_X, -0.019, FRONT + 0.0036);
   root.add(cover);
 
   // ---- bat-handle toggles on the top rail (pivot at the base, flick along Z)
   const toggle = (x: number, which: string) => {
     const piv = new THREE.Group();
-    piv.add(mesh(new THREE.CylinderGeometry(0.0017, 0.0011, 0.0085, 10).translate(0, 0.0042, 0), S.chrome));
-    piv.add(mesh(new THREE.SphereGeometry(0.0018, 10, 6), S.chrome, 0, 0.0086, 0));
+    piv.add(mesh(fcyl(0.0017, 0.0085, 6, 0.0011, 0).translate(0, 0.0042, 0), S.chrome));
+    piv.add(mesh(gem(0.0019, 0, 0), S.chrome, 0, 0.0086, 0));
     piv.position.set(x, H.h / 2 + 0.0034, TOP + H.d * 0.55);
     piv.userData.hit = 'toggle'; piv.userData.which = which;
     root.add(piv);
@@ -427,19 +434,21 @@ export function buildWatchModel(screen: THREE.Mesh, arm: FpArm): WatchModel {
 
   // ---- telescopic antenna at the elbow end
   const antenna = new THREE.Group();
-  antenna.add(mesh(new THREE.CylinderGeometry(0.0016, 0.0016, 0.012, 10).translate(0, 0.006, 0), S.chrome));
-  antenna.add(mesh(new THREE.CylinderGeometry(0.0011, 0.0011, 0.014, 10).translate(0, 0.019, 0), S.chrome));
-  antenna.add(mesh(new THREE.SphereGeometry(0.0026, 12, 8), S.brass, 0, 0.027, 0));
+  antenna.add(mesh(fcyl(0.0016, 0.012, 6, 0.0016, 0).translate(0, 0.006, 0), S.chrome));
+  antenna.add(mesh(fcyl(0.0011, 0.014, 6, 0.0011, 0).translate(0, 0.019, 0), S.chrome));
+  antenna.add(mesh(fcyl(0.0021, 0.0012, 6, 0.0021, 0.3), S.chrome, 0, 0.0122, 0));
+  antenna.add(mesh(gem(0.0026, 0, 0.1, 4), S.brass, 0, 0.027, 0));
   antenna.position.set(cx - H.w / 2 + 0.008, H.h / 2 + 0.001, TOP + H.d * 0.4);
   antenna.rotation.z = 0.25;
   root.add(antenna);
 
   // ---- multi-tool modules
-  // torch: a chrome lamp on the hand end of the case, lens facing along +X
+  // torch: an octagonal chrome lamp on the hand end of the case, lens facing along +X
   const torch = new THREE.Group();
-  torch.add(mesh(new THREE.CylinderGeometry(0.0085, 0.0072, 0.012, 18).rotateZ(-Math.PI / 2), S.chrome));
-  torch.add(mesh(rbox(0.008, 0.005, 0.011, 0.002), S.bakeB, -0.004, -0.008, 0));
-  const torchLens = new THREE.Mesh(new THREE.CircleGeometry(0.0074, 18).rotateY(Math.PI / 2), glowMat(0x3a3630));
+  torch.add(ink(mesh(fcyl(0.0085, 0.012, 8, 0.0072, 0.15).rotateZ(-Math.PI / 2), S.chrome)));
+  torch.add(mesh(fring(0.0084, 0.0009, 8, 4).rotateY(Math.PI / 2), S.chrome, 0.006, 0, 0));
+  torch.add(mesh(rbox(0.008, 0.005, 0.011, 0.0015), S.bakeB, -0.004, -0.008, 0));
+  const torchLens = new THREE.Mesh(face(ngon(8, 0.0074)).rotateY(Math.PI / 2), glowMat(0x3a3630));
   torchLens.position.set(0.0062, 0, 0); torch.add(torchLens);
   torch.position.set(cx + H.w / 2 + 0.006, 0.016, TOP + H.d * 0.55);
   root.add(torch);
@@ -447,47 +456,50 @@ export function buildWatchModel(screen: THREE.Mesh, arm: FpArm): WatchModel {
   const laser = new THREE.Group();
   const filaments = glowMat(0x2a1a10);
   {
-    laser.add(mesh(rbox(0.022, 0.006, 0.012, 0.0022), S.bakeB, -0.012, 0.003, 0));            // tube socket block
-    laser.add(mesh(new THREE.CylinderGeometry(0.0042, 0.0042, 0.05, 16).rotateZ(-Math.PI / 2), S.brass, 0, 0.0105, 0));
-    const coil = new THREE.TorusGeometry(0.0048, 0.0009, 6, 16).rotateY(Math.PI / 2);
-    const copper = new THREE.MeshStandardMaterial({ color: 0xd8824a, metalness: 0.9, roughness: 0.32, envMap: envMap(), envMapIntensity: 1.0 });
-    for (let i = 0; i < 6; i++) laser.add(mesh(coil, copper, -0.006 + i * 0.0036, 0.0105, 0));
-    laser.add(mesh(new THREE.CylinderGeometry(0.0026, 0.0058, 0.008, 16).rotateZ(-Math.PI / 2), S.brass, 0.029, 0.0105, 0));
+    laser.add(ink(mesh(rbox(0.022, 0.006, 0.012, 0.0015), S.bakeB, -0.012, 0.003, 0)));            // tube socket block
+    laser.add(ink(mesh(fcyl(0.0042, 0.05, 8, 0.0042, 0.1).rotateZ(-Math.PI / 2), S.brass, 0, 0.0105, 0)));
+    const coil = geo('w_coil', () => fring(0.0048, 0.0009, 8, 4).rotateY(Math.PI / 2));
+    for (let i = 0; i < 6; i++) laser.add(mesh(coil, S.copper, -0.006 + i * 0.0036, 0.0105, 0));
+    laser.add(mesh(fcyl(0.0026, 0.008, 8, 0.0058, 0.1).rotateZ(-Math.PI / 2), S.brass, 0.029, 0.0105, 0));
     const env = glassMat();
     for (const tx of [-0.018, -0.007]) {
-      laser.add(mesh(new THREE.CylinderGeometry(0.0006, 0.0006, 0.01, 6), filaments, tx, 0.016, 0));
-      laser.add(mesh(new THREE.CylinderGeometry(0.0034, 0.0034, 0.014, 16), env, tx, 0.0128, 0));
-      laser.add(mesh(new THREE.SphereGeometry(0.0034, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), env, tx, 0.0198, 0));
+      laser.add(mesh(fcyl(0.0006, 0.01, 4, 0.0006, 0), filaments, tx, 0.016, 0));
+      laser.add(mesh(fcyl(0.0034, 0.014, 8, 0.0034, 0, true), env, tx, 0.0128, 0));
+      laser.add(mesh(fdome(0.0034, 8, 2), env, tx, 0.0198, 0));
     }
   }
-  const laserLens = new THREE.Mesh(new THREE.CircleGeometry(0.0024, 12).rotateY(Math.PI / 2), glowMat(0x401008));
+  const laserLens = new THREE.Mesh(face(ngon(8, 0.0024)).rotateY(Math.PI / 2), glowMat(0x401008));
   laserLens.position.set(0.0331, 0.0105, 0); laser.add(laserLens);
   const laserTip = new THREE.Object3D(); laserTip.position.set(0.035, 0.0105, 0); laser.add(laserTip);
   laser.position.set(cx + 0.03, H.h / 2 + 0.001, TOP + H.d * 0.45);
   root.add(laser);
-  // scanner dish: brass, on a stalk by the antenna
+  // scanner dish: a faceted brass bowl on a stalk by the antenna
   const dish = new THREE.Group();
-  dish.add(mesh(new THREE.CylinderGeometry(0.0016, 0.0016, 0.007, 10).translate(0, 0.0035, 0), S.chrome));
-  dish.add(mesh(new THREE.SphereGeometry(0.0105, 18, 8, 0, Math.PI * 2, Math.PI * 0.6, Math.PI * 0.4).translate(0, 0.017, 0), S.brass));
-  dish.add(mesh(new THREE.SphereGeometry(0.0014, 10, 6), S.brass, 0, 0.0105, 0));
+  dish.add(mesh(fcyl(0.0016, 0.007, 6, 0.0016, 0).translate(0, 0.0035, 0), S.chrome));
+  {
+    const prof: number[][] = [];
+    for (let i = 0; i <= 3; i++) { const t = Math.PI * 0.6 + (i / 3) * Math.PI * 0.4; prof.push([Math.sin(t) * 0.0105, Math.cos(t) * 0.0105]); }
+    dish.add(mesh(flathe(prof.reverse(), 8).translate(0, 0.017, 0), S.brass));
+  }
+  dish.add(mesh(gem(0.0014, 0, 0), S.brass, 0, 0.0105, 0));
   dish.position.set(cx - H.w / 2 + 0.024, H.h / 2 + 0.001, TOP + H.d * 0.5);
   root.add(dish);
   // fabricator: brass pincers over the knuckles
   const fab = new THREE.Group();
-  fab.add(mesh(rbox(0.03, 0.01, 0.012, 0.003), S.bakeB));
-  for (const s of [-1, 1]) {
-    const jaw = new THREE.Group(); jaw.position.set(0.016, s * 0.004, 0.004); jaw.rotation.z = s * 0.45;
-    jaw.add(mesh(new THREE.CapsuleGeometry(0.0022, 0.016, 4, 10).rotateZ(-Math.PI / 2), S.brass, 0.009, 0, 0));
+  fab.add(ink(mesh(rbox(0.03, 0.01, 0.012, 0.002), S.bakeB)));
+  for (const s2 of [-1, 1]) {
+    const jaw = new THREE.Group(); jaw.position.set(0.016, s2 * 0.004, 0.004); jaw.rotation.z = s2 * 0.45;
+    jaw.add(mesh(fcapsule(0.0022, 0.02, 6).rotateZ(-Math.PI / 2), S.brass, 0, 0, 0));
     fab.add(jaw);
   }
-  fab.add(mesh(new THREE.CylinderGeometry(0.003, 0.003, 0.003, 12).rotateX(Math.PI / 2), S.brass, -0.006, 0.005, 0.007));
+  fab.add(mesh(fcyl(0.003, 0.003, 6, 0.003, 0.25).rotateX(Math.PI / 2), S.brass, -0.006, 0.005, 0.007));
   fab.position.set(cx + H.w / 2 + 0.034, -0.02, TOP + 0.006);
   root.add(fab);
   // battery: a bakelite cell with brass terminals strapped on behind the case
   const cell = new THREE.Group();
-  cell.add(mesh(rbox(0.034, 0.032, 0.012, 0.004), S.bakeB));
-  cell.add(mesh(rbox(0.026, 0.005, 0.0012, 0.0005), S.hazard, 0, 0.004, 0.0062));
-  for (const tx of [-0.01, 0.01]) cell.add(mesh(new THREE.CylinderGeometry(0.0026, 0.0026, 0.004, 12), S.brass, tx, 0.018, 0));
+  cell.add(ink(mesh(rbox(0.034, 0.032, 0.012, 0.0025), S.bakeB)));
+  cell.add(mesh(rbox(0.026, 0.005, 0.0012, 0.0004), S.hazard, 0, 0.004, 0.0062));
+  for (const tx of [-0.01, 0.01]) cell.add(mesh(fcyl(0.0026, 0.004, 6, 0.0028, 0.25), S.brass, tx, 0.018, 0));
   cell.position.set(cx - H.w / 2 - 0.03, 0.0, TOP + 0.004);
   root.add(cell);
 

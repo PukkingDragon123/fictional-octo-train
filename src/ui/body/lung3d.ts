@@ -9,7 +9,7 @@ import type { Player } from '../../entities/player';
 import type { Lungs } from './lung';
 import type { BodyStage, Cubes } from './stage';
 import { PrintTex, FONT, inkText } from './stage';
-import { Mold, M, BRASS, RUBBER, PLASTIC, STEEL, CHROME, GLASS, PAINT, R90, cyl, box, ring, ball, solidMesh, fcyl, fbox, gem } from './models';
+import { Mold, M, BRASS, RUBBER, PLASTIC, STEEL, CHROME, GLASS, PAINT, R90, cyl, box, ring, ball, solidMesh, fcyl, fbox, fring } from './models';
 import { plate, face as polyFace, clipRect, flathe, ngon } from '../touch/facet';
 import { mix, shade, hash } from './pix';
 
@@ -61,7 +61,7 @@ export class Lung3D {
       .add(ball(1.6, 0), M(LOBE_X, -10.4, 0), dark, BRASS);
     r.add(solidMesh(this.st, pipe));
     // the red bakelite handwheel (it turns as you breathe)
-    const wh = new Mold().add(ring(3.6, 0.75, 14), null, 0xa8281a, PLASTIC);
+    const wh = new Mold().add(fring(3.6, 0.8, 8, 4), M(0, 0, 0, 0, 0, Math.PI / 8), (_x, y) => (y > 1.5 ? 0xc8402a : 0xa8281a), PLASTIC);
     for (let k = 0; k < 3; k++) wh.add(cyl(0.35, 3.4, 6), M(Math.cos(k * 2.094 + R90) * 1.7, Math.sin(k * 2.094 + R90) * 1.7, 0, 0, 0, k * 2.094), 0x8a1a10, PLASTIC);
     wh.add(cyl(1, 1.6, 8), M(0, 0, 0, R90, 0, 0), brass, BRASS);
     this.wheel.add(solidMesh(this.st, wh));
@@ -91,7 +91,8 @@ export class Lung3D {
       .add(fbox(28, 0.7, 0.5, 0.3), M(0, LUNG_FLOOR + 1.3, 4.1), 0xd8dee4, CHROME)
       .add(fbox(4, 2.2, 4, 0.25), M(0, gy - CH / 2 - 0.6, -1.2), 0x2a1a12, PLASTIC)
       // the lamp's chrome collar on the case's shoulder
-      .add(fcyl(1.9, 1.2, 6, 2.2, 0.25), M(-CW / 2 + 2.6, gy + CH / 2 + 0.5, -0.4), 0xb8c0c8, CHROME)
+      .add(fbox(3.2, 1.2, 2.4, 0.25), M(-CW / 2 - 1.2, gy + 2.2, -0.6), 0x6a6e72, STEEL)
+      .add(fcyl(1.9, 1.2, 6, 2.2, 0.25), M(-CW / 2 - 2.2, gy + 3.2, -0.4), 0xb8c0c8, CHROME)
       // the Nixie's post and its socket
       .add(fcyl(0.9, NIX_Y - 6 - LUNG_FLOOR, 6), M(NIX_X, (NIX_Y - 6 + LUNG_FLOOR) / 2, -0.5), 0x2a1a12, PLASTIC)
       .add(fcyl(2.9, 1.4, 8, 3.1, 0.25), M(NIX_X, NIX_Y - 5.2, 0), 0x1a1612, PLASTIC)
@@ -109,7 +110,7 @@ export class Lung3D {
     cover.position.set(0, gy, 1.75); cover.renderOrder = 4; r.add(cover);
     this.lampMat = this.st.solid({ wear: 0.1 });
     const lamp = new THREE.Mesh(new Mold().add(flathe([[1.7, 0], [1.75, 0.5], [1.2, 1.4], [0.6, 1.8], [0, 1.85]], 6), null, 0x8a5a20, GLASS, 1).build(), this.lampMat);
-    lamp.position.set(-CW / 2 + 2.6, gy + CH / 2 + 1.1, -0.4); r.add(lamp);
+    lamp.position.set(-CW / 2 - 2.2, gy + 3.8, -0.4); r.add(lamp);
     this.nixie = new PrintTex(8, 12, 4);
     this.nixieMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.2, 4.8), new THREE.MeshBasicMaterial({ map: this.nixie.tex, transparent: true, depthWrite: false }));
     this.nixieMesh.position.set(NIX_X, NIX_Y - 0.6, 0.1); r.add(this.nixieMesh);
@@ -193,9 +194,9 @@ export class Lung3D {
     // the pivot's shadow on the card
     P.rect(Math.round(cx) - 1, Math.round(cy) - 1, 3, 3, 0x6a5a40, 0.5);
     t.commit((c, k) => {
-      inkText(c, 'OUT', (cx - R * 0.74) * k, (cy - 1) * k, 7 * k, FONT.sign, '#2a2018', 'center', '700');
-      inkText(c, 'IN', (cx + R * 0.76) * k, (cy - 1) * k, 7 * k, FONT.sign, '#8a1a12', 'center', '700');
-      inkText(c, 'Air', cx * k, (cy - R * 0.36) * k, 7 * k, FONT.typeset, '#4a3a28', 'center', 'italic 600');
+      inkText(c, 'OUT', (cx - 10) * k, (cy - 1) * k, 6.5 * k, FONT.sign, '#2a2018', 'center', '700');
+      inkText(c, 'IN', (cx + 10.5) * k, (cy - 1) * k, 6.5 * k, FONT.sign, '#8a1a12', 'center', '700');
+      inkText(c, 'air', (cx - 5) * k, (cy - R * 0.32) * k, 6 * k, FONT.typeset, '#5a4a38', 'center', 'italic 600');
     });
   }
 

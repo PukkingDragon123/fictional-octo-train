@@ -6,7 +6,7 @@
 // character's own pixel-art texture page (see humanPaint.ts).
 import * as THREE from 'three';
 import type { Appearance, Outfit } from './humanRig';
-import { OutfitShape } from './humanClothes';
+import type { OutfitShape, ShellFeat } from './humanClothes';
 import { shapeOf, noseOf, noseK, earK, suitLooks, mouthOf } from './humanLooks';
 
 // ------------------------------------------------------------------ skeleton
@@ -299,6 +299,64 @@ function ellRing(y: number, cx: number, cz: number, rx: number, rf: number, rb: 
   return pts;
 }
 
+/** one point of an ellRing: angle th, centre (cx, cz), radii, squareness, mirror, bump factor kk, height y */
+function superPt(th: number, cx: number, cz: number, rx: number, rf: number, rb: number, sq: number, mirror: number, kk: number, y: number): V3 {
+  const e = 2 / sq;
+  const sx = Math.sin(th), cz_ = Math.cos(th);
+  const ex = Math.sign(sx) * Math.pow(Math.abs(sx), e), ez = Math.sign(cz_) * Math.pow(Math.abs(cz_), e);
+  return [mirror * (cx + ex * rx * kk), y, cz + ez * (cz_ >= 0 ? rf : rb) * kk];
+}
+
+/**
+ * A modelled garment detail (humanClothes ShellFeat) standing off a body
+ * surface: a chamfered panel (pockets, flaps, number tape, buckles, pouches), a
+ * ridge (zips, plackets) or a raised band all the way round (belts,
+ * waistbands). UVs come from the same angle / height mapping the painters use,
+ * so the painted pocket, zip or buckle lands on its panel.
+ */
+function shellFeature(B: SkinBuilder, f: ShellFeat, surf: (y: number, deg: number, off: number) => V3, wfn: (y: number) => Wt, reg: Reg, range: number[], g: number) {
+  const t = f.t ?? 0.004;
+  const dpx = 360 / reg.w, ypx = (range[1] - range[0]) / reg.h;
+  const uvOf = (deg: number, y: number): [number, number] => [reg.x + (0.5 + deg / 360) * reg.w, reg.y + (1 - vOf(range, y)) * reg.h];
+  const inside = (y: number, deg: number) => surf(y, deg, -0.06);
+  // a grid of columns (deg) x rows (y); `raised(i, j)` says which points stand off by t (the rest sit on the cloth)
+  const grid = (cols: number[], rows: number[], raised: (i: number, j: number) => boolean, closed = false, uvc?: (i: number, j: number) => [number, number]) => {
+    const id: number[][] = rows.map((y, j) => cols.map((deg, i) => {
+      const [u, v] = uvc ? uvc(i, j) : uvOf(deg, y);
+      return B.vert(surf(y, deg, raised(i, j) ? t : 0.0004), u, v, wfn(y), -1);
+    }));
+    for (let j = 0; j + 1 < rows.length; j++) for (let i = 0; i + 1 < cols.length; i++) {
+      const ins = inside((rows[j] + rows[j + 1]) / 2, (cols[i] + cols[i + 1]) / 2);
+      const a = id[j][i], b = id[j][i + 1], c = id[j + 1][i + 1], d = id[j + 1][i];
+      if ((i + j) & 1) { B.triOut(a, b, d, ins); B.triOut(b, c, d, ins); } else { B.triOut(a, b, c, ins); B.triOut(a, c, d, ins); }
+    }
+    void closed;
+  };
+  if (f.kind === 'band') {
+    const y0 = f.y, y1 = f.y - Math.max(1, f.h) * ypx, e = Math.min(ypx * 0.4, (y0 - y1) * 0.3);
+    const n = 16, cols = Array.from({ length: n + 1 }, (_, i) => -180 + (360 * i) / n);
+    grid(cols, [y0 + e * 0.3, y0 - e, y1 + e, y1 - e * 0.3], (_i, j) => j === 1 || j === 2, true, (i, j) => uvOf(cols[i], [y0, y0 - e, y1 + e, y1][j]));
+    return;
+  }
+  if (f.kind === 'zip') {
+    const y0 = f.y, y1 = f.y1 ?? f.y - 0.2, hw = (f.w * dpx) / 2;
+    const nv = Math.max(2, Math.ceil((y0 - y1) / 0.05));
+    const rows = [y0, ...Array.from({ length: nv - 1 }, (_, i) => y0 - ((y0 - y1) * (i + 1)) / nv), y1];
+    grid([f.deg - hw * 1.6, f.deg - hw * 0.5, f.deg + hw * 0.5, f.deg + hw * 1.6], rows, (i, j) => (i === 1 || i === 2) && j > 0 && j < rows.length - 1 || (i === 1 || i === 2) && rows.length <= 2);
+    return;
+  }
+  // panels: patch pockets, flaps, tapes, boxes (buckles, pouches)
+  const hw = (f.w * dpx) / 2, y0 = f.y, y1 = f.y - f.h * ypx;
+  const box = f.kind === 'box';
+  const ed = Math.min(hw * 0.35, dpx * (box ? 0.35 : 0.6)), ey = Math.min((y0 - y1) * 0.3, ypx * (box ? 0.35 : 0.6));
+  const nu = Math.max(1, Math.ceil((hw * 2) / 14));
+  const inner = Array.from({ length: nu + 1 }, (_, i) => f.deg - hw + ed + ((hw * 2 - ed * 2) * i) / nu);
+  const cols = [f.deg - hw, ...inner, f.deg + hw];
+  const rows = [y0, y0 - ey, y1 + ey, y1];
+  // the rim samples the painted outline; the face samples the inside of the pocket
+  grid(cols, rows, (i, j) => i > 0 && i < cols.length - 1 && j > 0 && j < 3, false, (i, j) => uvOf(Math.min(f.deg + hw - dpx * 0.5, Math.max(f.deg - hw + dpx * 0.5, cols[i])), Math.min(y0 - ypx * 0.5, Math.max(y1 + ypx * 0.5, rows[j]))));
+}
+
 // ------------------------------------------------------------------ profiles (reference body, s = 1)
 interface Row { y: number; rx: number; rf: number; rb: number; sq?: number; cz?: number }
 const TORSO_ROWS: Row[] = [
@@ -454,6 +512,19 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       k += gauss(y, 1.07, 0.06) * gauss(th, 0, 0.7) * (mass - 1) * 0.6;
       // navel dip
       k -= gauss(y, 1.035, 0.012) * gauss(th, 0, 0.08) * 0.03 * (sh.top ? 0 : 1);
+      // bare skin: collarbones, the line down the belly
+      if (!sh.top && !sh.outer) {
+        k += gauss(y, 1.445, 0.012) * gauss(Math.abs(th), 0.55, 0.3) * 0.03;
+        k -= gauss(y, 1.12, 0.07) * gauss(th, 0, 0.1) * 0.025 * (1 - fem * 0.6);
+      }
+      // cloth: the top blouses over a tucked waist and ripples at a loose hem, folds drape from the armpits
+      if (sh.top || sh.outer) {
+        const fold = (a: number) => Math.sin(th * 7 + a) * 0.6 + Math.sin(th * 11 + a * 2.3) * 0.4;
+        if (sh.tuck) k += gauss(y, sh.waist + 0.035, 0.022) * (0.018 + 0.012 * fold(1.7));
+        const hem = sh.outer ? sh.outerHem : sh.topHem;
+        k += gauss(y, hem + 0.035, 0.03) * 0.012 * fold(0.4) * (sh.tuck && !sh.outer ? 0 : 1);
+        k += gauss(y, 1.2, 0.05) * gauss(Math.abs(th), 1.25, 0.3) * 0.016 * fold(2.9);
+      }
       return k;
     };
     const femX = (y: number) => 1 + fem * (-0.14 * gauss(y, 1.1, 0.07) - 0.08 * gauss(y, 1.33, 0.08) + 0.11 * gauss(y, 0.93, 0.05) + 0.05 * gauss(y, 0.86, 0.04));
@@ -465,7 +536,7 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       if (y < 1.47) return [BI.chest, 1];
       return [BI.chest, 0.6, BI.neck, 0.4];
     };
-    const n = 12;
+    const n = 16;
     const rings = ys.map(({ y, eps }) => {
       const r = sampleRows(TORSO_ROWS, y);
       const t = thick(y + eps * 0.0005);
@@ -475,22 +546,33 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       return { pts, v: vOf(VMAP.TORSO, y), w: wOf(y) };
     });
     B.loft(rings, usFor(n), reg, 1, { start: [0, 0.8 * s, -0.005], end: [0, 1.5 * s, -0.006 * s], startW: [BI.hips, 1], endW: [BI.chest, 0.5, BI.neck, 0.5], alt: true });
+    // the same surface as a function, for the pockets, zips and belts that stand off it
+    const surf = (y: number, deg: number, off: number): V3 => {
+      const r = sampleRows(TORSO_ROWS, y);
+      const t = thick(y) + off, fx = femX(y);
+      const th = (deg * Math.PI) / 180;
+      return superPt(th, 0, (r.cz ?? 0) * s, (r.rx * bw * fx + t) * s, (r.rf * mass + t) * s, (r.rb * mass + t) * s, r.sq ?? 2.2, 1, 1 + bump(th, y), y * s);
+    };
+    for (const f of sh.feats || []) if (f.part === 'torso') shellFeature(B, f, surf, wOf, reg, VMAP.TORSO, 1);
   }
 
   // ---------------- neck (+ collar / scarf)
   {
     const reg = REG.NECK;
-    const nr = 0.05 * (0.85 + 0.15 * mass) * (1 - fem * 0.1);
-    const ys = [1.45, 1.5, 1.545, 1.6];
-    const n = 8;
+    const nr = 0.054 * (0.85 + 0.15 * mass) * (1 - fem * 0.12);
+    const ys = [1.45, 1.49, 1.53, 1.565, 1.6];
+    const n = 10;
     const hx = R.head[1];
     const rings = ys.map((y) => {
-      const r = nr * (y < 1.47 ? 1.15 : 1);
-      const adam = (th: number) => gauss(y, 1.52, 0.015) * gauss(th, 0, 0.3) * 0.18 * (1 - fem);
-      return { pts: ellRing(y * s, 0, -0.008 * s, r * s, r * 1.05 * s, r * s, n, 2, 1, adam), v: vOf(VMAP.NECK, y),
+      const r = nr * (y < 1.47 ? 1.18 : y > 1.58 ? 0.97 : 1);
+      // the Adam's apple, the two cords from behind the ears down to the collarbones, the nape
+      const neckK = (th: number) => gauss(y, 1.52, 0.015) * gauss(th, 0, 0.3) * 0.16 * (1 - fem)
+        + gauss(Math.abs(th), 0.75 - (y - 1.45) * 4, 0.22) * 0.07 * (1 - fem * 0.5) - gauss(Math.abs(th), 0.25, 0.15) * gauss(y, 1.47, 0.02) * 0.06
+        + gauss(Math.abs(angd(th, Math.PI)), 0.55, 0.3) * gauss(y, 1.47, 0.03) * 0.12;
+      return { pts: ellRing(y * s, 0, -0.008 * s, r * s, r * 1.04 * s, r * 1.02 * s, n, 2.1, 1, neckK), v: vOf(VMAP.NECK, y),
         w: (y * s < hx - 0.02 ? [BI.chest, y < 1.47 ? 0.7 : 0.15, BI.neck, y < 1.47 ? 0.3 : 0.85] : [BI.neck, 0.4, BI.head, 0.6]) as Wt };
     });
-    B.loft(rings, usFor(n), reg, 2, {});
+    B.loft(rings, usFor(n), reg, 2, { alt: true });
     if (sh.collar === 'shirt' || sh.collar === 'coat') {
       // folded collar: flared ring open at the front
       const cr = nr + 0.012 + (sh.collar === 'coat' ? 0.012 : 0);
@@ -532,6 +614,9 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
     if (sleeveY < 1) breaks.push(sleeveY);
     if (sh.gloves && !cutH) breaks.push(-0.485);
     let ys = ringYs(ARM_ROWS, breaks);
+    // sleeves: extra rings for the folds bunching inside the elbow and stacking above the cuff
+    if (sleeveY < -0.3) { for (const y of [-0.235, -0.285, -0.32]) ys.push({ y, eps: 0 }); if (sleeveY < -0.45) for (const y of [-0.455, -0.478]) ys.push({ y, eps: 0 }); ys.sort((a, b) => b.y - a.y || b.eps - a.eps); }
+    else if (sleeveY < 0.5 && sleeveY > -0.3) { ys.push({ y: sleeveY + 0.03, eps: 0 }); ys.sort((a, b) => b.y - a.y || b.eps - a.eps); }
     if (cutY !== null) { ys = ys.filter((r) => r.y > cutY + 0.008); ys.push({ y: cutY, eps: 0 }); }
     const fm = (1 - fem * 0.12) * (0.82 + 0.18 * mass);
     const wOf = (y: number): Wt => {
@@ -541,23 +626,47 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       if (y > -0.5 || cutH) return [F, 1];
       const t = clamp01((y + 0.5) / -0.04); return [F, 1 - t * 0.5, H, t * 0.5];
     };
-    const rings = ys.map(({ y, eps }) => {
-      const r = sampleRows(ARM_ROWS, y);
-      const yy = y + eps * 0.0005;
+    const tOf = (yy: number) => {
       let t = 0;
       if (yy > sleeveY) t += sh.armThick + (yy > sleeveY + 0.02 || sh.sleeve !== 'short' ? 0 : 0.004);
       if (sh.gloves && yy < -0.485) t += 0.004;
-      // long coats make the sleeve hang straight
-      const bump = (th: number) => (gauss(y, -0.12, 0.05) * gauss(th, 0.1, 0.6) * 0.06 - gauss(y, -0.28, 0.03) * gauss(th, 0, 0.5) * 0.04) * (t > 0.01 ? 0.3 : 1);
+      return t;
+    };
+    // muscle under the skin (deltoid cap, biceps, the forearm's belly), cloth folds over it
+    const armBump = (th: number, y: number, t: number) => {
+      const cloth = t > 0.003 && y > sleeveY;
+      let b = (gauss(y, -0.03, 0.04) * gauss(Math.abs(th), 1.4, 0.7) * 0.07 + gauss(y, -0.13, 0.05) * gauss(th, 0.1, 0.6) * 0.06
+        - gauss(y, -0.28, 0.03) * gauss(th, 0, 0.5) * 0.04 + gauss(y, -0.35, 0.04) * gauss(th, 0.6, 0.6) * 0.05) * (cloth ? 0.3 : 1);
+      if (cloth) {
+        const f = Math.sin(th * 3 + y * 90) * 0.6 + Math.sin(th * 5 - y * 140) * 0.4;
+        b += gauss(y, -0.29, 0.035) * gauss(th, 0, 0.9) * 0.09 * (0.6 + 0.4 * f);       // bunched inside the elbow
+        if (sh.sleeve === 'long') b += gauss(y, -0.475, 0.02) * 0.06 * (0.5 + 0.5 * f);    // stacked over the cuff
+        if (sh.sleeve === 'short') b += gauss(y, sleeveY + 0.025, 0.02) * 0.08 * (0.6 + 0.4 * f);
+      }
+      return b;
+    };
+    const rings = ys.map(({ y, eps }) => {
+      const r = sampleRows(ARM_ROWS, y);
+      const yy = y + eps * 0.0005;
+      const t = tOf(yy);
       const rx = r.rx * fm + t, rf = r.rf * fm + t, rb = r.rb * fm + t;
-      const pts = ellRing(ua[1] + y * s, 0, ua[2], rx * s, rf * s, rb * s, 8, 2, k, bump);
+      const pts = ellRing(ua[1] + y * s, 0, ua[2], rx * s, rf * s, rb * s, 8, 2, k, (th) => armBump(th, y, t));
       for (const p of pts) p[0] += ua[0];
       return { pts, v: vOf(VMAP.ARM, y), w: wOf(y) };
     });
     B.loft(rings, usFor(8), reg, 10 + (k > 0 ? 0 : 1), {
-      start: [ua[0] - k * 0.012 * s, ua[1] + 0.02 * s, ua[2]], startW: [U, 0.8, BI.chest, 0.2],
+      start: [ua[0] - k * 0.012 * s, ua[1] + 0.02 * s, ua[2]], startW: [U, 0.8, BI.chest, 0.2], alt: true,
       ...(cutY !== null ? { end: [ua[0], ua[1] + (cutY - 0.014) * s, ua[2]], endW: (cutF ? [U, 1] : [F, 1]) as Wt } : {}),
     });
+    {
+      const surf = (y: number, deg: number, off: number): V3 => {
+        const r = sampleRows(ARM_ROWS, y), t = tOf(y) + off, th = (deg * Math.PI) / 180;
+        const p = superPt(th, 0, ua[2], (r.rx * fm + t) * s, (r.rf * fm + t) * s, (r.rb * fm + t) * s, 2, k, 1 + armBump(th, y, tOf(y)), ua[1] + y * s);
+        p[0] += ua[0];
+        return p;
+      };
+      for (const f of sh.feats || []) if (f.part === 'arm' && (cutY === null || f.y - 0.05 > cutY)) shellFeature(B, f, surf, wOf, reg, VMAP.ARM, 12);
+    }
     if (!cutH) hand(B, d, side, k, sh.gloves);
     // wrist monitor: a chunky band and face on the back of the left wrist
     if (side === 'L' && o.wrist && !cutF) {
@@ -596,9 +705,21 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
     if (sh.legKind === 'pants' || sh.legKind === 'shorts') breaks.push(pantsHem);
     if (sh.feet === 'sock' && !cutFt) breaks.push(-0.72);
     let ys = ringYs(LEG_ROWS, breaks);
+    if (sh.legKind === 'pants') { for (const y of [-0.72, -0.795]) if (y > pantsHem + 0.02) ys.push({ y, eps: 0 }); ys.sort((a, b) => b.y - a.y || b.eps - a.eps); }
     if (cutY !== null) { ys = ys.filter((r) => r.y > cutY + 0.008); ys.push({ y: cutY, eps: 0 }); }
     const fm = (0.85 + 0.15 * mass);
     const femLeg = (y: number) => 1 + fem * (0.09 * gauss(y, -0.08, 0.12) - 0.05 * gauss(y, -0.6, 0.1));
+    // kneecap, the hamstring hollow behind it; trousers fold behind the knee and stack over the shoe
+    const legBump = (thx: number, y: number, covered: boolean) => {
+      let b = gauss(y, -0.445, 0.025) * gauss(thx, 0, 0.5) * (covered ? 0.04 : 0.12);
+      if (covered && sh.legKind === 'pants') {
+        const f = Math.sin(thx * 3 + y * 70) * 0.6 + Math.sin(thx * 5 - y * 120) * 0.4;
+        b += gauss(y, -0.46, 0.03) * gauss(Math.abs(angd(thx, Math.PI)), 0, 0.9) * 0.08 * (0.6 + 0.4 * f);
+        b += gauss(y, pantsHem + 0.05, 0.035) * 0.07 * (0.55 + 0.45 * f);
+        b += gauss(y, -0.12, 0.05) * gauss(Math.abs(thx), 0.5, 0.4) * 0.03 * f;
+      } else if (!covered) b -= gauss(y, -0.47, 0.02) * gauss(Math.abs(angd(thx, Math.PI)), 0, 0.5) * 0.05;
+      return b;
+    };
     const wOf = (y: number): Wt => {
       if (y > 0.02) return [BI.hips, 0.5, T, 0.5];
       if (y > -0.05) { const t = (0.02 - y) / 0.07; return [BI.hips, 0.5 - t * 0.4, T, 0.5 + t * 0.4]; }
@@ -619,15 +740,26 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       }
       if (sh.feet === 'sock' && yy < -0.72) t += 0.003;
       const fl = femLeg(y);
-      const knee = (thx: number) => gauss(y, -0.445, 0.025) * gauss(thx, 0, 0.5) * (covered ? 0.04 : 0.12);
+      const knee = (thx: number) => legBump(thx, y, covered);
       const rx = r.rx * fm * fl + t + flare, rf = r.rf * fm * fl + t + flare, rb = r.rb * fm * fl + t + flare * 0.6;
       const pts = ellRing(th[1] + y * s, 0, th[2], rx * s, rf * s, rb * s, 8, 2, k, knee);
       for (const p of pts) p[0] += th[0];
       return { pts, v: vOf(VMAP.LEG, y), w: wOf(y) };
     });
     B.loft(rings, usFor(8), reg, 20 + (k > 0 ? 0 : 1), cutY !== null
-      ? { start: [th[0], th[1] + 0.07 * s, th[2]], end: [th[0], th[1] + (cutY - 0.016) * s, th[2]], startW: [BI.hips, 0.6, T, 0.4], endW: (cutS ? [T, 1] : [S, 1]) as Wt }
-      : { start: [th[0], th[1] + 0.07 * s, th[2]], end: [th[0], th[1] - 0.875 * s, th[2] + 0.004], startW: [BI.hips, 0.6, T, 0.4], endW: [Ft, 1] });
+      ? { start: [th[0], th[1] + 0.07 * s, th[2]], end: [th[0], th[1] + (cutY - 0.016) * s, th[2]], startW: [BI.hips, 0.6, T, 0.4], endW: (cutS ? [T, 1] : [S, 1]) as Wt, alt: true }
+      : { start: [th[0], th[1] + 0.07 * s, th[2]], end: [th[0], th[1] - 0.875 * s, th[2] + 0.004], startW: [BI.hips, 0.6, T, 0.4], endW: [Ft, 1], alt: true });
+    {
+      const surf = (y: number, deg: number, off: number): V3 => {
+        const r = sampleRows(LEG_ROWS, y), fl = femLeg(y), thr = (deg * Math.PI) / 180;
+        const flare = sh.legKind === 'pants' ? Math.max(0, (-0.43 - y) / 0.42) * (0.012 + sh.legFlare) : 0;
+        const t = sh.legThick + off;
+        const p = superPt(thr, 0, th[2], (r.rx * fm * fl + t + flare) * s, (r.rf * fm * fl + t + flare) * s, (r.rb * fm * fl + t + flare * 0.6) * s, 2, k, 1 + legBump(thr, y, true), th[1] + y * s);
+        p[0] += th[0];
+        return p;
+      };
+      for (const f of sh.feats || []) if (f.part === 'leg' && (cutY === null || f.y - 0.1 > cutY)) shellFeature(B, f, surf, wOf, reg, VMAP.LEG, 22);
+    }
     if (!cutFt) foot(B, d, side, k, sh);
     const sp = (p: string) => cond.splints.has(p + '_' + side.toLowerCase()) && !sev?.has(p + '_' + side.toLowerCase());
     if (sp('shin') || sp('thigh') || sp('foot')) {
@@ -657,9 +789,11 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
         const l = clamp01(0.5 + p[0] / (rx * 0.9) * 0.5);
         return [BI.hips, 1 - kk, BI.thighL, kk * l, BI.thighR, kk * (1 - l)];
       };
-      return { pts: ellRing(y * s, 0, 0, rx, rf, rb, n, 2.2, 1), v: 1 - i / 2, w: ww };
+      // pleats and hanging folds deepen toward the hem
+      const pleat = (th: number) => (Math.sin(th * 7 + 0.4) * 0.6 + Math.sin(th * 4 + 1.9) * 0.4) * 0.05 * f;
+      return { pts: ellRing(y * s, 0, 0, rx, rf, rb, n, 2.2, 1, pleat), v: 1 - i / 2, w: ww };
     });
-    B.loft(rings, usFor(n), REG.SKIRT, 30, { double: true, skip: sh.tailsOpen ? (j) => j === 6 || j === 7 : undefined });
+    B.loft(rings, usFor(n), REG.SKIRT, 30, { double: true, skip: sh.tailsOpen ? (j) => j === 6 || j === 7 : undefined, alt: true });
   }
 
   // ---------------- head, face, hair, headwear
@@ -684,26 +818,30 @@ function hand(B: SkinBuilder, d: Dims, side: 'L' | 'R', k: number, gloves: boole
   const hs = s * (1 - d.fem * 0.08) * (0.9 + 0.1 * d.mass);
   const tr = (p: V3): V3 => [hp[0] + p[0], hp[1] + p[1], hp[2] + p[2]];
   // palm: thickness on x (back of hand outward), width on z
+  // palm: a boxy six-sided loft, broadest across the knuckles, the heel of the hand and the knuckle ridge standing out
   const prow = [
-    { y: 0.004, rx: 0.017, rf: 0.026, rb: 0.024, v: 1, w: [BI[('farm' + side) as BoneName], 0.4, H, 0.6] },
-    { y: -0.028, rx: 0.019, rf: 0.039, rb: 0.035, v: 0.82, w: [H, 1] },
-    { y: -0.062, rx: 0.017, rf: 0.043, rb: 0.04, v: 0.66, w: [H, 1] },
-    { y: -0.088, rx: 0.015, rf: 0.042, rb: 0.039, v: 0.55, w: [H, 0.6, F1, 0.4] },
+    { y: 0.004, rx: 0.018, rf: 0.027, rb: 0.025, v: 1, w: [BI[('farm' + side) as BoneName], 0.4, H, 0.6] },
+    { y: -0.026, rx: 0.021, rf: 0.042, rb: 0.037, v: 0.82, w: [H, 1] },
+    { y: -0.06, rx: 0.019, rf: 0.046, rb: 0.042, v: 0.66, w: [H, 1] },
+    { y: -0.084, rx: 0.019, rf: 0.047, rb: 0.043, v: 0.56, w: [H, 0.65, F1, 0.35] },
   ];
-  const rings = prow.map((r) => ({ pts: ellRing(r.y * hs, 0, 0.002, (r.rx + g) * hs, (r.rf + g) * hs, (r.rb + g) * hs, 6, 2.6, k, undefined, -Math.PI + Math.PI / 6).map(tr), v: r.v, w: r.w as Wt }));
-  B.loft(rings, usFor(6), reg, 40 + (k > 0 ? 0 : 1), { end: tr([0, -0.094 * hs, 0.002]), endW: [H, 0.6, F1, 0.4] });
-  // fingers: 4 square tubes, 2 segments each (knuckle bone + middle bone)
-  const fz = [0.028, 0.0095, -0.009, -0.026], fl = [0.075, 0.083, 0.078, 0.063], fr = [0.0088, 0.0094, 0.0088, 0.0076];
+  const knuckle = (th: number) => Math.max(0, Math.sin(th)) * 0.05;
+  const rings = prow.map((r, ri) => ({ pts: ellRing(r.y * hs, 0, 0.002, (r.rx + g) * hs, (r.rf + g) * hs, (r.rb + g) * hs, 6, 2.6, k, ri === 3 ? knuckle : undefined, -Math.PI + Math.PI / 6).map(tr), v: r.v, w: r.w as Wt }));
+  B.loft(rings, usFor(6), reg, 40 + (k > 0 ? 0 : 1), { end: tr([0, -0.092 * hs, 0.002]), endW: [H, 0.6, F1, 0.4], alt: true });
+  // fingers: 4 square tubes in three segments (knuckle, middle and end joints), fat knuckles, a blunt tip
+  const fz = [0.03, 0.0102, -0.0098, -0.0285], fl = [0.077, 0.085, 0.08, 0.064], fr = [0.0102, 0.0108, 0.0101, 0.0087];
   for (let i = 0; i < 4; i++) {
     const L = fl[i] * hs, r = (fr[i] + g * 0.6) * hs, z = fz[i] * hs;
-    const y0 = -0.082 * hs, ym = -0.088 * hs - 0.04 * hs, y1 = -0.082 * hs - L;
-    const fr4 = (y: number, rr: number) => ellRing(y, 0, z, rr * 1.05, rr, rr, 4, 2, k, undefined, -Math.PI + Math.PI / 4).map(tr);
+    const y0 = -0.08 * hs, ym = -0.088 * hs - 0.04 * hs, yd = ym - (L - 0.048 * hs) * 0.55, y1 = -0.082 * hs - L;
+    const fr4 = (y: number, rr: number) => ellRing(y, 0, z, rr * 1.08, rr, rr, 4, 2, k, undefined, -Math.PI + Math.PI / 4).map(tr);
     const rr = [
-      { pts: fr4(y0, r), v: 0.5, w: [H, 0.3, F1, 0.7] as Wt },
-      { pts: fr4(ym, r * 0.96), v: 0.25, w: [F1, 0.5, F2, 0.5] as Wt },
-      { pts: fr4(y1 + 0.006 * hs, r * 0.85), v: 0.04, w: [F2, 1] as Wt },
+      { pts: fr4(y0, r * 1.08), v: 0.55, w: [H, 0.3, F1, 0.7] as Wt },
+      { pts: fr4(ym + 0.005 * hs, r * 1.0), v: 0.32, w: [F1, 0.7, F2, 0.3] as Wt },
+      { pts: fr4(ym - 0.004 * hs, r * 1.02), v: 0.26, w: [F1, 0.3, F2, 0.7] as Wt },
+      { pts: fr4(yd, r * 0.9), v: 0.14, w: [F2, 1] as Wt },
+      { pts: fr4(y1 + 0.007 * hs, r * 0.82), v: 0.04, w: [F2, 1] as Wt },
     ];
-    B.loft(rr, usFor(4), reg, 42 + i * 2 + (k > 0 ? 0 : 1), { end: tr([0, y1, z]), endW: [F2, 1], endV: 0 });
+    B.loft(rr, usFor(4), reg, 42 + i * 2 + (k > 0 ? 0 : 1), { end: tr([0, y1, z + 0.0005]), endW: [F2, 1], endV: 0 });
   }
   // thumb: tube along a diagonal axis from the heel of the palm
   {
@@ -720,11 +858,12 @@ function hand(B: SkinBuilder, d: Dims, side: 'L' | 'R', k: number, gloves: boole
       }
       return out;
     };
-    const L = 0.062 * hs, r = (0.0115 + g * 0.6) * hs;
+    const L = 0.066 * hs, r = (0.0128 + g * 0.6) * hs;
     const rr = [
-      { pts: ring(0, r * 1.25), v: 0.5, w: [H, 0.5, TH, 0.5] as Wt },
-      { pts: ring(L * 0.5, r), v: 0.25, w: [TH, 1] as Wt },
-      { pts: ring(L * 0.92, r * 0.85), v: 0.05, w: [TH, 1] as Wt },
+      { pts: ring(-0.004 * hs, r * 1.45), v: 0.5, w: [H, 0.6, TH, 0.4] as Wt },
+      { pts: ring(L * 0.42, r * 1.05), v: 0.3, w: [TH, 1] as Wt },
+      { pts: ring(L * 0.62, r * 1.02), v: 0.2, w: [TH, 1] as Wt },
+      { pts: ring(L * 0.92, r * 0.84), v: 0.05, w: [TH, 1] as Wt },
     ];
     const tip = tr([base[0] + dir[0] * L, base[1] + dir[1] * L, base[2] + dir[2] * L]);
     B.loft(rr, usFor(5), reg, 50 + (k > 0 ? 0 : 1), { end: tip, endW: [TH, 1], endV: 0 });
@@ -803,20 +942,47 @@ function foot(B: SkinBuilder, d: Dims, side: 'L' | 'R', k: number, sh: OutfitSha
   const last = spec.rows[spec.rows.length - 1];
   B.loft(rings, us, reg, 60 + (k > 0 ? 0 : 1), {
     start: [fp[0], fp[1] + ground + 0.03 * s, fp[2] + (spec.rows[0].z - 0.006) * fs],
-    end: [fp[0], fp[1] + ground + (sole + 0.012) * fs, fp[2] + (last.z + 0.012) * fs], endV: 0.72, startV: 0.0,
+    end: [fp[0], fp[1] + ground + (sole + 0.012) * fs, fp[2] + (last.z + 0.012) * fs], endV: 0.72, startV: 0.0, alt: true,
   });
-  // boot shaft around the ankle / lower shin
+  // laces: bars crossing the vamp up the instep, the tongue standing proud above them (shoes and boots)
+  if (sh.feet === 'sneaker' || sh.feet === 'boot' || sh.feet === 'dress') {
+    const topAt = (z: number) => {
+      const R = spec.rows;
+      let i = 0; while (i < R.length - 2 && R[i + 1].z < z) i++;
+      const a = R[i], b = R[i + 1], f = clamp01((z - a.z) / (b.z - a.z || 1));
+      return { top: (a.top + (b.top - a.top) * f) * fs, rx: (a.rx + (b.rx - a.rx) * f) * fs };
+    };
+    const n = sh.feet === 'boot' ? 5 : sh.feet === 'dress' ? 3 : 4;
+    const z0 = sh.feet === 'boot' ? -0.01 : 0.015, z1 = sh.feet === 'dress' ? 0.08 : 0.105;
+    const lace = [0.46, 0.3, 0.54, 0.46] as [number, number, number, number];
+    for (let i = 0; i < n; i++) {
+      const z = z0 + ((z1 - z0) * i) / Math.max(1, n - 1);
+      const h0 = topAt(z - 0.012), h1 = topAt(z + 0.012);
+      const slope = Math.atan2(h0.top - h1.top, 0.024 * fs);
+      const c: V3 = [fp[0], fp[1] + topAt(z).top + 0.0035 * s, fp[2] + z * fs];
+      B.box(c, [topAt(z).rx * 0.9, 0.0045 * s, 0.0075 * s], new THREE.Matrix4().makeRotationX(slope).multiply(new THREE.Matrix4().makeRotationY(i & 1 ? 0.18 : -0.18)), reg, [Ft, 1], lace);
+    }
+    if (sh.feet !== 'dress') {
+      const zt = z0 - 0.022;
+      const ht = topAt(zt);
+      B.box([fp[0], fp[1] + ht.top + 0.012 * s, fp[2] + zt * fs], [ht.rx * 0.95, 0.03 * s, 0.006 * s], new THREE.Matrix4().makeRotationX(-0.35), reg, [Ft, 0.5, S, 0.5], [0.44, 0.6, 0.56, 0.72]);
+    }
+  }
+  // boot shaft around the ankle / lower shin: a padded collar at the top, a pull tab behind
   if (spec.shaft) {
     const shp = d.rest[('shin' + side) as BoneName];
-    const ys = [-0.86, -0.8, -0.74, -0.73];
+    const ys = [-0.86, -0.8, -0.752, -0.738, -0.728];
+    const over = sh.legKind === 'pants' && !sh.tuckPants ? 0.013 : 0;
     const rr = ys.map((y, i) => {
       const r = sampleRows(LEG_ROWS, y);
-      const t = (i === 3 ? 0.004 : 0.012) + (sh.legKind === 'pants' && !sh.tuckPants ? 0.016 : 0);
+      const t = (i === 4 ? 0.003 : i === 3 ? 0.014 : 0.009) + over;
       const pts = ellRing(shp[1] + (y + 0.43) * s, 0, shp[2] + 0.004, (r.rx + t) * s, (r.rf + t) * s, (r.rb + t) * s, 8, 2.2, k);
       for (const p of pts) p[0] += shp[0];
-      return { pts, v: 0.76 + 0.24 * (i / 3), w: (y < -0.8 ? [Ft, 0.6, S, 0.4] : [S, 1]) as Wt };
+      return { pts, v: 0.76 + 0.24 * (i / 4), w: (y < -0.8 ? [Ft, 0.6, S, 0.4] : [S, 1]) as Wt };
     });
-    B.loft(rr, usFor(8), reg, 64 + (k > 0 ? 0 : 1), { double: true });
+    B.loft(rr, usFor(8), reg, 64 + (k > 0 ? 0 : 1), { double: true, alt: true });
+    const r = sampleRows(LEG_ROWS, -0.74);
+    B.box([shp[0], shp[1] + (-0.74 + 0.43 + 0.012) * s, shp[2] + 0.004 - (r.rb + 0.016 + over) * s], [0.016 * s, 0.03 * s, 0.006 * s], null, reg, [S, 1], [0.02, 0.8, 0.08, 0.95]);
   }
 }
 
@@ -831,7 +997,7 @@ const HEAD_ROWS: HeadRow[] = [
   { y: 0.033, zc: 0.006, r: [0.099, 0.091, 0.076, 0.07, 0.068, 0.07, 0.079, 0.083] },
   { y: 0.058, zc: 0.006, r: [0.101, 0.094, 0.081, 0.074, 0.072, 0.078, 0.091, 0.096] },
   { y: 0.078, zc: 0.006, r: [0.099, 0.095, 0.086, 0.077, 0.074, 0.082, 0.098, 0.103] },
-  { y: 0.096, zc: 0.006, r: [0.097, 0.088, 0.085, 0.078, 0.075, 0.084, 0.1, 0.106] },
+  { y: 0.096, zc: 0.006, r: [0.098, 0.094, 0.086, 0.078, 0.075, 0.084, 0.1, 0.106] },
   { y: 0.114, zc: 0.006, r: [0.1, 0.098, 0.088, 0.078, 0.076, 0.085, 0.1, 0.106] },
   { y: 0.143, zc: 0.004, r: [0.096, 0.093, 0.086, 0.077, 0.076, 0.084, 0.098, 0.104] },
   { y: 0.173, zc: 0.0, r: [0.083, 0.081, 0.076, 0.071, 0.069, 0.075, 0.086, 0.09] },
@@ -886,8 +1052,8 @@ export function faceRelief(y: number, deg: number, fem: number, sk: { hollow: nu
   r += (0.0035 + 0.0035 * masc) * g(y, 0.116, 0.0062) * (a < 46 ? 1 : g(a, 46, 11)) * (0.75 + 0.25 * g(a, 20, 12));
   r -= 0.0013 * g(y, 0.108, 0.006) * g(a, 0, 5);
   // the sockets: the eye sits deep under the brow, the ball bulges a little under the lids
-  r -= 0.0085 * g(y, 0.099, 0.0072) * g(a, 18, 9);
-  r += 0.0034 * g(y, 0.098, 0.0036) * g(a, 18, 5.5);
+  r -= 0.0095 * g(y, 0.1, 0.0068) * g(a, 18, 8.5);
+  r += 0.0036 * g(y, 0.098, 0.0036) * g(a, 18, 5.5);
   // cheekbones, the hollow under them (gaunt faces sink), the nasolabial fold
   r += (0.0042 + 0.0012 * fem) * g(y, 0.077, 0.0085) * g(a, 43, 12);
   r -= (0.0018 + 0.004 * sk.hollow) * g(y, 0.05, 0.011) * g(a, 47, 13);
@@ -1121,10 +1287,18 @@ function hair(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape, tr: (p:
   const curlAmp = st === 'curly' ? 0.008 : st === 'afro' ? 0.013 : 0;
   const curl = (deg: number, y: number) => (curlAmp ? (Math.sin(deg * 0.21 + y * 90) * 0.5 + Math.cos(deg * 0.13 - y * 140) * 0.5) * curlAmp : 0);
   const spike = (deg: number, y: number) => (st === 'spiky' && y > 0.11 ? Math.max(0, Math.sin(deg * 0.31 + y * 210)) * 0.016 * clamp01((y - 0.11) / 0.05) : 0);
-  const rings = rowYs.map((y) => {
-    const pts = HEAD_ANG.map((a) => {
-      const yy = Math.max(y, line(a));
-      const yc = Math.min(yy, hat ? hatLine + 0.004 : 99);
+  // polygon clumps: every vertex off the scalp line is pushed in or out a little; tufts poke down at the hairline, long ends hang ragged
+  const hh = (a: number, b: number) => { const x = Math.sin(a * 127.1 + b * 311.7 + (app.hair & 255) * 0.37) * 43758.5453; return x - Math.floor(x); };
+  const nA = HEAD_ANG.length - 1;
+  const clumpAmp = st === 'buzz' || st === 'cornrows' ? 0 : st === 'curly' || st === 'afro' ? 0.011 : st === 'spiky' ? 0.009 : 0.0065;
+  const tufts = !hat && (st === 'short' || st === 'spiky' || st === 'undercut' || st === 'curly' || st === 'mullet' || st === 'receding' || st === 'ponytail' || st === 'topknot');
+  const rings = rowYs.map((y, ri) => {
+    const pts = HEAD_ANG.map((a, ci) => {
+      const cj = ci % nA;
+      let yy = Math.max(y, line(a));
+      if (ri === 0 && tufts && Math.abs(a) < 115 && (cj & 1)) yy -= st === 'spiky' ? 0.012 : 0.007;
+      let yc = Math.min(yy, hat ? hatLine + 0.004 : 99);
+      if (yc < 0 && ri === 0 && (cj & 1)) yc -= 0.025 + hh(cj, 3) * 0.02;
       const below = yc < 0.0;
       let p: V3;
       if (below) {
@@ -1138,8 +1312,10 @@ function hair(B: SkinBuilder, d: Dims, app: Appearance, sh: OutfitShape, tr: (p:
       } else {
         // hair hugs the scalp at its edges and gains volume toward the crown
         const edge = (st === 'long' || st === 'bob' || st === 'afro' ? 1 : 0.3 + 0.7 * clamp01((yc - line(a)) / 0.04)) * ((st === 'short' || st === 'undercut') && Math.abs(a) < 50 && yc > 0.16 ? 1.5 : 1);
-        p = headPt(yc, a, thick * edge + curl(a, yc) + spike(a, yc) + ((st === 'curly' || st === 'afro') && yc > 0.1 ? 0.006 : 0) + (yc > 0.12 && st !== 'buzz' && st !== 'cornrows' ? 0.003 : 0));
+        const clump = ri > 0 || yc > line(a) + 0.01 ? (hh(ri, cj) - 0.35) * clumpAmp * clamp01((yc - line(a) + 0.01) / 0.03) : 0;
+        p = headPt(yc, a, thick * edge + curl(a, yc) + spike(a, yc) + clump + ((st === 'curly' || st === 'afro') && yc > 0.1 ? 0.006 : 0) + (yc > 0.12 && st !== 'buzz' && st !== 'cornrows' ? 0.003 : 0));
       }
+      if (below) { const j = (hh(ri + 7, cj) - 0.5) * 0.012; p = [p[0] * (1 + j * 4), p[1], p[2] + j]; }
       return tr(p);
     });
     return { pts, v: vOf(VMAP.HAIR, y), w: hairW };

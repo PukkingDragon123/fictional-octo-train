@@ -11,6 +11,7 @@ import { pixTag, dialFace, tagString, setString, type PixTag } from './tags';
 import { damp } from './fpKit';
 import { metalMat, metalEnv } from './metal';
 import { Shape } from './shapes';
+import { plate as polyPlate, face as polyFace, ngon } from '../ui/touch/facet';
 
 const _v = new THREE.Vector3();
 
@@ -123,7 +124,7 @@ export function clickTag(text: string, kind: 'tag' | 'card' = 'tag', w = 54, siz
   return t;
 }
 
-/** a brass-rimmed spring scale: load against what you can carry, and a PACE sub-needle */
+/** a brass spring scale in an octagonal case: load against what you can carry, and a PACE sub-needle */
 export class Gauge {
   readonly g = new THREE.Group();
   private face: PixTag;
@@ -135,15 +136,21 @@ export class Gauge {
     this.face = dialFace(20);
     const mb = new ModelBuilder();
     mb.setFaceShading(false);
-    mb.push().rotateX(Math.PI / 2); mb.cylinder(0, -0.012, 0, 0.088, 0.012, 20, 'metal_brass'); mb.pop();
+    mb.push().rotateX(Math.PI / 2); mb.cylinder(0, -0.012, 0, 0.09, 0.012, 8, 'metal_brass'); mb.pop();
     mb.box(0, 0.085, -0.006, 0.02, 0.03, 0.012, 'metal_brass', { color: 0xc8b090 });
     this.g.add(new THREE.Mesh(mb.build(), metalMat('brass', 3)));
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.083, 0.0055, 6, 28), metalMat('brass', 3));
-    ring.position.z = 0.003;
-    this.g.add(ring);
+    // an octagonal brass bezel with an octagonal window (the dial shows through it, never a round face)
+    const bez = new THREE.Mesh(polyPlate(ngon(8, 0.092, 0), 0.006, 0.0018, [ngon(8, 0.066, 0)]), metalMat('brass', 3));
+    bez.position.z = 0.003;
+    this.g.add(bez);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+      const sc = new Shape(4); sc.cyl(0, 0, 0, 0.0032, 0.0016, 0xb89a50, 6, [Math.PI / 2, 0, 0]);
+      const m = new THREE.Mesh(sc.build(), metalMat('brass', 3)); m.position.set(Math.cos(a) * 0.079, Math.sin(a) * 0.079, 0.009); this.g.add(m);
+    }
     // the glass over the face: a faint specular sheen
-    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.08, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, roughness: 0.05, metalness: 0, envMap: metalEnv(), envMapIntensity: 1.5 }));
-    glass.position.z = 0.008;
+    const glass = new THREE.Mesh(polyFace(ngon(8, 0.066, 0)), new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, roughness: 0.05, metalness: 0, envMap: metalEnv(), envMapIntensity: 1.5, flatShading: true }));
+    glass.position.z = 0.0085;
     this.g.add(glass);
     this.face.mesh.position.z = 0.001;
     this.g.add(this.face.mesh);
@@ -205,9 +212,9 @@ export class ControlBox {
     t.flush();
     const lever = new ModelBuilder();
     lever.setFaceShading(false);
-    lever.cylinder(0, 0, 0, 0.009, 0.006, 14, 'metal_brushed', { color: 0xc8c8c0 });
-    lever.cylinder(0, 0.004, 0, 0.003, 0.034, 10, 'metal_brushed', { color: 0xe0e0d8, rTop: 0.0025 });
-    lever.sphere(0, 0.04, 0, 0.0055, 10, 7, 'metal_brushed', { color: 0xe8e8e0 });
+    lever.cylinder(0, 0, 0, 0.009, 0.006, 6, 'metal_brushed', { color: 0xc8c8c0 });
+    lever.cylinder(0, 0.004, 0, 0.003, 0.034, 6, 'metal_brushed', { color: 0xe0e0d8, rTop: 0.0025 });
+    lever.sphere(0, 0.04, 0, 0.0055, 6, 4, 'metal_brushed', { color: 0xe8e8e0 });
     const lg = lever.build();
     const tx = [-0.09, -0.032, 0.025];
     ['turn', 'tip', 'roll'].forEach((k, i) => {
@@ -219,7 +226,7 @@ export class ControlBox {
     });
     const kb = new ModelBuilder();
     kb.setFaceShading(false);
-    kb.cylinder(0, 0, 0, 0.02, 0.016, 18, 'rubber_black', { color: 0x2a1a10, rTop: 0.017 });
+    kb.cylinder(0, 0, 0, 0.02, 0.016, 8, 'rubber_black', { color: 0x2a1a10, rTop: 0.017 });
     kb.box(0, 0.016, -0.01, 0.004, 0.003, 0.02, 'plastic_white', { color: 0xf0e8d0 });
     this.knob = new THREE.Mesh(kb.build(), metalMat('bakelite', 2));
     this.knob.position.set(0.075, 0.003, -0.012);
@@ -227,10 +234,10 @@ export class ControlBox {
     this.g.add(this.knob); this.ctl.push(this.knob);
     const bb = new ModelBuilder();
     bb.setFaceShading(false);
-    bb.cylinder(0, 0, 0, 0.012, 0.012, 14, 'metal_grey', { color: 0x6a6a6a });
-    bb.cylinder(0, 0.012, 0, 0.017, 0.008, 16, 'plastic_white', { color: 0xc8281c, rTop: 0.0165 });
-    bb.push().translate(0, 0.02, 0).scale(1, 0.45, 1); bb.sphere(0, 0, 0, 0.0165, 16, 8, 'plastic_white', { color: 0xc8281c }); bb.pop();
-    this.button = new THREE.Mesh(bb.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0, envMap: metalEnv(), envMapIntensity: 0.7 }));
+    bb.cylinder(0, 0, 0, 0.012, 0.012, 6, 'metal_grey', { color: 0x6a6a6a });
+    bb.cylinder(0, 0.012, 0, 0.017, 0.008, 8, 'plastic_white', { color: 0xc8281c, rTop: 0.0165 });
+    bb.push().translate(0, 0.02, 0).scale(1, 0.45, 1); bb.sphere(0, 0, 0, 0.0165, 8, 3, 'plastic_white', { color: 0xc8281c }); bb.pop();
+    this.button = new THREE.Mesh(bb.build(), new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.32, metalness: 0, envMap: metalEnv(), envMapIntensity: 0.7, flatShading: true }));
     this.button.position.set(0.093, 0.003, 0.006);
     this.button.userData.ctl = 'shake';
     this.g.add(this.button); this.ctl.push(this.button);

@@ -1,8 +1,10 @@
 // Pixel-art drawing toolkit used by every procedural texture and icon.
 // Works on raw RGBA buffers; all coordinates are integer pixels and every
 // texture is expected to be authored as hand-crafted pixel art: limited
-// palettes (hue-shifted ramps), ordered dithering, deliberate highlights and
-// shadows — never smooth gradients or photo noise.
+// palettes (hue-shifted ramps), clustered dithering (organic, hand-placed
+// looking clumps: never a bayer checkerboard on a world surface, it reads as
+// screen-door noise once the texture is drawn in perspective), deliberate
+// highlights and shadows — never smooth gradients or photo noise.
 
 import { Rng, tileNoise2, hashf } from '../core/rng';
 
@@ -91,6 +93,26 @@ export class PixelCanvas {
   readonly data: Uint8ClampedArray;
   wrap = true;
   constructor(w: number, h: number) { this.w = w; this.h = h; this.data = new Uint8ClampedArray(w * h * 4); }
+  private cluster: Float32Array | null = null;
+  /**
+   * Dither threshold (0..1) for this canvas: smooth noise at ~3 px that tiles with the canvas plus a
+   * little 2x2-block jitter. Ramp bands and blends break along wavy, clumped contours like hand
+   * pixelling instead of a regular checker. bayer() stays available for deliberate patterns.
+   */
+  clusterT(x: number, y: number): number {
+    if (!this.cluster) {
+      const W = this.w, H = this.h, f = new Float32Array(W * H);
+      const cx = Math.max(1, Math.round(W / 3)), cy = Math.max(1, Math.round(H / 3));
+      const seed = (W * 73 + H * 151) % 997;
+      for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
+        const n = tileNoise2((i / W) * cx, (j / H) * cy, cx, cy, seed);
+        f[j * W + i] = Math.min(0.98, Math.max(0.02, 0.5 + (n - 0.5) * 1.7 + (hashf(i >> 1, j >> 1, seed + 5) - 0.5) * 0.22));
+      }
+      this.cluster = f;
+    }
+    const X = ((Math.floor(x) % this.w) + this.w) % this.w, Y = ((Math.floor(y) % this.h) + this.h) % this.h;
+    return this.cluster[Y * this.w + X];
+  }
 
   private idx(x: number, y: number): number {
     if (this.wrap) { x = ((x % this.w) + this.w) % this.w; y = ((y % this.h) + this.h) % this.h; }
@@ -127,7 +149,7 @@ export class PixelCanvas {
   }
   /** blend towards colour using ordered dither (pixel-art friendly) */
   ditherBlend(x: number, y: number, c: number, t: number) {
-    if (t > bayer(x, y)) this.set(x, y, c, this.alpha(x, y) || 255);
+    if (t > this.clusterT(x, y)) this.set(x, y, c, this.alpha(x, y) || 255);
   }
   fill(c: number, a = 255) { for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) this.set(x, y, c, a); }
   clear() { this.data.fill(0); }
@@ -182,7 +204,7 @@ export class PixelCanvas {
       for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++) {
         const dx = (x + 0.5 - cx) / rx, dy = (y + 0.5 - cy) / ry;
         const d = Math.sqrt(dx * dx + dy * dy);
-        if (d <= 1 && (1 - d) * strength > bayer(x, y)) this.set(x, y, c);
+        if (d <= 1 && (1 - d) * strength > this.clusterT(x, y)) this.set(x, y, c);
       }
   }
   /** Fill every pixel by a function returning 0..1 mapped through a ramp with ordered dithering */
@@ -193,7 +215,7 @@ export class PixelCanvas {
       const f = v * (n - 1);
       let i = Math.floor(f);
       const frac = f - i;
-      if (frac > 0.5 + (bayer(x, y) - 0.5) * ditherAmt) i++;
+      if (frac > 0.5 + (this.clusterT(x, y) - 0.5) * ditherAmt) i++;
       this.set(x, y, ramp[Math.min(n - 1, i)]);
     }
   }
@@ -245,7 +267,7 @@ export class PixelCanvas {
       const n = tileNoise2((x / this.w) * cells, (y / this.h) * cells, cells, cells, seed) * 0.65 +
         tileNoise2((x / this.w) * cells * 3, (y / this.h) * cells * 3, cells * 3, cells * 3, seed + 3) * 0.35;
       const t = (n - threshold) / (1 - threshold);
-      if (t > 0 && t * amount > bayer(x, y)) this.blend(x, y, c, 0.35 + 0.4 * t);
+      if (t > 0 && t * amount > this.clusterT(x, y)) this.blend(x, y, c, 0.35 + 0.4 * t);
     }
   }
   /** Vertical drip stains running down from y0 */

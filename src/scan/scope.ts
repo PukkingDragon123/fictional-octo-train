@@ -13,6 +13,7 @@ import { worldMaterial } from '../gfx/materials';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { PixTex, PAL, flatMat } from './pix';
 import { rbox, capsule } from './shapes';
+import { gem } from '../ui/touch/facet';
 import { StageArms } from './arms';
 import { Screen } from '../ui/font5x7';
 
@@ -77,7 +78,7 @@ export class Scope {
     this.needle = new THREE.Mesh(new THREE.BoxGeometry(0.0008, 0.014, 0.0005), new THREE.MeshBasicMaterial({ color: 0x1a1008 }));
     this.needle.geometry.translate(0, 0.007, 0);
     this.needle.position.set(0.042, -0.036, 0.0252); this.dev.add(this.needle);
-    this.lamp = new THREE.Mesh(new THREE.SphereGeometry(0.004, 8, 6), new THREE.MeshBasicMaterial({ color: 0x5a2a10 }));
+    this.lamp = new THREE.Mesh(gem(0.004, 0, 0), new THREE.MeshBasicMaterial({ color: 0x5a2a10 }));
     this.lamp.position.set(0.055, -0.124, 0.025); this.dev.add(this.lamp);
     // the punch card that feeds out of the slot
     this.cardMesh = new THREE.Mesh(new THREE.PlaneGeometry(0.096, 0.052), flatMat(this.card.tex));
@@ -181,19 +182,23 @@ export class Scope {
     if (!t) { this.tube.flush(); return; }
     const cx = W / 2, cy = H * 0.56, r = H * 0.3, q = Math.min(1, this.prog);
     ctx.strokeStyle = DIM; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
-    ctx.beginPath(); ctx.arc(cx, cy, r * 0.5, 0, Math.PI * 2); ctx.stroke();
+    // octagonal range rings (no circles on the tube)
+    for (const rr of [r, r * 0.5]) {
+      ctx.beginPath();
+      for (let i = 0; i <= 8; i++) { const u = Math.PI / 8 + (i / 8) * Math.PI * 2, x = cx + Math.cos(u) * rr, y = cy + Math.sin(u) * rr; if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y); }
+      ctx.stroke();
+    }
     ctx.beginPath(); ctx.moveTo(cx - r, cy); ctx.lineTo(cx + r, cy); ctx.moveTo(cx, cy - r); ctx.lineTo(cx, cy + r); ctx.stroke();
     const a = tm * 4;
-    ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5; ctx.shadowColor = GREEN; ctx.shadowBlur = 8;
+    ctx.strokeStyle = GREEN; ctx.lineWidth = 2.5; ctx.lineJoin = 'miter';
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); ctx.stroke();
     ctx.beginPath();
-    for (let i = 0; i <= 48; i++) {
-      const u = (i / 48) * Math.PI * 2, n = Math.sin(u * 5 + tm * 2) * (1 - q) * 9 + Math.sin(u * 3) * 4;
+    for (let i = 0; i <= 14; i++) {
+      const u = (i / 14) * Math.PI * 2, n = Math.sin(u * 5 + tm * 2) * (1 - q) * 9 + Math.sin(u * 3) * 4;
       const x = cx + Math.cos(u) * (r * 0.45 + n), y = cy + Math.sin(u) * (r * 0.36 + n * 0.6);
       if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
     }
-    ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.stroke();
     const title = this.cardT >= 0 ? 'SAMPLED' : t.known ? t.title.toUpperCase() : 'UNKNOWN SIGNATURE';
     phosphorText(ctx, title.length > 18 ? title.slice(0, 17) + '…' : title, cx, 8, { size: 17, align: 'center' });
     // progress along the bottom

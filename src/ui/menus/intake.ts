@@ -1,17 +1,18 @@
 // SUBJECT INTAKE: the creator, played in the subject room (room3d.ts) with
-// the lights on. The subject hangs in mid-air in the arms' grip.
-//  LEFT   the body lab: face (an identikit, or scroll / swipe the head and the
-//         tool arm saws a new one on), hair, body, colours, marks, ID.
-//  RIGHT  the wardrobe: jumpsuits, headwear, eyewear, masks, neck and back
-//         pieces. Locked ones can be tried on and bought with research
-//         points (src/game/cosmetics.ts); bought ones stay across runs.
-//  CONFIRM APPEARANCE  then the body type: a pink and a blue button. Either
-//         one drops the press on the subject and the arms fetch a fresh clone
-//         of that type with the same choices out of the hatch.
-//  CONFIRM  hands over to the operating table (src/ui/surgery: startSurgery,
-//         looked up at run time and skipped if it is not there; without it the
-//         Rehab Section deals the programme and conditions), then PROCESSED.
-// Sentencing terms (world rules) are a sheet you can open from the last step.
+// the lights on, all on ONE page. The subject hangs in the arms' grip.
+//  LEFT    the appearance: page plates (FACE, HAIR, SKIN, BODY, MARKS, ID) and
+//          rows of free-floating labels, each with a bakelite rocker key.
+//          Face rows are cut by the tool arm (the saw); scroll / swipe the
+//          head for a whole new face.
+//  LEVERS  the body type: two knife-switch levers either side of the subject.
+//          Throwing one drops the press, the arms bring a fresh clone of
+//          that type with the same choices out of the hatch.
+//  RIGHT   the issue store: the wardrobe on a green phosphor terminal
+//          (wardrobe.ts). Every piece is free.
+//  CONFIRM hands over to the operating table (src/ui/surgery: startSurgery,
+//          looked up at run time; without it the Rehab Section deals the
+//          programme and conditions), then PROCESSED. The sentencing terms
+//          (world rules) open on a terminal from the bottom bar.
 import type { Appearance, Outfit } from '../../entities/humanRig';
 import { randomAppearance, EYE_COLORS, SKIN_TONES } from '../../entities/humanRig';
 import { Player } from '../../entities/player';
@@ -21,20 +22,19 @@ import {
   FACE_SHAPES, EYE_SHAPES, BROWS, NOSES, MOUTHS, EARS, FACIAL_HAIR_ALL, HAIR_STYLES_ALL, HAIR_DYES, TATTOO_SPOTS, TATTOOS, tattoosFor, SCAR_SPOTS, BODY_SCARS,
   KNUCKLES, NAILS, SUIT_SLEEVES, SUIT_WEAR, STAINS, PATCHES, FEET_KIT, feetKitItems, randomLooks, suitNumber, shapeOf, eyeShapeOf, browsOf, noseOf, mouthOf, type Opt,
 } from '../../entities/humanLooks';
-import { COSMETICS, COS_SLOTS, COSMETIC, ownsCosmetic, buyCosmetic, wornIn, setWorn, stripUnowned, type CosSlot, type CosmeticDef } from '../../game/cosmetics';
-import { researchPoints } from '../../game/research';
-import { bus } from '../../core/events';
-import { h, esc, FocusNav, sfx, hoverFocus, confirmDialog } from './common';
+import type { CosSlot } from '../../game/cosmetics';
+import { h, esc, FocusNav, sfx, confirmDialog } from './common';
 import { SubjectRoom, type PartKey } from './room3d';
-import { installRetroKit, nixieHtml } from './retroKit';
+import { installRetroKit } from './retroKit';
 import { G } from '../../game/G';
 import { toUrl } from '../pixelkit';
-import { tattooImage, hairIcon } from './art';
+import { tattooImage } from './art';
 import { rehabStation, type RehabCtx } from './rehab';
 import { termsStation, type TermsCtx, PRESETS } from './terms';
 import { CONTRACT_SANDBOX } from '../../game/debt/defaults';
-import { uiSettings } from './settings';
-import './diegetic.css';
+import { plateBtn, rocker, lever, chipUrl, type PlateButton, type Rocker, type Lever } from './btnKit';
+import { terminal } from './terminal';
+import { wardrobe } from './wardrobe';
 import './noir.css';
 
 export interface IntakeResult {
@@ -93,32 +93,21 @@ async function findSurgery(): Promise<SurgeryFn | null> {
   return null;
 }
 
-// ---------------------------------------------------------------- labels
-const TABS: [string, string, string][] = [['face', 'FACE', 'head'], ['hair', 'HAIR', 'hair'], ['body', 'BODY', 'full'], ['colour', 'COLOUR', 'full'], ['marks', 'MARKS', 'torso'], ['id', 'ID', 'full']];
-const PART_TAB: Record<string, string> = { head: 'face', hair: 'hair', torso: 'marks', armL: 'marks', armR: 'marks', handL: 'marks', handR: 'marks', legL: 'body', legR: 'body', feet: 'id' };
-const PART_LABEL: Record<string, string> = { head: 'FACE · scroll to saw a new one', hair: 'HAIR', torso: 'BODY MARKS', armL: 'LEFT ARM', armR: 'RIGHT ARM', handL: 'HANDS', handR: 'HANDS', legL: 'BUILD', legR: 'BUILD', feet: 'FEET' };
+// ---------------------------------------------------------------- pages and camera shots
+type Shot = 'face' | 'body' | 'full' | 'feet';
+type PageKey = 'face' | 'hair' | 'skin' | 'body' | 'marks' | 'id' | 'ward';
+const PAGES: [PageKey, string, Shot][] = [['face', 'Face', 'face'], ['hair', 'Hair', 'face'], ['skin', 'Skin', 'face'], ['body', 'Body', 'body'], ['marks', 'Marks', 'body'], ['id', 'Papers', 'full']];
+const SHOT_PART: Record<Shot, string> = { face: 'head', body: 'torso', full: 'full', feet: 'feet' };
+const PART_PAGE: Record<string, PageKey> = { head: 'face', hair: 'hair', torso: 'marks', armL: 'marks', armR: 'marks', handL: 'skin', handR: 'skin', legL: 'body', legR: 'body', feet: 'body' };
+const PART_LABEL: Record<string, string> = { head: 'Face · scroll for a new one', hair: 'Hair', torso: 'Body marks', armL: 'Left arm', armR: 'Right arm', handL: 'Hands', handR: 'Hands', legL: 'Build', legR: 'Build', feet: 'Feet' };
+const SLOT_SHOT: Record<CosSlot, Shot> = { suit: 'full', hat: 'face', eyes: 'face', face: 'face', neck: 'body', back: 'full' };
 const SKIN_ALL = [0xf8dcc8, ...SKIN_TONES, 0x4a2c1c];
 const BUILDS: [string, string, number][] = [['wiry', 'Wiry', 58], ['slim', 'Slim', 64], ['average', 'Average', 75], ['broad', 'Broad', 86], ['stocky', 'Stocky', 92], ['heavy', 'Heavy', 108]];
-const SLOT_PART: Record<CosSlot, string> = { suit: 'full', hat: 'hair', eyes: 'head', face: 'head', neck: 'torso', back: 'full' };
-const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
+const HEIGHTS = [0.92, 0.94, 0.96, 0.98, 1, 1.02, 1.04, 1.06, 1.08];
+const shade = (c: number) => { const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255; const l = r * 0.3 + g * 0.59 + b * 0.11; return l > 200 ? 'pale' : l > 150 ? 'light' : l > 100 ? 'mid' : l > 60 ? 'dark' : 'deep'; };
 
-/** a jumpsuit pictogram for the wardrobe (tinted, patterned) */
-function suitIcon(def: CosmeticDef): string {
-  const cv = document.createElement('canvas'); cv.width = 24; cv.height = 28;
-  const c = cv.getContext('2d')!;
-  const rows = ['....######......', '...########.....', '..##########....', '.####.##.####...', '####..##..####..', '###...##...###..', '##....##....##..', '......##........', '.....####.......', '.....#..#.......', '.....#..#.......', '....##..##......'];
-  const col = hex(def.color);
-  for (let y = 0; y < 26; y++) for (let x = 0; x < 16; x++) {
-    const r = rows[Math.min(rows.length - 1, Math.floor(y / 2.2))];
-    if (r[x] !== '#') continue;
-    let fill = col;
-    if (def.key === 'suit_stripe' && Math.floor(y / 2) % 2) fill = '#1c1a18';
-    if (def.key === 'suit_hazard' && y > 14 && (x + y) % 4 < 2) fill = '#17150f';
-    if (def.key === 'suit_circuit' && (x % 5 === 0 || y % 6 === 0)) fill = '#3ae8f0';
-    c.fillStyle = fill; c.fillRect(x + 4, y + 1, 1, 1);
-  }
-  return cv.toDataURL();
-}
+/** the room's camera hooks (the scene worker adds them; older rooms simply lack them) */
+type RoomCam = { shot?: (k: string, ms?: number) => void; setFraming?: (dx: number) => void };
 
 /** show the intake; resolves with the processed subject or null if they withdrew */
 export function intakeForm(opts: { title?: string; sandbox?: boolean; directives?: boolean; submit?: string; room?: SubjectRoom; app?: Appearance } = {}): Promise<IntakeResult | null> {
@@ -134,8 +123,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     let seed = Math.floor(Math.random() * 99999);
     let directives = opts.directives ?? true;
     const withSandbox = opts.sandbox !== false;
-    let phase: 'intro' | 'look' | 'sex' | 'out' = 'intro';
-    let tab = 'face';
+    let phase: 'intro' | 'look' | 'out' = 'intro';
+    let page: PageKey = 'face';
     let closing = false;
 
     // ---------------- the room (the title's, or one of our own)
@@ -143,130 +132,90 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     let room = opts.room;
     if (!room) { ownHost = h('div', 'nx nx-stage nx-own'); document.body.append(ownHost); room = new SubjectRoom(ownHost); }
     const stage = room;
+    const cam = stage as unknown as RoomCam;
+    let curShot: Shot = 'full';
+    const shot = (k: Shot, part?: string) => {
+      curShot = k;
+      stage.setFocus(part ?? SHOT_PART[k]);
+      cam.shot?.(k, 700);
+    };
 
     // ---------------- skeleton
-    const root = h('div', 'nx nx-ik');
-    const top = h('div', 'ik2-top');
-    const plate = h('div', 'ik2-plate', `<b>${esc(opts.title || 'SUBJECT INTAKE')}</b><span>MERIDIAN INSTITUTE · REMITTANCE PROGRAMME</span>`);
-    const rpEl = h('div', 'ik2-rp', '');
-    const back = h('button', 'ik2-exit', '◀ WITHDRAW');
-    back.type = 'button'; hoverFocus(back); back.onclick = () => withdraw();
-    top.append(plate, rpEl, back);
-    const left = h('aside', 'ik2-left nx-glass');
-    const tabsRow = h('div', 'ik2-tabs');
-    tabsRow.setAttribute('role', 'tablist');
-    const leftBody = h('div', 'ik2-body');
-    const leftScreen = h('div', 'ik2-screen nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
-    leftScreen.append(leftBody);
-    left.append(h('div', 'ik2-h', '<b>BODY LAB</b><small>colours · faces · hair · build</small>'), tabsRow, leftScreen);
-    const right = h('aside', 'ik2-right nx-glass');
-    const wardBody = h('div', 'ik2-ward');
-    right.append(h('div', 'ik2-h', '<b>WARDROBE</b><small>scroll the collection · buy with research points</small>'), wardBody);
-    const bottom = h('div', 'ik2-bottom');
-    const confirmBtn = h('button', 'ik2-go', '<b>CONFIRM APPEARANCE</b><small>then the body type ▶</small>');
-    confirmBtn.type = 'button'; hoverFocus(confirmBtn); confirmBtn.onclick = () => toSex();
-    const hint = h('div', 'ik2-hint nc-free-text', '');
-    bottom.append(hint, confirmBtn);
-    const hoverTag = h('div', 'ik2-hovertag nc-free-text');
-    const toast = h('div', 'ik2-toast nc-free-text');
-    // the body-type step
-    const sex = h('div', 'ik2-sex');
-    const sexHead = h('div', 'ik2-sex-h nc-free-text', '<b>BODY TYPE</b><small>press a button: the press takes this one, the arms bring a fresh clone with the same choices</small>');
-    const pink = h('button', 'ik2-big pink', '<i></i><b>PINK</b><small>feminine frame</small>');
-    const blue = h('button', 'ik2-big blue', '<i></i><b>BLUE</b><small>masculine frame</small>');
-    for (const b of [pink, blue]) { b.type = 'button'; hoverFocus(b); }
-    pink.onclick = () => clone(true); blue.onclick = () => clone(false);
-    const sexRow = h('div', 'ik2-sex-row'); sexRow.append(pink, blue);
-    const sexBar = h('div', 'ik2-sex-bar');
-    const backLook = h('button', 'ik2-btn', '◀ APPEARANCE'); backLook.type = 'button'; hoverFocus(backLook); backLook.onclick = () => toLook();
-    const termsBtn = h('button', 'ik2-btn', 'SENTENCING TERMS'); termsBtn.type = 'button'; hoverFocus(termsBtn); termsBtn.onclick = () => openTerms();
-    const finalBtn = h('button', 'ik2-go final', `<b>CONFIRM</b><small>to the operating table ▶</small>`); finalBtn.type = 'button'; hoverFocus(finalBtn); finalBtn.onclick = () => finish();
-    sexBar.append(backLook, ...(withSandbox ? [termsBtn] : []), finalBtn);
-    sex.append(sexHead, sexRow, sexBar);
-    const sheet = h('div', 'ik2-sheet');
-    const stampEl = h('div', 'ik2-stamp');
-    root.append(top, left, right, bottom, hoverTag, toast, sex, sheet, stampEl);
+    const root = h('div', 'nx ik3');
+    const top = h('div', 'ik3-top');
+    const plate = h('div', 'ik3-title kf', `<b class="kf-cap">${esc(opts.title || 'Subject intake')}</b><small class="kf-it">Meridian Institute · Remittance Programme</small>`);
+    const back = plateBtn('Withdraw', () => withdraw(), { finish: 'oxblood', size: 'md', shape: 'arrowL', lamp: false, sound: 'back' });
+    top.append(back, plate);
+    const left = h('section', 'ik3-left');
+    const tabsEl = h('div', 'ik3-tabs');
+    tabsEl.setAttribute('role', 'tablist');
+    const pageEl = h('div', 'ik3-page');
+    const actions = h('div', 'ik3-acts');
+    left.append(tabsEl, pageEl, actions);
+    const wardHost = h('section', 'ik3-right');
+    const bottom = h('div', 'ik3-bottom');
+    const confirmBtn = plateBtn('Confirm', () => finish(), { finish: 'brass', size: 'lg', sub: 'to the operating table', lamp: 'green', sound: '' });
+    const termsBtn = plateBtn('Sentencing terms', () => openTerms(), { finish: 'olive', size: 'md', shape: 'tag', lamp: false });
+    bottom.append(...(withSandbox ? [termsBtn] : []), confirmBtn);
+    const hint = h('div', 'ik3-hint kf kf-it', '');
+    const hoverTag = h('div', 'ik3-hovertag kf');
+    const toast = h('div', 'ik3-toast kf');
+    const levers = h('div', 'ik3-levers');
+    const lvHead = h('div', 'ik3-lv-h kf', '<b class="kf-cap">Body type</b><small class="kf-it">throw a lever · the press takes this one</small>');
+    const sheet = h('div', 'ik3-sheet');
+    const stampEl = h('div', 'ik3-stamp');
+    root.append(top, left, wardHost, levers, lvHead, bottom, hint, hoverTag, toast, sheet, stampEl);
 
     // ---------------- helpers
-    const refreshRp = () => { rpEl.innerHTML = `<span class="rk-tape red">RESEARCH</span>${nixieHtml(researchPoints())}`; };
     let toastT = 0;
-    const say = (s: string) => { toast.innerHTML = s; toast.classList.add('on'); clearTimeout(toastT); toastT = window.setTimeout(() => toast.classList.remove('on'), 3200); };
+    const say = (s: string) => { toast.innerHTML = s; toast.classList.remove('on'); void toast.offsetWidth; toast.classList.add('on'); clearTimeout(toastT); toastT = window.setTimeout(() => toast.classList.remove('on'), 3200); };
     let looksT = 0;
-    const inspect = () => phase === 'look' && tab === 'marks';
+    const inspect = () => phase === 'look' && page === 'marks';
     const refreshLooks = () => {
       clearTimeout(looksT);
       looksT = window.setTimeout(() => { stage.setAppearance(app); stage.setOutfit(prisonerOutfitFor(app, inspect())); }, 30);
     };
+    const portrait = () => window.innerHeight > window.innerWidth * 1.05;
     const updateHint = () => {
       const coarse = matchMedia('(pointer: coarse)').matches;
       hint.innerHTML = phase === 'look'
-        ? (coarse ? 'swipe up/down on the head: new face · drag: turn · tap a part' : '<kbd>wheel</kbd> on the head: new face · drag: turn · click a part · <kbd>Q</kbd><kbd>E</kbd> tabs')
+        ? (coarse ? 'swipe on the head: a new face · drag: turn · tap a part' : 'wheel on the head: a new face · drag: turn · click a part · Q / E pages')
         : '';
     };
 
-    // ---------------- widgets (identikit strips, swatches, tapes, stamp rows)
-    const opt = (cls: string, html: string, on: boolean, click: () => void, label?: string) => {
-      const b = h('button', 'ob-o ' + cls + (on ? ' on' : ''), html);
-      b.type = 'button';
-      if (label) b.setAttribute('aria-label', label);
-      b.setAttribute('aria-pressed', String(on));
-      hoverFocus(b);
-      b.onclick = () => click();
-      return b;
-    };
-    const mark = (wrap: HTMLElement, b: HTMLElement) => { wrap.querySelectorAll('.ob-o').forEach((o) => { o.classList.toggle('on', o === b); o.setAttribute('aria-pressed', String(o === b)); }); };
-    const sec = (title: string, sub = '') => h('section', 'ik2-sec', `<header><b>${esc(title)}</b>${sub ? `<small>${esc(sub)}</small>` : ''}</header>`);
-    const strips: (() => void)[] = [];
-    const strip = (label: string, list: Opt[], get: () => number, set: (i: number) => void, maul = false) => {
-      const s = h('div', 'ob-strip');
-      const val = h('button', 'ob-strip-v', '');
-      val.type = 'button';
-      const paint = () => { const i = get(); val.innerHTML = `<small>${esc(label)}</small><b>${esc(list[i]?.name ?? '?')}</b><em>${i + 1}/${list.length}</em>`; val.title = list[get()]?.note || ''; };
-      const step = (d: number) => {
-        const i = (get() + d + list.length) % list.length;
-        if (maul) { void stage.maul(() => { set(i); paint(); stage.setAppearance(app); }); sfx('tick'); return; }
-        set(i); paint(); sfx('tick'); refreshLooks();
+    // ---------------- a row: free label, the value, a rocker key
+    type RowOpt = { name: string; chip?: number; img?: string; note?: string };
+    const rows: (() => void)[] = [];
+    const rockers: Rocker[] = [];
+    const row = (label: string, list: () => RowOpt[], get: () => number, set: (i: number) => void, o: { maul?: boolean; shot?: Shot; part?: string; count?: boolean } = {}) => {
+      const r = h('div', 'ik3-row');
+      const l = h('span', 'ik3-rl kf kf-cap', esc(label));
+      const v = h('span', 'ik3-rv kf');
+      const paint = () => {
+        const L = list(), i = get(), it = L[i];
+        v.innerHTML = `${it?.chip != null ? `<img class="ik3-chip" src="${chipUrl(it.chip)}" alt="">` : ''}${it?.img ? `<img class="ik3-thumb" src="${it.img}" alt="">` : ''}<i>${esc(it?.name ?? '?')}</i>${o.count === false ? '' : `<em>${i + 1}/${L.length}</em>`}`;
+        v.title = it?.note || '';
       };
-      const l = h('button', 'ob-strip-a', '◀'); l.type = 'button'; l.setAttribute('aria-label', label + ': previous'); l.onclick = () => step(-1);
-      const r = h('button', 'ob-strip-a', '▶'); r.type = 'button'; r.setAttribute('aria-label', label + ': next'); r.onclick = () => step(1);
-      val.onclick = () => step(1);
-      for (const b of [l, val, r]) hoverFocus(b);
+      const step = (d: -1 | 1) => {
+        if (phase !== 'look') return;
+        const L = list();
+        const i = (get() + d + L.length) % L.length;
+        if (o.shot) shot(o.shot, o.part);
+        if (o.maul) { void stage.maul(() => { set(i); paint(); stage.setAppearance(app); }); return; }
+        set(i); paint(); refreshLooks();
+      };
+      const rk = rocker(step, { label, finish: 'cream', seed: label.length * 13 });
+      rockers.push(rk);
+      for (const b of [rk.prev, rk.next]) b.addEventListener('focus', () => { if (o.shot && curShot !== o.shot) shot(o.shot, o.part); });
       paint();
-      strips.push(paint);
-      s.append(l, val, r);
-      return s;
+      rows.push(paint);
+      r.append(l, v, rk.el);
+      return r;
     };
-    const swatches = (list: number[], cur: () => number, set: (c: number) => void, cls = 'chip') => {
-      const row = h('div', 'ob-swatches ' + cls);
-      for (const c of list) {
-        const b = opt('ob-sw', `<i style="background:${hex(c)}"></i>`, c === cur(), () => { set(c); mark(row, b); sfx('toggle'); refreshLooks(); }, 'colour ' + hex(c));
-        row.append(b);
-      }
-      return row;
-    };
-    const tape = (label: string, min: number, max: number, step: number, get: () => number, set: (v: number) => void, fmt: (v: number) => string) => {
-      const w = h('label', 'ob-tape');
-      const inp = h('input') as HTMLInputElement;
-      inp.type = 'range'; inp.min = String(min); inp.max = String(max); inp.step = String(step); inp.value = String(get());
-      inp.setAttribute('aria-label', label);
-      const out = h('output', '', esc(fmt(get())));
-      const paint = () => w.style.setProperty('--p', String((Number(inp.value) - min) / (max - min)));
-      paint();
-      hoverFocus(inp);
-      inp.oninput = () => { set(Number(inp.value)); out.textContent = fmt(Number(inp.value)); paint(); sfx('tick'); refreshLooks(); };
-      w.append(h('span', 'ob-tape-l', esc(label)), inp, out);
-      return w;
-    };
-    const stampRow = (label: string, list: Opt[], cur: () => string, set: (k: string) => void) => {
-      const row = h('div', 'ob-row', `<span class="ob-row-l">${esc(label)}</span>`);
-      const box = h('div', 'ob-row-o');
-      for (const o of list) {
-        const b = opt('ob-box', `<i></i>${esc(o.name)}`, o.key === cur(), () => { set(o.key); mark(box, b); sfx('stamp', 0.5); refreshLooks(); });
-        box.append(b);
-      }
-      row.append(box);
-      return row;
-    };
+    const optRow = (label: string, list: Opt[], get: () => string, set: (k: string) => void, o: { shot?: Shot; part?: string } = {}) =>
+      row(label, () => list, () => Math.max(0, list.findIndex((x) => x.key === get())), (i) => set(list[i].key), o);
+    const colourRow = (label: string, list: number[], get: () => number, set: (c: number) => void, o: { shot?: Shot; part?: string } = {}) =>
+      row(label, () => list.map((c) => ({ name: shade(c), chip: c })), () => Math.max(0, list.indexOf(get())), (i) => set(list[i]), o);
     const shapeIndex = () => {
       if (app.jaw != null) return app.jaw;
       const s = shapeOf(app);
@@ -287,261 +236,179 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       else if (faceAt > 0) faceAt--; else { faces.unshift(rndFace()); }
       const f = faces[faceAt];
       mauling = true;
-      if (tab !== 'face') setTab('face', false);
-      stage.maul(() => { Object.assign(app, f); stage.setAppearance(app); for (const p of strips) p(); }).then(() => { mauling = false; });
-      say(`<b>FACE ${faceAt + 1}</b> · scroll ${dir > 0 ? 'on' : 'back'} for another`);
+      if (page !== 'face') setPage('face', false);
+      shot('face');
+      stage.maul(() => { Object.assign(app, f); stage.setAppearance(app); for (const p of rows) p(); }).then(() => { mauling = false; });
+      say(`<b>Face ${faceAt + 1}</b> · scroll ${dir > 0 ? 'on' : 'back'} for another`);
     };
     stage.onHeadScroll = (d) => newFace(d);
 
-    // ---------------- the body lab (left)
+    // ---------------- the pages
     let tatSpot = 'chest', scarSpot = 'chest';
-    const buildTab = (k: string): HTMLElement => {
-      strips.length = 0;
-      const wrap = h('div', 'ik2-tab');
+    let nameInput: HTMLInputElement | null = null;
+    const buildPage = (k: PageKey): HTMLElement => {
+      rows.length = 0;
+      rockers.length = 0;
+      const wrap = h('div', 'ik3-rows');
+      const add = (...els: HTMLElement[]) => wrap.append(...els);
       if (k === 'face') {
-        const saw = h('button', 'ik2-saw', '<b>⟳ SAW ON A NEW FACE</b><small>or scroll / swipe on the head</small>');
-        saw.type = 'button'; hoverFocus(saw); saw.onclick = () => newFace(1);
-        const kit = sec('IDENTIKIT', 'each strip is cut by the tool arm');
-        kit.append(
-          strip('Face shape', FACE_SHAPES, () => shapeIndex(), (i) => { app.jaw = i; }, true),
-          strip('Eyes', EYE_SHAPES, () => eyeShapeOf(app), (i) => { app.eyeShape = i; }, true),
-          strip('Brows', BROWS, () => browsOf(app), (i) => { app.brows = i; }, true),
-          strip('Nose', NOSES, () => noseOf(app), (i) => { app.nose = i; }, true),
-          strip('Mouth', MOUTHS, () => mouthOf(app), (i) => { app.mouth = i; }, true),
-          strip('Ears', EARS, () => app.ears ?? 0, (i) => { app.ears = i; }, true),
-          strip('Facial hair', FACIAL_HAIR_ALL, () => Math.max(0, FACIAL_HAIR_ALL.findIndex((f) => f.key === (app.facialHair || 'none'))), (i) => { (app as any).facialHair = FACIAL_HAIR_ALL[i].key; app.beard = FACIAL_HAIR_ALL[i].key === 'beard'; }),
-          strip('Face scars', [{ key: '0', name: 'None' }, { key: '1', name: 'One' }, { key: '2', name: 'Two' }, { key: '3', name: 'Several' }], () => app.scars ?? 0, (i) => { app.scars = i; }),
-          strip('Freckles', [{ key: '0', name: 'None' }, { key: '1', name: 'A few' }, { key: '2', name: 'Lots' }], () => ((app.freckles ?? 0) < 0.15 ? 0 : (app.freckles ?? 0) < 0.6 ? 1 : 2), (i) => { app.freckles = [0, 0.4, 0.9][i]; }),
-          strip('Wear and tear', [{ key: '0', name: 'Young' }, { key: '1', name: 'Lined' }, { key: '2', name: 'Weathered' }, { key: '3', name: 'Old' }], () => Math.min(3, Math.round((app.age ?? 0) / 0.3)), (i) => { app.age = [0, 0.3, 0.6, 0.9][i]; }),
+        const m = { maul: true, shot: 'face' as Shot };
+        add(
+          row('Face shape', () => FACE_SHAPES, () => shapeIndex(), (i) => { app.jaw = i; }, m),
+          row('Eyes', () => EYE_SHAPES, () => eyeShapeOf(app), (i) => { app.eyeShape = i; }, m),
+          row('Brows', () => BROWS, () => browsOf(app), (i) => { app.brows = i; }, m),
+          row('Nose', () => NOSES, () => noseOf(app), (i) => { app.nose = i; }, m),
+          row('Mouth', () => MOUTHS, () => mouthOf(app), (i) => { app.mouth = i; }, m),
+          row('Ears', () => EARS, () => app.ears ?? 0, (i) => { app.ears = i; }, m),
+          colourRow('Iris', EYE_COLORS, () => app.eyeColor ?? EYE_COLORS[0], (c) => { app.eyeColor = c; }, { shot: 'face' }),
         );
-        const eyes = sec('IRIS');
-        eyes.append(swatches(EYE_COLORS, () => app.eyeColor ?? -1, (c) => { app.eyeColor = c; }, 'marbles'));
-        wrap.append(saw, kit, eyes);
       } else if (k === 'hair') {
-        const chart = sec('CUT', 'the clipper chart');
-        const grid = h('div', 'ob-grid hair');
-        for (const st of HAIR_STYLES_ALL) {
-          const b = opt('ob-card', `<img src="${toUrl(hairIcon(st.key, app.hair, app.skin))}" alt=""><span>${esc(st.name)}</span>`, app.hairStyle === st.key, () => { (app as any).hairStyle = st.key; mark(grid, b); sfx('toggle'); refreshLooks(); });
-          grid.append(b);
-        }
-        chart.append(grid);
-        const dye = sec('DYE');
-        dye.append(swatches(HAIR_DYES, () => app.hair, (c) => { app.hair = c; grid.querySelectorAll('img').forEach((im, i) => { (im as HTMLImageElement).src = toUrl(hairIcon(HAIR_STYLES_ALL[i].key, c, app.skin)); }); }, 'tufts'));
-        const fh = sec('FACIAL HAIR');
-        fh.append(strip('Facial hair', FACIAL_HAIR_ALL, () => Math.max(0, FACIAL_HAIR_ALL.findIndex((f) => f.key === (app.facialHair || 'none'))), (i) => { (app as any).facialHair = FACIAL_HAIR_ALL[i].key; app.beard = FACIAL_HAIR_ALL[i].key === 'beard'; }));
-        wrap.append(chart, dye, fh);
-      } else if (k === 'body') {
-        const sc = sec('BUILD', 'kg on the platform scale');
-        const row = h('div', 'ob-scale');
-        for (const [bk, bl, kg] of BUILDS) {
-          const b = opt('ob-weight', `<b>${kg}</b><span>${esc(bl)}</span>`, String(app.build) === bk, () => { (app as any).build = bk; mark(row, b); sfx('toggle'); refreshLooks(); });
-          row.append(b);
-        }
-        sc.append(row);
-        const m = sec('MEASURE');
-        m.append(
-          tape('Height', 0.92, 1.08, 0.01, () => app.height, (v) => { app.height = v; }, (v) => `${Math.round(172 * v)} cm`),
-          tape('Frame', 0, 1, 0.05, () => app.bodyShape ?? 0.3, (v) => { app.bodyShape = v; }, (v) => (v < 0.34 ? 'square' : v > 0.66 ? 'curved' : 'in between')),
+        add(
+          optRow('Cut', HAIR_STYLES_ALL, () => app.hairStyle || HAIR_STYLES_ALL[0].key, (v) => { (app as any).hairStyle = v; }, { shot: 'face', part: 'hair' }),
+          colourRow('Dye', HAIR_DYES, () => app.hair, (c) => { app.hair = c; }, { shot: 'face', part: 'hair' }),
+          optRow('Facial hair', FACIAL_HAIR_ALL, () => app.facialHair || 'none', (v) => { (app as any).facialHair = v; app.beard = v === 'beard'; }, { shot: 'face' }),
         );
-        m.append(h('p', 'ik2-note', 'The body type itself is set after you confirm: pink or blue, and the press.'));
-        wrap.append(sc, m);
-      } else if (k === 'colour') {
-        const skin = sec('SKIN');
-        skin.append(swatches(SKIN_ALL, () => app.skin, (c) => { app.skin = c; }, 'chip'));
-        const eyes = sec('EYES');
-        eyes.append(swatches(EYE_COLORS, () => app.eyeColor ?? -1, (c) => { app.eyeColor = c; }, 'marbles'));
-        const hair = sec('HAIR');
-        hair.append(swatches(HAIR_DYES, () => app.hair, (c) => { app.hair = c; }, 'tufts'));
-        const nails = sec('NAILS');
-        const nl = h('div', 'ob-row-o');
-        for (const [nk, nv] of Object.entries(NAILS)) {
-          const b = opt('ob-box', `<i style="${nv.color ? `background:${hex(nv.color)}` : ''}"></i>${esc(nv.name)}`, (app.nails || 'clean') === nk, () => { app.nails = nk; mark(nl, b); sfx('toggle'); refreshLooks(); });
-          nl.append(b);
-        }
-        nails.append(nl);
-        const suit = sec('JUMPSUIT', 'dye and weave: the wardrobe on the right');
-        wrap.append(skin, eyes, hair, nails, suit);
+      } else if (k === 'skin') {
+        add(
+          colourRow('Skin', SKIN_ALL, () => app.skin, (c) => { app.skin = c; }, { shot: 'face' }),
+          row('Freckles', () => [{ name: 'None' }, { name: 'A few' }, { name: 'Lots' }], () => ((app.freckles ?? 0) < 0.15 ? 0 : (app.freckles ?? 0) < 0.6 ? 1 : 2), (i) => { app.freckles = [0, 0.4, 0.9][i]; }, { shot: 'face' }),
+          row('Wear and tear', () => [{ name: 'Young' }, { name: 'Lined' }, { name: 'Weathered' }, { name: 'Old' }], () => Math.min(3, Math.round((app.age ?? 0) / 0.3)), (i) => { app.age = [0, 0.3, 0.6, 0.9][i]; }, { shot: 'face' }),
+          row('Face scars', () => [{ name: 'None' }, { name: 'One' }, { name: 'Two' }, { name: 'Several' }], () => app.scars ?? 0, (i) => { app.scars = i; }, { shot: 'face' }),
+          row('Nails', () => Object.values(NAILS).map((n) => ({ name: n.name, chip: n.color || undefined })), () => Math.max(0, Object.keys(NAILS).indexOf(app.nails || 'clean')), (i) => { app.nails = Object.keys(NAILS)[i]; }, { shot: 'body', part: 'handR' }),
+        );
+      } else if (k === 'body') {
+        add(
+          row('Build', () => BUILDS.map(([, l, kg]) => ({ name: `${l} · ${kg} kg` })), () => Math.max(0, BUILDS.findIndex((b) => b[0] === String(app.build))), (i) => { (app as any).build = BUILDS[i][0]; }, { shot: 'full', count: false }),
+          row('Height', () => HEIGHTS.map((v) => ({ name: `${Math.round(172 * v)} cm` })), () => HEIGHTS.reduce((bi, v, i) => (Math.abs(v - app.height) < Math.abs(HEIGHTS[bi] - app.height) ? i : bi), 0), (i) => { app.height = HEIGHTS[i]; }, { shot: 'full', count: false }),
+          optRow('Sleeves', SUIT_SLEEVES, () => app.suit?.sleeves || 'down', (v) => { (app.suit ||= {}).sleeves = v; }, { shot: 'body' }),
+          optRow('Footwear', FEET_KIT, () => app.feetKit ?? 'slipons', (v) => { app.feetKit = v; }, { shot: 'feet' }),
+        );
       } else if (k === 'marks') {
         const spots = ['chest', 'back', 'belly', 'neck', 'face', 'uarm_l', 'farm_l', 'uarm_r', 'farm_r'].filter((s) => TATTOO_SPOTS[s]);
         if (!spots.includes(tatSpot)) tatSpot = spots[0];
-        const flash = sec('TATTOO FLASH', 'pick a spot, then a design');
-        const spotRow = h('div', 'ob-spots');
-        const dGrid = h('div', 'ob-grid flash');
-        const paintDesigns = () => {
-          dGrid.innerHTML = '';
-          const cur = app.tattoos?.[tatSpot] || '';
-          const none = opt('ob-flash none', '<span>NONE</span>', !cur, () => { const t = { ...(app.tattoos || {}) }; delete t[tatSpot]; app.tattoos = t; mark(dGrid, none); sfx('back', 0.5); refreshLooks(); paintSpots(); });
-          dGrid.append(none);
-          for (const d of tattoosFor(tatSpot)) {
-            const b = opt('ob-flash', `<img src="${toUrl(tattooImage(d, 3))}" alt=""><span>${esc(TATTOOS[d].name)}</span>`, cur === d, () => {
-              app.tattoos = { ...(app.tattoos || {}), [tatSpot]: d }; mark(dGrid, b); sfx('grind', 0.4); refreshLooks(); paintSpots();
-            });
-            dGrid.append(b);
-          }
-        };
-        const paintSpots = () => {
-          spotRow.innerHTML = '';
-          for (const sp of spots) {
-            const b = opt('ob-spot' + (app.tattoos?.[sp] ? ' inked' : ''), `<i></i>${esc(TATTOO_SPOTS[sp].name)}`, sp === tatSpot, () => { tatSpot = sp; mark(spotRow, b); sfx('tick'); paintDesigns(); });
-            spotRow.append(b);
-          }
-        };
-        paintSpots(); paintDesigns();
-        flash.append(spotRow, dGrid);
+        const designs = () => ['', ...tattoosFor(tatSpot)];
+        let designRow: HTMLElement;
+        add(
+          row('Ink spot', () => spots.map((s) => ({ name: TATTOO_SPOTS[s].name + (app.tattoos?.[s] ? ' · inked' : '') })), () => spots.indexOf(tatSpot), (i) => { tatSpot = spots[i]; for (const p of rows) p(); }, { shot: 'body' }),
+          designRow = row('Tattoo', () => designs().map((d) => (d ? { name: TATTOOS[d].name, img: toUrl(tattooImage(d, 1)) } : { name: 'None' })), () => Math.max(0, designs().indexOf(app.tattoos?.[tatSpot] || '')), (i) => {
+            const d = designs()[i]; const t = { ...(app.tattoos || {}) };
+            if (d) t[tatSpot] = d; else delete t[tatSpot];
+            app.tattoos = t; sfx('grind', 0.3);
+            for (const p of rows) p();
+          }, { shot: 'body' }),
+        );
+        void designRow;
         const sSpots = Object.keys(SCAR_SPOTS);
         if (!sSpots.includes(scarSpot)) scarSpot = sSpots[0];
-        const med = sec('OLD WOUNDS');
-        const sRow = h('div', 'ob-spots');
-        const kRow = h('div', 'ob-row-o');
-        const paintKinds = () => {
-          kRow.innerHTML = '';
-          const cur = app.bodyScars?.[scarSpot] || '';
-          const none = opt('ob-box', '<i></i>None', !cur, () => { const t = { ...(app.bodyScars || {}) }; delete t[scarSpot]; app.bodyScars = t; mark(kRow, none); sfx('back', 0.5); refreshLooks(); });
-          kRow.append(none);
-          for (const [sk, sl] of Object.entries(BODY_SCARS)) {
-            const b = opt('ob-box', `<i></i>${esc(sl)}`, cur === sk, () => { app.bodyScars = { ...(app.bodyScars || {}), [scarSpot]: sk }; mark(kRow, b); sfx('stamp', 0.5); refreshLooks(); });
-            kRow.append(b);
-          }
-        };
-        for (const sp of sSpots) {
-          const b = opt('ob-spot', `<i></i>${esc(SCAR_SPOTS[sp].name)}`, sp === scarSpot, () => { scarSpot = sp; mark(sRow, b); sfx('tick'); paintKinds(); });
-          sRow.append(b);
-        }
-        paintKinds();
-        med.append(sRow, kRow);
-        const kn = sec('KNUCKLES');
-        const kg = h('div', 'ob-grid knuckles');
-        for (const [kk, kv] of Object.entries(KNUCKLES)) {
-          const b = opt('ob-knuckle', `<b>${esc(kv.l || '·')}</b><b>${esc(kv.r || '·')}</b><span>${esc(kv.name)}</span>`, (app.knuckles || 'none') === kk, () => { app.knuckles = kk; mark(kg, b); sfx('stamp', 0.4); refreshLooks(); });
-          kg.append(b);
-        }
-        kn.append(kg);
-        wrap.append(flash, med, kn);
+        const kinds = ['', ...Object.keys(BODY_SCARS)];
+        add(
+          row('Wound spot', () => sSpots.map((s) => ({ name: SCAR_SPOTS[s].name + (app.bodyScars?.[s] ? ' · marked' : '') })), () => sSpots.indexOf(scarSpot), (i) => { scarSpot = sSpots[i]; for (const p of rows) p(); }, { shot: 'body' }),
+          row('Old wound', () => kinds.map((s) => ({ name: s ? BODY_SCARS[s] : 'None' })), () => Math.max(0, kinds.indexOf(app.bodyScars?.[scarSpot] || '')), (i) => {
+            const s = kinds[i]; const t = { ...(app.bodyScars || {}) };
+            if (s) t[scarSpot] = s; else delete t[scarSpot];
+            app.bodyScars = t; for (const p of rows) p();
+          }, { shot: 'body' }),
+          row('Knuckles', () => Object.values(KNUCKLES).map((v) => ({ name: v.l || v.r ? `${v.name} · ${v.l || '·'} ${v.r || '·'}` : v.name })), () => Math.max(0, Object.keys(KNUCKLES).indexOf(app.knuckles || 'none')), (i) => { app.knuckles = Object.keys(KNUCKLES)[i]; }, { shot: 'body', part: 'handR' }),
+        );
       } else if (k === 'id') {
-        const b = sec('NAME', 'stencilled on the file');
-        const row = h('div', 'ob-namerow');
-        const ni = h('input', 'ob-name') as HTMLInputElement;
+        const nr = h('div', 'ik3-row ik3-name');
+        const ni = h('input', 'ik3-name-i') as HTMLInputElement;
         ni.value = name; ni.maxLength = 24; ni.spellcheck = false; ni.setAttribute('aria-label', 'Name');
         ni.addEventListener('input', () => { name = ni.value; });
         ni.addEventListener('focus', () => { if (G?.input) G.input.textFocus = true; });
         ni.addEventListener('blur', () => { if (G?.input) G.input.textFocus = false; });
-        const dice = h('button', 'ob-dice', '⚄ <span>Another</span>');
-        dice.type = 'button'; hoverFocus(dice);
-        dice.onclick = () => { name = randomName(); ni.value = name; sfx('click'); };
-        row.append(ni, dice);
-        b.append(row, h('p', 'ik2-note', 'NUMBER: <b>D-____</b> · assigned at processing, stencilled on your back'));
-        const u = sec('UNIFORM', 'issue slip U-2');
+        nameInput = ni;
+        const dice = plateBtn('', () => { name = randomName(); ni.value = name; }, { glyph: 'dice', lamp: false, size: 'sm', finish: 'cream', shape: 'key', aria: 'Another name' });
+        nr.append(h('span', 'ik3-rl kf kf-cap', 'Name'), ni, dice);
+        add(nr, h('p', 'ik3-note kf kf-it', 'Number D-____ · assigned at processing, stencilled on your back'));
         const suit = () => (app.suit ||= {});
-        u.append(
-          stampRow('Sleeves', SUIT_SLEEVES, () => suit().sleeves || 'down', (v) => { suit().sleeves = v; }),
-          stampRow('Condition', SUIT_WEAR, () => String(suit().wear ?? 0), (v) => { suit().wear = Number(v); }),
-          stampRow('Stains', STAINS, () => suit().stains || 'none', (v) => { suit().stains = v; }),
-          stampRow('Number patch', PATCHES, () => suit().patch || 'stitched', (v) => { suit().patch = v; }),
-          stampRow('Footwear', FEET_KIT, () => app.feetKit ?? 'slipons', (v) => { app.feetKit = v; }),
+        add(
+          optRow('Condition', SUIT_WEAR, () => String(suit().wear ?? 0), (v) => { suit().wear = Number(v); }, { shot: 'full' }),
+          optRow('Stains', STAINS, () => suit().stains || 'none', (v) => { suit().stains = v; }, { shot: 'full' }),
+          optRow('Number patch', PATCHES, () => suit().patch || 'stitched', (v) => { suit().patch = v; }, { shot: 'body' }),
         );
-        wrap.append(b, u);
       }
-      const someone = h('button', 'ik2-rand', '⚄ SOMEBODY ELSE');
-      someone.type = 'button'; hoverFocus(someone); someone.onclick = () => randomizeLooks();
-      wrap.append(someone);
       return wrap;
     };
-    const tabBtns = new Map<string, HTMLButtonElement>();
-    for (const [k, l] of TABS) {
-      const b = h('button', 'ik2-tab-b', l);
-      b.type = 'button'; b.setAttribute('role', 'tab');
-      hoverFocus(b, '');
-      b.onclick = () => setTab(k);
-      tabsRow.append(b); tabBtns.set(k, b);
-    }
-    const setTab = (k: string, sound = true) => {
+    const tabBtns = new Map<PageKey, PlateButton>();
+    const pageList = (): PageKey[] => [...PAGES.map((p) => p[0]), ...(portrait() ? ['ward' as PageKey] : [])];
+    const buildTabs = () => {
+      tabsEl.innerHTML = '';
+      tabBtns.clear();
+      for (const k of pageList()) {
+        const label = k === 'ward' ? 'Wardrobe' : PAGES.find((p) => p[0] === k)![1];
+        const b = plateBtn(label, () => setPage(k), { finish: k === 'ward' ? 'olive' : 'steel', size: 'sm', lamp: false, shape: 'key', full: true, cls: 'pb-c', sound: 'rocker', hover: '' });
+        b.setAttribute('role', 'tab');
+        b.classList.toggle('on', k === page);
+        tabsEl.append(b);
+        tabBtns.set(k, b);
+      }
+    };
+    const setPage = (k: PageKey, sound = true) => {
       const wasInspect = inspect();
-      tab = k;
+      if (k === 'ward' && !portrait()) k = 'face';
+      page = k;
       for (const [tk, b] of tabBtns) { b.classList.toggle('on', tk === k); b.setAttribute('aria-selected', String(tk === k)); }
-      leftBody.innerHTML = '';
-      leftBody.append(buildTab(k));
-      leftBody.scrollTop = 0;
-      stage.setFocus((TABS.find((t) => t[0] === k) || TABS[0])[2]);
+      root.dataset.page = k;
+      pageEl.innerHTML = '';
+      if (k === 'ward') {
+        pageEl.append(ward.el);
+        shot(SLOT_SHOT[ward.slot]);
+      } else {
+        pageEl.append(buildPage(k));
+        if (wardHost.firstChild !== ward.el) wardHost.append(ward.el);
+        shot((PAGES.find((p) => p[0] === k) || PAGES[0])[2]);
+      }
+      pageEl.scrollTop = 0;
       if (wasInspect !== inspect()) stage.setOutfit(prisonerOutfitFor(app, inspect()));
       if (sound) sfx('tab');
     };
+    // the two plates under the page
+    const sawBtn = plateBtn('New face', () => newFace(1), { glyph: 'saw', lamp: false, size: 'sm', finish: 'steel', aria: 'Saw on a new face (or scroll on the head)' });
+    const someBtn = plateBtn('Somebody else', () => randomizeLooks(), { glyph: 'dice', lamp: false, size: 'sm', finish: 'steel' });
+    actions.append(sawBtn, someBtn);
 
-    // ---------------- the wardrobe (right)
-    const cards = new Map<string, HTMLElement>();
-    const buildWardrobe = () => {
-      wardBody.innerHTML = '';
-      cards.clear();
-      for (const [slot, label] of COS_SLOTS) {
-        const list = COSMETICS.filter((c) => c.slot === slot);
-        if (!list.length) continue;
-        wardBody.append(h('div', 'ik2-slot', `<b>${esc(label)}</b>`));
-        const grid = h('div', 'ik2-cards');
-        if (slot !== 'suit') grid.append(card(null, slot));
-        for (const c of list) grid.append(card(c, slot));
-        wardBody.append(grid);
-      }
-      paintCards();
-    };
-    const card = (c: CosmeticDef | null, slot: CosSlot) => {
-      const el = h('div', 'ik2-card');
-      const b = h('button', 'ik2-card-b', '');
-      b.type = 'button';
-      hoverFocus(b);
-      const img = c ? (slot === 'suit' ? suitIcon(c) : stage.thumb(c.key)) : '';
-      b.innerHTML = `<span class="th">${img ? `<img src="${img}" alt="">` : `<i>${c ? '?' : '∅'}</i>`}</span><span class="nm">${esc(c ? c.name : 'Nothing')}</span><span class="st"></span>`;
-      b.onclick = () => wearCard(c, slot);
-      el.append(b);
-      if (c && c.cost > 0) {
-        const buy = h('button', 'ik2-buy', '');
-        buy.type = 'button'; hoverFocus(buy);
-        buy.onclick = () => buyIt(c);
-        el.append(buy);
-      }
-      if (c) el.title = c.desc;
-      cards.set(c ? c.key : 'none:' + slot, el);
-      return el;
-    };
-    const paintCards = () => {
-      const rp = researchPoints();
-      for (const [k, el] of cards) {
-        const none = k.startsWith('none:');
-        const slot = (none ? k.slice(5) : COSMETIC.get(k)!.slot) as CosSlot;
-        const worn = wornIn(app, slot);
-        const on = none ? !worn : worn === k;
-        const owned = none || ownsCosmetic(k);
-        const c = none ? null : COSMETIC.get(k)!;
-        el.classList.toggle('on', on);
-        el.classList.toggle('locked', !owned);
-        el.classList.toggle('trying', on && !owned);
-        const st = el.querySelector('.st') as HTMLElement;
-        st.textContent = on ? (owned ? 'WORN' : 'TRYING ON') : owned ? (c && c.cost ? 'OWNED' : 'ISSUE') : `${c!.cost} RP`;
-        const buy = el.querySelector('.ik2-buy') as HTMLButtonElement | null;
-        if (buy) { buy.hidden = owned; buy.disabled = !owned && rp < c!.cost; buy.innerHTML = `BUY <b>${c!.cost}</b> RP`; }
-      }
-      refreshRp();
-    };
-    const wearCard = (c: CosmeticDef | null, slot: CosSlot) => {
-      if (phase !== 'look') return;
-      const cur = wornIn(app, slot);
-      const next = c ? (cur === c.key && slot !== 'suit' ? null : c.key) : null;
-      setWorn(app, slot, next);
-      sfx(next ? 'clamp' : 'back', 0.7);
-      if (c && !ownsCosmetic(c.key) && next) say(`<b>TRYING ON · ${esc(c.name)}</b> · ${c.cost} RP to keep it`);
-      stage.setFocus(SLOT_PART[slot]);
-      if (slot === 'back' && next) stage.orbitTo(1.0);
-      paintCards();
-      refreshLooks();
-    };
-    const buyIt = (c: CosmeticDef) => {
-      if (buyCosmetic(c.key)) {
-        sfx('unlock');
-        say(`<b>ACQUIRED · ${esc(c.name)}</b> · yours on every run`);
-        if (wornIn(app, c.slot) !== c.key) setWorn(app, c.slot, c.key);
+    // ---------------- the issue store (right)
+    const ward = wardrobe({
+      app,
+      thumb: (k) => stage.thumb(k),
+      canWear: () => phase === 'look',
+      onWear: (slot, k) => {
+        if (slot === 'back' && k) stage.orbitTo(1.0);
         refreshLooks();
-      } else { sfx('error'); say(`Not enough research points. Missions, scans and quests pay RP.`); }
-      paintCards();
+      },
+      onSlot: (slot) => { if (curShot !== SLOT_SHOT[slot]) shot(SLOT_SHOT[slot]); },
+    });
+    wardHost.append(ward.el);
+
+    // ---------------- the body type levers
+    const fem = () => (app.bodyShape ?? 0.3) > 0.5;
+    const lvF: Lever = lever('Female', 'frame', () => clone(true), { handle: 'oxblood', seed: 31 });
+    const lvM: Lever = lever('Male', 'frame', () => clone(false), { handle: 'navy', seed: 57 });
+    lvF.el.classList.add('l'); lvM.el.classList.add('r');
+    levers.append(lvF.el, lvM.el);
+    const paintSex = () => { lvF.set(fem()); lvM.set(!fem()); };
+    const clone = async (f: boolean) => {
+      if (closing || stage.busy || phase !== 'look') return;
+      root.classList.add('pressing');
+      for (const b of [lvF.el, lvM.el, confirmBtn, termsBtn, back]) b.disabled = true;
+      const L = f ? lvF : lvM;
+      (f ? lvM : lvF).set(false);
+      await L.pull();
+      sfx('press');
+      await stage.press(() => {
+        app.bodyShape = f ? 0.82 + Math.random() * 0.12 : 0.04 + Math.random() * 0.16;
+        stage.setAppearance(app);
+        stage.setOutfit(prisonerOutfitFor(app, inspect()));
+      });
+      stage.setView('creator');
+      shot(curShot);
+      for (const b of [lvF.el, lvM.el, confirmBtn, termsBtn, back]) b.disabled = false;
+      root.classList.remove('pressing');
+      paintSex();
+      say(`<b>Clone ${f ? 'F' : 'M'}-${Math.floor(100 + Math.random() * 900)}</b> · same choices, fresh body`);
+      L.el.focus({ preventScroll: true });
     };
-    const offRp = bus.on?.('research', () => { if (root.isConnected) paintCards(); });
 
     // ---------------- picking on the body
     stage.onHover = (p, x, y) => {
@@ -549,74 +416,48 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       hoverTag.classList.toggle('on', !!p);
       if (!p) return;
       hoverTag.innerHTML = `<b>${esc(PART_LABEL[p] || p)}</b>`;
-      hoverTag.style.transform = `translate(${Math.round(x + 14)}px, ${Math.round(y + 10)}px)`;
+      hoverTag.style.transform = `translate(${Math.round(x + 16)}px, ${Math.round(y + 12)}px)`;
     };
     stage.onPick = (p: PartKey | null) => {
       if (phase !== 'look' || closing || !p) return;
-      const t = PART_TAB[p];
-      if (t) setTab(t);
+      const t = PART_PAGE[p];
+      if (t) setPage(t);
       stage.setFocus(p === 'head' ? 'head' : p);
     };
 
     // ---------------- steps
     const randomizeLooks = () => {
-      const fem = (app.bodyShape ?? 0.3) > 0.5;
+      if (phase !== 'look' || stage.busy) return;
       const keep = { cos: app.cos, bodyShape: app.bodyShape };
-      Object.assign(app, randomAppearance(Math.random), randomLooks(Math.random, fem), keep);
+      Object.assign(app, randomAppearance(Math.random), randomLooks(Math.random, fem()), keep);
       faces.length = 0; faces.push(curFace()); faceAt = 0;
       sfx('confirm');
       void stage.maul(() => { stage.setAppearance(app); stage.setOutfit(prisonerOutfitFor(app, inspect())); });
-      setTab(tab, false);
+      setPage(page, false);
     };
+    const layout = () => {
+      root.classList.toggle('portrait', portrait());
+      const had = page;
+      buildTabs();
+      cam.setFraming?.(0);
+      if (had === 'ward' && !portrait()) setPage('face', false);
+      else if (phase === 'look') setPage(had, false);
+    };
+    let lastPortrait = portrait();
+    const onResize = () => { if (portrait() !== lastPortrait) { lastPortrait = portrait(); layout(); } };
+    window.addEventListener('resize', onResize);
     const toLook = () => {
-      if (closing || stage.busy) return;
+      if (closing) return;
       phase = 'look';
       root.dataset.phase = 'look';
       stage.setView('creator');
-      setTab(tab, false);
+      layout();
+      paintSex();
       updateHint();
       requestAnimationFrame(() => confirmBtn.focus({ preventScroll: true }));
     };
-    const toSex = () => {
-      if (closing || stage.busy || phase !== 'look') return;
-      if (!name.trim()) { sfx('error'); setTab('id'); say('The subject needs a name.'); return; }
-      const dropped = stripUnowned(app);
-      if (dropped.length) say(`Try-ons returned: <b>${dropped.map((k) => esc(COSMETIC.get(k)?.name || k)).join(', ')}</b>. Buy them with RP to keep them.`);
-      phase = 'sex';
-      root.dataset.phase = 'sex';
-      sfx('confirm');
-      stage.setOutfit(prisonerOutfitFor(app, false));
-      stage.setAppearance(app);
-      stage.setView('gender');
-      paintSex();
-      paintCards();
-      requestAnimationFrame(() => ((app.bodyShape ?? 0.3) > 0.5 ? pink : blue).focus({ preventScroll: true }));
-    };
-    const paintSex = () => {
-      const fem = (app.bodyShape ?? 0.3) > 0.5;
-      pink.classList.toggle('cur', fem); blue.classList.toggle('cur', !fem);
-      pink.querySelector('small')!.textContent = fem ? 'current · press for a fresh clone' : 'feminine frame';
-      blue.querySelector('small')!.textContent = !fem ? 'current · press for a fresh clone' : 'masculine frame';
-    };
-    const clone = async (fem: boolean) => {
-      if (closing || stage.busy || phase !== 'sex') return;
-      root.classList.add('pressing');
-      (fem ? pink : blue).classList.add('down');
-      sfx('press');
-      await stage.press(() => {
-        app.bodyShape = fem ? 0.82 + Math.random() * 0.12 : 0.04 + Math.random() * 0.16;
-        if (!fem && app.hairStyle === 'long' && Math.random() < 0) app.hairStyle = 'short';
-        stage.setAppearance(app);
-        stage.setOutfit(prisonerOutfitFor(app, false));
-      });
-      (fem ? pink : blue).classList.remove('down');
-      root.classList.remove('pressing');
-      paintSex();
-      say(`<b>CLONE ${fem ? 'P' : 'B'}-${Math.floor(100 + Math.random() * 900)}</b> · same choices, fresh body`);
-      (fem ? pink : blue).focus({ preventScroll: true });
-    };
 
-    // ---------------- sheets: sentencing terms, the rehab fallback
+    // ---------------- sheets on a terminal: sentencing terms, the rehab fallback
     const termsCtx: TermsCtx = {
       sb, get preset() { return preset; }, set preset(v) { preset = v; },
       get seed() { return seed; }, set seed(v) { seed = v; },
@@ -624,25 +465,24 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       get name() { return name; },
     };
     let sheetNav: FocusNav | null = null;
-    const openSheet = (title: string, el: HTMLElement, done: string, onDone: () => void) => {
+    const openSheet = (title: string, sub: string, el: HTMLElement, done: string, onDone: () => void, onTab?: (d: -1 | 1) => void) => {
       sheetNav?.destroy();
       sheet.innerHTML = '';
-      const panel = h('div', 'nx-panel ik2-sheet-p');
-      panel.append(h('div', 'nx-panel-h', `<b>${esc(title)}</b>`));
-      const body = h('div', 'nx-panel-b'); body.append(el);
-      const ok = h('button', 'ik2-go', `<b>${esc(done)}</b>`); ok.type = 'button'; hoverFocus(ok);
-      ok.onclick = () => { closeSheet(); onDone(); };
-      panel.append(body, ok);
-      sheet.append(panel);
+      const t = terminal({ title, sub, cls: 'ik3-sheet-t', model: 'Meridian · Records' });
+      t.body.append(el);
+      const ok = plateBtn(done, () => { closeSheet(); onDone(); }, { finish: 'brass', size: 'md', lamp: 'green' });
+      t.keys.append(ok);
+      sheet.append(t.el);
       sheet.classList.add('on');
       sfx('open', 0.7);
-      sheetNav = new FocusNav(sheet, { onBack: () => closeSheet(), autofocus: true });
+      sheetNav = new FocusNav(sheet, { onBack: () => closeSheet(), autofocus: true, onTab });
     };
     const closeSheet = () => { sheetNav?.destroy(); sheetNav = null; sheet.classList.remove('on'); sheet.innerHTML = ''; };
     let terms: ReturnType<typeof termsStation> | null = null;
     const openTerms = () => {
+      if (closing || stage.busy) return;
       if (!terms) terms = termsStation(termsCtx);
-      openSheet('SENTENCING TERMS', terms.el, 'DONE ✓', () => finalBtn.focus({ preventScroll: true }));
+      openSheet('Sentencing terms', 'form R-7 · the world you are sent to', terms.el, 'Done', () => termsBtn.focus({ preventScroll: true }));
       terms.enter();
     };
     const points = () => {
@@ -659,14 +499,15 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     let rehab: ReturnType<typeof rehabStation> | null = null;
     const rehabSheet = () => new Promise<void>((res) => {
       if (!rehab) rehab = rehabStation(rehabCtx);
-      const go = () => { if (points() < 0) { sfx('error'); rehab!.deny('Not enough credits: drop a condition or take a cheaper programme.'); openSheet('REHAB SECTION', rehab!.el, 'CONTINUE ▶', go); return; } res(); };
-      openSheet('REHAB SECTION', rehab.el, 'CONTINUE ▶', go);
+      const go = () => { if (points() < 0) { sfx('error'); rehab!.deny('Not enough credits: drop a condition or take a cheaper programme.'); openSheet('Rehab section', 'programmes · conditions', rehab!.el, 'Continue', go); return; } res(); };
+      openSheet('Rehab section', 'programmes · conditions', rehab.el, 'Continue', go);
       rehab.enter();
     });
 
     // ---------------- confirm: operating table, then processed
     const finish = async () => {
-      if (closing || stage.busy || phase !== 'sex') return;
+      if (closing || stage.busy || phase !== 'look') return;
+      if (!name.trim()) { sfx('error'); setPage('id'); say('The subject needs a name.'); requestAnimationFrame(() => nameInput?.focus()); return; }
       if (points() < 0) { sfx('error'); return; }
       closing = true;
       phase = 'out';
@@ -688,9 +529,11 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
         stage.paused = false;
         root.style.display = '';
         if (!out) {
-          // they climbed off the table: back to the body type
-          closing = false; phase = 'sex'; root.dataset.phase = 'sex';
-          requestAnimationFrame(() => finalBtn.focus({ preventScroll: true }));
+          // they climbed off the table: back to the page
+          closing = false; phase = 'look'; root.dataset.phase = 'look';
+          stage.setOutfit(prisonerOutfitFor(app, inspect()));
+          shot(curShot);
+          requestAnimationFrame(() => confirmBtn.focus({ preventScroll: true }));
           return;
         }
         if (out && typeof out === 'object') {
@@ -703,7 +546,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       }
       // PROCESSED
       stage.setView('creator');
-      stage.setFocus('head');
+      stage.setOutfit(prisonerOutfitFor(app));
+      shot('face');
       const number = suitNumber(stage.rigSeed);
       stampEl.innerHTML = `<b>${esc(opts.submit ? opts.submit.toUpperCase() : 'PROCESSED')}</b><span>${esc(number)} · ${esc(name.trim().toUpperCase())}</span>`;
       await new Promise((r) => setTimeout(r, 700));
@@ -715,13 +559,12 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     };
 
     const withdraw = async () => {
-      if (closing) return;
-      const ok = await confirmDialog({ title: 'WITHDRAW', body: 'Back to the dark? Nothing here is kept (except what you bought).', ok: 'Withdraw', cancel: 'Stay', danger: true });
+      if (closing || stage.busy) return;
+      const ok = await confirmDialog({ title: 'Withdraw', body: 'Back to the dark? Nothing here is kept.', ok: 'Withdraw', cancel: 'Stay', danger: true });
       if (!ok || closing) return;
       closing = true;
       phase = 'out';
       root.dataset.phase = 'out';
-      stripUnowned(app);
       await stage.lightsOff();
       close(null);
     };
@@ -730,8 +573,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     const close = (r: IntakeResult | null) => {
       nav.destroy(); sheetNav?.destroy();
       clearTimeout(looksT); clearTimeout(toastT);
+      window.removeEventListener('resize', onResize);
       rehab?.destroy(); terms?.destroy();
-      if (typeof offRp === 'function') offRp();
       stage.onHeadScroll = undefined; stage.onPick = undefined; stage.onHover = undefined;
       if (ownHost) { stage.dispose(); ownHost.remove(); }
       root.remove();
@@ -739,21 +582,26 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       resolve(r);
     };
 
-    // ---------------- go: lights on, then the lab
+    // ---------------- go: lights on, then the page
     document.body.append(root);
     root.dataset.phase = 'intro';
+    root.classList.toggle('portrait', portrait());
     stage.setAppearance(app);
     stage.setOutfit(prisonerOutfitFor(app, false));
-    buildWardrobe();
-    setTab('face', false);
     stage.setFocus('full');
-    refreshRp();
+    buildTabs();
+    pageEl.append(buildPage('face'));
     nav = new FocusNav(root, {
-      onBack: () => { if (closing) return; if (sheet.classList.contains('on')) closeSheet(); else if (phase === 'sex') toLook(); else if (phase === 'look') withdraw(); },
-      onTab: (d) => { if (closing || phase !== 'look') return; const i = TABS.findIndex((t) => t[0] === tab); setTab(TABS[(i + d + TABS.length) % TABS.length][0]); },
+      onBack: () => { if (closing) return; if (sheet.classList.contains('on')) closeSheet(); else if (phase === 'look') withdraw(); },
+      onTab: (d) => {
+        if (closing || phase !== 'look') return;
+        if (ward.contains(document.activeElement)) { ward.setSlot(d); return; }
+        const L = pageList(); const i = L.indexOf(page);
+        setPage(L[(i + d + L.length) % L.length]);
+      },
       autofocus: false,
     });
     stage.lightsOn().then(() => { if (!closing) toLook(); });
-    if (import.meta.env.DEV) (window as any).__intake = { stage, app, setTab, newFace, toSex, toLook, clone, finish, wearCard: (k: string) => { const c = COSMETIC.get(k)!; wearCard(c, c.slot); }, buyIt: (k: string) => buyIt(COSMETIC.get(k)!), get phase() { return phase; } };
+    if (import.meta.env.DEV) (window as any).__intake = { stage, app, setPage, newFace, clone, finish, ward, openTerms, get phase() { return phase; } };
   });
 }

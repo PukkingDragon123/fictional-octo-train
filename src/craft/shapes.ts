@@ -1,10 +1,11 @@
-// Smooth low-poly parts for the close-ups: bevelled boxes, round-ended
-// cylinders, domed rivets, rings, capsules — merged into one geometry per
-// material with per-part tints (vertex colours) and box-projected uvs so the
-// metal maps tile at a real-world scale. Nothing here is a raw box.
+// Faceted low-poly parts for the close-ups: chamfered boxes, few-sided
+// cylinders with bevelled rims, hex rivet heads, polygon rings, faceted rods —
+// merged into one geometry per material with per-part tints (vertex colours)
+// and box-projected uvs so the metal maps tile at a real-world scale. Every
+// triangle carries its own normal (flat facets). Nothing here is a raw box.
 import * as THREE from 'three';
-import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { fbox, fcyl, fcapsule, fdome, fring, fball, segs } from '../ui/touch/facet';
 
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(1, 1, 1), _p = new THREE.Vector3();
 
@@ -40,35 +41,33 @@ export class Shape {
   /** a bevelled box: x, z = centre, y = bottom (like the ModelBuilder) */
   box(x: number, y: number, z: number, w: number, h: number, d: number, color = 0xffffff, r = 0.004, rot?: [number, number, number]) {
     const rr = Math.max(0.0005, Math.min(r, w / 2.2, h / 2.2, d / 2.2));
-    const g = new RoundedBoxGeometry(w, h, d, 2, rr);
+    const g = fbox(w, h, d, rr, true);
     if (rot) g.translate(0, h / 2, 0);
     return this.push(g, x, rot ? y : y + h / 2, z, color, rot);
   }
   /** a cylinder along y from its bottom, edges softened with a small chamfer ring */
-  cyl(x: number, y: number, z: number, r: number, h: number, color = 0xffffff, segs = 12, rot?: [number, number, number], rTop = r) {
-    const g = new THREE.CylinderGeometry(rTop, r, h, segs, 1, false);
+  cyl(x: number, y: number, z: number, r: number, h: number, color = 0xffffff, sg = 12, rot?: [number, number, number], rTop = r) {
+    const g = fcyl(rTop, h, segs(sg), r, 0.12);
     g.translate(0, h / 2, 0);
     return this.push(g, x, y, z, color, rot);
   }
   /** a round-ended rod along y from its bottom */
   capsule(x: number, y: number, z: number, r: number, len: number, color = 0xffffff, rot?: [number, number, number]) {
-    const g = new THREE.CapsuleGeometry(r, Math.max(0.0001, len - 2 * r), 4, 10);
-    g.translate(0, len / 2, 0);
+    const g = fcapsule(r, Math.max(r * 2 + 0.0001, len), 6);
     return this.push(g, x, y, z, color, rot);
   }
   /** a domed rivet / screw head facing +z (or rot) */
   dome(x: number, y: number, z: number, r: number, color = 0xffffff, rot: [number, number, number] = [Math.PI / 2, 0, 0]) {
-    const g = new THREE.SphereGeometry(r, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2);
-    g.scale(1, 0.55, 1);
+    const g = fdome(r, 6, 2, 0.55);
     return this.push(g, x, y, z, color, rot);
   }
   /** a ring (torus) in the xy plane; four segments make a bevelled square frame */
   ring(x: number, y: number, z: number, r: number, tube: number, color = 0xffffff, radial = 16, rot?: [number, number, number]) {
-    const g = new THREE.TorusGeometry(r, tube, 6, radial);
+    const g = fring(r, tube, radial <= 8 ? radial : Math.min(10, Math.max(8, Math.round(radial * 0.5))), 4);
     return this.push(g, x, y, z, color, rot);
   }
   sphere(x: number, y: number, z: number, r: number, color = 0xffffff, sy = 1) {
-    const g = new THREE.SphereGeometry(r, 10, 7);
+    const g = fball(r, 7, 4);
     g.scale(1, sy, 1);
     return this.push(g, x, y, z, color);
   }

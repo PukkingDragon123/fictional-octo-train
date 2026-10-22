@@ -110,6 +110,7 @@ class TitleRoom {
     items.push({ key: 'controls', label: 'Controls', sub: 'keys · touch · gamepad', act: () => this.controls(), size: 'md' });
     items.push({ key: 'about', label: 'About', sub: 'what this place is', act: () => this.about(), size: 'md' });
     this.menu.innerHTML = '';
+    this.menu.append(this.cap);
     this.btns.clear();
     for (const it of items) {
       const b = plateBtn(it.label, () => this.activate(it), { finish: it.finish ?? 'steel', size: it.size ?? 'lg', full: true, pointer: true, sound: '', aria: `${it.label} — ${it.sub}` });
@@ -123,10 +124,11 @@ class TitleRoom {
   }
   private focusKey(k: string) { requestAnimationFrame(() => this.btns.get(k)?.focus({ preventScroll: true })); }
   private caption(it: Item, b: HTMLElement) {
+    // the caption lives in the column, placed by layout offsets (immune to the plates' entrance animation)
+    if (this.cap.parentElement !== this.menu) this.menu.append(this.cap);
     this.cap.innerHTML = `<small>${esc(it.sub)}</small>`;
-    const r = b.getBoundingClientRect(), mr = this.menu.getBoundingClientRect();
-    if (this.portrait()) this.cap.style.transform = `translate(${Math.round(mr.left)}px, ${Math.round(mr.top - 34)}px)`;
-    else this.cap.style.transform = `translate(${Math.round(r.right + 22)}px, ${Math.round(r.top + r.height / 2 - 12)}px)`;
+    this.cap.style.transform = '';
+    this.cap.style.top = this.portrait() ? '' : Math.round(b.offsetTop + b.offsetHeight / 2) + 'px';
     this.cap.classList.remove('in'); void this.cap.offsetWidth; this.cap.classList.add('in');
   }
   private busy = false;
@@ -142,7 +144,7 @@ class TitleRoom {
     this.overNav?.destroy();
     this.over.innerHTML = '';
     this.over.className = 'nx-over on';
-    const t = terminal({ title, sub, cls: 'tt3-term', keysW: 60 });
+    const t = terminal({ title, sub, cls: 'tt3-term' });
     t.body.append(el);
     const back = plateBtn('Back', () => this.closeOver(), { finish: 'cream', size: 'md', shape: 'arrowL', lamp: false, sound: 'back', aria: 'Back (Esc)' });
     t.keys.append(back);

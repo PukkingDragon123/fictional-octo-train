@@ -263,6 +263,7 @@ export class PixelRenderer {
     this.overlayCamera.updateProjectionMatrix();
     U.uSnapRes.value.set(RW, RH);
     this.postfx.setSize(RW, RH);
+    if (this.zoomLevel >= 0) this.setZoomLevel(this.zoomLevel);
   }
 
   get pixelsPerMetre() { return 1 / this.pxSize; }
@@ -548,10 +549,16 @@ export class PixelRenderer {
   /** CSS px per world metre at current zoom (for sizing DOM bubbles) */
   cssPerMetre() { return (this.scale / this.pxSize) / this.dpr; }
 
-  /** zoom levels expressed as low-res pixels per metre */
+  /** zoom levels expressed as low-res pixels per metre at a 360-line picture (scaled with the picture height) */
   static readonly ZOOMS = [18, 24, 32, 40, 48, 58, 70];
+  private zoomLevel = -1;
   setZoomLevel(level: number) {
     const z = PixelRenderer.ZOOMS;
-    this.pxSizeTarget = 1 / z[clamp(Math.round(level), 0, z.length - 1)];
+    this.zoomLevel = clamp(Math.round(level), 0, z.length - 1);
+    // the same framing on every screen: taller internal pictures (1080p, 1440p) get finer pixels, not
+    // a wider view; narrow (portrait) views pull out so roughly 7.5 m stay visible across the screen
+    const base = z[this.zoomLevel];
+    const ppm = Math.min(base * clamp(this.lowH / 360, 0.8, 1.6), base * this.lowW / 300);
+    this.pxSizeTarget = 1 / ppm;
   }
 }

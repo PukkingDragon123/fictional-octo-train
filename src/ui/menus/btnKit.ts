@@ -20,7 +20,7 @@ import './kit.css';
 export type Finish = 'steel' | 'olive' | 'cream' | 'oxblood' | 'brass' | 'navy';
 export type Shape = 'plate' | 'tag' | 'arrowL' | 'arrowR' | 'key' | 'notch';
 export type Size = 'xl' | 'lg' | 'md' | 'sm';
-export type Glyph = 'L' | 'R' | 'U' | 'D' | 'X' | 'dot' | 'dice' | 'saw';
+export type Glyph = 'L' | 'R' | 'l' | 'r' | 'U' | 'D' | 'X' | 'dot' | 'dice' | 'saw';
 
 const K = 0x0a0806;
 interface FinishSpec { ramp: number[]; bare: number; tex: 'brushed' | 'enamel' | 'brass' }
@@ -83,12 +83,12 @@ function shapeFn(shape: Shape | 'halfL' | 'halfR', pw: number, ph: number): Insi
     u + v < tl || (pw - 1 - u) + v < tr || (pw - 1 - u) + (ph - 1 - v) < br || u + (ph - 1 - v) < bl;
   switch (shape) {
     case 'tag': return (u, v) => box(u, v) && !cut(u, v, c, c, c, c);
-    case 'key': return (u, v) => box(u, v) && !cut(u, v, 2, 2, 2, 2);
+    case 'key': return (u, v) => box(u, v) && !cut(u, v, 1, 1, 1, 1);
     case 'notch': return (u, v) => box(u, v) && !cut(u, v, c + 1, 1, c + 1, 1) && !(u > pw - 2 - c && u < pw - 1 && v > ph * 0.35 && v < ph * 0.65 && u > pw - 1 - Math.round(c * 0.6));
     case 'arrowL': { const a = Math.floor(ph / 2); return (u, v) => box(u, v) && u >= a - Math.min(v, ph - 1 - v) && !cut(u, v, 0, 2, 2, 0); }
     case 'arrowR': { const a = Math.floor(ph / 2); return (u, v) => box(u, v) && (pw - 1 - u) >= a - Math.min(v, ph - 1 - v) && !cut(u, v, 2, 0, 0, 2); }
-    case 'halfL': return (u, v) => box(u, v) && !cut(u, v, 2, 0, 0, 2);
-    case 'halfR': return (u, v) => (u < 0 ? v >= 0 && v < ph : box(u, v) && !cut(u, v, 0, 2, 2, 0));
+    case 'halfL': return (u, v) => box(u, v) && !cut(u, v, 1, 0, 0, 1);
+    case 'halfR': return (u, v) => (u < 0 ? v >= 0 && v < ph : box(u, v) && !cut(u, v, 0, 1, 1, 0));
     default: return (u, v) => box(u, v) && !cut(u, v, c, 1, c, 1);
   }
 }
@@ -124,6 +124,8 @@ function rings(inside: Inside, pw: number, ph: number) {
 const GLYPHS: Record<Glyph, string[]> = {
   L: ['...#', '..##', '.###', '####', '.###', '..##', '...#'],
   R: ['#...', '##..', '###.', '####', '###.', '##..', '#...'],
+  l: ['..#', '.##', '###', '.##', '..#'],
+  r: ['#..', '##.', '###', '##.', '#..'],
   U: ['...#...', '..###..', '.#####.', '#######'],
   D: ['#######', '.#####.', '..###..', '...#...'],
   X: ['#...#', '.#.#.', '..#..', '.#.#.', '#...#'],
@@ -159,8 +161,8 @@ function drawPlate(pc: PixelCanvas, ox: number, oy: number, p: PlateSpec, st: St
       const st2 = hash((u + Math.floor(hash(0, v, p.seed) * 40)) >> 2, v, p.seed + 3);
       if (st2 > 0.86) val += 0.07; else if (st2 < 0.1) val -= 0.06;
     } else if (F.tex === 'brass') {
-      val += 0.18 * Math.exp(-(((v - sheenY) / (ph * 0.2)) ** 2)) - 0.05;
-      if (hash(u >> 2, v >> 1, p.seed + 9) < 0.08 * wear) val -= 0.14;
+      val += 0.14 * Math.exp(-(((v - sheenY) / (ph * 0.2)) ** 2)) - 0.03;
+      if (hash(u >> 2, v >> 1, p.seed + 9) < 0.04 * wear) val -= 0.1;
     } else {
       val += (hash(u >> 1, v >> 1, p.seed + 5) - 0.5) * 0.09;
       if (n > 0.965) val += 0.08;
@@ -173,7 +175,9 @@ function drawPlate(pc: PixelCanvas, ox: number, oy: number, p: PlateSpec, st: St
     else if (st === 3) val -= 0.12;
     const f = 1.6 + Math.max(0, Math.min(1, val)) * 4.2;
     let i = Math.floor(f);
-    if (f - i > bayer(u, v)) i++;
+    // flat bands with a narrow dithered seam between them (not a checkerboard everywhere)
+    const fr = f - i;
+    if (fr > 0.66 || (fr > 0.4 && bayer(u, v) < (fr - 0.4) / 0.26)) i++;
     return R[Math.max(1, Math.min(6, i))];
   };
   for (let v = 0; v < ph; v++) for (let u = 0; u < pw; u++) {
@@ -208,11 +212,13 @@ function drawPlate(pc: PixelCanvas, ox: number, oy: number, p: PlateSpec, st: St
     }
     const nScr = Math.round((pw / 14) * wear);
     for (let i = 0; i < nScr; i++) {
-      let u = 4 + Math.floor(rnd() * (pw - 8)), v = 3 + Math.floor(rnd() * Math.max(1, ph - 6));
-      const dx = rnd() < 0.5 ? 1 : -1, steep = rnd() < 0.35, len = 3 + Math.floor(rnd() * 5);
+      // short straight scuffs: a light pixel run with a dark pixel under its start
+      let u = 6 + Math.floor(rnd() * (pw - 12)), v = 3 + Math.floor(rnd() * Math.max(1, ph - 7));
+      const dx = rnd() < 0.5 ? 1 : -1, diag = rnd() < 0.5, len = 2 + Math.floor(rnd() * 4);
+      if (isFace(u, v + 1)) put(u, v + 1, R[2]);
       for (let k = 0; k < len; k++) {
-        if (isFace(u, v) && rnd() > 0.2) put(u, v, mixHex(R[4], R[6], 0.5));
-        u += dx; if (steep || k % 3 === 2) v += 1;
+        if (isFace(u, v)) put(u, v, k === 0 ? R[6] : R[5]);
+        u += dx; if (diag && k % 2 === 1) v += 1;
       }
     }
     if (F.tex !== 'brass' && rnd() < 0.55 * wear) {
@@ -430,8 +436,8 @@ function rockerSheet(hw: number, H: number, finish: Finish, seed: number): strin
       const oy = f * H;
       // the steel bezel (with its shadow), then the two halves of the bakelite paddle
       drawPlate(pc, 0, oy, { W, H, finish: 'steel', shape: 'key', seed, rivets: false, wear: 0.4 }, a === 3 ? 3 : 0);
-      drawPlate(pc, 2, oy + 2, { W: hw, H: H - 4, finish, shape: 'halfL', seed: seed + 1, rivets: false, glyph: 'L', wear: 0.5 }, a, { noShadow: true });
-      drawPlate(pc, hw + 1, oy + 2, { W: hw - 1, H: H - 4, finish, shape: 'halfR', seed: seed + 2, rivets: false, glyph: 'R', wear: 0.5 }, b, { noShadow: true });
+      drawPlate(pc, 2, oy + 2, { W: hw, H: H - 4, finish, shape: 'halfL', seed: seed + 1, rivets: false, glyph: 'l', wear: 0.5 }, a, { noShadow: true });
+      drawPlate(pc, hw + 1, oy + 2, { W: hw - 1, H: H - 4, finish, shape: 'halfR', seed: seed + 2, rivets: false, glyph: 'r', wear: 0.5 }, b, { noShadow: true });
       for (let y = 3; y < H - 5; y++) pc.set(hw, oy + y, K);
     });
     return pc;
@@ -475,8 +481,8 @@ export function rocker(onStep: (d: -1 | 1) => void, o: { finish?: Finish; label?
   const paint = () => {
     if (!el.isConnected) return;
     const s = kitScale();
-    const H = artH(size) + 2;
-    const hw = Math.round(H * 0.8);
+    const H = artH(size) + 4;
+    const hw = Math.round(H * 0.84);
     const W = hw * 2 + 2;
     el.style.width = W * s + 'px'; el.style.height = H * s + 'px';
     el.style.setProperty('--bh', H * s + 'px');
@@ -494,83 +500,101 @@ export function rocker(onStep: (d: -1 | 1) => void, o: { finish?: Finish; label?
 // ------------------------------------------------------------------ the big lever
 /** frames: 0 up, 1 up hot, 2 mid (end-on), 3 down, 4 down hot, 5 up disabled, 6 down disabled */
 function leverSheet(W: number, H: number, handle: Finish, seed: number, lampCol: 'green' | 'amber'): string {
-  return cached(`lv|${W}|${H}|${handle}|${seed}|${lampCol}`, () => {
+  return cached(`lv2|${W}|${H}|${handle}|${seed}|${lampCol}`, () => {
     const pc = cv(W, H * 7);
     const HR = FIN[handle].ramp;
-    const bx = 2, by = Math.round(H * 0.17), bw = W - 4, bh = Math.round(H * 0.72);
-    const px = Math.floor(W / 2) - 1, py = by + Math.round(bh * 0.52);
+    const COPPER = [0x2a1006, 0x6a3012, 0xa85a24, 0xd88a44, 0xf4c080];
+    const hh = Math.max(7, Math.round(H * 0.17));         // handle height
+    const by = hh - 2, bh = H - 2 * hh + 2;               // base plate rows
+    const bx = 1, bw = W - 3;
+    const px = Math.floor(W / 2) - 1;                     // the arm's left column
+    const py = by + Math.round(bh * 0.5);                 // pivot row
+    const s0 = by + 6, s1 = by + bh - 6;                  // slot
     for (let f = 0; f < 7; f++) {
       const oy = f * H;
       const up = f === 0 || f === 1 || f === 5, mid = f === 2;
       const hot = f === 1 || f === 4, dis = f >= 5;
-      const st: St = dis ? 3 : hot ? 1 : 0;
+      const P = (x: number, y: number, c: number) => pc.set(x, oy + y, dis ? mixHex(c, grey(c), 0.6) : c);
+      const B = (x: number, y: number, c: number, t: number) => pc.blend(x, oy + y, c, t);
       // the riveted base plate
-      drawPlate(pc, bx, oy + by, { W: bw + 1, H: bh + 2, finish: 'steel', shape: 'tag', seed, rivets: false, wear: 1 }, dis ? 3 : 0);
-      const rv = (x: number, y: number) => { pc.set(bx + x, oy + by + y, RIVET.hi); pc.set(bx + x + 1, oy + by + y, RIVET.mid); pc.set(bx + x, oy + by + y + 1, RIVET.mid); pc.set(bx + x + 1, oy + by + y + 1, RIVET.lo); pc.blend(bx + x + 2, oy + by + y + 1, 0, 0.35); pc.blend(bx + x + 1, oy + by + y + 2, 0, 0.35); };
-      rv(3, 2); rv(bw - 6, 2); rv(3, bh - 5); rv(bw - 6, bh - 5);
-      // the indicator lamp at the top of the plate (lit on the thrown lever)
-      const lx = bx + 2, ly = py - 2, lw = 3, lh = 4;
+      drawPlate(pc, bx, oy + by, { W: bw + 1, H: bh + 2, finish: 'steel', shape: 'plate', seed, rivets: false, wear: 1 }, dis ? 3 : 0);
+      const rv = (x: number, y: number) => { P(x, y, RIVET.hi); P(x + 1, y, RIVET.mid); P(x, y + 1, RIVET.mid); P(x + 1, y + 1, RIVET.lo); B(x + 2, y + 1, 0, 0.35); B(x + 1, y + 2, 0, 0.35); };
+      rv(bx + 3, by + 3); rv(bx + bw - 5, by + 3); rv(bx + 3, by + bh - 5); rv(bx + bw - 5, by + bh - 5);
+      // a hazard band across the top of the plate
+      for (let x = bx + 6; x < bx + bw - 6; x++) for (let j = 0; j < 2; j++) P(x, by + 3 + j, ((x + j) >> 1) % 2 ? 0xd8a828 : 0x17140c);
+      for (let x = bx + 6; x < bx + bw - 6; x++) { P(x, by + 2, 0x121518); P(x, by + 5, 0x56616a); }
+      // the slot the arm travels in, with copper contact jaws at the bottom
+      for (let y = s0; y <= s1; y++) { P(px - 1, y, 0x121518); P(px, y, 0x050403); P(px + 1, y, 0x050403); P(px + 2, y, 0x0c0a08); P(px + 3, y, 0x6a767e); }
+      P(px - 1, s0 - 1, 0x121518); P(px + 3, s1 + 1, 0x6a767e);
+      for (const jx of [px - 3, px + 3]) for (let j = 0; j < 4; j++) for (let i = 0; i < 2; i++) {
+        const y = s1 - 4 + j;
+        P(jx + i, y, j === 0 ? COPPER[4] : i === 0 ? COPPER[3] : j === 3 ? COPPER[1] : COPPER[2]);
+      }
+      // engraved 0 (top) and 1 (bottom) beside the slot
+      const dig = (x: number, y: number, rows: string[]) => rows.forEach((r, j) => [...r].forEach((ch, i) => { if (ch === '#') { P(x + i, y + j, 0x0e1012); P(x + i + 1, y + j + 1, 0x6a767e); } }));
+      dig(px + 5, s0 + 1, ['###', '#.#', '#.#', '###']);
+      dig(px + 6, s1 - 8, ['##', '.#', '.#', '.#']);
+      // the indicator lamp (lit on the thrown lever), left of the pivot
+      const lw = 3, lh = 4, lx = bx + 3, ly = py - 2;
       const on = !up && !mid && !dis;
       const lc = lampCol === 'green' ? [0x0a2a12, 0x40ff7a, 0xd0ffd8, 0x1a9a3a] : [0x2a1006, 0xffaa30, 0xfff0b0, 0xc85a10];
-      for (let i = -1; i <= lw; i++) { pc.set(lx + i, oy + ly - 1, 0x121518); pc.set(lx + i, oy + ly + lh, 0x56616a); }
-      for (let j = 0; j < lh; j++) { pc.set(lx - 1, oy + ly + j, 0x121518); pc.set(lx + lw, oy + ly + j, 0x56616a); }
-      for (let j = 0; j < lh; j++) for (let i = 0; i < lw; i++) pc.set(lx + i, oy + ly + j, on ? (j === 0 ? lc[2] : j === lh - 1 ? lc[3] : lc[1]) : (i === 0 && j === 0 ? 0x24301e : lc[0]));
-      if (on) for (let i = -2; i <= lw + 1; i++) for (let j = -2; j <= lh + 1; j++) { if (i >= -1 && i <= lw && j >= -1 && j <= lh) continue; pc.blend(lx + i, oy + ly + j, lc[1], 0.16); }
-      // the slot the arm travels in
-      const s0 = by + 7, s1 = by + bh - 5;
-      for (let y = s0; y <= s1; y++) { pc.set(px, oy + y, 0x050403); pc.set(px + 1, oy + y, 0x0c0a08); pc.set(px - 1, oy + y, 0x121518); pc.set(px + 2, oy + y, 0x56616a); }
-      // the pivot block (a square hub with a bolt)
-      const hub = (x: number, y: number) => {
-        for (let j = 0; j < 4; j++) for (let i = 0; i < 6; i++) {
-          const e = i === 0 || j === 0 || i === 5 || j === 3;
-          pc.set(x + i, oy + y + j, e ? K : j === 1 ? (i < 3 ? 0x8a969e : 0x56616a) : 0x3e474e);
+      for (let i = -1; i <= lw; i++) { P(lx + i, ly - 1, 0x121518); P(lx + i, ly + lh, 0x6a767e); }
+      for (let j = 0; j < lh; j++) { P(lx - 1, ly + j, 0x121518); P(lx + lw, ly + j, 0x6a767e); }
+      for (let j = 0; j < lh; j++) for (let i = 0; i < lw; i++) P(lx + i, ly + j, on ? (j === 0 ? lc[2] : j === lh - 1 ? lc[3] : lc[1]) : (i === 0 && j === 0 ? 0x24301e : lc[0]));
+      if (on) for (let i = -2; i <= lw + 1; i++) for (let j = -2; j <= lh + 1; j++) { if (i >= -1 && i <= lw && j >= -1 && j <= lh) continue; B(lx + i, ly + j, lc[1], 0.16); }
+      // the pivot block: a square hub with a hex bolt
+      const hub = () => {
+        const hx = px - 2, hy = py - 2;
+        for (let j = 0; j < 5; j++) for (let i = 0; i < 7; i++) {
+          const e = i === 0 || j === 0 || i === 6 || j === 4;
+          P(hx + i, hy + j, e ? K : j === 1 ? (i < 4 ? 0x9aa6ae : 0x5d676e) : j === 3 ? 0x2d343a : 0x434c53);
         }
-        pc.set(x + 2, oy + y + 1, RIVET.hi); pc.set(x + 3, oy + y + 2, RIVET.lo);
-      };
-      // the arm and the bakelite handle
-      const handleAt = (x: number, y: number, hw: number, hh: number, endOn: boolean) => {
-        // cast shadow on the plate
-        for (let j = 0; j < hh; j++) for (let i = 0; i < hw; i++) pc.blend(x + i + 2, oy + y + j + 2, 0, 0.45);
-        for (let j = 0; j < hh; j++) for (let i = 0; i < hw; i++) {
-          const cutC = (i === 0 || i === hw - 1) && (j === 0 || j === hh - 1);
-          if (cutC) continue;
-          const edge = i === 0 || j === 0 || i === hw - 1 || j === hh - 1 || (i === 1 && (j === 0 || j === hh - 1)) || (i === hw - 2 && (j === 0 || j === hh - 1));
-          let c: number;
-          if (edge) c = K;
-          else if (endOn) c = j === 1 || i === 1 ? HR[hot ? 6 : 5] : j === hh - 2 || i === hw - 2 ? HR[2] : (i + j) % 3 === 0 ? HR[3] : HR[4];
-          else {
-            // grip ridges across the handle, lit from the top left
-            const ridge = (j % 2 === 0);
-            c = i === 1 ? HR[hot ? 6 : 5] : i === hw - 2 ? HR[1] : ridge ? HR[2] : HR[hot ? 5 : 4];
-            if (j === 1 && i > 1 && i < hw - 2) c = HR[hot ? 6 : 5];
-          }
-          if (dis) c = mixHex(c, grey(c), 0.6);
-          pc.set(x + i, oy + y + j, c);
-        }
-        if (!endOn && hot) pc.set(x + 2, oy + y + 1, 0xffffff);
+        P(hx + 3, hy + 2, RIVET.hi); P(hx + 4, hy + 2, RIVET.mid); P(hx + 3, hy + 3, RIVET.lo);
+        B(hx + 7, hy + 2, 0, 0.4); B(hx + 7, hy + 3, 0, 0.4); B(hx + 2, hy + 5, 0, 0.4); B(hx + 6, hy + 5, 0, 0.4);
       };
       const rod = (y0: number, y1: number) => {
         for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) {
-          pc.set(px - 1, oy + y, K); pc.set(px, oy + y, 0xc8d0d4); pc.set(px + 1, oy + y, 0x6c767d); pc.set(px + 2, oy + y, K);
-          pc.blend(px + 3, oy + y + 1, 0, 0.35);
+          P(px - 1, y, K); P(px, y, 0xd8e0e4); P(px + 1, y, 0x8a969e); P(px + 2, y, 0x4a5458); P(px + 3, y, K);
+          B(px + 4, y + 1, 0, 0.35);
         }
       };
-      const hw = W - 8, hh = Math.max(7, Math.round(H * 0.2));
+      // the bakelite handle: grip ridges, lit top-left, a brass ferrule where the rod enters
+      const hwid = W - 6;
+      const handleAt = (x: number, y: number, hgt: number, endOn: boolean, ferruleBelow: boolean) => {
+        for (let j = 0; j < hgt; j++) for (let i = 0; i < hwid; i++) B(x + i + 2, y + j + 2, 0, 0.45);
+        for (let j = 0; j < hgt; j++) for (let i = 0; i < hwid; i++) {
+          const corner = (i === 0 || i === hwid - 1) && (j === 0 || j === hgt - 1);
+          if (corner) continue;
+          const edge = i === 0 || j === 0 || i === hwid - 1 || j === hgt - 1;
+          let c: number;
+          if (edge) c = K;
+          else if (endOn) c = j === 1 || i === 1 ? HR[hot ? 6 : 5] : j === hgt - 2 || i === hwid - 2 ? HR[2] : (Math.abs(i - hwid / 2) < 2 && Math.abs(j - hgt / 2) < 1.5) ? HR[1] : HR[4];
+          else {
+            const ridge = j > 1 && j < hgt - 2 && j % 2 === 0;
+            c = i === 1 ? HR[hot ? 6 : 5] : i === hwid - 2 ? HR[1] : ridge ? HR[2] : HR[hot ? 5 : 4];
+            if (j === 1 && i > 1 && i < hwid - 2) c = HR[hot ? 6 : 5];
+            if (j === hgt - 2 && i > 1) c = HR[2];
+          }
+          P(x + i, y + j, c);
+        }
+        if (!endOn) {
+          if (hot) { P(x + 2, y + 1, 0xffffff); P(x + 3, y + 1, mixHex(HR[6], 0xffffff, 0.5)); }
+          const fy = ferruleBelow ? y + hgt : y - 2;
+          for (let j = 0; j < 2; j++) for (let i = -1; i <= 4; i++) P(px + i - 1 + 1, fy + j, i === -1 || i === 4 ? K : j === 0 ? 0xe8cc7a : 0x8a6a22);
+        }
+      };
       if (mid) {
-        hub(px - 2, py - 2);
-        handleAt(px - Math.floor(hw / 2) + 1, py - Math.floor((hh - 2) / 2) - 1, hw, hh - 2, true);
+        hub();
+        handleAt(px - Math.floor(hwid / 2) + 1, py - Math.floor((hh - 1) / 2) - 1, hh - 1, true, false);
       } else if (up) {
-        const top = 1;
-        rod(top + hh - 1, py);
-        hub(px - 2, py - 2);
-        handleAt(px - Math.floor(hw / 2) + 1, top, hw, hh, false);
+        rod(hh + 1, py);
+        hub();
+        handleAt(px - Math.floor(hwid / 2) + 1, 0, hh, false, true);
       } else {
-        const bot = H - 2 - hh;
-        hub(px - 2, py - 2);
-        rod(py + 2, bot);
-        handleAt(px - Math.floor(hw / 2) + 1, bot, hw, hh, false);
+        hub();
+        rod(py + 3, H - hh - 3);
+        handleAt(px - Math.floor(hwid / 2) + 1, H - hh - 2, hh, false, false);
       }
-      void st;
     }
     return pc;
   });
@@ -598,7 +622,7 @@ export function lever(label: string, sub: string, onPull: () => void, o: { handl
   const paint = () => {
     if (!el.isConnected) return;
     const s = kitScale();
-    const W = shortView() ? 18 : 22, H = shortView() ? 30 : 38;
+    const W = shortView() ? 22 : 26, H = shortView() ? 38 : 50;
     art.style.width = W * s + 'px'; art.style.height = H * s + 'px';
     el.style.setProperty('--bh', H * s + 'px');
     const k = `${W}|${H}|${s}`;

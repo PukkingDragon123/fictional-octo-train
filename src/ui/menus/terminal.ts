@@ -114,6 +114,8 @@ function drawHousing(pc: PixelCanvas, W: number, H: number, bz: Bezel, seed: num
 
   // ---- the lower control strip: speaker grille, toggle switches, power lamp
   const by0 = stripY + 3, by1 = ch - 4;
+  let tray: { x0: number; x1: number; y0: number; y1: number } | null = null;
+  let name: { x0: number; x1: number; y0: number; y1: number } | null = null;
   const bh = by1 - by0;
   if (bh >= 6) {
     const mid = Math.floor((by0 + by1) / 2);
@@ -142,12 +144,32 @@ function drawHousing(pc: PixelCanvas, W: number, H: number, bz: Bezel, seed: num
     for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) put(lx + i, ly + j, o.lamp === false ? 0x0e1a10 : j === 0 && i === 0 ? 0xd8ffe0 : j === 2 ? 0x1a9a3a : 0x50ff80);
     if (o.lamp !== false) for (let j = -3; j <= 5; j++) for (let i = -3; i <= 5; i++) { if (i >= -1 && i <= 3 && j >= -1 && j <= 3) continue; blendC(lx + i, ly + j, 0x50ff80, 0.12); }
     // the recessed tray the keys sit in (right side)
+    let trayX0 = cw - m - 9;
     if (bz.keysW > 0) {
       const kx1 = cw - m - 7, kx0 = Math.max(lx + 10, kx1 - bz.keysW);
+      trayX0 = kx0;
+      tray = { x0: kx0, x1: kx1, y0: by0 - 1, y1: by1 };
       for (let y = by0 - 1; y <= by1; y++) for (let x = kx0; x <= kx1; x++) {
         const e = y === by0 - 1 || x === kx0 ? STEEL[0] : y === by1 || x === kx1 ? OLIVE[5] : y === by0 || x === kx0 + 1 ? STEEL[1] : (hash(x >> 1, y, seed + 7) > 0.9 ? STEEL[3] : STEEL[2]);
         put(x, y, e);
       }
+    }
+    // a brass maker's plate between the lamp and the keys
+    const nx0 = lx + 9, nx1 = trayX0 - 6;
+    if (nx1 - nx0 >= 46 && bh >= 7) {
+      const nh = Math.min(9, bh - 1), ny0 = mid - Math.floor(nh / 2);
+      const BR = [K, 0x2c1e08, 0x553a10, 0x80601c, 0xa2802c, 0xc4a24a, 0xeed690];
+      for (let j = 0; j < nh; j++) for (let i = 0; i <= nx1 - nx0; i++) {
+        const x = nx0 + i, y = ny0 + j;
+        const corner = (i === 0 || i === nx1 - nx0) && (j === 0 || j === nh - 1);
+        if (corner) continue;
+        const col = i === 0 || j === 0 || i === nx1 - nx0 || j === nh - 1 ? K : j === 1 ? BR[6] : j === nh - 2 ? BR[2] : i === 1 ? BR[5] : i === nx1 - nx0 - 1 ? BR[3] : (hash(x >> 2, y, seed + 13) > 0.93 ? BR[3] : (j < nh / 2 ? BR[5] : BR[4]));
+        put(x, y, col);
+      }
+      for (const rx of [nx0 + 2, nx1 - 3]) { put(rx, mid - 1, 0xfff0c0); put(rx + 1, mid - 1, 0xa2802c); put(rx, mid, 0xa2802c); put(rx + 1, mid, 0x553a10); }
+      for (let i = 1; i <= nx1 - nx0 + 1; i++) blendC(nx0 + i, ny0 + nh, 0, 0.45);
+      for (let j = 1; j <= nh; j++) blendC(nx1 + 1, ny0 + j, 0, 0.45);
+      name = { x0: nx0 + 5, x1: nx1 - 5, y0: ny0, y1: ny0 + nh - 1 };
     }
   }
 
@@ -196,7 +218,7 @@ function drawHousing(pc: PixelCanvas, W: number, H: number, bz: Bezel, seed: num
     for (let j = -1; j <= 1; j++) for (let i = -3; i <= 3; i++) if (isOlive(dx0 + i, dy0 + j)) blendC(dx0 + i, dy0 + j, 0x000000, 0.22 - Math.abs(i) * 0.04);
     for (let i = -2; i <= 2; i++) if (isOlive(dx0 + i, dy0 + 2)) put(dx0 + i, dy0 + 2, OLIVE[5]);
   }
-  return { sx, sy, sw, sh, stripY };
+  return { sx, sy, sw, sh, stripY, tray, name };
 }
 
 // ------------------------------------------------------------------ the DOM terminal
@@ -234,7 +256,7 @@ export function terminal(o: TermOpts = {}): Terminal {
   inner.append(head, body);
   screen.append(inner);
   const plate = document.createElement('div'); plate.className = 'ct-plate';
-  plate.textContent = o.model ?? 'MERIDIAN SYSTEMS · TYPE 4';
+  plate.textContent = o.model ?? 'Meridian · Type 4';
   const keys = document.createElement('div'); keys.className = 'ct-keys';
   el.append(canvas, screen, plate, keys);
   const seed = o.seed ?? strSeed((o.title || '') + (o.cls || ''));
@@ -256,10 +278,11 @@ export function terminal(o: TermOpts = {}): Terminal {
     const W = Math.floor(r.width / s), H = Math.floor(r.height / s);
     if (W < 40 || H < 30) return;
     const keyH = artH('md');
+    const kw = !o.slim && keys.children.length ? Math.ceil(keys.scrollWidth / s) + 7 : 0;
     const bz: Bezel = o.slim
       ? { T: 9, S: 8, B: 9, keysW: 0 }
-      : { T: W > 150 ? 13 : 11, S: W > 150 ? 10 : 8, B: Math.max(keyH + 9, 15), keysW };
-    const k = `${W}|${H}|${s}|${keysW}|${bz.B}`;
+      : { T: W > 150 ? 13 : 11, S: W > 150 ? 10 : 8, B: Math.max(keyH + 9, 15), keysW: Math.max(keysW, kw) };
+    const k = `${W}|${H}|${s}|${bz.keysW}|${bz.B}`;
     if (k === last) return;
     last = k;
     canvas.width = W; canvas.height = H;
@@ -269,15 +292,15 @@ export function terminal(o: TermOpts = {}): Terminal {
     canvas.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
     // place the glass and the strip contents on the art grid
     Object.assign(screen.style, { left: g.sx * s + 'px', top: g.sy * s + 'px', width: g.sw * s + 'px', height: g.sh * s + 'px' });
-    el.style.setProperty('--ks-scr-w', g.sw * s + 'px');
-    const stripTop = (g.stripY + 2) * s, stripH = (H - 2 - g.stripY - 4) * s;
-    Object.assign(keys.style, { top: stripTop + 'px', height: stripH + 'px', right: (Math.max(3, Math.round(Math.min(W, H) * 0.04)) + 8) * s + 'px' });
     keys.hidden = !!o.slim;
-    plate.hidden = !!o.slim || W < 120;
-    Object.assign(plate.style, { top: stripTop + 'px', height: stripH + 'px', left: (W < 130 ? 30 : Math.min(W * 0.12, 28) + 46) * s + 'px' });
+    if (g.tray) Object.assign(keys.style, { top: (g.tray.y0 + 1) * s + 'px', height: (g.tray.y1 - g.tray.y0) * s + 'px', right: (W - g.tray.x1 + 2) * s + 'px', left: '' });
+    else Object.assign(keys.style, { top: (g.stripY + 3) * s + 'px', height: (H - g.stripY - 7) * s + 'px', right: 14 * s + 'px' });
+    plate.hidden = !!o.slim || !g.name;
+    if (g.name) Object.assign(plate.style, { left: g.name.x0 * s + 'px', width: (g.name.x1 - g.name.x0 + 1) * s + 'px', top: g.name.y0 * s + 'px', height: (g.name.y1 - g.name.y0 + 1) * s + 'px' });
   };
   const ro = new ResizeObserver(() => { if (!el.isConnected) return; paint(); });
   ro.observe(el);
+  ro.observe(keys);
   window.addEventListener('resize', () => { last = ''; paint(); });
   if (o.powerOn !== false && !calm()) {
     screen.classList.add('ct-boot');

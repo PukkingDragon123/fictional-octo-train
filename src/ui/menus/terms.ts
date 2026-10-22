@@ -1,8 +1,10 @@
-// SENTENCING TERMS: the world rules as a clipboard form on the processing
-// desk. Every choice is a box you stamp. Fields the debt contract adds to the
-// sandbox ('contract', 'debt', 'installmentDays', 'bandLethal' or anything
-// else) get rows of their own, so nothing new is ever unreachable.
-import { h, esc, sfx, hoverFocus } from './common';
+// SENTENCING TERMS: the world rules, typed on the records terminal (the
+// intake opens it in a terminal.ts housing). Every rule is a row of phosphor
+// choices. Fields the debt contract adds to the sandbox ('contract', 'debt',
+// 'installmentDays', 'bandLethal' or anything else) get rows of their own,
+// so nothing new is ever unreachable.
+import { h, esc, sfx, seg } from './common';
+import { crtAct } from './terminal';
 
 export const PRESETS: Record<string, { label: string; note: string; s: Record<string, number> }> = {
   standard: { label: 'Standard', note: 'The programme as designed.', s: { dayLength: 60, creatures: 1, loot: 1, collapseSpeed: 1, startHour: 8.5, waterShutoffDays: 7, powerShutoffDays: 0, gore: 2 } },
@@ -42,54 +44,38 @@ const KNOWN = new Set([...ROWS.map((r) => r.key), 'limbLoss', 'directives', 'fri
 const humanize = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
 export function termsStation(ctx: TermsCtx) {
-  const el = h('div', 'tm-wrap');
-  const board = h('div', 'tm-board');
-  const clip = h('div', 'tm-clip');
-  const paper = h('div', 'tm-paper dg-paper');
-  board.append(clip, paper);
-  el.append(board);
+  const el = h('div', 'tm3');
   const defaults: Record<string, number> = { ...ctx.sb };
 
   const render = () => {
-    const scroll = paper.scrollTop;
-    const focusKey = (document.activeElement as HTMLElement | null)?.dataset?.k;
-    paper.innerHTML = '';
-    paper.append(h('div', 'tm-head', `<b>SENTENCING TERMS</b><small>MERIDIAN INSTITUTE · FORM R-7 · REMITTANCE PROGRAMME</small><span>DEBTOR: <u>${esc((ctx.name || '________').toUpperCase())}</u></span>`));
-    // terms of confinement
-    const pre = h('div', 'tm-presets');
-    for (const [k, p] of [...Object.entries(PRESETS), ['custom', { label: 'Custom', note: 'Every dial, your call.', s: {} }] as const]) {
-      const b = h('button', 'tm-preset' + (ctx.preset === k ? ' on' : ''), `<i></i><b>${esc(p.label)}</b><small>${esc(p.note)}</small>`);
-      b.type = 'button'; b.dataset.k = 'pre:' + k;
-      hoverFocus(b);
-      b.onclick = () => { ctx.preset = k; if (k !== 'custom') Object.assign(ctx.sb, PRESETS[k].s); sfx('stamp', 0.6); render(); };
-      pre.append(b);
-    }
-    paper.append(h('h4', '', '§1 TERMS OF CONFINEMENT'), pre);
-    paper.append(h('h4', '', '§2 CONDITIONS'));
+    const scroller = el.closest('.ct-body') as HTMLElement | null;
+    const scroll = scroller?.scrollTop ?? 0;
+    const focusKey = (document.activeElement as HTMLElement | null)?.closest?.('[data-k]')?.getAttribute('data-k');
+    const focusIdx = focusKey ? [...(el.querySelector(`[data-k="${CSS.escape(focusKey)}"]`)?.querySelectorAll('button') || [])].indexOf(document.activeElement as HTMLButtonElement) : -1;
+    el.innerHTML = '';
+    el.append(h('p', 'tm3-who', `Debtor <b>${esc((ctx.name || '________').toUpperCase())}</b> · Meridian Institute · Remittance Programme`));
+    // §1 terms of confinement
+    el.append(h('div', 't-ctl-h', '§1 Terms of confinement'));
+    const pre = seg<string>('Preset', [...Object.entries(PRESETS).map(([k, p]) => [k, p.label] as [string, string]), ['custom', 'Custom']], ctx.preset, (k) => {
+      ctx.preset = k; if (k !== 'custom') Object.assign(ctx.sb, PRESETS[k].s); sfx('key'); render();
+    });
+    pre.dataset.k = 'preset';
+    el.append(pre, h('p', 't-note', esc(ctx.preset === 'custom' ? 'Every dial, your call.' : PRESETS[ctx.preset]?.note || '')));
+    el.append(h('div', 't-ctl-h', '§2 Conditions'));
     const row = (label: string, key: string, vals: [number, string][], cur: number, set: (v: number) => void, tip?: (v: number) => string) => {
-      const r = h('div', 'tm-row', `<span class="tm-l">${esc(label)}</span>`);
-      const o = h('div', 'tm-o');
-      for (const [v, l] of vals) {
-        const b = h('button', 'tm-box' + (v === cur ? ' on' : ''), `<i></i>${esc(l)}`);
-        b.type = 'button'; b.dataset.k = key + ':' + v;
-        b.setAttribute('aria-pressed', String(v === cur));
-        if (tip) b.dataset.tip = tip(v);
-        hoverFocus(b);
-        b.onclick = () => { set(v); sfx('stamp', 0.45); o.querySelectorAll('.tm-box').forEach((x) => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', String(x === b)); }); };
-        o.append(b);
-      }
-      r.append(o);
-      paper.append(r);
+      const r = seg<number>(label, vals, cur, (v) => { set(v); sfx('key', 0.7); }, tip ? { tip } : {});
+      r.dataset.k = key;
+      el.append(r);
     };
     const custom = (k: string, v: number) => { ctx.sb[k] = v; if (ctx.preset !== 'custom') { ctx.preset = 'custom'; render(); } };
     for (const R of ROWS) row(R.label, R.key, R.vals, ctx.sb[R.key], (v) => custom(R.key, v), R.tip);
     row('Limb loss', 'limbLoss', [[1, 'yes'], [0, 'no']], (ctx.sb.limbLoss ?? 1) !== 0 ? 1 : 0, (v) => { ctx.sb.limbLoss = v; });
     row('Friendly fire', 'friendlyFire', [[0, 'no'], [1, 'yes']], ctx.sb.friendlyFire ? 1 : 0, (v) => { ctx.sb.friendlyFire = v; }, (v) => v ? 'In co-op, your blows hurt each other' : 'Your blows pass your crew by');
-    row('Directives', 'directives', [[1, 'the contract (story)'], [0, 'free survival']], ctx.directives ? 1 : 0, (v) => { ctx.directives = v === 1; });
+    row('Directives', 'directives', [[1, 'the contract'], [0, 'free survival']], ctx.directives ? 1 : 0, (v) => { ctx.directives = v === 1; });
     // §3: the debt contract's own fields, whatever they are
     const extra = Object.keys(ctx.sb).filter((k) => !KNOWN.has(k) && typeof ctx.sb[k] === 'number');
     if (extra.length) {
-      paper.append(h('h4', '', '§3 THE CONTRACT'));
+      el.append(h('div', 't-ctl-h', '§3 The contract'));
       for (const k of extra) {
         const spec = CONTRACT_ROWS[k];
         const cur = ctx.sb[k];
@@ -101,7 +87,6 @@ export function termsStation(ctx: TermsCtx) {
           row(spec.label, k, vals, cur, (v) => custom(k, v));
           continue;
         }
-        // generic: 0/1 as yes/no, else a stepper around the default
         if ((cur === 0 || cur === 1) && (defaults[k] === 0 || defaults[k] === 1)) { row(humanize(k), k, [[0, 'no'], [1, 'yes']], cur, (v) => custom(k, v)); continue; }
         const d = defaults[k] || 1;
         const vals: [number, string][] = [0.5, 1, 1.5, 2].map((m) => { const v = Math.round(d * m * 100) / 100; return [v, String(v)]; });
@@ -109,23 +94,22 @@ export function termsStation(ctx: TermsCtx) {
         row(humanize(k), k, vals.sort((a, b) => a[0] - b[0]), cur, (v) => custom(k, v));
       }
     }
-    // seed + signature
-    const sr = h('div', 'tm-row tm-seed', '<span class="tm-l">Case seed</span>');
-    const si = h('input', 'tm-field') as HTMLInputElement;
-    si.value = String(ctx.seed); si.inputMode = 'numeric'; si.dataset.k = 'seed'; si.setAttribute('aria-label', 'World seed');
+    // the case seed and the signature
+    el.append(h('div', 't-ctl-h', '§4 Case seed'));
+    const sr = h('div', 'tm3-seed');
+    sr.dataset.k = 'seed';
+    const si = h('input', '') as HTMLInputElement;
+    si.value = String(ctx.seed); si.inputMode = 'numeric'; si.setAttribute('aria-label', 'World seed');
     si.oninput = () => { ctx.seed = Math.abs(Math.floor(Number(si.value) || 0)); };
-    const dice = h('button', 'tm-dice', '⚄');
-    dice.type = 'button'; dice.dataset.k = 'dice'; dice.setAttribute('aria-label', 'Random seed');
-    hoverFocus(dice);
-    dice.onclick = () => { ctx.seed = Math.floor(Math.random() * 99999); si.value = String(ctx.seed); sfx('click'); };
-    sr.append(si, dice);
-    paper.append(sr);
-    const sig = h('div', 'tm-sig', `<span>SIGNED</span><em>${esc(ctx.name || '')}</em><span class="x">X</span>`);
-    const st = h('span', 'tm-recv nx-stamp blue', 'RECEIVED');
-    sig.append(st);
-    paper.append(sig);
-    paper.scrollTop = scroll;
-    if (focusKey) (paper.querySelector(`[data-k="${CSS.escape(focusKey)}"]`) as HTMLElement | null)?.focus({ preventScroll: true });
+    sr.append(si, crtAct('Another', () => { ctx.seed = Math.floor(Math.random() * 99999); si.value = String(ctx.seed); }));
+    el.append(sr);
+    el.append(h('p', 'tm3-sig', `Signed <i>${esc(ctx.name || '')}</i> · received <b>${new Date().toLocaleDateString()}</b>`));
+    if (scroller) scroller.scrollTop = scroll;
+    if (focusKey) {
+      const host = el.querySelector(`[data-k="${CSS.escape(focusKey)}"]`);
+      const bs = host ? [...host.querySelectorAll<HTMLElement>('button, input')] : [];
+      (bs[Math.max(0, focusIdx)] || bs[0])?.focus({ preventScroll: true });
+    }
   };
   return {
     el,
