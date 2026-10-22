@@ -295,8 +295,10 @@ export function facetMats(low: boolean): FMats {
   const mats = {} as FMats;
   for (const k of Object.keys(tex) as FKey[]) {
     const [metalness, roughness] = PBR[k] ?? [0, 0.7];
+    // no specular on the cheap path: metals get a lift so they still read
+    const lift = k === 'metal' || k === 'chrome' || k === 'brass' || k === 'copper' ? 1.45 : 1;
     mats[k] = low
-      ? new THREE.MeshLambertMaterial({ map: tex[k], vertexColors: true, flatShading: true })
+      ? new THREE.MeshLambertMaterial({ map: tex[k], vertexColors: true, flatShading: true, color: new THREE.Color(lift, lift, lift) })
       : new THREE.MeshStandardMaterial({ map: tex[k], vertexColors: true, flatShading: true, metalness, roughness });
   }
   mats.lamp = new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false });

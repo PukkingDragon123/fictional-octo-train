@@ -35,6 +35,11 @@ export const CAMU = {
   uSinPitch: { value: Math.sin(THREE.MathUtils.degToRad(36)) },
   /** floor height under the camera focus (player) */
   uFloorY: { value: 0 },
+  /** 1 = the world pass went through a perspective camera (first-person eye, src/fp/eye.ts): uHalf then holds
+   * the tangents of the half field of view, depth is hyperbolic, and a pixel's footprint grows with distance */
+  uPersp: { value: 0 },
+  /** perspective: metres per low-res pixel per metre of distance (2 tan(fovY / 2) / target height) */
+  uPxPersp: { value: 0.003 },
 };
 
 /** flashlight cone shared by the haze march and the motes */
@@ -66,12 +71,33 @@ uniform float uFar;
 uniform float uPxM;
 uniform float uSinPitch;
 uniform float uFloorY;
+uniform float uPersp;
+uniform float uPxPersp;
 varying vec2 vUv;
-float lin(float d) { return uNear + d * (uFar - uNear); }
-vec3 wpos(vec2 uv, float ld) { return uCamPos + uCamR * ((uv.x * 2.0 - 1.0) * uHalf.x) + uCamU * ((uv.y * 2.0 - 1.0) * uHalf.y) + uCamF * ld; }
-vec2 toUv(vec3 p, out float ld) { vec3 r = p - uCamPos; ld = dot(r, uCamF); return vec2(dot(r, uCamR) / uHalf.x, dot(r, uCamU) / uHalf.y) * 0.5 + 0.5; }
-/** where the view ray through uv meets the horizontal plane y */
-vec3 onPlane(vec2 uv, float y) { vec3 b = wpos(uv, 0.0); return b + uCamF * ((y - b.y) / uCamF.y); }
+/** view depth (metres along the camera forward) from the depth buffer */
+float lin(float d) { return uPersp > 0.5 ? uNear * uFar / (uFar - d * (uFar - uNear)) : uNear + d * (uFar - uNear); }
+/** the view ray through uv: orthographic rays are parallel, perspective ones fan out from the eye */
+vec3 rayDir(vec2 uv) { return uCamF + uCamR * ((uv.x * 2.0 - 1.0) * uHalf.x) + uCamU * ((uv.y * 2.0 - 1.0) * uHalf.y); }
+vec3 wpos(vec2 uv, float ld) {
+  if (uPersp > 0.5) return uCamPos + rayDir(uv) * ld;
+  return uCamPos + uCamR * ((uv.x * 2.0 - 1.0) * uHalf.x) + uCamU * ((uv.y * 2.0 - 1.0) * uHalf.y) + uCamF * ld;
+}
+vec2 toUv(vec3 p, out float ld) {
+  vec3 r = p - uCamPos; ld = dot(r, uCamF);
+  if (uPersp > 0.5) { float z = max(ld, 1e-3); return vec2(dot(r, uCamR) / (uHalf.x * z), dot(r, uCamU) / (uHalf.y * z)) * 0.5 + 0.5; }
+  return vec2(dot(r, uCamR) / uHalf.x, dot(r, uCamU) / uHalf.y) * 0.5 + 0.5;
+}
+/** where the view ray through uv meets the horizontal plane y (perspective rays that never reach it end far away) */
+vec3 onPlane(vec2 uv, float y) {
+  if (uPersp > 0.5) {
+    vec3 dir = rayDir(uv);
+    float t = (y - uCamPos.y) / (abs(dir.y) < 1e-4 ? -1e-4 : dir.y);
+    return uCamPos + dir * (t > 0.0 ? min(t, uFar) : uFar);
+  }
+  vec3 b = wpos(uv, 0.0); return b + uCamF * ((y - b.y) / uCamF.y);
+}
+/** metres covered by one low-res pixel at view depth ld */
+float pxm(float ld) { return uPersp > 0.5 ? max(ld, uNear) * uPxPersp : uPxM; }
 float bayer4(vec2 p) {
   ivec2 ip = ivec2(mod(p, 4.0));
   int i = ip.y * 4 + ip.x;
@@ -287,12 +313,23 @@ float sunShadow(vec3 p) {
 #endif
 void main() {
   float dr = texture2D(tDepth, vUv).r;
-  vec3 P0 = dr >= 0.99999 ? onPlane(vUv, uFloorY) : wpos(vUv, lin(dr));
-  vec3 D = -uCamF;
-  float top = uFloorY + uTop;
-  float tmax = (top - P0.y) / max(D.y, 0.05);
-  if (tmax <= 0.0) { gl_FragColor = vec4(0.0); return; }
-  tmax = min(tmax, 16.0);
+  vec3 P0, D;
+  float tmax;
+  if (uPersp > 0.5) {
+    // first person: march from the surface back to the eye (the eye stands inside the haze)
+    P0 = dr >= 0.99999 ? wpos(vUv, 16.0) : wpos(vUv, lin(dr));
+    vec3 tc = uCamPos - P0;
+    float L = length(tc);
+    D = tc / max(L, 1e-3);
+    tmax = min(L, 16.0);
+  } else {
+    P0 = dr >= 0.99999 ? onPlane(vUv, uFloorY) : wpos(vUv, lin(dr));
+    D = -uCamF;
+    float top = uFloorY + uTop;
+    tmax = (top - P0.y) / max(D.y, 0.05);
+    if (tmax <= 0.0) { gl_FragColor = vec4(0.0); return; }
+    tmax = min(tmax, 16.0);
+  }
   float stepL = tmax / float(VOL_N);
   float j = bayer4(gl_FragCoord.xy);
   vec3 acc = vec3(0.0);
@@ -443,7 +480,7 @@ void main() {
 
   // --- reflections on wet and polished floors ---
 #if SSR_N > 0
-  if (fl.y > 0.01 && n.y > 0.7 && !isVoid) {
+  if (uPersp < 0.5 && fl.y > 0.01 && n.y > 0.7 && !isVoid) {
     vec3 N = vec3(0.0, 1.0, 0.0);
     if (fl.z > 0.5) N = normalize(vec3(sin(P.x * 3.1 + uTime * 1.7) * 0.05 + sin(P.z * 5.3 - uTime * 2.3) * 0.03, 1.0, cos(P.z * 2.7 + uTime * 1.3) * 0.05 + sin(P.x * 4.7 + uTime * 2.1) * 0.03));
     vec4 rf = traceReflection(uv, d, N);
@@ -474,7 +511,13 @@ void main() {
   float sil = 0.0, crease = 0.0, lip = 0.0, hlEdge = 0.0;
   bool isHl = abs(fl.x - 0.5) < 0.1;
   float outlineable = step(0.25, fl.x);
-  float thr = 0.06 + uPxM * 2.6 + d * 0.0015;
+  float pm = pxm(d);
+  float thr = 0.06 + pm * 2.6 + d * 0.0015;
+  if (uPersp > 0.5) {
+    // perspective: a surface seen edge-on steps a long way in depth between neighbouring pixels
+    float c = abs(dot(n, normalize(P - uCamPos)));
+    thr = 0.05 + d * 0.025 + pm * 2.2 / max(c, 0.12);
+  }
   for (int i = 0; i < 4; i++) {
     vec2 o = uv + offs[i];
     float dnr = texture2D(tDepth, o).r;
@@ -491,8 +534,8 @@ void main() {
       if (bend > 0.22) {
         float side = dot(wpos(o, dn) - P, n);
         float k = smoothstep(0.22, 0.6, bend);
-        if (side > uPxM * 0.12) { if (dd >= 0.0) crease = max(crease, k); }
-        else if (side < -uPxM * 0.12 && n.y > 0.45) lip = max(lip, k);
+        if (side > pm * 0.12) { if (dd >= 0.0) crease = max(crease, k); }
+        else if (side < -pm * 0.12 && n.y > 0.45) lip = max(lip, k);
       }
     }
     bool nbHl = abs(nbFlag - 0.5) < 0.1;
@@ -541,7 +584,9 @@ void main() {
 #ifdef MIST_ON
   if (!isVoid && uMistDens > 0.0) {
     float h0 = max(P.y - uFloorY, 0.0);
-    float od = uMistDens * exp(-h0 * uMistFall) / (uMistFall * uSinPitch);
+    float od = uPersp > 0.5
+      ? uMistDens * min(length(P - uCamPos), 30.0) * exp(-h0 * uMistFall) * 0.6
+      : uMistDens * exp(-h0 * uMistFall) / (uMistFall * uSinPitch);
     float m = min(1.0 - exp(-od), uMistMax);
     vec3 lg = gridAt(P.xz);
     vec3 mc = uMistCol * (0.07 + uMistLit * min(lg, vec3(2.5)) * 0.55);
@@ -580,7 +625,7 @@ void main() {
       vec2 mp = vec2(h12(id + 3.1), h12(id + 7.7)) * 0.8 + 0.1 + vec2(sin(uTime * 0.8 + hs * 40.0), cos(uTime * 0.6 + hs * 30.0)) * 0.07;
       vec2 dl = (fract(g) - mp) / 2.1;
       vec3 d3 = vec3(dl.x, 0.0, dl.y);
-      float dpx = length(vec2(dot(d3, uCamR), dot(d3, uCamU))) / uPxM;
+      float dpx = length(vec2(dot(d3, uCamR), dot(d3, uCamU))) / pxm(max(tq, 0.05));
       if (dpx > 0.75) continue;
       vec3 L = gridAt(Q.xz);
       if (uSpotOn > 0.5) L += uSpotCol * spotCone(Q) * 2.5;

@@ -32,7 +32,7 @@ import { tattooImage } from './art';
 import { rehabStation, type RehabCtx } from './rehab';
 import { termsStation, type TermsCtx, PRESETS } from './terms';
 import { CONTRACT_SANDBOX } from '../../game/debt/defaults';
-import { plateBtn, rocker, lever, chipUrl, type PlateButton, type Rocker, type Lever } from './btnKit';
+import { plateBtn, rocker, lever, chipUrl, shortView, type PlateButton, type Rocker, type Lever } from './btnKit';
 import { terminal } from './terminal';
 import { wardrobe } from './wardrobe';
 import './noir.css';
@@ -155,7 +155,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     const shot = (k: Shot, part?: string) => {
       curShot = k;
       stage.setFocus(part ?? SHOT_PART[k]);
-      cam.shot?.(k, 700);
+      // portrait: the page covers the lower half, the close shots would hide behind it; keep the whole subject up top
+      cam.shot?.(portrait() && (k === 'face' || k === 'body') ? 'full' : k, 700);
     };
 
     // ---------------- skeleton
@@ -461,12 +462,13 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       // portrait: the page covers the lower half, so the subject rides up
       cam.setFraming?.(0, pt ? 0.5 : 0);
       termsBtn.setLabel(pt ? 'Terms' : 'Sentencing terms');
+      someBtn.setLabel(pt || shortView() ? 'Random' : 'Somebody else');
       confirmBtn.setLabel('Confirm', pt ? '' : 'to the operating table');
       if (had === 'ward' && !portrait()) setPage('face', false);
       else if (phase === 'look') setPage(had, false);
     };
-    let lastPortrait = portrait();
-    const onResize = () => { if (portrait() !== lastPortrait) { lastPortrait = portrait(); layout(); } };
+    let lastPortrait = portrait(), lastShort = shortView();
+    const onResize = () => { if (portrait() !== lastPortrait || shortView() !== lastShort) { lastPortrait = portrait(); lastShort = shortView(); layout(); } };
     window.addEventListener('resize', onResize);
     const toLook = () => {
       if (closing) return;
@@ -539,6 +541,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
       if (start) {
         root.style.display = 'none';
         stage.paused = true;
+        // the operating table has its own keys (Esc climbs off): our menu keys stand down meanwhile
+        nav.destroy();
         const ctx = { name: name.trim(), outfit: prisonerOutfitFor(app), occupation: occ, traits: [...traits] };
         const out: any = await new Promise((res) => {
           let done = false;
@@ -550,6 +554,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
         });
         stage.paused = false;
         root.style.display = '';
+        nav = makeNav();
         if (!out) {
           // they climbed off the table: back to the page
           closing = false; phase = 'look'; root.dataset.phase = 'look';
@@ -592,6 +597,18 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     };
 
     let nav: FocusNav;
+    function makeNav() {
+      return new FocusNav(root, {
+        onBack: () => { if (closing) return; if (sheet.classList.contains('on')) closeSheet(); else if (phase === 'look') withdraw(); },
+        onTab: (d) => {
+          if (closing || phase !== 'look') return;
+          if (ward.contains(document.activeElement)) { ward.setSlot(d); return; }
+          const L = pageList(); const i = L.indexOf(page);
+          setPage(L[(i + d + L.length) % L.length]);
+        },
+        autofocus: false,
+      });
+    }
     const close = (r: IntakeResult | null) => {
       nav.destroy(); sheetNav?.destroy();
       clearTimeout(looksT); clearTimeout(toastT);
@@ -613,16 +630,7 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     stage.setFocus('full');
     buildTabs();
     pageEl.append(buildPage('face'));
-    nav = new FocusNav(root, {
-      onBack: () => { if (closing) return; if (sheet.classList.contains('on')) closeSheet(); else if (phase === 'look') withdraw(); },
-      onTab: (d) => {
-        if (closing || phase !== 'look') return;
-        if (ward.contains(document.activeElement)) { ward.setSlot(d); return; }
-        const L = pageList(); const i = L.indexOf(page);
-        setPage(L[(i + d + L.length) % L.length]);
-      },
-      autofocus: false,
-    });
+    nav = makeNav();
     stage.lightsOn().then(() => { if (!closing) toLook(); });
     if (import.meta.env.DEV) (window as any).__intake = { stage, app, setPage, newFace, clone, finish, ward, openTerms, get phase() { return phase; } };
   });

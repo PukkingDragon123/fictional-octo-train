@@ -109,6 +109,16 @@ export class PixelRenderer {
   /** photo mode hides the held devices without touching overlayEnabled */
   hideOverlay = false;
 
+  // ---- first-person eye (src/fp/eye.ts)
+  /** when set, the world pass is drawn through this perspective camera (first person) instead of the iso rig */
+  eyeCamera: THREE.PerspectiveCamera | null = null;
+  /** vertical field of view (deg) the eye asks for on a landscape picture; narrow (portrait) pictures widen it */
+  eyeFov = 62;
+  /** objects hidden while the eye draws the world (the survivor's own body), restored right after */
+  eyeHide: THREE.Object3D[] = [];
+  /** called first thing in every render(dt) (the eye follows the head here) */
+  readonly beforeRender: ((dt: number) => void)[] = [];
+
   private rtScene!: THREE.WebGLRenderTarget;
   private rtPost!: THREE.WebGLRenderTarget;
   private rtOverlay!: THREE.WebGLRenderTarget;
@@ -351,6 +361,7 @@ export class PixelRenderer {
     CAMU.uNear.value = cam.near; CAMU.uFar.value = cam.far;
     CAMU.uPxM.value = ps;
     CAMU.uSinPitch.value = Math.sin(this.pitch);
+    CAMU.uPersp.value = 0;
     // lower angles hide more behind walls and props: widen the cutaway; the wet-floor sheen slides with the angle
     const tp = Math.tan(clamp(this.pitch, 0.2, 1.4));
     const cutK = clamp(TAN36 / tp, 0.6, 2.2);
@@ -372,7 +383,9 @@ export class PixelRenderer {
     for (let i = 0; i < 3; i++) { z.haze[i] = lerp(z.haze[i], zt.haze[i], k); z.mist[i] = lerp(z.mist[i], zt.mist[i], k); z.rimTint[i] = lerp(z.rimTint[i], zt.rimTint[i], k); }
     const u = this.postMat.uniforms;
     u.uLift.value.set(...g.lift); u.uGain.value.set(...g.gain); u.uGamma.value = g.gamma; u.uSat.value = g.sat;
-    u.uTint.value.set(...g.tint); u.uLevels.value = g.levels;
+    u.uTint.value.set(...g.tint);
+    // first person puts big smooth light falloffs right in your face: finer steps so they don't contour
+    u.uLevels.value = this.eyeCamera ? g.levels * 2 : g.levels;
     const clean = this.clean;
     u.uVignette.value = clean ? g.vignette * 0.5 : g.vignette;
     u.uGrain.value = (g.grain * 0.5 + 0.004) * (clean ? 0 : 1);
@@ -456,16 +469,52 @@ export class PixelRenderer {
     if (this.slowFor > 6) this.setQuality(this.quality === 'high' ? 'medium' : 'low');
   }
 
+  /** aim the screen-space passes at the eye camera (perspective) and fit its field of view to the picture */
+  private setupEye(eye: THREE.PerspectiveCamera, RW: number, RH: number) {
+    const asp = RW / RH;
+    const base = THREE.MathUtils.degToRad(this.eyeFov);
+    // portrait: keep roughly the horizontal view of a 6:5 picture
+    const vf = asp >= 1.2 ? base : Math.min(THREE.MathUtils.degToRad(104), 2 * Math.atan(Math.tan(base / 2) * 1.2 / asp));
+    eye.fov = THREE.MathUtils.radToDeg(vf);
+    eye.aspect = asp;
+    eye.updateProjectionMatrix();
+    eye.updateMatrixWorld();
+    const tY = Math.tan(vf / 2), tX = tY * asp;
+    CAMU.uCamPos.value.setFromMatrixPosition(eye.matrixWorld);
+    CAMU.uCamR.value.setFromMatrixColumn(eye.matrixWorld, 0).normalize();
+    CAMU.uCamU.value.setFromMatrixColumn(eye.matrixWorld, 1).normalize();
+    CAMU.uCamF.value.setFromMatrixColumn(eye.matrixWorld, 2).normalize().negate();
+    CAMU.uHalf.value.set(tX, tY);
+    CAMU.uNear.value = eye.near; CAMU.uFar.value = eye.far;
+    CAMU.uPersp.value = 1;
+    CAMU.uPxPersp.value = (2 * tY) / RH;
+    CAMU.uPxM.value = (2 * tY * 3) / RH;
+    // no sub-pixel scroll: the perspective picture is never snapped
+    this.subOffset.set(0, 0);
+  }
+
   render(dt: number) {
     const r = this.renderer;
+    for (const f of this.beforeRender) f(dt);
     this.trackFrame();
     this.rebuildFx();
     this.applyGrade(dt);
+    const eye = this.eyeCamera;
+    if (eye) this.setupEye(eye, this.lowW + this.margin * 2, this.lowH + this.margin * 2);
     // 1. scene into low-res MRT
     r.setRenderTarget(this.rtScene);
     r.setClearColor(0x000000, 1);
     r.clear(true, true, true);
-    r.render(this.scene, this.camera);
+    if (eye) {
+      // first person: full-height walls (no cutaway), the survivor's own body out of the way
+      const cutWas = U.uCutOn.value;
+      U.uCutOn.value = 0;
+      const shown = this.eyeHide.map((o) => o.visible);
+      for (const o of this.eyeHide) o.visible = false;
+      r.render(this.scene, eye);
+      this.eyeHide.forEach((o, i) => { o.visible = shown[i]; });
+      U.uCutOn.value = cutWas;
+    } else r.render(this.scene, this.camera);
     this.updateLightUniforms();
     // 2. realism passes (AO, bloom, volumetrics) at low / half res
     const fxo = this.postfx.run(this.pass, { color: this.rtScene.textures[0], normal: this.rtScene.textures[1], depth: this.rtScene.depthTexture! }, this.zoneFx);
@@ -533,13 +582,18 @@ export class PixelRenderer {
     const lx = sx / this.scale + this.margin + this.subOffset.x;
     const ly = sy / this.scale + this.margin + this.subOffset.y;
     const ndc = new THREE.Vector3((lx / RW) * 2 - 1, (ly / RH) * 2 - 1, -1);
+    if (this.eyeCamera) {
+      const origin = new THREE.Vector3().setFromMatrixPosition(this.eyeCamera.matrixWorld);
+      const dir = ndc.clone().unproject(this.eyeCamera).sub(origin).normalize();
+      return new THREE.Ray(origin, dir);
+    }
     const origin = ndc.clone().unproject(this.camera);
     const dir = this.forward().normalize();
     return new THREE.Ray(origin, dir);
   }
 
   worldToScreen(p: THREE.Vector3): { x: number; y: number; z: number } {
-    const v = p.clone().project(this.camera);
+    const v = p.clone().project(this.eyeCamera ?? this.camera);
     const RW = this.lowW + this.margin * 2, RH = this.lowH + this.margin * 2;
     const lx = (v.x + 1) / 2 * RW, ly = (v.y + 1) / 2 * RH;
     const sx = (lx - this.margin - this.subOffset.x) * this.scale, sy = (ly - this.margin - this.subOffset.y) * this.scale;

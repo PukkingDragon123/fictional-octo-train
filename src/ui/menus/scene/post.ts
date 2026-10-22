@@ -13,7 +13,7 @@ export interface PostUniforms {
   uRes: { value: THREE.Vector2 }; uNear: { value: number }; uFar: { value: number }; uTime: { value: number };
   uFlash: { value: number }; uRed: { value: number }; uExposure: { value: number }; uOutline: { value: number };
   uSide: { value: THREE.Vector4 }; uLift: { value: THREE.Vector3 }; uGain: { value: THREE.Vector3 };
-  uSat: { value: number }; uContrast: { value: number }; uVig: { value: number }; uGrain: { value: number }; uLensOn: { value: number }; uLevels: { value: number };
+  uSat: { value: number }; uContrast: { value: number }; uFloor: { value: number }; uVig: { value: number }; uGrain: { value: number }; uLensOn: { value: number }; uLevels: { value: number };
 }
 
 export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera; mat: THREE.ShaderMaterial; u: PostUniforms } {
@@ -22,14 +22,14 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
     uRes: { value: new THREE.Vector2(1, 1) }, uNear: { value: 0.05 }, uFar: { value: 40 }, uTime: { value: 0 },
     uFlash: { value: 0 }, uRed: { value: 0 }, uExposure: { value: 1 }, uOutline: { value: 1 },
     uSide: { value: new THREE.Vector4(1, 0, 0, 0.4) }, uLift: { value: new THREE.Vector3(0.86, 0.96, 1.14) }, uGain: { value: new THREE.Vector3(1.08, 1.0, 0.86) },
-    uSat: { value: 0.9 }, uContrast: { value: 1.08 }, uVig: { value: 0.9 }, uGrain: { value: 0.012 }, uLensOn: { value: 0 }, uLevels: { value: 28 },
+    uSat: { value: 0.9 }, uContrast: { value: 1.08 }, uFloor: { value: 0 }, uVig: { value: 0.9 }, uGrain: { value: 0.012 }, uLensOn: { value: 0 }, uLevels: { value: 28 },
   };
   const mat = new THREE.ShaderMaterial({
     uniforms: u as unknown as Record<string, THREE.IUniform>,
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: /* glsl */`
       uniform sampler2D tColor; uniform sampler2D tDepth; uniform sampler2D tLens;
-      uniform vec2 uRes; uniform float uNear, uFar, uTime, uFlash, uRed, uExposure, uOutline, uSat, uContrast, uVig, uGrain, uLensOn, uLevels;
+      uniform vec2 uRes; uniform float uNear, uFar, uTime, uFlash, uRed, uExposure, uOutline, uSat, uContrast, uVig, uGrain, uLensOn, uLevels, uFloor;
       uniform vec4 uSide; uniform vec3 uLift, uGain;
       varying vec2 vUv;
       float linD(vec2 uv) { float z = texture2D(tDepth, uv).x; if (z >= 1.0) return uFar * 4.0; float n = z * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - n * (uFar - uNear)); }
@@ -49,6 +49,7 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
         // the side the 2D menu sits on goes darker
         float s = dot(vUv, uSide.xy) + (uSide.x < 0.0 || uSide.y < 0.0 ? 1.0 : 0.0);
         c *= 1.0 - uSide.z * (1.0 - smoothstep(0.0, uSide.w, s));
+        c *= 1.0 - uFloor * (1.0 - smoothstep(0.0, 0.38, vUv.y));
         // exposure, filmic curve, split grade
         c = aces(c * uExposure);
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
@@ -94,10 +95,16 @@ export class LensBlood {
   splat(n: number) {
     const W = this.canvas.width, H = this.canvas.height;
     for (let i = 0; i < n; i++) {
-      const r = (0.03 + Math.random() * 0.09) * H;
-      const k = 7 + Math.floor(Math.random() * 4), pts: number[] = [];
-      for (let j = 0; j < k; j++) pts.push(0.65 + Math.random() * 0.5);
-      this.drops.push({ x: Math.random() * W, y: Math.random() * H * 0.85, r, pts, run: 0, speed: 4 + Math.random() * 14, t: 0, life: 4 + Math.random() * 2.5 });
+      const r = (0.012 + Math.random() * 0.045) * H;
+      const k = 10 + Math.floor(Math.random() * 6), pts: number[] = [];
+      for (let j = 0; j < k; j++) pts.push(0.55 + Math.random() * 0.6 + (Math.random() < 0.2 ? 0.5 : 0));
+      const x = Math.random() * W, y = Math.random() * H * 0.85;
+      this.drops.push({ x, y, r, pts, run: 0, speed: 3 + Math.random() * 12, t: 0, life: 4 + Math.random() * 2.5 });
+      // satellites flung off the main drop
+      for (let s = 0; s < 3; s++) {
+        const a = Math.random() * Math.PI * 2, d = r * (1.4 + Math.random() * 1.6), rr = r * (0.12 + Math.random() * 0.2);
+        this.drops.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, r: rr, pts: [1, 0.8, 1.1, 0.9, 1, 0.85], run: 0, speed: 0, t: 0, life: 4 + Math.random() * 2 });
+      }
     }
   }
   /** returns true when the texture changed */

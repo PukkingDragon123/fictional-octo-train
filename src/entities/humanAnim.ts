@@ -488,8 +488,8 @@ export class HumanAnimator {
     set(p, 'spine', br * 0.25, 0, 0);
     set(p, 'chest', -br * 0.7, 0, 0);
     set(p, 'neck', br * 0.35, 0, 0);
-    set(p, 'uarmL', 0.03, 0, 0.07 + br * 0.45);
-    set(p, 'uarmR', 0.03, 0, -0.07 - br * 0.45);
+    set(p, 'uarmL', 0.03 - br * 0.3, 0, 0.07 + br * 0.6);
+    set(p, 'uarmR', 0.03 - br * 0.3, 0, -0.07 - br * 0.6);
     set(p, 'farmL', -0.16, 0, 0);
     set(p, 'farmR', -0.16, 0, 0);
     set(p, 'handL', 0.05, 0, 0.06);
@@ -535,6 +535,18 @@ export class HumanAnimator {
       add(p, ('thigh' + (free === 'L' ? 'R' : 'L')) as JointName, 0, 0, -ws * 0.04);
       // a relaxed stance sits a little into the knees
       p.rootY = -0.012 - Math.abs(ws) * 0.008;
+      // nobody stands still: the whole body sways slowly over the ankles, the trunk counters it, the arms hang loose and drift
+      const sw = Math.min(1, this.idleT / 1.5);
+      const sx = (Math.sin(t * 0.61 + this.seed) * 0.6 + Math.sin(t * 0.37 + this.seed * 2.1) * 0.4) * sw;
+      const sz = (Math.sin(t * 0.47 + this.seed * 1.3) * 0.6 + Math.sin(t * 0.83) * 0.4) * sw;
+      p.rootX = (p.rootX ?? 0) + sx * 0.008;
+      p.rootZ = (p.rootZ ?? 0) + sz * 0.006;
+      add(p, 'spine', -sz * 0.012, 0, -sx * 0.015);
+      add(p, 'chest', 0, sx * 0.02, 0);
+      add(p, 'farmL', -0.07 - Math.sin(t * 0.43 + 1) * 0.03 * sw, 0, 0);
+      add(p, 'farmR', -0.07 - Math.sin(t * 0.39 + 2) * 0.03 * sw, 0, 0);
+      add(p, 'uarmL', Math.sin(t * 0.5 + 0.5) * 0.02 * sw, 0, 0);
+      add(p, 'uarmR', Math.sin(t * 0.47 + 2.5) * 0.02 * sw, 0, 0);
     }
     if (tired > 0.4) add(p, 'spine', 0.08 * tired, 0, 0);
 

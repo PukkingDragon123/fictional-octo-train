@@ -96,11 +96,11 @@ export function capModel(mats: Mats, chin: boolean): THREE.Group {
   const b = new FacetBuilder();
   const tilt = at(0, -0.012, -0.006, -0.2);
   const T = (m: THREE.Matrix4) => tilt.clone().multiply(m);
-  b.add('metal', lathe([[0.121, 0.122], [0.126, 0.136], [0.12, 0.165], [0.106, 0.196], [0.082, 0.222], [0.046, 0.238], [0.0, 0.243]], 10), 0x7e766a, tilt, { rep: 0.12 });
-  b.add('brass', band(0.124, 0.124, 0.012, 0.01, 10, 1, Math.PI / 10), 0xffffff, T(at(0, 0.128, 0)));
-  b.add('sponge', band(0.115, 0.115, 0.014, 0.008, 10, 1, Math.PI / 10), 0xffffff, T(at(0, 0.116, 0)));
-  b.add('copper', band(0.117, 0.117, 0.018, 0.008, 10, 1, Math.PI / 10), 0xffffff, T(at(0, 0.168, 0)));
-  for (let i = 0; i < 10; i++) { const a = (i / 10) * Math.PI * 2 + Math.PI / 10; b.add('brass', gem(0.006, 5, 0.005), 0xffffff, T(at(Math.sin(a) * 0.112, 0.19, Math.cos(a) * 0.112, Math.cos(a) * 0.9, 0, -Math.sin(a) * 0.9))); }
+  b.add('metal', lathe([[0.122, 0.12], [0.127, 0.132], [0.126, 0.15], [0.121, 0.172], [0.11, 0.193], [0.093, 0.211], [0.07, 0.225], [0.042, 0.234], [0.0, 0.238]], 12), 0x5e5c56, tilt, { rep: 0.12 });
+  b.add('brass', band(0.126, 0.126, 0.012, 0.01, 12, 1, Math.PI / 12), 0xb0a080, T(at(0, 0.126, 0)));
+  b.add('sponge', band(0.117, 0.117, 0.014, 0.008, 12, 1, Math.PI / 12), 0xffffff, T(at(0, 0.114, 0)));
+  b.add('copper', band(0.123, 0.123, 0.016, 0.008, 12, 1, Math.PI / 12), 0xc0a090, T(at(0, 0.166, 0)));
+  for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2 + Math.PI / 12; b.add('brass', gem(0.0055, 5, 0.005), 0xc0b090, T(at(Math.sin(a) * 0.113, 0.19, Math.cos(a) * 0.113, Math.cos(a) * 0.9, 0, -Math.sin(a) * 0.9))); }
   // the terminal: a squat bakelite insulator, a brass collar and the clamp nut the cable is screwed into
   b.add('bakelite', lathe([[0, 0], [0.034, 0], [0.036, 0.01], [0.026, 0.016], [0.03, 0.026], [0.02, 0.036], [0, 0.037]], 6), 0xffffff, T(at(0, 0.236, -0.004)));
   b.add('brass', lathe([[0, 0], [0.016, 0], [0.016, 0.012], [0.011, 0.018], [0, 0.018]], 6), 0xffffff, T(at(0, 0.272, -0.004)));

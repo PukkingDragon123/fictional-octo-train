@@ -238,8 +238,8 @@ R.leather = () => {
 R.vinyl = () => {
   // the table pad: dark green vinyl, button tufts and seams, old stains
   const pc = new PixelCanvas(64, 64), rng = rnd(141);
-  const r = makeRamp(0x2e4a3a, 6, { spread: 0.45 });
-  pc.fillRamp(r, (x, y) => 0.5 + (fb(x, y, 64, 64, 4, 142) - 0.5) * 0.4, 1);
+  const r = makeRamp(0x34483c, 6, { spread: 0.42 });
+  pc.fillRamp(r, (x, y) => 0.5 + (fb(x, y, 64, 64, 3, 142) - 0.5) * 0.16, 0.6);
   pc.hline(0, 63, 0, r[0]); pc.hline(0, 63, 1, r[4]);
   pc.vline(0, 0, 63, r[0]); pc.vline(1, 0, 63, r[4]);
   for (const [x, y] of [[16, 16], [48, 16], [16, 48], [48, 48], [32, 32]]) { pc.set(x, y, r[0]); pc.set(x + 1, y, r[1]); pc.set(x, y - 1, r[5]); }

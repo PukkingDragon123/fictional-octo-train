@@ -439,6 +439,8 @@ export interface BuildCond {
   bandages: Set<string>;
   /** severed body parts (limb loss): those segments are not built and the limb is capped at the cut */
   severed?: Set<string>;
+  /** level of detail: 0 sculpted (default), 1 coarse head and trunk, no shell details (crowds, distant bodies) */
+  lod?: number;
 }
 
 /** where a limb ends when a part is cut off (reference metres: arms in upper-arm space, legs in thigh space) */
@@ -471,6 +473,9 @@ export interface BuildResult { geometry: THREE.BufferGeometry; tris: number; sol
 
 export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, cond: BuildCond): BuildResult {
   ({ o, sh } = suitLooks(app, o, sh));
+  const lod = cond.lod ?? HEAD_LOD;
+  if (lod) sh = { ...sh, feats: undefined };
+  const prevLod = HEAD_LOD; HEAD_LOD = lod;
   const B = new SkinBuilder();
   const s = d.s, fem = d.fem, mass = d.mass, bw = d.bw;
   const R = d.rest;
@@ -536,7 +541,7 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
       if (y < 1.47) return [BI.chest, 1];
       return [BI.chest, 0.6, BI.neck, 0.4];
     };
-    const n = 16;
+    const n = lod ? 12 : 16;
     const rings = ys.map(({ y, eps }) => {
       const r = sampleRows(TORSO_ROWS, y);
       const t = thick(y + eps * 0.0005);
@@ -804,6 +809,7 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
 
   // bandage bulk is painted; splints added above
   void o;
+  HEAD_LOD = prevLod;
   const geometry = B.build();
   return { geometry, tris: B.I.length / 3, sole };
 }

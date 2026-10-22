@@ -1,33 +1,41 @@
-// The opening of a new contract run: intake, in first person.
+// The opening of a new contract run: intake.
 //
-// A cinematic through the debtor's own eyes, drawn on the renderer's overlay
-// stage (src/fp/fp.ts, set built by src/game/introSet.ts) with a perspective
-// camera at eye height, still in the low-res pixel look:
-//   drag   hauled backwards by the wrists down the processing wing, heels
-//          scraping, ceiling tubes sliding away overhead, your mugshot on the
-//          monitors, figures behind the glass; the head lolls back and you see
-//          the gloves on your wrists
-//   throw  swung round and let go: the floor comes up
-//   beat   on your back by the drain, arms up, two officers and their batons
-//          (hitstop, shake, blood on the lens, the picture doubling and
-//          blurring, real bruises and cuts on the body)
-//   haul   dragged into the press room: a giant Remittance Press slamming down
-//          on what is left of somebody, blood everywhere
-//   fit    on your knees, your left arm pulled out, the BAILIFF band bolted
-//          through the wrist; look down at it bleed and boot
-//   tape   stood up, walked to a door-shaped section of wall taped off in
-//          hazard tape, shoved: the wall turns liquid, black surface tension
-//          closes round you, you go through
+// A cinematic mostly through the debtor's own eyes, cut with a few wide
+// shots, drawn on its own stage (src/game/introKit/stage.ts: the low-res pixel
+// grid, black silhouette outlines, a graded composite; the set is built by
+// src/game/introSet.ts out of faceted low-poly models with pixel-art textures,
+// lit by motivated lamps, src/game/introKit/lights.ts):
+//   drag   a wide shot down the processing wing first (floor level, the
+//          officers hauling you toward the camera under humming tubes, the
+//          clerks' amber desk lamps behind the counter's bars), then your own
+//          eyes: hauled backwards by the wrists, heels scraping, ceiling tubes
+//          sliding away overhead (one failing, buzzing), your mugshot on the
+//          monitors, figures behind the glass, the gloves on your wrists
+//   throw  swung round and let go: the body goes slack (a ragdoll), the floor
+//          comes up, the lamp dies and strikes back
+//   beat   on your back by the drain, two officers and their batons: wind-up,
+//          the blow with their whole weight, a strobe and a hitstop on every
+//          hit, a whip of the head, the body jolting (reaction springs, a
+//          collapse); two wide shots of it, handheld
+//   haul   a crane shot into the press room (sodium high-bays, the red beacon
+//          sweeping, the giant Remittance Press slamming down in a shower of
+//          sparks, the conveyor feeding it), then your eyes again
+//   fit    on your knees, your left arm clamped into the fitting rig (a close
+//          shot), the driver comes down through the wrist: sparks, blood, the
+//          BAILIFF band boots with an amber flare
+//   tape   stood up and marched to the portal frame (a wide shot from the
+//          wall), the taped section turns liquid and glows, its caustic light
+//          crawling over everything; shoved: the surface closes round you
 //   land   black, then the Lobby (back to the isometric camera): you get up
 //          in front of the Seam, the band shows a signal, and Staff Sergeant
 //          Voss (src/game/handler.ts) projects out of it and explains the job
-//          (put goods on a press, pull the lever: they go to the other side)
 // Then flag 'contract:intake' and bus 'introDone'; the contract takes over.
 //
 // Shown once per new contract run (src/game/session.ts decides: not for
-// loaded saves, co-op clients or free survival). Esc, the fast-forward in the
-// corner, or a tap then a tap on it skips at any moment. ?quick skips it,
-// ?intro forces it. While it plays the survivor waits, hidden, in the local
+// loaded saves, co-op clients or free survival). The skip plate in the corner
+// (src/game/introKit/skip.ts) skips at any moment: Esc, a tap on it (a tap
+// anywhere first wakes it), gamepad Start / Back / B. ?quick skips it, ?intro
+// forces it. While it plays the survivor waits, hidden, in the local
 // 'reality' zone; nothing that happens there reaches the op log or co-op.
 import * as THREE from 'three';
 import { G } from './G';
@@ -54,18 +62,22 @@ import { readTime, type LineStyle } from './lines';
 import { paintMugshot } from '../content/furniture/zp_processing';
 import { rigNumber } from '../content/items/prisoner';
 import { ModelBuilder } from '../gfx/modelBuilder';
-import { createPreviewRig, type HumanRig, type Pose } from '../entities/humanRig';
-import { fpGroup, fpClaim, fpRelease, fpCamera, fpOwner } from '../fp/fp';
+import { HumanRig, type Pose } from '../entities/humanRig';
+import { Reactions } from '../entities/humanReact';
+import { fpClaim, fpRelease, fpCamera, fpOwner, fpGroup } from '../fp/fp';
 import { fpArmsFor, type FpArm, type HandPose } from '../fp/hands';
 import { hitstop } from '../gfx/juice';
 import { IntroSet, IX, STAGE } from './introSet';
-import { roundBox } from '../content/furniture/zd_contract';
-import { worldMaterial } from '../gfx/materials';
 import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../gfx/crt';
 import type { SeamFx } from './seam';
+import { StageRender } from './introKit/stage';
+import { SU, stageMat, emitMat, type EmitMat } from './introKit/stageMat';
+import { skipPlate, pollPadSkip, padConnected, type SkipPlate } from './introKit/skip';
+import { cbox, lathe, rod } from './introKit/poly';
 import './intro.css';
 
 export { INTRO_ZONE };
+void STAGE;
 
 type Phase = 'drag' | 'throw' | 'beat' | 'haul' | 'fit' | 'tape' | 'through' | 'land' | 'voss' | 'done';
 
@@ -105,11 +117,20 @@ const STRIKES: Omit<Strike, 'done' | 'swung'>[] = [
 ];
 const BEAT_END = 7.6;
 const WARM = ['guard_bark', 'baton_hit', 'body_thud', 'debtor_grunt', 'debtor_scream', 'debtor_gasp', 'remit_pierce', 'remit_chirp', 'bone_crunch', 'seam_ripple', 'seam_through', 'seam_seal',
-  'whoosh', 'holo_on', 'press_slam', 'press_crunch', 'press_hiss', 'press_lever', 'press_klaxon', 'ix_heart', 'ix_ring', 'ix_boot', 'ix_liquid', 'intro_land'];
+  'whoosh', 'holo_on', 'press_slam', 'press_crunch', 'press_hiss', 'press_lever', 'press_klaxon', 'ix_heart', 'ix_ring', 'ix_boot', 'ix_liquid', 'intro_land', 'flicker_buzz', 'cy_spark'];
+
+/** the wide shots cut into the first-person script: [phase] -> [from, to, shot] (phase seconds) */
+const SHOTS: Partial<Record<Phase, [number, number, string][]>> = {
+  drag: [[0, 4.4, 'establish']],
+  beat: [[2.15, 3.72, 'beatWide'], [4.55, 6.05, 'beatTop']],
+  haul: [[1.9, 5.4, 'haulCrane']],
+  fit: [[1.45, 3.75, 'fitClose']],
+  tape: [[1.0, 3.6, 'tapeWide']],
+};
 
 // ------------------------------------------------------------------ your own body, posed for the camera
 const P = (o: Record<string, unknown>): Pose => o as Pose;
-/** the first-person body's poses (on top of its idle animation) */
+/** the debtor's body poses (on top of its idle animation) */
 function fpPose(name: string, t: number, k = 9): Pose | null {
   const j = Math.exp(-k * 9) * (k < 0.6 ? 1 : 0);
   switch (name) {
@@ -164,39 +185,39 @@ function fpPose(name: string, t: number, k = 9): Pose | null {
   return null;
 }
 
-/** the BAILIFF band as bolted on: a chunky 1970s wrist unit. A riveted steel housing on a hinged steel cuff,
- *  a round amber-phosphor CRT the size of a coin, a signal needle in a little window, an amber lamp, the bolt head. */
-interface Band { g: THREE.Group; crt: CrtScreen; needle: THREE.Object3D; lamp: THREE.Mesh; lampMat: THREE.MeshBasicMaterial }
+/** the BAILIFF band as bolted on: a chunky 1970s wrist unit, faceted. A riveted steel housing on a hinged
+ *  octagonal cuff, a small amber-phosphor CRT, a signal needle in a little window, an amber lamp, the bolt head. */
+interface Band { g: THREE.Group; crt: CrtScreen; needle: THREE.Object3D; lamp: THREE.Mesh; lampMat: EmitMat }
 function bandMesh(): Band {
   const mb = new ModelBuilder();
   // the cuff round the wrist (hand-local: the arm runs along y), two hinge knuckles, the bolt through it
-  mb.cylinder(0, -0.04, 0, 0.05, 0.062, 10, 'metal_grey', { color: 0x8a8e90, caps: true });
-  for (const y of [-0.036, 0.012]) mb.cylinder(0, y, 0, 0.053, 0.008, 10, 'metal_dark');
-  mb.cylinder(-0.052, -0.02, 0.0, 0.011, 0.024, 6, 'chrome');
-  mb.box(-0.06, -0.016, 0, 0.012, 0.016, 0.016, 'metal_brass');
-  // the housing on the back of the wrist: steel box, rivets, a hazard-striped tag
-  roundBox(mb, 0, -0.05, 0.044, 0.078, 0.074, 0.03, 0.009, 'metal_dark', { color: 0x6a6e70 });
-  for (const [x, y] of [[-0.031, -0.046], [0.031, -0.046], [-0.031, 0.019], [0.031, 0.019]]) mb.cylinderZ(x, y, 0.0598, 0.003, 0.004, 6, 'chrome');
-  mb.box(0, -0.049, 0.0592, 0.05, 0.007, 0.002, 'zd_hazard');
+  lathe(mb, 0, -0.04, 0, [[0.05, 0], [0.054, 0.008], [0.054, 0.054], [0.05, 0.062]], 8, 'ix_steel', { color: 0xb0b4b0 });
+  for (const y of [-0.036, 0.012]) lathe(mb, 0, y, 0, [[0.056, 0], [0.056, 0.008]], 8, 'metal_dark', { caps: false });
+  rod(mb, [-0.054, -0.032, 0], [-0.054, -0.006, 0], 0.011, 6, 'chrome');
+  cbox(mb, -0.062, -0.026, 0, 0.012, 0.016, 0.016, 0.003, 'metal_brass');
+  // the housing on the back of the wrist: chamfered steel, rivets, a hazard-striped tag
+  cbox(mb, 0, -0.05, 0.044, 0.08, 0.074, 0.032, 0.008, 'ix_plate', { color: 0x9aa09a });
+  for (const [x, y] of [[-0.031, -0.046], [0.031, -0.046], [-0.031, 0.019], [0.031, 0.019]]) rod(mb, [x, y, 0.059], [x, y, 0.0625], 0.003, 6, 'chrome');
+  cbox(mb, 0, -0.049, 0.059, 0.05, 0.007, 0.002, 0.0005, 'ix_haz');
   // the tube's bezel: black bakelite round a small screen, the needle window, the lamp collar
-  roundBox(mb, -0.008, -0.03, 0.0578, 0.044, 0.038, 0.006, 0.005, 'plastic_black');
-  roundBox(mb, 0.026, -0.03, 0.0578, 0.016, 0.026, 0.005, 0.004, 'plastic_black');
-  mb.push().translate(0.026, 0.009, 0.06).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.007, 0.006, 8, 'chrome'); mb.pop();
+  cbox(mb, -0.008, -0.03, 0.0598, 0.044, 0.038, 0.006, 0.003, 'plastic_black');
+  cbox(mb, 0.026, -0.03, 0.0598, 0.016, 0.026, 0.005, 0.002, 'plastic_black');
+  mb.push().translate(0.026, 0.009, 0.061).rotateX(Math.PI / 2); lathe(mb, 0, -0.003, 0, [[0.0075, 0], [0.0075, 0.006]], 6, 'chrome'); mb.pop();
   const g = new THREE.Group();
-  const body = new THREE.Mesh(mb.build(), worldMaterial(STAGE));
-  // the screen: a real little tube (curved glass, scanlines, bloom, a power-on collapse), amber phosphor
+  const body = new THREE.Mesh(mb.build(), stageMat({ rim: 0.8 }));
+  // the screen: a real little tube (curved glass, scanlines, a power-on collapse), amber phosphor
   const crt = crtScreen(0.036, 0.03, { tint: 0xffc070, res: [128, 104], curvature: 0.3, glow: 1.3, scan: 0.75, noise: 0.05, flicker: 0.6, reflect: 0.8 });
-  crt.mesh.position.set(-0.008, -0.011, 0.0622);
+  crt.mesh.position.set(-0.008, -0.011, 0.0632);
   crt.power(false, true);
-  // the needle in its window
-  const nb = new ModelBuilder(); nb.box(0, 0, 0, 0.0015, 0.018, 0.001, 'white', { color: 0xd02010 });
-  const needle = new THREE.Mesh(nb.build(), worldMaterial(STAGE));
-  needle.position.set(0.026, -0.042, 0.0618);
-  const wb = new ModelBuilder(); wb.box(0.026, -0.042, 0.0615, 0.013, 0.022, 0.0005, 'white', { color: 0xe8dcc0 });
-  const win = new THREE.Mesh(wb.build(), worldMaterial(STAGE));
-  const lampMat = new THREE.MeshBasicMaterial({ color: 0x3a2008 });
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 6), lampMat);
-  lamp.position.set(0.026, 0.009, 0.066);
+  const nb = new ModelBuilder(); cbox(nb, 0, 0, 0, 0.0015, 0.018, 0.001, 0, 'white', { color: 0xd02010 });
+  const needle = new THREE.Mesh(nb.build(), stageMat({ rim: 0 }));
+  needle.position.set(0.026, -0.042, 0.0628);
+  const wb = new ModelBuilder(); cbox(wb, 0.026, -0.042, 0.0626, 0.013, 0.022, 0.0005, 0, 'white', { color: 0xe8dcc0 });
+  const win = new THREE.Mesh(wb.build(), stageMat({ rim: 0 }));
+  const lampMat = emitMat(0xffb040, 0.15);
+  const lb = new ModelBuilder(); lathe(lb, 0, 0, 0, [[0.0055, 0], [0.0055, 0.003], [0.003, 0.006], [0, 0.007]], 6, 'ix_sodium', { color: 0xffffff });
+  const lamp = new THREE.Mesh(lb.build(), lampMat);
+  lamp.position.set(0.026, 0.009, 0.064); lamp.rotation.x = Math.PI / 2;
   g.add(body, crt.mesh, win, needle, lamp);
   return { g, crt, needle, lamp, lampMat };
 }
@@ -225,8 +246,32 @@ function drawCrt(c: CrtScreen, t: number, mode: 'boot' | 'link' | 'signal', fill
   c.flush();
 }
 
-const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3(), v4 = new THREE.Vector3();
+/** the shared first-person arms are standard materials: teach them to write the stage's normal buffer too */
+function stageNormals(o: THREE.Object3D) {
+  o.traverse((m) => {
+    const mesh = m as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    for (const mat of (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as THREE.Material[]) {
+      const tag = mat as THREE.Material & { ixN?: boolean };
+      if (tag.ixN || (mat as THREE.ShaderMaterial).isShaderMaterial) continue;
+      tag.ixN = true;
+      const prev = mat.onBeforeCompile?.bind(mat);
+      mat.onBeforeCompile = (sh, r) => {
+        prev?.(sh, r);
+        if (sh.fragmentShader.includes('gNormal')) return;
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nlayout(location = 1) out highp vec4 gNormal;')
+          .replace('#include <dithering_fragment>', '#include <dithering_fragment>\ngNormal = vec4(normalize(normal) * 0.5 + 0.5, 1.0);');
+      };
+      const key = mat.customProgramCacheKey?.bind(mat);
+      mat.customProgramCacheKey = () => (key ? key() : '') + '|ixN';
+      mat.needsUpdate = true;
+    }
+  });
+}
+
+const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3(), v4 = new THREE.Vector3(), v5 = new THREE.Vector3();
 const qa = new THREE.Quaternion(), eu = new THREE.Euler(0, 0, 0, 'YXZ');
+const ZERO = new THREE.Vector3();
 
 export class Intro implements GameSystem {
   name = 'intro';
@@ -236,6 +281,7 @@ export class Intro implements GameSystem {
   L: RealityLayout;
   z: Zone;
   set: IntroSet;
+  stage: StageRender;
   me: HumanRig;
   A: Guard; B: Guard;
   private fired = new Set<number>();
@@ -245,11 +291,19 @@ export class Intro implements GameSystem {
   private lookV = { yaw: 0, pitch: 0, roll: 0 };
   private goal = { yaw: Math.PI, pitch: -0.3, roll: 0, rate: 3 };
   private trauma = 0;
+  /** how handheld the camera is (rises after the beating) */
+  private hand = 0.35;
   private camSave: { fov: number; near: number; far: number } | null = null;
   private eye = new THREE.Vector3();
   private mouse = { x: 0, y: 0 };
+  // the wide shots
+  private shot: string | null = null;
+  private shotT = 0;
+  private whip = { yaw: 0, pitch: 0, roll: 0, vy: 0, vp: 0, vr: 0 };
+  private tpPos = new THREE.Vector3(); private tpLook = new THREE.Vector3();
   // the body double
   private pose = 'drag'; private poseK = 9; private poseW = 1;
+  private react = new Reactions();
   private bodyAt = new THREE.Vector3(); private bodyYaw = 0;
   private path: { pts: [number, number][]; s: number; len: number; speed: number } | null = null;
   private armL: { p: THREE.Vector3; w: number } | null = null;
@@ -275,12 +329,11 @@ export class Intro implements GameSystem {
   private vossStarted = false; private vossShort = false;
   private signalled = false;
   // dom
-  private root!: HTMLDivElement; private shade!: HTMLDivElement; private flashEl!: HTMLDivElement; private hurtEl!: HTMLDivElement;
+  private root!: HTMLDivElement; private shade!: HTMLDivElement;
   private lidT!: HTMLDivElement; private lidB!: HTMLDivElement; private wrapEl!: HTMLDivElement;
-  private skipBtn!: HTMLButtonElement;
-  private svgOff!: SVGFEOffsetElement;
-  private shadeA = 1; private flashA = 0; private hurtA = 0; private lid = 1; private lidGoal = 1; private lidHit = 0; private lidHold = 0; private focus = 0; private wrapA = 0;
-  private dbl = 0; private blur = 0; private desat = 0;
+  private plate!: SkipPlate;
+  private shadeA = 1; private hurtA = 0; private lid = 1; private lidGoal = 1; private lidHit = 0; private lidHold = 0; private wrapA = 0;
+  private desat = 0;
   private skipping = -1; private skipHot = 0;
   private touch = false;
   private warmQ = [...WARM];
@@ -288,6 +341,7 @@ export class Intro implements GameSystem {
   private pack: Item | null = null;
   private heartT = 0;
   private stepT = 0;
+  private glow = 0;
 
   constructor(public g: Game, public p: Player, public spawn: [number, number]) {
     const z = this.z = g.getZone(INTRO_ZONE);
@@ -308,22 +362,30 @@ export class Intro implements GameSystem {
     const [sx, sy] = this.L.start;
     g.placePlayer(p, INTRO_ZONE, sx, sy, 0);
     this.canvas = g.pr.renderer.domElement;
-    // the stage
-    const root = fpGroup(STAGE_NAME);
-    this.set = new IntroSet(root, (g.pr as unknown as { quality?: string }).quality === 'low');
+    // the stage: its own scene, drawn by its own pass after the world's frame
+    this.stage = new StageRender(g.pr, fpCamera());
+    const root = new THREE.Group();
+    root.name = 'ix:stage';
+    this.stage.scene.add(root);
+    const low = (g.pr as unknown as { quality?: string }).quality === 'low';
+    this.set = new IntroSet(root, low);
     this.set.onSlam = (d) => this.pressSlam(d);
-    this.me = createPreviewRig(p.app, p.computeOutfit());
+    this.me = new HumanRig(p.app, stageMat({ rim: 1.15 }), { secondary: true });
+    this.me.setOutfit(p.computeOutfit());
     (this.me.bones as Record<string, THREE.Object3D>).head.scale.setScalar(0.001);
     root.add(this.me.root);
-    // your own forearms and hands: the shared smooth first-person arms (src/fp/hands.ts), riding the double's elbows
+    // your own forearms and hands: the shared first-person arms (src/fp/hands.ts), riding the double's elbows
     const arms = fpArmsFor(p);
     for (const [arm, side] of [[arms.left, 'L'], [arms.right, 'R']] as [FpArm, 'L' | 'R'][]) {
       const farm = this.me.j[side === 'L' ? 'farmL' : 'farmR'];
       const hold = new THREE.Group();
       farm.parent!.add(hold);
       hold.add(arm.root);
-      // the rig's forearm hangs down its bone's -Y with the palm turned in; the fp arm runs up +Y, palm +Z
+      // the double's own upper arm is there: no upper arm reaching back to a camera shoulder
+      (arm as unknown as { reach: THREE.Camera | null }).reach = null;
       arm.root.rotation.set(0, side === 'L' ? -Math.PI / 2 : Math.PI / 2, Math.PI);
+      arm.root.traverse((o) => { o.castShadow = true; });
+      stageNormals(arm.root);
       this.arms.push({ arm, farm, hold, side, base: arm.root.rotation.y, roll: 0, rollGoal: 0 });
     }
     this.hands('claw', 'claw', 0.3);
@@ -341,6 +403,7 @@ export class Intro implements GameSystem {
     g.attract = noop;
     this.startDrag(IX.drag1, 1.32);
     this.placeGuardsForDrag(true);
+    this.stage.setLook('wing', 0.05);
   }
 
   /** prisoners don't keep their own clothes: the jumpsuit goes on, everything over it comes off */
@@ -363,6 +426,7 @@ export class Intro implements GameSystem {
 
   // ================================================================== the stage
   private claimStage() {
+    fpGroup(STAGE_NAME);
     fpClaim(STAGE_NAME, 100, { cinematic: 'none' });
     const cam = fpCamera();
     this.camSave = { fov: cam.fov, near: cam.near, far: cam.far };
@@ -370,7 +434,7 @@ export class Intro implements GameSystem {
     this.hideForeignLights();
     this.g.pr.scene.visible = false;
   }
-  /** other owners' lights loose in the overlay scene (the held devices) would flatten the set: off while we own it */
+  /** other owners' lights loose in the overlay scene (the held devices): off while we own it */
   private hideForeignLights() {
     const mine = fpGroup(STAGE_NAME);
     for (const o of this.g.pr.overlayScene.children) if (o !== mine && (o as THREE.Light).isLight && o.visible) { o.visible = false; this.hiddenLights.push(o); }
@@ -391,6 +455,8 @@ export class Intro implements GameSystem {
     this.me.dispose();
     this.band = null;
     this.set.dispose();
+    this.stage.dispose();
+    SU.uPortStr.value = 0;
     this.canvas.style.filter = '';
     G.audio?.positionalLoop?.('ix_drag', null); G.audio?.positionalLoop?.('ix_fluoro', null); G.audio?.positionalLoop?.('ix_drone', null);
   }
@@ -418,9 +484,9 @@ export class Intro implements GameSystem {
       ui.onInteractKey = () => { if (this.phase === 'voss') this.origKey?.(); };
       this.offs.push(() => { ui.onWorldClick = this.origClick; ui.onInteractKey = this.origKey; });
     }
-    // a tap brings the fast-forward up; a tap on it skips
+    // a tap brings the skip plate up; a tap on it skips
     const tap = (e: PointerEvent) => {
-      if (this.phase === 'done' || this.skipBtn.contains(e.target as Node)) return;
+      if (this.phase === 'done' || this.plate.el.contains(e.target as Node)) return;
       if (this.phase !== 'voss' || e.pointerType !== 'touch') this.hotSkip();
     };
     window.addEventListener('pointerdown', tap, true);
@@ -461,29 +527,18 @@ export class Intro implements GameSystem {
     const root = this.root = document.createElement('div');
     root.className = 'ix-root letterbox' + (this.touch ? ' touch' : '');
     const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = '') => { const e = document.createElement(tag); e.className = cls; e.innerHTML = html; return e; };
-    const vig = el('div', 'ix-vig');
-    this.hurtEl = el('div', 'ix-hurt');
     this.wrapEl = el('div', 'ix-wrap');
-    this.flashEl = el('div', 'ix-flash');
     this.lidT = el('div', 'ix-lid top'); this.lidB = el('div', 'ix-lid bot');
     this.shade = el('div', 'ix-shade');
     const top = el('div', 'ix-bar top'), bot = el('div', 'ix-bar bot');
-    const b = this.skipBtn = el('button', 'ix-skip nc-free-text', '<b>▸▸</b> skip' + (this.touch ? '' : ' <small>esc</small>'));
-    b.type = 'button';
-    b.setAttribute('aria-label', 'Skip the intro');
-    b.addEventListener('click', (e) => { e.stopPropagation(); this.skip(); });
-    b.addEventListener('pointerdown', (e) => e.stopPropagation());
-    b.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; });
-    b.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; });
-    // double vision: the picture plus a copy of itself, offset (dx driven per frame)
-    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-    svg.setAttribute('class', 'ix-svg');
-    svg.innerHTML = '<defs><filter id="ix-dbl" x="0" y="0" width="100%" height="100%" color-interpolation-filters="sRGB"><feOffset in="SourceGraphic" dx="0" dy="0" result="o"/><feComposite in="SourceGraphic" in2="o" operator="arithmetic" k1="0" k2="0.58" k3="0.42" k4="0"/></filter></defs>';
-    this.svgOff = svg.querySelector('feOffset') as SVGFEOffsetElement;
-    root.append(svg, vig, this.hurtEl, this.wrapEl, this.flashEl, this.lidT, this.lidB, this.shade, top, bot, b);
+    this.plate = skipPlate(() => this.skip());
+    this.plate.setKey(this.touch ? '' : padConnected() ? 'Start' : 'Esc');
+    this.plate.el.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; });
+    this.plate.el.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; });
+    root.append(this.wrapEl, this.lidT, this.lidB, this.shade, top, bot, this.plate.el);
     document.body.appendChild(root);
   }
-  private hotSkip() { this.skipHot = 2.6; this.skipBtn.classList.add('hot'); }
+  private hotSkip() { this.skipHot = 2.6; this.plate.el.classList.add('hot'); }
   private letterbox(on: boolean) { this.root.classList.toggle('letterbox', on); }
   /** a spoken line: bus 'subtitle' (the speech renderer draws it as free floating text, with a voice) */
   private say(who: string, text: string, style: LineStyle = 'guard', sound = true) {
@@ -492,29 +547,22 @@ export class Intro implements GameSystem {
   }
   private paintDom(dt: number) {
     this.shade.style.opacity = String(clamp01(this.shadeA));
-    if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) this.skipBtn.classList.remove('hot'); }
-    this.flashA = Math.max(0, this.flashA - dt * 3.2);
-    this.flashEl.style.opacity = String(this.flashA);
+    if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) this.plate.el.classList.remove('hot'); }
     this.hurtA = Math.max(0, this.hurtA - dt * 0.9);
-    this.hurtEl.style.opacity = String(clamp01(this.hurtA));
     this.lidHit = Math.max(0, this.lidHit - dt * 1.8);
     this.lidHold = Math.max(0, this.lidHold - dt);
-    const lg = this.lidHold > 0 ? 1 : Math.max(this.lidGoal, this.lidHit);
+    // wide shots are not seen through the eyes: no lids there
+    const lg = this.shot ? 0 : this.lidHold > 0 ? 1 : Math.max(this.lidGoal, this.lidHit);
     this.lid += (lg - this.lid) * Math.min(1, dt * (lg > this.lid ? 18 : 6));
+    if (this.shot) this.lid = Math.min(this.lid, 0.02);
     const lp = (this.lid * 50).toFixed(2) + '%';
     this.lidT.style.height = lp; this.lidB.style.height = lp;
     this.wrapEl.style.opacity = String(clamp01(this.wrapA));
     this.wrapEl.style.transform = `scale(${(2.4 - this.wrapA * 1.6).toFixed(3)})`;
-    // the picture itself: doubling, blur, the colour draining out
-    this.dbl = Math.max(0, this.dbl - dt * 0.35);
-    this.blur = Math.max(0, this.blur - dt * 0.8);
-    this.focus = Math.max(0, this.focus - dt * 0.75);
-    const d = this.dbl, bl = Math.max(this.blur, this.focus * this.focus);
-    if (this.staged && (d > 0.01 || bl > 0.02 || this.desat > 0.01)) {
-      this.svgOff.setAttribute('dx', (Math.sin(this.T * 1.7) * 14 * d + 6 * d).toFixed(1));
-      this.svgOff.setAttribute('dy', (Math.sin(this.T * 2.3) * 4 * d).toFixed(1));
-      this.canvas.style.filter = `${d > 0.01 ? 'url(#ix-dbl) ' : ''}blur(${(bl * 3).toFixed(2)}px) saturate(${(1 - this.desat * 0.7).toFixed(2)}) contrast(${(1 + d * 0.15).toFixed(2)})`;
-    } else if (this.canvas.style.filter) this.canvas.style.filter = '';
+    // the picture: red at the edges when it hurts, the colour draining out (in the stage's own composite, crisp)
+    this.desat = Math.max(0, this.desat - dt * 0.02);
+    this.stage.hurt = this.shot ? this.hurtA * 0.4 : this.hurtA;
+    this.stage.desat = this.desat;
   }
 
   // ================================================================== helpers
@@ -523,24 +571,26 @@ export class Intro implements GameSystem {
   private sfx(key: string, vol = 1) { G.audio?.flat?.(key, 'sfx', vol); }
   private aim(yaw: number, pitch: number, roll = 0, rate = 3) { this.goal.yaw = yaw; this.goal.pitch = pitch; this.goal.roll = roll; this.goal.rate = rate; }
   private get seamFx(): SeamFx | null { return (G as unknown as { seamFx?: SeamFx }).seamFx ?? null; }
-  private wrist(side: 'L' | 'R', out: THREE.Vector3) { const a = this.arms.find((q) => q.side === side); return a ? a.arm.wrist.getWorldPosition(out) : palm(this.me, side, out); }
+  private wrist(side: 'L' | 'R', out: THREE.Vector3) { const a = this.arms.find((q) => q.side === side); return a && !this.shot ? a.arm.wrist.getWorldPosition(out) : palm(this.me, side, out); }
 
-  /** a hard cut: the eyes shut for a beat (black), then open soft and pull into focus */
-  private cutBlack(secs: number, soft = 0.9) { this.lidHold = secs; this.lid = 1; this.focus = Math.max(this.focus, soft); }
-  /** rack focus: from soft to sharp over about a second */
-  private pullFocus(from = 1) { this.focus = Math.max(this.focus, from); }
+  /** a hard cut: the eyes shut for a beat (black), then open too bright and settle */
+  private cutBlack(secs: number, soft = 0.9) { this.lidHold = secs; this.lid = 1; this.stage.expo = 1 + soft * 1.4; }
+  /** the eyes adjusting: over-bright, then settling (no blur: the picture stays crisp) */
+  private pullFocus(from = 1) { this.stage.expo = Math.max(this.stage.expo, 1 + from * 1.2); }
 
-  /** a blow, a slam, a bolt: freeze a beat, shake the head, flash, blood on the lens */
+  /** a blow, a slam, a bolt: freeze a beat, shake the head, a strobe of light, blood on the lens */
   private hit(power: number, side = 0, flash = 0.5) {
     hitstop(50 + power * 70);
     this.trauma = Math.min(1.2, this.trauma + power);
-    this.flashA = Math.max(this.flashA, flash);
     this.hurtA = Math.min(1.2, this.hurtA + power * 0.8);
-    this.dbl = Math.min(1, this.dbl + power * 0.55);
-    this.blur = Math.min(1.2, this.blur + power * 0.6);
     this.desat = Math.min(0.8, this.desat + power * 0.08);
+    this.stage.pulse(flash * 0.9, 0xfff2e6, 5);
+    this.lights().strobe(0.5 + power * 0.6, v5.copy(this.eye).add(v4.set(side * 0.4, 0.9, 0.3)));
+    // the whip: the view snaps away from the blow
+    this.whip.vy += side * 2.4 * power; this.whip.vr += side * 1.6 * power; this.whip.vp += -1.2 * power;
     if ((G.sandbox.gore ?? 2) > 0) G.gore?.lens?.splash?.(0.35 + power * 0.5, side);
   }
+  private lights() { return this.set.lights; }
 
   // ================================================================== the body double and the guards
   private startDrag(pts: [number, number][], speed: number) {
@@ -589,21 +639,32 @@ export class Intro implements GameSystem {
   private hands(l: HandPose, r: HandPose, tremor = 0) {
     for (const a of this.arms) { a.arm.pose(a.side === 'L' ? l : r); a.arm.tremor = tremor; }
   }
+  /** a blow on my body: the reaction springs, in the body's own frame (dx, dz world push) */
+  private jolt(dx: number, dz: number, part: string, k: number) {
+    const th = this.me.root.rotation.y, c = Math.cos(th), s = Math.sin(th);
+    this.react.hit(c * dx - s * dz, s * dx + c * dz, part, k);
+  }
   /** pose and place my own body, then the officers' hands on it */
   private updBody(dt: number) {
     const me = this.me, A = this.A, B = this.B;
-    // the double's own forearms are solved at full size, then folded away under the fp arms
+    const tp = !!this.shot;
+    // the double's own forearms are solved at full size, then (first person) folded away under the fp arms
     for (const a of this.arms) a.farm.scale.setScalar(1);
+    (me.bones as Record<string, THREE.Object3D>).head.scale.setScalar(tp ? 1 : 0.001);
     me.root.position.copy(this.bodyAt);
     me.root.rotation.y = this.bodyYaw;
     me.animate(dt, { speed: 0, stance: 'stand', full: '', action: '' as never, actionT: 0, actionDur: 1, twoHanded: false, limp: 0, tired: 0.6, panic: 0.8, cold: 0, aimPitch: 0, holdingLight: false, holding: false, lookYaw: 0, fidget: false });
     this.poseK += dt;
     const ps = fpPose(this.pose, this.T, this.poseK);
-    if (ps) overlay(me, ps, this.poseW);
+    // a ragdoll (the throw, the collapse) owns the body while it lasts; the pose comes back as it lets go
+    const rag = (me as unknown as { ragW?: number }).ragW ?? 0;
+    if (ps) { this.react.apply(ps, dt); overlay(me, ps, this.poseW * (1 - rag)); }
     me.root.updateMatrixWorld(true);
     if (this.armL) { reachArm(me, 'L', this.armL.p, this.armL.w, v4.set(0.6, -1, 0.1)); me.root.updateMatrixWorld(true); }
     for (const a of this.arms) {
-      a.hold.position.copy(a.farm.position); a.hold.quaternion.copy(a.farm.quaternion); a.farm.scale.setScalar(0.001);
+      a.hold.position.copy(a.farm.position); a.hold.quaternion.copy(a.farm.quaternion);
+      if (!tp) a.farm.scale.setScalar(0.001);
+      a.arm.root.visible = !tp;
       a.roll += (a.rollGoal - a.roll) * Math.min(1, dt * 5);
       a.arm.root.rotation.y = a.base + a.roll;
       a.arm.update(dt);
@@ -613,8 +674,13 @@ export class Intro implements GameSystem {
     if (this.gripA > 0.01) A.reachR = { p: this.wrist('L', A.reachR?.p ?? new THREE.Vector3()), w: this.gripA, pole: POLE_A }; else if (A.reachR) A.reachR = null;
     if (this.gripB > 0.01) B.reachL = { p: this.wrist('R', B.reachL?.p ?? new THREE.Vector3()), w: this.gripB, pole: POLE_B }; else B.reachL = null;
     A.update(dt); B.update(dt);
-    // the band on the wrist (and its little screen)
-    if (this.band) this.updBand(dt);
+    // the band on the wrist (and its little screen): the fp arm's wrist through my eyes, the rig's in a wide shot
+    if (this.band) {
+      const left = this.arms.find((q) => q.side === 'L');
+      const want = tp || !left ? me.j.handL : left.arm.wrist;
+      if (this.band.g.parent !== want) { want.add(this.band.g); this.band.g.scale.set(!tp && left ? -1 : 1, 1, 1); }
+      this.updBand(dt);
+    }
   }
 
   // ================================================================== the camera
@@ -629,19 +695,136 @@ export class Intro implements GameSystem {
     const V = this.lookV;
     V.yaw += (kk * wrapA(Gl.yaw - L.yaw) - c * V.yaw) * h; V.pitch += (kk * (Gl.pitch - L.pitch) - c * V.pitch) * h; V.roll += (kk * (Gl.roll - L.roll) - c * V.roll) * h;
     L.yaw += V.yaw * h; L.pitch += V.pitch * h; L.roll += V.roll * h;
+    // the whip after a blow: a fast spring
+    const W = this.whip, ww = 15, wk = ww * ww, wc = 2 * 0.55 * ww;
+    W.vy += (-wk * W.yaw - wc * W.vy) * h; W.vp += (-wk * W.pitch - wc * W.vp) * h; W.vr += (-wk * W.roll - wc * W.vr) * h;
+    W.yaw += W.vy * h; W.pitch += W.vp * h; W.roll += W.vr * h;
     // handheld: breathing, the pulse, a slow drift; trauma shake on top (squared)
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
-    const s = this.trauma * this.trauma, t = this.T;
+    const s = this.trauma * this.trauma, t = this.T, hh = this.hand;
     const n = (f: number, o: number) => Math.sin(t * f + o) * 0.6 + Math.sin(t * f * 2.31 + o * 1.7) * 0.4;
+    if (this.shot) {
+      // a wide shot: an operator's camera, handheld, whipping on the blows
+      this.shotT += dt;
+      const fov = this.shotCam(this.shot, this.shotT, this.tpPos, this.tpLook);
+      cam.position.copy(this.tpPos);
+      cam.position.x += n(0.8, 11) * 0.02 * hh; cam.position.y += n(1.1, 12) * 0.015 * hh + n(13, 7) * s * 0.03;
+      cam.lookAt(this.tpLook);
+      eu.setFromQuaternion(cam.quaternion, 'YXZ');
+      eu.x += n(1.3, 1) * 0.008 * hh + n(17, 2) * s * 0.06 + W.pitch * 0.5;
+      eu.y += n(0.9, 3) * 0.01 * hh + n(15, 4) * s * 0.07 + W.yaw * 0.5;
+      eu.z += n(0.7, 5) * 0.012 * hh + n(19, 6) * s * 0.05 + W.roll * 0.5;
+      cam.quaternion.setFromEuler(eu);
+      if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
+      cam.updateMatrixWorld(true);
+      return;
+    }
     const mx = this.touch ? 0 : this.mouse.x, my = this.touch ? 0 : this.mouse.y;
     eu.set(
-      L.pitch + n(1.3, 1) * 0.012 + n(17, 2) * s * 0.09 - my * 0.1,
-      L.yaw + n(0.9, 3) * 0.015 + n(15, 4) * s * 0.11 - mx * 0.16,
-      L.roll + n(0.7, 5) * 0.01 + n(19, 6) * s * 0.08, 'YXZ');
+      L.pitch + n(1.3, 1) * 0.012 * (0.6 + hh) + n(17, 2) * s * 0.09 - my * 0.1 + W.pitch,
+      L.yaw + n(0.9, 3) * 0.015 * (0.6 + hh) + n(15, 4) * s * 0.11 - mx * 0.16 + W.yaw,
+      L.roll + n(0.7, 5) * 0.01 * (0.6 + hh) + n(19, 6) * s * 0.08 + W.roll, 'YXZ');
     cam.quaternion.setFromEuler(eu);
     cam.position.copy(this.eye);
     cam.position.y += n(13, 7) * s * 0.02;
     cam.updateMatrixWorld(true);
+  }
+
+  /** where a wide shot's camera is and what it looks at, t seconds into it; returns its field of view */
+  private shotCam(name: string, t: number, pos: THREE.Vector3, look: THREE.Vector3): number {
+    const head = this.me.j.head.getWorldPosition(v3);
+    switch (name) {
+      case 'establish': {
+        // floor level ahead of the procession, backing away slower than they come: they haul you at the lens
+        // from the glass side, low: the procession crossing frame, the counter's bars and the amber desk lamps behind
+        pos.set(-1.22 + t * 0.03, 0.46 + t * 0.03, head.z - 2.1 + t * 0.18);
+        look.set(0.55 - t * 0.05, 0.78, head.z + 0.75);
+        return 60;
+      }
+      case 'beatWide': {
+        // on the tiles by the wall, low: the two of them over you, the caged lamp behind their heads
+        const [dx, dz] = IX.drain;
+        pos.set(dx + 2.0 - t * 0.12, 0.3 + t * 0.02, dz + 1.45 - t * 0.08);
+        look.set(this.bodyAt.x - 0.2, 0.8, this.bodyAt.z - 0.9);
+        return 66;
+      }
+      case 'beatTop': {
+        // straight down from just under the ceiling, turning slowly
+        const a = 0.6 + t * 0.22;
+        const cx = this.bodyAt.x, cz = this.bodyAt.z - 0.8;
+        pos.set(cx + Math.cos(a) * 0.55, 2.45, cz + Math.sin(a) * 0.55);
+        look.set(cx, 0.1, cz);
+        return 70;
+      }
+      case 'haulCrane': {
+        // high in the press room, craning down as they drag you in through the door, the press slamming on the left
+        const k = ease(clamp01(t / 3.4));
+        pos.set(lerp(3.9, 3.0, k), lerp(5.6, 3.1, k), lerp(-23.6, -22.4, k));
+        look.set(lerp(0.4, this.eye.x - 0.9, k), lerp(0.6, 0.75, k), lerp(-16.4, this.eye.z + 0.4, k));
+        return 60;
+      }
+      case 'fitClose': {
+        // close on the cradle: the clamp, the officer's glove on your wrist, the driver above
+        const c = this.set.rig.cradle;
+        pos.set(c.x + 0.62 - t * 0.06, c.y + 0.42 - t * 0.03, c.z + 0.82 - t * 0.08);
+        look.set(c.x + 0.08, c.y + 0.12, c.z);
+        return 44;
+      }
+      case 'tapeWide': {
+        // from beside the portal frame, low: the procession marching at the taped wall, the beacon behind
+        pos.set(IX.tape.x + 1.2, 0.85, IX.tape.z + 0.95 + t * 0.05);
+        look.set(this.bodyAt.x - 0.2, 1.25, this.bodyAt.z + 0.5);
+        return 56;
+      }
+    }
+    pos.copy(this.eye); look.copy(this.eye).add(v4.set(0, 0, -1));
+    return 64;
+  }
+  /** the wide shot (if any) for this moment of the script; cuts on change */
+  private pickShot() {
+    let want: string | null = null;
+    for (const [a, b, name] of SHOTS[this.phase] ?? []) if (this.t >= a && this.t < b) want = name;
+    if (want === this.shot) return;
+    this.shot = want; this.shotT = 0;
+    this.whip.yaw = this.whip.pitch = this.whip.roll = 0; this.whip.vy = this.whip.vp = this.whip.vr = 0;
+    const cam = fpCamera();
+    if (!want) { cam.fov = this.phase === 'fit' && this.t > 4.6 ? cam.fov : 64; cam.updateProjectionMatrix(); }
+  }
+
+  // ================================================================== the light
+  /** the room the camera is in decides the grade, the haze, the fill, the rim, and where the key light hangs */
+  private updLight(dt: number) {
+    const L = this.lights(), st = this.stage, cam = fpCamera();
+    const cz = cam.position.z, ph = this.phase;
+    const room = ph === 'tape' || ph === 'through' ? 'portal' : cz > IX.cor.z0 + 0.3 ? 'wing' : cz > IX.ante.z0 ? 'ante' : 'press';
+    st.setLook(room === 'press' && ph === 'fit' ? 'press' : room, 1.0);
+    // haze and fill per room; the rim comes from behind whatever the camera looks at
+    const H: [number, number] = room === 'wing' ? [0x0c161c, 0.045] : room === 'ante' ? [0x0e1412, 0.055] : room === 'press' ? [0x160c08, 0.04] : [0x061218, 0.05];
+    SU.uHazeCol.value.lerp(TMP_C.setHex(H[0]), Math.min(1, dt * 2));
+    SU.uHazeDens.value += (H[1] - SU.uHazeDens.value) * Math.min(1, dt * 2);
+    cam.getWorldDirection(v1);
+    SU.uRimDir.value.copy(v1).multiplyScalar(0.75).add(v2.set(0, 0.55, 0)).normalize();
+    const rimCol = room === 'wing' ? 0xffb060 : room === 'ante' ? 0x8ad8ff : room === 'press' ? 0xff6a38 : 0x6ae4ff;
+    SU.uRimCol.value.lerp(TMP_C.setHex(rimCol), Math.min(1, dt * 3));
+    SU.uRimStr.value = room === 'portal' ? 0.7 + this.glow * 1.1 : room === 'press' ? 0.85 + 0.5 * L.beaconK * Math.max(0, Math.cos(L.beaconSpin * 2)) : 0.85;
+    L.hemi.color.setHex(room === 'press' ? 0x3a2418 : room === 'portal' ? 0x1a3440 : 0x34444e);
+    L.hemi.groundColor.setHex(room === 'press' ? 0x0a0806 : 0x14100c);
+    L.hemi.intensity = room === 'press' ? 0.3 : 0.38;
+    // the key light: the lamp over the body
+    if (room === 'wing') {
+      let tz = 0, bd = 99;
+      for (const z of [2.2, -0.2, -2.6, -5.0, -7.4, -9.9]) { const d = Math.abs(z - (this.shot ? this.bodyAt.z - 0.8 : this.eye.z)); if (d < bd) { bd = d; tz = z; } }
+      L.setKey([0, IX.cor.h - 0.32, tz], [0, 0, tz - 0.4], 0xd8f0ff, 16, 1.15);
+    } else if (room === 'ante') L.setKey([IX.drain[0], IX.ante.h - 0.62, IX.drain[1]], [IX.drain[0] + 0.1, 0, IX.drain[1] - 0.6], 0xffd090, 20, 1.05);
+    else if (room === 'press') {
+      if (ph === 'fit') { const c = this.set.rig.cradle; L.setKey([IX.fit[0] - 0.55, 2.2, IX.fit[1] - 0.35], [c.x + 0.2, 0.3, c.z], 0xffd8a0, 13, 0.95); }
+      else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
+    } else {
+      // the portal is the key: it throws the officers' shadows back at you
+      const gk = this.glow;
+      if (gk > 0.08) L.setKey([IX.tape.x, 1.3, IX.tape.z + 0.25], [IX.tape.x - 0.4, 0.5, IX.tape.z + 6], 0x7ae0ff, 28 * gk, 1.15);
+      else L.setKey([1.2, 7.4, -27.2], [this.bodyAt.x, 0, this.bodyAt.z], 0xff9a38, 26, 0.7);
+    }
   }
 
   // ================================================================== the band (first person)
@@ -667,7 +850,9 @@ export class Intro implements GameSystem {
     const want = t < 0.6 ? Math.sin(t * 30) * 0.5 : t < 2.2 ? -0.6 + (t - 0.6) * 0.5 : this.signalled ? 0.7 + Math.sin(t * 9) * 0.15 : 0.1 + Math.sin(t * 2) * 0.05;
     b.needle.rotation.z += (want - b.needle.rotation.z) * Math.min(1, dt * 10);
     const lit = t > 0.6 && (this.signalled ? Math.sin(t * 9) > 0 : t < 2.2 ? Math.sin(t * 16) > 0.4 : Math.sin(t * 1.5) > 0.9);
-    b.lampMat.color.setHex(lit ? 0xffb040 : 0x3a2008);
+    b.lampMat.uniforms.uK.value = lit ? 3 : 0.15;
+    // the amber light it throws while it boots
+    if (t < 2.4) this.lights().flare(b.lamp.getWorldPosition(v1), lit ? 0.5 : 0.2);
   }
 
   // ================================================================== the script
@@ -675,6 +860,10 @@ export class Intro implements GameSystem {
     this.t += dt; this.T += dt;
     if (this.phase === 'done') return;
     if (this.warmQ.length && this.T > 0.2) synth(this.warmQ.shift()!);
+    // a gamepad can skip too
+    const pad = pollPadSkip();
+    if (pad === 'skip') this.skip(); else if (pad === 'wake') this.hotSkip();
+    if (pad && !this.touch) this.plate.setKey('Start');
     if (this.skipping >= 0) {
       this.skipping += dt;
       this.shadeA = Math.max(this.shadeA, this.skipping / 0.3);
@@ -700,9 +889,12 @@ export class Intro implements GameSystem {
       if (fpOwner() !== STAGE_NAME) fpClaim(STAGE_NAME, 1000, { cinematic: 'none' });
       this.lightT -= dt;
       if (this.lightT <= 0) { this.lightT = 1; this.hideForeignLights(); }
+      this.pickShot();
       this.updBody(dt);
-      this.set.update(dt, this.eye);
       this.updCamera(dt);
+      this.updLight(dt);
+      this.set.update(dt, this.eye, fpCamera());
+      this.stage.update(dt);
       // your heart, louder the worse it gets
       this.heartT -= dt;
       if (this.heartT <= 0 && this.phase !== 'drag') { this.heartT = 0.62 - Math.min(0.25, this.hurtA * 0.2); this.sfx('ix_heart', 0.25 + this.hurtA * 0.3); }
@@ -713,27 +905,30 @@ export class Intro implements GameSystem {
   // ------------------------------------------------------------------ 1. the wing
   private updDragPhase(dt: number) {
     const t = this.t;
-    this.at(0.1, 1, () => { this.skipBtn.classList.add('on'); G.audio?.positionalLoop?.('ix_fluoro', 'ix_fluoro', this.p.x, this.p.z, 0.4); });
-    this.at(0.7, 2, () => { this.lidGoal = 0.35; this.pullFocus(1.3); });
-    this.at(1.0, 3, () => { this.lidGoal = 0.9; });
-    this.at(1.35, 4, () => { this.lidGoal = 0.12; });
-    this.shadeA = Math.max(0, 1 - Math.max(0, t - 0.5) / 1.4);
+    this.at(0.1, 1, () => { this.plate.el.classList.add('on'); G.audio?.positionalLoop?.('ix_fluoro', 'ix_fluoro', this.p.x, this.p.z, 0.4); });
+    this.shadeA = Math.max(0, 1 - Math.max(0, t - 0.4) / 1.3);
+    // cut to your own eyes: shut, open too bright, a heavy blink, open
+    this.at(4.4, 2, () => { this.lid = 1; this.lidHold = 0.25; this.lidGoal = 0.35; this.pullFocus(1.3); });
+    this.at(4.85, 3, () => { this.lidGoal = 0.9; });
+    this.at(5.2, 4, () => { this.lidGoal = 0.12; });
     this.at(2.4, 6, () => this.say('OFFICER', 'Keep its feet off the paint.'));
-    this.at(5.4, 7, () => this.say('OFFICER', 'This one\'s light.'));
-    this.at(8.9, 8, () => this.say('self', '...where are you taking me...', 'self'));
-    this.at(10.6, 9, () => this.say('OFFICER', 'Orientation.'));
-    // where the head looks: down the body at the heels, over at the glass, back up at the gloves on your wrists
-    if (t < 3.4) this.aim(Math.PI + Math.sin(t * 0.8) * 0.06, 0.2, Math.sin(t * 1.3) * 0.05, 2);
-    else if (t < 5.6) this.aim(Math.PI - 0.95, -0.12, -0.1, 1.6);
-    else if (t < 7.0) this.aim(Math.PI + 0.1, -0.38, 0.06, 2);
-    else if (t < 8.8) this.aim(0.15, 0.95, 0.0, 1.8);
+    this.at(5.9, 7, () => this.say('OFFICER', 'This one\'s light.'));
+    this.at(9.4, 8, () => this.say('self', '...where are you taking me...', 'self'));
+    this.at(11.0, 9, () => this.say('OFFICER', 'Orientation.'));
+    // where the head looks: down the body at the heels, over at the counter and the glass, back up at the gloves on your wrists
+    const f = t - 4.4;
+    if (f < 2.2) this.aim(Math.PI + Math.sin(t * 0.8) * 0.06, 0.2, Math.sin(t * 1.3) * 0.05, 2);
+    else if (f < 3.6) this.aim(Math.PI + 0.85, -0.1, 0.1, 1.6);
+    else if (f < 4.6) this.aim(Math.PI - 0.95, -0.12, -0.1, 1.6);
+    else if (f < 5.2) this.aim(Math.PI + 0.1, -0.38, 0.06, 2);
+    else if (f < 6.6) this.aim(0.15, 0.95, 0.0, 1.8);
     else this.aim(Math.PI - 0.2, -0.4, 0.05, 2.2);
     this.gripA = this.gripB = 1;
-    this.lidGoal = t > 8.8 && t < 9.6 ? 0.55 : this.lidGoal;
-    if (t > 9.6 && t < 9.7) this.lidGoal = 0.1;
+    if (f > 5.2 && f < 5.9) this.lidGoal = 0.55;
+    if (f > 5.9 && f < 6.0) this.lidGoal = 0.1;
     const done = this.updDrag(dt);
     this.placeGuardsForDrag(false, dt);
-    if (done || t > 13) this.startThrow();
+    if (done || t > 14) this.startThrow();
   }
 
   // ------------------------------------------------------------------ 2. swung round, let go
@@ -745,6 +940,7 @@ export class Intro implements GameSystem {
     this.throwFrom.copy(this.bodyAt);
     G.audio?.positionalLoop?.('ix_drag', null);
     this.sfx('whoosh', 0.7);
+    this.A.jolt(0, -1, 'chest', 0.6); this.B.jolt(0, -1, 'chest', 0.6);
   }
   private updThrow(dt: number) {
     const t = this.t, A = this.A, B = this.B;
@@ -759,8 +955,12 @@ export class Intro implements GameSystem {
       this.pose = 'cover'; this.poseK = 9;
       this.bodyYaw = 0;
       this.sfx('body_thud', 1); this.sfx('debtor_gasp', 0.9);
-      this.hit(0.9, 0, 0.25);
+      // the body lands slack: a ragdoll takes it for a moment, then the curl comes back
+      try { this.me.startRagdoll(v1.set(0, -1.2, -1.6), v2.set(0, -0.8, -0.6), 'torso_u', 0.55); } catch (e) { console.warn('intro ragdoll', e); }
+      this.hit(0.9, 0, 0.6);
       this.cutBlack(0.22, 1.1);
+      // the lamp over the drain dies with the impact and strikes back
+      this.lights().blackout(0.4, ['ante']);
       this.look.roll = 0.5;
       this.aim(Math.PI, 1.18, 0.3, 6);
     });
@@ -786,11 +986,12 @@ export class Intro implements GameSystem {
     let next: Strike | null = null;
     for (const s of this.strikes) {
       const gd = s.who === 0 ? A : B;
-      if (!s.swung && t >= s.t - 0.42) {
+      // wind-up starts well before the blow: the weight is in the coil
+      if (!s.swung && t >= s.t - 0.46) {
         s.swung = true;
-        if (s.kind === 'kick') gd.play('kick_low', 0.7);
-        else { gd.play('baton_chop', 0.72); gd.act!.k = 0; }
-        this.sfx('whoosh', 0.45);
+        if (s.kind === 'kick') gd.play('kick_low', 0.78);
+        else { gd.play('baton_chop', 0.8); gd.act!.k = 0; }
+        setTimeout(() => this.sfx('whoosh', 0.55), 260);
       }
       if (gd.act && gd.act.name === 'baton_chop') gd.act.k = clamp01(gd.act.t / gd.act.dur);
       if (!s.done && t >= s.t) { s.done = true; this.impact(s); }
@@ -803,7 +1004,12 @@ export class Intro implements GameSystem {
       const yawTo = Math.atan2(-dx, -dz);
       this.aim(lerp(Math.PI, yawTo, 0.45), 0.95, next.who === 0 ? 0.18 : -0.18, 3);
     } else this.aim(Math.PI + 0.3, 1.1, 0.25, 1.2);
-    if (t > 4.4 && this.pose === 'cover') { this.pose = 'limp'; this.poseK = 9; this.hands('relaxed', 'claw', 0.5); }
+    if (t > 4.4 && this.pose === 'cover') {
+      this.pose = 'limp'; this.poseK = 9; this.hands('relaxed', 'claw', 0.5);
+      // the arms give out: the body collapses into the floor
+      try { this.me.startRagdoll(ZERO, v1.set(0, -0.6, 0), 'torso_u', 0.5); } catch { /* the pose alone */ }
+    }
+    this.hand = Math.min(1, 0.35 + t * 0.1);
     this.at(0.35, 1, () => this.say('OFFICER', 'This is the orientation.'));
     this.at(2.9, 2, () => this.say('OFFICER', 'Nothing personal. It\'s itemised.'));
     this.at(4.3, 3, () => this.say('self', 'Stop - please - STOP-', 'self'));
@@ -811,7 +1017,7 @@ export class Intro implements GameSystem {
     this.lidGoal = 0.08 + this.trauma * 0.12;
     if (t > BEAT_END) { this.beaten = true; this.startHaul(); }
   }
-  /** a blow lands: sound, blood in the air and on the lens, a wound that stays */
+  /** a blow lands: sound, a strobe, blood in the air and on the lens, the body jolting, a wound that stays */
   private impact(s: Strike) {
     const p = this.p, b = p.body, gd = s.who === 0 ? this.A : this.B;
     this.sfx(s.kind === 'kick' ? 'body_thud' : 'baton_hit', 1);
@@ -828,7 +1034,13 @@ export class Intro implements GameSystem {
     const dx = Math.sign(this.eye.x - gd.x) || 1;
     if (G.sandbox.gore > 0) this.set.bleed(at.x, Math.max(0.15, at.y - 0.05), at.z, dx * 0.6, 1.0, 0.2, s.inj === 'laceration' ? 22 : 10, 2.4, s.inj === 'laceration' ? 0.45 : 0.25);
     const power = s.part === 'head' ? 1 : s.kind === 'kick' ? 0.75 : 0.6;
-    this.hit(power, dx, s.part === 'head' ? 0.7 : 0.35);
+    this.hit(power, dx, s.part === 'head' ? 0.75 : 0.4);
+    if (s.part === 'head') this.stage.pulse(0.5, 0xff6050, 3);
+    // the body takes it (the springs), the officer's arm takes the recoil
+    this.jolt(dx * 0.8, -0.3, s.part, power * 1.2);
+    gd.recoil(s.kind === 'kick' ? 0.4 : 1);
+    // the lamp overhead jumps on its flex
+    this.lights().brownout(0.45, 0.05, ['ante']);
     // the head snaps away from the blow
     this.look.yaw += dx * 0.35; this.look.roll += dx * 0.25; this.look.pitch -= 0.15;
     this.poseK = 0;
@@ -840,8 +1052,9 @@ export class Intro implements GameSystem {
     this.hands('claw', 'claw', 0.4);
     this.pose = 'drag'; this.poseK = 9;
     this.startDrag(IX.drag2, 1.25);
-    this.set.startPress(3.4);
+    this.set.startPress(2.6);
     this.cutBlack(0.4, 1);
+    this.hand = 1;
   }
   private updHaul(dt: number) {
     const t = this.t;
@@ -864,11 +1077,12 @@ export class Intro implements GameSystem {
   }
   /** the giant press comes down (called by the set) */
   private pressSlam(d: number) {
-    const k = Math.max(0, 1 - d / 12);
+    const k = Math.max(0, 1 - d / 14);
     this.sfx('press_slam', 0.5 + k * 0.5);
     this.sfx('press_crunch', 0.3 + k * 0.6);
+    this.sfx('cy_spark', 0.3 + k * 0.5);
     setTimeout(() => this.sfx('press_hiss', 0.5 * (0.4 + k)), (CYCLE_RISE) * 1000);
-    if (k > 0.05) { hitstop(30 + 60 * k); this.trauma = Math.min(1, this.trauma + k * 0.7); this.dbl = Math.max(this.dbl, k * 0.25); }
+    if (k > 0.05) { hitstop(30 + 60 * k); this.trauma = Math.min(1, this.trauma + k * 0.7); this.stage.pulse(0.25 * k, 0xffb070, 4); }
     if (k > 0.55 && (G.sandbox.gore ?? 2) > 0) G.gore?.lens?.splash?.(k * 0.5, 1);
   }
 
@@ -880,6 +1094,9 @@ export class Intro implements GameSystem {
     this.me.j.head.getWorldPosition(this.fitTo); this.fitTo.y = 0; this.fitTo.x += 0.15;
     G.audio?.positionalLoop?.('ix_drag', null);
     this.say('OFFICER', 'Up. On your knees.');
+    // the rig stands where the arm will be pulled out: about 0.46 m in front of the kneeling eye, a little low
+    this.set.placeRig(this.fitTo.x - 0.42, this.fitTo.z + 0.1);
+    this.set.setRig(0, 0);
   }
   private updFit(dt: number) {
     const t = this.t, A = this.A, B = this.B;
@@ -893,32 +1110,36 @@ export class Intro implements GameSystem {
       this.gripA = this.gripB = 1 - up;
     } else { this.pose = 'kneel'; this.poseW = 1; this.bodyYaw = -Math.PI / 2; }
     this.aim(Math.PI / 2 + 0.6, -0.05, 0, 2.5);
-    // A takes the left wrist and pulls the arm out in front; B comes in with the fitting gun
-    this.at(1.3, 1, () => { A.setHeld(null); B.setHeld('gun'); this.say('OFFICER', 'Left arm.'); this.hands('open', 'fist', 0.7); const l = this.arms.find((q) => q.side === 'L'); if (l) l.rollGoal = Math.PI; });
-    const eye = this.eye, fwdX = -1, fwdZ = 0;
-    const tgt = v2.set(eye.x + fwdX * 0.46, eye.y - 0.32, eye.z + fwdZ * 0.46 + 0.1);
+    // A takes the left wrist and lays the arm in the rig's cradle; B works the pendant
+    this.at(1.3, 1, () => { A.setHeld(null); B.setHeld('pendant'); this.say('OFFICER', 'Left arm.'); this.hands('open', 'fist', 0.7); const l = this.arms.find((q) => q.side === 'L'); if (l) l.rollGoal = Math.PI; });
+    const tgt = v2.copy(this.set.rig.cradle).add(v4.set(0.06, 0.02, 0));
     if (t > 1.4) {
       const w = ease(clamp01((t - 1.4) / 0.7)) * (t > 7.2 ? Math.max(0, 1 - (t - 7.2) / 0.6) : 1);
       if (!this.armL) this.armL = { p: new THREE.Vector3(), w: 0 };
       this.armL.p.copy(tgt); this.armL.w = w;
-      // the arm is held: it shakes in the grip
-      this.armL.p.x += Math.sin(this.T * 23) * 0.004 * w; this.armL.p.y += Math.sin(this.T * 19) * 0.004 * w;
+      // the arm is held: it shakes in the grip (less once the jaws have it)
+      const sh = this.set.rig.close > 0.5 ? 0.0015 : 0.004;
+      this.armL.p.x += Math.sin(this.T * 23) * sh * w; this.armL.p.y += Math.sin(this.T * 19) * sh * w;
       this.gripA = w;
       A.walkTo(tgt.x - 0.35, tgt.z + 0.45, 2, dt, 0.04); A.face(tgt.x, tgt.z);
       this.aim(Math.PI / 2 + 0.2, -0.62, 0.05, 2.2);
-    } else A.walkTo(eye.x - 0.8, eye.z + 0.6, 2, dt, 0.05);
-    if (t > 2.2) {
-      const w = ease(clamp01((t - 2.2) / 1.2)) * (t > 4.9 ? Math.max(0, 1 - (t - 4.9) / 0.6) : 1);
-      B.walkTo(tgt.x - 0.2, tgt.z - 0.55, 1.6, dt, 0.04); B.face(tgt.x, tgt.z);
-      B.reachR = { p: (B.reachR?.p ?? new THREE.Vector3()).copy(this.wrist('L', v3)).add(v4.set(0, 0.07, -0.02)), w, pole: POLE_GUN };
-    } else B.walkTo(eye.x - 0.6, eye.z - 1.1, 1.8, dt, 0.05);
+    } else A.walkTo(this.eye.x - 0.8, this.eye.z + 0.6, 2, dt, 0.05);
+    if (t > 2.2) { B.walkTo(tgt.x - 0.5, tgt.z - 0.75, 1.6, dt, 0.04); B.face(tgt.x, tgt.z); }
+    else B.walkTo(this.eye.x - 0.6, this.eye.z - 1.1, 1.8, dt, 0.05);
+    // the jaws close round the wrist, the driver comes down through it, the jaws let go
+    const close = t < 2.6 ? 0 : t < 2.8 ? ease((t - 2.6) / 0.2) : t < 7.0 ? 1 : Math.max(0, 1 - (t - 7.0) / 0.3);
+    const drive = t < 4.15 ? 0 : t < 4.3 ? ease((t - 4.15) / 0.15) : t < 4.9 ? 1 : Math.max(0, 1 - (t - 4.9) / 0.5);
+    this.set.setRig(close, drive);
+    this.at(2.62, 7, () => { this.sfx('press_lever', 0.8); this.trauma = Math.max(this.trauma, 0.25); this.jolt(0, 0.4, 'farm_l', 0.4); });
     this.at(2.6, 2, () => this.say('OFFICER', 'Hold still. It only goes in once.'));
     this.at(3.9, 3, () => this.say('self', 'no - no no no-', 'self'));
     this.at(4.3, 4, () => this.pierce());
-    this.at(5.3, 5, () => { this.sfx('remit_chirp', 0.9); this.say('OFFICER', 'Fitted.'); this.pullFocus(1.1); });
+    this.at(5.3, 5, () => { this.sfx('remit_chirp', 0.9); this.say('OFFICER', 'Fitted.'); this.pullFocus(0.8); this.armFlare(); });
     // look at it: the camera narrows on the wrist
-    if (t > 4.6 && t < 7.0) { const cam = fpCamera(); cam.fov += (50 - cam.fov) * Math.min(1, dt * 2); cam.updateProjectionMatrix(); }
-    else if (t >= 7.0) { const cam = fpCamera(); cam.fov += (64 - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix(); }
+    if (!this.shot) {
+      if (t > 4.6 && t < 7.0) { const cam = fpCamera(); cam.fov += (50 - cam.fov) * Math.min(1, dt * 2); cam.updateProjectionMatrix(); }
+      else if (t >= 7.0) { const cam = fpCamera(); cam.fov += (64 - cam.fov) * Math.min(1, dt * 3); cam.updateProjectionMatrix(); }
+    }
     this.at(7.1, 6, () => { this.say('OFFICER', 'Up.'); B.setHeld('baton'); });
     if (t > 7.9) { this.armL = null; for (const a of this.arms) a.rollGoal = 0; this.startTape(); }
   }
@@ -927,11 +1148,13 @@ export class Intro implements GameSystem {
     if (this.pierced) return;
     this.pierced = true;
     const p = this.p;
-    this.sfx('remit_pierce', 1); this.sfx('bone_crunch', 1);
+    this.sfx('remit_pierce', 1); this.sfx('bone_crunch', 1); this.sfx('cy_spark', 0.8);
     setTimeout(() => this.sfx('debtor_scream', 1), 110);
     this.fitBandMesh();
     this.hands('claw', 'fist', 1);
     const w = this.wrist('L', v1);
+    this.set.spark(w.x, w.y + 0.05, w.z, 26, 2.6, [0, 0.8, 0]);
+    this.lights().sparks(w, 0.8);
     if ((G.sandbox.gore ?? 2) > 0) {
       this.set.bleed(w.x, w.y, w.z, 0.1, 0.8, 0.9, 26, 2.8, 0.6);
       this.set.bleed(w.x, w.y, w.z, 0.2, 0.3, -0.9, 16, 2.0, 0.4);
@@ -942,8 +1165,18 @@ export class Intro implements GameSystem {
     p.body.panic = Math.max(p.body.panic, 80);
     bus.emit('playerHit', p, 'hand_l', 'deep', { dmg: 16, from: [p.x - 1, p.z], knock: 0.2, by: 'custody' });
     this.hit(1.1, -1, 1);
+    this.stage.pulse(0.6, 0xffffff, 6);
+    this.jolt(0, 0.6, 'chest', 1.2);
     this.trauma = 1.2;
     this.fitBand();
+  }
+  /** the band arms: an amber flare off its lamp, the room's light swallowed by it for a moment */
+  private armFlare() {
+    const b = this.band;
+    if (b) this.lights().flare(b.lamp.getWorldPosition(v1), 1.4);
+    this.stage.pulse(0.3, 0xffa040, 1.6);
+    this.stage.expo = Math.max(this.stage.expo, 1.25);
+    this.lights().brownout(0.35, 0.25, ['fit', 'press']);
   }
   private fitBand() {
     if (this.fitted) return;
@@ -979,7 +1212,11 @@ export class Intro implements GameSystem {
       const k = ease(clamp01((t - 0.6) / 3.8));
       this.bodyAt.set(lerp(this.tapeFrom.x, stop.x, k), 0, lerp(this.tapeFrom.z, stop.z, k));
       this.stepT -= dt;
-      if (this.stepT <= 0) { this.stepT = 0.48; this.trauma = Math.max(this.trauma, 0.22); this.sfx('ix_boot', 0.4); }
+      if (this.stepT <= 0) {
+        this.stepT = 0.48; this.trauma = Math.max(this.trauma, 0.22); this.sfx('ix_boot', 0.4);
+        // a stumble now and then: the knee goes
+        if (Math.random() < 0.45) this.jolt((Math.random() - 0.5) * 0.6, -0.5, Math.random() < 0.5 ? 'shin_l' : 'shin_r', 0.45);
+      }
     }
     const behind = v2.set(this.bodyAt.x + 0.15, 0, this.bodyAt.z + 0.62);
     B.walkTo(behind.x, behind.z, 2.4, dt, 0.04); B.face(this.bodyAt.x, this.bodyAt.z - 2);
@@ -989,8 +1226,12 @@ export class Intro implements GameSystem {
     G.audio?.positionalLoop?.('ix_drone', 'seam_drone', this.p.x, this.p.z, Math.min(0.75, 0.2 + t * 0.12));
     this.at(1.6, 1, () => this.say('OFFICER', 'Through the door, debtor.'));
     this.at(3.4, 2, () => this.say('self', '...that\'s a wall.', 'self'));
-    this.at(4.4, 3, () => { this.say('OFFICER', 'Not from the other side.'); this.set.liqU.uLiq.value = 0.06; this.set.liqU.uHit.value.set(0.05, 0.1); this.set.liqU.uHitT.value = 0; this.sfx('seam_ripple', 0.6); });
-    this.at(5.5, 4, () => { B.play('shove2', 0.8); this.sfx('whoosh', 0.8); });
+    this.at(4.4, 3, () => { this.say('OFFICER', 'Not from the other side.'); this.set.liqU.uLiq.value = 0.06; this.set.liqU.uHit.value.set(0.05, 0.1); this.set.liqU.uHitT.value = 0; this.sfx('seam_ripple', 0.6); this.stage.pulse(0.4, 0x7ae0ff, 2); });
+    // the wall turns: it lights up from inside and throws its caustic light over everything
+    if (t > 4.4) this.glow = Math.min(1, this.glow + dt * 0.9);
+    this.set.liqU.uGlow.value = this.glow;
+    SU.uPortStr.value = this.glow * 0.75;
+    this.at(5.5, 4, () => { B.play('shove2', 0.8); this.sfx('whoosh', 0.8); this.jolt(0, -1, 'chest', 1.3); });
     this.set.liqU.uHitT.value += dt;
     if (t > 5.75) this.startThrough();
   }
@@ -1014,7 +1255,7 @@ export class Intro implements GameSystem {
       this.sfx('ix_liquid', 1); this.sfx('seam_ripple', 0.9);
       hitstop(70);
       this.trauma = Math.max(this.trauma, 0.6);
-      this.flashA = 0.15;
+      this.stage.pulse(0.7, 0xa0f0ff, 3);
     });
     if (t > 0.3) {
       u.uHitT.value += dt;
@@ -1027,12 +1268,14 @@ export class Intro implements GameSystem {
       u.uPush.value.set(camLocal.x - tx, camLocal.y - IX.tape.h / 2, Math.min(0.9, depth));
       this.wrapA = clamp01((t - 0.45) / 0.8);
       u.uDark.value = clamp01((t - 0.9) / 0.6);
+      this.stage.kill = clamp01((t - 0.9) / 0.5);
       this.aim(0.0, -0.08, 0.25 * d, 2);
     }
     this.at(0.7, 2, () => this.sfx('seam_through', 1));
     if (t > 1.25) this.shadeA = Math.min(1, (t - 1.25) / 0.25);
     this.at(1.6, 3, () => { this.toLobby(); });
     if (t > 3.0) this.startLand();
+    void dt;
   }
 
   // ------------------------------------------------------------------ 8. the Lobby
@@ -1067,7 +1310,7 @@ export class Intro implements GameSystem {
     this.go('land');
     this.letterbox(false);
     this.root.classList.add('world');
-    this.skipBtn.classList.add('on');
+    this.plate.el.classList.add('on');
     this.g.camera.pushIn(0, 3.2);
     if (this.seamL) this.seamFx?.ripple(this.seamL, undefined, 1.6, false);
     this.sfx('intro_land', 0.8);
@@ -1145,7 +1388,7 @@ export class Intro implements GameSystem {
     if (this.phase === 'done' || this.skipping >= 0) return;
     if (this.phase === 'voss') { (G.handler as any)?.hush?.(); this.finish(); return; }
     this.skipping = 0;
-    this.skipBtn.classList.remove('on', 'hot');
+    this.plate.el.classList.remove('on', 'hot');
     G.audio?.flat?.('static_burst', 'sfx', 0.3);
   }
 
@@ -1169,7 +1412,7 @@ export class Intro implements GameSystem {
     g.camera.pushIn(0, 0.5);
     g.pr.setZoomLevel(g.camZoom);
     this.letterbox(false);
-    this.lidGoal = 0; this.lid = 0; this.wrapA = 0; this.dbl = 0; this.blur = 0; this.desat = 0;
+    this.lidGoal = 0; this.lid = 0; this.wrapA = 0; this.desat = 0;
     this.signal();
     this.go('voss');
     (g as any).touch?.setHidden?.(false);
@@ -1205,6 +1448,7 @@ export class Intro implements GameSystem {
     U.uCollapse.value = 0;
     if (this.seamL && !this.sealed) { this.sealed = true; this.seamFx?.setState(this.seamL, true); }
     this.canvas.style.filter = '';
+    this.plate.destroy();
     this.root.remove();
     // nothing that happened on the stage belongs in the world's history or in co-op
     for (let i = opLog.length - 1; i >= 0; i--) {
@@ -1248,5 +1492,6 @@ export class Intro implements GameSystem {
   }
 }
 const CYCLE_RISE = 0.62;
-const POLE_A = new THREE.Vector3(0.3, -1, 0.4), POLE_B = new THREE.Vector3(-0.3, -1, 0.4), POLE_GUN = new THREE.Vector3(0.4, -1, -0.5);
+const TMP_C = new THREE.Color();
+const POLE_A = new THREE.Vector3(0.3, -1, 0.4), POLE_B = new THREE.Vector3(-0.3, -1, 0.4);
 const wrapA = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };

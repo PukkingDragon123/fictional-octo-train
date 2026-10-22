@@ -72,22 +72,22 @@ addTextureModule(() => {
   // ---------------------------------------------------------------- metal
   // heavy painted gunmetal, chipped, scratched, a rust run or two
   A.add('ix_steel', 32, 32, (pc, rng) => {
-    fill(pc, makeRamp(0x3c4240, 6, { spread: 0.42 }), 9101, 0.3);
-    chips(pc, rng, 22, 0x8a9088, 0x1a1c1a);
-    scratches(pc, rng, 10, 0x9aa098, 0.35);
+    fill(pc, makeRamp(0x3c4240, 6, { spread: 0.3 }), 9101, 0.18, 3);
+    chips(pc, rng, 9, 0x7a8078, 0x1a1c1a);
+    scratches(pc, rng, 8, 0x8a9088, 0.25);
     rustRuns(pc, rng, 3, [3, 12, 21, 28], 9);
   });
   // riveted panels: a seam every metre with a rivet row along it
   A.add('ix_plate', 32, 32, (pc, rng) => {
     const R = makeRamp(0x464c4a, 6, { spread: 0.4 });
-    fill(pc, R, 9102, 0.26);
+    fill(pc, R, 9102, 0.16, 3);
     for (let x = 0; x < 32; x++) { pc.set(x, 0, K); pc.set(x, 1, R[5]); pc.set(x, 31, R[1]); }
     for (let y = 0; y < 32; y++) { pc.set(0, y, K); pc.set(1, y, R[5]); pc.set(31, y, R[1]); }
     for (let x = 4; x < 30; x += 6) { rivet(pc, x, 3, R[5], R[3], R[1]); rivet(pc, x, 27, R[5], R[3], R[1]); }
     for (let y = 9; y < 26; y += 6) { rivet(pc, 3, y, R[5], R[3], R[1]); rivet(pc, 27, y, R[5], R[3], R[1]); }
-    chips(pc, rng, 12, 0x8a908a, 0x1a1c1a);
-    rustRuns(pc, rng, 4, [5, 11, 17, 23, 29], 12);
-    pc.grime(0x161812, 0.7, 3, 9103, 0.6);
+    chips(pc, rng, 6, 0x7a807a, 0x1a1c1a);
+    rustRuns(pc, rng, 3, [5, 11, 17, 23, 29], 12);
+    pc.grime(0x161812, 0.5, 3, 9103, 0.65);
   });
   // tread plate: raised diagonal lozenges, worn bright where boots go
   A.add('ix_tread', 32, 32, (pc) => {
@@ -101,8 +101,8 @@ addTextureModule(() => {
   });
   // safety-yellow enamel over steel: chipped, grimy at the bottom, oil drips
   A.add('ix_yellow', 32, 32, (pc, rng) => {
-    fill(pc, makeRamp(0xd8a628, 6, { spread: 0.38 }), 9106, 0.24);
-    chips(pc, rng, 26, 0x4a4c48, 0x2a2618);
+    fill(pc, makeRamp(0xd8a628, 6, { spread: 0.3 }), 9106, 0.16, 3);
+    chips(pc, rng, 12, 0x4a4c48, 0x2a2618);
     scratches(pc, rng, 8, 0x6a6448, 0.35);
     pc.grime(0x3a2e14, 0.9, 3, 9107, 0.5);
     pc.drips(rng, 0x2a2010, 5, rng.int(0, 31), 12, 0.35);
@@ -116,8 +116,8 @@ addTextureModule(() => {
   });
   // portal frame steel: blackened, weld beads along the seams, heat tint round the bolts
   A.add('ix_frame', 32, 32, (pc, rng) => {
-    const R = makeRamp(0x2c3034, 6, { spread: 0.4 });
-    fill(pc, R, 9111, 0.32);
+    const R = makeRamp(0x2c3034, 6, { spread: 0.32 });
+    fill(pc, R, 9111, 0.2, 3);
     for (let x = 0; x < 32; x++) { const b = (x % 3 === 0) ? R[5] : R[4]; pc.set(x, 15, b); pc.set(x, 16, R[1]); pc.blend(x, 17, K, 0.5); }
     for (const [x, y] of [[6, 6], [24, 6], [6, 24], [24, 24]]) {
       for (let k = -3; k <= 3; k++) for (let j = -3; j <= 3; j++) if (k * k + j * j < 11) pc.blend(x + k, y + j, (k + j) % 2 ? 0x5a3a6a : 0x2a4a6a, 0.25);

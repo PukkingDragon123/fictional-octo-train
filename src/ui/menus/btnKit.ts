@@ -48,7 +48,7 @@ export const shortView = () => (window.innerHeight || 720) < 520;
 const coarse = () => { try { return matchMedia('(pointer: coarse)').matches; } catch { return false; } };
 /** plate height in art pixels for a size (includes the 2-pixel drop shadow) */
 export function artH(size: Size): number {
-  if (shortView()) return { xl: 26, lg: 22, md: 22, sm: 22 }[size];
+  if (shortView()) return { xl: 26, lg: 22, md: 22, sm: 20 }[size];
   const c = coarse();
   return { xl: 22, lg: 16, md: c ? 16 : 14, sm: c ? 16 : 12 }[size];
 }
@@ -484,7 +484,7 @@ export function rocker(onStep: (d: -1 | 1) => void, o: { finish?: Finish; label?
   const paint = () => {
     if (!el.isConnected) return;
     const s = kitScale();
-    const H = artH(size) + 4;
+    const H = artH(size) + (shortView() ? 2 : 4);
     const hw = Math.round(H * 0.84);
     const W = hw * 2 + 2;
     el.style.width = W * s + 'px'; el.style.height = H * s + 'px';

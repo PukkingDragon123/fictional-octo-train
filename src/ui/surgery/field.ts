@@ -117,9 +117,9 @@ export function fieldSurgery(p: Player) {
       const portrait = asp < 0.95;
       const cw = portrait ? W - pad * 2 : Math.min(Math.max(W * 0.36, 260), 560), ch = portrait ? Math.min(H * 0.42, cw) : Math.min(H - pad * 2, cw * 1.25);
       const x = portrait ? pad : W - cw - pad, y = portrait ? H - ch - pad : (H - ch) / 2;
-      const s = Math.min((cw / W) * 2 * hw / 1.4, (ch / H) * 2 * hh / 1.66);
+      const s = Math.min((cw / W) * 2 * hw / 1.27, (ch / H) * 2 * hh / 1.42);
       crt.group.scale.setScalar(s);
-      crt.group.position.set(((x + cw / 2) / W * 2 - 1) * hw, -(((y + ch / 2) / H) * 2 - 1) * hh + 0.05 * s, -D);
+      crt.group.position.set(((x + cw / 2) / W * 2 - 1) * hw, -(((y + ch / 2) / H) * 2 - 1) * hh + 0.1 * s, -D);
       stage.setViewShift(portrait ? 0 : (cw / 2) / W, portrait ? (ch / 2) / H : 0);
     }
     crt.frame(dt, busy);

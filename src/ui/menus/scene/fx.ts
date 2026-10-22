@@ -136,7 +136,7 @@ export class Arcs {
   lines: THREE.LineSegments;
   private arcs: Arc[] = [];
   private pos: Float32Array; private col: Float32Array;
-  private seg = 9;
+  private seg = 12;
   constructor(private max = 10) {
     this.pos = new Float32Array(max * this.seg * 6); this.col = new Float32Array(max * this.seg * 6);
     const g = new THREE.BufferGeometry();
@@ -161,7 +161,7 @@ export class Arcs {
       let px = arc.a.x, py = arc.a.y, pz = arc.a.z;
       const bright = 0.6 + Math.random() * 0.8;
       for (let s = 1; s <= this.seg; s++) {
-        const t = s / this.seg, w = s === this.seg ? 0 : Math.sin(t * Math.PI) * len * arc.jag;
+        const t = s / this.seg, w = s === this.seg ? 0 : Math.sin(t * Math.PI) * len * arc.jag * (0.4 + Math.random() * 0.6);
         const x = arc.a.x + (arc.b.x - arc.a.x) * t + (Math.random() - 0.5) * w;
         const y = arc.a.y + (arc.b.y - arc.a.y) * t + (Math.random() - 0.5) * w;
         const z = arc.a.z + (arc.b.z - arc.a.z) * t + (Math.random() - 0.5) * w;

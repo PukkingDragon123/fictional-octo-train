@@ -229,15 +229,18 @@ export function wardrobe(ctx: WardrobeCtx): Wardrobe {
   };
   const setSlot = (s: CosSlot | 1 | -1, sound = true) => {
     const was = slot;
+    const a = document.activeElement as HTMLElement | null;
+    const inside = !!a && t.el.contains(a);
+    const onItem = inside && (a!.classList.contains('wd-it') || a === prev || a === next);
     if (s === 1 || s === -1) { const i = slots.indexOf(slot); slot = slots[(i + s + slots.length) % slots.length]; }
     else slot = s;
     if (sound) sfx('key');
     build();
     ctx.onSlot?.(slot);
-    // keep the focus in the store when the rack changed from inside it
-    if (was !== slot && t.el.contains(document.activeElement)) {
-      const a = document.activeElement as HTMLElement;
-      if (a.classList.contains('wd-it') || a === prev || a === next) (grid.querySelector('.wd-it.on') as HTMLElement || grid.querySelector('.wd-it') as HTMLElement)?.focus({ preventScroll: true });
+    // keep the focus in the store when the rack changed from inside it (the old item is gone)
+    if (was !== slot && inside) {
+      if (a === prev || a === next) a.focus({ preventScroll: true });
+      else if (onItem) ((grid.querySelector('.wd-it.on') || grid.querySelector('.wd-it')) as HTMLElement | null)?.focus({ preventScroll: true });
       else rackBtns.get(slot)?.focus({ preventScroll: true });
     }
   };

@@ -4,7 +4,7 @@
 // pixel puffs for steam, weld smoke and blood mist (alpha is an ordered-dither
 // threshold, so they stay crisp at the stage's pixel scale).
 import * as THREE from 'three';
-import { prep, gem, prism, ngon, jitter } from './geo';
+import { prep, gem, prism, ngon } from './geo';
 import { TABLE_Y, TABLE_HALF_X, TABLE_HALF_Z, TRAY_POS } from './room';
 import { PixelCanvas } from '../../gfx/pixel';
 import { hashf } from '../../core/rng';
@@ -139,7 +139,8 @@ export class FX {
     this.drops = new THREE.InstancedMesh(dg, dropMat, this.dp.cap);
     this.drops.count = 0; this.drops.frustumCulled = false; this.drops.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     // splats: irregular flat polygons that stay where they land
-    const sg = prep(jitter(prism(ngon(7, 0.5), 0.01), 0.12, 5).rotateX(-Math.PI / 2), null, 1, 0xffffff);
+    const blob: [number, number][] = ngon(9, 0.5).map(([x, y], i) => { const k = 0.55 + hashf(i, 3, 17) * 0.55; return [x * k, y * k] as [number, number]; });
+    const sg = prep(prism(blob, 0.002).rotateX(-Math.PI / 2), null, 1, 0xffffff);
     const splatMat = new THREE.MeshStandardMaterial({ color: 0x4a0406, roughness: 0.12, metalness: 0.15, flatShading: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     this.scap = low ? 180 : 360;
     this.splats = new THREE.InstancedMesh(sg, splatMat, this.scap);
@@ -224,7 +225,7 @@ export class FX {
       _d.set(D.v[i * 3], D.v[i * 3 + 1], D.v[i * 3 + 2]);
       const sp = _d.length();
       _q.setFromUnitVectors(_Y, sp > 0.01 ? _d.multiplyScalar(1 / sp) : _Y);
-      _m.compose(_p.set(D.p[i * 3], D.p[i * 3 + 1], D.p[i * 3 + 2]), _q, _s.set(s, s * (1 + Math.min(2, sp * 0.5)), s));
+      _m.compose(_p.set(D.p[i * 3], D.p[i * 3 + 1], D.p[i * 3 + 2]), _q, _s.set(s, s * (1 + Math.min(0.8, sp * 0.2)), s));
       this.drops.setMatrixAt(i, _m);
     }
     this.drops.count = D.n; this.drops.instanceMatrix.needsUpdate = true;

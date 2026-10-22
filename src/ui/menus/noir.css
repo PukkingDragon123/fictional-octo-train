@@ -120,7 +120,7 @@
 .ik3-title small { font-size: 0.82em; opacity: 0.72; }
 .ik3-left { position: absolute; left: var(--ik-m); top: calc(12px + var(--ks) * 19); bottom: 14px; width: var(--ik-side); display: flex; flex-direction: column; gap: calc(var(--ks) * 3); }
 .ik3-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: calc(var(--ks) * 1) calc(var(--ks) * 1); flex: none; }
-.ik3-tabs .pb { font-size: calc(var(--ks) * 4.3) !important; letter-spacing: 0.13em; }
+.ik3-tabs .pb { font-size: max(12px, calc(var(--ks) * 4.3)) !important; letter-spacing: 0.13em; }
 .ik3-page { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: calc(var(--ks) * 1) calc(var(--ks) * 2) calc(var(--ks) * 2) 0; scrollbar-width: thin; scrollbar-color: rgba(232, 222, 200, 0.35) transparent; overscroll-behavior: contain; }
 .ik3-rows { display: flex; flex-direction: column; gap: calc(var(--ks) * 1.5); }
 .ik3-row { display: grid; grid-template-columns: minmax(0, 37%) minmax(0, 1fr) auto; align-items: center; gap: calc(var(--ks) * 3); }
@@ -179,7 +179,8 @@
 .ik3.portrait .ik3-hint { display: none; }
 .ik3.portrait .ik3-toast { top: calc(var(--ks) * 16 + 10px); max-width: 92vw; white-space: normal; }
 @media (max-height: 519px) {
-  .ik3 { --ik-side: clamp(260px, 32vw, 380px); }
+  .ik3 { --ik-side: clamp(260px, 32vw, 380px); font-size: calc(var(--ks) * 6.6); }
+  .ik3-acts { flex-wrap: nowrap; }
   .ik3-levers { bottom: calc(var(--ks) * 30); }
   .ik3-hint { display: none; }
 }

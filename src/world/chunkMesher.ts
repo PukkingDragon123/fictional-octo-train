@@ -40,8 +40,11 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
   const decals = new ModelBuilder();
   const glass = new ModelBuilder();
   const alphaWalls = new ModelBuilder();
+  // ceilings exist only for the first-person eye (render layer 1; the iso camera sees layer 0)
+  const ceil = new ModelBuilder();
   // building fabric stays square so walls, tiles and frames butt cleanly (furniture brings its own facets)
-  for (const mb of [floors, walls, decals, glass, alphaWalls, foliage]) mb.setFacets(false);
+  for (const mb of [floors, walls, decals, glass, alphaWalls, foliage, ceil]) mb.setFacets(false);
+  const ceilH = ceilingHeight(zone), flav = ceilingFlavour(zone);
   const x0 = cx * CHUNK, y0 = cy * CHUNK;
   const x1 = Math.min(zone.W, x0 + CHUNK), y1 = Math.min(zone.H, y0 + CHUNK);
 
@@ -71,6 +74,12 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       stepFace(x, y - 1, [[x + 1, 0, y], [x, 0, y], [x, 1, y], [x + 1, 1, y]]);
       stepFace(x + 1, y, [[x + 1, 0, y + 1], [x + 1, 0, y], [x + 1, 1, y], [x + 1, 1, y + 1]]);
       stepFace(x - 1, y, [[x, 0, y], [x, 0, y + 1], [x, 1, y + 1], [x, 1, y]]);
+      if (!zone.isOutdoor(x, y)) {
+        const cy = (h >= 1 ? h : 0) + ceilH;
+        const t = ceilingTex(flav, x, y), r = flav.mw;
+        ceil.quadRaw([[x, cy, y], [x + 1, cy, y], [x + 1, cy, y + 1], [x, cy, y + 1]],
+          [[x / r, y / r], [(x + 1) / r, y / r], [(x + 1) / r, (y + 1) / r], [x / r, (y + 1) / r]], t, flav.tint, 1, 0, 0, [0, -1, 0]);
+      }
     }
     // ---- edge walls: north edge (between y-1 and y) and west edge (between x-1 and x)
     for (const side of [0, 1] as const) {
@@ -99,6 +108,27 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       const target = d.foliage ? foliage : (d.height > 1.1 || d.tall) ? props : propsLow;
       // wall-mounted props are cut away together with the wall they hang on (axis 1 = wall along x, 2 = along z)
       target.appendGeometry(g, m, o.tint ?? 0xffffff, d.onWall && !d.foliage ? (o.rot % 2 === 0 ? 1 : 2) : undefined);
+    }
+  }
+  // ceiling fixtures: diffusers that glow with their own light (negative emissive reads the light grid)
+  for (const l of zone.lights) {
+    if (l.x < x0 || l.x >= x1 || l.z < y0 || l.z >= y1 || l.y < 2.0) continue;
+    const tx = Math.floor(l.x), ty = Math.floor(l.z);
+    if (!zone.inb(tx, ty) || zone.isOutdoor(tx, ty) || !zone.floor[zone.idx(tx, ty)]) continue;
+    const h = zone.heightAt(tx, ty);
+    const cy = (h >= 1 ? h : 0) + ceilH - 0.01;
+    const quad = (hx: number, hz: number, tex: string, tint: number, emis: number) =>
+      ceil.quadRaw([[l.x - hx, cy, l.z - hz], [l.x + hx, cy, l.z - hz], [l.x + hx, cy, l.z + hz], [l.x - hx, cy, l.z + hz]], [[0, 0], [1, 0], [1, 1], [0, 1]], tex, tint, 1, emis, 0, [0, -1, 0]);
+    if (l.kind === 'fluoro' || l.kind === 'sky') {
+      const rm = zone.roomAt(tx, ty);
+      const alongX = rm.id ? rm.x1 - rm.x0 > rm.y1 - rm.y0 : (l.id & 1) === 0;
+      if (alongX) {
+        // texture runs along its long side: swap the quad's axes by rotating the uvs
+        ceil.quadRaw([[l.x - 0.6, cy, l.z - 0.3], [l.x + 0.6, cy, l.z - 0.3], [l.x + 0.6, cy, l.z + 0.3], [l.x - 0.6, cy, l.z + 0.3]], [[0, 0], [0, 1], [1, 1], [1, 0]], 'ceil_troffer', l.kind === 'sky' ? 0xd8e8ff : 0xffffff, 1, -1.5, 0, [0, -1, 0]);
+      } else quad(0.3, 0.6, 'ceil_troffer', l.kind === 'sky' ? 0xd8e8ff : 0xffffff, -1.5);
+    } else if (l.kind === 'bulb' || l.kind === 'emergency' || l.kind === 'sodium') {
+      const s = l.kind === 'sodium' ? 0.3 : 0.15;
+      quad(s, s, 'ceil_bulb', l.kind === 'emergency' ? 0xff6050 : l.color, -1.8);
     }
   }
   // decals inside this chunk (floor decals, and wall decals that get cut away with their wall)
@@ -130,6 +160,14 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
   add(decals, MAT.decal, false, 1);
   if (wallDecals) add(wallDecals, worldMaterial({ transparent: true, outline: 0.0, depthWrite: false, cutout: true }), false, 1);
   add(glass, MAT.glass, false, 2);
+  if (!ceil.isEmpty) {
+    const mesh = new THREE.Mesh(ceil.build(), worldMaterial({ outline: 0.0 }));
+    mesh.layers.set(1);
+    mesh.castShadow = false; mesh.receiveShadow = true;
+    mesh.matrixAutoUpdate = false;
+    mesh.name = 'ceiling';
+    group.add(mesh);
+  }
   return {
     group,
     dispose() { group.traverse((o) => { if ((o as THREE.Mesh).geometry) (o as THREE.Mesh).geometry.dispose(); }); },
@@ -308,6 +346,37 @@ function emitBrokenGlass(glass: ModelBuilder, x: number, y: number, side: number
       : [[x, hv, y + au], [x, hv, y + au + s * 0.5], [x, hv + s, y + au + s * 0.2]];
     glass.triRaw(p, [[0, 0], [1, 0], [0.5, 1]], 'glass');
   }
+}
+
+// ---------------------------------------------------------------- ceilings (first person only)
+interface CeilFlavour { kind: 'tile' | 'concrete' | 'plaster'; tint: number; mw: number }
+const ceilCache = new WeakMap<Zone, { h: number; f: CeilFlavour }>();
+function ceilingInfo(zone: Zone) {
+  let c = ceilCache.get(zone);
+  if (!c) {
+    // tall fixtures (sodium lamps in the garage) lift the slab above them
+    let top = 0;
+    for (const l of zone.lights) if (l.kind === 'sodium' || l.kind === 'sky') top = Math.max(top, l.y);
+    const h = top > WALL_H ? Math.min(6, top + 0.2) : WALL_H;
+    const g = zone.env.grade;
+    const T: Record<string, number> = { lobby: 0xd8cb94, office: 0xc6cacc, school: 0xd8d0bc, hospital: 0xd0dad4, mall: 0xdcd2cc, lab: 0xd0d8de, market: 0xc8c8be, exit: 0xf0f0ee };
+    let f: CeilFlavour;
+    if (['parking', 'tunnels', 'server', 'stairwell', 'corrupt', 'void'].includes(g)) f = { kind: 'concrete', tint: g === 'server' ? 0xa8b0bc : 0xffffff, mw: 1 };
+    else if (['house', 'suburbs', 'homestead'].includes(g)) f = { kind: 'plaster', tint: 0xf0e8dc, mw: 1 };
+    else if (g === 'pool') f = { kind: 'concrete', tint: 0xd8eef0, mw: 1 };
+    else f = { kind: 'tile', tint: T[g] ?? 0xd0ccc0, mw: 1.25 };
+    c = { h, f };
+    ceilCache.set(zone, c);
+  }
+  return c;
+}
+function ceilingHeight(zone: Zone) { return ceilingInfo(zone).h; }
+function ceilingFlavour(zone: Zone) { return ceilingInfo(zone).f; }
+function ceilingTex(f: CeilFlavour, x: number, y: number): string {
+  if (f.kind === 'concrete') return 'ceil_concrete';
+  if (f.kind === 'plaster') return 'ceil_plaster';
+  const h = hash3(x, y, 91) % 100;
+  return h < 5 ? 'ceil_tile_stain' : h < 7 ? 'ceil_tile_sag' : h < 9 ? 'ceil_tile_gap' : h < 10 ? 'ceil_tile_mould' : 'ceil_tile';
 }
 
 export function makeChunkMaterialsWarm() {

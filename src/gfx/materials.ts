@@ -253,8 +253,12 @@ const FRAG_LIGHTGRID = /* glsl */`
     float gz = dot(texture2D(uLightTex, luv + vec2(0.0, e)).rgb - texture2D(uLightTex, luv - vec2(0.0, e)).rgb, LW);
     float g0 = dot(gt, LW) + 0.04;
     vec3 Ld = normalize(vec3(gx / g0 * 1.7, 1.0, gz / g0 * 1.7));
-    grid *= clamp(0.74 + 0.46 * dot(wn, Ld), 0.3, 1.2);
+    // ceilings (first person only) take the spill around the fixtures, not the dark of a down-facing face
+    grid *= mix(clamp(0.74 + 0.46 * dot(wn, Ld), 0.3, 1.2), 0.62, smoothstep(-0.5, -0.9, wn.y));
   }
+  // negative emissive: a fixture's diffuser glows with whatever its own light gives right now
+  // (dark when the tube is dead or the power is off, stuttering with the flicker)
+  if (vEmis < 0.0) totalEmissiveRadiance += diffuseColor.rgb * min(gt * gt * uGridScale, vec3(2.4)) * (-vEmis);
   irradiance += grid * PI;
 #if defined(FLOOR)
   // wet / polished floors mirror the fixtures overhead: sample the light grid where the reflected view ray meets the ceiling
@@ -281,7 +285,7 @@ const FRAG_LIGHTGRID = /* glsl */`
 `;
 
 const FRAG_EMISSIVE = /* glsl */`
-totalEmissiveRadiance += diffuseColor.rgb * vEmis;
+totalEmissiveRadiance += diffuseColor.rgb * max(vEmis, 0.0);
 `;
 
 const FRAG_FOG = /* glsl */`

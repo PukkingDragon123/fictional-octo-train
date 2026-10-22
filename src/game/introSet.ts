@@ -350,7 +350,7 @@ export class IntroSet {
         const h = highBay(body, x, room.h, z, 1.6);
         const sh = new ModelBuilder();
         shaftGeo(sh, x, room.h - 2.1, z, 0.6, 0.6, 0.0, 3.6, 3.6, 0.4);
-        this.fx['bay' + x] = L.add({ name: 'bay' + x, at: h.at, col: SODIUM, power: 26, range: 13, glowK: 2.2, circuit: 'press', shaftK: 0.05, haloS: 1.0 }, h.glow, sh);
+        this.fx['bay' + x] = L.add({ name: 'bay' + x, at: h.at, col: SODIUM, power: 70, range: 17, glowK: 2.2, circuit: 'press', shaftK: 0.05, haloS: 1.0 }, h.glow, sh);
       }
       const w = cagedLamp(body, IX.press.x + 2.2, 6.1, IX.press.z + 0.4, 1.2, 0x5a5a40);
       this.fx.work = L.add({ name: 'work', at: w.at, col: 0xffe4b0, power: 9, range: 8, glowK: 2.4, circuit: 'press', haloS: 0.5 }, w.glow);

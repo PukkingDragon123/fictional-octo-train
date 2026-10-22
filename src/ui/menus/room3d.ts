@@ -66,7 +66,7 @@ const easeIn = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t);
 const UP = new THREE.Vector3(0, 1, 0);
 const FLOAT_Y = 0.34;
 /** the lamp: pivot in the ceiling, cord length (bulb about 0.65 m over his head, a little in front) */
-const LAMP = { x: 0.08, z: -0.16, L: 1.62 };
+const LAMP = { x: 0.08, z: -0.06, L: 1.64 };
 const CAP_ANCHOR = new THREE.Vector3(0.1, ROOM.H - 0.02, -0.62);
 const JUNCTION = new THREE.Vector3(0.06, 0.93, ROOM.CHAIR_Z - 0.47);
 
@@ -121,6 +121,8 @@ export class SubjectRoom {
   private crt = new THREE.PointLight(0x78e09a, 0, 3.6, 2);
   private surge = new THREE.PointLight(0xbfe0ff, 0, 5, 2);
   private hatchL = new THREE.PointLight(0xff2a10, 0.25, 3.2, 2);
+  /** the lamp's light coming back up off his lap: a whisper of warm under the jaw */
+  private bounce = new THREE.PointLight(0xff9a60, 0, 1.6, 2);
   private sun = new THREE.DirectionalLight(0xf0f4e6, 0);
   private fill = new THREE.DirectionalLight(0xc8d4c8, 0);
   private back = new THREE.DirectionalLight(0xa0b4d8, 0);
@@ -219,6 +221,7 @@ export class SubjectRoom {
       this.renderer.setClearColor(0x000000, 1);
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = THREE.PCFShadowMap;
+      this.renderer.info.autoReset = false;
     } catch (e) { console.warn('room renderer unavailable', e); this.renderer = null; }
     const S = this.scene, mats = this.mats = facetMats(this.low);
     // ---- the cell, the chair, the fixtures
@@ -267,7 +270,8 @@ export class SubjectRoom {
     this.bulbPivot.add(this.shaft.mesh);
     // rims from behind, the green spill, the surge
     this.rimL.position.set(-1.25, 2.55, -2.1); this.rimR.position.set(1.35, 2.2, -2.15);
-    S.add(this.hemi, this.rimL, this.rimL.target, this.rimR, this.rimR.target, this.crt, this.surge, this.hatchL, this.sun, this.sun.target, this.fill, this.back, this.alarm, this.alarm.target);
+    this.bounce.position.set(0.12, 0.92, -0.1);
+    S.add(this.bounce, this.hemi, this.rimL, this.rimL.target, this.rimR, this.rimR.target, this.crt, this.surge, this.hatchL, this.sun, this.sun.target, this.fill, this.back, this.alarm, this.alarm.target);
     this.sun.position.set(0.8, 3.4, 3.4); this.sun.target.position.set(0, 1.0, ROOM.FLOAT_Z);
     this.fill.position.set(-2.5, 1.4, 2.0);
     this.back.position.set(0.5, 2.6, -3.0);
@@ -321,7 +325,7 @@ export class SubjectRoom {
     for (let i = 0; i < 2; i++) { const ch = new Chain(mats, 30); ch.mesh.visible = false; this.chains.push(ch); S.add(ch.mesh); }
     // ---- arms: wrists from the back wall, a harness arm and a tool arm from the ceiling
     const mk = (name: string, base: [number, number, number], L1: number, L2: number, pole: [number, number, number], stow: [number, number, number], tool = false) => {
-      const b = armBase(mats);
+      const b = armBase(mats); b.name = 'base';
       b.position.set(...base);
       b.quaternion.setFromUnitVectors(UP, new THREE.Vector3(stow[0] - base[0], stow[1] - base[1], stow[2] - base[2]).normalize().negate());
       const seg1 = armSegment(mats, L1, 0.15), seg2 = armSegment(mats, L2, 0.12);
@@ -355,6 +359,11 @@ export class SubjectRoom {
     S.add(sparks, blood);
     for (let i = 0; i < 4; i++) this.decalMats.push(new THREE.MeshLambertMaterial({ map: canvasTex(bloodCanvas(i * 13 + 5, 64, i % 2 === 1)), transparent: true, alphaTest: 0.5, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 - i * 0.1 }));
     this.post.u.tLens.value = this.lensFx.tex;
+    // only what the lamp throws a shadow worth seeing from casts one: him, the chair, the cap, the cage
+    const noCast = (o: THREE.Object3D) => o.traverse((m) => { m.castShadow = false; });
+    for (const a of this.arms) [a.seg1, a.seg2, a.head].forEach(noCast);
+    [this.pressG, this.shutter, this.monitor, this.lever, ...this.cuffs, this.harness, ...this.chains.map((c) => c.mesh)].forEach(noCast);
+    this.scene.children.forEach((o) => { if (o.name === 'base') noCast(o); });
     this.applyLight(0);
     this.bindInput();
     this.ro = new ResizeObserver(() => this.resize());
@@ -875,6 +884,7 @@ export class SubjectRoom {
     u.uVig.value = 0.6 + title * 0.9;
     const portrait = this.lowW < this.lowH;
     u.uSide.value.set(portrait ? 0 : 1, portrait ? 1 : 0, (this.mode === 'title' ? 0.6 : 0.0) * title, portrait ? 0.42 : 0.45);
+    u.uFloor.value = this.mode === 'title' && !portrait ? 0.5 * title : 0;
     u.uLensOn.value = this.lensFx.update(dt) || this.lensFx.active ? 1 : 0;
     this.render();
   };
@@ -905,7 +915,8 @@ export class SubjectRoom {
     const brown = 1 - this.surgeK * (0.75 + Math.random() * 0.2);
     this.bulbLevel = Math.max(0.02, buzz * drop * brown + this.nudge * 0.25);
     const title = this.mode === 'title' ? 1 - this.lit : 0;
-    this.key.intensity = this.bulbLevel * (0.3 + title * 0.62);
+    this.key.intensity = this.bulbLevel * (0.3 + title * 0.78);
+    this.bounce.intensity = this.bulbLevel * title * 0.05;
     const g = 0.5 + this.bulbLevel * 5;
     this.bulbMat.color.setRGB(g * 1.0, g * 0.72, g * 0.42);
     this.shaft.mesh.scale.set(Math.tan(0.52) * 1.7, 1.7, Math.tan(0.52) * 1.7);
@@ -920,7 +931,7 @@ export class SubjectRoom {
     this.bulbPivot.updateMatrixWorld(true);
     const L = this.v2.setFromMatrixPosition(this.key.matrixWorld);
     const dir = this.v3.setFromMatrixPosition(this.key.target.matrixWorld).sub(L).normalize();
-    this.dust.update(t, L, dir, Math.cos(this.key.angle), Math.cos(this.key.angle * (1 - this.key.penumbra)), this.bulbLevel * (0.5 + title * 1.4), this.key.color, this.lit);
+    this.dust.update(t, L, dir, Math.cos(0.5), Math.cos(0.3), this.bulbLevel * (0.25 + title * 0.9), this.key.color, 0);
   }
 
   /** the chair at work: a full surge every several seconds, small crackles between */
@@ -984,8 +995,8 @@ export class SubjectRoom {
   private arcToCap(from: THREE.Vector3) {
     // from the terminal to the rim, or down the chin strap's buckle
     const to = Math.random() < 0.7 ? this.capRimPoint(this.v3) : this.capOn.localToWorld(this.v3.set(0.1, 0.055, 0.03));
-    this.arcs.strike(from, to, 0.05 + Math.random() * 0.1, 0.4);
-    if (Math.random() < 0.35) this.arcs.strike(from, this.v4.copy(from).add(this.v2.set((Math.random() - 0.5) * 0.25, 0.08 + Math.random() * 0.2, (Math.random() - 0.5) * 0.2)), 0.05, 0.5);
+    this.arcs.strike(from, to, 0.05 + Math.random() * 0.1, 0.3);
+    if (Math.random() < 0.3) this.arcs.strike(from, this.v4.copy(from).add(this.v2.set((Math.random() - 0.5) * 0.14, 0.04 + Math.random() * 0.1, (Math.random() - 0.5) * 0.12)), 0.04, 0.35);
   }
 
   private updateSubject(dt: number) {
@@ -1058,7 +1069,7 @@ export class SubjectRoom {
         const mp = head.localToWorld(this.v1.set((Math.random() - 0.5) * 0.02, 0.035 * (this.app?.height || 1), 0.11 * (this.app?.height || 1)));
         const dir = this.v2.set(0, -0.15, 1).applyQuaternion(head.getWorldQuaternion(this.q1)).multiplyScalar(0.12 + Math.random() * 0.08);
         dir.x += (Math.random() - 0.5) * 0.04; dir.y += (Math.random() - 0.3) * 0.03;
-        this.puffs.emit(mp, dir, { life: 1.4 + Math.random() * 0.6, s0: 0.005, s1: 0.03 + Math.random() * 0.025, color: 0x1e2428, rise: 0.03 });
+        this.puffs.emit(mp, dir, { life: 1.4 + Math.random() * 0.6, s0: 0.005, s1: 0.03 + Math.random() * 0.025, color: 0x2c343a, rise: 0.03 });
       }
     }
     this.breathPrev = br;
@@ -1123,6 +1134,10 @@ export class SubjectRoom {
   }
 
   private updateArm(a: Arm, dt: number) {
+    // tucked away inside the wall in the dark: not drawn at all
+    const hidden = this.mode === 'title' && this.lit < 0.02 && a.follow.kind === 'stow' && a.tip.distanceToSquared(a.stow) < 0.003;
+    a.seg1.visible = a.seg2.visible = a.head.visible = !hidden;
+    if (hidden) return;
     const f = a.follow;
     if (f.kind === 'stow') a.goal.copy(a.stow);
     else if (f.kind === 'point') a.goal.copy(f.p);
@@ -1243,7 +1258,7 @@ export class SubjectRoom {
     if (name === 'face') { at = bone('head', 0, 0.1, 0.03); dist = portrait ? 1.25 : 0.95; lift = 0.04; fov = portrait ? 40 : 30; }
     else if (name === 'body') { at = bone('chest', 0, 0.06, 0); dist = portrait ? 2.5 : 1.85; lift = 0.06; fov = portrait ? 44 : 32; }
     else if (name === 'feet') { at = this.v1.lerpVectors(rig ? rig.bones.shinL.getWorldPosition(this.v3) : this.v3.set(0, 0.6, ROOM.FLOAT_Z), rig ? rig.bones.footR.getWorldPosition(this.v4) : this.v4.set(0, 0.4, ROOM.FLOAT_Z), 0.55); dist = portrait ? 2.0 : 1.55; lift = 0.32; fov = portrait ? 44 : 32; }
-    else { at = bone('hips', 0, 0.28, 0); dist = portrait ? 5.0 : 4.35; lift = 0.1; fov = portrait ? 50 : 34; }
+    else { at = bone('hips', 0, 0.02, 0); dist = portrait ? 5.0 : 4.4; lift = 0.1; fov = portrait ? 50 : 34; }
     look.copy(at);
     pos.copy(at).add(this.v2.set(0.06, lift, 1).normalize().multiplyScalar(dist * this.zoom));
     return fov;
@@ -1309,6 +1324,7 @@ export class SubjectRoom {
     const saved = { cut: U.uCutOn.value, vis: U.uVisOn.value, fn: U.uFogNear.value, ff: U.uFogFar.value, gs: U.uGridScale.value, col: U.uCollapse.value, snap: U.uSnapOn.value };
     U.uCutOn.value = 0; U.uVisOn.value = 0; U.uFogNear.value = 1e4; U.uFogFar.value = 2e4; U.uGridScale.value = 0; U.uCollapse.value = 0; U.uSnapOn.value = 0;
     try {
+      r.info.reset();
       r.setRenderTarget(this.rt);
       r.setClearColor(0x000000, 1);
       r.clear(true, true, true);

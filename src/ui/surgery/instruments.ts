@@ -137,36 +137,40 @@ export class Crt3D {
     const M = mats;
     const sw = 1.1, sh = 1.0;
     const k = new Kit();
-    // a bulky cabinet: radiused front, a tapered back, a bezel round the tube
-    k.put(M.creamPlain, cbox(sw + 0.26, sh + 0.5, 0.36, 0.06), 0, -0.1, -0.18, { tile: 0.9 });
-    k.put(M.creamPlain, tbox(sw + 0.1, 0.6, sh + 0.3, sw * 0.6, sh * 0.6, 0.05), 0, -0.05, -0.6, { rx: Math.PI / 2, tile: 0.9 });
-    k.put(M.darksteel, cbox(sw + 0.08, 0.05, 0.05, 0.012), 0, sh / 2 + 0.035, 0.01);
-    k.put(M.darksteel, cbox(sw + 0.08, 0.05, 0.05, 0.012), 0, -sh / 2 - 0.035, 0.01);
-    k.put(M.darksteel, cbox(0.05, sh + 0.12, 0.05, 0.012), -sw / 2 - 0.035, 0, 0.01);
-    k.put(M.darksteel, cbox(0.05, sh + 0.12, 0.05, 0.012), sw / 2 + 0.035, 0, 0.01);
+    // a bulky cabinet: a narrow chamfered bezel round the tube, a deep tapered back, a control lip below
+    const BZ = 0.075, LIP = 0.15;
+    k.put(M.creamPlain, cbox(sw + 2 * BZ, BZ, 0.2, 0.025), 0, sh / 2 + BZ / 2, -0.06, { tile: 0.9 });
+    k.put(M.creamPlain, cbox(sw + 2 * BZ, BZ + LIP, 0.2, 0.025), 0, -sh / 2 - (BZ + LIP) / 2, -0.06, { tile: 0.9 });
+    for (const sx of [-1, 1]) k.put(M.creamPlain, cbox(BZ, sh, 0.2, 0.02), sx * (sw / 2 + BZ / 2), 0, -0.06, { tile: 0.9 });
+    k.put(M.creamPlain, tbox(sw + 0.1, 0.55, sh + 0.12, sw * 0.62, sh * 0.6, 0.05), 0, 0.0, -0.44, { rx: Math.PI / 2, tile: 0.9 });
+    // the tube's dark surround and a chrome rim
+    k.put(M.darksteel, cbox(sw + 0.03, 0.025, 0.04, 0.008), 0, sh / 2 + 0.006, 0.012);
+    k.put(M.darksteel, cbox(sw + 0.03, 0.025, 0.04, 0.008), 0, -sh / 2 - 0.006, 0.012);
+    k.put(M.darksteel, cbox(0.025, sh + 0.03, 0.04, 0.008), -sw / 2 - 0.006, 0, 0.012);
+    k.put(M.darksteel, cbox(0.025, sh + 0.03, 0.04, 0.008), sw / 2 + 0.006, 0, 0.012);
     k.put(M.screen, cbox(sw + 0.02, sh + 0.02, 0.02, 0.004), 0, 0, -0.005);
-    // the control lip under the tube: vents, three paddle toggles, a pilot gem, the name plate
-    k.put(M.gunmetal, tbox(sw + 0.2, 0.08, 0.26, sw + 0.16, 0.2, 0.02), 0, -sh / 2 - 0.2, 0.0, { rx: -0.25 });
-    for (let i = 0; i < 6; i++) k.put(M.darksteel, cbox(0.24, 0.012, 0.01, 0.003), -sw / 2 + 0.2, -sh / 2 - 0.14 - i * 0.025, 0.02);
-    k.put(M.brass, cbox(0.42, 0.075, 0.012, 0.006), 0.04, -sh / 2 - 0.16, 0.02);
+    // the lip: vent slots, a brass name plate, three paddle toggles
+    const ly = -sh / 2 - BZ - LIP / 2 + 0.01;
+    for (let i = 0; i < 4; i++) k.put(M.darksteel, cbox(0.2, 0.012, 0.01, 0.003), -sw / 2 + 0.13, ly + 0.04 - i * 0.026, 0.045);
+    k.put(M.brass, cbox(0.44, 0.07, 0.012, 0.006), 0.0, ly, 0.045);
     for (let i = 0; i < 3; i++) {
-      k.put(M.bakelite, cbox(0.05, 0.06, 0.03, 0.008), sw / 2 - 0.26 + i * 0.08, -sh / 2 - 0.17, 0.02);
-      k.put(M.chrome, cbox(0.018, 0.045, 0.02, 0.004), sw / 2 - 0.26 + i * 0.08, -sh / 2 - 0.15 + (i === 1 ? -0.02 : 0), 0.045, { rx: i === 1 ? 0.5 : -0.5 });
+      k.put(M.bakelite, cbox(0.05, 0.065, 0.03, 0.008), sw / 2 - 0.25 + i * 0.075, ly, 0.045);
+      k.put(M.chrome, cbox(0.018, 0.045, 0.02, 0.004), sw / 2 - 0.25 + i * 0.075, ly + (i === 1 ? -0.012 : 0.012), 0.07, { rx: i === 1 ? 0.5 : -0.5 });
     }
-    for (const [x, y] of [[-sw / 2 - 0.08, sh / 2 + 0.1], [sw / 2 + 0.08, sh / 2 + 0.1], [-sw / 2 - 0.08, -sh / 2 - 0.3], [sw / 2 + 0.08, -sh / 2 - 0.3]]) k.put(M.steel, hexHead(0.018, 0.012), x, y, 0.0, { rx: Math.PI / 2 });
-    // carry handle on top and side brackets
-    k.put(M.darksteel, cbox(0.5, 0.03, 0.05, 0.01), 0, sh / 2 + 0.22, -0.18);
-    for (const s of [-1, 1]) k.put(M.darksteel, cbox(0.03, 0.08, 0.05, 0.01), s * 0.24, sh / 2 + 0.18, -0.18);
-    k.put(M.hazard, cbox(sw + 0.27, 0.04, 0.37, 0.01), 0, -sh / 2 - 0.34, -0.18);
+    for (const [x, y] of [[-sw / 2 - BZ / 2, sh / 2 + BZ / 2], [sw / 2 + BZ / 2, sh / 2 + BZ / 2], [-sw / 2 - BZ / 2, ly - 0.03], [sw / 2 + BZ / 2, ly - 0.03]]) k.put(M.steel, hexHead(0.016, 0.012), x, y, 0.045, { rx: Math.PI / 2 });
+    // carry handle on top
+    k.put(M.darksteel, cbox(0.5, 0.03, 0.05, 0.01), 0, sh / 2 + BZ + 0.07, -0.12);
+    for (const s of [-1, 1]) k.put(M.darksteel, cbox(0.03, 0.08, 0.05, 0.01), s * 0.24, sh / 2 + BZ + 0.035, -0.12);
+    k.put(M.hazard, cbox(sw + 2 * BZ + 0.01, 0.03, 0.21, 0.008), 0, -sh / 2 - BZ - LIP, -0.06);
     this.group.add(k.group());
     this.pilot = new THREE.MeshBasicMaterial({ color: new THREE.Color(0x40ff70).multiplyScalar(2), toneMapped: false });
-    const pk = new Kit(); pk.put(this.pilot, gem(0.022, 0.022, 0.014), sw / 2 - 0.04, -sh / 2 - 0.16, 0.035);
+    const pk = new Kit(); pk.put(this.pilot, gem(0.02, 0.02, 0.012), sw / 2 - 0.03, -sh / 2 - 0.15, 0.06);
     this.group.add(pk.group(false, false));
     for (const [x, y] of [[-sw / 2, sh / 2], [sw / 2, -sh / 2]]) { const o = new THREE.Object3D(); o.position.set(x, y, 0.005); this.group.add(o); this.corners.push(o); }
-    this.plate.position.set(0.04, -sh / 2 - 0.16, 0.03); this.group.add(this.plate);
+    this.plate.position.set(0.0, -sh / 2 - 0.15 + 0.01, 0.055); this.group.add(this.plate);
     this.W = Math.round(316 * sw / sh); this.H = 316;
-    this.light = new THREE.PointLight(0x50ff80, 1.4, 3.5, 2);
-    this.light.position.set(0, -0.2, 0.7);
+    this.light = new THREE.PointLight(0x7affa8, 0.25, 2.0, 2);
+    this.light.position.set(0, -0.75, 0.9);
     this.group.add(this.light);
   }
   /** the glass, in CSS px of the stage host */
@@ -210,7 +214,7 @@ export class Crt3D {
     this.t += dt;
     this.power += (this.powerT - this.power) * Math.min(1, dt * 5);
     this.pilot.color.setRGB(0.25, 1, 0.45).multiplyScalar(busy ? ((this.t * 6) % 1 < 0.5 ? 0.6 : 2.4) : 2);
-    this.light.intensity = 1.4 * this.power * (0.92 + Math.random() * 0.08);
+    this.light.intensity = 0.25 * this.power * (0.92 + Math.random() * 0.08);
   }
   /** draw the picture on the overlay (device px) */
   paint(ctx: CanvasRenderingContext2D, stage: SurgeryStage) {
@@ -246,7 +250,7 @@ export class Crt3D {
     ctx.restore();
     // the maker's plate under the tube
     const pl = stage.fgToScreen(this.plate.getWorldPosition(new THREE.Vector3()));
-    engraved(ctx, this.title, pl.x * d, pl.y * d, Math.max(9, r.w * 0.034) * d, { spacing: 1 * d, ink: '#2a1e0c', lip: 'rgba(255,236,170,0.45)' });
+    engraved(ctx, this.title, pl.x * d, pl.y * d, Math.max(8, r.w * 0.03) * d, { spacing: 1 * d, ink: '#2a1e0c', lip: 'rgba(255,236,170,0.45)' });
   }
 }
 
@@ -371,7 +375,7 @@ export class Desk3D {
     const hh = Math.tan((cam.fov * Math.PI) / 360) * D, hw = hh * cam.aspect;
     const cw = stage.lowW * stage.art, ch = stage.lowH * stage.art;
     const tilt = -0.42;
-    const s = Math.min((w / cw) * 2 * hw / this.W, (h / ch) * 2 * hh / (this.H * Math.cos(tilt) + 0.1));
+    const s = Math.min((w / cw) * 2 * hw / (this.W + 0.08), (h / ch) * 2 * hh / (this.H * Math.cos(tilt) + 0.2));
     this.group.scale.setScalar(s);
     this.group.rotation.set(tilt, 0, 0);
     this.group.position.set(((x + w / 2) / cw * 2 - 1) * hw, -(((y + h / 2) / ch) * 2 - 1) * hh, -D);

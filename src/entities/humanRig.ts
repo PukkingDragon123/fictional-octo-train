@@ -358,7 +358,11 @@ export class HumanRig {
   private hullMat: THREE.MeshBasicMaterial | null = null;
   private hullRigid: THREE.MeshBasicMaterial | null = null;
 
-  constructor(app: Appearance, material?: THREE.Material, opts: { secondary?: boolean } = {}) {
+  /** level of detail of the body mesh (0 sculpted, 1 coarse: crowds, far NPCs); see setLod() */
+  lod = 0;
+
+  constructor(app: Appearance, material?: THREE.Material, opts: { secondary?: boolean; lod?: number } = {}) {
+    this.lod = opts.lod ?? 0;
     this.app = normalizeAppearance(app);
     this.s = this.app.height;
     this.seed = hashApp(this.app);
@@ -443,6 +447,9 @@ export class HumanRig {
       m.add(h); m.userData.hull = h;
     }
   }
+
+  /** switch the body mesh's level of detail (rebuilds it when it changes) */
+  setLod(l: number) { if (l === this.lod) return; this.lod = l; this.setOutfit(this.outfit); }
 
   /** the visible skinned body mesh */
   get skin(): THREE.SkinnedMesh { return this.mesh; }
@@ -563,13 +570,13 @@ export class HumanRig {
     const sh = outfitShape(full);
     const cond = this.outfit.cond || {};
     const appKey = JSON.stringify(this.app);
-    const gk = appKey + JSON.stringify(sh) + (cond.splint || []).join(',') + (full.wrist ? '|w' : '') + (cond.sev?.length ? '|s:' + cond.sev.join(',') : '') + (cond.cyber ? '|c:' + coveredParts(cond.cyber).join(',') : '');
+    const gk = this.lod + appKey + JSON.stringify(sh) + (cond.splint || []).join(',') + (full.wrist ? '|w' : '') + (cond.sev?.length ? '|s:' + cond.sev.join(',') : '') + (cond.cyber ? '|c:' + coveredParts(cond.cyber).join(',') : '');
     const { cond: _c, ...looks } = full;
     void _c;
     const tk = appKey + JSON.stringify(looks) + JSON.stringify({ ...cond, bleeding: undefined, stump: undefined, prost: undefined, sev: undefined, cyber: undefined });
     if (gk !== this.geoKey) {
       this.geoKey = gk;
-      const res = buildBody(this.app, full, sh, this.dims, { splints: new Set(cond.splint || []), bandages: new Set(Object.keys(cond.bandage || {})), severed: new Set([...(cond.sev || []), ...coveredParts(cond.cyber)]) });
+      const res = buildBody(this.app, full, sh, this.dims, { splints: new Set(cond.splint || []), bandages: new Set(Object.keys(cond.bandage || {})), severed: new Set([...(cond.sev || []), ...coveredParts(cond.cyber)]), lod: this.lod });
       const old = this.mesh.geometry;
       this.mesh.geometry = res.geometry;
       if (this.hull) this.hull.geometry = res.geometry;

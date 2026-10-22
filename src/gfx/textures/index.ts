@@ -1,8 +1,9 @@
 // Registers every procedural texture into the shared atlas.
 // Each module exports a register function; order does not matter.
 import { registerLobbyTextures } from './lobby';
+import { registerCeilingTextures } from './ceilings';
 
-const registrars: (() => void)[] = [registerLobbyTextures];
+const registrars: (() => void)[] = [registerLobbyTextures, registerCeilingTextures];
 let registered = false;
 
 /** Modules call this at import time to add their registrar (runs immediately if late) */

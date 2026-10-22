@@ -101,7 +101,7 @@ void main() {
   c *= mix(vec3(0.94, 0.98, 1.04), vec3(1.05, 1.0, 0.92), smoothstep(0.15, 0.85, l));
   vec2 q = vUv - 0.5;
   float v = dot(q, q);
-  c = mix(c, vec3(0.42, 0.0, 0.015), clamp(uHurt * smoothstep(0.03, 0.4, v) * 1.1, 0.0, 0.85));
+  c = mix(c, vec3(0.32, 0.0, 0.012), clamp(uHurt * smoothstep(0.08, 0.42, v) * 0.9, 0.0, 0.55));
   c = mix(c, vec3(1.0, 0.97, 0.92), clamp(uFlash, 0.0, 1.0));
   c *= 1.0 - v * 0.9;
   c *= 1.0 - uFade;
@@ -246,7 +246,7 @@ export class SurgeryStage {
     this.scene.add(this.fx.group, this.subj);
     this.restArms(true);
     // ---- light
-    this.scene.add(new THREE.HemisphereLight(0x5a6a84, 0x140e0a, 0.55));
+    this.scene.add(new THREE.HemisphereLight(0x5a6a84, 0x140e0a, 0.32));
     const rim = new THREE.DirectionalLight(0x7aa0d8, 0.55); rim.position.set(-2.5, 3, -2.5); this.scene.add(rim);
     this.lamp = new THREE.SpotLight(0xfff0d8, 0, 0, 0.6, 0.5, 2);
     this.lamp.position.copy(LAMP_POS).add(V(0, -0.1, 0));
@@ -486,7 +486,7 @@ export class SurgeryStage {
   // ---------------------------------------------------------------- camera
   /** the resting wide shot */
   private home(): [THREE.Vector3, THREE.Vector3] {
-    if (this.portrait) return [V(2.35, 2.75, 1.25), V(-0.15, 0.98, -0.2)];
+    if (this.portrait) return [V(2.75, 3.15, 1.45), V(-0.1, 0.95, -0.2)];
     return [V(1.55, 2.45, 2.85), V(-0.12, 1.0, -0.3)];
   }
   focus(p: Pick | null) {
@@ -518,9 +518,9 @@ export class SurgeryStage {
 
   // ---------------------------------------------------------------- arms at rest
   private restArms(snap = false) {
-    const s = V(-0.95, 1.55, -0.55), o = V(1.05, 1.55, -0.55);
-    if (snap) { this.surgeon.snapTo(s, -1.0); this.orderly.snapTo(o, -1.0); }
-    else { this.surgeon.moveTo(s, -1.0, 0.04); this.orderly.moveTo(o, -1.0, 0.04); }
+    const s = V(-0.62, 1.42, -0.22), o = V(0.62, 1.38, -0.2);
+    if (snap) { this.surgeon.snapTo(s, -1.15); this.orderly.snapTo(o, -1.2); }
+    else { this.surgeon.moveTo(s, -1.15, 0.04); this.orderly.moveTo(o, -1.2, 0.04); }
     this.surgeon.spinRate = 0; this.surgeon.flame = 0; this.orderly.grip = 0.15;
   }
 
@@ -677,17 +677,19 @@ export class SurgeryStage {
     const missing = !had && covers.length > 0 && covers.every((c) => this.sev.includes(c));
     const cutAt = limb ? joint() : this.anchor(kind === 'eyes' ? 'eyes' : kind === 'jaw' ? 'jaw' : kind === 'spine' ? 'spine' : 'skin', new THREE.Vector3());
     if (kind === 'arm') cutAt.lerp(this.anchor(S === 'L' ? 'arm_l' : 'arm_r', new THREE.Vector3()), 0.15);
+    // the work shot: high and to the front, wide enough for both machines; close cuts land on the impacts
+    const look = () => V(cutAt.x * 0.7, TABLE_Y + 0.22, cutAt.z * 0.3 - 0.12);
     const work = () => {
       if (this.mode === 'field') { this.povAt(slot); return; }
-      const a = cutAt;
-      if (this.portrait) this.dolly(V(a.x + 0.85, a.y + 0.95, a.z + 0.35), a.clone(), 2.6);
-      else this.dolly(V(a.x + 0.42, a.y + 0.7, a.z + (S === 'L' && limb ? 0.95 : 1.05)), a.clone(), 2.6);
+      const a = look();
+      if (this.portrait) this.dolly(V(a.x + 1.55, a.y + 1.6, a.z + 0.75), a, 2.4);
+      else this.dolly(V(a.x + 0.95, a.y + 1.15, a.z + 1.95), a, 2.4);
     };
-    const closeCut = (k = 0.18) => {
+    const closeCut = (k = 0.18, side = 0) => {
       if (this.mode === 'field') return;
-      const a = cutAt;
-      if (this.portrait) this.cut(V(a.x + 0.55, a.y + 0.6, a.z + 0.25), a.clone(), k);
-      else this.cut(V(a.x + 0.3, a.y + 0.42, a.z + 0.7), a.clone(), k);
+      const a = cutAt.clone(); a.y += 0.06;
+      if (this.portrait) this.cut(V(a.x + 0.9, a.y + 0.95, a.z + 0.5), a, k);
+      else this.cut(V(a.x + 0.55 + side * 0.3, a.y + 0.65, a.z + 1.05), a, k);
     };
     // ---- 0. framing; the orderly takes hold of the limb (or the head)
     this.phase = 'approach';
@@ -759,11 +761,11 @@ export class SurgeryStage {
       delete this.load[slot]; this.applyCond(); this.fx.spark(cutAt, 26, 'grind'); this.impact(0.7, 90);
     }
     Su.spinRate = 6;
-    Su.moveTo(V(-0.9, 1.5, -0.45), -1.0, 0.04);
+    Su.moveTo(V(-0.7, 1.45, -0.3), -1.1, 0.04);
     if (severed) {
       Or.moveTo(_v.copy(grip).add(V(0.15, 0.55, 0.05)), -1.2, 0.04);
       await this.wait(650);
-      this.work2(() => this.dolly(V(TRAY_POS.x + 0.6, TRAY_POS.y + 0.8, TRAY_POS.z + 1.4), V(TRAY_POS.x - 0.3, TRAY_POS.y + 0.1, TRAY_POS.z - 0.2), 2.4));
+      this.work2(() => { const m = cutAt.clone().lerp(TRAY_POS, 0.5); m.y = TABLE_Y + 0.25; this.dolly(this.portrait ? V(m.x + 1.6, m.y + 1.7, m.z + 0.9) : V(m.x + 0.6, m.y + 1.2, m.z + 2.1), m, 2.2); });
       Or.moveTo(_v.copy(TRAY_POS).add(V(0, 0.38, 0)), -1.35);
       await this.settle(Or, 1100);
       Or.grip = 0; csfx('cy_hiss', 0.4);
@@ -778,7 +780,7 @@ export class SurgeryStage {
     let carried: THREE.Mesh | null = null;
     if (key || limb) {
       Or.moveTo(_v.copy(HATCH_POS).add(V(0, 0.0, 0.32)), -0.15);
-      this.work2(() => { if (this.mode === 'intake') this.dolly(V(1.6, 1.7, 0.9), V(HATCH_POS.x - 0.3, HATCH_POS.y - 0.1, HATCH_POS.z + 0.5), 2.2); });
+      this.work2(() => { const m = V((cutAt.x + HATCH_POS.x) / 2, 1.1, -0.6); this.dolly(this.portrait ? V(m.x + 1.7, m.y + 1.5, m.z + 1.9) : V(m.x + 0.5, m.y + 1.0, m.z + 2.9), m, 2.2); });
       await this.settle(Or, 1200);
       csfx('sg_clunk', 0.7, 0.8);
       carried = new THREE.Mesh(key ? loosePartGeo(key, slot, r.dims) : fleshLimbGeo(kind, r, true), this.wmat);
@@ -1017,7 +1019,7 @@ export class SurgeryStage {
     this.room.fluoro.color.setRGB(0.85, 1, 0.9).multiplyScalar(2.6 * this.fluoroK);
     this.fluoroL.intensity = 3.5 * this.fluoroK;
     const lampK = this.lampOn / 6;
-    this.lamp.intensity = 42 * lampK * (1 + Math.sin(this.t * 37) * 0.01 + (Math.random() < 0.004 ? -0.25 : 0));
+    this.lamp.intensity = 55 * lampK * (1 + Math.sin(this.t * 37) * 0.01 + (Math.random() < 0.004 ? -0.25 : 0));
     this.alarm.intensity = this.alarm.intensity > 0 ? 2.5 + Math.sin(this.t * 14) * 2.5 : 0;
     this.room.beacon.color.setRGB(1, 0.2, 0.06).multiplyScalar(this.alarm.intensity > 0 ? 0.5 + Math.max(0, Math.sin(this.t * 14)) * 3 : 0.3);
     this.gantry.beacon.color.setRGB(1, 0.62, 0.1).multiplyScalar(this.carry && Math.sin(this.t * 9) > 0 ? 3 : 0.4);

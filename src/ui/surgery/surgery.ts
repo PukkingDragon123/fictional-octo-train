@@ -415,9 +415,9 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
   const placeCrt = (x: number, y: number, w: number, h: number, slide: number) => {
     const D = 4, hh = tanHalf() * D, hw = hh * stage.fgCam.aspect;
     const cw = stage.lowW * stage.art, ch = stage.lowH * stage.art;
-    const s = Math.min((w / cw) * 2 * hw / 1.4, (h / ch) * 2 * hh / 1.66);
+    const s = Math.min((w / cw) * 2 * hw / 1.27, (h / ch) * 2 * hh / 1.42);
     crt.group.scale.setScalar(s);
-    crt.group.position.set(((x + w / 2) / cw * 2 - 1) * hw + slide * hw * 1.2, -(((y + h / 2) / ch) * 2 - 1) * hh + 0.05 * s, -D);
+    crt.group.position.set(((x + w / 2) / cw * 2 - 1) * hw + slide * hw * 1.2, -(((y + h / 2) / ch) * 2 - 1) * hh + 0.1 * s, -D);
     crt.group.rotation.set(0, 0, 0);
   };
   let lastKey = '';
@@ -431,17 +431,17 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
     let sx = 0, sy = 0;
     if (!portrait) {
       const cw = Math.min(Math.max(W * 0.34, 250), 560), topGap = 52 + pad;
-      const ch = Math.min(H - topGap - pad, cw * 1.25);
+      const ch = Math.min(H - topGap - pad, cw * 1.12);
       placeCrt(W - cw - pad, topGap + (H - topGap - pad - ch) / 2 - (H - topGap - pad - ch) * 0.3, cw, ch, k);
       const dw = W - cw - pad * 3, dh = Math.min(H * 0.3, dw / 4.3);
       desk.place(stage, pad, H - dh - pad + k * (dh + pad * 2), dw, dh);
       const cx = (W - cw - pad) / 2, cy = (H - dh) / 2;
       sx = ((W / 2 - cx) / W) * easeIO(uiK); sy = ((H / 2 - cy) / H) * easeIO(uiK);
     } else {
-      const dw = W - pad * 2, dh = Math.min(H * 0.27, dw / 1.5);
+      const dw = W - pad * 2, dh = Math.min(H * 0.25, dw / 1.55);
       const dy = H - dh - pad;
       desk.place(stage, pad, dy + k * (dh + pad * 2), dw, dh);
-      const cw = W - pad * 2, ch = Math.min(H * 0.38, cw * 1.0);
+      const cw = W - pad * 2, ch = Math.min(H * 0.4, cw * 1.05);
       const cy0 = dy - ch - pad * 0.5;
       placeCrt(pad, cy0, cw, ch, k * 1.3);
       const sceneBottom = cy0;

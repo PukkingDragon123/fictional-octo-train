@@ -108,11 +108,11 @@ function kneeGeo(): THREE.BufferGeometry {
 export function batonGeo(): THREE.BufferGeometry {
   return cached('baton', () => {
     const mb = new ModelBuilder();
-    rod(mb, [-0.2, 0, 0], [-0.03, 0, 0], 0.017, 8, 'ix_rubber');
-    rod(mb, [-0.03, 0, 0], [0.42, 0, 0], 0.016, 8, 'plastic_black', { r2: 0.014 });
-    rod(mb, [-0.215, 0, 0], [-0.2, 0, 0], 0.021, 8, 'plastic_black');
-    rod(mb, [0.42, 0, 0], [0.44, 0, 0], 0.016, 8, 'chrome');
-    rod(mb, [-0.035, 0, 0], [-0.025, 0, 0], 0.022, 8, 'plastic_black');
+    rod(mb, [-0.2, 0, 0], [-0.03, 0, 0], 0.024, 8, 'ix_rubber');
+    rod(mb, [-0.03, 0, 0], [0.46, 0, 0], 0.023, 8, 'plastic_black', { r2: 0.02, color: 0x3a3c40 });
+    rod(mb, [-0.215, 0, 0], [-0.2, 0, 0], 0.029, 8, 'plastic_black');
+    rod(mb, [0.46, 0, 0], [0.48, 0, 0], 0.021, 8, 'chrome');
+    rod(mb, [-0.035, 0, 0], [-0.025, 0, 0], 0.03, 8, 'plastic_black');
     tube(mb, [[-0.215, 0, 0], [-0.24, -0.03, 0.005], [-0.25, -0.07, 0], [-0.23, -0.1, -0.01]], 0.004, 4, 'rubber_black', { caps: false });
     return mb.build();
   });
