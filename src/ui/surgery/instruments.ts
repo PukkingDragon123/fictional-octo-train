@@ -286,8 +286,10 @@ export class Console3D {
       const tube = new THREE.Group(); tube.position.set(x, y, 0.06);
       tube.add(mesh((mb) => { mb.cylinder(0, -0.115, 0, 0.055, 0.03, 14, 'metal_grey', { fit: true }); }, bake));
       // the anode mesh: a dark cage the cathodes glow in front of
-      const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.046, 0.046, 0.17, 14, 1, true, Math.PI * 0.15, Math.PI * 0.7), dark);
-      cage.rotation.y = Math.PI; cage.position.y = -0.005; tube.add(cage);
+      // (the back half of the tube: the cathodes glow against it, not against the bright desk)
+      const cage = new THREE.Mesh(new THREE.CylinderGeometry(0.047, 0.047, 0.18, 16, 1, true, Math.PI * 0.5, Math.PI), dark);
+      cage.position.y = -0.005; tube.add(cage);
+      const floor = new THREE.Mesh(new THREE.CircleGeometry(0.047, 16), dark); floor.rotation.x = -Math.PI / 2; floor.position.y = -0.095; tube.add(floor);
       const d = nixieDigit();
       const face = new THREE.Mesh(new THREE.PlaneGeometry(0.085, 0.128), new THREE.MeshBasicMaterial({ map: d.tex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
       face.renderOrder = 2;
@@ -304,7 +306,7 @@ export class Console3D {
     this.group.add(this.glow);
     // ---- research points: a three-drum counter behind a window
     label('RESEARCH', -0.06, 0.07, 36);
-    this.group.add(mesh((mb) => { panel(mb, -0.06, -0.12, -0.03, 0.29, 0.17, 0.04, 0.03, 'metal_grey', { color: 0x303030 }); for (const y of [-0.2, -0.04]) mb.cylinderX(-0.06, y, 0.0, 0.009, 0.27, 8, 'metal_grey', { fit: true }); }, bake));
+    this.group.add(mesh((mb) => { panel(mb, -0.06, -0.12, -0.03, 0.29, 0.17, 0.04, 0.03, 'metal_grey', { color: 0x303030 }); for (const y of [-0.16, -0.08]) { mb.push().translate(-0.06, y + (y < -0.12 ? -0.04 : 0.04), 0.004); shapes.rbox(mb, 0, -0.04, 0, 0.29, 0.08, 0.03, 0.01, 'metal_grey'); mb.pop(); } }, bake));
     const dt = drumTex();
     for (let i = 0; i < 3; i++) {
       const dm = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.072, 28, 1), [new THREE.MeshStandardMaterial({ map: dt, roughness: 0.55 }), steel, steel]);
@@ -362,7 +364,7 @@ export class Console3D {
     this.glow.intensity = blinkOff ? 0.05 : 0.25 + Math.sin(this.t * 31) * 0.02;
     // drums roll to their digits (digit d faces the window)
     for (let i = 0; i < 3; i++) {
-      const target = -(this.drumT[i] / 10) * Math.PI * 2 + Math.PI * 0.5;
+      const target = ((this.drumT[i] + 0.5) / 10) * Math.PI * 2;
       const dm = this.drums[i];
       dm.rotation.x += (target - dm.rotation.x) * Math.min(1, dt * 6);
     }

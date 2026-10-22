@@ -35,18 +35,56 @@ void main() {
 }
 `;
 
+// First-person close-ups go through the same film as the world: the zone's grade, the
+// light where the survivor stands, dark-art contrast, grain, a pixel silhouette outline and
+// the ordered-dither quantise, so hands and props sit in the same picture as the room.
 const OVERLAY_BLIT_FRAG = /* glsl */`
 precision highp float;
 uniform sampler2D tSrc;
 uniform vec2 uLowRes;
 uniform float uScale;
 uniform float uMargin;
+uniform vec3 uLift, uGain, uTint;
+uniform float uGamma, uSat, uLevels, uGrain, uTime, uLight, uVignette, uDark;
+float h12(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+float bayer4(vec2 p) {
+  ivec2 ip = ivec2(mod(p, 4.0));
+  int i = ip.y * 4 + ip.x;
+  int m[16] = int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5);
+  return (float(m[i]) + 0.5) / 16.0;
+}
 void main() {
   vec2 lp = gl_FragCoord.xy / uScale + vec2(uMargin);
-  vec4 c = texture2D(tSrc, lp / uLowRes);
-  if (c.a < 0.01) discard;
+  vec2 px = floor(lp);
+  vec2 uv = (px + 0.5) / uLowRes;
+  vec4 c = texture2D(tSrc, uv);
+  if (c.a < 0.01) {
+    // one dark pixel of outline round everything held up to the camera, like the world's
+    vec2 o = 1.0 / uLowRes;
+    float n = texture2D(tSrc, uv + vec2(o.x, 0.0)).a + texture2D(tSrc, uv - vec2(o.x, 0.0)).a
+            + texture2D(tSrc, uv + vec2(0.0, o.y)).a + texture2D(tSrc, uv - vec2(0.0, o.y)).a;
+    if (n < 0.02 || uDark < 0.01) discard;
+    gl_FragColor = vec4(vec3(0.035, 0.03, 0.024), 0.85);
+    return;
+  }
   vec3 l = max(c.rgb, 0.0);
   vec3 s = mix(l * 12.92, 1.055 * pow(l, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, l));
+  s *= uLight;
+  s = max(s * uGain + uLift, 0.0);
+  s = pow(s, vec3(1.0 / uGamma));
+  float y = dot(s, vec3(0.299, 0.587, 0.114));
+  s = mix(vec3(y), s, uSat);
+  s *= uTint;
+  // dark art: an S-curve that crushes the shadows, colder shadows, less candy saturation
+  vec3 sc = clamp(s, 0.0, 1.0);
+  s = mix(s, sc * sc * (3.0 - 2.0 * sc), uDark * 0.4);
+  s = mix(s, s * vec3(0.9, 0.95, 1.06), uDark * (1.0 - clamp(y * 2.2, 0.0, 1.0)) * 0.5);
+  s = mix(vec3(dot(s, vec3(0.299, 0.587, 0.114))), s, 1.0 - uDark * 0.18);
+  vec2 q = uv - 0.5;
+  s *= 1.0 - dot(q, q) * 2.0 * uVignette;
+  float gl2 = dot(s, vec3(0.299, 0.587, 0.114));
+  s += (h12(px + floor(uTime * 24.0) * 7.31) - 0.5) * uGrain * (0.55 + 1.8 * gl2 * (1.0 - gl2));
+  s = floor(s * uLevels + bayer4(px)) / uLevels;
   gl_FragColor = vec4(s, c.a);
 }
 `;
@@ -62,6 +100,10 @@ export class PixelRenderer {
   readonly overlayScene = new THREE.Scene();
   readonly overlayCamera = new THREE.PerspectiveCamera(30, 1, 0.05, 20);
   overlayEnabled = false;
+  /** how lit the survivor's spot is (the game sets it each frame): first-person close-ups darken in dark rooms */
+  overlayLight = 1;
+  /** 0 = clean overlay (menus), 1 = the full dark film like the world */
+  overlayFilm = 1;
   /** photo mode hides the held devices without touching overlayEnabled */
   hideOverlay = false;
 
@@ -171,7 +213,12 @@ export class PixelRenderer {
     });
     this.overlayBlitMat = new THREE.ShaderMaterial({
       vertexShader: FS_VERT, fragmentShader: OVERLAY_BLIT_FRAG, depthTest: false, depthWrite: false, transparent: true,
-      uniforms: { tSrc: { value: null }, uLowRes: { value: new THREE.Vector2() }, uScale: { value: 2 }, uMargin: { value: 2 } },
+      uniforms: {
+        tSrc: { value: null }, uLowRes: { value: new THREE.Vector2() }, uScale: { value: 2 }, uMargin: { value: 2 },
+        uLift: { value: new THREE.Vector3() }, uGain: { value: new THREE.Vector3(1, 1, 1) }, uTint: { value: new THREE.Vector3(1, 1, 1) },
+        uGamma: { value: 1 }, uSat: { value: 1 }, uLevels: { value: 30 }, uGrain: { value: 0.03 }, uTime: { value: 0 },
+        uLight: { value: 1 }, uVignette: { value: 0.35 }, uDark: { value: 1 },
+      },
     });
     const nsd = new THREE.DepthTexture(1, 1);
     nsd.compareFunction = THREE.LessEqualCompare;
@@ -449,6 +496,13 @@ export class PixelRenderer {
       ou.uLowRes.value.set(RW, RH);
       ou.uScale.value = this.scale;
       ou.uMargin.value = this.margin;
+      // share the world's grade and film so the close-up sits in the same picture
+      const pu2 = this.postMat.uniforms;
+      ou.uLift.value.copy(pu2.uLift.value); ou.uGain.value.copy(pu2.uGain.value); ou.uTint.value.copy(pu2.uTint.value);
+      ou.uGamma.value = pu2.uGamma.value; ou.uSat.value = pu2.uSat.value; ou.uLevels.value = pu2.uLevels.value;
+      ou.uGrain.value = pu2.uGrain.value; ou.uVignette.value = pu2.uVignette.value * 0.8;
+      ou.uTime.value = performance.now() / 1000;
+      ou.uLight.value = this.overlayLight; ou.uDark.value = this.overlayFilm;
       this.fsQuad.material = this.overlayBlitMat;
       r.render(this.fsScene, this.fsCam);
     }

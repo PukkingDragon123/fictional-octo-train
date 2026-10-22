@@ -491,6 +491,9 @@ export class Game {
     const viewR = (this.pr.lowW * this.pr.pxSize) * 0.75 + 4;
     let t0 = performance.now();
     v.lg.update(dt, p.x, p.z, this.time);
+    // first-person close-ups take the light where the survivor stands (a lit torch helps)
+    const here = v.lg.lightAt(p.x, p.z) * 0.85 + (p.flashlightOn ? 0.35 : 0);
+    this.pr.overlayLight = damp(this.pr.overlayLight, clamp(0.3 + here, 0.3, 1.1), 4, dt);
     this.perfMark('lights', t0);
     // vision cone narrows with panic & tiredness
     const m = p.body.mods(0);

@@ -49,9 +49,10 @@ class Bits {
   private p: Float32Array; private v: Float32Array; private life: Float32Array; private size: Float32Array; private rest: Uint8Array;
   private col = new THREE.Color();
   constructor(private cap: number, emissive: boolean, private grav = 9.8) {
+    // round drops (low-poly spheres), so blood and sparks are never little cubes; resting drops squash into round splats
     const mb = new ModelBuilder();
-    mb.box(0, -0.5, 0, 1, 1, 1, 'white', { emissive: emissive ? 1.2 : 0, ao: false });
-    this.mesh = new THREE.InstancedMesh(mb.build(), worldMaterial({ noVis: true, noFog: true, noGrid: true, outline: 0 }), cap);
+    mb.sphere(0, 0, 0, 0.5, 6, 4, 'white', { emissive: emissive ? 1.2 : 0 });
+    this.mesh = new THREE.InstancedMesh(smoothNormals(mb.build()), worldMaterial({ noVis: true, noFog: true, noGrid: true, outline: 0 }), cap);
     this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     this.mesh.setColorAt(0, this.col.set(0xffffff));
     this.mesh.count = 0; this.mesh.frustumCulled = false;
