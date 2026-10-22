@@ -196,7 +196,7 @@ class TitleRoom {
   controls() { this.openOver(controlsPanel(), 'CONTROLS', 'keys · touch · menus'); }
   about() {
     const note = h('div', 'nx-about', `
-<p><b>NOCLIP</b> is a survival sandbox. You are a debtor in a yellow jumpsuit, processed by the Meridian Institute and pushed through a wall that turns to liquid, into rooms that never end.</p>
+<p><b>Limbo Phobia</b> is a survival sandbox. You are a debtor in a yellow jumpsuit, processed by the Meridian Institute and pushed through a wall that turns to liquid, into rooms that never end.</p>
 <p>A band on your wrist counts what you owe. A projected sergeant tells you what to break and what to feed to the presses. Pay the debt, buy a way out. Or don't.</p>
 <p>Missions, scans and quests pay <b>research points</b>: spend them on the watch's research tree and on things to wear. They stay with you across runs.</p>
 <p class="small">Inspired by the systemic survival of <i>Project Zomboid</i>, the 2019 "noclip" creepypasta, liminal-space photography and VHS-era found footage. All names, places, creatures and story here are original. Built with three.js. Type: Special Elite (Apache), Courier Prime, IBM Plex Mono, Nixie One, Oswald, Alfa Slab One and Caveat (SIL Open Font License). Every texture, model, sound and pixel is generated in code.</p>`);
@@ -270,7 +270,7 @@ class TitleRoom {
     const remember = () => { try { localStorage.setItem('noclip.server', srv.value.trim()); } catch { /* ignore */ } };
     const lbl = (t: string) => h('div', 'nx-lbl', esc(t));
     box.append(lbl('Exchange (relay server)'), srv);
-    box.append(h('p', 'nx-small', 'Co-op runs through a NOCLIP relay (<code>npm start</code> in the project folder serves the game and the relay on port 8787). Everyone dials the same exchange. Up to 8 subjects.'));
+    box.append(h('p', 'nx-small', 'Co-op runs through a Limbo Phobia relay (<code>npm start</code> in the project folder serves the game and the relay on port 8787). Everyone dials the same exchange. Up to 8 subjects.'));
     if (import.meta.env.VITE_SANDBOXED) box.append(h('p', 'nx-small nx-warn', 'This copy runs in a sandboxed page that cannot open network connections, so co-op is unavailable here. Run the project with <code>npm start</code> to play together.'));
     const cols = h('div', 'nx-cols');
     const hostBox = h('div', 'nx-col', '<h4>OPEN A LINE · HOST</h4>');

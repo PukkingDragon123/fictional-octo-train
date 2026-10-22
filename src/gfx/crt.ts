@@ -68,7 +68,7 @@ void main() {
     // horizontal sync wobble and snow
     p.x += (hash(vec2(row, frame)) - 0.5) * uNoise * 0.006;
     p.x += sin(p.y * 40.0 + uTime * 3.0) * uNoise * 0.0015;
-    float ca = 0.0008 + 0.004 * uCurv * length(p - 0.5);
+    float ca = 0.0003 + 0.0015 * uCurv * length(p - 0.5);
     vec3 c;
     c.r = texture2D(uTex, p + vec2(ca, 0.0)).r;
     c.g = texture2D(uTex, p).g;
@@ -120,11 +120,11 @@ export function crtMaterial(tex: THREE.Texture, o: CrtOpts = {}, res: [number, n
       uRes: { value: new THREE.Vector2(res[0], res[1]) },
       uTime: { value: 0 },
       uCurv: { value: o.curvature ?? 0.22 },
-      uScan: { value: o.scan ?? 0.6 },
-      uMask: { value: o.mask ?? 0.35 },
-      uGlow: { value: o.glow ?? 0.8 },
-      uNoise: { value: o.noise ?? 0.035 },
-      uFlicker: { value: o.flicker ?? 0.5 },
+      uScan: { value: o.scan ?? 0.32 },
+      uMask: { value: o.mask ?? 0.16 },
+      uGlow: { value: o.glow ?? 0.32 },
+      uNoise: { value: o.noise ?? 0.012 },
+      uFlicker: { value: o.flicker ?? 0.25 },
       uVig: { value: o.vignette ?? 0.9 },
       uReflect: { value: o.reflect ?? 0.7 },
       uOn: { value: 1 },
@@ -208,7 +208,7 @@ export function phosphorText(ctx: CanvasRenderingContext2D, text: string, x: num
 export function fontsReady(): Promise<unknown> {
   const f = (document as Document & { fonts?: FontFaceSet }).fonts;
   if (!f) return Promise.resolve();
-  return Promise.all(["16px 'IBM Plex Mono'", "16px 'Courier Prime'", "italic 16px 'EB Garamond'", "16px 'EB Garamond'", "16px 'Special Elite'", "16px 'Nixie One'", "16px 'Oswald'", "16px 'Alfa Slab One'", "16px 'Caveat'"].map((s) => f.load(s).catch(() => null)));
+  return Promise.all(["16px 'EB Garamond'", "italic 16px 'EB Garamond'", "600 16px 'EB Garamond'", "700 16px 'EB Garamond'"].map((s) => f.load(s).catch(() => null)));
 }
 
 /** the family list behind one of the type tokens in src/ui/fonts.css (so canvas text follows a font swap) */

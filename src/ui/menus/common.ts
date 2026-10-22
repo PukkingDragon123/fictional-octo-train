@@ -267,7 +267,7 @@ export interface GfxSettings {
 export function gfxSettings(): GfxSettings {
   let rm = false;
   try { rm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { /* ignore */ }
-  const d: GfxSettings = { pixelHeight: 360, shake: true, grain: 1, quality: 'auto', shakeAmt: 1, peek: true, comfort: rm, keepOrbit: false };
+  const d: GfxSettings = { pixelHeight: 450, shake: true, grain: 1, quality: 'auto', shakeAmt: 1, peek: true, comfort: rm, keepOrbit: false };
   try { return { ...d, ...JSON.parse(localStorage.getItem('noclip.gfx') || '{}') }; } catch { return d; }
 }
 export function saveGfx(s: GfxSettings) { try { localStorage.setItem('noclip.gfx', JSON.stringify(s)); } catch { /* ignore */ } applyGfx(s); }

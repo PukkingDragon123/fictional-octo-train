@@ -458,7 +458,7 @@ export class MissionSystem implements GameSystem {
       <p class="k-end-2">Somewhere a ledger prints one word next to your number, and a monitor shows a flat green line, then a pulse.</p>
       <p class="k-end-3">DEBTOR STATUS: ABSCONDED.<br>CONTINUITY SESSION TERMINATED. SUBJECT RESPONSIVE.</p>
       <p class="k-end-4">${escapeHtml(p.name)} — ${days} days, ${hrs} hours inside. ${owed}</p>
-      <p class="k-end-5">NOCLIP</p>
+      <p class="k-end-5">LIMBO PHOBIA</p>
       <button class="k-end-btn">Wake up again</button>${G.net ? '<button class="k-end-btn k-end-stay">Stay until the others are out</button>' : ''}</div>`;
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('on'));

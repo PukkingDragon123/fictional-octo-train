@@ -34,7 +34,7 @@ export function runBoot(): Promise<void> {
     const scr = h('div', 't-boot-scr nc-crt-dom' + (uiSettings().theme === 'amber' ? ' amber' : ''));
     const pre = h('pre');
     // the name on six Nixie tubes
-    const logo = h('div', 't-boot-logo', '<span class="nx-boot-logo">' + [...'NOCLIP'].map((c) => `<i>${c}</i>`).join('') + '</span>');
+    const logo = h('div', 't-boot-logo', '<span class="nx-boot-logo">' + [...'LIMBO PHOBIA'].map((c) => `<i>${c}</i>`).join('') + '</span>');
     scr.append(pre, logo, h('div', 'crt-fx'));
     el.append(scr, h('div', 't-boot-skip', 'press any key'));
     document.body.append(el);

@@ -217,7 +217,7 @@ export class Net implements GameSystem {
       players: [...G.players.values()].filter((q) => q.id !== id).map((q) => ({ id: q.id, name: q.name, app: q.app, state: q.netState() })),
     };
     this.to(id, { k: 'welcome', w });
-    G.ui?.toast?.(`${h.name.toUpperCase()} NOCLIPPED IN`, '', 3.5);
+    G.ui?.toast?.(`${h.name.toUpperCase()} CROSSED OVER`, '', 3.5);
     this.voice.ensure(id);
   }
 

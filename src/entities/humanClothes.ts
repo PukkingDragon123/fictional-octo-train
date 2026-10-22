@@ -397,7 +397,7 @@ G.c_hoodie = {
     for (let x = Math.round(S.X(-26)); x <= S.X(26); x++) { S.pc.set(x, Math.round(S.Y(y0)), P.R[2]); S.pc.blend(x, Math.round(S.Y(y0)) + 1, P.R[5], 0.5); }
     // drawstrings
     for (const d of [-6, 6]) for (let i = 0; i < 5; i++) S.pc.set(Math.round(S.X(d) - 0.5), Math.round(S.Y(1.45)) + i, 0xe8e4d8);
-    if (ph(P.seed, 2, 2) < 0.5) text(S, 'NOCLIP', S.X(0), S.Y(1.33), mixHex(P.R[7], 0xffffff, 0.5));
+    if (ph(P.seed, 2, 2) < 0.5) text(S, 'LIMBO', S.X(0), S.Y(1.33), mixHex(P.R[7], 0xffffff, 0.5));
   },
   arm: (S, P) => sleeveBase(S, P, 'fleece', P.lp.sleeve || 'long', 'rib'),
   hood: (S, P) => {

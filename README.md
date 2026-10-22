@@ -1,4 +1,4 @@
-# NOCLIP
+# Limbo Phobia
 
 An isometric survival-horror sandbox set in endless liminal rooms. You are
 a debtor in a yellow jumpsuit. Meridian Institute guards drag you through a

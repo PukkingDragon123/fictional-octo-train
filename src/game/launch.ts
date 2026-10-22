@@ -60,7 +60,7 @@ export async function launch(cfg: LaunchConfig) {
         break;
       }
       case 'join': {
-        bootText(`NOCLIPPING INTO ROOM ${cfg.room.toUpperCase()}…`);
+        bootText(`CROSSING INTO ROOM ${cfg.room.toUpperCase()}…`);
         const hello = { name: cfg.name, app: cfg.app ?? randomAppearance(Math.random), occupation: cfg.occupation, traits: cfg.traits };
         const { net, welcome } = await Net.join(cfg.server, cfg.room, hello, cfg.pass);
         startSession({ mode: 'client', net, welcome, name: cfg.name, app: hello.app, occupation: cfg.occupation, traits: cfg.traits, directives: welcome.missions?.enabled ?? true });

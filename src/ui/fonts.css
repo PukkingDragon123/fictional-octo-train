@@ -17,31 +17,33 @@
 
 /* html:root outranks every :root block, wherever it loads */
 html:root {
-  --font-type: 'Special Elite', 'Courier Prime', 'Courier New', monospace;
-  --font-typeset: 'Courier Prime', 'Courier New', monospace;
-  --font-crt: 'IBM Plex Mono', 'Courier Prime', monospace;
-  --font-nixie: 'Nixie One', 'IBM Plex Mono', monospace;
-  --font-sign: 'Oswald', 'Arial Narrow', sans-serif;
-  --font-poster: 'Alfa Slab One', 'Oswald', serif;
-  --font-pen: 'Caveat', 'Comic Sans MS', cursive;
-  /* picked by the user: EB Garamond italic for everything characters say */
-  --font-speech: 'EB Garamond', Garamond, 'Times New Roman', serif;
+  /* the user's pick: EB Garamond for everything (speech in italic); the other names stay so code keeps working */
+  --font-new: 'EB Garamond', Garamond, 'Times New Roman', serif;
+  --font-type: var(--font-new);
+  --font-typeset: var(--font-new);
+  --font-crt: var(--font-new);
+  --font-nixie: var(--font-new);
+  --font-sign: var(--font-new);
+  --font-poster: var(--font-new);
+  --font-pen: var(--font-new);
+  --font-speech: var(--font-new);
   --font-speech-style: italic;
-  /* the older names, remapped onto real type */
-  --font-body: var(--font-typeset);
-  --font-ui: var(--font-typeset);
-  --font-display: var(--font-poster);
-  --font-term: var(--font-crt);
-  --font-mono: var(--font-crt);
-  --font-readout: var(--font-crt);
-  --font-vhs: var(--font-crt);
-  --font-stamp: var(--font-sign);
-  --font-stencil: 'NC Stencil', var(--font-sign);
-  --font-label: var(--font-sign);
-  --font-hand: var(--font-pen);
+  --font-body: var(--font-new);
+  --font-ui: var(--font-new);
+  --font-display: var(--font-new);
+  --font-term: var(--font-new);
+  --font-mono: var(--font-new);
+  --font-readout: var(--font-new);
+  --font-vhs: var(--font-new);
+  --font-stamp: var(--font-new);
+  --font-stencil: var(--font-new);
+  --font-label: var(--font-new);
+  --font-hand: var(--font-new);
   /* free-floating text: no box, just a halo that keeps it readable on any floor */
   --text-halo: 0 1px 0 rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.9), 0 0 6px rgba(0, 0, 0, 0.7), 0 0 14px rgba(0, 0, 0, 0.45);
 }
+/* always the new font, even where an older stylesheet named a pixel face directly */
+html:root body, html:root body *:not(svg):not(svg *) { font-family: var(--font-new) !important; }
 
 /* use for any text that floats in the world: speech, names, short prompts */
 .nc-free-text {

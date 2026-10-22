@@ -502,7 +502,7 @@ export class PixelRenderer {
       const pu2 = this.postMat.uniforms;
       ou.uLift.value.copy(pu2.uLift.value); ou.uGain.value.copy(pu2.uGain.value); ou.uTint.value.copy(pu2.uTint.value);
       ou.uGamma.value = pu2.uGamma.value; ou.uSat.value = pu2.uSat.value; ou.uLevels.value = pu2.uLevels.value;
-      ou.uGrain.value = pu2.uGrain.value; ou.uVignette.value = pu2.uVignette.value * 0.8;
+      ou.uGrain.value = pu2.uGrain.value * 0.45; ou.uVignette.value = pu2.uVignette.value * 0.8;
       ou.uTime.value = performance.now() / 1000;
       ou.uLight.value = this.overlayLight; ou.uDark.value = this.overlayFilm;
       this.fsQuad.material = this.overlayBlitMat;

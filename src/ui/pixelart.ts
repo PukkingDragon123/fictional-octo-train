@@ -21,7 +21,7 @@ const LOGO_GLYPHS: Record<string, string[]> = {
  * fuse sideways into strokes and keep a dark scanline gap between rows, with a
  * dithered bloom around the lit glass.
  */
-export function logoCanvas(text = 'NOCLIP', t: PkTheme = kitTheme()): PixelCanvas {
+export function logoCanvas(text = 'LIMBO PHOBIA', t: PkTheme = kitTheme()): PixelCanvas {
   const cell = 4, gap = 4, pad = 3;
   const W = pad * 2 + text.length * 5 * cell + (text.length - 1) * gap - 1, H = pad * 2 + 7 * cell - 1;
   const pc = new PixelCanvas(W, H); pc.wrap = false;

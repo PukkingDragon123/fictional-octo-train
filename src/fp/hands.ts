@@ -183,11 +183,11 @@ export interface FpArm {
 export interface FpArmOpts { skin?: number; sleeve?: number | null; sleeveStyle?: 'long' | 'rolled' | 'none'; scale?: number }
 
 export function fpArm(side: 'right' | 'left' = 'right', o: FpArmOpts = {}): FpArm {
-  const skinMat = new THREE.MeshStandardMaterial({ color: o.skin ?? 0xe8b98f, roughness: 0.62, metalness: 0, vertexColors: true });
+  const skinMat = new THREE.MeshStandardMaterial({ color: o.skin ?? 0xe8b98f, roughness: 0.62, metalness: 0, vertexColors: true, flatShading: true });
   skinMat.emissive = new THREE.Color(o.skin ?? 0xe8b98f).multiplyScalar(0.05);
   const nailTint = (skin: number) => new THREE.Color(skin).lerp(new THREE.Color(0xf0d4cc), 0.4).multiplyScalar(0.95);
-  const nailMat = new THREE.MeshStandardMaterial({ color: nailTint(o.skin ?? 0xe8b98f), roughness: 0.3, metalness: 0 });
-  const clothMat = new THREE.MeshStandardMaterial({ color: o.sleeve ?? 0xeeb415, roughness: 0.92, metalness: 0, vertexColors: true, side: THREE.DoubleSide });
+  const nailMat = new THREE.MeshStandardMaterial({ color: nailTint(o.skin ?? 0xe8b98f), roughness: 0.3, metalness: 0, flatShading: true });
+  const clothMat = new THREE.MeshStandardMaterial({ color: o.sleeve ?? 0xeeb415, roughness: 0.92, metalness: 0, vertexColors: true, side: THREE.DoubleSide, flatShading: true });
 
   const root = new THREE.Group(); root.name = 'fpArm:' + side;
   if (side === 'left') root.scale.x = -1;

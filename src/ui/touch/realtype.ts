@@ -5,7 +5,7 @@
 // Fonts arrive late: props register a refresh and redraw when they are in.
 import { Screen } from '../font5x7';
 
-const FAMILY = "'Oswald', 'Arial Narrow', 'Liberation Sans Narrow', sans-serif";
+const FAMILY = "'EB Garamond', Garamond, 'Times New Roman', serif";
 let cv: HTMLCanvasElement | null = null;
 let g: CanvasRenderingContext2D | null = null;
 const listeners = new Set<() => void>();
