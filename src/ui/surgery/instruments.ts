@@ -280,7 +280,7 @@ export class Console3D {
     // ---- three Nixie tubes: the sign and two digits
     label('WARE CREDITS', -0.5, 0.07, 46);
     const glass = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0.06, metalness: 0, transparent: true, opacity: 0.1, depthWrite: false, envMapIntensity: 0.45 });
-    const dark = new THREE.MeshStandardMaterial({ color: 0x140c08, roughness: 0.85, metalness: 0.3 });
+    const dark = new THREE.MeshStandardMaterial({ color: 0x140c08, roughness: 0.85, metalness: 0.3, side: THREE.DoubleSide });
     for (let i = 0; i < 3; i++) {
       const x = -0.63 + i * 0.13, y = -0.11;
       const tube = new THREE.Group(); tube.position.set(x, y, 0.06);
@@ -443,7 +443,7 @@ export class OperatorHand {
   private kind: 'press' | 'grip' = 'press';
   private contact?: () => void;
   private fired = false;
-  private from = new THREE.Vector3(0.3, -0.9, 0.5);
+  private from = new THREE.Vector3(0.42, -0.62, 0.55);
   constructor(scene: THREE.Object3D) {
     this.arm = fpArm('right', { skin: 0xd8ceb0, sleeve: 0xe8e4d8, sleeveStyle: 'long' });
     this.arm.root.visible = false;

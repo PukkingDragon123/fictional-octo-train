@@ -449,6 +449,6 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
 
   mode = 'busy'; log.push('> SUBJECT INBOUND', '> GANTRY ENGAGED');
   stage.intro().then(() => { log.push('> ON THE TABLE', '> READY'); mode = 'idle'; csfx('cy_powerup', 0.5); });
-  if (import.meta.env.DEV) (window as any).__surgery = { stage, open, swap: doSwap, go: discharge, deal, get occ() { return occ; }, traits, crt, desk, pick: pickCrt, get mode() { return mode; } };
+  if (import.meta.env.DEV) (window as any).__surgery = { stage, open, swap: doSwap, go: discharge, deal, get occ() { return occ; }, traits, crt, desk, op, pick: pickCrt, get mode() { return mode; } };
   return { close: () => { if (!closed) { closed = true; finish(null); } }, el: root };
 }
