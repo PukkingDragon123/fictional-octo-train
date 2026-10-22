@@ -11,7 +11,8 @@
 .w-bubble.ft.nc-free-text[style*="opacity: 0"] { filter: blur(1px); }
 .ft .ft-body { display: inline-block; animation: ft-rise var(--life, 3s) linear forwards; }
 @keyframes ft-rise { from { translate: 0 0; } to { translate: 0 -12px; } }
-.ft .ft-name { display: block; font-family: var(--font-speech-name, var(--font-sign)); font-weight: 500; font-size: 0.62em; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0.8; margin-bottom: 1px; }
+.ft .ft-name { display: block; font-family: var(--font-speech-name, var(--font-sign)); font-style: normal; font-weight: 500; font-size: 0.62em; letter-spacing: 0.18em; text-transform: uppercase; opacity: 0; margin-bottom: 1px; animation: ft-name 0.3s ease-out forwards; }
+@keyframes ft-name { from { opacity: 0; translate: 0 3px; } to { opacity: 0.8; translate: 0 0; } }
 .ft .ft-w { display: inline-block; white-space: nowrap; }
 .ft i { display: inline-block; font-style: inherit; opacity: 0; transform-origin: 50% 85%;
   animation: ft-pop 0.24s cubic-bezier(0.2, 1.9, 0.4, 1) var(--d) forwards, ft-wob 2.4s ease-in-out calc(var(--d) + 0.24s - var(--i) * 0.11s) infinite; }
@@ -41,8 +42,13 @@
 .ft-think i { animation: ft-drift 0.45s ease-out var(--d) forwards, ft-wob 3.4s ease-in-out calc(var(--d) - var(--i) * 0.2s) infinite; }
 @keyframes ft-drift { from { opacity: 0; translate: 0 4px; filter: blur(2px); } to { opacity: 0.94; translate: 0 0; filter: none; } }
 
-/* lines from someone out of sight: low in the picture */
-.w-bubble.ft.offscreen { position: fixed; left: 50%; bottom: 13vh; top: auto; transform: translateX(-50%); z-index: 62; }
+/* lines from someone out of sight (or with no position): low in the picture like film subtitles */
+.ft-subs { position: fixed; left: 50%; bottom: 11vh; transform: translateX(-50%); z-index: 62; display: flex; flex-direction: column; align-items: center; gap: 4px; pointer-events: none; width: min(760px, 92vw); }
+.w-bubble.ft.offscreen { position: static; transform: none; left: auto; top: auto; max-width: 100%; }
+.w-bubble.ft.offscreen .ft-body { animation: none; }
+.w-bubble.ft.out { opacity: 0; filter: blur(1px); }
+body.noclip-cine .ft-subs { bottom: 14vh; }
+body.noclip-cine .w-bubble.ft-note { display: none; }
 
 /* whistle notes rising off the whistler */
 .w-bubble.ft-note { font-family: var(--font-speech); font-size: calc(var(--px, 2px) * 9 + 4px); color: #fff0c4; text-shadow: var(--text-halo); animation: ft-note 1.6s ease-out forwards; }

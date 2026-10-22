@@ -6,7 +6,7 @@
 //   bailiff  the band, voiced here (cold, clipped; glitching when `leak`),
 //            the words rising off the survivor's wrist
 //   guard    condensed sign capitals near the officer (or off screen)
-//   radio    typewriter letters over the survivor, from the radio
+//   radio    low in the picture like a film subtitle (no body to hang it on)
 //   self     the survivor, out loud, in their own voice
 //   pid      any other survivor by player id (co-op), in their voice
 // Also the shared builders ui.ts uses for thoughts, speech and shouts: they
@@ -45,21 +45,22 @@ export function shout(text: string): HTMLDivElement { return floatText(text, { k
 
 /** a line from the radio: typed letters over the survivor, in a crackly voice */
 export function radioLine(who: string, text: string, secs = 5) {
-  const p = G.local;
+  // a voice with no body in the scene: low in the picture, like a film subtitle
   const el = floatText(text, { kind: 'radio', name: who || 'RADIO', life: secs });
   playLine(text, voiceForStyle('radio', who), null, { vol: 0.75 });
   G.audio?.ui?.('static_burst', 0.12);
-  if (uiRef && p) {
-    uiRef.root.appendChild(el);
-    uiRef.bubbles.push({ el, target: p, until: G.time + secs, born: G.time, rise: 0, kind: 'radio' });
-  } else offscreen(el, secs);
+  offscreen(el, secs);
 }
 
+/** positionless lines stack low and centred, newest at the bottom; the name fades with its line */
+let subHost: HTMLDivElement | null = null;
 function offscreen(el: HTMLDivElement, secs: number) {
+  if (!subHost || !subHost.isConnected) { subHost = document.createElement('div'); subHost.className = 'ft-subs'; subHost.setAttribute('aria-live', 'polite'); document.body.appendChild(subHost); }
   el.classList.add('offscreen');
-  document.body.appendChild(el);
-  setTimeout(() => { el.style.opacity = '0'; }, secs * 1000);
-  setTimeout(() => el.remove(), secs * 1000 + 600);
+  subHost.appendChild(el);
+  while (subHost.children.length > 3) subHost.firstElementChild!.remove();
+  setTimeout(() => el.classList.add('out'), secs * 1000);
+  setTimeout(() => el.remove(), secs * 1000 + 700);
 }
 
 // ------------------------------------------------------------------ the event
