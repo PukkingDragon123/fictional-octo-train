@@ -71,7 +71,9 @@ URL flags: `?quick` skips the title and the intro and starts a fresh run (band a
 | double-click | in the world: inspect an item on the floor, work on a chair, stand at a workbench |
 | M | map |
 | R | reload; rotate while placing furniture |
-| Q | shout |
+| Q | tap: whistle (keys under the emote dial pick the call); hold: shout |
+| G | the emote dial (a painted rotary phone): wave, point, dance, sit, salute, mock... |
+| B | build mode: the blueprint clipboard (R rotates, [ ] or wheel change piece, click places a frame, hold welds, X demolishes) |
 | H | pump the lungs: press as the bead hits OUT / IN (recovers stamina, calms a panic attack) |
 | Z / X, wheel | rotate camera, zoom |
 | Middle mouse or Alt+drag | orbit the camera freely (snaps back on release) |
@@ -140,9 +142,10 @@ and an ignition key.
   it, food poisoning raises the acid so you can't eat much, and overdoing it
   brings everything back up. The bag swings when you move or get hit, the
   fluids slosh, drips pool on the shelf.
-- **Eating is first person.** Your hands hold the food up, built from little
-  voxels: click or tap to bite (crunch, crumbs, juice, the view bobbing as you
-  chew), and each bite flies down into the jar. Drinks tip up for gulps.
+- **Eating is first person.** Your hands hold the food up (a smooth apple,
+  a wrapped bar, a heel of bread, a can with a spoon): click or tap to bite,
+  each bite dents the food and falls down into the jar (crunch, crumbs, juice,
+  the view bobbing as you chew). Drinks tip up for gulps.
 - **Your mind matters.** Anxiety, low mood, insomnia, trauma flashbacks,
   loneliness and private hallucinations build from what happens to you;
   panic attacks race your heart and blur your aim. Sleep, food, light,
@@ -177,7 +180,14 @@ and an ignition key.
   tall pieces topple over and smash. Small things are picked up, carried and
   thrown. Tools do what tools do: an axe chops, a crowbar pries, a saw takes a
   chair apart a leg at a time.
-- **Monsters that look the part.** Twenty-three species. Still Lifes are wax
+- **Monsters with rules.** Thirty-six species, and every one has a rule you can
+  learn by watching it, scanning it or getting away: the Tallyman counts your
+  steps and comes at thirteen, the Mirrorling copies you (walk its reflection
+  into a wall), the Lintel cannot leave its room, the Tithe hunts whoever
+  carries the most, the Hush is blind and goes for noise. Living chess pieces
+  move by chess rules, bubble mites and bubble rabbits pop, moon wisps follow
+  torchlight, and timid cowerlings run, hide, play dead and leave gifts if
+  you spare them. Learned rules land in the watch's field notes. Still Lifes are wax
   copies of people (sometimes of you) sitting at dinner tables, which turn
   their heads when you look away. The Stammer frame-skips toward you in the
   dark. The Surveyor is something wearing a 1990 hazmat suit. The Plenum
@@ -190,16 +200,23 @@ and an ignition key.
   pitch, look-ahead toward your aim, push-ins when you go down, and photo
   mode; ambient occlusion, bloom, volumetric light and flashlight beams,
   wet-floor reflections and pool caustics, with quality presets for phones.
-- **Intake processing and the Rehab Section.** Click any part of the 3D
-  prisoner in front of the height chart to change it: an identikit for the
-  face, a barber's chart, tattoo flash, a fingerprint card, the jumpsuit's
-  sleeves and stains. In the Rehab Section, jobs are case files and traits
-  are X-ray films, and every one says what it gives you and what it costs.
-  "Let the Board decide" deals a random programme. Most jobs are locked
-  until you earn them, and stay unlocked across runs.
-- **No traditional UI.** The title is a security desk with a CCTV monitor,
-  settings are clipboards you stamp, saves are case files in a cabinet, and
-  pause freezes the world inside the band's hologram. The backpack is a riveted
+- **The subject room.** The title is a dark cell: a man strapped in an
+  electric chair, his face cut out of the dark by one hard beam, the menu on
+  floating old TV sets and a steel gear. CREATE NEW SUBJECT slams the lights
+  on and robot arms lift the subject into mid-air in the jumpsuit. The left
+  monitor changes face, hair, body and colours (scroll on the head and a saw
+  arm takes the old face off), the right wardrobe holds 31 wearables bought
+  with research points. Pink and blue buttons drop the press on the subject
+  and the arms bring a fresh clone of the other body type. Then the operating
+  table: click a limb to have it sawn off and a robotic one bolted on (one
+  scrap limb to start, with good and bad sides), click the brain to slot
+  programme and condition cartridges (the old jobs and traits, each with what
+  it gives and what it costs). Most of it is locked until you earn it, and
+  stays unlocked across runs.
+- **Physical, retro UI.** Old CRT tubes with scanlines and phosphor glow,
+  bakelite, enamel signs, needle gauges, Nixie tubes and typewritten tags;
+  speech floats as plain text set in EB Garamond, with an 8-bit voice. Every
+  first-person close-up passes through the same dark film as the world. The backpack is a riveted
   iron cube: your arms swing it round, your thumb goes on its phosphor reader,
   the bolts snap back and the lid opens on a 5x5x5 grid where every item takes
   its real width, length and height and rests on what is under it; the fuller
@@ -216,7 +233,7 @@ and an ignition key.
   (scratches, lacerations, bites, burns, fractures) bleed and get infected
   until you clean, stitch, splint and bandage them. Tear clothing into rags,
   boil water, cook, collect rain, farm, trap and hunt.
-- **A world that keeps going.** Twenty-two interconnected zones: the yellow
+- **A world that keeps going.** Twenty-five interconnected zones and endless generated floors: the yellow
   Lobby, offices, pools, malls, supermarkets, parking garages, suburbs, a
   school, a hospital, service tunnels, dreamcore fields and houses, a lab, the
   server core, and places that are already falling apart. There are also five
@@ -228,10 +245,26 @@ and an ignition key.
   same poster where the figure gets closer. Corridors loop
   seamlessly, rooms rearrange while nobody is looking, doors open somewhere
   else, and some rooms are bigger inside.
-- **Hands-on building.** Move, pick up and place furniture; barricade doors and
-  windows; break windows; dismantle anything for parts; build walls, crates,
-  beds, planters and workbenches; run generators and flip breakers; start
-  fires (which spread).
+- **Build mode and settlements.** Scavenge frames, motors, sheet metal and pipe
+  from what you smash, then place pieces from a blueprint clipboard and weld
+  them (sparks, arc light, the visor darkening): walls, doors, platforms,
+  powered workbenches, turrets, spikes, planters and hydro racks. Plant a claim
+  beacon and the base climbs from Camp to Mega Base on its defence, comfort,
+  food and power gauges; thralls can be put to work at stations. Barricade,
+  run generators, flip breakers and start fires (which spread).
+- **Butchery and cooking.** Cut a corpse up along grease-pencil lines (limbs
+  really come off), then cook in first person: drag food into the skillet,
+  flip, toss, stir the pot, watch the thermometer, the colour and the smoke.
+  Plating finds one of ten dishes; cooking an unknown one teaches it.
+- **Holes and other floors.** Pits drop you to another floor: a freshly made
+  one, or (online) another player's open floor as their guest. Giant stairs
+  climb over the void. Further in are other dimensions: a giant chessboard
+  whose pieces move on a clock and crush what they land on (push the white
+  ones to take the black, checkmate pays), a pastel future meadow of humming
+  pylons and bubbles, and the Moon, with low gravity and Earth hanging the
+  wrong way up below the chasms.
+- **Social.** An emote dial, whistled calls, shouts, and an 8-bit voice under
+  every line anyone says, floating as plain text with no box.
 - **Creatures with their own lives.** They eat, sleep, nest, wander, hunt and
   react to sound and light. Some are harmless or curious, some territorial,
   some patient. Some imitate your friends' voices, watch from far away, or only
