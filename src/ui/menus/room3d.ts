@@ -377,7 +377,8 @@ export class SubjectRoom {
   setAppearance(app: Appearance) {
     this.app = { ...app };
     if (!this.rig) {
-      this.rig = createPreviewRig(this.app, this.outfit);
+      // the room draws its own 1px edges (scene/post.ts): no hull outline on the rig
+      this.rig = createPreviewRig(this.app, this.outfit, { outline: false });
       this.rig.skin.layers.enable(1);
       this.subj.add(this.rig.root);
       const B = this.rig.bones;

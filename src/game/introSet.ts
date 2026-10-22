@@ -91,7 +91,7 @@ const scale = (c: number, f: number) => (Math.round(((c >> 16) & 255) * f) << 16
 const FLAT = { inb: () => true, idx: () => 0, floor: [1], solid: [0], heightAt: () => 0, edgeBlocks: () => false } as unknown as Zone;
 
 export interface PressRig { g: THREE.Group; ram: THREE.Mesh; rods: THREE.Mesh[]; lever: THREE.Mesh; t: number; period: number; on: boolean; hits: number }
-export interface BandRig { g: THREE.Group; jawL: THREE.Mesh; jawR: THREE.Mesh; head: THREE.Mesh; lamp: Fixture | null; close: number; drive: number; cradle: THREE.Vector3 }
+export interface BandRig { g: THREE.Group; jawL: THREE.Mesh; jawR: THREE.Mesh; head: THREE.Mesh; die: THREE.Mesh; lamp: Fixture | null; close: number; drive: number; cradle: THREE.Vector3 }
 
 export class IntroSet {
   readonly root: THREE.Group;
@@ -359,7 +359,7 @@ export class IntroSet {
       const sh = new ModelBuilder();
       shaftGeo(sh, IX.fit[0] - 0.55, 2.05, IX.fit[1] - 0.35, 0.3, 0.3, 0.0, 1.9, 1.9);
       for (let i = 0; i < 16; i++) cbox(body, IX.fit[0] - 0.55, 2.7 + i * 0.4, IX.fit[1] - 0.35, 0.02, 0.3, 0.02, 0.004, 'metal_dark');
-      this.fx.fitLamp = L.add({ name: 'fitLamp', at: f.at, col: 0xffd8a0, power: 3.5, range: 5, glowK: 2.4, circuit: 'fit', shaftK: 0.08, haloS: 0.4 }, f.glow, sh);
+      this.fx.fitLamp = L.add({ name: 'fitLamp', at: f.at, col: 0xffd8a0, power: 2.4, range: 5, glowK: 2.4, circuit: 'fit', shaftK: 0.08, haloS: 0.4 }, f.glow, sh);
       // the beacon on the press crown's front corner (model -1.9, 6.6, 1.75 turned to face +x)
       const [bx, by, bz] = GP.beacon;
       const wx = IX.press.x + bz, wz = IX.press.z - bx;
@@ -423,15 +423,15 @@ export class IntroSet {
     const g = new THREE.Group();
     const S = stageMat({ rim: 0.6 });
     const body = new THREE.Mesh(facetize(R.body, 0.003, 9), S);
-    const jawL = new THREE.Mesh(R.jawL, S), jawR = new THREE.Mesh(R.jawR, S), head = new THREE.Mesh(R.head, S);
+    const jawL = new THREE.Mesh(R.jawL, S), jawR = new THREE.Mesh(R.jawR, S), head = new THREE.Mesh(R.head, S), die = new THREE.Mesh(R.die, S);
     jawL.position.set(0, R.jawY, 0.1); jawR.position.set(0, R.jawY, -0.1);
     head.position.set(0, R.headY, 0);
     const gl = new THREE.Mesh(R.glow, emitMat(0xffb040, 0.4));
-    for (const m of [body, jawL, jawR, head, gl]) { m.frustumCulled = false; m.castShadow = !this.low && m !== gl; m.receiveShadow = !this.low; g.add(m); }
+    for (const m of [body, jawL, jawR, head, die, gl]) { m.frustumCulled = false; m.castShadow = !this.low && m !== gl; m.receiveShadow = !this.low; g.add(m); }
     g.position.set(IX.fit[0] - 0.45, 0, IX.fit[1] + 0.1);
     g.rotation.y = 0;
     this.root.add(g);
-    this.rig = { g, jawL, jawR, head, lamp: null, close: 0, drive: 0, cradle: new THREE.Vector3() };
+    this.rig = { g, jawL, jawR, head, die, lamp: null, close: 0, drive: 0, cradle: new THREE.Vector3() };
     (this.rig as unknown as { glow: EmitMat }).glow = gl.material as EmitMat;
     this.placeRig(g.position.x, g.position.z);
   }
@@ -446,7 +446,10 @@ export class IntroSet {
     r.close = close; r.drive = drive;
     r.jawL.rotation.x = -1.2 * (1 - close);
     r.jawR.rotation.x = 1.2 * (1 - close);
-    r.head.position.y = 0.82 - drive * 0.12;
+    // the rod hangs from the cylinder (y 1.46): retracted it shows 0.12 m, driven it reaches the wrist
+    const reach = 0.12 + drive * (1.46 - 0.62 - 0.12 - 0.16);
+    r.head.position.y = 1.46; r.head.scale.y = reach;
+    r.die.position.y = 1.46 - reach;
   }
 
   /** the door-shaped section of the far wall, taped off, the portal frame round it, and the membrane that turns to liquid */

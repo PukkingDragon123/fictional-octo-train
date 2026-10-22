@@ -203,7 +203,7 @@ export async function populate(g: { pr: any; z: any; tgt: THREE.Vector3 }, set =
  *   ?gallery=humans then: (await import('/src/dev/humanGallery.ts')).studio({ mode: 'heads' })
  * modes: 'lineup' (full bodies), 'heads' (faces, 3/4 view), 'one' (one subject, waist up), 'anim' (an action loop)
  */
-export async function studio(o: { mode?: string; n?: number; seed?: number; scale?: number; wear?: string[][]; yaw?: number; app?: Partial<Appearance>[]; action?: string; t?: number; emote?: string; cam?: number[]; look?: number[]; fov?: number; pose?: Record<string, number[]>; sp?: number; hold?: string; dur?: number; weapon?: string; twoHanded?: boolean; rag?: { at: number; imp: number[]; part?: string; recover?: number }; hit?: { at: number; dir: number[]; part: string; s: number } } = {}) {
+export async function studio(o: { mode?: string; n?: number; seed?: number; scale?: number; wear?: string[][]; yaw?: number; app?: Partial<Appearance>[]; action?: string; t?: number; emote?: string; cam?: number[]; look?: number[]; fov?: number; pose?: Record<string, number[]>; sp?: number; hold?: string; dur?: number; weapon?: string; twoHanded?: boolean; rag?: { at: number; imp: number[]; part?: string; recover?: number }; hit?: { at: number; dir: number[]; part: string; s: number }; speed?: number } = {}) {
   const { createPreviewRig } = await import('../entities/humanRig');
   await import('../combat/anims');
   const { makeHeldMesh } = await import('../items/itemMeshes');
@@ -262,10 +262,11 @@ export async function studio(o: { mode?: string; n?: number; seed?: number; scal
   const loop = () => {
     const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     for (const rig of rigs) {
-      const inp = { weapon: o.weapon, twoHanded: !!o.twoHanded, holding: !!o.hold };
+      const inp: any = { weapon: o.weapon, twoHanded: !!o.twoHanded, holding: !!o.hold };
+      if (o.speed) { inp.speed = o.speed; inp.moveYaw = 0; }
       if (o.action && mode === 'strip') rig.update(dt, { ...inp, action: o.action, actionT: rig.stripT, actionDur: dur });
       else if (o.action) rig.update(dt, { ...inp, action: o.action, actionT: o.t ?? (t % dur), actionDur: dur });
-      else rig.update(dt);
+      else rig.update(dt, o.speed ? inp : undefined);
       if (o.pose) { for (const [j, v] of Object.entries(o.pose)) rig.bones[j]?.rotation.set(v[0], v[1], v[2]); }
     }
     r.render(scene, cam);

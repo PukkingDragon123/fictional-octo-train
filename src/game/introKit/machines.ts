@@ -172,7 +172,7 @@ export function junkGeo(kind: number): THREE.BufferGeometry {
  * (the debtor kneels toward +x). Returns the static body plus the moving parts: the two clamp jaws
  * (hinged along x, at the cradle's rims) and the driver head (it slides down y).
  */
-export function bandRigGeo(cradleY = 0.64): { body: THREE.BufferGeometry; jawL: THREE.BufferGeometry; jawR: THREE.BufferGeometry; head: THREE.BufferGeometry; glow: THREE.BufferGeometry; jawY: number; headY: number } {
+export function bandRigGeo(cradleY = 0.64): { body: THREE.BufferGeometry; jawL: THREE.BufferGeometry; jawR: THREE.BufferGeometry; head: THREE.BufferGeometry; die: THREE.BufferGeometry; glow: THREE.BufferGeometry; jawY: number; headY: number } {
   const b = new ModelBuilder(), g = new ModelBuilder();
   // floor plate, pedestal, cradle
   cbox(b, -0.1, 0, 0, 0.9, 0.05, 0.6, 0.015, 'ix_tread');
@@ -184,18 +184,22 @@ export function bandRigGeo(cradleY = 0.64): { body: THREE.BufferGeometry; jawL: 
   prism(b.push().rotateY(Math.PI / 2), [[-0.06, 0.04], [0.06, 0.04], [0.055, 0.06], [-0.055, 0.06]] as V2[], -0.19, 0.19, 'rubber_black', { b: 0.004 });
   b.pop();
   b.pop();
-  // the column and the arm reaching over the cradle
-  cbox(b, -0.42, 0.05, 0, 0.16, 1.32, 0.18, 0.025, 'ix_yellow');
-  cbox(b, -0.43, 1.3, 0, 0.62, 0.12, 0.14, 0.025, 'ix_yellow');
-  face(b, [[-0.335, 0.5, -0.06], [-0.335, 0.5, 0.06], [-0.335, 1.0, 0.06], [-0.335, 1.0, -0.06]], 'ix_sign_fit', { fit: true });
-  // the head's guide sleeve on the arm
-  lathe(b, -0.0, 1.18, 0, [[0.07, 0], [0.07, 0.26]], 8, 'ix_steel');
-  // hoses to a compressor on the floor
-  cbox(b, -0.75, 0, 0.45, 0.45, 0.4, 0.32, 0.04, 'ix_steel');
-  lathe(b.push().translate(-0.75, 0.55, 0.45).rotateZ(Math.PI / 2), 0, -0.25, 0, [[0.14, 0], [0.15, 0.05], [0.15, 0.45], [0.14, 0.5]], 8, 'ix_yellow');
+  // the column (well back) and the high arm reaching over the cradle, the driver's cylinder hung from it
+  cbox(b, -0.55, 0.05, 0, 0.16, 1.98, 0.18, 0.025, 'ix_yellow');
+  for (const y of [0.5, 1.0, 1.5]) cbox(b, -0.55, y, 0, 0.19, 0.05, 0.21, 0.012, 'ix_haz');
+  cbox(b, -0.31, 1.94, 0, 0.66, 0.13, 0.15, 0.025, 'ix_yellow');
+  prism(b.push().translate(-0.47, 1.94, 0).rotateY(-Math.PI / 2), [[-0.0, 0], [0.0, -0.22], [0.16, 0]] as V2[], -0.03, 0.03, 'ix_yellow', { b: 0.004 });
   b.pop();
-  tube(b, [[-0.6, 0.35, 0.4], [-0.5, 0.9, 0.25], [-0.3, 1.5, 0.1], [-0.05, 1.5, 0.05], [0.0, 1.44, 0.05]], 0.02, 5, 'ix_hose', { caps: false });
-  tube(b, [[-0.65, 0.3, 0.38], [-0.4, 0.08, 0.2], [-0.2, 0.06, 0.1], [-0.1, 0.1, 0.05]], 0.016, 5, 'ix_cable', { caps: false });
+  face(b, [[-0.465, 0.6, -0.08], [-0.465, 0.6, 0.08], [-0.465, 1.1, 0.08], [-0.465, 1.1, -0.08]], 'ix_sign_fit', { fit: true });
+  lathe(b, 0, 1.52, 0, [[0.075, 0], [0.075, 0.36], [0.09, 0.4], [0.09, 0.44]], 8, 'ix_steel');
+  lathe(b, 0, 1.46, 0, [[0.05, 0], [0.06, 0.06]], 8, 'metal_dark');
+  cbox(b, 0.1, 1.66, 0, 0.07, 0.14, 0.09, 0.012, 'ix_yellow');
+  // hoses to a compressor on the floor
+  cbox(b, -0.85, 0, 0.45, 0.45, 0.4, 0.32, 0.04, 'ix_steel');
+  lathe(b.push().translate(-0.85, 0.55, 0.45).rotateZ(Math.PI / 2), 0, -0.25, 0, [[0.14, 0], [0.15, 0.05], [0.15, 0.45], [0.14, 0.5]], 8, 'ix_yellow');
+  b.pop();
+  tube(b, [[-0.7, 0.35, 0.4], [-0.62, 1.0, 0.25], [-0.45, 2.1, 0.12], [-0.1, 2.08, 0.06], [0.0, 1.98, 0.05]], 0.02, 5, 'ix_hose', { caps: false });
+  tube(b, [[-0.75, 0.3, 0.38], [-0.5, 0.08, 0.2], [-0.2, 0.06, 0.1], [-0.1, 0.1, 0.05]], 0.016, 5, 'ix_cable', { caps: false });
   // the jaws: curved clamp shells hinged along x at the cradle rims (closed = rotated over the wrist)
   const jaw = (s: number) => {
     const m = new ModelBuilder();
@@ -204,15 +208,13 @@ export function bandRigGeo(cradleY = 0.64): { body: THREE.BufferGeometry; jawL: 
     for (const x of [-0.08, 0.08]) rod(m, [x, 0, 0], [x, 0, s * 0.03], 0.012, 6, 'chrome');
     return m.build();
   };
-  // the driver head: a pneumatic cylinder, the bolt die, an amber lamp
-  const h = new ModelBuilder();
-  lathe(h, 0, 0.1, 0, [[0.055, 0], [0.055, 0.42], [0.075, 0.45], [0.075, 0.55], [0.04, 0.6]], 8, 'ix_steel');
-  rod(h, [0, 0.1, 0], [0, -0.06, 0], 0.022, 6, 'chrome');
-  cbox(h, 0, -0.1, 0, 0.12, 0.05, 0.1, 0.012, 'metal_dark');
-  lathe(h, 0, -0.14, 0, [[0.006, 0], [0.018, 0.04]], 6, 'chrome');
-  cbox(h, 0.09, 0.3, 0, 0.06, 0.12, 0.08, 0.012, 'ix_yellow');
-  lathe(g, 0.0, 1.47, -0.0, [[0.03, 0], [0.032, 0.03], [0, 0.05]], 6, 'ix_sodium', { color: 0xffffff });
-  return { body: b.build(), jawL: jaw(1), jawR: jaw(-1), head: h.build(), glow: g.build(), jawY: cradleY + 0.01, headY: 0.82 };
+  // the driver: a chrome piston rod (one metre, scaled to its stroke) ending in the bolt die
+  const h = new ModelBuilder(), d = new ModelBuilder();
+  lathe(h, 0, -1, 0, [[0.02, 0], [0.02, 1]], 6, 'chrome', { caps: false });
+  cbox(d, 0, -0.05, 0, 0.11, 0.05, 0.09, 0.012, 'metal_dark');
+  lathe(d, 0, -0.09, 0, [[0.006, 0], [0.018, 0.04]], 6, 'chrome');
+  lathe(g, 0.1, 1.8, 0, [[0.03, 0], [0.032, 0.03], [0, 0.05]], 6, 'ix_sodium', { color: 0xffffff });
+  return { body: b.build(), jawL: jaw(1), jawR: jaw(-1), head: h.build(), die: d.build(), glow: g.build(), jawY: cradleY + 0.01, headY: 1.46 };
 }
 
 /**

@@ -282,7 +282,7 @@ export class IntakeStage {
     if (this.rig) {
       try { this.rig.setAppearance(this.app); } catch (e) { console.warn('rig.setAppearance', e); }
     } else {
-      this.rig = createPreviewRig(this.app, this.outfit);
+      this.rig = createPreviewRig(this.app, this.outfit, { outline: false });
       this.rig.skin.layers.enable(1);
       this.rig.skin.castShadow = true;
       this.turn.add(this.rig.root);

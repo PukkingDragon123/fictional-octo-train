@@ -295,7 +295,7 @@ export class LightDirector {
     this.flareL.intensity = 1.1 * this.flareK;
     // the portal's light follows the caustic uniforms
     this.portal.position.copy(SU.uPortPos.value).addScaledVector(SU.uPortN.value, 0.4);
-    this.portal.intensity = SU.uPortStr.value * 6 * (0.85 + 0.15 * Math.sin(this.t * 7.3) * Math.sin(this.t * 3.1));
+    this.portal.intensity = SU.uPortStr.value * 4 * (0.85 + 0.15 * Math.sin(this.t * 7.3) * Math.sin(this.t * 3.1));
     // motes drift down through the light, take their lamp's level
     if (this.motes && this.moteP) {
       const P = this.moteP, V = this.moteV!, K2 = this.moteK!;

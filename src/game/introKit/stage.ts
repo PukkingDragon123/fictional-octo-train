@@ -27,9 +27,9 @@ export const LOOKS: Record<string, Look> = {
   // the tiled room: harsh, green-white, crushed
   ante: { lift: [0.01, 0.014, 0.012], gamma: 0.96, gain: [1.02, 1.04, 0.98], contrast: 0.45, sat: 0.82, shadow: [0.82, 1.0, 1.02], high: [1.06, 1.02, 0.9], exposure: 1.0, vignette: 0.7 },
   // sodium amber against red and cyan
-  press: { lift: [0.016, 0.01, 0.014], gamma: 1.0, gain: [1.06, 0.98, 0.9], contrast: 0.42, sat: 1.05, shadow: [0.75, 0.9, 1.18], high: [1.14, 0.98, 0.8], exposure: 1.1, vignette: 0.65 },
+  press: { lift: [0.016, 0.01, 0.014], gamma: 1.0, gain: [1.03, 0.98, 0.92], contrast: 0.42, sat: 0.95, shadow: [0.78, 0.92, 1.15], high: [1.08, 0.99, 0.86], exposure: 1.05, vignette: 0.65 },
   // the portal: cold cyan, deep blacks
-  portal: { lift: [0.006, 0.014, 0.02], gamma: 0.98, gain: [0.94, 1.02, 1.1], contrast: 0.5, sat: 1.0, shadow: [0.7, 0.95, 1.2], high: [0.95, 1.05, 1.12], exposure: 1.1, vignette: 0.7 },
+  portal: { lift: [0.006, 0.012, 0.016], gamma: 0.98, gain: [0.96, 1.0, 1.05], contrast: 0.48, sat: 0.9, shadow: [0.8, 0.96, 1.1], high: [1.0, 1.02, 1.04], exposure: 1.05, vignette: 0.7 },
   // the Lobby end (unused on the stage, for completeness)
   neutral: { lift: [0, 0, 0], gamma: 1, gain: [1, 1, 1], contrast: 0.2, sat: 1, shadow: [1, 1, 1], high: [1, 1, 1], exposure: 1, vignette: 0.4 },
 };

@@ -446,7 +446,7 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
       const dw = W - pad * 2, dh = Math.min(H * 0.25, dw / 1.55);
       const dy = H - dh - pad;
       desk.place(stage, pad, dy + k * (dh + pad * 2), dw, dh);
-      const cw = W - pad * 2, ch = Math.min(H * 0.4, cw * 1.05);
+      const cw = W - pad * 2, ch = Math.min(H * 0.37, cw * 0.98);
       const cy0 = dy - ch - pad * 0.5;
       placeCrt(pad, cy0, cw, ch, k * 1.3);
       const sceneBottom = cy0;
@@ -488,7 +488,7 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
   const onKey = (e: KeyboardEvent) => {
     if (finished) return;
     const k = e.key;
-    if (k === 's' || k === 'S') { e.preventDefault(); e.stopPropagation(); doSkip(); return; }
+    if (k === 's' || k === 'S' || ((k === 'Enter' || k === ' ') && document.activeElement === skip.el)) { e.preventDefault(); e.stopPropagation(); doSkip(); return; }
     if (closed) return;
     if (k === 'Escape') {
       e.preventDefault(); e.stopPropagation();

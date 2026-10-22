@@ -246,9 +246,9 @@ export class SurgeryStage {
     this.scene.add(this.fx.group, this.subj);
     this.restArms(true);
     // ---- light
-    this.scene.add(new THREE.HemisphereLight(0x5a6a84, 0x140e0a, 0.32));
-    const rim = new THREE.DirectionalLight(0x7aa0d8, 0.55); rim.position.set(-2.5, 3, -2.5); this.scene.add(rim);
-    this.lamp = new THREE.SpotLight(0xfff0d8, 0, 0, 0.6, 0.5, 2);
+    this.scene.add(new THREE.HemisphereLight(0x5a6a84, 0x140e0a, 0.2));
+    const rim = new THREE.DirectionalLight(0x7aa0d8, 0.4); rim.position.set(-2.5, 3, -2.5); this.scene.add(rim);
+    this.lamp = new THREE.SpotLight(0xfff0d8, 0, 0, 0.56, 0.45, 2);
     this.lamp.position.copy(LAMP_POS).add(V(0, -0.1, 0));
     this.lamp.target.position.set(0, TABLE_Y, 0);
     this.lamp.castShadow = true;
@@ -486,7 +486,7 @@ export class SurgeryStage {
   // ---------------------------------------------------------------- camera
   /** the resting wide shot */
   private home(): [THREE.Vector3, THREE.Vector3] {
-    if (this.portrait) return [V(2.75, 3.15, 1.45), V(-0.1, 0.95, -0.2)];
+    if (this.portrait) return [V(2.9, 4.25, 1.6), V(-0.05, 0.9, -0.2)];
     return [V(1.55, 2.45, 2.85), V(-0.12, 1.0, -0.3)];
   }
   focus(p: Pick | null) {
@@ -495,7 +495,7 @@ export class SurgeryStage {
     const a = this.anchor(p, new THREE.Vector3());
     const close = p === 'eyes' || p === 'jaw' || p === 'brain' || p === 'hand_l' || p === 'hand_r';
     this.camAtT.copy(a);
-    if (this.portrait) { this.camPosT.set(a.x + (close ? 0.75 : 1.05), a.y + (close ? 0.95 : 1.3), a.z + (close ? 0.3 : 0.45)); return; }
+    if (this.portrait) { this.camPosT.set(a.x + (close ? 1.1 : 1.6), a.y + (close ? 1.5 : 2.1), a.z + (close ? 0.5 : 0.7)); return; }
     const side = p.endsWith('_l') ? -1 : 1;
     this.camPosT.set(a.x + (close ? 0.45 : 0.65), a.y + (close ? 0.75 : 1.05), a.z + (side < 0 ? 0.95 : 1.15) * (close ? 0.85 : 1.25));
   }
@@ -1023,9 +1023,9 @@ export class SurgeryStage {
     const fl = Math.random() < 0.012 ? 0.1 : Math.random() < 0.03 ? 0.6 : 1;
     this.fluoroK = damp(this.fluoroK, fl, 30, rdt);
     this.room.fluoro.color.setRGB(0.85, 1, 0.9).multiplyScalar(2.6 * this.fluoroK);
-    this.fluoroL.intensity = 3.5 * this.fluoroK;
+    this.fluoroL.intensity = 2.6 * this.fluoroK;
     const lampK = this.lampOn / 6;
-    this.lamp.intensity = 55 * lampK * (1 + Math.sin(this.t * 37) * 0.01 + (Math.random() < 0.004 ? -0.25 : 0));
+    this.lamp.intensity = 68 * lampK * (1 + Math.sin(this.t * 37) * 0.01 + (Math.random() < 0.004 ? -0.25 : 0));
     this.alarm.intensity = this.alarm.intensity > 0 ? 2.5 + Math.sin(this.t * 14) * 2.5 : 0;
     this.room.beacon.color.setRGB(1, 0.2, 0.06).multiplyScalar(this.alarm.intensity > 0 ? 0.5 + Math.max(0, Math.sin(this.t * 14)) * 3 : 0.3);
     this.gantry.beacon.color.setRGB(1, 0.62, 0.1).multiplyScalar(this.carry && Math.sin(this.t * 9) > 0 ? 3 : 0.4);

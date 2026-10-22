@@ -124,7 +124,7 @@ const SHOTS: Partial<Record<Phase, [number, number, string][]>> = {
   drag: [[0, 4.4, 'establish']],
   beat: [[2.15, 3.72, 'beatWide'], [4.55, 6.05, 'beatTop']],
   haul: [[1.9, 5.4, 'haulCrane']],
-  fit: [[1.45, 3.75, 'fitClose']],
+  fit: [[1.45, 3.75, 'fitClose'], [4.18, 6.95, 'fitPierce']],
   tape: [[1.0, 3.6, 'tapeWide']],
 };
 
@@ -771,6 +771,13 @@ export class Intro implements GameSystem {
         look.set(c.x + 0.08, c.y + 0.12, c.z);
         return 44;
       }
+      case 'fitPierce': {
+        // across the rig from the other side, low: the driver over the wrist, your face behind it; it comes down
+        const c = this.set.rig.cradle;
+        pos.set(c.x - 0.42 + t * 0.03, c.y + 0.08 + t * 0.02, c.z - 0.95 + t * 0.05);
+        look.set(c.x + 0.22, c.y + 0.22, c.z + 0.04);
+        return 50;
+      }
       case 'tapeWide': {
         // from beside the portal frame, low: the procession marching at the taped wall, the beacon behind
         pos.set(IX.tape.x + 1.2, 0.85, IX.tape.z + 0.95 + t * 0.05);
@@ -818,7 +825,7 @@ export class Intro implements GameSystem {
       L.setKey([0, IX.cor.h - 0.32, tz], [0, 0, tz - 0.4], 0xd8f0ff, 16, 1.15);
     } else if (room === 'ante') L.setKey([IX.drain[0], IX.ante.h - 0.62, IX.drain[1]], [IX.drain[0] + 0.1, 0, IX.drain[1] - 0.6], 0xffd090, 20, 1.05);
     else if (room === 'press') {
-      if (ph === 'fit') { const c = this.set.rig.cradle; L.setKey([IX.fit[0] - 0.55, 2.2, IX.fit[1] - 0.35], [c.x + 0.2, 0.3, c.z], 0xffd8a0, 7, 0.95); }
+      if (ph === 'fit') { const c = this.set.rig.cradle; L.setKey([IX.fit[0] - 0.55, 2.4, IX.fit[1] - 0.35], [c.x + 0.2, 0.3, c.z], 0xffd8a0, 5, 0.95); }
       else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
     } else {
       // the portal is the key: it throws the officers' shadows back at you
@@ -1124,7 +1131,9 @@ export class Intro implements GameSystem {
       this.armL.p.x += Math.sin(this.T * 23) * sh * w; this.armL.p.y += Math.sin(this.T * 19) * sh * w;
       this.gripA = w;
       A.walkTo(tgt.x - 0.5, tgt.z + 0.6, 2, dt, 0.04); A.face(tgt.x, tgt.z);
-      this.aim(Math.PI / 2 + 0.2, -0.62, 0.05, 2.2);
+      // eyes on the driver over the cradle, waiting for it to come down; then on the officer
+      if (t < 6.95) this.aim(Math.PI / 2 + 0.25, -0.3, 0.05, 2.2);
+      else this.aim(Math.PI / 2 + 0.75, -0.05, 0.08, 2.4);
     } else A.walkTo(this.eye.x - 0.8, this.eye.z + 0.6, 2, dt, 0.05);
     if (t > 2.2) { B.walkTo(tgt.x - 0.5, tgt.z - 0.75, 1.6, dt, 0.04); B.face(tgt.x, tgt.z); }
     else B.walkTo(this.eye.x - 0.6, this.eye.z - 1.1, 1.8, dt, 0.05);
