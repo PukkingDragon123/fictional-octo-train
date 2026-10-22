@@ -15,7 +15,6 @@ import { addStat } from '../../game/profile';
 import { CYBER_SLOTS, CyberSlot, SLOT_KIND, SLOT_CODE, cyberDef, cyberDefByItem, slotConflicts, loadoutOf, installPart, removePart } from '../../survival/cyber';
 import { SurgeryStage } from './stage';
 import { csfx } from './audio';
-import * as THREE from 'three';
 import { Crt3D, PH, patientHand } from './instruments';
 import '../fonts.css';
 import './surgery.css';
@@ -73,11 +72,11 @@ export function fieldSurgery(p: Player) {
   let pick = 0;
   const log: string[] = [];
   let busy = false;
-  const crt = new Crt3D((pen, t) => {
+  const crt = new Crt3D(stage.mats, (pen, t) => {
     const W = pen.W, H = pen.H, X = 14, blink = (t * 2) % 1 < 0.55;
-    pen.text(busy ? 'OPERATING' : 'SELF-SURGERY', X, 10, PH.hi, 17);
-    pen.text(busy ? (blink ? '● REC' : '') : 'NO ANAESTHETIC', W - X, 12, PH.mid, 13, 'right');
-    pen.rule(34);
+    pen.text(busy ? 'OPERATING' : 'SELF-SURGERY', X, 9, PH.hi, 18, 'left', 600);
+    pen.text(busy ? (blink ? 'REC' : '') : 'no anaesthetic', W - X, 12, PH.mid, 14, 'right', 500, !busy);
+    pen.rule(35);
     if (busy) {
       const n = Math.min(log.length, 12);
       for (let i = 0; i < n; i++) pen.text(cut(log[log.length - n + i], 38), X, 44 + i * 20, i === n - 1 ? PH.hi : PH.mid, 15);
@@ -94,31 +93,34 @@ export function fieldSurgery(p: Player) {
       pen.text(cut(r.b, 44), X + 14, y + 19, PH.mid, 13);
       pen.hit('row:' + idx, 8, y - 3, W - 16, 40);
     }
-    if (rows.length) pen.button('go', 'BEGIN ▸', X, H - 34, 140);
-    pen.button('off', 'CLIMB OFF', W - X - 140, H - 34, 140);
-  }, (id) => {
+    if (rows.length) pen.button('go', 'BEGIN', X, H - 36, 140);
+    pen.button('off', 'CLIMB OFF', W - X - 140, H - 36, 140);
+  }, (id: string) => {
     if (busy || ended) return;
     if (id === 'off') close();
     else if (id.startsWith('row:')) pick = Number(id.slice(4));
     else if (id === 'go' && rows[pick]) go(rows[pick]);
-  });
-  const fgL = new THREE.Group();
-  const kl = new THREE.DirectionalLight(0xfff0dc, 2.2); kl.position.set(-2, 3, 2); fgL.add(kl, new THREE.AmbientLight(0x6a6458, 0.6));
-  stage.fg.add(fgL, crt.group);
+  }, 'SELF-SURGERY');
+  crt.powerT = 1;
+  stage.fg.add(crt.group);
   // your own other hand at the edge of the view, clenched on the table edge
   const hand = patientHand(stage.fg, p.app?.skin ?? 0xe8b98f, 0xeeb415, 'fist');
   let handPose = '';
-  stage.onFgHover = (id, hit) => crt.pointer(id, hit);
-  stage.onClick = (id, hit) => { if (id) crt.click(id, hit); };
-  const tanH = Math.tan((15 * Math.PI) / 180);
+  stage.onPointer2D = (x, y, kind) => crt.pointer2D(x, y, kind);
+  stage.onOverlay = (ctx) => crt.paint(ctx, stage);
   let lastAsp = 0;
   stage.onFrame = (dt) => {
-    const asp = stage.fgCam.aspect;
-    if (asp !== lastAsp) {
+    const W = stage.lowW * stage.art, H = stage.lowH * stage.art, asp = W / Math.max(1, H);
+    if (asp !== lastAsp && W) {
       lastAsp = asp;
-      const hh = tanH * 3, hw = hh * asp;
-      if (asp >= 0.9) { const sc = Math.min(1, (hw * 0.82) / 1.05); crt.group.scale.setScalar(sc); crt.group.position.set(hw - 0.58 * sc, 0.0, -3); crt.group.rotation.set(0, -0.22, 0); stage.setViewShift(0.12, 0); }
-      else { const sc = Math.min(1, (hw * 1.9) / 1.05); crt.group.scale.setScalar(sc); crt.group.position.set(0, -hh + 0.48 * sc, -3); crt.group.rotation.set(0, 0, 0); stage.setViewShift(0, -0.2); }
+      const D = 4, hh = Math.tan((stage.fgCam.fov * Math.PI) / 360) * D, hw = hh * stage.fgCam.aspect, pad = 10;
+      const portrait = asp < 0.95;
+      const cw = portrait ? W - pad * 2 : Math.min(Math.max(W * 0.36, 260), 560), ch = portrait ? Math.min(H * 0.42, cw) : Math.min(H - pad * 2, cw * 1.25);
+      const x = portrait ? pad : W - cw - pad, y = portrait ? H - ch - pad : (H - ch) / 2;
+      const s = Math.min((cw / W) * 2 * hw / 1.4, (ch / H) * 2 * hh / 1.66);
+      crt.group.scale.setScalar(s);
+      crt.group.position.set(((x + cw / 2) / W * 2 - 1) * hw, -(((y + ch / 2) / H) * 2 - 1) * hh + 0.05 * s, -D);
+      stage.setViewShift(portrait ? 0 : (cw / 2) / W, portrait ? (ch / 2) / H : 0);
     }
     crt.frame(dt, busy);
     const want = busy && (stage.phase === 'cut' || stage.phase === 'bolt') ? 'claw' : 'fist';

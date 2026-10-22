@@ -1,5 +1,27 @@
-/* SURGICAL THEATRE No.3 (src/ui/surgery). Placement only: everything you read
-   is on a 3D instrument in the stage's foreground layer (instruments.ts). */
-.sg-root { position: fixed; inset: 0; z-index: 220; background: #0c0a08; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
-.sg-view { position: absolute; inset: 0; }
-.sg-cv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+/* SURGICAL THEATRE No.3 (src/ui/surgery). The room and the instruments are one
+   low-resolution WebGL picture blown up by an integer factor (pixelated); every
+   readable word is on the full-resolution overlay canvas above it. The SKIP
+   plate is the only DOM control: pixel art at the stage's art scale. */
+.sg-root { position: fixed; inset: 0; z-index: 220; background: #020203; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
+.sg-view { position: absolute; inset: 0; overflow: hidden; }
+.sg-cv { position: absolute; left: 0; top: 0; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+.sg-ov { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.sg-root.field .sg-ov { pointer-events: auto; }
+
+.sg-skip {
+  --art: 2px;
+  position: absolute; top: calc(var(--art) * 6); right: calc(var(--art) * 6); z-index: 3;
+  width: calc(var(--art) * 52); height: calc(var(--art) * 22); min-height: 44px;
+  padding: 0; margin: 0; border: 0; background: none; cursor: pointer; outline: none;
+  display: block; -webkit-tap-highlight-color: transparent;
+}
+.sg-skip canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+.sg-skip-l, .sg-skip-k {
+  position: absolute; font-family: var(--font-new, 'EB Garamond', Garamond, serif); pointer-events: none; white-space: nowrap;
+  color: #17150f; text-shadow: 0 1px 0 rgba(255, 246, 220, 0.42);
+}
+.sg-skip-l { left: 21%; right: 22%; top: 50%; transform: translateY(-54%); text-align: center; font-weight: 700; font-size: calc(var(--art) * 8.6); letter-spacing: calc(var(--art) * 0.7); }
+.sg-skip-k { right: 23%; bottom: 6%; font-size: calc(var(--art) * 3.6); font-style: italic; opacity: 0.85; display: none; }
+.sg-skip.down .sg-skip-l { transform: translateY(calc(-54% + var(--art))); }
+.sg-skip:focus-visible canvas { filter: brightness(1.18); }
+@media (pointer: fine) { .sg-skip-k { display: block; } .sg-skip-l { transform: translateY(-64%); } .sg-skip.down .sg-skip-l { transform: translateY(calc(-64% + var(--art))); } }

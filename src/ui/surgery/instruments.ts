@@ -504,7 +504,7 @@ export class SkipButton {
 /** the patient's own hand at the edge of the view, clenched on the table (field surgery's point of view) */
 export function patientHand(scene: THREE.Object3D, skin: number, sleeve: number | null, pose: HandPose = 'fist'): FpArm {
   const a = fpArm('left', { skin, sleeve, sleeveStyle: sleeve === null ? 'none' : 'long' });
-  a.root.position.set(-0.42, -0.62, -0.95);
+  a.root.position.set(-0.3, -0.36, -1.2);
   a.root.rotation.set(-1.05, 0.2, 0.5);
   a.pose(pose, true);
   scene.add(a.root);

@@ -104,7 +104,25 @@ const SLOT_SHOT: Record<CosSlot, Shot> = { suit: 'full', hat: 'face', eyes: 'fac
 const SKIN_ALL = [0xf8dcc8, ...SKIN_TONES, 0x4a2c1c];
 const BUILDS: [string, string, number][] = [['wiry', 'Wiry', 58], ['slim', 'Slim', 64], ['average', 'Average', 75], ['broad', 'Broad', 86], ['stocky', 'Stocky', 92], ['heavy', 'Heavy', 108]];
 const HEIGHTS = [0.92, 0.94, 0.96, 0.98, 1, 1.02, 1.04, 1.06, 1.08];
-const shade = (c: number) => { const r = (c >> 16) & 255, g = (c >> 8) & 255, b = c & 255; const l = r * 0.3 + g * 0.59 + b * 0.11; return l > 200 ? 'pale' : l > 150 ? 'light' : l > 100 ? 'mid' : l > 60 ? 'dark' : 'deep'; };
+/** a plain word for a colour: skin by depth, eyes and hair by hue */
+function colourName(c: number, kind: 'skin' | 'eye' | 'hair'): string {
+  const r = ((c >> 16) & 255) / 255, g = ((c >> 8) & 255) / 255, b = (c & 255) / 255;
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+  const sat = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  let hue = 0;
+  if (d) hue = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  hue *= 60;
+  if (kind === 'skin') return l > 0.86 ? 'porcelain' : l > 0.76 ? 'fair' : l > 0.66 ? 'light' : l > 0.54 ? 'tan' : l > 0.42 ? 'brown' : l > 0.28 ? 'dark' : 'deep';
+  if (l < 0.13) return 'black';
+  if (sat < 0.14 || d < 0.06) return l > 0.82 ? 'white' : l > 0.55 ? 'grey' : l > 0.3 ? 'ash' : 'charcoal';
+  if (kind === 'eye') return hue < 40 ? (l < 0.35 ? 'dark brown' : l < 0.5 ? 'brown' : 'amber') : hue < 70 ? 'hazel' : hue < 165 ? 'green' : hue < 260 ? (l > 0.6 ? 'pale blue' : 'blue') : 'violet';
+  if (hue < 18 || hue >= 340) return l < 0.4 ? 'auburn' : 'red';
+  if (hue < 45) return l < 0.22 ? 'dark brown' : l < 0.36 ? 'brown' : l < 0.6 ? 'copper' : 'strawberry';
+  if (hue < 70) return l < 0.5 ? 'dirty blond' : l < 0.75 ? 'blond' : 'platinum';
+  if (hue < 165) return 'green';
+  if (hue < 260) return 'blue';
+  return 'pink';
+}
 
 /** the room's camera hooks (the scene worker adds them; older rooms simply lack them) */
 type RoomCam = { shot?: (k: string, ms?: number) => void; setFraming?: (dx: number) => void };
@@ -214,8 +232,8 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
     };
     const optRow = (label: string, list: Opt[], get: () => string, set: (k: string) => void, o: { shot?: Shot; part?: string } = {}) =>
       row(label, () => list, () => Math.max(0, list.findIndex((x) => x.key === get())), (i) => set(list[i].key), o);
-    const colourRow = (label: string, list: number[], get: () => number, set: (c: number) => void, o: { shot?: Shot; part?: string } = {}) =>
-      row(label, () => list.map((c) => ({ name: shade(c), chip: c })), () => Math.max(0, list.indexOf(get())), (i) => set(list[i]), o);
+    const colourRow = (label: string, kind: 'skin' | 'eye' | 'hair', list: number[], get: () => number, set: (c: number) => void, o: { shot?: Shot; part?: string } = {}) =>
+      row(label, () => list.map((c) => ({ name: colourName(c, kind), chip: c })), () => Math.max(0, list.indexOf(get())), (i) => set(list[i]), o);
     const shapeIndex = () => {
       if (app.jaw != null) return app.jaw;
       const s = shapeOf(app);
@@ -260,17 +278,17 @@ export function intakeForm(opts: { title?: string; sandbox?: boolean; directives
           row('Nose', () => NOSES, () => noseOf(app), (i) => { app.nose = i; }, m),
           row('Mouth', () => MOUTHS, () => mouthOf(app), (i) => { app.mouth = i; }, m),
           row('Ears', () => EARS, () => app.ears ?? 0, (i) => { app.ears = i; }, m),
-          colourRow('Iris', EYE_COLORS, () => app.eyeColor ?? EYE_COLORS[0], (c) => { app.eyeColor = c; }, { shot: 'face' }),
+          colourRow('Iris', 'eye', EYE_COLORS, () => app.eyeColor ?? EYE_COLORS[0], (c) => { app.eyeColor = c; }, { shot: 'face' }),
         );
       } else if (k === 'hair') {
         add(
           optRow('Cut', HAIR_STYLES_ALL, () => app.hairStyle || HAIR_STYLES_ALL[0].key, (v) => { (app as any).hairStyle = v; }, { shot: 'face', part: 'hair' }),
-          colourRow('Dye', HAIR_DYES, () => app.hair, (c) => { app.hair = c; }, { shot: 'face', part: 'hair' }),
+          colourRow('Dye', 'hair', HAIR_DYES, () => app.hair, (c) => { app.hair = c; }, { shot: 'face', part: 'hair' }),
           optRow('Facial hair', FACIAL_HAIR_ALL, () => app.facialHair || 'none', (v) => { (app as any).facialHair = v; app.beard = v === 'beard'; }, { shot: 'face' }),
         );
       } else if (k === 'skin') {
         add(
-          colourRow('Skin', SKIN_ALL, () => app.skin, (c) => { app.skin = c; }, { shot: 'face' }),
+          colourRow('Skin', 'skin', SKIN_ALL, () => app.skin, (c) => { app.skin = c; }, { shot: 'face' }),
           row('Freckles', () => [{ name: 'None' }, { name: 'A few' }, { name: 'Lots' }], () => ((app.freckles ?? 0) < 0.15 ? 0 : (app.freckles ?? 0) < 0.6 ? 1 : 2), (i) => { app.freckles = [0, 0.4, 0.9][i]; }, { shot: 'face' }),
           row('Wear and tear', () => [{ name: 'Young' }, { name: 'Lined' }, { name: 'Weathered' }, { name: 'Old' }], () => Math.min(3, Math.round((app.age ?? 0) / 0.3)), (i) => { app.age = [0, 0.3, 0.6, 0.9][i]; }, { shot: 'face' }),
           row('Face scars', () => [{ name: 'None' }, { name: 'One' }, { name: 'Two' }, { name: 'Several' }], () => app.scars ?? 0, (i) => { app.scars = i; }, { shot: 'face' }),

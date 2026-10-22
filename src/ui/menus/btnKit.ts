@@ -385,8 +385,9 @@ export function plateBtn(label: string, onClick: (b: PlateButton) => void, o: Pl
     b.style.height = hPx + 'px';
     b.style.setProperty('--bh', hPx + 'px');
     b.style.fontSize = labelPx(ah, s, hasSub) + 'px';
-    const padL = (lamp || o.glyph ? 10 : 7) + (shape === 'arrowL' ? Math.floor((ah - 2) / 2) - 2 : 0);
-    const padR = 8 + (shape === 'arrowR' ? Math.floor((ah - 2) / 2) - 2 : 0);
+    const iconOnly = !lab.textContent && !!o.glyph;
+    const padL = iconOnly ? 0 : (lamp || o.glyph ? 10 : 7) + (shape === 'arrowL' ? Math.floor((ah - 2) / 2) - 2 : 0);
+    const padR = iconOnly ? 0 : 8 + (shape === 'arrowR' ? Math.floor((ah - 2) / 2) - 2 : 0);
     b.style.paddingLeft = padL * s + 'px';
     b.style.paddingRight = padR * s + 'px';
     let aw: number;
@@ -394,14 +395,14 @@ export function plateBtn(label: string, onClick: (b: PlateButton) => void, o: Pl
     else {
       b.style.width = '';
       const w0 = b.getBoundingClientRect().width;
-      aw = Math.max(o.minW ?? 0, Math.ceil(w0 / s), ah + 6);
+      aw = iconOnly ? Math.max(o.minW ?? 0, ah + 3) : Math.max(o.minW ?? 0, Math.ceil(w0 / s), ah + 6);
       b.style.width = aw * s + 'px';
     }
     if (aw < 8) return;
     const k = `${aw}|${ah}|${s}`;
     if (k === key) return;
     key = k;
-    const url = plateSheet({ W: aw, H: ah, finish, shape, seed, lamp, glyph: o.glyph, glyphAt: 'left', wear: o.wear });
+    const url = plateSheet({ W: aw, H: ah, finish, shape, seed, lamp: iconOnly ? false : lamp, glyph: o.glyph, glyphAt: iconOnly ? 'center' : 'left', wear: o.wear, rivets: iconOnly ? false : undefined });
     b.style.backgroundImage = `url(${url})`;
     b.style.backgroundSize = `${aw * s}px ${ah * s * 4}px`;
   };

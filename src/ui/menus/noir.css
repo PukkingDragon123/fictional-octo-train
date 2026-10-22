@@ -182,8 +182,8 @@
 }
 
 /* ---------------------------------------------------------------- the issue store (wardrobe.ts) on the glass */
-.wd-racks { display: flex; flex-wrap: wrap; gap: 0.15em 1em; margin-bottom: calc(var(--ks) * 2); }
-.wd-rack { padding: 0.05em 0; border: 0; background: none; color: var(--ct-dim); font-size: 0.86em; font-weight: 600; letter-spacing: 0.13em; text-transform: uppercase; outline: none; }
+.wd-racks { display: flex; flex-wrap: wrap; gap: 0.1em 0.85em; margin-bottom: calc(var(--ks) * 2.5); }
+.wd-rack { padding: 0.05em 0; border: 0; background: none; color: var(--ct-dim); font-size: 0.8em; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; outline: none; }
 .wd-rack.on { color: var(--ct-hi); text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.3em; }
 .wd-rack:is(:hover, :focus) { color: var(--ct-hi); }
 .wd-rack:focus::before { content: '\25B8\00A0'; }

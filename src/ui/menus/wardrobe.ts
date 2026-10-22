@@ -59,38 +59,45 @@ function toPhosphor(N: number, lv: Int8Array): PixelCanvas {
   return pc;
 }
 
-/** the jumpsuit, front on, in the suit's weave */
+/** the jumpsuit, front on, arms hanging, in the suit's weave */
 function suitArt(def: CosmeticDef): string {
   const N = 24, lv = new Int8Array(N * N).fill(-1);
   const base = lumOf(def.color) > 0.55 ? 3 : lumOf(def.color) > 0.3 ? 2 : 1;
-  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    let inS = false, shade = 0;
-    // torso and collar
-    if (y >= 3 && y <= 13 && x >= 8 && x <= 15) inS = true;
-    if (y === 2 && x >= 9 && x <= 14) inS = true;
-    // sleeves, angled down
-    const off = (y - 3) * 0.38;
-    if (y >= 3 && y <= 13 && x >= Math.round(5 - off) && x < 8 && x >= Math.round(7.8 - off) - 3) { inS = true; shade = 1; }
-    if (y >= 3 && y <= 13 && x > 15 && x <= Math.round(18 + off) && x <= Math.round(16.2 + off) + 3) { inS = true; shade = -1; }
-    // legs, a little flare, a gap between
-    if (y >= 14 && y <= 22) {
-      const fl = y > 19 ? 1 : 0;
-      if (y <= 15 ? x >= 8 && x <= 15 : (x >= 8 - fl && x <= 10) || (x >= 13 && x <= 15 + fl)) inS = true;
-    }
-    if (!inS) continue;
-    let v = base + (x < 11 ? 1 : 0) + (shade > 0 ? 0 : shade < 0 ? -1 : 0);
-    if (x === 15 || (y >= 16 && x === 10)) v -= 1;
+  const set = (x: number, y: number, v: number) => { if (x >= 0 && y >= 0 && x < N && y < N) lv[y * N + x] = v; };
+  for (let y = 1; y <= 22; y++) for (let x = 0; x < N; x++) {
+    let part = '';
+    // collar and shoulders
+    if (y === 1 && x >= 10 && x <= 13) part = 'c';
+    else if (y === 2 && x >= 8 && x <= 15) part = 't';
+    else if (y >= 3 && y <= 12 && x >= 7 && x <= 16) part = 't';
+    // arms hanging beside the body (a dark gap under the armpit)
+    else if (y >= 3 && y <= 13 && (x === 5 || x === 6)) part = y === 3 && x === 5 ? '' : 'l';
+    else if (y >= 3 && y <= 13 && (x === 17 || x === 18)) part = y === 3 && x === 18 ? '' : 'r';
+    else if (y === 14 && (x === 5 || x === 6 || x === 17 || x === 18)) part = 'h';
+    // seat and legs, a gap between them, a little flare at the cuffs
+    else if (y >= 13 && y <= 14 && x >= 7 && x <= 16) part = 't';
+    else if (y >= 15 && y <= 22 && ((x >= 7 - (y > 20 ? 1 : 0) && x <= 10) || (x >= 13 && x <= 16 + (y > 20 ? 1 : 0)))) part = 'g';
+    if (!part) continue;
+    let v = base;
+    if (part === 'l' || (part !== 'r' && x <= 9)) v += 1;          // lit from the left
+    if (part === 'r' || x >= 16) v -= 1;
+    if (part === 'h') v = 3;                                       // hands
+    if (part === 'c') v = base + 1;
     // the weave
-    if (def.key === 'suit_stripe' && (y >> 1) % 2) v = 1;
-    if (def.key === 'suit_hazard' && y > 14 && ((x + y) >> 1) % 2) v = 1;
-    if (def.key === 'suit_circuit' && (x % 4 === 0 || y % 5 === 0)) v = 4;
-    lv[y * N + x] = v;
+    if (part !== 'h') {
+      if (def.key === 'suit_stripe' && (y >> 1) % 2) v = 1;
+      if (def.key === 'suit_hazard' && (part === 'g' || part === 'l' || part === 'r') && ((x + y) >> 1) % 2) v = 1;
+      if (def.key === 'suit_circuit' && (x % 4 === 0 || y % 5 === 0)) v = 4;
+    }
+    set(x, y, Math.max(1, Math.min(4, v)));
   }
-  // collar notch, zip, number patch, cuffs
-  for (let y = 2; y <= 4; y++) { lv[y * N + 11] = 0; lv[y * N + 12] = y === 2 ? 0 : 1; }
-  for (let y = 5; y <= 13; y++) lv[y * N + 12] = 1;
-  lv[6 * N + 9] = 4; lv[6 * N + 10] = 4; lv[7 * N + 9] = 4;
-  for (const x of [8, 9, 10, 11, 12, 13, 14, 15, 16]) if (lv[22 * N + x] >= 0) lv[22 * N + x] = 1;
+  // zip, collar notch, the number patch, the belt line, cuffs
+  for (let y = 2; y <= 13; y++) set(12, y, 1);
+  set(11, 1, 0); set(12, 1, 0); set(11, 2, 1);
+  for (const [x, y] of [[8, 5], [9, 5], [10, 5], [8, 6], [10, 6]]) set(x, y, 4);
+  set(9, 6, 2);
+  for (let x = 7; x <= 16; x++) if (lv[11 * N + x] >= 0 && x !== 12) set(x, 11, Math.max(1, lv[11 * N + x] - 1));
+  for (const x of [6, 7, 8, 9, 10, 13, 14, 15, 16, 17]) if (lv[22 * N + x] >= 0) set(x, 22, 1);
   return urlOf(toPhosphor(N, lv));
 }
 

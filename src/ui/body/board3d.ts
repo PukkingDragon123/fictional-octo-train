@@ -5,8 +5,10 @@
 // solid; what you lack is only a pale outline of where it should be.
 import * as THREE from 'three';
 import type { BodyStage } from './stage';
-import { PrintTex } from './stage';
+import { PrintTex, inkText, FONT } from './stage';
 import { Mold, M, STEEL, CHROME, PAINT, box, cyl, solidMesh, toolModel, type ToolKey } from './models';
+import { frod } from '../touch/facet';
+import { fontsReady } from '../../gfx/crt';
 import { hash } from './pix';
 import type { TreatOpt } from './treat';
 
@@ -27,14 +29,25 @@ export class Board3D {
   private t = 0;
 
   constructor(private st: BodyStage) {
-    const tex = new PrintTex(BW, BH, 2);
+    // perforated hardboard (2 texels a unit): punched holes with a lit lower lip, a painted
+    // header strip with a red cross and the words in EB Garamond, scuffs and a water stain
+    const tex = new PrintTex(BW * 2, BH * 2, 1);
     const P = tex.pix;
-    for (let y = 0; y < BH; y++) for (let x = 0; x < BW; x++) {
-      let c = hash(x, y, 1) < 0.25 ? 0x5e4024 : 0x6e4c2c;
-      if ((x % 3 === 1) && (y % 3 === 1)) c = 0x140a04;
+    const W2 = BW * 2, H2 = BH * 2, HEAD = 9;
+    for (let y = 0; y < H2; y++) for (let x = 0; x < W2; x++) {
+      let c = hash(x >> 1, y >> 1, 1) < 0.25 ? 0x5e4024 : 0x6e4c2c;
+      if (hash(x, y, 7) < 0.04) c = 0x7e5a36;
+      if (Math.hypot(x - W2 * 0.7, y - H2 * 0.8) < 7 + hash(x, y, 3) * 2) c = 0x4e3420;
+      if (y >= HEAD) {
+        const hx = (x - 2) % 6, hy = (y - HEAD - 2) % 6;
+        if (hx === 0 && hy === 0 || hx === 1 && hy === 0 || hx === 0 && hy === 1 || hx === 1 && hy === 1) c = 0x140a04;
+        else if ((hx === 0 || hx === 1) && hy === 2) c = 0x8a6a44;
+      } else c = y === HEAD - 1 ? 0x3a2414 : hash(x, y, 5) < 0.08 ? 0xd8ccaa : 0xe8dcbc;
       P.set(x, y, c);
     }
-    tex.commit();
+    P.rect(3, 2, 2, 6, 0xb82a22); P.rect(1, 4, 6, 2, 0xb82a22);
+    const paintHead = () => tex.commit((c) => inkText(c, 'First aid', W2 / 2 + 3, HEAD - 2, 8, FONT.sign, '#2a1a10', 'center', 'italic 700'));
+    paintHead(); fontsReady().then(paintHead);
     const frame = new Mold()
       .add(box(BW + 1.6, 1.2, 1.6), M(0, 0.4, 0), 0xb8c0c8, CHROME)
       .add(box(BW + 1.6, 1.2, 1.6), M(0, -BH - 0.4, 0), 0xb8c0c8, CHROME)
@@ -43,12 +56,16 @@ export class Board3D {
       .add(cyl(0.9, 1.4, 8), M(0, 2.2, 0.4, Math.PI / 2, 0, 0), 0x5a5a5a, STEEL);
     this.slide.add(solidMesh(st, frame));
     const board = new THREE.Mesh(new Mold().add(new THREE.PlaneGeometry(BW, BH), M(0, -BH / 2, -0.2), 0xffffff, PAINT).build(), st.solid({ map: tex.tex, wear: 0.6 }));
+    // corner screws through the frame
+    const scr = new Mold();
+    for (const [x, y] of [[-BW / 2 - 0.4, 0.4], [BW / 2 + 0.4, 0.4], [-BW / 2 - 0.4, -BH - 0.4], [BW / 2 + 0.4, -BH - 0.4]]) scr.add(cyl(0.6, 0.6, 6), M(x, y, 0.9, Math.PI / 2), 0x6a6e72, STEEL);
+    this.slide.add(solidMesh(st, scr));
     this.slide.add(board);
     this.mats = { on: st.solid({ wear: 0.35 }), ghost: st.surf('glass', { alpha: 0.16, color: 0x9aa4a8 }) };
     for (const [sx, sy] of SLOTS) {
       const g = new THREE.Group(); g.position.set(sx, sy, 1.4);
       // the hook it hangs on
-      g.add(solidMesh(st, new Mold().add(box(0.6, 0.6, 2.4), M(0, 4.4, -0.6), 0x8a9098, STEEL)));
+      g.add(solidMesh(st, new Mold().add(frod([0, 4.6, -1.4], [0, 4.6, 0.6], 0.3, 4), null, 0x8a9098, STEEL).add(frod([0, 4.6, 0.6], [0, 5.6, 1.2], 0.3, 4), null, 0xa8b0b8, STEEL)));
       const hit = new THREE.Mesh(new THREE.BoxGeometry(10.5, 11, 6), new THREE.MeshBasicMaterial()); hit.visible = false; g.add(hit);
       this.slide.add(g);
       this.slots.push({ g, hit, opt: null, lift: 0, mesh: null });

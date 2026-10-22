@@ -94,7 +94,7 @@ export function chairModel(mats: Mats, straps: boolean): THREE.Group {
 /** the electrode cap, its copper coil and terminal, the chin strap (head-bone space at height 1) */
 export function capModel(mats: Mats, chin: boolean): THREE.Group {
   const b = new FacetBuilder();
-  const tilt = at(0, 0, -0.004, -0.28);
+  const tilt = at(0, -0.012, -0.006, -0.2);
   const T = (m: THREE.Matrix4) => tilt.clone().multiply(m);
   b.add('metal', lathe([[0.121, 0.122], [0.126, 0.136], [0.12, 0.165], [0.106, 0.196], [0.082, 0.222], [0.046, 0.238], [0.0, 0.243]], 10), 0xb0a898, tilt, { rep: 0.12 });
   b.add('brass', band(0.124, 0.124, 0.012, 0.01, 10, 1, Math.PI / 10), 0xffffff, T(at(0, 0.128, 0)));

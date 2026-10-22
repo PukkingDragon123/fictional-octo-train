@@ -14,6 +14,14 @@ import type { JointName } from './humanRig';
  * pelvis and chest frames from the hip / shoulder pairs, the head from the
  * neck / crown / face points, limbs by swing from their rest direction.
  * It sleeps once it settles; settled, it only re-applies cached rotations.
+ *
+ * Particles carry mass (a heavy trunk, light hands and feet), so the body
+ * swings round its hips and limbs whip; limbs collide with the trunk, the
+ * head and each other; the neck and spine bend only so far; dead limbs go
+ * slack on the floor (knees fall outward, arms splay, the jaw drops to the
+ * chest) and flop over ledges because every particle finds its own floor.
+ * A knockdown (one that will get up again) throws the hands out to break the
+ * fall and tucks the chin.
  */
 
 export interface RagWorld {
@@ -49,6 +57,14 @@ const P: PDef[] = [
   ['footR', 0, -0.05, 0.15, 0.035], // 20
 ];
 const N = P.length;
+// mass per particle: the trunk is heavy, the head heavy-ish, hands and feet light
+const MASS = [4.5, 4, 1.4, 2.2, 0.6, 1.4, 1.1, 0.6, 0.25, 1.4, 1.1, 0.6, 0.25, 2.6, 1.6, 0.9, 0.35, 2.6, 1.6, 0.9, 0.35];
+const IM = MASS.map((m) => 1 / m);
+/** pairs kept apart by their radii (limbs out of the trunk and out of each other) */
+const SELF: [number, number][] = [
+  [7, 1], [7, 0], [11, 1], [11, 0], [6, 1], [10, 1], [8, 1], [12, 1], [7, 3], [11, 3], [7, 11], [6, 10],
+  [14, 18], [15, 19], [14, 19], [15, 18], [16, 20], [7, 13], [11, 17], [7, 14], [11, 18], [3, 14], [3, 18], [3, 15], [3, 19],
+];
 // distance constraints: [a, b, stiffness]; rest lengths from the bind pose
 const RIGID = 1, BRACE = 0.55;
 const CONS: [number, number, number][] = [
@@ -87,6 +103,13 @@ export class Ragdoll {
   private mins = new Float32Array(MINS.length);
   private calm = 0;
   private acc = 0;
+  /** 1 for a death (dead weight), 0 for a knockdown the body will get up from (reflexes) */
+  private dead = 1;
+  /** which way the knees fall when the body goes slack (-1 / +1 per leg) */
+  private kneeOut = [1, -1];
+  /** where the blow pushed the body (world, normalised xz) */
+  private dir = new THREE.Vector3();
+  private grounded = new Uint8Array(N);
   /** local rotations it drives, and the hips position (body space) */
   q = {} as Record<JointName, THREE.Quaternion>;
   hips = new THREE.Vector3();
@@ -111,9 +134,16 @@ export class Ragdoll {
    * @param part    body part key that was struck ('' = none)
    * @param collapse 0..1 how limply it folds (1: dead weight, knees buckling)
    */
-  start(bones: Record<BoneName, THREE.Object3D>, d: Dims, vel: THREE.Vector3, imp: THREE.Vector3, part = '', collapse = 1) {
+  start(bones: Record<BoneName, THREE.Object3D>, d: Dims, vel: THREE.Vector3, imp: THREE.Vector3, part = '', collapse = 1, dead = true) {
     this.dims = d;
     this.active = true; this.asleep = false; this.t = 0; this.calm = 0; this.acc = 0;
+    this.dead = dead ? 1 : 0;
+    this.grounded.fill(0);
+    this.dir.set(imp.x + vel.x * 0.3, 0, imp.z + vel.z * 0.3);
+    if (this.dir.lengthSq() < 1e-6) this.dir.set(0, 0, 1); else this.dir.normalize();
+    // slack knees fall outward mostly, sometimes both the same way (a body rolling onto its side)
+    const r0 = Math.random();
+    this.kneeOut = r0 < 0.6 ? [1, -1] : r0 < 0.8 ? [1, 1] : [-1, -1];
     const hitIdx = partParticles(part);
     // the body's forward (hips z axis) and left (x axis) for the collapse: knees buckle forward, the pelvis drops, arms splay
     const he = bones.hips.matrixWorld.elements;
@@ -167,28 +197,91 @@ export class Ragdoll {
     }
     if (world?.collide) this.walls(world);
     this.calm = moved < 0.0012 ? this.calm + dt : 0;
-    if (this.calm > 0.7 && this.t > 1.2) this.asleep = true;
+    if (this.calm > 0.6 && this.t > 1.4) this.asleep = true;
   }
 
   private sub(h: number, world: RagWorld | null): number {
     const p = this.pos, q = this.prev;
     const g = -12.5 * h * h;
-    let moved = 0;
+    let moved = 0, down = 0;
+    for (let i = 0; i < N; i++) down += this.grounded[i];
+    // air drag is slight; once most of the body is on the floor it loses energy fast (it settles instead of jittering)
+    const damp = down > 10 ? 0.965 : 0.993;
     for (let i = 0; i < N; i++) {
       const o = i * 3;
-      const vx = (p[o] - q[o]) * 0.992, vy = (p[o + 1] - q[o + 1]) * 0.992, vz = (p[o + 2] - q[o + 2]) * 0.992;
+      const dk = this.grounded[i] ? damp * 0.985 : damp;
+      const vx = (p[o] - q[o]) * dk, vy = (p[o + 1] - q[o + 1]) * dk, vz = (p[o + 2] - q[o + 2]) * dk;
       q[o] = p[o]; q[o + 1] = p[o + 1]; q[o + 2] = p[o + 2];
       p[o] += vx; p[o + 1] += vy + g; p[o + 2] += vz;
       moved = Math.max(moved, Math.abs(vx) + Math.abs(vy) + Math.abs(vz));
     }
-    for (let it = 0; it < 4; it++) {
+    this.slack(h, down);
+    for (let it = 0; it < 5; it++) {
       for (let c = 0; c < CONS.length; c++) this.dist(CONS[c][0], CONS[c][1], this.rest[c], CONS[c][2], 0);
       for (let c = 0; c < MINS.length; c++) this.dist(MINS[c][0], MINS[c][1], this.mins[c], 0.8, 1);
+      for (let c = 0; c < SELF.length; c++) { const a = SELF[c][0], b = SELF[c][1]; this.dist(a, b, (this.rad[a] + this.rad[b]) * 0.92, 0.7, 1); }
       this.hinge(13, 14, 15, 1); this.hinge(17, 18, 19, 1);
       this.hinge(5, 6, 7, -1); this.hinge(9, 10, 11, -1);
+      this.cone(1, 2, 3, 1.05); this.cone(0, 1, 2, 0.75);
       this.floor(world);
     }
     return moved;
+  }
+
+  /**
+   * What the muscles (no longer) do. Dead: knees sag outward and the legs
+   * slide straighter, the arms splay off the trunk, the head lolls. A
+   * knockdown: for the first moments the hands shoot out toward the floor in
+   * the direction of the fall and the chin tucks in.
+   */
+  private slack(h: number, down: number) {
+    const p = this.pos, t = this.t;
+    const push = (i: number, x: number, y: number, z: number) => { const o = i * 3; p[o] += x * h * h; p[o + 1] += y * h * h; p[o + 2] += z * h * h; };
+    // trunk frame
+    _x.set(p[13 * 3] - p[17 * 3], p[13 * 3 + 1] - p[17 * 3 + 1], p[13 * 3 + 2] - p[17 * 3 + 2]).normalize();
+    _y.set(p[3] - p[0], p[4] - p[1], p[5] - p[2]).normalize();
+    _z.crossVectors(_x, _y).normalize();
+    if (this.dead) {
+      const on = Math.min(1, down / 8) * Math.min(1, t / 0.5) * Math.max(0, 1 - Math.max(0, t - 1.1) / 1.1);
+      if (on > 0) {
+        for (const [ki, side] of [[14, this.kneeOut[0]], [18, this.kneeOut[1]]] as const) {
+          // the knee falls out to the side, the foot slides away from the hip
+          push(ki, _x.x * side * 6 * on, -2 * on, _x.z * side * 6 * on);
+          const fi = ki + 1, hi = ki - 1;
+          push(fi, (p[fi * 3] - p[hi * 3]) * 3 * on, 0, (p[fi * 3 + 2] - p[hi * 3 + 2]) * 3 * on);
+        }
+        // arms drift off the trunk
+        for (const [ei, side] of [[6, 1], [10, -1], [7, 1], [11, -1]] as const) push(ei, _x.x * side * 3 * on, 0, _x.z * side * 3 * on);
+      }
+    } else if (t < 0.45) {
+      // break the fall: hands out and down along the fall, the chin tucked
+      const k = 1 - t / 0.45;
+      for (const wi of [7, 11, 8, 12]) {
+        const si = wi < 9 ? 5 : 9;
+        const tx = p[si * 3] + this.dir.x * 0.55, tz = p[si * 3 + 2] + this.dir.z * 0.55, ty = p[si * 3 + 1] - 0.55;
+        const o = wi * 3;
+        push(wi, (tx - p[o]) * 120 * k, (ty - p[o + 1]) * 120 * k, (tz - p[o + 2]) * 120 * k);
+      }
+      push(4, -_y.x * 30 * k + _z.x * 20 * k, -_y.y * 30 * k, -_y.z * 30 * k + _z.z * 20 * k);
+    }
+  }
+
+  /** keep c within maxAng (radians) of the direction a -> b continued (neck on the trunk, chest on the pelvis) */
+  private cone(a: number, b: number, c: number, maxAng: number) {
+    const p = this.pos;
+    _a.set(p[b * 3] - p[a * 3], p[b * 3 + 1] - p[a * 3 + 1], p[b * 3 + 2] - p[a * 3 + 2]);
+    _b.set(p[c * 3] - p[b * 3], p[c * 3 + 1] - p[b * 3 + 1], p[c * 3 + 2] - p[b * 3 + 2]);
+    const la = _a.length(), lb = _b.length();
+    if (la < 1e-5 || lb < 1e-5) return;
+    _a.divideScalar(la);
+    const ang = _a.angleTo(_b);
+    if (ang <= maxAng) return;
+    // rotate b->c toward the axis until it sits on the cone
+    _c.copy(_b).divideScalar(lb);
+    const f = (ang - maxAng) / ang;
+    _c.lerp(_a, f).normalize().multiplyScalar(lb);
+    const o = c * 3, w = IM[c] / (IM[c] + IM[b] * 0.5);
+    p[o] += (p[b * 3] + _c.x - p[o]) * w; p[o + 1] += (p[b * 3 + 1] + _c.y - p[o + 1]) * w; p[o + 2] += (p[b * 3 + 2] + _c.z - p[o + 2]) * w;
   }
 
   private dist(a: number, b: number, L: number, k: number, mode: number) {
@@ -196,9 +289,11 @@ export class Ragdoll {
     const dx = p[B] - p[A], dy = p[B + 1] - p[A + 1], dz = p[B + 2] - p[A + 2];
     const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
     if (mode === 1 && d >= L) return;
-    const f = ((d - L) / d) * 0.5 * k;
-    p[A] += dx * f; p[A + 1] += dy * f; p[A + 2] += dz * f;
-    p[B] -= dx * f; p[B + 1] -= dy * f; p[B + 2] -= dz * f;
+    // the lighter end moves more
+    const wa = IM[a] / (IM[a] + IM[b]), wb = 1 - wa;
+    const f = ((d - L) / d) * k;
+    p[A] += dx * f * wa; p[A + 1] += dy * f * wa; p[A + 2] += dz * f * wa;
+    p[B] -= dx * f * wb; p[B + 1] -= dy * f * wb; p[B + 2] -= dz * f * wb;
   }
 
   /** knees bend forward (+1), elbows backward (-1), relative to the trunk's front */
@@ -231,12 +326,17 @@ export class Ragdoll {
       const o = i * 3;
       const gy = (world ? world.ground(p[o], p[o + 2]) : 0) + this.rad[i];
       if (p[o + 1] < gy) {
+        const pen = gy - p[o + 1];
         p[o + 1] = gy;
-        // friction: kill most of the sliding and all of the fall
-        q[o] = p[o] - (p[o] - q[o]) * 0.55;
-        q[o + 2] = p[o + 2] - (p[o + 2] - q[o + 2]) * 0.55;
-        if (q[o + 1] < p[o + 1]) q[o + 1] = p[o + 1] + (q[o + 1] - p[o + 1]) * -0.15;
-      }
+        this.grounded[i] = 1;
+        // friction: a hard landing grabs, a slow slide keeps going a little (limbs slide out straight)
+        const sx = p[o] - q[o], sz = p[o + 2] - q[o + 2];
+        const sp = Math.hypot(sx, sz);
+        const keep = sp < 0.0015 ? 0 : pen > 0.004 ? 0.45 : sp > 0.012 ? 0.62 : 0.5;
+        q[o] = p[o] - sx * keep;
+        q[o + 2] = p[o + 2] - sz * keep;
+        if (q[o + 1] < p[o + 1]) q[o + 1] = p[o + 1] + (q[o + 1] - p[o + 1]) * -0.18;
+      } else if (p[o + 1] > gy + 0.03) this.grounded[i] = 0;
     }
   }
 

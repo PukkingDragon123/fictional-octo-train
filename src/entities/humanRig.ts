@@ -719,7 +719,7 @@ export class HumanRig {
     if (!this.ragdoll) this.ragdoll = new Ragdoll();
     this.root.updateMatrixWorld(true);
     this.flat.y = this.root.getWorldPosition(_rv).y;
-    this.ragdoll.start(this.bones, this.dims, vel, imp, part);
+    this.ragdoll.start(this.bones, this.dims, vel, imp, part, 1, recoverAfter === Infinity);
     this.ragW = 1; this.ragRecover = recoverAfter;
   }
   /** back to pure animation at once (revived, respawned) */

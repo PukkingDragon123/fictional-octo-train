@@ -116,7 +116,7 @@ export class Puffs {
       const q = L[i], k = q.age / q.life;
       const sc = q.s0 + (q.s1 - q.s0) * (1 - (1 - k) * (1 - k));
       this.qz.setFromAxisAngle(tmp.set(0, 0, 1), q.rot);
-      this.m.compose(q.p, this.qq.copy(this.q).multiply(this.qz), this.s.set(sc, sc, sc));
+      this.m.compose(q.p, this.qq.copy(this.q).multiply(this.qz), this.s.set(sc * 1.5, sc * 0.75, sc));
       this.mesh.setMatrixAt(i, this.m);
       const a = Math.sin(Math.PI * Math.min(1, k * 1.3)) * (1 - k) * light(q.p);
       this.col.copy(q.c).multiplyScalar(a);
@@ -265,8 +265,8 @@ export class Sweat {
   mat = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false });
   private beads: { m: THREE.Mesh; a: number; y: number; v: number; wait: number }[] = [];
   constructor(n = 7) {
-    const g = new THREE.OctahedronGeometry(0.0036, 0);
-    g.scale(1, 1.4, 0.7);
+    const g = new THREE.OctahedronGeometry(0.0026, 0);
+    g.scale(1, 1.5, 0.7);
     for (let i = 0; i < n; i++) {
       const m = new THREE.Mesh(g, this.mat);
       this.group.add(m);
@@ -283,8 +283,8 @@ export class Sweat {
       const r = (0.098 - Math.max(0, b.y - 0.143) * 0.43) * (1 - 0.12 * (b.a / 45) ** 2) + 0.004;
       b.m.position.set(Math.sin(a) * r, b.y, 0.005 + Math.cos(a) * r);
     }
-    const k = Math.min(1.6, glint);
-    this.mat.color.setRGB(0.55 * k, 0.6 * k, 0.62 * k);
+    const k = Math.min(1.2, glint);
+    this.mat.color.setRGB(0.22 * k, 0.25 * k, 0.27 * k);
   }
 }
 /** the wet glint in each eye: one pixel each */

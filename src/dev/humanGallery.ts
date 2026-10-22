@@ -203,8 +203,10 @@ export async function populate(g: { pr: any; z: any; tgt: THREE.Vector3 }, set =
  *   ?gallery=humans then: (await import('/src/dev/humanGallery.ts')).studio({ mode: 'heads' })
  * modes: 'lineup' (full bodies), 'heads' (faces, 3/4 view), 'one' (one subject, waist up), 'anim' (an action loop)
  */
-export async function studio(o: { mode?: string; n?: number; seed?: number; scale?: number; wear?: string[][]; yaw?: number; app?: Partial<Appearance>[]; action?: string; t?: number; emote?: string; cam?: number[]; look?: number[]; fov?: number; pose?: Record<string, number[]>; sp?: number } = {}) {
+export async function studio(o: { mode?: string; n?: number; seed?: number; scale?: number; wear?: string[][]; yaw?: number; app?: Partial<Appearance>[]; action?: string; t?: number; emote?: string; cam?: number[]; look?: number[]; fov?: number; pose?: Record<string, number[]>; sp?: number; hold?: string; dur?: number; weapon?: string; twoHanded?: boolean; rag?: { at: number; imp: number[]; part?: string; recover?: number } } = {}) {
   const { createPreviewRig } = await import('../entities/humanRig');
+  await import('../combat/anims');
+  const { makeHeldMesh } = await import('../items/itemMeshes');
   const mode = o.mode || 'lineup';
   const scale = o.scale ?? 3;
   const W = Math.floor(innerWidth / scale), H = Math.floor(innerHeight / scale);
@@ -231,7 +233,8 @@ export async function studio(o: { mode?: string; n?: number; seed?: number; scal
     ['prison_jumpsuit', 'socks', 'canvas_slipons'], ['tshirt', 'jeans', 'sneakers'], ['hoodie', 'sweatpants', 'boots_work'], ['shirt_office', 'slacks', 'dress_shoes', 'glasses'],
     ['jacket_leather', 'tshirt', 'jeans', 'boots_work'], ['guard_uniform', 'boots_work'], ['scrubs_top', 'scrubs_pants', 'sneakers'], ['sweater', 'skirt', 'sneakers', 'beanie'],
   ];
-  const n = o.n ?? (mode === 'heads' ? 4 : mode === 'one' || mode === 'anim' ? 1 : 6);
+  const n = o.n ?? (mode === 'heads' ? 4 : mode === 'one' || mode === 'anim' ? 1 : mode === 'strip' ? 8 : 6);
+  const dur = o.dur ?? 1.2;
   const rigs: any[] = [];
   for (let i = 0; i < n; i++) {
     const app = { ...randomAppearance(() => rng.next()), ...((o.app && o.app[i % o.app.length]) || {}) } as Appearance;
@@ -241,7 +244,9 @@ export async function studio(o: { mode?: string; n?: number; seed?: number; scal
     rig.skin.castShadow = true;
     const sp = o.sp ?? (mode === 'heads' ? 0.36 : 0.85);
     rig.root.position.set((i - (n - 1) / 2) * sp, 0, 0);
-    rig.root.rotation.y = o.yaw ?? (mode === 'heads' ? 0.45 : 0.3);
+    rig.root.rotation.y = o.yaw ?? (mode === 'heads' ? 0.45 : mode === 'strip' ? Math.PI / 2 : 0.3);
+    if (o.hold) { const m = makeHeldMesh(o.hold); if (m) rig.hold('R', m); }
+    (rig as any).stripT = mode === 'strip' ? (i / Math.max(1, n - 1)) * dur * 0.999 : 0;
     scene.add(rig.root);
     rigs.push(rig);
   }
@@ -249,6 +254,7 @@ export async function studio(o: { mode?: string; n?: number; seed?: number; scal
   if (mode === 'heads') { cam.position.set(0, 1.62, 2.1); cam.lookAt(0, 1.58, 0); }
   else if (mode === 'one') { cam.position.set(0, 1.4, 2.0); cam.lookAt(0, 1.3, 0); }
   else if (mode === 'anim') { cam.position.set(0, 1.2, 4.2); cam.lookAt(0, 0.9, 0); }
+  else if (mode === 'strip') { cam.position.set(0, 1.1, 2.2 + n * 0.62); cam.lookAt(0, 0.85, 0); }
   else { cam.position.set(0, 1.25, 4.6 + n * 0.35); cam.lookAt(0, 0.92, 0); }
   if (o.cam) { cam.position.set(o.cam[0], o.cam[1], o.cam[2]); const l = o.look || [0, 1, 0]; cam.lookAt(l[0], l[1], l[2]); }
   if (o.fov) { cam.fov = o.fov; cam.updateProjectionMatrix(); }
@@ -256,7 +262,9 @@ export async function studio(o: { mode?: string; n?: number; seed?: number; scal
   const loop = () => {
     const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
     for (const rig of rigs) {
-      if (o.action) rig.update(dt, { action: o.action, actionT: o.t ?? (t % 1.2), actionDur: 1.2, holding: true });
+      const inp = { weapon: o.weapon, twoHanded: !!o.twoHanded, holding: !!o.hold };
+      if (o.action && mode === 'strip') rig.update(dt, { ...inp, action: o.action, actionT: rig.stripT, actionDur: dur });
+      else if (o.action) rig.update(dt, { ...inp, action: o.action, actionT: o.t ?? (t % dur), actionDur: dur });
       else rig.update(dt);
       if (o.pose) { for (const [j, v] of Object.entries(o.pose)) rig.bones[j]?.rotation.set(v[0], v[1], v[2]); }
     }
@@ -264,6 +272,16 @@ export async function studio(o: { mode?: string; n?: number; seed?: number; scal
     requestAnimationFrame(loop);
   };
   if (o.emote) for (const rig of rigs) rig.playEmote(o.emote, true);
+  // ragdoll strip: every rig falls the same way; rig i is photographed i * step seconds in (frames are stepped by hand)
+  if (o.rag) {
+    const R = o.rag;
+    for (let f = 0; f < 30; f++) for (const rig of rigs) rig.update(1 / 60);
+    rigs.forEach((rig: any) => rig.startRagdoll(new THREE.Vector3(0, 0, 0), new THREE.Vector3(R.imp[0], R.imp[1], R.imp[2]), R.part ?? 'torso_u', R.recover ?? Infinity));
+    rigs.forEach((rig: any, i: number) => { const steps = Math.round((i * R.at) * 60); for (let f = 0; f < steps; f++) rig.update(1 / 60); });
+    (window as any).__studio = { scene, cam, rigs, r, key, rim, fill };
+    r.render(scene, cam);
+    return rigs.length;
+  }
   loop();
   (window as any).__studio = { scene, cam, rigs, r, key, rim, fill };
   return rigs.length;

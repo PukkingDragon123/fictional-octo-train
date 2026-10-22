@@ -65,7 +65,7 @@ const easeIn = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t * t * t);
 const UP = new THREE.Vector3(0, 1, 0);
 const FLOAT_Y = 0.34;
 /** the lamp: pivot in the ceiling, cord length (bulb about 0.65 m over his head, a little in front) */
-const LAMP = { x: 0.05, z: -0.32, L: 1.66 };
+const LAMP = { x: 0.08, z: -0.16, L: 1.62 };
 const CAP_ANCHOR = new THREE.Vector3(0.1, ROOM.H - 0.02, -0.62);
 const JUNCTION = new THREE.Vector3(0.06, 0.93, ROOM.CHAIR_Z - 0.47);
 
@@ -116,7 +116,7 @@ export class SubjectRoom {
   private rimR = new THREE.SpotLight(0x5a74d0, 0, 0, 0.3, 0.6, 2);
   private leakL = new THREE.SpotLight(0x7a94d8, 0, 0, 0.3, 0.5, 2);
   private leak!: ReturnType<typeof leakCards>;
-  private crt = new THREE.PointLight(0x48ff70, 0, 3.6, 2);
+  private crt = new THREE.PointLight(0x78e09a, 0, 3.6, 2);
   private surge = new THREE.PointLight(0xbfe0ff, 0, 5, 2);
   private hatchL = new THREE.PointLight(0xff2a10, 0.25, 3.2, 2);
   private sun = new THREE.DirectionalLight(0xe4ecff, 0);
@@ -273,7 +273,7 @@ export class SubjectRoom {
     // cold corridor light leaking in through the louvre high on the right wall
     const gaps: [THREE.Vector3, THREE.Vector3][] = [];
     for (let i = 0; i < 6; i++) { const y = 2.6 + i * 0.056; gaps.push([new THREE.Vector3(ROOM.W - 0.04, y, -0.47), new THREE.Vector3(ROOM.W - 0.04, y + 0.006, 0.07)]); }
-    const leakDir = new THREE.Vector3(-0.86, -0.3, -0.42).normalize();
+    const leakDir = new THREE.Vector3(-2.8, -1.35, -2.1).normalize();
     this.leak = leakCards(gaps, leakDir, 3.6);
     S.add(this.leak.mesh);
     this.leakL.position.set(ROOM.W - 0.1, 2.75, -0.2);
@@ -296,7 +296,7 @@ export class SubjectRoom {
     // ---- what he wears in the chair, the cuffs and chains for the arms
     S.add(this.subj);
     this.capOn = capModel(mats, true); this.capHang = capModel(mats, false);
-    const tip = new THREE.Vector3(0, 0.33, -0.004).applyMatrix4(new THREE.Matrix4().makeRotationX(-0.28));
+    const tip = new THREE.Vector3(0, 0.33, -0.004).applyMatrix4(new THREE.Matrix4().makeRotationX(-0.2)).add(new THREE.Vector3(0, -0.012, -0.002));
     this.capTip.position.copy(tip); this.capOn.add(this.capTip);
     this.capHangTip.position.copy(tip); this.capHang.add(this.capHangTip);
     this.capHang.position.set(0, 1.18, ROOM.CHAIR_Z - 0.24); this.capHang.rotation.set(0.5, 0, 0.1); this.capHang.visible = false;
@@ -310,6 +310,7 @@ export class SubjectRoom {
     this.legEl.add(elb.build(mats));
     this.legTip.position.set(0, 0, 0.1); this.legEl.add(this.legTip);
     this.capCable = new Cable(mats.rubber, 0.016, 16, 5, 0x707070);
+    this.capCable.mesh.castShadow = false;
     this.legCable = new Cable(mats.rubber, 0.011, 10, 4, 0x707070);
     S.add(this.capCable.mesh, this.legCable.mesh);
     for (let i = 0; i < 4; i++) { const c = strapModel(mats, 0.048, 0.046, 0.06, false, true); c.visible = false; this.cuffs.push(c); }
@@ -851,7 +852,7 @@ export class SubjectRoom {
     this.updateParticles(dt);
     this.arcs.update(dt);
     this.screen.update(dt, this.t, 1 - this.surgeK * 0.6);
-    this.crt.intensity = (0.1 + 0.04 * this.screen.beat) * (1 - this.lit * 0.6) * (1 - this.surgeK * 0.5);
+    this.crt.intensity = (0.065 + 0.025 * this.screen.beat) * (1 - this.lit * 0.6) * (1 - this.surgeK * 0.5);
     if (this.extraBlood && this.maulT < 0) { this.bloodT += dt; if (this.bloodT > 5 && this.extraBlood > 1) { this.extraBlood = 1; this.rig?.setOutfit(this.dress()); } }
     // ---- camera, then the fx that face it
     this.updateCamera(dt);
@@ -874,7 +875,7 @@ export class SubjectRoom {
   private lightAt(p: THREE.Vector3): number {
     const L = this.v4.setFromMatrixPosition(this.key.matrixWorld);
     const d = p.distanceTo(L);
-    return this.bulbLevel * (this.mode === 'title' ? 1.6 : 0.6) / (0.25 + d * d) + this.surgeK * 2 + this.lit * 0.25;
+    return Math.min(1.2, this.bulbLevel * (this.mode === 'title' ? 0.32 : 0.14) / (0.25 + d * d) + this.surgeK * 0.5 + this.lit * 0.08);
   }
 
   /** the caged lamp: a pendulum, a buzz, dropouts, browning out when the chair draws */
@@ -904,7 +905,7 @@ export class SubjectRoom {
     this.rimL.intensity = (5.5 + this.lit * 1.5) * (1 - this.surgeK * 0.3);
     this.rimR.intensity = 2.4 + this.lit * 0.8;
     this.leakL.intensity = 2.2 * (1 - this.lit * 0.7);
-    this.leak.u.uInt.value = 0.05 * (0.3 + title * 0.7) * (0.9 + Math.sin(t * 0.7) * 0.1);
+    this.leak.u.uInt.value = 0.09 * (0.3 + title * 0.7) * (0.9 + Math.sin(t * 0.7) * 0.1);
     if (this.rig) { this.rig.bones.head.getWorldPosition(this.v1); this.rimL.target.position.copy(this.v1); this.rimR.target.position.copy(this.v1); }
     else { this.rimL.target.position.set(0, 1.3, -0.55); this.rimR.target.position.set(0, 1.3, -0.55); }
     this.bulbPivot.updateMatrixWorld(true);
@@ -939,11 +940,11 @@ export class SubjectRoom {
       if (this.surgeT <= 0) {
         this.surgeT = 0;
         // a breath of smoke off the cap
-        if (this.capOn.visible) for (let i = 0; i < 6; i++) { this.capTip.getWorldPosition(this.v1); this.v1.y -= 0.05 + Math.random() * 0.05; this.puffs.emit(this.v1, this.v2.set((Math.random() - 0.5) * 0.06, 0.08 + Math.random() * 0.06, (Math.random() - 0.5) * 0.06), { life: 2.6, s0: 0.02, s1: 0.16, color: 0x6a6a68, rise: 0.04 }); }
+        if (this.capOn.visible) for (let i = 0; i < 6; i++) { this.capTip.getWorldPosition(this.v1); this.v1.y -= 0.05 + Math.random() * 0.05; this.puffs.emit(this.v1, this.v2.set((Math.random() - 0.5) * 0.06, 0.08 + Math.random() * 0.06, (Math.random() - 0.5) * 0.06), { life: 2.6, s0: 0.02, s1: 0.14, color: 0x1a1a1a, rise: 0.04 }); }
       }
     } else this.surgeK = 0;
     this.pop = Math.max(0, this.pop - dt * 9);
-    this.surge.intensity = this.surgeK * 1.6 + this.pop * 0.5;
+    this.surge.intensity = this.surgeK * 0.85 + this.pop * 0.3;
     if (this.capOn.visible) this.capTip.getWorldPosition(this.surge.position); else this.capHangTip.getWorldPosition(this.surge.position);
     this.surge.position.z += 0.12;
   }
@@ -1048,7 +1049,7 @@ export class SubjectRoom {
         const mp = head.localToWorld(this.v1.set((Math.random() - 0.5) * 0.02, 0.035 * (this.app?.height || 1), 0.11 * (this.app?.height || 1)));
         const dir = this.v2.set(0, -0.15, 1).applyQuaternion(head.getWorldQuaternion(this.q1)).multiplyScalar(0.12 + Math.random() * 0.08);
         dir.x += (Math.random() - 0.5) * 0.04; dir.y += (Math.random() - 0.3) * 0.03;
-        this.puffs.emit(mp, dir, { life: 1.4 + Math.random() * 0.6, s0: 0.006, s1: 0.05 + Math.random() * 0.03, color: 0x7a8c96, rise: 0.03 });
+        this.puffs.emit(mp, dir, { life: 1.4 + Math.random() * 0.6, s0: 0.005, s1: 0.03 + Math.random() * 0.025, color: 0x1e2428, rise: 0.03 });
       }
     }
     this.breathPrev = br;
@@ -1223,7 +1224,7 @@ export class SubjectRoom {
     if (name === 'title') {
       // the push: from head and shoulders to the eyes, over about forty seconds
       const k = easeIO(Math.min(1, Math.max(0, (this.t - this.titleT0) / 40)));
-      const d = (portrait ? 1.55 - 0.62 * k : 1.3 - 0.66 * k) - this.nudge * 0.03 + Math.sin(this.t * 0.21) * 0.015;
+      const d = (portrait ? 1.95 - 0.75 * k : 1.3 - 0.58 * k) - this.nudge * 0.03 + Math.sin(this.t * 0.21) * 0.015;
       if (rig) look.copy(bone('head', 0, 0.105, 0.05)); else look.set(0, 1.3, -0.55);
       pos.copy(look).add(this.v2.set(0.24, -0.07, 1).normalize().multiplyScalar(d));
       return portrait ? 44 : 30;
@@ -1265,7 +1266,7 @@ export class SubjectRoom {
     }
     // where the subject sits on screen
     const title = this.mode === 'title';
-    const ax = title && !portrait ? 0.32 : 0, ay = portrait ? (title ? 0.24 : 0.14) : title ? 0.04 : 0;
+    const ax = title && !portrait ? 0.32 : 0, ay = portrait ? (title ? 0.42 : 0.14) : title ? 0.04 : 0;
     this.frX = damp(this.frX, this.frXSet ?? ax, 4, dt);
     this.frY = damp(this.frY, this.frYSet ?? ay, 4, dt);
     // a hand on the camera: slow drift, a little roll; shake
