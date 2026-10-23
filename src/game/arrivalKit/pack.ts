@@ -53,9 +53,24 @@ export function takePack(p: Player): Item | null {
   return it;
 }
 
+/** another pack that turned up meanwhile (a kit check bolting one on): its contents go into ours, it goes */
+export function absorbStray(p: Player, ours: Item | null): boolean {
+  if (!ours) return false;
+  let hit = false;
+  for (const it of p.allItems()) {
+    if (it === ours || it.key !== PACK_KEY) continue;
+    if (it.inv && ours.inv) for (const i of [...it.inv.items]) { it.inv.remove(i); ours.inv.add(i); }
+    p.removeItem(it);
+    hit = true;
+  }
+  if (hit) { p.outfitDirty = true; bus.emit('inventoryChanged', p); }
+  return hit;
+}
+
 /** shoulder it: into the inventory and onto the back */
 export function givePack(p: Player, it: Item | null) {
   if (!it) { ensurePack(p); return; }
+  absorbStray(p, it);
   if (!p.allItems().includes(it)) p.inv.add(it);
   const prev = p.worn.get('back');
   if (prev && prev !== it) p.unwear(prev);

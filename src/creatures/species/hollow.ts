@@ -100,9 +100,29 @@ function fadePage(hr: HumanRig, seed: number) {
     const rowCopy = d.slice((y * PAGE + x0) * 4, (y * PAGE + x1) * 4);
     for (let x = x0; x < x1; x++) { const sx = Math.min(x1 - 1, Math.max(x0, x - s)) - x0; const i = (y * PAGE + x) * 4; d[i] = rowCopy[sx * 4]; d[i + 1] = rowCopy[sx * 4 + 1]; d[i + 2] = rowCopy[sx * 4 + 2]; }
   }
-  // two darker smudges where the eyes were, a grey bar of a mouth
-  for (const k of [-1, 1]) for (let y = row(0.108); y <= row(0.092); y++) for (let x = col(k * 30) - 2; x <= col(k * 12) + 1; x++) { const i = (y * PAGE + x) * 4; d[i] *= 0.62; d[i + 1] *= 0.62; d[i + 2] *= 0.66; }
-  for (let y = row(0.04); y <= row(0.03); y++) for (let x = col(-14); x <= col(14); x++) { const i = (y * PAGE + x) * 4; d[i] *= 0.78; d[i + 1] *= 0.76; d[i + 2] *= 0.78; }
+  // two smudged-out holes where the eyes were (darker at the core, a wet pinprick
+  // of light in each), something dark leaking down from them, and a long grey
+  // slot of a mouth that has slipped too wide
+  const mul = (x: number, y: number, r: number, g: number, b: number) => { if (x < x0 || x >= x1) return; const i = (y * PAGE + x) * 4; d[i] *= r; d[i + 1] *= g; d[i + 2] *= b; };
+  for (const k of [-1, 1]) {
+    const xa = col(k * 30) - 2, xb = col(k * 12) + 1, ya = row(0.108), yb = row(0.092);
+    for (let y = ya; y <= yb; y++) for (let x = Math.min(xa, xb); x <= Math.max(xa, xb); x++) {
+      const core = y > ya && y < yb && x > Math.min(xa, xb) + 1 && x < Math.max(xa, xb) - 1;
+      mul(x, y, core ? 0.2 : 0.5, core ? 0.19 : 0.5, core ? 0.22 : 0.55);
+    }
+    const gx = Math.round((xa + xb) / 2) + (k < 0 ? 1 : -1);
+    { const i = (Math.round((ya + yb) / 2) * PAGE + gx) * 4; d[i] = 236; d[i + 1] = 232; d[i + 2] = 224; }
+    // runs from the lower lid: long, thin, uneven
+    for (let n = 0; n < 2; n++) {
+      let x = Math.round(xa + (xb - xa) * (0.3 + n * 0.4));
+      const len = 5 + rng.int(0, 6);
+      for (let y = yb + 1; y < Math.min(y1 + 3, yb + 1 + len); y++) { mul(x, y, 0.42, 0.34, 0.36); if (rng.chance(0.15)) x += rng.chance(0.5) ? 1 : -1; }
+    }
+  }
+  for (let y = row(0.045); y <= row(0.028); y++) for (let x = col(-24); x <= col(24); x++) {
+    const mid = y > row(0.045) && y < row(0.028);
+    mul(x, y, mid ? 0.32 : 0.7, mid ? 0.3 : 0.68, mid ? 0.32 : 0.7);
+  }
   tex.needsUpdate = true;
   return { u0: x0 / PAGE, u1: x1 / PAGE, v0: 1 - y1 / PAGE, v1: 1 - y0 / PAGE };
 }

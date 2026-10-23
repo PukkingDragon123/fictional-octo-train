@@ -46,6 +46,17 @@ addTextureModule(() => {
       else pc.set(x, y, S[Math.min(4, Math.max(0, Math.round(1 + tileFbm(x, y, 32, 16, 3, 2, 5) * 2.5 - e * 2.5)))]);
     }
     for (let x = 9; x < 23; x += 2) pc.set(x, Math.round(7.5 + Math.sin(x * 0.8) * 1.5), 0x9a9a92); // a wet ridge of spine in the gap
+    // and an eye down there, wide open, looking up out of the dark at your feet
+    const ex = 21, ey = 6;
+    for (let y = -2; y <= 2; y++) for (let x = -3; x <= 3; x++) {
+      const d = Math.hypot(x / 3.2, y / 2.1);
+      if (d > 1) continue;
+      pc.set(ex + x, ey + y, d > 0.8 ? 0x6a2a24 : Math.hypot(x, y) < 1.2 ? 0x080404 : Math.hypot(x, y) < 1.9 ? 0x5a4a2a : 0xc8c0a8);
+    }
+    pc.set(ex - 1, ey - 1, 0xffffff);
+    for (const [x, y] of [[ex - 3, ey + 1], [ex + 3, ey - 1], [ex + 2, ey + 2]]) pc.set(x, y, 0x9a3a30); // bloodshot
+    // raw where the pile is torn: a few wet red fibres at the lip
+    for (let x = 4; x < 28; x++) if (ph(x, 9, 6) < 0.25) { const y = ph(x, 2, 7) < 0.5 ? 2 : 13; pc.set(x, y, 0x6a1410); }
   });
 });
 

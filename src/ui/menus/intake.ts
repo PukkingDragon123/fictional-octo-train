@@ -332,12 +332,20 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
       nav.destroy();
       clearTimeout(toastT);
       window.removeEventListener('resize', onResize);
+      window.removeEventListener('keydown', onEnter, true);
       stage.onSwipe = undefined; stage.onHeadScroll = undefined; stage.onPick = undefined; stage.onHover = undefined;
       if (ownHost) { stage.dispose(); ownHost.remove(); }
       root.remove();
       if (G?.input) G.input.textFocus = false;
       resolve(r);
     };
+    // Enter with nothing focused (or the page itself) is NEXT
+    const onEnter = (e: KeyboardEvent) => {
+      if (e.key !== 'Enter' || phase !== 'look') return;
+      const a = document.activeElement;
+      if (!a || a === document.body || a === root) { e.preventDefault(); next(); }
+    };
+    window.addEventListener('keydown', onEnter, true);
     let lastP = portrait(), lastS = shortView();
     const onResize = () => { if (portrait() !== lastP || shortView() !== lastS) { lastP = portrait(); lastS = shortView(); root.classList.toggle('portrait', lastP); if (phase === 'look') goShot(); } };
     window.addEventListener('resize', onResize);

@@ -14,6 +14,7 @@ import {
   hideRig, galleryPose, ease, lerp, suppressSighting, idHash,
 } from '../behaviors_a';
 import { worldMaterial } from '../../gfx/materials';
+import { kitCanvas, drips, flay, rot, RAW, BONE, BLOOD } from '../kit/rot';
 import {
   KitDef, KitRig, BoneSpec, SkinB, BuildCtx, Page, Region, Row, Wt, buildKitRig, kitSync, kitPersonalize, tube, headLoft, handLoft, footLoft,
   wLerp, gauss, angd, FOOT_BARE, lostParts, nearestSurvivor, lookAngles, attackCurve, flinchOf, hash, offset, smooth,
@@ -208,10 +209,17 @@ function paintD(p: Page, x: BuildCtx) {
   const gouge = (r: Region, cx: number, cy: number, rad: number, sd: number) => {
     for (let j = -Math.ceil(rad) - 1; j <= Math.ceil(rad) + 1; j++) for (let i = -Math.ceil(rad * 1.3) - 1; i <= Math.ceil(rad * 1.3) + 1; i++) {
       const a = Math.atan2(j, i), d = Math.hypot(i / 1.3, j), e = rad * (0.75 + 0.45 * hash(Math.floor((a + 4) * 2.5), sd));
-      if (d < e - 1.2) r.set(cx + i, cy + j, PAPER[1 + ((i + j * 3) & 1)]);
+      if (d < e - 2.2) {
+        // something alive under the board: raw, wet, packed in fibres
+        const f = Math.sin((i + j * 0.4) * 1.7 + hash(i, j + sd) * 2) * 1.2 + 3.6 - (d / e) * 2.4 + (hash(i + 7, j, ) - 0.5) * 0.8;
+        r.set(cx + i, cy + j, RAW[Math.max(0, Math.min(7, Math.round(f)))]);
+      } else if (d < e - 1.2) r.set(cx + i, cy + j, PAPER[1 + ((i + j * 3) & 1)]);
       else if (d < e) r.set(cx + i, cy + j, PR[9]);
     }
+    if (rad > 1.9) drips(kitCanvas(r), cx, cy + rad * 0.6, 1 + Math.floor(hash(sd, 3) * 2), rad * 2.2, [0, 1], sd, rad * 0.5);
   };
+  // blood weeping out of a crack's mouth
+  const seep = (r: Region, x0: number, y0: number, n: number, len: number, sd: number) => drips(kitCanvas(r), x0, y0, n, len, [0, 1], sd, 1.5);
   // a scrap of the wallpaper he came through, still stuck to him
   const scrap = (r: Region, cx: number, cy: number, w: number, h: number) => {
     for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) {
@@ -234,6 +242,13 @@ function paintD(p: Page, x: BuildCtx) {
     screws(r, 16, seed);
     r.crack(r.X(30), r.Y(1.5), 26, 100, PR[1], seed + 3, 1, 0.15, PR[8]);
     r.crack(r.X(-60), r.Y(1.2), 18, 70, PR[1], seed + 5, 0.9, 0.1);
+    seep(r, r.X(30), r.Y(1.5), 2, 9, seed + 4);
+    seep(r, r.X(-60), r.Y(1.2), 1, 7, seed + 6);
+    // damp: the board has been soaking up whatever runs inside the walls
+    rot(kitCanvas(r), 0.55, seed + 11);
+    // the chest has broken open: board snapped back over a wet ribcage
+    const cx = Math.round(r.X(-12 + v * 9)), cy = Math.round(r.Y(1.36 - v * 0.03));
+    flay(kitCanvas(r), cx, cy, 5.5, 7.5, { fibre: [1, 0.2], bone: (xx, yy) => (Math.sin(yy * 1.25) > 0.45 && Math.abs(xx - cx) > 1 ? 0.8 : 0), depth: 0.9, seed: seed + 13, drips: 3, drip: [0, 1] });
     gouge(r, Math.round(r.X(-35)), Math.round(r.Y(1.42)), 3.2, seed + 7);
     gouge(r, Math.round(r.X(120)), Math.round(r.Y(1.1)), 2.4, seed + 9);
     scrap(r, Math.round(r.X(52 + v * 10)), Math.round(r.Y(1.52)), 8, 6);
@@ -248,6 +263,7 @@ function paintD(p: Page, x: BuildCtx) {
     plaster(r, 4.2, 51 + k, (xx) => -0.6 * Math.max(0, -Math.sin((r.deg(xx) * Math.PI) / 180)));
     tapeV(r, Math.round(r.X(-160)), 0, r.h);
     screws(r, 6, seed + 20 + k);
+    rot(kitCanvas(r), 0.45, seed + 25 + k);
     r.crack(r.X(40), r.Y(-0.48), 14, 90, PR[1], seed + 21 + k, 1, 0.1, PR[8]);
     gouge(r, Math.round(r.X(20 * k)), Math.round(r.Y(-0.7)), 1.8, seed + 23 + k);
     if (k > 0) scrap(r, Math.round(r.X(60)), Math.round(r.Y(-0.2)), 5, 7);
@@ -262,6 +278,12 @@ function paintD(p: Page, x: BuildCtx) {
     plaster(hr, 4.2, 71 + k);
     for (let xx = 0; xx < hr.w; xx++) { hr.blend(xx, Math.round(hr.h * 0.45), PR[2], 0.6); if (hash(xx, 3) < 0.6) hr.blend(xx, hr.h - 1, 0x3a3228, 0.7); }
     for (let yy = Math.round(hr.h * 0.5); yy < hr.h; yy += 4) for (let xx = 0; xx < hr.w; xx += 3) hr.blend(xx, yy, PR[3], 0.5); // knuckle joints
+    // fingertips worn through clawing out of walls: the plaster gone, raw ends, a chip of bone
+    for (let yy = Math.round(hr.h * 0.82); yy < hr.h; yy++) for (let xx = 0; xx < hr.w; xx++) {
+      const q = (yy - hr.h * 0.82) / (hr.h * 0.18) + (hash(xx, yy + 5) - 0.5) * 0.5;
+      if (q > 0.25) hr.set(xx, yy, q > 0.85 && hash(xx, 17) < 0.3 ? BONE[3] : RAW[2 + Math.floor(hash(xx, yy) * 3)]);
+    }
+    drips(kitCanvas(hr), hr.w * 0.5, hr.h * 0.6, 3, hr.h * 0.3, [0, 1], seed + 77 + k, hr.w * 0.45);
   }
   {
     const r = p.R('FOOT');
@@ -284,6 +306,8 @@ function paintD(p: Page, x: BuildCtx) {
     for (const k of [-1, 1]) {
       const ex = Math.round(r.X(k * 21)), ey = Math.round(r.Y(0.18));
       for (let i = -3; i <= 3; i++) { r.set(ex + i, ey, 0x100e10); if (Math.abs(i) < 2) r.set(ex + i, ey - 1, 0x1c1a1c); r.blend(ex + i, ey + 1, PR[8], 0.6); }
+      r.set(ex - k, ey, 0xd8d0c0); // a wet eye in the slit, looking out
+      r.set(ex - k * 2, ey, 0x3a2a24);
     }
     // the mouth: a crack across the lower face, chipped at its edges, cracks running off it
     const my = Math.round(r.Y(0.06));
@@ -293,7 +317,24 @@ function paintD(p: Page, x: BuildCtx) {
       yy = Math.max(my - 2, Math.min(my + 2, yy));
       r.set(xx, yy, 0x0c0a0a); r.set(xx, yy + 1, 0x2a2420); r.blend(xx, yy - 1, PR[8], 0.5);
       if (Math.abs(xx - r.X(0)) < r.w * 0.04 && hash(xx, 9) < 0.6) r.set(xx, yy + 2, 0x1a1614);
+      // teeth in the crack: real ones, crowded and yellowed, gums showing where the plaster split
+      if (Math.abs(xx - r.X(0)) < r.w * 0.075) {
+        if ((xx & 1) === 0 && hash(xx, seed + 2) < 0.8) { r.set(xx, yy, BONE[2 + (hash(xx, 4) < 0.5 ? 1 : 0)]); if (hash(xx, 8) < 0.5) r.set(xx, yy + 1, BONE[1]); }
+        else r.set(xx, yy - 1, RAW[3]);
+      }
     }
+    // in the middle the crack has pulled open: a dark gap rimmed with teeth
+    for (let xx = Math.round(r.X(-11)); xx <= Math.round(r.X(11)); xx++) {
+      const e = 1 - Math.abs(xx - r.X(0)) / (r.X(11) - r.X(0));
+      const hgt = Math.round(1 + e * 2.5);
+      for (let j = 0; j < hgt; j++) r.set(xx, my + j, j === 0 && (xx & 1) ? BONE[3] : j === hgt - 1 && !(xx & 1) ? BONE[2] : 0x060404);
+      r.set(xx, my - 1, RAW[2]);
+      r.set(xx, my + hgt, RAW[1]);
+    }
+    // blood down the chin from the corners, darker where it dried
+    drips(kitCanvas(r), r.X(-6), my + 2, 2, 7, [0, 1], seed + 45, 2);
+    drips(kitCanvas(r), r.X(9), my + 2, 1, 5, [0, 1], seed + 46, 1);
+    for (let xx = Math.round(r.X(-14)); xx <= Math.round(r.X(14)); xx++) if (hash(xx, seed + 47) < 0.4) r.blend(xx, my + 2 + Math.floor(hash(xx, 3) * 3), BLOOD[1], 0.45);
     r.crack(r.X(-34), my, 10, 110, PR[1], seed + 41, 1, 0, PR[8]);
     r.crack(r.X(34), my, 9, 60, PR[1], seed + 42, 1, 0, PR[8]);
     r.crack(r.X(10), r.Y(0.3), 18, 95, PR[1], seed + 43, 0.9, 0.12, PR[8]);

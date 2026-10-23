@@ -1,4 +1,5 @@
 import { horrify } from '../kit/horror';
+import { kitCanvas, drips, rot, sores, RAW, BLOOD } from '../kit/rot';
 import { def, Rig } from '../species';
 import { makeRamp, mixHex } from '../../gfx/pixel';
 import { G } from '../../game/G';
@@ -215,7 +216,7 @@ function buildE(B: SkinB, x: BuildCtx) {
 
 function paintE(p: Page, x: BuildCtx) {
   const v = x.variant;
-  const SK = makeRamp([0x7a6c66, 0x706a6a, 0x82726a][v % 3], 10, { hueShift: 0.05, spread: 0.6 });
+  const SK = makeRamp([0x80706e, 0x74707a, 0x88786a][v % 3], 10, { hueShift: 0.05, spread: 0.62 });
   const VEIN = 0x5a6274, BRUISE = 0x6a4a58;
   const skin = (r: Region, base: number, sd: number, extra?: (xx: number, yy: number) => number) => {
     r.fill(SK, (xx, yy) => {
@@ -238,6 +239,9 @@ function paintE(p: Page, x: BuildCtx) {
     for (let i = 0; i < 5; i++) r.blob(hash(i, 41) * r.w, hash(i, 42) * r.h, 3, 2, BRUISE, 0.7);
     // stretch marks along the flanks
     for (const k of [1, -1]) for (let i = 0; i < 5; i++) r.line(r.X(k * (70 + i * 4)), r.Y(1.2), r.X(k * (74 + i * 4)), r.Y(1.32), SK[7], 0.4);
+    // dead-looking: livid mottling pooled low, a few open sores
+    rot(kitCanvas(r), 0.85, 33 + v);
+    sores(kitCanvas(r), 4, 35 + v);
   }
   {
     const r = p.R('NECK');
@@ -257,8 +261,17 @@ function paintE(p: Page, x: BuildCtx) {
     // the slit
     for (let yy = Math.round(r.Y(0.215)); yy <= Math.round(r.Y(0.005)); yy++) { r.set(r.X(0), yy, 0x1a0c0c); r.blend(r.X(0) - 1, yy, 0x3a1c1a, 0.6); r.blend(r.X(0) + 1, yy, 0x3a1c1a, 0.6); }
     // extra ear canals sunk into the skin
-    for (let i = 0; i < 9; i++) { const ex = hash(i, 71) * r.w, ey = r.Y(0.05 + hash(i, 72) * 0.28); if (Math.abs(r.deg(ex)) < 30) continue; r.ellipse(ex, ey, 1.6, 2.2, SK[3], 0.8); r.set(ex, ey, 0x2a1614); r.set(ex, ey + 1, 0x3a2420); }
+    const C = kitCanvas(r);
+    for (let i = 0; i < 9; i++) {
+      const ex = hash(i, 71) * r.w, ey = r.Y(0.05 + hash(i, 72) * 0.28); if (Math.abs(r.deg(ex)) < 30) continue;
+      r.ellipse(ex, ey, 1.6, 2.2, SK[3], 0.8); r.set(ex, ey, 0x2a1614); r.set(ex, ey + 1, RAW[2]);
+      // the canals weep: something dark runs out of them and dries down the skull
+      if (hash(i, 73) < 0.6) drips(C, ex, ey + 2, 1, 4 + hash(i, 74) * 5, [0, 1], 75 + i, 0.5);
+    }
     veins(r, 8, 81);
+    // the slit has bled: crusted at the lips, a run down the chin
+    for (let yy = Math.round(r.Y(0.215)); yy <= Math.round(r.Y(0.005)); yy++) { if (hash(yy, 3) < 0.6) r.blend(r.X(0) - 2, yy, BLOOD[1], 0.6); if (hash(yy, 4) < 0.6) r.blend(r.X(0) + 2, yy, BLOOD[1], 0.6); }
+    drips(C, r.X(0), r.Y(0.005) + 1, 2, 6, [0, 1], 82 + v, 1.5);
   }
   {
     const r = p.R('EAR');
@@ -291,6 +304,7 @@ function paintE(p: Page, x: BuildCtx) {
     skin(r, 4.6, 91, (xx) => -0.7 * Math.max(0, -Math.sin((r.deg(xx) * Math.PI) / 180)));
     veins(r, 10, 93);
     folds(r, 5);
+    rot(kitCanvas(r), 0.7, 94 + v);
     for (const h of [-0.6, -1.15]) r.hline(0, r.w - 1, Math.round(r.Y(h)), SK[2], 0.6); // elbow and wrist creases
   }
   {
@@ -298,6 +312,7 @@ function paintE(p: Page, x: BuildCtx) {
     skin(r, 4.4, 95, (xx) => -0.7 * Math.max(0, -Math.sin((r.deg(xx) * Math.PI) / 180)));
     veins(r, 8, 97);
     folds(r, 7);
+    rot(kitCanvas(r), 0.7, 98 + v);
     for (let yy = Math.round(r.h * 0.8); yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) if (hash(xx, yy) < 0.3) r.blend(xx, yy, 0x3a3028, 0.5);
   }
   {
@@ -305,6 +320,8 @@ function paintE(p: Page, x: BuildCtx) {
     skin(r, 4.6, 99);
     for (let yy = Math.round(r.h * 0.5); yy < r.h; yy += 3) for (let xx = 0; xx < r.w; xx++) r.blend(xx, yy, SK[2], 0.35);
     for (let xx = 0; xx < r.w; xx++) if (Math.abs(r.deg(xx) - 90) < 40) r.set(xx, r.h - 1, 0x4a3a30); // dirty nails
+    // it only strikes from behind: the fingers are stained to the second knuckle
+    for (let yy = Math.round(r.h * 0.7); yy < r.h - 1; yy++) for (let xx = 0; xx < r.w; xx++) if (hash(xx, yy + 9) < 0.35 + (yy / r.h - 0.7) * 2) r.blend(xx, yy, BLOOD[hash(xx, yy) < 0.5 ? 1 : 2], 0.75);
   }
   {
     const r = p.R('FOOT');

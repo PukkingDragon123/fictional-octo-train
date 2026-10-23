@@ -733,6 +733,16 @@ export class PackView extends GridView3 {
     this.peelPlane.position.y = y + 0.001; if (this.peelGrid) this.peelGrid.position.y = y + 0.001;
   }
 
+  /** a zip pull (0 left, 1 right) */
+  pull(i: number): THREE.Object3D | null { return this.pulls[i] ?? null; }
+  /** a compression strap's buckle end (0..3) */
+  strapEnd(i: number): THREE.Object3D | null { return this.strapEnds[i] ?? null; }
+  /** the flap's free edge, middle (world space) */
+  flapEdge(out: V): V { return this.lid.localToWorld(out.set(0, TH + DOME * 0.4, this.size.z * 0.98)); }
+  /** the rim's near edge above local x (world space): where a tag for something inside lies */
+  rimNear(x: number, out: V): V { return this.root.localToWorld(out.set(Math.max(-this.size.x / 2 + 0.06, Math.min(this.size.x / 2 - 0.06, x)), this.size.y - DOME - TH + 0.035, this.size.z / 2 + 0.05)); }
+  /** the seal's window (world space) */
+  sealAt(out: V): V { return this.pad.getWorldPosition(out); }
   /** where a hand takes hold to carry it (world space): the side at mid height, toward you */
   gripPoint(side: 1 | -1, out: V): V {
     return this.root.localToWorld(out.set(side * (this.size.x / 2 + 0.012), this.size.y * 0.55, 0.06));

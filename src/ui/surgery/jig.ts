@@ -8,7 +8,7 @@ import { Kit, cbox, tbox, prism, ccyl, ccylX, hexHead, ngon, type P2 } from './g
 import type { Mats } from './pix';
 import { TABLE_Y, TABLE_HALF_Z } from './room';
 
-const ARM = 0.5;
+const ARM = 0.5, STOW = Math.PI * 0.94;
 /** where the pieces lie on the tray (tray space: x along the table, z across) */
 const SLOTS: [number, number][] = [[-0.17, -0.1], [0.17, -0.1], [-0.2, 0.08], [0.2, 0.08], [-0.06, 0.12], [0.07, -0.13]];
 
@@ -20,7 +20,7 @@ export class CraftJig {
   /** the vise in the middle: the assembly grows here */
   vise = new THREE.Group();
   private jaws: THREE.Group[] = [];
-  private ang = -1.9; private vel = 0; private tgt = -1.9;
+  private ang = STOW; private vel = 0; private tgt = STOW;
   open = 1;
   constructor(M: Mats) {
     // the post: a clamp on the far rail, a lathed column, a knuckle
@@ -43,7 +43,7 @@ export class CraftJig {
     this.swing.add(this.tray);
     const t = new Kit();
     // a steel plate with a raised rim, hazard edge and a drain slot
-    t.put(M.steel, prism([[-0.3, -0.2], [0.3, -0.2], [0.33, -0.17], [0.33, 0.17], [0.3, 0.2], [-0.3, 0.2], [-0.33, 0.17], [-0.33, -0.17]], 0.025, 0.004), 0, -0.02, 0, { rx: -Math.PI / 2, tile: 0.4 });
+    t.put(M.darksteel, prism([[-0.3, -0.2], [0.3, -0.2], [0.33, -0.17], [0.33, 0.17], [0.3, 0.2], [-0.3, 0.2], [-0.33, 0.17], [-0.33, -0.17]], 0.025, 0.004), 0, -0.02, 0, { rx: -Math.PI / 2, tile: 0.4 });
     for (const [x, z, w, d] of [[0, -0.205, 0.64, 0.016], [0, 0.205, 0.64, 0.016], [-0.335, 0, 0.016, 0.4], [0.335, 0, 0.016, 0.4]] as const) t.put(M.darksteel, cbox(w, 0.035, d, 0.004), x, 0.0, z);
     t.put(M.hazard, cbox(0.64, 0.012, 0.03, 0.003), 0, -0.035, 0.2);
     t.put(M.gunmetal, cbox(0.06, 0.05, 0.06, 0.012), 0, -0.05, 0);
@@ -64,7 +64,7 @@ export class CraftJig {
     this.swing.rotation.y = this.ang;
   }
   /** swing out over the body (true) or back behind the table */
-  deploy(out: boolean) { this.tgt = out ? 0 : -1.9; this.vel += out ? 2 : -2; }
+  deploy(out: boolean) { this.tgt = out ? 0 : STOW; this.vel += out ? -2 : 2; }
   get deployed() { return Math.abs(this.ang) < 0.05; }
   /** world position of the vise */
   center(out = new THREE.Vector3()) { this.group.updateMatrixWorld(true); return this.vise.getWorldPosition(out); }

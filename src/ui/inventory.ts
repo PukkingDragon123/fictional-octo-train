@@ -17,47 +17,53 @@ import { isToolDef, TOOL_ROLL_LOOPS } from '../items/footprints';
 import { settlePack, bestDest } from '../items/packResolver';
 import { createItem } from '../items/factory';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera } from '../fp/fp';
-import { CubeView, CELL } from '../craft/cubeView';
+import { eyeActive, eyeCamera, eyeEnter } from '../fp/eye';
 import { TrayView } from '../craft/trayView';
 import type { GridView3, DropAt } from '../craft/gridView3';
-import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, type Arm, makeBackdrop, makeItemObj, fitItemObj, type ItemObj, boxEdges, pointerRay, damp, fpMat } from '../craft/fpKit';
+import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, type Arm, makeBackdrop, makeItemObj, fitItemObj, type ItemObj, boxEdges, pointerRay, damp } from '../craft/fpKit';
 import { registerCraftSounds } from '../craft/craftSounds';
 import { craftSystem } from '../craft/craft';
-import { pixTag, stamp, disposeTag, type PixTag } from '../craft/tags';
 import { metalMat } from '../craft/metal';
-import { Dymo, HoverTag, Gauge, ControlBox } from '../craft/props';
-import { ModelBuilder } from '../gfx/modelBuilder';
+import { Gauge, ControlBox } from '../craft/props';
 import { debtorNo } from './holo/holo';
 import { kick } from '../gfx/juice';
 import { registerBagSounds } from './bag/bagSounds';
+import { PackView, contactShadow } from './pack/packView';
+import { containerShell, GroundTag, TagRow, NoteTape, kitMat, Dust } from './pack/packScene';
+import { fcyl } from './touch/facet';
 
 /**
- * The backpack is an iron cube. Opening it (I, or the rucksack on touch)
- * goes first-person: your arms swing the Remittance cube round off your
- * back and up to your face, your thumb goes on the reader (the green phosphor
- * line sweeps, the relays clack, the bolts snap back), you set it down on the
- * carpet and the lid swings open on a 5x5x5 grid of cells: stamped steel
- * dividers on the floor, chalk up the walls. Everything you carry takes its
- * real 3D size; drag it in and it drops to rest on the floor of the box or on
- * what is under it (a green ghost fits, a red one doesn't). R / T / Y, or the
- * toggles on the bakelite control box, turn, tip and roll it; the knob (or
- * the wheel) peels layers off the top; the red button shakes everything
- * tight. Drag the carpet to turn the cube and lean in. The tool roll lies on
- * the left (six loops and the brass quick-draw holster, drawn with ` or Y
- * outside the pack); whatever you are looting, your pockets, other bags and
- * the floor lie on the right as a tray, chosen by the tags on the wire behind
- * it. Your open hands rest at the bottom: put something in a palm to hold it.
- * The hook board holds what you wear: hang clothes on it to put them on, pull
- * them off to take them off. Drop on the bare carpet to leave it on the floor.
- * Double-click (long-press, right-click) an item to inspect it close up and
- * work on it (src/craft). A spring scale reads the load; the heavier and
- * fuller the cube, the slower you walk. Tap the lid to shut it.
+ * The backpack is the Meridian Field Pack: an institutional rucksack on a steel
+ * frame. Opening it (I, the pack on the HUD, or a tap on yourself's Backpack
+ * verb) goes into first person: you go down on one knee, swing the pack off your
+ * shoulder and it lands on the real floor in front of you (the eye view: the room
+ * you are in, src/fp/eye.ts). Your banded wrist goes to the seal (the padlock's
+ * phosphor window reads the BAILIFF band, the shackle pops, the lock drops on its
+ * lanyard), you snap the compression buckles, run both zip pulls round and throw
+ * the flap back over the top: inside, a 5x5x5 grid stitched into the lining, lit
+ * by the clip-on lamp. Everything you carry takes its real 3D size; drag it in and
+ * it drops to rest on the floor of the pack or on what is under it (a green ghost
+ * fits, a red one doesn't). R / T / Y, or the toggles on the packing remote on the
+ * floor, turn, tip and roll it; the remote's knob (or the wheel) peels layers off
+ * the top; its red button shakes everything tight. Drag the floor to turn the pack
+ * and lean in.
  *
- * Nothing here is DOM but an invisible pointer catcher: every readout is a
- * pixel-art tag, plate, dial or label on a 3D object.
+ * Round it, all on the floor: the tool roll unrolled on the left (six loops and the
+ * brass quick-draw holster, drawn with ` or Y outside the pack); whatever you are
+ * looting set down on the right as the real thing (the drawer, the crate, the
+ * box), with a manila tag tied to it for every container in reach (pockets, other
+ * bags, the floor): tap a tag to bring that one. The kit mat holds what you wear:
+ * drop clothes on it to put them on, pull them off to take them off. Your hands rest
+ * on the floor either side: put something in one to hold it. Drop on the bare floor
+ * to leave it there. Double-click (long-press, right-click) an item to inspect it
+ * close up (src/craft). The brass load gauge on the left strap reads the weight;
+ * the heavier and fuller the pack, the slower you walk. Tap the flap to close.
  *
- * World containers rearrange through ops, so co-op looters see the same
- * layout; your own cube is yours and is saved with you.
+ * Nothing here is DOM but an invisible pointer catcher, and nothing hangs in the air:
+ * every readout is a printed tag, a dial or label tape lying on something.
+ *
+ * World containers rearrange through ops, so co-op looters see the same layout; your
+ * own pack is yours and is saved with you.
  */
 
 interface Entry { c: Container; name: string; kind: 'pockets' | 'bag' | 'loot' | 'floor' }
@@ -74,13 +80,21 @@ interface Drag {
 }
 type Hit = { kind: 'item'; view: GridView3; items: Item[] } | { kind: 'held'; hand: 'R' | 'L'; it: Item } | { kind: 'worn'; it: Item } | { kind: 'ctl'; ctl: string; obj: THREE.Object3D; x: number } | { kind: 'side'; i: number } | { kind: 'lid' };
 interface Press { pointerId: number; x0: number; y0: number; t: number; touch: boolean; hit: Hit | null; long: number; done: boolean; shift: boolean }
+/** what a hand is doing: reaching for a part of the pack (w 0..1 from rest), its pose and palm roll */
+interface Reach { o: THREE.Object3D | null; at: THREE.Vector3; w: number; pose: 'relaxed' | 'grip' | 'pinch' | 'open' | 'press' | 'flat'; roll: number }
 
 const LONG_MS = 480;
 const ghostOk = new THREE.MeshBasicMaterial({ color: 0x9ae890, transparent: true, opacity: 0.55, depthWrite: false });
 const ghostBad = new THREE.MeshBasicMaterial({ color: 0xd84a32, transparent: true, opacity: 0.6, depthWrite: false });
 const ghostNone = new THREE.MeshBasicMaterial({ color: 0xe8e0c8, transparent: true, opacity: 0.7, depthWrite: false });
-const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _s = new THREE.Vector3();
-const TILT = 0.92;
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _s = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _m = new THREE.Matrix4();
+const DEG = Math.PI / 180;
+/** the eye's field of view while packing (narrower than walking: you are looking at something) */
+const PACK_FOV = 54;
+/** the kneeling eye (for when the eye camera is not up): height and how far ahead of the feet */
+const KNEEL_EYE = { y: 1.18, fwd: 0.22 };
+/** where the shoulders are, in camera space (the arms' upper arms run off-frame toward them) */
+const SHOULDER = new THREE.Vector3(0.19, -0.3, -0.12);
 
 export class InventoryUI {
   open = false;
@@ -89,37 +103,57 @@ export class InventoryUI {
   private suspended = false;
   private built = false;
   private g!: THREE.Group;
-  /** the carpet in front of you, tilted toward your eyes: the cube, roll and tray sit on it */
-  private floor = new THREE.Group();
-  private ground!: THREE.Mesh;
-  private cubeSpin = new THREE.Group();
-  private cube = new CubeView();
+  /** the real floor in front of you (local: x right, y up, -z ahead, origin at your feet), re-placed every frame from the eye */
+  private world = new THREE.Group();
+  /** the pack in camera space (blended from your shoulder to the floor) */
+  private packG = new THREE.Group();
+  private cube = new PackView();
   private roll = new TrayView();
   private tray = new TrayView();
   private rollHold = new THREE.Group();
   private trayHold = new THREE.Group();
+  private trayShell: THREE.Object3D | null = null;
+  private shellKey = '';
   private views: GridView3[] = [];
   private arms: Arm[] = [];
   private backdrop!: THREE.Mesh;
+  private carpet!: THREE.Mesh;
+  private packShadow!: THREE.Mesh;
+  private rollShadow!: THREE.Mesh;
+  private trayShadow!: THREE.Mesh;
+  private dust = new Dust();
   private tw = new Tweens();
-  private phase: 'off' | 'opening' | 'open' | 'closing' = 'off';
+  private phase: 'off' | 'waiting' | 'opening' | 'open' | 'closing' = 'off';
+  private waitT = 0;
   private lastClose = -1e9;
-  /** cube held up to the face (1) or set down on the carpet (0) */
+  /** the pack on your shoulder (1) or on the floor (0) */
   private held = 1;
-  private yaw = 0; private yawT = 0; private tilt = TILT; private tiltT = TILT;
+  /** the things round it: 0 = not set down yet, 1 = in place */
+  private setOut = 0;
+  private yaw = 0; private yawT = 0;
+  private pitch = 54; private pitchT = 54;
   private shakeT = 0;
-  private thumb = 0;
-  // props
+  private hookFn: ((dt: number) => void) | null = null;
+  private anchorM = new THREE.Matrix4();
+  private synth = new THREE.PerspectiveCamera(54, 1, 0.05, 20);
+  private packZ = 0.8;
+  private kneeling = false;
+  // props, all on the floor
   private gauge = new Gauge();
   private box = new ControlBox();
-  private dymo!: Dymo;
-  private hoverTag!: HoverTag;
-  private rail = new THREE.Group();
-  private sideTags: { t: PixTag; e: Entry }[] = [];
-  private wornBoard = new THREE.Group();
+  private note!: NoteTape;
+  private gtag!: GroundTag;
+  private tags!: TagRow;
+  private mat!: THREE.Mesh;
+  private matG = new THREE.Group();
+  private band: THREE.Group | null = null;
 
   private wornObjs: { it: Item; obj: ItemObj }[] = [];
+  /** where the hands rest (world-local, on the floor either side of the pack) */
+  private rest = { R: new THREE.Vector3(), L: new THREE.Vector3() };
+  /** the same in camera space (drop targets) */
   private palm = { R: new THREE.Vector3(), L: new THREE.Vector3() };
+  private reach: { L: Reach; R: Reach } = { L: this.mkReach(), R: this.mkReach() };
   private heldObjs: { R: ItemObj | null; L: ItemObj | null } = { R: null, L: null };
   private heldKey = { R: 0, L: 0 };
   // data
@@ -159,11 +193,11 @@ export class InventoryUI {
     bus.on('containerChanged', () => { this.dirty = true; });
     bus.on('inventoryChanged', () => { this.dirty = true; this.settleT = Math.min(this.settleT, 0.05); });
     bus.on('floorChanged', () => { this.scanT = 0; this.dirty = true; });
-    bus.on('gridNoRoom', (it: Item) => { if (this.open) this.note('no room: ' + itemName(it), true); });
-    bus.on('gridOverflow', (it: Item, where: string) => { if (this.open) this.note((where === 'hand' ? 'in hand: ' : 'dropped: ') + itemName(it), true); });
+    bus.on('gridNoRoom', (it: Item) => { if (this.open) this.note_('no room: ' + itemName(it), true); });
+    bus.on('gridOverflow', (it: Item, where: string) => { if (this.open) this.note_((where === 'hand' ? 'in hand: ' : 'dropped: ') + itemName(it), true); });
     bus.on('fpLost', (name: string) => { if (name === 'pack' && this.open) this.suspend(); });
     bus.on('fpChange', (name: string | null) => { if (name === null && this.open && this.suspended) setTimeout(() => this.resume(), 0); });
-    // while the cube is out you are not walking anywhere
+    // while the pack is out you are not walking anywhere
     const ui0 = ui as any;
     const orig = ui0.blocksMovement?.bind(ui0);
     if (orig) ui0.blocksMovement = () => orig() || (this.open && !this.suspended) || !!(G as any).craft?.busy?.();
@@ -172,89 +206,191 @@ export class InventoryUI {
     try { (G as any).craft = craftSystem(); } catch (e) { console.warn('craft', e); }
   }
 
+  private mkReach(): Reach { return { o: null, at: new THREE.Vector3(), w: 0, pose: 'relaxed', roll: 0 }; }
+
   // ================================================================ 3D scene
   private build() {
     if (this.built) return;
     this.built = true;
     const g = (this.g = fpGroup('pack'));
+    // only when the eye is not up (a fallback): the room gone dark behind a patch of carpet
     this.backdrop = makeBackdrop();
     g.add(this.backdrop);
-    g.add(new THREE.AmbientLight(0xd8ccb8, 0.55));
-    const key = new THREE.DirectionalLight(0xffe2b8, 1.15); key.position.set(-0.5, 1.4, 0.7); g.add(key);
-    const fill = new THREE.DirectionalLight(0x8a9aa8, 0.3); fill.position.set(0.8, -0.2, 0.4); g.add(fill);
-    // the carpet
-    const mb = new ModelBuilder();
-    mb.box(0, -0.012, 0, 3.2, 0.01, 2.0, 'carpet_yellow', { color: 0xc8b878, uvScale: 1.5 });
-    for (const [x, z, s] of [[-0.35, 0.3, 0.2], [0.9, -0.4, 0.3], [-1.1, -0.2, 0.25]] as [number, number, number][]) mb.box(x, -0.0015, z, s, 0.001, s * 0.7, 'carpet_wet', { color: 0x8a7a48 });
-    this.ground = new THREE.Mesh(mb.build(), fpMat());
-    this.floor.add(this.ground);
-    g.add(this.floor);
-    this.floor.add(this.cubeSpin, this.rollHold, this.trayHold);
-    this.cubeSpin.add(this.cube.root);
+    this.world.matrixAutoUpdate = false;
+    this.packG.matrixAutoUpdate = false;
+    g.add(this.world, this.packG);
+    this.packG.add(this.cube.root);
+    // light like the room: a soft overhead key, a cool bounce off the floor, a warm kicker from the side
+    const W = this.world;
+    W.add(new THREE.HemisphereLight(0xcfc8b4, 0x2e2a22, 0.5));
+    const key = new THREE.DirectionalLight(0xffe6c4, 1.7); key.position.set(-0.6, 3.2, 0.4); key.target.position.set(0, 0, -0.8); W.add(key, key.target);
+    const fill = new THREE.DirectionalLight(0x8090a8, 0.22); fill.position.set(1.4, 0.6, 0.6); fill.target.position.set(0, 0, -0.8); W.add(fill, fill.target);
+    const rim = new THREE.DirectionalLight(0xfff0d8, 0.45); rim.position.set(0.4, 1.2, -3); rim.target.position.set(0, 0, -0.8); W.add(rim, rim.target);
+    // the carpet (fallback only: in the eye the real floor is there)
+    const cg = new THREE.PlaneGeometry(3.4, 2.4, 1, 1); cg.rotateX(-Math.PI / 2);
+    this.carpet = new THREE.Mesh(cg, new THREE.MeshStandardMaterial({ color: 0x8a7c4a, roughness: 1, metalness: 0 }));
+    this.carpet.position.set(0, -0.001, -0.9);
+    W.add(this.carpet);
+    // contact shadows
+    this.packShadow = contactShadow(0.78, 0.78, 0.55); W.add(this.packShadow);
+    this.rollShadow = contactShadow(0.42, 0.36, 0.42); this.rollHold.add(this.rollShadow);
+    this.trayShadow = contactShadow(0.6, 0.52, 0.45); this.trayHold.add(this.trayShadow);
+    W.add(this.rollHold, this.trayHold, this.dust.points);
     this.rollHold.add(this.roll.root);
     this.trayHold.add(this.tray.root);
     this.views = [this.cube, this.roll, this.tray];
-    // the brass rod down the right edge the container tags hang from
-    const wb = new ModelBuilder();
-    wb.setFaceShading(false);
-    wb.cylinder(0, -0.36, 0, 0.004, 0.38, 6, 'metal_brass');
-    for (let i = 0; i < 5; i++) { wb.push().translate(0, -0.02 - i * 0.07, 0).rotateZ(Math.PI / 2); wb.cylinder(0, 0, 0, 0.0022, 0.022, 5, 'metal_brass'); wb.pop(); }
-    this.rail.add(new THREE.Mesh(wb.build(), metalMat('brass', 4)));
-
-    // the hook board for what you wear
-    const hb = new ModelBuilder();
-    hb.box(0, -0.03, 0, 0.26, 0.06, 0.014, 'wood_dark', { color: 0x8a6038 });
-    for (let i = 0; i < 6; i++) { hb.push().translate(-0.105 + i * 0.042, 0.01, 0.008).rotateX(Math.PI / 2); hb.cylinder(0, 0, 0, 0.003, 0.018, 5, 'metal_brass', { color: 0xc8a050 }); hb.pop(); }
-    this.wornBoard.add(new THREE.Mesh(hb.build(), fpMat()));
-    const wl = pixTag('tag', 40, 18, 0.07); wl.clear(); wl.type('WORN', 8, 8); wl.flush();
-    wl.mesh.position.set(0.11, -0.055, 0.01); wl.mesh.rotation.z = -0.15;
-    this.wornBoard.add(wl.mesh);
-    g.add(this.wornBoard, this.box.g, this.gauge.g, this.rail);
-    this.dymo = new Dymo(g);
-    this.hoverTag = new HoverTag(g);
+    // the load gauge on the left shoulder strap, the packing remote, the kit mat
+    this.gauge.g.scale.setScalar(0.55);
+    W.add(this.gauge.g);
+    this.box.g.scale.setScalar(0.78);
+    W.add(this.box.g);
+    this.note = new NoteTape(this.box.g, new THREE.Vector3(0.137, -0.012, 0.03));
+    this.mat = kitMat();
+    this.matG.add(this.mat);
+    W.add(this.matG);
+    this.gtag = new GroundTag(W);
+    this.tags = new TagRow(W);
     for (const s of [1, -1] as const) { const a = makeArm(s, 1.05); g.add(a.root); this.arms.push(a); }
+    // the BAILIFF band on the left wrist: a steel cuff with a hazard ring and a green lamp
+    const band = new THREE.Group();
+    const cuff = new THREE.Mesh(fcyl(0.034, 0.032, 8, 0.036, 0.2), metalMat('steel', 2));
+    cuff.scale.set(1, 1, 0.84);
+    const ring = new THREE.Mesh(fcyl(0.0352, 0.008, 8, 0.0372, 0.1, true), new THREE.MeshStandardMaterial({ color: 0xd8a42a, roughness: 0.5, metalness: 0.2, flatShading: true, side: THREE.DoubleSide }));
+    ring.scale.set(1, 1, 0.84); ring.position.y = 0.004;
+    const led = new THREE.Mesh(fcyl(0.004, 0.004, 6, 0.004, 0.2).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x5aff7a }));
+    led.position.set(0, 0.008, -0.031);
+    band.add(cuff, ring, led);
+    band.position.y = -0.03;
+    this.arms[1].fp.wrist.add(band);
+    this.band = band;
   }
 
-  /** where things sit on screen for this aspect */
+  /** where things sit on the floor for this aspect (world-local metres) */
   private layout() {
-    const asp = window.innerWidth / Math.max(1, window.innerHeight);
     const cam = fpCamera();
-    const D = 1.05;
-    const halfH = Math.tan((cam.fov * Math.PI) / 360) * D, halfW = halfH * asp;
+    const asp = cam.aspect || window.innerWidth / Math.max(1, window.innerHeight);
     const wide = asp >= 1.2;
-    const k = wide ? 1 : Math.max(0.55, asp / 1.2);
-    this.floor.position.set(0, wide ? -0.3 : -0.16, wide ? -2.05 : -2.3);
-    this.cubeSpin.position.set(0, 0, -0.06);
-    const sideX = wide ? Math.min(0.6, 0.42 + (asp - 1.2) * 0.3) : 0.34;
-    const sideZ = wide ? -0.22 : 0.42;
-    this.rollHold.position.set(-sideX, 0.002, sideZ + 0.02); this.rollHold.rotation.set(0, wide ? 0.3 : 0.1, 0);
-    this.trayHold.position.set(sideX, 0.002, sideZ); this.trayHold.rotation.set(0, wide ? -0.3 : -0.1, 0);
-    this.fitSide(this.roll, this.rollHold, wide ? 0.4 : 0.3, 0.3);
-    this.fitSide(this.tray, this.trayHold, wide ? 0.46 : 0.34, 0.42);
-    this.rail.position.set(halfW - 0.035 * k, halfH * 0.92, -D); this.rail.scale.setScalar(k);
-
-    // camera-space props along the bottom and top
-    this.palm.L.set(-halfW * 0.74, -halfH * 0.8, -D);
-    this.palm.R.set(halfW * 0.74, -halfH * 0.8, -D);
-    this.wornBoard.position.set(-halfW * 0.36, -halfH * 0.8, -D); this.wornBoard.rotation.set(-0.25, 0.1, 0); this.wornBoard.scale.setScalar(k);
-    this.box.g.position.set(halfW * 0.34, -halfH * 0.84, -D); this.box.g.rotation.set(0.62, -0.08, 0); this.box.g.scale.setScalar(k * 1.25);
-    this.gauge.g.position.set(-halfW + 0.11 * k, halfH - 0.11 * k, -D); this.gauge.g.scale.setScalar(k);
-    this.dymo.place(halfH - 0.05, -D + 0.01);
+    const sz = this.cube.size;
+    const W2 = (sz.x || 0.5) / 2, L2 = (sz.z || 0.55) / 2;
+    this.packZ = wide ? 0.64 : 0.74;
+    const pz = -this.packZ;
+    this.packShadow.position.set(0, 0.002, pz);
+    if (wide) {
+      this.rollHold.position.set(-(W2 + 0.37), 0.002, pz - 0.02); this.rollHold.rotation.set(0, 0.32, 0);
+      this.trayHold.position.set(W2 + 0.4, 0.002, pz - 0.04); this.trayHold.rotation.set(0, -0.32, 0);
+      this.fitSide(this.roll, this.rollHold, 0.38, 0.32);
+      this.fitSide(this.tray, this.trayHold, 0.5, 0.44);
+      this.gauge.g.position.set(-(W2 + 0.13), 0.03, pz + L2 - 0.08);
+      this.box.g.position.set(W2 + 0.16, 0.026, pz + L2 + 0.13); this.box.g.rotation.set(0.22, -0.32, 0);
+      this.matG.position.set(-(W2 + 0.22), 0, pz + L2 + 0.16); this.matG.rotation.set(0, 0.28, 0);
+      this.rest.L.set(-(W2 + 0.06), 0.02, pz + L2 + 0.02); this.rest.R.set(W2 + 0.06, 0.02, pz + L2 + 0.02);
+    } else {
+      // portrait: the pack further off, the roll and the container nearer, below it
+      this.rollHold.position.set(-0.24, 0.002, pz + L2 + 0.27); this.rollHold.rotation.set(0, 0.18, 0);
+      this.trayHold.position.set(0.25, 0.002, pz + L2 + 0.29); this.trayHold.rotation.set(0, -0.18, 0);
+      this.fitSide(this.roll, this.rollHold, 0.27, 0.26);
+      this.fitSide(this.tray, this.trayHold, 0.3, 0.3);
+      this.gauge.g.position.set(-(W2 + 0.02), 0.03, pz - L2 + 0.02);
+      this.box.g.position.set(0.18, 0.026, pz + L2 + 0.56); this.box.g.rotation.set(0.25, -0.15, 0);
+      this.matG.position.set(-0.2, 0, pz + L2 + 0.56); this.matG.rotation.set(0, 0.15, 0);
+      this.rest.L.set(-(W2 - 0.02), 0.02, pz + L2 + 0.06); this.rest.R.set(W2 - 0.02, 0.02, pz + L2 + 0.06);
+    }
+    this.gauge.g.rotation.set(-Math.PI / 2 + 0.6, 0, 0.25);
+    this.carpet.visible = this.backdrop.visible = !eyeActive();
   }
   private fitSide(v: TrayView, hold: THREE.Group, maxW: number, maxD: number) {
     const [w, d] = v.size();
-    hold.scale.setScalar(Math.min(1.3, maxW / Math.max(0.05, w), maxD / Math.max(0.05, d)));
+    const s = Math.min(1.3, maxW / Math.max(0.05, w), maxD / Math.max(0.05, d));
+    v.root.scale.setScalar(s);
+    const shadow = hold === this.rollHold ? this.rollShadow : this.trayShadow;
+    shadow.scale.set((w * s + 0.08) / (hold === this.rollHold ? 0.42 : 0.6), 1, (d * s + 0.08) / (hold === this.rollHold ? 0.36 : 0.52));
+    if (hold === this.trayHold && this.trayShell) this.trayShell.scale.setScalar(s);
+  }
+
+  // ================================================================ the floor, from your eyes
+  /** the eye's real field of view for this picture (the renderer widens it for portrait) */
+  private eyeFovNow(): number {
+    const cam = fpCamera();
+    const asp = cam.aspect || 1;
+    const base = (eyeActive() ? (G.pr as unknown as { eyeFov: number }).eyeFov : PACK_FOV) * DEG;
+    const vf = asp >= 1.2 ? base : Math.min(104 * DEG, 2 * Math.atan(Math.tan(base / 2) * 1.2 / asp));
+    return vf / DEG;
+  }
+  /** every frame, right after the eye has moved: put the floor where the eye sees it, the pack, the hands */
+  private sync(dt: number) {
+    if (!this.open || this.suspended || !this.built) return;
+    const cam = fpCamera();
+    cam.position.set(0, 0, 0); cam.rotation.set(0, 0, 0); cam.updateMatrixWorld();
+    const fov = this.eyeFovNow();
+    if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
+    // the eye (or, when it is not up, a kneeling eye of our own over the same spot)
+    let inv: THREE.Matrix4;
+    if (eyeActive()) {
+      const e = eyeCamera(); e.updateMatrixWorld(); inv = e.matrixWorldInverse;
+      const pr = G.pr as unknown as { eyeFov: number };
+      if (pr.eyeFov !== PACK_FOV || Math.abs(this.pitch - this.pitchT) > 0.05) { this.pitch = damp(this.pitch, this.pitchT, 10, dt); eyeEnter({ pitchDeg: this.pitch, fov: PACK_FOV }); }
+    } else {
+      const s = this.synth;
+      _v.set(0, KNEEL_EYE.y, -KNEEL_EYE.fwd).applyMatrix4(this.anchorM);
+      s.position.copy(_v);
+      _v2.set(0, KNEEL_EYE.y - Math.tan(this.pitch * DEG), -KNEEL_EYE.fwd - 1).applyMatrix4(this.anchorM);
+      s.up.set(0, 1, 0); s.lookAt(_v2); s.updateMatrixWorld();
+      inv = s.matrixWorldInverse;
+      this.pitch = damp(this.pitch, this.pitchT, 10, dt);
+    }
+    this.world.matrix.multiplyMatrices(inv, this.anchorM);
+    this.world.matrixWorldNeedsUpdate = true;
+    this.world.updateMatrixWorld(true);
+    // the pack: on your shoulder (camera space) blended down to its place on the floor
+    _m.makeRotationY(this.yaw).setPosition(0, 0, -this.packZ);
+    const floorM = _m.premultiply(this.world.matrix);
+    const fp = _v.setFromMatrixPosition(floorM);
+    _q.setFromRotationMatrix(floorM);
+    const h = this.held;
+    if (h > 0.001) {
+      const shoulder = _v2.set(0.42, 0.18, -0.12);
+      _q2.setFromEuler(new THREE.Euler(0.7, -0.9, -0.5));
+      const e = h;
+      const pos = fp.clone().lerp(shoulder, e);
+      pos.y += Math.sin(e * Math.PI) * 0.12;
+      _q.slerp(_q2, e);
+      this.packG.matrix.compose(pos, _q, _s.set(1, 1, 1));
+    } else this.packG.matrix.compose(fp, _q, _s.set(1, 1, 1));
+    // a little shake when it lands or something heavy goes in
+    if (this.shakeT > 0) { const k = Math.max(0, this.shakeT) * 0.03; this.packG.matrix.multiply(_m.makeTranslation((Math.random() - 0.5) * k, Math.abs(Math.random() - 0.5) * k, (Math.random() - 0.5) * k)); }
+    this.packG.matrixWorldNeedsUpdate = true;
+    this.packG.updateMatrixWorld(true);
+    this.packShadow.visible = h < 0.3;
+    (this.packShadow.material as THREE.MeshBasicMaterial).opacity = 0.55 * Math.max(0, 1 - h * 3.3);
+    this.poseArms(dt);
+    this.poseHeld(dt);
+    this.placeWorn();
+  }
+  /** keep our per-frame hook last in the renderer's list (after the eye's own) */
+  private hook() {
+    const pr = G.pr as unknown as { beforeRender: ((dt: number) => void)[] };
+    if (!this.hookFn) this.hookFn = (dt: number) => this.sync(dt);
+    const arr = pr.beforeRender;
+    const i = arr.indexOf(this.hookFn);
+    if (i !== arr.length - 1) { if (i >= 0) arr.splice(i, 1); arr.push(this.hookFn); }
+  }
+  private unhook() {
+    const pr = G.pr as unknown as { beforeRender: ((dt: number) => void)[] };
+    const i = this.hookFn ? pr.beforeRender.indexOf(this.hookFn) : -1;
+    if (i >= 0) pr.beforeRender.splice(i, 1);
+    const cam = fpCamera();
+    if (cam.fov !== 30) { cam.fov = 30; cam.updateProjectionMatrix(); }
   }
 
   // ================================================================ open / close
   toggle(v?: boolean) {
     const want = v ?? !(this.open && !this.suspended);
     if (want && this.open && this.suspended) { this.resume(); return; }
-    if (want === this.open) return;
+    if (want === this.open) { if (want && this.phase === 'closing') this.reopen(); return; }
     if (want) this.show(); else this.hide();
   }
 
-  /** open and show a specific world container in the tray */
+  /** open and show a specific world container beside the pack */
   focus(c: Container) {
     this.focusRef = c.owner;
     if (!this.open) this.toggle(true);
@@ -275,127 +411,200 @@ export class InventoryUI {
 
   private show() {
     const p = G.local;
-    if (!p) return;
+    if (!p || p.body?.dead) return;
     this.build();
-    if (!fpClaim('pack', 1, { cinematic: 'full' })) return;
+    // a full close-up: it takes the stage from a passing glance or the watch held up (they rank 1)
+    if (!fpClaim('pack', 1.5, { cinematic: 'full', eyePitch: this.pitchT })) return;
     this.open = true; this.suspended = false;
-    this.phase = 'opening';
+    this.phase = 'waiting'; this.waitT = 0;
     this.root.classList.add('on');
     G.hudBody?.setHidden?.('pack', true);
     G.input.pointerOverUI = true;
+    // down on one knee, facing where you were facing
+    this.anchorM.makeRotationY(-(p.facing ?? 0) - Math.PI / 2).setPosition(p.x, p.y ?? 0, p.z);
+    if (!p.full && !p.sittingOn && !p.inVehicle && p.stance !== 'swim') { p.full = 'kneel'; this.kneeling = true; }
     this.scanNearby(); this.dirty = true;
     this.cube.setContainer(this.cubeC());
     this.roll.setContainer(this.rollC());
     this.syncTray();
-    this.layout();
     this.cube.setPlate(debtorNo(p) || '----');
     this.cube.peel = 99; this.cube.applyPeel(); this.box.setLayer(5);
-    this.yaw = this.yawT = 0; this.tilt = this.tiltT = TILT;
-    this.floor.rotation.x = this.tilt;
+    this.yaw = this.yawT = 0;
+    this.pitch = this.pitchT = (fpCamera().aspect >= 1.2 ? 62 : 60);
+    this.layout();
     this.sideSig = ''; this.wornSig = '';
     this.renderSide(); this.renderWorn();
-    this.openSeq(performance.now() - this.lastClose < 30000);
+    this.resetParts();
+    this.hook();
+  }
+
+  /** everything back to how it is on your back: sealed, buckled, flap shut, nothing set out */
+  private resetParts() {
+    const c = this.cube;
+    c.setLid(0); c.setBolts(0); c.setZip(0); c.setLock(0); c.setInside(0); c.setScan(0, 0);
+    this.held = 1; this.setOut = 0;
+    this.setOutK(0);
+    for (const h of ['L', 'R'] as const) { const r = this.reach[h]; r.o = null; r.w = 1; r.pose = 'grip'; r.roll = 0; }
   }
 
   private hide() {
-    this.cancelDrag(); this.cancelPress(); this.hoverTag.hide();
+    this.cancelDrag(); this.cancelPress(); this.gtag.hide();
+    const was = this.phase;
     this.phase = 'closing';
     this.tw.finish();
-    const hasCube = !!this.cube.c;
-    G.audio?.ui?.(hasCube ? 'cube_shut' : 'bag_zip', 0.5);
-    this.tw.add(0.18, (k) => { this.cube.setLid(1 - k); this.cube.setInside(1 - k); }, easeInOut);
-    this.tw.add(0.12, (k) => this.cube.setBolts(1 - k), easeOut, () => { if (hasCube) G.audio?.ui?.('cube_bolt', 0.4); }, 0.18);
-    this.tw.add(0.3, (k) => { this.heldPose(k); this.cubeSpin.position.x = k * 0.9; this.cubeSpin.position.y += k * 0.5; this.cubeSpin.rotation.z = -k * 0.7; this.fade(1 - k); }, easeInOut, () => this.finishClose(), 0.26);
+    this.phase = 'closing';
+    const c = this.cube, tw = this.tw;
+    if (was === 'waiting') { this.finishClose(); return; }
+    G.audio?.ui?.('bag_zip', 0.45);
+    // flap over, zips round, buckles, the seal back on, the things round it picked up, up onto the shoulder
+    this.grab('L', null, 'relaxed'); this.grab('R', null, 'relaxed');
+    tw.add(0.2, (k) => { c.setLid(1 - k); c.setInside(1 - k); }, easeInOut);
+    tw.add(0.16, (k) => { c.setZip(1 - k); c.setBolts(1 - k); this.setOutK(1 - k); }, easeOut, () => { G.audio?.ui?.('cube_bolt', 0.35); }, 0.18);
+    tw.add(0.1, (k) => c.setLock(1 - k), easeOut, () => G.audio?.ui?.('cube_clunk', 0.3), 0.3);
+    tw.add(0.01, () => {}, easeOut, () => { this.grab('L', 'gripL', 'grip', -Math.PI / 2); this.grab('R', 'gripR', 'grip', -Math.PI / 2); }, 0.3);
+    tw.add(0.3, (k) => { this.held = k; }, easeInOut, () => this.finishClose(), 0.38);
+  }
+
+  /** a close called off while it is still going: open it again from where it is */
+  private reopen() {
+    this.tw.clear();
+    this.phase = 'opening';
+    this.openSeq(true);
   }
 
   private finishClose() {
     this.open = false; this.suspended = false;
     this.phase = 'off';
+    this.tw.clear();
     this.root.classList.remove('on');
+    this.unhook();
     fpRelease('pack');
     G.input.pointerOverUI = false;
     this.lastClose = performance.now();
-    this.cubeSpin.rotation.set(0, 0, 0);
     this.cube.setScan(0, 0);
+    this.gtag?.hide();
+    const p = G.local;
+    if (p && this.kneeling && p.full === 'kneel') p.full = '';
+    this.kneeling = false;
     G.hudBody?.setHidden?.('pack', false);
     this.ui.closeMenu?.();
   }
 
   private suspend() {
     this.suspended = true;
-    this.cancelDrag(); this.cancelPress(); this.hoverTag.hide();
+    this.cancelDrag(); this.cancelPress(); this.gtag?.hide();
     this.root.classList.remove('on');
+    const cam = fpCamera();
+    if (cam.fov !== 30) { cam.fov = 30; cam.updateProjectionMatrix(); }
   }
-  /** come back after an inspection or the watch let go of the stage */
+  /** come back after an inspection let go of the stage: back into the eyes, the pack still open */
   resume() {
     if (!this.open || !this.suspended || fpOwner()) return;
-    if (!fpClaim('pack', 1, { cinematic: 'none' })) return;
+    if (!fpClaim('pack', 1.5, { cinematic: 'full', eyePitch: this.pitch })) return;
     this.suspended = false;
     this.root.classList.add('on');
     G.input.pointerOverUI = true;
     this.dirty = true;
+    this.hook();
   }
 
-  private fade(k: number) {
-    (this.backdrop.material as THREE.MeshBasicMaterial).opacity = 0.95 * k;
-    const on = k > 0.02, all = k > 0.6;
-    for (const a of this.arms) a.root.visible = on;
-    this.ground.visible = on;
-    this.rollHold.visible = this.trayHold.visible = this.rail.visible = all;
-    this.wornBoard.visible = this.box.g.visible = this.gauge.g.visible = all;
+  /** the things round the pack set out (0..1): the roll unrolls, the container is set down, the remote, the mat */
+  private setOutK(k: number) {
+    this.setOut = k;
+    const e = Math.max(0, Math.min(1, k));
+    const on = e > 0.01;
+    for (const o of [this.rollHold, this.trayHold, this.gauge.g, this.box.g, this.matG, this.tags?.g]) if (o) o.visible = on;
+    this.rollHold.scale.set(Math.max(0.01, e), 1, 1);
+    this.trayHold.position.y = 0.002 + (1 - e) * 0.18;
+    this.box.g.position.y = 0.026 + (1 - e) * 0.1;
+    this.matG.scale.set(1, 1, Math.max(0.01, e));
   }
 
-  /** the cube held up to your face (k = 1) or set down on the carpet (k = 0), in carpet space */
-  private heldPose(k: number) {
-    this.held = k;
-    this.cubeSpin.position.set(0, k * 0.42, -0.06 + k * 0.62);
-    this.cubeSpin.rotation.set(-this.tilt * k * 0.92, this.yaw * (1 - k), 0);
+  /** a hand reaches for a named part of the pack (null = back to rest on the floor) */
+  private grab(h: 'L' | 'R', part: string | null, pose: Reach['pose'], roll = 0, off?: THREE.Vector3) {
+    const r = this.reach[h];
+    const c = this.cube;
+    let o: THREE.Object3D | null = null;
+    const at = r.at.set(0, 0, 0);
+    switch (part) {
+      case 'gripL': case 'gripR': {
+        const s = part === 'gripL' ? -1 : 1;
+        o = c.root; at.set(s * (c.size.x / 2 + 0.03), c.size.y * 0.5, 0.05); break;
+      }
+      case 'seal': o = c.pad; at.set(0.012, 0.075, 0.05); break;
+      case 'pullL': o = c.pull(0); at.set(0, 0.03, 0.03); break;
+      case 'pullR': o = c.pull(1); at.set(0, 0.03, 0.03); break;
+      case 'flap': o = c.lid; at.set(h === 'L' ? -0.12 : 0.12, 0.08, c.size.z * 0.95); break;
+      default:
+        if (part?.startsWith('strap')) { o = c.strapEnd(+part.slice(5)); at.set(0, -0.06, 0.03); }
+    }
+    if (off) at.add(off);
+    r.o = o; r.pose = pose; r.roll = roll;
   }
 
-  /** arms swing the cube round, thumb on the reader, bolts, set it down, lid */
+  /** the open: kneel, swing the pack off your shoulder onto the floor, the seal, buckles, zips, the flap */
   private openSeq(quick: boolean) {
-    const hasCube = !!this.cube.c;
-    const tw = this.tw;
+    const tw = this.tw, c = this.cube;
     tw.clear();
-    this.cube.setLid(0); this.cube.setBolts(0); this.cube.setInside(0); this.cube.setScan(0, 0);
-    const sp = quick ? 0.5 : 0.8;
+    const sp = quick ? 0.45 : 0.72;
+    const reachW = (h: 'L' | 'R', to: number, dur: number, at: number) => { const r = this.reach[h]; let from = r.w; tw.add(dur, (k) => { if (k === 0) from = r.w; r.w = from + (to - from) * k; }, easeInOut, undefined, at); };
     let t = 0;
-    const swing = (k: number) => {
-      this.heldPose(1);
-      this.cubeSpin.position.x = 0.9 * (1 - k); this.cubeSpin.position.y += 0.5 * (1 - k);
-      this.cubeSpin.rotation.y = -0.8 * (1 - k); this.cubeSpin.rotation.z = -0.6 * (1 - k);
-    };
-    swing(0);
-    this.fade(0);
-    // swing in from over the right shoulder
-    tw.add(0.42, (k) => { swing(k); this.fade(Math.min(1, k * 1.6)); }, easeBack, () => { G.audio?.ui?.(hasCube ? 'cube_clunk' : 'bag_zip', 0.55); this.shakeT = 0.18; kick(0, -1, 0.06); });
-    t += 0.42;
-    const setDown = (at: number) => {
-      tw.add(0.26 * sp, (k) => this.heldPose(1 - k), easeInOut, () => { this.heldPose(0); G.audio?.ui?.('cube_place', 0.5); this.shakeT = 0.12; kick(0, 1, 0.04); }, at);
-    };
-    if (!hasCube) { setDown(t); tw.add(0.01, () => {}, easeOut, () => this.ready(), t + 0.32 * sp); return; }
-    // thumb on the reader: the relays clack, the green line sweeps
-    const scanDur = 0.34 * sp;
-    tw.add(0.12 * sp, (k) => { this.thumb = k; }, easeOut, () => G.audio?.ui?.('cube_relay', 0.45), t);
-    t += 0.12 * sp;
-    tw.add(scanDur, (k) => this.cube.setScan(k, Math.sin(k * Math.PI) * 0.9 + 0.1), (x) => x, () => { this.cube.setScan(1, 1); G.audio?.ui?.('cube_ok', 0.4); }, t);
-    t += scanDur;
-    tw.add(0.12 * sp, (k) => { this.thumb = 1 - k; }, easeOut, undefined, t);
-    // bolts snap back one after another
-    for (let i = 0; i < 4; i++) tw.add(0.01, () => {}, easeOut, () => { G.audio?.ui?.('cube_bolt', 0.35); this.shakeT = Math.max(this.shakeT, 0.06); kick(i % 2 ? 1 : -1, 0, 0.025); }, t + i * 0.05 * sp);
-    tw.add(0.22 * sp, (k) => this.cube.setBolts(k), easeOut, undefined, t);
-    t += 0.22 * sp;
-    // down on the carpet, then the lid
-    setDown(t);
-    t += 0.26 * sp;
-    tw.add(0.01, () => {}, easeOut, () => G.audio?.ui?.('cube_hiss', 0.45), t);
-    tw.add(0.3 * sp, (k) => { this.cube.setLid(k); this.cube.setInside(k, Math.random() < 0.3 ? -1.2 : 0); }, easeOut, () => { this.cube.setInside(1); this.cube.setScan(0, 0.15); this.ready(); }, t);
+    // the swing: off the right shoulder, down in an arc, a thump on the floor
+    if (this.held > 0.5) {
+      this.grab('L', 'gripL', 'grip', -Math.PI / 2); this.grab('R', 'gripR', 'grip', -Math.PI / 2);
+      this.reach.L.w = this.reach.R.w = 1;
+      tw.add(0.5 * sp + 0.12, (k) => { this.held = 1 - k; }, (x) => x * x * (1.6 - 0.6 * x), () => {
+        this.held = 0;
+        G.audio?.ui?.('cube_place', 0.6); G.audio?.ui?.('bag_place', 0.5);
+        this.shakeT = 0.22; kick(0, 1, 0.07);
+        this.dust.puff(0, -this.packZ, this.cube.size.x, this.cube.size.z);
+      });
+      t += 0.5 * sp + 0.12;
+    } else this.held = 0;
+    // the things round it are set out as it lands
+    tw.add(0.32, (k) => this.setOutK(k), easeBack, undefined, t);
+    // the banded wrist to the seal: the window reads the band, the shackle pops, the lock drops on its lanyard
+    if (c.c) {
+      tw.add(0.01, () => {}, easeOut, () => { this.grab('L', 'seal', 'relaxed', 0.4); this.grab('R', null, 'relaxed'); }, t);
+      reachW('L', 1, 0.2 * sp, t); reachW('R', 0, 0.2 * sp, t);
+      t += 0.2 * sp;
+      const scan = 0.34 * sp;
+      tw.add(0.01, () => {}, easeOut, () => G.audio?.ui?.('cube_relay', 0.45), t);
+      tw.add(scan, (k) => c.setScan(k, 1), (x) => x, () => { c.setScan(1, 1); G.audio?.ui?.('cube_ok', 0.4); }, t);
+      t += scan;
+      tw.add(0.08, (k) => c.setLock(k * 0.3), easeOut, () => { G.audio?.ui?.('cube_bolt', 0.45); this.shakeT = Math.max(this.shakeT, 0.05); }, t);
+      t += 0.08;
+      tw.add(0.3 * sp, (k) => c.setLock(0.3 + k * 0.7), (x) => x * x, () => G.audio?.ui?.('cube_clunk', 0.25), t);
+      reachW('L', 0, 0.18 * sp, t);
+      t += 0.22 * sp;
+      // the buckles: both hands, two clicks each
+      tw.add(0.01, () => {}, easeOut, () => { this.grab('L', 'strap0', 'pinch', 0.2); this.grab('R', 'strap1', 'pinch', -0.2); }, t);
+      reachW('L', 1, 0.14 * sp, t); reachW('R', 1, 0.14 * sp, t);
+      t += 0.14 * sp;
+      tw.add(0.22 * sp, (k) => c.setBolts(k), easeOut, undefined, t);
+      for (let i = 0; i < 4; i++) tw.add(0.01, () => {}, easeOut, () => { G.audio?.ui?.('cube_bolt', 0.32); kick(i % 2 ? 1 : -1, 0, 0.02); }, t + i * 0.05 * sp);
+      t += 0.22 * sp;
+      // the zips: a pull in each hand, round the bottom end and up both sides
+      tw.add(0.01, () => {}, easeOut, () => { this.grab('L', 'pullL', 'pinch', 0.3); this.grab('R', 'pullR', 'pinch', -0.3); G.audio?.ui?.('bag_zip', 0.6); }, t);
+      tw.add(0.46 * sp, (k) => c.setZip(k), easeInOut, undefined, t);
+      t += 0.46 * sp;
+      // the flap: lift it and throw it back over the top end
+      tw.add(0.01, () => {}, easeOut, () => { this.grab('L', 'flap', 'grip', -0.6); this.grab('R', 'flap', 'grip', 0.6); G.audio?.ui?.('cube_hiss', 0.35); }, t);
+      tw.add(0.42 * sp, (k) => { c.setLid(k); c.setInside(Math.max(0, k * 1.4 - 0.4), Math.random() < 0.3 ? -1.2 : 0); }, easeInOut, () => { c.setInside(1); c.setScan(0, 0.15); }, t);
+      reachW('L', 0, 0.2 * sp, t + 0.3 * sp); reachW('R', 0, 0.2 * sp, t + 0.3 * sp);
+      t += 0.42 * sp;
+    }
+    tw.add(0.01, () => {}, easeOut, () => this.ready(), t);
   }
 
   private ready() {
     this.phase = 'open';
-    this.heldPose(0);
-    this.cube.setInside(1);
+    this.held = 0;
+    this.setOutK(1);
+    const c = this.cube;
+    if (c.c) { c.setLid(1); c.setBolts(1); c.setZip(1); c.setLock(1); c.setInside(1); }
+    this.grab('L', null, 'relaxed'); this.grab('R', null, 'relaxed');
+    this.reach.L.w = this.reach.R.w = 0;
     this.dirty = true;
     G.missions?.set?.('pack:opened');
   }
@@ -440,7 +649,7 @@ export class InventoryUI {
     for (const it of fresh.items) if (it.inv) out.push({ c: it.inv, name: itemName(it), kind: 'loot' });
     for (const corpse of G.creatures?.nearbyCorpses?.(p, R) || []) out.push({ c: corpse.inv, name: corpse.name, kind: 'loot' });
     for (const v of G.items?.nearbyTrunks?.(p) || []) out.push({ c: v.c, name: v.name, kind: 'loot' });
-    // the floor view is rebuilt every look; keep one container so the tray doesn't flicker
+    // the floor view is rebuilt every look; keep one container so the view doesn't flicker
     if (!this.floorC) this.floorC = fresh;
     else { this.floorC.items = fresh.items; this.floorC.owner = fresh.owner; }
     out.push({ c: this.floorC, name: 'Floor', kind: 'floor' });
@@ -453,7 +662,27 @@ export class InventoryUI {
     this.sideRef = this.refOf(out[sel]);
   }
   private refOf(e: Entry) { return e.kind === 'pockets' ? 'pockets' : e.kind === 'floor' ? 'floor' : e.c.owner || String(e.c.uid); }
-  private syncTray() { const e = this.side[this.sideSel]; this.tray.setContainer(e ? e.c : null); }
+  private syncTray() {
+    const e = this.side[this.sideSel];
+    this.tray.setContainer(e ? e.c : null);
+    this.dressTray();
+  }
+  /** the container set down for real: a drawer, a crate, a box... the floor itself shows no tray at all */
+  private dressTray() {
+    const spec = this.tray.spec;
+    const [w, d] = this.tray.size();
+    const style = spec?.style ?? '';
+    const key = style + ':' + w.toFixed(3) + ':' + d.toFixed(3);
+    const bare = style === 'floor' || style === 'pile';
+    const own = (this.tray as unknown as { shell: THREE.Mesh | null }).shell;
+    if (own) own.visible = !bare;
+    if (key === this.shellKey) return;
+    this.shellKey = key;
+    if (this.trayShell) { this.trayShell.parent?.remove(this.trayShell); (this.trayShell as THREE.Mesh).geometry?.dispose?.(); this.trayShell = null; }
+    const sh = spec ? containerShell(style, w, d) : null;
+    if (sh) { sh.scale.copy(this.tray.root.scale); this.trayHold.add(sh); this.trayShell = sh; }
+    this.trayShadow.visible = !bare;
+  }
 
   // ================================================================ frame
   update(dt0: number) {
@@ -469,6 +698,12 @@ export class InventoryUI {
     if (G.input.hit('toolDraw' as any) && !G.input.textFocus && !(G as any).craft?.busy?.()) this.quickDraw();
     (G as any).craft?.update?.();
     if (!this.open) return;
+    if (!this.suspended) this.hook();
+    // wait for the lids to open on the eyes before the pack comes off the shoulder
+    if (this.phase === 'waiting') {
+      this.waitT += dt;
+      if (eyeActive() || this.waitT > 0.9) { this.phase = 'opening'; this.layout(); this.openSeq(performance.now() - this.lastClose < 30000); }
+    }
     this.tw.update(dt);
     if (this.suspended) return;
     this.scanT -= dt;
@@ -480,59 +715,52 @@ export class InventoryUI {
       const rc = this.rollC();
       if (rc !== this.roll.c) this.roll.setContainer(rc); else this.roll.refresh();
       const e = this.side[this.sideSel];
-      if (e?.c !== this.tray.c) this.syncTray(); else this.tray.refresh();
+      if (e?.c !== this.tray.c) this.syncTray(); else { this.tray.refresh(); this.dressTray(); }
       this.layout();
+      if (this.phase === 'open') this.setOutK(1);
       this.renderSide(); this.renderWorn();
       if (this.drag) this.retarget(this.lastPX, this.lastPY);
     }
-    if (this.phase === 'open') {
-      this.yaw = damp(this.yaw, this.yawT, 14, dt);
-      this.tilt = damp(this.tilt, this.tiltT, 14, dt);
-      this.cubeSpin.rotation.set(0, this.yaw, 0);
-      this.floor.rotation.x = this.tilt;
-    }
-    if (this.shakeT > 0) {
-      this.shakeT -= dt;
-      const k = Math.max(0, this.shakeT) * 0.05;
-      this.cube.root.position.set((Math.random() - 0.5) * k, Math.abs(Math.random() - 0.5) * k, (Math.random() - 0.5) * k);
-    } else this.cube.root.position.set(0, 0, 0);
+    if (this.phase === 'open') this.yaw = damp(this.yaw, this.yawT, 14, dt);
+    if (this.shakeT > 0) this.shakeT -= dt;
     for (const v of this.views) v.update(dt);
-    this.poseArms(dt);
-    this.poseHeld(dt);
+    this.dust.update(dt);
     if (this.drag) this.updateGhost(dt);
     this.loadT -= dt;
     if (this.loadT <= 0) { this.loadT = 0.25; this.gauge.set(p.carriedWeight(), p.capacity(), (p as any).packSlow?.() ?? 1); }
     this.gauge.update(dt);
-    this.dymo.update(dt);
-    // the side tags sway a little on their wire
-    this.sideTags.forEach((s, i) => { s.t.mesh.rotation.z = Math.sin(now * 0.0016 + i) * 0.03; });
+    this.note.update(dt);
+    this.placeSide();
   }
 
   private poseArms(dt: number) {
     const [aR, aL] = this.arms;
-    const H = 5 * CELL, O = H + 0.048;
-    this.cube.root.updateWorldMatrix(true, false);
-    const k = this.held;
-    // holding the cube: hands on its flanks; set down: resting at the bottom, palms up
-    const gl = this.cube.root.localToWorld(_v.set(-O / 2 - 0.012, H * 0.42, 0.06)).lerp(this.palm.L, 1 - k);
-    aL.target.lerp(gl, 1 - Math.exp(-20 * dt));
-    const gr = this.cube.root.localToWorld(_v2.set(O / 2 + 0.012, H * 0.42, 0.06)).lerp(this.palm.R, 1 - k);
-    if (this.thumb > 0) {
-      // the thumb tip goes on the reader's glass: aim the wrist so the tip lands there
-      const pad = this.cube.pad.getWorldPosition(_s);
-      const tip = aR.fp.thumbTip.getWorldPosition(this.tmpA), wr = aR.fp.wrist.getWorldPosition(this.tmpB);
-      gr.lerp(pad.sub(tip.sub(wr)).add(_v.set(0, 0, 0.004)), this.thumb);
+    this.world.updateMatrixWorld(true);
+    for (const h of ['L', 'R'] as const) this.palm[h].copy(this.rest[h]).applyMatrix4(this.world.matrix);
+    for (const [a, h] of [[aL, 'L'], [aR, 'R']] as const) {
+      const r = this.reach[h];
+      const restAt = this.palm[h];
+      let goal = _v.copy(restAt);
+      if (r.o && r.w > 0.001) {
+        r.o.updateWorldMatrix(true, false);
+        const at = _v2.copy(r.at).applyMatrix4(r.o.matrixWorld);
+        goal = _v.copy(restAt).lerp(at, Math.min(1, r.w));
+      }
+      // wrists come in from the floor-side of the target, the hand resting a little above what it holds
+      a.target.lerp(goal, 1 - Math.exp(-(this.phase === 'open' ? 16 : 22) * dt));
+      // the elbow sits between the shoulder and the hand, bent outward and down
+      const sh = _s.set(SHOULDER.x * a.side, SHOULDER.y, SHOULDER.z);
+      a.elbow.copy(sh).lerp(a.target, 0.42).add(_v2.set(a.side * 0.07, -0.08, 0.04));
+      const holding = h === 'R' ? !!G.local?.handR : !!(G.local?.handL && G.local.handL !== G.local.handR);
+      const atRest = !r.o || r.w < 0.3;
+      a.want = atRest ? (holding ? 'grip' : 'relaxed') : r.pose;
+      // at rest the palms lie flat on the floor (backs up); reaching, they turn as the part wants
+      const roll = atRest ? Math.PI * 0.92 : r.roll;
+      poseArm(a, roll, dt);
     }
-    aR.target.lerp(gr, 1 - Math.exp(-18 * dt));
-    // the elbows sit low and near, so resting forearms reach forward and the palms turn up
-    for (const a of this.arms) a.elbow.set(a.side * 0.34, -0.44 + k * 0.1, -0.5 - k * 0.2);
-    aL.want = k > 0.5 ? 'grip' : 'relaxed';
-    aR.want = this.thumb > 0.3 ? 'press' : k > 0.5 ? 'grip' : 'relaxed';
-    poseArm(aL, -Math.PI / 2 * k, dt); poseArm(aR, -Math.PI / 2 * k, dt);
   }
-  private tmpA = new THREE.Vector3(); private tmpB = new THREE.Vector3();
 
-  /** what is held sits in the open palm */
+  /** what is held sits in the hand's grip */
   private poseHeld(dt: number) {
     const p = G.local;
     for (const h of ['R', 'L'] as const) {
@@ -543,14 +771,14 @@ export class InventoryUI {
         const old = this.heldObjs[h];
         if (old) old.outer.parent?.remove(old.outer);
         this.heldObjs[h] = null;
-        if (it) { const o = makeItemObj(it.key); fitItemObj(o, 0, 0.16, 0.2, 0.08, 1.3); o.outer.userData.held = h; this.g.add(o.outer); this.heldObjs[h] = o; }
+        if (it) { const o = makeItemObj(it.key); fitItemObj(o, 0, 0.12, 0.16, 0.06, 1.2); o.outer.userData.held = h; this.g.add(o.outer); this.heldObjs[h] = o; }
       }
       const o = this.heldObjs[h];
       if (o) {
-        o.outer.visible = this.held < 0.5 && !(this.drag?.src === 'hand' && this.drag.hand === h);
-        this.arms[h === 'R' ? 0 : 1].fp.grip.getWorldPosition(_v).add(_s.set(0, 0.035, 0.01));
-        o.outer.position.lerp(_v, 1 - Math.exp(-16 * dt));
-        o.outer.rotation.set(0.9, h === 'R' ? -0.5 : 0.5, 0);
+        o.outer.visible = this.held < 0.5 && this.reach[h].w < 0.3 && !(this.drag?.src === 'hand' && this.drag.hand === h);
+        this.arms[h === 'R' ? 0 : 1].fp.grip.getWorldPosition(_v);
+        o.outer.position.lerp(_v, 1 - Math.exp(-20 * dt));
+        o.outer.rotation.set(0.4, h === 'R' ? -0.6 : 0.6, 0);
       }
     }
   }
@@ -560,25 +788,28 @@ export class InventoryUI {
     const sig = this.side.map((e) => e.c.uid + e.name).join('|') + '#' + this.sideSel;
     if (sig === this.sideSig) return;
     this.sideSig = sig;
-    for (const s of this.sideTags) disposeTag(s.t);
-    this.sideTags = [];
-    // at most five tags fit the rod: pockets, the floor, and what is nearest
+    this.placeSide(true);
+  }
+  /** the container tags lie on the floor in front of the container, tied to it */
+  private placeSide(force = false) {
+    if (!this.tags || (!force && !this.tags.tags.length && !this.side.length)) return;
     const idx = this.side.map((_, i) => i);
+    // at most five tags: pockets, the floor, and what is nearest
     const show = idx.length <= 5 ? idx : [0, ...idx.slice(1, -1).slice(0, 3), idx.length - 1];
     if (!show.includes(this.sideSel)) show[show.length - 2] = this.sideSel;
-    show.forEach((i, row) => {
-      const e = this.side[i];
-      const t = pixTag('tag', 66, 26, 0.17);
-      t.clear();
-      t.para(e.name, 6, 9, 56, undefined, 7.5, 2, 7);
-      if (i === this.sideSel) stamp(t, 'OPEN', 40, 3, '#b8281c');
-      t.flush();
-      t.mesh.geometry.translate(-0.085, -0.03, 0);
-      t.mesh.position.set(-0.012 - (i === this.sideSel ? 0.025 : 0), -0.02 - row * 0.07, 0.006 + row * 0.002);
-      t.mesh.userData.side = i;
-      this.rail.add(t.mesh);
-      this.sideTags.push({ t, e });
-    });
+    const names = show.map((i) => ({ name: this.side[i].name, i, n: this.side[i].c.items.length }));
+    const wide = fpCamera().aspect >= 1.2;
+    const th = this.trayHold.position;
+    const [tw, td] = this.tray.size();
+    const s = this.tray.root.scale.x;
+    const spots: THREE.Vector3[] = [];
+    const n = names.length;
+    for (let k = 0; k < n; k++) {
+      if (wide) spots.push(new THREE.Vector3(th.x - 0.16 + k * 0.105, 0.004, th.z + (td * s) / 2 + 0.12 + (k % 2) * 0.03));
+      else spots.push(new THREE.Vector3(th.x - 0.06 + (k % 3) * 0.1, 0.004, th.z + (td * s) / 2 + 0.1 + Math.floor(k / 3) * 0.075));
+    }
+    const knot = new THREE.Vector3(th.x - (tw * s) / 2 * 0.7, 0.03, th.z + (td * s) / 2);
+    this.tags.set(names, this.sideSel, spots, knot);
   }
 
   private renderWorn() {
@@ -587,19 +818,20 @@ export class InventoryUI {
     const sig = worn.map((w) => w.uid).join(',');
     if (sig === this.wornSig) return;
     this.wornSig = sig;
-    for (const w of this.wornObjs) this.wornBoard.remove(w.obj.outer);
+    for (const w of this.wornObjs) this.matG.remove(w.obj.outer);
     this.wornObjs = [];
     worn.slice(0, 6).forEach((it, i) => {
       const o = makeItemObj(it.key);
-      fitItemObj(o, 2, 0.04, 0.03, 0.06, 1.2);
-      o.outer.position.set(-0.105 + i * 0.042, -0.02, 0.026);
+      fitItemObj(o, 0, 0.07, 0.08, 0.04, 1.2);
+      o.outer.position.set(-0.11 + (i % 3) * 0.11, 0.022, -0.03 + Math.floor(i / 3) * 0.075);
       o.outer.userData.worn = it.uid;
-      this.wornBoard.add(o.outer);
+      this.matG.add(o.outer);
       this.wornObjs.push({ it, obj: o });
     });
   }
+  private placeWorn() { /* the worn things ride on the mat (its group) */ }
 
-  private note(text: string, bad = false) { this.dymo?.show(text, bad); }
+  private note_(text: string, bad = false) { this.note?.show(text, bad); }
 
   // ================================================================ controls / keys
   private control(c: string, x = 0) {
@@ -615,7 +847,7 @@ export class InventoryUI {
 
   private onKey(e: KeyboardEvent) {
     if (!this.open || this.suspended || G.input.textFocus) return;
-    if (this.phase === 'opening') { if (e.code !== 'KeyI' && e.code !== 'Escape') { this.tw.finish(); e.stopImmediatePropagation(); e.preventDefault(); return; } }
+    if (this.phase === 'opening' || this.phase === 'waiting') { if (e.code !== 'KeyI' && e.code !== 'Escape') { if (this.phase === 'opening') this.tw.finish(); e.stopImmediatePropagation(); e.preventDefault(); return; } }
     const stop = () => { e.stopImmediatePropagation(); e.preventDefault(); };
     if (e.code === 'Escape' || (G.input.bindings.inventory || []).includes(e.code)) { stop(); if (!e.repeat) this.toggle(false); return; }
     if (this.phase !== 'open') { stop(); return; }
@@ -681,20 +913,20 @@ export class InventoryUI {
   }
 
   // ================================================================ pointer
-  /** what is under the pointer: an item, a held thing, a worn thing, a control, a tag, the lid */
+  /** what is under the pointer: an item, a held thing, a worn thing, a control, a tag, the flap */
   private hitAt(x: number, y: number): Hit | null {
     pointerRay(this.rc, fpCamera(), x, y);
     let best: Hit | null = null, bd = Infinity;
     const consider = (h: Hit, d: number) => { if (d < bd) { bd = d; best = h; } };
     for (const v of this.views) { const h = v.pickAt(this.rc); if (h) consider({ kind: 'item', view: v, items: h.a.items }, h.dist); }
-    const objs: THREE.Object3D[] = [...this.box.ctl, ...this.sideTags.map((s) => s.t.mesh), ...this.wornObjs.map((w) => w.obj.outer), this.cube.lid];
+    const objs: THREE.Object3D[] = [...this.box.ctl, ...this.tags.meshes(), ...this.wornObjs.map((w) => w.obj.outer), this.cube.lid];
     for (const h of ['R', 'L'] as const) { const o = this.heldObjs[h]; if (o?.outer.visible) objs.push(o.outer); }
     for (const it of this.rc.intersectObjects(objs, true)) {
       let o: THREE.Object3D | null = it.object;
       while (o) {
         const u = o.userData;
         if (u.ctl) { _v.copy(it.point); o.worldToLocal(_v); consider({ kind: 'ctl', ctl: u.ctl, obj: o, x: _v.x }, it.distance - 0.02); break; }
-        if (u.side !== undefined) { consider({ kind: 'side', i: u.side }, it.distance); break; }
+        if (u.side !== undefined) { consider({ kind: 'side', i: u.side }, it.distance - 0.01); break; }
         if (u.worn !== undefined) { const w = this.wornObjs.find((q) => q.it.uid === u.worn); if (w) consider({ kind: 'worn', it: w.it }, it.distance); break; }
         if (u.held) { const p = G.local; const hi = u.held === 'R' ? p.handR : p.handL; if (hi) consider({ kind: 'held', hand: u.held, it: hi }, it.distance); break; }
         if (o === this.cube.lid) { consider({ kind: 'lid' }, it.distance + 0.05); break; }
@@ -735,10 +967,11 @@ export class InventoryUI {
       }
     }
     if (this.orbit && this.orbit.id === e.pointerId && !this.drag) {
+      // drag the floor: turn the pack where it lies, lean in over it or sit back
       const dx = e.clientX - this.orbit.x, dy = e.clientY - this.orbit.y;
       this.orbit.x = e.clientX; this.orbit.y = e.clientY;
       this.yawT = Math.max(-1.3, Math.min(1.3, this.yawT + dx * 0.008));
-      this.tiltT = Math.max(0.55, Math.min(1.25, this.tiltT + dy * 0.004));
+      this.pitchT = Math.max(40, Math.min(74, this.pitchT + dy * 0.12));
       return;
     }
     if (this.drag && this.drag.pointerId === e.pointerId) { e.preventDefault(); this.retarget(e.clientX, e.clientY); return; }
@@ -782,26 +1015,38 @@ export class InventoryUI {
     if (!this.open || this.phase !== 'open') return;
     e.preventDefault();
     const d = this.drag;
-    if (d && d.stack.length > 1) { d.count = Math.max(1, Math.min(d.stack.length, d.count + (e.deltaY < 0 ? 1 : -1))); this.retarget(this.lastPX, this.lastPY); this.note('x' + d.count); return; }
+    if (d && d.stack.length > 1) { d.count = Math.max(1, Math.min(d.stack.length, d.count + (e.deltaY < 0 ? 1 : -1))); this.retarget(this.lastPX, this.lastPY); this.note_('x' + d.count); return; }
     this.peel(e.deltaY < 0 ? 1 : -1);
   }
 
   private hover(x: number, y: number) {
     const h = this.hitAt(x, y);
     for (const v of this.views) v.setHover(h?.kind === 'item' && h.view === v ? h.items[0] : this.sel?.view === v ? this.sel.it : null);
-    if (h) this.showTag(h); else this.hoverTag.hide();
+    if (h) this.showTag(h); else this.gtag.hide();
   }
 
+  /** the luggage tag tied to what you point at, lying on the rim (things in the pack) or the floor beside it */
   private showTag(h: Hit) {
-    if (h.kind === 'item') { if (h.view.itemWorldPos(h.items[0], _v)) this.hoverTag.item(h.items[0], h.items.length, _v); return; }
-    if (h.kind === 'held' || h.kind === 'worn') {
-      const o = h.kind === 'held' ? this.heldObjs[h.hand] : this.wornObjs.find((w) => w.it === h.it)?.obj;
-      if (o) { o.outer.getWorldPosition(_v); this.hoverTag.item(h.it, 1, _v); }
+    const W = this.world;
+    W.updateMatrixWorld(true);
+    const toW = (v: THREE.Vector3) => W.worldToLocal(v);
+    if (h.kind === 'item') {
+      if (!h.view.itemWorldPos(h.items[0], _v)) return;
+      const rest = new THREE.Vector3();
+      if (h.view === this.cube) { const lx = this.cube.root.worldToLocal(_v2.copy(_v)).x; this.cube.rimNear(lx, rest); }
+      else rest.copy(_v).add(_v2.set(0, 0, 0));
+      toW(_v); toW(rest);
+      if (h.view !== this.cube) { rest.y = 0.006; rest.z += 0.13; rest.x += rest.x > 0 ? -0.05 : 0.05; }
+      this.gtag.item(h.items[0], h.items.length, _v.clone(), rest);
       return;
     }
-    if (h.kind === 'side') { const s = this.sideTags[h.i]; if (s) { s.t.mesh.getWorldPosition(_v); this.hoverTag.text([s.e.name, s.e.c.items.length + ' ITEMS', 'TAP: SHOW'], _v); } return; }
-    if (h.kind === 'lid') { this.cube.lid.getWorldPosition(_v); this.hoverTag.text(['THE LID', 'TAP: SHUT'], _v); return; }
-    this.hoverTag.hide();
+    if (h.kind === 'held' || h.kind === 'worn') {
+      const o = h.kind === 'held' ? this.heldObjs[h.hand] : this.wornObjs.find((w) => w.it === h.it)?.obj;
+      if (o) { o.outer.getWorldPosition(_v); toW(_v); this.gtag.item(h.it, 1, _v.clone(), _v.clone().add(_v2.set(0.02, 0.004 - _v.y, 0.12))); }
+      return;
+    }
+    if (h.kind === 'lid') { this.cube.flapEdge(_v); toW(_v); this.gtag.text(['THE FLAP', 'TAP: CLOSE'], _v.clone(), _v.clone().setY(0.006).add(_v2.set(0.1, 0, 0.06))); return; }
+    this.gtag.hide();
   }
 
   // ================================================================ drag
@@ -814,7 +1059,7 @@ export class InventoryUI {
     const rot = (src === 'grid' && it.rot ? it.rot : 0) as Rot;
     this.drag = { stack, count, from, src, hand, rot, pointerId: e.pointerId, over: { k: 'none' }, ghost, edges };
     for (const v of this.views) { for (const i of stack.slice(0, count)) v.hidden.add(i); v.refresh(); }
-    this.hoverTag.hide();
+    this.gtag.hide();
     this.sel = null;
     G.audio?.itemSound?.(it.key, 'pick', G.local);
     this.retarget(e.clientX, e.clientY);
@@ -826,7 +1071,7 @@ export class InventoryUI {
     this.drag = null;
     d.ghost.outer.parent?.remove(d.ghost.outer); d.edges.parent?.remove(d.edges);
     for (const v of this.views) { v.hidden.clear(); v.refresh(); }
-    for (const s of this.sideTags) s.t.mesh.scale.setScalar(1);
+    this.tags?.highlight(null);
   }
 
   private screenDist(w: THREE.Vector3, x: number, y: number) {
@@ -844,25 +1089,26 @@ export class InventoryUI {
     const reach = Math.min(window.innerWidth, window.innerHeight) * 0.09;
     for (const h of ['R', 'L'] as const) if (this.screenDist(this.palm[h], x, y) < reach) t = { k: 'hand', hand: h, ok: d.count === 1 };
     if (t.k === 'none') {
-      this.wornBoard.getWorldPosition(_v);
-      if (this.screenDist(_v, x, y) < reach * 1.2) t = { k: 'wear', ok: !!(def.clothing || def.bag) && d.src !== 'worn' };
+      this.matG.getWorldPosition(_v);
+      if (this.screenDist(_v, x, y) < reach * 1.3) t = { k: 'wear', ok: !!(def.clothing || def.bag) && d.src !== 'worn' };
     }
     if (t.k === 'none') {
-      const hits = this.rc.intersectObjects(this.sideTags.map((s) => s.t.mesh), false);
-      const s = hits[0] ? this.sideTags.find((q) => q.t.mesh === hits[0].object) : null;
-      if (s) t = { k: 'tab', c: s.e.c, ok: s.e.c !== d.from && (s.e.c.kind === 'floor' || s.e.c.hasRoom(it)) };
+      const hits = this.rc.intersectObjects(this.tags.meshes(), false);
+      const s = hits[0] ? this.tags.tagOf(hits[0].object) : null;
+      const e = s ? this.side[s.i] : null;
+      if (e) t = { k: 'tab', c: e.c, ok: e.c !== d.from && (e.c.kind === 'floor' || e.c.hasRoom(it)) };
     }
     if (t.k === 'none') {
       for (const v of [this.cube, this.roll, this.tray]) { const r = v.targetAt(ray, it, d.rot, d.count); if (r) { t = { k: 'grid', d: r }; break; } }
     }
     if (t.k === 'none') {
-      // the bare carpet: leave it on the floor
-      this.floor.updateWorldMatrix(true, false);
-      const inv = new THREE.Matrix4().copy(this.floor.matrixWorld).invert();
+      // the bare floor: leave it there
+      this.world.updateMatrixWorld(true);
+      const inv = new THREE.Matrix4().copy(this.world.matrixWorld).invert();
       const r = ray.clone().applyMatrix4(inv);
       if (Math.abs(r.direction.y) > 1e-4) { const tt = -r.origin.y / r.direction.y; if (tt > 0) t = { k: 'floor', at: r.at(tt, new THREE.Vector3()) }; }
     }
-    for (const s of this.sideTags) s.t.mesh.scale.setScalar(t.k === 'tab' && s.e.c === t.c ? 1.2 : 1);
+    this.tags.highlight(t.k === 'tab' ? this.side.findIndex((e) => e.c === (t as { c: Container }).c) : null);
     d.over = t;
   }
 
@@ -890,16 +1136,16 @@ export class InventoryUI {
       (d.edges.material as THREE.LineBasicMaterial).color.setHex(ok ? 0x9ae890 : 0xd84a32);
       d.edges.visible = true;
     } else if (t.k === 'floor') {
-      reparent(this.floor);
+      reparent(this.world);
       o.position.lerp(_v2.copy(t.at).setY(0.04), 1 - Math.exp(-28 * dt));
       fitItemObj(d.ghost, d.rot, 0.12, 0.12, 0.08, 1);
       tint(ghostNone);
       d.edges.visible = false;
     } else {
       reparent(this.g);
-      pointerRay(this.rc, fpCamera(), this.lastPX, this.lastPY).at(1.0, _v2);
+      pointerRay(this.rc, fpCamera(), this.lastPX, this.lastPY).at(0.62, _v2);
       o.position.lerp(_v2, 1 - Math.exp(-28 * dt));
-      fitItemObj(d.ghost, d.rot, 0.1, 0.1, 0.1, 0.9);
+      fitItemObj(d.ghost, d.rot, 0.08, 0.08, 0.08, 0.9);
       tint(t.k === 'none' ? ghostNone : 'ok' in t && t.ok ? ghostOk : ghostBad);
       d.edges.visible = false;
     }
@@ -996,15 +1242,15 @@ export class InventoryUI {
     if (to === this.roll.c) G.missions?.set?.('pack:toolroll');
     this.dirty = true;
   }
-  private bad() { G.audio?.ui?.('bag_bad', 0.5); this.note("won't go there", true); }
+  private bad() { G.audio?.ui?.('bag_bad', 0.5); this.note_("won't go there", true); }
 
   private inspect(it: Item, c: Container) {
-    this.cancelDrag(); this.hoverTag.hide();
+    this.cancelDrag(); this.gtag.hide();
     (G as any).craft?.inspect?.(it, c);
   }
 
   // ================================================================ kit & quick draw
-  /** saves from before the cube, or kits without one: bolt the cube on and hang the tool roll */
+  /** saves from before the field pack, or kits without one: strap the pack on and hang the tool roll */
   private ensureKit(p: any) {
     if (!p || p.body?.dead || !p.inv) return;
     try {
@@ -1024,7 +1270,7 @@ export class InventoryUI {
         p.inv.add(roll); p.wear(roll);
       }
       bus.emit('inventoryChanged', p);
-    } catch (e) { console.warn('cube kit', e); }
+    } catch (e) { console.warn('pack kit', e); }
   }
 
   /** ` / Y: draw the holstered tool into the right hand, or holster what you hold */

@@ -40,6 +40,8 @@ export type HangSign = HTMLButtonElement & {
   setBoardW: (w: number) => void;
   /** the board width the label needs (art px) */
   needW: () => number;
+  /** latch the lit board (the current page) */
+  setOn: (v: boolean) => void;
 };
 
 const K = 0x0a0806;
@@ -371,7 +373,8 @@ export function hangSign(label: string, onClick: (b: HangSign) => void, o: SignO
     wake(L);
   };
   const setState = (st: 0 | 1 | 2) => { if (st !== state) { state = st; L.drawn = NaN; render(); } };
-  const hot = () => setState(document.activeElement === b || b.matches(':hover') ? 1 : 0);
+  const hot = () => setState(document.activeElement === b || b.matches(':hover') || b.classList.contains('on') ? 1 : 0);
+  b.setOn = (v: boolean) => { b.classList.toggle('on', v); b.setAttribute('aria-pressed', String(v)); hot(); };
   b.addEventListener('pointerenter', (e) => {
     if (b.disabled) return;
     if (e.pointerType === 'mouse') {

@@ -85,7 +85,10 @@ void STAGE;
 type Phase = 'drag' | 'throw' | 'beat' | 'haul' | 'fit' | 'tape' | 'through' | 'land' | 'arrival' | 'voss' | 'done';
 
 /** the next scene (src/game/arrival.ts, the arrival worker's): an arm into the jelly wall, the Lobby, Voss. Optional: without it the old pass-through plays */
-const ARRIVAL = import.meta.glob('./arrival.ts') as Record<string, () => Promise<{ playArrival?: (g: Game, p: Player) => Promise<void> }>>;
+type ArrivalMod = { playArrival?: (g: Game, p: Player, opts?: { from?: 'intro' | 'dev' }) => Promise<void> };
+const ARRIVAL = import.meta.glob('./arrival.ts') as Record<string, () => Promise<ArrivalMod>>;
+/** the issue pack now comes from the arrival (src/game/arrivalKit/pack.ts); every path out of the intro makes sure it is on (optional: absent file, empty map) */
+const PACK = import.meta.glob('./arrivalKit/pack.ts', { eager: true }) as Record<string, { ensurePack?: (p: Player) => boolean }>;
 
 /** actions that make no sense while being processed */
 const BLOCK = new Set<Action>(['scanner', 'map', 'flashlight', 'craft', 'sleep', 'grab', 'hot1', 'hot2', 'hot3', 'hot4', 'hot5', 'inventory', 'attack', 'shove', 'shout', 'interact'] as Action[]);
@@ -130,7 +133,7 @@ const SHOTS: Partial<Record<Phase, [number, number, string][]>> = {
   drag: [[0, 4.4, 'establish']],
   throw: [[0.12, 2.1, 'throwWide']],
   beat: [[2.15, 3.72, 'beatWide'], [4.55, 6.05, 'beatTop']],
-  haul: [[1.6, 3.05, 'haulCrane'], [3.05, 4.75, 'pressClose']],
+  haul: [[1.6, 3.05, 'haulCrane'], [3.05, 5.55, 'pressClose']],
   fit: [[1.45, 3.9, 'fitClose'], [3.9, 6.95, 'fitPierce']],
   tape: [[1.0, 3.6, 'tapeWide']],
 };
@@ -487,6 +490,7 @@ export class Intro implements GameSystem {
   // ================================================================== hooks
   private hookInput() {
     const g = this.g, inp = g.input as any;
+    const own = Object.prototype.hasOwnProperty.call(inp, 'hit') ? inp.hit : undefined;
     const orig = inp.hit.bind(inp) as (a: Action) => boolean;
     inp.hit = (a: Action) => {
       if (a === 'pause') {
@@ -500,13 +504,18 @@ export class Intro implements GameSystem {
       if (BLOCK.has(a)) return false;
       return a === 'camLeft' || a === 'camRight' ? orig(a) : false;
     };
-    this.offs.push(() => { delete inp.hit; });
+    this.offs.push(() => { if (own) inp.hit = own; else delete inp.hit; });
     const ui = g.ui;
     if (ui) {
       this.origClick = ui.onWorldClick; this.origKey = ui.onInteractKey;
       ui.onWorldClick = (t: PickTarget, b: number) => { if (this.phase === 'voss') this.origClick?.(t, b); };
       ui.onInteractKey = () => { if (this.phase === 'voss') this.origKey?.(); };
       this.offs.push(() => { ui.onWorldClick = this.origClick; ui.onInteractKey = this.origKey; });
+      // the survivor's own thought bubbles (pain, panic, bleeding) would float over the cutscene's lines: one voice at a time
+      const U0 = ui as unknown as { say: (...a: unknown[]) => unknown }, say0 = U0.say, ownSay = Object.prototype.hasOwnProperty.call(U0, 'say');
+      const mute = (...a: unknown[]) => (this.phase === 'voss' || this.phase === 'done' || this.phase === 'arrival' || a[0] !== this.p ? say0.apply(U0, a) : undefined);
+      U0.say = mute;
+      this.offs.push(() => { if (U0.say !== mute) return; if (ownSay) U0.say = say0; else delete (U0 as { say?: unknown }).say; });
     }
     // a tap brings the skip plate up; a tap on it skips
     const tap = (e: PointerEvent) => {
@@ -563,7 +572,7 @@ export class Intro implements GameSystem {
     this.subs = new Subs(root);
     document.body.appendChild(root);
   }
-  private hotSkip() { this.skipHot = 2.6; this.plate.el.classList.add('hot'); }
+  private hotSkip() { if (this.phase === 'arrival' || this.phase === 'done') return; this.skipHot = 2.6; this.plate.el.classList.add('hot'); }
   private letterbox(on: boolean) { this.root.classList.toggle('letterbox', on); }
   /** a spoken line: bus 'subtitle' (the speech renderer draws it as free floating text, with a voice) */
   private say(who: string, text: string, style: LineStyle = 'guard', sound = true, speaker?: Guard) {
@@ -752,7 +761,12 @@ export class Intro implements GameSystem {
     if (this.shot) {
       // a wide shot: an operator's camera, handheld, whipping on the blows
       this.shotT += dt;
-      const fov = this.shotCam(this.shot, this.shotT, this.tpPos, this.tpLook);
+      let fov = this.shotCam(this.shot, this.shotT, this.tpPos, this.tpLook);
+      // the shots are framed for 16:9; on a phone held upright keep about two thirds of that width in frame
+      if (cam.aspect < 1.3) {
+        const h = 2 * Math.atan(Math.tan(fov * DEG / 2) * 16 / 9) * 0.66;
+        fov = Math.min(88, Math.max(fov, 2 * Math.atan(Math.tan(h / 2) / Math.max(0.3, cam.aspect)) / DEG));
+      }
       cam.position.copy(this.tpPos);
       cam.position.x += n(0.8, 11) * 0.02 * hh; cam.position.y += n(1.1, 12) * 0.015 * hh + n(13, 7) * s * 0.03;
       cam.lookAt(this.tpLook);
@@ -819,9 +833,10 @@ export class Intro implements GameSystem {
       case 'pressClose': {
         // low at the plate's front lip: the body on the plate, the ram coming down on it
         const { x, z } = IX.press;
-        pos.set(x + 3.15 - t * 0.12, 1.12 + t * 0.03, z + 2.25 - t * 0.08);
-        look.set(x + 0.15, 1.15 - Math.min(0.32, t * 0.22), z + 0.45);
-        return 50;
+        // square on between the front columns, so the ram comes down the middle of the frame and lifts off what is left
+        pos.set(x + 3.3 - t * 0.14, 1.02 + t * 0.03, z + 0.85 - t * 0.06);
+        look.set(x + 0.1, 1.08 - Math.min(0.3, t * 0.2), z + 0.45);
+        return 52;
       }
       case 'fitClose': {
         // close on the cradle: the clamp, the officer's glove on your wrist, the driver above
@@ -1352,7 +1367,7 @@ export class Intro implements GameSystem {
     this.hands('claw', 'fist', 1);
     const w = this.wrist('L', v1);
     this.set.spark(w.x, w.y + 0.05, w.z, 26, 2.6, [0, 0.8, 0]);
-    this.lights().sparks(w, 0.8);
+    this.lights().sparks(w, 0.55);
     if ((G.sandbox.gore ?? 2) > 0) {
       this.set.bleed(w.x, w.y, w.z, 0.1, 0.8, 0.9, 26, 2.8, 0.6);
       this.set.bleed(w.x, w.y, w.z, 0.2, 0.3, -0.9, 16, 2.0, 0.4);
@@ -1441,7 +1456,7 @@ export class Intro implements GameSystem {
     if (this.handing) return;
     this.handing = true;
     const load = ARRIVAL['./arrival.ts'];
-    let A: { playArrival?: (g: Game, p: Player) => Promise<void> } | null = null;
+    let A: ArrivalMod | null = null;
     try { A = load ? await load() : null; } catch (e) { console.warn('intro: arrival failed to load', e); A = null; }
     if (!A?.playArrival || this.phase !== 'tape') { if (this.phase === 'tape') { this.handing = false; this.startThrough(); } return; }
     this.go('arrival');
@@ -1451,8 +1466,8 @@ export class Intro implements GameSystem {
     this.lid = 0; this.lidGoal = 0; this.shadeA = 0;
     this.releaseStage();
     // the issue pack waits for whoever hands it over in the Lobby
-    (this.p as unknown as { intakePack?: Item | null }).intakePack = this.pack;
-    try { await A.playArrival(this.g, this.p); } catch (e) { console.warn('intro: arrival', e); }
+    if (this.pack) (this.p as unknown as { intakePack?: Item | null }).intakePack = this.pack;
+    try { await A.playArrival(this.g, this.p, { from: 'intro' }); } catch (e) { console.warn('intro: arrival', e); }
     this.arrived = true;
     if ((this.phase as Phase) === 'arrival') this.finish();
   }
@@ -1666,6 +1681,7 @@ export class Intro implements GameSystem {
     g.attract = null;
     this.clearPose(); p.full = '';
     this.returnPack();
+    try { PACK['./arrivalKit/pack.ts']?.ensurePack?.(p); } catch (e) { console.warn(e); }
     p.y = g.getZone(p.zoneKey).heightAt(p.tileX(), p.tileY());
     for (const off of this.offs.splice(0)) { try { off(); } catch (e) { console.error(e); } }
     G.input.pointerOverUI = false;

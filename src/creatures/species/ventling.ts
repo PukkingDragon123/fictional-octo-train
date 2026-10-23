@@ -1,4 +1,5 @@
 import { horrify } from '../kit/horror';
+import { regionCanvas, sores, drips, BLOOD, RAW } from '../kit/rot';
 import * as THREE from 'three';
 import { def, newRig, Rig } from '../species';
 import { mixHex, scaleHex, ph } from '../../gfx/pixel';
@@ -300,6 +301,13 @@ PG.paint((Pt, v) => {
     veins(r, 9);
     grime(r, (x) => (1 - aOf(x) / 1.2) * 0.9);
     for (let i = 0; i < 4; i++) { const x = rng.int(0, r.w - 1), y = rng.int(2, r.h - 3); Pt.walk(r, x, y, 4, 1, 0.3, 0xb87a7a, 0.6, 0.3); } // scrapes
+    // the guts show through the thin belly skin: dark, lumped, a little purple
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
+      const a = aOf(x), z = zOf(y), n = Pt.n(r, x, y, 3, 2, 13);
+      if (a < 1.25 && z > -0.12 && z < 0.1 && n > 0.42) Pt.blend(r, x, y, n > 0.62 ? 0x5a1a2a : 0x6a3a4a, 0.22 + (n - 0.42) * 0.8 * (1 - a / 1.25));
+    }
+    // raw weeping sores on the knobs of the spine, where it scrapes the duct roof
+    sores(regionCanvas(Pt, r), 5, 40 + v, (x) => aOf(x) > 2.3);
   }
   // ---------------- head: veined dome of a skull, eye sockets bruised dark, a lipless slit
   {
@@ -314,6 +322,15 @@ PG.paint((Pt, v) => {
     const ym = Math.round((1 - (0.04 + 0.92 * ((0.07 + 0.1) / 0.2))) * r.h);
     for (let a = 0; a < 1.2; a += 0.04) for (const sd of [1, -1]) { const x = uOf(a, sd) * r.w; Pt.set(r, x, ym + Math.round(a * 1.5), 0x2a1418); }
     grime(r, (x, y) => (1 - (y + 0.5) / r.h) < 0.2 ? 0.4 : 0);
+    // old blood crusted along the slit and down the sides of the chin, a sore on the dome
+    for (let a = 0; a < 1.25; a += 0.04) for (const sd of [1, -1]) {
+      const x = uOf(a, sd) * r.w, y = ym + Math.round(a * 1.5);
+      Pt.blend(r, x, y + 1, BLOOD[1], 0.7); if (rng.chance(0.4)) Pt.blend(r, x, y + 2, BLOOD[2], 0.5);
+    }
+    const C = regionCanvas(Pt, r);
+    drips(C, uOf(0.9, 1) * r.w, ym + 2, 2, 4, [-0.6, 0.4], 50 + v, 1);
+    drips(C, uOf(0.7, -1) * r.w, ym + 2, 1, 4, [0.6, 0.4], 52 + v, 1);
+    sores(C, 2, 60 + v, (x, y) => y < r.h * 0.45);
   }
   {
     const r = Pt.R('JAW');
@@ -324,7 +341,7 @@ PG.paint((Pt, v) => {
   {
     const r = Pt.R('TEETH');
     for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) Pt.set(r, x, y, y === 0 ? 0x4a1a1e : 0x120808);
-    for (let x = 0; x < r.w; x += 2) { const L = r.h - (ph(x, 1, v) < 0.3 ? 2 : 1); for (let y = 1; y < L; y++) Pt.set(r, x, y, y === L - 1 ? 0xf4f0e0 : 0xd8d0c0); }
+    for (let x = 0; x < r.w; x += 2) { const L = r.h - (ph(x, 1, v) < 0.3 ? 2 : 1); for (let y = 1; y < L; y++) Pt.set(r, x, y, y === L - 1 ? 0xf4f0e0 : y === 1 && ph(x, 3, v) < 0.5 ? 0x8a3a30 : 0xd8d0c0); }
   }
   // ---------------- eyes: wet black, a dull green shine low in each, a white glint
   {
@@ -348,6 +365,11 @@ PG.paint((Pt, v) => {
     });
     veins(r, 2);
     grime(r, (x, y) => (knobs.some((k) => Math.abs((1 - (y + 0.5) / r.h) - k) < 0.1) ? 0.35 : 0) + ((y + 0.5) / r.h > 0.85 ? 0.25 : 0));
+    // the knobs worn raw from crawling
+    for (const k of knobs) for (let x = 0; x < r.w; x++) {
+      const y = Math.round((1 - k) * r.h - 0.5);
+      if (Math.cos(((x + 0.5) / r.w) * Math.PI * 2) > 0.2 && rng.chance(0.75)) { Pt.set(r, x, y, RAW[3 + rng.int(0, 2)]); if (rng.chance(0.4)) Pt.set(r, x, y + 1, RAW[2]); }
+    }
   };
   limb('LIMB_U', [0.03]); limb('LIMB_L', [0.96, 0.05]);
   {

@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { gem, fcapsule } from '../touch/facet';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mix, hash } from './pix';
+import { foodAtlas } from './fpTex';
 
 export type Kind = 'bar' | 'loaf' | 'sandwich' | 'fruit' | 'long' | 'meat' | 'fish' | 'can' | 'bowl' | 'cookie' | 'cheese' | 'egg' | 'weird' | 'blob';
 export interface Recipe { kind: Kind; skin: number; flesh: number; wrap: number; extra: number; crunchy: boolean; juicy: boolean; hot: boolean; bad: '' | 'rotten' | 'raw' | 'poison'; label: string }
@@ -28,6 +29,8 @@ export class FoodModel {
   readonly mesh: THREE.Mesh;
   readonly half: THREE.Vector3;
   private geo: THREE.BufferGeometry;
+  /** each vertex's own sphere uv (the atlas panels are thirds of it) */
+  private uv0: Float32Array;
   private edible: Uint8Array;
   private seed: number;
   /** bite size (m) */
@@ -40,11 +43,15 @@ export class FoodModel {
     // a dense sphere, squared off into a superellipsoid and shaped per kind
     // low-poly: few enough rings that every facet shows under flat shading, enough for a bite to dent
     let g: THREE.BufferGeometry = new THREE.SphereGeometry(1, 16, 11);
-    g.deleteAttribute('uv'); g.deleteAttribute('normal');
+    g.deleteAttribute('normal');
     g = mergeVertices(g, 1e-6);
     const P = g.getAttribute('position') as THREE.BufferAttribute;
+    const UV = g.getAttribute('uv') as THREE.BufferAttribute;
     const n = P.count;
     const col = new Float32Array(n * 3);
+    // the pixel atlas: skin in the first third, the inside in the second, the wrapper's print in the last
+    this.uv0 = new Float32Array(n * 2);
+    for (let i = 0; i < n; i++) { this.uv0[i * 2] = UV.getX(i); this.uv0[i * 2 + 1] = UV.getY(i); UV.setXY(i, UV.getX(i) / 3, UV.getY(i)); }
     this.edible = new Uint8Array(n).fill(1);
     const [hx, hy, hz] = sh.h;
     for (let i = 0; i < n; i++) {
@@ -92,7 +99,12 @@ export class FoodModel {
         case 'cheese': c = (hash(Math.round(ux * 9), Math.round(uz * 9) + Math.round(uy * 9) * 31, 4) < 0.12) ? mix(r.skin, 0x8a6a10, 0.35) : uy > 0.85 ? mix(r.skin, 0xc89020, 0.4) : r.skin; break;
         case 'bar': {
           // the back half still in its crinkled wrapper (it is not food)
-          if (ux > 0.12) { c = (Math.round(ux * 30) & 1) ? r.wrap : mix(r.wrap, 0xffffff, 0.18); if (ux < 0.2) c = mix(r.wrap, 0xffffff, 0.5); this.edible[i] = 0; x *= 1.03; y *= 1.12; z *= 1.06; }
+          if (ux > 0.12) {
+            // the printed wrapper (its own colours from the atlas), torn ragged at the edge
+            c = ux < 0.17 ? 0xdcdcdc : 0xffffff; this.edible[i] = 0; x *= 1.03; y *= 1.12; z *= 1.06;
+            UV.setXY(i, 2 / 3 + Math.min(1, Math.max(0, (ux - 0.12) / 0.88)) / 3 * 0.98, Math.min(1, Math.max(0, uz * 0.5 + 0.5)));
+            if (ux < 0.17) x += (hash(i, 9, seed) - 0.5) * 0.004;
+          }
           else c = mix(r.skin, 0x3a1a08, Math.max(0, nz) * 0.4);
           break;
         }
@@ -105,7 +117,7 @@ export class FoodModel {
     g.setAttribute('color', new THREE.BufferAttribute(col, 3));
     g.computeVertexNormals();
     this.geo = g;
-    this.mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ flatShading: true, vertexColors: true }));
+    this.mesh = new THREE.Mesh(g, new THREE.MeshLambertMaterial({ flatShading: true, vertexColors: true, map: foodAtlas(r, seed) }));
     this.mesh.frustumCulled = false;
     this.group.add(this.mesh);
     this.biteR = Math.max(0.011, Math.min(0.026, Math.max(hx, hy, hz) * 0.42));
@@ -156,6 +168,7 @@ export class FoodModel {
     if (i0 < 0) return 0;
     const P = this.geo.getAttribute('position') as THREE.BufferAttribute;
     const C = this.geo.getAttribute('color') as THREE.BufferAttribute;
+    const UV = this.geo.getAttribute('uv') as THREE.BufferAttribute;
     const R = this.biteR * scale;
     const v = _a.set(P.getX(i0), P.getY(i0), P.getZ(i0));
     const dir = _b.copy(from).sub(v).normalize();
@@ -182,14 +195,16 @@ export class FoodModel {
       const rim = Math.max(0, 1 - (rr - d) / (rr * 0.35));
       _c.copy(flesh).lerp(skin, rim * 0.25).multiplyScalar(0.92 + hash(i, this.seed, 7) * 0.12);
       C.setXYZ(i, _c.r, _c.g, _c.b);
+      // the inside's texture: crumb, fibre, flesh
+      UV.setXY(i, 1 / 3 + this.uv0[i * 2] / 3 * 0.98, this.uv0[i * 2 + 1]);
       moved++;
     }
-    if (moved) { P.needsUpdate = true; C.needsUpdate = true; this.geo.computeVertexNormals(); }
+    if (moved) { P.needsUpdate = true; C.needsUpdate = true; UV.needsUpdate = true; this.geo.computeVertexNormals(); }
     return moved;
   }
 
   /** for cans and bowls: the contents sink as they are eaten */
   setLevel(k: number) { if (this.r.kind === 'can' || this.r.kind === 'bowl') { this.mesh.scale.y = Math.max(0.08, k); this.mesh.position.y = -this.half.y * (1 - Math.max(0.08, k)); } }
 
-  dispose() { this.geo.dispose(); this.group.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { if (m.geometry !== this.geo) m.geometry.dispose(); (m.material as THREE.Material).dispose(); } }); this.group.removeFromParent(); }
+  dispose() { this.geo.dispose(); this.group.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { if (m.geometry !== this.geo) m.geometry.dispose(); (m.material as THREE.MeshLambertMaterial).map?.dispose(); (m.material as THREE.Material).dispose(); } }); this.group.removeFromParent(); }
 }

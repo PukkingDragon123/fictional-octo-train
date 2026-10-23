@@ -609,6 +609,8 @@ export class IntroSet {
       const under = ry - GP.bedH;
       const bh = 1.0 * Math.pow(0.45, P.hits);
       this.bundle.scale.y = Math.max(0.12, Math.min(bh, under / 0.45));
+      // a body lies on the plate now: the old sack of scrap is not needed
+      this.bundle.visible = !this.corpse;
       if (prevT < CYCLE.impact && t >= CYCLE.impact) {
         P.hits++;
         const { x, z } = IX.press;

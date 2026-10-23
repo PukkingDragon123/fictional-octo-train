@@ -30,18 +30,19 @@ let steelTex: THREE.CanvasTexture | null = null;
 function steelTexture(): THREE.CanvasTexture {
   if (steelTex) return steelTex;
   const N = 32, pc = new PixelCanvas(N, N);
-  const R = [0x3a4045, 0x4f575d, 0x646d73, 0x7a838a, 0x949da3, 0xb4bcc0];
+  const R = [0x4a5156, 0x5e666c, 0x737c82, 0x8a9399, 0xa2abb0, 0xc4ccd0];
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-    let v = 0.6 + (hash(x >> 2, y >> 1, 3) - 0.5) * 0.16 + Math.sin(x * 0.5 + y * 0.12) * 0.05;
-    if (hash(x, y, 7) > 0.975) v += 0.25;           // bright scratches
-    if (hash(x >> 3, y >> 3, 11) < 0.12) v -= 0.22; // grime
+    // mostly clean machined steel: faint lathe rings, a few scratches, a little grime and rust
+    let v = 0.62 + Math.sin((x + y * 0.3) * 0.7) * 0.03 + (hash(x >> 3, y >> 3, 3) - 0.5) * 0.08;
+    if (hash(x, y, 7) > 0.985) v += 0.22;
+    if (hash(x >> 3, y >> 3, 11) < 0.1) v -= 0.14;
     const f = Math.max(0, Math.min(1, v)) * 5;
-    let i = Math.floor(f); if (f - i > bayer(x, y)) i++;
+    let i = Math.floor(f); const fr = f - i; if (fr > 0.7 || (fr > 0.45 && bayer(x, y) < (fr - 0.45) / 0.25)) i++;
     let c = R[Math.max(0, Math.min(5, i))];
-    if (hash(x >> 1, y >> 1, 13) < 0.05) c = mixHex(c, 0x7a3a16, 0.6); // rust
+    if (hash(x >> 2, y >> 2, 13) < 0.03) c = mixHex(c, 0x7a3a16, 0.55);
     pc.set(x, y, c);
   }
-  for (let i = 0; i < 6; i++) { const x0 = Math.floor(hash(i, 1, 17) * N), y0 = Math.floor(hash(i, 2, 17) * N); for (let k = 0; k < 6; k++) pc.set((x0 + k) % N, (y0 + (k >> 1)) % N, 0xc8d0d4); }
+  for (let i = 0; i < 4; i++) { const x0 = Math.floor(hash(i, 1, 17) * N), y0 = Math.floor(hash(i, 2, 17) * N); for (let k = 0; k < 5; k++) pc.set((x0 + k) % N, (y0 + (k >> 1)) % N, 0xd8dee0); }
   const c = document.createElement('canvas'); c.width = N; c.height = N;
   c.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
   const t = new THREE.CanvasTexture(c);
@@ -201,9 +202,9 @@ export function gearButton(label: string, onClick: () => void, o: { size?: numbe
   const rig = new THREE.Group(); rig.add(group, small);
   rig.rotation.set(-0.42, 0.38, 0);
   st.scene.add(rig);
-  st.cam.position.set(0.32, -0.18, 5.6); st.cam.lookAt(0.32, -0.18, 0);
+  st.cam.position.set(0.5, -0.14, 6.6); st.cam.lookAt(0.5, -0.14, 0);
   let ang = 0, w = 0.35, target = 0.35, glow = 0;
-  const N = o.size ?? 60;
+  const N = o.size ?? 64;
   const tickO = {
     el: b,
     tick: (dt: number) => {
@@ -219,7 +220,7 @@ export function gearButton(label: string, onClick: () => void, o: { size?: numbe
       return true;
     },
   };
-  const paint = () => { st.size(N, N + 2); st.render(); };
+  const paint = () => { st.size(Math.round(N * 1.35), N); st.render(); };
   b.spin = (dw: number) => { w += dw; run(tickO); };
   b.dispose = () => { st.dispose(); };
   b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse' && document.activeElement !== b) b.focus({ preventScroll: true }); sfx('ratchet', 0.4); });
@@ -265,7 +266,7 @@ export function gearCluster(pages: string[], onPick: (i: number) => void, start 
     specs.forEach((sp, i) => {
       if (i) {
         const d = specs[i - 1].r + sp.r - 0.13;
-        const sideA = orient === 'v' ? (i % 2 ? 0.55 : -0.55) : (i % 2 ? -0.5 : 0.5);
+        const sideA = orient === 'v' ? (i % 2 ? 0.55 : -0.55) : (i % 2 ? -0.18 : 0.18);
         if (orient === 'v') { x += Math.sin(sideA) * d; y -= Math.cos(sideA) * d; } else { x += Math.cos(sideA) * d; y += Math.sin(sideA) * d; }
       }
       pos.push([x, y]);

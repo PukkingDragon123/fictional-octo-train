@@ -75,6 +75,7 @@ export class ModelBuilder {
   private uv: number[] = [];
   private col: number[] = [];
   private atl: number[] = [];
+  private hd: number[] = [];
   private fx: number[] = [];
   private idx: number[] = [];
   private stack: THREE.Matrix4[] = [];
@@ -127,6 +128,9 @@ export class ModelBuilder {
       ((c & 255) / 255) * ((t & 255) / 255) * s,
     );
     this.atl.push(r.u0, r.v0, r.du, r.dv);
+    // the close-up version for the first-person eye (dv stored negative: a marker no default attribute value has)
+    const h = r.hd !== undefined ? r.hd : atlas().hdOf(r);
+    if (h) this.hd.push(h.u0, h.v0, h.du, -h.dv); else this.hd.push(0, 0, 0, 0);
     this.fx.push(emis, sway || this.swayDefault);
   }
 
@@ -522,7 +526,7 @@ export class ModelBuilder {
   append(other: ModelBuilder) {
     const base = this.vertexCount;
     this.pos.push(...other.pos); this.nor.push(...other.nor); this.uv.push(...other.uv);
-    this.col.push(...other.col); this.atl.push(...other.atl); this.fx.push(...other.fx);
+    this.col.push(...other.col); this.atl.push(...other.atl); this.hd.push(...other.hd); this.fx.push(...other.fx);
     for (const i of other.idx) this.idx.push(i + base);
     return this;
   }
@@ -534,7 +538,7 @@ export class ModelBuilder {
   appendGeometry(g: THREE.BufferGeometry, m: THREE.Matrix4, tint = 0xffffff, fxY?: number) {
     const base = this.vertexCount;
     const P = g.getAttribute('position'), N = g.getAttribute('normal'), UV = g.getAttribute('uv');
-    const C = g.getAttribute('color'), A = g.getAttribute('aAtlas'), F = g.getAttribute('aFx');
+    const C = g.getAttribute('color'), A = g.getAttribute('aAtlas'), F = g.getAttribute('aFx'), HD = g.getAttribute('aHd');
     const nm = new THREE.Matrix3().getNormalMatrix(m);
     const v = new THREE.Vector3(), n = new THREE.Vector3();
     const tr = ((tint >> 16) & 255) / 255, tg = ((tint >> 8) & 255) / 255, tb = (tint & 255) / 255;
@@ -545,6 +549,7 @@ export class ModelBuilder {
       this.uv.push(UV.getX(i), UV.getY(i));
       this.col.push(C.getX(i) * tr, C.getY(i) * tg, C.getZ(i) * tb);
       this.atl.push(A.getX(i), A.getY(i), A.getZ(i), A.getW(i));
+      if (HD) this.hd.push(HD.getX(i), HD.getY(i), HD.getZ(i), HD.getW(i)); else this.hd.push(0, 0, 0, 0);
       this.fx.push(F.getX(i), fxY ?? F.getY(i));
     }
     const I = g.getIndex()!;
@@ -558,6 +563,7 @@ export class ModelBuilder {
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.col, 3));
     g.setAttribute('aAtlas', new THREE.Float32BufferAttribute(this.atl, 4));
+    g.setAttribute('aHd', new THREE.Float32BufferAttribute(this.hd, 4));
     g.setAttribute('aFx', new THREE.Float32BufferAttribute(this.fx, 2));
     const vc = this.vertexCount;
     g.setIndex(vc > 65535 ? new THREE.Uint32BufferAttribute(this.idx, 1) : new THREE.Uint16BufferAttribute(this.idx, 1));
@@ -568,7 +574,7 @@ export class ModelBuilder {
 
   reset() {
     this.pos.length = 0; this.nor.length = 0; this.uv.length = 0; this.col.length = 0;
-    this.atl.length = 0; this.fx.length = 0; this.idx.length = 0; this.m.identity(); this.stack.length = 0; this.nmDirty = true;
+    this.atl.length = 0; this.hd.length = 0; this.fx.length = 0; this.idx.length = 0; this.m.identity(); this.stack.length = 0; this.nmDirty = true;
     return this;
   }
 }

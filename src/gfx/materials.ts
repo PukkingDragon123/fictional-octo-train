@@ -48,6 +48,10 @@ export const U = {
   /** close-up detail tiles in the atlas (u0, v0, du, dv): walls / props and floors (src/gfx/textures/detail.ts) */
   uDetailW: { value: new THREE.Vector4(0, 0, 0, 0) },
   uDetailF: { value: new THREE.Vector4(0, 0, 0, 0) },
+  /** close-up atlas (src/gfx/atlas.ts hdTexture), its size, and 1 while the first-person eye draws the world */
+  uHdMap: { value: null as THREE.Texture | null },
+  uHdSize: { value: 2048 },
+  uCloseUp: { value: 0 },
 };
 
 export interface WorldMatOpts {
@@ -74,6 +78,8 @@ export interface WorldMatOpts {
 
 const VERT_DECL = /* glsl */`
 attribute vec4 aAtlas;
+attribute vec4 aHd;
+varying vec4 vHd;
 attribute vec2 aFx;
 varying vec4 vAtlas;
 varying vec3 vWPos;
@@ -117,6 +123,7 @@ if (uSnapOn > 0.5) {
   gl_Position.xy = (floor(gl_Position.xy / gl_Position.w * g + 0.5) / g) * gl_Position.w;
 }
 vAtlas = aAtlas;
+vHd = aHd;
 vEmis = aFx.x;
 vWallAxis = aFx.y;
 vec3 nObj = objectNormal;
@@ -129,6 +136,10 @@ vWNormal = normalize(mat3(modelMatrix) * nObj);
 const FRAG_DECL = /* glsl */`
 layout(location = 1) out highp vec4 gNormal;
 varying vec4 vAtlas;
+varying vec4 vHd;
+uniform sampler2D uHdMap;
+uniform float uHdSize;
+uniform float uCloseUp;
 varying vec3 vWPos;
 varying vec3 vWNormal;
 varying float vEmis;
@@ -180,38 +191,47 @@ const FRAG_MAP = /* glsl */`
   vec2 fuv = (floor(tuv) + 0.5) / texPx;
   vec2 auv = vAtlas.xy + vec2(fuv.x, 1.0 - fuv.y) * vAtlas.zw;
   vec4 sampledDiffuseColor = texture2D( map, auv );
-  {
-    // Up close (the first-person eye) one texel covers many screen pixels. Rebuild the inside of each
-    // texel the way a pixel artist doubles a sprite (Scale2x: diagonals stay diagonal, lines stay one
-    // texel thin) and give it a finer grain, so walls read as detailed pixel art instead of blocks.
-    // In the iso view a texel is about one pixel and none of this runs.
+  if (uCloseUp > 0.5) {
+    // Up close (the first-person eye) one texel would cover many screen pixels. Surfaces with a
+    // close-up version (src/gfx/textures/hd.ts: 2-4x the density, material detail painted in) switch
+    // to it; everything else rebuilds the inside of each texel the way a pixel artist doubles a
+    // sprite and picks up a finer layer of world-space relief. The iso view never runs this.
     vec2 tw = fwidth(tuv);
     float tpp = max(tw.x, tw.y);
-    if (tpp < 0.45 && tpp > 0.0) {
-      vec2 cell = floor(tuv), sub = fract(tuv) - 0.5;
-      vec2 sx = vec2(sub.x < 0.0 ? -1.0 : 1.0, 0.0), sy = vec2(0.0, sub.y < 0.0 ? -1.0 : 1.0);
-      #define LP_CELL(c) textureLod(map, vAtlas.xy + vec2((mod((c).x, texPx.x) + 0.5) / texPx.x, 1.0 - (mod((c).y, texPx.y) + 0.5) / texPx.y) * vAtlas.zw, 0.0)
-      vec4 cH = LP_CELL(cell + sx), cV = LP_CELL(cell + sy), cHo = LP_CELL(cell - sx), cVo = LP_CELL(cell - sy);
-      #undef LP_CELL
-      vec3 a1 = cH.rgb - cV.rgb, a2 = cV.rgb - cHo.rgb, a3 = cH.rgb - cVo.rgb;
-      if (dot(a1, a1) < 0.004 && dot(a2, a2) > 0.004 && dot(a3, a3) > 0.004) sampledDiffuseColor = mix(sampledDiffuseColor, cH, 1.0);
-      // finer grain: 4 x 4 sub-texels, a few percent either way, fading in as the texel grows
-      vec2 sc = floor(tuv * 4.0);
-      float gh = fract(sin(dot(sc, vec2(12.9898, 78.233))) * 43758.5453);
-      float gk = smoothstep(0.45, 0.16, tpp);
-      sampledDiffuseColor.rgb *= 1.0 + (gh - 0.5) * 0.07 * gk;
-      // a finer layer of surface relief (128 px per metre), projected in world space; only for meshes
-      // drawing from the world atlas (characters reuse this shader with their own small paint page)
-      if (textureSize(map, 0).x == int(uAtlasSize + 0.5)) {
-      vec3 an = abs(vWNormal);
-      bool flr = an.y > max(an.x, an.z);
-      vec2 dp = flr ? vWPos.xz : (an.x > an.z ? vWPos.zy : vWPos.xy);
-      vec4 dr = flr ? uDetailF : uDetailW;
-      if (dr.z > 0.0) {
-        vec2 duv = (floor(fract(dp * 2.0) * 64.0) + 0.5) / 64.0;
-        float dv = textureLod(map, dr.xy + vec2(duv.x, 1.0 - duv.y) * dr.zw, 0.0).r;
-        sampledDiffuseColor.rgb *= 1.0 + (dv - 0.5) * 1.35 * smoothstep(0.5, 0.22, tpp);
-      }
+    bool worldAtlas = textureSize(map, 0).x == int(uAtlasSize + 0.5);
+    if (tpp < 0.6 && tpp > 0.0 && worldAtlas) {
+      bool hasHd = vHd.w < 0.0 && vHd.z > 0.0;
+      if (hasHd) {
+        vec2 hdPx = max(vec2(vHd.z, -vHd.w) * uHdSize, vec2(1.0));
+        vec2 huv = fract(vMapUv) * hdPx;
+        // a hd texel should cover at least about a pixel: further away read every other one
+        float hpp = tpp * hdPx.x / texPx.x;
+        float lodT = 1.25 + (fract(sin(dot(floor(tuv * 2.0), vec2(41.3, 289.1))) * 15731.7) - 0.5) * 0.5;
+        huv = hpp > lodT ? floor(huv * 0.5) * 2.0 + 0.5 : floor(huv) + 0.5;
+        vec2 hu = huv / hdPx;
+        sampledDiffuseColor = textureLod(uHdMap, vHd.xy + vec2(hu.x, 1.0 - hu.y) * vec2(vHd.z, -vHd.w), 0.0);
+      } else if (tpp < 0.45) {
+        vec2 cell = floor(tuv), sub = fract(tuv) - 0.5;
+        vec2 sx = vec2(sub.x < 0.0 ? -1.0 : 1.0, 0.0), sy = vec2(0.0, sub.y < 0.0 ? -1.0 : 1.0);
+        #define LP_CELL(c) textureLod(map, vAtlas.xy + vec2((mod((c).x, texPx.x) + 0.5) / texPx.x, 1.0 - (mod((c).y, texPx.y) + 0.5) / texPx.y) * vAtlas.zw, 0.0)
+        vec4 cH = LP_CELL(cell + sx), cV = LP_CELL(cell + sy), cHo = LP_CELL(cell - sx), cVo = LP_CELL(cell - sy);
+        #undef LP_CELL
+        vec3 a1 = cH.rgb - cV.rgb, a2 = cV.rgb - cHo.rgb, a3 = cH.rgb - cVo.rgb;
+        if (dot(a1, a1) < 0.004 && dot(a2, a2) > 0.004 && dot(a3, a3) > 0.004) sampledDiffuseColor = cH;
+        // finer grain: 4 x 4 sub-texels, a few percent either way, fading in as the texel grows
+        vec2 sc = floor(tuv * 4.0);
+        float gh = fract(sin(dot(sc, vec2(12.9898, 78.233))) * 43758.5453);
+        sampledDiffuseColor.rgb *= 1.0 + (gh - 0.5) * 0.07 * smoothstep(0.45, 0.16, tpp);
+        // world-space relief at 128 px per metre
+        vec3 an = abs(vWNormal);
+        bool flr = an.y > max(an.x, an.z);
+        vec2 dp = flr ? vWPos.xz : (an.x > an.z ? vWPos.zy : vWPos.xy);
+        vec4 dr = flr ? uDetailF : uDetailW;
+        if (dr.z > 0.0) {
+          vec2 duv = (floor(fract(dp * 2.0) * 64.0) + 0.5) / 64.0;
+          float dv = textureLod(map, dr.xy + vec2(duv.x, 1.0 - duv.y) * dr.zw, 0.0).r;
+          sampledDiffuseColor.rgb *= 1.0 + (dv - 0.5) * 1.1 * smoothstep(0.45, 0.2, tpp);
+        }
       }
     }
   }
@@ -370,8 +390,9 @@ function inject(mat: THREE.MeshLambertMaterial, defines: Record<string, string |
   mat.onBeforeCompile = (shader) => {
     for (const k of Object.keys(U)) (shader.uniforms as any)[k] = (U as any)[k];
     shader.defines = { ...(shader.defines || {}), ...defines };
-    // where the close-up detail tiles sit in the world atlas
+    // where the close-up detail tiles sit in the world atlas, and the close-up atlas itself
     const A = atlas();
+    if (!U.uHdMap.value && A.hdEnabled) { U.uHdMap.value = A.hdTexture; U.uHdSize.value = A.hdSize; }
     if (!U.uDetailW.value.z && A.has('detail_wall')) {
       const w = A.get('detail_wall'), f = A.get('detail_floor');
       U.uDetailW.value.set(w.u0, w.v0, w.du, w.dv); U.uDetailF.value.set(f.u0, f.v0, f.du, f.dv);

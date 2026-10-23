@@ -32,7 +32,7 @@ import { CyberSlot, SLOT_KIND, SLOT_COVERS, CYBER_SLOTS } from '../../survival/c
 import type { StumpCond } from '../../survival/limbs';
 import { csfx, csfxVoice, audioKick, type Voice } from './audio';
 import { makeMats, type Mats } from './pix';
-import { buildRoom, Gantry, Straps, TABLE_Y, TABLE_HALF_X, TABLE_HALF_Z, LAMP_POS, TRAY_POS, HATCH_POS, VENT_POS, type Room } from './room';
+import { buildRoom, Gantry, Straps, CEIL_Y, TABLE_Y, TABLE_HALF_X, TABLE_HALF_Z, LAMP_POS, TRAY_POS, HATCH_POS, VENT_POS, type Room } from './room';
 import { IndustrialArm } from './arm';
 import { FX, surfaceY } from './fx';
 import { CraftJig } from './jig';
@@ -490,7 +490,7 @@ export class SurgeryStage {
   // ---------------------------------------------------------------- camera
   /** the resting wide shot */
   private home(): [THREE.Vector3, THREE.Vector3] {
-    if (this.portrait) return [V(2.9, 4.25, 1.6), V(-0.05, 0.9, -0.2)];
+    if (this.portrait) return [V(2.55, 2.95, 1.55), V(-0.1, 0.88, -0.15)];
     return [V(1.55, 2.45, 2.85), V(-0.12, 1.0, -0.3)];
   }
   focus(p: Pick | null) {
@@ -1195,6 +1195,8 @@ export class SurgeryStage {
     } else this.inspect.intensity = damp(this.inspect.intensity, 0, 6, cdt);
     // camera: spring dolly, punch, shake
     if (this.mode === 'field' && this.rig && !this.busy) this.povAt(null);
+    // never above the ceiling slab
+    if (this.camPosT.y > CEIL_Y - 0.15) this.camPosT.y = CEIL_Y - 0.15;
     const W = this.camW * (this.speed > 1 ? 1.6 : 1);
     const cn = Math.max(1, Math.ceil(cdt / 0.02)), cdt0 = cdt;
     for (let i = 0; i < cn; i++) {

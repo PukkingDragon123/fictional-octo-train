@@ -39,7 +39,10 @@ export class Subs {
   show(who: string, text: string, o: SubOpts = {}) {
     const style = o.style ?? 'guard';
     const shout = o.shout ?? (/!/.test(text) || (text.length > 3 && text === text.toUpperCase() && /[A-Z]/.test(text)) || /-\s*$/.test(text));
-    if (this.cur) this.retire(this.cur);
+    // one line at a time: the last one goes at once (a fade under the new one would stack two names, two lines)
+    if (this.cur) { this.cur.el.remove(); this.cur = null; }
+    for (const d of this.dying) d.el.remove();
+    this.dying.length = 0;
     const el = document.createElement('div');
     el.className = `ix-sub ${style}${shout ? ' shout' : ''}`;
     if (who) {

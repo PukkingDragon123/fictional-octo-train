@@ -288,7 +288,7 @@ export class LightDirector {
     if (this.beaconEmit) this.beaconEmit.uniforms.uK.value = 0.25 + 2.2 * this.beaconK * (0.7 + 0.3 * Math.max(0, Math.cos(this.beaconSpin * 2)));
     // beats decay
     this.sparkK = Math.max(0, this.sparkK - dt * 5);
-    this.spark.intensity = 26 * this.sparkK * this.sparkK * (0.7 + 0.3 * Math.random());
+    this.spark.intensity = 15 * this.sparkK * this.sparkK * (0.7 + 0.3 * Math.random());
     this.strobeK = Math.max(0, this.strobeK - dt * 9);
     this.strobeL.intensity = 16 * this.strobeK;
     this.flareK = Math.max(0, this.flareK - dt * 1.6);

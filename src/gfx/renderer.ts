@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { U } from './materials';
+import { atlas } from './atlas';
 import { clamp, damp, lerp } from '../core/math';
 import { PostFX, POST_FRAG, FS_VERT, CAMU, SPOTU } from './postfx';
 import { QUALITY, QualityLevel, QualitySetting, ZoneFx, zoneFx, detectQuality } from './fxconfig';
@@ -194,6 +195,8 @@ export class PixelRenderer {
     this.camera = new THREE.OrthographicCamera(-10, 10, 10, -10, 0.1, 160);
     this.scene.background = new THREE.Color(0x000000);
     this.quality = detectQuality();
+    // close-up textures for the first-person eye cost a 16 MB atlas: not on the low preset (phones)
+    atlas().hdEnabled = this.quality !== 'low';
     this.postfx.q = QUALITY[this.quality];
     this.postfx.zone = this.zoneFx;
 
@@ -509,11 +512,13 @@ export class PixelRenderer {
       // first person: full-height walls (no cutaway), the survivor's own body out of the way
       const cutWas = U.uCutOn.value;
       U.uCutOn.value = 0;
+      U.uCloseUp.value = 1;
       const shown = this.eyeHide.map((o) => o.visible);
       for (const o of this.eyeHide) o.visible = false;
       r.render(this.scene, eye);
       this.eyeHide.forEach((o, i) => { o.visible = shown[i]; });
       U.uCutOn.value = cutWas;
+      U.uCloseUp.value = 0;
     } else r.render(this.scene, this.camera);
     this.updateLightUniforms();
     // 2. realism passes (AO, bloom, volumetrics) at low / half res

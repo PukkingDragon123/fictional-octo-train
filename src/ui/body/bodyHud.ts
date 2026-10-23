@@ -20,7 +20,8 @@ import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { fpOwner } from '../../fp/fp';
 
-const FULL_FP = new Set(['pack', 'inspect', 'bench', 'cook', 'trade', 'dominion', 'surgery', 'remote']);
+/** first-person scenes that get the whole picture (eating too: its own scene in the room, no floating HUD) */
+const FULL_FP = new Set(['pack', 'inspect', 'bench', 'cook', 'trade', 'dominion', 'surgery', 'remote', 'eat']);
 import type { Player } from '../../entities/player';
 import type { Injury } from '../../survival/body';
 import { Lungs, type PumpResult } from './lung';
@@ -191,7 +192,7 @@ export class BodyHud {
   private update(dt: number) {
     const p = G.local;
     // full first-person close-ups get the whole picture: the watch held up to the eye, the cube,
-    // the bench, cooking, trading, surgery (eating keeps the jar in view: bites land in it)
+    // the bench, cooking, trading, surgery, eating (the bites still reach the digester)
     const fp = fpOwner();
     const w: any = (G as any).watch;
     this.setHidden('fp', !!fp && (FULL_FP.has(fp) || (fp === 'watch' && !!w?.open && !w?.small)));

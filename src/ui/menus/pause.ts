@@ -1,19 +1,22 @@
 // Pause: time freezes (in co-op it keeps moving: "time does not stop for
-// anyone"). The world behind goes grey and still; a column of riveted plates
-// (btnKit.ts) hangs on the left like the title's, and the BAILIFF band's file
+// anyone"). The world behind goes grey and still; a column of hanging signs
+// (signs.ts) on an iron post sways in on the left like the title's, with the
+// steel SETTINGS gear (gears3d.ts) at its foot, and the BAILIFF band's file
 // comes up on a green phosphor terminal (terminal.ts): STATUS (number,
-// programme, where you are, the debt, the body), SETTINGS, CONTROLS and, in
-// co-op, the CREW. Esc goes back to STATUS, then resumes.
+// programme, where you are, the debt, the body), SETTINGS (pages turned by a
+// gear train), CONTROLS and, in co-op, the CREW. Esc goes back to STATUS,
+// then resumes.
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { saveGame } from '../../game/save';
 import { zoneSpec } from '../../world/worldGraph';
 import { occupationByKey } from '../../survival/traits';
 import { suitNumber } from '../../entities/humanLooks';
-import { h, optionsPanel, controlsPanel, esc, swapPage, confirmDialog, FocusNav, sfx } from './common';
+import { h, optionsPanel, controlsPanel, esc, swapPage, confirmDialog, FocusNav, sfx, type OptionsApi } from './common';
 import { bodyCanvas, moodleIcon, BODY_W, BODY_H } from '../moodles';
 import { lossSummary } from '../../survival/limbs';
-import { plateBtn, type PlateButton } from './btnKit';
+import { hangSign, alignSigns, signPost, type HangSign } from './signs';
+import { gearButton, gearCluster, type GearButton, type GearCluster } from './gears3d';
 import { terminal, type Terminal } from './terminal';
 import './diegetic.css';
 import './noir.css';
@@ -24,6 +27,8 @@ const NAMES: Record<Page, [string, string]> = { main: ['Status', 'the debtor\'s 
 export class PauseMenu {
   el: HTMLDivElement | null = null;
   private nav: FocusNav | null = null;
+  private gear: GearButton | null = null;
+  private cluster: GearCluster | null = null;
   constructor() {
     bus.on('pauseMenu', () => (this.el ? this.close() : this.open()));
   }
@@ -37,40 +42,66 @@ export class PauseMenu {
     const p = G.local;
     const num = p ? suitNumber((p.rig as any)?.seed ?? 0) : 'D-____';
     const col = h('nav', 'ps-col');
-    col.append(h('div', 'ps-head kf', `<b class="kf-cap">${solo ? 'Time held' : 'Time does not stop'}</b><small class="kf-it">${esc(time)} · ${solo ? 'nothing moves while the band projects' : 'the others are still out there'}</small>`));
+    col.append(signPost(), h('div', 'ps-head kf', `<b class="kf-cap">${solo ? 'Time held' : 'Time does not stop'}</b><small>${esc(time)} · ${solo ? 'nothing moves while the band projects' : 'the others are still out there'}</small>`));
     const pages: Page[] = ['main', 'options', 'controls', ...(G.net ? ['coop' as Page] : [])];
     let cur = Math.max(0, pages.indexOf(page));
+    const right = h('div', 'ps-right');
     const t: Terminal = terminal({ title: `Bailiff · ${num}`, sub: NAMES[pages[cur]][0], cls: 'ps-term', model: 'Bailiff · Band link' });
-    const pageBtns = new Map<Page, PlateButton>();
-    const btn = (label: string, fn: () => void, o: Parameters<typeof plateBtn>[2] = {}) => {
-      const b = plateBtn(label, fn, { size: 'md', full: true, pointer: true, ...o });
-      col.append(b);
+    const gearSlot = h('div', 'ps-gears');
+    right.append(gearSlot, t.el);
+    const pageBtns = new Map<Page, HangSign | GearButton>();
+    const signs: HangSign[] = [];
+    const pt = window.innerHeight > window.innerWidth * 1.05;
+    const sign = (label: string, fn: () => void, o: Parameters<typeof hangSign>[2] = {}) => {
+      const b = hangSign(label, fn, { size: pt ? 'sm' : 'md', pointer: true, hang: 'bracketL', ...o });
+      col.append(b); signs.push(b);
       return b;
     };
-    btn('Resume', () => this.close(), { finish: 'olive', size: 'lg', sound: 'confirm' });
-    if (G.role !== 'client') btn('Save tape', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', ok ? 'progress written to this browser' : '', 2); this.close(); });
+    sign('Resume', () => this.close(), { kind: 'olive', size: pt ? 'md' : 'lg', sound: 'confirm' });
+    if (G.role !== 'client') sign(pt ? 'Save' : 'Save tape', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', ok ? 'progress written to this browser' : '', 2); this.close(); });
     for (const pg of pages) {
-      const b = btn(NAMES[pg][0], () => select(pages.indexOf(pg)), { lamp: 'green', cls: 'ps-page' + (pg === 'main' ? ' ps-gap' : '') });
-      pageBtns.set(pg, b);
+      if (pg === 'options') continue;
+      pageBtns.set(pg, sign(NAMES[pg][0], () => select(pages.indexOf(pg)), { kind: pg === 'main' ? 'tin' : 'wood' }));
     }
-    btn('Quit to title', async () => {
+    sign(pt ? 'Quit' : 'Quit to title', async () => {
       const ok = await confirmDialog({ title: 'Quit to title', body: G.role === 'client' ? 'Leave the room and go back to the title?' : 'Your progress is saved first, then the tape rewinds to the title.', ok: 'Quit', cancel: 'Stay', danger: true });
       if (!ok) return;
       if (G.role !== 'client') await saveGame();
       location.reload();
-    }, { finish: 'oxblood', cls: 'ps-gap', sound: 'back' });
+    }, { kind: 'red', sound: 'back' });
+    alignSigns(signs);
+    const gear = gearButton('Settings', () => select(pages.indexOf('options')), { aria: 'Settings' });
+    gear.classList.add('ps-gear');
+    col.append(gear);
+    pageBtns.set('options', gear);
+    this.gear = gear;
 
     let tabFn: ((d: -1 | 1) => void) | null = null;
     const render = (dir: 1 | -1 | 0) => {
       const pg = pages[cur];
       const frag = document.createDocumentFragment();
       tabFn = null;
+      this.cluster?.dispose(); this.cluster = null;
+      gearSlot.innerHTML = '';
+      right.classList.toggle('with-gears', pg === 'options');
       if (pg === 'main') frag.append(...this.mainPage(solo));
-      else if (pg === 'options') frag.append(optionsPanel({ inGame: true, onTab: (fn) => { tabFn = fn; } }));
+      else if (pg === 'options') {
+        let api: OptionsApi | null = null;
+        frag.append(optionsPanel({ inGame: true, hideTabs: true, onTab: (fn) => { tabFn = fn; }, onApi: (a) => { api = a; } }));
+        const a = api as OptionsApi | null;
+        if (a) {
+          const cl = gearCluster(a.pages.map((x) => x[0] + x.slice(1).toLowerCase()), (i) => { if (a.index !== i) a.select(i); }, a.index);
+          a.onChange((i) => { if (cl.index !== i) cl.select(i, true); });
+          gearSlot.append(cl.el);
+          this.cluster = cl;
+          tabFn = (d) => cl.turn(d);
+          requestAnimationFrame(() => cl.layout(window.innerHeight > window.innerWidth * 1.05 ? 'h' : 'v'));
+        }
+      }
       else if (pg === 'controls') frag.append(controlsPanel());
       else if (pg === 'coop') frag.append(...this.coopPage());
       t.setHead(`Bailiff · ${num}`, NAMES[pg][0] + ' · ' + NAMES[pg][1]);
-      for (const [k, b] of pageBtns) b.classList.toggle('on', k === pg);
+      for (const [k, b] of pageBtns) { if ('setOn' in b) b.setOn(k === pg); else b.classList.toggle('on', k === pg); }
       swapPage(t.body, frag, dir);
       t.body.scrollTop = 0;
     };
@@ -82,8 +113,9 @@ export class PauseMenu {
       sfx('key');
       render(d);
     };
-    el.append(col, t.el);
+    el.append(col, right);
     render(0);
+    signs.forEach((sg, i) => sg.swayIn(80 + i * 90, 0.26));
     document.body.append(el);
     requestAnimationFrame(() => el.classList.add('on'));
     this.el = el;
@@ -92,8 +124,8 @@ export class PauseMenu {
     this.nav = new FocusNav(el, {
       onBack: () => (cur === 0 ? this.close() : select(0)),
       // Q/E switch the option sub-pages while on SETTINGS, the file's pages elsewhere
-      onTab: (d) => (tabFn && pages[cur] === 'options' && document.activeElement && t.el.contains(document.activeElement) ? tabFn(d) : select(cur + d)),
-      autofocus: col.querySelector('.pb') as HTMLElement,
+      onTab: (d) => (tabFn && pages[cur] === 'options' ? tabFn(d) : select(cur + d)),
+      autofocus: col.querySelector('.hs') as HTMLElement,
     });
     el.addEventListener('pointerdown', (e) => { if (e.target === el) this.close(); });
   }
@@ -158,6 +190,8 @@ export class PauseMenu {
   close(quiet = false) {
     if (!this.el) return;
     this.nav?.destroy(); this.nav = null;
+    this.cluster?.dispose(); this.cluster = null;
+    this.gear?.dispose(); this.gear = null;
     this.el.remove();
     this.el = null;
     G.paused = false;

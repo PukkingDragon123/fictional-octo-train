@@ -22,7 +22,7 @@ uniform sampler2D tSrc; uniform float uTh; varying vec2 vUv;
 void main() {
   vec3 c = texture2D(tSrc, vUv).rgb;
   float l = max(c.r, max(c.g, c.b));
-  gl_FragColor = vec4(c * smoothstep(uTh, uTh * 2.2, l), 1.0);
+  gl_FragColor = vec4(min(c, vec3(4.0)) * smoothstep(uTh, uTh * 2.0, l), 1.0);
 }`;
 const BLUR = /* glsl */`
 precision highp float;
@@ -142,7 +142,7 @@ void main() {
 export class CinePass {
   readonly scene = new THREE.Scene();
   camera: THREE.PerspectiveCamera;
-  bloom = 0.9; warp = 0; zoom = 0; split = 0; inside = 0; fade = 1; vig = 0.6; expo = 1; flash = 0; heart = 0;
+  bloom = 0.55; warp = 0; zoom = 0; split = 0; inside = 0; fade = 1; vig = 0.6; expo = 1; flash = 0; heart = 0;
   flashCol = new THREE.Color(0.6, 0.95, 1.0);
   center = new THREE.Vector2(0.5, 0.5);
   enabled = true;
@@ -170,7 +170,7 @@ export class CinePass {
         uExpo: { value: 1 }, uFlash: { value: 0 }, uHeart: { value: 0 }, uLevels: { value: 96 }, uFlashCol: { value: new THREE.Vector3(1, 1, 1) }, uCenter: { value: new THREE.Vector2(0.5, 0.5) },
       },
     });
-    this.bright = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: BRIGHT, depthTest: false, depthWrite: false, uniforms: { tSrc: { value: null }, uTh: { value: 0.55 } } });
+    this.bright = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: BRIGHT, depthTest: false, depthWrite: false, uniforms: { tSrc: { value: null }, uTh: { value: 0.9 } } });
     this.blur = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: BLUR, depthTest: false, depthWrite: false, uniforms: { tSrc: { value: null }, uDir: { value: new THREE.Vector2() } } });
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.comp);
     this.quad.frustumCulled = false;

@@ -15,7 +15,7 @@ const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647
 const hash = (x: number, y: number, s = 0) => { const v = Math.sin(x * 127.1 + y * 311.7 + s * 74.7) * 43758.5453; return v - Math.floor(v); };
 
 /** slate canvas: the pack's body colour (a grey-green institutional drab) */
-export const SLATE = 0x4e5648;
+export const SLATE = 0x5a6352;
 export const OCHRE = 0xb08a3a;
 export const LINING = 0xb3a37a;
 export const WEB_BLACK = 0x26272a;

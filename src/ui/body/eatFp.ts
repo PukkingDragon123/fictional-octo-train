@@ -1,10 +1,14 @@
-// First-person eating and drinking. Eating something opens a close-up on the
-// overlay stage (src/fp/fp.ts): the shared smooth arms holding a smooth
-// low-poly model of the food (foodMesh.ts); every bite dents it for real and
-// shows the inside (crumb, flesh, filling). Click / tap / Space to bite: the food lunges,
-// CHOMP, crumbs fly, the view bobs as you chew, and the bite drops into the
-// stomach jar. Drinking tilts a bottle up for gulps. Leave it alone and you
-// keep eating slowly; move or press Esc to stop.
+// First-person eating and drinking, seen from the survivor's own eyes: a full
+// close-up (src/fp/fp.ts) puts the room you are standing in behind your hands,
+// and you hold the food over its floor. The food is a faceted model with a
+// dense pixel-art skin (foodMesh.ts, fpTex.ts); every bite dents it for real
+// and shows the inside (crumb, flesh, filling). Tins, bottles, soda, canteen
+// and mug carry printed labels, condensation and scuffs. Click / tap / Space to
+// bite: the food lunges, CHOMP, crumbs fly and fall to the floor, the view bobs
+// as you chew; wrappers tear off and drop, cores and bones fall when you are
+// done. No floating UI: the body HUD steps aside while you eat (the bites still
+// reach the stomach). Drinking tilts the bottle up for gulps. Leave it alone and
+// you keep eating slowly; move or press Esc to stop.
 import * as THREE from 'three';
 import { fring } from '../touch/facet';
 import { G } from '../../game/G';
@@ -16,6 +20,12 @@ import { punch, shake } from '../../gfx/juice';
 import { mix, shade } from './pix';
 import type { BodyHud } from './bodyHud';
 import { FoodModel, type Kind, type Recipe } from './foodMesh';
+import { propTex } from './fpTex';
+import { gem, fbox, jitter, fcapsule } from '../touch/facet';
+
+interface Debris { m: THREE.Mesh; v: THREE.Vector3; w: THREE.Vector3; life: number }
+/** the word printed on a tin or a bottle: the last word of its name */
+const labelWord = (name: string) => (name.replace(/[^A-Za-z ]/g, ' ').trim().split(/\s+/).pop() || '').toUpperCase().slice(0, 7);
 
 const MAXC = 120;
 /** crumb size (m) */
@@ -109,7 +119,8 @@ export class EatFp {
   private pendingJar: { t: number; c: number; s: number; bad: boolean }[] = [];
   private drunk = 0; private gulpT = -1; private fluidC = 0x8ac8f0; private fluidType: FluidType = 'water';
   private catcher: HTMLDivElement | null = null;
-  private hintEl: HTMLDivElement | null = null;
+  private debris: Debris[] = [];
+  private item: Item | null = null;
   private key = (e: KeyboardEvent) => this.onKey(e);
 
   constructor(private hud: BodyHud) {
@@ -127,7 +138,10 @@ export class EatFp {
     this.mode = 'eat'; this.act = a; this.rec = recipe(it);
     this.begin();
     this.buildFood(it);
-    this.openDom(document.documentElement.classList.contains('nc-touch') ? 'tap to take a bite' : 'click to take a bite  ·  esc to stop');
+    this.item = it;
+    this.openDom();
+    // a wrapped thing: the torn-off end of the wrapper drops to the floor
+    if (this.rec.kind === 'bar') setTimeout(() => { if (this.active && this.mode === 'eat') this.drop('wrapper', 0.6); }, 450);
     if (this.rec.bad === 'rotten') bus.emit('think', a.p, ['It smells wrong.', 'Is that... fuzz?', 'Don\'t look at it. Just eat.'][Math.floor(Math.random() * 3)]);
     G.audio?.ui?.('bh_wrap', 0.4);
     return true;
@@ -141,7 +155,10 @@ export class EatFp {
     this.fluidType = it.fluid.type; this.fluidC = FLUID[it.fluid.type] ?? 0x8ac8f0;
     this.begin();
     this.buildDrink(it);
-    this.openDom(document.documentElement.classList.contains('nc-touch') ? 'tap to drink' : 'click to drink  ·  esc to stop');
+    this.item = it;
+    this.openDom();
+    // the cap comes off and falls (not a canteen's: that one's on a chain)
+    setTimeout(() => { if (this.active && this.mode === 'drink' && this.liquidKind !== 'canteen' && this.liquidKind !== 'mug') this.drop('cap', 0.4); }, 380);
     G.audio?.ui?.('band_tick', 0.2);
     return true;
   }
@@ -150,6 +167,8 @@ export class EatFp {
     this.idle = 0; this.combo = 0; this.lastBite = -9; this.bites = 0; this.drunk = 0; this.gulpT = -1;
     this.pendingJar.length = 0;
     for (const c of this.crumbs) c.on = false;
+    for (const d of this.debris) { d.m.removeFromParent(); d.m.geometry.dispose(); (d.m.material as THREE.Material).dispose(); }
+    this.debris.length = 0;
     const p = G.local;
     if (p && this.arms) { const look = { skin: p.app?.skin ?? 0xe8b98f, sleeve: 0xeeb415 }; this.arms.right.setLook(look); this.arms.left.setLook(look); }
     this.root!.visible = true;
@@ -196,41 +215,58 @@ export class EatFp {
     const lump = this.lump = new THREE.Mesh(new THREE.IcosahedronGeometry(0.013, 0), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xc86a3a })); lump.scale.set(1, 0.55, 1.2); lump.position.y = 0.004; sp.add(lump);
     g.add(sp);
   }
-  private propFor(kind: string): THREE.Object3D {
-    let o = this.props.get(kind);
+  private propFor(kind: string, word = ''): THREE.Object3D {
+    const key = kind + ':' + word;
+    let o = this.props.get(key);
     if (o) return o;
     const g = new THREE.Group();
-    const metal = new THREE.MeshLambertMaterial({ flatShading: true, color: 0xb8bcc2 });
+    const L = (o2: THREE.MeshLambertMaterialParameters) => new THREE.MeshLambertMaterial({ flatShading: true, ...o2 });
+    const metal = L({ color: 0xb8bcc2 });
     if (kind === 'can') {
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.09, 8, 1, true), metal); c.position.y = 0.03; g.add(c);
-      const label = new THREE.Mesh(new THREE.CylinderGeometry(0.0425, 0.0425, 0.06, 8, 1, true), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xc83a2a })); label.position.y = 0.025; g.add(label);
+      // a printed tin: the label wraps the body, rolled rims and pressed ribs, the lid peeled back on its hinge
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.09, 8, 1, true), L({ map: propTex('can', word, 0xb83a1a), side: THREE.DoubleSide })); c.position.y = 0.03; c.rotation.y = Math.PI; g.add(c);
       const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.042, 0.042, 0.004, 8), metal); bot.position.y = -0.014; g.add(bot);
       const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.002, 8), metal); lid.position.set(0.02, 0.09, -0.03); lid.rotation.x = -1.1; g.add(lid);
-      // rolled rims top and bottom, and the ribs pressed round the tin
       const rimG = fring(0.0425, 0.0025, 8, 4).rotateX(Math.PI / 2);
       for (const y of [0.075, -0.012]) { const rm = new THREE.Mesh(rimG, metal); rm.position.y = y; g.add(rm); }
-      for (const y of [0.064, -0.004]) { const rb = new THREE.Mesh(fring(0.0428, 0.0012, 8, 3).rotateX(Math.PI / 2), metal); rb.position.y = y; g.add(rb); }
+      // a jagged opened edge where the opener went round
+      for (let i = 0; i < 8; i++) { const a2 = (i / 8) * Math.PI * 2; const t2 = new THREE.Mesh(new THREE.ConeGeometry(0.004, 0.007, 3), metal); t2.position.set(Math.cos(a2) * 0.04, 0.078, Math.sin(a2) * 0.04); t2.rotation.z = (i % 2 ? 0.3 : -0.3); g.add(t2); }
     } else if (kind === 'bowl') {
-      const b = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 3, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xe8e0d0, side: THREE.DoubleSide }));
-      b.rotation.x = Math.PI; b.position.y = 0.035; b.scale.y = 0.7; g.add(b);
+      const b2 = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 3, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), L({ map: propTex('bowl'), side: THREE.DoubleSide }));
+      b2.rotation.x = Math.PI; b2.position.y = 0.035; b2.scale.y = 0.7; g.add(b2);
+      const rim = new THREE.Mesh(fring(0.075, 0.003, 8, 4).rotateX(Math.PI / 2), L({ color: 0x2a4a7a })); rim.position.y = 0.035; g.add(rim);
     } else if (kind === 'bottle' || kind === 'canteen') {
-      const glass = new THREE.MeshLambertMaterial({ flatShading: true, color: kind === 'canteen' ? 0x5a6a3a : 0xd8f0f8, transparent: kind !== 'canteen', opacity: 0.35, depthWrite: false });
-      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.16, 8, 1, true), glass); g.add(body);
+      const can = kind === 'canteen';
+      const glass = L({ color: can ? 0x5a6a3a : 0xd8f0f8, transparent: !can, opacity: can ? 1 : 0.35, depthWrite: can });
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.034, 0.16, 8, 1, true), can ? L({ map: propTex('canteen') }) : glass); g.add(body);
       const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.03, 0.05, 8, 1, true), glass); neck.position.y = 0.105; g.add(neck);
-      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.016, 8), new THREE.MeshLambertMaterial({ flatShading: true, color: kind === 'canteen' ? 0x2a2a2a : 0x2a7ad8 })); cap.position.y = 0.14; cap.rotation.z = 0.8; cap.position.x = 0.03; g.add(cap);
-      const lab = new THREE.Mesh(new THREE.CylinderGeometry(0.0345, 0.0345, 0.05, 8, 1, true), new THREE.MeshLambertMaterial({ flatShading: true, color: kind === 'canteen' ? 0x4a5a2a : 0xf2f2f2 })); g.add(lab);
+      // the canteen's cap hangs on its chain; a bottle's has come off and dropped
+      if (can) { const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.016, 8), L({ color: 0x2a2a2a })); cap.position.set(0.03, 0.118, 0.01); cap.rotation.z = 1.4; g.add(cap); }
+      // a threaded neck ring
+      const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.0145, 0.0145, 0.012, 8), glass); thread.position.y = 0.134; g.add(thread);
+      if (!can) {
+        const lab = new THREE.Mesh(new THREE.CylinderGeometry(0.0345, 0.0345, 0.05, 8, 1, true), L({ map: propTex('bottle', word, 0x2a6ab0) })); lab.rotation.y = Math.PI; g.add(lab);
+        // condensation beads on the cold glass
+        const dew = new THREE.Mesh(new THREE.CylinderGeometry(0.0352, 0.0352, 0.15, 8, 1, true), L({ map: propTex('drops'), transparent: true, alphaTest: 0.5 })); dew.position.y = 0.003; g.add(dew);
+      } else {
+        const strap = new THREE.Mesh(fring(0.0355, 0.003, 8, 4).rotateX(Math.PI / 2), L({ color: 0x3a3020 })); strap.position.y = 0.05; g.add(strap);
+      }
     } else if (kind === 'dcan') {
-      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.12, 8), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xc82a2a })); g.add(c);
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.033, 0.033, 0.12, 8), L({ map: propTex('dcan', word) })); c.rotation.y = Math.PI; g.add(c);
       const top = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.033, 0.01, 8), metal); top.position.y = 0.064; g.add(top);
+      const tab = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.002, 0.02), metal); tab.position.set(0, 0.07, 0.008); tab.rotation.x = 0.5; g.add(tab);
+      const dew = new THREE.Mesh(new THREE.CylinderGeometry(0.0338, 0.0338, 0.11, 8, 1, true), L({ map: propTex('drops'), transparent: true, alphaTest: 0.5 })); g.add(dew);
     } else if (kind === 'mug') {
-      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.036, 0.09, 8, 1, true), new THREE.MeshLambertMaterial({ flatShading: true, color: 0xe8e4dc, side: THREE.DoubleSide })); g.add(m);
-      const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.004, 8), m.material as THREE.Material); bot.position.y = -0.044; g.add(bot);
-      const h = new THREE.Mesh(fring(0.022, 0.006, 5, 4, Math.PI), m.material as THREE.Material); h.position.x = 0.04; h.rotation.z = -Math.PI / 2; g.add(h);
-      const lip = new THREE.Mesh(fring(0.04, 0.003, 8, 4).rotateX(Math.PI / 2), m.material as THREE.Material); lip.position.y = 0.045; g.add(lip);
+      const mat = L({ map: propTex('mug'), side: THREE.DoubleSide });
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.036, 0.09, 8, 1, true), mat); m.rotation.y = Math.PI; g.add(m);
+      const plain = L({ color: 0xe8e4dc });
+      const bot = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.004, 8), plain); bot.position.y = -0.044; g.add(bot);
+      const h = new THREE.Mesh(fring(0.022, 0.006, 5, 4, Math.PI), plain); h.position.x = 0.04; h.rotation.z = -Math.PI / 2; g.add(h);
+      const lip = new THREE.Mesh(fring(0.04, 0.003, 8, 4).rotateX(Math.PI / 2), L({ color: 0x2a4a7a })); lip.position.y = 0.045; g.add(lip);
     }
     g.visible = false;
     this.root!.add(g);
-    this.props.set(kind, g);
+    this.props.set(key, g);
     return g;
   }
 
@@ -252,7 +288,7 @@ export class EatFp {
     const cont = r.kind === 'can' || r.kind === 'bowl';
     this.spoon!.visible = cont;
     if (cont) {
-      this.prop = this.propFor(r.kind); this.prop.visible = true;
+      this.prop = this.propFor(r.kind, labelWord(r.label)); this.prop.visible = true;
       this.food.add(this.prop);
       (this.lump!.material as THREE.MeshLambertMaterial).color.setHex(r.skin);
       this.lump!.visible = false;
@@ -264,7 +300,8 @@ export class EatFp {
     this.clearModel(); this.left = 1;
     for (const p of this.props.values()) p.visible = false;
     this.spoon!.visible = false;
-    this.prop = this.propFor(kind); this.prop.visible = true;
+    const fw: Record<string, string> = { water: 'WATER', juice: 'JUICE', milk: 'MILK', soda: 'FIZZ', alcohol: 'GIN', tainted: 'WATER', almond: 'ALMOND' };
+    this.prop = this.propFor(kind, fw[it.fluid?.type ?? 'water'] ?? labelWord(itemDef(it.key).name)); this.prop.visible = true;
     this.food.add(this.prop);
     this.food.rotation.set(0, 0, 0); this.food.position.set(0, 0, 0);
     if (!this.liquid) {
@@ -301,16 +338,10 @@ export class EatFp {
   }
 
   // =================================================================== input
-  private openDom(hint: string) {
+  /** an invisible catcher takes the clicks and taps (no panel, no hint on screen) */
+  private openDom() {
     const c = this.catcher = document.createElement('div');
     c.className = 'bh-eat';
-    // the hint is free type, and only until you have got the idea
-    if (EatFp.hints < 3) {
-      EatFp.hints++;
-      const h = this.hintEl = document.createElement('div');
-      h.className = 'bh-eat-hint nc-free-text'; h.textContent = hint;
-      c.appendChild(h);
-    }
     c.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (e.button === 2) { this.stopByUser(); return; } this.click(); });
     c.addEventListener('contextmenu', (e) => e.preventDefault());
     c.addEventListener('pointerenter', () => { if (G.input) G.input.pointerOverUI = true; });
@@ -327,7 +358,6 @@ export class EatFp {
 
   private click() {
     if (!this.active || this.lowerT >= 0 || this.raise < 0.6) return;
-    if (this.hintEl) { this.hintEl.remove(); this.hintEl = null; }
     if (this.mode === 'drink') this.gulp(true); else this.bite(true);
   }
 
@@ -371,7 +401,6 @@ export class EatFp {
     // the bite goes down to the jar a moment later
     const bad = !!r.bad && (r.bad === 'rotten' ? Math.random() < 0.8 : Math.random() < 0.45) && this.bites <= 2;
     this.pendingJar.push({ t: 0.5, c: res.col, s: Math.min(1.4, amt * 6), bad });
-    this.flyToJar(res.col);
     if (this.left <= 0 || (a.bitten ?? 0) >= (a.portion ?? 1) - 0.01) setTimeout(() => this.act === a && this.lowerFinish(), 520);
   }
   private gulp(byClick: boolean) {
@@ -388,34 +417,53 @@ export class EatFp {
     G.audio?.flat?.('bh_gulp', 'voice', 0.7, 0.9 + Math.random() * 0.2);
     punch(0.012, 0.18);
     setTimeout(() => this.hud.jar.gulp(this.fluidC), 380);
-    this.flyToJar(this.fluidC);
+    // a dribble down the chin falls away
+    for (let i = 0; i < 3; i++) this.spawnCrumb(_w.set((Math.random() - 0.5) * 0.02, -0.05, -0.22), this.fluidC, 1.6, 0.6, _v.set((Math.random() - 0.5) * 0.1, -0.05, 0.05));
     if (this.fluidType === 'bleach' || this.fluidType === 'gasoline' || this.fluidType === 'coolant') { shake(0.3, 0.4); if (this.bites === 1) bus.emit('think', a.p, 'It burns. It burns all the way down.'); if (Math.random() < 0.6) setTimeout(() => this.hud.jar.crack(), 400); }
     if (this.drunk >= target - 0.005 || !it.fluid || it.fluid.amount <= 0.005) setTimeout(() => this.act === a && this.lowerFinish(), 700);
   }
   private lowerFinish() {
     if (!this.active || this.lowerT >= 0) return;
     this.lowerT = 0;
-    if (this.mode === 'eat' && this.left <= 0) { G.audio?.ui?.('bh_wrap', 0.35); G.audio?.flat?.('bh_swallow', 'voice', 0.45); }
-  }
-  /** a pixel of the bite flies from the mouth to the stomach jar */
-  private flyToJar(col: number) {
-    const j = this.hud.jarScreen();
-    const x0 = window.innerWidth / 2, y0 = window.innerHeight * 0.58;
-    for (let i = 0; i < 3; i++) {
-      const d = document.createElement('div');
-      d.className = 'bh-fly';
-      d.style.background = '#' + col.toString(16).padStart(6, '0');
-      document.body.appendChild(d);
-      const mx = (x0 + j.x) / 2 + (Math.random() - 0.5) * 80, my = Math.min(y0, j.y) - 80 - Math.random() * 60;
-      const an = d.animate([
-        { transform: `translate(${x0}px, ${y0}px) scale(1.4)` },
-        { transform: `translate(${mx}px, ${my}px) scale(1)`, offset: 0.45 },
-        { transform: `translate(${j.x + (Math.random() - 0.5) * 10}px, ${j.y}px) scale(0.6)` },
-      ], { duration: 520 + i * 70, delay: 120 + i * 50, easing: 'cubic-bezier(.5,0,.6,1)', fill: 'both' });
-      an.onfinish = () => d.remove();
+    if (this.mode === 'eat' && this.left <= 0) {
+      G.audio?.ui?.('bh_wrap', 0.35); G.audio?.flat?.('bh_swallow', 'voice', 0.45);
+      // what is left over drops to the floor: a core, a bone, the crumpled wrapper, a crust
+      const k = this.rec?.kind;
+      if (k === 'fruit') this.drop('core', 0); else if (k === 'bar') this.drop('crumple', 0); else if (k === 'meat' && /bone|leg|rib|drumstick|chop/i.test(this.rec?.label ?? '')) this.drop('bone', 0);
+      else if (k === 'loaf' || k === 'sandwich') this.drop('crust', 0);
     }
   }
-
+  /** throw a scrap down out of the hands: it tumbles to the floor below the view */
+  private drop(what: 'wrapper' | 'crumple' | 'core' | 'bone' | 'crust' | 'cap', delay: number) {
+    const r = this.rec;
+    let geo: THREE.BufferGeometry, col = 0xffffff;
+    if (what === 'wrapper') { geo = jitter(fbox(0.03, 0.002, 0.05, 0.2), 0.003, 3); col = r?.wrap ?? 0xc8c0b0; }
+    else if (what === 'crumple') { geo = gem(0.018, 1, 0.35, 7); col = r?.wrap ?? 0xc8c0b0; }
+    else if (what === 'core') { geo = jitter(fcapsule(0.008, 0.045, 5), 0.003, 2); col = 0xe8d8a0; }
+    else if (what === 'bone') { geo = fcapsule(0.006, 0.06, 5); col = 0xf2ecd8; }
+    else if (what === 'crust') { geo = jitter(fbox(0.04, 0.012, 0.014, 0.3), 0.003, 5); col = r?.skin ?? 0xb87a3a; }
+    else { geo = gem(0.012, 0, 0.1, 4); geo.scale(1, 0.6, 1); col = 0x2a7ad8; }
+    const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ color: col, flatShading: true }));
+    this.root!.updateMatrixWorld(true);
+    this.grip.getWorldPosition(m.position);
+    m.position.y += 0.01;
+    this.root!.add(m);
+    const v = new THREE.Vector3(0.05 + Math.random() * 0.12, 0.05 + Math.random() * 0.05, 0.02);
+    const w = new THREE.Vector3((Math.random() - 0.5) * 18, (Math.random() - 0.5) * 18, (Math.random() - 0.5) * 18);
+    this.debris.push({ m, v, w, life: 3 + delay });
+    G.audio?.ui?.(what === 'wrapper' || what === 'crumple' ? 'bh_wrap' : 'bh_plop', 0.25);
+  }
+  private stepDebris(dt: number) {
+    for (let i = this.debris.length - 1; i >= 0; i--) {
+      const d = this.debris[i];
+      d.v.y -= 2.2 * dt;          // the view is close: a gentle fall reads as dropping to the floor below
+      d.v.multiplyScalar(1 - dt * 0.4);
+      d.m.position.addScaledVector(d.v, dt);
+      d.m.rotation.x += d.w.x * dt; d.m.rotation.y += d.w.y * dt; d.m.rotation.z += d.w.z * dt;
+      d.life -= dt;
+      if (d.life <= 0 || d.m.position.y < -1.2) { d.m.removeFromParent(); d.m.geometry.dispose(); (d.m.material as THREE.Material).dispose(); this.debris.splice(i, 1); }
+    }
+  }
   // =================================================================== per frame
   update(dt: number) {
     if (!this.active) return;
@@ -455,6 +503,7 @@ export class EatFp {
     if (r?.hot && Math.random() < dt * 7) this.spawnCrumb(_w.set(this.grip.position.x + (Math.random() - 0.5) * 0.06, this.grip.position.y + 0.04, this.grip.position.z), 0xf4f4f0, -0.12, 0.9, _v.set((Math.random() - 0.5) * 0.04, 0.05, 0.02));
     if (r?.bad === 'rotten' && Math.random() < dt * 3) this.spawnCrumb(_w.set(this.grip.position.x + (Math.random() - 0.5) * 0.1, this.grip.position.y + 0.05, this.grip.position.z), 0x101010, 0, 0.5, _v.set((Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.2));
     this.stepCrumbs(dt);
+    this.stepDebris(dt);
   }
 
   private pose(_dt: number) {

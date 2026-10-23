@@ -51,6 +51,24 @@ addTextureModule(() => {
     for (let i = 0; i < 32; i++) for (const [x, y] of [[i, 0], [0, i], [31, i], [i, 31]]) { pc.set(x, y, ph(i, x + y, 3) < 0.5 ? 0xb8a878 : 0x988858); if (ph(i, 5, x) < 0.3) pc.set(x === 0 ? 1 : x === 31 ? 30 : x, y === 0 ? 1 : y === 31 ? 30 : y, 0x3b4f76); }
     // saliva pooled in the tongue bed, a few wet glints
     for (let i = 0; i < 14; i++) { const x = 5 + Math.floor(ph(i, 1, 303) * 22), y = 12 + Math.floor(ph(i, 2, 303) * 16); pc.blend(x, y, 0xe0b0a8, 0.7); pc.blend(x + 1, y, 0xc88a88, 0.4); }
+    // what it has been eating: old blood blackened in the folds, a shred of trouser, a chip of bone, a shoelace
+    for (let i = 0; i < 9; i++) { const cx = 4 + ph(i, 3, 304) * 24, cy = 16 + ph(i, 4, 304) * 13, r = 1.2 + ph(i, 5, 304) * 2.2; for (let y = Math.floor(cy - r); y <= cy + r; y++) for (let x = Math.floor(cx - r * 1.4); x <= cx + r * 1.4; x++) if (Math.hypot((x - cx) / 1.4, y - cy) < r * (0.7 + ph(x, y, 305) * 0.4)) pc.blend(x, y, 0x2a0406, 0.6); }
+    for (let k = 0; k < 6; k++) for (let j = 0; j < 3; j++) pc.set(20 + k - (j >> 1), 24 + j, ph(k, j, 306) < 0.25 ? 0x6a5a3a : 0x8a7a54);
+    pc.set(19, 27, 0x8a7a54); pc.set(18, 28, 0x6a5a3a);
+    pc.set(9, 25, 0xe8dcc0); pc.set(10, 25, 0xd0c4a4); pc.set(10, 26, 0xb4a888);
+    for (let k = 0; k < 7; k++) pc.set(11 + k, 19 + Math.round(Math.sin(k * 0.9) * 1.2), 0xd8d0c0);
+  });
+  // a rag of khaki trouser caught in the front teeth: torn edge, threads, soaked from the bottom
+  A.add('c_swivel_rag', 16, 8, (pc) => {
+    pc.wrap = false;
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 16; x++) {
+      const tear = y > 4 + Math.round(ph(x, 1, 321) * 3);
+      if (tear) { pc.set(x, y, 0x000000); continue; }
+      const twill = (x + y) % 3 === 0;
+      const blood = y + ph(x, y, 322) * 2.5 > 4.2;
+      pc.set(x, y, blood ? (ph(x, y, 323) < 0.4 ? 0x3a0606 : 0x5a0e0c) : twill ? 0x7a6a48 : 0x948258);
+    }
+    for (let x = 1; x < 16; x += 4) pc.vline(x, 5, 7, 0x6a5a3a);
   });
   // the cushion's underside: transverse palate ridges, pale and glistening
   A.add('c_swivel_palate', 32, 32, (pc) => {
@@ -162,6 +180,10 @@ function buildSwivel(): Rig {
     }
     for (let k = 0; k < 9; k++) spike(mb, [-0.18 + k * 0.045, 0.452, 0.2], [0, 1, 0.15], 0.034, 0.013, k % 3 === 1 ? 'c_an_tooth_dirty' : 'c_an_tooth', 0xffffff, 0, 4);
     for (const s of [-1, 1]) for (let k = 0; k < 6; k++) spike(mb, [s * 0.2, 0.452, -0.13 + k * 0.055], [-s * 0.1, 1, 0], 0.028, 0.012, 'c_an_tooth', 0xffffff, 0, 4);
+    // a rag of somebody's trouser leg snagged on the front teeth (inside the cushion until it opens)
+    mb.push().translate(-0.05, 0.456, 0.208).rotateZ(0.12).rotateY(0.2);
+    mb.box(0, 0, 0, 0.09, 0.03, 0.004, { all: 'c_swivel_rag' }, { fit: true });
+    mb.pop();
   });
   K.body('lid', (mb) => {
     // upper teeth on the cushion's underside, pointing down into the seat shell
@@ -192,6 +214,10 @@ function buildSwivel(): Rig {
   for (let i = 0; i < 5; i++) {
     K.local('shin' + i, (mb) => {
       blob(mb, [0, 0, 0], [0.031, 0.031, 0.031], 7, 4, 'c_an_chrome', {});
+      // where the spider grew through the chair: a raw collar of meat round the knuckle, sinew hanging off it
+      blob(mb, [0, -0.012, 0], [0.037, 0.022, 0.037], 7, 3, 'c_an_flesh', {});
+      tube(mb, [[0.026, -0.02, 0.006], [0.031, -0.06, 0.01], [0.027, -0.1, 0.004]], 0.0055, 4, 'c_an_flesh', {});
+      tube(mb, [[-0.02, -0.024, -0.018], [-0.026, -0.05, -0.022]], 0.004, 4, 'c_an_flesh', {});
       tube(mb, [[0, -0.01, 0], [0, -0.085, 0]], 0.027, 7, 'c_an_bellows', { fitU: true });
       tube(mb, [[0, -0.08, 0], [0, -0.33, 0]], 0.021, 7, 'c_an_chrome_rod', { fitU: true });
       mb.cylinder(0, -0.35, 0, 0.026, 0.035, 7, 'metal_dark');
@@ -350,7 +376,7 @@ function animateSwivel(rig: Rig, c: Creature, t: number, dt: number) {
   if (skin && skin.material !== want) skin.material = want;
   const { wind, rec } = atkCurve(c, dt, 0.4);
   const lunge = strikeShape(wind, rec);
-  m._open = damp(m._open ?? 0, wind > 0 ? (wind < 0.7 ? 1 : 0.15) : rec > 0.4 ? 0.6 : c.state === 'chase' ? 0.35 + Math.sin(t * 7) * 0.12 : c.state === 'flee' ? 0.12 : 0, wind > 0.7 ? 30 : 9, dt);
+  m._open = damp(m._open ?? 0, wind > 0 ? (wind < 0.7 ? 1 : 0.15) : rec > 0.4 ? 0.6 : c.state === 'chase' ? 0.35 + Math.sin(t * 7) * 0.12 : c.state === 'flee' ? 0.12 : !hidden && rv > 0.9 ? 0.06 + Math.max(0, Math.sin(t * 0.7 + (c.x + c.z) * 3)) * 0.2 : 0, wind > 0.7 ? 30 : 9, dt); // revealed and waiting it slowly gapes, drooling
   stepFeet(c, dt, rv);
   const fl = flinchOf(c);
   const dead = c.dead ? 1 : 0;

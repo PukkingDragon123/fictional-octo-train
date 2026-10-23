@@ -17,7 +17,7 @@ const K = 0x0a0b09;
 const TILE = 0.15, GAP = 0.006, TD = 0.012;
 /** the opening plus the frame around it, where no tiles go */
 const HOLE_X = JW / 2 + 0.075, HOLE_Y = JH + 0.075;
-export const LAMP_POS = new THREE.Vector3(JW / 2 + 0.3, 1.95, 0.16);
+export const LAMP_POS = new THREE.Vector3(JW / 2 + 0.27, 1.76, 0.16);
 
 // ------------------------------------------------------------------ textures
 function tilesTex() {
@@ -273,7 +273,7 @@ export function buildWallSet(low: boolean): WallSet {
   const sign = signTex(); disp.push(sign);
   const plate = cbox(0.3, 0.106, 0.008, 0.004);
   const pm = add(plate, [std({ color: 0x8a8678, roughness: 0.6, metalness: 0.4 })][0]);
-  pm.position.set(JW / 2 + 0.41, 1.5, TD + 0.006);
+  pm.position.set(JW / 2 + 0.33, 1.42, TD + 0.006);
   pm.rotation.z = -0.025;
   const face = new THREE.PlaneGeometry(0.29, 0.1);
   const fm = new THREE.Mesh(face, std({ map: sign, roughness: 0.4, metalness: 0.1 }));
@@ -305,7 +305,7 @@ export function buildWallSet(low: boolean): WallSet {
   add(merge(cd), std({ map: steel, color: 0x8d8f80, roughness: 0.6, metalness: 0.5 }));
 
   // ---- lights
-  const key = new THREE.DirectionalLight(0xd8eeff, low ? 1.5 : 1.7);
+  const key = new THREE.DirectionalLight(0xd8eeff, 1.1);
   key.position.set(0.35, 3.2, 1.9);
   key.target.position.set(0, 1.1, 0);
   key.castShadow = true;
@@ -314,10 +314,10 @@ export function buildWallSet(low: boolean): WallSet {
   sc.left = -1.4; sc.right = 1.4; sc.top = 1.6; sc.bottom = -1.6; sc.near = 0.5; sc.far = 6;
   key.shadow.bias = -0.0008; key.shadow.normalBias = 0.01;
   root.add(key, key.target);
-  const glow = new THREE.PointLight(0x58dce6, 2.5, 3.2, 1.6);
+  const glow = new THREE.PointLight(0x58dce6, 0.8, 3.2, 1.6);
   glow.position.set(0, 1.25, 0.32);
   root.add(glow);
-  const lamp = new THREE.PointLight(0xff7a24, 1.4, 3.5, 1.8);
+  const lamp = new THREE.PointLight(0xff7a24, 0.9, 3.5, 1.8);
   lamp.position.copy(LAMP_POS).setZ(0.2);
   root.add(lamp);
   root.add(new THREE.HemisphereLight(0x46565c, 0x0c0a08, 0.55));
@@ -328,9 +328,9 @@ export function buildWallSet(low: boolean): WallSet {
       // the lamp: a tired relay, now and then a stutter
       const st = Math.sin(t * 2.1) > 0.97 || (Math.sin(t * 13.7) > 0.93 && Math.sin(t * 0.7) > 0.3);
       const k = (0.85 + Math.sin(t * 3.3) * 0.08) * (st ? 0.25 : 1);
-      lamp.intensity = 1.4 * k;
+      lamp.intensity = 0.9 * k;
       lampGlass.emissiveIntensity = 2.4 * k;
-      glow.intensity = 1.2 + g * 2.6;
+      glow.intensity = 0.25 + g * 0.7;
       hang.rotation.z = Math.sin(t * 0.8) * 0.03;
       hang.rotation.x = Math.sin(t * 1.1 + 1) * 0.04;
     },

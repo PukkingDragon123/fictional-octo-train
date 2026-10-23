@@ -99,17 +99,14 @@ varying vec2 vL;
 varying float vFun;
 
 float caustic(vec2 p, float t) {
-  vec2 i = p;
-  float c = 1.0;
-  float inten = 0.006;
-  for (int n = 0; n < 4; n++) {
-    float tt = t * (1.0 - (3.5 / float(n + 1)));
-    i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
-    c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / inten), p.y / (cos(i.y + tt) / inten)));
+  // a thin web of light: crossing warped sine sheets, bright only where they meet
+  float v = 0.0;
+  vec2 q = p;
+  for (int i = 0; i < 3; i++) {
+    q += vec2(sin(q.y * 1.7 + t), cos(q.x * 1.3 - t * 0.8)) * 0.55;
+    v += abs(sin(q.x) * sin(q.y));
   }
-  c /= 4.0;
-  c = 1.17 - pow(c, 1.4);
-  return clamp(pow(abs(c), 8.0), 0.0, 2.0);
+  return pow(clamp(1.0 - v / 3.0, 0.0, 1.0), 7.0);
 }
 
 void main() {
@@ -121,21 +118,22 @@ void main() {
   // oily black body
   vec3 col = vec3(0.006, 0.011, 0.013);
   // looking into it: a cold caustic web deep inside, bent by the facet, deeper in the funnel
-  vec2 rp = vL * 2.6 + n.xy * (0.5 + 0.9 * vFun) + vec2(0.0, uTime * 0.05);
-  float c = caustic(rp * 2.2, uTime * 0.45 + 23.0);
-  float inner = 0.06 + c * 0.5;
-  col += uGlowCol * inner * uGlow * (0.35 + 0.65 * ndv) * (1.0 - vFun * 0.55);
+  vec2 rp = vL * 3.0 + n.xy * (0.6 + 1.2 * vFun) + vec2(0.0, uTime * 0.05);
+  float c = caustic(rp * 2.0, uTime * 0.45 + 23.0);
+  // depth: a faint glow far inside, brighter toward the middle of the opening, the web of light over it
+  float deep = 0.025 + 0.03 * smoothstep(0.9, 0.1, length((vL - vec2(0.0, 1.2)) * vec2(1.4, 0.8)));
+  col += uGlowCol * (deep + c * 0.32) * uGlow * (0.4 + 0.6 * ndv) * (1.0 - vFun * 0.6);
   // the strip light above: hard glints on the facets
   vec3 h = normalize(normalize(uKeyDir) + v);
   float sp = pow(max(dot(n, h), 0.0), 70.0);
   col += uKeyCol * sp * 2.6;
-  col += uKeyCol * pow(max(dot(n, h), 0.0), 9.0) * 0.06;
+  col += uKeyCol * pow(max(dot(n, h), 0.0), 9.0) * 0.025;
   // the warning lamp
   vec3 lv = uLamp - vW;
   vec3 h2 = normalize(normalize(lv) + v);
   col += uLampCol * pow(max(dot(n, h2), 0.0), 46.0) * 1.6 / (1.0 + dot(lv, lv) * 0.6);
   // wet sheen at grazing angles, dark down the funnel's throat, a hot rim where it grips
-  col += vec3(0.05, 0.085, 0.09) * fres * 1.6;
+  col += vec3(0.03, 0.05, 0.055) * fres * 1.4;
   col *= 1.0 - smoothstep(0.55, 1.0, vFun) * 0.7;
   col += uGlowCol * smoothstep(0.75, 0.95, vFun) * (1.0 - smoothstep(0.95, 1.0, vFun)) * 0.25 * uHot;
   gl_FragColor = vec4(col, 1.0);

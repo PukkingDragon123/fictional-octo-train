@@ -12,19 +12,8 @@ body.bh-hover, body.bh-hover canvas { cursor: pointer; }
 .bh-say.on { opacity: 1; }
 html.nc-touch .bh-say { transform: translate(-50%, 0); font-size: 16px; }
 
-/* first-person eating: the catcher takes the bites, the vignette pulls focus */
+/* first-person eating: an invisible catcher takes the bites (no vignette panel, no hint: the scene is the room) */
 .bh-eat {
-  position: fixed; inset: 0; z-index: 40; pointer-events: auto; cursor: pointer; touch-action: none;
-  background: radial-gradient(ellipse at 50% 60%, transparent 45%, rgba(10, 6, 4, 0.55) 100%);
-  animation: bh-eat-in 0.3s ease-out;
+  position: fixed; inset: 0; z-index: 40; pointer-events: auto; cursor: pointer; touch-action: none; background: none;
 }
-.bh-eat.out { animation: bh-eat-out 0.35s ease-in forwards; pointer-events: none; }
-@keyframes bh-eat-in { from { opacity: 0; } }
-@keyframes bh-eat-out { to { opacity: 0; } }
-.bh-eat-hint {
-  position: absolute; left: 50%; bottom: 16%; transform: translateX(-50%); pointer-events: none; white-space: nowrap;
-  font-family: var(--font-type); font-size: 16px; letter-spacing: 0.04em; color: #f3eedf; text-shadow: var(--text-halo);
-  animation: bh-hint 1.6s ease-in-out infinite;
-}
-@keyframes bh-hint { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
-.bh-fly { position: fixed; left: 0; top: 0; z-index: 45; width: 5px; height: 5px; pointer-events: none; box-shadow: 0 0 0 1px rgba(18, 10, 12, 0.8); }
+.bh-eat.out { pointer-events: none; }

@@ -160,6 +160,7 @@ uniform vec3 uStreakTint, uRayTint, uFlashCol;
 uniform float uFlash;
 uniform vec3 uFlarePos;
 uniform vec3 uFlareCol;
+uniform float uFlareD;
 float h12(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 vec3 toSRGB(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
 vec3 sharpAt(vec2 suv) { vec2 px = floor(suv * uRes); return texture2D(tSharp, (px + 0.5) / uRes).rgb; }
@@ -203,7 +204,15 @@ void main() {
   c += texture2D(tStreak, suv).rgb * uStreak * uStreakTint;
   c += texture2D(tRays, suv).rgb * uRaysK * uRayTint;
   // the beacon's flare: a hot core, a horizontal streak, ghosts across the centre
+  // (hidden behind a column or a wall: five depth taps round the lamp, so it winks out softly)
+  float fvis = 0.0;
   if (uFlarePos.z > 0.001) {
+    for (int i = 0; i < 5; i++) {
+      vec2 o = i == 0 ? vec2(0.0) : vec2(i == 1 ? 2.0 : i == 2 ? -2.0 : 0.0, i == 3 ? 2.0 : i == 4 ? -2.0 : 0.0) / uRes;
+      fvis += step(uFlareD - 0.6, lin(texture2D(tDepth, uFlarePos.xy + o).r)) * 0.2;
+    }
+  }
+  if (uFlarePos.z * fvis > 0.001) {
     vec2 asp = vec2(uRes.x / uRes.y, 1.0);
     vec2 dv = (suv - uFlarePos.xy) * asp;
     float core = exp(-dot(dv, dv) * 900.0);
@@ -220,7 +229,7 @@ void main() {
       float hex = max(a.x * 0.866 + a.y * 0.5, a.y);
       f += uFlareCol * mix(vec3(0.6, 1.0, 0.9), vec3(1.0), fi / 3.0) * (1.0 - smoothstep(r * 0.8, r, hex)) * 0.12;
     }
-    c += f * uFlarePos.z;
+    c += f * uFlarePos.z * fvis;
   }
   // the beat's flash on top of everything (it does not bloom: a strobe, not a lamp)
   c += uFlashCol * uFlash;
@@ -295,7 +304,7 @@ export class StageRender {
   private fsCam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
   private hook = (r: THREE.WebGLRenderer) => this.draw(r);
   private t = 0;
-  private prevVP = new THREE.Matrix4(); private hasPrev = false;
+  private prevVP = new THREE.Matrix4(); private hasPrev = false; private lastDraw = 0;
   private motion = new THREE.Vector2();
   private tv = new THREE.Vector3();
 
@@ -316,7 +325,7 @@ export class StageRender {
       uGamma: 1, uContrast: 0.3, uSat: 1, uVignette: 0.5, uHurt: 0, uDesat: 0, uKill: 0, uLevels: 128, uGrain: 0.006,
       uBloom: 0.9, uStreak: 0.5, uRaysK: 0.35, uFocus: 2, uAperture: 0, uNearBlur: 0.6, uCA: 0, uZoom: 0,
       uMotion: new THREE.Vector2(), uStreakTint: new THREE.Vector3(1, 0.75, 0.6), uRayTint: new THREE.Vector3(1, 1, 1),
-      uFlarePos: new THREE.Vector3(), uFlareCol: new THREE.Vector3(1, 0.3, 0.15), uFlashCol: new THREE.Vector3(1, 1, 1), uFlash: 0,
+      uFlarePos: new THREE.Vector3(), uFlareD: 1, uFlareCol: new THREE.Vector3(1, 0.3, 0.15), uFlashCol: new THREE.Vector3(1, 1, 1), uFlash: 0,
     });
     this.black = mkRT(1, 1);
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mats.comp);
@@ -427,10 +436,14 @@ export class StageRender {
     // camera motion: where the middle of the previous frame's view lands now
     cam.updateMatrixWorld();
     const vp = new THREE.Matrix4().multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
+    // measured per real frame (a 60 fps frame's worth of travel): a hitch or a paused picture is not a whip
+    const now = performance.now(), el = (now - this.lastDraw) / 1000;
+    this.lastDraw = now;
+    if (el > 0.25) this.hasPrev = false;
     if (this.hasPrev && this.shutter > 0) {
       const p = this.tv.set(0, 0, -6).applyMatrix4(cam.matrixWorld);
       const a = p.clone().applyMatrix4(this.prevVP), b = p.clone().applyMatrix4(vp);
-      this.motion.set((b.x - a.x) * 0.5, (b.y - a.y) * 0.5).multiplyScalar(this.shutter);
+      this.motion.set((b.x - a.x) * 0.5, (b.y - a.y) * 0.5).multiplyScalar(this.shutter * Math.min(1, 1 / 60 / Math.max(el, 1e-3)));
       if (this.motion.length() > 0.035) this.motion.setLength(0.035);
     } else this.motion.set(0, 0);
     this.prevVP.copy(vp); this.hasPrev = true;
@@ -449,7 +462,11 @@ export class StageRender {
     u.uFocus.value = this.focus; u.uAperture.value = dofOn ? this.aperture : 0; u.uNearBlur.value = this.nearBlur;
     u.uMotion.value.copy(this.motion); u.uZoom.value = this.zoom; u.uCA.value = this.ca;
     u.uFlash.value = this.flash; u.uFlashCol.value.set(this.flashCol.r, this.flashCol.g, this.flashCol.b);
-    if (this.flareK > 0.01) { const f = this.toUv(this.flareAt, new THREE.Vector3()); u.uFlarePos.value.set(f.x, f.y, f.z * this.flareK); } else u.uFlarePos.value.set(0, 0, 0);
+    if (this.flareK > 0.01) {
+      const f = this.toUv(this.flareAt, new THREE.Vector3());
+      u.uFlarePos.value.set(f.x, f.y, f.z * this.flareK);
+      u.uFlareD.value = -this.tv.copy(this.flareAt).applyMatrix4(cam.matrixWorldInverse).z;
+    } else u.uFlarePos.value.set(0, 0, 0);
     u.uFlareCol.value.set(this.flareCol.r, this.flareCol.g, this.flareCol.b);
     this.pass(r, this.mats.comp, null);
     r.setRenderTarget(null);

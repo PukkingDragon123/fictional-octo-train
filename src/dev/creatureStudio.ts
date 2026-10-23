@@ -19,7 +19,7 @@ import { setGame } from '../game/G';
 
 export interface StudioOpts {
   keys: string[]; states?: string[]; zoom?: number; spacing?: number; cols?: number; yaw?: number; light?: number;
-  facing?: number; floor?: string; wall?: string; freeze?: number; seed?: number; dt?: number;
+  facing?: number; floor?: string; wall?: string; freeze?: number; seed?: number; dt?: number; /** camera target height */ ty?: number;
 }
 
 export async function creatureStudio(o: StudioOpts) {
@@ -76,7 +76,7 @@ export async function creatureStudio(o: StudioOpts) {
     fake.creatures.creatures.set(c.id, c);
     list.push({ c, sp: S, st });
   });
-  const tgt = new THREE.Vector3(N / 2, 0.4, N / 2);
+  const tgt = new THREE.Vector3(N / 2, o.ty ?? 0.4, N / 2);
   let t = 0;
   const step = (dt: number) => {
     t += dt; fake.time = t;
