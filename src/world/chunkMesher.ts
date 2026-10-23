@@ -42,8 +42,12 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
   const alphaWalls = new ModelBuilder();
   // ceilings exist only for the first-person eye (render layer 1; the iso camera sees layer 0)
   const ceil = new ModelBuilder();
+  // horror wear scattered over walls (cut away with them) and floors
+  const wear = new ModelBuilder();
+  const wearFloor = new ModelBuilder();
+  const gore = G?.sandbox?.gore !== 0;
   // building fabric stays square so walls, tiles and frames butt cleanly (furniture brings its own facets)
-  for (const mb of [floors, walls, decals, glass, alphaWalls, foliage, ceil]) mb.setFacets(false);
+  for (const mb of [floors, walls, decals, glass, alphaWalls, foliage, ceil, wear, wearFloor]) mb.setFacets(false);
   const ceilH = ceilingHeight(zone), flav = ceilingFlavour(zone);
   const x0 = cx * CHUNK, y0 = cy * CHUNK;
   const x1 = Math.min(zone.W, x0 + CHUNK), y1 = Math.min(zone.H, y0 + CHUNK);
@@ -74,6 +78,7 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       stepFace(x, y - 1, [[x + 1, 0, y], [x, 0, y], [x, 1, y], [x + 1, 1, y]]);
       stepFace(x + 1, y, [[x + 1, 0, y + 1], [x + 1, 0, y], [x + 1, 1, y], [x + 1, 1, y + 1]]);
       stepFace(x - 1, y, [[x, 0, y], [x, 0, y + 1], [x, 1, y + 1], [x, 1, y]]);
+      if (!zone.floor[i] || f.water) { /* no wear on water */ } else floorWear(zone, wearFloor, x, y, h, gore);
       if (!zone.isOutdoor(x, y)) {
         const cy = (h >= 1 ? h : 0) + ceilH;
         const t = ceilingTex(flav, x, y), r = flav.mw;
@@ -95,6 +100,7 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       target.swayDefault = side === 0 ? 1 : 2;
       emitWall(zone, target, glass, x, y, side, w, texIn, texOut, e, wid !== 0, w.alpha ? null : decals);
       target.swayDefault = 0;
+      if (wid && !e && !w.alpha && !w.glass && !w.low) wallWear(zone, wear, x, y, side, w, gore);
     }
     // ---- static objects anchored on this tile
     const objs = zone.tileObjs.get(i);
@@ -159,6 +165,8 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
   add(foliage, MAT.foliage, false);
   add(decals, MAT.decal, false, 1);
   if (wallDecals) add(wallDecals, worldMaterial({ transparent: true, outline: 0.0, depthWrite: false, cutout: true }), false, 1);
+  add(wear, worldMaterial({ transparent: true, outline: 0.0, depthWrite: false, cutout: true }), false, 1);
+  add(wearFloor, MAT.decal, false, 1);
   add(glass, MAT.glass, false, 2);
   if (!ceil.isEmpty) {
     const mesh = new THREE.Mesh(ceil.build(), worldMaterial({ outline: 0.0 }));
@@ -346,6 +354,60 @@ function emitBrokenGlass(glass: ModelBuilder, x: number, y: number, side: number
       : [[x, hv, y + au], [x, hv, y + au + s * 0.5], [x, hv + s, y + au + s * 0.2]];
     glass.triRaw(p, [[0, 0], [1, 0], [0.5, 1]], 'glass');
   }
+}
+
+// ---------------------------------------------------------------- horror wear
+const DAMP = new Set(['lobby', 'pool', 'tunnels', 'house', 'parking', 'hospital', 'stairwell', 'school']);
+const SOOTY = new Set(['tunnels', 'parking', 'lab', 'server', 'corrupt', 'stairwell']);
+const BARE = /concrete|cinder|tunnel|garage|server|brick/;
+
+/** a decal quad standing just proud of one face of an edge wall; a = centre along the edge (0..1) */
+function faceDecal(mb: ModelBuilder, side: 0 | 1, x: number, y: number, out: boolean, T: number, a: number, w: number, y0: number, y1: number, tex: string, tint = 0xffffff) {
+  const off = T / 2 + 0.006;
+  mb.swayDefault = side === 0 ? 1 : 2;
+  if (side === 0) {
+    const z = out ? y - off : y + off, xa = x + a - w / 2, xb = x + a + w / 2;
+    const pts = out ? [[xb, y0, z], [xa, y0, z], [xa, y1, z], [xb, y1, z]] : [[xa, y0, z], [xb, y0, z], [xb, y1, z], [xa, y1, z]];
+    mb.quadRaw(pts, [[0, 0], [1, 0], [1, 1], [0, 1]], tex, tint, out ? 0.86 : 0.94, 0, 0, [0, 0, out ? -1 : 1]);
+  } else {
+    const xp = out ? x - off : x + off, za = y + a - w / 2, zb = y + a + w / 2;
+    const pts = out ? [[xp, y0, za], [xp, y0, zb], [xp, y1, zb], [xp, y1, za]] : [[xp, y0, zb], [xp, y0, za], [xp, y1, za], [xp, y1, zb]];
+    mb.quadRaw(pts, [[0, 0], [1, 0], [1, 1], [0, 1]], tex, tint, out ? 0.82 : 0.9, 0, 0, [out ? -1 : 1, 0, 0]);
+  }
+  mb.swayDefault = 0;
+}
+
+/** water runs from the ceiling joint, mould out of the corners, rust from fixings, soot, bloody hands */
+function wallWear(zone: Zone, mb: ModelBuilder, x: number, y: number, side: 0 | 1, w: WallDef, gore: boolean) {
+  const g = zone.env.grade, damp = DAMP.has(g);
+  const H = w.height ?? WALL_H, T = w.thick ?? 0.12;
+  for (const out of [false, true]) {
+    const tx = out && side === 1 ? x - 1 : x, ty = out && side === 0 ? y - 1 : y;
+    if (!zone.inb(tx, ty) || !zone.floor[zone.idx(tx, ty)]) continue;
+    const base = zone.heightAt(tx, ty);
+    const r = (k: number) => (hash3(x * 2 + side, y * 2 + (out ? 1 : 0), k) % 10000) / 10000;
+    const a = 0.3 + r(1) * 0.4;
+    if (r(2) < (damp ? 0.07 : 0.035)) faceDecal(mb, side, x, y, out, T, a, 0.8, base + H - 1.7, base + H - 0.02, 'hd_water_run');
+    if (r(3) < (damp ? 0.08 : 0.03)) faceDecal(mb, side, x, y, out, T, r(4) < 0.5 ? 0.22 : 0.78, 0.75, base + 0.004, base + 0.75, 'hd_mould');
+    if (BARE.test(w.tex) && r(5) < 0.07) faceDecal(mb, side, x, y, out, T, 0.2 + r(6) * 0.6, 0.3, base + H - 1.95, base + H - 0.45, 'hd_rust');
+    if (SOOTY.has(g) && r(7) < 0.018) faceDecal(mb, side, x, y, out, T, 0.5, 0.95, base + 0.004, base + 1.9, 'hd_soot');
+    if (gore && zone.env.grade !== 'exit') {
+      if (r(8) < 0.011) faceDecal(mb, side, x, y, out, T, 0.25 + r(9) * 0.5, 0.3, base + 0.95 + r(10) * 0.35, base + 1.55 + r(10) * 0.35, 'hd_handprint');
+      else if (r(11) < 0.007) faceDecal(mb, side, x, y, out, T, 0.5, 0.85, base + 0.55, base + 1.4, 'hd_hand_smear');
+    }
+  }
+}
+
+/** damp patches, scorch marks, and (gore on) something dragged across the floor */
+function floorWear(zone: Zone, mb: ModelBuilder, x: number, y: number, h: number, gore: boolean) {
+  const g = zone.env.grade;
+  const r = (k: number) => (hash3(x, y, 300 + k) % 10000) / 10000;
+  const fy = h + 0.008;
+  const rot = Math.floor(r(1) * 4) * Math.PI / 2 + (r(2) - 0.5) * 0.5;
+  if (zone.isOutdoor(x, y)) return;
+  if (r(3) < (DAMP.has(g) ? 0.045 : 0.018)) mb.flat(x + 0.5, fy, y + 0.5, 1.1, 1.0, 'hd_damp', { rot });
+  else if (SOOTY.has(g) && r(4) < 0.008) mb.flat(x + 0.5, fy, y + 0.5, 1.0, 1.0, 'decal_scorch', { rot });
+  if (gore && g !== 'exit' && r(5) < 0.004) mb.flat(x + 0.5, fy + 0.002, y + 0.5, 0.9, 1.8, 'hd_drag', { rot });
 }
 
 // ---------------------------------------------------------------- ceilings (first person only)

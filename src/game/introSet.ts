@@ -109,6 +109,10 @@ export class IntroSet {
   /** called on every press slam (sound, shake from the script) */
   onSlam: ((d: number) => void) | null = null;
   private splats: THREE.Mesh[] = []; private splatI = 0;
+  private wallSplats: THREE.Mesh[] = []; private wallI = 0;
+  /** the last debtor, on the plate (a body the intro hands over); the press flattens it slam by slam */
+  corpse: THREE.Object3D | null = null;
+  private corpseSquash = 1;
   private belt!: { mesh: THREE.Mesh; uv: Float32Array; base: Float32Array; off: number };
   private junk: { m: THREE.Mesh; z: number; y: number; vy: number; on: boolean; spin: number }[] = [];
   private coils: EmitMat | null = null;
@@ -191,7 +195,7 @@ export class IntroSet {
     props.box(0, 0.002, gate.z + 0.25, cor.x1 - cor.x0, 0.004, 0.14, 'ix_haz', { ao: false });
     // ---- the antechamber (tile), open to the wing and to the press room
     this.box(shell, ante.x0, ante.x1, ante.z0, ante.z1, ante.h, 'tile_white', 'concrete_wet', 'concrete', { n: [[door.x0, door.x1, door.h]], s: [[cor.x0, cor.x1, cor.h]] }, 0xb8b0a4);
-    steelBench(props, ante.x0 + 0.32, -13.6, Math.PI / 2, 1.8);
+    steelBench(props, ante.x1 - 0.32, -13.9, -Math.PI / 2, 1.8);
     hoseReel(props, ante.x1 - 0.05, 1.5, -12.4, -Math.PI / 2);
     mopBucket(props, ante.x0 + 0.5, -15.3, 0.4);
     cbox(props, IX.drain[0], 0, IX.drain[1], 0.5, 0.012, 0.5, 0.004, 'ix_grate');
@@ -514,7 +518,45 @@ export class IntroSet {
     const m = new THREE.Mesh(D.build(), DECAL()); m.renderOrder = 1; m.frustumCulled = false; m.receiveShadow = !this.low; this.root.add(m);
     const sg = new ModelBuilder(); sg.flat(0, 0, 0, 1, 1, 'gore_red_splat_a', {});
     const sgeo = sg.build();
-    for (let i = 0; i < 10; i++) { const s = new THREE.Mesh(sgeo, DECAL()); s.visible = false; s.renderOrder = 1; s.frustumCulled = false; this.root.add(s); this.splats.push(s); }
+    for (let i = 0; i < 36; i++) { const s = new THREE.Mesh(sgeo, DECAL()); s.visible = false; s.renderOrder = 1; s.frustumCulled = false; this.root.add(s); this.splats.push(s); }
+    // fresh spatter on the walls (vertical cards that face out of the wall)
+    const wg = new ModelBuilder(); wg.panel(-0.5, 0, 0.5, 0, -0.5, 0.5, 'gore_red_wallspray', { fit: true });
+    const wgeo = wg.build();
+    for (let i = 0; i < 24; i++) { const s = new THREE.Mesh(wgeo, DECAL()); s.visible = false; s.renderOrder = 1; s.frustumCulled = false; this.root.add(s); this.wallSplats.push(s); }
+  }
+
+  /** spatter on a wall: centre, the wall's outward normal (x, z), size */
+  wallSplat(x: number, y: number, z: number, nx: number, nz: number, size: number) {
+    const s = this.wallSplats[this.wallI++ % this.wallSplats.length];
+    s.position.set(x + nx * (0.004 + (this.wallI % 7) * 0.0004), y, z + nz * (0.004 + (this.wallI % 7) * 0.0004));
+    s.rotation.set(0, Math.atan2(nx, nz), (Math.random() - 0.5) * 0.6);
+    s.scale.set(size * (0.8 + Math.random() * 0.5), size, 1);
+    s.visible = true;
+  }
+  /** a spray of blood from a point along a direction: drops, a pool under it, and where it reaches the room's walls, spatter that stays */
+  spray(x: number, y: number, z: number, dx: number, dy: number, dz: number, n = 16, speed = 2.6) {
+    this.bleed(x, y, z, dx, dy, dz, n, speed, 0.35 + Math.random() * 0.3);
+    const L = Math.hypot(dx, dz);
+    if (L < 1e-3) return;
+    const ux = dx / L, uz = dz / L;
+    // which room is it in, and which wall does the spray reach first
+    const R = z > IX.cor.z0 ? IX.cor : z > IX.ante.z0 ? IX.ante : IX.room;
+    let best = 99, wx = 0, wz = 0, nx = 0, nz = 0;
+    const tryWall = (t: number, ax: number, az: number) => { if (t > 0 && t < best) { best = t; wx = x + ux * t; wz = z + uz * t; nx = ax; nz = az; } };
+    if (ux < -1e-3) tryWall((R.x0 - x) / ux, 1, 0);
+    if (ux > 1e-3) tryWall((R.x1 - x) / ux, -1, 0);
+    if (uz < -1e-3) tryWall((R.z0 - z) / uz, 0, 1);
+    if (uz > 1e-3) tryWall((R.z1 - z) / uz, 0, -1);
+    if (best < 3.2) {
+      const h = Math.max(0.1, Math.min(R.h - 0.2, y + dy / Math.max(0.3, L) * best * 0.5 - best * best * 0.12));
+      this.wallSplat(wx, h, wz, nx, nz, 0.5 + Math.random() * 0.5 - best * 0.08);
+      if (Math.random() < 0.6) this.wallSplat(wx + nz * (Math.random() - 0.5) * 0.4, h - 0.15 - Math.random() * 0.2, wz - nx * (Math.random() - 0.5) * 0.4, nx, nz, 0.3 + Math.random() * 0.3);
+    }
+  }
+  /** teeth knocked loose: little ivory chunks bouncing on the tiles */
+  teeth(x: number, y: number, z: number, dx: number, dz: number, n = 2) {
+    const r = Math.random;
+    for (let i = 0; i < n; i++) this.blood.add(PK.Chunk, x, y, z, (dx + (r() - 0.5) * 0.6) * 1.8, 1.2 + r(), (dz + (r() - 0.5) * 0.6) * 1.8, 0.008 + r() * 0.004, 2.5, r() < 0.7 ? 0xeee6d2 : 0xd8c8b0, 0);
   }
 
   // ================================================================ live
@@ -575,6 +617,13 @@ export class IntroSet {
         for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) this.spark(x + sz * GP.colZ, GP.bedH + GP.ramDown * 0.2 + 0.15, z - sx * GP.colX, this.low ? 6 : 14, 3.4, [sz * 0.5, 0.7, -sx * 0.5]);
         this.spark(x + 1.4, GP.bedH + 0.1, z, this.low ? 8 : 22, 4.5, [1, 0.5, 0]);
         this.lights.sparks(new THREE.Vector3(x + 1.6, GP.bedH + 0.4, z), 1);
+        // the body on the plate goes flat; what is in it comes out the sides
+        if (this.corpse) {
+          this.corpseSquash = Math.max(0.12, this.corpseSquash * 0.42);
+          this.corpse.scale.set(1 + (1 - this.corpseSquash) * 0.18, this.corpseSquash, 1 + (1 - this.corpseSquash) * 0.12);
+          for (const [ddx, ddz] of [[1, 0.3], [1, -0.4], [0.6, 1], [0.6, -1], [-0.4, 1]]) this.spray(x + ddx * 0.7, GP.bedH + 0.08, z + ddz * 0.5, ddx * 1.4, 0.35, ddz * 1.4, 10, 4.2);
+          for (let i = 0; i < 6; i++) this.splat(x + 1.3 + Math.random() * 1.6, z + (Math.random() - 0.5) * 2.4, 0.5 + Math.random() * 0.6);
+        }
         this.lights.brownout(0.25, 0.12, ['press', 'fit', 'ante']);
         // the belt's load drops off under the ram
         for (const j of this.junk) if (!j.on) { j.on = true; j.z = IX.conv.z0 + 0.2 - Math.random() * 0.4; j.y = 0.78; j.vy = 0; }

@@ -318,7 +318,8 @@ function picturePage(f: DocumentFragment) {
 }
 
 /** options content (sound, picture, interface, game), reused by the title and the pause menu */
-export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) => void) => void } = {}): HTMLElement {
+export interface OptionsApi { pages: string[]; select: (i: number) => void; readonly index: number; onChange: (fn: (i: number) => void) => void }
+export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) => void) => void; hideTabs?: boolean; onApi?: (api: OptionsApi) => void } = {}): HTMLElement {
   const box = h('div', 't-options');
   const pages = ['SOUND', 'PICTURE', 'INTERFACE', ...(opts.inGame ? ['GAME'] : [])];
   const page = h('div', 't-opt-page');
@@ -368,10 +369,13 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
     }
     swapPage(page, f, dir);
   };
-  const t = tabs(pages, cur, (i) => { const d = i > cur ? 1 : -1; cur = i; render(i, d); }, 'small');
+  const listeners: ((i: number) => void)[] = [];
+  const t = tabs(pages, cur, (i) => { const d = i > cur ? 1 : -1; cur = i; render(i, d); for (const f of listeners) f(i); }, 'small');
+  if (opts.hideTabs) t.el.hidden = true;
   box.append(t.el, page);
   render(cur, 0);
   opts.onTab?.((d) => t.select(t.index + d));
+  opts.onApi?.({ pages, select: (i) => t.select(i), get index() { return t.index; }, onChange: (fn) => listeners.push(fn) });
   return box;
 }
 

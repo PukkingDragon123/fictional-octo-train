@@ -19,6 +19,7 @@ import { addTextureModule } from '../../gfx/textures/index';
 import { PixelCanvas, bayer, mixHex, ph } from '../../gfx/pixel';
 import { Rng, tileFbm, hashStr } from '../../core/rng';
 import { worldMaterial } from '../../gfx/materials';
+import { facetMaterial } from './horror';
 import type { Rig } from '../species';
 import type { Creature } from '../creature';
 
@@ -486,7 +487,8 @@ export function bodyRing(z: number, cy: number, rx: number, up: number, dn: numb
 let _mat: THREE.Material | null = null;
 /** one material for every beast (alpha-tested so fur / wing cards can be shaped) */
 export function beastMaterial(): THREE.Material {
-  if (!_mat) _mat = worldMaterial({ alphaTest: 0.5 });
+  // faceted with wet glints (kit/horror.ts)
+  if (!_mat) _mat = facetMaterial(worldMaterial({ alphaTest: 0.5 }));
   return _mat;
 }
 

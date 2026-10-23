@@ -34,3 +34,33 @@
   .ix-root.letterbox .ix-bar { height: 12vh; }
 }
 @media (prefers-reduced-motion: reduce) { .ix-wrap { transition: none; } }
+
+/* the spoken lines (src/game/introKit/subs.ts): Pixelify Sans, big and crisp, one at a time, typed on,
+   the speaker's name small above; no box, a hard black halo round the letters */
+.ix-subs { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
+.ix-sub { position: absolute; left: 50%; bottom: calc(10vh + 3.2vh); transform: translateX(-50%); width: min(78vw, 980px); text-align: center;
+  font-family: var(--font-new); -webkit-font-smoothing: none; font-smooth: never; transition: opacity .22s, transform .22s; }
+.ix-sub.placed { bottom: auto; transform: translate(-50%, -100%); width: min(46vw, 560px); }
+.ix-sub.out { opacity: 0; transform: translate(-50%, -0.5em); }
+.ix-sub.placed.out { transform: translate(-50%, calc(-100% - 0.5em)); }
+.ix-sub-who { font-size: clamp(11px, 0.9vw + 6px, 17px); letter-spacing: .32em; color: #b8b0a0; margin-bottom: .35em; font-weight: 400;
+  text-shadow: 1px 0 0 #000, -1px 0 0 #000, 0 1px 0 #000, 0 -1px 0 #000, 0 2px 6px rgba(0, 0, 0, .9); }
+.ix-sub-line { font-size: clamp(21px, 2.2vw + 9px, 46px); line-height: 1.12; font-weight: 700; color: #f2eee2; letter-spacing: .02em;
+  text-shadow: 2px 0 0 #000, -2px 0 0 #000, 0 2px 0 #000, 0 -2px 0 #000, 2px 2px 0 #000, -2px 2px 0 #000, 2px -2px 0 #000, -2px -2px 0 #000, 0 4px 14px rgba(0, 0, 0, .85); }
+.ix-sub-line .w { display: inline-block; white-space: nowrap; }
+.ix-sub-line .c { display: inline-block; opacity: 0; transform: translateY(.22em) scale(1.25); }
+.ix-sub-line .c.on { opacity: 1; transform: none; transition: transform .09s steps(3), opacity .03s; }
+/* the debtor: their own voice, a pale cold colour, a tremble */
+.ix-sub.self .ix-sub-line { color: #cfe0e6; font-weight: 400; }
+.ix-sub.self .c.on { animation: ix-trem 1.6s steps(2) infinite; animation-delay: calc(var(--j) * -0.23s); }
+/* shouting: red, bigger, every letter shaking */
+.ix-sub.shout .ix-sub-line { color: #ff5b43; font-size: clamp(25px, 2.8vw + 10px, 58px); }
+.ix-sub.shout .c.on { animation: ix-shake .11s steps(2) infinite; animation-delay: calc(var(--j) * -0.017s); }
+/* a blow lands while the line is up */
+.ix-sub.hit .ix-sub-line { animation: ix-jolt .42s cubic-bezier(.2, 2.4, .4, 1); }
+.ix-sub.hit .c.on { animation: ix-red .5s steps(4); }
+@keyframes ix-shake { 0% { transform: translate(1px, -1px); } 50% { transform: translate(-1px, 2px); } 100% { transform: translate(2px, 0); } }
+@keyframes ix-trem { 0% { transform: translate(0, 0); } 50% { transform: translate(0, 1px); } }
+@keyframes ix-jolt { 0% { transform: translate(calc(var(--hk, 1) * 9px), calc(var(--hk, 1) * -5px)) scale(1.08); } 100% { transform: none; } }
+@keyframes ix-red { 0% { color: #ff2a1a; } 100% { color: inherit; } }
+@media (max-width: 640px) { .ix-sub { width: 90vw; } .ix-sub.placed { width: 72vw; } }

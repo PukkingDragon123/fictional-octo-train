@@ -12,6 +12,7 @@
 //    vertices collapsed into the joint and a painted stump cap shown there.
 import * as THREE from 'three';
 import { worldMaterial } from '../../gfx/materials';
+import { patchFacet, markFaceted } from './horror';
 import { PixelCanvas, bayer } from '../../gfx/pixel';
 import { tileFbm } from '../../core/rng';
 import { G } from '../../game/G';
@@ -488,10 +489,12 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.86, 0.8), uKit.z);`);
 
 export function kitMaterial(map: THREE.Texture, F: KitFx): THREE.MeshLambertMaterial {
   const base = worldMaterial({}) as any;
-  const m = new THREE.MeshLambertMaterial({ map, vertexColors: true });
-  m.onBeforeCompile = (shader, renderer) => { base.onBeforeCompile?.(shader, renderer); patchShader(shader as any, F); };
+  // faceted planes and wet glints (kit/horror.ts), built in so personalised pages swap straight onto it
+  const m = new THREE.MeshLambertMaterial({ map, vertexColors: true, flatShading: true });
+  m.onBeforeCompile = (shader, renderer) => { base.onBeforeCompile?.(shader, renderer); patchShader(shader as any, F); patchFacet(shader as any); };
   const key = base.customProgramCacheKey ? base.customProgramCacheKey() : 'base';
-  m.customProgramCacheKey = () => key + '|hkit1';
+  m.customProgramCacheKey = () => key + '|hkit2';
+  markFaceted(m);
   return m;
 }
 

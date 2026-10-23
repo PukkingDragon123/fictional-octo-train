@@ -62,7 +62,8 @@ import { readTime, type LineStyle } from './lines';
 import { paintMugshot } from '../content/furniture/zp_processing';
 import { rigNumber } from '../content/items/prisoner';
 import { ModelBuilder } from '../gfx/modelBuilder';
-import { HumanRig, type Pose } from '../entities/humanRig';
+import { HumanRig, randomAppearance, type Pose } from '../entities/humanRig';
+import type { RagWorld } from '../entities/humanRagdoll';
 import { Reactions } from '../entities/humanReact';
 import { fpClaim, fpRelease, fpCamera, fpOwner, fpGroup } from '../fp/fp';
 import { fpArmsFor, type FpArm, type HandPose } from '../fp/hands';
@@ -73,13 +74,18 @@ import type { SeamFx } from './seam';
 import { StageRender } from './introKit/stage';
 import { SU, stageMat, emitMat, type EmitMat } from './introKit/stageMat';
 import { skipPlate, pollPadSkip, padConnected, type SkipPlate } from './introKit/skip';
-import { cbox, lathe, rod } from './introKit/poly';
+import { cbox, lathe, rod, mulberry } from './introKit/poly';
+import { Subs } from './introKit/subs';
+import { GP } from './introKit/machines';
 import './intro.css';
 
 export { INTRO_ZONE };
 void STAGE;
 
-type Phase = 'drag' | 'throw' | 'beat' | 'haul' | 'fit' | 'tape' | 'through' | 'land' | 'voss' | 'done';
+type Phase = 'drag' | 'throw' | 'beat' | 'haul' | 'fit' | 'tape' | 'through' | 'land' | 'arrival' | 'voss' | 'done';
+
+/** the next scene (src/game/arrival.ts, the arrival worker's): an arm into the jelly wall, the Lobby, Voss. Optional: without it the old pass-through plays */
+const ARRIVAL = import.meta.glob('./arrival.ts') as Record<string, () => Promise<{ playArrival?: (g: Game, p: Player) => Promise<void> }>>;
 
 /** actions that make no sense while being processed */
 const BLOCK = new Set<Action>(['scanner', 'map', 'flashlight', 'craft', 'sleep', 'grab', 'hot1', 'hot2', 'hot3', 'hot4', 'hot5', 'inventory', 'attack', 'shove', 'shout', 'interact'] as Action[]);
@@ -122,8 +128,9 @@ const WARM = ['guard_bark', 'baton_hit', 'body_thud', 'debtor_grunt', 'debtor_sc
 /** the wide shots cut into the first-person script: [phase] -> [from, to, shot] (phase seconds) */
 const SHOTS: Partial<Record<Phase, [number, number, string][]>> = {
   drag: [[0, 4.4, 'establish']],
+  throw: [[0.12, 2.1, 'throwWide']],
   beat: [[2.15, 3.72, 'beatWide'], [4.55, 6.05, 'beatTop']],
-  haul: [[1.9, 5.4, 'haulCrane']],
+  haul: [[1.6, 3.05, 'haulCrane'], [3.05, 4.75, 'pressClose']],
   fit: [[1.45, 3.9, 'fitClose'], [3.9, 6.95, 'fitPierce']],
   tape: [[1.0, 3.6, 'tapeWide']],
 };
@@ -342,6 +349,19 @@ export class Intro implements GameSystem {
   private heartT = 0;
   private stepT = 0;
   private glow = 0;
+  /** the spoken lines (Pixelify Sans, typed on, one at a time) */
+  private subs!: Subs;
+  /** a freeze-frame on a blow (seconds of nearly stopped time for the cutscene) */
+  private freeze = 0;
+  /** the arrival scene took over / has run */
+  private handing = false; private arrived = false;
+  /** the ragdoll's world: the antechamber's walls and floor */
+  private ragWorld: RagWorld = { ground: () => 0, collide: (m) => { const R = IX.ante, r = m.radius; m.x = Math.max(R.x0 + r, Math.min(R.x1 - r, m.x)); m.z = Math.max(R.z0 + r, Math.min(R.z1 - r, m.z)); } };
+  private wallHit = false; private floorHit = false; private released = false;
+  /** blood on the debtor's own body, part -> 0..3 */
+  private bloodOn: Record<string, number> = {};
+  private corpse: HumanRig | null = null;
+  private hitsTaken = 0;
   private padT = 0;
 
   constructor(public g: Game, public p: Player, public spawn: [number, number]) {
@@ -373,6 +393,8 @@ export class Intro implements GameSystem {
     this.set.onSlam = (d) => this.pressSlam(d);
     this.me = new HumanRig(p.app, stageMat({ rim: 1.15 }), { secondary: true });
     this.me.setOutfit(p.computeOutfit());
+    this.me.ragWorld = this.ragWorld;
+    this.makeCorpse(root);
     (this.me.bones as Record<string, THREE.Object3D>).head.scale.setScalar(0.001);
     root.add(this.me.root);
     // your own forearms and hands: the shared first-person arms (src/fp/hands.ts), riding the double's elbows
@@ -468,12 +490,13 @@ export class Intro implements GameSystem {
     const orig = inp.hit.bind(inp) as (a: Action) => boolean;
     inp.hit = (a: Action) => {
       if (a === 'pause') {
+        if (this.phase === 'arrival') return orig(a);
         const v = orig(a);
         const ui = g.ui;
         if (v && !(ui?.menuEl || ui?.readerEl || ui?.modal || ui?.inventory?.open)) { this.skip(); return false; }
         return v;
       }
-      if (this.phase === 'voss' || this.phase === 'done') return orig(a);
+      if (this.phase === 'voss' || this.phase === 'done' || this.phase === 'arrival') return orig(a);
       if (BLOCK.has(a)) return false;
       return a === 'camLeft' || a === 'camRight' ? orig(a) : false;
     };
@@ -537,16 +560,34 @@ export class Intro implements GameSystem {
     this.plate.el.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; });
     this.plate.el.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; });
     root.append(this.wrapEl, this.lidT, this.lidB, this.shade, top, bot, this.plate.el);
+    this.subs = new Subs(root);
     document.body.appendChild(root);
   }
   private hotSkip() { this.skipHot = 2.6; this.plate.el.classList.add('hot'); }
   private letterbox(on: boolean) { this.root.classList.toggle('letterbox', on); }
   /** a spoken line: bus 'subtitle' (the speech renderer draws it as free floating text, with a voice) */
-  private say(who: string, text: string, style: LineStyle = 'guard', sound = true) {
-    bus.emit('subtitle', { who: who === 'self' ? this.p.name : who, text, dur: readTime(text), style, ...(style === 'self' ? { pid: this.p.id } : {}) });
-    if (sound && style === 'guard') G.audio?.flat?.('guard_bark', 'sfx', 0.7);
+  private say(who: string, text: string, style: LineStyle = 'guard', sound = true, speaker?: Guard) {
+    // drawn by the cutscene itself (typed on, one line at a time); the officer nearest the camera speaks
+    const self = style === 'self';
+    const sp = self ? null : speaker ?? this.nearestGuard();
+    const at = () => {
+      if (!this.shot) return null;
+      const o = sp ? sp.rig.j.head.getWorldPosition(v5) : this.me.j.head.getWorldPosition(v5);
+      o.y += 0.42;
+      return this.toScreen(o);
+    };
+    this.subs.show(self ? this.num : who, text, { style: self ? 'self' : 'guard', at });
+    if (sound && !self) G.audio?.flat?.('guard_bark', 'sfx', 0.45);
+  }
+  private nearestGuard(): Guard { const c = fpCamera().position; return Math.hypot(this.A.x - c.x, this.A.z - c.z) <= Math.hypot(this.B.x - c.x, this.B.z - c.z) ? this.A : this.B; }
+  /** a stage point on the screen (CSS px), or null when behind the camera */
+  private toScreen(p: THREE.Vector3): { x: number; y: number } | null {
+    const v = v4.copy(p).project(fpCamera());
+    if (v.z > 1 || v.z < -1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) return null;
+    return { x: (v.x * 0.5 + 0.5) * innerWidth, y: (0.5 - v.y * 0.5) * innerHeight };
   }
   private paintDom(dt: number) {
+    this.subs?.update(dt);
     this.shade.style.opacity = String(clamp01(this.shadeA));
     if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) this.plate.el.classList.remove('hot'); }
     this.hurtA = Math.max(0, this.hurtA - dt * 0.9);
@@ -582,6 +623,10 @@ export class Intro implements GameSystem {
   /** a blow, a slam, a bolt: freeze a beat, shake the head, a strobe of light, blood on the lens */
   private hit(power: number, side = 0, flash = 0.5) {
     hitstop(50 + power * 70);
+    // the frame all but stops on the blow, the lens takes it, the line on screen jolts
+    this.freeze = Math.max(this.freeze, 0.05 + power * 0.11);
+    this.stage.impact(power);
+    this.subs?.hit(power);
     this.trauma = Math.min(1.2, this.trauma + power);
     this.hurtA = Math.min(1.2, this.hurtA + power * 0.8);
     this.desat = Math.min(0.8, this.desat + power * 0.08);
@@ -743,12 +788,18 @@ export class Intro implements GameSystem {
         look.set(0.02, 0.15 + t * 0.06, head.z + 0.75);
         return 56;
       }
+      case 'throwWide': {
+        // from the far corner, chest high: the swing, the body flying into the tiles, the slide down
+        pos.set(IX.ante.x1 - 0.35, 1.55 - t * 0.12, IX.ante.z1 - 0.45 - t * 0.1);
+        look.set(lerp(-0.4, IX.ante.x0 + 0.6, ease(clamp01((t - 0.15) / 0.6))), lerp(0.9, 0.55, clamp01(t)), lerp(-12.6, this.bodyAt.z - 0.9, clamp01(t * 0.8)));
+        return 62;
+      }
       case 'beatWide': {
-        // on the tiles by the wall, low: the two of them over you, the caged lamp behind their heads
-        const [dx, dz] = IX.drain;
-        pos.set(dx + 2.0 - t * 0.12, 0.3 + t * 0.02, dz + 1.45 - t * 0.08);
-        look.set(this.bodyAt.x - 0.2, 0.8, this.bodyAt.z - 0.9);
-        return 66;
+        // low on the tiles off the debtor's shoulder: the two of them over you, the caged lamp behind their heads
+        const bx = this.bodyAt.x, bz = this.bodyAt.z - 1.0;
+        pos.set(bx + 0.3 + t * 0.05, 0.3 + t * 0.03, bz - 1.75 + t * 0.06);
+        look.set(bx + 0.55, 0.85, bz + 0.35);
+        return 64;
       }
       case 'beatTop': {
         // straight down from just under the ceiling, turning slowly
@@ -764,6 +815,13 @@ export class Intro implements GameSystem {
         pos.set(lerp(3.9, 3.0, k), lerp(5.6, 3.1, k), lerp(-23.6, -22.4, k));
         look.set(lerp(0.4, this.eye.x - 0.9, k), lerp(0.6, 0.75, k), lerp(-16.4, this.eye.z + 0.4, k));
         return 60;
+      }
+      case 'pressClose': {
+        // low at the plate's front lip: the body on the plate, the ram coming down on it
+        const { x, z } = IX.press;
+        pos.set(x + 2.45 - t * 0.06, 0.92 + t * 0.02, z + 1.15 - t * 0.04);
+        look.set(x + 0.15, 0.95 - Math.min(0.35, t * 0.25), z - 0.1);
+        return 54;
       }
       case 'fitClose': {
         // close on the cradle: the clamp, the officer's glove on your wrist, the driver above
@@ -838,6 +896,73 @@ export class Intro implements GameSystem {
     }
   }
 
+  // ================================================================== the last debtor (on the press)
+  /** the one before you, face down on the plate, in the same jumpsuit; the press flattens it slam by slam */
+  private makeCorpse(root: THREE.Object3D) {
+    try {
+      const app = randomAppearance(mulberry(4177));
+      const c = this.corpse = new HumanRig(app, stageMat({ rim: 0.9 }));
+      const o = this.p.computeOutfit();
+      c.setOutfit({ torso: o.torso, legs: o.legs, legsKind: o.legsKind, feet: o.feet, cond: { blood: { head: 3, neck: 3, torso_u: 3, torso_l: 3, uarm_l: 2, uarm_r: 3, farm_l: 2, farm_r: 2, thigh_l: 2, thigh_r: 2 }, expr: 'pain' } });
+      c.update(0.016);
+      const ps = fallbackPose('prone', 1, 0);
+      if (ps) overlay(c, { ...ps, uarmL: [-2.2, 0.4, 1.2], farmL: [-0.4, 0, 0], uarmR: [-0.3, 0, -1.3], farmR: [-0.9, 0, 0], head: [-0.3, 1.1, 0], thighL: [0.15, 0, 0.45], thighR: [-0.25, 0, -0.35], shinR: [0.8, 0, 0] } as Pose, 1);
+      c.root.position.set(IX.press.x + 0.1, GP.bedH + 0.02, IX.press.z + 0.55);
+      c.root.rotation.y = -0.4;
+      c.root.traverse((m) => { m.castShadow = true; m.frustumCulled = false; });
+      root.add(c.root);
+      this.set.corpse = c.root;
+    } catch (e) { console.warn('intro corpse', e); this.corpse = null; }
+  }
+
+  // ================================================================== the lens (bloom, shafts, streaks, flare, focus, motion)
+  private updLens(dt: number) {
+    const st = this.stage, L = this.lights(), cam = fpCamera(), ph = this.phase, shot = this.shot;
+    const room = ph === 'tape' || ph === 'through' ? 'portal' : cam.position.z > IX.cor.z0 + 0.3 ? 'wing' : cam.position.z > IX.ante.z0 ? 'ante' : 'press';
+    st.low = (this.g.pr as unknown as { quality?: string }).quality === 'low';
+    st.bloom = room === 'wing' ? 0.85 : room === 'ante' ? 0.95 : room === 'press' ? 1.1 : 1.15 + this.glow * 0.5;
+    st.bloomThr = 0.78;
+    // shafts toward the key lamp, tinted like it
+    st.rayOn = true; st.rayAt.copy(L.key.position); st.rayTint.copy(L.key.color);
+    st.rays = room === 'portal' ? 0.35 + this.glow * 0.5 : room === 'ante' ? 0.42 : room === 'press' ? 0.3 : 0.32;
+    if (room === 'portal' && this.glow > 0.1) { st.rayAt.copy(SU.uPortPos.value); st.rayTint.setRGB(0.5, 0.9, 1.0); }
+    st.streak = room === 'press' ? 0.75 : room === 'portal' ? 0.6 : 0.45;
+    if (room === 'press') st.streakTint.setRGB(1, 0.32, 0.18); else if (room === 'portal') st.streakTint.setRGB(0.5, 0.9, 1); else st.streakTint.setRGB(0.75, 0.85, 1);
+    // the beacon flares when its beam sweeps past the lens
+    if (L.beaconK > 0.02) {
+      const bdir = v1.set(Math.cos(L.beaconSpin), -0.22, Math.sin(L.beaconSpin)).normalize();
+      const toCam = v2.copy(cam.position).sub(L.beaconAt).normalize();
+      st.flareAt.copy(L.beaconAt); st.flareCol.setRGB(1, 0.22, 0.1);
+      st.flareK = L.beaconK * Math.pow(Math.max(0, bdir.dot(toCam)), 5) * 1.3 + L.beaconK * 0.12;
+    } else if (room === 'portal' && this.glow > 0.05) { st.flareAt.copy(SU.uPortPos.value); st.flareCol.setRGB(0.45, 0.85, 1); st.flareK = this.glow * 0.35; }
+    else st.flareK = 0;
+    // focus: what the shot is about (rack between the officers and the debtor), the eyes' own focus in first person
+    const d = (p: THREE.Vector3) => cam.position.distanceTo(p);
+    const head = this.me.j.head.getWorldPosition(v3);
+    let focus = 3, ap = 0.12;
+    const strikeSoon = this.strikes.find((q) => !q.done && q.t - this.t < 0.55 && q.t - this.t > -0.05);
+    switch (shot) {
+      case 'establish': focus = d(v4.set((this.A.x + this.B.x) / 2, 1.3, (this.A.z + this.B.z) / 2)); ap = 0.35; break;
+      case 'throwWide': focus = d(head); ap = 0.3; break;
+      case 'beatWide': { const g = strikeSoon ? (strikeSoon.who === 0 ? this.A : this.B) : null; focus = g ? d(g.rig.j.head.getWorldPosition(v4)) : d(head); ap = 0.5; break; }
+      case 'beatTop': focus = d(head); ap = 0.35; break;
+      case 'haulCrane': focus = d(head); ap = 0.25; break;
+      case 'pressClose': focus = d(v4.set(IX.press.x + 0.1, GP.bedH + 0.2, IX.press.z + 0.4)); ap = 0.55; break;
+      case 'fitClose': focus = d(this.set.rig.cradle); ap = 0.6; break;
+      case 'fitPierce': focus = this.t < 4.35 ? d(this.set.rig.die.getWorldPosition(v4)) : d(head); ap = 0.6; break;
+      case 'tapeWide': focus = d(head); ap = 0.35; break;
+      default: {
+        // first person: whoever is closest and in front; dazed after the head blows
+        const near = [this.A, this.B].map((g) => g.rig.j.head.getWorldPosition(new THREE.Vector3())).filter((p) => p.distanceTo(cam.position) < 4).sort((a, b) => a.distanceTo(cam.position) - b.distanceTo(cam.position))[0];
+        focus = near ? d(near) : 3.5;
+        ap = 0.14 + Math.min(0.45, this.hurtA * 0.35);
+      }
+    }
+    st.rack(focus, Math.max(ap, st.apertureGoal * 0.96 > ap ? st.apertureGoal * Math.exp(-dt * 1.5) : ap), shot ? 4 : 7);
+    st.nearBlur = shot ? 0.6 : 1.4;
+    st.shutter = shot ? 0.55 : 0.7;
+  }
+
   // ================================================================== the band (first person)
   private fitBandMesh() {
     if (this.band) return;
@@ -867,9 +992,12 @@ export class Intro implements GameSystem {
   }
 
   // ================================================================== the script
-  update(dt: number) {
+  update(dt0: number) {
+    let dt = dt0;
+    if (this.freeze > 0) { this.freeze -= dt0; dt = dt0 * 0.04; }
     this.t += dt; this.T += dt;
     if (this.phase === 'done') return;
+    if (this.phase === 'arrival') { this.paintDom(dt0); return; }
     if (this.warmQ.length && this.T > 0.2) synth(this.warmQ.shift()!);
     // a gamepad can skip too
     const pad = pollPadSkip();
@@ -906,13 +1034,14 @@ export class Intro implements GameSystem {
       this.updBody(dt);
       this.updCamera(dt);
       this.updLight(dt);
+      this.updLens(dt);
       this.set.update(dt, this.eye, fpCamera());
       this.stage.update(dt);
       // your heart, louder the worse it gets
       this.heartT -= dt;
       if (this.heartT <= 0 && this.phase !== 'drag') { this.heartT = 0.62 - Math.min(0.25, this.hurtA * 0.2); this.sfx('ix_heart', 0.25 + this.hurtA * 0.3); }
     }
-    this.paintDom(dt);
+    this.paintDom(dt0);
   }
 
   // ------------------------------------------------------------------ 1. the wing
@@ -952,37 +1081,69 @@ export class Intro implements GameSystem {
     this.say('OFFICER', 'Down.');
     this.throwFrom.copy(this.bodyAt);
     G.audio?.positionalLoop?.('ix_drag', null);
-    this.sfx('whoosh', 0.7);
     this.A.jolt(0, -1, 'chest', 0.6); this.B.jolt(0, -1, 'chest', 0.6);
+    this.wallHit = this.floorHit = this.released = false;
   }
   private updThrow(dt: number) {
     const t = this.t, A = this.A, B = this.B;
-    // they heave and let go: the body sails a metre, the view tumbles
-    const k = clamp01(t / 0.55);
-    if (k < 1) {
-      this.gripA = this.gripB = Math.max(0, 1 - k * 2);
-      this.bodyAt.set(lerp(this.throwFrom.x, IX.drain[0] + 0.1, ease(k)), 0, lerp(this.throwFrom.z, IX.drain[1] + 1.3, ease(k)));
-      this.aim(Math.PI + k * 2.4, 0.4 + k * 0.6, k * 1.4, 9);
+    // they swing the body round by the wrists (a heave toward the room), then let it fly into the tiles
+    if (t < 0.32) {
+      const k = ease(t / 0.32);
+      this.gripA = this.gripB = 1;
+      this.bodyAt.set(this.throwFrom.x + 0.35 * k, 0, this.throwFrom.z - 0.2 * k);
+      this.bodyYaw = -0.5 * k;
+      this.aim(Math.PI + k * 1.4, 0.4 + k * 0.4, k * 0.8, 9);
+      this.hand = 1;
     }
-    this.at(0.55, 1, () => {
+    this.at(0.32, 1, () => {
+      this.released = true;
+      this.gripA = this.gripB = 0;
+      this.sfx('whoosh', 0.9);
       this.pose = 'cover'; this.poseK = 9;
-      this.bodyYaw = 0;
-      this.sfx('body_thud', 1); this.sfx('debtor_gasp', 0.9);
-      // the body lands slack: a ragdoll takes it for a moment, then the curl comes back
-      try { this.me.startRagdoll(v1.set(0, -1.2, -1.6), v2.set(0, -0.8, -0.6), 'torso_u', 0.55); } catch (e) { console.warn('intro ragdoll', e); }
-      this.hit(0.9, 0, 0.6);
-      this.cutBlack(0.22, 1.1);
-      // the lamp over the drain dies with the impact and strikes back
-      this.lights().blackout(0.4, ['ante']);
-      this.look.roll = 0.5;
-      this.aim(Math.PI, 1.18, 0.3, 6);
+      try { this.me.startRagdoll(v1.set(-4.6, 2.3, -0.6), v2.set(-1.8, 0.8, 0.2), 'torso_u', 1.3); } catch (e) { console.warn('intro ragdoll', e); }
+      this.aim(Math.PI + 2.4, 1.0, 1.4, 9);
     });
-    this.at(0.95, 2, () => { this.lidGoal = 0.1; this.aim(Math.PI, 1.2, 0.05, 2); });
-    // the officers step round to either side
+    // the ragdoll meets the wall, then the floor: each one a blow
+    if (this.released && this.me.ragdoll?.active) {
+      const pel = this.me.ragdoll.pelvisWorld(v3);
+      const head = this.me.j.head.getWorldPosition(v4);
+      if (!this.wallHit && (pel.x < IX.ante.x0 + 0.42 || head.x < IX.ante.x0 + 0.3)) {
+        this.wallHit = true;
+        this.sfx('body_thud', 1); this.sfx('bone_crunch', 0.5); this.sfx('debtor_gasp', 0.9);
+        this.hit(1.0, -1, 0.65);
+        this.lights().strobe(1, v5.set(IX.ante.x0 + 0.6, 1.4, head.z));
+        if ((G.sandbox.gore ?? 2) > 0) { this.set.spray(head.x + 0.15, Math.max(0.5, head.y), head.z, -1.2, 0.5, (Math.random() - 0.5) * 0.6, 18, 2.4); this.set.wallSplat(IX.ante.x0, Math.max(0.6, head.y), head.z, 1, 0, 0.9); }
+        this.paint('head', 1); this.paint('torso_u', 1);
+      }
+      if (this.wallHit && !this.floorHit && pel.y < 0.28) {
+        this.floorHit = true;
+        this.sfx('body_thud', 0.9);
+        this.hit(0.7, 0, 0.4);
+        this.lights().blackout(0.35, ['ante']);
+        if ((G.sandbox.gore ?? 2) > 0) this.set.splat(head.x, head.z, 0.7);
+      }
+      // where the body ends up is where the beating happens
+      if (this.me.ragdoll.t > 1.15) this.bodyAt.set(Math.max(IX.ante.x0 + 0.45, pel.x), 0, Math.max(IX.ante.z0 + 1.9, Math.min(IX.ante.z1 - 0.4, pel.z + 0.94)));
+    }
+    this.at(1.55, 2, () => { this.bodyYaw = 0; this.lidGoal = 0.1; this.aim(Math.PI, 1.2, 0.05, 2); });
+    // the officers come after it
+    if (t > 0.6) this.guardsAtBody(dt);
+    else { A.walkTo(A.x + 0.1, A.z, 1, dt, 0.05); B.walkTo(B.x + 0.1, B.z, 1, dt, 0.05); }
+    if (t > 2.1) this.startBeat();
+  }
+  /** both officers on the room side of the body, over its head and chest */
+  private guardsAtBody(dt: number) {
+    const A = this.A, B = this.B;
     const bx = this.bodyAt.x, bz = this.bodyAt.z - 1.0;
-    if (A.walkTo(bx - 0.78, bz + 0.1, 2.2, dt, 0.05)) A.turnTo(bx, bz, dt, 10);
-    if (B.walkTo(bx + 0.8, bz - 0.25, 2.2, dt, 0.05)) B.turnTo(bx, bz, dt, 10);
-    if (t > 1.5) this.startBeat();
+    if (A.walkTo(bx + 0.78, bz + 0.5, 2.4, dt, 0.05)) A.turnTo(bx, bz, dt, 10);
+    if (B.walkTo(bx + 0.72, bz - 0.62, 2.4, dt, 0.05)) B.turnTo(bx, bz, dt, 10);
+  }
+  /** blood on the debtor's own body (the rig repaints): part, how much more */
+  private paint(part: string, k = 1) {
+    this.bloodOn[part] = Math.min(3, (this.bloodOn[part] ?? 0) + k);
+    const bleeding: Record<string, number> = {};
+    if ((this.bloodOn.head ?? 0) >= 2) bleeding.head = 2;
+    try { this.me.setCondition({ blood: { ...this.bloodOn }, bleeding, expr: 'pain' }); } catch { /* an older rig */ }
   }
 
   // ------------------------------------------------------------------ 3. the beating
@@ -993,9 +1154,7 @@ export class Intro implements GameSystem {
   }
   private updBeat(dt: number) {
     const A = this.A, B = this.B, t = this.t;
-    const bx = this.bodyAt.x, bz = this.bodyAt.z - 1.0;
-    if (A.walkTo(bx - 0.78, bz + 0.1, 2.2, dt, 0.05)) A.turnTo(bx, bz, dt, 10);
-    if (B.walkTo(bx + 0.8, bz - 0.25, 2.2, dt, 0.05)) B.turnTo(bx, bz, dt, 10);
+    this.guardsAtBody(dt);
     let next: Strike | null = null;
     for (const s of this.strikes) {
       const gd = s.who === 0 ? A : B;
@@ -1019,44 +1178,65 @@ export class Intro implements GameSystem {
     } else this.aim(Math.PI + 0.3, 1.1, 0.25, 1.2);
     if (t > 4.4 && this.pose === 'cover') {
       this.pose = 'limp'; this.poseK = 9; this.hands('relaxed', 'claw', 0.5);
-      // the arms give out: the body collapses into the floor
-      try { this.me.startRagdoll(ZERO, v1.set(0, -0.6, 0), 'torso_u', 0.5); } catch { /* the pose alone */ }
+      // the arms give out: the body slumps into the floor
+      try { this.me.startRagdoll(ZERO, v1.set(-0.4, -0.9, 0), 'torso_u', 0.5); } catch { /* the pose alone */ }
+    }
+    // the face bleeds: drips off the wounds
+    if ((G.sandbox.gore ?? 2) > 0 && (this.bloodOn.head ?? 0) >= 2 && Math.random() < dt * 6) {
+      const h = this.me.j.head.getWorldPosition(v2);
+      this.set.bleed(h.x + (Math.random() - 0.5) * 0.08, Math.max(0.12, h.y), h.z + (Math.random() - 0.5) * 0.08, 0, -0.2, 0, 1, 0.4, 0);
     }
     this.hand = Math.min(1, 0.35 + t * 0.1);
-    this.at(0.35, 1, () => this.say('OFFICER', 'This is the orientation.'));
-    this.at(2.9, 2, () => this.say('OFFICER', 'Nothing personal. It\'s itemised.'));
+    this.at(0.35, 1, () => this.say('OFFICER', 'This is the orientation.', 'guard', true, A));
+    this.at(2.9, 2, () => this.say('OFFICER', 'Nothing personal. It\'s itemised.', 'guard', true, B));
     this.at(4.3, 3, () => this.say('self', 'Stop - please - STOP-', 'self'));
-    this.at(6.9, 4, () => this.say('OFFICER', 'Arms. Get its arms.'));
+    this.at(6.9, 4, () => this.say('OFFICER', 'Arms. Get its arms.', 'guard', true, A));
     this.lidGoal = 0.08 + this.trauma * 0.12;
     if (t > BEAT_END) { this.beaten = true; this.startHaul(); }
   }
-  /** a blow lands: sound, a strobe, blood in the air and on the lens, the body jolting, a wound that stays */
+  /** a blow lands: a freeze, a strobe, blood sprayed up the tiles and left there, teeth, the body jolting, a wound that stays */
   private impact(s: Strike) {
     const p = this.p, b = p.body, gd = s.who === 0 ? this.A : this.B;
     this.sfx(s.kind === 'kick' ? 'body_thud' : 'baton_hit', 1);
     this.sfx('debtor_grunt', 0.8);
-    if (s.part === 'head') { this.sfx('ix_ring', 0.5); this.lidHit = 0.75; }
+    if (s.part === 'head') { this.sfx('ix_ring', 0.5); this.sfx('bone_crunch', 0.45); this.lidHit = 0.75; }
     const dmg = s.kind === 'kick' ? 9 : 11;
     const inj = b.addInjury(s.part, s.inj, s.sev);
     if (s.inj === 'laceration') inj.bleed = Math.min(inj.bleed, 0.05);
     if (s.inj === 'bruise' && G.sandbox.gore > 0) bus.emit('bloodied', p, s.part, 0.25);
     if (s.inj !== 'bruise') bus.emit('playerHit', p, s.part, 'blunt', { dmg, from: [p.x + 1, p.z], knock: 0.25, by: 'custody' });
     else (p as any).registerHit?.(p.x + 1, p.z, s.part, 0.5);
-    // blood from where it landed, flicked up toward the camera
-    const dx = Math.sign(this.eye.x - gd.x) || 1;
-    // (never right at the lens: a drop on the near plane is a red wall)
-    const at = s.part === 'head' ? v1.copy(this.eye).add(v4.set(gd.x - this.eye.x, 0, gd.z - this.eye.z).normalize().multiplyScalar(0.35)).setY(Math.max(0.12, this.eye.y - 0.12)) : this.wrist(s.part.endsWith('_r') ? 'R' : 'L', v1);
-    if (G.sandbox.gore > 0) this.set.bleed(at.x, Math.max(0.15, at.y - 0.05), at.z, -dx * 0.5, 0.7, 0.2, s.inj === 'laceration' ? 12 : 6, 2.0, s.inj === 'laceration' ? 0.45 : 0.25);
-    const power = s.part === 'head' ? 1 : s.kind === 'kick' ? 0.75 : 0.6;
+    this.hitsTaken++;
+    // which way it drives the body: away from the officer
+    const away = v3.set(this.eye.x - gd.x, 0, this.eye.z - gd.z).normalize();
+    const dx = Math.sign(away.x) || 1;
+    const head = this.me.j.head.getWorldPosition(v2);
+    const gore = (G.sandbox.gore ?? 2) > 0;
+    if (gore) {
+      if (s.part === 'head') {
+        // the face splits: a spray up the wall and over the floor, blood from the mouth, teeth on the tiles
+        this.set.spray(head.x, Math.max(0.2, head.y + 0.05), head.z, away.x * 1.3, 0.9, away.z * 1.3, 20, 2.8);
+        this.set.bleed(head.x, Math.max(0.18, head.y), head.z, away.x * 0.4, 0.5, away.z * 0.4, 8, 1.4, 0.55);
+        if (this.hitsTaken > 1) this.set.teeth(head.x, Math.max(0.2, head.y), head.z, away.x, away.z, 1 + (Math.random() < 0.5 ? 1 : 0));
+        this.paint('head', 2); this.paint('neck', 1); this.paint('torso_u', 1);
+      } else {
+        const at = this.me.j[s.part.startsWith('thigh') ? 'thighL' : s.part.startsWith('torso') ? 'chest' : s.part.endsWith('_r') ? 'farmR' : 'farmL'].getWorldPosition(v1);
+        this.set.spray(at.x, Math.max(0.15, at.y), at.z, away.x * 0.9, 0.6, away.z * 0.9, s.kind === 'kick' ? 8 : 10, 2.0);
+        this.paint(s.part, 1);
+      }
+      this.set.splat(head.x + (Math.random() - 0.5) * 0.3, head.z + (Math.random() - 0.5) * 0.3, 0.45 + this.hitsTaken * 0.07);
+      if (s.kind === 'chop') gd.bloody();
+    }
+    const power = s.part === 'head' ? 1.15 : s.kind === 'kick' ? 0.85 : 0.7;
     this.hit(power, dx, s.part === 'head' ? 0.75 : 0.4);
-    if (s.part === 'head') this.stage.pulse(this.shot ? 0.2 : 0.5, 0xff6050, 3);
+    if (s.part === 'head') { this.stage.pulse(this.shot ? 0.2 : 0.5, 0xff6050, 3); this.stage.apertureGoal = Math.max(this.stage.apertureGoal, 0.9); }
     // the body takes it (the springs), the officer's arm takes the recoil
-    this.jolt(dx * 0.8, -0.3, s.part, power * 1.2);
-    gd.recoil(s.kind === 'kick' ? 0.4 : 1);
+    this.jolt(away.x * 1.1, away.z * 1.1, s.part, power * 1.4);
+    gd.recoil(s.kind === 'kick' ? 0.5 : 1.2);
     // the lamp overhead jumps on its flex
     this.lights().brownout(0.45, 0.05, ['ante']);
     // the head snaps away from the blow
-    this.look.yaw += dx * 0.35; this.look.roll += dx * 0.25; this.look.pitch -= 0.15;
+    this.look.yaw += dx * 0.45; this.look.roll += dx * 0.32; this.look.pitch -= 0.2;
     this.poseK = 0;
   }
 
@@ -1243,14 +1423,37 @@ export class Intro implements GameSystem {
     G.audio?.positionalLoop?.('ix_drone', 'seam_drone', this.p.x, this.p.z, Math.min(0.75, 0.2 + t * 0.12));
     this.at(1.6, 1, () => this.say('OFFICER', 'Through the door, debtor.'));
     this.at(3.4, 2, () => this.say('self', '...that\'s a wall.', 'self'));
-    this.at(4.4, 3, () => { this.say('OFFICER', 'Not from the other side.'); this.set.liqU.uLiq.value = 0.06; this.set.liqU.uHit.value.set(0.05, 0.1); this.set.liqU.uHitT.value = 0; this.sfx('seam_ripple', 0.6); this.stage.pulse(0.4, 0x7ae0ff, 2); });
+    // with the arrival scene in the build, the walk to the wall is where this cutscene ends: it takes the arm into the jelly
+    if (ARRIVAL['./arrival.ts'] && t > 4.4 + 1.1 && !this.handing) { void this.handoff(); return; }
+    this.at(4.4, 3, () => { this.say('OFFICER', 'Not from the other side.'); if (ARRIVAL['./arrival.ts']) return; this.set.liqU.uLiq.value = 0.06; this.set.liqU.uHit.value.set(0.05, 0.1); this.set.liqU.uHitT.value = 0; this.sfx('seam_ripple', 0.6); this.stage.pulse(0.4, 0x7ae0ff, 2); });
     // the wall turns: it lights up from inside and throws its caustic light over everything
-    if (t > 4.4) this.glow = Math.min(1, this.glow + dt * 0.9);
+    if (t > 4.4 && !ARRIVAL['./arrival.ts']) this.glow = Math.min(1, this.glow + dt * 0.9);
     this.set.liqU.uGlow.value = this.glow;
     SU.uPortStr.value = this.glow * 0.75;
     this.at(5.5, 4, () => { B.play('shove2', 0.8); this.sfx('whoosh', 0.8); this.jolt(0, -1, 'chest', 1.3); });
     this.set.liqU.uHitT.value += dt;
     if (t > 5.75) this.startThrough();
+  }
+
+  /** the arrival scene (src/game/arrival.ts) takes it from the wall: this picture goes away, it plays, then the intake is done */
+  private async handoff() {
+    if (this.handing) return;
+    this.handing = true;
+    const load = ARRIVAL['./arrival.ts'];
+    let A: { playArrival?: (g: Game, p: Player) => Promise<void> } | null = null;
+    try { A = load ? await load() : null; } catch (e) { console.warn('intro: arrival failed to load', e); A = null; }
+    if (!A?.playArrival || this.phase !== 'tape') { if (this.phase === 'tape') { this.handing = false; this.startThrough(); } return; }
+    this.go('arrival');
+    this.subs.clear();
+    this.plate.el.classList.remove('on', 'hot');
+    this.letterbox(false);
+    this.lid = 0; this.lidGoal = 0; this.shadeA = 0;
+    this.releaseStage();
+    // the issue pack waits for whoever hands it over in the Lobby
+    (this.p as unknown as { intakePack?: Item | null }).intakePack = this.pack;
+    try { await A.playArrival(this.g, this.p); } catch (e) { console.warn('intro: arrival', e); }
+    this.arrived = true;
+    if ((this.phase as Phase) === 'arrival') this.finish();
   }
 
   // ------------------------------------------------------------------ 7. through
@@ -1404,7 +1607,7 @@ export class Intro implements GameSystem {
 
   // ================================================================== skipping & cleanup
   skip() {
-    if (this.phase === 'done' || this.skipping >= 0) return;
+    if (this.phase === 'done' || this.phase === 'arrival' || this.skipping >= 0) return;
     if (this.phase === 'voss') { (G.handler as any)?.hush?.(); this.finish(); return; }
     this.skipping = 0;
     this.plate.el.classList.remove('on', 'hot');
@@ -1452,7 +1655,10 @@ export class Intro implements GameSystem {
   finish() {
     if (this.phase === 'done') return;
     const g = this.g, p = this.p;
-    if (p.zoneKey === INTRO_ZONE || this.staged) this.toEnd();
+    if (this.arrived && this.staged) this.releaseStage();
+    if (!this.arrived ? (p.zoneKey === INTRO_ZONE || this.staged) : p.zoneKey === INTRO_ZONE) this.toEnd();
+    // the arrival handed the pack over (or its own bag): ours is not needed then
+    if (this.arrived) { const k = (p as unknown as { intakePack?: Item | null }).intakePack; if (p.worn.get('back') || k === null) this.pack = null; delete (p as unknown as { intakePack?: Item | null }).intakePack; }
     this.phase = 'done';
     (g as any).touch?.setHidden?.(false);
     document.body.classList.remove('noclip-cine');

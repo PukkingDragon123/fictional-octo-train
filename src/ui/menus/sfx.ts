@@ -8,7 +8,9 @@ export type Sfx = 'hover' | 'click' | 'confirm' | 'back' | 'type' | 'error' | 'b
   // the subject room (title / creator / press)
   | 'servo' | 'clamp' | 'slam' | 'squelch' | 'grind' | 'spark' | 'breaker' | 'press' | 'gear' | 'klaxon' | 'hiss' | 'buzz'
   // the pixel-art switchgear (btnKit / terminal): plate keys, rocker keys, the big levers, a keyboard clack
-  | 'plate' | 'rocker' | 'lever' | 'key' | 'relay';
+  | 'plate' | 'rocker' | 'lever' | 'key' | 'relay'
+  // hanging signs and the gear works
+  | 'creak' | 'chain' | 'ratchet';
 
 let own: AudioContext | null = null;
 let gestureHooked = false;
@@ -133,6 +135,21 @@ export function sfx(kind: Sfx, vol = 1) {
       for (let i = 0; i < 4; i++) noise(i * 0.035, 0.012, 0.5, 2200 + i * 200, 1.3);
       noise(0.16, 0.09, 1, 420, 0.6); tone('sine', 110, 46, 0.16, 0.28, 0.28); tone('square', 2400, 2400, 0.17, 0.02, 0.03);
       break;
+    case 'creak': {
+      // a rusty eye bolt turning under load: a scraping, wavering squeak
+      const o = ctx.createOscillator(), g = ctx.createGain(), m = ctx.createOscillator(), mg = ctx.createGain();
+      const f0 = 520 + Math.random() * 380;
+      o.type = 'sawtooth'; o.frequency.setValueAtTime(f0, t); o.frequency.linearRampToValueAtTime(f0 * (0.78 + Math.random() * 0.3), t + 0.26);
+      m.type = 'square'; m.frequency.value = 31 + Math.random() * 24; mg.gain.value = f0 * 0.08; m.connect(mg); mg.connect(o.frequency);
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f0 * 2.1; bp.Q.value = 6;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.05, t + 0.04); g.gain.linearRampToValueAtTime(0.035, t + 0.18); g.gain.exponentialRampToValueAtTime(0.0008, t + 0.32);
+      o.connect(bp); bp.connect(g); g.connect(out);
+      o.start(t); m.start(t); o.stop(t + 0.34); m.stop(t + 0.34);
+      noise(0, 0.25, 0.08, 2600, 3);
+      break;
+    }
+    case 'chain': for (let i = 0; i < 4; i++) { noise(i * 0.03 + Math.random() * 0.015, 0.012, 0.35 + Math.random() * 0.25, 3800 + Math.random() * 2600, 5); tone('triangle', 2400 + Math.random() * 900, 2200, i * 0.03, 0.03, 0.012); } break;
+    case 'ratchet': for (let i = 0; i < 5; i++) { noise(i * 0.045, 0.012, 0.8, 1700 + i * 90, 2); tone('square', 620 - i * 20, 480, i * 0.045, 0.015, 0.035); } tone('sine', 140, 80, 0.22, 0.12, 0.12); break;
     case 'unlock':
       [523, 659, 784, 1046].forEach((f, i) => tone('square', f, f, i * 0.07, 0.16, 0.05));
       tone('triangle', 1568, 1568, 0.3, 0.5, 0.04);

@@ -193,3 +193,34 @@
   .ct-in { padding-left: calc(var(--ks) * 4); padding-right: calc(var(--ks) * 4); }
 }
 @media (max-height: 519px) { .ct-scr { font-size: calc(var(--ks) * 6.4); } .ct-head small { display: none; } }
+
+/* ---------------------------------------------------------------- hanging signs (signs.ts) */
+.hs { position: relative; display: block; flex: none; margin: 0; padding: 0; border: 0; background: none; outline: none; cursor: var(--cur-hand, pointer);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: var(--font-new); color: transparent; }
+.hs-cv { position: absolute; left: 0; top: 0; image-rendering: pixelated; pointer-events: none; }
+.hs-l { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.hs:disabled { cursor: default; opacity: 0.45; }
+.hs.hs-hold { visibility: hidden; }
+.hs.hs-ptr::before { content: ''; position: absolute; left: calc(var(--hs-bx) - var(--ks) * 8); top: calc(var(--hs-cy) - var(--ks) * 4.5); width: calc(var(--ks) * 6); height: calc(var(--ks) * 9);
+  background: var(--pb-ptr) 0 0 / 100% 100% no-repeat; image-rendering: pixelated; opacity: 0; pointer-events: none; }
+.hs.hs-ptr:focus::before { opacity: 1; animation: pb-nudge 0.9s steps(1) infinite; }
+:root.reduce-flash .hs.hs-ptr:focus::before { animation: none; }
+
+/* ---------------------------------------------------------------- 3D gears (gears3d.ts) */
+.gw-cv { display: block; image-rendering: pixelated; pointer-events: none; }
+.gb { position: relative; display: inline-flex; align-items: center; gap: calc(var(--ks) * 2); margin: 0; padding: 0; border: 0; background: none; outline: none; cursor: var(--cur-hand, pointer);
+  touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: var(--font-new); }
+.gb-l { font-size: var(--t-l); line-height: 1; letter-spacing: 0.12em; text-transform: uppercase; color: #e9dcbc; text-shadow: var(--text-halo); }
+.gb:is(:hover, :focus) .gb-l { color: #ffd27a; }
+.gc { position: relative; flex: none; }
+.gc-b { position: absolute; left: calc(var(--gx) - var(--gr)); top: calc(var(--gy) - var(--gr)); width: calc(var(--gr) * 2); height: calc(var(--gr) * 2); margin: 0; padding: 0; border: 0; background: none; outline: none;
+  cursor: var(--cur-hand, pointer); touch-action: manipulation; -webkit-tap-highlight-color: transparent; font-family: var(--font-new); }
+.gc-b span { position: absolute; left: calc(var(--gw) - var(--gx) + var(--gr) + var(--ks) * 3); top: 50%; transform: translateY(-50%); white-space: nowrap;
+  font-size: var(--t-m); letter-spacing: 0.12em; text-transform: uppercase; color: rgba(233, 220, 188, 0.62); text-shadow: var(--text-halo); }
+.gc-b.on span { color: #ffd27a; }
+.gc-b:is(:hover, :focus) span { color: #fff2cf; }
+.gc-b:focus span::before { content: '\25B8\00A0'; }
+.gc.h .gc-b span { left: 50%; top: calc(100% + var(--ks) * 1); transform: translateX(-50%); }
+.ct-scr .t-tabs[hidden] { display: none; }
+.hs-post { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+.hs-post canvas { display: block; image-rendering: pixelated; }

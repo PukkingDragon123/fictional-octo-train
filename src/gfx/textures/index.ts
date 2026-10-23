@@ -2,8 +2,10 @@
 // Each module exports a register function; order does not matter.
 import { registerLobbyTextures } from './lobby';
 import { registerCeilingTextures } from './ceilings';
+import { registerDetailTextures } from './detail';
+import { registerHorrorTextures } from './horror';
 
-const registrars: (() => void)[] = [registerLobbyTextures, registerCeilingTextures];
+const registrars: (() => void)[] = [registerLobbyTextures, registerCeilingTextures, registerDetailTextures, registerHorrorTextures];
 let registered = false;
 
 /** Modules call this at import time to add their registrar (runs immediately if late) */

@@ -35,6 +35,8 @@ import { makeMats, type Mats } from './pix';
 import { buildRoom, Gantry, Straps, TABLE_Y, TABLE_HALF_X, TABLE_HALF_Z, LAMP_POS, TRAY_POS, HATCH_POS, VENT_POS, type Room } from './room';
 import { IndustrialArm } from './arm';
 import { FX, surfaceY } from './fx';
+import { CraftJig } from './jig';
+import { itemGeometry } from '../../items/itemMeshes';
 
 export type Pick = CyberSlot | 'brain';
 export type CyberLoad = Partial<Record<CyberSlot, string>>;
@@ -168,6 +170,7 @@ export class SurgeryStage {
   straps: Straps;
   surgeon: IndustrialArm; orderly: IndustrialArm;
   fx: FX;
+  jig: CraftJig;
   private lamp: THREE.SpotLight; private alarm: THREE.PointLight; private weld: THREE.PointLight; private fluoroL: THREE.PointLight; private vitalsL: THREE.PointLight;
   private inspect = new THREE.PointLight(0xffe0a0, 0, 1.2, 1.6);
   private loose: Loose[] = [];
@@ -243,7 +246,8 @@ export class SurgeryStage {
     this.orderly.root.position.set(0.78, 0, -0.98); this.orderly.root.rotation.y = -0.15;
     this.scene.add(this.surgeon.root, this.surgeon.world, this.orderly.root, this.orderly.world);
     this.fx = new FX(this.quality === 'low');
-    this.scene.add(this.fx.group, this.subj);
+    this.jig = new CraftJig(this.mats);
+    this.scene.add(this.fx.group, this.subj, this.jig.group);
     this.restArms(true);
     // ---- light
     this.scene.add(new THREE.HemisphereLight(0x5a6a84, 0x140e0a, 0.2));
@@ -645,11 +649,11 @@ export class SurgeryStage {
     return Math.max(0, barY - want);
   }
   /** hand the body to the ragdoll for the slump */
-  private releaseToRagdoll() {
+  private releaseToRagdoll(lift = 0.035) {
     const r = this.rig!;
     this.carry = 0;
     this.placeOnTable();
-    this.subj.position.y += 0.035;
+    this.subj.position.y += lift;
     r.applyPose(this.basePose());
     r.ragWorld = { ground: (x, z) => (Math.abs(x) < TABLE_HALF_X && Math.abs(z) < TABLE_HALF_Z ? TABLE_Y : 0) };
     this.subj.updateMatrixWorld(true);
@@ -657,6 +661,153 @@ export class SurgeryStage {
     r.ragdoll.start(r.bones, r.dims, V(0, -0.9, 0), V(0.2, 0.25, 1.6), 'farm_r', 0.12);
     r.ragW = 1;
     this.restQ = null;
+  }
+
+  // ---------------------------------------------------------------- in a run: you climb on and lie back
+  /** the in-game table's opening: lamps already burning, the body lies back heavily, the straps snap shut */
+  async lieDown() {
+    if (!this.rig) return;
+    this.busy = true; this.phase = 'intro'; this.cinematic = true;
+    for (const p of this.room.pods) p.color.setRGB(3.2, 3.0, 2.7);
+    this.lampOn = 6;
+    this.straps.snapAll(false);
+    this.gantry.trolley.position.x = -3.7; this.gantry.slack = 1;
+    this.carry = 0; this.hangK = 0; this.lowerK = 1; this.restQ = null;
+    this.placeOnTable(); this.subj.position.y += 0.2;
+    this.rig.applyPose(this.basePose());
+    const [hp, ha] = this.home();
+    this.cut(this.portrait ? V(1.9, 1.75, 0.9) : V(1.25, 1.35, 1.7), V(0.0, 1.0, 0.0));
+    this.dolly(this.portrait ? V(2.2, 2.2, 1.1) : V(1.15, 1.45, 1.6), V(-0.1, 0.98, 0.0), 1.2);
+    await this.tween(380, (t) => { this.fade = 1 - t; });
+    this.releaseToRagdoll(0.2);
+    await this.wait(260);
+    csfx('sg_thud', 0.9);
+    this.impact(0.5, 90);
+    this.fx.steam(V(0.1, TABLE_Y + 0.05, 0.25), 2, 0.5);
+    await this.wait(1100);
+    for (let i = 0; i < 3; i++) {
+      this.straps.shut(i);
+      await this.wait(80);
+      csfx('sg_strap', 0.85, 0.95 + i * 0.05);
+      this.impact(0.3, 45);
+      this.jolt(0.3);
+      await this.wait(200);
+    }
+    this.dolly(hp, ha, 2.4);
+    this.cinematic = false;
+    this.phase = '';
+    this.busy = false;
+    this.hurry = false;
+  }
+
+  // ---------------------------------------------------------------- the crafting jig
+  /**
+   * Build a part on the jig: the pieces (item keys) are laid out on the tray,
+   * the orderly brings each to the vise, the surgeon welds it into the part.
+   */
+  async craft(pieces: string[], partKey: string, slot: CyberSlot, onPhase?: (ph: string) => void) {
+    const r = this.rig;
+    if (!r || this.busy) return;
+    this.busy = true; this.onPhase = onPhase; this.hurry = false; this.cinematic = true;
+    const J = this.jig, Su = this.surgeon, Or = this.orderly;
+    this.phase = 'jig';
+    J.deploy(true); J.open = 1; csfx('sg_clunk', 0.8); csfx('cy_servo', 0.4, 0.8);
+    await this.wait(250);
+    const c = J.center(new THREE.Vector3());
+    const shot = () => this.dolly(this.portrait ? V(c.x + 1.25, c.y + 1.15, c.z + 0.7) : V(c.x + 0.75, c.y + 0.62, c.z + 1.35), V(c.x, c.y - 0.04, c.z), 2.6);
+    shot();
+    await this.wait(600);
+    // lay the pieces out: real models from the pack
+    const meshes: THREE.Mesh[] = [];
+    for (const k of pieces.slice(0, 6)) { const g = itemGeometry(k); if (g) { const m = new THREE.Mesh(g, this.wmat); m.castShadow = true; meshes.push(m); } }
+    J.layout(meshes);
+    for (const m of meshes) {
+      csfx('sg_key', 0.5, 0.8 + Math.random() * 0.3);
+      const k = m.userData.k as number;
+      await this.tween(140, (t) => m.scale.setScalar(Math.max(0.0001, k * (t < 0.7 ? t / 0.7 * 1.2 : 1.2 - (t - 0.7) / 0.3 * 0.2))));
+    }
+    // the part grows in the vise as each piece is welded in
+    const part = new THREE.Mesh(loosePartGeo(partKey, slot, r.dims), this.wmat);
+    part.castShadow = true;
+    const kind = SLOT_KIND[slot];
+    part.rotation.set(0, 0, kind === 'arm' || kind === 'leg' || kind === 'hand' ? Math.PI / 2 : 0);
+    part.position.set(kind === 'arm' || kind === 'leg' ? 0.28 : 0, 0.06, 0);
+    part.scale.setScalar(0.0001);
+    J.vise.add(part);
+    J.open = 0.6;
+    Su.setTool('weld'); csfx('sg_clunk', 0.7);
+    this.phase = 'assemble';
+    const n = Math.max(1, meshes.length);
+    const weldV = csfxVoice('weld'); this.voices.push(weldV);
+    for (let i = 0; i < meshes.length; i++) {
+      const m = meshes[i];
+      const p = m.getWorldPosition(new THREE.Vector3());
+      Or.grip = 0;
+      Or.moveTo(_v.copy(p).add(V(0, 0.26, 0)), -1.45);
+      await this.wait(380);
+      Or.moveTo(_v.copy(p).add(V(0, 0.04, 0)), -1.5, 0.04);
+      await this.settle(Or, 520);
+      Or.grip = 0.85; csfx('cy_hiss', 0.35, 1.4);
+      Or.hold.attach(m);
+      Or.moveTo(_v.copy(c).add(V(0.1, 0.16, 0.05)), -1.3);
+      await this.wait(420);
+      Su.moveTo(_v.copy(c).add(V(-0.08, 0.08, -0.03)), -1.25);
+      await this.wait(300);
+      if (i === 0) this.cut(this.portrait ? V(c.x + 0.8, c.y + 0.75, c.z + 0.45) : V(c.x + 0.42, c.y + 0.32, c.z + 0.8), V(c.x, c.y, c.z), 0.15);
+      this.impact(0.35, 60);
+      weldV.set(0.55, 1 + Math.random() * 0.1);
+      const t0 = this.t, k0 = m.scale.x, grow0 = (i / n) * 0.85;
+      while (this.t - t0 < 0.62) {
+        const k = (this.t - t0) / 0.62;
+        Su.flame = 1;
+        Su.goal.copy(c).add(V(-0.08 + Math.sin(this.t * 9) * 0.03, 0.08, -0.03));
+        const tip = Su.tipWorld(_v3);
+        this.fx.spark(tip, 4, 'weld'); if (Math.random() < 0.3) this.fx.smoke(tip, 1);
+        this.weld.position.copy(tip); this.weld.intensity = 3 + Math.random() * 5;
+        m.scale.setScalar(Math.max(0.0001, k0 * (1 - k)));
+        part.scale.setScalar(Math.max(0.0001, 0.85 * (grow0 + (k / n) * 0.85)));
+        this.shake(0.03);
+        await this.wait(40);
+      }
+      weldV.set(0, 1); Su.flame = 0; this.weld.intensity = 0;
+      Or.hold.remove(m);
+      if (i === 0) shot();
+    }
+    // the last seam, and it wakes
+    this.phase = 'seam';
+    Or.grip = 0; Or.moveTo(V(0.62, 1.38, -0.2), -1.2, 0.04);
+    Su.moveTo(_v.copy(c).add(V(-0.15, 0.07, 0)), -1.3);
+    await this.wait(350);
+    weldV.set(0.6, 0.9);
+    const ts = this.t;
+    while (this.t - ts < 0.9) {
+      const k = (this.t - ts) / 0.9;
+      Su.flame = 1; Su.goal.copy(c).add(V(-0.15 + k * 0.32, 0.07, 0.0));
+      const tip = Su.tipWorld(_v3);
+      this.fx.spark(tip, 5, 'weld'); if (Math.random() < 0.4) this.fx.smoke(tip, 1);
+      this.weld.position.copy(tip); this.weld.intensity = 4 + Math.random() * 6;
+      part.scale.setScalar(0.85 * (0.85 + k * 0.15));
+      await this.wait(40);
+    }
+    weldV.stop(); Su.flame = 0; this.weld.intensity = 0;
+    this.phase = 'done';
+    csfx('cy_powerup', 0.85); csfx('cy_hiss', 0.7);
+    this.cut(this.portrait ? V(c.x + 0.9, c.y + 0.8, c.z + 0.5) : V(c.x + 0.5, c.y + 0.35, c.z + 0.9), V(c.x + 0.05, c.y + 0.02, c.z), 0.3);
+    this.impact(0.9, 150); this.flash = 0.35;
+    this.fx.steam(c, 4, 0.8);
+    J.open = 1;
+    this.restArms();
+    await this.tween(900, (t) => { part.rotation.y = t * 0.6; });
+    // stow: the part goes into your pack, the jig swings back
+    J.deploy(false); csfx('sg_clunk', 0.6);
+    await this.tween(350, (t) => part.scale.setScalar(Math.max(0.0001, 0.85 * (1 - t))));
+    J.vise.remove(part);
+    for (const m of meshes) m.removeFromParent();
+    this.focus(this.selected);
+    this.cinematic = false;
+    this.phase = '';
+    this.busy = false;
+    this.hurry = false;
   }
 
   // ---------------------------------------------------------------- the operation
@@ -1098,6 +1249,7 @@ export class SurgeryStage {
       if (h > 0 || this.rig.ragdolling) this.poseRig(Math.max(h, 0.0001));
     }
     this.straps.update(h);
+    this.jig.update(h);
     this.surgeon.update(h); this.orderly.update(h);
     // loose limbs fall into the tray
     for (const l of this.loose) {

@@ -47,8 +47,8 @@ export class BagPrint {
   }
   /** the label's typed lines, in real type at the texture's full resolution */
   type(c: CanvasRenderingContext2D, k: number) {
-    inkText(c, 'BLOOD', 10 * k, 7 * k, 5.6 * k, FONT.type);
-    inkText(c, '500 ml', 10 * k, 11.6 * k, 3.6 * k, FONT.typeset);
+    inkText(c, 'BLOOD', 10 * k, 7 * k, 5.6 * k, FONT.type, '#231a12', 'left', '700');
+    inkText(c, '500 ML', 10 * k, 12 * k, 4.2 * k, FONT.typeset, '#3a2a1e', 'left', '600');
   }
   private drawFigure(P: Pix, severed: BodyPart[]) {
     const ink = 0x200a0a, a = 0.3;

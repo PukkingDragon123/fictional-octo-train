@@ -100,11 +100,15 @@ export class Guard {
     (stage ?? G.pr.scene).add(this.rig.root);
   }
 
+  /** how bloody the baton is (0 dry .. 2 soaked) */
+  wet = 0;
+  /** the baton connects: it comes away wetter */
+  bloody() { if (this.wet >= 2) return; this.wet++; if (this.held === 'baton') { this.held = null; this.setHeld('baton'); } }
   setHeld(k: GuardHeld) {
     if (k === this.held) return;
     this.held = k;
     const mat = gearMat(this.staged);
-    const m = k === 'baton' ? new THREE.Mesh(batonGeo(), mat) : k === 'taser' ? taserMesh(mat) : k === 'gun' ? gunMesh(mat) : k === 'pendant' ? new THREE.Mesh(pendantGeo(), mat) : null;
+    const m = k === 'baton' ? new THREE.Mesh(batonGeo(this.wet), mat) : k === 'taser' ? taserMesh(mat) : k === 'gun' ? gunMesh(mat) : k === 'pendant' ? new THREE.Mesh(pendantGeo(), mat) : null;
     if (m) m.traverse((o) => { o.castShadow = true; o.frustumCulled = false; });
     this.rig.hold('R', m, k === 'baton' ? 'perp' : 'raw');
     if (m && k !== 'baton') { m.rotation.set(0, Math.PI / 2, -Math.PI / 2); m.position.set(0, -0.05, 0.02); }

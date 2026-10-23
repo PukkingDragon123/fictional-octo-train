@@ -151,7 +151,7 @@ void main() {
 const POST_VERT = /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
 /** outline, dithered drop shadow, ordered dither; premultiplied output */
 const POST_FRAG = /* glsl */`
-uniform sampler2D tSrc; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uFade; uniform float uRange; uniform float uEdge;
+uniform sampler2D tSrc; uniform sampler2D tDepth; uniform vec2 uRes; uniform float uFade; uniform float uRange; uniform float uEdge; uniform vec2 uShadow;
 varying vec2 vUv;
 float dz(vec2 uv) { return texture2D(tDepth, uv).x * uRange; }
 float bay(vec2 p) {
@@ -169,8 +169,9 @@ void main() {
     float n = max(max(texture2D(tSrc, vUv + vec2(px.x, 0.0)).a, texture2D(tSrc, vUv - vec2(px.x, 0.0)).a),
                   max(texture2D(tSrc, vUv + vec2(0.0, px.y)).a, texture2D(tSrc, vUv - vec2(0.0, px.y)).a));
     if (n > 0.25) { float o = 0.92 * uFade; gl_FragColor = vec4(vec3(0.035, 0.028, 0.02) * o, o); return; }
-    float s = texture2D(tSrc, vUv + vec2(-px.x, px.y * 2.0)).a;
-    if (s > 0.25 && mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 1.0) { float sa = 0.45 * uFade; gl_FragColor = vec4(0.0, 0.0, 0.0, sa); return; }
+    // a dithered shadow cast down and away: the rig floats, so it falls further when it rises
+    float s = texture2D(tSrc, vUv + vec2(-px.x * uShadow.x, px.y * uShadow.y)).a;
+    if (s > 0.25 && mod(floor(gl_FragCoord.x) + floor(gl_FragCoord.y), 2.0) < 1.0) { float sa = 0.4 * uFade; gl_FragColor = vec4(0.0, 0.0, 0.0, sa); return; }
     gl_FragColor = vec4(0.0);
     return;
   }
@@ -232,14 +233,32 @@ export const FONT = {
   get sign() { return cssFont('--font-sign', 'sans-serif'); },
   get nixie() { return cssFont('--font-nixie'); },
 };
-/** ink on paper: a slightly uneven strike, as a typewriter leaves it */
+let scratch: HTMLCanvasElement | null = null, sctx: CanvasRenderingContext2D | null = null;
+/**
+ * printed type in Pixelify Sans, thresholded to hard pixels (no grey font smoothing):
+ * x, y = the baseline anchor (align left / center / right), px = the font size
+ */
 export function inkText(c: CanvasRenderingContext2D, text: string, x: number, y: number, px: number, font: string, color = '#231a12', align: CanvasTextAlign = 'left', weight = '') {
-  c.font = `${weight}${weight ? ' ' : ''}${px}px ${font}`;
-  c.textAlign = align; c.textBaseline = 'alphabetic';
-  c.fillStyle = color;
-  c.globalAlpha = 0.96;
-  c.fillText(text, Math.round(x), Math.round(y));
-  c.globalAlpha = 1;
+  const wgt = weight.replace(/italic\s*/g, '').trim();
+  const size = Math.max(5, Math.round(px));
+  if (!scratch) { scratch = document.createElement('canvas'); sctx = scratch.getContext('2d', { willReadFrequently: true }); }
+  const g = sctx!;
+  const f = `${wgt}${wgt ? ' ' : ''}${size}px ${font}`;
+  g.font = f;
+  const w = Math.ceil(g.measureText(text).width) + 4, h = Math.ceil(size * 1.5) + 4;
+  if (scratch.width < w || scratch.height < h) { scratch.width = Math.max(scratch.width, w); scratch.height = Math.max(scratch.height, h); }
+  g.clearRect(0, 0, scratch.width, scratch.height);
+  g.font = f; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillStyle = color;
+  const base = Math.ceil(size * 1.1) + 1;
+  g.fillText(text, 2, base);
+  const img = g.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 110 ? 255 : 0;
+  g.putImageData(img, 0, 0);
+  const tw = w - 4;
+  const ox = align === 'center' ? Math.round(x - tw / 2) : align === 'right' || align === 'end' ? Math.round(x - tw) : Math.round(x);
+  const prev = c.imageSmoothingEnabled; c.imageSmoothingEnabled = false;
+  c.drawImage(scratch, 0, 0, w, h, ox - 2, Math.round(y) - base, w, h);
+  c.imageSmoothingEnabled = prev;
 }
 
 export class Cubes {
@@ -279,6 +298,8 @@ export class BodyStage {
   readonly cubeMat: THREE.ShaderMaterial;
   private rt: THREE.WebGLRenderTarget | null = null;
   private post: { scene: THREE.Scene; cam: THREE.Camera; mat: THREE.ShaderMaterial };
+  /** drop shadow offset in texels (x left, y down): grows as the floating rig rises */
+  get shadow(): THREE.Vector2 { return this.post.mat.uniforms.uShadow.value; }
   /** low-res size and where it sits (CSS px, top-left) */
   W = 1; H = 1; px = 2; css = { x: 0, y: 0, w: 1, h: 1 };
   visible = false;
@@ -293,7 +314,7 @@ export class BodyStage {
     const mat = new THREE.ShaderMaterial({
       vertexShader: POST_VERT, fragmentShader: POST_FRAG, depthTest: false, depthWrite: false, transparent: true,
       blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
-      uniforms: { tSrc: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uFade: { value: 1 }, uRange: { value: 4000 }, uEdge: { value: 1.6 } },
+      uniforms: { tSrc: { value: null }, tDepth: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uFade: { value: 1 }, uRange: { value: 4000 }, uEdge: { value: 1.6 }, uShadow: { value: new THREE.Vector2(1, 2) } },
     });
     const ps = new THREE.Scene();
     const q = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), mat); q.frustumCulled = false; ps.add(q);

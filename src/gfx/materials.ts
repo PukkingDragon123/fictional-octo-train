@@ -45,6 +45,9 @@ export const U = {
   uSheen: { value: 0.0 },
   /** prop cutaway depth scale (lower camera pitch hides more behind props) */
   uCutScale: { value: 1 },
+  /** close-up detail tiles in the atlas (u0, v0, du, dv): walls / props and floors (src/gfx/textures/detail.ts) */
+  uDetailW: { value: new THREE.Vector4(0, 0, 0, 0) },
+  uDetailF: { value: new THREE.Vector4(0, 0, 0, 0) },
 };
 
 export interface WorldMatOpts {
@@ -160,6 +163,8 @@ uniform vec3 uCausticCol;
 uniform float uSpecOff;
 uniform float uSheen;
 uniform float uCutScale;
+uniform vec4 uDetailW;
+uniform vec4 uDetailF;
 float bayer4(vec2 p) {
   ivec2 ip = ivec2(mod(p, 4.0));
   int i = ip.y * 4 + ip.x;
@@ -171,10 +176,45 @@ float bayer4(vec2 p) {
 const FRAG_MAP = /* glsl */`
 #ifdef USE_MAP
   vec2 texPx = max(vAtlas.zw * uAtlasSize, vec2(1.0));
-  vec2 fuv = fract(vMapUv);
-  fuv = (floor(fuv * texPx) + 0.5) / texPx;
+  vec2 tuv = fract(vMapUv) * texPx;
+  vec2 fuv = (floor(tuv) + 0.5) / texPx;
   vec2 auv = vAtlas.xy + vec2(fuv.x, 1.0 - fuv.y) * vAtlas.zw;
   vec4 sampledDiffuseColor = texture2D( map, auv );
+  {
+    // Up close (the first-person eye) one texel covers many screen pixels. Rebuild the inside of each
+    // texel the way a pixel artist doubles a sprite (Scale2x: diagonals stay diagonal, lines stay one
+    // texel thin) and give it a finer grain, so walls read as detailed pixel art instead of blocks.
+    // In the iso view a texel is about one pixel and none of this runs.
+    vec2 tw = fwidth(tuv);
+    float tpp = max(tw.x, tw.y);
+    if (tpp < 0.45 && tpp > 0.0) {
+      vec2 cell = floor(tuv), sub = fract(tuv) - 0.5;
+      vec2 sx = vec2(sub.x < 0.0 ? -1.0 : 1.0, 0.0), sy = vec2(0.0, sub.y < 0.0 ? -1.0 : 1.0);
+      #define LP_CELL(c) textureLod(map, vAtlas.xy + vec2((mod((c).x, texPx.x) + 0.5) / texPx.x, 1.0 - (mod((c).y, texPx.y) + 0.5) / texPx.y) * vAtlas.zw, 0.0)
+      vec4 cH = LP_CELL(cell + sx), cV = LP_CELL(cell + sy), cHo = LP_CELL(cell - sx), cVo = LP_CELL(cell - sy);
+      #undef LP_CELL
+      vec3 a1 = cH.rgb - cV.rgb, a2 = cV.rgb - cHo.rgb, a3 = cH.rgb - cVo.rgb;
+      if (dot(a1, a1) < 0.004 && dot(a2, a2) > 0.004 && dot(a3, a3) > 0.004) sampledDiffuseColor = mix(sampledDiffuseColor, cH, 1.0);
+      // finer grain: 4 x 4 sub-texels, a few percent either way, fading in as the texel grows
+      vec2 sc = floor(tuv * 4.0);
+      float gh = fract(sin(dot(sc, vec2(12.9898, 78.233))) * 43758.5453);
+      float gk = smoothstep(0.45, 0.16, tpp);
+      sampledDiffuseColor.rgb *= 1.0 + (gh - 0.5) * 0.07 * gk;
+      // a finer layer of surface relief (128 px per metre), projected in world space; only for meshes
+      // drawing from the world atlas (characters reuse this shader with their own small paint page)
+      if (textureSize(map, 0).x == int(uAtlasSize + 0.5)) {
+      vec3 an = abs(vWNormal);
+      bool flr = an.y > max(an.x, an.z);
+      vec2 dp = flr ? vWPos.xz : (an.x > an.z ? vWPos.zy : vWPos.xy);
+      vec4 dr = flr ? uDetailF : uDetailW;
+      if (dr.z > 0.0) {
+        vec2 duv = (floor(fract(dp * 2.0) * 64.0) + 0.5) / 64.0;
+        float dv = textureLod(map, dr.xy + vec2(duv.x, 1.0 - duv.y) * dr.zw, 0.0).r;
+        sampledDiffuseColor.rgb *= 1.0 + (dv - 0.5) * 1.35 * smoothstep(0.5, 0.22, tpp);
+      }
+      }
+    }
+  }
   diffuseColor *= sampledDiffuseColor;
 #endif
 `;
@@ -328,6 +368,12 @@ function inject(mat: THREE.MeshLambertMaterial, defines: Record<string, string |
   mat.onBeforeCompile = (shader) => {
     for (const k of Object.keys(U)) (shader.uniforms as any)[k] = (U as any)[k];
     shader.defines = { ...(shader.defines || {}), ...defines };
+    // where the close-up detail tiles sit in the world atlas
+    const A = atlas();
+    if (!U.uDetailW.value.z && A.has('detail_wall')) {
+      const w = A.get('detail_wall'), f = A.get('detail_floor');
+      U.uDetailW.value.set(w.u0, w.v0, w.du, w.dv); U.uDetailF.value.set(f.u0, f.v0, f.du, f.dv);
+    }
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + VERT_DECL)
       .replace('#include <project_vertex>', VERT_PROJECT);

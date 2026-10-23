@@ -1,10 +1,11 @@
 // Title screen: the subject room in the dark (room3d.ts). A figure is strapped
-// in an electric chair you can barely see. The menu is a column of riveted
-// pixel-art plates (btnKit.ts) over the dark side of the room: left on a
-// landscape screen, along the bottom in portrait. What a plate does floats
-// beside it as free text. SETTINGS, CONTROLS, ABOUT, CO-OP and the CASE FILES
-// open on a green phosphor terminal (terminal.ts). CREATE NEW SUBJECT turns
-// the lights on and the room becomes the creator (intake.ts).
+// in an electric chair you can barely see. The menu is a column of pixel-art
+// signs hanging on chains from an iron post (signs.ts) over the dark side of
+// the room: left on a landscape screen, along the bottom in portrait. They
+// sway in, swing when touched and creak. SETTINGS is a real 3D steel gear
+// (gears3d.ts); inside, a gear train turns the pages. CONTROLS, ABOUT, CO-OP
+// and the CASE FILES open on a green phosphor terminal (terminal.ts). NEW
+// SUBJECT turns the lights on and the room becomes the creator (intake.ts).
 import { Game } from '../../game/game';
 import { randomAppearance } from '../../entities/humanRig';
 import { randomLooks } from '../../entities/humanLooks';
@@ -13,13 +14,15 @@ import { listSaves, deleteSave, SaveMeta } from '../../game/save';
 import { setLaunch } from '../../game/launch';
 import { defaultServerUrl } from '../../net/net';
 import { intakeForm, prisonerOutfitFor } from './intake';
-import { h, esc, optionsPanel, controlsPanel, applyGfx, confirmDialog, FocusNav, sfx } from './common';
+import { h, esc, optionsPanel, controlsPanel, applyGfx, confirmDialog, FocusNav, sfx, type OptionsApi } from './common';
 import { runBoot } from './boot';
 import { SubjectRoom } from './room3d';
 import { installRetroKit } from './retroKit';
 import { ambience } from './sfx';
-import { plateBtn, type PlateButton, type Finish, type Size } from './btnKit';
+import { plateBtn } from './btnKit';
 import { terminal, crtAct, type Terminal } from './terminal';
+import { hangSign, alignSigns, signPost, type HangSign, type SignKind } from './signs';
+import { gearButton, gearCluster, type GearButton, type GearCluster } from './gears3d';
 import '../../world/zones';
 import '../../game/worldOps';
 import './noir.css';
@@ -40,7 +43,7 @@ export function showTitle() {
   setTimeout(() => document.getElementById('boot')?.classList.add('gone'), 60);
 }
 
-interface Item { key: string; label: string; sub: string; act: () => void; finish?: Finish; size?: Size; gap?: boolean }
+interface Item { key: string; label: string; sub: string; act: () => void; kind?: SignKind; size?: 'lg' | 'md' | 'sm' }
 
 /** the room's camera hooks (the scene worker adds them; older rooms simply lack them) */
 type RoomCam = { shot?: (k: string, ms?: number) => void; setFraming?: (dx: number | null, dy?: number | null) => void };
@@ -56,7 +59,10 @@ class TitleRoom {
   saves: SaveMeta[] = [];
   nav: FocusNav | null = null;
   overNav: FocusNav | null = null;
-  private btns = new Map<string, PlateButton>();
+  private btns = new Map<string, HangSign | GearButton>();
+  private signs: HangSign[] = [];
+  private gear: GearButton | null = null;
+  private cluster: GearCluster | null = null;
   private lastKey = 'new';
   private live = false;
   private app = { ...randomAppearance(Math.random), ...randomLooks(Math.random, Math.random() < 0.5) };
@@ -92,43 +98,56 @@ class TitleRoom {
     this.frame(0);
     this.focusKey(this.lastKey);
     ambience('room');
-    // the plates come up one after the other
-    [...this.menu.children].forEach((b, i) => { (b as HTMLElement).style.animationDelay = 120 + i * 70 + 'ms'; });
+    // the signs swing in one after the other
+    this.signs.forEach((sg, i) => sg.swayIn(150 + i * 110, 0.3 + (i % 2) * 0.08));
     this.menu.classList.add('in');
   }
 
-  /** the menu plates (rebuilt when the saves are known) */
+  /** the menu signs (rebuilt when the saves are known) */
   private build() {
     const last = this.saves[0];
+    const pt = this.portrait();
     const items: Item[] = [];
-    if (last) items.push({ key: 'continue', label: 'Resume subject', sub: `${last.character} · day ${Math.floor(last.hours / 24) + 1}`, act: () => this.play(last), finish: 'olive' });
-    items.push({ key: 'new', label: 'Create new subject', sub: 'the contract · pay the debt · buy a way out', act: () => this.newGame(true), finish: 'oxblood', size: 'lg' });
-    items.push({ key: 'free', label: 'Release', sub: 'free survival · no contract · no band', act: () => this.newGame(false) });
-    items.push({ key: 'coop', label: 'Co-op', sub: 'call another cell · host or dial in', act: () => this.coop(), gap: true, size: 'md' });
-    if (this.saves.length) items.push({ key: 'load', label: 'Case files', sub: `${this.saves.length} subject${this.saves.length === 1 ? '' : 's'} on file`, act: () => this.loads(), size: 'md' });
-    items.push({ key: 'options', label: 'Settings', sub: 'sound · picture · interface', act: () => this.options(), size: 'md' });
-    items.push({ key: 'controls', label: 'Controls', sub: 'keys · touch · gamepad', act: () => this.controls(), size: 'md' });
-    items.push({ key: 'about', label: 'About', sub: 'what this place is', act: () => this.about(), size: 'md' });
+    if (last) items.push({ key: 'continue', label: 'Resume', sub: `${last.character} · day ${Math.floor(last.hours / 24) + 1}`, act: () => this.play(last), kind: 'olive', size: 'lg' });
+    items.push({ key: 'new', label: 'New subject', sub: 'the contract · pay the debt · buy a way out', act: () => this.newGame(true), kind: 'red', size: 'lg' });
+    items.push({ key: 'free', label: 'Release', sub: 'free survival · no contract · no band', act: () => this.newGame(false), size: pt ? 'md' : 'lg' });
+    items.push({ key: 'coop', label: 'Co-op', sub: 'call another cell · host or dial in', act: () => this.coop(), size: pt ? 'sm' : 'md' });
+    if (this.saves.length) items.push({ key: 'load', label: 'Case files', sub: `${this.saves.length} subject${this.saves.length === 1 ? '' : 's'} on file`, act: () => this.loads(), kind: 'tin', size: pt ? 'sm' : 'md' });
+    items.push({ key: 'controls', label: 'Controls', sub: 'keys · touch · gamepad', act: () => this.controls(), size: pt ? 'sm' : 'md' });
+    items.push({ key: 'about', label: 'About', sub: 'what this place is', act: () => this.about(), size: pt ? 'sm' : 'md' });
     this.menu.innerHTML = '';
-    this.menu.append(this.cap);
+    this.menu.append(signPost(), this.cap);
     this.btns.clear();
+    this.signs = [];
     for (const it of items) {
-      const b = plateBtn(it.label, () => this.activate(it), { finish: it.finish ?? 'steel', size: it.size ?? 'lg', full: true, pointer: true, sound: '', aria: `${it.label} — ${it.sub}` });
+      const b = hangSign(it.label, () => this.activate(it), { kind: it.kind ?? 'wood', size: it.size ?? 'md', pointer: true, sound: '', aria: `${it.label} — ${it.sub}`, hang: 'bracketL' });
       b.dataset.k = it.key;
-      if (it.gap) b.classList.add('tt3-gap');
       b.addEventListener('focus', () => { this.lastKey = it.key; this.caption(it, b); });
       this.menu.append(b);
       this.btns.set(it.key, b);
+      this.signs.push(b);
     }
+    alignSigns(this.signs);
+    // SETTINGS: the steel gear at the foot of the post
+    this.gear?.dispose();
+    const gi: Item = { key: 'options', label: 'Settings', sub: 'sound · picture · interface', act: () => this.options() };
+    const g = gearButton('Settings', () => this.activate(gi), { aria: 'Settings — sound · picture · interface' });
+    g.dataset.k = 'options';
+    g.classList.add('tt4-gear');
+    g.addEventListener('focus', () => { this.lastKey = 'options'; this.caption(gi, g); });
+    this.menu.append(g);
+    this.btns.set('options', g);
+    this.gear = g;
     if (this.live) { this.menu.classList.add('in'); this.focusKey(this.btns.has(this.lastKey) ? this.lastKey : 'new'); }
   }
   private focusKey(k: string) { requestAnimationFrame(() => this.btns.get(k)?.focus({ preventScroll: true })); }
   private caption(it: Item, b: HTMLElement) {
-    // the caption lives in the column, placed by layout offsets (immune to the plates' entrance animation)
+    // the caption lives in the column, placed by layout offsets (immune to the swinging)
     if (this.cap.parentElement !== this.menu) this.menu.append(this.cap);
     this.cap.innerHTML = `<small>${esc(it.sub)}</small>`;
-    this.cap.style.transform = '';
-    this.cap.style.top = this.portrait() ? '' : Math.round(b.offsetTop + b.offsetHeight / 2) + 'px';
+    const cy = parseFloat(getComputedStyle(b).getPropertyValue('--hs-cy')) || b.offsetHeight / 2;
+    this.cap.style.top = this.portrait() ? '' : Math.round(b.offsetTop + cy) + 'px';
+    this.cap.style.left = this.portrait() ? '' : Math.round(b.offsetLeft + b.offsetWidth + 6) + 'px';
     this.cap.classList.remove('in'); void this.cap.offsetWidth; this.cap.classList.add('in');
   }
   private busy = false;
@@ -136,18 +155,20 @@ class TitleRoom {
     if (this.busy || this.room.busy) return;
     this.busy = true;
     sfx(it.key === 'new' || it.key === 'continue' ? 'confirm' : 'plate');
-    setTimeout(() => { this.busy = false; it.act(); }, 140);
+    setTimeout(() => { this.busy = false; it.act(); }, 260);
   }
 
   // ---------------------------------------------------------------- panels: the terminal
-  private openOver(el: HTMLElement, title: string, sub: string, onTab?: (d: -1 | 1) => void) {
+  private openOver(el: HTMLElement, title: string, sub: string, onTab?: (d: -1 | 1) => void, side?: HTMLElement) {
     this.overNav?.destroy();
+    this.cluster?.dispose(); this.cluster = null;
     this.over.innerHTML = '';
-    this.over.className = 'nx-over on';
+    this.over.className = 'nx-over on' + (side ? ' with-side' : '');
     const t = terminal({ title, sub, cls: 'tt3-term' });
     t.body.append(el);
     const back = plateBtn('Back', () => this.closeOver(), { finish: 'cream', size: 'md', shape: 'arrowL', lamp: false, sound: 'back', aria: 'Back (Esc)' });
     t.keys.append(back);
+    if (side) this.over.append(side);
     this.over.append(t.el);
     this.term = t;
     this.over.onpointerdown = (e) => { if (e.target === this.over) this.closeOver(); };
@@ -158,6 +179,7 @@ class TitleRoom {
   private closeOver() {
     if (!this.over.classList.contains('on')) return;
     this.overNav?.destroy(); this.overNav = null;
+    this.cluster?.dispose(); this.cluster = null;
     this.over.className = 'nx-over';
     this.over.innerHTML = '';
     this.term = null;
@@ -166,10 +188,18 @@ class TitleRoom {
     this.focusKey(this.lastKey);
   }
 
+  /** settings: the pages hang on a gear train; turn a gear (click, Q / E) to change page */
   options() {
-    let tabFn: ((d: -1 | 1) => void) | null = null;
-    const panel = optionsPanel({ onTab: (fn) => { tabFn = fn; } });
-    this.openOver(panel, 'Settings', 'Q / E change page', (d) => tabFn?.(d));
+    let api: OptionsApi | null = null;
+    const panel = optionsPanel({ hideTabs: true, onApi: (a) => { api = a; } });
+    const a = api as OptionsApi | null;
+    const cl = gearCluster(a ? a.pages.map((p) => p[0] + p.slice(1).toLowerCase()) : ['Sound', 'Picture', 'Interface'], (i) => { if (a && a.index !== i) a.select(i); }, a ? a.index : 0);
+    a?.onChange((i) => { if (cl.index !== i) cl.select(i, true); });
+    const side = document.createElement('div'); side.className = 'tt4-gears';
+    side.append(cl.el);
+    this.openOver(panel, 'Settings', 'turn a gear · Q / E', (d) => cl.turn(d), side);
+    this.cluster = cl;
+    requestAnimationFrame(() => cl.layout(this.portrait() ? 'h' : 'v'));
   }
   controls() { this.openOver(controlsPanel(), 'Controls', 'keys · touch · menus'); }
   about() {

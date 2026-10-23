@@ -11,6 +11,7 @@
 // two-bone IK on a phase-driven gait (walk / gallop), with stalk, warn,
 // lunge-bite, flinch, sleep and death poses. Severable parts keep the old
 // names and carry painted flesh-and-bone cross-sections at the cut.
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, newRig, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -1046,3 +1047,7 @@ const SD = def({
 SD.animateGallery = galleryAnim(DOG_PLAN, animD, 'goodboy');
 (SD as any).handlesSevered = true;
 void THREE;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(SH, { twitch: 0.7, snap: 0.3, lunge: 0.16 });
+horrify(SD, { twitch: 0.15, snap: 0.12, lunge: 0.05, breathe: 0.03 });

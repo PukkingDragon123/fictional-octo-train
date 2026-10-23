@@ -351,7 +351,7 @@ const THINK: Record<string, string[]> = {
   low: ['The battery is under a fifth. I need a fresh one.'],
 };
 const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
-const NEAR_TABLE = new Set(['operating_table', 'gurney']);
+const NEAR_TABLE = new Set(['operating_table', 'gurney', 'cyber_table']);
 
 export class CyberSystem implements GameSystem {
   name = 'cyber';
@@ -432,8 +432,9 @@ export class CyberSystem implements GameSystem {
     const site = table || this.surgerySite(p);
     const kits = p.allItems().filter((it) => !!cyberDefByItem(it.key));
     if (site || table) {
-      const label = table ? 'Operate (lie on the table)' : 'Self-surgery';
-      subs.push({ label, disabled: !kits.length && !hasCyber(p.body) ? 'no hardware to fit (find or build a part)' : false, action: () => this.openField(p) });
+      // the table is where limbs are built as well as fitted: always open
+      const label = table ? 'Lie on the table (build & fit limbs)' : 'Self-surgery (build & fit limbs)';
+      subs.push({ label, disabled: false, action: () => this.openField(p) });
     } else if (kits.length) {
       subs.push({ label: 'Fit hardware', disabled: 'needs an operating table or a surgery rig', action: undefined });
     }

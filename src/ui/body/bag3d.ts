@@ -14,7 +14,7 @@ import { Mold, M, CHROME, STEEL, PLASTIC, BRASS, R90, cyl, box, ring, pillow, so
 import { BagPrint, holeAt, PRINT_W, PRINT_H } from './bagPrint';
 import { mix } from './pix';
 
-const BW = 26, BH = 46, TOP = -8, DEPTH = 3.4, NC = 9;
+const BW = 24, BH = 40, TOP = -8, DEPTH = 3.2, NC = 9;
 
 export class Bag3D {
   readonly root = new THREE.Group();
@@ -44,10 +44,11 @@ export class Bag3D {
   hover: Injury | null = null;
   injuries: Injury[] = [];
 
-  constructor(private st: BodyStage) {
+  /** ownArm: draw its own chrome stand arm (false when it hangs from the rig's IV mast) */
+  constructor(private st: BodyStage, ownArm = true) {
     const r = this.root;
     // stand arm (fixed) and S-hook
-    const arm = new Mold()
+    if (ownArm) r.add(solidMesh(st, new Mold()
       .add(fcyl(1, 34, 6, 1, 0.1), M(-2, 3, -1, 0, 0, R90), (_x, _y, _z, _nx, ny) => (ny > 0.4 ? 0xf0f4f6 : ny < -0.4 ? 0x6a7076 : 0xb8c0c6), CHROME)
       .add(fcyl(1.5, 1.2, 6, 1.5, 0.3), M(15.4, 3, -1, 0, 0, R90), 0xa8b0b6, CHROME)
       // a bakelite clamp block with a brass wing screw, bolted to a steel plate
@@ -56,8 +57,7 @@ export class Bag3D {
       .add(fcyl(1.2, 2.4, 6, 1.3, 0.25), M(-18, 3, 1.6, R90, 0, 0), 0xc89a3a, BRASS)
       .add(fbox(4.2, 0.9, 0.7, 0.3), M(-18, 3, 3.1), 0xd8aa4a, BRASS)
       .add(fcyl(0.5, 0.5, 6, 0.55, 0.3), M(-18, 6.4, -1.8, R90), 0x9aa2aa, STEEL)
-      .add(fcyl(0.5, 0.5, 6, 0.55, 0.3), M(-18, -0.4, -1.8, R90), 0x9aa2aa, STEEL);
-    r.add(solidMesh(st, arm));
+      .add(fcyl(0.5, 0.5, 6, 0.55, 0.3), M(-18, -0.4, -1.8, R90), 0x9aa2aa, STEEL)));
     const hook = new Mold()
       .add(ring(1.6, 0.45, 8), M(0, 0.8, 0, 0, R90, 0), 0xc8ccd2, CHROME)
       .add(ring(1.4, 0.45, 8, Math.PI * 1.3), M(0, -3.2, 0, 0, 0, Math.PI * 1.2), 0xb8bcc2, CHROME)

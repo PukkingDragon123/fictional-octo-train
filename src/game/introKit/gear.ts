@@ -104,9 +104,9 @@ function kneeGeo(): THREE.BufferGeometry {
   return mb.build();
 }
 
-/** a riot baton: handle toward -x, business end toward +x (the held-item convention) */
-export function batonGeo(): THREE.BufferGeometry {
-  return cached('baton', () => {
+/** a riot baton: handle toward -x, business end toward +x (the held-item convention); wet 0..2: blood on the striking end */
+export function batonGeo(wet = 0): THREE.BufferGeometry {
+  return cached('baton' + wet, () => {
     const mb = new ModelBuilder();
     rod(mb, [-0.2, 0, 0], [-0.03, 0, 0], 0.024, 8, 'ix_rubber');
     rod(mb, [-0.03, 0, 0], [0.46, 0, 0], 0.023, 8, 'plastic_black', { r2: 0.02, color: 0x3a3c40 });
@@ -114,6 +114,15 @@ export function batonGeo(): THREE.BufferGeometry {
     rod(mb, [0.46, 0, 0], [0.48, 0, 0], 0.021, 8, 'chrome');
     rod(mb, [-0.035, 0, 0], [-0.025, 0, 0], 0.03, 8, 'plastic_black');
     tube(mb, [[-0.215, 0, 0], [-0.24, -0.03, 0.005], [-0.25, -0.07, 0], [-0.23, -0.1, -0.01]], 0.004, 4, 'rubber_black', { caps: false });
+    if (wet > 0) {
+      // a wet red sleeve over the striking end, longer the more it has been used, and drips hanging off it
+      const from = 0.46 - 0.12 - wet * 0.08;
+      rod(mb, [from, 0, 0], [0.485, 0, 0], 0.0245, 8, 'white', { r2: 0.0225, color: wet > 1 ? 0x5a0606 : 0x7a0c0a });
+      for (let i = 0; i < 2 + wet * 2; i++) {
+        const x = from + 0.03 + i * 0.045, a = i * 2.1;
+        cbox(mb, x, Math.cos(a) * 0.02 - 0.012, Math.sin(a) * 0.02, 0.008, 0.02 + (i % 3) * 0.008, 0.008, 0.002, 'white', { color: 0x6a0808 });
+      }
+    }
     return mb.build();
   });
 }

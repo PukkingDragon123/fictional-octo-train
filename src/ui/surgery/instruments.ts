@@ -24,7 +24,7 @@ export const PH = { hi: '#c8ffd0', mid: '#5fe08a', dim: '#2a7a44', inv: '#04120a
 /** text floating free with a dark halo (no box) */
 export function freeText(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, o: { size: number; color?: string; align?: CanvasTextAlign; italic?: boolean; weight?: number; halo?: number; glow?: string; base?: CanvasTextBaseline }) {
   ctx.save();
-  ctx.font = `${o.italic ? 'italic ' : ''}${o.weight ?? 500} ${o.size}px ${FONT}`;
+  ctx.font = `${o.weight ?? 500} ${Math.round(o.size)}px ${FONT}`;
   ctx.textAlign = o.align ?? 'left'; ctx.textBaseline = o.base ?? 'middle';
   ctx.lineJoin = 'round';
   ctx.strokeStyle = 'rgba(2,3,2,0.92)'; ctx.lineWidth = o.halo ?? Math.max(2, o.size * 0.22);
@@ -60,7 +60,7 @@ export interface CrtRegion { id: string; x: number; y: number; w: number; h: num
 export class CrtPen {
   regions: CrtRegion[] = [];
   constructor(public ctx: CanvasRenderingContext2D, public W: number, public H: number, public hover: string, public k: number) {}
-  font(size: number, weight = 500, italic = false) { return `${italic ? 'italic ' : ''}${weight} ${size}px ${FONT}`; }
+  font(size: number, weight = 500, _italic = false) { return `${weight} ${size}px ${FONT}`; }
   width(s: string, size = 15, weight = 500) { this.ctx.font = this.font(size, weight); return this.ctx.measureText(s).width; }
   text(s: string, x: number, y: number, c = PH.mid, size = 15, align: CanvasTextAlign = 'left', weight = 500, italic = false) {
     const g = this.ctx;
@@ -269,6 +269,9 @@ export class Desk3D {
   private t = 0;
   private lever = 0; private leverV = 0; private leverT = 0;
   constructor(private M: Mats) { this.group.add(this.body); }
+  /** the twelve region keys and the action labels (fit key, lever, red key) */
+  keys: [string, string][] = REGION_KEYS;
+  labels = { fit: 'FIT', deal: 'DEAL', go: 'DISCHARGE' };
   build(layout: DeskLayout) {
     this.layout = layout;
     this.body.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) m.geometry.dispose(); });
@@ -305,9 +308,9 @@ export class Desk3D {
       this.controls.set(id, c);
       return c;
     };
-    REGION_KEYS.forEach(([id, label], i) => {
+    this.keys.forEach(([id, label], i) => {
       const cx = bx - bankW / 2 + kw / 2 + (i % cols) * (kw + gx), cy = by + bankH / 2 - kh / 2 - Math.floor(i / cols) * (kh + gy);
-      const c = addKey('key:' + id, label, cx, cy, kw, kh, id === 'brain' ? 0xc8d8ff : id === 'back' ? 0xb8b0a0 : 0xffffff, 'key');
+      const c = addKey('key:' + id, label, cx, cy, kw, kh, id === 'brain' || id === 'craft' ? 0xc8d8ff : id === 'back' ? 0xb8b0a0 : 0xffffff, 'key');
       const lk = new Kit(); c.lamp = lampMat();
       lk.put(c.lamp, gem(0.012, 0.009, 0.006), cx, cy + kh / 2 + gy * 0.5, 0.004);
       this.body.add(lk.group(false, false));
@@ -339,7 +342,7 @@ export class Desk3D {
     // FIT: a wide green key in a steel surround
     const fx = slot(0.33), fw = wide ? 0.28 : 0.3, fh = 0.2;
     const fk = new Kit(); fk.put(M.darksteel, cbox(fw + 0.05, fh + 0.05, 0.03, 0.01), fx, ay, -0.0); this.body.add(fk.group());
-    const fit = addKey('fit', 'FIT', fx, ay, fw, fh, 0x78d088, 'big', 0.06);
+    const fit = addKey('fit', this.labels.fit, fx, ay, fw, fh, 0x78d088, 'big', 0.06);
     fit.lamp = lampMat();
     const fl = new Kit(); fl.put(fit.lamp, cbox(fw * 0.6, 0.012, 0.008, 0.003), fx, ay + fh / 2 + 0.03, 0.004); this.body.add(fl.group(false, false));
     // DEAL lever in a slotted brass quadrant, a faceted grip on top
@@ -358,14 +361,14 @@ export class Desk3D {
     lever.userData.pick = 'deal';
     this.body.add(lever);
     const la = new THREE.Object3D(); la.position.set(lx, ay - 0.2, 0.004); this.body.add(la);
-    this.controls.set('deal', { id: 'deal', kind: 'lever', mover: lever, label: 'DEAL', anchor: la, press: 0, latched: false, tint: 0, w: 0.16 });
+    this.controls.set('deal', { id: 'deal', kind: 'lever', mover: lever, label: this.labels.deal, anchor: la, press: 0, latched: false, tint: 0, w: 0.16 });
     // DISCHARGE: a red key in a hazard collar
     const dx = slot(0.86), dw = wide ? 0.24 : 0.26, dh = 0.2;
     const dk = new Kit();
     dk.put(M.hazard, cbox(dw + 0.09, dh + 0.09, 0.035, 0.012), dx, ay, -0.0, { tile: 0.2 });
     dk.put(M.darksteel, cbox(dw + 0.03, dh + 0.03, 0.04, 0.008), dx, ay, 0.002);
     this.body.add(dk.group());
-    const go = addKey('go', 'DISCHARGE', dx, ay, dw, dh, 0xe05038, 'big', 0.06);
+    const go = addKey('go', this.labels.go, dx, ay, dw, dh, 0xe05038, 'big', 0.06);
     go.lamp = lampMat();
     const gl = new Kit(); gl.put(go.lamp, cbox(dw * 0.6, 0.012, 0.008, 0.003), dx, ay + dh / 2 + 0.06, 0.004); this.body.add(gl.group(false, false));
   }
@@ -387,6 +390,7 @@ export class Desk3D {
     else csfx(c.kind === 'big' ? 'cy_thunk' : 'sg_key', c.kind === 'big' ? 0.6 : 0.55);
   }
   rock(dir: -1 | 1) { const c = this.controls.get('rock'); if (c) { c.press = dir; csfx('sg_rocker', 0.5); } }
+  setLabel(id: string, label: string) { const c = this.controls.get(id); if (c) c.label = label; if (id === 'fit' || id === 'deal' || id === 'go') (this.labels as any)[id] = label; }
   setLatched(id: string, on: boolean) { const c = this.controls.get(id); if (c) c.latched = on; }
   setLamp(id: string, col: number | null, k = 2) { const c = this.controls.get(id); if (c?.lamp) { if (col === null) c.lamp.color.setHex(0x1a1210); else c.lamp.color.setHex(col).multiplyScalar(k); } }
   frame(dt: number) {

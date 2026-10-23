@@ -37,11 +37,16 @@ void main() {
   float a = pow(face, 1.6) * smoothstep(0.0, 0.12, t) * (1.0 - smoothstep(0.62, 1.0, t)) * dust * (1.0 - t * 0.35);
   gl_FragColor = vec4(uCol * uI * a, 1.0);
 }`;
+/**
+ * Only the far wall of each cone is drawn (BackSide, depth-tested), so the haze
+ * glows behind and around whatever stands in the light instead of washing it
+ * out to a pale ghost in front of it.
+ */
 export function hazeMat(col: number, I: number, top: number, len: number): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     uniforms: { uCol: { value: new THREE.Color(col) }, uI: { value: I }, uTime: { value: 0 }, uTop: { value: top }, uLen: { value: len } },
     vertexShader: HAZE_VS, fragmentShader: HAZE_FS,
-    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide, toneMapped: false,
   });
 }
 const MOTE_VS = `

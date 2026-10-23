@@ -1,10 +1,14 @@
-// The body HUD (G.hudBody): three real little objects on a shelf in the corner
-// instead of bars, drawn in 3D through the game's own renderer (stage.ts).
-// The IV blood bag is health and blood: every wound is a hole in it, dripping
-// or pouring; click / tap a hole to treat it (a first-aid pegboard swings in
-// with what you could use). The lungs are stamina: rubber balloons on a brass
-// valve; H (or a thumb on them) pumps them on the beat of the air gauge. The
-// acid jar is the stomach. Hover anything for a line of free-floating type.
+// The body HUD (G.hudBody): one machine floating in the corner instead of bars,
+// a life-support rig drawn in 3D through the game's own renderer (stage.ts).
+// It hangs in the still air, drifting and bobbing, and it is sprung: hits,
+// bites, gulps, footsteps, coughs and pokes knock it about (rig3d.ts).
+// The IV blood bag on its mast is health and blood: every wound is a hole in
+// it, dripping or pouring; click / tap a hole to treat it (a first-aid
+// pegboard swings in with what you could use). The breathing pump is stamina:
+// a bellows in a glass canister (lung3d.ts); H (or a thumb on it) pumps it on
+// the beat of the air meter. The digester is the stomach and the water
+// (jar3d.ts). The rucksack on its end opens the backpack. Hover anything for
+// a line of free-floating type.
 //
 // API: pumpPress(), pumping, canEat(), lungs / jar (sims), eatStart(action) /
 // drinkStart(action) (first-person close-ups, eatFp.ts), vomit(p),
@@ -22,11 +26,11 @@ import type { Injury } from '../../survival/body';
 import { Lungs, type PumpResult } from './lung';
 import { Jar } from './jar';
 import { BodyStage, Cubes } from './stage';
+import { Rig3D, SW, SH, CON_TOP, BAG_AT, PUMP_AT, JAR_AT } from './rig3d';
 import { Bag3D } from './bag3d';
 import { Lung3D } from './lung3d';
 import { Jar3D } from './jar3d';
 import { Board3D } from './board3d';
-import { Mold, M, CHROME, PAINT, STEEL, box, solidMesh } from './models';
 import { treatOptions, bestTreatment, woundTitle, type TreatOpt } from './treat';
 import { breathHit, breathDone } from '../../survival/mindSystem';
 import { ensureMind } from '../../survival/mind';
@@ -35,11 +39,10 @@ import { fontsReady } from '../../gfx/crt';
 import { itemDef } from '../../items/item';
 import { EatFp } from './eatFp';
 
-/** the stage, in units (k = 1); the shelf top is FLOOR */
-const SW = 130, SH = 90, FLOOR = -84;
-const BAG_AT: [number, number] = [34, -10], LUNG_AT: [number, number] = [73, -10], JAR_AT: [number, number] = [113, FLOOR], BOARD_AT: [number, number] = [73, -16];
+/** the pegboard swings in over the pump */
+const BOARD_AT: [number, number] = [PUMP_AT[0] + 2, -10];
 
-type Kind = 'bag' | 'lung' | 'gauge' | 'jar' | 'tool';
+type Kind = 'bag' | 'lung' | 'gauge' | 'jar' | 'tool' | 'pack';
 interface Hover { kind: Kind | null; inj: Injury | null; slot: number }
 
 export class BodyHud {
@@ -50,6 +53,8 @@ export class BodyHud {
   readonly st = new BodyStage();
   private world = new THREE.Group();
   private bagV: Bag3D; private lungV: Lung3D; private jarV: Jar3D; private board: Board3D;
+  readonly rig: Rig3D;
+  private runT = 0; private lastLidV = 0; private lastSquish = 0;
   private cubes: Cubes;
   private say: HTMLDivElement;
   private sayKey = '';
@@ -82,23 +87,20 @@ export class BodyHud {
   constructor() {
     const st = this.st;
     st.scene.add(this.world);
-    this.bagV = new Bag3D(st); this.lungV = new Lung3D(st); this.jarV = new Jar3D(st); this.board = new Board3D(st);
-    this.world.add(this.bagV.root, this.lungV.root, this.jarV.root, this.board.root);
+    // one machine: everything rides the rig's floating frame
+    this.rig = new Rig3D(st);
+    this.world.add(this.rig.pivot);
+    const R = this.rig.inner;
+    this.bagV = new Bag3D(st, false); this.lungV = new Lung3D(st); this.jarV = new Jar3D(st); this.board = new Board3D(st);
+    R.add(this.bagV.root, this.lungV.root, this.jarV.root, this.board.root);
     this.bagV.root.position.set(BAG_AT[0], BAG_AT[1], 0);
-    this.lungV.root.position.set(LUNG_AT[0], LUNG_AT[1], 0);
+    this.lungV.root.position.set(PUMP_AT[0], PUMP_AT[1], 0);
     this.jarV.root.position.set(JAR_AT[0], JAR_AT[1], 0);
-    // the pegboard hangs in front of the lungs while you pick a treatment
+    // the pegboard hangs in front of the pump while you pick a treatment
     this.board.root.position.set(BOARD_AT[0], BOARD_AT[1], 16);
-    this.bagV.floorY = FLOOR;
-    // a yellowed laminate shelf with a chrome nosing, on two steel brackets
-    const shelf = new Mold()
-      .add(box(SW - 18, 2.6, 13), M(SW / 2 + 6, FLOOR - 1.3, -2), (_x, _y, z) => (z > 4.4 ? 0xd2c496 : 0xc4b484), PAINT)
-      .add(box(SW - 18, 0.9, 0.7), M(SW / 2 + 6, FLOOR - 1.6, 4.6), 0xd8dee4, CHROME)
-      .add(box(1.6, 5, 9), M(26, FLOOR - 5, -3, 0.5, 0, 0), 0x6a6e72, STEEL)
-      .add(box(1.6, 5, 9), M(SW - 10, FLOOR - 5, -3, 0.5, 0, 0), 0x6a6e72, STEEL);
-    this.world.add(solidMesh(st, shelf, { wear: 0.8 }));
+    this.bagV.floorY = CON_TOP;
     this.cubes = new Cubes(260, st.cubeMat);
-    this.world.add(this.cubes.mesh);
+    R.add(this.cubes.mesh);
 
     const say = this.say = document.createElement('div');
     say.className = 'bh-say nc-free-text';
@@ -108,7 +110,7 @@ export class BodyHud {
     this.relayout();
     window.addEventListener('resize', () => this.relayout());
     bus.on('uiScale', () => this.relayout());
-    fontsReady().then(() => { this.lungV.repaintType(); this.jarV.repaintType(); });
+    fontsReady().then(() => { this.lungV.repaintType(); this.jarV.repaintType(); this.rig.repaintType(); });
 
     // ---- pointer: the world never sees a press that lands on a prop
     window.addEventListener('pointerdown', (e) => this.onDown(e), true);
@@ -122,6 +124,9 @@ export class BodyHud {
       if (!p?.isLocal) return;
       const k = Math.min(1, (Number(h?.dmg) || 8) / 22);
       this.bagV.kick((Math.random() - 0.5) * 3 * (0.5 + k), 0.4 + k);
+      // the whole rig takes the blow: it lurches, rolls and rings back
+      this.rig.kick((Math.random() - 0.5) * 30 * (0.4 + k), -(14 + 26 * k), (Math.random() - 0.5) * 1.6 * (0.4 + k));
+      this.jarV.kick(0.5 + k);
     });
     bus.on('bloodied', (p: Player, _part: string, amt: number) => { if (p?.isLocal) this.lungs.splash(Math.min(0.2, (Number(amt) || 0.5) * 0.09)); });
     bus.on('creatureKilled', (c: any) => {
@@ -130,7 +135,9 @@ export class BodyHud {
       if (d < 2.6 && (G.sandbox?.gore ?? 1) > 0) this.lungs.splash(0.14 * (1 - d / 2.6) + 0.04);
     });
     bus.on('consumed', (p: Player, key: string) => { if (p?.isLocal && !this.eat.active && key) this.jar.pill(0xe8e0d0); });
-    bus.on('death', (p: Player) => { if (p?.isLocal) this.bagV.kick(1.5, 1); });
+    bus.on('death', (p: Player) => { if (p?.isLocal) { this.bagV.kick(1.5, 1); this.rig.kick(0, -40, 1.2); } });
+    bus.on('cough', (p: Player) => { if (p?.isLocal) this.rig.kick((Math.random() - 0.5) * 8, 10, (Math.random() - 0.5) * 0.6); });
+    bus.on('vomit', (p: Player) => { if (p?.isLocal) { this.rig.kick(0, -22, (Math.random() - 0.5) * 1.4); this.jarV.kick(2); } });
 
     G.addSystem({ name: 'hudBody', update: (dt) => this.update(dt) });
     (G as any).hudBody = this;
@@ -156,10 +163,18 @@ export class BodyHud {
     const w = this.bagV.holeWorld(inj, this.v);
     return this.st.toScreen(w.x, w.y);
   }
-  /** a prop's centre on screen (CSS px), for tests and pointers */
-  propScreen(kind: 'bag' | 'lung' | 'jar'): { x: number; y: number } {
-    const a = kind === 'bag' ? [BAG_AT[0], BAG_AT[1] - 30] : kind === 'lung' ? [LUNG_AT[0], LUNG_AT[1] - 26] : [JAR_AT[0], JAR_AT[1] + 16];
-    return this.st.toScreen(a[0] * this.k, a[1] * this.k);
+  /** a prop's centre on screen (CSS px), for tests and pointers ('lung' is the breathing pump, 'jar' the digester) */
+  propScreen(kind: 'bag' | 'lung' | 'jar' | 'pack'): { x: number; y: number } {
+    this.world.updateMatrixWorld(true);
+    const o = kind === 'bag' ? this.bagV.hit : kind === 'lung' ? this.lungV.hit : kind === 'jar' ? this.jarV.hit : this.rig.packHit;
+    o.getWorldPosition(this.v);
+    return this.st.toScreen(this.v.x, this.v.y);
+  }
+  /** open the backpack (the rucksack on the rig) */
+  openPack() {
+    G.audio?.ui?.('bh_squelch', 0.3);
+    const inv: any = (G as any).ui?.inventory;
+    if (inv?.toggle) inv.toggle(true);
   }
   /** the jar's mouth on screen (eating aims the bites there) */
   jarScreen(): { x: number; y: number } {
@@ -195,6 +210,9 @@ export class BodyHud {
     if (p !== this.bodyOf) { this.bodyOf = p; this.deadT = 0; this.sig.clear(); }
     if (p.body.dead) this.deadT += dt; else this.deadT = 0;
     this.step(dt, p);
+    // it floats: the shadow falls further as it rises
+    const lift = Math.max(0, -this.rig.lift + 4) * this.st.detail * 0.5;
+    this.st.shadow.set(1 + Math.round(lift * 0.4), 3 + Math.round(lift));
     this.eat.update(dt);
     // a first-person cut's cinema bar slides up over the corner: the shelf rides up above it
     if (!this.touch) {
@@ -208,6 +226,12 @@ export class BodyHud {
 
   private step(dt: number, p: Player) {
     const b = p.body;
+    // the rig: footsteps jolt it while you run, every bite and gulp lands with a bump
+    this.rig.update(dt, b.dead);
+    if (p.running && (p.speed ?? 0) > 0.5) { this.runT -= dt; if (this.runT <= 0) { this.runT = 0.32; this.rig.kick((Math.random() - 0.5) * 6, -8, (Math.random() - 0.5) * 0.25); } }
+    if (this.jar.lidV < this.lastLidV - 12) { this.rig.kick((Math.random() - 0.5) * 4, -10, (Math.random() - 0.5) * 0.4); this.jarV.kick(1); }
+    this.lastLidV = this.jar.lidV;
+    this.rig.packHover = this.hover.kind === 'pack' ? 1 : 0;
     // the fluorescent tube over the shelf hums and now and then dips (more when you are scared)
     const fear = Math.max(0, (b.panic - 40) / 60);
     this.st.uLight.value = Math.random() < dt * (0.15 + fear * 2) ? 0.72 : Math.min(1, this.st.uLight.value + dt * 6);
@@ -231,10 +255,10 @@ export class BodyHud {
     if (ev === 'miss') G.audio?.ui?.('band_tick', 0.25);
     if (ev === 'end') this.pumpEnded(p);
     this.lungV.update(dt, this.lungs, p, this.lungs.panic);
-    if (this.jar.update(dt, p) === 'gurgle') G.audio?.ui?.('bh_gurgle', 0.5);
+    if (this.jar.update(dt, p) === 'gurgle') { G.audio?.ui?.('bh_gurgle', 0.5); this.jarV.kick(0.4); }
     this.zoomT = Math.max(0, this.zoomT - dt);
     this.jarV.zoom += ((this.zoomT > 0 ? 1 : 0) - this.jarV.zoom) * Math.min(1, dt * 8);
-    this.jarV.update(dt, this.jar);
+    this.jarV.update(dt, this.jar, p);
     this.board.update(dt);
     this.applyBody(dt, p);
     this.watchWounds(p);
@@ -306,7 +330,7 @@ export class BodyHud {
       const s = `${inj.bandage ? (inj.bandage.clean ? 'B' : 'b') : ''}${inj.stitched ? 'S' : ''}${inj.splinted ? 'P' : ''}${inj.disinfected > 0 ? 'D' : ''}${inj.foreign ? 'F' : ''}${inj.tq != null ? 'T' : ''}${inj.caut ? 'C' : ''}`;
       const prev = this.sig.get(inj.id);
       if (prev !== undefined && prev !== s && s.length >= prev.length - (prev.includes('F') && !s.includes('F') ? 1 : 0)) {
-        const w = this.world.worldToLocal(this.bagV.holeWorld(inj, this.v));
+        const w = this.rig.inner.worldToLocal(this.bagV.holeWorld(inj, this.v));
         for (let i = 0; i < 8; i++) this.sparks.push({ x: w.x + Math.cos(i * 0.785) * 2.4, y: w.y + Math.sin(i * 0.785) * 2.4, t: 0.35 + i * 0.02, c: i % 2 ? 0xffffff : 0xfff0a0 });
         if (this.sparks.length > 40) this.sparks.splice(0, this.sparks.length - 40);
         G.audio?.ui?.(s.includes('B') && !prev.includes('B') ? 'bh_tape' : 'bh_squelch', 0.45);
@@ -338,7 +362,7 @@ export class BodyHud {
   private pickAt(cx: number, cy: number): Hover {
     if (!this.shown || this.st.fade < 0.5) return { kind: null, inj: null, slot: -1 };
     this.world.updateMatrixWorld(true);
-    const targets: THREE.Object3D[] = [...this.board.hits, this.bagV.hit, this.lungV.hit, this.lungV.gaugeHit, this.jarV.hit];
+    const targets: THREE.Object3D[] = [...this.board.hits, this.bagV.hit, this.lungV.hit, this.lungV.gaugeHit, this.jarV.hit, this.rig.packHit];
     const h = this.st.pick(cx, cy, targets);
     if (!h) return { kind: null, inj: null, slot: -1 };
     const o = h.object;
@@ -347,6 +371,7 @@ export class BodyHud {
     if (o === this.bagV.hit) return { kind: 'bag', inj: this.bagV.holeUnder(h.point), slot: -1 };
     if (o === this.lungV.hit) return { kind: 'lung', inj: null, slot: -1 };
     if (o === this.lungV.gaugeHit) return { kind: 'gauge', inj: null, slot: -1 };
+    if (o === this.rig.packHit) return { kind: 'pack', inj: null, slot: -1 };
     return { kind: 'jar', inj: null, slot: -1 };
   }
   private setOver(on: boolean) {
@@ -382,6 +407,10 @@ export class BodyHud {
     this.down = { kind: h.kind, x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId, inj: h.inj };
     this.flick = 0;
     const touch = e.pointerType === 'touch';
+    // every touch wobbles the rig a little
+    const sp = this.st.toStage(e.clientX, e.clientY, new THREE.Vector2());
+    this.rig.poke(sp.x / this.k, sp.y / this.k, h.kind === 'pack' ? 0.6 : 0.35);
+    if (h.kind === 'pack') { this.openPack(); this.down = null; return; }
     if (h.kind === 'lung' || h.kind === 'gauge') { this.pumpPress(); this.lungs.wob = 0.6; G.audio?.ui?.('bh_squelch', 0.2); }
     else if (h.kind === 'tool') { const o = this.board.slots[h.slot]?.opt; if (o && this.boardInj) this.runOpt(o); }
     else if (h.kind === 'jar') { this.zoomT = 2.6; this.jar.poke(); G.audio?.ui?.('bh_plop', 0.25); }
@@ -425,10 +454,15 @@ export class BodyHud {
     const b = p.body, h = this.hover;
     const lines: string[] = [];
     let at = { x: 0, y: 0 };
-    if (h.kind === 'tool') {
+    const over = (o: THREE.Object3D, dy: number) => { o.getWorldPosition(this.v); return this.st.toScreen(this.v.x, this.v.y + dy * this.k); };
+    if (h.kind === 'pack') {
+      lines.push('Backpack');
+      lines.push(`${this.touch ? 'tap' : 'click'} to open${this.touch ? '' : '  ·  I'}`);
+      at = over(this.rig.packHit, 10);
+    } else if (h.kind === 'tool') {
       const o = this.board.slots[h.slot]?.opt;
       if (o) lines.push(o.label + (o.missing ? ' — needs ' + o.missing : o.using ? ' — ' + o.using.toLowerCase() : ''));
-      at = this.st.toScreen(BOARD_AT[0] * this.k, BOARD_AT[1] * this.k);
+      at = over(this.board.root, 4);
     } else if (h.kind === 'bag') {
       const inj = h.inj;
       if (inj) {
@@ -446,20 +480,23 @@ export class BodyHud {
         if (b.corruption > 10) bits.push('corrupted');
         lines.push((n ? `${n} hole${n > 1 ? 's' : ''} in the bag` : 'no holes') + (bits.length ? '  ·  blood ' + bits.join(', ') : ''));
       }
-      at = this.st.toScreen(BAG_AT[0] * this.k, BAG_AT[1] * this.k);
+      at = over(this.bagV.hit, 26);
     } else if (h.kind === 'lung' || h.kind === 'gauge') {
       lines.push(`Air ${Math.round(b.endurance * 100)}%` + (this.lungs.stain > 0.05 ? ' — blood in the lungs, cough it up' : ''));
       lines.push(this.lungs.pumping ? 'press as the needle hits OUT, then IN' : this.lungs.strain > 0.45 ? 'straining — H to pump it out' : `H${this.touch ? ' or a thumb' : ''}: breathe on the beat`);
-      at = this.st.toScreen(LUNG_AT[0] * this.k, LUNG_AT[1] * this.k);
+      at = over(this.lungV.hit, 24);
     } else if (h.kind === 'jar') {
       const hu = b.hunger;
       lines.push(`Stomach ${hu < 15 ? 'full' : hu < 30 ? 'fed' : hu < 50 ? 'peckish' : hu < 75 ? 'hungry' : 'starving'}` + (this.jar.canEat() ? '' : ' — no room for more'));
       const bits: string[] = [];
+      const th = b.thirst;
+      bits.push(`water ${th < 20 ? 'fine' : th < 45 ? 'low' : th < 70 ? 'thirsty' : 'parched'}`);
+      if (b.sickness > 20) bits.push('nauseous');
       if (this.recent.length) bits.push('in it: ' + this.recent.join(', '));
       if (this.jar.acid > 0.32) bits.push('acid rising');
       if (this.jar.poisoned) bits.push('cracked');
       if (bits.length) lines.push(bits.join('  ·  '));
-      at = this.st.toScreen(JAR_AT[0] * this.k, (JAR_AT[1] + 50) * this.k);
+      at = over(this.jarV.hit, 24);
     }
     this.setSay(lines.join('\n'), at.x, this.touch ? this.st.css.y + this.st.css.h + 4 : Math.max(4, Math.min(at.y, this.st.css.y) - 6));
   }
