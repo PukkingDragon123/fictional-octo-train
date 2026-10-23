@@ -12,6 +12,7 @@
 // lunge-bite, flinch, sleep and death poses. Severable parts keep the old
 // names and carry painted flesh-and-bone cross-sections at the cut.
 import { horrify } from '../kit/horror';
+import { regionCanvas, flay, drips, veins, sores } from '../kit/rot';
 import * as THREE from 'three';
 import { def, newRig, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -188,6 +189,20 @@ function torsoGeo(ob: OB, S: Plan) {
     return { pts, v: 0.02 + 0.96 * ((z - z0) / (z1 - z0)), col };
   });
   ob.loft(rings, reg, { start: 'pole', startBulge: 0.012, end: 'pole', endBulge: 0.01 });
+  if (!S.dog) {
+    // the spine has worn through the hide: a ridge of bone spurs, tallest over the shoulders, raked back
+    const T = S.page.reg('TEETH');
+    for (let z = -0.33, i = 0; z < 0.31; z += 0.042, i++) {
+      const r = sampleRows(S.torso, z);
+      const h = 0.016 + 0.03 * gauss(z, 0.16, 0.1) + 0.012 * gauss(z, -0.3, 0.05) + (i % 3 === 1 ? 0.006 : 0);
+      ob.cone([((i * 37) % 5 - 2) * 0.0015, r.cy + r.up * 1.04, z], [((i * 13) % 3 - 1) * 0.12, 1, -0.5], 0.008 + h * 0.18, h, 4, T, { col: 0.95 });
+    }
+    // two rib ends broken out of the flank
+    for (const [sd, z, l] of [[1, 0.06, 0.045], [-1, 0.11, 0.034]] as [number, number, number][]) {
+      const r = sampleRows(S.torso, z);
+      ob.cone([sd * r.rx * 0.92, r.cy - r.dn * 0.1, z], [sd, -0.35, 0.25], 0.006, l, 4, T, { col: 0.9 });
+    }
+  }
 }
 
 function neckGeo(ob: OB, S: Plan) {
@@ -261,8 +276,15 @@ function headGeo(ob: OB, S: Plan) {
   const rt = mouthEdge(S.skull, zBack, z1 - 0.012, -1, true, 7);
   const lt = mouthEdge(S.skull, z1 - 0.012, zBack, 1, true, 7);
   const gum = [...rt, ...lt];
-  const tip = gum.map((p) => [p[0] * 0.95, p[1] - (S.dog ? 0.012 : 0.02), p[2]] as V3);
+  const tip = gum.map((p, i) => [p[0] * 0.95, p[1] - (S.dog ? 0.012 : 0.026 + (i % 3 === 0 ? 0.008 : 0)), p[2]] as V3);
   ob.strip(gum, tip, P.reg('TEETH'), { double: true, v1: 1, v0: 0 });
+  if (!S.dog) {
+    // fangs: too long, crooked, pushing the lips apart at the front of the grin
+    for (const sd of [1, -1]) for (const [zz, l] of [[z1 - 0.03, 0.04], [z1 - 0.07, 0.028]] as [number, number][]) {
+      const r = sampleRows(S.skull, zz);
+      ob.cone([sd * r.rx * 0.8, r.cy - r.dn * 0.55, zz], [sd * 0.15, -1, 0.12 * sd], 0.006, l, 4, P.reg('TEETH'), { col: 1 });
+    }
+  }
   // eyes: grinhound pinholes sit wrong (one forward, one high on the cranium); the dog's are wide and wet
   const ep = eyePos(S);
   const eyes: [V3, number][] = S.dog ? [[ep[0], 0.013], [ep[1], 0.013]] : [[ep[0], 0.0085], [ep[1], 0.0075]];
@@ -642,11 +664,12 @@ function animateHound(S: Plan) {
 // painting
 // =====================================================================================
 interface Pal { skin: number; fur: number; fur2: number; belly: number; pig: number; mange: number; sores: number; scars: number; blood: number; dirt: number }
+// grey-blue, jaundiced, livid and raw-pink hides: bloodless skin over bone, darker where it is dying
 const HOUND_PALS: Pal[] = [
-  { skin: 0xb8a6a0, fur: 0x2a201e, fur2: 0x443630, belly: 0x86706e, pig: 0x5a4644, mange: 0.55, sores: 6, scars: 2, blood: 0.8, dirt: 0.5 },
-  { skin: 0xb4aa8c, fur: 0x342a20, fur2: 0x524430, belly: 0x88785e, pig: 0x5e5236, mange: 0.45, sores: 4, scars: 3, blood: 0.6, dirt: 0.7 },
-  { skin: 0xa69ea8, fur: 0x1e1a1e, fur2: 0x322a30, belly: 0x76686e, pig: 0x463a44, mange: 0.62, sores: 7, scars: 1, blood: 1, dirt: 0.4 },
-  { skin: 0xc0a090, fur: 0x443024, fur2: 0x5e4836, belly: 0x94746a, pig: 0x664438, mange: 0.35, sores: 5, scars: 4, blood: 0.7, dirt: 0.6 },
+  { skin: 0x8c7e80, fur: 0x1e1616, fur2: 0x34282a, belly: 0x5e4c50, pig: 0x3e2e34, mange: 0.6, sores: 8, scars: 2, blood: 1, dirt: 0.6 },
+  { skin: 0x928a6c, fur: 0x2a2018, fur2: 0x403422, belly: 0x645a42, pig: 0x463c26, mange: 0.5, sores: 6, scars: 3, blood: 0.8, dirt: 0.8 },
+  { skin: 0x7a7488, fur: 0x16121a, fur2: 0x282230, belly: 0x524a5c, pig: 0x302838, mange: 0.66, sores: 9, scars: 1, blood: 1.2, dirt: 0.5 },
+  { skin: 0x9a7a6e, fur: 0x34241c, fur2: 0x4a382c, belly: 0x6a504a, pig: 0x4a3028, mange: 0.4, sores: 7, scars: 4, blood: 0.9, dirt: 0.7 },
 ];
 const DOG_PALS: Pal[] = [
   { skin: 0x6e4a2e, fur: 0x5a3a22, fur2: 0x8a6440, belly: 0xc6a47c, pig: 0x3a2414, mange: 0, sores: 0, scars: 1, blood: 0.15, dirt: 0.5 },
@@ -749,6 +772,20 @@ function paintHound(Pt: Painter, v: number, dog: boolean) {
     for (let i = 0; i < Math.round(pal.blood * 7); i++) {
       const sd = rng.chance(0.5) ? 1 : -1;
       Pt.walk(r, Math.round(uOf(rng.float(0.1, 0.9), sd) * r.w), rng.int(1, 7), rng.int(4, 10), sd > 0 ? -1 : 1, 0.6, rng.chance(0.4) ? BLOOD_W : BLOOD, 0.8, 0.3);
+    }
+    if (!dog) {
+      // the hide has split: raw muscle over the ribs (bone between the bundles), the spine laid open between the shoulders
+      const C = regionCanvas(Pt, r);
+      veins(C, 7, 31 + v, 0x3a2a48, 0.4, 12);
+      const ribBone = (y: number) => { const z = zOf(y), wv = Math.cos(((z - S.ribZ[0]) / S.ribP) * Math.PI * 2); return wv > 0.5 ? 0.55 + (wv - 0.5) : 0; };
+      for (const sd of [1, -1]) {
+        if (sd < 0 && v % 2 === 1) continue;
+        const a0 = 1.2 + (v % 3) * 0.12, cz = lerp(S.ribZ[0], S.ribZ[1], 0.45 + ((v * 7 + (sd > 0 ? 0 : 3)) % 5) * 0.06);
+        const ry = (yOf(S.ribZ[0]) - yOf(S.ribZ[1])) * (0.32 + (v % 2) * 0.08);
+        flay(C, uOf(a0, sd) * r.w, yOf(cz), r.w * 0.075, ry, { fibre: [1, 0.25], bone: (_x, y) => ribBone(y), seed: 7 + v * 3 + sd, fat: true, drips: 3, drip: [sd > 0 ? -0.7 : 0.7, 0.25] });
+      }
+      flay(C, r.w / 2, yOf(0.12), 3.2, (yOf(0.0) - yOf(0.24)) * 0.5, { fibre: [0, 1], bone: (x, y) => (Math.abs(x - r.w / 2) < 1.2 && y % 3 !== 0 ? 0.8 : 0), seed: 50 + v, depth: 0.9 });
+      sores(C, 4, 60 + v);
     }
   }
 

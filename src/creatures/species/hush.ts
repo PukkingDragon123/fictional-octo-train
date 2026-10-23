@@ -4,6 +4,7 @@
 // blind. It goes for the loudest sound in the building, and it silences
 // whatever made it: you, or anything else. Walk soft, stand still when it is
 // close, and throw something to send it somewhere else.
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import type { Creature } from '../creature';
@@ -154,3 +155,6 @@ S.animateGallery = galleryDriver('hush', ['listen', 'walk', 'hunt', 'attack', 'd
   fc.dead = pose === 'dead';
 });
 defDread('hush', { stutter: 0.06, twitch: ['head'], twitchRate: 0.4, sting: 'swell', cam: 0.7, skipDark: 0.3 });
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.4, snap: 0.25 });

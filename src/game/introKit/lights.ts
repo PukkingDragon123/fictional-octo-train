@@ -290,7 +290,7 @@ export class LightDirector {
     this.sparkK = Math.max(0, this.sparkK - dt * 5);
     this.spark.intensity = 26 * this.sparkK * this.sparkK * (0.7 + 0.3 * Math.random());
     this.strobeK = Math.max(0, this.strobeK - dt * 9);
-    this.strobeL.intensity = 30 * this.strobeK;
+    this.strobeL.intensity = 16 * this.strobeK;
     this.flareK = Math.max(0, this.flareK - dt * 1.6);
     this.flareL.intensity = 1.1 * this.flareK;
     // the portal's light follows the caustic uniforms

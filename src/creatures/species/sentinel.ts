@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -348,3 +349,6 @@ const S = def({
   animateSentinel(rig, c, t, 1 / 60);
   if (q === 'vanish') rig.body.visible = true;
 };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.4, snap: 0.25 });

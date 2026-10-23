@@ -46,7 +46,13 @@ export async function creatureStudio(o: StudioOpts) {
   const lg = new LightGrid(z);
   pr.scene.add(new THREE.AmbientLight(0x8a8a90, 0.25));
   U.uVisOn.value = 0; U.uFogNear.value = 200; U.uFogFar.value = 300; U.uCutOn.value = 0;
-  const fake: any = { zones: new Map([[z.key, z]]), players: new Map(), creatures: { creatures: new Map() }, time: 0, local: null, pr, getZone: (k: string) => fake.zones.get(k) };
+  // dynamic point lights requested by creatures (lamps, glowing things): a small pool, refilled every frame
+  const pool: THREE.PointLight[] = Array.from({ length: 6 }, () => { const l = new THREE.PointLight(0xffffff, 0, 6, 1.6); pr.scene.add(l); return l; });
+  let pn = 0;
+  const fake: any = {
+    zones: new Map([[z.key, z]]), players: new Map(), creatures: { creatures: new Map() }, time: 0, local: null, pr, getZone: (k: string) => fake.zones.get(k),
+    pointLight: (x: number, y: number, zz: number, color: number, intensity: number, dist = 7) => { const l = pool[pn++]; if (!l) return; l.position.set(x, y, zz); l.color.setHex(color); l.intensity = intensity; l.distance = dist; },
+  };
   setGame(fake);
   const cols = o.cols ?? Math.min(4, o.keys.length), sp = o.spacing ?? 2.2;
   const rows = Math.ceil(o.keys.length / cols);
@@ -74,6 +80,8 @@ export async function creatureStudio(o: StudioOpts) {
   let t = 0;
   const step = (dt: number) => {
     t += dt; fake.time = t;
+    for (const l of pool) l.intensity = 0;
+    pn = 0;
     U.uTime.value = t;
     for (const e of list) {
       const c = e.c, rig = c.rig!;

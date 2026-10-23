@@ -5,6 +5,7 @@
 // of its head. It picks its way along one leg at a time, splays its legs like
 // a spider to bring its mouth down to the grass, bounds away in huge strides,
 // rears to kick, and turns its head all the way round when watched.
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { mixHex, scaleHex, ph } from '../../gfx/pixel';
 import { G } from '../../game/G';
@@ -390,3 +391,6 @@ S.animateGallery = galleryDriver('stilt_doe', ['walk', 'graze', 'run', 'idle', '
   fc.observed = pose === 'watched';
   fc.attackPhase = pose === 'attack' && (t % 2) < 0.38 ? 0.2 : 0;
 });
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.6, snap: 0.3 });

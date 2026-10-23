@@ -12,6 +12,11 @@
 //   guide(target | null)   a holographic chevron path on the floor toward a target
 //   begin()                the post-intro tutorial: smash something, find a valuable, load the press, pull the lever
 //   worldPos(), visible    (the HUD hangs his subtitles above him)
+//   cine / briefed         a cutscene owns him (only lines said with { cine: true } get through) / he
+//                          already briefed the debtor in person (the arrival): the tutorial starts quietly
+//   appear(where, secs)    a slow materialise for cutscenes; beamFromBand: the beam from the wrist even
+//                          when he stands at a fixed spot; collapse(): the picture shrinks to a line and
+//                          a dot like an old tube switching off, then he is gone
 // Reactions with cooldowns: furniture broken by you, deposits, debt
 // milestones, band warnings, low health, a creature in sight, idling, a new zone.
 import * as THREE from 'three';
@@ -31,10 +36,11 @@ import { line, readTime } from './lines';
 import { fallbackPose, overlay, ease } from './cutPose';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { rigNumber } from '../content/items/prisoner';
+import { ensurePack } from './arrivalKit/pack';
 import '../audio/sounds_remit';
 
 export type HandlerWhere = 'band' | 'pylon' | { x: number; z: number };
-export interface SayOpts { at?: { x: number; z: number }; point?: { x: number; z: number }; dur?: number; key?: string; cd?: number; gesture?: string; pri?: number; pylon?: boolean }
+export interface SayOpts { at?: { x: number; z: number }; point?: { x: number; z: number }; dur?: number; key?: string; cd?: number; gesture?: string; pri?: number; pylon?: boolean; cine?: boolean }
 
 const VOSS_APP: Appearance = {
   skin: 0xd39b6c, hair: 0x3b2a1e, hairStyle: 'buzz', face: 4, build: 'broad', height: 1.05, beard: false,
@@ -77,6 +83,15 @@ export class Handler implements GameSystem {
   x = 0; z = 0; y = 0; facing = 0;
   /** the intro is driving him: no reactions or tutorial */
   scripted = false;
+  /** a cutscene owns him: lines without { cine: true } (quest intros, ledger chatter) are dropped */
+  cine = false;
+  /** he briefed the debtor in person (the arrival): no first-lesson speech, the guide just lights up */
+  briefed = false;
+  /** draw the projector beam from the band even when he stands at a fixed spot */
+  beamFromBand = false;
+  private unfold = 1.6;
+  private collT = -1;
+  private dot: THREE.Mesh;
   private where: HandlerWhere = 'band';
   private zoneKey = '';
   private show = 0; private showGoal = 0;
@@ -145,6 +160,12 @@ export class Handler implements GameSystem {
     this.mark = new THREE.Mesh(floorQuadGeo('zh_mark', 1.1, 1.1), additiveMat());
     this.mark.visible = false; this.mark.renderOrder = 18;
     G.pr.scene.add(this.mark);
+    // the last dot of light when the picture collapses
+    const db = new ModelBuilder();
+    db.cross(0, -0.06, 0, 0.12, 0.12, 'zh_dot', { emissive: 2 } as never);
+    this.dot = new THREE.Mesh(db.build(), additiveMat());
+    this.dot.visible = false; this.dot.renderOrder = 21;
+    G.pr.scene.add(this.dot);
     this.wire();
     if (import.meta.env.DEV) (window as unknown as { __voss: Handler }).__voss = this;
   }
@@ -158,14 +179,17 @@ export class Handler implements GameSystem {
 
   say(text: string, o: SayOpts = {}) {
     if (!text) return;
+    if (this.cine && !o.cine) return;
     text = text.replace(/\{n\}/g, debtorNumber());
     if (this.cur?.text === text || this.queue.some((q) => q.text === text)) return;
     if (o.key) { const t = this.cds.get(o.key) ?? -1e9; if (G.time - t < (o.cd ?? 20)) return; this.cds.set(o.key, G.time); }
     if (this.queue.length >= 4) this.queue.shift();
     if (o.pri && o.pri > 1) this.queue.unshift({ text, o }); else this.queue.push({ text, o });
   }
-  appear(where: HandlerWhere = 'band') {
+  appear(where: HandlerWhere = 'band', secs?: number) {
     this.where = where;
+    this.unfold = secs ? 1 / Math.max(0.1, secs) : 1.6;
+    if (this.collT >= 0) { this.collT = -1; this.show = 0; }
     if (this.showGoal < 1) {
       this.showGoal = 1;
       if (this.show < 0.1) { this.placeNow(); this.glitch = 1; G.audio?.flat?.('holo_on', 'sfx', 0.45); }
@@ -184,6 +208,13 @@ export class Handler implements GameSystem {
   gesture(name: string, dur = 2) { this.gest = { name, t: 0, dur }; }
   /** silence him now (skips, cutscenes) */
   hush() { this.queue.length = 0; this.cur = null; this.voice.stop(); }
+  /** sign off: the picture squeezes to a bright line, the line to a dot, the dot goes out */
+  collapse() {
+    if (this.hidden || this.show < 0.05) { this.show = this.showGoal = 0; return; }
+    this.collT = 0; this.showGoal = 1; this.coneW = Math.min(this.coneW, 0.5);
+  }
+  /** gone at once (skips) */
+  gone() { this.collT = -1; this.show = this.showGoal = 0; this.hidden = true; this.coneW = 0; this.rig.root.visible = false; this.cone.visible = false; this.dot.visible = false; this.rig.root.scale.setScalar(1); }
 
   /** the post-intro tutorial (also started by itself on quick starts and for co-op clients) */
   begin() {
@@ -192,6 +223,8 @@ export class Handler implements GameSystem {
     const m = G.missions;
     if (m?.flags?.has?.('contract:first_deposit')) { this.tut = 9; return; }
     this.tut = 0; this.tutT = 0;
+    // briefed in person: the guide lights the way to the nearest furniture without another speech
+    if (this.briefed) { this.cds.set('tut0', G.time + 40); const t = this.nearestFurniture(); if (t) this.guide(t); }
   }
 
   // ================================================================ events
@@ -233,7 +266,8 @@ export class Handler implements GameSystem {
       if (!this.scripted && this.begun && !this.seenZones.has(z.key) && this.seenZones.size > 0) this.react('zone', 40, L.zone);
       this.seenZones.add(z.key);
     });
-    on('introDone', () => { this.scripted = false; });
+    // the intake is over: whatever path it took (skipped, the arrival, the old pass-through), the pack is on
+    on('introDone', () => { this.scripted = false; this.cine = false; if (!ensurePack(G.local)) console.warn('handler: no pack after the intake'); });
   }
 
   private react(key: string, cd: number, lines: string[], o: { pri?: number; pylon?: boolean } = {}) {
@@ -328,12 +362,13 @@ export class Handler implements GameSystem {
     if (!this.scripted && G.missions?.enabled !== false) { this.updateTutorial(dt); this.updateReactions(dt, p); }
     // ---- visibility
     if (this.showGoal > 0) this.hidden = false;
-    const rate = this.showGoal > this.show ? 1.6 : 2.4;
+    const rate = this.showGoal > this.show ? this.unfold : 2.4;
     this.show = this.showGoal > this.show ? Math.min(this.showGoal, this.show + dt * rate) : Math.max(this.showGoal, this.show - dt * rate);
     if (this.show <= 0.001 && this.showGoal === 0) this.hidden = true;
     const on = !this.hidden && this.show > 0.001;
     this.rig.root.visible = on;
     if (on) this.updateFigure(dt, p, z);
+    if (this.collT >= 0) this.updateCollapse(dt);
     this.updateCone(dt, p, on);
     this.updateGuide(dt, p, z);
   }
@@ -473,9 +508,41 @@ export class Handler implements GameSystem {
     this.rig.root.scale.setScalar(1.0);
   }
 
+  /** the tube switching off: squeeze to a line (bright), the line to a dot, the dot out */
+  private updateCollapse(dt: number) {
+    this.collT += dt;
+    const t = this.collT, CY = 0.95;
+    const a = Math.min(1, t / 0.2), b = Math.min(1, Math.max(0, (t - 0.2) / 0.17));
+    const ea = a * a * (3 - 2 * a), eb = b * b;
+    const sy = Math.max(0.012, 1 - ea * 0.988), sx = (1 + ea * 0.3) * (1 - eb);
+    const root = this.rig.root;
+    if (sx > 0.01) {
+      root.visible = true;
+      root.scale.set(sx, sy, sx);
+      root.position.y = this.y + (1 - sy) * CY;
+      HOLO.uHolo.value.set(1 + ea * 2.2, 0.15, 1, 1);
+      HOLO_BASE.uHoloBase.value = -50;
+    } else root.visible = false;
+    // the dot: born as the line goes, burns a moment, shrinks out
+    const d = t < 0.3 ? 0 : t < 0.42 ? (t - 0.3) / 0.12 : Math.max(0, 1 - (t - 0.42) / 0.45);
+    this.dot.visible = d > 0.01;
+    if (this.dot.visible) {
+      this.dot.position.set(this.x, this.y + CY + 0.06, this.z);
+      this.dot.scale.setScalar(0.6 + d * 1.2);
+      this.dot.rotation.y = G.time * 2;
+    }
+    this.coneW = Math.max(0, this.coneW - dt * 4);
+    if (t > 0.9) {
+      this.collT = -1;
+      this.show = this.showGoal = 0; this.hidden = true;
+      root.visible = false; root.scale.setScalar(1); this.dot.visible = false;
+      HOLO_BASE.uHoloBase.value = this.y;
+    }
+  }
+
   /** the faint beam from the band (or the pylon) to him */
   private updateCone(dt: number, p: Player, on: boolean) {
-    const want = on && (this.where === 'band' || this.where === 'pylon') ? Math.min(1, this.show) : 0;
+    const want = on && (this.where === 'band' || this.where === 'pylon' || this.beamFromBand) && this.collT < 0 ? Math.min(1, this.show) : 0;
     this.coneW += (want - this.coneW) * Math.min(1, dt * 6);
     if (this.coneW < 0.02) { this.cone.visible = false; return; }
     const apex = tmpV;
@@ -618,7 +685,7 @@ export class Handler implements GameSystem {
 
   dispose() {
     for (const o of this.offs.splice(0)) o();
-    G.pr.scene.remove(this.rig.root, this.cone, this.chev, this.mark);
+    G.pr.scene.remove(this.rig.root, this.cone, this.chev, this.mark, this.dot);
     this.voice.stop();
   }
 }

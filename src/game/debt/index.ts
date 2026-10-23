@@ -31,6 +31,7 @@ import { TransportSystem } from './transport';
 import { stashKind, rollStash, isValuable, itemValue } from './values';
 import { installHopperPlacement } from './hopperPlace';
 import { voss, selfThought, pick } from './voice';
+import { ensurePack } from '../arrivalKit/pack';
 import './sounds';
 
 export { DebtSystem, BandSystem, HopperSystem, TransportSystem };
@@ -66,8 +67,9 @@ export function issueKit(p: Player, add: (key: string, wear?: boolean) => Item |
   let feet: string[] = ['canvas_slipons'];
   try { feet = feetKitItems(p.app); } catch { /* older appearance: issue slip-ons */ }
   for (const k of feet) add(k, true);
-  // the Remittance cube (iron, thumbprint lock; src/ui/inventory.ts) and a tool roll for the hip
-  add('iron_cube', true);
+  // the issue pack ('iron_cube', the Meridian-issue backpack) is NOT in the kit: Voss has it sent down a
+  // chute in the arrival scene (src/game/arrival.ts); every path that skips it gets it from ensurePack()
+  // (skipIntake below, the handler on 'introDone'). A tool roll for the hip.
   add('tool_roll', true);
   add('ration_bar');
   add('water_pouch');
@@ -75,6 +77,8 @@ export function issueKit(p: Player, add: (key: string, wear?: boolean) => Item |
 
 /** the session is starting without the intro (?quick, intro off): the band is already on */
 export function skipIntake(p: Player) {
+  // no arrival scene on this path: the pack goes straight on (free survival included)
+  ensurePack(p);
   if (!G.missions?.enabled) return;
   G.band?.fit?.(p, { silent: true });
   G.missions?.set?.('contract:intake');

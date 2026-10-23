@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { U } from './materials';
 import type { Zone } from '../world/zone';
 import { floorDef } from '../world/defs';
+import { floorDamp } from '../world/wear';
 
 /** texels per tile edge */
 const SUB = 2;
@@ -100,6 +101,15 @@ export class WetMap {
         if (k <= 0) continue;
         const o = (y * W + x) * 4;
         d[o] = Math.max(d[o], Math.round(255 * amt * Math.min(1, k * 1.8)));
+      }
+    }
+    // the damp patches the chunk mesher lays on the floor (src/world/wear.ts) catch a wet sheen
+    for (let ty = 0; ty < z.H; ty++) for (let tx = 0; tx < z.W; tx++) {
+      if (!z.floor[ty * z.W + tx] || !floorDamp(z, tx, ty)) continue;
+      any = true;
+      for (let sy = 0; sy < SUB; sy++) for (let sx = 0; sx < SUB; sx++) {
+        const o = ((ty * SUB + sy) * W + tx * SUB + sx) * 4;
+        d[o] = Math.max(d[o], (sx + sy) % 2 === 0 ? 150 : 110);
       }
     }
     // water proximity (chamfer distance, ~3 tiles of reach) for caustics on decks and walls

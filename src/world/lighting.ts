@@ -192,6 +192,14 @@ export class LightGrid {
           if (hashf(slot, l.id, 3) < l.flicker) level = hashf(Math.floor(time * 15), l.id, 9) < 0.5 ? 0.05 : 0.55;
         } else level = l.level ?? base;
       }
+      // a few steady tubes are dying anyway: a slow sag and the odd stutter (deterministic per light)
+      else if (base > 0 && l.kind === 'fluoro' && hashf(l.id, 7, 21) < 0.08) {
+        if (doFlicker) {
+          const sag = 0.82 + 0.18 * Math.sin(time * 0.9 + l.id * 3.1);
+          const slot = Math.floor(time * 2 + l.id * 7.3);
+          level = hashf(slot, l.id, 5) < 0.06 ? (hashf(Math.floor(time * 15), l.id, 6) < 0.5 ? 0.08 : 0.5) : sag;
+        } else level = l.level ?? base;
+      }
       if (l.kind === 'fire' && base > 0) level = 0.8 + 0.2 * Math.sin(time * 9 + l.id) * Math.sin(time * 13.3 + l.id * 2);
       this.setLevel(l, level);
     }

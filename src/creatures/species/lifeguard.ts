@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, newRig, Rig } from '../species';
 import { Page, Reg, OB, V3, bpart, registerPage, clamp01, lerp, gauss, ramp, fillLv, applyLook, galleryDriver } from '../kit/beasts';
@@ -511,3 +512,6 @@ function stockLifeguards() {
   }
 }
 if (typeof window !== 'undefined') setInterval(() => { try { stockLifeguards(); } catch (e) { console.warn('lifeguard stock', e); } }, 3000);
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.6, snap: 0.3 });

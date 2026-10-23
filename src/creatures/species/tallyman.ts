@@ -4,6 +4,7 @@
 // Every step you take where it can see you, a finger flicks and a bead
 // slides across. At thirteen it comes for you, fast. Soft steps (sneaking)
 // are not counted, and if you stand still the beads slide back one by one.
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -202,3 +203,6 @@ S.animateGallery = galleryDriver('tallyman', ['count', 'walk', 'hunt', 'dead'], 
 });
 defDread('tallyman', { tilt: 'head', tiltMax: 0.6, twitch: ['handR', 'head'], twitchRate: 0.3, sting: 'chase', cam: 0.8, skipDark: 0.3 });
 void bpart;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.5, snap: 0.3 });

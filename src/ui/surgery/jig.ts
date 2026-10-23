@@ -74,7 +74,7 @@ export class CraftJig {
       const [x, z] = SLOTS[i % SLOTS.length];
       m.geometry.computeBoundingBox();
       const bb = m.geometry.boundingBox!, size = bb.getSize(new THREE.Vector3());
-      const k = Math.min(1, 0.14 / Math.max(0.01, size.x, size.y, size.z));
+      const k = Math.min(1.2, 0.19 / Math.max(0.01, size.x, size.y, size.z));
       m.userData.k = k;
       m.position.set(x, 0.002 - bb.min.y * k, z);
       m.rotation.y = (i * 1.3) % 3;

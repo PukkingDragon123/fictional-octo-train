@@ -41,6 +41,8 @@ export class SeamFx implements GameSystem {
   private views: View[] = [];
   private zone: Zone | null = null;
   private t = 0;
+  /** no screen wobble near an open Seam (the arrival keeps the picture crisp) */
+  calm = false;
 
   constructor() { (G as unknown as { seamFx: SeamFx }).seamFx = this; }
 
@@ -157,7 +159,8 @@ export class SeamFx implements GameSystem {
       if (alive && p) {
         const d = Math.hypot(p.x - f.x, p.z - f.z);
         G.audio?.positionalLoop?.('seam:' + v.o.uid, 'seam_drone', f.x + f.nx * 0.3, f.z + f.nz * 0.3, 0.9, 0.98 + Math.sin(this.t * 0.3) * 0.02, 18);
-        if (d < 2.2) G.pr.fx.wobble = Math.max(G.pr.fx.wobble, (1 - d / 2.2) * 0.35);
+        // (not while a cutscene owns the picture: the arrival must stay crisp)
+        if (d < 2.2 && !this.calm) G.pr.fx.wobble = Math.max(G.pr.fx.wobble, (1 - d / 2.2) * 0.35);
       } else G.audio?.positionalLoop?.('seam:' + v.o.uid, null);
       // rim breathing
       v.breath += dt;

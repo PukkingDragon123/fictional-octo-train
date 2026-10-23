@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -592,3 +593,6 @@ bus.on('creatureKilled', (c: Creature) => { if (c?.sp?.key === 'still_life') rel
   animateSL(rig, fc, t, 1 / 60);
 };
 export { REPLICA_KEYS };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(sp, { twitch: 0.5, snap: 0.3 });

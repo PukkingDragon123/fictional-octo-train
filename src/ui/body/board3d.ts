@@ -46,7 +46,7 @@ export class Board3D {
       P.set(x, y, c);
     }
     P.rect(3, 2, 2, 6, 0xb82a22); P.rect(1, 4, 6, 2, 0xb82a22);
-    const paintHead = () => tex.commit((c) => inkText(c, 'First aid', W2 / 2 + 3, HEAD - 2, 8, FONT.sign, '#2a1a10', 'center', 'italic 700'));
+    const paintHead = () => tex.commit((c) => inkText(c, 'First aid', W2 / 2 + 3, HEAD - 2, 8, FONT.sign, '#2a1a10', 'center', '700'));
     paintHead(); fontsReady().then(paintHead);
     const frame = new Mold()
       .add(box(BW + 1.6, 1.2, 1.6), M(0, 0.4, 0), 0xb8c0c8, CHROME)

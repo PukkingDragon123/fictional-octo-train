@@ -10,6 +10,7 @@
 // of three stacked bubbles. Harmless and skittish; it bolts from you. Corner
 // it and it puffs up and pops in your face. Sneak up from behind and it is
 // easy meat (bubble jelly).
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -312,3 +313,7 @@ RAB.animateGallery = galleryDriver('bubble_rabbit', ['idle', 'hop', 'flee', 'cow
   fc.dead = pose === 'dead';
 });
 void clamp01;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(MITE, { twitch: 0.2, snap: 0.12 });
+horrify(RAB, { twitch: 0.2, snap: 0.12 });

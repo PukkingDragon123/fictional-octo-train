@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { makeRamp, mixHex, scaleHex } from '../../gfx/pixel';
@@ -646,3 +647,6 @@ const sp = def({
   poseC(rig, { moving: q.startsWith('walk'), phase: t * 4, t, u, reach, menace, strike, wind, grip: [reach ? 0.5 + 0.5 * Math.sin(t * 2) : 0.3, 0.3, 0.3], glitch, seed: 3, yaw: 0.3, pitch: 0 });
   rig.root.rotation.y = q.endsWith('back') ? Math.PI * 0.8 : 0;
 };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(sp, { twitch: 0.7, snap: 0.4 });

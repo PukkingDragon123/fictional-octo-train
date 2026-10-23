@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { makeRamp } from '../../gfx/pixel';
@@ -400,3 +401,6 @@ defDread('plenum', { twitch: ['leg0', 'leg3', 'shin5', 'tars6', 'head'], twitchR
   animatePlenum(rig, c, t, 1 / 60);
 };
 void hold;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.7, snap: 0.3 });

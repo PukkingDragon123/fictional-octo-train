@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, newRig, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -403,3 +404,6 @@ const S = def({
   const c = fakeCreature(S, { id: 'g1', state: 'curious', mem: { netMem: { h: 0.9 } } });
   animateSwarm(rig, c, t, 1 / 60);
 };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.2, snap: 0.15, breathe: 0, flop: false });

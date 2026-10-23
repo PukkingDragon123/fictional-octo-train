@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import { def, Rig } from '../species';
 import { makeRamp, mixHex } from '../../gfx/pixel';
 import { G } from '../../game/G';
@@ -436,3 +437,6 @@ defDread('stammer', { bend: ['shinL', 'shinR', 'foreL', 'foreR'], bendRate: 0.5,
   animateStammer(rig, c, t, 1 / 60);
 };
 void mixHex; void angleDiff; void seenByAny;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 1, snap: 0.5 });

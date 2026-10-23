@@ -277,13 +277,15 @@ const FRAG_LIGHTGRID = /* glsl */`
 {
   vec3 wn = normalize(vWNormal);
   // ambient bounce reaches up-facing surfaces best: facets of a low-poly model separate even in the dark
-  irradiance *= 0.8 + 0.2 * wn.y;
+  irradiance *= (0.8 + 0.2 * wn.y) * 0.8;
   vec2 lgp = vWPos.xz + vWNormal.xz * 0.28;
   vec2 luv = (lgp - uLightInfo.xy) * uLightInfo.zw;
   vec3 gt = texture2D(uLightTex, luv).rgb;
   vec3 grid = gt * gt * uGridScale;
   // ceiling fixtures: surfaces higher up the walls catch a bit more light
   grid *= 0.8 + 0.2 * clamp(vWPos.y / 2.6, 0.0, 1.0);
+  // motivated light: each pool keeps its core but its fringe falls away faster into the dark
+  grid *= mix(0.5, 1.0, smoothstep(0.05, 0.75, dot(grid, vec3(0.3, 0.5, 0.2))));
   // directional light out of the grid itself: it arrives from where the grid gets brighter, so faces
   // turned toward a fixture catch it, faces turned away fall into shade and light pools get a rim
   {

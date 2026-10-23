@@ -12,6 +12,7 @@
 // KNIGHT: a horse's head on a plinth, mane like a row of blades. It jumps in
 // an L, over anything, and lands hard. It can never land on the squares
 // touching it: right beside it is the safest place on the board.
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import type { Creature } from '../creature';
@@ -325,3 +326,7 @@ KNIGHT.animateGallery = galleryDriver('chess_knight', ['idle', 'pick', 'jump', '
 defDread('chess_rook', { cam: 0.5 });
 defDread('chess_knight', { cam: 0.6 });
 void OB;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(ROOK, { twitch: 0.15, snap: 0.08, breathe: 0 });
+horrify(KNIGHT, { twitch: 0.2, snap: 0.1, breathe: 0 });

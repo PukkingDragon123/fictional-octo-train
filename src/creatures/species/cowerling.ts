@@ -5,6 +5,7 @@
 // if you corner it, it kneels and begs. Leave it be and it leaves you
 // something from its bundle. Kill one and the rest in that place never trust
 // anyone again. It only bites if you hurt it and it has nowhere to go.
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -127,3 +128,6 @@ S.animateGallery = galleryDriver('cowerling', ['idle', 'walk', 'flee', 'dead', '
   fc.mem.netMem = { pose: pose === 'dead' ? 'dead' : pose === 'beg' ? 'beg' : pose === 'cower' ? 'cower' : '' };
 });
 defDread('cowerling', {});
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.9, snap: 0.22 });

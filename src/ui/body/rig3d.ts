@@ -169,9 +169,9 @@ export class Rig3D {
     // a water stain run under the bag
     for (let y = 2; y < H - 6; y++) if (hash(1, y, 3) > 0.3) P.blend(X(BAG_AT[0]) + Math.round(Math.sin(y * 0.6) * 1.5), y, 0x2a2410, 0.4);
     T.commit((c) => {
-      inkText(c, 'BLOOD', X(BAG_AT[0]), H - 9, 11, FONT.sign, '#e8e2c4', 'center', '700');
-      inkText(c, 'AIR', X(41), H - 9, 11, FONT.sign, '#e8e2c4', 'center', '700');
-      inkText(c, 'FOOD', X(JAR_AT[0]), H - 9, 11, FONT.sign, '#e8e2c4', 'center', '700');
+      inkText(c, 'BLOOD', X(BAG_AT[0] - 1), H - 9, 10, FONT.sign, '#e8e2c4', 'center', '700');
+      inkText(c, 'AIR', X(42), H - 9, 10, FONT.sign, '#e8e2c4', 'center', '700');
+      inkText(c, 'FOOD', X(JAR_AT[0]), H - 9, 10, FONT.sign, '#e8e2c4', 'center', '700');
     });
   }
   /** web fonts arrived */
@@ -191,8 +191,9 @@ export class Rig3D {
     // the idle drift: slow, incommensurate waves (it never quite repeats)
     const dx = Math.sin(t * 0.31) * 1.1 + Math.sin(t * 0.13 + 1) * 0.6;
     const dy = Math.sin(t * 0.47) * 1.3 + Math.sin(t * 0.21 + 2) * 0.5 - (dead ? 3 : 0);
-    const dr = Math.sin(t * 0.27) * 0.018 + Math.sin(t * 0.11 + 4) * 0.01 + (dead ? 0.06 : 0);
-    const dyaw = Math.sin(t * 0.19) * 0.12 + Math.sin(t * 0.07 + 3) * 0.06;
+    // small idle turns: enough to feel it hang in the air, little enough that the printed type stays crisp
+    const dr = Math.sin(t * 0.27) * 0.01 + Math.sin(t * 0.11 + 4) * 0.006 + (dead ? 0.06 : 0);
+    const dyaw = Math.sin(t * 0.19) * 0.07 + Math.sin(t * 0.07 + 3) * 0.035;
     // springs toward the drift (soft: it bounces)
     const k = 60, c = 5.5;
     this.vx += ((dx - this.x) * k - this.vx * c) * dt; this.x += this.vx * dt;
@@ -203,7 +204,7 @@ export class Rig3D {
     this.r = Math.max(-0.12, Math.min(0.12, this.r)); this.yaw = Math.max(-0.35, Math.min(0.35, this.yaw));
     this.pivot.position.x = (CON_X0 + CON_X1) / 2 + this.x;
     this.pivot.position.y = -SH / 2 + this.y;
-    this.pivot.rotation.set(Math.sin(t * 0.23) * 0.04, this.yaw, this.r);
+    this.pivot.rotation.set(Math.sin(t * 0.23) * 0.025, this.yaw, this.r);
     this.lift = this.y;
     // cables trail after the motion
     for (let i = 0; i < this.cables.length; i++) this.cables[i].rotation.z = -this.vx * 0.06 + this.vr * 0.8 + Math.sin(t * 1.1 + i * 1.7) * 0.08;

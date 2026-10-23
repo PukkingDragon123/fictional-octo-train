@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -499,3 +500,6 @@ const sp = def({
   }, t, pos.x, pos.z + (q === 'move' ? (t * 0.6) % 2 - 1 : 0) * 0, rig.root.rotation.y, gallerySampler());
 };
 void tileFbm;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(sp, { twitch: 0.3, snap: 0.2, breathe: 0.04 });

@@ -5,6 +5,7 @@
 // are carrying. It only ever hunts the survivor carrying the most, and a
 // hit from it knocks your best thing out of your pack. Drop your goods and it
 // stops to eat them; kill it and it coughs everything back up.
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -198,3 +199,6 @@ S.animateGallery = galleryDriver('tithe', ['idle', 'walk', 'hunt', 'eat', 'dead'
 });
 defDread('tithe', { twitch: ['head'], twitchRate: 0.3, sting: 'hit', cam: 0.5 });
 void eye;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.4, snap: 0.25 });

@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -486,3 +487,6 @@ const sp = def({
   R.hr.fx.value.x = hostile ? 0.32 : 0.025;
   R.U.value.set(hostile ? 0.0 : 0.1, t, hostile ? 0.22 : 0.09, hostile ? 1 : 0);
 };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(sp, { twitch: 0.9, snap: 0.5 });

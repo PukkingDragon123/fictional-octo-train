@@ -5,6 +5,7 @@
 // slowly toward you. Meet it at the line and it has you. But a reflection
 // has to go where yours would: walk so that its copy of you walks into a wall
 // and it cracks. Three cracks and it shatters.
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import type { Creature } from '../creature';
@@ -182,3 +183,6 @@ S.animateGallery = galleryDriver('mirrorling', ['still', 'bonded', 'walk', 'atta
 });
 defDread('mirrorling', { stutter: 0.08, tilt: 'head', tiltMax: 0.4, sting: 'swell', cam: 0.5, moved: true });
 void rng; void skin;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.5, snap: 0.3 });

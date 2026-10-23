@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, newRig, Rig } from '../species';
 import { mixHex, ph } from '../../gfx/pixel';
@@ -354,3 +355,6 @@ const S = def({
   (c as any).x = x; (c as any).z = z;
   animateBird(rig, c, t, 1 / 60);
 };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.8, snap: 0.4 });

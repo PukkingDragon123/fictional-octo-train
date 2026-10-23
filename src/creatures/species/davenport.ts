@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig, creatureMaterial } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -460,3 +461,6 @@ const sp = def({
   const jaw = q === 'bite' ? (b < 0.6 ? 1 : 0.25) : q === 'warn' ? 0.75 + Math.sin(t * 5) * 0.2 : q === 'revealed' ? 0.35 : 0;
   pose(rig as KRig, null, k, t, { moving: q === 'walk' ? 1 : 0, phase: t * 5, jaw, lunge, shake: q === 'bite' && b > 0.68 ? 1 - (b - 0.68) / 0.32 : 0, flinch: 0, dead: q === 'dead' ? 1 : 0, breathe: 1, turn: 0 });
 };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(sp, { twitch: 0.3, snap: 0.15, breathe: 0.02 });

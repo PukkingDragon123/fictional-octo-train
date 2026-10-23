@@ -11,6 +11,7 @@
 // footsteps through the dust and leaps at them in huge slow arcs; it cannot
 // steer in the air. When it crouches, step aside. Sneak and it cannot find
 // you.
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -340,3 +341,7 @@ STRIDER.animateGallery = galleryDriver('moon_strider', ['idle', 'crouch', 'leap'
 });
 defDread('moon_strider', { cam: 0.7, sting: 'hit' });
 void flat; void scl;
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(WISP, { twitch: 0.3, snap: 0.2 });
+horrify(STRIDER, { twitch: 0.3, snap: 0.2 });

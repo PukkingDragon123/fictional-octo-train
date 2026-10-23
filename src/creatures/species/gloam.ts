@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import { def, Rig } from '../species';
 import { makeRamp } from '../../gfx/pixel';
 import { G } from '../../game/G';
@@ -318,3 +319,6 @@ defDread('gloam', { shine: { part: 'head', off: [0, 0.05, 0.12], sep: 0.05, colo
   const c = fakeCreature(S, { id: 'g' + (Number(q.match(/\d/)?.[0] ?? 1)), state: q.startsWith('flee') ? 'flee' : 'stalk', speed: q.startsWith('walk') ? 1.4 : 0, phase: t * 4, attackPhase: q.startsWith('attack') ? 0.1 : 0, mem: { netMem: {} } });
   animateGloam(rig, c, t, 1 / 60);
 };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.6, snap: 0.35 });

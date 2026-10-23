@@ -5,12 +5,12 @@ body.bh-hover, body.bh-hover canvas { cursor: pointer; }
 .bh-say {
   position: fixed; left: 0; top: 0; z-index: 45; pointer-events: none;
   transform: translate(-50%, -100%); white-space: pre; text-align: center;
-  font-family: var(--font-type); font-size: 15px; line-height: 1.25; letter-spacing: 0.02em;
+  font-family: var(--font-type); font-size: 16px; line-height: 1.25; letter-spacing: 0.02em;
   color: #f3eedf; text-shadow: var(--text-halo);
   opacity: 0; transition: opacity 0.18s ease-out;
 }
 .bh-say.on { opacity: 1; }
-html.nc-touch .bh-say { transform: translate(-50%, 0); font-size: 14px; }
+html.nc-touch .bh-say { transform: translate(-50%, 0); font-size: 16px; }
 
 /* first-person eating: the catcher takes the bites, the vignette pulls focus */
 .bh-eat {
@@ -23,7 +23,7 @@ html.nc-touch .bh-say { transform: translate(-50%, 0); font-size: 14px; }
 @keyframes bh-eat-out { to { opacity: 0; } }
 .bh-eat-hint {
   position: absolute; left: 50%; bottom: 16%; transform: translateX(-50%); pointer-events: none; white-space: nowrap;
-  font-family: var(--font-type); font-size: 17px; letter-spacing: 0.04em; color: #f3eedf; text-shadow: var(--text-halo);
+  font-family: var(--font-type); font-size: 16px; letter-spacing: 0.04em; color: #f3eedf; text-shadow: var(--text-halo);
   animation: bh-hint 1.6s ease-in-out infinite;
 }
 @keyframes bh-hint { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }

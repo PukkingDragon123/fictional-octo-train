@@ -56,28 +56,54 @@ const hash = (x: number, y: number, s: number) => { let h = Math.imul(x * 374761
 function rng(seed: number) { let a = seed >>> 0 || 1; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 // ------------------------------------------------------------------ lettering
-const FONT_PX = 11; // Pixelify Sans: one font pixel = one art pixel at 11px
+// Pixelify Sans is drawn on a grid of ~91 font units (1000 / 11) with the
+// grid starting 60 units in from the glyph origin and 12 units under the
+// baseline. Each glyph is drawn large (10 screen px per font pixel) and
+// sampled at the centre of every grid cell: one art pixel per font pixel,
+// exactly the bitmap the face was designed as (no smoothing, no mush).
 let fontOk = false;
-const fontWait = fontsReady().then(() => { fontOk = true; });
-const measureCv = document.createElement('canvas').getContext('2d')!;
-function textW(s: string): number {
-  measureCv.font = `${FONT_PX}px 'Pixelify Sans', monospace`;
-  try { (measureCv as any).letterSpacing = '1px'; } catch { /* old canvas */ }
-  return Math.ceil(measureCv.measureText(s).width);
+const fontWait = fontsReady().then(() => { fontOk = true; glyphs.clear(); });
+const BIG = 110, U = BIG / 1000, CELL = 1000 / 11;
+const ROWS = 12, BASE_ROW = 8; // rows above the baseline: 0..8 (k = 8 - r); below: 9..11
+interface Glyph { w: number; m: Uint8Array }
+const glyphs = new Map<string, Glyph>();
+const gcv = document.createElement('canvas'); gcv.width = 160; gcv.height = 170;
+const gctx = gcv.getContext('2d', { willReadFrequently: true })!;
+function glyph(ch: string): Glyph {
+  const hit = glyphs.get(ch);
+  if (hit) return hit;
+  gctx.clearRect(0, 0, gcv.width, gcv.height);
+  gctx.font = `${BIG}px 'Pixelify Sans', monospace`;
+  gctx.fillStyle = '#fff'; gctx.textBaseline = 'alphabetic';
+  const ox = 20, B = 130;
+  gctx.fillText(ch, ox, B);
+  const adv = gctx.measureText(ch).width / U; // in font units
+  const cols = Math.max(1, Math.floor((adv - 60) / CELL) + 1);
+  const d = gctx.getImageData(0, 0, gcv.width, gcv.height).data;
+  const m = new Uint8Array(cols * ROWS);
+  for (let j = 0; j < cols; j++) for (let r = 0; r < ROWS; r++) {
+    const k = BASE_ROW - r;
+    const x = Math.round(ox + (60 + CELL * j + CELL / 2) * U), y = Math.round(B - (-12 + CELL * k + CELL / 2) * U);
+    if (x < 0 || y < 0 || x >= gcv.width || y >= gcv.height) continue;
+    if (d[(y * gcv.width + x) * 4 + 3] > 127) m[r * cols + j] = 1;
+  }
+  const g = { w: cols, m };
+  if (fontOk) glyphs.set(ch, g);
+  return g;
 }
-/** the label as hard pixels: a mask (1 = paint) w x h */
-function textMask(s: string, w: number, h: number): Uint8Array {
-  const c = document.createElement('canvas'); c.width = w; c.height = h;
-  const g = c.getContext('2d')!;
-  g.font = `${FONT_PX}px 'Pixelify Sans', monospace`;
-  try { (g as any).letterSpacing = '1px'; } catch { /* old canvas */ }
-  g.fillStyle = '#fff'; g.textBaseline = 'alphabetic';
-  g.fillText(s, 0, h - 2);
-  const d = g.getImageData(0, 0, w, h).data;
-  const m = new Uint8Array(w * h);
-  for (let i = 0; i < w * h; i++) m[i] = d[i * 4 + 3] > 100 ? 1 : 0;
-  return m;
+/** the label as hard pixels (1 = paint), one art pixel per font pixel; caps sit on rows 2..8 */
+function textMask(s: string, gap = 1): { w: number; h: number; m: Uint8Array } {
+  const gs = [...s].map((ch) => glyph(ch));
+  const w = Math.max(1, gs.reduce((a, g) => a + g.w + gap, 0) - gap);
+  const m = new Uint8Array(w * ROWS);
+  let x = 0;
+  for (const g of gs) {
+    for (let r = 0; r < ROWS; r++) for (let j = 0; j < g.w; j++) if (g.m[r * g.w + j]) m[r * w + x + j] = 1;
+    x += g.w + gap;
+  }
+  return { w, h: ROWS, m };
 }
+function textW(s: string): number { return textMask(s).w; }
 
 // ------------------------------------------------------------------ the board sprite (unrotated)
 interface BoardArt { w: number; h: number; px: Uint32Array /* 0 = empty, else 0xff000000 | rgb */; eyes: [number, number][] }
@@ -169,13 +195,14 @@ function boardArt(label: string, kind: SignKind, shape: SignShape, w: number, h:
       for (const y of [Math.floor(cy - t), Math.ceil(cy + t)]) if (inside(x, y) && !edge(x, y)) mask[y * w + x] = 1;
     }
   } else if (label) {
-    const tw = textW(label), th = 12;
-    const m = textMask(label, tw + 2, th);
+    const t = textMask(label);
+    const tw = t.w;
     const ox = shape === 'arrowL' ? Math.floor(pt + (w - pt - tw) / 2) : shape === 'arrowR' ? Math.floor((w - pt - tw) / 2) : Math.floor((w - tw) / 2);
-    const oy = Math.floor((h - th) / 2) + 1;
-    for (let y = 0; y < th; y++) for (let x = 0; x < tw + 2; x++) {
+    // centre the caps (rows 2..8) on the board, a hair low to clear the eye bolts
+    const oy = Math.round(h / 2 - 3.5) - 2 + 1;
+    for (let y = 0; y < t.h; y++) for (let x = 0; x < tw; x++) {
       const X = ox + x, Y = oy + y;
-      if (m[y * (tw + 2) + x] && X >= 0 && Y >= 0 && X < w && Y < h) mask[Y * w + X] = 1;
+      if (t.m[y * tw + x] && X >= 0 && Y >= 0 && X < w && Y < h) mask[Y * w + X] = 1;
     }
   }
   for (let y = 0; y < h - 1; y++) for (let x = 0; x < w; x++) if (mask[y * w + x] && !mask[(y + 1) * w + x]) put(x, y + 1, shadowCol);
@@ -258,6 +285,7 @@ function loop(now: number) {
   if (lives.size) raf = requestAnimationFrame(loop); else lastT = 0;
 }
 function wake(l: Live) { lives.add(l); if (!raf) { lastT = 0; raf = requestAnimationFrame(loop); } }
+if (import.meta.env.DEV) (window as any).__signs = { lives, get raf() { return raf; } };
 
 const SIZES = { lg: { bh: 16, chain: 4 }, md: { bh: 14, chain: 4 }, sm: { bh: 13, chain: 3 } };
 

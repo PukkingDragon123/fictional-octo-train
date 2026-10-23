@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import { def, Rig } from '../species';
 import { makeRamp, mixHex } from '../../gfx/pixel';
 import { G } from '../../game/G';
@@ -575,3 +576,6 @@ const S = def({
   const c = fakeCreature(S, { id: 'g3', state: st, speed: st === 'stalk' || st === 'flee' ? 3 : 0, phase: t * 6, mem: q === 'crawl' ? { severed: ['shinR'] } : {}, attackPhase: atk });
   animateEcho(rig, c, t, 1 / 60);
 };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.8, snap: 0.45 });

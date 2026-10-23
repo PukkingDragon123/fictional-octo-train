@@ -131,7 +131,7 @@ export class Lung3D {
       .add(plate(clipRect(CW - 1.4, CH - 1.4, 1.8), 0.9, 0.3, [clipRect(FW + 0.3, FH + 0.3, 1.2)]), M(0, MY, FRONT + 1.6), (_x, y) => (y > MY + 2 ? 0xe4e8ea : y > MY - 2.5 ? 0xa8b0b6 : 0x5e6468), CHROME);
     for (const [sx, sy] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) con.add(fcyl(0.5, 0.5, 6, 0.55, 0.3), M(sx * (CW / 2 - 1.3), MY + sy * (CH / 2 - 1.3), FRONT + 2.6, R90), 0xc0902e, BRASS);
     // the lamp's hex collar (left) and the Nixie's cage socket (right)
-    con.add(fcyl(1.9, 1.2, 6, 2.2, 0.25), M(-CW / 2 - 3.4, MY + 1.5, FRONT + 0.6, R90), 0xb8c0c8, CHROME)
+    con.add(fcyl(1.9, 1.2, 6, 2.2, 0.25), M(-CW / 2 - 2.7, MY + 1.5, FRONT + 0.6, R90), 0xb8c0c8, CHROME)
       .add(fbox(5.4, 8.4, 2, 0.25), M(CW / 2 + 4, MY, FRONT + 0.4), 0x1a1612, PLASTIC)
       .add(fbox(5.6, 0.8, 2.4, 0.3), M(CW / 2 + 4, MY + 4.2, FRONT + 0.6), 0xc0902e, BRASS)
       .add(fbox(5.6, 0.8, 2.4, 0.3), M(CW / 2 + 4, MY - 4.2, FRONT + 0.6), 0xc0902e, BRASS);
@@ -148,7 +148,7 @@ export class Lung3D {
     cover.position.set(0, MY, FRONT + 2.5); cover.renderOrder = 4; r.add(cover);
     this.lampMat = st.solid({ wear: 0.1 });
     const lamp = new THREE.Mesh(new Mold().add(flathe([[1.6, 0], [1.65, 0.5], [1.1, 1.3], [0.55, 1.7], [0, 1.75]], 6), M(0, 0, 0, R90), 0x8a5a20, GLASS, 1).build(), this.lampMat);
-    lamp.position.set(-CW / 2 - 3.4, MY + 1.5, FRONT + 1.2); r.add(lamp);
+    lamp.position.set(-CW / 2 - 2.7, MY + 1.5, FRONT + 1.2); r.add(lamp);
     this.nixie = new PrintTex(8, 12, 2);
     this.paintNixie('');
     const nix = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 5.4), new THREE.MeshBasicMaterial({ map: this.nixie.tex, transparent: true, depthWrite: false }));

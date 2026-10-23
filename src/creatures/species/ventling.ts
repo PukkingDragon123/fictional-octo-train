@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, newRig, Rig } from '../species';
 import { mixHex, scaleHex, ph } from '../../gfx/pixel';
@@ -585,3 +586,6 @@ sp.animateGallery = galleryDriver('ventling', ['walk', 'idle', 'flee', 'carry', 
   fc.mem.net = { carry: pose === 'carry' ? 'soda_can' : null };
   if (pose === 'emerge' && (t % 2) < 1 / 60) fc.mem._et = 0;
 });
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(sp, { twitch: 0.8, snap: 0.3 });

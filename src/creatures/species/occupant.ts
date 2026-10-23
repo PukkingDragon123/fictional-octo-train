@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -528,3 +529,6 @@ const S = def({
   poseOccupant(rig as KRig, { moving: q === 'still' || q === 'warn' ? 0 : 1, lunge, mouth: ud.mouth, look: [Math.sin(t * 0.6) * 3, 4] }, t, dt, ud);
   void fakeCreature;
 };
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.3, snap: 0.15, breathe: 0.015 });

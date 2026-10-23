@@ -4,6 +4,7 @@
 // arms that swing out and slam. Inside the room it belongs to it is very
 // fast. It cannot cross a threshold: get out through a doorway and all it can
 // do is stand in it and rattle.
+import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import type { Creature } from '../creature';
@@ -176,3 +177,6 @@ S.animateGallery = galleryDriver('lintel', ['still', 'walk', 'hunt', 'rattle', '
   fc.dead = pose === 'dead';
 });
 defDread('lintel', { stutter: 0.1, watchFreeze: true, twitch: ['armL', 'armR'], twitchRate: 0.3, sting: 'hit', cam: 0.8 });
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.3, snap: 0.2 });

@@ -97,6 +97,8 @@ export class SubjectRoom {
   onHover?: (p: PartKey | null, x: number, y: number) => void;
   /** wheel / vertical swipe over the head: +1 next face, -1 previous */
   onHeadScroll?: (dir: 1 | -1) => void;
+  /** when set (the creator's sections): a horizontal swipe or a wheel notch anywhere on the room, +1 = next look, -1 = previous (no orbit, no zoom) */
+  onSwipe?: (dir: 1 | -1) => void;
   private host: HTMLElement;
   private scene = new THREE.Scene();
   private cam = new THREE.PerspectiveCamera(32, 1, 0.03, 40);
@@ -749,6 +751,10 @@ export class SubjectRoom {
       if (!p) { if (e.pointerType === 'mouse') this.setHoverPart(this.partAt(e.clientX, e.clientY), e.clientX, e.clientY); return; }
       p.x = e.clientX; p.y = e.clientY;
       const dx = p.x - p.x0, dy = p.y - p.y0;
+      if (this.onSwipe) {
+        if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.2) { p.x0 = p.x; p.y0 = p.y; p.t0 = 0; this.onSwipe(dx < 0 ? 1 : -1); }
+        return;
+      }
       if (p.head && Math.abs(dy) > 46 && Math.abs(dy) > Math.abs(dx) * 1.3) {
         p.y0 = p.y; p.t0 = 0;
         this.onHeadScroll?.(dy < 0 ? 1 : -1);
@@ -768,6 +774,12 @@ export class SubjectRoom {
     cv.addEventListener('wheel', (e) => {
       if (this.mode !== 'lit') return;
       e.preventDefault();
+      if (this.onSwipe) {
+        const now = performance.now();
+        this.wheelAcc += Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+        if (Math.abs(this.wheelAcc) > 40 && now - this.wheelAt > 260) { this.wheelAt = now; this.onSwipe(this.wheelAcc > 0 ? 1 : -1); this.wheelAcc = 0; }
+        return;
+      }
       if (this.partAt(e.clientX, e.clientY) === 'head' || this.focusKey === 'head') {
         const now = performance.now();
         this.wheelAcc += e.deltaY;

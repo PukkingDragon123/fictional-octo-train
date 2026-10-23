@@ -12,6 +12,8 @@ export interface NavOpts {
   autofocus?: boolean | HTMLElement;
   /** let printable keys through to the game (only Esc/arrows/Enter handled) */
   passive?: boolean;
+  /** arrow keys / d-pad first go here; return true to consume them (no spatial focus move) */
+  onArrow?: (dx: number, dy: number) => boolean;
 }
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]):not([type=hidden]), select, textarea, [tabindex]:not([tabindex="-1"])';
@@ -120,7 +122,8 @@ function onKey(e: KeyboardEvent) {
   if (k === 'Escape') {
     if (typing) (t as HTMLElement).blur();
     else if (n.opts.onBack) { sfx('back'); n.opts.onBack(); }
-  } else if (k === 'ArrowUp') n.move(0, -1);
+  } else if (k.startsWith('Arrow') && !typing && !range && n.opts.onArrow?.(k === 'ArrowLeft' ? -1 : k === 'ArrowRight' ? 1 : 0, k === 'ArrowUp' ? -1 : k === 'ArrowDown' ? 1 : 0)) { /* consumed */ }
+  else if (k === 'ArrowUp') n.move(0, -1);
   else if (k === 'ArrowDown') n.move(0, 1);
   else if (k === 'ArrowLeft') { if (typing || range) handled = false; else n.move(-1, 0); }
   else if (k === 'ArrowRight') { if (typing || range) handled = false; else n.move(1, 0); }
@@ -157,7 +160,8 @@ function startPad() {
         const fresh = edge(k, v);
         if (fresh || (v && now > repeatAt)) {
           if (fresh) repeatAt = now + 380; else repeatAt = now + 110;
-          if (k === 'up') n.move(0, -1); else if (k === 'down') n.move(0, 1); else if (k === 'left') n.move(-1, 0); else n.move(1, 0);
+          const dx = k === 'left' ? -1 : k === 'right' ? 1 : 0, dy = k === 'up' ? -1 : k === 'down' ? 1 : 0;
+          if (!n.opts.onArrow?.(dx, dy)) n.move(dx, dy);
         }
       }
       if (edge('a', b(0))) (document.activeElement as HTMLElement | null)?.click();

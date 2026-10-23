@@ -1,4 +1,5 @@
 import { horrify } from '../kit/horror';
+import { kitCanvas, drips, stains, RAW } from '../kit/rot';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { makeRamp, mixHex, scaleHex } from '../../gfx/pixel';
@@ -207,7 +208,7 @@ function buildEmployee(B: SkinB, x: BuildCtx) {
     tube(B, { rows, ys: ays, n: 8, reg: ar, vr: ar.range.map(e), at, w: wf, g: 10 + (k > 0 ? 0 : 1), mirror: k, start: [at[0] - k * 0.02, at[1] + 0.004, at[2]], startW: [U, 0.7, bi('chest'), 0.3] });
     const hp = x.rest('hand' + s);
     ellipsoid(B, [hp[0], hp[1] + 0.006, hp[2] + 0.002], [0.024, 0.022, 0.026], 6, 4, R('BALL'), [F, 0.5, H, 0.5], 12 + (k > 0 ? 0 : 1));
-    handLoft(B, { k, at: [hp[0], hp[1] - 0.012, hp[2]], bones: { farm: F, hand: H, f1: bi('fing1' + s), f2: bi('fing2' + s), thumb: bi('thumb' + s) }, reg: R('HAND_' + s), g: 20 + (k > 0 ? 0 : 10), s: 1.06, fused: true, fingers: { n: 4, len: [0.09, 0.098, 0.092, 0.08], r: [0.009, 0.0095, 0.009, 0.008] }, palm: { len: 0.092, w: 0.042, t: 0.017 } });
+    handLoft(B, { k, at: [hp[0], hp[1] - 0.012, hp[2]], bones: { farm: F, hand: H, f1: bi('fing1' + s), f2: bi('fing2' + s), thumb: bi('thumb' + s) }, reg: R('HAND_' + s), g: 20 + (k > 0 ? 0 : 10), s: 1.06, fused: true, fingers: { n: 4, len: [0.122, 0.134, 0.126, 0.108], r: [0.0085, 0.009, 0.0085, 0.0075] }, palm: { len: 0.092, w: 0.042, t: 0.017 } });
     // a paper price tag on a string from the left cuff, for no reason
     if (k > 0) {
       const c: V3 = [at[0] + 0.034, at[1] + e(-0.5), at[2] + 0.02];
@@ -333,6 +334,11 @@ function paintEmployee(p: Page, x: BuildCtx) {
     // a water mark down one side
     r.glow(r.X(-58 + v * 9), r.Y(1.26), 6, 9, scaleHex(SUIT, 0.86), 0.5);
     r.ellipse(r.X(-58 + v * 9), r.Y(1.26), 6, 9, scaleHex(SUIT, 0.8), 0.18);
+    // what came out of the mouth ran down the shirt; old stains on the jacket, a dragged hand
+    const C = kitCanvas(r);
+    drips(C, r.X(2 + (v % 3) * 3), r.Y(1.56), 4, 22, [0.04, 1], seed + 51, 3);
+    stains(C, 6, seed + 53, undefined, 0.25);
+    for (let i = 0; i < 4; i++) for (let k = 0; k < 9; k++) C.blend(r.X(-120 + i * 5) + (k >> 2), r.Y(1.3) + k * 2, 0x3a1410, 0.6);
   }
   // ---------------- jacket skirt
   {
@@ -411,6 +417,27 @@ function paintEmployee(p: Page, x: BuildCtx) {
     chip(r, Math.round(r.X(25 + v * 7)), Math.round(r.Y(0.03)), 1.1, seed + 5);
     // grime in the creases of the face
     r.glow(r.X(-20), r.Y(0.112), 3, 1.5, SH[1], 0.35); r.glow(r.X(20), r.Y(0.112), 3, 1.5, SH[1], 0.35);
+    // the shell is broken open where a mouth should be: a wet dark hole, raw gums, somebody's teeth
+    {
+      const C = kitCanvas(r);
+      const mx = Math.round(r.X(4 + (v % 3) * 4)), my = Math.round(r.Y(0.052));
+      for (let j = -5; j <= 5; j++) for (let i = -7; i <= 7; i++) {
+        const a = Math.atan2(j * 1.5, i), d = Math.hypot(i / 7, j / 4.2) * (0.78 + 0.45 * hash(Math.floor((a + 4) * 3.1), seed + 41));
+        const X = mx + i, Y = my + j;
+        if (d < 0.62) {
+          // the void, and the teeth crowding its upper edge
+          const up = j < -1 && j > -4 && d > 0.25;
+          C.set(X, Y, up ? (hash(i, seed + 7) < 0.18 ? 0x2a1210 : (i & 1) ? 0xe2d8bc : 0xc8ba94) : d < 0.4 ? 0x0a0404 : RAW[1]);
+          if (up && j === -2) C.set(X, Y, (i & 1) ? 0xf2ead2 : 0xd8ccaa);
+        } else if (d < 0.8) C.set(X, Y, hash(i, j + seed) < 0.5 ? RAW[4] : RAW[3]);   // raw gum round the break
+        else if (d < 0.95) C.set(X, Y, SH[8]);                                        // the broken edge of the paint
+      }
+      drips(C, mx, my + 4, 3, 10, [0.05, 1], seed + 43, 4);
+      // one socket is not empty: a wet human eye looks out of the fibreglass
+      const ex = Math.round(r.X(v % 2 ? -21 : 21)), ey = Math.round(r.Y(0.116));
+      C.set(ex - 1, ey, 0xd8d0c0); C.set(ex, ey, 0x1a1210); C.set(ex + 1, ey, 0xd0c4b4); C.set(ex, ey - 1, 0xb84030);
+      C.set(ex - 2, ey, RAW[3]); C.set(ex + 2, ey, RAW[3]); C.set(ex + 1, ey - 1, 0xfff4e0);
+    }
   }
   // ---------------- neck
   {

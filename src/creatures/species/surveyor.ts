@@ -1,3 +1,4 @@
+import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -562,3 +563,6 @@ defDread('surveyor', { tilt: 'head', tiltMax: 0.9, twitch: ['head', 'armL'], twi
 };
 void TAPE_UNUSED;
 function TAPE_UNUSED() { return 0; }
+
+// the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
+horrify(S, { twitch: 0.5, snap: 0.3 });

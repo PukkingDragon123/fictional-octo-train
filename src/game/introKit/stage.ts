@@ -84,7 +84,7 @@ void main() {
     if (edge > 0.5) c = mix(c, vec3(0.004, 0.0035, 0.003), uOutline);
     else c *= 1.0 + min(crease, 1.0) * 0.28;
   }
-  c = max(c, 0.0) * uExposure + uFlashCol * uFlash;
+  c = max(c, 0.0) * uExposure;
   gl_FragColor = vec4(c, 1.0);
 }
 `;
@@ -156,7 +156,8 @@ uniform vec3 uLift, uGain, uShadow, uHigh;
 uniform float uGamma, uContrast, uSat, uVignette, uHurt, uDesat, uKill, uLevels, uGrain;
 uniform float uBloom, uStreak, uRaysK, uFocus, uAperture, uNearBlur, uCA, uZoom;
 uniform vec2 uMotion;
-uniform vec3 uStreakTint, uRayTint;
+uniform vec3 uStreakTint, uRayTint, uFlashCol;
+uniform float uFlash;
 uniform vec3 uFlarePos;
 uniform vec3 uFlareCol;
 float h12(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
@@ -221,6 +222,8 @@ void main() {
     }
     c += f * uFlarePos.z;
   }
+  // the beat's flash on top of everything (it does not bloom: a strobe, not a lamp)
+  c += uFlashCol * uFlash;
   vec3 s = toSRGB(c);
   // grade
   s = max(s * uGain + uLift * (1.0 - s), 0.0);
@@ -313,7 +316,7 @@ export class StageRender {
       uGamma: 1, uContrast: 0.3, uSat: 1, uVignette: 0.5, uHurt: 0, uDesat: 0, uKill: 0, uLevels: 128, uGrain: 0.006,
       uBloom: 0.9, uStreak: 0.5, uRaysK: 0.35, uFocus: 2, uAperture: 0, uNearBlur: 0.6, uCA: 0, uZoom: 0,
       uMotion: new THREE.Vector2(), uStreakTint: new THREE.Vector3(1, 0.75, 0.6), uRayTint: new THREE.Vector3(1, 1, 1),
-      uFlarePos: new THREE.Vector3(), uFlareCol: new THREE.Vector3(1, 0.3, 0.15),
+      uFlarePos: new THREE.Vector3(), uFlareCol: new THREE.Vector3(1, 0.3, 0.15), uFlashCol: new THREE.Vector3(1, 1, 1), uFlash: 0,
     });
     this.black = mkRT(1, 1);
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.mats.comp);
@@ -328,7 +331,9 @@ export class StageRender {
   /** a flash of light (white strobe, red hit, amber flare...) */
   pulse(k: number, col = 0xfff4e8, decay = 4) { this.flash = Math.max(this.flash, k); this.flashCol.setHex(col); this.flashDecay = decay; }
   /** an impact through the lens: a zoom blur, fringing */
-  impact(k: number) { this.zoom = Math.max(this.zoom, 0.05 * k); this.ca = Math.max(this.ca, 0.012 * k); }
+  impact(k: number) { this.zoom = Math.max(this.zoom, 0.03 * k); this.ca = Math.max(this.ca, 0.008 * k); }
+  /** a hard cut: no motion blur across it */
+  cut() { this.hasPrev = false; }
   /** rack focus to a distance (m) at a rate (1/s), with an aperture */
   rack(dist: number, aperture?: number, rate = 6) { this.focusGoal = dist; this.focusRate = rate; if (aperture !== undefined) this.apertureGoal = aperture; }
 
@@ -341,7 +346,7 @@ export class StageRender {
     this.expo += (this.expoGoal - this.expo) * Math.min(1, dt * 6);
     this.focus += (this.focusGoal - this.focus) * Math.min(1, dt * this.focusRate);
     this.aperture += (this.apertureGoal - this.aperture) * Math.min(1, dt * 4);
-    this.zoom = Math.max(0, this.zoom - dt * 0.35);
+    this.zoom = Math.max(0, this.zoom - dt * 0.25);
     this.ca = Math.max(0, this.ca - dt * 0.05);
   }
 
@@ -426,7 +431,7 @@ export class StageRender {
       const p = this.tv.set(0, 0, -6).applyMatrix4(cam.matrixWorld);
       const a = p.clone().applyMatrix4(this.prevVP), b = p.clone().applyMatrix4(vp);
       this.motion.set((b.x - a.x) * 0.5, (b.y - a.y) * 0.5).multiplyScalar(this.shutter);
-      if (this.motion.length() > 0.12) this.motion.setLength(0.12);
+      if (this.motion.length() > 0.035) this.motion.setLength(0.035);
     } else this.motion.set(0, 0);
     this.prevVP.copy(vp); this.hasPrev = true;
     // 4. composite
@@ -443,6 +448,7 @@ export class StageRender {
     u.uStreakTint.value.set(this.streakTint.r, this.streakTint.g, this.streakTint.b); u.uRayTint.value.set(this.rayTint.r, this.rayTint.g, this.rayTint.b);
     u.uFocus.value = this.focus; u.uAperture.value = dofOn ? this.aperture : 0; u.uNearBlur.value = this.nearBlur;
     u.uMotion.value.copy(this.motion); u.uZoom.value = this.zoom; u.uCA.value = this.ca;
+    u.uFlash.value = this.flash; u.uFlashCol.value.set(this.flashCol.r, this.flashCol.g, this.flashCol.b);
     if (this.flareK > 0.01) { const f = this.toUv(this.flareAt, new THREE.Vector3()); u.uFlarePos.value.set(f.x, f.y, f.z * this.flareK); } else u.uFlarePos.value.set(0, 0, 0);
     u.uFlareCol.value.set(this.flareCol.r, this.flareCol.g, this.flareCol.b);
     this.pass(r, this.mats.comp, null);

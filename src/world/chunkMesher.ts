@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { Zone, CHUNK, TileObject, EdgeObj, Decal } from './zone';
 import { floorDef, wallDef, wallpaperTex, WALL_H, WallDef } from './defs';
 import { ModelBuilder } from '../gfx/modelBuilder';
+import { atlas } from '../gfx/atlas';
+import { mix3, wearRand, floorDamp, DAMP_GRADES as DAMP, SOOTY_GRADES as SOOTY } from './wear';
 import { MAT, worldMaterial } from '../gfx/materials';
 import { hash3 } from '../core/rng';
 import { objDef, objectGeometry, ObjDef } from './objects';
@@ -10,14 +12,19 @@ import { G } from '../game/G';
 const ROT_MATS = [0, 1, 2, 3].map((r) => new THREE.Matrix4().makeRotationY(-r * Math.PI / 2));
 
 /** Variation pick for wall faces so repeated walls don't look copy-pasted */
+const agedOf = new Map<string, string | null>();
 function wallVariant(tex: string, x: number, y: number, side: number): string {
+  const h = mix3(x, y, side + 77) % 100;
   if (tex === 'wall_yellow') {
-    const h = hash3(x, y, side + 77) % 100;
     if (h < 14) return 'wall_yellow_b';
     if (h < 22) return 'wall_yellow_c';
     if (h < 26) return 'wall_yellow_d';
+    return tex;
   }
-  return tex;
+  // every other wall has a damaged twin (src/content/textures/walls.ts): water, peeling, rust, mould
+  let aged = agedOf.get(tex);
+  if (aged === undefined) { aged = atlas().has(tex + '_aged') ? tex + '_aged' : null; agedOf.set(tex, aged); }
+  return aged && h < 20 ? aged : tex;
 }
 
 export interface ChunkMeshes {
@@ -357,8 +364,6 @@ function emitBrokenGlass(glass: ModelBuilder, x: number, y: number, side: number
 }
 
 // ---------------------------------------------------------------- horror wear
-const DAMP = new Set(['lobby', 'pool', 'tunnels', 'house', 'parking', 'hospital', 'stairwell', 'school']);
-const SOOTY = new Set(['tunnels', 'parking', 'lab', 'server', 'corrupt', 'stairwell']);
 const BARE = /concrete|cinder|tunnel|garage|server|brick/;
 
 /** a decal quad standing just proud of one face of an edge wall; a = centre along the edge (0..1) */
@@ -385,7 +390,7 @@ function wallWear(zone: Zone, mb: ModelBuilder, x: number, y: number, side: 0 | 
     const tx = out && side === 1 ? x - 1 : x, ty = out && side === 0 ? y - 1 : y;
     if (!zone.inb(tx, ty) || !zone.floor[zone.idx(tx, ty)]) continue;
     const base = zone.heightAt(tx, ty);
-    const r = (k: number) => (hash3(x * 2 + side, y * 2 + (out ? 1 : 0), k) % 10000) / 10000;
+    const r = (k: number) => (mix3(x * 2 + side, y * 2 + (out ? 1 : 0), k) % 10000) / 10000;
     const a = 0.3 + r(1) * 0.4;
     if (r(2) < (damp ? 0.07 : 0.035)) faceDecal(mb, side, x, y, out, T, a, 0.8, base + H - 1.7, base + H - 0.02, 'hd_water_run');
     if (r(3) < (damp ? 0.08 : 0.03)) faceDecal(mb, side, x, y, out, T, r(4) < 0.5 ? 0.22 : 0.78, 0.75, base + 0.004, base + 0.75, 'hd_mould');
@@ -401,11 +406,11 @@ function wallWear(zone: Zone, mb: ModelBuilder, x: number, y: number, side: 0 | 
 /** damp patches, scorch marks, and (gore on) something dragged across the floor */
 function floorWear(zone: Zone, mb: ModelBuilder, x: number, y: number, h: number, gore: boolean) {
   const g = zone.env.grade;
-  const r = (k: number) => (hash3(x, y, 300 + k) % 10000) / 10000;
+  const r = (k: number) => wearRand(x, y, k);
   const fy = h + 0.008;
   const rot = Math.floor(r(1) * 4) * Math.PI / 2 + (r(2) - 0.5) * 0.5;
   if (zone.isOutdoor(x, y)) return;
-  if (r(3) < (DAMP.has(g) ? 0.045 : 0.018)) mb.flat(x + 0.5, fy, y + 0.5, 1.1, 1.0, 'hd_damp', { rot });
+  if (floorDamp(zone, x, y)) mb.flat(x + 0.5, fy, y + 0.5, 1.1, 1.0, 'hd_damp', { rot });
   else if (SOOTY.has(g) && r(4) < 0.008) mb.flat(x + 0.5, fy, y + 0.5, 1.0, 1.0, 'decal_scorch', { rot });
   if (gore && g !== 'exit' && r(5) < 0.004) mb.flat(x + 0.5, fy + 0.002, y + 0.5, 0.9, 1.8, 'hd_drag', { rot });
 }
@@ -437,7 +442,7 @@ function ceilingFlavour(zone: Zone) { return ceilingInfo(zone).f; }
 function ceilingTex(f: CeilFlavour, x: number, y: number): string {
   if (f.kind === 'concrete') return 'ceil_concrete';
   if (f.kind === 'plaster') return 'ceil_plaster';
-  const h = hash3(x, y, 91) % 100;
+  const h = mix3(x, y, 91) % 100;
   return h < 5 ? 'ceil_tile_stain' : h < 7 ? 'ceil_tile_sag' : h < 9 ? 'ceil_tile_gap' : h < 10 ? 'ceil_tile_mould' : 'ceil_tile';
 }
 

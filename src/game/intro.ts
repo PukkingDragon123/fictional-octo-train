@@ -630,8 +630,8 @@ export class Intro implements GameSystem {
     this.trauma = Math.min(1.2, this.trauma + power);
     this.hurtA = Math.min(1.2, this.hurtA + power * 0.8);
     this.desat = Math.min(0.8, this.desat + power * 0.08);
-    this.stage.pulse(flash * (this.shot ? 0.45 : 0.9), 0xfff2e6, 5);
-    this.lights().strobe(0.5 + power * 0.6, v5.copy(this.eye).add(v4.set(side * 0.4, 0.9, 0.3)));
+    this.stage.pulse(flash * (this.shot ? 0.2 : 0.36), 0xfff2e6, 6);
+    this.lights().strobe(0.25 + power * 0.3, v5.copy(this.eye).add(v4.set(side * 0.4, 0.9, 0.3)));
     // the whip: the view snaps away from the blow
     this.whip.vy += side * 2.4 * power; this.whip.vr += side * 1.6 * power; this.whip.vp += -1.2 * power;
     if ((G.sandbox.gore ?? 2) > 0 && !this.shot) G.gore?.lens?.splash?.(0.15 + power * 0.3, side);
@@ -819,9 +819,9 @@ export class Intro implements GameSystem {
       case 'pressClose': {
         // low at the plate's front lip: the body on the plate, the ram coming down on it
         const { x, z } = IX.press;
-        pos.set(x + 2.45 - t * 0.06, 0.92 + t * 0.02, z + 1.15 - t * 0.04);
-        look.set(x + 0.15, 0.95 - Math.min(0.35, t * 0.25), z - 0.1);
-        return 54;
+        pos.set(x + 3.15 - t * 0.12, 1.12 + t * 0.03, z + 2.25 - t * 0.08);
+        look.set(x + 0.15, 1.15 - Math.min(0.32, t * 0.22), z + 0.45);
+        return 50;
       }
       case 'fitClose': {
         // close on the cradle: the clamp, the officer's glove on your wrist, the driver above
@@ -853,6 +853,7 @@ export class Intro implements GameSystem {
     for (const [a, b, name] of SHOTS[this.phase] ?? []) if (this.t >= a && this.t < b) want = name;
     if (want === this.shot) return;
     this.shot = want; this.shotT = 0;
+    this.stage.cut();
     // a cut wipes the lens: an operator's camera is not your eyes
     if (want) G.gore?.lens?.clear?.();
     this.whip.yaw = this.whip.pitch = this.whip.roll = 0; this.whip.vy = this.whip.vp = this.whip.vr = 0;
@@ -942,20 +943,20 @@ export class Intro implements GameSystem {
     let focus = 3, ap = 0.12;
     const strikeSoon = this.strikes.find((q) => !q.done && q.t - this.t < 0.55 && q.t - this.t > -0.05);
     switch (shot) {
-      case 'establish': focus = d(v4.set((this.A.x + this.B.x) / 2, 1.3, (this.A.z + this.B.z) / 2)); ap = 0.35; break;
-      case 'throwWide': focus = d(head); ap = 0.3; break;
-      case 'beatWide': { const g = strikeSoon ? (strikeSoon.who === 0 ? this.A : this.B) : null; focus = g ? d(g.rig.j.head.getWorldPosition(v4)) : d(head); ap = 0.5; break; }
-      case 'beatTop': focus = d(head); ap = 0.35; break;
-      case 'haulCrane': focus = d(head); ap = 0.25; break;
-      case 'pressClose': focus = d(v4.set(IX.press.x + 0.1, GP.bedH + 0.2, IX.press.z + 0.4)); ap = 0.55; break;
-      case 'fitClose': focus = d(this.set.rig.cradle); ap = 0.6; break;
-      case 'fitPierce': focus = this.t < 4.35 ? d(this.set.rig.die.getWorldPosition(v4)) : d(head); ap = 0.6; break;
-      case 'tapeWide': focus = d(head); ap = 0.35; break;
+      case 'establish': focus = d(v4.set((this.A.x + this.B.x) / 2, 1.3, (this.A.z + this.B.z) / 2)); ap = 0.18; break;
+      case 'throwWide': focus = d(head); ap = 0.14; break;
+      case 'beatWide': { const g = strikeSoon ? (strikeSoon.who === 0 ? this.A : this.B) : null; focus = g ? d(g.rig.j.head.getWorldPosition(v4)) : d(head); ap = 0.3; break; }
+      case 'beatTop': focus = d(head); ap = 0.2; break;
+      case 'haulCrane': focus = d(head); ap = 0.12; break;
+      case 'pressClose': focus = d(v4.set(IX.press.x + 0.1, GP.bedH + 0.2, IX.press.z + 0.4)); ap = 0.22; break;
+      case 'fitClose': focus = d(this.set.rig.cradle); ap = 0.3; break;
+      case 'fitPierce': focus = this.t < 4.35 ? d(this.set.rig.die.getWorldPosition(v4)) : d(head); ap = 0.3; break;
+      case 'tapeWide': focus = d(head); ap = 0.18; break;
       default: {
         // first person: whoever is closest and in front; dazed after the head blows
         const near = [this.A, this.B].map((g) => g.rig.j.head.getWorldPosition(new THREE.Vector3())).filter((p) => p.distanceTo(cam.position) < 4).sort((a, b) => a.distanceTo(cam.position) - b.distanceTo(cam.position))[0];
         focus = near ? d(near) : 3.5;
-        ap = 0.14 + Math.min(0.45, this.hurtA * 0.35);
+        ap = 0.06 + Math.min(0.3, this.hurtA * 0.22);
       }
     }
     st.rack(focus, Math.max(ap, st.apertureGoal * 0.96 > ap ? st.apertureGoal * Math.exp(-dt * 1.5) : ap), shot ? 4 : 7);
@@ -1111,7 +1112,7 @@ export class Intro implements GameSystem {
         this.wallHit = true;
         this.sfx('body_thud', 1); this.sfx('bone_crunch', 0.5); this.sfx('debtor_gasp', 0.9);
         this.hit(1.0, -1, 0.65);
-        this.lights().strobe(1, v5.set(IX.ante.x0 + 0.6, 1.4, head.z));
+        this.lights().strobe(0.6, v5.set(IX.ante.x0 + 0.6, 1.4, head.z));
         if ((G.sandbox.gore ?? 2) > 0) { this.set.spray(head.x + 0.15, Math.max(0.5, head.y), head.z, -1.2, 0.5, (Math.random() - 0.5) * 0.6, 18, 2.4); this.set.wallSplat(IX.ante.x0, Math.max(0.6, head.y), head.z, 1, 0, 0.9); }
         this.paint('head', 1); this.paint('torso_u', 1);
       }
@@ -1229,7 +1230,7 @@ export class Intro implements GameSystem {
     }
     const power = s.part === 'head' ? 1.15 : s.kind === 'kick' ? 0.85 : 0.7;
     this.hit(power, dx, s.part === 'head' ? 0.75 : 0.4);
-    if (s.part === 'head') { this.stage.pulse(this.shot ? 0.2 : 0.5, 0xff6050, 3); this.stage.apertureGoal = Math.max(this.stage.apertureGoal, 0.9); }
+    if (s.part === 'head') { this.stage.pulse(this.shot ? 0.12 : 0.26, 0xff5040, 4); this.stage.apertureGoal = Math.max(this.stage.apertureGoal, 0.55); }
     // the body takes it (the springs), the officer's arm takes the recoil
     this.jolt(away.x * 1.1, away.z * 1.1, s.part, power * 1.4);
     gd.recoil(s.kind === 'kick' ? 0.5 : 1.2);
@@ -1361,8 +1362,8 @@ export class Intro implements GameSystem {
     inj.bleed = Math.min(inj.bleed, 0.06);
     p.body.panic = Math.max(p.body.panic, 80);
     bus.emit('playerHit', p, 'hand_l', 'deep', { dmg: 16, from: [p.x - 1, p.z], knock: 0.2, by: 'custody' });
-    this.hit(1.1, -1, 1);
-    this.stage.pulse(0.6, 0xffffff, 6);
+    this.hit(1.1, -1, 0.6);
+    this.stage.pulse(0.22, 0xffffff, 7);
     this.jolt(0, 0.6, 'chest', 1.2);
     this.trauma = 1.2;
     this.fitBand();

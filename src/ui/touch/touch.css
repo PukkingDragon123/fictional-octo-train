@@ -73,7 +73,7 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 /* context actions: pills with icon + word */
 .nc-ctx { left: 50%; transform: translateX(-50%); bottom: calc(var(--sb) + var(--gap) + 4px); justify-content: center; }
 .nc-ctx > .nc-btn { flex-direction: row; width: auto; height: calc(var(--u) * 0.95); padding: 0 calc(var(--u) * 0.2) 0 calc(var(--u) * 0.12); gap: 6px; }
-.nc-ctx > .nc-btn > b { font-size: 12px; line-height: 12px; color: #efe5c4; text-transform: none; font-style: italic; }
+.nc-ctx > .nc-btn > b { font-size: 12px; line-height: 12px; color: #efe5c4; text-transform: none; }
 @media (min-resolution: 2dppx) and (min-width: 700px), (min-width: 1000px) { .nc-ctx > .nc-btn > b { font-size: 17px; line-height: 17px; } }
 @media (orientation: portrait) {
   /* stacked above the action cluster, clear of the survivor in the middle of the screen */

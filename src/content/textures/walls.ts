@@ -755,16 +755,16 @@ function ageLight(pc: PixelCanvas, name: string) {
 function ageHeavy(pc: PixelCanvas, rng: Rng, name: string) {
   const bare = BARE_WALL.test(name);
   // water from the ceiling joint: a tongue of tea-coloured stain with tide lines and runs
-  const cx = rng.int(6, 26), wdt = rng.int(5, 9), depth = rng.int(30, 60);
+  const cx = rng.int(6, 26), wdt = rng.int(4, 8), depth = rng.int(22, 46);
   const body = 0x6a5228, rim = 0x3e2c14;
   for (let y = 0; y < depth; y++) {
     const half = Math.max(0, wdt * (1 - y / (depth * 0.7)) + (nz(pc, cx, y, 2, 8, 2, 31) - 0.5) * 4);
     for (let x = Math.floor(cx - half); x <= cx + half; x++) {
       const edge = Math.abs(x - cx) > half - 1;
-      pc.blend(x, y, edge ? rim : body, edge ? 0.5 : 0.24);
+      pc.blend(x, y, edge ? rim : body, edge ? 0.42 : 0.2);
     }
   }
-  for (let k = 0; k < 3; k++) { const rx = cx + rng.int(-wdt, wdt), len = rng.int(20, depth + 18); for (let y = 0; y < len; y++) pc.blend(rx, y, rim, 0.35 * (1 - y / len) + 0.08); }
+  for (let k = 0; k < 2; k++) { const rx = cx + rng.int(-wdt, wdt), len = rng.int(16, depth + 14); for (let y = 0; y < len; y++) pc.blend(rx, y, rim, 0.28 * (1 - y / len) + 0.06); }
   for (let x = cx - wdt; x <= cx + wdt; x++) pc.blend(x, 6 + Math.floor(nz(pc, x, 0, 4, 1, 1, 8) * 5), rim, 0.55);
   if (bare) {
     // rust weeping from two fixings
@@ -774,15 +774,18 @@ function ageHeavy(pc: PixelCanvas, rng: Rng, name: string) {
       for (let y = fy + 2; y < fy + rng.int(14, 30); y++) { pc.blend(fx, y, 0x8a4418, 0.45); if (ph(fx, y, 3) < 0.5) pc.blend(fx + 1, y, 0x5e2c10, 0.35); }
     }
   } else {
-    // paint / paper peeling away in a couple of patches: the older coat beneath, a dark lip, a lit curl
+    // paint / paper flaking away in ragged patches: the older grey coat beneath, a dark shadow under
+    // the lifted edge, a lit curl along the top
     for (let k = 0; k < 2; k++) {
-      const px = rng.int(2, 26), py = rng.int(26, 60), w = rng.int(3, 6), h = rng.int(3, 7);
-      for (let y = py; y < py + h; y++) for (let x = px; x < px + w; x++) {
-        if (ph(x, y, 9 + k) < 0.2 && (x === px || y === py)) continue;
-        pc.set(x, y, mixHex(0x9a9484, 0x7a7466, ph(x, y, 4)));
+      const cx2 = rng.int(4, 27), cy2 = rng.int(28, 62), rx = rng.float(2.5, 4.5), ry = rng.float(2.5, 5);
+      const seed = rng.int(1, 999);
+      for (let y = Math.floor(cy2 - ry - 2); y <= cy2 + ry + 2; y++) for (let x = Math.floor(cx2 - rx - 2); x <= cx2 + rx + 2; x++) {
+        const m = blob(x, y, cx2, cy2, rx, ry, seed, 0.6);
+        if (m <= 0) continue;
+        pc.set(x, y, m < 0.25 ? 0x8a8474 : ph(x, y, 4) < 0.5 ? 0xb4ae9e : 0xa8a292);
+        if (blob(x, y + 1, cx2, cy2, rx, ry, seed, 0.6) <= 0) pc.blend(x, y + 1, 0x1a160f, 0.55);
+        if (blob(x, y - 1, cx2, cy2, rx, ry, seed, 0.6) <= 0) pc.blend(x, y - 1, 0xf2ead2, 0.4);
       }
-      for (let x = px; x < px + w; x++) { pc.blend(x, py + h, 0x1a160f, 0.6); pc.blend(x, py - 1, 0xf0e8d0, 0.35); }
-      for (let y = py; y < py + h; y++) pc.blend(px + w, y, 0x1a160f, 0.5);
     }
     // nicotine browning round where a hand rests
     for (let y = 40; y < 56; y++) for (let x = 0; x < pc.w; x++) if (nz(pc, x, y, 3, 3, 2, 55) > 0.6) pc.blend(x, y, 0x5a4420, 0.14);
@@ -800,7 +803,7 @@ addTextureModule(() => {
   const W = (name: string, fn: (pc: PixelCanvas, rng: Rng) => void) => {
     const skip = name === 'wall_dream' || name === 'wall_corrupt';
     A.add(name, 32, H, (pc, rng) => { fn(pc, rng); if (!skip) ageLight(pc, name); }, 1, 2.7);
-    if (!skip) A.add(name + '_aged', 32, H, (pc, rng) => { fn(pc, rng); ageLight(pc, name); ageHeavy(pc, new Rng(hashName(name)), name); }, 1, 2.7);
+    if (!skip) A.add(name + '_aged', 32, H, (pc, rng) => { fn(pc, rng); ageLight(pc, name); ageHeavy(pc, rng.fork(hashName(name)), name); }, 1, 2.7);
   };
   W('wall_concrete', wallConcrete);
   W('wall_cinder', wallCinder);

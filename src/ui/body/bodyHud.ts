@@ -351,7 +351,15 @@ export class BodyHud {
     const unitPx = touch ? Math.max(1, game) : Math.max(1, Math.min(game, Math.floor(window.innerWidth * dpr * 0.27 / W)));
     const cw = W * unitPx / dpr, ch = H * unitPx / dpr;
     const x = touch ? Math.round((window.innerWidth - cw) / 2) : Math.round(window.innerWidth - cw - 8);
-    const y = touch ? 2 : Math.round(window.innerHeight - ch - 4);
+    let y = touch ? 2 : Math.round(window.innerHeight - ch - 4);
+    if (touch) {
+      // portrait phones: the top bar's controls run across the whole width, so the rig floats just under them
+      for (const el of document.querySelectorAll<HTMLElement>('#nc-touch .nc-tl .nc-btn, #nc-touch .nc-tr .nc-btn')) {
+        const r = el.getBoundingClientRect();
+        if (r.width < 1 || r.top > 140 || el.classList.contains('nc-hide')) continue;
+        if (r.right > x + cw * 0.1 && r.left < x + cw * 0.9) y = Math.max(y, Math.round(r.bottom + 10));
+      }
+    }
     if (touch === this.touch && k === this.k && x === this.st.css.x && y === this.baseY && unitPx === this.st.px && W === this.st.W) return;
     this.touch = touch; this.k = k; this.baseY = y;
     this.world.scale.setScalar(k);
