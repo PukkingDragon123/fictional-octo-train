@@ -142,7 +142,7 @@ const plateTex = () => canvasTex('wt_platet', 128, 36, (g, w, h) => {
   g.font = `700 14px ${cssFont('--font-new', 'serif')}`; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillStyle = 'rgba(255,240,200,0.7)'; g.fillText('BAILIFF  MK·IX', w / 2 + 1, h * 0.38 + 1);
   g.fillStyle = '#4a3010'; g.fillText('BAILIFF  MK·IX', w / 2, h * 0.38);
-  g.font = `italic 600 10px ${cssFont('--font-new', 'serif')}`; g.fillText('Meridian Institute · Remittance', w / 2, h * 0.76);
+  g.font = `600 10px ${cssFont('--font-new', 'serif')}`; g.fillText('Meridian Institute · Remittance', w / 2, h * 0.76);
   for (const [x, y] of [[4, 4], [w - 6, 4], [4, h - 6], [w - 6, h - 6]]) { g.fillStyle = '#6a4a18'; g.fillRect(x, y, 2, 2); g.fillStyle = '#f8e0a0'; g.fillRect(x, y, 1, 1); }
 }, true, true);
 

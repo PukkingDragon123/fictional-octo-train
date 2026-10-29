@@ -5,7 +5,7 @@
 // bridges, chipped paint), the debtor card in its clear window, the riveted asset
 // plate and the packing card inside the lid. Everything is drawn pixel by pixel at
 // about one texel per low-res screen pixel, nearest-filtered, no mipmaps; type is
-// Space Grotesk drawn small and thresholded so every letter edge is a hard pixel.
+// Space Grotesk (the game's face) printed with its smooth edges kept, just the faintest fringe dropped.
 import * as THREE from 'three';
 import { PixelCanvas, makeRamp, mixHex, scaleHex } from '../../gfx/pixel';
 import { cssFont, fontsReady } from '../../gfx/crt';
@@ -308,18 +308,29 @@ export function padTile(): THREE.Texture {
 
 // ---------------------------------------------------------------- printed things
 const FONT = () => cssFont('--font-new', 'monospace');
-/** draw text, then snap its alpha to hard pixels (no anti-aliased fringe) */
+/**
+ * Print text into a pixel picture. The face is a smooth grotesque (Space Grotesk), so its edges keep
+ * their coverage, laid over what is there; only the faintest fringe is dropped so letters stay clean
+ * at a few pixels high. `cut` (0..255) is that fringe threshold.
+ */
 function hardText(ctx: CanvasRenderingContext2D, s: string, x: number, y: number, px: number, color: string, align: CanvasTextAlign = 'left', weight = 600, cut = 110) {
   const w = ctx.canvas.width, h = ctx.canvas.height;
   const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h;
-  const t = tmp.getContext('2d')!;
+  const t = tmp.getContext('2d', { willReadFrequently: true })!;
   t.font = `${weight} ${px}px ${FONT()}`; t.textAlign = align; t.textBaseline = 'alphabetic';
   t.fillStyle = '#fff'; t.fillText(s, x, y);
   const img = t.getImageData(0, 0, w, h), d = img.data;
   const out = ctx.getImageData(0, 0, w, h), o = out.data;
   const col = new THREE.Color(color);
   const r = Math.round(col.r * 255), g = Math.round(col.g * 255), b = Math.round(col.b * 255);
-  for (let i = 0; i < d.length; i += 4) if (d[i + 3] > cut) { o[i] = r; o[i + 1] = g; o[i + 2] = b; o[i + 3] = 255; }
+  const floor = Math.max(10, cut * 0.35);
+  for (let i = 0; i < d.length; i += 4) {
+    const c = d[i + 3];
+    if (c <= floor) continue;
+    const a = Math.min(1, (c - floor) / (255 - floor) * 1.35);
+    o[i] = o[i] + (r - o[i]) * a; o[i + 1] = o[i + 1] + (g - o[i + 1]) * a; o[i + 2] = o[i + 2] + (b - o[i + 2]) * a;
+    o[i + 3] = Math.max(o[i + 3], Math.round(a * 255));
+  }
   ctx.putImageData(out, 0, 0);
 }
 /** knock out pixels to look like chipped, worn paint */
