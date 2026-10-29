@@ -10,7 +10,9 @@ export type Sfx = 'hover' | 'click' | 'confirm' | 'back' | 'type' | 'error' | 'b
   // the pixel-art switchgear (btnKit / terminal): plate keys, rocker keys, the big levers, a keyboard clack
   | 'plate' | 'rocker' | 'lever' | 'key' | 'relay'
   // hanging signs and the gear works
-  | 'creak' | 'chain' | 'ratchet';
+  | 'creak' | 'chain' | 'ratchet'
+  // the aluminium signs: a steel cable ticking in its clamp, a light panel knock
+  | 'cable' | 'tink';
 
 let own: AudioContext | null = null;
 let gestureHooked = false;
@@ -149,6 +151,14 @@ export function sfx(kind: Sfx, vol = 1) {
       break;
     }
     case 'chain': for (let i = 0; i < 4; i++) { noise(i * 0.03 + Math.random() * 0.015, 0.012, 0.35 + Math.random() * 0.25, 3800 + Math.random() * 2600, 5); tone('triangle', 2400 + Math.random() * 900, 2200, i * 0.03, 0.03, 0.012); } break;
+    case 'cable': {
+      // a thin steel cable ticking in its clamp: two bright short partials, a whisper of noise
+      const f = 3200 + Math.random() * 900;
+      tone('sine', f, f * 0.985, 0, 0.09, 0.022); tone('sine', f * 1.51, f * 1.49, 0.004, 0.06, 0.012);
+      noise(0, 0.012, 0.18, 6800, 3);
+      break;
+    }
+    case 'tink': tone('triangle', 1650 + Math.random() * 200, 1600, 0, 0.16, 0.045); tone('sine', 2480, 2460, 0.002, 0.12, 0.02); noise(0, 0.01, 0.35, 5200, 2); break;
     case 'ratchet': for (let i = 0; i < 5; i++) { noise(i * 0.045, 0.012, 0.8, 1700 + i * 90, 2); tone('square', 620 - i * 20, 480, i * 0.045, 0.015, 0.035); } tone('sine', 140, 80, 0.22, 0.12, 0.12); break;
     case 'unlock':
       [523, 659, 784, 1046].forEach((f, i) => tone('square', f, f, i * 0.07, 0.16, 0.05));

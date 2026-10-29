@@ -69,6 +69,7 @@ export class CookView {
   private puffs!: Puffs;
   private shimmer!: Shimmer;
   private puffT = 0;
+  private tapeM!: THREE.Mesh;
   private slots: Slot[] = [];
   private bits: Bit[] = [];
   private pot: { it: Item; cls: string }[] = [];
@@ -213,12 +214,13 @@ export class CookView {
       tape.text('CLICK FOOD: FLIP · SPACE: TOSS · HOLD THE POT & CIRCLE: STIR · PLATE: SERVE · E: STEP BACK', 512, 7, { font: FONT.sign, size: 22, color: 0xe8e8e0, align: 'center', weight: '600' });
       tape.commit();
     });
-    const tm = sheetMesh(tape, 0.96, 0.036); tm.position.set(-0.08, -0.03, 0.402); this.rig.add(tm);
+    const tm = sheetMesh(tape, 0.96, 0.036); tm.position.set(-0.08, -0.03, 0.402); this.rig.add(tm); this.tapeM = tm;
     // ---- the bakelite heat knob (stoves)
     const knS = new Shape(8); knS.lathe(0, 0, 0, [[0, 0], [0.034, 0], [0.036, 0.006], [0.033, 0.022], [0.026, 0.03], [0, 0.031]], 0xffffff, 8);
     for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; knS.box(Math.cos(a) * 0.034, 0.004, Math.sin(a) * 0.034, 0.006, 0.02, 0.006, 0xd0c0b0, 0.002, [0, -a, 0]); }
     const knm = new THREE.Mesh(knS.build(), pixMat('bakelite'));
-    const tick = new THREE.Mesh(rod(0.0028, 0.022, 6), std(0xe8e0c8, 0.4, 0)); tick.rotation.y = Math.PI / 2; tick.position.set(0, 0.031, 0.013); knm.add(tick);
+    const tkS = new Shape(8); tkS.box(0, 0.029, 0.013, 0.005, 0.004, 0.022, 0xffffff, 0.0015);
+    knm.add(new THREE.Mesh(tkS.build(), pixMat('enamelCream')));
     knm.rotation.x = Math.PI / 2; this.knob.add(knm);
     this.knob.position.set(0.62, -0.03, 0.4); this.rig.add(this.knob);
     // ---- a probe thermometer that sticks into whatever you look at
@@ -361,6 +363,9 @@ export class CookView {
     G.ui && (G.ui.modal = this.token);
     this.knob.visible = kind === 'stove';
     this.hob.visible = kind === 'stove'; this.grate.visible = kind !== 'stove';
+    // the label tape: along the range's front edge, or along the chopping board by the fire
+    if (kind === 'stove') { this.tapeM.position.set(-0.08, -0.026, 0.4425); this.tapeM.scale.setScalar(1); }
+    else { this.tapeM.position.set(-0.28, -0.003, 0.3858); this.tapeM.scale.set(0.8, 0.8, 1); }
     p.actions.clear();
     p.actions.add(new CookingAction(p, () => this.open, o.x + 0.5, o.y + 0.5));
     this.rig.position.y = -0.5; // slides up into view

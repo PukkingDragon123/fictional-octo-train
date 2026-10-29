@@ -87,7 +87,7 @@ function tapeTex() {
     for (let y = 0; y < 32; y++) { pc.set(0, y, K); pc.set(7, y, K); pc.set(1, y, mixHex(pc.get(1, y), 0xffffff, 0.25)); }
   }, true);
 }
-/** the enamel plate: cream, a red border, black stencil words (Space Grotesk, alpha-thresholded so the pixels stay hard) */
+/** the enamel plate: cream, a red border, black printed words (Space Grotesk, set smooth at 4x over the pixel plate) */
 function signTex() {
   const W = 96, H = 34;
   const pc = new PixelCanvas(W, H);
@@ -100,21 +100,21 @@ function signTex() {
   for (let i = 0; i < 14; i++) { const x = 4 + Math.floor(hash3(i, 1, 52) * (W - 8)), y = 4 + Math.floor(hash3(i, 2, 52) * (H - 8)); pc.set(x, y, 0x8c8a7c); }
   for (let x = 0; x < W; x++) { pc.set(x, 0, K); pc.set(x, H - 1, K); }
   for (let y = 0; y < H; y++) { pc.set(0, y, K); pc.set(W - 1, y, K); }
+  // the plate is pixel art (upscaled 4x, nearest); the words are type, set smooth at that resolution
+  const S = 4;
+  const tmp = document.createElement('canvas'); tmp.width = W; tmp.height = H;
+  tmp.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
   const cv = document.createElement('canvas');
-  cv.width = W; cv.height = H;
+  cv.width = W * S; cv.height = H * S;
   const g = cv.getContext('2d')!;
-  g.putImageData(pc.toImageData(), 0, 0);
-  // words, drawn on a scratch canvas and thresholded onto the plate
-  const tc = document.createElement('canvas'); tc.width = W; tc.height = H;
-  const t = tc.getContext('2d')!;
-  t.fillStyle = '#000'; t.textAlign = 'center'; t.textBaseline = 'alphabetic';
-  t.font = `700 13px ${cssFont('--font-new', "'Space Grotesk', Arial, sans-serif")}`;
-  t.fillText('SEAM 04', W / 2, 17);
-  t.font = `600 8px ${cssFont('--font-new', "'Space Grotesk', Arial, sans-serif")}`;
-  t.fillText('ESCORTED TRANSFER ONLY', W / 2, 27);
-  const td = t.getImageData(0, 0, W, H), pd = g.getImageData(0, 0, W, H);
-  for (let i = 0; i < W * H; i++) if (td.data[i * 4 + 3] > 110) { pd.data[i * 4] = 22; pd.data[i * 4 + 1] = 20; pd.data[i * 4 + 2] = 16; }
-  g.putImageData(pd, 0, 0);
+  g.imageSmoothingEnabled = false;
+  g.drawImage(tmp, 0, 0, W * S, H * S);
+  const font = cssFont('--font-new', "'Space Grotesk', Arial, sans-serif");
+  g.fillStyle = '#17150f'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+  g.font = `700 ${11 * S}px ${font}`;
+  g.fillText('SEAM 04', W * S / 2, 17.5 * S);
+  g.font = `500 ${5.2 * S}px ${font}`;
+  g.fillText('ESCORTED TRANSFER ONLY', W * S / 2, 26.5 * S);
   return canvasTex(cv);
 }
 function lampGlassTex() {

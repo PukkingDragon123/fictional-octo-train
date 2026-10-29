@@ -95,7 +95,7 @@ function overlayTex(key: string): THREE.CanvasTexture {
   let t = canvases.get(key);
   if (t) return t;
   const [w, h, d] = TEX[key];
-  const S = key === 'arv_pk_flap' ? 2 : 1;
+  const S = key === 'arv_pk_flap' ? 6 : 1;
   const pc = new PixelCanvas(w, h);
   d(pc);
   const cv = document.createElement('canvas');
@@ -106,18 +106,14 @@ function overlayTex(key: string): THREE.CanvasTexture {
   g.imageSmoothingEnabled = false;
   g.drawImage(tmp, 0, 0, w * S, h * S);
   if (key === 'arv_pk_flap') {
-    // MERIDIAN INSTITUTE / REMITTANCE ISSUE, printed beside the seal, thresholded to hard pixels
-    const tc = document.createElement('canvas'); tc.width = cv.width; tc.height = cv.height;
-    const x = tc.getContext('2d')!;
-    x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
-    x.font = `700 11px ${cssFont('--font-new', "'Space Grotesk', Arial, sans-serif")}`;
-    x.fillText('MERIDIAN', 34, 19);
-    x.font = `600 7px ${cssFont('--font-new', "'Space Grotesk', Arial, sans-serif")}`;
-    x.fillText('REMITTANCE ISSUE', 34, 28);
-    x.fillText('No. 0041-R', 34, 35);
-    const td = x.getImageData(0, 0, tc.width, tc.height), pd = g.getImageData(0, 0, cv.width, cv.height);
-    for (let i = 0; i < tc.width * tc.height; i++) if (td.data[i * 4 + 3] > 120) { pd.data[i * 4] = 214; pd.data[i * 4 + 1] = 216; pd.data[i * 4 + 2] = 200; }
-    g.putImageData(pd, 0, 0);
+    // MERIDIAN / REMITTANCE ISSUE / a serial, screen-printed beside the seal (smooth type over the pixel fabric)
+    const font = cssFont('--font-new', "'Space Grotesk', Arial, sans-serif");
+    g.fillStyle = '#d6d8c8'; g.textBaseline = 'alphabetic'; g.textAlign = 'left';
+    g.font = `700 ${5.4 * S}px ${font}`;
+    g.fillText('MERIDIAN', 17 * S, 10 * S);
+    g.font = `500 ${2.9 * S}px ${font}`;
+    g.fillText('REMITTANCE ISSUE', 17 * S, 14 * S);
+    g.fillText('No. 0041-R', 17 * S, 17.4 * S);
   }
   t = canvasTex(cv, true);
   canvases.set(key, t);
