@@ -15,7 +15,7 @@ import { allRecipes, type Recipe } from '../items/recipes';
 import { checkRecipe, CraftAction } from '../interact/crafting';
 import { hasUnlock, researchNode } from '../game/research';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera } from '../fp/fp';
-import { CubeView } from './cubeView';
+import { PackView } from '../ui/pack/packView';
 import { HAND_OPS, type HandOp, matches, pickTool, pickParts, partLabel, toolLabel } from './handOps';
 import { Tweens, easeOut, easeBack, makeArm, poseArm, type Arm, makeItemObj, fitItemObj, type ItemObj, pointerRay, Particles, keepEye } from './fpKit';
 import { pixMat } from './fpTex';
@@ -39,7 +39,7 @@ export class Bench {
   private g!: THREE.Group;
   private top = new THREE.Group();
   private peg = new THREE.Group();
-  private cube = new CubeView();
+  private cube = new PackView();
   private staged: Staged[] = [];
   private stageG = new THREE.Group();
   private obj: TileObject | null = null;
@@ -256,7 +256,7 @@ export class Bench {
     G.input.pointerOverUI = true;
     const back = p.worn.get('back' as any);
     this.cube.setContainer(back?.inv ?? null);
-    this.cube.setLid(1); this.cube.setBolts(1); this.cube.setInside(1);
+    this.cube.setLid(1); this.cube.setBolts(1); this.cube.setZip(1); this.cube.setLock(1); this.cube.setInside(1);
     this.cube.root.rotation.set(0, 0.22, 0);
     this.layout();
     this.dirty = true;

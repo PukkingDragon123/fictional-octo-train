@@ -21,7 +21,7 @@ export interface OutfitShape {
   hat: '' | 'cap' | 'beanie' | 'hardhat' | 'helmet' | 'flat';
   eyes: '' | 'glasses' | 'sunglasses' | 'goggles';
   face: '' | 'mask' | 'gasmask' | 'scarf';
-  back: number; backKind: '' | 'pack' | 'hiking';
+  back: number; backKind: '' | 'pack' | 'hiking' | 'field';
   /** modelled details on the garment shells: pockets, zips, plackets, belts, tapes (see SHELLS) */
   feats?: ShellFeat[];
 }
@@ -182,7 +182,7 @@ export function outfitShape(o: Outfit): OutfitShape {
     sh.face = it.includes('gas') ? 'gasmask' : it.includes('scarf') ? 'scarf' : it ? 'mask'
       : o.face.color === 0x3a3a3a ? 'gasmask' : o.face.color === 0xa83a3a ? 'scarf' : 'mask';
   }
-  if (o.back) { sh.back = o.back.size ?? 1; sh.backKind = (o.back.item || '').includes('hiking') ? 'hiking' : 'pack'; }
+  if (o.back) { sh.back = o.back.size ?? 1; const it = o.back.item || ''; sh.backKind = it.includes('hiking') ? 'hiking' : it === 'iron_cube' ? 'field' : 'pack'; }
   const feats = shellFeats(o, sh);
   if (feats.length) sh.feats = feats;
   return sh;

@@ -1466,15 +1466,16 @@ function backpack(B: SkinBuilder, d: Dims, sh: OutfitShape) {
   const sz = sh.back;
   const C = BI.chest;
   const back = sampleRows(TORSO_ROWS, 1.25).rb * d.mass + sh.topThick + sh.outerThick;
-  const w = 0.3 * sz * (d.bw * 0.5 + 0.5), h = 0.42 * sz * (sh.backKind === 'hiking' ? 1.3 : 1), dep = 0.15 * sz;
+  const field = sh.backKind === 'field';
+  const w = (field ? 0.34 : 0.3) * sz * (d.bw * 0.5 + 0.5), h = (field ? 0.44 : 0.42) * sz * (sh.backKind === 'hiking' ? 1.3 : 1), dep = (field ? 0.22 : 0.15) * sz;
   const cz = -(back + dep / 2 + 0.01) * s;
   const top = 1.43 * s, bot = top - h * s;
   const ys = [bot, bot + 0.02 * s, top - 0.04 * s, top];
   const rings = ys.map((y, i) => {
     const k = i === 0 || i === 3 ? 0.86 : 1;
-    return { pts: ellRing(y, 0, cz, (w / 2) * k * s, (dep / 2) * k * s, (dep / 2) * k * s, 12, 4, 1, undefined, 0), v: (y - bot) / (top - bot), w: [C, 1] as Wt };
+    return { pts: ellRing(y, 0, cz, (w / 2) * k * s, (dep / 2) * k * s, (dep / 2) * k * s, field ? 8 : 12, 4, 1, undefined, field ? Math.PI / 8 : 0), v: (y - bot) / (top - bot), w: [C, 1] as Wt };
   });
-  B.loft(rings, usFor(12), subReg(REG.PACK, 0, 0.3, 1, 1), 140, { start: [0, bot - 0.004, cz], end: [0, top + 0.01, cz], startV: 0, endV: 1 });
+  B.loft(rings, usFor(field ? 8 : 12), subReg(REG.PACK, 0, 0.3, 1, 1), 140, { start: [0, bot - 0.004, cz], end: [0, top + 0.01, cz], startV: 0, endV: 1 });
   // front pocket
   B.box([0, bot + h * 0.28 * s, cz - (dep / 2 + 0.02) * s], [w * 0.75 * s, h * 0.4 * s, 0.05 * s], null, REG.PACK, [C, 1], [0.02, 0.02, 0.53, 0.26], 0.92);
   // shoulder straps
@@ -1490,6 +1491,17 @@ function backpack(B: SkinBuilder, d: Dims, sh: OutfitShape) {
       const m = new THREE.Matrix4().lookAt(new THREE.Vector3(0, 0, 0), new THREE.Vector3(dx, dy, dz), new THREE.Vector3(1, 0, 0));
       B.box(c, [0.045 * s, 0.01 * s, L + 0.01], m, REG.PACK, [C, 1], [0.62, 0.02, 0.98, 0.26], 0.8);
     }
+  }
+  if (field) {
+    // the Meridian field pack: a steel frame up both sides of the back pad with a bar standing
+    // proud above the top, a rubberised base band, two compression straps and the band's padlock
+    const strapUV: [number, number, number, number] = [0.62, 0.02, 0.98, 0.26];
+    const rz = cz + (dep / 2 - 0.012) * s;
+    for (const k of [1, -1]) B.box([k * (w / 2 + 0.008) * s, (bot + top) / 2 + 0.025 * s, rz], [0.018 * s, h * s + 0.07 * s, 0.022 * s], null, REG.PACK, [C, 1], strapUV, 0.55);
+    B.box([0, top + 0.05 * s, rz], [w * s + 0.034 * s, 0.018 * s, 0.022 * s], null, REG.PACK, [C, 1], strapUV, 0.6);
+    B.box([0, bot + 0.025 * s, cz], [w * s + 0.006 * s, 0.05 * s, dep * s + 0.008 * s], null, REG.PACK, [C, 1], strapUV, 0.45);
+    for (const f of [0.38, 0.7]) B.box([0, bot + h * f * s, cz - (dep / 2 + 0.003) * s], [w * s + 0.012 * s, 0.026 * s, 0.012 * s], null, REG.PACK, [C, 1], strapUV, 0.5);
+    B.box([0, top - 0.05 * s, cz - (dep / 2 + 0.03) * s], [0.04 * s, 0.045 * s, 0.022 * s], null, REG.PACK, [C, 1], [0.02, 0.02, 0.2, 0.1], 1.25);
   }
   if (sh.backKind === 'hiking') {
     // bedroll on top

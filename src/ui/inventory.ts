@@ -959,7 +959,8 @@ export class InventoryUI {
     const pr: Press = { pointerId: e.pointerId, x0: e.clientX, y0: e.clientY, t: performance.now(), touch, hit, long: 0, done: false, shift: e.shiftKey || e.ctrlKey };
     this.press = pr;
     if (!hit) { this.orbit = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
-    if (hit.kind === 'item') pr.long = window.setTimeout(() => { if (this.press === pr && !pr.done) { pr.done = true; this.press = null; this.inspect(hit.items[0], hit.view.c!); } }, LONG_MS);
+    // a long press inspects; checked on the next frame, after any pointer moves queued behind a slow frame have arrived
+    if (hit.kind === 'item') pr.long = window.setTimeout(() => requestAnimationFrame(() => { if (this.press === pr && !pr.done) { pr.done = true; this.press = null; this.inspect(hit.items[0], hit.view.c!); } }), LONG_MS);
   }
 
   private cancelPress() { if (this.press) clearTimeout(this.press.long); this.press = null; this.orbit = null; }

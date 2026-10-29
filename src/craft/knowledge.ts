@@ -53,10 +53,10 @@ bus.on('researchUnlocked', () => { try { syncKnowledge(); } catch (e) { console.
 const has = (m: any, f: string) => !!m?.flags?.has?.(f);
 defQuest({
   key: 'cq_cube', title: 'Thumb on the Glass', giver: 'VOSS', category: 'tutorial', auto: true,
-  desc: 'That box on your back is Programme property and it only opens for you. Open it, pack it properly, and put a tool on your hip where you can reach it.',
+  desc: 'That pack on your back is Programme property and it only opens for you. Open it, pack it properly, and put a tool on your hip where you can reach it.',
   objectives: [
-    { id: 'open', text: 'Open the cube with your thumbprint (I)', check: (m) => has(m, 'pack:opened') },
-    { id: 'pack', text: 'Put something in the cube', check: (m) => has(m, 'pack:packed') },
+    { id: 'open', text: 'Open the field pack: the seal reads your band (I)', check: (m) => has(m, 'pack:opened') },
+    { id: 'pack', text: 'Put something in the pack', check: (m) => has(m, 'pack:packed') },
     { id: 'holster', text: 'Draw a tool from the quick-draw holster (` or Y)', check: (m) => has(m, 'pack:holster'), optional: true },
   ],
   reward: { rp: 2 },

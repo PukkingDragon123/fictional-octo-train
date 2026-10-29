@@ -328,8 +328,8 @@ export class Player {
     else if (d.bag) slot = d.bag.slot === 'back' ? 'back' : d.bag.slot === 'belt' || d.bag.slot === 'hip' ? 'belt' : null;
     if (!slot) return false;
     const prev = this.worn.get(slot);
-    // the Remittance cube is bolted to its harness: other packs get carried, not swapped in
-    if (prev && prev !== it && prev.key === 'iron_cube' && it.key !== 'iron_cube') { if (this.isLocal) bus.emit('think', this, 'The cube is bolted to my harness. That one goes in my hands.'); return false; }
+    // the Meridian field pack is strapped to its frame: other packs get carried, not swapped in
+    if (prev && prev !== it && prev.key === 'iron_cube' && it.key !== 'iron_cube') { if (this.isLocal) bus.emit('think', this, 'The field pack is strapped to my frame. That one goes in my hands.'); return false; }
     if (prev) this.worn.delete(slot);
     if (this.handR === it) this.handR = null;
     if (this.handL === it) this.handL = null;
