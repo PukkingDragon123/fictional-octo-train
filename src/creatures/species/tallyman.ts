@@ -5,6 +5,7 @@
 // slides across. At thirteen it comes for you, fast. Soft steps (sneaking)
 // are not counted, and if you stand still the beads slide back one by one.
 import { horrify } from '../kit/horror';
+import { regionCanvas, flay, drips, BLOOD } from '../kit/rot';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -27,6 +28,16 @@ PG.paint((P) => {
   const suit = ramp(0x2c2a30, 6, 0x0c0a10, 0.25);
   const pin = (r: ReturnType<typeof P.R>) => { skin(P, r, suit, { mott: 0.8, lo: 1, hi: 3 }); for (let x = 0; x < r.w; x += 4) for (let y = 0; y < r.h; y++) if ((y + x) % 3) P.blend(r, x, y, 0xc8c0b0, 0.4); };
   pin(P.R('SUIT')); pin(P.R('LIMB'));
+  {
+    // behind the abacus the chest is open: the jacket and the skin under it parted down the
+    // front, the ribs sawn through and spread, the cavity dark; old blood down the waistcoat
+    const r = P.R('SUIT'), C = regionCanvas(P, r);
+    const cx = r.w / 2, cy = r.h * 0.6;
+    flay(C, cx, cy, r.w * 0.15, r.h * 0.26, { fibre: [1, 0], depth: 1, seed: 71, bone: (x, y) => (Math.abs(x - cx) > 1.5 && Math.sin(y * 1.05 + Math.abs(x - cx) * 0.18) > 0.5 ? 0.85 : 0) });
+    for (let y = Math.round(cy - r.h * 0.18); y < cy + r.h * 0.18; y++) for (let x = Math.round(cx - 1); x <= cx + 1; x++) P.set(r, x, y, 0x0a0404);
+    drips(C, cx, cy - r.h * 0.24, 4, r.h * 0.3, [0, -1], 73, r.w * 0.1); // the torso is painted bottom-up: -y runs down toward the belt
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) if (Math.abs(x - cx) < r.w * 0.18 && y < cy - r.h * 0.2 && P.rng.chance(0.25)) P.blend(r, x, y, BLOOD[0], 0.45);
+  }
   {
     // the head: ruled ledger paper, columns of tallies in brown ink
     const r = P.R('HEAD');
