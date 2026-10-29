@@ -24,7 +24,7 @@ import { GridView3, type DropAt } from '../../craft/gridView3';
 import { crtScreen, phosphorText, cssFont, type CrtScreen } from '../../gfx/crt';
 import { metalMat, metalEnv } from '../../craft/metal';
 import { fbox, fcyl, frod, jitter, hull, gem } from '../touch/facet';
-import { canvasTile, liningCell, webbingTile, zipTile, rubberTile, padTile, logoDecal, warnDecal, idCard, assetPlate, packCard, hangTag, OCHRE, WEB_BLACK } from './packTex';
+import { wallTex, flapTex, canvasTile, liningCell, webbingTile, zipTile, rubberTile, padTile, logoDecal, warnDecal, idCard, assetPlate, packCard, hangTag, OCHRE, WEB_BLACK } from './packTex';
 
 /** cell size: across (x), rows (z), layers (y) */
 export const PACK_CELL: [number, number, number] = [0.088, 0.098, 0.074];
@@ -268,13 +268,16 @@ export class PackView extends GridView3 {
     });
     const rings = levels.map(ring);
     const walls = new PG(UVS, ao);
+    const PER = per[N], WH = RIM - Y0;
     for (let l = 0; l + 1 < rings.length; l++) for (let i = 0; i < N; i++) {
       const j = (i + 1) % N, A = rings[l][i], B = rings[l][j], C = rings[l + 1][j], D = rings[l + 1][i];
       const hint = v3(nrm[i][0] + nrm[j][0], 0, nrm[i][1] + nrm[j][1]);
-      const s0 = per[i] * UVS, s1 = per[i + 1] * UVS;
-      walls.quad(A, B, C, D, 0xffffff, hint, [s0, A.y * UVS], [s1, B.y * UVS], [s1, C.y * UVS], [s0, D.y * UVS]);
+      const s0 = per[i] / PER, s1 = per[i + 1] / PER;
+      walls.quad(A, B, C, D, 0xffffff, hint, [s0, (A.y - Y0) / WH], [s1, (B.y - Y0) / WH], [s1, (C.y - Y0) / WH], [s0, (D.y - Y0) / WH]);
     }
-    add(walls, M.canvas, this.body, 0.0035);
+    const cornersU = outline.map((o, i) => (o.corner ? per[i] / PER : -1)).filter((u) => u >= 0);
+    const wallMat = new THREE.MeshStandardMaterial({ map: wallTex(PER, WH, cornersU), vertexColors: true, roughness: 0.93, metalness: 0, flatShading: true, envMap: metalEnv(), envMapIntensity: 0.12 });
+    add(walls, wallMat, this.body, 0.0035);
 
     // ---- the harness board under it all (black padded mesh), peeking out as a trim
     const base = new PG(30, ao);
@@ -461,8 +464,9 @@ export class PackView extends GridView3 {
       }
       P.push(row);
     }
-    const lid = new PG(UVS, null);
-    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) lid.quad(P[j][i], P[j][i + 1], P[j + 1][i + 1], P[j + 1][i], 0xffffff, v3(0, 1, 0));
+    const lid = new PG(UVS, null), band = new PG(UVS, null);
+    const uvOf = (q: V) => [(q.x + W2) / W, 1 - q.z / LO];
+    for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const a = P[j][i], b = P[j][i + 1], c = P[j + 1][i + 1], d = P[j + 1][i]; lid.quad(a, b, c, d, 0xffffff, v3(0, 1, 0), uvOf(a), uvOf(b), uvOf(c), uvOf(d)); }
     // the side band round the edge, down to the lining
     const edge: V[] = [];
     for (let i = 0; i <= NX; i++) edge.push(P[0][i]);
@@ -473,11 +477,14 @@ export class PackView extends GridView3 {
     for (let k = 0; k < edge.length; k++) {
       const a = edge[k], b = edge[(k + 1) % edge.length];
       const out = a.clone().add(b).multiplyScalar(0.5).sub(ctr).setY(0);
-      lid.quad(v3(a.x, 0, a.z), v3(b.x, 0, b.z), b, a, 0xe8ece0, out);
+      band.quad(v3(a.x, 0, a.z), v3(b.x, 0, b.z), b, a, 0xe8ece0, out);
     }
-    const m = new THREE.Mesh(lid.build(), M.canvas);
+    const flapMat = new THREE.MeshStandardMaterial({ map: flapTex(W, LO), vertexColors: true, roughness: 0.93, metalness: 0, flatShading: true, envMap: metalEnv(), envMapIntensity: 0.12 });
+    const m = new THREE.Mesh(lid.build(), flapMat);
     inked(m, 0.0035);
-    this.lid.add(m); this.lidParts.push(m);
+    const bm = new THREE.Mesh(band.build(), M.canvas);
+    inked(bm, 0.0035);
+    this.lid.add(m, bm); this.lidParts.push(m, bm);
     // underneath: the lining, a binding round it, the packing card
     const under = new PG(1);
     const [cx, cy] = PACK_CELL;

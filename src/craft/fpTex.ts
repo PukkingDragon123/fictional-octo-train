@@ -66,11 +66,11 @@ function rivet(p: PixelCanvas, x: number, y: number, light: number, dark: number
 }
 
 // ---------------------------------------------------------------- wood
-function planks(p: PixelCanvas, r: Rng, o: { rows: number; base: number[]; oil?: number; nails?: boolean; burns?: number; cuts?: number; seed: number; grime?: number }) {
+function planks(p: PixelCanvas, r: Rng, o: { rows: number; base: number[]; oil?: number; nails?: boolean; burns?: number; cuts?: number; seed: number; grime?: number; seams?: boolean; spread?: number }) {
   const ph = p.h / o.rows;
   for (let row = 0; row < o.rows; row++) {
     const base = o.base[row % o.base.length];
-    const ramp = makeRamp(base, 6, { hueShift: 0.03, spread: 0.55 });
+    const ramp = makeRamp(base, 6, { hueShift: 0.03, spread: o.spread ?? 0.55 });
     const y0 = Math.round(row * ph), y1 = Math.round((row + 1) * ph);
     const joint = r.int(8, p.w - 8), seed = o.seed + row * 17;
     const knotX = r.float(0, p.w), knotY = r.float(y0 + 3, y1 - 3), hasKnot = r.chance(0.6);
@@ -82,16 +82,16 @@ function planks(p: PixelCanvas, r: Rng, o: { rows: number; base: number[]; oil?:
       const ring = Math.sin(gy * 0.75 + row * 2.1 + fbm(p, x, y, 1, seed + 2, 1) * 4);
       const along = fbm(p, x, y, 4, seed + 5, 2, 1, 0.2) - 0.5;
       let v = 0.56 + fibre * 0.32 + ring * 0.16 + along * 0.22 + (hashf(x, y, seed) - 0.5) * 0.06;
-      if (x === joint) v = 0; else if (x === joint + 1) v += 0.18;
+      if (o.seams !== false) { if (x === joint) v = 0; else if (x === joint + 1) v += 0.18; }
       p.set(x, y, rampAt(p, ramp, x, y, v));
     }
     if (hasKnot) blob(p, knotX, knotY, 2.2, seed, (x, y, d) => p.set(x, y, d < 0.5 ? ramp[0] : ramp[1]));
     // the seam between boards: a black gap with a lit lip under it
-    for (let x = 0; x < p.w; x++) { p.set(x, y0, scaleHex(ramp[0], 0.45)); p.blend(x, y0 + 1, ramp[5], 0.35); p.blend(x, y1 - 1, ramp[0], 0.4); }
+    if (o.seams !== false) for (let x = 0; x < p.w; x++) { p.set(x, y0, scaleHex(ramp[0], 0.45)); p.blend(x, y0 + 1, ramp[5], 0.35); p.blend(x, y1 - 1, ramp[0], 0.4); }
     if (o.nails) for (const nx of [joint - 4, joint + 4]) for (const ny of [y0 + 3, y1 - 4]) rivet(p, nx, ny, 0x9a968c, 0x2a2622);
   }
   // oil, grease and burns soaked into the grain
-  for (let i = 0; i < (o.oil ?? 0); i++) p.stain(r.float(0, p.w), r.float(0, p.h), r.float(3, 9), 0x24160a, 0x140c06, r.int(1, 99));
+  for (let i = 0; i < (o.oil ?? 0); i++) p.stain(r.float(0, p.w), r.float(0, p.h), r.float(4, 10), 0x3a2410, 0x24160a, r.int(1, 99));
   for (let i = 0; i < (o.burns ?? 0); i++) { const cx = r.float(0, p.w), cy = r.float(0, p.h), rr = r.float(2, 4); blob(p, cx, cy, rr, i + 7, (x, y, d) => p.blend(x, y, 0x120a04, d < 0.6 ? 0.85 : 0.45)); }
   for (let i = 0; i < (o.cuts ?? 0); i++) { const x = r.float(0, p.w), y = r.float(0, p.h), a = r.float(-0.5, 0.5) + (r.chance(0.5) ? 0 : Math.PI / 2), l = r.float(3, 9); for (let k = 0; k < l; k++) { p.blend(x + Math.cos(a) * k, y + Math.sin(a) * k, 0x1a0e06, 0.75); p.blend(x + Math.cos(a) * k, y + Math.sin(a) * k + 1, 0xe8c890, 0.25); } }
   p.grime(0x1c120a, o.grime ?? 0.5, 4, o.seed + 3, 0.55);
@@ -150,7 +150,7 @@ function weave(p: PixelCanvas, r: Rng, o: { base: number; coarse?: number; strip
 
 // ---------------------------------------------------------------- recipes
 const R: Record<TexKind, Recipe> = {
-  bench: { w: 128, h: 128, rough: 0.78, metal: 0, draw: (p, r) => planks(p, r, { rows: 4, base: [0x8a6038, 0x7a5432, 0x946840, 0x6e4a2a], oil: 3, nails: true, burns: 2, cuts: 14, seed: 11, grime: 0.3 }) },
+  bench: { w: 128, h: 128, rough: 0.78, metal: 0, draw: (p, r) => planks(p, r, { rows: 4, base: [0x8a6038, 0x82593a, 0x946840, 0x7a5434], oil: 3, burns: 2, cuts: 12, seed: 11, grime: 0.2, seams: false, spread: 0.4 }) },
   plank: { w: 64, h: 64, rough: 0.8, metal: 0, draw: (p, r) => planks(p, r, { rows: 2, base: [0xa07850, 0x8e6a44], cuts: 4, seed: 23 }) },
   crate: { w: 64, h: 64, rough: 0.85, metal: 0, draw: (p, r) => {
     planks(p, r, { rows: 3, base: [0xb8925c, 0xa88250, 0xc09a62], nails: true, cuts: 3, seed: 37 });

@@ -19,7 +19,7 @@ import { CubeView } from './cubeView';
 import { HAND_OPS, type HandOp, matches, pickTool, pickParts, partLabel, toolLabel } from './handOps';
 import { Tweens, easeOut, easeBack, makeArm, poseArm, type Arm, makeItemObj, fitItemObj, type ItemObj, pointerRay, Particles } from './fpKit';
 import { pixMat } from './fpTex';
-import { ink, shade, shadowBlob, WorkLamp } from './fpScene';
+import { ink, inkMesh, shade, shadowBlob, WorkLamp } from './fpScene';
 import { gem } from '../ui/touch/facet';
 import { pixTag, stamp, disposeTag, type PixTag } from './tags';
 import { Shape } from './shapes';
@@ -96,8 +96,8 @@ export class Bench {
     // both tags hang off hooks on the pegboard, swinging a little
     // tags you can pull: one tied to the cube's corner, one hung on the vice's tommy bar
     sweep.mesh.geometry.translate(0, -0.05, 0); away.mesh.geometry.translate(0, -0.04, 0);
-    sweep.mesh.position.set(-0.27, 0.13, 0.13); sweep.mesh.rotation.set(-0.5, 0.25, 0.08);
-    away.mesh.position.set(0.56, 0.08, 0.075); away.mesh.rotation.set(-0.55, -0.15, -0.06);
+    sweep.mesh.position.set(-0.36, 0.19, 0.13); sweep.mesh.rotation.set(-0.62, 0.1, 0.05);
+    away.mesh.position.set(0.6, 0.08, 0.09); away.mesh.rotation.set(-0.7, -0.12, -0.06);
     this.top.add(sweep.mesh, away.mesh);
     this.fixed = [{ t: sweep, run: () => this.clear() }, { t: away, run: () => this.close() }];
     g.add(this.dust.points, this.sparks.points);
@@ -144,7 +144,7 @@ export class Bench {
     iron.box(0.86, 0.512, -0.29, 0.08, 0.03, 0.1, 0xffffff, 0.006);
     iron.box(0.86, 0.45, -0.245, 0.06, 0.07, 0.012, 0xffffff, 0.003);
     steel.rod([0.86, 0.54, -0.29], [0.78, 0.72, -0.2], 0.007, 0xe0e0d8, 6);
-    steel.rod([0.78, 0.72, -0.2], [0.6, 0.58, -0.02], 0.006, 0xe0e0d8, 6);
+    steel.rod([0.78, 0.72, -0.2], [0.66, 0.7, -0.03], 0.006, 0xe0e0d8, 6);
     iron.cyl(0.78, 0.71, -0.2, 0.014, 0.022, 0xffffff, 8, [0, 0, Math.PI / 2]);
     // ---- tools laid down: a claw hammer, a red screwdriver, a chisel, a carpenter's pencil, pliers
     handle.box(0.5, 0.004, 0.2, 0.24, 0.022, 0.026, 0xffffff, 0.008, [0, 0.35, 0]);
@@ -210,17 +210,19 @@ export class Bench {
     // the shade: green enamel outside, cream inside (both faces drawn, no ink: you see into it)
     const shadeG = new THREE.Group();
     const sh = new Shape(5);
-    sh.lathe(0, 0, 0, [[0.012, 0.075], [0.02, 0.07], [0.03, 0.05], [0.058, 0.012], [0.072, 0], [0.07, -0.004]], 0xffffff, 8);
+    sh.lathe(0, 0, 0, [[0.012, 0.11], [0.02, 0.105], [0.026, 0.085], [0.05, 0.035], [0.085, 0.004], [0.088, 0], [0.084, -0.002]], 0xffffff, 8);
+    sh.cyl(0, 0.105, 0, 0.012, 0.03, 0xc8c8c8, 6);
     const shOut = new THREE.Mesh(sh.build(), pixMat('enamelGreen', { side: THREE.DoubleSide }));
     shOut.userData.noInk = true; shadeG.add(shOut);
-    const inner = new Shape(5); inner.lathe(0, 0, 0, [[0.066, 0.002], [0.054, 0.012], [0.027, 0.048], [0.011, 0.062]], 0xfff4e0, 8);
-    const shIn = new THREE.Mesh(inner.build(), new THREE.MeshBasicMaterial({ color: 0xe8d8b0, side: THREE.BackSide }));
+    shadeG.add(inkMesh(shOut.geometry, 0.0035));
+    const inner = new Shape(5); inner.lathe(0, 0, 0, [[0.08, 0.002], [0.047, 0.036], [0.024, 0.082], [0.011, 0.1]], 0xfff4e0, 8);
+    const shIn = new THREE.Mesh(inner.build(), new THREE.MeshBasicMaterial({ color: 0xf0e0b8, side: THREE.DoubleSide }));
     shadeG.add(shIn);
-    const bulb = new THREE.Mesh(gem(0.02, 0, 0.1), new THREE.MeshBasicMaterial({ color: 0xfff2c8 }));
-    bulb.position.y = 0.035; shadeG.add(bulb);
-    shadeG.position.set(0.58, 0.55, 0.0); shadeG.rotation.set(0.3, 0, 0.45);
+    const bulb = new THREE.Mesh(gem(0.024, 0, 0.1), new THREE.MeshBasicMaterial({ color: 0xfff6d8 }));
+    bulb.position.y = 0.04; shadeG.add(bulb);
+    shadeG.position.set(0.6, 0.6, 0.0); shadeG.rotation.set(0.15, 0, 0.55);
     T.add(shadeG);
-    this.lampL = new WorkLamp(T, new THREE.Vector3(0.56, 0.52, 0.02), new THREE.Vector3(0.05, 0, 0.0), { intensity: 6, angle: 1.05, dist: 2.6, mapSize: 512 });
+    this.lampL = new WorkLamp(T, new THREE.Vector3(0.58, 0.57, 0.02), new THREE.Vector3(0.05, 0, 0.0), { intensity: 6, angle: 1.05, dist: 2.6, mapSize: 512 });
     T.add(this.peg);
     this.peg.position.set(0, 0.24, -0.345);
     for (const sb of [shadowBlob(0.4, 0.3, 0.5)]) { sb.position.set(-0.52, 0.0016, -0.04); T.add(sb); }
