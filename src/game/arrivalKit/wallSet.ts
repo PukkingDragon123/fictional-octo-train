@@ -87,7 +87,7 @@ function tapeTex() {
     for (let y = 0; y < 32; y++) { pc.set(0, y, K); pc.set(7, y, K); pc.set(1, y, mixHex(pc.get(1, y), 0xffffff, 0.25)); }
   }, true);
 }
-/** the enamel plate: cream, a red border, black stencil words (Pixelify Sans, alpha-thresholded so the pixels stay hard) */
+/** the enamel plate: cream, a red border, black stencil words (Space Grotesk, alpha-thresholded so the pixels stay hard) */
 function signTex() {
   const W = 96, H = 34;
   const pc = new PixelCanvas(W, H);
@@ -108,9 +108,9 @@ function signTex() {
   const tc = document.createElement('canvas'); tc.width = W; tc.height = H;
   const t = tc.getContext('2d')!;
   t.fillStyle = '#000'; t.textAlign = 'center'; t.textBaseline = 'alphabetic';
-  t.font = `700 13px ${cssFont('--font-new', "'Pixelify Sans', monospace")}`;
+  t.font = `700 13px ${cssFont('--font-new', "'Space Grotesk', Arial, sans-serif")}`;
   t.fillText('SEAM 04', W / 2, 17);
-  t.font = `600 8px ${cssFont('--font-new', "'Pixelify Sans', monospace")}`;
+  t.font = `600 8px ${cssFont('--font-new', "'Space Grotesk', Arial, sans-serif")}`;
   t.fillText('ESCORTED TRANSFER ONLY', W / 2, 27);
   const td = t.getImageData(0, 0, W, H), pd = g.getImageData(0, 0, W, H);
   for (let i = 0; i < W * H; i++) if (td.data[i * 4 + 3] > 110) { pd.data[i * 4] = 22; pd.data[i * 4 + 1] = 20; pd.data[i * 4 + 2] = 16; }

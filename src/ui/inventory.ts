@@ -215,6 +215,7 @@ export class InventoryUI {
     const g = (this.g = fpGroup('pack'));
     // only when the eye is not up (a fallback): the room gone dark behind a patch of carpet
     this.backdrop = makeBackdrop();
+    (this.backdrop.material as THREE.MeshBasicMaterial).opacity = 0.95;
     g.add(this.backdrop);
     this.world.matrixAutoUpdate = false;
     this.packG.matrixAutoUpdate = false;
@@ -736,7 +737,11 @@ export class InventoryUI {
   private poseArms(dt: number) {
     const [aR, aL] = this.arms;
     this.world.updateMatrixWorld(true);
-    for (const h of ['L', 'R'] as const) this.palm[h].copy(this.rest[h]).applyMatrix4(this.world.matrix);
+    // at rest the hands lie on the open pack's near rim (on the floor beside it while it is still shut)
+    for (const h of ['L', 'R'] as const) {
+      if (this.held < 0.05 && this.cube.c) this.cube.restPoint(h === 'L' ? -1 : 1, this.palm[h]);
+      else this.palm[h].copy(this.rest[h]).applyMatrix4(this.world.matrix);
+    }
     for (const [a, h] of [[aL, 'L'], [aR, 'R']] as const) {
       const r = this.reach[h];
       const restAt = this.palm[h];

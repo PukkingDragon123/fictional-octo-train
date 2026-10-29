@@ -506,6 +506,8 @@ export class Handler implements GameSystem {
     this.rig.root.position.set(this.x, this.y, this.z);
     this.rig.root.rotation.y = Math.PI / 2 - this.facing;
     this.rig.root.scale.setScalar(1.0);
+    // the projection throws a little warm light on the floor and whoever stands near it
+    (G as unknown as { pointLight?: (x: number, y: number, z: number, c: number, i: number, d: number) => void }).pointLight?.(this.x, this.y + 1.1, this.z, 0xffa850, 0.16 * this.show * flick, 3.2);
   }
 
   /** the tube switching off: squeeze to a line (bright), the line to a dot, the dot out */

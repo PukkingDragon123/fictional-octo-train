@@ -5,7 +5,7 @@
 // bridges, chipped paint), the debtor card in its clear window, the riveted asset
 // plate and the packing card inside the lid. Everything is drawn pixel by pixel at
 // about one texel per low-res screen pixel, nearest-filtered, no mipmaps; type is
-// Pixelify Sans drawn small and thresholded so every letter edge is a hard pixel.
+// Space Grotesk drawn small and thresholded so every letter edge is a hard pixel.
 import * as THREE from 'three';
 import { PixelCanvas, makeRamp, mixHex, scaleHex } from '../../gfx/pixel';
 import { cssFont, fontsReady } from '../../gfx/crt';
@@ -172,6 +172,58 @@ export function flapTex(w: number, l: number): THREE.Texture {
     for (let i = 0; i < 4; i++) for (let y = 0; y < 9; y++) pc.set(gx + i * 3, gy + y, 0xa83224);
     for (let i = 0; i < 13; i++) pc.set(gx - 1 + i, gy + 6 - Math.round(i * 0.4), 0xa83224);
     put(ctx, pc);
+  }, false, true));
+}
+
+/**
+ * The inside of the flap as one picture (u across, v from the hinge up to the free end, as it
+ * stands open in front of you): tan ripstop, a mesh pocket with an elastic edge, the packing
+ * card pinned in it, the stitched border, the lamp's scorch, a pencilled name crossed out.
+ */
+export function flapInsideTex(w: number, l: number): THREE.Texture {
+  const W = Math.max(64, Math.round(w * 420)), H = Math.max(64, Math.round(l * 420));
+  const key = 'pk_flapin_' + W + 'x' + H;
+  return cached(key, () => toTex(key, W, H, (ctx) => {
+    const pc = new PixelCanvas(W, H);
+    pc.wrap = false;
+    const R = makeRamp(LINING, 6, { spread: 0.36 });
+    pc.each((x, y) => {
+      let i = 3 + ((x + y) % 2 ? 0.4 : -0.3) + (hash(x, y, 2) - 0.5) * 0.8 + (hash(x >> 4, y >> 4, 6) - 0.5) * 0.6;
+      if (x % 9 === 4 || y % 9 === 4) i -= 0.8;
+      pc.set(x, y, R[Math.max(0, Math.min(5, Math.round(i)))]);
+    });
+    // grime toward the hinge (canvas bottom) and the edges
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const e = Math.min(x, W - 1 - x, y, H - 1 - y); const k = Math.max(0, 1 - e / 16) * 0.5 + Math.max(0, (y - H * 0.8) / (H * 0.2)) * 0.3; if (hash(x, y, 17) < k) pc.blend(x, y, 0x4a3e28, 0.4); }
+    // a stitched border
+    const RS = makeRamp(LINING, 6, { spread: 0.5 });
+    for (let t = 6; t < W - 6; t++) { pc.set(t, 6, RS[0]); pc.set(t, H - 7, RS[0]); if (t % 4 < 2) { pc.set(t, 8, 0xece4c8); pc.set(t, H - 9, 0xece4c8); } }
+    for (let t = 6; t < H - 6; t++) { pc.set(6, t, RS[0]); pc.set(W - 7, t, RS[0]); if (t % 4 < 2) { pc.set(8, t, 0xece4c8); pc.set(W - 9, t, 0xece4c8); } }
+    // the mesh pocket over the middle: dark netting with an ochre elastic top edge
+    const mx0 = Math.round(W * 0.1), mx1 = Math.round(W * 0.9), my0 = Math.round(H * 0.34), my1 = Math.round(H * 0.86);
+    for (let y = my0; y < my1; y++) for (let x = mx0; x < mx1; x++) if ((x + y) % 3 === 0 || (x - y + 300) % 3 === 0) pc.blend(x, y, 0x1c1a16, 0.75);
+    for (let x = mx0; x < mx1; x++) for (let y = my0 - 3; y < my0; y++) pc.set(x, y, y === my0 - 3 ? 0x6a5420 : x % 3 === 0 ? 0xc89a40 : 0xb08a3a);
+    for (let y = my0; y < my1; y++) { pc.set(mx0, y, 0x6a5420); pc.set(mx1 - 1, y, 0x6a5420); }
+    for (let x = mx0; x < mx1; x++) pc.set(x, my1, 0x6a5420);
+    // the lamp's scorch near the hinge (it rests against the flap when shut)
+    for (let y = H - 30; y < H - 12; y++) for (let x = Math.round(W / 2 - 14); x < W / 2 + 14; x++) { const d = Math.hypot((x - W / 2) / 14, (y - (H - 21)) / 9); if (d < 1 && hash(x, y, 23) < (1 - d)) pc.blend(x, y, 0x3a2a14, 0.45); }
+    // the packing card, pinned in the mesh pocket, a little crooked
+    const cw = Math.round(W * 0.62), ch = Math.round(cw * 0.66), cx0 = Math.round(W * 0.2), cy0 = Math.round(H * 0.4);
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) {
+      const yy = cy0 + y + Math.round(x * 0.04);
+      const edge = x === 0 || y === 0 || x === cw - 1 || y === ch - 1;
+      pc.set(cx0 + x, yy, edge ? 0x8a7c5c : y < Math.round(ch * 0.17) ? 0x3a4436 : mixHex(0xf0e8d2, 0xdcd0b0, hash(x >> 3, y >> 3, 6) * 0.5));
+    }
+    for (let y = Math.round(ch * 0.3); y < ch - 2; y += 9) for (let x = 3; x < cw - 3; x++) pc.set(cx0 + x, cy0 + y + Math.round(x * 0.04), 0xc4ccd4);
+    // a brass pin
+    pc.set(cx0 + (cw >> 1), cy0 - 1, 0xe8c060); pc.set(cx0 + (cw >> 1), cy0, 0x8a6a20); pc.set(cx0 + (cw >> 1) + 1, cy0 - 1, 0xffe8a0);
+    put(ctx, pc);
+    const tx = cx0 + 5, ty = cy0;
+    hardText(ctx, 'PACKING ORDER', cx0 + (cw >> 1), cy0 + Math.round(ch * 0.14), 9, '#e8dfc4', 'center', 700, 100);
+    const lines = ['R turn  T tip  Y roll', 'Wheel: peel layers', 'Double-click: work on it', 'Heavy at the back', 'Tap the flap to close'];
+    lines.forEach((ln, i) => hardText(ctx, ln, tx, ty + Math.round(ch * 0.3) + 7 + i * 9 + Math.round((cw * 0.3) * 0.04), 8, i === 3 ? '#7a1a12' : '#1e2a40', 'left', 500, 100));
+    // a name pencilled on the lining and crossed out: the pack has been someone else's
+    hardText(ctx, 'D-3906', Math.round(W * 0.78), Math.round(H * 0.2), 10, '#4a4030', 'center', 500, 100);
+    ctx.fillStyle = '#4a4030'; ctx.fillRect(Math.round(W * 0.78) - 18, Math.round(H * 0.2) - 4, 36, 1);
   }, false, true));
 }
 

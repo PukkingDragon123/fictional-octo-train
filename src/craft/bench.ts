@@ -17,7 +17,7 @@ import { hasUnlock, researchNode } from '../game/research';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera } from '../fp/fp';
 import { CubeView } from './cubeView';
 import { HAND_OPS, type HandOp, matches, pickTool, pickParts, partLabel, toolLabel } from './handOps';
-import { Tweens, easeOut, easeBack, makeArm, poseArm, type Arm, makeItemObj, fitItemObj, type ItemObj, pointerRay, Particles } from './fpKit';
+import { Tweens, easeOut, easeBack, makeArm, poseArm, type Arm, makeItemObj, fitItemObj, type ItemObj, pointerRay, Particles, keepEye } from './fpKit';
 import { pixMat } from './fpTex';
 import { ink, inkMesh, shade, shadowBlob, WorkLamp } from './fpScene';
 import { gem } from '../ui/touch/facet';
@@ -26,9 +26,11 @@ import { Shape } from './shapes';
 import { Dymo, Slate, HoverTag, clickTag } from './props';
 import { recipeHint } from './knowledge';
 
-interface Staged { it: Item; obj: ItemObj; spot: number }
+interface Staged { it: Item; obj: ItemObj; spot: number; sh: THREE.Mesh }
 interface Sheet { t: PixTag; run: () => void }
 const SPOTS_X = 5, SPOTS_Z = 3, SPOT = 0.13;
+/** how far down the eyes look at the bench (the room shows over the pegboard) */
+const BENCH_PITCH = 26;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3();
 
 export class Bench {
@@ -92,12 +94,12 @@ export class Bench {
     this.cube.root.scale.setScalar(0.58);
     this.cube.root.position.set(-0.52, 0, -0.04);
     g.add(this.top);
-    const sweep = clickTag('Sweep back into the cube', 'tag', 110, 0.22), away = clickTag('Step away', 'tag', 70, 0.17, '(Esc)');
+    const sweep = clickTag('Sweep back into the cube', 'tag', 110, 0.27), away = clickTag('Step away', 'tag', 70, 0.21, '(Esc)');
     // both tags hang off hooks on the pegboard, swinging a little
     // tags you can pull: one tied to the cube's corner, one hung on the vice's tommy bar
     sweep.mesh.geometry.translate(0, -0.05, 0); away.mesh.geometry.translate(0, -0.04, 0);
-    sweep.mesh.position.set(-0.36, 0.19, 0.13); sweep.mesh.rotation.set(-0.62, 0.1, 0.05);
-    away.mesh.position.set(0.6, 0.08, 0.09); away.mesh.rotation.set(-0.7, -0.12, -0.06);
+    sweep.mesh.position.set(-0.5, 0.07, 0.24); sweep.mesh.rotation.set(-0.38, 0.08, 0.05);
+    away.mesh.position.set(0.62, 0.08, 0.14); away.mesh.rotation.set(-0.42, -0.12, -0.06);
     this.top.add(sweep.mesh, away.mesh);
     this.fixed = [{ t: sweep, run: () => this.clear() }, { t: away, run: () => this.close() }];
     g.add(this.dust.points, this.sparks.points);
@@ -144,7 +146,7 @@ export class Bench {
     iron.box(0.86, 0.512, -0.29, 0.08, 0.03, 0.1, 0xffffff, 0.006);
     iron.box(0.86, 0.45, -0.245, 0.06, 0.07, 0.012, 0xffffff, 0.003);
     steel.rod([0.86, 0.54, -0.29], [0.78, 0.72, -0.2], 0.007, 0xe0e0d8, 6);
-    steel.rod([0.78, 0.72, -0.2], [0.66, 0.7, -0.03], 0.006, 0xe0e0d8, 6);
+    steel.rod([0.78, 0.72, -0.2], [0.735, 0.68, -0.13], 0.006, 0xe0e0d8, 6);
     iron.cyl(0.78, 0.71, -0.2, 0.014, 0.022, 0xffffff, 8, [0, 0, Math.PI / 2]);
     // ---- tools laid down: a claw hammer, a red screwdriver, a chisel, a carpenter's pencil, pliers
     handle.box(0.5, 0.004, 0.2, 0.24, 0.022, 0.026, 0xffffff, 0.008, [0, 0.35, 0]);
@@ -220,9 +222,9 @@ export class Bench {
     shadeG.add(shIn);
     const bulb = new THREE.Mesh(gem(0.024, 0, 0.1), new THREE.MeshBasicMaterial({ color: 0xfff6d8 }));
     bulb.position.y = 0.04; shadeG.add(bulb);
-    shadeG.position.set(0.6, 0.6, 0.0); shadeG.rotation.set(0.15, 0, 0.55);
+    shadeG.position.set(0.7, 0.6, -0.1); shadeG.rotation.set(0.35, 0, 0.5); shadeG.scale.setScalar(0.8);
     T.add(shadeG);
-    this.lampL = new WorkLamp(T, new THREE.Vector3(0.58, 0.57, 0.02), new THREE.Vector3(0.05, 0, 0.0), { intensity: 6, angle: 1.05, dist: 2.6, mapSize: 512 });
+    this.lampL = new WorkLamp(T, new THREE.Vector3(0.66, 0.57, -0.05), new THREE.Vector3(0.05, 0, 0.0), { intensity: 6, angle: 1.05, dist: 2.6, mapSize: 512 });
     T.add(this.peg);
     this.peg.position.set(0, 0.24, -0.345);
     for (const sb of [shadowBlob(0.4, 0.3, 0.5)]) { sb.position.set(-0.52, 0.0016, -0.04); T.add(sb); }
@@ -244,7 +246,7 @@ export class Bench {
     const p = G.local;
     if (!p) return;
     this.build();
-    if (!fpClaim('bench', 3, { cinematic: 'full' })) return;
+    if (!fpClaim('bench', 3, { cinematic: 'full', eyePitch: BENCH_PITCH })) return;
     if (G.ui?.inventory?.open) G.ui.inventory.toggle(false);
     this.open = true; this.suspended = false;
     G.hudBody?.setHidden?.('bench', true);
@@ -265,7 +267,9 @@ export class Bench {
 
   private resume() {
     if (!this.open || fpOwner()) return;
-    if (!fpClaim('bench', 3, { cinematic: 'none' })) return;
+    // back into the eyes (an inspection handed the stage back)
+    if (!fpClaim('bench', 3, { cinematic: 'full', eyePitch: BENCH_PITCH })) return;
+    keepEye('bench', BENCH_PITCH);
     this.suspended = false;
     this.root.classList.add('on');
     G.input.pointerOverUI = true;
@@ -279,7 +283,7 @@ export class Bench {
     this.cancelDrag();
     this.root.classList.remove('on');
     this.slate.hide(); this.tag.hide();
-    for (const s of this.staged) this.stageG.remove(s.obj.outer);
+    for (const s of this.staged) this.drop(s);
     this.staged = [];
     this.cube.hidden.clear();
     if (fpOwner() === 'bench') fpRelease('bench');
@@ -288,7 +292,7 @@ export class Bench {
 
   /** put everything back in the cube */
   private clear() {
-    for (const s of this.staged) this.stageG.remove(s.obj.outer);
+    for (const s of this.staged) this.drop(s);
     this.staged = []; this.cube.hidden.clear(); this.dirty = true;
     G.audio?.ui?.('cube_place', 0.4);
   }
@@ -316,17 +320,23 @@ export class Bench {
     this.spotPos(spot, obj.outer.position);
     const ty = SPOT * 0.3;
     obj.outer.userData.uid = it.uid;
+    obj.outer.traverse((o) => { if ((o as THREE.Mesh).isMesh) o.castShadow = true; });
     this.stageG.add(obj.outer);
-    this.staged.push({ it, obj, spot });
+    const sh = shadowBlob(SPOT * 0.95, SPOT * 0.75, 0.5);
+    sh.position.set(obj.outer.position.x, 0.0015, obj.outer.position.z);
+    this.stageG.add(sh);
+    this.staged.push({ it, obj, spot, sh });
     this.cube.hidden.add(it); this.cube.refresh();
     this.tw.add(0.2, (k) => { obj.outer.position.y = 0.12 * (1 - k) + ty; }, easeOut, () => { G.audio?.ui?.('cube_place', 0.35); });
     this.dirty = true;
     return true;
   }
+  /** take a staged thing (and its shadow) off the boards */
+  private drop(s: Staged) { this.stageG.remove(s.obj.outer); this.stageG.remove(s.sh); }
   private unstage(it: Item) {
     const i = this.staged.findIndex((s) => s.it === it);
     if (i < 0) return;
-    this.stageG.remove(this.staged[i].obj.outer);
+    this.drop(this.staged[i]);
     this.staged.splice(i, 1);
     this.cube.hidden.delete(it); this.cube.refresh();
     this.dirty = true;
@@ -334,7 +344,7 @@ export class Bench {
   /** staged things that still exist (crafting uses them up) */
   private prune() {
     const all = new Set(G.local.allItems());
-    for (const s of [...this.staged]) if (!all.has(s.it)) { this.stageG.remove(s.obj.outer); this.staged.splice(this.staged.indexOf(s), 1); this.cube.hidden.delete(s.it); }
+    for (const s of [...this.staged]) if (!all.has(s.it)) { this.drop(s); this.staged.splice(this.staged.indexOf(s), 1); this.cube.hidden.delete(s.it); }
   }
 
   // ---------------------------------------------------------------- blueprint sheets: what can be made from what is on the bench
@@ -601,6 +611,7 @@ export class Bench {
       if ((back?.inv ?? null) !== this.cube.c) this.cube.setContainer(back?.inv ?? null); else this.cube.refresh();
       this.renderSheets();
     }
+    for (const st of this.staged) { st.sh.position.x = st.obj.outer.position.x; st.sh.position.z = st.obj.outer.position.z; st.sh.visible = st.obj.outer.visible; }
     this.cube.update(dt);
     this.dust.update(dt, 1.6); this.sparks.update(dt, 2.4);
     this.dymo.update(dt);

@@ -16,7 +16,7 @@
 //          spat out of the Lobby's Seam onto the floor; eyes open on the floor
 //          and he gets up; the band flickers and the beam comes out of it; a
 //          slow push in on Voss as he materialises from the floor up; Voss
-//          talks (bus 'subtitle' lines, boxless Pixelify Sans); a hatch in the
+//          talks (bus 'subtitle' lines, boxless Space Grotesk); a hatch in the
 //          ceiling drops open and a pneumatic chute hisses down
 //          (arrivalKit/chute.ts) and drops the Meridian-issue pack at his
 //          feet (arrivalKit/packModel.ts); he kneels, picks it up in first
@@ -274,6 +274,8 @@ class Arrival implements GameSystem {
   // ================================================================== frame
   update(dt0: number) {
     if (this.phase === 'done') return;
+    // no hover tags or verbs from the world while the scene plays
+    G.input.pointerOverUI = true;
     const dt = this.hold ? 0 : Math.min(0.05, dt0) * this.speed;
     this.t += dt; this.T += dt;
     const pad = pollPadSkip();
@@ -730,12 +732,6 @@ class Arrival implements GameSystem {
     this.eyeGoal.yaw = backYaw; this.eyeGoal.pitch = -2 * DEG; this.eyeGoal.rate = 2.2;
     if (seam) this.seamFx?.ripple(seam, { x: f.x, y: p.y + 1.3, z: f.z }, 1.2, true);
     yield secs(1.3);
-    // ---- the band: a chirp, the lamp in it flickering, the signal
-    this.sfx('remit_chirp', 0.9);
-    try { G.holo?.boot?.(); } catch (e) { console.warn('holo.boot', e); }
-    bus.emit('watchSignal', { from: 'VOSS', kind: 'handler', text: 'INCOMING' });
-    this.eyeGoal.pitch = 42 * DEG; this.eyeGoal.yaw = backYaw - 0.5; this.eyeGoal.rate = 3;
-    yield secs(0.8);
     p.facing = p.targetFacing = outYaw;
     // ---- I2 (iso): behind the debtor, the beam comes out of the wrist, Voss unfolds out of the floor
     this.eyeOff();
@@ -748,7 +744,11 @@ class Arrival implements GameSystem {
     this.camFocus.set(p.x + n.x * 0.5, p.y + 1.0, p.z + n.z * 0.5);
     this.frame(this.camFocus, 2.6, 2);
     this.camZoom = 2.6;
-    yield secs(0.6);
+    // the band: a chirp, the lamp in it flickering, the signal; then the beam
+    this.sfx('remit_chirp', 0.9);
+    try { G.holo?.boot?.(); } catch (e) { console.warn('holo.boot', e); }
+    bus.emit('watchSignal', { from: 'VOSS', kind: 'handler', text: 'INCOMING' });
+    yield secs(1.1);
     if (h) {
       h.beamFromBand = true;
       h.appear?.({ x: this.vossAt.x, z: this.vossAt.z }, 2.6);

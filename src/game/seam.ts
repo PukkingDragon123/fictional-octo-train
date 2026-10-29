@@ -181,6 +181,9 @@ export class SeamFx implements GameSystem {
     if (!alive) { v.motes.count = 0; return; }
     const m = v.m;
     const pull = v.seal >= 0 ? 6 : 1;
+    // seen from the eyes (first person) a mote drifting past the lens would fill the picture: none that close
+    const eye = G.pr.eyeCamera;
+    if (eye) { v.root.updateMatrixWorld(); v3.setFromMatrixPosition(eye.matrixWorld); v.root.worldToLocal(v3); }
     let n = 0;
     for (let i = 0; i < MOTES; i++) {
       const k = i * 6;
@@ -194,8 +197,10 @@ export class SeamFx implements GameSystem {
       if (m[k + 2] <= 0.0) { this.spawnMote(m, i); continue; }
       const u = m[k], vv = m[k + 1], dd = m[k + 2];
       const s = m[k + 4] * Math.min(1, dd * 3) * m[k + 5];
+      const mx = (u - 0.5) * W, my = vv * H, mz = WZ + 0.02 + dd;
+      if (eye && (mx - v3.x) ** 2 + (my - v3.y) ** 2 + (mz - v3.z) ** 2 < 0.6 * 0.6) continue;
       mtx.makeScale(s, s, s);
-      mtx.setPosition((u - 0.5) * W, vv * H, WZ + 0.02 + dd);
+      mtx.setPosition(mx, my, mz);
       v.motes.setMatrixAt(n, mtx);
       const b = 0.35 + 0.65 * Math.min(1, dd);
       v.motes.setColorAt(n, col.setRGB(b * 0.8, b * 0.78, b * 0.72));
@@ -250,6 +255,5 @@ export class SeamFx implements GameSystem {
     pos.needsUpdate = true;
     cat.needsUpdate = true;
     v.plane.geometry.computeBoundingSphere();
-    void v3;
   }
 }

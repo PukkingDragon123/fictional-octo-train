@@ -371,7 +371,7 @@ export function drainModel(mats: Mats): THREE.Group {
   return b.build(mats);
 }
 
-/** a stencilled plate (text in Pixelify Sans) on a riveted backing */
+/** a stencilled plate (text in Space Grotesk) on a riveted backing */
 export function signModel(mats: Mats, lines: string[], w: number, h: number, o: { bg?: number; ink?: number; px?: [number, number] } = {}): THREE.Group {
   const g = new THREE.Group();
   const b = new FacetBuilder();

@@ -235,7 +235,7 @@ export const FONT = {
 };
 let scratch: HTMLCanvasElement | null = null, sctx: CanvasRenderingContext2D | null = null;
 /**
- * printed type in Pixelify Sans, thresholded to hard pixels (no grey font smoothing):
+ * printed type in Space Grotesk, thresholded to hard pixels (no grey font smoothing):
  * x, y = the baseline anchor (align left / center / right), px = the font size
  */
 export function inkText(c: CanvasRenderingContext2D, text: string, x: number, y: number, px: number, font: string, color = '#231a12', align: CanvasTextAlign = 'left', weight = '') {

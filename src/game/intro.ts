@@ -352,7 +352,7 @@ export class Intro implements GameSystem {
   private heartT = 0;
   private stepT = 0;
   private glow = 0;
-  /** the spoken lines (Pixelify Sans, typed on, one at a time) */
+  /** the spoken lines (Space Grotesk, typed on, one at a time) */
   private subs!: Subs;
   /** a freeze-frame on a blow (seconds of nearly stopped time for the cutscene) */
   private freeze = 0;

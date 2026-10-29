@@ -1,18 +1,37 @@
-// Items stream — THE IRON CUBE, THE TOOL ROLL and the parts of hands-on crafting
+// Items stream — THE MERIDIAN FIELD PACK (key iron_cube), THE TOOL ROLL and the parts of hands-on crafting
 // (src/craft): a chair leg sawn off a chair, scrap ground to an edge, cloth torn
 // into strips, and what they make bound together.
 import { defItem } from '../../items/item';
-import { T, rodX, rodZ, prism, tex } from './_kit';
+import { T, rodX, rodZ, prism, tex, makeRamp, ph } from './_kit';
 
-const S_IRON = tex('i_cube_iron', 8, 8, (pc) => {
-  pc.each((x, y) => pc.set(x, y, (x * 7 + y * 13) % 11 < 2 ? 0x4c5156 : (x + y) % 5 === 0 ? 0x5e6368 : 0x565b60));
-  pc.hline(0, 7, 0, 0x6e7378); pc.vline(0, 0, 7, 0x6e7378);
+/** the field pack's slate canvas: a 2/1 twill with slub threads and grime toward the base */
+const S_PACK = tex('i_fpack_canvas', 16, 16, (pc) => {
+  const R = makeRamp(0x5a6352, 6, { spread: 0.42, hueShift: 0.03 });
+  pc.each((x, y) => {
+    let i = 2.6 + ((x + y * 2) % 6 < 3 ? 0.6 : 0) - (((y % 2 === 0) ? ((x >> 1) % 2) : (((x + 1) >> 1) % 2)) * 0.5) + (ph(x, y, 5) - 0.5) * 0.8;
+    if (y === 7) i -= 1.4;
+    if (y === 6 && x % 3 === 0) i += 1.6;
+    pc.set(x, y, R[Math.max(0, Math.min(5, Math.round(i)))]);
+  });
 }, true);
-const S_PAD = tex('i_cube_pad', 8, 8, (pc) => {
-  pc.fill(0x0e2a2e);
-  for (let r = 1; r < 4; r++) pc.each((x, y) => { if (Math.abs(Math.hypot(x - 3.5, y - 4.2) - r * 1.1) < 0.35) pc.set(x, y, 0x3ad8c8); });
-  pc.strokeRect(0, 0, 8, 8, 0x8a9096);
+/** the lid: stencilled Meridian seal and asset number on the canvas, the debtor card in its window */
+const S_PACK_LID = tex('i_fpack_lid', 16, 20, (pc) => {
+  const R = makeRamp(0x5a6352, 6, { spread: 0.42, hueShift: 0.03 });
+  pc.each((x, y) => pc.set(x, y, R[2 + ((x + y * 2) % 6 < 3 ? 1 : 0)]));
+  pc.strokeRect(0, 0, 16, 20, R[0]);
+  // the seal: a ring with a meridian and the equator, in off-white stencil
+  for (let a = 0; a < 24; a++) { const t = (a / 24) * Math.PI * 2; const x = Math.round(8 + Math.cos(t) * 3.5 - 0.5), y = Math.round(5 + Math.sin(t) * 3.5 - 0.5); if (a % 6) pc.set(x, y, 0xe4ddc8); }
+  pc.vline(7, 3, 7, 0xe4ddc8); pc.hline(5, 9, 5, 0xe4ddc8);
+  pc.hline(3, 12, 10, 0xe4ddc8); pc.hline(4, 11, 11, 0xe4ddc8);
+  // the debtor card window
+  pc.rect(4, 13, 8, 5, 0xece6d2); pc.hline(4, 11, 13, 0xc8a032); pc.hline(5, 9, 16, 0x1a1a1c); pc.strokeRect(3, 12, 10, 7, 0x26272a);
 });
+const S_WEB = tex('i_fpack_web', 8, 4, (pc) => {
+  pc.each((x, y) => pc.set(x, y, y === 0 || y === 3 ? 0x1a1b1d : (x + y) % 3 === 0 ? 0x3a3c40 : 0x2a2b2e));
+}, true);
+const S_PAD = tex('i_fpack_pad', 8, 8, (pc) => {
+  pc.each((x, y) => pc.set(x, y, (x + y) % 4 === 0 || (x - y + 8) % 4 === 0 ? 0x4a4c50 : (x % 2 && y % 2) ? 0x141516 : 0x26282b));
+}, true);
 const S_STRIP = tex('i_cloth_strip', 8, 8, (pc) => {
   pc.each((x, y) => pc.set(x, y, (x + y * 3) % 7 === 0 ? 0xbcae8c : y % 3 === 0 ? 0xe2d6b8 : 0xd4c8a6));
   pc.vline(7, 0, 7, 0x9a8c6c);
@@ -23,23 +42,30 @@ const S_CANVAS_ROLL = tex('i_tool_roll', 8, 8, (pc) => {
 }, true);
 
 defItem({
-  key: 'iron_cube', name: 'Remittance Cube', cat: 'bag', weight: 3.0, value: 40, noStack: true, tags: ['bag', 'backpack', 'cube', 'hard', 'metal'],
-  desc: 'A riveted iron box on a harness, five fists to a side. Opens to your thumbprint and nobody else\'s. The Programme calls it a "secure remittance carrier". Everything inside counts against your knees.',
+  // the save / grid key stays 'iron_cube' (src/items/footprints.ts, saves, tests): only the thing changed
+  key: 'iron_cube', name: 'Meridian Field Pack', cat: 'bag', weight: 3.0, value: 40, noStack: true, tags: ['bag', 'backpack', 'cube', 'frame', 'fabric'],
+  desc: 'A Meridian-issue rucksack on a steel frame: slate canvas, five fists to a side, stencilled with an asset number and your debtor number. The zips are sealed with a padlock that opens to your BAILIFF band and nobody else\'s. Everything inside counts against your knees.',
   bag: { capacity: 30, reduction: 0, slot: 'back' },
-  clothing: { slot: 'back', covers: [], insulation: 0, wind: 0, bite: 0, scratch: 0, water: 0, look: { part: 'back', tex: 'c_backpack', color: 0x5a5f63 } },
+  clothing: { slot: 'back', covers: [], insulation: 0, wind: 0, bite: 0, scratch: 0, water: 0, look: { part: 'back', tex: 'c_backpack', color: 0x56604e } },
   grid: [5, 5],
   model: (mb) => {
-    const s = 0.4;
-    mb.box(0, 0, 0, s, s, s, S_IRON, { uvScale: 2 });
-    // edge bands and rivets
-    for (const y of [0.004, s - 0.016]) mb.box(0, y, 0, s + 0.012, 0.014, s + 0.012, 'metal_dark');
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) mb.box(sx * s / 2, 0, sz * s / 2, 0.022, s, 0.022, 'metal_dark');
-    for (const x of [-0.14, -0.05, 0.05, 0.14]) for (const y of [0.01, s - 0.01]) mb.cylinder(x, y - 0.004, s / 2 + 0.008, 0.007, 0.008, 5, 'metal_grey');
-    // the thumb scanner and the bolts
-    mb.box(0.1, s * 0.55, s / 2 + 0.004, 0.06, 0.06, 0.008, S_PAD, { fit: true, emissive: 0.6 });
-    for (const sx of [-1, 1]) mb.box(sx * 0.15, s - 0.06, s / 2 + 0.008, 0.03, 0.02, 0.014, 'metal_grey');
-    // harness straps
-    for (const sx of [-1, 1]) mb.box(sx * 0.1, 0.06, -s / 2 - 0.01, 0.04, s - 0.08, 0.016, T.nylon, { color: 0x3a3a34 });
+    // standing upright on its frame: the bulging body, the crowned flap, side pockets
+    const w = 0.34, h = 0.44, d = 0.22;
+    mb.box(0, 0.02, 0, w, h, d, S_PACK, { uvScale: 2 });
+    mb.box(0, h - 0.02, 0.005, w + 0.012, 0.05, d + 0.012, { top: S_PACK_LID, sides: S_PACK }, { fit: { top: true } });
+    mb.box(0, 0.06, d / 2 + 0.02, w * 0.72, h * 0.42, 0.04, S_PACK, { color: 0xc8ccbe, uvScale: 2 });
+    for (const sx of [-1, 1]) mb.box(sx * (w / 2 + 0.025), 0.05, 0.01, 0.05, h * 0.42, d * 0.7, S_PACK, { color: 0xb8bcae, uvScale: 2 });
+    // the rubberised base, binding, compression straps and buckles
+    mb.box(0, 0.0, 0, w + 0.01, 0.03, d + 0.01, 'rubber_black');
+    for (const y of [0.14, 0.3]) mb.box(0, y, 0, w + 0.016, 0.022, d + 0.016, S_WEB);
+    for (const sx of [-1, 1]) for (const y of [0.14, 0.3]) mb.box(sx * (w / 2 + 0.012), y - 0.004, d * 0.2, 0.012, 0.03, 0.026, 'plastic_white', { color: 0x2a2b2e });
+    // the steel frame up the back, the grab handle, padded shoulder straps
+    for (const sx of [-1, 1]) mb.box(sx * (w / 2 - 0.02), 0.0, -d / 2 - 0.014, 0.018, h + 0.06, 0.018, 'metal_grey', { color: 0x5c6064 });
+    mb.box(0, h + 0.05, -d / 2 - 0.014, w - 0.02, 0.018, 0.018, 'metal_grey', { color: 0x5c6064 });
+    mb.box(0, h + 0.03, -0.02, 0.07, 0.024, 0.02, S_WEB);
+    for (const sx of [-1, 1]) mb.box(sx * 0.08, 0.08, -d / 2 - 0.03, 0.06, h - 0.1, 0.022, S_PAD);
+    // the brass seal on the zip pulls
+    mb.box(0.04, h - 0.04, d / 2 + 0.018, 0.034, 0.038, 0.016, 'metal_brass', { color: 0xd0a850 });
   },
 });
 

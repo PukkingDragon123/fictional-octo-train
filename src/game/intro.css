@@ -35,7 +35,7 @@
 }
 @media (prefers-reduced-motion: reduce) { .ix-wrap { transition: none; } }
 
-/* the spoken lines (src/game/introKit/subs.ts): Pixelify Sans, big and crisp, one at a time, typed on,
+/* the spoken lines (src/game/introKit/subs.ts): Space Grotesk, big and crisp, one at a time, typed on,
    the speaker's name small above; no box, a hard black halo round the letters */
 .ix-subs { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 .ix-sub { position: absolute; left: 50%; bottom: calc(10vh + 3.2vh); transform: translateX(-50%); width: min(78vw, 980px); text-align: center;

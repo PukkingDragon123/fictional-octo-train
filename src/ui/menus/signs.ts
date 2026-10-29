@@ -3,7 +3,7 @@
 // hook. They swing like pendulums: they sway in when the menu shows, swing
 // when you hover, focus or press them, settle with damping, and the eye
 // bolts creak at the ends of a big swing. The board is drawn once at low
-// resolution (lettering painted on in Pixelify Sans, worn), and every frame
+// resolution (lettering painted on in Space Grotesk, worn), and every frame
 // it moves it is rotated on the art-pixel grid (nearest sampling, like a
 // hand-rotated sprite) together with its chains, so it stays crisp pixel art
 // at a whole number of device pixels per art pixel. Each sign is a real
@@ -58,7 +58,7 @@ const hash = (x: number, y: number, s: number) => { let h = Math.imul(x * 374761
 function rng(seed: number) { let a = seed >>> 0 || 1; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 // ------------------------------------------------------------------ lettering
-// Pixelify Sans is drawn on a grid of ~91 font units (1000 / 11) starting 60
+// Space Grotesk is drawn on a grid of ~91 font units (1000 / 11) starting 60
 // units in from the glyph origin and 12 under the baseline, but it chamfers
 // its corners diagonally INSIDE the cells. So each glyph is drawn large (10
 // screen px per font pixel) and every cell is sampled SUB x SUB times (at the
@@ -77,7 +77,7 @@ function glyph(ch: string, sub: number): Glyph {
   const hit = glyphs.get(key);
   if (hit) return hit;
   gctx.clearRect(0, 0, gcv.width, gcv.height);
-  gctx.font = `${BIG}px 'Pixelify Sans', monospace`;
+  gctx.font = `${BIG}px 'Space Grotesk', Arial, sans-serif`;
   gctx.fillStyle = '#fff'; gctx.textBaseline = 'alphabetic';
   const ox = 30, B = 270;
   gctx.fillText(ch, ox, B);

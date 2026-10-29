@@ -25,7 +25,7 @@
 @font-face { font-family: 'Workbench'; src: url('/fonts/workbench.woff2') format('woff2'); font-display: swap; }
 @font-face { font-family: 'VT323'; src: url('/fonts/vt323.woff2') format('woff2'); font-display: swap; }
 @font-face { font-family: 'Share Tech Mono'; src: url('/fonts/sharetechmono.woff2') format('woff2'); font-display: swap; }
-@font-face { font-family: 'Pixelify Sans'; src: url('/fonts/pixelify-sans.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: 'Space Grotesk'; src: url('/fonts/pixelify-sans.woff2') format('woff2'); font-weight: 400 700; font-display: swap; }
 
 :root {
   color-scheme: dark;

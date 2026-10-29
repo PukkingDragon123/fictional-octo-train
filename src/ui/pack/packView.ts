@@ -24,7 +24,7 @@ import { GridView3, type DropAt } from '../../craft/gridView3';
 import { crtScreen, phosphorText, cssFont, type CrtScreen } from '../../gfx/crt';
 import { metalMat, metalEnv } from '../../craft/metal';
 import { fbox, fcyl, frod, jitter, hull, gem } from '../touch/facet';
-import { wallTex, flapTex, canvasTile, liningCell, webbingTile, zipTile, rubberTile, padTile, logoDecal, warnDecal, idCard, assetPlate, packCard, hangTag, OCHRE, WEB_BLACK } from './packTex';
+import { wallTex, flapTex, flapInsideTex, canvasTile, liningCell, webbingTile, zipTile, rubberTile, padTile, logoDecal, warnDecal, idCard, assetPlate, packCard, hangTag, OCHRE, WEB_BLACK } from './packTex';
 
 /** cell size: across (x), rows (z), layers (y) */
 export const PACK_CELL: [number, number, number] = [0.088, 0.098, 0.074];
@@ -485,19 +485,17 @@ export class PackView extends GridView3 {
     const bm = new THREE.Mesh(band.build(), M.canvas);
     inked(bm, 0.0035);
     this.lid.add(m, bm); this.lidParts.push(m, bm);
-    // underneath: the lining, a binding round it, the packing card
+    // underneath: one picture of the lining, the mesh pocket and the packing card
     const under = new PG(1);
-    const [cx, cy] = PACK_CELL;
+    const uIn = (q: V) => [(q.x + W2) / W, q.z / LO];
     for (let k = 0; k < edge.length; k++) {
       const a = edge[k], b = edge[(k + 1) % edge.length];
-      under.tri(v3(a.x, -0.0005, a.z), v3(b.x, -0.0005, b.z), v3(0, -0.0005, LO / 2), 0xd8d0bc, v3(0, -1, 0), [a.x / cx, a.z / cy], [b.x / cx, b.z / cy], [0, LO / 2 / cy]);
+      const A = v3(a.x, -0.0005, a.z), B = v3(b.x, -0.0005, b.z), Cc = v3(0, -0.0005, LO / 2);
+      under.tri(A, B, Cc, 0xffffff, v3(0, -1, 0), uIn(A), uIn(B), uIn(Cc));
     }
-    const um = new THREE.Mesh(under.build(), M.lining);
+    const inMat = new THREE.MeshStandardMaterial({ map: flapInsideTex(W, LO), vertexColors: true, roughness: 0.95, metalness: 0, flatShading: true, side: THREE.DoubleSide });
+    const um = new THREE.Mesh(under.build(), inMat);
     this.lid.add(um); this.lidParts.push(um);
-    const card = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.133), M.card);
-    card.rotation.x = Math.PI / 2; card.rotation.z = 0.04;
-    card.position.set(0.01, -0.003, LO * 0.42);
-    this.lid.add(card); this.lidParts.push(card);
 
     // the stencilled seal on the far half (a decal laid over the crown)
     const dec = new PG(1);
@@ -748,6 +746,8 @@ export class PackView extends GridView3 {
   flapEdge(out: V): V { return this.lid.localToWorld(out.set(0, TH + DOME * 0.4, this.size.z * 0.98)); }
   /** the rim's near edge above local x (world space): where a tag for something inside lies */
   rimNear(x: number, out: V): V { return this.root.localToWorld(out.set(Math.max(-this.size.x / 2 + 0.06, Math.min(this.size.x / 2 - 0.06, x)), this.size.y - DOME - TH + 0.035, this.size.z / 2 + 0.05)); }
+  /** where a hand rests on the open pack: on the bottom end's rim, near a corner (world space) */
+  restPoint(side: 1 | -1, out: V): V { return this.root.localToWorld(out.set(side * (this.size.x / 2 - 0.07), this.size.y - DOME - TH + 0.016, this.size.z / 2 + 0.004)); }
   /** the seal's window (world space) */
   sealAt(out: V): V { return this.pad.getWorldPosition(out); }
   /** where a hand takes hold to carry it (world space): the side at mid height, toward you */

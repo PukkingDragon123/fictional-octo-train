@@ -2,7 +2,7 @@
 // pixel by pixel (chamfered corners, a 1 px black outline, bevels, four
 // rivets, brushed grain, a hazard sliver, a recessed key cap showing which
 // key does it) at a low resolution and shown at an integer scale with
-// image-rendering: pixelated. The words are Pixelify Sans, engraved into the
+// image-rendering: pixelated. The words are Space Grotesk, engraved into the
 // plate (dark, with a light lip under them), not in a box.
 // Keyboard: Esc. Touch / mouse: tap the plate. Gamepad: Start, Back or B.
 import { PixelCanvas, mixHex } from '../../gfx/pixel';

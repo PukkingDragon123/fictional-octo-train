@@ -8,6 +8,8 @@ import { itemGeometry } from '../items/itemMeshes';
 import { ORIENT, type Rot } from '../items/grid';
 import { G } from '../game/G';
 import { fpArm, type FpArm, type HandPose } from '../fp/hands';
+import { fpOwner } from '../fp/fp';
+import { eyeActive, eyeEnter } from '../fp/eye';
 
 export const fpMat = () => worldMaterial({ noVis: true, noFog: true, noGrid: true });
 export const fpGlow = () => worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true });
@@ -240,4 +242,21 @@ export function pointerRay(rc: THREE.Raycaster, cam: THREE.Camera, x: number, y:
   _ndc.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
   rc.setFromCamera(_ndc, cam);
   return rc.ray;
+}
+
+// ---------------------------------------------------------------- staying in the eyes
+/**
+ * A full close-up that takes the stage back while a release is still blinking out of the
+ * eyes (inspect closing over the bench or the pack) loses the eye when the lids meet. Put
+ * it back right then, behind the shut lids. Only arms itself when the eye is still up.
+ */
+export function keepEye(owner: string, pitchDeg: number) {
+  if (!eyeActive()) return;
+  const t0 = performance.now();
+  const tick = () => {
+    if (fpOwner() !== owner || performance.now() - t0 > 3000) return;
+    if (!eyeActive()) { eyeEnter({ pitchDeg }); return; }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
 }

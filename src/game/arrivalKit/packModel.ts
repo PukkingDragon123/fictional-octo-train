@@ -8,7 +8,7 @@
 // Two builds of one part list: the world copy (atlas textures, world
 // material: it falls out of the chute onto the Lobby floor) and the close-up
 // copy for the hands (its own canvas textures, standard material, the
-// printed words in Pixelify Sans).
+// printed words in Space Grotesk).
 import * as THREE from 'three';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 import { worldMaterial } from '../../gfx/materials';
@@ -110,9 +110,9 @@ function overlayTex(key: string): THREE.CanvasTexture {
     const tc = document.createElement('canvas'); tc.width = cv.width; tc.height = cv.height;
     const x = tc.getContext('2d')!;
     x.fillStyle = '#fff'; x.textBaseline = 'alphabetic';
-    x.font = `700 11px ${cssFont('--font-new', "'Pixelify Sans', monospace")}`;
+    x.font = `700 11px ${cssFont('--font-new', "'Space Grotesk', Arial, sans-serif")}`;
     x.fillText('MERIDIAN', 34, 19);
-    x.font = `600 7px ${cssFont('--font-new', "'Pixelify Sans', monospace")}`;
+    x.font = `600 7px ${cssFont('--font-new', "'Space Grotesk', Arial, sans-serif")}`;
     x.fillText('REMITTANCE ISSUE', 34, 28);
     x.fillText('No. 0041-R', 34, 35);
     const td = x.getImageData(0, 0, tc.width, tc.height), pd = g.getImageData(0, 0, cv.width, cv.height);

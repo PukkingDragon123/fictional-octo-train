@@ -17,8 +17,12 @@ import { itemDef, type Item } from '../items/item';
 import { createItem } from '../items/factory';
 import { itemGeometry } from '../items/itemMeshes';
 import { Sheet, sheetMesh, overlayRay, whenFonts, FONT } from '../build/paper';
-import { std, lathe, rod, ring, roundPlate, aimY } from '../build/shapes';
+import { std, lathe, aimY } from '../build/shapes';
 import { fpArmsFor, type FpArm } from '../fp/hands';
+import { Shape } from '../craft/shapes';
+import { pixMat } from '../craft/fpTex';
+import { inkMesh, ink, shade, shadowBlob, WorkLamp, Puffs, Shimmer } from '../craft/fpScene';
+import { face as polyFace, ngon } from '../ui/touch/facet';
 import { objDef } from '../world/objects';
 import { CROPS } from '../items/worldSystems';
 import { TimedAction } from '../actions/action';
@@ -57,8 +61,14 @@ export class CookView {
   private flames: THREE.Mesh;
   private light = new THREE.PointLight(0xff7a2a, 1.2, 1.6, 2);
   private surface: THREE.Mesh;
-  private grate!: THREE.Mesh;
-  private hob!: THREE.Mesh;
+  private grate!: THREE.Object3D;
+  private hob!: THREE.Object3D;
+  private coils!: THREE.Mesh;
+  private emberMat: THREE.MeshStandardMaterial | null = null;
+  private roomLamp!: WorkLamp;
+  private puffs!: Puffs;
+  private shimmer!: Shimmer;
+  private puffT = 0;
   private slots: Slot[] = [];
   private bits: Bit[] = [];
   private pot: { it: Item; cls: string }[] = [];
@@ -105,69 +115,93 @@ export class CookView {
     this.g = fpGroup('cook');
     this.g.add(this.rig);
     const M = cookMat('base');
-    // ---- the stovetop
-    const top = new ModelBuilder();
-    top.box(0, -0.06, 0, 1.5, 0.06, 0.78, { all: 'metal_dark', top: 'bt_plate' }, { uvScale: 8 });
-    top.box(0, -0.06, 0.39, 1.5, 0.06, 0.02, 'metal_grey');
-    top.box(0, -0.5, 0.2, 1.5, 0.44, 0.4, 'metal_dark');
-    this.surface = this.hob = new THREE.Mesh(top.build(), M);
-    this.rig.add(this.surface);
-    // a fire's grate over glowing coals (instead of the hob's steel top)
-    const fg = new ModelBuilder();
-    fg.box(0, -0.06, 0, 1.4, 0.035, 0.7, 'q_embers', { emissive: 0.85, uvScale: 2.2 });
-    for (const [x, z, w, d] of [[0, -0.37, 1.5, 0.04], [0, 0.37, 1.5, 0.04], [-0.73, 0, 0.04, 0.78], [0.73, 0, 0.04, 0.78]] as const) fg.box(x, -0.06, z, w, 0.06, d, 'metal_rusty');
-    for (let x = -0.69; x <= 0.69; x += 0.06) fg.box(x, -0.016, 0, 0.012, 0.012, 0.74, 'metal_dark');
-    this.grate = new THREE.Mesh(fg.build(), M); this.grate.visible = false; this.rig.add(this.grate);
-    // burner rings under the pan and the pot
-    const br = new ModelBuilder();
-    for (const [x, r] of [[PAN_X, 0.15], [POT_X, 0.11]] as [number, number][]) for (let i = 0; i < 20; i++) { const a = (i / 20) * Math.PI * 2; br.box(x + Math.cos(a) * r, 0, Math.sin(a) * r, 0.03, 0.012, 0.03, 'white', { emissive: 1, ao: false }); }
-    this.burnerMat = worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true, ckTag: 'burner' } as any) as THREE.MeshLambertMaterial;
-    this.rig.add(new THREE.Mesh(br.build(), this.burnerMat));
-    // flames licking up (fire stations)
-    const fl = new ModelBuilder();
-    for (let i = 0; i < 9; i++) { const a = i * 0.7 + 0.2; fl.cross(PAN_X + Math.cos(a) * 0.19, -0.012, Math.sin(a) * 0.19, 0.045, 0.06, 'fx_flame', { emissive: 1, rot: a }); }
-    this.flames = new THREE.Mesh(fl.build(), worldMaterial({ noVis: true, noFog: true, noGrid: true, unlit: true, cutout: true, doubleSide: true, ckTag: 'fl' } as any));
+    // ---- what you cook on: the hob (an enamel range) or the fire (stones, coals, logs, a grate).
+    // Both sit in the room the eye shows behind them; one invisible plane takes the pointer.
+    this.surface = new THREE.Mesh(new THREE.PlaneGeometry(1.7, 0.95), new THREE.MeshBasicMaterial({ visible: false }));
+    this.surface.rotation.x = -Math.PI / 2; this.surface.position.y = 0.0; this.rig.add(this.surface);
+    this.hob = this.buildHob(); this.rig.add(this.hob);
+    this.grate = this.buildFire(); this.grate.visible = false; this.rig.add(this.grate);
+    // glowing coils under the pan and the pot (stove), coloured by the heat each frame
+    this.burnerMat = new THREE.MeshBasicMaterial({ color: 0x000000 }) as unknown as THREE.MeshLambertMaterial;
+    const coil = new Shape(8);
+    for (const [x, z, r] of [[PAN_X, 0, 0.13], [POT_X, -0.04, 0.095]] as [number, number, number][]) for (let i = 0; i < 3; i++) coil.ring(x, -0.004, z, r - i * 0.035, 0.0045, 0xffffff, 12, [Math.PI / 2, 0, 0]);
+    this.coils = new THREE.Mesh(coil.build(), this.burnerMat as unknown as THREE.Material);
+    this.hob.add(this.coils);
+    // flames licking up round the pan (fires): faceted tongues, additive, each its own flicker
+    this.flames = new THREE.Group() as unknown as THREE.Mesh;
+    const tongue = new Shape(4); tongue.lathe(0, 0, 0, [[0.022, 0], [0.026, 0.02], [0.016, 0.05], [0.006, 0.075], [0, 0.09]], 0xffffff, 5);
+    const tg = tongue.build();
+    for (let i = 0; i < 12; i++) {
+      const a = i * 0.53 + 0.2, r = 0.08 + (i % 3) * 0.06;
+      const m = new THREE.Mesh(tg, new THREE.MeshBasicMaterial({ color: i % 3 === 0 ? 0xffd070 : i % 3 === 1 ? 0xff8a2a : 0xe8501a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
+      m.position.set(PAN_X + 0.1 + Math.cos(a) * r * 1.6, -0.06, Math.sin(a) * r * 0.9 - 0.04);
+      m.userData.ph = i * 1.7; m.userData.s = 0.7 + (i % 4) * 0.2; m.renderOrder = 5;
+      (this.flames as unknown as THREE.Group).add(m);
+    }
     this.rig.add(this.flames);
-    // ---- cast-iron skillet, lathed: a thick base, a flared lip, a riveted handle with a hanging loop
-    const IRON = std(0x2e2b29, 0.42, 0.65), STEEL = std(0xb4b8bc, 0.25, 0.85), WOOD = std(0x7a4e2c, 0.7, 0), PORC = std(0xf2eee4, 0.25, 0);
-    const pan = new THREE.Mesh(lathe('skillet', [[0, 0.0], [0.15, 0.0], [0.163, 0.004], [0.17, 0.018], [0.178, 0.042], [0.184, 0.048], [0.18, 0.05], [0.172, 0.044], [0.162, 0.016], [0.15, 0.01], [0, 0.01]], 32), IRON);
-    this.panG.add(pan);
-    const handle = new THREE.Mesh(rod(0.013, 0.26, 10), IRON); handle.position.set(-0.32, 0.04, 0.0); handle.rotation.z = -0.12; this.panG.add(handle);
-    const hole = new THREE.Mesh(ring(0.012, 0.0045, 14), IRON); hole.rotation.x = Math.PI / 2; hole.position.set(-0.475, 0.058, 0); this.panG.add(hole);
+    // ---- cast-iron skillet: a thick base, a flared lip, a long handle with a hanging hole
+    const sk = new Shape(6);
+    sk.lathe(0, 0, 0, [[0, 0.0], [0.15, 0.0], [0.163, 0.004], [0.17, 0.018], [0.178, 0.042], [0.184, 0.048], [0.18, 0.05], [0.172, 0.044], [0.162, 0.016], [0.15, 0.01], [0, 0.01]], 0xffffff, 12);
+    sk.rod([-0.17, 0.03, 0], [-0.45, 0.068, 0], 0.012, 0xffffff, 6);
+    sk.ring(-0.465, 0.07, 0, 0.016, 0.006, 0xffffff, 8, [Math.PI / 2, 0, 0]);
+    sk.box(-0.19, 0.022, 0, 0.05, 0.022, 0.03, 0xffffff, 0.006);
+    const pan = new THREE.Mesh(sk.build(), pixMat('castIron', { color: 0x9a9a9a }));
+    pan.castShadow = true;
+    this.panG.add(pan); this.panG.add(inkMesh(pan.geometry, 0.0025));
     this.panG.position.set(PAN_X, 0.0, 0);
     this.rig.add(this.panG);
-    // ---- stock pot: steel, a rolled rim, two loop handles; broth and a wooden spoon
-    this.potG.add(new THREE.Mesh(lathe('pot', [[0, 0], [0.1, 0], [0.108, 0.006], [0.11, 0.02], [0.11, 0.128], [0.116, 0.132], [0.112, 0.136], [0.104, 0.13], [0.104, 0.012], [0, 0.012]], 28), STEEL));
-    for (const sx of [-1, 1]) { const h = new THREE.Mesh(ring(0.018, 0.0045, 12), STEEL); h.position.set(sx * 0.122, 0.108, 0); h.rotation.y = Math.PI / 2; this.potG.add(h); }
+    // ---- stock pot: galvanised, a rolled rim, two loop handles; broth and a wooden spoon
+    const pt = new Shape(7);
+    pt.lathe(0, 0, 0, [[0, 0], [0.1, 0], [0.108, 0.006], [0.11, 0.02], [0.11, 0.128], [0.116, 0.132], [0.112, 0.136], [0.104, 0.13], [0.104, 0.012], [0, 0.012]], 0xffffff, 12);
+    for (const sx of [-1, 1]) pt.ring(sx * 0.122, 0.108, 0, 0.018, 0.0045, 0xd0d0d0, 8, [0, Math.PI / 2, 0]);
+    const potM = new THREE.Mesh(pt.build(), pixMat('galv', { side: THREE.DoubleSide }));
+    potM.castShadow = true;
+    this.potG.add(potM); this.potG.add(inkMesh(potM.geometry, 0.0025));
     this.brothMat = cookMat('broth');
-    const bb = new ModelBuilder(); bb.cylinder(0, 0, 0, 0.102, 0.004, 20, 'white');
+    const bb = new ModelBuilder(); bb.cylinder(0, 0, 0, 0.102, 0.004, 12, 'white');
     this.broth = new THREE.Mesh(bb.build(), this.brothMat); this.broth.position.y = 0.03; this.potG.add(this.broth);
-    const sp = new THREE.Mesh(lathe('spoon', [[0, 0], [0.016, 0.008], [0.019, 0.03], [0.012, 0.052], [0.006, 0.06], [0.0065, 0.26], [0.004, 0.27], [0, 0.272]], 8), WOOD);
+    const spS = new Shape(9); spS.lathe(0, 0, 0, [[0, 0], [0.016, 0.008], [0.019, 0.03], [0.012, 0.052], [0.006, 0.06], [0.0065, 0.26], [0.004, 0.27], [0, 0.272]], 0xffffff, 6);
+    const sp = new THREE.Mesh(spS.build(), pixMat('handle', { color: 0xb08860 }));
     sp.rotation.z = 0.35; this.spoon.add(sp); this.spoon.position.set(0.05, 0.02, 0); this.potG.add(this.spoon);
     this.potG.position.set(POT_X, 0, -0.04);
     this.rig.add(this.potG);
-    // ---- end-grain cutting board (rounded, bevelled) and a porcelain plate
-    const wbm = new THREE.Mesh(roundPlate(0.78, 0.16, 0.03, 0.026, 0.006), std(0xb88a58, 0.75, 0));
-    wbm.rotation.x = -Math.PI / 2; wbm.position.set(-0.28, 0.013, 0.3); this.rig.add(wbm);
-    this.plateM = new THREE.Mesh(lathe('plate', [[0, 0], [0.07, 0], [0.074, 0.004], [0.09, 0.008], [0.11, 0.016], [0.113, 0.018], [0.108, 0.019], [0.088, 0.012], [0.07, 0.006], [0, 0.006]], 32), PORC);
+    // ---- the butcher-block board on its own blocks, and a chipped enamel camp plate
+    const bd = new Shape(4);
+    bd.jbox(-0.28, -0.02, 0.3, 0.8, 0.034, 0.17, 0xffffff, 0.003, 21);
+    const board = new THREE.Mesh(bd.build(), pixMat('endgrain'));
+    board.receiveShadow = true; board.castShadow = true;
+    this.rig.add(board); this.rig.add(inkMesh(board.geometry, 0.003));
+    const knife = new Shape(6); knife.plate(0, 0, 0, [new THREE.Vector2(0, 0), new THREE.Vector2(0.16, 0.004), new THREE.Vector2(0.17, 0.022), new THREE.Vector2(0, 0.026)], 0.003, 0xffffff);
+    const kn = new THREE.Mesh(knife.build(), pixMat('steel')); kn.rotation.set(-Math.PI / 2, 0, 0.12); kn.position.set(0.0, 0.016, 0.35); this.rig.add(kn);
+    const kh = new Shape(9); kh.box(-0.05, 0, 0.0, 0.1, 0.018, 0.022, 0xffffff, 0.006);
+    const khm = new THREE.Mesh(kh.build(), pixMat('handle', { color: 0x7a5032 })); khm.rotation.y = -0.12; khm.position.set(0.0, 0.014, 0.362); this.rig.add(khm);
+    const pl = new Shape(5);
+    pl.lathe(0, 0, 0, [[0, 0], [0.07, 0], [0.074, 0.004], [0.09, 0.008], [0.11, 0.016], [0.114, 0.019], [0.108, 0.02], [0.088, 0.012], [0.07, 0.006], [0, 0.006]], 0xffffff, 12);
+    this.plateM = new THREE.Mesh(pl.build(), pixMat('enamelCream', { color: 0xf0f0ff }));
+    this.plateM.castShadow = true;
+    this.plateM.add(inkMesh(this.plateM.geometry, 0.0025));
     this.plateM.position.copy(PLATE); this.rig.add(this.plateM);
     for (let i = 0; i < N_SLOTS; i++) this.slots.push({ it: null, mesh: null, x: -0.6 + i * 0.09, z: 0.3 });
     for (let i = 0; i < 10; i++) this.bitMats.push(cookMat('bit' + i));
-    // light
-    this.light.position.set(PAN_X, -0.01, 0.02); this.rig.add(this.light);
-    const key = new THREE.DirectionalLight(0xfff0e0, 0.9); key.position.set(-0.4, 1, 0.6); this.rig.add(key);
-    this.rig.add(new THREE.AmbientLight(0x8a90a0, 0.5));
+    // light: the heat glow from under the pan, a cold room light from above and behind that throws the shadows
+    this.light.position.set(PAN_X, 0.04, 0.02); this.rig.add(this.light);
+    this.roomLamp = new WorkLamp(this.rig, new THREE.Vector3(-0.3, 1.3, -0.5), new THREE.Vector3(0.05, 0, 0.05), { color: 0xd8dce8, intensity: 3, angle: 0.9, dist: 3, mapSize: 512 });
+    this.rig.add(new THREE.HemisphereLight(0x8a90a0, 0x2a1a10, 0.45));
+    for (const [x, z, w, d] of [[PAN_X, 0, 0.42, 0.34], [POT_X, -0.04, 0.27, 0.24], [PLATE.x, PLATE.z, 0.26, 0.22]] as [number, number, number, number][]) { const sb = shadowBlob(w, d, 0.55); sb.position.set(x, 0.001, z); this.rig.add(sb); }
+    // smoke, steam and the shimmer of heat over the fire
+    this.puffs = new Puffs(30); this.rig.add(this.puffs.g);
+    this.shimmer = new Shimmer(4, 0.1, 0.45); this.shimmer.g.position.set(PAN_X, 0.05, -0.02); this.rig.add(this.shimmer.g);
     // smoke / steam / spatter points
     const N = 96;
     this.pPos = new Float32Array(N * 3); this.pVel = new Float32Array(N * 3); this.pLife = new Float32Array(N); this.pCol = new Float32Array(N * 3);
     const pg = new THREE.BufferGeometry();
     pg.setAttribute('position', new THREE.BufferAttribute(this.pPos, 3).setUsage(THREE.DynamicDrawUsage));
     pg.setAttribute('color', new THREE.BufferAttribute(this.pCol, 3).setUsage(THREE.DynamicDrawUsage));
-    this.points = new THREE.Points(pg, new THREE.PointsMaterial({ size: 0.022, vertexColors: true, transparent: true, opacity: 0.85, depthWrite: false }));
+    this.points = new THREE.Points(pg, new THREE.PointsMaterial({ size: 3, sizeAttenuation: false, vertexColors: true, transparent: true, opacity: 0.9, depthWrite: false }));
     this.points.frustumCulled = false; this.rig.add(this.points);
-    // camera framing: looking down at the stovetop
+    // camera framing: looking down at the stovetop, the room above its back edge
     this.rig.position.set(0, 0.0, -1.75);
-    this.rig.rotation.x = 0.9;
+    this.rig.rotation.x = 0.82;
     // ---- the recipe card, propped against the back of the stove (typed, coffee-stained)
     this.cardM = sheetMesh(this.card, 0.27, 0.27 * 330 / 320);
     this.cardM.position.set(0.6, 0.14, -0.34); this.cardM.rotation.set(-0.32, -0.22, 0.04);
@@ -181,14 +215,17 @@ export class CookView {
     });
     const tm = sheetMesh(tape, 0.96, 0.036); tm.position.set(-0.08, -0.03, 0.402); this.rig.add(tm);
     // ---- the bakelite heat knob (stoves)
-    const knm = new THREE.Mesh(lathe('knob', [[0, 0], [0.034, 0], [0.036, 0.006], [0.033, 0.022], [0.026, 0.03], [0, 0.031]], 20), std(0x1a1816, 0.3, 0.05));
+    const knS = new Shape(8); knS.lathe(0, 0, 0, [[0, 0], [0.034, 0], [0.036, 0.006], [0.033, 0.022], [0.026, 0.03], [0, 0.031]], 0xffffff, 8);
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2; knS.box(Math.cos(a) * 0.034, 0.004, Math.sin(a) * 0.034, 0.006, 0.02, 0.006, 0xd0c0b0, 0.002, [0, -a, 0]); }
+    const knm = new THREE.Mesh(knS.build(), pixMat('bakelite'));
     const tick = new THREE.Mesh(rod(0.0028, 0.022, 6), std(0xe8e0c8, 0.4, 0)); tick.rotation.y = Math.PI / 2; tick.position.set(0, 0.031, 0.013); knm.add(tick);
     knm.rotation.x = Math.PI / 2; this.knob.add(knm);
     this.knob.position.set(0.62, -0.03, 0.4); this.rig.add(this.knob);
     // ---- a probe thermometer that sticks into whatever you look at
-    const face = new Sheet(96, 96); whenFonts(() => { face.gaugeFace('°F', 'high'); face.commit(); });
-    const prm = new THREE.Mesh(lathe('probe', [[0, -0.095], [0.0018, -0.093], [0.003, -0.08], [0.003, -0.004], [0.026, -0.002], [0.029, 0.004], [0.028, 0.012], [0.024, 0.013], [0, 0.013]], 18), std(0xc8ccd0, 0.25, 0.85)); this.probe.add(prm);
-    const fm = new THREE.Mesh(new THREE.CircleGeometry(0.024, 14), new THREE.MeshLambertMaterial({ map: face.tex })); fm.rotation.x = -Math.PI / 2; fm.position.y = 0.0125; this.probe.add(fm);
+    const face = new Sheet(96, 96); whenFonts(() => { octFace(face, '°F'); face.commit(); });
+    const prS = new Shape(8); prS.lathe(0, 0, 0, [[0, -0.095], [0.0018, -0.093], [0.003, -0.08], [0.003, -0.004], [0.026, -0.002], [0.029, 0.004], [0.028, 0.012], [0.024, 0.013], [0, 0.013]], 0xffffff, 8);
+    const prm = new THREE.Mesh(prS.build(), pixMat('chrome')); this.probe.add(prm);
+    const fm = new THREE.Mesh(polyFace(ngon(8, 0.025)), new THREE.MeshLambertMaterial({ map: face.tex })); fm.rotation.x = -Math.PI / 2; fm.position.y = 0.0125; this.probe.add(fm);
     const nd = new ModelBuilder(); nd.box(0, 0, -0.0095, 0.0022, 0.0016, 0.019, 'white', { color: 0xc8302a });
     this.probeNeedle.add(new THREE.Mesh(nd.build(), M)); this.probeNeedle.position.y = 0.0135; this.probe.add(this.probeNeedle);
     this.probe.rotation.x = -0.5; this.probe.visible = false; this.rig.add(this.probe);
@@ -206,6 +243,61 @@ export class CookView {
     window.addEventListener('wheel', (e) => { if (this.open && this.kind === 'stove') { this.heat = clamp(this.heat - Math.sign(e.deltaY) * 0.1, 0.2, 1.2); } }, { passive: true });
     bus.on('fpLost', (n: string) => { if (n === 'cook' && this.open) this.close(); });
     bus.on('travelEnd', () => this.close());
+  }
+
+  /** an enamel range: chipped cream top, cast-iron trivets over the coils, a chrome trim, the oven door below */
+  private buildHob(): THREE.Group {
+    const g = new THREE.Group();
+    const en = new Shape(4), iron = new Shape(6), chrome = new Shape(6), dark = new Shape(6);
+    en.box(0, -0.05, 0, 1.62, 0.05, 0.88, 0xffffff, 0.012);
+    en.box(0, -0.75, 0.42, 1.62, 0.7, 0.03, 0xf0ece0, 0.01);
+    en.box(0, 0, -0.45, 1.62, 0.2, 0.05, 0xffffff, 0.012);
+    chrome.box(0, -0.06, 0.448, 1.64, 0.018, 0.012, 0xffffff, 0.004);
+    chrome.capsule(-0.5, -0.16, 0.46, 0.008, 1.0, 0xffffff, [0, 0, -Math.PI / 2]);
+    for (const x of [-0.55, 0.55]) chrome.box(x, -0.18, 0.44, 0.03, 0.04, 0.03, 0xd0d0d0, 0.006);
+    // the drip pans and the trivets
+    for (const [x, z, r] of [[PAN_X, 0, 0.17], [POT_X, -0.04, 0.13]] as [number, number, number][]) {
+      chrome.lathe(x, -0.012, z, [[0.03, 0], [r, 0.004], [r + 0.012, 0.012], [r + 0.01, 0.014], [r - 0.01, 0.006], [0.03, 0.002]], 0xb8b8b0, 10);
+      for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.4; iron.box(x + Math.cos(a) * r * 0.62, -0.01, z + Math.sin(a) * r * 0.62, r * 0.9, 0.012, 0.014, 0xffffff, 0.003, [0, -a, 0]); }
+      iron.lathe(x, -0.012, z, [[r + 0.005, 0], [r + 0.02, 0], [r + 0.02, 0.012], [r + 0.005, 0.012]], 0xffffff, 8);
+    }
+    // the back guard: a clock that stopped, a row of dead pilot lamps
+    dark.box(0.42, 0.06, -0.42, 0.16, 0.09, 0.012, 0x2a2622, 0.004);
+    for (let i = 0; i < 4; i++) chrome.dome(-0.55 + i * 0.12, 0.1, -0.422, 0.012, 0xa08870);
+    for (let i = 0; i < 6; i++) dark.gem(-0.3 + Math.sin(i * 3.1) * 0.5, -0.0005, 0.25 + Math.cos(i * 1.7) * 0.15, 0.018 + (i % 3) * 0.01, 0x3a2410, 0.3, i, [1.6, 0.06, 1]);
+    const mesh = (sh: Shape, mat: THREE.Material) => { const m = new THREE.Mesh(sh.build(), mat); g.add(m); return m; };
+    mesh(en, pixMat('enamelCream')); mesh(iron, pixMat('castIron')); mesh(chrome, pixMat('chrome')); mesh(dark, pixMat('soot'));
+    ink(g, 0.003); shade(g);
+    return g;
+  }
+
+  /** a campfire: a ring of sooted stones on an ash bed, logs burning down to coals, an iron grate across, a flat stone for the plate */
+  private buildFire(): THREE.Group {
+    const g = new THREE.Group();
+    const stone = new Shape(6), ash = new Shape(3), embers = new Shape(5), logs = new Shape(8), grate = new Shape(6), crate = new Shape(4), wood = new Shape(6);
+    const cx = -0.02, cz = -0.06;
+    ash.lathe(cx, -0.1, cz, [[0, 0.012], [0.4, 0.008], [0.62, 0.0], [0.7, -0.01]], 0xffffff, 10, undefined, [1.05, 1, 0.62]);
+    embers.gem(cx - 0.05, -0.1, cz, 0.36, 0xffffff, 0.12, 5, [1.15, 0.12, 0.58]);
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2, r = 0.075 + ((i * 7) % 5) * 0.008;
+      stone.gem(cx + Math.cos(a) * 0.56, -0.07, cz + Math.sin(a) * 0.34, r, i % 2 ? 0xd8d4cc : 0xb8b4ac, 0.22, i + 3, [1.1, 0.75, 0.9]);
+    }
+    for (const [ax, az, bx, bz] of [[-0.42, 0.08, 0.2, -0.18], [-0.3, -0.24, 0.3, 0.06], [0.0, -0.3, -0.08, 0.16]]) logs.rod([cx + ax, -0.07, cz + az], [cx + bx, -0.045, cz + bz], 0.036, 0xffffff, 6);
+    // the grate: two rails on the stones, bars across
+    for (const z of [-0.3, 0.2]) grate.box(cx, -0.03, cz + z * 0.9 + 0.04, 1.06, 0.018, 0.024, 0xffffff, 0.004);
+    for (let x = -0.5; x <= 0.5; x += 0.07) grate.box(cx + x, -0.014, cz + 0.0, 0.012, 0.012, 0.5, 0xffffff, 0.003);
+    // a flat stone for the plate, a crate the recipe card leans on, the split logs under the board, a woodpile
+    stone.gem(PLATE.x, -0.06, PLATE.z, 0.15, 0xc8c4bc, 0.15, 41, [1, 0.32, 0.85]);
+    crate.jbox(0.68, -0.1, -0.42, 0.28, 0.24, 0.2, 0xffffff, 0.003, 3);
+    for (const x of [-0.6, 0.04]) wood.rod([x, -0.06, 0.22], [x, -0.06, 0.38], 0.04, 0xffffff, 6);
+    for (let i = 0; i < 4; i++) wood.rod([-0.85 + (i % 2) * 0.05, -0.08 + Math.floor(i / 2) * 0.07, -0.45], [-0.6 + (i % 2) * 0.05, -0.08 + Math.floor(i / 2) * 0.07, -0.2], 0.035, i % 2 ? 0xd8c8b0 : 0xffffff, 6);
+    const mesh = (sh: Shape, mat: THREE.Material) => { const m = new THREE.Mesh(sh.build(), mat); g.add(m); return m; };
+    mesh(ash, pixMat('ash', { glow: 0.8 }));
+    const em = mesh(embers, pixMat('embers', { glow: 1.4 })); this.emberMat = em.material as THREE.MeshStandardMaterial;
+    mesh(stone, pixMat('stone')); mesh(logs, pixMat('charLog', { glow: 1.6 })); mesh(grate, pixMat('rust', { color: 0x8a8480 }));
+    mesh(crate, pixMat('crate')); mesh(wood, pixMat('plank', { color: 0xc8b8a0 }));
+    ink(g, 0.003); shade(g);
+    return g;
   }
 
   // ================================================================= open / close
@@ -260,7 +352,7 @@ export class CookView {
       if (igniter && (fuel || (o.state.fuel ?? 0) > 0 || o.key === 'campfire_unlit')) G.items?.lightFire?.(p, o, igniter, fuel);
       else { bus.emit('think', p, 'Cold. I need something to light it, and something to burn.'); return true; }
     }
-    if (!fpClaim('cook', 3, { cinematic: 'full' })) return false;
+    if (!fpClaim('cook', 3, { cinematic: 'full', eyePitch: 34 })) return false;
     this.kind = kind;
     this.station = { zk: z.key, x: o.x, y: o.y, uid: o.uid };
     this.heat = kind === 'stove' ? 0.8 : 1;
@@ -269,7 +361,6 @@ export class CookView {
     G.ui && (G.ui.modal = this.token);
     this.knob.visible = kind === 'stove';
     this.hob.visible = kind === 'stove'; this.grate.visible = kind !== 'stove';
-    this.surface = kind === 'stove' ? this.hob : this.grate;
     p.actions.clear();
     p.actions.add(new CookingAction(p, () => this.open, o.x + 0.5, o.y + 0.5));
     this.rig.position.y = -0.5; // slides up into view
@@ -418,10 +509,21 @@ export class CookView {
     this.panG.position.y = kick; this.panG.rotation.z = -kick * 1.5;
     // burner glow + flames + light
     const fl = 0.85 + Math.sin(G.time * 13) * 0.08 + Math.sin(G.time * 31) * 0.05;
-    this.burnerMat.color.setRGB(H * 1.0 * fl, H * 0.35 * fl, H * 0.08);
-    this.flames.visible = this.kind === 'fire' && H > 0;
-    this.flames.scale.y = 0.6 + H * 0.6 * fl;
-    this.light.intensity = H * 0.9 * fl;
+    this.burnerMat.color.setRGB(Math.min(1, H * 1.0 * fl), H * 0.35 * fl, H * 0.08);
+    const fire = this.kind === 'fire';
+    this.flames.visible = fire && H > 0;
+    if (this.flames.visible) for (const m of this.flames.children) { const u = m.userData; const f = 0.6 + 0.4 * Math.sin(G.time * (9 + u.s * 4) + u.ph) * Math.sin(G.time * 23 + u.ph * 2); m.scale.set(u.s, u.s * (0.5 + H * 0.9 * f), u.s); m.rotation.y = G.time * 2 + u.ph; }
+    this.light.intensity = H * (fire ? 2.6 : 1.1) * fl;
+    if (this.emberMat) this.emberMat.emissiveIntensity = (0.5 + H * 1.3) * fl;
+    this.roomLamp.update(dt, 0.02);
+    // smoke off the fire, steam off the pot, the air wavering over the heat
+    this.puffT -= dt;
+    if (this.puffT <= 0 && H > 0.1) {
+      this.puffT = fire ? 0.16 : 0.4;
+      if (fire) this.puffs.emit(PAN_X + 0.2 + (Math.random() - 0.5) * 0.5, 0.05, -0.22 + Math.random() * 0.1, 0x4a4642, 0.07, 2.2, 0.16, 0.06);
+    }
+    this.puffs.update(dt, fpCamera(), fire ? 0.42 : 0.35);
+    this.shimmer.update(G.time, fire ? H : H * 0.5);
     // pan pieces: the side on the iron cooks
     const rate = H * 0.11;
     let sizzle = 0;
@@ -633,8 +735,8 @@ export class CookView {
   }
   private spatter(x: number, y: number, z: number, n: number, col = [1, 0.92, 0.6]) { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, s = 0.2 + Math.random() * 0.4; this.emit(x, y, z, Math.cos(a) * s, 0.4 + Math.random() * 0.6, Math.sin(a) * s, 0.35 + Math.random() * 0.25, col[0], col[1], col[2]); } }
   private splash(x: number, y: number, z: number, n: number) { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28; this.emit(x, y, z, Math.cos(a) * 0.15, 0.5 + Math.random() * 0.3, Math.sin(a) * 0.15, 0.4, 0.7, 0.55, 0.35); } }
-  private steam(x: number, y: number, z: number) { this.emit(x + (Math.random() - 0.5) * 0.12, y, z + (Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.03, 0.12 + Math.random() * 0.08, 0, 1.4, 0.85, 0.88, 0.9); }
-  private smoke(x: number, y: number, z: number, black: boolean) { const v = black ? 0.12 : 0.55; this.emit(x + (Math.random() - 0.5) * 0.06, y, z + (Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.04, 0.1 + Math.random() * 0.06, 0, 1.6, v, v, v * 1.05); }
+  private steam(x: number, y: number, z: number) { if (Math.random() < 0.35) this.puffs.emit(x, y + 0.03, z, 0xd8dce0, 0.04, 1.6, 0.12, 0.08); this.emit(x + (Math.random() - 0.5) * 0.12, y, z + (Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.03, 0.12 + Math.random() * 0.08, 0, 1.4, 0.85, 0.88, 0.9); }
+  private smoke(x: number, y: number, z: number, black: boolean) { const v = black ? 0.12 : 0.55; if (Math.random() < 0.4) this.puffs.emit(x, y + 0.02, z, black ? 0x1a1816 : 0x8a8680, 0.035, 1.8, 0.1, 0.03); this.emit(x + (Math.random() - 0.5) * 0.06, y, z + (Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.04, 0.1 + Math.random() * 0.06, 0, 1.6, v, v, v * 1.05); }
   private flare(x: number, z: number) { for (let i = 0; i < 3; i++) this.emit(x + (Math.random() - 0.5) * 0.05, 0.04, z + (Math.random() - 0.5) * 0.05, 0, 0.25 + Math.random() * 0.2, 0, 0.35, 1, 0.55, 0.15); }
   private updatePoints(dt: number) {
     for (let i = 0; i < this.pN; i++) {
@@ -689,3 +791,18 @@ export class CookView {
   }
 }
 
+
+/** an octagonal dial face (no round gauges): cream enamel, ticks, a red zone, the unit */
+function octFace(sh: Sheet, label: string) {
+  const g = sh.ctx, cx = sh.w / 2, cy = sh.h / 2, r = sh.w / 2 - 2;
+  const oct = (rr: number) => { g.beginPath(); for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + (i / 8) * Math.PI * 2; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.closePath(); };
+  sh.fill(0x141414);
+  g.fillStyle = '#e8dcbc'; oct(r); g.fill();
+  g.strokeStyle = '#2a2622'; g.lineWidth = 2; oct(r - 1); g.stroke();
+  g.strokeStyle = '#b8302a'; g.lineWidth = r * 0.12; g.beginPath(); g.moveTo(cx + Math.cos(Math.PI * 2.05) * r * 0.78, cy + Math.sin(Math.PI * 2.05) * r * 0.78); g.lineTo(cx + Math.cos(Math.PI * 2.25) * r * 0.78, cy + Math.sin(Math.PI * 2.25) * r * 0.78); g.stroke();
+  for (let i = 0; i <= 20; i++) {
+    const a = Math.PI * (0.75 + i * 0.075), long = i % 5 === 0, r0 = long ? r * 0.62 : r * 0.72;
+    sh.line(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0, cx + Math.cos(a) * r * 0.84, cy + Math.sin(a) * r * 0.84, 0x2a2622, long ? 2 : 1);
+  }
+  sh.text(label, cx, cy + r * 0.28, { font: FONT.sign, size: Math.round(r * 0.36), color: 0x2a2622, align: 'center', weight: '600' });
+}
