@@ -238,7 +238,7 @@
 .ps-head b { font-size: var(--t-l); }
 .ps-head small { font-size: var(--t-s); color: rgba(236, 226, 204, 0.75); }
 .ps-term { position: relative; height: 100%; width: min(calc(var(--ks) * 236), calc(100vw - var(--ks) * 120 - 40px)); animation: tt3-drop 0.42s steps(7) both; }
-.ps-right.with-gears .ps-term { width: min(calc(var(--ks) * 210), calc(100vw - var(--ks) * 150 - 40px)); }
+.ps-right.with-gears .ps-term { width: min(calc(var(--ks) * 176), calc(100vw - var(--ks) * 190 - 40px)); }
 .ps-ekg { display: flex; align-items: center; gap: 0.8em; margin-bottom: 0.4em; }
 .ps-ekg svg { flex: 1; height: calc(var(--ks) * 6); color: var(--ct-ph); filter: drop-shadow(0 0 2px rgba(var(--ct-rgb), 0.6)); }
 .ps-ekg span { color: var(--ct-hi); font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; font-size: var(--t-s); }

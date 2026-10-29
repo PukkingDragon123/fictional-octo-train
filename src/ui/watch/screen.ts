@@ -20,7 +20,7 @@ import { angleDiff } from '../../core/math';
 const C = (h: number) => (((255 << 24) | ((h & 0xff) << 16) | (h & 0xff00) | ((h >> 16) & 0xff)) >>> 0);
 /** phosphor: green P1 with amber for money, warnings and anything that wants your attention */
 export const PAL = {
-  BG: C(0x041207), PANEL: C(0x07200e), FAINT: C(0x0b2c14), DIM: C(0x1d6a30), MID: C(0x45c25a), HI: C(0xc0ffb4),
+  BG: C(0x041207), PANEL: C(0x07200e), FAINT: C(0x0e3418), DIM: C(0x2f9446), MID: C(0x5ee874), HI: C(0xd0ffc4),
   AMB: C(0xffb030), RED: C(0xff6a3a), MAG: C(0xe4ff74), GRN: C(0xc0ffb4), INK: C(0x041207),
 };
 const { BG, PANEL, FAINT, DIM, MID, HI, AMB, RED, MAG, GRN, INK } = PAL;

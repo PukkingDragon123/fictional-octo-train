@@ -711,25 +711,32 @@ class Arrival implements GameSystem {
     this.sfx('debtor_gasp', 0.7);
     if (seam) this.seamFx?.ripple(seam, undefined, 0.7, true);
     yield secs(1.2);
-    // ---- F1 (first person): eyes open on the floor; up onto a knee, up
+    // ---- F1 (first person): eyes open on the floor, the room on its side; up onto a knee, up
+    const outYaw = Math.atan2(f.nz, f.nx), backYaw = Math.atan2(-f.nz, -f.nx);
     this.lidK = 1;
-    this.eyeOn({ yaw: Math.atan2(f.nz, f.nx) + 0.25, pitch: 38 * DEG, roll: 0.75, fov: 62, snap: true });
-    this.eyeGoal.rate = 1.6;
+    this.eyeOn({ yaw: outYaw + 0.3, pitch: 3 * DEG, roll: 1.25, fov: 64, snap: true });
+    this.eyeGoal.rate = 1.2;
     this.tween(0.5, (k) => { this.lidK = 1 - ease(k) * 0.55; });
     yield secs(0.7);
     this.tween(0.25, (k) => { this.lidK = 0.45 + ease(k) * 0.55; }, () => this.tween(0.6, (k) => { this.lidK = 1 - ease(k); }));
     this.setPose('get_up', 2.2);
-    this.eyeGoal.roll = 0; this.eyeGoal.pitch = 8 * DEG; this.eyeGoal.yaw = Math.atan2(f.nz, f.nx);
+    this.eyeGoal.roll = 0; this.eyeGoal.pitch = 6 * DEG; this.eyeGoal.yaw = outYaw;
     yield secs(0.9);
     this.say('self', '...where...', 'self');
-    yield secs(1.5);
+    yield secs(1.3);
+    // he turns: the wall he came out of, the black still moving on it
     this.setPose('sway', 99);
+    p.facing = p.targetFacing = backYaw;
+    this.eyeGoal.yaw = backYaw; this.eyeGoal.pitch = -2 * DEG; this.eyeGoal.rate = 2.2;
+    if (seam) this.seamFx?.ripple(seam, { x: f.x, y: p.y + 1.3, z: f.z }, 1.2, true);
+    yield secs(1.3);
     // ---- the band: a chirp, the lamp in it flickering, the signal
     this.sfx('remit_chirp', 0.9);
     try { G.holo?.boot?.(); } catch (e) { console.warn('holo.boot', e); }
     bus.emit('watchSignal', { from: 'VOSS', kind: 'handler', text: 'INCOMING' });
-    this.eyeGoal.pitch = 40 * DEG; this.eyeGoal.yaw = Math.atan2(f.nz, f.nx) + 0.5; this.eyeGoal.rate = 3;
-    yield secs(0.9);
+    this.eyeGoal.pitch = 42 * DEG; this.eyeGoal.yaw = backYaw - 0.5; this.eyeGoal.rate = 3;
+    yield secs(0.8);
+    p.facing = p.targetFacing = outYaw;
     // ---- I2 (iso): behind the debtor, the beam comes out of the wrist, Voss unfolds out of the floor
     this.eyeOff();
     this.setPose('wrist_look', 3.2);

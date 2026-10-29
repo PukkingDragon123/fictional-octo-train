@@ -87,18 +87,26 @@ export function containerShell(style: string, w: number, d: number): THREE.Objec
 }
 
 // ---------------------------------------------------------------- tags on the floor
-/** lay a tag on a surface at `at` (parent space), leaning back toward the eye (the parent's origin) */
-function laySurface(m: THREE.Object3D, at: THREE.Vector3, parent: THREE.Object3D, lean = 0.95, roll = 0) {
-  // face the camera, then tip back toward the floor: it lies against what it rests on
+/**
+ * lay a tag down at `at` (parent space): flat on the floor with its writing the right way up for the
+ * eye (the parent's origin), its face tipped `tilt` radians up toward you (a little on the floor,
+ * more when it leans against a wall), turned `roll` about its own face
+ */
+const _n = new THREE.Vector3(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _d = new THREE.Vector3(), _mb = new THREE.Matrix4();
+function laySurface(m: THREE.Object3D, at: THREE.Vector3, parent: THREE.Object3D, tilt = 0.3, roll = 0) {
   parent.updateWorldMatrix(true, false);
   _m.copy(parent.matrixWorld).invert();
   const cam = _w.set(0, 0, 0).applyMatrix4(_m);
-  const up = _v.set(0, 1, 0).transformDirection(_m);
-  m.position.copy(at);
-  m.up.copy(up);
-  m.lookAt(cam);
-  m.rotateX(-lean);
+  _d.subVectors(cam, at).setY(0);
+  if (_d.lengthSq() < 1e-8) _d.set(0, 0, 1);
+  _d.normalize();
+  _n.set(0, 1, 0).multiplyScalar(Math.cos(tilt)).addScaledVector(_d, Math.sin(tilt)).normalize();
+  _y.copy(_d).negate().addScaledVector(_n, _d.dot(_n)).normalize();
+  _x.crossVectors(_y, _n).normalize();
+  _mb.makeBasis(_x, _y, _n);
+  m.quaternion.setFromRotationMatrix(_mb);
   m.rotateZ(roll);
+  m.position.copy(at);
 }
 
 /**
@@ -109,6 +117,8 @@ export class GroundTag {
   readonly tag = pixTag('tag', 84, 50, 0.15);
   readonly line = tagString(0x6a5a3a);
   private key = '';
+  /** how far the tag is tipped up toward you (more when it leans on the pack's wall) */
+  lean = 0.4;
   constructor(readonly parent: THREE.Object3D) { parent.add(this.tag.mesh, this.line); this.tag.mesh.renderOrder = 6; this.hide(); }
   hide() { this.tag.mesh.visible = false; this.line.visible = false; this.key = ''; }
   item(it: Item, n: number, at: THREE.Vector3, rest: THREE.Vector3) {
@@ -142,7 +152,7 @@ export class GroundTag {
   private place(at: THREE.Vector3, rest: THREE.Vector3) {
     const m = this.tag.mesh;
     m.visible = true; this.line.visible = true;
-    laySurface(m, rest, this.parent, 0.8, rest.x > at.x ? -0.12 : 0.12);
+    laySurface(m, rest, this.parent, this.lean, rest.x > at.x ? -0.1 : 0.1);
     m.updateMatrix();
     // the eyelet at the top of the tag, the string back to the thing
     const eye = _v.set(0, 0.15 * 50 / 84 / 2 - 0.009, 0.001).applyMatrix4(m.matrix);
@@ -179,7 +189,7 @@ export class TagRow {
     }
     this.tags.forEach((s, k) => {
       const at = spots[k] ?? spots[spots.length - 1];
-      laySurface(s.t.mesh, at, this.parent, 1.05, (k % 2 ? 1 : -1) * 0.1 + (s.i === sel ? 0.06 : 0));
+      laySurface(s.t.mesh, at, this.parent, 0.42, (k % 2 ? 1 : -1) * 0.12 + (s.i === sel ? 0.06 : 0));
       if (s.i === sel) s.t.mesh.position.y += 0.004;
       s.t.mesh.updateMatrix();
       setString(s.line, _v.set(0, 0.11 * 30 / 62 / 2 - 0.007, 0.001).applyMatrix4(s.t.mesh.matrix), knot);

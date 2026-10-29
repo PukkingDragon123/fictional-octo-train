@@ -94,10 +94,11 @@ export class Bench {
     g.add(this.top);
     const sweep = clickTag('Sweep back into the cube', 'tag', 110, 0.22), away = clickTag('Step away', 'tag', 70, 0.17, '(Esc)');
     // both tags hang off hooks on the pegboard, swinging a little
+    // tags you can pull: one tied to the cube's corner, one hung on the vice's tommy bar
     sweep.mesh.geometry.translate(0, -0.05, 0); away.mesh.geometry.translate(0, -0.04, 0);
-    sweep.mesh.position.set(-0.7, 0.2, 0.014); sweep.mesh.rotation.z = 0.06;
-    away.mesh.position.set(0.7, 0.2, 0.014); away.mesh.rotation.z = -0.05;
-    this.peg.add(sweep.mesh, away.mesh);
+    sweep.mesh.position.set(-0.27, 0.13, 0.13); sweep.mesh.rotation.set(-0.5, 0.25, 0.08);
+    away.mesh.position.set(0.56, 0.08, 0.075); away.mesh.rotation.set(-0.55, -0.15, -0.06);
+    this.top.add(sweep.mesh, away.mesh);
     this.fixed = [{ t: sweep, run: () => this.clear() }, { t: away, run: () => this.close() }];
     g.add(this.dust.points, this.sparks.points);
     // the chalk slate stands on the bench leaning on the pegboard; label tape sticks along the top rail
@@ -123,12 +124,12 @@ export class Bench {
     frame.box(0, -0.22, 0.3, 2.5, 0.15, 0.03, 0xc8b8a0, 0.006);
     for (const x of [-1.05, 1.05]) frame.box(x, -0.6, 0.27, 0.09, 0.55, 0.09, 0xd0c0a8, 0.008);
     // ---- the back: 2x4 posts, a pegboard, a top rail and a shelf
-    for (const x of [-1.12, 1.12]) frame.box(x, 0, -0.35, 0.09, 0.6, 0.06, 0xe0d0b8, 0.008);
-    frame.box(0, 0.52, -0.35, 2.4, 0.045, 0.05, 0xd8c8b0, 0.006);
+    for (const x of [-1.12, 1.12]) frame.box(x, 0, -0.35, 0.09, 0.5, 0.06, 0xe0d0b8, 0.008);
+    frame.box(0, 0.45, -0.35, 2.4, 0.04, 0.05, 0xd8c8b0, 0.006);
     frame.box(0, 0.0, -0.345, 2.3, 0.03, 0.04, 0xc0b098, 0.005);
-    frame.jbox(0, 0.565, -0.3, 2.3, 0.025, 0.15, 0xf0e0c8, 0.002, 4);
-    for (const x of [-0.8, 0, 0.8]) frame.taper(x, 0.48, -0.25, 0.03, 0.03, 0.03, 0.09, 0.085, 0xb0a088, undefined, 0, -0.03);
-    peg.box(0, 0.03, -0.355, 2.3, 0.5, 0.012, 0xffffff, 0.002);
+    frame.jbox(0, 0.49, -0.31, 2.3, 0.022, 0.13, 0xf0e0c8, 0.002, 4);
+    for (const x of [-0.8, 0, 0.8]) frame.taper(x, 0.41, -0.26, 0.03, 0.03, 0.03, 0.08, 0.08, 0xb0a088, undefined, 0, -0.025);
+    peg.box(0, 0.03, -0.355, 2.3, 0.42, 0.012, 0xffffff, 0.002);
     // ---- the vice: green enamel body, steel jaws faced with hatching, a chrome screw and tommy bar
     green.jbox(0.68, 0, -0.16, 0.17, 0.065, 0.13, 0xffffff, 0.002, 5);
     green.box(0.68, 0.065, -0.21, 0.15, 0.055, 0.035, 0xffffff, 0.006);
@@ -140,12 +141,11 @@ export class Bench {
     steel.capsule(0.6, 0.085, 0.065, 0.005, 0.16, 0xf0f0e8, [0, 0, -Math.PI / 2]);
     for (const [x, z] of [[0.6, -0.22], [0.76, -0.22], [0.6, -0.1], [0.76, -0.1]]) steel.dome(x, 0.0, z, 0.007, 0x9a9a92, [0, 0, 0]);
     // ---- the gooseneck lamp clamped to the shelf: cast base, jointed steel arms, a green enamel shade
-    iron.box(0.42, 0.535, -0.27, 0.07, 0.03, 0.09, 0xffffff, 0.006);
-    iron.box(0.42, 0.48, -0.225, 0.05, 0.06, 0.012, 0xffffff, 0.003);
-    steel.rod([0.42, 0.565, -0.27], [0.36, 0.86, -0.18], 0.007, 0xe0e0d8, 6);
-    steel.rod([0.36, 0.86, -0.18], [0.22, 0.72, 0.0], 0.006, 0xe0e0d8, 6);
-    iron.cyl(0.36, 0.85, -0.18, 0.013, 0.02, 0xffffff, 8, [0, 0, Math.PI / 2]);
-    green.lathe(0.2, 0.69, 0.03, [[0.012, 0.075], [0.02, 0.07], [0.03, 0.05], [0.058, 0.012], [0.072, 0], [0.068, -0.004], [0.052, 0.008], [0.026, 0.044], [0.012, 0.06]], 0xffffff, 8, [0.35, 0, -0.25]);
+    iron.box(0.86, 0.512, -0.29, 0.08, 0.03, 0.1, 0xffffff, 0.006);
+    iron.box(0.86, 0.45, -0.245, 0.06, 0.07, 0.012, 0xffffff, 0.003);
+    steel.rod([0.86, 0.54, -0.29], [0.78, 0.72, -0.2], 0.007, 0xe0e0d8, 6);
+    steel.rod([0.78, 0.72, -0.2], [0.6, 0.58, -0.02], 0.006, 0xe0e0d8, 6);
+    iron.cyl(0.78, 0.71, -0.2, 0.014, 0.022, 0xffffff, 8, [0, 0, Math.PI / 2]);
     // ---- tools laid down: a claw hammer, a red screwdriver, a chisel, a carpenter's pencil, pliers
     handle.box(0.5, 0.004, 0.2, 0.24, 0.022, 0.026, 0xffffff, 0.008, [0, 0.35, 0]);
     iron.jbox(0.4, 0.002, 0.255, 0.035, 0.032, 0.11, 0xffffff, 0.0015, 3, [0, 0.35, 0]);
@@ -172,28 +172,28 @@ export class Bench {
     }
     for (let i = 0; i < 14; i++) dust.lathe(-0.05 + Math.sin(i * 4.1) * 0.5, 0.004, 0.12 + Math.cos(i * 2.7) * 0.18, [[0.004, 0], [0.012, 0.003], [0.006, 0.008]], 0xf8e8c0, 5, [Math.PI / 2, i, 0.3]);
     // ---- on the shelf: paint tins, a jar of screws, a cardboard box of fuses, a brass oil can
-    galv.lathe(-0.62, 0.59, -0.3, [[0, 0], [0.045, 0], [0.047, 0.006], [0.047, 0.09], [0.042, 0.096], [0, 0.096]], 0xd8d0c0, 8);
-    green.lathe(-0.5, 0.59, -0.31, [[0, 0], [0.038, 0], [0.04, 0.006], [0.04, 0.075], [0.036, 0.08], [0, 0.08]], 0xffffff, 8);
-    cardboard.jbox(-0.25, 0.59, -0.3, 0.16, 0.07, 0.1, 0xffffff, 0.002, 3);
-    cardboard.jbox(-0.27, 0.66, -0.31, 0.12, 0.05, 0.08, 0xe0d0b8, 0.002, 5);
-    brass.lathe(0.12, 0.59, -0.3, [[0, 0], [0.04, 0], [0.042, 0.01], [0.04, 0.045], [0.02, 0.07], [0.008, 0.08], [0.006, 0.17], [0.003, 0.18], [0, 0.18]], 0xffffff, 8);
-    galv.lathe(0.8, 0.59, -0.3, [[0, 0], [0.05, 0], [0.052, 0.006], [0.052, 0.12], [0.046, 0.126], [0, 0.126]], 0xc8c0b0, 8);
+    galv.lathe(-0.62, 0.501, -0.3, [[0, 0], [0.045, 0], [0.047, 0.006], [0.047, 0.09], [0.042, 0.096], [0, 0.096]], 0xd8d0c0, 8);
+    green.lathe(-0.5, 0.501, -0.31, [[0, 0], [0.038, 0], [0.04, 0.006], [0.04, 0.075], [0.036, 0.08], [0, 0.08]], 0xffffff, 8);
+    cardboard.jbox(-0.25, 0.501, -0.3, 0.16, 0.07, 0.1, 0xffffff, 0.002, 3);
+    cardboard.jbox(-0.27, 0.571, -0.31, 0.12, 0.05, 0.08, 0xe0d0b8, 0.002, 5);
+    brass.lathe(0.12, 0.501, -0.3, [[0, 0], [0.04, 0], [0.042, 0.01], [0.04, 0.045], [0.02, 0.07], [0.008, 0.08], [0.006, 0.17], [0.003, 0.18], [0, 0.18]], 0xffffff, 8);
+    galv.lathe(0.4, 0.501, -0.3, [[0, 0], [0.05, 0], [0.052, 0.006], [0.052, 0.12], [0.046, 0.126], [0, 0.126]], 0xc8c0b0, 8);
     // ---- tools hung on the pegboard: a hand saw, spanners, a coil of wire
     const P = this.peg;
     const sawBlade = new Shape(6);
     sawBlade.plate(0, 0, 0, [new THREE.Vector2(0, 0.06), new THREE.Vector2(0.34, 0.035), new THREE.Vector2(0.34, 0.0), new THREE.Vector2(0, -0.01)], 0.003, 0xe8e8e0);
     const sawM = new THREE.Mesh(sawBlade.build(), pixMat('steel'));
-    sawM.position.set(-1.02, -0.08, 0.008); sawM.rotation.z = -0.5; P.add(sawM);
+    sawM.position.set(-1.04, -0.02, 0.008); sawM.rotation.z = -0.62; P.add(sawM);
     const sawH = new Shape(9); sawH.box(-0.06, -0.035, 0.002, 0.1, 0.1, 0.022, 0xffffff, 0.008);
-    const shM = new THREE.Mesh(sawH.build(), pixMat('handle')); shM.position.copy(sawM.position); shM.rotation.z = -0.5; P.add(shM);
+    const shM = new THREE.Mesh(sawH.build(), pixMat('handle')); shM.position.copy(sawM.position); shM.rotation.z = -0.62; P.add(shM);
     const span = new Shape(6);
-    for (let i = 0; i < 3; i++) { const x = 0.9 + i * 0.06, l = 0.16 + i * 0.03; span.box(x, -0.2, 0.006, 0.016, l, 0.005, 0xffffff, 0.002); span.plate(x, -0.2 + l, 0.006, [new THREE.Vector2(-0.018, 0), new THREE.Vector2(0.018, 0), new THREE.Vector2(0.022, 0.03), new THREE.Vector2(0.008, 0.03), new THREE.Vector2(0.004, 0.012), new THREE.Vector2(-0.004, 0.012), new THREE.Vector2(-0.008, 0.03), new THREE.Vector2(-0.022, 0.03)], 0.005, 0xffffff); }
+    for (let i = 0; i < 3; i++) { const x = 0.9 + i * 0.06, l = 0.14 + i * 0.025; span.box(x, -0.17, 0.006, 0.016, l, 0.005, 0xffffff, 0.002); span.plate(x, -0.17 + l, 0.006, [new THREE.Vector2(-0.018, 0), new THREE.Vector2(0.018, 0), new THREE.Vector2(0.022, 0.03), new THREE.Vector2(0.008, 0.03), new THREE.Vector2(0.004, 0.012), new THREE.Vector2(-0.004, 0.012), new THREE.Vector2(-0.008, 0.03), new THREE.Vector2(-0.022, 0.03)], 0.005, 0xffffff); }
     const spM = new THREE.Mesh(span.build(), pixMat('chrome')); P.add(spM);
     const coil = new Shape(8);
-    for (let i = 0; i < 4; i++) coil.ring(0.62 + i * 0.004, -0.12, 0.012 + i * 0.003, 0.055 - i * 0.002, 0.004, 0xffffff, 10);
+    for (let i = 0; i < 4; i++) coil.ring(0.66 + i * 0.004, -0.1, 0.012 + i * 0.003, 0.055 - i * 0.002, 0.004, 0xffffff, 10);
     const coM = new THREE.Mesh(coil.build(), pixMat('brass', { color: 0xd88a50 })); P.add(coM);
     const hooks = new Shape(8);
-    for (const [x, y] of [[-1.0, 0.0], [0.93, 0.0], [0.99, 0.02], [1.05, 0.04], [0.62, -0.07], [-0.7, 0.2], [0.7, 0.2]]) hooks.rod([x, y, 0], [x, y + 0.006, 0.03], 0.0025, 0xc0c0b8, 4);
+    for (const [x, y] of [[-1.0, 0.06], [0.9, -0.03], [0.96, -0.005], [1.02, 0.02], [0.66, -0.05]]) hooks.rod([x, y, 0], [x, y + 0.006, 0.03], 0.0025, 0xc0c0b8, 4);
     P.add(new THREE.Mesh(hooks.build(), pixMat('steel')));
     // ---- meshes, one per surface
     const mesh = (sh: Shape, mat: THREE.Material, parent: THREE.Object3D = T) => { const m = new THREE.Mesh(sh.build(), mat); parent.add(m); return m; };
@@ -203,15 +203,26 @@ export class Bench {
     // a printed label on the fuse box
     const lab = pixTag('card', 60, 26, 0.13);
     lab.clear(); lab.type('FUSES', 12, 4, '#8a1a10', 9); lab.type('15 AMP · 10 PCS', 12, 15, undefined, 6); lab.flush();
-    lab.mesh.position.set(-0.25, 0.628, -0.249); T.add(lab.mesh);
+    lab.mesh.position.set(-0.25, 0.539, -0.249); T.add(lab.mesh);
     ink(T, 0.0028);
     ink(P, 0.0028);
     // the bulb in the shade, and the light it throws: a real shadow under everything on the boards
-    const bulb = new THREE.Mesh(gem(0.017, 0, 0.1), new THREE.MeshBasicMaterial({ color: 0xfff2c8 }));
-    bulb.position.set(0.2, 0.69, 0.03); T.add(bulb);
-    this.lampL = new WorkLamp(T, new THREE.Vector3(0.2, 0.68, 0.05), new THREE.Vector3(-0.02, 0, 0.02), { intensity: 5.5, angle: 1.0, dist: 2.6, mapSize: 512 });
+    // the shade: green enamel outside, cream inside (both faces drawn, no ink: you see into it)
+    const shadeG = new THREE.Group();
+    const sh = new Shape(5);
+    sh.lathe(0, 0, 0, [[0.012, 0.075], [0.02, 0.07], [0.03, 0.05], [0.058, 0.012], [0.072, 0], [0.07, -0.004]], 0xffffff, 8);
+    const shOut = new THREE.Mesh(sh.build(), pixMat('enamelGreen', { side: THREE.DoubleSide }));
+    shOut.userData.noInk = true; shadeG.add(shOut);
+    const inner = new Shape(5); inner.lathe(0, 0, 0, [[0.066, 0.002], [0.054, 0.012], [0.027, 0.048], [0.011, 0.062]], 0xfff4e0, 8);
+    const shIn = new THREE.Mesh(inner.build(), new THREE.MeshBasicMaterial({ color: 0xe8d8b0, side: THREE.BackSide }));
+    shadeG.add(shIn);
+    const bulb = new THREE.Mesh(gem(0.02, 0, 0.1), new THREE.MeshBasicMaterial({ color: 0xfff2c8 }));
+    bulb.position.y = 0.035; shadeG.add(bulb);
+    shadeG.position.set(0.58, 0.55, 0.0); shadeG.rotation.set(0.3, 0, 0.45);
+    T.add(shadeG);
+    this.lampL = new WorkLamp(T, new THREE.Vector3(0.56, 0.52, 0.02), new THREE.Vector3(0.05, 0, 0.0), { intensity: 6, angle: 1.05, dist: 2.6, mapSize: 512 });
     T.add(this.peg);
-    this.peg.position.set(0, 0.28, -0.345);
+    this.peg.position.set(0, 0.24, -0.345);
     for (const sb of [shadowBlob(0.4, 0.3, 0.5)]) { sb.position.set(-0.52, 0.0016, -0.04); T.add(sb); }
     shade(T);
   }
@@ -220,7 +231,7 @@ export class Bench {
     const asp = window.innerWidth / Math.max(1, window.innerHeight);
     // landscape: the bench runs off both sides; portrait: it steps back so the cube and the boards both fit
     const k = asp >= 1.2 ? Math.min(1, asp / 1.6) : Math.max(0.42, asp * 0.95);
-    this.top.position.set(asp < 1.2 ? 0.06 : -0.04, asp < 1.2 ? -0.16 : -0.26, -2.0);
+    this.top.position.set(asp < 1.2 ? 0.06 : -0.04, asp < 1.2 ? -0.2 : -0.3, -2.0);
     this.top.rotation.set(0.74, 0, 0);
     this.top.scale.setScalar(k);
     this.cube.root.position.x = asp < 1.2 ? -0.42 : -0.52;
@@ -367,14 +378,14 @@ export class Bench {
     this.sheets = [];
     const list = rows.length ? rows.slice(0, 6) : [{ title: 'Empty bench', lines: 'drag things out of the cube onto the boards', mark: '', ok: false, score: 0, run: () => {} }];
     list.forEach((row, i) => {
-      const t = pixTag('blueprint', 84, 56, 0.3);
+      const t = pixTag('blueprint', 84, 56, 0.28);
       t.clear();
       t.type(row.title, 5, 7, undefined, 8.5, 'sign');
       t.para(row.lines, 5, 18, 76, '#c8d8f0', 7.5, 3, 6.5);
       if (row.mark) stamp(t, row.mark, 7, 45, row.ok ? '#8ae88a' : row.mark === 'PULL PARTS' || row.mark === 'BY HAND' ? '#ffd860' : '#ff7a6a');
       t.flush();
       const col = i % 3, ln = Math.floor(i / 3);
-      t.mesh.position.set(-0.32 + col * 0.32, 0.09 - ln * 0.215, 0.012);
+      t.mesh.position.set(-0.3 + col * 0.3, 0.098 - ln * 0.198, 0.012);
       t.mesh.rotation.z = (i % 2 ? 0.03 : -0.025);
       this.peg.add(t.mesh);
       this.sheets.push({ t, run: row.run });

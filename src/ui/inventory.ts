@@ -283,7 +283,7 @@ export class InventoryUI {
       this.gauge.g.position.set(-(W2 + 0.13), 0.03, pz + L2 - 0.08);
       this.box.g.position.set(W2 + 0.16, 0.026, pz + L2 + 0.13); this.box.g.rotation.set(0.22, -0.32, 0);
       this.matG.position.set(-(W2 + 0.22), 0, pz + L2 + 0.16); this.matG.rotation.set(0, 0.28, 0);
-      this.rest.L.set(-(W2 + 0.06), 0.02, pz + L2 + 0.02); this.rest.R.set(W2 + 0.06, 0.02, pz + L2 + 0.02);
+      this.rest.L.set(-(W2 + 0.07), 0.02, pz + L2 - 0.1); this.rest.R.set(W2 + 0.07, 0.02, pz + L2 - 0.1);
     } else {
       // portrait: the pack further off, the roll and the container nearer, below it
       this.rollHold.position.set(-0.24, 0.002, pz + L2 + 0.27); this.rollHold.rotation.set(0, 0.18, 0);
@@ -804,11 +804,12 @@ export class InventoryUI {
     const s = this.tray.root.scale.x;
     const spots: THREE.Vector3[] = [];
     const n = names.length;
+    // landscape: a row on the floor just beyond the container; portrait: below it, nearer you
     for (let k = 0; k < n; k++) {
-      if (wide) spots.push(new THREE.Vector3(th.x - 0.16 + k * 0.105, 0.004, th.z + (td * s) / 2 + 0.12 + (k % 2) * 0.03));
-      else spots.push(new THREE.Vector3(th.x - 0.06 + (k % 3) * 0.1, 0.004, th.z + (td * s) / 2 + 0.1 + Math.floor(k / 3) * 0.075));
+      if (wide) spots.push(new THREE.Vector3(th.x - (tw * s) / 2 + 0.05 + k * 0.115, 0.004, th.z - (td * s) / 2 - 0.075 - (k % 2) * 0.03));
+      else spots.push(new THREE.Vector3(th.x - 0.08 + (k % 3) * 0.1, 0.004, th.z + (td * s) / 2 + 0.08 + Math.floor(k / 3) * 0.07));
     }
-    const knot = new THREE.Vector3(th.x - (tw * s) / 2 * 0.7, 0.03, th.z + (td * s) / 2);
+    const knot = new THREE.Vector3(th.x - (tw * s) / 2 * 0.6, 0.03, th.z + (wide ? -1 : 1) * (td * s) / 2);
     this.tags.set(names, this.sideSel, spots, knot);
   }
 
@@ -1033,8 +1034,9 @@ export class InventoryUI {
     if (h.kind === 'item') {
       if (!h.view.itemWorldPos(h.items[0], _v)) return;
       const rest = new THREE.Vector3();
+      this.gtag.lean = h.view === this.cube ? 1.05 : 0.4;
       if (h.view === this.cube) { const lx = this.cube.root.worldToLocal(_v2.copy(_v)).x; this.cube.rimNear(lx, rest); }
-      else rest.copy(_v).add(_v2.set(0, 0, 0));
+      else rest.copy(_v);
       toW(_v); toW(rest);
       if (h.view !== this.cube) { rest.y = 0.006; rest.z += 0.13; rest.x += rest.x > 0 ? -0.05 : 0.05; }
       this.gtag.item(h.items[0], h.items.length, _v.clone(), rest);
@@ -1042,10 +1044,10 @@ export class InventoryUI {
     }
     if (h.kind === 'held' || h.kind === 'worn') {
       const o = h.kind === 'held' ? this.heldObjs[h.hand] : this.wornObjs.find((w) => w.it === h.it)?.obj;
-      if (o) { o.outer.getWorldPosition(_v); toW(_v); this.gtag.item(h.it, 1, _v.clone(), _v.clone().add(_v2.set(0.02, 0.004 - _v.y, 0.12))); }
+      if (o) { this.gtag.lean = 0.4; o.outer.getWorldPosition(_v); toW(_v); this.gtag.item(h.it, 1, _v.clone(), _v.clone().add(_v2.set(0.02, 0.004 - _v.y, 0.12))); }
       return;
     }
-    if (h.kind === 'lid') { this.cube.flapEdge(_v); toW(_v); this.gtag.text(['THE FLAP', 'TAP: CLOSE'], _v.clone(), _v.clone().setY(0.006).add(_v2.set(0.1, 0, 0.06))); return; }
+    if (h.kind === 'lid') { this.gtag.lean = 0.4; this.cube.flapEdge(_v); toW(_v); this.gtag.text(['THE FLAP', 'TAP: CLOSE'], _v.clone(), _v.clone().setY(0.006).add(_v2.set(0.1, 0, 0.06))); return; }
     this.gtag.hide();
   }
 

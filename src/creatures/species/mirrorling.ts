@@ -6,6 +6,7 @@
 // has to go where yours would: walk so that its copy of you walks into a wall
 // and it cracks. Three cracks and it shatters.
 import { horrify } from '../kit/horror';
+import { regionCanvas, drips, BLOOD } from '../kit/rot';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import type { Creature } from '../creature';
@@ -43,6 +44,16 @@ PG.paint((P) => {
       if (body && Math.abs(u - 0.5) < 0.06 && v > 0.55) c = mixHex(c, 0xd8b830, 0.35); // a yellow jumpsuit, faintly
       P.set(r, x, y, c);
     }
+    // your reflection is looking back, and it is not quite you: pinprick eyes, a mouth hanging too long
+    const fx = r.w * 0.5, fy = r.h * 0.36;
+    P.set(r, fx - 2, fy - 1, 0xf0f4f8); P.set(r, fx + 2, fy - 1, 0xf0f4f8);
+    for (let y = 1; y < 6; y++) P.set(r, fx, fy + y, 0x0a0a10);
+    P.set(r, fx - 1, fy + 2, 0x14141c); P.set(r, fx + 1, fy + 2, 0x14141c);
+    // and a hand pressed flat against the glass from the inside, dragged down, leaving blood
+    const hx = r.w * 0.24, hy = r.h * 0.62;
+    for (let y = -3; y <= 3; y++) for (let x = -2; x <= 2; x++) if (Math.hypot(x / 2.4, y / 3.2) < 1 && P.rng.chance(0.85)) P.blend(r, hx + x, hy + y, BLOOD[2], 0.8);
+    for (let f = 0; f < 4; f++) for (let k = 0; k < 4; k++) P.blend(r, hx - 2 + f * 1.4, hy - 4 - k - (f === 1 || f === 2 ? 1 : 0), BLOOD[3], 0.75);
+    drips(regionCanvas(P, r), hx, hy + 3, 3, 9, [0, 1], 81, 2);
   }
   flat(P, P.R('FRAME'), 0x3a2a24, 0.15);
   {

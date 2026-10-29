@@ -44,7 +44,7 @@ PG.paint((P, v) => {
     const r = P.R('COIN');
     for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
       const d = Math.hypot(x + 0.5 - r.w / 2, y + 0.5 - r.h / 2) / (r.w / 2);
-      P.set(r, x, y, d > 0.85 ? (P.rng.chance(0.5) ? 0x4a1410 : 0x6a4a18) : d > 0.7 ? 0xd8b860 : (x + y) % 4 === 0 ? 0x9a7a30 : P.rng.chance(0.12) ? 0x4a6a4a : 0xc8a040);
+      P.set(r, x, y, d > 0.85 ? (P.rng.chance(0.25) ? 0x4a1410 : 0x8a6a20) : d > 0.7 ? 0xf0d070 : (x + y) % 4 === 0 ? 0xb89038 : P.rng.chance(0.06) ? 0x5a7a4a : 0xd8b048);
     }
     // pushed into the meat: the rims crusted with blood and pus
     for (let i = 0; i < 5; i++) P.set(r, P.rng.int(0, r.w - 1), P.rng.int(0, 2) ? r.h - 1 - P.rng.int(0, 1) : P.rng.int(0, 1), BLOOD[1]);

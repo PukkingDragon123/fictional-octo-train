@@ -1,4 +1,5 @@
 import { horrify } from '../kit/horror';
+import { BLOOD } from '../kit/rot';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { makeRamp, mixHex, scaleHex } from '../../gfx/pixel';
@@ -286,6 +287,9 @@ function paintC(p: Page, x: BuildCtx) {
     r.fill(GL, (xx, yy) => 3 + 0.9 * Math.cos((r.deg(xx) * Math.PI) / 180) + twill(xx, yy, 'knit') * 0.5 - (yy > r.h * 0.85 ? 0.8 : 0));
     for (const deg of [70, 90, 110]) for (let yy = 2; yy < r.h * 0.45; yy += 2) r.set(Math.round(r.X(deg)), yy, GL[1]);
     for (let xx = 0; xx < r.w; xx++) { r.set(xx, 0, GL[1]); if (hash(xx, 9) < 0.5) r.blend(xx, r.h - 1, 0x8a8a84, 0.6); }
+    // it has been tidying up after someone: the fingertips soaked through, rust-red, a spot on the back
+    for (let yy = Math.round(r.h * 0.78); yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) if (hash(xx, yy + 31) < 0.3 + (yy / r.h - 0.78) * 2.5) r.blend(xx, yy, BLOOD[hash(xx, yy) < 0.5 ? 1 : 2], 0.7);
+    r.glow(r.X(100), r.h * 0.35, 1.5, 1.5, BLOOD[2], 0.6);
   }
   // ---------------- head: porcelain grey, a seam down the middle, a seam at the jaw, two screws
   {
@@ -298,8 +302,11 @@ function paintC(p: Page, x: BuildCtx) {
     const jaw = Math.round(r.Y(0.045));
     for (let xx = 0; xx < r.w; xx++) { const d = Math.abs(r.deg(xx)); if (d < 110) { r.set(xx, jaw + Math.round(Math.max(0, d - 60) / 25), PR[2]); r.blend(xx, jaw + 1 + Math.round(Math.max(0, d - 60) / 25), PR[7], 0.5); } }
     for (const k of [-1, 1]) { const sx = Math.round(r.X(k * 9)), sy = Math.round(r.Y(0.03)); r.set(sx, sy, PR[1]); r.set(sx + 1, sy, PR[3]); r.set(sx, sy - 1, PR[6]); r.set(sx, sy + 1, PR[2]); }
-    // the faint grey thumbprint of someone who tried to find its eyes
-    r.glow(r.X(28), r.Y(0.12), 3, 2, PR[2], 0.35);
+    // the thumbprints of someone who tried to find its eyes, in their own blood, dried brown,
+    // and the long smear where their hand slid off
+    r.glow(r.X(28), r.Y(0.12), 3, 2, BLOOD[1], 0.55);
+    r.glow(r.X(-22), r.Y(0.14), 2.5, 2, BLOOD[2], 0.45);
+    for (let k = 0; k < 9; k++) r.blend(r.X(28 + k * 2), r.Y(0.12) + k, BLOOD[1], 0.45 - k * 0.04);
   }
   {
     const r = p.R('NECK');

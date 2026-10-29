@@ -104,6 +104,8 @@ export class Watch {
   private pokeQ = new THREE.Quaternion();
   private cine: 'full' | 'glance' = 'full';
   private lowerT = 0;
+  /** how long a full close-up has waited for the lids to open on the eyes before the wrist comes up */
+  private eyeWait = 0;
   private settleT = -1;
   private tubeWas = false;
   private typeT = 1;
@@ -133,7 +135,7 @@ export class Watch {
     this.group.add(this.model.root);
     this.armR.root.visible = false;
     this.group.add(this.armR.root);
-    this.glow = new THREE.PointLight(0x7cff6a, 0, 0.25, 2);
+    this.glow = new THREE.PointLight(0x7cff6a, 0, 0.3, 2);
     this.group.add(this.glow);
     // the overlay stage's shared lights (other first-person views rely on them too)
     const os = G.pr.overlayScene;
@@ -613,10 +615,11 @@ export class Watch {
     if (up && !this.staged) {
       this.staged = fpClaim('watch', 1, { cinematic: cine });
       if (!this.staged) { this.open = false; this.peekKey = null; p.scannerOpen = false; return; }
-      this.cine = cine; this.raise = 0; this.settleT = -1;
+      this.cine = cine; this.raise = 0; this.settleT = -1; this.eyeWait = 0;
     } else if (up && this.staged && cine !== this.cine && this.raise > 0.9) { fpClaim('watch', 1, { cinematic: cine }); this.cine = cine; }
     // ---- the arm: up in ~0.45 s with weight; down after the tube has collapsed to a dot
-    if (up) { this.lowerT = 0.14; this.raise = Math.min(1, this.raise + dt / 0.45); }
+    if (up && this.cine === 'full' && !eyeActive() && this.eyeWait < 0.7 && this.raise < 0.05) { this.eyeWait += dt; this.lowerT = 0.14; }
+    else if (up) { this.lowerT = 0.14; this.raise = Math.min(1, this.raise + dt / 0.45); }
     else if (this.lowerT > 0) this.lowerT -= dt;
     else this.raise = Math.max(0, this.raise - dt / 0.26);
     if (this.raise >= 1 && this.settleT < 0) this.settleT = 0;
@@ -644,7 +647,7 @@ export class Watch {
     const u = this.crt.mat.uniforms;
     u.uNoise.value = 0.03 + Math.max(G.collapse * 0.12, p.body.corruption > 30 ? 0.08 : 0);
     this.hitFx = Math.max(0, this.hitFx - dt * 3);
-    this.glow.intensity = 0.0006 * this.power;
+    this.glow.intensity = 0.0035 * this.power * (0.92 + Math.random() * 0.08);
     this.typeT = Math.min(1, this.typeT + dt / 0.38);
     this.rollT = Math.max(0, this.rollT - dt * 4.5);
     // redraw at ~15 fps (the tube animates itself in between), faster while it types on or rolls
@@ -689,10 +692,16 @@ export class Watch {
     // Seen from the survivor's own eyes (fp/eye.ts) the wrist is held lower and further off,
     // tilted toward you, so the forearm and the room behind it stay in the shot.
     const eye = eyeActive();
-    const frac = eye ? 0.34 : 0.62;
-    const d1 = Math.max(SCREEN.h / (2 * tanH * frac), 0.106 / (2 * tanH * cam.aspect * (eye ? 0.42 : 1)));
-    const halfH = d1 * tanH;
-    const fx = eye ? -0.0157 - halfH * cam.aspect * 0.12 : -0.0157, fy = eye ? -halfH * 0.3 : -0.001, fz = -d1;
+    const port = cam.aspect < 1.2;
+    // from the eyes you bring the wrist up close to read it: the tube about 44% of the view's height
+    // (portrait: as wide as the view, the control column off the right edge), the forearm running
+    // down-left off the bottom of the picture, the hand past the wrist to the right, the room around
+    const frac = eye ? 0.44 : 0.62;
+    const d1 = eye
+      ? Math.max(SCREEN.h / (2 * tanH * frac), (SCREEN.w + 0.012) / (2 * tanH * cam.aspect * 0.98))
+      : Math.max(SCREEN.h / (2 * tanH * frac), 0.106 / (2 * tanH * cam.aspect));
+    const halfH = d1 * tanH, halfW = halfH * cam.aspect;
+    const fx = eye ? (port ? halfW * 0.02 : halfW * 0.06) : -0.0157, fy = eye ? -halfH * (port ? 0.12 : 0.05) : -0.001, fz = -d1;
     // away from the face: held up on the move (Tab while walking), or a quick glance at the right
     // edge when something lands by itself (a peek). Both tilt toward the eye with the forearm
     // running steeply off the bottom edge, clear of the body HUD along the bottom.
@@ -702,13 +711,15 @@ export class Watch {
     const k = this.zoom, e = k * k * (3 - 2 * k);
     let x = sx + (fx - sx) * e, y = sy + (fy - sy) * e, z = sz + (fz - sz) * e;
     let rx = -(0.28 + 0.06 * pm) * (1 - e), ry = -(0.36 + 0.2 * pm) * (1 - e), rz = (0.62 + 0.3 * pm) * (1 - e);
-    if (eye) { rx -= 0.22 * e; ry += 0.16 * e; rz += 0.08 * e; }
-    // raise from below with a little overshoot
+    // the wrist from the eyes: turned so the elbow end drops toward the bottom-left corner, the face tipped up at you
+    if (eye) { rx -= 0.2 * e; ry += 0.1 * e; rz += (port ? 0.12 : 0.26) * e; }
+    // raise from below with a little overshoot (from the eyes it comes up along the forearm, from the lower left)
     const r = this.raise, c1 = 1.5, back = 1 + (c1 + 1) * Math.pow(r - 1, 3) + c1 * Math.pow(r - 1, 2);
     const lift = (1 - back) * (halfH * 1.6);
     // the wrist turns to face you on the way up
     const turn = 1 - Math.min(1, back);
     y -= lift; rx -= (1 - r) * 0.9 + turn * 0.2; ry += turn * 0.55; rz += (1 - r) * 0.3;
+    if (eye) { x -= (1 - back) * halfW * 0.7 * e; rz += (1 - r) * 0.35 * e; }
     // and settles with a little weight when it arrives
     if (this.settleT >= 0 && this.settleT < 1.2) {
       const k2 = Math.exp(-this.settleT * 7);

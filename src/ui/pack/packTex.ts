@@ -68,6 +68,113 @@ export function canvasTile(): THREE.Texture {
   }));
 }
 
+/** the twill weave's shade index at a pixel (0..6), shared by the tile and the one-off pictures */
+function twill(x: number, y: number): number {
+  const rib = (x + y * 2) % 6 < 3 ? 1 : 0;
+  const weft = (y % 2 === 0) ? ((x >> 1) % 2) : (((x + 1) >> 1) % 2);
+  let i = 3 + rib * 0.6 - weft * 0.5 + (hash(x >> 2, y, 3) - 0.5) * 0.9;
+  if (hash(0, y, 9) > 0.86) i += hash(x >> 3, y, 4) > 0.4 ? 0.8 : -0.4;
+  return i + (hash(x >> 4, y >> 4, 11) - 0.5) * 0.7;
+}
+/** a stitched seam line: a dark groove and a pale lock-stitch beside it */
+function seamH(pc: PixelCanvas, x0: number, x1: number, y: number, R: number[], thread = 0xc8c0a0) {
+  for (let x = x0; x <= x1; x++) { pc.set(x, y, R[0]); pc.set(x, y + 1, R[1]); if (x % 4 < 2) pc.set(x, y - 2, thread); }
+}
+function seamV(pc: PixelCanvas, x: number, y0: number, y1: number, R: number[], thread = 0xc8c0a0) {
+  for (let y = y0; y <= y1; y++) { pc.set(x, y, R[0]); pc.set(x + 1, y, R[1]); if (y % 4 < 2) pc.set(x - 2, y, thread); }
+}
+/** scuffed, abraded canvas: lighter, the weave flattened */
+function scuff(pc: PixelCanvas, cx: number, cy: number, rx: number, ry: number, R: number[], k = 1) {
+  for (let y = Math.floor(cy - ry); y <= cy + ry; y++) for (let x = Math.floor(cx - rx); x <= cx + rx; x++) {
+    const d = Math.hypot((x - cx) / rx, (y - cy) / ry);
+    if (d > 1) continue;
+    if (hash(x, y, 31) < (1 - d) * 0.9 * k) pc.set(x, y, R[Math.min(6, 4 + (hash(x, y, 2) > 0.6 ? 1 : 0))]);
+  }
+}
+/** dried mud and grime: dark blotches thickest near an edge */
+function grime(pc: PixelCanvas, cx: number, cy: number, r: number, col = 0x2a2618, k = 0.7) {
+  for (let y = Math.floor(cy - r); y <= cy + r; y++) for (let x = Math.floor(cx - r); x <= cx + r; x++) {
+    const d = Math.hypot(x - cx, y - cy) / r;
+    if (d > 1) continue;
+    const n = hash(x >> 1, y >> 1, 41) * 0.7 + hash(x, y, 43) * 0.3;
+    if (n < (1 - d) * k) pc.blend(x, y, col, 0.55 + n * 0.3);
+  }
+}
+
+/**
+ * The walls all the way round as one picture (u along the perimeter from the bottom end's
+ * right corner, v up): stitched corner seams, a stitched band under the binding, the bottom
+ * scuffed pale and caked with dried mud, a sewn-on patch, a darned tear, stencilled numbers.
+ */
+export function wallTex(perim: number, height: number, corners: number[]): THREE.Texture {
+  const W = Math.max(64, Math.round(perim * 400)), H = Math.max(32, Math.round(height * 400));
+  const key = 'pk_wall_' + W + 'x' + H;
+  return cached(key, () => toTex(key, W, H, (ctx) => {
+    const pc = new PixelCanvas(W, H);
+    pc.wrap = false;
+    const R = makeRamp(SLATE, 7, { spread: 0.42, hueShift: 0.03 });
+    seed = 77;
+    pc.each((x, y) => pc.set(x, y, R[Math.max(0, Math.min(6, Math.round(twill(x, y))))]));
+    const top = 6; // canvas row 0 is the top (binding)
+    // a stitched band under the binding, and the base seam
+    seamH(pc, 0, W - 1, top + 10, R); seamH(pc, 0, W - 1, H - 14, R);
+    // the corner seams
+    for (const c of corners) seamV(pc, Math.round(c * W), top + 12, H - 16, R);
+    // the bottom: abraded pale where it is dragged, then mud
+    for (let x = 0; x < W; x += 9) scuff(pc, x + hash(x, 1, 5) * 6, H - 6, 9 + hash(x, 2, 5) * 10, 7 + hash(x, 3, 5) * 6, R, 0.9);
+    for (let x = 0; x < W; x += 23) if (hash(x, 7, 9) > 0.35) grime(pc, x + hash(x, 3, 9) * 14, H - 2 - hash(x, 4, 9) * 6, 6 + hash(x, 5, 9) * 9);
+    // drips and stains running down from the binding
+    for (let k = 0; k < 9; k++) { const x = Math.floor(hash(k, 1, 13) * W); const len = 10 + Math.floor(hash(k, 2, 13) * 30); for (let y = top + 12; y < top + 12 + len; y++) pc.blend(x + ((y >> 3) % 2), y, 0x2c2a20, 0.35 * (1 - (y - top - 12) / len)); }
+    // a sewn-on patch (a darker square of older canvas) and a darned tear
+    const px = Math.round(W * 0.66), py = Math.round(H * 0.42);
+    const R2 = makeRamp(scaleHex(SLATE, 0.82), 7, { spread: 0.4 });
+    for (let y = py; y < py + 22; y++) for (let x = px; x < px + 28; x++) pc.set(x, y, R2[Math.max(0, Math.min(6, Math.round(twill(x + 3, y + 5))))]);
+    for (let x = px - 1; x <= px + 28; x++) { if (x % 3) { pc.set(x, py - 1, 0xc8b070); pc.set(x, py + 22, 0xc8b070); } }
+    for (let y = py - 1; y <= py + 22; y++) { if (y % 3) { pc.set(px - 1, y, 0xc8b070); pc.set(px + 28, y, 0xc8b070); } }
+    const tx = Math.round(W * 0.21), ty = Math.round(H * 0.55);
+    for (let i = 0; i < 16; i++) { pc.set(tx + i, ty + (i % 3 === 0 ? 1 : 0), R[0]); if (i % 2 === 0) { pc.set(tx + i, ty - 2, 0xd8cca0); pc.set(tx + i, ty + 2, 0xd8cca0); pc.set(tx + i, ty - 1, 0xd8cca0); } }
+    // lint and grit flecks
+    for (let k = 0; k < W * H / 60; k++) pc.set((rnd() * W) | 0, (rnd() * H) | 0, rnd() < 0.5 ? R[5] : R[1]);
+    put(ctx, pc);
+    // stencilled numbers on the long sides (the left wall reads MI 0447, the right one the type)
+    hardText(ctx, 'MI-0447-R', Math.round(W * 0.42), Math.round(H * 0.4), 12, '#e2dbc4', 'center', 700, 100);
+    hardText(ctx, 'TYPE 7  40 KG', Math.round(W * 0.92), Math.round(H * 0.4), 11, '#e2dbc4', 'center', 600, 100);
+    chip(ctx, 0.2, 13);
+  }, true, true));
+}
+
+/**
+ * The flap's top as one picture (u across, v from the hinge to the bottom end): a double
+ * stitched border, the crown worn pale by hands and straps, coffee-dark stains, a red
+ * grease-pencil tally, mud at the bottom end.
+ */
+export function flapTex(w: number, l: number): THREE.Texture {
+  const W = Math.max(64, Math.round(w * 400)), H = Math.max(64, Math.round(l * 400));
+  const key = 'pk_flap_' + W + 'x' + H;
+  return cached(key, () => toTex(key, W, H, (ctx) => {
+    const pc = new PixelCanvas(W, H);
+    pc.wrap = false;
+    const R = makeRamp(SLATE, 7, { spread: 0.42, hueShift: 0.03 });
+    seed = 91;
+    pc.each((x, y) => pc.set(x, y, R[Math.max(0, Math.min(6, Math.round(twill(x + 11, y + 7))))]));
+    // worn pale on the crown, along the two strap lines and at the bottom-end corners (hands)
+    scuff(pc, W * 0.5, H * 0.45, W * 0.32, H * 0.3, R, 0.35);
+    for (const v of [0.27, 0.53]) for (let x = 0; x < W; x += 6) scuff(pc, x, H * v, 6, 5, R, 0.6);
+    scuff(pc, W * 0.12, H * 0.92, 18, 14, R, 0.8); scuff(pc, W * 0.88, H * 0.92, 18, 14, R, 0.8);
+    // a double stitched border
+    for (const inset of [5, 9]) { seamH(pc, inset, W - 1 - inset, inset, R); seamH(pc, inset, W - 1 - inset, H - 1 - inset, R); seamV(pc, inset, inset, H - 1 - inset, R); seamV(pc, W - 1 - inset, inset, H - 1 - inset, R); }
+    // stains and mud
+    grime(pc, W * 0.7, H * 0.18, 13, 0x2a2014, 0.55); grime(pc, W * 0.3, H * 0.75, 9, 0x2a2014, 0.5);
+    for (let x = 0; x < W; x += 17) grime(pc, x, H - 3, 7 + hash(x, 1, 3) * 6, 0x2a2618, 0.8);
+    for (let k = 0; k < W * H / 60; k++) pc.set((rnd() * W) | 0, (rnd() * H) | 0, rnd() < 0.5 ? R[5] : R[1]);
+    // a tally in red grease pencil near the bottom-right corner: somebody counted something
+    const gx = Math.round(W * 0.74), gy = Math.round(H * 0.84);
+    for (let i = 0; i < 4; i++) for (let y = 0; y < 9; y++) pc.set(gx + i * 3, gy + y, 0xa83224);
+    for (let i = 0; i < 13; i++) pc.set(gx - 1 + i, gy + 6 - Math.round(i * 0.4), 0xa83224);
+    put(ctx, pc);
+  }, false, true));
+}
+
 /** the lining, one grid cell per tile: tan ripstop with a stitched seam on the left and top edges */
 export function liningCell(): THREE.Texture {
   return cached('pk_lining', () => toTex('pk_lining', 24, 24, (ctx) => {

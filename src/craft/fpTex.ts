@@ -66,7 +66,7 @@ function rivet(p: PixelCanvas, x: number, y: number, light: number, dark: number
 }
 
 // ---------------------------------------------------------------- wood
-function planks(p: PixelCanvas, r: Rng, o: { rows: number; base: number[]; oil?: number; nails?: boolean; burns?: number; cuts?: number; seed: number; rough?: number }) {
+function planks(p: PixelCanvas, r: Rng, o: { rows: number; base: number[]; oil?: number; nails?: boolean; burns?: number; cuts?: number; seed: number; grime?: number }) {
   const ph = p.h / o.rows;
   for (let row = 0; row < o.rows; row++) {
     const base = o.base[row % o.base.length];
@@ -94,7 +94,7 @@ function planks(p: PixelCanvas, r: Rng, o: { rows: number; base: number[]; oil?:
   for (let i = 0; i < (o.oil ?? 0); i++) p.stain(r.float(0, p.w), r.float(0, p.h), r.float(3, 9), 0x24160a, 0x140c06, r.int(1, 99));
   for (let i = 0; i < (o.burns ?? 0); i++) { const cx = r.float(0, p.w), cy = r.float(0, p.h), rr = r.float(2, 4); blob(p, cx, cy, rr, i + 7, (x, y, d) => p.blend(x, y, 0x120a04, d < 0.6 ? 0.85 : 0.45)); }
   for (let i = 0; i < (o.cuts ?? 0); i++) { const x = r.float(0, p.w), y = r.float(0, p.h), a = r.float(-0.5, 0.5) + (r.chance(0.5) ? 0 : Math.PI / 2), l = r.float(3, 9); for (let k = 0; k < l; k++) { p.blend(x + Math.cos(a) * k, y + Math.sin(a) * k, 0x1a0e06, 0.75); p.blend(x + Math.cos(a) * k, y + Math.sin(a) * k + 1, 0xe8c890, 0.25); } }
-  p.grime(0x1c120a, 0.6, 4, o.seed + 3, 0.5);
+  p.grime(0x1c120a, o.grime ?? 0.5, 4, o.seed + 3, 0.55);
 }
 
 // ---------------------------------------------------------------- metal
@@ -150,7 +150,7 @@ function weave(p: PixelCanvas, r: Rng, o: { base: number; coarse?: number; strip
 
 // ---------------------------------------------------------------- recipes
 const R: Record<TexKind, Recipe> = {
-  bench: { w: 128, h: 128, rough: 0.78, metal: 0, draw: (p, r) => planks(p, r, { rows: 4, base: [0x8a6038, 0x7a5432, 0x946840, 0x6e4a2a], oil: 7, nails: true, burns: 3, cuts: 14, seed: 11 }) },
+  bench: { w: 128, h: 128, rough: 0.78, metal: 0, draw: (p, r) => planks(p, r, { rows: 4, base: [0x8a6038, 0x7a5432, 0x946840, 0x6e4a2a], oil: 3, nails: true, burns: 2, cuts: 14, seed: 11, grime: 0.3 }) },
   plank: { w: 64, h: 64, rough: 0.8, metal: 0, draw: (p, r) => planks(p, r, { rows: 2, base: [0xa07850, 0x8e6a44], cuts: 4, seed: 23 }) },
   crate: { w: 64, h: 64, rough: 0.85, metal: 0, draw: (p, r) => {
     planks(p, r, { rows: 3, base: [0xb8925c, 0xa88250, 0xc09a62], nails: true, cuts: 3, seed: 37 });

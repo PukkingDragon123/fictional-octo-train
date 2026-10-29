@@ -33,7 +33,7 @@ const T = 0.032;        // wall thickness (padded canvas)
 const CLIP = 0.05;      // the outer corners are cut
 const TH = 0.03;        // the flap's thickness at its edge
 const DOME = 0.026;     // how far the flap crowns
-const LID_OPEN = 3.92;  // radians the flap swings back (over the top end, down onto the floor)
+const LID_OPEN = 1.92;  // radians the flap swings back: it stands up past upright over the top end, its inside to you
 const UVS = 6.25;       // canvas tiles per metre
 const CRT = () => cssFont('--font-crt', 'monospace');
 
@@ -488,7 +488,7 @@ export class PackView extends GridView3 {
     const um = new THREE.Mesh(under.build(), M.lining);
     this.lid.add(um); this.lidParts.push(um);
     const card = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.133), M.card);
-    card.rotation.x = Math.PI / 2; card.rotation.z = Math.PI + 0.04;
+    card.rotation.x = Math.PI / 2; card.rotation.z = 0.04;
     card.position.set(0.01, -0.003, LO * 0.42);
     this.lid.add(card); this.lidParts.push(card);
 
