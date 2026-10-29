@@ -19,6 +19,7 @@ const VERT = /* glsl */`
 uniform float uTime;
 uniform vec4 uRip[${NRIP}];
 uniform vec4 uFun;   // x, y (local m), depth, radius
+uniform vec2 uLimb;  // the limb's radius where it goes in, the height of the gel collar climbing it
 uniform vec4 uPro;   // x, y, amount, radius
 uniform vec4 uEng;   // x, y, amount, radius
 uniform vec2 uLag;   // the funnel's drag (stretch) direction * amount
@@ -48,7 +49,7 @@ float disp(vec2 p, out float fun) {
     float front = age * 1.15;
     float x = d - front;
     float env = exp(-age * 1.05) * r.w * exp(-abs(x) * 3.2) * smoothstep(-0.2, 0.05, front - d + 0.05);
-    z += sin(x * 24.0) * env * 0.028;
+    z += sin(x * 34.0) * env * 0.017;
   }
   // a blob rising to meet the hand
   float dp = length(p - uPro.xy);
@@ -59,10 +60,12 @@ float disp(vec2 p, out float fun) {
   if (lag > 1e-4) { vec2 ld = uLag / lag; float al = dot(dv, ld); dv -= ld * clamp(al, 0.0, 1.0) * min(0.6, lag) * 0.6; }
   float df = length(dv);
   float R = max(uFun.w, 0.01);
-  float k = 1.0 - smoothstep(0.035, R, df);
+  float k = 1.0 - smoothstep(uLimb.x, R, df);
   fun = k;
-  z -= uFun.z * pow(k, 1.7);
-  z += uFun.z * 0.16 * exp(-pow((df - R * 0.92) / (R * 0.22), 2.0));
+  z -= uFun.z * pow(k, 1.5);
+  z += uFun.z * 0.14 * exp(-pow((df - R * 0.92) / (R * 0.22), 2.0));
+  // a collar of gel climbing the limb where it goes in: it clings
+  z += uLimb.y * exp(-pow((df - uLimb.x) / 0.022, 2.0)) + uLimb.y * 1.2 * (1.0 - smoothstep(0.0, uLimb.x, df));
   // the swell that reaches for the face
   float de = length(p - uEng.xy);
   z += uEng.z * exp(-pow(de / max(uEng.w, 0.01), 2.0));
@@ -115,8 +118,8 @@ void main() {
   if (dot(n, v) < 0.0) n = -n;
   float ndv = max(dot(n, v), 0.0);
   float fres = pow(1.0 - ndv, 3.0);
-  // oily black body
-  vec3 col = vec3(0.006, 0.011, 0.013);
+  // oily black body; facets turned up catch a little of the room, turned down see the floor
+  vec3 col = vec3(0.006, 0.011, 0.013) + vec3(0.012, 0.03, 0.034) * clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
   // looking into it: a cold caustic web deep inside, bent by the facet, deeper in the funnel
   vec2 rp = vL * 3.0 + n.xy * (0.6 + 1.2 * vFun) + vec2(0.0, uTime * 0.05);
   float c = caustic(rp * 2.0, uTime * 0.45 + 23.0);
@@ -126,7 +129,7 @@ void main() {
   // the strip light above: hard glints on the facets
   vec3 h = normalize(normalize(uKeyDir) + v);
   float sp = pow(max(dot(n, h), 0.0), 70.0);
-  col += uKeyCol * sp * 2.6;
+  col += uKeyCol * sp * 1.7;
   col += uKeyCol * pow(max(dot(n, h), 0.0), 9.0) * 0.025;
   // the warning lamp
   vec3 lv = uLamp - vW;
@@ -136,7 +139,7 @@ void main() {
   col += vec3(0.03, 0.05, 0.055) * fres * 1.4;
   // down the funnel the gel is thin round the limb: light comes through it, cold
   col *= 1.0 - smoothstep(0.6, 1.0, vFun) * 0.3;
-  col += uGlowCol * smoothstep(0.55, 0.95, vFun) * 0.12 * uHot * (0.6 + 0.4 * c);
+  col += uGlowCol * smoothstep(0.55, 0.95, vFun) * 0.3 * uHot * (0.6 + 0.4 * c);
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -170,7 +173,7 @@ export function makeJelly(): Jelly {
   const rips: THREE.Vector4[] = Array.from({ length: NRIP }, () => new THREE.Vector4(0, 0, -99, 0));
   const u: Record<string, THREE.IUniform> = {
     uTime: { value: 0 }, uRip: { value: rips }, uFun: { value: new THREE.Vector4(0, 1.2, 0, 0.1) }, uPro: { value: new THREE.Vector4(0, 1.2, 0, 0.1) },
-    uEng: { value: new THREE.Vector4(0, 1.4, 0, 0.4) }, uLag: { value: new THREE.Vector2() }, uWob: { value: 0 }, uSize: { value: new THREE.Vector2(JW, JH) },
+    uEng: { value: new THREE.Vector4(0, 1.4, 0, 0.4) }, uLimb: { value: new THREE.Vector2(0.04, 0) }, uLag: { value: new THREE.Vector2() }, uWob: { value: 0 }, uSize: { value: new THREE.Vector2(JW, JH) },
     uGlow: { value: 0.6 }, uKeyDir: { value: new THREE.Vector3(0.1, 0.9, 0.45) }, uKeyCol: { value: new THREE.Color(0.85, 0.95, 0.92) },
     uGlowCol: { value: new THREE.Color(0.15, 0.75, 0.82) }, uLamp: { value: new THREE.Vector3(0, 2.6, 0.3) }, uLampCol: { value: new THREE.Color(1.0, 0.45, 0.12) }, uHot: { value: 0 },
   };

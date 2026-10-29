@@ -434,7 +434,8 @@ class Arrival implements GameSystem {
       const lx = cx - this.funC.x, ly = cy - this.funC.y;
       this.funC.x += lx * k; this.funC.y += ly * k;
       (j.u.uLag.value as THREE.Vector2).set(-lx * 3, -ly * 3);
-      (j.u.uFun.value as THREE.Vector4).set(this.funC.x, this.funC.y, Math.min(0.11, 0.02 + depth * 0.16), r * 1.25 + 0.035 + Math.min(0.14, depth * 0.3));
+      (j.u.uFun.value as THREE.Vector4).set(this.funC.x, this.funC.y, Math.min(0.07, 0.015 + depth * 0.12), r + 0.07 + Math.min(0.1, depth * 0.2));
+      (j.u.uLimb.value as THREE.Vector2).set(r, Math.min(0.035, 0.01 + depth * 0.06));
       // the rings keep coming with the heart
       this.ripT -= dt;
       if (this.ripT <= 0 && t < 4.75) { this.ripT = 0.5 + Math.random() * 0.2; j.ripple(cx, cy, 0.45 + Math.random() * 0.3, T); }

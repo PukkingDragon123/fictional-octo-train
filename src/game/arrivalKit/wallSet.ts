@@ -315,7 +315,7 @@ export function buildWallSet(low: boolean): WallSet {
   key.shadow.bias = -0.0008; key.shadow.normalBias = 0.01;
   root.add(key, key.target);
   const glow = new THREE.PointLight(0x58dce6, 0.8, 3.2, 1.6);
-  glow.position.set(0, 1.25, 0.32);
+  glow.position.set(0.05, 1.2, 0.1);
   root.add(glow);
   const lamp = new THREE.PointLight(0xff7a24, 0.9, 3.5, 1.8);
   lamp.position.copy(LAMP_POS).setZ(0.2);

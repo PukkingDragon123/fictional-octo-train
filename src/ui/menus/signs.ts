@@ -58,58 +58,65 @@ const hash = (x: number, y: number, s: number) => { let h = Math.imul(x * 374761
 function rng(seed: number) { let a = seed >>> 0 || 1; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 
 // ------------------------------------------------------------------ lettering
-// Pixelify Sans is drawn on a grid of ~91 font units (1000 / 11) with the
-// grid starting 60 units in from the glyph origin and 12 units under the
-// baseline. Each glyph is drawn large (10 screen px per font pixel) and
-// sampled at the centre of every grid cell: one art pixel per font pixel,
-// exactly the bitmap the face was designed as (no smoothing, no mush).
+// Pixelify Sans is drawn on a grid of ~91 font units (1000 / 11) starting 60
+// units in from the glyph origin and 12 under the baseline, but it chamfers
+// its corners diagonally INSIDE the cells. So each glyph is drawn large (10
+// screen px per font pixel) and every cell is sampled SUB x SUB times (at the
+// centres of its sub-cells): one art pixel per font pixel, and the diagonal
+// cuts survive at the sign's finer canvas grid. Exactly the face's design.
 let fontOk = false;
 const fontWait = fontsReady().then(() => { fontOk = true; glyphs.clear(); });
-const BIG = 110, U = BIG / 1000, CELL = 1000 / 11;
-const ROWS = 12, BASE_ROW = 8; // rows above the baseline: 0..8 (k = 8 - r); below: 9..11
-interface Glyph { w: number; m: Uint8Array }
+const BIG = 220, U = BIG / 1000, CELL = 1000 / 11;
+const ROWS = 12, BASE_ROW = 8; // font-pixel rows above the baseline: 0..8 (k = 8 - r); below: 9..11
+interface Glyph { w: number; m: Uint8Array /* (w * sub) x (ROWS * sub) */ }
 const glyphs = new Map<string, Glyph>();
-const gcv = document.createElement('canvas'); gcv.width = 160; gcv.height = 170;
+const gcv = document.createElement('canvas'); gcv.width = 300; gcv.height = 330;
 const gctx = gcv.getContext('2d', { willReadFrequently: true })!;
-function glyph(ch: string): Glyph {
-  const hit = glyphs.get(ch);
+function glyph(ch: string, sub: number): Glyph {
+  const key = ch + '|' + sub;
+  const hit = glyphs.get(key);
   if (hit) return hit;
   gctx.clearRect(0, 0, gcv.width, gcv.height);
   gctx.font = `${BIG}px 'Pixelify Sans', monospace`;
   gctx.fillStyle = '#fff'; gctx.textBaseline = 'alphabetic';
-  const ox = 20, B = 130;
+  const ox = 30, B = 270;
   gctx.fillText(ch, ox, B);
   const adv = gctx.measureText(ch).width / U; // in font units
   const cols = Math.max(1, Math.floor((adv - 60) / CELL) + 1);
   const d = gctx.getImageData(0, 0, gcv.width, gcv.height).data;
-  const m = new Uint8Array(cols * ROWS);
-  for (let j = 0; j < cols; j++) for (let r = 0; r < ROWS; r++) {
-    const k = BASE_ROW - r;
-    const x = Math.round(ox + (60 + CELL * j + CELL / 2) * U), y = Math.round(B - (-12 + CELL * k + CELL / 2) * U);
-    if (x < 0 || y < 0 || x >= gcv.width || y >= gcv.height) continue;
-    if (d[(y * gcv.width + x) * 4 + 3] > 127) m[r * cols + j] = 1;
+  const W = cols * sub, H = ROWS * sub;
+  const m = new Uint8Array(W * H);
+  // area coverage per sub-cell: the face's thin connectors (a tenth of a cell) still count
+  for (let X = 0; X < W; X++) for (let Y = 0; Y < H; Y++) {
+    const xa = Math.round(ox + (60 + (CELL * X) / sub) * U), xb = Math.round(ox + (60 + (CELL * (X + 1)) / sub) * U);
+    const ya = Math.round(B - (-12 + CELL * (BASE_ROW + 1 - Y / sub)) * U), yb = Math.round(B - (-12 + CELL * (BASE_ROW + 1 - (Y + 1) / sub)) * U);
+    let on = 0, n = 0;
+    for (let y = Math.max(0, ya); y < Math.min(gcv.height, yb); y++) for (let x = Math.max(0, xa); x < Math.min(gcv.width, xb); x++) { n++; if (d[(y * gcv.width + x) * 4 + 3] > 127) on++; }
+    if (n && on / n >= 0.28) m[Y * W + X] = 1;
   }
   const g = { w: cols, m };
-  if (fontOk) glyphs.set(ch, g);
+  if (fontOk) glyphs.set(key, g);
   return g;
 }
-/** the label as hard pixels (1 = paint), one art pixel per font pixel; caps sit on rows 2..8 */
-function textMask(s: string, gap = 1): { w: number; h: number; m: Uint8Array } {
-  const gs = [...s].map((ch) => glyph(ch));
+/** the label as hard pixels (1 = paint) at SUB samples per font pixel; width in font pixels; caps sit on rows 2..8 */
+function textMask(s: string, sub = 1, gap = 1): { w: number; W: number; H: number; m: Uint8Array } {
+  const gs = [...s].map((ch) => glyph(ch, sub));
   const w = Math.max(1, gs.reduce((a, g) => a + g.w + gap, 0) - gap);
-  const m = new Uint8Array(w * ROWS);
+  const W = w * sub, H = ROWS * sub;
+  const m = new Uint8Array(W * H);
   let x = 0;
   for (const g of gs) {
-    for (let r = 0; r < ROWS; r++) for (let j = 0; j < g.w; j++) if (g.m[r * g.w + j]) m[r * w + x + j] = 1;
-    x += g.w + gap;
+    const gw = g.w * sub;
+    for (let r = 0; r < H; r++) for (let j = 0; j < gw; j++) if (g.m[r * gw + j]) m[r * W + x + j] = 1;
+    x += (g.w + gap) * sub;
   }
-  return { w, h: ROWS, m };
+  return { w, W, H, m };
 }
-function textW(s: string): number { return textMask(s).w; }
+function textW(s: string): number { return textMask(s, 1).w; }
 
 // ------------------------------------------------------------------ the board sprite (unrotated)
-interface BoardArt { w: number; h: number; px: Uint32Array /* 0 = empty, else 0xff000000 | rgb */; eyes: [number, number][] }
-function boardArt(label: string, kind: SignKind, shape: SignShape, w: number, h: number, seed: number, st: 0 | 1 | 2, chevron: boolean): BoardArt {
+interface BoardArt { w: number; h: number; px: Uint32Array /* 0 = empty, else 0xff000000 | rgb; at SUB px per art px */; eyes: [number, number][] /* art px */ }
+function boardArt(label: string, kind: SignKind, shape: SignShape, w: number, h: number, seed: number, st: 0 | 1 | 2, chevron: boolean, sub = 1): BoardArt {
   const px = new Uint32Array(w * h);
   const rnd = rng(seed);
   const pt = Math.floor(h / 2);
@@ -187,89 +194,118 @@ function boardArt(label: string, kind: SignKind, shape: SignShape, w: number, h:
   const [ink, inkHot] = PAINT[kind];
   const paint = st === 1 ? inkHot : ink;
   const shadowCol = kind === 'cream' ? TIN.cream[5] : kind === 'wood' ? WOOD[1] : TIN[kind][1];
-  // one paint mask (the chevron or the label), then a darker lip under the strokes, then the paint with flakes missing
-  const mask = new Uint8Array(w * h);
+  // the chevron is painted at art resolution; the lettering at SUB px per art px (so the font's diagonal cuts survive)
+  const lipOf = (mask: Uint8Array, mw: number, mh: number, out: Uint32Array, ow: number, ox: number, oy: number, lip: number) => {
+    for (let y = 0; y < mh; y++) for (let x = 0; x < mw; x++) {
+      if (!mask[y * mw + x]) continue;
+      for (let k = 1; k <= lip; k++) { const yy = y + k; if (yy < mh && mask[yy * mw + x]) break; const X = ox + x, Y = oy + yy; if (out[Y * ow + X]) out[Y * ow + X] = 0xff000000 | shadowCol; }
+    }
+  };
   if (chevron && shape !== 'board') {
+    const mask = new Uint8Array(w * h);
     const dir = shape === 'arrowL' ? -1 : 1;
     const cx = Math.floor(w / 2) + dir * Math.floor(pt / 3), cy = (h - 1) / 2, arm = Math.floor(h * 0.3);
     for (let t = 0; t <= arm; t++) for (let k = 0; k < 3; k++) {
       const x = cx + dir * (arm - t) - dir * k;
       for (const y of [Math.floor(cy - t), Math.ceil(cy + t)]) if (inside(x, y) && !edge(x, y)) mask[y * w + x] = 1;
     }
-  } else if (label) {
-    const t = textMask(label);
-    const tw = t.w;
-    const ox = shape === 'arrowL' ? Math.floor(pt + (w - pt - tw) / 2) : shape === 'arrowR' ? Math.floor((w - pt - tw) / 2) : Math.floor((w - tw) / 2);
-    // centre the caps (rows 2..8) on the board, a hair low to clear the eye bolts
-    const oy = Math.round(h / 2 - 3.5) - 2 + 1;
-    for (let y = 0; y < t.h; y++) for (let x = 0; x < tw; x++) {
-      const X = ox + x, Y = oy + y;
-      if (t.m[y * tw + x] && X >= 0 && Y >= 0 && X < w && Y < h) mask[Y * w + X] = 1;
+    lipOf(mask, w, h, px, w, 0, 0, 1);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!mask[y * w + x]) continue;
+      const flake = hash(x, y, seed + 9);
+      if (flake < 0.07) continue;
+      put(x, y, flake > 0.95 ? mixHex(paint, shadowCol, 0.35) : paint);
     }
   }
-  for (let y = 0; y < h - 1; y++) for (let x = 0; x < w; x++) if (mask[y * w + x] && !mask[(y + 1) * w + x]) put(x, y + 1, shadowCol);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    if (!mask[y * w + x]) continue;
-    const flake = hash(x, y, seed + 9);
-    if (flake < 0.07) continue;
-    put(x, y, flake > 0.95 ? mixHex(paint, shadowCol, 0.35) : paint);
+  // scale the board up to the fine grid (each art pixel a SUB x SUB block)
+  const W = w * sub, H = h * sub;
+  const fine = new Uint32Array(W * H);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) fine[y * W + x] = px[Math.floor(y / sub) * w + Math.floor(x / sub)];
+  if (label && !(chevron && shape !== 'board')) {
+    const t = textMask(label, sub);
+    const tw = t.w;
+    const ox = (shape === 'arrowL' ? Math.floor(pt + (w - pt - tw) / 2) : shape === 'arrowR' ? Math.floor((w - pt - tw) / 2) : Math.floor((w - tw) / 2)) * sub;
+    // centre the caps (rows 2..8) on the board, a hair low to clear the eye bolts
+    const oy = (Math.round(h / 2 - 3.5) - 1) * sub;
+    const inB = (X: number, Y: number) => X >= 0 && Y >= 0 && X < W && Y < H && fine[Y * W + X] !== 0;
+    // a darker paint lip under every stroke, then the paint with a few flakes missing
+    for (let y = 0; y < t.H; y++) for (let x = 0; x < t.W; x++) {
+      if (!t.m[y * t.W + x]) continue;
+      for (let k = 1; k <= Math.max(1, sub >> 1); k++) {
+        if (y + k < t.H && t.m[(y + k) * t.W + x]) break;
+        const X = ox + x, Y = oy + y + k;
+        if (inB(X, Y)) fine[Y * W + X] = 0xff000000 | shadowCol;
+      }
+    }
+    for (let y = 0; y < t.H; y++) for (let x = 0; x < t.W; x++) {
+      if (!t.m[y * t.W + x]) continue;
+      const X = ox + x, Y = oy + y;
+      if (!inB(X, Y)) continue;
+      const flake = hash(X, Y, seed + 9);
+      if (flake < 0.035) continue;
+      fine[Y * W + X] = 0xff000000 | (flake > 0.97 ? mixHex(paint, shadowCol, 0.35) : paint);
+    }
   }
-  return { w, h, px, eyes };
+  return { w: W, h: H, px: fine, eyes };
 }
 
 // ------------------------------------------------------------------ the swinging render
-interface Geo { W: number; H: number; bx: number; by: number; bw: number; bh: number; pivX: number; pivY: number; hang: SignHang }
-function drawFrame(pc: PixelCanvas, g: Geo, art: BoardArt, theta: number, seed: number) {
+interface Geo { W: number; H: number; bx: number; by: number; bw: number; bh: number; pivX: number; pivY: number; hang: SignHang; sub: number }
+/** one frame at the fine grid (SUB px per art px): the static iron in art blocks, the chains and the rotated board at fine resolution */
+function drawFrame(pc: PixelCanvas, g: Geo, art: BoardArt, theta: number) {
   pc.clear();
-  const { W, pivX, pivY } = g;
+  const { W, pivX, pivY, sub } = g;
+  const B = (ax: number, ay: number, c: number) => { for (let j = 0; j < sub; j++) for (let i = 0; i < sub; i++) pc.set(ax * sub + i, ay * sub + j, c); };
   // the bracket (or a hook from above)
   if (g.hang === 'hook') {
-    for (let x = pivX - 3; x <= pivX + 3; x++) { pc.set(x, 0, IRON.mid); pc.set(x, 1, IRON.lo); }
-    pc.set(pivX - 3, 0, K); pc.set(pivX + 3, 0, K);
-    pc.set(pivX, 2, IRON.hi); pc.set(pivX, 3, IRON.mid);
+    for (let x = pivX - 3; x <= pivX + 3; x++) { B(x, 0, IRON.mid); B(x, 1, IRON.lo); }
+    B(pivX - 3, 0, K); B(pivX + 3, 0, K);
+    B(pivX, 2, IRON.hi); B(pivX, 3, IRON.mid);
   } else {
     const left = g.hang === 'bracketL';
     const x0 = left ? 0 : pivX - 2, x1 = left ? pivX + 2 : W - 1;
-    for (let x = x0; x <= x1; x++) { pc.set(x, 0, K); pc.set(x, 1, IRON.hi); pc.set(x, 2, IRON.lo); pc.set(x, 3, K); }
+    for (let x = x0; x <= x1; x++) { B(x, 0, K); B(x, 1, IRON.hi); B(x, 2, IRON.lo); B(x, 3, K); }
     // the wall plate with two rivets, a scroll brace under the arm
     const wx = left ? 0 : W - 3;
-    for (let y = 0; y < 8; y++) for (let x = 0; x < 3; x++) pc.set(wx + x, y, x === (left ? 2 : 0) || y === 7 ? K : y === 0 ? IRON.hi : IRON.mid);
-    pc.set(wx + 1, 2, IRON.hi); pc.set(wx + 1, 5, IRON.hi);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 3; x++) B(wx + x, y, x === (left ? 2 : 0) || y === 7 ? K : y === 0 ? IRON.hi : IRON.mid);
+    B(wx + 1, 2, IRON.hi); B(wx + 1, 5, IRON.hi);
     const dir = left ? 1 : -1;
-    for (let i = 0; i < 6; i++) { const x = (left ? 3 : W - 4) + dir * i, y = 6 - Math.round(i * 0.8); pc.set(x, y, IRON.mid); pc.set(x, y + 1, K); }
+    for (let i = 0; i < 6; i++) { const x = (left ? 3 : W - 4) + dir * i, y = 6 - Math.round(i * 0.8); B(x, y, IRON.mid); B(x, y + 1, K); }
     // hook
-    pc.set(pivX, 4, IRON.hi); pc.set(pivX + 1, 4, K); pc.set(pivX, 5, IRON.mid);
+    B(pivX, 4, IRON.hi); B(pivX + 1, 4, K); B(pivX, 5, IRON.mid);
   }
+  const PX = (pivX + 0.5) * sub, PY = (pivY + 0.5) * sub;
   const c = Math.cos(theta), s = Math.sin(theta);
-  const rot = (x: number, y: number): [number, number] => { const dx = x - pivX, dy = y - pivY; return [pivX + dx * c - dy * s, pivY + dx * s + dy * c]; };
-  // chains: alternating links from the hook to each eye bolt
+  const rot = (x: number, y: number): [number, number] => { const dx = x - PX, dy = y - PY; return [PX + dx * c - dy * s, PY + dx * s + dy * c]; };
+  // chains: alternating links (art-sized) from the hook to each eye bolt
   for (const [ex, ey] of art.eyes) {
-    const [ax, ay] = rot(g.bx + ex + 0.5, g.by + ey + 0.5);
-    const n = Math.max(2, Math.ceil(Math.hypot(ax - pivX, ay - pivY)));
+    const [ax, ay] = rot((g.bx + ex + 0.5) * sub, (g.by + ey + 0.5) * sub);
+    const len = Math.hypot(ax - PX, ay - PY);
+    const n = Math.max(2, Math.ceil(len / sub));
     for (let i = 0; i <= n; i++) {
-      const t = i / n, x = Math.round(pivX + (ax - pivX) * t), y = Math.round(pivY + (ay - pivY) * t);
-      pc.set(x, y, i % 2 ? IRON.hi : IRON.lo);
-      if (i % 2) pc.blend(x + 1, y, 0x000000, 0.5);
+      const t = i / n, cx = PX + (ax - PX) * t, cy = PY + (ay - PY) * t;
+      const x = Math.round(cx - sub / 2), y = Math.round(cy - sub / 2);
+      for (let j = 0; j < sub; j++) for (let k = 0; k < sub; k++) pc.set(x + k, y + j, i % 2 ? IRON.hi : IRON.lo);
+      if (i % 2) for (let j = 0; j < sub; j++) pc.blend(x + sub, y + j, 0x000000, 0.5);
     }
   }
-  // the board and its shadow, inverse-mapped (nearest) so every art pixel stays a pixel
-  const { bx, by, bw, bh } = g;
-  const reach = Math.ceil(Math.hypot(Math.max(bx + bw - pivX, pivX - bx), by + bh - pivY)) + 2;
-  const y0 = Math.max(0, pivY), y1 = Math.min(pc.h - 1, pivY + reach), x0 = Math.max(0, pivX - reach), x1 = Math.min(pc.w - 1, pivX + reach);
+  // the board and its shadow, inverse-mapped (nearest) at the fine grid
+  const bx = g.bx * sub, by = g.by * sub, bw = g.bw * sub, bh = g.bh * sub;
+  const reach = Math.ceil(Math.hypot(Math.max(bx + bw - PX, PX - bx), by + bh - PY)) + 2 * sub;
+  const y0 = Math.max(0, Math.floor(PY)), y1 = Math.min(pc.h - 1, Math.ceil(PY + reach)), x0 = Math.max(0, Math.floor(PX - reach)), x1 = Math.min(pc.w - 1, Math.ceil(PX + reach));
   const sample = (x: number, y: number) => {
-    const dx = x + 0.5 - pivX, dy = y + 0.5 - pivY;
-    const u = Math.floor(pivX + dx * c + dy * s - bx), v = Math.floor(pivY - dx * s + dy * c - by);
+    const dx = x + 0.5 - PX, dy = y + 0.5 - PY;
+    const u = Math.floor(PX + dx * c + dy * s - bx), v = Math.floor(PY - dx * s + dy * c - by);
     if (u < 0 || v < 0 || u >= art.w || v >= art.h) return 0;
     return art.px[v * art.w + u];
   };
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    if (sample(x - 1, y - 2)) pc.blend(x, y, 0x000000, 0.55);
+    if (sample(x - sub, y - 2 * sub)) pc.blend(x, y, 0x000000, 0.55);
   }
   for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
     const p = sample(x, y);
     if (p) pc.set(x, y, p & 0xffffff);
   }
-  void seed;
 }
 
 // ------------------------------------------------------------------ physics loop (one for every live sign)
@@ -287,7 +323,7 @@ function loop(now: number) {
   if (lives.size) raf = requestAnimationFrame(loop); else lastT = 0;
 }
 function wake(l: Live) { lives.add(l); if (!raf) { lastT = 0; raf = requestAnimationFrame(loop); } }
-if (import.meta.env.DEV) (window as any).__signs = { lives, get raf() { return raf; } };
+if (import.meta.env.DEV) (window as any).__signs = { lives, get raf() { return raf; }, mask: (t: string, sub: number) => { const m = textMask(t, sub); const rows: string[] = []; for (let y = 0; y < m.H; y++) { let r = ''; for (let x = 0; x < m.W; x++) r += m.m[y * m.W + x] ? '#' : '.'; rows.push(r); } return rows.join('\n'); } };
 
 const SIZES = { lg: { bh: 16, chain: 4 }, md: { bh: 14, chain: 4 }, sm: { bh: 13, chain: 3 } };
 
@@ -333,31 +369,35 @@ export function hangSign(label: string, onClick: (b: HangSign) => void, o: SignO
   };
   const render = () => {
     if (!geo || !pc || !arts.length) return;
-    const th = calm() ? 0 : Math.round(L.theta * 400) / 400;
+    const th = calm() ? 0 : Math.round(L.theta * 600) / 600;
     if (th === L.drawn && arts[state] === (render as any).lastArt) return;
     L.drawn = th; (render as any).lastArt = arts[state];
-    drawFrame(pc, geo, arts[state], th, seed);
+    drawFrame(pc, geo, arts[state], th);
     canvas.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
   };
   const build = () => {
     if (!b.isConnected) return;
     const s = kitScale();
+    const dpr = Math.max(1, Math.min(4, window.devicePixelRatio || 1));
+    // the fine grid: SUB canvas px per art px, each a whole number of device px
+    const k = Math.max(1, Math.round(s * dpr));
+    const sub = [4, 3, 2].find((d) => k % d === 0) ?? Math.min(k, 5);
     const sz = SIZES[size];
     const bh = shortView() ? sz.bh + 2 : sz.bh;
     const chain = o.chain ?? sz.chain;
     const bw = Math.max(boardW, needW());
     const top = hang === 'hook' ? 4 : 6;
     const mx = Math.ceil((chain + bh) * 0.36) + 2;
-    const W = bw + 2 * mx + (hang === 'hook' ? 0 : 0), H = top + chain + bh + 4;
+    const W = bw + 2 * mx, H = top + chain + bh + 4;
     const pivX = Math.floor(W / 2), pivY = top - 1;
-    geo = { W, H, bx: mx, by: top + chain, bw, bh, pivX, pivY, hang };
-    canvas.width = W; canvas.height = H;
+    geo = { W, H, bx: mx, by: top + chain, bw, bh, pivX, pivY, hang, sub };
+    canvas.width = W * sub; canvas.height = H * sub;
     canvas.style.width = W * s + 'px'; canvas.style.height = H * s + 'px';
     b.style.width = W * s + 'px'; b.style.height = H * s + 'px';
     b.style.setProperty('--hs-cy', (top + chain + bh / 2) * s + 'px');
     b.style.setProperty('--hs-bx', mx * s + 'px');
-    pc = new PixelCanvas(W, H); pc.wrap = false;
-    arts = [0, 1, 2].map((st) => boardArt(text.toUpperCase(), kind, shape, bw, bh, seed, st as 0 | 1 | 2, !!o.chevron));
+    pc = new PixelCanvas(W * sub, H * sub); pc.wrap = false;
+    arts = [0, 1, 2].map((st) => boardArt(text.toUpperCase(), kind, shape, bw, bh, seed, st as 0 | 1 | 2, !!o.chevron, sub));
     L.drawn = NaN;
     render();
   };

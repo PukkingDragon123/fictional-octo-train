@@ -1406,6 +1406,7 @@ export class Intro implements GameSystem {
   private tapeFrom = new THREE.Vector3();
   private startTape() {
     this.go('tape');
+    void this.loadArrival();
     this.tapeFrom.copy(this.bodyAt);
     this.pose = 'stand'; this.poseW = 0;
     this.cutBlack(0.5, 0.7);
@@ -1440,7 +1441,8 @@ export class Intro implements GameSystem {
     this.at(1.6, 1, () => this.say('OFFICER', 'Through the door, debtor.'));
     this.at(3.4, 2, () => this.say('self', '...that\'s a wall.', 'self'));
     // with the arrival scene in the build, the walk to the wall is where this cutscene ends: it takes the arm into the jelly
-    if (ARRIVAL['./arrival.ts'] && t > 4.4 + 1.1 && !this.handing) { void this.handoff(); return; }
+    // (held here, stood at the wall, until the module is in: the old pass-through below only plays without it)
+    if (ARRIVAL['./arrival.ts'] && t > 4.4 + 1.1) { if (!this.handing) void this.handoff(); return; }
     this.at(4.4, 3, () => { this.say('OFFICER', 'Not from the other side.'); if (ARRIVAL['./arrival.ts']) return; this.set.liqU.uLiq.value = 0.06; this.set.liqU.uHit.value.set(0.05, 0.1); this.set.liqU.uHitT.value = 0; this.sfx('seam_ripple', 0.6); this.stage.pulse(0.4, 0x7ae0ff, 2); });
     // the wall turns: it lights up from inside and throws its caustic light over everything
     if (t > 4.4 && !ARRIVAL['./arrival.ts']) this.glow = Math.min(1, this.glow + dt * 0.9);
@@ -1452,12 +1454,16 @@ export class Intro implements GameSystem {
   }
 
   /** the arrival scene (src/game/arrival.ts) takes it from the wall: this picture goes away, it plays, then the intake is done */
+  /** fetched once, early (on the walk to the wall), so the hand-off does not wait on the network */
+  private arrivalMod: Promise<ArrivalMod | null> | null = null;
+  private loadArrival() {
+    const load = ARRIVAL['./arrival.ts'];
+    return this.arrivalMod ??= load ? load().catch((e) => { console.warn('intro: arrival failed to load', e); return null; }) : Promise.resolve(null);
+  }
   private async handoff() {
     if (this.handing) return;
     this.handing = true;
-    const load = ARRIVAL['./arrival.ts'];
-    let A: ArrivalMod | null = null;
-    try { A = load ? await load() : null; } catch (e) { console.warn('intro: arrival failed to load', e); A = null; }
+    const A = await this.loadArrival();
     if (!A?.playArrival || this.phase !== 'tape') { if (this.phase === 'tape') { this.handing = false; this.startThrough(); } return; }
     this.go('arrival');
     this.subs.clear();

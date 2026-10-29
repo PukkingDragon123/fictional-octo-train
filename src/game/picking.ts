@@ -160,3 +160,31 @@ export function targetName(t: PickTarget): string {
     case 'tile': return G.zone.floorAt(t.x, t.y)?.name || 'Floor';
   }
 }
+
+const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sc = new THREE.Vector3();
+/**
+ * Is (cssX, cssY) on the local survivor's own body in the iso view? A capsule round
+ * the body from the shins to the crown, tested against the camera ray, and nothing
+ * else (a creature, another survivor, an item or a vehicle) standing in front of it.
+ * The watch uses it: a click or tap on yourself raises your wrist.
+ */
+export function pickSelf(cssX: number, cssY: number): boolean {
+  const g = G;
+  const p = g.local;
+  if (!p || !g.view || !g.pr || g.pr.eyeCamera || p.body?.dead || p.inVehicle || !p.rig?.root?.visible) return false;
+  const ray = g.pr.screenRay(cssX, cssY);
+  const y0 = (p.y ?? 0) + 0.3, y1 = (p.y ?? 0) + 1.78;
+  // closest approach between the ray and the body's axis
+  _sa.set(p.x, y0, p.z); _sb.set(p.x, y1, p.z);
+  const d2 = ray.distanceSqToSegment(_sa, _sb, _sc, undefined);
+  const r = 0.27;
+  if (d2 > r * r) return false;
+  const tSelf = _sc.distanceTo(ray.origin);
+  // something else under the pointer and in front of you wins
+  const t = pick(cssX, cssY, { creatures: g.creatures?.list?.() || [], ignore: p });
+  if (t && (t.kind === 'creature' || t.kind === 'player' || t.kind === 'vehicle' || t.kind === 'item')) {
+    if (t.kind === 'item' || t.point.distanceTo(ray.origin) < tSelf + 0.2) return false;
+  }
+  if (t && (t.kind === 'object' || t.kind === 'edge') && t.point.distanceTo(ray.origin) < tSelf - 0.35) return false;
+  return true;
+}

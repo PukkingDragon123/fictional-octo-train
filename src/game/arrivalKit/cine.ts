@@ -55,6 +55,7 @@ float caustic(vec2 p, float t) {
   c /= 3.0; c = 1.17 - pow(c, 1.4);
   return clamp(pow(abs(c), 6.0), 0.0, 2.0);
 }
+vec3 tap(vec2 uv) { return texture2D(tColor, (floor(uv * uRes) + 0.5) / uRes).rgb; }
 vec3 scene(vec2 uv) {
   vec2 px = floor(uv * uRes);
   vec2 q = (px + 0.5) / uRes;
@@ -77,7 +78,8 @@ vec3 scene(vec2 uv) {
   return c;
 }
 void main() {
-  vec2 lp = gl_FragCoord.xy / uScale + vec2(uMargin);
+  // (drawn at the low-res grid itself: one fragment per picture pixel)
+  vec2 lp = gl_FragCoord.xy;
   vec2 uv = lp / uRes;
   vec2 cc = uCenter;
   // lens: barrel warp toward the centre (the pull), a heartbeat push
@@ -89,16 +91,16 @@ void main() {
     float t = uTime;
     wuv += uInside * 0.02 * vec2(sin(wuv.y * 13.0 + t * 1.7) + sin(wuv.y * 31.0 - t * 2.3) * 0.4, cos(wuv.x * 11.0 - t * 1.3));
   }
-  vec3 c;
+  vec3 c = scene(wuv);
   if (uZoom > 0.001 || uSplit > 0.001) {
-    vec3 acc = vec3(0.0);
-    for (int i = 0; i < 10; i++) {
-      float f = float(i) / 9.0;
+    vec3 acc = c;
+    for (int i = 1; i < 8; i++) {
+      float f = float(i) / 7.0;
       vec2 s = cc + (wuv - cc) * (1.0 - uZoom * 0.22 * f);
-      acc += vec3(scene(s + (s - cc) * uSplit * 0.02).r, scene(s).g, scene(s - (s - cc) * uSplit * 0.02).b);
+      acc += vec3(tap(s + (s - cc) * uSplit * 0.02).r, tap(s).g, tap(s - (s - cc) * uSplit * 0.02).b);
     }
-    c = acc / 10.0;
-  } else c = scene(wuv);
+    c = acc / 8.0;
+  }
   // bloom (soft, quarter res)
   c += texture2D(tBloom, wuv).rgb * uBloom;
   c *= uExpo;
@@ -139,6 +141,14 @@ void main() {
   gl_FragColor = vec4(s, 1.0);
 }`;
 
+const BLIT = /* glsl */`
+precision highp float;
+uniform sampler2D tSrc; uniform vec2 uRes; uniform float uScale, uMargin;
+void main() {
+  vec2 lp = gl_FragCoord.xy / uScale + vec2(uMargin);
+  gl_FragColor = vec4(texture2D(tSrc, (floor(lp) + 0.5) / uRes).rgb, 1.0);
+}`;
+
 export class CinePass {
   readonly scene = new THREE.Scene();
   camera: THREE.PerspectiveCamera;
@@ -149,7 +159,9 @@ export class CinePass {
   private rt: THREE.WebGLRenderTarget | null = null;
   private b1: THREE.WebGLRenderTarget | null = null;
   private b2: THREE.WebGLRenderTarget | null = null;
+  private out: THREE.WebGLRenderTarget | null = null;
   private comp: THREE.ShaderMaterial;
+  private blit: THREE.ShaderMaterial;
   private bright: THREE.ShaderMaterial;
   private blur: THREE.ShaderMaterial;
   private fs = new THREE.Scene();
@@ -171,6 +183,7 @@ export class CinePass {
       },
     });
     this.bright = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: BRIGHT, depthTest: false, depthWrite: false, uniforms: { tSrc: { value: null }, uTh: { value: 0.9 } } });
+    this.blit = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: BLIT, depthTest: false, depthWrite: false, uniforms: { tSrc: { value: null }, uRes: { value: new THREE.Vector2(1, 1) }, uScale: { value: 2 }, uMargin: { value: 2 } } });
     this.blur = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: BLUR, depthTest: false, depthWrite: false, uniforms: { tSrc: { value: null }, uDir: { value: new THREE.Vector2() } } });
     this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.comp);
     this.quad.frustumCulled = false;
@@ -193,7 +206,8 @@ export class CinePass {
 
   private ensure(W: number, H: number) {
     if (this.rt && this.rt.width === W && this.rt.height === H) return;
-    this.rt?.dispose(); this.b1?.dispose(); this.b2?.dispose();
+    this.rt?.dispose(); this.b1?.dispose(); this.b2?.dispose(); this.out?.dispose();
+    this.out = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false });
     const depth = new THREE.DepthTexture(W, H);
     depth.type = THREE.FloatType;
     this.rt = new THREE.WebGLRenderTarget(W, H, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, depthTexture: depth, type: THREE.HalfFloatType });
@@ -238,16 +252,19 @@ export class CinePass {
     u.uBloom.value = this.bloom; u.uWarp.value = this.warp; u.uZoom.value = this.zoom; u.uSplit.value = this.split; u.uInside.value = this.inside;
     u.uFade.value = Math.min(1, Math.max(0, this.fade)); u.uVig.value = this.vig; u.uExpo.value = this.expo; u.uFlash.value = this.flash; u.uHeart.value = this.heart;
     u.uFlashCol.value.set(this.flashCol.r, this.flashCol.g, this.flashCol.b); u.uCenter.value.copy(this.center);
-    this.pass(r, this.comp, null);
+    this.pass(r, this.comp, this.out);
+    const bu = this.blit.uniforms;
+    bu.tSrc.value = this.out!.texture; bu.uRes.value.set(W, H); bu.uScale.value = pr.scale; bu.uMargin.value = pr.margin;
+    this.pass(r, this.blit, null);
     this.quad.material = this.comp;
   }
 
   dispose() {
     const i = this.pr.afterRender.indexOf(this.hook);
     if (i >= 0) this.pr.afterRender.splice(i, 1);
-    this.rt?.dispose(); this.b1?.dispose(); this.b2?.dispose();
-    this.rt = this.b1 = this.b2 = null;
-    this.comp.dispose(); this.bright.dispose(); this.blur.dispose();
+    this.rt?.dispose(); this.b1?.dispose(); this.b2?.dispose(); this.out?.dispose();
+    this.rt = this.b1 = this.b2 = this.out = null;
+    this.comp.dispose(); this.bright.dispose(); this.blur.dispose(); this.blit.dispose();
     this.quad.geometry.dispose();
   }
 }

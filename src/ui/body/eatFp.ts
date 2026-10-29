@@ -245,7 +245,7 @@ export class EatFp {
       // a threaded neck ring
       const thread = new THREE.Mesh(new THREE.CylinderGeometry(0.0145, 0.0145, 0.012, 8), glass); thread.position.y = 0.134; g.add(thread);
       if (!can) {
-        const lab = new THREE.Mesh(new THREE.CylinderGeometry(0.0345, 0.0345, 0.05, 8, 1, true), L({ map: propTex('bottle', word, 0x2a6ab0) })); lab.rotation.y = Math.PI; g.add(lab);
+        const lab = new THREE.Mesh(new THREE.CylinderGeometry(0.0345, 0.0345, 0.05, 8, 1, true), L({ map: propTex('bottle', word, 0x2a6ab0) })); lab.rotation.y = Math.PI; lab.position.y = 0.035; g.add(lab);
         // condensation beads on the cold glass
         const dew = new THREE.Mesh(new THREE.CylinderGeometry(0.0352, 0.0352, 0.15, 8, 1, true), L({ map: propTex('drops'), transparent: true, alphaTest: 0.5 })); dew.position.y = 0.003; g.add(dew);
       } else {

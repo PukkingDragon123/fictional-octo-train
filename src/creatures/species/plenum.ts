@@ -1,5 +1,5 @@
 import { horrify } from '../kit/horror';
-import { kitCanvas, sores, drips, flay, RAW, BONE, BLOOD } from '../kit/rot';
+import { kitCanvas, sores, drips, flay, RAW, BLOOD } from '../kit/rot';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { makeRamp } from '../../gfx/pixel';
@@ -104,8 +104,9 @@ function buildP(B: SkinB, x: BuildCtx) {
   frames(B, fr, 10, R('BODY'), 1, { start: true, end: true });
   // the head: under the front, a face set upside down in it
   const hp = x.rest('head');
-  ellipsoid(B, [hp[0], hp[1], hp[2] + 0.03], [0.1, 0.09, 0.095], 10, 6, R('HEAD'), [bi('head'), 1], 3);
-  ellipsoid(B, [hp[0], hp[1] - 0.04, hp[2] + 0.07], [0.06, 0.03, 0.05], 8, 4, R('HEAD'), [bi('jaw'), 1], 4);
+  // (a human-sized head, far too big for the body that carries it)
+  ellipsoid(B, [hp[0], hp[1] + 0.01, hp[2] + 0.05], [0.125, 0.115, 0.115], 10, 6, R('HEAD'), [bi('head'), 1], 3);
+  ellipsoid(B, [hp[0], hp[1] - 0.04, hp[2] + 0.1], [0.075, 0.036, 0.06], 8, 4, R('HEAD'), [bi('jaw'), 1], 4);
   // eight legs, four joints each, the knuckles swollen
   for (let i = 0; i < LEGS; i++) {
     const a = x.rest('leg' + i), b2 = x.rest('shin' + i), c2 = x.rest('tars' + i), d2 = x.rest('tip' + i);
@@ -162,7 +163,6 @@ function paintP(p: Page, x: BuildCtx) {
     // joints: dark creases where the skin folds round each knuckle
     for (const v of [0.86, 0.58, 0.3]) { const yy = Math.round(r.h * (1 - v)); for (let xx = 0; xx < r.w; xx++) { r.blend(xx, yy, SK[1], 0.8); r.blend(xx, yy + 1, SK[7], 0.4); } }
     for (let yy = Math.round(r.h * 0.84); yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) r.blend(xx, yy, hash(xx, yy) < 0.3 ? BLOOD[0] : 0x3a2e2a, 0.6); // the tips are horn, black at the ends, crusted
-    void BONE;
     dust(r, 13);
   }
   {
@@ -285,7 +285,7 @@ function animatePlenum(rig: Rig, c: Creature, t: number, dt: number) {
   R('pelvis', Math.sin(ph0 * 2) * 0.04 * (moving ? 1 : 0.2), 0, Math.sin(ph0) * 0.06 * (moving ? 1 : 0));
   R('thorax', -0.1 - ac.wind * 0.7 + ac.strike * 0.4 - climbK * 0.8, Math.sin(t * 0.8 + seed) * 0.1, 0);
   R('abdomen', 0.08 + Math.sin(t * 1.3 + seed * 3) * 0.05, Math.sin(ph0) * 0.1, 0);
-  R('head', 0.2 + ac.wind * 0.5 - ac.strike * 0.4, 0, Math.sin(t * 0.6 + seed) * 0.4);
+  R('head', -0.35 + ac.wind * 0.5 - ac.strike * 0.4, 0, Math.sin(t * 0.6 + seed) * 0.4); // the upside-down face held up to look at you
   R('jaw', ac.wind > 0.3 || ac.strike > 0 ? 0.9 : 0.15 + Math.max(0, Math.sin(t * 2.2 + seed)) * 0.15);
   // legs: alternating tetrapod gait, high-stepping; at rest they tap, one at a time; folded while it falls
   for (let i = 0; i < LEGS; i++) {

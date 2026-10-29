@@ -19,6 +19,7 @@ import { fpArm, type FpArm } from '../../fp/hands';
 import { hasUnlock, buyNode, researchNode, grantResearch } from '../../game/research';
 import { itemDef } from '../../items/item';
 import { punch } from '../../gfx/juice';
+import { pickSelf } from '../../game/picking';
 import type { Player } from '../../entities/player';
 import type { QuestRuntime } from '../../missions/questRuntime';
 import { buildWatchModel, setLamp, refreshPrinted, SCR_W, SCR_H, SCREEN, type WatchModel } from './model';
@@ -119,6 +120,8 @@ export class Watch {
     const k = tubeScale();
     this.crt = crtScreen(SCREEN.w, SCREEN.h, { res: [Math.round(SCR_W * k), Math.round(SCR_H * k)], curvature: CURV, tint: 0xffffff, scan: 0.45, mask: 0.1, glow: 0.45, noise: 0.025, flicker: 0.35, vignette: 0.8, reflect: 0.3, bulge: 0.0022 });
     this.crt.power(false, true);
+    // the type is drawn finer than the tube is seen: let it average down instead of shimmering
+    this.crt.tex.generateMipmaps = true; this.crt.tex.minFilter = THREE.LinearMipmapLinearFilter; this.crt.tex.anisotropy = 4;
     (this.crt.mat.uniforms.uRes.value as THREE.Vector2).set(SCR_W * 0.62, SCR_H * 0.62);
     this.tv = new Tube(this.crt.ctx, SCR_W, SCR_H, k);
     fontsReady().then(() => { this.tv.fontsOk = true; this.drawT = 0; refreshPrinted(); });
@@ -148,6 +151,11 @@ export class Watch {
     // runs as its own system (the UI's per-frame call is kept as a no-op for older callers)
     G.addSystem({ name: 'watch', update: (dt: number) => this.frame(dt) });
     window.addEventListener('mousedown', (e) => this.onMouse(e), true);
+    // a click or tap on your own survivor raises (or lowers) the wrist
+    window.addEventListener('pointerdown', (e) => this.onSelfDown(e), true);
+    window.addEventListener('pointermove', (e) => this.onSelfMove(e), true);
+    window.addEventListener('pointerup', (e) => this.onSelfUp(e, false), true);
+    window.addEventListener('pointercancel', (e) => this.onSelfUp(e, true), true);
     window.addEventListener('mouseup', (e) => { if (e.button === 0) this.laser.holding = false; }, true);
     window.addEventListener('wheel', (e) => this.onWheel(e), { capture: true, passive: false });
     window.addEventListener('keydown', (e) => this.onKey(e), true);
@@ -393,6 +401,11 @@ export class Watch {
   }
   private interactive() { return this.open && this.raise > 0.7 && !this.small; }
   private onMouse(e: MouseEvent) {
+    if (e.button === 0 && !e.altKey && !e.shiftKey && !e.ctrlKey && e.target === G.pr?.renderer?.domElement && this.canSelf(e.clientX, e.clientY)) {
+      e.stopPropagation(); e.preventDefault();
+      this.selfTap();
+      return;
+    }
     if (!this.open || this.raise < 0.6) return;
     const hit = this.hitTest(e.clientX, e.clientY);
     if (hit) {
@@ -406,6 +419,68 @@ export class Watch {
       this.laser.holding = true;
     }
   }
+  // ---- clicking yourself
+  private selfTouch: { id: number; x: number; y: number; init: PointerEventInit; timer: number } | null = null;
+  private replaying = false;
+  private touchesDown = new Set<number>();
+  /** may a click at (x, y) on your own survivor raise the wrist right now */
+  private canSelf(x: number, y: number): boolean {
+    const p = G.local, ui = G.ui as any;
+    if (!p || p.body.dead || !G.view) return false;
+    const own = fpOwner();
+    if (own && own !== 'watch') return false;
+    if (this.open && !this.small) return false;
+    if (ui?.menuEl || ui?.readerEl || ui?.modal || ui?.inventory?.open || G.input.textFocus || p.aiming) return false;
+    if ((G as any).items?.placing || (G as any).build?.captures?.()) return false;
+    return pickSelf(x, y);
+  }
+  /** you clicked yourself: the wrist comes up (or goes down if it is up as a glance) */
+  private selfTap() {
+    const p = G.local;
+    if (!p) return;
+    try { navigator.vibrate?.(12); } catch { /* no buzz */ }
+    if (this.open) { this.toggle(false); return; }
+    this.still = Math.max(this.still, 0.3);
+    this.toggle(true);
+  }
+  /** a finger landing on yourself is held back a moment: a tap raises the wrist, anything longer goes on to the world as usual */
+  private onSelfDown(e: PointerEvent) {
+    if (e.pointerType === 'mouse' || this.replaying) return;
+    const others = this.touchesDown.size;
+    this.touchesDown.add(e.pointerId);
+    const cv = G.pr?.renderer?.domElement;
+    if (others || e.target !== cv || !e.isPrimary || this.selfTouch) return;
+    const W = window.innerWidth, H = window.innerHeight, x = e.clientX, y = e.clientY;
+    const stick = H > W ? x < W * 0.6 && y > H * 0.64 : x < W * 0.38 && y > H * 0.3;
+    if (stick || !this.canSelf(x, y)) return;
+    e.stopImmediatePropagation(); e.preventDefault();
+    const init: PointerEventInit = { pointerId: e.pointerId, pointerType: e.pointerType, isPrimary: true, clientX: x, clientY: y, screenX: e.screenX, screenY: e.screenY, button: 0, buttons: 1, bubbles: true, cancelable: true, width: e.width, height: e.height, pressure: e.pressure || 0.5 };
+    this.selfTouch = { id: e.pointerId, x, y, init, timer: window.setTimeout(() => this.replaySelf(), 230) };
+  }
+  /** not a tap after all (held, or dragged): hand the touch to the world as if nothing had happened */
+  private replaySelf() {
+    const s = this.selfTouch;
+    if (!s) return;
+    clearTimeout(s.timer);
+    this.selfTouch = null;
+    const cv = G.pr?.renderer?.domElement;
+    if (!cv) return;
+    this.replaying = true;
+    try { cv.dispatchEvent(new PointerEvent('pointerdown', s.init)); } catch (err) { console.warn('self replay', err); } finally { this.replaying = false; }
+  }
+  private onSelfMove(e: PointerEvent) {
+    const s = this.selfTouch;
+    if (s && e.pointerId === s.id && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) this.replaySelf();
+  }
+  private onSelfUp(e: PointerEvent, cancel: boolean) {
+    if (e.pointerType !== 'mouse') this.touchesDown.delete(e.pointerId);
+    const s = this.selfTouch;
+    if (!s || e.pointerId !== s.id) return;
+    clearTimeout(s.timer);
+    this.selfTouch = null;
+    if (!cancel) this.selfTap();
+  }
+
   private onWheel(e: WheelEvent) {
     if (!this.open || this.raise < 0.6 || this.small) return;
     const hit = this.hitTest(e.clientX, e.clientY);

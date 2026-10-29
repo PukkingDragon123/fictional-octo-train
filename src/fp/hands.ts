@@ -48,6 +48,64 @@ function cached(key: string, make: () => THREE.BufferGeometry) {
 }
 
 /** vertex colours: a multiplier on the skin colour (creases darker and redder, tips pinker) */
+// ---------------------------------------------------------------- detail textures
+// Tiling pixel-art detail (nearest filtered) multiplied over the skin and the jumpsuit:
+// pores, creases, fine hairs and grime on the skin; twill weave, a stitched seam, stains
+// and wear on the cloth. UVs are scaled to real size, so every part shares one density.
+const TILE = 0.035; // metres per texture repeat
+function texUV(g: THREE.BufferGeometry, su: number, sv: number) {
+  const uv = g.attributes.uv as THREE.BufferAttribute | undefined;
+  if (!uv) return;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
+}
+function detailTex(paint: (put: (x: number, y: number, v: number) => void, rnd: () => number, N: number) => void, N = 64): THREE.Texture | null {
+  if (typeof document === 'undefined') return null;
+  const cv = document.createElement('canvas'); cv.width = cv.height = N;
+  const ctx = cv.getContext('2d')!;
+  const img = ctx.createImageData(N, N);
+  const val = new Float32Array(N * N).fill(1);
+  let seed = 1234567;
+  const rnd = () => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296);
+  const put = (x: number, y: number, v: number) => { const i = (((y % N) + N) % N) * N + (((x % N) + N) % N); val[i] *= v; };
+  paint(put, rnd, N);
+  for (let i = 0; i < N * N; i++) { const v = Math.max(0, Math.min(255, Math.round(val[i] * 255))); img.data[i * 4] = v; img.data[i * 4 + 1] = Math.round(v * 0.985); img.data[i * 4 + 2] = Math.round(v * 0.97); img.data[i * 4 + 3] = 255; }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+let skinT: THREE.Texture | null | undefined, clothT: THREE.Texture | null | undefined;
+/** skin: soft mottling, pores, short creases, fine hairs, a little grime */
+function skinTex() {
+  if (skinT !== undefined) return skinT;
+  return (skinT = detailTex((put, rnd, N) => {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const m = 0.5 + 0.5 * Math.sin(x * 0.29 + Math.sin(y * 0.17) * 2) * Math.sin(y * 0.23 + x * 0.05);
+      put(x, y, 0.95 + m * 0.05);
+    }
+    for (let i = 0; i < N * N * 0.07; i++) put((rnd() * N) | 0, (rnd() * N) | 0, 0.86 + rnd() * 0.06);
+    for (let i = 0; i < 14; i++) { const x = (rnd() * N) | 0, y = (rnd() * N) | 0, l = 3 + ((rnd() * 4) | 0); for (let k = 0; k < l; k++) put(x + k, y + (k > l / 2 ? 1 : 0), 0.84); }
+    for (let i = 0; i < 26; i++) { const x = (rnd() * N) | 0, y = (rnd() * N) | 0; put(x, y, 0.8); put(x + 1, y - 1, 0.86); }
+    for (let i = 0; i < 4; i++) { const cx = rnd() * N, cy = rnd() * N, r = 3 + rnd() * 4; for (let y = -8; y <= 8; y++) for (let x = -8; x <= 8; x++) { const d = Math.hypot(x, y) / r; if (d < 1 && rnd() < 0.7 * (1 - d)) put((cx + x) | 0, (cy + y) | 0, 0.88); } }
+  }));
+}
+/** jumpsuit canvas: twill, slub, a stitched seam, stains and worn patches */
+function clothTex() {
+  if (clothT !== undefined) return clothT;
+  return (clothT = detailTex((put, rnd, N) => {
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      put(x, y, ((x + y) & 3) < 2 ? 1 : 0.9);
+      if (((x - y) & 7) === 0) put(x, y, 0.95);
+    }
+    for (let i = 0; i < N * 0.6; i++) { const y = (rnd() * N) | 0, x = (rnd() * N) | 0, l = 4 + ((rnd() * 8) | 0); for (let k = 0; k < l; k++) put(x + k, y, rnd() < 0.5 ? 1.05 : 0.93); }
+    const sx = (N * 0.7) | 0;
+    for (let y = 0; y < N; y++) { put(sx, y, 0.78); put(sx + 1, y, 1.06); if ((y & 3) < 2) put(sx - 2, y, 0.85); }
+    for (let i = 0; i < 5; i++) { const cx = rnd() * N, cy = rnd() * N, r = 2 + rnd() * 6, v = rnd() < 0.6 ? 0.8 : 1.08; for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) { const d = Math.hypot(x * 1.3, y) / r; if (d < 1 && rnd() < 0.85 - d * 0.5) put((cx + x) | 0, (cy + y) | 0, v); } }
+  }));
+}
+
 function shade(g: THREE.BufferGeometry, fn: (x: number, y: number, z: number) => [number, number, number]) {
   const pos = g.attributes.position as THREE.BufferAttribute;
   const col = new Float32Array(pos.count * 3);
@@ -77,6 +135,7 @@ function phalanx(len: number, r0: number, r1: number, tip: boolean) {
       const pink = tip ? THREE.MathUtils.smoothstep(y, len * 0.55, len + r1) * 0.06 : 0;
       return [1 - crease * 0.6 + pink * 0.4, 1 - crease - pink * 0.2, 1 - crease * 0.9 - pink * 0.1];
     });
+    texUV(g, (2 * Math.PI * r0) / TILE, (len + 2 * r0) / TILE);
     return g;
   });
 }
@@ -108,6 +167,7 @@ function palmGeo() {
       const knuckles = z < 0 ? Math.max(0, Math.cos(x * 230)) * THREE.MathUtils.smoothstep(y, 0.07, 0.088) * 0.06 : 0;
       return [1 - lines * 0.5 + knuckles * 0.3, 1 - lines - knuckles * 0.4, 1 - lines * 0.8 - knuckles * 0.3];
     });
+    texUV(g, 0.08 / TILE, 0.09 / TILE);
     return g;
   });
 }
@@ -125,6 +185,7 @@ function forearmGeo() {
     }
     g.computeVertexNormals();
     shade(g, (_x, y, z) => { const t = y / FOREARM; const vein = z > 0 ? 0.04 * Math.max(0, Math.sin(t * 9)) * t : 0; return [1 - vein, 1 - vein * 0.6, 1 + vein * 0.3]; });
+    texUV(g, (2 * Math.PI * 0.036) / TILE, FOREARM / TILE);
     return g;
   });
 }
@@ -144,6 +205,7 @@ function sleeveGeo(style: 'long' | 'rolled') {
     }
     g.computeVertexNormals();
     shade(g, (x, y, z) => { const a = Math.atan2(z, x); const s = 0.86 + 0.14 * (0.5 + 0.5 * Math.sin(y * 70 + a * 2)); return [s, s, s * 0.97]; });
+    texUV(g, (2 * Math.PI * 0.046) / TILE, (top + 0.04) / TILE);
     return g;
   });
 }
@@ -156,6 +218,7 @@ function cuffGeo(style: 'long' | 'rolled') {
     for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i), a = Math.atan2(z, x); const f = 1 + 0.05 * Math.sin(a * 4); pos.setXYZ(i, x * f, pos.getY(i), z * f * 0.82); }
     g.computeVertexNormals();
     shade(g, () => [0.9, 0.9, 0.88]);
+    texUV(g, (2 * Math.PI * r) / TILE, h / TILE);
     return g;
   });
 }
@@ -173,11 +236,12 @@ function upperArmGeo(cloth: boolean) {
     }
     g.computeVertexNormals();
     shade(g, (x, y, z) => { const a = Math.atan2(z, x); const s = cloth ? 0.84 + 0.16 * (0.5 + 0.5 * Math.sin(y * 26 + a * 2)) : 1 - 0.1 * y; return [s, s, s * 0.97]; });
+    texUV(g, (2 * Math.PI * 0.055) / TILE, 0.3 / TILE);
     return g;
   });
 }
 /** a faceted knob that hides the bend at the elbow */
-const elbowGeo = () => cached('elbow', () => { const g = new THREE.IcosahedronGeometry(0.052, 1); g.scale(1, 0.9, 0.82); shade(g, () => [0.9, 0.9, 0.88]); return g; });
+const elbowGeo = () => cached('elbow', () => { const g = new THREE.IcosahedronGeometry(0.052, 1); g.scale(1, 0.9, 0.82); shade(g, () => [0.9, 0.9, 0.88]); texUV(g, 0.3 / TILE, 0.15 / TILE); return g; });
 /** where the shoulder sits in the camera's own space (x is mirrored for the left arm): well outside the frame */
 const SHOULDER = new THREE.Vector3(0.17, -0.25, -0.2);
 
@@ -210,11 +274,11 @@ export interface FpArm {
 export interface FpArmOpts { skin?: number; sleeve?: number | null; sleeveStyle?: 'long' | 'rolled' | 'none'; scale?: number }
 
 export function fpArm(side: 'right' | 'left' = 'right', o: FpArmOpts = {}): FpArm {
-  const skinMat = new THREE.MeshStandardMaterial({ color: o.skin ?? 0xe8b98f, roughness: 0.62, metalness: 0, vertexColors: true, flatShading: true });
+  const skinMat = new THREE.MeshStandardMaterial({ color: o.skin ?? 0xe8b98f, roughness: 0.62, metalness: 0, vertexColors: true, flatShading: true, map: skinTex() });
   skinMat.emissive = new THREE.Color(o.skin ?? 0xe8b98f).multiplyScalar(0.05);
   const nailTint = (skin: number) => new THREE.Color(skin).lerp(new THREE.Color(0xf0d4cc), 0.4).multiplyScalar(0.95);
   const nailMat = new THREE.MeshStandardMaterial({ color: nailTint(o.skin ?? 0xe8b98f), roughness: 0.3, metalness: 0, flatShading: true });
-  const clothMat = new THREE.MeshStandardMaterial({ color: o.sleeve ?? 0xeeb415, roughness: 0.92, metalness: 0, vertexColors: true, side: THREE.DoubleSide, flatShading: true });
+  const clothMat = new THREE.MeshStandardMaterial({ color: o.sleeve ?? 0xeeb415, roughness: 0.92, metalness: 0, vertexColors: true, side: THREE.DoubleSide, flatShading: true, map: clothTex() });
 
   const root = new THREE.Group(); root.name = 'fpArm:' + side;
   if (side === 'left') root.scale.x = -1;

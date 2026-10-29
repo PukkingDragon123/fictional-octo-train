@@ -17,7 +17,7 @@
 // Z toward the eye. The screen sits at SCREEN (centre) facing +Z.
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import { fbox, fcyl, fring, flathe, fdome, gem, plate, clipRect, face, ngon, fcapsule, hull } from '../touch/facet';
+import { fbox, fcyl, fring, flathe, fdome, gem, plate, clipRect, face, ngon, fcapsule, hull, jitter } from '../touch/facet';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 import { atlas } from '../../gfx/atlas';
 import { G } from '../../game/G';
@@ -101,25 +101,33 @@ function canvasTex(key: string, w: number, h: number, draw: (g: CanvasRenderingC
 let seed = 7;
 const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
 const hexc = (r: number, g: number, b: number) => `rgb(${r | 0},${g | 0},${b | 0})`;
-/** brushed steel, pixel by pixel: each row its own grey, bright scratch runs, grime specks */
-const brushed = () => canvasTex('wt_brushed', 32, 32, (g, w, h) => {
+/** brushed steel, pixel by pixel: each row its own grey, long bright scratch runs, dings, grime specks (64 px tiles, ~3000 texels per metre on the case) */
+const brushed = () => canvasTex('wt_brushed', 64, 64, (g, w, h) => {
   for (let y = 0; y < h; y++) {
-    const v = 156 + rnd() * 22;
-    for (let x = 0; x < w; x++) { const k = v + (rnd() < 0.1 ? 9 : 0); g.fillStyle = hexc(k, k + 3, k + 6); g.fillRect(x, y, 1, 1); }
+    const v = 150 + rnd() * 26;
+    for (let x = 0; x < w; x++) { const k = v + (rnd() < 0.12 ? 10 : 0) - (rnd() < 0.04 ? 14 : 0); g.fillStyle = hexc(k, k + 3, k + 6); g.fillRect(x, y, 1, 1); }
   }
-  for (let i = 0; i < 4; i++) { g.fillStyle = '#d4d9dc'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 2 + ((rnd() * 5) | 0), 1); }
-  for (let i = 0; i < 14; i++) { g.fillStyle = 'rgba(60,48,36,0.55)'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1, 1); }
+  // long scratch runs along the grain and a few across it
+  for (let i = 0; i < 9; i++) { g.fillStyle = rnd() < 0.7 ? '#dfe4e7' : '#6a6e72'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 3 + ((rnd() * 10) | 0), 1); }
+  for (let i = 0; i < 4; i++) { const x = (rnd() * w) | 0, y = (rnd() * h) | 0; for (let k = 0; k < 6; k++) { g.fillStyle = '#e8ecef'; g.fillRect(x + k, y + (k >> 1), 1, 1); } }
+  // dings: a dark pit with a bright lip
+  for (let i = 0; i < 3; i++) { const x = (rnd() * (w - 3)) | 0, y = (rnd() * (h - 3)) | 0; g.fillStyle = '#5a5e62'; g.fillRect(x, y, 2, 2); g.fillStyle = '#e4e8ea'; g.fillRect(x, y + 2, 2, 1); }
+  for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(60,48,36,0.55)'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1, 1); }
+  for (let i = 0; i < 10; i++) { g.fillStyle = 'rgba(90,60,30,0.35)'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 2, 1); }
 });
-/** bakelite: dark brown, mottled in two-pixel flecks */
-const bakelite = () => canvasTex('wt_bakelite', 32, 32, (g, w, h) => {
+/** bakelite: dark brown, mottled in two-pixel flecks, faint swirl, hairline scratches */
+const bakelite = () => canvasTex('wt_bakelite', 64, 64, (g, w, h) => {
   g.fillStyle = '#35241a'; g.fillRect(0, 0, w, h);
-  for (let i = 0; i < 70; i++) { g.fillStyle = hexc(62 + rnd() * 34, 42 + rnd() * 16, 28 + rnd() * 10); g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1 + ((rnd() * 2) | 0), 1); }
-  for (let i = 0; i < 20; i++) { g.fillStyle = '#24170f'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1, 1); }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const sw = Math.sin(x * 0.21 + Math.sin(y * 0.17) * 2.2) * 0.5 + 0.5; if (sw > 0.82) { g.fillStyle = 'rgba(80,52,32,0.55)'; g.fillRect(x, y, 1, 1); } }
+  for (let i = 0; i < 260; i++) { g.fillStyle = hexc(62 + rnd() * 34, 42 + rnd() * 16, 28 + rnd() * 10); g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1 + ((rnd() * 2) | 0), 1); }
+  for (let i = 0; i < 70; i++) { g.fillStyle = '#24170f'; g.fillRect((rnd() * w) | 0, (rnd() * h) | 0, 1, 1); }
+  for (let i = 0; i < 6; i++) { const x = (rnd() * w) | 0, y = (rnd() * h) | 0, l = 3 + ((rnd() * 6) | 0); for (let k = 0; k < l; k++) { g.fillStyle = 'rgba(150,120,96,0.6)'; g.fillRect(x + k, y + ((k * 2) / 3 | 0), 1, 1); } }
 });
-/** hazard stripes, stepped diagonals */
-const hazard = () => canvasTex('wt_hazard', 16, 4, (g, w, h) => {
+/** hazard stripes, stepped diagonals, the yellow chipped back to bare steel at the edges */
+const hazard = () => canvasTex('wt_hazard', 32, 8, (g, w, h) => {
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { g.fillStyle = ((x + y) >> 2) % 2 ? '#17150f' : '#d8a42a'; g.fillRect(x, y, 1, 1); }
-  g.fillStyle = '#7a5a18'; g.fillRect(3, 1, 1, 1); g.fillRect(12, 2, 1, 1);
+  for (let i = 0; i < 16; i++) { const x = (rnd() * w) | 0, y = rnd() < 0.5 ? 0 : h - 1 - ((rnd() * 2) | 0); g.fillStyle = rnd() < 0.5 ? '#9aa0a4' : '#6a5a2a'; g.fillRect(x, y, 1 + ((rnd() * 2) | 0), 1); }
+  g.fillStyle = '#7a5a18'; g.fillRect(3, 1, 1, 1); g.fillRect(12, 2, 1, 1); g.fillRect(22, 5, 2, 1);
 });
 /** a speaker grille: square punched holes, each with a lit lower lip */
 const grille = () => canvasTex('wt_grillet', 24, 6, (g, w, h) => {
@@ -136,6 +144,74 @@ const plateTex = () => canvasTex('wt_platet', 128, 36, (g, w, h) => {
   g.fillStyle = '#4a3010'; g.fillText('BAILIFF  MK·IX', w / 2, h * 0.38);
   g.font = `italic 600 10px ${cssFont('--font-new', 'serif')}`; g.fillText('Meridian Institute · Remittance', w / 2, h * 0.76);
   for (const [x, y] of [[4, 4], [w - 6, 4], [4, h - 6], [w - 6, h - 6]]) { g.fillStyle = '#6a4a18'; g.fillRect(x, y, 2, 2); g.fillStyle = '#f8e0a0'; g.fillRect(x, y, 1, 1); }
+}, true, true);
+
+/** the faceplate, one picture over the whole plate (~3400 texels per metre): lacquered bakelite worn
+ *  by a thumb round the dial, grime in the corners, chipped edges, screw-head scuffs, cream
+ *  printed legends and a strip of masking tape with a pencilled room number */
+const FACE_W = 384, FACE_H = 224;
+const faceTex = () => canvasTex('wt_face', FACE_W, FACE_H, (g, w, h) => {
+  // plate extent in metres and where things sit on it (u, v from the top-left)
+  const PW = HOUSE.w - 0.01, PH = HOUSE.h - 0.01;
+  const U = (x: number) => ((x - (HOUSE.cx - PW / 2)) / PW) * w, V = (y: number) => ((PH / 2 - y) / PH) * h;
+  g.fillStyle = '#33221a'; g.fillRect(0, 0, w, h);
+  // mottled lacquer, a faint swirl, brighter toward the top-left where the room light lands
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const sw = Math.sin(x * 0.09 + Math.sin(y * 0.07) * 2.6) * 0.5 + 0.5;
+    const lift = (1 - (x / w) * 0.6 - (y / h) * 0.5) * 14;
+    const n = (rnd() - 0.5) * 10 + (sw > 0.85 ? 12 : 0) + lift;
+    g.fillStyle = hexc(50 + n, 34 + n * 0.7, 24 + n * 0.45); g.fillRect(x, y, 1, 1);
+  }
+  // grime: darker toward the edges and thick in the corners
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const e = Math.min(x, y, w - 1 - x, h - 1 - y);
+    const c = Math.min(Math.hypot(x, y), Math.hypot(w - x, y), Math.hypot(x, h - y), Math.hypot(w - x, h - y));
+    const k = Math.max(0, 1 - e / 14) * 0.45 + Math.max(0, 1 - c / 40) * 0.4;
+    if (k > 0.02 && rnd() < 0.6 + k * 0.4) { g.fillStyle = `rgba(12,8,4,${Math.min(0.75, k).toFixed(2)})`; g.fillRect(x, y, 1, 1); }
+  }
+  // chips along the edges: the brown filler under the lacquer, and bare brass where it is worst
+  for (let i = 0; i < 46; i++) {
+    const side = (rnd() * 4) | 0, t = rnd();
+    const x = side === 0 ? t * w : side === 1 ? t * w : side === 2 ? (rnd() * 6) | 0 : w - 1 - ((rnd() * 6) | 0);
+    const y = side === 0 ? (rnd() * 6) | 0 : side === 1 ? h - 1 - ((rnd() * 6) | 0) : t * h;
+    const r = 1 + ((rnd() * 3) | 0);
+    g.fillStyle = rnd() < 0.2 ? '#b8954a' : '#7a5636'; g.fillRect(x | 0, y | 0, r, Math.max(1, r - 1));
+    g.fillStyle = '#e0c8a0'; g.fillRect(x | 0, (y | 0) - 1, 1, 1);
+  }
+  // a thumb has worn a pale arc round the function dial
+  const dx = U(COL_X), dy = V(0.0165);
+  for (let a = 0; a < 360; a += 1.5) {
+    const r = 54 + rnd() * 6, t = (a * Math.PI) / 180;
+    if (rnd() < 0.55) { g.fillStyle = `rgba(150,110,80,${(0.25 + rnd() * 0.35).toFixed(2)})`; g.fillRect((dx + Math.cos(t) * r) | 0, (dy + Math.sin(t) * r) | 0, 2, 1); }
+  }
+  // hairline scratches, mostly along the length
+  for (let i = 0; i < 70; i++) {
+    const x = rnd() * w, y = rnd() * h, a = (rnd() < 0.75 ? 0.15 : 1.3) + (rnd() - 0.5) * 0.4, l = 6 + rnd() * 40;
+    g.strokeStyle = `rgba(190,160,130,${(0.18 + rnd() * 0.3).toFixed(2)})`; g.lineWidth = 1;
+    g.beginPath(); g.moveTo((x | 0) + 0.5, (y | 0) + 0.5); g.lineTo(((x + Math.cos(a) * l) | 0) + 0.5, ((y + Math.sin(a) * l) | 0) + 0.5); g.stroke();
+  }
+  // screw-head scuffs in the corners
+  for (const [rx, ry] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const x = U(HOUSE.cx + rx * (HOUSE.w / 2 - 0.0045)), y = V(ry * (HOUSE.h / 2 - 0.0045));
+    for (let k = 0; k < 18; k++) { const t = rnd() * Math.PI * 2, r = 8 + rnd() * 6; g.fillStyle = 'rgba(170,140,110,0.5)'; g.fillRect((x + Math.cos(t) * r) | 0, (y + Math.sin(t) * r) | 0, 2, 1); }
+  }
+  // printed legends in cream enamel, hard pixels
+  const legend = (txt: string, x: number, y: number, px: number, align: CanvasTextAlign = 'center', col = '#e6dcc0') => {
+    g.save(); g.font = `600 ${px}px ${cssFont('--font-new', 'monospace')}`; g.textAlign = align; g.textBaseline = 'middle';
+    g.fillStyle = 'rgba(10,6,2,0.85)'; g.fillText(txt, (x | 0) + 1, (y | 0) + 1);
+    g.fillStyle = col; g.fillText(txt, x | 0, y | 0); g.restore();
+  };
+  legend('FUNCTION', U(COL_X), V(0.0165 + 0.0168), 13);
+  legend('CHARGE', U(COL_X), V(-0.019 - 0.0148), 13);
+  legend('MERIDIAN', U(COL_X), V(-0.0012), 12, 'center', '#c8a050');
+  // masking tape over the bottom-left corner, pencilled with the room it came from
+  g.save();
+  g.translate(U(SCREEN.x - SCREEN.w / 2 + 0.004), V(-HOUSE.h / 2 + 0.006)); g.rotate(-0.12);
+  g.fillStyle = '#d8cc9c'; g.fillRect(-4, -12, 92, 22);
+  for (let i = 0; i < 40; i++) { g.fillStyle = 'rgba(150,130,80,0.5)'; g.fillRect((-4 + rnd() * 92) | 0, (-12 + rnd() * 22) | 0, 1, 1); }
+  g.fillStyle = 'rgba(120,100,60,0.6)'; for (let y = -12; y < 10; y += 3) { g.fillRect(-5, y, 1, 2); g.fillRect(88, y + 1, 1, 2); }
+  g.font = `500 14px ${cssFont('--font-new', 'monospace')}`; g.textBaseline = 'middle'; g.fillStyle = '#3a3226'; g.fillText('RM 4  KEEP', 2, 0);
+  g.restore();
 }, true, true);
 
 // ---------------------------------------------------------------- materials
@@ -207,15 +283,16 @@ function solids() {
   if (SM) return SM;
   const env = envMap();
   const rep = (t: THREE.Texture, x: number, y: number) => { const c = t.clone(); c.repeat.set(x, y); c.needsUpdate = true; return c; };
+  const once = (t: THREE.Texture) => { const c = t.clone(); c.wrapS = c.wrapT = THREE.ClampToEdgeWrapping; c.needsUpdate = true; return c; };
   const b = brushed(), bk = bakelite();
   const F = { side: THREE.DoubleSide, flatShading: true, envMap: env } as const;
   SM = {
-    steelM: new THREE.MeshStandardMaterial({ ...F, map: rep(b, 2, 2), roughnessMap: rep(b, 2, 2), color: 0xd8dcdf, metalness: 0.88, roughness: 0.42, envMapIntensity: 1.05 }),
-    steelB: new THREE.MeshStandardMaterial({ ...F, map: rep(b, 1.5, 1.5), roughnessMap: rep(b, 1.5, 1.5), color: 0xc8ccd0, metalness: 0.86, roughness: 0.45, envMapIntensity: 1.0 }),
-    bakeM: phys({ ...F, map: rep(bk, 3, 2), color: 0xffffff, metalness: 0, roughness: 0.38, clearcoat: 0.8, clearcoatRoughness: 0.15, envMapIntensity: 0.8 }),
+    steelM: new THREE.MeshStandardMaterial({ ...F, map: rep(b, 4, 4), roughnessMap: rep(b, 4, 4), color: 0xd8dcdf, metalness: 0.88, roughness: 0.42, envMapIntensity: 1.05 }),
+    steelB: new THREE.MeshStandardMaterial({ ...F, map: rep(b, 3, 3), roughnessMap: rep(b, 3, 3), color: 0xc8ccd0, metalness: 0.86, roughness: 0.45, envMapIntensity: 1.0 }),
+    bakeM: phys({ ...F, map: once(faceTex()), color: 0xffffff, metalness: 0, roughness: 0.38, clearcoat: 0.8, clearcoatRoughness: 0.15, envMapIntensity: 0.8 }),
     bakeB: phys({ ...F, map: rep(bk, 1, 1), color: 0xffffff, metalness: 0, roughness: 0.38, clearcoat: 0.8, clearcoatRoughness: 0.15, envMapIntensity: 0.8 }),
     rubber: new THREE.MeshStandardMaterial({ ...F, color: 0x1e1b18, metalness: 0, roughness: 0.9, envMapIntensity: 0.25 }),
-    hazard: new THREE.MeshStandardMaterial({ ...F, map: rep(hazard(), 6, 1), metalness: 0.15, roughness: 0.5, envMapIntensity: 0.5 }),
+    hazard: new THREE.MeshStandardMaterial({ ...F, map: rep(hazard(), 4, 1), metalness: 0.15, roughness: 0.5, envMapIntensity: 0.5 }),
     grille: new THREE.MeshStandardMaterial({ ...F, map: rep(grille(), 1, 1), metalness: 0, roughness: 0.6, envMapIntensity: 0.4 }),
     plate: new THREE.MeshStandardMaterial({ ...F, map: rep(plateTex(), 1, 1), metalness: 0.75, roughness: 0.32, envMapIntensity: 1.0 }),
     brass: new THREE.MeshStandardMaterial({ ...F, color: 0xd8b060, metalness: 0.92, roughness: 0.28, envMapIntensity: 1.1 }),
@@ -419,6 +496,18 @@ export function buildWatchModel(screen: THREE.Mesh, arm: FpArm): WatchModel {
   const cover = new THREE.Mesh(face(ngon(6, 0.0104, 0)), glassMat());
   cover.position.set(COL_X, -0.019, FRONT + 0.0036);
   root.add(cover);
+  // a crack across the gauge glass, from a knock
+  {
+    const crack = new THREE.Group();
+    const cm = new THREE.MeshBasicMaterial({ color: 0xe8f0e8, transparent: true, opacity: 0.55, depthWrite: false });
+    const seg = (x0: number, y0: number, x1: number, y1: number) => { const l = Math.hypot(x1 - x0, y1 - y0); const m = new THREE.Mesh(new THREE.PlaneGeometry(l, 0.00028), cm); m.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0); m.rotation.z = Math.atan2(y1 - y0, x1 - x0); crack.add(m); };
+    seg(-0.0088, 0.0046, -0.003, 0.0012); seg(-0.003, 0.0012, 0.0016, 0.0024); seg(0.0016, 0.0024, 0.0068, -0.0018); seg(-0.003, 0.0012, -0.0012, -0.004);
+    crack.position.set(COL_X, -0.019, FRONT + 0.0039);
+    root.add(crack);
+  }
+  // vents cut in the elbow end of the case, and screws along the cuff plates
+  for (let i = 0; i < 4; i++) root.add(mesh(rbox(0.0012, 0.004, H.d * 0.6, 0.0003), S.rubber, cx - H.w / 2 - 0.0002, -0.012 + i * 0.008, TOP + H.d / 2));
+  for (const sx of [-1, 1]) for (const k of [-1, 1]) root.add(mesh(screw, S.chrome, cx + sx * (H.w / 2 - 0.009) + k * 0.005, -ARM_R * 0.82 - 0.0012, 0.004 + ARM_R * 0.7));
 
   // ---- bat-handle toggles on the top rail (pivot at the base, flick along Z)
   const toggle = (x: number, which: string) => {
@@ -438,6 +527,8 @@ export function buildWatchModel(screen: THREE.Mesh, arm: FpArm): WatchModel {
   antenna.add(mesh(fcyl(0.0011, 0.014, 6, 0.0011, 0).translate(0, 0.019, 0), S.chrome));
   antenna.add(mesh(fcyl(0.0021, 0.0012, 6, 0.0021, 0.3), S.chrome, 0, 0.0122, 0));
   antenna.add(mesh(gem(0.0026, 0, 0.1, 4), S.brass, 0, 0.027, 0));
+  // a repair: black electrical tape wound round the antenna's foot
+  antenna.add(mesh(jitter(fcyl(0.0026, 0.005, 6, 0.0028, 0.2), 0.00025, 9), S.rubber, 0, 0.004, 0));
   antenna.position.set(cx - H.w / 2 + 0.008, H.h / 2 + 0.001, TOP + H.d * 0.4);
   antenna.rotation.z = 0.25;
   root.add(antenna);

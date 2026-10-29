@@ -1,4 +1,5 @@
 import { horrify } from '../kit/horror';
+import { kitCanvas, drips, stains, rot } from '../kit/rot';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { atlas } from '../../gfx/atlas';
@@ -189,6 +190,18 @@ function paintV(p: Page, x: BuildCtx) {
     }, undefined, 0.5);
     grime(r, sd + 1);
   };
+  // the suit has split: a jagged rip, the rubber curling back from it, something grey and
+  // swollen pressed into the gap, and thirty years of dark fluid run down from it
+  const rip = (r: Region, cx: number, cy: number, len: number, sd: number) => {
+    let yy = cy;
+    for (let i = -len; i <= len; i++) {
+      yy += hash(i, sd) < 0.3 ? 1 : hash(i, sd + 1) < 0.3 ? -1 : 0;
+      const w = Math.max(0, Math.round((1 - Math.abs(i) / (len + 1)) * 2.4));
+      for (let j = -w; j <= w; j++) r.set(cx + i, yy + j, Math.abs(j) === w ? 0x0e0a06 : hash(i, j + sd) < 0.55 ? 0x8a8c80 : 0x6a6c62);
+      r.set(cx + i, yy - w - 1, SU[8]); r.blend(cx + i, yy + w + 1, 0x1a1408, 0.7);
+    }
+    drips(kitCanvas(r), cx, cy + 2, 3, 8, [0, 1], sd + 7, len * 0.6);
+  };
   const tapeBand = (r: Region, y0: number, h: number) => { for (let yy = y0; yy < y0 + h; yy++) for (let xx = 0; xx < r.w; xx++) r.put(xx, yy, TAPE, 2.4 + Math.cos((r.deg(xx) * Math.PI) / 180) * 1.2 + (yy === y0 ? 0.6 : 0) + (hash(xx, yy) - 0.5) * 0.6); };
   {
     const r = p.R('TORSO');
@@ -199,6 +212,10 @@ function paintV(p: Page, x: BuildCtx) {
     r.rect(r.X(-32) - 5, r.Y(1.47), 10, 6, 0xe8e4d8); r.rect(r.X(-32) - 4, r.Y(1.47) + 2, 8, 1, 0x2a3a6a); r.rect(r.X(-32) - 3, r.Y(1.47) + 4, 6, 1, 0x8a2a24);
     for (let i = 0; i < 5; i++) r.rect(r.X(180) - 10 + i * 4, r.Y(1.42), 3, 5, i === 3 ? SU[5] : 0x2a2418);
     tapeBand(r, Math.round(r.Y(0.94)), 3);
+    rip(r, Math.round(r.X(40 + v * 30)), Math.round(r.Y(1.22)), 5, 31 + v);
+    rip(r, Math.round(r.X(-120)), Math.round(r.Y(1.05)), 3, 35 + v);
+    stains(kitCanvas(r), 5, 37 + v, undefined, 0.15);
+    rot(kitCanvas(r), 0.5, 39 + v); // mould in the creases
   }
   {
     const r = p.R('HOOD');
@@ -210,8 +227,8 @@ function paintV(p: Page, x: BuildCtx) {
     }
     for (let xx = 0; xx < r.w; xx++) if (hash(xx, 3) < 0.5) r.set(xx, Math.round(r.Y(-0.05)), TAPE[2]);
   }
-  { const r = p.R('ARM'); rubber(r, 4.4, 7); tapeBand(r, Math.round(r.Y(-0.56)), 4); tapeBand(r, Math.round(r.Y(-0.31)), 2); }
-  { const r = p.R('LEG'); rubber(r, 4.2, 9); tapeBand(r, Math.round(r.Y(-0.86)), 4); for (let yy = Math.round(r.Y(-0.5)); yy < r.Y(-0.42); yy++) for (let xx = 0; xx < r.w; xx++) r.blend(xx, yy, 0x3a3020, 0.4); grime(r, 19, 1.5); }
+  { const r = p.R('ARM'); rubber(r, 4.4, 7); tapeBand(r, Math.round(r.Y(-0.56)), 4); tapeBand(r, Math.round(r.Y(-0.31)), 2); stains(kitCanvas(r), 3, 45 + v, undefined, 0.2); }
+  { const r = p.R('LEG'); rubber(r, 4.2, 9); tapeBand(r, Math.round(r.Y(-0.86)), 4); for (let yy = Math.round(r.Y(-0.5)); yy < r.Y(-0.42); yy++) for (let xx = 0; xx < r.w; xx++) r.blend(xx, yy, 0x3a3020, 0.4); grime(r, 19, 1.5); rip(r, Math.round(r.X(10)), Math.round(r.Y(-0.3)), 3, 41 + v); stains(kitCanvas(r), 3, 43 + v, undefined, 0.1); }
   {
     const r = p.R('GLOVE');
     const G2 = makeRamp(0x3a3e36, 6, { spread: 0.5 });

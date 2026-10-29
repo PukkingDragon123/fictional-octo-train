@@ -6,6 +6,7 @@
 // hit from it knocks your best thing out of your pack. Drop your goods and it
 // stops to eat them; kill it and it coughs everything back up.
 import { horrify } from '../kit/horror';
+import { regionCanvas, sores, stains, veins as rotVeins, rot as rotSkin, drips, BLOOD } from '../kit/rot';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -31,14 +32,30 @@ PG.paint((P, v) => {
   skin(P, P.R('SKIN'), R, { mott: 2, spots: [0.1, 1], salt: 6 });
   skin(P, P.R('LIMB'), R, { mott: 1.4, stripes: 6, salt: 8 });
   {
+    // bloated: stretch-shiny, marbled with dark veins, gone green-black where it is fullest,
+    // weeping where the coins were pushed in
+    const r = P.R('SKIN'), C = regionCanvas(P, r);
+    rotVeins(C, 10, 61 + v, 0x3a4a3a, 0.5, 12);
+    rotSkin(C, 0.8, 63 + v);
+    sores(C, 8, 65 + v);
+    for (let i = 0; i < 6; i++) P.walk(r, P.rng.int(0, r.w - 1), P.rng.int(0, r.h - 1), 6, 1, 0.15, 0xc8c0a0, 0.4, 0.2); // stretch marks
+  }
+  {
     const r = P.R('COIN');
     for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
       const d = Math.hypot(x + 0.5 - r.w / 2, y + 0.5 - r.h / 2) / (r.w / 2);
-      P.set(r, x, y, d > 0.85 ? 0x8a6a20 : d > 0.7 ? 0xf0d070 : (x + y) % 4 === 0 ? 0xb89038 : 0xd8b048);
+      P.set(r, x, y, d > 0.85 ? (P.rng.chance(0.5) ? 0x4a1410 : 0x6a4a18) : d > 0.7 ? 0xd8b860 : (x + y) % 4 === 0 ? 0x9a7a30 : P.rng.chance(0.12) ? 0x4a6a4a : 0xc8a040);
     }
+    // pushed into the meat: the rims crusted with blood and pus
+    for (let i = 0; i < 5; i++) P.set(r, P.rng.int(0, r.w - 1), P.rng.int(0, 2) ? r.h - 1 - P.rng.int(0, 1) : P.rng.int(0, 1), BLOOD[1]);
   }
   flat(P, P.R('BRASS'), 0xc8a048, 0.2);
-  { const r = P.R('PAPER'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) P.set(r, x, y, y % 3 === 0 && x > 1 && x < r.w - 2 && (x * 7 + y) % 5 > 1 ? 0x5a5a6a : 0xf4f0e4); }
+  { const r = P.R('PAPER'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) P.set(r, x, y, y % 3 === 0 && x > 1 && x < r.w - 2 && (x * 7 + y) % 5 > 1 ? 0x5a5a6a : 0xf4f0e4);
+    // the receipt it licks with: soaked pink at the root, smeared, a bloody print of a thumb
+    const C = regionCanvas(P, r);
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { const k = 1 - y / r.h; if (P.rng.chance(k * 0.8)) P.blend(r, x, y, k > 0.7 ? BLOOD[2] : 0xc88a80, 0.35 + k * 0.4); }
+    stains(C, 2, 67 + v, undefined, 0.6);
+    drips(C, r.w / 2, 0, 2, r.h * 0.4, [0, 1], 69 + v, 3); }
   { const r = P.R('SLOT'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) P.set(r, x, y, Math.abs(x + 0.5 - r.w / 2) < 1.6 ? 0x050203 : 0x3a1a10); }
   eye(P, P.R('EYE'), 0xe8c020, { sclera: 0x1a1408 });
   P.cut(P.R('CUT'), 0x9aa088, { meat: 0x7a3020 });
