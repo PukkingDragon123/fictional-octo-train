@@ -60,11 +60,12 @@ void main() {
   vec2 uv = (px + 0.5) / uLowRes;
   vec4 c = texture2D(tSrc, uv);
   if (c.a < 0.01) {
-    // one dark pixel of outline round everything held up to the camera, like the world's
+    // one dark pixel of outline round everything solid held up to the camera, like the world's
+    // (only next to opaque pixels: smoke, steam and glass get no black halo)
     vec2 o = 1.0 / uLowRes;
-    float n = texture2D(tSrc, uv + vec2(o.x, 0.0)).a + texture2D(tSrc, uv - vec2(o.x, 0.0)).a
-            + texture2D(tSrc, uv + vec2(0.0, o.y)).a + texture2D(tSrc, uv - vec2(0.0, o.y)).a;
-    if (n < 0.02 || uDark < 0.01) discard;
+    float n = max(max(texture2D(tSrc, uv + vec2(o.x, 0.0)).a, texture2D(tSrc, uv - vec2(o.x, 0.0)).a),
+                  max(texture2D(tSrc, uv + vec2(0.0, o.y)).a, texture2D(tSrc, uv - vec2(0.0, o.y)).a));
+    if (n < 0.5 || uDark < 0.01) discard;
     gl_FragColor = vec4(vec3(0.035, 0.03, 0.024), 0.85);
     return;
   }

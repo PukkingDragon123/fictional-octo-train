@@ -115,6 +115,7 @@ export class Inspect {
   private info!: PixTag;
   private infoString!: THREE.Line;
   private twine = new Twine(0x9a8a62);
+  private fixedG = new THREE.Group();
   private torch!: WorkLamp;
   private cloth = new THREE.Group();
   private nails = new THREE.Group();
@@ -167,30 +168,31 @@ export class Inspect {
     // the tool roll spread on the floor in front of you: waxed canvas, stitched pockets with tools
     // in them, leather straps and a brass buckle; the cards and the tags you can pull lie on it
     const canvas = new Shape(4), leather = new Shape(5), brass = new Shape(9), wood = new Shape(9), steel = new Shape(8);
-    canvas.jbox(0, -0.008, 0, 1.36, 0.008, 0.3, 0xffffff, 0.002, 3);
-    canvas.jbox(0, -0.004, -0.14, 1.36, 0.008, 0.07, 0xe0d8c0, 0.002, 5);
+    canvas.jbox(0, -0.008, -0.05, 1.36, 0.008, 0.5, 0xffffff, 0.002, 3);
+    canvas.jbox(0, -0.004, -0.27, 1.36, 0.008, 0.07, 0xe0d8c0, 0.002, 5);
     for (let i = 0; i < 9; i++) {
       const x = -0.62 + i * 0.155;
-      canvas.box(x, 0.0, -0.13, 0.004, 0.006, 0.07, 0x8a8060, 0.001);
-      if (i % 2 === 0 && Math.abs(x) > 0.3) { wood.rod([x + 0.06, 0.005, -0.12], [x + 0.065, 0.02, -0.2], 0.008, 0xffffff, 6); steel.rod([x + 0.065, 0.02, -0.2], [x + 0.068, 0.03, -0.26], 0.003, 0xffffff, 5); }
+      canvas.box(x, 0.0, -0.26, 0.004, 0.006, 0.07, 0x8a8060, 0.001);
+      if (i % 2 === 0 && Math.abs(x) > 0.3) { wood.rod([x + 0.06, 0.005, -0.25], [x + 0.065, 0.02, -0.31], 0.008, 0xffffff, 6); steel.rod([x + 0.065, 0.02, -0.31], [x + 0.068, 0.03, -0.36], 0.003, 0xffffff, 5); }
     }
-    for (const x of [-0.5, 0.5]) { leather.box(x, 0.0, 0, 0.045, 0.006, 0.31, 0xffffff, 0.002); brass.box(x, 0.004, 0.11, 0.05, 0.004, 0.03, 0xffffff, 0.002); }
-    leather.jbox(0.69, -0.006, 0, 0.06, 0.012, 0.3, 0xe0d0c0, 0.002, 7);
+    for (const x of [-0.5, 0.5]) { leather.box(x, 0.0, -0.05, 0.045, 0.006, 0.51, 0xffffff, 0.002); brass.box(x, 0.004, 0.15, 0.05, 0.004, 0.03, 0xffffff, 0.002); }
+    leather.jbox(0.69, -0.006, -0.05, 0.06, 0.012, 0.5, 0xe0d0c0, 0.002, 7);
     const cmesh = (sh: Shape, mat: THREE.Material) => { const m = new THREE.Mesh(sh.build(), mat); m.receiveShadow = true; this.cloth.add(m); return m; };
     cmesh(canvas, pixMat('canvas')); cmesh(leather, pixMat('leather')); cmesh(brass, pixMat('brass')); cmesh(wood, pixMat('handle')); cmesh(steel, pixMat('steel'));
     ink(this.cloth, 0.002);
     g.add(this.cloth);
     // the ordinary verbs: luggage tags laid out on the roll's right end (this group lies on the cloth)
     g.add(this.nails);
-    this.info = pixTag('tag', 110, 96, 0.28);
+    this.info = pixTag('tag', 110, 96, 0.24);
     this.info.mesh.renderOrder = 12;
     this.infoString = this.twine.line;
     g.add(this.info.mesh, this.infoString);
     this.slate = new Slate(g);
     this.dymo = new Dymo(g, 0, 'stick');
     // the two tags that are always there
-    const flip = clickTag('Flip it  (F)', 'tag', 64, 0.16), back = clickTag('Put it down', 'tag', 70, 0.17, '(Esc)');
-    g.add(flip.mesh, back.mesh);
+    const flip = clickTag('Flip it  (F)', 'tag', 64, 0.13), back = clickTag('Put it down', 'tag', 70, 0.13, '(Esc)');
+    // the two tags that are always there head the rows of tags on the roll's right end
+    g.add(this.fixedG); this.fixedG.add(flip.mesh, back.mesh);
     this.fixed = [{ mesh: flip.mesh, click: () => this.flip() }, { mesh: back.mesh, click: () => this.close() }];
     for (const s of [1, -1] as const) { const a = makeArm(s); g.add(a.root); this.arms.push(a); }
   }
@@ -206,18 +208,17 @@ export class Inspect {
     const narrow = asp < 1.2;
     this.lay.narrow = narrow;
     // tags lie on the roll's right end (portrait: across the middle of the roll, under the cards)
-    this.nails.position.set(narrow ? -halfW * 0.55 : Math.min(halfW * 0.56, 0.3 * ck), narrow ? -halfH * 0.66 : -halfH * 0.38, narrow ? -D + 0.02 : -D - 0.07);
+    this.nails.position.set(narrow ? -halfW * 0.55 : Math.min(halfW * 0.62, 0.34 * ck), narrow ? -halfH * 0.62 : -halfH * 0.3, narrow ? -D + 0.02 : -D - 0.1);
     this.nails.rotation.set(0.95 - Math.PI / 2, 0, 0); this.nails.scale.setScalar(narrow ? 0.62 : ck * 0.9);
     this.info.mesh.scale.setScalar(Math.max(0.65, k));
     // the slate lies on the roll while you work; label tape is stuck along the roll's front edge
     this.slate.tag.mesh.position.set(0, -halfH * 0.62, -D + 0.04); this.slate.tag.mesh.rotation.set(0.95 - Math.PI / 2 + 0.25, 0, 0.02); this.slate.tag.mesh.scale.setScalar(Math.max(0.7, k));
     this.dymo.place(-0.2 * ck, -halfH * 0.97, -D + 0.12);
     this.dymo.tag.mesh.rotation.set(0.95 - Math.PI / 2 + 0.3, 0, 0);
-    // FLIP and PUT IT DOWN: tags lying on the roll's left end (portrait: either side above the cards)
-    const fx = narrow ? halfW * 0.5 : Math.min(halfW * 0.74, 0.48 * ck);
-    this.fixed[0].mesh.position.set(-fx, narrow ? -halfH * 0.3 : -halfH * 0.42, -D - 0.04);
-    this.fixed[1].mesh.position.set(narrow ? fx : -fx + 0.02, narrow ? -halfH * 0.3 : -halfH * 0.56, narrow ? -D - 0.04 : -D);
-    for (const f of this.fixed) { f.mesh.scale.setScalar(narrow ? 0.55 : Math.max(0.7, k)); f.mesh.rotation.set(0.95 - Math.PI / 2 + 0.2, 0, f === this.fixed[0] ? 0.06 : -0.04); }
+    // FLIP and PUT IT DOWN: the first row of tags on the roll (the verbs' rows follow under them)
+    this.fixedG.position.copy(this.nails.position); this.fixedG.rotation.copy(this.nails.rotation); this.fixedG.scale.copy(this.nails.scale);
+    this.fixed[0].mesh.position.set(0, 0, 0.004); this.fixed[0].mesh.rotation.z = -0.05;
+    this.fixed[1].mesh.position.set(narrow ? 0.17 : 0.14, 0, 0.006); this.fixed[1].mesh.rotation.z = 0.06;
   }
 
   get busy() { return !!this.work; }
@@ -400,7 +401,7 @@ export class Inspect {
       acts.forEach((a, i) => {
         const t = clickTag(a.label, 'tag', 64, 0.13);
         // two columns of tags laid on the roll's right end, fanned a little
-        t.mesh.position.set((i % 2) * (this.lay.narrow ? 0.17 : 0.14), -Math.floor(i / 2) * 0.062, 0.004 + (i % 2) * 0.002);
+        t.mesh.position.set((i % 2) * (this.lay.narrow ? 0.17 : 0.14), -(Math.floor(i / 2) + 1) * 0.062, 0.004 + (i % 2) * 0.002);
         t.mesh.rotation.z = (i % 2 ? 0.08 : -0.06);
         this.nails.add(t.mesh);
         this.props.push({ mesh: t.mesh, click: a.fn });
@@ -759,10 +760,11 @@ export class Inspect {
       const al = this.itemObj ? itemAlign(this.itemObj.key) : null;
       this.worldOf(_w.set(0, 0, al ? -al.base[1] * 0.46 : -0.1), _w);
       const m = this.info.mesh, sc = m.scale.x, sw = Math.sin(now * 0.0016) * 0.02;
-      _v.set(_w.x - 0.17 * sc + sw, _w.y - 0.03 - 0.16 * sc, _w.z + 0.06);
+      const nar = this.lay.narrow;
+      _v.set(_w.x - (nar ? 0.03 : 0.16) * sc + sw, _w.y - 0.02 - (nar ? 0.15 : 0.1) * sc, _w.z + 0.08);
       m.position.lerp(_v, 1 - Math.exp(-dt * 10));
       m.rotation.set(0, 0, 0.12 + sw * 2);
-      _v.set(m.position.x, m.position.y + 0.13 * sc, m.position.z);
+      _v.set(m.position.x, m.position.y + 0.1 * sc, m.position.z);
       this.twine.set(_v, _w, 0.015);
     }
     const w = this.work;

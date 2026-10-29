@@ -133,7 +133,12 @@ function cut(m: FpCinematic, entering: boolean, handover: boolean) {
   const glance = m === 'glance';
   const reduce = !!(G as unknown as { camera?: { comfort?: boolean } }).camera?.comfort;
   if (wantEye) {
-    if (!eyeActive()) {
+    if (lidGoal === 1) {
+      // a blink out is under way (one close-up handing back to another): turn it into a blink
+      // that stays in the eyes, instead of letting the shut lids drop us back to the iso view
+      diveT = -1;
+      atShut = () => { eyeEnter({ pitchDeg: eyePitch }); hideHands(false); };
+    } else if (!eyeActive()) {
       // dive at the head, then blink into the eyes; the hands wait behind the lids
       G.camera?.pushIn?.(FP_CUT.divePush * (reduce ? 0.6 : 1), FP_CUT.dive + FP_CUT.lidClose, FP_CUT.pitch);
       hideHands(true);
