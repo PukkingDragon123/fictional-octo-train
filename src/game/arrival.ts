@@ -951,7 +951,7 @@ class Arrival implements GameSystem {
     const strap = () => pk.localToWorld(v4.set(-0.1, 0.3, -0.17));
     const restR = new THREE.Vector3(0.26, -0.5, -0.25), restL = new THREE.Vector3(-0.26, -0.5, -0.25);
     const reachArm = (arm: FpArm, side: 1 | -1, target: THREE.Vector3, k: number, pole: THREE.Vector3) => {
-      const S = v1.set(0.17 * side, -0.25, -0.2);
+      const S = new THREE.Vector3(0.17 * side, -0.25, -0.2);
       const W = (side > 0 ? restR : restL).clone().lerp(target, k);
       const E = this.elbow(S, W, pole, new THREE.Vector3());
       const Y = v2.copy(W).sub(E).normalize();
