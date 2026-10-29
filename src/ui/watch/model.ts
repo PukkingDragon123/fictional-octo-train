@@ -201,9 +201,9 @@ const faceTex = () => canvasTex('wt_face', FACE_W, FACE_H, (g, w, h) => {
     g.fillStyle = 'rgba(10,6,2,0.85)'; g.fillText(txt, (x | 0) + 1, (y | 0) + 1);
     g.fillStyle = col; g.fillText(txt, x | 0, y | 0); g.restore();
   };
-  legend('FUNCTION', U(COL_X), V(0.0165 + 0.0168), 13);
-  legend('CHARGE', U(COL_X), V(-0.019 - 0.0148), 13);
-  legend('MERIDIAN', U(COL_X), V(-0.0012), 12, 'center', '#c8a050');
+  // between the function dial and the charge gauge: what each one is
+  legend('FUNCTION', U(COL_X), V(0.0012), 12);
+  legend('CHARGE', U(COL_X), V(-0.0044), 12, 'center', '#c8a050');
   // masking tape over the bottom-left corner, pencilled with the room it came from
   g.save();
   g.translate(U(SCREEN.x - SCREEN.w / 2 + 0.004), V(-HOUSE.h / 2 + 0.006)); g.rotate(-0.12);

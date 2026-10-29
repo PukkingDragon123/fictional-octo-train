@@ -274,7 +274,7 @@ export class InventoryUI {
     const wide = asp >= 1.2;
     const sz = this.cube.size;
     const W2 = (sz.x || 0.5) / 2, L2 = (sz.z || 0.55) / 2;
-    this.packZ = wide ? 0.64 : 0.74;
+    this.packZ = wide ? 0.64 : 0.8;
     const pz = -this.packZ;
     this.packShadow.position.set(0, 0.002, pz);
     if (wide) {
@@ -282,19 +282,20 @@ export class InventoryUI {
       this.trayHold.position.set(W2 + 0.4, 0.002, pz - 0.04); this.trayHold.rotation.set(0, -0.32, 0);
       this.fitSide(this.roll, this.rollHold, 0.38, 0.32);
       this.fitSide(this.tray, this.trayHold, 0.5, 0.44);
-      this.gauge.g.position.set(-(W2 + 0.13), 0.03, pz + L2 - 0.08);
-      this.box.g.position.set(W2 + 0.16, 0.026, pz + L2 + 0.13); this.box.g.rotation.set(0.22, -0.32, 0);
-      this.matG.position.set(-(W2 + 0.22), 0, pz + L2 + 0.16); this.matG.rotation.set(0, 0.28, 0);
+      this.gauge.g.position.set(-(W2 + 0.12), 0.03, pz - 0.06);
+      this.box.g.position.set(W2 + 0.13, 0.026, pz + L2 + 0.0); this.box.g.rotation.set(0.3, -0.42, 0);
+      this.matG.position.set(-(W2 + 0.2), 0, pz + L2 - 0.02); this.matG.rotation.set(0, 0.42, 0);
       this.rest.L.set(-(W2 + 0.07), 0.02, pz + L2 - 0.1); this.rest.R.set(W2 + 0.07, 0.02, pz + L2 - 0.1);
     } else {
-      // portrait: the pack further off, the roll and the container nearer, below it
-      this.rollHold.position.set(-0.24, 0.002, pz + L2 + 0.27); this.rollHold.rotation.set(0, 0.18, 0);
-      this.trayHold.position.set(0.25, 0.002, pz + L2 + 0.29); this.trayHold.rotation.set(0, -0.18, 0);
-      this.fitSide(this.roll, this.rollHold, 0.27, 0.26);
-      this.fitSide(this.tray, this.trayHold, 0.3, 0.3);
-      this.gauge.g.position.set(-(W2 + 0.02), 0.03, pz - L2 + 0.02);
-      this.box.g.position.set(0.18, 0.026, pz + L2 + 0.56); this.box.g.rotation.set(0.25, -0.15, 0);
-      this.matG.position.set(-0.2, 0, pz + L2 + 0.56); this.matG.rotation.set(0, 0.15, 0);
+      // portrait: the pack further off up the picture, the roll and the container nearer, below it;
+      // the remote and the kit mat either side of the pack
+      this.rollHold.position.set(-0.22, 0.002, -0.4); this.rollHold.rotation.set(0, 0.18, 0);
+      this.trayHold.position.set(0.24, 0.002, -0.4); this.trayHold.rotation.set(0, -0.18, 0);
+      this.fitSide(this.roll, this.rollHold, 0.26, 0.24);
+      this.fitSide(this.tray, this.trayHold, 0.28, 0.26);
+      this.gauge.g.position.set(-(W2 + 0.04), 0.03, pz - L2 + 0.06);
+      this.box.g.position.set(W2 + 0.16, 0.026, pz + 0.04); this.box.g.rotation.set(0.25, -0.5, 0);
+      this.matG.position.set(-(W2 + 0.17), 0, pz + 0.12); this.matG.rotation.set(0, 0.5, 0);
       this.rest.L.set(-(W2 - 0.02), 0.02, pz + L2 + 0.06); this.rest.R.set(W2 - 0.02, 0.02, pz + L2 + 0.06);
     }
     this.gauge.g.rotation.set(-Math.PI / 2 + 0.6, 0, 0.25);
@@ -432,7 +433,7 @@ export class InventoryUI {
     this.cube.setPlate(debtorNo(p) || '----');
     this.cube.peel = 99; this.cube.applyPeel(); this.box.setLayer(5);
     this.yaw = this.yawT = 0;
-    this.pitch = this.pitchT = (fpCamera().aspect >= 1.2 ? 62 : 60);
+    this.pitch = this.pitchT = (fpCamera().aspect >= 1.2 ? 62 : 54);
     this.layout();
     this.sideSig = ''; this.wornSig = '';
     this.renderSide(); this.renderWorn();
@@ -810,12 +811,12 @@ export class InventoryUI {
     const s = this.tray.root.scale.x;
     const spots: THREE.Vector3[] = [];
     const n = names.length;
-    // landscape: a row on the floor just beyond the container; portrait: below it, nearer you
+    // landscape: a row on the floor just beyond the container; portrait: a column beside it
     for (let k = 0; k < n; k++) {
-      if (wide) spots.push(new THREE.Vector3(th.x - (tw * s) / 2 + 0.05 + k * 0.115, 0.004, th.z - (td * s) / 2 - 0.075 - (k % 2) * 0.03));
-      else spots.push(new THREE.Vector3(th.x - 0.08 + (k % 3) * 0.1, 0.004, th.z + (td * s) / 2 + 0.08 + Math.floor(k / 3) * 0.07));
+      if (wide) spots.push(new THREE.Vector3(th.x - (tw * s) / 2 + 0.06 + k * 0.14, 0.004, th.z - (td * s) / 2 - 0.085 - (k % 2) * 0.035));
+      else spots.push(new THREE.Vector3(th.x + (tw * s) / 2 + 0.075 + (k % 2) * 0.012, 0.004, th.z - 0.13 + k * 0.072));
     }
-    const knot = new THREE.Vector3(th.x - (tw * s) / 2 * 0.6, 0.03, th.z + (wide ? -1 : 1) * (td * s) / 2);
+    const knot = wide ? new THREE.Vector3(th.x - (tw * s) / 2 * 0.6, 0.03, th.z - (td * s) / 2) : new THREE.Vector3(th.x + (tw * s) / 2, 0.03, th.z - (td * s) / 4);
     this.tags.set(names, this.sideSel, spots, knot);
   }
 
@@ -1040,11 +1041,15 @@ export class InventoryUI {
     if (h.kind === 'item') {
       if (!h.view.itemWorldPos(h.items[0], _v)) return;
       const rest = new THREE.Vector3();
-      this.gtag.lean = h.view === this.cube ? 1.05 : 0.4;
-      if (h.view === this.cube) { const lx = this.cube.root.worldToLocal(_v2.copy(_v)).x; this.cube.rimNear(lx, rest); }
-      else rest.copy(_v);
+      this.gtag.lean = 0.45;
+      if (h.view === this.cube) {
+        // on the floor beside the pack, on the item's side, tied back to it over the wall
+        const lp = this.cube.root.worldToLocal(_v2.copy(_v));
+        const side = lp.x >= 0 ? 1 : -1, sz = this.cube.size;
+        this.cube.root.localToWorld(rest.set(side * (sz.x / 2 + 0.13), 0.004, Math.max(-sz.z / 2 + 0.08, Math.min(sz.z / 2 - 0.04, lp.z))));
+      } else rest.copy(_v);
       toW(_v); toW(rest);
-      if (h.view !== this.cube) { rest.y = 0.006; rest.z += 0.13; rest.x += rest.x > 0 ? -0.05 : 0.05; }
+      if (h.view !== this.cube) { rest.y = 0.006; rest.z += 0.13; rest.x += rest.x > 0 ? -0.05 : 0.05; } else rest.y = 0.004;
       this.gtag.item(h.items[0], h.items.length, _v.clone(), rest);
       return;
     }
@@ -1053,7 +1058,15 @@ export class InventoryUI {
       if (o) { this.gtag.lean = 0.4; o.outer.getWorldPosition(_v); toW(_v); this.gtag.item(h.it, 1, _v.clone(), _v.clone().add(_v2.set(0.02, 0.004 - _v.y, 0.12))); }
       return;
     }
-    if (h.kind === 'lid') { this.gtag.lean = 0.4; this.cube.flapEdge(_v); toW(_v); this.gtag.text(['THE FLAP', 'TAP: CLOSE'], _v.clone(), _v.clone().setY(0.006).add(_v2.set(0.1, 0, 0.06))); return; }
+    if (h.kind === 'lid') {
+      // on the floor by the flap's hinge corner, tied to the flap's edge
+      const sz = this.cube.size, rest = new THREE.Vector3();
+      this.gtag.lean = 0.45;
+      this.cube.flapEdge(_v); toW(_v);
+      this.cube.root.localToWorld(rest.set(sz.x / 2 + 0.13, 0.004, -sz.z / 2 + 0.07)); toW(rest); rest.y = 0.004;
+      this.gtag.text(['THE FLAP', 'TAP: CLOSE THE PACK'], _v.clone(), rest);
+      return;
+    }
     this.gtag.hide();
   }
 

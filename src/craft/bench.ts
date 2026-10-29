@@ -99,7 +99,7 @@ export class Bench {
     // tags you can pull: one tied to the cube's corner, one hung on the vice's tommy bar
     sweep.mesh.geometry.translate(0, -0.05, 0); away.mesh.geometry.translate(0, -0.04, 0);
     sweep.mesh.position.set(-0.5, 0.07, 0.24); sweep.mesh.rotation.set(-0.38, 0.08, 0.05);
-    away.mesh.position.set(0.62, 0.08, 0.14); away.mesh.rotation.set(-0.42, -0.12, -0.06);
+    away.mesh.position.set(0.6, 0.08, 0.1); away.mesh.rotation.set(-0.42, -0.12, -0.06);
     this.top.add(sweep.mesh, away.mesh);
     this.fixed = [{ t: sweep, run: () => this.clear() }, { t: away, run: () => this.close() }];
     g.add(this.dust.points, this.sparks.points);

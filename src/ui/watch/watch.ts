@@ -695,15 +695,15 @@ export class Watch {
     // tilted toward you, so the forearm and the room behind it stay in the shot.
     const eye = eyeActive();
     const port = cam.aspect < 1.2;
-    // from the eyes you bring the wrist up close to read it: the tube about 44% of the view's height
+    // from the eyes you bring the wrist up close to read it: the tube about 38% of the view's height
     // (portrait: as wide as the view, the control column off the right edge), the forearm running
     // down-left off the bottom of the picture, the hand past the wrist to the right, the room around
-    const frac = eye ? 0.44 : 0.62;
+    const frac = eye ? 0.38 : 0.62;
     const d1 = eye
       ? Math.max(SCREEN.h / (2 * tanH * frac), (SCREEN.w + 0.012) / (2 * tanH * cam.aspect * 0.98))
       : Math.max(SCREEN.h / (2 * tanH * frac), 0.106 / (2 * tanH * cam.aspect));
     const halfH = d1 * tanH, halfW = halfH * cam.aspect;
-    const fx = eye ? (port ? halfW * 0.02 : halfW * 0.06) : -0.0157, fy = eye ? -halfH * (port ? 0.12 : 0.05) : -0.001, fz = -d1;
+    const fx = eye ? (port ? halfW * 0.02 : halfW * 0.12) : -0.0157, fy = eye ? -halfH * (port ? 0.12 : 0.02) : -0.001, fz = -d1;
     // away from the face: held up on the move (Tab while walking), or a quick glance at the right
     // edge when something lands by itself (a peek). Both tilt toward the eye with the forearm
     // running steeply off the bottom edge, clear of the body HUD along the bottom.

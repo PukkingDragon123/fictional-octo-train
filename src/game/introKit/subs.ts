@@ -33,6 +33,8 @@ export class Subs {
     this.el = document.createElement('div');
     this.el.className = 'ix-subs';
     parent.appendChild(this.el);
+    // the face (intro.css 'IX Grotesk') loads on first use: ask for it now so the first line is not set in the fallback
+    try { for (const w of [400, 600, 700]) void document.fonts?.load(`${w} 24px 'IX Grotesk'`); } catch { /* no font loading api */ }
   }
 
   /** say a line: it replaces whatever is up */
@@ -101,7 +103,7 @@ export class Subs {
       const w = innerWidth, h = innerHeight;
       const x = Math.max(w * 0.22, Math.min(w * 0.78, p.x));
       const y = Math.max(h * 0.16, Math.min(h * 0.62, p.y));
-      l.el.style.left = x + 'px'; l.el.style.top = y + 'px'; l.el.classList.add('placed');
+      l.el.style.left = Math.round(x) + 'px'; l.el.style.top = Math.round(y) + 'px'; l.el.classList.add('placed');
     } else { l.el.style.left = ''; l.el.style.top = ''; l.el.classList.remove('placed'); }
   }
 

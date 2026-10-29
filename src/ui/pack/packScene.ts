@@ -114,7 +114,7 @@ function laySurface(m: THREE.Object3D, at: THREE.Vector3, parent: THREE.Object3D
  * the floor beside the thing, tied to it.
  */
 export class GroundTag {
-  readonly tag = pixTag('tag', 84, 50, 0.15);
+  readonly tag = pixTag('tag', 84, 50, 0.17);
   readonly line = tagString(0x6a5a3a);
   private key = '';
   /** how far the tag is tipped up toward you (more when it leans on the pack's wall) */
@@ -155,7 +155,7 @@ export class GroundTag {
     laySurface(m, rest, this.parent, this.lean, rest.x > at.x ? -0.1 : 0.1);
     m.updateMatrix();
     // the eyelet at the top of the tag, the string back to the thing
-    const eye = _v.set(0, 0.15 * 50 / 84 / 2 - 0.009, 0.001).applyMatrix4(m.matrix);
+    const eye = _v.set(0, 0.17 * 50 / 84 / 2 - 0.01, 0.001).applyMatrix4(m.matrix);
     setString(this.line, eye, at);
   }
 }
@@ -174,7 +174,7 @@ export class TagRow {
       for (const s of this.tags) { disposeTag(s.t); this.g.remove(s.t.mesh, s.line); }
       this.tags.length = 0;
       for (const e of names) {
-        const t = pixTag('tag', 62, 30, 0.11);
+        const t = pixTag('tag', 62, 30, 0.135);
         t.clear();
         t.para(e.name, 6, 11, 52, undefined, 7.5, 2, 7.5);
         if (e.i === sel) stamp(t, 'OPEN', 34, 2, '#b8281c');
@@ -192,7 +192,7 @@ export class TagRow {
       laySurface(s.t.mesh, at, this.parent, 0.42, (k % 2 ? 1 : -1) * 0.12 + (s.i === sel ? 0.06 : 0));
       if (s.i === sel) s.t.mesh.position.y += 0.004;
       s.t.mesh.updateMatrix();
-      setString(s.line, _v.set(0, 0.11 * 30 / 62 / 2 - 0.007, 0.001).applyMatrix4(s.t.mesh.matrix), knot);
+      setString(s.line, _v.set(0, 0.135 * 30 / 62 / 2 - 0.008, 0.001).applyMatrix4(s.t.mesh.matrix), knot);
     });
   }
   meshes() { return this.tags.map((s) => s.t.mesh); }

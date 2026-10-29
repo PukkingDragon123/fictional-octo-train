@@ -17,7 +17,13 @@ import type { DominionSystem } from './dominion';
 import { BRAIN_MODELS, brainTier } from './brains';
 import { PixTex, PAL, PointerLayer, flatMat } from '../scan/pix';
 import { StageArms } from '../scan/arms';
-import { rbox, blob } from '../scan/shapes';
+import { Shape } from '../craft/shapes';
+import { pixMat, pixTex } from '../craft/fpTex';
+import { ink, shade, shadowBlob, WorkLamp } from '../craft/fpScene';
+import { gem, fring, jitter, face as polyFace, ngon } from '../ui/touch/facet';
+
+/** a sphere section with its corners pushed about: a hand-made, faceted skull */
+const jit = (g: THREE.BufferGeometry, a: number) => jitter(g.index ? g.toNonIndexed() : g, a, 7, 0.05);
 import { Screen } from '../ui/font5x7';
 
 type Step = 'saw' | 'pry' | 'pull' | 'seat' | 'boot' | 'done';
@@ -60,7 +66,10 @@ export class Operation {
   private dropGeo = new THREE.IcosahedronGeometry(0.0035, 0);
   private matBlood: THREE.MeshBasicMaterial;
   private matSpark = new THREE.MeshBasicMaterial({ color: 0xffe080 });
-  private matSkin = new THREE.MeshLambertMaterial({ color: 0x9c7c6a });
+  private matSkin = new THREE.MeshStandardMaterial({ color: 0x9c7c6a, map: pixTex('skin').map, roughness: 0.62, metalness: 0, flatShading: true });
+  private torch!: WorkLamp;
+  private clipG = new THREE.Group();
+  private narrow: boolean | null = null;
   private matSteel = worldMaterial({ noVis: true, noFog: true, noGrid: true });
   private tv1 = new THREE.Vector3(); private tv2 = new THREE.Vector3();
   private dashMat = new THREE.MeshBasicMaterial({ color: 0xff3030 });
@@ -94,49 +103,71 @@ export class Operation {
   // ---------------------------------------------------------------- scene
   private build() {
     const g = this.g;
-    const lit = (m: THREE.Mesh) => { m.material = this.matSkin; return m; };
-    // a dark surround so the world doesn't swim behind the table
-    const back = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.6), new THREE.MeshBasicMaterial({ color: 0x06080a, transparent: true, opacity: 0.9 }));
-    back.position.set(0, 0, -1.4); g.add(back);
-    g.add(new THREE.AmbientLight(0xa0a8b4, 0.55));
-    const lamp = new THREE.PointLight(0xfff1d8, 2.2, 2, 1.6); lamp.position.set(0.05, 0.22, -0.4); g.add(lamp);
-    const rim = new THREE.DirectionalLight(0x5ae0ff, 0.6); rim.position.set(-0.5, -0.3, 0.2); g.add(rim);
+    const lit = (m: THREE.Mesh) => { m.material = this.matSkin; m.castShadow = true; m.receiveShadow = true; return m; };
+    // no surround: kneeling over it on the floor, the room the eyes see is all round the tray
+    g.add(new THREE.HemisphereLight(0x9aa0a8, 0x241a14, 0.5));
+    const rim = new THREE.DirectionalLight(0x9ab0c0, 0.35); rim.position.set(-0.5, -0.3, 0.2); g.add(rim);
     this.root.position.set(0, -0.025, -0.88);
     this.root.rotation.x = 0.95;
     g.add(this.root);
-    // slab under the head
-    const mb = new ModelBuilder();
-    rbox(mb, 0, -R * 1.05, 0, 0.46, 0.03, 0.36, 'metal_brushed', { color: 0x5e6468 }, 0.012, 2);
-    for (const sx of [-1, 1]) rbox(mb, sx * 0.235, -R * 1.05, 0, 0.014, 0.045, 0.36, 'metal_brushed', { color: 0x4a5054 }, 0.006, 2);
-    rbox(mb, 0, -R * 1.02, 0.02, 0.36, 0.004, 0.3, 'white', { color: 0x5a0a08 }, 0.0019, 1);
-    const slab = new THREE.Mesh(mb.build(), this.matSteel); this.root.add(slab);
+    // a hand torch propped on the tray throws a hard light over the work (and its shadows)
+    this.torch = new WorkLamp(this.root, new THREE.Vector3(0.22, 0.32, -0.12), new THREE.Vector3(0, 0, 0.02), { color: 0xfff0d8, intensity: 2.4, angle: 0.75, dist: 1.6, mapSize: 512 });
+    // ---- the tray: a stainless autopsy board with a raised rim and a drain channel, on a stained tarp
+    const tray = new Shape(7), tarp = new Shape(3), tools = new Shape(9), grips = new Shape(9), towel = new Shape(6), bucket = new Shape(6);
+    const Y = -R * 1.05;
+    tarp.jbox(0, Y - 0.012, 0.02, 1.4, 0.008, 0.9, 0xffffff, 0.004, 3);
+    tray.box(0, Y, 0, 0.5, 0.022, 0.38, 0xffffff, 0.006);
+    for (const sx of [-1, 1]) tray.box(sx * 0.245, Y + 0.02, 0, 0.014, 0.022, 0.38, 0xe0e0e0, 0.004);
+    for (const sz of [-1, 1]) tray.box(0, Y + 0.02, sz * 0.185, 0.5, 0.022, 0.014, 0xe0e0e0, 0.004);
+    tray.box(0, Y + 0.021, 0.15, 0.42, 0.002, 0.012, 0x8a8e90, 0.001);
+    tray.dome(0.2, Y + 0.021, 0.15, 0.01, 0x5a5e60, [0, 0, 0]);
+    // the instruments laid out on a towel to the right: bone saw, scalpel, forceps, a retractor, a mallet
+    towel.jbox(0.42, Y - 0.004, 0.02, 0.18, 0.012, 0.3, 0xffffff, 0.004, 9, [0, 0.1, 0]);
+    tools.plate(0.36, Y + 0.012, 0.06, [new THREE.Vector2(0, 0), new THREE.Vector2(0.15, 0.004), new THREE.Vector2(0.15, 0.03), new THREE.Vector2(0, 0.034)], 0.002, 0xffffff, 0, [-Math.PI / 2, 0, 0.15]);
+    grips.box(0.33, Y + 0.008, 0.05, 0.05, 0.02, 0.03, 0xffffff, 0.006, [0, 0.15, 0]);
+    tools.box(0.46, Y + 0.008, -0.04, 0.12, 0.004, 0.008, 0xffffff, 0.002, [0, 0.25, 0]);
+    tools.box(0.4, Y + 0.008, -0.08, 0.1, 0.004, 0.012, 0xffffff, 0.002, [0, -0.1, 0]);
+    tools.box(0.47, Y + 0.008, 0.1, 0.09, 0.006, 0.006, 0xffffff, 0.002, [0, 0.35, 0]);
+    tools.box(0.47, Y + 0.008, 0.115, 0.09, 0.006, 0.006, 0xffffff, 0.002, [0, 0.45, 0]);
+    grips.jbox(0.43, Y + 0.008, 0.16, 0.1, 0.022, 0.022, 0xd0c0b0, 0.002, 5, [0, -0.3, 0]);
+    // a bucket for what comes out
+    bucket.lathe(-0.48, Y - 0.01, -0.2, [[0, 0], [0.07, 0], [0.072, 0.01], [0.082, 0.12], [0.086, 0.124], [0.08, 0.124], [0.072, 0.014], [0, 0.014]], 0xffffff, 10);
+    const mesh = (sh: Shape, mat: THREE.Material) => { const m = new THREE.Mesh(sh.build(), mat); this.root.add(m); return m; };
+    mesh(tarp, pixMat('tarp')); mesh(tray, pixMat('stainless')); mesh(tools, pixMat('chrome')); mesh(grips, pixMat('bakelite')); mesh(towel, pixMat('rag', { color: 0xd8d0c8 })); mesh(bucket, pixMat('galv', { side: THREE.DoubleSide }));
+    // old blood in the drain and on the tarp
+    for (const [x, z, w, d] of [[0.05, 0.12, 0.3, 0.12], [-0.3, 0.25, 0.25, 0.16], [0.2, -0.28, 0.2, 0.14]] as [number, number, number, number][]) {
+      const b = shadowBlob(w, d, 0.6); (b.material as THREE.MeshBasicMaterial).color.setHex(0x3a0806); b.position.set(x, Y + (Math.abs(x) < 0.24 && Math.abs(z) < 0.18 ? 0.0235 : -0.003), z); this.root.add(b);
+    }
+    const hs = shadowBlob(0.34, 0.36, 0.6); hs.position.set(0, Y + 0.023, 0.02); this.root.add(hs);
     this.root.add(this.head);
-    // lower skull with a snout and shut eyes (tinted per creature in start())
-    const base = lit(new THREE.Mesh(new THREE.SphereGeometry(R, 18, 12, 0, Math.PI * 2, CAP * 0.96, Math.PI - CAP)));
+    // ---- the head: a faceted skull under skin (tinted per creature), a snout, slit eyes sewn shut
+    const base = lit(new THREE.Mesh(jit(new THREE.SphereGeometry(R, 10, 7, 0, Math.PI * 2, CAP * 0.96, Math.PI - CAP), 0.004), this.matSkin));
     base.scale.set(1, 0.78, 1.15); base.name = 'skin'; this.head.add(base);
-    const snout = lit(new THREE.Mesh(new THREE.SphereGeometry(R * 0.6, 14, 10)));
+    const snout = lit(new THREE.Mesh(jit(new THREE.SphereGeometry(R * 0.6, 8, 6), 0.003), this.matSkin));
     snout.scale.set(0.95, 0.62, 0.85);
     snout.position.set(0, -R * 0.35, R * 1.05); snout.name = 'skin'; this.head.add(snout);
-    for (const s of [-1, 1]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(R * 0.13, 10, 6), new THREE.MeshBasicMaterial({ color: 0x1a0806 })); eye.scale.set(1, 0.25, 0.4);
-      eye.position.set(s * R * 0.42, -R * 0.02, R * 1.02); eye.rotation.z = s * 0.2; this.head.add(eye);
+    const stitch = new THREE.MeshBasicMaterial({ color: 0x1a0806 });
+    for (const sd of [-1, 1]) {
+      const eye = new THREE.Mesh(gem(R * 0.12, 0, 0.1), stitch); eye.scale.set(1.2, 0.22, 0.4);
+      eye.position.set(sd * R * 0.42, -R * 0.02, R * 1.02); eye.rotation.z = sd * 0.2; this.head.add(eye);
+      for (let k = 0; k < 3; k++) { const st = new THREE.Mesh(new THREE.BoxGeometry(0.0015, 0.012, 0.0015), stitch); st.position.set(sd * R * 0.42 + (k - 1) * 0.008, -R * 0.02, R * 1.04); st.rotation.z = sd * 0.2; this.head.add(st); }
     }
-    // the cavity
-    const cav = new THREE.Mesh(new THREE.CircleGeometry(ringR * 0.98, 20), new THREE.MeshBasicMaterial({ color: 0x2a0404 }));
+    // the cavity: wet flesh in a ten-sided hole, the cut bone round it
+    const cav = new THREE.Mesh(polyFace(ngon(10, ringR * 0.98)), pixMat('flesh', { vc: false }));
     cav.rotation.x = -Math.PI / 2; cav.position.y = ringY - 0.006; this.head.add(cav);
-    const rimM = new THREE.Mesh(new THREE.TorusGeometry(ringR * 0.98, 0.004, 4, 24), new THREE.MeshBasicMaterial({ color: 0xe8dcc8 }));
+    const rimM = new THREE.Mesh(fring(ringR * 0.98, 0.005, 10, 4), pixMat('bone', { vc: false }));
     rimM.rotation.x = Math.PI / 2; rimM.position.y = ringY; this.head.add(rimM);
     // the cap, hinged at the back
-    const capM = lit(new THREE.Mesh(new THREE.SphereGeometry(R, 18, 8, 0, Math.PI * 2, 0, CAP)));
+    const capM = lit(new THREE.Mesh(jit(new THREE.SphereGeometry(R, 10, 4, 0, Math.PI * 2, 0, CAP), 0.003), this.matSkin));
     capM.scale.set(1, 0.78, 1.15); capM.name = 'skin';
-    const inner = new THREE.Mesh(new THREE.SphereGeometry(R * 0.97, 14, 6, 0, Math.PI * 2, 0, CAP), new THREE.MeshBasicMaterial({ color: 0xe0d4bc, side: THREE.BackSide }));
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(R * 0.97, 10, 4, 0, Math.PI * 2, 0, CAP), new THREE.MeshLambertMaterial({ color: 0xe0d4bc, side: THREE.BackSide, flatShading: true }));
     inner.scale.set(1, 0.78, 1.15);
     const hinge = new THREE.Group(); hinge.position.set(0, ringY, -ringR * 1.1);
     capM.position.set(0, -ringY, ringR * 1.1); inner.position.copy(capM.position);
     hinge.add(capM, inner); this.cap.add(hinge); this.cap.userData.hinge = hinge;
     this.head.add(this.cap);
-    // the cut line
-    const dg = new THREE.CapsuleGeometry(0.0016, 0.006, 2, 6); dg.rotateZ(Math.PI / 2);
+    // the cut line, dashed in red marker
+    const dg = new THREE.BoxGeometry(0.008, 0.0025, 0.003);
     for (let i = 0; i < 28; i++) {
       const a = (i / 28) * Math.PI * 2;
       const m = new THREE.Mesh(dg, this.dashMat);
@@ -144,45 +175,46 @@ export class Operation {
       m.rotation.y = -a + Math.PI / 2;
       this.dashes.push(m); this.head.add(m);
     }
-    // the brain: lumpy folds, wet
-    const bm = new THREE.MeshLambertMaterial({ color: 0xd8a0a4, emissive: 0x2a0808 });
+    // the brain: faceted lobes, wet, folds pressed into them
+    const bm = new THREE.MeshStandardMaterial({ color: 0xd8a0a4, emissive: 0x2a0808, roughness: 0.3, metalness: 0, flatShading: true, map: pixTex('flesh').map });
     const lobes: [number, number, number, number][] = [[-0.022, 0.012, 0, 0.042], [0.022, 0.012, 0, 0.042], [-0.02, 0.006, 0.03, 0.032], [0.02, 0.006, 0.03, 0.032], [0, 0.0, -0.035, 0.034]];
-    for (const [x, y, z, r] of lobes) { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 7), bm); s.position.set(x, y, z); s.scale.y = 0.72; this.brain.add(s); }
-    const fold = new THREE.MeshBasicMaterial({ color: 0x9a5a60 });
-    for (let i = 0; i < 9; i++) { const f = new THREE.Mesh(new THREE.TorusGeometry(0.014 + (i % 3) * 0.006, 0.0018, 3, 10, Math.PI), fold); f.position.set((i % 3 - 1) * 0.022, 0.03, (Math.floor(i / 3) - 1) * 0.022); f.rotation.set(-Math.PI / 2, 0, i); this.brain.add(f); }
+    lobes.forEach(([x, y, z, r], i) => { const sm = new THREE.Mesh(gem(r, 1, 0.14, i + 2), bm); sm.position.set(x, y, z); sm.scale.y = 0.72; sm.castShadow = true; this.brain.add(sm); });
+    const fold = new THREE.MeshBasicMaterial({ color: 0x7a3a40 });
+    for (let i = 0; i < 9; i++) { const f = new THREE.Mesh(fring(0.014 + (i % 3) * 0.006, 0.0018, 6, 3, Math.PI), fold); f.position.set((i % 3 - 1) * 0.022, 0.03, (Math.floor(i / 3) - 1) * 0.022); f.rotation.set(-Math.PI / 2, 0, i); this.brain.add(f); }
     this.brain.position.set(0, ringY - 0.03, 0);
     this.brain.scale.setScalar(0.82);
     this.head.add(this.brain);
-    const tm = new THREE.MeshLambertMaterial({ color: 0xa83038 });
+    const tm = new THREE.MeshLambertMaterial({ color: 0xa83038, flatShading: true });
     for (let i = 0; i < 6; i++) {
       const t = new THREE.Mesh(new THREE.CylinderGeometry(0.003, 0.004, 1, 5), tm);
       t.userData.a = new THREE.Vector3(Math.cos(i) * ringR * 0.6, ringY - 0.06, Math.sin(i) * ringR * 0.6);
       this.tendrils.push(t); this.head.add(t);
     }
     this.head.add(this.mech);
-    // the clipboard with the procedure, left of the table; the abort plunger, right
-    const cb = new ModelBuilder();
-    rbox(cb, 0, 0, 0, 0.13, 0.1, 0.004, 'wood_light', { color: 0xa8784a }, 0.0019, 2);
-    rbox(cb, 0, 0.086, 0.004, 0.05, 0.014, 0.008, 'metal_brushed', {}, 0.003, 2);
-    blob(cb, 0, 0.098, 0.009, 0.015, 0.004, 0.003, 'chrome', {}, 8);
+    // ---- the procedure on a clipboard lying on the tarp to the left; the abort plunger box on the right
+    const cb = new Shape(5);
+    cb.box(0, 0, 0, 0.13, 0.1, 0.004, 0xffffff, 0.0019);
+    const cbm = new THREE.Mesh(cb.build(), pixMat('masonite'));
+    const clipS = new Shape(6); clipS.box(0, 0.086, 0.004, 0.05, 0.014, 0.008, 0xffffff, 0.003); clipS.capsule(-0.015, 0.098, 0.009, 0.004, 0.03, 0xffffff, [0, 0, -Math.PI / 2]);
     const clip = new THREE.Group();
-    clip.add(new THREE.Mesh(cb.build(), this.matSteel));
+    clip.add(cbm, new THREE.Mesh(clipS.build(), pixMat('chrome')));
     const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.092), flatMat(this.card.tex));
     sheet.position.set(0, 0.046, 0.0035); clip.add(sheet);
-    clip.position.set(-0.27, 0.035, -0.86); clip.rotation.set(-0.1, 0.38, 0.04);
-    this.g.add(clip);
-    const pb = new ModelBuilder();
-    rbox(pb, 0, 0, 0, 0.06, 0.03, 0.05, 'metal_rusty', { color: 0x5a6058 }, 0.008, 2);
-    rbox(pb, 0, 0.012, 0.025, 0.052, 0.014, 0.003, 'plastic_yellow', { color: 0xe0b020 }, 0.0014, 1);
-    pb.cylinder(0, 0.015, 0, 0.012, 0.02, 10, 'chrome');
-    const pbase = new THREE.Mesh(pb.build(), this.matSteel);
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.019, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshLambertMaterial({ color: 0xc0281a, emissive: 0x200000 }));
-    knob.position.y = 0.035; knob.name = 'abort';
+    clip.position.set(-0.36, Y + 0.004, 0.05); clip.rotation.set(-Math.PI / 2 + 0.35, 0, 0.18);
+    this.root.add(clip); this.clipG = clip;
+    const pb = new Shape(6);
+    pb.box(0, 0, 0, 0.06, 0.03, 0.05, 0xffffff, 0.008);
+    pb.cyl(0, 0.03, 0, 0.012, 0.012, 0xffffff, 8);
+    const pbase = new THREE.Mesh(pb.build(), pixMat('paintYellow'));
+    const kb = new Shape(7); kb.lathe(0, 0, 0, [[0, 0], [0.019, 0], [0.02, 0.006], [0.016, 0.016], [0.008, 0.02], [0, 0.021]], 0xffffff, 8);
+    const knob = new THREE.Mesh(kb.build(), pixMat('enamelRed'));
+    knob.position.y = 0.04; knob.name = 'abort';
     this.plunger.add(pbase, knob);
-    const tag = new PixTex(40, 10); tag.reset(0xe0b020); tag.sign('ABORT', 20, 1, 0x1a140c, 8, { align: 'center' }); tag.flush();
-    const tagM = new THREE.Mesh(new THREE.PlaneGeometry(0.048, 0.012), flatMat(tag.tex)); tagM.position.set(0, 0.016, 0.0275); this.plunger.add(tagM);
-    this.plunger.position.set(0.27, -0.05, -0.8); this.plunger.rotation.set(0.55, -0.4, 0);
-    this.g.add(this.plunger);
+    const tag = new PixTex(40, 10); tag.reset(0x1a1a14); tag.sign('ABORT', 20, 1, 0xe0b020, 8, { align: 'center' }); tag.flush();
+    const tagM = new THREE.Mesh(new THREE.PlaneGeometry(0.048, 0.012), flatMat(tag.tex)); tagM.position.set(0, 0.016, 0.0255); this.plunger.add(tagM);
+    this.plunger.position.set(0.3, Y + 0.004, -0.17); this.plunger.rotation.set(0, -0.3, 0);
+    this.root.add(this.plunger);
+    ink(this.root, 0.0018); shade(this.root);
     this.arms = new StageArms(this.g);
     this.arms.right.grip.add(this.tool);
     // blood and sparks
@@ -211,7 +243,7 @@ export class Operation {
 
   // ---------------------------------------------------------------- flow
   start(c: Creature, brainItem: Item, tier: 1 | 2 | 3, toolItem: Item) {
-    if (!fpClaim('dominion', 6, { cinematic: 'full' })) { bus.emit('think', G.local, "Not now. My hands are full."); return; }
+    if (!fpClaim('dominion', 6, { cinematic: 'full', eyePitch: 46 })) { bus.emit('think', G.local, "Not now. My hands are full."); return; }
     this.active = true; this.c = c; this.brainItem = brainItem; this.tier = tier;
     this.step = 'saw'; this.prog = 0; this.capA = 0; this.capFly = -1; this.brainFly = null; this.grabbed = false; this.waitT = -1; this.t = 0; this.stepT = 0;
     this.matSkin.color.setHex(this.skinColor(c));
@@ -402,7 +434,7 @@ export class Operation {
   /** the left hand steadies the head; the right does the work: the blade, the pry, the pinch, the seat, the switch */
   private armsStep(dt: number) {
     const A = this.arms, k = Math.min(1, dt * 12), H = this.head;
-    A.aim('left', 'flat', 'grip', H.localToWorld(this.wv.set(-R * 0.75, R * 0.45, -R * 0.75)), [-0.36, -0.36, -0.72], [0.6, -0.7, 0.3], k);
+    A.aim('left', 'flat', 'grip', H.localToWorld(this.wv.set(-R * 1.02, R * 0.05, R * 0.15)), [-0.36, -0.4, -0.6], [1, -0.35, 0.1], k);
     this.tool.visible = this.step === 'saw';
     const w = this.wv;
     switch (this.step) {
@@ -492,6 +524,7 @@ export class Operation {
       t.lookAt(this.head.localToWorld(this.tv1.copy(b))); t.rotateX(Math.PI / 2);
     }
     this.armsStep(dt);
+    this.torch.update(dt, 0.03);
     // mech idle bob
     if (this.mech.visible && this.step === 'seat' && !this.grabbed) this.mech.position.lerp(this.mechHome, Math.min(1, dt * 8));
     if (this.step === 'done') {
@@ -524,6 +557,15 @@ export class Operation {
     const s = this.shakeT * 0.04;
     const fb = fpBlend();
     this.root.position.set((Math.random() - 0.5) * s, -0.025 - (1 - fb) * 0.25 + (Math.random() - 0.5) * s + Math.sin(this.t * 1.3) * 0.002, -0.88);
+    const asp = innerWidth / Math.max(1, innerHeight), narrow = asp < 1.2;
+    this.root.scale.setScalar(narrow ? Math.max(0.55, asp * 1.1) : 1);
+    if (narrow !== this.narrow) {
+      this.narrow = narrow;
+      const Y = -R * 1.05 + 0.004;
+      // portrait: the plunger and the clipboard come in close either side of the head
+      this.plunger.position.set(narrow ? 0.15 : 0.3, Y, narrow ? 0.2 : -0.17);
+      this.clipG.position.set(narrow ? -0.13 : -0.36, Y, narrow ? 0.26 : 0.05);
+    }
     this.root.rotation.x = 0.95 - (1 - fb) * 0.5;
   }
 }

@@ -41,6 +41,7 @@ import type { Item } from '../items/item';
 import type { Pose } from '../entities/humanRig';
 import { bus } from '../core/events';
 import { seamFaceOf } from '../world/gen/seam_kit';
+import { objDef } from '../world/objects';
 import { WALL_H } from '../world/defs';
 import { fpArmsFor, type FpArm } from '../fp/hands';
 import { fpClaim, fpRelease, fpGroup, fpCamera, fpOwner } from '../fp/fp';
@@ -53,7 +54,7 @@ import { CinePass } from './arrivalKit/cine';
 import { makeJelly, JW, JH, type Jelly } from './arrivalKit/jelly';
 import { buildWallSet, LAMP_POS, type WallSet } from './arrivalKit/wallSet';
 import { Chute } from './arrivalKit/chute';
-import { packWorldMesh, packOverlayGroup, disposeGroup } from './arrivalKit/packModel';
+import { packWorldMesh, packOverlayGroup, disposeGroup, fpStrap } from './arrivalKit/packModel';
 import { takePack, givePack, ensurePack, absorbStray } from './arrivalKit/pack';
 import './arrivalKit/sounds';
 import './intro.css';
@@ -276,6 +277,10 @@ class Arrival implements GameSystem {
     if (this.phase === 'done') return;
     // no hover tags or verbs from the world while the scene plays
     G.input.pointerOverUI = true;
+    // the band holds its escape detection while the scene plays (it walks you past an open Seam):
+    // the same grace it gives itself right after the fitting
+    const band = G.band as { graceT?: number } | null;
+    if (band && typeof band.graceT === 'number') band.graceT = Math.max(band.graceT, 2.5);
     const dt = this.hold ? 0 : Math.min(0.05, dt0) * this.speed;
     this.t += dt; this.T += dt;
     const pad = pollPadSkip();
@@ -509,6 +514,22 @@ class Arrival implements GameSystem {
     return null;
   }
   private walkable(z: Zone, x: number, y: number) { return z.inb(x, y) && !!z.floor[z.idx(x, y)] && z.solid[z.idx(x, y)] !== 1; }
+  /** a spot in the same room as (x0, z0) with no wall in between and nothing standing on it */
+  private clearTo(z: Zone, x0: number, z0: number, x1: number, z1: number) {
+    const tx = Math.floor(x1), ty = Math.floor(z1);
+    if (!this.walkable(z, tx, ty)) return false;
+    if (z.roomAt(tx, ty) !== z.roomAt(Math.floor(x0), Math.floor(z0))) return false;
+    for (const o of z.objectsAt(tx, ty)) { const d = objDef(o.key); if (d && !d.onWall && !d.ceiling && d.block !== 'none' && !o.state?.broken) return false; }
+    const n = 8;
+    let lx = Math.floor(x0), ly = Math.floor(z0);
+    for (let i = 1; i <= n; i++) {
+      const x = Math.floor(x0 + (x1 - x0) * i / n), y = Math.floor(z0 + (z1 - z0) * i / n);
+      if (x !== lx && (z.wallW[z.idx(Math.max(x, lx), y)] || z.wallW[z.idx(Math.max(x, lx), ly)])) return false;
+      if (y !== ly && (z.wallN[z.idx(x, Math.max(y, ly))] || z.wallN[z.idx(lx, Math.max(y, ly))])) return false;
+      lx = x; ly = y;
+    }
+    return true;
+  }
 
   /** off the wall, into the world: lying in front of the Lobby's Seam, black */
   private toLobby() {
@@ -530,15 +551,22 @@ class Arrival implements GameSystem {
     this.land.set(p.x, p.y, p.z);
     // Voss stands out in the room, facing back at the Seam; the chute comes down beside the debtor
     const tnx = -nz, tnz = nx;
-    const pick = (cands: [number, number][], out: THREE.Vector3) => {
+    const pick = (cands: [number, number][], out: THREE.Vector3, avoid?: THREE.Vector3) => {
       for (const [a, b] of cands) {
         const x = p.x + nx * a + tnx * b, z = p.z + nz * a + tnz * b;
-        if (this.walkable(lz, Math.floor(x), Math.floor(z))) { out.set(x, lz.heightAt(Math.floor(x), Math.floor(z)), z); return; }
+        if (avoid && Math.hypot(x - avoid.x, z - avoid.z) < 0.9) continue;
+        if (this.clearTo(lz, p.x, p.z, x, z)) { out.set(x, lz.heightAt(Math.floor(x), Math.floor(z)), z); return true; }
+      }
+      // nothing clear: fall back to anywhere walkable in front
+      for (const [a, b] of cands) {
+        const x = p.x + nx * a + tnx * b, z = p.z + nz * a + tnz * b;
+        if (this.walkable(lz, Math.floor(x), Math.floor(z))) { out.set(x, lz.heightAt(Math.floor(x), Math.floor(z)), z); return false; }
       }
       out.set(p.x + nx * 0.8, p.y, p.z + nz * 0.8);
+      return false;
     };
-    pick([[2.0, -0.35], [1.8, 0.4], [1.6, -0.8], [1.5, 0.9], [1.3, 0], [0.2, 1.6], [0.2, -1.6]], this.vossAt);
-    pick([[0.62, 0.42], [0.6, -0.42], [0.7, 0], [0.3, 0.6], [0.3, -0.6]], this.chuteAt);
+    pick([[2.0, -0.35], [1.8, 0.4], [2.2, 0.8], [1.6, -0.8], [1.5, 0.9], [2.4, -0.9], [1.3, 0], [1.2, -1.2], [1.2, 1.2], [0.4, 1.7], [0.4, -1.7], [0.9, 1.5], [0.9, -1.5]], this.vossAt);
+    pick([[0.62, 0.45], [0.62, -0.45], [0.75, 0], [0.3, 0.65], [0.3, -0.65], [1.0, 0.5], [1.0, -0.5], [-0.3, 0.7], [-0.3, -0.7]], this.chuteAt, this.vossAt);
     // the Seam is awake for a minute: it has just let someone through
     if (this.seam) { this.seamFx?.setState(this.seam, false); }
     if (this.seamFx) this.seamFx.calm = true;
@@ -757,8 +785,8 @@ class Arrival implements GameSystem {
     }
     this.sfx('holo_on', 0.6);
     // the slow push in on him as he comes up out of the floor
-    const vf = v2.set(this.vossAt.x, this.vossAt.y + 1.25, this.vossAt.z);
-    this.frame(vf, 3.4, 0.38);
+    const vf = v2.set(this.vossAt.x, this.vossAt.y + 0.95, this.vossAt.z);
+    this.frame(vf, 3.1, 0.38);
     g.camera.setPhotoRig(snapRoom + 6 * DEG, 25 * DEG);
     yield secs(2.9);
     this.setPose('sway', 99);
@@ -910,11 +938,13 @@ class Arrival implements GameSystem {
     const standEye = v1.clone();
     const kneelEye = new THREE.Vector3(p.x + Math.cos(p.facing) * 0.12, p.y + 0.98, p.z + Math.sin(p.facing) * 0.12);
     const fixed = standEye.clone();
-    const a0 = this.lookAtYawPitch(standEye, this.packPos);
+    // (aim at the middle of the bag, not its origin at the bottom edge)
+    const packMid = this.pack.localToWorld(new THREE.Vector3(0, 0.25, 0));
+    const a0 = this.lookAtYawPitch(standEye, packMid);
     this.eyeOn({ yaw: a0.yaw, pitch: a0.pitch - 6 * DEG, fov: 60, fixed, snap: true });
     this.eyeGoal.rate = 3;
     // down on a knee
-    this.tween(0.75, (k) => { fixed.lerpVectors(standEye, kneelEye, ease(k)); const a = this.lookAtYawPitch(fixed, this.packPos); this.eyeGoal.yaw = a.yaw; this.eyeGoal.pitch = a.pitch - 4 * DEG; });
+    this.tween(0.75, (k) => { fixed.lerpVectors(standEye, kneelEye, ease(k)); const a = this.lookAtYawPitch(fixed, packMid); this.eyeGoal.yaw = a.yaw; this.eyeGoal.pitch = a.pitch + 6 * DEG; });
     this.sfx('arv_rustle', 0.4);
     yield secs(0.8);
     // the hands come into the picture
@@ -1005,19 +1035,29 @@ class Arrival implements GameSystem {
     this.eyeAim.pitch += 0.05; this.eyeAim.roll -= 0.04;
     pk.visible = false;
     arms.right.pose('relaxed');
-    // the left hand pulls the strap tight at the chest
-    const sTight0 = new THREE.Vector3(-0.08, -0.32, -0.3), sTight1 = new THREE.Vector3(-0.12, -0.42, -0.26);
-    arms.left.pose('grip');
-    this.tween(0.5, (k) => {
-      reachArm(arms.left, -1, v3.lerpVectors(sTight0, sTight1, ease(k)), 1, poleL);
+    // the strap comes down over the left shoulder; the left hand finds it and pulls it tight
+    const strapG = fpStrap([[-0.27, 0.17, -0.17], [-0.19, 0.03, -0.29], [-0.125, -0.09, -0.345], [-0.09, -0.21, -0.34], [-0.07, -0.4, -0.3]]);
+    fp.add(strapG);
+    const grab0 = new THREE.Vector3(-0.125, -0.115, -0.33), grab1 = new THREE.Vector3(-0.115, -0.2, -0.32);
+    arms.left.pose('open');
+    this.tween(0.4, (k) => {
+      reachArm(arms.left, -1, v3.lerpVectors(restL, grab0, ease(k)), 1, poleL);
       reachArm(arms.right, 1, v4.set(0.3, -0.62, -0.25), 1, poleR);
-      this.eyeGoal.yaw = yaw0 + 0.25 * (1 - ease(k)); this.eyeGoal.roll = 0.12 * (1 - ease(k));
+      this.eyeGoal.yaw = yaw0 + 0.25 * (1 - ease(k)) - 0.15 * ease(k); this.eyeGoal.roll = 0.12 * (1 - ease(k)); this.eyeGoal.pitch = 24 * DEG;
     });
+    yield secs(0.42);
+    arms.left.pose('grip');
     yield secs(0.12);
     this.sfx('arv_ratchet', 0.7);
-    yield secs(0.45);
-    this.tween(0.35, (k) => { reachArm(arms.left, -1, v3.copy(sTight1).add(v4.set(0, -0.3 * k, 0)), 1, poleL); });
+    this.tween(0.4, (k) => {
+      const e2 = ease(k);
+      reachArm(arms.left, -1, v3.lerpVectors(grab0, grab1, e2), 1, poleL);
+      strapG.position.set(0.006 * e2, -0.07 * e2, 0.004 * e2);
+    });
+    yield secs(0.55);
+    this.tween(0.35, (k) => { reachArm(arms.left, -1, v3.copy(grab1).lerp(restL, ease(k)), 1, poleL); strapG.position.y = -0.07 - 0.25 * ease(k); });
     yield secs(0.35);
+    disposeGroup(strapG);
     this.disposeFp();
     this.pack?.removeFromParent();
     this.pack = null;

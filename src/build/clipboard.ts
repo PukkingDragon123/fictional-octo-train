@@ -16,7 +16,11 @@ import { itemDef } from '../items/item';
 import { researchNode } from '../game/research';
 import { lerp, clamp } from '../core/math';
 import { Sheet, sheetMesh, overlayRay, whenFonts, FONT } from './paper';
-import { std, roundPlate, rod, ring, capsule } from './shapes';
+import { std, capsule } from './shapes';
+import { Shape } from '../craft/shapes';
+import { pixMat } from '../craft/fpTex';
+import { ink, octDial } from '../craft/fpScene';
+import { clipRect, fring, gem, face as polyFace, ngon } from '../ui/touch/facet';
 import { fpArmsFor, fpLightRig, type FpArm } from '../fp/hands';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { PIECES, CAT_NAMES, type Piece, type PieceCat } from './pieces';
@@ -63,10 +67,13 @@ export class Clipboard {
     const CHROME = std(0xc8ccd0, 0.28, 0.75), STEEL = std(0x3a3e40, 0.45, 0.6), GREEN = std(0x4e6250, 0.55, 0.3), BAKE = std(0x1c1a18, 0.35, 0.05);
     const mesh = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); this.rig.add(o); return o; };
     // ---- masonite board (rounded, bevelled), a sprung steel clip
-    this.board = mesh(roundPlate(0.3, 0.4, 0.018, 0.007), std(0x7a5a3c, 0.82, 0), 0, 0, 0);
-    mesh(roundPlate(0.12, 0.034, 0.01, 0.007, 0.002), CHROME, 0, 0.178, 0.006);
-    const roll = mesh(rod(0.0055, 0.09), CHROME, 0, 0.165, 0.011); void roll;
-    for (const x of [-0.045, 0.045]) mesh(new THREE.SphereGeometry(0.0035, 8, 6), STEEL, x, 0.186, 0.0105);
+    // a masonite board, a sprung steel clip with a roller and two rivets
+    this.board = mesh(new Shape(5).plate(0, -0.2, -0.0035, clipRect(0.3, 0.4, 0.012).map((v) => v.add(new THREE.Vector2(0, 0.2))), 0.007, 0xffffff, 0.0015).build(), pixMat('masonite'), 0, 0, 0);
+    const clipS = new Shape(9);
+    clipS.plate(0, 0.178, 0.002, clipRect(0.12, 0.034, 0.008), 0.008, 0xffffff, 0.0015);
+    clipS.rod([-0.045, 0.165, 0.011], [0.045, 0.165, 0.011], 0.0055, 0xffffff, 6);
+    for (const x of [-0.045, 0.045]) clipS.gem(x, 0.186, 0.0105, 0.0035, 0xffffff, 0.1);
+    mesh(clipS.build(), pixMat('chrome'));
     // ---- the blueprint sheet (slightly curled: two planes, one tilted)
     this.sheetM = sheetMesh(this.sheet, PW, PH);
     this.sheetM.position.set(0, 0.145 - PH / 2, 0.0042);
@@ -79,21 +86,23 @@ export class Clipboard {
     this.mini.position.set(0, this.uvY(196 / SH), 0.006);
     this.rig.add(this.mini);
     // ---- gauge bar: painted steel, chrome-ringed dials with red needles
-    mesh(roundPlate(0.31, 0.09, 0.016, 0.012), GREEN, 0, 0.235, -0.004);
-    for (const x of [-0.145, 0.145]) mesh(new THREE.SphereGeometry(0.004, 8, 6), CHROME, x, 0.272, 0.003);
+    const bar = new Shape(6); bar.plate(0, 0.235, -0.01, clipRect(0.31, 0.09, 0.012), 0.012, 0xffffff, 0.002);
+    mesh(bar.build(), pixMat('paintOlive'));
+    const scr = new Shape(9); for (const x of [-0.145, 0.145]) scr.gem(x, 0.272, 0.003, 0.004, 0xffffff, 0.1);
+    mesh(scr.build(), pixMat('chrome'));
     const labels: [string, 'low' | 'high' | 'none'][] = [['DEF', 'low'], ['CMF', 'low'], ['FOOD', 'low'], ['PWR', 'low'], ['GAS', 'low']];
     const needleGeo = (() => { const sh = new THREE.Shape(); sh.moveTo(-0.0016, 0); sh.lineTo(0, 0.02); sh.lineTo(0.0016, 0); sh.lineTo(0, -0.004); sh.lineTo(-0.0016, 0); return new THREE.ExtrudeGeometry(sh, { depth: 0.0008, bevelEnabled: false }); })();
-    const domeGeo = new THREE.SphereGeometry(0.046, 16, 3, 0, Math.PI * 2, 0, 0.5).translate(0, -0.046 * Math.cos(0.5), 0);
+    const domeGeo = new THREE.SphereGeometry(0.046, 8, 2, 0, Math.PI * 2, 0, 0.5).translate(0, -0.046 * Math.cos(0.5), 0);
     const glass = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.05, metalness: 0, transparent: true, opacity: 0.14 });
     labels.forEach(([lab, red], i) => {
       const x = -0.12 + i * 0.06, y = 0.245;
-      mesh(ring(0.0235, 0.0032), CHROME, x, y, 0.0035);
-      const face = new Sheet(96, 96); whenFonts(() => { face.gaugeFace(lab, red); face.commit(); });
-      const fm = new THREE.Mesh(new THREE.CircleGeometry(0.022, 20), new THREE.MeshStandardMaterial({ map: face.tex, roughness: 0.4 }));
+      const bz = mesh(fring(0.0235, 0.0032, 8, 4), CHROME, x, y, 0.0035); bz.rotation.z = Math.PI / 8;
+      const face = new Sheet(96, 96); whenFonts(() => { octDial(face.ctx, 96, lab, red); face.commit(); });
+      const fm = new THREE.Mesh(polyFace(ngon(8, 0.023)), new THREE.MeshStandardMaterial({ map: face.tex, roughness: 0.4 }));
       fm.position.set(x, y, 0.0026); this.rig.add(fm);
       const needle = new THREE.Group(); needle.add(new THREE.Mesh(needleGeo, std(0xc0281e, 0.4, 0)));
       needle.position.set(x, y - 0.002, 0.0032); this.rig.add(needle);
-      mesh(new THREE.SphereGeometry(0.0028, 8, 6), STEEL, x, y - 0.002, 0.0042);
+      mesh(gem(0.0028, 0, 0.05), STEEL, x, y - 0.002, 0.0042);
       // a domed glass over each dial
       const gl = new THREE.Mesh(domeGeo, glass);
       gl.rotation.x = Math.PI / 2; gl.position.set(x, y, 0.0026); this.rig.add(gl);
@@ -101,12 +110,12 @@ export class Clipboard {
     });
     // the rank readout: a little amber tube in a steel bezel on the clip
     this.rank = crtScreen(0.1, 0.022, { tint: 0xffc070, res: [256, 56], curvature: 0.12, reflect: 0.5, glow: 1 });
-    mesh(roundPlate(0.114, 0.034, 0.006, 0.008, 0.002), STEEL, 0, 0.2, 0.012);
+    mesh(new Shape(6).plate(0, 0.2, 0.008, clipRect(0.114, 0.034, 0.006), 0.008, 0xffffff, 0.002).build(), pixMat('steel'));
     this.rank.mesh.position.set(0, 0.2, 0.0165); this.rig.add(this.rank.mesh);
     // ---- demolish toggle on the right edge: bakelite boss, chrome bat lever, hazard plate
-    this.toggleM = mesh(roundPlate(0.034, 0.04, 0.008, 0.014, 0.003), BAKE, 0.168, -0.05, 0.006);
+    this.toggleM = mesh(new Shape(9).plate(0, 0, -0.007, clipRect(0.034, 0.04, 0.008), 0.014, 0xffffff, 0.003).build(), pixMat('bakelite'), 0.168, -0.05, 0.006);
     const lm = new THREE.Mesh(capsule(0.0035, 0.022), CHROME); this.lever.add(lm);
-    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.0062, 10, 8), std(0xb8261c, 0.35, 0)); knob.position.y = 0.03; this.lever.add(knob);
+    const knob = new THREE.Mesh(gem(0.0062, 0, 0.08), pixMat('enamelRed')); knob.position.y = 0.03; this.lever.add(knob);
     this.lever.position.set(0.168, -0.05, 0.013); this.rig.add(this.lever);
     // ---- the left hand holds the board by its edge (made when first shown: the survivor's own skin)
     this.hold.position.set(-0.29, -0.5, -0.03); this.hold.rotation.z = -0.62; this.rig.add(this.hold);
@@ -115,6 +124,7 @@ export class Clipboard {
     // held low and to the left (the body gauges live on the right), tilted toward you
     this.rig.scale.setScalar(0.78);
     this.rig.rotation.set(-0.28, 0.32, -0.05);
+    ink(this.rig, 0.0018);
     this.hits = [this.board, this.sheetM, this.toggleM, lm, knob];
     bus.on('fpChange', (n: string | null) => { if (n === null && this.shown) setTimeout(() => { if (this.shown && !fpOwner()) fpClaim('build', 0, { cinematic: 'none' }); }, 0); });
   }
@@ -158,7 +168,9 @@ export class Clipboard {
     if (fpOwner() !== 'build') { if (!fpOwner()) fpClaim('build', 0, { cinematic: 'none' }); return; }
     this.raise = Math.min(1, this.raise + dt * 3.5);
     const e = 1 - Math.pow(1 - this.raise, 3);
-    this.rig.position.set(-0.36, lerp(-0.62, -0.075, e) + Math.sin(G.time * 1.3) * 0.003, -1.02);
+    const asp = innerWidth / Math.max(1, innerHeight), nar = asp < 1.2;
+    this.rig.position.set(nar ? -0.07 : -0.36, lerp(-0.62, nar ? -0.2 : -0.075, e) + Math.sin(G.time * 1.3) * 0.003, -1.02);
+    this.rig.scale.setScalar(nar ? Math.max(0.42, asp * 0.95) : 0.78);
     // scale model of the piece
     const mk = st.pc.key;
     if (mk !== this.miniKey) { this.miniKey = mk; this.buildMini(st.pc); }

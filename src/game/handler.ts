@@ -90,6 +90,8 @@ export class Handler implements GameSystem {
   /** draw the projector beam from the band even when he stands at a fixed spot */
   beamFromBand = false;
   private unfold = 1.6;
+  /** dev: lines run faster (screenshot scripts) */
+  talkSpeed = 1;
   private collT = -1;
   private dot: THREE.Mesh;
   private where: HandlerWhere = 'band';
@@ -139,10 +141,16 @@ export class Handler implements GameSystem {
     makeHologram(this.rig);
     // the beret: a tilted soft disc with a badge, drawn in the same light
     const mb = new ModelBuilder();
-    mb.push().translate(0.0, 0.215, 0.0).rotateZ(-0.2).rotateX(-0.08);
-    mb.cylinder(0, 0, 0, 0.125, 0.045, 10, 'fabric_red', { rTop: 0.135, color: 0x8a6a6a });
-    mb.cylinder(0.02, 0.045, 0, 0.13, 0.02, 10, 'fabric_red', { rTop: 0.06, color: 0x8a6a6a });
-    mb.box(-0.06, 0.012, 0.1, 0.045, 0.05, 0.02, 'metal_brass', { emissive: 0.6 });
+    // a band, then the soft crown swelling out over it and slouched off to one side, a few facets each
+    mb.push().translate(0.0, 0.205, 0.0).rotateZ(-0.22).rotateX(-0.06);
+    mb.cylinder(0, 0, 0, 0.112, 0.022, 9, 'fabric_red', { rTop: 0.118, color: 0x6e5656, bevel: 0.004 });
+    mb.push().translate(0.025, 0.02, 0).scale(1.12, 1, 1.04);
+    mb.cylinder(0, 0, 0, 0.12, 0.022, 9, 'fabric_red', { rTop: 0.138, color: 0x8a6a6a, bevel: 0.005 });
+    mb.cylinder(0, 0.022, 0, 0.138, 0.02, 9, 'fabric_red', { rTop: 0.112, color: 0x8a6a6a, bevel: 0.005 });
+    mb.cylinder(0, 0.042, 0, 0.112, 0.012, 9, 'fabric_red', { rTop: 0.05, color: 0x7e6060, bevel: 0.004 });
+    mb.pop();
+    // the cap badge: a small brass plate on the band over the left eye
+    mb.box(-0.07, 0.006, 0.088, 0.04, 0.048, 0.016, 'metal_brass', { emissive: 0.6, bevel: 0.004 });
     mb.pop();
     this.beret = new THREE.Mesh(mb.build(), holoPropMaterial());
     this.beret.renderOrder = 20; this.beret.castShadow = false;
@@ -375,7 +383,7 @@ export class Handler implements GameSystem {
 
   private updateTalk(dt: number) {
     if (this.cur) {
-      this.cur.t += dt;
+      this.cur.t += dt * this.talkSpeed;
       if (this.cur.t >= this.cur.dur) { this.cur = null; this.quietT = 0; }
     } else this.quietT += dt;
     if (!this.cur && this.queue.length && this.quietT > 0.45) {
@@ -389,7 +397,7 @@ export class Handler implements GameSystem {
       const voiced = this.voice.speak(q.text);
       const dur = Math.max(q.o.dur ?? 0, voiced, readTime(q.text) * 0.8);
       this.cur = { text: q.text, o: q.o, t: 0, dur: dur + 0.15 };
-      line('SSGT. VOSS', q.text, 'voss', dur + 0.9, { x: this.x, y: this.y, z: this.z });
+      line('SSGT. VOSS', q.text, 'voss', dur + 0.35, { x: this.x, y: this.y, z: this.z });
       if (q.o.point) this.point(q.o.point.x, q.o.point.z);
       else if (q.o.gesture) this.gesture(q.o.gesture, Math.min(dur, 3));
       else {

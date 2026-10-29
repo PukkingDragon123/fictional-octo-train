@@ -8,7 +8,7 @@
 /* ---------------------------------------------------------------- plate buttons */
 .pb { position: relative; display: inline-flex; flex-direction: column; align-items: flex-start; justify-content: center; flex: none; box-sizing: border-box;
   margin: 0; border: 0; border-radius: 0; background-color: transparent; background-repeat: no-repeat; background-position: 0 0; image-rendering: pixelated;
-  font-family: var(--font-new); font-weight: 600; letter-spacing: 0.11em; text-transform: uppercase; line-height: 1; white-space: nowrap; text-align: left;
+  font-family: var(--font-new); font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; line-height: 1; white-space: nowrap; text-align: left;
   color: #ece0c4; cursor: var(--cur-hand, pointer); touch-action: manipulation; -webkit-tap-highlight-color: transparent; outline: none; }
 .pb.pb-full { display: flex; width: 100%; }
 .pb .pb-l { position: relative; display: block; margin-top: calc(var(--ks) * -2);
@@ -222,5 +222,8 @@
 .gc-b:focus span::before { content: '\25B8\00A0'; }
 .gc.h .gc-b span { left: 50%; top: calc(100% + var(--ks) * 1); transform: translateX(-50%); font-size: var(--t-s); }
 .ct-scr .t-tabs[hidden] { display: none; }
-.hs-post { position: absolute; top: 0; bottom: 0; pointer-events: none; }
+.hs-post { display: none; }
 .hs-post canvas { display: block; image-rendering: pixelated; }
+
+/* Space Grotesk is a smooth grotesque: the menus render it antialiased (the global style sets no smoothing for the old pixel face) */
+.nx, .ps, .bt3, .kd-veil, .t-veil, .ct, .hs, .gb, .gc { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-kerning: normal; }

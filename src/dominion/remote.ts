@@ -13,7 +13,9 @@ import { hasUnlock } from '../game/research';
 import { shake } from '../gfx/juice';
 import { PixTex, PAL, PointerLayer, flatMat, overlayRay } from '../scan/pix';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
-import { rbox, blob } from '../scan/shapes';
+import { Shape } from '../craft/shapes';
+import { pixMat } from '../craft/fpTex';
+import { ink } from '../craft/fpScene';
 import { StageArms } from '../scan/arms';
 import { Screen } from '../ui/font5x7';
 import type { Creature } from '../creatures/creature';
@@ -47,52 +49,57 @@ export class Remote {
 
   constructor(private d: DominionSystem) {
     this.g = fpGroup('remote');
-    this.g.add(new THREE.AmbientLight(0xd0c8b8, 0.75));
-    const key = new THREE.DirectionalLight(0xfff0d8, 1.1); key.position.set(-0.3, 0.9, 1); this.g.add(key);
+    this.g.add(new THREE.HemisphereLight(0xd0c8b8, 0x3a3028, 0.7));
+    const key = new THREE.DirectionalLight(0xfff0d8, 1.3); key.position.set(-0.3, 0.9, 1); this.g.add(key);
+    const rimL = new THREE.DirectionalLight(0x9ab0c8, 0.5); rimL.position.set(0.6, 0.3, -0.8); this.g.add(rimL);
     this.g.add(this.box);
     this.arms = new StageArms(this.g);
-    const mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
-    const mb = new ModelBuilder();
-    rbox(mb, 0, -PH / M - 0.006, -0.018, PW / M + 0.012, PH / M + 0.012, 0.032, 'plastic_black', { color: 0x4a2e1c }, 0.012, 3);
-    rbox(mb, 0, -PH / M / 2 - 0.03, -0.04, 0.05, 0.06, 0.02, 'plastic_black', { color: 0x3a2416 }, 0.008, 2); // handle lug
-    for (const [x, y] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) blob(mb, x * (PW / M / 2 - 0.004), y * (PH / M / 2 - 0.004) - PH / M / 2, 0.0005, 0.0025, 0.0025, 0.0012, 'chrome', {}, 6);
-    mb.cylinder(-0.06, 0.004, -0.02, 0.003, 0.06, 5, 'chrome'); // aerial
-    this.box.add(new THREE.Mesh(mb.build(), mat));
-    const face = new THREE.Mesh(new THREE.PlaneGeometry(PW / M, PH / M), flatMat(this.plate.tex));
+    // the box: brown bakelite shell, a cream faceplate screwed on, a lug to hold it by, a whip aerial
+    const shell = new Shape(8), chrome = new Shape(9), black = new Shape(9), red = new Shape(9);
+    shell.jbox(0, -PH / M - 0.006, -0.018, PW / M + 0.012, PH / M + 0.012, 0.032, 0xffffff, 0.0012, 3);
+    shell.jbox(0, -PH / M / 2 - 0.035, -0.045, 0.05, 0.07, 0.022, 0xd8c8b8, 0.0012, 5);
+    for (const [x, y] of [[-1, 1], [1, 1], [-1, -1], [1, -1]]) chrome.dome(x * (PW / M / 2 - 0.004), y * (PH / M / 2 - 0.004) - PH / M / 2, 0.0005, 0.0026, 0xffffff);
+    chrome.rod([-0.06, 0.004, -0.02], [-0.064, 0.07, -0.022], 0.0025, 0xffffff, 5);
+    chrome.gem(-0.064, 0.072, -0.022, 0.004, 0xffffff, 0.1);
+    this.box.add(new THREE.Mesh(shell.build(), pixMat('bakelite')));
+    this.box.add(new THREE.Mesh(chrome.build(), pixMat('chrome')));
+    const face = new THREE.Mesh(new THREE.PlaneGeometry(PW / M, PH / M), new THREE.MeshStandardMaterial({ map: this.plate.tex, roughness: 0.5, metalness: 0.05, transparent: true, alphaTest: 0.4 }));
     face.position.set(0, -PH / M / 2, 0.0005); this.box.add(face);
     this.lcd = crtScreen(0.098, 0.018, { res: [294, 54], tint: 0x9cffb0, curvature: 0.12, glow: 0.9 });
     this.lcd.mesh.position.copy(at(80, 15)).add(new THREE.Vector3(0, -PH / M / 2, 0.001)); this.box.add(this.lcd.mesh);
-    // bat-handle toggles
+    // bat-handle toggles on hex bosses
+    const tb = new Shape(9);
+    tb.cyl(0, 0, 0, 0.007, 0.004, 0xffffff, 6);
+    tb.cyl(0, 0.002, 0, 0.0018, 0.016, 0xffffff, 6, undefined, 0.0013);
+    tb.gem(0, 0.018, 0, 0.0028, 0xffffff, 0.08);
+    const lg = tb.build();
     for (const t of TOGGLES) {
       const tg = new THREE.Group(); tg.name = 'tg:' + t.k;
-      const tb = new ModelBuilder();
-      tb.cylinder(0, 0, 0, 0.006, 0.004, 8, 'chrome');
-      tb.cylinder(0, 0.002, 0, 0.0018, 0.016, 6, 'chrome');
-      tb.sphere(0, 0.018, 0, 0.0028, 6, 4, 'chrome');
-      const lever = new THREE.Mesh(tb.build(), mat); lever.name = 'tg:' + t.k;
+      const lever = new THREE.Mesh(lg, pixMat('chrome')); lever.name = 'tg:' + t.k;
       lever.rotation.x = Math.PI / 2;
       tg.add(lever);
       tg.position.copy(at(t.x, 44)).add(new THREE.Vector3(0, -PH / M / 2, 0.002));
       this.box.add(tg); this.toggles.set(t.k, tg);
     }
-    // the station selector
-    const kb = new ModelBuilder();
-    kb.cylinder(0, 0, 0, 0.013, 0.01, 12, 'plastic_black', { color: 0x2a1a10 });
-    kb.box(0, 0.011, 0.007, 0.003, 0.002, 0.01, 'white', { color: 0xf0e6d0 });
-    const knobM = new THREE.Mesh(kb.build(), mat); knobM.name = 'knob'; knobM.rotation.x = Math.PI / 2;
+    // the station selector: a fluted octagonal knob with a cream pointer
+    const kb = new Shape(9);
+    kb.lathe(0, 0, 0, [[0, 0], [0.013, 0], [0.0135, 0.003], [0.012, 0.009], [0.009, 0.011], [0, 0.011]], 0xffffff, 8);
+    kb.box(0, 0.011, 0.007, 0.003, 0.002, 0.01, 0xf0e6d0, 0.0008);
+    const knobM = new THREE.Mesh(kb.build(), pixMat('bakelite', { color: 0x8a7060 })); knobM.name = 'knob'; knobM.rotation.x = Math.PI / 2;
     this.knob.add(knobM); this.knob.position.copy(at(34, 86)).add(new THREE.Vector3(0, -PH / M / 2, 0.003)); this.box.add(this.knob);
-    // the cargo hatch button
-    const cb = new ModelBuilder(); cb.cylinder(0, 0, 0, 0.009, 0.007, 10, 'plastic_black', { color: 0x1a1a1a });
-    this.cargoBtn = new THREE.Mesh(cb.build(), mat); this.cargoBtn.name = 'cargo'; this.cargoBtn.rotation.x = Math.PI / 2;
+    // the cargo hatch button: a square black key
+    black.box(0, 0, 0, 0.018, 0.007, 0.018, 0xffffff, 0.002);
+    this.cargoBtn = new THREE.Mesh(black.build(), pixMat('rubber')); this.cargoBtn.name = 'cargo'; this.cargoBtn.rotation.x = Math.PI / 2;
     this.cargoBtn.position.copy(at(84, 84)).add(new THREE.Vector3(0, -PH / M / 2, 0.002)); this.box.add(this.cargoBtn);
-    // SCRAM: a red mushroom under a hinged clear cover
-    const sb = new ModelBuilder(); sb.cylinder(0, 0, 0, 0.004, 0.006, 8, 'chrome'); sb.sphere(0, 0.007, 0, 0.011, 10, 5, 'plastic_red', { color: 0xc0281a, sy: 0.6 });
-    const scram = new THREE.Mesh(sb.build(), mat); scram.name = 'scram'; scram.rotation.x = Math.PI / 2;
+    // SCRAM: a red faceted mushroom under a hinged clear guard
+    red.cyl(0, 0, 0, 0.004, 0.006, 0xc8c8c8, 6); red.lathe(0, 0.006, 0, [[0.004, 0], [0.011, 0.001], [0.012, 0.004], [0.009, 0.008], [0, 0.009]], 0xffffff, 8);
+    const scram = new THREE.Mesh(red.build(), pixMat('enamelRed')); scram.name = 'scram'; scram.rotation.x = Math.PI / 2;
     scram.position.copy(at(132, 84)).add(new THREE.Vector3(0, -PH / M / 2, 0.002)); this.box.add(scram);
-    const cvg = new THREE.SphereGeometry(0.017, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2); cvg.rotateX(Math.PI / 2); cvg.translate(0, -0.015, 0);
-    const cv = new THREE.Mesh(cvg, new THREE.MeshLambertMaterial({ color: 0xffe8a0, transparent: true, opacity: 0.35 }));
+    const cvg = new Shape(9); cvg.box(0, -0.032, -0.0005, 0.034, 0.032, 0.016, 0xffffff, 0.003);
+    const cv = new THREE.Mesh(cvg.build(), new THREE.MeshStandardMaterial({ color: 0xffe8a0, transparent: true, opacity: 0.35, roughness: 0.1, flatShading: true }));
     cv.name = 'scram'; this.cover.add(cv);
     this.cover.position.copy(at(132, 69)).add(new THREE.Vector3(0, -PH / M / 2, 0.003)); this.box.add(this.cover);
+    ink(this.box, 0.0009);
     this.drawPlate();
     this.layer = new PointerLayer('remote', { down: (e) => this.click(e), move: (e) => { const h = overlayRay(e.clientX, e.clientY, fpCamera()).intersectObject(this.box, true)[0]; let o: THREE.Object3D | null = h?.object ?? null; while (o && !o.name) o = o.parent; this.hoverObj = o && o !== this.box ? o : null; } });
     window.addEventListener('keydown', (e) => { if (this.c && e.code === 'Escape') { e.stopPropagation(); this.close(); } }, true);
@@ -102,7 +109,8 @@ export class Remote {
   get forId() { return this.c?.id ?? null; }
 
   show(c: Creature) {
-    if (!fpClaim('remote', 4, { cinematic: 'glance' })) return;
+    // stand and give the order: into the eyes, the unit in front of you, the box in your hands
+    if (!fpClaim('remote', 4, { cinematic: 'full', eyePitch: 14 })) return;
     this.c = c; this.sure = false; this.raise = 0;
     this.arms.dress();
     this.lcd.power(true);
@@ -162,7 +170,9 @@ export class Remote {
     const r = this.d.rec(c)!;
     this.raise = Math.min(1, this.raise + dt * 5);
     const k = Math.min(1 - Math.pow(1 - this.raise, 3), fpBlend());
+    const asp = innerWidth / Math.max(1, innerHeight);
     this.box.position.set(0.0, -0.02 - (1 - k) * 0.2, -0.42);
+    this.box.scale.setScalar(Math.min(1, asp * 1.15));
     this.box.rotation.set(-0.35 + (1 - k) * 0.5, -0.05, 0.02);
     // the toggles show the order it is under; pressed things dip
     for (const [key, tg] of this.toggles) {
@@ -203,23 +213,33 @@ export class Remote {
     const p = this.plate, s = p.s;
     p.reset(0xd8ccb0);
     p.paper(0, 0, PW, PH, 0xd8ccb0, 11);
+    // enamel wear: grime in the corners, the paint rubbed through by thumbs round the controls
+    const C = (c: number) => Screen.c(c);
+    for (let i = 0; i < 260; i++) { const x = (i * 53) % PW, y = (i * 29 + (i >> 3)) % PH; if ((x < 10 || x > PW - 10 || y < 8 || y > PH - 8) || i % 7 === 0) s.px(x, y, C(i % 3 ? 0xb8a888 : 0x8a7a5a)); }
+    for (let i = 0; i < 40; i++) s.px(14 + (i * 7) % 20, 70 + (i * 3) % 30, C(0x6a5a40));
+    // a black outline round the plate and its four screws' sinks
+    s.frame(0, 0, PW, PH, C(0x1a140c));
+    for (const [x, y] of [[4, 4], [PW - 5, 4], [4, PH - 5], [PW - 5, PH - 5]]) { s.rect(x - 1, y - 1, 3, 3, C(0x5a4a30)); s.px(x, y, C(0x1a140c)); }
     // the LCD bezel
-    s.rect(28, 4, 104, 22, Screen.c(0x2a1a10)); s.frame(27, 3, 106, 24, Screen.c(0x8a7a5a));
-    // toggle labels on embossed tape
+    s.rect(28, 4, 104, 22, C(0x2a1a10)); s.frame(27, 3, 106, 24, C(0x8a7a5a)); s.frame(26, 2, 108, 26, C(0x1a140c));
+    // toggle labels on embossed tape, hex bosses round each toggle
+    const hex = (cx: number, cy: number, r: number, c: number) => { for (let i = 0; i < 6; i++) { const a0 = (i / 6) * Math.PI * 2, a1 = ((i + 1) / 6) * Math.PI * 2; s.line(cx + Math.cos(a0) * r, cy + Math.sin(a0) * r, cx + Math.cos(a1) * r, cy + Math.sin(a1) * r, c); } };
     for (const t of TOGGLES) {
       const w = t.label.length * 6 + 4;
-      s.rect(t.x - (w >> 1), 54, w, 10, Screen.c(0x1a1a18));
+      s.rect(t.x - (w >> 1), 54, w, 10, C(0x1a1a18)); s.hline(t.x - (w >> 1), t.x + (w >> 1) - 1, 54, C(0x3a3a36));
       p.sign(t.label, t.x, 55, 0xf0ece0, 7, { align: 'center' });
-      s.disc(t.x, 44, 8, Screen.c(0xb8ac90)); s.circle(t.x, 44, 8, Screen.c(0x6a5e48));
+      hex(t.x, 44, 8, C(0x6a5e48)); hex(t.x, 44, 7, C(0xb8ac90));
+      s.px(t.x, 34, C(0x1a140c)); p.sign('ON', t.x + 11, 33, 0x4a3a20, 5, { align: 'center' });
     }
-    // the station dial ring
-    s.disc(34, 86, 19, Screen.c(0xe8dcb8)); s.circle(34, 86, 19, Screen.c(PAL.ink));
-    ST_LABEL.forEach((l, i) => { const a = -1.1 + i * 0.55 - Math.PI / 2; const x = 34 + Math.cos(a) * 24, y = 86 + Math.sin(a) * 24; s.line(34 + Math.cos(a) * 15, 86 + Math.sin(a) * 15, 34 + Math.cos(a) * 19, 86 + Math.sin(a) * 19, Screen.c(PAL.ink)); p.sign(l, x, y - 4, PAL.ink, 6, { align: 'center' }); });
+    // the station dial: an octagonal scale plate with ticks
+    const oct = (cx: number, cy: number, r: number, c: number) => { for (let i = 0; i < 8; i++) { const a0 = Math.PI / 8 + (i / 8) * Math.PI * 2, a1 = Math.PI / 8 + ((i + 1) / 8) * Math.PI * 2; s.line(cx + Math.cos(a0) * r, cy + Math.sin(a0) * r, cx + Math.cos(a1) * r, cy + Math.sin(a1) * r, c); } };
+    oct(34, 86, 19, C(PAL.ink)); oct(34, 86, 18, C(0xe8dcb8));
+    ST_LABEL.forEach((l, i) => { const a = -1.1 + i * 0.55 - Math.PI / 2; const x = 34 + Math.cos(a) * 24, y = 86 + Math.sin(a) * 24; s.line(34 + Math.cos(a) * 15, 86 + Math.sin(a) * 15, 34 + Math.cos(a) * 19, 86 + Math.sin(a) * 19, C(PAL.ink)); p.sign(l, x, y - 4, PAL.ink, 6, { align: 'center' }); });
     p.typed('STATION', 14, 101, PAL.ink, 7);
-    // cargo and scram
-    s.disc(84, 84, 12, Screen.c(0x3a3a38));
+    // cargo: a square well; scram: a hazard-striped square frame
+    s.rect(75, 75, 19, 19, C(0x3a3a38)); s.frame(74, 74, 21, 21, C(0x1a140c));
     p.typed('CARGO', 70, 98, PAL.ink, 7);
-    for (let a = 0; a < 24; a++) { const u = (a / 24) * Math.PI * 2; s.line(132 + Math.cos(u) * 12, 84 + Math.sin(u) * 12, 132 + Math.cos(u) * 15, 84 + Math.sin(u) * 15, Screen.c(a % 2 ? 0x17150f : 0xe8b52a)); }
+    for (let i = 0; i < 26; i++) { const c = ((i >> 1) & 1) ? 0x17150f : 0xe8b52a; s.px(119 + i, 71, C(c)); s.px(119 + i, 72, C(c)); s.px(119 + i, 96, C(c)); s.px(119 + i, 97, C(c)); s.px(119, 71 + i, C(c)); s.px(120, 71 + i, C(c)); s.px(144, 71 + i, C(c)); s.px(145, 71 + i, C(c)); }
     p.sign('SCRAM', 132, 99, PAL.inkRed, 8, { align: 'center' });
     p.flush();
   }

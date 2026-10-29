@@ -12,7 +12,9 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { PixTex, PAL, flatMat } from './pix';
-import { rbox, capsule } from './shapes';
+import { Shape } from '../craft/shapes';
+import { pixMat } from '../craft/fpTex';
+import { ink, stencil } from '../craft/fpScene';
 import { gem } from '../ui/touch/facet';
 import { StageArms } from './arms';
 import { Screen } from '../ui/font5x7';
@@ -41,6 +43,7 @@ export class Scope {
   private owns = false;
   private arms: StageArms;
   private tw = new THREE.Vector3();
+  private glow!: THREE.PointLight;
   // world marks
   private bracket: THREE.Sprite;
   private beam: THREE.Line;
@@ -48,27 +51,33 @@ export class Scope {
 
   constructor() {
     this.g = fpGroup('scope');
-    this.g.add(new THREE.AmbientLight(0xc8c0b0, 0.7));
-    const key = new THREE.DirectionalLight(0xfff0d8, 1.2); key.position.set(-0.4, 0.8, 1); this.g.add(key);
+    this.g.add(new THREE.HemisphereLight(0xc8c0b0, 0x2a241c, 0.6));
+    const key = new THREE.DirectionalLight(0xfff0d8, 1.3); key.position.set(-0.4, 0.8, 1); this.g.add(key);
+    const rimL = new THREE.DirectionalLight(0x9ab0c8, 0.6); rimL.position.set(0.7, 0.2, -0.6); this.g.add(rimL);
     this.g.add(this.dev);
     this.arms = new StageArms(this.g);
     this.arms.right.root.visible = false;
-    const mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
-    // body: cream bakelite with a brown belly band, chrome trim and a carrying handle
-    const mb = new ModelBuilder();
-    rbox(mb, 0, -0.15, 0, 0.13, 0.15, 0.04, 'plastic_beige', { color: 0xe2d4b4 }, 0.014, 3);
-    rbox(mb, 0, -0.132, 0, 0.134, 0.03, 0.044, 'plastic_beige', { color: 0x5a3a22 }, 0.01, 2);
-    rbox(mb, 0, -0.004, 0, 0.12, 0.008, 0.042, 'chrome', {}, 0.003, 2);
-    rbox(mb, 0.0, 0.002, 0.0, 0.07, 0.004, 0.01, 'metal_dark', {}, 0.0015, 1); // card slot
-    rbox(mb, -0.022, -0.096, 0.016, 0.088, 0.072, 0.012, 'chrome', {}, 0.008, 2); // tube bezel
-    rbox(mb, -0.022, -0.092, 0.022, 0.078, 0.064, 0.004, 'plastic_black', {}, 0.006, 2);
-    rbox(mb, 0.042, -0.042, 0.018, 0.038, 0.026, 0.008, 'metal_dark', {}, 0.004, 2); // meter housing
-    for (const [x, y] of [[0.045, -0.095], [0.045, -0.118]]) { mb.push().translate(x, y, 0.021).rotateX(Math.PI / 2); mb.cylinder(0, 0, 0, 0.008, 0.01, 8, 'plastic_black'); mb.pop(); }
-    capsule(mb, [0.025, -0.124, 0.022], [0.025, -0.112, 0.028], 0.0022, 'chrome', {}, 6); // toggle
-    rbox(mb, -0.068, -0.13, 0, 0.012, 0.12, 0.03, 'rubber_black', {}, 0.005, 2); // grip strap
-    for (const x of [-0.05, 0.05]) capsule(mb, [x, 0.0, 0], [x, 0.028, 0], 0.004, 'chrome', {}, 6);
-    capsule(mb, [-0.05, 0.034, 0], [0.05, 0.034, 0], 0.007, 'leather_black', {}, 8); // handle
-    this.dev.add(new THREE.Mesh(mb.build(), mat));
+    // body: cream bakelite with a brown belly band, chrome trim and a carrying handle, all worn by hands
+    const cream = new Shape(9), brown = new Shape(9), chrome = new Shape(10), rubber = new Shape(10), dark = new Shape(10);
+    cream.jbox(0, -0.15, 0, 0.13, 0.15, 0.04, 0xffffff, 0.0008, 3);
+    brown.jbox(0, -0.132, 0, 0.134, 0.03, 0.044, 0xffffff, 0.0006, 5);
+    chrome.box(0, -0.004, 0, 0.12, 0.008, 0.042, 0xffffff, 0.003);
+    dark.box(0.0, 0.002, 0.0, 0.07, 0.004, 0.01, 0xffffff, 0.0015); // card slot
+    chrome.box(-0.022, -0.096, 0.016, 0.088, 0.072, 0.012, 0xffffff, 0.006); // tube bezel
+    dark.box(-0.022, -0.092, 0.022, 0.078, 0.064, 0.004, 0x3a3a38, 0.004);
+    dark.box(0.042, -0.042, 0.018, 0.038, 0.026, 0.008, 0x5a5048, 0.003); // meter housing
+    for (const [x, y] of [[0.045, -0.095], [0.045, -0.118]]) { dark.lathe(x, y, 0.021, [[0, 0], [0.008, 0], [0.0085, 0.003], [0.007, 0.009], [0, 0.01]], 0x4a3a30, 8, [Math.PI / 2, 0, 0]); }
+    chrome.rod([0.025, -0.124, 0.022], [0.025, -0.112, 0.028], 0.0022, 0xffffff, 5); // toggle
+    rubber.jbox(-0.068, -0.13, 0, 0.012, 0.12, 0.03, 0xffffff, 0.0008, 7); // grip strap
+    for (const x of [-0.05, 0.05]) chrome.rod([x, 0.0, 0], [x, 0.03, 0], 0.004, 0xffffff, 6);
+    rubber.rod([-0.054, 0.034, 0], [0.054, 0.034, 0], 0.0075, 0x7a4a2a, 6); // handle
+    for (const [x, y] of [[-0.058, -0.012], [0.058, -0.012], [-0.058, -0.143], [0.058, -0.143]]) chrome.dome(x, y, 0.0205, 0.0025, 0xffffff);
+    const mesh = (sh: Shape, m: THREE.Material) => this.dev.add(new THREE.Mesh(sh.build(), m));
+    mesh(cream, pixMat('bakeliteCream')); mesh(brown, pixMat('bakelite')); mesh(chrome, pixMat('chrome')); mesh(rubber, pixMat('leather')); mesh(dark, pixMat('rubber'));
+    // a stencilled model plate on the belly band
+    const plate = stencil(['PHOSPHOR SCOPE  MK II'], 0.08, 0xe8d8b0); plate.position.set(0.0, -0.127, 0.0225); this.dev.add(plate);
+    // the tube lights the hand that holds it
+    this.glow = new THREE.PointLight(0x7aff9a, 0.0, 0.35, 2); this.glow.position.set(-0.022, -0.06, 0.06); this.dev.add(this.glow);
     // the tube
     this.tube = crtScreen(0.072, 0.056, { res: [216, 168], tint: 0x9cffb0, curvature: 0.24, glow: 1.0, noise: 0.05 });
     this.tube.mesh.position.set(-0.022, -0.061, 0.0262); this.dev.add(this.tube.mesh);
@@ -78,6 +87,7 @@ export class Scope {
     this.needle = new THREE.Mesh(new THREE.BoxGeometry(0.0008, 0.014, 0.0005), new THREE.MeshBasicMaterial({ color: 0x1a1008 }));
     this.needle.geometry.translate(0, 0.007, 0);
     this.needle.position.set(0.042, -0.036, 0.0252); this.dev.add(this.needle);
+    ink(this.dev, 0.0008);
     this.lamp = new THREE.Mesh(gem(0.004, 0, 0), new THREE.MeshBasicMaterial({ color: 0x5a2a10 }));
     this.lamp.position.set(0.055, -0.124, 0.025); this.dev.add(this.lamp);
     // the punch card that feeds out of the slot
@@ -154,7 +164,9 @@ export class Scope {
     if (!this.owns) return;
     const k = ease(Math.min(1, this.raise, Math.max(fpBlend(), this.want ? 0 : 1)));
     const bob = G.local && G.local.speed > 0.2 ? Math.sin(G.time * 7) * 0.003 : 0;
-    this.dev.position.set(-0.115, -0.035 - (1 - k) * 0.25 + bob, -0.5);
+    const asp = innerWidth / Math.max(1, innerHeight), nar = asp < 1.2;
+    this.dev.position.set(nar ? -0.035 : -0.115, (nar ? -0.07 : -0.035) - (1 - k) * 0.25 + bob, -0.5);
+    this.dev.scale.setScalar(nar ? Math.max(0.5, asp * 1.1) : 1);
     this.dev.rotation.set(-0.12 + (1 - k) * 0.6, 0.28, 0.05);
     // held in the left hand by its strap
     this.dev.updateMatrixWorld(true);
@@ -171,6 +183,7 @@ export class Scope {
       this.cardMesh.position.set(-0.004 + out * 0.12, 0.005 + ease(f) * 0.03 + out * 0.06, 0.004);
       this.cardMesh.rotation.set(0, 0, out * 0.6);
     } else this.cardMesh.visible = false;
+    this.glow.intensity = 0.25 + Math.sin(G.time * 40) * 0.02;
     this.drawT -= dt;
     if (this.drawT <= 0) { this.drawT = 1 / 12; this.drawTube(); }
   }

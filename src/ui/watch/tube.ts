@@ -91,7 +91,7 @@ export class Tube {
       g.fillText(str, x, y + 8.6 * scale);
       return g.measureText(str).width;
     }
-    g.font = `${scale === 1 ? 500 : 600} ${10 * scale}px ${MONO}`;
+    g.font = `${scale === 1 ? 600 : 700} ${10 * scale}px ${MONO}`;
     g.fillText(str, x, y + 7.2 * scale, str.length * adv + 1);
     return str.length * adv;
   }

@@ -18,7 +18,10 @@ import { questDefs } from '../game/quests';
 import { op } from '../game/ops';
 import { PixTex, PAL, PointerLayer, WorldTag, flatMat, overlayRay } from '../scan/pix';
 import { Screen } from '../ui/font5x7';
-import { rbox, blob } from '../scan/shapes';
+import { Shape } from '../craft/shapes';
+import { pixMat } from '../craft/fpTex';
+import { ink, shade, stencil } from '../craft/fpScene';
+import { gem } from '../ui/touch/facet';
 import { StageArms } from '../scan/arms';
 import type { Creature } from '../creatures/creature';
 import { TRIBES, type TribeKey } from './defs';
@@ -44,8 +47,10 @@ let _mat: THREE.Material | null = null;
 const itemMat = () => (_mat ??= worldMaterial({ noVis: true, noFog: true, noGrid: true }));
 // shared pieces (the cloth is laid out again after every trade: nothing per-layout but the job cards)
 const HIT = new THREE.MeshBasicMaterial({ visible: false });
-const GEO = { hit: new THREE.BoxGeometry(0.07, 0.05, 0.05), tag: new THREE.PlaneGeometry(0.042, 0.018), bow: new THREE.TorusKnotGeometry(0.004, 0.0013, 24, 4, 2, 3), card: new THREE.PlaneGeometry(0.11, 0.073), pin: new THREE.SphereGeometry(0.004, 6, 4), tokTag: new THREE.PlaneGeometry(0.036, 0.0145), tokHit: new THREE.BoxGeometry(0.06, 0.04, 0.06) };
+const GEO = { hit: new THREE.BoxGeometry(0.07, 0.05, 0.05), tag: new THREE.PlaneGeometry(0.042, 0.018), bow: new THREE.TorusKnotGeometry(0.004, 0.0013, 24, 4, 2, 3), card: new THREE.PlaneGeometry(0.11, 0.073), pin: gem(0.0045, 0, 0.1), tokTag: new THREE.PlaneGeometry(0.036, 0.0145), tokHit: new THREE.BoxGeometry(0.06, 0.04, 0.06) };
 const RED = new THREE.MeshLambertMaterial({ color: 0xb02018 });
+/** a printed or painted surface that takes the scene's light (and its shadows) */
+const litMat = (tex: THREE.Texture) => new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.4, roughness: 0.95, metalness: 0 });
 const tagMats = new Map<PixTex, THREE.Material>();
 const cachedMats = new Set<THREE.Material>();
 const tagMat = (p: PixTex) => { let m = tagMats.get(p); if (!m) { m = flatMat(p.tex); tagMats.set(p, m); cachedMats.add(m); } return m; };
@@ -61,7 +66,7 @@ export class TradeUI {
   private cloth = new PixTex(112, 80, 1);
   private slate = new PixTex(48, 34, 4);
   private rail = new PixTex(64, 12, 3);
-  private slip = new PixTex(120, 12, 3);
+  private slip = new PixTex(72, 24, 4);
   private bead: THREE.Mesh;
   private slots: Slot[] = [];
   private hover: Slot | null = null;
@@ -75,28 +80,38 @@ export class TradeUI {
   private arms: StageArms;
   private pinchT = 0;
   private tw = new THREE.Vector3();
+  private lantern!: THREE.PointLight;
+  private lanternT = 0;
 
   constructor(private T: TribeSystem) {
     this.g = fpGroup('trade');
-    this.g.add(new THREE.AmbientLight(0xd8c8a8, 0.7));
-    const lamp = new THREE.PointLight(0xffc880, 2.4, 1.6, 1.4); lamp.position.set(0.12, 0.3, -0.35); this.g.add(lamp);
+    // a lantern on the crate and the room's own dim light: the trader stands in the eye's view beyond the counter
+    this.g.add(new THREE.HemisphereLight(0xb8b0a0, 0x2a2018, 0.5));
     this.g.add(this.root);
     this.arms = new StageArms(this.g);
-    const mat = itemMat();
-    // the board and the cloth
-    const mb = new ModelBuilder();
-    rbox(mb, 0, -0.03, 0, TW + 0.06, 0.03, TD + 0.06, 'wood_crate', {}, 0.012, 2);
-    for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) blob(mb, x * (TW / 2 + 0.02), 0.0, z * (TD / 2 + 0.02), 0.012, 0.007, 0.012, 'stone_rough', {}, 8);
-    // slate in its frame, the standing rail
-    rbox(mb, 0.215, 0.001, -0.075, 0.115, 0.006, 0.09, 'wood_dark', {}, 0.0029, 2);
-    rbox(mb, 0.215, 0.001, 0.105, 0.13, 0.006, 0.034, 'wood_light', {}, 0.0029, 2);
-    this.root.add(new THREE.Mesh(mb.build(), mat));
-    const cl = new THREE.Mesh(new THREE.PlaneGeometry(TW, TD), flatMat(this.cloth.tex)); cl.rotation.x = -Math.PI / 2; cl.position.y = 0.0005; this.root.add(cl);
-    const sl = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.075), flatMat(this.slate.tex)); sl.rotation.x = -Math.PI / 2; sl.position.set(0.215, 0.0075, -0.075); this.root.add(sl);
-    const rl = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.024), flatMat(this.rail.tex)); rl.rotation.x = -Math.PI / 2; rl.position.set(0.215, 0.0075, 0.105); this.root.add(rl);
-    this.bead = new THREE.Mesh(new THREE.SphereGeometry(0.008, 10, 6), new THREE.MeshLambertMaterial({ color: 0xd8a848, emissive: 0x2a1a04 }));
-    this.bead.position.set(0.215, 0.013, 0.105); this.root.add(this.bead);
-    const sp = new THREE.Mesh(new THREE.PlaneGeometry(0.3, 0.03), flatMat(this.slip.tex)); sp.rotation.x = -Math.PI / 2; sp.rotation.z = 0.02; sp.position.set(-0.1, 0.002, TD / 2 + 0.03); this.root.add(sp);
+    this.buildCounter();
+    // the cloth over the lid, lit like everything else
+    const cl = new THREE.Mesh(new THREE.PlaneGeometry(TW, TD, 6, 4), litMat(this.cloth.tex));
+    const cp = cl.geometry.getAttribute('position') as THREE.BufferAttribute;
+    for (let i = 0; i < cp.count; i++) cp.setZ(i, Math.sin(cp.getX(i) * 31 + cp.getY(i) * 17) * 0.002);
+    cl.geometry.computeVertexNormals();
+    cl.rotation.x = -Math.PI / 2; cl.position.y = 0.003; cl.receiveShadow = true; this.root.add(cl);
+    // the slate stands on its little easel, the standing rail and the slip lie by it
+    const slateG = new THREE.Group();
+    const sf = new Shape(4); sf.jbox(0, 0, -0.004, 0.118, 0.092, 0.008, 0xffffff, 0.0012, 3);
+    slateG.add(new THREE.Mesh(sf.build(), pixMat('plank', { color: 0x9a7a5a })));
+    const sl = new THREE.Mesh(new THREE.PlaneGeometry(0.1, 0.075), litMat(this.slate.tex)); sl.position.set(0, 0.046, 0.0005); slateG.add(sl);
+    const leg = new Shape(4); leg.rod([0, 0.07, -0.006], [0, 0.0, -0.05], 0.004, 0xffffff, 4);
+    slateG.add(new THREE.Mesh(leg.build(), pixMat('plank', { color: 0x7a5a3a })));
+    slateG.position.set(0.215, 0.004, -0.13); slateG.rotation.x = -0.42;
+    ink(slateG, 0.0015); shade(slateG);
+    this.root.add(slateG);
+    const rl = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.024), litMat(this.rail.tex)); rl.rotation.x = -Math.PI / 2; rl.position.set(0.215, 0.0075, 0.0); this.root.add(rl);
+    const rs = new Shape(6); rs.jbox(0.215, 0.002, 0.0, 0.13, 0.005, 0.032, 0xffffff, 0.001, 9);
+    this.root.add(new THREE.Mesh(rs.build(), pixMat('plank', { color: 0x6a4a2a })));
+    this.bead = new THREE.Mesh(gem(0.008, 0, 0.1), pixMat('brass'));
+    this.bead.position.set(0.215, 0.015, 0.0); this.bead.castShadow = true; this.root.add(this.bead);
+    const sp = new THREE.Mesh(new THREE.PlaneGeometry(0.15, 0.05), litMat(this.slip.tex)); sp.rotation.x = -Math.PI / 2; sp.rotation.z = 0.03; sp.position.set(0.215, 0.0045, 0.068); this.root.add(sp);
     this.root.add(this.goods);
     this.drawRail();
     this.layer = new PointerLayer('trade', { down: (e) => this.click(e), move: (e) => this.move(e) });
@@ -104,6 +119,39 @@ export class TradeUI {
     bus.on('tribeTab', () => { if (this.c) this.dirty = true; });
     bus.on('tribeRep', () => { if (this.c) this.dirty = true; });
     bus.on('inventoryChanged', () => { if (this.c) this.dirty = true; });
+  }
+
+  /** the counter: a shipping crate on its end with a plank lid, rope handles, stencilled, a lantern on the corner */
+  private buildCounter() {
+    const R = this.root;
+    const lid = new Shape(4), box = new Shape(4), iron = new Shape(6), rope = new Shape(10), glassFrame = new Shape(7);
+    const W = TW + 0.12, D = TD + 0.12;
+    for (let i = 0; i < 4; i++) lid.jbox(0, -0.028, -D / 2 + D / 8 + i * D / 4, W, 0.028, D / 4 - 0.004, i % 2 ? 0xf0e8d8 : 0xffffff, 0.0015, i + 3);
+    // the crate below: slatted sides going down out of the picture, corner battens, iron corner brackets
+    for (const sx of [-1, 1]) {
+      for (let j = 0; j < 4; j++) box.jbox(sx * (W / 2 - 0.012), -0.44 + j * 0.1, 0, 0.024, 0.094, D - 0.03, j % 2 ? 0xe0d4c0 : 0xffffff, 0.0015, j + sx * 5);
+      for (const sz of [-1, 1]) iron.box(sx * (W / 2 - 0.006), -0.06, sz * (D / 2 - 0.03), 0.016, 0.034, 0.06, 0xffffff, 0.003);
+      rope.ring(sx * (W / 2 + 0.004), -0.13, 0, 0.035, 0.006, 0xffffff, 10, [0, Math.PI / 2, 0]);
+    }
+    box.jbox(0, -0.44, D / 2 - 0.012, W, 0.42, 0.024, 0xd8ccb8, 0.002, 21);
+    // the lantern on the far left corner: galvanised base and cap, a wire guard round a glass chimney
+    const lx = -W / 2 + 0.06, lz = -D / 2 + 0.06;
+    iron.lathe(lx, 0, lz, [[0, 0], [0.035, 0], [0.038, 0.012], [0.03, 0.03], [0.012, 0.034], [0, 0.034]], 0xffffff, 8);
+    iron.lathe(lx, 0.12, lz, [[0, 0], [0.028, 0], [0.03, 0.006], [0.016, 0.03], [0.006, 0.036], [0, 0.04]], 0xffffff, 8);
+    for (let i = 0; i < 4; i++) { const a = (i / 4) * Math.PI * 2 + 0.4; glassFrame.rod([lx + Math.cos(a) * 0.028, 0.032, lz + Math.sin(a) * 0.028], [lx + Math.cos(a) * 0.026, 0.12, lz + Math.sin(a) * 0.026], 0.0018, 0xffffff, 4); }
+    iron.ring(lx, 0.17, lz, 0.02, 0.0025, 0xffffff, 8, [0, 0, 0]);
+    const mesh = (sh: Shape, mat: THREE.Material) => { const m = new THREE.Mesh(sh.build(), mat); R.add(m); return m; };
+    mesh(lid, pixMat('crate')); mesh(box, pixMat('crate', { color: 0xc8b8a0 })); mesh(iron, pixMat('galv', { color: 0x9a948a })); mesh(rope, pixMat('burlap', { color: 0xc8b088 })); mesh(glassFrame, pixMat('steel'));
+    const chim = new THREE.Mesh(new Shape(5).lathe(lx, 0.034, lz, [[0.022, 0], [0.027, 0.03], [0.027, 0.06], [0.02, 0.086]], 0xffffff, 8).build(), new THREE.MeshBasicMaterial({ color: 0xffd890, transparent: true, opacity: 0.35, depthWrite: false }));
+    chim.userData.noInk = true; R.add(chim);
+    const flame = new THREE.Mesh(gem(0.008, 0, 0.1), new THREE.MeshBasicMaterial({ color: 0xffe0a0 })); flame.scale.set(0.8, 1.8, 0.8); flame.position.set(lx, 0.07, lz); R.add(flame);
+    this.lantern = new THREE.PointLight(0xffb868, 1.6, 1.4, 1.3); this.lantern.position.set(lx, 0.08, lz); R.add(this.lantern);
+    const key = new THREE.SpotLight(0xffd8a8, 2.2, 2.4, 0.9, 0.6, 1.4); key.position.set(-0.4, 0.9, 0.2); key.target.position.set(0, 0, 0);
+    key.castShadow = true; key.shadow.mapSize.set(512, 512); key.shadow.bias = -0.0015; key.shadow.normalBias = 0.01;
+    R.add(key, key.target);
+    // stencil on the crate's near side panel
+    const st = stencil(['LOT 7', 'THIS SIDE UP'], 0.22, 0x1e1a14); st.position.set(-0.05, -0.2, D / 2 + 0.0005); R.add(st);
+    ink(R, 0.0022); shade(R, true, true);
   }
 
   get isOpen() { return !!this.c; }
@@ -141,8 +189,12 @@ export class TradeUI {
     if (this.dirty) { this.dirty = false; this.layout(); }
     this.raise = Math.min(1, this.raise + dt * 4);
     const k = Math.min(1 - Math.pow(1 - this.raise, 3), fpBlend());
-    this.root.position.set(0.01, -0.06 - (1 - k) * 0.3, -0.84);
-    this.root.rotation.set(1.02 - (1 - k) * 0.4, 0, 0);
+    const asp = innerWidth / Math.max(1, innerHeight);
+    this.root.position.set(0.01, -0.1 - (1 - k) * 0.3, -1.15);
+    this.root.rotation.set(0.9 - (1 - k) * 0.4, 0, 0);
+    this.root.scale.setScalar(asp >= 1.2 ? 1 : Math.max(0.42, asp * 0.9));
+    this.lanternT += dt;
+    this.lantern.intensity = 1.6 * (0.9 + Math.sin(this.lanternT * 11) * 0.05 + Math.sin(this.lanternT * 27) * 0.04);
     // hover lift, flying goods, the standing bead sliding along its rail
     for (const s of this.slots) { const want = s === this.hover ? s.y0 + 0.014 : s.y0; s.g.position.y += (want - s.g.position.y) * Math.min(1, dt * 16); }
     for (let i = this.flying.length - 1; i >= 0; i--) {
@@ -164,7 +216,7 @@ export class TradeUI {
   open(c: Creature) {
     const t = tribeOfCreature(c); if (!t) return;
     if (this.T.hostile(t) && !c.tamedBy) { bark(c, 'hostile', true); bus.emit('think', G.local, 'They are not in a talking mood.'); return; }
-    if (!fpClaim('trade', 3, { cinematic: 'full' })) return;
+    if (!fpClaim('trade', 3, { cinematic: 'full', eyePitch: 24 })) return;
     this.c = c; this.raise = 0; this.hover = null;
     this.arms.dress();
     this.T.meet(t);
@@ -276,12 +328,12 @@ export class TradeUI {
 
   private token(face: string, label: string, ok: boolean) {
     const g = new THREE.Group();
-    if (!tokenGeo) { const mb = new ModelBuilder(); mb.cylinder(0, 0, 0, 0.022, 0.012, 12, 'wood_dark', { color: 0x7a5232 }); mb.cylinder(0, 0.012, 0, 0.017, 0.002, 12, 'wood_light'); tokenGeo = mb.build(); }
-    g.add(new THREE.Mesh(tokenGeo, itemMat()));
+    if (!tokenGeo) { const sh = new Shape(9); sh.lathe(0, 0, 0, [[0, 0], [0.021, 0], [0.023, 0.004], [0.022, 0.011], [0.017, 0.013], [0.016, 0.014], [0, 0.014]], 0xffffff, 8); tokenGeo = sh.build(); }
+    const tk = new THREE.Mesh(tokenGeo, pixMat('handle', { color: 0x9a6a42 })); tk.castShadow = true; g.add(tk);
     const pt = new PixTex(30, 12, 4); pt.reset(); pt.paper(0, 0, 30, 12, PAL.paper, 5); pt.pen(face, 15, -1, ok ? PAL.ink : PAL.inkRed, 11, { align: 'center' }); pt.flush();
     const tg = new THREE.Mesh(GEO.tokTag, flatMat(pt.tex)); tg.rotation.x = -Math.PI / 2; tg.position.set(0, 0.0005, 0.03); g.add(tg);
     const hit = new THREE.Mesh(GEO.tokHit, HIT); g.add(hit);
-    g.position.set(0.215, 0.002, 0.16);
+    g.position.set(0.215, 0.002, 0.125);
     this.goods.add(g);
     this.slots.push({ g, kind: 'join', key: 'join', price: RECRUIT_COST, label, y0: 0.002, ok });
   }
@@ -391,7 +443,7 @@ export class TradeUI {
   private drawSlip(text: string) {
     const p = this.slip;
     p.reset(); p.paper(0, 0, p.w, p.h, PAL.paper, 9);
-    p.typed(text, 3, 2.5, PAL.ink, 7, p.w - 6);
+    p.typedPara(text, 3, 2, p.w - 6, PAL.ink, 6.5, 3, 6.5);
     p.flush();
   }
 }

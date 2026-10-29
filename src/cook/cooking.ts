@@ -133,9 +133,9 @@ export class CookView {
     const tongue = new Shape(4); tongue.lathe(0, 0, 0, [[0.022, 0], [0.026, 0.02], [0.016, 0.05], [0.006, 0.075], [0, 0.09]], 0xffffff, 5);
     const tg = tongue.build();
     for (let i = 0; i < 12; i++) {
-      const a = i * 0.53 + 0.2, r = 0.08 + (i % 3) * 0.06;
+      const a = i * 0.53 + 0.2, r = 0.19 + (i % 3) * 0.03;
       const m = new THREE.Mesh(tg, new THREE.MeshBasicMaterial({ color: i % 3 === 0 ? 0xffd070 : i % 3 === 1 ? 0xff8a2a : 0xe8501a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false }));
-      m.position.set(PAN_X + 0.1 + Math.cos(a) * r * 1.6, -0.06, Math.sin(a) * r * 0.9 - 0.04);
+      m.position.set(PAN_X + Math.cos(a) * r, -0.075, Math.sin(a) * r);
       m.userData.ph = i * 1.7; m.userData.s = 0.7 + (i % 4) * 0.2; m.renderOrder = 5;
       (this.flames as unknown as THREE.Group).add(m);
     }
@@ -191,7 +191,7 @@ export class CookView {
     for (const [x, z, w, d] of [[PAN_X, 0, 0.42, 0.34], [POT_X, -0.04, 0.27, 0.24], [PLATE.x, PLATE.z, 0.26, 0.22]] as [number, number, number, number][]) { const sb = shadowBlob(w, d, 0.55); sb.position.set(x, 0.001, z); this.rig.add(sb); }
     // smoke, steam and the shimmer of heat over the fire
     this.puffs = new Puffs(30); this.rig.add(this.puffs.g);
-    this.shimmer = new Shimmer(4, 0.1, 0.45); this.shimmer.g.position.set(PAN_X, 0.05, -0.02); this.rig.add(this.shimmer.g);
+    this.shimmer = new Shimmer(5, 0.12, 0.3); this.shimmer.g.position.set(PAN_X, 0.05, -0.02); this.rig.add(this.shimmer.g);
     // smoke / steam / spatter points
     const N = 96;
     this.pPos = new Float32Array(N * 3); this.pVel = new Float32Array(N * 3); this.pLife = new Float32Array(N); this.pCol = new Float32Array(N * 3);
@@ -330,10 +330,10 @@ export class CookView {
   /** the right arm reaches for the cursor: the hand eases toward the goal, the elbow trails toward you */
   private updateArms(dt: number, hov: ReturnType<CookView['hit']>) {
     const L = this.armL, R = this.armR; if (!L || !R) return;
-    const pt = this.drag ? this.drag.mesh.position : this.stirring ? null : this.lastPt;
+    const pt = this.drag ? this.drag.mesh.position : this.stirring ? null : hov ? this.lastPt : null;
     if (this.stirring) { this.spoon.getWorldPosition(this.rGoal); this.rig.worldToLocal(this.rGoal); this.rGoal.y += 0.2; this.rGoal.x += Math.sin(this.stirA) * 0.03; this.rGoal.z += Math.cos(this.stirA) * 0.03; }
     else if (pt) this.rGoal.set(pt.x + 0.02, (this.drag ? pt.y : 0.02) + 0.09, pt.z + 0.06);
-    else this.rGoal.set(0.15, 0.22, 0.42);
+    else this.rGoal.set(0.42, 0.12, 0.48);
     this.rHand.lerp(this.rGoal, 1 - Math.exp(-dt * 10));
     this.rDir.set(0.1, -0.2, -0.32).normalize();
     aimY(R.root, this.rDir, new THREE.Vector3(0, -1, 0.15));
@@ -509,6 +509,9 @@ export class CookView {
     // slide the rig into place, pan kick
     // the stove rises into view with the cut-in
     this.rig.position.y = lerp(-0.5, 0.0, fpBlend());
+    // portrait: the whole fire steps back so the board, the pan, the pot and the plate all fit across
+    const asp = innerWidth / Math.max(1, innerHeight);
+    this.rig.scale.setScalar(asp >= 1.2 ? 1 : Math.max(0.36, asp * 0.8));
     this.panKick = Math.max(0, this.panKick - dt * 3.5);
     const kick = Math.sin(this.panKick * Math.PI) * 0.06;
     this.panG.position.y = kick; this.panG.rotation.z = -kick * 1.5;
@@ -525,9 +528,9 @@ export class CookView {
     this.puffT -= dt;
     if (this.puffT <= 0 && H > 0.1) {
       this.puffT = fire ? 0.16 : 0.4;
-      if (fire) this.puffs.emit(PAN_X + 0.2 + (Math.random() - 0.5) * 0.5, 0.05, -0.22 + Math.random() * 0.1, 0x4a4642, 0.07, 2.2, 0.16, 0.06);
+      if (fire) this.puffs.emit(PAN_X + 0.2 + (Math.random() - 0.5) * 0.5, 0.02, -0.26 + Math.random() * 0.08, 0x3a3632, 0.045, 2.0, 0.14, 0.06);
     }
-    this.puffs.update(dt, fpCamera(), fire ? 0.42 : 0.35);
+    this.puffs.update(dt);
     this.shimmer.update(G.time, fire ? H : H * 0.5);
     // pan pieces: the side on the iron cooks
     const rate = H * 0.11;
@@ -740,8 +743,8 @@ export class CookView {
   }
   private spatter(x: number, y: number, z: number, n: number, col = [1, 0.92, 0.6]) { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28, s = 0.2 + Math.random() * 0.4; this.emit(x, y, z, Math.cos(a) * s, 0.4 + Math.random() * 0.6, Math.sin(a) * s, 0.35 + Math.random() * 0.25, col[0], col[1], col[2]); } }
   private splash(x: number, y: number, z: number, n: number) { for (let i = 0; i < n; i++) { const a = Math.random() * 6.28; this.emit(x, y, z, Math.cos(a) * 0.15, 0.5 + Math.random() * 0.3, Math.sin(a) * 0.15, 0.4, 0.7, 0.55, 0.35); } }
-  private steam(x: number, y: number, z: number) { if (Math.random() < 0.35) this.puffs.emit(x, y + 0.03, z, 0xd8dce0, 0.04, 1.6, 0.12, 0.08); this.emit(x + (Math.random() - 0.5) * 0.12, y, z + (Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.03, 0.12 + Math.random() * 0.08, 0, 1.4, 0.85, 0.88, 0.9); }
-  private smoke(x: number, y: number, z: number, black: boolean) { const v = black ? 0.12 : 0.55; if (Math.random() < 0.4) this.puffs.emit(x, y + 0.02, z, black ? 0x1a1816 : 0x8a8680, 0.035, 1.8, 0.1, 0.03); this.emit(x + (Math.random() - 0.5) * 0.06, y, z + (Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.04, 0.1 + Math.random() * 0.06, 0, 1.6, v, v, v * 1.05); }
+  private steam(x: number, y: number, z: number) { if (Math.random() < 0.3) this.puffs.emit(x, y + 0.03, z, 0xd8dce0, 0.022, 1.4, 0.12, 0.08); this.emit(x + (Math.random() - 0.5) * 0.12, y, z + (Math.random() - 0.5) * 0.1, (Math.random() - 0.5) * 0.03, 0.12 + Math.random() * 0.08, 0, 1.4, 0.85, 0.88, 0.9); }
+  private smoke(x: number, y: number, z: number, black: boolean) { const v = black ? 0.12 : 0.55; if (Math.random() < 0.4) this.puffs.emit(x, y + 0.02, z, black ? 0x1a1816 : 0x8a8680, 0.02, 1.6, 0.1, 0.03); this.emit(x + (Math.random() - 0.5) * 0.06, y, z + (Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.04, 0.1 + Math.random() * 0.06, 0, 1.6, v, v, v * 1.05); }
   private flare(x: number, z: number) { for (let i = 0; i < 3; i++) this.emit(x + (Math.random() - 0.5) * 0.05, 0.04, z + (Math.random() - 0.5) * 0.05, 0, 0.25 + Math.random() * 0.2, 0, 0.35, 1, 0.55, 0.15); }
   private updatePoints(dt: number) {
     for (let i = 0; i < this.pN; i++) {

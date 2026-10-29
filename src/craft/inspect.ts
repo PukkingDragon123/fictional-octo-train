@@ -22,13 +22,15 @@ import { bestDest } from '../items/packResolver';
 import { queueTransfers } from '../actions/transfer';
 import { itemMenuOptions } from '../interact/itemMenu';
 import { recipesUsing } from '../interact/crafting';
-import { fpGroup, fpClaim, fpRelease, fpCamera } from '../fp/fp';
+import { fpGroup, fpClaim, fpRelease, fpCamera, fpOwner } from '../fp/fp';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { hasUnlock, researchNode, grantResearch } from '../game/research';
 import { shake as camShake } from '../gfx/juice';
 import { type HandOp, opsForItem, opsForObject, opWork, pickTool, pickParts, type PartPick, partLabel, toolLabel } from './handOps';
-import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, holdInGrip, type Arm, makeBackdrop, makeItemObj, type ItemObj, itemAlign, Particles, fpMat, damp, pointerRay } from './fpKit';
-import { pixTag, tagString, setString, stamp, type PixTag } from './tags';
+import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, holdInGrip, type Arm, makeItemObj, type ItemObj, itemAlign, Particles, damp, pointerRay, keepEye } from './fpKit';
+import { pixTag, stamp, type PixTag } from './tags';
+import { pixMat } from './fpTex';
+import { ink, inkMesh, WorkLamp, Twine } from './fpScene';
 import { Dymo, Slate, clickTag } from './props';
 import { metalMat } from './metal';
 import { Shape } from './shapes';
@@ -44,6 +46,8 @@ interface Work {
 interface Prop { mesh: THREE.Object3D; click: () => void }
 
 const _X = new THREE.Vector3(1, 0, 0);
+/** how far down the eyes look while you turn a thing over in your hands */
+const INSPECT_PITCH = 36;
 const coarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
 const VERB_LABEL: Record<string, string> = { saw: 'SAWING', grind: 'GRINDING', strike: 'STRIKING', tear: 'TEARING', wrap: 'BINDING', braid: 'BRAIDING' };
@@ -111,6 +115,8 @@ export class Inspect {
   // props
   private info!: PixTag;
   private infoString!: THREE.Line;
+  private twine = new Twine(0x9a8a62);
+  private torch!: WorkLamp;
   private cloth = new THREE.Group();
   private nails = new THREE.Group();
   private props: Prop[] = [];
@@ -143,40 +149,46 @@ export class Inspect {
     if (this.built) return;
     this.built = true;
     const g = (this.g = fpGroup('inspect'));
-    const bd = makeBackdrop();
-    (bd.material as THREE.MeshBasicMaterial).opacity = 0.96;
-    g.add(bd);
-    g.add(new THREE.AmbientLight(0xd0c8b8, 0.6));
-    const key = new THREE.DirectionalLight(0xffe8c8, 1.25); key.position.set(-0.6, 1.2, 0.9); g.add(key);
+    // no backdrop: crouched with the thing in your hands, the floor and the room the eyes see behind it
+    g.add(new THREE.HemisphereLight(0xc8c0b0, 0x2a2018, 0.55));
+    const key = new THREE.DirectionalLight(0xffe8c8, 0.9); key.position.set(-0.6, 1.2, 0.9); g.add(key);
     const rim = new THREE.DirectionalLight(0xffb060, 0.45); rim.position.set(0.9, 0.2, -0.4); g.add(rim);
+    this.torch = new WorkLamp(g, new THREE.Vector3(-0.35, 0.55, -0.55), new THREE.Vector3(0, -0.35, -1.1), { color: 0xffe2b8, intensity: 3.2, angle: 0.75, dist: 2.2, mapSize: 512 });
     g.add(this.hold); this.hold.add(this.turn);
     const ab = new Shape(3);
     ab.box(0, -0.05, 0, 0.22, 0.05, 0.11, 0xffffff, 0.008);
     ab.box(0, -0.09, 0, 0.13, 0.042, 0.08, 0xb0b0b0, 0.006);
     ab.box(0, -0.1, 0, 0.19, 0.012, 0.12, 0x909090, 0.004);
-    ab.cyl(0.11, -0.025, 0, 0.022, 0.07, 0xffffff, 12, [0, 0, -Math.PI / 2], 0.004);
-    this.anvil = new THREE.Mesh(ab.build(), metalMat('iron', 2));
+    ab.cyl(0.11, -0.025, 0, 0.022, 0.07, 0xffffff, 8, [0, 0, -Math.PI / 2], 0.004);
+    this.anvil = new THREE.Mesh(ab.build(), pixMat('castIron'));
+    this.anvil.add(inkMesh(this.anvil.geometry, 0.002));
     this.anvil.visible = false;
     this.hold.add(this.anvil);
     g.add(this.toolG, this.sparks.points, this.dust.points, this.guide);
-    // the work cloth along the bottom and the nail strip on the right
-    const cb = new ModelBuilder();
-    cb.box(0, -0.006, 0, 1.1, 0.006, 0.22, 'fabric_green', { color: 0x4a5a3a, uvScale: 2 });
-    for (const x of [-0.53, 0.53]) cb.box(x, -0.004, 0, 0.02, 0.006, 0.22, 'fabric_brown', { color: 0x6a5030 });
-    this.cloth.add(new THREE.Mesh(cb.build(), fpMat()));
+    // the tool roll spread on the floor in front of you: waxed canvas, stitched pockets with tools
+    // in them, leather straps and a brass buckle; the cards and the tags you can pull lie on it
+    const canvas = new Shape(4), leather = new Shape(5), brass = new Shape(9), wood = new Shape(9), steel = new Shape(8);
+    canvas.jbox(0, -0.008, 0, 1.36, 0.008, 0.3, 0xffffff, 0.002, 3);
+    canvas.jbox(0, -0.004, -0.14, 1.36, 0.008, 0.07, 0xe0d8c0, 0.002, 5);
+    for (let i = 0; i < 9; i++) {
+      const x = -0.62 + i * 0.155;
+      canvas.box(x, 0.0, -0.13, 0.004, 0.006, 0.07, 0x8a8060, 0.001);
+      if (i % 2 === 0 && Math.abs(x) > 0.3) { wood.rod([x + 0.06, 0.005, -0.12], [x + 0.065, 0.02, -0.2], 0.008, 0xffffff, 6); steel.rod([x + 0.065, 0.02, -0.2], [x + 0.068, 0.03, -0.26], 0.003, 0xffffff, 5); }
+    }
+    for (const x of [-0.5, 0.5]) { leather.box(x, 0.0, 0, 0.045, 0.006, 0.31, 0xffffff, 0.002); brass.box(x, 0.004, 0.11, 0.05, 0.004, 0.03, 0xffffff, 0.002); }
+    leather.jbox(0.69, -0.006, 0, 0.06, 0.012, 0.3, 0xe0d0c0, 0.002, 7);
+    const cmesh = (sh: Shape, mat: THREE.Material) => { const m = new THREE.Mesh(sh.build(), mat); m.receiveShadow = true; this.cloth.add(m); return m; };
+    cmesh(canvas, pixMat('canvas')); cmesh(leather, pixMat('leather')); cmesh(brass, pixMat('brass')); cmesh(wood, pixMat('handle')); cmesh(steel, pixMat('steel'));
+    ink(this.cloth, 0.002);
     g.add(this.cloth);
-    const nb = new Shape(3);
-    nb.box(0, -0.2, -0.01, 0.1, 0.42, 0.016, 0xffffff, 0.006);
-    const nm = new Shape(6);
-    for (let i = 0; i < 6; i++) nm.cyl(-0.02, -i * 0.068, 0.0, 0.0022, 0.014, 0xffffff, 6, [Math.PI / 2, 0, 0]);
-    this.nails.add(new THREE.Mesh(nb.build(), metalMat('wood', 1)), new THREE.Mesh(nm.build(), metalMat('steel', 1)));
+    // the ordinary verbs: luggage tags laid out on the roll's right end (this group lies on the cloth)
     g.add(this.nails);
-    this.info = pixTag('tag', 110, 96, 0.34);
+    this.info = pixTag('tag', 110, 96, 0.28);
     this.info.mesh.renderOrder = 12;
-    this.infoString = tagString();
+    this.infoString = this.twine.line;
     g.add(this.info.mesh, this.infoString);
     this.slate = new Slate(g);
-    this.dymo = new Dymo(g);
+    this.dymo = new Dymo(g, 0, 'stick');
     // the two tags that are always there
     const flip = clickTag('Flip it  (F)', 'tag', 64, 0.16), back = clickTag('Put it down', 'tag', 70, 0.17, '(Esc)');
     g.add(flip.mesh, back.mesh);
@@ -190,14 +202,19 @@ export class Inspect {
     const D = 1.05, halfH = Math.tan((fpCamera().fov * Math.PI) / 360) * D, halfW = halfH * asp;
     const k = Math.min(1, asp / 1.5);
     this.lay = { halfW, halfH, D, k };
-    this.cloth.position.set(0, -halfH * 0.86, -D); this.cloth.rotation.x = 0.95; this.cloth.scale.setScalar(Math.max(0.6, k));
-    this.nails.position.set(halfW * 0.86, halfH * 0.42, -D - 0.02); this.nails.scale.setScalar(Math.max(0.6, k));
-    this.info.mesh.position.set(-halfW * 0.66, halfH * 0.16, -D + 0.02); this.info.mesh.scale.setScalar(Math.max(0.65, k)); this.info.mesh.rotation.z = 0.05;
-    this.slate.tag.mesh.position.set(0, halfH * 0.76, -D); this.slate.tag.mesh.scale.setScalar(Math.max(0.7, k));
-    this.dymo.place(-halfH * 0.36, -D + 0.03);
-    this.fixed[0].mesh.position.set(halfW - 0.3 * Math.max(0.7, k), halfH * 0.82, -D + 0.01);
-    this.fixed[1].mesh.position.set(halfW - 0.11 * Math.max(0.7, k), halfH * 0.8, -D + 0.01);
-    for (const f of this.fixed) f.mesh.scale.setScalar(Math.max(0.7, k));
+    const ck = Math.max(0.6, k);
+    this.cloth.position.set(0, -halfH * 0.86, -D); this.cloth.rotation.x = 0.95; this.cloth.scale.setScalar(ck);
+    // tags lie on the roll's right end: rows recede up the cloth
+    this.nails.position.set(Math.min(halfW * 0.56, 0.3 * ck), -halfH * 0.38, -D - 0.07); this.nails.rotation.set(0.95 - Math.PI / 2, 0, 0); this.nails.scale.setScalar(ck * 0.9);
+    this.info.mesh.scale.setScalar(Math.max(0.65, k));
+    // the slate lies on the roll while you work; label tape is stuck along the roll's front edge
+    this.slate.tag.mesh.position.set(0, -halfH * 0.62, -D + 0.04); this.slate.tag.mesh.rotation.set(0.95 - Math.PI / 2 + 0.25, 0, 0.02); this.slate.tag.mesh.scale.setScalar(Math.max(0.7, k));
+    this.dymo.place(-0.2 * ck, -halfH * 0.97, -D + 0.12);
+    this.dymo.tag.mesh.rotation.set(0.95 - Math.PI / 2 + 0.3, 0, 0);
+    // FLIP and PUT IT DOWN: tags lying on the roll's left end
+    this.fixed[0].mesh.position.set(-Math.min(halfW * 0.74, 0.48 * ck), -halfH * 0.42, -D - 0.04);
+    this.fixed[1].mesh.position.set(-Math.min(halfW * 0.74, 0.48 * ck) + 0.02, -halfH * 0.56, -D);
+    for (const f of this.fixed) { f.mesh.scale.setScalar(Math.max(0.7, k)); f.mesh.rotation.set(0.95 - Math.PI / 2 + 0.2, 0, f === this.fixed[0] ? 0.06 : -0.04); }
   }
 
   get busy() { return !!this.work; }
@@ -207,7 +224,8 @@ export class Inspect {
     if (!G.local) return;
     clearTimeout(this.timer); this.timer = 0;
     this.build();
-    if (!this.open) { if (!fpClaim('inspect', 5, { cinematic: 'glance' })) return; }
+    // into the eyes: crouched over the thing on the floor (a pack or a bench under it hands the eyes over)
+    if (!this.open) { if (!fpClaim('inspect', 5, { cinematic: 'full', eyePitch: INSPECT_PITCH })) return; }
     this.open = true;
     G.hudBody?.setHidden?.('inspect', true);
     this.onClose = opts.onClose ?? this.onClose;
@@ -231,7 +249,11 @@ export class Inspect {
     this.dymo?.hide();
     G.hudBody?.setHidden?.('inspect', false);
     this.root.classList.remove('on');
-    if (!lost) fpRelease('inspect');
+    if (!lost) {
+      fpRelease('inspect');
+      // the pack takes the stage back while the lids are still closing: keep it in the eyes
+      setTimeout(() => { if (fpOwner() === 'pack') keepEye('pack', (G.ui?.inventory as unknown as { pitch?: number })?.pitch ?? 36); }, 0);
+    }
     if (this.model) { this.turn.remove(this.model); this.model = null; }
     this.subj = null;
     G.input.pointerOverUI = !!G.ui?.inventory?.open;
@@ -339,10 +361,11 @@ export class Inspect {
       if (why) stamp(card, why, 14, 36); else stamp(card, 'ready', 14, 36, '#2a6a2a');
       card.flush();
       const L = this.lay, ck = Math.max(0.6, L.k);
-      const x = (n > 1 ? (i - (n - 1) / 2) * 0.22 * ck : 0);
-      card.mesh.scale.setScalar(ck);
-      card.mesh.position.set(x, -L.halfH * 0.58, -L.D + 0.03);
-      card.mesh.rotation.set(-0.18, 0, (i % 2 ? 0.035 : -0.04));
+      const x = (n > 1 ? (i - (n - 1) / 2) * (n > 3 ? 0.155 : 0.19) * ck : 0);
+      card.mesh.scale.setScalar(ck * (n > 3 ? 0.78 : 0.9));
+      // lying on the roll, a little crooked, the tool you'd use set down on it
+      card.mesh.position.set(x, -L.halfH * 0.6, -L.D - 0.04);
+      card.mesh.rotation.set(0.95 - Math.PI / 2 + 0.14, 0, (i % 2 ? 0.035 : -0.04));
       this.g.add(card.mesh);
       this.props.push({ mesh: card.mesh, click: () => { if (!why) this.startOp(h); else this.dymo.show(why === 'TAKE IT' ? 'take it first' : why.toLowerCase() + ': ' + sub, true); } });
       if (tool?.it) {
@@ -357,7 +380,7 @@ export class Inspect {
     });
     if (!n) {
       const t = pixTag('card', 76, 26, 0.2); t.clear(); t.para('Nothing your hands can do to this.', 11, 7, 62, '#5a4a3a', 8, 2, 7); t.flush();
-      t.mesh.rotation.set(-0.18, 0, 0.03); t.mesh.position.set(0, -this.lay.halfH * 0.6, -this.lay.D + 0.03);
+      t.mesh.rotation.set(0.95 - Math.PI / 2 + 0.14, 0, 0.03); t.mesh.position.set(0, -this.lay.halfH * 0.6, -this.lay.D - 0.04);
       this.g.add(t.mesh); this.props.push({ mesh: t.mesh, click: () => {} });
     }
     // the ordinary things, hung on nails
@@ -372,9 +395,9 @@ export class Inspect {
         for (const o of flat.filter((q) => q.action && !q.disabled).slice(0, 6)) acts.push({ label: o.label, fn: () => { this.close(); o.action!(); } });
       }
       acts.forEach((a, i) => {
-        const t = clickTag(a.label, 'tag', 64, 0.15);
-        t.mesh.geometry.translate(0, -0.03, 0);
-        t.mesh.position.set(-0.05, -i * 0.068, 0.012);
+        const t = clickTag(a.label, 'tag', 64, 0.13);
+        // two columns of tags laid on the roll's right end, fanned a little
+        t.mesh.position.set((i % 2) * 0.14, -Math.floor(i / 2) * 0.062, 0.004 + (i % 2) * 0.002);
         t.mesh.rotation.z = (i % 2 ? 0.08 : -0.06);
         this.nails.add(t.mesh);
         this.props.push({ mesh: t.mesh, click: a.fn });
@@ -726,12 +749,18 @@ export class Inspect {
     else this.turn.position.set(0, 0, 0);
     this.sparks.update(dt, 2.6); this.dust.update(dt, 1.6);
     this.dymo.update(dt);
+    this.torch.update(dt, 0.02);
     // the tag's string runs to the thing
     if (this.info.mesh.visible && this.model) {
-      this.info.mesh.getWorldPosition(_v); _v.x += 0.06; _v.y += 0.11;
-      this.model.getWorldPosition(_w);
-      setString(this.infoString, _v, _w);
-      this.info.mesh.rotation.z = 0.05 + Math.sin(now * 0.0012) * 0.02;
+      // tied to the thing's far end, it hangs off to the left on its string and sways
+      const al = this.itemObj ? itemAlign(this.itemObj.key) : null;
+      this.worldOf(_w.set(0, 0, al ? -al.base[1] * 0.46 : -0.1), _w);
+      const m = this.info.mesh, sc = m.scale.x, sw = Math.sin(now * 0.0016) * 0.02;
+      _v.set(_w.x - 0.17 * sc + sw, _w.y - 0.03 - 0.16 * sc, _w.z + 0.06);
+      m.position.lerp(_v, 1 - Math.exp(-dt * 10));
+      m.rotation.set(0, 0, 0.12 + sw * 2);
+      _v.set(m.position.x, m.position.y + 0.13 * sc, m.position.z);
+      this.twine.set(_v, _w, 0.015);
     }
     const w = this.work;
     if (w && this.model) {

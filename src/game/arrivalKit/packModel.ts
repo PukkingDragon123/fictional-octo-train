@@ -237,6 +237,21 @@ export function packOverlayGroup(): THREE.Group {
   return g;
 }
 
+/** a length of the pack's shoulder strap (webbing, a brass slider) for the hands to pull: camera-space points */
+export function fpStrap(pts: [number, number, number][]): THREE.Group {
+  const g = new THREE.Group();
+  const b = new ModelBuilder(); b.setFaceShading(false);
+  strapInto(b, 'arv_pk_strap', pts, 0.048, 0.012);
+  const bb = new ModelBuilder(); bb.setFaceShading(false);
+  const m = pts[Math.min(pts.length - 1, 2)];
+  bb.box(m[0], m[1] - 0.012, m[2] + 0.004, 0.06, 0.024, 0.016, 'arv_pk_brass', { fit: true, bevel: 0.004 });
+  for (const [mb, tex, r, mt] of [[b, 'arv_pk_strap', 0.9, 0], [bb, 'arv_pk_brass', 0.35, 0.85]] as [ModelBuilder, string, number, number][]) {
+    const geo = mb.build(); geo.deleteAttribute('aAtlas'); geo.deleteAttribute('aFx');
+    g.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: overlayTex(tex), vertexColors: true, flatShading: true, roughness: r, metalness: mt })));
+  }
+  return g;
+}
+
 export function disposeGroup(o: THREE.Object3D) {
   o.traverse((m) => {
     const me = m as THREE.Mesh;

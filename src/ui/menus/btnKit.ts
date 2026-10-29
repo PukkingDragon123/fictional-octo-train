@@ -316,13 +316,13 @@ export function applyKitVars() {
   const de = document.documentElement.style;
   de.setProperty('--ks', s + 'px');
   de.setProperty('--ksn', String(s));
-  // Space Grotesk draws on a grid of ~1/11 em: sizes of 11 x (whole device px) / dpr keep every font pixel on the device grid
-  const dpr = DPR();
-  const fp = (target: number) => (Math.max(1, Math.round(target * dpr)) / dpr) * 11;
-  de.setProperty('--t-s', fp(1) + 'px');
-  de.setProperty('--t-m', fp(1.5) + 'px');
-  de.setProperty('--t-l', fp(2) + 'px');
-  de.setProperty('--t-xl', fp(3) + 'px');
+  // Space Grotesk: smooth text sizes (a little larger on big screens, never under 12px)
+  const vw = window.innerWidth || 1280, vh = window.innerHeight || 720;
+  const tk = Math.max(0.9, Math.min(1.25, Math.min(vw / 1280, vh / 720) * 0.35 + 0.72));
+  de.setProperty('--t-s', Math.round(12 * tk) + 'px');
+  de.setProperty('--t-m', Math.round(15 * tk) + 'px');
+  de.setProperty('--t-l', Math.round(19 * tk) + 'px');
+  de.setProperty('--t-xl', Math.round(30 * tk) + 'px');
   if (s !== lastScale) {
     lastScale = s;
     de.setProperty('--pb-ptr', `url(${pointerUrl()})`);
@@ -363,12 +363,7 @@ export type PlateButton = HTMLButtonElement & { setLabel: (l: string, sub?: stri
 
 const inkDark = (f: Finish) => f === 'cream' || f === 'brass';
 /** label font size (CSS px) for a plate of this art height at this scale */
-const labelPx = (ah: number, s: number, sub: boolean) => {
-  // the nearest Pixelify-grid size (11 x k / dpr) to ~37% of the plate height
-  const want = Math.max(11, Math.min(33, ah * s * (sub ? 0.3 : 0.4)));
-  const dpr = DPR();
-  return (Math.max(1, Math.round((want / 11) * dpr)) / dpr) * 11;
-};
+const labelPx = (ah: number, s: number, sub: boolean) => Math.round(Math.max(12, Math.min(22, ah * s * (sub ? 0.28 : 0.34))));
 
 export function plateBtn(label: string, onClick: (b: PlateButton) => void, o: PlateOpts = {}): PlateButton {
   const finish = o.finish ?? 'steel', size = o.size ?? 'lg';
