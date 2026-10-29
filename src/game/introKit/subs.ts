@@ -8,6 +8,7 @@
 // when the wide shot can see them. No boxes: letters with a hard black halo.
 import { G } from '../G';
 import { letterTimes, playLine, voiceForStyle, voiceFromApp, type ChipVoice } from '../../social/chipVoice';
+import { fontsReady } from '../../gfx/crt';
 
 export type SubStyle = 'guard' | 'self';
 export interface SubOpts {
@@ -33,8 +34,8 @@ export class Subs {
     this.el = document.createElement('div');
     this.el.className = 'ix-subs';
     parent.appendChild(this.el);
-    // the face (intro.css 'IX Grotesk') loads on first use: ask for it now so the first line is not set in the fallback
-    try { for (const w of [400, 600, 700]) void document.fonts?.load(`${w} 24px 'IX Grotesk'`); } catch { /* no font loading api */ }
+    // the game's face loads on first use: ask for it now so the first line is not set in the fallback
+    void fontsReady();
   }
 
   /** say a line: it replaces whatever is up */

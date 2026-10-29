@@ -1039,7 +1039,7 @@ class Arrival implements GameSystem {
     const strapG = fpStrap([[-0.27, 0.17, -0.17], [-0.19, 0.03, -0.29], [-0.125, -0.09, -0.345], [-0.09, -0.21, -0.34], [-0.07, -0.4, -0.3]]);
     fp.add(strapG);
     const grab0 = new THREE.Vector3(-0.125, -0.115, -0.33), grab1 = new THREE.Vector3(-0.115, -0.2, -0.32);
-    arms.left.pose('open');
+    arms.left.pose('cup');
     this.tween(0.4, (k) => {
       reachArm(arms.left, -1, v3.lerpVectors(restL, grab0, ease(k)), 1, poleL);
       reachArm(arms.right, 1, v4.set(0.3, -0.62, -0.25), 1, poleR);
