@@ -528,7 +528,7 @@ export class CookView {
     this.puffT -= dt;
     if (this.puffT <= 0 && H > 0.1) {
       this.puffT = fire ? 0.16 : 0.4;
-      if (fire) this.puffs.emit(PAN_X + 0.2 + (Math.random() - 0.5) * 0.5, 0.02, -0.26 + Math.random() * 0.08, 0x3a3632, 0.045, 2.0, 0.14, 0.06);
+      if (fire) this.puffs.emit(PAN_X + 0.2 + (Math.random() - 0.5) * 0.5, 0.02, -0.26 + Math.random() * 0.08, 0x5a5a5e, 0.034, 2.2, 0.14, 0.06);
     }
     this.puffs.update(dt);
     this.shimmer.update(G.time, fire ? H : H * 0.5);

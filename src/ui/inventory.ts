@@ -31,6 +31,8 @@ import { registerBagSounds } from './bag/bagSounds';
 import { PackView, contactShadow } from './pack/packView';
 import { containerShell, GroundTag, TagRow, NoteTape, kitMat, Dust } from './pack/packScene';
 import { fcyl } from './touch/facet';
+import { arrivalRunning } from '../game/arrival';
+import { ensurePack } from '../game/arrivalKit/pack';
 import { texturizeSleeves } from './pack/packTex';
 
 /**
@@ -700,7 +702,7 @@ export class InventoryUI {
     this.lastT = now;
     this.settleT -= dt;
     if (this.settleT <= 0) { this.settleT = 0.4; try { settlePack(p); } catch (e) { console.warn('settle', e); } }
-    if (this.kitT > 0) { this.kitT -= dt; if (this.kitT <= 0) this.ensureKit(p); }
+    if (this.kitT > 0) { this.kitT -= dt; if (this.kitT <= 0 && !this.ensureKit(p)) this.kitT = 2; }
     if (G.input.hit('toolDraw' as any) && !G.input.textFocus && !(G as any).craft?.busy?.()) this.quickDraw();
     (G as any).craft?.update?.();
     if (!this.open) return;
@@ -1274,20 +1276,27 @@ export class InventoryUI {
   }
 
   // ================================================================ kit & quick draw
-  /** saves from before the field pack, or kits without one: strap the pack on and hang the tool roll */
-  private ensureKit(p: any) {
-    if (!p || p.body?.dead || !p.inv) return;
+  /**
+   * saves from before the field pack, or kits without one: strap the pack on and hang the tool roll.
+   * Not while the intro or the arrival is playing (Voss hands the pack over in the arrival; the intake
+   * contract is not signed yet): it tries again a little later. Returns false to be called again.
+   */
+  private ensureKit(p: any): boolean {
+    if (!p || p.body?.dead || !p.inv) return false;
+    const m: any = G.missions;
+    if (arrivalRunning() || (G as any).intro?.running || (m?.enabled && !m?.flags?.has?.('contract:intake'))) return false;
     try {
       const back = p.worn.get('back');
       if (!back || back.key !== 'iron_cube') {
-        const cube = createItem('iron_cube', undefined, { pristine: true });
-        p.inv.add(cube);
-        if (back) {
-          p.unwear(back);
-          if (back.inv) for (const i of [...back.inv.items]) { back.inv.remove(i); setPlace(i, null); cube.inv!.add(i); }
-          p.inv.remove(back); setPlace(back, null); cube.inv!.add(back);
+        const had = back && back.key !== 'iron_cube' ? back : null;
+        ensurePack(p);
+        // whatever was on the back before goes inside the pack
+        const pack = p.worn.get('back');
+        if (had && pack?.key === 'iron_cube' && pack.inv && had !== pack) {
+          if (p.worn.get('back') !== had) { try { p.unwear(had); } catch { /* already off */ } }
+          const from = p.containerOf(had);
+          if (from && from !== pack.inv) { from.remove(had); setPlace(had, null); pack.inv.add(had); }
         }
-        p.wear(cube);
       }
       if (!p.worn.get('belt')) {
         const roll = createItem('tool_roll', undefined, { pristine: true });
@@ -1295,6 +1304,7 @@ export class InventoryUI {
       }
       bus.emit('inventoryChanged', p);
     } catch (e) { console.warn('pack kit', e); }
+    return true;
   }
 
   /** ` / Y: draw the holstered tool into the right hand, or holster what you hold */

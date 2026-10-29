@@ -195,25 +195,29 @@ export class Inspect {
     for (const s of [1, -1] as const) { const a = makeArm(s); g.add(a.root); this.arms.push(a); }
   }
 
-  private lay = { halfW: 0.5, halfH: 0.28, D: 1.05, k: 1 };
+  private lay = { halfW: 0.5, halfH: 0.28, D: 1.05, k: 1, narrow: false };
   private layout() {
     const asp = window.innerWidth / Math.max(1, window.innerHeight);
     const D = 1.05, halfH = Math.tan((fpCamera().fov * Math.PI) / 360) * D, halfW = halfH * asp;
     const k = Math.min(1, asp / 1.5);
-    this.lay = { halfW, halfH, D, k };
+    this.lay = { halfW, halfH, D, k, narrow: false };
     const ck = Math.max(0.6, k);
     this.cloth.position.set(0, -halfH * 0.86, -D); this.cloth.rotation.x = 0.95; this.cloth.scale.setScalar(ck);
-    // tags lie on the roll's right end: rows recede up the cloth
-    this.nails.position.set(Math.min(halfW * 0.56, 0.3 * ck), -halfH * 0.38, -D - 0.07); this.nails.rotation.set(0.95 - Math.PI / 2, 0, 0); this.nails.scale.setScalar(ck * 0.9);
+    const narrow = asp < 1.2;
+    this.lay.narrow = narrow;
+    // tags lie on the roll's right end (portrait: across the middle of the roll, under the cards)
+    this.nails.position.set(narrow ? -halfW * 0.55 : Math.min(halfW * 0.56, 0.3 * ck), narrow ? -halfH * 0.66 : -halfH * 0.38, narrow ? -D + 0.02 : -D - 0.07);
+    this.nails.rotation.set(0.95 - Math.PI / 2, 0, 0); this.nails.scale.setScalar(narrow ? 0.62 : ck * 0.9);
     this.info.mesh.scale.setScalar(Math.max(0.65, k));
     // the slate lies on the roll while you work; label tape is stuck along the roll's front edge
     this.slate.tag.mesh.position.set(0, -halfH * 0.62, -D + 0.04); this.slate.tag.mesh.rotation.set(0.95 - Math.PI / 2 + 0.25, 0, 0.02); this.slate.tag.mesh.scale.setScalar(Math.max(0.7, k));
     this.dymo.place(-0.2 * ck, -halfH * 0.97, -D + 0.12);
     this.dymo.tag.mesh.rotation.set(0.95 - Math.PI / 2 + 0.3, 0, 0);
-    // FLIP and PUT IT DOWN: tags lying on the roll's left end
-    this.fixed[0].mesh.position.set(-Math.min(halfW * 0.74, 0.48 * ck), -halfH * 0.42, -D - 0.04);
-    this.fixed[1].mesh.position.set(-Math.min(halfW * 0.74, 0.48 * ck) + 0.02, -halfH * 0.56, -D);
-    for (const f of this.fixed) { f.mesh.scale.setScalar(Math.max(0.7, k)); f.mesh.rotation.set(0.95 - Math.PI / 2 + 0.2, 0, f === this.fixed[0] ? 0.06 : -0.04); }
+    // FLIP and PUT IT DOWN: tags lying on the roll's left end (portrait: either side above the cards)
+    const fx = narrow ? halfW * 0.5 : Math.min(halfW * 0.74, 0.48 * ck);
+    this.fixed[0].mesh.position.set(-fx, narrow ? -halfH * 0.3 : -halfH * 0.42, -D - 0.04);
+    this.fixed[1].mesh.position.set(narrow ? fx : -fx + 0.02, narrow ? -halfH * 0.3 : -halfH * 0.56, narrow ? -D - 0.04 : -D);
+    for (const f of this.fixed) { f.mesh.scale.setScalar(narrow ? 0.55 : Math.max(0.7, k)); f.mesh.rotation.set(0.95 - Math.PI / 2 + 0.2, 0, f === this.fixed[0] ? 0.06 : -0.04); }
   }
 
   get busy() { return !!this.work; }
@@ -363,7 +367,7 @@ export class Inspect {
       const x = (n > 1 ? (i - (n - 1) / 2) * (n > 3 ? 0.155 : 0.19) * ck : 0);
       card.mesh.scale.setScalar(ck * (n > 3 ? 0.78 : 0.9));
       // lying on the roll, a little crooked, the tool you'd use set down on it
-      card.mesh.position.set(x, -L.halfH * 0.6, -L.D - 0.04);
+      card.mesh.position.set(x, L.narrow ? -L.halfH * 0.46 : -L.halfH * 0.6, -L.D - 0.04);
       card.mesh.rotation.set(0.95 - Math.PI / 2 + 0.14, 0, (i % 2 ? 0.035 : -0.04));
       this.g.add(card.mesh);
       this.props.push({ mesh: card.mesh, click: () => { if (!why) this.startOp(h); else this.dymo.show(why === 'TAKE IT' ? 'take it first' : why.toLowerCase() + ': ' + sub, true); } });
@@ -396,7 +400,7 @@ export class Inspect {
       acts.forEach((a, i) => {
         const t = clickTag(a.label, 'tag', 64, 0.13);
         // two columns of tags laid on the roll's right end, fanned a little
-        t.mesh.position.set((i % 2) * 0.14, -Math.floor(i / 2) * 0.062, 0.004 + (i % 2) * 0.002);
+        t.mesh.position.set((i % 2) * (this.lay.narrow ? 0.17 : 0.14), -Math.floor(i / 2) * 0.062, 0.004 + (i % 2) * 0.002);
         t.mesh.rotation.z = (i % 2 ? 0.08 : -0.06);
         this.nails.add(t.mesh);
         this.props.push({ mesh: t.mesh, click: a.fn });

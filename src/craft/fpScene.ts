@@ -117,10 +117,10 @@ export class Puffs {
   readonly g = new THREE.Group();
   private list: Puff[] = [];
   private next = 0;
-  private geo = new THREE.IcosahedronGeometry(0.5, 0);
+  private geo = new THREE.IcosahedronGeometry(0.5, 1);
   constructor(n = 28) {
     for (let i = 0; i < n; i++) {
-      const m = new THREE.Mesh(this.geo, new THREE.MeshLambertMaterial({ color: 0x888888, flatShading: true }));
+      const m = new THREE.Mesh(this.geo, new THREE.MeshLambertMaterial({ color: 0x888888, flatShading: true, emissive: 0x2a2a2c }));
       m.visible = false; m.raycast = () => {};
       this.g.add(m);
       this.list.push({ m, life: 0, max: 1, vx: 0, vy: 0, vz: 0, spin: 0, grow: 1, size: 0.05, c0: new THREE.Color() });
@@ -147,11 +147,12 @@ export class Puffs {
       // swell out of the fire, then shrink away
       p.m.scale.setScalar(p.size * (0.4 + k * p.grow) * Math.min(1, (1 - k) * 3));
       p.m.rotation.y += p.spin * dt; p.m.rotation.x += p.spin * dt * 0.5;
-      (p.m.material as THREE.MeshLambertMaterial).color.copy(p.c0).lerp(_grey, k * 0.5);
+      const mt = p.m.material as THREE.MeshLambertMaterial;
+      mt.color.copy(p.c0).lerp(_grey, k * 0.6); mt.emissive.copy(mt.color).multiplyScalar(0.45);
     }
   }
 }
-const _grey = new THREE.Color(0x9a968e);
+const _grey = new THREE.Color(0xa8a8ae);
 
 /**
  * Heat over a fire: a few tall faceted ribbons of warm air, waving, barely

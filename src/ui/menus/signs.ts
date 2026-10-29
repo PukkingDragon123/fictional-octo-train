@@ -61,23 +61,32 @@ const TRACK = 0.12; // tracked-out caps, in em
 const K = 0x0b0d0f;
 interface Fin { R: number[]; accent: number[]; ink: number; inkHot: number; dark: boolean }
 //                 outline  deep      dark      low       base      light     high      glint
-const ALU = [K, 0x343a40, 0x535b62, 0x737c83, 0x8f989f, 0xaab2b8, 0xc8ced2, 0xe8ecee];
-const GRAPH = [K, 0x15181b, 0x22272b, 0x30363b, 0x3d4449, 0x4d555b, 0x68717a, 0x99a3ab];
-const CHAMP = [K, 0x3e3628, 0x5f5543, 0x80755f, 0x9d927a, 0xb8ad94, 0xd4cab2, 0xf0e8d4];
+// aged, oxidised aluminium in a dim room: low, cool, greyed values (only a hint of glint)
+const ALU = [K, 0x1b1f22, 0x2a2f33, 0x3a4045, 0x4b5257, 0x5d656a, 0x737b80, 0x8f979b];
+const GRAPH = [K, 0x0f1113, 0x181b1e, 0x22262a, 0x2c3135, 0x383e43, 0x4a5157, 0x687077];
+const CHAMP = [K, 0x29231a, 0x3b3426, 0x4d4535, 0x5e5543, 0x716753, 0x897e67, 0xa69b82];
 const FIN: Record<SignKind, Fin> = {
-  wood: { R: ALU, accent: [0x0f3e3a, 0x1f7469, 0x34a596, 0x7fdccc], ink: 0x1a1f23, inkHot: 0x050708, dark: false },
-  red: { R: ALU, accent: [0x4a0e08, 0x9a2a1a, 0xd04a30, 0xffa088], ink: 0x1a1f23, inkHot: 0x050708, dark: false },
-  olive: { R: ALU, accent: [0x22320f, 0x4a6a22, 0x76a03a, 0xbce07a], ink: 0x1a1f23, inkHot: 0x050708, dark: false },
-  tin: { R: GRAPH, accent: [0x1b3440, 0x3c7088, 0x6aa8c0, 0xb8e4f4], ink: 0xe2e7ea, inkHot: 0xffffff, dark: true },
-  cream: { R: CHAMP, accent: [0x3e2c0a, 0x7a5a1a, 0xb08a3c, 0xeed08a], ink: 0x241e14, inkHot: 0x0a0804, dark: false },
+  wood: { R: ALU, accent: [0x0c2a27, 0x184e47, 0x2a7468, 0x5aa89a], ink: 0xc8cbc3, inkHot: 0xf1f2ea, dark: true },
+  red: { R: ALU, accent: [0x300a06, 0x6a1c12, 0x9a3020, 0xd06a50], ink: 0xc8cbc3, inkHot: 0xf1f2ea, dark: true },
+  olive: { R: ALU, accent: [0x18220b, 0x334a18, 0x527028, 0x8cb058], ink: 0xc8cbc3, inkHot: 0xf1f2ea, dark: true },
+  tin: { R: GRAPH, accent: [0x112630, 0x2a5062, 0x4a7c90, 0x8ab8cc], ink: 0xbfc4c6, inkHot: 0xeef1f2, dark: true },
+  cream: { R: CHAMP, accent: [0x2a1e08, 0x553e12, 0x7c602a, 0xb8965a], ink: 0xd4ccb6, inkHot: 0xf6efda, dark: true },
 };
-const RUST = [0x3a1c0c, 0x6a3414, 0x8f4c1e];
-const STEEL = { hi: 0xe2e7ea, mid: 0x9aa3a9, lo: 0x59626a, dk: 0x2c3237 };
+// rust: deep pit, dark bloom, mid, orange, a bright flake
+const RUST = [0x2a1208, 0x4e2410, 0x743614, 0x9a4e1c, 0xbe6a2c];
+const STEEL = { hi: 0xa6adb2, mid: 0x6a7379, lo: 0x3d4449, dk: 0x1e2327 };
 const hash = (x: number, y: number, s: number) => { let h = Math.imul(x * 374761393 + y * 668265263 + s * 1442695041, 1274126177); h ^= h >>> 13; h = Math.imul(h, 1103515245); h ^= h >>> 16; return ((h >>> 0) % 10000) / 10000; };
 function rng(seed: number) { let a = seed >>> 0 || 1; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const mix = (a: number, b: number, t: number) => { const r = ((a >> 16) & 255) + ((((b >> 16) & 255) - ((a >> 16) & 255)) * t), g = ((a >> 8) & 255) + ((((b >> 8) & 255) - ((a >> 8) & 255)) * t), bl = (a & 255) + (((b & 255) - (a & 255)) * t); return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(bl); };
 /** 0xRRGGBB → the little-endian RGBA word ImageData's Uint32 view wants */
 const px32 = (c: number, a = 255) => ((a << 24) | ((c & 255) << 16) | (c & 0xff00) | ((c >> 16) & 255)) >>> 0;
+/** smooth value noise on a cell grid (for clustered rust and grime) */
+function vnoise(x: number, y: number, cell: number, seed: number) {
+  const gx = x / cell, gy = y / cell, x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
+  const sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy);
+  const a = hash(x0, y0, seed), b = hash(x0 + 1, y0, seed), c = hash(x0, y0 + 1, seed), d = hash(x0 + 1, y0 + 1, seed);
+  return a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+}
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const bayer = (x: number, y: number) => (BAYER[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
 
@@ -147,10 +156,12 @@ function panelArt(label: string, kind: SignKind, shape: SignShape, w: number, h:
       else if (!inside(x, y - 2) || (shape !== 'arrowL' && !inside(x - 2, y))) col = st === 2 ? R[4] : R[7];  // lit bevel
       else if (!inside(x, y + 2) || (shape !== 'arrowR' && !inside(x + 2, y))) col = R[2];                      // shade bevel
       else {
-        if (run <= 0) { run = 3 + Math.floor(rnd() * 14); streak = rnd() < 0.5 ? (rnd() - 0.5) * 0.12 : 0; }
+        if (run <= 0) { run = 3 + Math.floor(rnd() * 14); streak = rnd() < 0.55 ? (rnd() - 0.6) * 0.14 : 0; }
         run--;
-        let v = 0.66 - 0.26 * (y / h) + band[y] + streak + lift;
-        if (x < 3 || x > w - 4) v -= 0.03;
+        // key light from above: lit at the top, falling off, grime collecting low and in the brushing
+        let v = 0.7 - 0.34 * (y / h) - 0.1 * (y / h) ** 2 + band[y] + streak + lift;
+        if (hash(x >> 3, y >> 1, seed + 21) < 0.22) v -= 0.08;
+        if (x < 3 || x > w - 4) v -= 0.05;
         const f = 2.2 + Math.max(0, Math.min(1, v)) * 4.4;
         let i = Math.floor(f); const fr = f - i;
         if (fr > 0.7 || (fr > 0.45 && bayer(x, y) < (fr - 0.45) / 0.25)) i++;
@@ -183,8 +194,8 @@ function panelArt(label: string, kind: SignKind, shape: SignShape, w: number, h:
   // dust settled along the bottom bevel
   for (let x = 2; x < w - 2; x++) {
     const y = h - 3;
-    if (isFace(x, y) && hash(x, 5, seed) < 0.16) set(x, y, F.dark ? 0x6e6a60 : 0x8a8274);
-    if (isFace(x, y - 1) && hash(x, 6, seed) < 0.05) set(x, y - 1, F.dark ? 0x5a574e : 0x9a9284);
+    if (isFace(x, y) && hash(x, 5, seed) < 0.2) set(x, y, 0x55504a);
+    if (isFace(x, y - 1) && hash(x, 6, seed) < 0.06) set(x, y - 1, 0x4a4540);
   }
   // the accent stripe (the institute's wayfinding colour)
   const left = shape === 'arrowL' ? pt + 2 : 4;
@@ -204,13 +215,58 @@ function panelArt(label: string, kind: SignKind, shape: SignShape, w: number, h:
       if ((ring && !corner) || meridian || horizon) set(mx + i, my + j, ring ? A[1] : A[2]);
     }
   }
-  // the cable bolts: machined heads with a specular pixel and corrosion creeping out
+  // the cable bolts: machined heads with a specular pixel
   const bolts = shape === 'arrowL' ? [pt + 3, w - 5] : shape === 'arrowR' ? [4, w - pt - 4] : [5, w - 6];
+  const rustAt = (x: number, y: number, k: number) => { if (inside(x, y) && !edge(x, y)) set(x, y, RUST[Math.max(0, Math.min(4, k))]); };
   for (const bx of bolts) {
     const by = 2;
-    for (const [x, y, col] of [[-1, -1, STEEL.dk], [0, -1, STEEL.lo], [1, -1, STEEL.dk], [-1, 0, STEEL.lo], [0, 0, STEEL.hi], [1, 0, STEEL.mid], [-1, 1, STEEL.dk], [0, 1, STEEL.mid], [1, 1, STEEL.dk]] as [number, number, number][]) set(bx + x, by + y, col);
-    set(bx, by, 0xffffff);
-    for (let k = 0; k < 3; k++) if (rnd() < 0.7) { const rx = bx + Math.floor(rnd() * 5) - 2, ry = by + 2 + Math.floor(rnd() * 2); if (isFace(rx, ry)) set(rx, ry, RUST[Math.floor(rnd() * 3)]); }
+    // the bloom round the bolt
+    for (let y = -2; y <= 3; y++) for (let x = -3; x <= 3; x++) {
+      const d = Math.hypot(x * 0.85, y);
+      if (d < 1.2) continue;
+      if (rnd() < 1.1 - d * 0.32) rustAt(bx + x, by + y, d < 2 ? 1 + Math.floor(rnd() * 3) : 2 + Math.floor(rnd() * 3));
+    }
+    // streaks running down from it
+    const ns = 2 + Math.floor(rnd() * 2);
+    for (let k = 0; k < ns; k++) {
+      let x = bx + Math.floor(rnd() * 3) - 1;
+      const len = 4 + Math.floor(rnd() * (h - 6));
+      for (let j = 0; j < len; j++) {
+        const y = by + 2 + j;
+        const fade = j / len;
+        if (rnd() < 0.85 - fade * 0.5 || bayer(x, y) > fade) rustAt(x, y, fade < 0.3 ? 3 : fade < 0.65 ? 2 : 1);
+        if (rnd() < 0.08) x += rnd() < 0.5 ? -1 : 1;
+      }
+    }
+    for (const [x, y, col] of [[-1, -1, STEEL.dk], [0, -1, STEEL.lo], [1, -1, STEEL.dk], [-1, 0, STEEL.lo], [0, 0, STEEL.hi], [1, 0, STEEL.mid], [-1, 1, STEEL.dk], [0, 1, RUST[2]], [1, 1, STEEL.dk]] as [number, number, number][]) set(bx + x, by + y, col);
+    set(bx, by, 0xd8dde0);
+  }
+  // rust along the edges and in the corners, in clusters, with the odd run down the face
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!inside(x, y) || edge(x, y)) continue;
+    const nearEdge = !inside(x - 2, y) || !inside(x + 2, y) || !inside(x, y - 2) || !inside(x, y + 2);
+    const corner = Math.min(x, w - 1 - x) < 5 && Math.min(y, h - 1 - y) < 5;
+    const n = vnoise(x, y, 5, seed + 30);
+    let p = 0;
+    if (corner) p = 0.25 + n * 0.6;
+    else if (nearEdge) p = Math.max(0, n - 0.55) * (y > h / 2 ? 2.2 : 1.2);
+    else p = Math.max(0, n - 0.8) * 0.9;   // a few blooms out on the face
+    if (hash(x, y, seed + 31) < p) {
+      rustAt(x, y, n > 0.75 ? 1 + Math.floor(hash(x, y, seed + 32) * 2) : 2 + Math.floor(hash(x, y, seed + 32) * 3));
+      if (y < h - 3 && hash(x, y, seed + 33) < 0.25) for (let j = 1; j < 4; j++) if (hash(x, y + j, seed + 34) < 0.75 - j * 0.15) rustAt(x, y + j, 2);
+    }
+  }
+  // pitting: a dark pit with a light lip under it
+  for (let i = 0; i < Math.round((w * h) / 70); i++) {
+    const x = 3 + Math.floor(rnd() * (w - 6)), y = 3 + Math.floor(rnd() * (h - 6));
+    if (!isFace(x, y)) continue;
+    set(x, y, rnd() < 0.4 ? RUST[0] : R[1]);
+    if (isFace(x + 1, y + 1)) set(x + 1, y + 1, R[5]);
+  }
+  // flaking paint on the stripe
+  for (let y = 3; y < h - 3; y++) for (let k = 0; k < 2; k++) {
+    const q = hash(left + k, y, seed + 41);
+    if (q < 0.16) set(left + k, y, R[3]); else if (q < 0.26) set(left + k, y, RUST[2]);
   }
   // hot: the stripe's glint runs its whole length and the bolts catch the light
   if (st === 1) for (let y = 4; y < h - 4; y++) set(left, y, A[3]);
@@ -220,7 +276,7 @@ function panelArt(label: string, kind: SignKind, shape: SignShape, w: number, h:
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const a = art[Math.floor(y / sub) * w + Math.floor(x / sub)]; if (a >= 0) fine[y * W + x] = px32(a); }
   // the vinyl: lettering or a wayfinding arrow, cut at the fine grid by area coverage
   const ink = st === 1 ? F.inkHot : F.ink;
-  const lipC = F.dark ? 0x0b0d0f : R[6];
+  const lipC = 0x090b0d;
   let mask: Uint8Array | null = null;
   if (chevron && shape !== 'board') {
     const dir = shape === 'arrowL' ? -1 : 1;
@@ -247,77 +303,128 @@ function panelArt(label: string, kind: SignKind, shape: SignShape, w: number, h:
   if (mask) {
     // the cut vinyl's thin lip, then the vinyl
     for (let y = 0; y < H - 1; y++) for (let x = 0; x < W; x++) if (mask[y * W + x] && !mask[(y + 1) * W + x] && fine[(y + 1) * W + x]) fine[(y + 1) * W + x] = px32(lipC);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (mask[y * W + x] && fine[y * W + x]) fine[y * W + x] = px32(hash(x >> 1, y >> 1, seed + 4) > 0.985 ? mix(ink, R[5], 0.5) : ink);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (mask[y * W + x] && fine[y * W + x]) { const q = hash(x >> 1, y >> 1, seed + 4); fine[y * W + x] = px32(q > 0.97 ? mix(ink, R[3], 0.6) : q > 0.93 ? mix(ink, R[5], 0.3) : ink); }
   }
   return { w: W, h: H, px: fine, bolts };
 }
 
 // ------------------------------------------------------------------ the swinging render (fine grid)
-interface Geo { W: number; H: number; bx: number; by: number; bw: number; bh: number; rodY: number; cable: number; hang: SignHang; shape: SignShape; sub: number }
+// The panel is a slab T art px thick. As it swings it moves along the cable
+// arc and yaws a little, drawn with perspective (inverse-mapped per fine
+// pixel, nearest): the end that turns toward you shows its edge band, the
+// underside shows as a dark band, the face dims or brightens as it turns
+// under the key light from above, and a faint specular slides across it.
+// Its shadow falls on the darkness behind; the cables and clamps cast theirs.
+interface Geo { W: number; H: number; bx: number; by: number; bw: number; bh: number; rodY: number; cable: number; hang: SignHang; shape: SignShape; sub: number; /** -0.6..0.6: where the viewer is (the slab's back leans toward the screen's middle) */ view: number }
+const EDGE = [0x0c0e10, 0x23282c, 0x343a3f, 0x474e54];
 function drawFrame(img: ImageData, g32: Uint32Array, geo: Geo, sp: Sprite, theta: number, kind: SignKind) {
   g32.fill(0);
   const { W, sub, rodY } = geo;
-  const FW = W * sub;
+  const FW = W * sub, FH = img.height;
   const blk = (ax: number, ay: number, c: number) => { if (ax < 0 || ay < 0 || ax >= W) return; const v = px32(c); for (let j = 0; j < sub; j++) { const row = (ay * sub + j) * FW + ax * sub; for (let i = 0; i < sub; i++) g32[row + i] = v; } };
-  const putF = (x: number, y: number, c: number, a = 255) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < FW && y < img.height) g32[y * FW + x] = px32(c, a); };
-  // the mount: a brushed rod with clamps over each cable
+  const putF = (x: number, y: number, c: number, a = 255) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < FW && y < FH) g32[y * FW + x] = px32(c, a); };
+  const shadeF = (x: number, y: number, a: number) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < FW && y < FH && !g32[y * FW + x]) g32[y * FW + x] = px32(0, a); };
   const tops = sp.bolts.map((bx) => geo.bx + bx);
   const left = geo.hang === 'bracketL', right = geo.hang === 'bracketR';
+  // ---- the mount: its shadow on the wall first, then a rusty rod with clamps
   const x0 = left ? 0 : tops[0] - 3, x1 = right ? W - 1 : tops[1] + 3;
-  for (let x = x0; x <= x1; x++) { blk(x, rodY - 2, K); blk(x, rodY - 1, STEEL.hi); blk(x, rodY, STEEL.lo); blk(x, rodY + 1, K); }
+  for (let x = x0; x <= x1; x++) for (let j = 0; j < sub; j++) for (let i = 0; i < sub; i++) shadeF((x + 1) * sub + i, (rodY + 2) * sub + j, 90);
+  for (let x = x0; x <= x1; x++) {
+    const n = vnoise(x, 0, 6, 77), r = hash(x, 1, 77);
+    blk(x, rodY - 2, K); blk(x, rodY - 1, n > 0.62 && r < 0.7 ? RUST[3] : STEEL.hi); blk(x, rodY, n > 0.55 && r < 0.8 ? RUST[1] : STEEL.lo); blk(x, rodY + 1, K);
+  }
   if (left || right) {
     const fx = left ? 0 : W - 2;
-    for (let y = rodY - 4; y <= rodY + 4; y++) for (let x = 0; x < 2; x++) blk(fx + x, y, y === rodY - 4 || y === rodY + 4 || x === (left ? 1 : 0) ? K : STEEL.mid);
+    for (let y = rodY - 4; y <= rodY + 4; y++) for (let x = 0; x < 2; x++) blk(fx + x, y, y === rodY - 4 || y === rodY + 4 || x === (left ? 1 : 0) ? K : (hash(x, y, 5) < 0.3 ? RUST[2] : STEEL.mid));
     blk(fx + (left ? 0 : 1), rodY - 3, STEEL.hi); blk(fx + (left ? 0 : 1), rodY + 2, STEEL.hi);
+    blk(fx + (left ? 0 : 1), rodY + 3, RUST[3]);
   } else {
     const cx = Math.round((tops[0] + tops[1]) / 2);
-    for (let y = 0; y < rodY - 2; y++) { blk(cx, y, STEEL.mid); blk(cx + 1, y, K); }
+    for (let y = 0; y < rodY - 2; y++) { blk(cx, y, hash(cx, y, 3) < 0.2 ? RUST[2] : STEEL.mid); blk(cx + 1, y, K); }
   }
-  for (const tx of tops) { blk(tx - 1, rodY - 2, K); blk(tx, rodY - 2, K); blk(tx + 1, rodY - 2, K); blk(tx - 1, rodY - 1, STEEL.mid); blk(tx, rodY - 1, STEEL.hi); blk(tx + 1, rodY - 1, STEEL.lo); blk(tx - 1, rodY, STEEL.lo); blk(tx, rodY, STEEL.dk); blk(tx + 1, rodY, STEEL.lo); blk(tx, rodY + 1, K); }
-  // the panel: displaced along the arc (fine px), tilted a hair
-  const dx = Math.round(Math.sin(theta) * geo.cable * sub), dy = Math.round((1 - Math.cos(theta)) * geo.cable * sub);
-  const tilt = calm() ? 0 : theta * 0.06;
-  const c = Math.cos(tilt), s = Math.sin(tilt);
-  const bx = geo.bx * sub + dx, by = geo.by * sub - dy, pw = sp.w, ph = sp.h;
-  const ccx = bx + pw / 2, ccy = by;
-  // cables, from the rod clamps to the bolts
+  for (const tx of tops) {
+    blk(tx - 1, rodY - 2, K); blk(tx, rodY - 2, K); blk(tx + 1, rodY - 2, K);
+    blk(tx - 1, rodY - 1, STEEL.mid); blk(tx, rodY - 1, STEEL.hi); blk(tx + 1, rodY - 1, STEEL.lo);
+    blk(tx - 1, rodY, RUST[2]); blk(tx, rodY, STEEL.dk); blk(tx + 1, rodY, RUST[1]); blk(tx, rodY + 1, K);
+    blk(tx + 1, rodY + 1, RUST[1]);
+  }
+  // ---- the panel's pose: along the cable arc, yawed a little (perspective)
+  const dx = Math.sin(theta) * geo.cable * sub, dy = (1 - Math.cos(theta)) * geo.cable * sub;
+  const psi = calm() ? 0 : theta * 0.8;
+  const c = Math.cos(psi), s = Math.sin(psi);
+  const pw = sp.w, ph = sp.h;
+  const D = pw * 1.8;
+  const cxs = geo.bx * sub + pw / 2 + dx, cys = geo.by * sub + ph / 2 - dy, vc = ph / 2;
+  const proj = (a: number, v: number): [number, number] => { const f = D / (D + a * s); return [cxs + a * c * f, cys + (v - vc) * f]; };
+  // the slab's depth seen obliquely: the back sits toward the middle of the screen and below
+  // (the signs hang above eye level, so you see their underside), and it shifts as the sign turns
+  const depth = 3 * sub;
+  const ox = depth * (geo.view + s * 1.8), oy = depth * 0.6;
+  const steps = Math.max(1, Math.ceil(Math.max(Math.abs(ox), Math.abs(oy))));
+  /** the face's texel under a screen point (-1 if none) */
+  const faceIdx = (X: number, Y: number): number => {
+    const den = c * D - X * s;
+    if (den <= 1) return -1;
+    const a = (X * D) / den, f = D / (D + a * s);
+    const u = Math.floor(a + pw / 2), v = Math.floor(Y / f + vc);
+    if (u < 0 || u >= pw || v < 0 || v >= ph) return -1;
+    return sp.px[v * pw + u] ? v * pw + u : -1;
+  };
+  const look = (x: number, y: number): number => {
+    const X = x + 0.5 - cxs, Y = y + 0.5 - cys;
+    const i = faceIdx(X, Y);
+    if (i >= 0) return sp.px[i];
+    // the slab behind the face: walk back along the depth direction
+    for (let k = 1; k <= steps; k++) {
+      const t = k / steps;
+      const j = faceIdx(X - ox * t, Y - oy * t);
+      if (j < 0) continue;
+      const u = j % pw, v = (j / pw) | 0;
+      const under = v >= ph - sub * 2 || !sp.px[Math.min(ph - 1, v + sub) * pw + u];
+      const r = hash(Math.floor(u / sub), Math.floor((k * 3) / steps), 13);
+      if (r < 0.12) return px32(RUST[2 + (r < 0.05 ? 1 : 0)]);
+      // underside in the shadow of the key light, the end lit a little; the back corner darkest
+      const col = under ? (t > 0.75 ? EDGE[0] : EDGE[1]) : (t < 0.3 ? EDGE[3] : t < 0.75 ? EDGE[2] : EDGE[1]);
+      return px32(hash(u >> 2, k, 17) < 0.2 ? mix(col, 0x000000, 0.25) : col);
+    }
+    return 0;
+  };
+  // the bounding box of everything the panel can cover
+  const corners = [proj(-pw / 2, 0), proj(pw / 2, 0), proj(-pw / 2, ph), proj(pw / 2, ph)];
+  const xs = corners.map((q) => q[0]), ys = corners.map((q) => q[1]);
+  const xA = Math.max(0, Math.floor(Math.min(...xs) + Math.min(0, ox) - 2)), xB = Math.min(FW - 1, Math.ceil(Math.max(...xs) + Math.max(0, ox) + 2));
+  const yA = Math.max(0, Math.floor(Math.min(...ys) - 2)), yB = Math.min(FH - 1, Math.ceil(Math.max(...ys) + oy + 2));
+  // ---- the cast shadow on the darkness behind (falls below: the key light is above), a hard core and a dithered penumbra
+  const sox = Math.round(sub - dx * 0.25), soy = 3 * sub;
+  for (let y = yA; y <= Math.min(FH - 1, yB + soy + sub); y++) for (let x = Math.max(0, xA - sub); x <= Math.min(FW - 1, xB + 2 * sub); x++) {
+    if (look(x - sox, y - soy)) shadeF(x, y, 120);
+    else if (((x + y) & 1) === 0 && look(x - sox - sub, y - soy - sub)) shadeF(x, y, 60);
+  }
+  // ---- the cables (corroded), each with a faint shadow beside it
   for (const ax of sp.bolts) {
-    const lx = ax * sub + sub / 2 - pw / 2, ly = 2 * sub + sub / 2;
-    const ex = ccx + lx * c - ly * s, ey = ccy + lx * s + ly * c;
+    const [ex, ey] = proj(ax * sub + sub / 2 - pw / 2, 2 * sub + sub / 2);
     const sx = (geo.bx + ax) * sub + sub / 2, sy = (rodY + 1) * sub;
     const n = Math.max(2, Math.ceil(Math.hypot(ex - sx, ey - sy)));
     const thick = Math.max(1, Math.round(sub * 0.6));
     for (let i = 0; i <= n; i++) {
       const t = i / n, x = sx + (ex - sx) * t, y = sy + (ey - sy) * t;
-      for (let k = 0; k < thick; k++) putF(x - thick / 2 + k, y, k === 0 ? STEEL.hi : k === thick - 1 ? K : STEEL.lo);
+      shadeF(x + sub, y + sub, 70);
+      const rusty = hash(Math.floor(i / sub), ax, 55) < 0.3;
+      for (let k = 0; k < thick; k++) putF(x - thick / 2 + k, y, k === 0 ? (rusty ? RUST[3] : STEEL.hi) : k === thick - 1 ? K : rusty ? RUST[1] : STEEL.lo);
     }
   }
-  // inverse-mapped panel (nearest) with a hard pixel shadow behind it
-  const yA = Math.max(0, Math.floor(by - 2 * sub)), yB = Math.min(img.height - 1, Math.ceil(by + ph + 3 * sub));
-  const xA = Math.max(0, Math.floor(bx - 3 * sub)), xB = Math.min(FW - 1, Math.ceil(bx + pw + 3 * sub));
-  const sample = (x: number, y: number) => {
-    const ox = x + 0.5 - ccx, oy = y + 0.5 - ccy;
-    const u = Math.floor(ox * c + oy * s + pw / 2), v = Math.floor(-ox * s + oy * c);
-    if (u < 0 || v < 0 || u >= pw || v >= ph) return 0;
-    return sp.px[v * pw + u];
-  };
-  const shadow = px32(0x000000, 110);
-  for (let y = yA; y <= yB; y++) for (let x = xA; x <= xB; x++) if (sample(x - sub, y - 2 * sub) && !g32[y * FW + x]) g32[y * FW + x] = shadow;
-  // the sheen: a pixel band of light (art-pixel steps) that slides across the metal with the swing
-  const off = (theta * 1.5 + 0.28) * geo.bw;
-  const sheenA = FIN[kind].dark ? 0.1 : 0.16;
+  // ---- the panel itself: lit by the key from above, a faint specular sliding across as it turns
+  const lightK = 1 - s * 0.16;
+  const spec = (s * 1.4 + 0.3) * pw;
+  const specA = FIN[kind].dark ? 0.06 : 0.1;
   for (let y = yA; y <= yB; y++) for (let x = xA; x <= xB; x++) {
-    const p = sample(x, y);
+    const p = look(x, y);
     if (!p) continue;
-    let out = p;
-    const ox = x + 0.5 - ccx, oy = y + 0.5 - ccy;
-    const u = Math.floor((ox * c + oy * s + pw / 2) / sub), v = Math.floor((-ox * s + oy * c) / sub);
-    const d = u - v * 0.7 - off;
-    if ((d > 0 && d < 4) || (d > 6 && d < 7)) {
-      const r = p & 255, gg = (p >> 8) & 255, b = (p >> 16) & 255, a = d > 6 ? sheenA * 0.6 : sheenA;
-      out = px32(((Math.round(r + (255 - r) * a)) << 16) | ((Math.round(gg + (255 - gg) * a)) << 8) | Math.round(b + (255 - b) * a));
-    }
-    g32[y * FW + x] = out;
+    let r = p & 255, g = (p >> 8) & 255, b = (p >> 16) & 255;
+    r *= lightK; g *= lightK; b *= lightK;
+    const d = (x - xA) - (y - yA) * 0.8 - spec;
+    if (d > 0 && d < 3 * sub) { r += (255 - r) * specA; g += (255 - g) * specA; b += (255 - b) * specA; }
+    g32[y * FW + x] = px32((Math.min(255, Math.round(r)) << 16) | (Math.min(255, Math.round(g)) << 8) | Math.min(255, Math.round(b)));
   }
 }
 
@@ -403,7 +510,7 @@ export function hangSign(label: string, onClick: (b: HangSign) => void, o: SignO
   };
   const render = () => {
     if (!geo || !ctx || !img || !g32 || !sprites.length) return;
-    const th = calm() ? 0 : Math.round(L.theta * 200) / 200;
+    const th = calm() ? 0 : Math.round(L.theta * 300) / 300;
     if (th === L.drawn && sprites[state] === (render as any).last) return;
     L.drawn = th; (render as any).last = sprites[state];
     drawFrame(img, g32, geo, sprites[state], th, kind);
@@ -419,10 +526,12 @@ export function hangSign(label: string, onClick: (b: HangSign) => void, o: SignO
     const d = dims();
     const bw = Math.max(boardW, needW());
     const rodY = hang === 'hook' ? 5 : 4;
-    const mx = Math.ceil(d.chain * 0.75) + 3;
+    const mx = Math.ceil(d.chain * 0.75) + 5;
     const top = rodY + 2;
-    const W = bw + 2 * mx, H = top + d.chain + d.bh + 4;
-    geo = { W, H, bx: mx, by: top + d.chain, bw, bh: d.bh, rodY, cable: d.chain + 2, hang, shape, sub };
+    const W = bw + 2 * mx, H = top + d.chain + d.bh + 8;
+    const rr = b.getBoundingClientRect(), vw = window.innerWidth || 1280;
+    const view = rr.width ? Math.max(-0.6, Math.min(0.6, ((vw / 2 - (rr.left + rr.width / 2)) / (vw / 2)) * 0.6)) : 0.4;
+    geo = { W, H, bx: mx, by: top + d.chain, bw, bh: d.bh, rodY, cable: d.chain + 2, hang, shape, sub, view };
     canvas.width = W * sub; canvas.height = H * sub;
     canvas.style.width = W * s + 'px'; canvas.style.height = H * s + 'px';
     b.style.width = W * s + 'px'; b.style.height = H * s + 'px';
