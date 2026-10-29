@@ -8,8 +8,6 @@
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpBlend } from '../fp/fp';
-import { ModelBuilder } from '../gfx/modelBuilder';
-import { worldMaterial } from '../gfx/materials';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { PixTex, PAL, flatMat } from './pix';
 import { Shape } from '../craft/shapes';
@@ -52,7 +50,7 @@ export class Scope {
   constructor() {
     this.g = fpGroup('scope');
     this.g.add(new THREE.HemisphereLight(0xc8c0b0, 0x2a241c, 0.6));
-    const key = new THREE.DirectionalLight(0xfff0d8, 1.3); key.position.set(-0.4, 0.8, 1); this.g.add(key);
+    const key = new THREE.DirectionalLight(0xfff0d8, 0.85); key.position.set(-0.4, 0.8, 1); this.g.add(key);
     const rimL = new THREE.DirectionalLight(0x9ab0c8, 0.6); rimL.position.set(0.7, 0.2, -0.6); this.g.add(rimL);
     this.g.add(this.dev);
     this.arms = new StageArms(this.g);
@@ -165,7 +163,7 @@ export class Scope {
     const k = ease(Math.min(1, this.raise, Math.max(fpBlend(), this.want ? 0 : 1)));
     const bob = G.local && G.local.speed > 0.2 ? Math.sin(G.time * 7) * 0.003 : 0;
     const asp = innerWidth / Math.max(1, innerHeight), nar = asp < 1.2;
-    this.dev.position.set(nar ? -0.035 : -0.115, (nar ? -0.07 : -0.035) - (1 - k) * 0.25 + bob, -0.5);
+    this.dev.position.set(nar ? -0.012 : -0.115, (nar ? -0.04 : 0.0) - (1 - k) * 0.25 + bob, -0.5);
     this.dev.scale.setScalar(nar ? Math.max(0.5, asp * 1.1) : 1);
     this.dev.rotation.set(-0.12 + (1 - k) * 0.6, 0.28, 0.05);
     // held in the left hand by its strap

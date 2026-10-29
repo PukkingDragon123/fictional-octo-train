@@ -7,11 +7,9 @@ import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import { fpGroup, fpClaim, fpRelease, fpCamera, fpBlend } from '../fp/fp';
-import { ModelBuilder } from '../gfx/modelBuilder';
-import { worldMaterial } from '../gfx/materials';
 import { hasUnlock } from '../game/research';
 import { shake } from '../gfx/juice';
-import { PixTex, PAL, PointerLayer, flatMat, overlayRay } from '../scan/pix';
+import { PixTex, PAL, PointerLayer, overlayRay } from '../scan/pix';
 import { crtScreen, phosphorText, type CrtScreen } from '../gfx/crt';
 import { Shape } from '../craft/shapes';
 import { pixMat } from '../craft/fpTex';
@@ -171,8 +169,9 @@ export class Remote {
     this.raise = Math.min(1, this.raise + dt * 5);
     const k = Math.min(1 - Math.pow(1 - this.raise, 3), fpBlend());
     const asp = innerWidth / Math.max(1, innerHeight);
-    this.box.position.set(0.0, -0.02 - (1 - k) * 0.2, -0.42);
-    this.box.scale.setScalar(Math.min(1, asp * 1.15));
+    const nar = asp < 1.2;
+    this.box.position.set(0.0, (nar ? -0.02 : 0.03) - (1 - k) * 0.2, -0.45);
+    this.box.scale.setScalar(nar ? Math.max(0.55, asp * 1.35) : 1);
     this.box.rotation.set(-0.35 + (1 - k) * 0.5, -0.05, 0.02);
     // the toggles show the order it is under; pressed things dip
     for (const [key, tg] of this.toggles) {

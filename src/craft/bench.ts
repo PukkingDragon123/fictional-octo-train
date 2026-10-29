@@ -130,7 +130,7 @@ export class Bench {
     frame.box(0, 0.45, -0.35, 2.4, 0.04, 0.05, 0xd8c8b0, 0.006);
     frame.box(0, 0.0, -0.345, 2.3, 0.03, 0.04, 0xc0b098, 0.005);
     frame.jbox(0, 0.49, -0.31, 2.3, 0.022, 0.13, 0xf0e0c8, 0.002, 4);
-    for (const x of [-0.8, 0, 0.8]) frame.taper(x, 0.41, -0.26, 0.03, 0.03, 0.03, 0.08, 0.08, 0xb0a088, undefined, 0, -0.025);
+    for (const x of [-1.0, -0.6, 0.6, 1.0]) frame.taper(x, 0.41, -0.26, 0.03, 0.03, 0.03, 0.08, 0.08, 0xb0a088, undefined, 0, -0.025);
     peg.box(0, 0.03, -0.355, 2.3, 0.42, 0.012, 0xffffff, 0.002);
     // ---- the vice: green enamel body, steel jaws faced with hatching, a chrome screw and tommy bar
     green.jbox(0.68, 0, -0.16, 0.17, 0.065, 0.13, 0xffffff, 0.002, 5);

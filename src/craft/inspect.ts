@@ -23,7 +23,6 @@ import { queueTransfers } from '../actions/transfer';
 import { itemMenuOptions } from '../interact/itemMenu';
 import { recipesUsing } from '../interact/crafting';
 import { fpGroup, fpClaim, fpRelease, fpCamera, fpOwner } from '../fp/fp';
-import { ModelBuilder } from '../gfx/modelBuilder';
 import { hasUnlock, researchNode, grantResearch } from '../game/research';
 import { shake as camShake } from '../gfx/juice';
 import { type HandOp, opsForItem, opsForObject, opWork, pickTool, pickParts, type PartPick, partLabel, toolLabel } from './handOps';

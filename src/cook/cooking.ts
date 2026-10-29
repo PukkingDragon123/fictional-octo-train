@@ -17,7 +17,7 @@ import { itemDef, type Item } from '../items/item';
 import { createItem } from '../items/factory';
 import { itemGeometry } from '../items/itemMeshes';
 import { Sheet, sheetMesh, overlayRay, whenFonts, FONT } from '../build/paper';
-import { std, lathe, aimY } from '../build/shapes';
+import { aimY } from '../build/shapes';
 import { fpArmsFor, type FpArm } from '../fp/hands';
 import { Shape } from '../craft/shapes';
 import { pixMat } from '../craft/fpTex';
@@ -508,9 +508,9 @@ export class CookView {
     const H = this.stationHeat();
     // slide the rig into place, pan kick
     // the stove rises into view with the cut-in
-    this.rig.position.y = lerp(-0.5, 0.0, fpBlend());
-    // portrait: the whole fire steps back so the board, the pan, the pot and the plate all fit across
+    // portrait: the whole fire steps back (and down, filling the bottom) so the board, the pan, the pot and the plate all fit across
     const asp = innerWidth / Math.max(1, innerHeight);
+    this.rig.position.y = lerp(-0.5, asp >= 1.2 ? 0.0 : -0.17, fpBlend());
     this.rig.scale.setScalar(asp >= 1.2 ? 1 : Math.max(0.36, asp * 0.8));
     this.panKick = Math.max(0, this.panKick - dt * 3.5);
     const kick = Math.sin(this.panKick * Math.PI) * 0.06;

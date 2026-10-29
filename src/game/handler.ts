@@ -92,7 +92,7 @@ export class Handler implements GameSystem {
   private unfold = 1.6;
   /** dev: lines run faster (screenshot scripts) */
   talkSpeed = 1;
-  private collT = -1;
+  collT = -1;
   private dot: THREE.Mesh;
   private where: HandlerWhere = 'band';
   private zoneKey = '';
@@ -519,8 +519,10 @@ export class Handler implements GameSystem {
   }
 
   /** the tube switching off: squeeze to a line (bright), the line to a dot, the dot out */
+  /** dev: freeze the collapse (screenshots) */
+  collHold = false;
   private updateCollapse(dt: number) {
-    this.collT += dt;
+    if (!this.collHold) this.collT += dt;
     const t = this.collT, CY = 0.95;
     const a = Math.min(1, t / 0.2), b = Math.min(1, Math.max(0, (t - 0.2) / 0.17));
     const ea = a * a * (3 - 2 * a), eb = b * b;
@@ -528,10 +530,11 @@ export class Handler implements GameSystem {
     const root = this.rig.root;
     if (sx > 0.01) {
       root.visible = true;
-      root.scale.set(sx, sy, sx);
+      root.scale.set(sx, sy, sx * (1 - ea * 0.75));
       root.position.y = this.y + (1 - sy) * CY;
       HOLO.uHolo.value.set(1 + ea * 2.2, 0.15, 1, 1);
-      HOLO_BASE.uHoloBase.value = -50;
+      // (the unfold cut-off line is far above him: the squeezed picture must not be clipped)
+      HOLO_BASE.uHoloBase.value = this.y + 50;
     } else root.visible = false;
     // the dot: born as the line goes, burns a moment, shrinks out
     const d = t < 0.3 ? 0 : t < 0.42 ? (t - 0.3) / 0.12 : Math.max(0, 1 - (t - 0.42) / 0.45);

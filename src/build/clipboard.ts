@@ -169,7 +169,7 @@ export class Clipboard {
     this.raise = Math.min(1, this.raise + dt * 3.5);
     const e = 1 - Math.pow(1 - this.raise, 3);
     const asp = innerWidth / Math.max(1, innerHeight), nar = asp < 1.2;
-    this.rig.position.set(nar ? -0.07 : -0.36, lerp(-0.62, nar ? -0.2 : -0.075, e) + Math.sin(G.time * 1.3) * 0.003, -1.02);
+    this.rig.position.set(nar ? -0.07 : -0.36, lerp(-0.62, nar ? -0.05 : -0.075, e) + Math.sin(G.time * 1.3) * 0.003, -1.02);
     this.rig.scale.setScalar(nar ? Math.max(0.42, asp * 0.95) : 0.78);
     // scale model of the piece
     const mk = st.pc.key;

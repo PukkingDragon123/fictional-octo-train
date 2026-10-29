@@ -9,7 +9,6 @@ import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import { fpGroup, fpClaim, fpRelease, fpCamera, fpBlend } from '../fp/fp';
-import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { itemDef } from '../items/item';
 import type { Item } from '../items/item';

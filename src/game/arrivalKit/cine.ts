@@ -46,14 +46,13 @@ float h12(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453
 float lin(float d) { float z = d * 2.0 - 1.0; return 2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear)); }
 vec3 toSRGB(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
 float caustic(vec2 p, float t) {
-  vec2 i = p; float c = 1.0; float inten = 0.008;
-  for (int n = 0; n < 3; n++) {
-    float tt = t * (1.0 - (3.5 / float(n + 1)));
-    i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x));
-    c += 1.0 / length(vec2(p.x / (sin(i.x + tt) / inten), p.y / (cos(i.y + tt) / inten)));
+  float v = 0.0;
+  vec2 q = p;
+  for (int i = 0; i < 3; i++) {
+    q += vec2(sin(q.y * 1.7 + t), cos(q.x * 1.3 - t * 0.8)) * 0.55;
+    v += abs(sin(q.x) * sin(q.y));
   }
-  c /= 3.0; c = 1.17 - pow(c, 1.4);
-  return clamp(pow(abs(c), 6.0), 0.0, 2.0);
+  return pow(clamp(1.0 - v / 3.0, 0.0, 1.0), 6.0);
 }
 vec3 tap(vec2 uv) { return texture2D(tColor, (floor(uv * uRes) + 0.5) / uRes).rgb; }
 vec3 scene(vec2 uv) {
@@ -110,20 +109,21 @@ void main() {
     float t = uTime;
     vec2 p = (wuv - 0.5) * vec2(uRes.x / uRes.y, 1.0);
     float k = caustic(p * 5.0 + vec2(0.0, t * 0.3), t * 0.6 + 7.0);
-    vec3 murk = vec3(0.004, 0.012, 0.011) + vec3(0.03, 0.16, 0.15) * k * (0.6 + 0.4 * sin(t * 4.2));
-    // streaks of refracted light sliding past
-    float st = smoothstep(0.985, 1.0, sin(p.x * 40.0 + sin(p.y * 3.0 + t) * 4.0 + t * 2.0));
-    murk += vec3(0.05, 0.22, 0.2) * st * (0.5 + 0.5 * sin(p.y * 6.0 - t * 3.0));
+    vec3 murk = vec3(0.002, 0.007, 0.007) + vec3(0.016, 0.085, 0.08) * k * (0.55 + 0.45 * sin(t * 4.2));
+    // a few slanted shafts of the light you came from, bent and sliding away
+    float sh = pow(max(0.0, sin(p.x * 2.6 + p.y * 1.3 + sin(p.y * 3.7 + t * 1.3) * 0.5 + t * 0.7)), 24.0);
+    murk += vec3(0.03, 0.12, 0.11) * sh * (0.6 + 0.4 * sin(p.y * 5.0 - t * 2.0));
     // bubbles rising past
-    for (int i = 0; i < 9; i++) {
+    for (int i = 0; i < 7; i++) {
       float fi = float(i);
       vec2 b = vec2(fract(sin(fi * 37.1) * 431.7) * 1.8 - 0.9, fract(fi * 0.137 + t * (0.18 + fract(fi * 0.71) * 0.25)) * 1.6 - 0.8);
-      float rr = 0.012 + fract(fi * 0.53) * 0.03;
+      float rr = 0.008 + fract(fi * 0.53) * 0.02;
       float dd = length((p - b) * vec2(1.0, 0.8));
-      murk += vec3(0.12, 0.3, 0.28) * (smoothstep(rr, rr * 0.75, dd) - smoothstep(rr * 0.75, rr * 0.4, dd)) * 0.8;
+      murk += vec3(0.08, 0.2, 0.19) * (smoothstep(rr, rr * 0.75, dd) - smoothstep(rr * 0.75, rr * 0.4, dd)) * 0.7;
     }
-    float close = smoothstep(0.15, 0.7, length(p)) * uInside;
-    murk *= 1.0 - close * 0.85;
+    // the dark closing in from the edges; the heart pushing light through it
+    float close = smoothstep(0.08, 0.6, length(p)) * uInside;
+    murk *= (1.0 - close * 0.92) * (0.85 + uHeart * 0.4);
     c = mix(c, murk, smoothstep(0.0, 0.45, uInside));
   }
   vec3 s = toSRGB(c);

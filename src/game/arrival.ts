@@ -51,7 +51,7 @@ import { readTime } from './lines';
 import type { SeamFx } from './seam';
 import { debtorNumber } from './handler';
 import { CinePass } from './arrivalKit/cine';
-import { makeJelly, JW, JH, type Jelly } from './arrivalKit/jelly';
+import { makeJelly, type Jelly } from './arrivalKit/jelly';
 import { buildWallSet, LAMP_POS, type WallSet } from './arrivalKit/wallSet';
 import { Chute } from './arrivalKit/chute';
 import { packWorldMesh, packOverlayGroup, disposeGroup, fpStrap } from './arrivalKit/packModel';
@@ -162,7 +162,6 @@ class Arrival implements GameSystem {
   private wall: WallSet | null = null;
   private jelly: Jelly | null = null;
   private arm: FpArm | null = null;
-  private sceneWas = true;
   private camPos = new THREE.Vector3(); private camLook = new THREE.Vector3();
   private trauma = 0;
   private reach = 0; private dive = 0; private glow = 0.5;
@@ -349,7 +348,6 @@ class Arrival implements GameSystem {
     cine.scene.add(this.arm.root);
     this.camPos.set(0.06, 1.62, 0.92);
     this.camLook.set(0.0, 1.27, 0);
-    this.sceneWas = g.pr.scene.visible;
     g.pr.scene.visible = false;
     this.shadeA = 0;
     G.audio?.positionalLoop?.('arv:drone', 'seam_drone', this.p.x, this.p.z, 0.5, 0.9);
@@ -453,7 +451,7 @@ class Arrival implements GameSystem {
     j.u.uHot.value = this.contact ? 1 : 0;
     // the heart quickens
     this.heartT -= dt;
-    if (this.heartT <= 0 && t > 0.6 && t < 5.2) { this.heartT = Math.max(0.42, 0.95 - t * 0.1); this.sfx('arv_heart', 0.35 + t * 0.06); cine.heart = 1; }
+    if (this.heartT <= 0 && t > 0.6 && t < 6.7) { this.heartT = t > 5.2 ? 0.55 : Math.max(0.42, 0.95 - t * 0.1); this.sfx('arv_heart', 0.35 + t * 0.06); cine.heart = 1; }
     cine.heart = Math.max(0, cine.heart - dt * 5);
     // the glow swells as it gets interested
     const gGoal = 0.45 + (this.contact ? 0.35 : this.pro * 0.4) + (t > 4.75 ? 0.4 : 0);
@@ -503,7 +501,8 @@ class Arrival implements GameSystem {
     this.wall?.dispose(); this.wall = null;
     if (this.jelly) { this.jelly.mesh.removeFromParent(); this.jelly.dispose(); this.jelly = null; }
     this.arm?.dispose(); this.arm = null;
-    this.g.pr.scene.visible = this.sceneWas || true;
+    // (the world comes back whatever hid it: the arrival's next picture is the Lobby)
+    this.g.pr.scene.visible = true;
     G.audio?.positionalLoop?.('arv:slide', null);
     G.audio?.positionalLoop?.('arv:drone', null);
   }
@@ -928,7 +927,7 @@ class Arrival implements GameSystem {
 
   /** first person: kneel, both hands to it, lift, swing it onto the back */
   private *pickup(): Script {
-    const p = this.p, g = this.g;
+    const p = this.p;
     if (!this.pack) { givePack(p, this.packItem); this.packItem = null; return; }
     this.packFalling = false;
     this.pack.position.copy(this.packPos); this.pack.quaternion.copy(this.packRest);
@@ -1061,7 +1060,6 @@ class Arrival implements GameSystem {
     this.disposeFp();
     this.pack?.removeFromParent();
     this.pack = null;
-    void g;
   }
   private disposeFp() {
     if (this.arms) { this.arms.left.dispose(); this.arms.right.dispose(); this.arms = null; }
@@ -1182,4 +1180,3 @@ class Arrival implements GameSystem {
     for (let i = 0; i < steps; i++) this.update(0.05);
   }
 }
-void JW; void JH;

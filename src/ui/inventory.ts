@@ -207,6 +207,9 @@ export class InventoryUI {
     try { (G as any).craft = craftSystem(); } catch (e) { console.warn('craft', e); }
   }
 
+  /** older scripts call it the hover tag */
+  get hoverTag() { return this.gtag; }
+
   private mkReach(): Reach { return { o: null, at: new THREE.Vector3(), w: 0, pose: 'relaxed', roll: 0 }; }
 
   // ================================================================ 3D scene
@@ -1046,7 +1049,7 @@ export class InventoryUI {
         // on the open floor by the pack's top corner on the item's side (clear of the roll and the container), tied back to it over the wall
         const lp = this.cube.root.worldToLocal(_v2.copy(_v));
         const side = lp.x >= 0 ? 1 : -1, sz = this.cube.size;
-        this.cube.root.localToWorld(rest.set(side * (sz.x / 2 + 0.17), 0.004, -sz.z / 2 + 0.03));
+        this.cube.root.localToWorld(rest.set(side * (sz.x / 2 + 0.2), 0.004, -sz.z / 2 - 0.06));
       } else rest.copy(_v);
       toW(_v); toW(rest);
       if (h.view !== this.cube) { rest.y = 0.006; rest.z += 0.13; rest.x += rest.x > 0 ? -0.05 : 0.05; } else rest.y = 0.004;
