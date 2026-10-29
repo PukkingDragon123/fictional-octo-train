@@ -53,26 +53,30 @@ function handSmear(pc: PixelCanvas, rng: Rng) {
   for (let k = 0; k < 4; k++) { const x = rng.int(5, 26), y0 = rng.int(22, 26), len = rng.int(3, 8); for (let j = 0; j < len; j++) over(pc, x, y0 + j, BLOOD[1], 210 - j * 18); }
 }
 
-/** two dragged heel streaks, smudged, fading toward the start (fit 32 x 64: 1 x 2 m) */
+/** something heavy dragged along the floor: two broad smeared bands with gaps, a pool where it lay (fit 32 x 64: 1 x 2 m) */
 function dragMarks(pc: PixelCanvas, rng: Rng) {
   pc.wrap = false; pc.clear();
-  for (const cx of [11, 20]) {
-    let x = cx;
-    for (let y = 2; y < 62; y++) {
-      if (ph(cx, y >> 2, 4) < 0.5) x += ph(cx, y, 5) < 0.5 ? 1 : -1;
-      x = Math.max(cx - 3, Math.min(cx + 3, x));
-      const t = y / 62, wdt = 2 + Math.floor(t * 2);
-      const a = 120 + t * 115;
-      for (let i = 0; i < wdt; i++) if (ph(x + i, y, 9) > 0.18 * (1 - t)) over(pc, x + i, y, i === 0 || i === wdt - 1 ? BLOOD[1] : BLOOD[2], a);
+  for (const cx of [10, 21]) {
+    for (let y = 2; y < 50; y++) {
+      const t = y / 50;                          // 0 far end (faint) .. 1 at the pool
+      const sway = Math.round(Math.sin(y * 0.11 + cx) * 1.5);
+      const wdt = 3 + Math.floor(t * 3);
+      for (let i = 0; i < wdt; i++) {
+        const x = cx + sway + i - (wdt >> 1);
+        // the smear breaks up where the drag skipped, thicker toward the pool
+        if (tileFbm(x, y, 32, 64, 4, 2, 17) < 0.42 - t * 0.25) continue;
+        const edge = i === 0 || i === wdt - 1;
+        over(pc, x, y, edge ? BLOOD[1] : ph(x, y, 4) < 0.25 ? BLOOD[3] : BLOOD[2], Math.round(90 + t * 140));
+      }
     }
   }
   // the pool the body was lying in
-  for (let y = 46; y < 64; y++) for (let x = 2; x < 30; x++) {
-    const m = blob(x, y, 16, 57, 11, 6, 7, 0.45);
+  for (let y = 40; y < 64; y++) for (let x = 2; x < 30; x++) {
+    const m = blob(x, y, 16, 55, 11, 7, 7, 0.45);
     if (m > 0) over(pc, x, y, m < 0.15 ? BLOOD[0] : m > 0.6 && ph(x, y, 3) < 0.2 ? BLOOD[4] : BLOOD[2], m < 0.15 ? 220 : 240);
   }
-  // smudged palm marks beside the streaks
-  for (let k = 0; k < 3; k++) { const x = rng.int(3, 27), y = rng.int(8, 40); for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) if (ph(x + i, y + j, 2) < 0.7) over(pc, x + i, y + j, BLOOD[1], 170); }
+  // smudged palm marks beside the bands
+  for (let k = 0; k < 3; k++) { const x = rng.int(3, 27), y = rng.int(8, 36); for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) if (ph(x + i, y + j, 2) < 0.7) over(pc, x + i, y + j, BLOOD[1], 170); }
 }
 
 /** water damage pouring from the ceiling joint: tide-lined tongue, drip runs, rust-brown edge (fit 32 x 64) */
@@ -132,7 +136,7 @@ function sootPlume(pc: PixelCanvas, rng: Rng) {
     const w = 5 + t * 11 + (tileFbm(x, y, 32, 64, 3, 2, 21) - 0.5) * 10;
     const d = Math.abs(x - 16) / w;
     if (d >= 1) continue;
-    const core = d < 0.45 && t < 0.6;
+    const core = d < 0.35 && t < 0.3 + tileFbm(x, y, 32, 64, 4, 2, 23) * 0.25;
     over(pc, x, y, core ? 0x0a0806 : d < 0.75 ? 0x1c1712 : 0x2e2620, core ? 240 : d < 0.75 ? 200 : 130);
   }
   for (let k = 0; k < 10; k++) over(pc, rng.int(8, 24), rng.int(46, 63), 0x050403, 255);

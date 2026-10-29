@@ -199,7 +199,9 @@ const FRAG_MAP = /* glsl */`
     vec2 tw = fwidth(tuv);
     float tpp = max(tw.x, tw.y);
     bool worldAtlas = textureSize(map, 0).x == int(uAtlasSize + 0.5);
-    if (tpp < 0.6 && tpp > 0.0 && worldAtlas) {
+    // the switch distance is dithered in clumps so there is no visible line where the detail starts
+    float swT = 0.6 + (fract(sin(dot(floor(tuv), vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.16;
+    if (tpp < swT && tpp > 0.0 && worldAtlas) {
       bool hasHd = vHd.w < 0.0 && vHd.z > 0.0;
       if (hasHd) {
         vec2 hdPx = max(vec2(vHd.z, -vHd.w) * uHdSize, vec2(1.0));

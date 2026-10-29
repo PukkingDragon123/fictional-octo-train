@@ -15,13 +15,24 @@ import { plate as polyPlate, face as polyFace, ngon } from '../ui/touch/facet';
 
 const _v = new THREE.Vector3();
 
-/** label tape that drops down from the top of view with a short message */
+/**
+ * Embossed label tape with a short message. 'drop': it drops into view from the top (legacy);
+ * 'stick': a strip is pressed onto a surface from its left end (place(x, y, z) in the parent's
+ * space), stays a moment, then is peeled off again.
+ */
 export class Dymo {
   readonly tag = pixTag('dymo', 132, 11, 0.42);
   private t = 0;
   private y0 = 0.36; private y1 = 0.25;
-  constructor(parent: THREE.Object3D, z = -1.1) { this.tag.mesh.position.set(0, this.y0, z); this.tag.mesh.renderOrder = 20; parent.add(this.tag.mesh); this.tag.mesh.visible = false; }
-  place(y: number, z: number) { this.y1 = y; this.y0 = y + 0.12; this.tag.mesh.position.z = z; }
+  constructor(parent: THREE.Object3D, z = -1.1, private mode: 'drop' | 'stick' = 'drop') {
+    this.tag.mesh.position.set(0, this.y0, z); this.tag.mesh.renderOrder = 20; parent.add(this.tag.mesh); this.tag.mesh.visible = false;
+    if (mode === 'stick') this.tag.mesh.geometry.translate(0.21, 0, 0);
+  }
+  /** drop: rest height y at depth z. stick: the strip's left end at x, y, z */
+  place(a: number, b: number, c?: number) {
+    if (this.mode === 'stick') { this.tag.mesh.position.set(a, b, c ?? 0); return; }
+    this.y1 = a; this.y0 = a + 0.12; this.tag.mesh.position.z = b;
+  }
   hide() { this.t = 0; this.tag.mesh.visible = false; }
   show(text: string, bad = false) {
     const t = this.tag;
@@ -29,13 +40,20 @@ export class Dymo {
     const s = text.toUpperCase().slice(0, 21);
     t.type(s, Math.max(2, Math.floor((t.w - s.length * 6) / 2)), 2, bad ? 0xffe0a0 : undefined);
     t.flush();
-    this.t = 2.2;
+    this.t = 2.4;
     t.mesh.visible = true;
+    if (this.mode === 'stick') { t.mesh.scale.set(0.05, 1, 1); t.mesh.rotation.z = (Math.random() - 0.5) * 0.04; }
   }
   update(dt: number) {
     if (this.t <= 0) { this.tag.mesh.visible = false; return; }
     this.t -= dt;
     const m = this.tag.mesh;
+    if (this.mode === 'stick') {
+      // pressed on left to right, peeled back off at the end
+      const on = Math.min(1, (2.4 - this.t) / 0.22), off = this.t < 0.25 ? this.t / 0.25 : 1;
+      m.scale.x = Math.max(0.02, Math.min(on, off));
+      return;
+    }
     const target = this.t > 0.3 ? this.y1 : this.y0;
     m.position.y = damp(m.position.y, target, 16, dt);
     m.rotation.z = Math.sin(this.t * 9) * 0.01;
@@ -47,7 +65,8 @@ export class HoverTag {
   readonly tag = pixTag('tag', 80, 50, 0.25);
   readonly line = tagString();
   private key = '';
-  constructor(parent: THREE.Object3D) { parent.add(this.tag.mesh, this.line); this.hide(); this.tag.mesh.renderOrder = 18; }
+  /** lay: the tag lies on a work surface (parent space, y up) instead of hanging at arm's length in camera space */
+  constructor(parent: THREE.Object3D, private lay = false) { parent.add(this.tag.mesh, this.line); this.hide(); this.tag.mesh.renderOrder = 18; }
   hide() { this.tag.mesh.visible = false; this.line.visible = false; this.key = ''; }
   /** describe an item (n = stack size); tied to `at` (camera space) */
   item(it: Item, n: number, at: THREE.Vector3) {
@@ -80,6 +99,16 @@ export class HoverTag {
   }
   private place(at: THREE.Vector3) {
     const m = this.tag.mesh;
+    if (this.lay) {
+      // lying on the boards in front of the thing, propped on its edge toward you, the string tied back to it
+      m.visible = true; this.line.visible = true;
+      const right = at.x > 0.25;
+      m.position.set(at.x + (right ? -0.2 : 0.2), 0.03, Math.min(0.24, at.z + 0.12));
+      m.rotation.set(-0.5, 0, right ? 0.07 : -0.07);
+      _v.set(m.position.x, m.position.y + 0.05, m.position.z - 0.03);
+      setString(this.line, _v, at);
+      return;
+    }
     m.visible = true; this.line.visible = true;
     // same spot on screen as the thing, pulled to arm's length so the type is big enough to read
     const k = -1.0 / Math.min(-0.2, at.z);

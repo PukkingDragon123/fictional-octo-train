@@ -118,7 +118,7 @@ function metal(p: PixelCanvas, r: Rng, o: { base: number; spread?: number; brush
 }
 function enamel(p: PixelCanvas, r: Rng, color: number, seed: number, chips = 14) {
   const ramp = makeRamp(color, 6, { hueShift: 0.03, spread: 0.32 });
-  p.each((x, y) => p.set(x, y, rampAt(p, ramp, x, y, 0.55 + (fbm(p, x, y, 3, seed, 3) - 0.5) * 0.45)));
+  p.each((x, y) => p.set(x, y, rampAt(p, ramp, x, y, 0.55 + (fbm(p, x, y, 3, seed, 3) - 0.5) * 0.24 + (hashf(x, y, seed) - 0.5) * 0.1)));
   p.grime(scaleHex(color, 0.55), 0.5, 3, seed + 2, 0.52);
   // chips knock the enamel off to black iron, a rust ring round the scar, a lit lip on the far edge
   for (let i = 0; i < chips; i++) {
@@ -171,7 +171,7 @@ const R: Record<TexKind, Recipe> = {
   } },
   masonite: { w: 64, h: 64, rough: 0.7, metal: 0, draw: (p, r) => {
     const ramp = makeRamp(0x6e4c30, 6, { spread: 0.38 });
-    p.each((x, y) => p.set(x, y, rampAt(p, ramp, x, y, 0.55 + (fbm(p, x, y, 6, 51, 3) - 0.5) * 0.35)));
+    p.each((x, y) => p.set(x, y, rampAt(p, ramp, x, y, 0.55 + (fbm(p, x, y, 6, 51, 3) - 0.5) * 0.22 + (hashf(x, y, 51) - 0.5) * 0.1)));
     scratch(p, r, ramp[5], 14, 14, -1, 0.35); scratch(p, r, ramp[0], 8, 9, -1, 0.4);
     p.grime(0x24160a, 0.5, 3, 52, 0.5);
   } },
@@ -219,7 +219,7 @@ const R: Record<TexKind, Recipe> = {
   } },
   bakeliteCream: { w: 64, h: 64, rough: 0.4, metal: 0, env: 0.5, draw: (p, r) => {
     const ramp = makeRamp(0xdccaa2, 6, { spread: 0.3 });
-    p.each((x, y) => p.set(x, y, rampAt(p, ramp, x, y, 0.55 + (fbm(p, x, y, 3, 121, 3) - 0.5) * 0.5)));
+    p.each((x, y) => p.set(x, y, rampAt(p, ramp, x, y, 0.55 + (fbm(p, x, y, 3, 121, 3) - 0.5) * 0.26 + (hashf(x, y, 121) - 0.5) * 0.1)));
     p.grime(0x6a5432, 0.6, 3, 122, 0.5);
     scratch(p, r, 0x8a7652, 12, 8, -1, 0.35);
     for (let i = 0; i < 6; i++) blob(p, r.float(0, 64), r.float(0, 64), r.float(0.8, 1.8), i, (x, y) => p.set(x, y, 0x5a4a32));
@@ -227,7 +227,7 @@ const R: Record<TexKind, Recipe> = {
   rubber: { w: 32, h: 32, rough: 0.9, metal: 0, draw: (p, r) => { const ramp = makeRamp(0x2a2622, 5, { spread: 0.35 }); p.each((x, y) => p.set(x, y, rampAt(p, ramp, x, y, 0.5 + (hashf(x, y, 131) - 0.5) * 0.5))); scratch(p, r, ramp[4], 5, 6, -1, 0.4); } },
   leather: { w: 64, h: 64, rough: 0.7, metal: 0, draw: (p, r) => {
     const ramp = makeRamp(0x6a3e22, 6, { spread: 0.45 });
-    p.each((x, y) => p.set(x, y, rampAt(p, ramp, x, y, 0.55 + (fbm(p, x, y, 8, 141, 3) - 0.5) * 0.6)));
+    p.each((x, y) => p.set(x, y, rampAt(p, ramp, x, y, 0.55 + (fbm(p, x, y, 8, 141, 3) - 0.5) * 0.36 + (hashf(x, y, 141) - 0.5) * 0.12)));
     for (let i = 0; i < 14; i++) { const x = r.float(0, 64), y = r.float(0, 64), l = r.float(4, 12), a = r.float(0, 3); for (let k = 0; k < l; k++) p.blend(x + Math.cos(a) * k, y + Math.sin(a) * k + Math.sin(k) * 0.6, ramp[0], 0.5); }
   } },
 
@@ -285,9 +285,9 @@ const R: Record<TexKind, Recipe> = {
     // bark along the length, charred to alligator scales, the cracks glowing
     p.each((x, y) => {
       const n = fbm(p, x, y, 6, 241, 3, 2, 0.5);
-      // alligator scales: a jittered grid of cells, the edges between them are the cracks
-      const wx = x + (fbm(p, x, y, 4, 243, 2) - 0.5) * 6, wy = y + (fbm(p, x, y, 4, 245, 2) - 0.5) * 6;
-      const fx = wx / 7 - Math.floor(wx / 7), fy = wy / 5 - Math.floor(wy / 5);
+      // alligator scales: a wobbling grid of cells, the edges between them are the cracks
+      const wx = x + (fbm(p, x, y, 3, 243, 2) - 0.5) * 14, wy = y + (fbm(p, x, y, 3, 245, 2) - 0.5) * 12;
+      const fx = wx / 9 - Math.floor(wx / 9), fy = (wy + Math.floor(wx / 9) * 3) / 6 - Math.floor((wy + Math.floor(wx / 9) * 3) / 6);
       const inCrack = fx < 0.16 || fy < 0.2;
       if (inCrack && n > 0.36) { const c = n > 0.58 ? 0xffb04a : n > 0.47 ? 0xe86a14 : 0x9a2a08; p.set(x, y, c); g!.set(x, y, c); }
       else { p.set(x, y, rampAt(p, [0x080606, 0x14100c, 0x221a14, 0x3a2c20], x, y, n)); g!.set(x, y, 0); }

@@ -15,12 +15,13 @@ import { allRecipes, type Recipe } from '../items/recipes';
 import { checkRecipe, CraftAction } from '../interact/crafting';
 import { hasUnlock, researchNode } from '../game/research';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera } from '../fp/fp';
-import { ModelBuilder } from '../gfx/modelBuilder';
 import { CubeView } from './cubeView';
 import { HAND_OPS, type HandOp, matches, pickTool, pickParts, partLabel, toolLabel } from './handOps';
-import { Tweens, easeOut, easeBack, makeArm, poseArm, type Arm, makeBackdrop, makeItemObj, fitItemObj, type ItemObj, pointerRay, Particles, fpMat } from './fpKit';
+import { Tweens, easeOut, easeBack, makeArm, poseArm, type Arm, makeItemObj, fitItemObj, type ItemObj, pointerRay, Particles } from './fpKit';
+import { pixMat } from './fpTex';
+import { ink, shade, shadowBlob, WorkLamp } from './fpScene';
+import { gem } from '../ui/touch/facet';
 import { pixTag, stamp, disposeTag, type PixTag } from './tags';
-import { metalMat } from './metal';
 import { Shape } from './shapes';
 import { Dymo, Slate, HoverTag, clickTag } from './props';
 import { recipeHint } from './knowledge';
@@ -58,7 +59,7 @@ export class Bench {
   private slate!: Slate;
   private dymo!: Dymo;
   private tag!: HoverTag;
-  private lamp = new THREE.PointLight(0xffd8a0, 1.6, 2.2, 1.4);
+  private lampL: WorkLamp | null = null;
   root: HTMLDivElement;
 
   constructor() {
@@ -82,71 +83,147 @@ export class Bench {
     if (this.built) return;
     this.built = true;
     const g = (this.g = fpGroup('bench'));
-    const bd = makeBackdrop(); (bd.material as THREE.MeshBasicMaterial).opacity = 0.95; g.add(bd);
-    g.add(new THREE.AmbientLight(0xb8b0a0, 0.4));
-    const fill = new THREE.DirectionalLight(0xffe0c0, 0.55); fill.position.set(-0.4, 1.2, 0.6); g.add(fill);
-    // the table: thick scarred boards black with oil at the vice end, a steel lip, a vice, a lamp
-    const mb = new ModelBuilder();
-    mb.box(0, -0.05, 0, 1.5, 0.05, 0.62, 'wood_light', { color: 0x9a7448, uvScale: 2 });
-    mb.box(0, -0.06, 0.315, 1.52, 0.06, 0.02, 'metal_grey', { color: 0x7a7e80 });
-    for (let i = 0; i < 6; i++) mb.box(-0.6 + i * 0.24, -0.0005, 0, 0.004, 0.001, 0.6, 'wood_dark', { color: 0x5a3a1a });
-    for (const [x, z, w, d, c] of [[0.42, -0.1, 0.3, 0.22, 0x2a2016], [0.1, 0.12, 0.12, 0.08, 0x3a2a1a], [-0.25, -0.18, 0.18, 0.1, 0x30241a], [0.55, 0.18, 0.1, 0.07, 0x1e1810]] as [number, number, number, number, number][]) mb.box(x, -0.0002, z, w, 0.0006, d, 'wood_dark', { color: c });
-
-    // scattered nuts and bolts
-    for (let i = 0; i < 7; i++) mb.cylinder(0.3 + Math.sin(i * 7.1) * 0.2, 0, 0.2 + Math.cos(i * 3.3) * 0.08, 0.006, 0.006, 6, 'metal_grey', { color: 0x8a8a84 });
-    // gooseneck lamp: weighted base, a jointed arm, an enamel shade
-    mb.cylinder(0.66, 0, 0.12, 0.05, 0.02, 10, 'metal_dark', { color: 0x3a3a34 });
-    mb.push().translate(0.66, 0.02, 0.12).rotateZ(0.25); mb.cylinder(0, 0, 0, 0.006, 0.32, 6, 'metal_brushed', { color: 0x9a9a92 }); mb.pop();
-    mb.push().translate(0.58, 0.33, 0.12).rotateZ(1.2); mb.cylinder(0, 0, 0, 0.006, 0.22, 6, 'metal_brushed', { color: 0x9a9a92 }); mb.pop();
-    mb.push().translate(0.38, 0.4, 0.12).rotateZ(2.6); mb.cylinder(0, 0, 0, 0.06, 0.09, 10, 'metal_painted_green', { color: 0x2a5a4a, rTop: 0.02 }); mb.pop();
-    this.top.add(new THREE.Mesh(mb.build(), fpMat()));
-    // the vice: painted cast iron jaws, a steel screw with a tommy bar
-    const vice = new Shape(4);
-    vice.box(0.62, 0, -0.18, 0.16, 0.06, 0.12, 0xffffff, 0.012);
-    vice.box(0.62, 0.06, -0.12, 0.14, 0.05, 0.022, 0xffffff, 0.006); vice.box(0.62, 0.06, -0.24, 0.14, 0.05, 0.022, 0xffffff, 0.006);
-    this.top.add(new THREE.Mesh(vice.build(), metalMat('enamel', 1)));
-    const screw = new Shape(4);
-    screw.cyl(0.62, 0.03, -0.12, 0.007, 0.16, 0xffffff, 12, [Math.PI / 2, 0, 0]);
-    screw.capsule(0.55, 0.03, 0.04, 0.0045, 0.14, 0xffffff, [0, 0, -Math.PI / 2]);
-    this.top.add(new THREE.Mesh(screw.build(), metalMat('chrome', 1)));
-    this.lamp.position.set(0.32, 0.3, 0.12);
-    this.top.add(this.lamp);
-    const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfff0c0 }));
-    bulb.position.set(0.345, 0.335, 0.12);
-    this.top.add(bulb);
+    // no backdrop: the room you are standing in shows round the bench (the eye draws it)
+    g.add(new THREE.HemisphereLight(0x9a9488, 0x2a2018, 0.55));
+    const fill = new THREE.DirectionalLight(0x8a9ab0, 0.35); fill.position.set(-0.8, 0.6, 0.4); g.add(fill);
+    this.buildBench();
     this.top.add(this.stageG);
     this.top.add(this.cube.root);
     this.cube.root.scale.setScalar(0.58);
     this.cube.root.position.set(-0.52, 0, -0.04);
     g.add(this.top);
-    // the pegboard behind: blueprints pinned up, two tags on hooks
-    const pb = new ModelBuilder();
-    pb.box(0, -0.26, 0, 1.3, 0.5, 0.012, 'cardboard', { color: 0x8a7050 });
-    for (let y = 0; y < 9; y++) for (let x = 0; x < 22; x++) pb.box(-0.62 + x * 0.059, -0.24 + y * 0.055, 0.0065, 0.008, 0.008, 0.001, 'rubber_black', { color: 0x2a2018 });
-    this.peg.add(new THREE.Mesh(pb.build(), fpMat()));
-    g.add(this.peg);
     const sweep = clickTag('Sweep back into the cube', 'tag', 110, 0.22), away = clickTag('Step away', 'tag', 70, 0.17, '(Esc)');
-    sweep.mesh.position.set(-0.56, -0.12, 0.01); sweep.mesh.rotation.z = 0.06;
-    away.mesh.position.set(0.56, -0.12, 0.01); away.mesh.rotation.z = -0.05;
+    // both tags hang off hooks on the pegboard, swinging a little
+    sweep.mesh.geometry.translate(0, -0.05, 0); away.mesh.geometry.translate(0, -0.04, 0);
+    sweep.mesh.position.set(-0.7, 0.2, 0.014); sweep.mesh.rotation.z = 0.06;
+    away.mesh.position.set(0.7, 0.2, 0.014); away.mesh.rotation.z = -0.05;
     this.peg.add(sweep.mesh, away.mesh);
     this.fixed = [{ t: sweep, run: () => this.clear() }, { t: away, run: () => this.close() }];
     g.add(this.dust.points, this.sparks.points);
-    this.slate = new Slate(g);
-    this.dymo = new Dymo(g);
-    this.tag = new HoverTag(g);
+    // the chalk slate stands on the bench leaning on the pegboard; label tape sticks along the top rail
+    this.slate = new Slate(this.top);
+    this.slate.tag.mesh.position.set(-0.16, 0.13, -0.3); this.slate.tag.mesh.rotation.set(-0.16, 0.05, 0.03);
+    this.dymo = new Dymo(this.top, 0, 'stick');
+    this.dymo.place(-0.26, 0.535, -0.322);
+    this.tag = new HoverTag(this.top, true);
     for (const s of [1, -1] as const) { const a = makeArm(s); g.add(a.root); this.arms.push(a); }
+  }
+
+  /** the workbench: oiled plank top on a 2x4 frame, a pegboard back with a shelf, vice, lamp, tools, sawdust */
+  private buildBench() {
+    const T = this.top;
+    const wood = new Shape(2.3), frame = new Shape(4), peg = new Shape(5), steel = new Shape(6), iron = new Shape(5), green = new Shape(5),
+      handle = new Shape(9), red = new Shape(7), rubber = new Shape(8), galv = new Shape(6), rag = new Shape(5), dust = new Shape(9), brass = new Shape(8), cardboard = new Shape(5), rust = new Shape(6);
+    // ---- the top: three thick boards, the front one darker with oil, a steel lip on the front edge
+    const tints = [0xffffff, 0xf0e4d8, 0xe0d2c4];
+    for (let i = 0; i < 3; i++) wood.jbox(0, -0.06, -0.22 + i * 0.22, 2.5, 0.06, 0.218, tints[i], 0.0025, 11 + i);
+    steel.box(0, -0.07, 0.334, 2.52, 0.075, 0.012, 0xd8d8d0, 0.003);
+    for (let x = -1.1; x <= 1.1; x += 0.36) steel.dome(x, -0.035, 0.341, 0.006, 0xc8c8c0);
+    // apron and legs under the front (only the tops show)
+    frame.box(0, -0.22, 0.3, 2.5, 0.15, 0.03, 0xc8b8a0, 0.006);
+    for (const x of [-1.05, 1.05]) frame.box(x, -0.6, 0.27, 0.09, 0.55, 0.09, 0xd0c0a8, 0.008);
+    // ---- the back: 2x4 posts, a pegboard, a top rail and a shelf
+    for (const x of [-1.12, 1.12]) frame.box(x, 0, -0.35, 0.09, 0.6, 0.06, 0xe0d0b8, 0.008);
+    frame.box(0, 0.52, -0.35, 2.4, 0.045, 0.05, 0xd8c8b0, 0.006);
+    frame.box(0, 0.0, -0.345, 2.3, 0.03, 0.04, 0xc0b098, 0.005);
+    frame.jbox(0, 0.565, -0.3, 2.3, 0.025, 0.15, 0xf0e0c8, 0.002, 4);
+    for (const x of [-0.8, 0, 0.8]) frame.taper(x, 0.48, -0.25, 0.03, 0.03, 0.03, 0.09, 0.085, 0xb0a088, undefined, 0, -0.03);
+    peg.box(0, 0.03, -0.355, 2.3, 0.5, 0.012, 0xffffff, 0.002);
+    // ---- the vice: green enamel body, steel jaws faced with hatching, a chrome screw and tommy bar
+    green.jbox(0.68, 0, -0.16, 0.17, 0.065, 0.13, 0xffffff, 0.002, 5);
+    green.box(0.68, 0.065, -0.21, 0.15, 0.055, 0.035, 0xffffff, 0.006);
+    green.box(0.68, 0.065, -0.1, 0.15, 0.055, 0.035, 0xffffff, 0.006);
+    green.box(0.68, -0.012, -0.16, 0.2, 0.012, 0.15, 0xc8c8c8, 0.004);
+    steel.box(0.68, 0.075, -0.188, 0.15, 0.04, 0.008, 0xb0b0a8, 0.002);
+    steel.box(0.68, 0.075, -0.122, 0.15, 0.04, 0.008, 0xb0b0a8, 0.002);
+    steel.cyl(0.68, 0.085, -0.08, 0.008, 0.14, 0xe8e8e0, 8, [Math.PI / 2, 0, 0]);
+    steel.capsule(0.6, 0.085, 0.065, 0.005, 0.16, 0xf0f0e8, [0, 0, -Math.PI / 2]);
+    for (const [x, z] of [[0.6, -0.22], [0.76, -0.22], [0.6, -0.1], [0.76, -0.1]]) steel.dome(x, 0.0, z, 0.007, 0x9a9a92, [0, 0, 0]);
+    // ---- the gooseneck lamp clamped to the shelf: cast base, jointed steel arms, a green enamel shade
+    iron.box(0.42, 0.535, -0.27, 0.07, 0.03, 0.09, 0xffffff, 0.006);
+    iron.box(0.42, 0.48, -0.225, 0.05, 0.06, 0.012, 0xffffff, 0.003);
+    steel.rod([0.42, 0.565, -0.27], [0.36, 0.86, -0.18], 0.007, 0xe0e0d8, 6);
+    steel.rod([0.36, 0.86, -0.18], [0.22, 0.72, 0.0], 0.006, 0xe0e0d8, 6);
+    iron.cyl(0.36, 0.85, -0.18, 0.013, 0.02, 0xffffff, 8, [0, 0, Math.PI / 2]);
+    green.lathe(0.2, 0.69, 0.03, [[0.012, 0.075], [0.02, 0.07], [0.03, 0.05], [0.058, 0.012], [0.072, 0], [0.068, -0.004], [0.052, 0.008], [0.026, 0.044], [0.012, 0.06]], 0xffffff, 8, [0.35, 0, -0.25]);
+    // ---- tools laid down: a claw hammer, a red screwdriver, a chisel, a carpenter's pencil, pliers
+    handle.box(0.5, 0.004, 0.2, 0.24, 0.022, 0.026, 0xffffff, 0.008, [0, 0.35, 0]);
+    iron.jbox(0.4, 0.002, 0.255, 0.035, 0.032, 0.11, 0xffffff, 0.0015, 3, [0, 0.35, 0]);
+    red.cyl(-0.24, 0.012, 0.21, 0.012, 0.1, 0xffffff, 6, [0, 0, Math.PI / 2 + 0.03]);
+    steel.cyl(-0.34, 0.012, 0.212, 0.0035, 0.11, 0xffffff, 6, [0, 0, Math.PI / 2 + 0.03]);
+    handle.box(0.28, 0.002, -0.24, 0.12, 0.018, 0.02, 0xc89870, 0.006, [0, -0.2, 0]);
+    steel.box(0.2, 0.002, -0.22, 0.09, 0.008, 0.018, 0xffffff, 0.002, [0, -0.2, 0]);
+    handle.box(-0.06, 0.002, 0.25, 0.14, 0.008, 0.012, 0xe0b040, 0.002, [0, 0.9, 0]);
+    red.box(0.12, 0.003, 0.26, 0.09, 0.012, 0.016, 0xd0d0d0, 0.004, [0, -0.25, 0]);
+    red.box(0.12, 0.003, 0.285, 0.09, 0.012, 0.016, 0xd0d0d0, 0.004, [0, 0.1, 0]);
+    iron.box(0.055, 0.003, 0.268, 0.05, 0.014, 0.022, 0xffffff, 0.003, [0, -0.1, 0]);
+    // a tin of nails and a can of screws, a coffee can of brushes
+    galv.lathe(0.45, 0, -0.24, [[0, 0], [0.04, 0], [0.042, 0.004], [0.042, 0.07], [0.044, 0.074], [0, 0.074]], 0xffffff, 8);
+    for (let i = 0; i < 9; i++) steel.rod([0.45 + Math.sin(i * 2.3) * 0.025, 0.06, -0.24 + Math.cos(i * 1.7) * 0.025], [0.45 + Math.sin(i * 2.3) * 0.03, 0.09 + (i % 3) * 0.006, -0.24 + Math.cos(i * 1.7) * 0.03], 0.0025, 0x9a9890, 4);
+    rust.lathe(-0.85, 0, -0.22, [[0, 0], [0.05, 0], [0.052, 0.005], [0.05, 0.11], [0.053, 0.114], [0, 0.114]], 0xffffff, 8);
+    for (let i = 0; i < 3; i++) { handle.rod([-0.85 + (i - 1) * 0.018, 0.08, -0.22], [-0.85 + (i - 1) * 0.04, 0.24, -0.24 - i * 0.012], 0.006, 0xd8c098, 5); rubber.box(-0.85 + (i - 1) * 0.04, 0.23, -0.24 - i * 0.012, 0.03, 0.04, 0.012, 0x2a2620, 0.004); }
+    // a greasy rag in a heap near the cube
+    rag.jbox(-0.3, 0, 0.16, 0.12, 0.022, 0.1, 0xffffff, 0.009, 7, [0, 0.6, 0]);
+    rag.jbox(-0.27, 0.012, 0.15, 0.08, 0.02, 0.06, 0xe8e0d0, 0.008, 9, [0.1, -0.3, 0]);
+    // ---- sawdust round the vice and shavings curled on the boards
+    for (let i = 0; i < 70; i++) {
+      const a = i * 2.39996, r = Math.sqrt(i / 70) * 0.16, x = 0.66 + Math.cos(a) * r * 1.3, z = 0.04 + Math.sin(a) * r * 0.7;
+      dust.gem(x, 0.002 + (1 - r / 0.16) * 0.006, z, 0.004 + (i % 4) * 0.0015, i % 3 ? 0xf0dcb0 : 0xd8b888, 0.4, i, [1.4, 0.35, 1.1]);
+    }
+    for (let i = 0; i < 14; i++) dust.lathe(-0.05 + Math.sin(i * 4.1) * 0.5, 0.004, 0.12 + Math.cos(i * 2.7) * 0.18, [[0.004, 0], [0.012, 0.003], [0.006, 0.008]], 0xf8e8c0, 5, [Math.PI / 2, i, 0.3]);
+    // ---- on the shelf: paint tins, a jar of screws, a cardboard box of fuses, a brass oil can
+    galv.lathe(-0.62, 0.59, -0.3, [[0, 0], [0.045, 0], [0.047, 0.006], [0.047, 0.09], [0.042, 0.096], [0, 0.096]], 0xd8d0c0, 8);
+    green.lathe(-0.5, 0.59, -0.31, [[0, 0], [0.038, 0], [0.04, 0.006], [0.04, 0.075], [0.036, 0.08], [0, 0.08]], 0xffffff, 8);
+    cardboard.jbox(-0.25, 0.59, -0.3, 0.16, 0.07, 0.1, 0xffffff, 0.002, 3);
+    cardboard.jbox(-0.27, 0.66, -0.31, 0.12, 0.05, 0.08, 0xe0d0b8, 0.002, 5);
+    brass.lathe(0.12, 0.59, -0.3, [[0, 0], [0.04, 0], [0.042, 0.01], [0.04, 0.045], [0.02, 0.07], [0.008, 0.08], [0.006, 0.17], [0.003, 0.18], [0, 0.18]], 0xffffff, 8);
+    galv.lathe(0.8, 0.59, -0.3, [[0, 0], [0.05, 0], [0.052, 0.006], [0.052, 0.12], [0.046, 0.126], [0, 0.126]], 0xc8c0b0, 8);
+    // ---- tools hung on the pegboard: a hand saw, spanners, a coil of wire
+    const P = this.peg;
+    const sawBlade = new Shape(6);
+    sawBlade.plate(0, 0, 0, [new THREE.Vector2(0, 0.06), new THREE.Vector2(0.34, 0.035), new THREE.Vector2(0.34, 0.0), new THREE.Vector2(0, -0.01)], 0.003, 0xe8e8e0);
+    const sawM = new THREE.Mesh(sawBlade.build(), pixMat('steel'));
+    sawM.position.set(-1.02, -0.08, 0.008); sawM.rotation.z = -0.5; P.add(sawM);
+    const sawH = new Shape(9); sawH.box(-0.06, -0.035, 0.002, 0.1, 0.1, 0.022, 0xffffff, 0.008);
+    const shM = new THREE.Mesh(sawH.build(), pixMat('handle')); shM.position.copy(sawM.position); shM.rotation.z = -0.5; P.add(shM);
+    const span = new Shape(6);
+    for (let i = 0; i < 3; i++) { const x = 0.9 + i * 0.06, l = 0.16 + i * 0.03; span.box(x, -0.2, 0.006, 0.016, l, 0.005, 0xffffff, 0.002); span.plate(x, -0.2 + l, 0.006, [new THREE.Vector2(-0.018, 0), new THREE.Vector2(0.018, 0), new THREE.Vector2(0.022, 0.03), new THREE.Vector2(0.008, 0.03), new THREE.Vector2(0.004, 0.012), new THREE.Vector2(-0.004, 0.012), new THREE.Vector2(-0.008, 0.03), new THREE.Vector2(-0.022, 0.03)], 0.005, 0xffffff); }
+    const spM = new THREE.Mesh(span.build(), pixMat('chrome')); P.add(spM);
+    const coil = new Shape(8);
+    for (let i = 0; i < 4; i++) coil.ring(0.62 + i * 0.004, -0.12, 0.012 + i * 0.003, 0.055 - i * 0.002, 0.004, 0xffffff, 10);
+    const coM = new THREE.Mesh(coil.build(), pixMat('brass', { color: 0xd88a50 })); P.add(coM);
+    const hooks = new Shape(8);
+    for (const [x, y] of [[-1.0, 0.0], [0.93, 0.0], [0.99, 0.02], [1.05, 0.04], [0.62, -0.07], [-0.7, 0.2], [0.7, 0.2]]) hooks.rod([x, y, 0], [x, y + 0.006, 0.03], 0.0025, 0xc0c0b8, 4);
+    P.add(new THREE.Mesh(hooks.build(), pixMat('steel')));
+    // ---- meshes, one per surface
+    const mesh = (sh: Shape, mat: THREE.Material, parent: THREE.Object3D = T) => { const m = new THREE.Mesh(sh.build(), mat); parent.add(m); return m; };
+    mesh(wood, pixMat('bench')); mesh(frame, pixMat('plank')); mesh(peg, pixMat('pegboard')); mesh(steel, pixMat('steel')); mesh(iron, pixMat('castIron'));
+    mesh(green, pixMat('enamelGreen')); mesh(handle, pixMat('handle')); mesh(red, pixMat('enamelRed')); mesh(rubber, pixMat('rubber')); mesh(galv, pixMat('galv'));
+    mesh(rag, pixMat('rag')); mesh(dust, pixMat('plank', { color: 0xfff0d0 })); mesh(brass, pixMat('brass')); mesh(cardboard, pixMat('cardboard')); mesh(rust, pixMat('rust'));
+    // a printed label on the fuse box
+    const lab = pixTag('card', 60, 26, 0.13);
+    lab.clear(); lab.type('FUSES', 12, 4, '#8a1a10', 9); lab.type('15 AMP · 10 PCS', 12, 15, undefined, 6); lab.flush();
+    lab.mesh.position.set(-0.25, 0.628, -0.249); T.add(lab.mesh);
+    ink(T, 0.0028);
+    ink(P, 0.0028);
+    // the bulb in the shade, and the light it throws: a real shadow under everything on the boards
+    const bulb = new THREE.Mesh(gem(0.017, 0, 0.1), new THREE.MeshBasicMaterial({ color: 0xfff2c8 }));
+    bulb.position.set(0.2, 0.69, 0.03); T.add(bulb);
+    this.lampL = new WorkLamp(T, new THREE.Vector3(0.2, 0.68, 0.05), new THREE.Vector3(-0.02, 0, 0.02), { intensity: 5.5, angle: 1.0, dist: 2.6, mapSize: 512 });
+    T.add(this.peg);
+    this.peg.position.set(0, 0.28, -0.345);
+    for (const sb of [shadowBlob(0.4, 0.3, 0.5)]) { sb.position.set(-0.52, 0.0016, -0.04); T.add(sb); }
+    shade(T);
   }
 
   private layout() {
     const asp = window.innerWidth / Math.max(1, window.innerHeight);
-    const k = Math.min(1, asp / 1.5);
-    this.top.position.set(asp < 1.2 ? 0 : -0.04, -0.24, -2.0);
+    // landscape: the bench runs off both sides; portrait: it steps back so the cube and the boards both fit
+    const k = asp >= 1.2 ? Math.min(1, asp / 1.6) : Math.max(0.42, asp * 0.95);
+    this.top.position.set(asp < 1.2 ? 0.06 : -0.04, asp < 1.2 ? -0.16 : -0.26, -2.0);
     this.top.rotation.set(0.74, 0, 0);
-    this.top.scale.setScalar(Math.max(0.55, k));
-    this.peg.position.set(0, 0.29, -2.6);
-    this.peg.scale.setScalar(Math.max(0.5, k) * 1.3);
-    this.slate.tag.mesh.position.set(0, -0.02, -1.15);
-    this.dymo.place(0.2, -1.05);
+    this.top.scale.setScalar(k);
+    this.cube.root.position.x = asp < 1.2 ? -0.42 : -0.52;
   }
 
   /** stand at a workbench */
@@ -439,7 +516,7 @@ export class Bench {
       if (!it) { pointerRay(this.rc, fpCamera(), e.clientX, e.clientY); it = this.cube.pickAt(this.rc)?.a.items[0] || null; }
       if (it) {
         const pos = s ? s.obj.outer.getWorldPosition(_v) : this.cube.itemWorldPos(it, _v);
-        if (pos) this.tag.item(it, 1, pos);
+        if (pos) { this.top.updateWorldMatrix(true, false); this.tag.item(it, 1, this.top.worldToLocal(pos)); }
       } else this.tag.hide();
     }
   }
@@ -514,7 +591,7 @@ export class Bench {
     this.cube.update(dt);
     this.dust.update(dt, 1.6); this.sparks.update(dt, 2.4);
     this.dymo.update(dt);
-    this.lamp.intensity = 1.6 + (Math.random() < 0.02 ? -0.6 : 0);
+    this.lampL?.update(dt);
     const d = this.drag;
     if (d?.live) { pointerRay(this.rc, fpCamera(), this.px, this.py).at(1.3, _v); d.ghost.outer.position.lerp(_v, 1 - Math.exp(-30 * dt)); }
     const h = this.hold;

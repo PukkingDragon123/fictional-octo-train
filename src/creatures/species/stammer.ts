@@ -178,6 +178,18 @@ function paintS(p: Page, x: BuildCtx) {
     }
     // grain
     for (let yy = 0; yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) if (hash(xx * 7 + yy, sd) < 0.06) r.blend(xx, yy, hash(xx, yy + sd) < 0.5 ? SK[2] : SK[8], 0.5);
+    // the film has caught in the gate and burned: holes eaten through to black, a scorched amber rim
+    const nb = Math.round(r.w * r.h / 900);
+    for (let i = 0; i < nb; i++) {
+      const cx = hash(i, sd + 21) * r.w, cy = hash(i, sd + 22) * r.h, rad = 1.2 + hash(i, sd + 23) * 2.6;
+      for (let yy = Math.floor(cy - rad - 2); yy <= cy + rad + 2; yy++) for (let xx = Math.floor(cx - rad - 2); xx <= cx + rad + 2; xx++) {
+        const d = Math.hypot(xx - cx, yy - cy) / rad + (hash(xx, yy + sd) - 0.5) * 0.35;
+        if (d < 0.7) r.set(xx, yy, 0x050303);
+        else if (d < 1.0) r.set(xx, yy, hash(xx + 3, yy) < 0.5 ? 0x3a1a08 : 0x6a2e0c);
+        else if (d < 1.35) r.blend(xx, yy, 0xc07a2a, 0.45);
+        else if (d < 1.7) r.blend(xx, yy, 0x8a6a3a, 0.2);
+      }
+    }
   };
   {
     const r = p.R('TORSO');
@@ -199,13 +211,14 @@ function paintS(p: Page, x: BuildCtx) {
       const ex = r.X(k * 18), ey = r.Y(0.12);
       r.ellipse(ex, ey, 2.4, 2, 0x060404);
       for (let i = 1; i < 6; i++) r.blend(ex + (hash(i, k + 5) - 0.5) * 2, ey + 2 + i, 0x1a1210, 0.7 - i * 0.1);
+      r.set(ex - k, ey - 1, 0xf8f4ec); // a pinprick of light deep in each, like a reflection off something wet
     }
     // the mouth: hanging open to the chin
     for (let yy = Math.round(r.Y(0.07)); yy <= Math.round(r.Y(-0.02)); yy++) for (let dx = -2; dx <= 2; dx++) r.set(r.X(0) + dx, yy, Math.abs(dx) === 2 ? 0x3a2a24 : 0x0a0606);
   }
   { const r = p.R('ARM'); skin(r, 4.6, 19); for (const h of [-0.56, -1.25]) r.hline(0, r.w - 1, Math.round(r.Y(h)), SK[2], 0.6); }
   { const r = p.R('LEG'); skin(r, 4.4, 23); r.hline(0, r.w - 1, Math.round(r.Y(-0.78)), SK[2], 0.6); for (let yy = Math.round(r.h * 0.85); yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) if (hash(xx, yy) < 0.4) r.blend(xx, yy, 0x3a3428, 0.5); }
-  { const r = p.R('HAND'); skin(r, 4.6, 29); for (let xx = 0; xx < r.w; xx++) r.set(xx, r.h - 1, 0x2a2420); }
+  { const r = p.R('HAND'); skin(r, 4.6, 29); for (let xx = 0; xx < r.w; xx++) { r.set(xx, r.h - 1, 0x0c0a08); r.set(xx, r.h - 2, hash(xx, 2) < 0.5 ? 0x2a2420 : 0x14100c); } } // nails gone black
   { const r = p.R('FOOT'); skin(r, 3.6, 31); }
   {
     const r = p.R('MOUTH');

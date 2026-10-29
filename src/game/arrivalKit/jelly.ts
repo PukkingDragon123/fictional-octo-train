@@ -13,7 +13,7 @@ import * as THREE from 'three';
 import { hash3 } from './geo';
 
 export const JW = 1.12, JH = 2.3;
-const NX = 30, NY = 60, NRIP = 6;
+const NX = 44, NY = 88, NRIP = 6;
 
 const VERT = /* glsl */`
 uniform float uTime;
@@ -134,8 +134,9 @@ void main() {
   col += uLampCol * pow(max(dot(n, h2), 0.0), 46.0) * 1.6 / (1.0 + dot(lv, lv) * 0.6);
   // wet sheen at grazing angles, dark down the funnel's throat, a hot rim where it grips
   col += vec3(0.03, 0.05, 0.055) * fres * 1.4;
-  col *= 1.0 - smoothstep(0.55, 1.0, vFun) * 0.7;
-  col += uGlowCol * smoothstep(0.75, 0.95, vFun) * (1.0 - smoothstep(0.95, 1.0, vFun)) * 0.25 * uHot;
+  // down the funnel the gel is thin round the limb: light comes through it, cold
+  col *= 1.0 - smoothstep(0.6, 1.0, vFun) * 0.3;
+  col += uGlowCol * smoothstep(0.55, 0.95, vFun) * 0.12 * uHot * (0.6 + 0.4 * c);
   gl_FragColor = vec4(col, 1.0);
 }
 `;

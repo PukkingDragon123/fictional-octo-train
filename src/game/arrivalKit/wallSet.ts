@@ -330,7 +330,7 @@ export function buildWallSet(low: boolean): WallSet {
       const k = (0.85 + Math.sin(t * 3.3) * 0.08) * (st ? 0.25 : 1);
       lamp.intensity = 0.9 * k;
       lampGlass.emissiveIntensity = 2.4 * k;
-      glow.intensity = 0.25 + g * 0.7;
+      glow.intensity = 0.15 + g * 0.4;
       hang.rotation.z = Math.sin(t * 0.8) * 0.03;
       hang.rotation.x = Math.sin(t * 1.1 + 1) * 0.04;
     },

@@ -6,6 +6,7 @@
 // something from its bundle. Kill one and the rest in that place never trust
 // anyone again. It only bites if you hurt it and it has nowhere to go.
 import { horrify } from '../kit/horror';
+import { regionCanvas, sores, stains, veins as rotVeins, bruise } from '../kit/rot';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -27,6 +28,14 @@ PG.paint((P, v) => {
   skin(P, P.R('FUR'), R, { mott: 1.4, salt: v + 1 });
   { const r = P.R('FUR'); P.strokes(r, R, () => 3, { density: 0.25, flow: () => [0, 1], len: [1, 3], salt: 2 }); }
   {
+    // mangy and scratched raw: it picks at itself; scabs, weeping sores, veins under the thin skin, a bruise
+    const r = P.R('FUR'), C = regionCanvas(P, r);
+    rotVeins(C, 6, 70 + v, 0x6a3a50, 0.4, 7);
+    sores(C, 6, 71 + v);
+    bruise(C, r.w * (0.3 + v * 0.2), r.h * 0.55, 3, 72 + v);
+    for (let i = 0; i < 5; i++) P.walk(r, P.rng.int(0, r.w - 1), P.rng.int(2, r.h - 3), 4, 0.4, 1, 0x8a2a2a, 0.75, 0.3, 0.2); // scratch marks
+  }
+  {
     // thin pink membrane with veins, lit from behind
     const r = P.R('EAR');
     for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) P.set(r, x, y, lerpC(0xf0b0b0, 0xc87880, Math.abs(x + 0.5 - r.w / 2) / (r.w / 2)));
@@ -34,6 +43,7 @@ PG.paint((P, v) => {
   }
   eye(P, P.R('EYE'), 0x101018, { pupil: 0x000000, sclera: 0x202028 });
   flat(P, P.R('CLOTH'), [0x6a7a9a, 0x9a6a5a, 0x7a8a5a][v], 0.15);
+  stains(regionCanvas(P, P.R('CLOTH')), 3, 73 + v, undefined, 0.2); // a rag torn off someone's sleeve
   P.cut(P.R('CUT'), TONES[v], { meat: 0xb04050 });
 });
 function lerpC(a: number, b: number, t: number) { const k = Math.max(0, Math.min(1, t)); const ch = (s: number) => Math.round(((a >> s) & 255) * (1 - k) + ((b >> s) & 255) * k); return (ch(16) << 16) | (ch(8) << 8) | ch(0); }

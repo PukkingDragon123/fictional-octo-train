@@ -380,7 +380,7 @@ class Arrival implements GameSystem {
     this.trauma = Math.max(0, this.trauma - dt * 1.6);
     const tr = this.trauma * this.trauma;
     const sh = (s: number) => (Math.sin(this.T * 37 + s) + Math.sin(this.T * 23 + s * 2)) * 0.5 * tr * 0.02;
-    const camZ = lerp(0.92, 0.46, Math.min(1, this.dive / 0.68)) - Math.max(0, this.dive - 0.68) / 0.32 * 0.5;
+    const camZ = lerp(0.92, 0.6, Math.min(1, this.dive / 0.68)) - Math.max(0, this.dive - 0.68) / 0.32 * 0.62;
     cam.position.set(this.camPos.x - this.dive * 0.06 + sway + sh(1), this.camPos.y - this.dive * 0.1 + breath + sh(2), camZ);
     v3.set(this.camLook.x - this.dive * 0.08, this.camLook.y - this.dive * 0.05 + sh(3) * 2, -1);
     cam.up.set(0, 1, 0);
@@ -434,7 +434,7 @@ class Arrival implements GameSystem {
       const lx = cx - this.funC.x, ly = cy - this.funC.y;
       this.funC.x += lx * k; this.funC.y += ly * k;
       (j.u.uLag.value as THREE.Vector2).set(-lx * 3, -ly * 3);
-      (j.u.uFun.value as THREE.Vector4).set(this.funC.x, this.funC.y, Math.min(0.13, 0.025 + depth * 0.2), r * 1.4 + 0.07 + Math.min(0.16, depth * 0.22));
+      (j.u.uFun.value as THREE.Vector4).set(this.funC.x, this.funC.y, Math.min(0.11, 0.02 + depth * 0.16), r * 1.25 + 0.035 + Math.min(0.14, depth * 0.3));
       // the rings keep coming with the heart
       this.ripT -= dt;
       if (this.ripT <= 0 && t < 4.75) { this.ripT = 0.5 + Math.random() * 0.2; j.ripple(cx, cy, 0.45 + Math.random() * 0.3, T); }

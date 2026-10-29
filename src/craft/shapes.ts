@@ -5,21 +5,22 @@
 // triangle carries its own normal (flat facets). Nothing here is a raw box.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { fbox, fcyl, fcapsule, fdome, fring, fball, segs } from '../ui/touch/facet';
+import { fbox, fcyl, fcapsule, fdome, fring, fball, segs, flathe, plate as fplate, frod, ftaper, gem as fgem, jitter as fjitter } from '../ui/touch/facet';
 
-const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(1, 1, 1), _p = new THREE.Vector3();
+const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _s = new THREE.Vector3(1, 1, 1), _s2 = new THREE.Vector3(), _p = new THREE.Vector3();
 
 export class Shape {
   private parts: THREE.BufferGeometry[] = [];
   /** uv repeats per metre */
   constructor(public uvScale = 2.5) {}
 
-  private push(g: THREE.BufferGeometry, x: number, y: number, z: number, color: number, rot?: [number, number, number]) {
+  private push(g: THREE.BufferGeometry, x: number, y: number, z: number, color: number, rot?: [number, number, number], scale?: [number, number, number]) {
     const geo = g.index ? g.toNonIndexed() : g;
     if (geo !== g) g.dispose();
     _q.setFromEuler(_e.set(rot?.[0] ?? 0, rot?.[1] ?? 0, rot?.[2] ?? 0));
-    _m.compose(_p.set(x, y, z), _q, _s);
+    _m.compose(_p.set(x, y, z), _q, scale ? _s2.set(scale[0], scale[1], scale[2]) : _s);
     geo.applyMatrix4(_m);
+    if (scale) geo.computeVertexNormals();
     const n = geo.attributes.position.count;
     const pos = geo.attributes.position as THREE.BufferAttribute, nor = geo.attributes.normal as THREE.BufferAttribute;
     const uv = new Float32Array(n * 2), col = new Float32Array(n * 3);
@@ -70,6 +71,38 @@ export class Shape {
     const g = fball(r, 7, 4);
     g.scale(1, sy, 1);
     return this.push(g, x, y, z, color);
+  }
+  /** any flat geometry (facet.ts), placed, turned and scaled */
+  add(g: THREE.BufferGeometry, x: number, y: number, z: number, color = 0xffffff, rot?: [number, number, number], scale?: [number, number, number]) {
+    return this.push(g, x, y, z, color, rot, scale);
+  }
+  /** a bevelled box with its corners pushed about (hand-cut, warped): x, z centre, y bottom */
+  jbox(x: number, y: number, z: number, w: number, h: number, d: number, color = 0xffffff, jit = 0.003, seed = 1, rot?: [number, number, number]) {
+    const g = fjitter(fbox(w, h, d, Math.min(w, h, d) * 0.18, true), jit, seed, Math.max(w, h, d));
+    if (rot) g.translate(0, h / 2, 0);
+    return this.push(g, x, rot ? y : y + h / 2, z, color, rot);
+  }
+  /** a few-sided lathe through [radius, y] pairs, base at y */
+  lathe(x: number, y: number, z: number, prof: number[][], color = 0xffffff, seg = 8, rot?: [number, number, number], scale?: [number, number, number]) {
+    return this.push(flathe(prof, seg), x, y, z, color, rot, scale);
+  }
+  /** a polygon outline extruded along +z by depth with a bevel step (rot turns it) */
+  plate(x: number, y: number, z: number, pts: THREE.Vector2[], depth: number, color = 0xffffff, bev = 0, rot?: [number, number, number]) {
+    return this.push(fplate(pts, depth, bev), x, y, z, color, rot);
+  }
+  /** a few-sided rod between two points */
+  rod(a: [number, number, number], b: [number, number, number], r: number, color = 0xffffff, seg = 5) {
+    return this.push(frod(a, b, r, seg), 0, 0, 0, color);
+  }
+  /** a tapered block (bottom w x d, top tw x td) standing on y */
+  taper(x: number, y: number, z: number, w: number, d: number, tw: number, td: number, h: number, color = 0xffffff, rot?: [number, number, number], ox = 0, oz = 0) {
+    const g = ftaper(w, d, tw, td, h, 0.12, ox, oz);
+    g.translate(0, h / 2, 0);
+    return this.push(g, x, y, z, color, rot);
+  }
+  /** a jittered faceted pebble / chunk */
+  gem(x: number, y: number, z: number, r: number, color = 0xffffff, rough = 0.18, seed = 3, scale?: [number, number, number], rot?: [number, number, number]) {
+    return this.push(fgem(r, 0, rough, seed), x, y, z, color, rot, scale);
   }
   get empty() { return this.parts.length === 0; }
   build(): THREE.BufferGeometry {

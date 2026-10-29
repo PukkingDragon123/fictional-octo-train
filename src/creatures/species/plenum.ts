@@ -1,4 +1,5 @@
 import { horrify } from '../kit/horror';
+import { kitCanvas, sores, drips, flay, RAW, BONE, BLOOD } from '../kit/rot';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
 import { makeRamp } from '../../gfx/pixel';
@@ -126,6 +127,10 @@ function paintP(p: Page, x: BuildCtx) {
     for (let yy = 0; yy < r.h; yy += 3) { r.set(r.w / 4, yy, SK[8]); r.set(r.w / 4 + 1, yy, SK[6]); r.set(r.w / 4, yy + 1, SK[2]); }
     // old tile glue, a cable it is wearing like a vein
     for (let yy = 0; yy < r.h; yy++) r.blend(Math.round(r.w * 0.7 + Math.sin(yy * 0.2) * 3), yy, 0x2a2a2e, 0.7);
+    // where the cable has worn through: a raw groove; sores where it hangs from the joists
+    const C = kitCanvas(r);
+    flay(C, Math.round(r.w * 0.7), Math.round(r.h * (0.35 + x.variant * 0.15)), 2.5, 6, { fibre: [0, 1], depth: 0.8, seed: 41 + x.variant, drips: 2, drip: [0, 1] });
+    sores(C, 6, 43 + x.variant);
     dust(r, 5);
   }
   {
@@ -133,8 +138,20 @@ function paintP(p: Page, x: BuildCtx) {
     r.fill(SK, (xx, yy) => 5 + Math.cos(((xx / r.w) - 0.5) * Math.PI * 2) * 1.2 + (r.fbm(xx, yy, 3, 2, 7) - 0.5) * 0.8);
     // the face, upside down: the mouth up top, closed eyes below it, the brow at the bottom
     const cx = r.w / 2;
-    for (let xx = -7; xx <= 7; xx++) { const yy = 9 + Math.round(Math.abs(xx) * 0.25); r.set(cx + xx, yy, 0x2a1010); if (xx % 2 === 0 && Math.abs(xx) < 7) { r.set(cx + xx, yy + 1, 0xd8ccb0); r.set(cx + xx, yy - 1, 0xd8ccb0); } }
-    for (const k of [-1, 1]) { for (let xx = -3; xx <= 3; xx++) r.set(cx + k * 8 + xx, 20 + (Math.abs(xx) === 3 ? -1 : 0), 0x3a2420); r.blend(cx + k * 8, 22, SK[2], 0.6); }
+    for (let xx = -7; xx <= 7; xx++) { const yy = 9 + Math.round(Math.abs(xx) * 0.25); r.set(cx + xx, yy, 0x2a1010); if (xx % 2 === 0 && Math.abs(xx) < 7) { r.set(cx + xx, yy + 1, 0xd8ccb0); r.set(cx + xx, yy - 1, 0xd8ccb0); } else { r.set(cx + xx, yy + 1, RAW[3]); r.set(cx + xx, yy - 1, RAW[3]); } }
+    // the face is upside down, so what it drools runs UP over the lip toward the crown
+    drips(kitCanvas(r), cx - 2, 8, 2, 6, [0, -1], 31 + x.variant, 3);
+    // the eyes: open, upside down, bloodshot, rolled toward you; wet lids, a glint
+    for (const k of [-1, 1]) {
+      const ex = cx + k * 8, ey = 20;
+      for (let yy = -2; yy <= 2; yy++) for (let xx = -4; xx <= 4; xx++) {
+        const d = Math.hypot(xx / 4.2, yy / 2.3); if (d > 1) continue;
+        const pd = Math.hypot(xx + k * 0.5, yy - 0.6);
+        r.set(ex + xx, ey + yy, d > 0.82 ? 0x5a2420 : pd < 1.1 ? 0x060404 : pd < 2 ? [0x4a5a3a, 0x5a4a30, 0x3a4a5a][x.variant % 3] : hash(xx, yy + k) < 0.18 ? 0xb04a40 : 0xd8d0bc);
+      }
+      r.set(ex - k, ey + 1, 0xffffff);
+      r.blend(ex, ey + 3, SK[2], 0.6); r.blend(ex - 1, ey + 3, SK[2], 0.6);
+    }
     for (let xx = -11; xx <= 11; xx++) r.blend(cx + xx, 25, SK[2], 0.5);
     r.set(cx, 15, SK[2]); r.set(cx - 1, 14, SK[3]); r.set(cx + 1, 14, SK[3]);
     dust(r, 9);
@@ -144,7 +161,8 @@ function paintP(p: Page, x: BuildCtx) {
     r.fill(SK, (xx, yy) => 4.4 + Math.cos(((xx / r.w) - 0.5) * Math.PI * 2) * 1.4 + (r.fbm(xx, yy, 2, 2, 11) - 0.5) * 0.8);
     // joints: dark creases where the skin folds round each knuckle
     for (const v of [0.86, 0.58, 0.3]) { const yy = Math.round(r.h * (1 - v)); for (let xx = 0; xx < r.w; xx++) { r.blend(xx, yy, SK[1], 0.8); r.blend(xx, yy + 1, SK[7], 0.4); } }
-    for (let yy = Math.round(r.h * 0.84); yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) r.blend(xx, yy, 0x3a2e2a, 0.6); // the tips are horn, black at the ends
+    for (let yy = Math.round(r.h * 0.84); yy < r.h; yy++) for (let xx = 0; xx < r.w; xx++) r.blend(xx, yy, hash(xx, yy) < 0.3 ? BLOOD[0] : 0x3a2e2a, 0.6); // the tips are horn, black at the ends, crusted
+    void BONE;
     dust(r, 13);
   }
   {
