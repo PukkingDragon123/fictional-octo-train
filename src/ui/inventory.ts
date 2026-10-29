@@ -1043,10 +1043,10 @@ export class InventoryUI {
       const rest = new THREE.Vector3();
       this.gtag.lean = 0.45;
       if (h.view === this.cube) {
-        // on the floor beside the pack, on the item's side, tied back to it over the wall
+        // on the open floor by the pack's top corner on the item's side (clear of the roll and the container), tied back to it over the wall
         const lp = this.cube.root.worldToLocal(_v2.copy(_v));
         const side = lp.x >= 0 ? 1 : -1, sz = this.cube.size;
-        this.cube.root.localToWorld(rest.set(side * (sz.x / 2 + 0.13), 0.004, Math.max(-sz.z / 2 + 0.08, Math.min(sz.z / 2 - 0.04, lp.z))));
+        this.cube.root.localToWorld(rest.set(side * (sz.x / 2 + 0.17), 0.004, -sz.z / 2 + 0.03));
       } else rest.copy(_v);
       toW(_v); toW(rest);
       if (h.view !== this.cube) { rest.y = 0.006; rest.z += 0.13; rest.x += rest.x > 0 ? -0.05 : 0.05; } else rest.y = 0.004;
