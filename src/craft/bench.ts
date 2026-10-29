@@ -103,11 +103,12 @@ export class Bench {
     this.top.add(sweep.mesh, away.mesh);
     this.fixed = [{ t: sweep, run: () => this.clear() }, { t: away, run: () => this.close() }];
     g.add(this.dust.points, this.sparks.points);
-    // the chalk slate stands on the bench leaning on the pegboard; label tape sticks along the top rail
+    // the chalk slate stands on the bench leaning on the pegboard; label tape sticks to the bottom rail
     this.slate = new Slate(this.top);
     this.slate.tag.mesh.position.set(-0.16, 0.13, -0.3); this.slate.tag.mesh.rotation.set(-0.16, 0.05, 0.03);
     this.dymo = new Dymo(this.top, 0, 'stick');
-    this.dymo.place(-0.26, 0.535, -0.322);
+    // label tape pressed onto the pegboard's bottom rail, just above the boards
+    this.dymo.place(-0.21, 0.016, -0.3235);
     this.tag = new HoverTag(this.top, true);
     for (const s of [1, -1] as const) { const a = makeArm(s); g.add(a.root); this.arms.push(a); }
   }
@@ -178,7 +179,7 @@ export class Bench {
     green.lathe(-0.5, 0.501, -0.31, [[0, 0], [0.038, 0], [0.04, 0.006], [0.04, 0.075], [0.036, 0.08], [0, 0.08]], 0xffffff, 8);
     cardboard.jbox(-0.25, 0.501, -0.3, 0.16, 0.07, 0.1, 0xffffff, 0.002, 3);
     cardboard.jbox(-0.27, 0.571, -0.31, 0.12, 0.05, 0.08, 0xe0d0b8, 0.002, 5);
-    brass.lathe(0.12, 0.501, -0.3, [[0, 0], [0.04, 0], [0.042, 0.01], [0.04, 0.045], [0.02, 0.07], [0.008, 0.08], [0.006, 0.17], [0.003, 0.18], [0, 0.18]], 0xffffff, 8);
+    brass.lathe(0.62, 0.501, -0.3, [[0, 0], [0.04, 0], [0.042, 0.01], [0.04, 0.045], [0.02, 0.07], [0.008, 0.08], [0.006, 0.17], [0.003, 0.18], [0, 0.18]], 0xffffff, 8);
     galv.lathe(0.4, 0.501, -0.3, [[0, 0], [0.05, 0], [0.052, 0.006], [0.052, 0.12], [0.046, 0.126], [0, 0.126]], 0xc8c0b0, 8);
     // ---- tools hung on the pegboard: a hand saw, spanners, a coil of wire
     const P = this.peg;

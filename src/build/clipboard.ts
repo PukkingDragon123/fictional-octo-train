@@ -64,7 +64,7 @@ export class Clipboard {
   constructor() {
     this.g = fpGroup('build');
     this.g.add(this.rig);
-    const CHROME = std(0xc8ccd0, 0.28, 0.75), STEEL = std(0x3a3e40, 0.45, 0.6), GREEN = std(0x4e6250, 0.55, 0.3), BAKE = std(0x1c1a18, 0.35, 0.05);
+    const CHROME = pixMat('chrome', { vc: false }), STEEL = pixMat('steel', { vc: false, color: 0x6a6e70 });
     const mesh = (g: THREE.BufferGeometry, m: THREE.Material, x = 0, y = 0, z = 0) => { const o = new THREE.Mesh(g, m); o.position.set(x, y, z); this.rig.add(o); return o; };
     // ---- masonite board (rounded, bevelled), a sprung steel clip
     // a masonite board, a sprung steel clip with a roller and two rivets
