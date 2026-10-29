@@ -20,6 +20,7 @@ import { hasUnlock, buyNode, researchNode, grantResearch } from '../../game/rese
 import { itemDef } from '../../items/item';
 import { punch } from '../../gfx/juice';
 import { pickSelf } from '../../game/picking';
+import { texturizeSleeves } from '../pack/packTex';
 import type { Player } from '../../entities/player';
 import type { QuestRuntime } from '../../missions/questRuntime';
 import { buildWatchModel, setLamp, refreshPrinted, SCR_W, SCR_H, SCREEN, type WatchModel } from './model';
@@ -130,6 +131,7 @@ export class Watch {
     // the shared smooth arms (src/fp/hands.ts): the left one wears the watch, the right one presses its keys
     this.armL = fpArm('left', { skin: 0xe8b98f, sleeve: 0xeeb415, sleeveStyle: 'rolled' });
     this.armR = fpArm('right', { skin: 0xe8b98f, sleeve: 0xeeb415, sleeveStyle: 'long' });
+    texturizeSleeves(this.armL.root); texturizeSleeves(this.armR.root);
     this.model = buildWatchModel(this.crt.mesh, this.armL);
     this.group = fpGroup('watch');
     this.group.add(this.model.root);

@@ -31,6 +31,7 @@ import { registerBagSounds } from './bag/bagSounds';
 import { PackView, contactShadow } from './pack/packView';
 import { containerShell, GroundTag, TagRow, NoteTape, kitMat, Dust } from './pack/packScene';
 import { fcyl } from './touch/facet';
+import { texturizeSleeves } from './pack/packTex';
 
 /**
  * The backpack is the Meridian Field Pack: an institutional rucksack on a steel
@@ -251,7 +252,7 @@ export class InventoryUI {
     W.add(this.matG);
     this.gtag = new GroundTag(W);
     this.tags = new TagRow(W);
-    for (const s of [1, -1] as const) { const a = makeArm(s, 1.05); g.add(a.root); this.arms.push(a); }
+    for (const s of [1, -1] as const) { const a = makeArm(s, 1.05); texturizeSleeves(a.root); g.add(a.root); this.arms.push(a); }
     // the BAILIFF band on the left wrist: a steel cuff with a hazard ring and a green lamp
     const band = new THREE.Group();
     const cuff = new THREE.Mesh(fcyl(0.034, 0.032, 8, 0.036, 0.2), metalMat('steel', 2));

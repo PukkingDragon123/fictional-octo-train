@@ -466,3 +466,39 @@ export function solidTile(c: number): THREE.Texture {
     put(ctx, pc);
   }));
 }
+
+/** jumpsuit twill for the first-person sleeves: a pale weave (the sleeve colour tints it), a stitched seam, wear */
+export function sleeveTex(): THREE.Texture {
+  return cached('pk_sleeve', () => {
+    const t = toTex('pk_sleeve', 32, 48, (ctx) => {
+      const pc = new PixelCanvas(32, 48);
+      pc.each((x, y) => {
+        const rib = (x + y) % 4 < 2 ? 1 : 0;
+        const v = 0.82 + rib * 0.07 + (hash(x >> 1, y, 5) - 0.5) * 0.08 + (hash(x >> 3, y >> 3, 9) - 0.5) * 0.06;
+        const c = Math.round(Math.max(0, Math.min(1, v)) * 255);
+        pc.setRGBA(x, y, c, c, Math.round(c * 0.97));
+      });
+      // the inseam: a dark groove and a lock-stitch
+      for (let y = 0; y < 48; y++) { pc.setRGBA(15, y, 120, 116, 108); pc.setRGBA(16, y, 168, 162, 150); if (y % 3) pc.setRGBA(18, y, 245, 240, 228); }
+      // worn, grubby patches
+      for (let k = 0; k < 6; k++) { const cx = hash(k, 1, 3) * 32, cy = hash(k, 2, 3) * 48; for (let y = -3; y <= 3; y++) for (let x = -4; x <= 4; x++) if (hash(x + k, y, 7) < 0.45 - Math.hypot(x / 4, y / 3) * 0.4) pc.setRGBA(cx + x, cy + y, 150, 140, 120); }
+      put(ctx, pc);
+    });
+    t.repeat.set(3, 2);
+    return t;
+  });
+}
+
+/** give the shared first-person arms' cloth (sleeves, cuffs, upper arms) a woven texture */
+export function texturizeSleeves(root: THREE.Object3D, sleeveColor = 0xeeb415) {
+  const want = new THREE.Color(sleeveColor);
+  const seen = new Set<THREE.Material>();
+  root.traverse((o) => {
+    const m = (o as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
+    if (!m || seen.has(m) || !(m as THREE.MeshStandardMaterial).isMeshStandardMaterial) return;
+    seen.add(m);
+    if (m.color.getHex() !== want.getHex() || m.map) return;
+    m.map = sleeveTex();
+    m.needsUpdate = true;
+  });
+}
