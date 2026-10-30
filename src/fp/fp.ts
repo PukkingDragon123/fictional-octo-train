@@ -8,10 +8,10 @@
 // the owner to drive its own entrance (raise the arm, swing the pack round). Release
 // plays it backwards. 'glance' is the light version for looks taken on the move.
 //
-// A 'full' claim goes all the way into the head: the dive ends in a blink (eyelids
-// shut), the world behind the hands switches to the survivor's own eyes (eye.ts) and
-// the lids open on first person. The hands stay hidden until then, so they never float
-// over the iso view. Release blinks back out and the camera eases away from the head.
+// A 'full' claim goes all the way into the head: the dive ends in a quick dip to black,
+// the world behind the hands switches to the survivor's own eyes (eye.ts) and it comes
+// back up on first person. The hands stay hidden until then, so they never float over
+// the iso view. Release dips back out and the camera eases away from the head.
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -102,8 +102,8 @@ function ensureBars() {
   st.textContent = `.fp-cut{position:fixed;inset:0;pointer-events:none;z-index:30}
 .fp-cut i{position:absolute;left:0;right:0;background:#000;height:0}
 .fp-cut .t{top:0}.fp-cut .b{bottom:0}
-/* the eyelids: shut from above and below, with a soft dark edge */
-.fp-cut .lt{top:0;box-shadow:0 6px 10px 2px #000}.fp-cut .lb{bottom:0;box-shadow:0 -6px 10px 2px #000}
+/* the cut: one quick dip to black (no eyelids) */
+.fp-cut .lt{inset:0;height:auto;opacity:0}.fp-cut .lb{display:none}
 /* the close-up's edges fall off to a warm black (lamp-lit rooms), harder toward the corners: the eye goes to the lit middle */
 .fp-cut .v{inset:0;height:auto;background:radial-gradient(ellipse 72% 68% at 50% 55%,transparent 58%,rgba(8,5,2,.42) 78%,rgba(5,3,1,.74) 100%);opacity:0}`;
   document.head.appendChild(st);
@@ -179,9 +179,7 @@ function paint() {
   const h = mode === 'none' ? 0 : (mode === 'glance' ? FP_CUT.glanceBars : eyeActive() ? FP_CUT.eyeBars : FP_CUT.bars) * k;
   (bars.children[0] as HTMLElement).style.height = h + 'vh';
   (bars.children[1] as HTMLElement).style.height = h + 'vh';
-  // lids gather speed as they shut and snap open, slowing at the top
-  const lh = lid * lid * 52;
-  (bars.children[3] as HTMLElement).style.height = lh + 'vh';
-  (bars.children[4] as HTMLElement).style.height = lh + 'vh';
+  // a dip to black, not eyelids
+  (bars.children[3] as HTMLElement).style.opacity = String(Math.min(1, lid * 1.15));
   (bars.children[2] as HTMLElement).style.opacity = String(mode === 'none' ? 0 : (mode === 'glance' ? FP_CUT.glanceVignette : FP_CUT.vignette) * k);
 }
