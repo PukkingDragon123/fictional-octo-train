@@ -1,10 +1,10 @@
-// Bitmap text, the way the user's reference game draws it: three OFL pixel faces rasterised
-// once at their native sizes and thresholded to hard 1-bit glyphs, then drawn whole-pixel with
-// an 8-way ink outline (and an optional drop shadow) and scaled up by whole numbers only.
+// Bitmap text in the user's font, Alagard (Hewett Tsoi): rasterised once at its native 16px
+// grid and thresholded to hard 1-bit glyphs, then drawn whole-pixel with an 8-way ink outline
+// (and an optional drop shadow) and scaled up by whole numbers only.
 //
-//   body  Pixelify Sans 16px   (running text, speech, labels)
-//   title Jersey 10     20px   (names, headings, big words)
-//   small Silkscreen     8px   (tiny tags, counters, legends)
+//   body  Alagard 16px x1   (running text, speech, labels)
+//   title Alagard 16px x2   (names, headings, big words)
+//   small Alagard 16px x1   (tags, counters; the face has no smaller crisp size)
 //
 //   await bitReady()                                fonts loaded and glyphs ready
 //   bitText(ctx, 'HELLO', x, y, { font, color, outline, shadow, scale, align, maxW })
@@ -28,10 +28,10 @@ export interface BitOpts {
   lh?: number;
 }
 
-const FACES: Record<BitFontId, { family: string; size: number; asc: number; desc: number }> = {
-  body: { family: "'Pixelify Sans'", size: 16, asc: 15, desc: 5 },
-  title: { family: "'Jersey 10'", size: 20, asc: 17, desc: 6 },
-  small: { family: "'Silkscreen'", size: 8, asc: 9, desc: 2 },
+const FACES: Record<BitFontId, { family: string; size: number; asc: number; desc: number; x: number }> = {
+  body: { family: "'Alagard'", size: 16, asc: 13, desc: 4, x: 1 },
+  title: { family: "'Alagard'", size: 16, asc: 13, desc: 4, x: 2 },
+  small: { family: "'Alagard'", size: 16, asc: 13, desc: 4, x: 1 },
 };
 export const INK = '#0a0b10';
 
@@ -97,7 +97,7 @@ function wrap(str: string, font: BitFontId, maxW: number): string[] {
 
 /** draw text at (x, y) = top-left of the line box (or its centre/right edge with align) */
 export function bitText(ctx: CanvasRenderingContext2D, str: string, x: number, y: number, o: BitOpts = {}): number {
-  const font = o.font || 'body', F = FACES[font], sc = Math.max(1, Math.round(o.scale || 1));
+  const font = o.font || 'body', F = FACES[font], sc = Math.max(1, Math.round(o.scale || 1)) * F.x;
   if (o.maxW) {
     const lines = wrap(str, font, o.maxW), lh = (o.lh ?? F.asc + F.desc - 2) * sc;
     let w = 0;
@@ -135,13 +135,14 @@ export function bitCanvas(str: string, o: BitOpts = {}): HTMLCanvasElement {
   if (hit) return hit;
   const font = o.font || 'body', F = FACES[font];
   const lines = o.maxW ? wrap(str, font, o.maxW) : String(str).split('\n');
-  const lh = o.lh ?? F.asc + F.desc - 2;
-  const w = Math.max(1, ...lines.map((l) => bitMeasure(l, font))) + 4;
-  const h = lh * (lines.length - 1) + F.asc + F.desc + 4;
+  const k = F.x;
+  const lh = (o.lh ?? F.asc + F.desc - 2) * k;
+  const w = Math.max(1, ...lines.map((l) => bitMeasure(l, font))) * k + 4;
+  const h = lh * (lines.length - 1) + (F.asc + F.desc) * k + 4;
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
   const ctx = cv.getContext('2d')!;
   const ax = o.align === 'center' ? w / 2 : o.align === 'right' ? w - 2 : 2;
-  lines.forEach((ln, i) => bitText(ctx, ln, ax, 2 + i * lh, { ...o, scale: 1, maxW: 0 }));
+  lines.forEach((ln, i) => bitText(ctx, ln, ax, 2 + i * lh, { ...o, scale: 1, maxW: 0, lh: undefined }));
   if (ready) { if (cache.size > 400) cache.clear(); cache.set(key, cv); }
   return cv;
 }

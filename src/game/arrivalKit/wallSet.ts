@@ -87,7 +87,7 @@ function tapeTex() {
     for (let y = 0; y < 32; y++) { pc.set(0, y, K); pc.set(7, y, K); pc.set(1, y, mixHex(pc.get(1, y), 0xffffff, 0.25)); }
   }, true);
 }
-/** the enamel plate: cream, a red border, black printed words (Pixelify Sans, set smooth at 4x over the pixel plate) */
+/** the enamel plate: cream, a red border, black printed words (Alagard, set smooth at 4x over the pixel plate) */
 function signTex() {
   const W = 96, H = 34;
   const pc = new PixelCanvas(W, H);
@@ -109,7 +109,7 @@ function signTex() {
   const g = cv.getContext('2d')!;
   g.imageSmoothingEnabled = false;
   g.drawImage(tmp, 0, 0, W * S, H * S);
-  const font = cssFont('--font-new', "'Pixelify Sans', monospace");
+  const font = cssFont('--font-new', "'Alagard', monospace");
   g.fillStyle = '#17150f'; g.textAlign = 'center'; g.textBaseline = 'alphabetic';
   g.font = `700 ${11 * S}px ${font}`;
   g.fillText('SEAM 04', W * S / 2, 17.5 * S);

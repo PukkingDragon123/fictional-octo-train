@@ -9,7 +9,7 @@
 @font-face { font-family: 'NC Hand'; src: url('/fonts/handjet.woff2') format('woff2'); font-display: swap; }
 @font-face { font-family: 'NC Stencil'; src: url('/fonts/bigshoulders-stencil.woff2') format('woff2'); font-display: swap; }
 @font-face { font-family: 'NC VHS'; src: url('/fonts/vt323.woff2') format('woff2'); font-display: swap; }
-:root { --font-hand: 'NC Hand', 'Micro 5', monospace; --font-stamp: 'NC Stencil', 'Silkscreen', monospace; --font-vhs: 'NC VHS', 'Micro 5', monospace; }
+:root { --font-hand: 'NC Hand', 'Micro 5', monospace; --font-stamp: 'NC Stencil', 'Alagard', monospace; --font-vhs: 'NC VHS', 'Micro 5', monospace; }
 
 /* ---------------------------------------------------------------- world-anchored lines */
 #ui > .w-bubble { pointer-events: none; }

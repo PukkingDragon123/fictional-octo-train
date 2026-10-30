@@ -21,6 +21,7 @@
 import * as THREE from 'three';
 import { bus } from '../../core/events';
 import { G } from '../G';
+import { TUT } from '../tutorial/state';
 import { defOp, op, isReplaying } from '../ops';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 import { worldMaterial } from '../../gfx/materials';
@@ -506,7 +507,7 @@ export class HopperSystem implements GameSystem {
       const first = (G.debt?.s?.deposits ?? 0) <= 1;
       if (sink.length && value > 0) {
         if (first && !G.missions?.flags?.has('contract:first_deposit_said')) { G.missions?.set?.('contract:first_deposit_said'); setTimeout(() => voss(L.firstDeposit), 2600); }
-        else if (Math.random() < (value >= 1000 ? 0.9 : 0.35)) setTimeout(() => voss(pick(value >= 1000 ? L.depositBig : L.deposit)), 2800);
+        else if (value >= 1000 && !TUT.running) setTimeout(() => voss(pick(L.depositBig)), 2800);
       } else if (rejected) setTimeout(() => voss(pick(L.reject)), 1000);
     }
   }

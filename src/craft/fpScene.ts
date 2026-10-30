@@ -219,7 +219,7 @@ export class Twine {
  * caps with the stencil bridges cut through, overspray and patchy coverage.
  * A lit plane `w` wide facing +z; lines stack downward.
  */
-export function stencil(lines: string[], w: number, color = 0x1a1612, fontFamily = "'Pixelify Sans', monospace"): THREE.Mesh {
+export function stencil(lines: string[], w: number, color = 0x1a1612, fontFamily = "'Alagard', monospace"): THREE.Mesh {
   const W = 512, LH = 92, H = LH * lines.length + 24;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const draw = () => {
@@ -257,7 +257,7 @@ export function stencil(lines: string[], w: number, color = 0x1a1612, fontFamily
 
 // ---------------------------------------------------------------- dial faces (never round)
 /** an octagonal dial face on a square canvas: cream enamel, ticks over 270 degrees, a red zone, a label */
-export function octDial(g: CanvasRenderingContext2D, W: number, label: string, red: 'low' | 'high' | 'none' = 'low', font = "'Pixelify Sans', monospace") {
+export function octDial(g: CanvasRenderingContext2D, W: number, label: string, red: 'low' | 'high' | 'none' = 'low', font = "'Alagard', monospace") {
   const cx = W / 2, cy = W / 2, r = W / 2 - 2;
   const oct = (rr: number) => { g.beginPath(); for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + (i / 8) * Math.PI * 2; g[i ? 'lineTo' : 'moveTo'](cx + Math.cos(a) * rr, cy + Math.sin(a) * rr); } g.closePath(); };
   g.fillStyle = '#141414'; g.fillRect(0, 0, W, W);

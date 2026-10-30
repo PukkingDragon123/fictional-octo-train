@@ -5,7 +5,7 @@
 // Fonts arrive late: props register a refresh and redraw when they are in.
 import { Screen } from '../font5x7';
 
-const FAMILY = "'Pixelify Sans', monospace";
+const FAMILY = "'Alagard', monospace";
 let cv: HTMLCanvasElement | null = null;
 let g: CanvasRenderingContext2D | null = null;
 const listeners = new Set<() => void>();
@@ -25,7 +25,7 @@ export function onTypeReady(fn: () => void) {
 try {
   const fs = (document as any).fonts;
   const done = () => { loaded = true; for (const f of listeners) { try { f(); } catch { /* a prop gone */ } } };
-  if (fs?.load) Promise.all([fs.load(`600 16px 'Pixelify Sans'`), fs.load(`400 16px 'Pixelify Sans'`)]).then(done, done);
+  if (fs?.load) Promise.all([fs.load(`600 16px 'Alagard'`), fs.load(`400 16px 'Alagard'`)]).then(done, done);
   else loaded = true;
 } catch { loaded = true; }
 

@@ -12,7 +12,8 @@ if (!css || !js) throw new Error('could not find the built css/js in dist/index.
 let style = fs.readFileSync(path.join(dist, css), 'utf8');
 style = style.replace(/url\((['"]?)\.?\.?\/?fonts\/([^'")]+)\1\)/g, (_, _q, file) => {
   const b = fs.readFileSync(path.join(dist, 'fonts', file));
-  return `url(data:font/woff2;base64,${b.toString('base64')})`;
+  const mime = file.endsWith('.ttf') ? 'font/ttf' : file.endsWith('.otf') ? 'font/otf' : 'font/woff2';
+  return `url(data:${mime};base64,${b.toString('base64')})`;
 });
 const page = `<title>Limbo Phobia</title>
 <meta name="description" content="An isometric survival sandbox inside a liminal simulation that is coming apart.">

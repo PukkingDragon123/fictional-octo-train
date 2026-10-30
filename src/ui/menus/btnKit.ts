@@ -11,7 +11,7 @@
 //  lever     a big knife-switch lever on a riveted base plate (up, mid, down).
 //  chipUrl   a square paint chip for colour values (no round swatches).
 //
-// Labels are real text (Pixelify Sans, crisp), engraved / stencilled on the
+// Labels are real text (Alagard, crisp), engraved / stencilled on the
 // plate with CSS. Sprites are cached and repainted when the scale changes.
 import { PixelCanvas, mixHex, bayer } from '../../gfx/pixel';
 import { sfx, type Sfx } from './sfx';
@@ -316,7 +316,7 @@ export function applyKitVars() {
   const de = document.documentElement.style;
   de.setProperty('--ks', s + 'px');
   de.setProperty('--ksn', String(s));
-  // Pixelify Sans: smooth text sizes (a little larger on big screens, never under 12px)
+  // Alagard: smooth text sizes (a little larger on big screens, never under 12px)
   const vw = window.innerWidth || 1280, vh = window.innerHeight || 720;
   const tk = Math.max(0.9, Math.min(1.25, Math.min(vw / 1280, vh / 720) * 0.35 + 0.72));
   de.setProperty('--t-s', Math.round(12 * tk) + 'px');

@@ -50,7 +50,7 @@ export function bindParticles(p: Particles) { PARTS = p; }
 const spark = () => PARTS;
 
 /**
- * a label: stencilled letters, no box behind them. Bone-white Pixelify Sans with
+ * a label: stencilled letters, no box behind them. Bone-white Alagard with
  * a dark drop under each letter; the stage composite inks a 1px black outline
  * round them, so the word floats free over anything.
  */
@@ -64,7 +64,7 @@ function drawTape(s: Screen, text: string, fg = 0xefe5c4, _bg?: number) {
 }
 /** the label's width in low-res pixels (generous: the web font may still be loading) */
 const tapeW = (text: string) => Math.max([...text].length * 8 + 6, typeW(text, LABEL_CAP, 700, 1) + 6);
-/** run fn when the type faces are in (the shared listener, and Pixelify Sans itself) */
+/** run fn when the type faces are in (the shared listener, and Alagard itself) */
 function whenType(fn: () => void) { onTypeReady(fn); fontsReady().then(fn, () => null); }
 
 interface Decal { mesh: THREE.Mesh; w: number; h: number; orient: 'up' | 'front'; tilt: number }

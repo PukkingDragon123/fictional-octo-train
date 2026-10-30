@@ -243,13 +243,12 @@ export class Handler implements GameSystem {
     on('objBroken', (_z: Zone, _o: TileObject, by: string | null) => {
       if (this.scripted || by !== local()?.id) return;
       if (this.tut === 0) { this.advanceTut(1); return; }
-      this.react('smashed', 45, L.smashed);
+      // (no running commentary on every chair: lines that matter only)
     });
     on('deposited', (d: { by: string; value: number }) => {
       if (this.scripted || d?.by !== local()?.id) return;
       if (this.tut === 2) { this.advanceTut(3); }
-      // the debt agent says the big lines itself; only an occasional acknowledgement here
-      if (G.time - this.externalAt > 4) this.react('deposit', 25, L.deposit, { pylon: true });
+      // (the ledger and the press say what a deposit was worth; no extra acknowledgement here)
     });
     on('debtChanged', (st: { owed: number; paid: number; cleared: boolean }) => {
       if (this.scripted || !st || !st.owed) return;
@@ -271,7 +270,6 @@ export class Handler implements GameSystem {
       // the projection does not follow you through a door: it comes back when it has something to say
       this.hidden = true; this.show = 0; this.showGoal = 0; this.coneW = 0;
       if (this.guideT && this.guideZone !== z.key) this.guide(null);
-      if (!this.scripted && this.begun && !this.seenZones.has(z.key) && this.seenZones.size > 0) this.react('zone', 40, L.zone);
       this.seenZones.add(z.key);
     });
     // the intake is over: whatever path it took (skipped, the arrival, the old pass-through), the pack is on
@@ -681,7 +679,7 @@ export class Handler implements GameSystem {
     // idling
     const moving = p.speed > 0.15 || !!p.actions.current;
     this.idleT = moving ? 0 : this.idleT + dt;
-    if (this.idleT > 50 && !p.sleeping && !p.sittingOn) { this.idleT = 0; this.react('idle', 70, L.idle); }
+    if (this.idleT > 120 && !p.sleeping && !p.sittingOn) { this.idleT = 0; this.react('idle', 300, L.idle); }
     // something in sight
     this.lookT -= dt;
     if (this.lookT > 0) return;

@@ -13,6 +13,7 @@
 // Free survival (directives off) has no contract: hoppers stay cold, no band.
 import { bus } from '../../core/events';
 import { G } from '../G';
+import { TUT } from '../tutorial/state';
 import { op, isReplaying } from '../ops';
 import { addStat } from '../profile';
 import { createItem, serializeItem } from '../../items/factory';
@@ -85,6 +86,7 @@ export function skipIntake(p: Player) {
 }
 
 let saidSmash = false;
+let saidFind = -1e9;
 /** furniture broke: whoever broke it shakes out what was hidden inside */
 function onBroken(z: Zone, o: TileObject, by: string | null, how: string) {
   void how;
@@ -106,8 +108,12 @@ function onBroken(z: Zone, o: TileObject, by: string | null, how: string) {
   });
   if (keys.length) {
     G.audio?.at?.('coins', cx, cz, 0.6);
-    const what = kind === 'cushions' ? 'Something was stuffed down the cushions.' : kind === 'electronics' ? 'Boards and copper. The hopper likes those.' : kind === 'safe' ? 'Jackpot.' : kind === 'appliance' ? 'Huh. Something was in there after all.' : 'Something fell out.';
-    setTimeout(() => selfThought(what), 400);
+    // (one short pointer, not a bark every time: the glint on the floor says the rest)
+    if (G.time - saidFind > 90 && !TUT.running) {
+      saidFind = G.time;
+      const what = kind === 'safe' ? 'Jackpot.' : kind === 'electronics' ? 'Boards and copper. The press takes those.' : 'Something fell out. Worth something.';
+      setTimeout(() => selfThought(what), 400);
+    }
     if (!saidSmash && G.debt?.on) { saidSmash = true; setTimeout(() => voss('Now you are learning. Pick it up. Take it to the plate.'), 1800); }
   } else if (!saidSmash && G.debt?.on && Math.random() < 0.5) setTimeout(() => voss(pick(['Nothing? Smash the next one.', 'Empty. They are not all empty.'])), 1200);
 }

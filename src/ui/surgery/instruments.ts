@@ -5,7 +5,7 @@
 // key, the DEAL lever in its slotted quadrant and the red DISCHARGE key in a
 // hazard collar. No dials, no round buttons. Every readable word is drawn on
 // the stage's full-resolution overlay: phosphor text on the CRT glass (crisp
-// Pixelify Sans, scanlines on the pixel grid), engraved labels on the keycaps
+// Alagard, scanlines on the pixel grid), engraved labels on the keycaps
 // and plates. The SKIP plate is a 2D pixel-art button (drawn at the stage's
 // art scale, black outline, bevel, rivets, hazard end) in the DOM.
 import * as THREE from 'three';
@@ -17,7 +17,7 @@ import { csfx } from './audio';
 import { PixelCanvas, makeRamp, scaleHex, mixHex, bayer } from '../../gfx/pixel';
 import { hashf } from '../../core/rng';
 
-export const FONT = "'Pixelify Sans', monospace";
+export const FONT = "'Alagard', monospace";
 export const PH = { hi: '#c8ffd0', mid: '#5fe08a', dim: '#2a7a44', inv: '#04120a', warn: '#ffc24a', red: '#ff6a50' };
 
 // ------------------------------------------------------------------ free text on the overlay

@@ -38,21 +38,24 @@ export function rigDims(app: Appearance): Dims {
   const s = app.height || 1;
   const fem = app.bodyShape ?? 0.3;
   const b = String(app.build);
-  const bw = b === 'slim' ? 0.92 : b === 'broad' ? 1.09 : b === 'wiry' ? 0.95 : b === 'heavy' ? 1.07 : b === 'stocky' ? 1.12 : 1;
-  const mass = b === 'slim' ? 0.9 : b === 'broad' ? 1.14 : b === 'wiry' ? 0.84 : b === 'heavy' ? 1.3 : b === 'stocky' ? 1.18 : 1;
-  // heads a touch larger than life read better at isometric distances
-  const headS = 1.06 - fem * 0.035;
-  const sh = 0.184 * bw * (1 - 0.08 * fem);
-  const hx = 0.088 * (0.6 + 0.4 * bw) * (1 + 0.07 * fem);
+  // the reference body is a lean adult; 'slim' and 'wiry' are properly thin, 'heavy' and 'stocky' carry real bulk
+  const bw = b === 'slim' ? 0.88 : b === 'broad' ? 1.1 : b === 'wiry' ? 0.92 : b === 'heavy' ? 1.1 : b === 'stocky' ? 1.13 : 1;
+  const mass = b === 'slim' ? 0.8 : b === 'broad' ? 1.14 : b === 'wiry' ? 0.74 : b === 'heavy' ? 1.34 : b === 'stocky' ? 1.2 : 1;
+  // a life-size head: chin to crown about 1/7.5 of the standing height
+  const headS = 0.955 - fem * 0.03;
+  // shoulder joints set in and down: a natural slope from the neck, not a coat hanger
+  const sh = 0.17 * (0.55 + 0.45 * bw) * (1 - 0.07 * fem);
+  const hx = 0.082 * (0.6 + 0.4 * bw) * (1 + 0.08 * fem);
   const off = {} as Dims['off'];
   const set = (b: BoneName, x: number, y: number, z: number) => { off[b] = [x, y, z]; };
   set('hips', 0, 0.94 * s, 0);
   set('spine', 0, 0.07 * s, 0);
   set('chest', 0, 0.2 * s, 0);
   set('neck', 0, 0.27 * s, -0.008 * s);
-  set('head', 0, 0.06 * s, 0.012 * s);
+  // a longer neck carrying the smaller head
+  set('head', 0, 0.078 * s, 0.012 * s);
   for (const [side, k] of [['L', 1], ['R', -1]] as const) {
-    set(('uarm' + side) as BoneName, k * sh * s, 0.212 * s, -0.012 * s);
+    set(('uarm' + side) as BoneName, k * sh * s, 0.196 * s, -0.012 * s);
     set(('farm' + side) as BoneName, 0, -0.285 * s, 0);
     set(('hand' + side) as BoneName, 0, -0.25 * s, 0);
     set(('thigh' + side) as BoneName, k * hx * s, -0.02 * s, 0);
@@ -106,7 +109,7 @@ export const VMAP = {
   LEG: [-0.87, 0.06],         // thigh-local y
   HEAD: [-0.03, 0.215],       // head-local y
   HAIR: [-0.26, 0.23],        // head-local y
-  NECK: [1.44, 1.6],          // body space y
+  NECK: [1.44, 1.63],         // body space y
   SKIRT: [0.5, 1.02],         // body space y
 };
 export const vOf = (range: number[], y: number) => (y - range[0]) / (range[1] - range[0]);
@@ -359,46 +362,49 @@ function shellFeature(B: SkinBuilder, f: ShellFeat, surf: (y: number, deg: numbe
 
 // ------------------------------------------------------------------ profiles (reference body, s = 1)
 interface Row { y: number; rx: number; rf: number; rb: number; sq?: number; cz?: number }
+// a lean adult: narrow waist, a ribcage that is deeper than it is square, shoulders that slope from the neck
 const TORSO_ROWS: Row[] = [
-  { y: 0.815, rx: 0.07, rf: 0.055, rb: 0.065 },
-  { y: 0.86, rx: 0.15, rf: 0.085, rb: 0.096 },
-  { y: 0.93, rx: 0.165, rf: 0.09, rb: 0.108 },
-  { y: 1.0, rx: 0.158, rf: 0.09, rb: 0.096 },
-  { y: 1.08, rx: 0.146, rf: 0.092, rb: 0.084 },
-  { y: 1.16, rx: 0.152, rf: 0.097, rb: 0.088 },
-  { y: 1.25, rx: 0.165, rf: 0.104, rb: 0.094 },
-  { y: 1.33, rx: 0.166, rf: 0.102, rb: 0.096, sq: 2.4 },
-  { y: 1.39, rx: 0.17, rf: 0.084, rb: 0.088, sq: 2.8 },
-  { y: 1.43, rx: 0.158, rf: 0.068, rb: 0.074, sq: 2.6 },
-  { y: 1.46, rx: 0.1, rf: 0.058, rb: 0.064, sq: 2.2 },
-  { y: 1.485, rx: 0.062, rf: 0.054, rb: 0.056, cz: -0.006 },
+  { y: 0.815, rx: 0.062, rf: 0.05, rb: 0.058 },
+  { y: 0.86, rx: 0.134, rf: 0.076, rb: 0.088 },
+  { y: 0.93, rx: 0.146, rf: 0.08, rb: 0.098 },
+  { y: 1.0, rx: 0.136, rf: 0.078, rb: 0.086 },
+  { y: 1.08, rx: 0.121, rf: 0.077, rb: 0.074 },
+  { y: 1.16, rx: 0.126, rf: 0.083, rb: 0.077 },
+  { y: 1.25, rx: 0.137, rf: 0.09, rb: 0.083 },
+  { y: 1.32, rx: 0.141, rf: 0.089, rb: 0.086, sq: 2.15 },
+  { y: 1.37, rx: 0.143, rf: 0.077, rb: 0.08, sq: 2.3 },
+  { y: 1.405, rx: 0.124, rf: 0.064, rb: 0.07, sq: 2.25 },
+  { y: 1.44, rx: 0.088, rf: 0.056, rb: 0.062, sq: 2.1 },
+  { y: 1.475, rx: 0.056, rf: 0.05, rb: 0.052, cz: -0.006 },
 ];
+// thin arms: a small deltoid cap, a slender upper arm, a bony elbow, the forearm tapering to a narrow wrist
 const ARM_ROWS: Row[] = [
-  { y: 0.01, rx: 0.024, rf: 0.032, rb: 0.032 },
-  { y: -0.01, rx: 0.042, rf: 0.047, rb: 0.046 },
-  { y: -0.055, rx: 0.047, rf: 0.047, rb: 0.047 },
-  { y: -0.12, rx: 0.044, rf: 0.047, rb: 0.044 },
-  { y: -0.265, rx: 0.037, rf: 0.036, rb: 0.04 },
-  { y: -0.3, rx: 0.037, rf: 0.036, rb: 0.041 },
-  { y: -0.345, rx: 0.041, rf: 0.043, rb: 0.039 },
-  { y: -0.42, rx: 0.035, rf: 0.037, rb: 0.033 },
-  { y: -0.49, rx: 0.025, rf: 0.031, rb: 0.029 },
-  { y: -0.535, rx: 0.019, rf: 0.028, rb: 0.026 },
+  { y: 0.01, rx: 0.021, rf: 0.027, rb: 0.027 },
+  { y: -0.01, rx: 0.035, rf: 0.039, rb: 0.039 },
+  { y: -0.055, rx: 0.038, rf: 0.039, rb: 0.039 },
+  { y: -0.12, rx: 0.035, rf: 0.037, rb: 0.035 },
+  { y: -0.255, rx: 0.028, rf: 0.028, rb: 0.031 },
+  { y: -0.3, rx: 0.028, rf: 0.027, rb: 0.033 },
+  { y: -0.345, rx: 0.032, rf: 0.034, rb: 0.03 },
+  { y: -0.42, rx: 0.026, rf: 0.028, rb: 0.024 },
+  { y: -0.485, rx: 0.017, rf: 0.023, rb: 0.021 },
+  { y: -0.535, rx: 0.016, rf: 0.023, rb: 0.021 },
 ];
+// long thin legs: the thigh tapers hard to a knobbly knee, a lean calf, a narrow ankle
 const LEG_ROWS: Row[] = [
-  { y: 0.055, rx: 0.062, rf: 0.066, rb: 0.07 },
-  { y: -0.01, rx: 0.083, rf: 0.084, rb: 0.088 },
-  { y: -0.1, rx: 0.079, rf: 0.081, rb: 0.081 },
-  { y: -0.22, rx: 0.068, rf: 0.071, rb: 0.068 },
-  { y: -0.34, rx: 0.057, rf: 0.06, rb: 0.057 },
-  { y: -0.405, rx: 0.052, rf: 0.056, rb: 0.051 },
-  { y: -0.445, rx: 0.05, rf: 0.056, rb: 0.049 },
-  { y: -0.49, rx: 0.048, rf: 0.05, rb: 0.055 },
-  { y: -0.57, rx: 0.05, rf: 0.046, rb: 0.062 },
-  { y: -0.67, rx: 0.042, rf: 0.041, rb: 0.049 },
-  { y: -0.77, rx: 0.033, rf: 0.034, rb: 0.036 },
-  { y: -0.83, rx: 0.03, rf: 0.032, rb: 0.033 },
-  { y: -0.865, rx: 0.031, rf: 0.036, rb: 0.035 },
+  { y: 0.055, rx: 0.055, rf: 0.058, rb: 0.062 },
+  { y: -0.01, rx: 0.071, rf: 0.072, rb: 0.077 },
+  { y: -0.1, rx: 0.066, rf: 0.068, rb: 0.069 },
+  { y: -0.22, rx: 0.056, rf: 0.058, rb: 0.056 },
+  { y: -0.34, rx: 0.045, rf: 0.048, rb: 0.045 },
+  { y: -0.405, rx: 0.041, rf: 0.045, rb: 0.04 },
+  { y: -0.445, rx: 0.041, rf: 0.046, rb: 0.039 },
+  { y: -0.49, rx: 0.038, rf: 0.04, rb: 0.044 },
+  { y: -0.57, rx: 0.04, rf: 0.037, rb: 0.051 },
+  { y: -0.67, rx: 0.033, rf: 0.032, rb: 0.039 },
+  { y: -0.77, rx: 0.024, rf: 0.026, rb: 0.027 },
+  { y: -0.83, rx: 0.022, rf: 0.025, rb: 0.024 },
+  { y: -0.865, rx: 0.024, rf: 0.029, rb: 0.028 },
 ];
 
 function sampleRows(rows: Row[], y: number): Row {
@@ -564,8 +570,8 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
   // ---------------- neck (+ collar / scarf)
   {
     const reg = REG.NECK;
-    const nr = 0.054 * (0.85 + 0.15 * mass) * (1 - fem * 0.12);
-    const ys = [1.45, 1.49, 1.53, 1.565, 1.6];
+    const nr = 0.05 * (0.8 + 0.2 * mass) * (1 - fem * 0.12);
+    const ys = [1.44, 1.48, 1.52, 1.56, 1.6, 1.625];
     const n = 10;
     const hx = R.head[1];
     const rings = ys.map((y) => {
@@ -623,7 +629,7 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
     if (sleeveY < -0.3) { for (const y of [-0.235, -0.285, -0.32]) ys.push({ y, eps: 0 }); if (sleeveY < -0.45) for (const y of [-0.455, -0.478]) ys.push({ y, eps: 0 }); ys.sort((a, b) => b.y - a.y || b.eps - a.eps); }
     else if (sleeveY < 0.5 && sleeveY > -0.3) { ys.push({ y: sleeveY + 0.03, eps: 0 }); ys.sort((a, b) => b.y - a.y || b.eps - a.eps); }
     if (cutY !== null) { ys = ys.filter((r) => r.y > cutY + 0.008); ys.push({ y: cutY, eps: 0 }); }
-    const fm = (1 - fem * 0.12) * (0.82 + 0.18 * mass);
+    const fm = (1 - fem * 0.12) * (0.66 + 0.34 * mass);
     const wOf = (y: number): Wt => {
       if (y > 0.04) return [U, 0.8, BI.chest, 0.2];
       if (y > -0.25 || cutF) return [U, 1];
@@ -676,7 +682,7 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
     // wrist monitor: a chunky band and face on the back of the left wrist
     if (side === 'L' && o.wrist && !cutF) {
       const r = sampleRows(ARM_ROWS, -0.47);
-      const fm2 = (1 - fem * 0.12) * (0.82 + 0.18 * mass);
+      const fm2 = (1 - fem * 0.12) * (0.66 + 0.34 * mass);
       const t = (sh.sleeve === 'long' ? sh.armThick : 0) + 0.006;
       const band = [-0.452, -0.49].map((y, i) => {
         const pts = ellRing(ua[1] + y * s, 0, ua[2], (r.rx * fm2 + t) * s, (r.rf * fm2 + t) * s, (r.rb * fm2 + t) * s, 8, 2, k);
@@ -712,7 +718,7 @@ export function buildBody(app: Appearance, o: Outfit, sh: OutfitShape, d: Dims, 
     let ys = ringYs(LEG_ROWS, breaks);
     if (sh.legKind === 'pants') { for (const y of [-0.72, -0.795]) if (y > pantsHem + 0.02) ys.push({ y, eps: 0 }); ys.sort((a, b) => b.y - a.y || b.eps - a.eps); }
     if (cutY !== null) { ys = ys.filter((r) => r.y > cutY + 0.008); ys.push({ y: cutY, eps: 0 }); }
-    const fm = (0.85 + 0.15 * mass);
+    const fm = (0.7 + 0.3 * mass);
     const femLeg = (y: number) => 1 + fem * (0.09 * gauss(y, -0.08, 0.12) - 0.05 * gauss(y, -0.6, 0.1));
     // kneecap, the hamstring hollow behind it; trousers fold behind the knee and stack over the shoe
     const legBump = (thx: number, y: number, covered: boolean) => {

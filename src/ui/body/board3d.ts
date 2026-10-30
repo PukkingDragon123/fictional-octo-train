@@ -30,7 +30,7 @@ export class Board3D {
 
   constructor(private st: BodyStage) {
     // perforated hardboard (2 texels a unit): punched holes with a lit lower lip, a painted
-    // header strip with a red cross and the words in Pixelify Sans, scuffs and a water stain
+    // header strip with a red cross and the words in Alagard, scuffs and a water stain
     const tex = new PrintTex(BW * 2, BH * 2, 1);
     const P = tex.pix;
     const W2 = BW * 2, H2 = BH * 2, HEAD = 9;

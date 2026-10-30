@@ -56,7 +56,7 @@
   --font-display: 'Micro 5', 'Tiny5', monospace;
   --font-readout: 'Tiny5', 'Micro 5', monospace;
   --font-term: 'Micro 5', 'Tiny5', monospace;
-  --font-stencil: 'Silkscreen', 'Tiny5', monospace;
+  --font-stencil: 'Alagard', 'Tiny5', monospace;
   --font-ui: var(--font-body); --font-mono: var(--font-term); --font-label: var(--font-stencil);
   /* legacy palette names */
   --ink: #031008; --paper: #e9e4cc; --amber: var(--warn); --phosphor: var(--ph); --phosphor-dim: var(--ph-dim); --hl: var(--ph-hi);
