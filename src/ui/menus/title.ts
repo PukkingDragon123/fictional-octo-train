@@ -1,9 +1,9 @@
-// Title screen: the subject room in the dark (room3d.ts). A figure is strapped
-// in an electric chair you can barely see. The menu is a column of pixel-art
-// signs hanging on chains from an iron post (signs.ts) over the dark side of
-// the room: left on a landscape screen, along the bottom in portrait. They
-// sway in, swing when touched and creak. SETTINGS is a real 3D steel gear
-// (gears3d.ts); inside, a gear train turns the pages. CONTROLS, ABOUT, CO-OP
+// Title screen: the whole subject room (room3d.ts) under half-lit work tubes: a
+// figure strapped in the electric chair while the Meridian crew works around him.
+// The menu is plain floating words in the game's font (Alagard, ink outline):
+// left on a landscape screen, along the bottom in portrait; they lift and brighten
+// under the pointer and press like buttons. SETTINGS sits beside a real 3D steel
+// gear (gears3d.ts); inside, a gear train turns the pages. CONTROLS, ABOUT, CO-OP
 // and the CASE FILES open on a green phosphor terminal (terminal.ts). NEW
 // SUBJECT turns the lights on and the room becomes the creator (intake.ts).
 import { Game } from '../../game/game';
@@ -15,13 +15,12 @@ import { setLaunch } from '../../game/launch';
 import { defaultServerUrl } from '../../net/net';
 import { intakeForm, prisonerOutfitFor } from './intake';
 import { h, esc, optionsPanel, controlsPanel, applyGfx, confirmDialog, FocusNav, sfx, type OptionsApi } from './common';
-import { runBoot } from './boot';
 import { SubjectRoom } from './room3d';
 import { installRetroKit } from './retroKit';
 import { ambience } from './sfx';
 import { plateBtn } from './btnKit';
 import { terminal, crtAct, type Terminal } from './terminal';
-import { hangSign, alignSigns, signPost, type HangSign, type SignKind } from './signs';
+import './float.css';
 import { gearButton, gearCluster, type GearButton, type GearCluster } from './gears3d';
 import '../../world/zones';
 import '../../game/worldOps';
@@ -39,11 +38,12 @@ export function showTitle() {
   (g as any).holdFeed = () => {};
   (window as any).__game = g;
   const t = new TitleRoom(g);
-  runBoot().then(() => t.show());
-  setTimeout(() => document.getElementById('boot')?.classList.add('gone'), 60);
+  // no boot screen: straight into the room
+  t.show();
+  document.getElementById('boot')?.classList.add('gone');
 }
 
-interface Item { key: string; label: string; sub: string; act: () => void; kind?: SignKind; size?: 'lg' | 'md' | 'sm' }
+interface Item { key: string; label: string; sub: string; act: () => void; size?: 'lg' | 'md' | 'sm' }
 
 /** the room's camera hooks (the scene worker adds them; older rooms simply lack them) */
 type RoomCam = { shot?: (k: string, ms?: number) => void; setFraming?: (dx: number | null, dy?: number | null) => void };
@@ -59,8 +59,7 @@ class TitleRoom {
   saves: SaveMeta[] = [];
   nav: FocusNav | null = null;
   overNav: FocusNav | null = null;
-  private btns = new Map<string, HangSign | GearButton>();
-  private signs: HangSign[] = [];
+  private btns = new Map<string, HTMLButtonElement | GearButton>();
   private gear: GearButton | null = null;
   private cluster: GearCluster | null = null;
   private lastKey = 'new';
@@ -98,36 +97,38 @@ class TitleRoom {
     this.frame(0);
     this.focusKey(this.lastKey);
     ambience('room');
-    // the signs swing in one after the other
-    this.signs.forEach((sg, i) => sg.swayIn(150 + i * 110, 0.3 + (i % 2) * 0.08));
+    // the words drift in one after the other
     this.menu.classList.add('in');
   }
 
-  /** the menu signs (rebuilt when the saves are known) */
+  /** the menu words (rebuilt when the saves are known) */
   private build() {
     const last = this.saves[0];
     const pt = this.portrait();
     const items: Item[] = [];
-    if (last) items.push({ key: 'continue', label: 'Resume', sub: `${last.character} · day ${Math.floor(last.hours / 24) + 1}`, act: () => this.play(last), kind: 'olive', size: 'lg' });
-    items.push({ key: 'new', label: 'New subject', sub: 'the contract · pay the debt · buy a way out', act: () => this.newGame(true), kind: 'red', size: 'lg' });
+    if (last) items.push({ key: 'continue', label: 'Resume', sub: `${last.character} · day ${Math.floor(last.hours / 24) + 1}`, act: () => this.play(last), size: 'lg' });
+    items.push({ key: 'new', label: 'New subject', sub: 'the contract · pay the debt · buy a way out', act: () => this.newGame(true), size: 'lg' });
     items.push({ key: 'free', label: 'Release', sub: 'free survival · no contract · no band', act: () => this.newGame(false), size: pt ? 'md' : 'lg' });
     items.push({ key: 'coop', label: 'Co-op', sub: 'call another cell · host or dial in', act: () => this.coop(), size: pt ? 'sm' : 'md' });
-    if (this.saves.length) items.push({ key: 'load', label: 'Case files', sub: `${this.saves.length} subject${this.saves.length === 1 ? '' : 's'} on file`, act: () => this.loads(), kind: 'tin', size: pt ? 'sm' : 'md' });
+    if (this.saves.length) items.push({ key: 'load', label: 'Case files', sub: `${this.saves.length} subject${this.saves.length === 1 ? '' : 's'} on file`, act: () => this.loads(), size: pt ? 'sm' : 'md' });
     items.push({ key: 'controls', label: 'Controls', sub: 'keys · touch · gamepad', act: () => this.controls(), size: pt ? 'sm' : 'md' });
     items.push({ key: 'about', label: 'About', sub: 'what this place is', act: () => this.about(), size: pt ? 'sm' : 'md' });
     this.menu.innerHTML = '';
-    this.menu.append(signPost(), this.cap);
+    this.menu.classList.add('ft-menu');
+    this.menu.append(this.cap);
     this.btns.clear();
-    this.signs = [];
-    for (const it of items) {
-      const b = hangSign(it.label, () => this.activate(it), { kind: it.kind ?? 'wood', size: it.size ?? 'md', pointer: true, sound: '', aria: `${it.label} — ${it.sub}`, hang: 'bracketL' });
+    items.forEach((it, i) => {
+      const b = h('button', `ft-item ft-${it.size ?? 'md'}`, `<span class="ft-ptr" aria-hidden="true"></span><span class="ft-lab">${esc(it.label)}</span>`) as HTMLButtonElement;
+      b.type = 'button';
       b.dataset.k = it.key;
+      b.style.setProperty('--ft-i', String(i));
+      b.setAttribute('aria-label', `${it.label} — ${it.sub}`);
       b.addEventListener('focus', () => { this.lastKey = it.key; this.caption(it, b); });
+      b.addEventListener('pointerenter', () => { if (document.activeElement !== b) { b.focus({ preventScroll: true }); sfx('tick', 0.4); } });
+      b.addEventListener('click', () => this.activate(it));
       this.menu.append(b);
       this.btns.set(it.key, b);
-      this.signs.push(b);
-    }
-    alignSigns(this.signs);
+    });
     // SETTINGS: the steel gear at the foot of the post
     this.gear?.dispose();
     const gi: Item = { key: 'options', label: 'Settings', sub: 'sound · picture · interface', act: () => this.options() };
@@ -145,9 +146,9 @@ class TitleRoom {
     // the caption lives in the column, placed by layout offsets (immune to the swinging)
     if (this.cap.parentElement !== this.menu) this.menu.append(this.cap);
     this.cap.innerHTML = `<small>${esc(it.sub)}</small>`;
-    const cy = parseFloat(getComputedStyle(b).getPropertyValue('--hs-cy')) || b.offsetHeight / 2;
+    const cy = b.offsetHeight / 2;
     this.cap.style.top = this.portrait() ? '' : Math.round(b.offsetTop + cy) + 'px';
-    this.cap.style.left = this.portrait() ? '' : Math.round(b.offsetLeft + b.offsetWidth + 6) + 'px';
+    this.cap.style.left = this.portrait() ? '' : Math.round(b.offsetLeft + b.offsetWidth + 34) + 'px';
     this.cap.classList.remove('in'); void this.cap.offsetWidth; this.cap.classList.add('in');
   }
   private busy = false;

@@ -91,11 +91,12 @@ img { image-rendering: pixelated; }
 ::-webkit-scrollbar-thumb:hover { border-image-source: var(--pk-sb-thumb-hover); }
 ::-webkit-scrollbar-corner { background: transparent; }
 
-#boot { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; z-index: 100; font-family: var(--font-term); color: var(--ph); font-size: var(--t-big); text-shadow: var(--bleed); }
-#boot::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, transparent 0 calc(var(--px) - 1px), rgba(0, 0, 0, 0.4) calc(var(--px) - 1px) var(--px)); }
+/* loading: no separate screen, just black and one small line of the game's font in the corner */
+#boot { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: flex-start; padding: 0 0 28px 28px; background: #000; z-index: 100; color: #cfc6b0; font-size: 16px; text-shadow: var(--text-ink); }
 #boot.gone { display: none; }
-.boot-text { animation: blink 1.1s steps(2) infinite; }
-.boot-msg { text-align: center; line-height: 1.3; padding: 0 16px; }
+.boot-text { animation: boot-breathe 2.4s ease-in-out infinite; letter-spacing: 0.04em; }
+.boot-msg { line-height: 1.5; max-width: min(520px, calc(100vw - 56px)); }
+@keyframes boot-breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 0.9; } }
 @keyframes blink { 50% { opacity: 0.25; } }
 @keyframes bootblink { 50% { opacity: 0.25; } }
 

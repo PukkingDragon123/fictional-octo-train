@@ -44,14 +44,14 @@ export async function launch(cfg: LaunchConfig) {
         startSession({ mode: 'solo', name: cfg.name, app: cfg.app, occupation: cfg.occupation, traits: cfg.traits, seed: cfg.seed, sandbox: cfg.sandbox, directives: cfg.directives });
         break;
       case 'load': {
-        bootText('READING TAPE…');
+        bootText('<span class="boot-text">reading the tape…</span>');
         const s = await readSave(cfg.id);
         if (!s) { bootText('That save could not be read.', true); return; }
         startSession({ mode: 'solo', name: s.player.name, save: s, directives: s.missions?.enabled ?? true });
         break;
       }
       case 'host': {
-        bootText('OPENING A ROOM…');
+        bootText('<span class="boot-text">opening a room…</span>');
         const net = await Net.host(cfg.server, cfg.roomName || cfg.name, { public: cfg.public, pass: cfg.pass });
         const s = cfg.saveId ? await readSave(cfg.saveId) : null;
         if (s) startSession({ mode: 'host', name: s.player.name, save: s, net, directives: s.missions?.enabled ?? true });
@@ -60,7 +60,7 @@ export async function launch(cfg: LaunchConfig) {
         break;
       }
       case 'join': {
-        bootText(`CROSSING INTO ROOM ${cfg.room.toUpperCase()}…`);
+        bootText(`<span class="boot-text">crossing into room ${cfg.room.toUpperCase()}…</span>`);
         const hello = { name: cfg.name, app: cfg.app ?? randomAppearance(Math.random), occupation: cfg.occupation, traits: cfg.traits };
         const { net, welcome } = await Net.join(cfg.server, cfg.room, hello, cfg.pass);
         startSession({ mode: 'client', net, welcome, name: cfg.name, app: hello.app, occupation: cfg.occupation, traits: cfg.traits, directives: welcome.missions?.enabled ?? true });
@@ -69,6 +69,6 @@ export async function launch(cfg: LaunchConfig) {
     }
   } catch (e: any) {
     console.error(e);
-    bootText(`SIGNAL LOST<br><span style="font-size:18px;color:#a89a72">${String(e?.message || e).replace(/</g, '&lt;')}</span>`, true);
+    bootText(`signal lost<br><span style="color:#a89a72">${String(e?.message || e).replace(/</g, '&lt;')}</span>`, true);
   }
 }

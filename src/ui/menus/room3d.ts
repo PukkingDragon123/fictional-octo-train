@@ -50,12 +50,16 @@ import { facetMats, disposeFacetMats, type FMats } from './scene/pixtex';
 import { makePost, LensBlood } from './scene/post';
 import { Dust, shaftMesh, Puffs, Arcs, Cable, Chain, Sweat, catchlights, leakCards } from './scene/fx';
 import { PhosphorScreen } from './scene/screen';
+import { Staff } from './scene/staff';
 import { armSegment, armBase, clawPalm, clawFinger, toolHead, sawBlade, pressModel, shutterModel, chairModel, capModel, strapModel, bulbModel, leverModel, gem, prism, FacetBuilder } from './roomParts';
 import { ROOM, SPOT, roomModel, fixtureTubes, monitorModel, canvasTex, bloodCanvas } from './roomKit';
 
 export type { PartKey };
 export type MenuKind = 'sign' | 'gear' | 'phone' | 'tape' | 'card' | 'key';
 export interface MenuItem { key: string; label: string; sub?: string; kind?: MenuKind; primary?: boolean; color?: number }
+/** how far the work lights stay up behind the title menu (0 = the old black cell) */
+const TITLE_LIGHT = 0.58;
+
 export type ShotName = 'title' | 'face' | 'body' | 'full' | 'feet' | 'press';
 
 const REGION_PART: [RegKey, PartKey][] = (Object.entries(PART_REGIONS) as [PartKey, RegKey[]][]).flatMap(([p, rs]) => rs.map((r) => [r, p] as [RegKey, PartKey]));
@@ -113,6 +117,8 @@ export class SubjectRoom {
   private mat = worldMaterial({ noVis: true, noFog: true, noGrid: true });
   private mats: FMats;
   // ---- lights
+  /** the Meridian crew working in the room (title and creator) */
+  private staff = new Staff();
   private hemi = new THREE.HemisphereLight(0x8a9ab8, 0x1a1410, 0.03);
   private hemiDark = new THREE.Color(0x8a9ab8); private hemiLit = new THREE.Color(0xc4cec0);
   private key = new THREE.SpotLight(0xffc88a, 0, 0, 0.98, 0.45, 2);
@@ -303,6 +309,8 @@ export class SubjectRoom {
     S.add(this.pressG);
     // ---- what he wears in the chair, the cuffs and chains for the arms
     S.add(this.subj);
+    this.staff.build();
+    S.add(this.staff.group);
     this.capOn = capModel(mats, true); this.capHang = capModel(mats, false);
     const tip = new THREE.Vector3(0, 0.33, -0.004).applyMatrix4(new THREE.Matrix4().makeRotationX(-0.2)).add(new THREE.Vector3(0, -0.012, -0.002));
     this.capTip.position.copy(tip); this.capOn.add(this.capTip);
@@ -860,7 +868,8 @@ export class SubjectRoom {
       const on = k > 0.42 || (k > 0.05 && k < 0.12) || (k > 0.2 && k < 0.27) || (k > 0.33 && k < 0.36);
       this.lit = damp(this.lit, on ? 1 : 0.08, on ? 30 : 40, dt);
     } else this.lit = damp(this.lit, 0, 5, dt);
-    this.applyLight(this.lit);
+    // the title keeps the room's work lights half up (cool, readable); the creator brings them to full
+    this.applyLight(this.mode === 'title' ? Math.max(this.lit, TITLE_LIGHT) : this.lit);
     this.updateLamp(dt);
     this.updateSurge(dt);
     // ---- hatch, alarm, lever
@@ -878,6 +887,7 @@ export class SubjectRoom {
     this.pressG.position.y = this.pressY;
     this.pressG.visible = this.pressY < ROOM.H + 1.0;
     this.updateRigging();
+    this.staff.update(dt, this.rig ? this.rig.bones.head.getWorldPosition(this.v3) : undefined);
     // ---- fx
     this.updateParticles(dt);
     this.arcs.update(dt);
@@ -893,10 +903,10 @@ export class SubjectRoom {
     const u = this.post.u;
     u.uTime.value = this.t; u.uFlash.value = this.flash + this.surgeK * 0.04; u.uRed.value = this.redFlash;
     const title = 1 - this.lit;
-    u.uExposure.value = 1.05 + this.lit * 0.1;
-    u.uVig.value = 0.6 + title * 0.9;
+    u.uExposure.value = (this.mode === 'title' ? 1.18 : 1.05) + this.lit * 0.1;
+    u.uVig.value = 0.6 + title * 0.35;
     const portrait = this.lowW < this.lowH;
-    u.uSide.value.set(portrait ? 0 : 1, portrait ? 1 : 0, (this.mode === 'title' ? 0.6 : 0.0) * title, portrait ? 0.42 : 0.45);
+    u.uSide.value.set(portrait ? 0 : 1, portrait ? 1 : 0, (this.mode === 'title' ? 0.28 : 0.0) * title, portrait ? 0.42 : 0.45);
     u.uFloor.value = this.mode === 'title' && !portrait ? 0.5 * title : 0;
     u.uLensOn.value = this.lensFx.update(dt) || this.lensFx.active ? 1 : 0;
     this.render();
@@ -1261,12 +1271,13 @@ export class SubjectRoom {
     const rig = this.rig, s = this.app?.height || 1;
     const bone = (b: string, x = 0, y = 0, z = 0) => rig ? rig.bones[b as 'head'].localToWorld(this.v1.set(x * s, y * s, z * s)) : this.v1.set(0, 1.2, ROOM.FLOAT_Z);
     if (name === 'title') {
-      // the push: from head and shoulders to the eyes, over about forty seconds
+      // the whole room from the front corner: the chair, the crew at work, a slow push over forty seconds
       const k = easeIO(Math.min(1, Math.max(0, (this.t - this.titleT0) / 40)));
-      const d = (portrait ? 1.95 - 0.7 * k : 1.38 - 0.5 * k) - this.nudge * 0.03 + Math.sin(this.t * 0.21) * 0.015;
-      if (rig) look.copy(bone('head', 0, 0.125, 0.04)); else look.set(0, 1.3, -0.55);
-      pos.copy(look).add(this.v2.set(0.24, -0.07, 1).normalize().multiplyScalar(d));
-      return portrait ? 44 : 30;
+      // (portrait widens the lens rather than backing out through the front wall)
+      const d = (portrait ? 5.1 - 0.5 * k : 6.3 - 0.8 * k) + Math.sin(this.t * 0.21) * 0.03;
+      look.set(0.15, portrait ? 1.25 : 1.05, -0.05);
+      pos.copy(look).add(this.v2.set(0.5, 0.3, 1).normalize().multiplyScalar(d));
+      return portrait ? 74 : 44;
     }
     if (name === 'press') { look.set(0, 1.05, ROOM.FLOAT_Z - 0.2); pos.set(0.1, 1.55, ROOM.FLOAT_Z + (portrait ? 5.6 : 4.5)); return portrait ? 56 : 40; }
     let at: THREE.Vector3, dist: number, lift: number, fov: number;
@@ -1313,7 +1324,7 @@ export class SubjectRoom {
     }
     // where the subject sits on screen
     const title = this.mode === 'title';
-    const ax = title && !portrait ? 0.32 : 0, ay = portrait ? (title ? 0.42 : 0.14) : title ? 0.04 : 0;
+    const ax = title && !portrait ? 0.2 : 0, ay = portrait ? (title ? 0.3 : 0.14) : title ? 0.02 : 0;
     this.frX = damp(this.frX, this.frXSet ?? ax, 4, dt);
     this.frY = damp(this.frY, this.frYSet ?? ay, 4, dt);
     // a hand on the camera: slow drift, a little roll; shake
