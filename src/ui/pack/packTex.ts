@@ -5,7 +5,7 @@
 // bridges, chipped paint), the debtor card in its clear window, the riveted asset
 // plate and the packing card inside the lid. Everything is drawn pixel by pixel at
 // about one texel per low-res screen pixel, nearest-filtered, no mipmaps; type is
-// Space Grotesk (the game's face) printed with its smooth edges kept, just the faintest fringe dropped.
+// Pixelify Sans (the game's face) printed with its smooth edges kept, just the faintest fringe dropped.
 import * as THREE from 'three';
 import { PixelCanvas, makeRamp, mixHex, scaleHex } from '../../gfx/pixel';
 import { cssFont, fontsReady } from '../../gfx/crt';
@@ -309,7 +309,7 @@ export function padTile(): THREE.Texture {
 // ---------------------------------------------------------------- printed things
 const FONT = () => cssFont('--font-new', 'monospace');
 /**
- * Print text into a pixel picture. The face is a smooth grotesque (Space Grotesk), so its edges keep
+ * Print text into a pixel picture. The face is a smooth grotesque (Pixelify Sans), so its edges keep
  * their coverage, laid over what is there; only the faintest fringe is dropped so letters stay clean
  * at a few pixels high. `cut` (0..255) is that fringe threshold.
  */

@@ -37,7 +37,7 @@
 
 .ix-root { --ix-font: var(--font-new); }
 
-/* the spoken lines (src/game/introKit/subs.ts): Space Grotesk, set like film type: big, smooth, one at a time,
+/* the spoken lines (src/game/introKit/subs.ts): Pixelify Sans, set like film type: big, smooth, one at a time,
    typed on, the speaker's name small and spaced above; no box, a tight dark halo and a soft drop so the letters
    hold on any frame */
 .ix-subs { position: absolute; inset: 0; pointer-events: none; z-index: 3; }

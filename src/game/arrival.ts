@@ -16,7 +16,7 @@
 //          spat out of the Lobby's Seam onto the floor; eyes open on the floor
 //          and he gets up; the band flickers and the beam comes out of it; a
 //          slow push in on Voss as he materialises from the floor up; Voss
-//          talks (bus 'subtitle' lines, boxless Space Grotesk); a hatch in the
+//          talks (bus 'subtitle' lines, boxless Pixelify Sans); a hatch in the
 //          ceiling drops open and a pneumatic chute hisses down
 //          (arrivalKit/chute.ts) and drops the Meridian-issue pack at his
 //          feet (arrivalKit/packModel.ts); he kneels, picks it up in first

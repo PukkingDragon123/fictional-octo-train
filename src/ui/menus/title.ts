@@ -207,7 +207,7 @@ class TitleRoom {
 <p>A survival sandbox. You are a debtor in a yellow jumpsuit, processed by the Meridian Institute and pushed through a wall that turns to liquid, into rooms that never end.</p>
 <p>A band on your wrist counts what you owe. A projected sergeant tells you what to break and what to feed to the presses. Pay the debt, buy a way out. Or don't.</p>
 <p>Missions, scans and quests feed the band's research. What you wear in here costs nothing: the Institute issues it.</p>
-<p class="ct-dim">Inspired by the systemic survival of <i>Project Zomboid</i>, the 2019 "noclip" creepypasta, liminal-space photography and VHS-era found footage. All names, places, creatures and story here are original. Built with three.js. Type: Space Grotesk (SIL Open Font License). Every texture, model, sound and pixel is generated in code.</p>`);
+<p class="ct-dim">Inspired by the systemic survival of <i>Project Zomboid</i>, the 2019 "noclip" creepypasta, liminal-space photography and VHS-era found footage. All names, places, creatures and story here are original. Built with three.js. Type: Pixelify Sans (SIL Open Font License). Every texture, model, sound and pixel is generated in code.</p>`);
     this.openOver(note, 'About', 'the file in the drawer');
   }
 

@@ -1,5 +1,5 @@
 // The intake's spoken lines, drawn by the cutscene itself (not the world's
-// floating speech): Space Grotesk, big and crisp, one line at a time (a new
+// floating speech): Pixelify Sans, big and crisp, one line at a time (a new
 // line pushes the last one off), the speaker's name small above it, the
 // letters typed on in step with the voice's own clock (src/social/chipVoice:
 // letterTimes / playLine, so the blips and the letters agree), shouted lines

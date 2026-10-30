@@ -8,7 +8,7 @@
 // Two builds of one part list: the world copy (atlas textures, world
 // material: it falls out of the chute onto the Lobby floor) and the close-up
 // copy for the hands (its own canvas textures, standard material, the
-// printed words in Space Grotesk).
+// printed words in Pixelify Sans).
 import * as THREE from 'three';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 import { worldMaterial } from '../../gfx/materials';
@@ -107,7 +107,7 @@ function overlayTex(key: string): THREE.CanvasTexture {
   g.drawImage(tmp, 0, 0, w * S, h * S);
   if (key === 'arv_pk_flap') {
     // MERIDIAN / REMITTANCE ISSUE / a serial, screen-printed beside the seal (smooth type over the pixel fabric)
-    const font = cssFont('--font-new', "'Space Grotesk', Arial, sans-serif");
+    const font = cssFont('--font-new', "'Pixelify Sans', monospace");
     g.fillStyle = '#d6d8c8'; g.textBaseline = 'alphabetic'; g.textAlign = 'left';
     g.font = `700 ${5.4 * S}px ${font}`;
     g.fillText('MERIDIAN', 17 * S, 10 * S);

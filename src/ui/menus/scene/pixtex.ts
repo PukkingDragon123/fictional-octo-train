@@ -245,7 +245,7 @@ function chromePix(): PixelCanvas {
   return pc;
 }
 
-/** a flat stencil / engraved plate with text, crisp (thresholded) in Space Grotesk */
+/** a flat stencil / engraved plate with text, crisp (thresholded) in Pixelify Sans */
 export function plateTex(lines: string[], o: { w?: number; h?: number; bg?: number; ink?: number; rivets?: boolean; size?: number; italic?: boolean } = {}): THREE.CanvasTexture {
   const W = o.w ?? 64, H = o.h ?? 24;
   const pc = new PixelCanvas(W, H);
@@ -261,7 +261,7 @@ export function plateTex(lines: string[], o: { w?: number; h?: number; bg?: numb
   const tc = document.createElement('canvas'); tc.width = W; tc.height = H;
   const ctx = tc.getContext('2d')!;
   const size = o.size ?? Math.floor((H - 4) / lines.length * 0.95);
-  ctx.font = `${o.italic ? 'italic ' : ''}600 ${size}px 'Space Grotesk', Arial, sans-serif`;
+  ctx.font = `${o.italic ? 'italic ' : ''}600 ${size}px 'Pixelify Sans', monospace`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';
   lines.forEach((l, i) => ctx.fillText(l, W / 2, Math.round(H / 2 + (i - (lines.length - 1) / 2) * size * 0.98) + 0.5, W - 6));
   const id = ctx.getImageData(0, 0, W, H).data;

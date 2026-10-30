@@ -225,5 +225,5 @@
 .hs-post { display: none; }
 .hs-post canvas { display: block; image-rendering: pixelated; }
 
-/* Space Grotesk is a smooth grotesque: the menus render it antialiased (the global style sets no smoothing for the old pixel face) */
+/* Pixelify Sans is a smooth grotesque: the menus render it antialiased (the global style sets no smoothing for the old pixel face) */
 .nx, .ps, .bt3, .kd-veil, .t-veil, .ct, .hs, .gb, .gc { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; font-kerning: normal; }

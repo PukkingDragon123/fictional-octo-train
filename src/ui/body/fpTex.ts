@@ -5,14 +5,14 @@
 // holes, cheese eyes, fish scales, chocolate cracks, a printed ration wrapper),
 // and the packaging gets printed labels (tins, bottles, soda, a canvas-covered
 // canteen, an enamel mug) with condensation beads, scuffs and dents. All
-// nearest-filtered, text in Space Grotesk thresholded to hard pixels.
+// nearest-filtered, text in Pixelify Sans thresholded to hard pixels.
 import * as THREE from 'three';
 import type { Recipe } from './foodMesh';
 import { inkText } from './stage';
 import { cssFont } from '../../gfx/crt';
 import { hash, mix, shade } from './pix';
 
-const FONT = () => cssFont('--font-new', "'Space Grotesk', Arial, sans-serif");
+const FONT = () => cssFont('--font-new', "'Pixelify Sans', monospace");
 const hex = (c: number) => '#' + (c & 0xffffff).toString(16).padStart(6, '0');
 
 class Paint {

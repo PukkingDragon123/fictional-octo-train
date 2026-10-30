@@ -1,5 +1,5 @@
 // The monitor on the cart: a small green phosphor tube drawn in hard pixels
-// (a heart trace sweeping across a dotted graticule, a readout in Space Grotesk,
+// (a heart trace sweeping across a dotted graticule, a readout in Pixelify Sans,
 // scanlines baked in) on a faceted bulged glass. Its glow is what tints the
 // subject's cheek green on the title.
 import * as THREE from 'three';
@@ -37,16 +37,16 @@ export class PhosphorScreen {
     this.tcv.width = W; this.tcv.height = H;
     fontsReady().catch(() => {});
   }
-  /** the readout, in Space Grotesk, thresholded to hard pixels */
+  /** the readout, in Pixelify Sans, thresholded to hard pixels */
   private text(n: string): Uint8ClampedArray {
     const c = this.tcv.getContext('2d', { willReadFrequently: true })!;
     c.clearRect(0, 0, W, H);
     c.textBaseline = 'top'; c.fillStyle = '#fff';
-    c.font = "600 11px 'Space Grotesk', Arial, sans-serif";
+    c.font = "600 11px 'Pixelify Sans', monospace";
     c.fillText('SUBJECT 4', 4, 2);
-    c.font = "italic 600 10px 'Space Grotesk', Arial, sans-serif";
+    c.font = "italic 600 10px 'Pixelify Sans', monospace";
     c.fillText('pulse', 4, H - 13);
-    c.font = "600 13px 'Space Grotesk', Arial, sans-serif";
+    c.font = "600 13px 'Pixelify Sans', monospace";
     c.fillText(n, 30, H - 15);
     return c.getImageData(0, 0, W, H).data;
   }
