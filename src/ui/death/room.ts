@@ -116,12 +116,15 @@ export class ObsRoom {
   readonly crew: Staffer[] = [];
   private t = 0;
   // lights
-  private hemi = new THREE.HemisphereLight(0x4a5868, 0x14100c, 1.7);
-  private crtBig = new THREE.PointLight(0x7aff9a, 4.5, 6.5, 1.2);
-  private crtBank = new THREE.PointLight(0x5ad07a, 3, 6, 1.2);
-  private lamp = new THREE.SpotLight(0xffc07a, 30, 4, 0.62, 0.55, 1.4);
-  private rim = new THREE.SpotLight(0x9ab0e0, 24, 9, 0.5, 0.7, 1.2);
-  private door = new THREE.PointLight(0xffd8a0, 4, 4.5, 1.4);
+  private hemi = new THREE.HemisphereLight(0xc4c8cc, 0x4a4238, 2.2);
+  private crtBig = new THREE.PointLight(0x9ae8a8, 2.4, 3.5, 2);
+  private crtBank = new THREE.PointLight(0x8ad8a0, 1.6, 3.5, 2);
+  private lamp = new THREE.SpotLight(0xffc890, 9, 3.5, 0.62, 0.6, 2);
+  private rim = new THREE.SpotLight(0xc8d4e8, 30, 9, 0.6, 0.8, 2);
+  /** the overhead tubes: cool-neutral fill from the ceiling */
+  private tubes = [new THREE.PointLight(0xeef2ff, 9, 6, 2), new THREE.PointLight(0xeef2ff, 7, 6, 2)];
+  private tubeMat = new THREE.MeshBasicMaterial({ color: 0xe8eef0, toneMapped: false });
+  private door = new THREE.PointLight(0xffd8a0, 3, 4, 2);
   private doorBulb = new THREE.MeshBasicMaterial({ color: 0xffe0b0, toneMapped: false });
   private recL = new THREE.PointLight(0xff3020, 0.25, 1.4, 2);
   private lampAt = new THREE.Vector3(-1.62, 1.18, -0.98);
@@ -153,7 +156,7 @@ export class ObsRoom {
       this.renderer.setPixelRatio(1);
       this.renderer.setClearColor(0x000000, 1);
       this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFShadowMap;
+      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
       const nsd = new THREE.DepthTexture(1, 1);
       nsd.compareFunction = THREE.LessEqualCompare;
       this.noShadow = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true, depthTexture: nsd });
@@ -203,6 +206,12 @@ export class ObsRoom {
     this.crew[0].rig.heldR.add(mug);
     // ---- light
     S.add(this.hemi);
+    this.tubes[0].position.set(0.3, 2.5, 0.6); this.tubes[1].position.set(0, 2.5, -0.85);
+    for (const t of this.tubes) S.add(t);
+    for (const [x, z] of [[0.3, 0.6], [0, -0.85]]) for (const dz of [-0.06, 0.06]) {
+      const tm = new THREE.Mesh(prism(0.022, 1.2, 6), this.tubeMat);
+      tm.position.set(x, 2.6, z + dz); tm.rotation.z = Math.PI / 2; S.add(tm);
+    }
     this.crtBig.position.set(0, 1.4, -0.72); S.add(this.crtBig);
     this.crtBank.position.set(0, 2.05, -0.95); S.add(this.crtBank);
     this.lamp.position.copy(this.lampAt); this.lamp.target.position.copy(this.lampTo);
@@ -224,6 +233,7 @@ export class ObsRoom {
     this.shaft.u.uColor.value.set(0xffc890);
     this.shaft.u.uInt.value = 0.11;
     S.add(sm);
+    this.post.u.uExposure.value = 1.3; this.post.u.uVig.value = 0.5;
     this.dust = new Dust(o.low ? 60 : 140, new THREE.Box3(new THREE.Vector3(-2.1, 0.7, -1.3), new THREE.Vector3(-0.8, 1.3, -0.4)));
     S.add(this.dust.points, this.puffs.mesh);
     // ---- camera
@@ -238,7 +248,7 @@ export class ObsRoom {
     const W = 3.0, BK = -2.05, FR = 3.45, H = 2.9;
     slab(b, 'floor', -W, W, -0.1, 0, BK, FR, C.floor);
     // the wall behind the rack: green glazed tile, concrete above
-    slab(b, 'tile', -W, W, 0, 1.45, BK - 0.15, BK, 0x9aae90);
+    slab(b, 'tile', -W, W, 0, 1.45, BK - 0.15, BK, 0xb4b8aa);
     slab(b, 'concrete', -W, W, 1.45, H, BK - 0.15, BK, 0x8a8a80);
     for (const k of [-1, 1]) {
       slab(b, 'paint', k * W, k * (W + 0.15), 0, 1.2, BK, FR, C.wallDk, 0.01);
@@ -255,7 +265,9 @@ export class ObsRoom {
     const I: [number, number][] = [[-0.07, -0.1], [0.07, -0.1], [0.07, -0.08], [0.008, -0.08], [0.008, 0.08], [0.07, 0.08], [0.07, 0.1], [-0.07, 0.1], [-0.07, 0.08], [-0.008, 0.08], [-0.008, -0.08], [-0.07, -0.08]];
     for (const z of [-0.6, 1.6]) b.add('rust', extrude(I, 2 * W, 0.003), 0x8a7a6a, at(0, H - 0.1, z, 0, Math.PI / 2), { grain: 'z' });
     b.add('metal', cbox(1.3, 0.08, 0.24, 0.02), C.steel, at(0.3, H - 0.24, 0.6));
-    for (const dz of [-0.06, 0.06]) b.add('glass', prism(0.022, 1.2, 6), 0x2a3030, at(0.3, H - 0.3, 0.6 + dz, 0, 0, Math.PI / 2));
+    // a second fixture over the desk
+    b.add('metal', cbox(1.3, 0.08, 0.24, 0.02), C.steel, at(0, H - 0.24, -0.85));
+    for (const dx of [-0.6, 0.6]) b.add('metal', prism(0.008, 0.2, 4), C.dark, at(dx, H - 0.1, -0.85));
     for (const dx of [-0.6, 1.2]) b.add('metal', prism(0.008, 0.2, 4), C.dark, at(dx, H - 0.1, 0.6));
     // pipes along the ceiling and down the left wall, a conduit to the rack
     const pipe = (pts: V3[], r: number, k: FKey, col: number) => { b.add(k, tube(pts, r, Math.max(6, pts.length * 4), 6, false), col); for (const p of pts) b.add('metal', prism(r * 1.45, r * 1.2, 8), C.dark, at(p[0], p[1], p[2])); };
@@ -663,16 +675,19 @@ export class ObsRoom {
     // the tubes light the room: the big one follows its picture
     const fb = this.feed.tube.u;
     const flick = 0.92 + Math.sin(this.t * 61) * 0.03 + Math.random() * 0.05;
-    this.crtBig.intensity = (3.8 + fb.uNoise.value * 2.4 - fb.uBlank.value * 1.2) * flick * fb.uPower.value + fb.uFlash.value * 8;
-    this.crtBank.intensity = 3 * flick;
+    this.crtBig.intensity = (2.2 + fb.uNoise.value * 1.2 - fb.uBlank.value * 0.6) * flick * fb.uPower.value + fb.uFlash.value * 4;
+    this.crtBank.intensity = 1.6 * flick;
+    // one tube buzzes and stutters now and then
+    const st = Math.sin(this.t * 0.23) > 0.96 && Math.random() < 0.4 ? 0.35 : 1;
+    this.tubes[1].intensity = 7 * st; this.tubeMat.color.setRGB(1.6 * st, 1.65 * st, 1.7 * st);
     const blink = Math.floor(this.t * 1.6) % 2 === 0;
     this.recMat.color.setRGB(blink ? 2 : 0.25, blink ? 0.3 : 0.04, blink ? 0.15 : 0.02);
     this.recL.intensity = blink ? 0.3 : 0.02;
     // the lamp hums and dips now and then
     const dip = Math.sin(this.t * 0.7) > 0.985 ? 0.4 : 1;
-    this.lamp.intensity = 30 * dip * (0.97 + Math.random() * 0.03);
+    this.lamp.intensity = 9 * dip * (0.97 + Math.random() * 0.03);
     const df = Math.sin(this.t * 0.31) > 0.97 ? (Math.random() < 0.5 ? 0.2 : 1) : 1;
-    this.door.intensity = 4 * df; this.doorBulb.color.setRGB(2.4 * df, 2.0 * df, 1.4 * df);
+    this.door.intensity = 3 * df; this.doorBulb.color.setRGB(2.4 * df, 2.0 * df, 1.4 * df);
     this.bulbMat.color.setRGB(2.2 * dip, 1.9 * dip, 1.3 * dip);
     this.shaft.u.uInt.value = 0.1 * dip;
     // coffee steam
@@ -700,8 +715,8 @@ export class ObsRoom {
     const r = this.renderer; if (!r || !this.rt) return;
     const u = this.post.u;
     u.uTime.value = this.t;
-    u.uLift.value.set(0.84, 1.0, 1.08); u.uGain.value.set(1.1, 1.02, 0.86);
-    u.uSat.value = 0.92; u.uContrast.value = 1.1; u.uSide.value.set(1, 0, 0, 0.4); u.uFloor.value = 0.25; u.uGrain.value = 0.014;
+    u.uLift.value.set(0.98, 1.0, 1.03); u.uGain.value.set(1.02, 1.0, 0.97);
+    u.uSat.value = 0.74; u.uContrast.value = 1.03; u.uSide.value.set(1, 0, 0, 0.4); u.uFloor.value = 0.06; u.uGrain.value = 0.012;
     const saved = { cut: U.uCutOn.value, vis: U.uVisOn.value, fn: U.uFogNear.value, ff: U.uFogFar.value, gs: U.uGridScale.value, col: U.uCollapse.value, snap: U.uSnapOn.value };
     const ss = { ts: SPOTU.tSpotShadow.value, tu: SPOTU.tSunShadow.value, so: SPOTU.uSpotOn.value, su: SPOTU.uSunOn.value, sh: SPOTU.uSpotShadowOn.value };
     const nsd = this.noShadow?.depthTexture ?? null;

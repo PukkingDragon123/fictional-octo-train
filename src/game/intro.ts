@@ -877,10 +877,10 @@ export class Intro implements GameSystem {
         // steam off the vents, the beacon going round, the glove on the forearm, his face beyond it
         const st = this.stamp!;
         const k = clamp01(t / 1.2);
-        // (from across the bed, beside the officer: the die coming down over the arm, the debtor's face under the lamp beyond it)
-        st.world(V6.set(0.16 - k * 0.03, 0.98 - k * 0.04, 0.8 - k * 0.06), pos);
-        st.world(V6.set(-0.3, 0.95, 0.04), look);
-        return 52;
+        // (low on the debtor's left, inside the column: the die coming down over the arm, the glove, the officer beyond)
+        st.world(V6.set(-0.3 + k * 0.02, 0.84, -0.56 + k * 0.05), pos);
+        st.world(V6.set(0.0, 1.0 - k * 0.08, 0.05), look);
+        return 58;
       }
       case 'stampMacro': {
         // a macro on the wrist: the band clamped on, the die lifting off it in steam, blood under it, the number lighting up
@@ -1008,7 +1008,7 @@ export class Intro implements GameSystem {
       case 'beatTop': focus = d(head); ap = 0.2; break;
       case 'haulCrane': focus = d(head); ap = 0.12; break;
       case 'pressClose': focus = d(v4.set(IX.press.x + 0.1, GP.bedH + 0.2, IX.press.z + 0.4)); ap = 0.22; break;
-      case 'stampSide': focus = this.shotT < 0.6 ? d(this.stamp!.dieWorld(v4)) : d(head); ap = 0.26; break;
+      case 'stampSide': focus = d(this.stamp!.dieWorld(v4)); ap = 0.24; break;
       case 'stampMacro': focus = d(this.stamp!.world(v4.set(ST.DIE_X, ST.ARM_Y + 0.05, 0))); ap = 0.28; break;
       case 'tapeWide': focus = d(head); ap = 0.18; break;
       default: if (this.phase === 'fit' && this.stampEye && this.stamp) {
@@ -1617,7 +1617,7 @@ export class Intro implements GameSystem {
     // ---- the arm pulled off the bed and up to the eyes, shaking
     if (t > FIT.pull) {
       this.raise = ease(clamp01((t - FIT.pull) / 0.85));
-      if (this.band) this.lights().flare(this.band.lamp.getWorldPosition(V6).add(V0.set(0, 0.05, 0)), 0.7);
+      if (this.band) this.lights().flare(this.band.lamp.getWorldPosition(V6).add(V0.set(0, 0.02, 0)), 0.22);
       this.at(FIT.pull, 18, () => { const l = this.arms.find((q) => q.side === 'L'); if (l) { l.arm.pose('claw'); l.arm.tremor = 1.2; } this.sfx('debtor_gasp', 0.7); this.jolt(0, -0.3, 'farm_l', 0.4); });
     }
     // ---- the officers: A on the far side of the bed with the glove on the arm, B at the pendant behind

@@ -43,6 +43,22 @@ export const LOOKS: Record<string, Look> = {
   // the Lobby end (unused on the stage, for completeness)
   neutral: { lift: [0, 0, 0], gamma: 1, gain: [1, 1, 1], contrast: 0.2, sat: 1, shadow: [1, 1, 1], high: [1, 1, 1], exposure: 1, vignette: 0.4 },
 };
+// Realistic, brighter, less saturated (the user's ask): every grade is pulled toward neutral (no full-frame
+// colour cast: colour lives in the lights), saturation ~0.8 of what it was, the shadows lifted to a dark grey
+// instead of black, a softer S-curve, more exposure (the filmic curve in the composite rolls the highlights
+// off instead of clipping them), a gentler vignette.
+function realistic(l: Look): Look {
+  const toward = (v: number, k: number) => 1 + (v - 1) * k;
+  const lift = (l.lift[0] + l.lift[1] + l.lift[2]) / 3;
+  return {
+    lift: l.lift.map((v) => 0.04 + (v - lift) * 0.4) as [number, number, number],
+    gamma: toward(l.gamma, 0.5), gain: l.gain.map((v) => toward(v, 0.45)) as [number, number, number],
+    contrast: l.contrast * 0.7, sat: l.sat * 0.8,
+    shadow: l.shadow.map((v) => toward(v, 0.35)) as [number, number, number], high: l.high.map((v) => toward(v, 0.4)) as [number, number, number],
+    exposure: l.exposure * 1.35, vignette: l.vignette * 0.55,
+  };
+}
+for (const k of Object.keys(LOOKS)) LOOKS[k] = realistic(LOOKS[k]);
 const copyLook = (o: Look, s: Look) => { o.lift = [...s.lift]; o.gain = [...s.gain]; o.shadow = [...s.shadow]; o.high = [...s.high]; o.gamma = s.gamma; o.contrast = s.contrast; o.sat = s.sat; o.exposure = s.exposure; o.vignette = s.vignette; return o; };
 
 const VERT = /* glsl */`varying vec2 vUv; void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }`;
@@ -235,6 +251,8 @@ void main() {
   }
   // the beat's flash on top of everything (it does not bloom: a strobe, not a lamp)
   c += uFlashCol * uFlash;
+  // a filmic shoulder (ACES fit): highlights roll off instead of clipping to a flat orange
+  c = clamp((c * (2.51 * c + 0.03)) / (c * (2.43 * c + 0.59) + 0.14), 0.0, 1.0);
   vec3 s = toSRGB(c);
   // grade
   s = max(s * uGain + uLift * (1.0 - s), 0.0);
@@ -414,7 +432,7 @@ export class StageRender {
     this.pass(r, this.mats.prep, this.sharp);
     // 3. bloom: bright pass at half res, then three blurred levels
     u = this.mats.bright.uniforms;
-    u.tSrc.value = this.sharp!.texture; u.uTexel.value.set(1 / W, 1 / H); u.uThr.value = this.bloomThr;
+    u.tSrc.value = this.sharp!.texture; u.uTexel.value.set(1 / W, 1 / H); u.uThr.value = this.bloomThr + 0.25;
     this.pass(r, this.mats.bright, this.b1a);
     // shafts from the unblurred bright pass
     const rayUv = this.toUv(this.rayAt, new THREE.Vector3());
@@ -459,7 +477,7 @@ export class StageRender {
     u.uLift.value.set(...L.lift); u.uGain.value.set(...L.gain); u.uShadow.value.set(...L.shadow); u.uHigh.value.set(...L.high);
     u.uGamma.value = L.gamma; u.uContrast.value = L.contrast; u.uSat.value = L.sat; u.uVignette.value = L.vignette;
     u.uHurt.value = Math.min(1, this.hurt); u.uDesat.value = Math.min(1, this.desat); u.uKill.value = Math.min(1, this.kill);
-    u.uBloom.value = this.bloom; u.uStreak.value = streakOn ? this.streak : 0; u.uRaysK.value = raysOn ? this.rays : 0;
+    u.uBloom.value = this.bloom * 0.7; u.uStreak.value = streakOn ? this.streak : 0; u.uRaysK.value = raysOn ? this.rays : 0;
     u.uStreakTint.value.set(this.streakTint.r, this.streakTint.g, this.streakTint.b); u.uRayTint.value.set(this.rayTint.r, this.rayTint.g, this.rayTint.b);
     u.uFocus.value = this.focus; u.uAperture.value = dofOn ? this.aperture : 0; u.uNearBlur.value = this.nearBlur;
     u.uMotion.value.copy(this.motion); u.uZoom.value = this.zoom; u.uCA.value = this.ca;

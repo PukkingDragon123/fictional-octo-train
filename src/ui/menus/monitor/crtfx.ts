@@ -4,6 +4,8 @@
 // into the picture, snow fading off it), 'off' is the picture collapsing to a
 // line and then a dot. play() resolves at the cut (the middle) and the
 // returned `done` when the effect has gone.
+import { bitText } from '../../../gfx/bitfont';
+
 export type CrtFxKind = 'snow' | 'on' | 'off';
 
 export class CrtFx {
@@ -94,9 +96,7 @@ export class CrtFx {
     // a channel caption in the middle of the snow
     const lab = this.runs.find((r) => r.label && r.kind === 'snow');
     if (lab) {
-      c.font = "16px 'Alagard', monospace"; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.fillStyle = '#020802'; for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) c.fillText(lab.label!, Math.round(W / 2) + dx, Math.round(H / 2) + dy);
-      c.fillStyle = '#d8ffd0'; c.fillText(lab.label!, Math.round(W / 2), Math.round(H / 2));
+      bitText(c, lab.label!, Math.round(W / 2), Math.round(H / 2) - 8, { color: '#d8ffd0', outline: '#020802', align: 'center' });
     }
     if (!this.runs.length) { this.el.classList.remove('on'); c.clearRect(0, 0, W, H); }
   }

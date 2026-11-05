@@ -130,8 +130,9 @@ export class SubjectRoom {
   // ---- lights
   /** the Meridian crew working in the room (title and creator) */
   private staff = new Staff();
-  private hemi = new THREE.HemisphereLight(0x8a9ab8, 0x1a1410, 0.03);
-  private hemiDark = new THREE.Color(0x8a9ab8); private hemiLit = new THREE.Color(0xa8b8b4);
+  /** bounce fill: the concrete ceiling above, the worn slab floor and tile below (neutral, a touch warm from the floor) */
+  private hemi = new THREE.HemisphereLight(0xb4b8bc, 0x5a524a, 0.3);
+  private hemiDark = new THREE.Color(0xa8b0ba); private hemiLit = new THREE.Color(0xc4c6c4);
   private key = new THREE.SpotLight(0xffc88a, 0, 0, 0.98, 0.45, 2);
   private rimL = new THREE.SpotLight(0x9ab2ff, 0, 0, 0.32, 0.6, 2);
   private rimR = new THREE.SpotLight(0x5a74d0, 0, 0, 0.3, 0.6, 2);
@@ -145,10 +146,10 @@ export class SubjectRoom {
   private sun = new THREE.DirectionalLight(0xf0f4e6, 0);
   private fill = new THREE.DirectionalLight(0xc8d4c8, 0);
   private back = new THREE.DirectionalLight(0xa0b4d8, 0);
-  private alarm = new THREE.SpotLight(0xff2a1a, 0, 9, 0.6, 0.6, 1.2);
+  private alarm = new THREE.SpotLight(0xff2a1a, 0, 10, 0.6, 0.6, 2);
   /** the operating lamp over the subject (the creator's key), a soft beauty key for the close-ups, a cold fill */
-  private surg = new THREE.SpotLight(0xfff0dc, 0, 7, 0.5, 0.65, 1.4);
-  private faceKey = new THREE.SpotLight(0xffe2c4, 0, 3.2, 0.55, 0.85, 1.6);
+  private surg = new THREE.SpotLight(0xfff4e8, 0, 8, 0.5, 0.7, 2);
+  private faceKey = new THREE.SpotLight(0xfff0e0, 0, 4, 0.55, 0.9, 2);
   private faceFill = new THREE.PointLight(0x8aa8d8, 0, 2.6, 2);
   /** practical light at the working tool (sparks, flame, laser), and the scanner's green */
   private toolL = new THREE.PointLight(0xffa040, 0, 1.4, 2);
@@ -313,7 +314,7 @@ export class SubjectRoom {
     this.key.castShadow = true;
     this.key.shadow.mapSize.set(this.low ? 512 : 1024, this.low ? 512 : 1024);
     this.key.shadow.camera.near = 0.04; this.key.shadow.camera.far = 7;
-    this.key.shadow.bias = -0.0008; this.key.shadow.normalBias = 0.012;
+    this.key.shadow.bias = -0.0008; this.key.shadow.normalBias = 0.012; this.key.shadow.radius = 2.5;
     S.add(this.bulbPivot);
     this.shaft.mesh.position.set(0, lamp.bulbY - 0.05, 0);
     this.bulbPivot.add(this.shaft.mesh);
@@ -332,7 +333,7 @@ export class SubjectRoom {
     this.surg.castShadow = true;
     this.surg.shadow.mapSize.set(this.low ? 512 : 1024, this.low ? 512 : 1024);
     this.surg.shadow.camera.near = 0.3; this.surg.shadow.camera.far = 6;
-    this.surg.shadow.bias = -0.0006; this.surg.shadow.normalBias = 0.015;
+    this.surg.shadow.bias = -0.0006; this.surg.shadow.normalBias = 0.015; this.surg.shadow.radius = 3;
     this.surgShaft.u.uColor.value.set(0xfff0d8);
     this.surgShaft.mesh.position.copy(SURG.at);
     this.surgShaft.mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), this.v1.set(0, 1.45, ROOM.FLOAT_Z).sub(SURG.at).normalize());
@@ -1170,14 +1171,17 @@ export class SubjectRoom {
   /** lighting for a level of "lit" (0 title dark .. 1 tubes full on); the creator keeps the room dim and lights him */
   private applyLight(l: number) {
     const lit = this.mode === 'lit' ? l : 0;
-    this.hemi.intensity = 0.06 + l * 0.48 - lit * 0.3;
+    // a realistic floor of bounce light (shadows sit near 10% grey, never crushed); the creator keeps the room a step below him
+    this.hemi.intensity = 0.32 + l * 0.6 - lit * 0.22;
     this.hemi.color.lerpColors(this.hemiDark, this.hemiLit, l);
     const u = this.post.u;
-    u.uLift.value.set(0.86 + l * 0.08, 0.96 + l * 0.04, 1.14 - l * 0.1);
-    u.uGain.value.set(1.08 - l * 0.04, 1.0 + l * 0.02, 0.86 + l * 0.06);
-    this.sun.intensity = l * 2.1 - lit * 1.45;
-    this.fill.intensity = l * 0.55 - lit * 0.3;
-    this.back.intensity = l * 0.9 - lit * 0.3;
+    // a near-neutral grade: colour lives in the lights, not in a wash over the frame
+    u.uLift.value.set(0.985, 1.0, 1.025);
+    u.uGain.value.set(1.02, 1.0, 0.975);
+    u.uSat.value = 0.74; u.uContrast.value = 1.0;
+    this.sun.intensity = l * 2.1 - lit * 1.2;
+    this.fill.intensity = l * 0.7 - lit * 0.25;
+    this.back.intensity = l * 0.9 - lit * 0.2;
     const c = 0.06 + l * 2.2;
     this.tubeMat.color.setRGB(c * 0.92, c, c * 1.04);
     this.surgLevel = lit;
@@ -1236,8 +1240,8 @@ export class SubjectRoom {
     const u = this.post.u;
     u.uTime.value = this.t; u.uFlash.value = this.flash + this.surgeK * 0.04; u.uRed.value = this.redFlash;
     const title = 1 - this.lit;
-    u.uExposure.value = (this.mode === 'title' ? 1.18 : 1.12) + this.lit * 0.1;
-    u.uVig.value = 0.6 + title * 0.35 + (this.mode === 'lit' ? 0.5 + this.closeK * 0.35 : 0);
+    u.uExposure.value = ((this.mode === 'title' ? 1.18 : 1.12) + this.lit * 0.1) * 1.38;
+    u.uVig.value = 0.35 + title * 0.15 + (this.mode === 'lit' ? 0.25 + this.closeK * 0.2 : 0);
     const portrait = this.lowW < this.lowH;
     u.uSide.value.set(portrait ? 0 : 1, portrait ? 1 : 0, (this.mode === 'title' ? 0.28 : 0.0) * title, portrait ? 0.42 : 0.45);
     u.uFloor.value = this.mode === 'title' && !portrait ? 0.5 * title : 0;
@@ -1279,7 +1283,7 @@ export class SubjectRoom {
     this.shaft.u.uInt.value = 0.02 * this.bulbLevel * (0.2 + title * 0.8);
     // the operating lamp: it stutters on with the tubes, then a steady white
     const sl = this.surgLevel * (this.litT > 0 && this.litT < 0.9 ? (Math.random() < 0.6 ? 1 : 0.2) : 1);
-    this.surg.intensity = sl * 16 * (1 - this.surgeK * 0.3);
+    this.surg.intensity = sl * 24 * (1 - this.surgeK * 0.3);
     const sb = 0.1 + sl * 3.2;
     this.surgBulbMat.color.setRGB(sb, sb * 0.95, sb * 0.86);
     this.surgShaft.u.uInt.value = 0.012 * sl;
@@ -1313,7 +1317,7 @@ export class SubjectRoom {
     this.faceKey.position.copy(head).addScaledVector(right, -0.75).addScaledVector(fwd, 0.7).add(this.v4.set(0, 0.45, 0));
     this.faceKey.target.position.copy(head);
     const lvl = this.mode === 'lit' ? this.lit : 0.35;
-    this.faceKey.intensity = this.closeK * lvl * 5.5;
+    this.faceKey.intensity = this.closeK * lvl * 7;
     this.faceFill.position.copy(head).addScaledVector(right, 0.7).addScaledVector(fwd, 0.5).add(this.v4.set(0, -0.1, 0));
     this.faceFill.intensity = this.closeK * lvl * 0.9 + (this.mode === 'title' ? 0.12 * (1 - this.lit) : 0);
   }

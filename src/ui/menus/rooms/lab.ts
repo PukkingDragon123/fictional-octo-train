@@ -39,7 +39,7 @@ export class LabRoom implements StageRoom {
   cam = new THREE.PerspectiveCamera(50, 16 / 9, 0.05, 30);
   feedCam = new THREE.PerspectiveCamera(66, 4 / 3, 0.05, 30);
   hots: Hot[] = [];
-  grade: Grade = { exposure: 1.55, lift: [0.86, 0.98, 1.06], gain: [1.06, 1.02, 0.9], vig: 0.95, sat: 0.92, contrast: 1.1 };
+  grade: Grade = { exposure: 1.95, lift: [0.97, 0.98, 1.0], gain: [1.02, 1.0, 0.97], vig: 0.6, sat: 0.74, contrast: 1.05 };
   deco = new THREE.Group();
   floor = { minX: -W + 0.8, maxX: W - 0.6, minZ: 0.2, maxZ: 1.6, y: 0 };
   surfaces = [{ minX: -W + 0.05, maxX: -W + 0.7, minZ: -1.4, maxZ: 1.8, y: 0.92 }, { minX: 1.6, maxX: 2.9, minZ: -2.95, maxZ: -2.45, y: 0.92 }];
@@ -48,12 +48,12 @@ export class LabRoom implements StageRoom {
   private mats: FMats;
   private leds = new LedBank(120);
   private puffs = new Puffs(90);
-  private hemi = new THREE.HemisphereLight(0x8a9aa8, 0x0e0e0c, 0.32);
+  private hemi = new THREE.HemisphereLight(0xc8ccc8, 0x3a3830, 0.7);
   private surg = new THREE.SpotLight(0xfff0d8, 0, 0, 0.8, 0.55, 2);
   private surgOn = 1; private surgLvl = 1;
   private surgMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   private lampArm = new THREE.Group(); private lampW = new Wobble(30, 1.6);
-  private strip = new THREE.PointLight(0xc8d8ff, 0.4, 7, 2);
+  private strip = new THREE.PointLight(0xf0f4ff, 0.4, 7, 2);
   private hood = new THREE.SpotLight(0xd8f0e0, 2.2, 3.5, 0.7, 0.6, 1.8);
   private wash = new THREE.SpotLight(0xffe0b8, 2.0, 5, 0.45, 0.7, 1.8);
   private stripMat = new THREE.MeshBasicMaterial({ color: 0x9aa8b0, toneMapped: false });
@@ -131,7 +131,7 @@ export class LabRoom implements StageRoom {
     const s2 = plate(this.mats, ['BIOHAZARD'], 0.4, 0.11, { bg: 0xc8a030 });
     s2.position.set(-0.5, 1.86, BACK + 0.77); g.add(s2);
     // a wash of green from the tanks on the floor
-    const wash = glowCard(4, 1.6, 0x4aff6a, 0.06); wash.rotation.x = -Math.PI / 2; wash.position.set(-1.0, 0.006, BACK + 0.9); g.add(wash);
+    const wash = glowCard(4, 1.2, 0x8aff9a, 0.03); wash.rotation.x = -Math.PI / 2; wash.position.set(-1.0, 0.006, BACK + 0.9); g.add(wash);
     const pool = glowCard(2.0, 2.0, 0xffe8c0, 0.14); pool.rotation.x = -Math.PI / 2; pool.position.set(TABLE.x, 0.006, TABLE.z); pool.name = 'surgPool'; g.add(pool);
     return g;
   }
@@ -316,7 +316,7 @@ export class LabRoom implements StageRoom {
       const gm = new THREE.Mesh(lathe([[R, 0.34], [R, 0.34 + TH]], 10), new THREE.MeshBasicMaterial({ color: 0x3a6a5a, transparent: true, opacity: 0.12, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
       gm.userData.noGlow = true; gm.renderOrder = 4;
       g.add(gm);
-      const light = new THREE.PointLight(0x8affa8, 1.1, 3.2, 2);
+      const light = new THREE.PointLight(0xb0f0c0, 1.1, 2.6, 2);
       light.position.set(0, 1.2, 0.5);
       g.add(light);
       g.position.set(x, 0, BACK + 0.55);
@@ -476,7 +476,7 @@ export class LabRoom implements StageRoom {
     const sw = this.lampW.update(dt);
     this.lampArm.rotation.y = sw * 0.25;
     const stripK = Math.sin(t * 23) + Math.sin(t * 7.7) > 1.7 ? 0.3 : 1;
-    this.strip.intensity = 1.3 * stripK;
+    this.strip.intensity = 3.2 * stripK;
     this.stripMat.color.setScalar(0.25 + 1.2 * stripK);
     this.leds.update(t);
     // ---- tanks: the fluid breathes, bubbles rise, the specimens drift and turn

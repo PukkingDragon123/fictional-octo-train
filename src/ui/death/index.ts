@@ -369,7 +369,7 @@ class DeathCinematic {
       if (R.shotNow === 'type') { R.shot('room'); R.shot('case', 1.5); } else R.shot('case');
       R.feed.blank();
       R.feed.snow = 0.5;
-      R.grade({ exposure: 0.92, vig: 1.1 });
+      R.grade({ exposure: 1.15, vig: 0.6 });
     }
     this.root.classList.add('dz-case-on');
     // the report comes up once the camera has arrived on the glass
@@ -529,7 +529,9 @@ class DeathCinematic {
       this.keysEl.style.top = Math.round(top) + 'px';
     }
     for (const b of this.talkLayer.querySelectorAll<HTMLElement>('.dz-vo')) {
-      const top = (this.keysEl ? Math.min(rect.y + rect.h * 1.12, H - 160) : rect.y + rect.h * 1.18);
+      // above the set when there is room (phones), else between the glass and the keys
+      const vh = b.offsetHeight, keysTop = this.keysEl ? this.keysEl.offsetTop : H - 16;
+      const top = rect.y - vh - 24 > 16 ? rect.y - vh - 24 : Math.max(rect.y + rect.h + 8, keysTop - vh - 8);
       b.style.left = Math.round(W / 2 - b.offsetWidth / 2) + 'px'; b.style.top = Math.round(top) + 'px';
     }
   }

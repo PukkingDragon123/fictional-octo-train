@@ -44,7 +44,8 @@ export class MonitorRoom implements StageRoom {
   scene = new THREE.Scene();
   cam = new THREE.PerspectiveCamera(48, 16 / 9, 0.05, 30);
   hots: Hot[] = [];
-  grade: Grade = { exposure: 1.75, lift: [0.84, 0.98, 1.08], gain: [1.06, 1.02, 0.9], vig: 1.0, sat: 0.92, contrast: 1.1, side: [1, 0, 0.3, 0.42] };
+  // neutral grade: colour lives in the light sources (green tubes, warm lamp, cold fluorescent), not in a wash
+  grade: Grade = { exposure: 2.3, lift: [0.97, 0.98, 1.0], gain: [1.02, 1.0, 0.97], vig: 0.6, sat: 0.74, contrast: 1.04, side: [1, 0, 0.18, 0.42] };
   /** the decorator's group (collectibles) */
   deco = new THREE.Group();
   floor = { minX: -W + 0.3, maxX: W - 0.3, minZ: DESK_Z1 + 0.25, maxZ: 1.2, y: 0 };
@@ -69,11 +70,11 @@ export class MonitorRoom implements StageRoom {
   private toggles: { t: Toggle; fn?: (on: boolean) => void }[] = [];
   private puffs = new Puffs(40);
   private smoke = new Puffs(24);
-  private hemi = new THREE.HemisphereLight(0x8a96a8, 0x14120e, 0.34);
+  private hemi = new THREE.HemisphereLight(0xc8c4b8, 0x3a342c, 0.75);
   private lamp = new THREE.SpotLight(0xffc488, 0, 3.4, 0.82, 0.55, 2);
   private lampOn = true; private lampLvl = 1;
   private lampBulb: THREE.MeshBasicMaterial;
-  private tubeLight = new THREE.PointLight(0xd8e6ff, 0, 5, 2);
+  private tubeLight = new THREE.PointLight(0xf2f4ff, 0, 6, 2);
   private tubeMat = new THREE.MeshBasicMaterial({ color: 0x101010, toneMapped: false });
   private tubeK = 1; private tubeNext = 2; private tubeDrop = 0;
   // every stage room carries the same light rig (1 hemi, 4 point, 3 spot with one shadow) so they share shader programs
@@ -228,7 +229,7 @@ export class MonitorRoom implements StageRoom {
     g.add(tubeM);
     // a cool spill on the floor from the window, a green wash under the rack
     const pool = glowCard(1.4, 2.2, 0x3a5a9a, 0.12); pool.rotation.x = -Math.PI / 2; pool.position.set(-W + 0.8, 0.005, -0.35); g.add(pool);
-    const wash = glowCard(4.2, 1.6, 0x3aff6a, 0.05); wash.rotation.x = -Math.PI / 2; wash.position.set(0, 0.006, BACK + 0.9); g.add(wash);
+    const wash = glowCard(4.2, 1.2, 0x8aff9a, 0.025); wash.rotation.x = -Math.PI / 2; wash.position.set(0, 0.006, BACK + 0.9); g.add(wash);
     return g;
   }
 
@@ -264,7 +265,7 @@ export class MonitorRoom implements StageRoom {
       const tb = feedTube(spot.sw, spot.sh, 160, 120);
       tb.mesh.applyMatrix4(spot.m);
       g.add(tb.mesh);
-      const light = new THREE.PointLight(0xa8ffc0, 0.4, 2.8, 2);
+      const light = new THREE.PointLight(0xb8f0c8, 0.4, 2.4, 2);
       light.position.copy(spot.center).add(new THREE.Vector3(0, -0.05, 0.55));
       g.add(light);
       const f = FEEDS.find((q) => q.key === key)!;
@@ -658,7 +659,7 @@ export class MonitorRoom implements StageRoom {
     if (this.tubeNext < 0) { this.tubeDrop = Math.random() < 0.5 ? 0.06 + Math.random() * 0.3 : 0; this.tubeNext = 1.5 + Math.random() * 5; }
     this.tubeDrop = Math.max(0, this.tubeDrop - dt);
     const tl = this.tubeK * (this.tubeDrop > 0 ? (Math.random() < 0.5 ? 0.1 : 0.6) : 1);
-    this.tubeLight.intensity = 4.5 * tl;
+    this.tubeLight.intensity = 6.5 * tl;
     this.tubeMat.color.setScalar(0.08 + 1.6 * tl);
     this.alarmT = Math.max(0, this.alarmT - dt);
     this.alarm.intensity = this.alarmT > 0 ? 7 * Math.max(0, Math.sin(t * 9)) : 0;

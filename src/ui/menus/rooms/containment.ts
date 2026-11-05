@@ -100,7 +100,7 @@ export class ContainmentRoom implements StageRoom {
   cam = new THREE.PerspectiveCamera(46, 16 / 9, 0.05, 30);
   feedCam = new THREE.PerspectiveCamera(68, 4 / 3, 0.05, 30);
   hots: Hot[] = [];
-  grade: Grade = { exposure: 1.6, lift: [0.84, 0.96, 1.12], gain: [1.08, 1.0, 0.86], vig: 1.0, sat: 0.95, contrast: 1.12 };
+  grade: Grade = { exposure: 2.1, lift: [0.97, 0.98, 1.0], gain: [1.02, 1.0, 0.97], vig: 0.6, sat: 0.74, contrast: 1.05 };
   deco = new THREE.Group();
   floor = { minX: -W + 0.6, maxX: W - 0.6, minZ: 0.45, maxZ: 1.5, y: 0 };
   surfaces = [{ minX: -W + 0.1, maxX: -W + 0.5, minZ: 0.7, maxZ: 2.3, y: 1.42 }, { minX: -W + 0.1, maxX: -W + 0.5, minZ: 0.7, maxZ: 2.3, y: 0.92 }];
@@ -110,13 +110,13 @@ export class ContainmentRoom implements StageRoom {
   private mats: FMats;
   private leds = new LedBank(80);
   private panes: Pane[] = [];
-  private hemi = new THREE.HemisphereLight(0x6a7a90, 0x0a0808, 0.24);
-  private key = new THREE.SpotLight(0xcfe0ff, 0, 0, 0.95, 0.55, 2);
+  private hemi = new THREE.HemisphereLight(0xb8bcc0, 0x3a3632, 0.6);
+  private key = new THREE.SpotLight(0xe8eef8, 0, 0, 0.95, 0.55, 2);
   private keyMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   private beacons: { g: THREE.Group; spin: THREE.Group; light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; a: number }[] = [];
   private red = new THREE.PointLight(0xff2a1a, 0.6, 5, 2);
   private jarLight = new THREE.PointLight(0x7aff6a, 0.35, 2.4, 2);
-  private cellFill = new THREE.PointLight(0x8aa0c8, 2.4, 6.5, 2);
+  private cellFill = new THREE.PointLight(0xd0d8e8, 2.4, 6.5, 2);
   private bounce = new THREE.PointLight(0xffa040, 0, 3.5, 2);
   private redMat = new THREE.MeshBasicMaterial({ color: 0x400606, toneMapped: false });
   private alarmT = 0;
@@ -248,7 +248,7 @@ export class ContainmentRoom implements StageRoom {
     th.position.set(1.25, H - 0.18, GZ + 0.185);
     g.add(th);
     // cold light pooled under the lamp, a red wash in the corridor
-    const pool = glowCard(2.4, 2.2, 0xa8c8ff, 0.16); pool.rotation.x = -Math.PI / 2; pool.position.set(0, 0.09, -2.4); g.add(pool);
+    const pool = glowCard(2.4, 2.2, 0xd8e0f0, 0.1); pool.rotation.x = -Math.PI / 2; pool.position.set(0, 0.09, -2.4); g.add(pool);
     const wash = glowCard(2.6, 2.6, 0xff3020, 0.07); wash.rotation.x = -Math.PI / 2; wash.position.set(-1.6, 0.01, 2.0); g.add(wash);
     // the hard lamp in the cell
     this.key.position.set(0, H - 0.2, -2.2);
