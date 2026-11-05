@@ -947,7 +947,7 @@ export class Intro implements GameSystem {
       if (ph === 'fit' && this.stamp) {
         // the station's caged work lamp is the key: a hard warm pool on the bed and the arm, the rest falls to black
         const st = this.stamp;
-        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xffd2a0, 2.3 * st.lamp * (1 - 0.55 * this.raise), 0.74, this.t < 0.1);
+        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xfff0dc, 2.3 * st.lamp * (1 - 0.55 * this.raise), 0.74, this.t < 0.1);
       }
       else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
     } else {

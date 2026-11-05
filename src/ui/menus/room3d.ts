@@ -48,7 +48,7 @@ import { gfxSettings } from './common';
 import { sfx, loopSfx, type LoopSfx, type LoopKind } from './sfx';
 import { calm } from './settings';
 import { facetMats, disposeFacetMats, type FMats } from './scene/pixtex';
-import { makePost, LensBlood } from './scene/post';
+import { makePost, LensBlood, Bloom } from './scene/post';
 import { Dust, shaftMesh, Puffs, Arcs, Cable, Chain, Sweat, catchlights, leakCards } from './scene/fx';
 import { PhosphorScreen } from './scene/screen';
 import { Staff } from './scene/staff';
@@ -119,6 +119,8 @@ export class SubjectRoom {
   get camera(): THREE.PerspectiveCamera { return this.cam; }
   private rt: THREE.WebGLRenderTarget | null = null;
   private post = makePost();
+  /** the cutscenes' bloom (scene/post.ts) */
+  private bloom = new Bloom();
   private lensFx = new LensBlood();
   private lowW = 0; private lowH = 0;
   private raf = 0; private last = 0; private t = 0;
@@ -1176,9 +1178,10 @@ export class SubjectRoom {
     this.hemi.color.lerpColors(this.hemiDark, this.hemiLit, l);
     const u = this.post.u;
     // the cartoony colour stays (cool shadows, warm highlights, full saturation); only the gloom is gone
-    u.uLift.value.set(0.88 + l * 0.08, 0.97 + l * 0.03, 1.14 - l * 0.1);
-    u.uGain.value.set(1.08 - l * 0.04, 1.0 + l * 0.02, 0.88 + l * 0.06);
-    u.uSat.value = 0.98; u.uContrast.value = 1.05;
+    // the cutscenes' split tone (introKit/stage.ts LOOKS): cold blue shadows, warm amber highlights
+    u.uLift.value.set(0.78 + l * 0.08, 0.93 + l * 0.03, 1.18 - l * 0.08);
+    u.uGain.value.set(1.12 - l * 0.03, 0.99 + l * 0.02, 0.84 + l * 0.06);
+    u.uSat.value = 1.0; u.uContrast.value = 1.1;
     this.sun.intensity = l * 2.1 - lit * 1.2;
     this.fill.intensity = l * 0.7 - lit * 0.25;
     this.back.intensity = l * 0.9 - lit * 0.2;
@@ -1241,7 +1244,9 @@ export class SubjectRoom {
     const u = this.post.u;
     u.uTime.value = this.t; u.uFlash.value = this.flash + this.surgeK * 0.04; u.uRed.value = this.redFlash;
     const title = 1 - this.lit;
-    u.uExposure.value = ((this.mode === 'title' ? 1.18 : 1.12) + this.lit * 0.1) * 1.3;
+    // like the cutscenes: lamps bloom, faces hold (the bloom carries the brightness, not a blown exposure)
+    u.uExposure.value = ((this.mode === 'title' ? 1.18 : 1.12) + this.lit * 0.1) * (this.mode === 'lit' ? 1.04 - this.closeK * 0.1 : 1.14);
+    u.uBloom.value = this.mode === 'lit' ? 0.75 : 0.95;
     u.uVig.value = 0.22 + title * 0.1 + (this.mode === 'lit' ? 0.08 + this.closeK * 0.1 : 0);
     const portrait = this.lowW < this.lowH;
     // no dark side panel, no dark floor band: the 2D words carry their own ink outline
@@ -1857,6 +1862,9 @@ export class SubjectRoom {
       r.setClearColor(0x000000, 1);
       r.clear(true, true, true);
       r.render(this.scene, this.cam);
+      const pu = this.post.u;
+      this.bloom.run(r, this.rt!.texture, this.rt!.width, this.rt!.height, pu.uExposure.value);
+      pu.tB1.value = this.bloom.tex[0]; pu.tB2.value = this.bloom.tex[1]; pu.tB3.value = this.bloom.tex[2];
       r.setRenderTarget(null);
       r.render(this.post.scene, this.post.cam);
     } finally {
@@ -1975,6 +1983,7 @@ export class SubjectRoom {
 
   dispose() {
     cancelAnimationFrame(this.raf);
+    this.bloom.dispose();
     for (const w of this.waiters) w.res();
     for (const tw of this.tweens) tw.res();
     this.waiters = []; this.tweens = [];

@@ -13,7 +13,7 @@
 //   stage.onHot                hover / press callbacks for the room's hot props
 import * as THREE from 'three';
 import { U } from '../../../gfx/materials';
-import { makePost } from '../scene/post';
+import { makePost, Bloom } from '../scene/post';
 import { gfxSettings } from '../common';
 
 /** a prop the pointer can hover and press */
@@ -78,6 +78,8 @@ export class MenuStage {
   quality = 'high';
   private rt: THREE.WebGLRenderTarget | null = null;
   private post = makePost();
+  /** the cutscenes' bloom (scene/post.ts) */
+  private bloom = new Bloom();
   private feeds = new Map<string, Feed>();
   private raf = 0; private last = 0;
   private ro: ResizeObserver;
@@ -313,11 +315,13 @@ export class MenuStage {
     const u = this.post.u, g = a.grade ?? {};
     u.uTime.value = this.t;
     u.uExposure.value = g.exposure ?? 1.15;
-    u.uLift.value.set(...(g.lift ?? [0.86, 0.96, 1.12]));
-    u.uGain.value.set(...(g.gain ?? [1.08, 1.0, 0.88]));
+    // the cutscenes' grade (introKit/stage.ts LOOKS): cold blue shadows, warm highlights, full colour, a bloom off the lamps and tubes
+    u.uLift.value.set(...(g.lift ?? [0.8, 0.94, 1.16]));
+    u.uGain.value.set(...(g.gain ?? [1.12, 0.99, 0.85]));
     u.uVig.value = g.vig ?? 0.85;
-    u.uSat.value = g.sat ?? 0.9;
-    u.uContrast.value = g.contrast ?? 1.08;
+    u.uSat.value = Math.max(1, g.sat ?? 1);
+    u.uContrast.value = Math.max(1.1, g.contrast ?? 1.1);
+    u.uBloom.value = 0.95;
     u.uSide.value.set(...(g.side ?? [1, 0, 0, 0.4]));
     u.uNear.value = a.cam.near; u.uFar.value = a.cam.far;
     u.uFlash.value = 0; u.uRed.value = 0; u.uFloor.value = 0; u.uLensOn.value = 0;
@@ -327,6 +331,8 @@ export class MenuStage {
       r.setClearColor(0x000000, 1);
       r.clear(true, true, true);
       r.render(a.scene, a.cam);
+      this.bloom.run(r, this.rt!.texture, this.rt!.width, this.rt!.height, u.uExposure.value);
+      u.tB1.value = this.bloom.tex[0]; u.tB2.value = this.bloom.tex[1]; u.tB3.value = this.bloom.tex[2];
       r.setRenderTarget(null);
       r.render(this.post.scene, this.post.cam);
     });
@@ -337,6 +343,7 @@ export class MenuStage {
     this.ro.disconnect();
     for (const f of this.feeds.values()) f.rt.dispose();
     this.rt?.dispose();
+    this.bloom.dispose();
     this.post.mat.dispose();
     if (this.renderer) { this.renderer.dispose(); this.renderer.forceContextLoss(); this.renderer = null; }
     this.canvas.remove();
