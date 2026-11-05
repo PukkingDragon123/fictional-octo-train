@@ -947,7 +947,7 @@ export class Intro implements GameSystem {
       if (ph === 'fit' && this.stamp) {
         // the station's caged work lamp is the key: a hard warm pool on the bed and the arm, the rest falls to black
         const st = this.stamp;
-        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xffd2a0, 3.4 * st.lamp, 0.74, this.t < 0.1);
+        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xffd2a0, 2.3 * st.lamp * (1 - 0.55 * this.raise), 0.74, this.t < 0.1);
       }
       else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
     } else {
@@ -1644,7 +1644,9 @@ export class Intro implements GameSystem {
     // the lens: a slow push on the creep down (the room falls away), wide again after
     if (!this.shot) {
       const cam = fpCamera();
-      const want = t > 4.3 && t < FIT.stamp ? lerp(62, 44, clamp01((t - 4.3) / (FIT.stamp - 4.3))) : t >= FIT.stamp && t < FIT.pull ? 52 : t >= FIT.pull ? 50 : 64;
+      let want = t > 4.3 && t < FIT.stamp ? lerp(62, 44, clamp01((t - 4.3) / (FIT.stamp - 4.3))) : t >= FIT.stamp && t < FIT.pull ? 52 : t >= FIT.pull ? 50 : 64;
+      // a phone held upright keeps most of the landscape picture's width (the arm, the jaws, the glove)
+      if (cam.aspect < 1.3) { const hf = 2 * Math.atan(Math.tan(want * DEG / 2) * 16 / 9) * 0.72; want = Math.min(96, Math.max(want, 2 * Math.atan(Math.tan(hf / 2) / Math.max(0.3, cam.aspect)) / DEG)); }
       cam.fov += (want - cam.fov) * Math.min(1, dt * (t > 4.3 && t < FIT.stamp ? 6 : 3));
       cam.updateProjectionMatrix();
     }

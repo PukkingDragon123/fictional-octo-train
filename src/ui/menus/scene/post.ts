@@ -1,7 +1,9 @@
 // The subject room's composite: the scene is rendered small into a half-float
 // target, then this pass draws it to the (equally small) canvas, which CSS
-// blows up by a whole number with hard pixels. No blur of any kind: a black
-// one-pixel silhouette line from depth steps, a filmic tone curve and a split
+// blows up by a whole number with hard pixels. The menus share the cutscenes'
+// cinematic layer (src/game/introKit/stage.ts): a bloom off everything bright
+// (Bloom below: a soft-knee bright pass, three blurred levels sampled smoothly
+// over the sharp pixels). Then a black one-pixel silhouette line from depth steps, a filmic tone curve and a split
 // grade (cold shadows, warm highlights, crushed blacks), a darkened side for
 // the 2D menu, a vignette, the camera flash, blood on the lens (a pixel canvas
 // of its own), light ordered dither to a slightly reduced palette, a whisper
@@ -14,6 +16,100 @@ export interface PostUniforms {
   uFlash: { value: number }; uRed: { value: number }; uExposure: { value: number }; uOutline: { value: number };
   uSide: { value: THREE.Vector4 }; uLift: { value: THREE.Vector3 }; uGain: { value: THREE.Vector3 };
   uSat: { value: number }; uContrast: { value: number }; uFloor: { value: number }; uVig: { value: number }; uGrain: { value: number }; uLensOn: { value: number }; uLevels: { value: number };
+  tB1: { value: THREE.Texture }; tB2: { value: THREE.Texture }; tB3: { value: THREE.Texture }; uBloom: { value: number };
+}
+
+const BLACK = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+BLACK.needsUpdate = true;
+const FS_VERT = 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }';
+
+/**
+ * The cutscenes' bloom for the menu scenes: a soft-knee bright pass at half res, then three
+ * levels (1/2, 1/4, 1/8) each blurred both ways. Feed the post's tB1..tB3 from `tex`.
+ */
+export class Bloom {
+  /** the three blurred levels (black until the first run) */
+  readonly tex: [THREE.Texture, THREE.Texture, THREE.Texture] = [BLACK, BLACK, BLACK];
+  /** threshold and knee (linear light, after exposure) */
+  thr = 0.8; knee = 0.4;
+  private lv: { a: THREE.WebGLRenderTarget; b: THREE.WebGLRenderTarget }[] = [];
+  private w = 0; private h = 0;
+  private scene = new THREE.Scene();
+  private cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  private quad: THREE.Mesh;
+  private bright = new THREE.ShaderMaterial({
+    vertexShader: FS_VERT, depthTest: false, depthWrite: false,
+    uniforms: { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() }, uThr: { value: 0.8 }, uKnee: { value: 0.4 }, uExposure: { value: 1 } },
+    fragmentShader: /* glsl */`
+      uniform sampler2D tSrc; uniform vec2 uTexel; uniform float uThr, uKnee, uExposure; varying vec2 vUv;
+      void main() {
+        // four taps (a 2x2 box) so single hot pixels don't flicker
+        vec3 c = (texture2D(tSrc, vUv + uTexel * vec2(-0.5, -0.5)).rgb + texture2D(tSrc, vUv + uTexel * vec2(0.5, -0.5)).rgb
+                + texture2D(tSrc, vUv + uTexel * vec2(-0.5, 0.5)).rgb + texture2D(tSrc, vUv + uTexel * vec2(0.5, 0.5)).rgb) * 0.25 * uExposure;
+        float l = max(c.r, max(c.g, c.b));
+        float k = smoothstep(uThr - uKnee, uThr + uKnee, l);
+        gl_FragColor = vec4(min(c * k, vec3(8.0)), 1.0);
+      }`,
+  });
+  private blur = new THREE.ShaderMaterial({
+    vertexShader: FS_VERT, depthTest: false, depthWrite: false,
+    uniforms: { tSrc: { value: null }, uDir: { value: new THREE.Vector2() } },
+    fragmentShader: /* glsl */`
+      uniform sampler2D tSrc; uniform vec2 uDir; varying vec2 vUv;
+      void main() {
+        vec3 c = texture2D(tSrc, vUv).rgb * 0.227;
+        c += (texture2D(tSrc, vUv + uDir * 1.385).rgb + texture2D(tSrc, vUv - uDir * 1.385).rgb) * 0.316;
+        c += (texture2D(tSrc, vUv + uDir * 3.231).rgb + texture2D(tSrc, vUv - uDir * 3.231).rgb) * 0.07;
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  });
+  private down = new THREE.ShaderMaterial({
+    vertexShader: FS_VERT, depthTest: false, depthWrite: false,
+    uniforms: { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } },
+    fragmentShader: /* glsl */`
+      uniform sampler2D tSrc; uniform vec2 uTexel; varying vec2 vUv;
+      void main() {
+        gl_FragColor = vec4((texture2D(tSrc, vUv + uTexel * vec2(-1.0, -1.0)).rgb + texture2D(tSrc, vUv + uTexel * vec2(1.0, -1.0)).rgb
+          + texture2D(tSrc, vUv + uTexel * vec2(-1.0, 1.0)).rgb + texture2D(tSrc, vUv + uTexel * vec2(1.0, 1.0)).rgb) * 0.25, 1.0);
+      }`,
+  });
+  constructor() {
+    this.quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), this.bright);
+    this.quad.frustumCulled = false;
+    this.scene.add(this.quad);
+  }
+  private ensure(w: number, h: number) {
+    if (w === this.w && h === this.h && this.lv.length) return;
+    this.dispose();
+    this.w = w; this.h = h;
+    for (let i = 0; i < 3; i++) {
+      const W = Math.max(1, Math.ceil(w / (2 << i))), H = Math.max(1, Math.ceil(h / (2 << i)));
+      const o = { type: THREE.HalfFloatType, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, depthBuffer: false } as const;
+      this.lv.push({ a: new THREE.WebGLRenderTarget(W, H, o), b: new THREE.WebGLRenderTarget(W, H, o) });
+    }
+    for (let i = 0; i < 3; i++) this.tex[i] = this.lv[i].a.texture;
+  }
+  private pass(r: THREE.WebGLRenderer, m: THREE.ShaderMaterial, out: THREE.WebGLRenderTarget) { this.quad.material = m; r.setRenderTarget(out); r.render(this.scene, this.cam); }
+  private blurBoth(r: THREE.WebGLRenderer, l: { a: THREE.WebGLRenderTarget; b: THREE.WebGLRenderTarget }, sp: number) {
+    const u = this.blur.uniforms;
+    u.tSrc.value = l.a.texture; u.uDir.value.set(sp / l.a.width, 0); this.pass(r, this.blur, l.b);
+    u.tSrc.value = l.b.texture; u.uDir.value.set(0, sp / l.a.height); this.pass(r, this.blur, l.a);
+  }
+  /** bloom off `src` (the scene's linear half-float colour, w x h); leaves the render target unset */
+  run(r: THREE.WebGLRenderer, src: THREE.Texture, w: number, h: number, exposure: number) {
+    this.ensure(w, h);
+    const b = this.bright.uniforms;
+    b.tSrc.value = src; b.uTexel.value.set(1 / w, 1 / h); b.uThr.value = this.thr; b.uKnee.value = this.knee; b.uExposure.value = exposure;
+    this.pass(r, this.bright, this.lv[0].a);
+    this.blurBoth(r, this.lv[0], 1);
+    for (let i = 1; i < 3; i++) {
+      const d = this.down.uniforms; d.tSrc.value = this.lv[i - 1].a.texture; d.uTexel.value.set(0.5 / this.lv[i - 1].a.width, 0.5 / this.lv[i - 1].a.height);
+      this.pass(r, this.down, this.lv[i].a);
+      this.blurBoth(r, this.lv[i], 1.3 + i * 0.4);
+    }
+    r.setRenderTarget(null);
+  }
+  dispose() { for (const l of this.lv) { l.a.dispose(); l.b.dispose(); } this.lv = []; this.tex[0] = this.tex[1] = this.tex[2] = BLACK; }
 }
 
 export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera; mat: THREE.ShaderMaterial; u: PostUniforms } {
@@ -23,12 +119,13 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
     uFlash: { value: 0 }, uRed: { value: 0 }, uExposure: { value: 1 }, uOutline: { value: 1 },
     uSide: { value: new THREE.Vector4(1, 0, 0, 0.4) }, uLift: { value: new THREE.Vector3(0.86, 0.96, 1.14) }, uGain: { value: new THREE.Vector3(1.08, 1.0, 0.86) },
     uSat: { value: 0.9 }, uContrast: { value: 1.08 }, uFloor: { value: 0 }, uVig: { value: 0.9 }, uGrain: { value: 0.012 }, uLensOn: { value: 0 }, uLevels: { value: 28 },
+    tB1: { value: BLACK }, tB2: { value: BLACK }, tB3: { value: BLACK }, uBloom: { value: 0 },
   };
   const mat = new THREE.ShaderMaterial({
     uniforms: u as unknown as Record<string, THREE.IUniform>,
     vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
     fragmentShader: /* glsl */`
-      uniform sampler2D tColor; uniform sampler2D tDepth; uniform sampler2D tLens;
+      uniform sampler2D tColor; uniform sampler2D tDepth; uniform sampler2D tLens; uniform sampler2D tB1, tB2, tB3; uniform float uBloom;
       uniform vec2 uRes; uniform float uNear, uFar, uTime, uFlash, uRed, uExposure, uOutline, uSat, uContrast, uVig, uGrain, uLensOn, uLevels, uFloor;
       uniform vec4 uSide; uniform vec3 uLift, uGain;
       varying vec2 vUv;
@@ -50,8 +147,10 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
         float s = dot(vUv, uSide.xy) + (uSide.x < 0.0 || uSide.y < 0.0 ? 1.0 : 0.0);
         c *= 1.0 - uSide.z * (1.0 - smoothstep(0.0, uSide.w, s));
         c *= 1.0 - uFloor * (1.0 - smoothstep(0.0, 0.38, vUv.y));
-        // exposure, filmic curve, split grade
-        c = aces(c * uExposure);
+        // exposure, the cutscenes' bloom (soft levels over the sharp pixels), filmic curve, split grade
+        c *= uExposure;
+        c += (texture2D(tB1, vUv).rgb * 0.55 + texture2D(tB2, vUv).rgb * 0.45 + texture2D(tB3, vUv).rgb * 0.4) * uBloom;
+        c = aces(c);
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
         c = mix(vec3(l), c, uSat);
         c *= mix(uLift, uGain, smoothstep(0.02, 0.5, l));
