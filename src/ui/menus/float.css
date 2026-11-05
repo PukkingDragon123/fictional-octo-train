@@ -110,7 +110,12 @@
   .mr-tip { top: 34px; }
   .mr-acts { bottom: 56px; }
   .mr-bar { bottom: 8px; }
-  .mr-word { font-size: 16px; }
+  .mr-word, .mr-word.act { font-size: 16px; }
   .mr-bar .home { font-size: 32px; }
 }
 @media (prefers-reduced-motion: reduce) { .mr-word, .mr-feed i { transition: none; } .mr-feed:focus i { animation: none; } }
+
+/* bright, not gloomy: the booth keeps only a light shade behind the menu words, no letterbox bars */
+.nx-title.mr::before, .nx-title.mr::after { height: 0; }
+.nx-title.mr .mr-stage::after { background: linear-gradient(90deg, rgba(0, 0, 0, 0.32) 0%, rgba(0, 0, 0, 0.12) 26%, transparent 44%); }
+@media (max-aspect-ratio: 20/21) { .nx-title.mr .mr-stage::after { background: linear-gradient(0deg, rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.18) 30%, transparent 50%); } }

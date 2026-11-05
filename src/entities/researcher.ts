@@ -162,8 +162,8 @@ export class Researcher extends HumanRig {
       case 'clipboard': {
         // the board held in the left forearm, the right hand jotting notes on it, head down to read
         const sc = Math.sin(t * 11) * 0.012, sc2 = Math.sin(t * 3.7) * 0.02;
-        arm('L', -0.07, -0.33, 0.26, [1, -0.7, -0.4], [0, 0.2, 0]);
-        arm('R', 0.11 + sc2, -0.25 + sc, 0.3, [-1, -0.8, -0.4], [-0.3, -0.6, 0]);
+        arm('L', -0.09, -0.2, 0.3, [1, -0.7, -0.4], [0, 0.2, 0]);
+        arm('R', 0.13 + sc2, -0.14 + sc, 0.32, [-1, -0.8, -0.4], [-0.3, -0.6, 0]);
         addQ(j.head, [0.32, 0.1, 0], w); addQ(j.neck, [0.1, 0, 0], w);
         this.fingers('L', 0.6, w); this.fingers('R', 0.8, w);
         break;

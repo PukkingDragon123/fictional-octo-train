@@ -372,8 +372,9 @@ if (uWFlags.y < 0.5 && uVisOn > 0.5) {
   vec2 vis = texture2D(uVisTex, (vgp - uVisInfo.xy) * uVisInfo.zw).rg;
   vec3 col = gl_FragColor.rgb;
   float lum = dot(col, vec3(0.3, 0.59, 0.11));
-  vec3 remembered = mix(vec3(lum), col, 0.35) * uRememberTint * uRememberAmt;
-  vec3 unexplored = mix(vec3(lum), col, 0.15) * uRememberTint * uRememberAmt * 0.2;
+  // out of sight but remembered: dimmed, still readable (not murky near-black)
+  vec3 remembered = mix(vec3(lum), col, 0.45) * uRememberTint * min(1.0, uRememberAmt * 1.3);
+  vec3 unexplored = mix(vec3(lum), col, 0.2) * uRememberTint * uRememberAmt * 0.3;
   // hidden areas sink toward the zone's void colour (near-black indoors, haze outdoors) without washing out
   vec3 res = mix(mix(unexplored, remembered, vis.g), uVoidColor, 0.08 + 0.22 * (1.0 - vis.g));
   // a short clean ramp at the vision edge (the final posterise steps it into a couple of bands)

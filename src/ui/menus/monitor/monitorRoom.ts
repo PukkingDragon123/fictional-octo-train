@@ -44,8 +44,8 @@ export class MonitorRoom implements StageRoom {
   scene = new THREE.Scene();
   cam = new THREE.PerspectiveCamera(48, 16 / 9, 0.05, 30);
   hots: Hot[] = [];
-  // neutral grade: colour lives in the light sources (green tubes, warm lamp, cold fluorescent), not in a wash
-  grade: Grade = { exposure: 2.3, lift: [0.97, 0.98, 1.0], gain: [1.02, 1.0, 0.97], vig: 0.6, sat: 0.74, contrast: 1.04, side: [1, 0, 0.18, 0.42] };
+  // bright and punchy: saturated phosphor green and lamp amber, lifted shadows, a light vignette, barely any menu-side dimming
+  grade: Grade = { exposure: 2.3, lift: [0.94, 1.0, 1.02], gain: [1.04, 1.02, 0.96], vig: 0.35, sat: 1.06, contrast: 1.06, side: [1, 0, 0.08, 0.42] };
   /** the decorator's group (collectibles) */
   deco = new THREE.Group();
   floor = { minX: -W + 0.3, maxX: W - 0.3, minZ: DESK_Z1 + 0.25, maxZ: 1.2, y: 0 };
@@ -229,7 +229,7 @@ export class MonitorRoom implements StageRoom {
     g.add(tubeM);
     // a cool spill on the floor from the window, a green wash under the rack
     const pool = glowCard(1.4, 2.2, 0x3a5a9a, 0.12); pool.rotation.x = -Math.PI / 2; pool.position.set(-W + 0.8, 0.005, -0.35); g.add(pool);
-    const wash = glowCard(4.2, 1.2, 0x8aff9a, 0.025); wash.rotation.x = -Math.PI / 2; wash.position.set(0, 0.006, BACK + 0.9); g.add(wash);
+    const wash = glowCard(4.2, 1.4, 0x3aff6a, 0.07); wash.rotation.x = -Math.PI / 2; wash.position.set(0, 0.006, BACK + 0.9); g.add(wash);
     return g;
   }
 
@@ -265,7 +265,7 @@ export class MonitorRoom implements StageRoom {
       const tb = feedTube(spot.sw, spot.sh, 160, 120);
       tb.mesh.applyMatrix4(spot.m);
       g.add(tb.mesh);
-      const light = new THREE.PointLight(0xb8f0c8, 0.4, 2.4, 2);
+      const light = new THREE.PointLight(0x7aff8a, 0.4, 3.0, 2);
       light.position.copy(spot.center).add(new THREE.Vector3(0, -0.05, 0.55));
       g.add(light);
       const f = FEEDS.find((q) => q.key === key)!;
@@ -667,7 +667,7 @@ export class MonitorRoom implements StageRoom {
     let glow = 0;
     for (const f of this.feeds) {
       f.tube.update(dt, t);
-      f.light.intensity = 0.22 + f.tube.glow * 0.55;
+      f.light.intensity = 0.35 + f.tube.glow * 0.8;
       glow += f.tube.glow;
     }
     // ---- aux tubes: redraw a few times a second

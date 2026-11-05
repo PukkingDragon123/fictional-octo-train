@@ -39,7 +39,7 @@ export class LabRoom implements StageRoom {
   cam = new THREE.PerspectiveCamera(50, 16 / 9, 0.05, 30);
   feedCam = new THREE.PerspectiveCamera(66, 4 / 3, 0.05, 30);
   hots: Hot[] = [];
-  grade: Grade = { exposure: 1.95, lift: [0.97, 0.98, 1.0], gain: [1.02, 1.0, 0.97], vig: 0.6, sat: 0.74, contrast: 1.05 };
+  grade: Grade = { exposure: 2.05, lift: [0.94, 1.0, 1.02], gain: [1.04, 1.02, 0.96], vig: 0.35, sat: 1.06, contrast: 1.06 };
   deco = new THREE.Group();
   floor = { minX: -W + 0.8, maxX: W - 0.6, minZ: 0.2, maxZ: 1.6, y: 0 };
   surfaces = [{ minX: -W + 0.05, maxX: -W + 0.7, minZ: -1.4, maxZ: 1.8, y: 0.92 }, { minX: 1.6, maxX: 2.9, minZ: -2.95, maxZ: -2.45, y: 0.92 }];
@@ -131,7 +131,7 @@ export class LabRoom implements StageRoom {
     const s2 = plate(this.mats, ['BIOHAZARD'], 0.4, 0.11, { bg: 0xc8a030 });
     s2.position.set(-0.5, 1.86, BACK + 0.77); g.add(s2);
     // a wash of green from the tanks on the floor
-    const wash = glowCard(4, 1.2, 0x8aff9a, 0.03); wash.rotation.x = -Math.PI / 2; wash.position.set(-1.0, 0.006, BACK + 0.9); g.add(wash);
+    const wash = glowCard(4, 1.4, 0x4aff6a, 0.08); wash.rotation.x = -Math.PI / 2; wash.position.set(-1.0, 0.006, BACK + 0.9); g.add(wash);
     const pool = glowCard(2.0, 2.0, 0xffe8c0, 0.14); pool.rotation.x = -Math.PI / 2; pool.position.set(TABLE.x, 0.006, TABLE.z); pool.name = 'surgPool'; g.add(pool);
     return g;
   }
@@ -316,7 +316,7 @@ export class LabRoom implements StageRoom {
       const gm = new THREE.Mesh(lathe([[R, 0.34], [R, 0.34 + TH]], 10), new THREE.MeshBasicMaterial({ color: 0x3a6a5a, transparent: true, opacity: 0.12, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }));
       gm.userData.noGlow = true; gm.renderOrder = 4;
       g.add(gm);
-      const light = new THREE.PointLight(0xb0f0c0, 1.1, 2.6, 2);
+      const light = new THREE.PointLight(0x5aff7a, 1.1, 3.0, 2);
       light.position.set(0, 1.2, 0.5);
       g.add(light);
       g.position.set(x, 0, BACK + 0.55);

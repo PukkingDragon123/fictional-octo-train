@@ -43,22 +43,18 @@ export const LOOKS: Record<string, Look> = {
   // the Lobby end (unused on the stage, for completeness)
   neutral: { lift: [0, 0, 0], gamma: 1, gain: [1, 1, 1], contrast: 0.2, sat: 1, shadow: [1, 1, 1], high: [1, 1, 1], exposure: 1, vignette: 0.4 },
 };
-// Realistic, brighter, less saturated (the user's ask): every grade is pulled toward neutral (no full-frame
-// colour cast: colour lives in the lights), saturation ~0.8 of what it was, the shadows lifted to a dark grey
-// instead of black, a softer S-curve, more exposure (the filmic curve in the composite rolls the highlights
-// off instead of clipping them), a gentler vignette.
-function realistic(l: Look): Look {
-  const toward = (v: number, k: number) => 1 + (v - 1) * k;
-  const lift = (l.lift[0] + l.lift[1] + l.lift[2]) / 3;
+// Bright and punchy, still saturated and colourful (the user loves the cartoony colour, hates the darkness):
+// the coloured washes stay, saturation a touch up, the shadows lifted out of near-black, a softer S-curve so
+// nothing crushes, more exposure (the filmic curve in the composite rolls the highlights off instead of
+// clipping them), barely any vignette.
+function bright(l: Look): Look {
   return {
-    lift: l.lift.map((v) => 0.04 + (v - lift) * 0.4) as [number, number, number],
-    gamma: toward(l.gamma, 0.5), gain: l.gain.map((v) => toward(v, 0.45)) as [number, number, number],
-    contrast: l.contrast * 0.7, sat: l.sat * 0.8,
-    shadow: l.shadow.map((v) => toward(v, 0.35)) as [number, number, number], high: l.high.map((v) => toward(v, 0.4)) as [number, number, number],
-    exposure: l.exposure * 1.35, vignette: l.vignette * 0.55,
+    lift: l.lift.map((v) => v + 0.045) as [number, number, number],
+    gamma: Math.max(1, l.gamma) * 1.06, gain: l.gain, contrast: l.contrast * 0.8, sat: l.sat * 1.08,
+    shadow: l.shadow, high: l.high, exposure: l.exposure * 1.4, vignette: l.vignette * 0.3,
   };
 }
-for (const k of Object.keys(LOOKS)) LOOKS[k] = realistic(LOOKS[k]);
+for (const k of Object.keys(LOOKS)) LOOKS[k] = bright(LOOKS[k]);
 const copyLook = (o: Look, s: Look) => { o.lift = [...s.lift]; o.gain = [...s.gain]; o.shadow = [...s.shadow]; o.high = [...s.high]; o.gamma = s.gamma; o.contrast = s.contrast; o.sat = s.sat; o.exposure = s.exposure; o.vignette = s.vignette; return o; };
 
 const VERT = /* glsl */`varying vec2 vUv; void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }`;

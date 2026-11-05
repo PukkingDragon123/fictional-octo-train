@@ -126,19 +126,17 @@ void main() {
     murk *= (1.0 - close * 0.92) * (0.85 + uHeart * 0.4);
     c = mix(c, murk, smoothstep(0.0, 0.45, uInside));
   }
-  // brighter and nearer neutral (the user's ask): a filmic shoulder, a faint split tone, saturation down, shadows lifted
-  c = clamp((c * 1.3 * (2.51 * c * 1.3 + 0.03)) / (c * 1.3 * (2.43 * c * 1.3 + 0.59) + 0.14), 0.0, 1.0);
+  // brighter (the user's ask), the colour kept: a filmic shoulder with more exposure, the cold split tone, shadows lifted out of black
+  c = clamp((c * 1.35 * (2.51 * c * 1.35 + 0.03)) / (c * 1.35 * (2.43 * c * 1.35 + 0.59) + 0.14), 0.0, 1.0);
   vec3 s = toSRGB(c);
   float y = dot(s, vec3(0.299, 0.587, 0.114));
-  s *= mix(vec3(0.95, 0.99, 1.03), vec3(1.02, 1.0, 0.97), smoothstep(0.05, 0.7, y));
+  s *= mix(vec3(0.86, 0.98, 1.08), vec3(1.06, 1.0, 0.92), smoothstep(0.05, 0.7, y));
   vec3 sc = clamp(s, 0.0, 1.0);
-  s = mix(s, sc * sc * (3.0 - 2.0 * sc), 0.18);
-  y = dot(s, vec3(0.299, 0.587, 0.114));
-  s = mix(vec3(y), s, 0.82);
-  s = s + vec3(0.03) * (1.0 - s);
+  s = mix(s, sc * sc * (3.0 - 2.0 * sc), 0.2);
+  s = s + vec3(0.035) * (1.0 - s);
   vec2 qv = uv - 0.5;
   float vr = dot(qv * vec2(1.0, 1.2), qv * vec2(1.0, 1.2));
-  s *= 1.0 - smoothstep(0.06, 0.45, vr) * uVig;
+  s *= 1.0 - smoothstep(0.1, 0.55, vr) * uVig * 0.35;
   s *= 1.0 - uFade;
   s = floor(clamp(s, 0.0, 1.0) * uLevels + 0.5) / uLevels;
   s += (h12(floor(lp) + floor(uTime * 12.0) * 7.31) - 0.5) * 0.008;

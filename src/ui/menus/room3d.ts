@@ -1175,10 +1175,10 @@ export class SubjectRoom {
     this.hemi.intensity = 0.32 + l * 0.6 - lit * 0.22;
     this.hemi.color.lerpColors(this.hemiDark, this.hemiLit, l);
     const u = this.post.u;
-    // a near-neutral grade: colour lives in the lights, not in a wash over the frame
-    u.uLift.value.set(0.985, 1.0, 1.025);
-    u.uGain.value.set(1.02, 1.0, 0.975);
-    u.uSat.value = 0.74; u.uContrast.value = 1.0;
+    // the cartoony colour stays (cool shadows, warm highlights, full saturation); only the gloom is gone
+    u.uLift.value.set(0.88 + l * 0.08, 0.97 + l * 0.03, 1.14 - l * 0.1);
+    u.uGain.value.set(1.08 - l * 0.04, 1.0 + l * 0.02, 0.88 + l * 0.06);
+    u.uSat.value = 0.98; u.uContrast.value = 1.05;
     this.sun.intensity = l * 2.1 - lit * 1.2;
     this.fill.intensity = l * 0.7 - lit * 0.25;
     this.back.intensity = l * 0.9 - lit * 0.2;
@@ -1241,10 +1241,11 @@ export class SubjectRoom {
     u.uTime.value = this.t; u.uFlash.value = this.flash + this.surgeK * 0.04; u.uRed.value = this.redFlash;
     const title = 1 - this.lit;
     u.uExposure.value = ((this.mode === 'title' ? 1.18 : 1.12) + this.lit * 0.1) * 1.38;
-    u.uVig.value = 0.35 + title * 0.15 + (this.mode === 'lit' ? 0.25 + this.closeK * 0.2 : 0);
+    u.uVig.value = 0.22 + title * 0.1 + (this.mode === 'lit' ? 0.08 + this.closeK * 0.1 : 0);
     const portrait = this.lowW < this.lowH;
-    u.uSide.value.set(portrait ? 0 : 1, portrait ? 1 : 0, (this.mode === 'title' ? 0.28 : 0.0) * title, portrait ? 0.42 : 0.45);
-    u.uFloor.value = this.mode === 'title' && !portrait ? 0.5 * title : 0;
+    // no dark side panel, no dark floor band: the 2D words carry their own ink outline
+    u.uSide.value.set(portrait ? 0 : 1, portrait ? 1 : 0, (this.mode === 'title' ? 0.08 : 0.0) * title, portrait ? 0.42 : 0.45);
+    u.uFloor.value = 0;
     u.uLensOn.value = this.lensFx.update(dt) || this.lensFx.active ? 1 : 0;
     this.render();
   };

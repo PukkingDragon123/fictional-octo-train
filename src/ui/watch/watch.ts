@@ -181,8 +181,8 @@ export class Watch {
     if (want && p && !this.wearing(p)) { bus.emit('think', p, 'My wrist is bare. No watch, no quests.'); return; }
     if (page) this.goto(page);
     if (want === this.open) return;
-    if (want && fpOwner() && fpOwner() !== 'watch' && !fpClaim('watch', 1, { cinematic: this.still >= 0.3 ? 'full' : 'glance' })) return;
-    if (want && this.staged) this.cine = 'glance'; // re-cut to full once it is up (from a peek)
+    // the wrist only ever comes up in the first-person eye scene (no floating arm over the room)
+    if (want && fpOwner() && fpOwner() !== 'watch' && !fpClaim('watch', 1, { cinematic: 'full' })) return;
     this.open = want;
     this.peekKey = null;
     if (p) p.scannerOpen = want;
@@ -303,9 +303,18 @@ export class Watch {
     this.st.signal = { from: e?.from || 'UNKNOWN', text: e?.text || 'INCOMING', t: G.time };
     G.audio?.ui?.('questChime', 0.5);
     this.hitFx = 0.8;
-    const p = G.local;
-    if (p && !this.open && (!fpOwner() || fpOwner() === 'watch')) { this.peekKey = '__signal'; this.peekT = 3.5; }
+    this.noteOn(this.st.signal.from, this.st.signal.text, 'warn', 6);
   }
+  // ================================================================ the HUD note (peeks no longer raise the wrist)
+  /** what the watch wants to tell you: the HUD lights its watch icon and types this beside it (tap opens the watch) */
+  note: { title: string; body: string; tone: 'ok' | 'warn' | 'rp'; at: number; until: number } | null = null;
+  private noteOn(title: string, body: string, tone: 'ok' | 'warn' | 'rp', secs: number) {
+    const p = G.local;
+    if (!p || !this.wearing(p) || p.body.dead || this.open) return;
+    this.note = { title: String(title).toUpperCase(), body: String(body).toUpperCase(), tone, at: G.time, until: G.time + Math.max(3, secs + 1.5) };
+  }
+  /** the note showing now, if any */
+  hudNote() { if (this.note && (G.time > this.note.until || this.open)) this.note = null; return this.note; }
 
   // ================================================================ notifications
   /** a teletype line on the CRT (on the glance when the wrist is down: it comes up to show it) */
@@ -315,7 +324,7 @@ export class Watch {
     if (this.msgs.length > 4) this.msgs.shift();
     this.drawT = 0;
     const p = G.local;
-    if (raise && p && !this.open && !this.peekKey && this.wearing(p) && !p.body.dead && (!fpOwner() || fpOwner() === 'watch')) { this.peekKey = '__msg'; this.peekT = secs; }
+    if (raise && p) this.noteOn(title, body, tone, secs);
   }
   /** the message showing now (oldest first) */
   currentMsg() { while (this.msgs.length && this.msgs[0].until < G.time) this.msgs.shift(); return this.msgs[0] || null; }
@@ -324,9 +333,9 @@ export class Watch {
     this.syncPages();
     const p = G.local;
     if (!p || !this.wearing(p) || p.body.dead) return;
-    if (this.open && !this.small) return;
-    if (fpOwner() && fpOwner() !== 'watch') return;
-    this.peekKey = k; this.peekT = kind === 'done' ? 2.4 : 3.0;
+    if (this.open) return;
+    const q: any = (this.quests as any)?.get?.(k) ?? null;
+    this.noteOn(kind === 'offer' ? 'NEW TASK' : kind === 'ready' ? 'TASK READY' : 'TASK DONE', q?.title || '', 'ok', 3);
   }
   private onUnlocked(key: string) {
     this.syncPages();
@@ -605,15 +614,16 @@ export class Watch {
     const moving = p.speed > 0.35 || !!p.running || !!p.inVehicle;
     if (moving) { this.moveT += dt; if (this.moveT > 0.12) this.still = 0; }
     else { this.moveT = 0; this.still += dt; }
-    this.small = !!this.peekKey && !this.open || (this.open && this.still < 0.3);
-    const up = this.open || !!this.peekKey;
+    // no glance any more: the wrist is up only when opened, always in the full eye scene
+    this.small = false;
+    const up = this.open;
     // hovering the device blocks world clicks
     if (this.open && this.raise > 0.5) {
       if (this.hitTest(G.input.mouseX, G.input.mouseY)) G.input.pointerOverUI = true;
       else if (!G.ui.inventory?.open && !G.ui.menuEl) G.input.pointerOverUI = false;
     }
     // ---- the cut: claim the stage (full on Tab while standing, a glance on the move or for a peek)
-    const cine = this.open && !this.small ? 'full' : 'glance';
+    const cine: 'full' | 'glance' = 'full';
     if (up && !this.staged) {
       this.staged = fpClaim('watch', 1, { cinematic: cine });
       if (!this.staged) { this.open = false; this.peekKey = null; p.scannerOpen = false; return; }
@@ -708,14 +718,11 @@ export class Watch {
     // edge when something lands by itself (a peek). Both tilt toward the eye with the forearm
     // running steeply off the bottom edge, clear of the body HUD along the bottom.
     const pm = this.peekMix;
-    // on a phone the action props fill the bottom corners: the peek rides higher; held upright the
-    // forearm leaves by the right edge, held sideways it comes up through the empty middle
-    const tp = document.documentElement.classList.contains('nc-touch') ? pm : 0;
-    const d2 = d1 * (2.8 + 3.6 * pm + 1.2 * tp), h2 = d2 * tanH, w2 = h2 * cam.aspect;
-    const sx = w2 * (0.56 + 0.25 * pm + (port ? 0.06 : -0.42) * tp), sy = -h2 * (0.1 + 0.17 * pm) + h2 * 0.3 * tp, sz = -d2;
+    const d2 = d1 * (2.8 + 3.6 * pm), h2 = d2 * tanH, w2 = h2 * cam.aspect;
+    const sx = w2 * (0.56 + 0.25 * pm), sy = -h2 * (0.1 + 0.17 * pm), sz = -d2;
     const k = this.zoom, e = k * k * (3 - 2 * k);
     let x = sx + (fx - sx) * e, y = sy + (fy - sy) * e, z = sz + (fz - sz) * e;
-    let rx = -(0.28 + 0.06 * pm) * (1 - e), ry = -(0.36 + 0.2 * pm) * (1 - e), rz = (0.62 + 0.3 * pm + (port ? 1.0 : -0.5) * tp) * (1 - e);
+    let rx = -(0.28 + 0.06 * pm) * (1 - e), ry = -(0.36 + 0.2 * pm) * (1 - e), rz = (0.62 + 0.3 * pm) * (1 - e);
     // the wrist from the eyes: turned so the elbow end drops toward the bottom-left corner, the face tipped up at you
     if (eye) { rx -= 0.2 * e; ry += 0.1 * e; rz += (port ? 0.12 : 0.26) * e; }
     // raise from below with a little overshoot (from the eyes it comes up along the forearm, from the lower left)
@@ -847,7 +854,7 @@ export class Watch {
       if (n) {
         const rel = angleDiff(p.facing, Math.atan2(bz - p.z, bx - p.x));
         this.threat = { n, d: best, rel, side: Math.abs(rel) < 0.5 ? 'AHEAD' : Math.abs(rel) > 2.4 ? 'BEHIND' : rel > 0 ? 'RIGHT' : 'LEFT' };
-        if (!was) { G.audio?.ui?.('watchDeny', 0.5); if (!this.open && (!fpOwner() || fpOwner() === 'watch')) { this.peekKey = this.peekKey || '__threat'; this.peekT = Math.max(this.peekT, 2.5); } }
+        if (!was) { G.audio?.ui?.('watchDeny', 0.5); this.noteOn('THREAT', 'BAND WARNING', 'warn', 2.5); }
       } else this.threat = null;
     } else this.threat = null;
     // DEEP SURVEY: the map fills in around you through walls

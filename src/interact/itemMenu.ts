@@ -201,15 +201,11 @@ function flat(opts: MenuOption[], prefix = ''): { label: string; action?: () => 
 /**
  * The one thing an item is for, done directly: eat it, drink it, treat
  * yourself with it, read it, wear it, switch it on, reload it, place it.
- * Eating, drinking and treating go through the body HUD (G.hudBody: eat /
- * drink / treat) when it is in, so they play first person.
+ * Eating and drinking are the menu's own EatAction / DrinkAction, which hand
+ * themselves to the body HUD's first-person scenes (eatStart / drinkStart).
  */
 export function itemPrimaryVerb(p: Player, it: Item): { label: string; run: () => void } | null {
   const d = itemDef(it.key);
-  const hb = G.hudBody;
-  if (d.food && !d.medical && !(d.food.canned && !it.opened) && hb?.eat) return { label: d.food.pills ? 'Take' : 'Eat', run: () => hb.eat(p, it) };
-  if (d.fluidCap && (it.fluid?.amount ?? 0) > 0.01 && !d.food && hb?.drink) return { label: 'Drink', run: () => hb.drink(p, it) };
-  if (d.medical && hb?.treat) return { label: 'Treat', run: () => hb.treat(p, it, p) };
   const opts = flat(itemMenuOptions(p, it, p.containerOf(it) || p.inv, [it])).filter((o) => o.action && !o.disabled);
   for (const re of PRIMARY) {
     const o = opts.find((q) => re.test(q.label));

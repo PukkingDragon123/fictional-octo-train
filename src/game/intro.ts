@@ -627,7 +627,7 @@ export class Intro implements GameSystem {
     this.wrapEl.style.transform = `scale(${(2.4 - this.wrapA * 1.6).toFixed(3)})`;
     // the picture: red at the edges when it hurts, the colour draining out (in the stage's own composite, crisp)
     this.desat = Math.max(0, this.desat - dt * 0.02);
-    this.stage.hurt = this.shot ? this.hurtA * 0.4 : this.hurtA;
+    this.stage.hurt = (this.shot ? this.hurtA * 0.4 : this.hurtA) * 0.6;
     this.stage.desat = this.desat;
   }
 
