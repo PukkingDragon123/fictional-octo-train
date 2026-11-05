@@ -12,6 +12,10 @@
 // the world behind the hands switches to the survivor's own eyes (eye.ts) and it comes
 // back up on first person. The hands stay hidden until then, so they never float over
 // the iso view. Release dips back out and the camera eases away from the head.
+//
+// Hands are only ever drawn from the survivor's own eyes: any fp arm (hands.ts names its
+// root 'fpArm:*') is hidden while the iso view is up, whatever the claim, unless the owner
+// says its overlay is a whole staged scene of its own (opts.stage: a cutscene set behind the hands).
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -22,6 +26,8 @@ export interface FpClaimOpts {
   cinematic?: FpCinematic;
   /** full claims: how far the eyes look down (deg); defaults per owner (EYE_PITCH) */
   eyePitch?: number;
+  /** the owner draws a complete scene of its own behind the hands (a cutscene set), so its arms may show without the eyes */
+  stage?: boolean;
 }
 
 /** tunables for the cut (eye: full claims go into first person; dive: seconds of push before the blink) */
@@ -35,7 +41,27 @@ const EYE_PITCH: Record<string, number> = { watch: 32, pack: 36, eat: 26, bench:
 let owner: string | null = null;
 let ownerPrio = 0;
 let mode: FpCinematic = 'none';
+let stage = false;
 const groups = new Map<string, THREE.Group>();
+
+// no floating hands: arms show only through the eyes (or inside an owner's own staged scene)
+let armGuard = false;
+function guardArms() {
+  if (armGuard || !G.pr) return;
+  armGuard = true;
+  G.pr.beforeRender.push(() => {
+    if (!G.pr.overlayEnabled) return;
+    const show = eyeActive() || stage;
+    for (const g of groups.values()) {
+      if (!g.visible) continue;
+      g.traverse((o) => {
+        if (!o.name.startsWith('fpArm:')) return;
+        if (!show) { if (o.visible) { o.visible = false; o.userData.fpHid = true; } }
+        else if (o.userData.fpHid) { o.visible = true; o.userData.fpHid = false; }
+      });
+    }
+  });
+}
 
 /** your group in the overlay scene; it is only visible while you own the stage */
 export function fpGroup(name: string): THREE.Group {
@@ -57,7 +83,8 @@ export function fpClaim(name: string, prio = 0, opts: FpClaimOpts = {}): boolean
   const full = (opts.cinematic ?? 'full') === 'full';
   if (owner && owner !== name && prio <= ownerPrio && !(full && mode !== 'full' && prio === ownerPrio)) return false;
   const prev = owner;
-  owner = name; ownerPrio = prio;
+  owner = name; ownerPrio = prio; stage = !!opts.stage;
+  guardArms();
   for (const [k, g] of groups) g.visible = k === name;
   fpGroup(name).visible = true;
   G.pr.overlayEnabled = true;
@@ -70,7 +97,7 @@ export function fpClaim(name: string, prio = 0, opts: FpClaimOpts = {}): boolean
 
 export function fpRelease(name: string) {
   if (owner !== name) return;
-  owner = null; ownerPrio = 0;
+  owner = null; ownerPrio = 0; stage = false;
   const g = groups.get(name); if (g) g.visible = false;
   G.pr.overlayEnabled = false;
   cut(mode, false, false);

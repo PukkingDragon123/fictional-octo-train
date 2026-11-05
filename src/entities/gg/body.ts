@@ -493,9 +493,10 @@ function accSegs(pl: Plan, sp: GGSpec, P: Props, pivots: Partial<Record<SecBone,
   }
   // --- the researcher's ID badge on its lanyard
   if (D.badge) {
-    const by = P.bustY - 0.01 * H, z = P.chestZ + P.bust + tTorso + 0.006 * H;
+    // hangs on the lanyard below the bust, in front of the open coat
+    const by = P.waistY + 0.045 * H, z = P.waistZ + tTorso + 0.012 * H;
     pivots.badge = [0, P.neckBase - 0.01 * H, P.chestZ * 0.6];
-    add('badge', 'badge', 'GEAR', by - 0.045 * H * 0.6, by + 0.008 * H, [0.018 * H, z, 0.0175 * H * 0.6, 0.0022], [0.018 * H, z, 0.0175 * H * 0.6, 0.0022], { ch: 0.2, dens: 2.2 });
-    add('clip', 'badge', 'GEAR', by + 0.006 * H, by + 0.016 * H, [0.018 * H, z, 0.004 * H, 0.0026], null, { ch: 0.3, dens: 2 });
+    add('badge', 'badge', 'GEAR', by - 0.032 * H, by + 0.008 * H, [0.004 * H, z, 0.0125 * H, 0.0022], null, { ch: 0.2, dens: 2.2 });
+    add('clip', 'badge', 'GEAR', by + 0.006 * H, by + 0.014 * H, [0.004 * H, z, 0.0035 * H, 0.0026], null, { ch: 0.3, dens: 2 });
   }
 }

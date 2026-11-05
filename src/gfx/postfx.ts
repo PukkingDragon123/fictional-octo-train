@@ -412,6 +412,7 @@ uniform float uSunOn;
 uniform vec3 uSunCol;
 uniform vec2 uSunDir2;
 uniform float uSunGlow;
+uniform float uExposure;
 #ifdef ACTOR_RIM
 uniform vec4 uBlobs[16];
 uniform float uBlobH[16];
@@ -426,6 +427,23 @@ uniform vec3 uSunDir3;
 #endif
 
 vec3 toSRGB(vec3 c) { c = max(c, 0.0); return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c)); }
+// filmic tonemap (AgX, as three ships it): highlights roll off and desaturate like film instead of
+// clipping to candy colours, mid-tones keep their place; linear in, linear out
+vec3 agxContrast(vec3 x) {
+  vec3 x2 = x * x, x4 = x2 * x2;
+  return 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232;
+}
+vec3 agx(vec3 c) {
+  const mat3 toRec2020 = mat3(vec3(0.6274, 0.0691, 0.0164), vec3(0.3293, 0.9195, 0.0880), vec3(0.0433, 0.0113, 0.8956));
+  const mat3 fromRec2020 = mat3(vec3(1.6605, -0.1246, -0.0182), vec3(-0.5876, 1.1329, -0.1006), vec3(-0.0728, -0.0083, 1.1187));
+  const mat3 inset = mat3(vec3(0.856627153315983, 0.137318972929847, 0.11189821299995), vec3(0.0951212405381588, 0.761241990602591, 0.0767994186031903), vec3(0.0482516061458583, 0.101439036467562, 0.811302368396859));
+  const mat3 outset = mat3(vec3(1.1271005818144368, -0.1413297634984383, -0.14132976349843826), vec3(-0.11060664309660323, 1.157823702216272, -0.11060664309660294), vec3(-0.016493938717834573, -0.016493938717834257, 1.2519364065950405));
+  c = inset * (toRec2020 * c);
+  c = clamp((log2(max(c, 1e-10)) + 12.47393) / 16.5, 0.0, 1.0);
+  c = outset * agxContrast(c);
+  c = pow(max(c, 0.0), vec3(2.2));
+  return clamp(fromRec2020 * c, 0.0, 1.0);
+}
 
 #if SSR_N > 0
 vec4 traceReflection(vec2 uv, float ld, vec3 N) {
@@ -669,8 +687,8 @@ void main() {
   gl_FragColor = vec4(c, 1.0);
   return;
 #endif
-  // --- grading (in display space) ---
-  c = toSRGB(c);
+  // --- exposure + filmic tonemap, then grading (in display space) ---
+  c = toSRGB(agx(c * uExposure));
   c = max(c * uGain + uLift, 0.0);
   c = pow(c, vec3(1.0 / uGamma));
   float l = dot(c, vec3(0.299, 0.587, 0.114));
@@ -678,7 +696,7 @@ void main() {
   c *= uTint;
   // fluorescent sickness: olive shadows and the faint flutter of old tubes
   if (uSick > 0.001) {
-    c = mix(c, c * vec3(0.93, 1.03, 0.78), uSick * 0.6 * (1.0 - clamp(l * 1.4, 0.0, 1.0)));
+    c = mix(c, c * vec3(0.93, 1.03, 0.78), uSick * 0.2 * (1.0 - clamp(l * 1.4, 0.0, 1.0)));
     float fl2 = step(0.972, h12(vec2(floor(uTime * 16.0), 3.7))) * 0.04 + sin(uTime * 113.0) * 0.004;
     c *= 1.0 - fl2 * uSick * uFlicker;
   }
@@ -701,13 +719,15 @@ void main() {
     float lid = abs(vUv.y - 0.5) * 2.0;
     c *= smoothstep(1.0 - uBlink * 1.1, 1.0 - uBlink * 1.1 + 0.15, 1.0 - lid);
   }
-  // --- dark-art contrast: a gentle S-curve, cool shadows, warm light ---
+  // --- dark-art contrast: a light S-curve over a lifted floor (shadows sit near 10% grey, not black),
+  // barely-cool shadows and barely-warm light (no colour wash over the frame) ---
   {
     vec3 sc = clamp(c, 0.0, 1.0);
-    c = mix(c, sc * sc * (3.0 - 2.0 * sc), 0.22);
+    c = mix(c, sc * sc * (3.0 - 2.0 * sc), 0.1);
+    c = c * 0.965 + 0.022;
     float ly = dot(c, vec3(0.299, 0.587, 0.114));
-    c *= mix(vec3(0.9, 0.97, 1.1), vec3(1.0), smoothstep(0.04, 0.4, ly));
-    c *= mix(vec3(1.0), vec3(1.05, 1.0, 0.92), smoothstep(0.45, 0.9, ly));
+    c *= mix(vec3(0.97, 0.99, 1.03), vec3(1.0), smoothstep(0.04, 0.4, ly));
+    c *= mix(vec3(1.0), vec3(1.015, 1.0, 0.975), smoothstep(0.45, 0.9, ly));
   }
   // --- ink: the silhouette outline (computed above), true near-black after the grade ---
   c = mix(c, uLift * 0.35, clamp(silK, 0.0, 1.0) * 0.95);

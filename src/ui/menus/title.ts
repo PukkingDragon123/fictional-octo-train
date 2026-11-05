@@ -412,8 +412,9 @@ class TitleRoom {
     this.tcT = 0;
     const acts = h('div', 'mr-acts');
     const bar = h('div', 'mr-bar');
-    const word = (label: string, cls: string, fn: () => void, aria?: string) => {
-      const b = h('button', 'mr-word ' + cls, `<span class="ft-ptr" aria-hidden="true"></span><span class="lab">${esc(label)}</span>`) as HTMLButtonElement;
+    const word = (label: string, cls: string, fn: () => void, aria?: string, short?: string) => {
+      const lab = short ? `<span class="long">${esc(label)}</span><span class="short">${esc(short)}</span>` : esc(label);
+      const b = h('button', 'mr-word ' + cls, `<span class="ft-ptr" aria-hidden="true"></span><span class="lab">${lab}</span>`) as HTMLButtonElement;
       b.type = 'button'; if (aria) b.setAttribute('aria-label', aria);
       b.addEventListener('pointerenter', () => { if (document.activeElement !== b) { b.focus({ preventScroll: true }); sfx('tick', 0.4); } });
       b.addEventListener('click', () => { if (!this.moving) fn(); });
@@ -428,9 +429,9 @@ class TitleRoom {
     for (const a of roomActs) acts.append(word(a.label, 'act', () => { sfx('click', 0.8); a.run(); }));
     const prev = ORDER[(i + 2) % 3], next = ORDER[(i + 1) % 3];
     const pf = FEEDS.find((q) => q.key === prev)!, nf = FEEDS.find((q) => q.key === next)!;
-    bar.append(word('‹ ' + pf.label, 'prev', () => void this.go(prev), `Previous feed: ${pf.label} (Q)`));
+    bar.append(word('‹ ' + pf.label, 'prev', () => void this.go(prev), `Previous feed: ${pf.label} (Q)`, '‹ ' + pf.cam));
     bar.append(word('Monitors', 'home', () => void this.back(), 'Back to the monitors (Esc)'));
-    bar.append(word(nf.label + ' ›', 'next', () => void this.go(next), `Next feed: ${nf.label} (E)`));
+    bar.append(word(nf.label + ' ›', 'next', () => void this.go(next), `Next feed: ${nf.label} (E)`, nf.cam + ' ›'));
     hud.append(acts, bar);
     const tip = h('div', 'mr-tip', k === 'subject' ? 'tap him · Q E change feed · Esc monitors' : 'tap things · Q E change feed · Esc monitors');
     hud.append(tip);

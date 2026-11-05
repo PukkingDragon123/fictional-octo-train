@@ -209,28 +209,68 @@ export class LightGrid {
     U.uLightInfo.value.set(this.winX, this.winY, 1 / LWIN, 1 / LWIN);
   }
 
+  private lum: Float32Array | null = null;
+  private lumB: Float32Array | null = null;
+
   private upload() {
     const N = LWIN * LSUB;
     const ox = this.winX * LSUB, oy = this.winY * LSUB;
     const inv = 1 / 4; // uGridScale
     const data = this.data, buf = this.buf, W = this.W, H = this.H;
+    const lum = this.lum ??= new Float32Array(N * N), tmp = this.lumB ??= new Float32Array(N * N);
     for (let y = 0; y < N; y++) {
       const gy = oy + y;
       for (let x = 0; x < N; x++) {
         const gx = ox + x;
         const o = (y * N + x) * 4;
-        if (gx < 0 || gy < 0 || gx >= W || gy >= H) { data[o] = data[o + 1] = data[o + 2] = 0; data[o + 3] = 255; continue; }
+        if (gx < 0 || gy < 0 || gx >= W || gy >= H) { data[o] = data[o + 1] = data[o + 2] = 0; lum[y * N + x] = 0; continue; }
         const i = (gy * W + gx) * 3;
+        const r = buf[i], g = buf[i + 1], b = buf[i + 2];
         // sqrt encoding: more precision in the darks
-        data[o] = Math.min(255, Math.sqrt(buf[i] * inv) * 255);
-        data[o + 1] = Math.min(255, Math.sqrt(buf[i + 1] * inv) * 255);
-        data[o + 2] = Math.min(255, Math.sqrt(buf[i + 2] * inv) * 255);
-        data[o + 3] = 255;
+        data[o] = Math.min(255, Math.sqrt(r * inv) * 255);
+        data[o + 1] = Math.min(255, Math.sqrt(g * inv) * 255);
+        data[o + 2] = Math.min(255, Math.sqrt(b * inv) * 255);
+        lum[y * N + x] = r * 0.3 + g * 0.5 + b * 0.2;
+      }
+    }
+    // alpha: bounce light, the light around spread a few metres (walls and floor throwing it back), kept
+    // to where some direct light reaches so it never glows through into a dark room next door
+    boxBlur(lum, tmp, N, 3); boxBlur(lum, tmp, N, 3);
+    for (let y = 0, k = 0; y < N; y++) {
+      const gy = oy + y;
+      for (let x = 0; x < N; x++, k++) {
+        const gx = ox + x;
+        let own = 0;
+        if (gx >= 0 && gy >= 0 && gx < W && gy < H) { const i = (gy * W + gx) * 3; own = buf[i] * 0.3 + buf[i + 1] * 0.5 + buf[i + 2] * 0.2; }
+        const bnc = Math.min(lum[k], own * 2);
+        data[k * 4 + 3] = Math.min(255, Math.sqrt(bnc * inv) * 255);
       }
     }
     this.tex.needsUpdate = true;
     this.texDirty = false;
     this.lastUpload = performance.now();
+  }
+}
+
+/** in-place separable box blur (radius r) of an N x N field, running sums; tmp is scratch */
+function boxBlur(a: Float32Array, tmp: Float32Array, N: number, r: number) {
+  const k = 1 / (2 * r + 1);
+  for (let y = 0; y < N; y++) {
+    const row = y * N;
+    let s = 0;
+    for (let x = -r; x <= r; x++) s += a[row + Math.min(N - 1, Math.max(0, x))];
+    for (let x = 0; x < N; x++) {
+      tmp[row + x] = s * k;
+      s += a[row + Math.min(N - 1, x + r + 1)] - a[row + Math.max(0, x - r)];
+    }
+  }
+  for (let x = 0; x < N; x++) {
+    let s = 0;
+    for (let y = -r; y <= r; y++) s += tmp[Math.min(N - 1, Math.max(0, y)) * N + x];
+    for (let y = 0; y < N; y++) {
+      a[y * N + x] = s * k;
+      s += tmp[Math.min(N - 1, y + r + 1) * N + x] - tmp[Math.max(0, y - r) * N + x];
+    }
   }
 }
 

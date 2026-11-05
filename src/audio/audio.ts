@@ -1,15 +1,18 @@
-// Procedural audio engine. Every buffer comes from the recipe library
-// (sounds.ts); this file decides where, how loud and through what each one is
-// heard: positional one-shots muffled by the walls between source and
+// Audio engine. Sounds are recorded CC0 samples (samples.ts + the generated
+// sampleManifest.ts, credits in CREDITS-AUDIO.md); the old synthesised recipe
+// library (sounds.ts) is only a fallback for the few keys without a sample, or
+// when a file cannot be fetched/decoded. This file decides where, how loud and
+// through what each one is heard: positional one-shots muffled by the walls between source and
 // listener, per-zone convolution reverb, ambience beds that react to the
 // world (lit tubes hum louder, rain drums on roofs, powered machines purr),
 // looping action sounds, body sounds driven by moodles, the SEER-9 radio and
-// sparse generative music.
+// sparse music: recorded tracks crossfaded by zone style (generative fallback).
 import { bus } from '../core/events';
 import { G } from '../game/G';
 import { clamp } from '../core/math';
 import { synth, LOOP_KEYS } from './sounds';
 import { impulse, SR } from './synth';
+import { hasSample, sampleInfo, sampleBuffer, sampleReady, sampleFailed, preloadSamples, sampleStats } from './samples';
 import { wallsBetween } from '../world/collision';
 import { objDef } from '../world/objects';
 import { itemDef } from '../items/item';
@@ -184,7 +187,29 @@ const rr = (a: number, b: number) => a + Math.random() * (b - a);
 interface LoopVoice {
   key: string; src: AudioBufferSourceNode; gain: GainNode; filter: BiquadFilterNode; pan: StereoPannerNode | null; send: GainNode | null;
   stopAt?: number;
+  /** sample playback rate / level trim (1 for recipes) */
+  r: number; pre: GainNode | null;
 }
+
+/** keys still played from recipes, reported once in dev builds */
+const synthLogged = new Set<string>();
+let synthLogT: ReturnType<typeof setTimeout> | null = null;
+function noteSynth(key: string) {
+  if (!import.meta.env.DEV || synthLogged.has(key)) return;
+  synthLogged.add(key);
+  if (synthLogT) clearTimeout(synthLogT);
+  synthLogT = setTimeout(() => console.info('[audio] still synthesised (no recorded sample):', [...synthLogged].join(', ')), 4000);
+}
+
+/** recorded music per zone style, and its level on the music bus */
+const MUSIC: Record<string, { key: string; vol: number; play: [number, number]; rest: [number, number]; rate?: number }> = {
+  drone: { key: 'mus_drone', vol: 0.34, play: [50, 90], rest: [45, 110] },
+  pads: { key: 'mus_pads', vol: 0.32, play: [40, 70], rest: [50, 120] },
+  muzak: { key: 'mus_muzak', vol: 0.3, play: [90, 160], rest: [6, 16] },
+  musicbox: { key: 'mus_musicbox', vol: 0.3, play: [36, 72], rest: [40, 100] },
+  broken: { key: 'mus_broken', vol: 0.32, play: [40, 80], rest: [25, 70], rate: 0.97 },
+  choir: { key: 'mus_choir', vol: 0.3, play: [60, 120], rest: [10, 30], rate: 0.9 },
+};
 interface Repeater { key: string; p: Player; next: number }
 
 export class AudioEngine {
@@ -269,7 +294,10 @@ export class AudioEngine {
     this.reverbIn.connect(this.reverb); this.reverb.connect(this.reverbOut); this.reverbOut.connect(this.muffle);
     this.setReverb('hall');
     // browsers start contexts suspended until a gesture
-    const resume = () => { if (ctx.state !== 'running') ctx.resume().catch(() => {}); };
+    const resume = () => {
+      if (ctx.state !== 'running') ctx.resume().catch(() => {});
+      preloadSamples(ctx);
+    };
     window.addEventListener('pointerdown', resume, { capture: true });
     window.addEventListener('keydown', resume, { capture: true });
     this.hook();
@@ -291,9 +319,14 @@ export class AudioEngine {
 
   // ---------------------------------------------------------------- buffers
   private buffer(key: string, v: number): AudioBuffer | null {
+    if (this.ctx && hasSample(key)) {
+      const sb = sampleBuffer(this.ctx, key, v);
+      if (sb || !sampleFailed(key, v)) return sb;
+    }
     const ck = key + ':' + v;
     let ab = this.bufs.get(ck);
     if (ab) return ab;
+    noteSynth(key);
     const b = synth(key, v);
     if (!b || !this.ctx) return null;
     let data = b.d;
@@ -311,8 +344,14 @@ export class AudioEngine {
     this.bufs.set(ck, ab);
     return ab;
   }
+  /** a sampled key that is still being fetched/decoded: run cb once it is ready (if still timely) */
+  private whenReady(key: string, v: number, cb: () => void) {
+    if (!this.ctx || !hasSample(key) || sampleFailed(key, v)) return;
+    const t0 = this.t;
+    void sampleReady(this.ctx, key, v).then((b) => { if (b && this.t - t0 < 0.35) cb(); });
+  }
   private variant(key: string) {
-    const n = INFO[key]?.vars ?? 3;
+    const n = sampleInfo(key)?.files.length ?? INFO[key]?.vars ?? 3;
     if (n <= 1) return 0;
     let v = Math.floor(Math.random() * n);
     if (v === this.lastVar.get(key)) v = (v + 1) % n;
@@ -354,12 +393,13 @@ export class AudioEngine {
     if (this.voices > 48 && sp.gain < 0.3) return null;
     const v = o.variant ?? this.variant(key);
     const buf = this.buffer(key, v);
-    if (!buf) return null;
+    if (!buf) { this.recent.delete(dk); this.whenReady(key, v, () => this.play(key, x, z, { ...o, variant: v })); return null; }
+    const smp = sampleInfo(key);
     const src = ctx.createBufferSource(); src.buffer = buf;
-    const pv = inf.pv ?? 0.05;
-    src.playbackRate.value = (o.rate ?? 1) * (1 + (Math.random() - 0.5) * 2 * pv);
+    const pv = smp?.pv ?? inf.pv ?? 0.05;
+    src.playbackRate.value = (o.rate ?? 1) * (smp?.rate ?? 1) * (1 + (Math.random() - 0.5) * 2 * pv);
     const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = sp.cutoff; f.Q.value = 0.6;
-    const g = ctx.createGain(); g.gain.value = (o.vol ?? 1) * (inf.vol ?? 1) * sp.gain;
+    const g = ctx.createGain(); g.gain.value = (o.vol ?? 1) * (inf.vol ?? 1) * (smp?.gain ?? 1) * sp.gain;
     const pan = ctx.createStereoPanner(); pan.pan.value = sp.pan;
     src.connect(f); f.connect(pan); pan.connect(g); g.connect(this.buses[o.bus ?? 'sfx']);
     const sendAmt = sp.send * (o.send ?? inf.send ?? 1);
@@ -379,9 +419,10 @@ export class AudioEngine {
     if (!ctx || !this.ready) return null;
     const v = variant ?? this.variant(key);
     const buf = this.buffer(key, v);
-    if (!buf) return null;
-    const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate;
-    const g = ctx.createGain(); g.gain.value = vol;
+    if (!buf) { this.whenReady(key, v, () => this.flat(key, b, vol, rate, 0, v)); return null; }
+    const smp = sampleInfo(key);
+    const src = ctx.createBufferSource(); src.buffer = buf; src.playbackRate.value = rate * (smp?.rate ?? 1);
+    const g = ctx.createGain(); g.gain.value = vol * (smp?.gain ?? 1);
     src.connect(g); g.connect(b === 'music' ? this.musicFilter : this.buses[b]);
     src.start(Math.max(ctx.currentTime, when || ctx.currentTime));
     this.voices++;
@@ -394,11 +435,14 @@ export class AudioEngine {
     if (!ctx || !this.ready) return null;
     const buf = this.buffer(key, opts.variant ?? 0);
     if (!buf) return null;
-    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; src.playbackRate.value = opts.rate ?? 1;
+    const smp = sampleInfo(key);
+    const r = smp?.rate ?? 1;
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true; src.playbackRate.value = (opts.rate ?? 1) * r;
     const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = opts.lp ?? 20000; filter.Q.value = 0.5;
     const gain = ctx.createGain(); gain.gain.value = 0;
     const pan = opts.spatial ? ctx.createStereoPanner() : null;
-    src.connect(filter);
+    let pre: GainNode | null = null;
+    if (smp && smp.gain !== 1) { pre = ctx.createGain(); pre.gain.value = smp.gain; src.connect(pre); pre.connect(filter); } else src.connect(filter);
     if (pan) { filter.connect(pan); pan.connect(gain); } else filter.connect(gain);
     gain.connect(b === 'radio' ? this.radioFilter : this.buses[b]);
     let send: GainNode | null = null;
@@ -406,7 +450,7 @@ export class AudioEngine {
     // start at a random offset so identical loops never phase together
     src.start(ctx.currentTime, Math.random() * buf.duration);
     gain.gain.setTargetAtTime(vol, ctx.currentTime, opts.fadeIn ?? 0.6);
-    return { key, src, gain, filter, pan, send };
+    return { key, src, gain, filter, pan, send, r, pre };
   }
   private stopLoop(lv: LoopVoice | null | undefined, fade = 0.5) {
     if (!lv || !this.ctx) return;
@@ -414,7 +458,7 @@ export class AudioEngine {
     lv.gain.gain.cancelScheduledValues(now);
     lv.gain.gain.setTargetAtTime(0, now, fade / 3);
     try { lv.src.stop(now + fade + 0.05); } catch { /* already stopped */ }
-    lv.src.onended = () => { lv.src.disconnect(); lv.filter.disconnect(); lv.pan?.disconnect(); lv.gain.disconnect(); lv.send?.disconnect(); };
+    lv.src.onended = () => { lv.src.disconnect(); lv.pre?.disconnect(); lv.filter.disconnect(); lv.pan?.disconnect(); lv.gain.disconnect(); lv.send?.disconnect(); };
   }
   private placeLoop(lv: LoopVoice, x: number, z: number, vol: number, range: number) {
     const ctx = this.ctx!;
@@ -541,7 +585,7 @@ export class AudioEngine {
     if (lv && lv.key !== key) { this.stopLoop(lv, 0.2); lv = undefined; this.extLoops.delete(id); }
     if (!lv) { lv = this.startLoop(key, 'sfx', 0, { spatial: true, fadeIn: 0.2 }) || undefined; if (!lv) return; this.extLoops.set(id, lv); }
     this.placeLoop(lv, x, z, vol, range);
-    lv.src.playbackRate.setTargetAtTime(rate, this.ctx!.currentTime, 0.05);
+    lv.src.playbackRate.setTargetAtTime(rate * lv.r, this.ctx!.currentTime, 0.05);
   }
 
   /** where remote voice chat is mixed in (the voice bus) */
@@ -699,7 +743,7 @@ export class AudioEngine {
       else if (lv) {
         lv.gain.gain.setTargetAtTime(vol, this.ctx!.currentTime, 0.4);
         // the simulation wobbling: beds drift out of tune as it collapses
-        if (collapse > 0.2) lv.src.playbackRate.setTargetAtTime((b.rate ?? 1) * (1 + Math.sin(this.t * 0.37 + b.vol * 9) * collapse * 0.04), this.ctx!.currentTime, 0.5);
+        if (collapse > 0.2) lv.src.playbackRate.setTargetAtTime((b.rate ?? 1) * lv.r * (1 + Math.sin(this.t * 0.37 + b.vol * 9) * collapse * 0.04), this.ctx!.currentTime, 0.5);
       }
     }
     // weather
@@ -845,7 +889,7 @@ export class AudioEngine {
       const now = this.ctx!.currentTime;
       if (st) {
         st.gain.gain.setTargetAtTime(0.05 + 0.2 * (1 - r.strength * 0.85) * (0.85 + Math.random() * 0.3), now, 0.05);
-        st.src.playbackRate.setTargetAtTime(0.85 + ((r.freq * 7.31) % 1) * 0.3, now, 0.08);
+        st.src.playbackRate.setTargetAtTime((0.85 + ((r.freq * 7.31) % 1) * 0.3) * st.r, now, 0.08);
       }
       const sigKey = r.sig ? (r.sig.text ? 'numbers' : 'beacon') : '';
       const v = r.sig ? (hashStr(r.sig.id || r.sig.name || '') % 3) : 0;
@@ -871,21 +915,28 @@ export class AudioEngine {
   }
 
   // ---------------------------------------------------------------- generative music
+  private track: { style: string; src: AudioBufferSourceNode; gain: GainNode; until: number } | null = null;
+
   private updateMusic(z: Zone) {
     const ctx = this.ctx!;
     const style = this.dead ? '' : (z.env.music || this.profile.music);
     const now = ctx.currentTime;
     if (style !== this.style) {
+      // a recorded track that is playing crossfades straight into the next zone's track
+      const crossfade = !!this.track && !!style;
+      this.fadeTrack(crossfade ? 4 : 3);
       this.style = style;
       this.musicNext = now + 2;
-      this.musicRestUntil = this.t + (style === 'muzak' ? 1 : rr(15, 45));
+      this.musicRestUntil = this.t + (crossfade ? 0 : style === 'muzak' ? 1 : rr(15, 45));
       this.mb.left = 0;
       this.musicFilter.frequency.setTargetAtTime(style === 'muzak' ? 2600 : 20000, now, 0.5);
     }
-    if (!style || this.t < this.musicRestUntil) return;
     // music hides when things get dangerous; tension belongs to the world sounds
     const panic = G.local?.body.panic ?? 0;
     const calm = clamp(1 - panic / 60, 0.15, 1);
+    const M = MUSIC[style];
+    if (M && hasSample(M.key) && !sampleFailed(M.key, 0)) { this.updateTrack(style, M, calm); return; }
+    if (!style || this.t < this.musicRestUntil) return;
     if (this.musicNext < now) this.musicNext = now + 0.05;
     while (this.musicNext < now + 0.25) {
       const when = this.musicNext;
@@ -899,6 +950,43 @@ export class AudioEngine {
       if (this.t < this.musicRestUntil) break;
     }
   }
+
+  /** recorded music: play a stretch of the zone's track, fade it, rest, repeat */
+  private updateTrack(style: string, M: (typeof MUSIC)[string], calm: number) {
+    const ctx = this.ctx!;
+    const now = ctx.currentTime;
+    const smp = sampleInfo(M.key)!;
+    const tr = this.track;
+    if (tr) {
+      tr.gain.gain.setTargetAtTime(M.vol * smp.gain * calm, now, 1.5);
+      if (style === 'broken') tr.src.playbackRate.setTargetAtTime((M.rate ?? 1) * smp.rate * (1 + Math.sin(this.t * 0.45) * 0.025), now, 0.4);
+      if (this.t > tr.until) { this.fadeTrack(7); this.musicRestUntil = this.t + rr(M.rest[0], M.rest[1]); }
+      return;
+    }
+    if (this.t < this.musicRestUntil) return;
+    const buf = sampleBuffer(ctx, M.key, 0);
+    if (!buf) return; // still decoding: try again next frame
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    src.playbackRate.value = (M.rate ?? 1) * smp.rate;
+    const gain = ctx.createGain(); gain.gain.value = 0;
+    src.connect(gain); gain.connect(this.musicFilter);
+    // ambient beds start anywhere; tunes start at the top of the phrase
+    src.start(now, style === 'muzak' || style === 'musicbox' ? 0 : Math.random() * buf.duration);
+    gain.gain.setTargetAtTime(M.vol * smp.gain * calm, now, 1.6);
+    this.track = { style, src, gain, until: this.t + rr(M.play[0], M.play[1]) };
+  }
+  private fadeTrack(secs: number) {
+    const tr = this.track;
+    if (!tr || !this.ctx) return;
+    this.track = null;
+    const now = this.ctx.currentTime, g = tr.gain.gain;
+    g.cancelScheduledValues(now); g.setValueAtTime(g.value, now); g.linearRampToValueAtTime(0, now + secs);
+    try { tr.src.stop(now + secs + 0.05); } catch { /* already stopped */ }
+    tr.src.onended = () => { tr.src.disconnect(); tr.gain.disconnect(); };
+  }
+
+  /** debugging aid (dev console: __game.audio.sampleStats()) */
+  sampleStats() { return sampleStats(); }
 
   private stepMusicBox(when: number, broken: boolean, calm: number) {
     const scale = [0, 2, 4, 7, 9];

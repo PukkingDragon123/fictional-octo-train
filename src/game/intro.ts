@@ -878,7 +878,7 @@ export class Intro implements GameSystem {
         const st = this.stamp!;
         const k = clamp01(t / 1.2);
         // (low on the debtor's left, inside the column: the die coming down over the arm, the glove, the officer beyond)
-        st.world(V6.set(-0.3 + k * 0.02, 0.84, -0.56 + k * 0.05), pos);
+        st.world(V6.set(-0.38 + k * 0.02, 0.84, -0.56 + k * 0.05), pos);
         st.world(V6.set(0.0, 1.0 - k * 0.08, 0.05), look);
         return 58;
       }
@@ -945,7 +945,7 @@ export class Intro implements GameSystem {
       if (ph === 'fit' && this.stamp) {
         // the station's caged work lamp is the key: a hard warm pool on the bed and the arm, the rest falls to black
         const st = this.stamp;
-        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xffd2a0, 7 * st.lamp, 0.74, this.t < 0.1);
+        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xffd2a0, 5 * st.lamp, 0.74, this.t < 0.1);
       }
       else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
     } else {

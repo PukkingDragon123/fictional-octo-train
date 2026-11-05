@@ -306,7 +306,8 @@ if (uWFlags.w < 0.5) {
   irradiance *= (0.8 + 0.2 * wn.y) * 0.8;
   vec2 lgp = vWPos.xz + vWNormal.xz * 0.28;
   vec2 luv = (lgp - uLightInfo.xy) * uLightInfo.zw;
-  vec3 gt = texture2D(uLightTex, luv).rgb;
+  vec4 gt4 = texture2D(uLightTex, luv);
+  vec3 gt = gt4.rgb;
   vec3 grid = gt * gt * uGridScale;
   // ceiling fixtures: surfaces higher up the walls catch a bit more light
   grid *= 0.8 + 0.2 * clamp(vWPos.y / 2.6, 0.0, 1.0);
@@ -328,6 +329,10 @@ if (uWFlags.w < 0.5) {
   // (dark when the tube is dead or the power is off, stuttering with the flicker)
   if (vEmis < 0.0) totalEmissiveRadiance += diffuseColor.rgb * min(gt * gt * uGridScale, vec3(2.4)) * (-vEmis);
   irradiance += grid * PI;
+  // bounce fill (light grid alpha: the light around, spread by walls and floor), faintly the lights' colour,
+  // so faces turned from the fixtures and the corners of a lit room are not black
+  vec3 bTint = mix(vec3(1.0), gt / max(max(gt.r, max(gt.g, gt.b)), 1e-3), 0.35);
+  irradiance += bTint * (gt4.a * gt4.a * uGridScale * 0.24 * PI);
 #if defined(FLOOR)
   // wet / polished floors mirror the fixtures overhead: sample the light grid where the reflected view ray meets the ceiling
   if (wetR > 0.05 && uSheen > 0.0) {

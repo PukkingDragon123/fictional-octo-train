@@ -89,9 +89,9 @@ void main() {
   s *= uTint;
   // dark art: an S-curve that crushes the shadows, colder shadows, less candy saturation
   vec3 sc = clamp(s, 0.0, 1.0);
-  s = mix(s, sc * sc * (3.0 - 2.0 * sc), uDark * 0.4);
-  s = mix(s, s * vec3(0.9, 0.95, 1.06), uDark * (1.0 - clamp(y * 2.2, 0.0, 1.0)) * 0.5);
-  s = mix(vec3(dot(s, vec3(0.299, 0.587, 0.114))), s, 1.0 - uDark * 0.18);
+  s = mix(s, sc * sc * (3.0 - 2.0 * sc), uDark * 0.2);
+  s = mix(s, s * vec3(0.96, 0.98, 1.03), uDark * (1.0 - clamp(y * 2.2, 0.0, 1.0)) * 0.5);
+  s = mix(vec3(dot(s, vec3(0.299, 0.587, 0.114))), s, 1.0 - uDark * 0.12);
   vec2 q = uv - 0.5;
   s *= 1.0 - dot(q, q) * 2.0 * uVignette;
   float gl2 = dot(s, vec3(0.299, 0.587, 0.114));
@@ -101,8 +101,15 @@ void main() {
 }
 `;
 
-const NUM_KEYS: (keyof ZoneFx)[] = ['blob', 'rim', 'hazeDens', 'hazeFall', 'volTop', 'gridMul', 'spotMul', 'sunShafts', 'mistDens', 'mistFall', 'mistLit', 'mistMax', 'bloom', 'bloomTh', 'ao', 'reflect', 'sheen', 'caustics', 'sick', 'motes', 'dirt'];
+const NUM_KEYS: (keyof ZoneFx)[] = ['exposure', 'blob', 'rim', 'hazeDens', 'hazeFall', 'volTop', 'gridMul', 'spotMul', 'sunShafts', 'mistDens', 'mistFall', 'mistLit', 'mistMax', 'bloom', 'bloomTh', 'ao', 'reflect', 'sheen', 'caustics', 'sick', 'motes', 'dirt'];
 const TAN36 = Math.tan(THREE.MathUtils.degToRad(36));
+/** how much of a zone grade's colour cast survives, the saturation scale and the vignette scale */
+const CAST_K = 0.35, SAT_K = 0.8, VIG_K = 0.6;
+/** a grade triple pulled toward its own grey */
+function neutral(out: THREE.Vector3, v: [number, number, number]) {
+  const l = v[0] * 0.3 + v[1] * 0.5 + v[2] * 0.2;
+  out.set(lerp(l, v[0], CAST_K), lerp(l, v[1], CAST_K), lerp(l, v[2], CAST_K));
+}
 
 export class PixelRenderer {
   readonly renderer: THREE.WebGLRenderer;
@@ -230,7 +237,7 @@ export class PixelRenderer {
         uMistCol: { value: new THREE.Vector3(0.5, 0.5, 0.5) }, uMistDens: { value: 0 }, uMistFall: { value: 1 }, uMistLit: { value: 0.5 }, uMistMax: { value: 0.3 },
         uMotes: { value: 0 }, uSick: { value: 0 }, uFlicker: { value: 1 }, uFilm: { value: 1 }, uVoid: { value: new THREE.Color(0) },
         uBlobs: { value: this.postfx.blobs }, uBlobH: { value: this.postfx.blobH }, uBlobN: { value: 0 }, uRim: { value: 0 }, uRimTint: { value: new THREE.Vector3() },
-        uSunDir2: { value: new THREE.Vector2(1, 0) }, uSunGlow: { value: 0 }, uSunDir3: { value: new THREE.Vector3(0, 1, 0) },
+        uSunDir2: { value: new THREE.Vector2(1, 0) }, uSunGlow: { value: 0 }, uSunDir3: { value: new THREE.Vector3(0, 1, 0) }, uExposure: { value: 1.6 },
       },
     });
     this.blitMat = new THREE.ShaderMaterial({
@@ -409,12 +416,15 @@ export class PixelRenderer {
     for (const key of NUM_KEYS) z[key] = lerp(z[key], zt[key], k);
     for (let i = 0; i < 3; i++) { z.haze[i] = lerp(z.haze[i], zt.haze[i], k); z.mist[i] = lerp(z.mist[i], zt.mist[i], k); z.rimTint[i] = lerp(z.rimTint[i], zt.rimTint[i], k); }
     const u = this.postMat.uniforms;
-    u.uLift.value.set(...g.lift); u.uGain.value.set(...g.gain); u.uGamma.value = g.gamma; u.uSat.value = g.sat;
-    u.uTint.value.set(...g.tint);
+    // the zone grades keep only a trace of their colour cast (colour lives in the lights, not over the
+    // whole frame) and the picture runs a little less saturated than the grades ask
+    neutral(u.uLift.value, g.lift); neutral(u.uGain.value, g.gain); neutral(u.uTint.value, g.tint);
+    u.uGamma.value = g.gamma; u.uSat.value = g.sat * SAT_K;
+    u.uExposure.value = z.exposure ?? 1.6;
     // first person puts big smooth light falloffs right in your face: finer steps so they don't contour
     u.uLevels.value = this.eyeCamera ? g.levels * 2 : g.levels;
     const clean = this.clean;
-    u.uVignette.value = clean ? g.vignette * 0.5 : g.vignette;
+    u.uVignette.value = (clean ? 0.5 : 1) * g.vignette * VIG_K;
     u.uGrain.value = (g.grain * 0.5 + 0.004) * (clean ? 0 : 1);
     u.uFilm.value = this.film;
     u.uGlitch.value = this.fx.glitch; u.uPanic.value = clean ? 0 : this.fx.panic; u.uHurt.value = clean ? 0 : this.fx.hurt; u.uDesat.value = this.fx.desat;
@@ -425,7 +435,9 @@ export class PixelRenderer {
     u.uBloomStr.value = z.bloom * 0.3;
     u.uDirtStr.value = clean ? 0 : z.dirt * 0.35 * this.film;
     u.uReflect.value = z.reflect;
-    u.uMistCol.value.set(z.mist[0], z.mist[1], z.mist[2]);
+    // ground mist takes the room's light, not a tinted wash of its own
+    const ml = z.mist[0] * 0.3 + z.mist[1] * 0.5 + z.mist[2] * 0.2;
+    u.uMistCol.value.set(lerp(ml, z.mist[0], 0.45), lerp(ml, z.mist[1], 0.45), lerp(ml, z.mist[2], 0.45));
     u.uMistDens.value = z.mistDens; u.uMistFall.value = Math.max(0.05, z.mistFall); u.uMistLit.value = z.mistLit; u.uMistMax.value = z.mistMax;
     u.uMotes.value = z.motes;
     u.uRim.value = z.rim; u.uRimTint.value.set(z.rimTint[0], z.rimTint[1], z.rimTint[2]);

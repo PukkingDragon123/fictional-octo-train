@@ -87,7 +87,7 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
       if (Math.abs(c.nx) > 0.55) k *= 1 - 0.1 - 0.12 * sstep(P.bustY - 0.04 * H, P.shoulderY, c.y);
       if (c.part === 'hipsLo' && c.y < P.crotchY + 0.03 * H && ax < P.hipX * 0.8) k *= 0.8;
       if (c.part === 'traps' && c.kind === 'top') k *= 1.04;
-      if (c.part === 'bust' && c.kind === 'bot') k *= 0.82;
+      if (c.part === 'bust' && c.kind === 'bot') k *= 0.92;
     }
     k *= 1 + 0.03 * Math.sin(c.x * 37 + c.z * 23 + Math.sin(c.y * 13) * 2) * Math.sin(c.y * 29 + c.x * 11);
     return k;
@@ -695,8 +695,8 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
     }
     // the researcher's lanyard
     if (D.badge && (c.part === 'traps' || c.part === 'chestHi' || c.part === 'chestLo' || c.part === 'bust') && !back(c)) {
-      const w = P.hw * 0.75 - (P.neckBase - c.y) * 0.55;
-      if (c.y > P.bustY - 0.005 * H && Math.abs(ax - Math.max(0.006 * H, w)) < 0.0035 * H) shadeInto(o, D.badge.col, 0.95);
+      const w = P.hw * 0.75 - (P.neckBase - c.y) * 0.4;
+      if (c.y > P.waistY + 0.05 * H && Math.abs(ax - Math.max(0.004 * H, w)) < 0.003 * H) shadeInto(o, D.badge.col, 0.95);
     }
     if (hz && c.part !== 'traps' && front(c) && c.x < -0.012 * H && c.x > -0.042 * H && c.y > P.bustY - 0.025 * H && c.y < P.bustY - 0.015 * H) shadeInto(o, [40, 40, 42], 0.9); // hose clip
   }
