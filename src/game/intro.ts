@@ -77,6 +77,7 @@ import { skipPlate, pollPadSkip, padConnected, type SkipPlate } from './introKit
 import { cbox, lathe, rod, mulberry } from './introKit/poly';
 import { Subs } from './introKit/subs';
 import { GP } from './introKit/machines';
+import { freshStart } from './tutorial/fresh';
 import { StampRig, ST } from './introKit/stamp';
 import { fpArm } from '../fp/hands';
 import { GUARD_GREY } from '../content/items/prisoner';
@@ -465,7 +466,7 @@ export class Intro implements GameSystem {
   // ================================================================== the stage
   private claimStage() {
     fpGroup(STAGE_NAME);
-    fpClaim(STAGE_NAME, 100, { cinematic: 'none' });
+    fpClaim(STAGE_NAME, 100, { cinematic: 'none', stage: true });
     const cam = fpCamera();
     this.camSave = { fov: cam.fov, near: cam.near, far: cam.far };
     cam.fov = 64; cam.near = 0.035; cam.far = 60; cam.updateProjectionMatrix();
@@ -1102,7 +1103,7 @@ export class Intro implements GameSystem {
     }
     if (this.staged) {
       // nothing else gets the first-person stage while the intake is playing
-      if (fpOwner() !== STAGE_NAME) fpClaim(STAGE_NAME, 1000, { cinematic: 'none' });
+      if (fpOwner() !== STAGE_NAME) fpClaim(STAGE_NAME, 1000, { cinematic: 'none', stage: true });
       this.lightT -= dt;
       if (this.lightT <= 0) { this.lightT = 1; this.hideForeignLights(); }
       this.pickShot();
@@ -2024,6 +2025,8 @@ export class Intro implements GameSystem {
       if (g.view?.zone.key !== INTRO_ZONE) g.zones.delete(INTRO_ZONE);
     });
     m?.set?.('contract:intake');
+    // the beating and the bolt stay in the cutscene: play starts unhurt
+    freshStart(p);
     const h = G.handler as any;
     if (h) { h.scripted = false; h.begin?.(); }
     bus.emit('introDone', p);

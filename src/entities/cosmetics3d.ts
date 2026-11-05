@@ -382,7 +382,9 @@ export function cosmeticOutfit(o: Outfit, app: CosApp): Outfit {
   return out;
 }
 
-const blocked = (slot: CosSlot, o: Outfit) => (slot === 'hat' && !!o.head) || (slot === 'eyes' && !!o.eyes) || (slot === 'face' && !!o.face) || (slot === 'back' && !!o.back);
+/** the hazmat suit's hood and visor: eyewear and face pieces would sit inside it */
+const hooded = (o: Outfit) => o.torso?.tex === 'c_hazmat';
+const blocked = (slot: CosSlot, o: Outfit) => (slot === 'hat' && !!o.head) || (slot === 'eyes' && (!!o.eyes || hooded(o))) || (slot === 'face' && (!!o.face || hooded(o))) || (slot === 'back' && !!o.back);
 
 const GEO = new Map<string, THREE.BufferGeometry>();
 const GLOW = new Map<string, { geo: THREE.BufferGeometry; mat: THREE.MeshBasicMaterial }>();
@@ -415,7 +417,8 @@ const WORN = new WeakMap<object, { key: string; meshes: THREE.Object3D[] }>();
 export function syncCosmetics(rig: RigLike, o: Outfit, mat: THREE.Material) {
   const d = rig.dims;
   const list = (rig.app.cos || []).filter((k) => PIECES[k] && !blocked(COSMETIC.get(k)!.slot, o));
-  const key = list.length ? list.join(',') + '|' + d.s.toFixed(3) + '|' + d.headS.toFixed(3) + '|' + d.mass.toFixed(2) : '';
+  const hood = hooded(o);
+  const key = list.length ? list.join(',') + '|' + d.s.toFixed(3) + '|' + d.headS.toFixed(3) + '|' + d.mass.toFixed(2) + (hood ? '|h' : '') : '';
   const cur = WORN.get(rig);
   if ((cur?.key ?? '') === key) return;
   for (const m of cur?.meshes || []) m.removeFromParent();
@@ -424,10 +427,12 @@ export function syncCosmetics(rig: RigLike, o: Outfit, mat: THREE.Material) {
     const p = PIECES[k];
     const bone = rig.bones[p.bone];
     if (!bone) continue;
-    const sc = p.bone === 'head' ? d.s * d.headS : d.s;
+    // over the hazmat hood a head piece sits a size up (the hood adds a couple of centimetres all round)
+    const sc = p.bone === 'head' ? d.s * d.headS * (hood ? 1.16 : 1) : d.s;
     const place = (m: THREE.Object3D) => {
       m.scale.setScalar(sc);
       if (p.bone === 'chest') { m.position.set(0, 0, -(0.1 * d.mass + 0.012) * d.s); m.scale.set(sc * (0.85 + 0.15 * d.mass), sc, sc); }
+      if (p.bone === 'head' && hood) m.position.set(0, 0.012 * d.s, -0.008 * d.s);
       if (p.bone === 'neck') m.scale.set(sc * (0.9 + 0.1 * d.mass), sc, sc * (0.9 + 0.1 * d.mass));
       m.name = 'cosmetic:' + k;
       bone.add(m);

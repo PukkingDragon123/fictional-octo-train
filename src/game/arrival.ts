@@ -56,6 +56,7 @@ import { buildWallSet, LAMP_POS, type WallSet } from './arrivalKit/wallSet';
 import { Chute } from './arrivalKit/chute';
 import { packWorldMesh, packOverlayGroup, disposeGroup, fpStrap } from './arrivalKit/packModel';
 import { takePack, givePack, ensurePack, absorbStray } from './arrivalKit/pack';
+import { freshStart } from './tutorial/fresh';
 import './arrivalKit/sounds';
 import './intro.css';
 
@@ -667,11 +668,14 @@ class Arrival implements GameSystem {
     }
     pr.eyeCamera = this.eye;
     pr.eyeHide = [this.p.rig.root];
+    // the hands are seen through the eyes only: the overlay is a first-person scene while this camera is up
+    if (this.claimed) fpClaim('arrival', 95, { cinematic: 'none', stage: true });
     this.updEye(0);
   }
   private eyeOff() {
     const pr = this.g.pr;
     if (pr.eyeCamera === this.eye) { pr.eyeCamera = null; pr.eyeHide = []; }
+    if (this.claimed && fpOwner() === 'arrival') fpClaim('arrival', 95, { cinematic: 'none', stage: false });
   }
   private headPos(out: THREE.Vector3) {
     if (this.eyeFixed) return out.copy(this.eyeFixed);
@@ -1142,6 +1146,7 @@ class Arrival implements GameSystem {
     if (this.pack) { this.pack.removeFromParent(); this.pack = null; }
     if (this.packItem || !p.worn.get('back')) { givePack(p, this.packItem); this.packItem = null; }
     this.ensureMission();
+    freshStart(p);
     this.clearPose();
     p.full = '';
     p.vx = p.vz = 0;

@@ -1500,7 +1500,7 @@ export class SubjectRoom {
     const still = this.op.work > 0.3 || this.closeK > 0.6 ? 0.25 : 1;
     const look = (Math.sin(t * 0.43) * 0.5 + Math.sin(t * 1.7) * 0.08) * still;
     return {
-      uarmL: [0.05, 0, 2.05], uarmR: [0.05, 0, -2.05], farmL: [-0.18, 0, 0.12], farmR: [-0.18, 0, -0.12], handL: [0, 0, 0.1], handR: [0, 0, -0.1],
+      uarmL: [0.05, 0, 1.55], uarmR: [0.05, 0, -1.55], farmL: [-0.12, 0, 0.1], farmR: [-0.12, 0, -0.1], handL: [0, 0, 0.1], handR: [0, 0, -0.1],
       spine: [0.02, 0, 0], chest: [-0.04, look * 0.1, 0], head: [0.04 + Math.sin(t * 0.61) * 0.1 * still, look, Math.sin(t * 0.37) * 0.06 * still],
       thighL: [-0.05 + Math.max(0, Math.sin(t * 0.9)) * 0.12, 0, 0.11], thighR: [-0.05 + Math.max(0, Math.sin(t * 0.9 + 2)) * 0.12, 0, -0.11],
       shinL: [0.12, 0, 0], shinR: [0.14, 0, 0], footL: [0.55, 0, 0], footR: [0.55, 0, 0],
@@ -1560,7 +1560,7 @@ export class SubjectRoom {
     // the tool comes in from the left of the picture and a little above (never between the lens and him, never through him)
     const T = this.arms[3];
     const cr = this.v2.setFromMatrixColumn(this.cam.matrixWorld, 0), cu = this.v3.setFromMatrixColumn(this.cam.matrixWorld, 1), cb = this.v4.setFromMatrixColumn(this.cam.matrixWorld, 2);
-    const app = op.app.copy(op.wn).multiplyScalar(0.5).addScaledVector(cr, -0.95).addScaledVector(cu, 0.4).addScaledVector(cb, 0.12);
+    const app = op.app.copy(op.wn).multiplyScalar(0.45).addScaledVector(cr, -0.95).addScaledVector(cu, 0.42).addScaledVector(cb, -0.12);
     if (op.wild > 0) app.add(this.v1.set(Math.sin(this.t * 23) * op.wild, Math.cos(this.t * 17) * op.wild * 0.6, Math.sin(this.t * 13) * op.wild * 0.4));
     app.normalize();
     if (app.dot(op.wn) < 0.15) app.addScaledVector(op.wn, 0.5).normalize();

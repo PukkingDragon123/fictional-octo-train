@@ -158,7 +158,8 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
     const stage = room;
     const portrait = () => window.innerHeight > window.innerWidth * 1.05;
     const frame = () => stage.setFraming(portrait() ? 0 : 0.16, portrait() ? 0.3 : 0.02);
-    const show = (a: Appearance) => { stage.setAppearance(a); stage.setOutfit(prisonerOutfitFor(a)); };
+    // the Body section shows the suit he will wear; from Skin on the top half comes down for the examination (and the hood with it)
+    const show = (a: Appearance) => { stage.setAppearance(a); stage.setOutfit(prisonerOutfitFor(a, phase === 'look' && SECTIONS[si]?.key !== 'body')); };
 
     const shapeIndex = (a: Appearance) => {
       if (a.jaw != null) return a.jaw;
@@ -438,7 +439,9 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
 
     // ---------------- sections
     const setSection = (i: number) => {
+      const wasBody = SECTIONS[si].key === 'body';
       si = Math.max(0, Math.min(SECTIONS.length - 1, i));
+      if (wasBody !== (SECTIONS[si].key === 'body')) show(app);
       li = 0;
       root.dataset.section = SECTIONS[si].key;
       paintHead(true);

@@ -68,8 +68,9 @@ export class Researcher extends HumanRig {
     this.clip.castShadow = true; this.clip.name = 'cosmetic:clipboard';
     this.clip.visible = false;
     this.heldL.add(this.clip);
-    this.clip.position.set(0.02 * this.s, 0.04 * this.s, 0.07 * this.s);
-    this.clip.rotation.set(0.0, -1.2, -1.25);
+    // lying along the forearm, face up toward her (the hand's z points up when the forearm is level)
+    this.clip.position.set(0, 0.13 * this.s, 0.03 * this.s);
+    this.clip.rotation.set(0.35, -Math.PI / 2, 0, 'YXZ');
   }
 
   /** Start a gesture. opts: dur (s), hold (until clearGesture), dir (rig-local [x, y, z] for point / present), at (a world point to point at). */
@@ -161,8 +162,8 @@ export class Researcher extends HumanRig {
       case 'clipboard': {
         // the board held in the left forearm, the right hand jotting notes on it, head down to read
         const sc = Math.sin(t * 11) * 0.012, sc2 = Math.sin(t * 3.7) * 0.02;
-        arm('L', 0.1, -0.26, 0.2, [1, -0.6, -0.5], [0.2, 1.3, 0.2]);
-        arm('R', 0.1 + sc2, -0.2 + sc, 0.26, [-1, -0.8, -0.4], [-0.3, -0.6, 0]);
+        arm('L', -0.07, -0.33, 0.26, [1, -0.7, -0.4], [0, 0.2, 0]);
+        arm('R', 0.11 + sc2, -0.25 + sc, 0.3, [-1, -0.8, -0.4], [-0.3, -0.6, 0]);
         addQ(j.head, [0.32, 0.1, 0], w); addQ(j.neck, [0.1, 0, 0], w);
         this.fingers('L', 0.6, w); this.fingers('R', 0.8, w);
         break;
