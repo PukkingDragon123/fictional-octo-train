@@ -38,10 +38,10 @@ const FRAG = /* glsl */`
     float o = texture2D(tOver, px).a;
     l = clamp(l, 0.0, 1.0);
     l = floor(l * 7.0 + bayer4(cell)) / 7.0;
-    // a soft green-white phosphor, not a saturated wash
-    vec3 col = l < 0.01 ? vec3(0.012, 0.02, 0.015) : mix(vec3(0.04, 0.09, 0.06), vec3(0.55, 0.92, 0.6), l);
-    col = mix(col, vec3(0.82, 0.98, 0.84), l * l * 0.55);
-    col = mix(col, vec3(0.9, 1.05, 0.9), o);
+    // vivid green phosphor
+    vec3 col = l < 0.01 ? vec3(0.004, 0.02, 0.008) : mix(vec3(0.02, 0.12, 0.04), vec3(0.36, 1.0, 0.42), l);
+    col = mix(col, vec3(0.62, 1.0, 0.6), l * l * 0.5);
+    col = mix(col, vec3(0.8, 1.15, 0.78), o);
     if (mod(cell.y, 2.0) > 0.5) col *= 0.62;
     float v = 1.0 - smoothstep(0.36, 0.56, length(q * vec2(1.0, 1.2)));
     col *= mix(0.25, 1.0, v);

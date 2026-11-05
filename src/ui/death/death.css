@@ -54,17 +54,17 @@
 }
 
 /* ---- the incident report on the tube */
-.dz-case { position: absolute; z-index: 5; color: #a8dca6; font-size: 16px; line-height: 18px; pointer-events: none; opacity: 0;
-  --pg: #0a140c; text-shadow: 1px 0 0 var(--pg), -1px 0 0 var(--pg), 0 1px 0 var(--pg), 0 -1px 0 var(--pg), 1px 1px 0 var(--pg), -1px 1px 0 var(--pg), 1px -1px 0 var(--pg), -1px -1px 0 var(--pg); }
+.dz-case { position: absolute; z-index: 5; color: #8dff7a; font-size: 16px; line-height: 18px; pointer-events: none; opacity: 0;
+  --pg: #04180a; text-shadow: 1px 0 0 var(--pg), -1px 0 0 var(--pg), 0 1px 0 var(--pg), 0 -1px 0 var(--pg), 1px 1px 0 var(--pg), -1px 1px 0 var(--pg), 1px -1px 0 var(--pg), -1px -1px 0 var(--pg); }
 .dz-case.on { opacity: 1; animation: dz-tube-on 0.32s steps(6) 1; }
 @keyframes dz-tube-on { 0% { transform: scaleY(0.02); filter: brightness(3); } 60% { transform: scaleY(1.03); } 100% { transform: none; filter: none; } }
 .dz-case::after { content: ''; position: absolute; inset: -4px; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(0, 6, 3, 0.22) 0 1px, transparent 1px 2px); }
 .dz-in { transform-origin: 0 0; display: flex; flex-direction: column; justify-content: space-between; }
 .dz-h { display: flex; justify-content: space-between; gap: 16px; opacity: 0.7; white-space: nowrap; }
 .dz-sub { white-space: nowrap; overflow: hidden; }
-.dz-sub b { font-weight: 400; color: #e2f2de; }
-.dz-cause { color: #e2f2de; }
-.dz-cause span { color: #a8dca6; opacity: 0.75; margin-right: 8px; }
+.dz-sub b { font-weight: 400; color: #d8ffd2; }
+.dz-cause { color: #d8ffd2; }
+.dz-cause span { color: #8dff7a; opacity: 0.75; margin-right: 8px; }
 .dz-rows { display: flex; flex-direction: column; gap: 2px; }
 .dz-row { display: grid; grid-template-columns: 1fr auto 3em; gap: 12px; visibility: hidden; }
 .dz-row.on { visibility: visible; }
@@ -72,15 +72,15 @@
 .dz-l .sh { display: none; }
 .narrow .dz-l .lg { display: none; }
 .narrow .dz-l .sh { display: inline; }
-.dz-v { text-align: right; color: #e2f2de; white-space: nowrap; }
+.dz-v { text-align: right; color: #d8ffd2; white-space: nowrap; }
 .dz-p { text-align: right; color: #ffd27a; visibility: hidden; }
 .dz-row.paid .dz-p { visibility: visible; }
-.dz-tot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 6px; border-top: 2px dashed rgba(168, 220, 166, 0.45); }
+.dz-tot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 6px; border-top: 2px dashed rgba(141, 255, 122, 0.45); }
 .dz-big { font-size: 32px; line-height: 32px; color: #ffd27a; text-shadow: var(--text-ink-2); }
 .done .dz-big { animation: dz-pop 0.3s steps(3) 1; }
 @keyframes dz-pop { 0% { transform: scale(1.5); } 100% { transform: none; } }
 .dz-lab { text-align: right; opacity: 0.75; }
-.dz-lab b { font-weight: 400; color: #e2f2de; }
+.dz-lab b { font-weight: 400; color: #d8ffd2; }
 .short .dz-h { display: none; }
 .short .dz-rows { gap: 0; }
 

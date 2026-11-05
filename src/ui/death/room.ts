@@ -117,8 +117,8 @@ export class ObsRoom {
   private t = 0;
   // lights
   private hemi = new THREE.HemisphereLight(0xc4c8cc, 0x4a4238, 2.2);
-  private crtBig = new THREE.PointLight(0x9ae8a8, 2.4, 3.5, 2);
-  private crtBank = new THREE.PointLight(0x8ad8a0, 1.6, 3.5, 2);
+  private crtBig = new THREE.PointLight(0x6aff8a, 3.2, 4.5, 2);
+  private crtBank = new THREE.PointLight(0x5ae87a, 2.4, 4.5, 2);
   private lamp = new THREE.SpotLight(0xffc890, 9, 3.5, 0.62, 0.6, 2);
   private rim = new THREE.SpotLight(0xc8d4e8, 30, 9, 0.6, 0.8, 2);
   /** the overhead tubes: cool-neutral fill from the ceiling */
@@ -675,8 +675,8 @@ export class ObsRoom {
     // the tubes light the room: the big one follows its picture
     const fb = this.feed.tube.u;
     const flick = 0.92 + Math.sin(this.t * 61) * 0.03 + Math.random() * 0.05;
-    this.crtBig.intensity = (2.2 + fb.uNoise.value * 1.2 - fb.uBlank.value * 0.6) * flick * fb.uPower.value + fb.uFlash.value * 4;
-    this.crtBank.intensity = 1.6 * flick;
+    this.crtBig.intensity = (3.0 + fb.uNoise.value * 1.6 - fb.uBlank.value * 0.8) * flick * fb.uPower.value + fb.uFlash.value * 4;
+    this.crtBank.intensity = 2.4 * flick;
     // one tube buzzes and stutters now and then
     const st = Math.sin(this.t * 0.23) > 0.96 && Math.random() < 0.4 ? 0.35 : 1;
     this.tubes[1].intensity = 7 * st; this.tubeMat.color.setRGB(1.6 * st, 1.65 * st, 1.7 * st);
@@ -716,7 +716,7 @@ export class ObsRoom {
     const u = this.post.u;
     u.uTime.value = this.t;
     u.uLift.value.set(0.98, 1.0, 1.03); u.uGain.value.set(1.02, 1.0, 0.97);
-    u.uSat.value = 0.74; u.uContrast.value = 1.03; u.uSide.value.set(1, 0, 0, 0.4); u.uFloor.value = 0.06; u.uGrain.value = 0.012;
+    u.uSat.value = 0.98; u.uContrast.value = 1.03; u.uSide.value.set(1, 0, 0, 0.4); u.uFloor.value = 0.06; u.uGrain.value = 0.012;
     const saved = { cut: U.uCutOn.value, vis: U.uVisOn.value, fn: U.uFogNear.value, ff: U.uFogFar.value, gs: U.uGridScale.value, col: U.uCollapse.value, snap: U.uSnapOn.value };
     const ss = { ts: SPOTU.tSpotShadow.value, tu: SPOTU.tSunShadow.value, so: SPOTU.uSpotOn.value, su: SPOTU.uSunOn.value, sh: SPOTU.uSpotShadowOn.value };
     const nsd = this.noShadow?.depthTexture ?? null;
