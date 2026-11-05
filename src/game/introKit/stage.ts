@@ -38,6 +38,8 @@ export const LOOKS: Record<string, Look> = {
   press: { lift: [0.01, 0.005, 0.008], gamma: 0.98, gain: [1.04, 0.98, 0.9], contrast: 0.6, sat: 0.98, shadow: [0.74, 0.9, 1.18], high: [1.12, 0.98, 0.82], exposure: 1.05, vignette: 0.75 },
   // the portal: cold cyan, deep blacks
   portal: { lift: [0.003, 0.008, 0.012], gamma: 0.96, gain: [0.96, 1.0, 1.06], contrast: 0.64, sat: 0.92, shadow: [0.76, 0.96, 1.14], high: [1.0, 1.02, 1.04], exposure: 1.05, vignette: 0.8 },
+  // the fitting station: one hard warm lamp on the bed, cold blue in the shadows, crushed, a heavy vignette
+  stamp: { lift: [0.002, 0.005, 0.012], gamma: 0.96, gain: [1.0, 0.96, 0.9], contrast: 0.72, sat: 0.9, shadow: [0.66, 0.9, 1.3], high: [1.1, 1.0, 0.84], exposure: 0.95, vignette: 0.95 },
   // the Lobby end (unused on the stage, for completeness)
   neutral: { lift: [0, 0, 0], gamma: 1, gain: [1, 1, 1], contrast: 0.2, sat: 1, shadow: [1, 1, 1], high: [1, 1, 1], exposure: 1, vignette: 0.4 },
 };

@@ -1,7 +1,8 @@
 // Pixel-art status ("moodle") icons and the body silhouette used by the
-// health views. Moodles come in two forms: a 16x16 coloured badge for DOM
-// panels (pause status, watch strip) and a 7x7 one-colour glyph for the
-// phosphor screens (scanner, watch LCD). The body map is a front-view
+// health views. Moodles come in three forms: the 12x12 art itself (moodleArt,
+// drawn on severity plates by the HUD's pop-up tray, src/ui/body/tray.ts), a
+// 16x16 coloured badge for DOM panels (pause status, watch strip) and a 7x7
+// one-colour glyph for the phosphor screens (scanner, watch LCD). The body map is a front-view
 // survivor built from simple shapes, one label per pixel, so every body part
 // can be shaded by its own state, including limbs that are gone (Body.severed).
 import { PixelCanvas, mixHex, bayer } from '../gfx/pixel';
@@ -112,6 +113,8 @@ const MONO: Record<string, string[]> = {
 
 /** order the moodles are shown in when several are up (worst first is done by the caller) */
 export const MOODLE_KEYS = Object.keys(ART);
+/** the 12x12 icon art of a moodle ('.' clear, palette letters; 'k' is its outline) */
+export function moodleArt(key: string): { rows: string[]; pal: Record<string, number> } { return ART[key] || ART.injured; }
 
 // ------------------------------------------------------------------ badges
 const badgeCache = new Map<string, string>();

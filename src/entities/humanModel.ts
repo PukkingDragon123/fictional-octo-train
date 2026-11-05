@@ -76,21 +76,23 @@ export function rigDims(app: Appearance): Dims {
 
 // ------------------------------------------------------------------ texture page layout
 export const PAGE = 256;
-export const PAD = 4;
+export const PAD = 1;
 export interface Reg { x: number; y: number; w: number; h: number }
 export type RegKey = 'HEAD' | 'HAIR' | 'TORSO' | 'NECK' | 'ARM_L' | 'ARM_R' | 'LEG_L' | 'LEG_R' | 'HAND_L' | 'HAND_R'
   | 'FOOT_L' | 'FOOT_R' | 'SKIRT' | 'HAT' | 'MASK' | 'COLLAR' | 'GEAR' | 'PACK' | 'LIDS' | 'WATCH';
 /**
- * Region rectangles (x, y, w, h; PAD free pixels round each). The face is
- * painted at twice the body's texel density (HEAD 192 x 96, LIDS to match):
- * it is what the close-ups look at. Packed by hand into one 256 x 256 page.
+ * Region rectangles (x, y, w, h; PAD free pixels round each) of the 256 x 256
+ * page. The low-poly people (src/entities/gg) pack every face of a body part
+ * inside its region, so a texel's region still tells which part it belongs
+ * to (the creator's part picking, the creatures that repaint a page region).
+ * HEAD holds the painted face block on its left and the rest of the head.
+ * Close-up rigs use the same layout at twice the size.
  */
 const LAYOUT: Record<RegKey, [number, number, number, number]> = {
-  HEAD: [4, 4, 192, 96], LEG_L: [204, 4, 36, 60], LEG_R: [204, 72, 36, 60], TORSO: [4, 108, 72, 56],
-  ARM_L: [84, 108, 28, 44], ARM_R: [120, 108, 28, 44], HAIR: [156, 140, 64, 40], PACK: [84, 160, 48, 40],
-  SKIRT: [4, 172, 72, 28], MASK: [140, 188, 48, 24], FOOT_L: [196, 188, 36, 24], FOOT_R: [4, 208, 36, 24],
-  HAND_L: [48, 208, 24, 24], HAND_R: [80, 208, 24, 24], HAT: [112, 220, 48, 20], NECK: [168, 220, 32, 12],
-  LIDS: [208, 220, 32, 12], COLLAR: [4, 240, 40, 10], GEAR: [52, 240, 16, 8], WATCH: [76, 240, 12, 8],
+  HEAD: [1, 1, 111, 95], HAIR: [114, 1, 66, 61], HAT: [182, 1, 73, 33], MASK: [182, 36, 73, 26],
+  NECK: [114, 64, 44, 32], COLLAR: [160, 64, 46, 14], WATCH: [208, 64, 22, 14], LIDS: [232, 64, 23, 14], GEAR: [160, 80, 95, 16],
+  LEG_L: [1, 98, 39, 157], LEG_R: [42, 98, 39, 157], TORSO: [83, 98, 100, 106], ARM_L: [185, 98, 34, 106], ARM_R: [221, 98, 34, 106],
+  SKIRT: [83, 206, 61, 49], PACK: [146, 206, 50, 49], FOOT_L: [198, 206, 27, 23], FOOT_R: [228, 206, 27, 23], HAND_L: [198, 231, 27, 24], HAND_R: [228, 231, 27, 24],
 };
 /** texels per pixel-art pixel in a region (the face is painted at 2x) */
 export const REG_K: Partial<Record<RegKey, number>> = { HEAD: 2, LIDS: 2 };

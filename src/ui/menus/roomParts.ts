@@ -408,4 +408,42 @@ export function valveWheel(b: FacetBuilder, m: THREE.Matrix4, r = 0.1, color = C
   b.add('metal', prism(0.018, 0.05, 6), COL.dark, m.clone().multiply(at(0, 0, -0.01, Math.PI / 2)));
 }
 
+/** the operating lamp: a ceiling post, a jointed arm and a hexagonal dish of five bulbs (dish local: faces -Y). Returns the post+arm (world) and the dish (own group, placed by the caller) */
+export function surgLampModel(mats: Mats): { dish: THREE.Group; bulbs: THREE.BufferGeometry } {
+  const d = new FacetBuilder();
+  // the dish: an enamel hexagon shell, a dark rim, a chrome handle in the middle
+  d.add('enamel', lathe([[0.0, 0.07], [0.12, 0.065], [0.24, 0.035], [0.29, 0.0], [0.3, -0.02]], 6, 0), 0xd8d4c4, undefined, { rep: 0.3 });
+  d.add('metal', band(0.3, 0.3, 0.03, 0.02, 6, 1, 0), COL.dark, at(0, -0.022, 0));
+  d.add('metal', lathe([[0, -0.03], [0.27, -0.03], [0.27, -0.022], [0, -0.022]], 6, 0), 0x2a2c2c);
+  d.add('metal', prism(0.03, 0.08, 6), COL.dark, at(0, 0.1, 0));
+  d.add('chrome', prism(0.016, 0.12, 6), 0xffffff, at(0, -0.09, 0));
+  d.add('bakelite', cbox(0.05, 0.035, 0.05, 0.01), 0xffffff, at(0, -0.155, 0));
+  for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; d.add('metal', bolt(0.01, 0.008), COL.steel, at(Math.cos(a) * 0.2, 0.05, Math.sin(a) * 0.2)); }
+  const dish = d.build(mats, { cast: false });
+  const bulbs: THREE.BufferGeometry[] = [];
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.3;
+    const g = gem(0.045, 6, 0.02, 0.2);
+    g.applyMatrix4(at(Math.cos(a) * 0.17, -0.032, Math.sin(a) * 0.17, Math.PI));
+    bulbs.push(g);
+  }
+  return { dish, bulbs: mergeFlat(bulbs) };
+}
+/** the lamp's ceiling post and jointed arm, world space, from the ceiling point c down to the dish yoke y */
+export function surgArmModel(mats: Mats, c: [number, number, number], y: [number, number, number]): THREE.Group {
+  const b = new FacetBuilder();
+  b.add('paint', extrude(ngon(0.12, 6), 0.04, 0.01), COL.oliveDark, at(c[0], c[1] - 0.02, c[2], Math.PI / 2));
+  const mid: [number, number, number] = [(c[0] + y[0]) / 2 + 0.18, c[1] - 0.42, (c[2] + y[2]) / 2];
+  const leg = (a: [number, number, number], e: [number, number, number], r: number) => {
+    const len = Math.hypot(e[0] - a[0], e[1] - a[1], e[2] - a[2]);
+    b.add('metal', prism(r, len, 6), COL.dark, along(a, e));
+  };
+  leg([c[0], c[1] - 0.02, c[2]], [c[0], c[1] - 0.3, c[2]], 0.03);
+  leg([c[0], c[1] - 0.3, c[2]], mid, 0.022);
+  leg(mid, y, 0.02);
+  for (const p of [[c[0], c[1] - 0.3, c[2]], mid, y] as [number, number, number][]) b.add('metal', prism(0.036, 0.05, 6), COL.steel, at(p[0], p[1], p[2], 0, 0, Math.PI / 2));
+  b.add('rubber', tube([[c[0] + 0.04, c[1] - 0.05, c[2]], [c[0] + 0.12, c[1] - 0.35, c[2] + 0.02], [mid[0] + 0.05, mid[1] - 0.1, mid[2]], [y[0] + 0.04, y[1] + 0.05, y[2]]], 0.008, 12, 4), 0x8a8a8a);
+  return b.build(mats, { cast: false });
+}
+
 export { FacetBuilder, at, cbox, prism, lathe, extrude, ngon, tube, band, gem, bolt, hull, jitter };

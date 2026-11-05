@@ -220,10 +220,14 @@ export function startSession(o: SessionOpts): Game {
     const objs = interact.objectsNear(p, 1.6);
     if (objs.length) { interact.defaultAction(p, { kind: 'object', obj: objs[0], point: p.pos }); return; }
   };
-  bus.on('death', (pl: Player) => {
-    if (pl !== p) return;
-    const days = Math.floor(g.clock.hours / 24), hrs = Math.floor(g.clock.hours % 24);
-    setTimeout(() => ui.centerMessage(`YOU HAVE BEEN DELETED<br><span style="font-size:20px;letter-spacing:2px;color:#a89a72">${escape(p.name)} survived ${days} days, ${hrs} hours</span>`, { label: 'Back to the title', action: () => location.reload() }), 1500);
+  // the local survivor's death: the observation-room cinematic, the incident report, research points (src/ui/death)
+  import('../ui/death').then((m) => m.installDeath(g, p)).catch((e) => {
+    console.warn('death cinematic', e);
+    bus.on('death', (pl: Player) => {
+      if (pl !== p) return;
+      const days = Math.floor(g.clock.hours / 24), hrs = Math.floor(g.clock.hours % 24);
+      setTimeout(() => ui.centerMessage(`YOU HAVE BEEN DELETED<br><span style="font-size:20px;letter-spacing:2px;color:#a89a72">${escape(p.name)} survived ${days} days, ${hrs} hours</span>`, { label: 'Back to the title', action: () => location.reload() }), 1500);
+    });
   });
 
   // ---- where we start

@@ -33,3 +33,81 @@
   .tt3-menu.ft-menu > .tt3-cap small { margin: 0 auto; }
 }
 @media (prefers-reduced-motion: reduce) { .ft-item, .ft-ptr { transition: none; } .ft-item:hover .ft-lab, .ft-item:focus .ft-lab { animation: none; } }
+
+/* ================================================================ the monitor room (title.ts, monitor/*, rooms/*)
+   Floating words, ink outlines, no boxes: the HUD of a room view, the captions
+   under the pointer, the DOM twins of the feed tubes (four pixel corner ticks). */
+.nx-title.mr .mr-subj::after { display: none; }
+.mr-subj.feed { position: fixed; inset: auto; left: -4000px; top: 0; width: 320px; height: 240px; visibility: hidden; pointer-events: none; }
+.mr-subj.full { position: absolute; inset: 0; visibility: visible; }
+.nx-title.mr[data-view="subject"] .mr-stage { visibility: hidden; }
+.nx-title.mr:not([data-view="subject"]) .mr-subj { pointer-events: none; }
+.mr-cv { touch-action: none; }
+/* the CRT cut between rooms */
+.mr-fx { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 9; image-rendering: pixelated; pointer-events: none; display: none; }
+.mr-fx.on { display: block; }
+/* the menu only in the booth; the HUD only in a room */
+.nx-title.mr:not([data-view="monitor"]) .tt3-menu, .nx-title.mr:not([data-view="monitor"]) .tt3-foot, .nx-title.mr:not([data-view="monitor"]) .tt3-cap { display: none; }
+.nx-title.mr:not([data-view="monitor"]) .nx-stage::after { opacity: 0; }
+.nx-title.mr.diving .tt3-menu, .nx-title.mr.diving .tt3-foot, .nx-title.mr.diving .mr-feeds, .nx-title.mr.diving .mr-hotcap { opacity: 0; transition: opacity 0.2s steps(3); pointer-events: none; }
+.nx-title.mr.lit .mr-hud, .nx-title.mr.lit .mr-feeds, .nx-title.mr.lit .mr-hotcap { display: none; }
+/* the tubes' DOM twins: invisible until focused, then four pixel corner ticks round the glass */
+.mr-feeds { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.mr-feeds[hidden] { display: none; }
+.mr-feed { position: absolute; left: 0; top: 0; pointer-events: auto; background: none; border: 0; padding: 0; margin: 0; cursor: var(--cur-hand, pointer); outline: none; -webkit-tap-highlight-color: transparent; }
+.mr-feed i { position: absolute; width: 14px; height: 14px; opacity: 0; transition: opacity 0.1s steps(2), transform 0.15s steps(3); border: 0 solid #c8ffc0; filter: drop-shadow(1px 0 0 #020802) drop-shadow(-1px 0 0 #020802) drop-shadow(0 1px 0 #020802) drop-shadow(0 -1px 0 #020802); }
+.mr-feed i:nth-child(1) { left: -6px; top: -6px; border-left-width: 3px; border-top-width: 3px; transform: translate(-4px, -4px); }
+.mr-feed i:nth-child(2) { right: -6px; top: -6px; border-right-width: 3px; border-top-width: 3px; transform: translate(4px, -4px); }
+.mr-feed i:nth-child(3) { right: -6px; bottom: -6px; border-right-width: 3px; border-bottom-width: 3px; transform: translate(4px, 4px); }
+.mr-feed i:nth-child(4) { left: -6px; bottom: -6px; border-left-width: 3px; border-bottom-width: 3px; transform: translate(-4px, 4px); }
+.mr-feed:focus i, .mr-feed:hover i { opacity: 1; transform: none; }
+.mr-feed:focus i { animation: mr-tick 1.2s steps(1) infinite; }
+@keyframes mr-tick { 0%, 100% { opacity: 1; } 70% { opacity: 0.55; } }
+.mr-feed-n { position: absolute; right: 6px; top: -30px; font-size: 32px; line-height: 1; color: #c8ffc0; text-shadow: var(--text-ink-2); opacity: 0; transition: opacity 0.1s steps(2); }
+.mr-feed:focus .mr-feed-n, .mr-feed:hover .mr-feed-n { opacity: 1; }
+/* the caption under the pointer / under a focused tube */
+.mr-hotcap { position: absolute; left: 0; top: 0; z-index: 8; pointer-events: none; display: flex; flex-direction: column; gap: 2px; opacity: 0; transition: opacity 0.12s steps(2); max-width: min(420px, calc(100vw - 16px)); }
+.mr-hotcap.on { opacity: 1; }
+.mr-hotcap.mid { align-items: center; text-align: center; }
+.mr-hotcap b { font-weight: normal; font-size: 32px; line-height: 1; color: #f4ecd2; text-shadow: var(--text-ink-2); white-space: nowrap; }
+.mr-hotcap small { font-size: 16px; line-height: 1.1; color: #d8ccb0; text-shadow: var(--text-ink); }
+/* the room view: camera caption top left, actions and channel words at the bottom */
+.mr-hud { position: absolute; inset: 0; z-index: 5; pointer-events: none; }
+.nx-title.mr[data-view="monitor"] .mr-hud { display: none; }
+.mr-cam { position: absolute; left: max(4vw, 20px); top: calc(7vh + 14px); display: flex; align-items: baseline; gap: 14px; color: #d8ffd0; text-shadow: var(--text-ink-2); font-size: 32px; line-height: 1; }
+.mr-cam b { font-weight: normal; color: #f4ecd2; }
+.mr-cam .nm { color: #c8f0c0; }
+.mr-cam .rec { font-size: 16px; color: #ff8a70; text-shadow: var(--text-ink); padding-left: 18px; position: relative; }
+.mr-cam .rec::before { content: ''; position: absolute; left: 0; top: 2px; width: 10px; height: 10px; background: #e83a20; box-shadow: 0 0 0 2px #0a0b10; }
+.mr-cam.blink .rec::before { background: #4a0e08; }
+.mr-cam .tc { font-size: 16px; color: #b8e0b0; text-shadow: var(--text-ink); }
+.mr-acts { position: absolute; left: 0; right: 0; bottom: calc(7vh + 64px); display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 28px; pointer-events: none; }
+.mr-bar { position: absolute; left: 0; right: 0; bottom: calc(7vh + 10px); display: flex; justify-content: center; gap: 44px; pointer-events: none; }
+.mr-word { pointer-events: auto; position: relative; display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 6px 4px; min-height: 44px; margin: 0; cursor: var(--cur-hand, pointer); color: #e9e2cf; text-shadow: var(--text-ink-2); font-size: 32px; line-height: 1; outline: none; -webkit-tap-highlight-color: transparent; transition: color 0.12s steps(3), transform 0.16s cubic-bezier(.2,.9,.3,1.3); }
+.mr-word.act { font-size: 32px; color: #d8f0c8; }
+.mr-word.home { color: #f2c46a; }
+.mr-word:hover, .mr-word:focus { color: #fff4cf; transform: translateY(-3px); }
+.mr-word:hover .ft-ptr, .mr-word:focus .ft-ptr { width: 22px; }
+.mr-word:active { transform: translateY(1px); color: #d9b878; transition-duration: 0.04s; }
+.mr-tip { position: absolute; right: max(4vw, 20px); top: calc(7vh + 22px); font-size: 16px; color: rgba(232, 222, 200, 0.7); text-shadow: var(--text-ink); }
+@media (max-aspect-ratio: 20/21) {
+  .mr-cam { top: 14px; left: 14px; font-size: 16px; gap: 10px; flex-wrap: wrap; max-width: calc(100vw - 28px); }
+  .mr-cam b, .mr-cam .nm { font-size: 32px; }
+  .mr-tip { display: none; }
+  .mr-bar { bottom: 18px; gap: 8px; justify-content: space-between; padding: 0 10px; }
+  .mr-bar .mr-word { font-size: 16px; }
+  .mr-bar .home { font-size: 32px; }
+  .mr-acts { bottom: 78px; gap: 2px 18px; padding: 0 10px; }
+  .mr-hotcap b { font-size: 16px; }
+  .mr-feed-n { font-size: 16px; top: -20px; }
+}
+@media (max-height: 519px) {
+  .mr-cam { top: 10px; font-size: 16px; }
+  .mr-cam b, .mr-cam .nm { font-size: 16px; }
+  .mr-tip { top: 12px; }
+  .mr-acts { bottom: 56px; }
+  .mr-bar { bottom: 8px; }
+  .mr-word { font-size: 16px; }
+  .mr-bar .home { font-size: 32px; }
+}
+@media (prefers-reduced-motion: reduce) { .mr-word, .mr-feed i { transition: none; } .mr-feed:focus i { animation: none; } }

@@ -1,108 +1,103 @@
-// The body HUD (G.hudBody): one machine floating in the corner instead of bars,
-// a life-support rig drawn in 3D through the game's own renderer (stage.ts).
-// It hangs in the still air, drifting and bobbing, and it is sprung: hits,
-// bites, gulps, footsteps, coughs and pokes knock it about (rig3d.ts).
-// The IV blood bag on its mast is health and blood: every wound is a hole in
-// it, dripping or pouring; click / tap a hole to treat it (a first-aid
-// pegboard swings in with what you could use). The breathing pump is stamina:
-// a bellows in a glass canister (lung3d.ts); H (or a thumb on it) pumps it on
-// the beat of the air meter. The digester is the stomach and the water
-// (jar3d.ts). The rucksack on its end opens the backpack. Hover anything for
-// a line of free-floating type.
+// The body HUD (G.hudBody): one tidy cluster in the top-left corner, pixel art
+// at the game's own pixel size (vitals.ts, tray.ts):
+//
+//   the BRAIN is sanity: it throbs with the heartbeat, bruises, veins and
+//     cracks as sanity goes, sweats in a panic, flinches on a scare;
+//   the HEALTH BAR is a riveted glass tube of blood: hits flash and shake it
+//     and leave a pale ghost that drains after the level; wounds drip from it;
+//     it pulses when critical and shimmers while you heal. Click / tap it to
+//     treat the worst wound with the best thing you carry;
+//   the BALLOON is stamina, tied to an iron weight: it fills as you recover,
+//     shrinks and wobbles while you run, sags wheezing when you are spent and
+//     gives a little pop when it runs dry. H (or a click / tap on it) starts
+//     the breathing pump: press as the bead reaches IN, then OUT;
+//   MOODLES (hunger, thirst, tiredness, pain, bleeding, sickness, cold, heat,
+//     panic, ...) pop up under the bar only while they matter, Zomboid style,
+//     tinted 1–4 by severity; hover or tap one for its name and what to do;
+//   the RUCKSACK under the brain opens the pack (desktop; phones have PACK).
+// All type floats free with a halo below the cluster (no boxes).
+//
+// The stomach and the lungs are still simulated (jar.ts, lung.ts): eating fills
+// the jar (canEat, vomiting), the lungs carry the breathing pump and strain.
 //
 // API: pumpPress(), pumping, canEat(), lungs / jar (sims), eatStart(action) /
-// drinkStart(action) (first-person close-ups, eatFp.ts), vomit(p),
-// setHidden(key, on), warm(secs), holeScreen(inj), why.
+// drinkStart(action) (first-person close-ups, eatFp.ts), eat (EatFp), vomit(p),
+// setHidden(key, on), warm(secs), holeScreen(inj), propScreen(kind),
+// jarScreen(), openPack(), why, st (where it sits, for tests).
 import './body.css';
 import './sounds';
-import * as THREE from 'three';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { fpOwner } from '../../fp/fp';
-
-/** first-person scenes that get the whole picture (eating too: its own scene in the room, no floating HUD) */
-const FULL_FP = new Set(['pack', 'inspect', 'bench', 'cook', 'trade', 'dominion', 'surgery', 'remote', 'eat']);
 import type { Player } from '../../entities/player';
 import type { Injury } from '../../survival/body';
 import { Lungs, type PumpResult } from './lung';
 import { Jar } from './jar';
-import { BodyStage, Cubes } from './stage';
-import { Rig3D, SW, SH, CON_TOP, BAG_AT, PUMP_AT, JAR_AT } from './rig3d';
-import { Bag3D } from './bag3d';
-import { Lung3D } from './lung3d';
-import { Jar3D } from './jar3d';
-import { Board3D } from './board3d';
-import { treatOptions, bestTreatment, woundTitle, type TreatOpt } from './treat';
+import { Vitals, VW, VH, BAR, BRAIN, PACK, TRAY_AT, type VitalsIn } from './vitals';
+import { MoodleTray, SLOT, PAD } from './tray';
+import { treatOptions, bestTreatment, woundTitle, needsCare } from './treat';
 import { breathHit, breathDone } from '../../survival/mindSystem';
 import { ensureMind } from '../../survival/mind';
 import { shake } from '../../gfx/juice';
-import { fontsReady } from '../../gfx/crt';
 import { itemDef } from '../../items/item';
 import { EatFp } from './eatFp';
 
-/** the pegboard swings in over the pump */
-const BOARD_AT: [number, number] = [PUMP_AT[0] + 2, -10];
+/** first-person scenes that get the whole picture (eating too: its own scene in the room, no floating HUD) */
+const FULL_FP = new Set(['pack', 'inspect', 'bench', 'cook', 'trade', 'dominion', 'surgery', 'remote', 'eat']);
+/** the screen margin everything keeps (CSS px) */
+export const HUD_MARGIN = 12;
 
-type Kind = 'bag' | 'lung' | 'gauge' | 'jar' | 'tool' | 'pack';
-interface Hover { kind: Kind | null; inj: Injury | null; slot: number }
+type Kind = 'brain' | 'bar' | 'balloon' | 'pack' | 'moodle';
+interface Hover { kind: Kind | null; key: string }
+const NONE: Hover = { kind: null, key: '' };
+const esc = (s: string) => s.replace(/[&<>]/g, (c) => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'));
+const hex = (c: number) => '#' + c.toString(16).padStart(6, '0');
 
 export class BodyHud {
   name = 'hudBody';
   readonly lungs = new Lungs();
   readonly jar = new Jar();
   readonly eat: EatFp;
-  readonly st = new BodyStage();
-  private world = new THREE.Group();
-  private bagV: Bag3D; private lungV: Lung3D; private jarV: Jar3D; private board: Board3D;
-  readonly rig: Rig3D;
-  private runT = 0; private lastLidV = 0; private lastSquish = 0;
-  private cubes: Cubes;
+  readonly vit = new Vitals();
+  readonly tray = new MoodleTray(6);
+  /** where the cluster sits (CSS px), its pixel size (device px per art pixel) and how visible it is */
+  readonly st = { css: { x: 0, y: 0, w: 1, h: 1 }, px: 2, W: VW, H: VH, fade: 0, detail: 1 };
+  private root: HTMLDivElement;
+  private cvV: HTMLCanvasElement; private cvT: HTMLCanvasElement;
+  private gV: CanvasRenderingContext2D; private gT: CanvasRenderingContext2D;
   private say: HTMLDivElement;
   private sayKey = '';
+  private pinT = 0;
   private shown = false;
   private hidden = new Set<string>();
-  private beatT = 0;
-  private hover: Hover = { kind: null, inj: null, slot: -1 };
-  private boardInj: Injury | null = null;
-  private boardT = 0;
+  private hover: Hover = NONE;
   private sig = new Map<number, string>();
   private coughCd = 0;
   private pumpAttack = false;
-  private lastV = { x: 0, z: 0 };
   private deadT = 0;
   private bodyOf: Player | null = null;
-  private k = 1; private touch = false;
+  private touch = false;
+  private u = 2;
   private layoutT = 0;
-  private baseY = 0;
-  private barEl: HTMLElement | null = null;
-  private down: { kind: Kind; x: number; y: number; moved: number; id: number; inj: Injury | null } | null = null;
+  private moodT = 0;
+  private down: { kind: Kind; id: number } | null = null;
   private overUI = false;
-  private zoomT = 0;
-  private flick = 0;
   private recent: string[] = [];
-  private sparks: { x: number; y: number; t: number; c: number }[] = [];
-  private v = new THREE.Vector3();
+  private lastV = { x: 0, z: 0 };
+  private hintT = 0;
   /** why the HUD is hidden right now ('' when shown; for tests) */
   why = '';
 
   constructor() {
-    const st = this.st;
-    st.scene.add(this.world);
-    // one machine: everything rides the rig's floating frame
-    this.rig = new Rig3D(st);
-    this.world.add(this.rig.pivot);
-    const R = this.rig.inner;
-    this.bagV = new Bag3D(st, false); this.lungV = new Lung3D(st); this.jarV = new Jar3D(st); this.board = new Board3D(st);
-    R.add(this.bagV.root, this.lungV.root, this.jarV.root, this.board.root);
-    this.bagV.root.position.set(BAG_AT[0], BAG_AT[1], 0);
-    this.lungV.root.position.set(PUMP_AT[0], PUMP_AT[1], 0);
-    this.jarV.root.position.set(JAR_AT[0], JAR_AT[1], 0);
-    // the pegboard hangs in front of the pump while you pick a treatment
-    this.board.root.position.set(BOARD_AT[0], BOARD_AT[1], 16);
-    this.bagV.floorY = CON_TOP;
-    this.cubes = new Cubes(260, st.cubeMat);
-    R.add(this.cubes.mesh);
-
+    const root = this.root = document.createElement('div');
+    root.className = 'bh-hud';
+    root.setAttribute('aria-hidden', 'true');
+    this.cvV = document.createElement('canvas'); this.cvV.className = 'bh-cv';
+    this.cvT = document.createElement('canvas'); this.cvT.className = 'bh-cv';
+    this.cvV.width = VW; this.cvV.height = VH;
+    root.append(this.cvT, this.cvV);
+    document.body.appendChild(root);
+    this.gV = this.cvV.getContext('2d')!; this.gT = this.cvT.getContext('2d')!;
     const say = this.say = document.createElement('div');
     say.className = 'bh-say nc-free-text';
     say.setAttribute('role', 'status');
@@ -111,9 +106,9 @@ export class BodyHud {
     this.relayout();
     window.addEventListener('resize', () => this.relayout());
     bus.on('uiScale', () => this.relayout());
-    fontsReady().then(() => { this.lungV.repaintType(); this.jarV.repaintType(); this.rig.repaintType(); });
+    bus.on('touchMode', () => this.relayout());
 
-    // ---- pointer: the world never sees a press that lands on a prop
+    // ---- pointer: the world never sees a press that lands on the HUD
     window.addEventListener('pointerdown', (e) => this.onDown(e), true);
     window.addEventListener('pointermove', (e) => this.onMove(e), true);
     window.addEventListener('pointerup', (e) => this.onUp(e), true);
@@ -123,22 +118,15 @@ export class BodyHud {
     // ---- the world reaches the body
     bus.on('playerHit', (p: Player, _part: string, _kind: string, h: any) => {
       if (!p?.isLocal) return;
-      const k = Math.min(1, (Number(h?.dmg) || 8) / 22);
-      this.bagV.kick((Math.random() - 0.5) * 3 * (0.5 + k), 0.4 + k);
-      // the whole rig takes the blow: it lurches, rolls and rings back
-      this.rig.kick((Math.random() - 0.5) * 30 * (0.4 + k), -(14 + 26 * k), (Math.random() - 0.5) * 1.6 * (0.4 + k));
-      this.jarV.kick(0.5 + k);
+      this.vit.hit(Number(h?.dmg) || 8);
+      this.vit.jolt((Math.random() - 0.5) * 60, -30);
     });
     bus.on('bloodied', (p: Player, _part: string, amt: number) => { if (p?.isLocal) this.lungs.splash(Math.min(0.2, (Number(amt) || 0.5) * 0.09)); });
-    bus.on('creatureKilled', (c: any) => {
-      const p = G.local; if (!p || !c || c.zoneKey !== p.zoneKey) return;
-      const d = Math.hypot(c.x - p.x, c.z - p.z);
-      if (d < 2.6 && (G.sandbox?.gore ?? 1) > 0) this.lungs.splash(0.14 * (1 - d / 2.6) + 0.04);
-    });
     bus.on('consumed', (p: Player, key: string) => { if (p?.isLocal && !this.eat.active && key) this.jar.pill(0xe8e0d0); });
-    bus.on('death', (p: Player) => { if (p?.isLocal) { this.bagV.kick(1.5, 1); this.rig.kick(0, -40, 1.2); } });
-    bus.on('cough', (p: Player) => { if (p?.isLocal) this.rig.kick((Math.random() - 0.5) * 8, 10, (Math.random() - 0.5) * 0.6); });
-    bus.on('vomit', (p: Player) => { if (p?.isLocal) { this.rig.kick(0, -22, (Math.random() - 0.5) * 1.4); this.jarV.kick(2); } });
+    bus.on('death', (p: Player) => { if (p?.isLocal) this.vit.hit(30); });
+    bus.on('cough', (p: Player) => { if (p?.isLocal) this.vit.jolt((Math.random() - 0.5) * 40, -20); });
+    bus.on('vomit', (p: Player) => { if (p?.isLocal) this.vit.scare(0.5); });
+    bus.on('panicAttack', (p: Player) => { if (!p || p.isLocal) this.vit.scare(1); });
 
     G.addSystem({ name: 'hudBody', update: (dt) => this.update(dt) });
     (G as any).hudBody = this;
@@ -148,7 +136,7 @@ export class BodyHud {
   get pumping(): boolean { return this.lungs.pumping; }
   canEat(): boolean { return this.jar.canEat(); }
   setHidden(key: string, on: boolean) { if (on) this.hidden.add(key); else this.hidden.delete(key); }
-  /** H, the scanner's breathe button, a thumb on the lungs */
+  /** H, the scanner's breathe button, the PUMP prop, a click on the balloon */
   pumpPress() {
     const p = G.local; if (!p || p.body.dead) return;
     const wasOn = this.lungs.pumping;
@@ -156,33 +144,31 @@ export class BodyHud {
   }
   eatStart(a: any): boolean { const ok = this.eat.startEat(a); if (ok && a?.it) this.noteFood(a.it.key); return ok; }
   drinkStart(a: any): boolean { return this.eat.startDrink(a); }
-  /** tests / screenshots: run the objects forward */
-  warm(secs = 2) { const p = G.local; if (!p) return; for (let t = 0; t < secs; t += 1 / 30) this.step(1 / 30, p); }
-  /** where a wound's hole is on screen (CSS px) */
-  holeScreen(inj: Injury): { x: number; y: number } {
-    this.world.updateMatrixWorld(true);
-    const w = this.bagV.holeWorld(inj, this.v);
-    return this.st.toScreen(w.x, w.y);
+  /** tests / screenshots: run the HUD forward */
+  warm(secs = 2) { const p = G.local; if (!p) return; for (let t = 0; t < secs; t += 1 / 30) this.step(1 / 30, p); this.paint(); }
+  /** where a wound shows on screen (the health bar; CSS px) */
+  holeScreen(_inj?: Injury): { x: number; y: number } { return this.toScreen(BAR.x + BAR.w / 2, BAR.y + BAR.h / 2); }
+  /** a part's centre on screen (CSS px): 'bag' the health bar, 'lung' the balloon, 'jar' the hunger moodle (or the bar), 'pack' the rucksack, 'brain' */
+  propScreen(kind: 'bag' | 'lung' | 'jar' | 'pack' | 'brain'): { x: number; y: number } {
+    if (kind === 'lung') return this.toScreen(this.vit.bCx, this.vit.bCy);
+    if (kind === 'pack') return this.toScreen(PACK.x + PACK.w / 2, PACK.y + PACK.h / 2);
+    if (kind === 'brain') return this.toScreen(BRAIN.cx, BRAIN.cy);
+    if (kind === 'jar') { const c = this.tray.centre('hunger') || this.tray.centre('stuffed'); if (c) return this.toScreen(c.x + TRAY_AT.x - PAD, c.y + TRAY_AT.y - PAD); }
+    return this.holeScreen();
   }
-  /** a prop's centre on screen (CSS px), for tests and pointers ('lung' is the breathing pump, 'jar' the digester) */
-  propScreen(kind: 'bag' | 'lung' | 'jar' | 'pack'): { x: number; y: number } {
-    this.world.updateMatrixWorld(true);
-    const o = kind === 'bag' ? this.bagV.hit : kind === 'lung' ? this.lungV.hit : kind === 'jar' ? this.jarV.hit : this.rig.packHit;
-    o.getWorldPosition(this.v);
-    return this.st.toScreen(this.v.x, this.v.y);
-  }
-  /** open the backpack (the rucksack on the rig) */
+  jarScreen(): { x: number; y: number } { return this.propScreen('jar'); }
+  /** open the backpack */
   openPack() {
     G.audio?.ui?.('bh_squelch', 0.3);
     const inv: any = (G as any).ui?.inventory;
     if (inv?.toggle) inv.toggle(true);
   }
-  /** the jar's mouth on screen (eating aims the bites there) */
-  jarScreen(): { x: number; y: number } {
-    this.world.updateMatrixWorld(true);
-    const w = this.jarV.topWorld(this.v);
-    return this.st.toScreen(w.x, w.y);
+  /** what the HUD is laid out like (tests) */
+  layoutInfo() {
+    const r = (el: HTMLElement) => { const b = el.getBoundingClientRect(); return { x: Math.round(b.left), y: Math.round(b.top), w: Math.round(b.width), h: Math.round(b.height) }; };
+    return { vitals: r(this.cvV), tray: r(this.cvT), unit: this.u, touch: this.touch, moodles: this.tray.items.filter((i) => !i.out).map((i) => i.key + i.level) };
   }
+  private toScreen(x: number, y: number) { return { x: this.st.css.x + x * this.u, y: this.st.css.y + y * this.u }; }
   private noteFood(key: string) {
     try { this.recent.unshift(itemDef(key).name.toLowerCase()); } catch { this.recent.unshift(key.replace(/_/g, ' ')); }
     this.recent = [...new Set(this.recent)].slice(0, 3);
@@ -192,7 +178,7 @@ export class BodyHud {
   private update(dt: number) {
     const p = G.local;
     // full first-person close-ups get the whole picture: the watch held up to the eye, the cube,
-    // the bench, cooking, trading, surgery, eating (the bites still reach the digester)
+    // the bench, cooking, trading, surgery, eating (the bites still reach the stomach)
     const fp = fpOwner();
     const w: any = (G as any).watch;
     this.setHidden('fp', !!fp && (FULL_FP.has(fp) || (fp === 'watch' && !!w?.open && !w?.small)));
@@ -202,78 +188,85 @@ export class BodyHud {
     this.why = !p ? 'nobody' : G.attract ? 'attract' : introOn ? 'intro' : this.hidden.size ? [...this.hidden].join(',') : this.deadT >= 6 ? 'dead' : show ? '' : 'photo';
     if (show !== this.shown) {
       this.shown = show;
-      if (!show) { this.closeBoard(); this.setSay(''); this.setOver(false); }
+      if (!show) { this.setSay(''); this.setOver(false); this.hover = NONE; }
     }
-    this.st.fade += ((show ? 1 : 0) - this.st.fade) * Math.min(1, dt * 6);
+    const fade = this.st.fade += ((show ? 1 : 0) - this.st.fade) * Math.min(1, dt * 7);
+    const op = fade < 0.02 ? '0' : fade > 0.98 ? '1' : fade.toFixed(2);
+    if (this.root.style.opacity !== op) { this.root.style.opacity = op; this.root.style.visibility = fade < 0.02 ? 'hidden' : 'visible'; }
+    document.documentElement.classList.toggle('bh-on', fade > 0.5);
     if (!p) return;
     this.layoutT -= dt;
-    if (this.layoutT <= 0) { this.layoutT = 1; this.relayout(); }
-    if (p !== this.bodyOf) { this.bodyOf = p; this.deadT = 0; this.sig.clear(); }
+    if (this.layoutT <= 0) { this.layoutT = 0.5; this.relayout(); }
+    if (p !== this.bodyOf) { this.bodyOf = p; this.deadT = 0; this.sig.clear(); this.tray.items.length = 0; this.tray.sync(this.moodlesOf(p), true); }
     if (p.body.dead) this.deadT += dt; else this.deadT = 0;
     this.step(dt, p);
-    // it floats: the shadow falls further as it rises
-    const lift = Math.max(0, -this.rig.lift + 4) * this.st.detail * 0.5;
-    this.st.shadow.set(1 + Math.round(lift * 0.4), 3 + Math.round(lift));
     this.eat.update(dt);
-    // a first-person cut's cinema bar slides up over the corner: the shelf rides up above it
-    if (!this.touch) {
-      if (!this.barEl) this.barEl = document.querySelector('.fp-cut .b');
-      const bar = this.barEl ? (parseFloat(this.barEl.style.height) || 0) * window.innerHeight / 100 : 0;
-      this.st.css.y = this.baseY - bar;
-    }
-    if (this.boardInj) { this.boardT -= dt; if ((this.boardT <= 0 && this.hover.kind !== 'tool') || !p.body.allInjuries().includes(this.boardInj)) this.closeBoard(); }
-    if (show && this.hover.kind) this.updateSay(p);
+    if (fade > 0.01) this.paint();
+    this.pinT = Math.max(0, this.pinT - dt);
+    if (show) this.updateSay(p, dt);
+  }
+
+  private moodlesOf(p: Player) {
+    try { return p.body.moodles(p.heavyLoad?.() ?? 0); } catch { return []; }
+  }
+
+  private input: VitalsIn = {
+    hp: 100, blood: 100, bleed: 0, sick: 0, corrupt: 0, sanity: 100, panic: 0, bpm: 70, stamina: 1, breath: 1,
+    running: false, moving: false, dead: false, pumping: false, pumpPos: 0, pumpFlash: 0, pumpEnd: 0, pumpGood: true, showPack: true, hover: null,
+  };
+  /** sanity for the brain: lucidity, worn down by chronic anxiety, low mood and trauma, dented by a panic */
+  sanity(p: Player): number {
+    const b = p.body, m: any = (b as any).mind || {};
+    return Math.max(0, Math.min(100, b.lucidity - (m.anxiety ?? 0) * 18 - (m.depression ?? 0) * 14 - (m.trauma ?? 0) * 12 - b.corruption * 0.25 - Math.max(0, b.panic - 50) * 0.3 - ((m.attack ?? 0) > 0 ? 12 : 0)));
   }
 
   private step(dt: number, p: Player) {
     const b = p.body;
-    // the rig: footsteps jolt it while you run, every bite and gulp lands with a bump
-    this.rig.update(dt, b.dead);
-    if (p.running && (p.speed ?? 0) > 0.5) { this.runT -= dt; if (this.runT <= 0) { this.runT = 0.32; this.rig.kick((Math.random() - 0.5) * 6, -8, (Math.random() - 0.5) * 0.25); } }
-    if (this.jar.lidV < this.lastLidV - 12) { this.rig.kick((Math.random() - 0.5) * 4, -10, (Math.random() - 0.5) * 0.4); this.jarV.kick(1); }
-    this.lastLidV = this.jar.lidV;
-    this.rig.packHover = this.hover.kind === 'pack' ? 1 : 0;
-    // the fluorescent tube over the shelf hums and now and then dips (more when you are scared)
-    const fear = Math.max(0, (b.panic - 40) / 60);
-    this.st.uLight.value = Math.random() < dt * (0.15 + fear * 2) ? 0.72 : Math.min(1, this.st.uLight.value + dt * 6);
-    // heartbeat: the drip chamber and a pulse in the bag
-    const bpm = b.dead ? 0 : (G.survival?.mind?.bpm ?? 70);
-    if (bpm > 0) { this.beatT += dt * bpm / 60; if (this.beatT >= 1) { this.beatT -= 1; this.bagV.beat(bpm > 110 ? 1.5 : 1); } }
-    // the bag swings as you start, stop and turn
+    // the sims: lungs (strain, the pump) and the stomach jar
+    const exertion = p.running ? 1 : (p.speed ?? 0) > 0.5 ? 0.3 : 0;
+    const ev = this.lungs.update(dt, p, exertion);
+    if (ev === 'miss') G.audio?.ui?.('band_tick', 0.25);
+    if (ev === 'end') this.pumpEnded(p);
+    if (this.jar.update(dt, p) === 'gurgle') G.audio?.ui?.('bh_gurgle', 0.4);
+    this.applyBody(dt, p);
+    this.watchWounds(p);
+    // the balloon swings as you start, stop and turn
     const ax = (p.vx ?? 0) - this.lastV.x, az = (p.vz ?? 0) - this.lastV.z;
     this.lastV.x = p.vx ?? 0; this.lastV.z = p.vz ?? 0;
     const yaw = G.pr?.yaw ?? 0;
     const sx = ax * Math.cos(yaw) - az * Math.sin(yaw);
-    if (Math.abs(sx) > 0.05) this.bagV.kick(-sx * 0.35, Math.abs(sx) > 1.5 ? 0.15 : 0);
-    if (p.running && Math.random() < dt * 3) this.bagV.kick((Math.random() - 0.5) * 0.4, 0.05);
-    this.bagV.hover = this.hover.kind === 'bag' ? this.hover.inj : this.boardInj;
-    this.bagV.update(dt, p);
-    const exertion = p.running ? 1 : (p.speed ?? 0) > 0.5 ? 0.3 : 0;
-    if (p.running && Math.random() < dt * 4) this.lungs.sv += (Math.random() - 0.5) * 0.6;
-    const want = this.down && (this.down.kind === 'lung' || this.down.kind === 'gauge') ? 1 : 0;
-    this.lungs.squeeze += (want - this.lungs.squeeze) * Math.min(1, dt * 18);
-    const ev = this.lungs.update(dt, p, exertion);
-    if (ev === 'miss') G.audio?.ui?.('band_tick', 0.25);
-    if (ev === 'end') this.pumpEnded(p);
-    this.lungV.update(dt, this.lungs, p, this.lungs.panic);
-    if (this.jar.update(dt, p) === 'gurgle') { G.audio?.ui?.('bh_gurgle', 0.5); this.jarV.kick(0.4); }
-    this.zoomT = Math.max(0, this.zoomT - dt);
-    this.jarV.zoom += ((this.zoomT > 0 ? 1 : 0) - this.jarV.zoom) * Math.min(1, dt * 8);
-    this.jarV.update(dt, this.jar, p);
-    this.board.update(dt);
-    this.applyBody(dt, p);
-    this.watchWounds(p);
-    // one batch of little cubes: drops, puffs, chunks, bubbles, sparks
-    this.world.updateMatrixWorld(true);
-    const C = this.cubes;
-    C.begin();
-    this.bagV.cubes(C); this.lungV.cubes(C, this.lungs); this.jarV.cubes(C, this.jar);
-    for (const s of this.sparks) if (s.t > 0) { s.t -= dt; s.y += dt * 8; C.put(s.x, s.y, 6, 0.8, 0.8, 0.8, s.t * 9, s.c, Math.min(1, s.t * 4)); }
-    if (this.sparks.length && this.sparks[0].t <= 0) this.sparks = this.sparks.filter((s) => s.t > 0);
-    C.end();
+    if (Math.abs(sx) > 0.05) this.vit.jolt(-sx * 14, 0);
+    // the vitals
+    const I = this.input, L = this.lungs;
+    I.hp = b.health; I.blood = b.blood; I.bleed = b.bleedRate(); I.dead = b.dead;
+    I.sick = Math.max(0, Math.min(1, (b.sickness - 20) / 70 + b.fever() * 0.6));
+    I.corrupt = Math.max(0, Math.min(1, b.corruption / 80));
+    I.sanity = this.sanity(p); I.panic = b.panic;
+    I.bpm = b.dead ? 0 : (G.survival?.mind?.bpm ?? 70 + b.panic * 0.6);
+    I.stamina = b.endurance; I.breath = L.s; I.running = !!p.running && (p.speed ?? 0) > 0.5; I.moving = (p.speed ?? 0) > 0.3;
+    I.pumping = L.pumping; I.pumpPos = L.pos; I.pumpFlash = L.flashT; I.pumpEnd = L.flashEnd; I.pumpGood = L.flashGood;
+    I.showPack = !this.touch;
+    I.hover = this.hover.kind === 'moodle' ? null : this.hover.kind;
+    this.vit.update(dt, I);
+    // the moodles: a few times a second is plenty
+    this.moodT -= dt;
+    if (this.moodT <= 0) { this.moodT = 0.2; this.tray.sync(this.moodlesOf(p)); }
+    this.tray.update(dt);
+    for (const e of this.vit.events) G.audio?.ui?.(e === 'pop' ? 'hud_pop' : 'hud_wheeze', e === 'pop' ? 0.5 : 0.25);
+    this.vit.events.length = 0;
+    for (const e of this.tray.events) if (this.st.fade > 0.5) G.audio?.ui?.(e === 'in' ? 'hud_moodle' : e === 'up' ? 'hud_worse' : e === 'down' ? 'hud_better' : 'hud_moodle_out', e === 'out' ? 0.12 : 0.22);
+    this.tray.events.length = 0;
   }
 
-  /** what the objects do back to the body */
+  private paint() {
+    this.vit.draw(this.input);
+    this.gV.putImageData(this.vit.pix.img, 0, 0);
+    this.tray.draw(this.hover.kind === 'moodle' ? this.hover.key : null);
+    if (this.cvT.width !== this.tray.W || this.cvT.height !== this.tray.H) { this.cvT.width = this.tray.W; this.cvT.height = this.tray.H; this.relayout(true); }
+    this.gT.putImageData(this.tray.pix.img, 0, 0);
+  }
+
+  /** what the sims do back to the body */
   private applyBody(dt: number, p: Player) {
     const b = p.body;
     if (b.dead) return;
@@ -325,63 +318,80 @@ export class BodyHud {
   }
   private pumpEnded(p: Player) { breathDone(p, this.lungs.hits, this.pumpAttack); this.pumpAttack = false; }
 
-  /** a treatment landed: sparks on the hole, a rip of tape, the bag jolts */
+  /** a treatment landed: the bar shimmers, a rip of tape */
   private watchWounds(p: Player) {
     for (const inj of p.body.allInjuries()) {
       const s = `${inj.bandage ? (inj.bandage.clean ? 'B' : 'b') : ''}${inj.stitched ? 'S' : ''}${inj.splinted ? 'P' : ''}${inj.disinfected > 0 ? 'D' : ''}${inj.foreign ? 'F' : ''}${inj.tq != null ? 'T' : ''}${inj.caut ? 'C' : ''}`;
       const prev = this.sig.get(inj.id);
       if (prev !== undefined && prev !== s && s.length >= prev.length - (prev.includes('F') && !s.includes('F') ? 1 : 0)) {
-        const w = this.rig.inner.worldToLocal(this.bagV.holeWorld(inj, this.v));
-        for (let i = 0; i < 8; i++) this.sparks.push({ x: w.x + Math.cos(i * 0.785) * 2.4, y: w.y + Math.sin(i * 0.785) * 2.4, t: 0.35 + i * 0.02, c: i % 2 ? 0xffffff : 0xfff0a0 });
-        if (this.sparks.length > 40) this.sparks.splice(0, this.sparks.length - 40);
+        this.vit.heal = Math.min(1.4, this.vit.heal + 0.7);
         G.audio?.ui?.(s.includes('B') && !prev.includes('B') ? 'bh_tape' : 'bh_squelch', 0.45);
-        this.bagV.kick(0.6, 0.2);
       }
       this.sig.set(inj.id, s);
     }
   }
 
   // =================================================================== layout
-  private relayout() {
+  private relayout(force = false) {
     const touch = document.documentElement.classList.contains('nc-touch');
-    const dpr = G.pr?.dpr ?? Math.min(2, window.devicePixelRatio || 1);
-    const game = G.pr?.scale ?? 2;
-    const k = touch ? 1.45 : 1.3;
-    const W = Math.round(SW * k), H = Math.round(SH * k);
-    // the game's pixel size, but never more than about a quarter of the screen's width
-    const unitPx = touch ? Math.max(1, game) : Math.max(1, Math.min(game, Math.floor(window.innerWidth * dpr * 0.27 / W)));
-    const cw = W * unitPx / dpr, ch = H * unitPx / dpr;
-    const x = touch ? Math.round((window.innerWidth - cw) / 2) : Math.round(window.innerWidth - cw - 8);
-    let y = touch ? 2 : Math.round(window.innerHeight - ch - 4);
+    const dpr = G.pr?.dpr ?? Math.min(3, window.devicePixelRatio || 1);
+    const W = window.innerWidth;
+    // the game's own pixel size on a desktop (never more than a third of the width); about 1.5 CSS px a pixel on a phone
+    const game = G.pr?.scale ?? Math.max(1, Math.round(window.innerHeight * dpr / 360));
+    const unit = touch
+      ? Math.max(1, Math.min(Math.round(1.5 * dpr), Math.floor(W * 0.8 * dpr / VW)))
+      : Math.max(1, Math.min(game, Math.floor(W * 0.34 * dpr / VW)));
+    const u = unit / dpr;
+    const snap = (v: number) => Math.round(v * dpr) / dpr;
+    let x = snap(HUD_MARGIN + safe('left')), y = snap(HUD_MARGIN + safe('top'));
     if (touch) {
-      // portrait phones: the top bar's controls run across the whole width, so the rig floats just under them
-      for (const el of document.querySelectorAll<HTMLElement>('#nc-touch .nc-tl .nc-btn, #nc-touch .nc-tr .nc-btn')) {
+      // the touch props: keep clear of every one of them. First choice: the left edge, under the top bar;
+      // if that lands on a prop (phones held sideways: POWER and RUN), the gap in the middle of the top bar.
+      const btns: DOMRect[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>('#nc-touch .nc-btn, #nc-touch .nc-stick')) {
+        if (el.offsetParent === null || el.classList.contains('nc-hide')) continue;
         const r = el.getBoundingClientRect();
-        if (r.width < 1 || r.top > 140 || el.classList.contains('nc-hide')) continue;
-        if (r.right > x + cw * 0.1 && r.left < x + cw * 0.9) y = Math.max(y, Math.round(r.bottom + 10));
+        if (r.width > 1 && r.height > 1) btns.push(r);
+      }
+      const w = VW * u, h = (TRAY_AT.y + SLOT) * u;
+      const top = btns.filter((r) => r.top < 90 && r.bottom < 140);
+      const hits = (cx: number, cy: number) => btns.some((r) => r.right > cx && r.left < cx + w && r.bottom > cy && r.top < cy + h);
+      const ax = snap(8 + safe('left'));
+      let ay = snap(6 + safe('top'));
+      for (const r of top) if (r.right > ax && r.left < ax + w) ay = Math.max(ay, snap(r.bottom + 6));
+      x = ax; y = ay;
+      if (hits(ax, ay)) {
+        const L = Math.max(0, ...top.filter((r) => r.left < W / 2).map((r) => r.right));
+        const R = Math.min(W, ...top.filter((r) => r.left >= W / 2).map((r) => r.left));
+        if (R - L >= w + 12) { x = snap(L + (R - L - w) / 2); y = snap(4 + safe('top')); }
       }
     }
-    if (touch === this.touch && k === this.k && x === this.st.css.x && y === this.baseY && unitPx === this.st.px && W === this.st.W) return;
-    this.touch = touch; this.k = k; this.baseY = y;
-    this.world.scale.setScalar(k);
-    this.st.layout(x, y, W, H, unitPx);
+    // (the art's empty top rows sit in the margin)
+    y = snap(y - 2 * u);
+    if (!force && touch === this.touch && unit === this.st.px && x === this.st.css.x && y === this.st.css.y) return;
+    this.touch = touch; this.u = u;
+    this.st.px = unit; this.st.css = { x, y, w: VW * u, h: VH * u };
+    const sz = (el: HTMLCanvasElement, w: number, h: number, ox: number, oy: number) => {
+      el.style.width = w * u + 'px'; el.style.height = h * u + 'px';
+      el.style.transform = `translate(${snap(ox)}px, ${snap(oy)}px)`;
+    };
+    sz(this.cvV, VW, VH, x, y);
+    sz(this.cvT, this.tray.W, this.tray.H, x + (TRAY_AT.x - PAD) * u, y + (TRAY_AT.y - PAD) * u);
+    // where the cluster ends: other corner UI (the radio line) sits below it
+    const bottom = y + Math.max(VH - 2, TRAY_AT.y + this.tray.rows * SLOT) * u;
+    document.documentElement.style.setProperty('--hud-tl-bottom', Math.round(bottom) + 'px');
+    document.documentElement.style.setProperty('--hud-tl-right', Math.round(x + VW * u) + 'px');
   }
 
   // =================================================================== input
   private pickAt(cx: number, cy: number): Hover {
-    if (!this.shown || this.st.fade < 0.5) return { kind: null, inj: null, slot: -1 };
-    this.world.updateMatrixWorld(true);
-    const targets: THREE.Object3D[] = [...this.board.hits, this.bagV.hit, this.lungV.hit, this.lungV.gaugeHit, this.jarV.hit, this.rig.packHit];
-    const h = this.st.pick(cx, cy, targets);
-    if (!h) return { kind: null, inj: null, slot: -1 };
-    const o = h.object;
-    const slot = this.board.slotOf(o);
-    if (slot >= 0) return { kind: 'tool', inj: this.boardInj, slot };
-    if (o === this.bagV.hit) return { kind: 'bag', inj: this.bagV.holeUnder(h.point), slot: -1 };
-    if (o === this.lungV.hit) return { kind: 'lung', inj: null, slot: -1 };
-    if (o === this.lungV.gaugeHit) return { kind: 'gauge', inj: null, slot: -1 };
-    if (o === this.rig.packHit) return { kind: 'pack', inj: null, slot: -1 };
-    return { kind: 'jar', inj: null, slot: -1 };
+    if (!this.shown || this.st.fade < 0.5) return NONE;
+    const u = this.u, hx = (cx - this.st.css.x) / u, hy = (cy - this.st.css.y) / u;
+    const it = this.tray.pick(hx - (TRAY_AT.x - PAD), hy - (TRAY_AT.y - PAD));
+    if (it) return { kind: 'moodle', key: it.key };
+    if (hx < 0 || hy < 0 || hx >= VW || hy >= VH) return NONE;
+    const k = this.vit.pick(hx, hy, !this.touch);
+    return k ? { kind: k, key: k } : NONE;
   }
   private setOver(on: boolean) {
     if (on === this.overUI) return;
@@ -390,123 +400,125 @@ export class BodyHud {
     document.body.classList.toggle('bh-hover', on);
   }
   private onMove(e: PointerEvent) {
-    if (this.down) {
-      const d = this.down;
-      const dx = e.clientX - d.x;
-      d.moved = Math.max(d.moved, Math.hypot(dx, e.clientY - d.y));
-      // flicking the bag: it swings after your finger
-      if (d.kind === 'bag' && d.moved > 6) { this.bagV.kick((dx - this.flick) * 0.012, 0.05); this.flick = dx; }
-      e.preventDefault(); e.stopPropagation();
-      return;
-    }
+    if (this.down) { e.preventDefault(); e.stopPropagation(); return; }
     if (e.pointerType === 'touch') return;
     const h = this.pickAt(e.clientX, e.clientY);
-    this.hover = h;
-    this.board.hover = h.kind === 'tool' ? h.slot : -1;
+    if (h.kind !== this.hover.kind || h.key !== this.hover.key) { this.hover = h; if (h.kind) this.pinT = 0; }
     this.setOver(!!h.kind);
-    if (!h.kind) this.setSay('');
-    else if (G.local) this.updateSay(G.local);
   }
   private onDown(e: PointerEvent) {
     const h = this.pickAt(e.clientX, e.clientY);
-    if (!h.kind) { if (this.boardInj && e.button === 0) this.closeBoard(); return; }
+    if (!h.kind) return;
     e.preventDefault(); e.stopPropagation();
     const p = G.local; if (!p) return;
-    this.hover = h;
-    this.down = { kind: h.kind, x: e.clientX, y: e.clientY, moved: 0, id: e.pointerId, inj: h.inj };
-    this.flick = 0;
+    this.down = { kind: h.kind, id: e.pointerId };
     const touch = e.pointerType === 'touch';
-    // every touch wobbles the rig a little
-    const sp = this.st.toStage(e.clientX, e.clientY, new THREE.Vector2());
-    this.rig.poke(sp.x / this.k, sp.y / this.k, h.kind === 'pack' ? 0.6 : 0.35);
+    if (touch) { this.hover = h; this.pinT = 3; }
+    if (e.button !== 0 && !touch) return;
     if (h.kind === 'pack') { this.openPack(); this.down = null; return; }
-    if (h.kind === 'lung' || h.kind === 'gauge') { this.pumpPress(); this.lungs.wob = 0.6; G.audio?.ui?.('bh_squelch', 0.2); }
-    else if (h.kind === 'tool') { const o = this.board.slots[h.slot]?.opt; if (o && this.boardInj) this.runOpt(o); }
-    else if (h.kind === 'jar') { this.zoomT = 2.6; this.jar.poke(); G.audio?.ui?.('bh_plop', 0.25); }
-    else if (h.kind === 'bag' && h.inj) {
-      const opts = treatOptions(p, h.inj);
-      const best = bestTreatment(h.inj, opts);
-      // a plain click does the next sensible thing; right-click, a tap, or nothing doable shows the pegboard
-      if (!touch && e.button === 0 && best && this.boardInj !== h.inj) { this.boardInj = h.inj; this.runOpt(best); }
-      else this.openBoard(h.inj, opts, best);
-    }
-    if (touch) this.updateSay(p);
+    if (h.kind === 'balloon') { this.pumpPress(); this.vit.jolt((Math.random() - 0.5) * 50, -30); G.audio?.ui?.('hud_squeak', 0.3); }
+    else if (h.kind === 'brain') { this.vit.scare(0.3); G.audio?.ui?.('bh_squelch', 0.2); }
+    else if (h.kind === 'bar') { const said = this.treatWorst(p); if (said) { this.hover = h; this.pinT = 2.6; this.setSay(said); this.sayKey = 'pin:' + said; } }
+    else if (h.kind === 'moodle') { G.audio?.ui?.('band_tick', 0.2); if (!touch) this.pinT = 0; }
   }
   private onUp(e: PointerEvent) {
     const d = this.down;
     if (!d || d.id !== e.pointerId) return;
     this.down = null;
     e.preventDefault(); e.stopPropagation();
-    if (d.kind === 'bag' && !d.inj && d.moved < 6) { this.bagV.kick((Math.random() - 0.5) * 1.6, 0.4); G.audio?.ui?.('bh_squelch', 0.25); }
-    if (e.pointerType === 'touch') { this.hover = { kind: null, inj: null, slot: -1 }; this.setOver(false); setTimeout(() => { if (!this.down) this.setSay(''); }, 1800); }
+    if (e.pointerType === 'touch') this.setOver(false);
   }
-  private runOpt(o: TreatOpt) {
-    if (!o.run) { G.audio?.ui?.('band_tick', 0.3); return; }
-    o.run();
-    G.audio?.ui?.('bh_wrap', 0.35);
-    this.closeBoard();
+  /** the worst wound gets the best thing you carry; returns a line about it */
+  private treatWorst(p: Player): string {
+    const b = p.body;
+    const injs = b.allInjuries().filter(needsCare).sort((a, c) => b.injuryBleed(c) - b.injuryBleed(a) || c.infection - a.infection || c.sev - a.sev);
+    if (!injs.length) { G.audio?.ui?.('band_tick', 0.25); return b.health < 99 ? 'No wounds to treat\nrest, eat and drink to heal' : ''; }
+    for (const inj of injs) {
+      const best = bestTreatment(inj, treatOptions(p, inj));
+      if (best?.run) {
+        best.run();
+        G.audio?.ui?.('bh_wrap', 0.35);
+        const t = woundTitle(inj).split(' · ');
+        return `${best.label}${best.using ? ' with ' + best.using.toLowerCase() : ''}\n${t[0].toLowerCase()}, ${t[1].toLowerCase()}`;
+      }
+    }
+    G.audio?.ui?.('band_tick', 0.3);
+    const miss = treatOptions(p, injs[0]).find((o) => o.missing)?.missing;
+    return `You have nothing for it${miss ? '\nneeds ' + miss : ''}`;
   }
-  private openBoard(inj: Injury, opts: TreatOpt[], best: TreatOpt | null) {
-    this.boardInj = inj; this.boardT = 8;
-    this.board.show(opts.slice(0, 6), best);
-    G.audio?.ui?.('bh_squelch', 0.3);
-  }
-  private closeBoard() { if (!this.boardInj && !this.board.open) return; this.boardInj = null; this.board.hide(); }
 
   // =================================================================== free-floating type (no box)
-  private setSay(text: string, x = 0, y = 0) {
-    if (text !== this.sayKey) { this.sayKey = text; this.say.textContent = text; }
-    this.say.classList.toggle('on', !!text);
-    if (text) { this.say.style.left = Math.round(x) + 'px'; this.say.style.top = Math.round(y) + 'px'; }
+  private setSay(html: string) {
+    if (html === this.sayKey) return;
+    this.sayKey = html;
+    this.say.innerHTML = html;
+    this.say.classList.toggle('on', !!html);
   }
-  private updateSay(p: Player) {
-    const b = p.body, h = this.hover;
-    const lines: string[] = [];
-    let at = { x: 0, y: 0 };
-    const over = (o: THREE.Object3D, dy: number) => { o.getWorldPosition(this.v); return this.st.toScreen(this.v.x, this.v.y + dy * this.k); };
-    if (h.kind === 'pack') {
-      lines.push('Backpack');
-      lines.push(`${this.touch ? 'tap' : 'click'} to open${this.touch ? '' : '  ·  I'}`);
-      at = over(this.rig.packHit, 10);
-    } else if (h.kind === 'tool') {
-      const o = this.board.slots[h.slot]?.opt;
-      if (o) lines.push(o.label + (o.missing ? ' — needs ' + o.missing : o.using ? ' — ' + o.using.toLowerCase() : ''));
-      at = over(this.board.root, 4);
-    } else if (h.kind === 'bag') {
-      const inj = h.inj;
-      if (inj) {
-        const r = b.injuryBleed(inj);
-        const t = woundTitle(inj).split(' · ');
-        lines.push(`${t[0]}, ${t[1].toLowerCase()}` + (r > 0.5 ? ' — pouring' : r > 0.15 ? ' — bleeding' : r > 0.01 ? ' — oozing' : inj.infection > 0.15 ? ' — infected' : ''));
-        const best = bestTreatment(inj, treatOptions(p, inj));
-        lines.push(best ? `${this.touch ? 'tap' : 'click'}: ${best.label.toLowerCase()}${best.using ? ' with ' + best.using.toLowerCase() : ''}` : 'you have nothing for it');
-      } else {
-        lines.push(`Blood ${Math.round(b.blood)}%  ·  health ${Math.round(b.health)}%  ·  water ${Math.round(100 - b.thirst)}%`);
-        const n = b.allInjuries().filter((i) => i.type !== 'bruise').length;
-        const bits: string[] = [];
-        if (b.fever() > 0.15) bits.push('infected');
-        if (b.sickness > 20) bits.push('poisoned');
-        if (b.corruption > 10) bits.push('corrupted');
-        lines.push((n ? `${n} hole${n > 1 ? 's' : ''} in the bag` : 'no holes') + (bits.length ? '  ·  blood ' + bits.join(', ') : ''));
+  private line(title: string, color: number | null, ...rest: string[]) {
+    return `<b${color != null ? ` style="color:${hex(color)}"` : ''}>${esc(title)}</b>` + rest.filter(Boolean).map((r) => `<br>${esc(r)}`).join('');
+  }
+  private updateSay(p: Player, dt: number) {
+    // under the cluster, left-aligned with the bar
+    const u = this.u;
+    const rows = this.tray.count ? this.tray.rows : 0;
+    const top = this.st.css.y + Math.max(VH - 3, TRAY_AT.y + rows * SLOT + 1) * u;
+    const left = this.st.css.x + BAR.x * u;
+    const tx = Math.round(left) + 'px', ty = Math.round(top) + 'px';
+    if (this.say.style.left !== tx) this.say.style.left = tx;
+    if (this.say.style.top !== ty) this.say.style.top = ty;
+    if (this.sayKey.startsWith('pin:') && this.pinT > 0) return;
+    if (this.touch && this.pinT <= 0 && !this.lungs.pumping && this.hintT <= 0) { this.hover = NONE; this.setSay(''); return; }
+    const h = this.hover, b = p.body, T = this.touch;
+    let html = '';
+    if (h.kind === 'pack') html = this.line('Backpack', null, T ? 'tap to open' : 'click to open  ·  I');
+    else if (h.kind === 'bar') {
+      const hp = Math.round(b.health);
+      const injs = b.allInjuries().filter((i) => i.type !== 'bruise');
+      const care = injs.filter(needsCare);
+      const br = b.bleedRate();
+      const state = hp > 85 ? 'healthy' : hp > 60 ? 'hurt' : hp > 35 ? 'badly hurt' : hp > 15 ? 'critical' : 'dying';
+      const w = injs.length ? `${injs.length} wound${injs.length > 1 ? 's' : ''}${br > 0.02 ? (br > 0.8 ? ', pouring blood' : ', bleeding') : ''}` : 'no wounds';
+      let act = '';
+      if (care.length) {
+        const best = bestTreatment(care[0], treatOptions(p, care[0]));
+        act = best ? `${T ? 'tap' : 'click'}: ${best.label.toLowerCase()}${best.using ? ' with ' + best.using.toLowerCase() : ''}` : 'nothing to treat it with';
       }
-      at = over(this.bagV.hit, 26);
-    } else if (h.kind === 'lung' || h.kind === 'gauge') {
-      lines.push(`Air ${Math.round(b.endurance * 100)}%` + (this.lungs.stain > 0.05 ? ' — blood in the lungs, cough it up' : ''));
-      lines.push(this.lungs.pumping ? 'press as the needle hits OUT, then IN' : this.lungs.strain > 0.45 ? 'straining — H to pump it out' : `H${this.touch ? ' or a thumb' : ''}: breathe on the beat`);
-      at = over(this.lungV.hit, 24);
-    } else if (h.kind === 'jar') {
-      const hu = b.hunger;
-      lines.push(`Stomach ${hu < 15 ? 'full' : hu < 30 ? 'fed' : hu < 50 ? 'peckish' : hu < 75 ? 'hungry' : 'starving'}` + (this.jar.canEat() ? '' : ' — no room for more'));
-      const bits: string[] = [];
-      const th = b.thirst;
-      bits.push(`water ${th < 20 ? 'fine' : th < 45 ? 'low' : th < 70 ? 'thirsty' : 'parched'}`);
-      if (b.sickness > 20) bits.push('nauseous');
-      if (this.recent.length) bits.push('in it: ' + this.recent.join(', '));
-      if (this.jar.acid > 0.32) bits.push('acid rising');
-      if (this.jar.poisoned) bits.push('cracked');
-      if (bits.length) lines.push(bits.join('  ·  '));
-      at = over(this.jarV.hit, 24);
+      html = this.line(`Health ${hp}  ·  ${state}`, hp < 30 ? 0xff6a5a : null, `${w}  ·  blood ${Math.round(b.blood)}%`, act);
+    } else if (h.kind === 'brain') {
+      const s = Math.round(this.sanity(p));
+      const word = s > 85 ? 'steady' : s > 65 ? 'uneasy' : s > 45 ? 'frayed' : s > 25 ? 'unravelling' : 'breaking';
+      const m: any = (b as any).mind || {};
+      const pn = b.panic > 75 ? 'terrified' : b.panic > 50 ? 'panicking' : b.panic > 25 ? 'on edge' : 'calm';
+      const bpm = Math.round(G.survival?.mind?.bpm ?? 70);
+      html = this.line(`Sanity ${s}  ·  ${word}`, s < 30 ? 0xc8a0ff : null, `${pn}  ·  pulse ${bpm}${(m.attack ?? 0) > 0 ? '  ·  panic attack' : ''}`, b.panic > 30 || s < 50 ? `light, people and slow breathing help${T ? '' : '  ·  H'}` : '');
+    } else if (h.kind === 'balloon') {
+      const st = Math.round(b.endurance * 100);
+      html = this.lungs.pumping
+        ? this.line('Breathe', 0x9ad8ff, `press ${T ? 'PUMP' : 'H'} as the bead reaches IN, then OUT`, this.lungs.combo > 1 ? `${this.lungs.combo} in a row` : '')
+        : this.line(`Stamina ${st}%`, st < 15 ? 0xff8a6a : null, st < 15 ? 'spent: stop running and catch your breath' : p.running ? 'running lets the air out' : 'it fills back up while you walk or rest', `${T ? 'tap' : 'click'} or ${T ? 'PUMP' : 'H'}: breathe on the beat`);
+    } else if (h.kind === 'moodle') {
+      const it = this.tray.items.find((i) => i.key === h.key);
+      if (it) html = this.line(it.name, MoodleTray.tint(it.level, it.good), it.desc);
+    } else if (this.lungs.pumping) {
+      html = this.line('Breathe', 0x9ad8ff, `${T ? 'PUMP' : 'H'} as the bead reaches IN, then OUT`);
+    } else {
+      // a nudge when you are out of breath or panicking and have not found the pump yet
+      if (this.lungs.hint > 0.9 && this.hintT <= 0 && Math.random() < dt * 0.15) this.hintT = 4;
+      this.hintT = Math.max(0, this.hintT - dt);
+      if (this.hintT > 0) html = this.line(b.panic > 50 ? 'Breathe' : 'Out of breath', 0x9ad8ff, `${T ? 'PUMP' : 'H'}: breathe on the beat`);
     }
-    this.setSay(lines.join('\n'), at.x, this.touch ? this.st.css.y + this.st.css.h + 4 : Math.max(4, Math.min(at.y, this.st.css.y) - 6));
+    this.setSay(html);
   }
+}
+
+let probe: HTMLDivElement | null = null;
+/** CSS safe-area inset in px */
+function safe(side: 'left' | 'top'): number {
+  if (!probe) {
+    probe = document.createElement('div');
+    probe.style.cssText = 'position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;padding:env(safe-area-inset-top,0px) 0 0 env(safe-area-inset-left,0px)';
+    document.body.appendChild(probe);
+  }
+  const cs = getComputedStyle(probe);
+  return parseFloat(side === 'left' ? cs.paddingLeft : cs.paddingTop) || 0;
 }

@@ -83,7 +83,7 @@ export class LensBlood {
   canvas = document.createElement('canvas');
   tex: THREE.CanvasTexture;
   private ctx: CanvasRenderingContext2D;
-  private drops: { x: number; y: number; r: number; pts: number[]; run: number; speed: number; t: number; life: number }[] = [];
+  private drops: { x: number; y: number; r: number; pts: number[]; run: number; speed: number; t: number; life: number; c: [number, number, number] }[] = [];
   constructor() {
     this.canvas.width = 4; this.canvas.height = 4;
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
@@ -92,18 +92,20 @@ export class LensBlood {
   }
   get active() { return this.drops.length > 0; }
   resize(w: number, h: number) { if (this.canvas.width === w && this.canvas.height === h) return; this.canvas.width = w; this.canvas.height = h; this.tex.dispose(); this.tex = new THREE.CanvasTexture(this.canvas); this.tex.magFilter = this.tex.minFilter = THREE.NearestFilter; this.tex.generateMipmaps = false; }
-  splat(n: number) {
+  /** n drops (blood, or another colour: paint, serum) */
+  splat(n: number, color = -1) {
     const W = this.canvas.width, H = this.canvas.height;
+    const c: [number, number, number] = color < 0 ? [118, 10, 10] : [(color >> 16) & 255, (color >> 8) & 255, color & 255];
     for (let i = 0; i < n; i++) {
       const r = (0.012 + Math.random() * 0.045) * H;
       const k = 10 + Math.floor(Math.random() * 6), pts: number[] = [];
       for (let j = 0; j < k; j++) pts.push(0.55 + Math.random() * 0.6 + (Math.random() < 0.2 ? 0.5 : 0));
       const x = Math.random() * W, y = Math.random() * H * 0.85;
-      this.drops.push({ x, y, r, pts, run: 0, speed: 3 + Math.random() * 12, t: 0, life: 4 + Math.random() * 2.5 });
+      this.drops.push({ x, y, r, pts, run: 0, speed: 3 + Math.random() * 12, t: 0, life: 4 + Math.random() * 2.5, c });
       // satellites flung off the main drop
       for (let s = 0; s < 3; s++) {
         const a = Math.random() * Math.PI * 2, d = r * (1.4 + Math.random() * 1.6), rr = r * (0.12 + Math.random() * 0.2);
-        this.drops.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, r: rr, pts: [1, 0.8, 1.1, 0.9, 1, 0.85], run: 0, speed: 0, t: 0, life: 4 + Math.random() * 2 });
+        this.drops.push({ x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, r: rr, pts: [1, 0.8, 1.1, 0.9, 1, 0.85], run: 0, speed: 0, t: 0, life: 4 + Math.random() * 2, c });
       }
     }
   }
@@ -122,14 +124,16 @@ export class LensBlood {
         d.pts.forEach((m, j) => { const an = (j / d.pts.length) * Math.PI * 2; const X = Math.round(x + Math.cos(an) * r * m), Y = Math.round(y + Math.sin(an) * r * m * 0.9); if (j) c.lineTo(X, Y); else c.moveTo(X, Y); });
         c.closePath(); c.fill();
       };
-      poly(d.x, d.y, d.r, `rgba(70,4,4,${a})`);
-      poly(d.x, d.y - d.r * 0.08, d.r * 0.78, `rgba(118,10,10,${a})`);
+      const [cr, cg, cb] = d.c;
+      const rgb = (k: number) => `rgba(${Math.round(cr * k)},${Math.round(cg * k)},${Math.round(cb * k)},${a})`;
+      poly(d.x, d.y, d.r, rgb(0.6));
+      poly(d.x, d.y - d.r * 0.08, d.r * 0.78, rgb(1));
       // the run down the glass
-      c.fillStyle = `rgba(96,8,8,${a})`;
+      c.fillStyle = rgb(0.82);
       c.fillRect(Math.round(d.x - d.r * 0.18), Math.round(d.y), Math.max(1, Math.round(d.r * 0.3)), Math.round(d.run));
       c.fillRect(Math.round(d.x - d.r * 0.24), Math.round(d.y + d.run - 2), Math.max(2, Math.round(d.r * 0.42)), 3);
       // a hard wet highlight
-      c.fillStyle = `rgba(230,150,150,${a * 0.8})`;
+      c.fillStyle = `rgba(${Math.min(255, cr + 120)},${Math.min(255, cg + 140)},${Math.min(255, cb + 140)},${a * 0.8})`;
       c.fillRect(Math.round(d.x - d.r * 0.35), Math.round(d.y - d.r * 0.4), Math.max(1, Math.round(d.r * 0.18)), Math.max(1, Math.round(d.r * 0.12)));
     }
     // hard edges: no soft alpha

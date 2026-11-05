@@ -1,13 +1,17 @@
 import * as THREE from 'three';
 import { cosmeticOutfit, syncCosmetics } from './cosmetics3d';
 import { worldMaterial } from '../gfx/materials';
-import { BONES, BoneName, BONE_PARENT, BI, Dims, rigDims, buildBody, cutSpec, REG, PAGE } from './humanModel';
+import { BONES, BoneName, BONE_PARENT, BI, Dims, rigDims, cutSpec, PAGE } from './humanModel';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { stumpModel, pegModel, hookModel, prostHandModel, prostLegModel, footShell } from './limbGear';
 import { cutParts, StumpCond, PROSTHETICS, chainOf } from '../survival/limbs';
 import { cyberPieces } from './cyberGear';
 import { coveredParts } from '../survival/cyberParts';
-import { bakePage, makePageTexture, scale2x, EYE_COLORS, BakeCache } from './humanPaint';
+import { makePageTexture, EYE_COLORS } from './humanPaint';
+import { GGSkin } from './gg/skin';
+import { specOf, type SpecOverrides } from './gg/spec';
+import { SEC_BONES, SEC_PARENT, type SecBone, type BoneKey } from './gg/types';
+import { EXPRESSIONS } from './gg/face';
 import { outfitShape } from './humanClothes';
 import { HumanAnimator, AnimInput, EMOTES } from './humanAnim';
 import { legDimsFrom } from './humanGait';
@@ -148,7 +152,8 @@ const FACET_GLSL = /* glsl */`
 }
 `;
 function humanMaterial(map: THREE.Texture, base: THREE.Material, uHuman: { value: THREE.Vector4 }): THREE.MeshLambertMaterial {
-  const m = new THREE.MeshLambertMaterial({ map, vertexColors: true, flatShading: true });
+  // alphaTest: the ragged tips of the hair shells are cut out of the painted page
+  const m = new THREE.MeshLambertMaterial({ map, vertexColors: true, flatShading: true, alphaTest: 0.5 });
   const b = base as any;
   m.onBeforeCompile = (shader, renderer) => {
     b.onBeforeCompile?.(shader, renderer);
@@ -207,16 +212,16 @@ const OUTLINE_VS = /* glsl */`
 `;
 const _osz = new THREE.Vector2();
 /** an outline material (skinned or rigid); px = width in render-target pixels */
-export function outlineMaterial(px = 1, color = 0x050404): THREE.MeshBasicMaterial {
+export function outlineMaterial(px = 1, color = 0x050404, map?: THREE.Texture): THREE.MeshBasicMaterial {
   const u = { value: new THREE.Vector3(0, 0, 0.0004) };
-  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide, fog: false });
+  const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide, fog: false, ...(map ? { map, alphaTest: 0.5 } : {}) });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uOutline = u;
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\n' + OUTLINE_VS_DECL)
       .replace('#include <project_vertex>', '#include <project_vertex>\n' + OUTLINE_VS);
   };
-  m.customProgramCacheKey = () => 'human-outline';
+  m.customProgramCacheKey = () => 'human-outline' + (map ? 'm' : '');
   (m as any).userData = { px, u };
   return m;
 }
@@ -333,9 +338,10 @@ export class HumanRig {
   private mesh: THREE.SkinnedMesh;
   private skeleton: THREE.Skeleton;
   private page: { tex: THREE.DataTexture; data: Uint8Array };
-  /** close-up rigs (menus, the operating table) get a page at twice the resolution (Scale2x of the painted page) */
-  private hd: Uint8Array | null = null;
-  private bakeCache: BakeCache = { key: '', base: [] };
+  /** the low-poly people mesh + paint (src/entities/gg): builds the body, paints the page, animates the face */
+  private gg: GGSkin;
+  /** spec tweaks for special rigs (the researcher: make-up, a soft bust, her badge); set before setOutfit */
+  ggOverrides: SpecOverrides = {};
   private geoKey = ''; private texKey = '';
   private sole = 0;
   private seed: number;
@@ -345,8 +351,11 @@ export class HumanRig {
   private gearKey = '';
   /** gore is off: stumps are drawn as closed skin, never raw (set by the limb system) */
   static gentle = false;
-  /** extra bones for secondary motion (a swinging backpack, hair) — rigs built with { secondary: true } */
-  private extra: { pack: THREE.Group; hair: THREE.Group; packY: number } | null = null;
+  /** extra bones for secondary motion (backpack, hair, coat tails, badge, bust) — rigs built with { secondary: true } */
+  private sec: Record<SecBone, THREE.Group> | null = null;
+  private secY = 0;
+  /** spring state for the coat tails, the badge and the bust */
+  private spr = { px: 0, py: 0, pz: 0, vx: 0, vy: 0, vz: 0, init: false, coat: 0, coatV: 0, spread: 1, bx: 0, bz: 0, bvx: 0, bvz: 0, uy: 0, uz: 0, uvy: 0, uvz: 0 };
   /** a ragdoll that takes the body over (deaths, knockdowns): see startRagdoll() */
   ragdoll: Ragdoll | null = null;
   /** 0..1 how much of the body the ragdoll drives right now */
@@ -366,7 +375,7 @@ export class HumanRig {
   constructor(app: Appearance, material?: THREE.Material, opts: { secondary?: boolean; lod?: number; hd?: boolean } = {}) {
     this.lod = opts.lod ?? 0;
     this.page = makePageTexture(opts.hd ? PAGE * 2 : PAGE);
-    if (opts.hd) this.hd = new Uint8Array(PAGE * PAGE * 4);
+    this.gg = new GGSkin(opts.hd ? 2 : 1, this.page);
     this.app = normalizeAppearance(app);
     this.s = this.app.height;
     this.seed = hashApp(this.app);
@@ -377,10 +386,8 @@ export class HumanRig {
     for (const b of BONES) { const p = BONE_PARENT[b]; (p ? this.bones[p] : this.body).add(this.bones[b]); }
     for (const jn of JOINTS) this.j[jn] = this.bones[jn];
     if (opts.secondary) {
-      const pack = new THREE.Group(), hair = new THREE.Group();
-      pack.name = 'pack'; hair.name = 'hair';
-      this.bones.chest.add(pack); this.bones.head.add(hair);
-      this.extra = { pack, hair, packY: 0 };
+      this.sec = {} as Record<SecBone, THREE.Group>;
+      for (const b of SEC_BONES) { const g = new THREE.Group(); g.name = b; this.bones[SEC_PARENT[b]].add(g); this.sec[b] = g; }
     }
     this.dims = rigDims(this.app);
     this.placeBones();
@@ -391,6 +398,7 @@ export class HumanRig {
     const geo = new THREE.BufferGeometry();
     this.mesh = new THREE.SkinnedMesh(geo, this.material);
     this.mesh.castShadow = true; this.mesh.receiveShadow = true;
+    this.mesh.onAfterRender = () => { this.gg.fullPending = false; };
     this.mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.7);
     this.body.add(this.mesh);
     this.skeleton = this.makeSkeleton();
@@ -417,7 +425,7 @@ export class HumanRig {
       this.body.traverse((o) => { if ((o as any).userData?.isHull) o.visible = false; });
       return;
     }
-    if (!this.hullMat) { this.hullMat = outlineMaterial(px); this.hullRigid = outlineMaterial(px); }
+    if (!this.hullMat) { this.hullMat = outlineMaterial(px, 0x050404, this.page.tex); this.hullRigid = outlineMaterial(px); }
     (this.hullMat as any).userData.px = px; (this.hullRigid as any).userData.px = px;
     if (!this.hull) {
       const h = new THREE.SkinnedMesh(this.mesh.geometry, this.hullMat);
@@ -503,53 +511,36 @@ export class HumanRig {
     // bind pose: bones are pure translations from the body origin
     const inv = BONES.map((b) => { const r = this.dims.rest[b]; return new THREE.Matrix4().makeTranslation(-r[0], -r[1], -r[2]); });
     const bones = BONES.map((b) => this.bones[b]) as THREE.Object3D[];
-    if (this.extra) {
-      // pivots: the top of the backpack (moved to the real bag on each rebuild), the back of the skull
-      const d = this.dims, s = d.s, c = d.rest.chest, h = d.rest.head;
-      const pk = [0, 1.42 * s, -0.14 * s], hp = [0, h[1] + 0.03 * s, h[2] - 0.05 * s];
-      this.extra.pack.position.set(pk[0] - c[0], pk[1] - c[1], pk[2] - c[2]); this.extra.packY = pk[1] - c[1];
-      this.extra.hair.position.set(hp[0] - h[0], hp[1] - h[1], hp[2] - h[2]);
-      bones.push(this.extra.pack, this.extra.hair);
-      inv.push(new THREE.Matrix4().makeTranslation(-pk[0], -pk[1], -pk[2]), new THREE.Matrix4().makeTranslation(-hp[0], -hp[1], -hp[2]));
-    }
-    return new THREE.Skeleton(bones as unknown as THREE.Bone[], inv);
+    if (this.sec) for (const b of SEC_BONES) { bones.push(this.sec[b]); inv.push(new THREE.Matrix4()); }
+    const sk = new THREE.Skeleton(bones as unknown as THREE.Bone[], inv);
+    this.placeSecondary(sk);
+    return sk;
   }
 
-  /** secondary bones: the bag (not its straps) rides the pack bone; hanging hair shares the head's weight with the hair bone */
-  private reweightSecondary(g: THREE.BufferGeometry) {
-    const E = this.extra; if (!E) return;
-    const uv = g.getAttribute('uv'), P = g.getAttribute('position'), SI = g.getAttribute('skinIndex'), SW = g.getAttribute('skinWeight');
-    if (!uv || !P || !SI || !SW) return;
-    const iPack = BONES.length, iHair = BONES.length + 1, iHead = BI.head;
-    const pk = REG.PACK, hr = REG.HAIR, d = this.dims;
-    const headY = d.rest.head[1], hs = d.s * d.headS;
-    let topY = -1e9, frontZ = -1e9, n = 0;
-    for (let v = 0; v < uv.count; v++) {
-      const px = uv.getX(v) * PAGE, py = (1 - uv.getY(v)) * PAGE;
-      if (px >= pk.x - 0.5 && px <= pk.x + pk.w + 0.5 && py >= pk.y - 0.5 && py <= pk.y + pk.h + 0.5) {
-        const fu = (px - pk.x) / pk.w, fv = (py - pk.y) / pk.h;
-        if (fu > 0.6 && fv > 0.72) continue; // shoulder straps stay on the chest
-        SI.setXYZW(v, iPack, 0, 0, 0); SW.setXYZW(v, 1, 0, 0, 0);
-        topY = Math.max(topY, P.getY(v)); frontZ = Math.max(frontZ, P.getZ(v)); n++;
-      } else if (px >= hr.x - 0.5 && px <= hr.x + hr.w + 0.5 && py >= hr.y - 0.5 && py <= hr.y + hr.h + 0.5) {
-        const ly = (P.getY(v) - headY) / hs;
-        const t = clampN((0.07 - ly) / 0.22, 0, 1) * 0.85;
-        if (t <= 0.01) continue;
-        let hk = -1, free = -1;
-        for (let k = 0; k < 4; k++) { const b = SI.getComponent(v, k), w = SW.getComponent(v, k); if (b === iHead && w > 0) hk = k; else if (w <= 0 && free < 0) free = k; }
-        if (hk < 0 || free < 0) continue;
-        const w = SW.getComponent(v, hk);
-        SW.setComponent(v, hk, w * (1 - t)); SI.setComponent(v, free, iHair); SW.setComponent(v, free, w * t);
-      }
-    }
-    SI.needsUpdate = true; SW.needsUpdate = true;
-    if (n) {
-      // hinge the bag at its top, against the wearer's back
-      const c = d.rest.chest, py = topY - 0.025 * d.s, pz = frontZ - 0.01;
-      E.pack.position.set(-c[0], py - c[1], pz - c[2]); E.packY = py - c[1];
-      this.skeleton.boneInverses[iPack].makeTranslation(0, -py, -pz);
-    }
+  /** pivots of the secondary bones (the top of the backpack, the root of a ponytail, the waist for coat tails...) */
+  private placeSecondary(sk = this.skeleton) {
+    if (!this.sec) return;
+    const d = this.dims, s = d.s, r = d.rest;
+    const piv = this.gg.plan?.pivots ?? {};
+    const def: Record<SecBone, number[]> = {
+      pack: [0, 1.42 * s, -0.14 * s], hair: [0, r.head[1] + 0.03 * s, r.head[2] - 0.05 * s], coat: [0, r.spine[1] + 0.02 * s, 0],
+      badge: [0, r.neck[1] - 0.02 * s, 0.07 * s], bust: [0, r.chest[1] + 0.08 * s, 0.06 * s],
+    };
+    SEC_BONES.forEach((b, i) => {
+      const p = piv[b] ?? def[b], par = r[SEC_PARENT[b]];
+      this.sec![b].position.set(p[0] - par[0], p[1] - par[1], p[2] - par[2]);
+      if (b === 'pack') this.secY = p[1] - par[1];
+      if (b === 'bust') this.sec!.bust.userData.base = this.sec!.bust.position.clone();
+      sk.boneInverses[BONES.length + i].makeTranslation(-p[0], -p[1], -p[2]);
+    });
   }
+
+  /** skeleton index of a segment's bone (secondary bones fall back to their parent without { secondary }) */
+  private boneIndex = (b: BoneKey): number => {
+    const si = (SEC_BONES as readonly string[]).indexOf(b);
+    if (si >= 0) return this.sec ? BONES.length + si : BI[SEC_PARENT[b as SecBone]];
+    return BI[b as BoneName];
+  };
 
   /** Change the body / face (rebuilds the mesh and texture). */
   setAppearance(app: Appearance) {
@@ -573,34 +564,58 @@ export class HumanRig {
     const full = cosmeticOutfit(withDefaults(this.outfit), this.app);
     const sh = outfitShape(full);
     const cond = this.outfit.cond || {};
+    const spec = specOf(this.app, full, this.dims, this.seed, cond, this.ggOverrides);
+    const D = spec.dress;
     const appKey = JSON.stringify(this.app);
-    const gk = this.lod + appKey + JSON.stringify(sh) + (cond.splint || []).join(',') + (full.wrist ? '|w' : '') + (cond.sev?.length ? '|s:' + cond.sev.join(',') : '') + (cond.cyber ? '|c:' + coveredParts(cond.cyber).join(',') : '');
+    const shapeKey = JSON.stringify([D.top?.kind, D.top?.sleeve, D.outer?.kind, D.outer?.sleeve, D.bottom?.kind, D.legsKind, D.feet?.kind, D.hands?.kind, D.hat?.kind, D.mask?.kind, D.back?.kind, D.back?.size, !!D.wrist, D.suit, D.hatFlat, D.badge ? 1 : 0, this.ggOverrides.bust, this.ggOverrides.hairStyle, this.ggOverrides.hairVolume]);
+    const severed = new Set([...(cond.sev || []), ...coveredParts(cond.cyber)]);
+    const gk = this.lod + appKey + shapeKey + [...severed].sort().join(',');
     const { cond: _c, ...looks } = full;
     void _c;
-    const tk = appKey + JSON.stringify(looks) + JSON.stringify({ ...cond, bleeding: undefined, stump: undefined, prost: undefined, sev: undefined, cyber: undefined });
+    const condKey = JSON.stringify({ ...cond, bleeding: undefined, stump: undefined, prost: undefined, sev: undefined, cyber: undefined });
+    const tk = appKey + JSON.stringify(looks) + condKey + JSON.stringify(this.ggOverrides);
     if (gk !== this.geoKey) {
       this.geoKey = gk;
-      const res = buildBody(this.app, full, sh, this.dims, { splints: new Set(cond.splint || []), bandages: new Set(Object.keys(cond.bandage || {})), severed: new Set([...(cond.sev || []), ...coveredParts(cond.cyber)]), lod: this.lod });
+      this.texKey = '';
+      const geo = this.gg.build(spec, this.dims, severed, this.lod, this.boneIndex);
       const old = this.mesh.geometry;
-      this.mesh.geometry = res.geometry;
-      if (this.hull) this.hull.geometry = res.geometry;
+      this.mesh.geometry = geo;
+      if (this.hull) this.hull.geometry = geo;
       old.dispose();
-      this.tris = res.tris;
-      this.sole = sh.sole;
-      if (this.extra) this.reweightSecondary(res.geometry);
+      this.tris = this.gg.tris;
+      this.sole = spec.sole;
+      if (this.sec) this.placeSecondary();
       this.anim.dims = legDimsFrom(this.dims, this.sole);
       this.backSlot.position.z = -(0.14 + (sh.back ? 0.16 * sh.back : 0)) * this.s * this.dims.mass;
     }
     if (tk !== this.texKey) {
       this.texKey = tk;
-      bakePage({ app: this.app, outfit: full, shape: sh, cond, seed: this.seed }, this.hd ?? this.page.data, this.bakeCache);
-      if (this.hd) scale2x(this.hd, PAGE, this.page.data);
-      this.page.tex.needsUpdate = true;
+      const baseKey = appKey + JSON.stringify(looks) + JSON.stringify(this.ggOverrides) + (cond.pale ?? 0) + (cond.expr || '');
+      this.gg.paintAll(spec, this.app, cond, baseKey);
     }
     this.updateGear(cond, sh);
     syncCosmetics(this, full, this.baseMat);
     if (this.hull) this.refreshOutlines();
   }
+
+  // ------------------------------------------------------------------ the face (painted, animated)
+  /**
+   * Show an expression on the painted face: neutral, smile, happy, grin, surprised, sad, angry, sleepy,
+   * pain, fear, think, wink, cool, dead (aliases wow, mad, scared, hurt...). hold: seconds, 0 = until changed.
+   */
+  setExpression(name: string, hold = 0) { this.gg.setExpression(name, hold); }
+  /** the current expression */
+  get expression() { return this.gg.expr; }
+  /** move the mouth as if speaking for `sec` seconds (0 stops) */
+  talk(sec = 1.5) { this.gg.talk(sec); }
+  /** speak while true (e.g. while a line of dialogue is on screen) */
+  set talking(v: boolean) { this.gg.talking = v; }
+  get talking() { return this.gg.talking; }
+  /** eye direction on the painted face (-2..2 sideways, -1..2 down) */
+  lookEyes(x: number, y: number) { this.gg.look[0] = x; this.gg.look[1] = y; }
+  /** faces animate (blinks, expressions, talking) unless switched off (crowds, far NPCs) */
+  set faceAnim(v: boolean) { this.gg.animateFace = v; }
+  static readonly EXPRESSIONS = Object.keys(EXPRESSIONS);
 
   /** limb loss: a cap on every stump (raw, seared, stitched, bandaged, healed; a tourniquet), and the prosthetics */
   private updateGear(cond: RigCondition, sh: ReturnType<typeof outfitShape>) {
@@ -701,12 +716,13 @@ export class HumanRig {
       this.bones[('fing2' + side) as BoneName].rotation.set(0, 0, -k * g * 1.6);
       this.bones[('thumb' + side) as BoneName].rotation.set(g * 0.5, k * g * 0.6, -k * g * 0.55);
     }
-    this.bones.lids.scale.set(1, Math.max(0.02, p.blink ?? 0), 1);
-    const E = this.extra;
+    // blinks are painted on the face (the lids bone is kept for old poses)
+    this.gg.blink = p.blink ?? 0;
+    const E = this.sec;
     if (E) {
       const a = p.pack, h = p.hair;
       if (a) E.pack.rotation.set(a[0], a[1], a[2]); else E.pack.rotation.set(0, 0, 0);
-      E.pack.position.y = E.packY + (p.packY ?? 0);
+      E.pack.position.y = this.secY + (p.packY ?? 0);
       if (h) E.hair.rotation.set(h[0], h[1], h[2]); else E.hair.rotation.set(0, 0, 0);
     }
   }
@@ -718,7 +734,44 @@ export class HumanRig {
     this.applyPose(pose);
     if (this.hull) { this.hull.layers.mask = this.mesh.layers.mask; this.hull.visible = this.mesh.visible; }
     if (this.ragdoll?.active) this.driveRagdoll(dt);
+    this.secondary(dt);
+    this.gg.update(dt);
     return pose;
+  }
+
+  /** coat tails follow the thighs and flap, the badge hangs plumb and swings, a soft bust bounces a little */
+  private secondary(dt: number) {
+    const E = this.sec;
+    if (!E || dt <= 0) return;
+    const S = this.spr, h = Math.min(dt, 0.05);
+    const hp = this.j.hips.position, rp = this.root.position;
+    const x = rp.x + hp.x, y = rp.y + hp.y + this.body.position.y, z = rp.z + hp.z;
+    if (!S.init) { S.px = x; S.py = y; S.pz = z; S.init = true; }
+    const vx = (x - S.px) / h, vy = (y - S.py) / h, vz = (z - S.pz) / h;
+    S.px = x; S.py = y; S.pz = z;
+    const cl = (v: number, m: number) => (v < -m ? -m : v > m ? m : v);
+    const ax = cl((vx - S.vx) / h, 30), ay = cl((vy - S.vy) / h, 30), az = cl((vz - S.vz) / h, 30);
+    S.vx = vx; S.vy = vy; S.vz = vz;
+    const yaw = this.root.rotation.y, c = Math.cos(yaw), sn = Math.sin(yaw);
+    const aSide = ax * c - az * sn, aFwd = ax * sn + az * c;
+    // coat tails / skirt: half the thighs' swing, lagging behind when the body lurches
+    const tl = this.j.thighL.rotation.x, tr = this.j.thighR.rotation.x;
+    const want = (tl + tr) * 0.5 * 0.6;
+    S.coatV += ((want - S.coat) * 140 - S.coatV * 13 + aFwd * 1.4) * h; S.coat += S.coatV * h;
+    S.coat = cl(S.coat, 1.2);
+    S.spread += ((1 + Math.abs(tl - tr) * 0.45) - S.spread) * Math.min(1, h * 14);
+    E.coat.rotation.set(S.coat, 0, 0);
+    E.coat.scale.set(1 + Math.abs(tl - tr) * 0.08, 1, S.spread);
+    // badge: plumb against the torso's lean, swinging on its lanyard
+    const lean = this.j.hips.rotation.x + this.j.spine.rotation.x + this.j.chest.rotation.x + this.body.rotation.x;
+    S.bvx += (-S.bx * 55 - S.bvx * 5 + aFwd * 1.2) * h; S.bx = cl(S.bx + S.bvx * h, 0.6);
+    S.bvz += (-S.bz * 55 - S.bvz * 5 - aSide * 1.0 + (this.j.chest.rotation.y - this.j.hips.rotation.y) * 4) * h; S.bz = cl(S.bz + S.bvz * h, 0.5);
+    E.badge.rotation.set(cl(-lean, -1.2, 0.4) + S.bx, 0, S.bz);
+    // bust: a small damped bounce with the gait, a lag when the body is jolted (millimetres)
+    S.uvy += (-S.uy * 420 - S.uvy * 11 - ay * 0.55) * h; S.uy = cl(S.uy + S.uvy * h, 0.005);
+    S.uvz += (-S.uz * 380 - S.uvz * 10 - aFwd * 0.35) * h; S.uz = cl(S.uz + S.uvz * h, 0.004);
+    const bb = (E.bust.userData.base as THREE.Vector3 | undefined);
+    if (bb) E.bust.position.set(bb.x, bb.y + S.uy * this.s, bb.z + S.uz * this.s);
   }
 
   /**
