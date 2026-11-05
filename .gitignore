@@ -4,3 +4,5 @@ dist/
 .DS_Store
 /scripts/out/
 /test-results/
+/dist-itch/
+/release/
