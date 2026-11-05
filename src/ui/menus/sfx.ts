@@ -1,8 +1,12 @@
-// Tiny terminal sound kit for the menus: relay clicks, phosphor blips,
-// teletype ticks and the CRT power-on thunk. Synthesised on the fly with
-// WebAudio; uses the game's AudioContext when one exists (so it follows the
-// UI/master volume) and its own otherwise (title boot before a game exists).
+// The menus' sound kit: relay clicks, phosphor blips, teletype ticks, the CRT
+// power-on thunk, the subject room's machinery and the creator's tools. Every
+// kind plays a recorded CC0 sample (src/audio: key 'mn_<kind>', loops
+// 'mn_loop_<kind>', the room's air from the game's beds); the old WebAudio
+// synthesis below is only the fallback for a file that will not load. Uses the
+// game's AudioContext when one exists (so it follows the UI/master volume)
+// and its own otherwise (the title before a game exists).
 import { G } from '../../game/G';
+import { sampleInfo, sampleBuffer, sampleReady, sampleFailed, preloadSamples } from '../../audio/samples';
 
 export type Sfx = 'hover' | 'click' | 'confirm' | 'back' | 'type' | 'error' | 'boot' | 'tab' | 'toggle' | 'unlock' | 'open' | 'tick' | 'stamp' | 'shutter' | 'hum' | 'freeze'
   // the subject room (title / creator / press)
@@ -46,6 +50,30 @@ function hookGestures() {
 }
 hookGestures();
 
+/** play a recorded sample (a random variant) into `dest`; false when the key has none or its file failed.
+ *  A variant still decoding plays as soon as it is ready (if that is within 350 ms) */
+function playSample(ctx: AudioContext, key: string, vol: number, o: { rate?: number; loop?: boolean; dest?: AudioNode; onSrc?: (s: AudioBufferSourceNode) => void } = {}): boolean {
+  const s = sampleInfo(key);
+  if (!s) return false;
+  const v = Math.floor(Math.random() * s.files.length);
+  if (sampleFailed(key, v)) return false;
+  preloadSamples(ctx);
+  const go = (buf: AudioBuffer | null) => {
+    if (!buf) return;
+    const src = ctx.createBufferSource();
+    src.buffer = buf; src.loop = !!o.loop;
+    src.playbackRate.value = s.rate * (o.rate ?? 1) * (o.loop ? 1 : 1 + (Math.random() - 0.5) * (s.pv ?? 0.06));
+    const g = ctx.createGain(); g.gain.value = vol * s.gain;
+    src.connect(g); g.connect(o.dest ?? ctx.destination);
+    src.start();
+    o.onSrc?.(src);
+  };
+  const b = sampleBuffer(ctx, key, v);
+  if (b) go(b);
+  else { const t0 = performance.now(); void sampleReady(ctx, key, v).then((buf) => { if (o.loop || performance.now() - t0 < 350) go(buf); }); }
+  return true;
+}
+
 function volume(): number {
   const v = (G as any)?.audio?.vol;
   if (v) return v.ui * v.master;
@@ -62,14 +90,17 @@ const ALIAS: Partial<Record<Sfx, [Sfx, number]>> = {
 
 /** play a UI sound; cheap and throttled so hover sweeps never machine-gun */
 export function sfx(kind: Sfx, vol = 1) {
-  const al = ALIAS[kind];
-  if (al) { sfx(al[0], vol * al[1]); return; }
   const now = performance.now();
   const gap = kind === 'hover' ? 45 : kind === 'type' || kind === 'tick' ? 28 : 20;
   if (now - (last[kind] || 0) < gap) return;
   last[kind] = now;
   const ctx = context();
   if (!ctx || ctx.state !== 'running') return;
+  // the recorded sound
+  if (playSample(ctx, 'mn_' + kind, volume() * vol * 0.9)) return;
+  // (fallback only: a missing file) borrow a neighbour, else the old synthesis
+  const al = ALIAS[kind];
+  if (al) { last[kind] = 0; sfx(al[0], vol * al[1]); return; }
   const out = ctx.createGain();
   out.gain.value = volume() * vol * 0.9;
   out.connect(ctx.destination);
@@ -190,6 +221,22 @@ const LOOP_BEAT: Record<LoopKind, [Sfx, number]> = {
   saw: ['grind', 0.5], spray: ['hiss', 0.75], clipper: ['ratchet', 0.3], laser: ['buzz', 0.32], weld: ['spark', 0.22], scan: ['hum', 0.6], motor: ['servo', 0.42],
 };
 export function loopSfx(kind: LoopKind): LoopSfx {
+  // the recorded loop: its gain follows the level, its rate the pitch
+  const ctx = context();
+  if (ctx && ctx.state === 'running' && sampleInfo('mn_loop_' + kind)) {
+    const out = ctx.createGain(); out.gain.value = 0; out.connect(ctx.destination);
+    let src: AudioBufferSourceNode | null = null, dead = false;
+    const started = playSample(ctx, 'mn_loop_' + kind, 1, { loop: true, dest: out, onSrc: (s) => { if (dead) { try { s.stop(); } catch { /* gone */ } } else src = s; } });
+    if (started) return {
+      set(l: number, pitch = 1) {
+        const t = ctx.currentTime;
+        out.gain.setTargetAtTime(volume() * Math.min(1, Math.max(0, l)) * 0.8, t, 0.04);
+        if (src) src.playbackRate.setTargetAtTime(Math.max(0.3, pitch), t, 0.05);
+      },
+      stop() { dead = true; out.gain.setTargetAtTime(0, ctx.currentTime, 0.05); const s = src; setTimeout(() => { try { s?.stop(); out.disconnect(); } catch { /* gone */ } }, 400); },
+    };
+    out.disconnect();
+  }
   const [k, every] = LOOP_BEAT[kind];
   let level = 0, alive = true, next = 0;
   const tick = () => {
@@ -218,6 +265,16 @@ export function ambience(kind: 'room' | null) {
   out.gain.setTargetAtTime(volume() * 0.9, ctx.currentTime + 0.1, 1.5);
   out.connect(ctx.destination);
   const nodes: AudioNode[] = [out];
+  // the recorded air: the tubes' hum and the room's tone; drips somewhere behind the walls
+  amb = { nodes, timer: 0, out };
+  // a loop that finishes decoding after this ambience was stopped is stopped at once
+  const keep = (src: AudioBufferSourceNode) => { if (amb?.out === out) nodes.push(src); else { try { src.stop(); } catch { /* gone */ } } };
+  if (playSample(ctx, 'hum_fluoro', 0.55, { loop: true, dest: out, onSrc: keep })) {
+    playSample(ctx, 'obs_room_hum', 0.45, { loop: true, dest: out, onSrc: keep });
+    const drip = () => { if (amb?.out !== out) return; playSample(ctx, 'drip', 0.25 + Math.random() * 0.2, { dest: out }); amb.timer = window.setTimeout(drip, 1800 + Math.random() * 5200); };
+    amb.timer = window.setTimeout(drip, 2500);
+    return;
+  }
   const osc = (type: OscillatorType, f: number, g: number, lp = 0) => {
     const o = ctx.createOscillator(), gn = ctx.createGain();
     o.type = type; o.frequency.value = f; gn.gain.value = g;

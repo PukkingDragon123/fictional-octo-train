@@ -12,6 +12,7 @@
 //               field of stars below, a low drone.
 // Also the grades and atmospheres for the three, and a few quests.
 import * as THREE from 'three';
+import { hasSample, sampleInfo, sampleBuffer, sampleReady } from '../audio/samples';
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import type { GameSystem } from '../game/game';
@@ -620,6 +621,24 @@ export class DimensionSystem implements GameSystem {
     const gain = ctx.createGain(); gain.gain.value = 0;
     gain.connect(a.buses?.amb || ctx.destination);
     const nodes: AudioNode[] = [gain];
+    // recorded beds (CC0 samples): birdsong over a soft pad in the meadow, a low drone on the moon, slow pads at the chessboard
+    const beds: [string, number][] = dim === 'meadow' ? [['birds_dream', 0.8], ['pad', 0.35]] : dim === 'moon' ? [['drone_bed', 0.9]] : [['mus_pads', 0.6]];
+    if (beds.every(([k]) => hasSample(k))) {
+      const pad = { nodes, gain };
+      this.pad = pad;
+      for (const [k, vol] of beds) {
+        const start = (buf: AudioBuffer | null) => {
+          if (!buf || this.pad !== pad) return;
+          const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+          const g = ctx.createGain(); g.gain.value = vol * (sampleInfo(k)?.gain ?? 1);
+          src.connect(g); g.connect(gain); src.start(); nodes.push(src, g);
+        };
+        const buf = sampleBuffer(ctx, k, 0);
+        if (buf) start(buf); else void sampleReady(ctx, k, 0).then(start);
+      }
+      gain.gain.setTargetAtTime(dim === 'chess' ? 0.45 : 0.7, ctx.currentTime, 1.5);
+      return;
+    }
     const freqs = dim === 'meadow' ? [261.6, 329.6, 392, 523.3] : dim === 'moon' ? [55, 82.4, 110.3] : [73.4, 87.3, 110];
     const lfo = ctx.createOscillator(); lfo.frequency.value = dim === 'meadow' ? 0.18 : 0.07;
     const lfoG = ctx.createGain(); lfoG.gain.value = 0.25; lfo.connect(lfoG);
