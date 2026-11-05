@@ -230,9 +230,9 @@ export class Tutorial implements GameSystem {
       // the installment and its deadline
       { dur: 4.2, voss: true, enter: () => { const s = d(); this.setCount(`INSTALLMENT ${(s?.n ?? 0) + 1} OF ${s?.count ?? 5}`, fmt(s?.due ?? 0) + ' DUE', `BY DAY ${s?.dueDay ?? 3}`); this.say('The ledger wants an installment every few days. Miss one and the band bites. Then it bites harder.'); },
         tick: () => { const s = d(); if (s?.dueH != null) this.setCount(`INSTALLMENT ${(s.n ?? 0) + 1} OF ${s.count ?? 5}`, fmt(s.due) + ' DUE', `DAY ${s.dueDay} - ${Math.max(0, Math.floor(s.dueH))} H LEFT`); } },
-      // the watch: its own first-person close-up, the job board
-      { dur: 4.4, voss: true, enter: () => { this.counter(null); this.camOn = false; this.watch(true); this.say('Your watch. Jobs come through it. R&D pays research credit for them: spend it on what the watch can do.'); } },
-      { dur: 0.5, enter: () => this.watch(false) },
+      // the watch on the same wrist: the job board (TAB raises it)
+      { dur: 4.4, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 1.0, p.z), 3.4, 1.6); this.setCount('THE WATCH  -  TAB', 'JOBS', 'PAY RESEARCH CREDIT'); this.say('Your watch. Jobs come through it. R&D pays research credit for them: spend it on what the watch can do.'); } },
+      { dur: 0.3, enter: () => this.counter(null) },
       // the way deeper
       { dur: 3.6, voss: true, enter: () => { this.camOn = true; if (exit) this.frame(v1.set(exit.x, p.y + 0.5, exit.z), 1.2, 0.9); else this.frame(v1.set(p.x, p.y + 0.5, p.z), 0.8, 1); this.say('Clear the debt and you buy passage out at the depot. The deeper rooms pay better. They also bite.', exit ?? undefined); } },
       // the loop, once more, plainly

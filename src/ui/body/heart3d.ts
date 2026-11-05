@@ -4,7 +4,11 @@
 // trunk and the vena cava, fused with machinery: two brass clamp bands bolted
 // round the ventricles, a V-pair of steel piston cylinders on its shoulder, a
 // glass sight-tube of blood (the level is your health), an octagonal pressure
-// gauge, and the aorta coupled through a brass valve into the rig's pipe.
+// gauge, and the aorta coupled through a brass valve into the rig's pipe. Over
+// the ventricles a riveted steel cage of four ribs runs down to a brass cap on
+// the apex; a pair of gears on the atrium ticks round a tooth with every beat,
+// a copper coil winds the root of the aorta, and three lamps on the upper band
+// read the pressure (green, amber, red) and flash on the stroke.
 //
 // It beats on the shared heartbeat (heartEngine.ts: the survivor's pulse,
 // quicker with exertion, fear and low health; stutters after a blow, skips and
@@ -23,6 +27,7 @@ import { Mold, M, STEEL, BRASS, CHROME, RUBBER, PLASTIC, GLASS, R90, solidMesh, 
 import { frod } from '../touch/facet';
 import { hash, mix } from './pix';
 import type { HeartEngine } from './heartEngine';
+import { gearMold } from './brain3d';
 
 /** the muscle's centre (root space) */
 const HY = 19;
@@ -77,6 +82,9 @@ export class Heart3D {
   private needle = new THREE.Group();
   private gauge: PrintTex;
   private fluid: THREE.Mesh; private fluidMat: THREE.ShaderMaterial;
+  private gears: { g: THREE.Group; dir: number; ratio: number }[] = [];
+  private gearAng = 0; private gearGoal = 0;
+  private lamps: THREE.MeshBasicMaterial[] = [];
   private holes: { mesh: THREE.Mesh; patch: THREE.Mesh; inj: Injury | null; p: THREE.Vector3 }[] = [];
   private cracks: { mesh: THREE.Mesh; th: number }[] = [];
   private drops: Drop[] = [];
@@ -166,6 +174,34 @@ export class Heart3D {
       B.add(g);
       this.rods.push({ g, ax: new THREE.Vector3(0, g.position.y, 0) });
     }
+    // the cage: four riveted steel ribs over the front of the ventricles, meeting in a brass cap on the apex
+    const sh = (x: number, y: number, z: number) => { const down = Math.max(0, -y), taper = 1 - down * 0.52; return new THREE.Vector3(x * taper * 11.2 + down * 4.6, y * 13 - down * 1.2, z * (0.86 + 0.14 * taper) * 8.6); };
+    const tilt = new THREE.Matrix4().makeRotationZ(-0.18);
+    for (const phi of [-0.95, -0.32, 0.32, 0.95]) {
+      const pts: THREE.Vector3[] = [];
+      for (let i = 0; i <= 8; i++) { const th = Math.PI * (0.3 + (i / 8) * 0.64); const rr = Math.sin(th); pts.push(sh(rr * Math.sin(phi), Math.cos(th), rr * Math.cos(phi)).applyMatrix4(tilt).multiplyScalar(1.09)); }
+      for (let i = 0; i < pts.length - 1; i++) mech.add(frod(pts[i].toArray() as [number, number, number], pts[i + 1].toArray() as [number, number, number], 0.55, 4), null, (_x, _y, _z, _nx, ny) => (ny > 0.3 ? 0xc8d0d6 : 0x6a7278), STEEL);
+      for (let i = 1; i < pts.length - 1; i += 2) mech.add(ball(0.5, 0), M(pts[i].x, pts[i].y, pts[i].z + 0.3), 0xe8eef2, CHROME);
+    }
+    const apex = sh(0, -1, 0).applyMatrix4(tilt);
+    mech.add(fcyl(2.6, 3.2, 8, 0.7, 0.3), M(apex.x, apex.y - 0.6, apex.z, 0, 0, -0.18), (_x, _y, _z, _nx, ny) => (ny < -0.2 ? 0xa87a2a : 0xf0c860), BRASS)
+      .add(fcyl(0.55, 1.6, 6, 0.4, 0.2), M(apex.x - 0.3, apex.y - 2.8, apex.z, 0, 0, -0.18), 0xd8dee4, CHROME);
+    // a copper coil round the root of the aorta
+    for (let i = 0; i < 5; i++) mech.add(fring(3.2, 0.4, 8, 4), M(1.6 + i * 0.1, 9 + i * 0.95, 0, R90, 0, 0.05), (_x, _y, _z, _nx, ny) => (ny > 0.2 ? 0xe89050 : 0xb05a28), BRASS);
+    // the gear plate on the right atrium (the viewer's left), its two gears tick round with every beat
+    mech.add(fbox(8.4, 7, 0.8, 0.3), M(-5.4, 6.4, 6.6, 0, 0, 0.12), (_x, _y, _z, _nx, ny) => (ny > 0.5 ? 0x9aa2aa : 0x5a6066), STEEL);
+    for (const [px, py] of [[-8.8, 3.4], [-2, 9.6], [-8.6, 9.2]]) mech.add(fcyl(0.4, 0.6, 6, 0.45, 0.3), M(px, py, 7.2, R90), 0xd8dee4, CHROME);
+    for (const [gx, gy, gr, teeth, dir] of [[-6.6, 5.4, 2.5, 10, 1], [-3.2, 7.6, 1.7, 7, -1]] as const) {
+      const g = new THREE.Group(); g.position.set(gx, gy, 7.6);
+      g.add(solidMesh(st, gearMold(gr, teeth, 1, dir > 0 ? 0xd8a840 : 0xc0903a), { wear: 0.4 }));
+      B.add(g); this.gears.push({ g, dir, ratio: 10 / teeth });
+    }
+    // three lamps on the upper band
+    for (let i = 0; i < 3; i++) {
+      const lm = new THREE.MeshBasicMaterial({ color: 0x40ff60 });
+      const led = new THREE.Mesh(new Mold().add(fbox(1.3, 1.3, 0.7, 0.2), null, 0xffffff).build(), lm);
+      led.position.set(-4.6 + i * 1.9, 2.4 + i * 0.25, 8.8); B.add(led); this.lamps.push(lm);
+    }
     B.add(solidMesh(st, mech, { wear: 0.5 }));
     // the aorta's brass pipe down to the console pipe (fixed, not beating)
     r.add(solidMesh(st, new Mold()
@@ -235,6 +271,12 @@ export class Heart3D {
     this.angV += (-this.ang * 70 - this.angV * 6) * dt; this.ang += this.angV * dt;
     this.beatG.rotation.z = this.ang * 0.15 + Math.sin(this.t * 1.3) * 0.015;
     this.beatG.rotation.y = Math.sin(this.t * 0.7) * 0.08 + (eng.stutter > 0.3 ? Math.sin(this.t * 40) * 0.03 * eng.stutter : 0);
+    // a new stroke: the gears tick round a tooth; the lamps read the pressure and flash on the stroke
+    if (eng.age < this.lastAge && !b.dead) this.gearGoal += (Math.PI * 2) / 10;
+    this.gearAng += (this.gearGoal - this.gearAng) * Math.min(1, dt * 18);
+    for (const g of this.gears) g.g.rotation.z = -this.gearAng * g.dir * g.ratio;
+    const lc = b.dead ? 0x141414 : hp > 0.6 ? 0x40ff60 : hp > 0.3 ? 0xffb020 : 0xff3020;
+    for (let i = 0; i < this.lamps.length; i++) this.lamps[i].color.set(lc).multiplyScalar(b.dead ? 1 : i === 1 ? 0.35 + env * 0.65 : 0.85);
     // the pistons ride out on every stroke
     for (const r of this.rods) r.g.position.y = r.ax.y + env * (0.6 + 1.6 * hp);
     // the gauge reads the pressure; it sags with health and flickers when it stutters

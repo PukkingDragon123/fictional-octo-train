@@ -407,6 +407,16 @@ export class UI {
       per.set(b.target, n + 1);
     }
     this.unclutter();
+    // nothing writes over the body HUD in the top-left corner: a bubble that would is pushed below it
+    const cs = getComputedStyle(document.documentElement);
+    const hudB = parseFloat(cs.getPropertyValue('--hud-tl-bottom')), hudR = parseFloat(cs.getPropertyValue('--hud-tl-right'));
+    if (hudB > 0 && hudR > 0 && document.documentElement.classList.contains('bh-on')) {
+      for (const b of this.bubbles) {
+        if (b.el.style.display === 'none') continue;
+        const r = b.el.getBoundingClientRect();
+        if (r.left < hudR && r.top < hudB && r.bottom > 0) b.el.style.top = (parseFloat(b.el.style.top) + (hudB - r.top) + 6) + 'px';
+      }
+    }
     // timed actions: tally marks scratched into the floor round the worker's feet
     const seen = new Set<string>();
     const pxm = g.pr.cssPerMetre ? g.pr.cssPerMetre() : 40;

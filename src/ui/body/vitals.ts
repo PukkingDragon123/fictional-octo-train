@@ -204,6 +204,8 @@ export class Vitals {
   W = VW; H = VH;
   /** the standalone strip (brain, heart, bar, balloon on a weight, pack) or, false, an overlay on the 3D rig (brain + balloon + watch icon only) */
   full = true;
+  /** the brain is a 3D machine on the rig (brain3d.ts): only its sweat and picking stay here */
+  brain3d = false;
   /** where the brain and the balloon's tie sit (HUD px); the rig moves them every frame */
   brainC = { x: BRAIN.cx, y: BRAIN.cy };
   anchor = { x: ANCHOR.x, y: ANCHOR.y };
@@ -426,7 +428,7 @@ export class Vitals {
   draw(s: VitalsIn) {
     const P = this.pix;
     P.clear();
-    this.drawBrain(P, s);
+    if (!this.brain3d) this.drawBrain(P, s);
     if (this.full) {
       if (s.showPack) this.drawPack(P, s.hover === 'pack');
       this.drawWeight(P);
@@ -451,7 +453,7 @@ export class Vitals {
       if (m.kind === 1) { const a = clamp(m.t * 2, 0, 1); P.blend(m.x, m.y, m.c, a); if (m.t > 0.4) { P.blend(m.x - 1, m.y, m.c, a * 0.5); P.blend(m.x + 1, m.y, m.c, a * 0.5); P.blend(m.x, m.y - 1, m.c, a * 0.5); P.blend(m.x, m.y + 1, m.c, a * 0.5); } }
       else if (m.kind === 3) { if (bayer(Math.round(m.x), Math.round(m.y)) < clamp(m.t * 2.2, 0, 0.9)) P.blend(m.x, m.y, m.c, 0.85); }
     }
-    this.drawLeak(P, s);
+    if (!this.brain3d) this.drawLeak(P, s);
   }
 
   // ---------------------------------------------------------------- brain

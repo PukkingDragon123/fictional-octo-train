@@ -39,6 +39,7 @@ import { Jar } from './jar';
 import { BodyStage, Cubes } from './stage';
 import { Rig3D, SW, SH, CON_TOP, HEART_AT, PUMP_AT, JAR_AT, BRAIN_AT, TIE_AT, LABEL_X } from './rig3d';
 import { Heart3D } from './heart3d';
+import { Brain3D } from './brain3d';
 import { Lung3D, CON_H } from './lung3d';
 import { Jar3D } from './jar3d';
 import { Board3D } from './board3d';
@@ -73,7 +74,7 @@ export class BodyHud {
   readonly vit = new Vitals();
   readonly tray = new MoodleTray(6);
   private world = new THREE.Group();
-  private heartV: Heart3D; private lungV: Lung3D; private jarV: Jar3D; private board: Board3D;
+  private heartV: Heart3D; private brainV: Brain3D; private lungV: Lung3D; private jarV: Jar3D; private board: Board3D;
   readonly rig: Rig3D;
   private runT = 0; private lastLidV = 0;
   private cubes: Cubes;
@@ -125,7 +126,10 @@ export class BodyHud {
     this.world.add(this.rig.pivot);
     const R = this.rig.inner;
     this.heartV = new Heart3D(st); this.lungV = new Lung3D(st); this.jarV = new Jar3D(st); this.board = new Board3D(st);
-    R.add(this.heartV.root, this.lungV.root, this.jarV.root, this.board.root);
+    this.brainV = new Brain3D(st);
+    R.add(this.heartV.root, this.brainV.root, this.lungV.root, this.jarV.root, this.board.root);
+    this.brainV.root.position.set(BRAIN_AT[0], BRAIN_AT[1] + 3.2, 0);
+    this.vit.brain3d = true;
     this.heartV.root.position.set(HEART_AT[0], HEART_AT[1], 0);
     this.heartV.root.scale.setScalar(1.12);
     this.lungV.root.position.set(PUMP_AT[0], PUMP_AT[1], 0);
@@ -328,6 +332,7 @@ export class BodyHud {
     this.vit.update(dt, I);
     this.heartV.hover = this.hover.kind === 'bag' ? this.hover.inj : this.boardInj;
     this.heartV.update(dt, p, this.vit.heart);
+    this.brainV.update(dt, p, this.vit, this.hover.kind === 'brain');
     // the drip from the heart's punctures every beat (the old bag's drip-chamber tick)
     if (!b.dead) { this.beatT += dt * (I.bpm || 70) / 60; if (this.beatT >= 1) this.beatT -= 1; }
     // the moodles: a few times a second
@@ -345,7 +350,7 @@ export class BodyHud {
     this.world.updateMatrixWorld(true);
     const C = this.cubes;
     C.begin();
-    this.heartV.cubes(C); this.lungV.cubes(C, this.lungs); this.jarV.cubes(C, this.jar);
+    this.heartV.cubes(C); this.brainV.cubes(C); this.lungV.cubes(C, this.lungs); this.jarV.cubes(C, this.jar);
     for (const s of this.sparks) if (s.t > 0) { s.t -= dt; s.y += dt * 8; C.put(s.x, s.y, 10, 0.8, 0.8, 0.8, s.t * 9, s.c, Math.min(1, s.t * 4)); }
     if (this.sparks.length && this.sparks[0].t <= 0) this.sparks = this.sparks.filter((s) => s.t > 0);
     C.end();

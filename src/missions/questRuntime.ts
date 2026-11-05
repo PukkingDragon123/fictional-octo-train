@@ -21,6 +21,7 @@ import { grantResearch, grantNode, researchNode } from '../game/research';
 import { hasItemDef, itemDef, itemName } from '../items/item';
 import { createItem } from '../items/factory';
 import { voss } from '../game/debt/voice';
+import { TUT } from '../game/tutorial/state';
 import type { MissionSystem, SignalDef } from './missions';
 import type { Item } from '../items/item';
 import type { Player } from '../entities/player';
@@ -407,6 +408,8 @@ export class QuestRuntime {
   }
 
   private line(d: QuestX, text: string, secs: number) {
+    // the staged tutorial is the First Haul briefing: its summary line would talk over it
+    if (TUT.running && d.key === 'first_haul') return;
     if (d.voice === 'handler') { voss(text); return; }
     this.m.radio(text, secs);
   }
