@@ -177,3 +177,32 @@
 @media (orientation: portrait) { .qx-verb { top: 47%; font-size: calc(var(--t-xl) * 1.3); } .qx-hint { top: calc(47% + var(--t-xl) * 1.7); white-space: normal; width: 92vw; text-align: center; } }
 @media (max-height: 460px) and (orientation: landscape) { .qx-verb { top: 4%; font-size: var(--t-xl); } .qx-hint { top: calc(4% + var(--t-xl) * 1.3); } }
 :root.reduce-flash .qx-verb { animation: none; }
+
+/* ==== panels, not floating words: every control sits on a riveted lab console panel
+   (gunmetal with a green phosphor tint, an ink rim, a bevel and four rivets) */
+.cz { --cz-pan: linear-gradient(180deg, rgba(30, 40, 36, 0.96), rgba(16, 22, 20, 0.96));
+  --cz-riv: radial-gradient(circle at 7px 7px, #9aa49e 0 2px, #2a302c 2.5px, transparent 3px), radial-gradient(circle at calc(100% - 7px) 7px, #9aa49e 0 2px, #2a302c 2.5px, transparent 3px),
+            radial-gradient(circle at 7px calc(100% - 7px), #9aa49e 0 2px, #2a302c 2.5px, transparent 3px), radial-gradient(circle at calc(100% - 7px) calc(100% - 7px), #9aa49e 0 2px, #2a302c 2.5px, transparent 3px);
+  --cz-rim: 0 0 0 3px #0a0b10, inset 0 0 0 2px #46564e, inset 0 3px 0 2px #6c7c72, inset 0 -3px 0 2px #141a17, 0 6px 0 3px rgba(0, 0, 0, 0.35); }
+.cz::before { display: none; }
+.cz-head, .cz-col, .cz-tabs, .cz-top, .cz-back, .cz-next { background: var(--cz-riv), var(--cz-pan); box-shadow: var(--cz-rim); border-radius: 2px; }
+.cz-head { padding: 12px 22px 12px 18px; min-width: calc(var(--t-l) * 9.4); }
+.cz-head b { font-size: var(--t-xl); }
+/* the panel's controls sit right under its title plate */
+.cz-col { top: calc(max(16px, 4.4vh) + var(--t-xl) + var(--t-s) * 2 + 46px); padding: 16px 20px 18px 14px; min-width: calc(var(--t-l) * 9.4); gap: calc(var(--ks) * 4); }
+.cz-line { color: rgba(222, 232, 218, 0.78); }
+.cz-arr { opacity: 0.7; }
+.cz-tool { padding-top: 10px; border-top: 2px solid #0a0b10; box-shadow: 0 -2px 0 #3a4842; }
+/* the section bar along the bottom: one plate with tabs cut into it */
+.cz-tabs { padding: 4px 10px; gap: 2px; }
+.cz-tab { color: rgba(208, 222, 204, 0.7); }
+.cz-tab.on { background: #0e1512; box-shadow: inset 0 0 0 2px #0a0b10, inset 0 -3px 0 #3ad060; }
+/* back / next / operate: pressable plates */
+.cz-back, .cz-next { padding: 0 18px !important; transition: transform 0.06s steps(2); }
+.cz-back:active, .cz-next:active { transform: translateY(3px); box-shadow: 0 0 0 3px #0a0b10, inset 0 0 0 2px #46564e, inset 0 3px 0 2px #141a17; }
+.cz-next.op { background: var(--cz-riv), linear-gradient(180deg, rgba(92, 52, 20, 0.97), rgba(48, 26, 10, 0.97)); }
+.cz-top { padding: 6px 14px 4px; }
+/* portrait: one panel across the bottom, tabs and keys under it */
+.cz.portrait .cz-head { left: 8px; top: 8px; min-width: 0; padding: 8px 14px; }
+.cz.portrait .cz-col { left: 8px; right: 8px; min-width: 0; padding: 10px; bottom: calc(48px + 14px + 54px); }
+.cz.portrait .cz-tabs { left: 8px; right: 8px; width: auto; transform: none; justify-content: center; flex-wrap: wrap; }
