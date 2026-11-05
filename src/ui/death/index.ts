@@ -4,7 +4,7 @@
 //             into a camera feed (REC, CAM 07, scanlines, letterbox)
 //   2. cut    hard cut to the Meridian observation room: the tape of the death
 //             plays on the big tube, the camera pulls back over the staff
-//   3. talk   the staff react (lines picked for the cause of death, chip voices,
+//   3. talk   the staff react (lines picked for the cause of death, text only,
 //             floating Alagard words over their heads), the sign is reset,
 //             Ortiz types the report
 //   4. case   push into the big tube: the incident report (time survived, debt,
@@ -23,7 +23,7 @@ import { slowmo } from '../../gfx/juice';
 import { grantResearch, researchPoints } from '../../game/research';
 import { flushStats } from '../../game/profile';
 import { sfx } from '../menus/sfx';
-import { renderLine, letterTimes, voiceFromApp, type ChipVoice } from '../../social/chipVoice';
+import { letterTimes } from '../../social/chipVoice';
 import { RunTracker, type RunReport } from './stats';
 import { Tape } from './recorder';
 import { sceneFor, STAFF, type Line, type Who, type Scene } from './lines';
@@ -65,40 +65,20 @@ export function installDeath(g: Game, p: Player): DeathHooks {
   return { tracker, tape };
 }
 
-// ------------------------------------------------------------------ voices
-function say(text: string, v: ChipVoice, shout = false) {
-  const a: any = G?.audio;
-  const ctx: AudioContext | null = a?.ctx ?? null;
-  if (!ctx || ctx.state !== 'running' || !text.trim()) return;
-  try {
-    const s = renderLine(text, v, { shout });
-    const buf = ctx.createBuffer(1, s.length, 22050);
-    buf.copyToChannel(s as Float32Array<ArrayBuffer>, 0);
-    const src = ctx.createBufferSource(); src.buffer = buf;
-    const gn = ctx.createGain(); gn.gain.value = 0.8 * (a.vol?.voice ?? 1) * (a.vol?.master ?? 0.85);
-    src.connect(gn); gn.connect(ctx.destination);
-    src.start();
-  } catch { /* no audio */ }
+// ------------------------------------------------------------------ sounds (recorded samples via the engine's keys; see notes/sounds-wanted.md)
+/** a staffer's reaction noise for a gesture (no speech: the lines are words on screen) */
+function react(g: string) {
+  const k = g === 'mock' || g === 'clap' ? 'obs_laugh' : g === 'facepalm' || g === 'head' ? 'obs_groan' : g === 'sip' ? 'obs_sip' : g === 'point' || g === 'shrug' ? 'obs_scoff' : '';
+  if (k) G.audio?.ui?.(k, 0.6);
 }
 
-/** the room tone: mains hum and a faint tube whine (WebAudio, very quiet) */
+/** the observation room's tone: mains hum and tube whine, looped until stopped */
 function roomTone(): (() => void) | null {
-  const a: any = G?.audio;
-  const ctx: AudioContext | null = a?.ctx ?? null;
-  if (!ctx) return null;
   try {
-    const out = ctx.createGain(); out.gain.value = 0; out.connect(ctx.destination);
-    const vol = 0.5 * (a.vol?.master ?? 0.85);
-    out.gain.setTargetAtTime(vol, ctx.currentTime, 0.4);
-    const o1 = ctx.createOscillator(); o1.type = 'sawtooth'; o1.frequency.value = 60;
-    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 220;
-    const g1 = ctx.createGain(); g1.gain.value = 0.05;
-    o1.connect(f); f.connect(g1); g1.connect(out);
-    const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = 7860;
-    const g2 = ctx.createGain(); g2.gain.value = 0.0035;
-    o2.connect(g2); g2.connect(out);
-    o1.start(); o2.start();
-    return () => { try { out.gain.setTargetAtTime(0, ctx.currentTime, 0.2); setTimeout(() => { o1.stop(); o2.stop(); out.disconnect(); }, 900); } catch { /* gone */ } };
+    const src = (G.audio as any)?.flat?.('obs_room_hum', 'ui', 0.4) as AudioBufferSourceNode | null;
+    if (!src) return null;
+    src.loop = true;
+    return () => { try { src.stop(); } catch { /* gone */ } };
   } catch { return null; }
 }
 
@@ -124,7 +104,6 @@ class DeathCinematic {
   private skipReq = false;
   private waiters: (() => void)[] = [];
   private bubbles: { el: HTMLElement; who: Who; sub: boolean }[] = [];
-  private voices: ChipVoice[] = [];
   private caseEl: HTMLElement | null = null;
   private keysEl: HTMLElement | null = null;
   private tallyDone = false;
@@ -222,7 +201,7 @@ class DeathCinematic {
     if (this.g.role === 'solo') { this.pausedWas = this.g.paused; this.g.paused = true; }
     this.toneOff = roomTone();
     sfx('boot', 0.9);
-    this.voices = (this.room?.crew ?? []).map((s, i) => voiceFromApp(s.rig.app, STAFF[i].name));
+    G.audio?.ui?.('crt_cut', 0.8);
     this.last = performance.now();
     this.loop();
     if (!this.room) { this.showCase(); return; }
@@ -287,7 +266,7 @@ class DeathCinematic {
     this.toCase();
   }
 
-  /** a staffer says a line: gesture, everyone turns to look, the words type out over their head in time with the voice */
+  /** a staffer says a line: gesture, everyone turns to look, the words type out over their head */
   private async line(l: Line) {
     const R = this.room!;
     R.gesture(l.who, l.g);
@@ -295,7 +274,7 @@ class DeathCinematic {
     R.talking(l.who, true);
     if (l.shout) R.bump(0.3);
     const el = this.bubble(l);
-    say(l.text, this.voices[l.who] ?? voiceFromApp(null, STAFF[l.who].name), !!l.shout);
+    react(l.g);
     const { t, dur } = letterTimes(l.text);
     const txt = el.querySelector('.dz-txt') as HTMLElement;
     const spans: HTMLElement[] = [];
@@ -479,7 +458,7 @@ class DeathCinematic {
     el.style.setProperty('--c', STAFF[l.who].color);
     el.innerHTML = `<div class="dz-who">${esc(STAFF[l.who].name)}</div><div class="dz-txt">${esc(l.text)}</div>`;
     this.talkLayer.append(el);
-    say(l.text, this.voices[l.who] ?? voiceFromApp(null, 'hale'));
+    react(l.g);
     this.placeVo(el);
     setTimeout(() => { el.classList.remove('on'); el.classList.add('off'); setTimeout(() => el.remove(), 300); }, 3200 + l.text.length * 30);
   }

@@ -525,8 +525,10 @@ export class ModelBuilder {
   /** Append another builder's geometry (already in world space) */
   append(other: ModelBuilder) {
     const base = this.vertexCount;
-    this.pos.push(...other.pos); this.nor.push(...other.nor); this.uv.push(...other.uv);
-    this.col.push(...other.col); this.atl.push(...other.atl); this.hd.push(...other.hd); this.fx.push(...other.fx);
+    // element-wise (a spread of a big chunk's arrays would overflow the call stack)
+    const cat = (a: number[], b: number[]) => { for (let i = 0; i < b.length; i++) a.push(b[i]); };
+    cat(this.pos, other.pos); cat(this.nor, other.nor); cat(this.uv, other.uv);
+    cat(this.col, other.col); cat(this.atl, other.atl); cat(this.hd, other.hd); cat(this.fx, other.fx);
     for (const i of other.idx) this.idx.push(i + base);
     return this;
   }

@@ -766,7 +766,7 @@ export class HumanRig {
     const lean = this.j.hips.rotation.x + this.j.spine.rotation.x + this.j.chest.rotation.x + this.body.rotation.x;
     S.bvx += (-S.bx * 55 - S.bvx * 5 + aFwd * 1.2) * h; S.bx = cl(S.bx + S.bvx * h, 0.6);
     S.bvz += (-S.bz * 55 - S.bvz * 5 - aSide * 1.0 + (this.j.chest.rotation.y - this.j.hips.rotation.y) * 4) * h; S.bz = cl(S.bz + S.bvz * h, 0.5);
-    E.badge.rotation.set(cl(-lean, -1.2, 0.4) + S.bx, 0, S.bz);
+    E.badge.rotation.set(Math.max(-1.2, Math.min(0.4, -lean)) + S.bx, 0, S.bz);
     // bust: a small damped bounce with the gait, a lag when the body is jolted (millimetres)
     S.uvy += (-S.uy * 420 - S.uvy * 11 - ay * 0.55) * h; S.uy = cl(S.uy + S.uvy * h, 0.005);
     S.uvz += (-S.uz * 380 - S.uvz * 10 - aFwd * 0.35) * h; S.uz = cl(S.uz + S.uvz * h, 0.004);

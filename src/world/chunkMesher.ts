@@ -42,7 +42,6 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
   const floors = new ModelBuilder();
   const walls = new ModelBuilder();
   const props = new ModelBuilder();
-  const propsLow = new ModelBuilder();
   const foliage = new ModelBuilder();
   const decals = new ModelBuilder();
   const glass = new ModelBuilder();
@@ -118,9 +117,11 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
       const g = objectGeometry(d, o);
       if (!g) continue;
       const m = objectMatrix(zone, o, d);
-      const target = d.foliage ? foliage : (d.height > 1.1 || d.tall) ? props : propsLow;
+      // tall props are cut away round the survivor, low ones never (aFx.y 7: one merged mesh holds both);
       // wall-mounted props are cut away together with the wall they hang on (axis 1 = wall along x, 2 = along z)
-      target.appendGeometry(g, m, o.tint ?? 0xffffff, d.onWall && !d.foliage ? (o.rot % 2 === 0 ? 1 : 2) : undefined);
+      const low = !d.foliage && !(d.height > 1.1 || d.tall);
+      const target = d.foliage ? foliage : props;
+      target.appendGeometry(g, m, o.tint ?? 0xffffff, d.onWall && !d.foliage ? (o.rot % 2 === 0 ? 1 : 2) : low ? 7 : undefined);
     }
   }
   // ceiling fixtures: diffusers that glow with their own light (negative emissive reads the light grid)
@@ -164,16 +165,18 @@ export function buildChunk(zone: Zone, cx: number, cy: number): ChunkMeshes {
     mesh.matrixAutoUpdate = false;
     group.add(mesh);
   };
+  // one draw per material: walls + props (MAT.wall is MAT.prop), floor decals + floor wear, wall decals + wall wear
+  // (appended in the order they used to draw, so overlapping decals still stack the same way)
+  walls.append(props);
+  decals.append(wearFloor);
+  const wallMarks = wallDecals ?? new ModelBuilder();
+  wallMarks.append(wear);
   add(floors, MAT.floor, false);
   add(walls, MAT.wall, true);
   add(alphaWalls, worldMaterial({ alphaTest: 0.5, doubleSide: true, cutout: true }), true);
-  add(props, MAT.prop, true);
-  add(propsLow, MAT.propLow, true);
   add(foliage, MAT.foliage, false);
   add(decals, MAT.decal, false, 1);
-  if (wallDecals) add(wallDecals, worldMaterial({ transparent: true, outline: 0.0, depthWrite: false, cutout: true }), false, 1);
-  add(wear, worldMaterial({ transparent: true, outline: 0.0, depthWrite: false, cutout: true }), false, 1);
-  add(wearFloor, MAT.decal, false, 1);
+  add(wallMarks, worldMaterial({ transparent: true, outline: 0.0, depthWrite: false, cutout: true }), false, 1);
   add(glass, MAT.glass, false, 2);
   if (!ceil.isEmpty) {
     const mesh = new THREE.Mesh(ceil.build(), worldMaterial({ outline: 0.0 }));
@@ -448,6 +451,6 @@ function ceilingTex(f: CeilFlavour, x: number, y: number): string {
 
 export function makeChunkMaterialsWarm() {
   // touch materials so shaders compile up-front
-  void MAT.floor; void MAT.wall; void MAT.prop; void MAT.propLow; void MAT.foliage; void MAT.decal; void MAT.glass;
+  void MAT.floor; void MAT.wall; void MAT.prop; void MAT.foliage; void MAT.decal; void MAT.glass;
   void worldMaterial({});
 }

@@ -215,7 +215,7 @@ export class FacePainter {
       }
       // facial hair
       const mwF = L.mouthW + 1.5 * s;
-      const hairAt = (t: number) => { hairPx(c, hair, i, j, 0.85, 0.1); put(c, t * (h2(i, j, 61) > 0.15 ? 1 : 0.4)); };
+      const hairAt = (t: number) => { hairPx(c, hair, i, j, 0.85, 0.1); put([c[0], c[1], c[2]], t * (h2(i, j, 61) > 0.15 ? 1 : 0.4)); };
       if (fh === 'moustache' || fh === 'handlebar' || fh === 'beard' || fh === 'goatee') {
         const u = dx / mwF;
         if (Math.abs(u) < 1.05 && y > L.noseY + 1.2 * s && y < L.mouthY - 0.4 * s + Math.abs(u) * 1.5 * s) hairAt(0.85 * sstep(1.05, 0.8, Math.abs(u)));

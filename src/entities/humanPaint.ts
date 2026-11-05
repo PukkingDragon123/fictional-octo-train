@@ -948,8 +948,9 @@ export function makePageTexture(size = PAGE): { tex: THREE.DataTexture; data: Ui
   const data = new Uint8Array(size * size * 4);
   const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.UnsignedByteType);
   tex.magFilter = THREE.NearestFilter;
-  tex.minFilter = THREE.NearestMipmapNearestFilter;
-  tex.generateMipmaps = true;
+  // no mipmaps: the low-poly people's atlas packs small faces with empty gaps (mips would average them to black), and pixel art stays crisp
+  tex.minFilter = THREE.NearestFilter;
+  tex.generateMipmaps = false;
   tex.flipY = false;
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;

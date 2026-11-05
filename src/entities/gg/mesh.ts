@@ -111,7 +111,7 @@ function pack(rects: Rect[], W: number, Hh: number, ox: number, oy: number): boo
 }
 
 /** regions that share one texel density (the skin should not change resolution from the torso to the arm) */
-const BODY_REGS = new Set<RegKey>(['TORSO', 'ARM_L', 'ARM_R', 'LEG_L', 'LEG_R', 'NECK', 'HAND_L', 'HAND_R', 'FOOT_L', 'FOOT_R']);
+const BODY_REGS = new Set<RegKey>(['TORSO', 'ARM_L', 'ARM_R', 'LEG_L', 'LEG_R']);
 
 export interface MeshOut { geometry: THREE.BufferGeometry; faces: Face[]; block: Block; tris: number }
 
@@ -156,7 +156,7 @@ export function buildMesh(segs: Seg[], P: Props, k: number, boneIndex: (b: BoneK
   for (const [key, list] of byReg) if (BODY_REGS.has(key)) body = Math.min(body, fit(key, list, 1.2));
   for (const [key, list] of byReg) {
     const A = area(key);
-    const sc = BODY_REGS.has(key) ? body : fit(key, list, 1.6);
+    const sc = BODY_REGS.has(key) ? body : fit(key, list, key === 'NECK' || key.startsWith('HAND') || key.startsWith('FOOT') ? body * 1.25 : 1.6);
     let s = sc;
     for (let tries = 0; tries < 80; tries++) { for (const f of list) sizeAt(f, s); if (pack(list.map((f) => f.rect), A.w, A.h, A.x, A.y)) break; s *= 0.97; }
   }

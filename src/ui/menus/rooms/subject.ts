@@ -5,10 +5,8 @@
 //          the lamp still swings in real time) from a high CCTV corner; each
 //          new frame is copied into a little canvas the monitor bank shows.
 //  · FULL  its host fills the screen and it runs at full rate: the room's own
-//          title shot, and on request the camera flies in to the prisoner's
-//          face (debugCam, eased) and back out again.
-// It also registers itself with menuRooms.ts (scene/camera through the room's
-// fields until room3d.ts exposes them: see scratchpad notes/menu-rooms.md).
+//          title shot, and on request its 'prisoner' close-up on the face.
+// It also registers itself with menuRooms.ts (the room's scene and camera).
 import * as THREE from 'three';
 import type { SubjectRoom } from '../room3d';
 import { ROOM } from '../roomKit';
@@ -16,7 +14,6 @@ import { registerMenuRoom, type MenuRoom } from '../menuRooms';
 
 type Pose = { pos: [number, number, number]; look: [number, number, number]; fov: number };
 const CCTV: Pose = { pos: [2.95, 3.25, 4.4], look: [-0.15, 0.85, -0.6], fov: 60 };
-const ease = (t: number) => (t <= 0 ? 0 : t >= 1 ? 1 : t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 export class SubjectView {
   readonly room: SubjectRoom;
@@ -29,9 +26,6 @@ export class SubjectView {
   face = false;
   private ctx: CanvasRenderingContext2D;
   private since = 1; private every = 1 / 12; private waiting = false; private lastFrame = -1;
-  private fly: { from: Pose; to: Pose; t: number; dur: number; release: boolean } | null = null;
-  private saved: Pose | null = null;
-  private live: Pose | null = null;
   private ray = new THREE.Raycaster(); private ndc = new THREE.Vector2(); private plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 
   constructor(room: SubjectRoom, host: HTMLElement) {
@@ -79,60 +73,21 @@ export class SubjectView {
     this.host.classList.toggle('feed', m === 'feed');
     this.host.classList.toggle('full', m === 'full');
     const r = this.room;
-    if (m === 'feed') { this.fly = null; this.face = false; this.saved = null; r.debugCam = { pos: [...CCTV.pos], look: [...CCTV.look], fov: CCTV.fov }; this.since = 1; }
-    else { r.paused = false; r.timeScale = 1; this.waiting = false; r.debugCam = null; this.live = null; }
+    if (m === 'feed') { this.face = false; r.debugCam = { pos: [...CCTV.pos], look: [...CCTV.look], fov: CCTV.fov }; this.since = 1; }
+    else { r.paused = false; r.timeScale = 1; this.waiting = false; r.debugCam = null; }
   }
 
-  /** fly the camera in to the prisoner's face (true) or back to the room (false) */
+  /** in to the prisoner's face (the room's own 'prisoner' close-up) or back out to the room */
   faceZoom(on: boolean, ms = 1300) {
     if (this.mode !== 'full' || on === this.face) return;
-    const r = this.room;
-    const cam = this.camera as THREE.PerspectiveCamera | null;
-    if (!cam || !r.rig) return;
     this.face = on;
-    const cur: Pose = this.live ?? { pos: [cam.position.x, cam.position.y, cam.position.z], look: this.lookOf(cam), fov: cam.fov };
-    if (on) {
-      if (!this.saved) this.saved = { pos: [...cur.pos], look: [...cur.look], fov: cur.fov };
-      this.fly = { from: cur, to: this.facePose(), t: 0, dur: ms / 1000, release: false };
-    } else {
-      this.fly = { from: cur, to: this.saved ?? cur, t: 0, dur: ms / 1000, release: true };
-    }
-  }
-  private lookOf(cam: THREE.PerspectiveCamera): [number, number, number] {
-    const d = new THREE.Vector3(0, 0, -1).applyQuaternion(cam.quaternion).multiplyScalar(3).add(cam.position);
-    return [d.x, d.y, d.z];
-  }
-  private facePose(): Pose {
-    const rig = this.room.rig!;
-    const h = rig.bones.head.getWorldPosition(new THREE.Vector3());
-    const portrait = window.innerHeight > window.innerWidth * 1.05;
-    const d = portrait ? 1.05 : 0.74;
-    return { pos: [h.x + 0.16 * d, h.y + 0.07, h.z + d], look: [h.x, h.y + 0.04, h.z], fov: portrait ? 44 : 32 };
+    void this.room.shot(on ? 'prisoner' : 'title', ms);
   }
 
   /** every animation frame (after the room's own frame has run) */
   tick(dt: number) {
     const r = this.room;
-    if (this.mode === 'full') {
-      const f = this.fly;
-      if (f) {
-        f.t += dt;
-        const k = ease(Math.min(1, f.t / f.dur));
-        // the face moves (breathing, surges): keep re-aiming the close-up
-        if (!f.release && this.face) f.to = this.facePose();
-        const L = (a: number[], b: number[]) => a.map((v, i) => v + (b[i] - v) * k) as [number, number, number];
-        this.live = { pos: L(f.from.pos, f.to.pos), look: L(f.from.look, f.to.look), fov: f.from.fov + (f.to.fov - f.from.fov) * k };
-        r.debugCam = { pos: this.live.pos, look: this.live.look, fov: this.live.fov };
-        if (k >= 1) { this.fly = null; if (f.release) { r.debugCam = null; this.live = null; this.saved = null; } }
-      } else if (this.face) {
-        // hold on the face, a hand on the camera
-        const p = this.facePose(), t = performance.now() / 1000;
-        p.pos[0] += Math.sin(t * 0.31) * 0.01; p.pos[1] += Math.sin(t * 0.43) * 0.006;
-        this.live = p;
-        r.debugCam = { pos: p.pos, look: p.look, fov: p.fov };
-      }
-      return;
-    }
+    if (this.mode === 'full') return;
     // FEED: let it draw one frame now and then, copy it when it has
     const gl = r.renderer;
     if (!gl) return;

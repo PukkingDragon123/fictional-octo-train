@@ -83,16 +83,6 @@ defSound('bh_tape', () => {
 });
 defSound('bh_drip', (v) => { const b = osc(0.06, 'sine', (t) => 900 + v * 40 + t * 3000); b.env(decay(70)); return b.normalize(0.25); });
 defSound('bh_wrap', () => { const b = noise(0.3, 'white'); bandpass(b, 4200, 0.8); b.env((t) => (0.4 + 0.6 * Math.abs(Math.sin(t * 90))) * Math.exp(-t * 6)); return b.normalize(0.3); });
-// ---- the vitals HUD: the stamina balloon and the moodles
-defSound('hud_squeak', () => { const b = osc(0.16, 'sine', (t) => 620 + Math.sin(t * 90) * 160 + t * 900); lowpass(b, 2600); b.env(adsr(0.005, 0.04, 0.5, 0.06, 0.16)); return b.normalize(0.3); });
-defSound('hud_pop', () => {
-  const b = new Buf(0.4);
-  const p = noise(0.05, 'white'); highpass(p, 900); p.env(decay(90)); b.mix(p, 0, 1);
-  const f = noise(0.32, 'pink'); bandpass(f, (t) => 1800 - t * 3000, 1.4); f.env((t) => Math.exp(-t * 9) * (0.6 + 0.4 * Math.sin(t * 160))); b.mix(f, 0.03, 0.6);
-  return b.normalize(0.5);
-});
-defSound('hud_wheeze', () => { const b = noise(0.45, 'pink'); bandpass(b, (t) => 2400 - t * 1600, 3); b.env((t) => Math.sin(Math.min(1, t / 0.45) * Math.PI) * (0.7 + 0.3 * Math.sin(t * 70))); return b.normalize(0.22); });
-defSound('hud_moodle', () => { const b = new Buf(0.16); [520, 780].forEach((f, i) => { const t = osc(0.08, 'square', f, 0.3); lowpass(t, 1800); t.env(adsr(0.002, 0.03, 0.3, 0.04, 0.08)); b.mix(t, i * 0.045, 0.25); }); return b.normalize(0.3); });
-defSound('hud_worse', () => { const b = new Buf(0.2); [600, 450].forEach((f, i) => { const t = osc(0.09, 'square', f, 0.3); lowpass(t, 1600); t.env(adsr(0.002, 0.03, 0.3, 0.05, 0.09)); b.mix(t, i * 0.06, 0.25); }); return b.normalize(0.3); });
-defSound('hud_better', () => { const b = new Buf(0.2); [500, 750].forEach((f, i) => { const t = osc(0.09, 'sine', f, 0.3); lowpass(t, 2200); t.env(adsr(0.002, 0.03, 0.3, 0.05, 0.09)); b.mix(t, i * 0.06, 0.25); }); return b.normalize(0.28); });
-defSound('hud_moodle_out', () => { const b = osc(0.08, 'sine', (t) => 700 - t * 2500); b.env(decay(40)); return b.normalize(0.15); });
+// The vitals HUD (balloon, moodles, heart engine) calls recorded keys only (no synth recipes here):
+// hud_squeak, hud_pop, hud_wheeze, hud_moodle, hud_worse, hud_better, hud_moodle_out, hud_valve
+// (listed in the scratchpad notes/sounds-wanted.md for the audio worker; silent until backed).

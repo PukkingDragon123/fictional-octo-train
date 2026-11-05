@@ -52,8 +52,18 @@ function volume(): number {
   try { const s = JSON.parse(localStorage.getItem('noclip.audio') || '{}'); return (s.ui ?? 0.6) * (s.master ?? 0.85); } catch { return 0.5; }
 }
 
+/** the operating tools' and mini-games' keys: until recorded samples back them they borrow an existing sound (no new synthesis) */
+const ALIAS: Partial<Record<Sfx, [Sfx, number]>> = {
+  saw: ['grind', 0.8], slice: ['tink', 0.7], zap: ['spark', 0.9], thunk: ['press', 1.2], clip: ['ratchet', 0.6], spray: ['hiss', 0.7],
+  inject: ['hiss', 0.4], squeeze: ['creak', 1], weld: ['spark', 1], scan: ['hum', 0.6], swap: ['clamp', 0.8], whoosh: ['hiss', 0.4],
+  ding: ['unlock', 0.7], perfect: ['unlock', 0.9], flub: ['error', 0.8], boing: ['creak', 0.8], crack: ['clamp', 1.1], gasp: ['hiss', 0.3],
+  scream: ['error', 1], beat: ['tick', 1], hit: ['key', 1], miss: ['error', 0.5],
+};
+
 /** play a UI sound; cheap and throttled so hover sweeps never machine-gun */
 export function sfx(kind: Sfx, vol = 1) {
+  const al = ALIAS[kind];
+  if (al) { sfx(al[0], vol * al[1]); return; }
   const now = performance.now();
   const gap = kind === 'hover' ? 45 : kind === 'type' || kind === 'tick' ? 28 : 20;
   if (now - (last[kind] || 0) < gap) return;
@@ -163,47 +173,6 @@ export function sfx(kind: Sfx, vol = 1) {
     }
     case 'tink': tone('triangle', 1650 + Math.random() * 200, 1600, 0, 0.16, 0.045); tone('sine', 2480, 2460, 0.002, 0.12, 0.02); noise(0, 0.01, 0.35, 5200, 2); break;
     case 'ratchet': for (let i = 0; i < 5; i++) { noise(i * 0.045, 0.012, 0.8, 1700 + i * 90, 2); tone('square', 620 - i * 20, 480, i * 0.045, 0.015, 0.035); } tone('sine', 140, 80, 0.22, 0.12, 0.12); break;
-    // ---- the operating tools
-    case 'saw': tone('sawtooth', 600, 1500, 0, 0.35, 0.035); tone('sawtooth', 1200, 2900, 0, 0.35, 0.012); noise(0, 0.3, 0.25, 4200, 1.4); break;
-    case 'slice': noise(0, 0.07, 0.6, 6200, 0.9); tone('triangle', 3200, 1800, 0, 0.06, 0.02); noise(0.03, 0.05, 0.35, 900, 2.5); break;
-    case 'zap': tone('square', 1800, 600, 0, 0.12, 0.03); tone('sine', 120, 120, 0, 0.18, 0.05); noise(0, 0.1, 0.3, 7000, 1); break;
-    case 'thunk': tone('sine', 150, 48, 0, 0.22, 0.42); noise(0, 0.06, 0.9, 700, 0.6); noise(0.01, 0.02, 0.4, 2600, 1.2); break;
-    case 'clip': for (let i = 0; i < 5; i++) noise(i * 0.025, 0.02, 0.5, 5200 + Math.random() * 1500, 1.4); tone('sawtooth', 210, 205, 0, 0.14, 0.02); break;
-    case 'spray': noise(0, 0.3, 0.55, 7600, 0.5); noise(0, 0.25, 0.25, 2800, 0.8); break;
-    case 'inject': noise(0, 0.12, 0.5, 4800, 0.9); tone('triangle', 2600, 2560, 0.1, 0.12, 0.025); tone('sine', 90, 60, 0, 0.1, 0.08); break;
-    case 'squeeze': tone('sawtooth', 70, 50, 0, 0.4, 0.05); for (let i = 0; i < 6; i++) noise(i * 0.05, 0.02, 0.45, 1400 + i * 120, 3); break;
-    case 'weld': for (let i = 0; i < 12; i++) noise(Math.random() * 0.3, 0.015, 0.5 + Math.random() * 0.4, 3000 + Math.random() * 5000, 1); tone('sawtooth', 100, 98, 0, 0.3, 0.03); break;
-    case 'scan': tone('sine', 520, 1560, 0, 0.42, 0.03); tone('square', 1040, 3100, 0, 0.42, 0.006); break;
-    case 'swap': noise(0, 0.03, 0.8, 2400, 1); tone('square', 520, 260, 0, 0.05, 0.05); noise(0.09, 0.03, 0.7, 3600, 1.2); tone('triangle', 1400, 1350, 0.09, 0.18, 0.025); break;
-    case 'whoosh': noise(0, 0.28, 0.5, 900, 0.4); noise(0.05, 0.2, 0.3, 2200, 0.5); break;
-    // ---- the mini-games
-    case 'beat': tone('square', 1320, 1320, 0, 0.03, 0.035); break;
-    case 'hit': tone('square', 990, 1980, 0, 0.07, 0.06); noise(0, 0.02, 0.35, 5000, 1); break;
-    case 'perfect': [1046, 1318, 1568].forEach((f, i) => tone('square', f, f, i * 0.045, 0.09, 0.05)); tone('triangle', 2093, 2093, 0.14, 0.3, 0.035); break;
-    case 'ding': tone('triangle', 1568, 1568, 0, 0.5, 0.06); tone('sine', 3136, 3136, 0, 0.35, 0.025); tone('square', 784, 784, 0, 0.06, 0.03); break;
-    case 'miss': tone('square', 220, 160, 0, 0.12, 0.05); noise(0, 0.05, 0.3, 500, 1); break;
-    case 'flub': tone('sawtooth', 330, 110, 0, 0.42, 0.05); tone('sawtooth', 336, 112, 0.0, 0.42, 0.04); break;
-    case 'boing': { const o = ctx.createOscillator(), g = ctx.createGain(), lfo = ctx.createOscillator(), lg = ctx.createGain(); o.type = 'triangle'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(420, t + 0.45); lfo.frequency.value = 18; lg.gain.value = 40; lfo.connect(lg); lg.connect(o.frequency); g.gain.setValueAtTime(0.0, t); g.gain.linearRampToValueAtTime(0.08, t + 0.01); g.gain.exponentialRampToValueAtTime(0.001, t + 0.5); o.connect(g); g.connect(out); o.start(t); lfo.start(t); o.stop(t + 0.52); lfo.stop(t + 0.52); break; }
-    case 'crack': noise(0, 0.03, 1, 1800, 0.7); noise(0.025, 0.05, 0.8, 900, 1.5); tone('sine', 300, 80, 0, 0.08, 0.15); break;
-    case 'gasp': noise(0, 0.32, 0.4, 1500, 1.4); noise(0, 0.3, 0.25, 3200, 3); break;
-    case 'scream': {
-      // a voice through three vowel formants, pitch shooting up and breaking
-      const f0 = 210 + Math.random() * 160;
-      const o = ctx.createOscillator(), vib = ctx.createOscillator(), vg = ctx.createGain(), g = ctx.createGain();
-      o.type = 'sawtooth';
-      o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * 1.9, t + 0.12); o.frequency.linearRampToValueAtTime(f0 * 1.7, t + 0.55); o.frequency.exponentialRampToValueAtTime(f0 * 0.8, t + 0.9);
-      vib.frequency.value = 7 + Math.random() * 3; vg.gain.value = f0 * 0.06; vib.connect(vg); vg.connect(o.frequency);
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.5, t + 0.05); g.gain.setValueAtTime(0.5, t + 0.6); g.gain.exponentialRampToValueAtTime(0.001, t + 0.95);
-      for (const [f, q, a] of [[820, 6, 1], [1250, 8, 0.6], [2600, 10, 0.35]] as [number, number, number][]) {
-        const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = f; bp.Q.value = q;
-        const ga = ctx.createGain(); ga.gain.value = a * 0.22;
-        o.connect(bp); bp.connect(ga); ga.connect(g);
-      }
-      g.connect(out);
-      o.start(t); vib.start(t); o.stop(t + 1); vib.stop(t + 1);
-      noise(0, 0.6, 0.12, 2400, 1.2);
-      break;
-    }
     case 'unlock':
       [523, 659, 784, 1046].forEach((f, i) => tone('square', f, f, i * 0.07, 0.16, 0.05));
       tone('triangle', 1568, 1568, 0.3, 0.5, 0.04);
@@ -215,51 +184,24 @@ export function sfx(kind: Sfx, vol = 1) {
 // ---------------------------------------------------------------- held sounds (a saw running, a spray held down)
 export type LoopKind = 'saw' | 'spray' | 'clipper' | 'laser' | 'weld' | 'scan' | 'motor';
 export interface LoopSfx { set(level: number, pitch?: number): void; stop(): void }
-/** a continuous tool sound; set(level 0..1, pitch ×) each frame, stop() when done */
+/** a continuous tool sound; set(level 0..1, pitch ×) each frame, stop() when done.
+ *  Until recorded loops back these keys, it re-strikes an existing one-shot while the level is up (no new synthesis). */
+const LOOP_BEAT: Record<LoopKind, [Sfx, number]> = {
+  saw: ['grind', 0.5], spray: ['hiss', 0.75], clipper: ['ratchet', 0.3], laser: ['buzz', 0.32], weld: ['spark', 0.22], scan: ['hum', 0.6], motor: ['servo', 0.42],
+};
 export function loopSfx(kind: LoopKind): LoopSfx {
-  const ctx = context();
-  const dead: LoopSfx = { set() {}, stop() {} };
-  if (!ctx || ctx.state !== 'running') return dead;
-  const out = ctx.createGain(); out.gain.value = 0; out.connect(ctx.destination);
-  const nodes: AudioNode[] = [out];
-  const oscs: { o: OscillatorNode; f: number }[] = [];
-  const osc = (type: OscillatorType, f: number, g: number, filt?: [BiquadFilterType, number, number]) => {
-    const o = ctx.createOscillator(), gn = ctx.createGain(); o.type = type; o.frequency.value = f; gn.gain.value = g;
-    if (filt) { const fl = ctx.createBiquadFilter(); fl.type = filt[0]; fl.frequency.value = filt[1]; fl.Q.value = filt[2]; o.connect(fl); fl.connect(gn); nodes.push(fl); } else o.connect(gn);
-    gn.connect(out); o.start(); nodes.push(o, gn); oscs.push({ o, f });
+  const [k, every] = LOOP_BEAT[kind];
+  let level = 0, alive = true, next = 0;
+  const tick = () => {
+    if (!alive) return;
+    const now = performance.now();
+    if (level > 0.08 && now >= next) { sfx(k, Math.min(1, level) * 0.7); next = now + every * 1000; }
+    timer = window.setTimeout(tick, 60);
   };
-  const hiss = (f: number, q: number, g: number) => {
-    const n = ctx.sampleRate * 1.5, b = ctx.createBuffer(1, n, ctx.sampleRate), d = b.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
-    const s = ctx.createBufferSource(); s.buffer = b; s.loop = true;
-    const fl = ctx.createBiquadFilter(); fl.type = 'bandpass'; fl.frequency.value = f; fl.Q.value = q;
-    const gn = ctx.createGain(); gn.gain.value = g;
-    s.connect(fl); fl.connect(gn); gn.connect(out); s.start(); nodes.push(s, fl, gn);
-  };
-  let peak = 0.05;
-  switch (kind) {
-    case 'saw': osc('sawtooth', 900, 0.5); osc('sawtooth', 1810, 0.22); osc('square', 450, 0.12, ['lowpass', 1200, 1]); hiss(4500, 1.2, 0.5); peak = 0.05; break;
-    case 'spray': hiss(7200, 0.6, 1); hiss(2600, 0.9, 0.4); peak = 0.12; break;
-    case 'clipper': osc('sawtooth', 118, 0.6); osc('square', 236, 0.25, ['bandpass', 900, 2]); hiss(5200, 1.5, 0.3); peak = 0.045; break;
-    case 'laser': osc('sine', 1480, 0.4); osc('square', 60, 0.25, ['lowpass', 300, 1]); hiss(8000, 2, 0.25); peak = 0.04; break;
-    case 'weld': hiss(3800, 0.7, 1); osc('sawtooth', 100, 0.3, ['lowpass', 400, 1]); peak = 0.1; break;
-    case 'scan': osc('sine', 880, 0.3); osc('square', 1760, 0.08, ['lowpass', 2400, 1]); peak = 0.03; break;
-    case 'motor': osc('sawtooth', 120, 0.5, ['lowpass', 600, 1]); osc('square', 60, 0.3, ['lowpass', 300, 1]); peak = 0.04; break;
-  }
-  let alive = true;
+  let timer = window.setTimeout(tick, 0);
   return {
-    set(level: number, pitch = 1) {
-      if (!alive) return;
-      const now = ctx.currentTime;
-      out.gain.setTargetAtTime(volume() * peak * Math.max(0, Math.min(1.2, level)), now, 0.03);
-      for (const { o, f } of oscs) o.frequency.setTargetAtTime(f * pitch, now, 0.05);
-    },
-    stop() {
-      if (!alive) return;
-      alive = false;
-      try { out.gain.setTargetAtTime(0, ctx.currentTime, 0.04); } catch { /* closed */ }
-      setTimeout(() => nodes.forEach((n) => { try { (n as any).stop?.(); n.disconnect(); } catch { /* gone */ } }), 400);
-    },
+    set(l: number) { level = l; },
+    stop() { alive = false; clearTimeout(timer); },
   };
 }
 

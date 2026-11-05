@@ -77,6 +77,14 @@ function aimArm(rig: { j: Record<string, THREE.Object3D> }, target: THREE.Vector
   if (hd) hd.quaternion.slerp(_q.identity(), w * 0.6);
 }
 
+/** head yaw (relative to her facing) toward a world point */
+function yawTo(root: THREE.Object3D, look: THREE.Vector3 | null): number {
+  if (!look) return 0;
+  root.updateWorldMatrix(true, false);
+  const p = root.worldToLocal(_a.copy(look));
+  return Math.max(-1.1, Math.min(1.1, Math.atan2(p.x, p.z)));
+}
+
 // ------------------------------------------------------------------ the humans worker's model
 function wrapExternal(r: unknown): GuideRig | null {
   if (!r) return null;
@@ -91,11 +99,11 @@ function wrapExternal(r: unknown): GuideRig | null {
   return {
     root, hitProxy: hit,
     update(dt, inp) {
-      try { o.update?.(dt, { speed: inp.speed, stance: 'stand', lookYaw: 0, fidget: true, talking: inp.talking, look: inp.look }); } catch (e) { console.warn('researcher update', e); o.update = undefined; }
+      try { o.update?.(dt, { speed: inp.speed, stance: 'stand', lookYaw: yawTo(root, inp.look), fidget: !inp.point && !inp.talking, talking: inp.talking, look: inp.look }); } catch (e) { console.warn('researcher update', e); o.update = undefined; }
       if (typeof o.lookAt === 'function' && inp.look) { try { o.lookAt(inp.look); } catch { /* optional */ } }
       prevPoint += ((inp.point ? 1 : 0) - prevPoint) * Math.min(1, dt * 6);
       if (rig?.j && inp.point && prevPoint > 0.01) aimArm(rig, inp.point, prevPoint);
-      root.position.y = Math.max(0, bump.step(dt)) * 0.06;
+      root.position.y += Math.max(0, bump.step(dt)) * 0.06;
     },
     emote(n) { try { (o.playEmote ?? rig?.playEmote)?.call(o.playEmote ? o : rig, n); } catch { /* optional */ } },
     head(out) {
@@ -183,12 +191,7 @@ function fallbackRig(): GuideRig {
     update(dt, inp) {
       t += dt;
       // the head turns toward what she is looking at (relative to her facing)
-      let lookYaw = 0;
-      if (inp.look) {
-        root.updateWorldMatrix(true, false);
-        _a.copy(inp.look); root.worldToLocal(_a);
-        lookYaw = Math.max(-1.1, Math.min(1.1, Math.atan2(_a.x, _a.z)));
-      }
+      const lookYaw = yawTo(root, inp.look);
       rig.update(dt, { speed: inp.speed, stance: 'stand', lookYaw, fidget: !inp.point && !inp.talking } as any);
       // a nod of the head while she talks
       if (inp.talking) rig.j.head.rotation.x += Math.sin(t * 9) * 0.03 + Math.sin(t * 3.7) * 0.02;
@@ -208,7 +211,7 @@ function fallbackRig(): GuideRig {
       if (hair) hair.rotation.set(hx, 0, hz);
       const bs = badgeS.step(dt, -acc.z * 0.01), br = badgeR.step(dt, acc.x * 0.01 - dYaw * 0.03);
       badge.rotation.set(Math.max(-0.4, bs) - rig.j.chest.rotation.x * 0.8, 0, br);
-      root.position.y = Math.max(0, hop.step(dt)) * 0.05;
+      root.position.y += Math.max(0, hop.step(dt)) * 0.05;
     },
     emote(n) { rig.playEmote(n); },
     head(out) { rig.bones.head.getWorldPosition(out); out.y += 0.34; return out; },

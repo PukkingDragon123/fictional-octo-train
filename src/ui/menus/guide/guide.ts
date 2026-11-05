@@ -57,11 +57,11 @@ export class Guide {
   private roomId: MenuRoomId | null = null;
   private room: MenuRoom | null = null;
   private queue: Line[] = [];
-  private cur: (Line & { h: ReturnType<Bubbles['say']>; t: number }) | null = null;
+  private cur: (Line & { h: ReturnType<Bubbles['say']>; t: number; hold: number }) | null = null;
   private pos = new THREE.Vector3(); private goal = new THREE.Vector3();
   private walking = false; private yaw = 0;
   private gone = false; // muted and stepped out
-  muted = flag('guide.muted', false);
+  muted = flag<boolean>('guide.muted', false);
   private idleT = 0; private pokeN = 0;
   private chars = 0;
   private v = new THREE.Vector3(); private w = new THREE.Vector3();
@@ -270,7 +270,7 @@ export class Guide {
     if (!this.cur && !this.queue.length && !this.gone && this.idleT > 45 && !hide) { this.idleT = 0; this.say([{ text: TIPS[Math.floor(Math.random() * TIPS.length)] }]); }
     // where she looks / points
     const ln = this.cur;
-    const point = ln?.point && ln.t > 0.25 && ln.t < ln.h_dur ? this.aim(ln.point, room) : null;
+    const point = ln?.point && ln.t > 0.25 && ln.t < ln.hold ? this.aim(ln.point, room) : null;
     const look = point ?? (ln?.look ? this.aim(ln.look, room) : null) ?? room.camera.getWorldPosition(this.w);
     rig.update(dt, { speed: this.walking ? speed : 0, look, point, talking: this.bubbles.talking });
     this.bubbles.update(dt, room.camera, this.host.rect());
@@ -288,7 +288,7 @@ export class Guide {
       onChar: (ch) => { if (ch !== ' ' && (this.chars++ & 1) === 0) sfx('type', 0.12); },
     });
     if (l.emote) rig.emote(l.emote);
-    this.cur = { ...l, h, t: 0, h_dur: 1.6 + l.text.length * 0.06 } as any;
+    this.cur = { ...l, h, t: 0, hold: 1.6 + l.text.length * 0.06 };
   }
   /** a world point for an aim */
   private aim(a: Aim, room: MenuRoom): THREE.Vector3 | null {

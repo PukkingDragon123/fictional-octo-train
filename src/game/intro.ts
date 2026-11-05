@@ -80,7 +80,6 @@ import { GP } from './introKit/machines';
 import { StampRig, ST } from './introKit/stamp';
 import { fpArm } from '../fp/hands';
 import { GUARD_GREY } from '../content/items/prisoner';
-import './introKit/stampSounds';
 import './intro.css';
 
 export { INTRO_ZONE };
@@ -130,7 +129,7 @@ const STRIKES: Omit<Strike, 'done' | 'swung'>[] = [
 ];
 const BEAT_END = 7.6;
 const WARM = ['guard_bark', 'baton_hit', 'body_thud', 'debtor_grunt', 'debtor_scream', 'debtor_gasp', 'remit_pierce', 'remit_chirp', 'bone_crunch', 'seam_ripple', 'seam_through', 'seam_seal',
-  'whoosh', 'holo_on', 'press_slam', 'press_crunch', 'press_hiss', 'press_lever', 'press_klaxon', 'ix_heart', 'ix_ring', 'ix_boot', 'ix_liquid', 'intro_land', 'flicker_buzz', 'cy_spark', 'st_slam', 'st_clamp', 'st_hydro', 'st_steam', 'st_alarm', 'st_stamp', 'st_boot'];
+  'whoosh', 'holo_on', 'press_slam', 'press_crunch', 'press_hiss', 'press_lever', 'press_klaxon', 'ix_heart', 'ix_ring', 'ix_boot', 'ix_liquid', 'intro_land', 'flicker_buzz', 'cy_spark'];
 
 /** the wide shots cut into the first-person script: [phase] -> [from, to, shot] (phase seconds) */
 const SHOTS: Partial<Record<Phase, [number, number, string][]>> = {
@@ -635,6 +634,8 @@ export class Intro implements GameSystem {
   private at(t: number, id: number, fn: () => void) { if (this.t >= t && !this.fired.has(id)) { this.fired.add(id); fn(); } }
   private go(ph: Phase) { this.phase = ph; this.t = 0; this.fired.clear(); }
   private sfx(key: string, vol = 1) { G.audio?.flat?.(key, 'sfx', vol); }
+  /** a sound the sample library may not have yet (notes/sounds-wanted.md): the existing key stands in until it does */
+  private sfxOr(key: string, stand: string, vol = 1) { if (!G.audio?.flat?.(key, 'sfx', vol)) this.sfx(stand, vol); }
   private aim(yaw: number, pitch: number, roll = 0, rate = 3) { this.goal.yaw = yaw; this.goal.pitch = pitch; this.goal.roll = roll; this.goal.rate = rate; }
   private get seamFx(): SeamFx | null { return (G as unknown as { seamFx?: SeamFx }).seamFx ?? null; }
   private wrist(side: 'L' | 'R', out: THREE.Vector3) { const a = this.arms.find((q) => q.side === side); return a && !this.shot ? a.arm.wrist.getWorldPosition(out) : palm(this.me, side, out); }
@@ -1559,7 +1560,7 @@ export class Intro implements GameSystem {
       this.sfx('body_thud', 0.4); this.sfx('debtor_gasp', 0.6);
     });
     this.at(FIT.slam, 2, () => {
-      this.sfx('st_slam', 1); this.sfx('debtor_grunt', 0.7);
+      this.sfxOr('st_slam', 'body_thud', 1); this.sfx('debtor_grunt', 0.7);
       this.trauma = Math.max(this.trauma, 0.8); this.hitstopK(0.35); this.jolt(0, 0.7, 'chest', 0.8);
       const l = this.arms.find((q) => q.side === 'L'); if (l) { l.arm.pose('flat'); l.arm.tremor = 0.55; }
       this.stage.pulse(0.12, 0xfff0d8, 8);
@@ -1574,7 +1575,7 @@ export class Intro implements GameSystem {
     const strapK = t < FIT.clamp + 0.14 ? 0 : t < FIT.clamp + 0.3 ? easeIn((t - FIT.clamp - 0.14) / 0.16) : t < FIT.release + 0.05 ? 1 : Math.max(0, 1 - (t - FIT.release - 0.05) / 0.3);
     s.clamp = clampK; s.strap = strapK;
     this.at(FIT.clamp + 0.1, 5, () => {
-      this.sfx('st_clamp', 1); this.sfx('press_hiss', 0.35); s.puff('jaws', 1.2);
+      this.sfxOr('st_clamp', 'press_lever', 1); this.sfx('press_hiss', 0.35); s.puff('jaws', 1.2);
       s.armed = true; this.trauma = Math.max(this.trauma, 0.5); this.jolt(0, 0.3, 'farm_l', 0.5);
       const l = this.arms.find((q) => q.side === 'L'); if (l) l.arm.tremor = 0.8;
     });
@@ -1592,16 +1593,16 @@ export class Intro implements GameSystem {
     else lift = Math.max(0, 1 - easeOut((t - FIT.lift) / 0.9));
     s.lift = lift;
     s.pressure = t < FIT.clamp ? 0.08 : t < FIT.stamp ? 0.1 + 0.85 * clamp01((t - FIT.clamp) / (FIT.stamp - FIT.clamp)) : Math.max(0.15, 0.95 - (t - FIT.stamp) * 0.4);
-    this.at(FIT.down0 - 0.05, 8, () => { this.sfx('st_alarm', 0.8); this.say('OFFICER', 'Stamping.', 'guard', true, B); });
-    this.at(FIT.down0, 9, () => { this.sfx('st_hydro', 0.9); s.puff('rams', 1); s.puff('vents', 0.7); this.sfx('st_steam', 0.5); });
-    this.at(4.05, 10, () => { this.sfx('st_hydro', 0.7); s.puff('rams', 0.8); this.trauma = Math.max(this.trauma, 0.3); });
+    this.at(FIT.down0 - 0.05, 8, () => { this.sfxOr('st_alarm', 'buzzer', 0.8); this.say('OFFICER', 'Stamping.', 'guard', true, B); });
+    this.at(FIT.down0, 9, () => { this.sfxOr('st_hydro', 'press_hiss', 0.9); s.puff('rams', 1); s.puff('vents', 0.7); this.sfxOr('st_steam', 'press_hiss', 0.5); });
+    this.at(4.05, 10, () => { this.sfxOr('st_hydro', 'press_hiss', 0.7); s.puff('rams', 0.8); this.trauma = Math.max(this.trauma, 0.3); });
     this.at(4.4, 11, () => this.say('self', 'no - no no no-', 'self'));
     this.at(4.6, 12, () => { const l = this.arms.find((q) => q.side === 'L'); if (l) { l.arm.pose('claw'); l.arm.tremor = 1; } this.sfx('debtor_gasp', 0.8); });
-    this.at(FIT.stamp - 0.13, 13, () => { this.sfx('st_steam', 0.6); s.puff('vents', 1.3); });
+    this.at(FIT.stamp - 0.13, 13, () => { this.sfxOr('st_steam', 'press_hiss', 0.6); s.puff('vents', 1.3); });
     this.at(FIT.stamp, 14, () => this.pierce());
-    this.at(FIT.lift, 15, () => { this.sfx('press_hiss', 0.7); this.sfx('st_steam', 0.7); s.puff('vents', 1.6); s.puff('die', 1.4); });
+    this.at(FIT.lift, 15, () => { this.sfx('press_hiss', 0.7); this.sfxOr('st_steam', 'press_hiss', 0.7); s.puff('vents', 1.6); s.puff('die', 1.4); });
     this.at(FIT.fitted, 16, () => { this.say('OFFICER', 'Fitted.'); this.pullFocus(0.5); });
-    this.at(FIT.release, 17, () => { this.sfx('st_clamp', 0.6); this.sfx('press_hiss', 0.4); s.puff('jaws', 1); s.armed = false; });
+    this.at(FIT.release, 17, () => { this.sfxOr('st_clamp', 'press_lever', 0.6); this.sfx('press_hiss', 0.4); s.puff('jaws', 1); s.armed = false; });
     // blood keeps welling under the band
     if (this.pierced && (G.sandbox.gore ?? 2) > 0) {
       s.bleed(clamp01((t - FIT.stamp) / 3.5) * 0.9 + 0.1);
@@ -1659,7 +1660,7 @@ export class Intro implements GameSystem {
     if (this.pierced) return;
     this.pierced = true;
     const p = this.p, s = this.stamp;
-    this.sfx('st_stamp', 1); this.sfx('remit_pierce', 0.8); this.sfx('bone_crunch', 1); this.sfx('cy_spark', 0.9);
+    this.sfxOr('st_stamp', 'press_slam', 1); this.sfx('remit_pierce', 0.8); this.sfx('bone_crunch', 1); this.sfx('cy_spark', 0.9);
     setTimeout(() => this.sfx('debtor_scream', 1), 110);
     // the band leaves the die: onto the wrist
     this.fitBandMesh();
@@ -1694,7 +1695,7 @@ export class Intro implements GameSystem {
   /** the band arms: an amber flare off its lamp, the room's light swallowed by it for a moment */
   private armFlare() {
     const b = this.band;
-    this.sfx('st_boot', 0.8); this.sfx('remit_chirp', 0.7);
+    this.sfxOr('st_boot', 'remit_chirp', 0.8); this.sfx('remit_chirp', 0.7);
     if (b) this.lights().flare(b.lamp.getWorldPosition(v1).add(v4.set(0, 0.12, 0)), 1.0);
     this.stage.pulse(0.22, 0xffa040, 1.6);
     this.stage.expo = Math.max(this.stage.expo, 1.15);

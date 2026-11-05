@@ -176,11 +176,16 @@ uniform float uSheen;
 uniform float uCutScale;
 uniform vec4 uDetailW;
 uniform vec4 uDetailF;
+// per-material switches (uniforms, not defines: one shader program serves every combination)
+// x cutaway, y no vision mask, z no fog, w no light grid; the outline flag for the normal buffer
+uniform vec4 uWFlags;
+uniform float uWOutline;
+// 4x4 ordered dither by bit interleave (no local array: cheap on every GPU)
 float bayer4(vec2 p) {
-  ivec2 ip = ivec2(mod(p, 4.0));
-  int i = ip.y * 4 + ip.x;
-  int m[16] = int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5);
-  return (float(m[i]) + 0.5) / 16.0;
+  vec2 q = mod(floor(p), 4.0);
+  vec2 lo = mod(q, 2.0), hi = floor(q * 0.5);
+  float a = 2.0 * abs(lo.x - lo.y) + lo.y, b = 2.0 * abs(hi.x - hi.y) + hi.y;
+  return (4.0 * a + b + 0.5) / 16.0;
 }
 `;
 
@@ -242,8 +247,8 @@ const FRAG_MAP = /* glsl */`
 `;
 
 const FRAG_CUTOUT = /* glsl */`
-#ifdef CUTOUT
-if (uCutOn > 0.5 && vWPos.y > uCutFloor) {
+// aFx.y 7 marks low props merged into a cut-away mesh: they never cut
+if (uWFlags.x > 0.5 && uCutOn > 0.5 && vWPos.y > uCutFloor && vWallAxis < 6.5) {
   float cut = 0.0;
   vec2 toCam = -sign(uCamFwd);
   if (vWallAxis > 0.5 && vWallAxis < 2.5) {
@@ -264,7 +269,6 @@ if (uCutOn > 0.5 && vWPos.y > uCutFloor) {
   // a clean cut line (no screen-door dither): the wall reads as sawn off around the survivor
   if (cut * hfade > 0.5) discard;
 }
-#endif
 `;
 
 // wet / glossy floors: reflectivity for the post pass, darker albedo where actually wet
@@ -295,8 +299,8 @@ float causticAt(vec2 p, float t) {
 `;
 
 const FRAG_LIGHTGRID = /* glsl */`
-#if defined( RE_IndirectDiffuse ) && !defined(UNLIT) && !defined(NOGRID)
-{
+#if defined( RE_IndirectDiffuse ) && !defined(UNLIT)
+if (uWFlags.w < 0.5) {
   vec3 wn = normalize(vWNormal);
   // ambient bounce reaches up-facing surfaces best: facets of a low-poly model separate even in the dark
   irradiance *= (0.8 + 0.2 * wn.y) * 0.8;
@@ -353,15 +357,12 @@ totalEmissiveRadiance += diffuseColor.rgb * max(vEmis, 0.0);
 `;
 
 const FRAG_FOG = /* glsl */`
-#ifndef NOFOG
-{
+if (uWFlags.z < 0.5) {
   float fd = length(vWPos.xz - uPlayerPos.xz);
   float fogF = smoothstep(uFogNear, uFogFar, fd);
   gl_FragColor.rgb = mix(gl_FragColor.rgb, uFogColor, fogF);
 }
-#endif
-#ifndef NOVIS
-if (uVisOn > 0.5) {
+if (uWFlags.y < 0.5 && uVisOn > 0.5) {
   vec2 vgp = vWPos.xz + vWNormal.xz * 0.42;
   vec2 vis = texture2D(uVisTex, (vgp - uVisInfo.xy) * uVisInfo.zw).rg;
   vec3 col = gl_FragColor.rgb;
@@ -374,7 +375,6 @@ if (uVisOn > 0.5) {
   float v = smoothstep(0.08, 0.92, vis.r);
   gl_FragColor.rgb = mix(res, col, v);
 }
-#endif
 `;
 
 // normal buffer alpha packs: outline flag (0 / 0.5 highlight / 1) + 2 x wet level (0..7) + 16 x water (renderer decodes it)
@@ -382,15 +382,18 @@ const FRAG_OUT = /* glsl */`
 #ifdef HIGHLIGHT
   gNormal = vec4(normalize(vWNormal) * 0.5 + 0.5, 0.5);
 #else
-  gNormal = vec4(normalize(vWNormal) * 0.5 + 0.5, OUTLINE_FLAG + 2.0 * floor(clamp(wetR, 0.0, 1.0) * 7.0 + 0.5) + 16.0 * wetWater);
+  gNormal = vec4(normalize(vWNormal) * 0.5 + 0.5, uWOutline + 2.0 * floor(clamp(wetR, 0.0, 1.0) * 7.0 + 0.5) + 16.0 * wetWater);
 #endif
 `;
 
 const cache = new Map<string, THREE.Material>();
 
-function inject(mat: THREE.MeshLambertMaterial, defines: Record<string, string | number>) {
+function inject(mat: THREE.MeshLambertMaterial, defines: Record<string, string | number>, flags: THREE.Vector4, outline: number) {
   mat.onBeforeCompile = (shader) => {
     for (const k of Object.keys(U)) (shader.uniforms as any)[k] = (U as any)[k];
+    // the switches live in this material's own uniforms (derived materials that run this hook get the same)
+    (shader.uniforms as any).uWFlags = { value: flags };
+    (shader.uniforms as any).uWOutline = { value: outline };
     shader.defines = { ...(shader.defines || {}), ...defines };
     // where the close-up detail tiles sit in the world atlas, and the close-up atlas itself
     const A = atlas();
@@ -430,16 +433,15 @@ export function worldMaterial(o: WorldMatOpts = {}): THREE.Material {
     depthWrite: o.depthWrite ?? !(o.transparent || o.additive),
     blending: o.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
   });
-  const defines: Record<string, string | number> = { OUTLINE_FLAG: (o.outline ?? 1).toFixed(2) };
-  if (o.cutout) defines.CUTOUT = 1;
+  // only what changes the shader's structure is a define (a separate program); the rest are uniforms so
+  // walls, props, decals, menus and creatures share a handful of programs (fewer compiles, no load stalls)
+  const defines: Record<string, string | number> = {};
   if (o.foliage) defines.FOLIAGE = 1;
-  if (o.noVis) defines.NOVIS = 1;
-  if (o.noFog) defines.NOFOG = 1;
   if (o.highlight) defines.HIGHLIGHT = 1;
   if (o.unlit) defines.UNLIT = 1;
-  if (o.noGrid) defines.NOGRID = 1;
   if (o.floor && !o.transparent && !o.additive) defines.FLOOR = 1;
-  inject(mat, defines);
+  const flags = new THREE.Vector4(o.cutout ? 1 : 0, o.noVis ? 1 : 0, o.noFog ? 1 : 0, o.noGrid ? 1 : 0);
+  inject(mat, defines, flags, o.outline ?? 1);
   cache.set(key, mat);
   return mat;
 }
