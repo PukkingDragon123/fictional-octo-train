@@ -597,10 +597,10 @@ export class MonitorRoom implements StageRoom {
     this.portrait = portrait;
     if (portrait) {
       // the bank in the upper part, the desk and the menu words below; the lens widens to keep the bank's width
-      this.home.pos.set(0.1, 1.62, 2.45);
+      this.home.pos.set(0.0, 1.62, 2.6);
       this.home.look.set(0.0, 1.38, -1.8);
-      const dist = this.home.pos.z + 1.55, halfW = 1.78;
-      this.home.fov = Math.min(88, THREE.MathUtils.radToDeg(2 * Math.atan(halfW / dist / aspect)));
+      const dist = this.home.pos.z + 1.55, halfW = 1.98;
+      this.home.fov = Math.min(96, THREE.MathUtils.radToDeg(2 * Math.atan(halfW / dist / aspect)));
       this.frXT = 0; this.frYT = 0.26;
     } else {
       this.home.pos.set(0.42, 1.64, 1.85);

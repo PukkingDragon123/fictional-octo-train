@@ -190,7 +190,9 @@ export interface VitalsIn {
   dead: boolean;
   pumping: boolean; pumpPos: number; pumpFlash: number; pumpEnd: number; pumpGood: boolean;
   showPack: boolean;
-  hover: 'brain' | 'bar' | 'balloon' | 'pack' | null;
+  hover: 'brain' | 'bar' | 'balloon' | 'pack' | 'watch' | null;
+  /** the treatment pegboard is over the balloon */
+  hideBalloon?: boolean;
 }
 
 interface Drip { x: number; y: number; vy: number; t: number; hang: number; on: boolean }
@@ -198,7 +200,23 @@ interface Mote { x: number; y: number; vx: number; vy: number; t: number; c: num
 interface RopePt { x: number; y: number; px: number; py: number }
 
 export class Vitals {
-  readonly pix = new Pix(VW, VH);
+  pix = new Pix(VW, VH);
+  W = VW; H = VH;
+  /** the standalone strip (brain, heart, bar, balloon on a weight, pack) or, false, an overlay on the 3D rig (brain + balloon + watch icon only) */
+  full = true;
+  /** where the brain and the balloon's tie sit (HUD px); the rig moves them every frame */
+  brainC = { x: BRAIN.cx, y: BRAIN.cy };
+  anchor = { x: ANCHOR.x, y: ANCHOR.y };
+  floor = FLOOR;
+  private seg = 2.65;
+  /** the watch icon (rig overlay): where, lit by a note, hovered */
+  watchAt: { x: number; y: number } | null = null;
+  watchLit = 0;
+  /** switch to the rig overlay at this buffer size; the string is this long (HUD px) */
+  rigMode(w: number, h: number, rope: number) {
+    if (this.full || w !== this.W || h !== this.H) { this.pix = new Pix(w, h); this.W = w; this.H = h; }
+    this.full = false; this.seg = Math.max(1.2, rope / (this.rope.length - 1));
+  }
   private brain = bakeBrain();
   time = 0;
   // ---- the heart engine keeps the beat for everything
@@ -218,7 +236,7 @@ export class Vitals {
   private wasTired = false; private popT = 0; tape = 0; private wheezeT = 1;
   private runJolt = 0;
   /** where the balloon's body is (HUD px) for hit tests */
-  bCx = ANCHOR.x; bCy = 14; bR = 10;
+  bCx: number = ANCHOR.x; bCy = 14; bR = 10;
   // ---- motes: sparkles, puffs, sweat
   private motes: Mote[] = [];
   /** one-shot events for the HUD to play sounds on */
@@ -295,7 +313,7 @@ export class Vitals {
     for (const q of this.drips) if (q.on) {
       q.t += dt;
       if (q.t > q.hang) { q.vy += 160 * dt; q.y += q.vy * dt; }
-      if (q.y > VH + 2 || q.t > q.hang + 0.9) q.on = false;
+      if (q.y > this.H + 2 || q.t > q.hang + 0.9) q.on = false;
     }
     // ---- the brain
     const san = clamp(s.sanity, 0, 100);
@@ -309,7 +327,7 @@ export class Vitals {
       while (this.sweatAcc >= 1) {
         this.sweatAcc -= 1;
         const side = Math.random() < 0.5 ? -1 : 1;
-        this.mote(BRAIN.cx + side * (7 + Math.random() * 5), BRAIN.y + 6 + Math.random() * 3, side * (10 + Math.random() * 12), -14 - Math.random() * 10, 0.9, 0xbfe6ff, 2);
+        this.mote(this.brainC.x + side * (7 + Math.random() * 5), this.brainC.y - 13 + Math.random() * 3, side * (10 + Math.random() * 12), -14 - Math.random() * 10, 0.9, 0xbfe6ff, 2);
       }
     }
     // ---- the balloon
@@ -319,7 +337,7 @@ export class Vitals {
       m.t -= dt; m.x += m.vx * dt; m.y += m.vy * dt;
       if (m.kind === 2) m.vy += 70 * dt;
       else if (m.kind === 3) { m.vx *= 1 - dt * 2; m.vy *= 1 - dt * 2; }
-      if (m.t <= 0 || m.y > VH + 2) m.on = false;
+      if (m.t <= 0 || m.y > this.H + 2) m.on = false;
     }
   }
 
@@ -357,10 +375,10 @@ export class Vitals {
     if (s.running && !s.dead) { this.runJolt -= dt; if (this.runJolt <= 0) { this.runJolt = 0.3; this.jolt((Math.random() - 0.5) * 34, 8 + Math.random() * 10); } }
     // ---- verlet string: pinned to the weight, the balloon pulls the end up
     const v = this.vol;
-    const R = this.rope, n = R.length, seg = 2.65;
+    const R = this.rope, n = R.length, seg = this.seg, A = this.anchor;
     // how high it floats: full of air the string is taut, spent it rests on the floor by the weight
     const L = seg * (n - 1);
-    const yT = ANCHOR.y - 2 - L * clamp(0.04 + 1.05 * sstep(0.06, 0.9, v), 0, 1);
+    const yT = A.y - 2 - L * clamp(0.04 + 1.05 * sstep(0.06, 0.9, v), 0, 1);
     const steps = 2, h = dt / steps;
     const breeze = Math.sin(this.time * 0.7) * 5 + Math.sin(this.time * 1.9 + 1) * 2;
     for (let st = 0; st < steps; st++) {
@@ -368,13 +386,13 @@ export class Vitals {
         const p = R[i];
         const last = i === n - 1;
         const vy = (p.y - p.py) / h, vx = (p.x - p.px) / h;
-        const ax = last ? breeze * (1.4 - v * 0.6) + (ANCHOR.x - 1 - p.x) * 3 - vx * 0.6 : breeze * 0.2;
+        const ax = last ? breeze * (1.4 - v * 0.6) + (A.x - 1 - p.x) * 3 - vx * 0.6 : breeze * 0.2;
         const ay = last ? (yT - p.y) * (40 + 60 * v) - vy * (2.2 + 2 * v) : 34;
         const damp = last ? 0.99 : 0.96;
         const nx = p.x + (p.x - p.px) * damp + ax * h * h, ny = p.y + (p.y - p.py) * damp + ay * h * h;
         p.px = p.x; p.py = p.y; p.x = nx; p.y = ny;
       }
-      R[0].x = ANCHOR.x; R[0].y = ANCHOR.y; R[0].px = ANCHOR.x; R[0].py = ANCHOR.y;
+      R[0].x = A.x; R[0].y = A.y; R[0].px = A.x; R[0].py = A.y;
       for (let it = 0; it < 8; it++) {
         for (let i = 0; i < n - 1; i++) {
           const a = R[i], b = R[i + 1];
@@ -387,9 +405,9 @@ export class Vitals {
         for (let i = 1; i < n; i++) {
           const p = R[i];
           // the floor, the weight, the walls of our little stage
-          if (p.y > FLOOR) p.y = FLOOR;
-          if (i === n - 1) { p.x = clamp(p.x, BAR.x + BAR.w + 4 + this.bR * 0.6, VW - 2 - this.bR * 0.6); p.y = Math.max(p.y, 4 + this.bR * 2); }
-          if (Math.abs(p.x - ANCHOR.x) < 6 && p.y > ANCHOR.y - 1) p.y = ANCHOR.y - 1;
+          if (p.y > this.floor) p.y = this.floor;
+          if (i === n - 1) { p.x = this.full ? clamp(p.x, BAR.x + BAR.w + 4 + this.bR * 0.6, VW - 2 - this.bR * 0.6) : clamp(p.x, A.x - 12, A.x + 12); p.y = Math.max(p.y, 3 + this.bR * 2); }
+          if (Math.abs(p.x - A.x) < 6 && p.y > A.y - 1) p.y = A.y - 1;
         }
       }
     }
@@ -409,20 +427,25 @@ export class Vitals {
     const P = this.pix;
     P.clear();
     this.drawBrain(P, s);
-    if (s.showPack) this.drawPack(P, s.hover === 'pack');
-    this.drawWeight(P);
-    this.drawBalloon(P, s);
-    this.drawBar(P, s);
-    this.heart.draw(P, HEART.cx, HEART.cy, this.hpShown, s.dead, s.hover === 'bar', { x: BAR.x + 2 + this.sx, y: BAR.y + 7 });
+    if (this.full) {
+      if (s.showPack) this.drawPack(P, s.hover === 'pack');
+      this.drawWeight(P);
+    } else if (this.watchAt) this.drawWatch(P, this.watchAt.x, this.watchAt.y, s.hover === 'watch');
+    if (!s.hideBalloon) this.drawBalloon(P, s);
+    if (this.full) {
+      this.drawBar(P, s);
+      this.heart.draw(P, HEART.cx, HEART.cy, this.hpShown, s.dead, s.hover === 'bar', { x: BAR.x + 2 + this.sx, y: BAR.y + 7 });
+    }
     for (const q of this.drips) if (q.on) {
       const len = q.t < q.hang ? (q.t / q.hang > 0.5 ? 2 : 1) : q.vy > 60 ? 3 : 2;
       for (let i = 0; i < len; i++) P.set(q.x + this.sx, q.y + i, i === 0 && len > 1 ? 0xe03a46 : 0xa8101e);
     }
     for (const m of this.motes) if (m.on && m.kind === 2) { P.set(m.x, m.y, m.c); P.set(m.x, m.y + 1, 0x6aa8e0); }
-    if (s.pumping) this.drawGauge(P, s);
+    if (s.pumping && this.full) this.drawGauge(P, s);
     P.outline(INK, 0.4);
     // over the ink: the string, puffs, sparkles, the critical glow
-    this.drawString(P);
+    if (!s.hideBalloon) this.drawString(P);
+    if (!this.full && !s.hideBalloon) { const ax = Math.round(this.anchor.x), ay = Math.round(this.anchor.y); P.set(ax - 1, ay, 0xe0b450); P.set(ax, ay, 0xfae0a0); P.set(ax + 1, ay, 0xb88e3a); P.set(ax, ay + 1, 0x8a6626); }
     this.heart.drawSteam(P);
     for (const m of this.motes) if (m.on) {
       if (m.kind === 1) { const a = clamp(m.t * 2, 0, 1); P.blend(m.x, m.y, m.c, a); if (m.t > 0.4) { P.blend(m.x - 1, m.y, m.c, a * 0.5); P.blend(m.x + 1, m.y, m.c, a * 0.5); P.blend(m.x, m.y - 1, m.c, a * 0.5); P.blend(m.x, m.y + 1, m.c, a * 0.5); } }
@@ -449,7 +472,7 @@ export class Vitals {
     const stem = STEM.map((c, i) => shade(mix(BRAIN_BAD[i], c, 0.4 + 0.6 * k), dark));
     const veinOn = s.dead ? 0 : 1 - san;
     const veinC = mix(0x5a0a2a, 0xd8203c, clamp(env * 0.9 + (1 - san) * 0.3, 0, 1));
-    const cx = BRAIN.cx + jx, cy = BRAIN.cy + jy;
+    const cx = this.brainC.x + jx, cy = this.brainC.y + jy;
     const R = 25;
     for (let y = cy - R; y <= cy + R; y++) for (let x = cx - R; x <= cx + R; x++) {
       const bx = Math.floor((x + 0.5 - cx) / sqx + BCX), by = Math.floor((y + 0.5 - cy) / sqy + BCY);
@@ -474,7 +497,7 @@ export class Vitals {
     for (let by = 0; by < BH; by++) for (let bx = 0; bx < BW; bx++) {
       const i = by * BW + bx;
       if (B.crack[i] > 0 && san < B.crack[i] && hash(bx, by, Math.floor(this.time * 8)) < 0.35 + a * 0.4) {
-        const x = Math.round((bx + 0.5 - BCX) * throb + BRAIN.cx - 0.5), y = Math.round((by + 0.5 - BCY) * throb + BRAIN.cy - 0.5);
+        const x = Math.round((bx + 0.5 - BCX) * throb + this.brainC.x - 0.5), y = Math.round((by + 0.5 - BCY) * throb + this.brainC.y - 0.5);
         P.blend(x, y, 0x8affa8, 0.55 + a * 0.4);
       }
     }
@@ -591,7 +614,7 @@ export class Vitals {
   }
   private drawString(P: Pix) {
     const R = this.rope;
-    for (let i = 0; i < R.length - 1; i++) P.line(R[i].x, R[i].y - (i === 0 ? 2 : 0), R[i + 1].x, R[i + 1].y, STRING, 0.95);
+    for (let i = 0; i < R.length - 1; i++) P.line(R[i].x, R[i].y - (i === 0 && this.full ? 2 : 0), R[i + 1].x, R[i + 1].y, STRING, 0.95);
   }
   private drawBalloon(P: Pix, s: VitalsIn) {
     const K = this.rope[this.rope.length - 1];
@@ -662,8 +685,40 @@ export class Vitals {
     }
   }
 
+  /** the watch icon (rig overlay): a strap, a brass case, a dark tube that glows green and types when a note comes in */
+  private drawWatch(P: Pix, cx: number, cy: number, hov: boolean) {
+    const x0 = Math.round(cx) - 8, y0 = Math.round(cy) - 8 - (hov ? 1 : 0);
+    const lit = this.watchLit;
+    for (let j = 0; j < 16; j++) for (let i = 0; i < 16; i++) {
+      let c = -1;
+      // the strap, top and bottom
+      if (i >= 5 && i <= 10 && (j < 3 || j > 12)) c = (j + i) % 3 === 0 ? 0x3a2a1a : 0x5a4028;
+      // the case: chamfered brass with a steel bezel
+      const ci = Math.min(i - 1, 14 - i), cj = Math.min(j - 3, 12 - j);
+      if (i >= 1 && i <= 14 && j >= 3 && j <= 12 && ci + cj >= 1) {
+        c = ci === 0 || cj === 0 ? (j < 7 ? 0xf0c860 : 0x8a6626) : 0x6a7076;
+        // the tube
+        if (ci >= 2 && cj >= 1 && i <= 11) {
+          c = lit > 0 ? (Math.floor(this.time * 6) % 2 && lit < 0.5 ? 0x1c4a2a : 0x2a8a4a) : 0x142018;
+          if (lit > 0 && (j === 6 || j === 9) && i >= 4 && i <= 4 + ((Math.floor(this.time * 10) + j) % 7)) c = 0xb8ffc8;
+          if (lit <= 0 && i === 4 && j === 5) c = 0x3a5a44;
+        }
+        if (i === 13 && (j === 6 || j === 9)) c = 0xd8dee4;
+      }
+      if (c < 0) continue;
+      if (hov) c = mix(c, 0xffffff, 0.15);
+      P.set(x0 + i, y0 + j, c);
+    }
+  }
+
   // ================================================================ hit tests (HUD px)
-  pick(x: number, y: number, showPack: boolean): 'brain' | 'bar' | 'balloon' | 'pack' | null {
+  pick(x: number, y: number, showPack: boolean): 'brain' | 'bar' | 'balloon' | 'pack' | 'watch' | null {
+    if (!this.full) {
+      if (this.watchAt && Math.abs(x - this.watchAt.x) <= 10 && Math.abs(y - this.watchAt.y) <= 10) return 'watch';
+      if (Math.hypot(x - this.bCx, (y - this.bCy) * 0.9) < this.bR + 3) return 'balloon';
+      if (Math.hypot((x - this.brainC.x) / 22, (y - this.brainC.y) / 18) < 1.05) return 'brain';
+      return null;
+    }
     if (x >= BAR.x - 1 && x <= BAR.x + BAR.w + 1 && y >= BAR.y - 2 && y <= BAR.y + BAR.h + 1) return 'bar';
     if (x >= HEART.x + 2 && x < HEART.x + HEART.w && y >= HEART.y + 4 && y < HEART.y + HEART.h) return 'bar';
     if (showPack && x >= PACK.x - 1 && x <= PACK.x + PACK.w && y >= PACK.y - 1 && y <= PACK.y + PACK.h) return 'pack';

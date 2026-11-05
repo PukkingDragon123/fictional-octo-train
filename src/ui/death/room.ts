@@ -156,7 +156,7 @@ export class ObsRoom {
       this.renderer.setPixelRatio(1);
       this.renderer.setClearColor(0x000000, 1);
       this.renderer.shadowMap.enabled = true;
-      this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      this.renderer.shadowMap.type = THREE.PCFShadowMap;
       const nsd = new THREE.DepthTexture(1, 1);
       nsd.compareFunction = THREE.LessEqualCompare;
       this.noShadow = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true, depthTexture: nsd });
