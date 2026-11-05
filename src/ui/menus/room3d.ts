@@ -421,8 +421,8 @@ export class SubjectRoom {
     mk('L', [1.75, 2.75, ROOM.BACK + 0.02], 1.7, 1.6, [0.6, 0.8, -0.6], [1.75, 2.6, ROOM.BACK - 1.2], 'claw', [1, 0, 0]);
     mk('R', [-1.75, 2.75, ROOM.BACK + 0.02], 1.7, 1.6, [-0.6, 0.8, -0.6], [-1.75, 2.6, ROOM.BACK - 1.2], 'claw', [-1, 0, 0]);
     mk('H', [0, ROOM.H - 0.02, -0.95], 1.35, 1.25, [0, 0.4, -1], [0, ROOM.H + 1.2, -0.95], 'claw', [0, 1, -1]);
-    mk('T', [-1.75, ROOM.H - 0.02, 0.9], 1.75, 1.7, [-1, 0.4, 0.3], [-1.75, ROOM.H + 1.4, 0.9], 'tool', [-1, 0.2, 0.25]);
-    mk('S', [1.75, ROOM.H - 0.02, 0.9], 1.7, 1.6, [1, 0.4, 0.3], [1.75, ROOM.H + 1.3, 0.9], 'scan', [1, 0.35, 0.4]);
+    mk('T', [-1.55, ROOM.H - 0.02, 0.15], 1.75, 1.7, [-1, 0.5, -0.2], [-1.55, ROOM.H + 1.4, 0.15], 'tool', [-1, 0.2, 0.25]);
+    mk('S', [1.55, ROOM.H - 0.02, 0.2], 1.7, 1.6, [1, 0.5, -0.2], [1.55, ROOM.H + 1.3, 0.2], 'scan', [1, 0.35, 0.4]);
     // the scanner arm always carries the scanner
     const sc = this.toolModel('scanner');
     this.arms[4].mount.add(sc.group); this.arms[4].tool = sc;
@@ -566,6 +566,8 @@ export class SubjectRoom {
     this.shotT0 = this.t; this.shotDur = Math.max(0.001, ms / 1000);
     if (ms <= 0) { this.shotT0 = -10; }
   }
+  /** pull the close-ups back a little (1 = as framed; the operations use ~1.3 so the tool is in the picture) */
+  setZoom(z: number) { this.zoom = Math.max(0.6, Math.min(1.8, z)); }
   /** a little push in (a flourish, a hit) */
   bump(k = 0.05) { this.punch = Math.max(this.punch, k); }
 
@@ -719,8 +721,7 @@ export class SubjectRoom {
     this.op.manual = true;
     this.op.local.copy(hit.point); bone.worldToLocal(this.op.local);
     const n = hit.face ? this.v1.copy(hit.face.normal).transformDirection(this.rig.skin.matrixWorld) : this.v1.set(0, 0, 1);
-    // blend toward the camera so the tool comes from the viewer's side, never through him
-    n.lerp(this.v2.copy(this.cam.position).sub(hit.point).normalize(), 0.45).normalize();
+    n.lerp(this.v2.copy(this.cam.position).sub(hit.point).normalize(), 0.25).normalize();
     this.op.localN.copy(n).transformDirection(this.m1.copy(bone.matrixWorld).invert());
     this.op.resolved = true;
     return true;
@@ -1552,12 +1553,13 @@ export class SubjectRoom {
     const bone = rig.bones[op.bone] ?? rig.bones.head;
     op.wp.copy(op.local); bone.localToWorld(op.wp);
     op.wn.copy(op.localN).transformDirection(bone.matrixWorld);
-    // the tool comes from its side of the room and a little above, never through him
+    // the tool comes in from the left of the picture and a little above (never between the lens and him, never through him)
     const T = this.arms[3];
-    const app = op.app.copy(op.wn).addScaledVector(T.side, 0.35).add(this.v1.set(0, 0.22, 0));
+    const cr = this.v2.setFromMatrixColumn(this.cam.matrixWorld, 0), cu = this.v3.setFromMatrixColumn(this.cam.matrixWorld, 1), cb = this.v4.setFromMatrixColumn(this.cam.matrixWorld, 2);
+    const app = op.app.copy(op.wn).multiplyScalar(0.5).addScaledVector(cr, -0.95).addScaledVector(cu, 0.4).addScaledVector(cb, 0.12);
     if (op.wild > 0) app.add(this.v1.set(Math.sin(this.t * 23) * op.wild, Math.cos(this.t * 17) * op.wild * 0.6, Math.sin(this.t * 13) * op.wild * 0.4));
     app.normalize();
-    if (app.dot(op.wn) < 0.35) app.addScaledVector(op.wn, 0.6).normalize();
+    if (app.dot(op.wn) < 0.15) app.addScaledVector(op.wn, 0.5).normalize();
     // the strike: lunge in, land, back out
     if (op.strikeT >= 0) {
       op.strikeT += dt / 0.32;
@@ -1728,7 +1730,7 @@ export class SubjectRoom {
     if (!this.rig || !this.subj.visible || this.mode !== 'lit' || !a.tool) { ph.goal.copy(a.stow); return; }
     const p = this.scanPoint(this.v1);
     const t = this.t;
-    const dir = this.v2.copy(a.side).add(this.v3.set(0, 0.25, 1.1)).normalize();
+    const dir = this.v2.setFromMatrixColumn(this.cam.matrixWorld, 0).multiplyScalar(0.85).addScaledVector(this.v3.setFromMatrixColumn(this.cam.matrixWorld, 1), 0.5).addScaledVector(this.v5.setFromMatrixColumn(this.cam.matrixWorld, 2), 0.3).normalize();
     const d = this.scanOn ? a.tool.standoff + a.tool.len : 0.75;
     ph.goal.copy(p).addScaledVector(dir, d);
     if (!this.scanOn) ph.goal.y += 0.35;

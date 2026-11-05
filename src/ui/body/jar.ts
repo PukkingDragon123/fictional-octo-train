@@ -1,4 +1,4 @@
-// The stomach's simulation (jar3d.ts draws it, in the jar's own 2D side-view coordinates): a glass jar of acid. Food you eat drops in through the lid and
+// The stomach's simulation (no longer drawn; the HUD shows it through moodles): a glass jar of acid. Food you eat drops in through the lid and
 // slowly dissolves (bubbling, shrinking, settling into the murk at the bottom,
 // whose height is how fed you are). Bad food cracks the jar; inflammation and
 // food poisoning raise the acid so the jar fills sooner and you cannot eat

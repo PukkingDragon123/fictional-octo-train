@@ -877,10 +877,10 @@ export class Intro implements GameSystem {
         // steam off the vents, the beacon going round, the glove on the forearm, his face beyond it
         const st = this.stamp!;
         const k = clamp01(t / 1.2);
-        // (from the debtor's left, in front: the die over the arm, his face beyond it, the officer across the bed)
-        st.world(V6.set(0.15 - k * 0.03, 0.9 + k * 0.02, -0.8 + k * 0.06), pos);
-        st.world(V6.set(-0.33, 0.96, 0.06), look);
-        return 54;
+        // (from across the bed, beside the officer: the die coming down over the arm, the debtor's face under the lamp beyond it)
+        st.world(V6.set(0.16 - k * 0.03, 0.98 - k * 0.04, 0.8 - k * 0.06), pos);
+        st.world(V6.set(-0.3, 0.95, 0.04), look);
+        return 52;
       }
       case 'stampMacro': {
         // a macro on the wrist: the band clamped on, the die lifting off it in steam, blood under it, the number lighting up
@@ -945,7 +945,7 @@ export class Intro implements GameSystem {
       if (ph === 'fit' && this.stamp) {
         // the station's caged work lamp is the key: a hard warm pool on the bed and the arm, the rest falls to black
         const st = this.stamp;
-        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xffd2a0, 7 * st.lamp, 0.58, this.t < 0.1);
+        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xffd2a0, 7 * st.lamp, 0.74, this.t < 0.1);
       }
       else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
     } else {
@@ -1008,7 +1008,7 @@ export class Intro implements GameSystem {
       case 'beatTop': focus = d(head); ap = 0.2; break;
       case 'haulCrane': focus = d(head); ap = 0.12; break;
       case 'pressClose': focus = d(v4.set(IX.press.x + 0.1, GP.bedH + 0.2, IX.press.z + 0.4)); ap = 0.22; break;
-      case 'stampSide': focus = d(this.stamp!.dieWorld(v4)); ap = 0.32; break;
+      case 'stampSide': focus = this.shotT < 0.6 ? d(this.stamp!.dieWorld(v4)) : d(head); ap = 0.26; break;
       case 'stampMacro': focus = d(this.stamp!.world(v4.set(ST.DIE_X, ST.ARM_Y + 0.05, 0))); ap = 0.28; break;
       case 'tapeWide': focus = d(head); ap = 0.18; break;
       default: if (this.phase === 'fit' && this.stampEye && this.stamp) {

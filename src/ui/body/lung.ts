@@ -1,4 +1,4 @@
-// The lungs' simulation (lung3d.ts draws them): stamina as a pair of rubber balloons on a brass valve. They
+// The lungs' simulation (the HUD draws stamina as the balloon in vitals.ts; this keeps strain and the breathing pump). They
 // breathe with you, shrink as endurance runs out, swell and strain while you
 // run, and flutter in a panic. Blood that splashes on you gets in and pools at
 // the bottom (less room until you cough it out). Under them sits an air gauge:

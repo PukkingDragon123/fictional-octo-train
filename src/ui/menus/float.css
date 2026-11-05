@@ -89,7 +89,7 @@
 .mr-word:hover, .mr-word:focus { color: #fff4cf; transform: translateY(-3px); }
 .mr-word:hover .ft-ptr, .mr-word:focus .ft-ptr { width: 22px; }
 .mr-word:active { transform: translateY(1px); color: #d9b878; transition-duration: 0.04s; }
-.mr-tip { position: absolute; right: max(4vw, 20px); top: calc(7vh + 22px); font-size: 16px; color: rgba(232, 222, 200, 0.7); text-shadow: var(--text-ink); }
+.mr-tip { position: absolute; left: max(4vw, 20px); top: calc(7vh + 56px); font-size: 16px; color: rgba(232, 222, 200, 0.7); text-shadow: var(--text-ink); }
 @media (max-aspect-ratio: 20/21) {
   .mr-cam { top: 14px; left: 14px; font-size: 16px; gap: 10px; flex-wrap: wrap; max-width: calc(100vw - 28px); }
   .mr-cam b, .mr-cam .nm { font-size: 32px; }
@@ -104,7 +104,7 @@
 @media (max-height: 519px) {
   .mr-cam { top: 10px; font-size: 16px; }
   .mr-cam b, .mr-cam .nm { font-size: 16px; }
-  .mr-tip { top: 12px; }
+  .mr-tip { top: 34px; }
   .mr-acts { bottom: 56px; }
   .mr-bar { bottom: 8px; }
   .mr-word { font-size: 16px; }

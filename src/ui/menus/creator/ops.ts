@@ -59,6 +59,7 @@ export async function runOp(o: OpRun): Promise<GameResult> {
   if (def.paint !== undefined) room.setPaint(def.paint);
   room.useTool(def.tool, def.anchor);
   room.toolWork(0);
+  room.setZoom(1.32);
   if (def.shot) void room.shot(def.shot, 650);
   sfx('servo', 0.6);
   // let the arm change tools and get there (it is physical: it takes a moment)
@@ -74,5 +75,6 @@ export async function runOp(o: OpRun): Promise<GameResult> {
   if (res.grade === 'perfect' && !res.skipped) sfx('perfect', 0.8);
   o.verdict?.(res.grade, res.skipped, resultWords(res.grade, def.tool));
   room.toolWork(0); room.toolRun(0); room.toolPress(0);
+  room.setZoom(1);
   return res;
 }

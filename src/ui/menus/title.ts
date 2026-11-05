@@ -41,6 +41,7 @@ import { ContainmentRoom } from './rooms/containment';
 import { LabRoom } from './rooms/lab';
 import { SubjectView } from './rooms/subject';
 import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRooms';
+import { installDecoAndGuide, onBuildMode } from './deco';
 import * as THREE from 'three';
 
 export function showTitle() {
@@ -108,6 +109,8 @@ class TitleRoom {
     this.g = g;
     this.root.append(this.stageHost, this.subjHost, this.menu, this.feedNav, this.hud, this.hotcap, this.foot, this.over);
     document.body.append(this.root);
+    // what the decorator hides while building / shopping
+    for (const e of [this.menu, this.feedNav, this.hud, this.hotcap, this.foot]) e.setAttribute('data-deco-hide', '');
     this.fx = new CrtFx(this.root);
     // the subject room first (its frame runs before the stage's each animation frame: the feed copy relies on it)
     this.room = new SubjectRoom(this.subjHost);
@@ -147,6 +150,9 @@ class TitleRoom {
     void this.stage.warm();
     setActiveMenuRoom('monitor');
     this.buildFeedButtons();
+    // the decorator (blueprint mode, collectibles) and the researcher guide; build mode gets a shot of the floor
+    installDecoAndGuide({ root: this.root });
+    onBuildMode((id) => { mon.setBuild(id === 'monitor'); con.setBuild(id === 'containment'); lab.setBuild(id === 'lab'); });
   }
   /** a pointer ray onto the room's floor or the highest surface it crosses */
   private pickFloor(x: number, y: number, floorY: number, surfaces: { minX: number; maxX: number; minZ: number; maxZ: number; y: number }[] = []): THREE.Vector3 | null {

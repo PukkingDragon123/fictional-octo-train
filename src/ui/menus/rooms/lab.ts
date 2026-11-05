@@ -41,7 +41,7 @@ export class LabRoom implements StageRoom {
   hots: Hot[] = [];
   grade: Grade = { exposure: 1.55, lift: [0.86, 0.98, 1.06], gain: [1.06, 1.02, 0.9], vig: 0.95, sat: 0.92, contrast: 1.1 };
   deco = new THREE.Group();
-  floor = { minX: -W + 0.4, maxX: W - 0.4, minZ: 0.4, maxZ: FRONT - 0.4, y: 0 };
+  floor = { minX: -W + 0.8, maxX: W - 0.6, minZ: 0.2, maxZ: 1.6, y: 0 };
   surfaces = [{ minX: -W + 0.05, maxX: -W + 0.7, minZ: -1.4, maxZ: 1.8, y: 0.92 }, { minX: 1.6, maxX: 2.9, minZ: -2.95, maxZ: -2.45, y: 0.92 }];
   guideSpot = { pos: new THREE.Vector3(0.9, 0, 0.6), look: new THREE.Vector3(-0.2, 1.1, -0.7) };
   actions: { key: string; label: string; run: () => void }[] = [];
@@ -71,6 +71,8 @@ export class LabRoom implements StageRoom {
   private ptr = new THREE.Vector2(); private ptrS = new THREE.Vector2();
   private v = new THREE.Vector3(); private v2 = new THREE.Vector3(); private v3 = new THREE.Vector3(); private q = new THREE.Quaternion();
   private t = 0;
+  private build = 0; private buildT = 0;
+  private buildPos = new THREE.Vector3(1.2, 2.7, 3.15); private buildLook = new THREE.Vector3(-0.1, 0.3, 0.2);
 
   constructor(mats: FMats) {
     this.mats = mats;
@@ -307,7 +309,7 @@ export class LabRoom implements StageRoom {
       b.add('rubber', tube([[0, 0.34 + TH + 0.2, 0], [0.15, H - 0.1, -0.1], [0.4, H, -0.4]], 0.03, 8, 5), 0x1a1a1a);
       b.add('rubber', tube([[R + 0.06, 0.12, 0], [R + 0.3, 0.05, 0.1], [R + 0.6, 0.02, 0.1]], 0.025, 8, 4), 0x1a1a1a);
       g.add(b.build(this.mats));
-      const fluid = new THREE.MeshBasicMaterial({ color: 0x2a8a3a, transparent: true, opacity: 0.32, depthWrite: false, toneMapped: false });
+      const fluid = new THREE.MeshBasicMaterial({ color: 0x2a8a3a, transparent: true, opacity: 0.5, depthWrite: false, toneMapped: false });
       const fm = new THREE.Mesh(lathe([[0, 0.34], [R - 0.01, 0.34], [R - 0.01, 0.34 + TH * 0.93], [0, 0.34 + TH * 0.93]], 10), fluid);
       fm.userData.noGlow = true; fm.renderOrder = 3;
       g.add(fm);
@@ -450,6 +452,8 @@ export class LabRoom implements StageRoom {
   private flipBoard() { this.board.flip = 1; uiSound('creak', 0.7); }
   private toggleLamp() { this.surgOn = this.surgOn ? 0 : 1; this.lampW.kick(0.8); uiSound('click', 1); }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); }
+  /** the decorator's build mode: up and back, looking down on the floor */
+  setBuild(on: boolean) { this.buildT = on ? 1 : 0; }
 
   // ================================================================== frame
   frame(aspect: number, portrait: boolean) {
@@ -481,7 +485,7 @@ export class LabRoom implements StageRoom {
       tk.kick = Math.max(0, tk.kick - dt * 1.5);
       const pulse = 0.85 + 0.15 * Math.sin(t * 1.3 + tk.seed);
       tk.light.intensity = 0.45 * pulse + tk.boil * 0.8;
-      tk.fluid.color.setRGB(0.1 + tk.boil * 0.1, 0.48 * pulse + tk.boil * 0.2, 0.18);
+      tk.fluid.color.setRGB(0.03 + tk.boil * 0.1, 0.22 * pulse + tk.boil * 0.2, 0.09);
       if (full && Math.random() < dt * (2 + tk.boil * 30)) this.puffs.emit(this.v.set(tk.g.position.x + (Math.random() - 0.5) * 0.5, 0.45, tk.g.position.z + (Math.random() - 0.5) * 0.5), new THREE.Vector3(0, 0.2 + tk.boil * 0.3, 0), { life: 2.6, s0: 0.006, s1: 0.016, color: 0x8aff9a, rise: 0.25 });
       const r = tk.rig;
       if (r) {
@@ -514,6 +518,13 @@ export class LabRoom implements StageRoom {
     this.updateRig(dt, t);
     if (!full) return;
     this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 3, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 3, dt);
+    this.build = damp(this.build, this.buildT, 3, dt);
+    if (this.build > 0.002) {
+      const k = this.build;
+      this.cam.position.lerpVectors(this.camPos, this.buildPos, k);
+      this.cam.lookAt(this.v.lerpVectors(this.camLook, this.buildLook, k));
+      return;
+    }
     this.cam.position.set(this.camPos.x - this.ptrS.x * 0.2 + Math.sin(t * 0.27) * 0.012, this.camPos.y + this.ptrS.y * 0.06 + Math.sin(t * 0.39) * 0.008, this.camPos.z);
     this.cam.lookAt(this.v.set(this.camLook.x + this.ptrS.x * 0.3, this.camLook.y - this.ptrS.y * 0.12, this.camLook.z));
   }

@@ -102,7 +102,7 @@ export class ContainmentRoom implements StageRoom {
   hots: Hot[] = [];
   grade: Grade = { exposure: 1.6, lift: [0.84, 0.96, 1.12], gain: [1.08, 1.0, 0.86], vig: 1.0, sat: 0.95, contrast: 1.12 };
   deco = new THREE.Group();
-  floor = { minX: -W + 0.3, maxX: W - 0.3, minZ: 0.5, maxZ: FRONT - 0.4, y: 0 };
+  floor = { minX: -W + 0.6, maxX: W - 0.6, minZ: 0.45, maxZ: 1.5, y: 0 };
   surfaces = [{ minX: -W + 0.1, maxX: -W + 0.5, minZ: 0.7, maxZ: 2.3, y: 1.42 }, { minX: -W + 0.1, maxX: -W + 0.5, minZ: 0.7, maxZ: 2.3, y: 0.92 }];
   guideSpot = { pos: new THREE.Vector3(-1.2, 0, 1.1), look: new THREE.Vector3(0, 1.4, -2.2) };
   /** actions with DOM twins (title.ts lists them in the room's HUD) */
@@ -138,6 +138,8 @@ export class ContainmentRoom implements StageRoom {
   private camPos = new THREE.Vector3(0.32, 1.48, 1.6); private camLook = new THREE.Vector3(0, 1.3, -2.3);
   private ptr = new THREE.Vector2(); private ptrS = new THREE.Vector2();
   private shake = 0;
+  private build = 0; private buildT = 0;
+  private buildPos = new THREE.Vector3(0.3, 2.55, 3.2); private buildLook = new THREE.Vector3(0, 0.4, 0.4);
   private v = new THREE.Vector3(); private v2 = new THREE.Vector3();
   private t = 0;
 
@@ -474,6 +476,8 @@ export class ContainmentRoom implements StageRoom {
     for (let i = 0; i < 6; i++) this.puffs.emit(this.v.set(p.x + (Math.random() - 0.5) * 0.05, p.y + 0.05 + Math.random() * 0.1, p.z + (Math.random() - 0.5) * 0.05), new THREE.Vector3(0, 0.12, 0), { life: 0.8, s0: 0.004, s1: 0.012, color: 0x9aff8a, rise: 0.1 });
   }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); }
+  /** the decorator's build mode: up and back, looking down on the corridor floor */
+  setBuild(on: boolean) { this.buildT = on ? 1 : 0; }
 
   // ================================================================== frame
   frame(aspect: number, portrait: boolean) {
@@ -531,6 +535,13 @@ export class ContainmentRoom implements StageRoom {
     this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 3, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 3, dt);
     this.shake = Math.max(0, this.shake - dt * 2);
     const sh = this.shake * this.shake;
+    this.build = damp(this.build, this.buildT, 3, dt);
+    if (this.build > 0.002) {
+      const k = this.build;
+      this.cam.position.lerpVectors(this.camPos, this.buildPos, k);
+      this.cam.lookAt(this.v.lerpVectors(this.camLook, this.buildLook, k));
+      return;
+    }
     this.cam.position.set(this.camPos.x - this.ptrS.x * 0.18 + (Math.random() - 0.5) * sh * 0.06 + Math.sin(t * 0.3) * 0.01, this.camPos.y + this.ptrS.y * 0.06 + (Math.random() - 0.5) * sh * 0.05, this.camPos.z);
     this.cam.lookAt(this.v.set(this.camLook.x + this.ptrS.x * 0.25, this.camLook.y - this.ptrS.y * 0.1, this.camLook.z));
   }

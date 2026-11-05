@@ -47,13 +47,13 @@ export class MonitorRoom implements StageRoom {
   grade: Grade = { exposure: 1.75, lift: [0.84, 0.98, 1.08], gain: [1.06, 1.02, 0.9], vig: 1.0, sat: 0.92, contrast: 1.1, side: [1, 0, 0.3, 0.42] };
   /** the decorator's group (collectibles) */
   deco = new THREE.Group();
-  floor = { minX: -W + 0.3, maxX: W - 0.3, minZ: DESK_Z1 + 0.25, maxZ: FRONT - 0.4, y: 0 };
+  floor = { minX: -W + 0.3, maxX: W - 0.3, minZ: DESK_Z1 + 0.25, maxZ: 1.2, y: 0 };
   surfaces = [
     { minX: -1.8, maxX: 1.8, minZ: -0.92, maxZ: DESK_Z1 + 0.04, y: DESK_Y + 0.025 },
     { minX: -1.7, maxX: 1.7, minZ: -1.98, maxZ: -1.72, y: 2.47 },
     { minX: W - 0.62, maxX: W - 0.08, minZ: 1.0, maxZ: 1.5, y: 1.06 },
   ];
-  guideSpot = { pos: new THREE.Vector3(-1.25, 0, 0.35), look: new THREE.Vector3(0.2, 1.3, -1.6) };
+  guideSpot = { pos: new THREE.Vector3(1.7, 0, 0.3), look: new THREE.Vector3(0.4, 1.6, 1.9) };
   feeds: FeedSet[] = [];
   /** a feed tube was pressed */
   onFeed?: (k: FeedKey) => void;
@@ -92,6 +92,8 @@ export class MonitorRoom implements StageRoom {
   private camPos = new THREE.Vector3(); private camLook = new THREE.Vector3(); private camFov = 48;
   private ptr = new THREE.Vector2(); private ptrS = new THREE.Vector2();
   private lean: FeedSet | null = null;
+  private build = false;
+  private buildPose = { pos: new THREE.Vector3(0.35, 2.45, 2.35), look: new THREE.Vector3(0.05, 0.35, -0.55), fov: 62 };
   private flight: { from: { pos: THREE.Vector3; look: THREE.Vector3; fov: number }; to: { pos: THREE.Vector3; look: THREE.Vector3; fov: number }; t: number; dur: number; ease: (k: number) => number; res: () => void; fr: number } | null = null;
   private capT = 0; private blinkOn = false;
   private v = new THREE.Vector3();
@@ -581,6 +583,8 @@ export class MonitorRoom implements StageRoom {
     return [[-w, -h], [w, -h], [w, h], [-w, h]].map(([x, y]) => new THREE.Vector3(x, y, 0.02).applyMatrix4(f.spot.m));
   }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); }
+  /** the decorator's build mode: a high shot down on the desk and the floor in front of it */
+  setBuild(on: boolean) { this.build = on; if (on) this.lean = null; }
   /** hover a feed from its DOM twin */
   leanTo(key: FeedKey | null) {
     for (const f of this.feeds) { const on = f.key === key; f.tube.hover = on ? 1 : 0; f.lamp.level = on ? 1 : 0.2; }
@@ -654,7 +658,7 @@ export class MonitorRoom implements StageRoom {
     if (this.tubeNext < 0) { this.tubeDrop = Math.random() < 0.5 ? 0.06 + Math.random() * 0.3 : 0; this.tubeNext = 1.5 + Math.random() * 5; }
     this.tubeDrop = Math.max(0, this.tubeDrop - dt);
     const tl = this.tubeK * (this.tubeDrop > 0 ? (Math.random() < 0.5 ? 0.1 : 0.6) : 1);
-    this.tubeLight.intensity = 1.25 * tl;
+    this.tubeLight.intensity = 4.5 * tl;
     this.tubeMat.color.setScalar(0.08 + 1.6 * tl);
     this.alarmT = Math.max(0, this.alarmT - dt);
     this.alarm.intensity = this.alarmT > 0 ? 7 * Math.max(0, Math.sin(t * 9)) : 0;
@@ -725,13 +729,14 @@ export class MonitorRoom implements StageRoom {
       if (k >= 1) { this.flight = null; fl.res(); }
     } else {
       this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 3, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 3, dt);
-      const lp = this.v.copy(this.home.look);
-      let fov = this.home.fov;
-      if (this.lean && !this.portrait) { lp.lerp(this.lean.spot.center, 0.12); fov -= 1.5; }
+      const H0 = this.build ? this.buildPose : this.home;
+      const lp = this.v.copy(H0.look);
+      let fov = this.build ? (this.portrait ? Math.min(90, H0.fov * 1.35) : H0.fov) : H0.fov;
+      if (this.lean && !this.portrait && !this.build) { lp.lerp(this.lean.spot.center, 0.12); fov -= 1.5; }
       this.camLook.set(damp(this.camLook.x, lp.x + this.ptrS.x * 0.12, 3, dt), damp(this.camLook.y, lp.y - this.ptrS.y * 0.06, 3, dt), damp(this.camLook.z, lp.z, 3, dt));
-      this.camPos.set(damp(this.camPos.x, this.home.pos.x - this.ptrS.x * 0.06, 2.5, dt), damp(this.camPos.y, this.home.pos.y + this.ptrS.y * 0.03, 2.5, dt), damp(this.camPos.z, this.home.pos.z, 2.5, dt));
+      this.camPos.set(damp(this.camPos.x, H0.pos.x - this.ptrS.x * 0.06, 2.5, dt), damp(this.camPos.y, H0.pos.y + this.ptrS.y * 0.03, 2.5, dt), damp(this.camPos.z, H0.pos.z, 2.5, dt));
       this.camFov = damp(this.camFov, fov, 4, dt);
-      this.frX = damp(this.frX, this.frXT, 4, dt); this.frY = damp(this.frY, this.frYT, 4, dt);
+      this.frX = damp(this.frX, this.build ? 0 : this.frXT, 4, dt); this.frY = damp(this.frY, this.build ? 0 : this.frYT, 4, dt);
     }
     const nx = Math.sin(t * 0.29) * 0.006 + Math.sin(t * 0.71 + 1) * 0.003, ny = Math.sin(t * 0.41 + 2) * 0.004;
     this.cam.position.set(this.camPos.x + nx, this.camPos.y + ny, this.camPos.z);
