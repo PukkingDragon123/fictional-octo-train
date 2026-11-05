@@ -101,13 +101,18 @@ export class PhysArm {
     }
     this.impact = impact;
     // the head: an angular spring toward the aim (or the forearm), leaning into accelerations
-    this.accel.subVectors(this.tipV, this.lastV).divideScalar(Math.max(1e-4, dt));
+    this.accel.subVectors(this.tipV, this.lastV).divideScalar(Math.max(1 / 60, dt)).clampLength(0, 60);
     this.lastV.copy(this.tipV);
     const want = this.aimGoal ? tA.copy(this.aimGoal).normalize() : tA.subVectors(this.tip, this.elbow).normalize();
     want.addScaledVector(this.accel, -this.wobble * 0.02).normalize();
-    tB.subVectors(want, this.aim).multiplyScalar(this.ak).addScaledVector(this.aimV, -this.ac);
-    this.aimV.addScaledVector(tB, dt);
-    this.aim.addScaledVector(this.aimV, dt).normalize();
+    for (let rem = dt; rem > 1e-6; rem -= 1 / 120) {
+      const h = Math.min(rem, 1 / 120);
+      tB.subVectors(want, this.aim).multiplyScalar(this.ak).addScaledVector(this.aimV, -this.ac);
+      this.aimV.addScaledVector(tB, h);
+      this.aim.addScaledVector(this.aimV, h).normalize();
+    }
+    if (!isFinite(this.aim.x)) { this.aim.copy(want); this.aimV.set(0, 0, 0); }
+    if (!isFinite(this.tip.x)) { this.tip.copy(this.goal); this.tipV.set(0, 0, 0); this.solveElbow(this.elbow); this.elbowV.set(0, 0, 0); }
   }
   /** pose the meshes: shoulder segment (base→elbow), forearm (elbow→wrist), head (at the wrist, along aim) */
   pose(seg1: THREE.Object3D, seg2: THREE.Object3D, head: THREE.Object3D) {

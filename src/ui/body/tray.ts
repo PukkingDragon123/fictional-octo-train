@@ -6,7 +6,7 @@
 // orange, red-orange, red; green for the good ones) with 1–4 pips along the
 // bottom. Drawn into a small buffer (pix.ts) and integer-upscaled like the
 // rest of the HUD. The health bar, the brain and the balloon already show
-// injury, lucidity and exertion, so those three stay off the tray.
+// injury, lucidity and exertion, and the stomach jar food and water, so those stay off the tray.
 import { Pix, mix, shade, bayer } from './pix';
 import { moodleArt } from '../moodles';
 
@@ -14,7 +14,7 @@ export const SLOT = 20, PLATE = 18, PAD = 4;
 const INK = 0x0a0b10;
 /** shown left to right in this order (stable, so nothing jumps about) */
 const ORDER = ['attack', 'bleeding', 'pain', 'panic', 'fever', 'sick', 'hunger', 'thirst', 'fatigue', 'cold', 'hot', 'wet', 'stress', 'unhappy', 'lonely', 'boredom', 'drunk', 'heavy', 'corruption', 'stuffed'];
-const SKIP = new Set(['injured', 'endurance', 'lucidity']);
+const SKIP = new Set(['injured', 'endurance', 'lucidity', 'hunger', 'thirst', 'stuffed']);
 const TINT = [0x8a8a7a, 0xc8b040, 0xe08a2a, 0xe04a26, 0xd01c1c];
 const GOOD = 0x4aa83e;
 

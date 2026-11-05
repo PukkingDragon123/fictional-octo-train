@@ -1,23 +1,45 @@
-// Sound for the operating table: plays the cyber recipes (src/audio/sounds_cyber.ts)
-// and this theatre's own (straps, body thuds, turret clunks, relays, keys,
-// rockers, the lever's ratchet, bone) through the game's AudioContext when one
-// exists, or a private one in the menus. Buffers are synthesised once and
-// cached. Loops (servo whine, drill, saw, torch, room hum) are seamless voices
-// whose volume and pitch follow the machines frame by frame (csfxVoice).
+// Sound for the operating table: the cyber keys (cy_*) and this theatre's own
+// (straps, body thuds, turret clunks, relays, keys, rockers, the lever's
+// ratchet, bone) through the game's AudioContext when one exists, or a private
+// one in the menus. They are recorded CC0 samples (src/audio/samples.ts); the
+// recipes below only stand in if a sample is missing or cannot be decoded.
+// Loops (servo whine, drill, saw, torch, room hum) are seamless voices whose
+// volume and pitch follow the machines frame by frame (csfxVoice).
 import { G } from '../../game/G';
 import { synth, defSound, kit } from '../../audio/sounds';
 import { SR, Buf, noise, osc, lowpass, highpass, bandpass, decay, adsr, rnd, setSeed } from '../../audio/synth';
 import '../../audio/sounds_cyber';
+import { hasSample, sampleInfo, sampleBuffer, sampleReady, sampleFailed } from '../../audio/samples';
+
+/** every sampled key the theatre plays: decoded as soon as it has a context */
+const THEATRE = ['sg_strap', 'sg_thud', 'sg_clunk', 'sg_lamp', 'sg_key', 'sg_rocker', 'sg_lever', 'sg_bone', 'sg_buzzer', 'sg_squelch',
+  'cy_clank', 'cy_squeal', 'cy_servo', 'cy_saw', 'cy_splat', 'cy_spark', 'cy_bolt', 'cy_hiss', 'cy_beep', 'cy_rip', 'cy_powerdown', 'cy_powerup', 'cy_thunk',
+  'sg_loop_whine', 'sg_loop_drill', 'sg_loop_saw', 'sg_loop_weld', 'sg_loop_hum'];
+let warmed: BaseAudioContext | null = null;
+function warm(c: BaseAudioContext) {
+  if (warmed === c) return;
+  warmed = c;
+  for (const k of THEATRE) for (let v = 0; v < (sampleInfo(k)?.files.length ?? 0); v++) void sampleReady(c, k, v);
+}
+function playBuf(c: AudioContext, b: AudioBuffer, vol: number, rate: number) {
+  const src = c.createBufferSource(); src.buffer = b; src.playbackRate.value = rate * (0.97 + Math.random() * 0.06);
+  const g = c.createGain(); g.gain.value = vol;
+  src.connect(g); g.connect(c.destination);
+  src.start();
+  src.onended = () => { src.disconnect(); g.disconnect(); };
+  return src;
+}
 
 let own: AudioContext | null = null;
 const cache = new Map<string, AudioBuffer>();
 function ctx(): AudioContext | null {
   const gc = (G as any)?.audio?.ctx as AudioContext | undefined;
-  if (gc) return gc;
+  if (gc) { warm(gc); return gc; }
   if (!own) {
     try { const AC: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext; own = AC ? new AC() : null; } catch { own = null; }
   }
   if (own && own.state === 'suspended') own.resume().catch(() => { /* needs a gesture */ });
+  if (own) warm(own);
   return own;
 }
 /** call from a user gesture so a private context can start */
@@ -38,7 +60,16 @@ function buffer(c: AudioContext, key: string, v: number): AudioBuffer | null {
 /** one-shot */
 export function csfx(key: string, vol = 0.7, rate = 1) {
   const c = ctx(); if (!c) return null;
-  const b = buffer(c, key, Math.floor(Math.random() * 3));
+  const v = Math.floor(Math.random() * 3);
+  const si = sampleInfo(key);
+  if (si && !sampleFailed(key, v)) {
+    const sb = sampleBuffer(c, key, v);
+    if (sb) return playBuf(c, sb, vol * si.gain, rate * si.rate);
+    const t0 = performance.now();
+    void sampleReady(c, key, v).then((b) => { if (b && performance.now() - t0 < 300) playBuf(c, b, vol * si.gain, rate * si.rate); });
+    return null;
+  }
+  const b = buffer(c, key, v);
   if (!b) return null;
   const src = c.createBufferSource(); src.buffer = b; src.playbackRate.value = rate * (0.97 + Math.random() * 0.06);
   const g = c.createGain(); g.gain.value = vol;
@@ -210,7 +241,11 @@ export function csfxVoice(name: LoopName): Voice {
   const dead: Voice = { ok: false, set() {}, stop() {} };
   if (!(name in LOOPS)) return dead;
   const c = ctx(); if (!c) return dead;
-  const b = loopBuffer(c, name); if (!b) return dead;
+  // the recorded loop when it is decoded, else the recipe
+  const sk = 'sg_loop_' + name, si = hasSample(sk) ? sampleInfo(sk) : undefined;
+  const rec = si ? sampleBuffer(c, sk, 0) : null;
+  const k = rec ? si!.gain : 1, r0 = rec ? si!.rate : 1;
+  const b = rec ?? loopBuffer(c, name); if (!b) return dead;
   const src = c.createBufferSource(); src.buffer = b; src.loop = true;
   const g = c.createGain(); g.gain.value = 0;
   src.connect(g); g.connect(c.destination);
@@ -221,8 +256,8 @@ export function csfxVoice(name: LoopName): Voice {
     set(vol: number, rate = 1) {
       if (stopped) return;
       const t = c.currentTime;
-      g.gain.setTargetAtTime(Math.max(0, vol), t, 0.04);
-      src.playbackRate.setTargetAtTime(Math.max(0.25, rate), t, 0.05);
+      g.gain.setTargetAtTime(Math.max(0, vol) * k, t, 0.04);
+      src.playbackRate.setTargetAtTime(Math.max(0.25, rate) * r0, t, 0.05);
     },
     stop() {
       if (stopped) return; stopped = true;

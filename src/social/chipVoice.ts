@@ -1,6 +1,8 @@
-// The 8-bit voice: every spoken line is a run of chiptune blips, one per
-// letter, timed to the floating text (src/social/floatText.ts uses the same
-// letter clock). Each speaker has a voice from their looks: pitch from body
+// The babble voice: every spoken line is a run of recorded vocal grains (CC0
+// "Dialog vocal samples" by MirceaKitsune, via src/audio/samples.ts), one per
+// syllable, timed to the floating text (src/social/floatText.ts uses the same
+// letter clock). Until the grains are decoded (or if they cannot be) the old
+// chiptune blips stand in. Each speaker has a voice from their looks: pitch from body
 // shape, height and build, waveform and duty from the face, a wobble with
 // age. Vowels sing (their pitch moves with the vowel), consonants tick
 // (noise from a little LFSR), spaces breathe, punctuation pauses, a question
@@ -8,6 +10,7 @@
 // line and played on the voice bus, panned and faded by distance.
 import { G } from '../game/G';
 import type { Appearance } from '../entities/humanRig';
+import { sampleBuffer } from '../audio/samples';
 
 const SR = 22050;
 /** seconds per letter: the floating text uses the same clock */
@@ -29,6 +32,8 @@ export interface ChipVoice {
   bits: number;
   /** extra volume */
   vol: number;
+  /** recorded grain set (sample key vg_*); by pitch when unset */
+  grain?: string;
 }
 
 function hashStr(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
@@ -51,11 +56,11 @@ export function voiceFromApp(app?: Partial<Appearance> | null, salt = ''): ChipV
 /** voices for the lines that are not a survivor's */
 export function voiceForStyle(style: string, who = ''): ChipVoice {
   switch (style) {
-    case 'voss': return { base: 118, wave: 'pulse', duty: 0.18, wobble: 0.1, range: 3, bits: 4, vol: 0.9 };
-    case 'bailiff': return { base: 104, wave: 'pulse', duty: 0.12, wobble: 0, range: 1.2, bits: 3, vol: 0.85 };
-    case 'bailiff_leak': return { base: 78, wave: 'pulse', duty: 0.08, wobble: 1.4, range: 9, bits: 2, vol: 0.85 };
-    case 'guard': return { base: 98, wave: 'saw', duty: 0.5, wobble: 0.05, range: 2.5, bits: 4, vol: 1.1 };
-    case 'radio': return { base: 140 + (hashStr(who) % 60), wave: 'pulse', duty: 0.12, wobble: 0.3, range: 5, bits: 3, vol: 0.7 };
+    case 'voss': return { base: 118, wave: 'pulse', duty: 0.18, wobble: 0.1, range: 3, bits: 4, vol: 0.9, grain: 'vg_mstd' };
+    case 'bailiff': return { base: 104, wave: 'pulse', duty: 0.12, wobble: 0, range: 1.2, bits: 3, vol: 0.85, grain: 'vg_robot' };
+    case 'bailiff_leak': return { base: 78, wave: 'pulse', duty: 0.08, wobble: 1.4, range: 9, bits: 2, vol: 0.85, grain: 'vg_demon' };
+    case 'guard': return { base: 98, wave: 'saw', duty: 0.5, wobble: 0.05, range: 2.5, bits: 4, vol: 1.1, grain: 'vg_deep' };
+    case 'radio': return { base: 140 + (hashStr(who) % 60), wave: 'pulse', duty: 0.12, wobble: 0.3, range: 5, bits: 3, vol: 0.7, grain: 'vg_quick' };
     default: return voiceFromApp(null, who || style);
   }
 }
@@ -76,8 +81,79 @@ export function letterTimes(text: string): { t: number[]; dur: number } {
 
 const VOWEL_SEMI: Record<string, number> = { a: 0, e: 4, i: 7, o: -3, u: -5, y: 5 };
 
+/** rough natural pitch (Hz) of each recorded grain set, to transpose it to a voice's base */
+const GRAIN_F0: Record<string, number> = { vg_mstd: 95, vg_deep: 80, vg_fstd: 230, vg_light: 290, vg_quick: 170, vg_robot: 100, vg_demon: 70, vg_whisper: 0 };
+const grainByPitch = (f: number) => (f < 105 ? 'vg_deep' : f < 150 ? 'vg_mstd' : f < 185 ? 'vg_quick' : f < 245 ? 'vg_fstd' : 'vg_light');
+
+/** decoded grains for this voice, or null while they load (loading is started) */
+function grainsFor(v: ChipVoice, whisper?: boolean): { bufs: AudioBuffer[]; f0: number } | null {
+  const ctx = (G?.audio as any)?.ctx as AudioContext | undefined;
+  if (!ctx) return null;
+  const key = whisper ? 'vg_whisper' : v.grain ?? grainByPitch(v.base);
+  const bufs: AudioBuffer[] = [];
+  for (let i = 0; i < 4; i++) { const b = sampleBuffer(ctx, key, i); if (b) bufs.push(b); }
+  return bufs.length >= 2 ? { bufs, f0: GRAIN_F0[key] ?? 0 } : null;
+}
+
+/** a line from recorded grains: one per vowel (and per consonant cluster), transposed along the melody */
+function renderGrains(text: string, v: ChipVoice, opts: { shout?: boolean; whisper?: boolean; glitch?: boolean }, bufs: AudioBuffer[], f0: number): Float32Array {
+  const { t, dur } = letterTimes(text);
+  const n = Math.max(1, Math.floor((dur + 0.15) * SR));
+  const out = new Float32Array(n);
+  const q = /\?\s*$/.test(text), bang = /!\s*$/.test(text) || opts.shout;
+  const chars = [...text];
+  let gi = hashStr(text) % bufs.length, since = 9;
+  for (let k = 0; k < chars.length; k++) {
+    const ch = chars[k].toLowerCase();
+    if (!/[a-z0-9]/.test(ch)) { since = 9; continue; }
+    const vowel = ch in VOWEL_SEMI;
+    if (!vowel && since < 2) { since++; continue; }
+    since = 0;
+    const prog = k / Math.max(1, chars.length - 1);
+    let semi = vowel ? VOWEL_SEMI[ch] * (v.range / 7) : ((ch.charCodeAt(0) * 7) % 5 - 2) * 0.5;
+    semi += Math.sin(prog * Math.PI) * 1.5 - prog * 1.2;
+    if (q && prog > 0.75) semi += (prog - 0.75) * 24;
+    if (bang) semi += 2;
+    const rate = Math.max(0.55, Math.min(2.2, (f0 ? v.base / f0 : 1) * Math.pow(2, semi / 12)));
+    const b = bufs[gi++ % bufs.length];
+    const d = b.getChannelData(0);
+    const step = (rate * b.sampleRate) / SR;
+    const len = (vowel ? LETTER * 2.6 : LETTER * 1.4) * (bang ? 1.2 : 1);
+    const m = Math.floor(len * SR), fo = Math.floor(0.03 * SR);
+    const s0 = Math.floor(t[k] * SR);
+    let pos = vowel ? 0 : d.length * 0.12;
+    for (let i = 0; i < m && s0 + i < n; i++) {
+      const j = pos | 0;
+      if (j + 1 >= d.length) break;
+      const fr = pos - j;
+      const env = Math.min(1, i / (0.004 * SR)) * Math.min(1, (m - i) / fo);
+      out[s0 + i] += (d[j] * (1 - fr) + d[j + 1] * fr) * env * (vowel ? 1 : 0.7);
+      pos += step * Math.pow(2, (Math.sin((i / SR) * 38) * v.wobble) / 12);
+    }
+  }
+  if (opts.glitch) {
+    const ch = Math.floor(0.05 * SR);
+    for (let at = ch; at < n - ch * 3; at += ch) {
+      const r = Math.random();
+      if (r < 0.14) { for (let j = 0; j < ch && at + ch + j < n; j++) out[at + ch + j] = out[at + j]; at += ch; }
+      else if (r < 0.22) for (let j = 0; j < ch; j++) out[at + j] = 0;
+    }
+  }
+  // soft-clip the overlaps; band/radio voices keep a cheap-speaker crush
+  const crush = v.bits <= 4 ? Math.pow(2, v.bits + 2) : 0;
+  let hold = 0;
+  for (let i = 0; i < n; i++) {
+    let s = Math.tanh(out[i] * (bang ? 1.3 : 0.9)) * (opts.whisper ? 0.3 : 0.42);
+    if (crush) { if ((i & 1) === 0) hold = Math.round(s * crush) / crush; s = hold; }
+    out[i] = s;
+  }
+  return out;
+}
+
 /** render one line to samples */
 export function renderLine(text: string, v: ChipVoice, opts: { shout?: boolean; whisper?: boolean; glitch?: boolean } = {}): Float32Array {
+  const g = grainsFor(v, opts.whisper);
+  if (g) return renderGrains(text, v, opts, g.bufs, g.f0);
   const { t, dur } = letterTimes(text);
   const n = Math.max(1, Math.floor(dur * SR));
   const out = new Float32Array(n);

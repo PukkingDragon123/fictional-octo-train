@@ -74,6 +74,8 @@ function load(ctx: BaseAudioContext, i: number): Promise<AudioBuffer | null> {
     });
   }).then((b) => {
     pending.delete(i);
+    // a closed context cannot decode: let the next caller (with a live context) try again
+    if (!b && (ctx as AudioContext).state === 'closed') return null;
     if (!b) { failed.add(i); return null; }
     if (LOOP_SAMPLES.has(i)) b = tidyLoop(ctx, b);
     decoded.set(i, b);

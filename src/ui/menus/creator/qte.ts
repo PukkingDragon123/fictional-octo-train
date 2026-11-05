@@ -325,7 +325,7 @@ class Game {
     const a = this.anchorArt();
     const portrait = this.H > this.W * 1.05;
     let x: number, y: number;
-    if (below || portrait) { x = a.x - w / 2; y = portrait ? this.H * 0.56 : Math.max(a.y + this.H * 0.2, this.H * 0.62); }
+    if (below || portrait) { x = a.x - w / 2; y = portrait ? this.H * 0.56 : this.H * 0.8; }
     else { x = a.x + this.W * 0.16; y = a.y - h / 2; }
     return { x: Math.round(clamp(x, 8, this.W - w - 8)), y: Math.round(clamp(y, 8, this.H - h - 26)) };
   }

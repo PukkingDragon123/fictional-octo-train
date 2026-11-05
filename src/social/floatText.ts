@@ -53,7 +53,7 @@ const seen = new Map<string, number>();
 let lastFlavour = -1e9;
 let lastFeedback = -1e9;
 /** what is floating right now (the display cap) */
-const live: { el: HTMLDivElement; pri: number; until: number }[] = [];
+const live: { el: HTMLDivElement; pri: number; until: number; born: number }[] = [];
 const MAX_LIVE = 2;
 /** until when something important is on screen (flavour waits for it) */
 let busyUntil = -1e9;
@@ -106,7 +106,7 @@ function admit(text: string, kind: FloatKind, pri: number, life: number): boolea
     busyUntil = Math.max(busyUntil, t + Math.min(6, life));
   } else busyUntil = Math.max(busyUntil, t + Math.min(6, life));
   // the cap: two lines at most; the least important gives way, or the new one does
-  for (let i = live.length - 1; i >= 0; i--) if (live[i].until < t || !live[i].el.isConnected && t - (live[i].until - 30) > 1) live.splice(i, 1);
+  for (let i = live.length - 1; i >= 0; i--) if (live[i].until < t || (!live[i].el.isConnected && t - live[i].born > 0.5)) live.splice(i, 1);
   if (live.length >= MAX_LIVE) {
     let lo = 0;
     for (let i = 1; i < live.length; i++) if (live[i].pri < live[lo].pri || (live[i].pri === live[lo].pri && live[i].until < live[lo].until)) lo = i;
@@ -153,7 +153,7 @@ export function floatText(text0: string, o: FloatOpts = {}): HTMLDivElement {
   const el = document.createElement('div');
   el.className = 'w-bubble ft nc-free-text nc-ink ft-' + kind + (pri >= 3 && kind === 'think' ? ' ft-p3' : '');
   if (!text || !admit(text, kind, pri, life)) { el.classList.add('ft-mute'); el.setAttribute('aria-hidden', 'true'); return el; }
-  live.push({ el, pri, until: now() + life + 0.6 });
+  live.push({ el, pri, until: now() + life + 0.6, born: now() });
   if (o.tint) el.style.setProperty('--ftc', speakerColor(o.tint));
   const body = document.createElement('span');
   body.className = 'ft-body';

@@ -1,9 +1,19 @@
-/* Body HUD (src/ui/body): pixel-art canvases integer-upscaled in the top-left corner,
-   free-floating type under them (no boxes), the eating catcher. */
+/* Body HUD (src/ui/body). The machine is drawn by the game renderer (stage.ts); the DOM is a pixel overlay
+   (brain, balloon, watch icon), the moodle tray, the readings on the console and free-floating type (no boxes). */
 body.bh-hover, body.bh-hover canvas { cursor: pointer; }
 
-.bh-hud { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 44; pointer-events: none; opacity: 0; visibility: hidden; transition: none; }
-.bh-cv { position: absolute; left: 0; top: 0; image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; }
+.bh-cv { position: fixed; left: 0; top: 0; z-index: 44; pointer-events: none; image-rendering: pixelated; image-rendering: crisp-edges; opacity: 0; visibility: hidden; }
+
+/* the readings: stencil-sized Alagard over the console's enamel, inked */
+.bh-lab {
+  position: fixed; left: 0; top: 0; z-index: 45; pointer-events: none; white-space: nowrap;
+  font-family: var(--font-new); font-size: var(--hud-lab, 16px); line-height: 1; letter-spacing: 0.02em;
+  color: #efe6c8; text-shadow: var(--text-ink); opacity: 0; visibility: hidden;
+}
+.bh-lab b { font-weight: normal; color: #ffffff; }
+.bh-lab b.low { color: #ffb066; }
+.bh-lab b.crit { color: #ff5a46; animation: bh-blink 0.8s steps(2) infinite; }
+@keyframes bh-blink { 50% { color: #ffd0b8; } }
 
 .bh-say {
   position: fixed; left: 0; top: 0; z-index: 45; pointer-events: none;
@@ -14,15 +24,14 @@ body.bh-hover, body.bh-hover canvas { cursor: pointer; }
 }
 .bh-say b { font-weight: normal; color: #fff6dc; }
 .bh-say.on { opacity: 1; }
-html.nc-touch .bh-say { white-space: normal; max-width: min(300px, calc(100vw - 24px)); }
+html.nc-touch .bh-say { white-space: normal; max-width: min(320px, calc(100vw - 24px)); }
 
-/* the radio line and the place name keep clear of the vitals in the corner */
+/* the radio line and, on phones, the toasts keep clear of the machine in the corner */
 html.bh-on .sub-radio { top: calc(var(--hud-tl-bottom, 120px) + 28px); }
+html.bh-on.nc-touch .k-toasts { top: calc(var(--hud-tl-bottom, 120px) + 26px); }
 
 /* first-person eating: an invisible catcher takes the bites (no vignette panel, no hint: the scene is the room) */
 .bh-eat {
   position: fixed; inset: 0; z-index: 40; pointer-events: auto; cursor: pointer; touch-action: none; background: none;
 }
 .bh-eat.out { pointer-events: none; }
-/* phones: toasts drop below the vitals instead of over them */
-html.bh-on.nc-touch .k-toasts { top: calc(var(--hud-tl-bottom, 120px) + 10px); }

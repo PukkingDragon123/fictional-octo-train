@@ -264,7 +264,7 @@ export function animateTool(m: ToolModel, dt: number, t: number, run: number, hi
       const w = 0.42;
       fan.scale.set(w * reach, reach, 1); line.scale.set(w * reach, reach, 1);
       const k = run * (0.85 + Math.sin(t * 31) * 0.15);
-      (fan.material as THREE.MeshBasicMaterial).color.setRGB(0.05 * k, 0.32 * k, 0.1 * k);
+      (fan.material as THREE.MeshBasicMaterial).color.setRGB(0.025 * k, 0.15 * k, 0.05 * k);
       (line.material as THREE.LineBasicMaterial).color.setRGB(0.5 * k, 1.6 * k, 0.7 * k);
       break;
     }

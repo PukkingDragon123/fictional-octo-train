@@ -61,17 +61,17 @@ function plateArt(state: number, keyW: number): PixelCanvas {
 export interface SkipPlate { el: HTMLButtonElement; setKey(k: string): void; setState(s: number): void; destroy(): void }
 
 /** build the plate (append `el` where it belongs); onSkip fires on a press */
-export function skipPlate(onSkip: () => void): SkipPlate {
+export function skipPlate(onSkip: () => void, text = 'Skip intake'): SkipPlate {
   const el = document.createElement('button');
   el.type = 'button';
   el.className = 'ix-plate';
-  el.setAttribute('aria-label', 'Skip the intake');
+  el.setAttribute('aria-label', text);
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
   cv.className = 'ix-plate-art';
   const label = document.createElement('span');
   label.className = 'ix-plate-label';
-  label.textContent = 'Skip intake';
+  label.textContent = text;
   const key = document.createElement('span');
   key.className = 'ix-plate-key';
   el.append(cv, label, key);

@@ -33,7 +33,7 @@ export const PACK_AT: [number, number] = [161, CON_TOP];
 /** the balloon's tie on the pump's cap (stage units, rig space) */
 export const TIE_AT: [number, number] = [PUMP_AT[0], CON_TOP + 36.5];
 /** where each reading sits on the console's front (x) */
-export const LABEL_X = { mind: BRAIN_AT[0], heart: HEART_AT[0] - 2, food: JAR_AT[0] - 2 };
+export const LABEL_X = { mind: BRAIN_AT[0] - 2, heart: HEART_AT[0] + 7, food: JAR_AT[0] - 2 };
 const OLIVE = 0x5c6440, OLIVE_D = 0x3e4430, OLIVE_L = 0x7a8456;
 
 export class Rig3D {

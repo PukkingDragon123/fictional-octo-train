@@ -38,7 +38,7 @@ import { readTime } from '../lines';
 import { TUT } from './state';
 import '../intro.css';
 
-type Step = 'brief' | 'break' | 'loot' | 'pickup' | 'press' | 'deposit' | 'debt' | 'done';
+type Step = 'brief' | 'break' | 'loot' | 'pickup' | 'press' | 'carry' | 'lever' | 'deposit' | 'debt' | 'done';
 interface Beat { dur: number; enter?: () => void; tick?: (k: number, dt: number) => void; voss?: boolean }
 
 const DEG = Math.PI / 180;
@@ -131,17 +131,17 @@ export class Tutorial implements GameSystem {
     this.obj = el('tut-obj');
     this.count = el('tut-count');
     this.recap = el('tut-recap');
-    this.plate = skipPlate(() => this.skip());
+    this.plate = skipPlate(() => this.skip(), 'Skip tutorial');
     this.plate.setKey('Esc');
     this.root.append(el('ix-bar top'), el('ix-bar bot'), this.shade, this.obj, this.count, this.recap, this.plate.el);
     document.body.appendChild(this.root);
     floatQuiet(true); this.quietHeld = true;
     // the old soft tutorial in the handler stands down
-    const h = G.handler as unknown as { briefed?: boolean } | null;
-    if (h) h.briefed = true;
+    const h = G.handler as unknown as { briefed?: boolean; cine?: boolean; hush?: () => void } | null;
+    if (h) { h.briefed = true; h.cine = true; h.hush?.(); }
     const on = (ev: string, fn: (...a: any[]) => void) => this.offs.push(bus.on(ev, fn));
     on('objBroken', (_z: Zone, o: TileObject, by: string | null) => { if (by === G.local?.id && this.step === 'break') { this.targetObj = o; this.go('loot'); } });
-    on('deposited', (d: { by: string; value: number }) => { if (d?.by === G.local?.id && this.step === 'deposit') { this.paid = d.value; this.go('debt'); } });
+    on('deposited', (d: { by: string; value: number }) => { if (d?.by === G.local?.id && (this.step === 'deposit' || this.step === 'carry' || this.step === 'lever')) { this.paid = d.value; this.go('debt'); } });
     this.go('brief');
   }
 
@@ -157,7 +157,9 @@ export class Tutorial implements GameSystem {
       case 'loot': this.cut(this.lootBeats()); break;
       case 'pickup': this.release(); break;
       case 'press': this.cut(this.pressBeats()); break;
-      case 'deposit': this.release(); if (this.hopper) h?.guide?.(this.hopper); break;
+      case 'carry': this.release(); if (this.hopper) h?.guide?.(this.hopper); break;
+      case 'lever': this.cut(this.leverBeats()); break;
+      case 'deposit': this.release(); break;
       case 'debt': this.cut(this.debtBeats()); break;
       case 'done': this.finish(); break;
     }
@@ -184,7 +186,7 @@ export class Tutorial implements GameSystem {
       // let it fall out
       { dur: 0.9, enter: () => { G.handler?.guide?.(null); this.lock(true); } },
       { dur: 0.1, enter: () => { this.findLoot(); const l = this.loot; this.frame(v1.set(l?.x ?? p.x, p.y + 0.3, l?.z ?? p.z), 2.1, 3); } },
-      { dur: 2.6, voss: true, enter: () => { const l = this.loot; if (l) this.eyeOn({ x: l.x, z: l.z, y: p.y }, 42); this.say(l ? `There. ${this.lootName()}. That is worth something.` : 'Look on the floor. Something fell out.'); } },
+      { dur: 2.6, voss: true, enter: () => { const l = this.loot; if (l) this.eyeOn({ x: l.x, z: l.z, y: p.y }, 42, 0.05); this.say(l ? `There. ${this.lootName()}. That is worth something.` : 'Look on the floor. Something fell out.'); } },
       { dur: 0.3, enter: () => this.eyeOff() },
     ];
   }
@@ -198,7 +200,15 @@ export class Tutorial implements GameSystem {
       { dur: 0.1, enter: () => { this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.4, 6); } },
       // a pan from him to the press, the press lit, Voss at its projector
       { dur: 3.4, voss: true, enter: () => { if (hp) { this.frame(v1.set(hp.x, p.y + 0.6, hp.z), 1.5, 1.0); h?.appear?.('pylon'); } this.say('That is a Remittance Press. It eats what you feed it and pays your number down.', undefined, true); } },
-      { dur: 2.6, voss: true, enter: () => { if (hp) { this.frame(v1.set(hp.x, p.y + 0.8, hp.z), 2.0, 2); this.eyeOn({ x: hp.x, z: hp.z, y: p.y }, 14); } this.say('Put it on the striped plate. Step off. Pull the red lever.', undefined, true); } },
+    ];
+  }
+
+  /** at the press: his eyes on the plate and the lever */
+  private leverBeats(): Beat[] {
+    const p = G.local!, hp = this.hopper;
+    return [
+      { dur: 0.2, enter: () => { G.handler?.guide?.(null); if (hp) this.frame(v1.set(hp.x, p.y + 0.7, hp.z), 2.2, 3); } },
+      { dur: 2.8, voss: true, enter: () => { if (hp) this.eyeOn({ x: hp.x, z: hp.z, y: p.y }, 20, 0.6); this.say('On the striped plate. Step off it. Pull the red lever.', undefined, true); } },
       { dur: 0.3, enter: () => this.eyeOff() },
     ];
   }
@@ -218,8 +228,8 @@ export class Tutorial implements GameSystem {
       { dur: 3.6, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 0.9, p.z), 3.0, 1.3); this.counter(wrist); this.say('Hear that? Your number went down. That is the whole job.'); },
         tick: (k) => { const n = this.owedFrom + (this.owedTo - this.owedFrom) * ease(clamp01((k - 0.12) / 0.55)); this.setCount('OWED', fmt(n) + ' SCRIP', this.paid > 0 ? '-' + fmt(this.paid) : ''); if (k > 0.12 && k < 0.7 && Math.random() < 0.25) G.audio?.ui?.('watchTick', 0.25); } },
       // the installment and its deadline
-      { dur: 4.2, voss: true, enter: () => { const s = d(); this.setCount(`INSTALLMENT ${s?.n ?? 1} OF ${(s?.count ?? 4) + 1}`, fmt(s?.due ?? 0) + ' DUE', `BY DAY ${s?.dueDay ?? 3}`); this.say('The ledger wants an installment every few days. Miss one and the band bites. Then it bites harder.'); },
-        tick: () => { const s = d(); if (s?.dueH != null) this.setCount(`INSTALLMENT ${s.n ?? 1} OF ${(s.count ?? 4) + 1}`, fmt(s.due) + ' DUE', `${Math.max(0, Math.floor(s.dueH))} H LEFT`); } },
+      { dur: 4.2, voss: true, enter: () => { const s = d(); this.setCount(`INSTALLMENT ${(s?.n ?? 0) + 1} OF ${s?.count ?? 5}`, fmt(s?.due ?? 0) + ' DUE', `BY DAY ${s?.dueDay ?? 3}`); this.say('The ledger wants an installment every few days. Miss one and the band bites. Then it bites harder.'); },
+        tick: () => { const s = d(); if (s?.dueH != null) this.setCount(`INSTALLMENT ${(s.n ?? 0) + 1} OF ${s.count ?? 5}`, fmt(s.due) + ' DUE', `DAY ${s.dueDay} - ${Math.max(0, Math.floor(s.dueH))} H LEFT`); } },
       // the watch: its own first-person close-up, the job board
       { dur: 4.4, voss: true, enter: () => { this.counter(null); this.camOn = false; this.watch(true); this.say('Your watch. Jobs come through it. R&D pays research credit for them: spend it on what the watch can do.'); } },
       { dur: 0.5, enter: () => this.watch(false) },
@@ -246,7 +256,7 @@ export class Tutorial implements GameSystem {
       this.beatT += dt;
       b.tick?.(this.beatT / b.dur, dt);
       const h = G.handler;
-      const waitVoss = b.voss && h?.busy && this.beatT < b.dur + 8;
+      const waitVoss = b.voss && h?.busy && this.beatT < b.dur + 2.5;
       if (this.beatT >= b.dur && !waitVoss) { this.beats.shift(); this.beatOn = false; if (!this.beats.length) this.cutDone(); }
     }
     // the task
@@ -266,6 +276,15 @@ export class Tutorial implements GameSystem {
         if (l && this.t > 0.5 && !this.lootOnFloor()) this.findLoot();
         this.setObjective('PICK IT UP', this.loot ? this.lootName() : 'Something valuable', () => (this.loot ? v1.set(this.loot.x, p.y + 0.7, this.loot.z) : null));
         this.light(this.loot ? { x: this.loot.x, z: this.loot.z, y: p.y } : null, 0xfff0c8);
+        break;
+      }
+      case 'carry': {
+        const hp = this.hopper;
+        if (!hp) { this.findHopper(); break; }
+        if (G.missions?.flags?.has?.('contract:first_deposit')) { this.go('debt'); break; }
+        if (Math.hypot(hp.x - p.x, hp.z - p.z) < 3.4) { this.go('lever'); break; }
+        this.setObjective('TO THE PRESS', 'Carry it there', () => v1.set(hp.x, p.y + 1.6, hp.z));
+        this.light({ x: hp.x, z: hp.z, y: p.y }, 0xffd9a0);
         break;
       }
       case 'deposit': {
@@ -295,7 +314,7 @@ export class Tutorial implements GameSystem {
     this.hookCamera();
   }
   private cutDone() {
-    const next: Record<string, Step> = { brief: 'break', loot: 'pickup', press: 'deposit', debt: 'done' };
+    const next: Record<string, Step> = { brief: 'break', loot: 'pickup', press: 'carry', lever: 'deposit', debt: 'done' };
     const n = next[this.step];
     if (n) this.go(n);
   }
@@ -383,12 +402,18 @@ export class Tutorial implements GameSystem {
     this.camOn = true; this.camGoal.copy(focus); this.camZoomGoal = zoom; this.camRate = rate;
   }
   /** a cut to his own eyes, looking at a spot (a dip to black covers it) */
-  private eyeOn(at: { x: number; z: number; y: number }, pitchDeg: number) {
+  private eyeOn(at: { x: number; z: number; y: number }, pitchDeg: number, h = 0.4) {
     const p = G.local!;
+    const d = Math.hypot(at.x - p.x, at.z - p.z);
+    // only when it is close and in sight: never a first-person shot of a wall
+    if (d > 6.5 || d < 0.3 || (G.view?.vis && !G.view.vis.isVisible(Math.floor(at.x), Math.floor(at.z)))) return false;
+    const pitch = Math.max(4, Math.min(55, Math.atan2(p.y + 1.6 - (at.y + h), d) / DEG));
+    void pitchDeg;
     this.dip(() => {
       p.facing = Math.atan2(at.z - p.z, at.x - p.x);
-      eyeEnter({ pitchDeg, fov: 56 });
+      eyeEnter({ pitchDeg: pitch, fov: 56 });
     });
+    return true;
   }
   private eyeOff() { if (eyeActive()) this.dip(() => eyeExit()); }
   private dipFn: (() => void) | null = null;
@@ -401,7 +426,7 @@ export class Tutorial implements GameSystem {
   }
 
   // ------------------------------------------------------------------ world queries
-  private alive(o: TileObject) { const z = G.view?.zone; return !!z && z.objects.get(o.uid) === o && !(o.state as { broken?: boolean })?.broken; }
+  private alive(o: TileObject) { const z = G.view?.zone; const cur = z?.objects.get(o.uid); return !!cur && !(cur.state as { broken?: boolean })?.broken; }
   /** the nearest piece of furniture worth breaking open (a container first): the tutorial's target */
   private findTarget() {
     const p = G.local; const z = G.view?.zone; if (!p || !z) return;
@@ -480,7 +505,8 @@ export class Tutorial implements GameSystem {
     this.objAt = at;
     if (key === this.objKey) return;
     this.objKey = key;
-    if (!word) { this.obj.classList.remove('on'); return; }
+    if (!word) { this.obj.classList.remove('on'); this.obj.style.visibility = 'hidden'; return; }
+    this.obj.style.visibility = '';
     this.obj.innerHTML = `<b>${word}</b>${hint ? `<i>${hint}</i>` : ''}<span class="arrow">v</span>`;
     this.obj.classList.add('on');
     G.audio?.ui?.('watchTick', 0.35);
@@ -504,7 +530,8 @@ export class Tutorial implements GameSystem {
       const v = at?.();
       if (!v || !G.pr) { el.style.left = '50%'; el.style.top = '30%'; return; }
       const s = (G.pr as unknown as { worldToScreen: (v: THREE.Vector3) => { x: number; y: number; z: number } }).worldToScreen(v);
-      const x = Math.max(120, Math.min(innerWidth - 120, s.x)), y = Math.max(90, Math.min(innerHeight - 40, s.y));
+      const hw = Math.min(innerWidth / 2 - 8, el.offsetWidth / 2 + 12);
+      const x = Math.max(hw, Math.min(innerWidth - hw, s.x)), y = Math.max(el.offsetHeight + innerHeight * 0.12, Math.min(innerHeight * 0.86, s.y));
       el.style.left = x.toFixed(0) + 'px'; el.style.top = y.toFixed(0) + 'px';
     };
     if (this.objKey) place(this.obj, this.objAt);

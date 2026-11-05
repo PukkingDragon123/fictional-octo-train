@@ -1241,7 +1241,7 @@ export class SubjectRoom {
     const u = this.post.u;
     u.uTime.value = this.t; u.uFlash.value = this.flash + this.surgeK * 0.04; u.uRed.value = this.redFlash;
     const title = 1 - this.lit;
-    u.uExposure.value = ((this.mode === 'title' ? 1.18 : 1.12) + this.lit * 0.1) * 1.38;
+    u.uExposure.value = ((this.mode === 'title' ? 1.18 : 1.12) + this.lit * 0.1) * 1.3;
     u.uVig.value = 0.22 + title * 0.1 + (this.mode === 'lit' ? 0.08 + this.closeK * 0.1 : 0);
     const portrait = this.lowW < this.lowH;
     // no dark side panel, no dark floor band: the 2D words carry their own ink outline
@@ -1404,8 +1404,14 @@ export class SubjectRoom {
     const fl = this.floatPose(t);
     let p: Pose;
     // the body swinging in its restraints
-    this.swayV.addScaledVector(this.sway, -26 * dt).multiplyScalar(Math.exp(-2.4 * dt));
-    this.sway.addScaledVector(this.swayV, dt);
+    for (let rem = dt; rem > 1e-6; rem -= 1 / 120) {
+      const h = Math.min(rem, 1 / 120);
+      this.swayV.addScaledVector(this.sway, -26 * h).multiplyScalar(Math.exp(-2.4 * h));
+      this.sway.addScaledVector(this.swayV, h);
+      // the jelly squash of the head (the stamp)
+      this.headSqV += ((1 - this.headSq) * 220 - this.headSqV * 9) * h;
+      this.headSq = Math.max(0.5, Math.min(1.4, this.headSq + this.headSqV * h));
+    }
     this.sway.clampLength(0, 0.12);
     if (this.state === 'seat') {
       p = blendPose(pose, seat, 1);
@@ -1464,8 +1470,6 @@ export class SubjectRoom {
     this.struggle = Math.max(0, this.struggle - dt * 0.25);
     rig.applyPose(p);
     // the head's jelly squash (the stamp)
-    this.headSqV += ((1 - this.headSq) * 220 - this.headSqV * 9) * dt;
-    this.headSq += this.headSqV * dt;
     if (Math.abs(this.headSq - 1) > 0.002 || Math.abs(this.headSqV) > 0.01) { const q = this.headSq; rig.bones.head.scale.set(1 + (1 - q) * 0.6, q, 1 + (1 - q) * 0.6); }
     else if (rig.bones.head.scale.y !== 1) rig.bones.head.scale.set(1, 1, 1);
     // breath: on each out-breath a little vapour in the cold, lit where the lamp catches it
@@ -1562,7 +1566,7 @@ export class SubjectRoom {
     // the tool comes in from the left of the picture and a little above (never between the lens and him, never through him)
     const T = this.arms[3];
     const cr = this.v2.setFromMatrixColumn(this.cam.matrixWorld, 0), cu = this.v3.setFromMatrixColumn(this.cam.matrixWorld, 1), cb = this.v4.setFromMatrixColumn(this.cam.matrixWorld, 2);
-    const app = op.app.copy(op.wn).multiplyScalar(0.45).addScaledVector(cr, -0.95).addScaledVector(cu, 0.42).addScaledVector(cb, -0.12);
+    const app = op.app.copy(op.wn).multiplyScalar(0.45).addScaledVector(cr, -0.9).addScaledVector(cu, 0.62).addScaledVector(cb, -0.1);
     if (op.wild > 0) app.add(this.v1.set(Math.sin(this.t * 23) * op.wild, Math.cos(this.t * 17) * op.wild * 0.6, Math.sin(this.t * 13) * op.wild * 0.4));
     app.normalize();
     if (app.dot(op.wn) < 0.15) app.addScaledVector(op.wn, 0.5).normalize();

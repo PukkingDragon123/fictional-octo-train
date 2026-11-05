@@ -151,3 +151,8 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 
 /* POWER (Shift) sits above RUN, next to the stick */
 .nc-powbtn { left: calc(var(--sl) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--R) * 2 + 26px + var(--u) * 1.55); right: auto; }
+/* phones held sideways: RUN and POWER stand beside the stick wheel, so the top-left corner stays the body HUD's */
+@media (max-height: 500px) {
+  .nc-runbtn { left: calc(var(--sl) + var(--gap) + var(--R) * 2 + 30px); bottom: calc(var(--sb) + var(--gap)); }
+  .nc-powbtn { left: calc(var(--sl) + var(--gap) + var(--R) * 2 + 30px); bottom: calc(var(--sb) + var(--gap) + var(--u) * 1.6); }
+}

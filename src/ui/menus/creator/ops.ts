@@ -59,7 +59,8 @@ export async function runOp(o: OpRun): Promise<GameResult> {
   if (def.paint !== undefined) room.setPaint(def.paint);
   room.useTool(def.tool, def.anchor);
   room.toolWork(0);
-  room.setZoom(1.32);
+  // pull back so the tool is in the picture (the tight shots more)
+  room.setZoom(def.shot && ['eyes', 'nose', 'mouth', 'brows', 'ears', 'beard'].includes(def.shot) ? 1.62 : 1.35);
   if (def.shot) void room.shot(def.shot, 650);
   sfx('servo', 0.6);
   // let the arm change tools and get there (it is physical: it takes a moment)
