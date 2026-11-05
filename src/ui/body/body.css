@@ -10,7 +10,7 @@ body.bh-hover, body.bh-hover canvas { cursor: pointer; }
   white-space: nowrap; text-align: left; max-width: calc(100vw - 24px);
   font-family: var(--font-new); font-size: 16px; line-height: 16px; letter-spacing: 0;
   color: #e9e2cf; text-shadow: var(--text-ink, var(--text-halo));
-  opacity: 0; transition: opacity 0.14s steps(3);
+  opacity: 0;
 }
 .bh-say b { font-weight: normal; color: #fff6dc; }
 .bh-say.on { opacity: 1; }
