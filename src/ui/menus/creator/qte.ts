@@ -255,7 +255,8 @@ class Game {
   private loop = (now: number) => {
     if (this.over) return;
     this.raf = requestAnimationFrame(this.loop);
-    const dt = Math.min(0.05, (now - this.last) / 1000);
+    // real time (a slow device still gets a fair clock)
+    const dt = Math.min(0.12, (now - this.last) / 1000);
     this.last = now;
     this.t += dt;
     this.pollPad();

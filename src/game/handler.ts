@@ -38,6 +38,8 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { rigNumber } from '../content/items/prisoner';
 import { ensurePack } from './arrivalKit/pack';
 import '../audio/sounds_remit';
+import { TUT } from './tutorial/state';
+import { startTutorial } from './tutorial/tutorial';
 
 export type HandlerWhere = 'band' | 'pylon' | { x: number; z: number };
 export interface SayOpts { at?: { x: number; z: number }; point?: { x: number; z: number }; dur?: number; key?: string; cd?: number; gesture?: string; pri?: number; pylon?: boolean; cine?: boolean }
@@ -229,7 +231,7 @@ export class Handler implements GameSystem {
     if (this.begun) return;
     this.begun = true;
     const m = G.missions;
-    if (m?.flags?.has?.('contract:first_deposit')) { this.tut = 9; return; }
+    if (m?.flags?.has?.('contract:first_deposit') || TUT.running) { this.tut = 9; return; }
     this.tut = 0; this.tutT = 0;
     // briefed in person: the guide lights the way to the nearest furniture without another speech
     if (this.briefed) { this.cds.set('tut0', G.time + 40); const t = this.nearestFurniture(); if (t) this.guide(t); }
@@ -638,13 +640,15 @@ export class Handler implements GameSystem {
       if (!intro || intro.phase === 'done') {
         this.bootT += dt;
         if (this.bootT > 2.5) {
+          // dev: ?tutorial=1 stages the full tutorial on a quick start
+          if (/[?&]tutorial=1/.test(location.search) && startTutorial()) { this.begin(); return; }
           if (!m?.flags?.has?.('contract:first_deposit')) this.say('Debtor {n}. Staff Sergeant Voss. Smash the furniture, find what\'s worth something, put it on the press and pull the lever. Don\'t try to leave. Questions? Good.');
           this.begin();
         }
       }
       return;
     }
-    if (this.tut < 0 || this.tut >= 9) return;
+    if (this.tut < 0 || this.tut >= 9 || TUT.running) return;
     this.tutT += dt;
     const f = (k: string) => !!m?.flags?.has?.(k);
     if (f('contract:first_deposit')) { this.tut = 9; this.guide(null); return; }

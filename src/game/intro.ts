@@ -78,6 +78,7 @@ import { cbox, lathe, rod, mulberry } from './introKit/poly';
 import { Subs } from './introKit/subs';
 import { GP } from './introKit/machines';
 import { freshStart } from './tutorial/fresh';
+import { startTutorial } from './tutorial/tutorial';
 import { StampRig, ST } from './introKit/stamp';
 import { fpArm } from '../fp/hands';
 import { GUARD_GREY } from '../content/items/prisoner';
@@ -946,7 +947,7 @@ export class Intro implements GameSystem {
       if (ph === 'fit' && this.stamp) {
         // the station's caged work lamp is the key: a hard warm pool on the bed and the arm, the rest falls to black
         const st = this.stamp;
-        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xffd2a0, 5 * st.lamp, 0.74, this.t < 0.1);
+        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xffd2a0, 3.4 * st.lamp, 0.74, this.t < 0.1);
       }
       else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
     } else {
@@ -2028,7 +2029,10 @@ export class Intro implements GameSystem {
     // the beating and the bolt stay in the cutscene: play starts unhurt
     freshStart(p);
     const h = G.handler as any;
-    if (h) { h.scripted = false; h.begin?.(); }
+    if (h) h.scripted = false;
+    // the staged tutorial takes it from here (the handler's soft guide stands down while it runs)
+    try { startTutorial(g); } catch (e) { console.warn('tutorial', e); }
+    h?.begin?.();
     bus.emit('introDone', p);
     if (import.meta.env.DEV) (window as unknown as { __intro: Intro | null }).__intro = null;
   }

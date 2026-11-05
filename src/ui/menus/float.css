@@ -98,7 +98,8 @@
   .mr-tip { display: none; }
   /* above the decorator's keys (bottom right) */
   .mr-bar { bottom: 78px; gap: 8px; justify-content: space-between; padding: 0 12px; }
-  .mr-bar .mr-word { font-size: 32px; }
+  .mr-bar .mr-word { font-size: 16px; }
+  .mr-bar .home { font-size: 32px; }
   .mr-word .long { display: none; }
   .mr-acts { bottom: 136px; gap: 0 18px; padding: 0 10px; }
   .mr-acts .mr-word { font-size: 16px; min-height: 44px; }

@@ -12,10 +12,13 @@
 //     2 story (the sergeant, the band, the radio, officers) and feedback on
 //     something you just tried ("won't", "needs", "locked"...), 1 flavour
 //     (idle thoughts, barks);
-//   - flavour is rate limited (one every 18 s, never the same words within
-//     4 minutes, never on top of a more important line), story lines are
+//   - flavour is rate limited (one every 45 s, never the same words within
+//     10 minutes, never on top of a more important line), feedback thoughts
+//     one every 5 s and never the same words within 40 s, story lines are
 //     de-duplicated for 25 s, and a cutscene or the tutorial (floatQuiet())
 //     mutes flavour altogether;
+//   - at most two lines float at once: a more important line pushes the
+//     least important one off, a less important one is not shown;
 //   - long thoughts are cut to their first sentence.
 // A muted line is returned hidden ('ft-mute'): callers need not know.
 import { letterTimes } from './chipVoice';
@@ -48,6 +51,10 @@ export function speakerColor(id: string): string {
 const now = () => performance.now() / 1000;
 const seen = new Map<string, number>();
 let lastFlavour = -1e9;
+let lastFeedback = -1e9;
+/** what is floating right now (the display cap) */
+const live: { el: HTMLDivElement; pri: number; until: number }[] = [];
+const MAX_LIVE = 2;
 /** until when something important is on screen (flavour waits for it) */
 let busyUntil = -1e9;
 let quietUntil = -1e9;
@@ -76,7 +83,7 @@ function priority(text: string, kind: FloatKind, o: FloatOpts): number {
 
 /** the first sentence of a long thought (lines stay short) */
 function shorten(text: string, kind: FloatKind): string {
-  const max = kind === 'think' ? 64 : kind === 'say' ? 96 : 999;
+  const max = kind === 'think' ? 52 : kind === 'say' ? 96 : 999;
   if (text.length <= max) return text;
   const m = /^(.{12,}?[.!?…])(\s|$)/.exec(text);
   if (m && m[1].length <= max) return m[1];
@@ -91,12 +98,22 @@ function admit(text: string, kind: FloatKind, pri: number, life: number): boolea
   const last = seen.get(key) ?? -1e9;
   if (pri <= 1) {
     if (quietHold > 0 || t < quietUntil) return false;
-    if (t - last < 240 || t - lastFlavour < 18 || t < busyUntil) return false;
+    if (t - last < 600 || t - lastFlavour < 45 || t < busyUntil) return false;
     lastFlavour = t;
   } else if (pri === 2) {
-    if (kind !== 'say' && t - last < 25) return false;
+    if (kind === 'think') { if (t - last < 40 || t - lastFeedback < 5) return false; lastFeedback = t; }
+    else if (kind !== 'say' && t - last < 25) return false;
     busyUntil = Math.max(busyUntil, t + Math.min(6, life));
   } else busyUntil = Math.max(busyUntil, t + Math.min(6, life));
+  // the cap: two lines at most; the least important gives way, or the new one does
+  for (let i = live.length - 1; i >= 0; i--) if (live[i].until < t || !live[i].el.isConnected && t - (live[i].until - 30) > 1) live.splice(i, 1);
+  if (live.length >= MAX_LIVE) {
+    let lo = 0;
+    for (let i = 1; i < live.length; i++) if (live[i].pri < live[lo].pri || (live[i].pri === live[lo].pri && live[i].until < live[lo].until)) lo = i;
+    if (pri <= live[lo].pri && pri < 3) return false;
+    live[lo].el.classList.add('ft-mute');
+    live.splice(lo, 1);
+  }
   seen.set(key, t);
   if (seen.size > 300) { for (const [k, v] of seen) if (t - v > 300) seen.delete(k); }
   return true;
@@ -136,6 +153,7 @@ export function floatText(text0: string, o: FloatOpts = {}): HTMLDivElement {
   const el = document.createElement('div');
   el.className = 'w-bubble ft nc-free-text nc-ink ft-' + kind + (pri >= 3 && kind === 'think' ? ' ft-p3' : '');
   if (!text || !admit(text, kind, pri, life)) { el.classList.add('ft-mute'); el.setAttribute('aria-hidden', 'true'); return el; }
+  live.push({ el, pri, until: now() + life + 0.6 });
   if (o.tint) el.style.setProperty('--ftc', speakerColor(o.tint));
   const body = document.createElement('span');
   body.className = 'ft-body';

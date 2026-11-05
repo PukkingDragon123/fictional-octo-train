@@ -293,7 +293,7 @@ export class Vitals {
     this.sy = this.shake > 0.2 ? Math.round((Math.random() - 0.5) * 1.2 * this.shake) : 0;
     this.heal = Math.max(0, this.heal - dt * 0.7);
     if (this.sweep >= 0) { this.sweep += dt * 150; if (this.sweep > BAR.w + 20) this.sweep = this.heal > 0.25 ? 0 : -1; }
-    if (this.heal > 0.1 && Math.random() < dt * 14 * this.heal) {
+    if (this.full && this.heal > 0.1 && Math.random() < dt * 14 * this.heal) {
       const fx = BAR.x + 10 + Math.random() * Math.max(4, (BAR.w - 14) * this.hpShown / 100);
       this.mote(fx, BAR.y + 3 + Math.random() * 6, (Math.random() - 0.5) * 4, -10 - Math.random() * 10, 0.7 + Math.random() * 0.4, 0xc8ffd0, 1);
     }
@@ -302,7 +302,7 @@ export class Vitals {
     if (s.running && Math.random() < dt * 5) this.sloshV += (Math.random() - 0.5) * 8;
     this.slosh += this.sloshV * dt;
     // wounds drip from the belly of the tube
-    if (!s.dead && s.bleed > 0.015) {
+    if (!s.dead && s.bleed > 0.015 && this.full) {
       this.dripAcc += dt * Math.min(9, 0.7 + s.bleed * 5.5);
       while (this.dripAcc >= 1) {
         this.dripAcc -= 1;

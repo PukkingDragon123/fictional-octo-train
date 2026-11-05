@@ -1,34 +1,39 @@
-// The life-support rig: the one machine the body HUD is built on. An olive
-// enamel console (riveted, stencilled, a hazard edge, vent slots) carries the
-// IV mast the blood bag hangs from, the breathing pump (lung3d.ts) and the
-// digester (jar3d.ts), joined by brass pipes with octagonal handwheel valves;
-// a Meridian-issue rucksack leans on its end (click it: the backpack opens).
-// Nothing holds it up: it hangs in the still air of the corner, drifting,
-// bobbing and turning a little, cables dangling under it, and it is sprung:
-// hits, bites, gulps, footsteps, coughs and pokes knock it about and it
-// settles back with a wobble.
+// The life-support rig: the one machine the body HUD is built on, top-left. An
+// olive enamel console (riveted, a hazard edge, vent slots; its readings float
+// over the front in Alagard) carries, left to right: a brass plinth the brain
+// sits on (drawn by vitals.ts), the mechanical heart (heart3d.ts), the
+// breathing pump (lung3d.ts) with the stamina balloon tied to its cap, and
+// the digester (jar3d.ts), joined by brass pipes with octagonal handwheel
+// valves; a Meridian-issue rucksack leans on its end (click it: the backpack
+// opens). It hangs steady in the corner like the UI it is, breathing a little,
+// and it is sprung: hits, bites, gulps, coughs and pokes knock it about and
+// it settles back with a wobble.
 //
 // Space (stage units, y down negative): the rig's parts are built in `inner`,
 // whose coordinates match the HUD's stage (0..SW, 0..-SH); `pivot` turns it
 // about its middle.
 import * as THREE from 'three';
 import type { BodyStage } from './stage';
-import { PrintTex, FONT, inkText } from './stage';
+import { PrintTex } from './stage';
 import { Mold, M, STEEL, BRASS, PAINT, CLOTH, PLASTIC, CHROME, RUBBER, R90, solidMesh, fcyl, fbox, fring, jitter } from './models';
 import { face as polyFace, clipRect, frod, ftaper } from '../touch/facet';
 import { hash, mix } from './pix';
 import { CON_H, FRONT } from './lung3d';
 
 /** the HUD stage in units (k = 1) */
-export const SW = 132, SH = 96;
+export const SW = 174, SH = 92;
 /** the console's top face (y), its span and depth */
-export const CON_TOP = -74, CON_X0 = 6, CON_X1 = 126, CON_D = 16;
+export const CON_TOP = -70, CON_X0 = 4, CON_X1 = 170, CON_D = 16;
 /** where the parts stand (x, y of each root) */
-export const BAG_AT: [number, number] = [28, -5.5];
-export const PUMP_AT: [number, number] = [64, CON_TOP];
-export const JAR_AT: [number, number] = [100, CON_TOP];
-export const PACK_AT: [number, number] = [119, CON_TOP];
-const MAST_X = 9;
+export const BRAIN_AT: [number, number] = [22, CON_TOP];
+export const HEART_AT: [number, number] = [60, CON_TOP];
+export const PUMP_AT: [number, number] = [101, CON_TOP];
+export const JAR_AT: [number, number] = [139, CON_TOP];
+export const PACK_AT: [number, number] = [161, CON_TOP];
+/** the balloon's tie on the pump's cap (stage units, rig space) */
+export const TIE_AT: [number, number] = [PUMP_AT[0], CON_TOP + 36.5];
+/** where each reading sits on the console's front (x) */
+export const LABEL_X = { mind: BRAIN_AT[0], heart: HEART_AT[0] - 2, food: JAR_AT[0] - 2 };
 const OLIVE = 0x5c6440, OLIVE_D = 0x3e4430, OLIVE_L = 0x7a8456;
 
 export class Rig3D {
@@ -67,28 +72,22 @@ export class Rig3D {
       con.add(fbox(2.2, CON_H + 1.6, 3, 0.3), M(ex, ccy, -FRONT + 0.6), 0x6a7076, STEEL);
       for (const yy of [CON_TOP - 3, CON_TOP - CON_H + 3]) con.add(fcyl(0.5, 0.5, 6, 0.55, 0.3), M(ex, yy, FRONT + 1, R90), 0xd8dee4, CHROME);
     }
-    // ---- the IV mast: a hex pole on a bolted foot, a collar clamp, the crossarm to the bag's hook
-    con.add(fbox(6, 1.6, 6, 0.3), M(MAST_X, CON_TOP + 0.8, 0), 0x4a4e52, STEEL)
-      .add(fcyl(1, -3.2 - CON_TOP, 6, 1, 0), M(MAST_X, (CON_TOP - 3.2) / 2, 0), (_x, _y, _z, nx) => (nx < -0.3 ? 0xf0f4f6 : nx > 0.5 ? 0x6a7076 : 0xb8c0c6), CHROME)
-      .add(fcyl(1.6, 2.4, 6, 1.6, 0.3), M(MAST_X, -30, 0), 0xc0902e, BRASS)
-      .add(fbox(3.2, 1, 1, 0.3), M(MAST_X + 1.8, -30, 0), 0xc0902e, BRASS)
-      .add(fcyl(0.8, BAG_AT[0] - MAST_X + 2, 6, 0.8, 0), M((BAG_AT[0] + MAST_X) / 2 + 1, -2.6, 0, 0, 0, R90), 0xc8d0d6, CHROME)
-      .add(fcyl(1.4, 1.6, 6, 1.4, 0.3), M(MAST_X, -2.6, 0), 0x8a9098, STEEL)
-      .add(fcyl(1, 1, 6, 1, 0.3), M(BAG_AT[0] + 2, -2.6, 0, 0, 0, R90), 0x8a9098, STEEL);
-    // the bag's line goes into a brass inlet on the console
-    con.add(fcyl(1.6, 1.6, 6, 1.9, 0.3), M(BAG_AT[0], CON_TOP + 0.8, 0), 0xc0902e, BRASS);
-    // ---- pipes along the console top with octagonal handwheel valves: bag -> pump -> digester
+    // ---- the brain's plinth: a stepped steel octagon with a brass cup
+    con.add(fcyl(9, 1.6, 8, 9.6, 0.25), M(BRAIN_AT[0], CON_TOP + 0.8, 0), (_x, y) => (y > CON_TOP + 1.2 ? 0x9aa2aa : 0x5a6066), STEEL)
+      .add(fcyl(6.4, 1.6, 8, 5.4, 0.25), M(BRAIN_AT[0], CON_TOP + 2.4, 0), (_x, _y, _z, _nx, ny) => (ny > 0.5 ? 0xf0c860 : 0xb08a3a), BRASS);
+    for (const a of [0.4, 2.5, 4.6]) con.add(fcyl(0.5, 0.6, 6, 0.55, 0.3), M(BRAIN_AT[0] + Math.sin(a) * 7.6, CON_TOP + 1.7, Math.cos(a) * 7.6), 0xd8dee4, CHROME);
+    // ---- pipes along the console top with octagonal handwheel valves: heart -> pump -> digester
     const pz = 2.5, py = CON_TOP + 1.3;
-    con.add(frod([BAG_AT[0], py, 0], [BAG_AT[0], py, pz], 0.75, 6), null, 0xb08a3a, BRASS)
-      .add(frod([BAG_AT[0], py, pz], [PUMP_AT[0] - 14, py, pz], 0.75, 6), null, 0xb08a3a, BRASS)
+    const hp = HEART_AT[0] + 17.5;
+    con.add(frod([hp, py, pz], [PUMP_AT[0] - 14, py, pz], 0.75, 6), null, 0xb08a3a, BRASS)
       .add(frod([PUMP_AT[0] + 10.5, py, pz], [JAR_AT[0] - 16, py, pz], 0.75, 6), null, 0xb08a3a, BRASS);
-    for (const vx of [40, 81]) {
+    for (const vx of [(hp + PUMP_AT[0] - 14) / 2, (PUMP_AT[0] + 10.5 + JAR_AT[0] - 16) / 2]) {
       con.add(fcyl(1.4, 3.2, 8, 1.4, 0.25), M(vx, py, pz, 0, 0, R90), 0x9a7428, BRASS)
         .add(fcyl(0.45, 3, 6, 0.45, 0), M(vx, py + 1.6, pz), 0x8a9098, STEEL)
-        .add(fring(2, 0.45, 8, 4), M(vx, py + 3.2, pz, R90, 0, Math.PI / 8), 0xa8281a, PLASTIC);
-      for (let i = 0; i < 4; i++) con.add(fbox(3.6, 0.4, 0.4, 0.2), M(vx, py + 3.2, pz, 0, i * Math.PI / 4, 0), 0x8a1a10, PLASTIC);
+        .add(fring(2, 0.45, 8, 4), M(vx, py + 3.2, pz, R90, 0, Math.PI / 8), 0xc8301e, PLASTIC);
+      for (let i = 0; i < 4; i++) con.add(fbox(3.6, 0.4, 0.4, 0.2), M(vx, py + 3.2, pz, 0, i * Math.PI / 4, 0), 0xa8221a, PLASTIC);
     }
-    for (const fx of [BAG_AT[0] + 6, PUMP_AT[0] - 14.5, PUMP_AT[0] + 11, JAR_AT[0] - 16.5]) con.add(fcyl(1.2, 0.8, 8, 1.2, 0.3), M(fx, py, pz, 0, 0, R90), 0xc89a3a, BRASS);
+    for (const fx of [hp, PUMP_AT[0] - 14.5, PUMP_AT[0] + 11, JAR_AT[0] - 16.5]) con.add(fcyl(1.2, 0.8, 8, 1.2, 0.3), M(fx, py, pz, 0, 0, R90), 0xc89a3a, BRASS);
     g.add(solidMesh(st, con, { wear: 0.7 }));
     // ---- the console's front: enamel, seams, rivets, vent slots, stencils, the hazard edge
     this.front = new PrintTex(W * 2, CON_H * 2, 1);
@@ -97,9 +96,9 @@ export class Rig3D {
     fm.position.set(ccx, ccy, CON_D / 2 + 0.05); g.add(fm);
     // ---- hangers and cables under it (it floats: nothing reaches the floor)
     const hang = new Mold();
-    for (const hx of [24, 108]) hang.add(fbox(5, 2.6, 6, 0.3), M(hx, CON_TOP - CON_H - 2.2, 0), 0x3a3e30, STEEL).add(fcyl(0.9, 1, 6, 0.9, 0.3), M(hx, CON_TOP - CON_H - 3.6, 0), 0x8a9098, STEEL);
+    for (const hx of [30, 146]) hang.add(fbox(5, 2.6, 6, 0.3), M(hx, CON_TOP - CON_H - 2.2, 0), 0x3a3e30, STEEL).add(fcyl(0.9, 1, 6, 0.9, 0.3), M(hx, CON_TOP - CON_H - 3.6, 0), 0x8a9098, STEEL);
     g.add(solidMesh(st, hang));
-    const cabX = [[44, 0x1a1a18, 6], [52, 0x8a1a12, 4], [86, 0x1a1a18, 7], [90, 0xc8a020, 4.5]] as const;
+    const cabX = [[48, 0x1a1a18, 6], [56, 0x8a1a12, 4], [112, 0x1a1a18, 7], [118, 0xc8a020, 4.5]] as const;
     for (const [x0, col, len] of cabX) {
       const cg = new THREE.Group(); cg.position.set(x0, CON_TOP - CON_H - 1.5, 1);
       const cm = new Mold().add(frod([0, 0, 0], [0.4, -len * 0.5, 0.3], 0.38, 4), null, col, RUBBER).add(frod([0.4, -len * 0.5, 0.3], [-0.2, -len, 0.5], 0.38, 4), null, col, RUBBER)
@@ -163,16 +162,13 @@ export class Rig3D {
       P.set(x, y, c);
     }
     // panel seams with rivets
-    for (const sx of [X(16), X(48), X(86), X(112)]) { P.vline(sx, 2, H - 7, 0x2a2e1e); P.vline(sx + 1, 2, H - 7, 0x7a8456); for (let y = 4; y < H - 7; y += 6) { P.set(sx - 2, y, 0xc8ccb8); P.set(sx - 2, y + 1, 0x2a2e1e); } }
+    for (const sx of [X(41), X(80), X(120), X(152)]) { P.vline(sx, 2, H - 7, 0x2a2e1e); P.vline(sx + 1, 2, H - 7, 0x7a8456); for (let y = 4; y < H - 7; y += 6) { P.set(sx - 2, y, 0xc8ccb8); P.set(sx - 2, y + 1, 0x2a2e1e); } }
     // vent slots
-    for (let i = 0; i < 5; i++) { const vx = X(112) + 6 + i * 4; P.rect(vx, 5, 2, 9, 0x101208); P.vline(vx + 2, 5, 13, 0x7a8456); }
-    // a water stain run under the bag
-    for (let y = 2; y < H - 6; y++) if (hash(1, y, 3) > 0.3) P.blend(X(BAG_AT[0]) + Math.round(Math.sin(y * 0.6) * 1.5), y, 0x2a2410, 0.4);
-    T.commit((c) => {
-      inkText(c, 'BLOOD', X(BAG_AT[0] - 1), H - 9, 10, FONT.sign, '#e8e2c4', 'center', '700');
-      inkText(c, 'AIR', X(42), H - 9, 10, FONT.sign, '#e8e2c4', 'center', '700');
-      inkText(c, 'FOOD', X(JAR_AT[0]), H - 9, 10, FONT.sign, '#e8e2c4', 'center', '700');
-    });
+    for (let i = 0; i < 5; i++) { const vx = X(152) + 6 + i * 4; P.rect(vx, 5, 2, 9, 0x101208); P.vline(vx + 2, 5, 13, 0x7a8456); }
+    // a rust run under the heart
+    for (let y = 2; y < H - 6; y++) if (hash(1, y, 3) > 0.3) P.blend(X(HEART_AT[0] + 12) + Math.round(Math.sin(y * 0.6) * 1.5), y, 0x2a2410, 0.4);
+    // (the readings float over the front in Alagard: bodyHud.ts)
+    T.commit();
   }
   /** web fonts arrived */
   repaintType() { this.paintFront(); }
@@ -189,11 +185,11 @@ export class Rig3D {
     this.t += dt;
     const t = this.t;
     // the idle drift: slow, incommensurate waves (it never quite repeats)
-    const dx = Math.sin(t * 0.31) * 1.1 + Math.sin(t * 0.13 + 1) * 0.6;
-    const dy = Math.sin(t * 0.47) * 1.3 + Math.sin(t * 0.21 + 2) * 0.5 - (dead ? 3 : 0);
+    const dx = Math.sin(t * 0.31) * 0.35 + Math.sin(t * 0.13 + 1) * 0.2;
+    const dy = Math.sin(t * 0.47) * 0.6 + Math.sin(t * 0.21 + 2) * 0.25 - (dead ? 3 : 0);
     // small idle turns: enough to feel it hang in the air, little enough that the printed type stays crisp
-    const dr = Math.sin(t * 0.27) * 0.01 + Math.sin(t * 0.11 + 4) * 0.006 + (dead ? 0.06 : 0);
-    const dyaw = Math.sin(t * 0.19) * 0.07 + Math.sin(t * 0.07 + 3) * 0.035;
+    const dr = Math.sin(t * 0.27) * 0.004 + (dead ? 0.04 : 0);
+    const dyaw = Math.sin(t * 0.19) * 0.05 + Math.sin(t * 0.07 + 3) * 0.02;
     // springs toward the drift (soft: it bounces)
     const k = 60, c = 5.5;
     this.vx += ((dx - this.x) * k - this.vx * c) * dt; this.x += this.vx * dt;
@@ -201,10 +197,10 @@ export class Rig3D {
     this.vr += ((dr - this.r) * 50 - this.vr * 5) * dt; this.r += this.vr * dt;
     this.vyaw += ((dyaw - this.yaw) * 30 - this.vyaw * 4) * dt; this.yaw += this.vyaw * dt;
     this.x = Math.max(-4, Math.min(4, this.x)); this.y = Math.max(-4, Math.min(4, this.y));
-    this.r = Math.max(-0.12, Math.min(0.12, this.r)); this.yaw = Math.max(-0.35, Math.min(0.35, this.yaw));
+    this.r = Math.max(-0.05, Math.min(0.05, this.r)); this.yaw = Math.max(-0.25, Math.min(0.25, this.yaw));
     this.pivot.position.x = (CON_X0 + CON_X1) / 2 + this.x;
     this.pivot.position.y = -SH / 2 + this.y;
-    this.pivot.rotation.set(Math.sin(t * 0.23) * 0.025, this.yaw, this.r);
+    this.pivot.rotation.set(Math.sin(t * 0.23) * 0.015, this.yaw, this.r);
     this.lift = this.y;
     // cables trail after the motion
     for (let i = 0; i < this.cables.length; i++) this.cables[i].rotation.z = -this.vx * 0.06 + this.vr * 0.8 + Math.sin(t * 1.1 + i * 1.7) * 0.08;

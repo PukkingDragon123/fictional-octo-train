@@ -1233,6 +1233,7 @@ export class SubjectRoom {
     // ---- camera, then the fx that face it
     this.updateCamera(dt);
     this.updateCloseLights(dt);
+    if (this.rig) this.staff.clearView(this.cam.position, this.rig.bones.chest.getWorldPosition(this.v1), this.mode === 'lit' && this.shotName !== 'full' && this.shotName !== 'press');
     this.puffs.update(dt, this.cam, (p) => this.lightAt(p));
     // ---- composite
     this.flash = Math.max(0, this.flash - dt * 2.2);
@@ -1284,7 +1285,7 @@ export class SubjectRoom {
     this.shaft.u.uInt.value = 0.02 * this.bulbLevel * (0.2 + title * 0.8);
     // the operating lamp: it stutters on with the tubes, then a steady white
     const sl = this.surgLevel * (this.litT > 0 && this.litT < 0.9 ? (Math.random() < 0.6 ? 1 : 0.2) : 1);
-    this.surg.intensity = sl * 24 * (1 - this.surgeK * 0.3);
+    this.surg.intensity = sl * 13 * (1 - this.surgeK * 0.3);
     const sb = 0.1 + sl * 3.2;
     this.surgBulbMat.color.setRGB(sb, sb * 0.95, sb * 0.86);
     this.surgShaft.u.uInt.value = 0.012 * sl;
@@ -1318,7 +1319,7 @@ export class SubjectRoom {
     this.faceKey.position.copy(head).addScaledVector(right, -0.75).addScaledVector(fwd, 0.7).add(this.v4.set(0, 0.45, 0));
     this.faceKey.target.position.copy(head);
     const lvl = this.mode === 'lit' ? this.lit : 0.35;
-    this.faceKey.intensity = this.closeK * lvl * 7;
+    this.faceKey.intensity = this.closeK * lvl * 3;
     this.faceFill.position.copy(head).addScaledVector(right, 0.7).addScaledVector(fwd, 0.5).add(this.v4.set(0, -0.1, 0));
     this.faceFill.intensity = this.closeK * lvl * 0.9 + (this.mode === 'title' ? 0.12 * (1 - this.lit) : 0);
   }

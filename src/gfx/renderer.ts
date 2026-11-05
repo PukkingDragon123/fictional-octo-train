@@ -497,6 +497,7 @@ export class PixelRenderer {
     const now = performance.now();
     const ms = now - this.lastFrameAt;
     this.lastFrameAt = now;
+    if (ms > 0) this.rawMs = this.rawMs * 0.8 + Math.min(ms, 2000) * 0.2;
     if (ms <= 0 || ms > 250) return;
     this.frameMs = this.frameMs * 0.95 + ms * 0.05;
     if (this.qualitySetting !== 'auto' || this.qualityOverride || this.quality === 'low') { this.slowFor = 0; return; }
@@ -629,6 +630,8 @@ export class PixelRenderer {
   // background where the GPU driver can: KHR_parallel_shader_compile), and the world scene is swept now
   // and then so props, creatures and items that are still hidden are ready before they show.
   private warmFrames = 0;
+  /** rolling frame interval without the long-frame cut-off (warm-up only runs on a machine that keeps up) */
+  private rawMs = 16;
   private warmAt = 0;
   private warmed = new WeakSet<THREE.Object3D>();
   private warmWorldAt = 0;
@@ -649,6 +652,9 @@ export class PixelRenderer {
     if (++this.warmFrames === 6) this.warmAt = now + 1500;
     if (this.warmFrames < 6 || now < this.warmAt) return;
     this.warmAt = now + 700;
+    // compiling ahead only pays where the driver compiles in the background, or where frames have room to
+    // spare; a software GL that already struggles would just pay twice (on first use it compiles anyway)
+    if (!this.renderer.extensions.has('KHR_parallel_shader_compile') && this.rawMs > 40) return;
     try {
       // one hidden close-up stage, compiled with exactly the lights it will have (its own rig + the scene's)
       const os = this.overlayScene;

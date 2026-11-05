@@ -9,6 +9,7 @@ import { Player } from '../../../entities/player';
 import { hasItemDef } from '../../../items/item';
 import type { ActionAnim } from '../../../entities/humanAnim';
 
+const _v = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3();
 interface Worker { rig: HumanRig; action: ActionAnim; dur: number; base: THREE.Vector3; yaw: number; look: number; t: number; sway: number }
 
 /** what a set of worn items looks like, by the game's own dressing rules */
@@ -71,6 +72,19 @@ export class Staff {
       w.look += (look - w.look) * Math.min(1, dt * 4);
       w.rig.root.position.x = w.base.x + Math.sin(w.t * 0.37 + w.sway) * 0.03;
       w.rig.update(dt, { speed: 0, stance: 'stand', action: w.action, actionDur: w.dur, lookYaw: w.look, fidget: true } as any);
+    }
+  }
+
+  /** hide whoever stands between the camera and the subject (close-ups in the creator) */
+  clearView(cam: THREE.Vector3, target: THREE.Vector3, on: boolean) {
+    const d = target.distanceTo(cam);
+    for (const w of this.crew) {
+      if (!on) { w.rig.root.visible = true; continue; }
+      const p = _v.set(w.base.x, Math.min(target.y, 1.5), w.base.z);
+      // distance of the worker from the line camera -> subject, and how far along it
+      const ab = _a.subVectors(target, cam), t = _b.subVectors(p, cam).dot(ab) / Math.max(1e-4, ab.lengthSq());
+      const off = _b.copy(cam).addScaledVector(ab, Math.max(0, Math.min(1, t))).distanceTo(p);
+      w.rig.root.visible = !(t > 0 && t < 1 && off < 0.25 + d * 0.38);
     }
   }
 
