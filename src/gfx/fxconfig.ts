@@ -28,12 +28,16 @@ export interface FxQuality {
   dirt: boolean;
   /** outdoors: warm sunlit / cool shaded split (one shadow-map lookup per pixel) */
   split: boolean;
+  /** shadow map sizes: the sun (outdoors) and the survivor's own torch */
+  sunShadow: number;
+  spotShadow: number;
 }
 
 export const QUALITY: Record<QualityLevel, FxQuality> = {
-  low: { ao: 0, aoHalf: true, blobs: 6, bloom: 0, vol: 0, volShadows: false, motes: false, ssr: 0, mist: true, dirt: false, split: false },
-  medium: { ao: 6, aoHalf: true, blobs: 10, bloom: 2, vol: 6, volShadows: false, motes: true, ssr: 8, mist: true, dirt: true, split: true },
-  high: { ao: 12, aoHalf: true, blobs: 16, bloom: 3, vol: 11, volShadows: true, motes: true, ssr: 14, mist: true, dirt: true, split: true },
+  // phones: no screen-space passes at all, smaller shadow maps
+  low: { ao: 0, aoHalf: true, blobs: 6, bloom: 0, vol: 0, volShadows: false, motes: false, ssr: 0, mist: true, dirt: false, split: false, sunShadow: 1024, spotShadow: 512 },
+  medium: { ao: 6, aoHalf: true, blobs: 10, bloom: 2, vol: 6, volShadows: false, motes: true, ssr: 8, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024 },
+  high: { ao: 12, aoHalf: true, blobs: 16, bloom: 3, vol: 11, volShadows: true, motes: true, ssr: 14, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024 },
 };
 
 /** best first guess for this device: phones start low, tablets medium, desktops high */

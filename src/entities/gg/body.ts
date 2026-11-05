@@ -103,7 +103,8 @@ export function planBody(sp: GGSpec, P: Props, opts: PlanOpts): BodyPlan {
   const cuffY = D.sleeve === 'long' ? P.wristY + 0.008 * h : D.sleeve === 'short' ? P.elbowY + 0.065 * h : D.sleeve === 'cap' ? P.shoulderY - 0.03 * h : Infinity;
   const botHem = D.legsKind === 'shorts' ? P.kneeY + 0.05 * h : D.legsKind === 'pants' ? P.ankleY + 0.01 * h : D.legsKind === 'brief' ? P.crotchY - 0.01 * h : Infinity;
   const shoe = D.feet?.kind ?? 'bare';
-  const bootTop = hz ? P.kneeY - 0.075 * h : shoe === 'boot' ? P.ankleY + 0.07 * h : 0;
+  const hzB = shoe === 'hazmat';
+  const bootTop = hzB ? P.kneeY - 0.075 * h : shoe === 'boot' ? P.ankleY + 0.07 * h : 0;
   const gloves = !!D.hands;
 
   // ================================================================ torso (split at the rig's joints afterwards)
@@ -157,12 +158,13 @@ export function planBody(sp: GGSpec, P: Props, opts: PlanOpts): BodyPlan {
     }
   }
   // hands
-  const hzz = az + 0.004 * h, hs = lerp(1, 0.92, P.fem), gt = gloves ? (hz ? 0.0055 : 0.0025) : 0;
+  const hzG = D.hands?.kind === 'hazmat';
+  const hzz = az + 0.004 * h, hs = lerp(1, 0.92, P.fem), gt = gloves ? (hzG ? 0.0055 : 0.0025) : 0;
   pl.add('palm', 'handL', 'hand', 'HAND_L', P.knuckY - 0.004 * h, P.wristY + 0.004 * h, [ax - 0.001 * h, hzz, 0.0085 * h + gt, 0.0255 * h * hs + gt], [ax, hzz, 0.0085 * h + gt, 0.021 * h * hs + gt], { ch: 0.25, mirror: true, dens: 1.25 });
   pl.add('fingers', 'fing1L', 'hand', 'HAND_L', P.fing2Y, P.knuckY + 0.002 * h, [ax - 0.003 * h, hzz + 0.003 * h, 0.0066 * h + gt, 0.0235 * h * hs + gt], [ax - 0.002 * h, hzz + 0.002 * h, 0.0074 * h + gt, 0.0245 * h * hs + gt], { ch: 0.25, mirror: true, dens: 1.25, caps: 'none' });
   pl.add('fingers', 'fing2L', 'hand', 'HAND_L', P.tipY, P.fing2Y + 0.002 * h, [ax - 0.004 * h, hzz + 0.004 * h, 0.006 * h + gt, 0.021 * h * hs + gt], [ax - 0.003 * h, hzz + 0.003 * h, 0.0066 * h + gt, 0.0235 * h * hs + gt], { ch: 0.25, mirror: true, dens: 1.25, caps: 'bot' });
   pl.add('thumb', 'thumbL', 'hand', 'HAND_L', P.wristY - 0.042 * h * hs, P.wristY - 0.004 * h, [ax - 0.006 * h, hzz + 0.024 * h * hs, 0.0052 * h + gt, 0.0058 * h + gt], [ax - 0.003 * h, hzz + 0.018 * h * hs, 0.0062 * h + gt, 0.0072 * h + gt], { ch: 0.3, mirror: true, dens: 1.25, rot: { p: [ax, P.wristY, hzz + 0.02 * h], e: [-0.25, 0, 0.12] } });
-  if (gloves) pl.add('cuff', 'farmL', 'hand', 'HAND_L', P.wristY - 0.004 * h, P.wristY + (hz ? 0.07 : 0.03) * h, [ax, az + 0.004 * h, aw * 0.56 + gt * 2.2, aw * 0.68 + gt * 2.2], [ax, az + 0.003 * h, aw * (hz ? 0.7 : 0.6) + gt * 2.2, aw * (hz ? 0.78 : 0.7) + gt * 2.2], { ch: 0.36, mirror: true, dens: 1.1, caps: 'top' });
+  if (gloves) pl.add('cuff', 'farmL', 'hand', 'HAND_L', P.wristY - 0.004 * h, P.wristY + (hzG ? 0.07 : 0.03) * h, [ax, az + 0.004 * h, aw * 0.56 + gt * 2.2, aw * 0.68 + gt * 2.2], [ax, az + 0.003 * h, aw * (hzG ? 0.7 : 0.6) + gt * 2.2, aw * (hz ? 0.78 : 0.7) + gt * 2.2], { ch: 0.36, mirror: true, dens: 1.1, caps: 'top' });
   if (D.wrist && !gloves) pl.add('watch', 'farmL', 'acc', 'WATCH', P.wristY + 0.008 * h, P.wristY + 0.022 * h, [ax, az + 0.004 * h, aw * 0.58 + 0.0035, aw * 0.68 + 0.0035], null, { ch: 0.4, dens: 1.6 });
   // ---- legs (left; mirrored)
   const lx = P.hipX, tw = P.thighX, mid = P.kneeY - 0.1 * h;
@@ -179,13 +181,13 @@ export function planBody(sp: GGSpec, P: Props, opts: PlanOpts): BodyPlan {
     const m = (x.y0 + x.y1) / 2;
     let t = 0;
     if (tLeg > 0 && m > botHem) t += tLeg;
-    if (bootTop > 0 && m < bootTop) { t += hz ? 0.012 : 0.006; if (Math.abs(x.y1 - bootTop) < 1e-4) x.caps = x.caps === 'bot' ? 'both' : 'top'; }
+    if (bootTop > 0 && m < bootTop) { t += hzB ? 0.012 : 0.006; if (Math.abs(x.y1 - bootTop) < 1e-4) x.caps = x.caps === 'bot' ? 'both' : 'top'; }
     if (t) { x.b = grow(x.b, t); x.t = grow(x.t, t); }
   }
-  const fl = P.footL, fx = P.footX + (shoe === 'boot' ? 0.004 : shoe === 'sneaker' ? 0.002 : 0) + (hz ? 0.01 : 0), fz0 = -0.24 * fl, sole = P.sole;
-  const fk = hz ? 1.06 : 1;
+  const fl = P.footL, fx = P.footX + (shoe === 'boot' ? 0.004 : shoe === 'sneaker' ? 0.002 : 0) + (hzB ? 0.01 : 0), fz0 = -0.24 * fl, sole = P.sole;
+  const fk = hzB ? 1.06 : 1;
   pl.add('foot', 'footL', 'shoe', 'FOOT_L', -sole, P.ankleY + 0.012 * h, [lx + 0.003 * h, fz0 + 0.36 * fl * fk, fx, 0.36 * fl * fk], [lx + 0.002 * h, fz0 + 0.2 * fl, fx * 0.72, 0.18 * fl], { ch: 0.3, mirror: true });
-  pl.add('toe', 'footL', 'shoe', 'FOOT_L', -sole, 0.026 * h + (hz ? 0.01 : 0), [lx + 0.004 * h, fz0 + 0.84 * fl * fk, fx * 1.02, 0.16 * fl * fk], [lx + 0.004 * h, fz0 + 0.8 * fl * fk, fx * 0.92, 0.15 * fl * fk], { ch: 0.45, mirror: true });
+  pl.add('toe', 'footL', 'shoe', 'FOOT_L', -sole, 0.026 * h + (hzB ? 0.01 : 0), [lx + 0.004 * h, fz0 + 0.84 * fl * fk, fx * 1.02, 0.16 * fl * fk], [lx + 0.004 * h, fz0 + 0.8 * fl * fk, fx * 0.92, 0.15 * fl * fk], { ch: 0.45, mirror: true });
 
   // ================================================================ garment extras
   hairSegs(pl, sp, P, pivots);
@@ -474,9 +476,9 @@ function accSegs(pl: Plan, sp: GGSpec, P: Props, pivots: Partial<Record<SecBone,
   if (hz) {
     const t = 0.07 * hu;
     // gorget round the neck (closed), then the hood (open at the face)
-    add('hoodNeck', 'neck', 'HAT', P.neckBase - 0.035 * H, P.chin + 0.02 * hu, [0, -0.01 * h, hu * 0.36, hu * 0.36], [0, P.hcz - 0.1 * hu, P.hw + t * 0.7, P.hd * 0.86 + t * 0.6], { ch: 0.4, caps: 'none' });
-    add('hood', 'head', 'HAT', P.chin + 0.01 * hu, P.crown + 0.02 * hu, cs(P, P.chin + 0.3 * hu, t * 1.05, t * 0.9, -0.03 * hu), (() => { const c = cs(P, P.crown, t * 1.2, t, -0.05 * hu); c[2] *= 0.94; c[3] *= 0.98; return c; })(), { ch: 0.42, caps: 'top', open: 0.72, inner: true });
-    add('hoodTop', 'head', 'HAT', P.crown + 0.01 * hu, P.crown + 0.1 * hu, (() => { const c = cs(P, P.crown, t * 1.2, t, -0.05 * hu); c[2] *= 0.94; c[3] *= 0.98; return c; })(), (() => { const c = cs(P, P.crown, t * 0.4, t * 0.4, -0.06 * hu); c[2] *= 0.62; c[3] *= 0.7; return c; })(), { ch: 0.45, caps: 'top' });
+    pl.add('hoodNeck', 'neck', 'hat', 'HAT', P.neckBase - 0.035 * H, P.chin + 0.02 * hu, [0, -0.01 * h, hu * 0.36, hu * 0.36], [0, P.hcz - 0.1 * hu, P.hw + t * 0.7, P.hd * 0.86 + t * 0.6], { ch: 0.4, caps: 'none' });
+    pl.add('hood', 'head', 'hat', 'HAT', P.chin + 0.01 * hu, P.crown + 0.02 * hu, cs(P, P.chin + 0.3 * hu, t * 1.05, t * 0.9, -0.03 * hu), (() => { const c = cs(P, P.crown, t * 1.2, t, -0.05 * hu); c[2] *= 0.94; c[3] *= 0.98; return c; })(), { ch: 0.42, caps: 'top', open: 0.72, inner: true });
+    pl.add('hoodTop', 'head', 'hat', 'HAT', P.crown + 0.01 * hu, P.crown + 0.1 * hu, (() => { const c = cs(P, P.crown, t * 1.2, t, -0.05 * hu); c[2] *= 0.94; c[3] *= 0.98; return c; })(), (() => { const c = cs(P, P.crown, t * 0.4, t * 0.4, -0.06 * hu); c[2] *= 0.62; c[3] *= 0.7; return c; })(), { ch: 0.45, caps: 'top' });
     // visor frame: four bars round the face opening
     const zf = P.zf + 0.035 * hu, top = P.browY + 0.16 * hu, bot = P.chin - 0.015 * hu, xs = P.hw + 0.03 * hu;
     add('visorFrame', 'head', 'MASK', top - 0.03 * hu, top + 0.035 * hu, [0, zf - 0.03 * hu, xs, 0.045 * hu], null, { ch: 0.4 });

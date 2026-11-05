@@ -3,7 +3,10 @@
 //
 //   the BRAIN is sanity: it throbs with the heartbeat, bruises, veins and
 //     cracks as sanity goes, sweats in a panic, flinches on a scare;
-//   the HEALTH BAR is a riveted glass tube of blood: hits flash and shake it
+//   the HEART ENGINE (heartEngine.ts) beats with the survivor's pulse and pumps the
+//     blood tube: health is how hard it pumps and what its gauge reads; damage
+//     cracks and leaks it, blows make it stutter, weakness makes it skip;
+//   the HEALTH BAR is the riveted glass tube of blood it feeds: hits flash and shake it
 //     and leave a pale ghost that drains after the level; wounds drip from it;
 //     it pulses when critical and shimmers while you heal. Click / tap it to
 //     treat the worst wound with the best thing you carry;
@@ -33,7 +36,7 @@ import type { Player } from '../../entities/player';
 import type { Injury } from '../../survival/body';
 import { Lungs, type PumpResult } from './lung';
 import { Jar } from './jar';
-import { Vitals, VW, VH, BAR, BRAIN, PACK, TRAY_AT, type VitalsIn } from './vitals';
+import { Vitals, VW, VH, BAR, BRAIN, HEART, PACK, TRAY_AT, type VitalsIn } from './vitals';
 import { MoodleTray, SLOT, PAD } from './tray';
 import { treatOptions, bestTreatment, woundTitle, needsCare } from './treat';
 import { breathHit, breathDone } from '../../survival/mindSystem';
@@ -59,7 +62,7 @@ export class BodyHud {
   readonly jar = new Jar();
   readonly eat: EatFp;
   readonly vit = new Vitals();
-  readonly tray = new MoodleTray(6);
+  readonly tray = new MoodleTray(5);
   /** where the cluster sits (CSS px), its pixel size (device px per art pixel) and how visible it is */
   readonly st = { css: { x: 0, y: 0, w: 1, h: 1 }, px: 2, W: VW, H: VH, fade: 0, detail: 1 };
   private root: HTMLDivElement;
@@ -148,11 +151,12 @@ export class BodyHud {
   warm(secs = 2) { const p = G.local; if (!p) return; for (let t = 0; t < secs; t += 1 / 30) this.step(1 / 30, p); this.paint(); }
   /** where a wound shows on screen (the health bar; CSS px) */
   holeScreen(_inj?: Injury): { x: number; y: number } { return this.toScreen(BAR.x + BAR.w / 2, BAR.y + BAR.h / 2); }
-  /** a part's centre on screen (CSS px): 'bag' the health bar, 'lung' the balloon, 'jar' the hunger moodle (or the bar), 'pack' the rucksack, 'brain' */
-  propScreen(kind: 'bag' | 'lung' | 'jar' | 'pack' | 'brain'): { x: number; y: number } {
+  /** a part's centre on screen (CSS px): 'bag' the health bar, 'heart' the heart engine, 'lung' the balloon, 'jar' the hunger moodle (or the bar), 'pack' the rucksack, 'brain' */
+  propScreen(kind: 'bag' | 'lung' | 'jar' | 'pack' | 'brain' | 'heart'): { x: number; y: number } {
     if (kind === 'lung') return this.toScreen(this.vit.bCx, this.vit.bCy);
     if (kind === 'pack') return this.toScreen(PACK.x + PACK.w / 2, PACK.y + PACK.h / 2);
     if (kind === 'brain') return this.toScreen(BRAIN.cx, BRAIN.cy);
+    if (kind === 'heart') return this.toScreen(HEART.cx, HEART.cy);
     if (kind === 'jar') { const c = this.tray.centre('hunger') || this.tray.centre('stuffed'); if (c) return this.toScreen(c.x + TRAY_AT.x - PAD, c.y + TRAY_AT.y - PAD); }
     return this.holeScreen();
   }
@@ -252,7 +256,7 @@ export class BodyHud {
     this.moodT -= dt;
     if (this.moodT <= 0) { this.moodT = 0.2; this.tray.sync(this.moodlesOf(p)); }
     this.tray.update(dt);
-    for (const e of this.vit.events) G.audio?.ui?.(e === 'pop' ? 'hud_pop' : 'hud_wheeze', e === 'pop' ? 0.5 : 0.25);
+    for (const e of this.vit.events) G.audio?.ui?.(e === 'pop' ? 'hud_pop' : e === 'stall' ? 'hud_valve' : 'hud_wheeze', e === 'pop' ? 0.5 : e === 'stall' ? 0.3 : 0.25);
     this.vit.events.length = 0;
     for (const e of this.tray.events) if (this.st.fade > 0.5) G.audio?.ui?.(e === 'in' ? 'hud_moodle' : e === 'up' ? 'hud_worse' : e === 'down' ? 'hud_better' : 'hud_moodle_out', e === 'out' ? 0.12 : 0.22);
     this.tray.events.length = 0;
@@ -339,7 +343,7 @@ export class BodyHud {
     // the game's own pixel size on a desktop (never more than a third of the width); about 1.5 CSS px a pixel on a phone
     const game = G.pr?.scale ?? Math.max(1, Math.round(window.innerHeight * dpr / 360));
     const unit = touch
-      ? Math.max(1, Math.min(Math.round(1.5 * dpr), Math.floor(W * 0.8 * dpr / VW)))
+      ? Math.max(1, Math.min(Math.round(1.5 * dpr), Math.floor(W * 0.82 * dpr / VW)))
       : Math.max(1, Math.min(game, Math.floor(W * 0.34 * dpr / VW)));
     const u = unit / dpr;
     const snap = (v: number) => Math.round(v * dpr) / dpr;
@@ -483,7 +487,9 @@ export class BodyHud {
         const best = bestTreatment(care[0], treatOptions(p, care[0]));
         act = best ? `${T ? 'tap' : 'click'}: ${best.label.toLowerCase()}${best.using ? ' with ' + best.using.toLowerCase() : ''}` : 'nothing to treat it with';
       }
-      html = this.line(`Health ${hp}  ·  ${state}`, hp < 30 ? 0xff6a5a : null, `${w}  ·  blood ${Math.round(b.blood)}%`, act);
+      const H = this.vit.heart, beat = Math.round(H.rate);
+      const pump = b.dead ? 'stopped' : H.stutter > 0.4 ? 'stuttering' : hp < 35 ? 'weak and racing' : hp < 65 ? 'labouring' : 'strong';
+      html = this.line(`Health ${hp}  ·  ${state}`, hp < 30 ? 0xff6a5a : null, `heart ${beat} bpm, ${pump}  ·  blood ${Math.round(b.blood)}%`, w, act);
     } else if (h.kind === 'brain') {
       const s = Math.round(this.sanity(p));
       const word = s > 85 ? 'steady' : s > 65 ? 'uneasy' : s > 45 ? 'frayed' : s > 25 ? 'unravelling' : 'breaking';

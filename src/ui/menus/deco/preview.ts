@@ -84,7 +84,7 @@ export class Preview {
     const elev = flat ? 0.75 : 0.16;
     const aspect = w / h;
     this.cam.aspect = aspect;
-    const half = Math.max(size * 0.56, (it.r * 1.15) / Math.max(0.6, aspect));
+    const half = Math.max(size * 0.6, (it.r * 1.2) / Math.max(0.6, aspect));
     const dist = half / Math.tan(THREE.MathUtils.degToRad(this.cam.fov / 2)) + it.r * 0.6;
     this.cam.position.set(0, ty + Math.sin(elev) * dist, Math.cos(elev) * dist);
     this.cam.lookAt(0, ty, 0);

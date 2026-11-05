@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Body, Env, INJURY_INFO } from '../survival/body';
 import { HumanRig, Appearance, Outfit, RigCondition } from './humanRig';
+import { HAZMAT_YELLOW } from './gg/spec';
 import { HumanAnimator, Stance, FullBody, ActionAnim, AnimInput, ANIM_DUR } from './humanAnim';
 import { groundFn, ragWorldFor, pickLook, lodFor, gameTime, LookTarget } from './humanWorld';
 import { ActionQueue } from '../actions/action';
@@ -383,8 +384,14 @@ export class Player {
     }
     if (suit && !o.legs) { o.legs = { tex: suit.tex, color: suit.color, item: suit.item, blood: suit.blood, wear: suit.wear }; o.legsKind = 'pants'; }
     if (this.cond) o.cond = this.cond;
+    // THE PLAYER'S OUTFIT IS FORCED HERE: a debtor always shows the Remittance hazmat suit (the local survivor,
+    // co-op peers through their own snapshots, and anything dressed in the debtor's issue through this method:
+    // the creator / title subject and the operating table via intake's prisonerOutfitFor, the intro double).
+    if (Player.hazmatAlways && (this.isLocal || [...(this.worn as Map<string, Item>).values()].some((it) => it.key === 'prison_jumpsuit' || it.key === 'hazmat_suit'))) return hazmatOutfit(o);
     return o;
   }
+  /** debtors always wear the hazmat suit (Player.computeOutfit); false shows their worn clothes instead */
+  static hazmatAlways = true;
 
   /** visible condition from the body: blood on wounded parts, bandages, splints, wetness, pallor, corruption */
   computeCondition(): RigCondition {
@@ -650,4 +657,20 @@ export class Player {
       ai: this.propKey || undefined,
     };
   }
+}
+
+/**
+ * The debtor's permanent look: the Remittance hazmat suit over whatever is worn (worn clothing still counts for
+ * warmth and protection, it just does not show). Only the backpack and the wrist monitor show over the suit; the
+ * suit takes the worst blood / wear of the torso and legs garments it hides.
+ */
+export function hazmatOutfit(o: Outfit): Outfit {
+  const lps = [o.torso, o.torsoOuter, o.legs].filter(Boolean) as NonNullable<Outfit['torso']>[];
+  const blood = Math.max(0, ...lps.map((l) => l.blood ?? 0)) || undefined, wear = Math.max(0, ...lps.map((l) => l.wear ?? 0)) || undefined;
+  const suit = { tex: 'c_hazmat', color: HAZMAT_YELLOW, sleeve: 'long' as const, item: 'hazmat_suit', blood, wear };
+  const out: Outfit = { torso: suit, legs: { ...suit }, legsKind: 'pants', feet: { tex: 'c_hazmat', color: 0x1e201e, item: 'hazmat_suit' }, hands: { tex: 'c_hazmat', color: 0x222422, item: 'hazmat_suit' } };
+  if (o.back) out.back = o.back;
+  if (o.wrist) out.wrist = o.wrist;
+  if (o.cond) out.cond = o.cond;
+  return out;
 }

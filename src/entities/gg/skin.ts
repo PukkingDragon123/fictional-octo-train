@@ -79,8 +79,21 @@ export class GGSkin {
       this.walk(this.base, (c, o) => { const fn = this.paint![c.mat] || this.paint!.body; fn(c, o); }, false);
     }
     this.data.set(this.base);
-    this.hasOverlay = !!(cond.blood || cond.bandage || cond.splint?.length || cond.wet || cond.dirt || cond.corrupt || (app.tattoos && Object.keys(app.tattoos).length) || (app.bodyScars && Object.keys(app.bodyScars).length));
-    if (this.hasOverlay) this.walk(this.data, this.paint.overlay, true);
+    // the overlay only visits the faces of parts that carry something (everything when wet / dirty / corrupted)
+    const parts = new Set<string>([...Object.keys(cond.blood || {}), ...Object.keys(cond.bandage || {}), ...(cond.splint || [])]);
+    const marks = !!((app.tattoos && Object.keys(app.tattoos).length) || (app.bodyScars && Object.keys(app.bodyScars).length));
+    const all = !!(cond.wet || cond.dirt || cond.corrupt);
+    this.hasOverlay = all || marks || parts.size > 0;
+    if (this.hasOverlay) {
+      const want = (f: Face) => {
+        if (all) return true;
+        const fp = faceParts(f.seg.bone, f.seg.side);
+        if (marks && (fp.includes('torso_u') || fp.includes('neck') || f.seg.part === 'uarm' || f.seg.part === 'farm')) return true;
+        for (const p of fp) if (parts.has(p)) return true;
+        return false;
+      };
+      this.walk(this.data, this.paint.overlay, true, want);
+    }
     // the face block (its bake depends on the spec, not on the condition)
     const fk = JSON.stringify([spec.face, spec.hair, spec.skin, spec.dress.suit, spec.dress.mask?.kind, spec.dress.mask?.col, spec.dress.hazmat?.col, this.block]);
     if (fk !== this.faceKey || !this.face) { this.faceKey = fk; this.face = new FacePainter(spec, P, this.block, { d: this.data, w: this.S }); }
@@ -92,10 +105,11 @@ export class GGSkin {
   }
 
   /** run a painter over every texel of every (non-face-block) face */
-  private walk(out: Uint8Array, fn: Painter, read: boolean) {
+  private walk(out: Uint8Array, fn: Painter, read: boolean, want?: (f: Face) => boolean) {
     const S = this.S, o = new Float32Array(4);
     const c: Ctx = { x: 0, y: 0, z: 0, i: 0, j: 0, f: null as unknown as Face, part: '', mat: '', bone: '', nx: 0, ny: 0, nz: 0, px: 0, kind: '', e: 0, rb: 0, rt: 0, rh: 0, side: 0 };
     for (const f of this.faces) {
+      if (want && !want(f)) continue;
       c.f = f; c.part = f.seg.part; c.mat = f.seg.mat; c.bone = f.seg.bone; c.nx = f.N[0]; c.ny = f.N[1]; c.nz = f.N[2]; c.px = 1 / f.dens;
       c.kind = f.kind; c.side = f.seg.side;
       const R = f.rect, sw = f.s1 - f.s0, rh = f.r1 - f.r0;
@@ -198,4 +212,14 @@ export class GGSkin {
     }
     t.needsUpdate = true;
   }
+}
+
+/** the item body parts a segment's bone can carry (for the condition overlay) */
+function faceParts(bone: string, side: number): string[] {
+  const sd = bone.endsWith('R') || side < 0 ? '_r' : '_l';
+  if (bone === 'head' || bone === 'hair') return ['head'];
+  if (bone === 'neck') return ['neck'];
+  for (const k of ['uarm', 'farm', 'thigh', 'shin', 'foot']) if (bone.startsWith(k)) return [k + sd];
+  if (bone.startsWith('hand') || bone.startsWith('fing') || bone.startsWith('thumb')) return ['hand' + sd];
+  return ['torso_u', 'torso_l', 'groin', 'thigh_l', 'thigh_r'];
 }

@@ -8,6 +8,7 @@
 /* ---- the keys in the top-right corner */
 .dk-keys-top { position: absolute; top: max(8px, calc(3.5vh - 24px)); right: max(12px, 2vw); display: flex; gap: 10px; pointer-events: none; transition: opacity 0.2s steps(3); }
 .dk-ui.busy .dk-keys-top { opacity: 0; }
+@media (max-aspect-ratio: 20/21) { .dk-keys-top { top: auto; bottom: 10px; right: 10px; } .dk-icap { top: auto; bottom: 100%; margin: 0 0 2px; } }
 .dk-ui.busy .dk-keys-top .dk-icon { pointer-events: none; }
 .dk-icon { position: relative; pointer-events: auto; padding: 0; margin: 0; border: 0; background-color: transparent; background-repeat: no-repeat; background-position: 0 0;
   image-rendering: pixelated; cursor: var(--cur-hand, pointer); outline: none; -webkit-tap-highlight-color: transparent; min-width: 44px; min-height: 44px; }
@@ -86,7 +87,7 @@
 .dk-tabs { display: flex; gap: 4px; align-items: center; justify-content: space-between; }
 .dk-keys { display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; gap: 4px; }
 .dk-keys .pb { width: 100% !important; }
-.dk-shop.big .dk-name b { font-size: 32px; }
+.dk-shop.big .dk-name b, .dk-shop.big .dk-price b { font-size: 32px; }
 
 /* ---- hide the menu's own words while building or shopping */
 body.deco-build .nx-title .tt3-menu, body.deco-build .nx-title .tt3-cap, body.deco-build .nx-title .tt3-foot,
@@ -108,3 +109,4 @@ body.deco-build [data-deco-hide], body.deco-shop [data-deco-hide] { visibility: 
 .hb-c.on { opacity: 1; transform: none; transition: transform 0.18s cubic-bezier(0.3, 1.9, 0.5, 1), opacity 0.06s linear; }
 @media (max-aspect-ratio: 20/21) { .hb-txt { max-width: 220px; } }
 @media (prefers-reduced-motion: reduce) { .hb-c.on, .dk-card, .dk-icap { transition: none; } .dk-note { animation: none; } }
+.dk-tabs .pb[hidden] { display: none; }

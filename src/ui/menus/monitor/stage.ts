@@ -123,6 +123,16 @@ export class MenuStage {
     this.active = r;
     r?.enter?.();
   }
+  /** compile every room's shaders ahead of time (in parallel where the driver can), so the first look at a room does not hitch */
+  warm(): Promise<void> {
+    const r = this.renderer;
+    if (!r) return Promise.resolve();
+    const jobs: Promise<unknown>[] = [];
+    for (const room of this.rooms.values()) {
+      try { jobs.push((r as any).compileAsync ? (r as any).compileAsync(room.scene, room.cam) : Promise.resolve(r.compile(room.scene, room.cam))); } catch { /* compiled on first use instead */ }
+    }
+    return Promise.all(jobs).then(() => undefined, () => undefined);
+  }
   /** a low-rate feed of a room (its feedCam) into a small target; returns the texture */
   feed(id: string, w: number, h: number, fps: number): THREE.Texture | null {
     const room = this.rooms.get(id);

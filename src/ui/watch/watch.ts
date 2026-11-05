@@ -708,11 +708,14 @@ export class Watch {
     // edge when something lands by itself (a peek). Both tilt toward the eye with the forearm
     // running steeply off the bottom edge, clear of the body HUD along the bottom.
     const pm = this.peekMix;
-    const d2 = d1 * (2.8 + 3.6 * pm), h2 = d2 * tanH, w2 = h2 * cam.aspect;
-    const sx = w2 * (0.56 + 0.25 * pm), sy = -h2 * (0.1 + 0.17 * pm), sz = -d2;
+    // on a phone the action props fill the bottom corners: the peek rides higher; held upright the
+    // forearm leaves by the right edge, held sideways it comes up through the empty middle
+    const tp = document.documentElement.classList.contains('nc-touch') ? pm : 0;
+    const d2 = d1 * (2.8 + 3.6 * pm + 1.2 * tp), h2 = d2 * tanH, w2 = h2 * cam.aspect;
+    const sx = w2 * (0.56 + 0.25 * pm + (port ? 0.06 : -0.42) * tp), sy = -h2 * (0.1 + 0.17 * pm) + h2 * 0.3 * tp, sz = -d2;
     const k = this.zoom, e = k * k * (3 - 2 * k);
     let x = sx + (fx - sx) * e, y = sy + (fy - sy) * e, z = sz + (fz - sz) * e;
-    let rx = -(0.28 + 0.06 * pm) * (1 - e), ry = -(0.36 + 0.2 * pm) * (1 - e), rz = (0.62 + 0.3 * pm) * (1 - e);
+    let rx = -(0.28 + 0.06 * pm) * (1 - e), ry = -(0.36 + 0.2 * pm) * (1 - e), rz = (0.62 + 0.3 * pm + (port ? 1.0 : -0.5) * tp) * (1 - e);
     // the wrist from the eyes: turned so the elbow end drops toward the bottom-left corner, the face tipped up at you
     if (eye) { rx -= 0.2 * e; ry += 0.1 * e; rz += (port ? 0.12 : 0.26) * e; }
     // raise from below with a little overshoot (from the eyes it comes up along the forearm, from the lower left)

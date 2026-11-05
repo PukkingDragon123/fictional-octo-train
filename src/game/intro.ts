@@ -242,7 +242,7 @@ function drawCrt(c: CrtScreen, t: number, mode: 'boot' | 'id' | 'link' | 'signal
   const x = c.ctx, W = c.canvas.width, H = c.canvas.height;
   const A = '#ffb347';
   x.fillStyle = '#090502'; x.fillRect(0, 0, W, H);
-  if (mode === 'boot' && t < 0.6) {
+  if (mode === 'boot' && t < 0.35) {
     x.fillStyle = '#ffe2b0'; const w = 8 + t * 220; x.fillRect(W / 2 - w / 2, H / 2 - 1, w, 2);
   } else if (mode === 'boot') {
     if (fontsOk) phosphorText(x, 'BAILIFF', W / 2, 20, { size: 22, color: A, align: 'center', glow: 8, font: cssFont('--font-crt') });
@@ -877,17 +877,18 @@ export class Intro implements GameSystem {
         // steam off the vents, the beacon going round, the glove on the forearm, his face beyond it
         const st = this.stamp!;
         const k = clamp01(t / 1.2);
-        st.world(V6.set(0.24 - k * 0.03, 0.8 + k * 0.02, -0.46 + k * 0.04), pos);
-        st.world(V6.set(-0.4, 0.98 - k * 0.04, 0.08), look);
+        // (from the debtor's left, in front: the die over the arm, his face beyond it, the officer across the bed)
+        st.world(V6.set(0.15 - k * 0.03, 0.9 + k * 0.02, -0.8 + k * 0.06), pos);
+        st.world(V6.set(-0.33, 0.96, 0.06), look);
         return 54;
       }
       case 'stampMacro': {
         // a macro on the wrist: the band clamped on, the die lifting off it in steam, blood under it, the number lighting up
         const st = this.stamp!;
         const k = clamp01(t / 1.45);
-        st.world(V6.set(0.15 - k * 0.03, ST.ARM_Y + 0.11 - k * 0.02, -0.2 + k * 0.03), pos);
-        st.world(V6.set(ST.DIE_X - 0.01, ST.ARM_Y + 0.035, 0.0), look);
-        return 34 - k * 3;
+        st.world(V6.set(0.13 - k * 0.02, ST.ARM_Y + 0.26 - k * 0.03, -0.17 + k * 0.02), pos);
+        st.world(V6.set(ST.DIE_X - 0.02, ST.ARM_Y + 0.04, 0.0), look);
+        return 36 - k * 4;
       }
       case 'tapeWide': {
         // from beside the portal frame, low: the procession marching at the taped wall, the beacon behind
@@ -1008,7 +1009,7 @@ export class Intro implements GameSystem {
       case 'haulCrane': focus = d(head); ap = 0.12; break;
       case 'pressClose': focus = d(v4.set(IX.press.x + 0.1, GP.bedH + 0.2, IX.press.z + 0.4)); ap = 0.22; break;
       case 'stampSide': focus = d(this.stamp!.dieWorld(v4)); ap = 0.32; break;
-      case 'stampMacro': focus = d(this.stamp!.world(v4.set(ST.DIE_X, ST.ARM_Y + 0.04, 0))); ap = 0.55; break;
+      case 'stampMacro': focus = d(this.stamp!.world(v4.set(ST.DIE_X, ST.ARM_Y + 0.05, 0))); ap = 0.28; break;
       case 'tapeWide': focus = d(head); ap = 0.18; break;
       default: if (this.phase === 'fit' && this.stampEye && this.stamp) {
         // at the station: the eyes are on the arm (or the die coming down, or the band held up)
@@ -1055,7 +1056,7 @@ export class Intro implements GameSystem {
     // repaint the tube a dozen times a second (it is a CRT, not a phone)
     this.crtT -= dt;
     if (t > 0.05 && b.crt.mat.crt.target === 0) b.crt.power(true);
-    if (this.crtT <= 0) { this.crtT = 0.06; drawCrt(b.crt, t < 1.5 ? t : t - 1.5, t < 1.5 ? 'boot' : this.signalled ? 'signal' : 'id', clamp01((t - 0.6) / 0.8), this.num); }
+    if (this.crtT <= 0) { this.crtT = 0.06; drawCrt(b.crt, t < 1.0 ? t : t - 1.0, t < 1.0 ? 'boot' : this.signalled ? 'signal' : 'id', clamp01((t - 0.35) / 0.6), this.num); }
     // the needle twitches on the boot, swings hard on a signal; the lamp blinks
     const want = t < 0.6 ? Math.sin(t * 30) * 0.5 : t < 1.5 ? -0.6 + (t - 0.6) * 0.9 : this.signalled ? 0.7 + Math.sin(t * 9) * 0.15 : 0.1 + Math.sin(t * 2) * 0.05;
     b.needle.rotation.z += (want - b.needle.rotation.z) * Math.min(1, dt * 10);
@@ -1389,6 +1390,7 @@ export class Intro implements GameSystem {
     this.set.placeRig(this.fitTo.x + 30, this.fitTo.z);
     this.set.rig.g.visible = false;
     this.hero = 0; this.raise = 0; this.gloveK = 0; this.stampEye = false; this.stampEyeK = 0;
+    this.pierced = false; // (a dev jump back into the beat)
     this.seatBand();
   }
   /** the station (built on first use) */
@@ -1403,7 +1405,7 @@ export class Intro implements GameSystem {
   /** the officer's glove: a first-person arm, grey sleeve, black glove */
   private gloveArm(): FpArm {
     if (!this.glove) {
-      const a = this.glove = fpArm('right', { skin: 0x1b1b1e, sleeve: GUARD_GREY, sleeveStyle: 'long', scale: 1.1 });
+      const a = this.glove = fpArm('right', { skin: 0x1b1b1e, sleeve: scaleHex(GUARD_GREY, 0.55), sleeveStyle: 'long', scale: 1.1 });
       (a as unknown as { reach: THREE.Object3D | null }).reach = this.gloveRef;
       a.root.traverse((o) => { o.castShadow = true; o.frustumCulled = false; });
       stageNormals(a.root);
@@ -1452,18 +1454,16 @@ export class Intro implements GameSystem {
   }
   /** pulled up in front of the eyes: forearm rising from the bottom left, the back of the wrist (the band) to the face */
   private heroRaised(out: THREE.Matrix4) {
-    const cam = fpCamera();
     const t = this.T;
     const shake = 0.006 + 0.004 * Math.sin(t * 3);
-    BY.set(0.42, 0.72, -0.4).normalize();
-    BZ.set(0.1, -0.15, -1).normalize(); BZ.addScaledVector(BY, -BZ.dot(BY)).normalize();
+    BY.set(0.45, 0.85, 0.12).normalize();
+    BZ.set(0.05, -0.1, -1).normalize(); BZ.addScaledVector(BY, -BZ.dot(BY)).normalize();
     BX.crossVectors(BY, BZ);
     out.makeBasis(BX, BY, BZ).multiply(M6.makeScale(-1, 1, 1));
-    out.setPosition(-0.17 + Math.sin(t * 21) * shake, -0.31 + Math.sin(t * 17) * shake, -0.26);
-    cam.updateMatrixWorld();
-    out.premultiply(cam.matrixWorld);
-    // into the machine's frame
-    return out.premultiply(M7.copy(this.stamp!.g.matrixWorld).invert());
+    out.setPosition(-0.15 + Math.sin(t * 21) * shake, -0.3 + Math.sin(t * 17) * shake, -0.3);
+    // in a fixed frame at the machine's eye point looking along the bed (not the moving camera: the eyes come to it)
+    M7.lookAt(ST.EYE, V6.set(ST.EYE.x + 1, ST.EYE.y - 0.3, ST.EYE.z - 0.06), V5.set(0, 1, 0)).setPosition(ST.EYE);
+    return out.premultiply(M7);
   }
   /** pose the hero arm (machine frame) and the glove; called from updBody */
   private placeHero() {
@@ -1555,7 +1555,8 @@ export class Intro implements GameSystem {
       A.setHeld(null); B.setHeld('pendant');
       this.say('OFFICER', 'Left arm.');
       const l = this.arms.find((q) => q.side === 'L');
-      if (l) { l.arm.pose('open'); l.arm.tremor = 0.8; }
+      // the sleeve is shoved up the forearm for the band
+      if (l) { l.arm.pose('open'); l.arm.tremor = 0.8; l.arm.setLook({ sleeveStyle: 'rolled' }); }
       this.hero = 1; this.trauma = Math.max(this.trauma, 0.45); this.jolt(0, 0.5, 'uarm_l', 0.6);
       this.sfx('body_thud', 0.4); this.sfx('debtor_gasp', 0.6);
     });
@@ -1616,6 +1617,7 @@ export class Intro implements GameSystem {
     // ---- the arm pulled off the bed and up to the eyes, shaking
     if (t > FIT.pull) {
       this.raise = ease(clamp01((t - FIT.pull) / 0.85));
+      if (this.band) this.lights().flare(this.band.lamp.getWorldPosition(V6).add(V0.set(0, 0.05, 0)), 0.7);
       this.at(FIT.pull, 18, () => { const l = this.arms.find((q) => q.side === 'L'); if (l) { l.arm.pose('claw'); l.arm.tremor = 1.2; } this.sfx('debtor_gasp', 0.7); this.jolt(0, -0.3, 'farm_l', 0.4); });
     }
     // ---- the officers: A on the far side of the bed with the glove on the arm, B at the pendant behind
@@ -2068,3 +2070,4 @@ function blendM(a: THREE.Matrix4, b: THREE.Matrix4, k: number, out: THREE.Matrix
   bA.p.lerp(bB.p, k); bA.q.slerp(bB.q, k);
   return out.compose(bA.p, bA.q, bA.s);
 }
+function scaleHex(c: number, f: number) { return (Math.round(((c >> 16) & 255) * f) << 16) | (Math.round(((c >> 8) & 255) * f) << 8) | Math.round((c & 255) * f); }

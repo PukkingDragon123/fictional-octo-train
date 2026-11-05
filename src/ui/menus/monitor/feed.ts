@@ -26,6 +26,8 @@ export interface FeedTube {
   update(dt: number, t: number): void;
   /** average brightness of the picture (drives its spill light), smoothed */
   glow: number;
+  /** what the caption shows now (it is only redrawn when this changes) */
+  capStamp?: string;
 }
 
 const VERT = /* glsl */`
@@ -76,12 +78,12 @@ void main() {
   l = mix(l, sn * 0.9, clamp(uSnow, 0.0, 1.0));
   l += (sn - 0.5) * 0.06;
   vec3 col = mix(uTint * l, mix(vec3(l), src * 2.0, 0.5) * uTint * 0.6 + uTint * l * 0.4, uColor);
-  // the caption burnt into the picture
-  vec4 o = texture2D(tOver, vUv);
-  col = mix(col, o.rgb * 1.6, o.a);
   col += uTint * 0.035;
   vec2 d = uv - 0.5;
   col *= 1.0 - dot(d, d) * 1.4;
+  // the caption burnt into the picture (on top of the vignette, so it reads to the corners)
+  vec4 o = texture2D(tOver, vUv);
+  col = mix(col, o.rgb * 1.4, o.a);
   col *= (0.92 + uHover * 0.55) * uPower;
   col *= inside;
   // the glass: grazing sheen and a pane of the room reflected
@@ -134,16 +136,29 @@ export function feedTube(w: number, h: number, fw = 160, fh = 120, tint = 0x9dff
   return tube;
 }
 
-/** the caption for a feed: camera number and name top left, a blinking REC and the clock */
+const capBase = new WeakMap<FeedTube, { key: string; cv: HTMLCanvasElement }>();
+/** the caption for a feed: camera number and name (drawn once), the clock and a blinking REC (when they change) */
 export function drawCaption(t: FeedTube, cam: string, name: string, blink: boolean) {
   const c = t.overCtx, W = t.over.width, H = t.over.height;
-  c.clearRect(0, 0, W, H);
   const now = new Date();
-  const hh = String(now.getHours()).padStart(2, '0'), mm = String(now.getMinutes()).padStart(2, '0'), ss = String(now.getSeconds()).padStart(2, '0');
-  bitText(c, cam, 6, 4, { color: '#d8ffd0', outline: '#020802' });
-  bitText(c, name, 6, H - 19, { color: '#b8f0b0', outline: '#020802' });
-  bitText(c, `${hh}:${mm}:${ss}`, W - 6, 4, { color: '#d8ffd0', outline: '#020802', align: 'right' });
-  if (blink) { c.fillStyle = '#020802'; c.fillRect(W - 37, H - 17, 9, 9); c.fillStyle = '#ff5a3a'; c.fillRect(W - 36, H - 16, 7, 7); bitText(c, 'REC', W - 6, H - 19, { color: '#ffb0a0', outline: '#020802', align: 'right' }); }
+  const clock = [now.getHours(), now.getMinutes(), now.getSeconds()].map((v) => String(v).padStart(2, '0')).join(':');
+  const stamp = clock + (blink ? '*' : '');
+  if (t.capStamp === stamp) return;
+  t.capStamp = stamp;
+  const key = cam + '|' + name;
+  let base = capBase.get(t);
+  if (!base || base.key !== key) {
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+    const bc = cv.getContext('2d')!;
+    bitText(bc, cam, 9, 7, { color: '#d8ffd0', outline: '#020802' });
+    bitText(bc, name, 9, H - 24, { color: '#b8f0b0', outline: '#020802' });
+    base = { key, cv };
+    capBase.set(t, base);
+  }
+  c.clearRect(0, 0, W, H);
+  c.drawImage(base.cv, 0, 0);
+  bitText(c, clock, W - 9, 7, { color: '#d8ffd0', outline: '#020802', align: 'right' });
+  if (blink) { c.fillStyle = '#020802'; c.fillRect(W - 40, H - 40, 9, 9); c.fillStyle = '#ff5a3a'; c.fillRect(W - 39, H - 39, 7, 7); bitText(c, 'REC', W - 9, H - 43, { color: '#ffb0a0', outline: '#020802', align: 'right' }); }
   t.flushOver();
 }
 export { bitReady };

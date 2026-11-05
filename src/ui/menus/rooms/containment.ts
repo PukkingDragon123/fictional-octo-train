@@ -40,9 +40,9 @@ void main() {
   vec2 e = abs(vUv - 0.5) * 2.0;
   float edge = smoothstep(0.75, 1.0, max(e.x, e.y));
   float streak = smoothstep(0.035, 0.0, abs(fract(vUv.x * 1.3 + vUv.y * 0.9 + 0.12) - 0.5)) * 0.5 + smoothstep(0.012, 0.0, abs(fract(vUv.x * 1.3 + vUv.y * 0.9 + 0.2) - 0.5)) * 0.4;
-  vec3 c = uTint * (0.05 + edge * 0.1 + streak * 0.06);
-  c += uBeacon * (0.03 + streak * 0.12 + m.a * 0.25);
-  c += m.rgb * m.a * (0.12 + length(uBeacon) * 0.15);
+  vec3 c = uTint * (0.015 + edge * 0.05 + streak * 0.03);
+  c += uBeacon * (0.008 + streak * 0.05 + m.a * 0.06);
+  c += m.rgb * m.a * (0.035 + length(uBeacon) * 0.05);
   // the tap: a ring running out from the knuckle
   float d = distance(vW, uTap);
   float r = uTapT * 1.6;
@@ -54,39 +54,39 @@ void main() {
 
 /** pixel scratches, smears, hand prints and a starred crack on the glass (RGBA) */
 function marksCanvas(seed: number, crack: number): HTMLCanvasElement {
-  const Wc = 128, Hc = 128;
+  const Wc = 256, Hc = 256;
   const cv = document.createElement('canvas'); cv.width = Wc; cv.height = Hc;
   const c = cv.getContext('2d')!;
   let s = seed;
   const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
   // scratches
-  for (let i = 0; i < 18; i++) {
-    let x = rnd() * Wc, y = rnd() * Hc; const a = rnd() * Math.PI, len = 6 + rnd() * 30;
+  for (let i = 0; i < 30; i++) {
+    let x = rnd() * Wc, y = rnd() * Hc; const a = rnd() * Math.PI, len = 12 + rnd() * 60;
     c.fillStyle = `rgba(220,235,230,${0.25 + rnd() * 0.35})`;
     for (let k = 0; k < len; k++) { c.fillRect(Math.round(x), Math.round(y), 1, 1); x += Math.cos(a); y += Math.sin(a) + (rnd() - 0.5) * 0.3; }
   }
   // greasy smears (dithered)
   for (let i = 0; i < 4; i++) {
-    const cx = rnd() * Wc, cy = 50 + rnd() * 60, r = 6 + rnd() * 12;
-    for (let y = -r; y < r; y++) for (let x = -r; x < r; x++) if (x * x + y * y < r * r && ((x + y) & 1) === 0 && rnd() < 0.5) { c.fillStyle = 'rgba(170,180,160,0.22)'; c.fillRect(Math.round(cx + x), Math.round(cy + y * 0.5), 1, 1); }
+    const cx = rnd() * Wc, cy = 100 + rnd() * 120, r = 12 + rnd() * 24;
+    for (let y = -r; y < r; y++) for (let x = -r; x < r; x++) if (x * x + y * y < r * r && rnd() < 0.18) { c.fillStyle = 'rgba(170,180,160,0.3)'; c.fillRect(Math.round(cx + x), Math.round(cy + y * 0.5), 1, 1); }
   }
   // a palm print (four finger smears and a heel)
   if (seed % 2) {
-    const px = 30 + rnd() * 60, py = 60 + rnd() * 30;
+    const px = 60 + rnd() * 120, py = 120 + rnd() * 60;
     c.fillStyle = 'rgba(200,210,200,0.3)';
     for (let f = 0; f < 4; f++) for (let k = 0; k < 10; k++) c.fillRect(Math.round(px - 7 + f * 4 + (rnd() - 0.5)), Math.round(py - 12 - k + (f === 0 || f === 3 ? 3 : 0)), 2, 1);
     for (let y = 0; y < 9; y++) for (let x = 0; x < 12; x++) if (rnd() < 0.55) c.fillRect(Math.round(px - 6 + x), Math.round(py - 2 + y), 1, 1);
   }
   // the crack: a starburst with jagged legs and a ring
   if (crack > 0) {
-    const cx = 52 + seed % 20, cy = 58;
+    const cx = 104 + seed % 40, cy = 116;
     c.fillStyle = 'rgba(235,250,245,0.9)';
     const legs = 5 + Math.floor(crack * 5);
     for (let l = 0; l < legs; l++) {
-      let x = cx, y = cy; const a = (l / legs) * Math.PI * 2 + rnd() * 0.4; const len = (12 + rnd() * 30) * (0.5 + crack * 0.6);
+      let x = cx, y = cy; const a = (l / legs) * Math.PI * 2 + rnd() * 0.4; const len = (24 + rnd() * 60) * (0.5 + crack * 0.6);
       for (let k = 0; k < len; k++) { c.fillRect(Math.round(x), Math.round(y), 1, 1); x += Math.cos(a) + (rnd() - 0.5) * 0.9; y += Math.sin(a) + (rnd() - 0.5) * 0.9; }
     }
-    for (let k = 0; k < 40; k++) { const a = (k / 40) * Math.PI * 2, r = 5 + crack * 4 + (rnd() - 0.5) * 2; c.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1); }
+    for (let k = 0; k < 40; k++) { const a = (k / 40) * Math.PI * 2, r = 10 + crack * 8 + (rnd() - 0.5) * 3; c.fillRect(Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r), 1, 1); }
     c.fillStyle = 'rgba(255,255,255,1)'; c.fillRect(cx - 1, cy - 1, 3, 3);
   }
   return cv;
@@ -100,7 +100,7 @@ export class ContainmentRoom implements StageRoom {
   cam = new THREE.PerspectiveCamera(46, 16 / 9, 0.05, 30);
   feedCam = new THREE.PerspectiveCamera(68, 4 / 3, 0.05, 30);
   hots: Hot[] = [];
-  grade: Grade = { exposure: 1.3, lift: [0.84, 0.96, 1.12], gain: [1.08, 1.0, 0.86], vig: 1.0, sat: 0.95, contrast: 1.12 };
+  grade: Grade = { exposure: 1.6, lift: [0.84, 0.96, 1.12], gain: [1.08, 1.0, 0.86], vig: 1.0, sat: 0.95, contrast: 1.12 };
   deco = new THREE.Group();
   floor = { minX: -W + 0.3, maxX: W - 0.3, minZ: 0.5, maxZ: FRONT - 0.4, y: 0 };
   surfaces = [{ minX: -W + 0.1, maxX: -W + 0.5, minZ: 0.7, maxZ: 2.3, y: 1.42 }, { minX: -W + 0.1, maxX: -W + 0.5, minZ: 0.7, maxZ: 2.3, y: 0.92 }];
@@ -110,12 +110,14 @@ export class ContainmentRoom implements StageRoom {
   private mats: FMats;
   private leds = new LedBank(80);
   private panes: Pane[] = [];
-  private hemi = new THREE.HemisphereLight(0x5a6a80, 0x080606, 0.14);
-  private key = new THREE.SpotLight(0xcfe0ff, 0, 0, 0.62, 0.45, 2);
+  private hemi = new THREE.HemisphereLight(0x6a7a90, 0x0a0808, 0.24);
+  private key = new THREE.SpotLight(0xcfe0ff, 0, 0, 0.95, 0.55, 2);
   private keyMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   private beacons: { g: THREE.Group; spin: THREE.Group; light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; a: number }[] = [];
   private red = new THREE.PointLight(0xff2a1a, 0.6, 5, 2);
   private jarLight = new THREE.PointLight(0x7aff6a, 0.35, 2.4, 2);
+  private cellFill = new THREE.PointLight(0x8aa0c8, 2.4, 6.5, 2);
+  private bounce = new THREE.PointLight(0xffa040, 0, 3.5, 2);
   private redMat = new THREE.MeshBasicMaterial({ color: 0x400606, toneMapped: false });
   private alarmT = 0;
   private flash = 0;
@@ -133,7 +135,7 @@ export class ContainmentRoom implements StageRoom {
   private button = new THREE.Group(); private btnW = new Wobble(600, 18);
   private jars: { g: THREE.Group; w: Wobble; base: number }[] = [];
   private grille = new THREE.Group();
-  private camPos = new THREE.Vector3(0.35, 1.5, 3.05); private camLook = new THREE.Vector3(0, 1.38, -1.6);
+  private camPos = new THREE.Vector3(0.32, 1.48, 1.6); private camLook = new THREE.Vector3(0, 1.3, -2.3);
   private ptr = new THREE.Vector2(); private ptrS = new THREE.Vector2();
   private shake = 0;
   private v = new THREE.Vector3(); private v2 = new THREE.Vector3();
@@ -145,7 +147,9 @@ export class ContainmentRoom implements StageRoom {
     S.background = new THREE.Color(0x000000);
     S.add(this.shell(), this.cellProps(), this.corridorProps(), this.leds.mesh, this.puffs.mesh, this.deco);
     this.deco.name = 'deco';
-    S.add(this.hemi, this.red, this.jarLight);
+    S.add(this.hemi, this.red, this.jarLight, this.cellFill, this.bounce);
+    this.cellFill.position.set(0.4, 2.7, -1.6);
+    this.bounce.position.set(0, 0.4, 0.9);
     this.red.position.set(-2.2, 2.6, 2.2);
     this.jarLight.position.set(-W + 0.4, 1.3, 1.5);
     this.feedCam.position.set(2.35, 2.75, 2.6); this.feedCam.lookAt(-0.1, 1.15, -2.0);
@@ -445,7 +449,7 @@ export class ContainmentRoom implements StageRoom {
     setTimeout(() => {
       pane.crack = Math.min(1, pane.crack + 0.3);
       const cv = marksCanvas(pane.seed, pane.crack);
-      (pane.tex.image as HTMLCanvasElement).getContext('2d')!.clearRect(0, 0, 128, 128);
+      (pane.tex.image as HTMLCanvasElement).getContext('2d')!.clearRect(0, 0, 256, 256);
       (pane.tex.image as HTMLCanvasElement).getContext('2d')!.drawImage(cv, 0, 0);
       pane.tex.needsUpdate = true;
       this.shake = 1; this.flash = 1;
@@ -475,7 +479,7 @@ export class ContainmentRoom implements StageRoom {
   frame(aspect: number, portrait: boolean) {
     const c = this.cam;
     c.aspect = aspect;
-    c.fov = portrait ? Math.min(86, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(30)) / aspect)) * 0.85) : 46;
+    c.fov = portrait ? Math.min(86, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(30)) / aspect)) * 0.85) : 52;
     c.updateProjectionMatrix();
     const e = c.projectionMatrix.elements;
     e[9] = portrait ? -0.1 : 0;
@@ -498,11 +502,12 @@ export class ContainmentRoom implements StageRoom {
       bcol += k * Math.max(0, Math.cos(b.a * 1.0)) * 0.5;
     }
     this.red.intensity = 0.7 + al * 2.5 * Math.max(0, Math.sin(t * 8));
+    this.bounce.intensity = bcol * 0.9;
     this.redMat.color.setRGB(0.3 + al * 2 * Math.max(0, Math.sin(t * 8)) + 0.4, 0.04, 0.03);
     this.btnW.update(dt); this.button.position.y = 1.06 + this.btnW.x * 0.004;
     // the cell lamp: hard, with a buzz and a rare dropout
     const drop = Math.random() < 0.004 ? 0.2 : 1;
-    this.key.intensity = 16 * (0.96 + Math.random() * 0.04) * drop;
+    this.key.intensity = 30 * (0.96 + Math.random() * 0.04) * drop;
     this.keyMat.color.setScalar(1.5 * drop + 0.3);
     // ---- the glass
     this.flash = Math.max(0, this.flash - dt * 1.5);

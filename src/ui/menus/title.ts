@@ -144,6 +144,7 @@ class TitleRoom {
     const reg = (id: MenuRoomId, r: { scene: THREE.Scene; cam: THREE.Camera; deco: THREE.Group; floor: any; surfaces: any; guideSpot: any }) =>
       registerMenuRoom({ id, scene: r.scene, camera: r.cam, deco: r.deco, floor: r.floor, surfaces: r.surfaces, guideSpot: r.guideSpot, host: this.stageHost, pick: (x, y) => this.pickFloor(x, y, r.floor.y, r.surfaces) });
     reg('monitor', mon); reg('containment', con); reg('lab', lab);
+    void this.stage.warm();
     setActiveMenuRoom('monitor');
     this.buildFeedButtons();
   }
@@ -348,7 +349,7 @@ class TitleRoom {
       this.room.setFraming(0, this.portrait() ? 0.18 : 0.02);
       this.room.shot('title', 0);
       // after a breath on the room, the camera goes in to his face
-      setTimeout(() => { if (this.view === 'subject' && !this.root.classList.contains('lit')) this.subject.faceZoom(true, 2200); }, 1400);
+      setTimeout(() => { if (this.view === 'subject' && !this.root.classList.contains('lit') && !this.subject.face) { this.subject.faceZoom(true, 2200); this.buildHud(); } }, 1400);
     } else {
       this.subject.setMode('feed');
       this.stage.paused = false;

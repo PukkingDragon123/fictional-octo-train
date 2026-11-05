@@ -5,6 +5,8 @@ import { damp } from '../core/math';
 import { U } from './materials';
 import { WetMap } from './wetmap';
 
+const byD = (a: { d: number }, b: { d: number }) => a.d - b.d;
+
 /**
  * Feeds the realism passes from the game world each frame: soft contact
  * shadows under survivors and creatures, the wet / gloss map of the zone,
@@ -29,6 +31,8 @@ export class SceneFx {
     if (!v || !p) return;
     pr.spot = g.flashlights[0] ?? null;
     pr.sun = g.sun;
+    // the torch and point-light pools always count as lights (no shader rebuild when one switches on)
+    if (pr.pinLights.length !== g.flashlights.length + g.points.length) pr.pinLights = [...g.flashlights, ...g.points];
     this.wet.update(dt);
     // rain soaks outdoor ground slowly and dries slower
     const raining = v.zone.env.weather === 'rain';
@@ -41,24 +45,31 @@ export class SceneFx {
     this.calmT -= dt;
     if (this.calmT <= 0) { this.calmT = 1; pr.calm = document.documentElement.classList.contains('reduce-flash'); }
     // contact shadow blobs, nearest to the view first
-    const c = this.cand; c.length = 0;
+    const pool = this.cand; let n0 = 0;
+    const put = (x: number, y: number, z: number, r: number, h: number, d: number) => {
+      let o = pool[n0]; if (!o) { o = { x: 0, y: 0, z: 0, r: 0, h: 0, d: 0 }; pool[n0] = o; }
+      o.x = x; o.y = y; o.z = z; o.r = r; o.h = h; o.d = d; n0++;
+    };
     const fx = pr.target.x, fz = pr.target.z;
     const R = (pr.lowW * pr.pxSize) * 0.6 + 3;
     for (const pl of g.players.values()) {
       if (pl.zoneKey !== p.zoneKey || pl.inVehicle || !pl.rig.root.visible) continue;
       const lying = (pl as any).full === 'lie' || pl.body.downed || pl.body.dead;
-      c.push({ x: pl.x, y: pl.y, z: pl.z, r: lying ? 0.62 : 0.34, h: lying ? 0.6 : 1.95, d: Math.abs(pl.x - fx) + Math.abs(pl.z - fz) });
+      put(pl.x, pl.y, pl.z, lying ? 0.62 : 0.34, lying ? 0.6 : 1.95, Math.abs(pl.x - fx) + Math.abs(pl.z - fz));
     }
     const cs = g.creatures?.creatures as Map<string, any> | undefined;
     if (cs) for (const cr of cs.values()) {
       if (cr.dead || cr.zoneKey !== p.zoneKey || !cr.visibleToLocal) continue;
       const d = Math.abs(cr.x - fx) + Math.abs(cr.z - fz);
       if (d > R * 1.5) continue;
-      c.push({ x: cr.x, y: cr.y ?? 0, z: cr.z, r: Math.max(0.2, (cr.radius ?? 0.4) * 1.05), h: Math.max(0.3, (cr.height ?? 1.2) * 1.1), d });
+      put(cr.x, cr.y ?? 0, cr.z, Math.max(0.2, (cr.radius ?? 0.4) * 1.05), Math.max(0.3, (cr.height ?? 1.2) * 1.1), d);
     }
-    c.sort((a, b) => a.d - b.d);
+    // reused entries (no garbage per frame): the unused tail sorts last
+    for (let i = n0; i < pool.length; i++) pool[i].d = Infinity;
+    const c = pool;
+    c.sort(byD);
     const fxp = pr.postfx;
-    const n = Math.min(c.length, fxp.blobs.length);
+    const n = Math.min(n0, fxp.blobs.length);
     for (let i = 0; i < n; i++) { const b = c[i]; fxp.blobs[i].set(b.x, b.y, b.z, b.r); fxp.blobH[i] = b.h; }
     fxp.blobN = n;
   }

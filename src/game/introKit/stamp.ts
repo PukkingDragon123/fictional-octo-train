@@ -103,14 +103,13 @@ addTextureModule(() => {
       const v = ph(x, y, 91) * 0.5 + ph(x >> 2, y >> 2, 92) * 0.5;
       pc.set(x, y, v < 0.3 ? 0x262c2e : v < 0.6 ? 0x30383a : v < 0.85 ? 0x3a4244 : 0x485052);
     }
-    // the outline: palm toward the left edge (the wrist), fingers toward the right (u runs along the arm)
+    // the outline: a left hand palm down seen from above, fingers up the canvas (away from the debtor), thumb to the right
     const Y = 0xd8a828, D = 0x8a6a18;
     const inHand = (x: number, y: number) => {
-      // palm: an ellipse; fingers: four capsules; thumb off to one side
-      if (((x - 14) / 10) ** 2 + ((y - 24) / 9.5) ** 2 < 1) return true;
-      const fing = [[19, 0], [21.5, 6], [21, 12], [18.5, 18]].map(([l, o], i) => [i, l, o] as const);
-      for (const [i, l] of fing) { const fy = 15 + i * 6, x0 = 22, x1 = 22 + l; if (x >= x0 && x <= x1 && Math.abs(y - fy) <= 2.2 - (x - x0) / l * 0.6) return true; }
-      if (Math.hypot(x - 12 - (y - 33) * -0.3, 0) < 3 && y >= 31 && y <= 41) return true;
+      if (((x - 23) / 9.5) ** 2 + ((y - 31) / 10) ** 2 < 1) return true;
+      const fing: [number, number][] = [[15.5, 16], [20.5, 20], [25.5, 19], [30, 15]];
+      for (const [fx, l] of fing) { const y1 = 24, y0 = 24 - l; if (y <= y1 && y >= y0 && Math.abs(x - fx) <= 2.2 - (y1 - y) / l * 0.6) return true; }
+      if (y >= 27 && y <= 38 && Math.abs(x - (33 + (38 - y) * 0.45)) < 2.4) return true;
       return false;
     };
     for (let y = 0; y < 48; y++) for (let x = 0; x < 48; x++) {
@@ -118,9 +117,8 @@ addTextureModule(() => {
       const edge = !inHand(x - 1, y) || !inHand(x + 1, y) || !inHand(x, y - 1) || !inHand(x, y + 1);
       if (edge) pc.set(x, y, rng.chance(0.15) ? D : Y);
     }
-    // stencil: LEFT, and a row of numbers worn off
-    txt(pc, 'LEFT', 3, 3, Y);
-    txt(pc, 'PALM DOWN', 3, 41, D);
+    txt(pc, 'LEFT', 3, 2, Y);
+    txt(pc, 'PALM DOWN', 3, 42, D);
     // wear: chips in the paint, smears of old blood in the fingers
     for (let k = 0; k < 40; k++) { const x = rng.int(0, 47), y = rng.int(0, 47); if (pc.get(x, y) === Y) pc.set(x, y, 0x5a5a4a); }
     for (let k = 0; k < 5; k++) pc.ditherBlob(26 + rng.int(0, 16), 14 + rng.int(0, 20), 2 + rng.int(0, 3), 1 + rng.int(0, 1), 0x3a0c0a, 0.8);
@@ -364,7 +362,10 @@ export class StampRig {
     cbox(b, ST.DIE_X, BED - 0.06, 0, 0.07, 0.04, 0.17, 0.006, 'ix_steel', { uvScale: 3 });
     // the hand plate beyond, with the painted outline
     cbox(b, 0.19, BED - 0.06, 0, 0.32, 0.055, 0.32, 0.006, 'ix_steel', { uvScale: 2 });
-    face(b, [[0.03, BED - 0.004, 0.16], [0.35, BED - 0.004, 0.16], [0.35, BED - 0.004, -0.16], [0.03, BED - 0.004, -0.16]], 'st_hand', { fit: true }, [0, 1, 0], true);
+    // (built turned a quarter so the outline's fingers point along the arm and its words read from where he kneels)
+    b.push().translate(0.19, 0, 0).rotateY(-Math.PI / 2);
+    face(b, [[-0.16, BED - 0.004, 0.16], [0.16, BED - 0.004, 0.16], [0.16, BED - 0.004, -0.16], [-0.16, BED - 0.004, -0.16]], 'st_hand', { fit: true }, [0, 1, 0], true);
+    b.pop();
     // the clamp jaws' hinge blocks and their little cylinders on the bed
     for (const s of [-1, 1]) {
       cbox(b, -0.075, BED - 0.05, s * 0.135, 0.07, 0.07, 0.05, 0.008, 'ix_yellow', { uvScale: 3 });

@@ -28,13 +28,13 @@ const FRAG = /* glsl */`
     vec3 src = texture2D(tFeed, px).rgb;
     float l = dot(src, vec3(0.3, 0.59, 0.11));
     l = pow(clamp(l * uGain, 0.0, 1.0), 0.72) * 1.15;
-    l = mix(l, 0.05, uBlank);
+    l = mix(l, 0.035, uBlank);
     float n = hash(cell + floor(uTime * 24.0) * 17.13);
     l = mix(l, n * 0.9, clamp(uNoise, 0.0, 1.0));
-    l += (n - 0.5) * 0.035;
+    l += (n - 0.5) * mix(0.035, 0.012, uBlank);
     // the roll bar
     float rb = fract(uv.y * 0.6 - uTime * 0.11);
-    l += smoothstep(0.0, 0.05, rb) * (1.0 - smoothstep(0.05, 0.14, rb)) * 0.07;
+    l += smoothstep(0.0, 0.05, rb) * (1.0 - smoothstep(0.05, 0.14, rb)) * mix(0.07, 0.025, uBlank);
     float o = texture2D(tOver, px).a;
     l = clamp(l, 0.0, 1.0);
     l = floor(l * 7.0 + bayer4(cell)) / 7.0;

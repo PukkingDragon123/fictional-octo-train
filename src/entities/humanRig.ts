@@ -213,7 +213,7 @@ const OUTLINE_VS = /* glsl */`
 const _osz = new THREE.Vector2();
 /** an outline material (skinned or rigid); px = width in render-target pixels */
 export function outlineMaterial(px = 1, color = 0x050404, map?: THREE.Texture): THREE.MeshBasicMaterial {
-  const u = { value: new THREE.Vector3(0, 0, 0.0004) };
+  const u = { value: new THREE.Vector3(0, 0, 0.0012) };
   const m = new THREE.MeshBasicMaterial({ color, side: THREE.BackSide, fog: false, ...(map ? { map, alphaTest: 0.5 } : {}) });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uOutline = u;
@@ -398,6 +398,7 @@ export class HumanRig {
     const geo = new THREE.BufferGeometry();
     this.mesh = new THREE.SkinnedMesh(geo, this.material);
     this.mesh.castShadow = true; this.mesh.receiveShadow = true;
+    this.mesh.onBeforeRender = () => this.ensurePainted();
     this.mesh.onAfterRender = () => { this.gg.fullPending = false; };
     this.mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.7);
     this.body.add(this.mesh);
@@ -410,8 +411,14 @@ export class HumanRig {
       this.j[jn].add(proxy);
       this.meshes.set(jn, proxy);
     }
+    // the first paint waits for a real outfit (or the first frame): callers dress the rig right after building it
+    this.deferPaint = true;
     this.setOutfit({});
+    this.deferPaint = false;
   }
+  private deferPaint = false;
+  /** paint now if the page has not been painted yet (first frame, first animation step) */
+  private ensurePainted() { if (!this.texKey) this.setOutfit(this.outfit); }
 
   /**
    * Draw a black outline round the silhouette (an inverted hull that follows
@@ -588,7 +595,7 @@ export class HumanRig {
       this.anim.dims = legDimsFrom(this.dims, this.sole);
       this.backSlot.position.z = -(0.14 + (sh.back ? 0.16 * sh.back : 0)) * this.s * this.dims.mass;
     }
-    if (tk !== this.texKey) {
+    if (tk !== this.texKey && !this.deferPaint) {
       this.texKey = tk;
       const baseKey = appKey + JSON.stringify(looks) + JSON.stringify(this.ggOverrides) + (cond.pale ?? 0) + (cond.expr || '');
       this.gg.paintAll(spec, this.app, cond, baseKey);
@@ -729,6 +736,7 @@ export class HumanRig {
 
   /** Animate with the rig's own animator and apply the pose. */
   animate(dt: number, input: AnimInput) {
+    this.ensurePainted();
     const pose = this.anim.update(dt, input);
     this.fx.value.y += dt;
     this.applyPose(pose);

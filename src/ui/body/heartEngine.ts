@@ -57,7 +57,7 @@ export class HeartEngine {
   /** last drawn centre, for leaks */
   private cx = 0; private cy = 0;
 
-  constructor() { for (let i = 0; i < 40; i++) this.parts.push({ x: 0, y: 0, vx: 0, vy: 0, t: 0, c: 0, steam: false, on: false }); }
+  constructor(cx = 0, cy = 0) { this.cx = cx; this.cy = cy; for (let i = 0; i < 40; i++) this.parts.push({ x: 0, y: 0, vx: 0, vy: 0, t: 0, c: 0, steam: false, on: false }); }
 
   /** the pump envelope of the current beat: a hard squeeze (lub), a smaller second (dub) */
   env(): number {

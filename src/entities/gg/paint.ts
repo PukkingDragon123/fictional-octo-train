@@ -65,7 +65,8 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
   const fk = D.feet?.kind ?? 'bare';
   const socks = fk === 'sock' || fk === 'sneaker' || fk === 'dress' || fk === 'boot';
   const sockTop = fk === 'sock' ? P.ankleY + 0.06 * H : fk === 'sneaker' ? P.ankleY + 0.035 * H : fk === 'dress' ? P.ankleY + 0.05 * H : 0;
-  const bootTop = hz ? P.kneeY - 0.075 * H : fk === 'boot' ? P.ankleY + 0.07 * H : 0;
+  const hzB = fk === 'hazmat';
+  const bootTop = hzB ? P.kneeY - 0.075 * H : fk === 'boot' ? P.ankleY + 0.07 * H : 0;
   const LIMB: Record<string, 1> = { uarm: 1, farm: 1, thigh: 1, calf: 1, shin: 1 };
   const TORSO: Record<string, 1> = { spine: 1, chestLo: 1, chestHi: 1, traps: 1, hipsUp: 1, hipsLo: 1, bust: 1 };
   const seedK = sp.seed;
@@ -228,7 +229,7 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
   function neckTop(g: Garm, c: Ctx): number {
     const ax = Math.abs(c.x), fr = front(c);
     switch (g.kind) {
-      case 'scrubs': return fr && ax < (yN - c.y) * 0.75 + 0.002 ? -1 : yN + 0.006 * H;
+      case 'scrubs': return fr && c.y > yN - 0.085 * H && ax < (c.y - (yN - 0.085 * H)) * 0.75 + 0.002 ? -1 : yN + 0.006 * H;
       case 'under': {
         // a singlet: straps over the shoulders, a scoop front and back
         const strap = Math.abs(ax - P.chestTopX * 0.55) < 0.016 * H;
@@ -237,7 +238,7 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
       }
       case 'bandeau': return P.bustY + 0.025 * H;
       case 'bare': return -1;
-      case 'blouse': return fr && ax < (yN - c.y) * 0.55 + 0.004 ? -1 : yN + 0.006 * H;
+      case 'blouse': return fr && c.y > yN - 0.05 * H && ax < (c.y - (yN - 0.05 * H)) * 0.5 + 0.003 ? -1 : yN + 0.006 * H;
       default: return yN + 0.006 * H;
     }
   }
@@ -512,21 +513,21 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
       }
       // debtor number tape on the right breast
       const nx0 = -0.055 * H, ny0 = yB + 0.045 * H;
-      if (Math.abs(c.x - nx0) < 0.03 * H && Math.abs(c.y - ny0) < 0.011 * H) {
+      if (Math.abs(c.x - nx0) < 0.034 * H && Math.abs(c.y - ny0) < 0.012 * H) {
         const patch = HZ?.patch || 'stitched';
         if (patch === 'torn' && c.x > nx0 + 0.008 * H && h2(c.i >> 1, c.j >> 1, 9) > 0.4) { over(o, mixc(hzCol, INK, 0.3), 0.3); }
         else {
           shadeInto(o, [236, 234, 224], bodyK(c) * (0.96 + 0.06 * h2(c.i, c.j, 77)));
           const inkC = patch === 'marker' ? [30, 40, 110] : patch === 'stencil' ? [24, 22, 20] : [26, 24, 22];
-          if (textAt(c, (HZ?.num || 'D-4471'), -(c.x - nx0), c.y - ny0, 0.0036 * H)) shadeInto(o, inkC, patch === 'stencil' && h2(c.i, c.j, 3) > 0.8 ? 0.6 : 1);
-          if (patch === 'stitched' && (Math.abs(Math.abs(c.y - ny0) - 0.0105 * H) < c.px * 0.6) && (c.i % 2 === 0)) over(o, INK, 0.6);
+          if (textAt(c, (HZ?.num || 'D-4471').slice(2), -(c.x - nx0), c.y - ny0, 0.0042 * H)) shadeInto(o, inkC, patch === 'stencil' && h2(c.i, c.j, 3) > 0.8 ? 0.6 : 1);
+          if (patch === 'stitched' && (Math.abs(Math.abs(c.y - ny0) - 0.0115 * H) < c.px * 0.6) && (c.i % 2 === 0)) over(o, INK, 0.6);
         }
         return;
       }
     }
     // stencilled number across the back, a hazard warning band
     if (bk && c.y > yB - 0.035 * H && c.y < yB + 0.07 * H) {
-      if (textAt(c, HZ?.num || 'D-4471', -c.x, c.y - (yB + 0.018 * H), 0.0105 * H)) { shadeInto(o, [26, 24, 22], (h2(c.i, c.j, 8) > 0.88 ? 0.75 : 1)); return; }
+      if (textAt(c, HZ?.num || 'D-4471', -c.x, c.y - (yB + 0.018 * H), 0.0066 * H)) { shadeInto(o, [26, 24, 22], (h2(c.i, c.j, 8) > 0.88 ? 0.75 : 1)); return; }
     }
     if (bk && Math.abs(c.y - (P.waistY + 0.05 * H)) < 0.009 * H) { shadeInto(o, Math.floor((c.x + c.y) / (0.012 * H)) % 2 ? [24, 22, 20] : hzCol, bodyK(c)); return; }
     hazWear(c, o);
@@ -614,7 +615,7 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
     skinPx(c, o);
   }
   function shoeUpper(c: Ctx, o: O4) {
-    if (hz) { rubber(c, o, [30, 32, 30], bodyK(c) * fabricK(c, 'rubber')); if (Math.abs(c.y - bootTop) < c.px * 1.2) over(o, INK, 0.5); return; }
+    if (hzB) { rubber(c, o, [30, 32, 30], bodyK(c) * fabricK(c, 'rubber')); if (Math.abs(c.y - bootTop) < c.px * 1.2) over(o, INK, 0.5); return; }
     const S = D.feet!;
     shadeInto(o, S.col, bodyK(c) * fabricK(c, 'leather'));
     if (front(c) && Math.abs(c.e) < 0.3 && Math.round(c.y / (0.01 * H)) % 2 === 0) over(o, [200, 180, 140], 0.6);
@@ -622,7 +623,7 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
   }
   function shoePx(c: Ctx, o: O4) {
     const toe = c.part === 'toe';
-    if (hz) {
+    if (hzB) {
       if (c.kind === 'bot') { shadeInto(o, [20, 20, 20], 0.7); return; }
       rubber(c, o, c.y < 0.012 * H ? [56, 52, 44] : [30, 32, 30], bodyK(c) * fabricK(c, 'rubber'));
       if (Math.abs(c.y - 0.012 * H) < c.px * 0.7) over(o, INK, 0.4);
@@ -671,7 +672,7 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
     if (p === 'uarm' || p === 'farm') {
       const g = outer && outer.sleeve !== 'none' && y > outCuff ? outer : top && top.sleeve !== 'none' && y > topCuff ? top : null;
       if (g) topPx(c, o, g, g === outer); else skinPx(c, o);
-      if (D.hands && p === 'farm' && y < P.wristY + (hz ? 0.07 : 0.03) * H) glovePx(c, o);
+      if (D.hands && p === 'farm' && y < P.wristY + (D.hands.kind === 'hazmat' ? 0.07 : 0.03) * H) glovePx(c, o);
       return;
     }
     if (p === 'thigh' || p === 'calf' || p === 'shin') {

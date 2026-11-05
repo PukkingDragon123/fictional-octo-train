@@ -139,7 +139,7 @@ export class Shop {
       const H = Math.min(AH - 6, flap.y + flap.h + 30);
       L = {
         S, W, H, x: 4, y: Math.max(3, Math.floor((AH - H) / 2)), portrait, cols, rows, slotW, slotH, cab, det, name, blurb, buy, tabs, flap,
-        marq: { x: 8, y: 5, w: W - 16 - 62, h: 17 }, rp: { x: W - 8 - 58, y: 6, w: 58, h: 15 }, close: { x: 8, y: H - 24, w: W - 16, h: 18 },
+        marq: { x: 8, y: 5, w: W - 16 - 76, h: 17 }, rp: { x: W - 8 - 72, y: 6, w: 72, h: 15 }, close: { x: 8, y: H - 24, w: W - 16, h: 18 },
       };
     }
     this.L = L;
@@ -163,6 +163,9 @@ export class Shop {
     this.slotsEl.style.gridTemplateColumns = `repeat(${L.cols}, ${px(L.slotW)})`;
     this.slotsEl.style.gap = px(2);
     this.drawBody();
+    SERIES.forEach((s, i) => this.tabBtns[i]?.setLabel(L.portrait ? s.short : s.name));
+    // narrow: no page arrows (pressing the lit series key again turns the page)
+    for (const b of [this.pageL, this.pageR]) if (b) b.hidden = L.portrait;
     for (const b of [this.buyBtn, this.closeBtn, this.pageL, this.pageR, ...this.tabBtns]) b?.paint();
     if (this.sel) this.select(this.sel, true);
     this.buildSlots();
@@ -300,12 +303,13 @@ export class Shop {
     for (let i = 0; i < 6; i++) { ctx.fillRect(4 + i, RH - 12 - i * 2, 1, 2); ctx.fillRect(W - 14 + i, 3 + i * 2, 1, 2); }
     // the strip: code label, price window
     ctx.fillStyle = '#0a0806'; ctx.fillRect(0, RH, W, 14);
-    ctx.fillStyle = '#e8dcb8'; ctx.fillRect(1, RH + 1, 17, 12);
-    ctx.fillStyle = '#b8ac88'; ctx.fillRect(1, RH + 12, 17, 1);
-    bitText(ctx, s.code, 10, RH - 1, { color: '#2a1d0e', outline: null, align: 'center' });
-    ctx.fillStyle = '#100604'; ctx.fillRect(19, RH + 1, W - 20, 12);
-    const price = it.price ? String(it.price) : 'FREE';
-    bitText(ctx, price, W - 3, RH - 1, { color: it.price > researchPoints() ? '#8a4a2a' : '#ffb43c', outline: null, align: 'right' });
+    const cw = Math.max(20, bitMeasure(s.code) + 4);
+    ctx.fillStyle = '#e8dcb8'; ctx.fillRect(1, RH + 1, cw, 12);
+    ctx.fillStyle = '#b8ac88'; ctx.fillRect(1, RH + 12, cw, 1);
+    bitText(ctx, s.code, 1 + cw / 2, RH - 1, { color: '#2a1d0e', outline: null, align: 'center' });
+    ctx.fillStyle = '#100604'; ctx.fillRect(cw + 2, RH + 1, W - cw - 3, 12);
+    const price = String(it.price);
+    bitText(ctx, price, W - 3, RH - 1, { color: !it.price ? '#8aff9a' : it.price > researchPoints() ? '#8a4a2a' : '#ffb43c', outline: null, align: 'right' });
     const n = owned(s.id);
     if (n) { ctx.fillStyle = '#0a0806'; ctx.fillRect(1, 1, 15, 10); bitText(ctx, '×' + n, 2, -2, { color: '#8aff9a', outline: null }); }
     if (on) {
@@ -330,6 +334,7 @@ export class Shop {
   }
   private setSeries(k: Series, quiet = false) {
     if (k !== this.series) this.page = 0;
+    else if (!quiet && this.L) { const pages = Math.ceil(this.items().length / this.perPage); this.page = (this.page + 1) % Math.max(1, pages); }
     this.series = k;
     SERIES.forEach((s, i) => this.tabBtns[i]?.classList.toggle('on', s.key === k));
     this.sel = '';
@@ -366,7 +371,7 @@ export class Shop {
     this.delivered = Math.max(0, this.delivered - dt);
     this.drawRP();
     // the display window: the selected item turning under the strip light
-    if (this.sel) this.host.preview.draw(this.detCtx, 'det', this.sel, this.det.width, this.det.height, { dt, yaw: this.t * 0.6, slot: false, bg: 0x0b0d10 });
+    if (this.sel) this.host.preview.draw(this.detCtx, 'det', this.sel, this.det.width, this.det.height, { dt, yaw: this.t * 0.6, slot: true });
     else { this.detCtx.fillStyle = '#07090b'; this.detCtx.fillRect(0, 0, this.det.width, this.det.height); }
     // slots: the selected one every frame, the others two at a time; a dropping one every frame
     for (const s of this.slots) if (s.drop > 0) { s.drop = Math.max(0, s.drop - dt * 1.6); this.drawSlot(s, dt); }

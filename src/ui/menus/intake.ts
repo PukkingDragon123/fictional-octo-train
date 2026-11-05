@@ -242,7 +242,9 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
     gamesB.type = 'button';
     gamesB.addEventListener('click', () => { games = !games; setGamesOn(games); paintTop(); sfx('toggle'); say(games ? '<b>Mini-games on</b> · you work the tools' : '<b>Just apply</b> · the robot works alone'); });
     top.append(h('div', 'cz-id', `<span>subject</span> <b>${esc(name)}</b>`), gamesB);
-    root.append(head, linesEl, toolEl, tabs, backB, nextB, top, result, toast);
+    const col = h('div', 'cz-col');
+    col.append(linesEl, toolEl);
+    root.append(head, col, tabs, backB, nextB, top, result, toast);
 
     let toastT = 0;
     const say = (s: string) => { toast.innerHTML = s; toast.classList.remove('on'); void toast.offsetWidth; toast.classList.add('on'); clearTimeout(toastT); toastT = window.setTimeout(() => toast.classList.remove('on'), 2600); };

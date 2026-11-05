@@ -44,7 +44,7 @@ export class MonitorRoom implements StageRoom {
   scene = new THREE.Scene();
   cam = new THREE.PerspectiveCamera(48, 16 / 9, 0.05, 30);
   hots: Hot[] = [];
-  grade: Grade = { exposure: 1.32, lift: [0.84, 0.98, 1.08], gain: [1.06, 1.02, 0.9], vig: 1.0, sat: 0.92, contrast: 1.1, side: [1, 0, 0.3, 0.42] };
+  grade: Grade = { exposure: 1.75, lift: [0.84, 0.98, 1.08], gain: [1.06, 1.02, 0.9], vig: 1.0, sat: 0.92, contrast: 1.1, side: [1, 0, 0.3, 0.42] };
   /** the decorator's group (collectibles) */
   deco = new THREE.Group();
   floor = { minX: -W + 0.3, maxX: W - 0.3, minZ: DESK_Z1 + 0.25, maxZ: FRONT - 0.4, y: 0 };
@@ -69,15 +69,15 @@ export class MonitorRoom implements StageRoom {
   private toggles: { t: Toggle; fn?: (on: boolean) => void }[] = [];
   private puffs = new Puffs(40);
   private smoke = new Puffs(24);
-  private hemi = new THREE.HemisphereLight(0x6a7a90, 0x0a0806, 0.12);
+  private hemi = new THREE.HemisphereLight(0x8a96a8, 0x14120e, 0.34);
   private lamp = new THREE.SpotLight(0xffc488, 0, 3.4, 0.82, 0.55, 2);
   private lampOn = true; private lampLvl = 1;
   private lampBulb: THREE.MeshBasicMaterial;
   private tubeLight = new THREE.PointLight(0xd8e6ff, 0, 5, 2);
   private tubeMat = new THREE.MeshBasicMaterial({ color: 0x101010, toneMapped: false });
   private tubeK = 1; private tubeNext = 2; private tubeDrop = 0;
-  private auxLight = new THREE.PointLight(0x8aff9a, 0.4, 3.2, 2);
-  private alarm = new THREE.PointLight(0xff3a1a, 0, 4.5, 2);
+  // every stage room carries the same light rig (1 hemi, 4 point, 3 spot with one shadow) so they share shader programs
+  private alarm = new THREE.SpotLight(0xff3a1a, 0, 6, 0.9, 0.6, 1.6);
   private alarmT = 0;
   private winLight = new THREE.SpotLight(0x5a74b0, 1.6, 6, 0.5, 0.8, 1.6);
   private winShape: THREE.Mesh; private winT = -1; private winNext = 25;
@@ -103,10 +103,9 @@ export class MonitorRoom implements StageRoom {
     S.add(this.shell(), this.rack(), this.desk(), this.leds.mesh, this.puffs.mesh, this.smoke.mesh, this.deco);
     this.deco.name = 'deco';
     // lights: phosphor key, the lamp's pool, a cold stutter overhead, the window's dark blue
-    S.add(this.hemi, this.auxLight, this.alarm, this.tubeLight);
-    this.auxLight.position.set(0, 1.8, -1.2);
+    S.add(this.hemi, this.alarm, this.alarm.target, this.tubeLight);
     this.tubeLight.position.set(0.2, H - 0.3, -0.1);
-    this.alarm.position.set(1.85, 2.3, -1.6);
+    this.alarm.position.set(1.85, 2.5, -1.6); this.alarm.target.position.set(0.2, 0.6, 0.2);
     this.lamp.castShadow = true;
     this.lamp.shadow.mapSize.set(1024, 1024);
     this.lamp.shadow.camera.near = 0.05; this.lamp.shadow.camera.far = 3.5;
@@ -227,7 +226,7 @@ export class MonitorRoom implements StageRoom {
     g.add(tubeM);
     // a cool spill on the floor from the window, a green wash under the rack
     const pool = glowCard(1.4, 2.2, 0x3a5a9a, 0.12); pool.rotation.x = -Math.PI / 2; pool.position.set(-W + 0.8, 0.005, -0.35); g.add(pool);
-    const wash = glowCard(4.2, 1.6, 0x3aff6a, 0.1); wash.rotation.x = -Math.PI / 2; wash.position.set(0, 0.006, BACK + 0.9); g.add(wash);
+    const wash = glowCard(4.2, 1.6, 0x3aff6a, 0.05); wash.rotation.x = -Math.PI / 2; wash.position.set(0, 0.006, BACK + 0.9); g.add(wash);
     return g;
   }
 
@@ -263,7 +262,7 @@ export class MonitorRoom implements StageRoom {
       const tb = feedTube(spot.sw, spot.sh, 160, 120);
       tb.mesh.applyMatrix4(spot.m);
       g.add(tb.mesh);
-      const light = new THREE.PointLight(0x7aff8a, 0.6, 3.6, 2);
+      const light = new THREE.PointLight(0xa8ffc0, 0.4, 2.8, 2);
       light.position.copy(spot.center).add(new THREE.Vector3(0, -0.05, 0.55));
       g.add(light);
       const f = FEEDS.find((q) => q.key === key)!;
@@ -315,19 +314,19 @@ export class MonitorRoom implements StageRoom {
     const g = new THREE.Group();
     const X0 = -1.95, X1 = 1.95, top = DESK_Y;
     // the steel desk: a linoleum top with a rubber nosing, pedestals with drawers, a modesty panel
-    b.add('paint', cbox(X1 - X0, 0.04, DESK_Z1 - DESK_Z0, 0.01), 0x5a6650, at(0, top - 0.02, (DESK_Z0 + DESK_Z1) / 2), { rep: 0.8 });
+    b.add('paint', cbox(X1 - X0, 0.04, DESK_Z1 - DESK_Z0, 0.01), 0x8a8a7c, at(0, top - 0.02, (DESK_Z0 + DESK_Z1) / 2), { rep: 0.8 });
     b.add('rubber', cbox(X1 - X0 + 0.02, 0.05, 0.03, 0.01), 0x262626, at(0, top - 0.02, DESK_Z1 + 0.005));
     for (const x of [X0 + 0.25, X1 - 0.25]) {
-      b.add('paint', cbox(0.48, top - 0.06, 0.78, 0.012), 0x6a7460, at(x, (top - 0.04) / 2, (DESK_Z0 + DESK_Z1) / 2), { rep: 0.5 });
+      b.add('paint', cbox(0.48, top - 0.06, 0.78, 0.012), 0x7a786c, at(x, (top - 0.04) / 2, (DESK_Z0 + DESK_Z1) / 2), { rep: 0.5 });
       for (let i = 0; i < 3; i++) {
-        b.add('paint', cbox(0.44, 0.2, 0.02, 0.006), 0x76806a, at(x, 0.12 + i * 0.22, DESK_Z1 + 0.012));
+        b.add('paint', cbox(0.44, 0.2, 0.02, 0.006), 0x868476, at(x, 0.12 + i * 0.22, DESK_Z1 + 0.012));
         b.add('chrome', cbox(0.12, 0.018, 0.024, 0.006), 0xffffff, at(x, 0.18 + i * 0.22, DESK_Z1 + 0.026));
       }
     }
     b.add('paint', cbox(X1 - X0 - 0.95, 0.5, 0.02, 0.006), 0x4e5846, at(0, 0.45, DESK_Z0 + 0.12));
     // the raked console on the back half: a sloped face with switch rows and lamp windows
     const rk = DESK_Z0 + 0.02, rf = -1.02, ry0 = top, ry1 = top + 0.24;
-    b.add('paint', hull([[X0 + 0.05, ry0, rk], [X1 - 0.05, ry0, rk], [X0 + 0.05, ry0, rf], [X1 - 0.05, ry0, rf], [X0 + 0.05, ry1, rk], [X1 - 0.05, ry1, rk], [X0 + 0.05, ry0 + 0.05, rf], [X1 - 0.05, ry0 + 0.05, rf]]), 0x5e6a56, undefined, { rep: 0.5 });
+    b.add('paint', hull([[X0 + 0.05, ry0, rk], [X1 - 0.05, ry0, rk], [X0 + 0.05, ry0, rf], [X1 - 0.05, ry0, rf], [X0 + 0.05, ry1, rk], [X1 - 0.05, ry1, rk], [X0 + 0.05, ry0 + 0.05, rf], [X1 - 0.05, ry0 + 0.05, rf]]), 0x6a6c62, undefined, { rep: 0.5 });
     const slope = Math.atan2(ry1 - ry0 - 0.05, rf - rk);
     const face = (u: number, v: number) => new THREE.Vector3(u, ry0 + 0.05 + (ry1 - ry0 - 0.05) * (1 - v), rf + (rk - rf) * (1 - v));
     const faceRot = new THREE.Euler(-Math.PI / 2 - slope, 0, 0);
@@ -544,11 +543,11 @@ export class MonitorRoom implements StageRoom {
   private logT = 0;
   private drawLog(c: CanvasRenderingContext2D, t: number) {
     const Wc = 96, Hc = 72;
-    const POOL = ['DOOR 7 SEALED', 'RB-17 CALM', 'PRESS IDLE', 'RM 4 PULSE OK', 'TANK 3 +2C', 'ARM B HOMED', 'AIR 0.94', 'GRID OK', 'RB-17 LISTEN', 'TAPE 41 FULL', 'NIGHT SHIFT', 'NO ENTRY', 'CH 3 LAG', 'DEBT +4%'];
-    if (t - this.logT > 1.1 || !this.logLines.length) { this.logT = t; this.logLines.push(POOL[Math.floor(Math.random() * POOL.length)]); if (this.logLines.length > 4) this.logLines.shift(); }
+    const POOL = ['DOOR 7 OK', 'RB-17 CALM', 'PRESS IDLE', 'RM 4 OK', 'TANK 3 +2', 'ARM HOMED', 'AIR 0.94', 'GRID OK', 'RB-17 ?', 'TAPE FULL', 'NO ENTRY', 'CH 3 LAG', 'DEBT +4%'];
+    if (t - this.logT > 1.1 || !this.logLines.length) { this.logT = t; this.logLines.push(POOL[Math.floor(Math.random() * POOL.length)]); if (this.logLines.length > 3) this.logLines.shift(); }
     c.fillStyle = '#000'; c.fillRect(0, 0, Wc, Hc);
-    this.logLines.forEach((ln, i) => bitText(c, ln, 2, 2 + i * 16, { color: '#ffd8a0', outline: null }));
-    if ((t * 2) % 1 < 0.5) { c.fillStyle = '#ffd8a0'; c.fillRect(2, 2 + this.logLines.length * 16, 6, 12); }
+    this.logLines.forEach((ln, i) => bitText(c, ln, 6, 8 + i * 16, { color: '#ffd8a0', outline: null }));
+    if ((t * 2) % 1 < 0.5) { c.fillStyle = '#ffd8a0'; c.fillRect(6, 10 + this.logLines.length * 16, 6, 12); }
   }
   private seis: number[] = [];
   private drawSeismo(c: CanvasRenderingContext2D, t: number) {
@@ -572,7 +571,7 @@ export class MonitorRoom implements StageRoom {
     gameSound('hush_shh', 0.25, 1.4);
     this.onMic?.();
   }
-  setFeedTexture(key: FeedKey, tex: THREE.Texture | null, linear: boolean) { const f = this.feeds.find((q) => q.key === key); f?.tube.setFeed(tex, linear); }
+  setFeedTexture(key: FeedKey, tex: THREE.Texture | null, linear: boolean) { const f = this.feeds.find((q) => q.key === key); if (!f) return; f.tube.setFeed(tex, linear); f.tube.mat.uniforms.uGain.value = linear ? 2.6 : 1.35; }
   /** the tube for a feed (title.ts drives snow while switching) */
   tube(key: FeedKey) { return this.feeds.find((q) => q.key === key)!.tube; }
   /** where a feed's glass is (world corners), for its DOM twin */
@@ -599,8 +598,8 @@ export class MonitorRoom implements StageRoom {
       this.home.fov = Math.min(84, THREE.MathUtils.radToDeg(2 * Math.atan(halfW / dist / aspect)));
       this.frXT = 0; this.frYT = 0.26;
     } else {
-      this.home.pos.set(0.32, 1.5, 1.2);
-      this.home.look.set(0.08, 1.36, -1.8);
+      this.home.pos.set(0.42, 1.64, 1.85);
+      this.home.look.set(0.1, 1.36, -1.8);
       const dist = this.home.pos.distanceTo(this.home.look);
       // wide enough for the bank plus the menu's dark side
       const needW = 2.05 / (1 - 0.22), hf = THREE.MathUtils.radToDeg(2 * Math.atan(needW / dist / aspect));
@@ -655,24 +654,23 @@ export class MonitorRoom implements StageRoom {
     if (this.tubeNext < 0) { this.tubeDrop = Math.random() < 0.5 ? 0.06 + Math.random() * 0.3 : 0; this.tubeNext = 1.5 + Math.random() * 5; }
     this.tubeDrop = Math.max(0, this.tubeDrop - dt);
     const tl = this.tubeK * (this.tubeDrop > 0 ? (Math.random() < 0.5 ? 0.1 : 0.6) : 1);
-    this.tubeLight.intensity = 0.55 * tl;
+    this.tubeLight.intensity = 1.25 * tl;
     this.tubeMat.color.setScalar(0.08 + 1.6 * tl);
     this.alarmT = Math.max(0, this.alarmT - dt);
-    this.alarm.intensity = this.alarmT > 0 ? 2.5 * Math.max(0, Math.sin(t * 9)) : 0;
+    this.alarm.intensity = this.alarmT > 0 ? 7 * Math.max(0, Math.sin(t * 9)) : 0;
     this.winLight.intensity = 0.9 + Math.sin(t * 0.37) * 0.15;
     let glow = 0;
     for (const f of this.feeds) {
       f.tube.update(dt, t);
-      f.light.intensity = 0.55 + f.tube.glow * 0.9;
+      f.light.intensity = 0.22 + f.tube.glow * 0.55;
       glow += f.tube.glow;
     }
     // ---- aux tubes: redraw a few times a second
     for (const a of this.aux) {
       a.tube.update(dt, t);
       a.acc += dt;
-      if (a.acc > (full ? 0.11 : 0.4)) { a.acc = 0; a.draw(t); a.tex.needsUpdate = true; }
+      if (a.acc > (full ? 0.15 : 0.5)) { a.acc = 0; a.draw(t); a.tex.needsUpdate = true; }
     }
-    this.auxLight.intensity = 0.35 + glow * 0.06;
     // ---- the captions (clock and REC) once a second
     this.capT -= dt;
     if (this.capT <= 0) {

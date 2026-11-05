@@ -191,6 +191,11 @@ export function buildMesh(segs: Seg[], P: Props, k: number, boneIndex: (b: BoneK
   g.setAttribute('normal', new THREE.Float32BufferAttribute(nrm, 3));
   g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  // the world material samples through an atlas rect per vertex (the whole page here) and flips v
+  const nv = pos.length / 3, atl = new Float32Array(nv * 4);
+  for (let i = 0; i < nv; i++) { atl[i * 4 + 2] = 1; atl[i * 4 + 3] = 1; }
+  g.setAttribute('aAtlas', new THREE.BufferAttribute(atl, 4));
+  g.setAttribute('aFx', new THREE.BufferAttribute(new Float32Array(nv * 2), 2));
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(si, 4));
   g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(sw, 4));
   g.setIndex(idx);

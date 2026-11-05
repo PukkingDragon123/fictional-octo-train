@@ -62,7 +62,8 @@ export class Guide {
   private walking = false; private yaw = 0;
   private gone = false; // muted and stepped out
   muted = flag<boolean>('guide.muted', false);
-  private idleT = 0; private pokeN = 0;
+  private idleT = 0; private pokeN = 0; private checkT = 0;
+  private fill = new THREE.PointLight(0xffd8b0, 0.9, 2.4, 2);
   private chars = 0;
   private v = new THREE.Vector3(); private w = new THREE.Vector3();
   onMute?: (m: boolean) => void;
@@ -71,6 +72,8 @@ export class Guide {
     this.host = host;
     this.bubbles = new Bubbles(host.layer);
     this.gone = this.muted;
+    this.fill.position.set(0.25, 1.75, 0.75);
+    this.fill.castShadow = false;
   }
 
   // ---------------------------------------------------------------- rooms
@@ -90,15 +93,41 @@ export class Guide {
     try { this.rig = await createGuideRig(); } catch (e) { console.warn('guide rig', e); }
     this.loading = false;
   }
+  /** where she stands: the room's guide spot if the camera sees her there, else a spot the camera does see (right third, chest up) */
   private spot(room: MenuRoom) {
     const F = room.floor;
     const gs = room.guideSpot;
     const p = gs ? gs.pos.clone() : new THREE.Vector3(F.minX + (F.maxX - F.minX) * 0.22, F.y, F.minZ + (F.maxZ - F.minZ) * 0.7);
-    return p;
+    return this.seen(room, p) ? p : this.viewSpot(room) ?? p;
+  }
+  /** her chest and head both on screen if she stood at p (room space) */
+  private seen(room: MenuRoom, p: THREE.Vector3): boolean {
+    const cam = room.camera;
+    cam.updateMatrixWorld();
+    const q = (y: number) => room.deco.localToWorld(this.w.set(p.x, p.y + y, p.z)).project(cam);
+    const c = q(1.2);
+    if (c.z > 1 || Math.abs(c.x) > 0.92 || c.y < -0.95 || c.y > 0.9) return false;
+    const h = q(1.75);
+    return h.z <= 1 && Math.abs(h.x) < 0.95 && h.y < 0.95 && h.y > -0.9;
+  }
+  private viewSpot(room: MenuRoom): THREE.Vector3 | null {
+    const cam = room.camera;
+    const F = room.floor;
+    const o = cam.getWorldPosition(new THREE.Vector3());
+    for (const D of [2.3, 1.9, 2.8, 1.6, 1.35]) for (const nx of [0.62, 0.52, 0.7, -0.6]) {
+      const dir = new THREE.Vector3(nx, 0.1, 0.5).unproject(cam).sub(o).normalize();
+      const pt = room.deco.worldToLocal(o.clone().addScaledVector(dir, D));
+      const feet = new THREE.Vector3(pt.x, F.y, pt.z);
+      if (feet.x < F.minX - 0.5 || feet.x > F.maxX + 0.5 || feet.z < F.minZ - 0.5 || feet.z > F.maxZ + 0.5) continue;
+      if (this.seen(room, feet)) return feet;
+    }
+    return null;
   }
   private arrive(room: MenuRoom, first: boolean) {
     if (!this.rig || this.room !== room) return;
     room.deco.add(this.rig.root);
+    // a soft warm fill that travels with her (dark rooms; she should read)
+    if (!this.fill.parent || this.fill.parent !== this.rig.root) this.rig.root.add(this.fill);
     this.rig.root.visible = !this.gone;
     this.goal.copy(this.spot(room));
     // she walks in from the side of the view nearest her spot
@@ -259,6 +288,12 @@ export class Guide {
     }
     rig.root.position.set(this.pos.x, this.pos.y, this.pos.z);
     rig.root.rotation.y = this.yaw;
+    // the camera moved (a dive, a reframe): step back into the picture
+    this.checkT += dt;
+    if (this.checkT > 1.2 && !this.walking && !this.gone) {
+      this.checkT = 0;
+      if (!this.seen(room, this.pos)) { const s = this.viewSpot(room); if (s && s.distanceTo(this.pos) > 0.2) { this.goal.copy(s); this.walking = true; } }
+    }
     // the line being said; the next one when it is done
     if (this.cur) {
       this.cur.t += dt;

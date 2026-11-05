@@ -66,10 +66,10 @@ export const CATALOG: DecoItem[] = [
 ];
 
 export const ITEM = new Map(CATALOG.map((i) => [i.id, i]));
-export const SERIES: { key: Series; name: string; sub: string }[] = [
-  { key: 'vinyl', name: 'Headcases', sub: 'big-head vinyl' },
-  { key: 'stance', name: 'Stance', sub: 'dramatic statuettes' },
-  { key: 'decor', name: 'Decor', sub: 'for the lab' },
+export const SERIES: { key: Series; name: string; short: string; sub: string }[] = [
+  { key: 'vinyl', name: 'Headcases', short: 'Vinyl', sub: 'big-head vinyl' },
+  { key: 'stance', name: 'Stance', short: 'Stance', sub: 'dramatic statuettes' },
+  { key: 'decor', name: 'Decor', short: 'Decor', sub: 'for the lab' },
 ];
 /** the starter gifts (the researcher hands them over) */
 export const GIFTS = ['v_calder', 'd_plant'];

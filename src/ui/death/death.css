@@ -105,3 +105,6 @@
   .dz-case.on, .done .dz-big { animation: none; }
   .dz-live .dz-flash { animation: none; }
 }
+/* the keys and the last word sit over the busy console: ink outline plus the free-text halo */
+.dz-root .dz-key { text-shadow: var(--text-ink-2), var(--text-halo); }
+.dz-root .dz-key small, .dz-vo .dz-txt, .dz-vo .dz-who { text-shadow: var(--text-ink), var(--text-halo); }

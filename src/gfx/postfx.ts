@@ -98,11 +98,12 @@ vec3 onPlane(vec2 uv, float y) {
 }
 /** metres covered by one low-res pixel at view depth ld */
 float pxm(float ld) { return uPersp > 0.5 ? max(ld, uNear) * uPxPersp : uPxM; }
+// 4x4 ordered dither by bit interleave (a local int array is slow on mobile GPUs and software GL)
 float bayer4(vec2 p) {
-  ivec2 ip = ivec2(mod(p, 4.0));
-  int i = ip.y * 4 + ip.x;
-  int m[16] = int[16](0,8,2,10,12,4,14,6,3,11,1,9,15,7,13,5);
-  return (float(m[i]) + 0.5) / 16.0;
+  vec2 q = mod(floor(p), 4.0);
+  vec2 lo = mod(q, 2.0), hi = floor(q * 0.5);
+  float a = 2.0 * abs(lo.x - lo.y) + lo.y, b = 2.0 * abs(hi.x - hi.y) + hi.y;
+  return (4.0 * a + b + 0.5) / 16.0;
 }
 float h12(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 /** gNormal alpha: outline flag + 2 x wet level + 16 x water */
@@ -611,7 +612,11 @@ void main() {
 
   // --- dust motes drifting in the beams ---
 #ifdef MOTES_ON
-  if (uMotes > 0.0) {
+  // motes only show in strong light: one look at the light halfway up the ray first, so the dark
+  // (most of the frame) skips the three layers entirely
+  bool moteLight = uSpotOn > 0.5 || uSunOn > 0.0 || uPersp > 0.5;
+  if (!moteLight && uMotes > 0.0) moteLight = dot(gridAt(onPlane(uv, uFloorY + 1.15).xz), vec3(0.3, 0.5, 0.2)) > 0.3;
+  if (uMotes > 0.0 && moteLight) {
     for (int k = 0; k < 3; k++) {
       float fk = float(k);
       float hy = uFloorY + 0.45 + fk * 0.7;

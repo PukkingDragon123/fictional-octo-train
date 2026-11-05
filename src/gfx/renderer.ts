@@ -21,9 +21,13 @@ export const DEFAULT_GRADE: Grade = {
   lift: [0.0, 0.0, 0.0], gain: [1, 1, 1], gamma: 1, sat: 1, tint: [1, 1, 1], vignette: 0.35, levels: 64, grain: 0.012,
 };
 
+// the one full-resolution pass: the world picture (with the sub-pixel camera scroll) and, when a
+// close-up is up, the held-device layer (already graded at low res, never scrolled) laid over it
 const BLIT_FRAG = /* glsl */`
 precision highp float;
 uniform sampler2D tSrc;
+uniform sampler2D tOv;
+uniform float uOvOn;
 uniform vec2 uLowRes;
 uniform float uScale;
 uniform vec2 uOffset;
@@ -31,14 +35,20 @@ uniform float uMargin;
 uniform vec2 uCanvas;
 void main() {
   vec2 sp = gl_FragCoord.xy;
-  vec2 lp = sp / uScale + vec2(uMargin) + uOffset;
-  gl_FragColor = texture2D(tSrc, lp / uLowRes);
+  vec2 lp = sp / uScale + vec2(uMargin);
+  vec4 c = texture2D(tSrc, (lp + uOffset) / uLowRes);
+  if (uOvOn > 0.5) {
+    vec4 o = texture2D(tOv, (floor(lp) + 0.5) / uLowRes);
+    c.rgb = mix(c.rgb, o.rgb, o.a);
+  }
+  gl_FragColor = vec4(c.rgb, 1.0);
 }
 `;
 
 // First-person close-ups go through the same film as the world: the zone's grade, the
 // light where the survivor stands, dark-art contrast, grain, a pixel silhouette outline and
-// the ordered-dither quantise, so hands and props sit in the same picture as the room.
+// the ordered-dither quantise, so hands and props sit in the same picture as the room. It runs once per
+// low-res pixel into its own target (the full-res blit above only lays it over the world).
 const OVERLAY_BLIT_FRAG = /* glsl */`
 precision highp float;
 uniform sampler2D tSrc;
@@ -55,8 +65,7 @@ float bayer4(vec2 p) {
   return (float(m[i]) + 0.5) / 16.0;
 }
 void main() {
-  vec2 lp = gl_FragCoord.xy / uScale + vec2(uMargin);
-  vec2 px = floor(lp);
+  vec2 px = floor(gl_FragCoord.xy);
   vec2 uv = (px + 0.5) / uLowRes;
   vec4 c = texture2D(tSrc, uv);
   if (c.a < 0.01) {
@@ -65,8 +74,7 @@ void main() {
     vec2 o = 1.0 / uLowRes;
     float n = max(max(texture2D(tSrc, uv + vec2(o.x, 0.0)).a, texture2D(tSrc, uv - vec2(o.x, 0.0)).a),
                   max(texture2D(tSrc, uv + vec2(0.0, o.y)).a, texture2D(tSrc, uv - vec2(0.0, o.y)).a));
-    if (n < 0.5 || uDark < 0.01) discard;
-    gl_FragColor = vec4(vec3(0.035, 0.03, 0.024), 0.85);
+    gl_FragColor = (n < 0.5 || uDark < 0.01) ? vec4(0.0) : vec4(vec3(0.035, 0.03, 0.024), 0.85);
     return;
   }
   vec3 l = max(c.rgb, 0.0);
@@ -124,6 +132,8 @@ export class PixelRenderer {
   private rtScene!: THREE.WebGLRenderTarget;
   private rtPost!: THREE.WebGLRenderTarget;
   private rtOverlay!: THREE.WebGLRenderTarget;
+  /** the graded held-device layer at low res (laid over the world by the final blit) */
+  private rtOverlayPost!: THREE.WebGLRenderTarget;
   private postMat: THREE.ShaderMaterial;
   private blitMat: THREE.ShaderMaterial;
   private overlayBlitMat: THREE.ShaderMaterial;
@@ -225,10 +235,10 @@ export class PixelRenderer {
     });
     this.blitMat = new THREE.ShaderMaterial({
       vertexShader: FS_VERT, fragmentShader: BLIT_FRAG, depthTest: false, depthWrite: false,
-      uniforms: { tSrc: { value: null }, uLowRes: { value: new THREE.Vector2() }, uScale: { value: 2 }, uOffset: { value: new THREE.Vector2() }, uMargin: { value: 2 }, uCanvas: { value: new THREE.Vector2() } },
+      uniforms: { tSrc: { value: null }, tOv: { value: null }, uOvOn: { value: 0 }, uLowRes: { value: new THREE.Vector2() }, uScale: { value: 2 }, uOffset: { value: new THREE.Vector2() }, uMargin: { value: 2 }, uCanvas: { value: new THREE.Vector2() } },
     });
     this.overlayBlitMat = new THREE.ShaderMaterial({
-      vertexShader: FS_VERT, fragmentShader: OVERLAY_BLIT_FRAG, depthTest: false, depthWrite: false, transparent: true,
+      vertexShader: FS_VERT, fragmentShader: OVERLAY_BLIT_FRAG, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
       uniforms: {
         tSrc: { value: null }, uLowRes: { value: new THREE.Vector2() }, uScale: { value: 2 }, uMargin: { value: 2 },
         uLift: { value: new THREE.Vector3() }, uGain: { value: new THREE.Vector3(1, 1, 1) }, uTint: { value: new THREE.Vector3(1, 1, 1) },
@@ -264,7 +274,7 @@ export class PixelRenderer {
     this.lowW = Math.ceil(W / this.scale);
     this.lowH = Math.ceil(H / this.scale);
     const RW = this.lowW + this.margin * 2, RH = this.lowH + this.margin * 2;
-    this.rtScene?.dispose(); this.rtPost?.dispose(); this.rtOverlay?.dispose();
+    this.rtScene?.dispose(); this.rtPost?.dispose(); this.rtOverlay?.dispose(); this.rtOverlayPost?.dispose();
     const depthTex = new THREE.DepthTexture(RW, RH);
     depthTex.type = THREE.FloatType;
     this.rtScene = new THREE.WebGLRenderTarget(RW, RH, {
@@ -273,6 +283,7 @@ export class PixelRenderer {
     });
     this.rtPost = new THREE.WebGLRenderTarget(RW, RH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false });
     this.rtOverlay = new THREE.WebGLRenderTarget(RW, RH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, type: THREE.HalfFloatType });
+    this.rtOverlayPost = new THREE.WebGLRenderTarget(RW, RH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false });
     this.overlayCamera.aspect = RW / RH;
     this.overlayCamera.updateProjectionMatrix();
     U.uSnapRes.value.set(RW, RH);
@@ -300,12 +311,24 @@ export class PixelRenderer {
   private rebuildFx() {
     const lvl = this.qualityOverride ?? this.quality;
     const q = QUALITY[lvl];
+    this.fitShadows(q.sunShadow, q.spotShadow);
     const key = lvl + '|' + this.postfx.bypass + '|' + this.postfx.debugView;
     if (key === this.builtDefines) return;
     this.builtDefines = key;
     this.postfx.setQuality(q);
     this.postMat.defines = this.postfx.compositeDefines();
     this.postMat.needsUpdate = true;
+  }
+
+  /** shadow map resolution for the preset (a changed size drops the old map; three makes a new one) */
+  private fitShadows(sun: number, spot: number) {
+    const fit = (l: THREE.Light | null, n: number) => {
+      const sh = (l as THREE.SpotLight | null)?.shadow;
+      if (!sh || sh.mapSize.x === n) return;
+      sh.mapSize.set(n, n);
+      sh.map?.dispose(); (sh as any).map = null;
+    };
+    fit(this.sun, sun); fit(this.spot, spot);
   }
 
   /** photo mode helpers: force a level, or bypass all realism passes */
@@ -497,11 +520,31 @@ export class PixelRenderer {
     this.subOffset.set(0, 0);
   }
 
+  /**
+   * lights that must always count (the game's flashlight and point-light pools): three builds a shader
+   * per light count, so a light that hides when unused (a torch switched off, a friend's torch joining)
+   * would recompile every lit material in the scene. They stay in at zero intensity instead.
+   */
+  pinLights: THREE.Light[] = [];
+  private shownTmp: boolean[] = [];
+
+  /** keep the light set stable and skip shadow maps nobody can see */
+  private prepLights() {
+    for (const l of this.pinLights) if (!l.visible) { l.visible = true; l.intensity = 0; }
+    // a shadow map is drawn at least once (a sampler with no map bound is a GL error that drops every
+    // lit draw), then only while its light is on
+    const sun = this.sun;
+    if (sun?.castShadow) sun.shadow.autoUpdate = sun.intensity > 0.01 || !sun.shadow.map;
+    const sp = this.spot;
+    if (sp?.castShadow) sp.shadow.autoUpdate = (sp.visible && sp.intensity > 0.01) || !sp.shadow.map;
+  }
+
   render(dt: number) {
     const r = this.renderer;
     for (const f of this.beforeRender) f(dt);
     this.trackFrame();
     this.rebuildFx();
+    this.prepLights();
     this.applyGrade(dt);
     const eye = this.eyeCamera;
     if (eye) this.setupEye(eye, this.lowW + this.margin * 2, this.lowH + this.margin * 2);
@@ -514,10 +557,10 @@ export class PixelRenderer {
       const cutWas = U.uCutOn.value;
       U.uCutOn.value = 0;
       U.uCloseUp.value = 1;
-      const shown = this.eyeHide.map((o) => o.visible);
-      for (const o of this.eyeHide) o.visible = false;
+      const shown = this.shownTmp; shown.length = 0;
+      for (const o of this.eyeHide) { shown.push(o.visible); o.visible = false; }
       r.render(this.scene, eye);
-      this.eyeHide.forEach((o, i) => { o.visible = shown[i]; });
+      for (let i = 0; i < this.eyeHide.length; i++) this.eyeHide[i].visible = shown[i];
       U.uCutOn.value = cutWas;
       U.uCloseUp.value = 0;
     } else r.render(this.scene, this.camera);
@@ -533,45 +576,90 @@ export class PixelRenderer {
     pu.tAO.value = fxo.ao; pu.tVol.value = fxo.vol; pu.tBloom.value = fxo.bloom; pu.tBloomWide.value = fxo.wide;
     pu.uRes.value.set(RW, RH);
     this.pass(this.postMat, this.rtPost);
-    // 4. overlay scene (held devices) into its own low-res target
+    // 4. overlay scene (held devices) into its own low-res target, then its film (grade, outline, grain)
+    // once per low-res pixel into rtOverlayPost
     const overlay = this.overlayEnabled && !this.hideOverlay;
     if (overlay) {
       r.setRenderTarget(this.rtOverlay);
       r.setClearColor(0x000000, 0);
       r.clear(true, true, true);
       r.render(this.overlayScene, this.overlayCamera);
+      const ou = this.overlayBlitMat.uniforms;
+      ou.tSrc.value = this.rtOverlay.texture;
+      ou.uLowRes.value.set(RW, RH);
+      // share the world's grade and film so the close-up sits in the same picture
+      ou.uLift.value.copy(pu.uLift.value); ou.uGain.value.copy(pu.uGain.value); ou.uTint.value.copy(pu.uTint.value);
+      ou.uGamma.value = pu.uGamma.value; ou.uSat.value = pu.uSat.value; ou.uLevels.value = pu.uLevels.value;
+      ou.uGrain.value = pu.uGrain.value * 0.45; ou.uVignette.value = pu.uVignette.value * 0.8;
+      ou.uTime.value = performance.now() / 1000;
+      ou.uLight.value = this.overlayLight; ou.uDark.value = this.overlayFilm;
+      this.pass(this.overlayBlitMat, this.rtOverlayPost);
     }
-    // 5. upscale to screen with sub-pixel camera offset
+    // 5. upscale to screen with sub-pixel camera offset, the close-up layer over it (one full-res pass)
     r.setRenderTarget(null);
     const bu = this.blitMat.uniforms;
     bu.tSrc.value = this.rtPost.texture;
+    bu.tOv.value = this.rtOverlayPost.texture;
+    bu.uOvOn.value = overlay ? 1 : 0;
     bu.uLowRes.value.set(RW, RH);
     bu.uScale.value = this.scale;
     bu.uMargin.value = this.margin;
     bu.uOffset.value.copy(this.subOffset);
     this.fsQuad.material = this.blitMat;
     r.render(this.fsScene, this.fsCam);
-    if (overlay) {
-      const ou = this.overlayBlitMat.uniforms;
-      ou.tSrc.value = this.rtOverlay.texture;
-      ou.uLowRes.value.set(RW, RH);
-      ou.uScale.value = this.scale;
-      ou.uMargin.value = this.margin;
-      // share the world's grade and film so the close-up sits in the same picture
-      const pu2 = this.postMat.uniforms;
-      ou.uLift.value.copy(pu2.uLift.value); ou.uGain.value.copy(pu2.uGain.value); ou.uTint.value.copy(pu2.uTint.value);
-      ou.uGamma.value = pu2.uGamma.value; ou.uSat.value = pu2.uSat.value; ou.uLevels.value = pu2.uLevels.value;
-      ou.uGrain.value = pu2.uGrain.value * 0.45; ou.uVignette.value = pu2.uVignette.value * 0.8;
-      ou.uTime.value = performance.now() / 1000;
-      ou.uLight.value = this.overlayLight; ou.uDark.value = this.overlayFilm;
-      this.fsQuad.material = this.overlayBlitMat;
-      r.render(this.fsScene, this.fsCam);
-    }
+    this.warmStep();
     // 6. small screen-space layers drawn with this same context (the body HUD): no second WebGL context
     for (const f of this.afterRender) f(r);
   }
   /** called at the end of every render with the renderer, default framebuffer bound */
   readonly afterRender: ((r: THREE.WebGLRenderer) => void)[] = [];
+
+  // ---------------------------------------------------------------- progressive shader warm-up
+  // Close-up stages (src/fp: build, cook, scope, trade...) sit hidden in the overlay scene until they are
+  // first opened, and a hidden material is only compiled when it first draws: opening one used to stall
+  // for its shaders. After the world has settled, one hidden stage per tick is compiled ahead (in the
+  // background where the GPU driver can: KHR_parallel_shader_compile), and the world scene is swept now
+  // and then so props, creatures and items that are still hidden are ready before they show.
+  private warmFrames = 0;
+  private warmAt = 0;
+  private warmed = new WeakSet<THREE.Object3D>();
+  private warmWorldAt = 0;
+  /** dev / probes: number of warm-up compiles issued */
+  warmCount = 0;
+
+  private compileAhead(scene: THREE.Scene, cam: THREE.Camera) {
+    const r = this.renderer as THREE.WebGLRenderer & { compileAsync?: (s: THREE.Object3D, c: THREE.Camera) => Promise<unknown> };
+    // compile() only submits the shaders; nothing waits on them until they first draw
+    if (r.compileAsync && r.extensions.has('KHR_parallel_shader_compile')) r.compileAsync(scene, cam).catch(() => { /* drawn later anyway */ });
+    else r.compile(scene, cam);
+    this.warmCount++;
+  }
+
+  private warmStep() {
+    const now = performance.now();
+    // start once the world has drawn a few frames (its own shaders first)
+    if (++this.warmFrames === 6) this.warmAt = now + 1500;
+    if (this.warmFrames < 6 || now < this.warmAt) return;
+    this.warmAt = now + 700;
+    try {
+      // one hidden close-up stage, compiled with exactly the lights it will have (its own rig + the scene's)
+      const os = this.overlayScene;
+      const stage = os.children.find((c) => !c.visible && c.name.startsWith('fp:') && !this.warmed.has(c));
+      if (stage) {
+        this.warmed.add(stage);
+        const kids = os.children;
+        os.children = kids.filter((c) => c === stage || !c.name.startsWith('fp:'));
+        stage.visible = true;
+        try { this.compileAhead(os, this.overlayCamera); } finally { stage.visible = false; os.children = kids; }
+        return;
+      }
+      // the world, every few seconds (cheap when everything is already compiled)
+      if (now > this.warmWorldAt) {
+        this.warmWorldAt = now + 4000;
+        this.compileAhead(this.scene, this.eyeCamera ?? this.camera);
+      }
+    } catch (e) { console.warn('shader warm-up', e); }
+  }
 
   /** Convert CSS pixel coords to a world ray, intersect with horizontal plane y */
   screenToWorld(cssX: number, cssY: number, planeY = 0): THREE.Vector3 | null {

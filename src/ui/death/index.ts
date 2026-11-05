@@ -216,7 +216,8 @@ class DeathCinematic {
     if (this.phase === 'done') return;
     this.raf = requestAnimationFrame(this.loop);
     const now = performance.now();
-    const dt = Math.min(0.05, (now - this.last) / 1000);
+    // slow devices take big steps rather than slowing the whole scene (moves and the report keep their timing)
+    const dt = Math.min(0.25, (now - this.last) / 1000);
     this.last = now;
     if (document.hidden) return;
     this.room?.frame(dt);
@@ -272,6 +273,7 @@ class DeathCinematic {
     R.gesture(l.who, l.g);
     R.lookAt(R.head(l.who, new THREE.Vector3()), l.who);
     R.talking(l.who, true);
+    if (R.shotNow === 'reverse' && this.root.clientHeight > this.root.clientWidth) R.single(l.who);
     if (l.shout) R.bump(0.3);
     const el = this.bubble(l);
     react(l.g);
@@ -318,9 +320,10 @@ class DeathCinematic {
       const bw = b.el.offsetWidth, bh = b.el.offsetHeight;
       const off = s.behind || s.x < 24 || s.x > W - 24 || s.y < bh * 0.4 || s.y > H - 60;
       b.el.classList.toggle('sub', off);
-      if (off) { b.el.style.left = Math.round(W / 2 - bw / 2) + 'px'; b.el.style.top = Math.round(H - bh - Math.max(56, H * 0.1)) + 'px'; continue; }
+      if (off) { b.el.style.left = Math.round(W / 2 - bw / 2) + 'px'; b.el.style.top = Math.round(H - bh - 12) + 'px'; continue; }
+      const bar = this.root.classList.contains('dz-case-on') ? 0 : (H > W ? 0.07 : 0.1) * H;
       const x = Math.round(Math.max(16, Math.min(W - 16 - bw, s.x - bw / 2)));
-      const y = Math.round(Math.max(16, s.y - bh));
+      const y = Math.round(Math.max(bar + 8, s.y - bh));
       b.el.style.left = x + 'px'; b.el.style.top = y + 'px';
       // the tail points at the head even when the words are pushed aside
       (b.el.querySelector('.dz-tail') as HTMLElement).style.left = Math.round(Math.max(8, Math.min(bw - 16, s.x - x - 4))) + 'px';
@@ -362,13 +365,17 @@ class DeathCinematic {
       R.setTyping(1, false);
       R.lookAt(null);
       R.hand = 0;
-      if (R.shotNow !== 'type') R.shot('case'); else R.shot('case', 1.6);
+      // from the typing insert: back over the shoulder, then push into the tube
+      if (R.shotNow === 'type') { R.shot('room'); R.shot('case', 1.5); } else R.shot('case');
       R.feed.blank();
       R.feed.snow = 0.5;
       R.grade({ exposure: 0.92, vig: 1.1 });
     }
     this.root.classList.add('dz-case-on');
-    setTimeout(() => this.showCase(), R && R.shotNow === 'case' ? 1650 : 300);
+    // the report comes up once the camera has arrived on the glass
+    const t0 = performance.now();
+    const go = () => { if (this.phase !== 'case') return; if (!R || R.settled || performance.now() - t0 > 4000) this.showCase(); else setTimeout(go, 100); };
+    setTimeout(go, 200);
   }
 
   // ---------------------------------------------------------------- 4. the report
@@ -410,7 +417,7 @@ class DeathCinematic {
       return String(Math.round(l.num * f));
     };
     let i = 0, f = 0, rpShown = 0, stage: 'rows' | 'rp' | 'end' = 'rows';
-    let lastTick = 0;
+    let lastTick = 0, lastT = performance.now();
     const startLab = researchPoints() - r.rp;
     const end = () => {
       if (stage === 'end') return;
@@ -427,19 +434,20 @@ class DeathCinematic {
     this.finishTally = end;
     const step = () => {
       if (stage === 'end' || this.phase !== 'case') return;
-      const now = performance.now();
+      const now = performance.now(), dt = Math.min(0.1, (now - lastT) / 1000);
+      lastT = now;
       if (stage === 'rows') {
         if (i >= rows.length) { stage = 'rp'; f = 0; }
         else {
           const row = rows[i];
           row.classList.add('on');
-          f = Math.min(1, f + 1 / 26);
+          f = Math.min(1, f + dt / 0.42);
           (row.querySelector('.dz-v') as HTMLElement).textContent = val(r.lines[i].key, f);
           if (now - lastTick > 45) { sfx('tick', 0.6); lastTick = now; }
           if (f >= 1) { row.classList.add('paid'); if (r.lines[i].rp) sfx('click', 0.5); i++; f = 0; }
         }
       } else if (stage === 'rp') {
-        f = Math.min(1, f + 1 / 40);
+        f = Math.min(1, f + dt / 0.7);
         const n = Math.round(r.rp * f);
         if (n !== rpShown) { rpShown = n; big.textContent = '+' + n; lab.textContent = String(startLab + n); if (now - lastTick > 40) { sfx('tick', 0.9); lastTick = now; } }
         if (f >= 1) { end(); return; }

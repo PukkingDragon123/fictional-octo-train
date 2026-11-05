@@ -14,6 +14,7 @@ import { randomLooks } from '../../entities/humanLooks';
 import { Player } from '../../entities/player';
 import { hasItemDef } from '../../items/item';
 import { U } from '../../gfx/materials';
+import { SPOTU } from '../../gfx/postfx';
 import { bitText } from '../../gfx/bitfont';
 import { facetMats, disposeFacetMats, plateTex, type FMats, type FKey } from '../menus/scene/pixtex';
 import { FacetBuilder, at, cbox, prism, lathe, extrude, tube, band, gem, bolt, hull, jitter } from '../menus/scene/facet';
@@ -51,11 +52,11 @@ interface Staffer {
 
 const CREW: { items: string[]; app: Partial<Appearance>; fem: boolean; at: V3; face: V3; seated: boolean; seed: number }[] = [
   // Dr. Hale: standing behind the chair with her coffee
-  { items: ['shirt_office', 'lab_coat', 'slacks', 'dress_shoes', 'glasses'], app: { hairStyle: 'bob', build: 'slim', bodyShape: 0.95, hair: 0x6a4628 }, fem: true, at: [0.5, 0, 0.42], face: [-0.05, 1.3, -1.3], seated: false, seed: 101 },
+  { items: ['shirt_office', 'lab_coat', 'slacks', 'dress_shoes', 'glasses'], app: { hairStyle: 'bob', build: 'slim', bodyShape: 0.95, hair: 0x6a4628, facialHair: 'none', beard: false }, fem: true, at: [0.86, 0, 0.32], face: [-0.05, 1.3, -1.3], seated: false, seed: 101 },
   // Ortiz: the technician at the keyboard
-  { items: ['tshirt', 'lab_coat', 'jeans', 'sneakers'], app: { hairStyle: 'short', build: 'average', bodyShape: 0.15, facialHair: 'stubble' }, fem: false, at: [-0.34, 0, -0.16], face: [-0.34, 1.0, -1.3], seated: true, seed: 202 },
+  { items: ['tshirt', 'lab_coat', 'jeans', 'sneakers'], app: { hairStyle: 'short', build: 'average', bodyShape: 0.15, facialHair: 'stubble', hair: 0x2a1c14 }, fem: false, at: [-0.34, 0, -0.16], face: [-0.34, 1.0, -1.3], seated: true, seed: 202 },
   // Sgt. Brandt: security, leaning on the end of the console
-  { items: ['security_uniform', 'slacks', 'dress_shoes', 'hat_cap'], app: { hairStyle: 'buzz', build: 'broad', bodyShape: 0, facialHair: 'moustache' }, fem: false, at: [-1.42, 0, -0.3], face: [0.1, 1.3, -1.3], seated: false, seed: 303 },
+  { items: ['security_uniform', 'slacks', 'dress_shoes', 'hat_cap'], app: { hairStyle: 'buzz', build: 'broad', bodyShape: 0, facialHair: 'moustache', hair: 0x3b2a1e }, fem: false, at: [-1.42, 0, -0.3], face: [0.1, 1.3, -1.3], seated: false, seed: 303 },
 ];
 
 // ------------------------------------------------------------------ shots
@@ -81,11 +82,11 @@ function shotFor(name: ShotName, aspect: number): Shot {
       ? { pos: v(0.1, 1.9, 3.1), look: v(-0.1, 1.2, -1.2), fov: 62 }
       : { pos: v(0.6, 1.8, 2.6), look: v(-0.1, 1.25, -1.3), fov: 48 };
     case 'reverse': return portrait
-      ? { pos: v(0.02, 1.66, -1.16), look: v(-0.3, 1.3, 0.6), fov: 86 }
-      : { pos: v(0.04, 1.66, -1.16), look: v(-0.3, 1.28, 0.6), fov: 64 };
+      ? { pos: v(0.0, 1.66, -1.18), look: v(-0.3, 1.3, 0.6), fov: 92 }
+      : { pos: v(0.1, 1.68, -1.2), look: v(-0.42, 1.26, 0.6), fov: 74 };
     case 'type': return portrait
-      ? { pos: v(-0.66, 1.16, -1.06), look: v(-0.3, 0.98, -0.4), fov: 66 }
-      : { pos: v(-0.68, 1.14, -1.08), look: v(-0.28, 1.0, -0.42), fov: 48 };
+      ? { pos: v(-0.92, 1.4, -1.14), look: v(-0.32, 0.94, -0.5), fov: 74 }
+      : { pos: v(-0.98, 1.38, -1.14), look: v(-0.3, 0.94, -0.5), fov: 60 };
     case 'case': {
       // face on: the tube in the upper part of the picture, room for the keys below it
       const fov = 40, th = Math.tan(THREE.MathUtils.degToRad(fov / 2));
@@ -110,14 +111,16 @@ export class ObsRoom {
   private post = makePost();
   private lowW = 0; private lowH = 0; private S = 2;
   private ro: ResizeObserver | null = null;
+  /** a 1x1 compare-mode depth target of our own: the world material's shadow samplers must be bound to one in this context */
+  private noShadow: THREE.WebGLRenderTarget | null = null;
   readonly crew: Staffer[] = [];
   private t = 0;
   // lights
   private hemi = new THREE.HemisphereLight(0x4a5868, 0x14100c, 1.7);
-  private crtBig = new THREE.PointLight(0x7aff9a, 6, 6.5, 1.2);
+  private crtBig = new THREE.PointLight(0x7aff9a, 4.5, 6.5, 1.2);
   private crtBank = new THREE.PointLight(0x5ad07a, 3, 6, 1.2);
   private lamp = new THREE.SpotLight(0xffc07a, 30, 4, 0.62, 0.55, 1.4);
-  private rim = new THREE.SpotLight(0x9ab0e0, 40, 9, 0.5, 0.7, 1.2);
+  private rim = new THREE.SpotLight(0x9ab0e0, 24, 9, 0.5, 0.7, 1.2);
   private door = new THREE.PointLight(0xffd8a0, 4, 4.5, 1.4);
   private doorBulb = new THREE.MeshBasicMaterial({ color: 0xffe0b0, toneMapped: false });
   private recL = new THREE.PointLight(0xff3020, 0.25, 1.4, 2);
@@ -151,6 +154,10 @@ export class ObsRoom {
       this.renderer.setClearColor(0x000000, 1);
       this.renderer.shadowMap.enabled = true;
       this.renderer.shadowMap.type = THREE.PCFShadowMap;
+      const nsd = new THREE.DepthTexture(1, 1);
+      nsd.compareFunction = THREE.LessEqualCompare;
+      this.noShadow = new THREE.WebGLRenderTarget(1, 1, { depthBuffer: true, depthTexture: nsd });
+      this.renderer.initRenderTarget(this.noShadow);
     } catch (e) { console.warn('observation room renderer unavailable', e); this.renderer = null; }
     this.mats = facetMats(o.low);
     const S = this.scene;
@@ -571,7 +578,17 @@ export class ObsRoom {
     this.shotName = name;
     this.blendDur = secs; this.blend = secs > 0 ? 0 : 1;
   }
+  /** a close single on one of the crew, from the tube bank (portrait screens can't hold all three) */
+  single(who: Who, secs = 0.45) {
+    const h = this.head(who, new THREE.Vector3());
+    this.shotA = this.currentShot();
+    this.shotB = { pos: new THREE.Vector3(h.x * 0.4, 1.62, -1.18), look: h.clone().setY(h.y - 0.16), fov: 64 };
+    this.shotName = 'reverse';
+    this.blendDur = secs; this.blend = secs > 0 ? 0 : 1;
+  }
   get shotNow() { return this.shotName; }
+  /** the camera has arrived (no move in progress) */
+  get settled() { return this.blend >= 1; }
   private currentShot(): Shot {
     const k = ease(Math.min(1, this.blend));
     return { pos: this.shotA.pos.clone().lerp(this.shotB.pos, k), look: this.shotA.look.clone().lerp(this.shotB.look, k), fov: this.shotA.fov + (this.shotB.fov - this.shotA.fov) * k };
@@ -646,7 +663,7 @@ export class ObsRoom {
     // the tubes light the room: the big one follows its picture
     const fb = this.feed.tube.u;
     const flick = 0.92 + Math.sin(this.t * 61) * 0.03 + Math.random() * 0.05;
-    this.crtBig.intensity = (5 + fb.uNoise.value * 3 - fb.uBlank.value * 1.5) * flick * fb.uPower.value + fb.uFlash.value * 8;
+    this.crtBig.intensity = (3.8 + fb.uNoise.value * 2.4 - fb.uBlank.value * 1.2) * flick * fb.uPower.value + fb.uFlash.value * 8;
     this.crtBank.intensity = 3 * flick;
     const blink = Math.floor(this.t * 1.6) % 2 === 0;
     this.recMat.color.setRGB(blink ? 2 : 0.25, blink ? 0.3 : 0.04, blink ? 0.15 : 0.02);
@@ -686,6 +703,9 @@ export class ObsRoom {
     u.uLift.value.set(0.84, 1.0, 1.08); u.uGain.value.set(1.1, 1.02, 0.86);
     u.uSat.value = 0.92; u.uContrast.value = 1.1; u.uSide.value.set(1, 0, 0, 0.4); u.uFloor.value = 0.25; u.uGrain.value = 0.014;
     const saved = { cut: U.uCutOn.value, vis: U.uVisOn.value, fn: U.uFogNear.value, ff: U.uFogFar.value, gs: U.uGridScale.value, col: U.uCollapse.value, snap: U.uSnapOn.value };
+    const ss = { ts: SPOTU.tSpotShadow.value, tu: SPOTU.tSunShadow.value, so: SPOTU.uSpotOn.value, su: SPOTU.uSunOn.value, sh: SPOTU.uSpotShadowOn.value };
+    const nsd = this.noShadow?.depthTexture ?? null;
+    SPOTU.tSpotShadow.value = nsd; SPOTU.tSunShadow.value = nsd; SPOTU.uSpotOn.value = 0; SPOTU.uSunOn.value = 0; SPOTU.uSpotShadowOn.value = 0;
     U.uCutOn.value = 0; U.uVisOn.value = 0; U.uFogNear.value = 1e4; U.uFogFar.value = 2e4; U.uGridScale.value = 0; U.uCollapse.value = 0; U.uSnapOn.value = 0;
     try {
       r.setRenderTarget(this.rt);
@@ -696,6 +716,7 @@ export class ObsRoom {
       r.render(this.post.scene, this.post.cam);
     } finally {
       U.uCutOn.value = saved.cut; U.uVisOn.value = saved.vis; U.uFogNear.value = saved.fn; U.uFogFar.value = saved.ff; U.uGridScale.value = saved.gs; U.uCollapse.value = saved.col; U.uSnapOn.value = saved.snap;
+      SPOTU.tSpotShadow.value = ss.ts; SPOTU.tSunShadow.value = ss.tu; SPOTU.uSpotOn.value = ss.so; SPOTU.uSunOn.value = ss.su; SPOTU.uSpotShadowOn.value = ss.sh;
     }
   }
 
@@ -707,6 +728,7 @@ export class ObsRoom {
     for (const t of this.texs) t.dispose();
     this.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m.geometry) m.geometry.dispose(); });
     this.rt?.dispose();
+    this.noShadow?.dispose();
     disposeFacetMats();
     this.renderer?.dispose();
     this.renderer?.forceContextLoss?.();

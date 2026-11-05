@@ -144,7 +144,8 @@ export interface Scene { lines: Line[]; type: Line; data: Line }
 export function sceneFor(r: RunReport, she: boolean): Scene {
   const he = she ? 'she' : 'he', him = she ? 'her' : 'him', his = she ? 'her' : 'his';
   const days = Math.floor(r.hours / 24);
-  const time = r.hours < 1 ? `${Math.max(1, Math.round(r.hours * 60))} minutes` : r.hours < 24 ? `${Math.round(r.hours)} hours` : `${days} days`;
+  const n = r.hours < 1 ? Math.max(1, Math.round(r.hours * 60)) : r.hours < 24 ? Math.round(r.hours) : days;
+  const time = `${n} ${r.hours < 1 ? 'minute' : r.hours < 24 ? 'hour' : 'day'}${n === 1 ? '' : 's'}`;
   const who = r.cause.who || 'that';
   const fill = (s: string) => s
     .replace(/\{He\}/g, cap(he)).replace(/\{he\}/g, he).replace(/\{him\}/g, him).replace(/\{his\}/g, his)

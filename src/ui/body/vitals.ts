@@ -1,4 +1,4 @@
-// The vitals cluster of the body HUD, pixel art drawn every frame into one small
+// The vitals cluster of the body HUD (brain, heart engine, health bar, balloon), pixel art drawn every frame into one small
 // buffer (pix.ts) and shown integer-upscaled in the top-left corner:
 //
 //   [ brain ]  [♥ ======== health bar ======== ]      (balloon)
@@ -15,14 +15,17 @@
 // the air out (it shrinks and wobbles), exhausted it sags to the floor,
 // wrinkled and wheezing, and it gives a little pop when it runs dry.
 import { Pix, mix, shade, hash, bayer } from './pix';
+import { HeartEngine } from './heartEngine';
 
-export const VW = 198, VH = 60;
+export const VW = 206, VH = 62;
 /** regions in HUD pixels (the canvas is integer-upscaled) */
-export const BRAIN = { x: 0, y: 1, w: 46, h: 38, cx: 23, cy: 20 };
-export const PACK = { x: 13, y: 41, w: 18, h: 18 };
-export const BAR = { x: 48, y: 8, w: 114, h: 15 };
-export const TRAY_AT = { x: 49, y: 29 };
-export const ANCHOR = { x: 184, y: 51 };
+export const BRAIN = { x: 0, y: 2, w: 46, h: 38, cx: 23, cy: 21 };
+export const PACK = { x: 13, y: 43, w: 18, h: 18 };
+/** the heart engine (heartEngine.ts) sits between the brain and the bar and feeds it */
+export const HEART = { x: 46, y: 2, w: 30, h: 40, cx: 62, cy: 23 };
+export const BAR = { x: 76, y: 13, w: 96, h: 15 };
+export const TRAY_AT = { x: 77, y: 32 };
+export const ANCHOR = { x: 190, y: 53 };
 const FLOOR = VH - 3;
 
 const INK = 0x0a0b10;
@@ -198,8 +201,9 @@ export class Vitals {
   readonly pix = new Pix(VW, VH);
   private brain = bakeBrain();
   time = 0;
-  // ---- heart
-  private beatPh = 0; beatAge = 9;
+  // ---- the heart engine keeps the beat for everything
+  readonly heart = new HeartEngine(HEART.cx, HEART.cy);
+  private waves: number[] = [];
   // ---- health
   hpShown = 100; lag = 100; private holdT = 0; private lastHp = -1;
   flash = 0; private shake = 0; private sx = 0; private sy = 0;
@@ -235,6 +239,7 @@ export class Vitals {
     this.sloshV += (Math.random() < 0.5 ? -1 : 1) * (6 + 10 * k);
     this.holdT = 0.55;
     this.twitch = Math.min(1, this.twitch + 0.35 + k * 0.4);
+    this.heart.hit(k);
   }
   scare(k = 1) { this.twitch = Math.min(1, this.twitch + 0.5 * k + 0.2); }
   /** running footfalls and turns knock the balloon about */
@@ -247,10 +252,12 @@ export class Vitals {
   update(dt: number, s: VitalsIn) {
     dt = Math.min(dt, 1 / 20);
     this.time += dt;
-    // ---- the heart: lub-dub
-    const bpm = s.dead ? 0 : clamp(s.bpm, 40, 200);
-    this.beatAge += dt;
-    if (bpm > 0) { this.beatPh += dt * bpm / 60; if (this.beatPh >= 1) { this.beatPh -= 1; this.beatAge = 0; } }
+    // ---- the heart engine: lub-dub, stutters, skipped beats; each stroke sends a wave down the tube
+    this.heart.update(dt, this.hpShown, s.dead ? 0 : clamp(s.bpm, 40, 200), s.bleed, s.dead);
+    for (const e of this.heart.events) { if (e === 'beat') this.waves.push(0); else if (e === 'stall') this.events.push('stall'); }
+    this.heart.events.length = 0;
+    for (let i = 0; i < this.waves.length; i++) this.waves[i] += dt * (60 + 80 * this.heart.str);
+    if (this.waves.length && this.waves[0] > BAR.w) this.waves.shift();
     // ---- health
     const hp = clamp(s.hp, 0, 100);
     if (this.lastHp < 0) { this.lastHp = hp; this.hpShown = hp; this.lag = hp; }
@@ -281,7 +288,7 @@ export class Vitals {
       this.dripAcc += dt * Math.min(9, 0.7 + s.bleed * 5.5);
       while (this.dripAcc >= 1) {
         this.dripAcc -= 1;
-        const x0 = BAR.x + 11, x1 = x0 + Math.max(2, (BAR.w - 15) * this.hpShown / 100 - 2);
+        const x0 = BAR.x + 10, x1 = x0 + Math.max(2, (BAR.w - 12) * this.hpShown / 100 - 2);
         for (const q of this.drips) if (!q.on) { q.on = true; q.x = Math.round(x0 + Math.random() * (x1 - x0)); q.y = BAR.y + BAR.h; q.vy = 0; q.t = 0; q.hang = 0.25 + Math.random() * 0.5; break; }
       }
     }
@@ -392,7 +399,7 @@ export class Vitals {
     this.bAngV += ((clamp(target, -1.2, 1.2) - this.bAng) * 30 - this.bAngV * 4.5) * dt;
     if (s.running) this.bAngV += (Math.random() - 0.5) * dt * 30;
     this.bAng = clamp(this.bAng + this.bAngV * dt, -1.5, 1.5);
-    this.bR = 4.6 + 6.4 * clamp(this.vol, 0, 1.15);
+    this.bR = 5.4 + 5.8 * clamp(this.vol, 0, 1.15);
     const ux = Math.sin(this.bAng), uy = -Math.cos(this.bAng);
     this.bCx = K.x + ux * (this.bR + 1); this.bCy = K.y + uy * (this.bR + 1);
   }
@@ -406,6 +413,7 @@ export class Vitals {
     this.drawWeight(P);
     this.drawBalloon(P, s);
     this.drawBar(P, s);
+    this.heart.draw(P, HEART.cx, HEART.cy, this.hpShown, s.dead, s.hover === 'bar', { x: BAR.x + 2 + this.sx, y: BAR.y + 7 });
     for (const q of this.drips) if (q.on) {
       const len = q.t < q.hang ? (q.t / q.hang > 0.5 ? 2 : 1) : q.vy > 60 ? 3 : 2;
       for (let i = 0; i < len; i++) P.set(q.x + this.sx, q.y + i, i === 0 && len > 1 ? 0xe03a46 : 0xa8101e);
@@ -415,6 +423,7 @@ export class Vitals {
     P.outline(INK, 0.4);
     // over the ink: the string, puffs, sparkles, the critical glow
     this.drawString(P);
+    this.heart.drawSteam(P);
     for (const m of this.motes) if (m.on) {
       if (m.kind === 1) { const a = clamp(m.t * 2, 0, 1); P.blend(m.x, m.y, m.c, a); if (m.t > 0.4) { P.blend(m.x - 1, m.y, m.c, a * 0.5); P.blend(m.x + 1, m.y, m.c, a * 0.5); P.blend(m.x, m.y - 1, m.c, a * 0.5); P.blend(m.x, m.y + 1, m.c, a * 0.5); } }
       else if (m.kind === 3) { if (bayer(Math.round(m.x), Math.round(m.y)) < clamp(m.t * 2.2, 0, 0.9)) P.blend(m.x, m.y, m.c, 0.85); }
@@ -423,10 +432,7 @@ export class Vitals {
   }
 
   // ---------------------------------------------------------------- brain
-  private beatEnv(): number {
-    const a = this.beatAge;
-    return Math.exp(-a * 15) + (a > 0.19 ? 0.55 * Math.exp(-(a - 0.19) * 15) : 0);
-  }
+  private beatEnv(): number { return Math.min(1.2, this.heart.env()); }
   private drawBrain(P: Pix, s: VitalsIn) {
     const B = this.brain;
     const san = this.sanityShown / 100;
@@ -476,7 +482,7 @@ export class Vitals {
 
   // ---------------------------------------------------------------- health bar
   private drawBar(P: Pix, s: VitalsIn) {
-    const x0 = BAR.x + 5 + this.sx, y0 = BAR.y + this.sy, W = BAR.w - 5, H = BAR.h;
+    const x0 = BAR.x + this.sx, y0 = BAR.y + this.sy, W = BAR.w, H = BAR.h;
     const hp = this.hpShown / 100, lag = this.lag / 100;
     const crit = s.dead ? 0 : clamp((28 - this.hpShown) / 28, 0, 1);
     const env = s.dead ? 0 : this.beatEnv();
@@ -536,6 +542,8 @@ export class Vitals {
         if (Math.abs(q - Math.round(q)) * gw / 10 < 0.5 && Math.round(q) > 0 && Math.round(q) < 10 && r >= rows - (Math.round(q) === 5 ? 6 : 3)) c = shade(c, 0.62);
         // critical: it beats
         if (pulse > 0) c = mix(c, 0xff6a5a, pulse * 0.45);
+        // the stroke the heart just pumped, running down the tube
+        for (const wv of this.waves) { const dw = X - gx0 - wv + r * 0.4; if (dw > -2.5 && dw < 0.5) c = mix(c, 0xff8a7a, 0.28 * this.heart.str); }
         // healing: a sheen sweeps through
         if (this.sweep >= 0) { const dsw = X - gx0 + r * 0.6 - this.sweep; if (dsw > -3 && dsw < 1) c = mix(c, 0xfff0e0, 0.55); }
         if (flashK > 0) c = mix(c, 0xffffff, flashK * 0.85);
@@ -559,28 +567,7 @@ export class Vitals {
     if (s.bleed > 0.015) for (let x = gx0 + 2; x < Math.min(gx1, fillX); x += 5) if (hash(x, 3, 9) < 0.5) P.set(x, y0 + H - 1, 0x8a101c);
     // rivets on the casing
     for (const rx of [x0 + 12, x0 + W - 6]) { P.set(rx, y0 + 1, BRASS[5]); }
-    // the heart on the brass cap: it beats
-    this.drawHeart(P, BAR.x + 6 + this.sx, BAR.y + 7 + this.sy, s);
   }
-  private drawHeart(P: Pix, cx: number, cy: number, s: VitalsIn) {
-    const env = s.dead ? 0 : this.beatEnv();
-    const crit = clamp((28 - this.hpShown) / 28, 0, 1);
-    const sc = 1 + env * (0.1 + crit * 0.14);
-    const w = 7 * sc, h = 6.4 * sc;
-    const base = s.dead ? [0x2a2a2a, 0x3a3a3a, 0x4e4e4e, 0x666666, 0x888888, 0xaaaaaa] : [0x5a0a14, 0x8e1420, 0xc0202c, 0xe0303a, 0xf86a6a, 0xffc0b8];
-    for (let y = Math.floor(cy - h - 1); y <= cy + h + 1; y++) for (let x = Math.floor(cx - w - 1); x <= cx + w + 1; x++) {
-      const u = (x + 0.5 - cx) / w * 1.25, v = -((y + 0.5 - cy) / h * 1.3) + 0.2;
-      const q = u * u + v * v - 1;
-      if (q * q * q - u * u * v * v * v > 0) continue;
-      const lam = -u * 0.5 + v * 0.6 + 0.5;
-      let t = Math.round(clamp(lam * 3.4 + 0.8 + (bayer(x, y) - 0.5) * 0.6, 0, 4));
-      if (u < -0.25 && u > -0.65 && v > 0.35 && v < 0.75) t = 5;
-      let c = base[t];
-      if (this.flash > 0) c = mix(c, 0xffffff, this.flash * 0.6);
-      P.set(x, y, c);
-    }
-  }
-
   // ---------------------------------------------------------------- the balloon
   private drawWeight(P: Pix) {
     const ax = ANCHOR.x, ay = ANCHOR.y;
@@ -615,7 +602,7 @@ export class Vitals {
     const vx = K.x - K.px, vy = K.y - K.py, sp = Math.min(1, Math.hypot(vx, vy) * 0.6);
     const sqy = 1 + sp * 0.12, sqx = 1 - sp * 0.08;
     const tiredK = 1 - sstep(0.1, 0.55, v);
-    const ramp = BALLOON.map((c, i) => mix(c, BALLOON_TIRED[i], tiredK * 0.6));
+    const ramp = BALLOON.map((c, i) => mix(c, BALLOON_TIRED[i], tiredK * 0.4));
     const hov = s.hover === 'balloon' ? 1 : 0;
     const cx = this.bCx, cy = this.bCy;
     const RR = Math.ceil(ry * 1.3 + 2);
@@ -678,6 +665,7 @@ export class Vitals {
   // ================================================================ hit tests (HUD px)
   pick(x: number, y: number, showPack: boolean): 'brain' | 'bar' | 'balloon' | 'pack' | null {
     if (x >= BAR.x - 1 && x <= BAR.x + BAR.w + 1 && y >= BAR.y - 2 && y <= BAR.y + BAR.h + 1) return 'bar';
+    if (x >= HEART.x + 2 && x < HEART.x + HEART.w && y >= HEART.y + 4 && y < HEART.y + HEART.h) return 'bar';
     if (showPack && x >= PACK.x - 1 && x <= PACK.x + PACK.w && y >= PACK.y - 1 && y <= PACK.y + PACK.h) return 'pack';
     const bd = Math.hypot(x - this.bCx, (y - this.bCy) * 0.9);
     if (bd < this.bR + 3 || (Math.abs(x - ANCHOR.x) < 8 && y > ANCHOR.y - 3)) return 'balloon';
