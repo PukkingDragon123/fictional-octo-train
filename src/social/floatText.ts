@@ -96,11 +96,9 @@ function admit(text: string, kind: FloatKind, pri: number, life: number): boolea
   const t = now();
   const key = kind + ':' + text.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const last = seen.get(key) ?? -1e9;
-  if (pri <= 1) {
-    if (quietHold > 0 || t < quietUntil) return false;
-    if (t - last < 600 || t - lastFlavour < 45 || t < busyUntil) return false;
-    lastFlavour = t;
-  } else if (pri === 2) {
+  // no flavour text at all (thoughts and barks for colour): only lines that matter are shown
+  if (pri <= 1) return false;
+  else if (pri === 2) {
     if (kind === 'think') { if (t - last < 40 || t - lastFeedback < 5) return false; lastFeedback = t; }
     else if (kind !== 'say' && t - last < 25) return false;
     busyUntil = Math.max(busyUntil, t + Math.min(6, life));

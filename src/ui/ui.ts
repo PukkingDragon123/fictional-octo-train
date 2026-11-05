@@ -15,7 +15,7 @@ import { itemIcon } from './icons';
 import { sfx } from './menus/sfx';
 import { calm } from './menus/settings';
 import './holo/diegetic.css';
-import { initSubtitles, scrawl, speech, shout, radioLine } from './holo/subs';
+import { initSubtitles, scrawl, speech, shout, radioLine, offscreen } from './holo/subs';
 import { debtorNo } from './holo/holo';
 import { openVerbTag } from '../interact/verbTag';
 
@@ -200,8 +200,8 @@ export class UI {
     // replace previous bubble of same kind for this player
     for (const b of this.bubbles) if (b.target === p && b.kind === kind) b.until = 0;
     const el = kind === 'think' ? scrawl(text, 'think') : kind === 'shout' ? shout(text) : speech(text, 'say');
-    this.root.appendChild(el);
-    this.bubbles.push({ el, target: p, until: G.time + secs + text.length * 0.03, born: G.time, rise: 0, kind });
+    // into the subtitle strip, not over anyone's head
+    if (!el.classList.contains('ft-mute')) offscreen(el, secs + text.length * 0.03);
   }
   halo(p: Player, text: string, kind = '') {
     const el = document.createElement('div');

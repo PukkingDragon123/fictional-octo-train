@@ -54,7 +54,8 @@ export function radioLine(who: string, text: string, secs = 5) {
 
 /** positionless lines stack low and centred, newest at the bottom; the name fades with its line */
 let subHost: HTMLDivElement | null = null;
-function offscreen(el: HTMLDivElement, secs: number) {
+/** a line in the subtitle strip at the bottom of the picture (nothing floats in the world) */
+export function offscreen(el: HTMLDivElement, secs: number) {
   if (!subHost || !subHost.isConnected) { subHost = document.createElement('div'); subHost.className = 'ft-subs'; subHost.setAttribute('aria-live', 'polite'); document.body.appendChild(subHost); }
   el.classList.add('offscreen');
   subHost.appendChild(el);
@@ -82,7 +83,8 @@ export function initSubtitles(ui: UiLike) {
       const y = typeof s.y === 'number' ? s.y : ground;
       at = { x: s.x, y: y - ground > 1.2 ? y + 0.15 : y + 2.15, z: s.z };
     }
-    const push = (el: HTMLDivElement, target: any, kind: string) => { ui.root.appendChild(el); ui.bubbles.push({ el, target, until: G.time + secs, born: G.time, rise: 0, kind }); };
+    // nothing floats in the world: every spoken line goes to the subtitle strip at the bottom (who it came from is in its name tag)
+    const push = (el: HTMLDivElement, _target: any, _kind: string) => { offscreen(el, secs); };
     switch (style) {
       case 'bailiff': {
         // the band on the wrist: a cold, clipped synthetic voice (glitching when it leaks), the words rising off the cuff
