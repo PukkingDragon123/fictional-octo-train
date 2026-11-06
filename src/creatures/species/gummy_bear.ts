@@ -43,11 +43,11 @@ const Z0 = -0.78, Z1 = 0.66;
 /** where each individual's parts came back: the flank paw, the shoulder jaw, the one hind leg, the head's slump */
 interface Wrong { arm: V3; armDir: V3; jaw: V3; hip: V3; tilt: number; fur: [number, number, number, number][] }
 const WRONG: Wrong[] = [
-  { arm: [0.47, 0.54, 0.04], armDir: [0.16, 0.13, 0.02], jaw: [-0.47, 0.6, 0.18], hip: [-0.22, 0.22, -0.54], tilt: 1,
+  { arm: [0.47, 0.54, 0.04], armDir: [0.16, 0.13, 0.02], jaw: [-0.45, 0.6, 0.18], hip: [-0.22, 0.22, -0.54], tilt: 1,
     fur: [[0.28, 0.6, -0.95, 0.75], [0.12, 0.36, 1.25, 2.15], [0.06, 0.24, -2.1, -1.2], [0.8, 0.93, -1.9, 1.5], [0.5, 0.7, -2.0, -1.45]] },
-  { arm: [0.06, 0.8, -0.22], armDir: [0.05, 0.18, -0.06], jaw: [0.58, 0.42, -0.16], hip: [0.24, 0.22, -0.52], tilt: -1,
+  { arm: [0.06, 0.8, -0.22], armDir: [0.05, 0.18, -0.06], jaw: [0.53, 0.42, -0.16], hip: [0.24, 0.22, -0.52], tilt: -1,
     fur: [[0.12, 0.42, -1.0, 0.3], [0.45, 0.66, -2.2, -1.1], [0.55, 0.75, 1.0, 1.9], [0.8, 0.93, -1.5, 1.9], [0.1, 0.3, 1.6, 2.4]] },
-  { arm: [-0.5, 0.46, -0.3], armDir: [-0.16, 0.08, -0.08], jaw: [-0.42, 0.64, 0.26], hip: [0.2, 0.2, -0.56], tilt: 1,
+  { arm: [-0.5, 0.46, -0.3], armDir: [-0.16, 0.08, -0.08], jaw: [-0.41, 0.64, 0.26], hip: [0.2, 0.2, -0.56], tilt: 1,
     fur: [[0.35, 0.68, -0.3, 1.1], [0.1, 0.3, -1.0, 0.4], [0.5, 0.72, 1.3, 2.2], [0.8, 0.93, -1.7, 1.7], [0.22, 0.42, -2.4, -1.6]] },
 ];
 
@@ -66,7 +66,7 @@ function blobAt(t: number, a: number, v: number, k = 1): V3 {
   const at = (W.arm[2] - Z0) / (Z1 - Z0), aa = Math.atan2(W.arm[0], W.arm[1] - cy);
   const ad = (x: number, y: number) => { let d = x - y; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
   const bump = 0.065 * Math.sin(3 * a + 7 * t + v * 2) + 0.045 * Math.sin(5 * a - 11 * t + v) + 0.03 * Math.sin(9 * a + 17 * t)
-    + 0.05 * gauss(t, jt, 0.07) * gauss(ad(a, ja), 0, 0.45) + 0.1 * gauss(t, at, 0.08) * gauss(ad(a, aa), 0, 0.5);
+    + 0.1 * gauss(t, jt, 0.07) * gauss(ad(a, ja), 0, 0.45) + 0.1 * gauss(t, at, 0.08) * gauss(ad(a, aa), 0, 0.5);
   const down = Math.max(0, -Math.cos(a));
   let x = Math.sin(a) * rx * (1 + bump) * (1 + 0.42 * down * down) * k;
   let y = cy + Math.cos(a) * ry * (1 + bump) * k;
@@ -637,8 +637,9 @@ const SPLIT_T = 8, LUNGE_T = 0.42, COIL_T = 0.6, ENGULF_T = 1.1, DIGEST_T = 16;
 interface Prey { c?: Creature; p?: Player; x: number; z: number; d: number; dead?: boolean }
 function bees(c: Creature, r: number): Prey | null {
   let best: Prey | null = null;
+  const skip = (c.mem.skip ?? {}) as Record<string, number>;
   for (const o of CS().creatures.values()) {
-    if (o.zoneKey !== c.zoneKey || o.sp.key !== 'bumble_bee' || (o.dead && o.butchered)) continue;
+    if (o.zoneKey !== c.zoneKey || o.sp.key !== 'bumble_bee' || (o.dead && o.butchered) || (skip[o.id] ?? 0) > G.time) continue;
     const d = dist(o, c);
     if (d < r && (!best || d < best.d)) best = { c: o, x: o.x, z: o.z, d, dead: o.dead };
   }
@@ -730,7 +731,7 @@ function thinkGummy(c: Creature, dt: number): boolean {
   if (!tg && m.hunger > 0.15 && !(n.prey > 0)) { const b = bees(c, m.hunger > 0.3 ? 15 : 6); if (b) tg = b; }
   let near: { p: Player; d: number } | null = null;
   for (const p of playersIn(c.zoneKey)) { const d = dist(p, c); if (!near || d < near.d) near = { p, d }; }
-  if (!tg && near && m.hunger > 0.8 && near.d < 10 && !(n.prey > 0)) tg = { p: near.p, x: near.p.x, z: near.p.z, d: near.d };
+  if (!tg && near && m.hunger > 0.8 && near.d < 10 && !(n.prey > 0) && ((m.skip ?? {})[near.p.id] ?? 0) < G.time) tg = { p: near.p, x: near.p.x, z: near.p.z, d: near.d };
   // ---- a survivor too close to a fed bear: it warns (gapes, gnashes, wobbles); stay and it strikes
   if (!tg && near && near.d < 1.9 * sz + 0.4) {
     setMd(c, 'warn'); stop(c); faceTo(c, near.p.x, near.p.z); c.setState('warn');
@@ -743,6 +744,12 @@ function thinkGummy(c: Creature, dt: number): boolean {
   if (tg) {
     m.tg = tg;
     const tx = tg.c?.x ?? tg.p!.x, tz = tg.c?.z ?? tg.p!.z, d = Math.hypot(tx - c.x, tz - c.z);
+    // no headway (walls, a bee up where it cannot reach): give that one up for a while
+    const tid = tg.c?.id ?? tg.p!.id;
+    if (m.chaseId !== tid) { m.chaseId = tid; m.chaseBest = d; m.chaseT = 0; }
+    m.chaseT += dt;
+    if (d < m.chaseBest - 0.5) { m.chaseBest = d; m.chaseT = 0; }
+    if (m.chaseT > 14 && !m.anger) { (m.skip ??= {})[tid] = G.time + 40; m.chaseId = null; setMd(c, ''); return true; }
     // a dead bee is just picked up
     if (tg.dead && tg.c) {
       setMd(c, ''); c.setState('travel');

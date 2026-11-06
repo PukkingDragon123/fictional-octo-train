@@ -393,13 +393,16 @@ export class UI {
       seen.add(p.id);
       let t = this.bars.get(p.id);
       if (!t) { t = new ActionPlate(); this.root.appendChild(t.el); this.bars.set(p.id, t); }
-      const prog = p.isLocal ? a!.progress : Math.min(1, (p.remote!.state!.at ?? 0) / Math.max(0.01, p.remote!.state!.ad));
-      t.update(p.isLocal ? a!.name : String((p.remote?.state as any)?.an ?? ''), prog, g.time);
-      const s = g.pr.worldToScreen(this.tmpV.set(p.x, p.y + 2.3, p.z));
+      // an action can show something else than its elapsed time (a struggle: the time left, draining)
+      const drain = p.isLocal && typeof (a as any)?.barK === 'function';
+      const prog = p.isLocal ? (drain ? (a as any).barK() : a!.progress) : Math.min(1, (p.remote!.state!.at ?? 0) / Math.max(0.01, p.remote!.state!.ad));
+      t.update(p.isLocal ? a!.name : String((p.remote?.state as any)?.an ?? ''), prog, g.time, drain);
+      // over the head (a struggle's own gauge and prompts sit there, so its plate goes higher)
+      const s = g.pr.worldToScreen(this.tmpV.set(p.x, p.y + (drain ? 3.5 : 2.3), p.z));
       t.el.style.transform = `translate(${Math.round(s.x - t.w / 2)}px, ${Math.round(s.y - t.h)}px)`;
       // a soft tick at each fifth of the work
       const step = Math.floor(prog * 5);
-      if (p.isLocal && step !== t.step && t.step >= 0 && step > 0 && step < 5) G.audio?.ui?.('tab', 0.08);
+      if (p.isLocal && !drain && step !== t.step && t.step >= 0 && step > 0 && step < 5) G.audio?.ui?.('tab', 0.08);
       t.step = step;
     }
     for (const [id, t] of this.bars) if (!seen.has(id)) { t.el.remove(); this.bars.delete(id); }

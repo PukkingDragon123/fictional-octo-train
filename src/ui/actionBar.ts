@@ -4,7 +4,7 @@
 // (src/ui/hiPixel.ts): hazard-striped end caps, the action's name in Alagard,
 // a percentage readout, and a recessed glass channel whose amber cells light
 // up as the work goes on, a glint running along them.
-import { bevel, rivet, hazard, drawBar, GUN, AMB, GRN, rect, crispCanvas } from './hiPixel';
+import { bevel, rivet, hazard, drawBar, GUN, AMB, GRN, RED, rect, crispCanvas } from './hiPixel';
 
 const W0 = 156, H = 40;
 let meas: CanvasRenderingContext2D | null = null;
@@ -57,8 +57,8 @@ export class ActionPlate {
     this.pctEl = document.createElement('i'); this.pctEl.className = 'wa-p';
     el.append(cv, this.nameEl, this.pctEl);
   }
-  /** draw at progress k (0..1); t = seconds for the glint */
-  update(name: string, k: number, t: number) {
+  /** draw at progress k (0..1); t = seconds for the glint; drain: k is the time left (red when it runs low, never 'done' green) */
+  update(name: string, k: number, t: number, drain = false) {
     const label = actionLabel(name);
     if (label !== this.label) {
       this.label = label; this.nameEl.textContent = label;
@@ -88,10 +88,10 @@ export class ActionPlate {
     // rivets
     rivet(c, 6, 6, 2, true); rivet(c, W - 8, 6, 2, true); rivet(c, 6, H - 8, 1); rivet(c, W - 8, H - 8, 1);
     // the channel and its cells (green once done)
-    drawBar(c, 13, 22, W - 28, 9, k, { ramp: k >= 0.999 ? GRN : AMB, t, cell: 5, gap: 1 });
+    drawBar(c, 13, 22, W - 28, 9, k, { ramp: drain ? (k < 0.3 ? RED : AMB) : k >= 0.999 ? GRN : AMB, t, cell: 5, gap: 1 });
     // a status lamp before the name
-    const on = Math.floor(t * 3) % 2 === 0 || k >= 0.999;
-    const lamp = k >= 0.999 ? GRN : AMB;
+    const on = Math.floor(t * (drain && k < 0.3 ? 8 : 3)) % 2 === 0 || (!drain && k >= 0.999);
+    const lamp = drain ? (k < 0.3 ? RED : AMB) : k >= 0.999 ? GRN : AMB;
     rect(c, 12, 8, 6, 6, 0x07060a); rect(c, 13, 9, 4, 4, on ? lamp[4] : lamp[1]); rect(c, 13, 9, 2, 1, on ? lamp[6] : lamp[2]); rect(c, 13, 12, 4, 1, on ? lamp[3] : lamp[0]);
   }
 }

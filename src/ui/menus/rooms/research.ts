@@ -61,6 +61,8 @@ const POSES: Record<string, Pose> = {
   codex: P([WALL.x, 1.86, -0.35], [WALL.x, 1.84, BACK], 54),
   fridge: P([-2.0, 1.45, -0.8], [FRIDGE.x - 0.1, 1.05, FRIDGE.z], 52),
   req: P([1.75, 1.5, 1.35], [PEG.x, 1.35, PEG.z], 50),
+  // up at the observation window, looking through it at what is held in HOLDING 2
+  obs: P([2.35, 1.72, -0.35], [W + 1.35, 1.25, -2.95], 50),
   build: P([1.2, 2.8, 3.1], [-0.1, 0.3, 0.2], 54),
 };
 
@@ -846,7 +848,8 @@ export class ResearchLab implements StageRoom {
     d.extinguisher(at(-W + 0.01, 1.05, 1.45, 0, L));
     d.streaks(at(-W + 0.014, H - 0.75, -0.6, 0, L), 3.6, 1.0, 0.4);
     // right wall: the observation window onto HOLDING 2, its beacon, its placard, the pipe into the chamber
-    v.obsWindow(at(W, OBS.y, OBS.z, 0, -L), { w: OBS.w, h: OBS.h, shutter: 0.2, intercom: 'side', label: ['OBSERVATION · HOLDING 2', 'DO NOT TAP THE GLASS'] });
+    const pane = v.obsWindow(at(W, OBS.y, OBS.z, 0, -L), { w: OBS.w, h: OBS.h, shutter: 0.2, intercom: 'side', label: ['OBSERVATION · HOLDING 2', 'DO NOT TAP THE GLASS'] });
+    this.hots.push({ key: 'obs', objs: [pane], glow: [], label: 'Observation window', sub: 'HOLDING 2 · what came back from the Ledge', press: () => { uiSound('tick', 0.6); this.pose = this.pose === 'obs' ? 'room' : 'obs'; } });
     v.beacon(at(W, OBS.y + OBS.h / 2 + 0.42, OBS.z + 0.62, 0, -L));
     this.redL.position.copy(v.lamps.find((q) => q.kind === 'beacon')!.p).add(new THREE.Vector3(-0.7, -0.5, 0));
     v.placard(at(W - 0.01, 2.32, -2.62, 0, -L), 'gluttony', { cls: 'Fauna', cell: 'H-02', w: 0.26 });
@@ -908,6 +911,8 @@ export class ResearchLab implements StageRoom {
   private focus(k: string, cb?: () => void) { this.pose = k; if (cb) setTimeout(cb, 520); }
   /** back to the room view (a panel closed) */
   unfocus() { if (!this.bench) this.pose = 'room'; }
+  /** the stage switched away: come back to the room view next time */
+  leave() { this.unfocus(); }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); this.bench?.pointer(nx, ny); }
   setBuild(on: boolean) { this.buildT = on ? 1 : 0; }
 
@@ -975,7 +980,7 @@ export class ResearchLab implements StageRoom {
     const goal = this.build > 0.5 ? POSES.build : POSES[this.pose] ?? POSES.room;
     const k = 1 - Math.exp(-dt * 4.5);
     this.camP.lerp(goal.pos, k); this.camL.lerp(goal.look, k); this.camF += (goal.fov - this.camF) * k;
-    const par = this.pose === 'room' ? 1 : 0.25;
+    const par = this.pose === 'room' ? 1 : this.pose === 'obs' ? 0.45 : 0.25;
     this.cam.position.set(this.camP.x - this.ptrS.x * 0.18 * par + Math.sin(t * 0.27) * 0.01, this.camP.y + this.ptrS.y * 0.06 * par + Math.sin(t * 0.39) * 0.006, this.camP.z);
     this.cam.lookAt(this.v.set(this.camL.x + this.ptrS.x * 0.3 * par, this.camL.y - this.ptrS.y * 0.12 * par, this.camL.z));
   }

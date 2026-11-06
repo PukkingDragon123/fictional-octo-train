@@ -31,9 +31,12 @@ export interface StruggleOpts {
 export class StruggleAction extends TimedAction {
   constructor(p: Player, anim: string, dur: number, face?: { x: number; z: number }) {
     super(p);
-    this.name = 'Struggle'; this.anim = anim as any; this.duration = dur; this.fixedTime = true;
-    this.locks = true; this.canMove = false; this.showBar = false; this.face = face;
+    this.name = 'Break free'; this.anim = anim as any; this.duration = dur; this.fixedTime = true;
+    // round 13: the time left shows on the action plate over the head (src/ui/actionBar.ts), draining, not as chalk marks on the floor
+    this.locks = true; this.canMove = false; this.showBar = true; this.face = face;
   }
+  /** the action plate shows the time left, not the time spent */
+  barK() { return Math.max(0, 1 - this.t / Math.max(0.01, this.duration)); }
   update() { this.p.speed = 0; }
   perform() { /* ends with the struggle */ }
 }
@@ -192,8 +195,7 @@ export class Struggles {
       words.prompt(touch ? 'Tap' : kn('shove'), 'on the mark', hx, hy - 0.62, hz, inBand ? 'go' : 'small', inBand ? 1.12 : 1);
       for (let i = 0; i < stage.need; i++) { const o = (i - (stage.need - 1) / 2) * 0.28; marks.mark(i < c.hits ? 'pip:on' : 'pip', hx + rt.x * o, hy + 0.98, hz + rt.z * o); }
     }
-    // the time left: chalk tally marks round the feet, rubbed out one by one
-    marks.ring(p.x, p.y, p.z, 0.85, left, left < 0.3 ? 0xd0583a : 0xe8dcc0, 0x2a2016, 0.9);
+    // the time left is on the action plate over the head now (StruggleAction.barK), nothing on the floor
     // what has us: a hazard sign over it
     const k = c.cid ? G.creatures?.creatures?.get?.(c.cid) : null;
     if (k) marks.mark('warn', k.x, k.y + Math.min(2.6, k.height + 0.4) + Math.abs(Math.sin(now * 9)) * 0.05, k.z);

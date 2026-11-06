@@ -256,8 +256,8 @@ export class CodexArchive implements StageRoom {
     v.stencil(-W + 0.42, CELL.z, 'KEEP CLEAR', 0.09, -L);
     this.cellL.position.copy(v.lamps.find((q) => q.kind === 'cell')!.p).add(new THREE.Vector3(0.35, 0, 0));
     // ---- the right wall: two racks against the back corner, the vault door, the clock and the climate panel above the racks
-    v.rack(at(W - 0.42, 0, -1.05, 0, -L), { seed: 31, label: 'CODEX 01' });
-    v.rack(at(W - 0.42, 0, -0.45, 0, -L), { seed: 57, label: 'CODEX 02' });
+    v.rack(at(W - 0.42, 0, -1.05, 0, -L), { seed: 31, label: 'CODEX 01', hinge: 1 });
+    v.rack(at(W - 0.42, 0, -0.45, 0, -L), { seed: 57, label: 'CODEX 02', hinge: 1 });
     v.blastDoor(at(W, 0, VDOOR.z, 0, -L), { w: VDOOR.w, h: VDOOR.h, id: 'B', name: 'VAULT B · DEEP ARCHIVE', rank: 'pride', sign: false });
     v.stripes(W - 0.75, VDOOR.z - VDOOR.w / 2 - VDOOR_J, W - 0.63, VDOOR.z + VDOOR.w / 2 + VDOOR_J);
     v.stencil(W - 0.42, VDOOR.z, 'VAULT B', 0.11, L);

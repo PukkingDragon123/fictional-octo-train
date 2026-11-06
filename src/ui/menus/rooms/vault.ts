@@ -329,15 +329,16 @@ export class Vault {
 
   // ================================================================ machines
   /** a 42U server rack standing at m (front +Z): carcass, perforated door frame, the face, blinking lamps, a cable plume */
-  rack(m: THREE.Matrix4, o: { seed?: number; w?: number; h?: number; label?: string; plume?: boolean } = {}) {
+  rack(m: THREE.Matrix4, o: { seed?: number; w?: number; h?: number; label?: string; plume?: boolean; hinge?: 1 | -1 } = {}) {
     const w = o.w ?? 0.6, h = o.h ?? 2.0, d = 0.8;
     const b = this.b;
     b.add('paint', cbox(w, h, d, 0.012), 0x1e2226, T(m, at(0, h / 2, 0)), { rep: 0.4 });
     b.add('metal', cbox(w + 0.01, 0.06, d + 0.01, 0.01), 0x2a2e32, T(m, at(0, h + 0.03, 0)));
     for (let i = 0; i < 6; i++) b.add('metal', cbox(w * 0.8, 0.006, 0.04, 0.002), 0x0a0a0c, T(m, at(0, h + 0.062, -d / 2 + 0.1 + i * 0.12)));
     b.add('rubber', cbox(w - 0.04, 0.06, d - 0.04, 0.008), 0x101010, T(m, at(0, 0.03, 0)));
-    // the open door frame (hinged left, swung out) with its perforated panels
-    const door = T(m, at(-w / 2, h / 2 + 0.03, d / 2 + 0.01, 0, -1.9));
+    // the open door frame (hinged left, or right with hinge 1, swung out) with its perforated panels
+    const hg = o.hinge ?? -1;
+    const door = hg < 0 ? T(m, at(-w / 2, h / 2 + 0.03, d / 2 + 0.01, 0, -1.9)) : T(m, at(w / 2, h / 2 + 0.03, d / 2 + 0.01, 0, Math.PI + 1.9));
     b.add('metal', extrude([[0, -h / 2 + 0.05], [w, -h / 2 + 0.05], [w, h / 2 - 0.02], [0, h / 2 - 0.02]], 0.02, 0.004, [[[0.04, -h / 2 + 0.1], [w - 0.04, -h / 2 + 0.1], [w - 0.04, h / 2 - 0.07], [0.04, h / 2 - 0.07]]]), 0x2a2e32, door);
     for (let y = -h / 2 + 0.14; y < h / 2 - 0.08; y += 0.05) b.add('metal', cbox(w - 0.08, 0.012, 0.006, 0.002), 0x1a1c1e, T(door, at(w / 2, y, 0)));
     b.add('chrome', cbox(0.02, 0.18, 0.03, 0.005), 0xffffff, T(door, at(w - 0.03, 0, 0.02)));
@@ -350,6 +351,8 @@ export class Vault {
     const lab = plate(this.mats, [o.label ?? 'RACK ' + String(seedN % 40).padStart(2, '0')], 0.2, 0.05, { bg: 0xe8e2c8, px: 520 });
     lab.applyMatrix4(T(m, at(0, h - 0.04, d / 2 + 0.002))); this.group.add(lab);
     if (o.plume !== false) for (let i = 0; i < 5; i++) b.add('rubber', tube([[(i - 2) * 0.05, h, -0.2], [(i - 2) * 0.06, h + 0.25, -0.25], [(i - 2) * 0.07, h + 0.5, -0.3 - i * 0.04]], 0.012, 6, 4), [0x1a1a1a, 0x2a4a8a, 0x1a1a1a, 0xc8a028, 0x2a2a2a][i], m.clone());
+    // the lamps' spill on the floor in front
+    const spill = glowCard(w * 1.6, 0.9, 0x6ab8ff, 0.07); spill.applyMatrix4(T(m, at(0, 0.006, d / 2 + 0.4, -Math.PI / 2))); this.group.add(spill);
     this.lamps.push({ p: P(m, 0, h * 0.6, d / 2 + 0.3), color: 0x3aff7a, kind: 'rack' });
   }
   /** a CRT terminal scrolling redacted text: on a wall arm (m on the wall) or standing on a desk (m on the surface) */
@@ -514,6 +517,13 @@ export class Vault {
       b.add('metal', cbox(0.08, 0.1, 0.05, 0.01), 0x2a2e30, T(L, at(s * (w / 2 - 0.02), yy, 0.13)));
     }
     for (const yy of [h * 0.15, h * 0.5, h * 0.85]) b.add('metal', prism(0.05, 0.22, 8), 0x3a4044, T(L, at(-sd * (w / 2 + 0.0), yy, 0.08)));
+    // cold strip lamps down the inside of the jamb, washing the leaf
+    for (const s of [-1, 1]) {
+      b.add('metal', cbox(0.03, h - 0.1, 0.05, 0.006), C.darker, T(m, at(s * (w / 2 + 0.012), h / 2, -0.06)));
+      b.add('lamp', cbox(0.012, h - 0.2, 0.02, 0.003), 0xd8e8ff, T(m, at(s * (w / 2 - 0.004), h / 2, -0.06)));
+    }
+    const wash = glowCard(w * 1.1, h * 1.05, 0xb8d0ff, 0.09); wash.applyMatrix4(T(L, at(0, h / 2, 0.29))); this.group.add(wash);
+    const fl = glowCard(w * 1.4, 0.8, 0xb8d0ff, 0.1); fl.applyMatrix4(T(m, at(0, 0.035, 0.3, -Math.PI / 2))); this.group.add(fl);
     // the round port, dark, a faint red beyond
     b.add('metal', ring(0.08, 0.08, 0.05, 0.03, 12), 0x2a2e30, T(L, at(0, h * 0.8, 0.14, Math.PI / 2)));
     const port = new THREE.Mesh(new THREE.CircleGeometry(0.075, 12), new THREE.MeshBasicMaterial({ color: 0x2a0806, toneMapped: false }));
@@ -607,20 +617,21 @@ export class Vault {
   }
 
   /** an observation window at m (centre of the glass, +Z toward the viewer): mirror = a one-way mirror with watchers behind */
-  obsWindow(m: THREE.Matrix4, o: { w?: number; h?: number; mirror?: boolean; shutter?: number; label?: string[]; intercom?: 'below' | 'side' } = {}) {
+  obsWindow(m: THREE.Matrix4, o: { w?: number; h?: number; mirror?: boolean; shutter?: number; label?: string[]; intercom?: 'below' | 'side' } = {}): THREE.Mesh {
     const w = o.w ?? 1.6, h = o.h ?? 0.95, b = this.b, F = 0.12;
+    let pane: THREE.Mesh;
     b.add('metal', extrude([[-w / 2 - F, -h / 2 - F], [w / 2 + F, -h / 2 - F], [w / 2 + F, h / 2 + F], [-w / 2 - F, h / 2 + F]], 0.16, 0.016, [[[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]]), 0x3e4446, T(m, at(0, 0, 0.04)), { rep: 0.5 });
     b.add('metal', cbox(w + 2 * F + 0.06, 0.06, 0.24, 0.01), 0x4a5052, T(m, at(0, -h / 2 - F - 0.02, 0.1)));
     this.bolts(T(m, at(0, 0, 0.12)), w + F, h + F, 0, 0.2, 0.012);
     if (o.mirror) {
       // a one-way mirror: dark glass that holds the room, and two shapes behind it when the light is right
-      const mm = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mirrorMat ??= new THREE.MeshStandardMaterial({ color: 0x0a1014, roughness: 0.06, metalness: 0.95 }));
+      const mm = pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mirrorMat ??= new THREE.MeshStandardMaterial({ color: 0x0a1014, roughness: 0.06, metalness: 0.95 }));
       mm.applyMatrix4(T(m, at(0, 0, -0.03))); this.group.add(mm);
       const ghost = card(watchersTex ??= watchers(), w, h, 'emitAlpha');
       ghost.applyMatrix4(T(m, at(0, 0, -0.028))); ghost.renderOrder = 5; this.group.add(ghost);
       const sheen = glowCard(w * 0.9, h * 0.8, 0x8aa8c0, 0.06); sheen.applyMatrix4(T(m, at(w * 0.1, 0, -0.025))); this.group.add(sheen);
     } else {
-      const gl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), glassMat(this.wired(), w, h));
+      const gl = pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), glassMat(this.wired(), w, h));
       gl.applyMatrix4(T(m, at(0, 0, -0.03))); gl.renderOrder = 5; gl.userData.noGlow = true; this.group.add(gl);
       const sheen = glowCard(w * 0.9, h * 0.8, 0x9ab8c8, 0.05); sheen.applyMatrix4(T(m, at(-w * 0.15, 0, -0.025))); this.group.add(sheen);
     }
@@ -639,6 +650,7 @@ export class Vault {
     this.led(I, 0.08, 0.055, 0.062, 0xffb030, { size: 0.006, pattern: blink(0.4, 0.2) });
     const lab = plate(this.mats, o.label ?? ['OBSERVATION', 'DO NOT TAP THE GLASS'], 0.5, 0.1, { bg: 0xe8e2d0, px: 440 });
     lab.applyMatrix4(T(m, at(-w / 2 + 0.3, -h / 2 - F - 0.14, 0.0))); this.group.add(lab);
+    return pane;
   }
 
   /** a restraint board on the wall (m on the wall at its centre): shackles on chains, cuffs, a strap set, a hazard label */
