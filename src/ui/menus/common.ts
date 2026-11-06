@@ -255,6 +255,8 @@ document.addEventListener('pointerdown', () => hideTip(), true);
 // ---------------------------------------------------------------- persistent graphics settings
 export interface GfxSettings {
   pixelHeight: number; shake: boolean; grain: number;
+  /** pixel-art filter strength 0..1 (src/gfx/renderer.ts pixelFilter): low = near-native resolution and smooth light, 1 = chunky pixel art at pixelHeight */
+  pixelFilter: number;
   /** render quality: 'auto' picks by device (phones low, tablets medium, desktops high) and steps down when frames run slow */
   quality: 'auto' | 'low' | 'medium' | 'high';
   /** camera shake intensity 0..1.5 (shake: false turns it off entirely) */
@@ -269,7 +271,7 @@ export interface GfxSettings {
 export function gfxSettings(): GfxSettings {
   let rm = false;
   try { rm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { /* ignore */ }
-  const d: GfxSettings = { pixelHeight: 450, shake: true, grain: 1, quality: 'auto', shakeAmt: 1, peek: true, comfort: rm, keepOrbit: false };
+  const d: GfxSettings = { pixelHeight: 450, pixelFilter: 0.2, shake: true, grain: 1, quality: 'auto', shakeAmt: 1, peek: true, comfort: rm, keepOrbit: false };
   try { return { ...d, ...JSON.parse(localStorage.getItem('noclip.gfx') || '{}') }; } catch { return d; }
 }
 export function saveGfx(s: GfxSettings) { try { localStorage.setItem('noclip.gfx', JSON.stringify(s)); } catch { /* ignore */ } applyGfx(s); }
@@ -287,7 +289,7 @@ const GFX_LABELS: Record<string, [string, string]> = {
   comfort: ['Motion comfort', 'almost no shake or sway, gentler camera moves'],
   keepOrbit: ['Keep camera angle', 'after a free orbit, stay there instead of snapping back'],
 };
-const GFX_HANDLED = new Set(['pixelHeight', 'shake', 'shakeAmt', 'grain', 'quality', 'peek', 'comfort', 'keepOrbit']);
+const GFX_HANDLED = new Set(['pixelHeight', 'pixelFilter', 'shake', 'shakeAmt', 'grain', 'quality', 'peek', 'comfort', 'keepOrbit']);
 const humanizeKey = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
 /** PICTURE: every field of GfxSettings gets a control (fields added later show up as generic switches / sliders) */
@@ -297,6 +299,7 @@ function picturePage(f: DocumentFragment) {
   if ('quality' in gs) f.append(seg<string>('Quality', [['auto', 'Auto'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High']], gs.quality, (v) => { gs.quality = v as GfxSettings['quality']; save(); },
     { tip: (v) => ({ auto: 'Picked for this device, steps down when frames run slow', low: 'Fewest lights and effects: phones', medium: 'Balanced', high: 'Everything on' } as Record<string, string>)[v] || '' }));
   f.append(slider('Pixel size', gs.pixelHeight, 240, 540, 30, (v) => (v <= 300 ? 'chunky' : v <= 390 ? 'classic' : v <= 450 ? 'fine' : 'very fine') + ` ${v}p`, (v) => { gs.pixelHeight = v; save(); }));
+  f.append(slider('Pixel filter', Math.round((gs.pixelFilter ?? 0.2) * 100), 0, 100, 10, (v) => (v <= 20 ? 'off' : v <= 50 ? 'light' : v < 80 ? 'retro' : 'pixel art') + ` ${v}%`, (v) => { gs.pixelFilter = v / 100; save(); }));
   const shakeNow = gs.shake === false ? 0 : (gs.shakeAmt ?? 1);
   f.append(seg<number>('Camera shake', [[0, 'Off'], [0.5, 'Low'], [1, 'Normal'], [1.5, 'Strong']], [0, 0.5, 1, 1.5].reduce((a, b) => Math.abs(b - shakeNow) < Math.abs(a - shakeNow) ? b : a, 1),
     (v) => { gs.shake = v > 0; if (v > 0) gs.shakeAmt = v; save(); }));

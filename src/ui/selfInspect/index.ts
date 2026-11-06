@@ -605,7 +605,6 @@ export class SelfInspect {
       const r = this.rows[i], o = this.rowObjs[i].o; if (!r) continue;
       o.outer.position.set((-this.sheet.w / 2 + 16) * st, (this.sheet.h / 2 - r.y - 8) * st, 0.04);
       o.outer.rotation.y = this.t * 0.8 + i;
-      o.outer.scale.setScalar(o.outer.scale.x); // fitted once
     }
     // markers
     this.placeMarkers(p, e, hw, hh);
