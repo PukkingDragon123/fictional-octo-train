@@ -68,7 +68,7 @@ function warmCarpet(pc: PixelCanvas, v: number) {
 /** molten floor: a slow swirl of amber, rose and cream under a gloss, darker where it sets at the rim */
 function meltPool(pc: PixelCanvas, v: number) {
   const W = pc.w, H = pc.h;
-  const A = makeRamp(0xd09a40, 6, { spread: 0.45, hueShift: 0.03 }), B = makeRamp(0xd08a78, 6, { spread: 0.4 });
+  const A = makeRamp(0xd09a40, 6, { spread: 0.42, hueShift: 0.03 }), B = makeRamp(0xc8865a, 6, { spread: 0.36 });
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const sw = Math.sin((x * 0.31 + tileFbm(x, y, W, H, 3, 2, 501 + v) * 6) + y * 0.12) * 0.5 + 0.5;
     const n = tileFbm(x, y, W, H, 4, 3, 511 + v);
@@ -160,16 +160,19 @@ addTextureModule(() => {
   });
   // decals: a molten puddle and a run down a wall
   A.add('lg_puddle', 32, 32, (pc) => {
+    // a glossy honey-amber pool: darker where it is deep, a lighter skin toward the rim, a dark set edge, two glints
     pc.wrap = false; pc.clear();
+    const R = makeRamp(0xd8962e, 6, { spread: 0.42, hueShift: 0.03 });
     for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
       const a = Math.atan2(y - 16, x - 16), d = Math.hypot(x - 16, y - 16);
-      const r = 11 + Math.sin(a * 3 + 1) * 2.5 + Math.sin(a * 7) * 1.2;
-      if (d > r + 1.5) continue;
-      if (d > r) { pc.set(x, y, 0x5a2a0a, 90); continue; }
-      const sw = Math.sin(x * 0.4 + y * 0.2 + d * 0.3);
-      pc.set(x, y, sw > 0.55 ? 0xf0a83a : sw < -0.6 ? 0xc8542a : 0xe0821c, 225);
+      const r = 11.5 + Math.sin(a * 3 + 1) * 2.2 + Math.sin(a * 7) * 1;
+      if (d > r + 1.2) continue;
+      if (d > r) { pc.set(x, y, 0x6a4418, 110); continue; }
+      const t = d / r;
+      const i = t < 0.35 ? 1 : t < 0.7 ? 2 : t < 0.9 ? 3 : 2;
+      pc.set(x, y, R[i + (ph(x >> 1, y >> 1, 841) < 0.12 ? 1 : 0)], 215);
     }
-    for (const [x, y] of [[11, 12], [12, 12], [19, 18]]) pc.set(x, y, 0xfff6e0, 240);
+    for (const [x, y] of [[12, 12], [13, 12], [12, 13], [19, 18]]) pc.set(x, y, 0xfff6e0, 235);
   });
   A.add('lg_run', 16, 32, (pc) => {
     pc.wrap = false; pc.clear();

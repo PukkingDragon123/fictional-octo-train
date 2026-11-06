@@ -570,6 +570,10 @@ export class Vault {
       b.add('chrome', prism(0.016, h * 0.7, 6), 0xd8dcdc, T(m, at(sx * (w / 2 - 0.06), h * 0.45, -d / 2 + 0.08)));
       for (let k = 0; k < 6; k++) b.add('chrome', prism(0.008, 0.04, 5), 0xd8dcdc, T(m, at(sx * (w / 2 - 0.09), 0.5 + k * 0.24, -d / 2 + 0.08, 0, 0, Math.PI / 2)));
     }
+    // the booth's own lamp in the top frame, its light on the grate and the back panel
+    b.add('lamp', cbox(w * 0.6, 0.012, 0.06, 0.003), 0xc8f0e0, T(m, at(0, h - 0.09, -d * 0.2)));
+    const gp = glowCard(w * 1.1, d * 1.1, 0xa8e8d0, 0.14); gp.applyMatrix4(T(m, at(0, 0.085, 0, -Math.PI / 2))); this.group.add(gp);
+    const gb = glowCard(w * 1.1, h * 0.9, 0xa8e8d0, 0.08); gb.applyMatrix4(T(m, at(0, h * 0.5, -d / 2 + 0.02))); this.group.add(gb);
     // the pull handle on its chain, the supply valve, a lamp
     for (let k = 0; k < 9; k++) b.add('metal', ring(0.012, 0.018, 0.004, 0.004, 6), C.steel, T(m, at(w * 0.25, h - 0.3 - k * 0.04, d * 0.15, 0, k % 2 ? Math.PI / 2 : 0, Math.PI / 2)));
     b.add('paint', extrude([[-0.08, 0], [0.08, 0], [0, 0.13]], 0.02, 0.004, [[[-0.05, 0.016], [0.05, 0.016], [0, 0.095]]]), 0x3ac85a, T(m, at(w * 0.25, h - 0.82, d * 0.15, 0, 0, Math.PI)));
@@ -620,12 +624,17 @@ export class Vault {
   obsWindow(m: THREE.Matrix4, o: { w?: number; h?: number; mirror?: boolean; shutter?: number; label?: string[]; intercom?: 'below' | 'side' } = {}): THREE.Mesh {
     const w = o.w ?? 1.6, h = o.h ?? 0.95, b = this.b, F = 0.12;
     let pane: THREE.Mesh;
-    b.add('metal', extrude([[-w / 2 - F, -h / 2 - F], [w / 2 + F, -h / 2 - F], [w / 2 + F, h / 2 + F], [-w / 2 - F, h / 2 + F]], 0.16, 0.016, [[[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]]), 0x3e4446, T(m, at(0, 0, 0.04)), { rep: 0.5 });
+    b.add('metal', extrude([[-w / 2 - F, -h / 2 - F], [w / 2 + F, -h / 2 - F], [w / 2 + F, h / 2 + F], [-w / 2 - F, h / 2 + F]], 0.16, 0.016, [[[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]]), 0x5a6266, T(m, at(0, 0, 0.04)), { rep: 0.5 });
+    // a hooded lamp over it, raking down the glass, and the red IN SESSION lamp
+    b.add('metal', cbox(w * 0.7, 0.05, 0.14, 0.01), C.darker, T(m, at(0, h / 2 + F + 0.05, 0.12)));
+    b.add('lamp', cbox(w * 0.64, 0.01, 0.05, 0.003), 0xd8e4f0, T(m, at(0, h / 2 + F + 0.022, 0.15)));
+    const rake = glowCard(w * 1.2, h * 1.5, 0xa8c0d8, 0.07); rake.applyMatrix4(T(m, at(0, 0.05, 0.13))); this.group.add(rake);
+    this.lamp(T(m, at(-w / 2 - F + 0.05, h / 2 + F + 0.1, 0.04)), 0xff2a1a, blink(0.5, 0.92));
     b.add('metal', cbox(w + 2 * F + 0.06, 0.06, 0.24, 0.01), 0x4a5052, T(m, at(0, -h / 2 - F - 0.02, 0.1)));
     this.bolts(T(m, at(0, 0, 0.12)), w + F, h + F, 0, 0.2, 0.012);
     if (o.mirror) {
       // a one-way mirror: dark glass that holds the room, and two shapes behind it when the light is right
-      const mm = pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mirrorMat ??= new THREE.MeshStandardMaterial({ color: 0x0a1014, roughness: 0.06, metalness: 0.95 }));
+      const mm = pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mirrorMat ??= new THREE.MeshStandardMaterial({ color: 0x1e2830, roughness: 0.12, metalness: 0.6 }));
       mm.applyMatrix4(T(m, at(0, 0, -0.03))); this.group.add(mm);
       const ghost = card(watchersTex ??= watchers(), w, h, 'emitAlpha');
       ghost.applyMatrix4(T(m, at(0, 0, -0.028))); ghost.renderOrder = 5; this.group.add(ghost);
@@ -780,10 +789,10 @@ function watchers(): THREE.Texture {
   for (const [cx, s] of [[52, 1], [104, 0.92]] as [number, number][]) {
     for (let y = 0; y < 96; y++) for (let x = -30; x <= 30; x++) {
       const hy = y - 30 * s, head = (x * x) / (90 * s) + (hy * hy) / (150 * s) < 1, sh = y > 44 * s && Math.abs(x) < (22 + (y - 44 * s) * 0.3) * s;
-      if ((head || sh) && R() < 0.85) { c.fillStyle = `rgba(90,110,120,${0.12 + R() * 0.05})`; c.fillRect(cx + x, y, 1, 1); }
+      if ((head || sh) && R() < 0.85) { c.fillStyle = `rgba(110,135,150,${0.22 + R() * 0.08})`; c.fillRect(cx + x, y, 1, 1); }
     }
   }
-  for (let x = 20; x < 140; x++) for (let y = 82; y < 96; y++) if (R() < 0.6) { c.fillStyle = `rgba(80,200,120,${0.06 + R() * 0.08})`; c.fillRect(x, y, 1, 1); }
+  for (let x = 20; x < 140; x++) for (let y = 82; y < 96; y++) if (R() < 0.6) { c.fillStyle = `rgba(80,200,120,${0.12 + R() * 0.12})`; c.fillRect(x, y, 1, 1); }
   for (let i = 0; i < 6; i++) { c.fillStyle = 'rgba(255,120,60,0.5)'; c.fillRect(30 + i * 18, 86, 2, 2); }
   const t = new THREE.CanvasTexture(cv); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace;
   return t;

@@ -90,7 +90,7 @@ export function generateLedge(z: Zone, seed: number) {
       } else {
         const t = (x - L + 1) / LIP;
         b.fillFloor(x, y, x, y, 'lg_lip');
-        z.height[z.idx(x, y)] = -Math.round(Math.pow(t, 1.7) * 16 + hh(x, y, 8103) * 1.5);
+        z.height[z.idx(x, y)] = -Math.round(Math.pow(t, 1.6) * 11 + Math.max(0, Math.sin(y * 0.5)) * t * 2);
       }
     }
   }

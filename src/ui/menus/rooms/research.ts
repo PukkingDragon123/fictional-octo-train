@@ -95,8 +95,9 @@ export class ResearchLab implements StageRoom {
   /** the containment kit (rooms/vault.ts): the observation window, the cold store, the restraints, the beacon */
   private vault!: Vault;
   /** the holding chamber behind the window: its cold lamp, its red alarm light, and what is held there */
-  private chamL = new THREE.PointLight(0xc8e8ff, 3.6, 3.6, 1.6);
-  private chamRed = new THREE.PointLight(0xff2a14, 0, 3.4, 1.6);
+  // (a spot straight down, and a short red: no light of theirs leaks through the wall into the control room)
+  private chamL = new THREE.SpotLight(0xc8e8ff, 18, 4.0, 0.52, 0.65, 1.4);
+  private chamRed = new THREE.PointLight(0xff2a14, 0, 2.4, 1.6);
   private redL = new THREE.PointLight(0xff2a14, 0, 3.2, 1.7);
   private held = new THREE.Group();
   private heldTick: ((t: number, dt: number) => void) | null = null;
@@ -152,7 +153,7 @@ export class ResearchLab implements StageRoom {
     this.wallTex.magFilter = this.wallTex.minFilter = THREE.NearestFilter; this.wallTex.generateMipmaps = false; this.wallTex.colorSpace = THREE.SRGBColorSpace;
     this.wallMat.map = this.wallTex;
     S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter(), this.chamber(), this.dressing());
-    S.add(this.chamL, this.chamRed, this.redL);
+    S.add(this.chamL, this.chamL.target, this.chamRed, this.redL);
     S.add(this.leds.mesh, this.puffs.mesh, this.deco, this.hemi, this.dust.points);
     // wet floor: dark specular puddles that pick up the troughs and the screen
     for (const [x, z, w, d] of [[TABLE.x + 0.9, TABLE.z + 0.75, 1.1, 0.7], [-1.6, 1.4, 0.8, 1.2], [1.9, 1.8, 0.6, 0.5]] as [number, number, number, number][]) {
@@ -791,7 +792,7 @@ export class ResearchLab implements StageRoom {
     const sign = plate(this.mats, ['HOLDING 2', 'FEED FROM THE CHUTE ONLY'], 0.6, 0.12, { bg: 0xe8b828, ink: 0x141210, px: 420 });
     sign.position.set(x1 - 0.005, 2.45, cz); sign.rotation.y = -Math.PI / 2; g.add(sign);
     // its lamps
-    this.chamL.position.set(cx - 0.2, h - 0.6, cz);
+    this.chamL.position.set(cx + 0.15, h - 0.45, cz); this.chamL.target.position.set(cx + 0.25, 0, cz);
     this.chamRed.position.set(x1 - 0.3, h - 0.4, z0 + 0.4);
     const rl = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff2a14, toneMapped: false })); rl.position.set(x1 - 0.08, h - 0.4, z0 + 0.4); rl.userData.noGlow = true; rl.name = 'chamRedBulb'; g.add(rl);
     const pool = glowCard(PS * 1.3, PS * 1.3, 0xd8ecff, 0.16); pool.rotation.x = -Math.PI / 2; pool.position.set(cx, PY + 0.02, cz); g.add(pool);
@@ -953,7 +954,7 @@ export class ResearchLab implements StageRoom {
     this.redL.intensity = 0.2 + this.vault.beaconK(t) * 2.6;
     const al = Math.pow(Math.max(0, Math.sin(t * 2.2)), 2);
     this.chamRed.intensity = 0.6 + al * 3.2;
-    this.chamL.intensity = 3.4 + Math.sin(t * 47) * 0.1 + (Math.sin(t * 0.29) > 0.99 ? -2.6 : 0);
+    this.chamL.intensity = 18 + Math.sin(t * 47) * 0.5 + (Math.sin(t * 0.29) > 0.99 ? -14 : 0);
     // ---- machines
     this.rotorV = damp(this.rotorV, this.bench?.rotorSpin ?? 0.3, 0.6, dt);
     this.rotorA += this.rotorV * dt; this.rotor.rotation.y = this.rotorA;
