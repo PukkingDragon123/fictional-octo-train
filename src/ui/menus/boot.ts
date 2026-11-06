@@ -10,13 +10,13 @@ import { plateBtn } from './btnKit';
 
 const LINES: [string, number][] = [
   ['MERIDIAN INSTITUTE  //  REMITTANCE PROGRAMME  //  SUBJECT ROOM 4', 0],
-  ['All subjects are temporary. All debts are not.', 0],
+  ['All units are temporary. All debts are not.', 0],
   ['', 0],
   ['ROOM POWER ......... {ok:LOW}', 1],
   ['CHAIR 4 ............ {ok:OCCUPIED}', 1],
   ['ARMS A-D ........... {ok:STOWED}', 1],
   ['PRESS .............. {ok:ARMED}', 1],
-  ['SUBJECTS ON FILE ... 4,294,967,295 {hi:(and counting)}', 1],
+  ['UNITS ON FILE ... 4,294,967,295 {hi:(and counting)}', 1],
   ['HATCH 2 ............ {bad:NO SIGNAL}', 2],
   ['HATCH 2 ............ {bad:SOMETHING IS BEHIND IT}', 2],
   ['{hi:>> dimming the lights}', 1],

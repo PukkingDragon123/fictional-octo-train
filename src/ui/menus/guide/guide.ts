@@ -26,17 +26,19 @@ export interface GuideHost {
 }
 
 const ROOM_INTRO: Record<MenuRoomId, string[]> = {
-  monitor: ['The monitor room. Every camera in the building ends up on these tubes.', 'Pick a feed and go look. I will come with you.'],
-  research: ['The research lab. Bring me samples and we will fill in the codex.', 'Fridge, benches, the wall. Finished entries get you tools.'],
-  subject: ['Subject room four. That chair is where the intake happens.', 'New subject brings the lights up in here.'],
+  monitor: ['The monitor room. Every camera in the building ends up on these tubes.', 'Three feeds, three rooms. Pick one and go look. I will come with you.'],
+  archive: ['The codex archive. Everything we know about this place is in those cabinets.', 'Pull a file and put it on the table. The projector does the rest.'],
+  research: ['The control room. The main computer keeps the research tree.', 'Spend your points on designs, recipes, chips and limbs. The benches are for your samples.'],
+  subject: ['Unit room four. The next unit waits in that chair.', 'Tap a part of the unit and we will work on it. Chips and limbs go in here too.'],
 };
 const ROOM_AGAIN: Record<MenuRoomId, string[]> = {
   monitor: ['Back at the tubes.', 'Feeds are steady tonight.', 'Coffee is cold again. Of course it is.'],
-  research: ['Anything new in the fridge?', 'Gloves on. Always gloves.', 'Do not tap the jar. I mean it.', 'Every card on that wall is a lesson somebody paid for.'],
+  archive: ['Quiet in the stacks, please.', 'Somebody misfiled the moths again.', 'Every file in here is a unit that came back. Most of one.'],
+  research: ['Anything new in the fridge?', 'The tape reader is hungry. Feed it points.', 'Do not tap the jar. I mean it.', 'Every node on that tree is a lesson somebody paid for.'],
   subject: ['The chair again.', 'Somebody always has to sit in it.', 'Smells like ozone in here.'],
 };
 const POKES: [string, string?][] = [
-  ['Yes? I am listening.', 'wave'], ['That is my badge. Please do not.', 'shrug'], ['Careful. I am holding notes.'], ['Personal space, subject.', 'facepalm'],
+  ['Yes? I am listening.', 'wave'], ['That is my badge. Please do not.', 'shrug'], ['Careful. I am holding notes.'], ['Personal space, operator.', 'facepalm'],
   ['Still here.', 'bow'], ['Do you poke all the staff?', 'shrug'], ['I am flattered. Now. The menu.', 'point'],
 ];
 const TIPS = [
@@ -159,7 +161,7 @@ export class Guide {
     this.say([
       { text: 'Oh, you are up. Dr. Iris Calder, Meridian research.', emote: 'wave' },
       { text: 'I will show you around. Click me if you need anything.' },
-      { text: 'Your options float over there. New subject starts the contract.', point: { el: () => this.host.anchor('menu') } },
+      { text: 'Your options float over there. New unit starts the contract.', point: { el: () => this.host.anchor('menu') } },
       ...ROOM_INTRO[r.id].map((text, i) => ({ text, look: i === 0 ? { at: this.roomPoint(r) } : undefined } as Line)),
       { text: 'See the little blueprint? Build mode. Make these rooms yours.', point: { el: () => this.host.anchor('blueprint') } },
       { text: 'The commissary sells figures and lab decor, for research points.', point: { el: () => this.host.anchor('shop') } },

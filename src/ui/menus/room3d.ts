@@ -65,7 +65,7 @@ export interface MenuItem { key: string; label: string; sub?: string; kind?: Men
 /** how far the work lights stay up behind the title menu (0 = the old black cell) */
 const TITLE_LIGHT = 0.58;
 
-export type ShotName = 'title' | 'prisoner' | 'face' | 'body' | 'full' | 'feet' | 'press' | 'eyes' | 'nose' | 'mouth' | 'hair' | 'beard' | 'brows' | 'ears' | 'marks' | 'skin';
+export type ShotName = 'title' | 'prisoner' | 'face' | 'body' | 'full' | 'feet' | 'press' | 'eyes' | 'nose' | 'mouth' | 'hair' | 'beard' | 'brows' | 'ears' | 'marks' | 'skin' | 'neck' | 'armL' | 'armR' | 'legL' | 'legR';
 
 const REGION_PART: [RegKey, PartKey][] = (Object.entries(PART_REGIONS) as [PartKey, RegKey[]][]).flatMap(([p, rs]) => rs.map((r) => [r, p] as [RegKey, PartKey]));
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
@@ -1138,10 +1138,22 @@ export class SubjectRoom {
     this.ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
     this.ray.setFromCamera(this.ndc, this.cam);
     const hits = this.ray.intersectObject(this.rig.skin, false);
+    // hardware the unit wears (a fitted arm or leg replaces the flesh): the bone it rides says which part
+    const gear: THREE.Object3D[] = [];
+    this.rig.root.traverse((o) => { if (o.name === 'cybergear') gear.push(o); });
+    const gh = gear.length ? this.ray.intersectObjects(gear, false)[0] : undefined;
     for (const h of hits) {
+      if (gh && gh.distance < h.distance) break;
       if (!h.uv) continue;
       const px = h.uv.x * PAGE, py = (1 - h.uv.y) * PAGE;
       for (const [rk, part] of REGION_PART) { const g = REG[rk]; if (px >= g.x - PAD && px <= g.x + g.w + PAD && py >= g.y - PAD && py <= g.y + g.h + PAD) return part; }
+    }
+    if (gh) {
+      const b = gh.object.parent?.name ?? '';
+      const BONE_PART: Record<string, PartKey> = { uarmL: 'armL', farmL: 'armL', handL: 'handL', uarmR: 'armR', farmR: 'armR', handR: 'handR', thighL: 'legL', shinL: 'legL', footL: 'legL', thighR: 'legR', shinR: 'legR', footR: 'legR', head: 'head', neck: 'torso', chest: 'torso', spine: 'torso', hips: 'torso' };
+      const hit = BONE_PART[b] ?? Object.entries(this.rig.bones).find(([, v]) => v === gh.object.parent)?.[0];
+      if (hit && (BONE_PART as any)[hit]) return (BONE_PART as any)[hit];
+      if (hit && BONE_PART[b]) return BONE_PART[b];
     }
     return null;
   }

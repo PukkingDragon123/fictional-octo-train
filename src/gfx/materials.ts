@@ -9,6 +9,10 @@ export const U = {
   uTime: { value: 0 },
   uLightTex: { value: null as THREE.Texture | null },
   uLightInfo: { value: new THREE.Vector4(0, 0, 1, 1) },   // originX, originZ, 1/sizeX, 1/sizeZ (world metres)
+  /** key-light map (src/world/lighting.ts domTex): rg offset to the dominant fixture, b its height, a its share */
+  uDomTex: { value: null as THREE.Texture | null },
+  /** how strongly the key fixture shapes the light (wall scallops, falloff, a key direction on bodies): 0 = flat grid */
+  uPool: { value: 0.75 },
   uVisTex: { value: null as THREE.Texture | null },
   uVisInfo: { value: new THREE.Vector4(0, 0, 1, 1) },
   uVisOn: { value: 1 },
@@ -52,6 +56,8 @@ export const U = {
   uHdMap: { value: null as THREE.Texture | null },
   uHdSize: { value: 2048 },
   uCloseUp: { value: 0 },
+  /** floor height the key light's falloff is measured from (the floor under the camera focus) */
+  uFloorRef: { value: 0 },
 };
 
 export interface WorldMatOpts {
@@ -147,6 +153,8 @@ varying float vWallAxis;
 uniform float uTime;
 uniform sampler2D uLightTex;
 uniform vec4 uLightInfo;
+uniform sampler2D uDomTex;
+uniform float uPool;
 uniform sampler2D uVisTex;
 uniform vec4 uVisInfo;
 uniform float uVisOn;
@@ -176,6 +184,7 @@ uniform float uSheen;
 uniform float uCutScale;
 uniform vec4 uDetailW;
 uniform vec4 uDetailF;
+uniform float uFloorRef;
 // per-material switches (uniforms, not defines: one shader program serves every combination)
 // x cutaway, y no vision mask, z no fog, w no light grid; the outline flag for the normal buffer
 uniform vec4 uWFlags;
@@ -186,6 +195,17 @@ float bayer4(vec2 p) {
   vec2 lo = mod(q, 2.0), hi = floor(q * 0.5);
   float a = 2.0 * abs(lo.x - lo.y) + lo.y, b = 2.0 * abs(hi.x - hi.y) + hi.y;
   return (4.0 * a + b + 0.5) / 16.0;
+}
+// the fixture that dominates the light at a world point (src/world/lighting.ts domTex): xyz its position,
+// w its share of the light there (0 = no key light)
+vec4 keyLight(vec3 p) {
+  vec2 luv = (p.xz - uLightInfo.xy) * uLightInfo.zw;
+  if (luv.x <= 0.0 || luv.y <= 0.0 || luv.x >= 1.0 || luv.y >= 1.0) return vec4(0.0);
+  vec4 dm = texture2D(uDomTex, luv);
+  if (dm.a < 0.02) return vec4(0.0);
+  float nT = float(textureSize(uDomTex, 0).x);
+  vec2 tc = (floor(luv * nT) + 0.5) / nT / uLightInfo.zw + uLightInfo.xy;
+  return vec4(tc.x + (dm.r - 0.5) * 32.0, dm.b * 8.0, tc.y + (dm.g - 0.5) * 32.0, dm.a);
 }
 `;
 
@@ -325,6 +345,23 @@ if (uWFlags.w < 0.5) {
     // ceilings (first person only) take the spill around the fixtures, not the dark of a down-facing face
     grid *= mix(clamp(0.74 + 0.46 * dot(wn, Ld), 0.3, 1.2), 0.62, smoothstep(-0.5, -0.9, wn.y));
   }
+  // the key fixture as a real light: the grid is baked for the floor, so every surface is reshaped by
+  // (its own cosine / distance falloff) / (the floor's under it). Floors keep their level; walls get the
+  // bright scallop under a tube fading down to the skirting, bodies and props a clear key side.
+  if (uPool > 0.0) {
+    vec4 kl = keyLight(vWPos + wn * 0.12);
+    if (kl.w > 0.0) {
+      vec3 Lv = kl.xyz - vWPos;
+      float r2 = dot(Lv, Lv);
+      float lam = clamp((dot(wn, Lv * inversesqrt(r2)) + 0.2) / 1.2, 0.0, 1.0);
+      float hF = max(kl.y - uFloorRef, 0.4);
+      vec2 dF = kl.xz - vWPos.xz;
+      float rF2 = dot(dF, dF) + hF * hF;
+      float phys = lam / (r2 + 1.0), physF = clamp((hF * inversesqrt(rF2) + 0.2) / 1.2, 0.0, 1.0) / (rF2 + 1.0);
+      float ratio = clamp(phys / max(physF, 1e-4), 0.55, 1.75);
+      grid *= mix(1.0, ratio, kl.w * uPool * smoothstep(-0.55, -0.2, wn.y));
+    }
+  }
   // negative emissive: a fixture's diffuser glows with whatever its own light gives right now
   // (dark when the tube is dead or the power is off, stuttering with the flicker)
   if (vEmis < 0.0) totalEmissiveRadiance += diffuseColor.rgb * min(gt * gt * uGridScale, vec3(2.4)) * (-vEmis);
@@ -383,12 +420,12 @@ if (uWFlags.y < 0.5 && uVisOn > 0.5) {
 }
 `;
 
-// normal buffer alpha packs: outline flag (0 / 0.5 highlight / 1) + 2 x wet level (0..7) + 16 x water (renderer decodes it)
+// normal buffer alpha packs: outline flag (0 / 0.5 highlight / 1) + 2 x wet level (0..7) + 16 x water + 32 x emitter (renderer decodes it)
 const FRAG_OUT = /* glsl */`
 #ifdef HIGHLIGHT
   gNormal = vec4(normalize(vWNormal) * 0.5 + 0.5, 0.5);
 #else
-  gNormal = vec4(normalize(vWNormal) * 0.5 + 0.5, uWOutline + 2.0 * floor(clamp(wetR, 0.0, 1.0) * 7.0 + 0.5) + 16.0 * wetWater);
+  gNormal = vec4(normalize(vWNormal) * 0.5 + 0.5, uWOutline + 2.0 * floor(clamp(wetR, 0.0, 1.0) * 7.0 + 0.5) + 16.0 * wetWater + 32.0 * step(0.001, abs(vEmis)));
 #endif
 `;
 

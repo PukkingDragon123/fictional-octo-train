@@ -478,14 +478,16 @@ export class CreatureSystem implements GameSystem {
     }
     if (c.speed <= 0.01 && c.attackPhase <= 0) { c.vx = 0; c.vz = 0; }
     // separation from other creatures
+    // (things stuck to a host or a piece of furniture, like egg clutches, neither push nor are pushed)
+    const stuck = !!c.sp.flags?.attached;
     for (const o of this.creatures.values()) {
-      if (o === c || o.dead || o.zoneKey !== c.zoneKey) continue;
+      if (stuck || o === c || o.dead || o.zoneKey !== c.zoneKey || o.sp.flags?.attached) continue;
       const dx = c.x - o.x, dz = c.z - o.z, d = Math.hypot(dx, dz), m = c.radius + o.radius;
       if (d > 0.001 && d < m) { const push = (m - d) * 0.5; c.x += (dx / d) * push; c.z += (dz / d) * push; }
     }
     // keep out of players
     for (const p of G.players.values()) {
-      if (p.zoneKey !== c.zoneKey || p.body.dead) continue;
+      if (stuck || p.zoneKey !== c.zoneKey || p.body.dead) continue;
       const dx = c.x - p.x, dz = c.z - p.z, d = Math.hypot(dx, dz), m = c.radius + p.radius;
       if (d > 0.001 && d < m) { const push = (m - d); c.x += (dx / d) * push * 0.6; c.z += (dz / d) * push * 0.6; if (p.isLocal) { p.x -= (dx / d) * push * 0.4; p.z -= (dz / d) * push * 0.4; } }
     }

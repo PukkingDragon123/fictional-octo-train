@@ -1,12 +1,13 @@
-// THE RESEARCH LAB, R-1: the menu's one Meridian lab, where the codex lives.
-// A long tiled room under three cold fluorescent troughs (real light cones,
-// the two big ones throw shadows) with warm practicals (a gooseneck lamp on the
-// microscope bench, the surgical lamp over the dissection table), screens that
-// glow and cast, and everything a night shift leaves: pipes, conduit, cable
-// runs, grime, labels.
-//   back wall      THE CODEX WALL: a lightbox corkboard, one card per entry
-//                  (species and anomalies) lit by its state: unknown, discovered,
-//                  sampled, researching (a % bar), complete (a gold pin)
+// THE CONTROL ROOM, C-1 (internal id 'research': it grew out of the research
+// lab and keeps its benches). A long tiled room under three cold fluorescent
+// troughs (real light cones, the two big ones throw shadows) with warm
+// practicals (a gooseneck lamp on the microscope bench, the surgical lamp over
+// the dissection table), screens that glow and cast, and everything a night
+// shift leaves: pipes, conduit, cable runs, grime, labels.
+//   back wall      THE MAIN COMPUTER: R-NET 7, a wall of phosphor in an enamel
+//                  housing over its console (keys, a tape reader, pilot lamps).
+//                  The screen shows the research tree live; press it and the
+//                  camera flies into the glass (research/tree.ts).
 //   back left      the SAMPLE FRIDGE: a glass door, racks of the samples banked
 //                  (jars, vials, swab tubes, slide boxes) filling as you collect
 //   left wall      the MICROSCOPE BENCH (gooseneck lamp, slide boxes); the FUME
@@ -16,18 +17,22 @@
 //   back right     the SEQUENCER rig: tape reels and CRT readouts of the codex
 //   front right    the REQUISITION pegboard: the research tools you have earned
 // Pressing the fridge picks a sample and runs it through the benches (the
-// first-person mini-games, researchBench.ts); the wall opens the codex, the
-// pegboard the requisition, the clipboard the Meridian file (research/panel.ts).
+// first-person mini-games, researchBench.ts); the pegboard opens the
+// requisition, the clipboard the Meridian file (research/panel.ts). The codex
+// itself is filed in the codex archive next door (rooms/archive.ts).
 import * as THREE from 'three';
 import type { FMats } from '../scene/pixtex';
-import { Puffs } from '../scene/fx';
+import { Puffs, Dust, shaftMesh } from '../scene/fx';
 import type { Hot, StageRoom, Grade } from '../monitor/stage';
 import { bitText, bitMeasure } from '../../../gfx/bitfont';
 import {
   FacetBuilder, at, cbox, prism, lathe, extrude, hull, tube, bolt, C, LedBank, blink, busy, plate, paper, slab, glowCard, Wobble, crtSet, uiSound,
 } from '../monitor/props';
-import { entries, entryState, researchPct, codexStats, bank, TOOLS, TOOL_KEYS, toolLevel, req, type Entry } from '../../../game/codex';
+import { codexStats, bank, TOOLS, TOOL_KEYS, toolLevel, req } from '../../../game/codex';
+import { BRANCHES, treeNodes, rankOf, nodeState } from '../../../game/unitTree';
+import { researchPoints } from '../../../game/research';
 import { onFile } from '../../../game/meridian';
+import { bus } from '../../../core/events';
 import { menuEvent } from '../../../game/achievements';
 import { BenchRun, type BenchHost, type Station } from './researchBench';
 import type { Sample } from '../../../game/codex';
@@ -61,14 +66,14 @@ export class ResearchLab implements StageRoom {
   feedCam = new THREE.PerspectiveCamera(70, 4 / 3, 0.05, 30);
   hots: Hot[] = [];
   // the intake drag's look (introKit/stage.ts LOOKS.wing): cold blue shadows, warm highlights, readable
-  grade: Grade = { exposure: 1.75, lift: [0.84, 0.96, 1.12], gain: [1.1, 1.0, 0.88], vig: 0.55, sat: 1.08, contrast: 1.12, side: [1, 0, 0, 0.3] };
+  grade: Grade = { exposure: 1.75, lift: [0.84, 0.96, 1.12], gain: [1.1, 1.0, 0.88], vig: 0.55, sat: 1.12, contrast: 1.12, side: [1, 0, 0, 0.3], haze: 0.3 };
   deco = new THREE.Group();
   floor = { minX: -W + 1.2, maxX: W - 1.0, minZ: 0.4, maxZ: 2.4, y: 0 };
   surfaces = [{ minX: SCOPE.x - 0.25, maxX: SCOPE.x + 0.25, minZ: SCOPE.z - 0.75, maxZ: SCOPE.z + 0.75, y: 0.92 }, { minX: CENTRI.x - 0.3, maxX: CENTRI.x + 0.3, minZ: CENTRI.z - 0.8, maxZ: CENTRI.z + 0.8, y: 0.92 }];
   guideSpot = { pos: new THREE.Vector3(2.45, 0, 0.3), look: new THREE.Vector3(0, 1.6, BACK) };
   actions: { key: string; label: string; run: () => void }[] = [];
   /** the room wants a panel (title.ts opens research/panel.ts) */
-  onPanel?: (w: 'codex' | 'fridge' | 'req' | 'file' | 'entry', key?: string) => void;
+  onPanel?: (w: 'tree' | 'codex' | 'fridge' | 'req' | 'file' | 'entry', key?: string) => void;
   /** the benches started / finished (title.ts hides its HUD while the hands are up) */
   onBench?: (on: boolean) => void;
   bench: BenchRun | null = null;
@@ -78,7 +83,8 @@ export class ResearchLab implements StageRoom {
   private leds = new LedBank(220);
   private puffs = new Puffs(80);
   private hemi = new THREE.HemisphereLight(0xc0d0e0, 0x4a3a2a, 0.95);
-  private tubes: { light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; base: number; seed: number; flick: number }[] = [];
+  private tubes: { light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; base: number; seed: number; flick: number; shaft?: ReturnType<typeof shaftMesh> }[] = [];
+  private dust = new Dust(220, new THREE.Box3(new THREE.Vector3(-W + 0.5, 0.2, BACK + 0.5), new THREE.Vector3(W - 0.5, H - 0.4, FRONT - 0.8)));
   private surg = new THREE.SpotLight(0xfff0dc, 0, 4.2, 0.55, 0.6, 1.6);
   private surgMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   /** the scope bench group (turned to the left wall) */
@@ -91,7 +97,7 @@ export class ResearchLab implements StageRoom {
   private wallCv = document.createElement('canvas');
   private wallTex: THREE.CanvasTexture;
   private wallMesh!: THREE.Mesh;
-  private wallMat = new THREE.MeshBasicMaterial({ toneMapped: false, color: 0xb4bab4 });
+  private wallMat = new THREE.MeshBasicMaterial({ toneMapped: false, color: 0xd8d0c0 });
   private flash: { key: string; t: number } | null = null;
   // the fridge's racks
   private racks: { mesh: THREE.InstancedMesh; kind: string }[] = [];
@@ -127,23 +133,29 @@ export class ResearchLab implements StageRoom {
     this.wallTex.magFilter = this.wallTex.minFilter = THREE.NearestFilter; this.wallTex.generateMipmaps = false; this.wallTex.colorSpace = THREE.SRGBColorSpace;
     this.wallMat.map = this.wallTex;
     S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter());
-    S.add(this.leds.mesh, this.puffs.mesh, this.deco, this.hemi);
+    S.add(this.leds.mesh, this.puffs.mesh, this.deco, this.hemi, this.dust.points);
+    // wet floor: dark specular puddles that pick up the troughs and the screen
+    for (const [x, z, w, d] of [[TABLE.x + 0.9, TABLE.z + 0.75, 1.1, 0.7], [-1.6, 1.4, 0.8, 1.2], [1.9, 1.8, 0.6, 0.5]] as [number, number, number, number][]) {
+      const wet = new THREE.Mesh(new THREE.CircleGeometry(0.5, 9), new THREE.MeshStandardMaterial({ color: 0x0a0c0c, roughness: 0.04, metalness: 0.6, transparent: true, opacity: 0.5, depthWrite: false }));
+      wet.rotation.x = -Math.PI / 2; wet.scale.set(w, d, 1); wet.position.set(x, 0.006, z); wet.renderOrder = 2; wet.userData.noGlow = true; S.add(wet);
+    }
     this.deco.name = 'deco';
     this.feedCam.position.set(W - 0.35, H - 0.3, FRONT - 0.4); this.feedCam.lookAt(-0.6, 0.9, -1.4);
     this.cam.position.copy(this.camP); this.cam.lookAt(this.camL);
     this.actions = [
+      { key: 'tree', label: 'Research tree', run: () => this.focus('codex', () => this.onPanel?.('tree')) },
       { key: 'process', label: 'Process a sample', run: () => this.focus('fridge', () => this.onPanel?.('fridge')) },
-      { key: 'codex', label: 'The codex', run: () => this.focus('codex', () => this.onPanel?.('codex')) },
       { key: 'req', label: 'Requisition', run: () => this.focus('req', () => this.onPanel?.('req')) },
       { key: 'file', label: 'Meridian file', run: () => this.onPanel?.('file') },
     ];
     onFile(() => { this.dirty = true; });
+    bus.on('research', () => { this.dirty = true; });
     this.refresh();
   }
 
   /** re-read the Meridian file: the wall, the fridge, the pegboard, the readouts */
   refresh() { this.dirty = false; this.drawWall(); this.fillFridge(); this.hangTools(); for (const r of this.readouts) r.acc = r.every; }
-  /** a new codex card lights up (after a bench run) */
+  /** the main computer flashes the news (after a bench run) */
   flashEntry(key: string) { this.flash = { key, t: 0 }; }
 
   // ================================================================== the shell
@@ -182,7 +194,7 @@ export class ResearchLab implements StageRoom {
     const lw = grime(4.5, 1.0, 37, 0.4); lw.rotation.y = Math.PI / 2; lw.position.set(-W + 0.012, 0.6, 0.0); g.add(lw);
     // labels
     const sign = (lines: string[], w: number, h: number, x: number, y: number, z: number, ry = 0, bg = 0xc8c0a0, ink?: number) => { const s = plate(this.mats, lines, w, h, { bg, ink }); s.position.set(x, y, z); s.rotation.y = ry; g.add(s); return s; };
-    sign(['RESEARCH LAB R-1', 'MERIDIAN INSTITUTE'], 0.86, 0.2, -1.9, 2.4, FRONT - 0.01, Math.PI);
+    sign(['CONTROL ROOM C-1', 'MERIDIAN INSTITUTE'], 0.86, 0.2, -1.9, 2.4, FRONT - 0.01, Math.PI);
     sign(['BIOHAZARD', 'LEVEL 2'], 0.4, 0.15, -1.95, 1.62, BACK + 0.012, 0, 0xd8a030, 0x1a1208);
     sign(['NO FOOD', 'IN THE FRIDGE'], 0.3, 0.11, FRIDGE.x + 0.28, 1.8, FRIDGE.z + 0.36, 0, 0xe8e2d0);
     sign(['WASH HANDS'], 0.32, 0.08, W - 0.012, 1.55, -2.4, -Math.PI / 2, 0x7ab8a0, 0x0a1a12);
@@ -207,7 +219,11 @@ export class ResearchLab implements StageRoom {
       L.position.set(x, y, z); L.target.position.set(x, 0, z + 0.05);
       if (shadow) { L.castShadow = true; L.shadow.mapSize.set(1024, 1024); L.shadow.camera.near = 0.2; L.shadow.camera.far = 4; L.shadow.bias = -0.0006; L.shadow.normalBias = 0.02; }
       g.add(L, L.target);
-      this.tubes.push({ light: L, mat, base: shadow ? 26 : 18, seed: i * 3.1, flick: 0 });
+      // the cone itself: additive haze under the trough, dust turning in it
+      const sh = shaftMesh(10);
+      sh.mesh.position.set(x, y - 0.02, z); sh.mesh.scale.set(0.75, y - 0.1, 1.05); sh.u.uColor.value.setHex(0xd4e4ff); sh.u.uInt.value = 0.02;
+      g.add(sh.mesh);
+      this.tubes.push({ light: L, mat, base: shadow ? 30 : 20, seed: i * 3.1, flick: 0, shaft: sh });
       // the light pool each casts on the floor (a soft bounce card)
       const pool = glowCard(2.6, 3.2, 0xdfe8ff, 0.05); pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.005, z); g.add(pool);
     });
@@ -216,62 +232,95 @@ export class ResearchLab implements StageRoom {
     return g;
   }
 
-  // ================================================================== the codex wall
+  // ================================================================== the main computer
   private codexWall(): THREE.Group {
     const g = new THREE.Group();
     const b = new FacetBuilder();
     const { x, y, w, h } = WALL;
-    // the lightbox: a deep steel frame, a cork surround, the opal panel
-    b.add('metal', cbox(w + 0.16, h + 0.16, 0.08, 0.012), 0x3a3e3c, at(x, y, BACK + 0.04));
-    b.add('chrome', extrude([[-w / 2 - 0.08, -h / 2 - 0.08], [w / 2 + 0.08, -h / 2 - 0.08], [w / 2 + 0.08, h / 2 + 0.08], [-w / 2 - 0.08, h / 2 + 0.08]], 0.03, 0.006, [[[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]]), 0xa8acaa, at(x, y, BACK + 0.085));
-    for (const [bx, by] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('metal', bolt(0.012, 0.01), C.steel, at(x + bx * (w / 2 + 0.05), y + by * (h / 2 + 0.05), BACK + 0.13, Math.PI / 2));
-    // the header bar, the cable that feeds the box, the shelf of binders under it
-    b.add('paint', cbox(w + 0.16, 0.16, 0.12, 0.01), 0x2a3a34, at(x, y + h / 2 + 0.16, BACK + 0.06));
-    b.add('rubber', tube([[x + w / 2 + 0.06, y - h / 2, BACK + 0.06], [x + w / 2 + 0.2, y - h / 2 - 0.3, BACK + 0.08], [x + w / 2 + 0.25, 0.4, BACK + 0.06]], 0.012, 8, 4), 0x1a1a1a);
+    // the enamel housing: a deep bezel, vents along the top, the maker's plate
+    b.add('enamel', cbox(w + 0.34, h + 0.36, 0.3, 0.05), 0xc4bc9e, at(x, y, BACK + 0.15));
+    b.add('enamel', cbox(w + 0.18, h + 0.2, 0.06, 0.03), 0x8a8470, at(x, y, BACK + 0.3));
+    for (let i = 0; i < 18; i++) b.add('metal', cbox(0.1, 0.012, 0.02, 0.003), C.darker, at(x - w / 2 + 0.2 + i * (w - 0.3) / 17, y + h / 2 + 0.14, BACK + 0.305));
+    for (const [bx, by] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('chrome', bolt(0.014, 0.01), C.steel, at(x + bx * (w / 2 + 0.12), y + by * (h / 2 + 0.12), BACK + 0.3, Math.PI / 2));
+    // the console under it: a raked desk of keys, the tape reader, a row of pilot lamps and toggles
+    const cy = 0.92, cz = BACK + 0.62;
+    b.add('paint', cbox(w * 0.78, cy - 0.04, 0.5, 0.014), 0x6e7660, at(x, (cy - 0.04) / 2, cz), { rep: 0.5 });
+    b.add('enamel', hull([[x - w * 0.4, cy - 0.04, cz - 0.27], [x + w * 0.4, cy - 0.04, cz - 0.27], [x - w * 0.4, cy - 0.04, cz + 0.27], [x + w * 0.4, cy - 0.04, cz + 0.27], [x - w * 0.4, cy + 0.16, cz - 0.27], [x + w * 0.4, cy + 0.16, cz - 0.27], [x - w * 0.4, cy + 0.02, cz + 0.27], [x + w * 0.4, cy + 0.02, cz + 0.27]]), 0xc4bc9e);
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 16; k++) b.add('bakelite', cbox(0.05, 0.025, 0.05, 0.008), r === 0 && k > 12 ? 0xa83a2a : 0x2a2622, at(x - 0.6 + k * 0.075, cy + 0.06 + (2 - r) * 0.038 + 0.02, cz + 0.12 - r * 0.07));
+    b.add('metal', cbox(0.42, 0.12, 0.26, 0.02), 0x3a3e3a, at(x + 0.95, cy + 0.12, cz - 0.08));
+    b.add('chrome', prism(0.05, 0.03, 10), 0xd8dcdc, at(x + 0.85, cy + 0.2, cz - 0.08, Math.PI / 2));
+    b.add('chrome', prism(0.05, 0.03, 10), 0xd8dcdc, at(x + 1.05, cy + 0.2, cz - 0.08, Math.PI / 2));
+    b.add('sponge', cbox(0.04, 0.5, 0.004, 0.001), 0xe2d8b4, at(x + 0.95, cy - 0.12, cz + 0.06));
     g.add(b.build(this.mats));
-    const head = plate(this.mats, ['THE CODEX · SPECIMENS & ANOMALIES'], 1.6, 0.1, { bg: 0x2a3a34, ink: 0xd8ffe8, emissive: true, px: 420 });
-    head.position.set(x, y + h / 2 + 0.16, BACK + 0.125); g.add(head);
+    for (let k = 0; k < 14; k++) this.leds.add([x - 0.95 + k * 0.08, cy + 0.165, cz - 0.24], [0xffb030, 0x40ff60, 0xff3a2a][k % 3], { size: 0.012, pattern: busy(k + 40, 2 + (k % 4)) });
+    const head = plate(this.mats, ['R-NET 7 · MAIN COMPUTER'], 1.3, 0.1, { bg: 0x2a2014, ink: 0xffd890, emissive: true, px: 420 });
+    head.position.set(x, y + h / 2 + 0.1, BACK + 0.32); g.add(head);
     this.wallMesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this.wallMat);
-    this.wallMesh.position.set(x, y, BACK + 0.092);
+    this.wallMesh.position.set(x, y, BACK + 0.335);
     this.wallMesh.userData.noGlow = true;
     g.add(this.wallMesh);
-    this.hots.push({ key: 'codex', objs: [this.wallMesh], glow: [], label: 'The codex wall', sub: 'every entry · tap to read', press: (p) => this.wallPress(p) });
+    this.hots.push({ key: 'codex', objs: [this.wallMesh], glow: [], label: 'The main computer', sub: 'the research tree · designs, recipes, chips, limbs', press: () => { uiSound('tick', 0.6); this.focus('codex', () => this.onPanel?.('tree')); } });
     return g;
   }
-  private wallLayout() {
-    const es = entries();
-    const cols = Math.max(8, Math.ceil(es.length / 4)), rows = Math.ceil(es.length / cols);
-    const cw = Math.floor((this.wallCv.width - 16) / cols), ch = Math.floor((this.wallCv.height - 44) / Math.max(1, rows));
-    return { es, cols, rows, cw, ch, ox: 8, oy: 36 };
-  }
-  private wallPress(p: THREE.Vector3) {
-    const L = this.wallLayout();
-    const u = (p.x - (WALL.x - WALL.w / 2)) / WALL.w, v = 1 - (p.y - (WALL.y - WALL.h / 2)) / WALL.h;
-    const px = u * this.wallCv.width, py = v * this.wallCv.height;
-    const c = Math.floor((px - L.ox) / L.cw), r = Math.floor((py - L.oy) / L.ch);
-    const e = c >= 0 && c < L.cols && r >= 0 ? L.es[r * L.cols + c] : null;
-    uiSound('tick', 0.6);
-    if (this.pose !== 'codex') { this.focus('codex', () => (e ? this.onPanel?.('entry', e.key) : this.onPanel?.('codex'))); return; }
-    if (e) this.onPanel?.('entry', e.key); else this.onPanel?.('codex');
-  }
+  /** the main computer's glass: the research tree live, in phosphor amber on green-black */
   private drawWall() {
     const c = this.wallCv.getContext('2d')!;
     const Wd = this.wallCv.width, Hd = this.wallCv.height;
     c.imageSmoothingEnabled = false;
-    // the opal glass: a cool white field with the cork showing in the gaps
-    c.fillStyle = '#1c2622'; c.fillRect(0, 0, Wd, Hd);
+    const g = c.createRadialGradient(Wd / 2, Hd / 2, 20, Wd / 2, Hd / 2, Wd * 0.62);
+    g.addColorStop(0, '#16301c'); g.addColorStop(1, '#06100a');
+    c.fillStyle = g; c.fillRect(0, 0, Wd, Hd);
+    // a faint graticule
+    c.fillStyle = 'rgba(120,255,150,0.06)';
+    for (let x = 0; x < Wd; x += 24) c.fillRect(x, 0, 1, Hd);
+    for (let y = 0; y < Hd; y += 24) c.fillRect(0, y, Wd, 1);
+    bitText(c, 'R-NET 7 · RESEARCH DIRECTORY', 10, 4, { color: '#ffd890', outline: null });
+    const pts = `${researchPoints()} RP`;
+    bitText(c, pts, Wd - 12 - bitMeasure(pts), 4, { color: '#6aff8e', outline: null });
     const st = codexStats();
-    bitText(c, `DISCOVERED ${st.discovered}/${st.total}`, 10, 6, { color: '#9affc8' });
-    const s2 = `SAMPLED ${st.sampled}  RESEARCHED ${st.researched}  COMPLETE ${st.complete}`;
-    bitText(c, s2, 200, 6, { color: '#ffe08a' });
-    const pct = `${st.pct}%`;
-    bitText(c, pct, Wd - 12 - bitMeasure(pct, 'title'), 0, { color: '#ffffff', font: 'title' });
-    c.fillStyle = '#0a100e'; c.fillRect(10, 26, Wd - 110, 5); c.fillStyle = '#3aff8a'; c.fillRect(10, 26, Math.round((Wd - 110) * st.pct / 100), 5);
-    const L = this.wallLayout();
-    L.es.forEach((e, i) => {
-      const cx = L.ox + (i % L.cols) * L.cw, cy = L.oy + Math.floor(i / L.cols) * L.ch;
-      card(c, e, cx + 2, cy + 2, L.cw - 4, L.ch - 4, this.flash?.key === e.key ? Math.max(0, 1 - this.flash.t / 1.5) : 0);
+    const cx = `CODEX ${st.pct}%`;
+    bitText(c, cx, Wd - 30 - bitMeasure(pts) - bitMeasure(cx), 4, { color: '#ffb848', outline: null });
+    c.fillStyle = '#ffb848'; c.fillRect(10, 24, Wd - 20, 1);
+    const pw = Math.floor((Wd - 20) / 4);
+    BRANCHES.forEach((br, i) => {
+      const px = 10 + i * pw, py = 32, ph = Hd - py - 26;
+      c.fillStyle = 'rgba(255,184,72,0.07)'; c.fillRect(px + 3, py, pw - 8, ph);
+      c.fillStyle = 'rgba(255,184,72,0.45)'; c.fillRect(px + 3, py, pw - 8, 1); c.fillRect(px + 3, py + ph - 1, pw - 8, 1); c.fillRect(px + 3, py, 1, ph); c.fillRect(px + pw - 6, py, 1, ph);
+      bitText(c, br.name.toUpperCase(), px + 8, py + 3, { color: '#ffc860', outline: null });
+      const ns = treeNodes(br.key);
+      const maxC = Math.max(...ns.map((n) => n.col)) + 1, maxR = Math.max(...ns.map((n) => n.row)) + 2;
+      const cw = Math.min(26, Math.floor((pw - 22) / maxC)), rh = Math.floor((ph - 30) / maxR);
+      const sz = Math.max(8, Math.min(cw - 6, rh * 2 - 6, 16));
+      const at = (n: { col: number; row: number }) => [px + 10 + n.col * cw, py + 26 + n.row * rh] as const;
+      // the pipes first
+      for (const n of ns) for (const rk of n.req) {
+        const m = ns.find((q) => q.key === rk); if (!m) continue;
+        const [ax, ay] = at(m), [bx, by] = at(n);
+        c.fillStyle = rankOf(m) ? '#ffb848' : '#4a3a20';
+        if (m.row === n.row) c.fillRect(ax + sz, ay + sz / 2, bx - ax - sz, 2);
+        else { const xm = m.col === n.col ? ax + sz / 2 : bx - 3; c.fillRect(Math.min(ax + sz / 2, xm), ay + sz / 2, Math.abs(xm - ax - sz / 2) + 1, 2); c.fillRect(xm, Math.min(ay, by) + sz / 2, 2, Math.abs(by - ay)); c.fillRect(xm, by + sz / 2, bx - xm, 2); }
+      }
+      for (const n of ns) {
+        const [nx, ny] = at(n);
+        const r = rankOf(n), s2 = nodeState(n);
+        const blink = s2 === 'open' && Math.floor(this.t * 2) % 2 === 0;
+        c.fillStyle = r ? '#ffb848' : s2 === 'open' ? (blink ? '#8a6a20' : '#5a4010') : '#1e1a10';
+        c.fillRect(nx, ny, sz, sz);
+        c.fillStyle = r ? '#fff0c0' : s2 === 'open' ? '#ffd890' : '#4a3e28';
+        c.fillRect(nx, ny, sz, 1); c.fillRect(nx, ny, 1, sz);
+        if (r && n.ranks > 1) { c.fillStyle = '#103a18'; for (let k = 0; k < r; k++) c.fillRect(nx + 2 + k * 3, ny + sz - 4, 2, 2); }
+      }
     });
+    const tip = Math.floor(this.t * 1.5) % 2 ? 'TAP THE GLASS TO LOG IN_' : 'TAP THE GLASS TO LOG IN';
+    bitText(c, tip, 10, Hd - 20, { color: '#6aff8e', outline: null });
+    if (this.flash) {
+      const a = Math.max(0, 1 - this.flash.t / 1.6);
+      c.fillStyle = `rgba(106,255,142,${a * 0.25})`; c.fillRect(0, 0, Wd, Hd);
+      bitText(c, 'SAMPLE FILED · CODEX UPDATED', Wd / 2 - 110, Hd / 2 - 8, { color: '#e8ffe8', outline: '#071008' });
+    }
+    // scanlines
+    c.fillStyle = 'rgba(0,0,0,0.22)';
+    for (let y = 0; y < Hd; y += 2) c.fillRect(0, y, Wd, 1);
     this.wallTex.needsUpdate = true;
   }
 
@@ -704,7 +753,9 @@ export class ResearchLab implements StageRoom {
       const k = tb.flick > 0 ? (Math.sin(t * 60 + tb.seed) > 0 ? 0.25 : 1) : 0.97 + Math.sin(t * 100 + tb.seed) * 0.03;
       tb.light.intensity = tb.base * k;
       tb.mat.color.setRGB(0.95 * (0.3 + 0.9 * k), 0.97 * (0.3 + 0.9 * k), 1.0 * (0.3 + 0.9 * k));
+      if (tb.shaft) tb.shaft.u.uInt.value = 0.022 * k;
     }
+    if (full && !this.bench) { const L0 = this.tubes[0].light; this.dust.update(t, L0.position, this.v.set(0, -1, 0), Math.cos(1.12), Math.cos(0.5), 2.6, new THREE.Color(0xdfe8ff), 0.12); }
     this.surgLvl = damp(this.surgLvl, this.surgOn, 14, dt);
     this.surg.intensity = 1.8 * this.surgLvl;
     this.surgMat.color.setScalar(0.2 + 1.1 * this.surgLvl);
@@ -712,7 +763,7 @@ export class ResearchLab implements StageRoom {
     this.desk.intensity = 2.1 + Math.sin(t * 3.1) * 0.04;
     this.alarmT = Math.max(0, this.alarmT - dt);
     if (this.alarmLed) this.alarmLed.level = this.alarmT > 0 ? (Math.sin(t * 20) > 0 ? 1 : 0) : 0.05;
-    this.wallGlow.color.setHex(this.alarmT > 0 && Math.sin(t * 20) > 0 ? 0xff4a3a : 0xd8ecff);
+    this.wallGlow.color.setHex(this.alarmT > 0 && Math.sin(t * 20) > 0 ? 0xff4a3a : 0xffc890);
     this.leds.update(t);
     // ---- machines
     this.rotorV = damp(this.rotorV, this.bench?.rotorSpin ?? 0.3, 0.6, dt);
@@ -728,6 +779,7 @@ export class ResearchLab implements StageRoom {
     for (const r of this.readouts) { r.acc += dt; if (r.acc >= r.every && !(this.bench && r === this.readouts[0] && this.bench.usesScreen)) { r.acc = 0; r.draw(r.ctx, t); r.tex.needsUpdate = true; } }
     if (this.bench?.usesScreen && this.readouts[0]) this.readouts[0].tex.needsUpdate = true;
     if (this.flash) { this.flash.t += dt; if (Math.floor(this.flash.t * 6) !== Math.floor((this.flash.t - dt) * 6)) this.drawWall(); if (this.flash.t > 1.6) { this.flash = null; this.drawWall(); } }
+    else if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) this.drawWall();
     if (full && Math.random() < dt * 0.8) this.puffs.emit(this.v.set(HOOD.x + 0.1, 1.95, HOOD.z + (Math.random() - 0.5) * 0.8), new THREE.Vector3(0, 0.25, 0), { life: 2.2, s0: 0.01, s1: 0.03, color: 0xd8f0e8, rise: 0.3 });
     if (full) this.puffs.update(dt, this.cam, () => 0.6);
     if (!full) return;
@@ -749,7 +801,7 @@ export class ResearchLab implements StageRoom {
 /** a ring (clamps, bands) */
 function band2(r: number): THREE.BufferGeometry { const g = new THREE.TorusGeometry(r, 0.008, 4, 10); g.rotateX(Math.PI / 2); return g; }
 /** a grime card: dark multiplied stains (pixel blobs and drips) */
-function grime(w: number, h: number, seed: number, k: number): THREE.Mesh {
+export function grime(w: number, h: number, seed: number, k: number): THREE.Mesh {
   const cv = document.createElement('canvas'); cv.width = Math.round(w * 24); cv.height = Math.round(h * 24);
   const c = cv.getContext('2d')!;
   let s = seed;
@@ -765,48 +817,6 @@ function grime(w: number, h: number, seed: number, k: number): THREE.Mesh {
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: tex, transparent: true, blending: THREE.MultiplyBlending, premultipliedAlpha: true, depthWrite: false }));
   m.userData.noGlow = true; m.renderOrder = 1;
   return m;
-}
-/** a codex card on the wall */
-function card(c: CanvasRenderingContext2D, e: Entry, x: number, y: number, w: number, h: number, flash: number) {
-  const st = entryState(e.key), pct = researchPct(e.key);
-  const known = st !== 'unknown';
-  const bg = st === 'complete' ? '#f4e8b8' : known ? '#e8ece4' : '#3a4440';
-  c.fillStyle = '#0a0d0c'; c.fillRect(x - 1, y - 1, w + 2, h + 2);
-  c.fillStyle = bg; c.fillRect(x, y, w, h);
-  if (flash > 0) { c.fillStyle = `rgba(120,255,170,${flash})`; c.fillRect(x, y, w, h); }
-  // the state stripe
-  c.fillStyle = { unknown: '#2a3430', discovered: '#5a8ad8', sampled: '#e8a020', researching: '#3ac868', complete: '#d8a020' }[st];
-  c.fillRect(x, y, w, 4);
-  // the portrait: a pixel silhouette from the key (the real thing is in the panel)
-  const ph = h - 30, pw = Math.min(w - 8, ph + 8);
-  const px = x + Math.floor((w - pw) / 2), py = y + 7;
-  c.fillStyle = known ? '#1a2420' : '#222a28'; c.fillRect(px, py, pw, ph);
-  glyph(c, e, px, py, pw, ph, known, st === 'complete');
-  // the code and the bar
-  const code = (e.code.split('//')[0] || e.name).trim().slice(0, 7);
-  bitText(c, known ? code : '???', x + 3, y + h - 22, { color: known ? '#1a2420' : '#6a7a74', outline: null });
-  c.fillStyle = '#1a2420'; c.fillRect(x + 3, y + h - 6, w - 6, 3);
-  if (pct > 0) { c.fillStyle = st === 'complete' ? '#d8a020' : '#2ac860'; c.fillRect(x + 3, y + h - 6, Math.round((w - 6) * pct / 100), 3); }
-  if (st === 'complete') { c.fillStyle = '#c8302a'; c.fillRect(x + w - 9, y + 6, 5, 5); c.fillStyle = '#ff8a6a'; c.fillRect(x + w - 8, y + 7, 2, 2); }
-}
-function glyph(c: CanvasRenderingContext2D, e: Entry, x: number, y: number, w: number, h: number, known: boolean, done: boolean) {
-  let s = 0; for (const ch of e.key) s = (Math.imul(s, 31) + ch.charCodeAt(0)) >>> 0;
-  const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
-  if (!known) { bitText(c, '?', x + w / 2 - 4, y + h / 2 - 9, { color: '#5a6a64', outline: null }); return; }
-  const col = e.kind === 'anomaly' ? ['#b88aff', '#7a4ad8'] : [['#d8c8a8', '#8a7a5a'], ['#a8c8d8', '#5a7a8a'], ['#d8a8a8', '#8a5a5a'], ['#b8d8a8', '#6a8a5a']][s % 4];
-  const cx = x + w / 2, cy = y + h / 2 + 2;
-  if (e.kind === 'anomaly') {
-    for (let i = 0; i < 4; i++) { const hh = 6 + rnd() * (h * 0.5), ww = 3 + rnd() * 3, ox = (rnd() - 0.5) * w * 0.5; c.fillStyle = col[i % 2]; c.fillRect(Math.round(cx + ox - ww / 2), Math.round(cy + h * 0.3 - hh), Math.round(ww), Math.round(hh)); }
-  } else {
-    // a body, a head, limbs, eyes: symmetric pixel creature
-    const bw = 6 + Math.floor(rnd() * (w * 0.3)), bh = 6 + Math.floor(rnd() * (h * 0.35));
-    c.fillStyle = col[1]; c.fillRect(Math.round(cx - bw / 2), Math.round(cy - bh / 2), bw, bh);
-    const hw = 4 + Math.floor(rnd() * 6), hy = Math.round(cy - bh / 2 - hw + 1);
-    c.fillStyle = col[0]; c.fillRect(Math.round(cx - hw / 2), hy, hw, hw);
-    const legs = 1 + Math.floor(rnd() * 3);
-    for (let i = 0; i < legs; i++) { const lx = Math.round(bw / 2 - 1 - i * 3); c.fillStyle = col[1]; c.fillRect(Math.round(cx - lx - 1), Math.round(cy + bh / 2), 2, 3 + Math.floor(rnd() * 4)); c.fillRect(Math.round(cx + lx - 1), Math.round(cy + bh / 2), 2, 3 + Math.floor(rnd() * 4)); }
-    c.fillStyle = done ? '#ffd23a' : '#ff3a2a'; c.fillRect(Math.round(cx - 2), hy + 2, 1, 1); c.fillRect(Math.round(cx + 1), hy + 2, 1, 1);
-  }
 }
 /** the left CRT: the codex in numbers */
 function drawStats(c: CanvasRenderingContext2D, t: number) {

@@ -9,10 +9,17 @@
 //  - it scrapes (a loop by material and speed), scuffs and smears the floor,
 //    bangs into walls and furniture (both take damage), and tall narrow things
 //    topple over and smash when shoved or rammed hard
-//  - small things are lifted and carried instead, and can be thrown
-// Letting go writes where it ended up (op 'objRelease', bus 'objPushed'), so it
-// can be shoved onto a press-machine plate. Other peers see it move from a
-// light stream of positions (fx on the gore channel, not logged).
+//  - CARRYING is the job (round 12): almost any piece of furniture a survivor can
+//    budge can be lifted whole. Its weight decides everything: light things go at
+//    the chest in both hands, medium ones are hugged at the waist, heavy ones are
+//    hauled low with the back leaning into it (two-handed, slow, a real stamina
+//    drain). It sways on the arms and bumps (and bounces off) walls, door frames
+//    and other furniture; R turns it a quarter, Place sets it down gently where it
+//    fits, Drop lets it fall, Throw (light things only) hurls it, and next to the
+//    press Feed lays it on the plate and throws the lever
+// Letting go writes where it ended up (op 'objRelease' (+ rot), bus 'objPushed'),
+// so it can be shoved or carried onto a press-machine plate. Other peers see it
+// move from a light stream of positions (fx on the gore channel, not logged).
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { op } from '../game/ops';
@@ -50,16 +57,25 @@ interface PushState {
   thrown: { vy: number; y: number } | null;
   topple: { dx: number; dz: number; ang: number; av: number } | null;
   sendT: number; smearD: number; scuffD: number; moving: number; loopKey: string; t: number;
+  /** carry: 0 light (chest), 1 medium (hugged at the waist), 2 heavy (hauled low) */
+  tier: 0 | 1 | 2;
+  /** carry: the load swinging on the arms (metres off where the hands want it, and its rate) */
+  swx: number; swz: number; swvx: number; swvz: number;
+  /** carry: walking phase (bob), last carrier velocity (sway impulse), bump cooldown, the setting-down timer */
+  gait: number; lvx: number; lvz: number; bumpT: number; placing: number; rotChanged: boolean;
+  /** carry: the lift the arms are working toward */
+  liftGoal: number;
 }
-interface Proxy { uid: number; zone: string; mesh: THREE.Group; o: TileObject; d: ObjDef; x: number; z: number; tx: number; tz: number; lift: number; tl: number; tdx: number; tdz: number; moving: number; local: boolean; removeWait: boolean; loopKey: string }
+interface Proxy { uid: number; zone: string; mesh: THREE.Group; o: TileObject; d: ObjDef; x: number; z: number; tx: number; tz: number; lift: number; tl: number; tdx: number; tdz: number; moving: number; local: boolean; removeWait: boolean; loopKey: string; rx?: number; rz?: number; ry?: number }
 
 const ROT = [0, 1, 2, 3].map((r) => new THREE.Matrix4().makeRotationY(-r * Math.PI / 2));
-const _m = new THREE.Matrix4(), _r = new THREE.Matrix4(), _t = new THREE.Matrix4(), _ax = new THREE.Vector3();
+const _m = new THREE.Matrix4(), _r = new THREE.Matrix4(), _t = new THREE.Matrix4(), _ax = new THREE.Vector3(), _e = new THREE.Euler();
 const _mover = { x: 0, z: 0, radius: 0.26 };
 
 export class PushDrag {
   st: PushState | null = null;
   proxies = new Map<number, Proxy>();
+  private carryUid = 0;
 
   constructor() {
     bus.on('objHeld', (z: Zone, o: TileObject, by: string) => this.held(z, o, by));
@@ -73,11 +89,19 @@ export class PushDrag {
     const hands = L ? (L.twoHand ? 1 : 0.55) : 1;
     return (400 + p.body.skill('strength') * 35 + (p.body.has?.('strong') ? 90 : 0)) * (power ? 2 : 1) * (p.body.endurance < 0.15 ? 0.55 : 1) * hands;
   }
-  /** light and small enough to pick up and carry (power: heave something heavier) */
+  /** the heaviest load a survivor can lift whole and carry (kg; power: heave something heavier) */
+  carryMax(p: Player, power = false): number {
+    const L = p.body.severed?.length ? p.body.limbs() : null;
+    const hands = L ? (L.twoHand ? 1 : 0.4) : 1;
+    return (78 + p.body.skill('strength') * 7 + (p.body.has?.('strong') ? 18 : 0)) * (power ? 1.25 : 1) * hands;
+  }
+  /** carry tier by mass: 0 light, 1 medium, 2 heavy (two-handed haul) */
+  carryTier(mass: number): 0 | 1 | 2 { return mass < 12 ? 0 : mass < 38 ? 1 : 2; }
+  /** can be lifted whole and carried (whole furniture: the job; power: heave something heavier) */
   liftable(p: Player, o: TileObject, power = false): boolean {
     const d = objDef(o.key); if (!d || !pushable(d, o)) return false;
-    if ((d.w ?? 1) > 1 || (d.d ?? 1) > 1 || d.height > 1.3) return false;
-    return objMass(d) <= (16 + p.body.skill('strength') * 2.5) * (power ? 1.6 : 1);
+    if (Math.max(d.w ?? 1, d.d ?? 1) > 2 || d.height > 2.3) return false;
+    return objMass(d) <= this.carryMax(p, power);
   }
   isDrawer(d: ObjDef) { return DRAWERS.test(d.key) || !!d.containers?.length; }
 
@@ -102,6 +126,8 @@ export class PushDrag {
     const nx = Math.max(cx - rw / 2, Math.min(p.x, cx + rw / 2)), nz = Math.max(cz - rd / 2, Math.min(p.z, cz + rd / 2));
     if (Math.hypot(nx - p.x, nz - p.z) > 0.95) { bus.emit('think', p, "I can't reach it from here."); return false; }
     const carry = mode === 'carry';
+    // a carried load is drawn whole (no see-through cutaway: it is in your arms)
+    this.carryUid = carry ? o.uid : 0;
     applyHold(z, o, p.id);
     op('objHold', { z: z.key, uid: o.uid, by: p.id });
     const [mu, muS] = this.friction(z, cx, cz, d);
@@ -111,9 +137,17 @@ export class PushDrag {
       tall: d.height >= 1.35 && d.height / Math.max(0.2, Math.min(rw, rd)) >= 1.6,
       effort: 0, stuck: 0, strainSaid: false, pullT: 0, breathT: 1, free: false, pendDmg: 0, by: p.id,
       thrown: null, topple: null, sendT: 0, smearD: 0, scuffD: 0, moving: 0, loopKey: 'push:' + o.uid, t: 0,
+      tier: this.carryTier(mass), swx: 0, swz: 0, swvx: 0, swvz: 0, gait: 0, lvx: 0, lvz: 0, bumpT: 0, placing: 0, rotChanged: false, liftGoal: 0,
     };
     G.audio?.at?.('dmg_grab', cx, cz, 0.7);
-    if (carry) { G.audio?.itemSound?.('crate', 'pick', p); if (mass > 12) G.audio?.at?.('breath', p.x, p.z, 0.4); }
+    if (carry) {
+      G.audio?.itemSound?.('crate', 'pick', p);
+      if (mass > 12) G.audio?.at?.('breath', p.x, p.z, 0.3 + Math.min(0.4, mass / 150));
+      // the heave: the load comes up with a jolt (heavier, slower and lower)
+      this.st.swvx = Math.cos(p.facing) * -0.4; this.st.swvz = Math.sin(p.facing) * -0.4;
+      if (mass > 38) { shake(Math.min(0.12, mass / 900)); bus.emit('think', p, mass > 70 ? 'Lift with the legs. Lift with the legs.' : 'Heavy. Two hands.'); }
+      G.missions?.set?.('carry:lifted');
+    }
     bus.emit('grabbed', p, o, this.st.mode);
     return true;
   }
@@ -125,9 +159,98 @@ export class PushDrag {
   end(why = '') {
     const st = this.st; if (!st) return;
     if (st.free || st.thrown || st.topple) return;
+    // carried: E / let go sets it down gently where it fits; out of breath it drops
+    if (st.mode === 'carry' && (why === 'release' || why === 'place')) { this.setDown(); return; }
+    if (st.mode === 'carry' && why === 'tired') { this.drop(); return; }
     const sp = Math.hypot(st.vx, st.vz);
     if (why !== 'zone' && why !== 'lost' && st.mode === 'push' && sp > 0.22) { st.free = true; this.detach(); return; }
     this.finish();
+  }
+
+  // ---------------------------------------------------------------- carrying (round 12)
+  /** set the carried load down where it is (a free spot close by when it will not fit there); false = no room */
+  setDown(): boolean {
+    const st = this.st; const p = G.local;
+    if (!st || st.mode !== 'carry' || st.thrown || st.placing) return false;
+    let at: [number, number] | null = this.canPlace(st.z, st, st.cx, st.cz) ? [st.cx, st.cz] : null;
+    if (!at) for (let r = 0.12; r <= 0.6 && !at; r += 0.12) for (let a = 0; a < 8; a++) {
+      const x = st.cx + Math.cos(a * Math.PI / 4) * r, zz = st.cz + Math.sin(a * Math.PI / 4) * r;
+      if (this.canPlace(st.z, st, x, zz)) { at = [x, zz]; break; }
+    }
+    if (!at) { if (p) bus.emit('think', p, 'No room to set it down here.'); G.audio?.at?.('dmg_stuck', st.cx, st.cz, 0.4); return false; }
+    st.placing = 1e-3; st.cx = at[0]; st.cz = at[1];
+    if (p) { p.actionAnim = 'pickup' as any; p.actionT = 0; p.actionDur = 0.5; setTimeout(() => { if (p.actionAnim === ('pickup' as any)) p.actionAnim = ''; }, 500); }
+    return true;
+  }
+  /** let go of the carried load: it falls from the arms (loud, a dent or two, fragile things may break) */
+  drop() {
+    const st = this.st; const p = G.local;
+    if (!st || st.mode !== 'carry' || st.thrown || st.placing) return;
+    const f = p ? p.facing : 0;
+    st.vx = Math.cos(f) * 0.35 + st.swvx * 0.5; st.vz = Math.sin(f) * 0.35 + st.swvz * 0.5;
+    st.thrown = { vy: 0.4, y: st.lift };
+    if (p) noise(p, st.cx, st.cz, 7, 'thrown');
+    this.detach();
+  }
+  /** R while carrying: turn the load a quarter (only when the turned footprint clears the walls) */
+  turn(p: Player): boolean {
+    const st = this.st;
+    if (!st || st.mode !== 'carry' || st.thrown || st.placing) return false;
+    const o = st.o, r0 = o.rot;
+    o.rot = ((o.rot + 1) % 4) as typeof o.rot;
+    [st.rw, st.rd] = [st.rd, st.rw];
+    const reach = this.reachOf(st, p.facing);
+    const cx = p.x + Math.cos(p.facing) * reach, cz = p.z + Math.sin(p.facing) * reach;
+    if (!this.canCarry(st.z, st, cx, cz)) {
+      o.rot = r0; [st.rw, st.rd] = [st.rd, st.rw];
+      G.audio?.at?.('dmg_hit_' + hitMat(st.d), st.cx, st.cz, 0.4);
+      st.swvx += Math.cos(p.facing + Math.PI / 2) * 0.6; st.swvz += Math.sin(p.facing + Math.PI / 2) * 0.6;
+      return false;
+    }
+    st.cx = cx; st.cz = cz; st.rotChanged = true;
+    st.swvx += Math.cos(p.facing + Math.PI / 2) * 0.45; st.swvz += Math.sin(p.facing + Math.PI / 2) * 0.45;
+    G.audio?.at?.('dmg_grab', st.cx, st.cz, 0.45);
+    return true;
+  }
+  /** the press next to the survivor (its plate within reach), or null */
+  nearPress(p: Player, r = 3.4): TileObject | null {
+    const z = G.zones.get(p.zoneKey); if (!z) return null;
+    if (this.pressZone !== z.key || G.time > this.pressT) {
+      this.pressZone = z.key; this.pressT = G.time + 3;
+      this.presses = [...z.objects.values()].filter((o) => o.key === 'hopper');
+    }
+    let best: TileObject | null = null, bd = r;
+    for (const o of this.presses) { const d = Math.hypot(o.x + 1 - p.x, o.y + 1 - p.z); if (d < bd && z.objects.has(o.uid)) { bd = d; best = o; } }
+    return best;
+  }
+  private presses: TileObject[] = []; private pressZone = ''; private pressT = 0;
+  /** carried load next to the press: lay it on the plate and throw the lever (true when it went on) */
+  feed(p: Player): boolean {
+    const st = this.st;
+    if (!st || st.mode !== 'carry' || st.thrown || st.placing) return false;
+    const h = this.nearPress(p);
+    if (!h) return false;
+    if (Math.max(st.rw, st.rd) > 2.05) { bus.emit('think', p, 'Too big for the plate.'); return false; }
+    st.cx = h.x + 1; st.cz = h.y + 1;
+    this.finish(true);
+    G.audio?.at?.('thud_distant', h.x + 1, h.y + 1, 0.5);
+    shake(Math.min(0.15, 0.04 + st.mass / 600));
+    const hop: any = (G as any).press?.pull ? (G as any).press : (G as any).debt?.hoppers;
+    setTimeout(() => { try { if (hop && !hop.busy?.(h)) hop.pull(p, h); } catch (e) { console.warn('feed', e); } }, 650);
+    G.missions?.set?.('carry:fed');
+    bus.emit('carryFed', p, st.o, h);
+    return true;
+  }
+  /** how far in front of the carrier the load's centre rides */
+  private reachOf(st: PushState, f: number) {
+    const half = Math.abs(Math.cos(f)) * st.rw / 2 + Math.abs(Math.sin(f)) * st.rd / 2;
+    return (st.tier === 2 ? 0.2 : 0.26) + half;
+  }
+  /** how the carried load is held right now (the hint / context buttons / the pose) */
+  carryInfo(): { mass: number; tier: number; key: string; name: string; canThrow: boolean; nearPress: boolean } | null {
+    const st = this.st; const p = G.local;
+    if (!st || st.mode !== 'carry' || st.thrown || st.free || !p) return null;
+    return { mass: st.mass, tier: st.tier, key: st.d.key, name: st.d.name, canThrow: st.mass <= 30, nearPress: !!this.nearPress(p) };
   }
 
   /** the survivor stops being part of it (the action ends, the object may still move) */
@@ -138,7 +261,7 @@ export class PushDrag {
   }
 
   /** write where it is (and what the bumps did to it) */
-  private finish() {
+  private finish(onPlate = false) {
     const st = this.st; if (!st) return;
     this.st = null;
     const { o, z, d } = st;
@@ -146,15 +269,16 @@ export class PushDrag {
     const p = G.local;
     if (p && p.actions.current === st.action) st.action.done = true;
     if (!z.objects.has(o.uid)) return;
-    // carried things are set down somewhere they fit
-    if (st.mode === 'carry' && !this.canPlace(z, st, st.cx, st.cz)) {
+    // carried things are set down somewhere they fit (fed to a press: on its plate, whatever is there)
+    if (st.mode === 'carry' && !onPlate && !this.canPlace(z, st, st.cx, st.cz)) {
       const spot = this.findSpot(z, st);
       st.cx = spot[0]; st.cz = spot[1];
     }
     const ax = Math.floor(st.cx - st.rw / 2 + 0.5), ay = Math.floor(st.cz - st.rd / 2 + 0.5);
     const ox = Math.round((st.cx - (ax + st.rw / 2)) * 100) / 100, oz = Math.round((st.cz - (ay + st.rd / 2)) * 100) / 100;
-    op('objRelease', { z: z.key, uid: o.uid, by: st.by, x: ax, y: ay, ox, oz });
-    G.audio?.at?.(st.mode === 'carry' ? 'thud_soft' : scrapeKey(d).replace('scrape', 'debris'), st.cx, st.cz, 0.5);
+    op('objRelease', { z: z.key, uid: o.uid, by: st.by, x: ax, y: ay, ox, oz, ...(st.rotChanged ? { rot: o.rot } : {}) });
+    G.audio?.at?.(st.mode === 'carry' ? 'thud_soft' : scrapeKey(d).replace('scrape', 'debris'), st.cx, st.cz, st.mode === 'carry' ? 0.35 + Math.min(0.5, st.mass / 120) : 0.5);
+    if (st.mode === 'carry' && p) bus.emit('carryPlaced', p, o);
     if (st.pendDmg > 0.5) G.destruct?.damageObject?.(p ?? null, o, Math.round(st.pendDmg * 10) / 10, st.topple ? 'topple' : st.thrown ? 'thrown' : 'crush', undefined, [st.vx || 0.01, st.vz]);
   }
 
@@ -188,7 +312,8 @@ export class PushDrag {
 
   /** LMB / Space while carrying: throw it where the survivor aims */
   throw(p: Player) {
-    const st = this.st; if (!st || st.mode !== 'carry' || st.thrown) return;
+    const st = this.st; if (!st || st.mode !== 'carry' || st.thrown || st.placing) return;
+    if (st.mass > 30) { bus.emit('think', p, 'Too heavy to throw. I can drop it.'); G.audio?.at?.('dmg_stuck', p.x, p.z, 0.5); return; }
     const power = G.input.down('power') || G.input.down('run');
     let ang = p.facing;
     const ax = p.aimX - p.x, az = p.aimZ - p.z;
@@ -227,7 +352,7 @@ export class PushDrag {
     const g = objectGeometry(d, o);
     const mesh = new THREE.Group();
     if (g) {
-      const m = new THREE.Mesh(g, d.height > 1.1 || d.tall ? MAT.prop : MAT.propLow);
+      const m = new THREE.Mesh(g, (d.height > 1.1 || d.tall) && this.carryUid !== o.uid ? MAT.prop : MAT.propLow);
       m.castShadow = !d.noShadow; m.receiveShadow = true;
       mesh.add(m);
     }
@@ -246,6 +371,11 @@ export class PushDrag {
     const h = z.heightAt(Math.floor(pr.x), Math.floor(pr.z));
     const m = pr.mesh.matrix;
     m.makeTranslation(pr.x, h + (o.state?.y ?? 0) + pr.lift, pr.z);
+    if (pr.rx || pr.rz) {
+      // swinging on the arms: tilt about the middle of the load
+      const hh = Math.min(0.6, d.height * 0.5);
+      m.multiply(_t.makeTranslation(0, hh, 0)).multiply(_r.makeRotationFromEuler(_e.set(pr.rx ?? 0, 0, pr.rz ?? 0))).multiply(_t.makeTranslation(0, -hh, 0));
+    }
     m.multiply(ROT[o.rot]);
     if (o.state?.yaw) m.multiply(_r.makeRotationY(o.state.yaw));
     if (pr.tl > 0.001) {
@@ -285,6 +415,7 @@ export class PushDrag {
     if (!pr || pr.local || pr.zone !== ev.z) return;
     pr.tx = ev.x; pr.tz = ev.zz; pr.moving = ev.m ? 0.4 : 0;
     pr.lift = ev.y ?? 0;
+    if (ev.r !== undefined && ev.r !== pr.o.rot) pr.o.rot = ev.r;
     if (ev.a !== undefined) { pr.tl = ev.a; pr.tdx = ev.dx ?? 1; pr.tdz = ev.dz ?? 0; }
   }
 
@@ -310,6 +441,7 @@ export class PushDrag {
 
   // ---------------------------------------------------------------- per frame
   update(dt: number) {
+    this.hookPose();
     try { this.updateLocal(dt); } catch (e) { console.error('pushDrag', e); this.st = null; }
     const z = G.view?.zone;
     for (const pr of [...this.proxies.values()]) {
@@ -320,8 +452,13 @@ export class PushDrag {
         continue;
       }
       if (pr.local && this.st?.o === pr.o) {
-        pr.x = this.st.cx; pr.z = this.st.cz;
-        pr.lift = this.st.thrown ? this.st.thrown.y : this.st.lift;
+        const st = this.st;
+        const carried = st.mode === 'carry' && !st.thrown && !st.free;
+        pr.x = st.cx + (carried ? st.swx : 0); pr.z = st.cz + (carried ? st.swz : 0);
+        pr.lift = st.thrown ? st.thrown.y : st.lift + (carried && !st.placing ? -Math.abs(Math.sin(st.gait)) * (0.008 + 0.008 * st.tier) : 0);
+        // tilt with the swing (world axes) and a roll with each step
+        pr.rx = carried ? clamp(st.swvz * 0.35 + st.swz * 0.9, -0.16, 0.16) : 0;
+        pr.rz = carried ? clamp(-st.swvx * 0.35 - st.swx * 0.9 + Math.sin(st.gait) * 0.012 * (1 + st.tier), -0.16, 0.16) : 0;
         if (this.st.topple) { pr.tl = this.st.topple.ang; pr.tdx = this.st.topple.dx; pr.tdz = this.st.topple.dz; }
       } else if (!pr.local) {
         const k = 1 - Math.exp(-10 * dt);
@@ -441,29 +578,130 @@ export class PushDrag {
   private updateCarry(st: PushState, p: Player, dt: number) {
     const z = st.z, inp = G.input;
     const power = inp.down('power') || inp.down('run');
-    const k = clamp(1.12 - st.mass / 32, 0.45, 1) * (power ? 1.08 : 1);
+    const m = st.mass;
+    // setting it down: stand still, the arms lower it to the floor, then it is written where it is
+    if (st.placing > 0) {
+      p.x = st.px; p.z = st.pz; p.vx = 0; p.vz = 0; p.speed = 0;
+      st.placing += dt;
+      st.lift = Math.max(0, st.lift - dt * (1.4 - Math.min(0.9, m / 110)) * Math.max(0.25, st.lift + 0.2));
+      st.swx *= 0.85; st.swz *= 0.85;
+      if (st.lift <= 0.004 || st.placing > 2.5) { st.lift = 0; this.finish(); }
+      return;
+    }
+    // the load decides how far the walk gets (two hands short: slower still)
+    const L = p.body.severed?.length ? p.body.limbs() : null;
+    const k = clamp(1.05 - m / 105, 0.28, 1) * (power ? 1.1 : 1) * (L && !L.twoHand && st.tier > 0 ? 0.6 : 1);
     let dx = (p.x - st.px) * k, dz = (p.z - st.pz) * k;
     p.x = st.px; p.z = st.pz;
-    const reach = 0.3 + Math.max(st.rw, st.rd) / 2;
+    // a heavy load turns slowly
+    const maxTurn = (st.tier === 2 ? 2.4 : st.tier === 1 ? 4.2 : 9) * dt;
+    const df = Math.atan2(Math.sin(p.facing - this.lastFace), Math.cos(p.facing - this.lastFace));
+    if (Math.abs(df) > maxTurn && this.faceSet) p.facing = this.lastFace + Math.sign(df) * maxTurn;
+    const turnRate = this.faceSet ? Math.atan2(Math.sin(p.facing - this.lastFace), Math.cos(p.facing - this.lastFace)) / Math.max(1e-3, dt) : 0;
+    this.lastFace = p.facing; this.faceSet = true;
+    const reach = this.reachOf(st, p.facing);
     const fx = Math.cos(p.facing), fz = Math.sin(p.facing);
     _mover.x = p.x; _mover.z = p.z; _mover.radius = p.radius;
     moveCircle(z, _mover, dx, dz, { ignoreLow: false });
     dx = _mover.x - p.x; dz = _mover.z - p.z;
     const tx = p.x + dx + fx * reach, tz = p.z + dz + fz * reach;
+    st.bumpT -= dt;
     if (this.canCarry(z, st, tx, tz)) { p.x += dx; p.z += dz; st.cx = tx; st.cz = tz; }
-    else if (this.canCarry(z, st, p.x + fx * reach, p.z + fz * reach)) { st.cx = p.x + fx * reach; st.cz = p.z + fz * reach; }
+    else {
+      // it bumps whatever is in the way: a knock by material, the load bounces back on the arms
+      const tried = Math.hypot(dx, dz);
+      if (tried > 0.003 && st.bumpT <= 0) {
+        st.bumpT = 0.45;
+        G.audio?.at?.('dmg_hit_' + hitMat(st.d), tx, tz, Math.min(0.85, 0.3 + m / 160));
+        shake(Math.min(0.1, 0.015 + m / 1600));
+        const ux = dx / tried, uz = dz / tried;
+        st.swvx -= ux * (0.9 - Math.min(0.5, m / 200)); st.swvz -= uz * (0.9 - Math.min(0.5, m / 200));
+        noise(p, tx, tz, 5 + m / 20, 'smash');
+        // the wall or the furniture in the way takes a scuff, nothing more
+        const hx = Math.floor(tx + ux * 0.2), hz = Math.floor(tz + uz * 0.2);
+        if (m > 25 && z.inb(hx, hz)) for (const o of z.objectsAt(hx, hz)) { if (o !== st.o) { G.destruct?.damageObject?.(p, o, Math.round(m * 0.02 * 10) / 10, 'crush', undefined, [ux || 0.01, uz]); break; } }
+      }
+      // turning in place: the load swings round only where it clears
+      if (this.canCarry(z, st, p.x + fx * reach, p.z + fz * reach)) { st.cx = p.x + fx * reach; st.cz = p.z + fz * reach; }
+    }
     const moved = Math.hypot(p.x - st.px, p.z - st.pz);
+    const vx = (p.x - st.px) / Math.max(1e-3, dt), vz = (p.z - st.pz) / Math.max(1e-3, dt);
     st.px = p.x; st.pz = p.z;
     p.speed = moved / Math.max(1e-4, dt);
-    if (st.mass > 8) p.running = false;
-    const want = clamp(0.95 - st.h * 0.45, 0.25, 0.75);
-    st.lift += (want - st.lift) * Math.min(1, dt * 7);
-    st.effort = clamp(st.mass / (16 + p.body.skill('strength') * 2.5), 0, 1);
-    p.exertionTimer = Math.max(p.exertionTimer, 0.5);
-    p.body.endurance = Math.max(0, p.body.endurance - dt * 0.0015 * st.mass / 8 * (power ? 1.5 : 1));
-    if (p.body.endurance < 0.03) { bus.emit('think', p, 'My arms are shaking. I have to put it down.'); this.end('tired'); return; }
-    const ax = Math.floor(st.cx - st.rw / 2 + 0.5), ay = Math.floor(st.cz - st.rd / 2 + 0.5);
-    st.o.x = ax; st.o.y = ay; st.o.ox = st.cx - (ax + st.rw / 2); st.o.oz = st.cz - (ay + st.rd / 2);
+    if (m > 12) p.running = false;
+    // the load swings on the arms: a spring that lags behind every start, stop and turn
+    const ax = clamp((vx - st.lvx) / Math.max(0.016, dt), -12, 12), az = clamp((vz - st.lvz) / Math.max(0.016, dt), -12, 12);
+    st.lvx = vx; st.lvz = vz;
+    const K = 70 / (1 + m / 25), C = 2 * Math.sqrt(K) * 0.32, M = 0.012 + Math.min(0.02, m / 4000);
+    const side = -turnRate * reach * 0.06;
+    st.swvx += (-K * st.swx - C * st.swvx - ax * M + -fz * side * K * 0.2) * dt;
+    st.swvz += (-K * st.swz - C * st.swvz - az * M + fx * side * K * 0.2) * dt;
+    st.swx = clamp(st.swx + st.swvx * dt, -0.14, 0.14); st.swz = clamp(st.swz + st.swvz * dt, -0.14, 0.14);
+    if (moved > 0.0005) st.gait += p.speed * dt * 5.2;
+    // lift: chest-high in both hands (light), hugged at the waist (medium), hauled low (heavy)
+    const h = st.h;
+    st.liftGoal = st.tier === 0 ? clamp(1.02 - h * 0.55, 0.42, 0.95) : st.tier === 1 ? clamp(0.6 - h * 0.28, 0.18, 0.52) : clamp(0.16 - h * 0.03, 0.06, 0.15);
+    const rise = dt / (0.22 + m / 90);
+    st.lift += clamp(st.liftGoal - st.lift, -rise * 1.5, rise);
+    st.effort = clamp(m / this.carryMax(p), 0, 1);
+    p.exertionTimer = Math.max(p.exertionTimer, 0.5 + st.tier * 0.25);
+    p.body.endurance = Math.max(0, p.body.endurance - dt * 0.0016 * m / 8 * (moved > 0.0005 ? 1 : 0.35) * (power ? 1.6 : 1) * (st.tier === 2 ? 1.3 : 1));
+    if (st.tier === 2 && moved > 0.0005) { st.breathT -= dt; if (st.breathT <= 0) { st.breathT = 1.4 + Math.random(); G.audio?.at?.('breath', p.x, p.z, 0.25 + st.effort * 0.3); } }
+    if (p.body.endurance < 0.03) { bus.emit('think', p, 'My arms give out.'); this.end('tired'); return; }
+    if (st.tier === 2 && p.body.endurance < 0.12 && !st.strainSaid) { st.strainSaid = true; bus.emit('think', p, 'Arms shaking. Put it down soon.'); }
+    const axx = Math.floor(st.cx - st.rw / 2 + 0.5), ay = Math.floor(st.cz - st.rd / 2 + 0.5);
+    st.o.x = axx; st.o.y = ay; st.o.ox = st.cx - (axx + st.rw / 2); st.o.oz = st.cz - (ay + st.rd / 2);
+  }
+  private lastFace = 0; private faceSet = false;
+
+  // ---------------------------------------------------------------- the carry pose (local survivor)
+  /** blend 0..1 of the carry pose over whatever the animator did this frame */
+  private poseW = 0;
+  private poseHooked = false;
+  private hookPose() {
+    if (this.poseHooked || !G.pr) return;
+    this.poseHooked = true;
+    G.pr.beforeRender.push((dt: number) => { try { this.carryPose(dt); } catch (e) { console.warn('carry pose', e); } });
+  }
+  /** both hands on the load, elbows bent by how high it rides; a heavy haul leans back with bent knees */
+  private carryPose(dt: number) {
+    const p = G.local;
+    const st = this.st;
+    const on = !!st && st.mode === 'carry' && !st.thrown && !st.free && !!p && !p.body.dead;
+    this.poseW += ((on ? 1 : 0) - this.poseW) * Math.min(1, dt * 9);
+    if (this.poseW < 0.01 || !p) return;
+    const j = (p.rig as any)?.j as Record<string, THREE.Object3D> | undefined;
+    if (!j?.uarmR) return;
+    const w = this.poseW;
+    const tier = st?.tier ?? 1, h = st?.h ?? 0.8, lift = st?.lift ?? 0.5;
+    // hands at the load's middle (or its top edge for tall things), metres off the floor
+    const hy = clamp(lift + Math.min(0.42, h * 0.5), 0.45, 1.25);
+    const k = clamp((hy - 0.5) / 0.7, 0, 1);
+    const f = p.facing;
+    const across = st ? Math.abs(Math.sin(f)) * st.rw + Math.abs(Math.cos(f)) * st.rd : 0.6;
+    const spread = clamp((across - 0.42) * 0.42, 0, 0.42);
+    const ua = -0.12 - k * 0.6, fa = -0.35 - k * 1.05;
+    const bob = st ? Math.sin(st.gait * 2) : 0;
+    const set = (n: string, x: number, y: number, z: number, add = false) => {
+      const r = j[n]?.rotation; if (!r) return;
+      if (add) { r.x += x * w; r.y += y * w; r.z += z * w; return; }
+      r.x += (x - r.x) * w; r.y += (y - r.y) * w; r.z += (z - r.z) * w;
+    };
+    set('uarmR', ua, 0.22 - spread * 0.3, -0.1 - spread);
+    set('uarmL', ua, -0.22 + spread * 0.3, 0.1 + spread);
+    set('farmR', fa, 0, 0); set('farmL', fa, 0, 0);
+    set('handR', -0.2, 0, 0.35); set('handL', -0.2, 0, -0.35);
+    // the back: light loads straight, heavy ones lean back against the weight and the knees give
+    const lean = tier === 2 ? -0.16 : tier === 1 ? -0.07 : 0;
+    set('spine', lean + bob * 0.015 * tier, 0, bob * 0.03 * tier, true);
+    set('chest', tier === 2 ? -0.06 : 0, 0, 0, true);
+    if (tier === 2) {
+      set('thighL', -0.22, 0, 0, true); set('shinL', 0.38, 0, 0, true);
+      set('thighR', -0.22, 0, 0, true); set('shinR', 0.38, 0, 0, true);
+      const hips = j.hips as THREE.Object3D;
+      if (hips) hips.position.y -= 0.05 * w;
+    }
+    set('head', tier === 2 ? 0.12 : 0.05, 0, 0, true);
   }
 
   /** free slide after letting go / a shove: friction only */
@@ -504,7 +742,7 @@ export class PushDrag {
     if (th.y <= 0) {
       const v = Math.hypot(sp, th.vy);
       const frag = ['glass', 'ceramic', 'elec'].includes(objMat(st.d));
-      st.pendDmg += 0.5 * st.mass * v * v / 30 * (frag ? 4 : 1);
+      st.pendDmg += 0.5 * st.mass * v * v / 120 * (frag ? 4 : 1);
       G.audio?.at?.('dmg_hit_' + hitMat(st.d), st.cx, st.cz, Math.min(1, 0.4 + v * 0.1));
       shake(Math.min(0.3, v * 0.03 * Math.min(3, st.mass / 10)));
       noise(G.local, st.cx, st.cz, 8 + v * 2, 'thrown');
@@ -538,7 +776,7 @@ export class PushDrag {
       const cc: any = c;
       if (!cc.dead && cc.zoneKey === st.z.key && Math.hypot(cc.x - fx, cc.z - fz) < st.h * 0.55) G.creatures.damage(st.by, cc.id, Math.round(st.mass * 0.4), st.cx, st.cz, 0.8, 'crush');
     }
-    st.pendDmg += Math.max(objMaxHp(st.d) * 1.5, 40);
+    st.pendDmg += objMaxHp(st.d) * 0.3 * (['glass', 'ceramic', 'elec'].includes(objMat(st.d)) ? 3 : 1);
     st.vx = t.dx; st.vz = t.dz;
     this.finish();
   }
@@ -573,14 +811,14 @@ export class PushDrag {
     shake(Math.min(0.28, 0.04 + E / 900)); if (E > 120) hitstop(40);
     noise(G.local, hx, hz, 8 + speed * 6, 'smash');
     const frag = ['glass', 'ceramic', 'elec'].includes(objMat(st.d));
-    st.pendDmg += E / 40 * (frag ? 3 : 1);
+    st.pendDmg += E / 160 * (frag ? 3 : 1);
     // the other piece of furniture takes it too
     const tx = Math.floor(hx), tz = Math.floor(hz);
     if (z.inb(tx, tz)) for (const o of z.objectsAt(tx, tz)) {
       if (o === st.o) continue;
       const od = objDef(o.key); if (!od) continue;
       const tall = od.height >= 1.35 && od.height / Math.max(0.2, Math.min(od.w ?? 1, od.d ?? 1)) >= 1.6;
-      G.destruct?.damageObject?.(G.local ?? null, o, Math.round((E / 30) * (tall && speed > 1.2 ? 4 : 1) * 10) / 10, 'crush', undefined, [st.vx || 0.01, st.vz]);
+      G.destruct?.damageObject?.(G.local ?? null, o, Math.round((E / 120) * (tall && speed > 1.2 ? 3 : 1) * 10) / 10, 'crush', undefined, [st.vx || 0.01, st.vz]);
       break;
     }
     if (st.tall && speed >= 1.15 && st.mode === 'push') { this.startTopple(st, st.vx || hx - st.cx, st.vz || hz - st.cz); this.detach(); }
@@ -618,6 +856,7 @@ export class PushDrag {
     const y = st.thrown ? st.thrown.y : st.lift;
     if (y > 0.01) ev.y = r2(y);
     if (st.topple) { ev.a = r2(st.topple.ang); ev.dx = r2(st.topple.dx); ev.dz = r2(st.topple.dz); }
+    if (st.rotChanged) ev.r = st.o.rot;
     G.net?.broadcastFx?.('gore', ev);
   }
 

@@ -157,7 +157,7 @@ q({
 
 q({
   key: 'rd_permit_torch', title: 'Tool Permit', giver: RD, category: 'permit', requires: ['installment_1'],
-  desc: 'Debtors may not carry a light source without a permit. Buy one and R&D flashes the WRIST TORCH firmware onto your watch.',
+  desc: 'Units may not carry a light source without a permit. Buy one and R&D flashes the WRIST TORCH firmware onto your watch.',
   when: () => !hasUnlock('tool_torch'),
   objectives: [{ id: 'auth', text: 'Authorise the transfer', check: () => true }],
   cost: { scrip: 900 },

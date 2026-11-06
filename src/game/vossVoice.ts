@@ -1,18 +1,25 @@
-// Staff Sergeant Voss's voice: recorded vocal grains (src/social/chipVoice.ts,
-// the 'voss' grain set from the CC0 voice samples) strung along the text
-// syllable by syllable and transposed along its melody, sent down the radio
-// with a recorded squelch at either end. It does not say real words. It
-// sounds like somebody who means them.
+// The handler's voice (Dr. Iris Calder; once Staff Sergeant Voss): recorded
+// vocal grains (src/social/chipVoice.ts, the CC0 voice samples: 'vg_fstd' for
+// her, 'vg_mstd' for him) strung along the text syllable by syllable and
+// transposed along its melody, sent down the link with a recorded squelch at
+// either end. It does not say real words. It sounds like somebody who means them.
 import { G } from './G';
-import { renderLine, voiceForStyle, letterTimes } from '../social/chipVoice';
+import { renderLine, voiceForStyle, letterTimes, type ChipVoice } from '../social/chipVoice';
+
+/** the voices this radio can speak with (recorded grain sets only) */
+const STYLES: Record<string, () => ChipVoice> = {
+  voss: () => ({ ...voiceForStyle('voss', 'SSGT. VOSS') }),
+  // Dr. Calder: a level, precise woman's voice, little wobble, a narrow melody
+  calder: () => ({ base: 205, wave: 'pulse', duty: 0.3, wobble: 0.06, range: 3.4, bits: 4, vol: 0.85, grain: 'vg_fstd' } as ChipVoice),
+};
 
 const SR = 22050;
 
 export class RadioVoice {
   private src: AudioBufferSourceNode | null = null;
   private stopAt = 0;
-  /** base pitch (Hz, ~96 a man's speaking voice) and speaking rate */
-  constructor(public base = 96, public rate = 1) {}
+  /** base pitch (Hz, ~96 a man's speaking voice, ~205 Dr. Calder's), speaking rate, the voice ('voss' | 'calder') */
+  constructor(public base = 96, public rate = 1, public style: 'voss' | 'calder' = 'voss') {}
 
   get ctx(): AudioContext | null { const a = G.audio; return a?.ctx && a.ready ? a.ctx as AudioContext : null; }
 
@@ -24,8 +31,9 @@ export class RadioVoice {
     if (!ctx || !out || !text.trim()) return dur;
     this.stop();
     try {
-      const v = { ...voiceForStyle('voss', 'SSGT. VOSS') };
-      v.base *= (o.pitch ?? 1) * (this.base / 96);
+      const v = (STYLES[this.style] ?? STYLES.voss)();
+      const ref = this.style === 'calder' ? 205 : 96;
+      v.base *= (o.pitch ?? 1) * (this.base / ref);
       const pcm = renderLine(text, v, { glitch: false });
       const buf = ctx.createBuffer(1, pcm.length, SR);
       buf.copyToChannel(pcm as Float32Array<ArrayBuffer>, 0);

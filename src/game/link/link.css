@@ -1,0 +1,34 @@
+/* The operator-unit link (src/game/link): the feed degrading over the picture, the status line,
+   and the two repair mini-games as broadcast overlays (Alagard, ink-outlined, no panels). */
+.lk-root { position: fixed; inset: 0; pointer-events: none; z-index: 160; font-family: var(--font-new); }
+.lk-noise { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; mix-blend-mode: screen; }
+.lk-black { position: absolute; inset: 0; background: #020304; opacity: 0; }
+.lk-status { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .25s; }
+.lk-status.on { opacity: 1; }
+.lk-status b { display: block; font-weight: 400; font-size: 16px; line-height: 16px; letter-spacing: 2px; color: #9fe3ff; text-shadow: var(--text-ink); }
+.lk-status b.bad { color: #ffb45a; }
+.lk-status b.dead { color: #ff6a4a; }
+.lk-status i { display: block; font-style: normal; font-size: 16px; line-height: 16px; margin-top: 4px; color: #e8eef4; text-shadow: var(--text-ink); }
+.lk-status.flick { animation: lk-flick .12s steps(2) infinite; }
+.lk-status.tap { pointer-events: auto; cursor: pointer; }
+@keyframes lk-flick { 50% { opacity: .55; transform: translateX(calc(-50% + 2px)); } }
+
+/* ---- the repair broadcast: the console's picture over the unit's */
+.lk-rep { position: absolute; inset: 0; pointer-events: auto; opacity: 0; transition: opacity .2s; touch-action: none; cursor: crosshair; }
+.lk-rep.on { opacity: 1; }
+.lk-rep canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.lk-rep .lk-hd { position: absolute; left: 50%; top: 14vh; transform: translateX(-50%); text-align: center; white-space: nowrap; }
+.lk-rep .lk-hd small { display: block; font-size: 16px; line-height: 16px; letter-spacing: 3px; color: #7fb8d0; text-shadow: var(--text-ink); }
+.lk-rep .lk-hd b { display: block; font-weight: 400; font-size: 48px; line-height: 48px; margin-top: 8px; color: #dff6ff; text-shadow: var(--text-ink); letter-spacing: 2px; }
+.lk-rep.lost .lk-hd b { color: #ffd2a0; }
+.lk-rep .lk-ft { position: absolute; left: 50%; bottom: 12vh; transform: translateX(-50%); text-align: center; white-space: nowrap; }
+.lk-rep .lk-ft b { display: block; font-weight: 400; font-size: 32px; line-height: 32px; color: #ffe7a8; text-shadow: var(--text-ink); }
+.lk-rep .lk-ft i { display: block; font-style: normal; font-size: 16px; line-height: 16px; margin-top: 8px; color: #e8eef4; text-shadow: var(--text-ink); }
+.lk-rep .lk-ft b.ok { color: #9cff8a; }
+.lk-rep .lk-ft b.err { color: #ff6a4a; }
+.lk-rep.shake { animation: lk-shake .3s steps(3) 1; }
+@keyframes lk-shake { 33% { transform: translate(6px, -2px); } 66% { transform: translate(-5px, 3px); } }
+@media (max-width: 700px), (max-height: 460px) {
+  .lk-rep .lk-hd { top: 8vh; } .lk-rep .lk-hd b { font-size: 32px; line-height: 32px; }
+  .lk-rep .lk-ft { bottom: 6vh; } .lk-rep .lk-ft b { font-size: 16px; line-height: 16px; }
+}

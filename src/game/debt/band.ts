@@ -148,7 +148,7 @@ export class BandSystem implements GameSystem {
     bus.emit('inventoryChanged', p);
     if (!o.silent) {
       G.audio?.at?.('band_pierce', p.x, p.z, 1);
-      setTimeout(() => { G.audio?.at?.('band_chirp', p.x, p.z, 0.8); bailiff('BAILIFF UNIT BLF-7 BONDED. DEBTOR ' + debtorNo(p) + '. TELEMETRY NOMINAL.'); }, 900);
+      setTimeout(() => { G.audio?.at?.('band_chirp', p.x, p.z, 0.8); bailiff('BAILIFF BAND BLF-7 BONDED. UNIT ' + debtorNo(p) + '. TELEMETRY NOMINAL.'); }, 900);
     }
   }
   /** a replacement band (after a blast or a lost arm), fitted at a hopper */
@@ -449,7 +449,7 @@ function debtorNo(p: Player): string {
 
 function bandText(p: Player) {
   const d = G.debt;
-  const lines = [`DEBTOR ${debtorNo(p)} :: ${p.name.toUpperCase()}`, 'REMITTANCE PROGRAMME — MERIDIAN INSTITUTE', ''];
+  const lines = [`UNIT ${debtorNo(p)} :: ${p.name.toUpperCase()}`, 'REMITTANCE PROGRAMME — MERIDIAN INSTITUTE', ''];
   if (d?.on) {
     lines.push(`BALANCE OWED   ${Math.round(d.remaining).toLocaleString('en-GB')} SCRIP`);
     lines.push(`PAID TO DATE   ${Math.round(d.paid).toLocaleString('en-GB')} SCRIP`);

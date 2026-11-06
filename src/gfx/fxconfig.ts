@@ -31,13 +31,17 @@ export interface FxQuality {
   /** shadow map sizes: the sun (outdoors) and the survivor's own torch */
   sunShadow: number;
   spotShadow: number;
+  /** soft screen-space shadows cast away from each spot's key fixture: march steps (0 = off), half resolution */
+  ss: number;
+  /** fixtures glowing in the haze: how many of the nearest lights (0 = off; needs the volumetric pass) */
+  glow: number;
 }
 
 export const QUALITY: Record<QualityLevel, FxQuality> = {
   // phones: no screen-space passes at all, smaller shadow maps
-  low: { ao: 0, aoHalf: true, blobs: 6, bloom: 0, vol: 0, volShadows: false, motes: false, ssr: 0, mist: true, dirt: false, split: false, sunShadow: 1024, spotShadow: 512 },
-  medium: { ao: 6, aoHalf: true, blobs: 10, bloom: 2, vol: 6, volShadows: false, motes: true, ssr: 8, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024 },
-  high: { ao: 12, aoHalf: true, blobs: 16, bloom: 3, vol: 11, volShadows: true, motes: true, ssr: 14, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024 },
+  low: { ao: 0, aoHalf: true, blobs: 6, bloom: 0, vol: 0, volShadows: false, motes: false, ssr: 0, mist: true, dirt: false, split: false, sunShadow: 1024, spotShadow: 512, ss: 4, glow: 0 },
+  medium: { ao: 6, aoHalf: true, blobs: 10, bloom: 2, vol: 6, volShadows: false, motes: true, ssr: 8, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024, ss: 7, glow: 6 },
+  high: { ao: 12, aoHalf: true, blobs: 16, bloom: 3, vol: 11, volShadows: true, motes: true, ssr: 14, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024, ss: 10, glow: 12 },
 };
 
 /** best first guess for this device: phones start low, tablets medium, desktops high */
@@ -94,6 +98,18 @@ export interface ZoneFx {
   rimTint: [number, number, number];
   /** exposure into the filmic tonemap (outdoor daylight needs less) */
   exposure: number;
+  /** survivors and creatures: how dark the shadows they cast from each nearby fixture are */
+  actorShadow: number;
+  /** the key fixture: soft shadow strength, how much it shapes the light (wall scallops, falloff, a key side), its glow in the haze */
+  keyShadow: number;
+  pool: number;
+  glow: number;
+  /** grade: S-curve contrast, split tone (shadows x splitLo .. light x splitHi) */
+  contrast: number;
+  splitLo: [number, number, number];
+  splitHi: [number, number, number];
+  /** saturation on top of the zone grade (the split tone takes a little out of the yellows) */
+  vib: number;
 }
 
 export const DEFAULT_ZONEFX: ZoneFx = {
@@ -101,11 +117,14 @@ export const DEFAULT_ZONEFX: ZoneFx = {
   mist: [0.5, 0.5, 0.5], mistDens: 0.0, mistFall: 1.4, mistLit: 0.6, mistMax: 0.3,
   bloom: 0.55, bloomTh: 0.85, ao: 0.95, reflect: 0.45, sheen: 0.5, caustics: 0, sick: 0, motes: 0.6, dirt: 0.5,
   blob: 0.45, rim: 0.7, rimTint: [0.05, 0.05, 0.06], exposure: 1.75,
+  actorShadow: 0.85, keyShadow: 0.7, pool: 0.7, glow: 1.6, contrast: 0.1, splitLo: [0.97, 0.99, 1.03], splitHi: [1.015, 1.0, 0.975], vib: 1,
 };
 
 export const ZONEFX: Record<string, Partial<ZoneFx>> = {
   // the yellow rooms: buzzing tubes, damp air, a sickly olive cast in the shade
-  lobby: { haze: [1.0, 0.94, 0.62], hazeDens: 0.017, hazeFall: 0.05, gridMul: 1.0, mist: [0.42, 0.38, 0.2], mistDens: 0.02, mistFall: 1.4, mistLit: 0.8, mistMax: 0.14, bloom: 0.7, bloomTh: 0.75, ao: 1.0, sick: 1, motes: 0.8, blob: 0.62, rim: 1.15, rimTint: [0.06, 0.075, 0.1] },
+  // graded like the intake drag (src/game/introKit/stage.ts LOOKS.wing): cold fluorescent shade, amber in the light
+  lobby: { haze: [1.0, 0.94, 0.62], hazeDens: 0.017, hazeFall: 0.05, gridMul: 1.0, mist: [0.42, 0.38, 0.2], mistDens: 0.02, mistFall: 1.4, mistLit: 0.8, mistMax: 0.14, bloom: 0.7, bloomTh: 0.75, ao: 1.0, sick: 1, motes: 0.8, blob: 0.62, rim: 1.15, rimTint: [0.06, 0.075, 0.1],
+    actorShadow: 0.95, keyShadow: 0.85, pool: 0.85, glow: 2.6, contrast: 0.2, splitLo: [0.92, 0.985, 1.06], splitHi: [1.08, 1.0, 0.86], vib: 1.08 },
   // humid tiled halls: blue haze, caustic webs, strong reflections
   pool: { rim: 0.6, haze: [0.78, 0.95, 1.05], hazeDens: 0.012, hazeFall: 0.12, volTop: 3.5, gridMul: 0.8, mist: [0.62, 0.78, 0.84], mistDens: 0.03, mistFall: 0.9, mistLit: 0.6, mistMax: 0.2, bloom: 0.7, bloomTh: 0.9, reflect: 1.0, sheen: 0.8, caustics: 0.85, motes: 0.5, ao: 1.0 },
   // sodium haze hanging under the slabs
@@ -130,5 +149,8 @@ export const ZONEFX: Record<string, Partial<ZoneFx>> = {
 };
 
 export function zoneFx(grade: string): ZoneFx {
-  return { ...DEFAULT_ZONEFX, ...(ZONEFX[grade] || {}) } as ZoneFx;
+  const z = { ...DEFAULT_ZONEFX, ...(ZONEFX[grade] || {}) } as ZoneFx;
+  // the renderer eases the live copy toward the next zone in place: never share the tables' arrays
+  z.haze = [...z.haze]; z.mist = [...z.mist]; z.rimTint = [...z.rimTint]; z.splitLo = [...z.splitLo]; z.splitHi = [...z.splitHi];
+  return z;
 }

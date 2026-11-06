@@ -1,5 +1,7 @@
-// The Lobby's surgical theatre table: where you build and replace limbs in a
-// run (lie down on it: src/survival/cyber.ts worldMenu → src/ui/surgery/field.ts).
+// The surgical theatre table. It used to stand in the Lobby as the run's
+// surgery bay; limbs and chips are now fitted between runs in the menu's unit
+// room (src/ui/menus/intake.ts), so the table is no longer placed and lying
+// on it does nothing. The definition stays so older saves still load it.
 // A heavy table on a bellows column with a green vinyl pad and straps, its own
 // three-pod lamp and a little green CRT on a boom, a folded saw arm clamped to
 // the rail and a crafting jig behind. One is set down in the Lobby near the
@@ -67,7 +69,7 @@ defObj({
   light: { color: 0xfff2dc, intensity: 1.25, radius: 3.4, y: 1.8, kind: 'lamp' },
   sound: 'metal', flammable: 0.05,
   tags: ['setA', 'medical', 'table', 'surgery'],
-  desc: 'A theatre table with its own lamp and machines. Lie down on it to build hardware from scrap and to take limbs off and bolt parts on.',
+  desc: 'A theatre table with its own lamp and machines. Out of service: hardware is fitted at the Institute now.',
   model: (mb) => tableModel(mb),
 });
 
@@ -86,4 +88,5 @@ export function placeCyberTable(z: Zone, seed: number) {
   anchors.cyber_table = [o.x, o.y + 2];
 }
 
-onZoneGenerated(placeCyberTable);
+// (no longer placed: the unit room does the surgery) — onZoneGenerated(placeCyberTable)
+void onZoneGenerated;

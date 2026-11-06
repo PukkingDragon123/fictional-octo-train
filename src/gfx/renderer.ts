@@ -101,7 +101,8 @@ void main() {
 }
 `;
 
-const NUM_KEYS: (keyof ZoneFx)[] = ['exposure', 'blob', 'rim', 'hazeDens', 'hazeFall', 'volTop', 'gridMul', 'spotMul', 'sunShafts', 'mistDens', 'mistFall', 'mistLit', 'mistMax', 'bloom', 'bloomTh', 'ao', 'reflect', 'sheen', 'caustics', 'sick', 'motes', 'dirt'];
+const NUM_KEYS: (keyof ZoneFx)[] = ['exposure', 'blob', 'rim', 'hazeDens', 'hazeFall', 'volTop', 'gridMul', 'spotMul', 'sunShafts', 'mistDens', 'mistFall', 'mistLit', 'mistMax', 'bloom', 'bloomTh', 'ao', 'reflect', 'sheen', 'caustics', 'sick', 'motes', 'dirt', 'keyShadow', 'actorShadow', 'pool', 'glow', 'contrast', 'vib'];
+const VEC_KEYS: (keyof ZoneFx)[] = ['haze', 'mist', 'rimTint', 'splitLo', 'splitHi'];
 const TAN36 = Math.tan(THREE.MathUtils.degToRad(36));
 /** bright and punchy: a touch more saturation than the zone grades ask, the vignette at under half strength,
  * and a grade gain under 1 (a gloomy multiplier) only half applied */
@@ -237,6 +238,7 @@ export class PixelRenderer {
         uMotes: { value: 0 }, uSick: { value: 0 }, uFlicker: { value: 1 }, uFilm: { value: 1 }, uVoid: { value: new THREE.Color(0) },
         uBlobs: { value: this.postfx.blobs }, uBlobH: { value: this.postfx.blobH }, uBlobN: { value: 0 }, uRim: { value: 0 }, uRimTint: { value: new THREE.Vector3() },
         uSunDir2: { value: new THREE.Vector2(1, 0) }, uSunGlow: { value: 0 }, uSunDir3: { value: new THREE.Vector3(0, 1, 0) }, uExposure: { value: 1.75 },
+        uKeyShadow: { value: 1 }, uContrast: { value: 0.1 }, uSplitLo: { value: new THREE.Vector3(1, 1, 1) }, uSplitHi: { value: new THREE.Vector3(1, 1, 1) },
       },
     });
     this.blitMat = new THREE.ShaderMaterial({
@@ -413,11 +415,12 @@ export class PixelRenderer {
     // atmosphere follows the zone the same way
     const z = this.zoneFx as any, zt = this.zoneFxTarget as any;
     for (const key of NUM_KEYS) z[key] = lerp(z[key], zt[key], k);
-    for (let i = 0; i < 3; i++) { z.haze[i] = lerp(z.haze[i], zt.haze[i], k); z.mist[i] = lerp(z.mist[i], zt.mist[i], k); z.rimTint[i] = lerp(z.rimTint[i], zt.rimTint[i], k); }
+    for (const key of VEC_KEYS) for (let i = 0; i < 3; i++) z[key][i] = lerp(z[key][i], zt[key][i], k);
     const u = this.postMat.uniforms;
+    u.uSat.value = g.sat * SAT_K * (z.vib ?? 1);
     // zone grades keep their colour (the coloured light washes are the look); only their darkening is eased
     u.uLift.value.set(...g.lift); brightGain(u.uGain.value, g.gain); u.uTint.value.set(...g.tint);
-    u.uGamma.value = g.gamma; u.uSat.value = g.sat * SAT_K;
+    u.uGamma.value = g.gamma;
     u.uExposure.value = z.exposure ?? 1.75;
     // first person puts big smooth light falloffs right in your face: finer steps so they don't contour
     u.uLevels.value = this.eyeCamera ? g.levels * 2 : g.levels;
@@ -439,6 +442,11 @@ export class PixelRenderer {
     u.uRim.value = z.rim; u.uRimTint.value.set(z.rimTint[0], z.rimTint[1], z.rimTint[2]);
     u.uBlobN.value = Math.min(16, this.postfx.blobN);
     u.uSick.value = z.sick;
+    u.uKeyShadow.value = QUALITY[this.qualityOverride ?? this.quality].ss > 0 && !this.postfx.bypass ? 1 : 0;
+    u.uContrast.value = z.contrast;
+    u.uSplitLo.value.set(z.splitLo[0], z.splitLo[1], z.splitLo[2]);
+    u.uSplitHi.value.set(z.splitHi[0], z.splitHi[1], z.splitHi[2]);
+    U.uPool.value = this.postfx.bypass ? 0 : z.pool;
     u.uFlicker.value = this.calm ? 0 : 1;
     U.uCaustics.value = z.caustics;
     U.uSheen.value = z.sheen;
@@ -484,6 +492,7 @@ export class PixelRenderer {
     const v = this.tmpP.copy(worldPos).add(this.tmpR.set(0, 1.0, 0)).applyMatrix4(this.camera.matrixWorldInverse);
     U.uPlayerView.value.copy(v);
     CAMU.uFloorY.value = worldPos.y;
+    U.uFloorRef.value = worldPos.y;
   }
 
   private pass = (m: THREE.ShaderMaterial, rt: THREE.WebGLRenderTarget) => {

@@ -37,12 +37,12 @@ export const TRANSPORTS: TransportDef[] = [
   {
     key: 'cage', name: 'Freight Lift 9', price: 1500, len: 1.5, door: 0, side: 1.5,
     blurb: 'An open freight cage. Standing room. The operator\'s sheet says it goes UP. The cables say otherwise.',
-    ending: ['The cage drops. The light from the depot shrinks to a coin, a star, nothing.', 'You go down for a long time. Floors pass: carpet, tile, carpet, water, carpet, your own front hallway, carpet.', 'DESCENT LOGGED. DEBTOR RELEASED TO LOWER SERVICE.', 'You stopped counting the floors. The cage is still going.', 'GOING DOWN'],
+    ending: ['The cage drops. The light from the depot shrinks to a coin, a star, nothing.', 'You go down for a long time. Floors pass: carpet, tile, carpet, water, carpet, your own front hallway, carpet.', 'DESCENT LOGGED. UNIT RELEASED TO LOWER SERVICE.', 'You stopped counting the floors. The cage is still going.', 'GOING DOWN'],
   },
   {
     key: 'coach', name: 'Night Coach 0400', price: 3500, len: 5.2, door: 3.9, side: 1.25,
     blurb: 'A late-night coach with its windows painted black from the outside. Forty seats. The driver does not stop and does not turn around.',
-    ending: ['The doors fold shut. The engine note never changes. Nobody on the coach speaks.', 'Through a scratch in the black paint: a motorway at night, orange lights, the same sign every minute. Then a sign with your street on it.', 'PASSAGE COMPLETE. DEBTOR ARCHIVED. ACCOUNT CLOSED.', 'The coach stops. The doors open on cold air and rain on a car park in summer.', 'OUTSIDE'],
+    ending: ['The doors fold shut. The engine note never changes. Nobody on the coach speaks.', 'Through a scratch in the black paint: a motorway at night, orange lights, the same sign every minute. Then a sign with your street on it.', 'PASSAGE COMPLETE. UNIT ARCHIVED. ACCOUNT CLOSED.', 'The coach stops. The doors open on cold air and rain on a car park in summer.', 'OUTSIDE'],
   },
   {
     key: 'carriage', name: 'The Quiet Car', price: 8000, len: 6, door: 0, side: 1.35,
@@ -365,7 +365,7 @@ export function kioskText(): string {
   const lines = ['MERIDIAN REMITTANCE // PASSAGE BOOKINGS', ''];
   for (const t of TRANSPORTS) lines.push(`${t.name.toUpperCase().padEnd(18)} ${fmt(t.price).padStart(7)}`, `  ${t.blurb}`, '');
   if (!d?.on) lines.push('NO ACCOUNT.');
-  else if (!d.cleared) lines.push(`ACCOUNT IN ARREARS: ${fmt(d.remaining)} OWED.`, 'PASSAGE IS SOLD TO DISCHARGED DEBTORS ONLY.');
+  else if (!d.cleared) lines.push(`ACCOUNT IN ARREARS: ${fmt(d.remaining)} OWED.`, 'PASSAGE IS SOLD TO DISCHARGED UNITS ONLY.');
   else lines.push(`ACCOUNT DISCHARGED. SURPLUS ${fmt(d.surplus)}.`, 'PRESS YOUR BAND TO THE CRADLE TO PURCHASE.');
   lines.push('', 'NO REFUNDS. NO RETURNS. DO NOT SPEAK TO THE OTHER PASSENGERS.');
   return lines.join('\n');

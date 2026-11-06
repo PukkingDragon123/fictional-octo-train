@@ -14,6 +14,12 @@
 //    drag aims), use, shove, sneak, flashlight, shout, push-to-talk; top bars for
 //    map / scanner / inventory / chat / pause / fullscreen / photo
 //  - context actions: placing furniture, driving, riding, carrying, reading, reloading (the strike button throws what you carry)
+//  - ROUND 12, the adaptive layout (on by default): on foot the stick stays and the old
+//    many-button cluster gives way to the adaptive context buttons (src/ui/hotbar/context.ts:
+//    one big primary that changes with what you are doing, up to three secondaries) and the
+//    hotbar strip; the top bars keep only MENU / WATCH / QUESTS / PACK (+ chat in co-op).
+//    The car keeps its own pedals. strikeDown / strikeMove / strikeUp let the adaptive
+//    Strike button reuse the attack button's aim-and-swing.
 //  - the physical overhaul (src/interact/grab.ts, no popups): a work glove to GRAB
 //    what is in reach (hold it and the stick pushes / pulls), a throttle for POWER
 //    (Shift), a squeeze bulb for the lung PUMP (H), the watch (Tab), the iron-cube
@@ -156,6 +162,7 @@ export class TouchControls implements GameSystem {
     this.btn(tr, 'chat', 'chat', { label: 'CHAT', s: 0.95, on: 'up', tap: () => this.openChat() });
     this.btn(tr, 'map', 'map', { label: 'MAP', s: 0.95, tap: () => { const sc = this.g.ui?.scanner; if (sc?.open && sc.page === 'map') sc.toggle(false); else sc?.toggle(true, 'map'); } });
     this.btn(tr, 'scanner', 'watch', { label: 'WATCH', s: 0.95, tap: () => { const w = (this.g as any).watch; if (w?.toggle) w.toggle(); else this.g.ui?.scanner?.toggle?.(); } });
+    this.btn(tr, 'quest', 'quest', { label: 'QUESTS', s: 0.95, tap: () => (this.g as any).broadcast?.toggle?.() });
     this.btn(tr, 'inv', 'inventory', { label: 'PACK', s: 0.95, tap: () => { const pk = (this.g as any).pack; if (pk?.toggle) pk.toggle(); else this.g.ui?.inventory?.toggle?.(); } });
 
     // ---- on foot
@@ -347,10 +354,13 @@ export class TouchControls implements GameSystem {
 
     // in portrait the raised scanner fills the bottom of the screen: tap-to-walk only
     const scanCovers = scan && portrait;
+    const ad = this.adaptive;
     this.show('stick', free && (mode === 'walk' || mode === 'drive') && !scanCovers);
-    this.show('run', free && mode === 'walk' && !scanCovers);
-    this.show('power', free && mode === 'walk' && !scanCovers);
-    this.show('act', free && mode === 'walk' && !scanCovers);
+    this.show('run', free && mode === 'walk' && !scanCovers && !ad);
+    this.show('power', free && mode === 'walk' && !scanCovers && !ad);
+    this.show('act', free && mode === 'walk' && !scanCovers && !ad);
+    for (const k of ['photo', 'build', 'emote', 'map']) this.show(k, !ad);
+    this.show('quest', ad);
     this.show('drive', free && mode === 'drive');
     this.show('ride', free && mode === 'ride');
     // the inventory has its own close buttons and needs the whole screen
@@ -747,6 +757,13 @@ export class TouchControls implements GameSystem {
   }
 
   // ---------------------------------------------------------------- attack
+  /** the adaptive Strike button (src/ui/hotbar/context.ts) drives the attack button's aim-and-swing */
+  strikeDown(e: PointerEvent) { this.atkDown(e); }
+  strikeMove(e: PointerEvent) { this.atkMove(e); }
+  strikeUp(cancelled: boolean) { this.atkUp(cancelled); }
+  /** the adaptive layout replaces the on-foot cluster (stick, top bars and the car stay) */
+  adaptive = true;
+
   private atkDown(e: PointerEvent) {
     const p = this.g.local;
     if (!p) return;

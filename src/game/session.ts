@@ -37,6 +37,7 @@ import type { Net, Welcome } from '../net/net';
 import { introWanted, startIntro, INTRO_ZONE } from './intro';
 import { startMetaRun } from './metaRun';
 import { Handler } from './handler';
+import { installLink } from './link';
 import { SeamFx } from './seam';
 import { installSocial } from '../social';
 import { installFactions } from '../tribes/install';
@@ -188,9 +189,11 @@ export function startSession(o: SessionOpts): Game {
   }
   g.local = p;
   g.addPlayer(p);
-  // the Seam's overlays and Staff Sergeant Voss, the hologram handler (local to each player)
+  // the Seam's overlays and Dr. Calder, the hologram handler (local to each player)
   g.addSystem(new SeamFx());
   g.addSystem(new Handler());
+  // the operator-unit link: low sanity makes it lag, drift, flip, act alone and drop (src/game/link)
+  try { installLink(g); } catch (e) { console.warn('link', e); }
   // emotes, whistles, the 8-bit voice, holes and shared floors, the dimensions (src/social)
   installSocial(g);
   // scanning for data, brain-swap domination and thralls, the tribes (src/scan, src/dominion, src/tribes)

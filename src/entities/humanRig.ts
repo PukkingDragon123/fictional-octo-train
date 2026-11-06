@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { cosmeticOutfit, syncCosmetics } from './cosmetics3d';
 import { worldMaterial } from '../gfx/materials';
+import { GLOWU } from '../gfx/postfx';
 import { BONES, BoneName, BONE_PARENT, BI, Dims, rigDims, cutSpec, PAGE } from './humanModel';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { stumpModel, pegModel, hookModel, prostHandModel, prostLegModel, footShell } from './limbGear';
@@ -151,15 +152,89 @@ const FACET_GLSL = /* glsl */`
   irradiance *= clamp(facet, 0.42, 1.3);
 }
 `;
-function humanMaterial(map: THREE.Texture, base: THREE.Material, uHuman: { value: THREE.Vector4 }): THREE.MeshLambertMaterial {
+/**
+ * Surface response on top of the faceted Lambert: everyone gets a faint sheen from the key fixture (skin
+ * and cloth keep their form under flat tubes); the hazmat suit is glossy PVC (a tight highlight off the
+ * fixture overhead and a cool edge reflection on every shade of the suit's colour, a sharper glint on
+ * the black rubber gloves, boots and visor frame) and its hood window is dark tinted glass with the face
+ * faint behind it. The key light is the fixture that dominates where the body stands (src/world/lighting.ts
+ * domTex), straight overhead in scenes without the light grid.
+ */
+// which paint is what, before the lighting reads the albedo: PVC (any shade of the suit's colour), black
+// rubber, and the hood's window (in head space: chin to brow, cheek to cheek, the front of the face)
+const GLOSS_PRE = /* glsl */`
+float pvc = 0.0, rub = 0.0, glass = 0.0;
+if (uGloss.w > 0.0) {
+  vec3 dc = diffuseColor.rgb;
+  float mx = max(dc.r, max(dc.g, dc.b));
+  vec3 sc = uGloss.rgb / max(max(uGloss.r, uGloss.g), max(uGloss.b, 1e-3));
+  pvc = smoothstep(0.32, 0.14, length(dc / max(mx, 1e-3) - sc)) * smoothstep(0.03, 0.08, mx);
+  rub = (1.0 - pvc) * smoothstep(0.05, 0.02, mx);
+  vec3 hp = (uHeadM * vec4(vWPos, 1.0)).xyz / uGloss.w;
+  glass = (1.0 - pvc) * (1.0 - rub) * step(-0.2, hp.y) * step(hp.y, 0.55) * step(abs(hp.x), 0.34) * step(0.24, hp.z);
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * vec3(0.1, 0.13, 0.16) + vec3(0.003, 0.005, 0.008), glass);
+  // vinyl dye is rich: the suit keeps its saturated yellow under the tubes
+  diffuseColor.rgb = max(mix(vec3(dot(diffuseColor.rgb, vec3(0.3, 0.59, 0.11))), diffuseColor.rgb, 1.0 + 0.22 * pvc), 0.0);
+}
+`;
+const GLOSS_GLSL = /* glsl */`
+#if !defined(UNLIT)
+{
+  vec3 gN = normalize(vWNormal);
+  vec3 gV = normalize(cameraPosition - vWPos);
+  bool grid = uWFlags.w < 0.5;
+  vec4 kl = grid ? keyLight(vWPos + gN * 0.1) : vec4(0.0);
+  vec3 gL = kl.w > 0.0 ? normalize(kl.xyz - vWPos) : normalize(vec3(-0.25, 1.0, 0.35));
+  vec3 lc = vec3(0.55);
+  if (grid) { vec3 gq = texture2D(uLightTex, (vWPos.xz - uLightInfo.xy) * uLightInfo.zw).rgb; lc = min(gq * gq * uGridScale, vec3(2.0)); }
+  vec3 gH = normalize(gL + gV);
+  float nh = max(dot(gN, gH), 0.0), nv = max(dot(gN, gV), 0.0);
+  float fres = pow(1.0 - nv, 4.0);
+  float spec = pow(nh, 22.0) * 0.06 * (1.0 - pvc - rub - glass);
+  spec += pvc * (pow(nh, 56.0) * 1.2 + pow(nh, 12.0) * 0.16);
+  spec += rub * pow(nh, 70.0) * 0.8 + glass * (pow(nh, 120.0) * 2.2 + pow(nh, 18.0) * 0.18);
+  vec3 add = lc * spec;
+  float gl = pvc + rub + glass;
+  if (gl > 0.0) {
+    // a glossy skin mirrors the room: the lit ceiling above, the walls round it, the dark floor below (as
+    // bright as the light here, cool-tinted), strongest at grazing angles (a dielectric's Fresnel) ...
+    vec3 R = reflect(-gV, gN);
+    vec3 envC = lc * mix(vec3(0.12, 0.11, 0.09), vec3(0.8, 0.86, 0.92), smoothstep(-0.35, 0.6, R.y)) + vec3(0.003, 0.004, 0.006);
+    float F = 0.05 + 0.95 * pow(1.0 - nv, 5.0);
+    add += envC * F * (pvc * 1.3 + rub * 0.9 + glass * 2.0);
+    // ... and every tube nearby as a hot streak: on PVC that is the look (the tubes off to the side catch
+    // the upright faces of the arms, legs and chest, not just the top of the hood)
+    // (seen from the high camera an upright face would mirror only the floor: the glints are placed for an
+    // eye-level viewer instead, the way a photo of a PVC suit under office tubes reads)
+    vec3 tubes = vec3(0.0);
+    vec3 eyeV = normalize(vec3(gV.x, gV.y * 0.3, gV.z));
+    for (int i = 0; i < 12; i++) {
+      if (i >= uGlowN || !grid) break;
+      vec3 Lp = uGlowPos[i].xyz - vWPos;
+      float d2 = dot(Lp, Lp);
+      vec3 Ld = Lp * inversesqrt(d2);
+      float rl = max(dot(R, Ld), 0.0), he = max(dot(gN, normalize(Ld + eyeV)), 0.0);
+      tubes += uGlowCol[i].rgb * (pow(rl, 60.0) * 2.0 + pow(he, 44.0) * 2.2 + pow(he, 10.0) * 0.1) / (1.0 + d2 * 0.12);
+    }
+    add += tubes * (pvc * 1.0 + rub * 0.7 + glass * 1.4) * (0.6 + 0.4 * F);
+  }
+  totalEmissiveRadiance += add;
+}
+#endif
+`;
+function humanMaterial(map: THREE.Texture, base: THREE.Material, uHuman: { value: THREE.Vector4 }, uGloss: { value: THREE.Vector4 }, uHeadM: { value: THREE.Matrix4 }): THREE.MeshLambertMaterial {
   // alphaTest: the ragged tips of the hair shells are cut out of the painted page
   const m = new THREE.MeshLambertMaterial({ map, vertexColors: true, flatShading: true, alphaTest: 0.5 });
   const b = base as any;
   m.onBeforeCompile = (shader, renderer) => {
     b.onBeforeCompile?.(shader, renderer);
     shader.uniforms.uHuman = uHuman;
+    shader.uniforms.uGloss = uGloss;
+    shader.uniforms.uHeadM = uHeadM;
+    shader.uniforms.uGlowPos = GLOWU.uGlowPos; shader.uniforms.uGlowCol = GLOWU.uGlowCol; shader.uniforms.uGlowN = GLOWU.uGlowN;
     let vs = shader.vertexShader, fs = shader.fragmentShader;
-    if (fs.includes('#include <lights_fragment_end>')) fs = fs.replace('#include <lights_fragment_end>', FACET_GLSL + '#include <lights_fragment_end>');
+    if (fs.includes('#include <lights_fragment_end>')) fs = fs.replace('#include <lights_fragment_end>', FACET_GLSL + GLOSS_GLSL + '#include <lights_fragment_end>');
+    if (fs.includes('#include <lights_lambert_fragment>')) fs = fs.replace('#include <lights_lambert_fragment>', GLOSS_PRE + '#include <lights_lambert_fragment>');
     vs = vs.replace('#include <common>', '#include <common>\nuniform vec4 uHuman;');
     vs = vs.replace('vec4 nWp = vec4( transformed, 1.0 );', `
 if (uHuman.x > 0.001) {
@@ -169,7 +244,7 @@ if (uHuman.x > 0.001) {
   if (gh < uHuman.x * 0.22) transformed.x += (fract(gh * 91.7) - 0.5) * 0.14 * uHuman.x;
 }
 vec4 nWp = vec4( transformed, 1.0 );`);
-    fs = fs.replace('#include <common>', '#include <common>\nuniform vec4 uHuman;');
+    fs = fs.replace('#include <common>', '#include <common>\nuniform vec4 uHuman;\nuniform vec4 uGloss;\nuniform mat4 uHeadM;\nuniform vec4 uGlowPos[12];\nuniform vec4 uGlowCol[12];\nuniform int uGlowN;');
     const grad = 'textureGrad( map, auv, dFdx( vMapUv ), dFdy( vMapUv ) )';
     if (fs.includes('texture2D( map, auv )')) fs = fs.replace('texture2D( map, auv )', grad);
     else if (!warnedMap) { warnedMap = true; console.warn('humanRig: world map chunk changed; character mipmaps may shimmer'); }
@@ -183,7 +258,7 @@ diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.3, 0.25), uHuman.z);`);
     shader.vertexShader = vs; shader.fragmentShader = fs;
   };
   const key = b.customProgramCacheKey ? b.customProgramCacheKey() : 'base';
-  m.customProgramCacheKey = () => key + '|human2';
+  m.customProgramCacheKey = () => key + '|human3';
   return m;
 }
 
@@ -334,6 +409,9 @@ export class HumanRig {
   tris = 0;
   /** shader effects: x corruption glitch 0..1, y time, z hit flash 0..1 */
   fx = { value: new THREE.Vector4(0, 0, 0, 0) };
+  /** glossy PVC: rgb the hazmat suit's colour (linear), w head units (m) while a suit is on, 0 otherwise */
+  private gloss = { value: new THREE.Vector4(0, 0, 0, 0) };
+  private headM = { value: new THREE.Matrix4() };
   dims: Dims;
   private mesh: THREE.SkinnedMesh;
   private skeleton: THREE.Skeleton;
@@ -380,7 +458,7 @@ export class HumanRig {
     this.s = this.app.height;
     this.seed = hashApp(this.app);
     this.baseMat = isWorldMat(material) ? material! : worldMaterial({});
-    this.material = humanMaterial(this.page.tex, this.baseMat, this.fx);
+    this.material = humanMaterial(this.page.tex, this.baseMat, this.fx, this.gloss, this.headM);
     this.root.add(this.body);
     for (const b of BONES) { const g = new THREE.Group(); g.name = b; this.bones[b] = g; }
     for (const b of BONES) { const p = BONE_PARENT[b]; (p ? this.bones[p] : this.body).add(this.bones[b]); }
@@ -398,7 +476,11 @@ export class HumanRig {
     const geo = new THREE.BufferGeometry();
     this.mesh = new THREE.SkinnedMesh(geo, this.material);
     this.mesh.castShadow = true; this.mesh.receiveShadow = true;
-    this.mesh.onBeforeRender = () => this.ensurePainted();
+    this.mesh.onBeforeRender = () => {
+      this.ensurePainted();
+      // head space for the hazmat visor (world -> head bone, the bind pose is a pure translation)
+      if (this.gloss.value.w > 0) this.headM.value.copy(this.j.head.matrixWorld).invert();
+    };
     this.mesh.onAfterRender = () => { this.gg.fullPending = false; };
     this.mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.7);
     this.body.add(this.mesh);
@@ -573,6 +655,12 @@ export class HumanRig {
     const cond = this.outfit.cond || {};
     const spec = specOf(this.app, full, this.dims, this.seed, cond, this.ggOverrides);
     const D = spec.dress;
+    if (D.suit === 'hazmat') {
+      const c = D.hazmat?.col ?? [232, 196, 40];
+      const lin = (v: number) => Math.pow(v / 255, 2.2);
+      // head units: chin to crown (the head bone sits at the jaw hinge, 0.8 units under the crown of a ~7.2-unit body)
+      this.gloss.value.set(lin(c[0]), lin(c[1]), lin(c[2]), this.dims.rest.head[1] / 6.4);
+    } else this.gloss.value.w = 0;
     const appKey = JSON.stringify(this.app);
     const shapeKey = JSON.stringify([D.top?.kind, D.top?.sleeve, D.outer?.kind, D.outer?.sleeve, D.bottom?.kind, D.legsKind, D.feet?.kind, D.hands?.kind, D.hat?.kind, D.mask?.kind, D.back?.kind, D.back?.size, !!D.wrist, D.suit, D.hatFlat, D.badge ? 1 : 0, this.ggOverrides.bust, this.ggOverrides.hairStyle, this.ggOverrides.hairVolume]);
     const severed = new Set([...(cond.sev || []), ...coveredParts(cond.cyber)]);

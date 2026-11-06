@@ -46,7 +46,7 @@ export interface SpeciesDef {
   meat?: [string, number][];
   tame?: { food: string[]; feeds: number };
   /** behaviour flags */
-  flags?: Partial<{ weepingAngel: boolean; wallHider: boolean; vents: boolean; mimic: boolean; watcher: boolean; leviathan: boolean; flying: boolean; swimmer: boolean; underCarpet: boolean; thief: boolean; furniture: string; ghost: boolean; immortal: boolean; noCorpse: boolean; nocturnal: boolean; pack: boolean; custodian: boolean; glitch: boolean; plush: boolean; companion: boolean }>;
+  flags?: Partial<{ weepingAngel: boolean; wallHider: boolean; vents: boolean; mimic: boolean; watcher: boolean; leviathan: boolean; flying: boolean; swimmer: boolean; underCarpet: boolean; thief: boolean; furniture: string; ghost: boolean; immortal: boolean; noCorpse: boolean; nocturnal: boolean; pack: boolean; custodian: boolean; glitch: boolean; plush: boolean; companion: boolean; attached: boolean }>;
   sounds?: { idle?: string; alert?: string; attack?: string; hurt?: string; death?: string; step?: string; call?: string; loop?: string };
   /**
    * The one learnable rule of this thing: what it obeys, what you can exploit

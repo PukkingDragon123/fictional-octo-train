@@ -277,6 +277,8 @@ export class MissionSystem implements GameSystem {
     G.ui?.toast?.(z.name.toUpperCase(), (z.meta.blurb as string) || '', 4.5);
   }
 
+  /** metres walked this session (the walking lesson) */
+  private walked = 0;
   // ---------------------------------------------------------------- per frame
   update(dt: number) {
     const p = G.local;
@@ -284,6 +286,14 @@ export class MissionSystem implements GameSystem {
     if (p) {
       if (p.scannerOpen) this.set('tut:scanner');
       if (p.flashlightOn) this.set('tut:light');
+      // Dr. Calder's lessons (src/game/tutorial): moving the body, running, crouching, getting hold of furniture
+      if (!p.body.dead && !p.sleeping) {
+        if (p.speed > 0.6) { this.walked += p.speed * dt; if (this.walked > 4) this.set('tut:walk'); }
+        if (p.running && p.speed > 2.5) this.set('tut:run');
+        if (p.sneaking) this.set('tut:sneak');
+        const push = (G as unknown as { destruct?: { push?: { holding?: unknown; mode?: string } } }).destruct?.push;
+        if (push?.holding && push.mode !== 'door' && push.mode !== 'lever') this.set('tut:carry');
+      }
       const z = G.zones.get(p.zoneKey);
       if (z) {
         const r = z.roomAt(p.tileX(), p.tileY());
@@ -456,7 +466,7 @@ export class MissionSystem implements GameSystem {
     el.innerHTML = `<div class="k-ending-inner">
       <p class="k-end-1">The light is warm. It smells like rain on a car park in summer. Your wrist is bare and it aches.</p>
       <p class="k-end-2">Somewhere a ledger prints one word next to your number, and a monitor shows a flat green line, then a pulse.</p>
-      <p class="k-end-3">DEBTOR STATUS: ABSCONDED.<br>CONTINUITY SESSION TERMINATED. SUBJECT RESPONSIVE.</p>
+      <p class="k-end-3">UNIT STATUS: ABSCONDED.<br>CONTINUITY SESSION TERMINATED. LINK SEVERED. OPERATOR RESPONSIVE.</p>
       <p class="k-end-4">${escapeHtml(p.name)} — ${days} days, ${hrs} hours inside. ${owed}</p>
       <p class="k-end-5">LIMBO PHOBIA</p>
       <button class="k-end-btn">Wake up again</button>${G.net ? '<button class="k-end-btn k-end-stay">Stay until the others are out</button>' : ''}</div>`;

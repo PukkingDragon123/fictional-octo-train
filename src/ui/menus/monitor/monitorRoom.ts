@@ -1,7 +1,6 @@
 // THE MONITOR ROOM: the main menu. A dim Meridian observation booth: a steel
-// rack of chunky enamel CRTs (two big feeds: the research lab and subject room 4;
-// four small sets with the subject's
-// pulse, the corridor camera, the log printer and the seismograph), an
+// rack of chunky enamel CRTs (three big feeds: the codex archive, the control
+// room and unit room 4; four small sets with the unit's pulse, the corridor camera, the log printer and the seismograph), an
 // annunciator strip, a raked desk console with toggle rows and pilot lamps, a
 // gooseneck microphone, a coffee mug breathing steam, an ashtray, clipboards
 // and notes, a banker's lamp, a push-button phone, the swivel chair, cable
@@ -14,7 +13,7 @@
 // flies the camera into a tube; back(key) pulls out of it.
 import * as THREE from 'three';
 import type { FMats } from '../scene/pixtex';
-import { Puffs } from '../scene/fx';
+import { Puffs, Dust, shaftMesh } from '../scene/fx';
 import type { Hot, StageRoom, Grade } from './stage';
 import { feedTube, drawCaption, type FeedTube } from './feed';
 import {
@@ -23,10 +22,13 @@ import {
 } from './props';
 import { bitText } from '../../../gfx/bitfont';
 
-export type FeedKey = 'research' | 'subject';
+// internal keys: 'research' is the control room (it grew out of the research lab), 'subject' the unit room
+// (saved decorations are filed under these keys, so they stay)
+export type FeedKey = 'archive' | 'research' | 'subject';
 export const FEEDS: { key: FeedKey; cam: string; name: string; label: string; sub: string }[] = [
-  { key: 'research', cam: 'CAM 1', name: 'RESEARCH LAB R-1', label: 'Research lab', sub: 'the codex, the sample fridge, the benches · view the feed' },
-  { key: 'subject', cam: 'CAM 2', name: 'SUBJECT ROOM 4', label: 'Subject room', sub: 'chair No. 4 · the subject on file · view the feed' },
+  { key: 'archive', cam: 'CAM 1', name: 'CODEX ARCHIVE A-1', label: 'Codex archive', sub: 'inhabitants, items, places, anomalies · pull a file, project it' },
+  { key: 'research', cam: 'CAM 2', name: 'CONTROL ROOM C-1', label: 'Control room', sub: 'the main computer: the research tree · the sample benches' },
+  { key: 'subject', cam: 'CAM 3', name: 'UNIT ROOM 4', label: 'Unit room', sub: 'chair No. 4 · the unit on file · fit chips, limbs, designs' },
 ];
 
 const W = 2.7, BACK = -2.12, FRONT = 2.8, H = 2.75;
@@ -76,6 +78,9 @@ export class MonitorRoom implements StageRoom {
   private tubeLight = new THREE.PointLight(0xdaeaff, 0, 7, 2);
   private tubeMat = new THREE.MeshBasicMaterial({ color: 0x101010, toneMapped: false });
   private tubeK = 1; private tubeNext = 2; private tubeDrop = 0;
+  /** the tube's cone of haze and the dust turning in it; the lamp's warm cone over the desk */
+  private tubeShaft = shaftMesh(10); private lampShaft = shaftMesh(9);
+  private dust = new Dust(160, new THREE.Box3(new THREE.Vector3(-W + 0.4, 0.4, BACK + 0.4), new THREE.Vector3(W - 0.4, H - 0.2, 1.6)));
   // every stage room carries the same light rig (1 hemi, 4 point, 3 spot with one shadow) so they share shader programs
   private alarm = new THREE.SpotLight(0xff3a1a, 0, 6, 0.9, 0.6, 1.6);
   private alarmT = 0;
@@ -107,6 +112,12 @@ export class MonitorRoom implements StageRoom {
     // lights: phosphor key, the lamp's pool, a cold stutter overhead, the window's dark blue
     S.add(this.hemi, this.alarm, this.alarm.target, this.tubeLight);
     this.tubeLight.position.set(0.2, H - 0.3, -0.1);
+    this.tubeShaft.mesh.position.set(0.2, H - 0.14, -0.1); this.tubeShaft.mesh.scale.set(1.2, H - 0.2, 0.7); this.tubeShaft.u.uColor.value.setHex(0xd8e8ff);
+    this.lampShaft.u.uColor.value.setHex(0xffc488);
+    S.add(this.tubeShaft.mesh, this.dust.points);
+    // a wet patch on the lino under the window, holding the window's blue and the tube
+    const wet = new THREE.Mesh(new THREE.CircleGeometry(0.5, 9), new THREE.MeshStandardMaterial({ color: 0x0a0c0c, roughness: 0.04, metalness: 0.65, transparent: true, opacity: 0.55, depthWrite: false }));
+    wet.rotation.x = -Math.PI / 2; wet.scale.set(1.4, 0.9, 1); wet.position.set(-1.6, 0.006, 0.4); wet.renderOrder = 2; wet.userData.noGlow = true; S.add(wet);
     this.alarm.position.set(1.85, 2.5, -1.6); this.alarm.target.position.set(0.2, 0.6, 0.2);
     this.lamp.castShadow = true;
     this.lamp.shadow.mapSize.set(1024, 1024);
@@ -252,8 +263,8 @@ export class MonitorRoom implements StageRoom {
     b.add('paint', cbox(RW * 2, 0.8, 0.5, 0.015), 0x4e5644, at(0, 0.41, RZ + 0.25), { rep: 0.5 });
     for (let i = 0; i < 6; i++) for (const x of [-1.2, 0, 1.2]) b.add('metal', cbox(0.5, 0.012, 0.02, 0.003), C.darker, at(x, 0.2 + i * 0.07, RZ + 0.51));
     // the three feed sets (bottom row), four small sets (top row)
-    const big: [FeedKey, number][] = [['research', -0.62], ['subject', 0.62]];
-    const spots: [FeedKey, CrtSpot][] = big.map(([k, x], i) => [k, crtSet(b, x, 1.17, RZ + 0.5, 0.92, 0.64, { color: [C.beige, 0xbab49a][i], depth: 0.48, seed: i + 3 })]);
+    const big: [FeedKey, number][] = [['archive', -1.22], ['research', 0], ['subject', 1.22]];
+    const spots: [FeedKey, CrtSpot][] = big.map(([k, x], i) => [k, crtSet(b, x, 1.17, RZ + 0.5, 0.84, 0.62, { color: [0xc4bc9e, C.beige, 0xbab49a][i], depth: 0.48, seed: i + 3 })]);
     const small = [-1.38, -0.46, 0.46, 1.38].map((x, i) => crtSet(b, x, 1.78, RZ + 0.47, 0.62, 0.48, { color: [0x8a9070, C.beige, 0x9a9a84, C.cream][i], depth: 0.4, knobs: i % 2 === 0, seed: i + 9 }));
     // the annunciator strip on top: lit tiles with the room names
     b.add('paint', cbox(RW * 2 - 0.1, 0.3, 0.3, 0.02), 0x3a4232, at(0, 2.27, RZ + 0.35));
@@ -290,7 +301,7 @@ export class MonitorRoom implements StageRoom {
       this.aux.push(aux);
     });
     // annunciator tiles
-    const tiles = ['R-1', 'CODEX', 'RM 4', 'PRESS', 'POWER', 'ALARM'];
+    const tiles = ['A-1', 'C-1', 'UNIT 4', 'PRESS', 'POWER', 'ALARM'];
     tiles.forEach((tx, i) => {
       const t = plate(this.mats, [tx], 0.3, 0.12, { bg: [0x8ac070, 0x8ac070, 0x8ac070, 0xd0a040, 0x8ac070, 0xd04030][i], ink: 0x0a1008, px: 300, emissive: true });
       t.position.set(-1.5 + i * 0.6, 2.27, RZ + 0.505);
@@ -418,7 +429,7 @@ export class MonitorRoom implements StageRoom {
     this.board.add(sheet);
     this.board.position.set(-0.3, top + 0.002, -0.74); this.board.rotation.y = 0.28;
     g.add(this.board);
-    this.hots.push({ key: 'board', objs: [this.board], label: 'Intake sheet', sub: 'subject 4 · the file on the desk', press: () => { this.boardW.kick(4); uiSound('tick', 0.8); } });
+    this.hots.push({ key: 'board', objs: [this.board], label: 'Intake sheet', sub: 'unit 4 · the file on the desk', press: () => { this.boardW.kick(4); uiSound('tick', 0.8); } });
     for (const [x, z, r, s] of [[1.35, -0.72, -0.4, 3], [1.5, -0.8, 0.25, 4], [-1.5, -0.72, 0.1, 5]] as [number, number, number, number][]) {
       const p = paper(['~', '~', '~', '~', '~', '~'], 0.21, 0.28, { seed: s * 7 });
       p.rotation.set(-Math.PI / 2, 0, r); p.position.set(x, top + 0.003 + s * 0.0006, z);
@@ -471,6 +482,9 @@ export class MonitorRoom implements StageRoom {
     g.add(this.lamp);
     this.lamp.target.position.set(0.2, -0.8, 0.5);
     g.add(this.lamp.target);
+    // the lamp's warm cone down onto the desk (the light it throws, made visible by the smoke)
+    this.lampShaft.mesh.position.set(0.04, 0.36, 0.14); this.lampShaft.mesh.scale.set(0.32, 0.4, 0.26); this.lampShaft.mesh.rotation.set(0.35, 0, -0.2);
+    g.add(this.lampShaft.mesh);
     this.scene.add(g);
     this.hots.push({ key: 'lamp', objs: [g], label: 'Desk lamp', sub: 'the pull chain', press: () => { this.lampOn = !this.lampOn; this.toggles[0].t.flip(this.lampOn); uiSound('click', 0.9); } });
     const pool = glowCard(1.6, 1.0, 0xffb060, 0.09); pool.rotation.x = -Math.PI / 2; pool.position.set(-0.9, DESK_Y + 0.004, -0.85); pool.name = 'lampPool';
@@ -660,6 +674,9 @@ export class MonitorRoom implements StageRoom {
     const tl = this.tubeK * (this.tubeDrop > 0 ? (Math.random() < 0.5 ? 0.1 : 0.6) : 1);
     this.tubeLight.intensity = 7.2 * tl;
     this.tubeMat.color.setScalar(0.08 + 1.6 * tl);
+    this.tubeShaft.u.uInt.value = 0.02 * tl;
+    this.lampShaft.u.uInt.value = 0.03 * this.lampLvl;
+    if (full) this.dust.update(t, this.tubeLight.position, this.v.set(0, -1, 0), Math.cos(1.1), Math.cos(0.5), 1.8 * tl, new THREE.Color(0xdfe8ff), 0.05 + 0.25 * this.lampLvl);
     this.alarmT = Math.max(0, this.alarmT - dt);
     this.alarm.intensity = this.alarmT > 0 ? 7 * Math.max(0, Math.sin(t * 9)) : 0;
     this.winLight.intensity = 0.9 + Math.sin(t * 0.37) * 0.15;

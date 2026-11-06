@@ -1,13 +1,18 @@
-// The subject room's composite: the scene is rendered small into a half-float
-// target, then this pass draws it to the (equally small) canvas, which CSS
-// blows up by a whole number with hard pixels. The menus share the cutscenes'
-// cinematic layer (src/game/introKit/stage.ts): a bloom off everything bright
-// (Bloom below: a soft-knee bright pass, three blurred levels sampled smoothly
-// over the sharp pixels). Then a black one-pixel silhouette line from depth steps, a filmic tone curve and a split
-// grade (cold shadows, warm highlights, crushed blacks), a darkened side for
-// the 2D menu, a vignette, the camera flash, blood on the lens (a pixel canvas
-// of its own), light ordered dither to a slightly reduced palette, a whisper
-// of grain.
+// The menu rooms' composite (the unit room's own renderer and the menu stage's
+// rooms both use it): the scene is rendered small into a half-float target,
+// then this pass draws it to the (equally small) canvas, which CSS blows up by
+// a whole number with hard pixels. The menus share the cutscenes' cinematic
+// layer (src/game/introKit/stage.ts): a bloom off true emitters only (Bloom
+// below: a soft-knee bright pass, three blurred levels sampled smoothly over
+// the sharp pixels), with a warm halation fringe like film. Then a black
+// one-pixel silhouette line from depth steps, a little unsharp mask so the
+// pixels stay crisp after the blow-up, depth haze (the air in the room: dust,
+// a cold cast far off), a filmic curve that keeps saturated colours saturated
+// (hue-preserving, blended with ACES so the highlights still roll off), a
+// split grade (cold shadows, warm highlights, firm blacks without crushing
+// them to mud), a darkened side for the 2D menu, a vignette, the camera
+// flash, blood on the lens (a pixel canvas of its own), light ordered dither
+// to a slightly reduced palette, a whisper of grain.
 import * as THREE from 'three';
 
 export interface PostUniforms {
@@ -17,6 +22,14 @@ export interface PostUniforms {
   uSide: { value: THREE.Vector4 }; uLift: { value: THREE.Vector3 }; uGain: { value: THREE.Vector3 };
   uSat: { value: number }; uContrast: { value: number }; uFloor: { value: number }; uVig: { value: number }; uGrain: { value: number }; uLensOn: { value: number }; uLevels: { value: number };
   tB1: { value: THREE.Texture }; tB2: { value: THREE.Texture }; tB3: { value: THREE.Texture }; uBloom: { value: number };
+  /** unsharp mask strength (0 = off) */
+  uSharp: { value: number };
+  /** 0..1: how much of the tone curve keeps the hue and saturation (the rest is ACES) */
+  uKeepSat: { value: number };
+  /** depth haze: rgb colour, a = strength at uFar * 0.25 */
+  uHaze: { value: THREE.Vector4 };
+  /** warm fringe round the bloom (film halation) */
+  uHalation: { value: number };
 }
 
 const BLACK = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
@@ -120,6 +133,7 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
     uSide: { value: new THREE.Vector4(1, 0, 0, 0.4) }, uLift: { value: new THREE.Vector3(0.86, 0.96, 1.14) }, uGain: { value: new THREE.Vector3(1.08, 1.0, 0.86) },
     uSat: { value: 0.9 }, uContrast: { value: 1.08 }, uFloor: { value: 0 }, uVig: { value: 0.9 }, uGrain: { value: 0.012 }, uLensOn: { value: 0 }, uLevels: { value: 28 },
     tB1: { value: BLACK }, tB2: { value: BLACK }, tB3: { value: BLACK }, uBloom: { value: 0 },
+    uSharp: { value: 0.22 }, uKeepSat: { value: 0.45 }, uHaze: { value: new THREE.Vector4(0.42, 0.5, 0.62, 0.0) }, uHalation: { value: 0.35 },
   };
   const mat = new THREE.ShaderMaterial({
     uniforms: u as unknown as Record<string, THREE.IUniform>,
@@ -128,6 +142,7 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
       uniform sampler2D tColor; uniform sampler2D tDepth; uniform sampler2D tLens; uniform sampler2D tB1, tB2, tB3; uniform float uBloom;
       uniform vec2 uRes; uniform float uNear, uFar, uTime, uFlash, uRed, uExposure, uOutline, uSat, uContrast, uVig, uGrain, uLensOn, uLevels, uFloor;
       uniform vec4 uSide; uniform vec3 uLift, uGain;
+      uniform float uSharp, uKeepSat, uHalation; uniform vec4 uHaze;
       varying vec2 vUv;
       float linD(vec2 uv) { float z = texture2D(tDepth, uv).x; if (z >= 1.0) return uFar * 4.0; float n = z * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - n * (uFar - uNear)); }
       float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
@@ -138,24 +153,38 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
       void main() {
         vec2 px = 1.0 / uRes;
         vec3 c = texture2D(tColor, vUv).rgb;
+        // unsharp: the pixel against its four neighbours (crisp detail after the blow-up; clamped so edges never ring)
+        vec3 nb = (texture2D(tColor, vUv + vec2(px.x, 0.0)).rgb + texture2D(tColor, vUv - vec2(px.x, 0.0)).rgb + texture2D(tColor, vUv + vec2(0.0, px.y)).rgb + texture2D(tColor, vUv - vec2(0.0, px.y)).rgb) * 0.25;
+        c = max(c + clamp(c - nb, vec3(-0.25), vec3(0.25)) * uSharp, vec3(0.0));
         // silhouette: this pixel lies well behind a neighbour -> it is the line round that neighbour
         float d = linD(vUv);
         float dn = min(min(linD(vUv - vec2(px.x, 0.0)), linD(vUv + vec2(px.x, 0.0))), min(linD(vUv - vec2(0.0, px.y)), linD(vUv + vec2(0.0, px.y))));
         float edge = step(0.03 + dn * 0.045, d - dn);
         c *= 1.0 - edge * uOutline;
+        // the air in the room: far things sink into a cold, dusty haze (never black)
+        float hz = uHaze.a * smoothstep(uNear * 6.0, uFar * 0.25, d) * step(d, uFar * 3.0);
+        c = mix(c, uHaze.rgb * (0.04 + 0.1 * dot(c, vec3(0.33))), hz);
         // the side the 2D menu sits on goes darker
         float s = dot(vUv, uSide.xy) + (uSide.x < 0.0 || uSide.y < 0.0 ? 1.0 : 0.0);
         c *= 1.0 - uSide.z * (1.0 - smoothstep(0.0, uSide.w, s));
         c *= 1.0 - uFloor * (1.0 - smoothstep(0.0, 0.38, vUv.y));
         // exposure, the cutscenes' bloom (soft levels over the sharp pixels), filmic curve, split grade
         c *= uExposure;
-        c += (texture2D(tB1, vUv).rgb * 0.55 + texture2D(tB2, vUv).rgb * 0.45 + texture2D(tB3, vUv).rgb * 0.4) * uBloom;
-        c = aces(c);
+        vec3 b1 = texture2D(tB1, vUv).rgb, b2 = texture2D(tB2, vUv).rgb, b3 = texture2D(tB3, vUv).rgb;
+        // the wide levels carry a warm fringe (film halation); the tight one stays the emitter's own colour
+        vec3 bl = b1 * 0.55 + (b2 * 0.45 + b3 * 0.4) * mix(vec3(1.0), vec3(1.25, 0.82, 0.62), uHalation);
+        c += bl * uBloom;
+        // tone: ACES for the roll-off, blended with a hue-preserving curve on luminance so saturated lamps and screens keep their colour
+        float lin = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-5);
+        vec3 keep = c * (aces(vec3(lin)).r / lin);
+        keep = keep / max(1.0, max(keep.r, max(keep.g, keep.b)));
+        c = mix(aces(c), keep, uKeepSat);
         float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
         c = mix(vec3(l), c, uSat);
         c *= mix(uLift, uGain, smoothstep(0.02, 0.5, l));
         c = clamp((c - 0.18) * uContrast + 0.18, 0.0, 1.0);
-        c = max(c - 0.006, 0.0) / 0.994;
+        // firm blacks, not mud: a soft toe instead of a hard crush
+        c = c * c / (c + 0.012) * 1.012;
         vec2 q = vUv - 0.5;
         c *= clamp(1.0 - dot(q, q) * uVig, 0.0, 1.0);
         c = toSRGB(c);

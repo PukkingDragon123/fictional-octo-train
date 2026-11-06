@@ -159,7 +159,7 @@ export class QuestRuntime {
     const { ok, note } = this.affordable(d);
     return {
       key: k, def: d, rec: r, status: r?.s ?? 'new',
-      title: d.title, giver: d.giver || (d.main ? 'SSGT. VOSS' : 'UNKNOWN'), desc: typeof d.desc === 'string' ? d.desc : String(d.desc ?? ''),
+      title: d.title, giver: d.giver || (d.main ? 'DR. CALDER' : 'UNKNOWN'), desc: typeof d.desc === 'string' ? d.desc : String(d.desc ?? ''),
       category: d.category || (d.main ? 'contract' : 'side'), objectives,
       rewardText: rewardText(d), costText: costText(d), affordable: ok, payNote: note,
     };

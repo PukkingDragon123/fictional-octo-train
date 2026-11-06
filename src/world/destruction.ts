@@ -112,7 +112,7 @@ defLoot('debris_flesh', [0, 1], [['rag', 1]], 0.8);
 interface DmgArgs { z: string; uid: number; d: number; how: string; by: string | null; hx: number; hy: number; hz: number; dx: number; dz: number }
 interface BreakArgs { z: string; uid: number; by: string | null; how: string; seed: number; dx: number; dz: number; pu: number }
 interface HoldArgs { z: string; uid: number; by: string }
-interface ReleaseArgs { z: string; uid: number; by: string; x: number; y: number; ox: number; oz: number }
+interface ReleaseArgs { z: string; uid: number; by: string; x: number; y: number; ox: number; oz: number; /** carried and turned a quarter (src/world/pushDrag.ts) */ rot?: number }
 interface WallArgs { z: string; x: number; y: number; side: 0 | 1; d: number; how: string; by: string | null; u: number; h: number; n: 1 | -1 }
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -231,6 +231,7 @@ defOp('objRelease', (a: ReleaseArgs) => {
   if (z.tileObjs.get(z.idx(o.x, o.y))?.includes(o)) z.removeObject(o);
   o.x = a.x; o.y = a.y; o.ox = a.ox || undefined; o.oz = a.oz || undefined;
   if (!o.ox) delete o.ox; if (!o.oz) delete o.oz;
+  if (a.rot !== undefined && a.rot >= 0 && a.rot <= 3) o.rot = a.rot as typeof o.rot;
   const ls = z.lights.filter((l) => l.objUid === o.uid);
   z.addObject(o);
   const w = d.w ?? 1, dd = d.d ?? 1;

@@ -7,6 +7,10 @@
 // map, anomaly scan, signals, biomonitor (calories, blood pressure, diagnosis
 // AI, mind), logbook, and the multi-tool (torch, scanner beam, laser cutter,
 // welder, fabricator). Quests upload with a chime and a quick wrist-glance.
+// Round 12: the FLASHLIGHT is built in (no research): the toggle on the watch, F,
+// or the touch Light button switch a real spot light that shines from the left
+// wrist (flashlight()); QUESTS also pop up as Dr. Calder's 3D broadcast (J,
+// src/ui/watch/broadcast.ts) while this full first-person view keeps every function.
 import * as THREE from 'three';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -154,6 +158,9 @@ export class Watch {
     this.syncPages(true);
     // runs as its own system (the UI's per-frame call is kept as a no-op for older callers)
     G.addSystem({ name: 'watch', update: (dt: number) => this.frame(dt) });
+    // the built-in flashlight shines from the wrist (after the game has placed its spot lights)
+    G.pr.beforeRender.push(() => { try { this.wristBeam(); } catch { /* no rig yet */ } });
+    this.beamHooked = true;
     window.addEventListener('mousedown', (e) => this.onMouse(e), true);
     // a click or tap on your own survivor raises (or lowers) the wrist
     window.addEventListener('pointerdown', (e) => this.onSelfDown(e), true);
@@ -343,7 +350,7 @@ export class Watch {
     G.audio?.ui?.('nodeUnlock', 0.55);
     this.message('FUNCTION UPLOADED', n?.title || key, 'rp', 3.5, true);
     this.hitFx = 1;
-    if (key === 'tool_torch') this.hookTorch(true);
+    if (key === 'tool_torch') this.hookTorch();
   }
 
   // ================================================================ scanning (ANOMALY SCAN)
@@ -395,16 +402,46 @@ export class Watch {
 
   // ================================================================ multi-tool: torch
   torchOwned() { const p = G.local; return !!p && !!p.lightItem && p.lightItem === p.worn.get('wrist' as any); }
-  toggleTorch() { const p = G.local; if (!p) return; this.hookTorch(true); if (this.torchOwned()) { p.flashlightOn = !p.flashlightOn; G.audio?.ui?.('watchTick'); } }
-  /** with the WRIST TORCH researched and no other light, the band itself is the light (F toggles it) */
+  toggleTorch() { const p = G.local; if (!p) return; this.hookTorch(true); if (this.torchOwned()) { p.flashlightOn = !p.flashlightOn; G.audio?.ui?.('watchTick'); this.drawT = 0; } }
+  /** the built-in flashlight on or off (F / the touch Light button / the toggle on the watch); a lamp held in hand wins */
+  flashlight() {
+    const p = G.local; if (!p) return;
+    const held = [p.handR, p.handL].find((it) => it && itemDef(it.key).light && (it.uses ?? 1) > 0);
+    if (held) { p.lightItem = held; p.flashlightOn = !p.flashlightOn; G.audio?.at?.('click', p.x, p.z, 0.4); return; }
+    if (!p.worn.get('wrist' as any)) { G.toggleFlashlight(p); return; }
+    this.toggleTorch();
+    G.missions?.set?.('watch:light');
+  }
+  /** the band itself is the light unless a lamp is held in hand (F toggles whichever it is) */
   private hookTorch(force = false) {
-    const p = G.local; if (!p || !hasUnlock('tool_torch')) return;
+    const p = G.local; if (!p) return;
     const band = p.worn.get('wrist' as any);
     if (!band) return;
-    const other = p.findItem((it: any, d: any) => !!d.light && (it.uses ?? 1) > 0);
-    if (!p.lightItem && (!other || force)) p.lightItem = band;
-    else if (p.lightItem === band && other && !p.flashlightOn) p.lightItem = null;
+    const held = [p.handR, p.handL].find((it) => it && itemDef(it.key).light && (it.uses ?? 1) > 0);
+    if (held && !force) { if (p.lightItem === band && !p.flashlightOn) p.lightItem = held; return; }
+    if (!p.lightItem || force || (p.lightItem !== band && !p.flashlightOn && !held)) p.lightItem = band;
+    // the band runs off the suit: it never goes flat
+    if (p.lightItem === band) band.uses = 1;
   }
+  /** the spot light leaves from the left wrist (the renderer's first flashlight is the local unit's) */
+  private wristBeam() {
+    const p = G.local; if (!p || !p.flashlightOn || !this.torchOwned() || p.body.dead) return;
+    const f = (G as any).flashlights?.[0] as THREE.SpotLight | undefined;
+    const hand = (p.rig as any)?.j?.handL as THREE.Object3D | undefined;
+    if (!f || !hand || !f.visible) return;
+    hand.getWorldPosition(this.beamV);
+    // a cool LED, a tighter cone than a torch, aimed where the unit faces (a little down)
+    const fx = Math.cos(p.facing), fz = Math.sin(p.facing);
+    f.position.set(this.beamV.x + fx * 0.08, Math.max(p.y + 0.7, this.beamV.y + 0.05), this.beamV.z + fz * 0.08);
+    f.target.position.set(p.x + fx * 7, p.y + 0.15, p.z + fz * 7);
+    f.target.updateMatrixWorld();
+    f.color.setHex(0xe6f2ff);
+    f.angle = 0.46;
+    f.penumbra = 0.45;
+    if (p.lightItem) p.lightItem.uses = 1;
+  }
+  private beamV = new THREE.Vector3();
+  private beamHooked = false;
 
   // ================================================================ input
   wearing(p: Player) {
@@ -508,7 +545,7 @@ export class Watch {
     if (hit.point && !this.small && hit.kind !== 'body') this.reach(hit.point);
     if (hit.kind === 'dial') { this.cycle(dir); this.knobKick = dir; return; }
     if (hit.kind === 'toggle') {
-      if (hit.page === 'torch') { if (hasUnlock('tool_torch')) this.toggleTorch(); else { G.audio?.ui?.('watchDeny'); this.message('NO LAMP FITTED', 'RESEARCH WRIST TORCH', 'warn'); } }
+      if (hit.page === 'torch') this.toggleTorch();
       else if (hasUnlock('tool_laser')) this.laser.arm(!this.laser.armed);
       else { G.audio?.ui?.('watchDeny'); this.message('NO EMITTER FITTED', 'RESEARCH LASER CUTTER', 'warn'); }
       G.audio?.ui?.('watchTick', 0.6);
@@ -766,7 +803,7 @@ export class Watch {
     this.glow.position.set(x, y, z + 0.03);
     // modules follow research
     const m = this.model.mods;
-    m.torch.visible = hasUnlock('tool_torch');
+    m.torch.visible = true;
     m.laser.visible = hasUnlock('tool_laser');
     m.dish.visible = hasUnlock('tool_beam') || hasUnlock('watch_signals');
     m.fab.visible = hasUnlock('tool_fab');

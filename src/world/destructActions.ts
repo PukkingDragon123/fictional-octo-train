@@ -52,11 +52,11 @@ export function targetPoint(p: Player, t: Target): { x: number; z: number } {
   return { x: t.x, z: t.z };
 }
 
-/** small, glass, pottery, cheap plastic: one decent hit and it is gone */
+/** glass, small pottery, tiny things: one decent hit and it is gone (round 12: everything else takes real work) */
 export function fragile(o: TileObject): boolean {
   const d = objDef(o.key); if (!d) return false;
   const m = objMat(d);
-  return m === 'glass' || m === 'ceramic' || objMass(d) < 6 || objMaxHp(d) <= 14 || (m === 'plastic' && objMass(d) < 12);
+  return m === 'glass' || (m === 'ceramic' && objMass(d) < 15) || objMass(d) < 3;
 }
 
 /**

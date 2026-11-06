@@ -7,7 +7,9 @@
 //               completed entries, the tools they earned and the requisition
 //               for the next run (src/game/codex.ts keeps that half)
 //   runs        runs started, deaths, what ended them, what the last run filed
-//   cos         the commendation suit dye worn into the next intake
+//   cos         the designs the unit wears into the next intake (dyes, visors, helmets...)
+//   fit         the unit's chips and limbs (src/game/unitTree.ts, fitted in the unit room)
+//   places      levels the units have walked, items the units have carried (the codex archive)
 // Achievements (src/game/achievements.ts) keep their records in the same file.
 import { bus } from '../core/events';
 import { allSpecies, species } from '../creatures/registry';
@@ -49,12 +51,20 @@ export interface FileData {
   req: string[];
   /** next sample id */
   sid: number;
+  // ---- the unit room and the codex archive
+  /** chips in sockets, limbs on slots (src/game/unitTree.ts) */
+  fit: { chips: string[]; limbs: Record<string, string> };
+  /** zones walked into, by key: times */
+  places: Record<string, number>;
+  /** items carried, by key: times seen in a pack */
+  found: Record<string, number>;
 }
 
 let data: FileData | null = null;
 const blank = (): FileData => ({
   v: 1, seen: {}, runs: 0, deaths: 0, ach: {}, n: {}, killers: [], milestones: [], last: null, cos: [],
   bank: [], sampled: {}, research: {}, done: [], tools: {}, req: [], sid: 1,
+  fit: { chips: [], limbs: {} }, places: {}, found: {},
 });
 export function file(): FileData {
   if (data) return data;
@@ -75,6 +85,9 @@ export function saveFile() {
   try { localStorage.setItem(KEY, JSON.stringify(file())); } catch { /* storage blocked: this visit only */ }
   for (const cb of subs) { try { cb(); } catch (e) { console.warn('meridian', e); } }
 }
+/** a level a unit walked into, an item a unit carried (the codex archive's Places and Items) */
+export function notePlace(key: string) { if (!key || key.startsWith('intro')) return; const f = file(); const first = !f.places[key]; f.places[key] = (f.places[key] || 0) + 1; saveFile(); if (first) bus.emit('placeFiled', key); }
+export function noteFound(keys: string[]) { const f = file(); let n = 0; for (const k of keys) if (!f.found[k]) { f.found[k] = 1; n++; } if (n) saveFile(); }
 /** cb() after every change to the file; returns an unsubscribe */
 export function onFile(cb: () => void): () => void { subs.add(cb); return () => subs.delete(cb); }
 export function counter(k: string) { return file().n[k] || 0; }
@@ -103,8 +116,8 @@ export function discover(key: string) {
   if (first) { if (run.live && !run.discovered.includes(key)) run.discovered.push(key); bus.emit('specimenDiscovered', key); }
 }
 
-// ================================================================== the suit dye
-/** the cosmetics the survivor wears into the next intake (achievement suits: profile unlock 'cos:<key>') */
+// ================================================================== the unit's designs
+/** the designs the unit wears into the next intake (researched or earned: profile unlock 'cos:<key>') */
 export function setWornCos(keys: string[]) { file().cos = keys.filter((k) => isUnlocked('cos:' + k)); saveFile(); }
 export function wornCos(): string[] { return file().cos.filter((k) => isUnlocked('cos:' + k)); }
 

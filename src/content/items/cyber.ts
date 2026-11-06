@@ -171,8 +171,8 @@ addLoot('garage_shelf', [['machine_oil', 2], ['cy_scrap_arm', 0.08], ['cy_scrap_
 addLoot('tool_shelf', [['machine_oil', 1.5]]);
 addLoot('store_hardware', [['machine_oil', 1.5]]);
 addLoot('maintenance', [['machine_oil', 1], ['cy_vise_hand', 0.1], ['cy_tool_hand', 0.08]]);
-addLoot('hospital_cabinet', [['cy_lamp_optic', 0.08], ['cy_servo_arm', 0.05], ['surgery_rig', 0.12]]);
-addLoot('morgue', [['cy_trap_jaw', 0.15], ['cy_scrap_arm', 0.1], ['surgery_rig', 0.1]]);
+addLoot('hospital_cabinet', [['cy_lamp_optic', 0.08], ['cy_servo_arm', 0.05]]);
+addLoot('morgue', [['cy_trap_jaw', 0.15], ['cy_scrap_arm', 0.1]]);
 addLoot('lab_cabinet', [['cy_ledger_optic', 0.1], ['cy_coil_leg', 0.06], ['cy_plate_dermis', 0.04]]);
 addLoot('lab_bench', [['cy_servo_arm', 0.06], ['cy_gantry_spine', 0.04]]);
 addLoot('server_room', [['cy_ledger_optic', 0.06]]);

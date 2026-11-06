@@ -252,9 +252,35 @@
 .cz-next { color: var(--ph) !important; text-shadow: 0 0 8px rgba(141, 255, 166, 0.5), var(--text-ink-2); }
 .cz-next.op { background: linear-gradient(180deg, #7a4a1c, #44260c); color: #ffd890 !important; }
 .cz-top { padding: 22px 14px 8px; }
-.cz-top::before { content: 'SUBJECT ID'; position: absolute; left: 10px; top: 2px; font: 16px/16px var(--font-new); color: var(--amb); letter-spacing: 0.12em; }
+.cz-top::before { content: 'UNIT ID'; position: absolute; left: 10px; top: 2px; font: 16px/16px var(--font-new); color: var(--amb); letter-spacing: 0.12em; }
 .cz-id b { color: var(--ph); }
 .cz-id b::after { content: '_'; animation: cz-blink 1s steps(1) infinite; }
 .cz-col { top: calc(max(16px, 4.4vh) + var(--t-xl) + var(--t-s) * 2 + 74px); }
 .cz-head::before, .cz-col::before { overflow: hidden; white-space: nowrap; }
 .cz.portrait .cz-col { top: auto; }
+
+/* ==== no pages: the part's tech screen rides beside the part (intake.ts places it every frame), a lead runs to it,
+   and in the overview each part of the unit carries a small marker */
+.cz-tabs { display: none !important; }
+.cz:not(.zoned) > .cz-col { opacity: 0; pointer-events: none; transform: translate(-200vw, 0); }
+.cz.zoned > .cz-col { left: 0 !important; top: 0 !important; right: auto !important; bottom: auto !important; will-change: transform; transition: opacity 0.2s steps(3); }
+.cz.portrait.zoned > .cz-col { left: 8px !important; right: 8px !important; top: auto !important; bottom: calc(48px + 14px + 54px) !important; transform: none !important; }
+.cz-lead { position: absolute; left: 0; top: 0; height: 2px; transform-origin: 0 50%; background: repeating-linear-gradient(90deg, #8dff9a 0 6px, transparent 6px 10px); box-shadow: 0 0 0 1px #0a0b10, 0 0 8px rgba(120, 255, 150, 0.6); pointer-events: none !important; opacity: 0; }
+.cz-lead::after { content: ''; position: absolute; right: -6px; top: -5px; width: 8px; height: 8px; border: 2px solid #8dff9a; box-shadow: 0 0 0 1px #0a0b10; }
+.cz.zoned:not(.portrait):not(.operating):not(.pressing) > .cz-lead { opacity: 1; }
+.cz-marks { position: absolute; inset: 0; pointer-events: none !important; }
+.cz-mk { position: absolute; left: 0; top: 0; display: flex; align-items: center; gap: 6px; min-height: 32px; margin: -16px 0 0 -9px !important; padding: 0 6px 0 0 !important; pointer-events: auto;
+  font-size: 16px !important; line-height: 16px; color: #d8f0d8; text-shadow: var(--text-ink-2), var(--text-halo); opacity: 0; transition: opacity 0.3s steps(3); }
+.cz-mk i { display: block; width: 18px; height: 18px; flex: none; background:
+  linear-gradient(#8dff9a, #8dff9a) 50% 0 / 2px 6px no-repeat, linear-gradient(#8dff9a, #8dff9a) 50% 100% / 2px 6px no-repeat,
+  linear-gradient(#8dff9a, #8dff9a) 0 50% / 6px 2px no-repeat, linear-gradient(#8dff9a, #8dff9a) 100% 50% / 6px 2px no-repeat;
+  filter: drop-shadow(1px 0 0 #0a0b10) drop-shadow(-1px 0 0 #0a0b10) drop-shadow(0 1px 0 #0a0b10) drop-shadow(0 -1px 0 #0a0b10); animation: cz-mk 1.6s steps(4) infinite; }
+@keyframes cz-mk { 50% { transform: scale(0.75); } }
+.cz-mk span { opacity: 0.85; }
+.cz-mk:hover span, .cz-mk:focus-visible span { opacity: 1; color: #ffffff; }
+.cz[data-phase='look']:not(.zoned):not(.operating) .cz-mk { opacity: 1; }
+.cz-hint { position: absolute; left: 50%; bottom: max(18px, 4vh); transform: translateX(-50%); pointer-events: none !important; font-size: 16px; line-height: 16px; color: #c8e8c8; text-shadow: var(--text-ink-2), var(--text-halo); opacity: 0; transition: opacity 0.3s; }
+.cz[data-phase='look']:not(.zoned) .cz-hint { opacity: 1; animation: cz-blink 2.4s steps(1) infinite; }
+.cz-hn { display: block; min-height: 0; padding-left: calc(var(--ks) * 6); font-size: var(--t-s); color: #e0b060; letter-spacing: 0.04em; }
+.cz-hn:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { .cz-mk i, .cz[data-phase='look']:not(.zoned) .cz-hint { animation: none; } }

@@ -5,6 +5,31 @@ import { hashf } from '../core/rng';
 
 export const LSUB = 2;          // light texels per tile edge
 export const LWIN = 128;        // window size in tiles
+/** key-light map: offsets to the dominant fixture are stored in [-DOM_R, DOM_R] metres, its height in [0, DOM_H] */
+export const DOM_R = 16, DOM_H = 8;
+
+/**
+ * Mismatched tubes: a ceiling of fluorescents is never one colour (cool daylight tubes, aged ones gone a
+ * little green, the odd warm replacement). Deterministic per light, the same brightness to the eye (the
+ * gameplay light level is unchanged), so neighbouring rooms differ the way real ones do.
+ */
+const TUBE_TINTS: [number, number, number][] = [[1, 1, 1], [1, 1, 1], [0.92, 1.0, 1.12], [0.95, 1.04, 0.9], [1.06, 0.98, 0.84], [1, 1, 1], [0.94, 1.0, 1.08]];
+const tintCache = new WeakMap<LightSource, [number, number, number]>();
+export function lightRGB(l: LightSource): [number, number, number] {
+  let c = tintCache.get(l);
+  if (c) return c;
+  let r = ((l.color >> 16) & 255) / 255, g = ((l.color >> 8) & 255) / 255, b = (l.color & 255) / 255;
+  if (l.kind === 'fluoro') {
+    const t = TUBE_TINTS[Math.floor(hashf(l.id, 3, 77) * TUBE_TINTS.length) % TUBE_TINTS.length];
+    const y0 = r * 0.3 + g * 0.59 + b * 0.11;
+    r *= t[0]; g *= t[1]; b *= t[2];
+    const k = y0 / Math.max(1e-4, r * 0.3 + g * 0.59 + b * 0.11);
+    r *= k; g *= k; b *= k;
+  }
+  c = [r, g, b];
+  tintCache.set(l, c);
+  return c;
+}
 
 /**
  * Static light accumulation grid. Every fixture (fluorescent panels, bulbs,
@@ -23,6 +48,19 @@ export class LightGrid {
   private texDirty = true;
   private lastUpload = 0;
   private flickerT = 0;
+  /**
+   * Key-light map (visual only, same window as tex): for every light texel, where the fixture that
+   * dominates it hangs (rg: offset from the texel centre, b: height) and how much of the texel's light it
+   * gives (a). The world shaders turn it into real per-fixture falloff (wall scallops, a key direction on
+   * bodies, glossy highlights) and the post pass into soft screen-space shadows cast away from the fixture.
+   * Rebuilt only when lights switch on or off, walls change or the window moves (never on flicker).
+   */
+  domTex: THREE.DataTexture;
+  private domData: Uint8Array;
+  private domDirty = true;
+  private domBest: Float32Array | null = null;
+  private domTot: Float32Array | null = null;
+  private domIdx: Int32Array | null = null;
   /** lights whose footprint is currently stamped into buf */
   private stamped = new Set<LightSource>();
   private index = new Map<number, LightSource[]>();
@@ -38,6 +76,11 @@ export class LightGrid {
     this.tex.magFilter = THREE.LinearFilter; this.tex.minFilter = THREE.LinearFilter;
     this.tex.generateMipmaps = false;
     this.tex.needsUpdate = true;
+    this.domData = new Uint8Array(N * N * 4);
+    this.domTex = new THREE.DataTexture(this.domData, N, N, THREE.RGBAFormat, THREE.UnsignedByteType);
+    this.domTex.magFilter = THREE.NearestFilter; this.domTex.minFilter = THREE.NearestFilter;
+    this.domTex.generateMipmaps = false;
+    this.domTex.needsUpdate = true;
     // lights already stamped by a previous view of this zone are reset
     for (const l of zone.lights) { l.level = 0; l.fp = null; }
     zone.lightDirty = false;
@@ -77,6 +120,7 @@ export class LightGrid {
     this.stamped.clear();
     this.zone.lightDirty = false;
     this.texDirty = true;
+    this.domDirty = true;
   }
 
   /** Recompute footprints of stamped lights near a tile (door opened, wall broken) */
@@ -89,13 +133,15 @@ export class LightGrid {
       if (lvl) this.stamp(l, lvl);
     }
     this.texDirty = true;
+    this.domDirty = true;
   }
 
   private stamp(l: LightSource, mult: number) {
     if (!l.fp) return;
-    const r = ((l.color >> 16) & 255) / 255 * l.intensity * mult;
-    const g = ((l.color >> 8) & 255) / 255 * l.intensity * mult;
-    const b = (l.color & 255) / 255 * l.intensity * mult;
+    const rgb = lightRGB(l);
+    const r = rgb[0] * l.intensity * mult;
+    const g = rgb[1] * l.intensity * mult;
+    const b = rgb[2] * l.intensity * mult;
     const { idx, w } = l.fp;
     const buf = this.buf;
     for (let k = 0; k < idx.length; k++) {
@@ -109,6 +155,7 @@ export class LightGrid {
     if (Math.abs(cur - level) < 1e-3) return;
     if (!l.fp) l.fp = this.footprint(l);
     this.stamp(l, level - cur);
+    if ((cur > 0.01) !== (level > 0.01)) this.domDirty = true;
     l.level = level;
     if (level > 0) this.stamped.add(l);
     this.texDirty = true;
@@ -165,6 +212,7 @@ export class LightGrid {
       for (const l of z.removedLights) { if (l.level) this.stamp(l, -l.level); l.level = 0; this.stamped.delete(l); }
       z.removedLights.length = 0;
       this.texDirty = true;
+      this.domDirty = true;
     }
     // walls / doors changed: recompute nearby footprints
     if (z.lightDirtyTiles.length) {
@@ -176,6 +224,7 @@ export class LightGrid {
     if (Math.abs(camTileX - (this.winX + half)) > LWIN / 4 || Math.abs(camTileY - (this.winY + half)) > LWIN / 4) {
       this.winX = Math.floor(camTileX - half); this.winY = Math.floor(camTileY - half);
       this.texDirty = true;
+      this.domDirty = true;
     }
     this.flickerT += dt;
     const doFlicker = this.flickerT > 1 / 15;
@@ -205,9 +254,114 @@ export class LightGrid {
     }
     const now = performance.now();
     if (this.texDirty && now - this.lastUpload > 50) this.upload();
+    if (this.domDirty && !this.texDirty) this.buildDom();
     U.uLightTex.value = this.tex;
+    U.uDomTex.value = this.domTex;
     U.uLightInfo.value.set(this.winX, this.winY, 1 / LWIN, 1 / LWIN);
   }
+
+  /** the key-light map (see domTex): every lit texel learns which fixture dominates it */
+  private buildDom() {
+    this.domDirty = false;
+    const N = LWIN * LSUB, NN = N * N;
+    const best = this.domBest ??= new Float32Array(NN), tot = this.domTot ??= new Float32Array(NN), bi = this.domIdx ??= new Int32Array(NN);
+    best.fill(0); tot.fill(0); bi.fill(-1);
+    const ox = this.winX * LSUB, oy = this.winY * LSUB, W = this.W;
+    const m = 12;
+    const ls = this.lightsIn(this.winX - m, this.winY - m, this.winX + LWIN + m, this.winY + LWIN + m);
+    for (let li = 0; li < ls.length; li++) {
+      const l = ls[li];
+      if (!l.fp || !((l.level ?? 0) > 0.01) || l.kind === 'sky') continue;
+      const s = l.intensity * (((l.color >> 16) & 255) * 0.3 + ((l.color >> 8) & 255) * 0.5 + (l.color & 255) * 0.2) / 255;
+      const { idx, w } = l.fp;
+      for (let k = 0; k < idx.length; k++) {
+        const gi = idx[k], gx = gi % W - ox, gy = ((gi / W) | 0) - oy;
+        if (gx < 0 || gy < 0 || gx >= N || gy >= N) continue;
+        const t = gy * N + gx, v = w[k] * s;
+        tot[t] += v;
+        if (v > best[t]) { best[t] = v; bi[t] = li; }
+      }
+    }
+    const d = this.domData;
+    for (let t = 0; t < NN; t++) {
+      const o = t * 4, li = bi[t];
+      if (li < 0 || tot[t] < 1e-4) { d[o] = d[o + 1] = 128; d[o + 2] = 0; d[o + 3] = 0; continue; }
+      const l = ls[li];
+      const cx = (ox + (t % N) + 0.5) / LSUB, cz = (oy + ((t / N) | 0) + 0.5) / LSUB;
+      const enc = (v: number) => Math.max(0, Math.min(255, Math.round((v / (2 * DOM_R) + 0.5) * 255)));
+      d[o] = enc(l.x - cx); d[o + 1] = enc(l.z - cz);
+      d[o + 2] = Math.max(0, Math.min(255, Math.round(l.y / DOM_H * 255)));
+      d[o + 3] = Math.min(255, Math.round(best[t] / tot[t] * 255));
+    }
+    this.domTex.needsUpdate = true;
+  }
+
+  /**
+   * The active fixtures nearest a point, for the haze glow (src/gfx/scenefx.ts): fills pos (x, y, z, radius)
+   * and col (rgb x intensity x current level, so tubes flicker in the air too). Returns the count.
+   */
+  nearestLights(x: number, z: number, maxN: number, pos: Float32Array, col: Float32Array, reach = 26): number {
+    const ls = this.lightsIn(x - reach, z - reach, x + reach, z + reach);
+    const cand = this.nearTmp; cand.length = 0;
+    for (const l of ls) {
+      const lv = l.level ?? 0;
+      if (lv <= 0.01 || l.kind === 'sky' || l.kind === 'screen') continue;
+      cand.push(l);
+    }
+    const d2 = (l: LightSource) => (l.x - x) * (l.x - x) + (l.z - z) * (l.z - z);
+    cand.sort((a, b) => d2(a) - d2(b));
+    const n = Math.min(maxN, cand.length);
+    for (let i = 0; i < n; i++) {
+      const l = cand[i], lv = l.level ?? 0;
+      pos[i * 4] = l.x; pos[i * 4 + 1] = l.y; pos[i * 4 + 2] = l.z; pos[i * 4 + 3] = l.radius;
+      const rgb = lightRGB(l);
+      col[i * 4] = rgb[0] * l.intensity * lv;
+      col[i * 4 + 1] = rgb[1] * l.intensity * lv;
+      col[i * 4 + 2] = rgb[2] * l.intensity * lv;
+      col[i * 4 + 3] = l.kind === 'fluoro' ? 1 : 0;
+    }
+    return n;
+  }
+  private nearTmp: LightSource[] = [];
+
+  /**
+   * The (up to n) fixtures that light a body standing at x, z most, for its cast shadows (src/gfx/scenefx.ts):
+   * weighted like the grid's own footprint, only lights with a clear line to the body (not through a wall).
+   * out gets x, y, z, packed (radius * 10 whole part, intensity x level / 4 fraction) per light; returns the count.
+   */
+  lightsFor(x: number, z: number, n: number, out: Float32Array, o: number): number {
+    const ls = this.lightsIn(x - 7, z - 7, x + 7, z + 7);
+    const best = this.forTmp; best.length = 0;
+    for (const l of ls) {
+      const lv = l.level ?? 0;
+      if (lv <= 0.05 || l.kind === 'sky' || l.kind === 'screen' || l.y < 1.2) continue;
+      const dx = x - l.x, dz = z - l.z, hy = Math.max(0.6, l.y - 1.0);
+      const d = Math.sqrt(dx * dx + dz * dz + hy * hy * 0.35);
+      if (d >= l.radius) continue;
+      const t = 1 - d / l.radius;
+      const w = t * t * (3 - 2 * t) * l.intensity * lv;
+      if (w < 0.02) continue;
+      // line of sight from the fixture to the body (the grid's own wall test)
+      const L = Math.hypot(dx, dz);
+      if (L > 0.3) {
+        let reach = false;
+        const tx = Math.floor(x), tz = Math.floor(z);
+        castRay(this.zone, l.x, l.z, dx / L, dz / L, L + 0.01, 'light', (vx, vy) => { if (vx === tx && vy === tz) reach = true; });
+        if (!reach) continue;
+      }
+      best.push({ l, w });
+    }
+    best.sort((a, b) => b.w - a.w);
+    const k = Math.min(n, best.length);
+    for (let i = 0; i < k; i++) {
+      const { l } = best[i];
+      out[o + i * 4] = l.x; out[o + i * 4 + 1] = l.y; out[o + i * 4 + 2] = l.z;
+      out[o + i * 4 + 3] = Math.round(l.radius * 10) + Math.min(0.999, l.intensity * (l.level ?? 0) / 4);
+    }
+    for (let i = k; i < n; i++) out[o + i * 4 + 3] = 0;
+    return k;
+  }
+  private forTmp: { l: LightSource; w: number }[] = [];
 
   private lum: Float32Array | null = null;
   private lumB: Float32Array | null = null;

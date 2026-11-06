@@ -43,7 +43,7 @@ export class PhosphorScreen {
     c.clearRect(0, 0, W, H);
     c.textBaseline = 'top'; c.fillStyle = '#fff';
     c.font = "600 11px 'Alagard', monospace";
-    c.fillText('SUBJECT 4', 4, 2);
+    c.fillText('UNIT 4', 4, 2);
     c.font = "italic 600 10px 'Alagard', monospace";
     c.fillText('pulse', 4, H - 13);
     c.font = "600 13px 'Alagard', monospace";

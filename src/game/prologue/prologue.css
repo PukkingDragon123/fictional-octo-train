@@ -1,0 +1,28 @@
+/* The prologue (src/game/prologue): first person in the Meridian Institute, before the menu. */
+.pl-obj { position: absolute; transform: translate(-50%, -100%); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .3s; pointer-events: none; }
+.pl-obj.on { opacity: 1; }
+.pl-obj b { display: block; font-weight: 400; font-size: 32px; line-height: 32px; color: #ffe7a8; text-shadow: var(--text-ink); letter-spacing: 1px; }
+.pl-obj i { display: block; font-style: normal; font-size: 16px; line-height: 16px; margin-top: 6px; color: #e8eef4; text-shadow: var(--text-ink); }
+.pl-obj .arrow { display: block; font-size: 16px; line-height: 16px; color: #ffe7a8; text-shadow: var(--text-ink); animation: pl-bob .9s steps(3) infinite; }
+@keyframes pl-bob { 50% { transform: translateY(4px); } }
+.pl-lesson { position: absolute; left: 50%; top: 14vh; transform: translateX(-50%); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .35s; pointer-events: none; }
+.pl-lesson.on { opacity: 1; }
+.pl-lesson small { display: block; font-size: 16px; line-height: 16px; letter-spacing: 3px; color: #8fd8ff; text-shadow: var(--text-ink); }
+.pl-lesson b { display: block; font-weight: 400; font-size: 32px; line-height: 32px; margin-top: 6px; color: #fff2c8; text-shadow: var(--text-ink); }
+.pl-dot { position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; margin: -2px 0 0 -2px; background: #f4f1e8; box-shadow: 0 0 0 1px #000; opacity: .7; pointer-events: none; }
+.pl-dot.hot { width: 8px; height: 8px; margin: -4px 0 0 -4px; background: #ffe7a8; opacity: 1; }
+.pl-static { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; pointer-events: none; }
+.pl-visor { position: absolute; inset: -2vmax; pointer-events: none; opacity: 0; transition: opacity .6s;
+  background: radial-gradient(ellipse 62% 58% at 50% 48%, transparent 70%, rgba(180, 200, 190, .18) 82%, rgba(20, 24, 22, .92) 96%); }
+.pl-visor.on { opacity: 1; }
+.pl-card { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .8s; pointer-events: none; }
+.pl-card.on { opacity: 1; }
+.pl-card small { display: block; font-size: 16px; line-height: 16px; letter-spacing: 4px; color: #8fd8ff; text-shadow: var(--text-ink); }
+.pl-card b { display: block; font-weight: 400; font-size: 48px; line-height: 48px; margin-top: 12px; color: #f4f1e8; text-shadow: var(--text-ink); }
+.pl-touch { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+.pl-stick { position: absolute; width: 96px; height: 96px; margin: -48px 0 0 -48px; border-radius: 50%; border: 2px solid rgba(232, 238, 244, .35); opacity: 0; pointer-events: none; }
+.pl-stick.on { opacity: 1; }
+.pl-stick i { position: absolute; left: 50%; top: 50%; width: 32px; height: 32px; margin: -16px 0 0 -16px; border-radius: 50%; background: rgba(255, 231, 168, .55); }
+@media (max-width: 700px), (max-height: 460px) {
+  .pl-obj b, .pl-lesson b { font-size: 16px; line-height: 16px; } .pl-card b { font-size: 32px; line-height: 32px; }
+}

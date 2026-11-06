@@ -1,13 +1,14 @@
 // The story's quests, uploaded to the watch (src/missions/questRuntime.ts).
 //
-// MAIN (the Remittance contract, uploaded by Staff Sergeant Voss, accepted
-// automatically): First Haul (smash furniture, find a valuable, feed it to a
-// press machine) → four installments, each due by a deadline → Discharge
-// (clear the balance) → Passage (reach the depot, buy a ticket, board). See
-// src/game/debt.
+// MAIN (the Remittance contract, uploaded by Dr. Iris Calder, the operator's
+// guide, accepted automatically): First Haul (get hold of a piece of
+// furniture, carry it whole to a press, pull the lever) → Field Work (find
+// data, scan an inhabitant with the watch) alongside four installments, each
+// due by a deadline → Discharge (clear the balance) → Passage (reach the
+// depot, buy a ticket, board). See src/game/debt.
 //
 // SIDE (the way out they don't want you to find, on the radio, never from
-// Voss): the old Continuity chain — a dead circuit's telemetry, the numbers
+// Calder): the old Continuity chain — a dead circuit's telemetry, the numbers
 // station, the render nodes, the root key, the core — which ends with every
 // band going dead ('band:removed') and a door that was always there. Its first
 // quest has to be accepted; the rest of the thread follows by itself.
@@ -47,26 +48,39 @@ const nearestPress = (): QWhere | null => {
   return best;
 };
 const debt = () => G.debt as any;
-const VOSS = 'SSGT. VOSS';
+const CALDER = 'DR. CALDER';
 const INST = 4;
 
 // ================================================================ main: the contract
 q({
-  key: 'first_haul', main: true, auto: true, voice: 'handler', title: 'First Haul', giver: VOSS, category: 'contract',
+  key: 'first_haul', main: true, auto: true, voice: 'handler', title: 'First Haul', giver: CALDER, category: 'contract',
   requires: ['flag:contract:intake'],
-  desc: 'You owe. Everyone down here owes. The furniture is full of what people left behind: break it open, find something worth something, and feed it to a press machine. Put it on the bed, pull the lever, watch your number go down.',
-  intro: 'Listen up, convict. You find it, you break it open, you bring it to the press. The press takes it, your number goes down. Simple.',
+  desc: 'The unit owes, and the Institute collects in furniture. Get hold of something heavy, carry it whole to a press, set it on the striped plate, step off and pull the lever. Things down here are built to last: carrying is quicker than breaking.',
+  intro: 'Your first job, unit. Pick up a piece of furniture. Carry it to the press. Pull the lever. Slowly. The body is new to you.',
   objectives: [
-    { id: 'smash', text: 'Break a piece of furniture open', check: has('tut:smash') },
-    { id: 'valuable', text: 'Find something valuable', check: has('tut:valuable') },
-    { id: 'deposit', text: 'Feed it to a press machine', check: has('contract:first_deposit'), where: nearestPress },
+    { id: 'walk', text: 'Walk the unit about (WASD, or the stick)', check: has('tut:walk'), optional: true },
+    { id: 'carry', text: 'Get hold of a piece of furniture (hold the right button, or GRAB)', check: (m) => m.flags.has('tut:carry') || m.flags.has('tut:smash'), optional: true },
+    { id: 'deposit', text: 'Carry it to a press, set it on the plate, pull the lever', check: has('contract:first_deposit'), where: nearestPress },
     { id: 'scanner', text: 'Raise your watch (TAB) and read this', check: has('tut:scanner'), optional: true },
     { id: 'drink', text: 'Drink something', check: has('tut:drink'), optional: true },
     { id: 'light', text: 'Find a light source', check: (m) => m.flags.has('got:light') || m.flags.has('tut:light'), optional: true },
   ],
   reward: { rp: 3 },
-  outro: 'That is the job. Now do it again. And again. The first installment is due before you know it. Meridian pays research credit for good work: spend it on that watch.',
+  outro: 'That is the job. Again, and again. The first installment is due before you know it. I pay research credit for good work: spend it on that watch.',
 });
+
+q({
+  key: 'field_work', main: true, auto: true, voice: 'handler', requires: ['first_haul'], title: 'Field Work', giver: CALDER, category: 'contract',
+  desc: 'The press pays the debt. Data pays me. Terminals and lore drives remember what happened here: read one. The inhabitants are organisms, not ghosts: point the watch at one and scan it. Keep the unit calm while you do it, the link does not like fear.',
+  intro: 'Something else, while you work. I need data. Read a terminal or a drive. And scan an inhabitant with the watch. From a distance, please.',
+  objectives: [
+    { id: 'data', text: 'Find data: read a terminal, a drive or a journal', check: count('read:', 1) },
+    { id: 'scan', text: 'Scan an inhabitant with the watch (hold N, or open the watch and tap it)', check: count('scan:', 1) },
+    { id: 'calm', text: 'If the link slips, resync it (L, or tap LINK DESYNC)', check: has('link:resync'), optional: true },
+  ],
+  reward: { rp: 4 },
+  outro: 'Logged and filed. That one goes in my paper. You will be in the acknowledgements, unit. As a number.',
+} as QuestX);
 
 for (let n = 1; n <= INST; n++) {
   q({
@@ -77,7 +91,7 @@ for (let n = 1; n <= INST; n++) {
       if (!d?.on) return 'The ledger is waiting for your first deposit.';
       return `Balance ${fmt(d.remaining)} scrip. Installment ${n} must be on the ledger by day ${d.dueDay}. Miss it and the band will remind you, and the Programme adds a penalty.`;
     },
-    intro: n === 1 ? 'First installment. Do not make me remind you.' : n === INST ? 'One more installment after this and you are square. Do not get comfortable.' : undefined,
+    intro: n === 1 ? 'First installment. I would rather not have to remind you.' : n === INST ? 'One more installment after this and the unit is square. Do not get comfortable.' : undefined,
     objectives: [
       {
         id: 'pay',
@@ -93,7 +107,7 @@ for (let n = 1; n <= INST; n++) {
 q({
   key: 'clear_debt', main: true, auto: true, voice: 'handler', requires: ['installment_' + INST], title: 'Discharge', giver: 'REMITTANCE LEDGER', category: 'contract',
   get desc() { const d = debt(); return `The last installment is the rest of it: ${fmt(d?.remaining ?? 0)} scrip. Clear the balance and the contract is discharged.`; },
-  intro: 'Last one. Clear it and you get to talk about leaving.',
+  intro: 'Last one. Clear it and we can talk about leaving.',
   objectives: [
     { id: 'clear', get text() { const d = debt(); return d?.on && !d.cleared ? `Clear the balance (${fmt(d.remaining)} scrip)` : 'Clear the balance'; }, check: has('contract:debt_cleared') },
   ],
@@ -101,11 +115,11 @@ q({
 } as QuestX);
 
 q({
-  key: 'transport', main: true, auto: true, voice: 'handler', requires: ['clear_debt'], title: 'Passage', giver: VOSS, category: 'contract',
+  key: 'transport', main: true, auto: true, voice: 'handler', requires: ['clear_debt'], title: 'Passage', giver: CALDER, category: 'contract',
   get desc() {
     const d = debt();
     const where = zoneSpec('depot') ? 'the depot\'s kiosk' : 'the passage kiosk beside the Lobby press';
-    return `Discharged debtors may buy passage out at ${where}. Surplus scrip pays for it: ${fmt(d?.surplus ?? 0)} on account. The cheap ride goes somewhere. The dear one goes home.`;
+    return `Discharged units may buy passage out at ${where}. Surplus scrip pays for it: ${fmt(d?.surplus ?? 0)} on account. The cheap ride goes somewhere. The dear one goes home.`;
   },
   intro: 'There is a depot. Things leave from it. Keep depositing: every scrip over zero goes toward your ticket.',
   objectives: [
@@ -119,7 +133,7 @@ q({
 // ================================================================ side: the way out they don't want you to find
 q({
   key: 'first_light', requires: ['first_haul'], title: 'Dead Circuit', giver: 'BRK-99 TELEMETRY', category: 'side', voice: 'radio',
-  desc: 'Something on 102.5 MHz is not Programme traffic: a dead circuit in this level broadcasting telemetry. The service elevator runs on circuit 99. Voss has never mentioned it.',
+  desc: 'Something on 102.5 MHz is not Programme traffic: a dead circuit in this level broadcasting telemetry. The service elevator runs on circuit 99. Dr. Calder has never mentioned it.',
   intro: '...carrier on 102.5. Automated. "BRK-99: FUSES MISSING". The projection on your wrist flickers while it plays.',
   signals: [{ id: 'sig_brk99', zone: 'lobby', freq: 102.5, anchor: 'maintenance', range: 170, name: 'BRK-99 TELEMETRY', text: 'FUSES 0/3. ELEVATOR CIRCUIT OPEN.' }],
   objectives: [
@@ -142,7 +156,7 @@ q({
     { id: 'terminal', text: 'Find the terminal it comes from', check: has('read:terminal_numbers'), where: anchorAt('office', 'numbers_terminal', '88.1') },
   ],
   reward: { rp: 3 },
-  outro: 'Room 411. Server closet 07. Rack 33. Somebody wanted a debtor to find it.',
+  outro: 'Room 411. Server closet 07. Rack 33. Somebody wanted a unit to find it.',
 });
 
 q({

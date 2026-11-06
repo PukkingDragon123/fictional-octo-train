@@ -70,11 +70,18 @@ const DENSITY: Record<Mat, number> = { wood: 160, metal: 420, plastic: 90, fabri
 const BASE_HP: Record<Mat, number> = { wood: 40, metal: 80, plastic: 26, fabric: 48, glass: 12, ceramic: 20, paper: 12, flesh: 30, elec: 30 };
 
 export function objVolume(d: ObjDef): number { return (d.w ?? 1) * (d.d ?? 1) * Math.max(0.15, d.height); }
+/**
+ * How much harder furniture is to break since round 12 (carrying it whole is the job;
+ * smashing it is the expensive, noisy last resort). Fragile materials (glass, ceramic)
+ * stay fragile-ish but still take more than one careless knock.
+ */
+export const TOUGHNESS: Record<Mat, number> = { wood: 4, metal: 4.5, plastic: 3.5, fabric: 4, glass: 2.5, ceramic: 2.5, paper: 3, flesh: 2, elec: 3 };
 export function objMaxHp(d: ObjDef): number {
   const v = objVolume(d);
-  const hp = Math.round(BASE_HP[objMat(d)] * Math.min(2.4, Math.max(0.45, 0.55 + v * 0.62)));
-  // a declared hp makes it tougher, within reason (smashing should take a few blows, not a dozen)
-  return d.hp ? Math.max(hp, Math.min(d.hp, Math.round(hp * 1.5))) : hp;
+  const mat = objMat(d);
+  const hp = Math.round(BASE_HP[mat] * Math.min(2.4, Math.max(0.45, 0.55 + v * 0.62)) * TOUGHNESS[mat]);
+  // a declared hp makes it tougher, within reason
+  return d.hp ? Math.max(hp, Math.min(d.hp * TOUGHNESS[mat], Math.round(hp * 1.5))) : hp;
 }
 /** estimated mass in kg (declared movable weight wins) */
 export function objMass(d: ObjDef): number {

@@ -4,7 +4,7 @@
 // skin under them with a ray, so a different body model still lines up).
 // Paths are the lines the trace mini-games cut along.
 
-export type AnchorBone = 'head' | 'chest' | 'hips' | 'uarmL' | 'uarmR' | 'farmL' | 'farmR' | 'thighL' | 'shinL' | 'shinR';
+export type AnchorBone = 'head' | 'chest' | 'hips' | 'uarmL' | 'uarmR' | 'farmL' | 'farmR' | 'thighL' | 'thighR' | 'shinL' | 'shinR';
 type V3 = [number, number, number];
 export interface Anchor { bone: AnchorBone; p: V3; n: V3 }
 
@@ -31,7 +31,10 @@ export const ANCHORS: Record<string, Anchor> = {
   armL: { bone: 'uarmL', p: [0, -0.14, 0.05], n: [0, 0, 1] },
   armR: { bone: 'uarmR', p: [0, -0.14, 0.05], n: [0, 0, 1] },
   forearmL: { bone: 'farmL', p: [0, -0.12, 0.04], n: [0, 0, 1] },
+  forearmR: { bone: 'farmR', p: [0, -0.12, 0.04], n: [0, 0, 1] },
   thigh: { bone: 'thighL', p: [0, -0.2, 0.08], n: [0, 0, 1] },
+  thighR: { bone: 'thighR', p: [0, -0.2, 0.08], n: [0, 0, 1] },
+  shinR: { bone: 'shinR', p: [0, -0.2, 0.06], n: [0, 0, 1] },
   shin: { bone: 'shinL', p: [0, -0.2, 0.06], n: [0, 0, 1] },
 };
 
@@ -70,4 +73,10 @@ export const SHOTS: Record<string, ShotDef> = {
   ears: { bone: 'head', at: [-0.05, 0.085, 0.0], dist: 0.52, yaw: -1.05, pitch: 0.06, fov: 30, pDist: 0.86, pFov: 38 },
   marks: { bone: 'head', at: [0.015, 0.08, 0.05], dist: 0.56, yaw: 0.5, pitch: 0.02, fov: 30, pDist: 0.92, pFov: 38 },
   skin: { bone: 'chest', at: [0, 0.2, 0.02], dist: 1.4, yaw: 0.32, pitch: 0.06, fov: 32, pDist: 2.3, pFov: 42 },
+  // the unit room's hardware: the neck port, each arm, each leg
+  neck: { bone: 'chest', at: [0, 0.27, 0.03], dist: 0.78, yaw: 0.34, pitch: 0.08, fov: 30, pDist: 1.25, pFov: 40 },
+  armL: { bone: 'uarmL', at: [0, -0.22, 0.02], dist: 1.25, yaw: 0.62, pitch: 0.06, fov: 32, pDist: 1.9, pFov: 42 },
+  armR: { bone: 'uarmR', at: [0, -0.22, 0.02], dist: 1.25, yaw: -0.62, pitch: 0.06, fov: 32, pDist: 1.9, pFov: 42 },
+  legL: { bone: 'thighL', at: [0, -0.32, 0.03], dist: 1.6, yaw: 0.45, pitch: 0.12, fov: 32, pDist: 2.4, pFov: 42 },
+  legR: { bone: 'thighR', at: [0, -0.32, 0.03], dist: 1.6, yaw: -0.45, pitch: 0.12, fov: 32, pDist: 2.4, pFov: 42 },
 };

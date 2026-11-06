@@ -42,6 +42,16 @@ export const CAMU = {
   uPxPersp: { value: 0.003 },
 };
 
+/** fixtures glowing in the haze (src/gfx/scenefx.ts fills them from the light grid each frame) */
+export const GLOW_MAX = 12;
+export const GLOWU = {
+  /** xyz position, w radius (m) */
+  uGlowPos: { value: Array.from({ length: GLOW_MAX }, () => new THREE.Vector4()) },
+  /** rgb x intensity x current level (flicker), w 1 for fluorescent tubes */
+  uGlowCol: { value: Array.from({ length: GLOW_MAX }, () => new THREE.Vector4()) },
+  uGlowN: { value: 0 },
+};
+
 /** flashlight cone shared by the haze march and the motes */
 export const SPOTU = {
   uSpotOn: { value: 0 },
@@ -106,9 +116,11 @@ float bayer4(vec2 p) {
   return (4.0 * a + b + 0.5) / 16.0;
 }
 float h12(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
-/** gNormal alpha: outline flag + 2 x wet level + 16 x water */
+/** gNormal alpha: outline flag + 2 x wet level + 16 x water + 32 x emitter */
+float emitterOf(float a) { return step(31.9, a); }
 vec3 unpackFlags(float a) {
   a += 0.01;
+  a -= 32.0 * step(32.0, a);
   float water = step(16.0, a); a -= 16.0 * water;
   float wq = floor(a * 0.5);
   return vec3(a - 0.01 - 2.0 * wq, wq / 7.0, water);
@@ -124,6 +136,49 @@ uniform float uStrength;
 uniform vec4 uBlobs[16];
 uniform int uBlobN;
 uniform float uBlobStr;
+uniform float uBlobH[16];
+// per body: the three fixtures that light it most (xyz, radius * 10 + intensity / 4)
+uniform vec4 uBlobL[48];
+uniform float uActSh;
+uniform sampler2D uLightTex;
+uniform float uGridScale;
+#if SS_N > 0
+uniform sampler2D uDomTex;
+uniform vec4 uLightInfo;
+uniform float uSSStr;
+// Soft shadows from the key fixture: march the depth buffer from the surface toward the fixture that
+// dominates the light here (src/world/lighting.ts domTex). Anything standing in the way (a body, a chair,
+// a desk) casts a shadow away from the tube, contact-dark at its foot and fading out with height (a
+// troffer is a big soft source); the blur after the pass softens it further.
+float keyShadow(vec3 P, vec3 N, float ld) {
+  vec2 luv = (P.xz + N.xz * 0.12 - uLightInfo.xy) * uLightInfo.zw;
+  if (luv.x <= 0.0 || luv.y <= 0.0 || luv.x >= 1.0 || luv.y >= 1.0) return 1.0;
+  vec4 dm = texture2D(uDomTex, luv);
+  if (dm.a < 0.05) return 1.0;
+  float nT = float(textureSize(uDomTex, 0).x);
+  vec2 tc = (floor(luv * nT) + 0.5) / nT / uLightInfo.zw + uLightInfo.xy;
+  vec3 V = vec3(tc.x + (dm.r - 0.5) * 32.0, dm.b * 8.0, tc.y + (dm.g - 0.5) * 32.0) - P;
+  float dist = length(V);
+  vec3 dir = V / max(dist, 1e-3);
+  if (dot(N, dir) < 0.05) return 1.0;
+  float pm = pxm(ld);
+  float maxT = min(dist - 0.3, SS_LEN);
+  if (maxT < 0.12) return 1.0;
+  vec3 O = P + N * (pm * 1.5 + 0.02);
+  float j = bayer4(gl_FragCoord.xy + vec2(2.0, 1.0));
+  float occ = 0.0;
+  for (int i = 0; i < SS_N; i++) {
+    float f = (float(i) + j) / float(SS_N);
+    float t = maxT * f * f + pm;
+    float sd;
+    vec2 su = toUv(O + dir * t, sd);
+    if (su.x < 0.0 || su.x > 1.0 || su.y < 0.0 || su.y > 1.0) break;
+    float diff = sd - lin(texture2D(tDepth, su).r);
+    if (diff > pm * 1.2 + 0.02 && diff < 0.3 + t * 0.35) occ = max(occ, 1.0 - smoothstep(0.0, maxT * 1.15, t) * 0.45);
+  }
+  return 1.0 - occ * smoothstep(0.05, 0.45, dm.a) * uSSStr;
+}
+#endif
 void main() {
   float dr = texture2D(tDepth, vUv).r;
   if (dr >= 0.99999) { gl_FragColor = vec4(1.0); return; }
@@ -170,7 +225,54 @@ void main() {
       ao *= 1.0 - s * uBlobStr;
     }
   }
-  gl_FragColor = vec4(ao, 0.0, 0.0, 1.0);
+  float ks = 1.0;
+#if SS_N > 0
+  ks = keyShadow(P, N, ld);
+#endif
+  // Bodies cast real shadows from each of the (up to three) fixtures lighting them: the ray from this
+  // point to the light against the body (an upright capsule), soft in proportion to how far up the body it
+  // passes (a long tube is a big source), as dark as that light's share of the light here. Between tubes
+  // a survivor stands in two or three faint shadows fanning away, under one in a short dark pool.
+  if (uActSh > 0.0 && uBlobN > 0) {
+    vec2 luv = (P.xz + N.xz * 0.15 - uLightInfo.xy) * uLightInfo.zw;
+    vec3 gq = texture2D(uLightTex, luv).rgb;
+    float gl = dot(gq * gq * uGridScale, vec3(0.3, 0.5, 0.2)) + 0.04;
+    float as = 1.0;
+    for (int i = 0; i < 16; i++) {
+      if (i >= uBlobN) break;
+      vec4 b = uBlobs[i];
+      vec2 rel = P.xz - b.xz;
+      float d2 = dot(rel, rel);
+      if (d2 > 30.0) continue;
+      float bw = b.w * 0.72;
+      if (d2 < bw * bw * 2.2 && P.y > b.y + 0.04) continue;
+      float bh = uBlobH[i] * 0.92;
+      for (int k = 0; k < 3; k++) {
+        vec4 L = uBlobL[i * 3 + k];
+        if (L.w <= 0.0) continue;
+        vec3 toL = L.xyz - P;
+        if (toL.y <= 0.1) continue;
+        float s0 = clamp((b.y + 0.04 - P.y) / toL.y, 0.0, 1.0), s1 = clamp((b.y + bh - P.y) / toL.y, 0.0, 1.0);
+        if (s1 <= s0) continue;
+        vec2 a = P.xz + toL.xz * s0, ab = toL.xz * (s1 - s0);
+        float t = clamp(dot(b.xz - a, ab) / max(dot(ab, ab), 1e-5), 0.0, 1.0);
+        float dm = length(a + ab * t - b.xz);
+        float up = mix(s0, s1, t) * length(toL);
+        float pen = 0.05 + up * 0.16;
+        float occ = 1.0 - smoothstep(bw - pen, bw + pen * 1.6, dm);
+        if (occ <= 0.0) continue;
+        // this light's share of the light here (the grid's own footprint weight)
+        float R = floor(L.w) * 0.1, I = fract(L.w) * 4.0;
+        float hy = max(0.6, L.y - 1.0);
+        vec2 dl = L.xz - P.xz;
+        float tt = clamp(1.0 - sqrt(dot(dl, dl) + hy * hy * 0.35) / R, 0.0, 1.0);
+        float share = clamp(tt * tt * (3.0 - 2.0 * tt) * I * 0.93 / gl, 0.0, 1.0);
+        as *= 1.0 - occ * min(pow(share, 0.7) * 1.15, 0.88) * uActSh;
+      }
+    }
+    ks = min(ks, as);
+  }
+  gl_FragColor = vec4(ao, ks, 0.0, 1.0);
 }
 `;
 
@@ -180,15 +282,16 @@ uniform sampler2D tDepth;
 uniform vec2 uTexel;
 void main() {
   float c = lin(texture2D(tDepth, vUv).r);
-  float s = 0.0, w = 0.0;
+  vec2 s = vec2(0.0);
+  float w = 0.0;
   for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++) {
     vec2 o = (vec2(float(x), float(y)) - 1.5) * uTexel;
-    float a = texture2D(tAO, vUv + o).r;
+    vec2 a = texture2D(tAO, vUv + o).rg;
     float dd = lin(texture2D(tDepth, vUv + o).r);
     float ww = 1.0 / (1.0 + abs(dd - c) * 6.0);
     s += a * ww; w += ww;
   }
-  gl_FragColor = vec4(s / w, 0.0, 0.0, 1.0);
+  gl_FragColor = vec4(s / w, 0.0, 1.0);
 }
 `;
 
@@ -198,11 +301,16 @@ uniform sampler2D tColor;
 uniform sampler2D tNormal;
 uniform vec2 uSrcTexel;
 uniform float uTh;
+uniform float uLitBloom;
 void main() {
+  // only real emitters bloom (tubes, screens, lamps, embers: flagged by their material); lit surfaces
+  // join in only where they blow far past white (a torch hot spot), never a sunny yellow wall
   vec3 c = vec3(0.0);
   for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++) {
     vec2 o = (vec2(float(x), float(y)) - 0.5) * uSrcTexel;
-    c += texture2D(tColor, vUv + o).rgb;
+    vec3 t = texture2D(tColor, vUv + o).rgb;
+    float em = emitterOf(texture2D(tNormal, vUv + o).a);
+    c += em > 0.5 ? t : max(t - vec3(uTh * 1.6), 0.0) * uLitBloom;
   }
   c *= 0.25;
   float br = max(c.r, max(c.g, c.b));
@@ -293,6 +401,12 @@ uniform vec3 uHaze;
 uniform float uSunOn;
 uniform vec3 uSunCol;
 uniform float uSunMul;
+#if GLOW_N > 0
+uniform vec4 uGlowPos[GLOW_N];
+uniform vec4 uGlowCol[GLOW_N];
+uniform int uGlowN;
+uniform float uGlowStr;
+#endif
 #ifdef VOL_SHADOWS
 uniform sampler2DShadow tSpotShadow;
 uniform mat4 uSpotMat;
@@ -356,6 +470,32 @@ void main() {
 #endif
     acc += L * dens * stepL;
   }
+#if GLOW_N > 0
+  // the tubes themselves hanging in the dusty air: every near fixture's in-scatter along this ray in closed
+  // form (1 / d^2 scatter integrates to an arctangent of the ray's closest approach), so each light reads as a
+  // soft glowing body under the ceiling that flickers with its tube. A surface in front of the fixture ends
+  // the ray before it gets there, which is all the occlusion the glow needs.
+  if (uGlowStr > 0.0) {
+    vec3 gacc = vec3(0.0);
+    for (int i = 0; i < GLOW_N; i++) {
+      if (i >= uGlowN) break;
+      vec4 lp = uGlowPos[i];
+      vec3 w = lp.xyz - P0;
+      float s0 = dot(w, D);
+      float tl = uPersp > 0.5 ? tmax : min((lp.y + 0.12 - P0.y) / max(D.y, 0.05), 18.0);
+      if (tl <= 0.0) continue;
+      float h = sqrt(max(dot(w, w) - s0 * s0, 0.0) + 0.05);
+      float I = (atan((tl - s0) / h) - atan(-s0 / h)) / h;
+      float fall = clamp(1.0 - h / (lp.w * 0.8), 0.0, 1.0);
+      // ceiling fixtures throw their light down: the ray's closest approach above the tube gets none of
+      // it, below it all, so each glow hangs as a soft cone toward the floor instead of a ball
+      vec3 C = P0 + D * clamp(s0, 0.0, tl);
+      float lobe = lp.y > 1.9 ? smoothstep(-0.2, 0.7, (lp.y - C.y) / h) : 1.0;
+      gacc += uGlowCol[i].rgb * (I * fall * fall * lobe * mix(0.6, 1.0, uGlowCol[i].w)) * visAt(lp.xz);
+    }
+    acc += gacc * (uDens * uGlowStr * (uPersp > 0.5 ? 0.45 : 1.0));
+  }
+#endif
   float fogF = smoothstep(uFogNear, uFogFar, length(P0.xz - uPlayerPos.xz));
   vec3 Pm = P0 + D * (tmax * 0.5);
   float vis = max(visAt(P0.xz + vec2(0.001)), visAt(Pm.xz));
@@ -413,6 +553,10 @@ uniform vec3 uSunCol;
 uniform vec2 uSunDir2;
 uniform float uSunGlow;
 uniform float uExposure;
+uniform float uKeyShadow;
+uniform float uContrast;
+uniform vec3 uSplitLo;
+uniform vec3 uSplitHi;
 #ifdef ACTOR_RIM
 uniform vec4 uBlobs[16];
 uniform float uBlobH[16];
@@ -506,9 +650,15 @@ void main() {
 #ifdef AO_ON
   bool hlPx = abs(fl.x - 0.5) < 0.1;
   if (!hlPx) {
-    float ao = texture2D(tAO, uv).r;
-    float bright = clamp(max(c.r, max(c.g, c.b)) - 1.0, 0.0, 1.0);
-    c *= mix(1.0, ao, uAOStr * (1.0 - bright));
+    vec2 aos = texture2D(tAO, uv).rg;
+    float bright = clamp(max(c.r, max(c.g, c.b)) - 1.0, 0.0, 1.0) * (1.0 - emitterOf(nA.a));
+    if (emitterOf(nA.a) > 0.5) bright = 1.0;
+    c *= mix(1.0, aos.r, uAOStr * (1.0 - bright));
+    // the key fixture's shadow takes away its direct light; the bounce and ambient stay
+    if (uKeyShadow > 0.0 && aos.g < 0.999) {
+      float gl = dot(gridAt(P.xz + n.xz * 0.2), vec3(0.3, 0.5, 0.2));
+      c *= mix(1.0, aos.g, (gl / (gl + 0.14)) * (1.0 - bright) * uKeyShadow);
+    }
   }
 #endif
 
@@ -675,6 +825,7 @@ void main() {
   if (DEBUG_VIEW == 3) c = texture2D(tVol, vUv).rgb * 4.0;
   if (DEBUG_VIEW == 4) c = texture2D(tBloom, vUv).rgb;
   if (DEBUG_VIEW == 5) c = n * 0.5 + 0.5;
+  if (DEBUG_VIEW == 7) c = vec3(texture2D(tAO, uv).g);
   gl_FragColor = vec4(c, 1.0);
   return;
 #endif
@@ -712,13 +863,13 @@ void main() {
   }
   // --- dark-art contrast: a light S-curve over a lifted floor (shadows sit near 10% grey, not black),
   // barely-cool shadows and barely-warm light (no colour wash over the frame) ---
+  // per zone: a split tone like the intake cinematic (cold fluorescent shadows, amber spill in the light)
   {
     vec3 sc = clamp(c, 0.0, 1.0);
-    c = mix(c, sc * sc * (3.0 - 2.0 * sc), 0.1);
+    c = mix(c, sc * sc * (3.0 - 2.0 * sc), uContrast);
     c = c * 0.965 + 0.022;
     float ly = dot(c, vec3(0.299, 0.587, 0.114));
-    c *= mix(vec3(0.97, 0.99, 1.03), vec3(1.0), smoothstep(0.04, 0.4, ly));
-    c *= mix(vec3(1.0), vec3(1.015, 1.0, 0.975), smoothstep(0.45, 0.9, ly));
+    c *= mix(uSplitLo, uSplitHi, smoothstep(0.04, 0.85, ly));
   }
   // --- ink: the silhouette outline (computed above), true near-black after the grade ---
   c = mix(c, uLift * 0.35, clamp(silK, 0.0, 1.0) * 0.95);
@@ -786,8 +937,10 @@ export class PostFX {
   zone!: ZoneFx;
   /** bodies for contact shadows: x, base y, z, radius */
   blobs: THREE.Vector4[] = Array.from({ length: 16 }, () => new THREE.Vector4());
-  /** body heights (m) for the actor rim light */
+  /** body heights (m) for the actor rim light and their cast shadows */
   blobH = new Float32Array(16);
+  /** per body the three fixtures lighting it most (src/world/lighting.ts lightsFor) */
+  blobL: THREE.Vector4[] = Array.from({ length: 48 }, () => new THREE.Vector4());
   blobN = 0;
   /** photo mode / debug: skip all realism passes */
   bypass = false;
@@ -820,19 +973,22 @@ export class PostFX {
     this.aoMat = mk(AO_FRAG, {
       ...CAMU, tDepth: { value: null }, tNormal: { value: null }, uRadius: { value: 0.55 }, uStrength: { value: 1 },
       uBlobs: { value: this.blobs }, uBlobN: { value: 0 }, uBlobStr: { value: 0.45 },
-    }, { AO_N: 8 });
+      uDomTex: U.uDomTex, uLightInfo: U.uLightInfo, uSSStr: { value: 0.6 },
+      uBlobH: { value: this.blobH }, uBlobL: { value: this.blobL }, uActSh: { value: 0.8 }, uLightTex: U.uLightTex, uGridScale: U.uGridScale,
+    }, { AO_N: 8, SS_N: 0, SS_LEN: '2.4' });
     this.aoBlurMat = mk(AO_BLUR_FRAG, { ...CAMU, tAO: { value: null }, tDepth: { value: null }, uTexel: { value: new THREE.Vector2() } });
-    this.brightMat = mk(BRIGHT_FRAG, { ...CAMU, tColor: { value: null }, tNormal: { value: null }, uSrcTexel: { value: new THREE.Vector2() }, uTh: { value: 1 } });
+    this.brightMat = mk(BRIGHT_FRAG, { ...CAMU, tColor: { value: null }, tNormal: { value: null }, uSrcTexel: { value: new THREE.Vector2() }, uTh: { value: 1 }, uLitBloom: { value: 0.35 } });
     this.downMat = mk(DOWN_FRAG, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } });
     this.upMat = mk(UP_FRAG, { tSrc: { value: null }, tAdd: { value: null }, uTexel: { value: new THREE.Vector2() } });
     this.volMat = mk(VOL_FRAG, {
       ...CAMU, ...lightU, ...SPOTU, tDepth: { value: null },
       uDens: { value: 0.015 }, uFall: { value: 0.2 }, uTop: { value: 2.8 }, uGridMul: { value: 1 }, uSpotMul: { value: 1 }, uSunMul: { value: 0 }, uHaze: { value: new THREE.Vector3(1, 1, 1) },
-    }, { VOL_N: 12 });
+      ...GLOWU, uGlowStr: { value: 1 },
+    }, { VOL_N: 12, GLOW_N: 0 });
   }
 
   /** composite material defines for the current quality */
-  /** dev: composite shows one buffer (1 AO, 2 flags, 3 haze, 4 bloom, 5 normals) */
+  /** dev: composite shows one buffer (1 AO, 2 flags, 3 haze, 4 bloom, 5 normals, 6 reflections, 7 key-light shadow) */
   debugView = 0;
 
   compositeDefines(): Record<string, any> {
@@ -852,8 +1008,11 @@ export class PostFX {
 
   setQuality(q: FxQuality) {
     this.q = q;
-    this.aoMat.defines.AO_N = this.bypass ? 0 : q.ao; this.aoMat.needsUpdate = true;
+    this.aoMat.defines.AO_N = this.bypass ? 0 : q.ao;
+    this.aoMat.defines.SS_N = this.bypass ? 0 : q.ss;
+    this.aoMat.needsUpdate = true;
     this.volMat.defines.VOL_N = Math.max(1, q.vol);
+    this.volMat.defines.GLOW_N = Math.min(GLOW_MAX, q.glow);
     if (q.volShadows) this.volMat.defines.VOL_SHADOWS = 1; else delete this.volMat.defines.VOL_SHADOWS;
     this.volMat.needsUpdate = true;
     if (this.W) this.setSize(this.W, this.H, true);
@@ -896,6 +1055,8 @@ export class PostFX {
       const u = this.aoMat.uniforms;
       u.tDepth.value = inp.depth; u.tNormal.value = inp.normal;
       u.uStrength.value = z.ao; u.uBlobN.value = Math.min(this.blobN, q.blobs); u.uBlobStr.value = z.blob;
+      u.uSSStr.value = z.keyShadow;
+      u.uActSh.value = z.actorShadow;
       pass(this.aoMat, this.rtAO);
       const b = this.aoBlurMat.uniforms;
       b.tAO.value = this.rtAO.texture; b.tDepth.value = inp.depth; b.uTexel.value.set(1 / this.rtAO.width, 1 / this.rtAO.height);
@@ -926,6 +1087,7 @@ export class PostFX {
       v.tDepth.value = inp.depth;
       v.uDens.value = z.hazeDens; v.uFall.value = z.hazeFall; v.uTop.value = z.volTop; v.uGridMul.value = z.gridMul; v.uSpotMul.value = z.spotMul;
       v.uSunMul.value = z.sunShafts; v.uHaze.value.set(z.haze[0], z.haze[1], z.haze[2]);
+      v.uGlowStr.value = z.glow;
       pass(this.volMat, this.rtVol);
       out.vol = this.rtVol.texture;
     }

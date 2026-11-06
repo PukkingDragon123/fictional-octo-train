@@ -428,16 +428,11 @@ export class CyberSystem implements GameSystem {
     if (t?.kind === 'player' && t.p && t.p !== p) return;
     const st = cyberState(p.body);
     const subs: MenuOption[] = [];
+    // no surgery in the field: hardware is fitted in the menu's unit room, between runs (src/ui/menus/intake.ts);
+    // salvaged boxed parts fed to a press are filed by the lab instead (src/game/metaRun.ts)
     const table = t?.kind === 'object' && t.obj && NEAR_TABLE.has(t.obj.key) ? t.obj : null;
-    const site = table || this.surgerySite(p);
     const kits = p.allItems().filter((it) => !!cyberDefByItem(it.key));
-    if (site || table) {
-      // the table is where limbs are built as well as fitted: always open
-      const label = table ? 'Lie on the table (build & fit limbs)' : 'Self-surgery (build & fit limbs)';
-      subs.push({ label, disabled: false, action: () => this.openField(p) });
-    } else if (kits.length) {
-      subs.push({ label: 'Fit hardware', disabled: 'needs an operating table or a surgery rig', action: undefined });
-    }
+    if (kits.length && table) subs.push({ label: 'Fit hardware', disabled: 'fitted in the unit room · feed salvage to a press and the lab files it', action: undefined });
     if (st && hasCyber(p.body)) {
       const oil = p.findItem((it) => it.key === 'machine_oil' && (it.uses ?? 1) > 0.01);
       const rusty = anyRust(st);
@@ -458,10 +453,6 @@ export class CyberSystem implements GameSystem {
     const z = G.getZone(p.zoneKey);
     for (const o of z.objects.values()) if (NEAR_TABLE.has(o.key) && Math.abs(o.x + 0.5 - p.x) < 2.5 && Math.abs(o.y + 0.5 - p.z) < 2.5) return true;
     return false;
-  }
-
-  openField(p: Player) {
-    import('../ui/surgery/field').then((m) => m.fieldSurgery(p)).catch((e) => console.warn('field surgery', e));
   }
 
   private oil(p: Player, oil: Item) {

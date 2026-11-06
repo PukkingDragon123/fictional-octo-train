@@ -1,5 +1,5 @@
 // The menu stage: ONE small WebGL renderer for the main menu's own rooms (the
-// monitor room, the monster containment, the experiment lab). Only the room on
+// monitor room, the codex archive, the control room). Only the room on
 // screen renders at full rate, small (a low-res half-float target), and is
 // composited by the subject room's post pass (scene/post.ts: a black 1px
 // silhouette line, filmic grade, light dither) onto a canvas that CSS blows up
@@ -32,7 +32,7 @@ export interface Hot {
   off?: boolean;
 }
 
-export interface Grade { exposure?: number; lift?: [number, number, number]; gain?: [number, number, number]; vig?: number; sat?: number; contrast?: number; side?: [number, number, number, number] }
+export interface Grade { exposure?: number; lift?: [number, number, number]; gain?: [number, number, number]; vig?: number; sat?: number; contrast?: number; side?: [number, number, number, number]; haze?: number; hazeColor?: number }
 
 /** a room the stage can show */
 export interface StageRoom {
@@ -325,6 +325,10 @@ export class MenuStage {
     u.uSat.value = Math.max(1, g.sat ?? 1);
     u.uContrast.value = Math.max(W.contrast, g.contrast ?? W.contrast);
     u.uBloom.value = 0.95;
+    // the air in the room (dust far off), crisp pixels, saturated emitters
+    const hc = g.hazeColor ?? 0x6a7a98;
+    u.uHaze.value.set(((hc >> 16) & 255) / 255, ((hc >> 8) & 255) / 255, (hc & 255) / 255, g.haze ?? 0.35);
+    u.uSharp.value = 0.24; u.uKeepSat.value = 0.5; u.uHalation.value = 0.4;
     u.uSide.value.set(...(g.side ?? [1, 0, 0, 0.4]));
     u.uNear.value = a.cam.near; u.uFar.value = a.cam.far;
     u.uFlash.value = 0; u.uRed.value = 0; u.uFloor.value = 0; u.uLensOn.value = 0;

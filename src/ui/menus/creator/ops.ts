@@ -1,4 +1,4 @@
-// One operation on the subject: the tool arm takes up its tool and goes to the
+// One operation on the unit: the tool arm takes up its tool and goes to the
 // part, the camera closes in, the player works the mini-game (or the robot
 // does it alone when mini-games are off), and it ends in a flourish or a
 // mishap. The change always takes; how cleanly is the only question.
@@ -35,9 +35,9 @@ const WORDS: Record<Grade, Partial<Record<ToolKind, string[]>> & { any: string[]
   },
 };
 const SUB: Record<Grade, string[]> = {
-  perfect: ['not a drop wasted', 'the subject barely noticed', 'a fine piece of work'],
-  good: ['close enough', 'the subject will live', 'it took'],
-  fail: ['it took anyway', 'the change held', 'mop on aisle four', 'he will remember that'],
+  perfect: ['not a drop wasted', 'the unit barely noticed', 'a fine piece of work'],
+  good: ['close enough', 'the unit will live', 'it took'],
+  fail: ['it took anyway', 'the change held', 'mop on aisle four', 'the unit will remember that'],
 };
 const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 export function resultWords(g: Grade, tool: ToolKind): { big: string; small: string } {

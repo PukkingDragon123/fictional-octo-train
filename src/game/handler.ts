@@ -1,39 +1,42 @@
-// Staff Sergeant Voss (projection): the debtor's handler for the rest of the
-// game. A soldier projected like old film (fatigues, beret: warm phosphor
-// light, scanlines, 24 fps flicker and grain, the frame slipping when the feed
-// is bad) from the lens of the BAILIFF band on the survivor's wrist or from
-// the projector on a Remittance Press (object key 'hopper'), with a gruff
-// procedural radio voice (src/game/vossVoice.ts) and 'subtitle' lines in the
-// 'voss' style. Local to each player.
+// Dr. Iris Calder (projection): the operator's guide for the rest of the run.
+// The Meridian researcher (src/entities/researcher.ts: the menu guide's own
+// body, lab coat, badge, glasses) projected as cold phosphor light (scanlines,
+// 24 fps flicker and grain, the frame slipping when the link is bad) from the
+// lens of the band on the unit's wrist or from the projector on a press
+// (object key 'hopper'), with a recorded-grain voice (src/game/vossVoice.ts,
+// the 'calder' voice) and 'subtitle' lines (who 'DR. CALDER'). Local to each
+// player. (The class keeps its old name and G.handler slot: every system that
+// talks to "the handler" now talks to her.)
 //
 // API (G.handler):
-//   say(text, { at?, point?, dur?, key?, cd? })  queue a line (also bus 'handlerSay' { text })
-//   appear('band' | 'pylon' | { x, z }), vanish(), point(x, z)
+//   say(text, { at?, point?, dur?, key?, cd?, gesture? })  queue a line (also bus 'handlerSay' { text })
+//   appear('band' | 'pylon' | { x, z }), vanish(), point(x, z), pointAt(world, secs)
 //   guide(target | null)   a holographic chevron path on the floor toward a target
-//   begin()                the post-intro tutorial: smash something, find a valuable, load the press, pull the lever
-//   worldPos(), visible    (the HUD hangs his subtitles above him)
-//   cine / briefed         a cutscene owns him (only lines said with { cine: true } get through) / he
-//                          already briefed the debtor in person (the arrival): the tutorial starts quietly
+//   begin()                the soft guide when no staged tutorial runs (quick starts, co-op clients)
+//   worldPos(), visible    (the HUD hangs her subtitles above her)
+//   cine / briefed         a cutscene owns her (only lines said with { cine: true } get through) / she
+//                          already briefed the unit in person: the soft guide starts quietly
 //   appear(where, secs)    a slow materialise for cutscenes; beamFromBand: the beam from the wrist even
-//                          when he stands at a fixed spot; collapse(): the picture shrinks to a line and
-//                          a dot like an old tube switching off, then he is gone
-// Reactions with cooldowns: furniture broken by you, deposits, debt
-// milestones, band warnings, low health, a creature in sight, idling, a new zone.
+//                          when she stands at a fixed spot; collapse(): the picture shrinks to a line and
+//                          a dot like an old tube switching off, then she is gone
+//   gaze                   a world point her head and eyes follow (null: the unit)
+// Reactions with cooldowns: deposits, debt milestones, band warnings, low
+// health, an inhabitant in sight, idling, a new zone.
 import * as THREE from 'three';
 import { G } from './G';
 import type { GameSystem } from './game';
 import { bus } from '../core/events';
-import { HumanRig, type Appearance, type Outfit } from '../entities/humanRig';
-import type { FullBody } from '../entities/humanAnim';
+import type { Researcher, ResearcherGesture } from '../entities/researcher';
+import { calderRig } from './prologue/calder';
 import { objDef } from '../world/objects';
 import { objectMatrix } from '../world/chunkMesher';
 import { findPath } from '../world/path';
 import type { Zone, TileObject } from '../world/zone';
 import type { Player } from '../entities/player';
-import { holoBaseMaterial, holoPropMaterial, makeHologram, HOLO, HOLO_BASE, coneMesh, floorQuadGeo, additiveMat } from './holoShader';
+import { holoBaseMaterial, makeHologram, HOLO, HOLO_BASE, coneMesh, floorQuadGeo, additiveMat } from './holoShader';
 import { RadioVoice } from './vossVoice';
 import { line, readTime } from './lines';
-import { fallbackPose, overlay, ease } from './cutPose';
+import { ease } from './cutPose';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { rigNumber } from '../content/items/prisoner';
 import { ensurePack } from './arrivalKit/pack';
@@ -44,16 +47,10 @@ import { startTutorial } from './tutorial/tutorial';
 export type HandlerWhere = 'band' | 'pylon' | { x: number; z: number };
 export interface SayOpts { at?: { x: number; z: number }; point?: { x: number; z: number }; dur?: number; key?: string; cd?: number; gesture?: string; pri?: number; pylon?: boolean; cine?: boolean }
 
-const VOSS_APP: Appearance = {
-  skin: 0xd39b6c, hair: 0x3b2a1e, hairStyle: 'buzz', face: 4, build: 'broad', height: 1.05, beard: false,
-  bodyShape: 0.05, facialHair: 'moustache', freckles: 0, scars: 2, age: 0.62,
-};
-const VOSS_OUTFIT: Outfit = {
-  torso: { tex: 'c_shirt_button', color: 0x5a6440, sleeve: 'long', item: 'fatigues' },
-  legs: { tex: 'c_uniform', color: 0x4a5236, item: 'fatigues' }, legsKind: 'pants',
-  feet: { tex: 'c_shoes_boot', color: 0x241e1a },
-  hands: undefined,
-};
+/** her name on the subtitles */
+export const CALDER = 'DR. CALDER';
+/** the old handler's gesture names, as her gestures */
+const GEST: Record<string, ResearcherGesture> = { salute2: 'wave', jab_finger: 'talk', dismiss: 'shrug', point_at: 'point', arms_crossed: 'think', parade_rest: 'clipboard' };
 
 const tmpV = new THREE.Vector3(), tmpV2 = new THREE.Vector3(), UP = new THREE.Vector3(0, 1, 0), tmpQ = new THREE.Quaternion(), tmpM = new THREE.Matrix4(), tmpC = new THREE.Color();
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
@@ -67,20 +64,22 @@ export function debtorNumber(p: Player | null | undefined = G.local): string {
 
 // ------------------------------------------------------------------ lines
 const L = {
-  smashed: ['Good. Now go through the pieces.', 'That\'s the spirit. Destruction is a growth industry.', 'Again. The Institute has a lot of furniture and you have a lot of debt.', 'Listen to that. That\'s the sound of your balance going down. Slightly.'],
-  deposit: ['Credited.', 'Pressed. Sent. Next.', 'Through to the other side. Keep loading it.', 'Noted on your file. In pencil.'],
-  milestone: ['A quarter of the way. Don\'t celebrate, it makes you slow.', 'Halfway. I\'ve seen debtors die closer than this.', 'Three quarters. Now I\'m almost interested.'],
-  warn: ['Wrong way, debtor. Turn around.', 'That\'s the edge of the work area. The band can count.', 'Back. Inside. Now.'],
-  lowHealth: ['You\'re bleeding on Institute time. Patch yourself up.', 'Don\'t die. Dead debtors are an accounting nightmare.', 'Find a bandage. That\'s an order, not advice.'],
-  creature: ['Contact. Whatever that is, it isn\'t paying your debt.', 'Something\'s watching you. Ignore it. Or don\'t. Your call, your arms.', 'Movement. Keep your back to a wall.'],
-  idle: ['Clock\'s running, {n}.', 'Standing still doesn\'t pay. Move.', 'Are you sleeping? You\'re not sleeping. Move.', 'I can see you, {n}. I can always see you.'],
-  zone: ['New sector. Same debt.', 'Unmapped. Lots of furniture. Get to work.', 'Different wallpaper. Same arrangement.'],
+  smashed: ['Good. Now go through the pieces.', 'Careful. That was evidence of somebody once.', 'Again. The Institute has a great deal of furniture.'],
+  deposit: ['Logged.', 'Pressed and sent. Thank you.', 'Through to the other side. Keep them coming.', 'Noted on your file. In ink, this time.'],
+  milestone: ['A quarter of the way. You are doing better than the last unit.', 'Halfway. I have started a second page of notes on you.', 'Three quarters. I am almost proud. Almost.'],
+  warn: ['Not that way. Turn around, please.', 'That is the edge of the work area. The band can count, and so can I.', 'Back inside. Now. I mean it kindly.'],
+  lowHealth: ['The unit is bleeding. Patch it before it stops listening to you.', 'Please do not let it die. I would have to fill in forms.', 'Find a bandage. That is a medical opinion.'],
+  creature: ['Inhabitant. Do not run yet. Look at it. Then decide.', 'Something is watching the unit. Scan it if you can. Keep a wall at your back if you cannot.', 'Movement. That is a resident, not a ghost. Residents bite.'],
+  idle: ['Still with me, {n}?', 'The unit is standing still. Is that you, or is that the link?', 'I can see you, {n}. I am always watching the feed.', 'Breathe. Then move.'],
+  zone: ['New level. Different wallpaper. Same arrangement.', 'Unmapped. Lots of furniture. Lots of data.', 'I have never had a feed from here. Describe it to me. No, do not, just walk.'],
 };
 const pickL = (a: string[]) => a[Math.floor(Math.random() * a.length)];
 
 export class Handler implements GameSystem {
   name = 'handler';
-  readonly rig: HumanRig;
+  readonly rig: Researcher;
+  /** a world point her head and eyes follow (null: the unit's head) */
+  gaze: THREE.Vector3 | null = null;
   /** world position (feet) */
   x = 0; z = 0; y = 0; facing = 0;
   /** the intro is driving him: no reactions or tutorial */
@@ -101,15 +100,15 @@ export class Handler implements GameSystem {
   private show = 0; private showGoal = 0;
   private queue: { text: string; o: SayOpts }[] = [];
   private cur: { text: string; o: SayOpts; t: number; dur: number } | null = null;
-  private voice = new RadioVoice(88, 0.94);
+  private voice = new RadioVoice(205, 1, 'calder');
   private gest: { name: string; t: number; dur: number } | null = null;
-  private idlePose = 'parade_rest';
+  /** how long she has been waiting on you (the clipboard comes out) */
+  private clipT = 0;
   private quietT = 99;
   private glitch = 0; private glitchT = 4;
   private lookAt: { x: number; z: number } | null = null;
   private speed = 0;
   private paceT = 0;
-  private beret: THREE.Mesh;
   private cone: THREE.Mesh;
   private coneW = 0;
   private hidden = true;
@@ -138,25 +137,11 @@ export class Handler implements GameSystem {
     G.handler = this;
     const p = G.local;
     if (p && !(p as unknown as { prisonerNo?: string }).prisonerNo) (p as unknown as { prisonerNo: string }).prisonerNo = rigNumber(p.rig);
-    this.rig = new HumanRig(VOSS_APP, holoBaseMaterial());
-    this.rig.setOutfit(VOSS_OUTFIT);
-    makeHologram(this.rig);
-    // the beret: a tilted soft disc with a badge, drawn in the same light
-    const mb = new ModelBuilder();
-    // a band, then the soft crown swelling out over it and slouched off to one side, a few facets each
-    mb.push().translate(0.0, 0.205, 0.0).rotateZ(-0.22).rotateX(-0.06);
-    mb.cylinder(0, 0, 0, 0.112, 0.022, 9, 'fabric_red', { rTop: 0.118, color: 0x6e5656, bevel: 0.004 });
-    mb.push().translate(0.025, 0.02, 0).scale(1.12, 1, 1.04);
-    mb.cylinder(0, 0, 0, 0.12, 0.022, 9, 'fabric_red', { rTop: 0.138, color: 0x8a6a6a, bevel: 0.005 });
-    mb.cylinder(0, 0.022, 0, 0.138, 0.02, 9, 'fabric_red', { rTop: 0.112, color: 0x8a6a6a, bevel: 0.005 });
-    mb.cylinder(0, 0.042, 0, 0.112, 0.012, 9, 'fabric_red', { rTop: 0.05, color: 0x7e6060, bevel: 0.004 });
-    mb.pop();
-    // the cap badge: a small brass plate on the band over the left eye
-    mb.box(-0.07, 0.006, 0.088, 0.04, 0.048, 0.016, 'metal_brass', { emissive: 0.6, bevel: 0.004 });
-    mb.pop();
-    this.beret = new THREE.Mesh(mb.build(), holoPropMaterial());
-    this.beret.renderOrder = 20; this.beret.castShadow = false;
-    this.rig.j.head.add(this.beret);
+    // her: the menu guide's body (src/entities/researcher.ts) built on the projection's light
+    const r = this.rig = calderRig(holoBaseMaterial());
+    makeHologram(r);
+    // Meridian light: a cold pale blue-white, the skin and hair a touch warmer
+    HOLO.uHoloTint.value.setHex(0x74ccff); HOLO.uHoloWarm.value.setHex(0xffa070);
     this.rig.root.visible = false;
     G.pr.scene.add(this.rig.root);
     this.cone = coneMesh();
@@ -177,7 +162,7 @@ export class Handler implements GameSystem {
     this.dot.visible = false; this.dot.renderOrder = 21;
     G.pr.scene.add(this.dot);
     this.wire();
-    if (import.meta.env.DEV) (window as unknown as { __voss: Handler }).__voss = this;
+    if (import.meta.env.DEV) (window as unknown as { __voss: Handler; __calder: Handler }).__voss = (window as unknown as { __calder: Handler }).__calder = this;
   }
 
   // ================================================================ API
@@ -209,13 +194,15 @@ export class Handler implements GameSystem {
     if (this.showGoal > 0) { this.showGoal = 0; if (this.show > 0.2) G.audio?.flat?.('holo_off', 'sfx', 0.35); this.glitch = Math.max(this.glitch, 0.6); }
   }
   /** look and point at a spot */
-  point(x: number, z: number) { this.lookAt = { x, z }; this.gest = { name: 'point_at', t: 0, dur: 2.4 }; }
+  point(x: number, z: number) { this.pointAt(new THREE.Vector3(x, this.y + 0.9, z), 2.4); this.lookAt = { x, z }; }
+  /** point at a world point (a spot on the floor, or a spot in the air in front of the camera) */
+  pointAt(at: THREE.Vector3, secs = 2.4) { this.gest = { name: 'point', t: 0, dur: secs }; this.rig.gesture('point', { at, dur: secs }); }
   guide(target: { x: number; z: number } | null) {
     this.guideT = target ? { x: target.x, z: target.z } : null;
     this.guideZone = G.local?.zoneKey ?? '';
     this.pathAt = -1;
   }
-  gesture(name: string, dur = 2) { this.gest = { name, t: 0, dur }; }
+  gesture(name: string, dur = 2) { const g = GEST[name] ?? (name as ResearcherGesture); this.gest = { name: g, t: 0, dur }; this.rig.gesture(g, { dur }); }
   /** silence him now (skips, cutscenes) */
   hush() { this.queue.length = 0; this.cur = null; this.voice.stop(); }
   /** sign off: the picture squeezes to a bright line, the line to a dot, the dot goes out */
@@ -293,11 +280,11 @@ export class Handler implements GameSystem {
     switch (stage) {
       case 1:
         this.guide(null);
-        if (quiet) this.say('Good. Now go through what\'s left of it. Anything with resale value, you carry.');
+        if (quiet) this.say('Good. It is heavy, I know. Walk it to the press. Slowly.');
         break;
       case 2: {
         const h = this.nearestHopper();
-        if (h) { this.guide(h); if (quiet) this.say('The press. Striped plate under a ram, red lever on the side. Put it on the plate, step off, pull the lever. It goes through to the other side.', { point: h }); }
+        if (h) { this.guide(h); if (quiet) this.say('The press. Striped plate under the ram, red lever on the side. Set it down on the plate, step off, pull the lever.', { point: h }); }
         break;
       }
       case 3:
@@ -306,6 +293,9 @@ export class Handler implements GameSystem {
         break;
     }
   }
+
+  /** the unit has hold of a piece of furniture (carrying, pushing, dragging: src/interact/grab.ts) */
+  carrying(): boolean { const push = (G as unknown as { destruct?: { push?: { holding?: unknown; mode?: string } } }).destruct?.push; return !!push?.holding && push.mode !== 'door' && push.mode !== 'lever'; }
 
   // ================================================================ world queries
   private hopC = { t: -9, zone: '', o: null as TileObject | null };
@@ -390,20 +380,23 @@ export class Handler implements GameSystem {
       const q = this.queue.shift()!;
       const where: HandlerWhere = q.o.at ? q.o.at : q.o.pylon ? 'pylon' : 'band';
       if (this.show < 0.5) {
-        // he flickers in first, then talks
+        // she flickers in first, then talks
         this.appear(where);
         if (this.show < 0.35) { this.queue.unshift(q); return; }
       } else if (!this.scripted) this.where = where;
       const voiced = this.voice.speak(q.text);
       const dur = Math.max(q.o.dur ?? 0, voiced, readTime(q.text) * 0.8);
       this.cur = { text: q.text, o: q.o, t: 0, dur: dur + 0.15 };
-      line('SSGT. VOSS', q.text, 'voss', dur + 0.35, { x: this.x, y: this.y, z: this.z });
+      line(CALDER, q.text, 'voss', dur + 0.35, { x: this.x, y: this.y, z: this.z });
+      this.rig.talk(dur);
       if (q.o.point) this.point(q.o.point.x, q.o.point.z);
       else if (q.o.gesture) this.gesture(q.o.gesture, Math.min(dur, 3));
-      else {
+      else if (!this.gest) {
+        // her hands move with the longer lines; now and then a nod or a small shrug
         const r = Math.random();
-        this.gest = r < 0.4 ? { name: 'jab_finger', t: 0, dur: Math.min(dur, 2.4) } : r < 0.6 ? { name: 'dismiss', t: 0, dur: 1.2 } : null;
-        this.idlePose = Math.random() < 0.5 ? 'arms_crossed' : 'parade_rest';
+        if (dur > 1.8 && r < 0.55) this.gesture('talk', Math.min(dur, 3.4));
+        else if (r < 0.7) this.gesture('nod', 1.3);
+        else if (r < 0.8) this.gesture('shrug', 1.6);
       }
       this.glitch = Math.max(this.glitch, 0.35);
     }
@@ -476,30 +469,22 @@ export class Handler implements GameSystem {
     const want = Math.atan2(look.z - this.z, look.x - this.x);
     this.facing += wrapA(want - this.facing) * Math.min(1, dt * 7);
     this.speed += (sp - this.speed) * Math.min(1, dt * 8);
-    // ---- animate: walk cycle from the animator, then his body language on top
-    const talking = !!this.cur;
-    this.rig.animate(dt, {
-      speed: this.speed, stance: 'stand', full: '' as FullBody, action: '', actionT: 0, actionDur: 1, twoHanded: false, limp: 0, tired: 0, panic: 0, cold: 0,
-      aimPitch: 0, holdingLight: false, holding: false, lookYaw: 0, fidget: false,
-    });
+    // ---- animate: her walk / idle from the animator, her gestures and look on top (src/entities/researcher.ts)
     const tt = G.time;
     if (this.gest) {
       this.gest.t += dt;
-      const u = this.gest.t / this.gest.dur;
-      const ps = fallbackPose(this.gest.name, u, tt);
-      if (ps) overlay(this.rig, ps, Math.min(1, Math.sin(Math.min(1, u) * Math.PI) * 3));
-      if (u >= 1) { this.gest = null; this.lookAt = null; }
+      if (this.gest.t >= this.gest.dur) { this.gest = null; this.lookAt = null; }
     }
-    if (this.speed < 0.25) {
-      const ps = fallbackPose(this.idlePose, 0.5, tt);
-      if (ps) overlay(this.rig, ps, this.gest ? 0.35 : 0.9);
-    }
-    // talking: chin juts with the syllables
-    if (talking) {
-      const h = this.rig.j.head;
-      h.rotation.x += Math.sin(tt * 11) * 0.05 + Math.sin(tt * 3.1) * 0.04;
-      h.rotation.y += Math.sin(tt * 1.7) * 0.06;
-    }
+    // waiting on you: the clipboard comes out, she makes a note
+    if (!this.cur && !this.gest && this.speed < 0.25 && !this.scripted) {
+      this.clipT += dt;
+      if (this.clipT > 4 && this.rig.currentGesture !== 'clipboard') { this.rig.gesture('clipboard', { dur: 3 + Math.random() * 3 }); this.clipT = -6; }
+    } else this.clipT = Math.min(this.clipT, 0);
+    // her eyes: the unit's head (or whatever the script wants her to look at)
+    if (this.gaze) this.rig.lookAt(this.gaze);
+    else { p.rig.jointWorld('head', tmpV); this.rig.lookAt(tmpV); }
+    this.rig.update(dt, { speed: this.speed, stance: 'stand', fidget: !this.cur });
+    void tt;
     // ---- hologram signal
     this.glitchT -= dt;
     if (this.glitchT <= 0) {
@@ -642,7 +627,7 @@ export class Handler implements GameSystem {
         if (this.bootT > 2.5) {
           // dev: ?tutorial=1 stages the full tutorial on a quick start
           if (/[?&]tutorial=1/.test(location.search) && startTutorial()) { this.begin(); return; }
-          if (!m?.flags?.has?.('contract:first_deposit')) this.say('Debtor {n}. Staff Sergeant Voss. Smash the furniture, find what\'s worth something, put it on the press and pull the lever. Don\'t try to leave. Questions? Good.');
+          if (!m?.flags?.has?.('contract:first_deposit')) this.say('Unit {n}, this is Dr. Calder. Link is up. Pick up a piece of furniture, carry it to the press, pull the lever. Scan what moves. I will be on your wrist.');
           this.begin();
         }
       }
@@ -654,11 +639,11 @@ export class Handler implements GameSystem {
     if (f('contract:first_deposit')) { this.tut = 9; this.guide(null); return; }
     switch (this.tut) {
       case 0: {
-        if (f('tut:smash')) { this.advanceTut(1); break; }
+        if (f('tut:smash') || this.carrying()) { this.advanceTut(this.carrying() ? 2 : 1); break; }
         if (this.tutT > 1.5 && !this.cds.has('tut0')) {
           this.cds.set('tut0', G.time);
           const t = this.nearestFurniture();
-          if (t) { this.guide(t); if (G.time - this.externalAt > 3) this.say('First lesson. Find something nobody\'s using. A chair, a desk. Break it.', { point: t }); }
+          if (t) { this.guide(t); if (G.time - this.externalAt > 3) this.say('First lesson. Find something nobody is using. A chair, a cabinet. Get hold of it and lift.', { point: t }); }
         }
         // the guide follows whatever is nearest as you wander
         this.scanT -= dt;
@@ -666,7 +651,7 @@ export class Handler implements GameSystem {
         break;
       }
       case 1:
-        if (f('tut:valuable') || this.tutT > 45) this.advanceTut(2);
+        if (f('tut:valuable') || this.carrying() || this.tutT > 45) this.advanceTut(2);
         break;
       case 2:
         if (!this.guideT && this.tutT > 20) { this.tutT = 0; const h = this.nearestHopper(); if (h) this.guide(h); }

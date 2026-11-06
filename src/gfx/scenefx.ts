@@ -4,6 +4,7 @@ import { bus } from '../core/events';
 import { damp } from '../core/math';
 import { U } from './materials';
 import { WetMap } from './wetmap';
+import { GLOWU, GLOW_MAX } from './postfx';
 
 const byD = (a: { d: number }, b: { d: number }) => a.d - b.d;
 
@@ -19,6 +20,9 @@ export class SceneFx {
   private calmT = 0;
   private cand: { x: number; y: number; z: number; r: number; h: number; d: number }[] = [];
   private warm = new THREE.Color(0xffa860);
+  private glowPos = new Float32Array(GLOW_MAX * 4);
+  private shBuf = new Float32Array(12);
+  private glowCol = new Float32Array(GLOW_MAX * 4);
 
   constructor(g: Game) {
     this.g = g;
@@ -34,6 +38,15 @@ export class SceneFx {
     // the torch and point-light pools always count as lights (no shader rebuild when one switches on)
     if (pr.pinLights.length !== g.flashlights.length + g.points.length) pr.pinLights = [...g.flashlights, ...g.points];
     this.wet.update(dt);
+    // the fixtures nearest the view glow in the haze and shine on glossy suits (at their current level: dying
+    // tubes stutter in the air too)
+    {
+      // (always the full list: glossy suits mirror the tubes on every preset; the haze reads only q.glow of them)
+      const n = v.lg.nearestLights(pr.target.x, pr.target.z, GLOW_MAX, this.glowPos, this.glowCol);
+      const P = GLOWU.uGlowPos.value, C = GLOWU.uGlowCol.value, gp = this.glowPos, gc = this.glowCol;
+      for (let i = 0; i < n; i++) { P[i].set(gp[i * 4], gp[i * 4 + 1], gp[i * 4 + 2], gp[i * 4 + 3]); C[i].set(gc[i * 4], gc[i * 4 + 1], gc[i * 4 + 2], gc[i * 4 + 3]); }
+      GLOWU.uGlowN.value = n;
+    }
     // rain soaks outdoor ground slowly and dries slower
     const raining = v.zone.env.weather === 'rain';
     U.uWetness.value = damp(U.uWetness.value, raining ? 0.85 : 0, raining ? 0.08 : 0.03, dt);
@@ -72,5 +85,14 @@ export class SceneFx {
     const n = Math.min(n0, fxp.blobs.length);
     for (let i = 0; i < n; i++) { const b = c[i]; fxp.blobs[i].set(b.x, b.y, b.z, b.r); fxp.blobH[i] = b.h; }
     fxp.blobN = n;
+    // the fixtures each body casts its shadows from (bodies near the view only; cheap: a few short ray tests each)
+    {
+      const out = this.shBuf, L = fxp.blobL;
+      for (let i = 0; i < n; i++) {
+        const b = c[i];
+        v.lg.lightsFor(b.x, b.z, 3, out, 0);
+        for (let k = 0; k < 3; k++) L[i * 3 + k].set(out[k * 4], out[k * 4 + 1], out[k * 4 + 2], out[k * 4 + 3]);
+      }
+    }
   }
 }

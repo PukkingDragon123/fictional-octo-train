@@ -60,7 +60,7 @@ export function rehabStation(ctx: RehabCtx) {
       <div class="rh-file-tab">PROGRAMME</div>
       <div class="rh-file-head">
         <div class="rh-photo" style="${photo ? `background-image:url(${photo})` : ''}"><i class="clip"></i></div>
-        <div class="rh-file-t"><small>SUBJECT · ${esc((ctx.name || 'UNNAMED').toUpperCase())}</small><h3>${esc(o.name)}</h3><em class="${o.points > 0 ? 'pos' : o.points < 0 ? 'neg' : ''}">${cr(o.points)} CREDITS</em></div>
+        <div class="rh-file-t"><small>UNIT · ${esc((ctx.name || 'UNNAMED').toUpperCase())}</small><h3>${esc(o.name)}</h3><em class="${o.points > 0 ? 'pos' : o.points < 0 ? 'neg' : ''}">${cr(o.points)} CREDITS</em></div>
       </div>
       <p class="rh-desc">${esc(o.desc)}</p>
       <div class="rh-line good"><i>✚</i><span>${esc(o.good || '')}</span></div>
