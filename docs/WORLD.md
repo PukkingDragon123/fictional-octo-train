@@ -146,6 +146,8 @@ b.portal({ id: 'p_fields', x, y, kind: 'door', to: 'fields', tx: 40, ty: 40, lab
 | p_showroom_home / r_showroom_home | showroom "Living Room 14 / YOU ARE HOME" set front door ↔ homestead house 12 front door | door | — |
 | p_suburbs_home / r_suburbs_home | suburbs Maple Court 5 red front door ↔ homestead house 14 front door | door | — |
 | p_parking_depot / r_parking_depot | parking elevator core (P4) east door ↔ depot bus deck back wall | door | — |
+| lg_under_hole / lg_rope_up | undercroft hole (anchor `fall`) → ledge · ledge rope → undercroft (anchor `r_ledge`) | hole / ladder | — |
+| lg_floor_hole | some deep generated floors (`floor~n`, n ≥ 120) → ledge (`fall`) | hole | — |
 
 ## Zones
 
@@ -543,3 +545,22 @@ depot places the `ticket_kiosk` at the booth window by hand.
   moving). Use for 3–8 regions per indoor zone.
 * **Giant rooms, wrong proportions**: oversized doors, tiny doors, ceilings
   implied by huge pillars, a chair 3× scale (`state.scale` if supported).
+
+### ledge — The Ledge (96×96, depth 6) — `src/world/gen/z_ledge.ts`
+A far shelf of the backrooms, warm all the way through. West: the Warm Rooms
+(a maze); middle: the Drip Hall (drip columns, melt pools, sagging ceiling,
+stretched tubes); east: the Survey Post (foil shelter, `lg_survey_log`, survey
+foil), the Slump, the Honey Pools; then the floor droops over the edge. Grade
+`ledge` (src/world/anomalies/ledge.ts). Things left there melt (`state.melt`
+1..3 on furniture, `data.melt` 0..1 on items) and the unit heats up
+(protection: hazmat suit, gas mask, Hazmat Filter, Survey Foil). Spawn:
+bumble_bee 4, gummy_bear 2, lumenmoth 0.6. Cap 7. Anchors: `fall`.
+
+### Studyable anomalies — `src/world/anomalies`
+`data.ts` lists them (also appended to the codex's `ANOMALIES`); `place.ts`
+puts each fixture into its level after generation and records
+`z.meta.anomalies = [{ key, uid, x, y }]`: updrip (pools), noon_lamp (house),
+echo_phone (parking), snow_globe (mall), hungry_carpet (lobby), patient_chair
+(office). Dev: `?quick&zone=<key>[&anchor=<id>]`, `?quick&anom=<key>`,
+`window.__anom.{go, tp, at, list, heat, melt}`.
+
