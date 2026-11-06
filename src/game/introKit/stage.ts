@@ -32,6 +32,8 @@ export interface Look {
 export const LOOKS: Record<string, Look> = {
   // cold fluorescent corridor, amber spill from the desks
   wing: { lift: [0.006, 0.012, 0.02], gamma: 1.0, gain: [1.0, 1.02, 1.05], contrast: 0.5, sat: 0.92, shadow: [0.74, 0.94, 1.16], high: [1.1, 1.0, 0.86], exposure: 1.05, vignette: 0.65 },
+  // the same corridor for the prologue's walk: the wing grade opened up (it runs long, so it must never read murky)
+  wingLit: { lift: [0.016, 0.022, 0.03], gamma: 0.94, gain: [1.04, 1.04, 1.04], contrast: 0.46, sat: 1.0, shadow: [0.8, 0.94, 1.1], high: [1.1, 1.0, 0.86], exposure: 1.38, vignette: 0.5 },
   // the tiled room: harsh, green-white, crushed
   ante: { lift: [0.004, 0.008, 0.006], gamma: 0.94, gain: [1.04, 1.04, 0.96], contrast: 0.62, sat: 0.84, shadow: [0.8, 1.0, 1.04], high: [1.08, 1.02, 0.88], exposure: 1.0, vignette: 0.8 },
   // sodium amber against red and cyan

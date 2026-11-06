@@ -42,7 +42,7 @@
 .tt3-menu > .hs { position: relative; z-index: 1; }
 .tt3-menu > .tt4-gear { margin: 4px 0 0 0; z-index: 2; }
 .tt3-cap { position: absolute; left: 0; top: 0; z-index: 5; transform: translateY(-50%); pointer-events: none; white-space: nowrap; }
-.tt3-cap small { display: block; font-size: var(--t-m); color: #e8dcc0; letter-spacing: 0.04em; text-shadow: var(--text-halo); }
+.tt3-cap small { display: block; font-size: var(--t-m); color: #e8dcc0; letter-spacing: 0.04em; text-shadow: var(--text-halo); background: rgba(14, 12, 8, 0.82); border: 1px solid rgba(232, 220, 192, 0.22); border-left: 3px solid #d8a040; padding: 3px 10px 4px; }
 .tt3-cap.in small { animation: tt3-cap 0.4s steps(6) both; }
 @keyframes tt3-cap { from { opacity: 0; transform: translateX(calc(var(--ks) * -6)); } }
 .tt3-foot { position: absolute; left: 0; right: 0; bottom: 0; height: 7vh; z-index: 6; display: flex; justify-content: space-between; align-items: center; padding: 0 max(calc(var(--ks) * 18), 6vw); pointer-events: none;

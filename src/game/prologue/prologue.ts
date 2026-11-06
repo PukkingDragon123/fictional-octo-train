@@ -143,7 +143,7 @@ export class Prologue implements GameSystem {
     this.calder.skin.castShadow = !low;
     root.add(this.calder.root);
     this.arm = new ReachArm(this.stage.scene, cam);
-    this.stage.setLook('wing', 0.05);
+    this.stage.setLook('wingLit', 0.05);
     this.stage.bloom = 0.8; this.stage.streak = 0.35; this.stage.streakTint.setRGB(0.7, 0.85, 1);
     this.stage.rays = 0.3; this.stage.rayOn = true;
     this.stage.rack(3, 0.2);

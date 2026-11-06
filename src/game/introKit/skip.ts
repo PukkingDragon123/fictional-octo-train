@@ -72,6 +72,8 @@ export function skipPlate(onSkip: () => void, text = 'Skip intake'): SkipPlate {
   const label = document.createElement('span');
   label.className = 'ix-plate-label';
   label.textContent = text;
+  // the plate is sized for 'Skip intake': longer labels shrink to fit instead of clipping
+  if (text.length > 11) label.style.fontSize = `calc(${(9 * 11 / text.length).toFixed(2)}px * var(--ix-k))`;
   const key = document.createElement('span');
   key.className = 'ix-plate-key';
   el.append(cv, label, key);
