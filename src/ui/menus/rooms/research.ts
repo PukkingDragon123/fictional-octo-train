@@ -16,6 +16,12 @@
 //   right wall     the CENTRIFUGE bench (pipettes, the jar you must not tap)
 //   back right     the SEQUENCER rig: tape reels and CRT readouts of the codex
 //   front right    the REQUISITION pegboard: the research tools you have earned
+//   right wall     the OBSERVATION WINDOW onto HOLDING 2 (press it to step up to the
+//                  glass): a gummy bear from the Ledge on a chained grate under a
+//                  caged lamp and a red alarm lamp (rooms/vault.ts and the creature kit)
+//   and around     the cold store's frost, readout and dewar, an evidence board, a
+//                  redacted terminal, the crest, restraint straps on the table, pipes,
+//                  a beacon, placards and warning signs, fog on the floor
 // Pressing the fridge picks a sample and runs it through the benches (the
 // first-person mini-games, researchBench.ts); the pegboard opens the
 // requisition, the clipboard the Meridian file (research/panel.ts). The codex
@@ -79,7 +85,7 @@ export class ResearchLab implements StageRoom {
   deco = new THREE.Group();
   floor = { minX: -W + 1.2, maxX: W - 1.0, minZ: 0.4, maxZ: 2.4, y: 0 };
   surfaces = [{ minX: SCOPE.x - 0.25, maxX: SCOPE.x + 0.25, minZ: SCOPE.z - 0.75, maxZ: SCOPE.z + 0.75, y: 0.92 }, { minX: CENTRI.x - 0.3, maxX: CENTRI.x + 0.3, minZ: CENTRI.z - 0.8, maxZ: CENTRI.z + 0.8, y: 0.92 }];
-  guideSpot = { pos: new THREE.Vector3(2.15, 0, 1.25), look: new THREE.Vector3(0, 1.6, BACK) };
+  guideSpot = { pos: new THREE.Vector3(-1.75, 0, 1.45), look: new THREE.Vector3(0.15, 1.6, BACK) };
   actions: { key: string; label: string; run: () => void }[] = [];
   /** the room wants a panel (title.ts opens research/panel.ts) */
   onPanel?: (w: 'tree' | 'codex' | 'fridge' | 'req' | 'file' | 'entry', key?: string) => void;

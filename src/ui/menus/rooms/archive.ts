@@ -10,8 +10,17 @@
 //   centre        THE PROJECTION TABLE: pull a file and the folder drops into
 //                 the slot; the lens throws a hologram of what the file is
 //                 about (rooms/holo.ts) with its detail floating round it.
-//   around        archive stacks to the ceiling (box files, binders, ledgers),
-//                 a rolling ladder, the reading desk, the index terminals.
+//   around        archive stacks (box files, binders, ledgers), a rolling ladder,
+//                 the reading desk, the index terminals; and the Institute's
+//                 secrets (rooms/vault.ts): a locker wall of sealed vault doors
+//                 over the cabinets, containment cell A-07 in the left wall
+//                 (padded, wired glass, its own cold lamp, a split-off jelly
+//                 residue quivering inside, placard, keypad, palm reader, a
+//                 terminal scrolling its redacted log), the sealed door of
+//                 Vault B in the right wall (hazard-striped, wheel-locked,
+//                 a beacon sweeping red) between the server racks, cases of
+//                 anomalous objects on the floor, pipes with valves and gauges,
+//                 hazard bands, stencils and a low fog over the floor.
 // In the projection: drag to orbit, wheel / pinch to zoom, ← → flip pages,
 // R plays the recording (the thing moves, the text dictates itself, the
 // sound plays), Q / E the next file in the drawer, Esc back to the drawer.
