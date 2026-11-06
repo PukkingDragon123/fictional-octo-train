@@ -387,7 +387,7 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
 export const CONTROLS: [string, string][] = [
   ['WASD', 'walk'], ['Shift', 'sprint · push harder · swim'], ['C / Ctrl', 'sneak'],
   ['E', 'the action floating over what is in reach'], ['G', 'carry · grip · drop what you carry (else the emote wheel)'], ['R', 'turn what you carry · reload · rotate when placing'],
-  ['Space', 'shove · kick · throw what you carry'], ['U', 'the second thing in reach'], ['F', 'suit lamp (no button: the key only)'], ['Q (hold)', 'scan what nobody has scanned yet ([Q] Scan over it)'],
+  ['Space', 'shove · kick · throw what you carry'], ['U', 'the second thing in reach'], ['F', 'suit lamp (no button: the key only)'], ['Q (hold)', 'scan · "[Q] Scan" floats over anything new'],
   ['1 - 6', 'hotbar: take the bound thing in hand'], ['Left mouse', 'use the tool in hand · attack (hold to charge)'], ['Right mouse', 'grab · push · pull'],
   ['J', 'Dr. Calder\'s task board'], ['I', 'backpack'], ['O', 'inspect yourself'], ['H', 'lung pump · breathing'],
   ['B', 'build mode'], ['M', 'map'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'],

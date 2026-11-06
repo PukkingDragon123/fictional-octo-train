@@ -1868,14 +1868,12 @@ export class Intro implements GameSystem {
     if (t > 3.6) this.finish();
     void dt;
   }
-  /** the band shows a signal: the handler is calling */
+  /** the link is up: a chirp, the band HUD boots (Dr. Calder's hologram comes with the tutorial) */
   private signal() {
     if (this.signalled) return;
     this.signalled = true;
     this.sfx('remit_chirp', 0.9);
     try { (G.holo as any)?.boot?.(); } catch (e) { console.warn('holo.boot', e); }
-    try { (G as any).watch?.signal?.({ from: 'CALDER', kind: 'handler', text: 'LINK UP' }); } catch (e) { console.warn('watch.signal', e); }
-    bus.emit('watchSignal', { from: 'CALDER', kind: 'handler', text: 'LINK UP' });
   }
 
   // ================================================================== skipping & cleanup

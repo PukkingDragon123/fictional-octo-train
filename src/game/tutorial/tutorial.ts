@@ -3,7 +3,7 @@
 // a full-colour hologram on your screen (src/ui/holo/calderHolo.ts) that
 // shimmers in, stands on the glass in front of the picture and points: at the
 // unit, at the parts of the body console (the heart, the brain, the
-// digester, the pump and its balloon, the rucksack, the watch icon), at the
+// digester, the pump and its balloon, the rucksack), at the
 // hotbar, at a chair in the room and the label floating over it, at the
 // press, at an inhabitant, at the door. The camera comes in close on the unit
 // and the thing being taught, then eases back out. No lesson cards, no step
@@ -18,8 +18,9 @@
 // until the press lesson, and every door out stays shut until she is done.
 //
 //   walk, run (the balloon), the pump, crouch, the body console, the hotbar,
-//   the wrist light, the pack, the watch, a piece of furniture (get a grip),
-//   the press (feed it), an inhabitant (scan), the link (resync), the door
+//   the suit lamp, the pack, a piece of furniture (get a grip),
+//   the press (feed it), an inhabitant (hold Q: the suit scans), the link
+//   (resync), the door; the loop itself, said out loud (no tracker plate)
 //
 // Runs once per contract (flag 'tut:done'), only for the host / solo with the
 // contract on (never free survival or a co-op joiner), never under a test
@@ -55,7 +56,7 @@ interface PushApi {
 }
 type Pt = { x: number; y: number };
 type Aim = () => Pt | null;
-type HudPart = 'heart' | 'brain' | 'jar' | 'lung' | 'balloon' | 'pack' | 'watch';
+type HudPart = 'heart' | 'brain' | 'jar' | 'lung' | 'balloon' | 'pack';
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
@@ -66,7 +67,7 @@ const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 /** a skip unwinds the script */
 const SKIP = Symbol('tutorial skipped');
 /** the pickAt kinds of the body console for each part */
-const PICK: Record<HudPart, string[]> = { heart: ['bag'], brain: ['brain'], jar: ['jar'], lung: ['lung', 'gauge'], balloon: ['balloon'], pack: ['pack'], watch: ['watch'] };
+const PICK: Record<HudPart, string[]> = { heart: ['bag'], brain: ['brain'], jar: ['jar'], lung: ['lung', 'gauge'], balloon: ['balloon'], pack: ['pack'] };
 
 let running: Tutorial | null = null;
 export function tutorialRunning(): boolean { return !!running; }
@@ -124,7 +125,7 @@ export class Tutorial implements GameSystem {
   private num: string;
   private touch = isTouch();
   // what the unit has done (counted every frame)
-  private walked = 0; private runT = 0; private sneakT = 0;
+  private walked = 0; private runT = 0; private sneakT = 0; private qHeld = 0;
   private pumped = 0; private hotKey = 0; private heartClicked = 0;
   private fed = false; private deposited = 0;
   private lastPos = { x: 0, z: 0 };
@@ -164,7 +165,7 @@ export class Tutorial implements GameSystem {
     this.root.append(this.hlEl, this.keysEl, this.plate.el);
     document.body.appendChild(this.root);
     floatQuiet(true); this.quietHeld = true;
-    // her own lines only (the band's soft guide and its reactions stand down while she teaches)
+    // her own lines only (the handler's soft guide and its reactions stand down while she teaches)
     const h = G.handler as unknown as { briefed?: boolean; cine?: boolean; hush?: () => void; guide?: (t: null) => void } | null;
     if (h) { h.briefed = true; h.hush?.(); h.cine = true; h.guide?.(null); }
     this.holo = calderHolo();
@@ -179,7 +180,7 @@ export class Tutorial implements GameSystem {
     on('grabbed', (p: Player, o: TileObject, mode: string) => { if (p === G.local) this.onGrab(o, mode); });
     on('carryFed', (p: Player) => { if (p === G.local) this.fed = true; });
     on('deposited', (d: { by: string; value: number }) => { if (d?.by === G.local?.id) { this.fed = true; this.deposited += Math.max(0, Number(d.value) || 0); } });
-    // Esc skips (only while no menu, reader, pack or watch is up)
+    // Esc skips (only while no menu, reader or pack is up)
     const inp = g.input as unknown as { hit: (a: Action) => boolean };
     const own = Object.prototype.hasOwnProperty.call(inp, 'hit') ? inp.hit : undefined;
     const orig = inp.hit.bind(inp);
@@ -187,7 +188,7 @@ export class Tutorial implements GameSystem {
       const v = orig(a);
       if (a === 'pause' && v) {
         const ui = g.ui as unknown as { menuEl?: unknown; readerEl?: unknown; modal?: unknown; inventory?: { open?: boolean } } | undefined;
-        if (!(ui?.menuEl || ui?.readerEl || ui?.modal || ui?.inventory?.open || (G as unknown as { watch?: { open?: boolean } }).watch?.open)) { this.skip(); return false; }
+        if (!(ui?.menuEl || ui?.readerEl || ui?.modal || ui?.inventory?.open)) { this.skip(); return false; }
       }
       return v;
     };
@@ -264,7 +265,7 @@ export class Tutorial implements GameSystem {
     await this.sleep(1.0);
     this.holo.gesture('wave');
     await this.say('There you are. Unit {n}, on its feet. And you, operator, somewhere behind its eyes.', { expr: 'smile' });
-    await this.say('Dr. Iris Calder. I am the light on your screen and the voice on its band. Meridian lets me keep you both alive. Within budget.');
+    await this.say('Dr. Iris Calder. I am the light on your screen and the voice in its helmet. Meridian lets me keep you both alive. Within budget.');
     const a0 = await this.ask(['Where am I?', 'What did they do to it?', 'Get me out of here.']);
     if (a0 === 0) { await this.say('Level 0. The first room of a very long building nobody built.'); await this.say('You are not lost. You are exactly where the Institute put you. That is worse, but it is tidier.', { gesture: 'shrug' }); }
     else if (a0 === 1) { await this.say('Intake. It is unpleasant and it is quick, and it is over.', { gesture: 'think' }); await this.say('I patched it on the way down. The bruises are on its file, not on its body. You are welcome.'); }
@@ -344,14 +345,14 @@ export class Tutorial implements GameSystem {
       await this.say(held ? 'There. In its hand. Again puts it away.' : 'Empty. It fills up as the unit finds things. Inspect it to arrange them.');
     }
 
-    // ---- the wrist light
+    // ---- the suit lamp
     this.lesson('light');
     this.aim(unit);
     this.keys(T ? null : ['F']);
-    await this.say(T ? 'Its wrist has a light. The bulb button, on the right.' : 'Its wrist has a light. F.');
+    await this.say(T ? 'The suit has a lamp on the helmet. The lamp button, on the right.' : 'The suit has a lamp on the helmet. F.');
     this.holo.point(null);
     const lit0 = p().flashlightOn;
-    await this.gate(() => p().flashlightOn !== lit0, [T ? 'The light. Tap it.' : 'F, {n}. The light.', 'Some rooms down here have no lights. Some have lights you do not want. F.'], 8);
+    await this.gate(() => p().flashlightOn !== lit0, [T ? 'The lamp. Tap it.' : 'F, {n}. The lamp.', 'Some rooms down here have no lights. Some have lights you do not want. F.'], 8);
     this.keys(null);
     await this.say(p().flashlightOn ? 'Better. The battery is the unit\'s. The dark is ours.' : 'Off. Brave. The battery thanks you.');
 
@@ -366,16 +367,12 @@ export class Tutorial implements GameSystem {
     await this.say(T ? 'Close it again.' : 'Close it. I again, or Esc.');
     await this.gate(() => !inv(), ['Close the pack, {n}.', 'You can rummage later. On your own time.'], 8);
 
-    // ---- the watch
-    this.lesson('watch');
-    await this.show('watch', T ? 'Under the brain: the watch. Tap WATCH.' : 'Under the brain: the watch. Tab raises it.');
-    const watch = () => !!(G as unknown as { watch?: { open?: boolean } }).watch?.open;
-    this.keys(T ? null : ['Tab']);
-    await this.gate(watch, [T ? 'WATCH. Tap it.' : 'Tab. The watch.', 'Raise the watch, {n}. It is on its wrist for a reason.'], 8);
-    this.keys(null); this.show(null);
-    await this.say('My jobs come through here. The map. The scanner, for the residents. Jobs pay research credit, and research is what the Institute actually wants from you.');
-    await this.say(T ? 'Lower it.' : 'Lower it. Tab.');
-    await this.gate(() => !watch(), ['Lower the watch.', 'Arm down, {n}.'], 8);
+    // ---- the jobs: from her, out loud (and her broadcast, when wanted)
+    this.lesson('jobs');
+    this.aim(unit);
+    await this.say('Jobs come from me. I will say them as you go, and I will say them again when you forget.', { expr: 'smile' });
+    this.holo.point(null);
+    await this.say(T ? 'If you want them in front of you, my broadcast. It is on the pad.' : 'If you want them in front of you, J puts my broadcast up. Jobs pay research credit, and research is what the Institute actually wants from you.');
 
     // ---- the job: a piece of furniture, whole
     this.lesson('grip');
@@ -438,14 +435,17 @@ export class Tutorial implements GameSystem {
       this.frameOn(at, 1.8, 1.0);
       this.aim(() => { const w = at(); return w ? this.screenOf(w.setY(w.y + 0.8)) : null; });
       await this.say('And there: a resident. Not a ghost, {n}, an organism. It lives here. You are visiting.', { expr: 'surprised' });
-      await this.say(T ? 'Point the watch at it to scan it. From a distance, please.' : 'Hold N on it and the watch scans it. From a distance, please.');
+      await this.say(T ? 'Hold SCAN, and the suit\'s visor reads it. From a distance, please.' : 'Hold Q, and the suit\'s visor scans it. From a distance, please.');
+      this.keys(T ? null : ['Q']);
       this.camFollow(1.3, 1.0);
       this.holo.point(null);
       const scans0 = this.scans();
-      await this.gate(() => this.scans() > scans0 || c.dead, [T ? 'Scan it. The watch.' : 'N, held, on the creature.', 'From a distance. I said that part already.'], 10, undefined, undefined, 30);
+      this.qHeld = 0;
+      await this.gate(() => this.scans() > scans0 || this.qHeld > 1.2 || c.dead, [T ? 'Scan it. Hold SCAN.' : 'Q, held. Let the visor read it.', 'From a distance. I said that part already.'], 10, undefined, undefined, 30);
+      this.keys(null);
       if (this.scans() > scans0) await this.say('Filed. The lab will be thrilled. The lab is always thrilled, it is very unsettling.');
     } else {
-      await this.say('You will meet the residents soon enough. Organisms, not ghosts. Point the watch at one and it scans it. From a distance, please.');
+      await this.say(T ? 'You will meet the residents soon enough. Organisms, not ghosts. Hold SCAN and the visor reads one. From a distance, please.' : 'You will meet the residents soon enough. Organisms, not ghosts. Hold Q and the visor scans one. From a distance, please.');
     }
 
     // ---- the link: she slips it on purpose
@@ -483,7 +483,8 @@ export class Tutorial implements GameSystem {
     else if (a4 === 1) { await this.say('Always. It is in my contract, and in yours. Mine pays better.', { expr: 'smile' }); }
     else if (a4 === 2) { await this.say('Oh. Nobody says that.', { expr: 'surprised' }); await this.say('...Do not make it weird, {n}. Go to work.', { gesture: 'shrug' }); }
     else { await this.say('Right. Off you go then.'); }
-    await this.say('The job is written top right from now on, and I am on the band if you need me. Stand up straight. Somebody is always watching.', { gesture: 'wave' });
+    await this.say('So. Wake, work, press. Clear the debt and buy its way out. What it filed comes back to the lab, and then there is a next unit.', { gesture: 'talk' });
+    await this.say('I will name the next step as you go. Stand up straight, {n}. Somebody is always watching.', { gesture: 'wave' });
     this.holo.dissolve();
     this.camRelease();
     await this.sleep(1.0);
@@ -772,6 +773,7 @@ export class Tutorial implements GameSystem {
       this.lastPos = { x: p.x, z: p.z };
       if (p.running && p.speed > 2.2) this.runT += dt;
       if (p.sneaking) this.sneakT += dt;
+      if ((G.input as unknown as { keys?: Set<string> }).keys?.has?.('KeyQ')) this.qHeld += dt;
     }
     // the framed thing moves (a creature, a chair being carried)
     if (this.cam.on && !this.cam.follow && this.frameFn) { const w = this.frameFn(); if (w) this.cam.goal.copy(w); }
