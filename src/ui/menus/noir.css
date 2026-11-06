@@ -276,6 +276,7 @@
 .bt3-pre .hi { color: var(--ct-hi); font-style: normal; }
 .bt3-bar { letter-spacing: 0.06em; }
 .bt3-bar .off { color: var(--ct-dark); }
+.bt3-hibar { display: inline-block; vertical-align: middle; image-rendering: pixelated; margin: 2px 0; }
 .bt3-wake { margin-top: 0.6em; font-size: var(--t-xl); font-weight: 600; letter-spacing: 0.24em; text-transform: uppercase; color: var(--ct-hi); opacity: 0; }
 .bt3-wake.on { opacity: 1; animation: bt3-wake 0.5s steps(5) both; }
 @keyframes bt3-wake { 0% { opacity: 0; filter: brightness(3); } 100% { opacity: 1; } }

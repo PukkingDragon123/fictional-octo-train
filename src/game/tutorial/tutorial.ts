@@ -1,8 +1,9 @@
 // The contract tutorial: Dr. Iris Calder's link training, right after the run
 // intro (src/game/intro.ts). She talks you through the unit's body over the
 // band, broadcast-style: a LIVE lesson card at the top of the screen, her
-// voice and projection on the wrist (src/game/handler.ts), one word hanging
-// over whatever the lesson is about. The lessons that need the body keep the
+// voice on the wrist (src/game/handler.ts: a voice only, her waveform on the
+// loop tracker's tube, src/game/loop/tracker.ts), one word hanging over
+// whatever the lesson is about. The lessons that need the body keep the
 // controls in your hands; the few that need to show you something are short
 // cutscenes (letterbox, the iso camera framed, a cut to the unit's own eyes).
 //
@@ -97,11 +98,15 @@ const CSS = `
 .tut-recap h2 { font-weight: 400; font-size: 32px; line-height: 32px; margin: 0 0 16px; color: #8fd8ff; text-shadow: var(--text-ink); }
 .tut-recap .loop { font-size: 32px; line-height: 48px; color: #fff2c8; text-shadow: var(--text-ink); }
 .tut-recap .loop span { color: #8fd8ff; }
-.tut-recap p { font-size: 16px; line-height: 16px; margin: 16px 0 0; color: #e8eef4; text-shadow: var(--text-ink); }
+.tut-recap p { font-size: 16px; line-height: 16px; margin: 12px 0 0; color: #e8eef4; text-shadow: var(--text-ink); }
+.tut-recap p b { font-weight: 400; color: #8fd8ff; margin-right: 8px; }
+.tut-recap p i { font-style: normal; color: #ffd890; }
 /* the broadcast: Dr. Calder's lesson card, top of the screen */
 .tut-cast { position: absolute; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translate(-50%, -8px); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .4s, transform .4s; }
 .tut-cast.on { opacity: 1; transform: translate(-50%, 0); }
 .tut-root.cine .tut-cast { opacity: 0; }
+/* (on narrower screens the lesson card drops below the loop tracker at the top right, src/game/loop/tracker.ts) */
+@media (max-width: 1200px) { .tut-cast { top: calc(124px + env(safe-area-inset-top)); } }
 .tut-cast small { display: block; font-size: 16px; line-height: 16px; letter-spacing: 2px; color: #8fd8ff; text-shadow: var(--text-ink); }
 .tut-cast small u { text-decoration: none; color: #ff5a4a; animation: tut-live 1.4s steps(2) infinite; }
 @keyframes tut-live { 50% { opacity: .25; } }
@@ -128,6 +133,7 @@ export class Tutorial implements GameSystem {
   private refused = new Set<number>();
   private hopper: { x: number; z: number; o: TileObject } | null = null;
   private owedFrom = 0; private owedTo = 0; private paid = 0;
+  private bareT = 0;
   private walked = 0; private held = 0; private dropT = 0; private fed = false; private saidHeavy = false; private slipped = false;
   private touch = isTouch();
   private offs: (() => void)[] = [];
@@ -251,14 +257,13 @@ export class Tutorial implements GameSystem {
 
   private pressBeats(): Beat[] {
     const p = G.local!;
-    const h = G.handler;
     this.findHopper();
     const hp = this.hopper;
     return [
       { dur: 0.1, enter: () => { this.lesson(5, 'THE PRESS', ''); this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.4, 6); } },
       // a pan from the unit to the press, the press lit, Calder at its projector
-      { dur: 3.4, voss: true, enter: () => { if (hp) { this.frame(v1.set(hp.x, p.y + 0.6, hp.z), 1.5, 1.0); h?.appear?.('pylon'); } this.say('Got it. Good. That is a Remittance Press. It eats what you feed it and pays the unit\'s number down.', undefined, true); } },
-      { dur: 2.6, voss: true, enter: () => { this.say(this.touch ? 'Carry it over. Next to the plate, tap FEED.' : 'Carry it over. Next to the plate, press E and it goes in.', undefined, true); } },
+      { dur: 3.4, voss: true, enter: () => { if (hp) this.frame(v1.set(hp.x, p.y + 0.6, hp.z), 1.5, 1.0); this.say('Got it. Good. That is a Remittance Press. It eats what you feed it and pays the unit\'s number down.'); } },
+      { dur: 2.6, voss: true, enter: () => { this.say(this.touch ? 'Carry it over. Next to the plate, tap FEED.' : 'Carry it over. Next to the plate, press E and it goes in.'); } },
     ];
   }
 
@@ -294,9 +299,9 @@ export class Tutorial implements GameSystem {
       { dur: 0.1, enter: () => { this.lesson(7, 'DATA', ''); this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.0, 3); } },
       { dur: 3.4, voss: true, enter: () => this.say('Last lesson. Data. Terminals, drives, journals: whatever remembers what happened here, read it. That pays me.') },
       { dur: 3.4, voss: true, enter: () => this.say(this.touch ? 'And the inhabitants. They are organisms, not ghosts. Point the watch at one and scan it. From a distance, please.' : 'And the inhabitants. They are organisms, not ghosts. Hold N on one and the watch scans it. From a distance, please.') },
-      { dur: 5.6, enter: () => { this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.1, 1.2); this.showRecap(true); G.audio?.ui?.('watchUp', 0.3); } },
+      { dur: 7.2, enter: () => { this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.1, 1.2); this.showRecap(true); G.audio?.ui?.('watchUp', 0.3); } },
       { dur: 0.6, enter: () => this.showRecap(false) },
-      { dur: 2.6, voss: true, enter: () => this.say('That is the training. I will be on your wrist. Stand up straight, {n}. Somebody is always watching.') },
+      { dur: 2.6, voss: true, enter: () => this.say('That is the training. The next step is always written top right, and I will name it. Stand up straight, {n}. Somebody is always watching.') },
     ];
   }
 
@@ -345,6 +350,9 @@ export class Tutorial implements GameSystem {
       case 'grip': {
         if (ci) { if (!this.hopper) this.findHopper(); this.go(this.hopper ? 'press' : 'link'); break; }
         const o = this.targetObj;
+        // nothing liftable anywhere near (a bare room, everything already pressed): on to the next lesson, never a dead end
+        this.bareT = this.target ? 0 : this.bareT + dt;
+        if (this.bareT > 20) { this.bareT = 0; this.say('Nothing here the unit can lift. We will come back to the press. Next lesson.'); this.go('link'); break; }
         if (!o || !this.alive(o) || this.t > 60) { this.findTarget(); this.t = Math.min(this.t, 1); if (this.target) h?.guide?.(this.target); }
         this.setObjective('GET A GRIP', this.targetName(), () => (this.target ? v1.set(this.target.x, this.target.y + 1.4, this.target.z) : null));
         this.light(this.target, 0xffe2b0);
@@ -604,10 +612,11 @@ export class Tutorial implements GameSystem {
   private counter(at: (() => THREE.Vector3) | null) { this.countAt = at; this.count.classList.toggle('on', !!at); }
   private setCount(label: string, big: string, sub: string) { this.count.innerHTML = `<small>${label}</small><b>${big}</b>${sub ? `<em>${sub}</em>` : ''}`; }
   private showRecap(on: boolean) {
-    if (on) this.recap.innerHTML = `<h2>THE JOB</h2><div class="loop">GET A GRIP <span>&gt;</span> CARRY IT WHOLE <span>&gt;</span> THE PRESS <span>&gt;</span> FEED IT<br>FIND DATA <span>&gt;</span> SCAN THE INHABITANTS</div>`
-      + `<p>Every piece the press takes pays the unit's number down. An installment is due every few days.</p>`
-      + `<p>Keep the unit sane: fear slips the link. ${this.touch ? 'Tap the LINK line' : 'L'} resyncs it.</p>`
-      + `<p>The watch (${this.touch ? 'WATCH' : 'TAB'}) carries Dr. Calder's jobs. Clear the debt, then buy passage out at the depot.</p>`;
+    if (on) this.recap.innerHTML = `<h2>THE LOOP</h2><div class="loop">WAKE <span>&gt;</span> WORK <span>&gt;</span> PRESS <span>&gt;</span> OUT <span>&gt;</span> LAB <span>&gt;</span> NEXT UNIT</div>`
+      + `<p><b>WORK</b> furniture, carried whole · data from terminals and drives · scans and samples of the inhabitants</p>`
+      + `<p><b>PRESS</b> every piece it takes pays the debt down: <i>+SCRIP</i>. An installment is due every few days</p>`
+      + `<p><b>OUT</b> clear the debt and buy passage at the depot, or just survive as long as you can</p>`
+      + `<p><b>LAB</b> what the run filed becomes research: <i>+RP</i>. Spend it on upgrades, then send the next unit</p>`;
     this.recap.classList.toggle('on', on);
   }
   private paint(dt: number) {

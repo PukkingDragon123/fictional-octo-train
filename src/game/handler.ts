@@ -1,5 +1,9 @@
-// Dr. Iris Calder (projection): the operator's guide for the rest of the run.
-// The Meridian researcher (src/entities/researcher.ts: the menu guide's own
+// Dr. Iris Calder: the operator's guide for the rest of the run. A VOICE by
+// default (voiceOnly): she talks over the band on the unit's wrist, in the
+// subtitle strip, her waveform on the loop tracker's tube (src/game/loop,
+// bus 'calderSpeak' { text, dur }); nobody stands next to the unit. The
+// projection below is kept for scenes that ask for it (voiceOnly = false):
+// the Meridian researcher (src/entities/researcher.ts: the menu guide's own
 // body, lab coat, badge, glasses) projected as cold phosphor light (scanlines,
 // 24 fps flicker and grain, the frame slipping when the link is bad) from the
 // lens of the band on the unit's wrist or from the projector on a press
@@ -43,6 +47,7 @@ import { ensurePack } from './arrivalKit/pack';
 import '../audio/sounds_remit';
 import { TUT } from './tutorial/state';
 import { startTutorial } from './tutorial/tutorial';
+import { installLoopTracker } from './loop/tracker';
 
 export type HandlerWhere = 'band' | 'pylon' | { x: number; z: number };
 export interface SayOpts { at?: { x: number; z: number }; point?: { x: number; z: number }; dur?: number; key?: string; cd?: number; gesture?: string; pri?: number; pylon?: boolean; cine?: boolean }
@@ -90,6 +95,8 @@ export class Handler implements GameSystem {
   briefed = false;
   /** draw the projector beam from the band even when he stands at a fixed spot */
   beamFromBand = false;
+  /** she is only a voice (the user: no meeting her, she just talks to you): no projection unfolds when she speaks */
+  voiceOnly = true;
   private unfold = 1.6;
   /** dev: lines run faster (screenshot scripts) */
   talkSpeed = 1;
@@ -162,6 +169,8 @@ export class Handler implements GameSystem {
     this.dot.visible = false; this.dot.renderOrder = 21;
     G.pr.scene.add(this.dot);
     this.wire();
+    // the job, written down at the top right (her waveform swings on its tube)
+    try { installLoopTracker(); } catch (e) { console.warn('loop tracker', e); }
     if (import.meta.env.DEV) (window as unknown as { __voss: Handler; __calder: Handler }).__voss = (window as unknown as { __calder: Handler }).__calder = this;
   }
 
@@ -182,6 +191,7 @@ export class Handler implements GameSystem {
     if (o.pri && o.pri > 1) this.queue.unshift({ text, o }); else this.queue.push({ text, o });
   }
   appear(where: HandlerWhere = 'band', secs?: number) {
+    if (this.voiceOnly) return;
     this.where = where;
     this.unfold = secs ? 1 / Math.max(0.1, secs) : 1.6;
     if (this.collT >= 0) { this.collT = -1; this.show = 0; }
@@ -284,7 +294,7 @@ export class Handler implements GameSystem {
         break;
       case 2: {
         const h = this.nearestHopper();
-        if (h) { this.guide(h); if (quiet) this.say('The press. Striped plate under the ram, red lever on the side. Set it down on the plate, step off, pull the lever.', { point: h }); }
+        if (h) { this.guide(h); if (quiet) this.say('The press. Walk it right up to the striped plate and feed it in: E, or FEED. The lever does the rest.', { point: h }); }
         break;
       }
       case 3:
@@ -379,6 +389,7 @@ export class Handler implements GameSystem {
     if (!this.cur && this.queue.length && this.quietT > 0.45) {
       const q = this.queue.shift()!;
       const where: HandlerWhere = q.o.at ? q.o.at : q.o.pylon ? 'pylon' : 'band';
+      if (this.voiceOnly) { this.speakVoice(q); return; }
       if (this.show < 0.5) {
         // she flickers in first, then talks
         this.appear(where);
@@ -403,6 +414,15 @@ export class Handler implements GameSystem {
     // nothing more to say: fade out after a while
     const linger = this.tut >= 0 && this.tut < 9 ? 11 : 6;
     if (!this.cur && !this.queue.length && this.quietT > linger && this.showGoal > 0 && !this.scripted) this.vanish();
+  }
+
+  /** her line over the band: the voice, the subtitle strip, the tracker's tube (no projection) */
+  private speakVoice(q: { text: string; o: SayOpts }) {
+    const voiced = this.voice.speak(q.text);
+    const dur = Math.max(q.o.dur ?? 0, voiced, readTime(q.text) * 0.8);
+    this.cur = { text: q.text, o: q.o, t: 0, dur: dur + 0.15 };
+    line(CALDER, q.text, 'voss', dur + 0.35);
+    bus.emit('calderSpeak', { text: q.text, dur });
   }
 
   /** where he stands this frame */
@@ -627,7 +647,7 @@ export class Handler implements GameSystem {
         if (this.bootT > 2.5) {
           // dev: ?tutorial=1 stages the full tutorial on a quick start
           if (/[?&]tutorial=1/.test(location.search) && startTutorial()) { this.begin(); return; }
-          if (!m?.flags?.has?.('contract:first_deposit')) this.say('Unit {n}, this is Dr. Calder. Link is up. Pick up a piece of furniture, carry it to the press, pull the lever. Scan what moves. I will be on your wrist.');
+          if (!m?.flags?.has?.('contract:first_deposit')) this.say('Unit {n}, Dr. Calder, on the band. Link is up. Pick up a piece of furniture, carry it to the press, feed it in. Scan what moves. The next step is always written top right.');
           this.begin();
         }
       }

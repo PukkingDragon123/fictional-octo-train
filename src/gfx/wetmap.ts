@@ -12,7 +12,7 @@ const SUB = 2;
  * screen-space reflections and by the floor shader for the fixtures' sheen
  * (above ~0.3 the albedo also darkens: really wet, not just polished).
  */
-const FLOOR_GLOSS: Record<string, number> = {
+export const FLOOR_GLOSS: Record<string, number> = {
   water_shallow: 1, water_deep: 1,
   concrete_wet: 0.82, carpet_wet: 0.18,
   tile_pool: 0.5, tile_pool_blue: 0.55,

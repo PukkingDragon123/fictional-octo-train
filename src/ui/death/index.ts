@@ -25,6 +25,7 @@ import { flushStats } from '../../game/profile';
 import { sfx } from '../menus/sfx';
 import { letterTimes } from '../../social/chipVoice';
 import { RunTracker, type RunReport } from './stats';
+import { unlockHtml, goToLab, wireRunEnd } from './summary';
 import { Tape } from './recorder';
 import { sceneFor, STAFF, type Line, type Who, type Scene } from './lines';
 import type { ObsRoom } from './room';
@@ -40,6 +41,8 @@ export function installDeath(g: Game, p: Player): DeathHooks {
   let tape: Tape | null = null;
   try { tape = new Tape(g.pr, { fps: 10, seconds: 6, w: 256 }); } catch (e) { console.warn('death tape', e); }
   let running: DeathCinematic | null = null;
+  // a run that ends alive (passage out, the door): its own summary, the same books (./summary.ts)
+  wireRunEnd(g, p, tracker);
   bus.on('death', (pl: Player) => {
     if (pl !== p || running) return;
     running = new DeathCinematic(g, p, tracker, tape);
@@ -396,6 +399,7 @@ class DeathCinematic {
       <div class="dz-rows">${rows}</div>${specLine(r)}
       <div class="dz-tot"><span class="dz-l">RESEARCH POINTS</span><span class="dz-big">+0</span></div>
       <div class="dz-lab">LAB TOTAL <b>${researchPoints() - r.rp}</b></div>
+      <div class="dz-unl"></div>
     </div>`;
     this.root.append(el);
     this.caseEl = el;
@@ -426,6 +430,9 @@ class DeathCinematic {
       stage = 'end';
       rows.forEach((row, k) => { row.classList.add('on', 'paid'); (row.querySelector('.dz-v') as HTMLElement).textContent = val(r.lines[k].key, 1); });
       big.textContent = '+' + r.rp; lab.textContent = String(researchPoints());
+      // what the lab total buys now: the loop's next step
+      const unl = el.querySelector('.dz-unl') as HTMLElement | null;
+      if (unl) { unl.innerHTML = unlockHtml(); unl.classList.add('on'); }
       el.classList.add('done');
       this.tallyDone = true;
       sfx('unlock', 0.8);
@@ -489,9 +496,10 @@ class DeathCinematic {
       b.addEventListener('click', (e) => { e.stopPropagation(); sfx('confirm'); act(); });
       k.append(b); this.keys.push(b);
     };
+    // the loop's next step first: the lab, where the research is spent
     if (coop) mk('Continue', 'watch the crew', () => this.close());
-    else mk('Continue', 'a new unit, same file', () => this.nextSubject());
-    mk('Back to the title', '', () => this.toTitle());
+    mk('To the lab', `spend ${researchPoints()} RP on upgrades`, () => this.toLab());
+    if (!coop) mk('New unit now', 'same file · straight back in', () => this.nextSubject());
     this.root.append(k);
     this.keysEl = k;
     this.placeCase();
@@ -574,7 +582,7 @@ class DeathCinematic {
     };
     this.fadeOut(() => import('../../game/launch').then((m) => m.setLaunch(cfg)).catch(() => location.reload()));
   }
-  private toTitle() { this.fadeOut(() => location.reload()); }
+  private toLab() { this.fadeOut(() => goToLab()); }
   private fadeOut(then: () => void) {
     this.root.classList.add('dz-out');
     this.toneOff?.(); this.toneOff = null;

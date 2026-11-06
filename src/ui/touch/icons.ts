@@ -1,5 +1,7 @@
 // Pixel-art icons for the on-screen controls, drawn once into tiny canvases
 // (12x12 art + a 1px dark outline) and used as CSS background images.
+// Round 13: drawn at 3x (more on a sharp screen) with the hi-res kit.
+import { upscaleRows, rowsToCanvas, shadeSprite, pcUrl, dprK } from '../hiPixel';
 // '#' bone, '+' amber, 'g' phosphor, '-' dim, 'r' red, '.' empty.
 
 const ART: Record<string, string[]> = {
@@ -425,6 +427,18 @@ export function iconUrl(name: string, tint?: string): string {
   const hit = cache.get(k);
   if (hit) return hit;
   const art = ART[name] || ART.cross;
+  // round 13: grown (EPX) and lit by the hi-res kit, 14 x K px, shown at the same size as before
+  try {
+    const K = 3 * dprK();
+    const pal: Record<string, number> = {};
+    for (const [ch, hx] of Object.entries(PAL)) pal[ch] = parseInt((tint && ch === '#' ? tint : hx).slice(1), 16);
+    const big = upscaleRows(art.map((r) => r.padEnd(12, '.').slice(0, 12)), K);
+    const pc = rowsToCanvas(big, pal, K, 14 * K, 14 * K);
+    shadeSprite(pc, { outline: 2, shadow: 0, bevel: Math.max(2, Math.round(K * 1.4)), seed: name.length });
+    const url = pcUrl(pc);
+    cache.set(k, url);
+    return url;
+  } catch { /* fall back to the small sprite */ }
   const W = 14, H = 14;
   const c = document.createElement('canvas'); c.width = W; c.height = H;
   const g = c.getContext('2d')!;

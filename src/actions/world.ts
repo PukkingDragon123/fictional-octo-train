@@ -197,7 +197,7 @@ export class ClimbAction extends TimedAction {
 
 // ---------------------------------------------------------------- furniture
 export class SearchAction extends TimedAction {
-  constructor(p: Player, public o: TileObject) { super(p); this.name = 'Search'; this.duration = 0.6; this.anim = 'loot'; this.showBar = false; }
+  constructor(p: Player, public o: TileObject) { super(p); this.name = 'Search'; this.duration = 0.6; this.anim = 'loot'; this.showBar = true; }
   perform() {
     if (!this.o.inv) return;
     if (this.o.inv.locked) { bus.emit('think', this.p, "It's locked."); return; }

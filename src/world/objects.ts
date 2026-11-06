@@ -62,18 +62,23 @@ const geoCache = new Map<string, THREE.BufferGeometry | null>();
 /** damaged furniture (state.dmg 1..3): set by src/world/destruction.ts, turns a clean model into a battered copy */
 let damageHook: ((g: THREE.BufferGeometry, d: ObjDef, lvl: number) => THREE.BufferGeometry) | null = null;
 export function setDamageGeometryHook(f: typeof damageHook) { damageHook = f; }
+/** melted furniture (state.melt 1..3): src/world/anomalies/meltGeo.ts slumps a model into a puddle of itself (the Ledge) */
+let meltHook: ((g: THREE.BufferGeometry, d: ObjDef, lvl: number) => THREE.BufferGeometry) | null = null;
+export function setMeltGeometryHook(f: typeof meltHook) { meltHook = f; }
 
 /** Cached geometry for an object definition + appearance variant (+ damage level) */
 export function objectGeometry(d: ObjDef, o: TileObject): THREE.BufferGeometry | null {
   const v = d.variant ? d.variant(o.state || {}) : '';
   const dmg = damageHook ? (o.state?.dmg | 0) : 0;
-  const key = d.key + '|' + v + (dmg ? '|d' + dmg : '');
+  const melt = meltHook ? Math.min(3, o.state?.melt | 0) : 0;
+  const key = d.key + '|' + v + (dmg ? '|d' + dmg : '') + (melt ? '|m' + melt : '');
   let g = geoCache.get(key);
   if (g === undefined) {
     const mb = new ModelBuilder();
     try { d.model(mb, o.state || {}, o); } catch (e) { console.error('model error', d.key, e); }
     g = mb.isEmpty ? null : mb.build();
     if (g && dmg && damageHook) { try { g = damageHook(g, d, dmg); } catch (e) { console.error('damage geometry', d.key, e); } }
+    if (g && melt && meltHook) { try { g = meltHook(g, d, melt); } catch (e) { console.error('melt geometry', d.key, e); } }
     geoCache.set(key, g);
   }
   return g;

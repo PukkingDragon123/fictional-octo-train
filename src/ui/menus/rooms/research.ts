@@ -36,6 +36,7 @@ import { bus } from '../../../core/events';
 import { menuEvent } from '../../../game/achievements';
 import { BenchRun, type BenchHost, type Station } from './researchBench';
 import { Dresser } from './dress';
+import { Vault, blob, frostCard } from './vault';
 import type { Sample } from '../../../game/codex';
 
 const W = 3.6, BACK = -3.0, FRONT = 3.3, H = 3.05;
@@ -48,10 +49,15 @@ const TABLE = new THREE.Vector3(0.35, 0.94, -0.55);
 const CENTRI = new THREE.Vector3(W - 0.42, 0.92, -0.95);
 const SEQ = new THREE.Vector3(2.05, 0, BACK + 0.4);
 const PEG = new THREE.Vector3(W - 0.03, 1.45, 1.55);
+/** the observation window in the right wall over the centrifuge bench, and the holding chamber behind it */
+const OBS = { z: -1.5, y: 1.78, w: 1.6, h: 1.05 };
+// (it runs back past the room's own back wall: from the room's camera the window looks into its far end)
+const CH = { x0: W + 0.2, x1: W + 2.8, z0: -4.6, z1: -0.3, h: 2.9, px: W + 1.35, pz: -3.0 };
 type Pose = { pos: THREE.Vector3; look: THREE.Vector3; fov: number };
 const P = (p: [number, number, number], l: [number, number, number], fov = 50): Pose => ({ pos: new THREE.Vector3(...p), look: new THREE.Vector3(...l), fov });
 const POSES: Record<string, Pose> = {
-  room: P([0.25, 1.72, 3.05], [-0.1, 1.2, -1.2], 54),
+  // turned a little right of the main computer, so the window onto HOLDING 2 is in the shot
+  room: P([0.05, 1.72, 3.05], [0.4, 1.2, -1.2], 56),
   codex: P([WALL.x, 1.86, -0.35], [WALL.x, 1.84, BACK], 54),
   fridge: P([-2.0, 1.45, -0.8], [FRIDGE.x - 0.1, 1.05, FRIDGE.z], 52),
   req: P([1.75, 1.5, 1.35], [PEG.x, 1.35, PEG.z], 50),
@@ -67,11 +73,11 @@ export class ResearchLab implements StageRoom {
   feedCam = new THREE.PerspectiveCamera(70, 4 / 3, 0.05, 30);
   hots: Hot[] = [];
   // the intake drag's look (introKit/stage.ts LOOKS.wing): cold blue shadows, warm highlights, readable
-  grade: Grade = { exposure: 1.75, lift: [0.84, 0.96, 1.12], gain: [1.1, 1.0, 0.88], vig: 0.55, sat: 1.12, contrast: 1.12, side: [1, 0, 0, 0.3], haze: 0.3, ao: 0.85, scatter: 0.4, bounce: 0.24, shafts: [new THREE.Vector3(-1.5, H - 0.4, -1.3), new THREE.Vector3(1.2, H - 0.4, -1.3), new THREE.Vector3(0, H - 0.4, 1.3)], shaftK: 0.42, shaftColor: 0xe8f0ff };
+  grade: Grade = { exposure: 1.72, lift: [0.82, 0.94, 1.14], gain: [1.1, 1.0, 0.88], vig: 0.6, sat: 1.12, contrast: 1.14, side: [1, 0, 0, 0.3], haze: 0.45, hazeColor: 0x4a5a7a, ao: 0.85, scatter: 0.4, bounce: 0.24, shafts: [new THREE.Vector3(-1.5, H - 0.4, -1.3), new THREE.Vector3(1.2, H - 0.4, -1.3), new THREE.Vector3(0, H - 0.4, 1.3)], shaftK: 0.42, shaftColor: 0xe8f0ff };
   deco = new THREE.Group();
   floor = { minX: -W + 1.2, maxX: W - 1.0, minZ: 0.4, maxZ: 2.4, y: 0 };
   surfaces = [{ minX: SCOPE.x - 0.25, maxX: SCOPE.x + 0.25, minZ: SCOPE.z - 0.75, maxZ: SCOPE.z + 0.75, y: 0.92 }, { minX: CENTRI.x - 0.3, maxX: CENTRI.x + 0.3, minZ: CENTRI.z - 0.8, maxZ: CENTRI.z + 0.8, y: 0.92 }];
-  guideSpot = { pos: new THREE.Vector3(2.45, 0, 0.3), look: new THREE.Vector3(0, 1.6, BACK) };
+  guideSpot = { pos: new THREE.Vector3(2.15, 0, 1.25), look: new THREE.Vector3(0, 1.6, BACK) };
   actions: { key: string; label: string; run: () => void }[] = [];
   /** the room wants a panel (title.ts opens research/panel.ts) */
   onPanel?: (w: 'tree' | 'codex' | 'fridge' | 'req' | 'file' | 'entry', key?: string) => void;
@@ -84,8 +90,16 @@ export class ResearchLab implements StageRoom {
   private leds = new LedBank(240);
   /** the set dressing: gauges, breaker boxes, cabinets, trays, the clock (rooms/dress.ts) */
   private dress!: Dresser;
+  /** the containment kit (rooms/vault.ts): the observation window, the cold store, the restraints, the beacon */
+  private vault!: Vault;
+  /** the holding chamber behind the window: its cold lamp, its red alarm light, and what is held there */
+  private chamL = new THREE.PointLight(0xc8e8ff, 3.6, 3.6, 1.6);
+  private chamRed = new THREE.PointLight(0xff2a14, 0, 3.4, 1.6);
+  private redL = new THREE.PointLight(0xff2a14, 0, 3.2, 1.7);
+  private held = new THREE.Group();
+  private heldTick: ((t: number, dt: number) => void) | null = null;
   private puffs = new Puffs(80);
-  private hemi = new THREE.HemisphereLight(0xc0d0e0, 0x4a3a2a, 0.95);
+  private hemi = new THREE.HemisphereLight(0xb0c4dc, 0x3a3230, 0.62);
   private tubes: { light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; base: number; seed: number; flick: number; shaft?: ReturnType<typeof shaftMesh> }[] = [];
   private dust = new Dust(220, new THREE.Box3(new THREE.Vector3(-W + 0.5, 0.2, BACK + 0.5), new THREE.Vector3(W - 0.5, H - 0.4, FRONT - 0.8)));
   private surg = new THREE.SpotLight(0xfff0dc, 0, 4.2, 0.55, 0.6, 1.6);
@@ -135,7 +149,8 @@ export class ResearchLab implements StageRoom {
     this.wallTex = new THREE.CanvasTexture(this.wallCv);
     this.wallTex.magFilter = this.wallTex.minFilter = THREE.NearestFilter; this.wallTex.generateMipmaps = false; this.wallTex.colorSpace = THREE.SRGBColorSpace;
     this.wallMat.map = this.wallTex;
-    S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter(), this.dressing());
+    S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter(), this.chamber(), this.dressing());
+    S.add(this.chamL, this.chamRed, this.redL);
     S.add(this.leds.mesh, this.puffs.mesh, this.deco, this.hemi, this.dust.points);
     // wet floor: dark specular puddles that pick up the troughs and the screen
     for (const [x, z, w, d] of [[TABLE.x + 0.9, TABLE.z + 0.75, 1.1, 0.7], [-1.6, 1.4, 0.8, 1.2], [1.9, 1.8, 0.6, 0.5]] as [number, number, number, number][]) {
@@ -169,10 +184,16 @@ export class ResearchLab implements StageRoom {
     slab(b, 'floor', -W, W, -0.1, 0, BACK - 0.2, FRONT, 0x9aa49c, 0.004, 0.6);
     slab(b, 'concrete', -W, W, H, H + 0.12, BACK - 0.2, FRONT, 0x5a5c58);
     const wall = (x0: number, x1: number, z0: number, z1: number) => { slab(b, 'tile', x0, x1, 0, 1.3, z0, z1, TILE); slab(b, 'concrete', x0, x1, 1.3, H, z0, z1, CONC); };
-    wall(-W, W, BACK - 0.2, BACK); wall(-W - 0.2, -W, BACK, FRONT); wall(W, W + 0.2, BACK, FRONT); wall(-W, W, FRONT, FRONT + 0.2);
+    wall(-W, W, BACK - 0.2, BACK); wall(-W - 0.2, -W, BACK, FRONT); wall(-W, W, FRONT, FRONT + 0.2);
+    // the right wall runs round the observation window
+    const oz0 = OBS.z - OBS.w / 2, oz1 = OBS.z + OBS.w / 2, oy0 = OBS.y - OBS.h / 2, oy1 = OBS.y + OBS.h / 2;
+    wall(W, W + 0.2, BACK, oz0); wall(W, W + 0.2, oz1, FRONT);
+    slab(b, 'tile', W, W + 0.2, 0, Math.min(1.3, oy0), oz0, oz1, TILE); if (oy0 > 1.3) slab(b, 'concrete', W, W + 0.2, 1.3, oy0, oz0, oz1, CONC);
+    slab(b, 'concrete', W, W + 0.2, oy1, H, oz0, oz1, CONC);
     // the dado cap and the cove skirting, in hospital green
     const cap = (x0: number, x1: number, z0: number, z1: number) => { slab(b, 'tile', x0, x1, 1.28, 1.34, z0, z1, 0x3a7a62, 0.01); slab(b, 'tile', x0, x1, 0, 0.12, z0, z1, 0x2e5a4a, 0.008); };
-    cap(-W, W, BACK, BACK + 0.04); cap(-W, -W + 0.04, BACK, FRONT); cap(W - 0.04, W, BACK, FRONT);
+    cap(-W, W, BACK, BACK + 0.04); cap(-W, -W + 0.04, BACK, FRONT); cap(W - 0.04, W, BACK, oz0 - 0.12); cap(W - 0.04, W, oz1 + 0.12, FRONT);
+    slab(b, 'tile', W - 0.04, W, 0, 0.12, oz0 - 0.12, oz1 + 0.12, 0x2e5a4a, 0.008);
     // floor: a drain, a hazard-taped work zone round the table, worn lino patches
     b.add('rust', extrude([[-0.2, -0.2], [0.2, -0.2], [0.2, 0.2], [-0.2, 0.2]], 0.015, 0.004, [[[-0.16, -0.16], [0.16, -0.16], [0.16, 0.16], [-0.16, 0.16]]]), 0xb0a090, at(TABLE.x + 0.9, 0.004, TABLE.z + 0.7, Math.PI / 2));
     for (let i = 0; i < 5; i++) b.add('rust', cbox(0.32, 0.01, 0.018, 0.003), 0x8a7a6a, at(TABLE.x + 0.9, 0.004, TABLE.z + 0.56 + i * 0.07));
@@ -198,9 +219,9 @@ export class ResearchLab implements StageRoom {
     // labels
     const sign = (lines: string[], w: number, h: number, x: number, y: number, z: number, ry = 0, bg = 0xc8c0a0, ink?: number) => { const s = plate(this.mats, lines, w, h, { bg, ink }); s.position.set(x, y, z); s.rotation.y = ry; g.add(s); return s; };
     sign(['CONTROL ROOM C-1', 'MERIDIAN INSTITUTE'], 0.86, 0.2, -1.9, 2.4, FRONT - 0.01, Math.PI);
-    sign(['BIOHAZARD', 'LEVEL 2'], 0.4, 0.15, -1.95, 1.62, BACK + 0.012, 0, 0xd8a030, 0x1a1208);
-    sign(['NO FOOD', 'IN THE FRIDGE'], 0.3, 0.11, FRIDGE.x + 0.28, 1.8, FRIDGE.z + 0.36, 0, 0xe8e2d0);
-    sign(['WASH HANDS'], 0.32, 0.08, W - 0.012, 1.55, -2.4, -Math.PI / 2, 0x7ab8a0, 0x0a1a12);
+    sign(['BIOHAZARD', 'LEVEL 2'], 0.4, 0.15, -2.05, 1.78, BACK + 0.012, 0, 0xd8a030, 0x1a1208);
+    sign(['NO FOOD', 'IN THE STORE'], 0.3, 0.11, FRIDGE.x + 0.28, 1.8, FRIDGE.z + 0.36, 0, 0xe8e2d0);
+    sign(['WASH HANDS'], 0.32, 0.08, W - 0.012, 1.55, 2.7, -Math.PI / 2, 0x7ab8a0, 0x0a1a12);
     return g;
   }
 
@@ -226,7 +247,7 @@ export class ResearchLab implements StageRoom {
       const sh = shaftMesh(10);
       sh.mesh.position.set(x, y - 0.02, z); sh.mesh.scale.set(0.75, y - 0.1, 1.05); sh.u.uColor.value.setHex(0xd4e4ff); sh.u.uInt.value = 0.02;
       g.add(sh.mesh);
-      this.tubes.push({ light: L, mat, base: shadow ? 30 : 20, seed: i * 3.1, flick: 0, shaft: sh });
+      this.tubes.push({ light: L, mat, base: shadow ? 25 : 15, seed: i * 3.1, flick: 0, shaft: sh });
       // the light pool each casts on the floor (a soft bounce card)
       const pool = glowCard(2.6, 3.2, 0xdfe8ff, 0.05); pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.005, z); g.add(pool);
     });
@@ -381,7 +402,7 @@ export class ResearchLab implements StageRoom {
     this.fridgeDoor.add(pane);
     this.fridgeDoor.position.set(x - FW / 2, 0, FZ + 0.004);
     g.add(this.fridgeDoor);
-    const lab = plate(this.mats, ['COLD STORE · 4°C', 'SAMPLES ONLY'], 0.44, 0.12, { bg: 0x7ab8d8, ink: 0x0a1a24 });
+    const lab = plate(this.mats, ['SAMPLE COLD STORE', 'BIOHAZARD · SEALED'], 0.44, 0.12, { bg: 0x7ab8d8, ink: 0x0a1a24 });
     lab.position.set(x - 0.15, 1.98, FZ + 0.05); g.add(lab);
     this.leds.add([x + 0.2, 1.98, FZ + 0.05], 0x40ff60, { size: 0.01, pattern: blink(0.5, 0.9) });
     const sheet = paper(['TEMP LOG', '~', '~', '~', '~'], 0.18, 0.24, { seed: 41, rule: true });
@@ -584,7 +605,7 @@ export class ResearchLab implements StageRoom {
     const sign = paper(['DO NOT', 'TAP'], 0.09, 0.07, { seed: 71, ppm: 500, stamp: '!' });
     sign.position.set(x - 0.03, y + 0.2, z + 0.0); sign.rotation.y = -Math.PI / 2; g.add(sign);
     const lab = plate(this.mats, ['CENTRIFUGE · PIPETTES'], 0.5, 0.07, { bg: 0xc8c0a0, px: 480 });
-    lab.position.set(W - 0.012, 1.5, z); lab.rotation.y = -Math.PI / 2; g.add(lab);
+    lab.position.set(W - 0.012, 1.07, z + 0.3); lab.rotation.y = -Math.PI / 2; g.add(lab);
     this.hots.push({ key: 'jar', objs: [this.jar], label: 'Specimen jar', sub: 'do not tap', press: () => { this.jarW.kick(5); uiSound('tink', 0.8); if (++this.jarTaps >= 6) { this.jarTaps = 0; uiSound('slam', 0.7); menuEvent('slam'); } } });
     this.hots.push({ key: 'centrifuge', objs: [this.rotor], label: 'Centrifuge', sub: 'process a sample', press: () => { this.rotorV = 22; uiSound('grind', 0.6); } });
     return g;
@@ -710,33 +731,155 @@ export class ResearchLab implements StageRoom {
     return g;
   }
 
-  /** the night shift's room: services, instruments and leavings on every wall (rooms/dress.ts) */
+  // ================================================================== the holding chamber behind the window
+  /**
+   * HOLDING 2: a wet white-tiled chamber behind the observation window. A raised steel grate under a caged lamp,
+   * chained down at the corners, and on it the thing the Institute brought back from the Ledge: a gummy bear
+   * (creatures/species/gummy_bear.ts, idling, now and then pinching itself in two). A red alarm lamp, a feeding
+   * chute, a hose reel, fog on the floor. Loaded lazily; a jelly stand-in until it comes (rooms/vault.ts blob).
+   */
+  private chamber(): THREE.Group {
+    const g = new THREE.Group();
+    const b = new FacetBuilder();
+    const { x0, x1, z0, z1, h } = CH;
+    const cx = CH.px, cz = CH.pz;
+    slab(b, 'floor', x0, x1, -0.1, 0, z0, z1, 0x6a7470, 0.004, 0.6);
+    slab(b, 'concrete', x0, x1, h, h + 0.1, z0 - 0.1, z1 + 0.1, 0x3a3c3a);
+    slab(b, 'tile', x1, x1 + 0.12, 0, h, z0 - 0.1, z1 + 0.1, 0xa8b4b0);
+    slab(b, 'tile', x0, x1, 0, h, z0 - 0.12, z0, 0xa8b4b0);
+    slab(b, 'tile', x0, x1, 0, h, z1, z1 + 0.12, 0xa8b4b0);
+    // the chamber's own near wall where it runs on behind the control room's back corner
+    slab(b, 'concrete', x0 - 0.2, x0, 0, h, z0, BACK, 0x8a8c88);
+    // a gutter round the floor, the drain
+    for (const z of [z0 + 0.08, z1 - 0.08]) b.add('metal', cbox(x1 - x0, 0.01, 0.08, 0.002), 0x3a3e3c, at((x0 + x1) / 2, 0.004, z));
+    b.add('metal', extrude([[-0.2, -0.2], [0.2, -0.2], [0.2, 0.2], [-0.2, 0.2]], 0.015, 0.004, [[[-0.16, -0.16], [0.16, -0.16], [0.16, 0.16], [-0.16, 0.16]]]), 0x6a6e6a, at(x1 - 0.5, 0.004, z1 - 0.5, Math.PI / 2));
+    // the raised grate: legs, slats, a hazard edge, ring bolts at the corners
+    const PY = 0.86, PS = 1.7;
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('metal', cbox(0.08, PY, 0.08, 0.01), 0x5a6062, at(cx + sx * (PS / 2 - 0.1), PY / 2, cz + sz * (PS / 2 - 0.1)));
+    b.add('metal', cbox(PS, 0.06, PS, 0.01), 0x4a5052, at(cx, PY - 0.03, cz));
+    for (let i = 0; i < 16; i++) b.add('metal', cbox(PS - 0.06, 0.012, 0.04, 0.003), 0x7a8284, at(cx, PY + 0.006, cz - PS / 2 + 0.06 + i * (PS - 0.12) / 15));
+    for (const s of [-1, 1]) { b.add('hazard', cbox(PS + 0.02, 0.07, 0.02, 0.003), 0xffffff, at(cx, PY - 0.03, cz + s * (PS / 2 + 0.01)), { rep: 0.2 }); b.add('hazard', cbox(0.02, 0.07, PS + 0.02, 0.003), 0xffffff, at(cx + s * (PS / 2 + 0.01), PY - 0.03, cz), { rep: 0.2 }); }
+    // chains from the floor rings up onto it
+    for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const ax = cx + sx * (PS / 2 + 0.3), az = cz + sz * (PS / 2 + 0.3);
+      b.add('metal', bolt(0.04, 0.03), C.steel, at(ax, 0, az));
+      b.add('metal', band2(0.03), C.steel, at(ax, 0.04, az));
+      const n = 14;
+      for (let k = 0; k < n; k++) {
+        const f = (k + 0.5) / n, x = ax + (cx + sx * 0.3 - ax) * f, z = az + (cz + sz * 0.25 - az) * f, y = 0.05 + (PY + 0.35 - 0.05) * f - Math.sin(f * Math.PI) * 0.12;
+        b.add('metal', ring2(0.022, 0.012), 0x8a8e90, at(x, y, z, k % 2 ? Math.PI / 2 : 0, Math.atan2(cx - ax, cz - az), 0));
+      }
+    }
+    // the caged lamp, the feeding chute through the far wall, a hose reel, slime on the tiles
+    b.add('metal', prism(0.006, 0.3, 4), C.dark, at(cx, h - 0.15, cz));
+    b.add('enamel', lathe([[0.24, -0.12], [0.2, -0.06], [0.1, -0.01], [0, 0]], 10), 0x3a4a42, at(cx, h - 0.3, cz));
+    b.add('lamp', lathe([[0, -0.15], [0.09, -0.13], [0.12, -0.12], [0, -0.12]], 8), 0xe8f4ff, at(cx, h - 0.3, cz));
+    b.add('metal', hull([[x1, 2.2, cz - 0.3], [x1, 2.2, cz + 0.3], [x1, 1.7, cz - 0.3], [x1, 1.7, cz + 0.3], [x1 - 0.6, 1.5, cz - 0.22], [x1 - 0.6, 1.5, cz + 0.22], [x1 - 0.6, 1.4, cz - 0.22], [x1 - 0.6, 1.4, cz + 0.22]]), 0x8a9294);
+    b.add('hazard', cbox(0.04, 0.5, 0.64, 0.004), 0xffffff, at(x1 - 0.01, 1.95, cz), { rep: 0.2 });
+    b.add('paint', prism(0.2, 0.12, 12), 0xc8a028, at(x0 + 0.3, 1.5, z0 + 0.12, Math.PI / 2));
+    b.add('rubber', prism(0.17, 0.11, 12), 0x2a2a2a, at(x0 + 0.3, 1.5, z0 + 0.13, Math.PI / 2));
+    b.add('rubber', tube([[x0 + 0.42, 1.4, z0 + 0.15], [x0 + 0.7, 0.6, z0 + 0.4], [x0 + 0.9, 0.02, z0 + 0.6], [x0 + 1.4, 0.02, z0 + 0.5]], 0.022, 12, 5), 0x2a2a2a);
+    g.add(b.build(this.mats));
+    // what it has left: candy-red jelly smeared on the grate and pooled on the floor
+    const ja: { o: THREE.Object3D; f: (o: THREE.Object3D, t: number, dt: number) => void }[] = [];
+    const jel = new THREE.MeshStandardMaterial({ color: 0xb8301e, roughness: 0.12, metalness: 0, emissive: new THREE.Color(0x601408), transparent: true, opacity: 0.8, flatShading: true });
+    for (const [x, y, z, r] of [[cx - 0.7, 0.01, cz + 0.9, 0.3], [cx + 0.85, 0.01, cz - 0.6, 0.22], [cx - 0.3, PY + 0.01, cz - 0.6, 0.18]] as [number, number, number, number][]) {
+      const p = new THREE.Mesh(new THREE.CircleGeometry(r, 9), jel); p.rotation.x = -Math.PI / 2; p.scale.set(1, 0.7, 1); p.position.set(x, y + 0.003, z); g.add(p);
+    }
+    const sign = plate(this.mats, ['HOLDING 2', 'FEED FROM THE CHUTE ONLY'], 0.6, 0.12, { bg: 0xe8b828, ink: 0x141210, px: 420 });
+    sign.position.set(x1 - 0.005, 2.45, cz); sign.rotation.y = -Math.PI / 2; g.add(sign);
+    // its lamps
+    this.chamL.position.set(cx - 0.2, h - 0.6, cz);
+    this.chamRed.position.set(x1 - 0.3, h - 0.4, z0 + 0.4);
+    const rl = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 4), new THREE.MeshBasicMaterial({ color: 0xff2a14, toneMapped: false })); rl.position.set(x1 - 0.08, h - 0.4, z0 + 0.4); rl.userData.noGlow = true; rl.name = 'chamRedBulb'; g.add(rl);
+    const pool = glowCard(PS * 1.3, PS * 1.3, 0xd8ecff, 0.16); pool.rotation.x = -Math.PI / 2; pool.position.set(cx, PY + 0.02, cz); g.add(pool);
+    // the occupant
+    this.held.position.set(cx, PY + 0.01, cz);
+    this.held.rotation.y = -0.68;
+    g.add(this.held);
+    const fallback = () => {
+      if (this.held.children.length) return;
+      this.held.add(blob(this.mats, ja, 0.5));
+      this.heldTick = (t, dt) => { for (const a of ja) a.f(a.o, t, dt); };
+    };
+    import('../../../creatures/species/gummy_bear').then((m) => {
+      try {
+        const rig = m.buildGummyBear(1);
+        rig.root.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh) { me.castShadow = true; me.frustumCulled = false; } });
+        this.held.add(rig.root);
+        // idle, and every so often it pinches itself in two
+        this.heldTick = (t, dt) => { const k = t % 40; m.poseGummyBear(rig, t, dt, k > 30 ? 'split' : 'idle', k > 30 ? { fs: Math.min(1, (k - 30) / 9) } : {}); };
+      } catch (e) { console.warn('holding 2: no gummy bear', e); fallback(); }
+    }).catch((e) => { console.warn('holding 2: no gummy bear', e); fallback(); });
+    return g;
+  }
+
+  /** the night shift's room: services, instruments, secrets and leavings on every wall (rooms/dress.ts, rooms/vault.ts) */
   private dressing(): THREE.Group {
     const d = this.dress = new Dresser(this.mats, this.leds);
+    const v = this.vault = new Vault(d, this.mats);
     const L = Math.PI / 2;
-    // back wall: the conduit at -1.95 feeds a gauge panel; a breaker box right of the sequencer; archive boxes by the fridge
+    // back wall: the conduit at -1.95 feeds a gauge panel; the dewar by the cold store; the crest over the main computer
     d.gauges(at(-1.95, 2.3, BACK + 0.01), 2, 1, { labels: ['MAINS', 'R-NET 7'], seed: 11 });
     d.fuseBox(at(3.05, 1.75, BACK + 0.01), H, { color: 0x7a827a });
-    d.boxes(at(-2.1, 0, BACK + 0.26, 0, 0.12), 2, { seed: 5 });
+    v.dewar(at(-2.12, 0, BACK + 0.42, 0, 0.35));
     d.streaks(at(0, H - 0.75, BACK + 0.014), 6.6, 0.9, 0.35);
+    v.crest(at(WALL.x, 2.87, BACK + 0.01), 0.15);
     // a cable tray over the room, a loose loop from it down to the computer's housing
     d.tray([-W + 0.6, H - 0.3, 0.15], [W - 0.9, H - 0.3, 0.15], H, { seed: 3, cables: 8 });
     d.droop([0.6, H - 0.32, 0.15], [1.1, 2.62, BACK + 0.2], 0.25, 0.012, 0x1a1a1a);
     d.droop([0.75, H - 0.32, 0.15], [1.3, 2.62, BACK + 0.2], 0.32, 0.008, 0x8a2a1a);
-    // left wall: the clock, a vent over the hood, the extinguisher by the door, streaks under the pipes
-    d.clock(at(-W + 0.01, 2.4, -1.75, 0, L));
+    v.cables([W - 1.0, H - 0.32, 0.15], [W - 0.15, OBS.y + OBS.h / 2 + 0.35, OBS.z + 0.5], 3, 0.18, 0.009);
+    // the cold store: frost on the glass, a red readout, its palm reader, the cryo warning
+    const FW = 1.0, FH = 2.05, FZ = FRIDGE.z + 0.31;
+    const fr = frostCard(FW - 0.12, FH - 0.3); fr.position.set(FW / 2, FH / 2 + 0.05, 0.026); this.fridgeDoor.add(fr);
+    v.coldStore(at(FRIDGE.x - 0.08, 1.0, FZ + 0.03), FW - 0.12, 1.86, { frost: false, readout: '-80°C' });
+    v.biolock(at(FRIDGE.x + FW / 2 + 0.001, 1.2, FRIDGE.z + 0.18, 0, L));
+    v.sign(at(FRIDGE.x + FW / 2 + 0.001, 0.8, FRIDGE.z + 0.06, 0, L), 'bio', 0.16);
+    // left wall: the clock over the store, an evidence board over the microscope, a terminal on its arm, a valve on the blue main
+    d.clock(at(-W + 0.01, 2.62, -2.5, 0, L));
+    v.corkboard(at(-W + 0.01, 1.98, -1.62, 0, L), 1.0, 0.62);
+    v.terminal(at(-W + 0.01, 1.58, -0.72, 0, L - 0.55), { arm: 0.34, w: 0.3, head: 'R-NET 7 · AUDIT', i: 1 });
+    v.pipe([[-W + 0.32, H - 0.24, -2.05], [-W + 0.32, 2.28, -2.05], [-W - 0.1, 2.28, -2.05]], 0.032, 0x4a6a8a, { valves: [0], gauges: [0], out: [1, 0, 0] });
+    d.gauges(at(-W + 0.01, 2.35, -0.25, 0, L), 3, 1, { color: 0x3e5a54, labels: ['CENTRIFUGE', 'COOLANT'], seed: 23 });
     d.vent(at(-W + 0.01, 2.45, 0.6, 0, L), 0.56, 0.3);
     d.extinguisher(at(-W + 0.01, 1.05, 1.45, 0, L));
     d.streaks(at(-W + 0.014, H - 0.75, -0.6, 0, L), 3.6, 1.0, 0.4);
-    // right wall: a dial panel over the centrifuge, the vent, a filing cabinet between the bench and the pegboard
-    d.gauges(at(W - 0.01, 2.2, -1.95, 0, -L), 3, 1, { color: 0x3e5a54, labels: ['CENTRIFUGE', 'COOLANT'], seed: 23 });
+    // right wall: the observation window onto HOLDING 2, its beacon, its placard, the pipe into the chamber
+    v.obsWindow(at(W, OBS.y, OBS.z, 0, -L), { w: OBS.w, h: OBS.h, shutter: 0.2, intercom: 'side', label: ['OBSERVATION · HOLDING 2', 'DO NOT TAP THE GLASS'] });
+    v.beacon(at(W, OBS.y + OBS.h / 2 + 0.42, OBS.z + 0.62, 0, -L));
+    this.redL.position.copy(v.lamps.find((q) => q.kind === 'beacon')!.p).add(new THREE.Vector3(-0.7, -0.5, 0));
+    v.placard(at(W - 0.01, 2.32, -2.62, 0, -L), 'gluttony', { cls: 'Fauna', cell: 'H-02', w: 0.26 });
+    v.sign(at(W - 0.01, 1.98, 0.02, 0, -L), 'look', 0.18);
+    v.pipe([[W - 0.1, 2.82, FRONT - 0.2], [W - 0.1, 2.82, -0.42], [W - 0.1, 2.02, -0.42], [W + 0.25, 2.02, -0.42]], 0.04, 0x3a6a5a, { band: ['HOLDING AIR', 0x6ad8a8], out: [-1, 0, 0], valves: [1], gauges: [1] });
     d.vent(at(W - 0.01, 2.45, 0.45, 0, -L), 0.5, 0.3);
     d.filing(at(W - 0.33, 0, 0.5, 0, -L), { open: 1, seed: 7, labels: ['UNITS', 'UNITS', 'VOID', 'TREE'] });
-    d.streaks(at(W - 0.014, H - 0.7, -0.5, 0, -L), 4.0, 0.9, 0.35);
-    // the leavings: on the filing cabinet, on the console ledge under the main computer
+    d.streaks(at(W - 0.014, H - 0.7, 1.4, 0, -L), 2.8, 0.9, 0.35);
+    // the dissection table's restraints: straps across, cuffs on the rails
+    const ty = TABLE.y;
+    for (const dz of [0.3, 0.75]) {
+      const z = TABLE.z + dz;
+      d.b.add('leather', cbox(0.86, 0.012, 0.08, 0.004), 0x4a2a1a, at(TABLE.x, ty + 0.06, z));
+      for (const s of [-1, 1]) {
+        d.b.add('leather', tube([[TABLE.x + s * 0.43, ty + 0.06, z], [TABLE.x + s * 0.46, ty - 0.05, z + 0.01], [TABLE.x + s * 0.45, ty - 0.24 - (s > 0 ? 0.08 : 0), z + 0.02]], 0.014, 6, 4), 0x4a2a1a);
+        d.b.add('chrome', cbox(0.012, 0.05, 0.06, 0.003), 0xd8dcdc, at(TABLE.x + s * 0.455, ty - 0.12, z + 0.015));
+      }
+    }
+    for (const s of [-1, 1]) for (const dz of [-0.7, 0.85]) {
+      d.b.add('metal', band2(0.03), C.steel, at(TABLE.x + s * 0.43, ty + 0.01, TABLE.z + dz, 0, 0, Math.PI / 2));
+      d.b.add('leather', tube([[TABLE.x + s * 0.44, ty, TABLE.z + dz], [TABLE.x + s * 0.47, ty - 0.12, TABLE.z + dz + 0.02], [TABLE.x + s * 0.46, ty - 0.2, TABLE.z + dz + 0.05]], 0.01, 6, 4), 0x5a3a22);
+      d.b.add('leather', band2(0.045), 0x5a3a22, at(TABLE.x + s * 0.47, ty - 0.24, TABLE.z + dz + 0.05, 0.3, 0, Math.PI / 2));
+    }
+    // the leavings: on the filing cabinet, dossiers on the console ledge and the scope bench
     d.clutter(at(W - 0.33, 1.3, 0.5, 0, L), 0.36, 0.5, { seed: 17, binder: false, floppies: true });
-    // wet floor round the drain and by the door
+    v.dossiers(at(SCOPE.x + 0.05, SCOPE.y + 0.001, SCOPE.z + 0.45, 0, L), 0.5, 0.6, { n: 2, seed: 44 });
+    // the floor: bands and stencils, wet patches, fog
+    v.stripes(W - 0.75, OBS.z - OBS.w / 2 - 0.2, W - 0.63, OBS.z + OBS.w / 2 + 0.2);
+    v.stencil(W - 0.42 - 0.4, OBS.z, 'HOLDING 2', 0.1, L);
+    v.stencil(-1.15, 1.3, 'C-1', 0.3, 0.1);
     d.puddle(-0.6, 2.2, 0.9, 0.6);
+    v.fog(-W + 0.2, W - 0.2, BACK + 0.5, FRONT - 0.3, { k: 0.24, color: 0x7a90b0 });
+    v.fog(CH.x0, CH.x1, CH.z0, CH.z1, { k: 0.45, color: 0xd8e8ff, layers: 3 });
     return d.done();
   }
 
@@ -799,6 +942,13 @@ export class ResearchLab implements StageRoom {
     this.wallGlow.color.setHex(this.alarmT > 0 && Math.sin(t * 20) > 0 ? 0xff4a3a : 0xffc890);
     this.leds.update(t);
     if (full) this.dress.update(t);
+    this.vault.update(t, dt);
+    if (full) this.heldTick?.(t, Math.min(dt, 0.05));
+    // the beacon over the window sweeps red; in the chamber the alarm lamp throbs and the cage lamp hums
+    this.redL.intensity = 0.2 + this.vault.beaconK(t) * 2.6;
+    const al = Math.pow(Math.max(0, Math.sin(t * 2.2)), 2);
+    this.chamRed.intensity = 0.6 + al * 3.2;
+    this.chamL.intensity = 3.4 + Math.sin(t * 47) * 0.1 + (Math.sin(t * 0.29) > 0.99 ? -2.6 : 0);
     // ---- machines
     this.rotorV = damp(this.rotorV, this.bench?.rotorSpin ?? 0.3, 0.6, dt);
     this.rotorA += this.rotorV * dt; this.rotor.rotation.y = this.rotorA;
@@ -834,6 +984,8 @@ export class ResearchLab implements StageRoom {
 // ================================================================== helpers
 /** a ring (clamps, bands) */
 function band2(r: number): THREE.BufferGeometry { const g = new THREE.TorusGeometry(r, 0.008, 4, 10); g.rotateX(Math.PI / 2); return g; }
+/** a chain link (an oval ring standing in XY) */
+function ring2(r: number, t: number): THREE.BufferGeometry { const g = new THREE.TorusGeometry(r, t * 0.5, 4, 8); g.scale(1, 1.5, 1); return g; }
 /** a grime card: dark multiplied stains (pixel blobs and drips) */
 export function grime(w: number, h: number, seed: number, k: number): THREE.Mesh {
   const cv = document.createElement('canvas'); cv.width = Math.round(w * 24); cv.height = Math.round(h * 24);

@@ -568,6 +568,7 @@ uniform float uPanic;
 uniform float uHurt;
 uniform float uDesat;
 uniform float uWobble;
+uniform float uHeat;
 uniform float uBlink;
 uniform float uCorruptFlash;
 uniform float uDream;
@@ -657,6 +658,12 @@ void main() {
   if (uWobble > 0.001) {
     uv.x += sin(uv.y * 18.0 + uTime * 1.3) * 0.004 * uWobble;
     uv.y += cos(uv.x * 14.0 + uTime * 1.1) * 0.003 * uWobble;
+  }
+  // --- heat shimmer (the Ledge): fine ripples rising up the picture, strongest low on the screen ---
+  if (uHeat > 0.001) {
+    float hr = (1.0 - uv.y) * 0.6 + 0.4;
+    uv.x += (sin(uv.y * 92.0 - uTime * 5.3) * 0.6 + sin(uv.y * 41.0 - uTime * 3.1 + uv.x * 9.0) * 0.4) * 0.0016 * uHeat * hr;
+    uv.y += sin(uv.x * 63.0 + uTime * 2.2) * 0.0009 * uHeat * hr;
   }
   // --- glitch: tearing bands ---
   if (uGlitch > 0.001) {

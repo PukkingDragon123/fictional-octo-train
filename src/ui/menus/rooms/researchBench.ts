@@ -22,6 +22,7 @@ import { fpArm, type FpArm } from '../../../fp/hands';
 import { holdArm, pipette, scalpel, forceps, vialProp } from '../../../research/fpKit';
 import { KIND_GAMES, KIND_NAME, entryName, entry, researchPct, processSample, TOOLS, type BenchGame, type Sample, type Processed } from '../../../game/codex';
 import { bitText } from '../../../gfx/bitfont';
+import { crispCanvas, drawBar, gaugeIn, GRN, AMB } from '../../hiPixel';
 
 export interface Station { eye: THREE.Vector3; at: THREE.Vector3; surf: number; rotor?: THREE.Object3D; props?: THREE.Object3D[] }
 export interface BenchHost {
@@ -241,16 +242,22 @@ export class BenchRun {
       <div class="rb-res" hidden></div>`;
     this.dom.querySelector('.rb-skip')!.addEventListener('click', () => this.skip());
   }
+  /** the bench gauge: a riveted housing with a glass channel, the green band(s) lit in it and a needle (hi-res pixel art) */
+  private gz: { zone?: [number, number]; zone2?: [number, number]; x: number } = { x: 0 };
   private gauge(on: boolean, zone?: [number, number], zone2?: [number, number]) {
     const el = this.dom.querySelector('.rb-gauge') as HTMLElement | null;
     if (!el) return;
     el.hidden = !on;
-    const z = el.querySelector('.zone') as HTMLElement, z2 = el.querySelector('.z2') as HTMLElement;
-    if (zone) { z.style.left = zone[0] * 100 + '%'; z.style.width = (zone[1] - zone[0]) * 100 + '%'; }
-    z2.hidden = !zone2;
-    if (zone2) { z2.style.left = zone2[0] * 100 + '%'; z2.style.width = (zone2[1] - zone2[0]) * 100 + '%'; }
+    if (zone) this.gz.zone = zone;
+    this.gz.zone2 = zone2;
+    this.paintGauge();
   }
-  private needle(x: number) { const n = this.dom.querySelector('.rb-gauge .needle') as HTMLElement | null; if (n) n.style.left = clamp(x) * 100 + '%'; }
+  private needle(x: number) { this.gz.x = clamp(x); this.paintGauge(); }
+  private paintGauge() {
+    const el = this.dom.querySelector('.rb-gauge') as HTMLElement | null;
+    if (!el || el.hidden) return;
+    gaugeIn(el, 42, { zones: [this.gz.zone, this.gz.zone2], x: this.gz.x });
+  }
   private result(score: number, line?: string) {
     const el = this.dom.querySelector('.rb-res') as HTMLElement | null;
     if (!el) return;
@@ -275,6 +282,14 @@ export class BenchRun {
         ${pz ? `<div class="rb-prize"><small>CODEX ENTRY COMPLETE · PRIZE</small><b>${esc(TOOLS[pz.tool].name)}</b><span>${esc(pz.text)} · +${pz.rp} RP</span><em>${esc(TOOLS[pz.tool].text)}</em></div>` : after >= 100 ? '<p class="rb-avg">This entry is already complete. More samples still pay RP-free research.</p>' : `<p class="rb-avg">${100 - after}% to go: complete it for a research tool.</p>`}
         <button type="button" class="rb-go">Continue</button>
       </div></div>`;
+    // the research bar in hi-res pixel art: what was done before (green), what this sample added (amber)
+    const pi = this.dom.querySelector('.rb-prog i') as HTMLElement | null;
+    if (pi) requestAnimationFrame(() => {
+      const w = Math.max(60, Math.round(pi.clientWidth || 200));
+      const { cv, c } = crispCanvas(w, 16);
+      drawBar(c, 1, 1, w - 2, 14, after / 100, { lo: { k: before / 100, ramp: GRN }, ramp: AMB, cell: 5, gap: 1, t: 0.4 });
+      pi.replaceChildren(cv); pi.classList.add('hi');
+    });
     const b = this.dom.querySelector('.rb-go') as HTMLButtonElement;
     b.addEventListener('click', () => this.close());
     this.catcher.remove();
@@ -327,9 +342,9 @@ export class BenchRun {
       d.cell = CELLS[h % CELLS.length] as Cell;
       const others = CELLS.filter((c) => c !== d.cell).sort(() => Math.random() - 0.5).slice(0, 2);
       d.choices = [d.cell, ...others].sort(() => Math.random() - 0.5) as Cell[];
-      d.sharp = document.createElement('canvas'); d.sharp.width = d.sharp.height = 96;
+      d.sharp = document.createElement('canvas'); d.sharp.width = d.sharp.height = SLIDE;
       drawCells(d.sharp.getContext('2d')!, d.cell, this.col, h);
-      d.cv = document.createElement('canvas'); d.cv.width = d.cv.height = 96;
+      d.cv = document.createElement('canvas'); d.cv.width = d.cv.height = SLIDE;
       const tex = new THREE.CanvasTexture(d.cv); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;
       d.tex = tex;
       // the eyepiece view: a disc in front of the camera with a black ring round it
@@ -347,7 +362,7 @@ export class BenchRun {
     } else if (kind === 'dissect') {
       for (const o of st.props ?? []) o.visible = false;
       // the specimen: a pale pinned body with a dotted incision drawn on it
-      const cv = document.createElement('canvas'); cv.width = 64; cv.height = 96;
+      const cv = document.createElement('canvas'); cv.width = 128; cv.height = 192;
       const pts: [number, number][] = [];
       const wob = Math.random() * 6;
       // from the near end (the camera's side) away up the body
@@ -569,7 +584,7 @@ export class BenchRun {
     if (!box.childElementCount) {
       d.choices.forEach((c: Cell, i: number) => {
         const b = document.createElement('button'); b.type = 'button'; b.className = 'rb-cell'; b.tabIndex = -1;
-        const cv = document.createElement('canvas'); cv.width = cv.height = 48; drawCells(cv.getContext('2d')!, c, 0x9ae8c8, i * 7 + 3, true);
+        const cv = document.createElement('canvas'); cv.width = cv.height = 96; drawCells(cv.getContext('2d')!, c, 0x9ae8c8, i * 7 + 3, true);
         b.append(cv); const s = document.createElement('span'); s.textContent = c.toUpperCase(); b.append(s);
         b.addEventListener('pointerdown', (e) => e.stopPropagation());
         b.addEventListener('click', () => this.pickCell(i));
@@ -580,14 +595,20 @@ export class BenchRun {
   }
   private drawView(d: any) {
     const c = d.cv.getContext('2d') as CanvasRenderingContext2D;
+    const N = SLIDE;
     const blur = Math.abs(d.focus - d.target);
-    const bs = Math.max(1, Math.round(1 + blur * 22));
+    const bs = Math.max(1, Math.round(1 + blur * 44));
     c.imageSmoothingEnabled = false;
-    c.fillStyle = '#e8f0e0'; c.fillRect(0, 0, 96, 96);
+    c.fillStyle = '#e8f0e0'; c.fillRect(0, 0, N, N);
     if (bs <= 1) c.drawImage(d.sharp, 0, 0);
-    else { const n = Math.max(2, Math.floor(96 / bs)); const tmp = (d.tmp ??= document.createElement('canvas')) as HTMLCanvasElement; tmp.width = tmp.height = n; const tc = tmp.getContext('2d')!; tc.imageSmoothingEnabled = true; tc.drawImage(d.sharp, 0, 0, n, n); c.drawImage(tmp, 0, 0, 96, 96); }
-    // the crosshair reticle
-    c.fillStyle = 'rgba(20,30,20,0.5)'; c.fillRect(47, 20, 1, 56); c.fillRect(20, 47, 56, 1);
+    else { const n = Math.max(2, Math.floor(N / bs)); const tmp = (d.tmp ??= document.createElement('canvas')) as HTMLCanvasElement; tmp.width = tmp.height = n; const tc = tmp.getContext('2d')!; tc.imageSmoothingEnabled = true; tc.drawImage(d.sharp, 0, 0, n, n); c.drawImage(tmp, 0, 0, N, N); }
+    // the graticule: a fine crosshair with tick marks, and a lens vignette
+    c.fillStyle = 'rgba(20,30,20,0.55)'; c.fillRect(N / 2 - 1, 36, 1, N - 72); c.fillRect(36, N / 2 - 1, N - 72, 1);
+    for (let i = -6; i <= 6; i++) { if (!i) continue; const L = i % 3 === 0 ? 6 : 3; c.fillRect(N / 2 - 1 + i * 8, N / 2 - 1 - L / 2, 1, L); c.fillRect(N / 2 - 1 - L / 2, N / 2 - 1 + i * 8, L, 1); }
+    for (let y = 0; y < N; y += 2) for (let x = 0; x < N; x += 2) {
+      const r = Math.hypot(x - N / 2, y - N / 2) / (N / 2);
+      if (r > 0.82) { c.fillStyle = `rgba(10,16,12,${Math.min(0.85, (r - 0.82) * 4)})`; c.fillRect(x, y, 2, 2); }
+    }
     d.tex.needsUpdate = true;
   }
   private drawSeq(d: any) {
@@ -597,7 +618,7 @@ export class BenchRun {
     c.fillStyle = '#04100a'; c.fillRect(0, 0, 96, 72);
     // the reference, top
     c.fillStyle = '#0a3a1a'; c.fillRect(20, 3, 56, 14);
-    d.ref.forEach((b: number, i: number) => { c.fillStyle = cols[b]; c.fillRect(23 + i * 13, 6, 10, 8); });
+    d.ref.forEach((b: number, i: number) => block(c, 23 + i * 13, 6, 10, 8, cols[b]));
     // the read: windows of four, scrolling left through the frame
     const fx = 30, fw = 36;
     c.fillStyle = d.flash > 0 ? (d.flashOk ? '#1a6a2a' : '#6a1a10') : '#0a2a14'; c.fillRect(fx - 2, 30, fw + 4, 22);
@@ -605,7 +626,7 @@ export class BenchRun {
       const w = d.windows[i];
       const x = fx + (i - d.x + 0.5) * 48;
       if (x < -50 || x > 100) continue;
-      w.b.forEach((b: number, k: number) => { c.fillStyle = w.hit ? '#ffffff' : cols[b]; c.fillRect(Math.round(x + k * 9), 34, 7, 14); });
+      w.b.forEach((b: number, k: number) => block(c, Math.round(x + k * 9), 34, 7, 14, w.hit ? '#ffffff' : cols[b]));
     }
     c.fillStyle = '#3aff6a'; c.fillRect(fx - 2, 29, fw + 4, 1); c.fillRect(fx - 2, 52, fw + 4, 1);
     bitText(c, `${d.hits}`, 4, 54, { color: '#3aff6a', outline: null });
@@ -682,40 +703,92 @@ export class BenchRun {
 }
 
 // ================================================================== pixel art
-/** a field of cells of one kind (the microscope's slide; small = the choice icon) */
+/** the microscope's slide resolution (round 13: twice the old 96) */
+const SLIDE = 192;
+/** a lit block for the sequencer CRT: a bright top line, the colour, a dark bottom */
+function block(c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, col: string) {
+  c.fillStyle = col; c.fillRect(x, y, w, h);
+  c.fillStyle = 'rgba(255,255,255,0.45)'; c.fillRect(x, y, w, 1); c.fillRect(x, y, 1, h - 1);
+  c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(x, y + h - 1, w, 1); c.fillRect(x + w - 1, y + 1, 1, h - 1);
+  c.fillStyle = 'rgba(255,255,255,0.8)'; c.fillRect(x + 1, y + 1, 1, 1);
+}
+/** a field of cells of one kind (the microscope's slide; small = the choice icon), drawn per pixel with membranes, cytoplasm, nuclei and glints */
 function drawCells(c: CanvasRenderingContext2D, kind: Cell, col: number, seed: number, small = false) {
-  const N = c.canvas.width;
+  const N = c.canvas.width, k = N / 96;
   let s = seed || 7;
   const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
   const C = new THREE.Color(col);
-  const tint = (k: number) => `rgb(${Math.round(C.r * 255 * k)},${Math.round(C.g * 255 * k)},${Math.round(C.b * 255 * k)})`;
+  const tint = (m: number, a = 1) => `rgba(${Math.round(C.r * 255 * m)},${Math.round(C.g * 255 * m)},${Math.round(C.b * 255 * m)},${a})`;
   c.fillStyle = small ? '#10201a' : '#e4ecd8'; c.fillRect(0, 0, N, N);
-  if (!small) for (let i = 0; i < 160; i++) { c.fillStyle = 'rgba(120,140,110,0.18)'; c.fillRect(Math.floor(rnd() * N), Math.floor(rnd() * N), 2, 1); }
+  // the slide: faint grain and stray debris
+  if (!small) { for (let i = 0; i < 700; i++) { c.fillStyle = rnd() < 0.7 ? 'rgba(120,140,110,0.16)' : 'rgba(255,255,250,0.35)'; c.fillRect(Math.floor(rnd() * N), Math.floor(rnd() * N), 1 + Math.floor(rnd() * 2), 1); } }
+  else { for (let i = 0; i < 60; i++) { c.fillStyle = 'rgba(60,110,90,0.25)'; c.fillRect(Math.floor(rnd() * N), Math.floor(rnd() * N), 1, 1); } }
   const n = small ? 3 : 9;
+  const blob = (x: number, y: number, rx: number, ry: number, rot: number, wob: number) => {
+    // a filled cell body: membrane (dark), cytoplasm (lit from the top-left), granules
+    const R = Math.ceil(Math.max(rx, ry) + 2), cr = Math.cos(rot), sr = Math.sin(rot);
+    for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) {
+      const u = (i * cr + j * sr) / rx, v = (-i * sr + j * cr) / ry;
+      const a = Math.atan2(v, u), d = Math.hypot(u, v) * (1 + Math.sin(a * 3 + wob) * 0.06);
+      if (d > 1) continue;
+      const px = Math.round(x + i), py = Math.round(y + j);
+      const lit = 0.75 + (-(i + j) / (R * 2)) * 0.35;
+      c.fillStyle = d > 0.86 ? tint(0.38) : d > 0.74 ? tint(0.62) : tint(Math.min(1.25, lit) * 0.92, 0.85);
+      c.fillRect(px, py, 1, 1);
+      if (d < 0.7 && ((px * 7 + py * 13) % 23) === 0) { c.fillStyle = tint(0.5); c.fillRect(px, py, 1, 1); }
+    }
+    // a glint on the membrane
+    c.fillStyle = 'rgba(255,255,255,0.75)'; c.fillRect(Math.round(x - rx * 0.45), Math.round(y - ry * 0.55), Math.max(1, Math.round(k)), 1);
+  };
+  const nucleus = (x: number, y: number, r: number) => {
+    for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) { const d = Math.hypot(i, j) / r; if (d > 1) continue; c.fillStyle = d > 0.7 ? tint(0.22) : tint(0.32); c.fillRect(Math.round(x + i), Math.round(y + j), 1, 1); }
+    c.fillStyle = tint(0.6); c.fillRect(Math.round(x - r * 0.4), Math.round(y - r * 0.4), 1, 1);
+  };
   for (let i = 0; i < n; i++) {
-    const x = small ? 10 + (i % 2) * 22 + rnd() * 6 : 8 + rnd() * (N - 16), y = small ? 12 + Math.floor(i / 2) * 18 + rnd() * 4 : 8 + rnd() * (N - 16);
-    const r = (small ? 6 : 7) + rnd() * 4;
-    c.fillStyle = tint(0.55);
-    if (kind === 'round') { for (let a = 0; a < 6.28; a += 0.3) c.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r), 2, 2); c.fillStyle = tint(0.3); c.fillRect(Math.round(x - 2), Math.round(y - 2), 4, 4); }
-    else if (kind === 'spindle') { const a0 = rnd() * 3; for (let k = -r * 1.6; k < r * 1.6; k++) { const w = Math.max(1, Math.round((1 - Math.abs(k) / (r * 1.6)) * 3)); c.fillRect(Math.round(x + Math.cos(a0) * k), Math.round(y + Math.sin(a0) * k), w, w); } c.fillStyle = tint(0.3); c.fillRect(Math.round(x - 1), Math.round(y - 1), 3, 3); }
-    else if (kind === 'spore') { c.fillRect(Math.round(x - 3), Math.round(y - 3), 6, 6); for (let a = 0; a < 6.28; a += 0.8) { c.fillStyle = tint(0.4); c.fillRect(Math.round(x + Math.cos(a) * (r * 0.8)), Math.round(y + Math.sin(a) * (r * 0.8)), 1, 1); c.fillRect(Math.round(x + Math.cos(a) * (r * 0.55)), Math.round(y + Math.sin(a) * (r * 0.55)), 1, 1); } }
-    else if (kind === 'crystal') { for (let k = 0; k < r; k++) { c.fillRect(Math.round(x - k / 2), Math.round(y - r / 2 + k), Math.max(1, k), 1); } c.fillStyle = tint(0.85); c.fillRect(Math.round(x), Math.round(y - r / 2 + 2), 1, Math.round(r - 3)); }
-    else { for (let k = 0; k < 4; k++) { const cx = x + k * 5 - 8, cy = y + Math.sin(k + seed) * 2; c.fillRect(Math.round(cx - 2), Math.round(cy - 2), 4, 4); c.fillStyle = tint(0.3); c.fillRect(Math.round(cx), Math.round(cy), 1, 1); c.fillStyle = tint(0.55); } }
+    const x = small ? (20 + (i % 2) * 44 + rnd() * 12) * k : (8 + rnd() * 80) * k, y = small ? (24 + Math.floor(i / 2) * 36 + rnd() * 8) * k : (8 + rnd() * 80) * k;
+    const r = (small ? (6 + rnd() * 4) * 2 : 7 + rnd() * 4) * k;
+    if (kind === 'round') { blob(x, y, r, r * (0.9 + rnd() * 0.15), rnd() * 3, rnd() * 6); nucleus(x - r * 0.1, y, Math.max(2, Math.round(r * 0.32))); }
+    else if (kind === 'spindle') { const a0 = rnd() * 3; blob(x, y, r * 1.7, r * 0.45, a0, rnd() * 6); nucleus(x, y, Math.max(1, Math.round(r * 0.22))); }
+    else if (kind === 'spore') {
+      blob(x, y, r * 0.55, r * 0.55, 0, 0);
+      for (let a = 0; a < 6.28; a += 0.52) { const L = r * (0.75 + (Math.round(a * 10) % 3) * 0.08); c.fillStyle = tint(0.45); for (let t = r * 0.55; t < L; t += 1) c.fillRect(Math.round(x + Math.cos(a) * t), Math.round(y + Math.sin(a) * t), 1, 1); c.fillStyle = tint(1.2); c.fillRect(Math.round(x + Math.cos(a) * L), Math.round(y + Math.sin(a) * L), Math.max(1, Math.round(k)), Math.max(1, Math.round(k))); }
+    }
+    else if (kind === 'crystal') {
+      // a faceted rhomb: two lit faces, two dark, a bright ridge
+      const hgt = r * 1.1, wd = r * 0.6;
+      for (let j = -hgt; j <= hgt; j++) { const half = wd * (1 - Math.abs(j) / hgt); for (let i = -half; i <= half; i++) { c.fillStyle = i < 0 ? (j < 0 ? tint(1.15) : tint(0.8)) : (j < 0 ? tint(0.6) : tint(0.42)); c.fillRect(Math.round(x + i), Math.round(y + j), 1, 1); } }
+      c.fillStyle = 'rgba(255,255,255,0.85)'; for (let j = -hgt + 2; j < hgt - 2; j++) c.fillRect(Math.round(x), Math.round(y + j), 1, 1);
+    }
+    else { for (let q = 0; q < 4; q++) { const cx = x + (q * 5 - 8) * k, cy = y + Math.sin(q + seed) * 2 * k; blob(cx, cy, 2.6 * k, 2.6 * k, 0, q); nucleus(cx, cy, Math.max(1, Math.round(k))); } }
   }
 }
-/** the dissection specimen: pale skin, veins, the dotted line, the cut so far, the blade's mark */
+/** the dissection specimen: pale skin with pores and veins, the dotted line, the cut so far, the blade's mark (drawn at 2x the old resolution) */
 function drawSpecimen(c: CanvasRenderingContext2D, pts: [number, number][], cut: number[], col: number, tip?: [number, number], onLine?: boolean) {
-  const Wd = c.canvas.width, Hd = c.canvas.height;
-  c.fillStyle = '#c88a7c'; c.fillRect(0, 0, Wd, Hd);
+  const Wd = c.canvas.width, Hd = c.canvas.height, k = Wd / 64;
+  // skin: a soft top-left light, mottling and pores
+  for (let y = 0; y < Hd; y += 2) for (let x = 0; x < Wd; x += 2) {
+    const l = 1.05 - (x / Wd) * 0.12 - (y / Hd) * 0.1;
+    c.fillStyle = `rgb(${Math.round(200 * l)},${Math.round(138 * l)},${Math.round(124 * l)})`; c.fillRect(x, y, 2, 2);
+  }
   let s = 11; const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
-  for (let i = 0; i < 260; i++) { c.fillStyle = rnd() < 0.5 ? 'rgba(160,90,90,0.25)' : 'rgba(250,220,210,0.3)'; c.fillRect(Math.floor(rnd() * Wd), Math.floor(rnd() * Hd), 1 + Math.floor(rnd() * 2), 1); }
-  c.fillStyle = 'rgba(110,80,160,0.5)';
-  for (let k = 0; k < 4; k++) { let x = rnd() * Wd, y = rnd() * Hd; for (let i = 0; i < 30; i++) { x += (rnd() - 0.5) * 3; y += 1.2; c.fillRect(Math.round(x), Math.round(y), 1, 1); } }
+  for (let i = 0; i < 900; i++) { c.fillStyle = rnd() < 0.5 ? 'rgba(160,90,90,0.22)' : 'rgba(250,220,210,0.28)'; c.fillRect(Math.floor(rnd() * Wd), Math.floor(rnd() * Hd), 1 + Math.floor(rnd() * 2), 1); }
+  for (let i = 0; i < 140; i++) { c.fillStyle = 'rgba(120,60,60,0.35)'; c.fillRect(Math.floor(rnd() * Wd), Math.floor(rnd() * Hd), 1, 1); }
+  // veins: branching, a darker core with a lighter edge
+  for (let q = 0; q < 6; q++) {
+    let x = rnd() * Wd, y = rnd() * Hd * 0.3;
+    for (let i = 0; i < 40 * k; i++) { x += (rnd() - 0.5) * 2.2; y += 1.4; c.fillStyle = 'rgba(110,80,160,0.55)'; c.fillRect(Math.round(x), Math.round(y), 1, 1); c.fillStyle = 'rgba(170,140,210,0.3)'; c.fillRect(Math.round(x) + 1, Math.round(y), 1, 1); }
+  }
   const C = new THREE.Color(col);
   pts.forEach(([u, v], i) => {
     const x = Math.round(u * Wd), y = Math.round(v * Hd);
-    if (cut[i]) { c.fillStyle = '#6a0a14'; c.fillRect(x - 1, y - 2, 3, 5); c.fillStyle = `rgb(${Math.round(C.r * 255)},${Math.round(C.g * 200)},${Math.round(C.b * 200)})`; c.fillRect(x, y - 1, 1, 3); }
-    else if (i % 2 === 0) { c.fillStyle = '#2a2a6a'; c.fillRect(x, y, 2, 2); }
+    if (cut[i]) {
+      // an open cut: dark edges, the wet inside in the sample's colour, a glint
+      c.fillStyle = '#4a060e'; c.fillRect(x - 2, y - 4, 5, 9);
+      c.fillStyle = '#8a1420'; c.fillRect(x - 1, y - 4, 3, 9);
+      c.fillStyle = `rgb(${Math.round(C.r * 255)},${Math.round(C.g * 200)},${Math.round(C.b * 200)})`; c.fillRect(x, y - 3, 1, 7);
+      c.fillStyle = 'rgba(255,255,255,0.7)'; c.fillRect(x - 1, y - 3, 1, 1);
+    }
+    else if (i % 2 === 0) { c.fillStyle = '#1a1a4a'; c.fillRect(x - 1, y - 1, 3, 3); c.fillStyle = '#4a4aa0'; c.fillRect(x - 1, y - 1, 2, 2); c.fillStyle = '#9a9ae0'; c.fillRect(x - 1, y - 1, 1, 1); }
   });
-  if (tip) { c.fillStyle = onLine ? '#ffffff' : '#ff3a2a'; c.fillRect(Math.round(tip[0] * Wd) - 1, Math.round(tip[1] * Hd) - 1, 2, 2); }
+  if (tip) { const tx = Math.round(tip[0] * Wd), ty = Math.round(tip[1] * Hd); c.fillStyle = '#07060a'; c.fillRect(tx - 2, ty - 2, 5, 5); c.fillStyle = onLine ? '#ffffff' : '#ff3a2a'; c.fillRect(tx - 1, ty - 1, 3, 3); c.fillStyle = onLine ? '#9affb0' : '#ffb0a0'; c.fillRect(tx - 1, ty - 1, 1, 1); }
 }

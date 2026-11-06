@@ -1,7 +1,7 @@
 import { Item, itemDef, itemName, itemWeight, freshness, fluidName, BodyPart } from '../items/item';
 import { escapeHtml } from './ui';
 import { PART_NAMES } from '../survival/body';
-import { itemIconFor } from './icons';
+import { itemIconFor, iconRes } from './icons';
 
 const CAT_LABEL: Record<string, string> = {
   food: 'Food', drink: 'Drink', medical: 'Medical', weapon: 'Weapon', tool: 'Tool', clothing: 'Clothing', bag: 'Bag', material: 'Material', electronics: 'Electronics',
@@ -15,7 +15,7 @@ export function itemTooltip(it: Item, count = 1): string {
   const d = itemDef(it.key);
   const rows: string[] = [];
   const row = (a: string, b: string, cls = '') => rows.push(`<div class="row ${cls}"><span>${a}</span><span>${b}</span></div>`);
-  const bar = (v: number, color = 'var(--ph)') => rows.push(`<div class="bar"><i style="width:${pct(Math.max(0, Math.min(1, v)))}%;background:${color}"></i></div>`);
+  const bar = (v: number, color = 'var(--ph)') => rows.push(`<div class="bar"><i style="width:${pct(Math.max(0, Math.min(1, v)))}%;background-color:${color}"></i></div>`);
   row('Weight', (itemWeight(it) * count).toFixed(2) + ' kg');
   if (d.durability || d.weapon || d.clothing) { row('Condition', pct(it.cond) + '%'); bar(it.cond, it.cond > 0.6 ? 'var(--ph)' : it.cond > 0.25 ? 'var(--warn)' : 'var(--danger)'); }
   if (d.food) {
@@ -77,7 +77,7 @@ export function itemTooltip(it: Item, count = 1): string {
   const head = rows.slice(0, Math.min(split < 0 ? rows.length : split, 4));
   const rest = rows.slice(head.length);
   let icon = '';
-  try { icon = itemIconFor(it, 40); } catch { /* no renderer yet */ }
+  try { icon = itemIconFor(it, iconRes(40)); } catch { /* no renderer yet */ }
   const hero = `<div class="tip-hero">${icon ? `<img src="${icon}" alt="">` : ''}<div class="tip-rows"><div class="tip-cat">${escapeHtml(CAT_LABEL[d.cat] || d.cat)}</div>${head.join('')}</div></div>`;
   return `<h4>${escapeHtml(itemName(it))}${count > 1 ? ' ×' + count : ''}</h4>${hero}${rest.join('')}`;
 }
@@ -91,7 +91,7 @@ export function itemTag(it: Item, count = 1, foot?: [number, number], hint = '')
   const d = itemDef(it.key);
   const rows: string[] = [];
   const row = (a: string, b: string, warn = false) => rows.push(`<div class="r${warn ? ' warn' : ''}"><span>${a}</span><span>${b}</span></div>`);
-  const bar = (v: number, color: string) => rows.push(`<div class="bar"><i style="width:${pct(Math.max(0, Math.min(1, v)))}%;background:${color}"></i></div>`);
+  const bar = (v: number, color: string) => rows.push(`<div class="bar"><i style="width:${pct(Math.max(0, Math.min(1, v)))}%;background-color:${color}"></i></div>`);
   if (d.durability || d.weapon || d.clothing) { row('Condition', pct(it.cond) + '%', it.cond < 0.25); bar(it.cond, it.cond > 0.6 ? '#4a7a3a' : it.cond > 0.25 ? '#a8822e' : '#8a1a14'); }
   if (d.food) {
     const f = d.food;

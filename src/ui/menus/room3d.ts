@@ -59,6 +59,7 @@ import { ANCHORS, PATHS, SHOTS, type AnchorBone } from './scene/anchors';
 import { armSegment, armBase, clawPalm, clawFinger, pressModel, shutterModel, chairModel, capModel, strapModel, bulbModel, leverModel, gem, prism, FacetBuilder, surgLampModel, surgArmModel } from './roomParts';
 import { ROOM, SPOT, roomModel, fixtureTubes, monitorModel, canvasTex, bloodCanvas } from './roomKit';
 import { Dresser } from './rooms/dress';
+import { Vault } from './rooms/vault';
 import { at as atM } from './scene/facet';
 
 export type { PartKey, ToolKind };
@@ -130,6 +131,8 @@ export class SubjectRoom {
   private shaftP = new THREE.Vector3();
   /** the lab's set dressing (rooms/dress.ts): the same kit as the control room and the archive */
   private dressing: Dresser | null = null;
+  /** the containment kit (rooms/vault.ts): the one-way mirror, the decon shower, the restraints, the rack, the beacon */
+  private vault: Vault | null = null;
   private lowW = 0; private lowH = 0;
   private raf = 0; private last = 0; private t = 0;
   private ro: ResizeObserver;
@@ -289,14 +292,37 @@ export class SubjectRoom {
     // the lab's dressing, shared with the control room and the archive: instruments, the clock, overflow, wear
     {
       const d = this.dressing = new Dresser(mats);
-      const B = ROOM.BACK + 0.01, H = ROOM.H;
+      const v = this.vault = new Vault(d, mats, 260);
+      const B = ROOM.BACK + 0.01, H = ROOM.H, W = ROOM.W, L = Math.PI / 2;
       d.gauges(atM(-2.25, 2.55, B), 3, 1, { labels: ['CHAIR 4', 'SURGE'], seed: 61 });
       d.clock(atM(2.3, 2.8, B), 0.16);
       d.filing(atM(2.8, 0, ROOM.BACK + 0.34), { seed: 62, labels: ['UNITS', 'VOID', 'CHAIR', 'LINK'] });
       d.clutter(atM(2.8, 1.3, ROOM.BACK + 0.34), 0.36, 0.5, { seed: 63, binder: false });
-      d.boxes(atM(-2.85, 0, ROOM.BACK + 0.3, 0, 0.15), 3, { seed: 64 });
+      v.dossiers(atM(2.8, 1.302, ROOM.BACK + 0.36), 0.36, 0.5, { n: 2, seed: 66, open: false });
       d.streaks(atM(0, 3.0, ROOM.BACK + 0.012), 6.4, 1.2, 0.35);
-      d.tray([-ROOM.W + 0.4, H - 0.35, -1.3], [ROOM.W - 0.4, H - 0.35, -1.3], H, { seed: 65, cables: 8 });
+      d.tray([-W + 0.4, H - 0.35, -1.3], [W - 0.4, H - 0.35, -1.3], H, { seed: 65, cables: 8 });
+      // the back wall: the crest over the hatch, its locks and a beacon, the restraint board, a terminal, a rack
+      v.crest(atM(0, 3.04, B), 0.24);
+      v.keypad(atM(0.97, 1.08, B));
+      v.biolock(atM(0.97, 1.34, B));
+      v.sign(atM(0.98, 1.82, B), 'auth', 0.2);
+      v.beacon(atM(-0.92, 2.42, B));
+      v.restraints(atM(-1.3, 1.18, B), 0.62);
+      v.terminal(atM(-2.0, 1.12, B), { arm: 0.36, w: 0.3, head: 'UNIT 4 · INTAKE', i: 2, tint: 0xffc06a });
+      v.rack(atM(1.86, 0, ROOM.BACK + 0.42), { seed: 91, label: 'LINK 04', plume: false });
+      // the left wall: a one-way mirror (the operators behind it), the decon shower, a manifold off the corner riser
+      v.obsWindow(atM(-W, 1.92, -0.2, 0, L), { w: 1.0, h: 0.78, mirror: true, label: ['OBSERVATION 4', 'OPERATORS BEHIND GLASS'] });
+      v.decon(atM(-W + 0.5, 0, 1.08, 0, L), { w: 0.95, d: 0.92 });
+      v.stripes(-W + 0.98, 0.55, -W + 1.1, 1.62);
+      v.stencil(-W + 1.4, 1.08, 'DECON', 0.12, -L);
+      v.sign(atM(-W + 0.01, 1.55, 1.95, 0, L), 'breath', 0.2);
+      v.pipe([[-W + 0.12, 2.32, ROOM.BACK + 0.3], [-W + 0.12, 2.32, -1.72], [-W + 0.12, 1.72, -1.72]], 0.04, 0x7a6a3a, { band: ['SURGE COOLANT', 0xe8c228], out: [1, 0, 0], valves: [1], gauges: [0] });
+      // the right wall: a strapped trolley, a manifold with gauges
+      v.gurney(atM(W - 0.42, 0, -0.75));
+      v.pipe([[W - 0.12, 0.25, -1.65], [W - 0.12, 2.3, -1.65], [W - 0.12, 2.3, 0.4]], 0.035, 0x3a5a7a, { band: ['N2', 0x6ab8e8], out: [-1, 0, 0], valves: [0], gauges: [1] });
+      v.sign(atM(W - 0.01, 1.75, 0.65, 0, -L), 'volt', 0.2);
+      // the floor: fog low over the tiles
+      v.fog(-W + 0.2, W - 0.2, ROOM.BACK + 0.3, 3.6, { k: 0.2, color: 0x8aa0b8 });
       S.add(d.done());
     }
     this.chairStraps = chairModel(mats, true);
@@ -1264,6 +1290,7 @@ export class SubjectRoom {
     this.bits.update(dt);
     this.arcs.update(dt);
     this.dressing?.update(this.t);
+    this.vault?.update(this.t, dt);
     this.screen.update(dt, this.t, 1 - this.surgeK * 0.6);
     this.crt.intensity = (0.065 + 0.025 * this.screen.beat) * (1 - this.lit * 0.6) * (1 - this.surgeK * 0.5);
     if (this.extraBlood && this.maulT < 0) { this.bloodT += dt; if (this.bloodT > 5 && this.extraBlood > 1) { this.extraBlood = 1; this.rig?.setOutfit(this.dress()); } }

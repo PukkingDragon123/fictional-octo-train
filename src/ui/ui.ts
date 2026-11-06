@@ -11,13 +11,15 @@ import { glyphUrl } from './pixelart';
 import { Player } from '../entities/player';
 import { pick, PickTarget, targetName } from '../game/picking';
 import { OCCUPATIONS, TRAITS } from '../survival/traits';
-import { itemIcon } from './icons';
+import { itemIcon, iconRes } from './icons';
 import { sfx } from './menus/sfx';
 import { calm } from './menus/settings';
 import './holo/diegetic.css';
 import { initSubtitles, scrawl, speech, shout, radioLine, offscreen } from './holo/subs';
 import { debtorNo } from './holo/holo';
 import { openVerbTag } from '../interact/verbTag';
+import { ActionPlate } from './actionBar';
+import { installTravelPlate } from './travelPlate';
 
 export interface MenuOption {
   label: string;
@@ -29,42 +31,6 @@ export interface MenuOption {
 }
 
 interface Bubble { el: HTMLDivElement; target: Player | { x: number; y: number; z: number }; until: number; born: number; rise: number; kind: string; }
-/** a ring of tally marks scratched round a survivor's feet while they work */
-interface Tally { el: SVGSVGElement; lines: SVGLineElement[]; shown: number }
-const TALLY = 20;
-const SVGNS = 'http://www.w3.org/2000/svg';
-function makeTally(): Tally {
-  const el = document.createElementNS(SVGNS, 'svg') as SVGSVGElement;
-  el.setAttribute('class', 'w-tally');
-  el.setAttribute('aria-hidden', 'true');
-  const lines: SVGLineElement[] = [];
-  for (let i = 0; i < TALLY; i++) { const l = document.createElementNS(SVGNS, 'line') as SVGLineElement; el.appendChild(l); lines.push(l); }
-  return { el, lines, shown: -1 };
-}
-/** stroke i of the ring at progress n (strokes): four uprights and a slash per group of five, round an ellipse on the floor */
-function placeTally(t: Tally, rx: number, ry: number, n: number) {
-  const pad = 6, W = rx * 2 + pad * 2, H = ry * 2 + pad * 2 + 10;
-  t.el.setAttribute('width', String(Math.ceil(W))); t.el.setAttribute('height', String(Math.ceil(H)));
-  const cx = W / 2, cy = H / 2;
-  const groups = TALLY / 5;
-  const at = (g: number, k: number, r: number): [number, number] => {
-    const a = -Math.PI / 2 + ((g + 0.12 + k * 0.17) / groups) * Math.PI * 2;
-    return [cx + Math.cos(a) * rx * r, cy + Math.sin(a) * ry * r];
-  };
-  for (let i = 0; i < TALLY; i++) {
-    const g = Math.floor(i / 5), k = i % 5;
-    let a: [number, number], b: [number, number];
-    if (k < 4) { a = at(g, k, 0.78); b = at(g, k, 1.18); }
-    else { a = at(g, -0.25, 0.86); b = at(g, 3.25, 1.1); }
-    const frac = Math.max(0, Math.min(1, n - i));
-    const l = t.lines[i];
-    if (frac <= 0) { l.setAttribute('class', 'ghost'); }
-    else l.setAttribute('class', frac < 1 ? 'cur' : '');
-    const bx = frac > 0 ? a[0] + (b[0] - a[0]) * frac : b[0], by = frac > 0 ? a[1] + (b[1] - a[1]) * frac : b[1];
-    l.setAttribute('x1', a[0].toFixed(1)); l.setAttribute('y1', a[1].toFixed(1)); l.setAttribute('x2', bx.toFixed(1)); l.setAttribute('y2', by.toFixed(1));
-  }
-  return [W, H];
-}
 function strHash(s: string) { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 
 /** Generates the canvas-weave background used by every panel. */
@@ -98,13 +64,13 @@ function twoHandBlock(label: string): boolean {
   try { const two = (G.local.body as any).limbs?.().twoHand; return two === false && needsTwoHands(r); } catch { return false; }
 }
 function menuIcon(o: { label: string; icon?: string }): string {
-  if (o.icon) return o.icon.startsWith('data:') || o.icon.startsWith('blob:') || o.icon.startsWith('/') ? o.icon : hasItemDef(o.icon) ? itemIcon(o.icon, '', 12) : '';
+  if (o.icon) return o.icon.startsWith('data:') || o.icon.startsWith('blob:') || o.icon.startsWith('/') ? o.icon : hasItemDef(o.icon) ? itemIcon(o.icon, '', iconRes(12)) : '';
   if (!recipeIcons) {
     recipeIcons = new Map();
     try { for (const r of allRecipes()) { const out = r.outputs?.[0]?.item; if (out && !recipeIcons.has(r.name)) recipeIcons.set(r.name, out); } } catch { /* recipes not loaded */ }
   }
   const k = recipeIcons.get(o.label);
-  return k && hasItemDef(k) ? itemIcon(k, '', 12) : '';
+  return k && hasItemDef(k) ? itemIcon(k, '', iconRes(12)) : '';
 }
 
 /**
@@ -117,7 +83,7 @@ export class UI {
   root: HTMLElement;
   bubbles: Bubble[] = [];
   /** timed-action tally rings by player id */
-  bars = new Map<string, Tally>();
+  bars = new Map<string, ActionPlate>();
   names = new Map<string, HTMLDivElement>();
   hover: PickTarget | null = null;
   hoverLabel: HTMLDivElement;
@@ -149,6 +115,7 @@ export class UI {
     bus.on('uiSettings', refreshCursor);
     bus.on('uiScale', refreshCursor);
     bus.on('unlocked', (id: string) => this.unlockToast(id));
+    try { installTravelPlate(document.body); } catch (e) { console.warn('travel plate', e); }
     // track pointer over interactive UI so the world ignores clicks there
     this.root.addEventListener('mouseover', () => { G.input.pointerOverUI = true; });
     this.root.addEventListener('mouseout', () => { G.input.pointerOverUI = false; });
@@ -281,7 +248,7 @@ export class UI {
     // research ('rp:') and scan knowledge ('scan:') are presented by the watch and the scanner
     if (ns === 'rp' || ns === 'scan') return;
     let kind = 'UNLOCK', name = key || id, icon = '';
-    if (ns === 'job') { const o = OCCUPATIONS.find((x) => x.key === key); kind = 'NEW OCCUPATION UNLOCKED'; name = o?.name || key; const k = o?.items?.[0]; if (k) { try { icon = itemIcon(k, '', 18); } catch { /* no icon */ } } }
+    if (ns === 'job') { const o = OCCUPATIONS.find((x) => x.key === key); kind = 'NEW OCCUPATION UNLOCKED'; name = o?.name || key; const k = o?.items?.[0]; if (k) { try { icon = itemIcon(k, '', iconRes(18)); } catch { /* no icon */ } } }
     else if (ns === 'trait') { const t = TRAITS.find((x) => x.key === key); kind = 'NEW TRAIT UNLOCKED'; name = t?.name || key; }
     this.lastUnlockAt = performance.now();
     // drop a plain notice another system may have just posted for the same unlock
@@ -417,27 +384,23 @@ export class UI {
         if (r.left < hudR && r.top < hudB && r.bottom > 0) b.el.style.top = (parseFloat(b.el.style.top) + (hudB - r.top) + 6) + 'px';
       }
     }
-    // timed actions: tally marks scratched into the floor round the worker's feet
+    // timed actions: one detailed bar over the worker's head (src/ui/actionBar.ts), no marks on the floor
     const seen = new Set<string>();
-    const pxm = g.pr.cssPerMetre ? g.pr.cssPerMetre() : 40;
-    const pitch = Math.sin(g.pr.pitch ?? 0.63);
     for (const p of g.players.values()) {
       const a = p.actions.current;
       const showBar = p.isLocal ? (a && a.started && a.showBar) : (p.remote?.state?.ad ?? 0) > 0.6;
       if (!showBar || p.zoneKey !== g.local.zoneKey) continue;
       seen.add(p.id);
       let t = this.bars.get(p.id);
-      if (!t) { t = makeTally(); this.root.appendChild(t.el); this.bars.set(p.id, t); }
+      if (!t) { t = new ActionPlate(); this.root.appendChild(t.el); this.bars.set(p.id, t); }
       const prog = p.isLocal ? a!.progress : Math.min(1, (p.remote!.state!.at ?? 0) / Math.max(0.01, p.remote!.state!.ad));
-      const n = prog * TALLY;
-      const s = g.pr.worldToScreen(this.tmpV.set(p.x, p.y + 0.03, p.z));
-      const rx = Math.max(16, pxm * 0.62), ry = rx * Math.max(0.35, pitch);
-      const [W, H] = placeTally(t, rx, ry, n);
-      t.el.style.transform = `translate(${Math.round(s.x - W / 2)}px, ${Math.round(s.y - H / 2)}px)`;
-      // a scratch sound for each new mark
-      const whole = Math.floor(n);
-      if (p.isLocal && whole !== t.shown && t.shown >= 0 && whole > 0) G.audio?.ui?.('tab', 0.12);
-      t.shown = whole;
+      t.update(p.isLocal ? a!.name : String((p.remote?.state as any)?.an ?? ''), prog, g.time);
+      const s = g.pr.worldToScreen(this.tmpV.set(p.x, p.y + 2.3, p.z));
+      t.el.style.transform = `translate(${Math.round(s.x - t.w / 2)}px, ${Math.round(s.y - t.h)}px)`;
+      // a soft tick at each fifth of the work
+      const step = Math.floor(prog * 5);
+      if (p.isLocal && step !== t.step && t.step >= 0 && step > 0 && step < 5) G.audio?.ui?.('tab', 0.08);
+      t.step = step;
     }
     for (const [id, t] of this.bars) if (!seen.has(id)) { t.el.remove(); this.bars.delete(id); }
     // teammate name tags (only when visible)

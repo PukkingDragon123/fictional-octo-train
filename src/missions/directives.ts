@@ -2,7 +2,7 @@
 //
 // MAIN (the Remittance contract, uploaded by Dr. Iris Calder, the operator's
 // guide, accepted automatically): First Haul (get hold of a piece of
-// furniture, carry it whole to a press, pull the lever) → Field Work (find
+// furniture, carry it whole to a press, feed it in) → Field Work (find
 // data, scan an inhabitant with the watch) alongside four installments, each
 // due by a deadline → Discharge (clear the balance) → Passage (reach the
 // depot, buy a ticket, board). See src/game/debt.
@@ -55,12 +55,12 @@ const INST = 4;
 q({
   key: 'first_haul', main: true, auto: true, voice: 'handler', title: 'First Haul', giver: CALDER, category: 'contract',
   requires: ['flag:contract:intake'],
-  desc: 'The unit owes, and the Institute collects in furniture. Get hold of something heavy, carry it whole to a press, set it on the striped plate, step off and pull the lever. Things down here are built to last: carrying is quicker than breaking.',
-  intro: 'Your first job, unit. Pick up a piece of furniture. Carry it to the press. Pull the lever. Slowly. The body is new to you.',
+  desc: 'The unit owes, and the Institute collects in furniture. Get hold of a piece, carry it whole to a press and feed it in: next to the striped plate, E (or FEED) lays it on and throws the lever. Things down here are built to last: carrying is quicker than breaking.',
+  intro: 'Your first job, unit. Pick up a piece of furniture. Carry it to the press. Feed it in. Slowly. The body is new to you.',
   objectives: [
     { id: 'walk', text: 'Walk the unit about (WASD, or the stick)', check: has('tut:walk'), optional: true },
     { id: 'carry', text: 'Get hold of a piece of furniture (hold the right button, or GRAB)', check: (m) => m.flags.has('tut:carry') || m.flags.has('tut:smash'), optional: true },
-    { id: 'deposit', text: 'Carry it to a press, set it on the plate, pull the lever', check: has('contract:first_deposit'), where: nearestPress },
+    { id: 'deposit', text: 'Carry it to a press and feed it in (E next to the plate)', check: has('contract:first_deposit'), where: nearestPress },
     { id: 'scanner', text: 'Raise your watch (TAB) and read this', check: has('tut:scanner'), optional: true },
     { id: 'drink', text: 'Drink something', check: has('tut:drink'), optional: true },
     { id: 'light', text: 'Find a light source', check: (m) => m.flags.has('got:light') || m.flags.has('tut:light'), optional: true },

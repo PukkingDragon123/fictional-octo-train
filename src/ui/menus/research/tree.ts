@@ -20,6 +20,7 @@ import {
   type Branch, type TreeNode, type NodeState,
 } from '../../../game/unitTree';
 import { nodeIcon } from './icons';
+import { iconResCss } from '../../icons';
 
 const ART = 28;
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
@@ -209,7 +210,7 @@ export function openTree(o: { onClose?: () => void; branch?: Branch } = {}) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'rt-node';
       b.style.left = p.x + 'px'; b.style.top = p.y + 'px';
-      b.innerHTML = `<img class="ic" alt="" src="${nodeIcon(n, ART)}"><img class="ch" alt="" src="${chainUrl()}"><em class="rk"></em>`;
+      b.innerHTML = `<img class="ic" alt="" src="${nodeIcon(n, iconResCss(ART * u))}"><img class="ch" alt="" src="${chainUrl()}"><em class="rk"></em>`;
       b.addEventListener('click', () => press(n));
       b.addEventListener('pointerenter', () => { select(n); sfx('tick', 0.3); });
       b.addEventListener('focus', () => select(n));
@@ -290,7 +291,7 @@ export function openTree(o: { onClose?: () => void; branch?: Branch } = {}) {
     const rn = researchFor(n, Math.min(n.ranks, rp + 1));
     const lines = n.gives.map((g, i) => `<li class="${i < r ? 'own' : i < rp ? 'stg' : ''}"><i>${ROMAN[i + 1] ?? i + 1}</i>${esc(g)}</li>`).join('');
     const where = n.branch === 'chip' || n.branch === 'limb' ? 'Fit it on the unit in the unit room.' : n.branch === 'design' ? 'Dress the unit in it in the unit room.' : 'Known on every new run.';
-    read.innerHTML = `<div class="rd-h"><img src="${nodeIcon(n, ART)}" alt=""><b>${esc(n.title)}</b></div>
+    read.innerHTML = `<div class="rd-h"><img src="${nodeIcon(n, iconResCss(56))}" alt=""><b>${esc(n.title)}</b></div>
       <div class="rd-r">rank ${rp}/${n.ranks}${rp < n.ranks ? ` · next ${n.costs[rp]} RP` : ''}</div>
       <div class="rd-s st-${st}">${esc(status)}</div>
       <ul class="rd-g">${lines}</ul>

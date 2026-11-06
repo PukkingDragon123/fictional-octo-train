@@ -78,10 +78,10 @@ export class Dresser {
   readonly group = new THREE.Group();
   private spins: Spin[] = [];
   private swings: { o: THREE.Object3D; ph: number }[] = [];
-  constructor(private mats: FMats, private leds?: LedBank) { this.group.name = 'dressing'; }
+  constructor(readonly mats: FMats, readonly leds?: LedBank) { this.group.name = 'dressing'; }
 
   /** a round dial at m (local +Z out), radius r; returns its needle */
-  private dial(m: THREE.Matrix4, r: number, kind: 'psi' | 'volt' | 'temp' | 'hum', f: (t: number) => number) {
+  dial(m: THREE.Matrix4, r: number, kind: 'psi' | 'volt' | 'temp' | 'hum', f: (t: number) => number) {
     const b = this.b;
     b.add('brass', lathe([[0, 0], [r * 1.12, 0], [r * 1.16, r * 0.25], [r * 1.05, r * 0.32], [r * 0.98, r * 0.3], [0, r * 0.3]], 12), 0xffffff, T(m, at(0, 0, 0, Math.PI / 2)));
     b.add('metal', cbox(r * 0.4, r * 0.5, r * 0.4, r * 0.06), C.darker, T(m, at(0, -r * 1.1, -r * 0.1)));

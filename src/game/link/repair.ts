@@ -13,6 +13,10 @@
 // Repair.open(kind, stress, done) / close() / update(dt) / active.
 import { G } from '../G';
 import './link.css';
+import { bevel, rivet, hazard, glass, drawBar, rect, GUN, GRN, AMB, RED } from '../../ui/hiPixel';
+// Round 13: drawn at twice the old density (one canvas pixel per CSS pixel
+// instead of 2-3 px blocks), the console's parts in the hi-res pixel kit
+// (src/ui/hiPixel.ts): bevelled steel, rivets, lit lenses, a proper lock bar.
 
 export type RepairKind = 'resync' | 'breakers';
 const TAU = Math.PI * 2;
@@ -166,7 +170,7 @@ export class Repair {
     this.t += dt;
     const W = innerWidth, H = innerHeight;
     if (this.cv.width !== W || this.cv.height !== H) { this.cv.width = W; this.cv.height = H; }
-    this.u = W > 1400 ? 3 : 2;
+    this.u = W > 2200 ? 2 : 1;
     if (this.kind === 'resync') this.stepResync(dt); else this.stepBreakers(dt);
   }
 
@@ -204,9 +208,13 @@ export class Repair {
     c.fillStyle = g; c.fillRect(0, 0, W, H);
     // the graticule: a band across the middle
     const x0 = Math.round(W * 0.08 / u) * u, x1 = Math.round(W * 0.92 / u) * u, cy = Math.round(H * 0.5 / u) * u, A = Math.round(Math.min(H * 0.14, 110) / u) * u;
-    c.fillStyle = 'rgba(90, 170, 200, 0.10)';
-    for (let gx = x0; gx <= x1; gx += u * 24) c.fillRect(gx, cy - A * 1.6, u, A * 3.2);
-    for (let gy = -3; gy <= 3; gy++) c.fillRect(x0, cy + Math.round(gy * A * 0.5 / u) * u, x1 - x0, u * (gy === 0 ? 1 : 0.5));
+    c.fillStyle = 'rgba(90, 170, 200, 0.12)';
+    for (let gx = x0; gx <= x1; gx += 48) c.fillRect(gx, cy - A * 1.6, 1, A * 3.2);
+    for (let gy = -3; gy <= 3; gy++) c.fillRect(x0, cy + Math.round(gy * A * 0.5), x1 - x0, 1);
+    // minor ticks on the axes, the way a real graticule has them
+    c.fillStyle = 'rgba(120, 200, 230, 0.22)';
+    for (let gx = x0; gx <= x1; gx += 12) c.fillRect(gx, cy - 2, 1, 5);
+    for (let gy = -12; gy <= 12; gy++) c.fillRect(Math.round((x0 + x1) / 2) - 2, cy + Math.round(gy * A * 0.125), 5, 1);
     // the two waves, drawn as pixels with a phosphor bloom
     const wave = (f: number, p: number, col: [number, number, number], jit: number) => {
       const pts: number[] = [];
@@ -215,7 +223,7 @@ export class Repair {
         const n = jit ? (Math.sin(x * 0.37 + this.t * 31) * 0.5 + Math.sin(x * 0.13 - this.t * 17)) * jit : 0;
         pts.push(Math.round((cy + Math.sin(k * TAU * f + p) * A + n) / u) * u);
       }
-      for (const [r, a] of [[4, 0.08], [2, 0.2], [0, 1]] as [number, number][]) {
+      for (const [r, a] of [[7, 0.06], [4, 0.12], [2, 0.3], [1, 0.6], [0, 1]] as [number, number][]) {
         c.fillStyle = `rgba(${col[0]}, ${col[1]}, ${col[2]}, ${a})`;
         let i = 0;
         for (let x = x0; x <= x1; x += u, i++) {
@@ -230,13 +238,12 @@ export class Repair {
     const mine: [number, number, number] = good ? [210, 255, 230] : [143, 232, 255];
     wave(this.fT, this.pT, tgt, 3 + this.stress * 6);
     wave(this.f, this.p, mine, this.locked ? 0 : 1.5 + Math.min(1, df + dp) * 4);
-    // the lock: a row of pips under the scope
-    const N = 16, pw = u * 6, gap = u * 3, tw = N * pw + (N - 1) * gap, px0 = Math.round((W - tw) / 2 / u) * u, py = cy + A * 2 + u * 6;
-    for (let i = 0; i < N; i++) {
-      const lit = (i + 1) / N <= lk + 1e-6;
-      c.fillStyle = lit ? (this.locked ? '#9cff8a' : '#ffe7a8') : 'rgba(120, 150, 165, 0.35)';
-      c.fillRect(px0 + i * (pw + gap), py, pw, u * 4);
-    }
+    // the lock: a riveted meter under the scope, its cells filling as the carriers hold together
+    const tw = Math.min(440, Math.round(W * 0.5)), px0 = Math.round((W - tw) / 2), py = cy + A * 2 + 10;
+    rect(c, px0 - 9, py - 7 + 34, tw + 18, 3, 0x000000, 0.35);
+    bevel(c, px0 - 10, py - 8, tw + 20, 34, GUN.slice(2, 9), { chamfer: 3 });
+    rivet(c, px0 - 5, py - 3, 2, true); rivet(c, px0 + tw + 4, py - 3, 2, true); rivet(c, px0 - 5, py + 20, 1); rivet(c, px0 + tw + 4, py + 20, 1);
+    drawBar(c, px0 + 4, py, tw - 8, 14, lk, { ramp: this.locked ? GRN : good ? GRN : AMB, t: this.t, cell: 6, gap: 1, ticks: true });
     // read-outs, like the console prints them
     c.font = '16px Alagard, monospace'; c.textBaseline = 'top';
     c.fillStyle = '#7fb8d0';
@@ -264,7 +271,7 @@ export class Repair {
     // static: the unit's feed is gone; through it, nearly nothing
     const fade = this.wonT >= 0 ? Math.max(0, 1 - this.wonT / 0.9) : 1;
     c.fillStyle = `rgba(3, 4, 6, ${0.8 * fade})`; c.fillRect(0, 0, W, H);
-    const s = u * 2;
+    const s = 4; // static grain (kept coarse: it is noise, and cheap)
     for (let y = 0; y < H; y += s) for (let x = 0; x < W; x += s) {
       const v = Math.random();
       if (v < 0.45) continue;
@@ -273,13 +280,15 @@ export class Repair {
       c.fillRect(x, y, s, s);
     }
     // the rack: five breakers on a steel plate
-    const bw = Math.round(Math.min(W * 0.11, 92) / u) * u, bh = Math.round(bw * 2.1 / u) * u, gap = Math.round(bw * 0.45 / u) * u;
-    const tw = bw * 5 + gap * 4, x0 = Math.round((W - tw) / 2 / u) * u, y0 = Math.round((H * 0.5 - bh * 0.42) / u) * u;
-    const pl = u * 8;
-    c.fillStyle = '#1c2228'; c.fillRect(x0 - pl, y0 - pl, tw + pl * 2, bh + pl * 2);
-    c.fillStyle = '#2c343c'; c.fillRect(x0 - pl, y0 - pl, tw + pl * 2, u * 2);
-    c.fillStyle = '#0c0f12'; c.fillRect(x0 - pl, y0 + bh + pl - u * 2, tw + pl * 2, u * 2);
-    for (const [sx, sy] of [[x0 - pl + u * 3, y0 - pl + u * 3], [x0 + tw + pl - u * 5, y0 - pl + u * 3], [x0 - pl + u * 3, y0 + bh + pl - u * 5], [x0 + tw + pl - u * 5, y0 + bh + pl - u * 5]]) { c.fillStyle = '#6a747c'; c.fillRect(sx, sy, u * 2, u * 2); }
+    const bw = Math.round(Math.min(W * 0.11, 92)), bh = Math.round(bw * 2.1), gap = Math.round(bw * 0.45);
+    const tw = bw * 5 + gap * 4, x0 = Math.round((W - tw) / 2), y0 = Math.round(H * 0.5 - bh * 0.42);
+    const pl = 14;
+    // the steel plate: bevelled, riveted, a hazard strip along the top
+    rect(c, x0 - pl + 4, y0 + bh + pl + 2, tw + pl * 2, 5, 0x000000, 0.4);
+    bevel(c, x0 - pl, y0 - pl - 10, tw + pl * 2, bh + pl * 2 + 10, GUN.slice(1, 8), { chamfer: 4 });
+    hazard(c, x0 - pl + 12, y0 - pl - 6, tw + pl * 2 - 24, 6, 0xe8b52a, 0x17150f, 8, this.t * 0);
+    rect(c, x0 - pl + 12, y0 - pl - 7, tw + pl * 2 - 24, 1, GUN[0]); rect(c, x0 - pl + 12, y0 - pl, tw + pl * 2 - 24, 1, GUN[6]);
+    for (const [sx, sy] of [[x0 - pl + 6, y0 - pl - 4], [x0 + tw + pl - 7, y0 - pl - 4], [x0 - pl + 6, y0 + bh + pl - 7], [x0 + tw + pl - 7, y0 + bh + pl - 7]]) rivet(c, sx, sy, 2, true);
     this.rects = [];
     c.font = '32px Alagard, monospace'; c.textBaseline = 'top';
     const tripped = this.trip > 0;
@@ -287,30 +296,38 @@ export class Repair {
       const x = x0 + i * (bw + gap), y = y0;
       this.rects.push({ x: x - gap / 2, y: y - pl, w: bw + gap, h: bh + pl * 2 });
       const on = this.on[i] && !tripped;
-      // housing: bevelled box
-      c.fillStyle = '#3a434b'; c.fillRect(x, y, bw, bh);
-      c.fillStyle = '#56616a'; c.fillRect(x, y, bw, u); c.fillRect(x, y, u, bh);
-      c.fillStyle = '#20262c'; c.fillRect(x, y + bh - u, bw, u); c.fillRect(x + bw - u, y, u, bh);
-      // the lamp over it
-      const lamp = on ? [120, 255, 140] : tripped ? [255, 80, 50] : [170, 50, 40];
+      // housing: a bevelled steel box with a vent grille at the foot
+      bevel(c, x, y, bw, bh, GUN.slice(3, 10), { chamfer: 3 });
+      for (let v = 0; v < 4; v++) { rect(c, x + 8, y + bh - 14 + v * 3, bw - 16, 1, GUN[1]); rect(c, x + 8, y + bh - 13 + v * 3, bw - 16, 1, GUN[7], 0.5); }
+      // the lamp: a domed lens in a black ring, glowing when it is lit
+      const lamp = on ? GRN : tripped ? RED : [0x1a0604, 0x3a0c08, 0x5a1a10, 0x8e2a1c, 0xb04030, 0xd07060, 0xe8a090];
       const fl = this.flash[i];
-      const lr = Math.round(bw * 0.16 / u) * u, lx = x + bw / 2 - lr, ly = y + u * 4;
-      c.fillStyle = `rgba(${lamp[0]}, ${lamp[1]}, ${lamp[2]}, ${0.18 + fl * 0.3})`; c.fillRect(lx - u * 3, ly - u * 3, lr * 2 + u * 6, lr * 2 + u * 6);
-      c.fillStyle = `rgb(${lamp[0]}, ${lamp[1]}, ${lamp[2]})`; c.fillRect(lx, ly, lr * 2, lr * 2);
-      c.fillStyle = 'rgba(255,255,255,0.6)'; c.fillRect(lx + u, ly + u, u, u);
+      const lr = Math.max(5, Math.round(bw * 0.15)), lx = Math.round(x + bw / 2), ly = Math.round(y + 10 + lr);
+      if (on || tripped || fl > 0) { c.globalAlpha = 0.16 + fl * 0.3; c.fillStyle = '#' + lamp[4].toString(16).padStart(6, '0'); c.beginPath(); c.arc(lx, ly, lr * 2.4, 0, TAU); c.fill(); c.globalAlpha = 1; }
+      for (let j = -lr - 2; j <= lr + 2; j++) for (let k2 = -lr - 2; k2 <= lr + 2; k2++) {
+        const d = Math.hypot(k2, j);
+        if (d > lr + 1.6) continue;
+        if (d > lr) { rect(c, lx + k2, ly + j, 1, 1, 0x07060a); continue; }
+        const l = (-(k2 + j) / (lr * 2)) * 0.9 + 0.45 - d / lr * 0.25;
+        const tone = l > 0.75 ? 6 : l > 0.55 ? 5 : l > 0.35 ? 4 : l > 0.15 ? 3 : 2;
+        rect(c, lx + k2, ly + j, 1, 1, lamp[on || tripped ? tone : Math.max(1, tone - 2)]);
+      }
+      rect(c, lx - Math.round(lr * 0.45), ly - Math.round(lr * 0.55), Math.max(1, Math.round(lr * 0.35)), 1, 0xffffff, 0.85);
       // the slot and the lever (up: on)
-      const sx = x + bw / 2 - u * 3, sy = y + bh * 0.3, sh = bh * 0.52;
-      c.fillStyle = '#0a0c0e'; c.fillRect(sx, sy, u * 6, sh);
+      const sw = 8, sx = Math.round(x + bw / 2 - sw / 2), sy = Math.round(y + bh * 0.33), sh = Math.round(bh * 0.5);
+      glass(c, sx, sy, sw, sh, 0x050608);
       const k = on ? 0.12 : 0.88;
-      const hy = Math.round((sy + sh * k - u * 5) / u) * u;
-      c.fillStyle = on ? '#d8dee2' : '#b8423a'; c.fillRect(x + u * 4, hy, bw - u * 8, u * 10);
-      c.fillStyle = on ? '#ffffff' : '#e06a5a'; c.fillRect(x + u * 4, hy, bw - u * 8, u * 2);
-      c.fillStyle = 'rgba(0,0,0,0.4)'; c.fillRect(x + u * 4, hy + u * 8, bw - u * 8, u * 2);
-      // its number
+      const hy = Math.round(sy + sh * k - 10);
+      bevel(c, x + 6, hy, bw - 12, 20, on ? [0x5a646c, 0x8a949c, 0xb4bec4, 0xd8dee2, 0xeef2f4, 0xffffff] : [0x5a1410, 0x7a2018, 0xa0342a, 0xb8423a, 0xd06050, 0xe88a7a], { chamfer: 2 });
+      for (let g2 = 0; g2 < 3; g2++) rect(c, x + 12, hy + 6 + g2 * 3, bw - 24, 1, 0x000000, 0.22);
+      // its number on a little engraved tag
       const lab = String(i + 1);
-      c.fillStyle = '#e8eef4';
       const tw2 = c.measureText(lab).width;
-      c.fillText(lab, x + bw / 2 - tw2 / 2, y + bh + pl + u * 4);
+      bevel(c, Math.round(x + bw / 2 - 14), y + bh + pl + 4, 28, 34, [0x2a2418, 0x4a3e28, 0x6a5a3a, 0x8a7850, 0xb09a68, 0xd8c48a], { chamfer: 2 });
+      c.fillStyle = '#1a140a';
+      c.fillText(lab, Math.round(x + bw / 2 - tw2 / 2) + 1, y + bh + pl + 7);
+      c.fillStyle = '#fff4d0';
+      c.fillText(lab, Math.round(x + bw / 2 - tw2 / 2), y + bh + pl + 6);
     }
     this.scan(c, W, H);
   }

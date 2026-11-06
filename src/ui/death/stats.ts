@@ -139,16 +139,16 @@ export class RunTracker {
     return { key: 'unknown', text: 'Undetermined' };
   }
 
-  /** the numbers, the cause and the research points (does not grant them) */
-  report(): RunReport {
+  /** the numbers, the cause and the research points (does not grant them); `out`: the run ended alive (how) */
+  report(out?: string): RunReport {
     const p = this.p, g = this.g;
     const hours = Math.max(0, g.clock.hours - this.startH);
     const d: any = G.debt;
     const debtOn = !!d?.on;
     const paid = d?.paid ?? 0, owed = d?.s?.owed ?? 0, remaining = d?.remaining ?? 0;
     const paidRun = Math.max(0, paid - (this.paid0 ?? 0));
-    const cause = this.cause();
-    const newCause = stat('deathcause:' + cause.key) <= 0;
+    const cause: Cause = out ? { key: 'other', text: out } : this.cause();
+    const newCause = !out && stat('deathcause:' + cause.key) <= 0;
     const rooms = this.rooms.size, metres = this.metres;
     const lines: RpLine[] = [];
     const dd = Math.floor(hours / 24), hh = Math.floor(hours % 24), mm = Math.floor((hours % 1) * 60);
@@ -166,6 +166,7 @@ export class RunTracker {
     const lost = carriedSamples(p).length;
     if (discovered.length) lines.push({ key: 'specimens', label: 'NEW CODEX ENTRIES', short: 'ENTRIES', value: `${discovered.length} new`, num: discovered.length, rp: Math.min(20, discovered.length * 2) });
     if (log.banked || lost) lines.push({ key: 'samples', label: 'SAMPLES BANKED', short: 'SAMPLES', value: `${log.banked} banked · ${lost} lost`, num: log.banked, rp: Math.min(15, log.banked * 2) });
+    if (out) lines.unshift({ key: 'out', label: 'MADE IT OUT', short: 'OUT', value: 'yes', num: 1, rp: 15 });
     const rp = Math.max(1, lines.reduce((s, l) => s + l.rp, 0));
     const deaths = stat('deaths');
     let h = 0; for (const c of p.name + this.startH) h = (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0;

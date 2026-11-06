@@ -7,7 +7,7 @@
 import { OCCUPATIONS, TRAITS, SKILLS, Occupation, Trait, occupationAvailable, traitAvailable, occupationByKey } from '../../survival/traits';
 import { unlockProgress } from '../../survival/unlocks';
 import { hasItemDef, itemDef } from '../../items/item';
-import { itemIcon } from '../icons';
+import { itemIcon, iconRes } from '../icons';
 import { h, esc, sfx, hoverFocus } from './common';
 import { toUrl, kitTheme, idPhoto } from '../pixelkit';
 import { xrayFilm, xrayOf } from './art';
@@ -54,7 +54,7 @@ export function rehabStation(ctx: RehabCtx) {
     const avail = occupationAvailable(o);
     const chosen = key === ctx.occ;
     const skills = Object.entries(o.skills).map(([k, v]) => `<span>${esc(SKILLS.find((s) => s.key === k)?.name || k)} <i>${'▮'.repeat(v as number)}</i></span>`).join('') || '<span class="none">no prior skills</span>';
-    const kit = o.items.filter((k) => hasItemDef(k)).slice(0, 6).map((k) => `<img src="${itemIcon(k, '', 16)}" alt="${esc(itemDef(k).name)}" title="${esc(itemDef(k).name)}">`).join('');
+    const kit = o.items.filter((k) => hasItemDef(k)).slice(0, 6).map((k) => `<img src="${itemIcon(k, '', iconRes(16))}" alt="${esc(itemDef(k).name)}" title="${esc(itemDef(k).name)}">`).join('');
     const prog = avail ? '' : Math.round(unlockProgress('job:' + key) * 100);
     file.innerHTML = `
       <div class="rh-file-tab">PROGRAMME</div>

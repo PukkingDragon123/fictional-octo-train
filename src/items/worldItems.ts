@@ -101,6 +101,9 @@ export class FloorItemRenderer {
       }
       m.position.set(wi.x, wi.y, wi.z);
       m.rotation.y = wi.rot;
+      // the Ledge melts what is left lying about (src/world/anomalies/ledge.ts): it slumps flat and spreads
+      const mt = wi.item.data?.melt;
+      if (mt) m.scale.set(1 + mt * 0.45, Math.max(0.25, 1 - mt * 0.7), 1 + mt * 0.45); else if (m.scale.y !== 1) m.scale.set(1, 1, 1);
       m.visible = isVisible(Math.floor(wi.x), Math.floor(wi.z));
     }
     for (const [k, m] of this.meshes) if (!seen.has(k)) { this.root.remove(m); this.meshes.delete(k); }

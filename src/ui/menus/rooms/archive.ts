@@ -27,6 +27,7 @@ import { CATS, archiveFiles, catCounts, type CatKey, type ArchiveFile } from './
 import { holoModel, HOLO_U } from './holo';
 import { grime } from './research';
 import { Dresser } from './dress';
+import { Vault } from './vault';
 import { U } from '../../../gfx/materials';
 import './archive.css';
 
@@ -35,6 +36,10 @@ const TABLE = new THREE.Vector3(0, 0.92, 0.55);
 const HOLO_C = new THREE.Vector3(TABLE.x, TABLE.y + 0.42, TABLE.z);
 const CAB_X = [-2.1, -1.05, 0, 1.05, 2.1];
 const CAB_Z = BACK + 0.4;
+/** the containment cell in the left wall (opening along z, height) and the vault door in the right wall */
+const CELL = { z: -2.2, w: 1.3, h: 2.1, d: 1.0 };
+const VDOOR = { z: -2.65, w: 1.2, h: 2.2 };
+const CELL_F = 0.13, VDOOR_J = 0.2;
 const DRAWER_Y = 1.12;
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as any)[c]);
@@ -54,7 +59,8 @@ export class CodexArchive implements StageRoom {
   cam = new THREE.PerspectiveCamera(56, 16 / 9, 0.03, 40);
   feedCam = new THREE.PerspectiveCamera(72, 4 / 3, 0.05, 40);
   hots: Hot[] = [];
-  grade: Grade = { exposure: 1.7, lift: [0.82, 0.94, 1.12], gain: [1.12, 1.0, 0.86], vig: 0.5, sat: 1.1, contrast: 1.14, side: [1, 0, 0, 0.3], ao: 0.85, scatter: 0.45, bounce: 0.24, shafts: [new THREE.Vector3(0, H - 0.45, -2.0), new THREE.Vector3(0, H - 0.45, 0.6), new THREE.Vector3(-2.4, H - 0.45, 2.0)], shaftK: 0.6, shaftColor: 0xdce8ff };
+  // dim and secretive: cold pools under the troughs, a blue-grey haze filling the gaps, red from the vault door
+  grade: Grade = { exposure: 1.62, lift: [0.8, 0.92, 1.14], gain: [1.1, 1.0, 0.88], vig: 0.6, sat: 1.1, contrast: 1.16, side: [1, 0, 0, 0.3], haze: 0.5, hazeColor: 0x4a5a7a, ao: 0.9, scatter: 0.55, bounce: 0.22, shafts: [new THREE.Vector3(0, H - 0.45, -2.0), new THREE.Vector3(0, H - 0.45, 0.6), new THREE.Vector3(-2.4, H - 0.45, 2.0)], shaftK: 0.6, shaftColor: 0xdce8ff };
   deco = new THREE.Group();
   floor = { minX: -W + 1.0, maxX: W - 1.0, minZ: 1.4, maxZ: 2.6, y: 0 };
   surfaces = [{ minX: -3.05, maxX: -2.15, minZ: 1.35, maxZ: 1.95, y: 0.78 }];
@@ -71,7 +77,15 @@ export class CodexArchive implements StageRoom {
   private leds = new LedBank(220);
   /** the set dressing (rooms/dress.ts) */
   private dress!: Dresser;
-  private hemi = new THREE.HemisphereLight(0xb8c8dc, 0x4a3a2a, 1.05);
+  /** the containment kit (rooms/vault.ts): the cell, the vault door, the cases, the racks */
+  private vault!: Vault;
+  private hemi = new THREE.HemisphereLight(0xa8bcd8, 0x3a3230, 0.62);
+  /** the cell's own cold lamp, and the vault door's beacon spilling red */
+  private cellL = new THREE.PointLight(0xa8dcff, 2.6, 2.8, 1.7);
+  private redL = new THREE.PointLight(0xff2a14, 0, 3.8, 1.7);
+  /** a caged downlight over the vault door, and a washer raking the locker wall */
+  private doorL = new THREE.SpotLight(0xd0dcff, 16, 4.4, 0.66, 0.7, 1.5);
+  private lockL = new THREE.SpotLight(0xc8d8ff, 7, 4.6, 1.0, 0.8, 1.6);
   private stackFill = [new THREE.PointLight(0x9ab8e8, 1.6, 4.5, 1.6), new THREE.PointLight(0xffc890, 1.3, 4.5, 1.6)];
   private tubes: { light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; base: number; seed: number; flick: number; shaft: ReturnType<typeof shaftMesh> }[] = [];
   private lamp = new THREE.SpotLight(0xffb468, 0, 3.2, 0.75, 0.55, 1.7);
@@ -115,7 +129,7 @@ export class CodexArchive implements StageRoom {
     this.dust = new Dust(260, new THREE.Box3(new THREE.Vector3(-W + 0.4, 0.2, BACK + 0.6), new THREE.Vector3(W - 0.4, H - 0.3, FRONT - 0.6)));
     const sh = shaftMesh(10);
     this.cone = sh.mesh; this.coneU = sh.u as any;
-    S.add(this.shell(), this.fixtures(), this.cabinets(), this.stacks(), this.table(), this.desk(), this.terminals(), this.dressing(), this.leds.mesh, this.dust.points, this.deco, this.hemi, this.holoRoot);
+    S.add(this.shell(), this.fixtures(), this.cabinets(), this.stacks(), this.table(), this.desk(), this.terminals(), this.dressing(), this.leds.mesh, this.dust.points, this.deco, this.hemi, this.holoRoot, this.cellL, this.redL, this.doorL, this.doorL.target, this.lockL, this.lockL.target);
     this.deco.name = 'deco';
     this.feedCam.position.set(-W + 0.4, H - 0.35, FRONT - 0.5); this.feedCam.lookAt(0.6, 0.9, -1.2);
     this.cam.position.copy(this.camP); this.cam.lookAt(this.camL);
@@ -146,10 +160,20 @@ export class CodexArchive implements StageRoom {
     slab(b, 'floor', -W, W, -0.1, 0, BACK - 0.2, FRONT, 0x8c9088, 0.004, 0.8);
     slab(b, 'concrete', -W, W, H, H + 0.12, BACK - 0.2, FRONT, 0x4a4c48);
     for (let x = -W + 0.7; x < W; x += 0.7) b.add('metal', cbox(0.05, 0.12, FRONT - BACK, 0.006), 0x3a3c3a, at(x, H - 0.06, (FRONT + BACK) / 2));
-    const wall = (x0: number, x1: number, z0: number, z1: number) => { slab(b, 'paint', x0, x1, 0, 1.2, z0, z1, 0x5a6448, 0.004, 0.5); slab(b, 'concrete', x0, x1, 1.2, H, z0, z1, 0xa8a49a); };
-    wall(-W, W, BACK - 0.2, BACK); wall(-W - 0.2, -W, BACK, FRONT); wall(W, W + 0.2, BACK, FRONT); wall(-W, W, FRONT, FRONT + 0.2);
+    const wall = (x0: number, x1: number, z0: number, z1: number, y0 = 0) => { if (y0 < 1.2) slab(b, 'paint', x0, x1, y0, 1.2, z0, z1, 0x5a6448, 0.004, 0.5); slab(b, 'concrete', x0, x1, Math.max(1.2, y0), H, z0, z1, 0xa8a49a); };
+    // the side walls run round their openings: the cell (left) and the vault door (right)
+    const sideWall = (x0: number, x1: number, holes: [number, number, number][]) => {
+      let z = BACK;
+      for (const [a, c, top] of holes) { wall(x0, x1, z, a); wall(x0, x1, a, c, top); z = c; }
+      wall(x0, x1, z, FRONT);
+    };
+    const cellHole: [number, number, number] = [CELL.z - CELL.w / 2, CELL.z + CELL.w / 2, CELL.h];
+    const doorHole: [number, number, number] = [VDOOR.z - VDOOR.w / 2 - VDOOR_J, VDOOR.z + VDOOR.w / 2 + VDOOR_J, VDOOR.h + VDOOR_J];
+    wall(-W, W, BACK - 0.2, BACK); sideWall(-W - 0.2, -W, [cellHole]); sideWall(W, W + 0.2, [doorHole]); wall(-W, W, FRONT, FRONT + 0.2);
     const rail = (x0: number, x1: number, z0: number, z1: number) => { slab(b, 'paint', x0, x1, 1.18, 1.24, z0, z1, 0x3a4230, 0.008); slab(b, 'rubber', x0, x1, 0, 0.1, z0, z1, 0x222222, 0.006); };
-    rail(-W, W, BACK, BACK + 0.03); rail(-W, -W + 0.03, BACK, FRONT); rail(W - 0.03, W, BACK, FRONT);
+    rail(-W, W, BACK, BACK + 0.03);
+    rail(-W, -W + 0.03, BACK, cellHole[0] - CELL_F); rail(-W, -W + 0.03, cellHole[1] + CELL_F, FRONT);
+    rail(W - 0.03, W, BACK, doorHole[0]); rail(W - 0.03, W, doorHole[1], FRONT);
     // a floor drain, hazard tape round the projection table, a worn path to the cabinets
     for (const [x0, z0, x1, z1] of [[-0.95, TABLE.z - 0.95, 0.95, TABLE.z - 0.9], [-0.95, TABLE.z + 0.9, 0.95, TABLE.z + 0.95], [-0.95, TABLE.z - 0.95, -0.9, TABLE.z + 0.95], [0.9, TABLE.z - 0.95, 0.95, TABLE.z + 0.95]] as [number, number, number, number][]) b.add('hazard', cbox(x1 - x0, 0.004, z1 - z0, 0.001), 0xffffff, at((x0 + x1) / 2, 0.002, (z0 + z1) / 2), { rep: 0.25 });
     b.add('rust', cbox(0.36, 0.012, 0.36, 0.003), 0x9a8a78, at(1.4, 0.004, 1.9));
@@ -167,8 +191,8 @@ export class CodexArchive implements StageRoom {
     this.exitGlow.position.set(2.6, 2.3, FRONT - 0.4); this.exitGlow.color.setHex(0x3aff6a); g.add(this.exitGlow);
     // grime and wet: stains down the walls, a puddle that holds the troughs' light
     g.add(grime(7.2, 1.1, 51, 0.5).translateY(0.55).translateZ(BACK + 0.012));
-    const lw = grime(6.6, 1.2, 77, 0.45); lw.rotation.y = Math.PI / 2; lw.position.set(-W + 0.012, 0.6, 0); g.add(lw);
-    const rw = grime(6.6, 1.2, 91, 0.45); rw.rotation.y = -Math.PI / 2; rw.position.set(W - 0.012, 0.6, 0); g.add(rw);
+    const lz0 = cellHole[1] + CELL_F + 0.02, lw = grime(FRONT - lz0, 1.2, 77, 0.45); lw.rotation.y = Math.PI / 2; lw.position.set(-W + 0.012, 0.6, (lz0 + FRONT) / 2); g.add(lw);
+    const rz0 = doorHole[1] + 0.02, rw = grime(FRONT - rz0, 1.2, 91, 0.45); rw.rotation.y = -Math.PI / 2; rw.position.set(W - 0.012, 0.6, (rz0 + FRONT) / 2); g.add(rw);
     const fl = grime(5.0, 5.0, 13, 0.4); fl.rotation.x = -Math.PI / 2; fl.position.set(0, 0.004, 0.5); g.add(fl);
     for (const [x, z, w, d] of [[1.2, 1.9, 1.3, 0.8], [-1.4, -0.6, 0.9, 1.4], [0.3, 2.6, 0.7, 0.5]] as [number, number, number, number][]) {
       const wet = new THREE.Mesh(new THREE.CircleGeometry(0.5, 9), new THREE.MeshStandardMaterial({ color: 0x0a0c0c, roughness: 0.04, metalness: 0.6, transparent: true, opacity: 0.55, depthWrite: false }));
@@ -177,7 +201,7 @@ export class CodexArchive implements StageRoom {
     const sign = plate(this.mats, ['CODEX ARCHIVE A-1', 'MERIDIAN INSTITUTE · RECORDS'], 1.0, 0.22, { bg: 0xc8c0a0 });
     sign.position.set(-1.6, 2.5, FRONT - 0.01); sign.rotation.y = Math.PI; g.add(sign);
     const hush = plate(this.mats, ['SILENCE', 'IN THE STACKS'], 0.42, 0.14, { bg: 0x2a3a34, ink: 0xd8ffe8 });
-    hush.position.set(-W + 0.012, 1.7, -1.6); hush.rotation.y = Math.PI / 2; g.add(hush);
+    hush.position.set(-W + 0.012, 2.45, -0.3); hush.rotation.y = Math.PI / 2; g.add(hush);
     return g;
   }
 
@@ -210,27 +234,76 @@ export class CodexArchive implements StageRoom {
     return g;
   }
 
-  /** the records room's services and leavings: climate dials, the clock, a tray, boxes of overflow (rooms/dress.ts) */
+  /**
+   * The records room's services and its secrets (rooms/dress.ts, rooms/vault.ts): a containment cell in the left
+   * wall with its locks and a terminal, the sealed door of Vault B in the right wall between the server racks and
+   * the index terminals, the locker wall over the cabinets, cases of anomalous objects on the floor, pipes,
+   * cable runs, hazard bands, stencils, fog on the floor; the clock, the climate panel, the leavings.
+   */
   private dressing(): THREE.Group {
     const d = this.dress = new Dresser(this.mats, this.leds);
-    const L = Math.PI / 2, zf = BACK + 0.46;
-    // on the uprights over the cabinets: the clock and the climate panel (paper rots above 60% RH)
-    d.clock(at(-1.57, 2.72, zf), 0.17);
-    d.gauges(at(1.57, 2.72, zf), 2, 1, { color: 0x3a4a3e, labels: ['CLIMATE', 'RH  ·  °C'], seed: 41 });
-    // a cable tray across the room, loose loops down to the projection table's feed
+    const v = this.vault = new Vault(d, this.mats);
+    const L = Math.PI / 2;
+    // ---- the back wall: the locker wall over the cabinets (numbered vault doors, seals, a few standing open)
+    v.lockers(at(0, 2.74, BACK + 0.42), 25, 3, 0.3);
+    // ---- the left wall: the containment cell, its locks and its terminal, the crest over it
+    const cm = at(-W, 0, CELL.z, 0, L);
+    v.cell(cm, { w: CELL.w, h: CELL.h, d: CELL.d, rank: 'gluttony', cls: 'Swarm', id: 'A-07', holds: 'blob', lining: 'padded', light: 0xbfe0ff, side: -1 });
+    v.crest(at(-W + 0.01, 2.68, CELL.z, 0, L), 0.22);
+    v.terminal(at(-W + 0.01, 1.95, CELL.z + CELL.w / 2 + CELL_F + 0.26, 0, L - 0.5), { arm: 0.34, w: 0.3, head: 'CELL A-07 · LOG', i: 0 });
+    v.stripes(-W + 0.08, CELL.z - CELL.w / 2 - CELL_F, -W + 0.2, CELL.z + CELL.w / 2 + CELL_F);
+    v.stripes(-W + 0.6, CELL.z - CELL.w / 2 - CELL_F, -W + 0.72, CELL.z + CELL.w / 2 + CELL_F);
+    v.stencil(-W + 0.42, CELL.z, 'KEEP CLEAR', 0.09, -L);
+    this.cellL.position.copy(v.lamps.find((q) => q.kind === 'cell')!.p).add(new THREE.Vector3(0.35, 0, 0));
+    // ---- the right wall: two racks against the back corner, the vault door, the clock and the climate panel above the racks
+    v.rack(at(W - 0.42, 0, -1.05, 0, -L), { seed: 31, label: 'CODEX 01' });
+    v.rack(at(W - 0.42, 0, -0.45, 0, -L), { seed: 57, label: 'CODEX 02' });
+    v.blastDoor(at(W, 0, VDOOR.z, 0, -L), { w: VDOOR.w, h: VDOOR.h, id: 'B', name: 'VAULT B · DEEP ARCHIVE', rank: 'pride', sign: false });
+    v.stripes(W - 0.75, VDOOR.z - VDOOR.w / 2 - VDOOR_J, W - 0.63, VDOOR.z + VDOOR.w / 2 + VDOOR_J);
+    v.stencil(W - 0.42, VDOOR.z, 'VAULT B', 0.11, L);
+    this.redL.position.copy(v.lamps.find((q) => q.kind === 'beacon')!.p).add(new THREE.Vector3(-0.6, -0.4, 0));
+    d.clock(at(W - 0.01, 2.84, -1.05, 0, -L), 0.16);
+    d.gauges(at(W - 0.01, 2.62, -0.35, 0, -L), 2, 1, { color: 0x3a4a3e, labels: ['CLIMATE', 'RH  ·  °C'], seed: 41 });
+    v.sign(at(W - 0.01, 2.22, VDOOR.z + VDOOR.w / 2 + VDOOR_J + 0.2, 0, -L), 'auth', 0.18);
+    v.downlight(at(W - 0.62, H, VDOOR.z));
+    this.doorL.position.set(W - 0.62, H - 0.2, VDOOR.z); this.doorL.target.position.set(W + 0.35, 1.0, VDOOR.z);
+    this.lockL.position.set(0, H - 0.12, BACK + 1.5); this.lockL.target.position.set(0, 2.5, BACK);
+    // ---- pipes along both walls under the ceiling (marker bands, a valve, gauges), a drop to the vault door
+    v.pipe([[-W + 0.1, 3.0, BACK + 0.05], [-W + 0.1, 3.0, FRONT - 0.1]], 0.05, 0x3a5a7a, { band: ['N2 · INERT', 0x6ab8e8], out: [1, 0, 0], gauges: [0] });
+    v.pipe([[-W + 0.22, 3.12, BACK + 0.05], [-W + 0.22, 3.12, CELL.z + 0.4], [-W + 0.22, CELL.h + 0.35, CELL.z + 0.4]], 0.032, 0x8a6a3a, { band: ['CELL A AIR', 0xe8c228], out: [1, 0, 0], valves: [1] });
+    v.pipe([[W - 0.1, 3.12, FRONT - 0.1], [W - 0.1, 3.12, VDOOR.z + VDOOR.w / 2 + 0.42], [W - 0.1, VDOOR.h + 0.62, VDOOR.z + VDOOR.w / 2 + 0.42], [W - 0.1, 2.1, VDOOR.z + VDOOR.w / 2 + 0.42]], 0.045, 0x7a2a22, { band: ['HALON · VAULT', 0xd8301e], out: [-1, 0, 0], valves: [2], gauges: [2] });
+    // a cable tray across the room, loose loops down to the projection table's feed, bundles to the racks and the door
     d.tray([-W + 0.7, H - 0.32, -0.9], [W - 0.8, H - 0.32, -0.9], H, { seed: 8, cables: 9, w: 0.34 });
     d.droop([0.2, H - 0.34, -0.9], [0.0, 2.3, TABLE.z - 0.2], 0.12, 0.014, 0x1a1a1a);
-    // overflow: archive boxes on the floor in front of the stacks, a filing cabinet capping the left run
-    d.boxes(at(-2.95, 0, -2.4, 0, L + 0.1), 3, { seed: 3 });
-    d.boxes(at(-2.9, 0, -0.5, 0, L - 0.2), 2, { seed: 9 });
-    d.boxes(at(2.95, 0, -1.7, 0, -L + 0.15), 3, { seed: 13 });
-    d.boxes(at(2.6, 0, -2.85, 0, 0.3), 1, { seed: 21 });
-    d.filing(at(-W + 0.35, 0, 1.4, 0, L), { color: 0x5a6450, open: 2, seed: 4, labels: ['1979', '1983', 'VOID', 'A-1'] });
-    d.clutter(at(-W + 0.35, 1.3, 1.4, 0, L), 0.36, 0.5, { seed: 29, mug: false, binder: true });
+    v.cables([W - 0.9, H - 0.34, -0.9], [W - 0.5, 2.6, -0.75], 4, 0.2, 0.01);
+    v.cables([W - 0.9, H - 0.34, -0.9], [W - 0.3, VDOOR.h + 0.45, VDOOR.z], 3, 0.25, 0.008);
+    // ---- the cases on the floor: anomalous objects under their own lamps
+    // (each stands where it hides neither a cabinet, the cell nor the vault door from the room's camera)
+    v.vitrine(at(-2.3, 0, -1.0, 0, 0.45), 'cube', { rank: 'envy', light: 0xc8b8ff });
+    v.vitrine(at(2.62, 0, -1.6, 0, -0.5), 'watch', { rank: 'greed', light: 0xffe0b0 });
+    v.vitrine(at(-2.95, 0, 0.75, 0, 0.9), 'shard', { rank: 'pride', light: 0xd8b8ff });
+    // a dossier trolley by the right case
+    const tr = at(2.55, 0, 1.1, 0, -0.5);
+    d.b.add('metal', cbox(0.7, 0.025, 0.45, 0.006), C.steel, tr.clone().multiply(at(0, 0.82, 0)));
+    d.b.add('metal', cbox(0.7, 0.025, 0.45, 0.006), C.steel, tr.clone().multiply(at(0, 0.3, 0)));
+    for (const [dx, dz] of [[-0.33, -0.2], [0.33, -0.2], [-0.33, 0.2], [0.33, 0.2]]) { d.b.add('metal', prism(0.012, 0.82, 5), C.steel, tr.clone().multiply(at(dx, 0.43, dz))); d.b.add('rubber', prism(0.035, 0.025, 8), 0x1a1a1a, tr.clone().multiply(at(dx, 0.035, dz, Math.PI / 2))); }
+    d.b.add('metal', tube([[-0.36, 0.84, -0.22], [-0.42, 1.0, -0.22], [-0.42, 1.0, 0.22], [-0.36, 0.84, 0.22]], 0.012, 8, 5, false), C.steel, tr.clone());
+    v.dossiers(tr.clone().multiply(at(0, 0.835, 0)), 0.7, 0.45, { n: 3, seed: 5 });
+    d.boxes(tr.clone().multiply(at(0, 0.315, 0)), 1, { seed: 77 });
+    // ---- overflow, the filing cabinet capping the left run, the extinguisher, the desk
+    d.boxes(at(-2.95, 0, 0.35, 0, L - 0.2), 2, { seed: 9 });
+    d.boxes(at(3.0, 0, 0.4, 0, -L + 0.15), 2, { seed: 13 });
+    d.filing(at(-W + 0.35, 0, 1.55, 0, L), { color: 0x5a6450, open: 2, seed: 4, labels: ['1979', '1983', 'VOID', 'A-1'] });
+    d.clutter(at(-W + 0.35, 1.3, 1.55, 0, L), 0.36, 0.5, { seed: 29, mug: false, binder: true });
     d.extinguisher(at(-W + 0.01, 1.05, 2.3, 0, L));
-    // the desk's leavings
-    d.clutter(at(-2.75, 0.81, 1.65), 0.6, 0.5, { seed: 33, floppies: true });
+    d.clutter(at(-2.75, 0.81, 1.65), 0.6, 0.5, { seed: 33, floppies: true, binder: false });
+    v.dossiers(at(-2.45, 0.805, 1.6), 0.5, 0.5, { n: 2, seed: 12, open: false });
     d.puddle(-0.3, -1.7, 0.8, 0.5);
+    d.puddle(W - 0.9, VDOOR.z + 0.3, 0.7, 0.9);
+    // ---- the air: low fog over the whole floor, denser by the cell and the door
+    v.fog(-W + 0.2, W - 0.2, BACK + 0.6, FRONT - 0.3, { k: 0.26, color: 0x7a90b0 });
+    v.fog(-W + 0.2, -W + 1.6, CELL.z - 1.0, CELL.z + 1.0, { k: 0.3, color: 0x9ab8d8, layers: 2 });
+    v.fog(W - 1.4, W - 0.2, VDOOR.z - 0.9, VDOOR.z + 1.0, { k: 0.26, color: 0xb87a70, layers: 2 });
     return d.done();
   }
 
@@ -303,9 +376,9 @@ export class CodexArchive implements StageRoom {
         else b.add('metal', cbox(0.04, y1 - y0 + 0.05, 0.04, 0.006), C.dark, at(u, (y0 + y1) / 2, z + face * 0.19));
       }
     };
-    shelfRun(-W + 0.1, W - 0.1, BACK + 0.22, 2.2, H - 0.25, 1);
-    shelfRun(BACK + 0.4, 1.0, -W + 0.24, 0.1, H - 0.4, 1, true);
-    shelfRun(BACK + 0.4, 1.4, W - 0.24, 0.1, H - 0.4, -1, true);
+    // the left stacks run on from the cell's locks to the reading corner; a short run on the right past the vault door
+    shelfRun(-0.85, 1.0, -W + 0.24, 0.1, H - 0.4, 1, true);
+    shelfRun(0.25, 1.25, W - 0.24, 0.1, H - 0.4, -1, true);
     g.add(b.build(this.mats));
     // box files, binders and ledgers: one instanced draw per kind
     let s = 7;
@@ -325,9 +398,8 @@ export class CodexArchive implements StageRoom {
         }
       }
     };
-    fill(-W + 0.12, W - 0.12, BACK + 0.24, 2.2, 3, false, 1);
-    fill(BACK + 0.45, 0.95, -W + 0.26, 0.1, 8, true, 1);
-    fill(BACK + 0.45, 1.35, W - 0.26, 0.1, 8, true, -1);
+    fill(-0.8, 0.95, -W + 0.26, 0.1, 8, true, 1);
+    fill(0.3, 1.2, W - 0.26, 0.1, 8, true, -1);
     const geo = new THREE.BoxGeometry(1, 1, 1); geo.translate(0, 0.5, 0);
     const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.82, metalness: 0.0, flatShading: true });
     const im = new THREE.InstancedMesh(geo, mat, spots.length);
@@ -341,9 +413,9 @@ export class CodexArchive implements StageRoom {
     g.add(lab);
     // the rolling ladder on its rail (left stacks)
     const lb = new FacetBuilder();
-    lb.add('metal', cbox(0.03, 0.03, 6.2, 0.006), C.steel, at(-W + 0.52, 3.0, -0.6));
-    for (const dz of [-0.22, 0.22]) lb.add('wood', cbox(0.05, 3.0, 0.05, 0.01), 0x8a6a48, at(-W + 0.75, 1.5, -1.0 + dz, 0, 0, -0.08));
-    for (let r = 0; r < 9; r++) lb.add('wood', cbox(0.04, 0.03, 0.44, 0.008), 0x7a5a3a, at(-W + 0.82 - r * 0.026, 0.25 + r * 0.32, -1.0, 0, 0, -0.08));
+    lb.add('metal', cbox(0.03, 0.03, 3.6, 0.006), C.steel, at(-W + 0.52, 3.0, 0.75));
+    for (const dz of [-0.22, 0.22]) lb.add('wood', cbox(0.05, 3.0, 0.05, 0.01), 0x8a6a48, at(-W + 0.75, 1.5, 0.2 + dz, 0, 0, -0.08));
+    for (let r = 0; r < 9; r++) lb.add('wood', cbox(0.04, 0.03, 0.44, 0.008), 0x7a5a3a, at(-W + 0.82 - r * 0.026, 0.25 + r * 0.32, 0.2, 0, 0, -0.08));
     g.add(lb.build(this.mats));
     return g;
   }
@@ -698,6 +770,10 @@ export class CodexArchive implements StageRoom {
     this.exitGlow.intensity = 0.45 + Math.sin(t * 0.7) * 0.03;
     this.leds.update(t);
     if (full) this.dress.update(t);
+    this.vault.update(t, dt);
+    // the vault door's beacon sweeps red across the right wall; the cell's lamp hums
+    this.redL.intensity = 0.25 + this.vault.beaconK(t) * 3.2;
+    this.cellL.intensity = 2.4 + Math.sin(t * 50) * 0.08 + (Math.sin(t * 0.37) > 0.985 ? -1.6 : 0);
     // ---- in the projection only the floating words take presses (a stray click must not pull a drawer)
     for (const h of this.hots) h.off = this.state === 'holo';
     // ---- the drawers

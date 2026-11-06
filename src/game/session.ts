@@ -40,6 +40,7 @@ import { Handler } from './handler';
 import { installLink } from './link';
 import { SeamFx } from './seam';
 import { installSocial } from '../social';
+import { installAnomalies } from '../world/anomalies';
 import { installFactions } from '../tribes/install';
 import '../game/worldOps';
 import '../world/zones';
@@ -196,6 +197,8 @@ export function startSession(o: SessionOpts): Game {
   try { installLink(g); } catch (e) { console.warn('link', e); }
   // emotes, whistles, the 8-bit voice, holes and shared floors, the dimensions (src/social)
   installSocial(g);
+  // the Ledge's melt and heat, and the studyable anomalies in the levels (src/world/anomalies)
+  try { installAnomalies(g); } catch (e) { console.warn('anomalies', e); }
   // scanning for data, brain-swap domination and thralls, the tribes (src/scan, src/dominion, src/tribes)
   installFactions(g);
 

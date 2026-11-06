@@ -13,6 +13,7 @@ import { G } from '../../../game/G';
 import { U, worldMaterial } from '../../../gfx/materials';
 import { PixelCanvas, mixHex } from '../../../gfx/pixel';
 import { itemIcon } from '../../icons';
+import { shadeSprite, pcUrl } from '../../hiPixel';
 import { hasItemDef } from '../../../items/item';
 import { cosmeticGeometry } from '../../../entities/cosmetics3d';
 import { COSMETIC } from '../../../game/cosmetics';
@@ -32,10 +33,10 @@ export function nodeIcon(n: TreeNode, size = ICON): string {
     if (ic.kind === 'item') { const k = [ic.key, ...(ic.alt ?? [])].find((q) => hasItemDef(q)); url = k ? itemIcon(k, '', size) : ''; }
     else if (ic.kind === 'limb') { const d = cyberDef(ic.key); url = d && hasItemDef(d.item) ? itemIcon(d.item, '', size) : ''; }
     else if (ic.kind === 'cos') url = cosIcon(ic.key, size);
-    else if (ic.kind === 'chip') url = finish(chipArt(ic.glyph, ic.color, size));
-    else url = finish(socketArt(size));
+    else if (ic.kind === 'chip') url = paint(chipArt(ic.glyph, ic.color, size));
+    else url = paint(socketArt(size));
   } catch (e) { console.warn('tree icon', n.key, e); }
-  if (!url) url = finish(chipArt('steady', 0x9aa0a8, size));
+  if (!url) url = paint(chipArt('steady', 0x9aa0a8, size));
   cache.set(ck, url);
   return url;
 }
@@ -89,13 +90,13 @@ function shoot(parts: { geo: THREE.BufferGeometry; mat: THREE.Material }[], size
 function cosIcon(key: string, size: number): string {
   const c = COSMETIC.get(key);
   if (!c) return '';
-  if (c.slot === 'suit') return finish(suitArt(key, c.color, size));
+  if (c.slot === 'suit') return paint(suitArt(key, c.color, size));
   const g = cosmeticGeometry(key);
   const parts: { geo: THREE.BufferGeometry; mat: THREE.Material }[] = [];
   if (g?.geo) parts.push({ geo: g.geo, mat: worldMaterial({ noVis: true, noFog: true, noGrid: true }) });
   if (g?.glow) parts.push({ geo: g.glow, mat: new THREE.MeshBasicMaterial({ color: c.color }) });
   const pc = shoot(parts, size, c.slot === 'back' ? 2.6 : 0.55, c.slot === 'hat' ? 0.5 : 0.3);
-  return pc ? finish(pc) : finish(chipArt('steady', c.color, size));
+  return pc ? finish(pc) : paint(chipArt('steady', c.color, size));
 }
 
 // ================================================================== painted art
@@ -161,6 +162,11 @@ function socketArt(S: number): PixelCanvas {
 }
 
 // ================================================================== the finish
+/** painted art: at the new resolution it is lit like the rest of the hi-res kit (bevels, hue-shifted ramps, glints, inner lines) */
+function paint(pc: PixelCanvas): string {
+  if (pc.w < 36) return finish(pc);
+  return pcUrl(shadeSprite(pc, { outline: 1, shadow: 1, bevel: Math.max(2, Math.round(pc.w / 14)) }));
+}
 function finish(pc: PixelCanvas): string {
   const S = pc.w;
   const src = new Uint8ClampedArray(pc.data);

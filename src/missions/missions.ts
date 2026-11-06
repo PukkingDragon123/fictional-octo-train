@@ -452,6 +452,8 @@ export class MissionSystem implements GameSystem {
   ending(p: Player, variant = '') {
     if (this.endingStarted || !p.isLocal) return;
     this.endingStarted = true;
+    // the run ended alive: its report and summary (src/ui/death/summary.ts) rise over the ending
+    bus.emit('runEnded', { how: variant || 'escaped' });
     if (variant.startsWith('transport:')) {
       this.set('contract:transport');
       G.debt?.transport?.showEnding?.(p, variant.slice(10));

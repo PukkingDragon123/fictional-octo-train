@@ -150,7 +150,9 @@
 .rb-top small { color: #a8ffd8; }
 .rb-how { position: absolute; left: 50%; top: max(12px, 3vh); transform: translateX(-50%); display: none; }
 .rb-how span { display: inline-block; padding: 6px 12px; background: rgba(10, 16, 14, 0.9); box-shadow: 0 0 0 2px #0a0b10, inset 0 0 0 2px #2a3a34; color: #ffd25a; }
-.rb-gauge { position: absolute; left: 50%; bottom: calc(max(14px, 3vh) + 52px); transform: translateX(-50%); width: min(520px, 82vw); height: 26px; background: #0a100e; box-shadow: 0 0 0 3px #0a0b10, inset 0 0 0 2px #2a3a34, inset 0 -6px 0 rgba(0, 0, 0, 0.4); }
+.rb-gauge { position: absolute; left: 50%; bottom: calc(max(14px, 3vh) + 44px); transform: translateX(-50%); width: min(520px, 82vw); height: 42px; image-rendering: pixelated; filter: drop-shadow(0 3px 6px rgba(0,0,0,.45)); }
+.rb-gauge canvas { position: absolute; left: 0; top: 0; }
+.rb-gauge .zone, .rb-gauge .needle { display: none; }
 .rb-gauge .zone { position: absolute; top: 3px; bottom: 3px; background: #2a9a4a; box-shadow: inset 0 0 0 2px #3aff8a; }
 .rb-gauge .needle { position: absolute; top: -6px; bottom: -6px; width: 4px; margin-left: -2px; background: #ffd25a; box-shadow: 0 0 0 2px #0a0b10; }
 .rb-choices { position: absolute; left: 50%; bottom: calc(max(14px, 3vh) + 52px); transform: translateX(-50%); display: flex; gap: 12px; pointer-events: auto !important; }
@@ -163,9 +165,9 @@
 .rb-keys { color: #a8c0b4; }
 .rb-skip { color: #ff9a7a; pointer-events: auto !important; cursor: pointer; }
 .rb-scores { display: flex; gap: 6px; }
-.rb-scores i { width: 14px; height: 14px; background: #1a2220; box-shadow: 0 0 0 2px #0a0b10; }
-.rb-scores i.now { background: #ffd25a; }
-.rb-scores i.p { background: #3aff8a; } .rb-scores i.g { background: #3ac8ff; } .rb-scores i.f { background: #ff5a3a; }
+.rb-scores i { width: 14px; height: 14px; border-radius: 3px; background: radial-gradient(circle at 35% 30%, #4a5a54 0 2px, #1a2220 3px 100%); box-shadow: 0 0 0 2px #0a0b10, inset -2px -2px 0 rgba(0,0,0,.45), inset 1px 1px 0 rgba(255,255,255,.12); }
+.rb-scores i.now { background: radial-gradient(circle at 35% 30%, #fff6c8 0 2px, #ffd25a 3px 60%, #a87a10 100%); }
+.rb-scores i.p { background: radial-gradient(circle at 35% 30%, #e0ffe8 0 2px, #3aff8a 3px 60%, #167a34 100%); } .rb-scores i.g { background: radial-gradient(circle at 35% 30%, #e4feff 0 2px, #3ac8ff 3px 60%, #0e6278 100%); } .rb-scores i.f { background: radial-gradient(circle at 35% 30%, #ffe0d4 0 2px, #ff5a3a 3px 60%, #8e1a10 100%); }
 .rb-res { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 22px; animation: rb-pop 0.25s steps(3) 1;
   background: rgba(10, 16, 14, 0.92); box-shadow: 0 0 0 3px #0a0b10, inset 0 0 0 2px #3aff8a; }
 .rb-res b { font-weight: 400; font-size: 32px; line-height: 32px; text-shadow: var(--text-ink-2); }
@@ -192,6 +194,7 @@
 .rb-spoil b { font-weight: 400; color: #ff7a5a; margin-right: 6px; }
 .rb-prog { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
 .rb-prog span { color: #a8ffd8; }
+.rb-prog i.hi { background: none; box-shadow: none; image-rendering: pixelated; }
 .rb-prog i { height: 16px; box-shadow: 0 0 0 2px #0a0b10; background: linear-gradient(90deg, #2ac860 var(--a), #ffd25a var(--a), #ffd25a var(--b), #0e1512 var(--b)); }
 .rb-prog b { font-weight: 400; color: #fff; }
 .rb-prize { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; background: linear-gradient(180deg, #6a4a10, #3a2808); box-shadow: 0 0 0 2px #0a0b10, inset 0 0 0 2px #e8b030, 0 0 16px rgba(255, 200, 60, 0.35); }

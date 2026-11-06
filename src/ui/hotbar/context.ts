@@ -268,7 +268,7 @@ export class ContextBar {
     const list = this.list;
     if (!touch) {
       this.touchEl.innerHTML = '';
-      this.desk.innerHTML = list.map((a, i) => `<div class="cx-chip${i === 0 ? ' prim' : ''}${a.why ? ' dim' : ''}${a.on ? ' lit' : ''}">${a.key ? `<b class="cx-key">${KEYCAP[a.key] ?? a.key}</b>` : ''}<i style="background-image:url(${ctxIconUrl(a.icon)})"></i><span>${a.label}</span></div>`).join('');
+      this.desk.innerHTML = list.map((a, i) => `<div class="cx-chip${i === 0 ? ' prim' : ''}${a.why ? ' dim' : ''}${a.on ? ' lit' : ''}">${a.key ? `<b class="cx-key">${KEYCAP[a.key] ?? a.key}</b>` : ''}<i style="background-image:url(${ctxIconUrl(a.icon, i === 0 ? 3 : 2)})"></i><span>${a.label}</span></div>`).join('');
       return;
     }
     this.desk.innerHTML = '';
@@ -277,7 +277,7 @@ export class ContextBar {
     list.forEach((a, i) => {
       const b = document.createElement('div');
       b.className = 'cx-btn' + (i === 0 ? ' prim' : ' sec s' + i) + (a.why ? ' dim' : '') + (a.on ? ' lit' : '');
-      b.innerHTML = `<i style="background-image:url(${ctxIconUrl(a.icon)})"></i><span>${a.label}</span>`;
+      b.innerHTML = `<i style="background-image:url(${ctxIconUrl(a.icon, i === 0 ? 3 : 2)})"></i><span>${a.label}</span>`;
       b.addEventListener('pointerdown', (e) => this.down(e, a, b));
       b.addEventListener('pointermove', (e) => { if (a.strike && this.held.get(e.pointerId) === a) (G as any).touch?.strikeMove?.(e); });
       const up = (e: PointerEvent, cancel: boolean) => this.up(e, a, b, cancel);

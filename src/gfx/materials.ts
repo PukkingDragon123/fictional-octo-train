@@ -32,6 +32,8 @@ export const U = {
   uRememberTint: { value: new THREE.Color(0x8890a0) },
   uRememberAmt: { value: 0.42 },
   uCollapse: { value: 0 },
+  /** the Ledge's melt (src/world/anomalies/ledgeFx.ts): walls and tall props sag, bow and shimmer (0 = off) */
+  uMelt: { value: 0 },
   uSnapRes: { value: new THREE.Vector2(640, 360) },
   uSnapOn: { value: 0 },
   uGridScale: { value: 4.0 },
@@ -96,6 +98,8 @@ varying float vEmis;
 varying float vWallAxis;
 uniform float uTime;
 uniform float uCollapse;
+uniform float uMelt;
+uniform vec4 uWFlags;
 uniform vec2 uSnapRes;
 uniform float uSnapOn;
 vec3 collapseWarp(vec3 p) {
@@ -122,6 +126,16 @@ nWp = modelMatrix * nWp;
 if (uCollapse > 0.001) {
   float h = clamp(nWp.y / 2.8, 0.0, 1.0);
   nWp.xyz += collapseWarp(nWp.xyz) * uCollapse * (0.25 + h);
+}
+// the Ledge: walls and tall props sag like warm wax (the top droops and leans, floors stay put) and shimmer
+if (uMelt > 0.001 && uWFlags.x > 0.5) {
+  float mh = clamp(nWp.y / 2.7, 0.0, 1.25);
+  float mh2 = mh * mh;
+  vec2 mq = nWp.xz;
+  float sag = 0.55 + 0.3 * sin(mq.x * 0.37 + mq.y * 0.21) + 0.15 * sin(mq.x * 1.31 - mq.y * 0.93 + 1.7);
+  nWp.y -= mh2 * sag * 0.34 * uMelt;
+  nWp.xz += vec2(sin(mq.y * 0.53 + 0.4), cos(mq.x * 0.47 + 1.1)) * mh2 * 0.13 * uMelt;
+  nWp.xz += vec2(sin(uTime * 1.3 + nWp.y * 3.1 + mq.y * 0.9), cos(uTime * 1.1 + nWp.y * 2.7 + mq.x * 0.8)) * 0.018 * mh * uMelt;
 }
 vWPos = nWp.xyz;
 vec4 mvPosition = viewMatrix * nWp;

@@ -65,7 +65,54 @@ defItem({
   },
 });
 
+// ---- the Ledge: the Gummy Bear's jelly and fur, the Giant Bumble Bee's fuzz and wax
+defItem({
+  key: 'ledge_gel', name: 'Ledge Gel', cat: 'food', weight: 0.35, value: 18, tags: ['weird', 'glue'],
+  desc: 'A trembling lump of a Gummy Bear\'s body: clear red jelly with a few drifting hairs in it. It smells of sugar and wet animal. It is still, very slowly, digesting the dust on its surface.',
+  food: { hunger: 10, thirst: 4, calories: 260, raw: true, cookable: true, cookMins: 6, poison: 0.35, lucidity: -4, stress: 4, fresh: 3, rot: 8, ingredient: 'sweet', cookedName: 'Rendered Ledge Gel' },
+  model: (mb) => {
+    mb.sphere(0, 0.03, 0, 0.04, 8, 6, 'i_glass', { color: 0xd8401a, sy: 0.75, emissive: 0.08 });
+    mb.sphere(0.022, 0.05, 0.01, 0.022, 6, 4, 'i_glass', { color: 0xe86030, emissive: 0.08 });
+    mb.box(-0.01, 0.035, 0.0, 0.03, 0.003, 0.003, T.black, { color: 0x3a2010 });
+  },
+});
+defItem({
+  key: 'matted_fur', name: 'Matted Bear Fur', cat: 'material', weight: 0.2, value: 7, tags: ['cloth', 'fur', 'weird'],
+  desc: 'A wet island of brown bear fur peeled off a Gummy Bear, the underside still glazed with jelly. Dried, it is thick, warm and almost impossible to tear.',
+  model: (mb) => {
+    prism(mb, [[-0.07, -0.03], [-0.02, -0.05], [0.06, -0.035], [0.08, 0.01], [0.03, 0.05], [-0.05, 0.035]], 0, 0.012, T.knit, T.knit, { color: 0x5a3a22, sideColor: 0xc8401a });
+  },
+});
+defItem({
+  key: 'bee_fuzz', name: 'Bee Fuzz', cat: 'material', weight: 0.04, value: 5, tags: ['cloth', 'tinder', 'weird'],
+  desc: 'A warm handful of yellow and black fuzz plucked off a Giant Bumble Bee. Softer than down, it packs into a jacket lining or lights at a spark.',
+  model: (mb) => {
+    mb.sphere(0, 0.025, 0, 0.03, 6, 4, T.knit, { color: 0xe8b62a, sy: 0.7 });
+    mb.sphere(0.02, 0.03, 0.01, 0.018, 5, 3, T.knit, { color: 0x1e1a16 });
+  },
+});
+defItem({
+  key: 'honey_wax', name: 'Honey Wax', cat: 'material', weight: 0.1, value: 9, tags: ['wax', 'fuel', 'weird'],
+  desc: 'Thin, warm sheets of wax scraped off a Giant Bumble Bee\'s belly, pressed into a cake. It smells of honey and old candles. Burns slow and clean; seals a jar; softens leather.',
+  model: (mb) => {
+    mb.cylinder(0, 0, 0, 0.035, 0.02, 8, T.white, { color: 0xe8c060 });
+    mb.cylinder(0, 0.02, 0, 0.028, 0.006, 8, T.white, { color: 0xf0d080 });
+  },
+});
+defItem({
+  key: 'pigeon_tallow', name: 'Pigeon Tallow', cat: 'material', weight: 0.12, value: 6, tags: ['wax', 'fuel', 'weird'],
+  desc: 'Warm curls of tallow scraped off a Tallow Pigeon, with a grey feather or two still in them. It smells like a church. It burns slow and steady.',
+  model: (mb) => {
+    mb.sphere(0, 0.02, 0, 0.03, 6, 4, T.white, { color: 0xe8dcc0, sy: 0.6 });
+    mb.sphere(0.02, 0.025, 0.01, 0.015, 5, 3, T.white, { color: 0x8a90a0 });
+  },
+});
+
 // corpses
 defLoot('creature_mulcher', [1, 2], [['mulcher_chitin', 6], ['mulcher_roe', 1.5]], 0.25);
 defLoot('creature_stilt_gull', [2, 4], [['gull_feather', 6], ['meat_raw', 3], ['bone', 2]], 0);
 defLoot('creature_seated', [0, 1], [['bone', 2], ['seated_whisper', 1]], 0.5);
+defLoot('creature_gummy_bear', [2, 4], [['ledge_gel', 6], ['matted_fur', 3], ['bone', 2]], 0);
+defLoot('creature_bumble_bee', [1, 3], [['bee_fuzz', 5], ['honey_wax', 3]], 0.1);
+defLoot('creature_tallow_pigeon', [1, 2], [['pigeon_tallow', 4], ['small_meat_raw', 1]], 0.1);
+defLoot('creature_moon_calf', [1, 2], [['moon_meat', 4]], 0);

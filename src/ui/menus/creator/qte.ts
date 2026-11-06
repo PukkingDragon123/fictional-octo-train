@@ -7,14 +7,20 @@
 //   rhythm  strike on the beat as the chevrons reach the bars (any key / tap;
 //           arrow keys that match score the same)
 //   aim     steer the nozzle over the marked patches and hold to spray
-// Everything is drawn as crisp pixel art on a low-res canvas laid over the
-// room (whole-number scale, ink outline, no boxes, no circles); the words float
-// in Alagard. Esc, the gamepad's B or the floating SKIP always just applies.
+// Everything is drawn as crisp pixel art on a canvas laid over the room (ink
+// outline, no boxes, no circles); the words float in Alagard. Esc, the
+// gamepad's B or the floating SKIP always just applies.
+// Round 13: the layout still thinks in art pixels (the kit's scale), but the
+// canvas is backed at full resolution (one canvas pixel per CSS / device
+// pixel) and every mark is drawn with that finer grain: thin ink, four-tone
+// ramps, lit lips, glints; the glyphs are grown with Scale2x/3x and lit by the
+// hi-res kit (src/ui/hiPixel.ts).
 import type { SubjectRoom } from '../room3d';
 import type { ToolKind } from '../scene/tools3d';
 import { FocusNav } from '../nav';
 import { sfx } from '../sfx';
 import { calm } from '../settings';
+import { upscaleRows, rowsToCanvas, shadeSprite, dprK } from '../../hiPixel';
 
 export type GameKind = 'tap' | 'hold' | 'trace' | 'rhythm' | 'aim';
 export interface GameSpec {
@@ -89,6 +95,8 @@ class Game {
   private skipEl = document.createElement('button');
   private nav: FocusNav;
   private ks = 3; private W = 0; private H = 0;
+  /** canvas pixels per art pixel (the fine grain the marks are drawn with) */
+  private D = 3;
   private t = 0; private last = 0; private raf = 0; private over = false;
   // input
   private held = false; private heldBy = '';
@@ -215,9 +223,12 @@ class Game {
     this.ks = artScale();
     const w = window.innerWidth, h = window.innerHeight;
     this.W = Math.ceil(w / this.ks); this.H = Math.ceil(h / this.ks);
-    this.cv.width = this.W; this.cv.height = this.H;
+    // backed at full resolution: D canvas pixels per art pixel
+    this.D = this.ks * dprK();
+    this.cv.width = this.W * this.D; this.cv.height = this.H * this.D;
     this.cv.style.width = this.W * this.ks + 'px'; this.cv.style.height = this.H * this.ks + 'px';
     this.ctx.imageSmoothingEnabled = false;
+    this.ctx.setTransform(this.D, 0, 0, this.D, 0, 0);
   };
 
   // ---------------------------------------------------------------- set up per kind
@@ -497,22 +508,58 @@ class Game {
   }
 
   // ---------------------------------------------------------------- drawing
-  /** an inked, bevelled block of art pixels */
+  /** one fine pixel, in art units */
+  private hp = 1 / 3;
+  /** snap to the fine grid */
+  private sn(v: number) { return Math.round(v * this.D) / this.D; }
+  private fr(x: number, y: number, w: number, h: number, col: string, a = 1) {
+    if (w <= 0 || h <= 0) return;
+    const c = this.ctx; c.globalAlpha = a; c.fillStyle = col; c.fillRect(this.sn(x), this.sn(y), this.sn(w) || this.hp, this.sn(h) || this.hp); c.globalAlpha = 1;
+  }
+  /** an inked, bevelled block of art pixels, drawn with the fine grain: thin ink, a lit lip, a four-tone body, a glint */
   private seg(x: number, y: number, w: number, h: number, ramp: Ramp, lit = 1) {
-    const c = this.ctx, R = C[ramp];
-    c.fillStyle = INK; c.fillRect(x - 1, y - 1, w + 2, h + 2);
-    c.fillStyle = lit > 0.5 ? R[1] : R[0]; c.fillRect(x, y, w, h);
-    c.fillStyle = lit > 0.5 ? R[2] : R[1]; c.fillRect(x, y, w, 1);
-    if (h > 2) { c.fillStyle = R[0]; c.fillRect(x, y + h - 1, w, 1); }
+    const R = C[ramp], q = this.hp, ink = Math.max(q, Math.round(this.D * 0.5) * q);
+    // ink with clipped corners
+    this.fr(x - ink, y - ink + q, w + ink * 2, h + ink * 2 - q * 2, INK);
+    this.fr(x - ink + q, y - ink, w + ink * 2 - q * 2, h + ink * 2, INK);
+    const on = lit > 0.5;
+    const body = on ? R[1] : R[0], top = on ? R[2] : R[1];
+    this.fr(x, y, w, h, body);
+    this.fr(x, y, w, h * 0.45, top, on ? 0.55 : 0.4);
+    this.fr(x, y + h - q * 2, w, q * 2, R[0], on ? 0.9 : 0.6);
+    this.fr(x, y + h - q, w, q, INK, 0.35);
+    this.fr(x, y, w, q, on ? '#fffbe8' : R[2], on ? 0.85 : 0.5);
+    this.fr(x, y, q, h - q, top, 0.9);
+    this.fr(x + w - q, y + q, q, h - q * 2, R[0], 0.8);
+    if (on && w > 1 && h > 2) this.fr(x + q, y + q, Math.min(w - q * 2, q * 2), q, '#ffffff', 0.9);
   }
   private px(x: number, y: number, w: number, h: number, col: string) { this.ctx.fillStyle = col; this.ctx.fillRect(Math.round(x), Math.round(y), w, h); }
+  /** glyph sprites grown to the fine grid (EPX) and lit */
+  private glyphs = new Map<string, HTMLCanvasElement>();
+  private glyph(rows: string[], ramp: Ramp): HTMLCanvasElement {
+    const k = rows.join('/') + ramp + this.D;
+    let cv = this.glyphs.get(k);
+    if (cv) return cv;
+    const R = C[ramp];
+    const hx = (s: string) => parseInt(s.slice(1), 16);
+    const big = upscaleRows(rows, this.D);
+    const pc = rowsToCanvas(big, { '#': hx(INK), a: hx(R[2]), b: hx(R[1]), c: hx(R[0]) });
+    shadeSprite(pc, { outline: 0, inner: false, light: 0.45, bevel: Math.max(2, this.D), grain: 0 });
+    cv = document.createElement('canvas'); cv.width = pc.w; cv.height = pc.h;
+    cv.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
+    this.glyphs.set(k, cv);
+    return cv;
+  }
+  private blitGlyph(rows: string[], ramp: Ramp, x: number, y: number, a = 1) {
+    const g = this.glyph(rows, ramp), c = this.ctx;
+    c.globalAlpha = a;
+    c.drawImage(g, Math.round(x), Math.round(y), rows[0].length, rows.length);
+    c.globalAlpha = 1;
+  }
   /** a chevron pointing down at (x, y) (its tip), 7 wide */
   private chevDown(x: number, y: number, ramp: Ramp) {
     x = Math.round(x); y = Math.round(y);
-    const R = C[ramp];
-    for (let r = 0; r < 4; r++) { this.px(x - 3 + r - 1, y - 4 + r, 7 - r * 2 + 2, 1, INK); }
-    for (let r = 0; r < 3; r++) this.px(x - 3 + r, y - 4 + r, 7 - r * 2, 1, r === 0 ? R[2] : R[1]);
-    this.px(x, y, 1, 1, INK);
+    this.blitGlyph(['#########', '.#aaaaa#.', '..#abb#..', '...#b#...', '....#....'], ramp, x - 4, y - 4);
   }
   private arrow(x: number, y: number, dir: Note['dir'], ramp: Ramp, a = 1) {
     // a 9x9 pixel arrow glyph with ink
@@ -522,36 +569,50 @@ class Game {
       u: ['....#....', '...#a#...', '..#aab#..', '.#aaabb#.', '###ab####', '..#ab#...', '..#ab#...', '..#bc#...', '..####...'],
       d: ['..####...', '..#ab#...', '..#ab#...', '..#ab#...', '###ab####', '.#aabbc#.', '..#abc#..', '...#c#...', '....#....'],
     };
-    const R = C[ramp];
-    this.ctx.globalAlpha = a;
-    G[dir].forEach((row, j) => [...row].forEach((ch, i) => { if (ch === '.') return; this.px(x - 4 + i, y - 4 + j, 1, 1, ch === '#' ? INK : ch === 'a' ? R[2] : ch === 'b' ? R[1] : R[0]); }));
-    this.ctx.globalAlpha = 1;
+    this.blitGlyph(G[dir], ramp, Math.round(x) - 4, Math.round(y) - 4, a);
   }
   /** four corner ticks round a point (a target mark), size s */
   private corners(x: number, y: number, s: number, ramp: Ramp) {
-    const R = C[ramp], L = 3;
+    const R = C[ramp], L = 4, q = this.hp;
     x = Math.round(x); y = Math.round(y);
     for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
       const cx = x + sx * s, cy = y + sy * s;
       const hx = sx < 0 ? cx : cx - L + 1, vy = sy < 0 ? cy : cy - L + 1;
-      this.px(hx - 1, cy - 1, L + 2, 3, INK); this.px(cx - 1, vy - 1, 3, L + 2, INK);
-      this.px(hx, cy, L, 1, R[2]); this.px(cx, vy, 1, L, R[1]);
+      this.fr(hx - q * 2, cy - q * 2, L + q * 4, 1 + q * 4, INK); this.fr(cx - q * 2, vy - q * 2, 1 + q * 4, L + q * 4, INK);
+      this.fr(hx, cy, L, 1, R[1]); this.fr(cx, vy, 1, L, R[1]);
+      this.fr(hx, cy, L, q, R[2]); this.fr(cx, vy, q, L, R[2]);
+      this.fr(cx, cy, 1, 1, '#ffffff', 0.8);
     }
   }
   /** the crosshair: four ticks with a gap (no circle) */
   private reticle(x: number, y: number, ramp: Ramp, gap = 3) {
     x = Math.round(x); y = Math.round(y);
-    const R = C[ramp];
+    const R = C[ramp], q = this.hp;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      for (let i = gap; i < gap + 4; i++) { this.px(x + dx * i - 1, y + dy * i - 1, 3, 3, INK); }
+      const x0 = dx ? x + dx * gap + (dx < 0 ? -3 : 0) : x, y0 = dy ? y + dy * gap + (dy < 0 ? -3 : 0) : y;
+      const w = dx ? 4 : 1, h = dy ? 4 : 1;
+      this.fr(x0 - q * 2, y0 - q * 2, w + q * 4, h + q * 4, INK);
+      this.fr(x0, y0, w, h, R[1]);
+      this.fr(x0, y0, dx ? w : q * 2, dy ? h : q * 2, R[2]);
+      // the tip nearest the centre is the brightest
+      this.fr(dx > 0 ? x0 : dx < 0 ? x0 + 3 : x0, dy > 0 ? y0 : dy < 0 ? y0 + 3 : y0, 1, 1, '#fffbe8');
     }
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (let i = gap; i < gap + 4; i++) this.px(x + dx * i, y + dy * i, 1, 1, i === gap ? R[2] : R[1]);
-    this.px(x, y, 1, 1, R[2]);
+    this.fr(x - q, y - q, 1 + q * 2, 1 + q * 2, INK); this.fr(x, y, 1, 1, R[2]);
+  }
+  /** a round-ish dot on the fine grid (for traced lines) */
+  private dot(x: number, y: number, r: number, col: string, hi?: string) {
+    const q = this.hp, n = Math.max(1, Math.round(r * this.D));
+    for (let j = -n; j <= n; j++) {
+      const w = Math.round(Math.sqrt(Math.max(0, n * n - j * j)) + 0.35);
+      this.fr(x - w * q, y + j * q, (w * 2 + 1) * q, q, col);
+    }
+    if (hi) this.fr(x - n * q * 0.5, y - n * q * 0.5, q * Math.max(1, Math.round(n / 2)), q * Math.max(1, Math.round(n / 2)), hi);
   }
 
   private draw() {
     const c = this.ctx;
     c.clearRect(0, 0, this.W, this.H);
+    this.hp = 1 / this.D;
     switch (this.spec.kind) {
       case 'tap': {
         const N = 31, w = N * 4, g = this.gaugeSpot(w, 20);
@@ -578,9 +639,9 @@ class Game {
         }
         // the bracket either side of the band
         const y0 = g.y + (1 - this.band[1]) * N * 4, y1 = g.y + (1 - this.band[0]) * N * 4;
-        for (const x of [g.x - 5, g.x + 12]) { this.px(x - 1, y0 - 1, 4, y1 - y0 + 2, INK); this.px(x, y0, 2, y1 - y0, C.green[1]); this.px(x, y0, 2, 1, C.green[2]); }
-        this.px(g.x - 7, y0 - 1, 4, 3, INK); this.px(g.x + 13, y0 - 1, 4, 3, INK); this.px(g.x - 6, y0, 2, 1, C.green[2]); this.px(g.x + 14, y0, 2, 1, C.green[2]);
-        this.px(g.x - 7, y1 - 2, 4, 3, INK); this.px(g.x + 13, y1 - 2, 4, 3, INK); this.px(g.x - 6, y1 - 1, 2, 1, C.green[1]); this.px(g.x + 14, y1 - 1, 2, 1, C.green[1]);
+        for (const x of [g.x - 5, g.x + 12]) this.seg(x, y0, 2, y1 - y0, 'green', 1);
+        this.seg(g.x - 7, y0, 3, 1, 'green', 1); this.seg(g.x + 13, y0, 3, 1, 'green', 1);
+        this.seg(g.x - 7, y1 - 1, 3, 1, 'green', 1); this.seg(g.x + 13, y1 - 1, 3, 1, 'green', 1);
         // the pressure needle
         const ny = g.y + (1 - this.fill) * N * 4;
         this.arrow(g.x - 10, Math.round(ny), 'r', this.fill > this.band[1] ? 'red' : 'white');
@@ -589,42 +650,35 @@ class Game {
       case 'trace': {
         const P = this.lastPath;
         if (P.length < 2) break;
-        // the line: dotted ahead, a solid red cut behind
-        let acc = 0;
-        for (let i = 1; i < P.length; i++) {
-          const a = P[i - 1], b = P[i], L = Math.hypot(b.x - a.x, b.y - a.y);
-          for (let s = 0; s < L; s += 1) {
-            const k = s / Math.max(1e-4, L), x = a.x + (b.x - a.x) * k, y = a.y + (b.y - a.y) * k, al = acc + s;
-            if (al <= this.s) { this.px(x - 1, y - 1, 3, 3, INK); }
-            else if (Math.floor(al) % 4 === 0) { this.px(x - 1, y - 1, 3, 3, INK); }
+        // the line: dotted ahead, a solid red cut behind, both on the fine grid
+        const walk = (fn: (x: number, y: number, al: number) => void, step: number) => {
+          let acc = 0;
+          for (let i = 1; i < P.length; i++) {
+            const a = P[i - 1], b = P[i], L = Math.hypot(b.x - a.x, b.y - a.y);
+            for (let s = 0; s < L; s += step) { const k = s / Math.max(1e-4, L); fn(a.x + (b.x - a.x) * k, a.y + (b.y - a.y) * k, acc + s); }
+            acc += L;
           }
-          acc += L;
-        }
-        acc = 0;
-        for (let i = 1; i < P.length; i++) {
-          const a = P[i - 1], b = P[i], L = Math.hypot(b.x - a.x, b.y - a.y);
-          for (let s = 0; s < L; s += 1) {
-            const k = s / Math.max(1e-4, L), x = a.x + (b.x - a.x) * k, y = a.y + (b.y - a.y) * k, al = acc + s;
-            if (al <= this.s) this.px(x, y, 1, 1, C.red[1 + ((Math.floor(al) >> 1) & 1)]);
-            else if (Math.floor(al) % 4 === 0) this.px(x, y, 1, 1, Math.floor(this.t * 6 + al / 8) % 3 === 0 ? C.amber[2] : C.amber[1]);
-          }
-          acc += L;
-        }
+        };
+        walk((x, y, al) => { if (al <= this.s) this.dot(x, y, 1.1, INK); else if (al % 4 < this.hp * 1.5) this.dot(x, y, 1.35, INK); }, this.hp);
+        walk((x, y, al) => {
+          if (al <= this.s) { this.dot(x, y, 0.62, C.red[1]); if ((Math.floor(al * 3) & 3) === 0) this.fr(x - this.hp, y - this.hp, this.hp, this.hp, C.red[2]); }
+          else if (al % 4 < this.hp * 1.5) { const hot = Math.floor(this.t * 6 + al / 8) % 3 === 0; this.dot(x, y, 0.9, hot ? C.amber[2] : C.amber[1], hot ? '#fffbe8' : C.amber[2]); }
+        }, this.hp);
         if (this.s < 1) {
           // the start: a bobbing chevron above the first point
           const p = P[0];
           this.chevDown(p.x, p.y - 4 - Math.round(Math.abs(Math.sin(this.t * 5)) * 3), 'amber');
         }
         const end = P[P.length - 1];
-        this.px(end.x - 2, end.y - 2, 5, 5, INK); this.px(end.x - 1, end.y - 1, 3, 3, C.green[1]);
+        this.dot(end.x, end.y, 2.6, INK); this.dot(end.x, end.y, 1.9, C.green[0]); this.dot(end.x, end.y, 1.4, C.green[1], C.green[2]);
         if (this.tracing || this.kbMode) this.reticle(this.cursor.x, this.cursor.y, this.tracing ? 'white' : 'amber', 2);
         break;
       }
       case 'rhythm': {
         const g = this.gaugeSpot(150, 20), x0 = g.x + 12, y = g.y + 10, pps = 70;
         // the lane: a row of ticks, the strike bars
-        for (let x = x0; x < g.x + 150; x += 6) this.px(x, y + 7, 2, 1, C.dim[1]);
-        for (const dx of [-7, 6]) { this.px(x0 + dx - 1, y - 8, 3, 18, INK); this.px(x0 + dx, y - 7, 1, 16, C.amber[1]); this.px(x0 + dx, y - 7, 1, 1, C.amber[2]); }
+        for (let x = x0; x < g.x + 150; x += 6) { this.fr(x, y + 7, 2, 1, C.dim[0]); this.fr(x, y + 7, 2, this.hp, C.dim[2]); }
+        for (const dx of [-7, 6]) this.seg(x0 + dx, y - 7, 1, 16, 'amber', 1);
         for (const n of this.notes) {
           const x = x0 + (n.t - this.t) * pps;
           if (n.q !== null) {

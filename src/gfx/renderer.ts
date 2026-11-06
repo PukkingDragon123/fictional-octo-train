@@ -172,7 +172,7 @@ export class PixelRenderer {
   shake = 0;
   grade: Grade = { ...DEFAULT_GRADE };
   gradeTarget: Grade = { ...DEFAULT_GRADE };
-  fx = { glitch: 0, panic: 0, hurt: 0, desat: 0, wobble: 0, blink: 0, corruptFlash: 0, dream: 0, outline: 1, edgeLight: 0.2 };
+  fx = { glitch: 0, panic: 0, hurt: 0, desat: 0, wobble: 0, blink: 0, corruptFlash: 0, dream: 0, outline: 1, edgeLight: 0.2, /** heat shimmer (the Ledge, src/world/anomalies/ledgeFx.ts) */ heat: 0 };
   /** user setting: target internal height in px (the chunky picture at full pixel filter) */
   targetLowH = 360;
   /**
@@ -243,7 +243,7 @@ export class PixelRenderer {
         uLift: { value: new THREE.Vector3() }, uGain: { value: new THREE.Vector3(1, 1, 1) }, uGamma: { value: 1 },
         uSat: { value: 1 }, uTint: { value: new THREE.Vector3(1, 1, 1) }, uVignette: { value: 0.35 }, uLevels: { value: 30 },
         uGrain: { value: 0.03 }, uGlitch: { value: 0 }, uPanic: { value: 0 }, uHurt: { value: 0 }, uDesat: { value: 0 },
-        uWobble: { value: 0 }, uBlink: { value: 0 }, uCorruptFlash: { value: 0 }, uDream: { value: 0 },
+        uWobble: { value: 0 }, uBlink: { value: 0 }, uCorruptFlash: { value: 0 }, uDream: { value: 0 }, uHeat: { value: 0 },
         uAOStr: { value: 1 }, uBloomStr: { value: 0.5 }, uDirtStr: { value: 0.5 }, uReflect: { value: 0.5 },
         uMistCol: { value: new THREE.Vector3(0.5, 0.5, 0.5) }, uMistDens: { value: 0 }, uMistFall: { value: 1 }, uMistLit: { value: 0.5 }, uMistMax: { value: 0.3 },
         uMotes: { value: 0 }, uSick: { value: 0 }, uFlicker: { value: 1 }, uFilm: { value: 1 }, uVoid: { value: new THREE.Color(0) },
@@ -462,6 +462,7 @@ export class PixelRenderer {
     u.uFilm.value = this.film;
     u.uGlitch.value = this.fx.glitch; u.uPanic.value = clean ? 0 : this.fx.panic; u.uHurt.value = clean ? 0 : this.fx.hurt; u.uDesat.value = this.fx.desat;
     u.uWobble.value = this.fx.wobble; u.uBlink.value = clean ? 0 : this.fx.blink; u.uCorruptFlash.value = this.fx.corruptFlash; u.uDream.value = this.fx.dream;
+    u.uHeat.value = this.fx.heat;
     // ink: full hand-drawn lines with the chunky filter, a fine soft contour on the near-native picture
     const ink = 0.42 + 0.58 * pf;
     u.uOutline.value = this.fx.outline * ink; u.uEdgeLight.value = this.fx.edgeLight * ink;

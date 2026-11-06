@@ -12,6 +12,10 @@
 // KNIGHT: a horse's head on a plinth, mane like a row of blades. It jumps in
 // an L, over anything, and lands hard. It can never land on the squares
 // touching it: right beside it is the safest place on the board.
+//
+// BISHOP: a slender robed column under a mitre whose cut is a mouth. It
+// slides only on diagonals, so it never leaves the colour it was set down on.
+// Stand on the other colour and it can never reach you.
 import { horrify } from '../kit/horror';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
@@ -76,6 +80,23 @@ function rookMove(z: any, b: Board, i: number, j: number, p: Player | null): Mov
   }
   return best;
 }
+function bishopMove(z: any, b: Board, i: number, j: number, p: Player | null): Move | null {
+  const lines: Move[] = [];
+  for (const [di, dj] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) for (let k = 1; k <= 7; k++) { if (!sqFree(z, b, i + di * k, j + dj * k)) break; lines.push({ i: i + di * k, j: j + dj * k, cap: false }); }
+  if (!lines.length) return null;
+  if (!p) return rng.chance(0.35) ? rng.pick(lines.filter((m) => Math.abs(m.i - i) <= 2)) ?? null : null;
+  const [pi, pj] = sqOf(b, p.x, p.z);
+  const take = lines.find((m) => m.i === pi && m.j === pj);
+  if (take) return { ...take, cap: true };
+  // the other colour: it cannot get there, ever; it drifts along its diagonals, watching
+  let best: Move | null = null, bd = Infinity;
+  for (const m of lines) {
+    const onDiag = Math.abs(m.i - pi) === Math.abs(m.j - pj);
+    const d = Math.hypot(m.i - pi, m.j - pj) + (onDiag ? 0 : 5) + rng.float(0, 0.3);
+    if (d < bd) { bd = d; best = m; }
+  }
+  return best;
+}
 const KN = [[1, 2], [2, 1], [-1, 2], [-2, 1], [1, -2], [2, -1], [-1, -2], [-2, -1]];
 function knightMove(z: any, b: Board, i: number, j: number, p: Player | null): Move | null {
   const opts = KN.map(([a, c]) => ({ i: i + a, j: j + c, cap: false })).filter((m) => sqFree(z, b, m.i, m.j));
@@ -89,7 +110,7 @@ function knightMove(z: any, b: Board, i: number, j: number, p: Player | null): M
   return best;
 }
 
-function thinkPiece(c: Creature, dt: number, knight: boolean): boolean {
+function thinkPiece(c: Creature, dt: number, knight: boolean, bishop = false): boolean {
   const z = G.getZone(c.zoneKey), m = c.mem, n = net(c);
   const b = boardOf(z);
   pulse(c);
@@ -104,7 +125,7 @@ function thinkPiece(c: Creature, dt: number, knight: boolean): boolean {
       if (Math.max(Math.abs(di), Math.abs(dj)) !== r) continue;
       if (sqFree(z, b, i0 + di, j0 + dj)) { [c.x, c.z] = sqCenter(b, i0 + di, j0 + dj); found = true; }
     }
-    m.ph = 'wait'; m.tick = Math.floor((G.time + (knight ? PERIOD / 2 : 0)) / PERIOD);
+    m.ph = 'wait'; m.tick = Math.floor((G.time + (knight ? PERIOD / 2 : bishop ? PERIOD / 4 : 0)) / PERIOD);
     n.cell = b.cell;
   }
   const p = target(c);
@@ -113,10 +134,10 @@ function thinkPiece(c: Creature, dt: number, knight: boolean): boolean {
     case 'wait': {
       c.setState(p ? 'watch' : 'idle');
       if (p) face(c, p.x, p.z);
-      const tick = Math.floor((G.time + (knight ? PERIOD / 2 : 0)) / PERIOD);
+      const tick = Math.floor((G.time + (knight ? PERIOD / 2 : bishop ? PERIOD / 4 : 0)) / PERIOD);
       if (tick === m.tick) break;
       m.tick = tick;
-      const mv = knight ? knightMove(z, b, i, j, p) : rookMove(z, b, i, j, p);
+      const mv = knight ? knightMove(z, b, i, j, p) : bishop ? bishopMove(z, b, i, j, p) : rookMove(z, b, i, j, p);
       if (!mv) break;
       const [tx, tz] = sqCenter(b, mv.i, mv.j);
       m.to = [tx, tz]; m.cap = mv.cap; m.ph = 'tele'; m.tT = 0;
@@ -222,6 +243,38 @@ function buildKnight(): Rig {
   return rig;
 }
 
+function buildBishop(): Rig {
+  const rig = newRig(2.05);
+  const bs = base(rig, 'b');
+  const S = PG.reg('STONE');
+  const body = bpart(rig, 'tower', bs, [0, 0.26, 0], PG, 'btower', (ob) => {
+    // a slender robed column: hem, a pinched waist, a ruff of a collar
+    lathe(ob, [[0, 0.27], [0.1, 0.23], [0.42, 0.15], [0.7, 0.125], [0.86, 0.15], [0.93, 0.2], [0.99, 0.2], [1.04, 0.13]], 16, S, { start: null, end: null });
+    for (let k = 0; k < 6; k++) { const a = (k / 6) * Math.PI * 2; obox(ob, [Math.cos(a) * 0.205, 0.96, Math.sin(a) * 0.205], [0.06, 0.06, 0.06], PG.reg('TRIM')); }
+  });
+  for (const [s, k] of [['L', 1], ['R', -1]] as const) {
+    // long thin arms with the hands folded in front, fingers too long
+    bpart(rig, 'arm' + s, body, [k * 0.16, 0.86, 0.03], PG, 'barm', (ob) => {
+      ob.tube([[0, 0, 0], [k * 0.03, -0.18, 0.06], [-k * 0.04, -0.32, 0.15]], [0.045, 0.04, 0.035], 6, S, { start: 'pole' });
+      for (let f = 0; f < 3; f++) ob.cone([-k * 0.05, -0.33, 0.16 + f * 0.012], [-k * 0.6, -0.5, 0.4], 0.012, 0.11, 3, S);
+    });
+  }
+  const mitre = bpart(rig, 'mitre', body, [0, 1.04, 0], PG, 'bmitre', (ob) => {
+    lathe(ob, [[0, 0.12], [0.08, 0.17], [0.18, 0.19], [0.25, 0.175]], 16, S, { start: 'flat', end: null });
+    // the eye: a slit across the brow, lit from inside
+    obox(ob, [0, 0.13, 0.185], [0.17, 0.03, 0.03], PG.reg('EYE'), { emis: 0.95 });
+  });
+  // the cut of the mitre is a mouth: the cap is hinged at the back and gapes on a red throat full of teeth
+  bpart(rig, 'throat', mitre, [0, 0.25, 0], PG, 'bthroat', (ob) => ob.quad([[-0.17, 0, 0.17], [0.17, 0, 0.17], [0.17, 0, -0.17], [-0.17, 0, -0.17]], PG.reg('MOUTH'), undefined, { emis: 0.5 }));
+  bpart(rig, 'crown', mitre, [0, 0.25, -0.17], PG, 'bcap', (ob) => {
+    lathe(ob, [[0, 0.175], [0.12, 0.16], [0.26, 0.1], [0.36, 0.035], [0.39, 0]], 16, S, { start: 'flat', end: 'pole', cz: 0.17 });
+    ob.blob([0, 0.43, 0.17], [0.05, 0.05, 0.05], 6, 4, S);
+    for (let a = 0; a < 9; a++) { const ang = (a / 9) * Math.PI * 2; ob.cone([Math.cos(ang) * 0.14, 0.0, 0.17 + Math.sin(ang) * 0.14], [0, -1, 0], 0.025, 0.1, 4, PG.reg('TOOTH')); }
+  });
+  surface(rig, 'lacquer');
+  return rig;
+}
+
 // =====================================================================================
 // animation
 // =====================================================================================
@@ -266,6 +319,20 @@ function animateRook(rig: Rig, c: Creature, t: number, dt: number) {
   rot(rig, 'crown', -open, 0, 0);
   const breathe = Math.sin(t * 0.8 + seed * 6) * 0.04;
   for (const [s, k] of [['L', 1], ['R', -1]] as const) rot(rig, 'arm' + s, breathe - ud.mvK * 0.6 - ud.slam * 1.4, 0, k * (0.12 + tele * 0.2 + ud.slam * 0.4));
+}
+function animateBishop(rig: Rig, c: Creature, t: number, dt: number) {
+  applyLook(rig, c, PG, 0.03);
+  const ud = rig.root.userData as Record<string, any>;
+  const n = boardFx(rig, c, t, dt);
+  const seed = hashId(c.id);
+  const tele = c.state === 'warn' ? 1 : 0;
+  ud.mvK = lerp(ud.mvK ?? 0, n.mv ? 1 : 0, damp(8, dt));
+  // it glides with its robe swaying; the mitre tips toward its square; the cap gapes and bites down on the take
+  rot(rig, 'tower', -ud.mvK * 0.08 + Math.sin(t * 0.9 + seed * 4) * 0.02, Math.sin(t * 0.5 + seed) * 0.05, Math.sin(t * 35) * 0.01 * tele);
+  rot(rig, 'mitre', 0.1 * tele + Math.sin(t * 1.3 + seed) * 0.04, 0, Math.sin(t * 0.7 + seed * 3) * 0.08);
+  const open = Math.max(0.12 + tele * (0.35 + Math.sin(t * 11) * 0.06), ud.slam * 1.1, c.attackPhase > 0 ? 0.9 : 0, c.dead ? 0.7 : 0);
+  rot(rig, 'crown', -open, 0, 0);
+  for (const [s, k] of [['L', 1], ['R', -1]] as const) rot(rig, 'arm' + s, Math.sin(t * 0.8 + k + seed) * 0.05 - ud.slam * 0.8, 0, k * (0.05 + tele * 0.25 + ud.slam * 0.5));
 }
 function animateKnight(rig: Rig, c: Creature, t: number, dt: number) {
   applyLook(rig, c, PG, 0.03);
@@ -323,10 +390,30 @@ KNIGHT.animateGallery = galleryDriver('chess_knight', ['idle', 'pick', 'jump', '
   fc.attackPhase = pose === 'take' && (t % 2) < 0.6 ? 0.2 : 0;
   fc.dead = pose === 'dead';
 });
+const BISHOP = def({
+  key: 'chess_bishop', name: 'Bishop', code: 'CB-03 // LIVING PIECE', temperament: 'hostile', threat: 3,
+  hp: 100, walk: 0, run: 0, turn: 4, radius: 0.36, height: 2.05, sight: 26, fov: 3.1, hearing: 0.5,
+  rule: { name: 'IT KEEPS ITS COLOUR', text: 'It slides only on the diagonals, on the clock, never through anything, so it never leaves the colour of square it was set down on. Stand on the other colour and it can never reach you.', tell: 'The tall one with the slit in its head moved. Corner to corner.' },
+  attack: { dmg: [20, 32], range: 0.9, cooldown: 2.5, kinds: ['bite', 'fracture'], corrupt: 0, knock: 1.3 },
+  zones: ['chess'], weight: 2, group: [1, 2], maxPerZone: 3, diet: 'none',
+  sounds: snd({ alert: 'chess_tick', attack: 'chess_take', hurt: 'chess_grind', death: 'chess_take' }),
+  scan: { cls: 'Living piece / board-bound', notes: ['A slender robed column of marble under a mitre. The cut of the mitre is a mouth.', 'It moves on the clock, sliding corner to corner, as far as it likes.', 'Diagonals only: it never leaves the colour of square it stands on.', 'Whatever is on the lit square when it arrives is bitten in half.'] },
+  gore: { blood: 'plaster', tint: 0xf0e8dc, flesh: 0xe8e0d0, sever: ['armL', 'armR', 'crown', 'mitre'], head: 'mitre' },
+  build: buildBishop, animate: animateBishop, think: (c, dt) => thinkPiece(c, dt, false, true),
+});
+BISHOP.animateGallery = galleryDriver('chess_bishop', ['idle', 'pick', 'slide', 'take', 'dead'], animateBishop, (pose, fc, t) => {
+  fc.state = pose === 'pick' ? 'warn' : 'idle';
+  fc.mem.netMem = { mv: pose === 'slide' ? 1 : 0, mk: pose === 'pick' ? [1.5, 1.5] : null, cell: 2 };
+  if (pose === 'take') fc.attackPhase = 0.2;
+  fc.dead = pose === 'dead';
+  void t;
+});
 defDread('chess_rook', { cam: 0.5 });
+defDread('chess_bishop', { cam: 0.5 });
 defDread('chess_knight', { cam: 0.6 });
 void OB;
 
 // the horror layer: faceted wet materials, twitches, ragged breathing, lunges, recoils, a weighted death
 horrify(ROOK, { twitch: 0.15, snap: 0.08, breathe: 0 });
 horrify(KNIGHT, { twitch: 0.2, snap: 0.1, breathe: 0 });
+horrify(BISHOP, { twitch: 0.18, snap: 0.1, breathe: 0 });

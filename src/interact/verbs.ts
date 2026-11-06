@@ -61,7 +61,7 @@ export function openBackpack() {
 }
 /** search a container (a short reach in, then the loot view) */
 export class LootAction extends TimedAction {
-  constructor(p: Player, public inv: Container | null | undefined, public src?: any) { super(p); this.name = 'Search'; this.duration = 0.5; this.anim = 'loot'; this.showBar = false; }
+  constructor(p: Player, public inv: Container | null | undefined, public src?: any) { super(p); this.name = 'Search'; this.duration = 0.5; this.anim = 'loot'; this.showBar = true; }
   perform() { openLoot(this.p, this.inv, this.src); }
 }
 

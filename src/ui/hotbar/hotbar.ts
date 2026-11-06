@@ -10,7 +10,7 @@ import type { Item } from '../../items/item';
 import { itemName } from '../../items/item';
 import type { Player } from '../../entities/player';
 import { EquipAction } from '../../actions/basic';
-import { itemIconFor } from '../icons';
+import { itemIconFor, iconResCss } from '../icons';
 import { isTouchMode } from '../touch/mode';
 import { ctxAllowed } from './context';
 
@@ -106,7 +106,7 @@ export class HotbarStrip {
     s.forEach((it, i) => {
       const el = this.slots[i];
       const icon = el.querySelector('i') as HTMLElement;
-      icon.style.backgroundImage = it ? `url(${itemIconFor(it, 32)})` : '';
+      icon.style.backgroundImage = it ? `url(${itemIconFor(it, iconResCss(32))})` : '';
       el.classList.toggle('full', !!it);
       el.classList.toggle('held', !!it && (p.handR === it || p.handL === it));
       el.title = it ? itemName(it) : 'empty';

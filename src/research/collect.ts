@@ -27,6 +27,7 @@ import { entry, anomalyEntry, KIND_NAME, type SampleKind } from '../game/codex';
 import { holdArm, syringe, scalpel, swab, vialProp, type Syringe, type Vial } from './fpKit';
 import { carries } from './tools';
 import './research.css';
+import { gaugeIn } from '../ui/hiPixel';
 
 export interface SampleTarget { kind: SampleKind; src: string; name: string; alive: boolean; threat: number; done: (q: number) => void }
 const COL: Record<SampleKind, number> = { tissue: 0xc84a5a, fluid: 0x3ac880, spores: 0xd8c050, residue: 0x9a6aff };
@@ -269,9 +270,11 @@ class FieldFp {
         if (this.held) this.fill = Math.min(1.05, this.fill + dt * (0.28 + this.fill * 0.55) * speed * 1.6);
         if (this.fill > 1.02) { this.held = false; G.audio?.ui?.('dmg_break_glass', 0.5); this.conclude(0); }
         if (this.needle) this.needle.style.left = Math.min(100, this.fill * 100) + '%';
+        if (this.bar) gaugeIn(this.bar, 40, { zones: [this.band], x: Math.min(1, this.fill), fill: this.fill });
       } else {
         this.ph += dt * speed * 0.62;
         if (this.needle) this.needle.style.left = this.needleX() * 100 + '%';
+        if (this.bar) gaugeIn(this.bar, 40, { zones: [[this.notch - this.win / 2, this.notch + this.win / 2]], x: this.needleX(), flash: this.bar.classList.contains('hit') ? 'hit' : this.bar.classList.contains('miss') ? 'miss' : '' });
       }
       // a stunned thing wakes up: hurry
       if (a.target.alive && this.t > 9) { G.audio?.ui?.('band_tick', 0.4); this.conclude(this.fill > 0.2 || this.hits.length ? 0.3 : 0); }

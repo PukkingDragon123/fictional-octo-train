@@ -21,6 +21,7 @@ import {
   uiSound, gameSound, type CrtSpot,
 } from './props';
 import { bitText } from '../../../gfx/bitfont';
+import { crestTex, pageTex } from '../rooms/vaultTex';
 
 // internal keys: 'research' is the control room (it grew out of the research lab), 'subject' the unit room
 // (saved decorations are filed under these keys, so they stay)
@@ -223,6 +224,16 @@ export class MonitorRoom implements StageRoom {
     const sign = plate(this.mats, ['OBSERVATION'], 0.5, 0.11, { bg: 0xc8b890 });
     sign.position.set(W - 0.012, 2.3, 0.45); sign.rotation.y = -Math.PI / 2;
     g.add(sign);
+    // the Institute's seal over the pin board, in a brass rim; a classified file pinned among the notes (rooms/vaultTex.ts)
+    const sb = new FacetBuilder();
+    sb.add('brass', lathe([[0, 0], [0.18, 0], [0.185, 0.012], [0.17, 0.022], [0, 0.02]], 20), 0xc8a060, at(W - 0.005, 2.24, -1.25, 0, 0, Math.PI / 2));
+    g.add(sb.build(this.mats, { cast: false }));
+    const sealTex = crestTex(96, '#e8c878', '#2a3a4c');
+    const seal = new THREE.Mesh(new THREE.PlaneGeometry(0.33, 0.33), new THREE.MeshStandardMaterial({ map: sealTex, transparent: true, alphaTest: 0.35, roughness: 0.5, metalness: 0.3 }));
+    seal.position.set(W - 0.03, 2.24, -1.25); seal.rotation.y = -Math.PI / 2; g.add(seal);
+    const fileTex = pageTex(71, { photo: true, rank: 'wrath', stamp: 'EYES ONLY' });
+    const file = new THREE.Mesh(new THREE.PlaneGeometry(0.17, 0.225), new THREE.MeshStandardMaterial({ map: fileTex, roughness: 0.9 }));
+    file.position.set(W - 0.048, 1.6, -1.64); file.rotation.set(0, -Math.PI / 2, 0.05); file.receiveShadow = true; g.add(file);
     // the IN USE lamp
     this.leds.add([W - 0.03, 2.48, 0.45], 0xff3020, { size: 0.03, level: 1, facing: new THREE.Euler(0, -Math.PI / 2, 0) });
     this.leds.add([-W - 3.2, 2.17, -1.6], 0xd8c8a0, { size: 0.05, pattern: flicker(3) });

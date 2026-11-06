@@ -5,7 +5,8 @@ import { worldMaterial, U } from '../gfx/materials';
 import { Item, itemDef, hasItemDef, freshness, ItemCat } from '../items/item';
 import { buildObjGeometry } from '../world/objects';
 import { PixelCanvas, mixHex } from '../gfx/pixel';
-import { art } from './pixelkit';
+import { pxScale } from './pixelkit';
+import { upscaleRows, rowsToCanvas, shadeSprite, dprK, pcUrl } from './hiPixel';
 
 /**
  * Item icons as pixel art, rendered from each item's real 3D model.
@@ -22,6 +23,17 @@ import { art } from './pixelkit';
  */
 const cache = new Map<string, string>();
 const SS = 4;
+
+/**
+ * Round 13: icons are rendered at the resolution they are shown at (one icon
+ * pixel per CSS pixel, two on a sharp screen) instead of a small sprite blown
+ * up 2-3x, and the pixel pass adds more: a bigger palette with ordered
+ * dithering between its tones, 1 px crease lines where the model's surfaces
+ * turn sharply (from a normals pass), the lit lip, the selective outline.
+ * `artPx` is the size in the interface's art pixels (--px), `css` in CSS px.
+ */
+export function iconRes(artPx: number): number { return Math.min(176, Math.round(artPx * pxScale() * dprK())); }
+export function iconResCss(css: number): number { return Math.min(176, Math.round(css * dprK())); }
 
 export type IconVariant = '' | 'bloody' | 'burnt' | 'rotten' | 'frozen' | 'wet' | 'obj';
 
@@ -147,6 +159,7 @@ function renderIcon(key: string, variant: string, size: number): string {
   const saved: Record<string, any> = {};
   for (const k of keys) if (u[k] && typeof u[k].value === 'number') { saved[k] = u[k].value; u[k].value = want[k]; }
   const px = new Uint8Array(W * W * 4);
+  const nrm = size >= 36 ? new Uint8Array(W * W * 4) : null;
   const prevTarget = r.getRenderTarget();
   const prevClear = new THREE.Color(); r.getClearColor(prevClear); const prevAlpha = r.getClearAlpha();
   try {
@@ -155,6 +168,15 @@ function renderIcon(key: string, variant: string, size: number): string {
     r.clear(true, true, true);
     r.render(scene!, cam!);
     r.readRenderTargetPixels(rt!, 0, 0, W, W, px);
+    // the same shot in view-space normals: where they turn sharply, a crease line goes in
+    if (nrm) {
+      const keep = mesh.material;
+      mesh.material = normalMat ??= new THREE.MeshNormalMaterial();
+      r.clear(true, true, true);
+      r.render(scene!, cam!);
+      r.readRenderTargetPixels(rt!, 0, 0, W, W, nrm);
+      mesh.material = keep;
+    }
   } finally {
     r.setRenderTarget(prevTarget);
     r.setClearColor(prevClear, prevAlpha);
@@ -162,8 +184,36 @@ function renderIcon(key: string, variant: string, size: number): string {
     pivot!.remove(spin);
   }
   const pc = reduce(px, W, size);
-  post(pc, variant, key);
+  const creases = nrm ? creaseMap(nrm, W, size) : null;
+  post(pc, variant, key, creases);
   return toUrl(pc);
+}
+let normalMat: THREE.MeshNormalMaterial | null = null;
+
+/** per final pixel: does the surface fold away sharply to its right / below? (1 = crease) */
+function creaseMap(nrm: Uint8Array, W: number, size: number): Uint8Array {
+  const N = new Float32Array(size * size * 3), has = new Uint8Array(size * size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) {
+    let n = 0, a = 0, b = 0, c = 0;
+    for (let j = 0; j < SS; j++) for (let i = 0; i < SS; i++) {
+      const k = (((size - 1 - y) * SS + (SS - 1 - j)) * W + x * SS + i) * 4;
+      if (nrm[k + 3] > 128) { n++; a += nrm[k] / 127.5 - 1; b += nrm[k + 1] / 127.5 - 1; c += nrm[k + 2] / 127.5 - 1; }
+    }
+    if (n < SS * SS * 0.4) continue;
+    const l = Math.hypot(a, b, c) || 1, q = (y * size + x) * 3;
+    N[q] = a / l; N[q + 1] = b / l; N[q + 2] = c / l; has[y * size + x] = 1;
+  }
+  const out = new Uint8Array(size * size);
+  const dot = (p: number, q: number) => N[p * 3] * N[q * 3] + N[p * 3 + 1] * N[q * 3 + 1] + N[p * 3 + 2] * N[q * 3 + 2];
+  for (let y = 0; y < size - 1; y++) for (let x = 0; x < size - 1; x++) {
+    const p = y * size + x;
+    if (!has[p]) continue;
+    const r = p + 1, d = p + size;
+    // the pixel on the side turned away from the light takes the line
+    if (has[r] && dot(p, r) < 0.6) out[N[p * 3] < N[r * 3] ? p : r] = 1;
+    if (has[d] && dot(p, d) < 0.6) out[N[p * 3 + 1] < N[d * 3 + 1] ? p : d] = 1;
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ pixel pass
@@ -220,35 +270,82 @@ function quantise(pc: PixelCanvas, k: number) {
     });
     cent = cent.map((c, j) => (sum[j][3] ? [sum[j][0] / sum[j][3], sum[j][1] / sum[j][3], sum[j][2] / sum[j][3]] : c));
   }
+  // final assignment: a pixel that sits between two tones is ordered-dithered between them (big icons)
+  const dith = pc.w >= 40;
   let i = 0;
   for (let y = 0; y < pc.h; y++) for (let x = 0; x < pc.w; x++) if (pc.alpha(x, y)) {
-    const c = cent[asg[i++]];
+    let c = cent[asg[i]];
+    if (dith) {
+      const [r, g, b] = rgb(cols[i]);
+      let b1 = Infinity, b2 = Infinity, j1 = 0, j2 = 0;
+      for (let j = 0; j < cent.length; j++) {
+        const d = (r - cent[j][0]) ** 2 * 0.9 + (g - cent[j][1]) ** 2 * 1.2 + (b - cent[j][2]) ** 2 * 0.7;
+        if (d < b1) { b2 = b1; j2 = j1; b1 = d; j1 = j; } else if (d < b2) { b2 = d; j2 = j; }
+      }
+      const rr = Math.sqrt(b1) / (Math.sqrt(b1) + Math.sqrt(b2) + 1e-6);
+      c = cent[rr > 0.3 + BAY[(y & 3) * 4 + (x & 3)] * 0.2 ? j2 : j1];
+    }
+    i++;
     pc.setRGBA(x, y, Math.round(c[0]), Math.round(c[1]), Math.round(c[2]), 255);
   }
 }
+const BAY = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16);
 
-function post(pc: PixelCanvas, variant: string, key: string) {
+function post(pc: PixelCanvas, variant: string, key: string, creases: Uint8Array | null = null) {
   const S = pc.w;
   // punchier colour like hand-picked pixel palettes
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (pc.alpha(x, y)) pc.set(x, y, satBoost(pc.get(x, y), 1.18, 1.08));
-  quantise(pc, S >= 32 ? 18 : S >= 20 ? 13 : S >= 16 ? 11 : 8);
+  quantise(pc, S >= 96 ? 30 : S >= 56 ? 26 : S >= 40 ? 22 : S >= 32 ? 18 : S >= 20 ? 13 : S >= 16 ? 11 : 8);
+  // crease lines: the folds of the model drawn in, a dark tone of the surface
+  if (creases) for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (creases[y * S + x] && pc.alpha(x, y)) pc.set(x, y, mixHex(pc.get(x, y), 0x0a0810, 0.42));
   // state overlays
+  // smooth value noise at the icon's scale (stains are blobs with soft, dithered edges, not squares)
+  const sc = Math.max(3, S / 6), seed = key.length * 7 + 1;
+  const vn = (x: number, y: number, f: number, sd: number) => {
+    const X = x / (sc * f), Y = y / (sc * f), x0 = Math.floor(X), y0 = Math.floor(Y), u = X - x0, v = Y - y0;
+    const su = u * u * (3 - 2 * u), sv = v * v * (3 - 2 * v);
+    const a = hash(x0, y0, sd), b = hash(x0 + 1, y0, sd), c = hash(x0, y0 + 1, sd), d = hash(x0 + 1, y0 + 1, sd);
+    return a + (b - a) * su + (c - a) * sv + (a - b - c + d) * su * sv;
+  };
+  const fbm = (x: number, y: number, sd: number) => vn(x, y, 1, sd) * 0.62 + vn(x, y, 0.45, sd + 11) * 0.28 + vn(x, y, 0.2, sd + 23) * 0.1;
+  const bay = (x: number, y: number) => BAY[(y & 3) * 4 + (x & 3)];
   if (variant === 'bloody') {
+    const m = new Float32Array(S * S);
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) m[y * S + x] = fbm(x, y, seed) + (S >= 32 ? (bay(x, y) - 0.5) * 0.05 : 0);
     for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (pc.alpha(x, y)) {
-      const n = hash(x >> 1, y >> 1, key.length) * 0.7 + hash(x, y, 3) * 0.3;
-      if (n > 0.62) pc.set(x, y, n > 0.8 ? 0x5a0a08 : 0x8c1610);
+      const n = m[y * S + x];
+      if (n < 0.56) continue;
+      const base = pc.get(x, y);
+      // dried rim, fresh middle, black clots; a wet glint on the upper-left edge of each stain
+      let c = n > 0.74 ? 0x4a0806 : n > 0.62 ? 0x8a140e : mixHex(base, 0x6a100a, 0.7);
+      if (n > 0.6 && y > 0 && m[(y - 1) * S + x] < 0.58 && x > 0 && m[y * S + x - 1] < 0.62) c = 0xd8504a;
+      pc.set(x, y, c);
+      // a drip runs down from the heavier stains
+      if (n > 0.7 && hash(x, 0, seed) > 0.86) for (let j = 1; j < Math.round(S / 9); j++) if (pc.alpha(x, y + j)) pc.set(x, y + j, j > 1 && hash(x, j, 2) > 0.6 ? 0x5a0a08 : 0x8a140e);
     }
   } else if (variant === 'burnt') {
-    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (pc.alpha(x, y)) pc.set(x, y, mixHex(pc.get(x, y), hash(x, y, 9) > 0.7 ? 0x0a0806 : 0x2a1a10, 0.6));
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (pc.alpha(x, y)) {
+      const n = fbm(x, y, seed + 3);
+      pc.set(x, y, mixHex(pc.get(x, y), n > 0.62 ? 0x060504 : n > 0.5 ? 0x1c120a : 0x3a2414, n > 0.62 ? 0.88 : 0.6));
+      if (n > 0.66 && hash(x, y, 9) > 0.93) pc.set(x, y, 0xff8a2a); // embers
+    }
   } else if (variant === 'rotten') {
     for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (pc.alpha(x, y)) {
+      const n = fbm(x, y, seed + 5);
       const c = mixHex(pc.get(x, y), 0x5a6a20, 0.35);
-      pc.set(x, y, hash(x >> 1, y, 5) > 0.82 ? 0x3a4210 : c);
+      pc.set(x, y, n > 0.68 ? (hash(x, y, 4) > 0.7 ? 0x8a9a40 : 0x3a4210) : n > 0.6 ? mixHex(c, 0x2a3008, 0.4) : c);
     }
   } else if (variant === 'frozen') {
-    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (pc.alpha(x, y)) pc.set(x, y, mixHex(pc.get(x, y), 0xcfe8ff, hash(x, y, 2) > 0.85 ? 0.8 : 0.3));
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (pc.alpha(x, y)) {
+      const n = fbm(x, y, seed + 9);
+      pc.set(x, y, mixHex(pc.get(x, y), 0xcfe8ff, n > 0.66 ? 0.75 : 0.32));
+      if (hash(x, y, 2) > 0.96) pc.set(x, y, 0xffffff); // frost sparkles
+    }
   } else if (variant === 'wet') {
-    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (pc.alpha(x, y)) pc.set(x, y, mixHex(pc.get(x, y), 0x1a3050, 0.25));
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if (pc.alpha(x, y)) {
+      pc.set(x, y, mixHex(pc.get(x, y), 0x1a3050, 0.25));
+      if (fbm(x, y, seed + 13) > 0.7 && hash(x, y, 6) > 0.8) pc.set(x, y, 0xcfe4f4); // droplets
+    }
   }
   // edge light: lip on the top-left of the silhouette, shade bottom-right
   const op = (x: number, y: number) => pc.alpha(x, y) > 0;
@@ -318,10 +415,15 @@ function fallbackIcon(key: string, size: number, variant: string): string {
   let cat: string = 'misc';
   if (variant === 'obj') cat = 'obj';
   else if (hasItemDef(key)) { const c = itemDef(key).cat; cat = CAT_GLYPH[c] ? c : c === 'ammo' || c === 'material' || c === 'fuel' ? 'misc' : c === 'seed' ? 'food' : 'misc'; }
-  const g = CAT_GLYPH[cat as ItemCat] || CAT_GLYPH.misc!;
+  const g0 = CAT_GLYPH[cat as ItemCat] || CAT_GLYPH.misc!;
+  // the glyph grown to the icon (EPX, so its curves stay smooth) and lit like the painted kit
+  const k = Math.max(1, Math.floor((size - 3) / 12));
+  const g = upscaleRows(g0, k);
+  const gw = Math.max(...g.map((r) => r.length));
   const pc = new PixelCanvas(size, size); pc.wrap = false;
-  const ox = Math.floor((size - 12) / 2), oy = Math.floor((size - g.length) / 2);
-  art(pc, ox, oy, g, CAT_PAL[cat] || CAT_PAL.misc);
+  const st = rowsToCanvas(g, CAT_PAL[cat] || CAT_PAL.misc);
+  pc.blit(st, Math.floor((size - gw) / 2), Math.floor((size - g.length) / 2));
+  if (size >= 24) { shadeSprite(pc, { outline: 1, shadow: 0, seed: key.length }); return pcUrl(pc); }
   post(pc, variant === 'obj' ? '' : variant, key);
   return toUrl(pc);
 }

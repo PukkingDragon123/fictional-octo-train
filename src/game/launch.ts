@@ -5,6 +5,7 @@ import { startSession } from './session';
 import { readSave } from './save';
 import { Net } from '../net/net';
 import { Appearance, randomAppearance } from '../entities/humanRig';
+import { loaderText, loaderStage } from '../ui/loading';
 
 interface Char { name: string; app: Appearance; occupation: string; traits: string[] }
 export type LaunchConfig =
@@ -31,6 +32,8 @@ export function takeLaunch(): LaunchConfig | null {
 }
 
 function bootText(html: string, back = false) {
+  // the painted loading screen carries the message when it is up (src/ui/loading.ts)
+  if (loaderText(`${html}${back ? '<br><button class="k-end-btn" style="opacity:1;animation:none;margin-top:12px" onclick="location.reload()">Back to the title</button>' : ''}`)) return;
   const b = document.getElementById('boot');
   if (!b) return;
   b.classList.remove('gone');
@@ -41,6 +44,8 @@ export async function launch(cfg: LaunchConfig) {
   try {
     switch (cfg.mode) {
       case 'new':
+        loaderStage(0.7, 'Building the backrooms');
+        await new Promise((r) => setTimeout(r, 30));
         startSession({ mode: 'solo', name: cfg.name, app: cfg.app, occupation: cfg.occupation, traits: cfg.traits, seed: cfg.seed, sandbox: cfg.sandbox, directives: cfg.directives });
         break;
       case 'load': {

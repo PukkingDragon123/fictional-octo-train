@@ -6,7 +6,7 @@
 // climbs to 100% -> a COMPLETE entry pays its prize: a research tool the
 // subject can carry into the next run (src/research/tools.ts) and RP; whole
 // codex milestones pay suit dyes, requisition slots, a collectible and RP.
-//   entries()            every species (the scanner's catalogue) + six zone anomalies
+//   entries()            every species (the scanner's catalogue) + the anomalies (six item ones, the world ones)
 //   entryState(key)      unknown | discovered | sampled | researching | complete
 //   codexStats()         counts and the overall percentage the lab shows
 //   bankSample(..)       a sample arrives in the fridge
@@ -18,6 +18,7 @@ import { grantResearch } from './research';
 import { unlock } from './profile';
 import { file, saveFile, catalogue, isDiscovered, discover, discoveredCount, deathCount, runLog, type Sample, type SampleKind } from './meridian';
 import { addOwned } from '../ui/menus/deco/store';
+import { WORLD_ANOMALIES, type WorldAnomaly } from '../world/anomalies/data';
 
 export type { Sample, SampleKind };
 export type ToolKey = 'dart' | 'pinger' | 'lure' | 'foam' | 'filter' | 'inhaler' | 'kit2';
@@ -51,7 +52,12 @@ export const ANOMALIES: { key: string; name: string; code: string; cls: string; 
   { key: 'pixel', name: 'Unrendered Matter', code: 'AN-04 // NULL TEXTURE', cls: 'Failed geometry', threat: 2, tool: 'foam', notes: ['A cube of the world that failed to load. Exactly the wrong colour from every angle.', 'It has mass but no surface. Instruments slide off it.', 'Where it touches the floor the floor forgets it was a floor.', 'Sealant sets around it in seconds and never fully cures.'] },
   { key: 'signal', name: 'Signal Crystal', code: 'AN-05 // RESONANCE', cls: 'Resonant quartz', threat: 1, tool: 'pinger', notes: ['Violet quartz that hums when a radio is keyed nearby.', 'Louder near exits. Louder still near what guards them.', 'Its hum bends around walls the way sound should not.', 'Cut thin and driven, it pings back everything that moves.'] },
   { key: 'checksum', name: 'Checksum Fluid', code: 'AN-06 // CORRECTION', cls: 'Corrective agent', threat: 2, tool: 'filter', notes: ['Not a liquid. The injectors hold it anyway.', 'It halts simulation corruption completely, once, in one body.', 'Exposed tissue returns to an earlier, healthier state.', 'A filter soaked in it keeps sickness from taking hold.'] },
+  // the studyable places and fixtures in the levels (src/world/anomalies/data.ts: zone, obj, sample, lore, study, behaviour)
+  ...WORLD_ANOMALIES,
 ];
+export { WORLD_ANOMALIES, type WorldAnomaly };
+/** the world anomaly behind a codex key ('anom:ledge'), or null for the six item anomalies */
+export function worldAnomalyOf(codexKey: string): WorldAnomaly | null { return WORLD_ANOMALIES.find((a) => 'anom:' + a.key === codexKey) ?? null; }
 const TEMP_TOOL: Record<string, ToolKey> = { peaceful: 'inhaler', skittish: 'lure', curious: 'pinger', neutral: 'kit2', territorial: 'foam', hostile: 'dart', stalker: 'pinger', ambush: 'foam', hazard: 'filter' };
 const TOOL_OVERRIDE: Record<string, ToolKey> = { hush: 'inhaler', echo: 'pinger', lumenmoth: 'lure', ventling: 'filter', surveyor: 'kit2', grinhound: 'dart', cowerling: 'kit2', stammer: 'dart', still_life: 'foam' };
 
@@ -64,7 +70,7 @@ export function entries(): Entry[] {
     tool: TOOL_OVERRIDE[s.key] ?? TEMP_TOOL[s.temperament] ?? 'kit2',
     gives: (/fung|spore|mould|mold|moss/i.test(String(s.scan?.cls ?? '')) ? ['spores', 'tissue'] : s.flags?.immortal || s.temperament === 'hazard' ? ['residue'] : ['tissue', 'fluid']) as SampleKind[],
   }));
-  for (const a of ANOMALIES) out.push({ key: 'anom:' + a.key, kind: 'anomaly', name: a.name, code: a.code, cls: a.cls, notes: a.notes, threat: a.threat, tool: a.tool, gives: ['residue'] });
+  for (const a of ANOMALIES) out.push({ key: 'anom:' + a.key, kind: 'anomaly', name: a.name, code: a.code, cls: a.cls, notes: a.notes, threat: a.threat, tool: a.tool, gives: [((a as Partial<WorldAnomaly>).sample ?? 'residue') as SampleKind] });
   cache = out; cacheN = sp.length;
   return out;
 }

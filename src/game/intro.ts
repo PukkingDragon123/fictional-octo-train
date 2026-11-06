@@ -1,23 +1,26 @@
 // The opening of a new contract run: the link.
 //
 // You are the operator at the Meridian Institute; the body in the backrooms is
-// a unit (a prisoner of the Remittance Programme). Three beats:
+// a unit (a prisoner of the Remittance Programme). You never meet Dr. Calder:
+// she is a voice (the intercom plate under her subtitles, src/game/loop/plate.ts,
+// and later the band on the unit's wrist). Three beats:
 //   link   the link suite (the prologue's set, src/game/prologue/set.ts, on the
 //          intake's own cinematic stage, src/game/introKit/stage.ts): you are
 //          strapped into the rig, your unit (this run's body, its own face)
-//          slumped in the chair beside you under its crown; Dr. Calder at the
-//          console: the crown comes down, the handshake runs on the CRTs, the
-//          shock (a white flash, the body convulsing, static), black
+//          slumped in the chair beside you; her voice on the intercom: the
+//          crown comes down, the handshake runs on the CRTs, the shock (a
+//          white flash, the body convulsing, static), black
 //   wake   back to the world, through the unit's own eyes (src/fp/eye.ts): on
 //          its back on the carpet of Level 0 under the fluorescent tubes, the
 //          eyelids open, a blink, it gets up
-//   tour   first person: Dr. Calder's hologram (src/game/handler.ts) unfolds
-//          from the band in front of you and points at each control on the
-//          screen in turn, read from the DOM where it really is (desktop or
-//          touch): the body machine, the sanity brain, the watch, the pack,
-//          the context buttons; each lit as she names it
+//   tour   first person, her voice on the band: each control on the screen lit
+//          in turn as she names it, read from the DOM where it really is
+//          (desktop or touch): the body machine, the sanity brain, the job
+//          tracker, the watch, the pack, the context buttons
 // Then flag 'contract:intake', bus 'introDone', and the staged tutorial
-// (src/game/tutorial) takes over with Calder walking you through the job.
+// (src/game/tutorial) takes over: Calder talks you through the job while you
+// walk the unit. Straight after the prologue (src/game/prologue) the run
+// starts at the wake: the prologue already ran the handshake.
 //
 // Shown once per new contract run (src/game/session.ts decides: not for loaded
 // saves, co-op clients or free survival). The skip plate in the corner skips at
@@ -34,19 +37,17 @@ import { INTRO_ZONE } from '../world/gen/z_reality';
 import { fpClaim, fpRelease, fpCamera, fpGroup } from '../fp/fp';
 import { eyeEnter, eyeExit, eyeCamera } from '../fp/eye';
 import { StageRender } from './introKit/stage';
-import { stageMat } from './introKit/stageMat';
 import { Subs } from './introKit/subs';
 import { skipPlate, pollPadSkip, padConnected, type SkipPlate } from './introKit/skip';
 import { animSupported, fallbackPose, overlay, clamp01 } from './cutPose';
 import { letterTimes } from '../social/chipVoice';
 import { LinkSet, LS } from './prologue/set';
-import { calderRig } from './prologue/calder';
-import { CALDER_VOICE } from './prologue/prologue';
+import { CALDER_VOICE, INTRO_FROM_KEY } from './prologue/prologue';
+import { Intercom } from './loop/plate';
 import { debtorNumber } from './handler';
 import { freshStart } from './tutorial/fresh';
 import { startTutorial } from './tutorial/tutorial';
 import { ensurePack } from './arrivalKit/pack';
-import type { Researcher } from '../entities/researcher';
 import './intro.css';
 
 export { INTRO_ZONE };
@@ -105,7 +106,6 @@ export class Intro implements GameSystem {
   get finished() { return this.phase === 'tour'; }
   private stage: StageRender | null = null;
   private set: LinkSet | null = null;
-  private calder: Researcher | null = null;
   private cam = fpCamera();
   private camSave: { fov: number; near: number; far: number } | null = null;
   private look = { yaw: Math.PI - 0.95, pitch: -0.18 }; private mouse = { x: 0, y: 0 };
@@ -119,7 +119,6 @@ export class Intro implements GameSystem {
   private pp: { name: string; t: number; dur: number; anim: boolean } | null = null;
   private stops: Stop[] = [];
   private stopI = -1;
-  private hx = 0; private hz = 0;
   private faceYaw = 0;
   // world state to restore
   private missions: any = null;
@@ -129,7 +128,7 @@ export class Intro implements GameSystem {
   // dom
   private root!: HTMLDivElement; private shade!: HTMLDivElement; private lidT!: HTMLDivElement; private lidB!: HTMLDivElement;
   private noise!: HTMLCanvasElement; private visor!: HTMLDivElement; private hl!: HTMLDivElement;
-  private subs!: Subs; private plate!: SkipPlate;
+  private subs!: Subs; private plate!: SkipPlate; private icom!: Intercom;
   private shadeA = 1; private shadeGoal = 0; private lid = 1; private lidGoal = 1; private noiseA = 0;
   private touch: boolean;
   private skipHot = 0;
@@ -151,8 +150,11 @@ export class Intro implements GameSystem {
     this.hookInput();
     this.hookBody();
     this.buildDom();
-    this.claimStage();
-    this.go('link');
+    // straight after the prologue: it already ran the handshake, the unit wakes
+    let from = '';
+    try { from = sessionStorage.getItem(INTRO_FROM_KEY) || ''; sessionStorage.removeItem(INTRO_FROM_KEY); } catch { /* blocked */ }
+    if (from === 'wake') { this.shadeA = 1; this.go('wake'); }
+    else { this.claimStage(); this.go('link'); }
   }
 
   // ================================================================== the stage (the link suite)
@@ -174,9 +176,6 @@ export class Intro implements GameSystem {
     this.set.cuffK = this.set.cuffGoal = 1;
     this.set.doorK = this.set.doorGoal = 0;
     this.set.badge.visible = false;
-    const c = this.calder = calderRig(stageMat({ rim: 1.15 }));
-    c.root.position.set(2.3, 0, -8.6);
-    root.add(c.root);
     st.setLook('wing', 0.05);
     st.bloom = 0.85; st.streak = 0.4; st.streakTint.setRGB(0.7, 0.85, 1); st.rays = 0.3; st.rayOn = true;
     st.nearBlur = 0.15; st.rack(2.2, 0.16);
@@ -187,7 +186,6 @@ export class Intro implements GameSystem {
     const cam = this.cam;
     if (this.camSave) { cam.fov = this.camSave.fov; cam.near = this.camSave.near; cam.far = this.camSave.far; cam.position.set(0, 0, 0); cam.quaternion.identity(); cam.updateProjectionMatrix(); }
     this.g.pr.scene.visible = true;
-    this.calder?.dispose(); this.calder = null;
     this.set?.dispose(); this.set = null;
     this.stage.dispose(); this.stage = null;
   }
@@ -270,6 +268,7 @@ export class Intro implements GameSystem {
     this.plate.el.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; });
     root.append(this.visor, this.noise, this.lidT, this.lidB, this.hl, this.shade, this.plate.el);
     this.subs = new Subs(root);
+    this.icom = new Intercom(root);
     document.body.appendChild(root);
   }
 
@@ -280,7 +279,7 @@ export class Intro implements GameSystem {
     switch (ph) {
       case 'link':
         this.shadeA = 1; this.shadeGoal = 0; this.lid = 0; this.lidGoal = 0;
-        this.say([`Morning, operator. Unit ${this.num} is prepped and strapped.`, 'Same as the induction. Do not brace.']);
+        this.say([`Morning, operator. Calder, on the intercom. Unit ${this.num} is prepped and strapped beside you.`, 'Same as the induction. Do not brace.']);
         break;
       case 'wake': {
         this.releaseStage();
@@ -306,19 +305,19 @@ export class Intro implements GameSystem {
         document.body.classList.remove('noclip-cine');
         this.root.classList.add('tour');
         this.visor.classList.remove('on');
+        // her voice moves to the band: the tracker's tube carries it from here
+        this.icom.show(false);
         this.lid = this.lidGoal = 0; this.shadeGoal = 0;
         G.input.pointerOverUI = true;
         eyeEnter({ pitchDeg: 7, fov: 62 });
         try { (G.holo as any)?.boot?.(); } catch (e) { console.warn('holo.boot', e); }
         bus.emit('watchSignal', { from: 'CALDER', kind: 'handler', text: 'LINK UP' });
         const h = G.handler;
-        // she stands in front of you, out of the band's beam
-        const d = 1.75;
-        this.hx = p.x + Math.cos(this.faceYaw) * d; this.hz = p.z + Math.sin(this.faceYaw) * d;
-        if (h) { h.scripted = true; h.cine = true; h.beamFromBand = true; h.appear({ x: this.hx, z: this.hz }, 1.3); h.gesture('wave', 2.2); }
+        // her voice only: she is on the band, nobody stands in front of you
+        if (h) { h.scripted = true; h.cine = true; }
         this.stops = this.findStops();
         this.stopI = -1;
-        this.say([`There you are. Welcome to Level 0, unit ${this.num}.`, 'I am on the band on your wrist. Let me show you the body before you walk it anywhere.'], () => this.nextStop());
+        this.say([`There you are. Welcome to Level 0, unit ${this.num}. I am on the band on your wrist now.`, 'Before you walk it anywhere: the screen. I will light each part as I name it.'], () => this.nextStop());
         break;
       }
     }
@@ -343,32 +342,28 @@ export class Intro implements GameSystem {
 
   // ------------------------------------------------------------------ 1. the link suite
   private updLink(dt: number) {
-    const set = this.set!, st = this.stage!, c = this.calder!, t = this.t;
-    this.at(0.6, 1, () => { set.crownGoal = 1; this.sfx('cy_thunk', 0.5); });
-    this.at(1.2, 2, () => { set.mode = 'link'; });
-    this.at(6.4, 3, () => this.say(['Handshake. Three. Two.']));
-    this.at(8.9, 4, () => {
-      set.mode = 'shock'; this.subs.clear();
+    const set = this.set!, st = this.stage!, t = this.t;
+    this.at(0.5, 1, () => { set.crownGoal = 1; this.sfx('cy_thunk', 0.5); });
+    this.at(1.0, 2, () => { set.mode = 'link'; });
+    this.at(5.2, 3, () => this.say(['Handshake. Three. Two.']));
+    this.at(7.4, 4, () => {
+      set.mode = 'shock'; this.subs.clear(); this.icom.quiet();
       st.pulse(2.6, 0xdff4ff, 1.1); st.impact(3.2);
       this.trauma = 1; this.noiseA = 1;
       this.sfx('band_shock', 0.9); this.sfx('cy_spark', 0.8); this.sfx('static_burst', 0.7);
     });
-    if (t > 8.9 && t < 10.1) this.noiseA = Math.random() < 0.7 ? 1 : 0.4;
-    this.at(10.1, 5, () => { this.noiseA = 0; this.shadeGoal = 1; this.shadeA = 1; this.sfx('heartbeat', 0.6); });
-    if (t > 11.2) { this.go('wake'); return; }
-    if (set.mode === 'link') set.linkK = Math.min(0.95, set.linkK + dt * 0.13);
-    // Dr. Calder at the console, then turning to you
-    c.root.rotation.y = lerp(-Math.PI / 2, -2.6, ease((t - 3) / 1.2));
-    c.lookAt(t > 3 ? this.cam.position : v1.set(3.4, 1.2, -9.4));
-    c.update(dt, { speed: 0, stance: 'stand', fidget: true });
-    // the camera: strapped in, looking at your unit, then forward at her; the mouse leans the head a little
+    if (t > 7.4 && t < 8.6) this.noiseA = Math.random() < 0.7 ? 1 : 0.4;
+    this.at(8.6, 5, () => { this.noiseA = 0; this.shadeGoal = 1; this.shadeA = 1; this.sfx('heartbeat', 0.6); });
+    if (t > 9.6) { this.go('wake'); return; }
+    if (set.mode === 'link') set.linkK = Math.min(0.95, set.linkK + dt * 0.17);
+    // the camera: strapped in, looking at your unit, then forward to the door and the CRTs; the mouse leans the head a little
     this.trauma = Math.max(0, this.trauma - dt * 0.9);
     const tr = this.trauma * this.trauma;
     const sh = (s: number) => (Math.sin(this.T * 41 + s) + Math.sin(this.T * 27 + s * 2.3)) * 0.5 * tr;
-    const k = ease((t - 3.4) / 1.6);
-    const yaw = lerp(Math.PI - 0.95, Math.PI + 0.42, k) - this.mouse.x * 0.18;
+    const k = ease((t - 2.6) / 1.8);
+    const yaw = lerp(Math.PI - 1.15, Math.PI - 0.25, k) - this.mouse.x * 0.18;
     let pitch = lerp(-0.2, -0.06, k) - this.mouse.y * 0.1, roll = 0;
-    if (set.mode === 'shock') { pitch += 0.35 * Math.sin(Math.min(1, (t - 8.9) * 3) * Math.PI) + sh(1) * 0.25; roll = sh(2) * 0.4; }
+    if (set.mode === 'shock') { pitch += 0.35 * Math.sin(Math.min(1, (t - 7.4) * 3) * Math.PI) + sh(1) * 0.25; roll = sh(2) * 0.4; }
     const cam = this.cam;
     cam.position.set(LS.rigEye.x + sh(4) * 0.02, LS.rigEye.y + Math.sin(this.T * 1.5) * 0.004 + sh(5) * 0.02, LS.rigEye.z);
     cam.rotation.order = 'YXZ'; cam.rotation.set(pitch, yaw + sh(3) * 0.2, roll);
@@ -376,7 +371,7 @@ export class Intro implements GameSystem {
     set.update(dt, cam);
     st.update(dt);
     st.rayAt.copy(set.fx.suite1?.at ?? v1.set(0, 3, -9));
-    st.rack(t < 3.4 ? 1.9 : 1.6, 0.16, 3);
+    st.rack(t < 2.6 ? 1.9 : 3.0, 0.16, 3);
   }
 
   // ------------------------------------------------------------------ 2. awake in Level 0
@@ -386,7 +381,7 @@ export class Intro implements GameSystem {
     p.facing = p.targetFacing = this.faceYaw;
     this.at(0.5, 1, () => { this.lidGoal = 0.55; this.sfx('breath', 0.6); });
     this.at(1.1, 2, () => { this.lidGoal = 1; });
-    this.at(1.5, 3, () => { this.lidGoal = 0; this.say([`Unit ${this.num}. Can you hear me? Good. You are in.`, 'Up you get. Slowly. The legs are new to you.']); });
+    this.at(1.5, 3, () => { this.lidGoal = 0; this.say([`Unit ${this.num}. Can you hear me? Good. You are in. That is me on its band now.`, 'Up you get. Slowly. The legs are new to you.']); });
     this.at(3.4, 4, () => { this.clearPose(); this.playPose('get_up', 1.8); eyeEnter({ pitchDeg: 4, fov: 62 }); this.sfx('cloth', 0.4); });
     if (t > 5.6 && !this.q.length && this.lineT < 0) this.go('tour');
     if (t > 12) this.go('tour');
@@ -400,8 +395,7 @@ export class Intro implements GameSystem {
     p.facing = p.targetFacing = this.faceYaw;
     G.input.stickX = G.input.stickY = 0;
     G.input.pointerOverUI = true;
-    const cam = eyeCamera();
-    if (h) h.gaze = v2.copy(cam.position);
+    void h;
     // the lit control follows its element (layouts move: the HUD eases in, a phone rotates)
     const s = this.stops[this.stopI];
     if (s) this.placeHl(s);
@@ -415,23 +409,13 @@ export class Intro implements GameSystem {
     const s = this.stops[this.stopI];
     if (!s) {
       this.hl.classList.remove('on');
-      G.handler?.gesture?.('nod', 1.3);
-      this.say(['That is everything you need. I will talk you through the first job as you go.', 'Stand up straight. Somebody might be watching. Somebody always is.'], () => this.finish());
+      this.say(['That is the body. Now the job: I will name every step as you go, and the tracker keeps it written down.'], () => this.finish());
       return;
     }
     this.sfx('watchTick', 0.4);
     this.placeHl(s);
     this.hl.classList.add('on');
     (this.hl.lastChild as HTMLElement).textContent = s.label;
-    // she points at it: a point in the air between you, along your line of sight to it on the screen
-    const r = s.rect();
-    const h = G.handler as unknown as { pointAt?: (v: THREE.Vector3, secs: number) => void; gesture?: (n: string, d: number) => void } | null;
-    if (r && h?.pointAt) {
-      const cam = eyeCamera();
-      const nx = ((r.left + r.width / 2) / innerWidth) * 2 - 1, ny = -(((r.top + r.height / 2) / innerHeight) * 2 - 1);
-      const w = v1.set(nx, ny, 0.5).unproject(cam).sub(cam.position).normalize().multiplyScalar(0.95).add(cam.position);
-      h.pointAt(w.clone(), Math.max(2.6, letterTimes(s.line).dur + 0.8));
-    } else h?.gesture?.('present', 2.4);
     this.say([s.line], () => this.nextStop());
   }
   private placeHl(s: Stop) {
@@ -481,6 +465,8 @@ export class Intro implements GameSystem {
         rect: cache(() => union([...document.querySelectorAll('canvas.bh-ov, .bh-lab')])) },
       { key: 'brain', label: 'SANITY', line: 'The brain is its sanity, and yours. When it cracks, the link slips: the unit lags, drifts, does things on its own.',
         rect: cache(part('brain')) },
+      { key: 'job', label: 'THE JOB', line: 'Top right: the job. What to do next is always written there, and what it pays.',
+        rect: cache(() => union([...document.querySelectorAll('.lp-track')])) },
       { key: 'watch', label: touch ? 'WATCH' : 'WATCH · TAB', line: touch ? 'The watch. Jobs, the map, and the scanner for the inhabitants. Tap WATCH.' : 'The watch. Jobs, the map, and the scanner for the inhabitants. TAB raises it.',
         rect: cache(() => (touch ? btn('WATCH')?.getBoundingClientRect() ?? null : null) ?? part('watch')()) },
       { key: 'pack', label: touch ? 'PACK' : 'PACK · I', line: touch ? 'The pack. Everything you carry goes in there. Tap PACK.' : 'The pack. Everything you carry goes in there. Click it, or press I.',
@@ -525,25 +511,15 @@ export class Intro implements GameSystem {
     }
     if (this.lineT < 0 && this.q.length) {
       const l = this.q.shift()!;
-      const at = () => this.speakerAt();
-      this.subs.show('DR. CALDER', l.text, { style: 'guard', shout: false, at, voice: CALDER_VOICE, hold: 1.1 });
+      this.subs.show(this.phase === 'link' ? 'DR. CALDER · INTERCOM' : 'DR. CALDER · BAND', l.text, { style: 'guard', shout: false, voice: CALDER_VOICE, hold: 1.1 });
       this.lineDur = letterTimes(l.text).dur + Math.max(0.8, Math.min(2.0, l.text.length * 0.028));
       this.lineT = 0; this.lineThen = l.then;
-      this.calder?.say(this.lineDur * 0.85);
-      if (this.phase === 'tour') (G.handler as unknown as { rig?: { talk: (s: number) => void } } | null)?.rig?.talk(this.lineDur * 0.85);
+      if (this.phase === 'tour') bus.emit('calderSpeak', { text: l.text, dur: letterTimes(l.text).dur });
+      else this.icom.talk(l.text, letterTimes(l.text).dur);
+      this.sfx('radio_on', 0.25);
     }
   }
-  /** where her lines hang: over her head on the stage, over her projection in the world */
-  private speakerAt(): { x: number; y: number } | null {
-    if (this.phase === 'link' && this.calder) { const h = this.calder.j.head.getWorldPosition(v2); h.y += 0.36; return this.project(h, this.cam); }
-    if (this.phase === 'tour' && G.handler) { const r = (G.handler as unknown as { rig: Researcher }).rig; const h = r.j.head.getWorldPosition(v2); h.y += 0.4; return this.project(h, eyeCamera()); }
-    return null;
-  }
-  private project(p: THREE.Vector3, cam: THREE.Camera) {
-    const v = v1.copy(p).project(cam);
-    if (v.z > 1 || v.z < -1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) return null;
-    return { x: (v.x * 0.5 + 0.5) * innerWidth, y: (0.5 - v.y * 0.5) * innerHeight };
-  }
+
 
   private paint(dt: number) {
     this.subs.update(dt);
@@ -589,6 +565,7 @@ export class Intro implements GameSystem {
     try { (G.holo as any)?.boot?.(); } catch { /* no band HUD */ }
     this.plate.destroy();
     this.subs.destroy();
+    this.icom.destroy();
     this.root.remove();
     const m = this.missions;
     queueMicrotask(() => {
@@ -599,7 +576,7 @@ export class Intro implements GameSystem {
     m?.set?.('contract:intake');
     freshStart(p);
     const h = G.handler as any;
-    if (h) { h.scripted = false; h.cine = false; h.gaze = null; h.beamFromBand = false; h.briefed = true; }
+    if (h) { h.scripted = false; h.cine = false; h.gaze = null; h.briefed = true; }
     // the staged tutorial takes it from here (Dr. Calder walks you through the job)
     try { startTutorial(g); } catch (e) { console.warn('tutorial', e); }
     h?.begin?.();

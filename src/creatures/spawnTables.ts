@@ -62,6 +62,19 @@ const INHABIT: Record<string, [string, number][]> = {
   corrupt: [['king_in_yellow', 0.1], ['mulcher', 0.6]],
 };
 for (const k in INHABIT) ADD[k] = (ADD[k] || []).concat(INHABIT[k]);
+// the Ledge pass: the Gummy Bear and its bees (src/creatures/species/gummy_bear.ts, bumble_bee.ts),
+// the Tallow Pigeons; strays in the softer levels; and a third native for the thin dimensions
+const LEDGE: [string, number][] = [['bumble_bee', 3], ['gummy_bear', 1.3], ['tallow_pigeon', 1.8]];
+const STRAYS: Record<string, [string, number][]> = {
+  fields: [['bumble_bee', 0.7], ['gummy_bear', 0.22]],
+  meadow: [['bumble_bee', 1], ['gummy_bear', 0.2]],
+  corrupt: [['gummy_bear', 0.2], ['tallow_pigeon', 0.5]],
+  suburbs: [['tallow_pigeon', 0.5]],
+  parking: [['tallow_pigeon', 0.4]],
+  chess: [['chess_bishop', 2]],
+  moon: [['moon_calf', 2.5]],
+};
+for (const k in STRAYS) ADD[k] = (ADD[k] || []).concat(STRAYS[k]);
 /**
  * The new dimensions (src/world: shared floors) list these themselves; when a
  * dimension zone's key or name says which one it is and its table is missing
@@ -75,6 +88,11 @@ const DIMS: [RegExp, [string, number][]][] = [
 
 bus.on('zoneGenerated', (z: Zone) => {
   if (!Array.isArray(z.spawnTable)) return;
+  // the Ledge (however its generator names it) always gets its natives, even from an empty table
+  if (/ledge/i.test(z.key + ' ' + (z.name || '') + ' ' + ((z.meta as any)?.dimension ?? ''))) {
+    for (const [k, w] of LEDGE) if (!z.spawnTable.some(([s]) => s === k)) z.spawnTable.push([k, w]);
+    if (!(z.creatureCap > 0)) z.creatureCap = 7;
+  }
   const add = ADD[z.key];
   if (add && z.spawnTable.length) for (const [k, w] of add) if (!z.spawnTable.some(([s]) => s === k)) z.spawnTable.push([k, w]);
   if (ADD[z.key]) return;

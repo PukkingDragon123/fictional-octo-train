@@ -1,11 +1,11 @@
 // The way back into the prologue from the title: a small line of Alagard type
-// in the corner of the monitor room ("PROLOGUE · meet Dr. Calder again"),
+// in the corner of the monitor room ("PROLOGUE · the first link"),
 // shown while the title's own menu is up. The lab's menu can call
 // replayPrologue() itself instead (src/game/prologue/index.ts).
 import { replayPrologue } from './prologue';
 
 const CSS = `
-.pl-entry { position: fixed; left: calc(16px + env(safe-area-inset-left)); bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 40; font-family: var(--font-new);
+.pl-entry { position: fixed; left: calc(16px + env(safe-area-inset-left)); bottom: calc(40px + env(safe-area-inset-bottom)); z-index: 60; font-family: var(--font-new);
   background: none; border: 0; padding: 0; cursor: pointer; text-align: left; opacity: .72; transition: opacity .2s; }
 .pl-entry:hover, .pl-entry:focus-visible { opacity: 1; outline: none; }
 .pl-entry b { display: block; font-weight: 400; font-size: 16px; line-height: 16px; letter-spacing: 2px; color: #8fd8ff; text-shadow: var(--text-ink); }
@@ -19,7 +19,7 @@ export function prologueEntry(follow = '.tt3-menu'): HTMLButtonElement {
   const b = document.createElement('button');
   b.className = 'pl-entry';
   b.type = 'button';
-  b.innerHTML = '<b>&#8634; PROLOGUE</b><i>meet Dr. Calder again</i>';
+  b.innerHTML = '<b>&#8634; PROLOGUE</b><i>the first link, again</i>';
   b.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); replayPrologue(); });
   document.body.appendChild(b);
   // only while the title's menu is on screen (not inside a feed, the creator or a terminal)

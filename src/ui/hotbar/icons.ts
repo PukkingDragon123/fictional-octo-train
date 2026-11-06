@@ -2,6 +2,11 @@
 // 16x16 art in a shaded palette, an automatic 1px dark outline and a soft drop
 // shadow, drawn once into a canvas and handed out as data URLs (CSS backgrounds,
 // image-rendering: pixelated, shown at whole multiples).
+// Round 13: drawn at the size they are shown (2x / 3x, more on a sharp screen):
+// the 16x16 map is grown with Scale2x / Scale3x so its curves stay smooth, then
+// lit by the hi-res kit (src/ui/hiPixel.ts): bevels, warm lights and cool
+// shadows in dithered steps, glints, inner lines, a selective outline.
+import { upscaleRows, rowsToCanvas, shadeSprite, pcUrl, dprK } from '../hiPixel';
 const PAL: Record<string, number> = {
   w: 0xf4f1e4, l: 0xc9c6b4, m: 0x8a887a, d: 0x4a4840, p: 0x2c2a24,
   Y: 0xffe08a, y: 0xe8b52a, o: 0xa2700f,
@@ -395,11 +400,33 @@ export const CTX_ART: Record<string, string[]> = {
 export type CtxIcon = keyof typeof CTX_ART;
 
 const cache = new Map<string, string>();
-/** the icon as a data URL (18x18: the art, its outline and a 1px shadow) */
-export function ctxIconUrl(name: string): string {
-  const hit = cache.get(name);
+/** the icon as a data URL, 18 x scale CSS px square (scale 2: the 36 px chips, 3: the 54 px primary) */
+export function ctxIconUrl(name: string, scale = 2): string {
+  const k = Math.max(1, Math.round(scale * dprK()));
+  const ck = name + '|' + k;
+  const hit = cache.get(ck);
   if (hit) return hit;
   const rows = CTX_ART[name] || CTX_ART.letgo;
+  if (k >= 2) {
+    const src = Array.from({ length: 16 }, (_, y) => (rows[y] || '').padEnd(16, '.').slice(0, 16));
+    const big = upscaleRows(src, k);
+    const pc = rowsToCanvas(big, PAL, k, 18 * k, 18 * k);
+    shadeSprite(pc, { outline: 2, shadow: Math.max(1, Math.round(k / 2)), bevel: Math.max(2, Math.round(k * 1.6)), seed: name.length });
+    // a second, darker ring outside the selective outline so the icon reads over any floor
+    const snap = new Uint8ClampedArray(pc.data), S = 18 * k;
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      if (snap[(y * S + x) * 4 + 3] > 0) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const X = x + dx, Y = y + dy;
+        if (X < 0 || Y < 0 || X >= S || Y >= S) continue;
+        const j = (Y * S + X) * 4;
+        if (snap[j + 3] === 255 && (snap[j] + snap[j + 1] + snap[j + 2]) < 200) { pc.set(x, y, PAL.k, 200); break; }
+      }
+    }
+    const url = pcUrl(pc);
+    cache.set(ck, url);
+    return url;
+  }
   const W = 18, H = 18;
   const grid: string[][] = [];
   for (let y = 0; y < 16; y++) grid.push((rows[y] || '').padEnd(16, '.').slice(0, 16).split(''));
@@ -420,6 +447,6 @@ export function ctxIconUrl(name: string): string {
   for (let y = -1; y <= 16; y++) for (let x = -1; x <= 16; x++) if (filled(x, y) || ol(x, y)) put(x + 2, y + 2, 0x000000, 110);
   x2.putImageData(img, 0, 0);
   const url = c.toDataURL();
-  cache.set(name, url);
+  cache.set(ck, url);
   return url;
 }
