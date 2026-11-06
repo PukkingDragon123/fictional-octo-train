@@ -637,7 +637,8 @@ export class ResearchLab implements StageRoom {
     g.add(b.build(this.mats));
     // the readout screens: codex numbers, and a scrolling base read
     spots.forEach((sp, i) => {
-      const cv = document.createElement('canvas'); cv.width = 96; cv.height = 72;
+      // 3x the old 96 x 72 (the bench games draw their own art at this density: researchBench.ts drawSeq)
+      const cv = document.createElement('canvas'); cv.width = 288; cv.height = 216;
       const ctx = cv.getContext('2d')!;
       const tex = new THREE.CanvasTexture(cv); tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;
       const m = new THREE.Mesh(new THREE.PlaneGeometry(sp.sw, sp.sh), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
@@ -1012,35 +1013,45 @@ export function grime(w: number, h: number, seed: number, k: number): THREE.Mesh
 }
 /** the left CRT: the codex in numbers */
 function drawStats(c: CanvasRenderingContext2D, t: number) {
+  // laid out in 96 x 72 units, drawn at the canvas's density (288 x 216): a lit edge on every bar, fine scanlines
   const st = codexStats();
-  c.fillStyle = '#04140a'; c.fillRect(0, 0, 96, 72);
-  c.fillStyle = '#3aff6a';
+  const Wd = c.canvas.width, Hd = c.canvas.height, k = Wd / 96, X = (v: number) => Math.round(v * k);
+  c.fillStyle = '#04140a'; c.fillRect(0, 0, Wd, Hd);
   const rows: [string, number, number][] = [['DSC', st.discovered, st.total], ['SMP', st.sampled, st.total], ['RES', st.researched, st.total], ['CMP', st.complete, st.total]];
-  rows.forEach(([k, n, of], i) => {
+  rows.forEach(([key, n, of], i) => {
     const y = 6 + i * 13;
-    c.fillStyle = '#2ac85a'; c.fillRect(4, y, 3, 7);
-    c.fillStyle = '#0a3a1a'; c.fillRect(24, y + 1, 52, 5);
-    c.fillStyle = i === 3 ? '#ffd23a' : '#3aff6a'; c.fillRect(24, y + 1, Math.round(52 * n / Math.max(1, of)), 5);
-    c.fillStyle = '#9affb0'; c.fillRect(80, y + 1, Math.min(14, String(n).length * 4), 5);
-    void k;
+    bitText(c, key, X(3), X(y) - 3, { color: '#2ac85a', outline: null });
+    c.fillStyle = '#0a3a1a'; c.fillRect(X(24), X(y + 1), X(52), X(5));
+    const fw = Math.round(X(52) * n / Math.max(1, of));
+    c.fillStyle = i === 3 ? '#ffd23a' : '#3aff6a'; c.fillRect(X(24), X(y + 1), fw, X(5));
+    if (fw > 2) { c.fillStyle = i === 3 ? '#fff0a0' : '#b8ffc8'; c.fillRect(X(24), X(y + 1), fw, 1); c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(X(24), X(y + 6) - 1, fw, 1); }
+    for (let q = 1; q < 10; q++) { c.fillStyle = 'rgba(0,0,0,0.4)'; c.fillRect(X(24) + Math.round(X(52) * q / 10), X(y + 1), 1, X(5)); }
+    bitText(c, String(n), X(93), X(y) - 3, { color: '#9affb0', outline: null, align: 'right' });
   });
-  c.fillStyle = '#3aff6a';
   const pct = st.pct;
-  for (let i = 0; i < 20; i++) { c.fillStyle = i < pct / 5 ? '#ffd23a' : '#0a3a1a'; c.fillRect(4 + i * 4.5, 60, 3, 6); }
-  if (Math.floor(t * 2) % 2) { c.fillStyle = '#3aff6a'; c.fillRect(88, 62, 4, 4); }
-  for (let y = 0; y < 72; y += 2) { c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, y, 96, 1); }
+  for (let i = 0; i < 20; i++) {
+    const x = X(4 + i * 4.5);
+    c.fillStyle = i < pct / 5 ? '#ffd23a' : '#0a3a1a'; c.fillRect(x, X(60), X(3), X(6));
+    if (i < pct / 5) { c.fillStyle = '#fff0a0'; c.fillRect(x, X(60), X(3), 1); }
+  }
+  if (Math.floor(t * 2) % 2) { c.fillStyle = '#3aff6a'; c.fillRect(X(88), X(62), X(4), X(4)); }
+  for (let y = 0; y < Hd; y += 2) { c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, y, Wd, 1); }
 }
-/** the right CRT: a base read scrolling by (A T G C as four colours) */
+/** the right CRT: a base read scrolling by (A T G C as four colours), at the canvas's density */
 function drawBases(c: CanvasRenderingContext2D, t: number) {
-  c.fillStyle = '#040a14'; c.fillRect(0, 0, 96, 72);
-  const cols = ['#3aff6a', '#ff5a3a', '#3ac8ff', '#ffd23a'];
+  const Wd = c.canvas.width, Hd = c.canvas.height, k = Wd / 96, X = (v: number) => Math.round(v * k);
+  c.fillStyle = '#040a14'; c.fillRect(0, 0, Wd, Hd);
+  const cols = ['#3aff6a', '#ff5a3a', '#3ac8ff', '#ffd23a'], lit = ['#c8ffd0', '#ffc8b8', '#c8f0ff', '#fff0b0'];
   const off = Math.floor(t * 20);
   for (let r = 0; r < 8; r++) for (let i = 0; i < 12; i++) {
-    const k = off + i + r * 13;
-    const h = Math.sin(k * 12.9898) * 43758.5453; const v = Math.floor((h - Math.floor(h)) * 4);
-    c.fillStyle = cols[v]; c.fillRect(4 + i * 7.5, 4 + r * 8, 5, 5);
+    const n = off + i + r * 13;
+    const h = Math.sin(n * 12.9898) * 43758.5453; const v = Math.floor((h - Math.floor(h)) * 4);
+    const x = X(4 + i * 7.5), y = X(4 + r * 8), s = X(5);
+    c.fillStyle = cols[v]; c.fillRect(x, y, s, s);
+    c.fillStyle = lit[v]; c.fillRect(x, y, s, 1); c.fillRect(x, y, 1, s);
+    c.fillStyle = 'rgba(0,0,0,0.4)'; c.fillRect(x, y + s - 1, s, 1); c.fillRect(x + s - 1, y, 1, s);
   }
-  for (let y = 0; y < 72; y += 2) { c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(0, y, 96, 1); }
+  for (let y = 0; y < Hd; y += 2) { c.fillStyle = 'rgba(0,0,0,0.3)'; c.fillRect(0, y, Wd, 1); }
 }
 /** a hanging tool on the pegboard (a quick model per kind, facing -X) */
 function toolMesh(k: string, color: number): THREE.Object3D {

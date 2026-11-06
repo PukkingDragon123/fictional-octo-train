@@ -132,9 +132,9 @@ if (uMelt > 0.001 && uWFlags.x > 0.5) {
   float mh = clamp(nWp.y / 2.7, 0.0, 1.25);
   float mh2 = mh * mh;
   vec2 mq = nWp.xz;
-  float sag = 0.2 + 0.22 * (0.5 + 0.5 * sin(mq.x * 1.1 + mq.y * 0.83)) + 0.1 * sin(mq.x * 2.3 - mq.y * 1.7 + 1.7) + 0.08 * sin(mq.x * 0.31 + mq.y * 0.27);
+  float sag = 0.16 + 0.34 * (0.5 + 0.5 * sin(mq.x * 1.3 + mq.y * 0.9)) + 0.12 * sin(mq.x * 2.7 - mq.y * 2.1 + 1.7) + 0.06 * sin(mq.x * 0.31 + mq.y * 0.27);
   nWp.y -= mh2 * sag * uMelt;
-  nWp.xz += vec2(sin(mq.y * 0.9 + 0.4), cos(mq.x * 0.8 + 1.1)) * mh2 * 0.17 * uMelt;
+  nWp.xz += vec2(sin(mq.y * 0.9 + 0.4), cos(mq.x * 0.8 + 1.1)) * mh2 * 0.22 * uMelt;
   nWp.xz += vec2(sin(uTime * 1.3 + nWp.y * 3.1 + mq.y * 0.9), cos(uTime * 1.1 + nWp.y * 2.7 + mq.x * 0.8)) * 0.018 * mh * uMelt;
 }
 vWPos = nWp.xyz;

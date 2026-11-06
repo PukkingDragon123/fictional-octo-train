@@ -28,7 +28,7 @@ export interface Station { eye: THREE.Vector3; at: THREE.Vector3; surf: number; 
 export interface BenchHost {
   scene: THREE.Scene; cam: THREE.PerspectiveCamera; mats: FMats;
   station(k: string): Station;
-  /** the sequencer's CRT canvas (96 x 72) */
+  /** the sequencer's CRT canvas (288 x 216: draw in 96 x 72 units scaled by width / 96) */
   readout: CanvasRenderingContext2D | null;
   root: HTMLElement;
   rayAt?: (x: number, y: number) => THREE.Ray | null;
@@ -615,23 +615,26 @@ export class BenchRun {
     const c = this.host.readout;
     if (!c) return;
     const cols = ['#3aff6a', '#ff5a3a', '#3ac8ff', '#ffd23a'];
-    c.fillStyle = '#04100a'; c.fillRect(0, 0, 96, 72);
+    // laid out in the old 96 x 72 units, drawn at the canvas's own density (bevels and glints stay one pixel)
+    const Wd = c.canvas.width, Hd = c.canvas.height, k = Wd / 96, X = (v: number) => Math.round(v * k), px = Math.max(1, Math.round(k));
+    c.fillStyle = '#04100a'; c.fillRect(0, 0, Wd, Hd);
     // the reference, top
-    c.fillStyle = '#0a3a1a'; c.fillRect(20, 3, 56, 14);
-    d.ref.forEach((b: number, i: number) => block(c, 23 + i * 13, 6, 10, 8, cols[b]));
+    c.fillStyle = '#0a3a1a'; c.fillRect(X(20), X(3), X(56), X(14));
+    d.ref.forEach((b: number, i: number) => block(c, X(23 + i * 13), X(6), X(10), X(8), cols[b]));
     // the read: windows of four, scrolling left through the frame
     const fx = 30, fw = 36;
-    c.fillStyle = d.flash > 0 ? (d.flashOk ? '#1a6a2a' : '#6a1a10') : '#0a2a14'; c.fillRect(fx - 2, 30, fw + 4, 22);
+    c.fillStyle = d.flash > 0 ? (d.flashOk ? '#1a6a2a' : '#6a1a10') : '#0a2a14'; c.fillRect(X(fx - 2), X(30), X(fw + 4), X(22));
     for (let i = 0; i < d.windows.length; i++) {
       const w = d.windows[i];
       const x = fx + (i - d.x + 0.5) * 48;
       if (x < -50 || x > 100) continue;
-      w.b.forEach((b: number, k: number) => block(c, Math.round(x + k * 9), 34, 7, 14, w.hit ? '#ffffff' : cols[b]));
+      w.b.forEach((b: number, j: number) => block(c, X(x + j * 9), X(34), X(7), X(14), w.hit ? '#ffffff' : cols[b]));
     }
-    c.fillStyle = '#3aff6a'; c.fillRect(fx - 2, 29, fw + 4, 1); c.fillRect(fx - 2, 52, fw + 4, 1);
-    bitText(c, `${d.hits}`, 4, 54, { color: '#3aff6a', outline: null });
-    bitText(c, `${d.false}`, 84, 54, { color: '#ff5a3a', outline: null });
-    for (let y = 0; y < 72; y += 2) { c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, y, 96, 1); }
+    c.fillStyle = '#3aff6a'; c.fillRect(X(fx - 2), X(29), X(fw + 4), px); c.fillRect(X(fx - 2), X(52), X(fw + 4), px);
+    const ts = Math.max(1, Math.round(k * 0.67));
+    bitText(c, `${d.hits}`, X(4), X(54), { color: '#3aff6a', outline: null, scale: ts });
+    bitText(c, `${d.false}`, X(92), X(54), { color: '#ff5a3a', outline: null, scale: ts, align: 'right' });
+    for (let y = 0; y < Hd; y += 2) { c.fillStyle = 'rgba(0,0,0,0.25)'; c.fillRect(0, y, Wd, 1); }
   }
 
   // ================================================================== the hands
