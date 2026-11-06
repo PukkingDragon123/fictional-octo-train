@@ -27,14 +27,12 @@ export interface GuideHost {
 
 const ROOM_INTRO: Record<MenuRoomId, string[]> = {
   monitor: ['The monitor room. Every camera in the building ends up on these tubes.', 'Pick a feed and go look. I will come with you.'],
-  containment: ['Monster containment. That is RB-17. It hunts sound.', 'Tap the glass if you must. Not too often.'],
-  lab: ['The experiment lab. My bench, my tanks, my mess.', 'Everything in here is labelled. Mostly correctly.'],
+  research: ['The research lab. Bring me samples and we will fill in the codex.', 'Fridge, benches, the wall. Finished entries get you tools.'],
   subject: ['Subject room four. That chair is where the intake happens.', 'New subject brings the lights up in here.'],
 };
 const ROOM_AGAIN: Record<MenuRoomId, string[]> = {
   monitor: ['Back at the tubes.', 'Feeds are steady tonight.', 'Coffee is cold again. Of course it is.'],
-  containment: ['It heard us come in.', 'Keep your voice down near the glass.', 'The crack is new. Do not mention it.'],
-  lab: ['Mind the tanks.', 'If something bubbles, that is normal. Probably.', 'My lab. Wipe your feet.'],
+  research: ['Anything new in the fridge?', 'Gloves on. Always gloves.', 'Do not tap the jar. I mean it.', 'Every card on that wall is a lesson somebody paid for.'],
   subject: ['The chair again.', 'Somebody always has to sit in it.', 'Smells like ozone in here.'],
 };
 const POKES: [string, string?][] = [
@@ -204,7 +202,7 @@ export class Guide {
       case 'buy': this.now(pick(['Good choice.', 'That one is my favourite. Do not tell the others.', 'It is in your tray.', 'Delivered.']), { emote: Math.random() < 0.4 ? 'clap' : undefined }); break;
       case 'free': this.now('That one is on me.'); break;
       case 'poor': this.now(pick(['Not enough research points. Missions, scans and the rules all pay.', 'Short on points. The Institute pays for knowledge.']), { emote: 'shrug' }); break;
-      case 'place': if (Math.random() < 0.35) this.now(pick(['Oh, that works there.', 'Very homely. For a containment facility.', 'Nice.', extra ? `The ${extra} suits the room.` : 'Lovely.'])); break;
+      case 'place': if (Math.random() < 0.35) this.now(pick(['Oh, that works there.', 'Very homely. For a research facility.', 'Nice.', extra ? `The ${extra} suits the room.` : 'Lovely.'])); break;
       case 'remove': if (Math.random() < 0.25) this.now(pick(['Back in the tray it goes.', 'Fair. It was a lot.'])); break;
     }
   }

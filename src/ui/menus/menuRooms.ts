@@ -1,5 +1,4 @@
-// The main menu's rooms (the monitor room, the monster containment, the experiment lab and the
-// subject room) announce themselves here, so other systems can furnish them without touching the
+// The main menu's rooms (the monitor room, the research lab and the subject room) announce themselves here, so other systems can furnish them without touching the
 // room code: the room decorator (blueprint mode, collectibles) and the researcher guide.
 //
 //   registerMenuRoom(room)          a room calls this once its scene is built (and again never)
@@ -8,7 +7,7 @@
 //   setActiveMenuRoom(id) / activeMenuRoom() / onActiveMenuRoom(cb)   which room the player is looking at
 import type * as THREE from 'three';
 
-export type MenuRoomId = 'monitor' | 'containment' | 'lab' | 'subject';
+export type MenuRoomId = 'monitor' | 'research' | 'subject';
 
 export interface MenuRoom {
   id: MenuRoomId;

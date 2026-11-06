@@ -128,7 +128,7 @@ export class BuildMode {
 
   // ---------------------------------------------------------------- the 2D parts
   private caption() {
-    const name = { monitor: 'Monitor room', containment: 'Containment', lab: 'Experiment lab', subject: 'Subject room' }[this.room!.id] ?? 'Room';
+    const name = { monitor: 'Monitor room', research: 'Research lab', subject: 'Subject room' }[this.room!.id] ?? 'Room';
     this.cap.innerHTML = `<b>Blueprint</b><span>${esc(name)}</span><small>${this.held ? 'click to set · Q / E turn · right click cancel' : this.binOn ? 'click a thing to send it back to the tray' : 'pick from the tray · click a thing to move it'}</small>`;
   }
   private buildTools() {

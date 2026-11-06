@@ -294,7 +294,7 @@ class FieldFp {
     const sway = Math.sin(t * 1.4) * 0.003;
     // the vial in the left hand, low and to the side; it fills as the work goes
     const v = this.vial!;
-    v.g.position.set(-0.12 + sway, -0.12 + yOff, -0.36);
+    v.g.position.set(-0.13 + sway, -0.13 + yOff, -0.44);
     v.g.rotation.set(0.3, 0, 0.25);
     const work = k === 'fluid' ? (this.ending >= 0 && this.result > 0 ? Math.min(1, this.ending * 1.5) * 0.7 : 0) : (this.hits.filter((h) => h > 0).length / 3) * 0.6;
     v.set(work);
@@ -303,7 +303,7 @@ class FieldFp {
     if (k === 'fluid') {
       const s = this.syr!;
       s.set(Math.min(1, this.fill));
-      s.g.position.set(0.05 + sway, -0.06 + yOff, -0.4);
+      s.g.position.set(0.1 + sway, -0.1 + yOff, -0.5);
       s.g.rotation.set(-0.5, 0, -0.25);
       holdArm(this.arms!.right, this.root!, 'pinch', s.g, [0, 0.03, 0], [0.24, -0.38, -0.12], [-0.6, 0.3, 0.5]);
       this.arms!.right.tremor = this.held ? 0.4 : 0;
@@ -314,7 +314,7 @@ class FieldFp {
       if (this.stab > 1) this.stab = -1;
       const dip = this.stab >= 0 ? Math.sin(this.stab * Math.PI) : 0;
       const nx = (this.needleX() - 0.5) * 0.08;
-      tool.position.set(0.04 + nx + sway, -0.08 + yOff - dip * 0.04, -0.42 + dip * 0.03);
+      tool.position.set(0.08 + nx + sway, -0.1 + yOff - dip * 0.04, -0.5 + dip * 0.03);
       tool.rotation.set(-0.55 - dip * 0.3, 0, -0.2 + nx * 2);
       holdArm(this.arms!.right, this.root!, k === 'tissue' ? 'pinch' : 'pinch', tool, [0, 0.045, 0], [0.24, -0.38, -0.12], [-0.6, 0.3, 0.5]);
       if (k !== 'tissue') (this.stick!.tip.material as THREE.MeshStandardMaterial).color.setHex(this.hits.some((h) => h > 0) ? COL[k] : 0xf2f0e8);

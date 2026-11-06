@@ -1,11 +1,12 @@
 // Title screen: THE MONITOR ROOM (monitor/monitorRoom.ts), a dim Meridian
-// observation booth whose bank of CRTs shows three live feeds: the monster
-// containment (rooms/containment.ts), the experiment lab (rooms/lab.ts) and
-// subject room 4 (the SubjectRoom of room3d.ts, rooms/subject.ts). The menu is
-// plain floating words in the game's font (Alagard, ink outline) over the dark
-// side of the booth; the three feed tubes are hot, and so are the switches,
-// the microphone, the mug, the lamp, the phone, the chair and the window.
-// Click a feed (or its DOM twin, or press 1-3) and the camera dives into the
+// observation booth whose bank of CRTs shows two live feeds: the research lab
+// (rooms/research.ts: the codex wall, the sample fridge, the benches and their
+// first-person mini-games, the requisition) and subject room 4 (the
+// SubjectRoom of room3d.ts, rooms/subject.ts). The menu is plain floating
+// words in the game's font (Alagard, ink outline) over the dark side of the
+// booth; the feed tubes are hot, and so are the switches, the microphone, the
+// mug, the lamp, the phone, the chair and the window.
+// Click a feed (or its DOM twin, or press 1-2) and the camera dives into the
 // tube; a CRT cut drops you into that room, where you can look around and
 // poke things; Q / E (or the arrows in the HUD) change channel, Esc goes back
 // to the monitors. NEW SUBJECT goes to the subject room and the lights come on
@@ -37,12 +38,11 @@ import { MenuStage, type Hot } from './monitor/stage';
 import { MonitorRoom, FEEDS, type FeedKey } from './monitor/monitorRoom';
 import { CrtFx } from './monitor/crtfx';
 import { setRoomAudio } from './monitor/props';
-import { ContainmentRoom } from './rooms/containment';
-import { LabRoom } from './rooms/lab';
+import { ResearchLab } from './rooms/research';
 import { SubjectView } from './rooms/subject';
 import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRooms';
 import { installDecoAndGuide, onBuildMode } from './deco';
-import { openSpecimen, openLoadout, openFile, panelOpen, closePanel, type PanelHost } from './specimens/panel';
+import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePanel, type PanelHost } from './research/panel';
 import * as THREE from 'three';
 
 export function showTitle() {
@@ -68,7 +68,7 @@ type Acting = { actions: { key: string; label: string; run: () => void }[]; poin
 
 /** the room's camera hooks */
 type RoomCam = { shot?: (k: string, ms?: number) => void; setFraming?: (dx: number | null, dy?: number | null) => void };
-const ORDER: FeedKey[] = ['containment', 'lab', 'subject'];
+const ORDER: FeedKey[] = ['research', 'subject'];
 
 class TitleRoom {
   root = h('div', 'nx nx-title mr');
@@ -79,14 +79,13 @@ class TitleRoom {
   hotcap = h('div', 'mr-hotcap');
   feedNav = h('div', 'mr-feeds');
   hud = h('div', 'mr-hud');
-  foot = h('div', 'tt3-foot kf', '<span>arrows · enter · esc · 1 2 3 feeds</span><span>Observation · Meridian Institute</span>');
+  foot = h('div', 'tt3-foot kf', '<span>arrows · enter · esc · 1 2 feeds</span><span>Observation · Meridian Institute</span>');
   over = h('div', 'nx-over');
   room: SubjectRoom;
   stage: MenuStage;
   fx: CrtFx;
   monitor: MonitorRoom | null = null;
-  containment: ContainmentRoom | null = null;
-  lab: LabRoom | null = null;
+  research: ResearchLab | null = null;
   subject: SubjectView;
   view: View = 'monitor';
   saves: SaveMeta[] = [];
@@ -136,52 +135,30 @@ class TitleRoom {
     if (this.monitor) return;
     const mats = facetMats(this.stage.low);
     const mon = this.monitor = new MonitorRoom(mats);
-    const con = this.containment = new ContainmentRoom(mats);
-    const lab = this.lab = new LabRoom(mats);
-    this.stage.add(mon); this.stage.add(con); this.stage.add(lab);
+    const lab = this.research = new ResearchLab(mats);
+    this.stage.add(mon); this.stage.add(lab);
     this.stage.show('monitor');
-    mon.setFeedTexture('containment', this.stage.feed('containment', 160, 120, 10), true);
-    mon.setFeedTexture('lab', this.stage.feed('lab', 160, 120, 10), true);
+    mon.setFeedTexture('research', this.stage.feed('research', 160, 120, 10), true);
     mon.setFeedTexture('subject', this.subject.tex, false);
     mon.onFeed = (k) => { void this.go(k); };
-    mon.onMic = () => con.fromMonitor();
-    // the specimen wing's paperwork (specimens/panel.ts): a cell's file, the loadout, the Meridian file
-    const ph: PanelHost = { root: this.root, onChange: () => con.refresh() };
-    con.onInspect = (k) => { if (this.view === 'containment') openSpecimen(ph, k); };
-    con.onPanel = (w) => { if (this.view === 'containment') (w === 'loadout' ? openLoadout : openFile)(ph); };
-    this.wingDrag();
+    // the lab's paperwork (research/panel.ts): the codex, an entry, the fridge, the requisition, the Meridian file
+    const ph: PanelHost = { root: this.root, onChange: () => lab.refresh(), onClose: () => lab.unfocus(), onProcess: (smp) => { if (this.view === 'research') void lab.process(smp); } };
+    lab.onPanel = (w, key) => {
+      if (this.view !== 'research' || lab.bench) return;
+      sfx('open', 0.6);
+      if (w === 'codex') openCodex(ph); else if (w === 'entry' && key) openEntry(ph, key); else if (w === 'fridge') openFridge(ph); else if (w === 'req') openReq(ph); else openFile(ph);
+    };
+    lab.rayAt = (x, y) => this.stage.rayAt(x, y);
+    lab.onBench = (on) => { this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
     const reg = (id: MenuRoomId, r: { scene: THREE.Scene; cam: THREE.Camera; deco: THREE.Group; floor: any; surfaces: any; guideSpot: any }) =>
       registerMenuRoom({ id, scene: r.scene, camera: r.cam, deco: r.deco, floor: r.floor, surfaces: r.surfaces, guideSpot: r.guideSpot, host: this.stageHost, pick: (x, y) => this.pickFloor(x, y, r.floor.y, r.surfaces) });
-    reg('monitor', mon); reg('containment', con); reg('lab', lab);
+    reg('monitor', mon); reg('research', lab);
     void this.stage.warm();
     setActiveMenuRoom('monitor');
     this.buildFeedButtons();
     // the decorator (blueprint mode, collectibles) and the researcher guide; build mode gets a shot of the floor
     installDecoAndGuide({ root: this.root });
-    onBuildMode((id) => { mon.setBuild(id === 'monitor'); con.setBuild(id === 'containment'); lab.setBuild(id === 'lab'); });
-  }
-  /** drag, swipe or scroll along the specimen wing */
-  private wingDrag() {
-    const host = this.stageHost;
-    let down: { x: number; id: number } | null = null, wheelT = 0;
-    const on = () => this.view === 'containment' && !this.moving && !panelOpen() && !!this.containment;
-    host.addEventListener('pointerdown', (e) => { if (on()) down = { x: e.clientX, id: e.pointerId }; });
-    host.addEventListener('pointermove', (e) => {
-      if (!down || down.id !== e.pointerId || !on()) return;
-      const dx = e.clientX - down.x;
-      down.x = e.clientX;
-      this.containment!.drag(dx / Math.max(320, window.innerWidth));
-    });
-    const up = (e: PointerEvent) => { if (down && down.id === e.pointerId) { down = null; this.containment?.dragEnd(); } };
-    host.addEventListener('pointerup', up); host.addEventListener('pointercancel', up);
-    host.addEventListener('wheel', (e) => {
-      if (!on()) return;
-      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      const now = performance.now();
-      if (Math.abs(d) < 4 || now - wheelT < 260) return;
-      wheelT = now;
-      this.containment!.pan(d > 0 ? 1 : -1);
-    }, { passive: true });
+    onBuildMode((id) => { mon.setBuild(id === 'monitor'); lab.setBuild(id === 'research'); });
   }
   /** a pointer ray onto the room's floor or the highest surface it crosses */
   private pickFloor(x: number, y: number, floorY: number, surfaces: { minX: number; maxX: number; minZ: number; maxZ: number; y: number }[] = []): THREE.Vector3 | null {
@@ -201,7 +178,7 @@ class TitleRoom {
   show() {
     this.live = true;
     this.root.classList.add('on');
-    this.nav = new FocusNav(this.root, { onBack: () => this.onBack(), onTab: (d) => this.channel(d), onArrow: (dx, dy) => this.view === 'containment' && dy === 0 && dx !== 0 && !this.moving && !!this.containment?.pan(dx as -1 | 1) });
+    this.nav = new FocusNav(this.root, { onBack: () => this.onBack(), onTab: (d) => this.channel(d) });
     this.focusKey(this.lastKey);
     ambience('room');
     this.menu.classList.add('in');
@@ -324,7 +301,7 @@ class TitleRoom {
     if (this.view === 'monitor') this.monitor?.pointer(nx, ny);
     else (r as Acting | null)?.pointer(nx, ny);
   }
-  private roomOf(v: View) { return v === 'monitor' ? this.monitor : v === 'containment' ? this.containment : v === 'lab' ? this.lab : null; }
+  private roomOf(v: View) { return v === 'monitor' ? this.monitor : v === 'research' ? this.research : null; }
 
   // ================================================================== frame hook
   private tick(dt: number) {
@@ -411,22 +388,21 @@ class TitleRoom {
   }
   /** Q / E in a room: the next channel */
   private channel(d: -1 | 1) {
-    if (this.view === 'monitor' || this.root.classList.contains('lit')) return;
-    // in the containment wing Q / E walk the row of cells first; past its ends they change channel
-    if (this.view === 'containment' && !this.moving && this.containment?.pan(d)) return;
+    if (this.view === 'monitor' || this.root.classList.contains('lit') || this.research?.bench) return;
     const i = ORDER.indexOf(this.view as FeedKey);
     void this.go(ORDER[(i + d + ORDER.length) % ORDER.length]);
   }
   private onBack() {
     if (this.over.classList.contains('on')) { this.closeOver(); return; }
     if (this.view === 'subject' && this.subject.face) { this.subject.faceZoom(false); this.buildHud(); return; }
+    if (this.research?.bench) return;
     if (this.view !== 'monitor') void this.back();
   }
   private onKey = (e: KeyboardEvent) => {
-    if (!this.live || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on') || panelOpen()) return;
+    if (!this.live || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on') || panelOpen() || this.research?.bench) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-    if (e.key >= '1' && e.key <= '3') { e.preventDefault(); void this.go(ORDER[Number(e.key) - 1]); }
+    if (e.key >= '1' && e.key <= String(ORDER.length)) { e.preventDefault(); void this.go(ORDER[Number(e.key) - 1]); }
     else if (e.key === '0' && this.view !== 'monitor') { e.preventDefault(); void this.back(); }
   };
 
@@ -459,13 +435,13 @@ class TitleRoom {
       ]
       : ((this.roomOf(k) as Acting | null)?.actions ?? []);
     for (const a of roomActs) acts.append(word(a.label, 'act', () => { sfx('click', 0.8); a.run(); }));
-    const prev = ORDER[(i + 2) % 3], next = ORDER[(i + 1) % 3];
+    const prev = ORDER[(i + ORDER.length - 1) % ORDER.length], next = ORDER[(i + 1) % ORDER.length];
     const pf = FEEDS.find((q) => q.key === prev)!, nf = FEEDS.find((q) => q.key === next)!;
-    bar.append(word('‹ ' + pf.label, 'prev', () => void this.go(prev), `Previous feed: ${pf.label} (Q)`, '‹ ' + pf.cam));
+    if (prev !== next) bar.append(word('‹ ' + pf.label, 'prev', () => void this.go(prev), `Previous feed: ${pf.label} (Q)`, '‹ ' + pf.cam));
     bar.append(word('Monitors', 'home', () => void this.back(), 'Back to the monitors (Esc)'));
     bar.append(word(nf.label + ' ›', 'next', () => void this.go(next), `Next feed: ${nf.label} (E)`, nf.cam + ' ›'));
     hud.append(acts, bar);
-    const tip = h('div', 'mr-tip', k === 'subject' ? 'tap him · Q E change feed · Esc monitors' : k === 'containment' ? 'tap a cell · Q E ← → or drag walk the wing · Esc monitors' : 'tap things · Q E change feed · Esc monitors');
+    const tip = h('div', 'mr-tip', k === 'subject' ? 'tap him · Q E change feed · Esc monitors' : k === 'research' ? 'tap the fridge, the codex wall, the pegboard · Q E change feed · Esc monitors' : 'tap things · Q E change feed · Esc monitors');
     hud.append(tip);
     requestAnimationFrame(() => (acts.querySelector('button') as HTMLElement | null ?? bar.querySelector('.home') as HTMLElement | null)?.focus({ preventScroll: true }));
   }
@@ -523,7 +499,7 @@ class TitleRoom {
     const note = h('div', 'tt3-about', `
 <p>A survival sandbox. You are a debtor in a yellow jumpsuit, processed by the Meridian Institute and pushed through a wall that turns to liquid, into rooms that never end.</p>
 <p>A band on your wrist counts what you owe. A projected sergeant tells you what to break and what to feed to the presses. Pay the debt, buy a way out. Or don't.</p>
-<p>This booth watches three rooms: the containment cell, the experiment lab and subject room 4. Click a monitor, or press 1, 2 or 3, to look closer.</p>
+<p>This booth watches two rooms: the research lab and subject room 4. Click a monitor, or press 1 or 2, to look closer. In the lab, process the samples you brought back at the benches, fill in the codex and pick the research tools for your next run.</p>
 <p class="ct-dim">Inspired by the systemic survival of <i>Project Zomboid</i>, the 2019 "noclip" creepypasta, liminal-space photography and VHS-era found footage. All names, places, creatures and story here are original. Built with three.js. Type: Alagard (SIL Open Font License). Every texture, model, sound and pixel is generated in code.</p>`);
     this.openOver(note, 'About', 'the file in the drawer');
   }

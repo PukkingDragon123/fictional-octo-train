@@ -1,4 +1,4 @@
-// Shared faceted props for the menu's rooms (monitor room, containment, lab):
+// Shared faceted props for the menu's rooms (the monitor room, the research lab):
 // CRT housings for the monitor bank, toggle switches, banks of pilot lamps
 // (one instanced draw for every LED in a room), stencilled plates, sound.
 // Everything is built with the subject room's kit (scene/facet.ts on the

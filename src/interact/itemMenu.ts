@@ -165,7 +165,7 @@ export function itemMenuOptions(p: Player, it: Item, c: Container, group: Item[]
   if (d.anomaly) o.push({ label: 'Study with scanner', action: () => G.ui?.scanner?.studyItem?.(it) });
   // research: the codex tools' verbs, residue samples off anomalies (src/research)
   researchItemMenu(p, it, o);
-  if (mine || inWorld) itemSampleOption(p, it, o);
+  itemSampleOption(p, it, o);
 
   // ---- crafting
   const crafts = craftOptionsForItem(p, it);

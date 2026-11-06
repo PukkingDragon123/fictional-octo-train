@@ -1,0 +1,17 @@
+/* the field sampling close-up's gauge (src/research/collect.ts): a riveted tech strip, Alagard */
+.rs-fp { position: fixed; inset: 0; z-index: 31; touch-action: none; cursor: crosshair; font-family: var(--font-new); font-size: 16px; line-height: 18px; color: #eef6ea; }
+.rs-plate { position: absolute; left: 50%; bottom: max(70px, 12vh); transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 12px;
+  background: radial-gradient(circle at 7px 7px, #9aa49e 0 2px, transparent 2.5px), radial-gradient(circle at calc(100% - 7px) 7px, #9aa49e 0 2px, transparent 2.5px), linear-gradient(180deg, rgba(34, 58, 50, 0.94), rgba(16, 28, 24, 0.94));
+  box-shadow: 0 0 0 3px #0a0b10, inset 0 0 0 2px #46564e, inset 0 3px 0 2px #6c7c72; pointer-events: none; }
+.rs-plate b { font-weight: 400; font-size: 16px; color: #fff; letter-spacing: 1px; text-shadow: var(--text-ink); }
+.rs-plate small { color: #ffd25a; }
+.rs-gauge { position: relative; height: 22px; background: #0a100e; box-shadow: 0 0 0 2px #0a0b10, inset 0 0 0 2px #2a3a34; }
+.rs-gauge .zone { position: absolute; top: 3px; bottom: 3px; background: #2a9a4a; box-shadow: inset 0 0 0 2px #3aff8a; }
+.rs-gauge .needle { position: absolute; top: -5px; bottom: -5px; width: 4px; margin-left: -2px; background: #ffd25a; box-shadow: 0 0 0 2px #0a0b10; }
+.rs-gauge .marks { position: absolute; right: 6px; top: 1px; color: #fff; text-shadow: var(--text-ink); }
+.rs-gauge.hit { animation: rs-hit 0.25s steps(2) 1; } .rs-gauge.miss { animation: rs-miss 0.25s steps(2) 1; }
+@keyframes rs-hit { 50% { box-shadow: 0 0 0 2px #0a0b10, inset 0 0 0 2px #3aff8a; } }
+@keyframes rs-miss { 50% { box-shadow: 0 0 0 2px #0a0b10, inset 0 0 0 2px #ff5a3a; transform: translateX(3px); } }
+.rs-keys { display: flex; justify-content: space-between; color: #a8c0b4; }
+.rs-fp.ok .rs-plate { box-shadow: 0 0 0 3px #0a0b10, inset 0 0 0 2px #3aff8a; }
+.rs-fp.bad .rs-plate { box-shadow: 0 0 0 3px #0a0b10, inset 0 0 0 2px #ff5a3a; }

@@ -1,6 +1,6 @@
 // THE MONITOR ROOM: the main menu. A dim Meridian observation booth: a steel
-// rack of chunky enamel CRTs (three big feeds from the monster containment,
-// the experiment lab and subject room 4; four small sets with the subject's
+// rack of chunky enamel CRTs (two big feeds: the research lab and subject room 4;
+// four small sets with the subject's
 // pulse, the corridor camera, the log printer and the seismograph), an
 // annunciator strip, a raked desk console with toggle rows and pilot lamps, a
 // gooseneck microphone, a coffee mug breathing steam, an ashtray, clipboards
@@ -9,7 +9,7 @@
 // dark. Green phosphor is the key light; the lamp makes a warm pool on the
 // desk; everything else is shadow.
 //
-// The 2D menu (title.ts) floats over the dark half; the three feed tubes are
+// The 2D menu (title.ts) floats over the dark half; the two feed tubes are
 // hot props (and have DOM twins for keyboard / gamepad / touch). dive(key)
 // flies the camera into a tube; back(key) pulls out of it.
 import * as THREE from 'three';
@@ -23,11 +23,10 @@ import {
 } from './props';
 import { bitText } from '../../../gfx/bitfont';
 
-export type FeedKey = 'containment' | 'lab' | 'subject';
+export type FeedKey = 'research' | 'subject';
 export const FEEDS: { key: FeedKey; cam: string; name: string; label: string; sub: string }[] = [
-  { key: 'containment', cam: 'CAM 1', name: 'CONTAINMENT', label: 'Monster containment', sub: 'cell C-1 · specimen RB-17 "Hush" · view the feed' },
-  { key: 'lab', cam: 'CAM 2', name: 'EXPERIMENT LAB', label: 'Experiment lab', sub: 'bay B-2 · tanks, rigs and benches · view the feed' },
-  { key: 'subject', cam: 'CAM 3', name: 'SUBJECT ROOM 4', label: 'Subject room', sub: 'chair No. 4 · the subject on file · view the feed' },
+  { key: 'research', cam: 'CAM 1', name: 'RESEARCH LAB R-1', label: 'Research lab', sub: 'the codex, the sample fridge, the benches · view the feed' },
+  { key: 'subject', cam: 'CAM 2', name: 'SUBJECT ROOM 4', label: 'Subject room', sub: 'chair No. 4 · the subject on file · view the feed' },
 ];
 
 const W = 2.7, BACK = -2.12, FRONT = 2.8, H = 2.75;
@@ -58,7 +57,7 @@ export class MonitorRoom implements StageRoom {
   feeds: FeedSet[] = [];
   /** a feed tube was pressed */
   onFeed?: (k: FeedKey) => void;
-  /** the intercom microphone was keyed (the containment specimen hears it) */
+  /** the intercom microphone was keyed */
   onMic?: () => void;
   /** framing: content offset in normalised screen units (the menu's side stays dark) */
   frX = 0; frY = 0;
@@ -253,8 +252,8 @@ export class MonitorRoom implements StageRoom {
     b.add('paint', cbox(RW * 2, 0.8, 0.5, 0.015), 0x4e5644, at(0, 0.41, RZ + 0.25), { rep: 0.5 });
     for (let i = 0; i < 6; i++) for (const x of [-1.2, 0, 1.2]) b.add('metal', cbox(0.5, 0.012, 0.02, 0.003), C.darker, at(x, 0.2 + i * 0.07, RZ + 0.51));
     // the three feed sets (bottom row), four small sets (top row)
-    const big: [FeedKey, number][] = [['containment', -1.2], ['lab', 0], ['subject', 1.2]];
-    const spots: [FeedKey, CrtSpot][] = big.map(([k, x], i) => [k, crtSet(b, x, 1.17, RZ + 0.5, 0.92, 0.64, { color: [C.beige, 0xc8c0a0, 0xbab49a][i], depth: 0.48, seed: i + 3 })]);
+    const big: [FeedKey, number][] = [['research', -0.62], ['subject', 0.62]];
+    const spots: [FeedKey, CrtSpot][] = big.map(([k, x], i) => [k, crtSet(b, x, 1.17, RZ + 0.5, 0.92, 0.64, { color: [C.beige, 0xbab49a][i], depth: 0.48, seed: i + 3 })]);
     const small = [-1.38, -0.46, 0.46, 1.38].map((x, i) => crtSet(b, x, 1.78, RZ + 0.47, 0.62, 0.48, { color: [0x8a9070, C.beige, 0x9a9a84, C.cream][i], depth: 0.4, knobs: i % 2 === 0, seed: i + 9 }));
     // the annunciator strip on top: lit tiles with the room names
     b.add('paint', cbox(RW * 2 - 0.1, 0.3, 0.3, 0.02), 0x3a4232, at(0, 2.27, RZ + 0.35));
@@ -291,7 +290,7 @@ export class MonitorRoom implements StageRoom {
       this.aux.push(aux);
     });
     // annunciator tiles
-    const tiles = ['C-1', 'B-2', 'RM 4', 'PRESS', 'POWER', 'ALARM'];
+    const tiles = ['R-1', 'CODEX', 'RM 4', 'PRESS', 'POWER', 'ALARM'];
     tiles.forEach((tx, i) => {
       const t = plate(this.mats, [tx], 0.3, 0.12, { bg: [0x8ac070, 0x8ac070, 0x8ac070, 0xd0a040, 0x8ac070, 0xd04030][i], ink: 0x0a1008, px: 300, emissive: true });
       t.position.set(-1.5 + i * 0.6, 2.27, RZ + 0.505);

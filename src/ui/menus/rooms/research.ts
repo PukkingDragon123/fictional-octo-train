@@ -7,10 +7,10 @@
 //   back wall      THE CODEX WALL: a lightbox corkboard, one card per entry
 //                  (species and anomalies) lit by its state: unknown, discovered,
 //                  sampled, researching (a % bar), complete (a gold pin)
-//   left wall      the SAMPLE FRIDGE: glass doors, racks of the samples banked
-//                  (jars, vials, swab tubes, slide boxes) filling as you collect;
-//                  the FUME HOOD with its specimen tray and the red alarm handle
-//   back left      the MICROSCOPE BENCH (gooseneck lamp, slide boxes)
+//   back left      the SAMPLE FRIDGE: a glass door, racks of the samples banked
+//                  (jars, vials, swab tubes, slide boxes) filling as you collect
+//   left wall      the MICROSCOPE BENCH (gooseneck lamp, slide boxes); the FUME
+//                  HOOD with its specimen tray and the red alarm handle
 //   centre         the DISSECTION TABLE under the surgical lamp
 //   right wall     the CENTRIFUGE bench (pipettes, the jar you must not tap)
 //   back right     the SEQUENCER rig: tape reels and CRT readouts of the codex
@@ -34,10 +34,10 @@ import type { Sample } from '../../../game/codex';
 
 const W = 3.6, BACK = -3.0, FRONT = 3.3, H = 3.05;
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
-const WALL = { x: 0, y: 1.72, w: 3.3, h: 1.36 };
-const FRIDGE = new THREE.Vector3(-W + 0.42, 0, -1.55);
+const WALL = { x: 0.15, y: 1.86, w: 3.3, h: 1.3 };
+const FRIDGE = new THREE.Vector3(-W + 0.62, 0, BACK + 0.36);
 const HOOD = new THREE.Vector3(-W + 0.46, 0, 0.55);
-const SCOPE = new THREE.Vector3(-1.95, 0.92, BACK + 0.42);
+const SCOPE = new THREE.Vector3(-W + 0.4, 0.92, -1.15);
 const TABLE = new THREE.Vector3(0.35, 0.94, -0.55);
 const CENTRI = new THREE.Vector3(W - 0.42, 0.92, -0.95);
 const SEQ = new THREE.Vector3(2.05, 0, BACK + 0.4);
@@ -46,8 +46,8 @@ type Pose = { pos: THREE.Vector3; look: THREE.Vector3; fov: number };
 const P = (p: [number, number, number], l: [number, number, number], fov = 50): Pose => ({ pos: new THREE.Vector3(...p), look: new THREE.Vector3(...l), fov });
 const POSES: Record<string, Pose> = {
   room: P([0.25, 1.72, 3.05], [-0.1, 1.2, -1.2], 54),
-  codex: P([0, 1.66, -0.75], [0, 1.68, BACK], 54),
-  fridge: P([-1.7, 1.55, -0.85], [FRIDGE.x, 1.1, FRIDGE.z], 48),
+  codex: P([WALL.x, 1.86, -0.35], [WALL.x, 1.84, BACK], 54),
+  fridge: P([-2.0, 1.45, -0.8], [FRIDGE.x - 0.1, 1.05, FRIDGE.z], 52),
   req: P([1.75, 1.5, 1.35], [PEG.x, 1.35, PEG.z], 50),
   build: P([1.2, 2.8, 3.1], [-0.1, 0.3, 0.2], 54),
 };
@@ -64,36 +64,40 @@ export class ResearchLab implements StageRoom {
   grade: Grade = { exposure: 1.75, lift: [0.84, 0.96, 1.12], gain: [1.1, 1.0, 0.88], vig: 0.55, sat: 1.08, contrast: 1.12, side: [1, 0, 0, 0.3] };
   deco = new THREE.Group();
   floor = { minX: -W + 1.2, maxX: W - 1.0, minZ: 0.4, maxZ: 2.4, y: 0 };
-  surfaces = [{ minX: SCOPE.x - 0.7, maxX: SCOPE.x + 0.7, minZ: BACK + 0.15, maxZ: BACK + 0.7, y: 0.92 }, { minX: CENTRI.x - 0.3, maxX: CENTRI.x + 0.3, minZ: CENTRI.z - 0.8, maxZ: CENTRI.z + 0.8, y: 0.92 }];
-  guideSpot = { pos: new THREE.Vector3(-0.9, 0, 0.9), look: new THREE.Vector3(0, 1.6, BACK) };
+  surfaces = [{ minX: SCOPE.x - 0.25, maxX: SCOPE.x + 0.25, minZ: SCOPE.z - 0.75, maxZ: SCOPE.z + 0.75, y: 0.92 }, { minX: CENTRI.x - 0.3, maxX: CENTRI.x + 0.3, minZ: CENTRI.z - 0.8, maxZ: CENTRI.z + 0.8, y: 0.92 }];
+  guideSpot = { pos: new THREE.Vector3(2.45, 0, 0.3), look: new THREE.Vector3(0, 1.6, BACK) };
   actions: { key: string; label: string; run: () => void }[] = [];
   /** the room wants a panel (title.ts opens research/panel.ts) */
   onPanel?: (w: 'codex' | 'fridge' | 'req' | 'file' | 'entry', key?: string) => void;
   /** the benches started / finished (title.ts hides its HUD while the hands are up) */
   onBench?: (on: boolean) => void;
   bench: BenchRun | null = null;
+  /** a world ray through a client point (title.ts hands over the stage's) */
+  rayAt?: (x: number, y: number) => THREE.Ray | null;
   private mats: FMats;
   private leds = new LedBank(220);
   private puffs = new Puffs(80);
-  private hemi = new THREE.HemisphereLight(0xb8c8d8, 0x3a2e24, 0.55);
+  private hemi = new THREE.HemisphereLight(0xc0d0e0, 0x4a3a2a, 0.95);
   private tubes: { light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; base: number; seed: number; flick: number }[] = [];
-  private surg = new THREE.SpotLight(0xfff0dc, 0, 4.2, 0.62, 0.55, 1.6);
+  private surg = new THREE.SpotLight(0xfff0dc, 0, 4.2, 0.55, 0.6, 1.6);
   private surgMat = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
+  /** the scope bench group (turned to the left wall) */
   private surgOn = 1; private surgLvl = 1;
-  private desk = new THREE.PointLight(0xffb066, 3.2, 2.6, 1.6);
-  private wallGlow = new THREE.PointLight(0xd8ecff, 1.6, 4.5, 1.8);
-  private fridgeGlow = new THREE.PointLight(0x9adcff, 1.2, 2.4, 1.8);
+  private desk = new THREE.PointLight(0xffb066, 2.2, 2.4, 1.7);
+  private wallGlow = new THREE.PointLight(0xd8ecff, 4.5, 5.5, 1.6);
+  private fridgeGlow = new THREE.PointLight(0x9adcff, 0.9, 1.6, 2);
   private screenGlow = new THREE.PointLight(0x7aff9a, 0.9, 2.6, 1.8);
   // the codex wall
   private wallCv = document.createElement('canvas');
   private wallTex: THREE.CanvasTexture;
   private wallMesh!: THREE.Mesh;
-  private wallMat = new THREE.MeshBasicMaterial({ toneMapped: false });
+  private wallMat = new THREE.MeshBasicMaterial({ toneMapped: false, color: 0xb4bab4 });
   private flash: { key: string; t: number } | null = null;
   // the fridge's racks
   private racks: { mesh: THREE.InstancedMesh; kind: string }[] = [];
   private rackSlots: THREE.Vector3[] = [];
   private fridgeDoor = new THREE.Group(); private doorA = 0; private doorT = 0;
+  private caps: THREE.InstancedMesh | null = null;
   // the pegboard's tools
   private peg = new THREE.Group();
   private pegTools = new Map<string, THREE.Object3D>();
@@ -104,6 +108,8 @@ export class ResearchLab implements StageRoom {
   private jar = new THREE.Group(); private jarW = new Wobble(180, 4); private jarTaps = 0;
   private alarm = new THREE.Group(); private alarmT = 0; private alarmLed: ReturnType<LedBank['add']> | null = null;
   private lampHead = new THREE.Group();
+  /** the pinned specimen on the dissection tray (hidden while the benches use the tray) */
+  private trayProps: THREE.Object3D[] = [];
   // camera
   private pose = 'room'; private camP = POSES.room.pos.clone(); private camL = POSES.room.look.clone(); private camF = POSES.room.fov;
   private ptr = new THREE.Vector2(); private ptrS = new THREE.Vector2();
@@ -126,7 +132,7 @@ export class ResearchLab implements StageRoom {
     this.feedCam.position.set(W - 0.35, H - 0.3, FRONT - 0.4); this.feedCam.lookAt(-0.6, 0.9, -1.4);
     this.cam.position.copy(this.camP); this.cam.lookAt(this.camL);
     this.actions = [
-      { key: 'process', label: 'Process a sample', run: () => this.onPanel?.('fridge') },
+      { key: 'process', label: 'Process a sample', run: () => this.focus('fridge', () => this.onPanel?.('fridge')) },
       { key: 'codex', label: 'The codex', run: () => this.focus('codex', () => this.onPanel?.('codex')) },
       { key: 'req', label: 'Requisition', run: () => this.focus('req', () => this.onPanel?.('req')) },
       { key: 'file', label: 'Meridian file', run: () => this.onPanel?.('file') },
@@ -178,7 +184,7 @@ export class ResearchLab implements StageRoom {
     const sign = (lines: string[], w: number, h: number, x: number, y: number, z: number, ry = 0, bg = 0xc8c0a0, ink?: number) => { const s = plate(this.mats, lines, w, h, { bg, ink }); s.position.set(x, y, z); s.rotation.y = ry; g.add(s); return s; };
     sign(['RESEARCH LAB R-1', 'MERIDIAN INSTITUTE'], 0.86, 0.2, -1.9, 2.4, FRONT - 0.01, Math.PI);
     sign(['BIOHAZARD', 'LEVEL 2'], 0.4, 0.15, -1.95, 1.62, BACK + 0.012, 0, 0xd8a030, 0x1a1208);
-    sign(['NO FOOD', 'IN THE FRIDGE'], 0.36, 0.13, FRIDGE.x + 0.62, 1.72, FRIDGE.z + 0.62, Math.PI / 2, 0xe8e2d0);
+    sign(['NO FOOD', 'IN THE FRIDGE'], 0.3, 0.11, FRIDGE.x + 0.28, 1.8, FRIDGE.z + 0.36, 0, 0xe8e2d0);
     sign(['WASH HANDS'], 0.32, 0.08, W - 0.012, 1.55, -2.4, -Math.PI / 2, 0x7ab8a0, 0x0a1a12);
     return g;
   }
@@ -201,7 +207,7 @@ export class ResearchLab implements StageRoom {
       L.position.set(x, y, z); L.target.position.set(x, 0, z + 0.05);
       if (shadow) { L.castShadow = true; L.shadow.mapSize.set(1024, 1024); L.shadow.camera.near = 0.2; L.shadow.camera.far = 4; L.shadow.bias = -0.0006; L.shadow.normalBias = 0.02; }
       g.add(L, L.target);
-      this.tubes.push({ light: L, mat, base: shadow ? 15 : 9, seed: i * 3.1, flick: 0 });
+      this.tubes.push({ light: L, mat, base: shadow ? 26 : 18, seed: i * 3.1, flick: 0 });
       // the light pool each casts on the floor (a soft bounce card)
       const pool = glowCard(2.6, 3.2, 0xdfe8ff, 0.05); pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.005, z); g.add(pool);
     });
@@ -216,19 +222,17 @@ export class ResearchLab implements StageRoom {
     const b = new FacetBuilder();
     const { x, y, w, h } = WALL;
     // the lightbox: a deep steel frame, a cork surround, the opal panel
-    b.add('metal', cbox(w + 0.16, h + 0.16, 0.1, 0.012), 0x3a3e3c, at(x, y, BACK + 0.05));
-    b.add('chrome', extrude([[-w / 2 - 0.08, -h / 2 - 0.08], [w / 2 + 0.08, -h / 2 - 0.08], [w / 2 + 0.08, h / 2 + 0.08], [-w / 2 - 0.08, h / 2 + 0.08]], 0.03, 0.006, [[[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]]), 0xa8acaa, at(x, y, BACK + 0.1));
+    b.add('metal', cbox(w + 0.16, h + 0.16, 0.08, 0.012), 0x3a3e3c, at(x, y, BACK + 0.04));
+    b.add('chrome', extrude([[-w / 2 - 0.08, -h / 2 - 0.08], [w / 2 + 0.08, -h / 2 - 0.08], [w / 2 + 0.08, h / 2 + 0.08], [-w / 2 - 0.08, h / 2 + 0.08]], 0.03, 0.006, [[[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]]), 0xa8acaa, at(x, y, BACK + 0.085));
     for (const [bx, by] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('metal', bolt(0.012, 0.01), C.steel, at(x + bx * (w / 2 + 0.05), y + by * (h / 2 + 0.05), BACK + 0.13, Math.PI / 2));
     // the header bar, the cable that feeds the box, the shelf of binders under it
     b.add('paint', cbox(w + 0.16, 0.16, 0.12, 0.01), 0x2a3a34, at(x, y + h / 2 + 0.16, BACK + 0.06));
     b.add('rubber', tube([[x + w / 2 + 0.06, y - h / 2, BACK + 0.06], [x + w / 2 + 0.2, y - h / 2 - 0.3, BACK + 0.08], [x + w / 2 + 0.25, 0.4, BACK + 0.06]], 0.012, 8, 4), 0x1a1a1a);
-    b.add('wood', cbox(w, 0.03, 0.26, 0.006), 0x8a6a48, at(x, y - h / 2 - 0.22, BACK + 0.13));
-    for (let i = 0; i < 18; i++) b.add('paint', cbox(0.05, 0.26 + (i % 3) * 0.02, 0.22, 0.006), [0x2a4a8a, 0x8a2a2a, 0x2a6a4a, 0xc8a030, 0x5a3a7a][i % 5], at(x - w / 2 + 0.12 + i * 0.09 + (i > 8 ? 0.6 : 0), y - h / 2 - 0.07 + (i % 3) * 0.01, BACK + 0.13, 0, 0, i === 7 ? 0.25 : 0));
     g.add(b.build(this.mats));
     const head = plate(this.mats, ['THE CODEX · SPECIMENS & ANOMALIES'], 1.6, 0.1, { bg: 0x2a3a34, ink: 0xd8ffe8, emissive: true, px: 420 });
     head.position.set(x, y + h / 2 + 0.16, BACK + 0.125); g.add(head);
     this.wallMesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this.wallMat);
-    this.wallMesh.position.set(x, y, BACK + 0.085);
+    this.wallMesh.position.set(x, y, BACK + 0.092);
     this.wallMesh.userData.noGlow = true;
     g.add(this.wallMesh);
     this.hots.push({ key: 'codex', objs: [this.wallMesh], glow: [], label: 'The codex wall', sub: 'every entry · tap to read', press: (p) => this.wallPress(p) });
@@ -276,26 +280,30 @@ export class ResearchLab implements StageRoom {
     const g = new THREE.Group();
     const b = new FacetBuilder();
     const { x, z } = FRIDGE;
-    const FW = 0.7, FH = 2.05, FD = 1.15;
-    // carcass (white enamel), a compressor grille, the door seal, a thermometer dial and a log sheet
-    b.add('enamel', cbox(FW, FH, FD, 0.02), 0xe8ece6, at(x, FH / 2, z));
-    b.add('rubber', cbox(FW * 0.9, 0.14, 0.02, 0.004), 0x1a1a1a, at(x + FW / 2 + 0.005, 0.1, z, 0, Math.PI / 2));
-    for (let i = 0; i < 6; i++) b.add('metal', cbox(0.012, 0.012, FD * 0.8, 0.003), C.darker, at(x + FW / 2 + 0.012, 0.05 + i * 0.022, z));
-    b.add('metal', extrude([[-FD / 2 + 0.04, 0.2], [FD / 2 - 0.04, 0.2], [FD / 2 - 0.04, FH - 0.08], [-FD / 2 + 0.04, FH - 0.08]], 0.01, 0.003, [[[-FD / 2 + 0.08, 0.24], [FD / 2 - 0.08, 0.24], [FD / 2 - 0.08, FH - 0.12], [-FD / 2 + 0.08, FH - 0.12]]]), 0x8a9294, at(x + FW / 2, 0, z, 0, Math.PI / 2));
+    // facing the room (+Z): FW across, FD deep
+    const FW = 1.0, FH = 2.05, FD = 0.62, FZ = z + FD / 2;
+    // the carcass (white enamel), a compressor grille under the door, the seal, a thermometer dial
+    // an open-fronted carcass: sides, top, plinth, back
+    for (const sx of [-1, 1]) b.add('enamel', cbox(0.05, FH, FD, 0.01), 0xe8ece6, at(x + sx * (FW / 2 - 0.025), FH / 2, z));
+    b.add('enamel', cbox(FW, 0.1, FD, 0.01), 0xe8ece6, at(x, FH - 0.05, z));
+    b.add('enamel', cbox(FW, 0.2, FD, 0.01), 0xd8dcd6, at(x, 0.1, z));
+    b.add('enamel', cbox(FW, FH, 0.04, 0.01), 0xd8dcd6, at(x, FH / 2, z - FD / 2 + 0.02));
+    for (let i = 0; i < 6; i++) b.add('metal', cbox(FW * 0.8, 0.012, 0.012, 0.003), C.darker, at(x, 0.05 + i * 0.022, FZ + 0.012));
+    b.add('metal', extrude([[-FW / 2 + 0.04, 0.2], [FW / 2 - 0.04, 0.2], [FW / 2 - 0.04, FH - 0.08], [-FW / 2 + 0.04, FH - 0.08]], 0.01, 0.003, [[[-FW / 2 + 0.08, 0.24], [FW / 2 - 0.08, 0.24], [FW / 2 - 0.08, FH - 0.12], [-FW / 2 + 0.08, FH - 0.12]]]), 0x8a9294, at(x, 0, FZ));
+    b.add('metal', lathe([[0, 0], [0.05, 0], [0.05, 0.012], [0, 0.012]], 8), 0x3a3e40, at(x + FW / 2 - 0.12, FH - 0.04, FZ + 0.012, Math.PI / 2));
     // inside: the back wall (dark), the wire shelves
-    b.add('metal', cbox(0.02, FH - 0.34, FD - 0.16, 0.003), 0x2a3236, at(x - FW / 2 + 0.06, FH / 2 + 0.07, z));
+    b.add('metal', cbox(FW - 0.16, FH - 0.34, 0.02, 0.003), 0x2a3236, at(x, FH / 2 + 0.07, z - FD / 2 + 0.06));
     const shelfY = [0.42, 0.74, 1.06, 1.38, 1.7];
     for (const sy of shelfY) {
-      b.add('chrome', cbox(FW - 0.14, 0.01, FD - 0.18, 0.003), 0xa8b0b4, at(x - 0.01, sy, z));
-      for (let k = 0; k < 6; k++) b.add('chrome', cbox(0.006, 0.006, FD - 0.18, 0.002), 0xb8c0c4, at(x - FW / 2 + 0.1 + k * 0.09, sy + 0.008, z));
+      b.add('chrome', cbox(FW - 0.18, 0.01, FD - 0.14, 0.003), 0xa8b0b4, at(x, sy, z + 0.01));
+      for (let k = 0; k < 9; k++) b.add('chrome', cbox(0.006, 0.006, FD - 0.14, 0.002), 0xb8c0c4, at(x - FW / 2 + 0.12 + k * 0.095, sy + 0.008, z + 0.01));
     }
     g.add(b.build(this.mats));
-    // the inside light: a cold LED strip, the glow it spills
-    const led = new THREE.Mesh(new THREE.BoxGeometry(0.02, FH - 0.5, 0.02), new THREE.MeshBasicMaterial({ color: 0xbfeaff, toneMapped: false }));
-    led.position.set(x + FW / 2 - 0.08, FH / 2 + 0.05, z - FD / 2 + 0.1); led.userData.noGlow = true; g.add(led);
-    this.fridgeGlow.position.set(x + 0.3, 1.2, z); g.add(this.fridgeGlow);
-    // the rack slots: 5 shelves x 3 rows deep x 7 across
-    for (const sy of shelfY) for (let r = 0; r < 3; r++) for (let k = 0; k < 7; k++) this.rackSlots.push(new THREE.Vector3(x - FW / 2 + 0.12 + r * 0.14, sy + 0.012, z - FD / 2 + 0.16 + k * 0.13));
+    // the inside light: a cold LED strip down each side, the glow it spills
+    for (const sx of [-1, 1]) { const led = new THREE.Mesh(new THREE.BoxGeometry(0.015, FH - 0.5, 0.015), new THREE.MeshBasicMaterial({ color: 0x7ab0c8, toneMapped: false })); led.position.set(x + sx * (FW / 2 - 0.07), FH / 2 + 0.05, FZ - 0.06); led.userData.noGlow = true; g.add(led); }
+    this.fridgeGlow.position.set(x, 1.15, FZ - 0.1); g.add(this.fridgeGlow);
+    // the rack slots: 5 shelves x 2 rows deep x 7 across
+    for (const sy of [1.38, 1.06, 1.7, 0.74, 0.42]) for (let r = 0; r < 2; r++) for (let k = 0; k < 7; k++) this.rackSlots.push(new THREE.Vector3(x - FW / 2 + 0.17 + k * 0.111 + (r ? 0.05 : 0), sy + 0.012, FZ - 0.14 - r * 0.2));
     const mk = (geo: THREE.BufferGeometry, kind: string, color: number, emis: number) => {
       const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.3, metalness: 0.05, flatShading: true, emissive: new THREE.Color(color).multiplyScalar(emis) });
       const m = new THREE.InstancedMesh(geo, mat, this.rackSlots.length);
@@ -303,33 +311,37 @@ export class ResearchLab implements StageRoom {
       g.add(m); this.racks.push({ mesh: m, kind });
     };
     const jarG = new THREE.CylinderGeometry(0.04, 0.04, 0.1, 7); jarG.translate(0, 0.05, 0);
-    const vialG = new THREE.CylinderGeometry(0.014, 0.014, 0.12, 6); vialG.translate(0, 0.06, 0);
-    const tubeG = new THREE.CylinderGeometry(0.01, 0.01, 0.15, 5); tubeG.translate(0, 0.075, 0);
-    const boxG = new THREE.BoxGeometry(0.1, 0.03, 0.07); boxG.translate(0, 0.015, 0);
-    mk(jarG, 'tissue', 0xd85a6a, 0.25); mk(vialG, 'fluid', 0x3ad888, 0.45); mk(tubeG, 'spores', 0xe8d050, 0.35); mk(boxG, 'residue', 0xa87aff, 0.5);
-    // the glass door: a frame and a pane, hinged at the front edge
+    const vialG = new THREE.CylinderGeometry(0.016, 0.016, 0.13, 6); vialG.translate(0, 0.065, 0);
+    const tubeG = new THREE.CylinderGeometry(0.012, 0.012, 0.16, 5); tubeG.translate(0, 0.08, 0);
+    const boxG = new THREE.BoxGeometry(0.09, 0.03, 0.07); boxG.translate(0, 0.015, 0);
+    mk(jarG, 'tissue', 0xd85a6a, 0.3); mk(vialG, 'fluid', 0x3ad888, 0.5); mk(tubeG, 'spores', 0xe8d050, 0.4); mk(boxG, 'residue', 0xa87aff, 0.55);
+    // caps on every vial and jar: one more instanced draw, matched to the racks each refresh
+    const capG = new THREE.CylinderGeometry(0.02, 0.02, 0.02, 6);
+    this.caps = new THREE.InstancedMesh(capG, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5, flatShading: true }), this.rackSlots.length);
+    this.caps.count = 0; this.caps.frustumCulled = false; g.add(this.caps);
+    // the glass door: a frame and a pane, hinged at the left edge
     const db = new FacetBuilder();
-    db.add('enamel', extrude([[0, 0.14], [FD, 0.14], [FD, FH - 0.04], [0, FH - 0.04]], 0.04, 0.006, [[[0.05, 0.2], [FD - 0.05, 0.2], [FD - 0.05, FH - 0.1], [0.05, FH - 0.1]]]), 0xe8ece6);
-    db.add('chrome', cbox(0.03, 0.6, 0.04, 0.008), 0xffffff, at(FD - 0.08, 1.1, 0.05));
+    db.add('enamel', extrude([[0, 0.14], [FW, 0.14], [FW, FH - 0.04], [0, FH - 0.04]], 0.04, 0.006, [[[0.06, 0.2], [FW - 0.06, 0.2], [FW - 0.06, FH - 0.1], [0.06, FH - 0.1]]]), 0xe8ece6);
+    db.add('chrome', cbox(0.03, 0.6, 0.04, 0.008), 0xffffff, at(FW - 0.08, 1.1, 0.05));
     this.fridgeDoor.add(db.build(this.mats));
-    const pane = new THREE.Mesh(new THREE.PlaneGeometry(FD - 0.1, FH - 0.3), new THREE.MeshBasicMaterial({ color: 0x8ab8c8, transparent: true, opacity: 0.1, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
-    pane.position.set(FD / 2, FH / 2 + 0.05, 0.02); pane.userData.noGlow = true;
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(FW - 0.12, FH - 0.3), new THREE.MeshBasicMaterial({ color: 0x8ab8c8, transparent: true, opacity: 0.09, depthWrite: false, toneMapped: false, blending: THREE.AdditiveBlending }));
+    pane.position.set(FW / 2, FH / 2 + 0.05, 0.02); pane.userData.noGlow = true;
     this.fridgeDoor.add(pane);
-    this.fridgeDoor.position.set(x + FW / 2 + 0.005, 0, z + FD / 2);
-    this.fridgeDoor.rotation.y = Math.PI / 2;
+    this.fridgeDoor.position.set(x - FW / 2, 0, FZ + 0.004);
     g.add(this.fridgeDoor);
     const lab = plate(this.mats, ['COLD STORE · 4°C', 'SAMPLES ONLY'], 0.44, 0.12, { bg: 0x7ab8d8, ink: 0x0a1a24 });
-    lab.position.set(x + FW / 2 + 0.03, 1.95, z - 0.25); lab.rotation.y = Math.PI / 2; g.add(lab);
-    this.leds.add([x + FW / 2 + 0.03, 1.95, z + 0.12], 0x40ff60, { size: 0.01, pattern: blink(0.5, 0.9) });
+    lab.position.set(x - 0.15, 1.98, FZ + 0.05); g.add(lab);
+    this.leds.add([x + 0.2, 1.98, FZ + 0.05], 0x40ff60, { size: 0.01, pattern: blink(0.5, 0.9) });
     const sheet = paper(['TEMP LOG', '~', '~', '~', '~'], 0.18, 0.24, { seed: 41, rule: true });
-    sheet.position.set(x + FW / 2 + 0.03, 1.5, z + 0.4); sheet.rotation.y = Math.PI / 2; g.add(sheet);
+    sheet.position.set(x + FW / 2 + 0.005, 1.5, z); sheet.rotation.y = Math.PI / 2; g.add(sheet);
     this.hots.push({ key: 'fridge', objs: [this.fridgeDoor, ...this.racks.map((r) => r.mesh)], label: 'Sample fridge', sub: 'pick a sample · process it at the benches', press: () => { this.doorT = 1; uiSound('creak', 0.6); this.onPanel?.('fridge'); } });
     return g;
   }
   private fillFridge() {
     const s = bank();
-    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1);
+    const m = new THREE.Matrix4(), q = new THREE.Quaternion(), sc = new THREE.Vector3(1, 1, 1), sc2 = new THREE.Vector3(), cc = new THREE.Color();
     for (const r of this.racks) r.mesh.count = 0;
+    if (this.caps) this.caps.count = 0;
     s.slice(0, this.rackSlots.length).forEach((smp, i) => {
       const r = this.racks.find((q2) => q2.kind === smp.kind) ?? this.racks[0];
       const p = this.rackSlots[i];
@@ -337,8 +349,16 @@ export class ResearchLab implements StageRoom {
       sc.setScalar(0.9 + smp.q * 0.2);
       m.compose(p, q, sc);
       r.mesh.setMatrixAt(r.mesh.count++, m);
+      // a cap on the jars and vials, colour-coded by kind
+      if (smp.kind !== 'residue' && this.caps) {
+        const top = { tissue: 0.1, fluid: 0.13, spores: 0.16 }[smp.kind] * sc.x;
+        m.compose(this.v.copy(p).setY(p.y + top + 0.008), q, sc2.set(smp.kind === 'tissue' ? 2.1 : smp.kind === 'fluid' ? 0.9 : 0.65, 0.8, smp.kind === 'tissue' ? 2.1 : smp.kind === 'fluid' ? 0.9 : 0.65));
+        this.caps.setMatrixAt(this.caps.count, m);
+        this.caps.setColorAt(this.caps.count++, cc.setHex(smp.kind === 'tissue' ? 0x2a6ac8 : smp.kind === 'fluid' ? 0xc8302a : 0xe8c228));
+      }
     });
     for (const r of this.racks) { r.mesh.instanceMatrix.needsUpdate = true; r.mesh.computeBoundingSphere(); }
+    if (this.caps) { this.caps.instanceMatrix.needsUpdate = true; if (this.caps.instanceColor) this.caps.instanceColor.needsUpdate = true; }
   }
 
   // ================================================================== the fume hood
@@ -392,8 +412,9 @@ export class ResearchLab implements StageRoom {
   // ================================================================== the microscope bench
   private scopeBench(): THREE.Group {
     const g = new THREE.Group();
-    const b = new FacetBuilder();
-    const { x, y, z } = SCOPE;
+    const b = new FacetBuilder(), b2 = new FacetBuilder();
+    const x = 0, y = SCOPE.y, z = 0;
+    g.position.set(SCOPE.x, 0, SCOPE.z); g.rotation.y = Math.PI / 2;
     b.add('bakelite', cbox(1.6, 0.05, 0.66, 0.01), 0x262826, at(x, y - 0.025, z), { grain: 'x' });
     b.add('paint', cbox(1.54, 0.86, 0.6, 0.012), 0x6e7a6a, at(x, 0.43, z), { rep: 0.5 });
     for (let i = 0; i < 3; i++) { b.add('metal', cbox(0.5, 0.01, 0.6, 0.004), C.darker, at(x - 0.5 + i * 0.5, 0.6, z + 0.002)); b.add('chrome', cbox(0.12, 0.02, 0.02, 0.005), 0xffffff, at(x - 0.5 + i * 0.5, 0.66, z + 0.31)); }
@@ -425,8 +446,9 @@ export class ResearchLab implements StageRoom {
     const pool = glowCard(1.0, 0.7, 0xffc078, 0.3); pool.rotation.x = -Math.PI / 2; pool.position.set(x + 0.05, y + 0.003, z + 0.05); g.add(pool);
     const note = paper(['SLIDES', '~', '~'], 0.16, 0.12, { seed: 61 }); note.rotation.x = -Math.PI / 2; note.position.set(x - 0.15, y + 0.004, z + 0.2); note.rotation.z = 0.2; g.add(note);
     const lab = plate(this.mats, ['MICROSCOPY'], 0.32, 0.07, { bg: 0xc8c0a0 });
-    lab.position.set(x, 1.5, BACK + 0.012); g.add(lab);
-    const scope = new THREE.Group(); scope.position.set(x + 0.05, y + 0.2, z); g.add(scope);
+    lab.position.set(x, 1.5, -0.4 + 0.012); g.add(lab);
+    for (let i = 0; i < 9; i++) b2.add('paint', cbox(0.05, 0.26 + (i % 3) * 0.02, 0.22, 0.006), [0x2a4a8a, 0x8a2a2a, 0x2a6a4a, 0xc8a030, 0x5a3a7a][i % 5], at(x + 0.35 + i * 0.052, y + 0.13 + (i % 3) * 0.01, z - 0.18, 0, 0, i === 8 ? -0.3 : 0));
+    g.add(b2.build(this.mats));
     this.hots.push({ key: 'scope', objs: [g], glow: [], label: 'Microscope bench', sub: 'process a sample', press: () => this.onPanel?.('fridge') });
     return g;
   }
@@ -436,12 +458,12 @@ export class ResearchLab implements StageRoom {
     const g = new THREE.Group();
     const b = new FacetBuilder();
     const { x, y, z } = TABLE;
-    b.add('chrome', cbox(0.8, 0.05, 1.8, 0.012), 0xb8bcbc, at(x, y, z), { rep: 0.6 });
-    b.add('chrome', extrude([[-0.42, -0.92], [0.42, -0.92], [0.42, 0.92], [-0.42, 0.92]], 0.04, 0.006, [[[-0.38, -0.88], [0.38, -0.88], [0.38, 0.88], [-0.38, 0.88]]]), 0x9a9e9e, at(x, y + 0.03, z, Math.PI / 2));
+    b.add('metal', cbox(0.8, 0.05, 1.8, 0.012), 0x7a8284, at(x, y, z), { rep: 0.6 });
+    b.add('metal', extrude([[-0.42, -0.92], [0.42, -0.92], [0.42, 0.92], [-0.42, 0.92]], 0.04, 0.006, [[[-0.38, -0.88], [0.38, -0.88], [0.38, 0.88], [-0.38, 0.88]]]), 0x8a9294, at(x, y + 0.03, z, Math.PI / 2));
     b.add('metal', prism(0.09, y - 0.1, 8), C.dark, at(x, (y - 0.1) / 2, z));
     b.add('metal', cbox(0.6, 0.06, 0.8, 0.02), C.darker, at(x, 0.03, z));
     // the dissection tray (wax-bottomed), pins, a towel, the instrument tray on its stand
-    b.add('chrome', cbox(0.5, 0.04, 0.62, 0.008), 0xa8acac, at(x, y + 0.045, z - 0.2));
+    b.add('metal', cbox(0.5, 0.04, 0.62, 0.008), 0x8a9294, at(x, y + 0.045, z - 0.2));
     b.add('rubber', cbox(0.44, 0.012, 0.56, 0.004), 0x2a2a2a, at(x, y + 0.062, z - 0.2));
     b.add('sponge', cbox(0.3, 0.02, 0.24, 0.01), 0x6a9ab8, at(x + 0.15, y + 0.035, z + 0.55, 0, 0.2));
     b.add('chrome', cbox(0.5, 0.02, 0.32, 0.006), 0xa8a8a8, at(x + 0.78, 1.02, z + 0.3));
@@ -451,7 +473,8 @@ export class ResearchLab implements StageRoom {
     // the specimen on the tray: a pale pinned thing, its flap
     const sp = new THREE.Mesh(new THREE.IcosahedronGeometry(0.1, 1), new THREE.MeshStandardMaterial({ color: 0xd89a90, roughness: 0.55, flatShading: true }));
     sp.scale.set(1.2, 0.3, 2.0); sp.position.set(x, y + 0.085, z - 0.2); sp.castShadow = true; g.add(sp);
-    for (const [dx, dz] of [[-0.12, -0.36], [0.12, -0.36], [-0.12, -0.02], [0.12, -0.02]]) { const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.05, 4), new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 0.7, roughness: 0.3 })); pin.position.set(x + dx, y + 0.09, z + dz); g.add(pin); const head = new THREE.Mesh(new THREE.SphereGeometry(0.006, 5, 3), new THREE.MeshStandardMaterial({ color: 0xc8302a })); head.position.set(x + dx, y + 0.115, z + dz); g.add(head); }
+    this.trayProps.push(sp);
+    for (const [dx, dz] of [[-0.12, -0.36], [0.12, -0.36], [-0.12, -0.02], [0.12, -0.02]]) { const pin = new THREE.Mesh(new THREE.CylinderGeometry(0.002, 0.002, 0.05, 4), new THREE.MeshStandardMaterial({ color: 0xd8d8d8, metalness: 0.7, roughness: 0.3 })); pin.position.set(x + dx, y + 0.09, z + dz); g.add(pin); const head = new THREE.Mesh(new THREE.SphereGeometry(0.006, 5, 3), new THREE.MeshStandardMaterial({ color: 0xc8302a })); head.position.set(x + dx, y + 0.115, z + dz); g.add(head); this.trayProps.push(pin, head); }
     // the surgical lamp on its ceiling arm
     const lb = new FacetBuilder();
     lb.add('metal', prism(0.04, 0.5, 8), 0xd8d4c4, at(0, -0.25, 0));
@@ -582,6 +605,8 @@ export class ResearchLab implements StageRoom {
     return g;
   }
   private hangTools() {
+    // dispose the last hanging (plates carry their own canvas textures)
+    this.peg.traverse((o) => { const m = o as THREE.Mesh; if (!m.isMesh) return; m.geometry.dispose(); const mm = m.material as THREE.Material & { map?: THREE.Texture | null }; mm.map?.dispose(); mm.dispose(); });
     this.peg.clear(); this.pegTools.clear();
     const picked = req();
     TOOL_KEYS.forEach((k, i) => {
@@ -637,7 +662,7 @@ export class ResearchLab implements StageRoom {
   /** process a sample: the first-person bench games, then the result */
   async process(s: Sample): Promise<void> {
     if (this.bench) return;
-    const host: BenchHost = { scene: this.scene, cam: this.cam, mats: this.mats, station: (k) => this.station(k), readout: this.readouts[0]?.ctx ?? null, root: document.body };
+    const host: BenchHost = { scene: this.scene, cam: this.cam, mats: this.mats, station: (k) => this.station(k), readout: this.readouts[0]?.ctx ?? null, root: document.body, rayAt: this.rayAt };
     this.onBench?.(true);
     this.bench = new BenchRun(host, s);
     try { const r = await this.bench.run(); if (r?.completed || r) this.flashEntry(s.src); this.refresh(); } finally { this.bench = null; this.pose = 'room'; this.onBench?.(false); }
@@ -645,11 +670,11 @@ export class ResearchLab implements StageRoom {
   /** where each bench game happens (its close first-person camera and the work's anchor) */
   private station(k: string): Station {
     switch (k) {
-      case 'pipette': return { eye: new THREE.Vector3(CENTRI.x - 0.62, 1.42, CENTRI.z + 0.5), at: new THREE.Vector3(CENTRI.x - 0.08, CENTRI.y + 0.12, CENTRI.z + 0.5), surf: CENTRI.y };
+      case 'pipette': return { eye: new THREE.Vector3(CENTRI.x - 0.5, 1.32, CENTRI.z + 0.5), at: new THREE.Vector3(CENTRI.x - 0.08, CENTRI.y + 0.17, CENTRI.z + 0.5), surf: CENTRI.y };
       case 'centrifuge': return { eye: new THREE.Vector3(CENTRI.x - 0.5, 1.58, CENTRI.z - 0.33), at: new THREE.Vector3(CENTRI.x, CENTRI.y + 0.25, CENTRI.z - 0.35), surf: CENTRI.y, rotor: this.rotor };
-      case 'microscope': return { eye: new THREE.Vector3(SCOPE.x + 0.05, 1.5, SCOPE.z + 0.52), at: new THREE.Vector3(SCOPE.x + 0.05, SCOPE.y + 0.2, SCOPE.z), surf: SCOPE.y };
-      case 'dissect': return { eye: new THREE.Vector3(TABLE.x, 1.62, TABLE.z + 0.38), at: new THREE.Vector3(TABLE.x, TABLE.y + 0.08, TABLE.z - 0.2), surf: TABLE.y + 0.07 };
-      default: return { eye: new THREE.Vector3(SEQ.x - 0.25, 1.32, SEQ.z + 0.95), at: new THREE.Vector3(SEQ.x - 0.25, 1.02, SEQ.z), surf: 0.78 };
+      case 'microscope': return { eye: new THREE.Vector3(SCOPE.x + 0.52, 1.5, SCOPE.z - 0.05), at: new THREE.Vector3(SCOPE.x, SCOPE.y + 0.2, SCOPE.z - 0.05), surf: SCOPE.y };
+      case 'dissect': return { eye: new THREE.Vector3(TABLE.x, 1.42, TABLE.z + 0.2), at: new THREE.Vector3(TABLE.x, TABLE.y + 0.08, TABLE.z - 0.26), surf: TABLE.y + 0.07, props: this.trayProps };
+      default: return { eye: new THREE.Vector3(SEQ.x - 0.4, 1.22, SEQ.z + 0.68), at: new THREE.Vector3(SEQ.x - 0.46, 1.0, SEQ.z), surf: 0.78 };
     }
   }
 
@@ -681,10 +706,10 @@ export class ResearchLab implements StageRoom {
       tb.mat.color.setRGB(0.95 * (0.3 + 0.9 * k), 0.97 * (0.3 + 0.9 * k), 1.0 * (0.3 + 0.9 * k));
     }
     this.surgLvl = damp(this.surgLvl, this.surgOn, 14, dt);
-    this.surg.intensity = 16 * this.surgLvl;
-    this.surgMat.color.setScalar(0.2 + 2.2 * this.surgLvl);
+    this.surg.intensity = 1.8 * this.surgLvl;
+    this.surgMat.color.setScalar(0.2 + 1.1 * this.surgLvl);
     const pool = this.scene.getObjectByName('surgPool'); if (pool) pool.visible = this.surgLvl > 0.1;
-    this.desk.intensity = 3.0 + Math.sin(t * 3.1) * 0.05;
+    this.desk.intensity = 2.1 + Math.sin(t * 3.1) * 0.04;
     this.alarmT = Math.max(0, this.alarmT - dt);
     if (this.alarmLed) this.alarmLed.level = this.alarmT > 0 ? (Math.sin(t * 20) > 0 ? 1 : 0) : 0.05;
     this.wallGlow.color.setHex(this.alarmT > 0 && Math.sin(t * 20) > 0 ? 0xff4a3a : 0xd8ecff);
@@ -699,14 +724,15 @@ export class ResearchLab implements StageRoom {
     const th = this.jar.getObjectByName('thing'); if (th) { th.rotation.y = t * 0.2 + jw * 0.3; th.position.y = 0.18 + Math.sin(t * 0.7) * 0.01 + Math.abs(jw) * 0.01; }
     this.doorT = Math.max(0, this.doorT - dt * 0.6);
     this.doorA = damp(this.doorA, this.doorT > 0.2 ? 0.7 : 0, 5, dt);
-    this.fridgeDoor.rotation.y = Math.PI / 2 + this.doorA;
+    this.fridgeDoor.rotation.y = -this.doorA * 1.2;
     for (const r of this.readouts) { r.acc += dt; if (r.acc >= r.every && !(this.bench && r === this.readouts[0] && this.bench.usesScreen)) { r.acc = 0; r.draw(r.ctx, t); r.tex.needsUpdate = true; } }
     if (this.bench?.usesScreen && this.readouts[0]) this.readouts[0].tex.needsUpdate = true;
     if (this.flash) { this.flash.t += dt; if (Math.floor(this.flash.t * 6) !== Math.floor((this.flash.t - dt) * 6)) this.drawWall(); if (this.flash.t > 1.6) { this.flash = null; this.drawWall(); } }
     if (full && Math.random() < dt * 0.8) this.puffs.emit(this.v.set(HOOD.x + 0.1, 1.95, HOOD.z + (Math.random() - 0.5) * 0.8), new THREE.Vector3(0, 0.25, 0), { life: 2.2, s0: 0.01, s1: 0.03, color: 0xd8f0e8, rise: 0.3 });
     if (full) this.puffs.update(dt, this.cam, () => 0.6);
     if (!full) return;
-    // ---- camera: the benches drive it while a sample is worked
+    // ---- camera: the benches drive it while a sample is worked (the close-ups get a gentler exposure)
+    this.grade.exposure = damp(this.grade.exposure ?? 1.75, this.bench && !this.bench.done ? 1.3 : 1.75, 4, dt);
     if (this.bench) { this.bench.update(dt, t); return; }
     this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 3, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 3, dt);
     this.build = damp(this.build, this.buildT, 3, dt);
