@@ -1,15 +1,17 @@
-// ROCHELLE, specimen MR-00, the mutt roach: a chunky, fist-sized cockroach
-// from the Meridian's sump that came out of the leak rounder, softer and
-// friendlier than anything with six legs has a right to be. Huge glossy eyes
-// with two glints each, pink cheeks, a little smile, a chestnut carapace
-// with cream stripes, and the mutation: bulbs on the antennae and a blister
-// on the back that glow (teal, unless an achievement re-dyed it).
+// ROCHELLE, specimen MR-00, the mutt roach: a cockroach the size of a fist
+// from the Meridian's sump, mutated by the leak. Drawn as the real animal:
+// a pale-rimmed pronotum shield over a small down-turned head, kidney-shaped
+// compound eyes, palps and mandibles, long whip antennae of many segments,
+// leathery wing cases with venation over a banded, segmented abdomen, cerci
+// at the tail, and six articulated legs (coxa, spined femur, tibia, tarsus).
+// The mutation: luminous nodules along the antennae, and a blister cluster
+// that has split the right wing case, glowing (teal unless a commendation
+// re-dyed it). Endearing by behaviour, not by face: she trots after her
+// survivor, waves her antennae at you, sniffs out valuables and stands on
+// point beside them, bolts from anything with teeth and comes back.
 // The containment wing's first, easy pet (src/game/meridian.ts). Deployed,
-// she trots after her survivor, never in the way (no body push), sniffs out
-// valuables on the floor nearby and stands on point beside them, glowing.
-// Something dangerous close, a loud bang, a slap: she bolts and hides, then
-// comes back. Pet her (the companion menu's Pet) and she does a happy hop.
-// She never spawns in the wild (no zones, no weight).
+// she never shoves anyone (no body push). Pet her (the companion menu's Pet)
+// and she rears and flutters her antennae. She never spawns in the wild.
 import * as THREE from 'three';
 import { def, newRig, Rig } from '../species';
 import { G } from '../../game/G';
@@ -22,83 +24,122 @@ import { floorItems } from '../../items/worldItems';
 import { itemValue } from '../../game/debt/values';
 
 const PG = registerPage(new Page('c_roachpg', 64, 64, [
-  ['SHELL', 32, 24], ['HEAD', 20, 16], ['BELLY', 12, 12], ['EYE', 12, 12], ['LEG', 6, 12], ['PINK', 6, 6], ['INK', 6, 6], ['HATP', 12, 12], ['HATC', 8, 8], ['HATH', 10, 10], ['HATB', 8, 8], ['CREAM', 6, 6],
+  ['SHELL', 24, 16], ['WING', 16, 32], ['BELLY', 16, 16], ['HEAD', 12, 12], ['EYE', 8, 8], ['LEG', 8, 16], ['MOUTH', 6, 6], ['WOUND', 8, 8],
+  ['HATP', 10, 10], ['HATC', 6, 6], ['HATH', 8, 8], ['HATB', 6, 6],
 ], 1));
 PG.paint((P) => {
-  // the carapace: glossy chestnut with three cream bands and a bright window highlight
-  const R = ramp(0x9a4a22, 7, 0x3a1608, 0.5);
-  skin(P, P.R('SHELL'), R, { mott: 0.9, salt: 3 });
-  { const r = P.R('SHELL'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { if (y % 6 === 4) P.set(r, x, y, 0xf0d8a8); if (y % 6 === 5) P.set(r, x, y, 0x5a2410); } P.glint(r, 6, 3, 6, 0xffffff, 0.75); P.glint(r, 22, 3, 5, 0xffffff, 0.75); }
-  skin(P, P.R('HEAD'), ramp(0xb8642e, 6, 0x4a2010, 0.5), { mott: 0.7, salt: 5 });
-  skin(P, P.R('BELLY'), ramp(0xe8c890, 5, 0x8a6040, 0.4), { mott: 0.6, salt: 7 });
-  eye(P, P.R('EYE'), 0x1a2a3a, { pupil: 0x05060a, sclera: 0x101820 });
-  { const r = P.R('EYE'); P.spot(r, 8, 8, 0.8, 0.8, 0xffffff, 0.9); }
-  flat(P, P.R('LEG'), 0x5a2a14, 0.05);
-  flat(P, P.R('PINK'), 0xff7aa8, 0.02);
-  flat(P, P.R('INK'), 0x1a0a08, 0.02);
-  flat(P, P.R('CREAM'), 0xf4e4c0, 0.02);
-  { const r = P.R('HATP'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) P.set(r, x, y, (x + y) % 6 < 3 ? 0xff4ab0 : 0x7af0ff); }
-  flat(P, P.R('HATC'), 0xffc83a, 0.04);
-  flat(P, P.R('HATH'), 0xffd21a, 0.04);
-  flat(P, P.R('HATB'), 0xff2a4a, 0.04);
+  // the pronotum: glossy chestnut, darker in the middle, a pale yellow rim, a sheen line
+  { const r = P.R('SHELL'); skin(P, r, ramp(0x6a3214, 7, 0x1a0804, 0.45), { mott: 0.8, salt: 3 });
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { const e = Math.max(Math.abs(x + 0.5 - r.w / 2) / (r.w / 2), Math.abs(y + 0.5 - r.h / 2) / (r.h / 2)); if (e > 0.82) P.set(r, x, y, e > 0.94 ? 0x8a6a2a : 0xd8b85a); else if (e < 0.35) P.set(r, x, y, 0x2a1006); }
+    P.glint(r, 5, 3, 7, 0xfff0d0, 0.55); }
+  // the wing cases: translucent-looking amber-brown with dark veins running back, a glossy edge
+  { const r = P.R('WING'); skin(P, r, ramp(0x8a4a1c, 7, 0x2a1006, 0.5), { mott: 0.6, salt: 5 });
+    for (let k = 0; k < 6; k++) P.walk(r, 2 + k * 2.4, 0, r.h, 0.08 * (k - 2.5), 1, 0x3a1808, 0.7, 0.3, 0.15);
+    for (let y = 0; y < r.h; y++) P.blend(r, r.w - 1, y, 0xffe0a0, 0.5);
+    P.glint(r, 3, 4, 4, 0xffffff, 0.5); P.glint(r, 9, 14, 3, 0xffffff, 0.35); }
+  // the abdomen: banded segments, cream joints
+  { const r = P.R('BELLY'); skin(P, r, ramp(0x7a4220, 6, 0x24100a, 0.4), { mott: 0.5, salt: 7 }); for (let y = 0; y < r.h; y++) if (y % 4 === 3) for (let x = 0; x < r.w; x++) P.set(r, x, y, 0xc89a5a); }
+  skin(P, P.R('HEAD'), ramp(0x4a220e, 6, 0x140604, 0.4), { mott: 0.5, salt: 9 });
+  eye(P, P.R('EYE'), 0x14100c, { pupil: 0x050302, sclera: 0x1a120c });
+  { const r = P.R('EYE'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) if ((x + y) % 2 === 0) P.blend(r, x, y, 0x3a2a1a, 0.4); }
+  flat(P, P.R('LEG'), 0x5a2c12, 0.12);
+  { const r = P.R('LEG'); for (let y = 1; y < r.h; y += 3) P.set(r, r.w - 1, y, 0x1a0804); }
+  flat(P, P.R('MOUTH'), 0x2a120a, 0.05);
+  { const r = P.R('WOUND'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) P.set(r, x, y, (x * 7 + y * 3) % 5 < 2 ? 0xc8ffe8 : 0x3a8a6a); }
+  { const r = P.R('HATP'); for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) P.set(r, x, y, (x + y) % 6 < 3 ? 0xd83a8a : 0x4ac8d8); }
+  flat(P, P.R('HATC'), 0xd8a83a, 0.04);
+  flat(P, P.R('HATH'), 0xe8c41a, 0.04);
+  flat(P, P.R('HATB'), 0xc82a3a, 0.04);
 });
 
 const HATS = ['hat_party', 'hat_crown', 'hat_hard', 'hat_bow'];
 const TINTS: Record<string, number> = { tint_teal: 0x4affc8, tint_pink: 0xff6ad8, tint_gold: 0xffc23a, tint_violet: 0xa87aff };
 
-function glowBulb(parent: THREE.Object3D, mat: THREE.Material, at: V3, r: number) {
-  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), mat);
+function glowBulb(parent: THREE.Object3D, mat: THREE.Material, at: V3, r: number, detail = 1) {
+  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, detail), mat);
   m.position.set(at[0], at[1], at[2]);
   m.userData.noGlow = true;
   parent.add(m);
   return m;
 }
+/** a whip antenna: many short segments, tapering, curving out and back */
+function antennaPath(k: number): V3[] {
+  const out: V3[] = [];
+  for (let i = 0; i <= 14; i++) { const u = i / 14; out.push([k * (0.02 + u * 0.13 + Math.sin(u * 2.2) * 0.03), 0.01 + Math.sin(u * 2.6) * 0.07, 0.01 + u * 0.2 - u * u * 0.16]); }
+  return out;
+}
+const LEGS: { s: 'L' | 'R'; k: 1 | -1; i: number; z: number; yaw: number; fem: number; tib: number }[] = [];
+for (const [s, k] of [['L', 1], ['R', -1]] as const) for (let i = 0; i < 3; i++) LEGS.push({ s, k, i, z: 0.07 - i * 0.06, yaw: [0.55, 0.05, -0.55][i], fem: [0.07, 0.08, 0.1][i], tib: [0.07, 0.09, 0.13][i] });
 
 function buildRoach(): Rig {
-  const rig = newRig(0.3);
+  const rig = newRig(0.2);
   const glow = new THREE.MeshBasicMaterial({ color: TINTS.tint_teal, toneMapped: false });
   rig.root.userData.glowMat = glow;
-  const body = bpart(rig, 'shell', rig.body, [0, 0.135, 0], PG, 'rshell', (ob) => {
-    ob.blob([0, 0, -0.01], [0.135, 0.09, 0.19], 12, 8, PG.reg('SHELL'));
-    ob.blob([0, -0.045, 0], [0.115, 0.04, 0.16], 10, 4, PG.reg('BELLY'));
+  // the abdomen: five banded segments tapering back, under the wing cases
+  const body = bpart(rig, 'shell', rig.body, [0, 0.07, 0], PG, 'rbody', (ob) => {
+    for (let i = 0; i < 6; i++) ob.blob([0, -0.004 - i * 0.002, 0.02 - i * 0.04], [0.085 - i * 0.008, 0.032 - i * 0.003, 0.03], 12, 6, PG.reg('BELLY'));
+    // the thorax under the shield, the cerci at the tail
+    ob.blob([0, 0.002, 0.07], [0.07, 0.03, 0.045], 12, 6, PG.reg('BELLY'));
+    for (const k of [-1, 1]) ob.cone([k * 0.02, 0.0, -0.2], [k * 0.35, 0.1, -1], 0.008, 0.05, 4, PG.reg('LEG'));
   });
-  // the mutation: a glowing blister and two seed bumps on the back
-  glowBulb(body, glow, [0.035, 0.085, -0.05], 0.034);
-  glowBulb(body, glow, [-0.045, 0.07, -0.1], 0.018);
-  glowBulb(body, glow, [-0.02, 0.08, 0.03], 0.014);
-  const head = bpart(rig, 'head', body, [0, 0.025, 0.17], PG, 'rhead', (ob) => {
-    ob.blob([0, 0.01, 0.02], [0.105, 0.09, 0.09], 12, 8, PG.reg('HEAD'));
-    for (const s of [-1, 1]) ob.blob([s * 0.075, -0.025, 0.075], [0.022, 0.014, 0.01], 6, 4, PG.reg('PINK'));
-    ob.blob([0, -0.042, 0.098], [0.026, 0.009, 0.008], 6, 3, PG.reg('INK'));
-    for (const s of [-1, 1]) ob.cone([s * 0.03, -0.06, 0.07], [s * 0.3, -1, 0.6], 0.012, 0.035, 4, PG.reg('LEG'));
+  // the pronotum shield and the two wing cases (the right one split by the mutation)
+  bpart(rig, 'pronotum', body, [0, 0.03, 0.085], PG, 'rpron', (ob) => ob.blob([0, 0, 0], [0.085, 0.022, 0.06], 14, 6, PG.reg('SHELL'), { rot: [-0.12, 0, 0] }));
+  bpart(rig, 'wingL', body, [0.02, 0.028, 0.035], PG, 'rwingL', (ob) => ob.blob([0.02, 0, -0.1], [0.05, 0.012, 0.135], 10, 5, PG.reg('WING'), { rot: [0.05, 0.08, 0] }));
+  const wr = bpart(rig, 'wingR', body, [-0.02, 0.028, 0.035], PG, 'rwingR', (ob) => {
+    ob.blob([-0.022, 0, -0.1], [0.05, 0.012, 0.135], 10, 5, PG.reg('WING'), { rot: [0.05, -0.12, 0.2] });
+    ob.blob([-0.03, 0.006, -0.09], [0.026, 0.01, 0.045], 8, 4, PG.reg('WOUND'), { emis: 0.6 });
+  });
+  // the mutation: a blister cluster pushing through the split case, glowing
+  glowBulb(wr, glow, [-0.03, 0.02, -0.09], 0.02, 1);
+  glowBulb(wr, glow, [-0.045, 0.016, -0.11], 0.012, 1);
+  glowBulb(wr, glow, [-0.018, 0.017, -0.115], 0.01, 1);
+  glowBulb(wr, glow, [-0.036, 0.014, -0.065], 0.008, 0);
+  // the head: tucked under the shield, turned down; compound eyes, palps, mandibles
+  const head = bpart(rig, 'head', body, [0, 0.0, 0.13], PG, 'rhead', (ob) => {
+    ob.blob([0, -0.012, 0.012], [0.035, 0.032, 0.026], 10, 6, PG.reg('HEAD'), { rot: [0.5, 0, 0] });
+    for (const k of [-1, 1]) {
+      ob.blob([k * 0.026, 0.002, 0.012], [0.012, 0.022, 0.014], 8, 5, PG.reg('EYE'), { rot: [0.3, 0, k * 0.2] });
+      ob.cone([k * 0.01, -0.036, 0.022], [k * 0.4, -0.6, 0.7], 0.007, 0.022, 4, PG.reg('MOUTH'));
+      ob.tube([[k * 0.018, -0.03, 0.018], [k * 0.03, -0.045, 0.034], [k * 0.026, -0.058, 0.05], [k * 0.02, -0.064, 0.058]], [0.004, 0.0035, 0.003, 0.0025], 4, PG.reg('LEG'), { start: 'flat', end: 'pole' });
+    }
   });
   for (const [s, k] of [['L', 1], ['R', -1]] as const) {
-    bpart(rig, 'eye' + s, head, [k * 0.045, 0.03, 0.085], PG, 'reye', (ob) => ob.blob([0, 0, 0], [0.04, 0.046, 0.026], 10, 6, PG.reg('EYE'), { emis: 0.25 }));
-    const ant = bpart(rig, 'ant' + s, head, [k * 0.035, 0.085, 0.04], PG, 'rant' + s, (ob) => ob.tube([[0, 0, 0], [k * 0.02, 0.07, 0.03], [k * 0.055, 0.13, 0.0], [k * 0.08, 0.16, -0.04]], [0.008, 0.007, 0.006, 0.005], 4, PG.reg('LEG'), { start: 'flat', end: 'pole' }));
-    glowBulb(ant, glow, [k * 0.08, 0.16, -0.04], 0.022);
-    for (let i = 0; i < 3; i++) {
-      bpart(rig, `leg${s}${i}`, body, [k * 0.1, -0.035, 0.09 - i * 0.09], PG, 'rleg' + s, (ob) => ob.tube([[0, 0, 0], [k * 0.07, 0.025, 0], [k * 0.12, -0.075, 0.01]], [0.016, 0.013, 0.01], 4, PG.reg('LEG'), { start: 'flat', end: 'pole' }));
-    }
+    const ant = bpart(rig, 'ant' + s, head, [k * 0.012, 0.012, 0.026], PG, 'rant' + s, (ob) => ob.tube(antennaPath(k), antennaPath(k).map((_, i) => 0.0045 - i * 0.00026), 4, PG.reg('LEG'), { start: 'flat', end: 'pole' }));
+    const path = antennaPath(k);
+    for (const j of [5, 9]) glowBulb(ant, glow, path[j], 0.0055 - j * 0.0002, 0);
+    glowBulb(ant, glow, path[14], 0.007, 1);
   }
-  // the hats (achievement rewards), on the crown of the head, hidden until worn
-  bpart(rig, 'hat_party', head, [0, 0.09, 0.01], PG, 'rhparty', (ob) => { ob.cone([0, 0, 0], [0.1, 1, 0], 0.045, 0.12, 8, PG.reg('HATP')); ob.blob([0.012, 0.12, 0], [0.018, 0.018, 0.018], 6, 4, PG.reg('HATC')); });
-  bpart(rig, 'hat_crown', head, [0, 0.085, 0.01], PG, 'rhcrown', (ob) => {
-    ob.tube([[0, 0, 0], [0, 0.03, 0]], [0.05, 0.052], 10, PG.reg('HATC'), { start: null, end: null });
-    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; ob.cone([Math.cos(a) * 0.046, 0.028, Math.sin(a) * 0.046], [0, 1, 0], 0.014, 0.035, 4, PG.reg('HATC')); }
-    ob.blob([0, 0.016, 0.05], [0.01, 0.01, 0.006], 5, 3, PG.reg('HATB'));
+  // six legs: spined femur off the coxa, then tibia and tarsus (a knee to bend)
+  for (const L of LEGS) {
+    const k = L.k;
+    bpart(rig, `leg${L.s}${L.i}`, body, [k * 0.05, -0.012, L.z], PG, `rfem${L.s}${L.i}`, (ob) => {
+      ob.blob([0, 0, 0], [0.016, 0.012, 0.014], 6, 4, PG.reg('LEG'));
+      ob.tube([[0, 0, 0], [k * 0.5 * L.fem, 0.02, 0], [k * L.fem, 0.012, 0]], [0.009, 0.008, 0.006], 5, PG.reg('LEG'), { start: 'flat', end: 'flat' });
+      for (let q = 1; q <= 3; q++) ob.cone([k * q * L.fem * 0.25, 0.006, 0.005], [k * 0.2, -0.2, 1], 0.0025, 0.012, 3, PG.reg('MOUTH'));
+    });
+    bpart(rig, `shin${L.s}${L.i}`, rig.parts[`leg${L.s}${L.i}`], [k * L.fem, 0.012, 0], PG, `rtib${L.s}${L.i}`, (ob) => {
+      ob.tube([[0, 0, 0], [k * L.tib * 0.45, -0.035, 0], [k * L.tib * 0.8, -0.06, 0], [k * L.tib, -0.068, 0.004]], [0.006, 0.005, 0.004, 0.003], 4, PG.reg('LEG'), { start: 'flat', end: 'pole' });
+      for (let q = 1; q <= 4; q++) ob.cone([k * q * L.tib * 0.17, -0.015 * q, 0.004], [k * 0.1, 0.4, 1], 0.002, 0.014, 3, PG.reg('MOUTH'));
+    });
+  }
+  // the hats (commendation rewards): on the pronotum, hidden until worn
+  bpart(rig, 'hat_party', head, [0, 0.045, 0.0], PG, 'rhparty', (ob) => { ob.cone([0, 0, 0], [0.1, 1, 0], 0.024, 0.07, 8, PG.reg('HATP')); ob.blob([0.007, 0.07, 0], [0.01, 0.01, 0.01], 6, 4, PG.reg('HATC')); });
+  bpart(rig, 'hat_crown', head, [0, 0.042, -0.005], PG, 'rhcrown', (ob) => {
+    ob.tube([[0, 0, 0], [0, 0.018, 0]], [0.028, 0.03], 10, PG.reg('HATC'), { start: null, end: null });
+    for (let i = 0; i < 5; i++) { const a = (i / 5) * Math.PI * 2; ob.cone([Math.cos(a) * 0.026, 0.016, Math.sin(a) * 0.026], [0, 1, 0], 0.008, 0.02, 4, PG.reg('HATC')); }
   });
-  bpart(rig, 'hat_hard', head, [0, 0.07, 0.0], PG, 'rhhard', (ob) => { ob.blob([0, 0.02, 0], [0.075, 0.05, 0.075], 10, 5, PG.reg('HATH'), { v1: 0.55 }); ob.blob([0, 0.012, 0.02], [0.09, 0.008, 0.095], 10, 3, PG.reg('HATH')); });
-  bpart(rig, 'hat_bow', head, [0, 0.09, 0.0], PG, 'rhbow', (ob) => { for (const s of [-1, 1]) ob.blob([s * 0.04, 0.02, 0], [0.038, 0.026, 0.016], 8, 4, PG.reg('HATB'), { rot: [0, 0, s * 0.4] }); ob.blob([0, 0.02, 0], [0.016, 0.016, 0.016], 6, 4, PG.reg('HATB')); });
+  bpart(rig, 'hat_hard', head, [0, 0.035, -0.005], PG, 'rhhard', (ob) => { ob.blob([0, 0.012, 0], [0.042, 0.028, 0.042], 10, 5, PG.reg('HATH'), { v1: 0.55 }); ob.blob([0, 0.007, 0.012], [0.05, 0.005, 0.055], 10, 3, PG.reg('HATH')); });
+  bpart(rig, 'hat_bow', head, [0, 0.045, -0.005], PG, 'rhbow', (ob) => { for (const k of [-1, 1]) ob.blob([k * 0.022, 0.01, 0], [0.021, 0.014, 0.009], 8, 4, PG.reg('HATB'), { rot: [0, 0, k * 0.4] }); ob.blob([0, 0.01, 0], [0.009, 0.009, 0.009], 6, 4, PG.reg('HATB')); });
   for (const h of HATS) rig.parts[h].visible = false;
   // a touch larger than life, so she reads at the game's camera distance
-  rig.body.scale.setScalar(1.3);
+  rig.body.scale.setScalar(1.35);
   return rig;
 }
 
 function animateRoach(rig: Rig, c: Creature, t: number, dt: number) {
   const ud = rig.root.userData as Record<string, any>;
   const n = netOf(c);
-  const seed = hashId(c.id);
+  const seed = hashId(c.id) * 0.001;
   // the look: a hat, the glow colour
   if (ud.hat !== n.hat) { ud.hat = n.hat; for (const h of HATS) if (rig.parts[h]) rig.parts[h].visible = h === n.hat; }
   const glow = ud.glowMat as THREE.MeshBasicMaterial;
@@ -106,29 +147,33 @@ function animateRoach(rig: Rig, c: Creature, t: number, dt: number) {
   const pose = c.dead ? '' : (n.pose as string) || '';
   const k = (name: string, target: number, rate = 7) => (ud[name] = lerp(ud[name] ?? 0, target, damp(rate, dt)));
   const point = k('pp', pose === 'point' ? 1 : 0, 6), happy = k('ph', pose === 'happy' ? 1 : 0, 9), scared = k('ps', pose === 'scared' || c.state === 'flee' ? 1 : 0, 10);
-  if (glow) { glow.color.setHex(base); glow.color.multiplyScalar(1.1 + Math.sin(t * 2.2 + seed) * 0.25 + point * (0.8 + Math.sin(t * 12) * 0.6)); }
+  // the mutation breathes light; on point it pulses hard
+  if (glow) { glow.color.setHex(base); glow.color.multiplyScalar(0.9 + Math.sin(t * 1.7 + seed) * 0.3 + point * (0.8 + Math.sin(t * 12) * 0.6)); }
   const sh = fxPoll(rig, c);
   if (sh && G.audio) playAt(sh.key, c, sh.a.v ?? 0.5, sh.a.r ?? 12, sh.a.rate ?? 1.35);
-  const moving = c.speed > 0.15, ph = (c.phase || t * 4) * 1.6;
-  // a happy hop and a spin; a scared crouch; on point: front up, antennae forward
-  const hop = happy * Math.abs(Math.sin(t * 9)) * 0.08;
-  rig.body.position.y = hop + (moving ? Math.abs(Math.sin(ph * 2)) * 0.012 : Math.sin(t * 2.4 + seed) * 0.004) - scared * 0.03;
-  rig.body.rotation.y = happy * Math.sin(t * 5) * 0.6;
-  rot(rig, 'shell', -point * 0.32 + (moving ? Math.sin(ph * 2) * 0.03 : 0), 0, moving ? Math.sin(ph) * 0.06 : Math.sin(t * 1.1 + seed) * 0.03);
-  rot(rig, 'head', point * 0.25 - scared * 0.2 + Math.sin(t * 0.9 + seed) * 0.08 * (1 - point), Math.sin(t * 0.6 + seed * 2) * 0.35 * (1 - point - scared), 0);
-  // blink: the eyes squash shut for a beat now and then
-  const bl = (t * 0.37 + seed) % 1 < 0.035 ? 0.15 : 1;
-  for (const s of ['L', 'R']) { const e = rig.parts['eye' + s]; if (e) e.scale.set(1, bl, 1); }
+  const moving = c.speed > 0.15, ph = (c.phase || 0) * 1.8 + (moving ? 0 : 0);
+  // body: low and flat when scared, front up on point, a little rear and turn when petted
+  rig.body.position.y = -scared * 0.012 + happy * Math.abs(Math.sin(t * 7)) * 0.02 + (moving ? Math.abs(Math.sin(ph * 2)) * 0.004 : 0);
+  rig.body.rotation.y = happy * Math.sin(t * 4) * 0.35;
+  rot(rig, 'shell', -point * 0.28 - happy * 0.2 * Math.max(0, Math.sin(t * 7)), 0, moving ? Math.sin(ph * 2) * 0.03 : Math.sin(t * 0.8 + seed) * 0.012);
+  rot(rig, 'head', point * 0.2 - scared * 0.25 + Math.sin(t * 0.7 + seed) * 0.05, Math.sin(t * 0.5 + seed * 2) * 0.18 * (1 - point - scared), 0);
+  // the wing cases breathe; the split one twitches over the blister
+  rot(rig, 'wingL', Math.sin(t * 1.9) * 0.012, 0, 0);
+  rot(rig, 'wingR', Math.sin(t * 1.9) * 0.012 + (Math.sin(t * 13 + seed) > 0.96 ? 0.06 : 0), 0, -0.02);
+  // antennae never stop: slow independent sweeps, a fast flutter when petted, flat back when scared, forward on point
   for (const [s, kk] of [['L', 1], ['R', -1]] as const) {
-    const wig = Math.sin(t * (moving ? 9 : 3.3) + kk * 1.7 + seed) * (0.25 + point * 0.2);
-    rot(rig, 'ant' + s, -0.25 + point * 0.9 + scared * -0.9 + wig * 0.4, kk * wig * 0.4, kk * (0.15 - scared * 0.4));
-    for (let i = 0; i < 3; i++) {
-      // tripod gait: legs 0 and 2 on one side move with leg 1 on the other
-      const phase = ph * 2 + ((i % 2 === 0) === (kk > 0) ? 0 : Math.PI);
-      const sw = moving ? Math.sin(phase) * 0.6 : Math.sin(t * 1.4 + i + kk) * 0.04;
-      const lift = moving ? Math.max(0, Math.cos(phase)) * 0.45 : 0;
-      rot(rig, `leg${s}${i}`, 0, sw, kk * (lift - scared * 0.35 + point * (i === 0 ? -0.5 : 0)));
-    }
+    const sweep = Math.sin(t * (1.3 + kk * 0.27) + seed * 3 + kk) * 0.5 + Math.sin(t * 3.7 + kk * 2) * 0.15;
+    const flutter = happy * Math.sin(t * 30 + kk) * 0.25;
+    rot(rig, 'ant' + s, 0.15 + point * 0.4 - scared * 0.7 + Math.sin(t * 1.1 + kk) * 0.15 + flutter, kk * (sweep * (1 - point * 0.7)) * 0.6 - kk * scared * 0.6, 0);
+  }
+  // tripod gait: front and hind on one side move with the middle leg on the other; legs splay when flat and scared
+  for (const L of LEGS) {
+    const phase = ph * 2 + ((L.i % 2 === 0) === (L.k > 0) ? 0 : Math.PI);
+    const sw = moving ? Math.sin(phase) * 0.55 : Math.sin(t * 0.9 + L.i + L.k) * 0.03;
+    const lift = moving ? Math.max(0, Math.cos(phase)) * 0.5 : 0;
+    // left legs reach +x, right legs -x: yaw forward and the roll that lifts a foot flip sign with the side
+    rot(rig, `leg${L.s}${L.i}`, 0, -L.k * (L.yaw + sw), L.k * (-0.15 + lift + scared * 0.25 - point * (L.i === 0 ? 0.3 : 0)));
+    rot(rig, `shin${L.s}${L.i}`, 0, 0, L.k * (-0.05 - lift * 0.6 + scared * 0.2));
   }
 }
 
@@ -251,7 +296,8 @@ export const ROACH = def({
 ROACH.animateGallery = (rig: Rig, t: number) => {
   const ud = rig.root.userData;
   const fc: any = ud.fake || (ud.fake = { id: 'g-roach', x: 0, z: 0, facing: 0, speed: 0, state: 'idle', mem: { netMem: {} }, phase: 0, dead: false, stateT: 0 });
-  const pose = Math.floor(t / 4) % 3;
+  const pose = Math.floor(t / 4) % 4;
   fc.mem.netMem.pose = pose === 1 ? 'happy' : pose === 2 ? 'point' : '';
+  fc.speed = pose === 3 ? 1.5 : 0; fc.phase += fc.speed / 60 * 8;
   animateRoach(rig, fc, t, 1 / 60);
 };

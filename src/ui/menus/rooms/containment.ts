@@ -26,6 +26,7 @@ import {
   FacetBuilder, at, cbox, prism, lathe, extrude, gem, bolt, hull, tube, C, LedBank, blink, busy, plate, paper, slab, glowCard, Wobble, uiSound, gameSound,
 } from '../monitor/props';
 import { SpecimenWing, PITCH, wingSpecies, type Cell } from './wing';
+import { dressSpecimen, SpecimenLife } from './specimenDetail';
 import { menuEvent, wireMeta } from '../../../game/achievements';
 import { checkMilestones } from '../../../game/meridian';
 
@@ -133,6 +134,7 @@ export class ContainmentRoom implements StageRoom {
   private puffs = new Puffs(40);
   // the creature
   private rig: Rig | null = null;
+  private life: SpecimenLife | null = null;
   private def: any = null;
   private fc: any;
   private pos = HOME.clone(); private facing = 0; private goal: THREE.Vector3 | null = null; private mode: 'idle' | 'stalk' | 'watch' | 'slam' | 'dragged' | 'shush' = 'idle'; private modeT = 0;
@@ -473,6 +475,8 @@ export class ContainmentRoom implements StageRoom {
       const rig: Rig = def.build();
       this.rig = rig;
       rig.root.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh) { m.castShadow = true; m.receiveShadow = true; } });
+      // the display specimen's anatomy and wet skin, its breathing and twitches (specimenDetail.ts)
+      try { const d = dressSpecimen(rig, def); this.life = new SpecimenLife(rig, d.breathe, d.profile); } catch (e) { console.warn('hush detail', e); }
       this.scene.add(rig.root);
       this.fc = { id: 'menu-hush-17', x: 0, z: 0, y: 0, facing: 0, speed: 0, state: 'idle', mem: { netMem: { cock: 0, fx: 0, fk: '' } }, attackPhase: 0, hp: 65, hitFlash: 0, dead: false, deathT: 0, targetId: null, tamedBy: null, phase: 0, observed: false, stateT: 0, zoneKey: 'menu', attackT: 0, sp: def, noiseCooldown: 5 };
       for (let i = 0; i < 2; i++) { const ch = new Chain(this.mats, 44); ch.mesh.scale.setScalar(1.8); this.chains.push(ch); this.scene.add(ch.mesh); }
@@ -647,7 +651,9 @@ export class ContainmentRoom implements StageRoom {
     fc.mem.netMem.cock = this.mode === 'watch' || this.mode === 'stalk' ? 1 : 0;
     fc.stateT += dt;
     fc.x = this.pos.x; fc.z = this.pos.z; fc.facing = this.facing;
+    this.life?.before();
     try { this.def.animate(rig, fc, t, dt); } catch { /* the creature's own code should never take the menu down */ }
+    this.life?.after(dt, t);
     rig.root.position.set(this.pos.x, 0.08, this.pos.z);
     rig.root.rotation.y = this.facing + (drag ? Math.sin(t * 9) * 0.06 : 0);
     if (drag) rig.root.rotation.x = -0.12;
