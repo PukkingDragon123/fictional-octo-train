@@ -21,6 +21,10 @@
 //                 a beacon sweeping red) between the server racks, cases of
 //                 anomalous objects on the floor, pipes with valves and gauges,
 //                 hazard bands, stencils and a low fog over the floor.
+// Its props answer a press (rooms/pokes.ts): the jelly in A-07 quivers at a
+// tap on the glass, the vault wheel grinds a quarter turn, valves turn and
+// hiss, the troughs stutter, a drawer slides, a dossier opens; each puts up a
+// note on an in-scene readout plate.
 // In the projection: drag to orbit, wheel / pinch to zoom, ← → flip pages,
 // R plays the recording (the thing moves, the text dictates itself, the
 // sound plays), Q / E the next file in the drawer, Esc back to the drawer.

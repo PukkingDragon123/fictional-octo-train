@@ -406,21 +406,21 @@ defObj({
     const rotAcross = Math.atan2(sz, sx);
     if (v !== 1) {
       // on its back: the chest and belly torn open through the suit, the ribs standing out of it
-      const ctr = along(0.55, 0.07);
+      const ctr = along(0.55, 0.115);
       blob(mb, ctr, [0.15, 0.04, 0.15], 12, 5, e >= 2 ? 'rm_crust' : 'rm_flesh');
-      for (let k = 0; k < 5; k++) for (const sd of [-1, 1]) { const p = along(0.75 + k * 0.08 - 0.3, 0.06); rib(mb, p[0], p[1], p[2], 0.11 + (k % 2) * 0.02, rotAcross + (sd > 0 ? 0 : Math.PI), sd, e >= 2 ? 'rm_bone' : 'rm_bone_old', 0.55); }
-      flaps(mb, along(0.55, 0.06), 7, 0.13, 2 + v, 'rm_hazmat_foul');
-      if (keep(2)) for (let k = 0; k < 3; k++) chunk(mb, along(0.35 + k * 0.18, 0.09, (k - 1) * 0.05), 0.04, k + 2, 'rm_flesh');
+      for (let k = 0; k < 5; k++) for (const sd of [-1, 1]) { const p = along(0.75 + k * 0.08 - 0.3, 0.1); rib(mb, p[0], p[1], p[2], 0.11 + (k % 2) * 0.02, rotAcross + (sd > 0 ? 0 : Math.PI), sd, e >= 2 ? 'rm_bone' : 'rm_bone_old', 0.55); }
+      flaps(mb, along(0.55, 0.11), 7, 0.13, 2 + v, 'rm_hazmat_foul');
+      if (keep(2)) for (let k = 0; k < 3; k++) chunk(mb, along(0.35 + k * 0.18, 0.13, (k - 1) * 0.05), 0.04, k + 2, 'rm_flesh');
       if (keep(3)) { const g = along(0.15, -0.05, 0.3); gutLoop(mb, g[0], g[2], 0.15, 1.3, 5, 0.02, 0.026); }
     } else {
       // face down: the back split along the spine, vertebrae standing out of it
-      for (let k = 0; k < 5; k++) { const p = along(0.15 + k * 0.2, 0.08); vertebra(mb, p[0], p[1], p[2], 1.2, Math.atan2(az, ax)); }
-      flaps(mb, along(0.5, 0.07), 5, 0.12, 3, 'rm_hazmat_foul');
-      if (keep(2)) chunk(mb, along(0.45, 0.09, 0.04), 0.045, 6, 'rm_flesh');
+      for (let k = 0; k < 5; k++) { const p = along(0.15 + k * 0.2, 0.11); vertebra(mb, p[0], p[1], p[2], 1.2, Math.atan2(az, ax)); }
+      flaps(mb, along(0.5, 0.11), 5, 0.12, 3, 'rm_hazmat_foul');
+      if (keep(2)) chunk(mb, along(0.45, 0.13, 0.04), 0.045, 6, 'rm_flesh');
     }
     if (v === 2 && keep(3)) { const g = along(-0.25, -0.06); gutLoop(mb, g[0], g[2], 0.2, 1.3, 2, 0.02, 0.03); chunk(mb, along(-0.08, -0.03), 0.06, 9, 'rm_flesh'); }
     // the ID strip, left of the chest
-    if (v !== 1) { mb.push(); const p = along(0.9, 0.09, 0.08); mb.translate(p[0], p[1], p[2]); mb.rotateY(-Math.atan2(az, ax)); mb.rotateX(-0.1); mb.box(0, 0, 0, 0.07, 0.005, 0.035, { top: 'rm_badge', sides: 'white' }, { fit: { top: true }, bevel: false }); mb.pop(); }
+    if (v !== 1) { mb.push(); const p = along(0.9, 0.12, 0.08); mb.translate(p[0], p[1], p[2]); mb.rotateY(-Math.atan2(az, ax)); mb.rotateX(-0.1); mb.box(0, 0, 0, 0.07, 0.005, 0.035, { top: 'rm_badge', sides: 'white' }, { fit: { top: true }, bevel: false }); mb.pop(); }
     // the torch it was holding, dead, by its hand
     const [tx, , tz] = B.handR;
     mb.push(); mb.translate(tx + sx * 0.12, 0.03, tz + sz * 0.12); mb.rotateY(rotAcross + 0.7); mb.rotateZ(Math.PI / 2); mb.cylinder(0, -0.08, 0, 0.022, 0.16, 8, 'rubber_black'); mb.cylinder(0, 0.08, 0, 0.03, 0.03, 8, 'metal_grey'); mb.pop();

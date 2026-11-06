@@ -30,6 +30,8 @@ import '../../audio/sounds_creatures_c';
 // pulls the animal along, takes things, and closes on ankles. Mangy hide in
 // patches over raw sinew and showing ribs, yellow incisors as long as fingers.
 // It hunts in the dark: lurk, peek, stalk, ambush, eye-whip, tail-grab, drag.
+// The forearm and hand are the game's one human base (a HumanRig: same mesh and skin
+// painter as every unit), hung on the last tail joint (see attachHand).
 // POSTER / VIDEO API (stand-alone, no game needed):
 //   buildWhipRat(variant?)                        -> KitRig (rig.root into any scene)
 //   poseWhipRat(rig, t, dt, pose, { variant, speed, lookYaw, lookPitch, hold, item })
@@ -362,8 +364,14 @@ const HAND_APP: Appearance = { skin: SKIN_TONES[1], hair: HAIR_COLORS[1], hairSt
 const HAND_OUTFIT: Outfit = { torso: { tex: 'c_bare', color: SKIN_TONES[1] }, cond: { dirt: 2, pale: 1, blood: { hand_r: 1, farm_r: 1 } } };
 /** HumanRig axes -> tail-bone axes: fingers (-y) run on down the tail (-z), the back of the hand (-x) faces up (+y) */
 const HAND_BASIS = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0));
+/** each HumanRig owns a texture page: rigs dropped by the manager (out of view, left the zone) give theirs back */
+const HAND_POOL: HumanRig[] = [];
+function inScene(o: THREE.Object3D) { while (o.parent) o = o.parent; return !!(o as any).isScene; }
 function attachHand(rig: KitRig) {
+  const free = HAND_POOL.find((h) => !inScene(h.root));
+  if (free) { free.root.removeFromParent(); rig.parts['t' + (NT - 1)].add(free.root); rig.kit.m.hr = free; return; }
   const hr = new HumanRig(HAND_APP, worldMaterial({}));
+  HAND_POOL.push(hr);
   hr.setOutfit(HAND_OUTFIT);
   hr.faceAnim = false;
   hr.skin.frustumCulled = false;

@@ -323,7 +323,7 @@ function inflateHead(geo: THREE.BufferGeometry, dims: Dims, k: number, head: Set
   const P = geo.getAttribute('position') as THREE.BufferAttribute, SI = geo.getAttribute('skinIndex'), SW = geo.getAttribute('skinWeight');
   if (!P || !SI || !SW) return;
   const r = dims.rest.head, u = r[1] / 6.4;
-  const cx = r[0], cy = r[1] + 0.42 * u, cz = r[2] - 0.04 * u;
+  const cx = r[0], cy = r[1] + 0.36 * u, cz = r[2] - 0.04 * u;
   const ss = (e0: number, e1: number, x: number) => { const q = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return q * q * (3 - 2 * q); };
   for (let i = 0; i < P.count; i++) {
     let w = 0;
@@ -331,10 +331,10 @@ function inflateHead(geo: THREE.BufferGeometry, dims: Dims, k: number, head: Set
     if (w <= 0.001) continue;
     const dx = P.getX(i) - cx, dy = P.getY(i) - cy, dz = P.getZ(i) - cz, l = Math.hypot(dx, dy, dz) || 1;
     // everything but the face (front, below the brow) and the jaw rounds out toward one big sphere
-    const face = ss(0.2, 0.65, dz / l) * ss(0.5, 0.1, dy / l), m = (1 - face) * ss(-0.55, -0.15, dy / l);
+    const face = ss(0.15, 0.6, dz / l) * ss(0.45, 0.05, dy / l), m = (1 - face) * ss(-0.88, -0.45, dy / l);
     // a little all over, then the cranium rounded out (layers keep their order: hair stays on the scalp)
     const l0 = l * (1 + 0.1 * k * w), a = 0.92 * m * w * k;
-    const f = (Math.pow(l0, 1 - a) * Math.pow(1.02 * u, a)) / l;
+    const f = (Math.pow(l0, 1 - a) * Math.pow(1.0 * u, a)) / l;
     P.setXYZ(i, cx + dx * f, cy + dy * f, cz + dz * f);
   }
   P.needsUpdate = true;

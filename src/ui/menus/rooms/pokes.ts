@@ -215,7 +215,9 @@ class NotePlate {
       this.placed = true;
       const cp = cam.getWorldPosition(new THREE.Vector3()), cq = cam.getWorldQuaternion(new THREE.Quaternion());
       const dir = this.at.clone().sub(cp); const dist = dir.length(); dir.normalize();
-      const d = Math.min(1.25, dist * 0.62);
+      // far enough that the plate fills about a third of the frame's height, whatever the lens
+      const fov = (cam as THREE.PerspectiveCamera).isPerspectiveCamera ? (cam as THREE.PerspectiveCamera).fov : 50;
+      const d = Math.max(0.45, Math.min(dist * 0.75, NH / (0.62 * Math.tan(THREE.MathUtils.degToRad(fov / 2)))));
       const up = new THREE.Vector3(0, 1, 0).applyQuaternion(cq), fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(cq), right = new THREE.Vector3(1, 0, 0).applyQuaternion(cq);
       const p = cp.clone().addScaledVector(dir, d);
       // keep it inside the middle of the frame: pull it toward the view axis a little, lift it above the prop

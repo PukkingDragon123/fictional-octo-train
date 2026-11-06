@@ -170,20 +170,21 @@ export function generateLedge(z: Zone, seed: number) {
   // queen_bee.ts keeps her on meta.hive): comb hanging round three sides, brood mounds, honey pots, the larder the bees
   // bring in, and two chairs where Still Lifes sit for the bees to eat (bee_keeper.ts)
   {
-    const hx = HONEY.x0 + 7, hy = HONEY.y1 - 6;
-    b.clearObjects(HONEY.x0 + 1, hy - 9, HONEY.x1 - 1, HONEY.y1 - 1);
+    // against the west wall between the hall doors, facing east into the pools (and the light)
+    const hx = HONEY.x0 + 3, hy = 80;
+    b.clearObjects(HONEY.x0 + 1, hy - 5, HONEY.x0 + 11, hy + 6);
     force(c, 'qb_throne', hx - 1, hy - 1, 0, {});
-    for (const [x, y, rot, v] of [[hx - 4, hy + 3, 0, 0], [hx - 1, hy + 4, 0, 1], [hx + 2, hy + 3, 0, 2], [hx - 5, hy - 1, 1, 1], [hx + 4, hy - 1, 1, 0]] as [number, number, Rot, number][]) force(c, 'qb_comb_wall', x, y, rot, { v });
-    for (const [x, y, n] of [[hx - 3, hy + 1, 3], [hx + 3, hy + 1, 2], [hx - 4, hy - 3, 4], [hx + 4, hy - 3, 1]]) force(c, 'qb_brood', x, y, 0, { brood: n });
-    force(c, 'qb_honey_pot', hx - 6, hy + 2, 0, {}); force(c, 'qb_honey_pot', hx + 6, hy + 2, 0, {});
-    put(c, 'rm_gore_pile', hx - 2, hy - 4, 0, { v: 1, eaten: 1, yaw: 1.2 }); put(c, 'rm_bones', hx + 3, hy - 5, 0, { v: 0, yaw: 2.1 });
-    put(c, 'rm_unit', hx - 5, hy - 8, 0, { v: 0, eaten: 2, cause: 1, days: 9 });
-    for (let i = 0; i < 6; i++) decal(z, i % 2 ? 'lg_puddle' : 'rm_smear', hx + 0.5 + rng.float(-3, 3), hy - 3 + rng.float(-3, 2), rng.float(0.8, 1.4), rng.float(0.8, 1.4), rng.float(0, 6.28), undefined, 0.8);
+    for (const [x, y, rot, v] of [[hx - 2, hy - 2, 1, 1], [hx - 2, hy + 1, 1, 0], [hx - 1, hy - 3, 0, 2], [hx - 1, hy + 3, 0, 0], [hx + 2, hy - 4, 0, 1], [hx + 2, hy + 4, 0, 2]] as [number, number, Rot, number][]) force(c, 'qb_comb_wall', x, y, rot, { v });
+    for (const [x, y, n] of [[hx + 2, hy - 2, 3], [hx + 2, hy + 2, 2], [hx - 2, hy - 4, 4], [hx - 2, hy + 4, 1]]) force(c, 'qb_brood', x, y, 0, { brood: n });
+    force(c, 'qb_honey_pot', hx + 4, hy - 4, 0, {}); force(c, 'qb_honey_pot', hx + 4, hy + 5, 0, {});
+    put(c, 'rm_gore_pile', hx + 5, hy - 2, 0, { v: 1, eaten: 1, yaw: 1.2 }); put(c, 'rm_bones', hx + 5, hy + 3, 0, { v: 0, yaw: 2.1 });
+    put(c, 'rm_unit', hx + 6, hy + 5, 0, { v: 0, eaten: 2, cause: 1, days: 9 });
+    for (let i = 0; i < 6; i++) decal(z, i % 2 ? 'lg_puddle' : 'rm_smear', hx + 3.5 + rng.float(-1, 3), hy + 0.5 + rng.float(-3, 3), rng.float(0.8, 1.4), rng.float(0.8, 1.4), rng.float(0, 6.28), undefined, 0.8);
     const seats: [number, number][] = [];
-    for (const [x, y, rot] of [[HONEY.x0 + 1, hy - 9, 1], [HONEY.x1 - 2, hy - 5, 3]] as [number, number, Rot][]) if (force(c, 'chair_plastic', x, y, rot, {})) seats.push([x + 0.5, y + 0.5]);
-    b.light(hx + 0.5, hy - 1.5, 'fluoro', { color: 0xffc070, intensity: 0.75, radius: 7, circuit: C_MAIN });
-    f.floorItem('note', hx, hy - 8, { lore: 'rm_recovery_order' });
-    z.meta.hive = [hx + 0.5, hy + 0.5]; z.meta.hiveFacing = -Math.PI / 2; z.meta.slSeats = seats;
+    for (const [x, y, rot] of [[hx + 10, hy - 3, 3], [hx + 10, hy + 4, 3]] as [number, number, Rot][]) if (force(c, 'chair_plastic', x, y, rot, {})) seats.push([x + 0.5, y + 0.5]);
+    b.light(hx + 3.5, hy + 0.5, 'fluoro', { color: 0xffc070, intensity: 0.75, radius: 7, circuit: C_MAIN });
+    f.floorItem('note', hx + 7, hy - 1, { lore: 'rm_recovery_order' });
+    z.meta.hive = [hx + 0.5, hy + 0.5]; z.meta.hiveFacing = 0; z.meta.slSeats = seats;
   }
   f.floorItem('note', POST.x0 + 9, POST.y0 + 9, { lore: 'qb_keeper_log' });
 

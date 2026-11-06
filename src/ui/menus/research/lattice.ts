@@ -262,7 +262,7 @@ export class TreeLattice {
     const L0 = this.X0 + LABEL_W, R0 = this.X1 - 0.06, T0 = this.Y1 - HEADER - 0.025, B0 = this.Y0 + FOOT + 0.02;
     const colW = Math.min(0.52, (R0 - L0) / nc), rowH = Math.min(0.34, (T0 - B0) / nl);
     const gx = L0 + ((R0 - L0) - colW * nc) / 2, gy = T0 - ((T0 - B0) - rowH * nl) / 2;
-    const s = Math.min(colW * 0.6, rowH * 0.74, 0.21);
+    const s = Math.min(colW * 0.6, rowH * 0.66, 0.21);
     const root = new THREE.Group(); root.visible = false;
     const Z = this.Z;
     const fb = new FacetBuilder();

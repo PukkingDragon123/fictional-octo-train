@@ -63,12 +63,13 @@ function combSheet(mb: ModelBuilder, x0: number, x1: number, z: number, top: num
   const nu = 8, nv = 7;
   const at = (i: number, j: number, side: number): V3 => {
     const u = i / nu, v = j / nv;
-    const x = x0 + (x1 - x0) * u;
-    // ragged bottom edge, a belly that bulges out at mid height
-    const bot = bottom + Math.sin(u * 9 + seed) * 0.18 + Math.sin(u * 23 + seed) * 0.06;
+    // a hanging tongue of comb: broad where it grows from the ceiling, narrowing and lobed toward a ragged tip
+    const narrow = 1 - 0.42 * Math.pow(v, 1.4) * (0.8 + 0.2 * Math.sin(seed));
+    const x = (x0 + x1) / 2 + (u - 0.5) * (x1 - x0) * narrow + Math.sin(v * 3 + seed) * 0.06;
+    const bot = bottom + Math.sin(u * 9 + seed) * 0.32 + Math.sin(u * 23 + seed) * 0.1 + Math.pow(Math.abs(u - 0.5) * 2, 2) * 0.45;
     const y = top - (top - bot) * v;
-    const bulge = Math.sin(v * Math.PI) * (0.08 + 0.05 * Math.sin(u * 5 + seed));
-    return [x, y, z + side * (thick + bulge) * (1 - Math.pow(Math.abs(u - 0.5) * 2, 4) * 0.6)];
+    const bulge = Math.sin(v * Math.PI) * (0.11 + 0.06 * Math.sin(u * 5 + seed)) + Math.sin(u * 7 + v * 5 + seed) * 0.025;
+    return [x, y, z + side * (thick + bulge) * (1 - Math.pow(Math.abs(u - 0.5) * 2, 4) * 0.7)];
   };
   surf(mb, nu, nv, (i, j) => at(i, j, 1), (i, j) => [(i / nu) * (x1 - x0) * 1.5, (j / nv) * (top - bottom) * 1.5], tex, { inside: [0.5 * (x0 + x1), (top + bottom) / 2, z] });
   surf(mb, nu, nv, (i, j) => at(i, j, -1), (i, j) => [(i / nu) * (x1 - x0) * 1.5, (j / nv) * (top - bottom) * 1.5], tex, { inside: [0.5 * (x0 + x1), (top + bottom) / 2, z] });
@@ -135,7 +136,8 @@ defObj({
   desc: 'A shallow bowl of wax and old comb three metres across, worn smooth in the middle by something enormous that sits there and does not leave. Bones are pressed into the rim.',
   model: (mb) => {
     // the bowl: a raised rim of piled comb and wax, a honey-slick floor inside
-    blob(mb, [0, 0, 0], [1.42, 0.05, 1.4], 20, 3, 'qb_honey', { v0: 0, v1: 0.5, emissive: 0.1 });
+    // (planar-mapped: a polar grid of the floor of the bowl, the honey sheen lying flat)
+    surf(mb, 20, 4, (i, j) => { const a = (i / 20) * Math.PI * 2, r = (j / 4) * 1.42; return [Math.cos(a) * r, 0.03 + (1 - j / 4) * 0.02, Math.sin(a) * r]; }, (i, j, p) => [p[0] * 1.2, p[2] * 1.2], 'qb_honey', { inside: [0, -1, 0], emissive: 0.1 });
     for (let k = 0; k < 16; k++) {
       const a = (k / 16) * Math.PI * 2, r = 1.32 + Math.sin(k * 3.1) * 0.08;
       blob(mb, [Math.cos(a) * r, 0, Math.sin(a) * r], [0.34, 0.32 + Math.sin(k * 1.7) * 0.12, 0.3], 9, 5, k % 3 === 0 ? 'qb_comb' : 'qb_wax', { v0: 0, v1: 0.5, disp: (d, u) => 1 + 0.12 * Math.sin(u * 14 + k) });

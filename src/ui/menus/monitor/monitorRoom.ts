@@ -6,7 +6,9 @@
 // and notes, a banker's lamp, a push-button phone, the swivel chair, cable
 // runs, a fluorescent fixture that stutters, and a wired-glass window onto the
 // dark. Green phosphor is the key light; the lamp makes a warm pool on the
-// desk; everything else is shadow.
+// desk; everything else is shadow. The lab kit adds the institute clock (it
+// chimes), a vent (its fan spins up) and an extinguisher; the phone rings, and
+// every desk thing puts up a note on an in-scene plate when pressed (rooms/pokes.ts).
 //
 // The 2D menu (title.ts) floats over the dark half; the two feed tubes are
 // hot props (and have DOM twins for keyboard / gamepad / touch). dive(key)

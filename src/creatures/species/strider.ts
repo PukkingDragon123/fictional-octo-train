@@ -19,7 +19,7 @@ import '../../audio/sounds_creatures_c';
 // =====================================================================================
 // THE STRIDER — Level 0's tall walker. It was a person once: the Institute has
 // matched one to a missing debtor by the healed break in its left collarbone.
-// The place stretched it. It stands four metres and more, nearly all of it leg:
+// The place stretched it. It stands nearly four metres, most of it leg:
 // long backward-jointed legs (a thigh, a shin, and a foot drawn out into a third
 // limb that it walks on the tips of), a gaunt torso with every rib showing,
 // arms that hang to its knees, and a small, slack, patient face. Its skin is
@@ -55,11 +55,18 @@ const st = (b: BoneName) => STRETCH[b] ?? ONE;
 /** who it was: a woman of about forty, pale, bald now; the same face the creator would give a unit */
 const STRIDER_APP: Appearance = { skin: SKIN_TONES[0], hair: 0x1c1612, hairStyle: 'bald', face: 4, build: 'slim', height: 1, bodyShape: 0.55, eyeColor: 0, facialHair: 'none', freckles: 0.35, scars: 1, age: 0.55 };
 /** naked: no top; the brief painted the colour of its skin (smooth, sexless); grey with pallor, grimed from the carpet */
-const STRIDER_OUTFIT: Outfit = { torso: { tex: 'c_bare', color: SKIN_TONES[0] }, legs: { tex: 'c_underwear', color: 0xc8b8ac }, cond: { pale: 3, dirt: 1, expr: '' } };
+// (the hands are stained from what it has caught)
+const STRIDER_OUTFIT: Outfit = { torso: { tex: 'c_bare', color: SKIN_TONES[0] }, legs: { tex: 'c_underwear', color: 0xc8b8ac },
+  cond: { pale: 3, dirt: 1, expr: '', blood: { hand_l: 1, hand_r: 2, farm_r: 1 } } };
 
 export interface StriderRig extends Rig { hr: HumanRig; m: Record<string, any> }
 /** the Strider's rig: a HumanRig (rig.hr) under rig.root, with stretched bones */
+const POOL: StriderRig[] = [];
+function inScene(o: THREE.Object3D) { while (o.parent) o = o.parent; return !!(o as any).isScene; }
 export function buildStrider(_variant = 0): StriderRig {
+  // each HumanRig owns a texture page: reuse a rig the manager has dropped
+  const free = POOL.find((r) => !inScene(r.root));
+  if (free) { free.root.position.set(0, 0, 0); free.root.rotation.set(0, 0, 0); free.root.userData = {}; free.body.position.set(0, 0, 0); free.body.rotation.set(0, 0, 0); free.body.visible = true; free.m = {}; return free; }
   const hr = new HumanRig(STRIDER_APP, worldMaterial({}));
   hr.setOutfit(STRIDER_OUTFIT);
   hr.setExpression('sleepy');
@@ -68,7 +75,9 @@ export function buildStrider(_variant = 0): StriderRig {
   for (const b of BONES) hr.bones[b].matrixAutoUpdate = false;
   const root = new THREE.Group(), body = new THREE.Group();
   root.add(body); body.add(hr.root);
-  return { root, body, parts: { ...hr.j }, headY: 3.7, hr, m: {} };
+  const r: StriderRig = { root, body, parts: { ...hr.j }, headY: 3.7, hr, m: {} };
+  POOL.push(r);
+  return r;
 }
 
 // ------------------------------------------------------------------ FK (model space = the HumanRig body's space, facing +z)
@@ -541,7 +550,7 @@ const STRIDER = def({
   scan: {
     cls: 'Remnant / elongated human',
     notes: [
-      'Formerly human. Stands over four metres; most of that is three-jointed, backward-bending leg.',
+      'Formerly human. Stands nearly four metres; most of that is three-jointed, backward-bending leg.',
       'Smooth, stretched, sexless skin; ribs and joints showing; a small slack face.',
       'Walks above the partitions. Hunts by sound and by movement.',
       'It does not enter rooms. A shut door stops it seeing you. Stillness hides you.',

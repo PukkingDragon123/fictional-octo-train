@@ -21,14 +21,14 @@ addTextureModule(() => { const A = atlas(); for (let i = 0; i < SLOTS; i++) A.ad
 const HAZ = 0xe8c228;
 /** the suit, bloodied and worn through; the body under it pale, filthy, cut where the parts were taken */
 function deadOutfit(v: number): Outfit {
-  const suit = { tex: 'c_hazmat', color: HAZ, sleeve: 'long' as const, item: 'hazmat_suit', blood: 1, wear: 0.85 };
+  const suit = { tex: 'c_hazmat', color: HAZ, sleeve: 'long' as const, item: 'hazmat_suit', blood: 1, wear: 0.55 };
   const sev = v === 1 ? ['shin_l', 'shin_r'] : v === 2 ? ['thigh_l', 'thigh_r'] : [];
   return {
     torso: suit, legs: { ...suit }, legsKind: 'pants',
     feet: { tex: 'c_hazmat', color: 0x1e201e, item: 'hazmat_suit' }, hands: { tex: 'c_hazmat', color: 0x222422, item: 'hazmat_suit' },
     cond: {
       blood: { torso_u: 3, torso_l: 3, head: 2, neck: 3, uarm_l: 2, uarm_r: 1, farm_l: 2, hand_l: 3, hand_r: 2, thigh_l: 2, thigh_r: 3, groin: 2 },
-      pale: 3, dirt: 3, wet: 1, expr: v === 1 ? 'pain' : 'fear',
+      pale: 3, dirt: 1, wet: 1, expr: v === 1 ? 'pain' : 'fear',
       sev, stump: Object.fromEntries(sev.map((s) => [s, { s: 'raw' }])) as any,
     },
   };

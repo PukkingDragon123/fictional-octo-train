@@ -198,7 +198,7 @@ export class Tutorial implements GameSystem {
     const key = (e: KeyboardEvent) => {
       if (e.repeat) return;
       if (e.code === 'KeyH') this.pumped++;
-      if (/^Digit[1-5]$/.test(e.code)) this.hotKey++;
+      if (/^Digit[1-9]$/.test(e.code)) this.hotKey++;
     };
     window.addEventListener('keydown', key);
     this.offs.push(() => window.removeEventListener('keydown', key));
@@ -336,7 +336,7 @@ export class Tutorial implements GameSystem {
     // ---- the hotbar
     if (this.rectOf('#hot12')) {
       this.lesson('hotbar');
-      await this.showRect(() => this.rectOf('#hot12'), T ? 'Down there, its hands. A short list. Tap a slot and it takes the thing into its hand.' : 'Down there: its hands, the short list. One to five puts a thing in its hand.');
+      await this.showRect(() => this.rectOf('#hot12'), T ? 'Down there, its hands. A short list. Tap a slot and it takes the thing into its hand.' : 'Down there: its hands, the short list. The number keys put a thing in its hand.');
       this.hotKey = 0;
       await this.say(T ? 'Tap one.' : 'Press one. Any of them.');
       await this.gate(() => this.hotKey > 0, [T ? 'A slot. Tap it.' : 'One. Two. Pick a number, {n}.', 'The little boxes, bottom of the screen.'], 8);

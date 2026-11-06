@@ -266,7 +266,7 @@ function buildQ(B: SkinB, x: BuildCtx) {
 }
 
 // ------------------------------------------------------------------ paint
-const PAL = { y: 0xd8901a, k: 0x1c1814, w: 0xf0e2c8, skin: 0xc89a8a, flesh: 0xa83a3a };
+const PAL = { y: 0xc0740c, k: 0x141010, w: 0xe8d8b8, skin: 0xb07a72, flesh: 0xa83a3a };
 function paintQ(p: Page, x: BuildCtx) {
   const v = x.variant;
   const Y = makeRamp(mixHex(PAL.y, 0xc87a14, v * 0.5), 7, { hueShift: 0.06, spread: 0.42, satShift: 0.15 }), K = makeRamp(PAL.k, 6, { spread: 0.22 }), Wh = makeRamp(PAL.w, 6, { spread: 0.35 });
@@ -274,7 +274,7 @@ function paintQ(p: Page, x: BuildCtx) {
   // the abdomen: bands from the tail (bottom rows) to the maw (top rows); bald, veined skin round the
   // mouth and over the windows, pale stretch marks round them
   const ab = p.R('ABD');
-  const band = (t: number) => (t > 0.86 ? 's' : t > 0.72 ? 'y' : t > 0.56 ? 'k' : t > 0.44 ? 'y' : t > 0.27 ? 'k' : t > 0.12 ? 'y' : 'w');
+  const band = (t: number) => (t > 0.9 ? 's' : t > 0.72 ? 'y' : t > 0.56 ? 'k' : t > 0.44 ? 'y' : t > 0.27 ? 'k' : t > 0.12 ? 'y' : 'w');
   for (let yy = 0; yy < ab.h; yy++) for (let xx = 0; xx < ab.w; xx++) {
     const t = 1 - (yy + 0.5) / ab.h + (hash(xx * 7, yy) - 0.5) * 0.03;
     const i = t * (RA - 1), j = ((xx + 0.5) / ab.w) * NA;
@@ -290,9 +290,9 @@ function paintQ(p: Page, x: BuildCtx) {
     const RR = key === 'y' ? Y : key === 'k' ? K : Wh;
     const cell = (yy + Math.floor(hash(xx, 9) * 4)) % 4;
     // thinning fur toward the windows: the skin shows through
-    const thin = wd < 1.6 ? (1.6 - wd) / 1 : 0;
+    const thin = wd < 1.1 ? (1.1 - wd) / 0.6 : 0;
     if (thin > 0 && hash(xx * 3, yy * 5) < thin * 0.6) { ab.put(xx, yy, S, 2.5 + (hash(xx, yy) - 0.5), 0.4); continue; }
-    ab.put(xx, yy, RR, RR.length * 0.4 + 0.4 * Math.cos(th) - 0.2 + cell * 0.2 + (hash(xx * 3, yy * 5) - 0.5) * 0.7 + (ab.fbm(xx, yy, 3, 2, 4) - 0.5) * 0.6 - (Math.abs(th) > 2.3 ? 0.8 : 0), 0.45);
+    ab.put(xx, yy, RR, RR.length * 0.3 + 0.4 * Math.cos(th) - 0.3 + cell * 0.2 + (hash(xx * 3, yy * 5) - 0.5) * 0.7 + (ab.fbm(xx, yy, 3, 2, 4) - 0.5) * 0.6 - (Math.abs(th) > 2.3 ? 0.8 : 0), 0.45);
   }
   // veins over the bald skin, stretch marks, fat creases between the bands
   for (let k = 0; k < 18; k++) ab.crack(hash(k, 1) * ab.w, hash(k, 2) * ab.h * 0.4, 14, 90 + hash(k, 3) * 60, 0x6a3a5a, k + 7, 0.45, 0.2);
@@ -327,7 +327,7 @@ function paintQ(p: Page, x: BuildCtx) {
     const top = Math.abs(tx.deg(xx)) < 70;
     const RR = f > 0.62 ? Y : f > 0.3 && top ? K : f < 0.2 ? Y : top ? K : Y;
     const a = (tx.deg(xx) * Math.PI) / 180;
-    tx.put(xx, yy, RR, RR.length * 0.4 + 0.4 * Math.cos(a) - 0.2 + ((yy + Math.floor(hash(xx, 4) * 3)) % 3) * 0.22 + (hash(xx * 3, yy * 7) - 0.5) * 0.8, 0.45);
+    tx.put(xx, yy, RR, RR.length * 0.3 + 0.4 * Math.cos(a) - 0.3 + ((yy + Math.floor(hash(xx, 4) * 3)) % 3) * 0.22 + (hash(xx * 3, yy * 7) - 0.5) * 0.8, 0.45);
   }
   const hd = p.R('HEAD');
   hd.fill(K, (xx, yy) => K.length * 0.5 + 0.5 * Math.cos((hd.deg(xx) * Math.PI) / 180) - 0.3 + ((yy + Math.floor(hash(xx, 7) * 4)) % 4) * 0.2 + (hash(xx * 3, yy * 5) - 0.5) * 0.7, undefined, 0.6);

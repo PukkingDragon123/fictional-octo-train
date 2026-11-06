@@ -187,7 +187,7 @@ export class ScanSystem implements GameSystem {
   /** for the action plate over the unit's head while a sweep runs (src/ui/ui.ts) */
   plate(): { name: string; k: number } | null {
     const a = this.active;
-    return a ? { name: 'Scanning ' + (this.known(a.t.kind, a.t.key) ? a.t.title : 'unknown signature'), k: Math.min(1, a.prog) } : null;
+    return a ? { name: 'Scanning ' + (this.known(a.t.kind, a.t.key) ? a.t.title : 'unknown thing'), k: Math.min(1, a.prog) } : null;
   }
 
   cancel() { this.active = null; }

@@ -41,7 +41,7 @@ addTextureModule(() => {
   A.add('pg_grass_b', 32, 32, lawn(7111));
   A.add('pg_side', 16, 32, (pc) => { const R = makeRamp(0x6a5236, 5, { spread: 0.4 }); pc.each((x, y) => pc.set(x, y, y < 3 ? 0x7a9a40 : R[1 + Math.floor(ph(x >> 1, y >> 1, 7121) * 3)])); });
   A.add('pg_chips', 32, 32, (pc) => {
-    const R = makeRamp(0x8a5a34, 6, { spread: 0.5 });
+    const R = makeRamp(0x8a7454, 6, { spread: 0.45, hueShift: -0.02 });
     pc.each((x, y) => pc.set(x, y, R[1]));
     for (let i = 0; i < 90; i++) {
       const x = Math.floor(ph(i, 1, 7131) * 32), y = Math.floor(ph(i, 2, 7131) * 32), L = 2 + Math.floor(ph(i, 3, 7131) * 4), hz = ph(i, 4, 7131) < 0.5;
