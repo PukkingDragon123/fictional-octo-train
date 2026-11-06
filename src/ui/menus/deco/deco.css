@@ -110,3 +110,8 @@ body.deco-build [data-deco-hide], body.deco-shop [data-deco-hide] { visibility: 
 @media (max-aspect-ratio: 20/21) { .hb-txt { max-width: 220px; } }
 @media (prefers-reduced-motion: reduce) { .hb-c.on, .dk-card, .dk-icap { transition: none; } .dk-note { animation: none; } }
 .dk-tabs .pb[hidden] { display: none; }
+/* the guide talks in floating words, not clouds: no cloud body, no tail; light Alagard with a hard ink outline */
+.hb-bg, .hb-tail { display: none !important; }
+.hb-txt { color: #fbf3dc; text-shadow: var(--text-ink-2), var(--text-halo); }
+.hb.shout .hb-txt { color: #ffd890; }
+.hb.think .hb-txt { color: #d8dcf8; }

@@ -136,8 +136,8 @@ export class SubjectRoom {
   private hemi = new THREE.HemisphereLight(0xb4b8bc, 0x5a524a, 0.3);
   private hemiDark = new THREE.Color(0xa8b0ba); private hemiLit = new THREE.Color(0xc4c6c4);
   private key = new THREE.SpotLight(0xffc88a, 0, 0, 0.98, 0.45, 2);
-  private rimL = new THREE.SpotLight(0x9ab2ff, 0, 0, 0.32, 0.6, 2);
-  private rimR = new THREE.SpotLight(0x5a74d0, 0, 0, 0.3, 0.6, 2);
+  private rimL = new THREE.SpotLight(0x62c4ff, 0, 0, 0.32, 0.6, 2);
+  private rimR = new THREE.SpotLight(0xff7a44, 0, 0, 0.3, 0.6, 2);
   private leakL = new THREE.SpotLight(0x7a94d8, 0, 0, 0.3, 0.5, 2);
   private leak!: ReturnType<typeof leakCards>;
   private crt = new THREE.PointLight(0x78e09a, 0, 3.6, 2);
@@ -152,7 +152,7 @@ export class SubjectRoom {
   /** the operating lamp over the subject (the creator's key), a soft beauty key for the close-ups, a cold fill */
   private surg = new THREE.SpotLight(0xfff4e8, 0, 8, 0.5, 0.7, 2);
   private faceKey = new THREE.SpotLight(0xfff0e0, 0, 4, 0.55, 0.9, 2);
-  private faceFill = new THREE.PointLight(0x8aa8d8, 0, 2.6, 2);
+  private faceFill = new THREE.PointLight(0x5cc8ff, 0, 2.6, 2);
   /** practical light at the working tool (sparks, flame, laser), and the scanner's green */
   private toolL = new THREE.PointLight(0xffa040, 0, 1.4, 2);
   private scanL = new THREE.PointLight(0x5aff7a, 0, 1.1, 2);
@@ -1174,7 +1174,7 @@ export class SubjectRoom {
   private applyLight(l: number) {
     const lit = this.mode === 'lit' ? l : 0;
     // a realistic floor of bounce light (shadows sit near 10% grey, never crushed); the creator keeps the room a step below him
-    this.hemi.intensity = 0.32 + l * 0.6 - lit * 0.22;
+    this.hemi.intensity = 0.36 + l * 0.72 - lit * 0.08;
     this.hemi.color.lerpColors(this.hemiDark, this.hemiLit, l);
     const u = this.post.u;
     // the cartoony colour stays (cool shadows, warm highlights, full saturation); only the gloom is gone
@@ -1246,7 +1246,7 @@ export class SubjectRoom {
     const title = 1 - this.lit;
     // like the cutscenes: lamps bloom, faces hold (the bloom carries the brightness, not a blown exposure)
     u.uExposure.value = ((this.mode === 'title' ? 1.18 : 1.12) + this.lit * 0.1) * (this.mode === 'lit' ? 1.04 - this.closeK * 0.1 : 1.14);
-    u.uBloom.value = this.mode === 'lit' ? 0.75 : 0.95;
+    u.uBloom.value = this.mode === 'lit' ? 0.95 : 0.95;
     u.uVig.value = 0.22 + title * 0.1 + (this.mode === 'lit' ? 0.08 + this.closeK * 0.1 : 0);
     const portrait = this.lowW < this.lowH;
     // no dark side panel, no dark floor band: the 2D words carry their own ink outline
@@ -1296,7 +1296,7 @@ export class SubjectRoom {
     this.surgShaft.u.uInt.value = 0.012 * sl;
     // the rims and the dust
     this.rimL.intensity = (8 + this.lit * 5) * (1 - this.surgeK * 0.3);
-    this.rimR.intensity = 4.5 + this.lit * 3.5;
+    this.rimR.intensity = 4.5 + this.lit * 6;
     this.leakL.intensity = 3.4 * (1 - this.lit * 0.7);
     this.leak.u.uInt.value = 0.14 * (0.3 + title * 0.7) * (0.9 + Math.sin(t * 0.7) * 0.1);
     if (this.rig) { this.rig.bones.head.getWorldPosition(this.v1); this.rimL.target.position.copy(this.v1); this.rimR.target.position.copy(this.v1); this.surg.target.position.lerpVectors(this.v1, this.rig.bones.chest.getWorldPosition(this.v2), 0.4); }
@@ -1326,7 +1326,7 @@ export class SubjectRoom {
     const lvl = this.mode === 'lit' ? this.lit : 0.35;
     this.faceKey.intensity = this.closeK * lvl * 3;
     this.faceFill.position.copy(head).addScaledVector(right, 0.7).addScaledVector(fwd, 0.5).add(this.v4.set(0, -0.1, 0));
-    this.faceFill.intensity = this.closeK * lvl * 0.9 + (this.mode === 'title' ? 0.12 * (1 - this.lit) : 0);
+    this.faceFill.intensity = this.closeK * lvl * 1.4 + (this.mode === 'title' ? 0.12 * (1 - this.lit) : 0);
   }
 
   /** the chair at work: a full surge every several seconds, small crackles between */
