@@ -315,12 +315,15 @@ export class MenuStage {
     const u = this.post.u, g = a.grade ?? {};
     u.uTime.value = this.t;
     u.uExposure.value = g.exposure ?? 1.15;
-    // the cutscenes' grade (introKit/stage.ts LOOKS): cold blue shadows, warm highlights, full colour, a bloom off the lamps and tubes
-    u.uLift.value.set(...(g.lift ?? [0.8, 0.94, 1.16]));
-    u.uGain.value.set(...(g.gain ?? [1.12, 0.99, 0.85]));
-    u.uVig.value = g.vig ?? 0.85;
+    // the intake drag cinematic's grade (introKit/stage.ts LOOKS.wing): cold fluorescent shadows, amber spill in
+    // the highlights, a firm S-curve, full colour; each room's own grade is pulled most of the way toward it
+    const W = { lift: [0.74, 0.94, 1.16], gain: [1.1, 1.0, 0.86], vig: 0.65, contrast: 1.2 };
+    const lf = g.lift ?? W.lift, gn = g.gain ?? W.gain, k = 0.7;
+    u.uLift.value.set(lf[0] + (W.lift[0] - lf[0]) * k, lf[1] + (W.lift[1] - lf[1]) * k, lf[2] + (W.lift[2] - lf[2]) * k);
+    u.uGain.value.set(gn[0] + (W.gain[0] - gn[0]) * k, gn[1] + (W.gain[1] - gn[1]) * k, gn[2] + (W.gain[2] - gn[2]) * k);
+    u.uVig.value = Math.min(g.vig ?? W.vig, W.vig);
     u.uSat.value = Math.max(1, g.sat ?? 1);
-    u.uContrast.value = Math.max(1.1, g.contrast ?? 1.1);
+    u.uContrast.value = Math.max(W.contrast, g.contrast ?? W.contrast);
     u.uBloom.value = 0.95;
     u.uSide.value.set(...(g.side ?? [1, 0, 0, 0.4]));
     u.uNear.value = a.cam.near; u.uFar.value = a.cam.far;

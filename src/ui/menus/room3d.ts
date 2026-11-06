@@ -1179,9 +1179,10 @@ export class SubjectRoom {
     const u = this.post.u;
     // the cartoony colour stays (cool shadows, warm highlights, full saturation); only the gloom is gone
     // the cutscenes' split tone (introKit/stage.ts LOOKS): cold blue shadows, warm amber highlights
-    u.uLift.value.set(0.78 + l * 0.08, 0.93 + l * 0.03, 1.18 - l * 0.08);
-    u.uGain.value.set(1.12 - l * 0.03, 0.99 + l * 0.02, 0.84 + l * 0.06);
-    u.uSat.value = 1.0; u.uContrast.value = 1.1;
+    // (the intake drag cinematic's wing look: cold fluorescent shadows, amber spill, a firm curve)
+    u.uLift.value.set(0.74 + l * 0.04, 0.94, 1.16 - l * 0.04);
+    u.uGain.value.set(1.1, 1.0, 0.86 + l * 0.03);
+    u.uSat.value = 1.0; u.uContrast.value = 1.2;
     this.sun.intensity = l * 2.1 - lit * 1.2;
     this.fill.intensity = l * 0.7 - lit * 0.25;
     this.back.intensity = l * 0.9 - lit * 0.2;

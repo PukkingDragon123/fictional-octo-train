@@ -45,7 +45,7 @@ export class MonitorRoom implements StageRoom {
   cam = new THREE.PerspectiveCamera(48, 16 / 9, 0.05, 30);
   hots: Hot[] = [];
   // bright and punchy: saturated phosphor green and lamp amber, lifted shadows, a light vignette, barely any menu-side dimming
-  grade: Grade = { exposure: 2.3, lift: [0.94, 1.0, 1.02], gain: [1.04, 1.02, 0.96], vig: 0.35, sat: 1.06, contrast: 1.06, side: [1, 0, 0.08, 0.42] };
+  grade: Grade = { exposure: 2.0, lift: [0.94, 1.0, 1.02], gain: [1.04, 1.02, 0.96], vig: 0.35, sat: 1.06, contrast: 1.06, side: [1, 0, 0.08, 0.42] };
   /** the decorator's group (collectibles) */
   deco = new THREE.Group();
   floor = { minX: -W + 0.3, maxX: W - 0.3, minZ: DESK_Z1 + 0.25, maxZ: 1.2, y: 0 };
@@ -70,11 +70,11 @@ export class MonitorRoom implements StageRoom {
   private toggles: { t: Toggle; fn?: (on: boolean) => void }[] = [];
   private puffs = new Puffs(40);
   private smoke = new Puffs(24);
-  private hemi = new THREE.HemisphereLight(0xc8c4b8, 0x3a342c, 0.75);
+  private hemi = new THREE.HemisphereLight(0xb4c8dc, 0x3a2a18, 0.85);
   private lamp = new THREE.SpotLight(0xffc488, 0, 3.4, 0.82, 0.55, 2);
   private lampOn = true; private lampLvl = 1;
   private lampBulb: THREE.MeshBasicMaterial;
-  private tubeLight = new THREE.PointLight(0xf2f4ff, 0, 6, 2);
+  private tubeLight = new THREE.PointLight(0xdaeaff, 0, 7, 2);
   private tubeMat = new THREE.MeshBasicMaterial({ color: 0x101010, toneMapped: false });
   private tubeK = 1; private tubeNext = 2; private tubeDrop = 0;
   // every stage room carries the same light rig (1 hemi, 4 point, 3 spot with one shadow) so they share shader programs
@@ -265,7 +265,7 @@ export class MonitorRoom implements StageRoom {
       const tb = feedTube(spot.sw, spot.sh, 160, 120);
       tb.mesh.applyMatrix4(spot.m);
       g.add(tb.mesh);
-      const light = new THREE.PointLight(0x7aff8a, 0.4, 3.0, 2);
+      const light = new THREE.PointLight(0x7aff8a, 0.22, 2.4, 2);
       light.position.copy(spot.center).add(new THREE.Vector3(0, -0.05, 0.55));
       g.add(light);
       const f = FEEDS.find((q) => q.key === key)!;
@@ -659,7 +659,7 @@ export class MonitorRoom implements StageRoom {
     if (this.tubeNext < 0) { this.tubeDrop = Math.random() < 0.5 ? 0.06 + Math.random() * 0.3 : 0; this.tubeNext = 1.5 + Math.random() * 5; }
     this.tubeDrop = Math.max(0, this.tubeDrop - dt);
     const tl = this.tubeK * (this.tubeDrop > 0 ? (Math.random() < 0.5 ? 0.1 : 0.6) : 1);
-    this.tubeLight.intensity = 6.5 * tl;
+    this.tubeLight.intensity = 7.2 * tl;
     this.tubeMat.color.setScalar(0.08 + 1.6 * tl);
     this.alarmT = Math.max(0, this.alarmT - dt);
     this.alarm.intensity = this.alarmT > 0 ? 7 * Math.max(0, Math.sin(t * 9)) : 0;
