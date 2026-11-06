@@ -61,8 +61,10 @@ defOp('hopperEat', (a: EatArgs) => {
   const z = G.zones.get(a.z); if (!z) return;
   const fl = floorItems(z);
   const sink: SinkPiece[] = [];
+  const samples: Item[] = [];
   for (const uid of a.items || []) {
     const wi = fl.get(uid); if (!wi) continue;
+    if (wi.item.key.startsWith('sample_') && wi.item.data?.src) samples.push(wi.item);
     sink.push({ key: wi.item.key, x: wi.x, y: wi.y, z: wi.z, rot: wi.rot });
     removeFloorItem(z, wi.item);
   }
@@ -86,6 +88,8 @@ defOp('hopperEat', (a: EatArgs) => {
   bus.emit('floorChanged', z);
   if (isReplaying()) return;
   if (a.items.length || a.objs.length) bus.emit('deposited', { by: a.by, keys: a.keys, value: a.value, hopper: a.h });
+  // research samples are tubed to the lab (src/research/bank.ts)
+  if (samples.length) bus.emit('samplesPressed', { by: a.by, items: samples });
   (G.debt?.hoppers as HopperSystem | undefined)?.play(z, a.h, a.value, sink, (a.rej || []).length, a.by);
 });
 
@@ -469,8 +473,6 @@ export class HopperSystem implements GameSystem {
     // who gets the credit: whoever pulled the lever, else whoever stands closest
     let by = puller && G.players.has(puller) ? puller : '', bd = 8;
     if (!by) for (const p of G.players.values()) if (p.zoneKey === z.key) { const d = Math.hypot(p.x - (o.x + 1), p.z - (o.y + 1)); if (d < bd) { bd = d; by = p.id; } }
-    // a harvested power (mx_press, src/game/meridian.ts): the press pays its holder a little more
-    if (value > 0 && by && G.players.get(by)?.body.perks.has('mx_press')) value = Math.round(value * 1.15);
     op('hopperEat', { z: z.key, h: o.uid, items: take, objs: objTake, value, keys, by, rej } as EatArgs);
     if (value > 0) G.debt?.credit?.(value, 'deposit', by);
   }

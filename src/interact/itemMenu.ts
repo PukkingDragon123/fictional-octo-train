@@ -11,6 +11,8 @@ import { isWorldContainer } from '../game/worldOps';
 import { bus } from '../core/events';
 import { craftOptionsForItem } from './crafting';
 import { itemMenuHook } from '../game/debt';
+import { researchItemMenu } from '../research/tools';
+import { itemSampleOption } from '../research/collect';
 
 const hasTag = (it: Item, t: string) => (itemDef(it.key).tags || []).includes(t) || itemDef(it.key).key === t;
 
@@ -161,6 +163,9 @@ export function itemMenuOptions(p: Player, it: Item, c: Container, group: Item[]
   }
   if (d.weapon?.kind === 'thrown' || d.weapon?.fire) o.push({ label: 'Throw (aim + click)', action: pre(() => p.actions.add(new EquipAction(p, it, 'R'))) });
   if (d.anomaly) o.push({ label: 'Study with scanner', action: () => G.ui?.scanner?.studyItem?.(it) });
+  // research: the codex tools' verbs, residue samples off anomalies (src/research)
+  researchItemMenu(p, it, o);
+  if (mine || inWorld) itemSampleOption(p, it, o);
 
   // ---- crafting
   const crafts = craftOptionsForItem(p, it);
@@ -185,7 +190,7 @@ function inspectText(it: Item): string {
 const PRIMARY: RegExp[] = [
   /^Open$/, /^(Eat|Take)( \(.*\))?(: All)?$/, /^Drink: Gulp/,
   /^(Apply bandage|Disinfect|Stitch|Apply splint|Remove shard): (?!.* — )/, /^Read$/,
-  /^Wear( on back)?$/, /^Turn (on|off)$/, /^Reload$/, /^Place$/, /^Plant$/, /^(Use|Play solitaire)$/,
+  /^Wear( on back)?$/, /^Turn (on|off)$/, /^Reload$/, /^Place$/, /^Plant$/, /^(Use|Play solitaire)$/, /^Use: /,
   /^Radio/, /^Equip (primary|two-handed)$/, /^Study/,
 ];
 function flat(opts: MenuOption[], prefix = ''): { label: string; action?: () => void; disabled?: string | boolean }[] {

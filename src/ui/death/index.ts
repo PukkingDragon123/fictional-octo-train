@@ -416,7 +416,6 @@ class DeathCinematic {
       if (k === 'debt') return `${Math.round(r.paid * f).toLocaleString('en-US')} / ${Math.round(r.owed).toLocaleString('en-US')}`;
       if (k === 'dist') { const m = r.metres * f; return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`; }
       if (k === 'novel') return f > 0.5 ? 'logged' : '';
-      if (k === 'hazard') return f > 0.5 ? '+25%' : '';
       return String(Math.round(l.num * f));
     };
     let i = 0, f = 0, rpShown = 0, stage: 'rows' | 'rp' | 'end' = 'rows';
@@ -598,10 +597,10 @@ class DeathCinematic {
   }
 }
 
-/** the specimens this run filed, under the rows (names only; the wing shows the rest) */
+/** what this run filed for the codex, under the rows (names only; the research lab shows the rest) */
 function specLine(r: RunReport): string {
-  const d = r.discovered ?? [], st = r.studied ?? [];
-  if (!d.length && !st.length) return '';
+  const d = r.discovered ?? [], lost = r.lostSamples ?? 0;
+  if (!d.length && !lost) return '';
   const cut = (a: string[]) => (a.length > 3 ? a.slice(0, 3).join(', ') + ` +${a.length - 3}` : a.join(', '));
-  return `<div class="dz-spec">${d.length ? `<span>FILED</span> ${esc(cut(d))}` : ''}${d.length && st.length ? ' · ' : ''}${st.length ? `<span>STUDIED</span> ${esc(cut(st))}` : ''}</div>`;
+  return `<div class="dz-spec">${d.length ? `<span>FILED</span> ${esc(cut(d))}` : ''}${d.length && lost ? ' · ' : ''}${lost ? `<span>LOST</span> ${lost} sample${lost > 1 ? 's' : ''} on the body` : ''}</div>`;
 }

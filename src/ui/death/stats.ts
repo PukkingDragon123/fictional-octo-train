@@ -9,6 +9,7 @@ import type { Player } from '../../entities/player';
 import { stat, addStat } from '../../game/profile';
 import { species } from '../../creatures/registry';
 import { runLog } from '../../game/meridian';
+import { carriedSamples } from '../../research/bank';
 
 export type CauseKey =
   | 'creature' | 'harmless' | 'wounds' | 'press' | 'band' | 'chess' | 'custody'
@@ -40,9 +41,9 @@ export interface RunReport {
   /** lifetime deaths including this one */
   deaths: number;
   zone: string;
-  /** what this run filed with the Meridian file (species names): new specimens, specimens studied to 100% */
+  /** what this run filed with the Meridian file: new codex entries (species names), samples lost on the body */
   discovered?: string[];
-  studied?: string[];
+  lostSamples?: number;
 }
 
 interface LastHit { by: string; kind: string; part: string; t: number; dmg: number }
@@ -158,20 +159,19 @@ export class RunTracker {
     lines.push({ key: 'kills', label: 'CREATURES KILLED', short: 'KILLS', value: fmt(this.kills), num: this.kills, rp: Math.min(12, this.kills) });
     lines.push({ key: 'dist', label: 'DISTANCE', short: 'DISTANCE', value: metres >= 1000 ? `${(metres / 1000).toFixed(1)} km` : `${fmt(metres)} m`, num: metres, rp: Math.min(10, Math.floor(metres / 400)) });
     if (newCause) lines.push({ key: 'novel', label: 'NEW WAY TO DIE', short: 'NEW DEATH', value: 'logged', num: 1, rp: 2 });
-    // the containment wing's catalogue: specimens first seen this run, and the ones studied to the end
+    // the codex (src/game/codex.ts): entries first met this run, samples that reached the lab, samples lost on the body
     const log = runLog();
     const nm = (k: string) => String((species(k) as any)?.name ?? k);
-    const discovered = log.discovered.map(nm), studied = log.studied.map(nm);
-    if (discovered.length || studied.length) lines.push({ key: 'specimens', label: 'NEW SPECIMENS', short: 'SPECIMENS', value: `${discovered.length} new · ${studied.length} studied`, num: discovered.length + studied.length, rp: Math.min(20, discovered.length * 2 + studied.length * 5) });
-    // a harvested power (mx_ledger, src/game/meridian.ts): hazard pay
-    const hazard = p.body.perks.has('mx_ledger') ? 1.25 : 1;
-    if (hazard > 1) { const extra = Math.max(1, Math.round(lines.reduce((s, l) => s + l.rp, 0) * 0.25)); lines.push({ key: 'hazard', label: 'HAZARD PAY', short: 'HAZARD', value: '+25%', num: 25, rp: extra }); }
+    const discovered = log.discovered.map(nm);
+    const lost = carriedSamples(p).length;
+    if (discovered.length) lines.push({ key: 'specimens', label: 'NEW CODEX ENTRIES', short: 'ENTRIES', value: `${discovered.length} new`, num: discovered.length, rp: Math.min(20, discovered.length * 2) });
+    if (log.banked || lost) lines.push({ key: 'samples', label: 'SAMPLES BANKED', short: 'SAMPLES', value: `${log.banked} banked · ${lost} lost`, num: log.banked, rp: Math.min(15, log.banked * 2) });
     const rp = Math.max(1, lines.reduce((s, l) => s + l.rp, 0));
     const deaths = stat('deaths');
     let h = 0; for (const c of p.name + this.startH) h = (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0;
     return {
       name: p.name || 'Subject', file: `${4000 + (h % 900)}-${'ABCDEFGHJK'[h % 10]}`, hours, cause, newCause, debtOn, owed, paid, remaining, cleared: !!d?.s?.cleared,
-      valuables: this.valuables, scrip: this.scrip, rooms, kills: this.kills, metres, lines, rp, deaths, zone: g.zone?.name || p.zoneKey, discovered, studied,
+      valuables: this.valuables, scrip: this.scrip, rooms, kills: this.kills, metres, lines, rp, deaths, zone: g.zone?.name || p.zoneKey, discovered, lostSamples: lost,
     };
   }
 

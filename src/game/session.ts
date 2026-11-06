@@ -231,12 +231,11 @@ export function startSession(o: SessionOpts): Game {
     });
   });
 
-  // ---- the Meridian file: the loadout's powers, the milestones' kit, the deployed pet (src/game/metaRun.ts)
+  // ---- the Meridian file: the codex, sample banking, the requisitioned tools and the milestones' kit (src/game/metaRun.ts)
   try {
     startMetaRun(g, p, {
       fresh: !s,
       give: (k) => { if (hasItemDef(k)) p.inv.add(newItem(k)); },
-      ready: () => p.zoneKey !== INTRO_ZONE && !!g.zones.get(p.zoneKey),
     });
   } catch (e) { console.warn('meridian run', e); }
 
