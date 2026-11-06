@@ -6,7 +6,17 @@
 // up as the work goes on, a glint running along them.
 import { bevel, rivet, hazard, drawBar, GUN, AMB, GRN, rect, crispCanvas } from './hiPixel';
 
-const W = 156, H = 40;
+const W0 = 156, H = 40;
+let meas: CanvasRenderingContext2D | null = null;
+/** the plate grows to fit a long name (Alagard 16px), within reason */
+function plateWidth(label: string): number {
+  try {
+    meas ??= document.createElement('canvas').getContext('2d');
+    if (!meas) return W0;
+    meas.font = '16px Alagard, serif';
+    return Math.max(W0, Math.min(320, Math.ceil(meas.measureText(label).width) + 72));
+  } catch { return W0; }
+}
 /** "Search" → "Searching", "Eat apple" → "Eating apple" (a few common verbs; anything else as written) */
 const ING: Record<string, string> = {
   search: 'Searching', eat: 'Eating', drink: 'Drinking', read: 'Reading', fill: 'Filling', pour: 'Pouring', wear: 'Putting on', take: 'Taking',
@@ -35,13 +45,14 @@ export class ActionPlate {
   private shownPct = -1;
   /** last whole fifth reached (for the tick sound) */
   step = -1;
-  readonly w = W; readonly h = H;
+  w = W0; readonly h = H;
+  private cv: HTMLCanvasElement;
   constructor() {
     const el = this.el = document.createElement('div');
     el.className = 'w-act';
     el.setAttribute('aria-hidden', 'true');
-    const { cv, c } = crispCanvas(W, H);
-    this.c = c;
+    const { cv, c } = crispCanvas(W0, H);
+    this.c = c; this.cv = cv;
     this.nameEl = document.createElement('b'); this.nameEl.className = 'wa-n';
     this.pctEl = document.createElement('i'); this.pctEl.className = 'wa-p';
     el.append(cv, this.nameEl, this.pctEl);
@@ -49,7 +60,16 @@ export class ActionPlate {
   /** draw at progress k (0..1); t = seconds for the glint */
   update(name: string, k: number, t: number) {
     const label = actionLabel(name);
-    if (label !== this.label) { this.label = label; this.nameEl.textContent = label; }
+    if (label !== this.label) {
+      this.label = label; this.nameEl.textContent = label;
+      const w = plateWidth(label);
+      if (w !== this.w) {
+        this.w = w;
+        const k = crispCanvas(w, H); this.cv.replaceWith(k.cv); this.cv = k.cv; this.c = k.c;
+        this.el.style.width = w + 'px'; this.nameEl.style.width = (w - 64) + 'px';
+      }
+    }
+    const W = this.w;
     const pct = Math.floor(Math.max(0, Math.min(1, k)) * 100);
     if (pct !== this.shownPct) { this.shownPct = pct; this.pctEl.textContent = pct + '%'; }
     const c = this.c;
