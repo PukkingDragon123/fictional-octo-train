@@ -18,7 +18,7 @@ const SPOTS: Record<string, Spot> = {
   updrip: { rooms: ['The Dry End', 'Tiled Rooms', 'Column Forest', 'The Long Hall'], w: 2, h: 2, margin: 1 },
   noon_lamp: { rooms: ["Mia's Room", 'Nursery', 'Bedroom', 'Guest Room'], w: 1, h: 1, margin: 1 },
   echo_phone: { rooms: ['Parking Level P∞'], w: 1, h: 1, margin: 1, near: 'anchor' },
-  snow_globe: { rooms: ['Grand Atrium', 'East Court', 'West Court', 'Main Street (East)'], w: 2, h: 2, margin: 1 },
+  snow_globe: { rooms: ['Grand Atrium', 'East Court', 'West Court', 'Main Street (East)'], w: 2, h: 2, margin: 2 },
   hungry_carpet: { rooms: ['Empty Room', 'The Pillar Hall', 'A Room', 'Somewhere'], w: 2, h: 2, margin: 1, near: 'spawn' },
   patient_chair: { rooms: ['Quiet Room', 'Training Room', 'Meeting Room A', 'Reception'], w: 1, h: 1, margin: 1 },
 };

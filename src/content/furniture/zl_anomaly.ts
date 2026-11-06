@@ -178,15 +178,18 @@ defObj({
   tags: [...T, 'carpet', 'organic'],
   desc: 'The carpet here rises into a soft lip around a damp middle, like a navel or a mouth. It is warm. Sometimes it swallows.',
   model: (mb) => {
-    // the lip: carpet rising off the floor and rolling over into the throat
-    lathe(mb, [0, 0, 0], [[0.98, 0], [0.86, 0.06], [0.7, 0.17], [0.56, 0.22], [0.44, 0.19], [0.34, 0.09], [0.24, 0.0], [0.18, -0.05]], 28, 'carpet_yellow', { color: 0xf4e4a8, inside: null, flip: true });
-    // radial folds, as if the pile is being drawn inward
-    for (let k = 0; k < 11; k++) {
-      const a = (k / 11) * Math.PI * 2 + 0.2;
-      tube(mb, [P(Math.cos(a) * 0.95, 0.01, Math.sin(a) * 0.95), P(Math.cos(a) * 0.72, 0.15, Math.sin(a + 0.04) * 0.72), P(Math.cos(a + 0.08) * 0.5, 0.21, Math.sin(a + 0.08) * 0.5), P(Math.cos(a + 0.15) * 0.32, 0.08, Math.sin(a + 0.15) * 0.32)], (t) => 0.035 * Math.sin(t * Math.PI) + 0.006, 6, 'carpet_yellow', { color: 0xe8d490 });
+    // the lip: carpet rising off the floor into a soft rim and rolling over into the throat
+    lathe(mb, [0, 0, 0], [[1.0, 0], [0.92, 0.045], [0.8, 0.14], [0.66, 0.24], [0.54, 0.27], [0.44, 0.22], [0.35, 0.11], [0.28, 0.02], [0.22, -0.04]], 32, 'carpet_yellow', { color: 0xdcc488, inside: null, flip: true });
+    // the pile drawn in toward it: a low ring of tension round the rim
+    tube(mb, Array.from({ length: 33 }, (_, i) => P(Math.cos(i / 32 * Math.PI * 2) * 0.86, 0.04, Math.sin(i / 32 * Math.PI * 2) * 0.86)), 0.03, 5, 'carpet_yellow', { color: 0xd4bc80 });
+    // pleats on the inner slope, puckered into the throat
+    for (let k = 0; k < 18; k++) {
+      const a = (k / 18) * Math.PI * 2 + 0.1, a2 = a + 0.12;
+      tube(mb, [P(Math.cos(a) * 0.6, 0.255, Math.sin(a) * 0.6), P(Math.cos(a + 0.05) * 0.47, 0.22, Math.sin(a + 0.05) * 0.47), P(Math.cos(a2) * 0.34, 0.09, Math.sin(a2) * 0.34), P(Math.cos(a2 + 0.05) * 0.26, 0.0, Math.sin(a2 + 0.05) * 0.26)], (t) => 0.03 * (1 - t * 0.4), 6, 'carpet_yellow', { color: k % 2 ? 0xc8ae6c : 0xd8c080 });
     }
-    // the throat
-    lathe(mb, [0, -0.06, 0], [[0.2, 0.04], [0.15, 0.0], [0.08, -0.02], [0, -0.03]], 18, 'an_maw', { color: 0xffffff, inside: null, flip: true });
+    // the throat: dark, wet, a little red
+    lathe(mb, [0, -0.04, 0], [[0.28, 0.04], [0.2, 0.0], [0.1, -0.02], [0, -0.03]], 20, 'an_maw', { color: 0xffffff, inside: null, flip: true });
+    blob(mb, [0.12, 0.0, -0.08], [0.05, 0.012, 0.03], 8, 3, 'an_maw', { color: 0xf0d0c8, v0: 0, v1: 0.5, emissive: 0.15 });
   },
 });
 
