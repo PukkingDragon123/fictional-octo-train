@@ -229,7 +229,7 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
 
     // ---------------- skeleton: floating words, pixel chevrons
     const root = h('div', 'nx cz');
-    const head = h('div', 'cz-head');
+    const head = h('div', 'cz-head'); head.dataset.term = 'INTAKE TERM';
     const linesEl = h('div', 'cz-lines');
     const toolEl = h('div', 'cz-tool');
     const tabs = h('nav', 'cz-tabs');
@@ -245,7 +245,7 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
     gamesB.type = 'button';
     gamesB.addEventListener('click', () => { games = !games; setGamesOn(games); paintTop(); sfx('toggle'); say(games ? '<b>Mini-games on</b> · you work the tools' : '<b>Just apply</b> · the robot works alone'); });
     top.append(h('div', 'cz-id', `<span>subject</span> <b>${esc(name)}</b>`), gamesB);
-    const col = h('div', 'cz-col');
+    const col = h('div', 'cz-col'); col.dataset.term = 'SUBJECT SPEC';
     col.append(linesEl, toolEl);
     root.append(head, col, tabs, backB, nextB, top, result, toast);
 

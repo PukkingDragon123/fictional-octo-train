@@ -206,3 +206,55 @@
 .cz.portrait .cz-head { left: 8px; top: 8px; min-width: 0; padding: 8px 14px; }
 .cz.portrait .cz-col { left: 8px; right: 8px; min-width: 0; padding: 10px; bottom: calc(48px + 14px + 54px); }
 .cz.portrait .cz-tabs { left: 8px; right: 8px; width: auto; transform: none; justify-content: center; flex-wrap: wrap; }
+
+/* ==== tech screens: every panel is a little CRT terminal set in a gunmetal bezel —
+   dark phosphor glass with scanlines, green phosphor type, pixel corner brackets,
+   a header strip with status LEDs, keycap buttons. Hard pixel edges throughout. */
+.cz { --scr: #071210; --scr2: #0b1c18; --ph: #8dffa6; --ph2: #49c46a; --amb: #ffc060;
+  --bez: linear-gradient(180deg, #4a5056 0%, #2c3136 48%, #1c2024 100%);
+  --scan: repeating-linear-gradient(180deg, rgba(141, 255, 166, 0.05) 0 1px, transparent 1px 3px);
+  --brk: linear-gradient(var(--ph2), var(--ph2)) 6px 6px / 10px 2px no-repeat, linear-gradient(var(--ph2), var(--ph2)) 6px 6px / 2px 10px no-repeat,
+         linear-gradient(var(--ph2), var(--ph2)) calc(100% - 6px) 6px / 10px 2px no-repeat, linear-gradient(var(--ph2), var(--ph2)) calc(100% - 6px) 6px / 2px 10px no-repeat,
+         linear-gradient(var(--ph2), var(--ph2)) 6px calc(100% - 6px) / 10px 2px no-repeat, linear-gradient(var(--ph2), var(--ph2)) 6px calc(100% - 6px) / 2px 10px no-repeat,
+         linear-gradient(var(--ph2), var(--ph2)) calc(100% - 6px) calc(100% - 6px) / 10px 2px no-repeat, linear-gradient(var(--ph2), var(--ph2)) calc(100% - 6px) calc(100% - 6px) / 2px 10px no-repeat;
+  --tech: 0 0 0 2px #0a0b10, 0 0 0 6px #3a4046, 0 0 0 8px #0a0b10, inset 0 0 0 2px #10261f, inset 0 0 24px rgba(0, 0, 0, 0.75), 0 8px 0 4px rgba(0, 0, 0, 0.4); }
+.cz-head, .cz-col, .cz-tabs, .cz-top { background: var(--scan), var(--brk), radial-gradient(ellipse 120% 90% at 50% 40%, var(--scr2), var(--scr)); box-shadow: var(--tech); border-radius: 3px; position: absolute; }
+.cz-head { padding: 26px 22px 14px 20px; }
+.cz-col { padding: 26px 20px 18px 16px; }
+/* the header strip: a terminal title and three status LEDs, drawn across the top of each screen */
+.cz-head::before, .cz-col::before { content: attr(data-term); position: absolute; left: 0; right: 0; top: 0; height: 16px; padding: 0 12px;
+  font: 16px/16px var(--font-new); letter-spacing: 0.12em; color: #0a0b10; text-transform: uppercase;
+  background: linear-gradient(90deg, var(--ph2) 0 70%, #2a6a3c 70% 100%); box-shadow: inset 0 -2px 0 #0a0b10; }
+.cz-head::after, .cz-col::after { content: ''; position: absolute; right: 10px; top: 4px; width: 8px; height: 8px; background: #ff4a3a;
+  box-shadow: -12px 0 0 #ffc060, -24px 0 0 var(--ph), 0 0 6px #ff4a3a; animation: cz-led 1.6s steps(1) infinite; }
+@keyframes cz-led { 50% { background: #5a1410; box-shadow: -12px 0 0 #ffc060, -24px 0 0 var(--ph), 0 0 0 transparent; } }
+.cz-head .n { color: var(--amb); }
+.cz-head b { color: #e8ffe8; text-shadow: 0 0 6px rgba(141, 255, 166, 0.55), var(--text-ink); }
+.cz-head small { color: var(--ph2); }
+.cz-line { color: var(--ph2); }
+.cz-lab { color: var(--ph2) !important; }
+.cz-line.on .cz-lab { color: var(--ph) !important; text-shadow: 0 0 6px rgba(141, 255, 166, 0.6); }
+/* the value: an inset LCD window */
+.cz-v { background: #031009; box-shadow: inset 0 0 0 2px #0a0b10, inset 0 2px 0 2px #01060a, 0 0 0 2px #1d3a2c; padding: 2px 10px; color: var(--ph); text-shadow: 0 0 6px rgba(141, 255, 166, 0.5); }
+.cz-line.on .cz-v { color: #e8ffe8; }
+/* the arrows: little keycaps */
+.cz-arr { width: 36px; height: 36px; background: linear-gradient(180deg, #4a5258, #2a2f34); box-shadow: 0 0 0 2px #0a0b10, inset 0 2px 0 #6a737a, inset 0 -3px 0 #16191c; border-radius: 2px; opacity: 0.85; }
+.cz-arr:active { transform: translateY(2px); box-shadow: 0 0 0 2px #0a0b10, inset 0 2px 0 #16191c; }
+.cz-tool { border-top: 2px dashed #1d3a2c; box-shadow: none; }
+.cz-tool b { color: var(--amb); }
+/* section bar: tabs as lit keys on a terminal strip */
+.cz-tabs { padding: 6px 10px; gap: 4px; }
+.cz-tab { background: #0b1712; box-shadow: inset 0 0 0 2px #0a0b10, inset 0 2px 0 2px #16302a; color: var(--ph2) !important; }
+.cz-tab.on { background: var(--ph2); color: #061008 !important; box-shadow: inset 0 0 0 2px #0a0b10, 0 0 10px rgba(141, 255, 166, 0.45); text-shadow: none; }
+.cz-tab.on span::after { display: none; }
+/* back / next: big keycaps in the bezel colour */
+.cz-back, .cz-next { background: var(--bez); box-shadow: 0 0 0 2px #0a0b10, inset 0 2px 0 #6a737a, inset 0 -4px 0 #101315, 0 6px 0 2px rgba(0, 0, 0, 0.4); border-radius: 3px; }
+.cz-next { color: var(--ph) !important; text-shadow: 0 0 8px rgba(141, 255, 166, 0.5), var(--text-ink-2); }
+.cz-next.op { background: linear-gradient(180deg, #7a4a1c, #44260c); color: #ffd890 !important; }
+.cz-top { padding: 22px 14px 8px; }
+.cz-top::before { content: 'SUBJECT ID'; position: absolute; left: 10px; top: 2px; font: 16px/16px var(--font-new); color: var(--amb); letter-spacing: 0.12em; }
+.cz-id b { color: var(--ph); }
+.cz-id b::after { content: '_'; animation: cz-blink 1s steps(1) infinite; }
+.cz-col { top: calc(max(16px, 4.4vh) + var(--t-xl) + var(--t-s) * 2 + 74px); }
+.cz-head::before, .cz-col::before { overflow: hidden; white-space: nowrap; }
+.cz.portrait .cz-col { top: auto; }
