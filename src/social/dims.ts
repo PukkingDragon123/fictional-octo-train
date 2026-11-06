@@ -342,7 +342,7 @@ class Board {
       G.ui?.say?.(G.local, 'CHECKMATE!', 'shout', 3);
       G.missions?.set?.('vx:checkmate');
       try { grantResearch(30, 'Checkmate on the Board'); } catch { /* research optional */ }
-      bus.emit('subtitle', { who: 'SSGT. VOSS', text: 'Checkmate. Huh. Nobody told me you could play.', style: 'voss' });
+      bus.emit('subtitle', { who: 'DR. CALDER', text: 'Checkmate. Huh. Nobody told me the unit could play.', style: 'voss' });
     }
   }
   private nope(i: number) { const mesh = this.meshes[i]; if (mesh) mesh.userData.nope = 0.4; G.audio?.ui?.('error', 0.2); }
@@ -351,7 +351,7 @@ class Board {
   private playerRules(dt: number) {
     const p = G.local, s = this.st!, m = this.meta();
     if (!p || p.body.dead) return;
-    if (!this.hinted) { this.hinted = true; bus.emit('subtitle', { who: 'SSGT. VOSS', text: 'Red square means move, debtor. Our pieces are white. Lean on one.', style: 'voss' }); }
+    if (!this.hinted) { this.hinted = true; bus.emit('subtitle', { who: 'DR. CALDER', text: 'Red square means move, unit. Our pieces are white. Lean on one.', style: 'voss' }); }
     // pieces are solid
     let near = -1, nearD = 9;
     s.pieces.forEach((pc, i) => {

@@ -262,7 +262,7 @@ class DeathCinematic {
     R.setTyping(1, true);
     R.lookAt(null);
     const r = this.report;
-    R.feed.typeFile([`INCIDENT ${r.file}`, `SUBJECT ${r.name.toUpperCase().slice(0, 16)}`, `CAUSE: ${r.cause.text.toUpperCase().slice(0, 22)}`, 'STATUS: DELETED', 'FILING...']);
+    R.feed.typeFile([`INCIDENT ${r.file}`, `UNIT ${r.name.toUpperCase().slice(0, 16)}`, `CAUSE: ${r.cause.text.toUpperCase().slice(0, 22)}`, 'STATUS: DELETED', 'FILING...']);
     await this.wait(0.4);
     await this.line(this.scene.type);
     await this.wait(0.5);
@@ -391,7 +391,7 @@ class DeathCinematic {
     const rows = r.lines.map((l) => `<div class="dz-row" data-k="${l.key}"><span class="dz-l"><b class="lg">${l.label}</b><b class="sh">${l.short}</b></span><span class="dz-v">${l.key === 'novel' ? '' : '0'}</span><span class="dz-p">${l.rp ? '+' + l.rp : ''}</span></div>`).join('');
     el.innerHTML = `<div class="dz-in">
       <div class="dz-h"><span>MERIDIAN INSTITUTE</span><span>INCIDENT ${esc(r.file)}</span></div>
-      <div class="dz-sub">SUBJECT <b>${esc(r.name.toUpperCase())}</b> · DELETED</div>
+      <div class="dz-sub">UNIT <b>${esc(r.name.toUpperCase())}</b> · DELETED</div>
       <div class="dz-cause"><span>CAUSE</span> ${esc(r.cause.text)}</div>
       <div class="dz-rows">${rows}</div>${specLine(r)}
       <div class="dz-tot"><span class="dz-l">RESEARCH POINTS</span><span class="dz-big">+0</span></div>
@@ -490,7 +490,7 @@ class DeathCinematic {
       k.append(b); this.keys.push(b);
     };
     if (coop) mk('Continue', 'watch the crew', () => this.close());
-    else mk('Continue', 'a new subject, same file', () => this.nextSubject());
+    else mk('Continue', 'a new unit, same file', () => this.nextSubject());
     mk('Back to the title', '', () => this.toTitle());
     this.root.append(k);
     this.keysEl = k;

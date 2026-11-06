@@ -7,7 +7,7 @@
 //   badge   pick your badge up off the trolley (E / click / tap it)
 //   door    press the suite's call panel; the door slides open
 //   unit    the unit in its chair: the prisoner in the hazmat suit, strapped
-//           down. "We do not call them subjects here."
+//           down. "We do not call them prisoners here."
 //   sit     sit in the rig beside it (E at the chair): the cuffs close, the
 //           crown comes down
 //   shock   the handshake: a white flash, the body convulses, a burst of
@@ -286,7 +286,7 @@ export class Prologue implements GameSystem {
         this.cgoal = [2.2, -8.2];
         this.say([
           'This is the unit. Remittance Programme. It owes more than it will ever earn.',
-          'We do not call them subjects here. They are units. It helps, believe me.',
+          'We do not call them prisoners here. They are units. It helps, believe me.',
           'You will wear it. Its hands, its eyes. I will be on its wrist the whole time.',
           'Sit in the rig, on the right. That one is yours.',
         ], () => this.lessonOn('LESSON 5 · SIT', touch ? 'TAP THE RIG' : 'E AT THE RIGHT CHAIR'));

@@ -58,6 +58,8 @@ import { buildTool, animateTool, type ToolKind, type ToolModel } from './scene/t
 import { ANCHORS, PATHS, SHOTS, type AnchorBone } from './scene/anchors';
 import { armSegment, armBase, clawPalm, clawFinger, pressModel, shutterModel, chairModel, capModel, strapModel, bulbModel, leverModel, gem, prism, FacetBuilder, surgLampModel, surgArmModel } from './roomParts';
 import { ROOM, SPOT, roomModel, fixtureTubes, monitorModel, canvasTex, bloodCanvas } from './roomKit';
+import { Dresser } from './rooms/dress';
+import { at as atM } from './scene/facet';
 
 export type { PartKey, ToolKind };
 export type MenuKind = 'sign' | 'gear' | 'phone' | 'tape' | 'card' | 'key';
@@ -123,6 +125,11 @@ export class SubjectRoom {
   // only true emitters bloom (the lamps, the tubes, the arc), not a lit yellow suit
   private bloom = Object.assign(new Bloom(), { thr: 1.45, knee: 0.5 });
   private lensFx = new LensBlood();
+  /** the whole lit room blurred wide: bounce light and the bulb's shafts (scene/post.ts tFill) */
+  private fillBloom = Object.assign(new Bloom(), { thr: 0.06, knee: 0.05 });
+  private shaftP = new THREE.Vector3();
+  /** the lab's set dressing (rooms/dress.ts): the same kit as the control room and the archive */
+  private dressing: Dresser | null = null;
   private lowW = 0; private lowH = 0;
   private raf = 0; private last = 0; private t = 0;
   private ro: ResizeObserver;
@@ -279,6 +286,19 @@ export class SubjectRoom {
     const S = this.scene, mats = this.mats = facetMats(this.low);
     // ---- the cell, the chair, the fixtures
     S.add(roomModel(mats));
+    // the lab's dressing, shared with the control room and the archive: instruments, the clock, overflow, wear
+    {
+      const d = this.dressing = new Dresser(mats);
+      const B = ROOM.BACK + 0.01, H = ROOM.H;
+      d.gauges(atM(-2.25, 2.55, B), 3, 1, { labels: ['CHAIR 4', 'SURGE'], seed: 61 });
+      d.clock(atM(2.3, 2.8, B), 0.16);
+      d.filing(atM(2.8, 0, ROOM.BACK + 0.34), { seed: 62, labels: ['UNITS', 'VOID', 'CHAIR', 'LINK'] });
+      d.clutter(atM(2.8, 1.3, ROOM.BACK + 0.34), 0.36, 0.5, { seed: 63, binder: false });
+      d.boxes(atM(-2.85, 0, ROOM.BACK + 0.3, 0, 0.15), 3, { seed: 64 });
+      d.streaks(atM(0, 3.0, ROOM.BACK + 0.012), 6.4, 1.2, 0.35);
+      d.tray([-ROOM.W + 0.4, H - 0.35, -1.3], [ROOM.W - 0.4, H - 0.35, -1.3], H, { seed: 65, cables: 8 });
+      S.add(d.done());
+    }
     this.chairStraps = chairModel(mats, true);
     this.chairBare = chairModel(mats, false);
     this.chairBare.visible = false;
@@ -1164,8 +1184,9 @@ export class SubjectRoom {
     const w = Math.max(1, this.host.clientWidth), h = Math.max(1, this.host.clientHeight);
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const dw = w * dpr, dh = h * dpr;
-    const target = this.quality === 'low' ? 480 * 270 : this.quality === 'medium' ? 560 * 315 : 640 * 360;
-    const S = Math.max(2, Math.round(Math.sqrt((dw * dh) / target)));
+    // near the screen's own resolution: a realistic image, not a chunky pixel filter (low quality halves it)
+    const target = this.quality === 'low' ? 960 * 540 : this.quality === 'medium' ? 1280 * 720 : 1920 * 1080;
+    const S = Math.max(1, Math.round(Math.sqrt((dw * dh) / target)));
     const lw = Math.max(32, Math.ceil(dw / S)), lh = Math.max(32, Math.ceil(dh / S));
     const cw = (lw * S) / dpr, ch = (lh * S) / dpr;
     Object.assign(this.canvas.style, { width: cw + 'px', height: ch + 'px', left: Math.floor((w - cw) / 2) + 'px', top: Math.floor((h - ch) / 2) + 'px' });
@@ -1242,6 +1263,7 @@ export class SubjectRoom {
     // ---- fx
     this.bits.update(dt);
     this.arcs.update(dt);
+    this.dressing?.update(this.t);
     this.screen.update(dt, this.t, 1 - this.surgeK * 0.6);
     this.crt.intensity = (0.065 + 0.025 * this.screen.beat) * (1 - this.lit * 0.6) * (1 - this.surgeK * 0.5);
     if (this.extraBlood && this.maulT < 0) { this.bloodT += dt; if (this.bloodT > 5 && this.extraBlood > 1) { this.extraBlood = 1; this.rig?.setOutfit(this.dress()); } }
@@ -1258,7 +1280,19 @@ export class SubjectRoom {
     const title = 1 - this.lit;
     // like the cutscenes: lamps bloom, faces hold (the bloom carries the brightness, not a blown exposure)
     u.uExposure.value = ((this.mode === 'title' ? 1.18 : 1.12) + this.lit * 0.1) * (this.mode === 'lit' ? 1.04 - this.closeK * 0.1 : 1.14);
-    u.uBloom.value = this.mode === 'lit' ? 0.95 : 0.95;
+    u.uBloom.value = 0.95;
+    // only true emitters bloom: with the work lights full on, a lit yellow suit would cross a lower threshold
+    this.bloom.thr = this.mode === 'lit' ? 1.95 : 1.45;
+    // shading: contact occlusion from depth, the lamps' glow in the air, a little lens fringe
+    u.uAO.value = this.lowW * this.lowH > 200000 ? 0.85 : 0.6; u.uAORad.value = 0.28;
+    u.uFocal.value = this.lowH / (2 * Math.tan(THREE.MathUtils.degToRad(this.cam.fov) / 2));
+    u.uScatter.value = 0.3 + this.lit * 0.15; u.uCA.value = 0.8;
+    // realistic, not a pixel filter: edge AA, a soft contact line, no posterising; bounce light; the bulb's shafts
+    u.uAA.value = 1; u.uOutline.value = 0.3; u.uSharp.value = 0.08; u.uLevels.value = 255;
+    u.uBounce.value = 0.18 + this.lit * 0.08;
+    const sp = this.shaftP.setFromMatrixPosition(this.key.matrixWorld).project(this.cam);
+    const sx = sp.x * 0.5 + 0.5, sy = sp.y * 0.5 + 0.5, off = Math.max(0, -sx, sx - 1, -sy, sy - 1.15);
+    u.uShaft.value[0].set(sx, sy, sp.z < 1 && sp.z > -1 && !this.low ? 0.55 * Math.max(0, 1 - off * 4) : 0, 0.8);
     u.uVig.value = 0.22 + title * 0.1 + (this.mode === 'lit' ? 0.08 + this.closeK * 0.1 : 0);
     const portrait = this.lowW < this.lowH;
     // no dark side panel, no dark floor band: the 2D words carry their own ink outline
@@ -1334,9 +1368,13 @@ export class SubjectRoom {
     const fwd = this.v3.setFromMatrixColumn(this.cam.matrixWorld, 2);
     // the key: up and to the camera's left, a metre out
     this.faceKey.position.copy(head).addScaledVector(right, -0.75).addScaledVector(fwd, 0.7).add(this.v4.set(0, 0.45, 0));
-    this.faceKey.target.position.copy(head);
+    // the key follows the part in the shot; a limb or the spine gets a gentler key than a face (the suit is yellow and blooms)
+    const def = SHOTS[this.shotName];
+    const faceShot = !def || def.bone === 'head';
+    const bone = def && !faceShot && this.rig ? (this.rig.bones as Record<string, THREE.Object3D>)[def.bone] : null;
+    if (bone) bone.getWorldPosition(this.faceKey.target.position); else this.faceKey.target.position.copy(head);
     const lvl = this.mode === 'lit' ? this.lit : 0.35;
-    this.faceKey.intensity = this.closeK * lvl * 3;
+    this.faceKey.intensity = this.closeK * lvl * (faceShot ? 3 : 1.1);
     this.faceFill.position.copy(head).addScaledVector(right, 0.7).addScaledVector(fwd, 0.5).add(this.v4.set(0, -0.1, 0));
     this.faceFill.intensity = this.closeK * lvl * 1.4 + (this.mode === 'title' ? 0.12 * (1 - this.lit) : 0);
   }
@@ -1876,6 +1914,8 @@ export class SubjectRoom {
       r.render(this.scene, this.cam);
       const pu = this.post.u;
       this.bloom.run(r, this.rt!.texture, this.rt!.width, this.rt!.height, pu.uExposure.value);
+      this.fillBloom.run(r, this.rt!.texture, this.rt!.width, this.rt!.height, 1);
+      pu.tFill.value = this.fillBloom.tex[2];
       pu.tB1.value = this.bloom.tex[0]; pu.tB2.value = this.bloom.tex[1]; pu.tB3.value = this.bloom.tex[2];
       r.setRenderTarget(null);
       r.render(this.post.scene, this.post.cam);
@@ -1995,7 +2035,7 @@ export class SubjectRoom {
 
   dispose() {
     cancelAnimationFrame(this.raf);
-    this.bloom.dispose();
+    this.bloom.dispose(); this.fillBloom.dispose();
     for (const w of this.waiters) w.res();
     for (const tw of this.tweens) tw.res();
     this.waiters = []; this.tweens = [];

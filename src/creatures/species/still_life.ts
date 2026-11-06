@@ -119,6 +119,7 @@ function adopt(r: SLRig, key: string, mem: Memory) {
   }
   r.hr.outfit = mem.outfit;
   r.hr.setAppearance(mem.app);
+  for (const o of Object.values(r.hr.j)) { delete o.userData.wd; o.scale.setScalar(1); }
   waxify(pageData(r.hr), mem, hashId(key, 3) * 1e6);
   pageTexture(r.hr).needsUpdate = true;
   childProportions(r.hr, !!mem.child);
@@ -126,6 +127,52 @@ function adopt(r: SLRig, key: string, mem: Memory) {
   r.who = key;
   r.parts = { ...r.hr.j };
   r.m.spread = mem.flaws.spread; r.m.eyes = mem.flaws.eyes; r.m.child = !!mem.child;
+}
+
+// ------------------------------------------------------------------ wrongness: every one is wrong in its own small way
+// (the place makes them from memory and does not quite remember what people are for)
+const WRONG = ['neck', 'tilt', 'arms', 'shoulders', 'turned', 'hands', 'neck', 'tilt'] as const;
+type Wrong = typeof WRONG[number];
+function wrongOf(c: Creature): Set<Wrong> {
+  const m = c.mem;
+  if (!m.wrong) {
+    const w = new Set<Wrong>([WRONG[Math.floor(hashId(c.id, 11) * WRONG.length)]]);
+    if (hashId(c.id, 12) < 0.45) w.add(WRONG[Math.floor(hashId(c.id, 13) * WRONG.length)]);
+    m.wrong = w;
+  }
+  return m.wrong as Set<Wrong>;
+}
+/** rotations: a head laid over on the shoulder, a head turned too far round, and the practising twitch */
+function wrongPose(P: HPose, w: Set<Wrong>, mode: string, seed: number, t: number) {
+  const side = ph(1, 2, seed) < 0.5 ? 1 : -1;
+  if (w.has('tilt')) { add(P, 'neck', 0, 0, side * 0.3); add(P, 'head', 0.1, 0, side * 0.75); }
+  if (w.has('turned') && mode !== 'walk' && mode !== 'strangle') { add(P, 'neck', 0, side * 0.9, 0); add(P, 'head', 0, side * 1.35, 0); }
+  // now and then one joint rehearses a movement, wrongly, and stops
+  if (STATIC.has(mode)) {
+    const slot = Math.floor(t / 6.5 + seed), f = t / 6.5 + seed - slot;
+    if (ph(slot, 3, seed) < 0.4 && f < 0.05) {
+      const j = (['head', 'handL', 'handR', 'farmL', 'neck'] as const)[Math.floor(ph(slot, 4, seed) * 5)];
+      const k = Math.sin((f / 0.05) * Math.PI) * 0.45;
+      add(P, j, k * (ph(slot, 5, seed) - 0.5), k, k * 0.5);
+    }
+  }
+}
+/** proportions: a neck a hand too long, arms that reach the knee, shoulders too broad, hands too big */
+function nudge(o: THREE.Object3D | undefined, k: number, axes: [number, number, number] = [1, 1, 1]) {
+  if (!o) return;
+  const ud = o.userData as { wd?: THREE.Vector3 };
+  if (ud.wd) o.position.sub(ud.wd); else ud.wd = new THREE.Vector3();
+  ud.wd.set(o.position.x * k * axes[0], o.position.y * k * axes[1], o.position.z * k * axes[2]);
+  o.position.add(ud.wd);
+}
+function wrongBody(R: SLRig, w: Set<Wrong>) {
+  const J = R.hr.j;
+  nudge(J.head, w.has('neck') ? 0.9 : 0);
+  nudge(J.farmL, w.has('arms') ? 0.4 : 0); nudge(J.farmR, w.has('arms') ? 0.4 : 0);
+  nudge(J.handL, w.has('arms') ? 0.4 : 0); nudge(J.handR, w.has('arms') ? 0.4 : 0);
+  nudge(J.uarmL, w.has('shoulders') ? 0.35 : 0, [1, 0, 0]); nudge(J.uarmR, w.has('shoulders') ? 0.35 : 0, [1, 0, 0]);
+  const hs = w.has('hands') ? 1.45 : 1;
+  J.handL.scale.setScalar(hs); J.handR.scale.setScalar(hs);
 }
 
 // ------------------------------------------------------------------ poses & animation
@@ -248,7 +295,10 @@ function animateSL(rig: Rig, c: Creature, t: number, dt: number) {
   // hit: a crack runs through it, it jolts without bending
   if (flinch > 0) { P.rootX = (P.rootX ?? 0) + Math.sin(t * 80) * 0.025 * flinch; add(P, 'head', 0, 0, Math.sin(t * 60) * 0.15 * flinch); }
   if (lost.has('thighL') || lost.has('thighR') || lost.has('shinL') || lost.has('shinR')) { if (mode === 'walk') { P.bodyPitch = 1.2; P.bodyY = 0.25; } }
+  const wrong = wrongOf(c);
+  wrongPose(P, wrong, mode, seed, t);
   R.hr.applyPose(P);
+  wrongBody(R, wrong);
   R.hr.fx.value.y += dt;
   // VHS wrongness: a rare tear through the image, more while it moves unseen, a lot while it strangles
   const tear = mode === 'strangle' ? 0.25 : moving && litAt(c) < 0.3 ? 0.08 : 0;

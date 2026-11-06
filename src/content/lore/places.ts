@@ -88,15 +88,15 @@ Nursing note: "Dad reads to her every night through the headset. Says she can he
 });
 
 defLore({
-  id: 'patient_file_0411', title: 'Patient file — SUBJECT 0411',
+  id: 'patient_file_0411', title: 'Patient file — UNIT 0411',
   text: `ST. ALDRIC — NOCLIP INCIDENT LOG
-SUBJECT: 0411     NAME: [REDACTED]
+UNIT: 0411        NAME: [REDACTED]
 FOUND: unresponsive, Facility 4 sub-level, beside node SRV-1.
 EEG: active. Dreaming.
 
-Observation: the subject's hands move as if writing.
-Observation: we gave the subject a pen. The subject writes notes addressed to itself.
-Observation: this is the subject's fourth admission.`,
+Observation: the unit's hands move as if writing.
+Observation: we gave the unit a pen. The unit writes notes addressed to itself.
+Observation: this is the unit's fourth admission.`,
 });
 
 defLore({

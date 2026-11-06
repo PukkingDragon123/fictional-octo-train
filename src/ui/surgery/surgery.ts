@@ -133,14 +133,14 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
     }
     if (mode === 'leave') {
       header(pen, 'LEAVE THE THEATRE?');
-      pen.para('Nothing fitted here is kept. The subject goes back to processing.', X, 52, W - 2 * X, PH.mid, 16, 21);
+      pen.para('Nothing fitted here is kept. The unit goes back to processing.', X, 52, W - 2 * X, PH.mid, 16, 21);
       pen.button('leave:yes', 'LEAVE', X, 140, 120);
       pen.button('leave:no', 'STAY', W - X - 120, 140, 120);
       return;
     }
     if (mode === 'idle') {
       header(pen, 'THEATRE No.3', cut(subject, 16));
-      pen.para('Touch the subject, or press a region key, to choose what goes where.', X, 44, W - 2 * X, PH.mid, 15, 19, 2, true);
+      pen.para('Touch the unit, or press a region key, to choose what goes where.', X, 44, W - 2 * X, PH.mid, 15, 19, 2, true);
       let y = 92;
       const o = occupationByKey(occ);
       pen.text('PROGRAMME', X, y, PH.dim, 13, 'left', 600);
@@ -397,7 +397,7 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
     log.length = 0;
     const o = occupationByKey(occ);
     const hw = CYBER_SLOTS.filter((s) => stage.load[s]).map((s) => `${SLOT_CODE[s]} ${cyberDef(stage.load[s])!.name}`);
-    log.push(`> SUBJECT ${subject}`, `> PROGRAMME ${up(o.name)}`, `> CARDS ${traits.size ? [...traits].map((k) => up(TRAITS.find((x) => x.key === k)?.name || k)).join(', ') : 'NONE'}`, `> HARDWARE ${hw.length ? up(hw.join('; ')) : 'NONE'}`, '> SEALED. NEXT.');
+    log.push(`> UNIT ${subject}`, `> PROGRAMME ${up(o.name)}`, `> CARDS ${traits.size ? [...traits].map((k) => up(TRAITS.find((x) => x.key === k)?.name || k)).join(', ') : 'NONE'}`, `> HARDWARE ${hw.length ? up(hw.join('; ')) : 'NONE'}`, '> SEALED. NEXT.');
     csfx('cy_hiss', 0.7);
     const r = result();
     setPendingLoadout(r.cyber as any);
@@ -568,7 +568,7 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
     onDone(r);
   };
 
-  log.push('> SUBJECT INBOUND', '> GANTRY ENGAGED');
+  log.push('> UNIT INBOUND', '> GANTRY ENGAGED');
   root.addEventListener('pointerdown', () => audioKick(), { once: true });
   stage.intro().then(() => {
     if (closed) return;

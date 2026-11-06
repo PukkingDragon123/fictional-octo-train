@@ -127,7 +127,7 @@ const TYPE: string[] = [
   'cause of death… "yes".',
   'I\'m writing "stupidity". no, I\'m serious.',
   'report\'s filed. {he}\'s data now.',
-  'subject {file}. deleted. next.',
+  'unit {file}. deleted. next.',
 ];
 const DATA: string[] = [
   'at least the data\'s good.',

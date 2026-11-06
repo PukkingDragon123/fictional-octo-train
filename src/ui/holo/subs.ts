@@ -109,7 +109,7 @@ export function initSubtitles(ui: UiLike) {
       }
       case 'voss': case 'guard': default: {
         const isGuard = style === 'guard';
-        const el = floatText(text, { kind: isGuard ? 'guard' : 'voss', name: isGuard ? (who && !/guard/i.test(who) ? who : '') || undefined : (who || 'SSGT. VOSS'), life: secs });
+        const el = floatText(text, { kind: isGuard ? 'guard' : 'voss', name: isGuard ? (who && !/guard/i.test(who) ? who : '') || undefined : (who || 'DR. CALDER'), life: secs });
         // where is the speaker? given position, the handler's projection, or the band (the sergeant projects from it too)
         let target: any = at;
         if (!target && !isGuard) {
@@ -118,7 +118,7 @@ export function initSubtitles(ui: UiLike) {
         }
         // the sergeant has his own synthetic voice: the blips only tick under it
         playLine(text, voiceForStyle(isGuard ? 'guard' : 'voss', who), target ? { x: target.x, z: target.z } : null, { vol: isGuard ? 1 : 0.28 });
-        if (!target && !isGuard && G.holo?.visible && G.holo.showLine) { G.holo.showLine(text, secs, 'voss', who || 'VOSS'); return; }
+        if (!target && !isGuard && G.holo?.visible && G.holo.showLine) { G.holo.showLine(text, secs, 'voss', who || 'CALDER'); return; }
         if (!target) { offscreen(el, secs); return; }
         push(el, target, isGuard ? 'guard' : 'voss');
       }

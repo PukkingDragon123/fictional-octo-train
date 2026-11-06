@@ -396,7 +396,7 @@ export function warnDecal(): THREE.Texture {
     // a hazard band: yellow and black steps
     for (let x = 0; x < 128; x++) for (let y = 0; y < 5; y++) { ctx.fillStyle = (((x + y) >> 2) % 2) ? '#18171a' : '#d8a42a'; ctx.fillRect(x, y, 1, 1); }
     hardText(ctx, 'PROPERTY OF THE REMITTANCE PROGRAMME', 2, 14, 7, '#ddd6c0', 'left', 500, 90);
-    hardText(ctx, 'DEBTOR ISSUE  DO NOT REMOVE FROM SUBJECT', 2, 22, 7, '#ddd6c0', 'left', 500, 90);
+    hardText(ctx, 'DEBTOR ISSUE  DO NOT REMOVE FROM UNIT', 2, 22, 7, '#ddd6c0', 'left', 500, 90);
     chip(ctx, 0.16, 8);
   }, false, true));
 }

@@ -26,6 +26,7 @@ import { onFile } from '../../../game/meridian';
 import { CATS, archiveFiles, catCounts, type CatKey, type ArchiveFile } from './archiveData';
 import { holoModel, HOLO_U } from './holo';
 import { grime } from './research';
+import { Dresser } from './dress';
 import { U } from '../../../gfx/materials';
 import './archive.css';
 
@@ -53,7 +54,7 @@ export class CodexArchive implements StageRoom {
   cam = new THREE.PerspectiveCamera(56, 16 / 9, 0.03, 40);
   feedCam = new THREE.PerspectiveCamera(72, 4 / 3, 0.05, 40);
   hots: Hot[] = [];
-  grade: Grade = { exposure: 1.7, lift: [0.82, 0.94, 1.12], gain: [1.12, 1.0, 0.86], vig: 0.5, sat: 1.1, contrast: 1.14, side: [1, 0, 0, 0.3] };
+  grade: Grade = { exposure: 1.7, lift: [0.82, 0.94, 1.12], gain: [1.12, 1.0, 0.86], vig: 0.5, sat: 1.1, contrast: 1.14, side: [1, 0, 0, 0.3], ao: 0.85, scatter: 0.45, bounce: 0.24, shafts: [new THREE.Vector3(0, H - 0.45, -2.0), new THREE.Vector3(0, H - 0.45, 0.6), new THREE.Vector3(-2.4, H - 0.45, 2.0)], shaftK: 0.6, shaftColor: 0xdce8ff };
   deco = new THREE.Group();
   floor = { minX: -W + 1.0, maxX: W - 1.0, minZ: 1.4, maxZ: 2.6, y: 0 };
   surfaces = [{ minX: -3.05, maxX: -2.15, minZ: 1.35, maxZ: 1.95, y: 0.78 }];
@@ -67,7 +68,9 @@ export class CodexArchive implements StageRoom {
   layer: HTMLElement = document.createElement('div');
   state: 'room' | 'drawer' | 'holo' = 'room';
   private mats: FMats;
-  private leds = new LedBank(200);
+  private leds = new LedBank(220);
+  /** the set dressing (rooms/dress.ts) */
+  private dress!: Dresser;
   private hemi = new THREE.HemisphereLight(0xb8c8dc, 0x4a3a2a, 1.05);
   private stackFill = [new THREE.PointLight(0x9ab8e8, 1.6, 4.5, 1.6), new THREE.PointLight(0xffc890, 1.3, 4.5, 1.6)];
   private tubes: { light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; base: number; seed: number; flick: number; shaft: ReturnType<typeof shaftMesh> }[] = [];
@@ -112,7 +115,7 @@ export class CodexArchive implements StageRoom {
     this.dust = new Dust(260, new THREE.Box3(new THREE.Vector3(-W + 0.4, 0.2, BACK + 0.6), new THREE.Vector3(W - 0.4, H - 0.3, FRONT - 0.6)));
     const sh = shaftMesh(10);
     this.cone = sh.mesh; this.coneU = sh.u as any;
-    S.add(this.shell(), this.fixtures(), this.cabinets(), this.stacks(), this.table(), this.desk(), this.terminals(), this.leds.mesh, this.dust.points, this.deco, this.hemi, this.holoRoot);
+    S.add(this.shell(), this.fixtures(), this.cabinets(), this.stacks(), this.table(), this.desk(), this.terminals(), this.dressing(), this.leds.mesh, this.dust.points, this.deco, this.hemi, this.holoRoot);
     this.deco.name = 'deco';
     this.feedCam.position.set(-W + 0.4, H - 0.35, FRONT - 0.5); this.feedCam.lookAt(0.6, 0.9, -1.2);
     this.cam.position.copy(this.camP); this.cam.lookAt(this.camL);
@@ -205,6 +208,30 @@ export class CodexArchive implements StageRoom {
     this.stackFill[0].position.set(-W + 1.0, 2.4, -0.8); this.stackFill[1].position.set(W - 1.0, 2.2, -0.2);
     g.add(...this.stackFill);
     return g;
+  }
+
+  /** the records room's services and leavings: climate dials, the clock, a tray, boxes of overflow (rooms/dress.ts) */
+  private dressing(): THREE.Group {
+    const d = this.dress = new Dresser(this.mats, this.leds);
+    const L = Math.PI / 2, zf = BACK + 0.46;
+    // on the uprights over the cabinets: the clock and the climate panel (paper rots above 60% RH)
+    d.clock(at(-1.57, 2.72, zf), 0.17);
+    d.gauges(at(1.57, 2.72, zf), 2, 1, { color: 0x3a4a3e, labels: ['CLIMATE', 'RH  ·  °C'], seed: 41 });
+    // a cable tray across the room, loose loops down to the projection table's feed
+    d.tray([-W + 0.7, H - 0.32, -0.9], [W - 0.8, H - 0.32, -0.9], H, { seed: 8, cables: 9, w: 0.34 });
+    d.droop([0.2, H - 0.34, -0.9], [0.0, 2.3, TABLE.z - 0.2], 0.12, 0.014, 0x1a1a1a);
+    // overflow: archive boxes on the floor in front of the stacks, a filing cabinet capping the left run
+    d.boxes(at(-2.95, 0, -2.4, 0, L + 0.1), 3, { seed: 3 });
+    d.boxes(at(-2.9, 0, -0.5, 0, L - 0.2), 2, { seed: 9 });
+    d.boxes(at(2.95, 0, -1.7, 0, -L + 0.15), 3, { seed: 13 });
+    d.boxes(at(2.6, 0, -2.85, 0, 0.3), 1, { seed: 21 });
+    d.filing(at(-W + 0.35, 0, 1.4, 0, L), { color: 0x5a6450, open: 2, seed: 4, labels: ['1979', '1983', 'VOID', 'A-1'] });
+    d.clutter(at(-W + 0.35, 1.3, 1.4, 0, L), 0.36, 0.5, { seed: 29, mug: false, binder: true });
+    d.extinguisher(at(-W + 0.01, 1.05, 2.3, 0, L));
+    // the desk's leavings
+    d.clutter(at(-2.75, 0.81, 1.65), 0.6, 0.5, { seed: 33, floppies: true });
+    d.puddle(-0.3, -1.7, 0.8, 0.5);
+    return d.done();
   }
 
   // ================================================================== the five cabinets
@@ -670,6 +697,7 @@ export class CodexArchive implements StageRoom {
     const dp = this.scene.getObjectByName('deskPool'); if (dp) dp.visible = this.lampLvl > 0.1;
     this.exitGlow.intensity = 0.45 + Math.sin(t * 0.7) * 0.03;
     this.leds.update(t);
+    if (full) this.dress.update(t);
     // ---- in the projection only the floating words take presses (a stray click must not pull a drawer)
     for (const h of this.hots) h.off = this.state === 'holo';
     // ---- the drawers

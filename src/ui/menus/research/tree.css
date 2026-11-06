@@ -57,7 +57,7 @@
   image-rendering: pixelated; font: inherit; }
 .rt-node .ic { position: absolute; left: calc(3px * var(--u)); top: calc(3px * var(--u)); width: calc(28px * var(--u)); height: calc(28px * var(--u)); image-rendering: pixelated; }
 .rt-node .ch { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; display: none; }
-.rt-node[data-st='locked'] .ic { filter: grayscale(1) sepia(1) hue-rotate(60deg) brightness(0.45) contrast(1.2); }
+.rt-node[data-st='locked'] .ic { filter: grayscale(0.85) sepia(0.7) hue-rotate(50deg) brightness(0.72) contrast(1.15); }
 .rt-node[data-st='locked'] .ch { display: block; }
 .rt-node[data-st='poor'] .ic { filter: grayscale(0.7) brightness(0.7); }
 .rt-node[data-st='open'] { animation: rt-open 1.6s ease-in-out infinite; }

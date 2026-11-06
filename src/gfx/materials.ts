@@ -363,8 +363,9 @@ if (uWFlags.w < 0.5) {
     }
   }
   // negative emissive: a fixture's diffuser glows with whatever its own light gives right now
-  // (dark when the tube is dead or the power is off, stuttering with the flicker)
-  if (vEmis < 0.0) totalEmissiveRadiance += diffuseColor.rgb * min(gt * gt * uGridScale, vec3(2.4)) * (-vEmis);
+  // (dark when the tube is dead or the power is off, stuttering with the flicker); brighter than anything it
+  // lights, so the panels read as the source and bloom
+  if (vEmis < 0.0) totalEmissiveRadiance += diffuseColor.rgb * min(gt * gt * uGridScale * 1.6, vec3(3.6)) * (-vEmis);
   irradiance += grid * PI;
   // bounce fill (light grid alpha: the light around, spread by walls and floor), faintly the lights' colour,
   // so faces turned from the fixtures and the corners of a lit room are not black
@@ -409,11 +410,16 @@ if (uWFlags.y < 0.5 && uVisOn > 0.5) {
   vec2 vis = texture2D(uVisTex, (vgp - uVisInfo.xy) * uVisInfo.zw).rg;
   vec3 col = gl_FragColor.rgb;
   float lum = dot(col, vec3(0.3, 0.59, 0.11));
-  // out of sight but remembered: dimmed, still readable (not murky near-black)
-  vec3 remembered = mix(vec3(lum), col, 0.45) * uRememberTint * min(1.0, uRememberAmt * 1.3);
-  vec3 unexplored = mix(vec3(lum), col, 0.2) * uRememberTint * uRememberAmt * 0.3;
-  // hidden areas sink toward the zone's void colour (near-black indoors, haze outdoors) without washing out
-  vec3 res = mix(mix(unexplored, remembered, vis.g), uVoidColor, 0.08 + 0.22 * (1.0 - vis.g));
+  // out of sight but remembered: a shaded copy of the lit place, painted the way pixel art shades (never
+  // murky): it keeps its colour and over half its light, the hue slid warm-to-purple (a yellow wall goes a
+  // dusky ochre, not olive) over a faint cool lift from the remember tint; never-seen places sit a step
+  // lower and greyer.
+  vec3 rt = uRememberTint / max(max(uRememberTint.r, max(uRememberTint.g, uRememberTint.b)), 1e-3);
+  float rk = clamp(0.2 + uRememberAmt * 0.5, 0.0, 0.8);
+  vec3 remembered = max(mix(vec3(lum), col, 1.12), 0.0) * vec3(1.0, 0.86, 0.8) * rk + rt * 0.03;
+  vec3 unexplored = mix(vec3(lum), col, 0.8) * vec3(1.0, 0.9, 0.86) * (rk * 0.58) + rt * 0.022;
+  // hidden areas lean a little toward the zone's void colour (near-black indoors, haze outdoors)
+  vec3 res = mix(mix(unexplored, remembered, vis.g), uVoidColor, 0.04 + 0.1 * (1.0 - vis.g));
   // a short clean ramp at the vision edge (the final posterise steps it into a couple of bands)
   float v = smoothstep(0.08, 0.92, vis.r);
   gl_FragColor.rgb = mix(res, col, v);

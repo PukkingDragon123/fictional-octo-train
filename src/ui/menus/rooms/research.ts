@@ -35,6 +35,7 @@ import { onFile } from '../../../game/meridian';
 import { bus } from '../../../core/events';
 import { menuEvent } from '../../../game/achievements';
 import { BenchRun, type BenchHost, type Station } from './researchBench';
+import { Dresser } from './dress';
 import type { Sample } from '../../../game/codex';
 
 const W = 3.6, BACK = -3.0, FRONT = 3.3, H = 3.05;
@@ -66,7 +67,7 @@ export class ResearchLab implements StageRoom {
   feedCam = new THREE.PerspectiveCamera(70, 4 / 3, 0.05, 30);
   hots: Hot[] = [];
   // the intake drag's look (introKit/stage.ts LOOKS.wing): cold blue shadows, warm highlights, readable
-  grade: Grade = { exposure: 1.75, lift: [0.84, 0.96, 1.12], gain: [1.1, 1.0, 0.88], vig: 0.55, sat: 1.12, contrast: 1.12, side: [1, 0, 0, 0.3], haze: 0.3 };
+  grade: Grade = { exposure: 1.75, lift: [0.84, 0.96, 1.12], gain: [1.1, 1.0, 0.88], vig: 0.55, sat: 1.12, contrast: 1.12, side: [1, 0, 0, 0.3], haze: 0.3, ao: 0.85, scatter: 0.4, bounce: 0.24, shafts: [new THREE.Vector3(-1.5, H - 0.4, -1.3), new THREE.Vector3(1.2, H - 0.4, -1.3), new THREE.Vector3(0, H - 0.4, 1.3)], shaftK: 0.6, shaftColor: 0xe8f0ff };
   deco = new THREE.Group();
   floor = { minX: -W + 1.2, maxX: W - 1.0, minZ: 0.4, maxZ: 2.4, y: 0 };
   surfaces = [{ minX: SCOPE.x - 0.25, maxX: SCOPE.x + 0.25, minZ: SCOPE.z - 0.75, maxZ: SCOPE.z + 0.75, y: 0.92 }, { minX: CENTRI.x - 0.3, maxX: CENTRI.x + 0.3, minZ: CENTRI.z - 0.8, maxZ: CENTRI.z + 0.8, y: 0.92 }];
@@ -80,7 +81,9 @@ export class ResearchLab implements StageRoom {
   /** a world ray through a client point (title.ts hands over the stage's) */
   rayAt?: (x: number, y: number) => THREE.Ray | null;
   private mats: FMats;
-  private leds = new LedBank(220);
+  private leds = new LedBank(240);
+  /** the set dressing: gauges, breaker boxes, cabinets, trays, the clock (rooms/dress.ts) */
+  private dress!: Dresser;
   private puffs = new Puffs(80);
   private hemi = new THREE.HemisphereLight(0xc0d0e0, 0x4a3a2a, 0.95);
   private tubes: { light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; base: number; seed: number; flick: number; shaft?: ReturnType<typeof shaftMesh> }[] = [];
@@ -132,7 +135,7 @@ export class ResearchLab implements StageRoom {
     this.wallTex = new THREE.CanvasTexture(this.wallCv);
     this.wallTex.magFilter = this.wallTex.minFilter = THREE.NearestFilter; this.wallTex.generateMipmaps = false; this.wallTex.colorSpace = THREE.SRGBColorSpace;
     this.wallMat.map = this.wallTex;
-    S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter());
+    S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter(), this.dressing());
     S.add(this.leds.mesh, this.puffs.mesh, this.deco, this.hemi, this.dust.points);
     // wet floor: dark specular puddles that pick up the troughs and the screen
     for (const [x, z, w, d] of [[TABLE.x + 0.9, TABLE.z + 0.75, 1.1, 0.7], [-1.6, 1.4, 0.8, 1.2], [1.9, 1.8, 0.6, 0.5]] as [number, number, number, number][]) {
@@ -707,6 +710,36 @@ export class ResearchLab implements StageRoom {
     return g;
   }
 
+  /** the night shift's room: services, instruments and leavings on every wall (rooms/dress.ts) */
+  private dressing(): THREE.Group {
+    const d = this.dress = new Dresser(this.mats, this.leds);
+    const L = Math.PI / 2;
+    // back wall: the conduit at -1.95 feeds a gauge panel; a breaker box right of the sequencer; archive boxes by the fridge
+    d.gauges(at(-1.95, 2.3, BACK + 0.01), 2, 1, { labels: ['MAINS', 'R-NET 7'], seed: 11 });
+    d.fuseBox(at(3.05, 1.75, BACK + 0.01), H, { color: 0x7a827a });
+    d.boxes(at(-2.1, 0, BACK + 0.26, 0, 0.12), 2, { seed: 5 });
+    d.streaks(at(0, H - 0.75, BACK + 0.014), 6.6, 0.9, 0.35);
+    // a cable tray over the room, a loose loop from it down to the computer's housing
+    d.tray([-W + 0.6, H - 0.3, 0.15], [W - 0.9, H - 0.3, 0.15], H, { seed: 3, cables: 8 });
+    d.droop([0.6, H - 0.32, 0.15], [1.1, 2.62, BACK + 0.2], 0.25, 0.012, 0x1a1a1a);
+    d.droop([0.75, H - 0.32, 0.15], [1.3, 2.62, BACK + 0.2], 0.32, 0.008, 0x8a2a1a);
+    // left wall: the clock, a vent over the hood, the extinguisher by the door, streaks under the pipes
+    d.clock(at(-W + 0.01, 2.4, -1.75, 0, L));
+    d.vent(at(-W + 0.01, 2.45, 0.6, 0, L), 0.56, 0.3);
+    d.extinguisher(at(-W + 0.01, 1.05, 1.45, 0, L));
+    d.streaks(at(-W + 0.014, H - 0.75, -0.6, 0, L), 3.6, 1.0, 0.4);
+    // right wall: a dial panel over the centrifuge, the vent, a filing cabinet between the bench and the pegboard
+    d.gauges(at(W - 0.01, 2.2, -1.95, 0, -L), 3, 1, { color: 0x3e5a54, labels: ['CENTRIFUGE', 'COOLANT'], seed: 23 });
+    d.vent(at(W - 0.01, 2.45, 0.45, 0, -L), 0.5, 0.3);
+    d.filing(at(W - 0.33, 0, 0.5, 0, -L), { open: 1, seed: 7, labels: ['UNITS', 'UNITS', 'VOID', 'TREE'] });
+    d.streaks(at(W - 0.014, H - 0.7, -0.5, 0, -L), 4.0, 0.9, 0.35);
+    // the leavings: on the filing cabinet, on the console ledge under the main computer
+    d.clutter(at(W - 0.33, 1.3, 0.5, 0, L), 0.36, 0.5, { seed: 17, binder: false, floppies: true });
+    // wet floor round the drain and by the door
+    d.puddle(-0.6, 2.2, 0.9, 0.6);
+    return d.done();
+  }
+
   // ================================================================== the benches
   /** process a sample: the first-person bench games, then the result */
   async process(s: Sample): Promise<void> {
@@ -765,6 +798,7 @@ export class ResearchLab implements StageRoom {
     if (this.alarmLed) this.alarmLed.level = this.alarmT > 0 ? (Math.sin(t * 20) > 0 ? 1 : 0) : 0.05;
     this.wallGlow.color.setHex(this.alarmT > 0 && Math.sin(t * 20) > 0 ? 0xff4a3a : 0xffc890);
     this.leds.update(t);
+    if (full) this.dress.update(t);
     // ---- machines
     this.rotorV = damp(this.rotorV, this.bench?.rotorSpin ?? 0.3, 0.6, dt);
     this.rotorA += this.rotorV * dt; this.rotor.rotation.y = this.rotorA;

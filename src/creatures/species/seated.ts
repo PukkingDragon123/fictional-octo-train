@@ -86,6 +86,17 @@ function buildS(B: SkinB, x: BuildCtx) {
     const fa = x.rest('farm' + s);
     sac(B, R('WOOD'), 14, [[fa[0], 0.5, fa[2] + 0.05], [fa[0], fa[1] - 0.03, fa[2] + 0.05]], [[0.02, 0.02], [0.018, 0.018]], [[BA, 1], [bi('farm' + s), 1]], { n: 6 });
   }
+  // the sides: skin stretched from armrest to seat like upholstery, tufted, so the whole reads as an armchair
+  for (const [s, k] of SIDES) {
+    const fa = x.rest('farm' + s);
+    plate(B, R('BACK'), 21, [k * 0.315, 0.55, fa[2] + 0.04], [0, 0, -k], [0, 1, 0], 0.21, 0.13, 0.03, (u, v) => (v > 0.3 ? [bi('farm' + s), 0.6, BA, 0.4] : [BA, 1]), { rows: 4, cols: 6 });
+    // a carved wooden foot under each human foot, screwed through the heel
+    const fp = x.rest('foot' + s);
+    sac(B, R('WOOD'), 22, [[fp[0], 0.0, fp[2] + 0.02], [fp[0], 0.03, fp[2] + 0.04], [fp[0], 0.05, fp[2] + 0.05]], [[0.035, 0.035], [0.045, 0.04], [0.04, 0.035]], [[BA, 1], [BA, 1], [bi('foot' + s), 1]], { n: 7, up: [0, 0, 1] });
+  }
+  // the front seat rail: a wooden apron under the knees, a brass escutcheon in the middle
+  sac(B, R('WOOD'), 23, [[-0.24, 0.42, 0.24], [0, 0.4, 0.26], [0.24, 0.42, 0.24]], [[0.02, 0.035], [0.022, 0.045], [0.02, 0.035]], [[BA, 1], [BA, 1], [BA, 1]], { n: 6, up: [0, 1, 0] });
+  sac(B, R('NAIL'), 24, [[0, 0.4, 0.28], [0, 0.4, 0.29]], [[0.018, 0.022], [0.016, 0.02]], [[BA, 1], [BA, 1]], { n: 6 });
   // two turned wooden back legs, nailed into the hips
   for (const [, k] of SIDES) {
     const prof: [number, number][] = [[0.0, 0.026], [0.06, 0.03], [0.1, 0.022], [0.2, 0.028], [0.3, 0.02], [0.38, 0.034], [0.46, 0.03]];
@@ -102,7 +113,7 @@ function buildS(B: SkinB, x: BuildCtx) {
   blade(B, R('CLOTH'), [[0, 1.33, -0.24], [0, 1.36, -0.32], [0, 1.25, -0.42], [0, 1.0, -0.43], [0, 0.82, -0.42]], [0.12, 0.14, 0.15, 0.15, 0.14], [1, 0, 0], [[HD, 1], [HD, 1], [HD, 0.5, CH, 0.5], [CH, 1], [CH, 1]], { offset: -0.5, edge: 0.3, seed: 4 });
 }
 function paintS(p: Page) {
-  const SK = makeRamp(0xc8a898, 7, { hueShift: -0.04, spread: 0.7 });
+  const SK = makeRamp(0xc0a494, 7, { hueShift: -0.04, spread: 0.65 });
   // stretched skin: taut, pale, veined, brass tacks in rows where it is pinned
   const skin = p.R('SKIN');
   paintSkin(skin, SK, { seed: 3, veins: 16, vein: 0x8a4a5a, mottle: 1.2, glint: 10 });
@@ -117,7 +128,7 @@ function paintS(p: Page) {
     if (d) bk.blend(xx, yy, SK[1], 0.6);
   }
   for (let yy = 5; yy < bk.h; yy += 10) for (let xx = 5; xx < bk.w; xx += 10) { if (Math.abs(bk.deg(xx)) > 65) continue; bk.ellipse(xx, yy, 1.4, 1.4, 0xd8b048, 1); bk.set(xx, yy, 0x6a5010); }
-  paintSkin(p.R('LIMB'), SK, { seed: 7, veins: 8, vein: 0x8a4a5a, mottle: 1.4, glint: 8 });
+  paintSkin(p.R('LIMB'), SK, { seed: 7, veins: 4, vein: 0x8a6a68, mottle: 0.9, glint: 8 });
   paintSkin(p.R('HEAD'), SK, { seed: 9, veins: 4, vein: 0x8a4a5a, mottle: 1.0 });
   const hd = p.R('HEAD'); for (let xx = 0; xx < hd.w; xx++) for (let yy = hd.h - 8; yy < hd.h; yy++) if (Math.abs(hd.deg(xx)) > 50) hd.blend(xx, yy, 0x3a2a20, 0.7); // hair, thinning
   // the face: open-eyed, a slack open mouth, tear tracks

@@ -52,7 +52,7 @@ bus.on('researchUnlocked', () => { try { syncKnowledge(); } catch (e) { console.
 // ---------------------------------------------------------------- quests
 const has = (m: any, f: string) => !!m?.flags?.has?.(f);
 defQuest({
-  key: 'cq_cube', title: 'Thumb on the Glass', giver: 'VOSS', category: 'tutorial', auto: true,
+  key: 'cq_cube', title: 'Thumb on the Glass', giver: 'DR. CALDER', category: 'tutorial', auto: true,
   desc: 'That pack on your back is Programme property and it only opens for you. Open it, pack it properly, and put a tool on your hip where you can reach it.',
   objectives: [
     { id: 'open', text: 'Open the field pack: the seal reads your band (I)', check: (m) => has(m, 'pack:opened') },
@@ -62,7 +62,7 @@ defQuest({
   reward: { rp: 2 },
 });
 defQuest({
-  key: 'cq_first_axe', title: 'Make Your First Axe', giver: 'VOSS', category: 'crafting', requires: ['cq_cube'],
+  key: 'cq_first_axe', title: 'Make Your First Axe', giver: 'DR. CALDER', category: 'crafting', requires: ['cq_cube'],
   desc: 'Furniture won\'t smash itself and the Institute isn\'t issuing tools. A handle, a head and something to bind them. Find a chair, find scrap, find a shirt nobody needs. Double-click things to work on them.',
   objectives: [
     { id: 'leg', text: 'Saw or knock a leg off a chair', check: (m) => has(m, 'craft:chair_leg') },

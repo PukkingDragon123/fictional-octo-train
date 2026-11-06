@@ -133,7 +133,7 @@ THE HOUSE IS THE ONE WITH THE RED DOOR`,
 defLore({
   id: 'zw_home_survey', title: 'Domestic Replication Survey (clipboard)',
   text: `MERIDIAN INSTITUTE — DOMESTIC REPLICATION SURVEY
-Subject dwelling: "14"   Iteration: 212
+Unit dwelling: "14"   Iteration: 212
 
 Rooms present: hall, living, kitchen, dining, bedrooms (3), bathroom. ✓
 Persons present: 4 (posed). ✓
@@ -242,6 +242,6 @@ Somebody is coming to find you.`,
 defLore({
   id: 'zw_wrong_tvs', title: 'Sticker on a television',
   text: `PROPERTY OF MERIDIAN INSTITUTE — OBSERVATION
-CHANNEL: SUBJECT (REAR)
+CHANNEL: UNIT (REAR)
 DO NOT TURN AROUND TO CHECK. THE FEED IS LIVE. IT IS ALWAYS LIVE.`,
 });

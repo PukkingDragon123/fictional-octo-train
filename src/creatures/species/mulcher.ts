@@ -262,8 +262,11 @@ interface LaySite { x: number; z: number; py: number; host: string; f: number; o
 function laySite(c: Creature): LaySite | null {
   const z = zoneOf(c), used = taken(z);
   let best: LaySite | null = null, bd = 16;
+  // never near a Wallpaper Grazer (its mucus kills the eggs; the females can smell it)
+  const grazers = [...CS().creatures.values()].filter((g) => g.zoneKey === c.zoneKey && !g.dead && g.sp.key === 'paper_grazer');
+  const clean = (x: number, zz: number) => !grazers.some((g) => Math.hypot(g.x - x, g.z - zz) < 3);
   for (const o of CS().creatures.values()) {
-    if (o.zoneKey !== c.zoneKey || o.dead || o.sp.key !== 'still_life' || used.has('c' + o.id)) continue;
+    if (o.zoneKey !== c.zoneKey || o.dead || o.sp.key !== 'still_life' || used.has('c' + o.id) || !clean(o.x, o.z)) continue;
     const d = dist(o, c);
     if (d < bd) { bd = d; best = { x: o.x, z: o.z, py: 0, host: 'c' + o.id, f: o.facing }; }
   }
@@ -273,7 +276,7 @@ function laySite(c: Creature): LaySite | null {
     const d = objDef(o.key); if (!d) continue;
     const m = objectMatrix(z, o, d).elements;
     const dd = Math.hypot(m[12] - c.x, m[14] - c.z);
-    if (dd < bd) { bd = dd; best = { x: m[12], z: m[14], py: Math.min(0.9, Math.max(0.3, (d.surface ?? 0.45) - 0.04)), host: 'o' + o.uid, f: Math.atan2(m[10], m[8]), obj: o.uid }; }
+    if (dd < bd && clean(m[12], m[14])) { bd = dd; best = { x: m[12], z: m[14], py: Math.min(0.9, Math.max(0.3, (d.surface ?? 0.45) - 0.04)), host: 'o' + o.uid, f: Math.atan2(m[10], m[8]), obj: o.uid }; }
   }
   return best;
 }

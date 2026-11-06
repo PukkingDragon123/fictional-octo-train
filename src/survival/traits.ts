@@ -170,8 +170,8 @@ export const TRAITS: Trait[] = [
     unlock: { hint: 'Pay three installments (across your runs).' } },
   { key: 'wrecking_ball', name: 'Wrecking Ball', cost: -2, desc: 'Breaks things. Feels better. Breaks more things.',
     good: 'Smashing furniture is therapy: every piece you break melts stress, boredom and low mood.', bad: 'Restless hands: boredom builds 40% faster.' },
-  { key: 'sweet_on_sarge', name: 'Sweet on the Sergeant', cost: -1, desc: 'He is a projection. He is also the only one who talks to you.',
-    good: 'Every word from Staff Sgt. Voss eases panic and loneliness.', bad: 'When he goes quiet for an hour, low mood creeps in.' },
+  { key: 'sweet_on_sarge', name: 'Sweet on the Doctor', cost: -1, desc: 'She is a projection. She is also the only one who talks to you.',
+    good: 'Every word from Dr. Calder eases panic and loneliness.', bad: 'When she goes quiet for an hour, low mood creeps in.' },
   { key: 'gallows_humour', name: 'Gallows Humour', cost: -2, desc: 'Laughs at the worst moments. Mostly that helps.',
     good: 'Laughs it off: panic drains faster and low mood fades after every scare.', bad: 'Cackles out loud at the wrong moment, and things in the dark hear it.' },
   // negative (give points)

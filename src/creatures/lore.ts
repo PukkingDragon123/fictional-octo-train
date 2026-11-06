@@ -112,12 +112,12 @@ export const INHABITANTS: InhabitantLore[] = [
   }),
   L({
     id: 'king_in_yellow', name: 'The King in Yellow', rank: 'pride', class: 'Sovereign', danger: 10,
-    summary: 'A vast octopoid shape draped in tattered yellow, seated in the deepest rooms on a throne of its own coiled limbs. Its face is covered. Do not look at its face.',
-    biology: 'Eight great arms and many smaller ones, mantle hidden under rotten yellow silk that it grows, the way a snail grows a shell. It has never been seen to eat. The arms are covered in pale suckers that taste the air. Instruments near it record nothing; film comes back yellow.',
-    behaviour: 'It does not hunt. It sits, and it waits to be seen. Now and then it lifts the hem of the pallid mask. Anyone who looks it in the face understands everything, all at once, the whole of the place and what is under it, and does not survive the understanding. Turn away. Look at the floor. Leave.',
+    summary: 'A tall figure in tattered yellow robes and a pallid mantle, standing very still in the deepest rooms. It is never quite in focus. Its face is under a deep hood. Do not look at its face.',
+    biology: 'Under the robes it is the shape of a man, too tall by a head, with long pale hands. Cameras, film and eyes all fail to resolve it: the edges smear, an after-image lags behind every movement, the cloth frays into grain at the hem. Instruments near it record nothing; film comes back yellow. It has never been seen to eat or breathe.',
+    behaviour: 'It does not hunt. It stands, and it waits to be seen. When someone looks too long, it turns its hood toward them. Whoever keeps looking sees its face, understands everything, all at once, the whole of the place and what is under it, and does not survive the understanding. Nobody has described the face. Turn away. Look at the floor. Leave.',
     habitat: 'Very rare. The Undercroft, and the deepest unrendered rooms. Never more than one.',
     lore: 'The Institute\'s oldest file, older than the Institute, is a single typed page titled CARCOSA and a photograph of a man in a chair, smiling, with yellow in the whites of his eyes. On the back: "He asked to know. I let him." The King\'s court is furnished with those who asked (see The Seated).',
-    harvest: [{ item: 'yellow_tatter', how: 'A strip of its silk sometimes catches on the doorframe of its court. Take it without looking up.' }],
+    harvest: [{ item: 'yellow_tatter', how: 'A strip of its robe frays loose where it has stood. Pick it up without looking up.' }],
   }),
   L({
     id: 'seated', name: 'The Seated', rank: 'sloth', class: 'Remnant', danger: 1,

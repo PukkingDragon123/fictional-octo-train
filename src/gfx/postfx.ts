@@ -52,6 +52,18 @@ export const GLOWU = {
   uGlowN: { value: 0 },
 };
 
+/**
+ * Eye adaptation: the picture's centre-weighted log-average luminance (before exposure), eased over time in a
+ * 1x1 target, so a dim room with dying tubes opens up and a blazing corridor settles (never murky, never
+ * blown). The composite turns it into an exposure factor within a narrow band.
+ */
+export const ADAPTU = {
+  tAdapt: { value: null as THREE.Texture | null },
+  uAdaptOn: { value: 0 },
+  /** the luminance a scene is exposed for (zone exposure applies on top) */
+  uAdaptKey: { value: 0.26 },
+};
+
 /** flashlight cone shared by the haze march and the motes */
 export const SPOTU = {
   uSpotOn: { value: 0 },
@@ -322,6 +334,31 @@ void main() {
 }
 `;
 
+// eye adaptation (see ADAPTU): 64 centre-weighted taps of the lit scene, log-averaged, eased toward it over time
+const ADAPT_FRAG = /* glsl */`
+precision highp float;
+uniform sampler2D tColor;
+uniform sampler2D tDepth;
+uniform sampler2D tPrev;
+uniform float uK;
+varying vec2 vUv;
+void main() {
+  float s = 0.0, w = 0.0;
+  for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++) {
+    vec2 uv = 0.5 + ((vec2(float(x), float(y)) + 0.5) / 8.0 - 0.5) * 0.92;
+    // the background (void, sky) is not something the eye adapts to
+    if (texture2D(tDepth, uv).r >= 0.99999) continue;
+    vec2 d = uv - 0.5;
+    float cw = exp(-dot(d, d) * 7.0);
+    float l = dot(texture2D(tColor, uv).rgb, vec3(0.2126, 0.7152, 0.0722));
+    s += log(min(l, 4.0) + 0.03) * cw; w += cw;
+  }
+  float prev = texture2D(tPrev, vec2(0.5)).r;
+  float cur = w > 0.01 ? exp(s / w) - 0.03 : prev;
+  gl_FragColor = vec4(prev <= 0.0 ? cur : mix(prev, cur, uK), 0.0, 0.0, 1.0);
+}
+`;
+
 const DOWN_FRAG = /* glsl */`
 precision highp float;
 uniform sampler2D tSrc;
@@ -553,6 +590,9 @@ uniform vec3 uSunCol;
 uniform vec2 uSunDir2;
 uniform float uSunGlow;
 uniform float uExposure;
+uniform sampler2D tAdapt;
+uniform float uAdaptOn;
+uniform float uAdaptKey;
 uniform float uKeyShadow;
 uniform float uContrast;
 uniform vec3 uSplitLo;
@@ -577,7 +617,13 @@ vec3 toneMap(vec3 c) {
   float L = dot(c, vec3(0.2126, 0.7152, 0.0722));
   const float k = 0.62;
   float Lt = L < k ? L : k + (L - k) / (1.0 + (L - k) / (1.0 - k));
-  return c * (Lt / max(L, 1e-5));
+  c *= Lt / max(L, 1e-5);
+  // a channel past white burns toward a creamy white at the same luminance instead of clipping to a flat
+  // primary (a lit yellow wall stays a gradient under the tube, not a slab of pure yellow); everything
+  // inside the gamut keeps its full colour
+  float m = max(c.r, max(c.g, c.b));
+  if (m > 1.0) c = Lt + (c - Lt) * ((1.0 - Lt) / max(m - Lt, 1e-4));
+  return c;
 }
 
 #if SSR_N > 0
@@ -830,7 +876,9 @@ void main() {
   return;
 #endif
   // --- exposure + filmic tonemap, then grading (in display space) ---
-  c = toSRGB(toneMap(c * uExposure));
+  float adK = 1.0;
+  if (uAdaptOn > 0.5) adK = clamp(pow(uAdaptKey / max(texture2D(tAdapt, vec2(0.5)).r, 1e-3), 0.5), 0.82, 1.45);
+  c = toSRGB(toneMap(c * uExposure * adK));
   c = max(c * uGain + uLift, 0.0);
   c = pow(c, vec3(1.0 / uGamma));
   float l = dot(c, vec3(0.299, 0.587, 0.114));
@@ -952,6 +1000,10 @@ export class PostFX {
   private rtB: THREE.WebGLRenderTarget[] = [];
   private rtU: THREE.WebGLRenderTarget[] = [];
   private rtVol: THREE.WebGLRenderTarget | null = null;
+  private rtAd: THREE.WebGLRenderTarget[] = [];
+  private adCur = 0;
+  private adT = 0;
+  private adaptMat: THREE.ShaderMaterial;
   private aoMat: THREE.ShaderMaterial;
   private aoBlurMat: THREE.ShaderMaterial;
   private brightMat: THREE.ShaderMaterial;
@@ -979,6 +1031,8 @@ export class PostFX {
     this.aoBlurMat = mk(AO_BLUR_FRAG, { ...CAMU, tAO: { value: null }, tDepth: { value: null }, uTexel: { value: new THREE.Vector2() } });
     this.brightMat = mk(BRIGHT_FRAG, { ...CAMU, tColor: { value: null }, tNormal: { value: null }, uSrcTexel: { value: new THREE.Vector2() }, uTh: { value: 1 }, uLitBloom: { value: 0.35 } });
     this.downMat = mk(DOWN_FRAG, { tSrc: { value: null }, uTexel: { value: new THREE.Vector2() } });
+    this.adaptMat = mk(ADAPT_FRAG, { tColor: { value: null }, tDepth: { value: null }, tPrev: { value: null }, uK: { value: 1 } });
+    this.rtAd = [0, 1].map(() => new THREE.WebGLRenderTarget(1, 1, rtOpts(false, true)));
     this.upMat = mk(UP_FRAG, { tSrc: { value: null }, tAdd: { value: null }, uTexel: { value: new THREE.Vector2() } });
     this.volMat = mk(VOL_FRAG, {
       ...CAMU, ...lightU, ...SPOTU, tDepth: { value: null },
@@ -1082,6 +1136,18 @@ export class PostFX {
       out.bloom = src.texture;
       out.wide = this.rtB[this.rtB.length - 1].texture;
     }
+    // eye adaptation: ~1.2 s to settle, a level change (zone, eye view) restarts from the new picture
+    if (on) {
+      const now = performance.now(), dt = this.adT ? Math.min(0.25, (now - this.adT) / 1000) : 1;
+      this.adT = now;
+      const a = this.adaptMat.uniforms, src = this.rtAd[this.adCur], dst = this.rtAd[1 - this.adCur];
+      a.tColor.value = inp.color; a.tDepth.value = inp.depth; a.tPrev.value = src.texture;
+      a.uK.value = 1 - Math.exp(-dt * 1.8);
+      pass(this.adaptMat, dst);
+      this.adCur = 1 - this.adCur;
+      ADAPTU.tAdapt.value = dst.texture;
+    }
+    ADAPTU.uAdaptOn.value = on ? 1 : 0;
     if (on && this.rtVol) {
       const v = this.volMat.uniforms;
       v.tDepth.value = inp.depth;

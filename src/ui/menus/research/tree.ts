@@ -53,10 +53,16 @@ function frameUrl(state: NodeState | 'staged'): string {
   for (let x = 14; x < 20; x++) p.set(x, 1, dk);
   // the glass: a faint diagonal sheen
   for (let i = 5; i < 14; i++) p.set(i, 5 + (13 - i) * 0, mixHex(0x14261a, 0xffffff, 0.06));
-  if (state === 'staged' || state === 'owned' || state === 'max') {
-    const lamp = state === 'staged' ? 0xffb030 : 0x60ff80;
-    for (const [x, y] of [[16, 0], [17, 0], [16, 1], [17, 1]]) p.set(x, y, lamp);
+  // the pilot gem in its brass collar at the top: dark glass while locked, amber when it can be bought or is staged, green once owned
+  const lamp = state === 'locked' ? [0x1a1e1c, 0x2a302c, 0x3a423c] : state === 'poor' ? [0x4a2a10, 0x7a4a18, 0xa86a2a] : state === 'staged' || state === 'open' ? [0x8a4a08, 0xffb030, 0xfff0b0] : [0x1a6a2a, 0x60ff80, 0xe0ffe8];
+  for (let x = 13; x <= 20; x++) for (let y = 0; y <= 3; y++) {
+    const edge = x === 13 || x === 20 || y === 0 || y === 3;
+    if (edge) p.set(x, y, (x === 13 && y === 0) || (x === 20 && y === 0) ? 0x080604 : y === 0 ? hi : mid);
   }
+  for (let x = 14; x <= 19; x++) for (let y = 1; y <= 2; y++) p.set(x, y, y === 1 ? (x <= 15 ? lamp[2] : lamp[1]) : lamp[0]);
+  // wear: verdigris in the bevel, a scratch across the ring
+  for (const [x, y] of [[5, 30], [6, 30], [29, 7], [29, 8], [30, 26]]) p.set(x, y, mixHex(mid, 0x4a8a6a, 0.45));
+  for (let i = 0; i < 5; i++) p.set(24 + i, 31 - (i >> 1), mixHex(mid, hi, 0.6));
   const url = toUrl(p);
   frames.set(state, url);
   return url;
@@ -84,6 +90,44 @@ function chainUrl(): string {
   }
   chainU = toUrl(p);
   return chainU;
+}
+/**
+ * The glass's burn-in under the tree: years of the same directory on the same phosphor have etched a
+ * faint graph ruling, two great meshing gears (the institute's seal) and ghost register marks into it.
+ * Drawn in whole art pixels (u css px each), very dim, under the pipes.
+ */
+function engrave(c: CanvasRenderingContext2D, W: number, H: number, u: number, seed: number) {
+  const o = Math.max(1, Math.round(u));
+  const dot = (x: number, y: number) => c.fillRect(Math.round(x / o) * o, Math.round(y / o) * o, o, o);
+  // graph ruling: a dotted grid every 8 art px, a firmer line every 32
+  c.fillStyle = 'rgba(70, 140, 90, 0.10)';
+  for (let y = 0; y < H; y += 8 * o) for (let x = 0; x < W; x += 2 * o) dot(x, y);
+  for (let x = 0; x < W; x += 8 * o) for (let y = 0; y < H; y += 2 * o) dot(x, y);
+  c.fillStyle = 'rgba(80, 160, 100, 0.08)';
+  for (let y = 0; y < H; y += 32 * o) c.fillRect(0, y, W, o);
+  // the seal: two meshing gears with spokes, rings and teeth, faint amber burn
+  const gear = (cx: number, cy: number, R: number, teeth: number, ph: number, a: number) => {
+    c.fillStyle = `rgba(255, 176, 72, ${a})`;
+    const ring = (r: number, step = 1.2) => { const n = Math.ceil((2 * Math.PI * r) / (o * step)); for (let i = 0; i < n; i++) { const t = (i / n) * Math.PI * 2; dot(cx + Math.cos(t) * r, cy + Math.sin(t) * r); } };
+    ring(R); ring(R * 0.93); ring(R * 0.42); ring(R * 0.16);
+    for (let i = 0; i < teeth; i++) {
+      const t0 = ph + (i / teeth) * Math.PI * 2, tw = (Math.PI / teeth) * 0.9;
+      for (let r = R; r < R * 1.12; r += o) { dot(cx + Math.cos(t0) * r, cy + Math.sin(t0) * r); dot(cx + Math.cos(t0 + tw) * r, cy + Math.sin(t0 + tw) * r); }
+      const r = R * 1.12, n = Math.max(2, Math.ceil((tw * r) / o));
+      for (let k = 0; k <= n; k++) { const t = t0 + (tw * k) / n; dot(cx + Math.cos(t) * r, cy + Math.sin(t) * r); }
+    }
+    for (let s = 0; s < 6; s++) { const t = ph + (s / 6) * Math.PI * 2; for (let r = R * 0.16; r < R * 0.93; r += o) { dot(cx + Math.cos(t) * r - Math.sin(t) * o, cy + Math.sin(t) * r + Math.cos(t) * o); dot(cx + Math.cos(t) * r + Math.sin(t) * o, cy + Math.sin(t) * r - Math.cos(t) * o); } }
+  };
+  const R = Math.min(W, H) * 0.42;
+  gear(W * 0.42, H * 0.52, R, 28, seed * 0.3, 0.06);
+  gear(W * 0.42 + R * 1.9, H * 0.52 - R * 0.55, R * 0.62, 18, seed * 0.3 + 0.08, 0.045);
+  // ghost register marks in the corners, scratches across the glass
+  c.fillStyle = 'rgba(120, 200, 140, 0.10)';
+  for (const [x, y, sx, sy] of [[2, 2, 1, 1], [W - 3, 2, -1, 1], [2, H - 3, 1, -1], [W - 3, H - 3, -1, -1]]) for (let k = 0; k < 10; k++) { dot(x + sx * k * o, y); dot(x, y + sy * k * o); }
+  let s = (seed + 3) * 9301;
+  const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+  c.fillStyle = 'rgba(200, 255, 210, 0.05)';
+  for (let i = 0; i < 6; i++) { const x0 = rnd() * W, y0 = rnd() * H, len = 40 + rnd() * 200, t = (rnd() - 0.5) * 0.6; for (let k = 0; k < len; k += o) dot(x0 + k * Math.cos(t), y0 + k * Math.sin(t)); }
 }
 function toUrl(p: PixelCanvas) { const c = document.createElement('canvas'); c.width = p.w; c.height = p.h; c.getContext('2d')!.putImageData(p.toImageData(), 0, 0); return c.toDataURL(); }
 
@@ -131,7 +175,7 @@ export function openTree(o: { onClose?: () => void; branch?: Branch } = {}) {
   // ---------------------------------------------------------------- layout (u = css px per art px)
   let u = 2;
   const layoutU = () => { const W = window.innerWidth, H = window.innerHeight; u = W >= 1180 && H >= 660 ? 2 : W >= 760 && H >= 520 ? 1.5 : 1; el.style.setProperty('--u', String(u)); };
-  const COLW = 48, ROWU = 21, NODE = 34, GUT = 52;
+  const COLW = 48, ROWU = 21, NODE = 34, GUT = 84;
   const pos = (n: TreeNode) => ({ x: (GUT + n.col * COLW) * u, y: (8 + n.row * ROWU) * u });
   const btns = new Map<string, HTMLButtonElement>();
 
@@ -207,6 +251,7 @@ export function openTree(o: { onClose?: () => void; branch?: Branch } = {}) {
     const c = pipes.getContext('2d')!;
     c.clearRect(0, 0, pipes.width, pipes.height);
     c.imageSmoothingEnabled = false;
+    engrave(c, pipes.width, pipes.height, u, bi);
     const br = BRANCHES[bi].key;
     const W = Math.max(2, Math.round(3 * u));
     const segs: [number, number, number, number, number][] = [];

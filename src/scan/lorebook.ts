@@ -54,3 +54,21 @@ export function loreNotes(id: string): string[] {
 export function unknownInhabitants(): InhabitantLore[] { return INHABITANTS.filter((e) => loreLevel(e.id) < LORE_MAX); }
 
 if (import.meta.env?.DEV && typeof window !== 'undefined') (window as any).__lore = { loreLevel, advanceLore, revealAll, loreNotes };
+
+// ------------------------------------------------------------------ the watch: each completed scan of an inhabitant records its next section
+// (src/scan/scan.ts emits 'scanEntry' for every finished scan; the watch reads the new section out on the subtitle strip)
+let lastReveal = '';
+bus.on('scanEntry', (s: { kind?: string; key?: string }) => {
+  if (!s || s.kind !== 'creature' || !s.key || !inhabitant(s.key)) return;
+  const r = advanceLore(s.key);
+  const e = inhabitant(s.key)!;
+  if (!r) {
+    // already fully recorded: the watch says so, once per species per session
+    if (lastReveal !== s.key + ':full') { lastReveal = s.key + ':full'; bus.emit('subtitle', { who: 'WATCH // ' + e.name.toUpperCase(), text: 'Entry complete. ' + RANK_INFO[e.rank].label + ', danger ' + e.danger + '/10.', style: 'radio', dur: 3 }); }
+    return;
+  }
+  lastReveal = s.key;
+  const head = r.level === 1 ? `${e.class.toUpperCase()}, RANK ${RANK_INFO[e.rank].numeral} ${RANK_INFO[e.rank].label}. ` : '';
+  const text = head + r.title + ': ' + r.text + (r.level >= LORE_MAX && e.harvest.length ? ' HARVEST: ' + e.harvest.map((h) => h.how).join(' ') : '');
+  bus.emit('subtitle', { who: `WATCH // ${e.name.toUpperCase()} ${r.level}/${LORE_MAX}`, text, style: 'radio', dur: Math.min(14, 3 + text.length * 0.045) });
+});

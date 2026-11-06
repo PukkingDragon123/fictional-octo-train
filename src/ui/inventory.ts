@@ -288,7 +288,7 @@ export class InventoryUI {
       // the panel lies open to the left of the pack, the tool roll beyond it; the container on the right
       // with your pockets' pouch in front of it; loose things on the floor beyond everything
       this.rollG.position.set(-0.5, 0.002, pz - 0.44); this.rollG.rotation.set(0, Math.PI / 2 + 0.06, 0);
-      this.srcHold.position.set(0.25 + sz[0] / 2 + 0.06, 0.002, pz - 0.08); this.srcHold.rotation.set(0, -0.14, 0);
+      this.srcHold.position.set(0.3 + sz[0] / 2 + 0.06, 0.002, pz - 0.08); this.srcHold.rotation.set(0, -0.14, 0);
       this.pocketG.position.set(0.44, 0.002, pz + 0.3); this.pocketG.rotation.set(0, -0.08, 0);
       if (srcOn) { this.floorG.position.set(0.32, 0.002, pz - 0.5); setBin(this.binFloor, 0.9, 0.18); }
       else { this.floorG.position.set(0.56, 0.002, pz - 0.06); setBin(this.binFloor, 0.5, 0.5); }
@@ -400,13 +400,14 @@ export class InventoryUI {
   /** open and show a specific world container beside the pack */
   focus(c: Container) {
     this.focusRef = c.owner;
-    if (!this.open) this.toggle(true);
+    // (also brings it back while it is still closing, or suspended under a close-up)
+    this.toggle(true);
     this.scanT = 0;
   }
   /** a container searched in the world (src/interact/verbs.ts openLoot) */
   openLoot(c: Container, _src?: unknown) { this.focus(c); }
   /** what lies on the floor around you, as real things to pick up */
-  lootFloor() { this.sideRef = 'floor'; this.focusRef = ''; if (!this.open) this.toggle(true); else { this.scanT = 0; this.selectSide('floor'); } }
+  lootFloor() { this.sideRef = 'floor'; this.focusRef = ''; const was = this.open && this.phase !== 'closing' && !this.suspended; this.toggle(true); if (was) { this.scanT = 0; this.selectSide('floor'); } }
 
   private cubeC(): Container | null {
     const back = G.local?.worn.get('back' as any);

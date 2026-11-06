@@ -16,6 +16,7 @@ import { objDef } from '../world/objects';
 import { itemDef } from '../items/item';
 import { species as getSpecies } from '../creatures/registry';
 import { scanSounds } from './sounds';
+import { loreNotes } from './lorebook';
 import { Scope } from './scope';
 
 export type ScanKind = 'creature' | 'tribe' | 'anomaly' | 'artefact' | 'object' | 'item' | 'survivor';
@@ -90,7 +91,7 @@ export class ScanSystem implements GameSystem {
   info(kind: ScanKind, key: string): { title: string; cls: string; notes: string[] } {
     const x = EXTRA.get(kind + ':' + key);
     if (x) return x;
-    if (kind === 'creature') { const sp: any = getSpecies(key); if (sp) return { title: sp.name, cls: sp.scan?.cls || 'Entity', notes: [...(sp.scan?.notes || []), ...(sp.rule ? [`RULE // ${sp.rule.name}: ${sp.rule.text}`] : [])] }; }
+    if (kind === 'creature') { const sp: any = getSpecies(key); const lore = loreNotes(key); if (sp) return { title: sp.name, cls: sp.scan?.cls || 'Entity', notes: [...(lore.length ? lore : sp.scan?.notes || []), ...(sp.rule ? [`RULE // ${sp.rule.name}: ${sp.rule.text}`] : [])] }; }
     if (kind === 'object' || kind === 'anomaly' || kind === 'artefact') { const d = objDef(key); if (d) return { title: d.name, cls: kind === 'anomaly' ? 'Anomalous fixture' : kind === 'artefact' ? 'Tribal artefact' : 'Fixture', notes: d.desc ? [d.desc] : [] }; }
     if (kind === 'item') { const d = itemDef(key); return { title: d.name, cls: d.anomaly ? 'Anomalous object' : 'Object', notes: d.desc ? [d.desc] : [] }; }
     return { title: key, cls: 'Unknown', notes: [] };

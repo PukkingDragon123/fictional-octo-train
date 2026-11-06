@@ -46,7 +46,7 @@ export class MonitorRoom implements StageRoom {
   cam = new THREE.PerspectiveCamera(48, 16 / 9, 0.05, 30);
   hots: Hot[] = [];
   // bright and punchy: saturated phosphor green and lamp amber, lifted shadows, a light vignette, barely any menu-side dimming
-  grade: Grade = { exposure: 2.0, lift: [0.94, 1.0, 1.02], gain: [1.04, 1.02, 0.96], vig: 0.35, sat: 1.06, contrast: 1.06, side: [1, 0, 0.08, 0.42] };
+  grade: Grade = { exposure: 2.0, lift: [0.94, 1.0, 1.02], gain: [1.04, 1.02, 0.96], vig: 0.35, sat: 1.06, contrast: 1.06, side: [1, 0, 0.08, 0.42], ao: 0.8, scatter: 0.4, bounce: 0.22, shafts: [new THREE.Vector3(0.2, H - 0.2, -0.1), new THREE.Vector3()], shaftK: 0.5, shaftColor: 0xe0ecff };
   /** the decorator's group (collectibles) */
   deco = new THREE.Group();
   floor = { minX: -W + 0.3, maxX: W - 0.3, minZ: DESK_Z1 + 0.25, maxZ: 1.2, y: 0 };
@@ -662,6 +662,7 @@ export class MonitorRoom implements StageRoom {
 
   // ================================================================== frame
   update(dt: number, t: number, full: boolean) {
+    if (full) this.lamp.getWorldPosition(this.grade.shafts![1]);
     // ---- lights: the lamp, the stuttering tube, the alarm, the phosphor spill
     this.lampLvl = damp(this.lampLvl, this.lampOn ? 1 : 0, 18, dt);
     const buzz = 0.96 + Math.random() * 0.04;

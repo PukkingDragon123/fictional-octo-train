@@ -225,7 +225,7 @@ export class DeathFeed {
     if ((this.phase === 'play' && this.pos >= 0) || this.phase === 'hold') {
       if (blink || this.phase === 'play') {
         tubeText(c, 'NO VITALS', W / 2, H / 2 - 18, 'center');
-        tubeText(c, 'SUBJECT ' + this.o.file, W / 2, H / 2, 'center');
+        tubeText(c, 'UNIT ' + this.o.file, W / 2, H / 2, 'center');
       }
     }
     this.tube.overChanged();
@@ -290,7 +290,7 @@ export class SideTube {
         c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
         tubeText(oc, 'INTAKE', W / 2, 10, 'center');
         tubeText(oc, 'NEXT', W / 2, 32, 'center');
-        if (blink) tubeText(oc, 'SUBJECT', W / 2, 50, 'center');
+        if (blink) tubeText(oc, 'UNIT', W / 2, 50, 'center');
         break;
       }
       case 'log': {

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { U } from './materials';
 import { atlas } from './atlas';
 import { clamp, damp, lerp } from '../core/math';
-import { PostFX, POST_FRAG, FS_VERT, CAMU, SPOTU } from './postfx';
+import { PostFX, POST_FRAG, FS_VERT, CAMU, SPOTU, ADAPTU } from './postfx';
 import { QUALITY, QualityLevel, QualitySetting, ZoneFx, zoneFx, detectQuality } from './fxconfig';
 
 /** Per-zone colour grading and atmosphere */
@@ -33,12 +33,13 @@ uniform float uScale;
 uniform vec2 uOffset;
 uniform float uMargin;
 uniform vec2 uCanvas;
+uniform float uSmooth;
 void main() {
   vec2 sp = gl_FragCoord.xy;
   vec2 lp = sp / uScale + vec2(uMargin);
   vec4 c = texture2D(tSrc, (lp + uOffset) / uLowRes);
   if (uOvOn > 0.5) {
-    vec4 o = texture2D(tOv, (floor(lp) + 0.5) / uLowRes);
+    vec4 o = texture2D(tOv, (uSmooth > 0.5 ? lp : floor(lp) + 0.5) / uLowRes);
     c.rgb = mix(c.rgb, o.rgb, o.a);
   }
   gl_FragColor = vec4(c.rgb, 1.0);
@@ -104,6 +105,8 @@ void main() {
 const NUM_KEYS: (keyof ZoneFx)[] = ['exposure', 'blob', 'rim', 'hazeDens', 'hazeFall', 'volTop', 'gridMul', 'spotMul', 'sunShafts', 'mistDens', 'mistFall', 'mistLit', 'mistMax', 'bloom', 'bloomTh', 'ao', 'reflect', 'sheen', 'caustics', 'sick', 'motes', 'dirt', 'keyShadow', 'actorShadow', 'pool', 'glow', 'contrast', 'vib'];
 const VEC_KEYS: (keyof ZoneFx)[] = ['haze', 'mist', 'rimTint', 'splitLo', 'splitHi'];
 const TAN36 = Math.tan(THREE.MathUtils.degToRad(36));
+/** internal picture height cap per preset at pixel filter 0 (a 1080p screen renders at 1/1.33 on high, 1/1.6 on medium) */
+const HI_RES_H: Record<QualityLevel, number> = { low: 540, medium: 680, high: 810 };
 /** bright and punchy: a touch more saturation than the zone grades ask, the vignette at under half strength,
  * and a grade gain under 1 (a gloomy multiplier) only half applied */
 const SAT_K = 1.06, VIG_K = 0.4;
@@ -170,8 +173,16 @@ export class PixelRenderer {
   grade: Grade = { ...DEFAULT_GRADE };
   gradeTarget: Grade = { ...DEFAULT_GRADE };
   fx = { glitch: 0, panic: 0, hurt: 0, desat: 0, wobble: 0, blink: 0, corruptFlash: 0, dream: 0, outline: 1, edgeLight: 0.2 };
-  /** user setting: target internal height in px */
+  /** user setting: target internal height in px (the chunky picture at full pixel filter) */
   targetLowH = 360;
+  /**
+   * Pixel filter strength (Options, default low): 0 renders near native resolution (the preset's cap) with a
+   * smooth upscale, no posterise and fine, soft ink; 1 is the classic chunky picture at targetLowH (whole
+   * pixel scale, nearest upscale, posterised, full outlines). In between blends resolution and strength.
+   */
+  pixelFilter = 0.2;
+  /** fractional internal scale with a filtered upscale (pixel filter below the chunky range) */
+  smooth = false;
   dpr = 1;
 
   // ---- realism layer
@@ -222,7 +233,7 @@ export class PixelRenderer {
       vertexShader: FS_VERT, fragmentShader: POST_FRAG, depthTest: false, depthWrite: false,
       defines: this.postfx.compositeDefines(),
       uniforms: {
-        ...CAMU, ...SPOTU,
+        ...CAMU, ...SPOTU, ...ADAPTU,
         uLightTex: U.uLightTex, uLightInfo: U.uLightInfo, uGridScale: U.uGridScale, uVisTex: U.uVisTex, uVisInfo: U.uVisInfo, uVisOn: U.uVisOn,
         uPlayerPos: U.uPlayerPos, uFogNear: U.uFogNear, uFogFar: U.uFogFar,
         tColor: { value: null }, tNormal: { value: null }, tDepth: { value: null },
@@ -243,7 +254,7 @@ export class PixelRenderer {
     });
     this.blitMat = new THREE.ShaderMaterial({
       vertexShader: FS_VERT, fragmentShader: BLIT_FRAG, depthTest: false, depthWrite: false,
-      uniforms: { tSrc: { value: null }, tOv: { value: null }, uOvOn: { value: 0 }, uLowRes: { value: new THREE.Vector2() }, uScale: { value: 2 }, uOffset: { value: new THREE.Vector2() }, uMargin: { value: 2 }, uCanvas: { value: new THREE.Vector2() } },
+      uniforms: { tSrc: { value: null }, tOv: { value: null }, uOvOn: { value: 0 }, uLowRes: { value: new THREE.Vector2() }, uScale: { value: 2 }, uOffset: { value: new THREE.Vector2() }, uMargin: { value: 2 }, uCanvas: { value: new THREE.Vector2() }, uSmooth: { value: 0 } },
     });
     this.overlayBlitMat = new THREE.ShaderMaterial({
       vertexShader: FS_VERT, fragmentShader: OVERLAY_BLIT_FRAG, depthTest: false, depthWrite: false, blending: THREE.NoBlending,
@@ -278,7 +289,8 @@ export class PixelRenderer {
     canvas.style.width = (W / dpr) + 'px';
     canvas.style.height = (H / dpr) + 'px';
     canvas.style.imageRendering = 'pixelated';
-    this.scale = Math.max(1, Math.round(H / this.targetLowH));
+    this.scale = this.pickScale(H);
+    this.smooth = this.pixelFilter < 0.6;
     this.lowW = Math.ceil(W / this.scale);
     this.lowH = Math.ceil(H / this.scale);
     const RW = this.lowW + this.margin * 2, RH = this.lowH + this.margin * 2;
@@ -289,9 +301,10 @@ export class PixelRenderer {
       count: 2, minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, depthTexture: depthTex,
       type: THREE.HalfFloatType,
     });
-    this.rtPost = new THREE.WebGLRenderTarget(RW, RH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false });
+    const up = this.smooth ? THREE.LinearFilter : THREE.NearestFilter;
+    this.rtPost = new THREE.WebGLRenderTarget(RW, RH, { minFilter: up, magFilter: up, depthBuffer: false });
     this.rtOverlay = new THREE.WebGLRenderTarget(RW, RH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true, type: THREE.HalfFloatType });
-    this.rtOverlayPost = new THREE.WebGLRenderTarget(RW, RH, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: false });
+    this.rtOverlayPost = new THREE.WebGLRenderTarget(RW, RH, { minFilter: up, magFilter: up, depthBuffer: false });
     this.overlayCamera.aspect = RW / RH;
     this.overlayCamera.updateProjectionMatrix();
     U.uSnapRes.value.set(RW, RH);
@@ -303,9 +316,23 @@ export class PixelRenderer {
 
   // ---------------------------------------------------------------- quality & atmosphere
   /** apply the graphics settings that live in Options (quality preset, film grain) */
-  applySettings(s: { quality?: QualitySetting; grain?: number }) {
+  /**
+   * Internal picture scale for a backing store H px tall: the pixel filter blends from the preset's
+   * resolution cap (near native) down to the chunky targetLowH; above 0.6 it snaps to whole pixels.
+   */
+  private pickScale(H: number): number {
+    const pf = clamp(this.pixelFilter, 0, 1);
+    const hi = Math.min(H, HI_RES_H[this.qualityOverride ?? this.quality]);
+    const tH = Math.max(120, hi + (Math.min(H, this.targetLowH) - hi) * pf);
+    const sc = Math.max(1, H / tH);
+    if (pf >= 0.6) return Math.max(1, Math.round(sc));
+    return sc < 1.12 ? 1 : sc;
+  }
+
+  applySettings(s: { quality?: QualitySetting; grain?: number; pixelFilter?: number }) {
     if (s.quality) this.qualitySetting = s.quality;
     if (typeof s.grain === 'number') this.film = clamp(s.grain, 0, 2);
+    if (typeof s.pixelFilter === 'number' && Math.abs(s.pixelFilter - this.pixelFilter) > 1e-3) { this.pixelFilter = clamp(s.pixelFilter, 0, 1); this.resize(); }
     const lvl = this.qualitySetting === 'auto' ? detectQuality() : this.qualitySetting;
     this.setQuality(lvl);
   }
@@ -314,6 +341,8 @@ export class PixelRenderer {
     this.quality = level;
     this.slowFor = 0;
     this.rebuildFx();
+    // the preset caps the internal resolution: a step down (auto, frames running long) also renders fewer pixels
+    if (this.rtScene && Math.abs(this.pickScale(this.renderer.domElement.height) - this.scale) > 1e-3) this.resize();
   }
 
   private rebuildFx() {
@@ -423,14 +452,19 @@ export class PixelRenderer {
     u.uGamma.value = g.gamma;
     u.uExposure.value = z.exposure ?? 1.75;
     // first person puts big smooth light falloffs right in your face: finer steps so they don't contour
-    u.uLevels.value = this.eyeCamera ? g.levels * 2 : g.levels;
+    // the pixel filter sets how much of the palette posterise survives (low: effectively smooth 8-bit)
+    const pf = clamp(this.pixelFilter, 0, 1);
+    const lv = this.eyeCamera ? g.levels * 2 : g.levels;
+    u.uLevels.value = lv + (255 - lv) * (1 - pf) * (1 - pf);
     const clean = this.clean;
     u.uVignette.value = (clean ? 0.5 : 1) * g.vignette * VIG_K;
     u.uGrain.value = (g.grain * 0.5 + 0.004) * (clean ? 0 : 1);
     u.uFilm.value = this.film;
     u.uGlitch.value = this.fx.glitch; u.uPanic.value = clean ? 0 : this.fx.panic; u.uHurt.value = clean ? 0 : this.fx.hurt; u.uDesat.value = this.fx.desat;
     u.uWobble.value = this.fx.wobble; u.uBlink.value = clean ? 0 : this.fx.blink; u.uCorruptFlash.value = this.fx.corruptFlash; u.uDream.value = this.fx.dream;
-    u.uOutline.value = this.fx.outline; u.uEdgeLight.value = this.fx.edgeLight;
+    // ink: full hand-drawn lines with the chunky filter, a fine soft contour on the near-native picture
+    const ink = 0.42 + 0.58 * pf;
+    u.uOutline.value = this.fx.outline * ink; u.uEdgeLight.value = this.fx.edgeLight * ink;
     // zone atmosphere
     u.uAOStr.value = 1;
     u.uBloomStr.value = z.bloom * 0.3;
@@ -621,6 +655,7 @@ export class PixelRenderer {
     bu.uOvOn.value = overlay ? 1 : 0;
     bu.uLowRes.value.set(RW, RH);
     bu.uScale.value = this.scale;
+    bu.uSmooth.value = this.smooth ? 1 : 0;
     bu.uMargin.value = this.margin;
     bu.uOffset.value.copy(this.subOffset);
     this.fsQuad.material = this.blitMat;
@@ -729,7 +764,7 @@ export class PixelRenderer {
     // the same framing on every screen: taller internal pictures (1080p, 1440p) get finer pixels, not
     // a wider view; narrow (portrait) views pull out so roughly 7.5 m stay visible across the screen
     const base = z[this.zoomLevel];
-    const ppm = Math.min(base * clamp(this.lowH / 360, 0.8, 1.6), base * this.lowW / 300);
+    const ppm = Math.min(base * clamp(this.lowH / 360, 0.8, 3.2), base * this.lowW / 300);
     this.pxSizeTarget = 1 / ppm;
   }
 }

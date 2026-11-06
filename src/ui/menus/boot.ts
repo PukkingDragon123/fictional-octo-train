@@ -9,7 +9,7 @@ import { terminal } from './terminal';
 import { plateBtn } from './btnKit';
 
 const LINES: [string, number][] = [
-  ['MERIDIAN INSTITUTE  //  REMITTANCE PROGRAMME  //  SUBJECT ROOM 4', 0],
+  ['MERIDIAN INSTITUTE  //  REMITTANCE PROGRAMME  //  UNIT ROOM 4', 0],
   ['All units are temporary. All debts are not.', 0],
   ['', 0],
   ['ROOM POWER ......... {ok:LOW}', 1],

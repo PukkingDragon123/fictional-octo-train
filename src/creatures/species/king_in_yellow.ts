@@ -1,183 +1,263 @@
 import { horrify } from '../kit/horror';
+import * as THREE from 'three';
 import { def, Rig } from '../species';
-import { makeRamp, mixHex } from '../../gfx/pixel';
+import { makeRamp } from '../../gfx/pixel';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
 import { CS, zoneOf, pulse, stop, walkable } from '../behaviors_a';
 import { net, netOf, playAt, hashId, fakeCreature, rng, localIn, thinkOnce, dist, playersIn, live, lineOfSightB } from '../behaviors_b';
-import { KitDef, KitRig, BoneSpec, SkinB, BuildCtx, Page, V3, Wt, buildKitRig, kitSync, hash, gauss, nearestSurvivor, lookAngles } from '../kit/humanoids';
+import { KitDef, KitRig, BoneSpec, SkinB, BuildCtx, Page, V3, Wt, buildKitRig, kitSync, hash, nearestSurvivor, lookAngles } from '../kit/humanoids';
 import { chain, sac, blade, plate, paintSkin, paintCap, paintCloth } from '../kit/organic';
+import { createItem } from '../../items/factory';
+import { dropItem } from '../../items/worldItems';
 import { INHABITANTS } from '../lore';
 import { revealAll } from '../../scan/lorebook';
 import '../../audio/sounds_creatures_c';
 
 // =====================================================================================
-// THE KING IN YELLOW — a vast octopoid shape draped in tattered yellow, seated
-// on a throne of its own coiled arms, its face behind a pallid mask. It does
-// not hunt. It waits to be seen. Now and then it lifts the mask: whoever looks
-// it in the face understands everything, all at once (every inhabitant's lore,
-// every rule), and does not survive the understanding. Turn away. The camera
-// pulls aside for you; the rest is up to you.
+// THE KING IN YELLOW — a tall figure, the shape of a man and a head too tall,
+// in tattered yellow robes under a pallid mantle, standing very still in the
+// deepest rooms. Nothing resolves it: the silhouette wavers, an after-image
+// lags behind every movement, the robe frays into grain at the hem, and the
+// face is a deep hood over a smeared, out-of-focus dark. It does not hunt. It
+// waits to be looked at. Whoever stares too long sees its face (the player
+// never does: the picture blurs and blooms yellow first), understands
+// everything at once, and does not survive the understanding.
 // =====================================================================================
 
-const ARMS = 8;
-const ARM_SEG = 5;
-/** an arm's joint path (model space): out from under the robe, coiling across the floor; the two front arms rise over it like the arms of a throne */
-function armPath(i: number): V3[] {
-  const th = (i / ARMS) * Math.PI * 2 + Math.PI / ARMS;
-  const front = i === 0 || i === ARMS - 1;
-  const curl = i % 2 ? 1 : -1;
-  const pts: V3[] = [];
-  for (let j = 0; j <= ARM_SEG; j++) {
-    const r = 0.75 + j * (front ? 0.28 : 0.36);
-    const a = th + curl * j * j * 0.075;
-    let y = front ? [0.5, 0.95, 1.15, 1.02, 0.75, 0.55][j] : [0.38, 0.24, 0.2, 0.15, 0.13, 0.3][j];
-    if (!front && j === ARM_SEG) y = 0.22 + hash(i, 3) * 0.2;
-    pts.push([Math.sin(a) * r, y, Math.cos(a) * r]);
-  }
-  return pts;
-}
-const TATTERS = 9;
-const FEEL = 6;
+const SIDES = [['L', 1], ['R', -1]] as const;
+const SKIRT = 11;   // hanging robe panels round the hips
+const MANT = 9;     // ragged strips under the mantle
+const A = (i: number, n: number, off = 0) => (i / n) * Math.PI * 2 + off;
 function bonesK(): BoneSpec[] {
   const b: BoneSpec[] = [
-    { name: 'base', parent: '', at: [0, 0.5, 0] },
-    { name: 'body', parent: 'base', at: [0, 0.5, -0.05] },
-    { name: 'chest', parent: 'body', at: [0, 0.7, 0.0] },
-    { name: 'hood', parent: 'chest', at: [0, 0.75, 0.02], cap: true },
-    { name: 'mask', parent: 'hood', at: [0, 0.27, 0.36] },
-    { name: 'face', parent: 'hood', at: [0, -0.04, 0.24] },
-    { name: 'crown', parent: 'hood', at: [0, 0.85, -0.82] },
+    { name: 'base', parent: '', at: [0, 0, 0] },
+    { name: 'hips', parent: 'base', at: [0, 1.12, 0] },
+    { name: 'spine', parent: 'hips', at: [0, 0.3, -0.02] },
+    { name: 'chest', parent: 'spine', at: [0, 0.3, 0.0] },
+    { name: 'neck', parent: 'chest', at: [0, 0.26, 0.03] },
+    { name: 'head', parent: 'neck', at: [0, 0.13, 0.04] },
+    { name: 'hoodtip', parent: 'head', at: [0, 0.1, -0.12] },
   ];
-  for (let i = 0; i < ARMS; i++) {
-    const P = armPath(i);
-    for (let j = 0; j < ARM_SEG; j++) {
-      const at: V3 = j === 0 ? [P[0][0], P[0][1] - 0.5, P[0][2]] : [P[j][0] - P[j - 1][0], P[j][1] - P[j - 1][1], P[j][2] - P[j - 1][2]];
-      b.push({ name: `a${i}_${j}`, parent: j === 0 ? 'base' : `a${i}_${j - 1}`, at, cap: true });
-    }
+  for (const [s, k] of SIDES) {
+    b.push(
+      { name: 'uarm' + s, parent: 'chest', at: [k * 0.22, 0.17, -0.02] },
+      { name: 'farm' + s, parent: 'uarm' + s, at: [k * 0.04, -0.36, 0.03] },
+      { name: 'hand' + s, parent: 'farm' + s, at: [k * 0.005, -0.34, 0.05] },
+      { name: 'fing' + s, parent: 'hand' + s, at: [0, -0.1, 0.012] },
+      { name: 'tip' + s, parent: 'fing' + s, at: [0, -0.075, 0.012] },
+      { name: 'thigh' + s, parent: 'hips', at: [k * 0.1, -0.04, 0] },
+      { name: 'shin' + s, parent: 'thigh' + s, at: [0, -0.5, 0.03] },
+    );
   }
-  for (let i = 0; i < TATTERS; i++) {
-    const a = (i / TATTERS) * Math.PI * 2 + 0.35;
-    b.push({ name: 'r' + i, parent: 'chest', at: [Math.sin(a) * 0.5, -0.15, Math.cos(a) * 0.45] }, { name: 'r' + i + 'b', parent: 'r' + i, at: [Math.sin(a) * 0.12, -0.65, Math.cos(a) * 0.1] });
+  for (let i = 0; i < SKIRT; i++) {
+    const a = A(i, SKIRT, 0.2), c = Math.cos(a), s = Math.sin(a);
+    b.push(
+      { name: 'rA' + i, parent: 'hips', at: [c * 0.25, -0.2, s * 0.2] },
+      { name: 'rB' + i, parent: 'rA' + i, at: [c * 0.03, -0.38, s * 0.03] },
+      { name: 'rC' + i, parent: 'rB' + i, at: [c * 0.03, -0.36, s * 0.03] },
+    );
   }
-  for (let i = 0; i < FEEL; i++) {
-    const x = (i / (FEEL - 1) - 0.5) * 0.22;
-    b.push({ name: 'f' + i, parent: 'hood', at: [x, -0.24, 0.24 - Math.abs(x) * 0.4] }, { name: 'f' + i + 'b', parent: 'f' + i, at: [x * 0.3, -0.18, 0.03] });
+  for (let i = 0; i < MANT; i++) {
+    const a = A(i, MANT, 0.35), c = Math.cos(a), s = Math.sin(a);
+    b.push({ name: 'mA' + i, parent: 'chest', at: [c * 0.28, -0.04, s * 0.2 - 0.02] }, { name: 'mB' + i, parent: 'mA' + i, at: [c * 0.03, -0.24, s * 0.03] });
   }
   return b;
 }
 function layoutK(p: Page) {
-  p.reg('ROBE', 96, 80); p.reg('TATTER', 32, 80); p.reg('ARM', 48, 64); p.reg('MASK', 32, 40); p.reg('MANTLE', 64, 48);
-  p.reg('FACE', 24, 24); p.reg('EYE', 8, 8); p.reg('CROWN', 24, 16); p.reg('FEEL', 8, 32); p.reg('CAP', 16, 16); p.reg('BEAK', 8, 8);
+  p.reg('ROBE', 64, 80); p.reg('SKIRT', 32, 56); p.reg('MANTLE', 48, 32); p.reg('HOOD', 48, 32); p.reg('SLEEVE', 32, 32);
+  p.reg('VOID', 32, 32); p.reg('SKIN', 24, 32); p.reg('MSTRIP', 16, 24); p.reg('LINING', 16, 16); p.reg('NAIL', 8, 8); p.reg('CAP', 8, 8);
 }
 function buildK(B: SkinB, x: BuildCtx) {
   const bi = x.bi, R = x.R;
-  const BA = bi('base'), BO = bi('body'), CH = bi('chest'), HD = bi('hood'), MK = bi('mask'), FC = bi('face'), CR = bi('crown');
-  // the robed mass: a wide hem, a bowed chest, broad shoulders, the hood; a cowl opening in front
-  const prof: [number, number, number, number][] = [
-    [0.04, 1.28, 1.12, 0], [0.25, 1.22, 1.08, 0], [0.6, 1.06, 0.96, 0], [1.0, 0.94, 0.82, 0], [1.4, 0.9, 0.72, 0.02], [1.75, 0.94, 0.64, 0.0],
-    [1.98, 0.64, 0.52, -0.02], [2.15, 0.43, 0.43, -0.03], [2.4, 0.45, 0.47, -0.05], [2.62, 0.41, 0.43, -0.07], [2.78, 0.31, 0.33, -0.08], [2.88, 0.1, 0.12, -0.08],
+  const HP = bi('hips'), SP = bi('spine'), CH = bi('chest'), NK = bi('neck'), HD = bi('head'), HT = bi('hoodtip');
+  const TL = bi('thighL'), TR = bi('thighR'), SL = bi('shinL'), SR = bi('shinR');
+  // the robe: one long fall of heavy cloth from the collar to the floor, belted loosely at the hips, deep folds
+  const prof: [number, number, number, number, Wt][] = [
+    [2.0, 0.09, 0.08, 0.02, [NK, 0.5, CH, 0.5]], [1.9, 0.2, 0.14, 0.0, [CH, 1]], [1.75, 0.25, 0.17, -0.02, [CH, 1]], [1.56, 0.23, 0.16, -0.02, [CH, 0.5, SP, 0.5]],
+    [1.36, 0.2, 0.15, -0.015, [SP, 1]], [1.16, 0.235, 0.18, 0, [SP, 0.3, HP, 0.7]], [1.1, 0.25, 0.19, 0, [HP, 1]], [0.88, 0.26, 0.2, 0, [HP, 0.6, TL, 0.2, TR, 0.2]],
+    [0.6, 0.27, 0.21, 0.01, [HP, 0.3, SL, 0.35, SR, 0.35]], [0.32, 0.28, 0.22, 0.01, [SL, 0.5, SR, 0.5]], [0.1, 0.29, 0.23, 0.01, [SL, 0.5, SR, 0.5]],
   ];
-  const wOf = (y: number): Wt => (y < 0.7 ? [BA, 1] : y < 1.2 ? [BA, 1 - (y - 0.7) / 0.5, BO, (y - 0.7) / 0.5] : y < 1.6 ? [BO, 1 - (y - 1.2) / 0.4, CH, (y - 1.2) / 0.4] : y < 2.2 ? [CH, 1 - (y - 1.6) / 0.6, HD, (y - 1.6) / 0.6] : [HD, 1]);
-  sac(B, R('ROBE'), 1, prof.map(([y, , , z]) => [0, y, z] as V3), prof.map(([, rx, rz]) => [rx, rz] as [number, number]), prof.map(([y]) => wOf(y)), {
-    n: 22, up: [0, 0, 1], start: false,
-    bump: (a, t) => Math.sin(a * 7 + t * 4) * 0.03 * (1 - t) + (t < 0.08 ? Math.sin(a * 13) * 0.08 : 0) - 0.5 * Math.exp(-(a * a) / 0.3) * gauss(t, 0.74, 0.075),
+  sac(B, R('ROBE'), 1, prof.map(([y, , , z]) => [0, y, z] as V3), prof.map(([, a, b]) => [a, b] as [number, number]), prof.map((p) => p[4]), {
+    n: 18, up: [0, 0, 1], end: false,
+    bump: (a, t) => (Math.sin(a * 6 + t * 2.5) * 0.045 + Math.sin(a * 13 + 1.3) * 0.018) * (0.25 + t * 1.1) + (t > 0.45 && t < 0.5 ? -0.05 : 0),
   });
-  // the mantle: a vast swollen sack of skin rising and leaning back out of the hood, an octopus's head under a man's hood
-  sac(B, R('MANTLE'), 50, [[0, 2.32, -0.12], [0, 2.62, -0.3], [0, 2.94, -0.52], [0, 3.22, -0.74], [0, 3.42, -0.92], [0, 3.52, -1.02]],
-    [[0.36, 0.36], [0.58, 0.54], [0.68, 0.62], [0.64, 0.58], [0.48, 0.44], [0.18, 0.17]], [[HD, 1], [HD, 1], [HD, 1], [HD, 1], [HD, 1], [HD, 1]],
-    { n: 16, up: [0, 0, 1], bump: (a, t) => Math.sin(a * 3 + t * 9) * 0.05 + Math.sin(t * 30 + a) * 0.015 });
-  // tatters: long ragged strips hanging from the shoulders to the floor, over the robe
-  for (let i = 0; i < TATTERS; i++) {
-    const a = (i / TATTERS) * Math.PI * 2 + 0.35;
-    const dir: V3 = [Math.sin(a), 0, Math.cos(a)], side: V3 = [Math.cos(a), 0, -Math.sin(a)];
-    const at = (y: number, r: number): V3 => [dir[0] * r, y, dir[2] * r];
-    const R0 = bi('r' + i), R1 = bi('r' + i + 'b');
-    blade(B, R('TATTER'), [at(1.72, 0.74), at(1.3, 0.93), at(0.85, 1.02), at(0.4, 1.18), at(0.02, 1.34 + hash(i, 2) * 0.12)], [0.14, 0.2, 0.26, 0.3, 0.34], side,
-      [[CH, 0.5, R0, 0.5], [R0, 1], [R0, 0.5, R1, 0.5], [R1, 1], [R1, 1]], { offset: -0.5, edge: 0.6, seed: i * 3 + 1 });
+  // a cord belt at the waist, knotted, the ends hanging
+  sac(B, R('LINING'), 2, [[0, 1.13, -0.005], [0, 1.12, 0.0], [0, 1.11, 0.005]], [[0.255, 0.2], [0.262, 0.205], [0.255, 0.2]], [[HP, 1], [HP, 1], [HP, 1]], { n: 18, up: [0, 0, 1], start: false, end: false, bump: (a) => Math.sin(a * 22) * 0.02 });
+  for (const k of [1, -1]) sac(B, R('LINING'), 3, [[k * 0.06, 1.1, 0.2], [k * 0.07, 0.95, 0.21], [k * 0.09, 0.78, 0.2]], [[0.012, 0.012], [0.011, 0.011], [0.016, 0.016]], [[HP, 1], [HP, 1], [HP, 1]], { n: 5 });
+  // the skirt: long overlapping panels hung from the belt, each its own fall; the hems drag and fray
+  for (let i = 0; i < SKIRT; i++) {
+    const a = A(i, SKIRT, 0.2), c = Math.cos(a), s = Math.sin(a);
+    const ra = x.rest('rA' + i), rb = x.rest('rB' + i), rc = x.rest('rC' + i);
+    const lenJ = hash(i, 4) * 0.12;
+    const tip: V3 = [rc[0] + c * 0.04, Math.max(0.0, 0.04 - lenJ), rc[2] + s * 0.04];
+    blade(B, R('SKIRT'), [[ra[0], ra[1] + 0.12, ra[2]], ra, rb, rc, tip], [0.2, 0.22, 0.24, 0.23, 0.17 - hash(i, 5) * 0.07], [-s, 0, c],
+      [[HP, 1], [bi('rA' + i), 1], [bi('rB' + i), 1], [bi('rC' + i), 1], [bi('rC' + i), 1]], { offset: -0.5, edge: 0.45, seed: 10 + i });
   }
-  for (let i = 0; i < 3; i++) {
-    const x0 = (i - 1) * 0.3;
-    blade(B, R('TATTER'), [[x0, 3.3, -0.98], [x0 * 1.3, 2.9, -1.1], [x0 * 1.5, 2.2, -1.05], [x0 * 1.7, 1.4, -1.0], [x0 * 1.9, 0.5, -1.25], [x0 * 2, 0.02, -1.45]], [0.12, 0.2, 0.24, 0.28, 0.3, 0.32], [1, 0, 0], [[HD, 1], [HD, 1], [HD, 0.5, CH, 0.5], [CH, 1], [BO, 1], [BA, 1]], { offset: -0.5, edge: 0.5, seed: 50 + i });
+  // the pallid mantle over the shoulders, a cowl rising to the hood, and its ragged lower edge
+  sac(B, R('MANTLE'), 4, [[0, 2.06, 0.0], [0, 2.0, -0.01], [0, 1.9, -0.02], [0, 1.78, -0.025], [0, 1.68, -0.025]], [[0.12, 0.11], [0.2, 0.16], [0.28, 0.2], [0.3, 0.215], [0.295, 0.21]],
+    [[NK, 0.6, HD, 0.4], [NK, 0.5, CH, 0.5], [CH, 1], [CH, 1], [CH, 1]], { n: 18, up: [0, 0, 1], start: false, end: false, bump: (a, t) => Math.sin(a * 5 + 0.6) * 0.05 * t + Math.sin(a * 11) * 0.015 });
+  for (let i = 0; i < MANT; i++) {
+    const a = A(i, MANT, 0.35), c = Math.cos(a), s = Math.sin(a);
+    const ma = x.rest('mA' + i), mb = x.rest('mB' + i);
+    blade(B, R('MSTRIP'), [[c * 0.28, 1.74, s * 0.2 - 0.02], ma, mb, [mb[0] + c * 0.02, mb[1] - 0.1 - hash(i, 7) * 0.12, mb[2] + s * 0.02]], [0.21, 0.22, 0.19, 0.09], [-s, 0, c],
+      [[CH, 1], [bi('mA' + i), 1], [bi('mB' + i), 1], [bi('mB' + i), 1]], { offset: -0.5, edge: 0.4, seed: 40 + i });
   }
-  // the pallid mask: a smooth, faintly convex oval, hinged at its top edge
-  plate(B, R('MASK'), 2, [0, 2.42, 0.4], [1, 0, 0], [0, 1, 0], 0.21, 0.29, 0.07, [MK, 1], { rows: 8, cols: 6 });
-  // the face behind it: a wet dark disc of skin, too many golden eyes, the hard beak
-  plate(B, R('FACE'), 3, [0, 2.42, 0.31], [1, 0, 0], [0, 1, 0], 0.2, 0.24, 0.06, [FC, 1], { rows: 6, cols: 6 });
-  for (let e = 0; e < 11; e++) {
-    const a = e * 2.399, r = Math.sqrt(e / 11) * 0.16, s = 0.012 + hash(e, 2) * 0.022;
-    const c: V3 = [Math.cos(a) * r * 0.85, 2.44 + Math.sin(a) * r, 0.36 + 0.03 * (1 - r / 0.16)];
-    sac(B, R('EYE'), 4 + e, [[c[0], c[1], c[2] - s], [c[0], c[1], c[2]], [c[0], c[1], c[2] + s * 0.7]], [[s * 0.7, s * 0.7], [s, s], [s * 0.4, s * 0.4]], [[FC, 1], [FC, 1], [FC, 1]], { n: 7, emis: 1.3 });
+  // the hood: a deep cowl, its peak slumped back, the opening a little too wide and a little too dark
+  const hd = x.rest('head');
+  sac(B, R('HOOD'), 5, [[0, hd[1] + 0.02, hd[2] - 0.27], [0, hd[1] + 0.05, hd[2] - 0.17], [0, hd[1] + 0.05, hd[2] - 0.07], [0, hd[1] + 0.04, hd[2] + 0.03], [0, hd[1] + 0.02, hd[2] + 0.12], [0, hd[1] - 0.005, hd[2] + 0.19]],
+    [[0.03, 0.04], [0.12, 0.15], [0.185, 0.21], [0.2, 0.215], [0.19, 0.2], [0.178, 0.188]], [[HT, 1], [HT, 0.6, HD, 0.4], [HD, 1], [HD, 1], [HD, 1], [HD, 1]],
+    { n: 16, up: [0, 1, 0], end: false, bump: (a, t) => Math.exp(-(a * a) / 0.2) * 0.1 * (1 - t) + Math.sin(a * 7 + t * 9) * 0.035 * t + Math.sin(a * 3 + t * 13) * 0.025 });
+  // the cowl falling from the hood onto the shoulders, under the mantle
+  sac(B, R('HOOD'), 15, [[0, hd[1] - 0.02, hd[2] - 0.02], [0, hd[1] - 0.1, hd[2] - 0.04], [0, 1.93, -0.03]], [[0.18, 0.19], [0.2, 0.19], [0.25, 0.2]], [[HD, 1], [NK, 0.5, HD, 0.5], [CH, 1]],
+    { n: 16, up: [0, 0, 1], start: false, end: false, bump: (a, t) => Math.sin(a * 6 + 1) * 0.06 * t });
+  // the rolled lip of the opening
+  sac(B, R('HOOD'), 6, [[0, hd[1] - 0.005, hd[2] + 0.175], [0, hd[1] - 0.01, hd[2] + 0.2]], [[0.178, 0.188], [0.186, 0.196]], [[HD, 1], [HD, 1]], { n: 14, up: [0, 1, 0], start: false, end: false, bump: (a) => Math.sin(a * 9) * 0.03 });
+  // inside: no head anyone can make out. A dark lining, and in it the smear where the face would be
+  sac(B, R('LINING'), 7, [[0, hd[1], hd[2] - 0.1], [0, hd[1], hd[2] + 0.0], [0, hd[1], hd[2] + 0.14]], [[0.08, 0.09], [0.16, 0.17], [0.165, 0.175]], [[HD, 1], [HD, 1], [HD, 1]], { n: 12, up: [0, 1, 0], emis: 1 });
+  plate(B, R('VOID'), 8, [0, hd[1] - 0.01, hd[2] + 0.165], [1, 0, 0], [0, 1, 0], 0.168, 0.178, -0.07, [HD, 1], { rows: 8, cols: 8, emis: 1 });
+  // the arms in long bell sleeves, the cuffs fraying; pale hands with fingers a joint too long
+  for (const [s, k] of SIDES) {
+    const hp = x.rest('hand' + s);
+    chain(B, x, R('SLEEVE'), 9 + (k > 0 ? 0 : 1), { bones: ['uarm' + s, 'farm' + s], tip: [hp[0] + k * 0.01, hp[1] + 0.02, hp[2] + 0.01], r: (t) => 0.07 + t * t * 0.1, n: 12, rings: 3, start: false, end: false, knuckle: 0.12,
+      bump: (a, t) => Math.sin(a * 5 + t * 6) * 0.06 * t });
+    for (let j = 0; j < 4; j++) {
+      const a = (j / 4) * Math.PI * 2 + 0.4;
+      const p0: V3 = [hp[0] + Math.cos(a) * 0.14, hp[1] + 0.06, hp[2] + Math.sin(a) * 0.14];
+      blade(B, R('MSTRIP'), [p0, [p0[0] + Math.cos(a) * 0.02, p0[1] - 0.12, p0[2] + Math.sin(a) * 0.02], [p0[0] + Math.cos(a) * 0.03, p0[1] - 0.2 - hash(j, k) * 0.1, p0[2] + Math.sin(a) * 0.03]], [0.08, 0.07, 0.03],
+        [-Math.sin(a), 0, Math.cos(a)], [[bi('farm' + s), 1], [bi('hand' + s), 1], [bi('hand' + s), 1]], { offset: -0.5, edge: 0.5, seed: 60 + j + (k > 0 ? 0 : 5) });
+    }
+    // wrist, a narrow palm, four long fingers and a thumb
+    const H = bi('hand' + s), F = bi('fing' + s), T = bi('tip' + s);
+    sac(B, R('SKIN'), 11, [[hp[0], hp[1] + 0.07, hp[2] - 0.01], [hp[0], hp[1] + 0.02, hp[2]], [hp[0], hp[1] - 0.05, hp[2] + 0.008], [hp[0], hp[1] - 0.095, hp[2] + 0.012]],
+      [[0.026, 0.022], [0.03, 0.02], [0.038, 0.016], [0.036, 0.014]], [[bi('farm' + s), 0.4, H, 0.6], [H, 1], [H, 1], [H, 0.6, F, 0.4]], { n: 8, up: [0, 0, 1] });
+    for (let f = 0; f < 4; f++) {
+      const xo = hp[0] + k * (f - 1.5) * 0.017, zo = hp[2] + 0.012 + Math.abs(f - 1.5) * -0.004;
+      const L = 1 - Math.abs(f - 1.2) * 0.08;
+      const pts: V3[] = [[xo, hp[1] - 0.09, zo], [xo, hp[1] - 0.09 - 0.055 * L, zo + 0.006], [xo, hp[1] - 0.09 - 0.11 * L, zo + 0.012], [xo, hp[1] - 0.09 - 0.16 * L, zo + 0.014], [xo, hp[1] - 0.09 - 0.19 * L, zo + 0.01]];
+      sac(B, R('SKIN'), 12, pts, [[0.0095, 0.009], [0.0085, 0.0085], [0.008, 0.0075], [0.0065, 0.006], [0.002, 0.002]], [[H, 0.5, F, 0.5], [F, 1], [F, 0.5, T, 0.5], [T, 1], [T, 1]],
+        { n: 6, up: [0, 0, 1], start: false, bump: (a, t) => Math.exp(-((t - 0.25) * (t - 0.25)) / 0.004) * 0.25 + Math.exp(-((t - 0.55) * (t - 0.55)) / 0.004) * 0.2 });
+      sac(B, R('NAIL'), 13, [[xo, pts[3][1] + 0.01, pts[3][2] + 0.006], [xo, pts[4][1] - 0.008, pts[4][2] + 0.004]], [[0.006, 0.003], [0.002, 0.001]], [[T, 1], [T, 1]], { n: 4 });
+    }
+    sac(B, R('SKIN'), 14, [[hp[0] + k * 0.03, hp[1] - 0.02, hp[2] + 0.01], [hp[0] + k * 0.045, hp[1] - 0.06, hp[2] + 0.03], [hp[0] + k * 0.045, hp[1] - 0.1, hp[2] + 0.045]], [[0.011, 0.01], [0.009, 0.009], [0.003, 0.003]], [[H, 1], [H, 1], [H, 1]], { n: 6, start: false });
   }
-  for (const k of [1, -1]) sac(B, R('BEAK'), 20, [[k * 0.02, 2.3, 0.33], [k * 0.015, 2.27, 0.38], [k * 0.004, 2.22, 0.39]], [[0.035, 0.03], [0.02, 0.018], [0.003, 0.003]], [[FC, 1], [FC, 1], [FC, 1]], { n: 6 });
-  // the crown: a tarnished band and bent spikes, jammed down over the crest of the mantle
-  const cc: V3 = [0, 3.3, -0.8], ax: V3 = [0, 0.8, -0.6], ux: V3 = [1, 0, 0], vx: V3 = [0, 0.6, 0.8];
-  const band: V3[] = [], bw: Wt[] = [], br: [number, number][] = [];
-  const onRing = (a: number, r: number, h: number): V3 => [cc[0] + ux[0] * Math.sin(a) * r + vx[0] * Math.cos(a) * r + ax[0] * h, cc[1] + ux[1] * Math.sin(a) * r + vx[1] * Math.cos(a) * r + ax[1] * h, cc[2] + ux[2] * Math.sin(a) * r + vx[2] * Math.cos(a) * r + ax[2] * h];
-  for (let i = 0; i <= 18; i++) { const a = (i / 18) * Math.PI * 2; band.push(onRing(a, 0.47, Math.sin(a * 3) * 0.015)); bw.push([CR, 1]); br.push([0.028, 0.06]); }
-  sac(B, R('CROWN'), 30, band, br, bw, { n: 5, start: false, end: false });
-  for (let s = 0; s < 9; s++) {
-    const a = (s / 9) * Math.PI * 2 + 0.2, L = 0.25 + hash(s, 7) * 0.3, lean = 0.15 + hash(s, 8) * 0.35;
-    const b0 = onRing(a, 0.47, 0.03), b1 = onRing(a, 0.47 + lean * 0.2, L * 0.55), b2 = onRing(a + (hash(s, 9) - 0.5) * 0.3, 0.47 + lean * 0.45, L);
-    sac(B, R('CROWN'), 31 + s, [b0, b1, b2], [[0.038, 0.03], [0.02, 0.017], [0.002, 0.002]], [[CR, 1], [CR, 1], [CR, 1]], { n: 5, start: false });
-  }
-  // eight great arms out from under the hem, suckers beneath
-  for (let i = 0; i < ARMS; i++) {
-    const P = armPath(i);
-    chain(B, x, R('ARM'), 40 + i, {
-      bones: Array.from({ length: ARM_SEG }, (_, j) => `a${i}_${j}`), tip: P[ARM_SEG], r: (t) => 0.3 * Math.pow(1 - t, 0.95) + 0.014, n: 10, rings: 4, up: [0, 1, 0],
-      bump: (a, t) => (Math.abs(a) > 2.1 ? Math.max(0, Math.sin(t * 110)) * 0.16 : 0) + Math.sin(a * 2 + t * 20) * 0.03,
-      bend: (j) => { const q = P[j], r = P[j + 1]; const dx = r[0] - q[0], dz = r[2] - q[2], l = Math.hypot(dx, dz) || 1; const k = ((j + i) % 2 ? 1 : -1) * 0.09; return [(-dz / l) * k, j === 0 ? 0.05 : 0.02, (dx / l) * k]; },
-    });
-  }
-  // feelers under the mask's chin, a beard that moves
-  for (let i = 0; i < FEEL; i++) chain(B, x, R('FEEL'), 60 + i, { bones: ['f' + i, 'f' + i + 'b'], tipLen: 0.24, r: [0.028, 0.004], n: 5, rings: 3 });
 }
 function paintK(p: Page) {
-  // the yellow: old silk the colour of mustard and jaundice, folds, rot and holes
-  const YE = makeRamp(0xc89a1c, 8, { hueShift: 0.06, spread: 0.95 });
-  const robe = p.R('ROBE');
-  paintCloth(robe, YE, { seed: 3, folds: 6, holes: 22, hole: 0x1a1006, stain: 18, base: 3.8 });
-  for (let i = 0; i < 40; i++) robe.crack(hash(i, 21) * robe.w, hash(i, 22) * robe.h, 10 + (i % 7), 80 + hash(i, 23) * 20, YE[1], i + 7, 0.5, 0.1);
-  // the hem dark with damp, the cowl a black hollow
-  for (let yy = 0; yy < robe.h * 0.25; yy++) for (let xx = 0; xx < robe.w; xx++) robe.blend(xx, yy, 0x3a2a0a, 0.55 * (1 - yy / (robe.h * 0.25)));
-  robe.ellipse(robe.w * 0.5, robe.h * 0.74, robe.w * 0.12, robe.h * 0.13, 0x080604, 1);
-  robe.ellipse(robe.w * 0.5, robe.h * 0.74, robe.w * 0.16, robe.h * 0.17, 0x1a1006, 0.6);
-  const tat = p.R('TATTER');
-  paintCloth(tat, YE, { seed: 7, folds: 3, holes: 10, hole: 0x1a1006, stain: 6, base: 3.6 });
-  for (let i = 0; i < 16; i++) tat.crack(hash(i, 31) * tat.w, hash(i, 32) * tat.h, 14, 90, YE[1], i + 3, 0.5, 0.1);
-  // arms: pale jaundiced skin, mottled darker along the top, a double row of suckers beneath
-  const SK = makeRamp(0x5a4658, 7, { hueShift: -0.08, spread: 0.9 });
-  const arm = p.R('ARM');
-  paintSkin(arm, SK, { seed: 9, veins: 14, vein: 0xb8901a, mottle: 2.4, glint: 24, spots: 46, spot: 0xc8a040 });
-  // the underside (the seam runs beneath): jaundiced, with a double row of pale suckers
-  for (let yy = 0; yy < arm.h; yy++) for (let xx = 0; xx < arm.w; xx++) { const a = Math.abs(arm.deg(xx)); if (a > 125) arm.blend(xx, yy, 0xc8b078, Math.min(0.85, (a - 125) / 30)); }
-  for (let yy = 1; yy < arm.h; yy += 3) for (const u of [0.04, 0.96]) { arm.ellipse(u * arm.w, yy, 2.2, 1.4, 0xf0e4c8, 1); arm.set(Math.round(u * arm.w), yy, 0x8a4a4a); }
-  // the mask: porcelain-pale, crazed, two narrow slits for eyes and nothing else
-  const mk = p.R('MASK');
-  mk.fill(makeRamp(0xe8e2d4, 6, { spread: 0.5 }), (xx, yy) => 3.6 - Math.abs(xx - mk.w / 2) / mk.w * 2 - (yy / mk.h) * 0.6 + (mk.fbm(xx, yy, 3, 2, 4) - 0.5) * 0.5);
-  for (let i = 0; i < 9; i++) mk.crack(hash(i, 4) * mk.w, hash(i, 5) * mk.h, 6 + i, hash(i, 6) * 360, 0xa8a090, i + 3, 0.6, 0.2);
-  for (const k of [-1, 1]) { mk.hline(mk.w / 2 + k * 3, mk.w / 2 + k * 9, mk.h * 0.36, 0x0a0806); mk.hline(mk.w / 2 + k * 4, mk.w / 2 + k * 8, mk.h * 0.36 + 1, 0x2a2420); }
-  // the face: wet black-violet skin, gold veining
-  const fc = p.R('FACE');
-  paintSkin(fc, makeRamp(0x2a1a2a, 6, { spread: 0.7 }), { seed: 13, veins: 12, vein: 0xc8a020, glint: 10 });
-  const ey = p.R('EYE');
-  for (let yy = 0; yy < ey.h; yy++) for (let xx = 0; xx < ey.w; xx++) { const d = Math.hypot(xx + 0.5 - 4, yy + 0.5 - 4) / 4; ey.set(xx, yy, Math.abs(xx + 0.5 - 4) < 0.7 && d < 0.8 ? 0x2a1800 : d < 0.55 ? 0xfff6a0 : d < 0.85 ? 0xf0c020 : 0x8a5a08); }
-  p.R('BEAK').fill(makeRamp(0x1a1410, 4), (xx, yy) => 1.5 + (yy & 1));
-  const cr = p.R('CROWN');
-  cr.fill(makeRamp(0x9a7a28, 6, { hueShift: 0.05, spread: 0.85 }), (xx, yy) => 3 + Math.cos((cr.deg(xx) * Math.PI) / 180) * 1.5 + (cr.fbm(xx, yy, 2, 2, 5) - 0.5) * 1.6 + (hash(xx, yy) < 0.1 ? -2 : 0));
-  for (let i = 0; i < 12; i++) cr.blend(hash(i, 2) * cr.w, hash(i, 3) * cr.h, 0x3a5a3a, 0.6); // verdigris
-  paintSkin(p.R('FEEL'), SK, { seed: 15, veins: 3, vein: 0x6a4a3a });
-  // the mantle: the same skin, swollen, veined gold, blotched like a bruise
-  const mt = p.R('MANTLE');
-  paintSkin(mt, makeRamp(0x8a6670, 8, { hueShift: -0.08, spread: 0.8 }), { seed: 17, veins: 30, vein: 0x4a2a3a, mottle: 1.3, glint: 40 });
-  for (let i = 0; i < 14; i++) mt.crack(hash(i, 41) * mt.w, hash(i, 42) * mt.h, 12, 60 + hash(i, 43) * 60, 0xc8a020, i + 11, 0.7, 0.3);
-  paintCap(p.R('CAP'), SK[1], 0xd8b84a, 0x3a2a08);
+  const Y = makeRamp(0xc8981a, 8, { hueShift: 0.04, spread: 0.95 });
+  // the robe: heavy silk gone to felt, folds, rot holes, and grime rising from the hem
+  const rb = p.R('ROBE');
+  paintCloth(rb, Y, { seed: 3, folds: 16, holes: 9, hole: 0x1a1206, stain: 12, base: 4.2 });
+  for (let yy = 0; yy < rb.h; yy++) for (let xx = 0; xx < rb.w; xx++) {
+    const v = 1 - yy / rb.h;
+    if (v < 0.35) rb.blend(xx, yy, 0x3a2a0a, (0.35 - v) * 1.4 * (0.6 + hash(xx, yy) * 0.4));
+    if (v < 0.22 && hash(xx * 3, yy * 7) < (0.22 - v) * 2.2) rb.set(xx, yy, hash(xx, yy * 5) < 0.5 ? 0xf0d060 : 0x1a1004); // fraying into grain
+  }
+  // embroidery at the collar: a sign nobody can draw from memory
+  for (let i = 0; i < 40; i++) { const xx = (i * 7.3) % rb.w, yy = 2 + Math.floor(hash(i, 2) * 6); rb.set(xx, yy, 0x6a4a08); rb.set(xx + 1, yy + 1, 0xe8c040); }
+  const sk = p.R('SKIRT');
+  paintCloth(sk, makeRamp(0xd0a020, 7, { hueShift: 0.05, spread: 0.9 }), { seed: 5, folds: 4, holes: 6, hole: 0x1a1206, stain: 6, base: 4 });
+  for (let yy = 0; yy < sk.h; yy++) for (let xx = 0; xx < sk.w; xx++) {
+    const v = 1 - yy / sk.h;
+    if (v < 0.4) sk.blend(xx, yy, 0x2a1e08, (0.4 - v) * 1.5);
+    if (v < 0.25 && hash(xx * 5, yy * 3) < (0.25 - v) * 2.5) sk.set(xx, yy, hash(xx * 2, yy) < 0.45 ? 0xf8e080 : 0x120c02);
+  }
+  const PM = makeRamp(0xb8b2a0, 7, { hueShift: -0.02, spread: 0.75 });
+  paintCloth(p.R('MANTLE'), PM, { seed: 7, folds: 10, holes: 4, hole: 0x3a3020, stain: 8, base: 4.4 });
+  const mt = p.R('MANTLE'); for (let i = 0; i < 26; i++) mt.blend(hash(i, 3) * mt.w, mt.h - 1 - hash(i, 4) * 10, 0xc8a030, 0.35); // yellow wicking up into the pale
+  paintCloth(p.R('MSTRIP'), PM, { seed: 9, folds: 2, holes: 3, hole: 0x3a3020, stain: 3 });
+  const ms = p.R('MSTRIP'); for (let yy = ms.h - 6; yy < ms.h; yy++) for (let xx = 0; xx < ms.w; xx++) if (hash(xx, yy * 3) < 0.35) ms.set(xx, yy, hash(xx * 7, yy) < 0.5 ? 0xf0e8d0 : 0x2a2418);
+  paintCloth(p.R('HOOD'), makeRamp(0x9a7210, 7, { hueShift: 0.05, spread: 0.95 }), { seed: 11, folds: 14, holes: 3, hole: 0x0a0602, stain: 7, base: 3.6 });
+  const hd = p.R('HOOD'); for (let yy = 0; yy < hd.h; yy++) for (let xx = 0; xx < hd.w; xx++) if (yy > hd.h * 0.7) hd.blend(xx, yy, 0x1a1004, (yy / hd.h - 0.7) * 2.2); // shadow at the lip
+  paintCloth(p.R('SLEEVE'), Y, { seed: 13, folds: 9, holes: 4, hole: 0x1a1206, stain: 5 });
+  const sl = p.R('SLEEVE'); for (let yy = sl.h - 7; yy < sl.h; yy++) for (let xx = 0; xx < sl.w; xx++) { sl.blend(xx, yy, 0x2a1e08, 0.4); if (hash(xx * 3, yy) < 0.3) sl.set(xx, yy, 0xf0d060); }
+  // the void: not black, not a face; a dark smeared sideways as if the picture slipped while it was taken
+  const vd = p.R('VOID');
+  vd.fill(makeRamp(0x2a200a, 6, { spread: 0.9 }), (xx, yy) => {
+    const dx = (xx + 0.5) / vd.w - 0.5, dy = (yy + 0.5) / vd.h - 0.5, r = Math.hypot(dx * 1.1, dy);
+    const smear = Math.sin(yy * 0.9 + Math.sin(xx * 0.15) * 1.5) * 0.35 + (vd.fbm(xx * 0.3, yy * 2, 3, 2, 17) - 0.5) * 1.4;
+    return Math.max(0, 0.2 + r * 5.5 + smear * (0.6 - r));
+  }, undefined, 0.9);
+  for (let i = 0; i < 9; i++) { const yy = 6 + hash(i, 9) * (vd.h - 12), x0 = 6 + hash(i, 10) * 8; vd.hline(x0, x0 + 6 + hash(i, 11) * 10, yy, i % 3 ? 0x2a2208 : 0x4a3a10, 0.6); }
+  const ln = p.R('LINING'); ln.fill(makeRamp(0x1a1406, 4, { spread: 0.6 }), (xx, yy) => 1 + (ln.fbm(xx, yy, 2, 2, 5) - 0.5) * 1.5);
+  // hands: pallid, a yellow cast under the nails, blue at the knuckles
+  paintSkin(p.R('SKIN'), makeRamp(0xc8c2a4, 7, { hueShift: 0.03, spread: 0.6 }), { seed: 15, veins: 10, vein: 0x6a7088, mottle: 1.1, glint: 4 });
+  p.R('NAIL').fill(makeRamp(0x6a5a30, 4), (xx) => 1.5 + (xx & 1));
+  paintCap(p.R('CAP'), 0xc8981a, 0xe8d070, 0x3a2a08);
 }
-const KING_KIT: KitDef = { key: 'king_in_yellow', variants: 1, W: 256, H: 256, bones: bonesK, layout: layoutK, build: buildK, paint: paintK, sphere: [0, 1.5, 0, 3.4] };
-function buildKing(): Rig { return buildKitRig(KING_KIT, 0, 2.6); }
+const KING_KIT: KitDef = { key: 'king_in_yellow', variants: 1, W: 256, H: 256, bones: bonesK, layout: layoutK, build: buildK, paint: paintK, sphere: [0, 1.3, 0, 1.6] };
+
+// ------------------------------------------------------------------ never in focus: a blur pass on its own material, and after-images
+/**
+ * Its material, patched: the silhouette wavers (vertex drift), grazing faces
+ * and the hem dissolve into a crawling dither, the whole figure shimmers. The
+ * same patch with a heavy dissolve draws the after-images.
+ * uKiy: x time, y ground height, z extra dissolve (after-images), w drift.
+ */
+function blurMaterial(K: KitRig, ghost: number): THREE.Vector4 {
+  const m = K.kit.material as THREE.MeshLambertMaterial & { userData: Record<string, any> };
+  const u = { value: new THREE.Vector4(0, 0, ghost, 0.01) };
+  const prev = m.onBeforeCompile, prevKey = m.customProgramCacheKey.bind(m);
+  m.onBeforeCompile = (shader, renderer) => {
+    prev.call(m, shader, renderer);
+    shader.uniforms.uKiy = u;
+    // no ink line round it: everything else in the picture is outlined, it never quite is
+    if (shader.uniforms.uWOutline) shader.uniforms.uWOutline = { value: 0 };
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nuniform vec4 uKiy;').replace('vec4 nWp = vec4( transformed, 1.0 );', `
+{ float ph = transformed.y * 6.0 + uKiy.x * 2.7;
+  transformed.x += (sin(ph) + sin(ph * 2.3 + 1.7) * 0.5) * uKiy.w;
+  transformed.z += cos(transformed.y * 4.3 + uKiy.x * 2.1) * uKiy.w * 0.7; }
+vec4 nWp = vec4( transformed, 1.0 );`);
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform vec4 uKiy;').replace('diffuseColor *= sampledDiffuseColor;', `diffuseColor *= sampledDiffuseColor;
+{
+  vec2 fc = floor(gl_FragCoord.xy);
+  float tf = floor(uKiy.x * 9.0);
+  float nz = fract(sin(dot(fc + vec2(tf * 3.1, tf * 1.7), vec2(12.9898, 78.233))) * 43758.5453);
+  vec3 fn = normalize(cross(dFdx(vWPos), dFdy(vWPos)));
+  vec3 vd = normalize(vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]));
+  float rim = 1.0 - abs(dot(fn, vd));
+  float hy = clamp(1.0 - (vWPos.y - uKiy.y) / 0.38, 0.0, 1.0);
+  float cut = smoothstep(0.5, 0.97, rim) * 0.75 + hy * hy * 0.85 + uKiy.z;
+  if ((vEmis < 0.5 || uKiy.z > 0.0) && nz < cut) discard;
+}`);
+  };
+  m.customProgramCacheKey = () => prevKey() + '|kiy';
+  m.needsUpdate = true;
+  return u.value;
+}
+interface Ghost { rig: KitRig; u: THREE.Vector4; lag: number; ph: number }
+const GHOSTS = new WeakMap<Rig, { u: THREE.Vector4; ghosts: Ghost[] }>();
+function buildKing(): Rig {
+  const rig = buildKitRig(KING_KIT, 0, 2.35);
+  const u = blurMaterial(rig, 0);
+  const ghosts: Ghost[] = [0.55, 0.72].map((d, i) => {
+    const g = buildKitRig(KING_KIT, 0, 2.35);
+    g.kit.mesh.castShadow = false;
+    g.kit.F.tint.value.set(1.35, 1.15, 0.55, 0.6);
+    rig.root.add(g.root);
+    return { rig: g, u: blurMaterial(g, d), lag: i ? 1.6 : 3.2, ph: i * 2.1 };
+  });
+  GHOSTS.set(rig, { u, ghosts });
+  return rig;
+}
+function ghostSync(rig: Rig, t: number, dt: number, smear: number, groundY: number) {
+  const G_ = GHOSTS.get(rig); if (!G_) return;
+  const K = rig as KitRig;
+  G_.u.x = t; G_.u.y = groundY; G_.u.w = 0.006 + smear * 0.03;
+  for (const g of G_.ghosts) {
+    const k = 1 - Math.exp(-dt * g.lag);
+    const gb = g.rig.kit.bones;
+    K.kit.bones.forEach((b, i) => { gb[i].quaternion.slerp(b.quaternion, k); gb[i].position.lerp(b.position, k); });
+    g.rig.body.position.lerp(rig.body.position, k);
+    // the after-image wanders off the figure and back, further when it is paying attention
+    const amp = 0.05 + smear * 0.16;
+    g.rig.root.position.set(Math.sin(t * 0.63 + g.ph) * amp, Math.sin(t * 1.7 + g.ph) * 0.015, Math.cos(t * 0.41 + g.ph * 1.3) * amp * 0.7);
+    g.rig.root.scale.setScalar(1.01 + smear * 0.03);
+    g.u.x = t; g.u.y = groundY; g.u.w = G_.u.w * 1.6;
+    g.rig.kit.F.fx.value.y += dt;
+  }
+}
 
 // ------------------------------------------------------------------ animation (every peer) and the gaze (the local operator)
 function animateKing(rig: Rig, c: Creature, t: number, dt: number) {
@@ -188,47 +268,58 @@ function animateKing(rig: Rig, c: Creature, t: number, dt: number) {
   const ud = rig.root.userData as Record<string, number>;
   const n = netOf(c);
   const seed = hashId(c.id);
-  const want = n.u !== undefined ? Number(n.u) || 0 : c.state === 'warn' ? 1 : 0; // (studio: 'warn' shows it unveiled)
-  const u = (ud.u = (ud.u ?? want) + (want - (ud.u ?? want)) * Math.min(1, dt * 2.5));
-  // slow breath of the whole mass; the hood leans, very slowly, toward whoever is nearest
-  const br = Math.sin(t * 0.55 + seed * 6);
-  const ch = P.chest; if (ch) ch.scale.set(1 + br * 0.025, 1 + br * 0.015, 1 + br * 0.025);
+  // u: how far it has turned its attention (the hood) on someone. (studio: 'warn' shows it attending)
+  const want = n.u !== undefined ? Number(n.u) || 0 : c.state === 'warn' ? 1 : 0;
+  const u = (ud.u = (ud.u ?? want) + (want - (ud.u ?? want)) * Math.min(1, dt * 1.8));
   const tgt = nearestSurvivor(c, 22);
   let yaw = 0, pitch = 0;
-  if (tgt) [yaw, pitch] = lookAngles(c, tgt.x, tgt.z, tgt.y, 2.5, 0.7, 0.4);
-  ud.yaw = (ud.yaw ?? 0) + (yaw - (ud.yaw ?? 0)) * Math.min(1, dt * 0.25);
-  R('body', 0.04 + br * 0.01, ud.yaw * 0.3, 0);
-  R('chest', 0.06 + u * 0.12, ud.yaw * 0.3, Math.sin(t * 0.3) * 0.02);
-  R('hood', 0.1 - pitch * 0.3 + u * 0.1, ud.yaw * 0.4, Math.sin(t * 0.21 + seed) * 0.05);
-  // the mask lifts from its top edge; the face's eyes open wide and swell
-  // lifted from its top edge back over the brow, as you would push up a visor
-  R('mask', u * 1.65, 0, u * 0.1);
-  const fc = P.face; if (fc) { const s = 0.7 + u * 0.35 + Math.sin(t * 7) * 0.02 * u; fc.scale.setScalar(s); }
-  R('crown', Math.sin(t * 0.4) * 0.02, 0, 0);
-  // arms: slow travelling waves; the floor ones coil and uncoil, the throne ones flex their tips; all of them reach a little when it unveils
-  for (let i = 0; i < ARMS; i++) {
-    const front = i === 0 || i === ARMS - 1;
-    for (let j = 0; j < ARM_SEG; j++) {
-      const w = Math.sin(t * (0.55 + (i % 3) * 0.12) - j * 0.85 + i * 1.7 + seed * 5);
-      const w2 = Math.cos(t * 0.43 - j * 0.6 + i * 2.3);
-      const amp = (front ? 0.05 : 0.12) * (0.5 + j * 0.25);
-      R(`a${i}_${j}`, w2 * amp * 0.6 - (front ? 0 : u * 0.06 * j), w * amp, w2 * amp * 0.3);
-    }
+  if (tgt) [yaw, pitch] = lookAngles(c, tgt.x, tgt.z, tgt.y, 2.2, 1.3, 0.6);
+  // the head turns toward whoever it attends to; at rest it drifts, very slowly, as if listening
+  const idleYaw = Math.sin(t * 0.11 + seed * 7) * 0.35;
+  ud.yaw = (ud.yaw ?? 0) + ((tgt ? yaw * (0.25 + u * 0.75) : idleYaw) - (ud.yaw ?? 0)) * Math.min(1, dt * (0.3 + u * 1.2));
+  const tilt = Math.sin(t * 0.17 + seed * 3) * 0.08 + u * 0.22 * (seed < 0.5 ? 1 : -1);
+  // a tall thing balancing: the faintest sway, no breath
+  R('hips', 0, ud.yaw * 0.08, Math.sin(t * 0.31 + seed) * 0.012);
+  R('spine', 0.02 + u * 0.05, ud.yaw * 0.15, Math.sin(t * 0.23) * 0.01);
+  R('chest', 0.03 + u * 0.06, ud.yaw * 0.2, -Math.sin(t * 0.31 + seed) * 0.01);
+  R('neck', 0.12 + pitch * 0.3 + u * 0.12, ud.yaw * 0.3, tilt * 0.4);
+  R('head', 0.05 + pitch * 0.4, ud.yaw * 0.35, tilt);
+  R('hoodtip', Math.sin(t * 0.5 + seed) * 0.05 - u * 0.1, 0, Math.sin(t * 0.37) * 0.04);
+  // the arms hang; when it attends, the hands come up a little, palms out, the fingers working one after another
+  for (const [s, k] of SIDES) {
+    const lift = u * (k > 0 ? 1 : 0.7);
+    R('uarm' + s, -0.06 - lift * 0.35, 0, k * (0.05 + Math.sin(t * 0.29 + k) * 0.01 + lift * 0.12));
+    R('farm' + s, -0.12 - lift * 0.75, k * lift * 0.3, 0);
+    R('hand' + s, lift * 0.2, k * lift * 0.5, k * Math.sin(t * 0.4 + k * 2) * 0.05);
+    const fl = Math.pow(Math.max(0, Math.sin(t * (0.5 + u * 1.3) + k * 1.9 + seed * 4)), 3);
+    R('fing' + s, 0.15 + fl * 0.45 - lift * 0.15, 0, 0);
+    R('tip' + s, 0.2 + fl * 0.6, 0, 0);
+    R('thigh' + s, 0, 0, 0); R('shin' + s, 0, 0, 0);
   }
-  for (let i = 0; i < TATTERS; i++) {
-    R('r' + i, Math.sin(t * 0.7 + i * 1.3) * 0.05, 0, Math.sin(t * 0.5 + i) * 0.04);
-    R('r' + i + 'b', Math.sin(t * 0.9 + i * 2.1) * 0.08 + u * 0.1, 0, Math.cos(t * 0.6 + i) * 0.06);
+  // cloth: a draught that is not there, travelling round the hem
+  const wind = 0.6 + u * 0.8;
+  for (let i = 0; i < SKIRT; i++) {
+    const ph = t * 0.9 - i * 0.7 + seed * 5;
+    R('rA' + i, Math.sin(ph) * 0.03 * wind, 0, Math.cos(ph * 0.8) * 0.025 * wind);
+    R('rB' + i, Math.sin(ph - 0.8) * 0.06 * wind + 0.02, 0, Math.cos(ph * 0.8 - 0.8) * 0.05 * wind);
+    R('rC' + i, Math.sin(ph - 1.6) * 0.1 * wind + 0.06, 0, Math.cos(ph * 0.8 - 1.6) * 0.08 * wind);
   }
-  for (let i = 0; i < FEEL; i++) {
-    R('f' + i, Math.sin(t * 1.7 + i * 1.1) * 0.25 - u * 0.4, Math.sin(t * 1.1 + i) * 0.2, Math.cos(t * 1.4 + i * 2) * 0.15);
-    R('f' + i + 'b', Math.sin(t * 2.6 + i * 1.9) * 0.4, 0, Math.sin(t * 2.1 + i) * 0.3);
+  for (let i = 0; i < MANT; i++) {
+    const ph = t * 1.1 - i * 0.9 + seed * 2;
+    R('mA' + i, Math.sin(ph) * 0.03 * wind, 0, Math.cos(ph) * 0.02 * wind);
+    R('mB' + i, Math.sin(ph - 1) * 0.08 * wind + 0.03, 0, Math.cos(ph - 1) * 0.05 * wind);
   }
-  const F = K.kit.F.fx.value; F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.3;
-  // a glow under the hood when it unveils (tinted gold, flickering like a candle)
-  if (live() && u > 0.05 && G.view?.zone?.key === c.zoneKey) {
-    const fx_ = Math.cos(c.facing), fz_ = Math.sin(c.facing);
-    G.pointLight?.(c.x + fx_ * 0.9, 2.3, c.z + fz_ * 0.9, 0xffc840, u * (1.1 + Math.sin(t * 13) * 0.1), 7);
-  }
+  // it skips: now and then the figure is a hand's width from where it was, for a moment
+  const sk = hash(Math.floor(t * 2.2), seed * 31);
+  const skip = sk < 0.05 + u * 0.08 ? (hash(Math.floor(t * 2.2), 7) - 0.5) * (0.12 + u * 0.12) : 0;
+  rig.body.position.set(skip, 0, skip * 0.4);
+  const F = K.kit.F.fx.value; F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.3; F.x = 0;
+  // ghosting: more of it the more it attends, and the longer you have been looking
+  const g = Number(c.mem.beheld ?? 0);
+  const groundY = rig.root.matrixWorld.elements[13];
+  ghostSync(rig, t, dt, Math.min(1, u * 0.7 + g * 0.6), groundY);
+  // a low yellow spill round it in the dark
+  if (live() && G.view?.zone?.key === c.zoneKey) G.pointLight?.(c.x, 1.6, c.z, 0xffc840, 0.35 + u * 0.35 + Math.sin(t * 7) * 0.03, 5 + u * 2);
   gaze(c, u, t, dt);
 }
 
@@ -242,81 +333,88 @@ function gaze(c: Creature, u: number, t: number, dt: number) {
   let off = p.facing - toward; while (off > Math.PI) off -= Math.PI * 2; while (off < -Math.PI) off += Math.PI * 2;
   const z = live() ? zoneOf(c) : null;
   const sight = d < 18 && !!z && lineOfSightB(z, p.x, p.z, c.x, c.z);
-  const looking = sight && Math.abs(off) < 0.62 && u > 0.55;
-  // the camera pulls aside while the mask is up (once per unveiling), and comes back when it falls
-  if (u > 0.08 && sight && !m.camAside) { m.camAside = Math.sign(off || 1); G.camera?.orbitBy?.(0.42 * m.camAside, 0); }
+  const looking = sight && Math.abs(off) < 0.62;
+  // the camera pulls aside while it attends (once per turning), and comes back when it lets go
+  if (u > 0.3 && sight && !m.camAside) { m.camAside = Math.sign(off || 1); G.camera?.orbitBy?.(0.42 * m.camAside, 0); }
   if (u < 0.05 && m.camAside) { m.camAside = 0; G.camera?.endOrbit?.(); }
   // dread before anything: you know you must not look
   if (sight && d < 20) {
     p.body.stress = Math.min(100, p.body.stress + dt * (1 + u * 6));
-    if (u > 0.05) thinkOnce(p, 'kiy_warn', ['It is lifting the mask. DO NOT LOOK.', 'Look at the floor. Look at the floor. Look at the floor.', 'Turn away. Turn AWAY.'][Math.floor(t * 0.3) % 3], 12);
-    else thinkOnce(p, 'kiy', ['Yellow. So much yellow. It is sitting very still.', 'Do not look at its face. Everyone knows that. Who told me that?'][Math.floor(t * 0.2) % 2], 60);
+    if (u > 0.05) thinkOnce(p, 'kiy_warn', ['It has turned its hood toward me. DO NOT LOOK.', 'Look at the floor. Look at the floor. Look at the floor.', 'There is a face in there. I must not see it.'][Math.floor(t * 0.3) % 3], 12);
+    else thinkOnce(p, 'kiy', ['Yellow. Tall. Standing very still, and it will not come into focus.', 'My eyes keep sliding off it. Do not look at its face.', 'Do not look at its face. Everyone knows that. Who told me that?'][Math.floor(t * 0.2) % 3], 60);
   }
+  // staring fills it: slowly while it ignores you, fast once it has turned to you; looking away drains it
   const was = m.beheld ?? 0;
-  m.beheld = looking ? was + dt / 2.4 : Math.max(0, was - dt * (Math.abs(off) > 1.6 ? 0.9 : 0.35));
+  const rate = u > 0.5 ? 1 / 2.6 : d < 7 ? 1 / 10 : 1 / 16;
+  m.beheld = looking ? was + dt * rate : Math.max(0, was - dt * (Math.abs(off) > 1.6 ? 0.45 : 0.18));
   const g = m.beheld as number;
   if (g > 0) {
-    G.pr.fx.desat = Math.max(G.pr.fx.desat ?? 0, g * 0.6);
-    G.pr.fx.wobble = Math.max(G.pr.fx.wobble ?? 0, g * 0.8);
-    G.pr.fx.glitch = Math.max(G.pr.fx.glitch ?? 0, g > 0.7 ? (g - 0.7) * 1.5 : 0);
-    if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) G.audio?.flat?.('heartbeat', 'sfx', 0.3 + g * 0.6, 1 + g * 0.8);
+    G.pr.fx.wobble = Math.max(G.pr.fx.wobble ?? 0, g * 0.6);
+    G.pr.fx.glitch = Math.max(G.pr.fx.glitch ?? 0, g > 0.75 ? (g - 0.75) * 0.8 : 0);
+    if (Math.floor(t * (2 + g * 2)) !== Math.floor((t - dt) * (2 + g * 2))) G.audio?.flat?.('heartbeat', 'sfx', 0.3 + g * 0.6, 1 + g * 0.8);
+    if (g > 0.5) thinkOnce(p, 'kiy_late', 'I cannot look away. It is coming into focus. LOOK AWAY.', 20);
   }
   veil(g, t);
   if (g >= 1 && !m.knew) { m.knew = true; know(c, p); }
 }
 
-// ------------------------------------------------------------------ the veil: yellow creeping in, knowledge typed across the picture
-let veilEl: HTMLDivElement | null = null, veilT = 0, lineT = 0;
+// ------------------------------------------------------------------ the veil: the picture blurs and blooms yellow; knowledge typed across it
+let blurEl: HTMLDivElement | null = null, bloomEl: HTMLDivElement | null = null, lineT = 0, force = 0;
 function veil(g: number, t: number) {
   if (typeof document === 'undefined') return;
-  if (g <= 0.001 && !veilEl) return;
-  if (!veilEl) {
-    veilEl = document.createElement('div');
-    veilEl.className = 'kiy-veil';
-    veilEl.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:60;opacity:0;transition:opacity .25s;background:radial-gradient(ellipse at 50% 45%, rgba(255,226,120,0.05) 0%, rgba(214,160,20,0.55) 60%, rgba(90,60,0,0.85) 100%);mix-blend-mode:multiply';
-    document.body.appendChild(veilEl);
+  g = Math.max(g, force);
+  if (g <= 0.001) { blurEl?.remove(); bloomEl?.remove(); blurEl = bloomEl = null; return; }
+  if (!blurEl) {
+    blurEl = document.createElement('div');
+    blurEl.className = 'kiy-blur';
+    blurEl.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:60';
+    bloomEl = document.createElement('div');
+    bloomEl.className = 'kiy-bloom';
+    bloomEl.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:60;mix-blend-mode:screen;background:radial-gradient(ellipse at 50% 45%, rgba(255,236,150,1) 0%, rgba(255,200,40,0.75) 45%, rgba(200,140,10,0.5) 100%)';
+    document.body.append(blurEl, bloomEl);
   }
-  veilEl.style.opacity = String(Math.min(1, g * 1.1));
-  if (g <= 0.001) { veilEl.remove(); veilEl = null; return; }
-  // lines of what it knows, faster the longer you look
-  veilT = t;
-  if (t - lineT > 1.2 - g * 1.05) { lineT = t; knowledgeLine(g); }
+  const k = Math.min(1.6, g);
+  // the image goes soft first, then gold, then white-gold
+  blurEl.style.backdropFilter = `blur(${(k * k * 7).toFixed(1)}px) sepia(${Math.min(1, k * 0.9).toFixed(2)}) saturate(${(1 + k * 2.2).toFixed(2)}) brightness(${(1 + k * k * 0.7).toFixed(2)})`;
+  bloomEl!.style.opacity = String(Math.min(1, Math.max(0, k - 0.25) * 0.7 + Math.sin(t * 6) * 0.03 * k));
+  if (t - lineT > 1.4 - Math.min(1, g) * 1.2) { lineT = t; if (g > 0.3) knowledgeLine(Math.min(1, g)); }
 }
 function knowledgeLine(g: number, text?: string, big = false) {
   const e = INHABITANTS[Math.floor(Math.random() * INHABITANTS.length)];
   const s = text ?? (Math.random() < 0.5 ? e.lore : e.biology);
-  const sentence = text ? s : (s.split(/(?<=\.)\s+/)[Math.floor(Math.random() * Math.max(1, s.split(/(?<=\.)\s+/).length))] || s);
+  const parts = s.split(/(?<=\.)\s+/);
+  const sentence = text ? s : (parts[Math.floor(Math.random() * Math.max(1, parts.length))] || s);
   const el = document.createElement('div');
   el.textContent = sentence.toUpperCase();
   const size = big ? 48 : g > 0.7 ? 32 : 16;
-  el.style.cssText = `position:fixed;left:${8 + Math.random() * 60}%;top:${8 + Math.random() * 80}%;max-width:${big ? 80 : 34}vw;pointer-events:none;z-index:61;font-family:var(--font-new, serif);font-size:${size}px;line-height:${size + 6}px;color:#ffe9a0;text-shadow:0 0 8px #c89010,0 0 2px #000;opacity:0;transition:opacity .4s, transform 3s;transform:translateY(0)`;
-  if (big) { el.style.left = '10%'; el.style.top = '40%'; el.style.textAlign = 'center'; el.style.width = '80vw'; }
+  el.style.cssText = `position:fixed;left:${8 + Math.random() * 60}%;top:${8 + Math.random() * 80}%;max-width:${big ? 80 : 34}vw;pointer-events:none;z-index:61;font-family:var(--font-new, serif);font-size:${size}px;line-height:${size + 6}px;color:#fff3c0;text-shadow:0 0 8px #c89010,0 0 2px #3a2a00;filter:blur(${(g * 1.2).toFixed(1)}px);opacity:0;transition:opacity .4s, transform 3s;transform:translateY(0)`;
+  if (big) { el.style.left = '10%'; el.style.top = '40%'; el.style.textAlign = 'center'; el.style.width = '80vw'; el.style.filter = 'none'; el.style.color = '#3a2a00'; el.style.textShadow = '0 0 12px #fff8d0'; }
   document.body.appendChild(el);
   requestAnimationFrame(() => { el.style.opacity = String(0.55 + g * 0.45); el.style.transform = 'translateY(-24px)'; });
   setTimeout(() => { el.style.opacity = '0'; }, big ? 2600 : 1600 + g * 800);
   setTimeout(() => el.remove(), big ? 3400 : 2600 + g * 800);
 }
-void veilT;
 
-/** you looked. You understand. */
+/** you looked. You saw. You understand. */
 function know(c: Creature, p: Player) {
   G.audio?.flat?.('dread_swell', 'music', 0.9, 0.6);
   G.audio?.flat?.('hush_inhale', 'sfx', 0.8, 0.5);
   G.camera?.pushIn?.(0.45, 2.5, -8);
   const n = revealAll();
-  // every rule, too
   import('../rules').then((r) => { for (const e of INHABITANTS) r.learnRule(e.id, 'watched'); }).catch(() => {});
   import('../../game/research').then((r) => r.grantResearch?.(30, 'The King in Yellow')).catch(() => {});
   bus.emit('think', p, 'Oh. Oh, I see. I see ALL of it.');
-  // the flood: everything it knows, at once
+  // the face is not shown: the picture is gone to gold before it could be
   let k = 0;
   const flood = setInterval(() => {
+    force = Math.min(1.6, 1 + k * 0.05);
     for (let i = 0; i < 4; i++) knowledgeLine(1);
-    G.pr.fx.glitch = 1; G.pr.fx.desat = 1;
+    G.pr.fx.glitch = 0.6;
     if (++k > 14) clearInterval(flood);
   }, 160);
   setTimeout(() => knowledgeLine(1, 'I UNDERSTAND', true), 1400);
   setTimeout(() => {
+    force = 0;
     if (p.body.dead) return;
     bus.emit('playerHit', p, 'head', 'corruption', { dmg: 999, from: [c.x, c.z], knock: 0, by: 'king_in_yellow' });
     p.body.health = 0; p.body.blood = 0;
@@ -327,7 +425,7 @@ function know(c: Creature, p: Player) {
   bus.emit('inhabitantKnowledge', { by: 'king_in_yellow', revealed: n });
 }
 
-// ------------------------------------------------------------------ host brain: it sits, it waits, it unveils
+// ------------------------------------------------------------------ host brain: it stands, it waits, it turns to whoever stares
 function court(c: Creature) {
   // furnish the court with the Seated: those who asked, arranged before it
   const z = zoneOf(c), cs = CS();
@@ -339,61 +437,75 @@ function court(c: Creature) {
     const s = cs.spawn('seated', c.zoneKey, x, zz);
     if (s) { s.facing = s.targetFacing = Math.atan2(c.z - zz, c.x - x); s.mem.persistent = true; s.mem.court = c.id; }
   }
+  // a strip of its robe, frayed loose where it has stood
+  const a = rng.float(0, Math.PI * 2);
+  const tx = c.x + Math.cos(a) * 1.4, tz = c.z + Math.sin(a) * 1.4;
+  if (walkable(z, Math.floor(tx), Math.floor(tz))) { try { dropItem(z, createItem('yellow_tatter'), tx, tz, undefined, 0.1); } catch { /* no floor items here */ } }
 }
 function thinkKing(c: Creature, dt: number): boolean {
   const m = c.mem, n = net(c);
   const ev = pulse(c);
   stop(c);
   if (!m.init) {
-    m.init = 1; m.persistent = true; m.ph = 'veiled'; m.next = G.time + rng.float(12, 22);
+    m.init = 1; m.persistent = true; m.ph = 'still'; m.next = G.time + rng.float(18, 30); m.stare = {};
     // there is only ever one
     for (const o of CS().creatures.values()) if (o !== c && !o.dead && o.sp.key === 'king_in_yellow') { CS().remove(c); return true; }
     court(c);
   }
   const ps = playersIn(c.zoneKey);
   let near: Player | null = null, nd = 20;
-  for (const p of ps) { const d = dist(p, c); if (d < nd) { nd = d; near = p; } }
+  const stare = m.stare as Record<string, number>;
+  let starer = '';
+  for (const p of ps) {
+    const d = dist(p, c);
+    if (d < nd) { nd = d; near = p; }
+    // who keeps looking at it: it notices
+    let off = p.facing - Math.atan2(c.z - p.z, c.x - p.x); while (off > Math.PI) off -= Math.PI * 2; while (off < -Math.PI) off += Math.PI * 2;
+    stare[p.id] = d < 18 && Math.abs(off) < 0.62 && !p.body.dead ? (stare[p.id] ?? 0) + dt : Math.max(0, (stare[p.id] ?? 0) - dt * 2);
+    if (stare[p.id] > 4) starer = p.id;
+  }
   if (near) c.targetFacing = c.facing + Math.max(-0.002, Math.min(0.002, Math.atan2(near.z - c.z, near.x - c.x) - c.facing));
-  // struck: it does not bleed; it lifts the mask
-  if ((ev.hurt > 0 || ev.staggered) && m.ph === 'veiled') { m.ph = 'lifting'; m.t = 0; }
   m.t = (m.t ?? 0) + dt;
   const u = Number(n.u) || 0;
+  const turn = () => { m.ph = 'turning'; m.t = 0; playAt('dread_swell', c, 1, 30, 0.7); playAt('hush_inhale', c, 0.9, 24, 0.6); };
+  // struck: it does not bleed; it turns to you
+  if ((ev.hurt > 0 || ev.staggered) && m.ph === 'still') turn();
   switch (m.ph) {
-    case 'veiled':
+    case 'still':
       n.u = Math.max(0, u - dt * 0.5);
-      if (near && G.time > m.next) { m.ph = 'lifting'; m.t = 0; playAt('dread_swell', c, 1, 30, 0.7); playAt('hush_inhale', c, 0.9, 24, 0.6); }
-      else if (near && c.noiseCooldown <= 0) { playAt('occupant_groan', c, 0.35, 26, 0.5); c.noiseCooldown = 9 + rng.float(0, 6); }
+      if (near && (G.time > m.next || starer)) turn();
+      else if (near && c.noiseCooldown <= 0) { playAt('occupant_groan', c, 0.3, 26, 0.45); c.noiseCooldown = 10 + rng.float(0, 6); }
       break;
-    case 'lifting':
-      n.u = Math.min(1, u + dt / 4);
-      if (n.u >= 1) { m.ph = 'unveiled'; m.t = 0; }
+    case 'turning':
+      n.u = Math.min(1, u + dt / 2.5);
+      if (n.u >= 1) { m.ph = 'attending'; m.t = 0; }
       break;
-    case 'unveiled':
+    case 'attending':
       n.u = 1;
-      if (c.noiseCooldown <= 0) { playAt('wisp_hum', c, 0.8, 26, 0.45); c.noiseCooldown = 2.2; }
-      if (m.t > 7) { m.ph = 'lowering'; m.t = 0; }
+      if (c.noiseCooldown <= 0) { playAt('wisp_hum', c, 0.7, 26, 0.4); c.noiseCooldown = 2.4; }
+      if (m.t > 7 && !starer) { m.ph = 'leaving'; m.t = 0; }
       break;
     default:
       n.u = Math.max(0, u - dt / 3);
-      if (n.u <= 0) { m.ph = 'veiled'; m.next = G.time + rng.float(16, 34); }
+      if (n.u <= 0) { m.ph = 'still'; m.next = G.time + rng.float(20, 40); }
   }
   return true;
 }
 
 const KING = def({
   key: 'king_in_yellow', name: 'The King in Yellow', code: 'IN-00 // SOVEREIGN, CARCOSAN', temperament: 'hazard', threat: 5,
-  rule: { name: 'DO NOT LOOK', text: 'It cannot be hurt and it does not hunt. When it lifts the mask, turn away and keep facing away until it lowers it. Look at its face and you will know everything, and die.', tell: 'Yellow. Something enormous, sitting very still. Do not look at its face.' },
-  hp: 9999, walk: 0, run: 0, turn: 0.2, radius: 1.1, height: 3.1, sight: 30, fov: 3.1, hearing: 0.5,
+  rule: { name: 'DO NOT STARE', text: 'It cannot be hurt and it does not hunt. Do not keep looking at it: the longer you look, the sooner it turns its hood to you, and then you will see its face, know everything, and die. Look at the floor until the picture clears.', tell: 'Yellow. Something tall, standing very still, out of focus. Do not look at its face.' },
+  hp: 9999, walk: 0, run: 0, turn: 0.2, radius: 0.45, height: 2.4, sight: 30, fov: 3.1, hearing: 0.5,
   zones: ['undercroft', 'corrupt'], weight: 0.1, maxPerZone: 1, diet: 'none',
   flags: { immortal: true, noCorpse: true, watcher: true },
   sounds: { idle: 'occupant_groan', hurt: 'hush_inhale' },
   scan: {
     cls: 'Sovereign / do not look',
     notes: [
-      'A vast octopoid shape in tattered yellow, seated on its own coiled arms. Its face is behind a pallid mask.',
-      'It does not hunt. It waits to be seen. Now and then it lifts the mask.',
-      'Anyone who looks it in the face understands everything at once, and does not survive it.',
-      'Turn away when the mask rises. The Seated are those who asked.',
+      'A tall figure in tattered yellow robes and a pallid mantle. It will not come into focus; the scan smears.',
+      'It does not hunt. It waits to be looked at. It turns its hood toward whoever stares.',
+      'Anyone who sees its face understands everything at once, and does not survive it.',
+      'Look at the floor. The Seated are those who asked.',
     ],
   },
   gore: { blood: 'glow', tint: 0xf0c020, flesh: 0xb8a878, gib: false },
@@ -402,8 +514,6 @@ const KING = def({
 });
 KING.animateGallery = (rig: Rig, t: number) => {
   const q = new URLSearchParams(location.search).get('pose') || '';
-  animateKing(rig, fakeCreature(KING, { id: 'kg', mem: { netMem: { u: q === 'unveil' ? 1 : 0 } } }), t, 1 / 60);
+  animateKing(rig, fakeCreature(KING, { id: 'kg', mem: { netMem: { u: q === 'attend' || q === 'unveil' ? 1 : 0 } } }), t, 1 / 60);
 };
 horrify(KING, { twitch: 0.2, snap: 0.1 });
-
-void mixHex; void blade;

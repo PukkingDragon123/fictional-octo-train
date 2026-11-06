@@ -43,6 +43,25 @@ const RULES: Record<string, [string, number][]> = {
   corrupt: [['hush', 1], ['mirrorling', 0.6], ['tallyman', 0.6]],
 };
 for (const k in RULES) ADD[k] = (ADD[k] || []).concat(RULES[k]);
+// the inhabitants pass (src/creatures/lore.ts): Mulchers in anything furnished, Stilt Gulls
+// where the rooms are big and open, the Seated where people sat and asked, the King deepest down
+const INHABIT: Record<string, [string, number][]> = {
+  lobby: [['mulcher', 1.4], ['stilt_gull', 0.45], ['seated', 0.2], ['paper_grazer', 1.2]],
+  house: [['mulcher', 1.6], ['paper_grazer', 0.6]],
+  suburbs: [['mulcher', 1], ['stilt_gull', 0.3]],
+  school: [['mulcher', 0.6]],
+  office: [['mulcher', 1], ['seated', 0.6], ['paper_grazer', 0.6]],
+  hospital: [['mulcher', 0.8], ['seated', 0.5]],
+  mall: [['mulcher', 1], ['stilt_gull', 0.6]],
+  pools: [['stilt_gull', 1.2]],
+  parking: [['stilt_gull', 0.8]],
+  fields: [['stilt_gull', 0.9]],
+  lab: [['seated', 0.5]],
+  showroom: [['mulcher', 1.2]],
+  undercroft: [['king_in_yellow', 0.15], ['seated', 0.6], ['mulcher', 0.5]],
+  corrupt: [['king_in_yellow', 0.1], ['mulcher', 0.6]],
+};
+for (const k in INHABIT) ADD[k] = (ADD[k] || []).concat(INHABIT[k]);
 /**
  * The new dimensions (src/world: shared floors) list these themselves; when a
  * dimension zone's key or name says which one it is and its table is missing

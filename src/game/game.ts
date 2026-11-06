@@ -399,7 +399,7 @@ export class Game {
     else if (cur?.face && cur.started) p.targetFacing = Math.atan2(cur.face.z - p.z, cur.face.x - p.x);
     p.turn(dt, p.aiming ? 22 : 12);
     // flashlight
-    if (!locked && inp.hit('flashlight')) this.toggleFlashlight(p);
+    if (!locked && inp.hit('flashlight')) { const w = (this as any).watch; if (w?.flashlight) w.flashlight(); else this.toggleFlashlight(p); } // round 12: the watch's built-in light
     // exertion for body sim
     if (p.running) p.exertionTimer = 1;
     p.exertionTimer = Math.max(0, p.exertionTimer - dt * 0.5);

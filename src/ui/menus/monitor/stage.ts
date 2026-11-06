@@ -32,7 +32,17 @@ export interface Hot {
   off?: boolean;
 }
 
-export interface Grade { exposure?: number; lift?: [number, number, number]; gain?: [number, number, number]; vig?: number; sat?: number; contrast?: number; side?: [number, number, number, number]; haze?: number; hazeColor?: number }
+export interface Grade {
+  exposure?: number; lift?: [number, number, number]; gain?: [number, number, number]; vig?: number; sat?: number; contrast?: number; side?: [number, number, number, number]; haze?: number; hazeColor?: number;
+  /** depth ambient occlusion strength (default 0.8) and radius in metres */
+  ao?: number; aoRad?: number;
+  /** the lamps' glow scattered into the air (default 0.35) */
+  scatter?: number;
+  /** bounce light: the room's own light spilled back onto every surface (default 0.22) */
+  bounce?: number;
+  /** world points of up to three lamps that throw screen-space shafts (scene/post.ts), their strength (default 0.6) and colour */
+  shafts?: THREE.Vector3[]; shaftK?: number; shaftColor?: number;
+}
 
 /** a room the stage can show */
 export interface StageRoom {
@@ -80,6 +90,9 @@ export class MenuStage {
   private post = makePost();
   /** the cutscenes' bloom (scene/post.ts) */
   private bloom = Object.assign(new Bloom(), { thr: 1.7, knee: 0.5 }); // only true emitters (lamps, tubes, screens) bloom, not white coats
+  /** the whole lit room blurred wide: bounce light and the light shafts' source (scene/post.ts tFill) */
+  private fill = Object.assign(new Bloom(), { thr: 0.06, knee: 0.05 });
+  private shaftV = new THREE.Vector3();
   private feeds = new Map<string, Feed>();
   private raf = 0; private last = 0;
   private ro: ResizeObserver;
@@ -116,7 +129,12 @@ export class MenuStage {
   }
 
   get low() { return this.quality === 'low'; }
-  add(room: StageRoom) { this.rooms.set(room.id, room); return room; }
+  add(room: StageRoom) {
+    this.rooms.set(room.id, room);
+    // soft shadows: a wider PCF disk on every shadow-casting lamp (penumbrae, not hard pixel edges)
+    room.scene.traverse((o) => { const L = o as THREE.SpotLight; if (L.isLight && L.castShadow && L.shadow) L.shadow.radius = Math.max(L.shadow.radius, 3.5); });
+    return room;
+  }
   show(id: string) {
     const r = this.rooms.get(id) ?? null;
     if (r === this.active) return;
@@ -248,8 +266,9 @@ export class MenuStage {
     const w = Math.max(1, this.host.clientWidth), h = Math.max(1, this.host.clientHeight);
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const dw = w * dpr, dh = h * dpr;
-    const target = this.quality === 'low' ? 480 * 270 : this.quality === 'medium' ? 560 * 315 : 640 * 360;
-    const S = Math.max(2, Math.round(Math.sqrt((dw * dh) / target)));
+    // near the screen's own resolution (a realistic image, not a chunky pixel filter); low quality halves it
+    const target = this.quality === 'low' ? 960 * 540 : this.quality === 'medium' ? 1280 * 720 : 1920 * 1080;
+    const S = Math.max(1, Math.round(Math.sqrt((dw * dh) / target)));
     const lw = Math.max(32, Math.ceil(dw / S)), lh = Math.max(32, Math.ceil(dh / S));
     const cw = (lw * S) / dpr, ch = (lh * S) / dpr;
     Object.assign(this.canvas.style, { width: cw + 'px', height: ch + 'px', left: Math.floor((w - cw) / 2) + 'px', top: Math.floor((h - ch) / 2) + 'px' });
@@ -328,9 +347,29 @@ export class MenuStage {
     // the air in the room (dust far off), crisp pixels, saturated emitters
     const hc = g.hazeColor ?? 0x6a7a98;
     u.uHaze.value.set(((hc >> 16) & 255) / 255, ((hc >> 8) & 255) / 255, (hc & 255) / 255, g.haze ?? 0.35);
-    u.uSharp.value = 0.24; u.uKeepSat.value = 0.5; u.uHalation.value = 0.4;
+    u.uSharp.value = 0.08; u.uKeepSat.value = 0.5; u.uHalation.value = 0.4;
+    u.uOutline.value = 0.28; u.uAA.value = 1; u.uLevels.value = 255;
     u.uSide.value.set(...(g.side ?? [1, 0, 0, 0.4]));
     u.uNear.value = a.cam.near; u.uFar.value = a.cam.far;
+    // shading: contact occlusion from depth, the lamps' glow in the air (the rooms' own cones and dust carry the shafts), the lens
+    u.uAO.value = this.low ? 0 : g.ao ?? 0.8; u.uAORad.value = g.aoRad ?? 0.3;
+    u.uFocal.value = this.lowH / (2 * Math.tan(THREE.MathUtils.degToRad(a.cam.fov) / 2));
+    u.uScatter.value = g.scatter ?? 0.35;
+    u.uCA.value = 0.9;
+    u.uBounce.value = g.bounce ?? 0.22;
+    const sc = g.shaftColor ?? 0xfff0d8;
+    u.uShaftCol.value.set(((sc >> 16) & 255) / 255, ((sc >> 8) & 255) / 255, (sc & 255) / 255);
+    for (let i = 0; i < 3; i++) {
+      const s = u.uShaft.value[i], w = g.shafts?.[i];
+      s.set(0, 0, 0, 0);
+      if (!w || this.low) continue;
+      const v = this.shaftV.copy(w).project(a.cam);
+      if (v.z > 1 || v.z < -1) continue;
+      const x = v.x * 0.5 + 0.5, y = v.y * 0.5 + 0.5;
+      // fade as the lamp leaves the frame (one just off the top still throws its rays down)
+      const off = Math.max(0, Math.max(-x, x - 1, -y, y - 1.15));
+      s.set(x, y, (g.shaftK ?? 0.6) * Math.max(0, 1 - off * 4), 0.8);
+    }
     u.uFlash.value = 0; u.uRed.value = 0; u.uFloor.value = 0; u.uLensOn.value = 0;
     this.withWorldUniforms(() => {
       r.info.reset();
@@ -339,6 +378,8 @@ export class MenuStage {
       r.clear(true, true, true);
       r.render(a.scene, a.cam);
       this.bloom.run(r, this.rt!.texture, this.rt!.width, this.rt!.height, u.uExposure.value);
+      this.fill.run(r, this.rt!.texture, this.rt!.width, this.rt!.height, 1);
+      u.tFill.value = this.fill.tex[2];
       u.tB1.value = this.bloom.tex[0]; u.tB2.value = this.bloom.tex[1]; u.tB3.value = this.bloom.tex[2];
       r.setRenderTarget(null);
       r.render(this.post.scene, this.post.cam);
@@ -350,7 +391,7 @@ export class MenuStage {
     this.ro.disconnect();
     for (const f of this.feeds.values()) f.rt.dispose();
     this.rt?.dispose();
-    this.bloom.dispose();
+    this.bloom.dispose(); this.fill.dispose();
     this.post.mat.dispose();
     if (this.renderer) { this.renderer.dispose(); this.renderer.forceContextLoss(); this.renderer = null; }
     this.canvas.remove();

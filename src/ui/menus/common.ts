@@ -382,7 +382,7 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
 export const CONTROLS: [string, string][] = [
   ['WASD', 'walk'], ['Shift', 'sprint · push harder'], ['C / Ctrl', 'sneak'],
   ['Left mouse', 'use the tool in hand · attack (hold to charge)'], ['Right mouse', 'grab · push · pull'], ['E', 'interact with what is in front of you'], ['Space', 'shove · kick'],
-  ['F', 'flashlight'], ['Tab', 'the watch: quests and research'], ['I', 'backpack'], ['H', 'lung pump · breathing'], ['Q', 'whistle (hold: shout)'],
+  ['F', 'flashlight'], ['Tab', 'the watch: quests and research'], ['J', 'quests: Dr. Calder\'s broadcast'], ['I', 'backpack'], ['O', 'inspect yourself'], ['H', 'lung pump · breathing'], ['Q', 'whistle (hold: shout)'],
   ['G', 'emote wheel'], ['B', 'build mode'], ['M', 'map'], ['R', 'reload · rotate when placing'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'],
   ['Middle mouse / Alt+drag', 'orbit the camera'], ['PageUp / PageDown · Alt+wheel', 'camera pitch'], ['P', 'photo mode'], ['V (hold)', 'talk (co-op voice, walkie when switched on)'],
   ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],

@@ -280,6 +280,7 @@ export class QuestRuntime {
   /** host: offers, auto-accepts, objective latches, completion, repeat cooldowns (twice a second) */
   evaluate() {
     const m = this.m, now = HOUR();
+    if (this.held.length && !TUT.running && performance.now() > this.heldAt) { this.heldAt = performance.now() + 9000; const [hd, ht, hs] = this.held.shift()!; setTimeout(() => this.line(hd, ht, hs), 2500); }
     for (const d of questDefs() as QuestX[]) {
       const r = this.recs.get(d.key);
       if (!r) {
@@ -407,9 +408,12 @@ export class QuestRuntime {
     }
   }
 
+  /** lines held while Dr. Calder's training runs (said, a few seconds apart, once it ends) */
+  private held: [QuestX, string, number][] = [];
+  private heldAt = 0;
   private line(d: QuestX, text: string, secs: number) {
-    // the staged tutorial is the First Haul briefing: its summary line would talk over it
-    if (TUT.running && d.key === 'first_haul') return;
+    // the staged tutorial is the First Haul briefing: its summary line would talk over it; the rest waits
+    if (TUT.running) { if (d.key !== 'first_haul' && this.held.length < 4) this.held.push([d, text, secs]); return; }
     if (d.voice === 'handler') { voss(text); return; }
     this.m.radio(text, secs);
   }

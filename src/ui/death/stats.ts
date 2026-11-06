@@ -170,7 +170,7 @@ export class RunTracker {
     const deaths = stat('deaths');
     let h = 0; for (const c of p.name + this.startH) h = (Math.imul(h, 31) + c.charCodeAt(0)) >>> 0;
     return {
-      name: p.name || 'Subject', file: `${4000 + (h % 900)}-${'ABCDEFGHJK'[h % 10]}`, hours, cause, newCause, debtOn, owed, paid, remaining, cleared: !!d?.s?.cleared,
+      name: p.name || 'Unit', file: `${4000 + (h % 900)}-${'ABCDEFGHJK'[h % 10]}`, hours, cause, newCause, debtOn, owed, paid, remaining, cleared: !!d?.s?.cleared,
       valuables: this.valuables, scrip: this.scrip, rooms, kills: this.kills, metres, lines, rp, deaths, zone: g.zone?.name || p.zoneKey, discovered, lostSamples: lost,
     };
   }

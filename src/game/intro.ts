@@ -263,7 +263,7 @@ export class Intro implements GameSystem {
     this.lidT = el('div', 'ix-lid top'); this.lidB = el('div', 'ix-lid bot');
     this.shade = el('div', 'ix-shade');
     this.hl = el('div', 'ix-hl'); this.hl.innerHTML = '<i></i><i></i><i></i><i></i><b></b>';
-    this.plate = skipPlate(() => this.skip(), 'Skip the link');
+    this.plate = skipPlate(() => this.skip(), 'Skip link');
     this.plate.setKey(this.touch ? '' : padConnected() ? 'Start' : 'Esc');
     this.plate.el.classList.add('on');
     this.plate.el.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; });

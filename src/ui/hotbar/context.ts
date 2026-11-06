@@ -168,7 +168,7 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
   // ---- the dark: the watch's built-in flashlight
   let dark = false;
   try { dark = G.lightLevelAt(p.x, p.z) < 0.45; } catch { /* no light grid */ }
-  if (dark || p.flashlightOn) out.push({ id: 'light', label: p.flashlightOn ? 'Light off' : 'Light', icon: 'light', key: 'F', on: p.flashlightOn, run: () => { G.watch?.flashlight?.() ?? G.toggleFlashlight(p); } });
+  if (dark || p.flashlightOn) out.push({ id: 'light', label: p.flashlightOn ? 'Light off' : 'Light', icon: 'light', key: 'F', on: p.flashlightOn, run: () => { const w: any = G.watch; if (w?.flashlight) w.flashlight(); else G.toggleFlashlight(p); } });
   // nothing at all: on touch, the fists
   if (!out.length && touch) out.push({ id: 'strike', label: 'Strike', icon: 'strike', key: '', strike: true });
   // one action per id; the primary is the first that can be done
@@ -177,7 +177,8 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
   const pi = list.findIndex((a) => !a.why && (a.run || a.hold || a.strike));
   if (pi > 0) list.unshift(...list.splice(pi, 1));
   // only the primary answers E; other E-things get U / O; the rest keep their own keys
-  const spare = ['U', 'O'];
+  // (O opens Inspect Yourself and J the quest broadcast, so only U is spare)
+  const spare = ['U'];
   list.forEach((a, i) => {
     if (i === 0 && !a.strike && a.key !== 'Shift') a.key = a.key === 'F' || a.key === 'N' ? a.key : 'E';
     else if (i > 0 && (a.key === 'E' || (!a.key && !a.strike))) a.key = spare.shift() ?? '';
@@ -234,7 +235,7 @@ export class ContextBar {
 
   private onKey(e: KeyboardEvent) {
     if (e.repeat || G.input?.textFocus || !ctxAllowed()) return;
-    const want = e.code === 'KeyG' ? 'G' : e.code === 'KeyR' ? 'R' : e.code === 'KeyU' ? 'U' : e.code === 'KeyO' ? 'O' : '';
+    const want = e.code === 'KeyG' ? 'G' : e.code === 'KeyR' ? 'R' : e.code === 'KeyU' ? 'U' : '';
     if (!want) return;
     const a = this.list.find((q) => q.key === want && q.run && !q.why);
     if (!a) return;

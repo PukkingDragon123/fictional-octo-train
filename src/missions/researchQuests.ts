@@ -13,7 +13,7 @@ import { G } from '../game/G';
 import { op } from '../game/ops';
 import { defQuest } from '../game/quests';
 import { hasUnlock } from '../game/research';
-import { defItem, itemDef } from '../items/item';
+import { defItem, itemDef, hasItemDef } from '../items/item';
 import { zoneSpec } from '../world/worldGraph';
 import type { QuestX, QuestRuntime } from './questRuntime';
 import type { MissionSystem } from './missions';
@@ -51,7 +51,7 @@ bus.on('deposited', (e: { keys?: string[]; value?: number }) => {
   if (G.role === 'client' || !e) return;
   if (e.value) tally('dep_value', Math.round(e.value));
   const tags = new Set<string>();
-  for (const k of e.keys || []) { for (const t of itemDef(k).tags || []) tags.add(t); if ((itemDef(k).value ?? 0) >= 300) tally('dep_big'); }
+  for (const k of e.keys || []) { if (!hasItemDef(k)) continue; for (const t of itemDef(k).tags || []) tags.add(t); if ((itemDef(k).value ?? 0) >= 300) tally('dep_big'); }
   for (const t of tags) tally('dept:' + t);
 });
 

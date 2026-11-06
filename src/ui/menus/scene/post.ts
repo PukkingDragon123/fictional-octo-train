@@ -1,18 +1,18 @@
 // The menu rooms' composite (the unit room's own renderer and the menu stage's
-// rooms both use it): the scene is rendered small into a half-float target,
-// then this pass draws it to the (equally small) canvas, which CSS blows up by
-// a whole number with hard pixels. The menus share the cutscenes' cinematic
-// layer (src/game/introKit/stage.ts): a bloom off true emitters only (Bloom
-// below: a soft-knee bright pass, three blurred levels sampled smoothly over
-// the sharp pixels), with a warm halation fringe like film. Then a black
-// one-pixel silhouette line from depth steps, a little unsharp mask so the
-// pixels stay crisp after the blow-up, depth haze (the air in the room: dust,
-// a cold cast far off), a filmic curve that keeps saturated colours saturated
-// (hue-preserving, blended with ACES so the highlights still roll off), a
-// split grade (cold shadows, warm highlights, firm blacks without crushing
-// them to mud), a darkened side for the 2D menu, a vignette, the camera
-// flash, blood on the lens (a pixel canvas of its own), light ordered dither
-// to a slightly reduced palette, a whisper of grain.
+// rooms both use it): the scene is rendered into a half-float target near the
+// screen's own resolution and composited here, cinematic and physically
+// believable rather than a pixel filter. In order: a light lens fringe, an
+// FXAA-style edge blend, a gentle unsharp, a soft contact line where depth
+// steps, ambient occlusion from depth (creases, under the desks), depth haze
+// (the air: dust, a cold cast far off), the cutscenes' bloom off true emitters
+// (src/game/introKit/stage.ts) with a warm film halation, the lamps' glow
+// scattered in the air, bounce light (the room's own light blurred wide and
+// spilled back on every surface, so shadows are never dead), screen-space
+// light shafts off the lamps, a filmic curve that keeps saturated colours
+// saturated (hue-preserving, blended with ACES), a split grade (cold shadows,
+// warm highlights, firm blacks), a darkened side for the 2D menu, a vignette,
+// the camera flash, blood on the lens, a whisper of grain and an invisible
+// one-level dither against banding.
 import * as THREE from 'three';
 
 export interface PostUniforms {
@@ -30,6 +30,23 @@ export interface PostUniforms {
   uHaze: { value: THREE.Vector4 };
   /** warm fringe round the bloom (film halation) */
   uHalation: { value: number };
+  /** depth-only ambient occlusion: strength (0 = off) and world radius (m) */
+  uAO: { value: number }; uAORad: { value: number };
+  /** the camera's focal length in render pixels (uRes.y / (2 tan(fov/2))): sizes the AO kernel */
+  uFocal: { value: number };
+  /** lit air: the wide bloom levels scattered back into the haze (0 = off) */
+  uScatter: { value: number };
+  /** lens fringe at the frame's edges (render pixels at the corner) */
+  uCA: { value: number };
+  /** the whole lit room blurred wide (a Bloom run at a near-zero threshold): bounce light and the shafts' source */
+  tFill: { value: THREE.Texture };
+  /** bounce: the room's own light spilled back into every surface (0 = off) */
+  uBounce: { value: number };
+  /** up to three screen-space light shafts: xy = the lamp's uv, z = strength (0 = off), w = reach (0..1) */
+  uShaft: { value: THREE.Vector4[] };
+  uShaftCol: { value: THREE.Vector3 };
+  /** edge anti-aliasing (0 = off): a cheap FXAA-style blend across high-contrast steps */
+  uAA: { value: number };
 }
 
 const BLACK = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
@@ -129,11 +146,14 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
   const u: PostUniforms = {
     tColor: { value: null }, tDepth: { value: null }, tLens: { value: null },
     uRes: { value: new THREE.Vector2(1, 1) }, uNear: { value: 0.05 }, uFar: { value: 40 }, uTime: { value: 0 },
-    uFlash: { value: 0 }, uRed: { value: 0 }, uExposure: { value: 1 }, uOutline: { value: 1 },
+    uFlash: { value: 0 }, uRed: { value: 0 }, uExposure: { value: 1 }, uOutline: { value: 0.3 },
     uSide: { value: new THREE.Vector4(1, 0, 0, 0.4) }, uLift: { value: new THREE.Vector3(0.86, 0.96, 1.14) }, uGain: { value: new THREE.Vector3(1.08, 1.0, 0.86) },
-    uSat: { value: 0.9 }, uContrast: { value: 1.08 }, uFloor: { value: 0 }, uVig: { value: 0.9 }, uGrain: { value: 0.012 }, uLensOn: { value: 0 }, uLevels: { value: 28 },
+    uSat: { value: 0.9 }, uContrast: { value: 1.08 }, uFloor: { value: 0 }, uVig: { value: 0.9 }, uGrain: { value: 0.01 }, uLensOn: { value: 0 }, uLevels: { value: 255 },
     tB1: { value: BLACK }, tB2: { value: BLACK }, tB3: { value: BLACK }, uBloom: { value: 0 },
-    uSharp: { value: 0.22 }, uKeepSat: { value: 0.45 }, uHaze: { value: new THREE.Vector4(0.42, 0.5, 0.62, 0.0) }, uHalation: { value: 0.35 },
+    uSharp: { value: 0.08 }, uKeepSat: { value: 0.45 }, uHaze: { value: new THREE.Vector4(0.42, 0.5, 0.62, 0.0) }, uHalation: { value: 0.35 },
+    uAO: { value: 0 }, uAORad: { value: 0.32 }, uFocal: { value: 300 }, uScatter: { value: 0 },
+    uCA: { value: 0 }, tFill: { value: BLACK }, uBounce: { value: 0 },
+    uShaft: { value: [new THREE.Vector4(), new THREE.Vector4(), new THREE.Vector4()] }, uShaftCol: { value: new THREE.Vector3(1, 0.96, 0.9) }, uAA: { value: 0 },
   };
   const mat = new THREE.ShaderMaterial({
     uniforms: u as unknown as Record<string, THREE.IUniform>,
@@ -143,6 +163,7 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
       uniform vec2 uRes; uniform float uNear, uFar, uTime, uFlash, uRed, uExposure, uOutline, uSat, uContrast, uVig, uGrain, uLensOn, uLevels, uFloor;
       uniform vec4 uSide; uniform vec3 uLift, uGain;
       uniform float uSharp, uKeepSat, uHalation; uniform vec4 uHaze;
+      uniform float uAO, uAORad, uFocal, uScatter, uCA, uBounce, uAA; uniform sampler2D tFill; uniform vec4 uShaft[3]; uniform vec3 uShaftCol;
       varying vec2 vUv;
       float linD(vec2 uv) { float z = texture2D(tDepth, uv).x; if (z >= 1.0) return uFar * 4.0; float n = z * 2.0 - 1.0; return (2.0 * uNear * uFar) / (uFar + uNear - n * (uFar - uNear)); }
       float bayer2(vec2 a) { a = floor(a); return fract(a.x / 2.0 + a.y * a.y * 0.75); }
@@ -153,6 +174,20 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
       void main() {
         vec2 px = 1.0 / uRes;
         vec3 c = texture2D(tColor, vUv).rgb;
+        // the lens: red and blue drift apart toward the corners (a pixel or two, never at the centre)
+        if (uCA > 0.0) { vec2 ca = (vUv - 0.5) * dot(vUv - 0.5, vUv - 0.5) * 4.0 * uCA * px; c.r = texture2D(tColor, vUv + ca).r; c.b = texture2D(tColor, vUv - ca).b; }
+        // anti-aliasing: where the luma steps hard against a neighbour, blend along the step (FXAA-lite)
+        if (uAA > 0.0) {
+          vec3 cN = texture2D(tColor, vUv + vec2(0.0, px.y)).rgb, cS = texture2D(tColor, vUv - vec2(0.0, px.y)).rgb;
+          vec3 cE = texture2D(tColor, vUv + vec2(px.x, 0.0)).rgb, cW = texture2D(tColor, vUv - vec2(px.x, 0.0)).rgb;
+          vec3 W3 = vec3(0.299, 0.587, 0.114);
+          float lC = dot(c, W3), lN = dot(cN, W3), lS = dot(cS, W3), lE = dot(cE, W3), lW = dot(cW, W3);
+          float lo = min(lC, min(min(lN, lS), min(lE, lW))), hi = max(lC, max(max(lN, lS), max(lE, lW)));
+          float con = (hi - lo) / max(hi, 0.06);
+          float v = abs(lN + lS - 2.0 * lC), hzE = abs(lE + lW - 2.0 * lC);
+          vec3 along = hzE > v ? (cN + cS) * 0.5 : (cE + cW) * 0.5;
+          c = mix(c, (c + along) * 0.5, smoothstep(0.15, 0.6, con) * uAA);
+        }
         // unsharp: the pixel against its four neighbours (crisp detail after the blow-up; clamped so edges never ring)
         vec3 nb = (texture2D(tColor, vUv + vec2(px.x, 0.0)).rgb + texture2D(tColor, vUv - vec2(px.x, 0.0)).rgb + texture2D(tColor, vUv + vec2(0.0, px.y)).rgb + texture2D(tColor, vUv - vec2(0.0, px.y)).rgb) * 0.25;
         c = max(c + clamp(c - nb, vec3(-0.25), vec3(0.25)) * uSharp, vec3(0.0));
@@ -161,6 +196,26 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
         float dn = min(min(linD(vUv - vec2(px.x, 0.0)), linD(vUv + vec2(px.x, 0.0))), min(linD(vUv - vec2(0.0, px.y)), linD(vUv + vec2(0.0, px.y))));
         float edge = step(0.03 + dn * 0.045, d - dn);
         c *= 1.0 - edge * uOutline;
+        // ambient occlusion from depth alone, as creases: pairs of taps either side of the pixel, a fixed world
+        // radius apart; on any plane their inverse depths average to this pixel's exactly (so floors and walls at
+        // a grazing angle stay clean), and where both lie in front of it the pixel sits in a crease: a corner, a
+        // gap between props, the shadowed seam under a desk. A tap a whole object nearer is ignored (no halos).
+        float aoK = 1.0;
+        if (uAO > 0.0 && d < uFar * 0.9) {
+          float rp = clamp(uAORad * uFocal / d, 1.5, 40.0);
+          float a0 = bayer4(floor(vUv * uRes)) * 3.1416, occ = 0.0, iz = 1.0 / d;
+          for (int i = 0; i < 6; i++) {
+            float fi = float(i);
+            float an = a0 + fi * 0.5236;
+            vec2 o = vec2(cos(an), sin(an)) * rp * (0.35 + 0.65 * fract(fi * 0.618 + 0.2)) * px;
+            float d1 = linD(vUv + o), d2 = linD(vUv - o);
+            float dz = (0.5 / d1 + 0.5 / d2 - iz) * d * d;
+            float near = max(d - d1, d - d2);
+            occ += smoothstep(0.01 + 0.004 * d, 0.09 + 0.02 * d, dz) * (1.0 - smoothstep(uAORad * 1.5, uAORad * 3.5, near));
+          }
+          aoK = 1.0 - clamp(occ / 6.0 * uAO * 1.4, 0.0, 0.85);
+          c *= aoK;
+        }
         // the air in the room: far things sink into a cold, dusty haze (never black)
         float hz = uHaze.a * smoothstep(uNear * 6.0, uFar * 0.25, d) * step(d, uFar * 3.0);
         c = mix(c, uHaze.rgb * (0.04 + 0.1 * dot(c, vec3(0.33))), hz);
@@ -174,6 +229,23 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
         // the wide levels carry a warm fringe (film halation); the tight one stays the emitter's own colour
         vec3 bl = b1 * 0.55 + (b2 * 0.45 + b3 * 0.4) * mix(vec3(1.0), vec3(1.25, 0.82, 0.62), uHalation);
         c += bl * uBloom;
+        // lit air: the lamps' wide glow hangs in the dust between the camera and whatever is far off
+        c += (b3 * 0.7 + b2 * 0.3) * uScatter * (0.35 + 0.65 * smoothstep(uNear * 4.0, uFar * 0.3, min(d, uFar)));
+        // bounce: the room's light, blurred wide, falls back onto everything (less in the creases); shadows never go dead
+        vec3 fill = texture2D(tFill, vUv).rgb;
+        c += fill * uBounce * uExposure * (0.4 + 0.6 * aoK);
+        // light shafts: march toward each lamp through the blurred light; what stands before the lamp breaks the rays
+        for (int k = 0; k < 3; k++) {
+          vec4 sh = uShaft[k];
+          if (sh.z <= 0.0) continue;
+          vec2 dv = sh.xy - vUv; float dl = length(dv);
+          vec2 dir = dv / max(dl, 1e-4) * min(dl, 0.45) * sh.w / 12.0;
+          vec2 sp = vUv + dir * bayer4(floor(vUv * uRes) * 0.5);
+          float wt = 1.0; vec3 acc = vec3(0.0);
+          for (int i = 0; i < 12; i++) { sp += dir; vec3 f = texture2D(tFill, sp).rgb; acc += max(f - vec3(0.35), vec3(0.0)) * wt; wt *= 0.88; }
+          float fall = 1.0 - smoothstep(0.0, 0.6, length(dv * vec2(uRes.x / uRes.y, 1.0)));
+          c += acc / 12.0 * sh.z * fall * uShaftCol * uExposure;
+        }
         // tone: ACES for the roll-off, blended with a hue-preserving curve on luminance so saturated lamps and screens keep their colour
         float lin = max(dot(c, vec3(0.2126, 0.7152, 0.0722)), 1e-5);
         vec3 keep = c * (aces(vec3(lin)).r / lin);
@@ -194,7 +266,9 @@ export function makePost(): { scene: THREE.Scene; cam: THREE.OrthographicCamera;
         // grain, then light ordered dither to a reduced palette
         vec2 ip = floor(vUv * uRes);
         c += (hash(ip + floor(uTime * 12.0) * 7.0) - 0.5) * uGrain;
-        c = floor(c * uLevels + bayer4(ip)) / uLevels;
+        // 8-bit with an ordered dither of one level (no banding in the haze, no visible pattern); fades out at black
+        float dk = smoothstep(0.5 / uLevels, 2.5 / uLevels, max(c.r, max(c.g, c.b)));
+        c = floor(c * uLevels + mix(0.5, bayer4(ip), dk)) / uLevels;
         gl_FragColor = vec4(clamp(c, 0.0, 1.0), 1.0);
       }`,
     depthTest: false, depthWrite: false,

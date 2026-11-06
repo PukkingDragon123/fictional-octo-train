@@ -1,51 +1,59 @@
-// The contract tutorial: right after the arrival, a forced, staged walk through
-// the loop, cutscene - task - cutscene. Each cutscene locks the controls,
-// letterboxes the picture, frames the iso camera on what matters (pushes,
-// pans), cuts to the survivor's own eyes (src/fp/eye.ts, through a dip to
-// black) and has Staff Sergeant Voss (src/game/handler.ts) say the one line
-// that matters. Each task gives control back with the target lit (a lamp on
-// it, the floor guide's chevrons) and one meaningful word hanging over it.
+// The contract tutorial: Dr. Iris Calder's link training, right after the run
+// intro (src/game/intro.ts). She talks you through the unit's body over the
+// band, broadcast-style: a LIVE lesson card at the top of the screen, her
+// voice and projection on the wrist (src/game/handler.ts), one word hanging
+// over whatever the lesson is about. The lessons that need the body keep the
+// controls in your hands; the few that need to show you something are short
+// cutscenes (letterbox, the iso camera framed, a cut to the unit's own eyes).
 //
-//   brief    the room from above, the furniture lit, his eyes on it   -> BREAK IT OPEN
-//   loot     what fell out, his eyes on the valuable                  -> PICK IT UP
-//   press    a pan to the Remittance Press, Voss at its projector     -> ONTO THE PLATE / PULL THE LEVER
-//   debt     the push on the band: the number counting down; the installment and its deadline;
-//            the watch raised (its own first-person close-up) on the job board; a pan to the way
-//            deeper (better rooms, passage out at the depot); a recap of the loop
+//   1 THE LEGS    walk                                         -> WALK
+//   2 THE PACE    hold Shift (touch: RUN)                      -> RUN
+//   3 LOW         C / Ctrl (touch: SNEAK)                      -> CROUCH
+//   4 THE HANDS   a piece of furniture lit, her eyes on it     -> GET A GRIP (right button held / G)
+//   5 THE PRESS   a pan to the Remittance Press                -> TO THE PRESS, FEED IT (E)
+//                 the band: the number going down, the installment, the watch, the way deeper
+//   6 THE LINK    she slips the link on purpose                -> RESYNC (L, or tap the status line)
+//   7 DATA        terminals, drives, the inhabitants; the job, once more, plainly
 //
+// The job is whole furniture: things down here are hard to break, so you get
+// hold of a piece, carry it to the press and feed it in (src/world/pushDrag.ts).
 // Runs once per contract (flag 'tut:done'), only for the host / solo with the
 // contract on (never free survival or a co-op joiner). Esc (or the plate, or
-// pad Start) during a cutscene skips the rest. ?quick runs keep the old soft
-// guide; ?tutorial=1 forces it on a quick start (dev).
+// pad Start) skips the rest. ?quick runs keep the handler's soft guide;
+// ?tutorial=1 forces it on a quick start (dev).
 //
 //   tutorialWanted(), startTutorial(g), tutorialRunning()
 import * as THREE from 'three';
 import { G } from '../G';
 import type { Game, GameSystem } from '../game';
 import type { Action } from '../../core/input';
-import type { Zone, TileObject } from '../../world/zone';
+import type { Player } from '../../entities/player';
+import type { TileObject } from '../../world/zone';
 import { bus } from '../../core/events';
 import { objDef } from '../../world/objects';
 import { eyeEnter, eyeExit, eyeActive } from '../../fp/eye';
-import { floorItems, floorItemsNear } from '../../items/worldItems';
-import { createItem, serializeItem } from '../../items/factory';
-import { hasItemDef, itemDef } from '../../items/item';
-import { op } from '../ops';
-import { isValuable, itemValue } from '../debt/values';
 import { floatQuiet } from '../../social/floatText';
 import { skipPlate, pollPadSkip, type SkipPlate } from '../introKit/skip';
 import { readTime } from '../lines';
 import { TUT } from './state';
 import '../intro.css';
 
-type Step = 'brief' | 'break' | 'loot' | 'pickup' | 'press' | 'carry' | 'lever' | 'deposit' | 'debt' | 'done';
+type Step = 'walk' | 'run' | 'crouch' | 'brief' | 'grip' | 'press' | 'carry' | 'feed' | 'debt' | 'link' | 'data' | 'done';
 interface Beat { dur: number; enter?: () => void; tick?: (k: number, dt: number) => void; voss?: boolean }
+interface PushApi {
+  holding?: unknown; mode?: string; st?: { o?: TileObject } | null;
+  liftable?: (p: Player, o: TileObject, power?: boolean) => boolean;
+  carryInfo?: () => { mass: number; tier: number; name: string; nearPress: boolean } | null;
+}
 
 const DEG = Math.PI / 180;
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const ease = (t: number) => { t = clamp01(t); return t * t * (3 - 2 * t); };
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 const v1 = new THREE.Vector3();
+const push = () => (G as unknown as { destruct?: { push?: PushApi } }).destruct?.push ?? null;
+const isTouch = () => document.documentElement.classList.contains('nc-touch') || (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
+const LESSONS = 7;
 
 let running: Tutorial | null = null;
 export function tutorialRunning(): boolean { return !!running; }
@@ -76,7 +84,7 @@ const CSS = `
 .tut-obj { position: absolute; transform: translate(-50%, -100%); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .35s; }
 .tut-obj.on { opacity: 1; }
 .tut-obj b { display: block; font-weight: 400; font-size: 32px; line-height: 32px; color: #ffe7a8; text-shadow: var(--text-ink); letter-spacing: 1px; }
-.tut-obj i { display: block; font-style: normal; font-size: 16px; line-height: 18px; color: #e8eef4; text-shadow: var(--text-ink); margin-top: 4px; }
+.tut-obj i { display: block; font-style: normal; font-size: 16px; line-height: 16px; color: #e8eef4; text-shadow: var(--text-ink); margin-top: 4px; }
 .tut-obj .arrow { display: block; font-size: 16px; color: #ffe7a8; text-shadow: var(--text-ink); animation: tut-bob .9s steps(3) infinite; }
 @keyframes tut-bob { 50% { transform: translateY(4px); } }
 .tut-count { position: absolute; transform: translate(-50%, -100%); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .3s; }
@@ -84,18 +92,28 @@ const CSS = `
 .tut-count small { display: block; font-size: 16px; line-height: 16px; color: #ffb45a; text-shadow: var(--text-ink); }
 .tut-count b { display: block; font-weight: 400; font-size: 48px; line-height: 48px; color: #ffd890; text-shadow: var(--text-ink); }
 .tut-count em { display: block; font-style: normal; font-size: 32px; line-height: 32px; color: #9cff8a; text-shadow: var(--text-ink); }
-.tut-recap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; opacity: 0; transition: opacity .5s; width: min(92vw, 900px); }
+.tut-recap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; opacity: 0; transition: opacity .5s; width: min(92vw, 960px); }
 .tut-recap.on { opacity: 1; }
-.tut-recap h2 { font-weight: 400; font-size: 32px; line-height: 32px; margin: 0 0 16px; color: #ffb45a; text-shadow: var(--text-ink); }
-.tut-recap .loop { font-size: 32px; line-height: 40px; color: #fff2c8; text-shadow: var(--text-ink); }
-.tut-recap .loop span { color: #ffb45a; }
-.tut-recap p { font-size: 16px; line-height: 22px; margin: 6px 0 0; color: #e8eef4; text-shadow: var(--text-ink); }
-@media (max-width: 600px) { .tut-recap .loop { font-size: 16px; line-height: 24px; } .tut-obj b { font-size: 16px; line-height: 18px; } .tut-count b { font-size: 32px; line-height: 32px; } .tut-count em { font-size: 16px; } }
+.tut-recap h2 { font-weight: 400; font-size: 32px; line-height: 32px; margin: 0 0 16px; color: #8fd8ff; text-shadow: var(--text-ink); }
+.tut-recap .loop { font-size: 32px; line-height: 48px; color: #fff2c8; text-shadow: var(--text-ink); }
+.tut-recap .loop span { color: #8fd8ff; }
+.tut-recap p { font-size: 16px; line-height: 16px; margin: 16px 0 0; color: #e8eef4; text-shadow: var(--text-ink); }
+/* the broadcast: Dr. Calder's lesson card, top of the screen */
+.tut-cast { position: absolute; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translate(-50%, -8px); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .4s, transform .4s; }
+.tut-cast.on { opacity: 1; transform: translate(-50%, 0); }
+.tut-root.cine .tut-cast { opacity: 0; }
+.tut-cast small { display: block; font-size: 16px; line-height: 16px; letter-spacing: 2px; color: #8fd8ff; text-shadow: var(--text-ink); }
+.tut-cast small u { text-decoration: none; color: #ff5a4a; animation: tut-live 1.4s steps(2) infinite; }
+@keyframes tut-live { 50% { opacity: .25; } }
+.tut-cast b { display: block; font-weight: 400; font-size: 32px; line-height: 32px; margin-top: 8px; color: #fff2c8; text-shadow: var(--text-ink); letter-spacing: 1px; }
+.tut-cast i { display: block; font-style: normal; font-size: 16px; line-height: 16px; margin-top: 8px; color: #ffe7a8; text-shadow: var(--text-ink); }
+.tut-cast i kbd { font: inherit; padding: 0 4px; border: 2px solid #ffe7a8; margin: 0 2px; }
+@media (max-width: 600px) { .tut-recap .loop { font-size: 16px; line-height: 32px; } .tut-obj b, .tut-cast b { font-size: 16px; line-height: 16px; } .tut-count b { font-size: 32px; line-height: 32px; } .tut-count em { font-size: 16px; line-height: 16px; } }
 `;
 
 export class Tutorial implements GameSystem {
   name = 'tutorial';
-  step: Step = 'brief';
+  step: Step = 'walk';
   /** seconds in this step */
   t = 0;
   private beats: Beat[] = [];
@@ -104,16 +122,18 @@ export class Tutorial implements GameSystem {
   private cine = false;
   // the iso camera, framed
   private camOn = false; private camFocus = new THREE.Vector3(); private camGoal = new THREE.Vector3(); private camZoom = 1; private camZoomGoal = 1; private camRate = 2;
-  // what the task is about
+  // what the lesson is about
   private target: { x: number; z: number; y: number } | null = null;
   private targetObj: TileObject | null = null;
-  private loot: { key: string; x: number; z: number } | null = null;
+  private refused = new Set<number>();
   private hopper: { x: number; z: number; o: TileObject } | null = null;
   private owedFrom = 0; private owedTo = 0; private paid = 0;
+  private walked = 0; private held = 0; private dropT = 0; private fed = false; private saidHeavy = false; private slipped = false;
+  private touch = isTouch();
   private offs: (() => void)[] = [];
   private lockOffs: (() => void)[] = [];
   // dom
-  private root: HTMLDivElement; private shade: HTMLDivElement; private obj: HTMLDivElement; private count: HTMLDivElement; private recap: HTMLDivElement;
+  private root: HTMLDivElement; private shade: HTMLDivElement; private obj: HTMLDivElement; private count: HTMLDivElement; private recap: HTMLDivElement; private cast: HTMLDivElement;
   private plate: SkipPlate;
   private shadeA = 0; private shadeGoal = 0;
   private objAt: (() => THREE.Vector3 | null) | null = null;
@@ -123,7 +143,7 @@ export class Tutorial implements GameSystem {
 
   constructor(public g: Game) {
     running = this;
-    TUT.running = true; TUT.step = 'brief'; TUT.target = -1;
+    TUT.running = true; TUT.step = 'walk'; TUT.target = -1;
     if (!document.getElementById('tut-css')) { const st = document.createElement('style'); st.id = 'tut-css'; st.textContent = CSS; document.head.appendChild(st); }
     const el = (cls: string, html = '') => { const e = document.createElement('div'); e.className = cls; e.innerHTML = html; return e; };
     this.root = el('tut-root');
@@ -131,18 +151,37 @@ export class Tutorial implements GameSystem {
     this.obj = el('tut-obj');
     this.count = el('tut-count');
     this.recap = el('tut-recap');
-    this.plate = skipPlate(() => this.skip(), 'Skip tutorial');
-    this.plate.setKey('Esc');
-    this.root.append(el('ix-bar top'), el('ix-bar bot'), this.shade, this.obj, this.count, this.recap, this.plate.el);
+    this.cast = el('tut-cast');
+    this.plate = skipPlate(() => this.skip(), 'Skip lessons');
+    this.plate.setKey(this.touch ? '' : 'Esc');
+    this.plate.el.classList.add('on');
+    this.root.append(el('ix-bar top'), el('ix-bar bot'), this.shade, this.cast, this.obj, this.count, this.recap, this.plate.el);
     document.body.appendChild(this.root);
     floatQuiet(true); this.quietHeld = true;
-    // the old soft tutorial in the handler stands down
+    // the handler's soft guide stands down: she runs the lessons from here
     const h = G.handler as unknown as { briefed?: boolean; cine?: boolean; hush?: () => void } | null;
-    if (h) { h.briefed = true; h.cine = true; h.hush?.(); }
+    if (h) { h.briefed = true; h.hush?.(); }
     const on = (ev: string, fn: (...a: any[]) => void) => this.offs.push(bus.on(ev, fn));
-    on('objBroken', (_z: Zone, o: TileObject, by: string | null) => { if (by === G.local?.id && this.step === 'break') { this.targetObj = o; this.go('loot'); } });
-    on('deposited', (d: { by: string; value: number }) => { if (d?.by === G.local?.id && (this.step === 'deposit' || this.step === 'carry' || this.step === 'lever')) { this.paid = d.value; this.go('debt'); } });
-    this.go('brief');
+    on('grabbed', (p: Player, o: TileObject, mode: string) => { if (p === G.local) this.onGrab(o, mode); });
+    on('carryFed', (p: Player) => { if (p === G.local) { this.fed = true; this.t = 0; this.setObjective(null); G.handler?.guide?.(null); } });
+    on('deposited', (d: { by: string; value: number }) => {
+      if (d?.by !== G.local?.id) return;
+      if (['grip', 'carry', 'feed', 'press'].includes(this.step)) { this.paid = d.value; this.go(this.hopper ? 'debt' : 'link'); }
+    });
+    // Esc skips (only while no menu or reader is up); the controls stay the player's
+    const inp = g.input as unknown as { hit: (a: Action) => boolean };
+    const own = Object.prototype.hasOwnProperty.call(inp, 'hit') ? inp.hit : undefined;
+    const orig = inp.hit.bind(inp);
+    inp.hit = (a: Action) => {
+      const v = orig(a);
+      if (a === 'pause' && v && !this.cine) {
+        const ui = g.ui as unknown as { menuEl?: unknown; readerEl?: unknown; modal?: unknown; inventory?: { open?: boolean } } | undefined;
+        if (!(ui?.menuEl || ui?.readerEl || ui?.modal || ui?.inventory?.open || (G as unknown as { watch?: { open?: boolean } }).watch?.open)) { this.skip(); return false; }
+      }
+      return v;
+    };
+    this.offs.push(() => { if (own) inp.hit = own; else delete (inp as { hit?: unknown }).hit; });
+    this.go('walk');
   }
 
   // ================================================================== steps
@@ -151,16 +190,46 @@ export class Tutorial implements GameSystem {
     TUT.step = step;
     this.setObjective(null);
     const h = G.handler;
+    const T = this.touch;
     switch (step) {
-      case 'brief': this.findTarget(); this.cut(this.briefBeats()); break;
-      case 'break': this.release(); if (this.target) h?.guide?.(this.target); break;
-      case 'loot': this.cut(this.lootBeats()); break;
-      case 'pickup': this.release(); break;
+      case 'walk':
+        this.release();
+        this.lesson(1, 'THE LEGS', T ? 'the stick, bottom left' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>');
+        this.say(T ? 'Lesson one, the legs. The stick on the left walks it. Small steps, it is still finding its feet.' : 'Lesson one, the legs. W, A, S and D walk it. Small steps, it is still finding its feet.');
+        break;
+      case 'run':
+        this.lesson(2, 'THE PACE', T ? 'tap <kbd>RUN</kbd>' : 'hold <kbd>Shift</kbd>');
+        this.say(T ? 'Good. Tap RUN and it runs. Running spends breath: the lungs on the machine will tell you when to stop.' : 'Good. Hold Shift and it runs. Running spends breath: the lungs on the machine will tell you when to stop.');
+        break;
+      case 'crouch':
+        this.lesson(3, 'LOW', T ? 'tap <kbd>SNEAK</kbd>' : '<kbd>C</kbd> or <kbd>Ctrl</kbd>');
+        this.say(T ? 'Now get it low. SNEAK. Slower, quieter. Most inhabitants hunt by ear.' : 'Now get it low. C, or Control. Slower, quieter. Most inhabitants hunt by ear.');
+        break;
+      case 'brief': if (G.local) G.local.sneaking = false; this.findTarget(); this.findHopper(); this.cut(this.briefBeats()); break;
+      case 'grip':
+        this.release();
+        this.lesson(4, 'THE HANDS', T ? 'tap it, then <kbd>CARRY</kbd>' : 'hold the <kbd>right button</kbd> on it, or <kbd>G</kbd>');
+        if (this.target) h?.guide?.(this.target);
+        break;
       case 'press': this.cut(this.pressBeats()); break;
-      case 'carry': this.release(); if (this.hopper) h?.guide?.(this.hopper); break;
-      case 'lever': this.cut(this.leverBeats()); break;
-      case 'deposit': this.release(); break;
+      case 'carry':
+        this.release();
+        this.lesson(5, 'THE PRESS', 'walk it over. Heavy loads are slow');
+        if (this.hopper) h?.guide?.(this.hopper);
+        break;
+      case 'feed':
+        this.lesson(5, 'THE PRESS', T ? 'tap <kbd>FEED</kbd>' : '<kbd>E</kbd> next to the plate');
+        h?.guide?.(null);
+        break;
       case 'debt': this.cut(this.debtBeats()); break;
+      case 'link':
+        this.release();
+        this.slipped = false;
+        this.lesson(6, 'THE LINK', T ? 'tap the <kbd>LINK</kbd> line' : '<kbd>L</kbd> resyncs');
+        this.say('Lesson six, and you will hate it. Your fear runs down the wire. When the brain on the machine cracks, the unit lags, drifts, does things on its own.');
+        this.say('I am going to slip the link now. On purpose. Resync it.');
+        break;
+      case 'data': this.cut(this.dataBeats()); break;
       case 'done': this.finish(); break;
     }
   }
@@ -169,24 +238,13 @@ export class Tutorial implements GameSystem {
     const p = G.local!, tg = this.target;
     const h = G.handler;
     return [
-      { dur: 0.1, enter: () => { this.frame(v1.set(p.x, p.y + 0.6, p.z), 1.0, 8); } },
-      // up over the room: the debtor small in it, the furniture around him
-      { dur: 3.2, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 0.4, p.z), 0.72, 0.9); G.camera?.orbitBy?.(14 * DEG, 0); this.say('Right. The job, {n}. Watch it once. Then you do it until you are square.'); } },
-      // push on the piece he is going to break, lit
-      { dur: 2.6, voss: true, enter: () => { if (tg) { this.frame(v1.set(tg.x, tg.y + 0.5, tg.z), 1.7, 1.6); h?.point?.(tg.x, tg.z); } this.say('Furniture. People hid what they had left in it. That one.', tg ?? undefined); } },
-      // his own eyes on it
-      { dur: 2.4, voss: true, enter: () => { if (tg) this.eyeOn(tg, 10); this.say('Break it open. Hit it till it gives.'); } },
-      { dur: 0.3, enter: () => this.eyeOff() },
-    ];
-  }
-
-  private lootBeats(): Beat[] {
-    const p = G.local!;
-    return [
-      // let it fall out
-      { dur: 0.9, enter: () => { G.handler?.guide?.(null); this.lock(true); } },
-      { dur: 0.1, enter: () => { this.findLoot(); const l = this.loot; this.frame(v1.set(l?.x ?? p.x, p.y + 0.3, l?.z ?? p.z), 2.1, 3); } },
-      { dur: 2.6, voss: true, enter: () => { const l = this.loot; if (l) this.eyeOn({ x: l.x, z: l.z, y: p.y }, 42, 0.05); this.say(l ? `There. ${this.lootName()}. That is worth something.` : 'Look on the floor. Something fell out.'); } },
+      { dur: 0.1, enter: () => { this.lesson(4, 'THE HANDS', ''); this.frame(v1.set(p.x, p.y + 0.6, p.z), 1.0, 8); } },
+      // up over the room: the unit small in it, the furniture around it
+      { dur: 3.2, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 0.4, p.z), 0.72, 0.9); G.camera?.orbitBy?.(14 * DEG, 0); this.say('Lesson four, the hands. This is the job, {n}. The Institute collects furniture. Whole. It is all built to last down here.'); } },
+      // push on the piece it is going to carry, lit
+      { dur: 2.8, voss: true, enter: () => { if (tg) { this.frame(v1.set(tg.x, tg.y + 0.5, tg.z), 1.7, 1.6); h?.point?.(tg.x, tg.z); } this.say(tg ? 'That one. Light enough for a new body.' : 'Find something the unit can lift.', tg ?? undefined); } },
+      // its own eyes on it
+      { dur: 2.6, voss: true, enter: () => { if (tg) this.eyeOn(tg, 10); this.say(this.touch ? 'Walk up to it, tap it, then CARRY. Lift with the legs.' : 'Walk up to it and hold the right button on it. Or press G. Lift with the legs.'); } },
       { dur: 0.3, enter: () => this.eyeOff() },
     ];
   }
@@ -197,19 +255,10 @@ export class Tutorial implements GameSystem {
     this.findHopper();
     const hp = this.hopper;
     return [
-      { dur: 0.1, enter: () => { this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.4, 6); } },
-      // a pan from him to the press, the press lit, Voss at its projector
-      { dur: 3.4, voss: true, enter: () => { if (hp) { this.frame(v1.set(hp.x, p.y + 0.6, hp.z), 1.5, 1.0); h?.appear?.('pylon'); } this.say('That is a Remittance Press. It eats what you feed it and pays your number down.', undefined, true); } },
-    ];
-  }
-
-  /** at the press: his eyes on the plate and the lever */
-  private leverBeats(): Beat[] {
-    const p = G.local!, hp = this.hopper;
-    return [
-      { dur: 0.2, enter: () => { G.handler?.guide?.(null); if (hp) this.frame(v1.set(hp.x, p.y + 0.7, hp.z), 2.2, 3); } },
-      { dur: 2.8, voss: true, enter: () => { if (hp) this.eyeOn({ x: hp.x, z: hp.z, y: p.y }, 20, 0.6); this.say('On the striped plate. Step off it. Pull the red lever.', undefined, true); } },
-      { dur: 0.3, enter: () => this.eyeOff() },
+      { dur: 0.1, enter: () => { this.lesson(5, 'THE PRESS', ''); this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.4, 6); } },
+      // a pan from the unit to the press, the press lit, Calder at its projector
+      { dur: 3.4, voss: true, enter: () => { if (hp) { this.frame(v1.set(hp.x, p.y + 0.6, hp.z), 1.5, 1.0); h?.appear?.('pylon'); } this.say('Got it. Good. That is a Remittance Press. It eats what you feed it and pays the unit\'s number down.', undefined, true); } },
+      { dur: 2.6, voss: true, enter: () => { this.say(this.touch ? 'Carry it over. Next to the plate, tap FEED.' : 'Carry it over. Next to the plate, press E and it goes in.', undefined, true); } },
     ];
   }
 
@@ -225,19 +274,29 @@ export class Tutorial implements GameSystem {
       // the press does its work
       { dur: 1.8, enter: () => { G.handler?.guide?.(null); this.lock(true); } },
       // the push on the band: the number counts down
-      { dur: 3.6, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 0.9, p.z), 3.0, 1.3); this.counter(wrist); this.say('Hear that? Your number went down. That is the whole job.'); },
+      { dur: 3.6, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 0.9, p.z), 3.0, 1.3); this.counter(wrist); this.say('Hear that? The unit\'s number went down. That is the whole job.'); },
         tick: (k) => { const n = this.owedFrom + (this.owedTo - this.owedFrom) * ease(clamp01((k - 0.12) / 0.55)); this.setCount('OWED', fmt(n) + ' SCRIP', this.paid > 0 ? '-' + fmt(this.paid) : ''); if (k > 0.12 && k < 0.7 && Math.random() < 0.25) G.audio?.ui?.('watchTick', 0.25); } },
       // the installment and its deadline
-      { dur: 4.2, voss: true, enter: () => { const s = d(); this.setCount(`INSTALLMENT ${(s?.n ?? 0) + 1} OF ${s?.count ?? 5}`, fmt(s?.due ?? 0) + ' DUE', `BY DAY ${s?.dueDay ?? 3}`); this.say('The ledger wants an installment every few days. Miss one and the band bites. Then it bites harder.'); },
+      { dur: 4.2, voss: true, enter: () => { const s = d(); this.setCount(`INSTALLMENT ${(s?.n ?? 0) + 1} OF ${s?.count ?? 5}`, fmt(s?.due ?? 0) + ' DUE', `BY DAY ${s?.dueDay ?? 3}`); this.say('The ledger wants an installment every few days. Miss one and the band bites. I do not enjoy that part. Much.'); },
         tick: () => { const s = d(); if (s?.dueH != null) this.setCount(`INSTALLMENT ${(s.n ?? 0) + 1} OF ${s.count ?? 5}`, fmt(s.due) + ' DUE', `DAY ${s.dueDay} - ${Math.max(0, Math.floor(s.dueH))} H LEFT`); } },
       // the watch on the same wrist: the job board (TAB raises it)
-      { dur: 4.4, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 1.0, p.z), 3.4, 1.6); this.setCount('THE WATCH  -  TAB', 'JOBS', 'PAY RESEARCH CREDIT'); this.say('Your watch. Jobs come through it. R&D pays research credit for them: spend it on what the watch can do.'); } },
+      { dur: 4.4, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 1.0, p.z), 3.4, 1.6); this.setCount(this.touch ? 'THE WATCH' : 'THE WATCH  -  TAB', 'JOBS', 'PAY RESEARCH CREDIT'); this.say('Your watch. My jobs come through it, and they pay research credit: spend it on what the watch can do.'); } },
       { dur: 0.3, enter: () => this.counter(null) },
       // the way deeper
-      { dur: 3.6, voss: true, enter: () => { this.camOn = true; if (exit) this.frame(v1.set(exit.x, p.y + 0.5, exit.z), 1.2, 0.9); else this.frame(v1.set(p.x, p.y + 0.5, p.z), 0.8, 1); this.say('Clear the debt and you buy passage out at the depot. The deeper rooms pay better. They also bite.', exit ?? undefined); } },
-      // the loop, once more, plainly
-      { dur: 5.2, enter: () => { this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.1, 1.2); this.showRecap(true); G.audio?.ui?.('watchUp', 0.3); } },
+      { dur: 3.6, voss: true, enter: () => { this.camOn = true; if (exit) this.frame(v1.set(exit.x, p.y + 0.5, exit.z), 1.2, 0.9); else this.frame(v1.set(p.x, p.y + 0.5, p.z), 0.8, 1); this.say('Clear the debt and the unit buys passage out at the depot. The deeper rooms pay better. They also bite.', exit ?? undefined); } },
+    ];
+  }
+
+  /** the last lesson, and the job once more, plainly */
+  private dataBeats(): Beat[] {
+    const p = G.local!;
+    return [
+      { dur: 0.1, enter: () => { this.lesson(7, 'DATA', ''); this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.0, 3); } },
+      { dur: 3.4, voss: true, enter: () => this.say('Last lesson. Data. Terminals, drives, journals: whatever remembers what happened here, read it. That pays me.') },
+      { dur: 3.4, voss: true, enter: () => this.say(this.touch ? 'And the inhabitants. They are organisms, not ghosts. Point the watch at one and scan it. From a distance, please.' : 'And the inhabitants. They are organisms, not ghosts. Hold N on one and the watch scans it. From a distance, please.') },
+      { dur: 5.6, enter: () => { this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.1, 1.2); this.showRecap(true); G.audio?.ui?.('watchUp', 0.3); } },
       { dur: 0.6, enter: () => this.showRecap(false) },
+      { dur: 2.6, voss: true, enter: () => this.say('That is the training. I will be on your wrist. Stand up straight, {n}. Somebody is always watching.') },
     ];
   }
 
@@ -247,8 +306,8 @@ export class Tutorial implements GameSystem {
     this.t += dt;
     const p = G.local;
     if (!p) return;
-    // pad Start skips a cutscene
-    if (this.cine) { const pad = pollPadSkip(); if (pad === 'skip') this.skip(); else if (pad === 'wake') this.plate.el.classList.add('hot'); }
+    // pad Start skips
+    const pad = pollPadSkip(); if (pad === 'skip') { this.skip(); return; } else if (pad === 'wake') this.plate.el.classList.add('hot');
     // the cutscene's beats
     if (this.cine && this.beats.length) {
       const b = this.beats[0];
@@ -259,47 +318,85 @@ export class Tutorial implements GameSystem {
       const waitVoss = b.voss && h?.busy && this.beatT < b.dur + 2.5;
       if (this.beatT >= b.dur && !waitVoss) { this.beats.shift(); this.beatOn = false; if (!this.beats.length) this.cutDone(); }
     }
-    // the task
+    const h = G.handler;
+    const talking = !!h?.busy;
+    const head = () => v1.set(p.x, p.y + 2.3, p.z);
+    const ci = push()?.carryInfo?.() ?? null;
     switch (this.step) {
-      case 'break': {
+      case 'walk': {
+        if (p.speed > 0.6) this.walked += p.speed * dt;
+        this.setObjective('WALK', '', head);
+        if ((this.walked > 5 || G.missions?.flags?.has?.('tut:walk')) && this.t > 2.5 && !talking) this.go('run');
+        else if (this.t > 45) this.go('run');
+        break;
+      }
+      case 'run': {
+        if (p.running && p.speed > 2.4) this.held += dt; else this.held = Math.max(0, this.held - dt * 0.5);
+        this.setObjective('RUN', '', head);
+        if ((this.held > 0.9 && this.t > 1.5 && !talking) || this.t > 35) { this.held = 0; this.go('crouch'); }
+        break;
+      }
+      case 'crouch': {
+        if (p.sneaking) this.held += dt;
+        this.setObjective('CROUCH', '', head);
+        if ((this.held > 0.6 && this.t > 1.5 && !talking) || this.t > 35) { this.held = 0; this.go('brief'); }
+        break;
+      }
+      case 'grip': {
+        if (ci) { if (!this.hopper) this.findHopper(); this.go(this.hopper ? 'press' : 'link'); break; }
         const o = this.targetObj;
-        if (o && !this.alive(o)) { this.findTarget(); if (this.target) G.handler?.guide?.(this.target); }
-        this.setObjective('BREAK IT OPEN', 'Hit it until it gives', () => (this.target ? v1.set(this.target.x, this.target.y + 1.3, this.target.z) : null));
+        if (!o || !this.alive(o) || this.t > 60) { this.findTarget(); this.t = Math.min(this.t, 1); if (this.target) h?.guide?.(this.target); }
+        this.setObjective('GET A GRIP', this.targetName(), () => (this.target ? v1.set(this.target.x, this.target.y + 1.4, this.target.z) : null));
         this.light(this.target, 0xffe2b0);
-        // the flag can come from elsewhere (a co-op host, the destruction system's own path)
-        if (G.missions?.flags?.has?.('tut:smash') && this.t > 1 && !this.cine) { /* wait for objBroken; it arrives with the break */ }
         break;
       }
-      case 'pickup': {
-        const l = this.loot;
-        if (this.hasValuable()) { this.go('press'); break; }
-        if (l && this.t > 0.5 && !this.lootOnFloor()) this.findLoot();
-        this.setObjective('PICK IT UP', this.loot ? this.lootName() : 'Something valuable', () => (this.loot ? v1.set(this.loot.x, p.y + 0.7, this.loot.z) : null));
-        this.light(this.loot ? { x: this.loot.x, z: this.loot.z, y: p.y } : null, 0xfff0c8);
-        break;
-      }
-      case 'carry': {
+      case 'carry': case 'feed': {
         const hp = this.hopper;
-        if (!hp) { this.findHopper(); break; }
-        if (G.missions?.flags?.has?.('contract:first_deposit')) { this.go('debt'); break; }
-        if (Math.hypot(hp.x - p.x, hp.z - p.z) < 3.4) { this.go('lever'); break; }
-        this.setObjective('TO THE PRESS', 'Carry it there', () => v1.set(hp.x, p.y + 1.6, hp.z));
+        if (!hp) { this.findHopper(); if (!this.hopper && this.t > 2) this.go('link'); break; }
+        if (G.missions?.flags?.has?.('contract:first_deposit') && this.t > 0.5 && !this.fed) { this.go('debt'); break; }
+        // fed: the ram comes down; the deposit moves the lesson on (or this, if the press is jammed)
+        if (this.fed) { if (this.t > 8) this.go('debt'); break; }
+        if (!ci) {
+          // put down or dropped: pick it back up
+          this.dropT += dt;
+          if (this.dropT > 0.8) {
+            this.locateTarget();
+            if (this.step === 'feed') this.go('carry');
+            this.setObjective('PICK IT BACK UP', this.touch ? 'tap it, then CARRY' : 'right button on it, or G', () => (this.target ? v1.set(this.target.x, this.target.y + 1.4, this.target.z) : null));
+            this.light(this.target, 0xffe2b0);
+          }
+          break;
+        }
+        this.dropT = 0;
+        if (ci.nearPress && this.step === 'carry') this.go('feed');
+        else if (!ci.nearPress && this.step === 'feed' && this.t > 0.6) this.go('carry');
+        if (this.step === 'feed') this.setObjective('FEED IT', this.touch ? 'tap FEED' : 'press E', () => v1.set(hp.x, p.y + 1.8, hp.z));
+        else this.setObjective('TO THE PRESS', ci.tier >= 2 ? 'heavy: slow and steady' : '', () => v1.set(hp.x, p.y + 1.8, hp.z));
         this.light({ x: hp.x, z: hp.z, y: p.y }, 0xffd9a0);
         break;
       }
-      case 'deposit': {
-        const hp = this.hopper;
-        if (G.missions?.flags?.has?.('contract:first_deposit') && this.t > 0.5) { this.go('debt'); break; }
-        if (!hp) { this.findHopper(); break; }
-        const on = this.onPlate(hp.o);
-        if (on) this.setObjective('PULL THE LEVER', 'The red lever on its side', () => v1.set(hp.x + 1.1, p.y + 1.6, hp.z));
-        else this.setObjective('ONTO THE PLATE', this.hasValuable() ? 'Drop it on the striped plate, or Deposit from its menu' : 'Bring something valuable', () => v1.set(hp.x, p.y + 1.6, hp.z));
-        this.light({ x: hp.x, z: hp.z, y: p.y }, 0xffd9a0);
-        if (!this.hasValuable() && !on && this.t > 3) { /* still carrying nothing: the guide stays on the press, the word says what is missing */ }
+      case 'link': {
+        const L = (G as unknown as { link?: { force?: (k: string) => void; state?: string } }).link;
+        if (!L) { this.go('data'); break; }
+        if (!this.slipped && this.t > 2 && !talking) { this.slipped = true; this.t = 0; try { L.force?.('desync'); } catch (e) { console.warn('link lesson', e); } }
+        if (this.slipped) {
+          if (L.state === 'desync') this.setObjective('RESYNC', this.touch ? 'tap LINK DESYNC' : 'press L', head);
+          else this.setObjective(null);
+          if ((L.state === 'ok' && this.t > 0.5) || this.t > 50) { if (L.state === 'ok') this.say('Locked. Good hands. Keep the unit calm and it will not happen often.'); this.go('data'); }
+        }
         break;
       }
     }
     this.paint(dt);
+  }
+  /** the unit got hold of something */
+  private onGrab(o: TileObject, mode: string) {
+    if (this.step !== 'grip' && this.step !== 'carry' && this.step !== 'feed') return;
+    if (mode === 'carry') { this.targetObj = o; TUT.target = o.uid; return; }
+    // pushing: too heavy to lift
+    this.refused.add(o.uid);
+    if (!this.saidHeavy) { this.saidHeavy = true; this.say(this.touch ? 'Too heavy to lift. That one you push. Let go and find something lighter: I have lit one.' : 'Too heavy to lift. That one you push. Let go, E, and find something lighter: I have lit one.'); }
+    if (this.step === 'grip') { this.findTarget(); if (this.target) G.handler?.guide?.(this.target); }
   }
 
   // ================================================================== cutscenes
@@ -314,7 +411,7 @@ export class Tutorial implements GameSystem {
     this.hookCamera();
   }
   private cutDone() {
-    const next: Record<string, Step> = { brief: 'break', loot: 'pickup', press: 'carry', lever: 'deposit', debt: 'done' };
+    const next: Record<string, Step> = { brief: 'grip', press: 'carry', debt: 'link', data: 'done' };
     const n = next[this.step];
     if (n) this.go(n);
   }
@@ -323,7 +420,7 @@ export class Tutorial implements GameSystem {
     this.cine = false;
     this.beats = [];
     this.root.classList.remove('cine');
-    this.plate.el.classList.remove('on', 'hot');
+    this.plate.el.classList.remove('hot');
     this.eyeOff();
     this.watch(false);
     this.counter(null);
@@ -333,9 +430,10 @@ export class Tutorial implements GameSystem {
     const h = G.handler as unknown as { cine?: boolean } | null;
     if (h) h.cine = false;
   }
-  /** Voss's line (through the cutscene's door in the handler) */
+  /** her line (through the cutscene's door in the handler) */
   private say(text: string, point?: { x: number; z: number }, pylon = false) {
-    G.handler?.say?.(text, { cine: true, pri: 3, point, pylon, dur: readTime(text) * 0.9 });
+    // first in the queue when she is quiet; after her last line when she is mid-sentence (keeps the order)
+    G.handler?.say?.(text, { cine: true, pri: G.handler?.busy ? 1 : 3, point, pylon, dur: readTime(text) * 0.9 });
   }
 
   // ------------------------------------------------------------------ controls
@@ -401,7 +499,7 @@ export class Tutorial implements GameSystem {
     if (!this.camOn) { const p = G.local!; this.camFocus.set(p.x, p.y + 0.6, p.z); this.camZoom = 1; }
     this.camOn = true; this.camGoal.copy(focus); this.camZoomGoal = zoom; this.camRate = rate;
   }
-  /** a cut to his own eyes, looking at a spot (a dip to black covers it) */
+  /** a cut to the unit's own eyes, looking at a spot (a dip to black covers it) */
   private eyeOn(at: { x: number; z: number; y: number }, pitchDeg: number, h = 0.4) {
     const p = G.local!;
     const d = Math.hypot(at.x - p.x, at.z - p.z);
@@ -426,60 +524,43 @@ export class Tutorial implements GameSystem {
   }
 
   // ------------------------------------------------------------------ world queries
-  private alive(o: TileObject) { const z = G.view?.zone; const cur = z?.objects.get(o.uid); return !!cur && !(cur.state as { broken?: boolean })?.broken; }
-  /** the nearest piece of furniture worth breaking open (a container first): the tutorial's target */
+  private alive(o: TileObject) { const z = G.view?.zone; return !!z?.objects.get(o.uid); }
+  /** the nearest piece of furniture the unit can lift whole: the lesson's target */
   private findTarget() {
     const p = G.local; const z = G.view?.zone; if (!p || !z) return;
+    const pu = push();
     let best: TileObject | null = null, bs = 1e9;
     for (const o of z.objects.values()) {
       const d = objDef(o.key);
-      if (!d || d.ceiling || d.onWall || o.key === 'hopper' || (d.tags || []).includes('nobreak') || !(d.movable || d.container) || (d.hp ?? 0) > 5000) continue;
-      if ((o.state as { broken?: boolean })?.broken) continue;
+      if (!d || d.ceiling || d.onWall || o.key === 'hopper' || this.refused.has(o.uid)) continue;
+      if (pu?.liftable ? !pu.liftable(p, o) : !d.movable) continue;
       const dist = Math.hypot(o.x + 0.5 - p.x, o.y + 0.5 - p.z);
-      if (dist < 1.2 || dist > 16) continue;
-      const s = dist - (d.container ? 2.5 : 0);
+      if (dist < 1.2 || dist > 18) continue;
+      if (G.view?.vis && !G.view.vis.isVisible(o.x, o.y) && dist > 4) continue;
+      // something with a bit of heft reads as furniture (a chair, a cabinet), not a cup
+      const m = (d as { mass?: number }).mass ?? 20;
+      const s = dist + (m < 8 ? 4 : 0);
       if (s < bs) { bs = s; best = o; }
     }
     this.targetObj = best;
     TUT.target = best ? best.uid : -1;
-    if (best) {
-      const d = objDef(best.key)!;
-      const w = d.w ?? 1, dd = d.d ?? 1, rw = best.rot % 2 === 0 ? w : dd, rd = best.rot % 2 === 0 ? dd : w;
-      this.target = { x: best.x + rw / 2, z: best.y + rd / 2, y: z.heightAt(best.x, best.y) };
-    } else this.target = null;
+    this.locateTarget();
   }
-  private findLoot() {
-    const p = G.local, z = G.view?.zone; if (!p || !z) return;
-    const c = this.target ?? { x: p.x, z: p.z };
-    let best: { key: string; x: number; z: number } | null = null, bv = -1;
-    for (const w of floorItemsNear(z, c.x, c.z, 5)) {
-      const v = isValuable(w.item) ? 1000 + itemValue(w.item) : 0;
-      if (v > bv) { bv = v; best = { key: w.item.key, x: w.x, z: w.z }; }
-    }
-    if (!best || bv < 1000) {
-      // nothing worth anything fell out: the Institute's furniture always holds something the first time
-      const key = ['gold_watch', 'pocket_watch', 'cash_roll'].find((k) => hasItemDef(k));
-      if (key) {
-        const it = createItem(key);
-        const a = Math.random() * Math.PI * 2;
-        op('dropFloor', { z: z.key, item: serializeItem(it), x: c.x + Math.cos(a) * 0.5, zz: c.z + Math.sin(a) * 0.5, y: 0.4, v: [Math.cos(a) * 0.8, 1.6, Math.sin(a) * 0.8] });
-        best = { key, x: c.x + Math.cos(a) * 0.9, z: c.z + Math.sin(a) * 0.9 };
-      }
-    }
-    this.loot = best;
+  /** where the target stands now (it moves: carried, set down, dropped) */
+  private locateTarget() {
+    const z = G.view?.zone, o0 = this.targetObj;
+    const o = o0 && z ? z.objects.get(o0.uid) ?? null : null;
+    if (!o || !z) { if (o0 && !o) this.findTarget(); else this.target = null; return; }
+    this.targetObj = o;
+    const d = objDef(o.key)!;
+    const w = d.w ?? 1, dd = d.d ?? 1, rw = o.rot % 2 === 0 ? w : dd, rd = o.rot % 2 === 0 ? dd : w;
+    this.target = { x: o.x + rw / 2, z: o.y + rd / 2, y: z.heightAt(o.x, o.y) };
   }
-  private lootOnFloor() { const z = G.view?.zone, l = this.loot; if (!z || !l) return false; for (const w of floorItemsNear(z, l.x, l.z, 1.2)) if (w.item.key === l.key) { l.x = w.x; l.z = w.z; return true; } return false; }
-  private lootName() { const l = this.loot; if (!l) return 'That'; try { const n = itemDef(l.key).name || l.key; return n.charAt(0).toUpperCase() + n.slice(1); } catch { return 'That'; } }
-  private hasValuable() { const p = G.local; return !!p && (p.allItems().some((i) => isValuable(i)) || !!G.missions?.flags?.has?.('tut:valuable') && this.step !== 'pickup'); }
+  private targetName() { const o = this.targetObj; if (!o) return 'a piece of furniture'; const n = objDef(o.key)?.name || 'that'; return 'the ' + n.toLowerCase(); }
   private findHopper() {
     const h = G.handler as unknown as { nearestHopperObj?: () => TileObject | null; nearestHopper?: () => { x: number; z: number } | null } | null;
     const o = h?.nearestHopperObj?.(), c = h?.nearestHopper?.();
     this.hopper = o && c ? { x: c.x, z: c.z, o } : null;
-  }
-  private onPlate(o: TileObject) {
-    const z = G.view?.zone; if (!z) return false;
-    for (const w of floorItems(z).values()) if (w.x >= o.x && w.x <= o.x + 2 && w.z >= o.y && w.z <= o.y + 2) return true;
-    return false;
   }
   /** a way out of this room toward deeper places (not the Seam) */
   private findExit(): { x: number; z: number } | null {
@@ -511,12 +592,22 @@ export class Tutorial implements GameSystem {
     this.obj.classList.add('on');
     G.audio?.ui?.('watchTick', 0.35);
   }
+  /** the broadcast's lesson card */
+  private castKey = '';
+  private lesson(n: number, title: string, keys: string) {
+    const key = n + title + keys;
+    if (key === this.castKey) return;
+    this.castKey = key;
+    this.cast.innerHTML = `<small><u>&#9679;</u> LIVE · DR. I. CALDER · LINK TRAINING ${n}/${LESSONS}</small><b>${title}</b>${keys ? `<i>${keys}</i>` : ''}`;
+    this.cast.classList.add('on');
+  }
   private counter(at: (() => THREE.Vector3) | null) { this.countAt = at; this.count.classList.toggle('on', !!at); }
   private setCount(label: string, big: string, sub: string) { this.count.innerHTML = `<small>${label}</small><b>${big}</b>${sub ? `<em>${sub}</em>` : ''}`; }
   private showRecap(on: boolean) {
-    if (on) this.recap.innerHTML = `<h2>THE JOB</h2><div class="loop">BREAK IT OPEN <span>&gt;</span> FIND VALUABLES <span>&gt;</span> CARRY THEM <span>&gt;</span> THE PRESS <span>&gt;</span> PULL THE LEVER</div>`
-      + `<p>Every deposit pays your number down. An installment is due every few days: miss it and the band shocks you.</p>`
-      + `<p>The watch (TAB) carries jobs that pay research credit. Clear the debt, then buy passage out at the depot.</p>`;
+    if (on) this.recap.innerHTML = `<h2>THE JOB</h2><div class="loop">GET A GRIP <span>&gt;</span> CARRY IT WHOLE <span>&gt;</span> THE PRESS <span>&gt;</span> FEED IT<br>FIND DATA <span>&gt;</span> SCAN THE INHABITANTS</div>`
+      + `<p>Every piece the press takes pays the unit's number down. An installment is due every few days.</p>`
+      + `<p>Keep the unit sane: fear slips the link. ${this.touch ? 'Tap the LINK line' : 'L'} resyncs it.</p>`
+      + `<p>The watch (${this.touch ? 'WATCH' : 'TAB'}) carries Dr. Calder's jobs. Clear the debt, then buy passage out at the depot.</p>`;
     this.recap.classList.toggle('on', on);
   }
   private paint(dt: number) {
@@ -528,10 +619,12 @@ export class Tutorial implements GameSystem {
     this.shade.style.opacity = String(this.shadeA);
     const place = (el: HTMLElement, at: (() => THREE.Vector3 | null) | null) => {
       const v = at?.();
-      if (!v || !G.pr) { el.style.left = '50%'; el.style.top = '30%'; return; }
+      if (!v || !G.pr) { el.style.left = '50%'; el.style.top = '34%'; return; }
       const s = (G.pr as unknown as { worldToScreen: (v: THREE.Vector3) => { x: number; y: number; z: number } }).worldToScreen(v);
       const hw = Math.min(innerWidth / 2 - 8, el.offsetWidth / 2 + 12);
-      const x = Math.max(hw, Math.min(innerWidth - hw, s.x)), y = Math.max(el.offsetHeight + innerHeight * 0.12, Math.min(innerHeight * 0.86, s.y));
+      // never over the lesson card at the top
+      const top = this.cast.classList.contains('on') && !this.cine ? this.cast.getBoundingClientRect().bottom + 16 : innerHeight * 0.14;
+      const x = Math.max(hw, Math.min(innerWidth - hw, s.x)), y = Math.max(el.offsetHeight + top, Math.min(innerHeight * 0.86, s.y));
       el.style.left = x.toFixed(0) + 'px'; el.style.top = y.toFixed(0) + 'px';
     };
     if (this.objKey) place(this.obj, this.objAt);
@@ -550,6 +643,7 @@ export class Tutorial implements GameSystem {
     this.release();
     this.setObjective(null);
     this.showRecap(false);
+    this.cast.classList.remove('on');
     G.missions?.set?.('tut:done');
     TUT.running = false; TUT.step = ''; TUT.target = -1;
     const h = G.handler as unknown as { guide?: (t: null) => void; briefed?: boolean; cine?: boolean } | null;
@@ -562,4 +656,7 @@ export class Tutorial implements GameSystem {
     running = null;
     if (import.meta.env.DEV) (window as unknown as { __tut: Tutorial | null }).__tut = null;
   }
+
+  // ================================================================== dev: jump to a lesson (screenshots)
+  debugJump(step: Step) { this.beats = []; this.beatOn = false; G.handler?.hush?.(); this.go(step); }
 }
