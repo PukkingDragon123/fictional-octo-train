@@ -42,6 +42,7 @@ import { LabRoom } from './rooms/lab';
 import { SubjectView } from './rooms/subject';
 import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRooms';
 import { installDecoAndGuide, onBuildMode } from './deco';
+import { openSpecimen, openLoadout, openFile, panelOpen, closePanel, type PanelHost } from './specimens/panel';
 import * as THREE from 'three';
 
 export function showTitle() {
@@ -144,6 +145,11 @@ class TitleRoom {
     mon.setFeedTexture('subject', this.subject.tex, false);
     mon.onFeed = (k) => { void this.go(k); };
     mon.onMic = () => con.fromMonitor();
+    // the specimen wing's paperwork (specimens/panel.ts): a cell's file, the loadout, the Meridian file
+    const ph: PanelHost = { root: this.root, onChange: () => con.refresh() };
+    con.onInspect = (k) => { if (this.view === 'containment') openSpecimen(ph, k); };
+    con.onPanel = (w) => { if (this.view === 'containment') (w === 'loadout' ? openLoadout : openFile)(ph); };
+    this.wingDrag();
     const reg = (id: MenuRoomId, r: { scene: THREE.Scene; cam: THREE.Camera; deco: THREE.Group; floor: any; surfaces: any; guideSpot: any }) =>
       registerMenuRoom({ id, scene: r.scene, camera: r.cam, deco: r.deco, floor: r.floor, surfaces: r.surfaces, guideSpot: r.guideSpot, host: this.stageHost, pick: (x, y) => this.pickFloor(x, y, r.floor.y, r.surfaces) });
     reg('monitor', mon); reg('containment', con); reg('lab', lab);
@@ -153,6 +159,29 @@ class TitleRoom {
     // the decorator (blueprint mode, collectibles) and the researcher guide; build mode gets a shot of the floor
     installDecoAndGuide({ root: this.root });
     onBuildMode((id) => { mon.setBuild(id === 'monitor'); con.setBuild(id === 'containment'); lab.setBuild(id === 'lab'); });
+  }
+  /** drag, swipe or scroll along the specimen wing */
+  private wingDrag() {
+    const host = this.stageHost;
+    let down: { x: number; id: number } | null = null, wheelT = 0;
+    const on = () => this.view === 'containment' && !this.moving && !panelOpen() && !!this.containment;
+    host.addEventListener('pointerdown', (e) => { if (on()) down = { x: e.clientX, id: e.pointerId }; });
+    host.addEventListener('pointermove', (e) => {
+      if (!down || down.id !== e.pointerId || !on()) return;
+      const dx = e.clientX - down.x;
+      down.x = e.clientX;
+      this.containment!.drag(dx / Math.max(320, window.innerWidth));
+    });
+    const up = (e: PointerEvent) => { if (down && down.id === e.pointerId) { down = null; this.containment?.dragEnd(); } };
+    host.addEventListener('pointerup', up); host.addEventListener('pointercancel', up);
+    host.addEventListener('wheel', (e) => {
+      if (!on()) return;
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const now = performance.now();
+      if (Math.abs(d) < 4 || now - wheelT < 260) return;
+      wheelT = now;
+      this.containment!.pan(d > 0 ? 1 : -1);
+    }, { passive: true });
   }
   /** a pointer ray onto the room's floor or the highest surface it crosses */
   private pickFloor(x: number, y: number, floorY: number, surfaces: { minX: number; maxX: number; minZ: number; maxZ: number; y: number }[] = []): THREE.Vector3 | null {
@@ -172,7 +201,7 @@ class TitleRoom {
   show() {
     this.live = true;
     this.root.classList.add('on');
-    this.nav = new FocusNav(this.root, { onBack: () => this.onBack(), onTab: (d) => this.channel(d) });
+    this.nav = new FocusNav(this.root, { onBack: () => this.onBack(), onTab: (d) => this.channel(d), onArrow: (dx, dy) => this.view === 'containment' && dy === 0 && dx !== 0 && !this.moving && !!this.containment?.pan(dx as -1 | 1) });
     this.focusKey(this.lastKey);
     ambience('room');
     this.menu.classList.add('in');
@@ -347,6 +376,7 @@ class TitleRoom {
     }
   }
   private enter(k: View) {
+    closePanel(true);
     this.view = k;
     this.root.dataset.view = k;
     if (k === 'subject') {
@@ -382,6 +412,8 @@ class TitleRoom {
   /** Q / E in a room: the next channel */
   private channel(d: -1 | 1) {
     if (this.view === 'monitor' || this.root.classList.contains('lit')) return;
+    // in the containment wing Q / E walk the row of cells first; past its ends they change channel
+    if (this.view === 'containment' && !this.moving && this.containment?.pan(d)) return;
     const i = ORDER.indexOf(this.view as FeedKey);
     void this.go(ORDER[(i + d + ORDER.length) % ORDER.length]);
   }
@@ -391,7 +423,7 @@ class TitleRoom {
     if (this.view !== 'monitor') void this.back();
   }
   private onKey = (e: KeyboardEvent) => {
-    if (!this.live || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on')) return;
+    if (!this.live || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on') || panelOpen()) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     if (e.key >= '1' && e.key <= '3') { e.preventDefault(); void this.go(ORDER[Number(e.key) - 1]); }
@@ -433,7 +465,7 @@ class TitleRoom {
     bar.append(word('Monitors', 'home', () => void this.back(), 'Back to the monitors (Esc)'));
     bar.append(word(nf.label + ' ›', 'next', () => void this.go(next), `Next feed: ${nf.label} (E)`, nf.cam + ' ›'));
     hud.append(acts, bar);
-    const tip = h('div', 'mr-tip', k === 'subject' ? 'tap him · Q E change feed · Esc monitors' : 'tap things · Q E change feed · Esc monitors');
+    const tip = h('div', 'mr-tip', k === 'subject' ? 'tap him · Q E change feed · Esc monitors' : k === 'containment' ? 'tap a cell · Q E ← → or drag walk the wing · Esc monitors' : 'tap things · Q E change feed · Esc monitors');
     hud.append(tip);
     requestAnimationFrame(() => (acts.querySelector('button') as HTMLElement | null ?? bar.querySelector('.home') as HTMLElement | null)?.focus({ preventScroll: true }));
   }

@@ -11,6 +11,10 @@
 // hunts sound, so it turns, stalks to the glass, raises its finger; tap too
 // often and it slams the pane), pull the restraints (the winch drags it back),
 // the alarm, the intercom (it shushes), poke the jars.
+// THE WING (rooms/wing.ts): past the Hush's cell the corridor runs on both
+// ways along a row of smaller cells, one per species in the Meridian file.
+// Q / E, the arrows, a drag or the wheel walk the camera from cell to cell;
+// a press on a cell selects it and opens its file (title.ts: specimens/panel.ts).
 import * as THREE from 'three';
 import type { FMats } from '../scene/pixtex';
 import { Puffs, Chain } from '../scene/fx';
@@ -21,8 +25,11 @@ import type { Rig } from '../../../creatures/species';
 import {
   FacetBuilder, at, cbox, prism, lathe, extrude, gem, bolt, hull, tube, C, LedBank, blink, busy, plate, paper, slab, glowCard, Wobble, uiSound, gameSound,
 } from '../monitor/props';
+import { SpecimenWing, PITCH, wingSpecies, type Cell } from './wing';
+import { menuEvent, wireMeta } from '../../../game/achievements';
+import { checkMilestones } from '../../../game/meridian';
 
-const W = 2.7, CELL = -4.0, FRONT = 3.6, H = 3.3, GZ = 0;
+const W = 2.7, CELL = -4.0, FRONT = 4.0, H = 3.3, GZ = 0;
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const HOME = new THREE.Vector3(0, 0, -2.55);
 
@@ -144,6 +151,18 @@ export class ContainmentRoom implements StageRoom {
   private buildPos = new THREE.Vector3(0.3, 2.55, 3.2); private buildLook = new THREE.Vector3(0, 0.4, 0.4);
   private v = new THREE.Vector3(); private v2 = new THREE.Vector3();
   private t = 0;
+  // the wing: where the camera stands along the row (0 = the Hush)
+  wing: SpecimenWing;
+  /** the stops along the corridor, left to right: the cells and the Hush (key 'hush') */
+  stops: { key: string; x: number; cell: Cell | null }[] = [];
+  focus = 0;
+  private camX = 0; private dragX = 0;
+  /** a stop was selected by a press (title.ts opens the specimen's file) */
+  onInspect?: (key: string) => void;
+  /** title.ts: the loadout and the Meridian file panels */
+  onPanel?: (which: 'loadout' | 'file') => void;
+  /** the focused stop changed */
+  onFocus?: (key: string) => void;
 
   constructor(mats: FMats) {
     this.mats = mats;
@@ -158,8 +177,41 @@ export class ContainmentRoom implements StageRoom {
     this.jarLight.position.set(-W + 0.4, 1.3, 1.5);
     this.feedCam.position.set(2.35, 2.75, 2.6); this.feedCam.lookAt(-0.1, 1.15, -2.0);
     this.buildCreature();
+    // the specimen wing (built after the Hush so its hots come after the glass)
+    wireMeta(); checkMilestones();
+    this.wing = new SpecimenWing(mats, W);
+    S.add(this.wing.group);
+    this.hots.push(...this.wing.hots);
+    this.wing.onSelect = (c) => { this.goTo(c.key); this.wing.poke(c); this.onInspect?.(c.key); };
+    this.stops = [...this.wing.cells.map((c) => ({ key: c.key, x: c.x, cell: c as Cell | null })), { key: 'hush', x: 0, cell: null }].sort((a, b) => a.x - b.x);
+    this.focus = this.stops.findIndex((q) => q.key === 'hush');
     this.cam.position.copy(this.camPos); this.cam.lookAt(this.camLook);
   }
+
+  // ================================================================== walking the wing
+  get focusKey() { return this.stops[this.focus]?.key ?? 'hush'; }
+  /** one stop along the row; false at the end of it (title.ts then changes channel) */
+  pan(d: -1 | 1): boolean {
+    const n = this.focus + d;
+    if (n < 0 || n >= this.stops.length) return false;
+    this.setFocus(n);
+    uiSound('servo', 0.35);
+    return true;
+  }
+  goTo(key: string) { const i = this.stops.findIndex((q) => q.key === key); if (i >= 0) this.setFocus(i); }
+  private setFocus(i: number) { if (i === this.focus) return; this.focus = i; this.dragX = 0; this.onFocus?.(this.focusKey); }
+  /** a drag across the stage: dx in screen widths (positive = the picture follows the finger right) */
+  drag(dx: number) { this.dragX -= dx * 4.2; }
+  dragEnd() {
+    const x = this.stops[this.focus].x + this.dragX;
+    let best = this.focus, bd = Infinity;
+    this.stops.forEach((q, i) => { const d = Math.abs(q.x - x); if (d < bd) { bd = d; best = i; } });
+    this.dragX = 0;
+    if (best !== this.focus) { this.setFocus(best); uiSound('servo', 0.35); }
+  }
+  /** re-read the Meridian file (after a purchase in the panel, or on entering) */
+  refresh() { this.wing.refresh(); }
+  enter() { this.refresh(); }
 
   // ================================================================== the shell
   private shell(): THREE.Group {
@@ -167,14 +219,17 @@ export class ContainmentRoom implements StageRoom {
     const g = new THREE.Group();
     const PLATE = 0x7a807c, CONC = 0x8a8680;
     // corridor: grating floor over a dark pit, painted block walls, a low ceiling with pipes
-    slab(b, 'floor', -W, W, -0.1, 0, GZ, FRONT, 0x6a6c64);
-    for (let z = GZ + 0.3; z < FRONT; z += 0.6) b.add('metal', cbox(W * 2, 0.012, 0.03, 0.004), C.darker, at(0, 0.003, z));
-    for (const k of [-1, 1]) {
-      slab(b, 'paint', k * W, k * (W + 0.2), 0, 1.1, GZ, FRONT, 0x4e5a4a, 0.004, 0.5);
-      slab(b, 'concrete', k * W, k * (W + 0.2), 1.1, H, GZ, FRONT, CONC);
-    }
-    slab(b, 'concrete', -W, W, H, H + 0.15, CELL - 0.2, FRONT, 0x3e3e3a);
-    slab(b, 'concrete', -W, W, 0, H, FRONT, FRONT + 0.2, CONC);
+    // the corridor runs the whole wing (rooms/wing.ts): XL..XR
+    const nC = wingSpecies().length, XL = -(W + 0.2 + Math.floor(nC / 2) * PITCH), XR = W + 0.2 + Math.ceil(nC / 2) * PITCH;
+    slab(b, 'floor', XL, XR, -0.1, 0, GZ, FRONT, 0x6a6c64);
+    for (let z = GZ + 0.3; z < FRONT; z += 0.6) b.add('metal', cbox(XR - XL, 0.012, 0.03, 0.004), C.darker, at((XL + XR) / 2, 0.003, z));
+    // the corridor's back wall: painted dado, concrete above, a stripe of programme yellow
+    slab(b, 'paint', XL, XR, 0, 1.1, FRONT - 0.04, FRONT + 0.2, 0x4e5a4a, 0.004, 0.5);
+    slab(b, 'hazard', XL, XR, 1.1, 1.18, FRONT - 0.05, FRONT, 0xffffff, 0.004, 0.24);
+    for (const k of [XL, XR]) slab(b, 'concrete', k - 0.2, k, 0, H, CELL, FRONT + 0.2, CONC);
+    slab(b, 'concrete', -W, W, H, H + 0.15, CELL - 0.2, GZ, 0x3e3e3a);
+    slab(b, 'concrete', XL, XR, H, H + 0.15, GZ - 0.2, FRONT, 0x3e3e3a);
+    slab(b, 'concrete', XL, XR, 1.18, H, FRONT, FRONT + 0.2, CONC);
     // the cell: steel plate on every face, a seam grid with rivets, a sump
     slab(b, 'metal', -W, W, -0.1, 0, CELL, GZ, 0x6a6e6a, 0.004, 0.8);
     slab(b, 'metal', -W, W, 0, H, CELL - 0.2, CELL, PLATE, 0.004, 0.9);
@@ -395,11 +450,16 @@ export class ContainmentRoom implements StageRoom {
     this.hots.push({ key: 'lever', objs: [this.lever], label: 'Restraints', sub: 'wind the chains in', press: () => this.restrain() });
     this.hots.push({ key: 'alarm', objs: [this.button], label: 'Alarm', sub: 'the klaxon and the beacons', press: () => this.alarm() });
     this.hots.push({ key: 'intercom', objs: [this.grille], label: 'Intercom', sub: 'talk into the cell', press: () => this.hear(new THREE.Vector3(-0.82, 1.4, GZ), true) });
+    // the Hush's own actions walk back to its cell first
+    const home = (fn: () => void) => () => { if (this.focusKey !== 'hush') this.goTo('hush'); fn(); };
     this.actions = [
-      { key: 'tap', label: 'Tap the glass', run: () => this.tap(new THREE.Vector3((Math.random() - 0.5) * 1.2, 1.3 + Math.random() * 0.4, GZ + 0.02)) },
-      { key: 'lever', label: 'Restraints', run: () => this.restrain() },
-      { key: 'alarm', label: 'Alarm', run: () => this.alarm() },
-      { key: 'intercom', label: 'Intercom', run: () => this.hear(new THREE.Vector3(-0.82, 1.4, GZ), true) },
+      { key: 'inspect', label: 'Inspect', run: () => this.onInspect?.(this.focusKey) },
+      { key: 'loadout', label: 'Loadout', run: () => this.onPanel?.('loadout') },
+      { key: 'file', label: 'Meridian file', run: () => this.onPanel?.('file') },
+      { key: 'tap', label: 'Tap the glass', run: home(() => this.tap(new THREE.Vector3((Math.random() - 0.5) * 1.2, 1.3 + Math.random() * 0.4, GZ + 0.02))) },
+      { key: 'lever', label: 'Restraints', run: home(() => this.restrain()) },
+      { key: 'alarm', label: 'Alarm', run: home(() => this.alarm()) },
+      { key: 'intercom', label: 'Intercom', run: home(() => this.hear(new THREE.Vector3(-0.82, 1.4, GZ), true)) },
     ];
     return g;
   }
@@ -458,6 +518,7 @@ export class ContainmentRoom implements StageRoom {
       pane.tex.needsUpdate = true;
       this.shake = 1; this.flash = 1;
       uiSound('slam', 1);
+      menuEvent('slam');
       this.alarm(true);
     }, 520);
   }
@@ -472,14 +533,14 @@ export class ContainmentRoom implements StageRoom {
   alarm(quiet = false) {
     this.alarmT = 6;
     this.btnW.kick(-3);
-    if (!quiet) uiSound('klaxon', 0.5);
+    if (!quiet) { uiSound('klaxon', 0.5); menuEvent('alarm'); }
   }
   private bubble(p: THREE.Vector3) {
     for (let i = 0; i < 6; i++) this.puffs.emit(this.v.set(p.x + (Math.random() - 0.5) * 0.05, p.y + 0.05 + Math.random() * 0.1, p.z + (Math.random() - 0.5) * 0.05), new THREE.Vector3(0, 0.12, 0), { life: 0.8, s0: 0.004, s1: 0.012, color: 0x9aff8a, rise: 0.1 });
   }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); }
   /** the decorator's build mode: up and back, looking down on the corridor floor */
-  setBuild(on: boolean) { this.buildT = on ? 1 : 0; }
+  setBuild(on: boolean) { this.buildT = on ? 1 : 0; if (on) this.goTo('hush'); }
 
   // ================================================================== frame
   frame(aspect: number, portrait: boolean) {
@@ -529,8 +590,10 @@ export class ContainmentRoom implements StageRoom {
     this.leverA = damp(this.leverA, this.leverT, 8, dt);
     this.lever.rotation.x = 0.5 - this.leverA * 1.1;
     for (const j of this.jars) { const x = j.w.update(dt); j.g.rotation.z = j.base + x * 0.05; j.g.rotation.x = x * 0.02; }
-    // ---- the specimen
+    // ---- the specimen, and the wing near the camera
     this.updateCreature(dt, t);
+    this.camX = damp(this.camX, (this.stops[this.focus]?.x ?? 0) + this.dragX, 4.5, dt);
+    this.wing.update(dt, t, full ? this.camX : 0, full);
     if (full) this.puffs.update(dt, this.cam, () => 0.8);
     if (!full) return;
     // ---- camera: the corridor, a little parallax, the slam's shake
@@ -544,8 +607,12 @@ export class ContainmentRoom implements StageRoom {
       this.cam.lookAt(this.v.lerpVectors(this.camLook, this.buildLook, k));
       return;
     }
-    this.cam.position.set(this.camPos.x - this.ptrS.x * 0.18 + (Math.random() - 0.5) * sh * 0.06 + Math.sin(t * 0.3) * 0.01, this.camPos.y + this.ptrS.y * 0.06 + (Math.random() - 0.5) * sh * 0.05, this.camPos.z);
-    this.cam.lookAt(this.v.set(this.camLook.x + this.ptrS.x * 0.25, this.camLook.y - this.ptrS.y * 0.1, this.camLook.z));
+    // along the wing the camera backs off the glass a little and looks into the small cells
+    const ax = Math.abs(this.camX), w = Math.min(1, Math.max(0, (ax - 0.4) / 2.2)), ws = w * w * (3 - 2 * w);
+    const cz = this.camPos.z + (2.75 - this.camPos.z) * ws, cy = this.camPos.y + (1.45 - this.camPos.y) * ws;
+    const lx = this.camX + this.camLook.x * (1 - ws), ly = this.camLook.y + (1.28 - this.camLook.y) * ws, lz = this.camLook.z + (-1.3 - this.camLook.z) * ws;
+    this.cam.position.set(this.camX + this.camPos.x * (1 - ws) - this.ptrS.x * 0.18 + (Math.random() - 0.5) * sh * 0.06 + Math.sin(t * 0.3) * 0.01, cy + this.ptrS.y * 0.06 + (Math.random() - 0.5) * sh * 0.05, cz);
+    this.cam.lookAt(this.v.set(lx + this.ptrS.x * 0.25, ly - this.ptrS.y * 0.1, lz));
   }
 
   private updateCreature(dt: number, t: number) {

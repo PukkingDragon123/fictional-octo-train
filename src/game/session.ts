@@ -35,6 +35,7 @@ import { installCook } from '../cook';
 import { TouchControls } from '../ui/touch/touch';
 import type { Net, Welcome } from '../net/net';
 import { introWanted, startIntro, INTRO_ZONE } from './intro';
+import { startMetaRun } from './metaRun';
 import { Handler } from './handler';
 import { SeamFx } from './seam';
 import { installSocial } from '../social';
@@ -229,6 +230,15 @@ export function startSession(o: SessionOpts): Game {
       setTimeout(() => ui.centerMessage(`YOU HAVE BEEN DELETED<br><span style="font-size:20px;letter-spacing:2px;color:#a89a72">${escape(p.name)} survived ${days} days, ${hrs} hours</span>`, { label: 'Back to the title', action: () => location.reload() }), 1500);
     });
   });
+
+  // ---- the Meridian file: the loadout's powers, the milestones' kit, the deployed pet (src/game/metaRun.ts)
+  try {
+    startMetaRun(g, p, {
+      fresh: !s,
+      give: (k) => { if (hasItemDef(k)) p.inv.add(newItem(k)); },
+      ready: () => p.zoneKey !== INTRO_ZONE && !!g.zones.get(p.zoneKey),
+    });
+  } catch (e) { console.warn('meridian run', e); }
 
   // ---- where we start
   if (w) {

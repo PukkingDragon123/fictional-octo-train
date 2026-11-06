@@ -75,6 +75,8 @@
 .dz-v { text-align: right; color: #d8ffd2; white-space: nowrap; }
 .dz-p { text-align: right; color: #ffd27a; visibility: hidden; }
 .dz-row.paid .dz-p { visibility: visible; }
+.dz-spec { color: #d8ffd2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dz-spec span { color: #ffd27a; margin-right: 4px; }
 .dz-tot { display: flex; justify-content: space-between; align-items: baseline; padding-top: 6px; border-top: 2px dashed rgba(141, 255, 122, 0.45); }
 .dz-big { font-size: 32px; line-height: 32px; color: #ffd27a; text-shadow: var(--text-ink-2); }
 .done .dz-big { animation: dz-pop 0.3s steps(3) 1; }

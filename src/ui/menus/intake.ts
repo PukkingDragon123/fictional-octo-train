@@ -16,6 +16,7 @@
 // OPERATE (or leaving the section) runs the pending changes. Mini-games can
 // be switched off ("just apply"); Esc / B / SKIP always just applies.
 // Everyone wears the issue suit (prisonerOutfitFor is the one outfit path).
+import { wornCos } from '../../game/meridian';
 import type { Appearance, Outfit } from '../../entities/humanRig';
 import { randomAppearance, EYE_COLORS, SKIN_TONES } from '../../entities/humanRig';
 import { Player } from '../../entities/player';
@@ -139,7 +140,8 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
   return new Promise((resolve) => {
     installRetroKit();
     const app: Appearance = opts0.app ? { ...opts0.app } : { ...randomAppearance(Math.random), ...randomLooks(Math.random, Math.random() < 0.5) };
-    app.cos = [];
+    // the commendation dyes picked in the Meridian file (src/game/meridian.ts) go on at intake
+    app.cos = wornCos();
     /** the look as operated so far (app is the live preview) */
     let done: Appearance = { ...app };
     const name = randomName();
@@ -501,7 +503,7 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
       await new Promise((r) => setTimeout(r, 500));
       sfx('shutter'); stage.flashOnce();
       await new Promise((r) => setTimeout(r, 1400));
-      close({ name: name.slice(0, 24), app: { ...app, cos: [] }, occupation: 'unemployed', traits: [], sandbox: { ...sb }, seed, directives });
+      close({ name: name.slice(0, 24), app: { ...app, cos: wornCos() }, occupation: 'unemployed', traits: [], sandbox: { ...sb }, seed, directives });
     };
     const leave = async () => {
       closing = true; phase = 'out'; root.dataset.phase = 'out';

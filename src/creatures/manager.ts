@@ -481,9 +481,9 @@ export class CreatureSystem implements GameSystem {
       const dx = c.x - o.x, dz = c.z - o.z, d = Math.hypot(dx, dz), m = c.radius + o.radius;
       if (d > 0.001 && d < m) { const push = (m - d) * 0.5; c.x += (dx / d) * push; c.z += (dz / d) * push; }
     }
-    // keep out of players
+    // keep out of players (a deployed pet never shoves anyone: it steps aside instead)
     for (const p of G.players.values()) {
-      if (p.zoneKey !== c.zoneKey || p.body.dead) continue;
+      if (p.zoneKey !== c.zoneKey || p.body.dead || c.mem.pet) continue;
       const dx = c.x - p.x, dz = c.z - p.z, d = Math.hypot(dx, dz), m = c.radius + p.radius;
       if (d > 0.001 && d < m) { const push = (m - d); c.x += (dx / d) * push * 0.6; c.z += (dz / d) * push * 0.6; if (p.isLocal) { p.x -= (dx / d) * push * 0.4; p.z -= (dz / d) * push * 0.4; } }
     }
@@ -708,7 +708,7 @@ export class CreatureSystem implements GameSystem {
       out.push({ label: 'Offer food', disabled: !food ? 'needs ' + c.sp.tame.food.map((k) => itemDef(k).name).slice(0, 2).join('/') : false, action: () => queueAt(p, c.x, c.z, new UseObjectAction(p, 'Offer food', 2, 'pickup', () => this.feed(p, c, food!)), 1.6, false) });
     }
     if (c.tamedBy === p.id) {
-      out.push({ label: 'Pet', action: () => queueAt(p, c.x, c.z, new UseObjectAction(p, 'Pet', 2, 'pickup', () => { p.body.unhappy = Math.max(0, p.body.unhappy - 12); p.body.stress = Math.max(0, p.body.stress - 10); bus.emit('think', p, ['Good... boy?', 'It purrs like a fridge.', 'It leans into my hand.'][Math.floor(Math.random() * 3)]); }), 1.4, false) });
+      out.push({ label: 'Pet', action: () => queueAt(p, c.x, c.z, new UseObjectAction(p, 'Pet', 2, 'pickup', () => { p.body.unhappy = Math.max(0, p.body.unhappy - 12); p.body.stress = Math.max(0, p.body.stress - 10); if (c.sp.key !== 'mutt_roach') bus.emit('think', p, ['Good... boy?', 'It purrs like a fridge.', 'It leans into my hand.'][Math.floor(Math.random() * 3)]); bus.emit('petPetted', p, c); }), 1.4, false) });
       out.push({ label: c.mem.stay ? 'Follow me' : 'Stay', action: () => { c.mem.stay = !c.mem.stay; } });
     }
     return out;
@@ -753,6 +753,7 @@ export class CreatureSystem implements GameSystem {
     const local = G.local;
     if (!local || !G.view) return;
     const zk = local.zoneKey;
+    const earR = local.body.perks.has('mx_ears') ? 9 : 0;
     for (const c of this.creatures.values()) {
       const inZone = c.zoneKey === zk;
       if (!inZone) { if (c.rig) { this.root.remove(c.rig.root); c.rig = null; } continue; }
@@ -761,9 +762,12 @@ export class CreatureSystem implements GameSystem {
       if (!c.rig) { c.rig = c.sp.build(); c.rig.root.userData.creature = c; this.root.add(c.rig.root); G.gore?.onRigBuilt?.(c); }
       const vis = G.view.vis;
       const tileVis = vis.isVisible(Math.floor(c.x), Math.floor(c.z));
-      const show = tileVis || d < 1.6;
-      c.visibleToLocal = show;
-      if (show && !c.wasSeenByLocal && !concealed(c)) { c.wasSeenByLocal = true; bus.emit('creatureSeen', c); }
+      const seen = tileVis || d < 1.6;
+      // a harvested power (mx_ears, src/game/meridian.ts): moving things are heard, and shown, through walls
+      const heard = !seen && earR > 0 && d < earR && !c.dead && !c.tamedBy && c.speed > 0.2 && !concealed(c);
+      const show = seen || heard;
+      c.visibleToLocal = seen;
+      if (seen && !c.wasSeenByLocal && !concealed(c)) { c.wasSeenByLocal = true; bus.emit('creatureSeen', c); }
       c.rig.root.visible = show || !!c.rig.eyes;
       if (c.rig.eyes) for (const e of c.rig.eyes) e.visible = show || (d < 16 && lineOfSight(G.zone, local.x, local.z, c.x, c.z) && !c.dead);
       c.rig.body.visible = show && !c.mem.gibbed;

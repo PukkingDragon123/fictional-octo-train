@@ -453,6 +453,7 @@ export class Body {
       if (this.hunger > 45) regen *= 0.7;
       if (this.temp < 35.5) regen *= 0.6;
       if (env.heavyLoad > 0) regen *= Math.max(0.2, 1 - env.heavyLoad);
+      if (this.perks.has('mx_wind')) regen *= 1.6; // a harvested power (src/game/meridian.ts)
       this.endurance += dt * regen * (1 + fit * 0.04);
     }
     this.endurance = clamp01(this.endurance);
@@ -559,12 +560,13 @@ export class Body {
     if (T('cowardly')) panicGain *= 1.6;
     if (T('dramatic')) panicGain *= 2;
     if (this.perks.has('exterminator')) panicGain *= 0.7;
+    if (this.perks.has('mx_calm')) panicGain *= 0.6; // the harvested heartbeat (src/game/meridian.ts)
     if (env.nearTeam > 0) panicGain *= 0.7;
     if ((env.companion ?? 0) > 0) panicGain *= T('cat_person') || T('dog_person') ? 0.7 : 0.85;
     if ((env.comfort ?? 0) > 0) panicGain *= 0.88;
     if (this.sedated > 0) panicGain *= 0.4;
     panicGain *= (1 + mind.anxiety * 0.6) * (1 - calm * 0.65) * (mind.caffeine > 0 && !this.perks.has('barista') ? 1.15 : 1);
-    let panicDecay = (env.threat > 0.05 ? 1.5 : 7) * (T('dramatic') ? 2 : 1) * (env.breathing ? 2.5 : 1);
+    let panicDecay = (env.threat > 0.05 ? 1.5 : 7) * (T('dramatic') ? 2 : 1) * (env.breathing ? 2.5 : 1) * (this.perks.has('mx_calm') ? 1.5 : 1);
     this.panic = clamp(this.panic + panicGain - panicDecay * dt, 0, 100);
     // chronic anxiety keeps a floor of unease under everything
     const floor = mind.anxiety * (T('brave') ? 12 : 24) * (1 - calm * 0.7) * (env.breathing ? 0.4 : 1);

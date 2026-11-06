@@ -6,6 +6,8 @@
 // Appearance (`app.cos`, a list of keys, one per slot), which saves,
 // replicates in co-op and dresses the in-game rig like any other looks.
 
+import { isUnlocked } from './profile';
+
 export type CosSlot = 'suit' | 'hat' | 'eyes' | 'face' | 'neck' | 'back';
 export interface CosmeticDef {
   key: string; slot: CosSlot; name: string; desc: string;
@@ -13,6 +15,8 @@ export interface CosmeticDef {
   cost: number;
   /** main colour (thumbnails, suit tint) */
   color: number;
+  /** earned, not issued: an achievement unlocks it (profile 'cos:<key>', src/game/achievements.ts) */
+  locked?: boolean;
 }
 
 export const COS_SLOTS: [CosSlot, string][] = [['suit', 'JUMPSUITS'], ['hat', 'HEADWEAR'], ['eyes', 'EYEWEAR'], ['face', 'FACE'], ['neck', 'NECK'], ['back', 'BACK']];
@@ -29,6 +33,17 @@ export const COSMETICS: CosmeticDef[] = [
   C('suit_stripe', 'suit', 'Old Stripes', 120, 0xd8d4c4, 'Black and white bars, from before the Institute.'),
   C('suit_hazard', 'suit', 'Hazard Detail', 150, 0xe8b52a, 'Chevrons on the limbs, for crews that work near the presses.'),
   C('suit_circuit', 'suit', 'Circuit Weave', 260, 0x1c2a30, 'Conductive thread in dead black. Glows where it touches skin.'),
+  // commendation dyes (achievements): earned, never issued
+  { ...C('suit_mint', 'suit', 'Probation Mint', 0, 0x7ae8b8, 'For staff who did not make it past the first minute.'), locked: true },
+  { ...C('suit_sole', 'suit', 'Shoe Leather', 0, 0x8a5a32, 'The colour of the thing you fed to the press.'), locked: true },
+  { ...C('suit_roach', 'suit', 'Roach Bronze', 0, 0xb8642e, 'Glossy chestnut. Rochelle approves.'), locked: true },
+  { ...C('suit_glass', 'suit', 'Cell Glass', 0, 0x6ac8e8, 'Cracked-pane blue. Do not tap.'), locked: true },
+  { ...C('suit_red_ink', 'suit', 'In The Red', 0, 0xe02a3a, 'Ledger red. You owe it.'), locked: true },
+  { ...C('suit_loyal', 'suit', 'Loyalty Purple', 0, 0x8a4ae8, 'For repeat customers of the same monster.'), locked: true },
+  { ...C('suit_flat', 'suit', 'Pressed Grey', 0, 0xa8acb0, 'Very flat. Very grey.'), locked: true },
+  { ...C('suit_field', 'suit', 'Field Green', 0, 0x5ad04a, 'Survey green, for ten specimens catalogued.'), locked: true },
+  { ...C('suit_gold', 'suit', 'Tenure Gold', 0, 0xffc83a, 'For the permanently employed.'), locked: true },
+  { ...C('suit_hivis', 'suit', 'Hi-Vis Lime', 0, 0xd8ff2a, 'So the cleanup crew can find you faster.'), locked: true },
   // headwear
   C('hat_watch', 'hat', 'Watch Cap', 0, 0x3a4a3a, 'Knitted from unravelled blankets.'),
   C('hat_bucket', 'hat', 'Bucket Hat', 50, 0x8a7a52, 'Canvas, a little mouldy.'),
@@ -61,8 +76,8 @@ export const COSMETICS: CosmeticDef[] = [
 export const COSMETIC = new Map(COSMETICS.map((c) => [c.key, c]));
 const SLOT_DEFAULT: Partial<Record<CosSlot, string>> = { suit: 'suit_std' };
 
-/** every catalogued piece is owned */
-export function ownsCosmetic(key: string): boolean { return COSMETIC.has(key); }
+/** every issued piece is owned; commendation dyes once their achievement is earned */
+export function ownsCosmetic(key: string): boolean { const d = COSMETIC.get(key); return !!d && (!d.locked || isUnlocked('cos:' + key)); }
 /** nothing costs anything */
 export function canAffordCosmetic(key: string): boolean { return COSMETIC.has(key); }
 /** nothing to buy: true for any catalogued piece, no points are spent */

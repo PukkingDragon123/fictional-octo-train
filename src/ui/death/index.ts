@@ -122,6 +122,8 @@ class DeathCinematic {
       this.report = this.tracker.report();
       this.tracker.commit(this.report);
       grantResearch(this.report.rp, 'death report');
+      // the Meridian file and the commendations read the finished report (src/game/metaRun.ts, achievements.ts)
+      bus.emit('runReport', this.report);
       flushStats();
     } catch (e) { console.warn('death report', e); this.report = this.fallbackReport(); }
     this.scene = sceneFor(this.report, (this.p.app.bodyShape ?? 0.3) > 0.6);
@@ -391,7 +393,7 @@ class DeathCinematic {
       <div class="dz-h"><span>MERIDIAN INSTITUTE</span><span>INCIDENT ${esc(r.file)}</span></div>
       <div class="dz-sub">SUBJECT <b>${esc(r.name.toUpperCase())}</b> · DELETED</div>
       <div class="dz-cause"><span>CAUSE</span> ${esc(r.cause.text)}</div>
-      <div class="dz-rows">${rows}</div>
+      <div class="dz-rows">${rows}</div>${specLine(r)}
       <div class="dz-tot"><span class="dz-l">RESEARCH POINTS</span><span class="dz-big">+0</span></div>
       <div class="dz-lab">LAB TOTAL <b>${researchPoints() - r.rp}</b></div>
     </div>`;
@@ -414,6 +416,7 @@ class DeathCinematic {
       if (k === 'debt') return `${Math.round(r.paid * f).toLocaleString('en-US')} / ${Math.round(r.owed).toLocaleString('en-US')}`;
       if (k === 'dist') { const m = r.metres * f; return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`; }
       if (k === 'novel') return f > 0.5 ? 'logged' : '';
+      if (k === 'hazard') return f > 0.5 ? '+25%' : '';
       return String(Math.round(l.num * f));
     };
     let i = 0, f = 0, rpShown = 0, stage: 'rows' | 'rp' | 'end' = 'rows';
@@ -593,4 +596,12 @@ class DeathCinematic {
     this.root.classList.add('dz-out');
     setTimeout(() => this.root.remove(), 400);
   }
+}
+
+/** the specimens this run filed, under the rows (names only; the wing shows the rest) */
+function specLine(r: RunReport): string {
+  const d = r.discovered ?? [], st = r.studied ?? [];
+  if (!d.length && !st.length) return '';
+  const cut = (a: string[]) => (a.length > 3 ? a.slice(0, 3).join(', ') + ` +${a.length - 3}` : a.join(', '));
+  return `<div class="dz-spec">${d.length ? `<span>FILED</span> ${esc(cut(d))}` : ''}${d.length && st.length ? ' · ' : ''}${st.length ? `<span>STUDIED</span> ${esc(cut(st))}` : ''}</div>`;
 }

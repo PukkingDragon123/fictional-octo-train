@@ -469,6 +469,8 @@ export class HopperSystem implements GameSystem {
     // who gets the credit: whoever pulled the lever, else whoever stands closest
     let by = puller && G.players.has(puller) ? puller : '', bd = 8;
     if (!by) for (const p of G.players.values()) if (p.zoneKey === z.key) { const d = Math.hypot(p.x - (o.x + 1), p.z - (o.y + 1)); if (d < bd) { bd = d; by = p.id; } }
+    // a harvested power (mx_press, src/game/meridian.ts): the press pays its holder a little more
+    if (value > 0 && by && G.players.get(by)?.body.perks.has('mx_press')) value = Math.round(value * 1.15);
     op('hopperEat', { z: z.key, h: o.uid, items: take, objs: objTake, value, keys, by, rej } as EatArgs);
     if (value > 0) G.debt?.credit?.(value, 'deposit', by);
   }
