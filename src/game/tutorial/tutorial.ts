@@ -384,13 +384,17 @@ export class Tutorial implements GameSystem {
       await this.say('Now the job. The Institute collects furniture. Whole. Everything down here is built to last, so you do not break it, you carry it.', { gesture: 'present' });
       await this.say(`That one. The ${this.targetName()}. Light enough for a new body.`);
       this.camFollow(1.6, 1.4);
-      await this.say(T ? 'Walk up to it, tap its name, then CARRY.' : 'Walk up to it. Hold the right mouse button on it, or press G. Lift with the legs.');
-      this.holo.point(null);
+      await this.say(T ? 'Walk up to it. Its name floats over it: tap the name, then Carry.' : 'Walk up to it. Its name floats over it. Hold the right mouse button on it, or press G. Lift with the legs.');
+      // close to it, she points at its floating label instead (src/ui/worldPrompt.ts) and lights it
+      const label = () => { const t = tg(), p0 = p(); if (!t || Math.hypot(t.x - p0.x, t.z - p0.z) > 2.6) return null; return (G as unknown as { worldPrompt?: { primaryRect?: () => DOMRect | null } }).worldPrompt?.primaryRect?.() ?? null; };
+      this.aim(() => { const r = label(); if (r) return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; const t = tg(); return t ? this.screenOf(v1.set(t.x, t.y + 1.1, t.z)) : null; });
+      this.hlFn = label; this.hlEl.classList.add('on');
       await this.gate(() => !!push()?.carryInfo?.(), [
-        T ? 'Its name, then CARRY.' : 'Right button, held. Or G.',
+        T ? 'Its floating name. Tap it, then Carry.' : 'Right button, held. Or G.',
         `The ${this.targetName()}, {n}. Pick it up.`,
         'It is a piece of furniture, not a riddle.',
       ], 10, () => { if (!this.target || !this.alive(this.target)) this.findTarget(); this.light(); }, () => this.light());
+      this.hlFn = null; this.hlEl.classList.remove('on'); this.holo.point(null);
       await this.say('Got it. Good. Heavy things are slow, and slow things get caught. Keep that in mind.');
       const a2 = await this.ask(['Why furniture?', 'It\'s heavy.', 'Fine.']);
       if (a2 === 0) { await this.say('The Institute has a buyer on the other side. I have never asked who. You should not either.', { expr: 'think' }); }
