@@ -1,6 +1,6 @@
 /* the field sampling close-up's gauge (src/research/collect.ts): a riveted tech strip, Alagard */
 .rs-fp { position: fixed; inset: 0; z-index: 31; touch-action: none; cursor: crosshair; font-family: var(--font-new); font-size: 16px; line-height: 18px; color: #eef6ea; }
-.rs-plate { position: absolute; left: 50%; bottom: max(70px, 12vh); transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 12px;
+.rs-plate { position: absolute; left: 50%; bottom: max(14px, 9vh); transform: translateX(-50%); width: min(460px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 6px; padding: 10px 14px 12px;
   background: radial-gradient(circle at 7px 7px, #9aa49e 0 2px, transparent 2.5px), radial-gradient(circle at calc(100% - 7px) 7px, #9aa49e 0 2px, transparent 2.5px), linear-gradient(180deg, rgba(34, 58, 50, 0.94), rgba(16, 28, 24, 0.94));
   box-shadow: 0 0 0 3px #0a0b10, inset 0 0 0 2px #46564e, inset 0 3px 0 2px #6c7c72; pointer-events: none; }
 .rs-plate b { font-weight: 400; font-size: 16px; color: #fff; letter-spacing: 1px; text-shadow: var(--text-ink); }

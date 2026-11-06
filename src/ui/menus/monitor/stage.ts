@@ -79,7 +79,7 @@ export class MenuStage {
   private rt: THREE.WebGLRenderTarget | null = null;
   private post = makePost();
   /** the cutscenes' bloom (scene/post.ts) */
-  private bloom = new Bloom();
+  private bloom = Object.assign(new Bloom(), { thr: 1.7, knee: 0.5 }); // only true emitters (lamps, tubes, screens) bloom, not white coats
   private feeds = new Map<string, Feed>();
   private raf = 0; private last = 0;
   private ro: ResizeObserver;
