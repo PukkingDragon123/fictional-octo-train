@@ -13,6 +13,8 @@ export const U = {
   uDomTex: { value: null as THREE.Texture | null },
   /** how strongly the key fixture shapes the light (wall scallops, falloff, a key direction on bodies): 0 = flat grid */
   uPool: { value: 0.75 },
+  /** colour the bounce fill picks up from the room's own surfaces (zone fx: yellow wallpaper bleeds yellow) */
+  uBounceTint: { value: new THREE.Vector3(1, 1, 1) },
   uVisTex: { value: null as THREE.Texture | null },
   uVisInfo: { value: new THREE.Vector4(0, 0, 1, 1) },
   uVisOn: { value: 1 },
@@ -155,6 +157,7 @@ uniform sampler2D uLightTex;
 uniform vec4 uLightInfo;
 uniform sampler2D uDomTex;
 uniform float uPool;
+uniform vec3 uBounceTint;
 uniform sampler2D uVisTex;
 uniform vec4 uVisInfo;
 uniform float uVisOn;
@@ -343,7 +346,8 @@ if (uWFlags.w < 0.5) {
     float g0 = dot(gt, LW) + 0.04;
     vec3 Ld = normalize(vec3(gx / g0 * 1.7, 1.0, gz / g0 * 1.7));
     // ceilings (first person only) take the spill around the fixtures, not the dark of a down-facing face
-    grid *= mix(clamp(0.74 + 0.46 * dot(wn, Ld), 0.3, 1.2), 0.62, smoothstep(-0.5, -0.9, wn.y));
+    // (troffers throw their light down: a ceiling only gets the bounce, so the panels stand out bright against it)
+    grid *= mix(clamp(0.74 + 0.46 * dot(wn, Ld), 0.3, 1.2), 0.42, smoothstep(-0.5, -0.9, wn.y));
   }
   // the key fixture as a real light: the grid is baked for the floor, so every surface is reshaped by
   // (its own cosine / distance falloff) / (the floor's under it). Floors keep their level; walls get the
@@ -369,8 +373,10 @@ if (uWFlags.w < 0.5) {
   irradiance += grid * PI;
   // bounce fill (light grid alpha: the light around, spread by walls and floor), faintly the lights' colour,
   // so faces turned from the fixtures and the corners of a lit room are not black
-  vec3 bTint = mix(vec3(1.0), gt / max(max(gt.r, max(gt.g, gt.b)), 1e-3), 0.35);
-  irradiance += bTint * (gt4.a * gt4.a * uGridScale * 0.24 * PI);
+  // and the colour of the surfaces it bounced off (the zone's bounce tint), the way a yellow room fills its own
+  // shade with yellow instead of grey
+  vec3 bTint = mix(vec3(1.0), gt / max(max(gt.r, max(gt.g, gt.b)), 1e-3), 0.35) * uBounceTint;
+  irradiance += bTint * (gt4.a * gt4.a * uGridScale * 0.28 * PI);
 #if defined(FLOOR)
   // wet / polished floors mirror the fixtures overhead: sample the light grid where the reflected view ray meets the ceiling
   if (wetR > 0.05 && uSheen > 0.0) {
@@ -415,8 +421,8 @@ if (uWFlags.y < 0.5 && uVisOn > 0.5) {
   // dusky ochre, not olive) over a faint cool lift from the remember tint; never-seen places sit a step
   // lower and greyer.
   vec3 rt = uRememberTint / max(max(uRememberTint.r, max(uRememberTint.g, uRememberTint.b)), 1e-3);
-  float rk = clamp(0.2 + uRememberAmt * 0.5, 0.0, 0.8);
-  vec3 remembered = max(mix(vec3(lum), col, 1.12), 0.0) * vec3(1.0, 0.86, 0.8) * rk + rt * 0.03;
+  float rk = clamp(0.23 + uRememberAmt * 0.5, 0.0, 0.8);
+  vec3 remembered = max(mix(vec3(lum), col, 1.15), 0.0) * vec3(1.0, 0.91, 0.8) * rk + rt * 0.03;
   vec3 unexplored = mix(vec3(lum), col, 0.8) * vec3(1.0, 0.9, 0.86) * (rk * 0.58) + rt * 0.022;
   // hidden areas lean a little toward the zone's void colour (near-black indoors, haze outdoors)
   vec3 res = mix(mix(unexplored, remembered, vis.g), uVoidColor, 0.04 + 0.1 * (1.0 - vis.g));

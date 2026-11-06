@@ -103,7 +103,7 @@ void main() {
 `;
 
 const NUM_KEYS: (keyof ZoneFx)[] = ['exposure', 'blob', 'rim', 'hazeDens', 'hazeFall', 'volTop', 'gridMul', 'spotMul', 'sunShafts', 'mistDens', 'mistFall', 'mistLit', 'mistMax', 'bloom', 'bloomTh', 'ao', 'reflect', 'sheen', 'caustics', 'sick', 'motes', 'dirt', 'keyShadow', 'actorShadow', 'pool', 'glow', 'contrast', 'vib'];
-const VEC_KEYS: (keyof ZoneFx)[] = ['haze', 'mist', 'rimTint', 'splitLo', 'splitHi'];
+const VEC_KEYS: (keyof ZoneFx)[] = ['haze', 'mist', 'rimTint', 'splitLo', 'splitHi', 'bounce'];
 const TAN36 = Math.tan(THREE.MathUtils.degToRad(36));
 /** internal picture height cap per preset at pixel filter 0 (a 1080p screen renders at 1/1.33 on high, 1/1.6 on medium) */
 const HI_RES_H: Record<QualityLevel, number> = { low: 540, medium: 680, high: 810 };
@@ -481,6 +481,7 @@ export class PixelRenderer {
     u.uSplitLo.value.set(z.splitLo[0], z.splitLo[1], z.splitLo[2]);
     u.uSplitHi.value.set(z.splitHi[0], z.splitHi[1], z.splitHi[2]);
     U.uPool.value = this.postfx.bypass ? 0 : z.pool;
+    U.uBounceTint.value.set(z.bounce[0], z.bounce[1], z.bounce[2]);
     u.uFlicker.value = this.calm ? 0 : 1;
     U.uCaustics.value = z.caustics;
     U.uSheen.value = z.sheen;

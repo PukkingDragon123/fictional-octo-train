@@ -22,7 +22,8 @@ function toTex(pc: PixelCanvas): THREE.CanvasTexture {
   cv.width = pc.w; cv.height = pc.h;
   cv.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
   const t = new THREE.CanvasTexture(cv);
-  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
+  // crisp texels up close; mipmapped and anisotropic far off, so distant walls and floors read as surfaces, not shimmering noise
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.generateMipmaps = true; t.anisotropy = 4;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.colorSpace = THREE.SRGBColorSpace;
   return t;

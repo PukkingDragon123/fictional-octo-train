@@ -110,6 +110,8 @@ export interface ZoneFx {
   splitHi: [number, number, number];
   /** saturation on top of the zone grade (the split tone takes a little out of the yellows) */
   vib: number;
+  /** colour of the bounce fill (the room's own surfaces bleeding into its shade) */
+  bounce: [number, number, number];
 }
 
 export const DEFAULT_ZONEFX: ZoneFx = {
@@ -117,7 +119,7 @@ export const DEFAULT_ZONEFX: ZoneFx = {
   mist: [0.5, 0.5, 0.5], mistDens: 0.0, mistFall: 1.4, mistLit: 0.6, mistMax: 0.3,
   bloom: 0.55, bloomTh: 0.85, ao: 0.95, reflect: 0.45, sheen: 0.5, caustics: 0, sick: 0, motes: 0.6, dirt: 0.5,
   blob: 0.45, rim: 0.7, rimTint: [0.05, 0.05, 0.06], exposure: 1.75,
-  actorShadow: 0.85, keyShadow: 0.7, pool: 0.7, glow: 1.6, contrast: 0.1, splitLo: [0.97, 0.99, 1.03], splitHi: [1.015, 1.0, 0.975], vib: 1,
+  actorShadow: 0.85, keyShadow: 0.7, pool: 0.7, glow: 1.6, contrast: 0.1, splitLo: [0.97, 0.99, 1.03], splitHi: [1.015, 1.0, 0.975], vib: 1, bounce: [1, 1, 1],
 };
 
 export const ZONEFX: Record<string, Partial<ZoneFx>> = {
@@ -126,7 +128,7 @@ export const ZONEFX: Record<string, Partial<ZoneFx>> = {
   lobby: { haze: [1.0, 0.94, 0.62], hazeDens: 0.017, hazeFall: 0.05, gridMul: 1.0, mist: [0.42, 0.38, 0.2], mistDens: 0.02, mistFall: 1.4, mistLit: 0.8, mistMax: 0.14, bloom: 0.7, bloomTh: 0.75, ao: 1.0, sick: 0.35, motes: 0.8, blob: 0.62, rim: 1.15, rimTint: [0.06, 0.075, 0.1],
     // bright and cartoony, never olive: more light into the tonemap, shade split toward violet (cool on a
     // yellow wall reads as khaki murk), only a whisper of the sick-olive cast in the darks
-    exposure: 1.9, actorShadow: 0.95, keyShadow: 0.85, pool: 0.85, glow: 2.6, contrast: 0.18, splitLo: [0.98, 0.95, 1.05], splitHi: [1.05, 1.0, 0.92], vib: 1.18 },
+    exposure: 1.9, actorShadow: 0.95, keyShadow: 0.85, pool: 0.85, glow: 2.6, contrast: 0.18, splitLo: [0.98, 0.95, 1.05], splitHi: [1.05, 1.0, 0.92], vib: 1.18, bounce: [1.08, 0.94, 0.58] },
   // humid tiled halls: blue haze, caustic webs, strong reflections
   pool: { rim: 0.6, haze: [0.78, 0.95, 1.05], hazeDens: 0.012, hazeFall: 0.12, volTop: 3.5, gridMul: 0.8, mist: [0.62, 0.78, 0.84], mistDens: 0.03, mistFall: 0.9, mistLit: 0.6, mistMax: 0.2, bloom: 0.7, bloomTh: 0.9, reflect: 1.0, sheen: 0.8, caustics: 0.85, motes: 0.5, ao: 1.0 },
   // sodium haze hanging under the slabs
@@ -153,6 +155,6 @@ export const ZONEFX: Record<string, Partial<ZoneFx>> = {
 export function zoneFx(grade: string): ZoneFx {
   const z = { ...DEFAULT_ZONEFX, ...(ZONEFX[grade] || {}) } as ZoneFx;
   // the renderer eases the live copy toward the next zone in place: never share the tables' arrays
-  z.haze = [...z.haze]; z.mist = [...z.mist]; z.rimTint = [...z.rimTint]; z.splitLo = [...z.splitLo]; z.splitHi = [...z.splitHi];
+  z.haze = [...z.haze]; z.mist = [...z.mist]; z.rimTint = [...z.rimTint]; z.splitLo = [...z.splitLo]; z.splitHi = [...z.splitHi]; z.bounce = [...z.bounce];
   return z;
 }

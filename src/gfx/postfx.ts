@@ -697,8 +697,9 @@ void main() {
   bool hlPx = abs(fl.x - 0.5) < 0.1;
   if (!hlPx) {
     vec2 aos = texture2D(tAO, uv).rg;
-    float bright = clamp(max(c.r, max(c.g, c.b)) - 1.0, 0.0, 1.0) * (1.0 - emitterOf(nA.a));
-    if (emitterOf(nA.a) > 0.5) bright = 1.0;
+    // only light sources (and a torch's blown-out hot spot) escape contact shadow: a brightly lit wall still
+    // darkens into its corners and skirting, which is most of what makes a lit room read as real
+    float bright = emitterOf(nA.a) > 0.5 ? 1.0 : clamp(max(c.r, max(c.g, c.b)) - 3.0, 0.0, 1.0);
     c *= mix(1.0, aos.r, uAOStr * (1.0 - bright));
     // the key fixture's shadow takes away its direct light; the bounce and ambient stay
     if (uKeyShadow > 0.0 && aos.g < 0.999) {

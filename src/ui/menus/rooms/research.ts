@@ -67,7 +67,7 @@ export class ResearchLab implements StageRoom {
   feedCam = new THREE.PerspectiveCamera(70, 4 / 3, 0.05, 30);
   hots: Hot[] = [];
   // the intake drag's look (introKit/stage.ts LOOKS.wing): cold blue shadows, warm highlights, readable
-  grade: Grade = { exposure: 1.75, lift: [0.84, 0.96, 1.12], gain: [1.1, 1.0, 0.88], vig: 0.55, sat: 1.12, contrast: 1.12, side: [1, 0, 0, 0.3], haze: 0.3, ao: 0.85, scatter: 0.4, bounce: 0.24, shafts: [new THREE.Vector3(-1.5, H - 0.4, -1.3), new THREE.Vector3(1.2, H - 0.4, -1.3), new THREE.Vector3(0, H - 0.4, 1.3)], shaftK: 0.6, shaftColor: 0xe8f0ff };
+  grade: Grade = { exposure: 1.75, lift: [0.84, 0.96, 1.12], gain: [1.1, 1.0, 0.88], vig: 0.55, sat: 1.12, contrast: 1.12, side: [1, 0, 0, 0.3], haze: 0.3, ao: 0.85, scatter: 0.4, bounce: 0.24, shafts: [new THREE.Vector3(-1.5, H - 0.4, -1.3), new THREE.Vector3(1.2, H - 0.4, -1.3), new THREE.Vector3(0, H - 0.4, 1.3)], shaftK: 0.42, shaftColor: 0xe8f0ff };
   deco = new THREE.Group();
   floor = { minX: -W + 1.2, maxX: W - 1.0, minZ: 0.4, maxZ: 2.4, y: 0 };
   surfaces = [{ minX: SCOPE.x - 0.25, maxX: SCOPE.x + 0.25, minZ: SCOPE.z - 0.75, maxZ: SCOPE.z + 0.75, y: 0.92 }, { minX: CENTRI.x - 0.3, maxX: CENTRI.x + 0.3, minZ: CENTRI.z - 0.8, maxZ: CENTRI.z + 0.8, y: 0.92 }];
