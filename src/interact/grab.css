@@ -16,7 +16,7 @@
 .gx-key {
   display: inline-block; min-width: 15px; height: 16px; padding: 0 3px; margin-right: 2px; box-sizing: border-box;
   font-family: var(--font-sign, 'Oswald', sans-serif); font-size: 11px; line-height: 16px; text-align: center; color: #efe6cc; text-shadow: none;
-  background: linear-gradient(#6a4a33, #3c2a1c 70%, #2a1d13); border-radius: 3px;
+  background: linear-gradient(#6a4a33, #3c2a1c 70%, #2a1d13); border-radius: 0; clip-path: polygon(3px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 0 calc(100% - 3px), 0 3px);
   box-shadow: inset 0 1px 0 rgba(255, 232, 196, 0.35), inset 0 -2px 0 rgba(0, 0, 0, 0.45), 0 1px 0 #0c0805, 0 2px 3px rgba(0, 0, 0, 0.6);
 }
 .gx-key.on { background: linear-gradient(#c4473a, #8a2219 70%, #5e1912); transform: translateY(1px); }
@@ -37,7 +37,7 @@
 .gx-cyc { gap: 5px; font-size: 16px; }
 .gx-cyc i { font-style: normal; color: #d8b25a; cursor: var(--cur-hand, pointer); padding: 0 2px; }
 .gx-pips { gap: 3px; margin-left: 8px; }
-.gx-pips i { width: 4px; height: 4px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #e9cf8a, #8a6a2a); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.8); }
+.gx-pips i { width: 4px; height: 4px; border-radius: 0; background: radial-gradient(circle at 35% 35%, #e9cf8a, #8a6a2a); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.8); }
 .gx-pips i.on { background: radial-gradient(circle at 35% 35%, #ff8a70, #9a2318); }
 /* why it cannot be done: red, as if stamped */
 .gx-why { display: block !important; font-family: var(--font-type, 'Special Elite', monospace); font-style: normal; text-transform: none; letter-spacing: 0; color: #e0634f; transform: rotate(-2deg); margin-top: 2px; }

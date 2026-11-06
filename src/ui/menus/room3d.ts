@@ -60,6 +60,7 @@ import { armSegment, armBase, clawPalm, clawFinger, pressModel, shutterModel, ch
 import { ROOM, SPOT, roomModel, fixtureTubes, monitorModel, canvasTex, bloodCanvas } from './roomKit';
 import { Dresser } from './rooms/dress';
 import { Vault } from './rooms/vault';
+import { Pokes } from './rooms/pokes';
 import { at as atM } from './scene/facet';
 
 export type { PartKey, ToolKind };
@@ -133,6 +134,9 @@ export class SubjectRoom {
   private dressing: Dresser | null = null;
   /** the containment kit (rooms/vault.ts): the one-way mirror, the decon shower, the restraints, the rack, the beacon */
   private vault: Vault | null = null;
+  /** the room's props that answer a press (rooms/pokes.ts): the lab kit's gauges, clock, cabinet, locks, mirror, shower, pipes */
+  readonly pokes = new Pokes(null);
+  private pokeHov: ReturnType<Pokes['hitAt']> = null;
   private lowW = 0; private lowH = 0;
   private raf = 0; private last = 0; private t = 0;
   private ro: ResizeObserver;
@@ -292,6 +296,8 @@ export class SubjectRoom {
     // the lab's dressing, shared with the control room and the archive: instruments, the clock, overflow, wear
     {
       const d = this.dressing = new Dresser(mats);
+      d.pokes = this.pokes;
+      S.add(this.pokes.group);
       const v = this.vault = new Vault(d, mats, 260);
       const B = ROOM.BACK + 0.01, H = ROOM.H, W = ROOM.W, L = Math.PI / 2;
       d.gauges(atM(-2.25, 2.55, B), 3, 1, { labels: ['CHAIR 4', 'SURGE'], seed: 61 });
@@ -1178,6 +1184,22 @@ export class SubjectRoom {
     this.hoverPart = p;
     this.onHover?.(p, x, y);
   }
+  /** a prop under a client point (the title's room view: hover it, or press it) */
+  pokeAt(x: number, y: number, press = false): { label: string; sub?: string } | null {
+    const r = this.canvas.getBoundingClientRect();
+    if (!r.width || this.mode === 'lit') { this.pokeHover(null); return null; }
+    this.ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1);
+    this.ray.setFromCamera(this.ndc, this.cam);
+    const h = this.pokes.hitAt(this.ray.ray);
+    if (press && h) { h.press(); return h; }
+    this.pokeHover(h);
+    return h;
+  }
+  private pokeHover(h: ReturnType<Pokes['hitAt']>) {
+    if (h?.key === this.pokeHov?.key) return;
+    this.pokeHov?.hover(false); this.pokeHov = h; h?.hover(true);
+    this.canvas.classList.toggle('over', !!h);
+  }
   /** the body part under a client point (by the texture-page region the ray hits) */
   partAt(x: number, y: number): PartKey | null {
     if (!this.rig || !this.lowW || !this.subj.visible) return null;
@@ -1291,6 +1313,7 @@ export class SubjectRoom {
     this.arcs.update(dt);
     this.dressing?.update(this.t);
     this.vault?.update(this.t, dt);
+    this.pokes.update(dt, this.t, this.cam);
     this.screen.update(dt, this.t, 1 - this.surgeK * 0.6);
     this.crt.intensity = (0.065 + 0.025 * this.screen.beat) * (1 - this.lit * 0.6) * (1 - this.surgeK * 0.5);
     if (this.extraBlood && this.maulT < 0) { this.bloodT += dt; if (this.bloodT > 5 && this.extraBlood > 1) { this.extraBlood = 1; this.rig?.setOutfit(this.dress()); } }

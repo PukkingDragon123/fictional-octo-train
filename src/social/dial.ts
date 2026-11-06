@@ -241,6 +241,8 @@ export class EmoteDial {
   }
 }
 
+/** a cut-corner (chamfered) plate path: hard 45-degree corners r deep, never rounded */
 function roundRect(g: Ctx2, x: number, y: number, w: number, h: number, r: number) {
-  g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath();
+  r = Math.min(r, w / 2, h / 2);
+  g.beginPath(); g.moveTo(x + r, y); g.lineTo(x + w - r, y); g.lineTo(x + w, y + r); g.lineTo(x + w, y + h - r); g.lineTo(x + w - r, y + h); g.lineTo(x + r, y + h); g.lineTo(x, y + h - r); g.lineTo(x, y + r); g.closePath();
 }

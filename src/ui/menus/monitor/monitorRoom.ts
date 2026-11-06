@@ -22,6 +22,8 @@ import {
 } from './props';
 import { bitText } from '../../../gfx/bitfont';
 import { crestTex, pageTex } from '../rooms/vaultTex';
+import { Pokes, type PokeNote } from '../rooms/pokes';
+import { Dresser } from '../rooms/dress';
 
 // internal keys: 'research' is the control room (it grew out of the research lab), 'subject' the unit room
 // (saved decorations are filed under these keys, so they stay)
@@ -33,6 +35,24 @@ export const FEEDS: { key: FeedKey; cam: string; name: string; label: string; su
 ];
 
 const W = 2.7, BACK = -2.12, FRONT = 2.8, H = 2.75;
+/** what the booth's desk things say when pressed (rooms/pokes.ts plates) */
+const BOOTH: Record<'mic' | 'mug' | 'board' | 'phone' | 'chair' | 'window', PokeNote[]> = {
+  mic: [{ head: 'Intercom · all cells', lines: ['Key down to talk. The cells hear you through the walls.', 'Some of them answer. Log every answer.'], tone: 'memo' }],
+  mug: [{ head: 'Mug', lines: ['WORLD\'S OKAYEST OPERATOR.', 'Coffee still warm. Nobody has been at this desk for six hours.'], tone: 'memo' }],
+  board: [
+    { head: 'Intake sheet · unit room 4', lines: ['Unit on file: debtor, consenting (see signature).', 'Debt: outstanding. Next of kin: none listed.'], stamp: 'RM 4', tone: 'memo' },
+    { head: 'Intake sheet · remarks', lines: ['Unit asked where the others went.', 'Told it: through the wall. Told it: they are paying it off.'], tone: 'red' },
+  ],
+  phone: [
+    { head: 'Line 1 · the floor above', lines: ['Nobody on the line. Breathing, then the dial tone.', 'There is no floor above the monitor room.'], stamp: 'LOGGED', tone: 'red' },
+    { head: 'Line 1 · Dr. Calder', lines: ['"Stop calling the board. They do not have phones down there."'], tone: 'lore' },
+  ],
+  chair: [{ head: 'Chair', lines: ['Still warm. The seat remembers whoever sat in it last.', 'Swivel squeaks at 3 rotations. Do not do more than 3.'], tone: 'memo' }],
+  window: [
+    { head: 'Window', lines: ['There is nothing out there.', 'There is nothing out there, and it is closer than it was.'], tone: 'red' },
+    { head: 'Facilities', lines: ['Wired glass, 12 mm. Rated for: knocking from this side only.'], tone: 'memo' },
+  ],
+};
 const DESK_Y = 0.76, DESK_Z0 = -1.46, DESK_Z1 = -0.6;
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const easeIn = (t: number) => t * t * t;
@@ -58,6 +78,9 @@ export class MonitorRoom implements StageRoom {
   ];
   guideSpot = { pos: new THREE.Vector3(1.7, 0, 0.3), look: new THREE.Vector3(0.4, 1.6, 1.9) };
   feeds: FeedSet[] = [];
+  /** the props that answer a press (rooms/pokes.ts): notes on the desk things, the clock, the vent */
+  private pokes = new Pokes(this.hots);
+  private dress: Dresser | null = null;
   /** a feed tube was pressed */
   onFeed?: (k: FeedKey) => void;
   /** the intercom microphone was keyed */
@@ -108,7 +131,16 @@ export class MonitorRoom implements StageRoom {
     this.mats = mats;
     const S = this.scene;
     S.background = new THREE.Color(0x000000);
-    S.add(this.shell(), this.rack(), this.desk(), this.leds.mesh, this.puffs.mesh, this.smoke.mesh, this.deco);
+    S.add(this.shell(), this.rack(), this.desk(), this.leds.mesh, this.puffs.mesh, this.smoke.mesh, this.deco, this.pokes.group);
+    // the booth's own wall furniture from the lab kit: the institute clock (it chimes), a return-air vent (its fan spins up)
+    {
+      const d = this.dress = new Dresser(mats);
+      d.pokes = this.pokes;
+      d.clock(at(2.06, 2.2, BACK + 0.01), 0.13);
+      d.vent(at(-2.06, 2.28, BACK + 0.01), 0.36, 0.24);
+      d.extinguisher(at(-2.12, 1.02, BACK + 0.01));
+      S.add(d.done());
+    }
     this.deco.name = 'deco';
     // lights: phosphor key, the lamp's pool, a cold stutter overhead, the window's dark blue
     S.add(this.hemi, this.alarm, this.alarm.target, this.tubeLight);
@@ -419,7 +451,7 @@ export class MonitorRoom implements StageRoom {
     mic.position.set(-0.62, top, -0.86); mic.rotation.y = 0.35;
     g.add(mic);
     this.micLed = this.leds.add(new THREE.Vector3(-0.62, top + 0.055, -0.82).add(new THREE.Vector3(0.016, 0, 0.032)), 0xff2a1a, { size: 0.008, level: 0.05 });
-    this.hots.push({ key: 'mic', objs: [mic], label: 'Intercom', sub: 'key the microphone · the cells can hear you', press: () => this.keyMic() });
+    this.hots.push({ key: 'mic', objs: [mic], label: 'Intercom', sub: 'key the microphone · the cells can hear you', press: () => { this.keyMic(); this.note('mic', mic); } });
     // the mug of coffee, steaming
     const mb2 = new FacetBuilder();
     mb2.add('enamel', lathe([[0, 0], [0.04, 0], [0.042, 0.005], [0.044, 0.1], [0.04, 0.1], [0.038, 0.012], [0, 0.012]], 8), 0xe8e4d8);
@@ -429,7 +461,7 @@ export class MonitorRoom implements StageRoom {
     this.mug.add(mb2.build(this.mats));
     this.mug.position.set(0.82, top, -0.76);
     g.add(this.mug);
-    this.hots.push({ key: 'mug', objs: [this.mug], label: 'Coffee', sub: 'still warm', press: () => { this.mugW.kick(5); this.mugSteam = 1.2; uiSound('tink', 0.8); } });
+    this.hots.push({ key: 'mug', objs: [this.mug], label: 'Coffee', sub: 'still warm', press: () => { this.mugW.kick(5); this.mugSteam = 1.2; uiSound('tink', 0.8); gameSound('glass_clink', 0.3); this.note('mug', this.mug); } });
     // the clipboard with the subject's sheet, loose pages
     const cbb = new FacetBuilder();
     cbb.add('wood', cbox(0.24, 0.008, 0.32, 0.003), 0x8a6a48, at(0, 0.004, 0), { grain: 'z' });
@@ -440,7 +472,7 @@ export class MonitorRoom implements StageRoom {
     this.board.add(sheet);
     this.board.position.set(-0.3, top + 0.002, -0.74); this.board.rotation.y = 0.28;
     g.add(this.board);
-    this.hots.push({ key: 'board', objs: [this.board], label: 'Intake sheet', sub: 'unit 4 · the file on the desk', press: () => { this.boardW.kick(4); uiSound('tick', 0.8); } });
+    this.hots.push({ key: 'board', objs: [this.board], label: 'Intake sheet', sub: 'unit 4 · the file on the desk', press: () => { this.boardW.kick(4); uiSound('tick', 0.8); gameSound('paper', 0.6); this.note('board', this.board); } });
     for (const [x, z, r, s] of [[1.35, -0.72, -0.4, 3], [1.5, -0.8, 0.25, 4], [-1.5, -0.72, 0.1, 5]] as [number, number, number, number][]) {
       const p = paper(['~', '~', '~', '~', '~', '~'], 0.21, 0.28, { seed: s * 7 });
       p.rotation.set(-Math.PI / 2, 0, r); p.position.set(x, top + 0.003 + s * 0.0006, z);
@@ -455,7 +487,8 @@ export class MonitorRoom implements StageRoom {
     this.phone.add(pb.build(this.mats));
     this.phone.position.set(1.45, top, -1.0); this.phone.rotation.y = -0.4;
     g.add(this.phone);
-    this.hots.push({ key: 'phone', objs: [this.phone], label: 'Telephone', sub: 'the line to the floor above', press: () => { this.phoneW.kick(6); this.ringT = 1.2; uiSound('relay', 0.9); setTimeout(() => uiSound('buzz', 0.4), 120); } });
+    // the phone: it rings (the real bell), then the line clicks and a note of who called
+    this.hots.push({ key: 'phone', objs: [this.phone], label: 'Telephone', sub: 'the line to the floor above', press: () => { this.phoneW.kick(6); this.ringT = 2.4; gameSound('phone_ring', 0.55); setTimeout(() => uiSound('relay', 0.7), 2200); setTimeout(() => gameSound('static_burst', 0.3), 2350); this.note('phone', this.phone); } });
     // the swivel chair in front of the desk
     const ch = new FacetBuilder();
     ch.add('metal', prism(0.03, 0.34, 6), C.dark, at(0, 0.27, 0));
@@ -468,7 +501,7 @@ export class MonitorRoom implements StageRoom {
     this.chair.position.set(0.3, 0, -0.05);
     this.chair.rotation.y = this.chairA;
     g.add(this.chair);
-    this.hots.push({ key: 'chair', objs: [this.chair], label: 'Chair', sub: 'the night shift\'s seat', press: () => { this.chairV += 4 + Math.random() * 3; uiSound('creak', 0.8); } });
+    this.hots.push({ key: 'chair', objs: [this.chair], label: 'Chair', sub: 'the night shift\'s seat', press: () => { this.chairV += 4 + Math.random() * 3; uiSound('creak', 0.8); gameSound('chair_squeak', 0.4); this.note('chair', this.chair); } });
     return g;
   }
 
@@ -522,7 +555,7 @@ export class MonitorRoom implements StageRoom {
     for (let i = 1; i < 12; i++) wb.add('metal', cbox(0.003, 1.0, 0.003, 0.001), 0x2a2a2a, at(-W - 0.04, 1.45, -0.35 - 0.8 + i * (1.6 / 12)));
     for (let i = 1; i < 8; i++) wb.add('metal', cbox(0.003, 0.003, 1.6, 0.001), 0x2a2a2a, at(-W - 0.04, 1.45 - 0.5 + i * (1.0 / 8), -0.35));
     this.scene.add(wb.build(this.mats, { cast: false }));
-    this.hots.push({ key: 'window', objs: [win], glow: [], label: 'Window', sub: 'there is nothing out there', press: () => { uiSound('tink', 1); setTimeout(() => uiSound('tink', 0.6), 160); if (this.winT < 0 && Math.random() < 0.6) { this.winT = 0; } } });
+    this.hots.push({ key: 'window', objs: [win], glow: [], label: 'Window', sub: 'there is nothing out there', press: () => { uiSound('tink', 1); gameSound('knock', 0.5); setTimeout(() => uiSound('tink', 0.6), 160); if (this.winT < 0 && Math.random() < 0.6) { this.winT = 0; } this.note('window', win); } });
   }
 
   // ================================================================== aux tube pictures
@@ -592,6 +625,12 @@ export class MonitorRoom implements StageRoom {
 
   // ================================================================== interaction
   /** the intercom: a squeal of feedback, the lamp on the mic, and the cells hear it */
+  /** a desk prop's note on the booth's readout plate (cycled per prop) */
+  private noteN: Record<string, number> = {};
+  private note(k: keyof typeof BOOTH, o: THREE.Object3D) {
+    const list = BOOTH[k], i = (this.noteN[k] = (this.noteN[k] ?? -1) + 1);
+    this.pokes.say(list[i % list.length], new THREE.Box3().setFromObject(o).getCenter(new THREE.Vector3()));
+  }
   keyMic() {
     this.micT = 1.6;
     uiSound('buzz', 0.5);
@@ -674,6 +713,7 @@ export class MonitorRoom implements StageRoom {
   // ================================================================== frame
   update(dt: number, t: number, full: boolean) {
     if (full) this.lamp.getWorldPosition(this.grade.shafts![1]);
+    if (full) { this.dress?.update(t); this.pokes.update(dt, t, this.cam); }
     // ---- lights: the lamp, the stuttering tube, the alarm, the phosphor spill
     this.lampLvl = damp(this.lampLvl, this.lampOn ? 1 : 0, 18, dt);
     const buzz = 0.96 + Math.random() * 0.04;

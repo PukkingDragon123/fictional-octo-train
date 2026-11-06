@@ -31,7 +31,7 @@
   pointer-events: auto; cursor: var(--cur-hand, pointer); outline: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
 }
 .hb-l .hb-grab { left: auto; right: calc(var(--hp) * -9); }
-.hb-grab i { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+.hb-grab i { position: absolute; left: 50%; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 0; clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
   box-shadow: 0 0 0 1px rgba(150, 250, 255, 0.85), 0 0 6px rgba(92, 242, 255, 0.7), inset 0 0 0 3px rgba(0, 10, 14, 0.5); background: radial-gradient(circle, #d2fdff 0 2px, rgba(92, 242, 255, 0.35) 3px, transparent 5px);
   animation: hb-grab 2.6s steps(6) infinite; }
 .hb-grab:hover i, .hb-grab:focus-visible i { box-shadow: 0 0 0 1px #fff, 0 0 10px rgba(92, 242, 255, 1), inset 0 0 0 3px rgba(0, 10, 14, 0.5); }
@@ -142,7 +142,7 @@ html.hb-lowfx .hb-face { filter: none; }
 .hb-breathe.hb-hidden { display: none !important; }
 .hb-breathe::before {
   content: ''; position: absolute; left: 4px; top: 50%; width: 14px; height: 14px; margin-top: -7px;
-  border-radius: 50%; box-shadow: 0 0 0 2px #5cf2ff, 0 0 8px #5cf2ff; animation: hb-breath 8s ease-in-out infinite;
+  border-radius: 0; box-shadow: 0 0 0 2px #5cf2ff, 0 0 8px #5cf2ff; animation: hb-breath 8s ease-in-out infinite;
 }
 .hb-breathe.on { display: block; }
 .hb-breathe.urgent { color: #ffe0dc; animation: hb-blink 0.8s steps(2) infinite; }

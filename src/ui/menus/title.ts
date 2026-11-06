@@ -124,10 +124,17 @@ class TitleRoom {
     this.room.setOutfit(unitOutfit(this.app));
     this.subject = new SubjectView(this.room, this.subjHost);
     this.subjHost.addEventListener('pointerup', (e) => this.subjectTap(e));
+    this.subjHost.addEventListener('pointermove', (e) => {
+      if (this.view !== 'subject' || this.moving || this.root.classList.contains('lit') || this.subject.face) return;
+      const h = this.room.pokeAt(e.clientX, e.clientY);
+      if (h) this.showHotcap(h.label, h.sub, e.clientX, e.clientY); else this.hotcap.classList.remove('on');
+    });
     this.stage = new MenuStage(this.stageHost);
     this.stage.onTick = (dt) => this.tick(dt);
     this.stage.onHot = (hh, x, y) => this.hotCaption(hh, x, y);
     this.stage.onPointer = (x, y) => this.pointer(x, y);
+    // a tap on nothing while the research lattice is up steps back out of it
+    this.stage.onMiss = () => { if (treeOpen()) (this.research?.lattice as { back?: () => void } | undefined)?.back?.(); else if (this.view === 'research') this.research?.unfocus(); };
     this.root.dataset.view = 'monitor';
     listSaves().then((s) => { this.saves = s; this.build(); }).catch(() => this.build());
     this.build();
@@ -317,6 +324,8 @@ class TitleRoom {
   private hotCaption(hh: Hot | null, x: number, y: number) {
     if (!hh) { if (!(document.activeElement as HTMLElement)?.classList?.contains('mr-feed')) this.hotcap.classList.remove('on'); return; }
     if (x < 0) return;
+    // props that speak for themselves in the scene (the research lattice's sockets) carry no caption
+    if (!hh.label) { this.hotcap.classList.remove('on'); return; }
     this.showHotcap(hh.label, hh.sub, x, y);
     this.hotT = 2.5;
   }
@@ -482,6 +491,8 @@ class TitleRoom {
     if (this.view !== 'subject' || this.moving || this.root.classList.contains('lit')) return;
     const part = this.room.partAt(e.clientX, e.clientY);
     if (part) { sfx('servo', 0.5); void this.newGame(true, part); }
+    // not the unit: a prop round the room (the gauges, the clock, the cabinet, the locks) answers instead
+    else if (!this.subject.face) this.room.pokeAt(e.clientX, e.clientY, true);
   }
 
   // ================================================================== panels: the terminal

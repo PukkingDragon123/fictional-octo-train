@@ -8,11 +8,18 @@ import { queueAt } from '../../actions/basic';
 import { UseObjectAction } from '../../actions/world';
 import { createItem } from '../../items/factory';
 import type { Creature } from '../creature';
-import { CS, zoneOf, creatureMenu, poke, poked, pulse, stop, findSpot } from '../behaviors_a';
+import { CS, zoneOf, creatureMenu, poke, poked, pulse, stop, findSpot, faceTo } from '../behaviors_a';
+import type { Zone } from '../../world/zone';
 import { net, netOf, playAt, hashId, rng, localIn, thinkOnce, dist, fx, fxPoll } from '../behaviors_b';
 import { KitDef, KitRig, BoneSpec, SkinB, BuildCtx, Page, V3, Wt, buildKitRig, kitSync, kitPersonalize, flinchOf, hash } from '../kit/humanoids';
 import { chain, sac, blade, paintCap } from '../kit/organic';
 import { attachFilm, filmPersonalize, uprightDead } from '../kit/gel';
+import { ModelBuilder } from '../../gfx/modelBuilder';
+import { worldMaterial } from '../../gfx/materials';
+import { blob as blobA } from '../kit/anomalies';
+import { larderNear, nibble, type Larder } from '../../world/remains';
+import { queenIn, feedQueen, mawPoint } from './queen_bee';
+import { stillLifeNear, waxFeed } from './bee_keeper';
 import '../../audio/sounds_creatures_c';
 
 // =====================================================================================
@@ -24,8 +31,16 @@ import '../../audio/sounds_creatures_c';
 // it gives up and sits on the floor, panting through its abdomen, then tries
 // again. It does nothing. It cannot sting (the sting is a soft stub). It is
 // the Gummy Bear's whole diet.
+// Round 14: it does one thing after all. It forages the dead of the backrooms
+// (remains props, corpses: src/world/remains): lands on them, chews for a while
+// with its head down, and flies off heavier, lower, a ball of meat in its jaws,
+// home to the Queen (queen_bee.ts), whose open stomach it feeds. Between trips
+// the bees tend her, drifting round the comb. They also eat the wax off Still
+// Lifes, which is how Bee Keepers happen (bee_keeper.ts).
 //   bumble_bee   skinned kit rig (fuzz loft, banded abdomen, pollen baskets) with a
 //                translucent wing film; exported buildBee / poseBee for the bear's gut
+// POSES (poseBee drive / gallery ?pose=): hover, rest, bonk, panic, dead, chew (sat on
+//   remains, feeding), carry (flying home loaded), give (hovering at the Queen's maw)
 // =====================================================================================
 
 const SIDES = [['L', 1], ['R', -1]] as const;
@@ -197,7 +212,24 @@ const WING_KIT: KitDef = { key: 'bumble_bee_wing', variants: 1, W: 64, H: 32, bo
 export function buildBee(variant = 0): KitRig { return buildKitRig(BEE_KIT, variant, BEE_HOVER + 0.05); }
 
 // ------------------------------------------------------------------ animation
-export interface BeeDrive { t: number; dt: number; fly: number; panic: number; bonk: number; bonkSide: number; dead: number; seed: number; flinch: number; speed: number; still?: number }
+export interface BeeDrive { t: number; dt: number; fly: number; panic: number; bonk: number; bonkSide: number; dead: number; seed: number; flinch: number; speed: number; still?: number;
+  /** feeding on remains, sat down (0..1); carrying a load home (0..1): fatter, lower, meat in its jaws */
+  chew?: number; load?: number }
+/** the ball of meat a loaded bee carries in its mandibles (built once per rig) */
+function beeMeat(rig: KitRig): THREE.Mesh {
+  let m = rig.kit.m.meat as THREE.Mesh | undefined;
+  if (!m) {
+    const mb = new ModelBuilder();
+    blobA(mb, [0, 0, 0], [0.045, 0.038, 0.05], 8, 5, 'rm_flesh', { disp: (d) => 1 + 0.22 * Math.sin(d[0] * 7) * Math.sin(d[2] * 5) + 0.1 * Math.sin(d[1] * 9) });
+    blobA(mb, [0.02, -0.02, 0.02], [0.02, 0.016, 0.02], 6, 4, 'rm_fat');
+    m = new THREE.Mesh(mb.build(), worldMaterial({}));
+    m.castShadow = true; m.name = 'beeMeat';
+    m.position.set(0, -0.085, 0.105);
+    rig.parts.head.add(m);
+    rig.kit.m.meat = m;
+  }
+  return m;
+}
 /**
  * Pose a bee rig: `fly` 0 sits it on the floor (panting) and 1 holds it in its
  * labouring hover; `bonk` is a fresh collision (squash, recoil, a dizzy roll);
@@ -258,6 +290,33 @@ export function poseBee(rig: KitRig, d: BeeDrive) {
     base.position.set(pv * Math.sin(a), pv - pv * Math.cos(a) - 0.06 * k, 0);
   }
   if (d.flinch > 0) th.position.x += Math.sin(t * 80) * 0.02 * d.flinch;
+  // ---- foraging: sat on remains with its head down, chewing; flying home fat and low
+  const chew = (d.chew ?? 0) * live, load = d.load ?? 0;
+  if (chew > 0) {
+    P.head.rotation.x += 0.55 * chew + Math.sin(t * 9 + s7) * 0.08 * chew;
+    P.head.rotation.y += Math.sin(t * 2.3 + s7) * 0.18 * chew;
+    th.rotation.x += 0.22 * chew;
+    th.position.z += 0.03 * chew;
+    P.tongue.rotation.x = 0.4 * chew + Math.max(0, Math.sin(t * 6 + s7)) * 0.9 * chew;
+    for (const [s, k] of SIDES) {
+      P['mand' + s]?.rotation.set(0, k * (0.15 + Math.max(0, Math.sin(t * 14 + k)) * 0.45) * chew, 0);
+      P['antA' + s]?.rotation.set(0.35 * chew + Math.sin(t * 3 + k) * 0.15, k * 0.2, k * 0.1);
+      // the front legs pull at it
+      const a = P['l0a' + s], b = P['l0b' + s];
+      if (a) a.rotation.x += (-0.5 + Math.sin(t * 5 + k) * 0.35) * chew;
+      if (b) b.rotation.x += Math.max(0, Math.sin(t * 5 + k)) * 0.5 * chew;
+    }
+  }
+  if (load > 0) {
+    th.position.y -= 0.07 * load + Math.pow(Math.max(0, Math.sin(t * 0.9 + s7)), 6) * 0.06 * load;
+    th.rotation.x += 0.12 * load;
+    P.abd.rotation.x += 0.1 * load;
+    P.abd2.scale.multiplyScalar(1 + 0.2 * load);
+    P.head.rotation.x += 0.12 * load;
+  }
+  const meatK = Math.max(load, chew * 0.6);
+  const meat = meatK > 0.02 || rig.kit.m.meat ? beeMeat(rig) : null;
+  if (meat) { meat.visible = meatK > 0.02 && d.dead < 0.5; meat.scale.setScalar(0.4 + 0.6 * meatK); meat.rotation.set(Math.sin(t * 9) * 0.2 * chew, t * 0.5 * chew, 0); }
 }
 
 function animateBee(rig: Rig, c: Creature, t: number, dt: number) {
@@ -270,14 +329,18 @@ function animateBee(rig: Rig, c: Creature, t: number, dt: number) {
   const f = fxPoll(rig, c);
   if (f?.key === 'bonk') { ud.bk = 1; ud.bs = (f.a?.s ?? (Math.random() < 0.5 ? -1 : 1)); }
   ud.bk = Math.max(0, (ud.bk ?? 0) - dt * 1.6);
-  const fly = sm('fly', n.md === 'rest' ? 0 : 1, n.md === 'rest' ? 1.4 : n.md === 'up' ? 0.7 : 2);
+  const sitting = n.md === 'rest' || n.md === 'chew';
+  const fly = sm('fly', sitting ? 0 : 1, sitting ? 1.4 : n.md === 'up' ? 0.7 : 2);
   const panic = sm('pan', n.md === 'panic' ? 1 : 0, 3);
+  const chew = sm('chw', n.md === 'chew' ? 1 : 0, 2.5), load = sm('ld', n.ld ? 1 : 0, 1.5);
   ud.dk = c.dead ? Math.min(1, (ud.dk ?? 0) + dt * 2.2) : 0;
-  poseBee(K, { t, dt, fly, panic, bonk: ud.bk, bonkSide: ud.bs ?? 1, dead: ud.dk * ud.dk, seed, flinch: flinchOf(c), speed: c.speed });
+  poseBee(K, { t, dt, fly, panic, bonk: ud.bk, bonkSide: ud.bs ?? 1, dead: ud.dk * ud.dk, seed, flinch: flinchOf(c), speed: c.speed, chew, load });
   uprightDead(K, c);
   const F = K.kit.F.fx.value; F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
   const p = localIn(c);
-  if (p && !c.dead && c.visibleToLocal && dist(p, c) < 5) thinkOnce(p, 'bumble_bee', [
+  if (p && !c.dead && c.visibleToLocal && n.md === 'chew' && dist(p, c) < 8) thinkOnce(p, 'bee_chew', ['It is sat on the body, eating. Very carefully. Like it is being polite.', 'The bee has its whole head in it.'][Math.floor(t * 0.2) % 2], 60);
+  else if (p && !c.dead && c.visibleToLocal && n.ld && dist(p, c) < 8) thinkOnce(p, 'bee_load', 'It is flying off low and heavy, with something red in its jaws. They all go the same way.', 80);
+  else if (p && !c.dead && c.visibleToLocal && dist(p, c) < 5) thinkOnce(p, 'bumble_bee', [
     'A bumblebee the size of a dog. Its wings are the size of my hand. How is it up there?',
     'It just flew into the wall. It is trying again.',
     'It is so fat it has to sit down. It is panting.',
@@ -294,6 +357,88 @@ function bearNear(c: Creature, r: number): Creature | null {
   }
   return best;
 }
+// ------------------------------------------------------------------ foraging (host)
+type Food = Larder & { sl?: string };
+function foodGone(z: Zone, f: Food): boolean {
+  if (f.sl) { const o = CS().creatures.get(f.sl); if (!o || o.dead) return true; f.x = o.x; f.z = o.z; return false; }
+  if (f.obj) return !z.objects.has(f.obj.uid) || (f.obj.state?.eaten | 0) >= 3;
+  const o = f.cid ? CS().creatures.get(f.cid) : null;
+  return !o || o.butchered;
+}
+function forage(c: Creature, z: Zone, dt: number): boolean {
+  const cs = CS(), m = c.mem, n = net(c);
+  m.hunger = Math.min(1, (m.hunger ?? rng.float(0.2, 0.7)) + dt / 70);
+  // sat on it, head down, chewing
+  if (n.md === 'chew') {
+    stop(c); c.setState('eat');
+    const f = m.food as Food | null;
+    if (!f || foodGone(z, f)) { n.md = 'up'; m.upT = 0; m.food = null; return true; }
+    if ((m.chewSnd ?? 0) < G.time) { m.chewSnd = G.time + rng.float(1.1, 2.2); playAt('bh_chew', c, 0.55, 9, 0.95 + rng.float(0, 0.3)); }
+    if (G.time > (m.chewEnd ?? 0)) {
+      if (f.sl) { const o = cs.creatures.get(f.sl); if (o) waxFeed(o); } else nibble(z, f);
+      n.ld = 1; m.hunger = 0; m.food = null; m.loadAt = G.time;
+      n.md = 'up'; m.upT = 0;
+      playAt('limb_flies', c, 0.45, 9, 1.15);
+    }
+    return true;
+  }
+  // loaded: home to the Queen, low and slow
+  if (n.ld) {
+    const q = queenIn(c.zoneKey);
+    if (!q || dist(q, c) > 60) { if (G.time - (m.loadAt ?? 0) > 50) n.ld = 0; return false; }
+    if (n.md === 'give') {
+      stop(c); faceTo(c, q.x, q.z); c.setState('idle');
+      if (G.time > (m.giveEnd ?? 0)) { feedQueen(q); n.ld = 0; n.md = ''; m.forageAt = G.time + rng.float(8, 25); c.goal = null; }
+      return true;
+    }
+    const mp = mawPoint(q, 1.0);
+    c.setState('travel');
+    m.homeT = (m.homeT ?? 0) + dt;
+    if (cs.moveTo(c, z, mp.x, mp.z, c.sp.walk * 0.8, dt, 0.55) || m.homeT > 45) {
+      m.homeT = 0;
+      if (dist(q, c) < 2.6) { n.md = 'give'; m.giveEnd = G.time + rng.float(2, 3.2); playAt('bh_out', c, 0.5, 9, 1.2); }
+      else n.ld = 0;
+    }
+    return true;
+  }
+  // hungry: the nearest remains (or a Still Life's wax)
+  if (m.hunger > 0.35 && G.time > (m.forageAt ?? 0)) {
+    let f = m.food as Food | null;
+    if (f && foodGone(z, f)) f = m.food = null;
+    if (!f) {
+      const skip = (m.skipFood ??= {}) as Record<string, number>;
+      const l = larderNear(z, c.x, c.z, 22, (id) => (skip[id] ?? 0) > G.time);
+      const sl = stillLifeNear(c, 16, (id) => (skip['s' + id] ?? 0) > G.time);
+      const ld = l ? Math.hypot(l.x - c.x, l.z - c.z) : 99, sd = sl ? dist(sl, c) * 0.8 : 99;
+      if (sl && sd < ld) f = { id: 's' + sl.id, x: sl.x, z: sl.z, left: 1, key: 'still_life', sl: sl.id };
+      else f = l;
+      if (!f) { m.forageAt = G.time + rng.float(10, 22); return false; }
+      m.food = f; m.foodT = 0; m.foodBest = Math.hypot(f.x - c.x, f.z - c.z);
+    }
+    c.setState('travel');
+    const d = Math.hypot(f.x - c.x, f.z - c.z);
+    m.foodT = (m.foodT ?? 0) + dt;
+    if (d < (m.foodBest ?? 99) - 0.5) { m.foodBest = d; m.foodT = 0; }
+    if (m.foodT > 18) { ((m.skipFood ??= {}) as Record<string, number>)[f.id] = G.time + 90; m.food = null; return false; }
+    if (cs.moveTo(c, z, f.x, f.z, c.sp.walk, dt, f.sl ? 0.55 : 0.4)) {
+      n.md = 'chew'; m.chewEnd = G.time + rng.float(7, 12); stop(c);
+      playAt('bh_plop', c, 0.5, 8, 0.8);
+    }
+    return true;
+  }
+  // nothing to fetch: tend her, drifting round the comb
+  const q = queenIn(c.zoneKey);
+  if (q && dist(q, c) < 32 && hashId(c.id, 9) < 0.65) {
+    c.setState('wander');
+    if (!c.goal || cs.moveTo(c, z, c.goal.x, c.goal.z, c.sp.walk, dt, 0.5) || c.stateT > 14) {
+      const a = q.facing + Math.PI + rng.float(-2.2, 2.2), r = rng.float(2.2, 4.2);
+      c.goal = { x: q.x + Math.cos(a) * r, z: q.z + Math.sin(a) * r }; c.stateT = 0;
+    }
+    return true;
+  }
+  return false;
+}
+
 function thinkBee(c: Creature, dt: number): boolean {
   const cs = CS(), z = zoneOf(c), m = c.mem, n = net(c);
   const ev = pulse(c);
@@ -322,7 +467,7 @@ function thinkBee(c: Creature, dt: number): boolean {
   if (m.daze > 0) { stop(c); return true; }
   // panic: away from whatever, at a wheezing, useless speed
   if (m.panicT > 0) {
-    if (n.md === 'rest') { n.md = 'up'; m.upT = 0; }
+    if (n.md === 'rest' || n.md === 'chew' || n.md === 'give') { n.md = 'up'; m.upT = 0; m.food = null; }
     if (n.md !== 'up') n.md = 'panic';
     c.setState('flee');
     const fx0 = bear ? bear.x : c.x + Math.cos(c.facing), fz0 = bear ? bear.z : c.z + Math.sin(c.facing);
@@ -348,6 +493,8 @@ function thinkBee(c: Creature, dt: number): boolean {
     }
     return true;
   }
+  // round 14: foraging the remains, flying the meat home, tending the Queen
+  if (forage(c, z, dt)) return true;
   if (G.time > (m.restAt ?? 0)) { n.md = 'rest'; m.upAt = G.time + rng.float(6, 16); stop(c); return true; }
   c.setState('wander');
   if (!c.goal || cs.moveTo(c, z, c.goal.x, c.goal.z, c.sp.walk, dt, 0.5) || c.stateT > 18) {
@@ -365,7 +512,7 @@ const BEE = def({
   flags: { flying: true },
   meat: [['small_meat_raw', 1]],
   sounds: { loop: 'limb_flies', hurt: 'cower_squeak', death: 'cower_die' } as any,
-  scan: { cls: 'Fauna / apid, flightless in all but intent', notes: ['A bumblebee the size of a dog. The abdomen alone is a beach ball of fuzz and fat.', 'The wings are no bigger than playing cards. It hovers anyway, barely, and keeps sagging.', 'It bumps into things and sits down to pant. The sting is a soft stub.', 'Its fuzz and the wax flaking off its belly can be harvested. It does not mind much.'] },
+  scan: { cls: 'Fauna / apid, flightless in all but intent', notes: ['A bumblebee the size of a dog. The abdomen alone is a beach ball of fuzz and fat.', 'The wings are no bigger than playing cards. It hovers anyway, barely, and keeps sagging.', 'It bumps into things and sits down to pant. The sting is a soft stub.', 'It forages the dead: lands on remains, chews, and flies the meat home to its Queen, low and heavy.', 'Its fuzz and the wax flaking off its belly can be harvested. It does not mind much.'] },
   gore: { blood: 'pale', tint: 0xf0d070, flesh: 0xe8b62a, sever: ['head', 'abd', 'l0aL', 'l0aR', 'l1aL', 'l1aR', 'l2aL', 'l2aR'], head: 'head' },
   build: () => buildBee(0), animate: animateBee, think: thinkBee,
 });
@@ -390,12 +537,13 @@ creatureMenu('bumble_bee', (p, c, opts) => {
   }
 });
 BEE.animateGallery = (rig: Rig, t: number) => {
-  const q = new URLSearchParams(location.search).get('pose') || ['hover', 'rest', 'bonk', 'panic'][Math.floor(t / 4) % 4];
+  const q = new URLSearchParams(location.search).get('pose') || ['hover', 'rest', 'bonk', 'panic', 'chew', 'carry'][Math.floor(t / 4) % 6];
   const K = rig as KitRig, ud = rig.root.userData as Record<string, number>;
   if (q === 'bonk' && Math.floor(t * 0.7) !== ud.lb) { ud.lb = Math.floor(t * 0.7); ud.gbk = 1; }
   ud.gbk = Math.max(0, (ud.gbk ?? 0) - 1 / 60 * 1.6);
   kitSync(K);
-  poseBee(K, { t, dt: 1 / 60, fly: q === 'rest' || q === 'dead' ? 0 : 1, panic: q === 'panic' ? 1 : 0, bonk: q === 'bonk' ? ud.gbk : 0, bonkSide: 1, dead: q === 'dead' ? 1 : 0, seed: 0.3, flinch: 0, speed: 0 });
+  poseBee(K, { t, dt: 1 / 60, fly: q === 'rest' || q === 'dead' || q === 'chew' ? 0 : 1, panic: q === 'panic' ? 1 : 0, bonk: q === 'bonk' ? ud.gbk : 0, bonkSide: 1, dead: q === 'dead' ? 1 : 0, seed: 0.3, flinch: 0, speed: 0,
+    chew: q === 'chew' ? 1 : 0, load: q === 'carry' || q === 'give' ? 1 : 0 });
 };
 horrify(BEE, { twitch: 0.15, snap: 0.08, breathe: 0.01, parts: /ant|mand|tongue/ });
 void THREE;

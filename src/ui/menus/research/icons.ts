@@ -192,3 +192,26 @@ function finish(pc: PixelCanvas): string {
   cv.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
   return cv.toDataURL();
 }
+
+// ================================================================== art for the lattice's 3D exhibits (research/models.ts)
+function pcCanvas(pc: PixelCanvas): HTMLCanvasElement {
+  const cv = document.createElement('canvas'); cv.width = pc.w; cv.height = pc.h;
+  cv.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
+  return cv;
+}
+/** a chip's die art (package, legs, the lit glyph) as a canvas, for the die texture */
+export function chipArtCanvas(glyph: ChipGlyph, col: number, size = 48): HTMLCanvasElement { return pcCanvas(chipArt(glyph, col, size)); }
+/** a suit design as tileable cloth: the dye with its stripes, hazard chevrons or circuit weave */
+export function suitArtCanvas(key: string, col: number, S = 32): HTMLCanvasElement {
+  const p = P(S);
+  const dk = mixHex(col, 0x10141a, 0.3), lt = mixHex(col, 0xffffff, 0.18);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    // a twill: diagonal ribs of light and shade through the dye
+    const rib = ((x + y) >> 1) % 3;
+    p.set(x, y, rib === 0 ? lt : rib === 1 ? col : mixHex(col, dk, 0.4));
+  }
+  if (key === 'suit_stripe') for (let y = 0; y < S; y++) if (((y >> 2) % 3) === 0) for (let x = 0; x < S; x++) p.set(x, y, 0x1a1a1a);
+  if (key === 'suit_hazard') for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) if ((((x + y) >> 3) % 2) === 0) p.set(x, y, 0x17150f);
+  if (key === 'suit_circuit') for (let y = 2; y < S; y += 6) for (let x = 0; x < S; x++) { if ((x * 7 + y * 3) % 11 < 6) p.set(x, y, 0x3affd8); if (x % 8 === 3) p.set(x, (y + 2) % S, 0x3affd8); }
+  return pcCanvas(p);
+}

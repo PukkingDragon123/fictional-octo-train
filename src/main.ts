@@ -29,7 +29,7 @@ if (gallery) {
     loaderStage(0.55, 'Opening the files');
     const cfg = L.takeLaunch();
     if (cfg) { L.launch(cfg); return; }
-    // the first time (or ?prologue): the first link, Dr. Calder on the intercom, then the wake in Level 0 (src/game/prologue)
+    // the first time (or ?prologue): straight into the first run (the link, the intake cinematic, the wake in Level 0: src/game/prologue)
     const P = await import('./game/prologue');
     if (P.prologueWanted()) { await P.runPrologue(); return; }
     await import('./ui/menus/title').then((m) => m.showTitle());

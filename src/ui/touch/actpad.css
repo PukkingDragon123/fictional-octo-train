@@ -1,0 +1,38 @@
+/* round 14: the touch pad (src/ui/touch/actpad.ts). Chamfered steel plates with a hard pixel
+   bevel; nothing round. Only on touch, only on foot. */
+#wpad { position: fixed; inset: 0; z-index: 24; pointer-events: none; display: none; font-family: var(--font-new); image-rendering: pixelated; }
+#wpad.on { display: block; }
+#wpad .wpad-btn {
+  --c: 10px; --sz: 64px;
+  position: absolute; width: var(--sz); height: var(--sz); pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none;
+  background: #0b0c0a;
+  clip-path: polygon(var(--c) 0, calc(100% - var(--c)) 0, 100% var(--c), 100% calc(100% - var(--c)), calc(100% - var(--c)) 100%, var(--c) 100%, 0 calc(100% - var(--c)), 0 var(--c));
+}
+#wpad .wpad-face {
+  --f: calc(var(--c) - 2px);
+  position: absolute; inset: 3px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  background: linear-gradient(#5d6355 0, #5d6355 3px, #41463b 3px, #2c3028 70%, #1c1f19 calc(100% - 3px), #12140f calc(100% - 3px));
+  clip-path: polygon(var(--f) 0, calc(100% - var(--f)) 0, 100% var(--f), 100% calc(100% - var(--f)), calc(100% - var(--f)) 100%, var(--f) 100%, 0 calc(100% - var(--f)), 0 var(--f));
+  color: #efe6cc; text-shadow: 1px 0 0 #0b0a07, -1px 0 0 #0b0a07, 0 1px 0 #0b0a07, 0 -1px 0 #0b0a07, 0 2px 0 #0b0a07;
+}
+#wpad .wpad-face i { display: block; width: 28px; height: 28px; background-size: 100% 100%; image-rendering: pixelated; }
+#wpad .wpad-face span { font-size: 16px; line-height: 16px; letter-spacing: 1px; white-space: nowrap; }
+#wpad .wpad-btn.down .wpad-face { inset: 5px 3px 1px; filter: brightness(1.2); }
+
+/* STRIKE: the big one in the thumb's rest, rust on the steel */
+#wpad .wpad-strike { --sz: 96px; --c: 14px; right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
+#wpad .wpad-strike .wpad-face { background: linear-gradient(#a2563a 0, #a2563a 3px, #7b3a24 3px, #5a2716 70%, #3b190d calc(100% - 3px), #240e07 calc(100% - 3px)); }
+#wpad .wpad-strike .wpad-face i { width: 42px; height: 42px; }
+/* LIGHT: beside it; lit while the flashlight is on */
+#wpad .wpad-light { right: calc(126px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
+#wpad .wpad-light.lit .wpad-face { background: linear-gradient(#fff0b0 0, #fff0b0 3px, #e8bd45 3px, #b98a1c 70%, #7a5608 calc(100% - 3px), #4a3405 calc(100% - 3px)); color: #17150f; text-shadow: 0 1px 0 #ffe9a8; }
+/* SWIM: over STRIKE, only in water */
+#wpad .wpad-swim { display: none; right: calc(34px + env(safe-area-inset-right)); bottom: calc(130px + env(safe-area-inset-bottom)); }
+#wpad .wpad-swim.show { display: block; }
+#wpad .wpad-swim .wpad-face { background: linear-gradient(#6f8fa0 0, #6f8fa0 3px, #456575 3px, #2f4752 70%, #1d2c33 calc(100% - 3px), #121c21 calc(100% - 3px)); }
+
+@media (max-height: 420px) {
+  #wpad .wpad-strike { --sz: 80px; }
+  #wpad .wpad-light { right: calc(108px + env(safe-area-inset-right)); --sz: 56px; }
+  #wpad .wpad-swim { bottom: calc(112px + env(safe-area-inset-bottom)); }
+}

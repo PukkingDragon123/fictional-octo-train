@@ -69,12 +69,12 @@ export function toUrl(pc: PixelCanvas, scale = 1): string {
   return c.toDataURL();
 }
 function canvasOf(w: number, h: number) { const pc = new PixelCanvas(w, h); pc.wrap = false; return pc; }
-/** rounded-rect test with pixel stairs (r in px) */
+/** cut-corner (chamfered) rect test: a hard 45-degree pixel stair r px deep at each corner (never a rounded arc) */
 function inRound(x: number, y: number, w: number, h: number, r: number) {
   const cx = x < r ? r - 1 - x : x > w - 1 - r ? x - (w - r) : -1;
   const cy = y < r ? r - 1 - y : y > h - 1 - r ? y - (h - r) : -1;
   if (cx < 0 || cy < 0) return true;
-  return cx * cx + cy * cy <= (r - 0.5) * (r - 0.5) + 0.5;
+  return cx + cy <= r - 0.5;
 }
 /** distance (in px) from the nearest edge, honouring a corner radius */
 function edgeDist(x: number, y: number, w: number, h: number) { return Math.min(x, y, w - 1 - x, h - 1 - y); }

@@ -172,7 +172,7 @@ export class InventoryUI {
     st.textContent = `.pk12-note{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);font-family:var(--font-new);font-size:32px;line-height:32px;color:#ffe8a8;text-shadow:2px 2px 0 #0b0a07,-2px 0 0 #0b0a07,0 -2px 0 #0b0a07;pointer-events:none;opacity:0;transition:opacity .2s;white-space:nowrap}
 .pk12-note.on{opacity:1}.pk12-note.bad{color:#ff8a6a}
 .pk12-help{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);font-family:var(--font-new);font-size:16px;line-height:16px;color:#d8cfb4;text-shadow:2px 2px 0 #0b0a07;pointer-events:none;white-space:nowrap;opacity:.85}
-.pk12-cursor{position:fixed;width:16px;height:16px;margin:-8px 0 0 -8px;border:3px solid #ffe08a;border-radius:50%;box-shadow:0 0 0 2px #0b0a07;pointer-events:none;display:none}
+.pk12-cursor{position:fixed;width:16px;height:16px;margin:-8px 0 0 -8px;border:3px solid #ffe08a;border-radius:0;box-shadow:0 0 0 2px #0b0a07;pointer-events:none;display:none}
 #bag-root.pad .pk12-cursor{display:block}`;
     r.appendChild(st);
     r.addEventListener('pointerdown', (e) => this.onDown(e));

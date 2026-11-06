@@ -12,9 +12,10 @@ function inRound(x: number, y: number, w: number, h: number, r: number) {
   const cx = x < r ? r - 1 - x : x > w - 1 - r ? x - (w - r) : -1;
   const cy = y < r ? r - 1 - y : y > h - 1 - r ? y - (h - r) : -1;
   if (cx < 0 || cy < 0) return true;
-  return cx * cx + cy * cy <= (r - 0.5) * (r - 0.5) + 0.5;
+  // a hard 45-degree cut corner (never a rounded arc)
+  return cx + cy <= r - 0.5;
 }
-/** depth into a rounded rect (0 on the outline) */
+/** depth into a cut-corner rect (0 on the outline) */
 function depth(x: number, y: number, w: number, h: number, r: number) {
   let d = 0;
   while (d < 16 && inRound(x - d - 1, y - d - 1, w - 2 * d - 2, h - 2 * d - 2, Math.max(1, r - d - 1))) d++;

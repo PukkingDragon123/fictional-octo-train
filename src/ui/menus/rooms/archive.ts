@@ -37,6 +37,7 @@ import { holoModel, HOLO_U } from './holo';
 import { grime } from './research';
 import { Dresser } from './dress';
 import { Vault } from './vault';
+import { Pokes } from './pokes';
 import { U } from '../../../gfx/materials';
 import './archive.css';
 
@@ -82,6 +83,8 @@ export class CodexArchive implements StageRoom {
   /** the floating words' layer (title.ts hands over its root) */
   layer: HTMLElement = document.createElement('div');
   state: 'room' | 'drawer' | 'holo' = 'room';
+  /** the props that answer a press (rooms/pokes.ts): the kit's, and the troughs */
+  private pokes = new Pokes(this.hots);
   private mats: FMats;
   private leds = new LedBank(220);
   /** the set dressing (rooms/dress.ts) */
@@ -138,6 +141,7 @@ export class CodexArchive implements StageRoom {
     this.dust = new Dust(260, new THREE.Box3(new THREE.Vector3(-W + 0.4, 0.2, BACK + 0.6), new THREE.Vector3(W - 0.4, H - 0.3, FRONT - 0.6)));
     const sh = shaftMesh(10);
     this.cone = sh.mesh; this.coneU = sh.u as any;
+    S.add(this.pokes.group);
     S.add(this.shell(), this.fixtures(), this.cabinets(), this.stacks(), this.table(), this.desk(), this.terminals(), this.dressing(), this.leds.mesh, this.dust.points, this.deco, this.hemi, this.holoRoot, this.cellL, this.redL, this.doorL, this.doorL.target, this.lockL, this.lockL.target);
     this.deco.name = 'deco';
     this.feedCam.position.set(-W + 0.4, H - 0.35, FRONT - 0.5); this.feedCam.lookAt(0.6, 0.9, -1.2);
@@ -233,7 +237,9 @@ export class CodexArchive implements StageRoom {
       const sh = shaftMesh(10);
       sh.mesh.position.set(x, y - 0.02, z); sh.mesh.scale.set(1.0, (y - 0.1) * 0.92, 0.7); sh.u.uColor.value.setHex(0xcfe0ff); sh.u.uInt.value = 0.02;
       g.add(sh.mesh);
-      this.tubes.push({ light: L, mat, base: shadow ? 40 : 22, seed: i * 3.7, flick: 0, shaft: sh });
+      const tb = { light: L, mat, base: shadow ? 40 : 22, seed: i * 3.7, flick: 0, shaft: sh };
+      this.tubes.push(tb);
+      this.pokes.add({ key: 'trough' + i, label: 'Fluorescent trough', sub: 'it hums · it stutters', m: at(x, y, z), box: [1.6, 0.18, 0.42], c: [0, 0.05, 0], notes: [{ head: 'Facilities', lines: ['The tubes stutter when a unit crosses over.', 'They also stutter when nobody is crossing. Report both.'], tone: 'memo' }], sounds: [{ g: 'fluoro_tick', v: 0.6 }, { g: 'flicker_buzz', v: 0.5, d: 100 }], act: () => { tb.flick = 1.1; } });
       const pool = glowCard(2.4, 2.8, 0xdfe8ff, 0.05); pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.005, z); g.add(pool);
     });
     g.add(b.build(this.mats, { cast: false }));
@@ -251,6 +257,7 @@ export class CodexArchive implements StageRoom {
    */
   private dressing(): THREE.Group {
     const d = this.dress = new Dresser(this.mats, this.leds);
+    d.pokes = this.pokes;
     const v = this.vault = new Vault(d, this.mats);
     const L = Math.PI / 2;
     // ---- the back wall: the locker wall over the cabinets (numbered vault doors, seals, a few standing open)
@@ -780,6 +787,7 @@ export class CodexArchive implements StageRoom {
     this.leds.update(t);
     if (full) this.dress.update(t);
     this.vault.update(t, dt);
+    if (full) this.pokes.update(dt, t, this.cam);
     // the vault door's beacon sweeps red across the right wall; the cell's lamp hums
     this.redL.intensity = 0.25 + this.vault.beaconK(t) * 3.2;
     this.cellL.intensity = 2.4 + Math.sin(t * 50) * 0.08 + (Math.sin(t * 0.37) > 0.985 ? -1.6 : 0);

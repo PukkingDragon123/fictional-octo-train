@@ -166,6 +166,12 @@ const AMB: Record<string, AmbProfile> = {
     events: [{ keys: ['wood_creak', 'door_far', 'plush_squeak', 'music_box_broken', 'steps_far'], every: [25, 70], vol: 0.3, dist: [8, 26] }],
     music: 'musicbox', reverb: 'small',
   },
+  // the Ball House (src/world/gen/z_ballhouse.ts): tubes humming, far-off kids, balls shifting in the pits
+  ballhouse: {
+    beds: [{ key: 'hum_fluoro', vol: 0.34, when: 'lit' }, { key: 'mall_air', vol: 0.08, lp: 600 }, { key: 'playground_far', vol: 0.06, lp: 1500 }],
+    events: [{ keys: ['tim_giggle', 'tim_giggle', 'bx_balls', 'plush_squeak', 'bx_boing', 'steps_far'], every: [12, 36], vol: 0.3, dist: [10, 34] }],
+    music: 'muzak', reverb: 'mall',
+  },
   void: { beds: [{ key: 'tunnel_air', vol: 0.18 }, { key: 'static', vol: 0.03, lp: 1500 }], events: [{ keys: ['thud_distant', 'deja'], every: [30, 80], vol: 0.3, dist: [20, 60] }], music: 'drone', reverb: 'void' },
 };
 

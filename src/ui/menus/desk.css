@@ -13,7 +13,7 @@
 @keyframes tt-play { 0% { background-color: transparent; } 40% { background-color: rgba(30, 40, 160, 0.6); } 100% { background-color: #10189a; } }
 .tt-mon { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%); --bz: calc(var(--px) * 10); padding: var(--bz) var(--bz) calc(var(--bz) + var(--px) * 12); z-index: 1; isolation: isolate; }
 /* the screen is a hole: its outer shadow paints the bezel ring and then the whole wall around it, so the live feed shows only through the glass */
-.tt-screen { position: relative; overflow: hidden; width: min(56vw, 54vh * 1.333); height: min(42vw, 54vh); border-radius: calc(var(--px) * 7) / calc(var(--px) * 9);
+.tt-screen { position: relative; overflow: hidden; width: min(56vw, 54vh * 1.333); height: min(42vw, 54vh); border-radius: 0;
   box-shadow: inset 0 0 0 calc(var(--px) * 2) #0a0a08, inset 0 0 0 calc(var(--px) * 5) rgba(0, 0, 0, 0.55), inset 0 0 0 calc(var(--px) * 10) rgba(0, 0, 0, 0.3), inset 0 0 0 calc(var(--px) * 18) rgba(0, 0, 0, 0.15),
     0 0 0 var(--px) #1a1810, 0 0 0 calc(var(--px) * 2) var(--tt-bezel-lo), 0 0 0 calc(var(--px) * 3) var(--tt-bezel-hi), 0 0 0 calc(var(--bz) - var(--px)) var(--tt-bezel), 0 0 0 var(--bz) #2a2618, 0 0 0 200vmax var(--tt-wall); }
 .tt-screen::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(rgba(0, 0, 0, 0.28) 0 var(--px), transparent var(--px) calc(var(--px) * 2)); }
@@ -32,7 +32,7 @@
 .tt-osd.bl { left: calc(var(--px) * 9); bottom: calc(var(--px) * 7); }
 .tt-osd.br { right: calc(var(--px) * 9); bottom: calc(var(--px) * 7); }
 .tt-knobs { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--px) * 16); padding: 0 calc(var(--px) * 10); display: flex; align-items: center; gap: calc(var(--px) * 4);
-  background: var(--tt-bezel); border: var(--px) solid #2a2618; border-top: 0; border-radius: 0 0 calc(var(--px) * 4) calc(var(--px) * 4); box-shadow: inset 0 calc(var(--px) * -2) 0 var(--tt-bezel-lo), calc(var(--px) * 4) calc(var(--px) * 6) 0 rgba(0, 0, 0, 0.55); }
+  background: var(--tt-bezel); border: var(--px) solid #2a2618; border-top: 0; border-radius: 0; clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--px) * 4), calc(100% - var(--px) * 4) 100%, calc(var(--px) * 4) 100%, 0 calc(100% - var(--px) * 4)); box-shadow: inset 0 calc(var(--px) * -2) 0 var(--tt-bezel-lo), calc(var(--px) * 4) calc(var(--px) * 6) 0 rgba(0, 0, 0, 0.55); }
 .tt-brand { flex: 1; font-family: var(--font-stencil); font-size: var(--t-label); color: #4a4432; letter-spacing: var(--px); }
 .tt-knobs i { width: calc(var(--px) * 8); height: calc(var(--px) * 8); border-radius: 50%; background: radial-gradient(circle at 35% 35%, #5a5a56, #1a1a18 70%); box-shadow: 0 var(--px) 0 #2a2618; }
 .tt-knobs b { width: calc(var(--px) * 4); height: calc(var(--px) * 4); background: #3aff6a; box-shadow: 0 0 0 var(--px) #0a3a14; }
@@ -134,7 +134,7 @@
 .dg-paper code { background: rgba(0, 0, 0, 0.08); padding: 0 var(--px); }
 
 /* laminated procedures card */
-.dg-card { width: min(calc(var(--px) * 320), 96vw); padding: calc(var(--px) * 6) calc(var(--px) * 8) calc(var(--px) * 6); background: #f4f6f2; color: var(--dg-ink); border: calc(var(--px) * 2) solid #c8d0d4; border-radius: calc(var(--px) * 3);
+.dg-card { width: min(calc(var(--px) * 320), 96vw); padding: calc(var(--px) * 6) calc(var(--px) * 8) calc(var(--px) * 6); background: #f4f6f2; color: var(--dg-ink); border: calc(var(--px) * 2) solid #c8d0d4; border-radius: 0; clip-path: polygon(calc(var(--px) * 6) 0, 100% 0, 100% calc(100% - var(--px) * 6), calc(100% - var(--px) * 6) 100%, 0 100%, 0 calc(var(--px) * 6));
   box-shadow: inset 0 0 0 calc(var(--px) * 3) rgba(255, 255, 255, 0.6), var(--dg-shadow-lg); background-image: linear-gradient(115deg, transparent 0 30%, rgba(255, 255, 255, 0.55) 30% 33%, transparent 33%); }
 .dg-card-h { display: flex; gap: calc(var(--px) * 4); align-items: baseline; padding-bottom: calc(var(--px) * 3); margin-bottom: calc(var(--px) * 3); border-bottom: calc(var(--px) * 2) solid var(--dg-blue); color: var(--dg-blue); }
 .dg-card .t-ctl { color: var(--dg-ink); }

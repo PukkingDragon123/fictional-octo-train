@@ -1,31 +1,48 @@
-// The opening of a new contract run: the link.
+// The opening of a new contract run: the link, then intake.
 //
-// You are the operator at the Meridian Institute; the body in the backrooms is
-// a unit (a prisoner of the Remittance Programme). You never meet Dr. Calder:
-// she is a voice (the intercom plate under her subtitles, src/game/loop/plate.ts,
-// and later the band on the unit's wrist). Three beats:
-//   link   the link suite (the prologue's set, src/game/prologue/set.ts, on the
-//          intake's own cinematic stage, src/game/introKit/stage.ts): you are
-//          strapped into the rig, your unit (this run's body, its own face)
-//          slumped in the chair beside you; her voice on the intercom: the
-//          crown comes down, the handshake runs on the CRTs, the shock (a
-//          white flash, the body convulsing, static), black
-//   wake   back to the world, through the unit's own eyes (src/fp/eye.ts): on
-//          its back on the carpet of Level 0 under the fluorescent tubes, the
-//          eyelids open, a blink, it gets up
-//   tour   first person, her voice on the band: each control on the screen lit
-//          in turn as she names it, read from the DOM where it really is
-//          (desktop or touch): the body machine, the sanity brain, the job
-//          tracker, the watch, the pack, the context buttons
-// Then flag 'contract:intake', bus 'introDone', and the staged tutorial
-// (src/game/tutorial) takes over: Calder talks you through the job while you
-// walk the unit. Straight after the prologue (src/game/prologue) the run
-// starts at the wake: the prologue already ran the handshake.
+// The operator takes the unit over by shock: no link suite, no chair, just
+// the signal (src/game/prologue/signal.ts: a CRT dot opening into static, the
+// shock, the picture collapsing to a line and a dot), and you are inside the
+// unit's head while the Institute processes it. A cinematic mostly through the
+// unit's own eyes, cut with a few wide shots, drawn on its own stage
+// (src/game/introKit/stage.ts: the low-res pixel grid, black silhouette
+// outlines, a graded composite; the set is built by src/game/introSet.ts out
+// of faceted low-poly models with pixel-art textures, lit by motivated lamps,
+// src/game/introKit/lights.ts):
+//   signal the link: static, the shock, the CRT collapse
+//   drag   a wide shot down the processing wing first (floor level, the
+//          officers hauling the unit toward the camera under humming tubes, the
+//          clerks' amber desk lamps behind the counter's bars), then its own
+//          eyes: hauled backwards by the wrists, heels scraping, ceiling tubes
+//          sliding away overhead (one failing, buzzing), the mugshot on the
+//          monitors, figures behind the glass, the gloves on its wrists
+//   throw  swung round and let go: the body goes slack (a ragdoll), the floor
+//          comes up, the lamp dies and strikes back
+//   beat   on its back by the drain, two officers and their batons: wind-up,
+//          the blow with their whole weight, a strobe and a hitstop on every
+//          hit, a whip of the head, the body jolting (reaction springs, a
+//          collapse); two wide shots of it, handheld
+//   haul   a crane shot into the press room (sodium high-bays, the red beacon
+//          sweeping, the giant Remittance Press slamming down in a shower of
+//          sparks, the conveyor feeding it), then its eyes again
+//   fit    on its knees, the left arm clamped into the fitting rig (a close
+//          shot), the driver comes down through the wrist: sparks, blood, the
+//          band boots with an amber flare
+//   tape   stood up and marched to the portal frame (a wide shot from the
+//          wall), the taped section turns liquid and glows, its caustic light
+//          crawling over everything; shoved: the surface closes round it
+//   land   black, then Level 0 (back to the isometric camera, close on the
+//          unit): it gets up, the band shows Dr. Calder's signal
+// Then flag 'contract:intake' and bus 'introDone'; Dr. Calder's tutorial
+// (src/game/tutorial) takes over in the normal game view.
 //
-// Shown once per new contract run (src/game/session.ts decides: not for loaded
-// saves, co-op clients or free survival). The skip plate in the corner skips at
-// any moment: Esc, a tap on it (a tap anywhere first wakes it), gamepad Start /
-// Back / B. ?quick skips it, ?intro forces it.
+// Shown once per new contract run (src/game/session.ts decides: not for
+// loaded saves, co-op clients or free survival); the first run of all (the
+// prologue, src/game/prologue) is one of these. The skip plate in the corner
+// (src/game/introKit/skip.ts) skips at any moment: Esc, a tap on it (a tap
+// anywhere first wakes it), gamepad Start / Back / B. ?quick skips it, ?intro
+// forces it. While it plays the unit waits, hidden, in the local 'reality'
+// zone; nothing that happens there reaches the op log or co-op.
 import * as THREE from 'three';
 import { G } from './G';
 import type { Game, GameSystem } from './game';
@@ -33,32 +50,60 @@ import type { Player } from '../entities/player';
 import type { Action } from '../core/input';
 import type { PickTarget } from './picking';
 import { bus } from '../core/events';
-import { INTRO_ZONE } from '../world/gen/z_reality';
-import { fpClaim, fpRelease, fpCamera, fpGroup } from '../fp/fp';
-import { eyeEnter, eyeExit, eyeCamera } from '../fp/eye';
+import { U } from '../gfx/materials';
+import { opLog } from './ops';
+import type { Zone, TileObject } from '../world/zone';
+import { createItem } from '../items/factory';
+import { hasItemDef, itemDef, type BodyPart, type Item } from '../items/item';
+import type { InjuryType } from '../survival/body';
+import { synth } from '../audio/sounds';
+import '../audio/sounds_intro';
+import '../audio/sounds_remit';
+import '../audio/sounds_press';
+import { INTRO_ZONE, type RealityLayout } from '../world/gen/z_reality';
+import { seamFaceOf } from '../world/gen/seam_kit';
+import { Guard } from './guards';
+import { animSupported, fallbackPose, overlay, reachArm, palm, ease, lerp, clamp01 } from './cutPose';
+import { readTime, type LineStyle } from './lines';
+import { paintMugshot } from '../content/furniture/zp_processing';
+import { rigNumber } from '../content/items/prisoner';
+import { ModelBuilder } from '../gfx/modelBuilder';
+import { HumanRig, randomAppearance, type Pose } from '../entities/humanRig';
+import type { RagWorld } from '../entities/humanRagdoll';
+import { Reactions } from '../entities/humanReact';
+import { fpClaim, fpRelease, fpCamera, fpOwner, fpGroup } from '../fp/fp';
+import { fpArmsFor, type FpArm, type HandPose } from '../fp/hands';
+import { hitstop } from '../gfx/juice';
+import { IntroSet, IX, STAGE } from './introSet';
+import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../gfx/crt';
+import type { SeamFx } from './seam';
 import { StageRender } from './introKit/stage';
-import { Subs } from './introKit/subs';
+import { SU, stageMat, emitMat, type EmitMat } from './introKit/stageMat';
 import { skipPlate, pollPadSkip, padConnected, type SkipPlate } from './introKit/skip';
-import { animSupported, fallbackPose, overlay, clamp01 } from './cutPose';
-import { letterTimes } from '../social/chipVoice';
-import { LinkSet, LS } from './prologue/set';
-import { CALDER_VOICE, INTRO_FROM_KEY } from './prologue/prologue';
-import { Intercom } from './loop/plate';
-import { debtorNumber } from './handler';
+import { cbox, lathe, rod, mulberry } from './introKit/poly';
+import { Subs } from './introKit/subs';
+import { SignalWipe } from './prologue/signal';
+import { GP } from './introKit/machines';
 import { freshStart } from './tutorial/fresh';
 import { startTutorial } from './tutorial/tutorial';
-import { ensurePack } from './arrivalKit/pack';
+import { StampRig, ST } from './introKit/stamp';
+import { fpArm } from '../fp/hands';
+import { GUARD_GREY } from '../content/items/prisoner';
 import './intro.css';
 
 export { INTRO_ZONE };
+void STAGE;
 
-type Phase = 'link' | 'wake' | 'tour' | 'done';
+type Phase = 'signal' | 'drag' | 'throw' | 'beat' | 'haul' | 'fit' | 'tape' | 'through' | 'land' | 'done';
+
+/** the issue pack now comes from the arrival (src/game/arrivalKit/pack.ts); every path out of the intro makes sure it is on (optional: absent file, empty map) */
+const PACK = import.meta.glob('./arrivalKit/pack.ts', { eager: true }) as Record<string, { ensurePack?: (p: Player) => boolean }>;
+
+/** actions that make no sense while being processed */
+const BLOCK = new Set<Action>(['scanner', 'map', 'flashlight', 'craft', 'sleep', 'grab', 'hot1', 'hot2', 'hot3', 'hot4', 'hot5', 'inventory', 'attack', 'shove', 'shout', 'interact'] as Action[]);
 const DEG = Math.PI / 180;
-const ease = (t: number) => { t = clamp01(t); return t * t * (3 - 2 * t); };
-const lerp = (a: number, b: number, k: number) => a + (b - a) * k;
-const wrap = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
-const v1 = new THREE.Vector3(), v2 = new THREE.Vector3();
-const noop = () => { /* scripted: the intro holds the unit */ };
+const noop = () => { /* scripted: the intro drives the survivor */ };
+const STAGE_NAME = 'intro';
 
 /** Should a session that is about to start a fresh world play the intro? */
 export function introWanted(mode: 'solo' | 'host' | 'client'): boolean {
@@ -68,7 +113,7 @@ export function introWanted(mode: 'solo' | 'host' | 'client'): boolean {
   return !q.has('quick');
 }
 
-/** Start the intro for a brand-new world; it ends with the unit standing in Level 0, Dr. Calder on its wrist. */
+/** Start the intro for a brand-new world; it ends with the survivor in the Lobby in front of the Seam. */
 export function startIntro(g: Game, p: Player, spawn: [number, number]): Intro {
   const intro = new Intro(g, p, spawn);
   g.addSystem(intro);
@@ -76,118 +121,387 @@ export function startIntro(g: Game, p: Player, spawn: [number, number]): Intro {
   return intro;
 }
 
-const CSS = `
-.ix-hl { position: absolute; pointer-events: none; opacity: 0; transition: opacity .25s; }
-.ix-hl.on { opacity: 1; animation: ix-hl-pulse 1.1s steps(4) infinite; }
-.ix-hl i { position: absolute; width: 16px; height: 16px; border: 0 solid #ffe7a8; filter: drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000); }
-.ix-hl i:nth-child(1) { left: 0; top: 0; border-left-width: 4px; border-top-width: 4px; }
-.ix-hl i:nth-child(2) { right: 0; top: 0; border-right-width: 4px; border-top-width: 4px; }
-.ix-hl i:nth-child(3) { left: 0; bottom: 0; border-left-width: 4px; border-bottom-width: 4px; }
-.ix-hl i:nth-child(4) { right: 0; bottom: 0; border-right-width: 4px; border-bottom-width: 4px; }
-.ix-hl b { position: absolute; left: 0; top: 100%; margin-top: 8px; white-space: nowrap; font-weight: 400; font-size: 16px; line-height: 16px; letter-spacing: 1px; color: #ffe7a8; text-shadow: var(--text-ink); }
-.ix-hl.up b { top: auto; bottom: 100%; margin: 0 0 8px; }
-.ix-hl.left b { left: auto; right: 0; text-align: right; }
-@keyframes ix-hl-pulse { 50% { transform: scale(1.04); } }
-.ix-root.tour { z-index: 120; }
-.ix-visor { position: absolute; inset: -2vmax; pointer-events: none; opacity: 0; transition: opacity .8s;
-  background: radial-gradient(ellipse 66% 62% at 50% 48%, transparent 72%, rgba(180, 200, 190, .14) 84%, rgba(16, 20, 18, .85) 98%); }
-.ix-visor.on { opacity: 1; }
-.ix-static { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; opacity: 0; }
-`;
+// ------------------------------------------------------------------ the beating
+interface Strike { t: number; who: 0 | 1; kind: 'chop' | 'kick'; part: BodyPart; inj: InjuryType; sev: number; done?: boolean; swung?: boolean }
+const STRIKES: Omit<Strike, 'done' | 'swung'>[] = [
+  { t: 0.9, who: 0, kind: 'chop', part: 'uarm_l', inj: 'bruise', sev: 0.4 },
+  { t: 1.75, who: 1, kind: 'chop', part: 'farm_r', inj: 'bruise', sev: 0.35 },
+  { t: 2.55, who: 0, kind: 'chop', part: 'head', inj: 'laceration', sev: 0.16 },
+  { t: 3.3, who: 1, kind: 'kick', part: 'torso_l', inj: 'bruise', sev: 0.45 },
+  { t: 4.1, who: 0, kind: 'chop', part: 'torso_u', inj: 'bruise', sev: 0.4 },
+  { t: 4.85, who: 1, kind: 'chop', part: 'head', inj: 'laceration', sev: 0.12 },
+  { t: 5.6, who: 0, kind: 'chop', part: 'thigh_l', inj: 'bruise', sev: 0.4 },
+  { t: 6.4, who: 1, kind: 'kick', part: 'torso_l', inj: 'bruise', sev: 0.35 },
+];
+const BEAT_END = 7.6;
+const WARM = ['guard_bark', 'baton_hit', 'body_thud', 'debtor_grunt', 'debtor_scream', 'debtor_gasp', 'remit_pierce', 'remit_chirp', 'bone_crunch', 'seam_ripple', 'seam_through', 'seam_seal',
+  'whoosh', 'holo_on', 'press_slam', 'press_crunch', 'press_hiss', 'press_lever', 'press_klaxon', 'ix_heart', 'ix_ring', 'ix_boot', 'ix_liquid', 'intro_land', 'flicker_buzz', 'cy_spark'];
 
-interface Stop { key: string; label: string; line: string; rect: () => DOMRect | null; gesture?: 'point' | 'present' }
+/** the wide shots cut into the first-person script: [phase] -> [from, to, shot] (phase seconds) */
+const SHOTS: Partial<Record<Phase, [number, number, string][]>> = {
+  drag: [[0, 4.4, 'establish']],
+  throw: [[0.12, 2.1, 'throwWide']],
+  beat: [[2.15, 3.72, 'beatWide'], [4.55, 6.05, 'beatTop']],
+  haul: [[1.6, 3.05, 'haulCrane'], [3.05, 5.55, 'pressClose']],
+  // the fitting station: first person at the bed, two cutaways (the crosshead coming down, the band on the wrist)
+  fit: [[3.1, 4.3, 'stampSide'], [5.32, 6.75, 'stampMacro']],
+  tape: [[1.0, 3.6, 'tapeWide']],
+};
+
+// ------------------------------------------------------------------ your own body, posed for the camera
+const P = (o: Record<string, unknown>): Pose => o as Pose;
+/** the debtor's body poses (on top of its idle animation) */
+function fpPose(name: string, t: number, k = 9): Pose | null {
+  const j = Math.exp(-k * 9) * (k < 0.6 ? 1 : 0);
+  switch (name) {
+    case 'drag': {
+      // on the back, hauled head-first by the wrists, shoulders off the floor, chin on the chest
+      const sw = Math.sin(t * 5.4), bob = Math.sin(t * 2.7);
+      return P({
+        bodyPitch: -1.22 + bob * 0.03, bodyY: 0.16, bodyRoll: sw * 0.05,
+        uarmL: [-2.9, 0, 0.25], farmL: [-0.1, 0, 0], uarmR: [-2.9, 0, -0.25], farmR: [-0.1, 0, 0],
+        chest: [-0.05, 0, 0], neck: [0.3, 0, 0], head: [0.55, 0, 0],
+        thighL: [-0.1 - Math.max(0, sw) * 0.12, 0, 0.12], shinL: [0.25 + Math.max(0, sw) * 0.2, 0, 0], footL: [0.55, 0, 0],
+        thighR: [-0.18 - Math.max(0, -sw) * 0.12, 0, -0.08], shinR: [0.35 + Math.max(0, -sw) * 0.2, 0, 0], footR: [0.6, 0, 0],
+        gripL: 0.4, gripR: 0.4,
+      });
+    }
+    case 'cover': {
+      // flat on the back, forearms up over the face, knees pulled up; each blow jolts it
+      const tr = Math.sin(t * 31) * 0.03;
+      return P({
+        bodyPitch: -1.5708, bodyY: 0.15,
+        uarmL: [-1.25 - j * 0.3, 0.1, 0.45 + tr], farmL: [-1.75, -0.6, 0], handL: [0.3, 0, 0.4],
+        uarmR: [-1.3 - j * 0.3, -0.1, -0.4 - tr], farmR: [-1.7, 0.6, 0], handR: [0.3, 0, -0.4],
+        chest: [0.15 + j * 0.2, 0, 0], neck: [0.25, 0, 0], head: [0.2 + j * 0.2, 0, 0],
+        thighL: [-1.0 - j * 0.3, 0, 0.12], shinL: [1.5, 0, 0], thighR: [-0.75 - j * 0.3, 0, -0.1], shinR: [1.3, 0, 0],
+        gripL: 0.9, gripR: 0.9,
+      });
+    }
+    case 'limp': {
+      // the arms have given up: flopped out on the floor, the body jerks with each blow
+      return P({
+        bodyPitch: -1.5708, bodyY: 0.15, bodyRoll: j * 0.12,
+        uarmL: [-0.35, 0, 1.15], farmL: [-0.4, 0, 0], uarmR: [-0.2, 0, -1.0], farmR: [-0.6, 0, 0],
+        chest: [j * 0.25, 0, 0], neck: [0.15, 0, 0], head: [0.1 + j * 0.25, 0.3, 0],
+        thighL: [-0.6, 0, 0.1], shinL: [0.9, 0, 0], thighR: [-0.1, 0, -0.1], shinR: [0.3, 0, 0],
+        gripL: 0.3, gripR: 0.3,
+      });
+    }
+    case 'kneel': {
+      const br = Math.sin(t * 3.4) * 0.03;
+      return P({
+        bodyPitch: 0, bodyY: 0, rootY: -0.5,
+        thighL: [-0.15, 0, 0.1], shinL: [1.55, 0, 0], footL: [0.6, 0, 0], thighR: [-0.1, 0, -0.1], shinR: [1.5, 0, 0], footR: [0.6, 0, 0],
+        spine: [0.28 + br, 0, 0], chest: [0.15, 0, 0], neck: [0.2, 0, 0], head: [0.35, 0, 0],
+        uarmR: [0.05, 0, -0.15], farmR: [-0.3, 0, 0], gripR: 0.6, gripL: 0.3,
+      });
+    }
+    case 'stand': {
+      const br = Math.sin(t * 3) * 0.02;
+      return P({ bodyPitch: 0, bodyY: 0, spine: [0.16 + br, 0, 0], chest: [0.08, 0, 0], head: [0.25, 0, 0], uarmR: [0.05, 0, -0.12], farmR: [-0.35, 0, 0], uarmL: [0.0, 0, 0.12], farmL: [-0.5, 0, 0] });
+    }
+  }
+  return null;
+}
+
+/** the BAILIFF band as bolted on: a chunky 1970s wrist unit, faceted. A riveted steel housing on a hinged
+ *  octagonal cuff, a small amber-phosphor CRT, a signal needle in a little window, an amber lamp, the bolt head. */
+interface Band { g: THREE.Group; crt: CrtScreen; needle: THREE.Object3D; lamp: THREE.Mesh; lampMat: EmitMat }
+function bandMesh(): Band {
+  const mb = new ModelBuilder();
+  // the cuff round the wrist (hand-local: the arm runs along y), two hinge knuckles, the bolt through it
+  lathe(mb, 0, -0.04, 0, [[0.05, 0], [0.054, 0.008], [0.054, 0.054], [0.05, 0.062]], 8, 'ix_steel', { color: 0xb0b4b0 });
+  for (const y of [-0.036, 0.012]) lathe(mb, 0, y, 0, [[0.056, 0], [0.056, 0.008]], 8, 'metal_dark', { caps: false });
+  rod(mb, [-0.054, -0.032, 0], [-0.054, -0.006, 0], 0.011, 6, 'chrome');
+  cbox(mb, -0.062, -0.026, 0, 0.012, 0.016, 0.016, 0.003, 'metal_brass');
+  // the housing on the back of the wrist: chamfered steel, rivets, a hazard-striped tag
+  cbox(mb, 0, -0.05, 0.044, 0.08, 0.074, 0.032, 0.008, 'ix_plate', { color: 0x9aa09a });
+  for (const [x, y] of [[-0.031, -0.046], [0.031, -0.046], [-0.031, 0.019], [0.031, 0.019]]) rod(mb, [x, y, 0.059], [x, y, 0.0625], 0.003, 6, 'chrome');
+  cbox(mb, 0, -0.049, 0.059, 0.05, 0.007, 0.002, 0.0005, 'ix_haz');
+  // the tube's bezel: black bakelite round a small screen, the needle window, the lamp collar
+  cbox(mb, -0.008, -0.03, 0.0598, 0.044, 0.038, 0.006, 0.003, 'plastic_black');
+  cbox(mb, 0.026, -0.03, 0.0598, 0.016, 0.026, 0.005, 0.002, 'plastic_black');
+  mb.push().translate(0.026, 0.009, 0.061).rotateX(Math.PI / 2); lathe(mb, 0, -0.003, 0, [[0.0075, 0], [0.0075, 0.006]], 6, 'chrome'); mb.pop();
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(mb.build(), stageMat({ rim: 0.8 }));
+  // the screen: a real little tube (curved glass, scanlines, a power-on collapse), amber phosphor
+  const crt = crtScreen(0.036, 0.03, { tint: 0xffc070, res: [128, 104], curvature: 0.3, glow: 1.3, scan: 0.75, noise: 0.05, flicker: 0.6, reflect: 0.8 });
+  crt.mesh.position.set(-0.008, -0.011, 0.0632);
+  crt.power(false, true);
+  const nb = new ModelBuilder(); cbox(nb, 0, 0, 0, 0.0015, 0.018, 0.001, 0, 'white', { color: 0xd02010 });
+  const needle = new THREE.Mesh(nb.build(), stageMat({ rim: 0 }));
+  needle.position.set(0.026, -0.042, 0.0628);
+  const wb = new ModelBuilder(); cbox(wb, 0.026, -0.042, 0.0626, 0.013, 0.022, 0.0005, 0, 'white', { color: 0xe8dcc0 });
+  const win = new THREE.Mesh(wb.build(), stageMat({ rim: 0 }));
+  const lampMat = emitMat(0xffb040, 0.15);
+  const lb = new ModelBuilder(); lathe(lb, 0, 0, 0, [[0.0055, 0], [0.0055, 0.003], [0.003, 0.006], [0, 0.007]], 6, 'ix_sodium', { color: 0xffffff });
+  const lamp = new THREE.Mesh(lb.build(), lampMat);
+  lamp.position.set(0.026, 0.009, 0.064); lamp.rotation.x = Math.PI / 2;
+  g.add(body, crt.mesh, win, needle, lamp);
+  return { g, crt, needle, lamp, lampMat };
+}
+let fontsOk = false;
+void fontsReady().then(() => { fontsOk = true; });
+/** what the tube shows: the raster warming up, BAILIFF, then the link and a signal trace */
+function drawCrt(c: CrtScreen, t: number, mode: 'boot' | 'id' | 'link' | 'signal', fill: number, num = '') {
+  const x = c.ctx, W = c.canvas.width, H = c.canvas.height;
+  const A = '#ffb347';
+  x.fillStyle = '#090502'; x.fillRect(0, 0, W, H);
+  if (mode === 'boot' && t < 0.35) {
+    x.fillStyle = '#ffe2b0'; const w = 8 + t * 220; x.fillRect(W / 2 - w / 2, H / 2 - 1, w, 2);
+  } else if (mode === 'boot') {
+    if (fontsOk) phosphorText(x, 'BAILIFF', W / 2, 20, { size: 22, color: A, align: 'center', glow: 8, font: cssFont('--font-crt') });
+    if (fontsOk) phosphorText(x, 'REMITTANCE', W / 2, 46, { size: 11, color: '#c88a3a', align: 'center', glow: 4, font: cssFont('--font-crt') });
+    x.fillStyle = A; x.fillRect(16, 72, (W - 32) * fill, 7);
+    x.strokeStyle = '#7a4a1a'; x.strokeRect(15.5, 71.5, W - 31, 8);
+  } else if (mode === 'id') {
+    // the debtor number lights up, digit by digit, then ARMED blinks under it
+    const shown = num.slice(0, Math.max(0, Math.floor(t * 9)));
+    if (fontsOk) phosphorText(x, 'UNIT', W / 2, 6, { size: 12, color: '#c88a3a', align: 'center', glow: 4, font: cssFont('--font-crt') });
+    if (fontsOk && shown) phosphorText(x, shown, W / 2, 30, { size: 28, color: '#ffd890', align: 'center', glow: 10, font: cssFont('--font-crt') });
+    if (fontsOk && t > 1.0 && Math.sin(t * 8) > -0.3) phosphorText(x, 'ARMED', W / 2, 74, { size: 16, color: A, align: 'center', glow: 6, font: cssFont('--font-crt') });
+  } else {
+    if (fontsOk) phosphorText(x, mode === 'signal' ? 'SIGNAL' : 'LINKED', W / 2, 10, { size: 18, color: A, align: 'center', glow: 7, font: cssFont('--font-crt') });
+    x.strokeStyle = A; x.lineWidth = 2; x.shadowColor = A; x.shadowBlur = 6;
+    x.beginPath();
+    for (let i = 0; i <= 48; i++) { const px = 10 + i * (W - 20) / 48, py = 66 + Math.sin(i * 0.55 + t * 9) * (mode === 'signal' ? 14 : 3) * (mode === 'signal' ? Math.sin(i * 0.13 + 0.4) : 1); if (i) x.lineTo(px, py); else x.moveTo(px, py); }
+    x.stroke(); x.shadowBlur = 0;
+    if (mode === 'signal' && Math.sin(t * 7) > 0 && fontsOk) phosphorText(x, 'CALDER', W / 2, 84, { size: 12, color: '#ffe0a0', align: 'center', glow: 5, font: cssFont('--font-crt') });
+  }
+  c.flush();
+}
+
+/** the shared first-person arms are standard materials: teach them to write the stage's normal buffer too */
+function stageNormals(o: THREE.Object3D) {
+  o.traverse((m) => {
+    const mesh = m as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    for (const mat of (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as THREE.Material[]) {
+      const tag = mat as THREE.Material & { ixN?: boolean };
+      if (tag.ixN || (mat as THREE.ShaderMaterial).isShaderMaterial) continue;
+      tag.ixN = true;
+      const prev = mat.onBeforeCompile?.bind(mat);
+      mat.onBeforeCompile = (sh, r) => {
+        prev?.(sh, r);
+        if (sh.fragmentShader.includes('gNormal')) return;
+        sh.fragmentShader = sh.fragmentShader.replace('#include <common>', '#include <common>\nlayout(location = 1) out highp vec4 gNormal;')
+          .replace('#include <dithering_fragment>', '#include <dithering_fragment>\ngNormal = vec4(normalize(normal) * 0.5 + 0.5, 1.0);');
+      };
+      const key = mat.customProgramCacheKey?.bind(mat);
+      mat.customProgramCacheKey = () => (key ? key() : '') + '|ixN';
+      mat.needsUpdate = true;
+    }
+  });
+}
+
+const v1 = new THREE.Vector3(), v2 = new THREE.Vector3(), v3 = new THREE.Vector3(), v4 = new THREE.Vector3(), v5 = new THREE.Vector3();
+const qa = new THREE.Quaternion(), eu = new THREE.Euler(0, 0, 0, 'YXZ');
+const ZERO = new THREE.Vector3();
 
 export class Intro implements GameSystem {
   name = 'intro';
-  phase: Phase = 'link';
-  /** seconds in this phase / in all */
+  phase: Phase = 'signal';
+  /** seconds in the current phase / since the start */
   t = 0; T = 0;
-  /** the HUD shows through the tour (the body HUD and the band read this) */
-  get finished() { return this.phase === 'tour'; }
-  private stage: StageRender | null = null;
-  private set: LinkSet | null = null;
-  private cam = fpCamera();
-  private camSave: { fov: number; near: number; far: number } | null = null;
-  private look = { yaw: Math.PI - 0.95, pitch: -0.18 }; private mouse = { x: 0, y: 0 };
-  private trauma = 0;
-  private num: string;
-  // her lines (our own floating type with her voice: the stage and the eye shots both)
-  private q: { text: string; then?: () => void }[] = [];
-  private lineT = -1; private lineDur = 0; private lineThen: (() => void) | undefined;
+  L: RealityLayout;
+  z: Zone;
+  set: IntroSet;
+  stage: StageRender;
+  me: HumanRig;
+  A: Guard; B: Guard;
   private fired = new Set<number>();
-  // the world end
-  private pp: { name: string; t: number; dur: number; anim: boolean } | null = null;
-  private stops: Stop[] = [];
-  private stopI = -1;
-  private faceYaw = 0;
+  private staged = true;
+  // the first-person camera: scripted look (yaw, pitch, roll) + a handheld wobble + trauma shake
+  private look = { yaw: Math.PI, pitch: -0.3, roll: 0 };
+  private lookV = { yaw: 0, pitch: 0, roll: 0 };
+  private goal = { yaw: Math.PI, pitch: -0.3, roll: 0, rate: 3 };
+  private trauma = 0;
+  /** how handheld the camera is (rises after the beating) */
+  private hand = 0.35;
+  private camSave: { fov: number; near: number; far: number } | null = null;
+  private eye = new THREE.Vector3();
+  private mouse = { x: 0, y: 0 };
+  // the wide shots
+  private shot: string | null = null;
+  private shotT = 0;
+  private whip = { yaw: 0, pitch: 0, roll: 0, vy: 0, vp: 0, vr: 0 };
+  private tpPos = new THREE.Vector3(); private tpLook = new THREE.Vector3();
+  // the body double
+  private pose = 'drag'; private poseK = 9; private poseW = 1;
+  private react = new Reactions();
+  private bodyAt = new THREE.Vector3(); private bodyYaw = 0;
+  private path: { pts: [number, number][]; s: number; len: number; speed: number } | null = null;
+  private armL: { p: THREE.Vector3; w: number } | null = null;
+  private band: Band | null = null;
+  /** the fp arms on the double's elbows; roll turns the forearm about its own axis (pronation) */
+  private arms: { arm: FpArm; farm: THREE.Object3D; hold: THREE.Group; side: 'L' | 'R'; base: number; roll: number; rollGoal: number }[] = [];
+  private bandT = -1; private crtT = 0;
+  // guards' grips: which of my wrists each one holds
+  private gripA = 0; private gripB = 0;
+  private strikes: Strike[] = [];
+  private beaten = false; private pierced = false; private fitted = false; private sealed = false;
   // world state to restore
   private missions: any = null;
   private missionsAt = -1;
   private offs: (() => void)[] = [];
-  private inputOffs: (() => void)[] = [];
+  private origClick: ((t: PickTarget, b: number) => void) | undefined;
+  private origKey: (() => void) | undefined;
+  private hiddenLights: THREE.Object3D[] = [];
+  private canvas: HTMLCanvasElement;
+  // the lobby end
+  private seamL: TileObject | null = null;
+  private pp: { name: string; t: number; dur: number; anim: boolean } | null = null;
+  private signalled = false;
   // dom
-  private root!: HTMLDivElement; private shade!: HTMLDivElement; private lidT!: HTMLDivElement; private lidB!: HTMLDivElement;
-  private noise!: HTMLCanvasElement; private visor!: HTMLDivElement; private hl!: HTMLDivElement;
-  private subs!: Subs; private plate!: SkipPlate; private icom!: Intercom;
-  private shadeA = 1; private shadeGoal = 0; private lid = 1; private lidGoal = 1; private noiseA = 0;
-  private touch: boolean;
-  private skipHot = 0;
+  private root!: HTMLDivElement; private shade!: HTMLDivElement;
+  private lidT!: HTMLDivElement; private lidB!: HTMLDivElement; private wrapEl!: HTMLDivElement;
+  private plate!: SkipPlate;
+  private shadeA = 1; private hurtA = 0; private lid = 1; private lidGoal = 1; private lidHit = 0; private lidHold = 0; private wrapA = 0;
+  private desat = 0;
+  private skipping = -1; private skipHot = 0;
+  private touch = false;
+  private warmQ = [...WARM];
+  private num: string;
+  private pack: Item | null = null;
+  private heartT = 0;
+  private stepT = 0;
+  private glow = 0;
+  /** the spoken lines (Alagard, typed on, one at a time) */
+  private subs!: Subs;
+  /** a freeze-frame on a blow (seconds of nearly stopped time for the cutscene) */
+  private freeze = 0;
+  /** the ragdoll's world: the antechamber's walls and floor */
+  private ragWorld: RagWorld = { ground: () => 0, collide: (m) => { const R = IX.ante, r = m.radius; m.x = Math.max(R.x0 + r, Math.min(R.x1 - r, m.x)); m.z = Math.max(R.z0 + r, Math.min(R.z1 - r, m.z)); } };
+  private wallHit = false; private floorHit = false; private released = false;
+  /** blood on the debtor's own body, part -> 0..3 */
+  private bloodOn: Record<string, number> = {};
+  private corpse: HumanRig | null = null;
+  private hitsTaken = 0;
+  private padT = 0;
 
   constructor(public g: Game, public p: Player, public spawn: [number, number]) {
-    this.num = debtorNumber(p);
-    this.touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-    // directives wait until the link is up (no quest chatter in the suite)
+    const z = this.z = g.getZone(INTRO_ZONE);
+    this.L = z.meta.intro as RealityLayout;
+    this.num = (p as unknown as { prisonerNo?: string }).prisonerNo || rigNumber(p.rig);
+    (p as unknown as { prisonerNo: string }).prisonerNo = this.num;
+    paintMugshot({ skin: p.app.skin, hair: p.app.hair, hairStyle: p.app.hairStyle, number: this.num });
+    this.dress();
+    // directives wait until the contract starts (no radio chatter in the processing wing)
     const m = g.missions;
-    if (m) { this.missions = m; this.missionsAt = g.systems.indexOf(m); if (this.missionsAt >= 0) g.systems.splice(this.missionsAt, 1); }
-    // the unit waits where it will wake: the world loads behind the stage
-    g.placePlayer(p, 'lobby', spawn[0], spawn[1], 0);
-    this.faceYaw = this.openDir();
-    p.facing = p.targetFacing = this.faceYaw;
-    if (G.handler) { G.handler.scripted = true; G.handler.cine = true; }
+    if (m) {
+      this.missions = m;
+      m.notified?.add?.('blurb:' + INTRO_ZONE);
+      this.missionsAt = g.systems.indexOf(m);
+      if (this.missionsAt >= 0) g.systems.splice(this.missionsAt, 1);
+    }
+    // the survivor waits out of sight in the stage zone; the world is not drawn while the stage owns the screen
+    const [sx, sy] = this.L.start;
+    g.placePlayer(p, INTRO_ZONE, sx, sy, 0);
+    this.canvas = g.pr.renderer.domElement;
+    // the stage: its own scene, drawn by its own pass after the world's frame
+    this.stage = new StageRender(g.pr, fpCamera());
+    const root = new THREE.Group();
+    root.name = 'ix:stage';
+    this.stage.scene.add(root);
+    const low = (g.pr as unknown as { quality?: string }).quality === 'low';
+    this.set = new IntroSet(root, low);
+    this.set.onSlam = (d) => this.pressSlam(d);
+    this.set.rig.g.visible = false;
+    this.stampRig();
+    this.me = new HumanRig(p.app, stageMat({ rim: 1.15 }), { secondary: true });
+    this.me.setOutfit(p.computeOutfit());
+    this.me.ragWorld = this.ragWorld;
+    this.makeCorpse(root);
+    (this.me.bones as Record<string, THREE.Object3D>).head.scale.setScalar(0.001);
+    root.add(this.me.root);
+    // your own forearms and hands: the shared first-person arms (src/fp/hands.ts), riding the double's elbows
+    const arms = fpArmsFor(p);
+    for (const [arm, side] of [[arms.left, 'L'], [arms.right, 'R']] as [FpArm, 'L' | 'R'][]) {
+      const farm = this.me.j[side === 'L' ? 'farmL' : 'farmR'];
+      const hold = new THREE.Group();
+      farm.parent!.add(hold);
+      hold.add(arm.root);
+      // the double's own upper arm is there: no upper arm reaching back to a camera shoulder
+      (arm as unknown as { reach: THREE.Camera | null }).reach = null;
+      arm.root.rotation.set(0, side === 'L' ? -Math.PI / 2 : Math.PI / 2, Math.PI);
+      arm.root.traverse((o) => { o.castShadow = true; });
+      stageNormals(arm.root);
+      this.arms.push({ arm, farm, hold, side, base: arm.root.rotation.y, roll: 0, rollGoal: 0 });
+    }
+    this.hands('claw', 'claw', 0.3);
+    this.A = new Guard('A', 3, root);
+    this.B = new Guard('B', 7, root);
+    this.A.setHeld('baton'); this.B.setHeld('baton');
+    this.touch = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+    if (G.handler) G.handler.scripted = true;
     (g as any).touch?.setHidden?.(true);
     document.body.classList.add('noclip-cine');
-    g.attract = noop;
+    this.claimStage();
     this.hookInput();
     this.hookBody();
     this.buildDom();
-    // straight after the prologue: it already ran the handshake, the unit wakes
-    let from = '';
-    try { from = sessionStorage.getItem(INTRO_FROM_KEY) || ''; sessionStorage.removeItem(INTRO_FROM_KEY); } catch { /* blocked */ }
-    if (from === 'wake') { this.shadeA = 1; this.go('wake'); }
-    else { this.claimStage(); this.go('link'); }
+    g.attract = noop;
+    this.startDrag(IX.drag1, 1.32);
+    this.placeGuardsForDrag(true);
+    this.stage.setLook('wing', 0.05);
   }
 
-  // ================================================================== the stage (the link suite)
-  private claimStage() {
-    const g = this.g;
-    fpGroup('intro');
-    fpClaim('intro', 100, { cinematic: 'none', stage: true });
-    const cam = this.cam;
-    this.camSave = { fov: cam.fov, near: cam.near, far: cam.far };
-    cam.fov = 62; cam.near = 0.03; cam.far = 60; cam.updateProjectionMatrix();
-    g.pr.scene.visible = false;
-    const st = this.stage = new StageRender(g.pr, cam);
-    const root = new THREE.Group(); root.name = 'intro:suite';
-    st.scene.add(root);
-    const low = (g.pr as unknown as { quality?: string }).quality === 'low';
-    st.low = low;
-    // the unit in the chair beside you is this run's body
-    this.set = new LinkSet(root, low, this.p.app);
-    this.set.cuffK = this.set.cuffGoal = 1;
-    this.set.doorK = this.set.doorGoal = 0;
-    this.set.badge.visible = false;
-    st.setLook('wing', 0.05);
-    st.bloom = 0.85; st.streak = 0.4; st.streakTint.setRGB(0.7, 0.85, 1); st.rays = 0.3; st.rayOn = true;
-    st.nearBlur = 0.15; st.rack(2.2, 0.16);
+  /** prisoners don't keep their own clothes: the jumpsuit goes on, everything over it comes off */
+  private dress() {
+    const p = this.p;
+    if (!hasItemDef('prison_jumpsuit')) return;
+    let suit = p.allItems().find((i) => i.key === 'prison_jumpsuit');
+    if (!suit) { suit = createItem('prison_jumpsuit', undefined, { pristine: true }); suit.cond = 0.62; p.inv.add(suit); }
+    for (const [slot, it] of [...p.worn]) {
+      const part = itemDef(it.key).clothing?.look?.part;
+      if (it !== suit && (part === 'torso' || part === 'legs') && slot !== 'back') p.unwear(it);
+    }
+    if (!p.isWorn(suit)) p.wear(suit);
+    // the issue pack is handed out after processing
+    const pack = p.worn.get('back');
+    if (pack) { p.removeItem(pack); this.pack = pack; }
+    p.outfitDirty = true;
+    bus.emit('inventoryChanged', p);
   }
+
+  // ================================================================== the stage
+  private claimStage() {
+    fpGroup(STAGE_NAME);
+    fpClaim(STAGE_NAME, 100, { cinematic: 'none', stage: true });
+    const cam = fpCamera();
+    this.camSave = { fov: cam.fov, near: cam.near, far: cam.far };
+    cam.fov = 64; cam.near = 0.035; cam.far = 60; cam.updateProjectionMatrix();
+    this.hideForeignLights();
+    this.g.pr.scene.visible = false;
+  }
+  /** other owners' lights loose in the overlay scene (the held devices): off while we own it */
+  private hideForeignLights() {
+    const mine = fpGroup(STAGE_NAME);
+    for (const o of this.g.pr.overlayScene.children) if (o !== mine && (o as THREE.Light).isLight && o.visible) { o.visible = false; this.hiddenLights.push(o); }
+  }
+  private lightT = 1;
   private releaseStage() {
-    if (!this.stage) return;
-    fpRelease('intro');
-    const cam = this.cam;
+    if (!this.staged) return;
+    this.staged = false;
+    fpRelease(STAGE_NAME);
+    const cam = fpCamera();
     if (this.camSave) { cam.fov = this.camSave.fov; cam.near = this.camSave.near; cam.far = this.camSave.far; cam.position.set(0, 0, 0); cam.quaternion.identity(); cam.updateProjectionMatrix(); }
+    for (const o of this.hiddenLights.splice(0)) o.visible = true;
     this.g.pr.scene.visible = true;
-    this.set?.dispose(); this.set = null;
-    this.stage.dispose(); this.stage = null;
+    this.A.dispose(); this.B.dispose();
+    for (const a of this.arms) a.arm.dispose();
+    this.arms.length = 0;
+    this.glove?.dispose(); this.glove = null;
+    this.stamp = null;
+    this.me.root.removeFromParent();
+    this.me.dispose();
+    this.band = null;
+    this.set.dispose();
+    this.stage.dispose();
+    SU.uPortStr.value = 0;
+    this.canvas.style.filter = '';
+    G.audio?.positionalLoop?.('ix_drag', null); G.audio?.positionalLoop?.('ix_fluoro', null); G.audio?.positionalLoop?.('ix_drone', null);
   }
 
   // ================================================================== hooks
@@ -202,30 +516,36 @@ export class Intro implements GameSystem {
         if (v && !(ui?.menuEl || ui?.readerEl || ui?.modal || ui?.inventory?.open)) { this.skip(); return false; }
         return v;
       }
-      return false;
+      if (this.phase === 'done') return orig(a);
+      if (BLOCK.has(a)) return false;
+      return a === 'camLeft' || a === 'camRight' ? orig(a) : false;
     };
-    this.inputOffs.push(() => { if (own) inp.hit = own; else delete inp.hit; });
-    // no walking, no running while the script holds the unit (the tour runs without attract: the HUD must show)
-    const ownD = Object.prototype.hasOwnProperty.call(inp, 'down') ? inp.down : undefined;
-    const origD = inp.down.bind(inp) as (a: Action) => boolean;
-    inp.down = (a: Action) => (a === 'pause' ? origD(a) : false);
-    this.inputOffs.push(() => { if (ownD) inp.down = ownD; else delete inp.down; });
+    this.offs.push(() => { if (own) inp.hit = own; else delete inp.hit; });
     const ui = g.ui;
     if (ui) {
-      const click = ui.onWorldClick, key = ui.onInteractKey;
+      this.origClick = ui.onWorldClick; this.origKey = ui.onInteractKey;
       ui.onWorldClick = (_t: PickTarget, _b: number) => { /* scripted */ };
       ui.onInteractKey = () => { /* scripted */ };
-      this.inputOffs.push(() => { ui.onWorldClick = click; ui.onInteractKey = key; });
+      this.offs.push(() => { ui.onWorldClick = this.origClick; ui.onInteractKey = this.origKey; });
+      // the survivor's own thought bubbles (pain, panic, bleeding) would float over the cutscene's lines: one voice at a time
+      const U0 = ui as unknown as { say: (...a: unknown[]) => unknown }, say0 = U0.say, ownSay = Object.prototype.hasOwnProperty.call(U0, 'say');
+      const mute = (...a: unknown[]) => (this.phase === 'done' || a[0] !== this.p ? say0.apply(U0, a) : undefined);
+      U0.say = mute;
+      this.offs.push(() => { if (U0.say !== mute) return; if (ownSay) U0.say = say0; else delete (U0 as { say?: unknown }).say; });
     }
     // a tap brings the skip plate up; a tap on it skips
-    const tap = (e: PointerEvent) => { if (this.phase === 'done' || this.plate.el.contains(e.target as Node)) return; this.skipHot = 2.6; this.plate.el.classList.add('hot'); };
+    const tap = (e: PointerEvent) => {
+      if (this.phase === 'done' || this.plate.el.contains(e.target as Node)) return;
+      this.hotSkip();
+    };
     window.addEventListener('pointerdown', tap, true);
     this.offs.push(() => window.removeEventListener('pointerdown', tap, true));
     const mv = (e: PointerEvent) => { if (e.pointerType === 'mouse') { this.mouse.x = (e.clientX / innerWidth) * 2 - 1; this.mouse.y = (e.clientY / innerHeight) * 2 - 1; } };
     window.addEventListener('pointermove', mv, { passive: true });
     this.offs.push(() => window.removeEventListener('pointermove', mv));
   }
-  /** the unit's rig in the world: poses on top of the animator (lying there, getting up) */
+
+  /** the survivor's own rig in the Lobby: poses on top of the animator (getting up) */
   private hookBody() {
     const p = this.p as any;
     const orig = p.updateVisual.bind(p) as (dt: number) => void;
@@ -253,331 +573,1400 @@ export class Intro implements GameSystem {
 
   // ================================================================== dom
   private buildDom() {
-    if (!document.getElementById('ix-tour-css')) { const s = document.createElement('style'); s.id = 'ix-tour-css'; s.textContent = CSS; document.head.appendChild(s); }
-    const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string) => { const e = document.createElement(tag); e.className = cls; return e; };
-    const root = this.root = el('div', 'ix-root');
-    this.visor = el('div', 'ix-visor');
-    this.noise = el('canvas', 'ix-static');
+    const root = this.root = document.createElement('div');
+    root.className = 'ix-root letterbox' + (this.touch ? ' touch' : '');
+    const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = '') => { const e = document.createElement(tag); e.className = cls; e.innerHTML = html; return e; };
+    this.wrapEl = el('div', 'ix-wrap');
     this.lidT = el('div', 'ix-lid top'); this.lidB = el('div', 'ix-lid bot');
     this.shade = el('div', 'ix-shade');
-    this.hl = el('div', 'ix-hl'); this.hl.innerHTML = '<i></i><i></i><i></i><i></i><b></b>';
-    this.plate = skipPlate(() => this.skip(), 'Skip link');
+    const top = el('div', 'ix-bar top'), bot = el('div', 'ix-bar bot');
+    this.plate = skipPlate(() => this.skip());
     this.plate.setKey(this.touch ? '' : padConnected() ? 'Start' : 'Esc');
-    this.plate.el.classList.add('on');
     this.plate.el.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; });
     this.plate.el.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; });
-    root.append(this.visor, this.noise, this.lidT, this.lidB, this.hl, this.shade, this.plate.el);
+    root.append(this.wrapEl, this.lidT, this.lidB, this.shade, top, bot, this.plate.el);
     this.subs = new Subs(root);
-    this.icom = new Intercom(root);
     document.body.appendChild(root);
+  }
+  private hotSkip() { if (this.phase === 'done') return; this.skipHot = 2.6; this.plate.el.classList.add('hot'); }
+  private letterbox(on: boolean) { this.root.classList.toggle('letterbox', on); }
+  /** a spoken line: bus 'subtitle' (the speech renderer draws it as free floating text, with a voice) */
+  private say(who: string, text: string, style: LineStyle = 'guard', sound = true, speaker?: Guard) {
+    // drawn by the cutscene itself (typed on, one line at a time); the officer nearest the camera speaks
+    const self = style === 'self';
+    const sp = self ? null : speaker ?? this.nearestGuard();
+    const at = () => {
+      if (!this.shot) return null;
+      const o = sp ? sp.rig.j.head.getWorldPosition(v5) : this.me.j.head.getWorldPosition(v5);
+      o.y += 0.42;
+      return this.toScreen(o);
+    };
+    this.subs.show(self ? this.num : who, text, { style: self ? 'self' : 'guard', at });
+    if (sound && !self) G.audio?.flat?.('guard_bark', 'sfx', 0.45);
+  }
+  private nearestGuard(): Guard { const c = fpCamera().position; return Math.hypot(this.A.x - c.x, this.A.z - c.z) <= Math.hypot(this.B.x - c.x, this.B.z - c.z) ? this.A : this.B; }
+  /** a stage point on the screen (CSS px), or null when behind the camera */
+  private toScreen(p: THREE.Vector3): { x: number; y: number } | null {
+    const v = v4.copy(p).project(fpCamera());
+    if (v.z > 1 || v.z < -1 || Math.abs(v.x) > 1.1 || Math.abs(v.y) > 1.1) return null;
+    return { x: (v.x * 0.5 + 0.5) * innerWidth, y: (0.5 - v.y * 0.5) * innerHeight };
+  }
+  private paintDom(dt: number) {
+    this.subs?.update(dt);
+    this.shade.style.opacity = String(clamp01(this.shadeA));
+    if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) this.plate.el.classList.remove('hot'); }
+    this.hurtA = Math.max(0, this.hurtA - dt * 0.9);
+    this.lidHit = Math.max(0, this.lidHit - dt * 1.8);
+    this.lidHold = Math.max(0, this.lidHold - dt);
+    // wide shots are not seen through the eyes: no lids there
+    const lg = this.shot ? 0 : this.lidHold > 0 ? 1 : Math.max(this.lidGoal, this.lidHit);
+    this.lid += (lg - this.lid) * Math.min(1, dt * (lg > this.lid ? 18 : 6));
+    if (this.shot) this.lid = Math.min(this.lid, 0.02);
+    const lp = (this.lid * 50).toFixed(2) + '%';
+    this.lidT.style.height = lp; this.lidB.style.height = lp;
+    this.wrapEl.style.opacity = String(clamp01(this.wrapA));
+    this.wrapEl.style.transform = `scale(${(2.4 - this.wrapA * 1.6).toFixed(3)})`;
+    // the picture: red at the edges when it hurts, the colour draining out (in the stage's own composite, crisp)
+    this.desat = Math.max(0, this.desat - dt * 0.02);
+    this.stage.hurt = (this.shot ? this.hurtA * 0.4 : this.hurtA) * 0.6;
+    this.stage.desat = this.desat;
+  }
+
+  // ================================================================== helpers
+  private at(t: number, id: number, fn: () => void) { if (this.t >= t && !this.fired.has(id)) { this.fired.add(id); fn(); } }
+  private go(ph: Phase) { this.phase = ph; this.t = 0; this.fired.clear(); }
+  private sfx(key: string, vol = 1) { G.audio?.flat?.(key, 'sfx', vol); }
+  /** a sound the sample library may not have yet (notes/sounds-wanted.md): the existing key stands in until it does */
+  private sfxOr(key: string, stand: string, vol = 1) { if (!G.audio?.flat?.(key, 'sfx', vol)) this.sfx(stand, vol); }
+  private aim(yaw: number, pitch: number, roll = 0, rate = 3) { this.goal.yaw = yaw; this.goal.pitch = pitch; this.goal.roll = roll; this.goal.rate = rate; }
+  private get seamFx(): SeamFx | null { return (G as unknown as { seamFx?: SeamFx }).seamFx ?? null; }
+  private wrist(side: 'L' | 'R', out: THREE.Vector3) { const a = this.arms.find((q) => q.side === side); return a && !this.shot ? a.arm.wrist.getWorldPosition(out) : palm(this.me, side, out); }
+
+  /** a hard cut: the eyes shut for a beat (black), then open too bright and settle */
+  private cutBlack(secs: number, soft = 0.9) { this.lidHold = secs; this.lid = 1; this.stage.expo = 1 + soft * 1.4; }
+  /** the eyes adjusting: over-bright, then settling (no blur: the picture stays crisp) */
+  private pullFocus(from = 1) { this.stage.expo = Math.max(this.stage.expo, 1 + from * 1.2); }
+
+  /** a blow, a slam, a bolt: freeze a beat, shake the head, a strobe of light, blood on the lens */
+  private hit(power: number, side = 0, flash = 0.5) {
+    hitstop(50 + power * 70);
+    // the frame all but stops on the blow, the lens takes it, the line on screen jolts
+    this.freeze = Math.max(this.freeze, 0.05 + power * 0.11);
+    this.stage.impact(power);
+    this.subs?.hit(power);
+    this.trauma = Math.min(1.2, this.trauma + power);
+    this.hurtA = Math.min(1.2, this.hurtA + power * 0.8);
+    this.desat = Math.min(0.8, this.desat + power * 0.08);
+    this.stage.pulse(flash * (this.shot ? 0.2 : 0.36), 0xfff2e6, 6);
+    this.lights().strobe(0.25 + power * 0.3, v5.copy(this.eye).add(v4.set(side * 0.4, 0.9, 0.3)));
+    // the whip: the view snaps away from the blow
+    this.whip.vy += side * 2.4 * power; this.whip.vr += side * 1.6 * power; this.whip.vp += -1.2 * power;
+    if ((G.sandbox.gore ?? 2) > 0 && !this.shot) G.gore?.lens?.splash?.(0.15 + power * 0.3, side);
+  }
+  private lights() { return this.set.lights; }
+
+  // ================================================================== the body double and the guards
+  private startDrag(pts: [number, number][], speed: number) {
+    let len = 0;
+    for (let i = 1; i < pts.length; i++) len += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+    this.path = { pts, s: 0, len, speed };
+    this.pose = 'drag'; this.bodyYaw = 0;
+    this.bodyAt.set(pts[0][0], 0, pts[0][1]);
+    G.audio?.positionalLoop?.('ix_drag', 'drag_scrape', this.p.x, this.p.z, 0.7);
+  }
+  /** a point along the drag path; the body's root (its feet) trails the head by ~1.5 m */
+  private along(s: number, out: THREE.Vector3) {
+    const pts = this.path!.pts;
+    let rem = s;
+    for (let i = 1; i < pts.length; i++) {
+      const [ax, az] = pts[i - 1], [bx, bz] = pts[i];
+      const l = Math.hypot(bx - ax, bz - az);
+      if (rem <= l || i === pts.length - 1) { const k = clamp01(rem / (l || 1)); return out.set(ax + (bx - ax) * k, 0, az + (bz - az) * k); }
+      rem -= l;
+    }
+    return out.set(pts[pts.length - 1][0], 0, pts[pts.length - 1][1]);
+  }
+  private updDrag(dt: number): boolean {
+    const P2 = this.path;
+    if (!P2) return true;
+    // the officers pull in tugs: two steps, a heave
+    const tug = 0.75 + 0.45 * Math.max(0, Math.sin(this.T * Math.PI * 1.9));
+    P2.s = Math.min(P2.len, P2.s + P2.speed * tug * dt);
+    this.along(P2.s, this.bodyAt);
+    this.stepT -= dt;
+    if (this.stepT <= 0) { this.stepT = 0.52; this.sfx('ix_boot', 0.35); this.trauma = Math.max(this.trauma, 0.08); }
+    G.audio?.positionalLoop?.('ix_drag', 'drag_scrape', this.p.x, this.p.z, 0.45 + tug * 0.35, 0.9 + tug * 0.2);
+    return P2.s >= P2.len - 0.01;
+  }
+  /** the officers walk ahead, each with one of my wrists */
+  private placeGuardsForDrag(snap = false, dt = 0.016) {
+    const head = this.me.j.head.getWorldPosition(v1);
+    for (const [gd, side] of [[this.A, 1], [this.B, -1]] as [Guard, number][]) {
+      const tx = head.x + side * 0.42, tz = head.z - 0.85;
+      if (snap) { gd.x = tx; gd.z = tz; gd.facing = -Math.PI / 2; }
+      else { gd.walkTo(tx, tz, 3, dt, 0.03, false); gd.facing += (((-Math.PI / 2 - gd.facing + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 6); }
+    }
+  }
+
+  /** both hands' poses (eased by the arms themselves) and how badly they shake */
+  private hands(l: HandPose, r: HandPose, tremor = 0) {
+    for (const a of this.arms) { a.arm.pose(a.side === 'L' ? l : r); a.arm.tremor = tremor; }
+  }
+  /** a blow on my body: the reaction springs, in the body's own frame (dx, dz world push) */
+  private jolt(dx: number, dz: number, part: string, k: number) {
+    const th = this.me.root.rotation.y, c = Math.cos(th), s = Math.sin(th);
+    this.react.hit(c * dx - s * dz, s * dx + c * dz, part, k);
+  }
+  /** pose and place my own body, then the officers' hands on it */
+  private updBody(dt: number) {
+    const me = this.me, A = this.A, B = this.B;
+    const tp = !!this.shot;
+    // the double's own forearms are solved at full size, then (first person) folded away under the fp arms
+    for (const a of this.arms) a.farm.scale.setScalar(1);
+    (me.bones as Record<string, THREE.Object3D>).head.scale.setScalar(tp ? 1 : 0.001);
+    me.root.position.copy(this.bodyAt);
+    me.root.rotation.y = this.bodyYaw;
+    me.animate(dt, { speed: 0, stance: 'stand', full: '', action: '' as never, actionT: 0, actionDur: 1, twoHanded: false, limp: 0, tired: 0.6, panic: 0.8, cold: 0, aimPitch: 0, holdingLight: false, holding: false, lookYaw: 0, fidget: false });
+    this.poseK += dt;
+    const ps = fpPose(this.pose, this.T, this.poseK);
+    // a ragdoll (the throw, the collapse) owns the body while it lasts; the pose comes back as it lets go
+    const rag = (me as unknown as { ragW?: number }).ragW ?? 0;
+    if (ps) { this.react.apply(ps, dt); overlay(me, ps, this.poseW * (1 - rag)); }
+    me.root.updateMatrixWorld(true);
+    if (this.armL) { reachArm(me, 'L', this.armL.p, this.armL.w, v4.set(0.6, -1, 0.1)); me.root.updateMatrixWorld(true); }
+    // at the fitting station the left arm leaves the body for the machine's frame (first person and the macro shot)
+    const heroShown = this.hero > 0.001 && (!tp || this.shot === 'stampMacro');
+    for (const a of this.arms) {
+      a.hold.position.copy(a.farm.position); a.hold.quaternion.copy(a.farm.quaternion);
+      if (!tp) a.farm.scale.setScalar(0.001);
+      a.roll += (a.rollGoal - a.roll) * Math.min(1, dt * 5);
+      if (a.side === 'L' && this.hero > 0.001) { this.placeHero(); a.arm.root.visible = heroShown; }
+      else {
+        if (a.side === 'L') this.placeHero();
+        a.arm.root.visible = !tp && !(a.side === 'R' && this.stampEye);
+        a.arm.root.rotation.y = a.base + a.roll;
+      }
+      a.arm.update(dt);
+    }
+    me.j.uarmL.scale.setScalar(heroShown ? 0.001 : 1);
+    me.root.visible = !(this.stampEye && !tp);
+    me.root.updateMatrixWorld(true);
+    // the officers' grips
+    if (this.gripA > 0.01) A.reachR = { p: this.wrist('L', A.reachR?.p ?? new THREE.Vector3()), w: this.gripA, pole: POLE_A }; else if (A.reachR) A.reachR = null;
+    if (this.gripB > 0.01) B.reachL = { p: this.wrist('R', B.reachL?.p ?? new THREE.Vector3()), w: this.gripB, pole: POLE_B }; else B.reachL = null;
+    // the officer's glove on the forearm at the station: his own hand in the wide cutaway, the close glove otherwise
+    const gloveShown = this.gloveK > 0.01 && (!tp || this.shot === 'stampMacro');
+    if (this.phase === 'fit' && this.gloveK > 0.01 && tp && !gloveShown && this.stamp) A.reachR = { p: this.stamp.world(V7.copy(ST.PIN), A.reachR?.p ?? new THREE.Vector3()), w: this.gloveK, pole: POLE_A };
+    A.update(dt); B.update(dt);
+    A.rig.j.uarmR.scale.setScalar(gloveShown ? 0.001 : 1);
+    if (this.glove) { this.placeGlove(); this.glove.update(dt); }
+    // the band on the wrist (and its little screen): the fp arm's wrist through my eyes, the rig's in a wide shot; in the die until it is driven on
+    if (this.band) {
+      const left = this.arms.find((q) => q.side === 'L');
+      if (!this.bandInDie) {
+        const onFp = !!left && (heroShown || (!tp && this.hero <= 0.001));
+        const want = onFp ? left!.arm.wrist : me.j.handL;
+        if (this.band.g.parent !== want) { want.add(this.band.g); this.band.g.scale.set(onFp ? -1 : 1, 1, 1); }
+      }
+      this.updBand(dt);
+    }
+    if (this.stamp) this.stamp.update(dt);
+  }
+
+  // ================================================================== the camera
+  private updCamera(dt: number) {
+    const cam = fpCamera();
+    const head = this.me.j.head;
+    head.getWorldPosition(this.eye);
+    head.getWorldQuaternion(qa);
+    this.eye.add(v2.set(0, 0.07, 0.085).applyQuaternion(qa));
+    if (this.stampEyeK > 0 && this.stamp) this.eye.lerp(this.stampEyeWorld(V5), ease(this.stampEyeK));
+    const L = this.look, Gl = this.goal;
+    const w = Gl.rate * 1.6, kk = w * w, c = 2 * w, h = Math.min(dt, 0.05);
+    const V = this.lookV;
+    V.yaw += (kk * wrapA(Gl.yaw - L.yaw) - c * V.yaw) * h; V.pitch += (kk * (Gl.pitch - L.pitch) - c * V.pitch) * h; V.roll += (kk * (Gl.roll - L.roll) - c * V.roll) * h;
+    L.yaw += V.yaw * h; L.pitch += V.pitch * h; L.roll += V.roll * h;
+    // the whip after a blow: a fast spring
+    const W = this.whip, ww = 15, wk = ww * ww, wc = 2 * 0.55 * ww;
+    W.vy += (-wk * W.yaw - wc * W.vy) * h; W.vp += (-wk * W.pitch - wc * W.vp) * h; W.vr += (-wk * W.roll - wc * W.vr) * h;
+    W.yaw += W.vy * h; W.pitch += W.vp * h; W.roll += W.vr * h;
+    // handheld: breathing, the pulse, a slow drift; trauma shake on top (squared)
+    this.trauma = Math.max(0, this.trauma - dt * 1.6);
+    const s = this.trauma * this.trauma, t = this.T, hh = this.hand;
+    const n = (f: number, o: number) => Math.sin(t * f + o) * 0.6 + Math.sin(t * f * 2.31 + o * 1.7) * 0.4;
+    if (this.shot) {
+      // a wide shot: an operator's camera, handheld, whipping on the blows
+      this.shotT += dt;
+      let fov = this.shotCam(this.shot, this.shotT, this.tpPos, this.tpLook);
+      // the shots are framed for 16:9; on a phone held upright keep about two thirds of that width in frame
+      if (cam.aspect < 1.3) {
+        const h = 2 * Math.atan(Math.tan(fov * DEG / 2) * 16 / 9) * 0.66;
+        fov = Math.min(88, Math.max(fov, 2 * Math.atan(Math.tan(h / 2) / Math.max(0.3, cam.aspect)) / DEG));
+      }
+      cam.position.copy(this.tpPos);
+      cam.position.x += n(0.8, 11) * 0.02 * hh; cam.position.y += n(1.1, 12) * 0.015 * hh + n(13, 7) * s * 0.03;
+      cam.lookAt(this.tpLook);
+      eu.setFromQuaternion(cam.quaternion, 'YXZ');
+      eu.x += n(1.3, 1) * 0.008 * hh + n(17, 2) * s * 0.06 + W.pitch * 0.5;
+      eu.y += n(0.9, 3) * 0.01 * hh + n(15, 4) * s * 0.07 + W.yaw * 0.5;
+      eu.z += n(0.7, 5) * 0.012 * hh + n(19, 6) * s * 0.05 + W.roll * 0.5;
+      cam.quaternion.setFromEuler(eu);
+      if (Math.abs(cam.fov - fov) > 0.01) { cam.fov = fov; cam.updateProjectionMatrix(); }
+      cam.updateMatrixWorld(true);
+      return;
+    }
+    const mx = this.touch ? 0 : this.mouse.x, my = this.touch ? 0 : this.mouse.y;
+    eu.set(
+      L.pitch + n(1.3, 1) * 0.012 * (0.6 + hh) + n(17, 2) * s * 0.09 - my * 0.1 + W.pitch,
+      L.yaw + n(0.9, 3) * 0.015 * (0.6 + hh) + n(15, 4) * s * 0.11 - mx * 0.16 + W.yaw,
+      L.roll + n(0.7, 5) * 0.01 * (0.6 + hh) + n(19, 6) * s * 0.08 + W.roll, 'YXZ');
+    cam.quaternion.setFromEuler(eu);
+    cam.position.copy(this.eye);
+    cam.position.y += n(13, 7) * s * 0.02;
+    cam.updateMatrixWorld(true);
+  }
+
+  /** where a wide shot's camera is and what it looks at, t seconds into it; returns its field of view */
+  private shotCam(name: string, t: number, pos: THREE.Vector3, look: THREE.Vector3): number {
+    const head = this.me.j.head.getWorldPosition(v3);
+    switch (name) {
+      case 'establish': {
+        // high in a corner ahead of the procession
+        // a high corner ahead of the procession, tracking back with it (a slow dolly that lets them gain):
+        // over the officers' helmets to the body sliding on the wet floor, the tubes, the counter's bars
+        pos.set(0.32 - t * 0.03, 2.42 - t * 0.05, head.z - 3.5 + t * 0.22);
+        look.set(0.02, 0.15 + t * 0.06, head.z + 0.75);
+        return 56;
+      }
+      case 'throwWide': {
+        // from the far corner, chest high: the swing, the body flying into the tiles, the slide down
+        pos.set(IX.ante.x1 - 0.35, 1.55 - t * 0.12, IX.ante.z1 - 0.45 - t * 0.1);
+        look.set(lerp(-0.4, IX.ante.x0 + 0.6, ease(clamp01((t - 0.15) / 0.6))), lerp(0.9, 0.55, clamp01(t)), lerp(-12.6, this.bodyAt.z - 0.9, clamp01(t * 0.8)));
+        return 62;
+      }
+      case 'beatWide': {
+        // low on the tiles off the debtor's shoulder: the two of them over you, the caged lamp behind their heads
+        const bx = this.bodyAt.x, bz = this.bodyAt.z - 1.0;
+        pos.set(bx + 0.3 + t * 0.05, 0.3 + t * 0.03, bz - 1.75 + t * 0.06);
+        look.set(bx + 0.55, 0.85, bz + 0.35);
+        return 64;
+      }
+      case 'beatTop': {
+        // straight down from just under the ceiling, turning slowly
+        const a = 0.6 + t * 0.22;
+        const cx = this.bodyAt.x, cz = this.bodyAt.z - 0.8;
+        pos.set(cx + Math.cos(a) * 0.55, 2.45, cz + Math.sin(a) * 0.55);
+        look.set(cx, 0.1, cz);
+        return 70;
+      }
+      case 'haulCrane': {
+        // high in the press room, craning down as they drag you in through the door, the press slamming on the left
+        const k = ease(clamp01(t / 3.4));
+        pos.set(lerp(3.9, 3.0, k), lerp(5.6, 3.1, k), lerp(-23.6, -22.4, k));
+        look.set(lerp(0.4, this.eye.x - 0.9, k), lerp(0.6, 0.75, k), lerp(-16.4, this.eye.z + 0.4, k));
+        return 60;
+      }
+      case 'pressClose': {
+        // low at the plate's front lip: the body on the plate, the ram coming down on it
+        const { x, z } = IX.press;
+        // square on between the front columns, so the ram comes down the middle of the frame and lifts off what is left
+        pos.set(x + 3.3 - t * 0.14, 1.02 + t * 0.03, z + 0.85 - t * 0.06);
+        look.set(x + 0.1, 1.08 - Math.min(0.3, t * 0.2), z + 0.45);
+        return 52;
+      }
+      case 'stampSide': {
+        // low on the debtor's left, under the bed's edge: the crosshead coming down its rams between the yellow columns,
+        // steam off the vents, the beacon going round, the glove on the forearm, his face beyond it
+        const st = this.stamp!;
+        const k = clamp01(t / 1.2);
+        // (low on the debtor's left, inside the column: the die coming down over the arm, the glove, the officer beyond)
+        st.world(V6.set(-0.38 + k * 0.02, 0.84, -0.56 + k * 0.05), pos);
+        st.world(V6.set(0.0, 1.0 - k * 0.08, 0.05), look);
+        return 58;
+      }
+      case 'stampMacro': {
+        // a macro on the wrist: the band clamped on, the die lifting off it in steam, blood under it, the number lighting up
+        const st = this.stamp!;
+        const k = clamp01(t / 1.45);
+        st.world(V6.set(0.13 - k * 0.02, ST.ARM_Y + 0.26 - k * 0.03, -0.17 + k * 0.02), pos);
+        st.world(V6.set(ST.DIE_X - 0.02, ST.ARM_Y + 0.04, 0.0), look);
+        return 36 - k * 4;
+      }
+      case 'tapeWide': {
+        // from beside the portal frame, low: the procession marching at the taped wall, the beacon behind
+        pos.set(IX.tape.x + 1.2, 0.85, IX.tape.z + 0.95 + t * 0.05);
+        look.set(this.bodyAt.x - 0.2, 1.25, this.bodyAt.z + 0.5);
+        return 56;
+      }
+    }
+    pos.copy(this.eye); look.copy(this.eye).add(v4.set(0, 0, -1));
+    return 64;
+  }
+  /** the wide shot (if any) for this moment of the script; cuts on change */
+  private pickShot() {
+    let want: string | null = null;
+    for (const [a, b, name] of SHOTS[this.phase] ?? []) if (this.t >= a && this.t < b) want = name;
+    if (want === this.shot) return;
+    this.shot = want; this.shotT = 0;
+    this.stage.cut();
+    // a cut wipes the lens: an operator's camera is not your eyes
+    if (want) G.gore?.lens?.clear?.();
+    this.whip.yaw = this.whip.pitch = this.whip.roll = 0; this.whip.vy = this.whip.vp = this.whip.vr = 0;
+    const cam = fpCamera();
+    if (!want) { cam.fov = this.phase === 'fit' && this.t > 4.6 ? cam.fov : 64; cam.updateProjectionMatrix(); }
+  }
+
+  // ================================================================== the light
+  /** the room the camera is in decides the grade, the haze, the fill, the rim, and where the key light hangs */
+  private updLight(dt: number) {
+    const L = this.lights(), st = this.stage, cam = fpCamera();
+    const cz = cam.position.z, ph = this.phase;
+    const room = ph === 'tape' || ph === 'through' ? 'portal' : cz > IX.cor.z0 + 0.3 ? 'wing' : cz > IX.ante.z0 ? 'ante' : 'press';
+    const atStation = ph === 'fit' && this.t > 1.0;
+    st.setLook(atStation ? 'stamp' : room === 'press' && ph === 'fit' ? 'press' : room, atStation ? 2.5 : 1.0);
+    // haze and fill per room; the rim comes from behind whatever the camera looks at
+    const H: [number, number] = room === 'wing' ? [0x0c161c, 0.045] : room === 'ante' ? [0x0e1412, 0.055] : room === 'press' ? [0x160c08, 0.04] : [0x061218, 0.05];
+    SU.uHazeCol.value.lerp(TMP_C.setHex(H[0]), Math.min(1, dt * 2));
+    SU.uHazeDens.value += (H[1] - SU.uHazeDens.value) * Math.min(1, dt * 2);
+    cam.getWorldDirection(v1);
+    SU.uRimDir.value.copy(v1).multiplyScalar(0.75).add(v2.set(0, 0.55, 0)).normalize();
+    // (at the station a cold rim against the warm key: the arm and the glove cut out of the dark)
+    const rimCol = atStation ? 0x5a9cff : room === 'wing' ? 0xffb060 : room === 'ante' ? 0x8ad8ff : room === 'press' ? 0xff6a38 : 0x6ae4ff;
+    SU.uRimCol.value.lerp(TMP_C.setHex(rimCol), Math.min(1, dt * 3));
+    SU.uRimStr.value = room === 'portal' ? 0.7 + this.glow * 1.1 : room === 'press' ? 0.85 + 0.5 * L.beaconK * Math.max(0, Math.cos(L.beaconSpin * 2)) : 0.85;
+    L.hemi.color.setHex(atStation ? 0x1c2a3a : room === 'press' ? 0x3a2418 : room === 'portal' ? 0x1a3440 : 0x34444e);
+    L.hemi.groundColor.setHex(room === 'press' ? 0x0a0806 : 0x14100c);
+    L.hemi.intensity = atStation ? 0.3 : room === 'press' ? 0.42 : 0.4;
+    // the key light: the lamp over the body
+    if (room === 'wing') {
+      let tz = 0, bd = 99;
+      for (const z of [2.2, -0.2, -2.6, -5.0, -7.4, -9.9]) { const d = Math.abs(z - (this.shot ? this.bodyAt.z - 0.8 : this.eye.z)); if (d < bd) { bd = d; tz = z; } }
+      L.setKey([0, IX.cor.h - 0.32, tz], [0, 0, tz - 0.4], 0xd8f0ff, 16, 1.15);
+    } else if (room === 'ante') L.setKey([IX.drain[0], IX.ante.h - 0.62, IX.drain[1]], [IX.drain[0] + 0.1, 0, IX.drain[1] - 0.6], 0xffd090, 20, 1.05);
+    else if (room === 'press') {
+      if (ph === 'fit' && this.stamp) {
+        // the station's caged work lamp is the key: a hard warm pool on the bed and the arm, the rest falls to black
+        const st = this.stamp;
+        L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xfff0dc, 2.3 * st.lamp * (1 - 0.55 * this.raise), 0.74, this.t < 0.1);
+      }
+      else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
+    } else {
+      // the portal is the key: it throws the officers' shadows back at you
+      const gk = this.glow;
+      if (gk > 0.08) L.setKey([IX.tape.x, 1.3, IX.tape.z + 0.25], [IX.tape.x - 0.4, 0.5, IX.tape.z + 6], 0x7ae0ff, 28 * gk, 1.15);
+      else L.setKey([1.2, 7.4, -27.2], [this.bodyAt.x, 0, this.bodyAt.z], 0xff9a38, 26, 0.7);
+    }
+  }
+
+  // ================================================================== the last debtor (on the press)
+  /** the one before you, face down on the plate, in the same jumpsuit; the press flattens it slam by slam */
+  private makeCorpse(root: THREE.Object3D) {
+    try {
+      const app = randomAppearance(mulberry(4177));
+      const c = this.corpse = new HumanRig(app, stageMat({ rim: 0.9 }));
+      const o = this.p.computeOutfit();
+      c.setOutfit({ torso: o.torso, legs: o.legs, legsKind: o.legsKind, feet: o.feet, cond: { blood: { head: 3, neck: 3, torso_u: 3, torso_l: 3, uarm_l: 2, uarm_r: 3, farm_l: 2, farm_r: 2, thigh_l: 2, thigh_r: 2 }, expr: 'pain' } });
+      c.update(0.016);
+      const ps = fallbackPose('prone', 1, 0);
+      if (ps) overlay(c, { ...ps, uarmL: [-2.2, 0.4, 1.2], farmL: [-0.4, 0, 0], uarmR: [-0.3, 0, -1.3], farmR: [-0.9, 0, 0], head: [-0.3, 1.1, 0], thighL: [0.15, 0, 0.45], thighR: [-0.25, 0, -0.35], shinR: [0.8, 0, 0] } as Pose, 1);
+      c.root.position.set(IX.press.x + 0.1, GP.bedH + 0.02, IX.press.z + 0.55);
+      c.root.rotation.y = -0.4;
+      c.root.traverse((m) => { m.castShadow = true; m.frustumCulled = false; });
+      root.add(c.root);
+      this.set.corpse = c.root;
+    } catch (e) { console.warn('intro corpse', e); this.corpse = null; }
+  }
+
+  // ================================================================== the lens (bloom, shafts, streaks, flare, focus, motion)
+  private updLens(dt: number) {
+    const st = this.stage, L = this.lights(), cam = fpCamera(), ph = this.phase, shot = this.shot;
+    const room = ph === 'tape' || ph === 'through' ? 'portal' : cam.position.z > IX.cor.z0 + 0.3 ? 'wing' : cam.position.z > IX.ante.z0 ? 'ante' : 'press';
+    st.low = (this.g.pr as unknown as { quality?: string }).quality === 'low';
+    st.bloom = ph === 'fit' && this.t > 1.0 ? 0.6 : room === 'wing' ? 0.85 : room === 'ante' ? 0.95 : room === 'press' ? 1.1 : 1.15 + this.glow * 0.5;
+    st.bloomThr = ph === 'fit' && this.t > 1.0 ? 0.88 : 0.78;
+    // shafts toward the key lamp, tinted like it
+    st.rayOn = true; st.rayAt.copy(L.key.position); st.rayTint.copy(L.key.color);
+    st.rays = room === 'portal' ? 0.35 + this.glow * 0.5 : room === 'ante' ? 0.42 : room === 'press' ? 0.3 : 0.32;
+    if (room === 'portal' && this.glow > 0.1) { st.rayAt.copy(SU.uPortPos.value); st.rayTint.setRGB(0.5, 0.9, 1.0); }
+    st.streak = room === 'press' ? 0.75 : room === 'portal' ? 0.6 : 0.45;
+    if (room === 'press') st.streakTint.setRGB(1, 0.32, 0.18); else if (room === 'portal') st.streakTint.setRGB(0.5, 0.9, 1); else st.streakTint.setRGB(0.75, 0.85, 1);
+    // the beacon flares when its beam sweeps past the lens
+    if (L.beaconK > 0.02) {
+      const bdir = v1.set(Math.cos(L.beaconSpin), -0.22, Math.sin(L.beaconSpin)).normalize();
+      const toCam = v2.copy(cam.position).sub(L.beaconAt).normalize();
+      st.flareAt.copy(L.beaconAt); st.flareCol.setRGB(1, 0.22, 0.1);
+      st.flareK = L.beaconK * Math.pow(Math.max(0, bdir.dot(toCam)), 5) * 1.3 + L.beaconK * 0.12;
+    } else if (room === 'portal' && this.glow > 0.05) { st.flareAt.copy(SU.uPortPos.value); st.flareCol.setRGB(0.45, 0.85, 1); st.flareK = this.glow * 0.35; }
+    else st.flareK = 0;
+    // focus: what the shot is about (rack between the officers and the debtor), the eyes' own focus in first person
+    const d = (p: THREE.Vector3) => cam.position.distanceTo(p);
+    const head = this.me.j.head.getWorldPosition(v3);
+    let focus = 3, ap = 0.12;
+    const strikeSoon = this.strikes.find((q) => !q.done && q.t - this.t < 0.55 && q.t - this.t > -0.05);
+    switch (shot) {
+      case 'establish': focus = d(v4.set((this.A.x + this.B.x) / 2, 1.3, (this.A.z + this.B.z) / 2)); ap = 0.18; break;
+      case 'throwWide': focus = d(head); ap = 0.14; break;
+      case 'beatWide': { const g = strikeSoon ? (strikeSoon.who === 0 ? this.A : this.B) : null; focus = g ? d(g.rig.j.head.getWorldPosition(v4)) : d(head); ap = 0.3; break; }
+      case 'beatTop': focus = d(head); ap = 0.2; break;
+      case 'haulCrane': focus = d(head); ap = 0.12; break;
+      case 'pressClose': focus = d(v4.set(IX.press.x + 0.1, GP.bedH + 0.2, IX.press.z + 0.4)); ap = 0.22; break;
+      case 'stampSide': focus = d(this.stamp!.dieWorld(v4)); ap = 0.24; break;
+      case 'stampMacro': focus = d(this.stamp!.world(v4.set(ST.DIE_X, ST.ARM_Y + 0.05, 0))); ap = 0.28; break;
+      case 'tapeWide': focus = d(head); ap = 0.18; break;
+      default: if (this.phase === 'fit' && this.stampEye && this.stamp) {
+        // at the station: the eyes are on the arm (or the die coming down, or the band held up)
+        const sr = this.stamp, tt = this.t;
+        focus = tt > 4.3 && tt < FIT.stamp - 0.3 ? d(sr.dieWorld(v4)) : tt > FIT.pull && this.band ? d(this.band.g.getWorldPosition(v4)) : d(sr.world(v4.set(-0.06, ST.ARM_Y, 0)));
+        ap = 0.2 + Math.min(0.25, this.hurtA * 0.2);
+      } else {
+        // first person: whoever is closest and in front; dazed after the head blows
+        const near = [this.A, this.B].map((g) => g.rig.j.head.getWorldPosition(new THREE.Vector3())).filter((p) => p.distanceTo(cam.position) < 4).sort((a, b) => a.distanceTo(cam.position) - b.distanceTo(cam.position))[0];
+        focus = near ? d(near) : 3.5;
+        ap = 0.06 + Math.min(0.3, this.hurtA * 0.22);
+      }
+    }
+    st.rack(focus, Math.max(ap, st.apertureGoal * 0.96 > ap ? st.apertureGoal * Math.exp(-dt * 1.5) : ap), shot ? 4 : 7);
+    st.nearBlur = shot ? 0.6 : 1.4;
+    st.shutter = shot ? 0.55 : 0.7;
+  }
+
+  // ================================================================== the band (first person)
+  private fitBandMesh() {
+    if (this.band && this.bandInDie) {
+      // driven out of the die onto the wrist
+      const left = this.arms.find((q) => q.side === 'L');
+      const b = this.band;
+      (left ? left.arm.wrist : this.me.j.handL).add(b.g);
+      b.g.position.set(0, -0.012, 0); b.g.rotation.set(0, Math.PI, 0); b.g.scale.set(left ? -1 : 1, 1, 1);
+      this.bandInDie = false; this.bandT = 0;
+      return;
+    }
+    if (this.band) return;
+    const b = this.band = bandMesh();
+    // strapped on just behind the left wrist, the housing on the back of the arm
+    b.g.position.set(0, -0.012, 0); b.g.rotation.y = Math.PI;
+    if (this.arms.some((q) => q.side === 'L')) b.g.scale.x = -1; // the left arm is a mirrored right one: un-mirror the read-out
+    const left = this.arms.find((q) => q.side === 'L');
+    (left ? left.arm.wrist : this.me.j.handL).add(b.g);
+    this.bandT = 0;
+  }
+  private updBand(dt: number) {
+    const b = this.band!;
+    if (this.bandT < 0) return;
+    this.bandT += dt;
+    const t = this.bandT;
+    // repaint the tube a dozen times a second (it is a CRT, not a phone)
+    this.crtT -= dt;
+    if (t > 0.05 && b.crt.mat.crt.target === 0) b.crt.power(true);
+    if (this.crtT <= 0) { this.crtT = 0.06; drawCrt(b.crt, t < 1.0 ? t : t - 1.0, t < 1.0 ? 'boot' : this.signalled ? 'signal' : 'id', clamp01((t - 0.35) / 0.6), this.num); }
+    // the needle twitches on the boot, swings hard on a signal; the lamp blinks
+    const want = t < 0.6 ? Math.sin(t * 30) * 0.5 : t < 1.5 ? -0.6 + (t - 0.6) * 0.9 : this.signalled ? 0.7 + Math.sin(t * 9) * 0.15 : 0.1 + Math.sin(t * 2) * 0.05;
+    b.needle.rotation.z += (want - b.needle.rotation.z) * Math.min(1, dt * 10);
+    const lit = t > 0.6 && (this.signalled ? Math.sin(t * 9) > 0 : t < 1.5 ? Math.sin(t * 16) > 0.4 : Math.sin(t * 1.5) > 0.9);
+    b.lampMat.uniforms.uK.value = lit ? 3 : 0.15;
+    // the amber light it throws while it boots
+    if (t < 2.4) this.lights().flare(b.lamp.getWorldPosition(v1).add(v4.set(0, 0.18, 0)), lit ? 0.35 : 0.12);
   }
 
   // ================================================================== the script
-  private go(ph: Phase) {
-    this.phase = ph; this.t = 0; this.fired.clear();
-    const g = this.g, p = this.p;
-    switch (ph) {
-      case 'link':
-        this.shadeA = 1; this.shadeGoal = 0; this.lid = 0; this.lidGoal = 0;
-        this.say([`Morning, operator. Calder, on the intercom. Unit ${this.num} is prepped and strapped beside you.`, 'Same as the induction. Do not brace.']);
-        break;
-      case 'wake': {
-        this.releaseStage();
-        this.noiseA = 0; this.shadeGoal = 0; this.shadeA = 0.4;
-        this.lid = 1; this.lidGoal = 1;
-        g.attract = noop;
-        // on its back on the carpet, eyes on the ceiling tubes
-        p.vx = p.vz = 0; p.speed = 0;
-        p.facing = p.targetFacing = this.faceYaw;
-        this.playPose('prone', 30);
-        eyeEnter({ pitchDeg: -62, fov: 60 });
-        this.visor.classList.add('on');
-        // the kit: the band is on, the pack is on, the band's projector boots
-        try { (G.band as any)?.fit?.(p, { silent: true }); } catch (e) { console.warn('band.fit', e); }
-        try { ensurePack(p); } catch (e) { console.warn('pack', e); }
-        freshStart(p);
-        break;
-      }
-      case 'tour': {
-        this.clearPose();
-        g.attract = null;
-        (g as any).touch?.setHidden?.(false);
-        document.body.classList.remove('noclip-cine');
-        this.root.classList.add('tour');
-        this.visor.classList.remove('on');
-        // her voice moves to the band: the tracker's tube carries it from here
-        this.icom.show(false);
-        this.lid = this.lidGoal = 0; this.shadeGoal = 0;
-        G.input.pointerOverUI = true;
-        eyeEnter({ pitchDeg: 7, fov: 62 });
-        try { (G.holo as any)?.boot?.(); } catch (e) { console.warn('holo.boot', e); }
-        bus.emit('watchSignal', { from: 'CALDER', kind: 'handler', text: 'LINK UP' });
-        const h = G.handler;
-        // her voice only: she is on the band, nobody stands in front of you
-        if (h) { h.scripted = true; h.cine = true; }
-        this.stops = this.findStops();
-        this.stopI = -1;
-        this.say([`There you are. Welcome to Level 0, unit ${this.num}. I am on the band on your wrist now.`, 'Before you walk it anywhere: the screen. I will light each part as I name it.'], () => this.nextStop());
-        break;
-      }
-    }
-  }
-
   update(dt0: number) {
-    if (this.phase === 'done') return;
-    const dt = Math.min(0.05, dt0);
+    let dt = dt0;
+    if (this.freeze > 0) { this.freeze -= dt0; dt = dt0 * 0.04; }
     this.t += dt; this.T += dt;
+    if (this.phase === 'done') return;
+    if (this.warmQ.length && this.T > 0.2) synth(this.warmQ.shift()!);
+    // a gamepad can skip too
     const pad = pollPadSkip();
-    if (pad === 'skip') this.skip(); else if (pad === 'wake') { this.skipHot = 2.6; this.plate.el.classList.add('hot'); }
-    if (this.skipHot > 0) { this.skipHot -= dt; if (this.skipHot <= 0) this.plate.el.classList.remove('hot'); }
-    this.lines(dt);
-    switch (this.phase) {
-      case 'link': this.updLink(dt); break;
-      case 'wake': this.updWake(dt); break;
-      case 'tour': this.updTour(dt); break;
-    }
-    this.paint(dt);
-  }
-  private at(t: number, id: number, fn: () => void) { if (this.t >= t && !this.fired.has(id)) { this.fired.add(id); fn(); } }
-
-  // ------------------------------------------------------------------ 1. the link suite
-  private updLink(dt: number) {
-    const set = this.set!, st = this.stage!, t = this.t;
-    this.at(0.5, 1, () => { set.crownGoal = 1; this.sfx('cy_thunk', 0.5); });
-    this.at(1.0, 2, () => { set.mode = 'link'; });
-    this.at(5.2, 3, () => this.say(['Handshake. Three. Two.']));
-    this.at(7.4, 4, () => {
-      set.mode = 'shock'; this.subs.clear(); this.icom.quiet();
-      st.pulse(2.6, 0xdff4ff, 1.1); st.impact(3.2);
-      this.trauma = 1; this.noiseA = 1;
-      this.sfx('band_shock', 0.9); this.sfx('cy_spark', 0.8); this.sfx('static_burst', 0.7);
-    });
-    if (t > 7.4 && t < 8.6) this.noiseA = Math.random() < 0.7 ? 1 : 0.4;
-    this.at(8.6, 5, () => { this.noiseA = 0; this.shadeGoal = 1; this.shadeA = 1; this.sfx('heartbeat', 0.6); });
-    if (t > 9.6) { this.go('wake'); return; }
-    if (set.mode === 'link') set.linkK = Math.min(0.95, set.linkK + dt * 0.17);
-    // the camera: strapped in, looking at your unit, then forward to the door and the CRTs; the mouse leans the head a little
-    this.trauma = Math.max(0, this.trauma - dt * 0.9);
-    const tr = this.trauma * this.trauma;
-    const sh = (s: number) => (Math.sin(this.T * 41 + s) + Math.sin(this.T * 27 + s * 2.3)) * 0.5 * tr;
-    const k = ease((t - 2.6) / 1.8);
-    const yaw = lerp(Math.PI - 1.15, Math.PI - 0.25, k) - this.mouse.x * 0.18;
-    let pitch = lerp(-0.2, -0.06, k) - this.mouse.y * 0.1, roll = 0;
-    if (set.mode === 'shock') { pitch += 0.35 * Math.sin(Math.min(1, (t - 7.4) * 3) * Math.PI) + sh(1) * 0.25; roll = sh(2) * 0.4; }
-    const cam = this.cam;
-    cam.position.set(LS.rigEye.x + sh(4) * 0.02, LS.rigEye.y + Math.sin(this.T * 1.5) * 0.004 + sh(5) * 0.02, LS.rigEye.z);
-    cam.rotation.order = 'YXZ'; cam.rotation.set(pitch, yaw + sh(3) * 0.2, roll);
-    cam.updateMatrixWorld();
-    set.update(dt, cam);
-    st.update(dt);
-    st.rayAt.copy(set.fx.suite1?.at ?? v1.set(0, 3, -9));
-    st.rack(t < 2.6 ? 1.9 : 3.0, 0.16, 3);
-  }
-
-  // ------------------------------------------------------------------ 2. awake in Level 0
-  private updWake(dt: number) {
-    const t = this.t, p = this.p;
-    p.vx = p.vz = 0;
-    p.facing = p.targetFacing = this.faceYaw;
-    this.at(0.5, 1, () => { this.lidGoal = 0.55; this.sfx('breath', 0.6); });
-    this.at(1.1, 2, () => { this.lidGoal = 1; });
-    this.at(1.5, 3, () => { this.lidGoal = 0; this.say([`Unit ${this.num}. Can you hear me? Good. You are in. That is me on its band now.`, 'Up you get. Slowly. The legs are new to you.']); });
-    this.at(3.4, 4, () => { this.clearPose(); this.playPose('get_up', 1.8); eyeEnter({ pitchDeg: 4, fov: 62 }); this.sfx('cloth', 0.4); });
-    if (t > 5.6 && !this.q.length && this.lineT < 0) this.go('tour');
-    if (t > 12) this.go('tour');
-    G.input.stickX = G.input.stickY = 0;
-  }
-
-  // ------------------------------------------------------------------ 3. the tour of the controls
-  private updTour(dt: number) {
-    const p = this.p, h = G.handler;
-    p.vx = p.vz = 0;
-    p.facing = p.targetFacing = this.faceYaw;
-    G.input.stickX = G.input.stickY = 0;
-    G.input.pointerOverUI = true;
-    void h;
-    // the lit control follows its element (layouts move: the HUD eases in, a phone rotates)
-    const s = this.stops[this.stopI];
-    if (s) this.placeHl(s);
-    if (this.t > 70) this.finish();
-    void dt;
-  }
-  private nextStop() {
-    this.stopI++;
-    // a control this screen does not show (no machine HUD, no touch buttons): on to the next
-    while (this.stops[this.stopI] && !this.stops[this.stopI].rect()) this.stopI++;
-    const s = this.stops[this.stopI];
-    if (!s) {
-      this.hl.classList.remove('on');
-      this.say(['That is the body. Now the job: I will name every step as you go, and the tracker keeps it written down.'], () => this.finish());
+    if (pad === 'skip') this.skip(); else if (pad === 'wake') this.hotSkip();
+    // a pad plugged in mid-way: the plate shows its button
+    this.padT -= dt;
+    if (!this.touch && (pad || this.padT <= 0)) { this.padT = 1; if (pad || padConnected()) this.plate.setKey('Start'); }
+    if (this.skipping >= 0) {
+      this.skipping += dt;
+      this.shadeA = Math.max(this.shadeA, this.skipping / 0.3);
+      if (this.skipping >= 0.35) { this.skipping = -1; this.toEnd(); }
+      this.paintDom(dt);
       return;
     }
-    this.sfx('watchTick', 0.4);
-    this.placeHl(s);
-    this.hl.classList.add('on');
-    (this.hl.lastChild as HTMLElement).textContent = s.label;
-    this.say([s.line], () => this.nextStop());
-  }
-  private placeHl(s: Stop) {
-    const r = s.rect();
-    if (!r) { this.hl.style.visibility = 'hidden'; return; }
-    this.hl.style.visibility = '';
-    const pad = 6;
-    this.hl.style.left = Math.round(r.left - pad) + 'px'; this.hl.style.top = Math.round(r.top - pad) + 'px';
-    this.hl.style.width = Math.round(r.width + pad * 2) + 'px'; this.hl.style.height = Math.round(r.height + pad * 2) + 'px';
-    this.hl.classList.toggle('up', r.bottom > innerHeight * 0.8);
-    this.hl.classList.toggle('left', r.left > innerWidth * 0.6);
+    const p = this.p;
+    p.vx *= 0.8; p.vz *= 0.8;
+    switch (this.phase) {
+      case 'drag': this.updDragPhase(dt); break;
+      case 'throw': this.updThrow(dt); break;
+      case 'beat': this.updBeat(dt); break;
+      case 'haul': this.updHaul(dt); break;
+      case 'fit': this.updFit(dt); break;
+      case 'tape': this.updTape(dt); break;
+      case 'through': this.updThrough(dt); break;
+      case 'land': this.updLand(dt); break;
+      case 'signal': this.updSignal(dt); break;
+    }
+    if (this.staged) {
+      // nothing else gets the first-person stage while the intake is playing
+      if (fpOwner() !== STAGE_NAME) fpClaim(STAGE_NAME, 1000, { cinematic: 'none', stage: true });
+      this.lightT -= dt;
+      if (this.lightT <= 0) { this.lightT = 1; this.hideForeignLights(); }
+      this.pickShot();
+      this.updBody(dt);
+      this.updCamera(dt);
+      this.updLight(dt);
+      this.updLens(dt);
+      this.set.update(dt, this.eye, fpCamera());
+      this.stage.update(dt);
+      // your heart, louder the worse it gets
+      this.heartT -= dt;
+      if (this.heartT <= 0 && this.phase !== 'drag') { this.heartT = 0.62 - Math.min(0.25, this.hurtA * 0.2); this.sfx('ix_heart', 0.25 + this.hurtA * 0.3); }
+    }
+    this.paintDom(dt0);
   }
 
-  /** the controls, where they really are on this screen (desktop or touch) */
-  private findStops(): Stop[] {
-    const touch = document.documentElement.classList.contains('nc-touch') || this.touch;
-    // (fixed-position HUD elements have no offsetParent: ask the style)
-    const vis = (e: Element | null): e is HTMLElement => {
-      if (!e) return false;
-      const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
-      return r.width > 4 && r.height > 4 && cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05 && r.right > 0 && r.bottom > 0 && r.left < innerWidth && r.top < innerHeight;
-    };
-    const union = (els: Element[]) => {
-      const rs = els.filter(vis).map((e) => e.getBoundingClientRect());
-      if (!rs.length) return null;
-      const l = Math.min(...rs.map((r) => r.left)), t = Math.min(...rs.map((r) => r.top)), rr = Math.max(...rs.map((r) => r.right)), b = Math.max(...rs.map((r) => r.bottom));
-      return new DOMRect(l, t, rr - l, b - t);
-    };
-    const btn = (label: string) => [...document.querySelectorAll('#nc-touch .nc-btn, .nc-btn')].find((e) => vis(e) && (e.textContent || '').trim().toUpperCase().startsWith(label)) ?? null;
-    /** where the body HUD's own hit-test says a part is (the machine is drawn in WebGL: sample it) */
-    const part = (kind: string) => () => {
-      const hud = G.hudBody as unknown as { pickAt?: (x: number, y: number) => { kind: string | null } } | null;
-      const ov = document.querySelector('canvas.bh-ov');
-      if (!hud?.pickAt || !vis(ov)) return null;
-      const R = ov.getBoundingClientRect();
-      let l = Infinity, tp = Infinity, rr = -Infinity, b = -Infinity;
-      for (let y = R.top; y < R.bottom + 120; y += 6) for (let x = R.left; x < R.right; x += 6) {
-        let k: string | null = null;
-        try { k = hud.pickAt(x, y).kind; } catch { return null; }
-        if (k === kind) { l = Math.min(l, x); tp = Math.min(tp, y); rr = Math.max(rr, x); b = Math.max(b, y); }
+  // ------------------------------------------------------------------ 0. the link (no suite: the signal comes up on the unit)
+  private sig: SignalWipe | null = null;
+  private updSignal(dt: number) {
+    this.shadeA = 1;
+    if (!this.sig) { this.sig = new SignalWipe(this.root, { label: 'UNIT ' + this.num, onShock: () => { this.trauma = 1; } }); this.root.appendChild(this.plate.el); this.plate.el.classList.add('on'); }
+    // the snow covers the picture: the stage only draws its first frames (its shaders compile under the static)
+    this.stage.enabled = this.t < 0.15;
+    if (this.sig.update(dt)) { this.sig.destroy(); this.sig = null; this.stage.enabled = true; this.go('drag'); }
+  }
+
+  // ------------------------------------------------------------------ 1. the wing
+  private updDragPhase(dt: number) {
+    const t = this.t;
+    this.at(0.1, 1, () => { this.plate.el.classList.add('on'); G.audio?.positionalLoop?.('ix_fluoro', 'ix_fluoro', this.p.x, this.p.z, 0.4); });
+    this.shadeA = Math.max(0, 1 - Math.max(0, t - 0.4) / 1.3);
+    // cut to your own eyes: shut, open too bright, a heavy blink, open
+    this.at(4.4, 2, () => { this.lid = 1; this.lidHold = 0.25; this.lidGoal = 0.35; this.pullFocus(1.3); });
+    this.at(4.85, 3, () => { this.lidGoal = 0.9; });
+    this.at(5.2, 4, () => { this.lidGoal = 0.12; });
+    this.at(2.4, 6, () => this.say('OFFICER', 'Keep its feet off the paint.'));
+    this.at(5.9, 7, () => this.say('OFFICER', 'This one\'s light.'));
+    this.at(9.4, 8, () => this.say('self', '...where are you taking me...', 'self'));
+    this.at(11.0, 9, () => this.say('OFFICER', 'Orientation.'));
+    // where the head looks: down the body at the heels, over at the counter and the glass, back up at the gloves on your wrists
+    const f = t - 4.4;
+    if (f < 2.2) this.aim(Math.PI + Math.sin(t * 0.8) * 0.06, 0.42, Math.sin(t * 1.3) * 0.05, 2);
+    else if (f < 3.6) this.aim(Math.PI + 0.85, -0.1, 0.1, 1.6);
+    else if (f < 4.6) this.aim(Math.PI - 0.95, -0.12, -0.1, 1.6);
+    else if (f < 5.2) this.aim(Math.PI + 0.1, -0.38, 0.06, 2);
+    else if (f < 6.6) this.aim(0.15, 0.95, 0.0, 1.8);
+    else this.aim(Math.PI - 0.2, 0.1, 0.05, 2.2);
+    this.gripA = this.gripB = 1;
+    if (f > 5.2 && f < 5.9) this.lidGoal = 0.55;
+    if (f > 5.9 && f < 6.0) this.lidGoal = 0.1;
+    const done = this.updDrag(dt);
+    this.placeGuardsForDrag(false, dt);
+    if (done || t > 14) this.startThrow();
+  }
+
+  // ------------------------------------------------------------------ 2. swung round, let go
+  private throwFrom = new THREE.Vector3();
+  private startThrow() {
+    this.go('throw');
+    this.hands('open', 'open', 0.4);
+    this.say('OFFICER', 'Down.');
+    this.throwFrom.copy(this.bodyAt);
+    G.audio?.positionalLoop?.('ix_drag', null);
+    this.A.jolt(0, -1, 'chest', 0.6); this.B.jolt(0, -1, 'chest', 0.6);
+    this.wallHit = this.floorHit = this.released = false;
+  }
+  private updThrow(dt: number) {
+    const t = this.t, A = this.A, B = this.B;
+    // they swing the body round by the wrists (a heave toward the room), then let it fly into the tiles
+    if (t < 0.32) {
+      const k = ease(t / 0.32);
+      this.gripA = this.gripB = 1;
+      this.bodyAt.set(this.throwFrom.x + 0.35 * k, 0, this.throwFrom.z - 0.2 * k);
+      this.bodyYaw = -0.5 * k;
+      this.aim(Math.PI + k * 1.4, 0.4 + k * 0.4, k * 0.8, 9);
+      this.hand = 1;
+    }
+    this.at(0.32, 1, () => {
+      this.released = true;
+      this.gripA = this.gripB = 0;
+      this.sfx('whoosh', 0.9);
+      this.pose = 'cover'; this.poseK = 9;
+      try { this.me.startRagdoll(v1.set(-4.6, 2.3, -0.6), v2.set(-1.8, 0.8, 0.2), 'torso_u', 1.3); } catch (e) { console.warn('intro ragdoll', e); }
+      this.aim(Math.PI + 2.4, 1.0, 1.4, 9);
+    });
+    // the ragdoll meets the wall, then the floor: each one a blow
+    if (this.released && this.me.ragdoll?.active) {
+      const pel = this.me.ragdoll.pelvisWorld(v3);
+      const head = this.me.j.head.getWorldPosition(v4);
+      if (!this.wallHit && (pel.x < IX.ante.x0 + 0.42 || head.x < IX.ante.x0 + 0.3)) {
+        this.wallHit = true;
+        this.sfx('body_thud', 1); this.sfx('bone_crunch', 0.5); this.sfx('debtor_gasp', 0.9);
+        this.hit(1.0, -1, 0.65);
+        this.lights().strobe(0.6, v5.set(IX.ante.x0 + 0.6, 1.4, head.z));
+        if ((G.sandbox.gore ?? 2) > 0) { this.set.spray(head.x + 0.15, Math.max(0.5, head.y), head.z, -1.2, 0.5, (Math.random() - 0.5) * 0.6, 18, 2.4); this.set.wallSplat(IX.ante.x0, Math.max(0.6, head.y), head.z, 1, 0, 0.9); }
+        this.paint('head', 1); this.paint('torso_u', 1);
       }
-      return l < Infinity ? new DOMRect(l - 3, tp - 3, rr - l + 6, b - tp + 6) : null;
-    };
-    const cache = (f: () => DOMRect | null) => { let c: DOMRect | null = null, at = -1; return () => { const now = performance.now(); if (now - at > 500 || !c) { c = f() ?? c; at = now; } return c; }; };
-    const stops: Stop[] = [
-      { key: 'hud', label: 'THE BODY', line: 'This is the unit\'s body as the rig reads it. Heart, lungs, stomach. Keep them full and keep them beating.',
-        rect: cache(() => union([...document.querySelectorAll('canvas.bh-ov, .bh-lab')])) },
-      { key: 'brain', label: 'SANITY', line: 'The brain is its sanity, and yours. When it cracks, the link slips: the unit lags, drifts, does things on its own.',
-        rect: cache(part('brain')) },
-      { key: 'job', label: 'THE JOB', line: 'Top right: the job. What to do next is always written there, and what it pays.',
-        rect: cache(() => union([...document.querySelectorAll('.lp-track')])) },
-      { key: 'watch', label: touch ? 'WATCH' : 'WATCH · TAB', line: touch ? 'The watch. Jobs, the map, and the scanner for the inhabitants. Tap WATCH.' : 'The watch. Jobs, the map, and the scanner for the inhabitants. TAB raises it.',
-        rect: cache(() => (touch ? btn('WATCH')?.getBoundingClientRect() ?? null : null) ?? part('watch')()) },
-      { key: 'pack', label: touch ? 'PACK' : 'PACK · I', line: touch ? 'The pack. Everything you carry goes in there. Tap PACK.' : 'The pack. Everything you carry goes in there. Click it, or press I.',
-        rect: cache(() => (touch ? btn('PACK')?.getBoundingClientRect() ?? null : null) ?? part('pack')()) },
-    ];
-    // the adaptive buttons (src/ui/hotbar/context.ts: a key strip on desktop, big buttons on touch), else the old touch cluster
-    const CTX = '.ctx-touch .cx-btn, .ctx-desk, #nc-touch .nc-br .nc-btn';
-    stops.push({ key: 'ctx', label: touch ? 'YOUR HANDS' : 'YOUR HANDS · E',
-      line: touch ? 'These are its hands. Open, carry, push, scan. What they offer changes with what is in front of you.' : 'These are its hands. What it can do with whatever is in reach. E does the first one; right click and hold to get a grip.',
-      rect: cache(() => union([...document.querySelectorAll(CTX)]) ?? (touch ? null : new DOMRect(innerWidth / 2 - 90, innerHeight / 2 + 40, 180, 60))) });
-    return stops;
-  }
-
-  /** the most open way to face from the spawn: she needs room to stand in front of you */
-  private openDir(): number {
-    const g = this.g, p = this.p, z = g.getZone('lobby');
-    let best = 0, bs = -1;
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2;
-      let s = 0;
-      let lx = Math.floor(p.x), ly = Math.floor(p.z);
-      for (let d = 0.5; d <= 3.5; d += 0.5) {
-        const x = Math.floor(p.x + Math.cos(a) * d), y = Math.floor(p.z + Math.sin(a) * d);
-        if (!z.inb(x, y)) break;
-        const idx = z.idx(x, y);
-        if (!z.floor[idx] || z.solid[idx] === 1 || z.objectsAt(x, y).length) break;
-        if (x !== lx && (z.wallW[z.idx(Math.max(x, lx), y)] || z.wallW[z.idx(Math.max(x, lx), ly)])) break;
-        if (y !== ly && (z.wallN[z.idx(x, Math.max(y, ly))] || z.wallN[z.idx(lx, Math.max(y, ly))])) break;
-        lx = x; ly = y; s++;
+      if (this.wallHit && !this.floorHit && pel.y < 0.28) {
+        this.floorHit = true;
+        this.sfx('body_thud', 0.9);
+        this.hit(0.7, 0, 0.4);
+        this.lights().blackout(0.35, ['ante']);
+        if ((G.sandbox.gore ?? 2) > 0) this.set.splat(head.x, head.z, 0.7);
       }
-      if (s > bs) { bs = s; best = a; }
+      // where the body ends up is where the beating happens
+      if (this.me.ragdoll.t > 1.15) this.bodyAt.set(Math.max(IX.ante.x0 + 0.45, pel.x), 0, Math.max(IX.ante.z0 + 1.9, Math.min(IX.ante.z1 - 0.4, pel.z + 0.94)));
     }
-    return best;
+    this.at(1.55, 2, () => { this.bodyYaw = 0; this.lidGoal = 0.1; this.aim(Math.PI, 1.2, 0.05, 2); });
+    // the officers come after it
+    if (t > 0.6) this.guardsAtBody(dt);
+    else { A.walkTo(A.x + 0.1, A.z, 1, dt, 0.05); B.walkTo(B.x + 0.1, B.z, 1, dt, 0.05); }
+    if (t > 2.1) this.startBeat();
+  }
+  /** both officers on the room side of the body, over its head and chest */
+  private guardsAtBody(dt: number) {
+    const A = this.A, B = this.B;
+    const bx = this.bodyAt.x, bz = this.bodyAt.z - 1.0;
+    if (A.walkTo(bx + 0.78, bz + 0.5, 2.4, dt, 0.05)) A.turnTo(bx, bz, dt, 10);
+    if (B.walkTo(bx + 0.72, bz - 0.62, 2.4, dt, 0.05)) B.turnTo(bx, bz, dt, 10);
+  }
+  /** blood on the debtor's own body (the rig repaints): part, how much more */
+  private paint(part: string, k = 1) {
+    this.bloodOn[part] = Math.min(3, (this.bloodOn[part] ?? 0) + k);
+    const bleeding: Record<string, number> = {};
+    if ((this.bloodOn.head ?? 0) >= 2) bleeding.head = 2;
+    try { this.me.setCondition({ blood: { ...this.bloodOn }, bleeding, expr: 'pain' }); } catch { /* an older rig */ }
   }
 
-  // ------------------------------------------------------------------ her lines
-  private say(lines: string[], then?: () => void) { lines.forEach((text, i) => this.q.push({ text, then: i === lines.length - 1 ? then : undefined })); }
-  private lines(dt: number) {
-    if (this.lineT >= 0) {
-      this.lineT += dt;
-      if (this.lineT >= this.lineDur) { this.lineT = -1; const f = this.lineThen; this.lineThen = undefined; f?.(); }
+  // ------------------------------------------------------------------ 3. the beating
+  private startBeat() {
+    this.go('beat');
+    this.hands('fist', 'fist', 0.85);
+    this.strikes = STRIKES.map((s) => ({ ...s }));
+  }
+  private updBeat(dt: number) {
+    const A = this.A, B = this.B, t = this.t;
+    this.guardsAtBody(dt);
+    let next: Strike | null = null;
+    for (const s of this.strikes) {
+      const gd = s.who === 0 ? A : B;
+      // wind-up starts well before the blow: the weight is in the coil
+      if (!s.swung && t >= s.t - 0.46) {
+        s.swung = true;
+        if (s.kind === 'kick') gd.play('kick_low', 0.78);
+        else { gd.play('baton_chop', 0.8); gd.act!.k = 0; }
+        setTimeout(() => this.sfx('whoosh', 0.55), 260);
+      }
+      if (gd.act && gd.act.name === 'baton_chop') gd.act.k = clamp01(gd.act.t / gd.act.dur);
+      if (!s.done && t >= s.t) { s.done = true; this.impact(s); }
+      if (!s.done && !next) next = s;
     }
-    if (this.lineT < 0 && this.q.length) {
-      const l = this.q.shift()!;
-      this.subs.show(this.phase === 'link' ? 'DR. CALDER · INTERCOM' : 'DR. CALDER · BAND', l.text, { style: 'guard', shout: false, voice: CALDER_VOICE, hold: 1.1 });
-      this.lineDur = letterTimes(l.text).dur + Math.max(0.8, Math.min(2.0, l.text.length * 0.028));
-      this.lineT = 0; this.lineThen = l.then;
-      if (this.phase === 'tour') bus.emit('calderSpeak', { text: l.text, dur: letterTimes(l.text).dur });
-      else this.icom.talk(l.text, letterTimes(l.text).dur);
-      this.sfx('radio_on', 0.25);
+    // the head turns to the one about to swing, flinches away on the blow
+    if (next) {
+      const gd = next.who === 0 ? A : B;
+      const dx = gd.x - this.eye.x, dz = gd.z - this.eye.z;
+      const yawTo = Math.atan2(-dx, -dz);
+      this.aim(lerp(Math.PI, yawTo, 0.45), 0.95, next.who === 0 ? 0.18 : -0.18, 3);
+    } else this.aim(Math.PI + 0.3, 1.1, 0.25, 1.2);
+    if (t > 4.4 && this.pose === 'cover') {
+      this.pose = 'limp'; this.poseK = 9; this.hands('relaxed', 'claw', 0.5);
+      // the arms give out: the body slumps into the floor
+      try { this.me.startRagdoll(ZERO, v1.set(-0.4, -0.9, 0), 'torso_u', 0.5); } catch { /* the pose alone */ }
+    }
+    // the face bleeds: drips off the wounds
+    if ((G.sandbox.gore ?? 2) > 0 && (this.bloodOn.head ?? 0) >= 2 && Math.random() < dt * 6) {
+      const h = this.me.j.head.getWorldPosition(v2);
+      this.set.bleed(h.x + (Math.random() - 0.5) * 0.08, Math.max(0.12, h.y), h.z + (Math.random() - 0.5) * 0.08, 0, -0.2, 0, 1, 0.4, 0);
+    }
+    this.hand = Math.min(1, 0.35 + t * 0.1);
+    this.at(0.35, 1, () => this.say('OFFICER', 'This is the orientation.', 'guard', true, A));
+    this.at(2.9, 2, () => this.say('OFFICER', 'Nothing personal. It\'s itemised.', 'guard', true, B));
+    this.at(4.3, 3, () => this.say('self', 'Stop - please - STOP-', 'self'));
+    this.at(6.9, 4, () => this.say('OFFICER', 'Arms. Get its arms.', 'guard', true, A));
+    this.lidGoal = 0.08 + this.trauma * 0.12;
+    if (t > BEAT_END) { this.beaten = true; this.startHaul(); }
+  }
+  /** a blow lands: a freeze, a strobe, blood sprayed up the tiles and left there, teeth, the body jolting, a wound that stays */
+  private impact(s: Strike) {
+    const p = this.p, b = p.body, gd = s.who === 0 ? this.A : this.B;
+    this.sfx(s.kind === 'kick' ? 'body_thud' : 'baton_hit', 1);
+    this.sfx('debtor_grunt', 0.8);
+    if (s.part === 'head') { this.sfx('ix_ring', 0.5); this.sfx('bone_crunch', 0.45); this.lidHit = 0.75; }
+    const dmg = s.kind === 'kick' ? 9 : 11;
+    const inj = b.addInjury(s.part, s.inj, s.sev);
+    if (s.inj === 'laceration') inj.bleed = Math.min(inj.bleed, 0.05);
+    if (s.inj === 'bruise' && G.sandbox.gore > 0) bus.emit('bloodied', p, s.part, 0.25);
+    if (s.inj !== 'bruise') bus.emit('playerHit', p, s.part, 'blunt', { dmg, from: [p.x + 1, p.z], knock: 0.25, by: 'custody' });
+    else (p as any).registerHit?.(p.x + 1, p.z, s.part, 0.5);
+    this.hitsTaken++;
+    // which way it drives the body: away from the officer
+    const away = v3.set(this.eye.x - gd.x, 0, this.eye.z - gd.z).normalize();
+    const dx = Math.sign(away.x) || 1;
+    const head = this.me.j.head.getWorldPosition(v2);
+    const gore = (G.sandbox.gore ?? 2) > 0;
+    if (gore) {
+      if (s.part === 'head') {
+        // the face splits: a spray up the wall and over the floor, blood from the mouth, teeth on the tiles
+        this.set.spray(head.x, Math.max(0.2, head.y + 0.05), head.z, away.x * 1.3, 0.9, away.z * 1.3, 20, 2.8);
+        this.set.bleed(head.x, Math.max(0.18, head.y), head.z, away.x * 0.4, 0.5, away.z * 0.4, 8, 1.4, 0.55);
+        if (this.hitsTaken > 1) this.set.teeth(head.x, Math.max(0.2, head.y), head.z, away.x, away.z, 1 + (Math.random() < 0.5 ? 1 : 0));
+        this.paint('head', 2); this.paint('neck', 1); this.paint('torso_u', 1);
+      } else {
+        const at = this.me.j[s.part.startsWith('thigh') ? 'thighL' : s.part.startsWith('torso') ? 'chest' : s.part.endsWith('_r') ? 'farmR' : 'farmL'].getWorldPosition(v1);
+        this.set.spray(at.x, Math.max(0.15, at.y), at.z, away.x * 0.9, 0.6, away.z * 0.9, s.kind === 'kick' ? 8 : 10, 2.0);
+        this.paint(s.part, 1);
+      }
+      this.set.splat(head.x + (Math.random() - 0.5) * 0.3, head.z + (Math.random() - 0.5) * 0.3, 0.45 + this.hitsTaken * 0.07);
+      if (s.kind === 'chop') gd.bloody();
+    }
+    const power = s.part === 'head' ? 1.15 : s.kind === 'kick' ? 0.85 : 0.7;
+    this.hit(power, dx, s.part === 'head' ? 0.75 : 0.4);
+    if (s.part === 'head') { this.stage.pulse(this.shot ? 0.12 : 0.26, 0xff5040, 4); this.stage.apertureGoal = Math.max(this.stage.apertureGoal, 0.55); }
+    // the body takes it (the springs), the officer's arm takes the recoil
+    this.jolt(away.x * 1.1, away.z * 1.1, s.part, power * 1.4);
+    gd.recoil(s.kind === 'kick' ? 0.5 : 1.2);
+    // the lamp overhead jumps on its flex
+    this.lights().brownout(0.45, 0.05, ['ante']);
+    // the head snaps away from the blow
+    this.look.yaw += dx * 0.45; this.look.roll += dx * 0.32; this.look.pitch -= 0.2;
+    this.poseK = 0;
+  }
+
+  // ------------------------------------------------------------------ 4. into the press room
+  private startHaul() {
+    this.go('haul');
+    this.hands('claw', 'claw', 0.4);
+    this.pose = 'drag'; this.poseK = 9;
+    this.startDrag(IX.drag2, 1.25);
+    this.set.startPress(2.6);
+    this.cutBlack(0.4, 1);
+    G.gore?.lens?.clear?.();
+    this.hand = 1;
+  }
+  private updHaul(dt: number) {
+    const t = this.t;
+    this.gripA = this.gripB = Math.min(1, t * 3);
+    const done = this.updDrag(dt);
+    this.placeGuardsForDrag(false, dt);
+    // looking back at where you were, then the head rolls toward the noise
+    const z = this.eye.z;
+    if (z > -16.5) this.aim(Math.PI + 0.05, -0.3, 0.05, 2);
+    else {
+      const px = IX.press.x, pz = IX.press.z;
+      const yawTo = Math.atan2(-(px - this.eye.x), -(pz - this.eye.z));
+      this.aim(yawTo, 0.05, -0.12, 1.8);
+    }
+    this.at(1.6, 1, () => this.say('OFFICER', 'Mind the press.'));
+    this.at(6.2, 2, () => this.say('self', '...oh god. oh god.', 'self'));
+    this.at(7.8, 3, () => this.say('OFFICER', 'That was Tuesday\'s.'));
+    this.lidGoal = 0.12;
+    if (done && t > 6) this.startFit();
+  }
+  /** the giant press comes down (called by the set) */
+  private pressSlam(d: number) {
+    const k = Math.max(0, 1 - d / 14);
+    this.sfx('press_slam', 0.5 + k * 0.5);
+    this.sfx('press_crunch', 0.3 + k * 0.6);
+    this.sfx('cy_spark', 0.3 + k * 0.5);
+    setTimeout(() => this.sfx('press_hiss', 0.5 * (0.4 + k)), (CYCLE_RISE) * 1000);
+    if (k > 0.05) { hitstop(30 + 60 * k); this.trauma = Math.min(1, this.trauma + k * 0.7); this.stage.pulse(0.25 * k, 0xffb070, 4); }
+  }
+
+  // ------------------------------------------------------------------ 5. the band: the fitting station
+  // Mostly through the debtor's eyes, at the machine (src/game/introKit/stamp.ts): the officer drags the
+  // left arm out and slams it into the channel, a gloved hand pins it at the elbow, the jaws bang shut over
+  // the forearm and a strap over the hand, the alarm, the beacon; a low cutaway of the crosshead coming down
+  // on its rams in steam; back in the eyes looking up at it as it creeps the last inches, the band glowing
+  // in its die; the stamp (white, a freeze, sparks, blood); a macro cutaway of the band clamped on the wrist,
+  // the die lifting off and the debtor number lighting up on its tube; the jaws open, the glove lets go,
+  // the arm comes up to the face shaking, the band in front of the eyes, blood running off it.
+  private fitFrom = new THREE.Vector3(); private fitTo = new THREE.Vector3();
+  private stamp: StampRig | null = null;
+  /** the officer's glove (a first-person arm in a grey sleeve and a black glove), and the shoulder its upper arm reaches to */
+  private glove: FpArm | null = null;
+  private gloveRef = new THREE.Object3D();
+  /** the debtor's own shoulder the hero arm's upper arm runs back to (out of frame, bottom left) */
+  private heroRef = new THREE.Object3D();
+  private gloveK = 0;
+  /** the left arm in the machine's frame: weight 0 (riding the body) .. 1; how far it is pulled up to the eyes */
+  private hero = 0; private raise = 0;
+  /** first person from the machine's own eye point (blends in from the head) */
+  private stampEye = false; private stampEyeK = 0;
+  private bandInDie = false;
+  private stampLook = new THREE.Vector3(); private stampLookOn = false;
+  private startFit() {
+    this.go('fit');
+    this.fitFrom.copy(this.bodyAt);
+    this.me.j.head.getWorldPosition(this.fitTo); this.fitTo.y = 0; this.fitTo.x += 0.15;
+    G.audio?.positionalLoop?.('ix_drag', null);
+    this.say('OFFICER', 'Up. On your knees.');
+    // the machine stands in front of where he kneels: its local +x is the way he faces (world -x)
+    const s = this.stampRig();
+    s.place(this.fitTo.x - 0.68, this.fitTo.z + 0.08, Math.PI);
+    s.lift = 0; s.clamp = 0; s.strap = 0; s.armed = false; s.pressure = 0.08; s.lamp = 1;
+    this.set.placeRig(this.fitTo.x + 30, this.fitTo.z);
+    this.set.rig.g.visible = false;
+    this.hero = 0; this.raise = 0; this.gloveK = 0; this.stampEye = false; this.stampEyeK = 0;
+    this.pierced = false; // (a dev jump back into the beat)
+    this.seatBand();
+  }
+  /** the station (built on first use) */
+  private stampRig(): StampRig {
+    if (!this.stamp) {
+      const low = (this.g.pr as unknown as { quality?: string }).quality === 'low';
+      this.stamp = new StampRig(this.set.root, low);
+      this.stamp.place(IX.fit[0] - 0.45, IX.fit[1] + 0.1, Math.PI);
+    }
+    return this.stamp;
+  }
+  /** the officer's glove: a first-person arm, grey sleeve, black glove */
+  private gloveArm(): FpArm {
+    if (!this.glove) {
+      const a = this.glove = fpArm('right', { skin: 0x1b1b1e, sleeve: scaleHex(GUARD_GREY, 0.55), sleeveStyle: 'long', scale: 1.1 });
+      (a as unknown as { reach: THREE.Object3D | null }).reach = this.gloveRef;
+      a.root.traverse((o) => { o.castShadow = true; o.frustumCulled = false; });
+      stageNormals(a.root);
+      a.root.visible = false;
+      this.set.root.add(a.root);
+      a.pose('open', true);
+    }
+    return this.glove;
+  }
+  /** the band waits in the die, already turned the way it will sit on the wrist */
+  private seatBand() {
+    const s = this.stamp!, left = this.arms.find((q) => q.side === 'L');
+    if (!left) return;
+    if (!this.band) { this.band = bandMesh(); this.bandT = -1; }
+    const b = this.band;
+    // where the band ends up: on the hero arm's wrist with the arm lying in the channel
+    this.heroBed(M1);
+    M2.compose(V0.set(0, -0.012, 0), Q0.setFromEuler(E0.set(0, Math.PI, 0)), S0.set(-1, 1, 1));
+    // wrist joint in the arm's frame (the forearm runs up local y)
+    M3.makeTranslation(0, 0.26, 0);
+    const bandWorld = M4.copy(s.g.matrixWorld).multiply(M1).multiply(M3).multiply(M2);
+    // the die face at contact
+    const die = M5.copy(s.g.matrixWorld).multiply(M3.makeTranslation(ST.DIE_X, ST.CONTACT_Y, 0));
+    const local = die.invert().multiply(bandWorld);
+    s.bandSeat.add(b.g);
+    local.decompose(b.g.position, b.g.quaternion, b.g.scale);
+    this.bandInDie = true;
+  }
+  /** the left arm lying palm down in the channel, elbow to wrist along +x (machine frame), into `out` (arm root, mirrored) */
+  private heroBed(out: THREE.Matrix4, t = this.T) {
+    // the arm's +y runs along the channel, its palm (+z) presses down, a shiver in it
+    const sh = Math.sin(t * 23) * 0.0012 + Math.sin(t * 37) * 0.0008;
+    BX.set(0, 0, -1); BY.set(1, 0, 0); BZ.set(0, -1, 0);
+    out.makeBasis(BX, BY, BZ);
+    out.multiply(M6.makeScale(-1, 1, 1));
+    out.setPosition(ST.ELBOW.x, ST.ELBOW.y + sh, ST.ELBOW.z + sh * 0.5);
+    return out;
+  }
+  /** where the arm is while the officer holds it out over the bed (before the slam) */
+  private heroHeld(out: THREE.Matrix4) {
+    this.heroBed(out);
+    // lifted, the elbow higher, the hand cocked up
+    M6.makeRotationZ(0.42);
+    out.premultiply(M7.makeTranslation(-ST.ELBOW.x, -ST.ELBOW.y, 0)).premultiply(M6).premultiply(M7.makeTranslation(ST.ELBOW.x, ST.ELBOW.y + 0.16, 0.03));
+    return out;
+  }
+  /** pulled up in front of the eyes: forearm rising from the bottom left, the back of the wrist (the band) to the face */
+  private heroRaised(out: THREE.Matrix4) {
+    const t = this.T;
+    const shake = 0.006 + 0.004 * Math.sin(t * 3);
+    BY.set(0.45, 0.85, 0.12).normalize();
+    BZ.set(0.05, -0.1, -1).normalize(); BZ.addScaledVector(BY, -BZ.dot(BY)).normalize();
+    BX.crossVectors(BY, BZ);
+    out.makeBasis(BX, BY, BZ).multiply(M6.makeScale(-1, 1, 1));
+    out.setPosition(-0.15 + Math.sin(t * 21) * shake, -0.3 + Math.sin(t * 17) * shake, -0.3);
+    // in a fixed frame at the machine's eye point looking along the bed (not the moving camera: the eyes come to it)
+    M7.lookAt(ST.EYE, V6.set(ST.EYE.x + 1, ST.EYE.y - 0.3, ST.EYE.z - 0.06), V5.set(0, 1, 0)).setPosition(ST.EYE);
+    return out.premultiply(M7);
+  }
+  /** pose the hero arm (machine frame) and the glove; called from updBody */
+  private placeHero() {
+    const s = this.stamp, left = this.arms.find((q) => q.side === 'L');
+    if (!s || !left) return;
+    const root = left.arm.root;
+    if (this.hero <= 0.001) {
+      if (root.parent !== left.hold) { left.hold.add(root); root.position.set(0, 0, 0); root.scale.set(-1, 1, 1); root.rotation.set(0, left.base + left.roll, Math.PI); (left.arm as unknown as { reach: unknown }).reach = null; }
+      return;
+    }
+    if (root.parent !== s.g) { s.g.add(root); (left.arm as unknown as { reach: unknown }).reach = this.heroRef; }
+    // the shoulder: below and left of the eyes, a little forward (hands.ts mirrors its shoulder offset for a left arm)
+    this.heroRef.position.copy(s.world(V6.set(-0.55, 0.86, -0.21))).sub(V4.set(-0.17, -0.25, -0.2));
+    this.heroRef.updateMatrixWorld();
+    // bed, or held out then slammed, or raised to the eyes
+    const t = this.t;
+    if (t < FIT.slam) { this.heroHeld(M1); this.heroBed(M2); blendM(M1, M2, easeIn(clamp01((t - FIT.grab - 0.12) / (FIT.slam - FIT.grab - 0.12))), M3); }
+    else if (this.raise > 0) { this.heroBed(M1); this.heroRaised(M2); blendM(M1, M2, this.raise, M3); }
+    else {
+      this.heroBed(M3);
+      // the bounce off the bed
+      const bt = t - FIT.slam;
+      if (bt < 0.3) M3.elements[13] += Math.sin(bt * 30) * Math.exp(-bt * 14) * 0.012;
+    }
+    M3.decompose(root.position, root.quaternion, root.scale);
+    root.visible = true;
+  }
+  private placeGlove() {
+    const s = this.stamp, gl = this.glove;
+    if (!s || !gl) return;
+    const k = this.gloveK;
+    gl.root.visible = k > 0.01 && (!this.shot || this.shot === 'stampMacro');
+    if (!gl.root.visible) return;
+    // the forearm comes down from the officer's side (+z) onto the debtor's, palm on it, fingers round it
+    BY.set(0.18, -0.6, -0.78).normalize();
+    BZ.set(0, -1, 0); BZ.addScaledVector(BY, -BZ.dot(BY)).normalize();
+    BX.crossVectors(BY, BZ);
+    const sc = 1.1, t = this.T;
+    const press = 0.004 * Math.sin(t * 19) + 0.003 * Math.sin(t * 7.3);
+    const palmC = V0.copy(ST.PIN).addScaledVector(BZ, -0.016 + press);
+    const wrist = V1.copy(palmC).addScaledVector(BY, -0.045 * sc);
+    const elbow = V2.copy(wrist).addScaledVector(BY, -0.26 * sc);
+    // arriving from up and right, leaving the same way
+    const off = 1 - easeOut(k);
+    elbow.add(V3.set(-0.05, 0.2, 0.24).multiplyScalar(off));
+    M1.makeBasis(BX, BY, BZ).multiply(M6.makeScale(sc, sc, sc)).setPosition(elbow);
+    s.g.updateMatrixWorld();
+    M1.premultiply(s.g.matrixWorld);
+    M1.decompose(gl.root.position, gl.root.quaternion, gl.root.scale);
+    // the upper arm runs back to officer A's real shoulder
+    s.g.updateMatrixWorld();
+    const sh = this.A.rig.j.uarmR.getWorldPosition(V3);
+    this.gloveRef.position.copy(sh).sub(V4.set(0.17, -0.25, -0.2));
+    this.gloveRef.updateMatrixWorld();
+  }
+  /** look at a world point (first person) */
+  private aimAt(p: THREE.Vector3, rate = 3, roll = 0) {
+    const e = this.stampEye ? this.stampEyeWorld(V5) : this.eye;
+    const dx = p.x - e.x, dy = p.y - e.y, dz = p.z - e.z;
+    let yaw = Math.atan2(-dx, -dz);
+    yaw = this.look.yaw + wrapA(yaw - this.look.yaw);
+    this.aim(yaw, Math.atan2(dy, Math.hypot(dx, dz)), roll, rate);
+  }
+  private stampEyeWorld(out: THREE.Vector3) {
+    const t = this.T;
+    // breathing (fast, shallow) and a lean toward the arm as he is pulled onto it
+    const br = Math.sin(t * 5.2) * 0.006 * (0.5 + this.hurtA);
+    V6.set(ST.EYE.x + 0.04 * this.hero + Math.sin(t * 1.3) * 0.006, ST.EYE.y + br - 0.03 * this.hero, ST.EYE.z + Math.sin(t * 0.9) * 0.005);
+    return this.stamp ? this.stamp.world(V6, out) : out.copy(this.eye);
+  }
+  private updFit(dt: number) {
+    const t = this.t, A = this.A, B = this.B, s = this.stampRig();
+    // hauled up onto the knees, turned to face the machine
+    const up = ease(clamp01(t / 1.2));
+    if (t < 1.25) {
+      this.pose = up < 0.5 ? 'drag' : 'kneel';
+      this.poseW = up < 0.5 ? 1 - up : up;
+      this.bodyAt.lerpVectors(this.fitFrom, this.fitTo, up);
+      this.bodyYaw = lerp(0, -Math.PI / 2, up);
+      this.gripA = this.gripB = 1 - up;
+      // eyes up the machine: the crown, the beacon, the lamp
+      if (t > 0.35) this.aimAt(s.world(V7.set(ST.DIE_X, 1.25, 0.05)), 2.2);
+    } else { this.pose = 'kneel'; this.poseW = 1; this.bodyYaw = -Math.PI / 2; }
+    // the machine's eye takes over from the head (the arm is pulled out in front of it)
+    if (t > FIT.grab - 0.05) this.stampEye = true;
+    this.stampEyeK = this.stampEye ? Math.min(1, this.stampEyeK + dt / 0.35) : 0;
+    // ---- the arm: grabbed, held out, slammed into the channel; raised at the end
+    this.at(FIT.grab, 1, () => {
+      A.setHeld(null); B.setHeld('pendant');
+      this.say('OFFICER', 'Left arm.');
+      const l = this.arms.find((q) => q.side === 'L');
+      // the sleeve is shoved up the forearm for the band
+      if (l) { l.arm.pose('open'); l.arm.tremor = 0.8; l.arm.setLook({ sleeveStyle: 'rolled' }); }
+      this.hero = 1; this.trauma = Math.max(this.trauma, 0.45); this.jolt(0, 0.5, 'uarm_l', 0.6);
+      this.sfx('body_thud', 0.4); this.sfx('debtor_gasp', 0.6);
+    });
+    this.at(FIT.slam, 2, () => {
+      this.sfxOr('st_slam', 'body_thud', 1); this.sfx('debtor_grunt', 0.7);
+      this.trauma = Math.max(this.trauma, 0.8); this.hitstopK(0.35); this.jolt(0, 0.7, 'chest', 0.8);
+      const l = this.arms.find((q) => q.side === 'L'); if (l) { l.arm.pose('flat'); l.arm.tremor = 0.55; }
+      this.stage.pulse(0.12, 0xfff0d8, 8);
+    });
+    // the glove: in from the right, pins the forearm by the elbow, stays until the jaws open
+    if (t > FIT.grab + 0.2) this.gloveArm();
+    this.gloveK = t < FIT.grab + 0.25 ? 0 : t < FIT.release + 0.2 ? Math.min(1, (t - FIT.grab - 0.25) / 0.3) : Math.max(0, 1 - (t - FIT.release - 0.2) / 0.35);
+    this.at(FIT.slam - 0.02, 3, () => this.glove?.pose('grip'));
+    this.at(FIT.release + 0.2, 4, () => this.glove?.pose('open'));
+    // ---- the jaws and the strap
+    const clampK = t < FIT.clamp ? 0 : t < FIT.clamp + 0.12 ? easeIn((t - FIT.clamp) / 0.12) : t < FIT.release ? 1 : Math.max(0, 1 - (t - FIT.release) / 0.25);
+    const strapK = t < FIT.clamp + 0.14 ? 0 : t < FIT.clamp + 0.3 ? easeIn((t - FIT.clamp - 0.14) / 0.16) : t < FIT.release + 0.05 ? 1 : Math.max(0, 1 - (t - FIT.release - 0.05) / 0.3);
+    s.clamp = clampK; s.strap = strapK;
+    this.at(FIT.clamp + 0.1, 5, () => {
+      this.sfxOr('st_clamp', 'press_lever', 1); this.sfx('press_hiss', 0.35); s.puff('jaws', 1.2);
+      s.armed = true; this.trauma = Math.max(this.trauma, 0.5); this.jolt(0, 0.3, 'farm_l', 0.5);
+      const l = this.arms.find((q) => q.side === 'L'); if (l) l.arm.tremor = 0.8;
+    });
+    this.at(FIT.clamp + 0.3, 6, () => this.sfx('cuff_click', 0.7));
+    this.at(FIT.clamp + 0.4, 7, () => this.say('OFFICER', 'Hold still. It only goes in once.'));
+    // ---- the crosshead: down in hydraulic stages, a hover, the stamp, a hold, back up
+    let lift: number;
+    if (t < FIT.down0) lift = 0;
+    else if (t < FIT.down0 + 0.5) lift = 0.55 * ease((t - FIT.down0) / 0.5);
+    else if (t < 4.05) lift = 0.55 + Math.sin(t * 40) * 0.003;
+    else if (t < 4.6) lift = 0.55 + 0.33 * ease((t - 4.05) / 0.55);
+    else if (t < FIT.stamp - 0.13) lift = 0.88 + 0.04 * ((t - 4.6) / (FIT.stamp - 0.13 - 4.6)) + Math.sin(t * 53) * 0.002;
+    else if (t < FIT.stamp) lift = 0.92 + 0.08 * easeIn((t - FIT.stamp + 0.13) / 0.13);
+    else if (t < FIT.lift) lift = 1;
+    else lift = Math.max(0, 1 - easeOut((t - FIT.lift) / 0.9));
+    s.lift = lift;
+    s.pressure = t < FIT.clamp ? 0.08 : t < FIT.stamp ? 0.1 + 0.85 * clamp01((t - FIT.clamp) / (FIT.stamp - FIT.clamp)) : Math.max(0.15, 0.95 - (t - FIT.stamp) * 0.4);
+    this.at(FIT.down0 - 0.05, 8, () => { this.sfxOr('st_alarm', 'buzzer', 0.8); this.say('OFFICER', 'Stamping.', 'guard', true, B); });
+    this.at(FIT.down0, 9, () => { this.sfxOr('st_hydro', 'press_hiss', 0.9); s.puff('rams', 1); s.puff('vents', 0.7); this.sfxOr('st_steam', 'press_hiss', 0.5); });
+    this.at(4.05, 10, () => { this.sfxOr('st_hydro', 'press_hiss', 0.7); s.puff('rams', 0.8); this.trauma = Math.max(this.trauma, 0.3); });
+    this.at(4.4, 11, () => this.say('self', 'no - no no no-', 'self'));
+    this.at(4.6, 12, () => { const l = this.arms.find((q) => q.side === 'L'); if (l) { l.arm.pose('claw'); l.arm.tremor = 1; } this.sfx('debtor_gasp', 0.8); });
+    this.at(FIT.stamp - 0.13, 13, () => { this.sfxOr('st_steam', 'press_hiss', 0.6); s.puff('vents', 1.3); });
+    this.at(FIT.stamp, 14, () => this.pierce());
+    this.at(FIT.lift, 15, () => { this.sfx('press_hiss', 0.7); this.sfxOr('st_steam', 'press_hiss', 0.7); s.puff('vents', 1.6); s.puff('die', 1.4); });
+    this.at(FIT.fitted, 16, () => { this.say('OFFICER', 'Fitted.'); this.pullFocus(0.5); });
+    this.at(FIT.release, 17, () => { this.sfxOr('st_clamp', 'press_lever', 0.6); this.sfx('press_hiss', 0.4); s.puff('jaws', 1); s.armed = false; });
+    // blood keeps welling under the band
+    if (this.pierced && (G.sandbox.gore ?? 2) > 0) {
+      s.bleed(clamp01((t - FIT.stamp) / 3.5) * 0.9 + 0.1);
+      this.dripT -= dt;
+      if (this.dripT <= 0 && this.band) {
+        this.dripT = this.raise > 0.3 ? 0.09 : 0.22;
+        const w = this.band.g.getWorldPosition(V0);
+        this.set.bleed(w.x, w.y - 0.03, w.z, 0, -0.2, 0, 1, 0.3, this.raise > 0.3 ? 0.4 : 0);
+      }
+    }
+    // ---- the arm pulled off the bed and up to the eyes, shaking
+    if (t > FIT.pull) {
+      this.raise = ease(clamp01((t - FIT.pull) / 0.85));
+      if (this.band) this.lights().flare(this.band.lamp.getWorldPosition(V6).add(V0.set(0, 0.02, 0)), 0.22);
+      this.at(FIT.pull, 18, () => { const l = this.arms.find((q) => q.side === 'L'); if (l) { l.arm.pose('claw'); l.arm.tremor = 1.2; } this.sfx('debtor_gasp', 0.7); this.jolt(0, -0.3, 'farm_l', 0.4); });
+    }
+    // ---- the officers: A on the far side of the bed with the glove on the arm, B at the pendant behind
+    const lw = (x: number, z: number) => s.world(V7.set(x, 0, z));
+    const aAt = lw(-0.36, 0.52), bAt = lw(0.25, -0.62);
+    if (t > 1.0) { A.walkTo(aAt.x, aAt.z, 2.2, dt, 0.04); A.face(s.world(V7.copy(ST.PIN)).x, s.world(V7.copy(ST.PIN)).z); }
+    else A.walkTo(this.eye.x - 0.8, this.eye.z + 0.6, 2, dt, 0.05);
+    if (t > 1.6) { B.walkTo(bAt.x, bAt.z, 1.8, dt, 0.04); const w = s.world(V7.copy(ST.WRIST)); B.face(w.x, w.z); }
+    else B.walkTo(this.eye.x - 0.6, this.eye.z - 1.1, 1.8, dt, 0.05);
+    // the body double's own arm reaches the wrist on the bed (seen in the wide cutaway)
+    if (!this.armL) this.armL = { p: new THREE.Vector3(), w: 0 };
+    s.world(V7.copy(ST.WRIST), this.armL.p);
+    this.armL.w = t < FIT.grab ? 0 : t < FIT.pull ? 1 : 1 - this.raise;
+    // ---- where the eyes go
+    if (t >= FIT.grab && t < FIT.slam) this.aimAt(s.world(V7.set(-0.08, ST.ARM_Y + 0.05, 0.02)), 4);
+    else if (t >= FIT.slam && t < FIT.clamp + 0.3) this.aimAt(s.world(V7.set(-0.14 + (t - FIT.slam) * 0.08, ST.ARM_Y + 0.02, 0.02)), 2.6);
+    else if (t >= FIT.clamp + 0.3 && t < 4.3) this.aimAt(s.world(V7.set(-0.02, ST.ARM_Y + 0.08 + (t > FIT.down0 ? 0.25 : 0), 0.01)), 1.8);
+    else if (t >= 4.3 && t < FIT.stamp - 0.32) this.aimAt(s.dieWorld(V7).add(V0.set(0, 0.06, 0)), 2.4, -0.04);
+    else if (t >= FIT.stamp - 0.32 && t < FIT.lift) this.aimAt(s.world(V7.set(-0.01, ST.ARM_Y + 0.03, 0)), 5);
+    else if (t >= FIT.lift && t < FIT.pull) this.aimAt(s.world(V7.set(-0.03, ST.ARM_Y + 0.03 + (t < FIT.release ? 0.1 * clamp01((t - FIT.lift) / 0.6) : 0), 0)), 2);
+    else if (t >= FIT.pull && this.band) this.aimAt(this.band.g.getWorldPosition(V7).add(V0.set(0, 0.012, 0)), 3.2);
+    // the lens: a slow push on the creep down (the room falls away), wide again after
+    if (!this.shot) {
+      const cam = fpCamera();
+      let want = t > 4.3 && t < FIT.stamp ? lerp(62, 44, clamp01((t - 4.3) / (FIT.stamp - 4.3))) : t >= FIT.stamp && t < FIT.pull ? 52 : t >= FIT.pull ? 50 : 64;
+      // a phone held upright keeps most of the landscape picture's width (the arm, the jaws, the glove)
+      if (cam.aspect < 1.3) { const hf = 2 * Math.atan(Math.tan(want * DEG / 2) * 16 / 9) * 0.72; want = Math.min(96, Math.max(want, 2 * Math.atan(Math.tan(hf / 2) / Math.max(0.3, cam.aspect)) / DEG)); }
+      cam.fov += (want - cam.fov) * Math.min(1, dt * (t > 4.3 && t < FIT.stamp ? 6 : 3));
+      cam.updateProjectionMatrix();
+    }
+    this.at(FIT.up, 19, () => { this.say('OFFICER', 'Up.'); B.setHeld('baton'); });
+    if (t > FIT.end) {
+      this.armL = null;
+      this.stampEye = false; this.hero = 0; this.raise = 0; this.gloveK = 0;
+      if (this.glove) this.glove.root.visible = false;
+      for (const a of this.arms) a.rollGoal = 0;
+      this.startTape();
+    }
+  }
+  private dripT = 0;
+  private hitstopK(k: number) { hitstop(30 + 60 * k); this.freeze = Math.max(this.freeze, 0.03 + k * 0.06); }
+  /** the stamp: the band goes through the wrist */
+  private pierce() {
+    if (this.pierced) return;
+    this.pierced = true;
+    const p = this.p, s = this.stamp;
+    this.sfxOr('st_stamp', 'press_slam', 1); this.sfx('remit_pierce', 0.8); this.sfx('bone_crunch', 1); this.sfx('cy_spark', 0.9);
+    setTimeout(() => this.sfx('debtor_scream', 1), 110);
+    // the band leaves the die: onto the wrist
+    this.fitBandMesh();
+    const l = this.arms.find((q) => q.side === 'L');
+    if (l) { l.arm.pose('claw'); l.arm.tremor = 1.3; }
+    this.hands('claw', 'fist', 1);
+    const w = this.band ? this.band.g.getWorldPosition(v1) : this.wrist('L', v1);
+    this.set.spark(w.x, w.y + 0.04, w.z, 34, 3.0, [0, 0.9, 0]);
+    this.set.spark(w.x, w.y + 0.02, w.z, 18, 2.2, [0.6, 0.3, 0.4]);
+    this.lights().sparks(w, 1);
+    s?.puff('die', 2);
+    if ((G.sandbox.gore ?? 2) > 0) {
+      this.set.bleed(w.x, w.y, w.z, 0.1, 0.8, 0.9, 26, 2.8, 0.6);
+      this.set.bleed(w.x, w.y, w.z, 0.2, 0.3, -0.9, 16, 2.0, 0.4);
+      s?.bleed(0.25);
+      bus.emit('bloodied', p, 'hand_l', 1); bus.emit('bloodied', p, 'farm_l', 0.7);
+    }
+    const inj = p.body.addInjury('farm_l', 'deep', 0.2);
+    inj.bleed = Math.min(inj.bleed, 0.06);
+    p.body.panic = Math.max(p.body.panic, 80);
+    bus.emit('playerHit', p, 'hand_l', 'deep', { dmg: 16, from: [p.x - 1, p.z], knock: 0.2, by: 'custody' });
+    this.hit(1.1, -1, 0.75);
+    this.stage.pulse(0.3, 0xffffff, 6);
+    this.lights().brownout(0.2, 0.22, ['fit', 'press']);
+    if (s) { s.lamp = 0.15; setTimeout(() => { if (this.stamp) this.stamp.lamp = 1; }, 160); }
+    this.jolt(0, 0.6, 'chest', 1.2);
+    this.trauma = 1.2;
+    this.fitBand();
+    // the band arms itself a beat later: an amber flare off its lamp
+    setTimeout(() => { if (this.phase === 'fit') this.armFlare(); }, 520);
+  }
+  /** the band arms: an amber flare off its lamp, the room's light swallowed by it for a moment */
+  private armFlare() {
+    const b = this.band;
+    this.sfxOr('st_boot', 'remit_chirp', 0.8); this.sfx('remit_chirp', 0.7);
+    if (b) this.lights().flare(b.lamp.getWorldPosition(v1).add(v4.set(0, 0.12, 0)), 1.0);
+    this.stage.pulse(0.22, 0xffa040, 1.6);
+    this.stage.expo = Math.max(this.stage.expo, 1.15);
+  }
+  private fitBand() {
+    if (this.fitted) return;
+    this.fitted = true;
+    const p = this.p;
+    const band = G.band as any;
+    if (band?.fit) { try { band.fit(p, { silent: true }); } catch (e) { console.warn('band.fit', e); } }
+    else if (hasItemDef('bailiff_band') && !p.allItems().some((i) => i.key === 'bailiff_band')) {
+      const it = createItem('bailiff_band', undefined, { pristine: true }); p.inv.add(it); p.wear(it); bus.emit('inventoryChanged', p);
     }
   }
 
-
-  private paint(dt: number) {
-    this.subs.update(dt);
-    this.shadeA += (this.shadeGoal - this.shadeA) * Math.min(1, dt * (this.shadeGoal > this.shadeA ? 6 : 1.4));
-    this.shade.style.opacity = this.shadeA.toFixed(3);
-    this.lid += (this.lidGoal - this.lid) * Math.min(1, dt * (this.lidGoal > this.lid ? 9 : 1.5));
-    const lp = (this.lid * 50).toFixed(2) + '%';
-    this.lidT.style.height = lp; this.lidB.style.height = lp;
-    this.noise.style.opacity = this.noiseA.toFixed(2);
-    if (this.noiseA > 0.01) {
-      const c = this.noise, x = c.getContext('2d')!, W = Math.ceil(innerWidth / 4), H = Math.ceil(innerHeight / 4);
-      if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
-      const img = x.createImageData(W, H), d = img.data;
-      for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 255; d[i] = v; d[i + 1] = v; d[i + 2] = Math.min(255, v + 20); d[i + 3] = 255; }
-      x.putImageData(img, 0, 0);
-    }
+  // ------------------------------------------------------------------ 6. the taped wall
+  private tapeFrom = new THREE.Vector3();
+  private startTape() {
+    this.go('tape');
+    this.tapeFrom.copy(this.bodyAt);
+    this.pose = 'stand'; this.poseW = 0;
+    this.cutBlack(0.5, 0.7);
+    this.hands('relaxed', 'relaxed', 0.45);
+    G.audio?.positionalLoop?.('ix_drone', 'seam_drone', this.p.x, this.p.z, 0.2);
   }
-  private sfx(key: string, vol = 0.5) { G.audio?.flat?.(key, 'sfx', vol); }
+  private updTape(dt: number) {
+    const t = this.t, A = this.A, B = this.B;
+    const { x: tx, z: tz } = IX.tape;
+    const stop = new THREE.Vector3(tx, 0, tz + 1.35);
+    // stood up and turned to the far wall
+    const up = ease(clamp01(t / 1.0));
+    this.poseW = up;
+    this.bodyYaw = lerp(-Math.PI / 2, -Math.PI, up);
+    if (t > 0.6 && t < 4.6) {
+      // marched to it, stumbling, a hand in the back
+      const k = ease(clamp01((t - 0.6) / 3.8));
+      this.bodyAt.set(lerp(this.tapeFrom.x, stop.x, k), 0, lerp(this.tapeFrom.z, stop.z, k));
+      this.stepT -= dt;
+      if (this.stepT <= 0) {
+        this.stepT = 0.48; this.trauma = Math.max(this.trauma, 0.22); this.sfx('ix_boot', 0.4);
+        // a stumble now and then: the knee goes
+        if (Math.random() < 0.45) this.jolt((Math.random() - 0.5) * 0.6, -0.5, Math.random() < 0.5 ? 'shin_l' : 'shin_r', 0.45);
+      }
+    }
+    const behind = v2.set(this.bodyAt.x + 0.15, 0, this.bodyAt.z + 0.62);
+    B.walkTo(behind.x, behind.z, 2.4, dt, 0.04); B.face(this.bodyAt.x, this.bodyAt.z - 2);
+    A.walkTo(this.bodyAt.x - 0.95, this.bodyAt.z + 0.1, 2.4, dt, 0.04);
+    if (t > 3.0) A.face(tx, tz); else A.face(this.bodyAt.x, this.bodyAt.z);
+    this.aim(0.0 + Math.sin(t * 0.9) * 0.04, t < 3.6 ? -0.12 : 0.02, Math.sin(t * 1.7) * 0.04, 2);
+    G.audio?.positionalLoop?.('ix_drone', 'seam_drone', this.p.x, this.p.z, Math.min(0.75, 0.2 + t * 0.12));
+    this.at(1.6, 1, () => this.say('OFFICER', 'Through the door, unit.'));
+    this.at(3.4, 2, () => this.say('self', '...that\'s a wall.', 'self'));
+    this.at(4.4, 3, () => { this.say('OFFICER', 'Not from the other side.'); this.set.liqU.uLiq.value = 0.06; this.set.liqU.uHit.value.set(0.05, 0.1); this.set.liqU.uHitT.value = 0; this.sfx('seam_ripple', 0.6); this.stage.pulse(0.4, 0x7ae0ff, 2); });
+    // the wall turns: it lights up from inside and throws its caustic light over everything
+    if (t > 4.4) this.glow = Math.min(1, this.glow + dt * 0.9);
+    this.set.liqU.uGlow.value = this.glow;
+    SU.uPortStr.value = this.glow * 0.75;
+    this.at(5.5, 4, () => { B.play('shove2', 0.8); this.sfx('whoosh', 0.8); this.jolt(0, -1, 'chest', 1.3); });
+    this.set.liqU.uHitT.value += dt;
+    if (t > 5.75) this.startThrough();
+  }
 
-  // ================================================================== skipping & the end
+  // ------------------------------------------------------------------ 7. through
+  private startThrough() {
+    this.go('through');
+    this.hands('open', 'open', 0.2);
+  }
+  private updThrough(dt: number) {
+    const t = this.t, u = this.set.liqU;
+    const { x: tx, z: tz } = IX.tape;
+    // shoved: the body pitches forward into it
+    const k = clamp01(t / 0.32);
+    const z0 = tz + 1.35;
+    if (t < 0.32) { this.bodyAt.z = lerp(z0, tz + 0.2, k * k); this.aim(0.02, -0.05, 0.12, 8); }
+    this.at(0.3, 1, () => {
+      // contact: the wall turns
+      const ex = this.eye.x - tx, ey = this.eye.y - IX.tape.h / 2;
+      u.uHit.value.set(ex, ey); u.uHitT.value = 0;
+      this.sfx('ix_liquid', 1); this.sfx('seam_ripple', 0.9);
+      hitstop(70);
+      this.trauma = Math.max(this.trauma, 0.6);
+      this.stage.pulse(0.3, 0xa0f0ff, 3);
+    });
+    if (t > 0.3) {
+      u.uHitT.value += dt;
+      u.uLiq.value = Math.min(1, 0.06 + (t - 0.3) * 1.6);
+      // through it: the body keeps falling forward, the membrane dents round the face and closes
+      const d = ease(clamp01((t - 0.35) / 1.2));
+      this.bodyAt.z = lerp(tz + 0.2, tz - 0.3, d);
+      const camLocal = fpCamera().position;
+      const depth = Math.max(0, (tz + 0.02) - camLocal.z + 0.07);
+      u.uPush.value.set(camLocal.x - tx, camLocal.y - IX.tape.h / 2, Math.min(0.9, depth));
+      this.wrapA = clamp01((t - 0.45) / 0.8);
+      u.uDark.value = clamp01((t - 0.9) / 0.6);
+      this.stage.kill = clamp01((t - 0.9) / 0.5);
+      this.aim(0.0, -0.08, 0.25 * d, 2);
+    }
+    // inside it the light goes out of it: cold, then dark
+    if (t > 0.3) { this.glow = Math.max(0, this.glow - dt * 1.4); this.set.liqU.uGlow.value = this.glow; SU.uPortStr.value = this.glow * 0.75; }
+    this.at(0.7, 2, () => this.sfx('seam_through', 1));
+    if (t > 1.25) this.shadeA = Math.min(1, (t - 1.25) / 0.25);
+    this.at(1.6, 3, () => { this.toLobby(); });
+    if (t > 3.0) this.startLand();
+    void dt;
+  }
+
+  // ------------------------------------------------------------------ 8. the Lobby
+  private lobbySeam(z: Zone): TileObject | null {
+    for (const o of z.objects.values()) if (o.key === 'seam_door') return o;
+    return null;
+  }
+  /** off the stage, into the world: the survivor is lying in front of the Lobby's Seam */
+  private toLobby() {
+    const g = this.g, p = this.p;
+    this.releaseStage();
+    this.wrapA = 0;
+    const lz = g.getZone('lobby');
+    this.seamL = this.lobbySeam(lz);
+    let x = this.spawn[0], y = this.spawn[1], face = Math.PI * 0.75;
+    if (this.seamL) {
+      const f = seamFaceOf(this.seamL);
+      [x, y] = g.nearestWalkable(lz, Math.floor(f.x + f.nx * 1.6), Math.floor(f.z + f.nz * 1.6));
+      face = Math.atan2(f.nz, f.nx);
+    }
+    g.placePlayer(p, 'lobby', x, y, face);
+    g.net?.onLocalTravel?.('lobby');
+    if (g.view) g.view.vis.enabled = true;
+    p.vx = p.vz = 0; p.speed = 0;
+    this.returnPack();
+    g.camera.setPhotoRig(45 * DEG, g.camera.rig.pitchGoal);
+    g.pr.yaw = 45 * DEG;
+    g.camera.pushIn(0.55, 0.05, -4);
+    this.playPose('prone', 9);
+  }
+  private startLand() {
+    this.go('land');
+    this.letterbox(false);
+    this.root.classList.add('world');
+    this.plate.el.classList.add('on');
+    // the push-in eases out slowly: Dr. Calder's tutorial brings the camera back in close on the unit
+    this.g.camera.pushIn(0, 5.5);
+    if (this.seamL) this.seamFx?.ripple(this.seamL, undefined, 1.6, false);
+    this.sfx('intro_land', 0.8);
+  }
+  private updLand(dt: number) {
+    const t = this.t;
+    this.shadeA = Math.max(0, 1 - t / 1.4);
+    this.lidGoal = t < 0.5 ? 0.6 : 0;
+    this.at(0.3, 1, () => { this.sfx('debtor_gasp', 0.8); });
+    this.at(0.9, 2, () => { this.clearPose(); this.playPose('get_up', 1.6); });
+    this.at(1.6, 3, () => this.say('self', '...where...', 'self'));
+    this.at(2.4, 4, () => this.signal());
+    this.at(3.4, 5, () => { if (this.seamL && !this.sealed) { this.sealed = true; this.seamFx?.setState(this.seamL, true); this.sfx('seam_seal', 0.8); } });
+    // up on its feet, the band lit: Dr. Calder's tutorial takes it from here
+    if (t > 3.6) this.finish();
+    void dt;
+  }
+  /** the band shows a signal: the handler is calling */
+  private signal() {
+    if (this.signalled) return;
+    this.signalled = true;
+    this.sfx('remit_chirp', 0.9);
+    try { (G.holo as any)?.boot?.(); } catch (e) { console.warn('holo.boot', e); }
+    try { (G as any).watch?.signal?.({ from: 'CALDER', kind: 'handler', text: 'LINK UP' }); } catch (e) { console.warn('watch.signal', e); }
+    bus.emit('watchSignal', { from: 'CALDER', kind: 'handler', text: 'LINK UP' });
+  }
+
+  // ================================================================== skipping & cleanup
   skip() {
-    if (this.phase === 'done') return;
+    if (this.phase === 'done' || this.skipping >= 0) return;
+    if (this.phase === 'land') { this.finish(); return; }
+    this.skipping = 0;
+    this.plate.el.classList.remove('on', 'hot');
     G.audio?.flat?.('static_burst', 'sfx', 0.3);
+  }
+
+  /** jump to where the script ends: in Level 0, banded, the Seam shut (then the tutorial) */
+  private toEnd() {
+    const p = this.p;
+    if (this.staged || p.zoneKey !== 'lobby') this.toLobby();
+    this.clearPose();
+    p.full = '';
+    p.vx = p.vz = 0; p.speed = 0;
+    if (!this.beaten) {
+      this.beaten = true;
+      for (const s of STRIKES) { const inj = p.body.addInjury(s.part, s.inj, s.sev * 0.8); if (s.inj === 'laceration') inj.bleed = Math.min(inj.bleed, 0.05); }
+      p.body.panic = Math.max(p.body.panic, 60);
+    }
+    if (!this.pierced) { this.pierced = true; const inj = p.body.addInjury('farm_l', 'deep', 0.22); inj.bleed = Math.min(inj.bleed, 0.05); }
+    this.fitBand();
+    this.returnPack();
+    if (this.seamL && !this.sealed) { this.sealed = true; this.seamFx?.setState(this.seamL, true); }
+    const g = this.g;
+    g.camera.pushIn(0, 0.5);
+    g.pr.setZoomLevel(g.camZoom);
+    this.letterbox(false);
+    this.lidGoal = 0; this.lid = 0; this.wrapA = 0; this.desat = 0;
+    this.signal();
+    this.go('land');
+    (g as any).touch?.setHidden?.(false);
+    document.body.classList.remove('noclip-cine');
+    g.attract = null;
     this.finish();
+  }
+
+  private returnPack() {
+    const p = this.p, k = this.pack;
+    this.pack = null;
+    if (!k) return;
+    if (!p.allItems().includes(k)) p.inv.add(k);
+    if (!p.worn.get('back')) p.wear(k);
+    bus.emit('inventoryChanged', p);
   }
 
   finish() {
     if (this.phase === 'done') return;
     const g = this.g, p = this.p;
+    if (p.zoneKey === INTRO_ZONE || this.staged) { this.toEnd(); return; }
     this.phase = 'done';
-    this.releaseStage();
-    eyeExit();
-    this.clearPose();
-    for (const off of [...this.inputOffs.splice(0), ...this.offs.splice(0)]) { try { off(); } catch (e) { console.error(e); } }
-    G.input.pointerOverUI = false;
     (g as any).touch?.setHidden?.(false);
     document.body.classList.remove('noclip-cine');
     g.attract = null;
-    p.full = '';
+    this.clearPose(); p.full = '';
+    this.returnPack();
+    try { PACK['./arrivalKit/pack.ts']?.ensurePack?.(p); } catch (e) { console.warn(e); }
     p.y = g.getZone(p.zoneKey).heightAt(p.tileX(), p.tileY());
-    try { (G.band as any)?.fit?.(p, { silent: true }); } catch (e) { console.warn('band.fit', e); }
-    try { ensurePack(p); } catch (e) { console.warn(e); }
-    try { (G.holo as any)?.boot?.(); } catch { /* no band HUD */ }
+    for (const off of this.offs.splice(0)) { try { off(); } catch (e) { console.error(e); } }
+    G.input.pointerOverUI = false;
+    const fx = g.pr.fx;
+    fx.corruptFlash = 0; fx.glitch = 0; fx.dream = 0;
+    U.uCollapse.value = 0;
+    if (this.seamL && !this.sealed) { this.sealed = true; this.seamFx?.setState(this.seamL, true); }
+    this.canvas.style.filter = '';
     this.plate.destroy();
-    this.subs.destroy();
-    this.icom.destroy();
     this.root.remove();
+    // nothing that happened on the stage belongs in the world's history or in co-op
+    for (let i = opLog.length - 1; i >= 0; i--) {
+      const r = opLog[i];
+      if (r.includes(`"z":"${INTRO_ZONE}"`) || r.includes(`:${INTRO_ZONE}"`) || r.includes(`:${INTRO_ZONE}:`)) opLog.splice(i, 1);
+    }
     const m = this.missions;
+    if (m?.flags) for (const f of [...m.flags] as string[]) if (f.endsWith(':' + INTRO_ZONE) || f.includes(':' + INTRO_ZONE + ':')) m.flags.delete(f);
+    // the systems list is being iterated right now: hand the directives back (and drop ourselves) after this frame
     queueMicrotask(() => {
       const i = g.systems.indexOf(this);
       if (i >= 0) g.systems.splice(i, 1);
       if (m && !g.systems.includes(m)) g.systems.splice(Math.max(0, Math.min(this.missionsAt, g.systems.length)), 0, m);
+      if (g.view?.zone.key !== INTRO_ZONE) g.zones.delete(INTRO_ZONE);
     });
     m?.set?.('contract:intake');
+    // the beating and the bolt stay in the cutscene: play starts unhurt
     freshStart(p);
+    this.subs?.destroy();
     const h = G.handler as any;
     if (h) { h.scripted = false; h.cine = false; h.gaze = null; h.briefed = true; }
-    // the staged tutorial takes it from here (Dr. Calder walks you through the job)
+    // Dr. Calder's tutorial takes it from here, in the normal game view (the handler's soft guide stands down while it runs)
     try { startTutorial(g); } catch (e) { console.warn('tutorial', e); }
     h?.begin?.();
     bus.emit('introDone', p);
@@ -587,11 +1976,43 @@ export class Intro implements GameSystem {
   // ================================================================== dev: jump around the script (screenshots)
   debugJump(phase: Phase, t = 0) {
     const run = (n: number) => { for (let i = 0; i < n; i++) this.update(0.05); };
-    this.q.length = 0; this.lineT = -1;
-    if (phase === 'done') { this.finish(); return; }
-    if (phase !== 'link' && this.phase === 'link') this.go('wake');
-    if (phase === 'tour') { this.go('tour'); eyeExit(); eyeEnter({ pitchDeg: 7, fov: 62 }); }
+    if (this.sig) { this.sig.destroy(); this.sig = null; this.stage.enabled = true; }
+    if (this.phase === 'signal') this.go('drag');
+    this.shadeA = 0; this.lidGoal = 0; this.lid = 0;
+    const at = (pts: [number, number][], end = false) => { this.startDrag(pts, 1.3); if (end) { this.path!.s = this.path!.len; this.along(this.path!.s, this.bodyAt); } this.updBody(0.016); this.placeGuardsForDrag(true); };
+    switch (phase) {
+      case 'drag': break;
+      case 'throw': at(IX.drag1, true); this.startThrow(); break;
+      case 'beat': at(IX.drag1, true); this.startThrow(); run(31); break;
+      case 'haul': at(IX.drag1); this.beaten = true; this.startHaul(); break;
+      case 'fit': at(IX.drag2, true); this.beaten = true; this.set.startPress(0.5); this.startFit(); break;
+      case 'tape': this.debugJump('fit', FIT.end + 0.05); return void (t && run(Math.ceil(t / 0.05)));
+      case 'through': this.debugJump('tape', 5.8); return void (t && run(Math.ceil(t / 0.05)));
+      case 'land': this.debugJump('through', 1.7); run(30); return void (t && run(Math.ceil(t / 0.05)));
+      case 'signal': break;
+      case 'done': this.finish(); return;
+    }
     if (t) run(Math.ceil(t / 0.05));
   }
 }
-void DEG; void wrap;
+const CYCLE_RISE = 0.62;
+const TMP_C = new THREE.Color();
+const POLE_A = new THREE.Vector3(0.3, -1, 0.4), POLE_B = new THREE.Vector3(-0.3, -1, 0.4);
+const wrapA = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
+
+/** the fitting station's beats (seconds into 'fit') */
+const FIT = { grab: 1.3, slam: 1.82, clamp: 2.62, down0: 3.15, stamp: 5.25, lift: 6.05, fitted: 6.95, release: 7.3, pull: 7.85, up: 9.35, end: 9.85 };
+const easeIn = (k: number) => { k = clamp01(k); return k * k * k; };
+const easeOut = (k: number) => { k = clamp01(k); return 1 - (1 - k) * (1 - k) * (1 - k); };
+const M1 = new THREE.Matrix4(), M2 = new THREE.Matrix4(), M3 = new THREE.Matrix4(), M4 = new THREE.Matrix4(), M5 = new THREE.Matrix4(), M6 = new THREE.Matrix4(), M7 = new THREE.Matrix4();
+const V0 = new THREE.Vector3(), V1 = new THREE.Vector3(), V2 = new THREE.Vector3(), V3 = new THREE.Vector3(), V4 = new THREE.Vector3(), V5 = new THREE.Vector3(), V6 = new THREE.Vector3(), V7 = new THREE.Vector3();
+const BX = new THREE.Vector3(), BY = new THREE.Vector3(), BZ = new THREE.Vector3();
+const Q0 = new THREE.Quaternion(), E0 = new THREE.Euler(), S0 = new THREE.Vector3();
+const bA = { p: new THREE.Vector3(), q: new THREE.Quaternion(), s: new THREE.Vector3() }, bB = { p: new THREE.Vector3(), q: new THREE.Quaternion(), s: new THREE.Vector3() };
+/** blend two rigid transforms (position lerp, rotation slerp; the scale of the first) */
+function blendM(a: THREE.Matrix4, b: THREE.Matrix4, k: number, out: THREE.Matrix4) {
+  a.decompose(bA.p, bA.q, bA.s); b.decompose(bB.p, bB.q, bB.s);
+  bA.p.lerp(bB.p, k); bA.q.slerp(bB.q, k);
+  return out.compose(bA.p, bA.q, bA.s);
+}
+function scaleHex(c: number, f: number) { return (Math.round(((c >> 16) & 255) * f) << 16) | (Math.round(((c >> 8) & 255) * f) << 8) | Math.round((c & 255) * f); }

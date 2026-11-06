@@ -19,6 +19,9 @@
 //   curio       the anomalous objects themselves (a melted watch, a faceless doll, a cube in a cube, a phone
 //               with a knotted cord, a mask, a key too long, a black shard, a jar of teeth, an hourglass that
 //               runs up, the melted gummy bear) and blob (the split-bear itself, life size)
+// With the dresser's pokes set (rooms/pokes.ts) the kit's props answer a press:
+// valves turn and hiss, the vault wheel grinds a quarter turn, a dossier opens,
+// the jelly quivers, keypads refuse you, and each puts up its note.
 import * as THREE from 'three';
 import type { FMats } from '../scene/pixtex';
 import { FacetBuilder, at, cbox, prism, lathe, extrude, hull, tube, bolt, gem, C, LedBank, blink, busy, glowCard, plate, crtSet, type V3 } from '../monitor/props';
@@ -26,6 +29,7 @@ import { band as ring, jitter, flat } from '../scene/facet';
 import { feedTube, type FeedTube } from '../monitor/feed';
 import { shaftMesh } from '../scene/fx';
 import type { Dresser } from './dress';
+import { NOTES, placardNote, curioNote } from './pokeNotes';
 import type { SinRank } from '../../../creatures/lore';
 import {
   placardTex, signTex, crestTex, pageTex, folderTex, wiredGlassTex, rackTex, keypadTex, bioTex, readoutTex, frostTex, stencilTex, pipeBandTex,
@@ -33,6 +37,7 @@ import {
 } from './vaultTex';
 
 const T = (m: THREE.Matrix4, l: THREE.Matrix4) => m.clone().multiply(l);
+const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 /** a transform at p whose local +Z is z and whose +X lies along xHint (made square to z) */
 function basis(p: THREE.Vector3, z: THREE.Vector3, xHint: THREE.Vector3): THREE.Matrix4 {
   const Z = z.clone().normalize();
@@ -109,7 +114,8 @@ export class Vault {
   private screens: RedactScreen[] = [];
   private tubes: FeedTube[] = [];
   private fogs: { uTime: { value: number } }[] = [];
-  private beacons: { spin: THREE.Object3D; ph: number }[] = [];
+  private beacons: { spin: THREE.Object3D; ph: number; a: number; v: number }[] = [];
+  private get pk() { return this.d.pokes; }
   private glass: THREE.Texture | null = null;
   /** world points of the cells' and the cases' own lamps (the room may hang a light at one) */
   readonly lamps: { p: THREE.Vector3; color: number; kind: string }[] = [];
@@ -144,12 +150,14 @@ export class Vault {
     this.b.add('metal', cbox(w + 0.03, h + 0.03, 0.012, 0.004), 0x2a2e32, T(m, at(0, 0, 0.006)));
     for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) this.b.add('chrome', bolt(0.007, 0.005), 0xffffff, T(m, at(sx * (w / 2 + 0.006), sy * (h / 2 + 0.006), 0.012, Math.PI / 2)));
     this.add(card(placardTex(rank, { cls: o.cls, cell: o.cell }), w, h), T(m, at(0, 0, 0.0135)));
+    this.pk?.add({ key: 'placard', label: 'Containment placard', sub: `${rank} · ${o.cls ?? 'unclassed'}`, m, box: [w + 0.04, h + 0.04, 0.05], c: [0, 0, 0.01], notes: [placardNote(rank, o.cls, o.cell)], sounds: [{ s: 'tink', v: 0.6 }] });
   }
   /** a warning sign (w wide, 96:120) */
   sign(m: THREE.Matrix4, kind: SignKind, w = 0.22) {
     const h = w * 1.25;
     this.b.add('metal', cbox(w + 0.012, h + 0.012, 0.008, 0.003), 0x3a3e42, T(m, at(0, 0, 0.004)));
     this.add(card(signTex(kind), w, h), T(m, at(0, 0, 0.0085)));
+    this.pk?.add({ key: 'sign', label: 'Warning sign', sub: 'read it twice', m, box: [w + 0.02, h + 0.02, 0.04], c: [0, 0, 0.01], notes: NOTES.sign, sounds: [{ s: 'tink', v: 0.5 }] });
   }
   /** the Institute's crest, cast: a bronze rim, a dark enamel field, the seal in gilt (r = radius) */
   crest(m: THREE.Matrix4, r = 0.25) {
@@ -157,12 +165,15 @@ export class Vault {
     this.b.add('bakelite', prism(r * 0.96, 0.012, 24), 0x1a2a3a, T(m, at(0, 0, r * 0.1, Math.PI / 2)));
     for (let i = 0; i < 12; i++) { const a = (i / 12) * Math.PI * 2; this.b.add('brass', bolt(r * 0.03, r * 0.02), 0xd8b070, T(m, at(Math.cos(a) * r * 1.03, Math.sin(a) * r * 1.03, r * 0.11, Math.PI / 2))); }
     this.add(card(crestTex(96, '#e8c878', '#2a3a4c'), r * 1.9, r * 1.9, 'alpha'), T(m, at(0, 0, r * 0.1 + 0.008)));
+    this.pk?.add({ key: 'crest', label: 'The Meridian crest', sub: 'cast bronze, 1961', m, box: [r * 2.3, r * 2.3, 0.08], c: [0, 0, 0.03], notes: NOTES.crest, sounds: [{ g: 'metal_clank', v: 0.45 }], blip: 0xffd890 });
   }
   /** a keypad on its housing */
   keypad(m: THREE.Matrix4) {
     this.b.add('metal', cbox(0.11, 0.155, 0.035, 0.008), 0x3a3e42, T(m, at(0, 0, 0.017)));
     this.add(card(kp ??= keypadTex(), 0.09, 0.135), T(m, at(0, 0, 0.0355)));
     this.led(m, 0.04, 0.072, 0.036, 0xff3a1a, { size: 0.005, pattern: blink(0.7, 0.85) });
+    this.pk?.add({ key: 'keypad', label: 'Keypad', sub: 'clearance 4', m, box: [0.13, 0.18, 0.07], c: [0, 0, 0.02], notes: NOTES.keypad, blip: 0xff3a1a,
+      sounds: [{ g: 'band_beep', v: 0.4 }, { g: 'band_beep', v: 0.4, d: 130 }, { g: 'band_beep', v: 0.4, d: 260 }, { s: 'error', v: 0.6, d: 420 }] });
   }
   /** a palm reader: a hooded glass plate that glows */
   biolock(m: THREE.Matrix4) {
@@ -170,6 +181,7 @@ export class Vault {
     this.b.add('metal', cbox(0.13, 0.02, 0.07, 0.006), 0x2a2e32, T(m, at(0, 0.09, 0.04)));
     this.add(card(bio ??= bioTex(), 0.1, 0.15, 'emit'), T(m, at(0, 0, 0.0505)));
     this.led(m, -0.045, 0.072, 0.052, 0x3aff6a, { size: 0.005, pattern: blink(0.25, 0.1) });
+    this.pk?.add({ key: 'bio', label: 'Palm reader', sub: 'lay a hand on the glass', m, box: [0.14, 0.2, 0.08], c: [0, 0, 0.03], notes: NOTES.biolock, blip: 0x6aff8a, sounds: [{ s: 'scan', v: 0.6 }, { g: 'buzzer', v: 0.35, d: 700 }] });
   }
   /** a status lamp: a caged dome over a bulb (red, amber or green), steady or blinking */
   lamp(m: THREE.Matrix4, color = 0xff2a1a, pattern?: (t: number) => number) {
@@ -206,8 +218,10 @@ export class Vault {
     const beam = new THREE.Mesh(beamG, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, side: THREE.DoubleSide }));
     beam.userData.noGlow = true; beam.renderOrder = 3; spin.add(beam);
     this.add(spin, T(m, at(0, 0.055, 0.09)));
-    this.beacons.push({ spin, ph: (seedN++ % 7) * 0.9 });
+    const bc = { spin, ph: (seedN++ % 7) * 0.9, a: 0, v: 4.2 };
+    this.beacons.push(bc);
     this.lamps.push({ p: P(m, 0, 0.1, 0.09), color, kind: 'beacon' });
+    this.pk?.add({ key: 'beacon', label: 'Alarm beacon', sub: 'it has not stopped in eleven years', m, box: [0.18, 0.26, 0.22], c: [0, 0.1, 0.09], notes: NOTES.beacon, blip: color, sounds: [{ s: 'klaxon', v: 0.35 }], act: () => { bc.v = 26; } });
   }
   /** 0..1: how much a beacon's beam faces the room now (a pulsing light can follow it) */
   beaconK(t: number) { return Math.pow(Math.max(0, Math.sin(t * 4.2)), 3); }
@@ -225,7 +239,17 @@ export class Vault {
       const M = T(m, at(x, y, z, 0, ry));
       this.b.add('sponge', cbox(0.23, 0.012, 0.3, 0.002), 0xc8a868, T(M, at(0, 0.006, 0)));
       this.b.add('sponge', cbox(0.08, 0.008, 0.03, 0.002), 0xc8a868, T(M, at(-0.06, 0.006, -0.16)));
-      this.add(card(folderTex(Math.floor(R() * 9999), o.rank ?? ranks[Math.floor(R() * 7)]), 0.22, 0.29), T(M, at(0, 0.0125, 0, -Math.PI / 2)));
+      const fc = card(folderTex(Math.floor(R() * 9999), o.rank ?? ranks[Math.floor(R() * 7)]), 0.22, 0.29);
+      if (i === n - 1) {
+        // the top folder's cover is hinged at its spine: a poke opens it
+        const hinge = new THREE.Group(); hinge.applyMatrix4(T(M, at(-0.11, 0.0125, 0)));
+        fc.rotation.x = -Math.PI / 2; fc.position.x = 0.11; hinge.add(fc); this.group.add(hinge);
+        const page = card(pageTex(Math.floor(R() * 9999), { photo: true, rank: o.rank }), 0.2, 0.27);
+        page.applyMatrix4(T(M, at(0, 0.0122, 0, -Math.PI / 2))); this.group.add(page);
+        let openT = 0;
+        this.anims.push({ o: hinge, f: (h, _t, dt) => { openT = Math.max(0, openT - dt); h.rotation.z = damp(h.rotation.z, openT > 0 ? 2.6 : 0, openT > 0 ? 6 : 4, dt); } });
+        this.pk?.add({ key: 'dossier', label: 'Dossiers', sub: 'eyes only', m: T(m, at(x, 0, z)), box: [0.3, 0.1, 0.34], c: [0, 0.03, 0], notes: NOTES.dossiers, sounds: [{ g: 'paper', v: 0.6 }, { g: 'paper', v: 0.4, d: 3200 }], act: () => { openT = 3.4; } });
+      } else this.add(fc, T(M, at(0, 0.0125, 0, -Math.PI / 2)));
       y += 0.0125;
     }
     if (o.open !== false) {
@@ -244,6 +268,7 @@ export class Vault {
     this.add(card(evidenceTex(seedN++, Math.round(w * 160), Math.round(h * 160)), w, h), T(m, at(0, 0, 0.031)));
     this.b.add('wood', cbox(w * 0.6, 0.02, 0.05, 0.004), 0x5a3a22, T(m, at(0, -h / 2 - 0.04, 0.03)));
     this.b.add('bakelite', prism(0.006, 0.12, 5), 0xc8301e, T(m, at(-0.1, -h / 2 - 0.022, 0.04, 0, 0, Math.PI / 2)));
+    this.pk?.add({ key: 'cork', label: 'Evidence board', sub: 'red string, open case', m, box: [w + 0.06, h + 0.06, 0.06], c: [0, 0, 0.02], notes: NOTES.corkboard, sounds: [{ g: 'paper', v: 0.6 }, { s: 'clip', v: 0.4, d: 120 }] });
   }
 
   // ================================================================ floor
@@ -322,9 +347,17 @@ export class Vault {
     const R = Math.max(0.07, r * 1.8);
     this.b.add('metal', hull([[-r * 1.3, -r * 1.2, -r], [r * 1.3, -r * 1.2, -r], [-r * 1.3, r * 1.2, -r], [r * 1.3, r * 1.2, -r], [-r, -r, r * 0.9], [r, -r, r * 0.9], [-r, r, r * 0.9], [r, r, r * 0.9]]), 0x6a5a4a, m.clone());
     this.b.add('metal', prism(0.01, r + 0.08, 6), C.steel, T(m, at(0, 0, r + 0.04, Math.PI / 2)));
-    this.b.add('paint', ring(R, R, 0.016, 0.016, 12), 0xb82a1e, T(m, at(0, 0, r + 0.08, Math.PI / 2)));
-    for (let i = 0; i < 4; i++) this.b.add('paint', cbox(0.01, R * 2, 0.01, 0.002), 0xb82a1e, T(m, at(0, 0, r + 0.08, 0, 0, (i * Math.PI) / 4 + 0.3)));
-    this.b.add('metal', bolt(0.02, 0.02), C.steel, T(m, at(0, 0, r + 0.085, Math.PI / 2)));
+    const wb = new FacetBuilder();
+    wb.add('paint', ring(R, R, 0.016, 0.016, 12), 0xb82a1e, at(0, 0, 0, Math.PI / 2));
+    for (let i = 0; i < 4; i++) wb.add('paint', cbox(0.01, R * 2, 0.01, 0.002), 0xb82a1e, at(0, 0, 0, 0, 0, (i * Math.PI) / 4 + 0.3));
+    wb.add('metal', bolt(0.02, 0.02), C.steel, at(0, 0, 0.005, Math.PI / 2));
+    const hub = new THREE.Group(); hub.applyMatrix4(T(m, at(0, 0, r + 0.08)));
+    const wheel = wb.build(this.mats); hub.add(wheel); this.group.add(hub);
+    let goal = 0;
+    this.anims.push({ o: wheel, f: (o2, _t, dt) => { o2.rotation.z = damp(o2.rotation.z, goal, 3.2, dt); } });
+    const out = P(m, 0, 0, r + 0.12);
+    this.pk?.add({ key: 'valve', label: 'Valve', sub: 'a quarter turn only', m, box: [R * 2.4, R * 2.4, 0.14], c: [0, 0, r + 0.06], notes: NOTES.valve,
+      sounds: [{ s: 'ratchet', v: 0.5 }, { g: 'cy_hiss', v: 0.55, d: 180 }, { s: 'hiss', v: 0.4, d: 260 }], puff: { color: 0xd8e4e8, n: 14, up: 0.3, at: [out.x, out.y, out.z] }, act: () => { goal -= Math.PI / 2; } });
   }
 
   // ================================================================ machines
@@ -354,6 +387,7 @@ export class Vault {
     // the lamps' spill on the floor in front
     const spill = glowCard(w * 1.6, 0.9, 0x6ab8ff, 0.07); spill.applyMatrix4(T(m, at(0, 0.006, d / 2 + 0.4, -Math.PI / 2))); this.group.add(spill);
     this.lamps.push({ p: P(m, 0, h * 0.6, d / 2 + 0.3), color: 0x3aff7a, kind: 'rack' });
+    this.pk?.add({ key: 'rack', label: o.label ?? 'Server rack', sub: 'drives humming', m, box: [w, h, d], c: [0, h / 2, 0], notes: NOTES.rack, blip: 0x6ab8ff, sounds: [{ g: 'cy_servo', v: 0.45 }, { g: 'band_beep', v: 0.3, d: 200 }] });
   }
   /** a CRT terminal scrolling redacted text: on a wall arm (m on the wall) or standing on a desk (m on the surface) */
   terminal(m: THREE.Matrix4, o: { w?: number; arm?: number; tint?: number; head?: string; i?: number; color?: number } = {}) {
@@ -377,6 +411,7 @@ export class Vault {
     tb.setFeed(scr.tex, false); tb.mat.uniforms.uGain.value = 1.5;
     this.group.add(tb.mesh); this.tubes.push(tb);
     this.lamps.push({ p: spot.center.clone().add(new THREE.Vector3(Math.sin(ry), 0, Math.cos(ry)).multiplyScalar(0.3)), color: o.tint ?? 0x9dff9a, kind: 'crt' });
+    this.pk?.add({ key: 'term', label: 'Terminal', sub: o.head ?? 'Meridian net', m: spot.m, box: [spot.sw * 1.4, spot.sh * 1.5, 0.35], c: [0, 0, -0.12], notes: NOTES.terminal, blip: o.tint ?? 0x9dff9a, sounds: [{ g: 'terminal', v: 0.5 }, { s: 'type', v: 0.4, d: 160 }] });
   }
 
   // ================================================================ cells and cases
@@ -423,8 +458,9 @@ export class Vault {
     const f2 = fogLayer(w, d, lc, 0.1, seedN++); f2.mesh.applyMatrix4(T(m, at(0, 0.3, -d / 2))); this.group.add(f2.mesh); this.fogs.push(f2.u);
     // what it holds
     const mid = T(m, at(0, 0, -d * 0.52));
+    let held: THREE.Object3D | null = null;
     switch (o.holds) {
-      case 'blob': this.add(blob(this.mats, this.anims, 0.62), T(mid, at(0, 0, 0, 0, 0.6))); break;
+      case 'blob': held = this.add(blob(this.mats, this.anims, 0.62), T(mid, at(0, 0, 0, 0, 0.6))); break;
       case 'restraint': this.restraintChair(T(mid, at(0, 0, -d * 0.12))); break;
       case 'chains': this.restraints(T(m, at(0, h * 0.55, -d + 0.03)), w * 0.7); break;
       case 'empty': break;
@@ -433,8 +469,15 @@ export class Vault {
         b.add('metal', cbox(0.42, 0.04, 0.42, 0.008), 0x4a5054, T(mid, at(0, 0.8, 0)));
         b.add('lamp', cbox(0.3, 0.004, 0.3, 0.001), lc, T(mid, at(0, 0.822, 0)));
         const cu = curio(o.holds, this.mats, this.anims);
-        this.add(cu, T(mid, at(0, 0.98, 0, 0, 0.5)));
+        held = this.add(cu, T(mid, at(0, 0.98, 0, 0, 0.5)));
       }
+    }
+    if (this.pk) {
+      const kick = held ? this.pk.wobble(held, o.holds === 'blob' ? 1.6 : 0.8) : null;
+      const blobby = o.holds === 'blob';
+      this.pk.add({ key: 'cell:' + o.id, label: 'Cell ' + o.id, sub: blobby ? 'tap the glass · it quivers' : 'containment', m, box: [w, h, 0.25], c: [0, h / 2, 0.02],
+        notes: blobby ? NOTES.cell : [placardNote(o.rank, o.cls, o.id), ...(o.holds in CURIO_NAME ? [curioNote(o.holds as CurioKind)] : [])],
+        sounds: [{ g: 'knock', v: 0.6 }, ...(blobby ? [{ g: 'bh_squelch', v: 0.6, d: 160 }, { g: 'gore_squelch', v: 0.35, d: 420 }] : [{ g: 'glass_clink', v: 0.4, d: 120 }])], act: () => { kick?.(blobby ? 9 : 5); setTimeout(() => kick?.(blobby ? 5 : 2), 380); } });
     }
     // the front: wired glass in a bolted frame, a mullion, the gasket, a hazard sill
     const gl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), glassMat(this.wired(), w, h));
@@ -478,7 +521,8 @@ export class Vault {
     this.lamps.push({ p: P(m, 0, y0 + gh * 0.7, 0), color: lc, kind: 'case' });
     // the object, a little stand
     b.add('metal', prism(0.04, 0.03, 8), 0x8a9294, T(m, at(0, y0 + 0.015, 0)));
-    this.add(curio(kind, this.mats, this.anims), T(m, at(0, y0 + 0.2, 0, 0, 0.4)));
+    const cu = this.add(curio(kind, this.mats, this.anims), T(m, at(0, y0 + 0.2, 0, 0, 0.4)));
+    if (this.pk) { const kick = this.pk.wobble(cu, 1.2); this.pk.add({ key: 'vit:' + kind, label: CURIO_NAME[kind], sub: 'a curio in its case', m, box: [w + 0.04, ph + gh, w + 0.04], c: [0, (ph + gh) / 2, 0], notes: [curioNote(kind)], sounds: [{ g: 'glass_clink', v: 0.6 }, { s: 'hum', v: 0.3, d: 200 }], blip: lc, act: () => kick(7) }); }
     // the brass plate and the rank tab on the plinth's face
     const pl = plate(this.mats, [CURIO_NAME[kind]], w * 0.82, 0.07, { bg: 0xb89850, ink: 0x2a1a08, px: 520 });
     pl.applyMatrix4(T(m, at(0, ph - 0.12, w / 2 + 0.002))); this.group.add(pl);
@@ -509,9 +553,15 @@ export class Vault {
     for (const yy of [h * 0.52]) b.add('hazard', cbox(w - 0.06, 0.1, 0.03, 0.004), 0xffffff, T(L, at(0, yy, 0.125)), { rep: 0.3 });
     const wy = h * 0.52;
     b.add('metal', prism(0.12, 0.08, 12), 0x3a4044, T(L, at(0, wy, 0.17, Math.PI / 2)));
-    b.add('paint', ring(0.26, 0.26, 0.04, 0.035, 16), 0xb8301e, T(L, at(0, wy, 0.26, Math.PI / 2)));
-    for (let i = 0; i < 3; i++) b.add('paint', cbox(0.03, 0.5, 0.03, 0.006), 0xb8301e, T(L, at(0, wy, 0.25, 0, 0, (i * Math.PI) / 3)));
-    b.add('chrome', prism(0.05, 0.08, 8), 0xffffff, T(L, at(0, wy, 0.25, Math.PI / 2)));
+    // the locking wheel is its own part: a poke grinds it a quarter turn, and it creeps back
+    const wb = new FacetBuilder();
+    wb.add('paint', ring(0.26, 0.26, 0.04, 0.035, 16), 0xb8301e, at(0, 0, 0.005, Math.PI / 2));
+    for (let i = 0; i < 3; i++) wb.add('paint', cbox(0.03, 0.5, 0.03, 0.006), 0xb8301e, at(0, 0, -0.005, 0, 0, (i * Math.PI) / 3));
+    wb.add('chrome', prism(0.05, 0.08, 8), 0xffffff, at(0, 0, -0.005, Math.PI / 2));
+    const wheelHub = new THREE.Group(); wheelHub.applyMatrix4(T(L, at(0, wy, 0.255)));
+    const wheel = wb.build(this.mats); wheelHub.add(wheel); this.group.add(wheelHub);
+    let turnT = 0;
+    this.anims.push({ o: wheel, f: (o2, _t, dt) => { turnT = Math.max(0, turnT - dt); o2.rotation.z = damp(o2.rotation.z, turnT > 0 ? -Math.PI / 2 : 0, turnT > 0 ? 2.4 : 0.8, dt); } });
     for (const s of [-1, 1]) for (const yy of [h * 0.22, h * 0.78]) {
       b.add('chrome', cbox(0.16, 0.08, 0.08, 0.02), 0xffffff, T(L, at(s * (w / 2 - 0.13), yy, 0.14)));
       b.add('metal', cbox(0.08, 0.1, 0.05, 0.01), 0x2a2e30, T(L, at(s * (w / 2 - 0.02), yy, 0.13)));
@@ -542,12 +592,15 @@ export class Vault {
     this.keypad(T(m, at(sd * (w / 2 + J + 0.14), 1.05, 0)));
     if (o.rank) this.placard(T(m, at(sd * (w / 2 + J + 0.22), 1.75, 0)), o.rank, { w: 0.22, cell: o.id ?? 'B' });
     if (o.sign !== false) this.sign(T(m, at(-sd * (w / 2 + J + 0.16), 1.55, 0)), 'auth', 0.2);
+    this.pk?.add({ key: 'vault', label: o.name ?? 'Vault B', sub: 'sealed · the wheel', m, box: [w, h, 0.5], c: [0, h / 2, 0.15], notes: NOTES.blastDoor,
+      sounds: [{ s: 'ratchet', v: 0.7 }, { s: 'gear', v: 0.5, d: 200 }, { g: 'door_locked', v: 0.6, d: 1500 }, { s: 'slam', v: 0.3, d: 1600 }], act: () => { turnT = 1.5; } });
   }
 
   // ================================================================ services
   /** a decontamination shower standing at m (open front +Z) */
   decon(m: THREE.Matrix4, o: { w?: number; d?: number; h?: number } = {}) {
     const w = o.w ?? 0.95, d = o.d ?? 0.95, h = o.h ?? 2.3, b = this.b;
+    { const sp = P(m, 0, h - 0.3, 0); this.pk?.add({ key: 'decon', label: 'Decontamination shower', sub: 'ninety seconds after every crossing', m, box: [w, h, d], c: [0, h / 2, 0], notes: NOTES.decon, sounds: [{ s: 'spray', v: 0.6 }, { s: 'hiss', v: 0.5, d: 100 }, { g: 'drip', v: 0.4, d: 900 }], puff: { color: 0xc8e0f0, n: 18, up: -0.4, at: [sp.x, sp.y, sp.z] } }); }
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('metal', cbox(0.06, h, 0.06, 0.01), 0xc8c8c0, T(m, at(sx * w / 2, h / 2, sz * d / 2)));
     for (const sz of [-1, 1]) b.add('metal', cbox(w + 0.06, 0.08, 0.06, 0.01), 0xc8c8c0, T(m, at(0, h - 0.04, sz * d / 2)));
     for (const sx of [-1, 1]) b.add('metal', cbox(0.06, 0.08, d + 0.06, 0.01), 0xc8c8c0, T(m, at(sx * w / 2, h - 0.04, 0)));
@@ -596,6 +649,7 @@ export class Vault {
   }
   /** dressing for a sample cold store whose glass front is the w x h rectangle at m (+Z out) */
   coldStore(m: THREE.Matrix4, w: number, h: number, o: { readout?: string; frost?: boolean } = {}) {
+    this.pk?.add({ key: 'cold', label: 'Cold store', sub: o.readout ?? '-80°C', m, box: [w, h, 0.08], c: [0, 0, 0.02], notes: NOTES.coldStore, sounds: [{ g: 'fridge_open', v: 0.4 }, { s: 'hum', v: 0.3, d: 200 }], puff: { color: 0xd8f0ff, n: 10, up: -0.1 } });
     if (o.frost !== false) { const fr = frostCard(w, h); fr.applyMatrix4(T(m, at(0, 0, 0.004))); this.group.add(fr); }
     const ro = card(readoutTex(o.readout ?? '-80°C'), 0.16, 0.05, 'emit');
     ro.applyMatrix4(T(m, at(w / 2 - 0.12, h / 2 + 0.11, 0.02))); this.group.add(ro);
@@ -605,6 +659,7 @@ export class Vault {
   /** a liquid nitrogen dewar on its castor dolly (m on the floor) with a hose and its gauge */
   dewar(m: THREE.Matrix4) {
     const b = this.b;
+    { const top = P(m, 0, 1.3, 0); this.pk?.add({ key: 'dewar', label: 'Nitrogen dewar', sub: 'LN2 · 180 L', m, box: [0.5, 1.3, 0.5], c: [0, 0.65, 0], notes: NOTES.dewar, sounds: [{ g: 'cy_hiss', v: 0.6 }, { s: 'hiss', v: 0.4, d: 150 }], puff: { color: 0xe8f4ff, n: 16, up: 0.25, at: [top.x, top.y, top.z] } }); }
     b.add('metal', cbox(0.5, 0.05, 0.5, 0.01), C.dark, T(m, at(0, 0.08, 0)));
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('rubber', prism(0.035, 0.03, 8), 0x1a1a1a, T(m, at(sx * 0.2, 0.035, sz * 0.2, Math.PI / 2)));
     b.add('chrome', lathe([[0, 0], [0.2, 0], [0.22, 0.06], [0.22, 0.95], [0.16, 1.08], [0.08, 1.12], [0, 1.12]], 14), 0xc8d0d4, T(m, at(0, 0.1, 0)), { rep: 0.4 });
@@ -623,6 +678,8 @@ export class Vault {
   /** an observation window at m (centre of the glass, +Z toward the viewer): mirror = a one-way mirror with watchers behind */
   obsWindow(m: THREE.Matrix4, o: { w?: number; h?: number; mirror?: boolean; shutter?: number; label?: string[]; intercom?: 'below' | 'side' } = {}): THREE.Mesh {
     const w = o.w ?? 1.6, h = o.h ?? 0.95, b = this.b, F = 0.12;
+    // a one-way mirror answers a tap itself (a clear window is the room's own prop: it looks into a cell)
+    if (o.mirror) this.pk?.add({ key: 'mirror', label: 'One-way mirror', sub: 'operators behind the glass', m, box: [w, h, 0.1], c: [0, 0, 0.02], notes: NOTES.mirror, sounds: [{ g: 'knock', v: 0.7 }, { g: 'knock', v: 0.4, d: 260 }] });
     let pane: THREE.Mesh;
     b.add('metal', extrude([[-w / 2 - F, -h / 2 - F], [w / 2 + F, -h / 2 - F], [w / 2 + F, h / 2 + F], [-w / 2 - F, h / 2 + F]], 0.16, 0.016, [[[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]]), 0x5a6266, T(m, at(0, 0, 0.04)), { rep: 0.5 });
     // a hooded lamp over it, raking down the glass, and the red IN SESSION lamp
@@ -664,6 +721,7 @@ export class Vault {
 
   /** a restraint board on the wall (m on the wall at its centre): shackles on chains, cuffs, a strap set, a hazard label */
   restraints(m: THREE.Matrix4, w = 0.8) {
+    this.pk?.add({ key: 'restraints', label: 'Restraint board', sub: 'leather, steel, chain', m, box: [w + 0.1, 0.7, 0.14], c: [0, -0.1, 0.05], notes: NOTES.restraints, sounds: [{ s: 'chain', v: 0.6 }, { s: 'clamp', v: 0.4, d: 250 }] });
     const b = this.b, hh = 0.7;
     b.add('metal', cbox(w, hh, 0.03, 0.008), 0x4a5052, T(m, at(0, 0, 0.015)), { rep: 0.4 });
     this.bolts(T(m, at(0, 0, 0.03)), w - 0.06, hh - 0.06, 0, 0.25, 0.01);
@@ -689,6 +747,7 @@ export class Vault {
   }
   /** a restraint chair bolted to the floor (m at its foot, facing +Z): steel frame, straps across, a head cage */
   restraintChair(m: THREE.Matrix4) {
+    this.pk?.add({ key: 'rchair', label: 'Restraint chair', sub: 'the safest seat in the building', m, box: [0.7, 1.4, 0.7], c: [0, 0.7, 0], notes: NOTES.restraints, sounds: [{ s: 'clamp', v: 0.6 }, { s: 'chain', v: 0.4, d: 200 }] });
     const b = this.b;
     b.add('metal', cbox(0.6, 0.04, 0.6, 0.01), 0x4a5052, T(m, at(0, 0.02, 0)));
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('metal', cbox(0.05, 0.45, 0.05, 0.008), 0x7a8284, T(m, at(sx * 0.24, 0.245, sz * 0.22)));
@@ -707,6 +766,7 @@ export class Vault {
   /** a hospital trolley with restraint straps (m on the floor, length along z) */
   gurney(m: THREE.Matrix4) {
     const b = this.b, L = 1.9, W = 0.66, y = 0.78;
+    this.pk?.add({ key: 'gurney', label: 'Gurney', sub: 'brake on', m, box: [W + 0.1, y + 0.2, L], c: [0, (y + 0.2) / 2, 0], notes: NOTES.gurney, sounds: [{ g: 'chair_squeak', v: 0.5 }, { s: 'chain', v: 0.35, d: 160 }] });
     b.add('chrome', cbox(W, 0.05, L, 0.012), 0xb8c0c4, T(m, at(0, y, 0)));
     for (const sz of [-1, 1]) for (const sx of [-1, 1]) {
       b.add('chrome', prism(0.018, y - 0.1, 6), 0xb8c0c4, T(m, at(sx * (W / 2 - 0.04), (y - 0.1) / 2 + 0.08, sz * (L / 2 - 0.1))));
@@ -727,6 +787,7 @@ export class Vault {
   /** a vault locker wall (cols x rows of numbered doors, cell metres square), m at its centre */
   lockers(m: THREE.Matrix4, cols: number, rows: number, cell = 0.3) {
     const w = cols * cell, h = rows * cell, b = this.b;
+    this.pk?.add({ key: 'lockers', label: 'Vault lockers', sub: 'one thing that came back, in each', m, box: [w, h, 0.1], c: [0, 0, 0.02], notes: NOTES.lockers, sounds: [{ g: 'lintel_rattle', v: 0.5 }, { g: 'metal_clank', v: 0.4, d: 180 }] });
     b.add('metal', cbox(w + 0.06, h + 0.06, 0.4, 0.01), 0x2a2e30, T(m, at(0, 0, -0.2)));
     this.add(card(lockerTex(cols, rows, seedN++), w, h), T(m, at(0, 0, 0.002)));
     // handles (3D) on every door, a few doors standing open on a lit drawer
@@ -756,7 +817,7 @@ export class Vault {
     for (const s of this.screens) s?.update(dt, t);
     for (const tb of this.tubes) tb.update(dt, t);
     for (const f of this.fogs) f.uTime.value = t;
-    for (const bc of this.beacons) bc.spin.rotation.y = t * 4.2 + bc.ph;
+    for (const bc of this.beacons) { bc.v = damp(bc.v, 4.2, 0.6, dt); bc.a += bc.v * dt; bc.spin.rotation.y = bc.a + bc.ph; }
   }
 }
 

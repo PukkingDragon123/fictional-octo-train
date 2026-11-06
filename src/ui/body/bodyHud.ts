@@ -364,7 +364,8 @@ export class BodyHud {
     const tie = this.rigToOv(TIE_AT[0], TIE_AT[1]);
     this.vit.anchor.x = tie.x; this.vit.anchor.y = tie.y; this.vit.floor = tie.y + 1;
     const base = this.rigToOv(BRAIN_AT[0], -SH);
-    this.vit.watchAt = { x: Math.round(base.x), y: Math.round(this.oh - 11) };
+    // no watch icon on the HUD any more (the watch lives on the wrist: Tab); keep base for the moodle row
+    void base; this.vit.watchAt = null;
   }
   private paint() {
     this.vit.draw(this.input);
@@ -689,12 +690,8 @@ export class BodyHud {
     }
     if (!html) {
       // nothing hovered: the watch's note types out here, or the pump's beat while you breathe
-      const note = (G as any).watch?.hudNote?.() ?? null;
-      if (note) {
-        const n = Math.max(0, Math.floor((G.time - note.at) * 45));
-        const body = note.body.slice(0, Math.max(0, n - note.title.length));
-        html = this.line(note.title.slice(0, n), TONE[note.tone] ?? 0x9affb4, body, n > note.title.length + note.body.length + 4 ? `${T ? 'tap' : 'click'} the watch to read  ·  Tab` : '');
-      } else if (this.lungs.pumping) html = this.line('Breathe', 0x9ad8ff, `${T ? 'PUMP' : 'H'} as the needle hits OUT, then IN`);
+      // (the watch's notes no longer type out on the HUD: the wrist chimes, Tab reads them)
+      if (this.lungs.pumping) html = this.line('Breathe', 0x9ad8ff, `${T ? 'PUMP' : 'H'} as the needle hits OUT, then IN`);
     }
     this.setSay(html);
   }

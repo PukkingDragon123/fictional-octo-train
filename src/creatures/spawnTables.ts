@@ -64,7 +64,8 @@ const INHABIT: Record<string, [string, number][]> = {
 for (const k in INHABIT) ADD[k] = (ADD[k] || []).concat(INHABIT[k]);
 // the Ledge pass: the Gummy Bear and its bees (src/creatures/species/gummy_bear.ts, bumble_bee.ts),
 // the Tallow Pigeons; strays in the softer levels; and a third native for the thin dimensions
-const LEDGE: [string, number][] = [['bumble_bee', 3], ['gummy_bear', 1.3], ['tallow_pigeon', 1.8]];
+// (round 14: the Bee Keepers; the Queen Bee is never rolled, she lives in her comb: queen_bee.ts spawns her)
+const LEDGE: [string, number][] = [['bumble_bee', 3], ['gummy_bear', 1.3], ['tallow_pigeon', 1.8], ['bee_keeper', 0.45]];
 const STRAYS: Record<string, [string, number][]> = {
   fields: [['bumble_bee', 0.7], ['gummy_bear', 0.22]],
   meadow: [['bumble_bee', 1], ['gummy_bear', 0.2]],
@@ -75,6 +76,26 @@ const STRAYS: Record<string, [string, number][]> = {
   moon: [['moon_calf', 2.5]],
 };
 for (const k in STRAYS) ADD[k] = (ADD[k] || []).concat(STRAYS[k]);
+// the predators (round 14): Whip Rats in the dark levels and the dark edges of Level 0
+// (src/creatures/species/whip_rat.ts), and the Strider, rare, only in the Yellow Room (strider.ts)
+const PREDATORS: Record<string, [string, number][]> = {
+  tunnels: [['whip_rat', 1.5]],
+  undercroft: [['whip_rat', 1.1]],
+  server: [['whip_rat', 1.0]],
+  stairwell: [['whip_rat', 0.9]],
+  lobby: [['whip_rat', 0.45], ['strider', 0.3]],
+  parking: [['whip_rat', 0.4]],
+};
+for (const k in PREDATORS) ADD[k] = (ADD[k] || []).concat(PREDATORS[k]);
+// the Ball House kids (src/creatures/species/timmy.ts): they live in the Ball House (z_ballhouse.ts
+// lists them itself) and drift out to the playground, the mall's food court and the suburbs' parks
+const TIMMY: Record<string, [string, number][]> = {
+  playground: [['timmy', 1.2]],
+  mall: [['timmy', 0.25]],
+  suburbs: [['timmy', 0.15]],
+  school: [['timmy', 0.2]],
+};
+for (const k in TIMMY) ADD[k] = (ADD[k] || []).concat(TIMMY[k]);
 /**
  * The new dimensions (src/world: shared floors) list these themselves; when a
  * dimension zone's key or name says which one it is and its table is missing

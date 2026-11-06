@@ -17,11 +17,18 @@
 //   vent       a louvred grille with dust streaks under it
 //   streaks    rust drips down a wall (a multiplied pixel card)
 //   puddle     a dark specular patch on the floor (picks up the tubes)
+// With a Pokes set (d.pokes = new Pokes(...)) every prop it places answers a
+// press: the needles slam into the red, the breaker door swings, a drawer slides
+// out, the clock spins and chimes, the fan behind a vent spins up, and each puts
+// up a staff note (rooms/pokeNotes.ts).
 import * as THREE from 'three';
 import type { FMats } from '../scene/pixtex';
-import { FacetBuilder, at, cbox, prism, lathe, extrude, tube, bolt, C, LedBank, plate, paper, blink, type V3 } from '../monitor/props';
+import { FacetBuilder, at, cbox, prism, lathe, extrude, tube, bolt, C, LedBank, plate, paper, blink, Wobble, type V3 } from '../monitor/props';
+import type { Pokes } from './pokes';
+import { NOTES } from './pokeNotes';
 
 const T = (m: THREE.Matrix4, l: THREE.Matrix4) => m.clone().multiply(l);
+const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 let seedN = 9001;
 const rng = (s: number) => () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
 
@@ -71,13 +78,18 @@ function dialFace(kind: 'psi' | 'volt' | 'temp' | 'hum' | 'clock'): THREE.Textur
 }
 
 /** a moving part: rotated about its local Z each frame */
-interface Spin { o: THREE.Object3D; f: (t: number) => number }
+interface Spin { o: THREE.Object3D; f: (t: number) => number; w?: Wobble; turn?: { v: number } }
 
 export class Dresser {
   readonly b = new FacetBuilder();
   readonly group = new THREE.Group();
   private spins: Spin[] = [];
-  private swings: { o: THREE.Object3D; ph: number }[] = [];
+  private swings: { o: THREE.Object3D; ph: number; k?: { v: number } }[] = [];
+  /** the moving parts the pokes drive (doors, drawers, fans, wheels) */
+  movers: ((dt: number, t: number) => void)[] = [];
+  private lastT = -1;
+  /** the room's interactive props (rooms/pokes.ts): when set, every prop placed registers itself */
+  pokes: Pokes | null = null;
   constructor(readonly mats: FMats, readonly leds?: LedBank) { this.group.name = 'dressing'; }
 
   /** a round dial at m (local +Z out), radius r; returns its needle */
@@ -125,16 +137,24 @@ export class Dresser {
       }
     }
     if (o.labels?.length) this.label(T(m, at(0, h / 2 + 0.05, 0.01)), o.labels, Math.min(w, 0.5), 0.07);
+    const mine = this.spins.slice(-cols * rows);
+    for (const sp of mine) sp.w = new Wobble(60, 3.2);
+    this.pokes?.add({ key: 'gauges', label: 'Gauge panel', sub: o.labels?.join(' · ') ?? 'tap the glass', m, box: [w, h, 0.12], c: [0, 0, 0.05], notes: NOTES.gauges, sounds: [{ s: 'tink', v: 0.7 }, { s: 'relay', v: 0.5, d: 140 }], blip: 0xffb040,
+      act: () => mine.forEach((sp, i) => setTimeout(() => sp.w?.kick(-14 - i * 3), i * 70)) });
   }
 
   /** a grey breaker box with its door ajar, a conduit up to `toY` (world height), a warning plate */
   fuseBox(m: THREE.Matrix4, toY?: number, o: { w?: number; h?: number; color?: number } = {}) {
     const b = this.b, w = o.w ?? 0.36, h = o.h ?? 0.48, col = o.color ?? 0x8a8e84;
     b.add('paint', cbox(w, h, 0.14, 0.012), col, T(m, at(0, 0, 0.07)), { rep: 0.3 });
-    // the door, hinged on the left and swung out a little
-    const door = T(m, at(-w / 2, 0, 0.145, 0, -0.5));
-    b.add('paint', cbox(w - 0.01, h - 0.01, 0.014, 0.004), col, T(door, at(w / 2, 0, 0)), { rep: 0.3 });
-    b.add('chrome', cbox(0.016, 0.06, 0.016, 0.004), 0xffffff, T(door, at(w - 0.04, 0, 0.012)));
+    // the door, hinged on the left and swung out a little (its own part: a poke swings it)
+    const db = new FacetBuilder();
+    db.add('paint', cbox(w - 0.01, h - 0.01, 0.014, 0.004), col, at(w / 2, 0, 0), { rep: 0.3 });
+    db.add('chrome', cbox(0.016, 0.06, 0.016, 0.004), 0xffffff, at(w - 0.04, 0, 0.012));
+    const hinge = new THREE.Group(); hinge.applyMatrix4(T(m, at(-w / 2, 0, 0.145)));
+    const leaf = db.build(this.mats); leaf.rotation.y = -0.5; hinge.add(leaf); this.group.add(hinge);
+    let swingT = 0;
+    this.movers.push((dt) => { swingT = Math.max(0, swingT - dt); leaf.rotation.y = damp(leaf.rotation.y, swingT > 0 ? -1.7 : -0.5, swingT > 0 ? 7 : 3, dt); });
     // the breakers behind it (two rows of black throws, one tripped)
     for (let j = 0; j < 2; j++) for (let i = 0; i < 6; i++) {
       const x = -w / 2 + 0.05 + i * ((w - 0.1) / 5), y = 0.08 - j * 0.16;
@@ -150,6 +170,7 @@ export class Dresser {
       }
     }
     this.label(T(m, at(0, -h / 2 - 0.06, 0.01)), ['DANGER', '415 V'], 0.2, 0.08, 0xd8a030, 0x1a1208);
+    this.pokes?.add({ key: 'fuse', label: 'Breaker box', sub: '415 V · the door sticks', m, box: [w + 0.1, h + 0.1, 0.3], c: [0, 0, 0.1], notes: NOTES.fuse, sounds: [{ s: 'creak', v: 0.6 }, { s: 'breaker', v: 0.8, d: 380 }, { s: 'spark', v: 0.5, d: 420 }], blip: 0x9ad8ff, act: () => { swingT = 2.2; } });
   }
 
   /** a four-drawer steel filing cabinet standing at m (floor level, front +Z) */
@@ -158,9 +179,25 @@ export class Dresser {
     const w = 0.46, d = 0.62, dh = 0.31, H = n * dh + 0.06;
     b.add('paint', cbox(w, H, d, 0.012), col, T(m, at(0, H / 2, 0)), { rep: 0.35 });
     b.add('rubber', cbox(w - 0.02, 0.04, d - 0.04, 0.006), 0x1a1a1a, T(m, at(0, 0.02, 0)));
+    // the top drawer that is shut is its own part: a poke slides it out and back
+    const live = Array.from({ length: n }, (_, i) => n - 1 - i).find((i) => i !== (o.open ?? -1)) ?? -1;
+    let slide: THREE.Group | null = null;
     for (let i = 0; i < n; i++) {
-      const y = 0.06 + dh * (i + 0.5), out = i === (o.open ?? -1) ? 0.22 : R() < 0.15 ? 0.02 : 0;
+      const y = 0.06 + dh * (i + 0.5), out = i === (o.open ?? -1) ? 0.22 : i !== live && R() < 0.15 ? 0.02 : 0;
       const f = T(m, at(0, y, d / 2 + out));
+      if (i === live) {
+        const db = new FacetBuilder();
+        db.add('paint', cbox(w - 0.03, dh - 0.02, 0.022, 0.006), col, at(0, 0, 0.004), { rep: 0.35 });
+        db.add('paint', cbox(w - 0.05, dh - 0.06, 0.4, 0.004), col, at(0, -0.01, -0.2));
+        for (let k = 0; k < 8; k++) db.add('wood', cbox(w - 0.08, 0.2, 0.008, 0.002), [0xd8c89a, 0xc8b888, 0xe0d4b0][k % 3], at(0, 0, -0.03 - k * 0.022, -0.1 + (k % 3) * 0.08));
+        db.add('chrome', cbox(0.12, 0.022, 0.03, 0.006), 0xffffff, at(0, -0.04, 0.026));
+        db.add('metal', cbox(0.09, 0.05, 0.008, 0.002), C.steel, at(0, 0.07, 0.018));
+        slide = new THREE.Group(); slide.applyMatrix4(f); slide.add(db.build(this.mats));
+        const card = paper([o.labels?.[i] ?? 'MISC'], 0.075, 0.034, { seed: Math.floor(R() * 999), ppm: 420 });
+        card.position.set(0, 0.07, 0.024); slide.add(card);
+        this.group.add(slide);
+        continue;
+      }
       b.add('paint', cbox(w - 0.03, dh - 0.02, 0.022, 0.006), col, T(f, at(0, 0, 0.004)), { rep: 0.35 });
       if (out > 0.05) {
         b.add('paint', cbox(w - 0.05, dh - 0.06, out, 0.004), col, T(f, at(0, -0.01, -out / 2)));
@@ -172,6 +209,12 @@ export class Dresser {
       const card = paper([o.labels?.[i] ?? ['A–F', 'G–L', 'M–R', 'S–Z', 'MISC', 'VOID'][(i + Math.floor(R() * 6)) % 6]], 0.075, 0.034, { seed: Math.floor(R() * 999), ppm: 420 });
       card.applyMatrix4(T(f, at(0, 0.07, 0.024)));
       this.group.add(card);
+    }
+    if (slide) {
+      const sl = slide, z0 = sl.position.clone(), dir = new THREE.Vector3(0, 0, 1).transformDirection(m);
+      let outT = 0, k = 0;
+      this.movers.push((dt) => { outT = Math.max(0, outT - dt); k = damp(k, outT > 0 ? 1 : 0, outT > 0 ? 8 : 5, dt); sl.position.copy(z0).addScaledVector(dir, k * 0.26); });
+      this.pokes?.add({ key: 'filing', label: 'Filing cabinet', sub: 'four drawers · one sticks', m, box: [w + 0.04, H, d + 0.04], c: [0, H / 2, 0], notes: NOTES.filing, sounds: [{ g: 'drawer_metal', v: 0.7 }, { g: 'paper', v: 0.4, d: 300 }, { g: 'drawer_metal', v: 0.5, d: 2300 }], act: () => { outT = 2.2; } });
     }
   }
 
@@ -221,6 +264,11 @@ export class Dresser {
     hand(r * 0.6, r * 0.09, 0x141414, 0.003, () => -(now() / 43200) * Math.PI * 2);
     hand(r * 0.9, r * 0.06, 0x141414, 0.005, () => -(now() / 3600) * Math.PI * 2);
     hand(r * 0.92, r * 0.025, 0xb82a1e, 0.007, () => -Math.floor(now() % 60) / 60 * Math.PI * 2);
+    const hands = this.spins.slice(-3);
+    hands.forEach((sp, i) => { sp.turn = { v: 0 }; void i; });
+    this.pokes?.add({ key: 'clock', label: 'Institute clock', sub: 'four minutes fast', m, box: [r * 2.5, r * 2.5, 0.12], c: [0, 0, 0.05], notes: NOTES.clock,
+      sounds: [{ g: 'pa_chime', v: 0.55 }, { g: 'vx_tick', v: 0.4, d: 120 }, { g: 'pa_chime', v: 0.35, d: 1300 }],
+      act: () => hands.forEach((sp, i) => { sp.turn!.v += Math.PI * 2 * (i === 0 ? 1 : i === 1 ? 3 : 6); }) });
   }
 
   /** a red extinguisher on its wall bracket (m at the bracket, floor below) */
@@ -234,8 +282,10 @@ export class Dresser {
     b.add('metal', cbox(0.17, 0.02, 0.18, 0.005), C.dark, T(m, at(0, -0.3, 0.1)));
     const tag = paper(['INSP', '~'], 0.05, 0.07, { seed: seedN++, bg: '#e8d870', ppm: 300 });
     const tg = new THREE.Group(); tg.applyMatrix4(T(m, at(-0.05, 0.16, 0.19))); tag.position.y = -0.035; tg.add(tag); this.group.add(tg);
-    this.swings.push({ o: tg, ph: Math.random() * 9 });
+    const kick = { v: 0 };
+    this.swings.push({ o: tg, ph: Math.random() * 9, k: kick });
     this.label(T(m, at(0, 0.42, 0)), ['FIRE'], 0.16, 0.07, 0xc8281e, 0xf8f0e0);
+    this.pokes?.add({ key: 'ext', label: 'Extinguisher', sub: 'inspection overdue', m, box: [0.24, 0.9, 0.3], c: [0, -0.05, 0.1], notes: NOTES.extinguisher, sounds: [{ s: 'tink', v: 0.8 }, { g: 'metal_clank', v: 0.4, d: 90 }], act: () => { kick.v = 1; } });
   }
 
   /** the leavings of a night shift on a working surface (m at the surface, +Y up), w x d metres */
@@ -270,6 +320,7 @@ export class Dresser {
     // pens and pencils, a pencil stub
     for (let k = 0; k < 3; k++) { const [x, z] = spot(); b.add('bakelite', prism(0.004, 0.14, 6), [0x1a1a8a, 0xd8b030, 0x1a1a1a][k], T(m, at(x, 0.004, z, Math.PI / 2, 0, R() * 6))); }
     if (o.floppies) for (let k = 0; k < 3; k++) { const [x, z] = spot(); b.add('bakelite', cbox(0.09, 0.004, 0.094, 0.001), [0x1a1a1a, 0x2a3a8a, 0x8a2a2a][k], T(m, at(x, 0.003 + k * 0.004, z, 0, R() * 0.5))); }
+    this.pokes?.add({ key: 'clutter', label: 'The night shift\'s leavings', sub: 'papers, a mug, a binder', m, box: [w, 0.12, d], c: [0, 0.06, 0], notes: NOTES.clutter, sounds: [{ g: 'paper', v: 0.6 }] });
   }
 
   /** a stack of archive boxes (m on the floor); n boxes, string ties, labels */
@@ -288,6 +339,7 @@ export class Dresser {
       lab.applyMatrix4(T(M, at(-w * 0.15, h * 0.5, d / 2 + 0.002))); this.group.add(lab);
       y += h + 0.002;
     }
+    this.pokes?.add({ key: 'boxes', label: 'Archive boxes', sub: 'overflow from A-1', m, box: [0.5, y, 0.36], c: [0, y / 2, 0], notes: NOTES.boxes, sounds: [{ g: 'thud_soft', v: 0.5 }, { g: 'paper', v: 0.3, d: 200 }] });
   }
 
   /** a louvred grille (m on the wall) with dust streaks under it */
@@ -298,6 +350,16 @@ export class Dresser {
     for (let y = -h / 2 + 0.05; y < h / 2 - 0.03; y += 0.035) b.add('metal', cbox(w - 0.06, 0.006, 0.03, 0.002), 0x8a8e88, T(m, at(0, y, 0.016, -0.6)));
     for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) b.add('metal', bolt(0.006), C.steel, T(m, at(sx * (w / 2 - 0.015), sy * (h / 2 - 0.015), 0.03, Math.PI / 2)));
     const s = streaks(w * 1.1, 0.7, seedN++, 0.35); s.applyMatrix4(T(m, at(0, -h / 2 - 0.34, 0.004))); this.group.add(s);
+    // the fan in the duct behind the louvres: idles, a poke spins it up
+    const fb = new FacetBuilder(), fr = Math.min(w, h) * 0.42;
+    for (let i = 0; i < 5; i++) fb.add('metal', cbox(fr * 0.42, fr, 0.006, 0.002), 0x5a5e5a, at(0, fr * 0.5, 0, 0.35, 0, 0).premultiply(new THREE.Matrix4().makeRotationZ((i / 5) * Math.PI * 2)));
+    fb.add('metal', prism(fr * 0.2, 0.02, 8), C.dark, at(0, 0, 0, Math.PI / 2));
+    const fan = fb.build(this.mats, { cast: false });
+    const hub = new THREE.Group(); hub.applyMatrix4(T(m, at(0, 0, -0.006))); hub.add(fan); this.group.add(hub);
+    let fv = 1.2;
+    this.movers.push((dt) => { fv = damp(fv, 1.2, 0.5, dt); fan.rotation.z -= fv * dt; });
+    const out = new THREE.Vector3(0, 0, 0.12).applyMatrix4(m);
+    this.pokes?.add({ key: 'vent', label: 'Vent', sub: 'return air · bolted shut', m, box: [w, h, 0.1], c: [0, 0, 0.02], notes: NOTES.vent, sounds: [{ g: 'vent_clank', v: 0.6 }, { s: 'whoosh', v: 0.5, d: 160 }, { s: 'hum', v: 0.35, d: 260 }], puff: { color: 0x8a8678, n: 8, up: 0.05, at: [out.x, out.y, out.z] }, act: () => { fv = 28; } });
   }
 
   /** a stencilled plate on the wall */
@@ -323,8 +385,17 @@ export class Dresser {
     return this.group;
   }
   update(t: number) {
-    for (const s of this.spins) s.o.rotation.z = s.f(t);
-    for (const s of this.swings) s.o.rotation.z = Math.sin(t * 1.3 + s.ph) * 0.06;
+    const dt = this.lastT < 0 ? 0 : Math.min(0.1, Math.max(0, t - this.lastT));
+    this.lastT = t;
+    for (const s of this.spins) {
+      if (s.turn) s.turn.v = damp(s.turn.v, 0, 2.2, dt);
+      s.o.rotation.z = s.f(t) + (s.w ? s.w.update(dt) * 0.12 : 0) + (s.turn?.v ?? 0);
+    }
+    for (const s of this.swings) {
+      if (s.k) s.k.v = Math.max(0, s.k.v - dt * 0.5);
+      s.o.rotation.z = Math.sin(t * (1.3 + (s.k?.v ?? 0) * 8) + s.ph) * (0.06 + (s.k?.v ?? 0) * 0.5);
+    }
+    for (const mv of this.movers) mv(dt, t);
   }
 }
 

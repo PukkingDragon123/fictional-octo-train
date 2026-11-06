@@ -15,11 +15,11 @@
 //    map / scanner / inventory / chat / pause / fullscreen / photo
 //  - context actions: placing furniture, driving, riding, carrying, reading, reloading (the strike button throws what you carry)
 //  - ROUND 12, the adaptive layout (on by default): on foot the stick stays and the old
-//    many-button cluster gives way to the adaptive context buttons (src/ui/hotbar/context.ts:
-//    one big primary that changes with what you are doing, up to three secondaries) and the
-//    hotbar strip; the top bars keep only MENU / WATCH / QUESTS / PACK (+ chat in co-op).
-//    The car keeps its own pedals. strikeDown / strikeMove / strikeUp let the adaptive
-//    Strike button reuse the attack button's aim-and-swing.
+//    many-button cluster gives way to (round 14) tappable floating world labels over what is
+//    in reach (src/ui/worldPrompt.ts) and a small chamfered pad for STRIKE / LIGHT / SWIM
+//    (./actpad.ts), plus the hotbar strip; the top bars keep only MENU / WATCH / QUESTS / PACK
+//    (+ chat in co-op). The car keeps its own pedals. strikeDown / strikeMove / strikeUp let
+//    the pad's STRIKE reuse the attack button's aim-and-swing.
 //  - the physical overhaul (src/interact/grab.ts, no popups): a work glove to GRAB
 //    what is in reach (hold it and the stick pushes / pulls), a throttle for POWER
 //    (Shift), a squeeze bulb for the lung PUMP (H), the watch (Tab), the iron-cube
@@ -759,7 +759,7 @@ export class TouchControls implements GameSystem {
   }
 
   // ---------------------------------------------------------------- attack
-  /** the adaptive Strike button (src/ui/hotbar/context.ts) drives the attack button's aim-and-swing */
+  /** the touch pad's STRIKE (./actpad.ts) drives the attack button's aim-and-swing */
   strikeDown(e: PointerEvent) { this.atkDown(e); }
   strikeMove(e: PointerEvent) { this.atkMove(e); }
   strikeUp(cancelled: boolean) { this.atkUp(cancelled); }

@@ -4,10 +4,12 @@
 // practicals (a gooseneck lamp on the microscope bench, the surgical lamp over
 // the dissection table), screens that glow and cast, and everything a night
 // shift leaves: pipes, conduit, cable runs, grime, labels.
-//   back wall      THE MAIN COMPUTER: R-NET 7, a wall of phosphor in an enamel
-//                  housing over its console (keys, a tape reader, pilot lamps).
-//                  The screen shows the research tree live; press it and the
-//                  camera flies into the glass (research/tree.ts).
+//   back wall      THE MAIN COMPUTER: R-NET 7, an enamel housing over its console
+//                  (keys, a tape reader, pilot lamps) that carries the RESEARCH
+//                  LATTICE (research/lattice.ts): the research tree as a steel rig
+//                  of sockets, each with a small turning 3D model of what it
+//                  unlocks, conduits between them, and a reader gantry with a
+//                  RESEARCH lever. Press it and the camera goes up to the rig.
 //   back left      the SAMPLE FRIDGE: a glass door, racks of the samples banked
 //                  (jars, vials, swab tubes, slide boxes) filling as you collect
 //   left wall      the MICROSCOPE BENCH (gooseneck lamp, slide boxes); the FUME
@@ -32,22 +34,31 @@ import { Puffs, Dust, shaftMesh } from '../scene/fx';
 import type { Hot, StageRoom, Grade } from '../monitor/stage';
 import { bitText, bitMeasure } from '../../../gfx/bitfont';
 import {
-  FacetBuilder, at, cbox, prism, lathe, extrude, hull, tube, bolt, C, LedBank, blink, busy, plate, paper, slab, glowCard, Wobble, crtSet, uiSound,
+  FacetBuilder, at, cbox, prism, lathe, extrude, hull, tube, bolt, C, LedBank, blink, busy, plate, paper, slab, glowCard, Wobble, crtSet, uiSound, gameSound,
 } from '../monitor/props';
 import { codexStats, bank, TOOLS, TOOL_KEYS, toolLevel, req } from '../../../game/codex';
-import { BRANCHES, treeNodes, rankOf, nodeState } from '../../../game/unitTree';
-import { researchPoints } from '../../../game/research';
+import { TreeLattice } from '../research/lattice';
+import { setTreeHost } from '../research/tree';
 import { onFile } from '../../../game/meridian';
 import { bus } from '../../../core/events';
 import { menuEvent } from '../../../game/achievements';
 import { BenchRun, type BenchHost, type Station } from './researchBench';
 import { Dresser } from './dress';
 import { Vault, blob, frostCard } from './vault';
+import { Pokes } from './pokes';
 import type { Sample } from '../../../game/codex';
 
 const W = 3.6, BACK = -3.0, FRONT = 3.3, H = 3.05;
+/** what the staff wrote about tapping on HOLDING 2's glass */
+const BEAR_NOTES = [
+  { head: 'Holding 2 · gummy bear (Ledge)', lines: ['It heard that. It always hears that.', 'Fur still rooted in candy flesh. Old limbs, new hunger.'], stamp: 'DO NOT TAP', tone: 'red' as const },
+  { head: 'Holding 2 · feeding log', lines: ['Fed: one bumble bee (frozen). Took it through the grate in one swallow.', 'Split twice since Monday. Both halves still looking at the window.'], tone: 'memo' as const },
+  { head: 'Dr. Calder, margin note', lines: ['It is not angry. It is curious, the way a mouth is curious.'], tone: 'lore' as const },
+];
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 const WALL = { x: 0.15, y: 1.86, w: 3.3, h: 1.3 };
+/** the research lattice's rig on the main computer's housing */
+const LAT = { x: 0.15, y: 1.83, w: 3.5, h: 1.5 };
 const FRIDGE = new THREE.Vector3(-W + 0.62, 0, BACK + 0.36);
 const HOOD = new THREE.Vector3(-W + 0.46, 0, 0.55);
 const SCOPE = new THREE.Vector3(-W + 0.4, 0.92, -1.15);
@@ -119,12 +130,8 @@ export class ResearchLab implements StageRoom {
   private wallGlow = new THREE.PointLight(0xd8ecff, 4.5, 5.5, 1.6);
   private fridgeGlow = new THREE.PointLight(0x9adcff, 0.9, 1.6, 2);
   private screenGlow = new THREE.PointLight(0x7aff9a, 0.9, 2.6, 1.8);
-  // the codex wall
-  private wallCv = document.createElement('canvas');
-  private wallTex: THREE.CanvasTexture;
-  private wallMesh!: THREE.Mesh;
-  private wallMat = new THREE.MeshBasicMaterial({ toneMapped: false, color: 0xd8d0c0 });
-  private flash: { key: string; t: number } | null = null;
+  /** the research tree's rig on the main computer (research/lattice.ts) */
+  lattice!: TreeLattice;
   // the fridge's racks
   private racks: { mesh: THREE.InstancedMesh; kind: string }[] = [];
   private rackSlots: THREE.Vector3[] = [];
@@ -140,6 +147,9 @@ export class ResearchLab implements StageRoom {
   private jar = new THREE.Group(); private jarW = new Wobble(180, 4); private jarTaps = 0;
   private alarm = new THREE.Group(); private alarmT = 0; private alarmLed: ReturnType<LedBank['add']> | null = null;
   private lampHead = new THREE.Group();
+  /** the props that answer a press (rooms/pokes.ts): the kit's, the troughs, the gooseneck, the bear in HOLDING 2 */
+  private pokes = new Pokes(this.hots);
+  private bearT = 0; private deskFlick = 0;
   /** the pinned specimen on the dissection tray (hidden while the benches use the tray) */
   private trayProps: THREE.Object3D[] = [];
   // camera
@@ -154,10 +164,7 @@ export class ResearchLab implements StageRoom {
     this.mats = mats;
     const S = this.scene;
     S.background = new THREE.Color(0x000000);
-    this.wallCv.width = 768; this.wallCv.height = 316;
-    this.wallTex = new THREE.CanvasTexture(this.wallCv);
-    this.wallTex.magFilter = this.wallTex.minFilter = THREE.NearestFilter; this.wallTex.generateMipmaps = false; this.wallTex.colorSpace = THREE.SRGBColorSpace;
-    this.wallMat.map = this.wallTex;
+    S.add(this.pokes.group);
     S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter(), this.chamber(), this.dressing());
     S.add(this.chamL, this.chamL.target, this.chamRed, this.redL);
     S.add(this.leds.mesh, this.puffs.mesh, this.deco, this.hemi, this.dust.points);
@@ -181,9 +188,9 @@ export class ResearchLab implements StageRoom {
   }
 
   /** re-read the Meridian file: the wall, the fridge, the pegboard, the readouts */
-  refresh() { this.dirty = false; this.drawWall(); this.fillFridge(); this.hangTools(); for (const r of this.readouts) r.acc = r.every; }
+  refresh() { this.dirty = false; this.lattice.refresh(); this.fillFridge(); this.hangTools(); for (const r of this.readouts) r.acc = r.every; }
   /** the main computer flashes the news (after a bench run) */
-  flashEntry(key: string) { this.flash = { key, t: 0 }; }
+  flashEntry(_key: string) { this.lattice.flash('SAMPLE FILED · CODEX UPDATED'); }
 
   // ================================================================== the shell
   private shell(): THREE.Group {
@@ -256,7 +263,9 @@ export class ResearchLab implements StageRoom {
       const sh = shaftMesh(10);
       sh.mesh.position.set(x, y - 0.02, z); sh.mesh.scale.set(0.75, y - 0.1, 1.05); sh.u.uColor.value.setHex(0xd4e4ff); sh.u.uInt.value = 0.02;
       g.add(sh.mesh);
-      this.tubes.push({ light: L, mat, base: shadow ? 25 : 15, seed: i * 3.1, flick: 0, shaft: sh });
+      const tb = { light: L, mat, base: shadow ? 25 : 15, seed: i * 3.1, flick: 0, shaft: sh };
+      this.tubes.push(tb);
+      this.pokes.add({ key: 'trough' + i, label: 'Fluorescent trough', sub: 'it hums · it stutters', m: at(x, y, z), box: [0.42, 0.18, 1.6], c: [0, 0.05, 0], notes: [{ head: 'Facilities', lines: ['Tube 3 flickers whenever HOLDING 2 is awake.', 'HOLDING 2 is always awake.'], tone: 'memo' }], sounds: [{ g: 'fluoro_tick', v: 0.6 }, { g: 'flicker_buzz', v: 0.5, d: 100 }], act: () => { tb.flick = 1.1; } });
       // the light pool each casts on the floor (a soft bounce card)
       const pool = glowCard(2.6, 3.2, 0xdfe8ff, 0.05); pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.005, z); g.add(pool);
     });
@@ -286,77 +295,13 @@ export class ResearchLab implements StageRoom {
     b.add('sponge', cbox(0.04, 0.5, 0.004, 0.001), 0xe2d8b4, at(x + 0.95, cy - 0.12, cz + 0.06));
     g.add(b.build(this.mats));
     for (let k = 0; k < 14; k++) this.leds.add([x - 0.95 + k * 0.08, cy + 0.165, cz - 0.24], [0xffb030, 0x40ff60, 0xff3a2a][k % 3], { size: 0.012, pattern: busy(k + 40, 2 + (k % 4)) });
-    const head = plate(this.mats, ['R-NET 7 · MAIN COMPUTER'], 1.3, 0.1, { bg: 0x2a2014, ink: 0xffd890, emissive: true, px: 420 });
-    head.position.set(x, y + h / 2 + 0.1, BACK + 0.32); g.add(head);
-    this.wallMesh = new THREE.Mesh(new THREE.PlaneGeometry(w, h), this.wallMat);
-    this.wallMesh.position.set(x, y, BACK + 0.335);
-    this.wallMesh.userData.noGlow = true;
-    g.add(this.wallMesh);
-    this.hots.push({ key: 'codex', objs: [this.wallMesh], glow: [], label: 'The main computer', sub: 'the research tree · designs, recipes, chips, limbs', press: () => { uiSound('tick', 0.6); this.focus('codex', () => this.onPanel?.('tree')); } });
+    // the research lattice on the housing: its glass, sockets, conduits, reader and the console's branch keys
+    this.lattice = new TreeLattice(this.mats, this.hots, { x: LAT.x, y: LAT.y, w: LAT.w, h: LAT.h, z: BACK + 0.336, railY: H - 0.05, keys: { x: x - 1.1, y: cy + 0.09, z: cz, tilt: Math.atan2(0.14, 0.54) } });
+    g.add(this.lattice.group);
+    setTreeHost(this.lattice);
+    this.hots.push({ key: 'codex', objs: [this.lattice.board], glow: [], label: 'The research lattice', sub: 'the research tree · designs, recipes, chips, limbs', press: () => { uiSound('tick', 0.6); this.focus('codex', () => this.onPanel?.('tree')); } });
     return g;
   }
-  /** the main computer's glass: the research tree live, in phosphor amber on green-black */
-  private drawWall() {
-    const c = this.wallCv.getContext('2d')!;
-    const Wd = this.wallCv.width, Hd = this.wallCv.height;
-    c.imageSmoothingEnabled = false;
-    const g = c.createRadialGradient(Wd / 2, Hd / 2, 20, Wd / 2, Hd / 2, Wd * 0.62);
-    g.addColorStop(0, '#16301c'); g.addColorStop(1, '#06100a');
-    c.fillStyle = g; c.fillRect(0, 0, Wd, Hd);
-    // a faint graticule
-    c.fillStyle = 'rgba(120,255,150,0.06)';
-    for (let x = 0; x < Wd; x += 24) c.fillRect(x, 0, 1, Hd);
-    for (let y = 0; y < Hd; y += 24) c.fillRect(0, y, Wd, 1);
-    bitText(c, 'R-NET 7 · RESEARCH DIRECTORY', 10, 4, { color: '#ffd890', outline: null });
-    const pts = `${researchPoints()} RP`;
-    bitText(c, pts, Wd - 12 - bitMeasure(pts), 4, { color: '#6aff8e', outline: null });
-    const st = codexStats();
-    const cx = `CODEX ${st.pct}%`;
-    bitText(c, cx, Wd - 30 - bitMeasure(pts) - bitMeasure(cx), 4, { color: '#ffb848', outline: null });
-    c.fillStyle = '#ffb848'; c.fillRect(10, 24, Wd - 20, 1);
-    const pw = Math.floor((Wd - 20) / 4);
-    BRANCHES.forEach((br, i) => {
-      const px = 10 + i * pw, py = 32, ph = Hd - py - 26;
-      c.fillStyle = 'rgba(255,184,72,0.07)'; c.fillRect(px + 3, py, pw - 8, ph);
-      c.fillStyle = 'rgba(255,184,72,0.45)'; c.fillRect(px + 3, py, pw - 8, 1); c.fillRect(px + 3, py + ph - 1, pw - 8, 1); c.fillRect(px + 3, py, 1, ph); c.fillRect(px + pw - 6, py, 1, ph);
-      bitText(c, br.name.toUpperCase(), px + 8, py + 3, { color: '#ffc860', outline: null });
-      const ns = treeNodes(br.key);
-      const maxC = Math.max(...ns.map((n) => n.col)) + 1, maxR = Math.max(...ns.map((n) => n.row)) + 2;
-      const cw = Math.min(26, Math.floor((pw - 22) / maxC)), rh = Math.floor((ph - 30) / maxR);
-      const sz = Math.max(8, Math.min(cw - 6, rh * 2 - 6, 16));
-      const at = (n: { col: number; row: number }) => [px + 10 + n.col * cw, py + 26 + n.row * rh] as const;
-      // the pipes first
-      for (const n of ns) for (const rk of n.req) {
-        const m = ns.find((q) => q.key === rk); if (!m) continue;
-        const [ax, ay] = at(m), [bx, by] = at(n);
-        c.fillStyle = rankOf(m) ? '#ffb848' : '#4a3a20';
-        if (m.row === n.row) c.fillRect(ax + sz, ay + sz / 2, bx - ax - sz, 2);
-        else { const xm = m.col === n.col ? ax + sz / 2 : bx - 3; c.fillRect(Math.min(ax + sz / 2, xm), ay + sz / 2, Math.abs(xm - ax - sz / 2) + 1, 2); c.fillRect(xm, Math.min(ay, by) + sz / 2, 2, Math.abs(by - ay)); c.fillRect(xm, by + sz / 2, bx - xm, 2); }
-      }
-      for (const n of ns) {
-        const [nx, ny] = at(n);
-        const r = rankOf(n), s2 = nodeState(n);
-        const blink = s2 === 'open' && Math.floor(this.t * 2) % 2 === 0;
-        c.fillStyle = r ? '#ffb848' : s2 === 'open' ? (blink ? '#8a6a20' : '#5a4010') : '#1e1a10';
-        c.fillRect(nx, ny, sz, sz);
-        c.fillStyle = r ? '#fff0c0' : s2 === 'open' ? '#ffd890' : '#4a3e28';
-        c.fillRect(nx, ny, sz, 1); c.fillRect(nx, ny, 1, sz);
-        if (r && n.ranks > 1) { c.fillStyle = '#103a18'; for (let k = 0; k < r; k++) c.fillRect(nx + 2 + k * 3, ny + sz - 4, 2, 2); }
-      }
-    });
-    const tip = Math.floor(this.t * 1.5) % 2 ? 'TAP THE GLASS TO LOG IN_' : 'TAP THE GLASS TO LOG IN';
-    bitText(c, tip, 10, Hd - 20, { color: '#6aff8e', outline: null });
-    if (this.flash) {
-      const a = Math.max(0, 1 - this.flash.t / 1.6);
-      c.fillStyle = `rgba(106,255,142,${a * 0.25})`; c.fillRect(0, 0, Wd, Hd);
-      bitText(c, 'SAMPLE FILED · CODEX UPDATED', Wd / 2 - 110, Hd / 2 - 8, { color: '#e8ffe8', outline: '#071008' });
-    }
-    // scanlines
-    c.fillStyle = 'rgba(0,0,0,0.22)';
-    for (let y = 0; y < Hd; y += 2) c.fillRect(0, y, Wd, 1);
-    this.wallTex.needsUpdate = true;
-  }
-
   // ================================================================== the sample fridge
   private fridge(): THREE.Group {
     const g = new THREE.Group();
@@ -531,6 +476,7 @@ export class ResearchLab implements StageRoom {
     lab.position.set(x, 1.5, -0.4 + 0.012); g.add(lab);
     for (let i = 0; i < 9; i++) b2.add('paint', cbox(0.05, 0.26 + (i % 3) * 0.02, 0.22, 0.006), [0x2a4a8a, 0x8a2a2a, 0x2a6a4a, 0xc8a030, 0x5a3a7a][i % 5], at(x + 0.35 + i * 0.052, y + 0.13 + (i % 3) * 0.01, z - 0.18, 0, 0, i === 8 ? -0.3 : 0));
     g.add(b2.build(this.mats));
+    this.pokes.add({ key: 'gooseneck', label: 'Gooseneck lamp', sub: 'the bulb is loose', objs: [this.lampHead], notes: [{ head: 'Bench note', lines: ['Bulb loose again. Tighten it with the power OFF, Okafor.'], tone: 'memo' }], sounds: [{ s: 'click', v: 0.8 }, { g: 'flicker_buzz', v: 0.4, d: 60 }], act: () => { this.deskFlick = 1.2; } });
     this.hots.push({ key: 'scope', objs: [g], glow: [], label: 'Microscope bench', sub: 'process a sample', press: () => this.onPanel?.('fridge') });
     return g;
   }
@@ -810,7 +756,9 @@ export class ResearchLab implements StageRoom {
     const fallback = () => {
       if (this.held.children.length) return;
       this.held.add(blob(this.mats, ja, 0.5));
-      this.heldTick = (t, dt) => { for (const a of ja) a.f(a.o, t, dt); };
+      const kick = this.pokes.wobble(this.held.children[0], 1.6);
+      let was = 0;
+      this.heldTick = (t, dt) => { if (this.bearT > was + 0.5) kick(9); was = this.bearT; for (const a of ja) a.f(a.o, t, dt); };
     };
     import('../../../creatures/species/gummy_bear').then((m) => {
       try {
@@ -818,7 +766,8 @@ export class ResearchLab implements StageRoom {
         rig.root.traverse((o) => { const me = o as THREE.Mesh; if (me.isMesh) { me.castShadow = true; me.frustumCulled = false; } });
         this.held.add(rig.root);
         // idle, and every so often it pinches itself in two
-        this.heldTick = (t, dt) => { const k = t % 40; m.poseGummyBear(rig, t, dt, k > 30 ? 'split' : 'idle', k > 30 ? { fs: Math.min(1, (k - 30) / 9) } : {}); };
+        // a tap on the glass: it rears and warns, then turns back to the grate
+        this.heldTick = (t, dt) => { const k = t % 40; if (this.bearT > 0) { m.poseGummyBear(rig, t, dt, this.bearT > 2.4 ? 'warn' : this.bearT > 1.6 ? 'lunge' : 'warn'); this.held.rotation.y = damp(this.held.rotation.y, -1.35, 4, dt); return; } this.held.rotation.y = damp(this.held.rotation.y, -0.68, 1.2, dt); m.poseGummyBear(rig, t, dt, k > 30 ? 'split' : 'idle', k > 30 ? { fs: Math.min(1, (k - 30) / 9) } : {}); };
       } catch (e) { console.warn('holding 2: no gummy bear', e); fallback(); }
     }).catch((e) => { console.warn('holding 2: no gummy bear', e); fallback(); });
     return g;
@@ -827,6 +776,7 @@ export class ResearchLab implements StageRoom {
   /** the night shift's room: services, instruments, secrets and leavings on every wall (rooms/dress.ts, rooms/vault.ts) */
   private dressing(): THREE.Group {
     const d = this.dress = new Dresser(this.mats, this.leds);
+    d.pokes = this.pokes;
     const v = this.vault = new Vault(d, this.mats);
     const L = Math.PI / 2;
     // back wall: the conduit at -1.95 feeds a gauge panel; the dewar by the cold store; the crest over the main computer
@@ -857,7 +807,7 @@ export class ResearchLab implements StageRoom {
     d.streaks(at(-W + 0.014, H - 0.75, -0.6, 0, L), 3.6, 1.0, 0.4);
     // right wall: the observation window onto HOLDING 2, its beacon, its placard, the pipe into the chamber
     const pane = v.obsWindow(at(W, OBS.y, OBS.z, 0, -L), { w: OBS.w, h: OBS.h, shutter: 0.2, intercom: 'side', label: ['OBSERVATION · HOLDING 2', 'DO NOT TAP THE GLASS'] });
-    this.hots.push({ key: 'obs', objs: [pane], glow: [], label: 'Observation window', sub: 'HOLDING 2 · what came back from the Ledge', press: () => { uiSound('tick', 0.6); this.pose = this.pose === 'obs' ? 'room' : 'obs'; } });
+    this.hots.push({ key: 'obs', objs: [pane], glow: [], label: 'Observation window', sub: 'HOLDING 2 · tap the glass', press: (p) => this.tapGlass(p) });
     v.beacon(at(W, OBS.y + OBS.h / 2 + 0.42, OBS.z + 0.62, 0, -L));
     this.redL.position.copy(v.lamps.find((q) => q.kind === 'beacon')!.p).add(new THREE.Vector3(-0.7, -0.5, 0));
     v.placard(at(W - 0.01, 2.32, -2.62, 0, -L), 'gluttony', { cls: 'Fauna', cell: 'H-02', w: 0.26 });
@@ -894,6 +844,19 @@ export class ResearchLab implements StageRoom {
     return d.done();
   }
 
+  /** the window onto HOLDING 2: the first press steps up to the glass; after that each press taps it, and the bear answers */
+  private tapGlass(p?: THREE.Vector3) {
+    if (this.pose !== 'obs') { uiSound('tick', 0.6); this.pose = 'obs'; return; }
+    const at0 = p ?? new THREE.Vector3(W, OBS.y, OBS.z);
+    gameSound('knock', 0.8); setTimeout(() => gameSound('knock', 0.5), 210);
+    const first = this.bearT <= 0;
+    this.bearT = 3.2;
+    setTimeout(() => { gameSound('bh_gurgle', 0.7); uiSound('squelch', 0.5); }, 380);
+    setTimeout(() => gameSound('plush_squeak', 0.4), 900);
+    if (first) this.pokes.say(BEAR_NOTES[this.bearTaps++ % BEAR_NOTES.length], at0);
+  }
+  private bearTaps = 0;
+
   // ================================================================== the benches
   /** process a sample: the first-person bench games, then the result */
   async process(s: Sample): Promise<void> {
@@ -918,10 +881,12 @@ export class ResearchLab implements StageRoom {
   /** fly to a pose, then run cb */
   private focus(k: string, cb?: () => void) { this.pose = k; if (cb) setTimeout(cb, 520); }
   /** back to the room view (a panel closed) */
-  unfocus() { if (!this.bench) this.pose = 'room'; }
+  unfocus() { if (!this.bench) this.pose = 'room'; this.pokes.hideNote(); }
   /** the stage switched away: come back to the room view next time */
-  leave() { this.unfocus(); }
+  leave() { if (this.lattice.active) this.lattice.close(); this.unfocus(); }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); this.bench?.pointer(nx, ny); }
+  /** dev / screenshots: skip the camera flight (software GL runs a few frames a second) */
+  settle() { const g = this.lattice.camGoal() ?? POSES[this.pose] ?? POSES.room; this.camP.copy(g.pos); this.camL.copy(g.look); this.camF = g.fov; this.lattice.settle(); }
   setBuild(on: boolean) { this.buildT = on ? 1 : 0; }
 
   frame(aspect: number, portrait: boolean) {
@@ -949,7 +914,9 @@ export class ResearchLab implements StageRoom {
     this.surg.intensity = 1.8 * this.surgLvl;
     this.surgMat.color.setScalar(0.2 + 1.1 * this.surgLvl);
     const pool = this.scene.getObjectByName('surgPool'); if (pool) pool.visible = this.surgLvl > 0.1;
-    this.desk.intensity = 2.1 + Math.sin(t * 3.1) * 0.04;
+    this.deskFlick = Math.max(0, this.deskFlick - dt);
+    this.desk.intensity = (2.1 + Math.sin(t * 3.1) * 0.04) * (this.deskFlick > 0 ? (Math.sin(t * 47) > 0.1 ? 0.15 : 1) : 1);
+    this.bearT = Math.max(0, this.bearT - dt);
     this.alarmT = Math.max(0, this.alarmT - dt);
     if (this.alarmLed) this.alarmLed.level = this.alarmT > 0 ? (Math.sin(t * 20) > 0 ? 1 : 0) : 0.05;
     this.wallGlow.color.setHex(this.alarmT > 0 && Math.sin(t * 20) > 0 ? 0xff4a3a : 0xffc890);
@@ -975,20 +942,23 @@ export class ResearchLab implements StageRoom {
     this.fridgeDoor.rotation.y = -this.doorA * 1.2;
     for (const r of this.readouts) { r.acc += dt; if (r.acc >= r.every && !(this.bench && r === this.readouts[0] && this.bench.usesScreen)) { r.acc = 0; r.draw(r.ctx, t); r.tex.needsUpdate = true; } }
     if (this.bench?.usesScreen && this.readouts[0]) this.readouts[0].tex.needsUpdate = true;
-    if (this.flash) { this.flash.t += dt; if (Math.floor(this.flash.t * 6) !== Math.floor((this.flash.t - dt) * 6)) this.drawWall(); if (this.flash.t > 1.6) { this.flash = null; this.drawWall(); } }
-    else if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) this.drawWall();
+    this.lattice.update(dt, t, full);
     if (full && Math.random() < dt * 0.8) this.puffs.emit(this.v.set(HOOD.x + 0.1, 1.95, HOOD.z + (Math.random() - 0.5) * 0.8), new THREE.Vector3(0, 0.25, 0), { life: 2.2, s0: 0.01, s1: 0.03, color: 0xd8f0e8, rise: 0.3 });
     if (full) this.puffs.update(dt, this.cam, () => 0.6);
+    if (full) this.pokes.update(dt, t, this.cam);
     if (!full) return;
     // ---- camera: the benches drive it while a sample is worked (the close-ups get a gentler exposure)
     this.grade.exposure = damp(this.grade.exposure ?? 1.75, this.bench && !this.bench.done ? 1.3 : 1.75, 4, dt);
     if (this.bench) { this.bench.update(dt, t); return; }
     this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 3, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 3, dt);
     this.build = damp(this.build, this.buildT, 3, dt);
-    const goal = this.build > 0.5 ? POSES.build : POSES[this.pose] ?? POSES.room;
-    const k = 1 - Math.exp(-dt * 4.5);
+    const lg = this.lattice.camGoal();
+    // the room's own props go quiet while the lattice is up (its sockets, lever and keys take the pointer)
+    for (const h of this.hots) if (!h.key.startsWith('lt:')) h.off = !!lg;
+    const goal = this.build > 0.5 ? POSES.build : lg ?? POSES[this.pose] ?? POSES.room;
+    const k = 1 - Math.exp(-dt * (lg ? 3.6 : 4.5));
     this.camP.lerp(goal.pos, k); this.camL.lerp(goal.look, k); this.camF += (goal.fov - this.camF) * k;
-    const par = this.pose === 'room' ? 1 : this.pose === 'obs' ? 0.45 : 0.25;
+    const par = lg ? 0.06 : this.pose === 'room' ? 1 : this.pose === 'obs' ? 0.45 : 0.25;
     this.cam.position.set(this.camP.x - this.ptrS.x * 0.18 * par + Math.sin(t * 0.27) * 0.01, this.camP.y + this.ptrS.y * 0.06 * par + Math.sin(t * 0.39) * 0.006, this.camP.z);
     this.cam.lookAt(this.v.set(this.camL.x + this.ptrS.x * 0.3 * par, this.camL.y - this.ptrS.y * 0.12 * par, this.camL.z));
   }

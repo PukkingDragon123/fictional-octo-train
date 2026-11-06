@@ -9,6 +9,8 @@
 //   sloth < gluttony < lust < greed < envy < wrath < pride
 // Classes are the Institute's taxonomy (CLASSES below).
 
+import { PLAYGROUND_INHABITANTS } from './lore_playground';
+
 export type SinRank = 'sloth' | 'gluttony' | 'lust' | 'greed' | 'envy' | 'wrath' | 'pride';
 
 export interface InhabitantLore {
@@ -138,6 +140,35 @@ export const INHABITANTS: InhabitantLore[] = [
     harvest: [{ item: 'grazer_mucus', how: 'Scrape the trail behind it, or the animal itself, into a container.' }],
   }),
 
+  // ============================================================== the predators (round 14)
+  L({
+    id: 'whip_rat', name: 'Whip Rat', rank: 'wrath', class: 'Fauna', danger: 6,
+    summary: 'A brown rat the size of a big dog, mangy and half-skinned, whose eyes ride the ends of two long whip-like stalks, and whose tail turns, halfway down, into a man\'s forearm and ends in a human hand.',
+    biology: 'The eye stalks are tubes of ringed muscle nearly a metre long, grown out of the sockets the eyes left. They can be sent round a corner, laid flat along the floor, or cracked like a stockwhip: the tip breaks the sound barrier, and the eye on the end takes no harm from it that anyone can find. The tail is a rat\'s for half its length; then the scales stop at a puckered seam and it is a forearm, with hair, a blue vein and a second elbow, and then a hand. The hand is human in every particular, and its nails are kept short. It does everything a rat cannot do with its mouth: it takes, carries, grips the floor and hauls the animal along. The hide is patchy with mange and torn open over muscle and ribs. It does not heal, and it does not seem to matter.',
+    behaviour: 'It hunts in the dark and keeps out of the light. It lurks in a dark corner with its eyes going round on their stalks, and when it hears something it sends the eyes round the corner before the rest of it. It waits low and flat beside where you will walk, cracks an eye across your face (it stuns), takes your ankle in the hand and backs into the dark, biting. It drags small animals off to eat, and takes anything left on the floor near its corner. A torch beam held on it makes it pull its eyes in and back away. Crouch and keep still and it loses you.',
+    habitat: 'Dark levels: the maintenance tunnels, the undercroft, the server floors, the stairwells; and the dark edges of Level 0, wherever a tube has gone out.',
+    lore: 'Rats were the first thing the Institute found living down here, and for a long time they were ordinary rats. Dr. Calder thinks the hand came first: "Something down here taught them that hands are how you take things, and they took the lesson literally." The first Whip Rat on file was found in the undercroft wearing a wedding ring. Nobody has found the finger it came off.',
+    harvest: [
+      { item: 'rat_eyestalk', how: 'Cut an eye stalk off a dead one (it twitches for an hour).' },
+      { item: 'rat_hand', how: 'Take the hand off the end of the tail.' },
+      { item: 'rat_incisor', how: 'Pull the long yellow incisors.' },
+      { item: 'mangy_hide', how: 'Skin what hide it has left.' },
+    ],
+  }),
+  L({
+    id: 'strider', name: 'Strider', rank: 'wrath', class: 'Remnant', danger: 8,
+    summary: 'A naked person stretched to over four metres, nearly all of it leg: legs that bend backward and walk on the tips of feet drawn out into a third limb, a gaunt torso with every rib showing, arms that hang to its knees, and a small, slack face a long way up.',
+    biology: 'Everything in it is human, and everything has been pulled. The bones are a person\'s bones grown long and thin: the thigh bone nearly two metres, the foot bones as long as a shin. The skin is smooth, hairless and pale, striped with stretch marks and drawn too tight over the joints, which are always raw. There is no navel and nothing else to say what it was; the place did not bother to keep them. It breathes slowly through its open mouth. Its eyes are small and dark and do not track well: it sees things that move and does not see things that keep still.',
+    behaviour: 'It walks the halls of Level 0 at the height of the ceiling tiles, stepping over the partition walls, and it listens. A footstep stops it dead. It tilts its head toward the sound, then goes to look: it folds its legs until its knees are higher than its head and peers into the rooms with its face at the height of yours. Seen moving, you are run down in strides of three and four metres and taken up in both hands. It does not go into rooms and it cannot see through a shut door. Crouch and keep absolutely still and it can look straight at you and not see you.',
+    habitat: 'Level 0, the Yellow Room, and nowhere else. Never more than one at a time, and long stretches with none.',
+    lore: 'The Institute matched one to a missing debtor, Unit D-5530, by a healed break in the collarbone that is on her intake X-ray. She went into Level 0 on a long survey and walked further than she should have, looking for the edge of it. Dr. Calder\'s note on the file: "Level 0 has no edge. It is as long as you walk. I think it made her the right shape for it." Sightings rise when units run in the lobby. Walk.',
+    harvest: [
+      { item: 'strider_tendon', how: 'Cut the long tendons out of a dead one\'s legs.' },
+      { item: 'strider_skin', how: 'Peel a strip of the stretched skin.' },
+      { item: 'long_bone', how: 'Take a finger bone, longer than your forearm.' },
+    ],
+  }),
+
   // ============================================================== the existing inhabitants
   // ============================================================== the Ledge (the far, melting edge of the place)
   L({
@@ -156,12 +187,37 @@ export const INHABITANTS: InhabitantLore[] = [
     id: 'bumble_bee', name: 'Giant Bumble Bee', rank: 'sloth', class: 'Fauna', danger: 1,
     summary: 'A bumblebee the size of a dog and many times too fat for its wings: a beach ball of banded fuzz on six dangling legs, held up by four wings no bigger than playing cards.',
     biology: 'Whatever the Ledge does to bodies, it did it to this one\'s appetite and not its wings. The abdomen is mostly stored fat and wax; the flight muscles shiver so hard to keep it up that the whole animal is warm to the touch. The sting has softened to a useless stub. Wax flakes off the belly segments in warm, honey-smelling sheets; the hind legs carry baskets of packed orange pollen from nowhere anyone has found.',
-    behaviour: 'It does nothing. It hovers a hand\'s breadth higher than it can manage, sags, claws back up, bumps into walls, furniture and people, and every minute or so gives up and sits on the floor, panting through its abdomen, before it tries again. It does not mind being touched. When a Gummy Bear stalks it, it notices late and flees at a walking pace.',
-    habitat: 'The Ledge, in slow drifting clouds. Now and then one wanders into the Fields or the Meadow.',
-    lore: 'The Institute keeps one in a cage at the Ledge outpost as an early warning: when it stops bumping into the bars and goes very still, a Gummy Bear is close. Operators call it the Dean. It has outlived four of them.',
+    behaviour: 'It hovers a hand\'s breadth higher than it can manage, sags, claws back up, bumps into walls, furniture and people, and every minute or so gives up and sits on the floor, panting through its abdomen. It does one thing with purpose: it forages the dead. It lands on remains, a carcass, a body in a torn suit, a heap of offal, and chews with its head down for a long minute, then flies off lower and heavier with a ball of meat in its jaws, always the same way, home to its Queen, and feeds her. Between trips the bees drift round her comb. It does not mind being touched. When a Gummy Bear stalks it, it notices late and flees at a walking pace.',
+    habitat: 'The Ledge, in slow drifting clouds round the Queen\'s comb at the Honey Pools. Now and then one wanders into the Fields or the Meadow.',
+    lore: 'The Institute keeps one in a cage at the Ledge outpost as an early warning: when it stops bumping into the bars and goes very still, a Gummy Bear is close. Operators call it the Dean. It has outlived four of them. The remains it forages are why the Ledge has so few bodies, and why the ones there are have been eaten so neatly.',
     harvest: [
       { item: 'bee_fuzz', how: 'Pluck a handful of fuzz (it buzzes once, then forgets).' },
       { item: 'honey_wax', how: 'Scrape the wax flaking off its belly segments.' },
+    ],
+  }),
+  L({
+    id: 'queen_bee', name: 'Queen Bee', rank: 'gluttony', class: 'Sovereign', danger: 6,
+    summary: 'The mother of the Giant Bumble Bees: three metres of banded fur and fat sat in a bowl of comb at the back of the Ledge\'s Honey Pools. The whole front of her abdomen is an open stomach, a ribbed, wet, gaping maw at floor level, and it swallows anything.',
+    biology: 'Her abdomen outgrew her wings, then her legs, then her skin. It rolled forward under her until she sat on it, and it split along the belly where the plates meet. The split never healed: the stomach lining grew out to its edges and became lips, the sternite plates round it curled into hooked ribs, and the gut behind became one great open crop that digests through its whole wall. Over her flanks the fur has stretched bald and the skin gone thin as a balloon\'s; through those windows you can watch what she swallowed turn over inside her and slowly fade. She cannot walk or fly. Her four wings are the size of a man\'s hand. Her front legs are long and thick and never stop raking the floor in front of her mouth.',
+    behaviour: 'She does not hunt, because she does not have to. Anything that comes within reach of her front legs, she turns to, inhales, and swallows whole: things lying on the floor, chairs, boxes, the remains the bees bring her, animals, units. You feel the inhale before you see it, a pull at your clothes and a hiss from the maw; that is the moment to run. A swallowed unit is held and digested alive. It can struggle, and a hard enough struggle tears it out through her lips; a partner can cut it free, or hurt her until she heaves it back up; and after half a minute she gives up on anything that fights and brings it up anyway. Fed, she lays: the rear of her lifts, the ovipositor works, and a new grub goes into the brood comb. Her bees tend her, drift round her, and feed her what they find.',
+    habitat: 'A chamber of hanging comb at the back of the Honey Pools, on the Ledge. There is only ever one.',
+    lore: 'Standing order 14 tells recovery teams not to take ID strips from the Honey Pools, "because the remains there are being farmed". The order does not say for what. The Ledge team says she is the reason the bees exist at all: the place made something with an appetite and nothing else, then gave it daughters to bring it food. Calder, on the first footage: "Gluttony, not wrath. She is not angry at anything. She is just open."',
+    harvest: [
+      { item: 'royal_jelly', how: 'Scrape it from the brood comb round her, or from her when she is dead.' },
+      { item: 'brood_comb', how: 'Break a slab off the brood mounds (the grubs are edible roasted).' },
+      { item: 'honey_wax', how: 'Peel the wax off her chamber, or off her.' },
+    ],
+  }),
+  L({
+    id: 'bee_keeper', name: 'Bee Keeper', rank: 'lust', class: 'Remnant', danger: 3,
+    summary: 'A Still Life the Giant Bumble Bees fed on until they grew into it: a human body with a bee coming through it, fuzz through the skin, clusters of compound eyes on the face, wings it cannot fly with, honey wax seeping from it everywhere. It is curious.',
+    biology: 'The bees eat the wax off Still Lifes that sit near their foraging grounds, a little at each visit. What they leave in it, eggs, wax, fuzz, takes root in the soft dark under the wax, and the two grow together. Fuzz comes through first, then compound eyes where the eyes were and on the brow and the cheek, then antennae out of the forehead and mandibles splitting the jaw; a pair of thin jointed bee legs pushes out between the ribs and never stops moving; a banded abdomen sags out of the small of the back with a soft sting at its tip; four wings come out of the shoulder blades, far too small to lift it. Honey wax seeps from the eyes, the mouth, the wrists. Then one day it stands up.',
+    behaviour: 'It wants to know about you. It follows at a polite distance, four or five metres, stops when you stop, and watches with its head on one side, in little snaps, like an insect\'s. If you look at it, it starts copying you: crouches when you crouch, holds a hand up when you hold up a torch, stands as still as you do. Anything you put down, it picks up and turns over and over against its eyes, then puts somewhere else. It backs off if you come close. It only stings when it is cornered or hurt and cannot get away: the wings blur, it hisses, and the abdomen swings forward between its legs.',
+    habitat: 'The Ledge, round the Honey Pools, wherever Still Lifes sat near the bees. A few drift further.',
+    lore: 'Ledge post sightings 1 to 11 follow one Still Life from the edge of the Honey Pools to its first sting. The log ends: "CALL THEM KEEPERS. LEAVE THEM ROOM." Calder argued against the name for a week and lost. She thinks they are the place practising again, with a new material: "It made a person out of wax, then let the bees teach it how to want things."',
+    harvest: [
+      { item: 'keeper_wax', how: 'Scrape the honey wax off it (dead), or off where it has stood a while.' },
+      { item: 'keeper_eye', how: 'Cut a compound-eye cluster out of a dead one\'s face.' },
     ],
   }),
   L({
@@ -514,6 +570,21 @@ export const INHABITANTS: InhabitantLore[] = [
     habitat: 'Houses, schools, the Fields, the mall, the lobby.',
     lore: 'Its gifts are sometimes crayon notes, in handwriting you recognise.',
     harvest: [{ item: 'rag', how: 'Stuffing and cloth.' }],
+  }),
+  // ============================================================== the Nostalgic Playground (src/creatures/lore_playground.ts)
+  ...PLAYGROUND_INHABITANTS,
+  // ============================================================== the Ball House (src/world/gen/z_ballhouse.ts)
+  L({
+    id: 'timmy', name: 'Timmy', rank: 'lust', class: 'Remnant', danger: 6,
+    summary: 'A child of five or six whose head has swollen into a thin, taut balloon of skin twice the width of its shoulders. The head floats; the little body dangles under it on a stretched neck, socks and sneakers kicking a hand\'s breadth off the floor. Propeller beanie, a loud printed shirt, a lollipop. Every one of them answers to Timmy.',
+    biology: 'The skull has opened along its sutures and the scalp has stretched over a single sac of air the child cannot breathe back out: a knot of scar tissue at the base of the head works like the neck of a balloon. The sac is lighter than the room because the air in it is warm and wet and faintly sweet, fermented by a yeast that lives in the sinuses and feeds on sugar in the blood. Everything below the neck is an ordinary, light, underfed child. The head skin is as thin as rubber, veined blue at the temples, and rings when it is flicked. Laughing makes it gulp air; excitement closes the throat. A sweet in the mouth makes it suck instead of gulp, and the sac slowly sighs back down.',
+    behaviour: 'They want to play. A Timmy that sees you giggles, waves and follows you about at a polite distance that gets less polite, kicking its feet, licking its lollipop to keep itself level. Stay close to it for long, run and make a game of it, or hurt it, and it starts to gulp air between giggles: the head swells, reddens, squeaks like a stretched balloon and wobbles, and it drifts at you to hug you, and then it pops. The burst throws confetti, boiled sweets and the rest of the child over everything within a few metres, and sets off any other Timmy near enough to hear it. A sweet thrown near one (or put in its hand) calms it, even half-swollen: it goes to it, sucks it, hums and forgets you for a while. Killed before it swells, it only goes down like a balloon. They hide in the ball pits with only their hats showing.',
+    habitat: 'The Ball House, where every day is Saturday and the parties never end. They drift out to the Nostalgic Playground, and one or two have been seen in the mall, near the sweet shops.',
+    lore: 'The Ball House kept every child who was not collected at closing time, and it is still keeping them. Its wristband log for a single Saturday lists two hundred and twelve children named Timmy, aged five or six, and nobody collected. The Institute does not know whose name it was first. Calder: "They are what the place made of the idea of a child left at a party after everyone else has gone home. Excited. Sticky. Waiting. Be kind to them, and be quick, and keep sweets in your pockets." Units coming back from the Ball House have confetti in their wounds.',
+    harvest: [
+      { item: 'timmy_lollipop', how: 'Prise the lollipop out of its fist once it is still (the others want that one more than anything).' },
+      { item: 'head_membrane', how: 'Peel a sheet of the stretched head skin off a deflated one. The lab wants it.' },
+    ],
   }),
 ];
 

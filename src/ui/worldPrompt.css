@@ -1,0 +1,46 @@
+/* round 14: the floating world prompt (src/ui/worldPrompt.ts). Text only: Alagard in a dark
+   ink outline, no box, no rounded anything. Sizes stay on Alagard's 16 px grid so it is crisp. */
+#wprompt { position: fixed; inset: 0; z-index: 23; pointer-events: none; overflow: hidden; font-family: var(--font-new); }
+#wprompt .wp-tag {
+  --o: #0b0a07;
+  position: absolute; left: 0; top: 0; pointer-events: none; white-space: nowrap; text-align: center;
+  opacity: 0; transition: opacity .18s ease-out; will-change: transform, opacity;
+  -webkit-font-smoothing: none; font-smooth: never; text-rendering: optimizeSpeed;
+  --ink1: 1px 0 0 var(--o), -1px 0 0 var(--o), 0 1px 0 var(--o), 0 -1px 0 var(--o), 1px 1px 0 var(--o), -1px 1px 0 var(--o), 1px -1px 0 var(--o), -1px -1px 0 var(--o), 0 2px 0 var(--o), 1px 2px 0 var(--o), -1px 2px 0 var(--o);
+  --ink2: 2px 0 0 var(--o), -2px 0 0 var(--o), 0 2px 0 var(--o), 0 -2px 0 var(--o), 2px 2px 0 var(--o), -2px 2px 0 var(--o), 2px -2px 0 var(--o), -2px -2px 0 var(--o), 0 4px 0 var(--o), 2px 4px 0 var(--o), -2px 4px 0 var(--o);
+}
+#wprompt .wp-tag.vis { opacity: 1; }
+#wprompt .wp-tag.dim.vis { opacity: .66; }
+#wprompt .wp-in { transform: translateY(5px); transition: transform .18s ease-out; }
+#wprompt .wp-tag.vis .wp-in { transform: none; }
+
+#wprompt .wp-head { font-size: 16px; line-height: 18px; letter-spacing: 1px; color: #f4ecd2; text-shadow: var(--ink1); }
+#wprompt .wp-v { color: #d9cba2; }
+#wprompt .wp-n { color: #fff3cf; }
+#wprompt .wp-key { font-weight: normal; color: #ffd768; margin-right: 6px; }
+#wprompt .wp-head.no .wp-n, #wprompt .wp-head.no .wp-v { color: #a39b86; }
+#wprompt .wp-why { font-size: 16px; line-height: 18px; color: #e08a5a; text-shadow: var(--ink1); }
+#wprompt .wp-subs { display: flex; justify-content: center; gap: 14px; margin-top: 4px; }
+#wprompt .wp-sub { font-size: 16px; line-height: 18px; letter-spacing: 1px; color: #d9cba2; text-shadow: var(--ink1); }
+#wprompt .wp-sub .wp-key { margin-right: 4px; color: #e8c25a; }
+#wprompt .wp-sub.no { color: #8d8676; }
+#wprompt .wp-tag.dim .wp-key { color: #cfb15a; }
+
+/* the bright one: twice the size where the screen has room */
+#wprompt .wp-tag.prim .wp-head { color: #fff3cf; }
+@media (min-width: 1000px) and (min-height: 600px) {
+  #wprompt .wp-tag.prim .wp-head { font-size: 32px; line-height: 34px; letter-spacing: 2px; text-shadow: var(--ink2); }
+  #wprompt .wp-tag.prim .wp-key { margin-right: 10px; }
+}
+
+/* touch: the label is the button (a generous invisible hit area, a press dips it) */
+#wprompt.touch .wp-tag.vis { pointer-events: auto; touch-action: none; user-select: none; -webkit-user-select: none; }
+#wprompt.touch .wp-head, #wprompt.touch .wp-sub { padding: 10px 14px; margin: -10px -14px; }
+#wprompt.touch .wp-subs { gap: 22px; margin-top: 8px; }
+#wprompt.touch .wp-sub { color: #f0e2b8; text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; text-decoration-color: rgba(255, 215, 104, .7); }
+#wprompt.touch .down { transform: translateY(2px); filter: brightness(1.25); }
+/* what the unit already holds: a quiet line, not a headline */
+@media (min-width: 1000px) and (min-height: 600px) {
+  #wprompt .wp-tag.prim.held .wp-head { font-size: 16px; line-height: 18px; letter-spacing: 1px; text-shadow: var(--ink1); }
+  #wprompt .wp-tag.prim.held .wp-key { margin-right: 6px; }
+}

@@ -1,27 +1,31 @@
-// The contract tutorial: Dr. Iris Calder's link training, right after the run
-// intro (src/game/intro.ts). She talks you through the unit's body over the
-// band, broadcast-style: a LIVE lesson card at the top of the screen, her
-// voice on the wrist (src/game/handler.ts: a voice only, her waveform on the
-// loop tracker's tube, src/game/loop/tracker.ts), one word hanging over
-// whatever the lesson is about. The lessons that need the body keep the
-// controls in your hands; the few that need to show you something are short
-// cutscenes (letterbox, the iso camera framed, a cut to the unit's own eyes).
+// The contract tutorial: Dr. Iris Calder walks you through the unit, in the
+// normal game view (isometric, third person; never through the eyes). She is
+// a full-colour hologram on your screen (src/ui/holo/calderHolo.ts) that
+// shimmers in, stands on the glass in front of the picture and points: at the
+// unit, at the parts of the body console (the heart, the brain, the
+// digester, the pump and its balloon, the rucksack, the watch icon), at the
+// hotbar, at a chair in the room and the label floating over it, at the
+// press, at an inhabitant, at the door. The camera comes in close on the unit
+// and the thing being taught, then eases back out. No lesson cards, no step
+// counters, no recap screens: she shows each part, then you do it.
 //
-//   1 THE LEGS    walk                                         -> WALK
-//   2 THE PACE    hold Shift (touch: RUN)                      -> RUN
-//   3 LOW         C / Ctrl (touch: SNEAK)                      -> CROUCH
-//   4 THE HANDS   a piece of furniture lit, her eyes on it     -> GET A GRIP (right button held / G)
-//   5 THE PRESS   a pan to the Remittance Press                -> TO THE PRESS, FEED IT (E)
-//                 the band: the number going down, the installment, the watch, the way deeper
-//   6 THE LINK    she slips the link on purpose                -> RESYNC (L, or tap the status line)
-//   7 DATA        terminals, drives, the inhabitants; the job, once more, plainly
+// She talks a lot, and you can answer her (src/ui/holo/calderReplies.ts:
+// square, chamfered plates, 1-3, a click or a tap); what she says back
+// depends on what you said. Gentle, dry, and on the Institute's clock.
 //
-// The job is whole furniture: things down here are hard to break, so you get
-// hold of a piece, carry it to the press and feed it in (src/world/pushDrag.ts).
+// A little forced: each lesson waits until you have done the thing (she
+// repeats herself, then insists), the press refuses the unit's furniture
+// until the press lesson, and every door out stays shut until she is done.
+//
+//   walk, run (the balloon), the pump, crouch, the body console, the hotbar,
+//   the wrist light, the pack, the watch, a piece of furniture (get a grip),
+//   the press (feed it), an inhabitant (scan), the link (resync), the door
+//
 // Runs once per contract (flag 'tut:done'), only for the host / solo with the
-// contract on (never free survival or a co-op joiner). Esc (or the plate, or
-// pad Start) skips the rest. ?quick runs keep the handler's soft guide;
-// ?tutorial=1 forces it on a quick start (dev).
+// contract on (never free survival or a co-op joiner), never under a test
+// driver (navigator.webdriver) unless ?tutorial=1. Esc (when no menu is up),
+// the skip plate or a pad's Start ends it at once: she signs off, the doors
+// and the press open. ?quick&tutorial=1 stages it on a quick start (dev).
 //
 //   tutorialWanted(), startTutorial(g), tutorialRunning()
 import * as THREE from 'three';
@@ -30,31 +34,39 @@ import type { Game, GameSystem } from '../game';
 import type { Action } from '../../core/input';
 import type { Player } from '../../entities/player';
 import type { TileObject } from '../../world/zone';
+import type { ResearcherGesture } from '../../entities/researcher';
 import { bus } from '../../core/events';
 import { objDef } from '../../world/objects';
-import { eyeEnter, eyeExit, eyeActive } from '../../fp/eye';
-import { floatQuiet } from '../../social/floatText';
+import { floatQuiet, floatText } from '../../social/floatText';
+import { offscreen } from '../../ui/holo/subs';
 import { skipPlate, pollPadSkip, type SkipPlate } from '../introKit/skip';
 import { readTime } from '../lines';
+import { RadioVoice } from '../vossVoice';
+import { rigNumber } from '../../content/items/prisoner';
+import { calderHolo, type CalderHolo } from '../../ui/holo/calderHolo';
+import { askCalder, cancelAsk } from '../../ui/holo/calderReplies';
 import { TUT } from './state';
-import '../intro.css';
 
-type Step = 'walk' | 'run' | 'crouch' | 'brief' | 'grip' | 'press' | 'carry' | 'feed' | 'debt' | 'link' | 'data' | 'done';
-interface Beat { dur: number; enter?: () => void; tick?: (k: number, dt: number) => void; voss?: boolean }
 interface PushApi {
   holding?: unknown; mode?: string; st?: { o?: TileObject } | null;
   liftable?: (p: Player, o: TileObject, power?: boolean) => boolean;
   carryInfo?: () => { mass: number; tier: number; name: string; nearPress: boolean } | null;
+  feed?: (p: Player) => boolean;
 }
+type Pt = { x: number; y: number };
+type Aim = () => Pt | null;
+type HudPart = 'heart' | 'brain' | 'jar' | 'lung' | 'balloon' | 'pack' | 'watch';
 
-const DEG = Math.PI / 180;
-const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
-const ease = (t: number) => { t = clamp01(t); return t * t * (3 - 2 * t); };
+const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 const v1 = new THREE.Vector3();
 const push = () => (G as unknown as { destruct?: { push?: PushApi } }).destruct?.push ?? null;
 const isTouch = () => document.documentElement.classList.contains('nc-touch') || (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
-const LESSONS = 7;
+const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+/** a skip unwinds the script */
+const SKIP = Symbol('tutorial skipped');
+/** the pickAt kinds of the body console for each part */
+const PICK: Record<HudPart, string[]> = { heart: ['bag'], brain: ['brain'], jar: ['jar'], lung: ['lung', 'gauge'], balloon: ['balloon'], pack: ['pack'], watch: ['watch'] };
 
 let running: Tutorial | null = null;
 export function tutorialRunning(): boolean { return !!running; }
@@ -66,6 +78,8 @@ export function tutorialWanted(g: Game = G as unknown as Game): boolean {
   if (m.flags?.has('tut:done') || m.flags?.has('contract:first_deposit')) return false;
   const net = (g as unknown as { net?: { mode?: string; isClient?: boolean } }).net;
   if (net?.isClient || net?.mode === 'client') return false;
+  // automated runs (the walkthrough) play on; ?tutorial=1 still forces it
+  if (typeof navigator !== 'undefined' && navigator.webdriver && !/[?&]tutorial=1/.test(location.search)) return false;
   return !!g.local;
 }
 
@@ -78,462 +92,603 @@ export function startTutorial(g: Game = G as unknown as Game): Tutorial | null {
 }
 
 const CSS = `
-.tut-root { position: fixed; inset: 0; pointer-events: none; z-index: 170; font-family: var(--font-new); }
-.tut-root .ix-bar { height: 0; }
-.tut-root.cine .ix-bar { height: 11vh; }
-.tut-shade { position: absolute; inset: 0; background: #000; opacity: 0; }
-.tut-obj { position: absolute; transform: translate(-50%, -100%); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .35s; }
-.tut-obj.on { opacity: 1; }
-.tut-obj b { display: block; font-weight: 400; font-size: 32px; line-height: 32px; color: #ffe7a8; text-shadow: var(--text-ink); letter-spacing: 1px; }
-.tut-obj i { display: block; font-style: normal; font-size: 16px; line-height: 16px; color: #e8eef4; text-shadow: var(--text-ink); margin-top: 4px; }
-.tut-obj .arrow { display: block; font-size: 16px; color: #ffe7a8; text-shadow: var(--text-ink); animation: tut-bob .9s steps(3) infinite; }
-@keyframes tut-bob { 50% { transform: translateY(4px); } }
-.tut-count { position: absolute; transform: translate(-50%, -100%); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .3s; }
-.tut-count.on { opacity: 1; }
-.tut-count small { display: block; font-size: 16px; line-height: 16px; color: #ffb45a; text-shadow: var(--text-ink); }
-.tut-count b { display: block; font-weight: 400; font-size: 48px; line-height: 48px; color: #ffd890; text-shadow: var(--text-ink); }
-.tut-count em { display: block; font-style: normal; font-size: 32px; line-height: 32px; color: #9cff8a; text-shadow: var(--text-ink); }
-.tut-recap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; opacity: 0; transition: opacity .5s; width: min(92vw, 960px); }
-.tut-recap.on { opacity: 1; }
-.tut-recap h2 { font-weight: 400; font-size: 32px; line-height: 32px; margin: 0 0 16px; color: #8fd8ff; text-shadow: var(--text-ink); }
-.tut-recap .loop { font-size: 32px; line-height: 48px; color: #fff2c8; text-shadow: var(--text-ink); }
-.tut-recap .loop span { color: #8fd8ff; }
-.tut-recap p { font-size: 16px; line-height: 16px; margin: 12px 0 0; color: #e8eef4; text-shadow: var(--text-ink); }
-.tut-recap p b { font-weight: 400; color: #8fd8ff; margin-right: 8px; }
-.tut-recap p i { font-style: normal; color: #ffd890; }
-/* the broadcast: Dr. Calder's lesson card, top of the screen */
-.tut-cast { position: absolute; left: 50%; top: calc(64px + env(safe-area-inset-top)); transform: translate(-50%, -8px); text-align: center; white-space: nowrap; opacity: 0; transition: opacity .4s, transform .4s; }
-.tut-cast.on { opacity: 1; transform: translate(-50%, 0); }
-.tut-root.cine .tut-cast { opacity: 0; }
-/* (on narrower screens the lesson card drops below the loop tracker at the top right, src/game/loop/tracker.ts) */
-@media (max-width: 1200px) { .tut-cast { top: calc(124px + env(safe-area-inset-top)); } }
-.tut-cast small { display: block; font-size: 16px; line-height: 16px; letter-spacing: 2px; color: #8fd8ff; text-shadow: var(--text-ink); }
-.tut-cast small u { text-decoration: none; color: #ff5a4a; animation: tut-live 1.4s steps(2) infinite; }
-@keyframes tut-live { 50% { opacity: .25; } }
-.tut-cast b { display: block; font-weight: 400; font-size: 32px; line-height: 32px; margin-top: 8px; color: #fff2c8; text-shadow: var(--text-ink); letter-spacing: 1px; }
-.tut-cast i { display: block; font-style: normal; font-size: 16px; line-height: 16px; margin-top: 8px; color: #ffe7a8; text-shadow: var(--text-ink); }
-.tut-cast i kbd { font: inherit; padding: 0 4px; border: 2px solid #ffe7a8; margin: 0 2px; }
-@media (max-width: 600px) { .tut-recap .loop { font-size: 16px; line-height: 32px; } .tut-obj b, .tut-cast b { font-size: 16px; line-height: 16px; } .tut-count b { font-size: 32px; line-height: 32px; } .tut-count em { font-size: 16px; line-height: 16px; } }
+.tut-root { position: fixed; inset: 0; pointer-events: none; z-index: 64; font-family: var(--font-new); }
+.tut-hl { position: absolute; pointer-events: none; opacity: 0; transition: opacity .25s; }
+.tut-hl.on { opacity: 1; animation: tut-hl 1.1s steps(4) infinite; }
+.tut-hl i { position: absolute; width: 14px; height: 14px; border: 0 solid #8fe8ff; filter: drop-shadow(1px 0 0 #000) drop-shadow(-1px 0 0 #000) drop-shadow(0 1px 0 #000) drop-shadow(0 -1px 0 #000) drop-shadow(0 0 4px rgba(110, 220, 255, .8)); }
+.tut-hl i:nth-child(1) { left: 0; top: 0; border-left-width: 4px; border-top-width: 4px; }
+.tut-hl i:nth-child(2) { right: 0; top: 0; border-right-width: 4px; border-top-width: 4px; }
+.tut-hl i:nth-child(3) { left: 0; bottom: 0; border-left-width: 4px; border-bottom-width: 4px; }
+.tut-hl i:nth-child(4) { right: 0; bottom: 0; border-right-width: 4px; border-bottom-width: 4px; }
+@keyframes tut-hl { 50% { transform: scale(1.06); } }
+.tut-keys { position: absolute; transform: translate(-50%, -100%); display: flex; gap: 4px; opacity: 0; transition: opacity .25s; }
+.tut-keys.on { opacity: 1; }
+.tut-keys b { display: grid; place-items: center; min-width: 32px; height: 32px; padding: 0 6px; box-sizing: border-box; font-weight: 400; font-size: 16px; line-height: 16px; color: #10161a;
+  background: linear-gradient(180deg, #f2f6f8, #c2ccd0); box-shadow: inset 0 -4px 0 #7f8c90, 0 0 0 2px #0c1012, 0 3px 0 2px rgba(0,0,0,.4);
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px); }
+.tut-keys b.lit { background: linear-gradient(180deg, #fff2c8, #ffd890); box-shadow: inset 0 -2px 0 #b8904a, 0 0 0 2px #0c1012; transform: translateY(2px); }
+.tut-keys.wasd { display: grid; grid-template-columns: repeat(3, 32px); grid-template-rows: 32px 32px; gap: 4px; }
+.tut-keys.wasd b:nth-child(1) { grid-column: 2; grid-row: 1; } .tut-keys.wasd b:nth-child(2) { grid-column: 1; grid-row: 2; }
+.tut-keys.wasd b:nth-child(3) { grid-column: 2; grid-row: 2; } .tut-keys.wasd b:nth-child(4) { grid-column: 3; grid-row: 2; }
 `;
 
 export class Tutorial implements GameSystem {
   name = 'tutorial';
-  step: Step = 'walk';
-  /** seconds in this step */
-  t = 0;
-  private beats: Beat[] = [];
-  private beatT = 0;
-  private beatOn = false;
-  private cine = false;
-  // the iso camera, framed
-  private camOn = false; private camFocus = new THREE.Vector3(); private camGoal = new THREE.Vector3(); private camZoom = 1; private camZoomGoal = 1; private camRate = 2;
-  // what the lesson is about
-  private target: { x: number; z: number; y: number } | null = null;
-  private targetObj: TileObject | null = null;
-  private refused = new Set<number>();
-  private hopper: { x: number; z: number; o: TileObject } | null = null;
-  private owedFrom = 0; private owedTo = 0; private paid = 0;
-  private bareT = 0;
-  private walked = 0; private held = 0; private dropT = 0; private fed = false; private saidHeavy = false; private slipped = false;
+  /** the current lesson (TUT.step mirrors it) */
+  step = 'hello';
+  private clock = 0;
+  private waits: { cond: () => boolean; res: () => void; rej: (e: unknown) => void }[] = [];
+  private over = false;
+  private holo: CalderHolo;
+  private voice = new RadioVoice(205, 1, 'calder');
+  private num: string;
   private touch = isTouch();
-  private offs: (() => void)[] = [];
-  private lockOffs: (() => void)[] = [];
+  // what the unit has done (counted every frame)
+  private walked = 0; private runT = 0; private sneakT = 0;
+  private pumped = 0; private hotKey = 0; private heartClicked = 0;
+  private fed = false; private deposited = 0;
+  private lastPos = { x: 0, z: 0 };
+  // gates the lessons hold shut
+  private pressOpen = false; private doorsOpen = false;
+  private refused = new Set<number>();
+  private target: TileObject | null = null;
+  private saidHeavy = false;
+  private nagT = 0;
+  // the camera: framed on a spot or following the unit, zoomed in; w eases it in and out
+  private cam = { on: false, follow: true, focus: new THREE.Vector3(), goal: new THREE.Vector3(), zoom: 1, zoomGoal: 1, rate: 2, w: 0 };
+  private camSaved: { px: number; target: THREE.Vector3 } | null = null;
   // dom
-  private root: HTMLDivElement; private shade: HTMLDivElement; private obj: HTMLDivElement; private count: HTMLDivElement; private recap: HTMLDivElement; private cast: HTMLDivElement;
+  private root: HTMLDivElement; private hlEl: HTMLDivElement; private keysEl: HTMLDivElement;
   private plate: SkipPlate;
-  private shadeA = 0; private shadeGoal = 0;
-  private objAt: (() => THREE.Vector3 | null) | null = null;
-  private countAt: (() => THREE.Vector3 | null) | null = null;
-  private watchUp = false;
+  private hlFn: (() => DOMRect | null) | null = null;
+  private keysAt: (() => THREE.Vector3 | null) | null = null;
+  private offs: (() => void)[] = [];
   private quietHeld = false;
 
   constructor(public g: Game) {
     running = this;
-    TUT.running = true; TUT.step = 'walk'; TUT.target = -1;
+    TUT.running = true; TUT.step = 'hello'; TUT.target = -1;
+    const p = G.local!;
+    this.num = (p as unknown as { prisonerNo?: string }).prisonerNo || rigNumber(p.rig);
+    this.lastPos = { x: p.x, z: p.z };
     if (!document.getElementById('tut-css')) { const st = document.createElement('style'); st.id = 'tut-css'; st.textContent = CSS; document.head.appendChild(st); }
     const el = (cls: string, html = '') => { const e = document.createElement('div'); e.className = cls; e.innerHTML = html; return e; };
     this.root = el('tut-root');
-    this.shade = el('tut-shade');
-    this.obj = el('tut-obj');
-    this.count = el('tut-count');
-    this.recap = el('tut-recap');
-    this.cast = el('tut-cast');
+    this.hlEl = el('tut-hl', '<i></i><i></i><i></i><i></i>');
+    this.keysEl = el('tut-keys');
     this.plate = skipPlate(() => this.skip(), 'Skip lessons');
     this.plate.setKey(this.touch ? '' : 'Esc');
     this.plate.el.classList.add('on');
-    this.root.append(el('ix-bar top'), el('ix-bar bot'), this.shade, this.cast, this.obj, this.count, this.recap, this.plate.el);
+    this.plate.el.addEventListener('mouseenter', () => { G.input.pointerOverUI = true; });
+    this.plate.el.addEventListener('mouseleave', () => { G.input.pointerOverUI = false; });
+    this.root.append(this.hlEl, this.keysEl, this.plate.el);
     document.body.appendChild(this.root);
     floatQuiet(true); this.quietHeld = true;
-    // the handler's soft guide stands down: she runs the lessons from here
-    const h = G.handler as unknown as { briefed?: boolean; cine?: boolean; hush?: () => void } | null;
-    if (h) { h.briefed = true; h.hush?.(); }
+    // her own lines only (the band's soft guide and its reactions stand down while she teaches)
+    const h = G.handler as unknown as { briefed?: boolean; cine?: boolean; hush?: () => void; guide?: (t: null) => void } | null;
+    if (h) { h.briefed = true; h.hush?.(); h.cine = true; h.guide?.(null); }
+    this.holo = calderHolo();
+    this.hooks();
+    void this.run();
+  }
+
+  // ================================================================== hooks
+  private hooks() {
+    const g = this.g;
     const on = (ev: string, fn: (...a: any[]) => void) => this.offs.push(bus.on(ev, fn));
     on('grabbed', (p: Player, o: TileObject, mode: string) => { if (p === G.local) this.onGrab(o, mode); });
-    on('carryFed', (p: Player) => { if (p === G.local) { this.fed = true; this.t = 0; this.setObjective(null); G.handler?.guide?.(null); } });
-    on('deposited', (d: { by: string; value: number }) => {
-      if (d?.by !== G.local?.id) return;
-      if (['grip', 'carry', 'feed', 'press'].includes(this.step)) { this.paid = d.value; this.go(this.hopper ? 'debt' : 'link'); }
-    });
-    // Esc skips (only while no menu or reader is up); the controls stay the player's
+    on('carryFed', (p: Player) => { if (p === G.local) this.fed = true; });
+    on('deposited', (d: { by: string; value: number }) => { if (d?.by === G.local?.id) { this.fed = true; this.deposited += Math.max(0, Number(d.value) || 0); } });
+    // Esc skips (only while no menu, reader, pack or watch is up)
     const inp = g.input as unknown as { hit: (a: Action) => boolean };
     const own = Object.prototype.hasOwnProperty.call(inp, 'hit') ? inp.hit : undefined;
     const orig = inp.hit.bind(inp);
-    inp.hit = (a: Action) => {
+    const hit = (a: Action) => {
       const v = orig(a);
-      if (a === 'pause' && v && !this.cine) {
+      if (a === 'pause' && v) {
         const ui = g.ui as unknown as { menuEl?: unknown; readerEl?: unknown; modal?: unknown; inventory?: { open?: boolean } } | undefined;
         if (!(ui?.menuEl || ui?.readerEl || ui?.modal || ui?.inventory?.open || (G as unknown as { watch?: { open?: boolean } }).watch?.open)) { this.skip(); return false; }
       }
       return v;
     };
-    this.offs.push(() => { if (own) inp.hit = own; else delete (inp as { hit?: unknown }).hit; });
-    this.go('walk');
-  }
-
-  // ================================================================== steps
-  private go(step: Step) {
-    this.step = step; this.t = 0;
-    TUT.step = step;
-    this.setObjective(null);
-    const h = G.handler;
-    const T = this.touch;
-    switch (step) {
-      case 'walk':
-        this.release();
-        this.lesson(1, 'THE LEGS', T ? 'the stick, bottom left' : '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>');
-        this.say(T ? 'Lesson one, the legs. The stick on the left walks it. Small steps, it is still finding its feet.' : 'Lesson one, the legs. W, A, S and D walk it. Small steps, it is still finding its feet.');
-        break;
-      case 'run':
-        this.lesson(2, 'THE PACE', T ? 'tap <kbd>RUN</kbd>' : 'hold <kbd>Shift</kbd>');
-        this.say(T ? 'Good. Tap RUN and it runs. Running spends breath: the lungs on the machine will tell you when to stop.' : 'Good. Hold Shift and it runs. Running spends breath: the lungs on the machine will tell you when to stop.');
-        break;
-      case 'crouch':
-        this.lesson(3, 'LOW', T ? 'tap <kbd>SNEAK</kbd>' : '<kbd>C</kbd> or <kbd>Ctrl</kbd>');
-        this.say(T ? 'Now get it low. SNEAK. Slower, quieter. Most inhabitants hunt by ear.' : 'Now get it low. C, or Control. Slower, quieter. Most inhabitants hunt by ear.');
-        break;
-      case 'brief': if (G.local) G.local.sneaking = false; this.findTarget(); this.findHopper(); this.cut(this.briefBeats()); break;
-      case 'grip':
-        this.release();
-        this.lesson(4, 'THE HANDS', T ? 'tap it, then <kbd>CARRY</kbd>' : 'hold the <kbd>right button</kbd> on it, or <kbd>G</kbd>');
-        if (this.target) h?.guide?.(this.target);
-        break;
-      case 'press': this.cut(this.pressBeats()); break;
-      case 'carry':
-        this.release();
-        this.lesson(5, 'THE PRESS', 'walk it over. Heavy loads are slow');
-        if (this.hopper) h?.guide?.(this.hopper);
-        break;
-      case 'feed':
-        this.lesson(5, 'THE PRESS', T ? 'tap <kbd>FEED</kbd>' : '<kbd>E</kbd> next to the plate');
-        h?.guide?.(null);
-        break;
-      case 'debt': this.cut(this.debtBeats()); break;
-      case 'link':
-        this.release();
-        this.slipped = false;
-        this.lesson(6, 'THE LINK', T ? 'tap the <kbd>LINK</kbd> line' : '<kbd>L</kbd> resyncs');
-        this.say('Lesson six, and you will hate it. Your fear runs down the wire. When the brain on the machine cracks, the unit lags, drifts, does things on its own.');
-        this.say('I am going to slip the link now. On purpose. Resync it.');
-        break;
-      case 'data': this.cut(this.dataBeats()); break;
-      case 'done': this.finish(); break;
+    inp.hit = hit;
+    this.offs.push(() => { if (inp.hit !== hit) return; if (own) inp.hit = own; else delete (inp as { hit?: unknown }).hit; });
+    // what the hands and keys do (watched, never swallowed)
+    const key = (e: KeyboardEvent) => {
+      if (e.repeat) return;
+      if (e.code === 'KeyH') this.pumped++;
+      if (/^Digit[1-5]$/.test(e.code)) this.hotKey++;
+    };
+    window.addEventListener('keydown', key);
+    this.offs.push(() => window.removeEventListener('keydown', key));
+    const tap = (e: PointerEvent) => {
+      if (this.plate.el.contains(e.target as Node)) return;
+      const hb = G.hudBody as unknown as { pickAt?: (x: number, y: number) => { kind: string | null } } | null;
+      let k: string | null = null;
+      try { k = hb?.pickAt?.(e.clientX, e.clientY)?.kind ?? null; } catch { /* no console */ }
+      if (k === 'bag') this.heartClicked++;
+      if (k === 'lung' || k === 'gauge' || k === 'balloon') this.pumped++;
+      if ((e.target as Element)?.closest?.('#hot12 .hb-slot')) this.hotKey++;
+    };
+    window.addEventListener('pointerdown', tap, true);
+    this.offs.push(() => window.removeEventListener('pointerdown', tap, true));
+    // the doors stay shut until she is done
+    const gg = g as unknown as { travel: (p: Player, ...a: unknown[]) => void };
+    const ownT = Object.prototype.hasOwnProperty.call(gg, 'travel') ? gg.travel : undefined;
+    const travel0 = gg.travel.bind(g);
+    const travel = (p: Player, ...a: unknown[]) => {
+      if (!this.doorsOpen && p === G.local) { this.refuse('door'); return; }
+      return travel0(p, ...a);
+    };
+    gg.travel = travel;
+    this.offs.push(() => { if (gg.travel !== travel) return; if (ownT) gg.travel = ownT; else delete (gg as { travel?: unknown }).travel; });
+    // the press takes nothing until the press lesson
+    const pu = push();
+    if (pu?.feed) {
+      const ownF = Object.prototype.hasOwnProperty.call(pu, 'feed') ? pu.feed : undefined;
+      const feed0 = pu.feed.bind(pu);
+      const feed = (p: Player) => { if (!this.pressOpen && p === G.local) { this.refuse('press'); return false; } return feed0(p); };
+      pu.feed = feed;
+      this.offs.push(() => { if (pu.feed !== feed) return; if (ownF) pu.feed = ownF; else delete pu.feed; });
     }
-  }
-
-  private briefBeats(): Beat[] {
-    const p = G.local!, tg = this.target;
-    const h = G.handler;
-    return [
-      { dur: 0.1, enter: () => { this.lesson(4, 'THE HANDS', ''); this.frame(v1.set(p.x, p.y + 0.6, p.z), 1.0, 8); } },
-      // up over the room: the unit small in it, the furniture around it
-      { dur: 3.2, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 0.4, p.z), 0.72, 0.9); G.camera?.orbitBy?.(14 * DEG, 0); this.say('Lesson four, the hands. This is the job, {n}. The Institute collects furniture. Whole. It is all built to last down here.'); } },
-      // push on the piece it is going to carry, lit
-      { dur: 2.8, voss: true, enter: () => { if (tg) { this.frame(v1.set(tg.x, tg.y + 0.5, tg.z), 1.7, 1.6); h?.point?.(tg.x, tg.z); } this.say(tg ? 'That one. Light enough for a new body.' : 'Find something the unit can lift.', tg ?? undefined); } },
-      // its own eyes on it
-      { dur: 2.6, voss: true, enter: () => { if (tg) this.eyeOn(tg, 10); this.say(this.touch ? 'Walk up to it, tap it, then CARRY. Lift with the legs.' : 'Walk up to it and hold the right button on it. Or press G. Lift with the legs.'); } },
-      { dur: 0.3, enter: () => this.eyeOff() },
-    ];
-  }
-
-  private pressBeats(): Beat[] {
-    const p = G.local!;
-    this.findHopper();
-    const hp = this.hopper;
-    return [
-      { dur: 0.1, enter: () => { this.lesson(5, 'THE PRESS', ''); this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.4, 6); } },
-      // a pan from the unit to the press, the press lit, Calder at its projector
-      { dur: 3.4, voss: true, enter: () => { if (hp) this.frame(v1.set(hp.x, p.y + 0.6, hp.z), 1.5, 1.0); this.say('Got it. Good. That is a Remittance Press. It eats what you feed it and pays the unit\'s number down.'); } },
-      { dur: 2.6, voss: true, enter: () => { this.say(this.touch ? 'Carry it over. Next to the plate, tap FEED.' : 'Carry it over. Next to the plate, press E and it goes in.'); } },
-    ];
-  }
-
-  private debtBeats(): Beat[] {
-    const p = G.local!;
-    const d = () => (G as unknown as { debt?: { state?: () => { owed: number; paid: number; due: number; dueDay: number; remaining: number; dueH?: number; count?: number; n?: number } } }).debt?.state?.();
-    const st0 = d();
-    this.owedTo = st0?.remaining ?? 0;
-    this.owedFrom = this.owedTo + Math.max(0, this.paid);
-    const wrist = () => v1.set(p.x + Math.cos(p.facing + Math.PI / 2) * 0.3, p.y + 1.15, p.z + Math.sin(p.facing + Math.PI / 2) * 0.3);
-    const exit = this.findExit();
-    return [
-      // the press does its work
-      { dur: 1.8, enter: () => { G.handler?.guide?.(null); this.lock(true); } },
-      // the push on the band: the number counts down
-      { dur: 3.6, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 0.9, p.z), 3.0, 1.3); this.counter(wrist); this.say('Hear that? The unit\'s number went down. That is the whole job.'); },
-        tick: (k) => { const n = this.owedFrom + (this.owedTo - this.owedFrom) * ease(clamp01((k - 0.12) / 0.55)); this.setCount('OWED', fmt(n) + ' SCRIP', this.paid > 0 ? '-' + fmt(this.paid) : ''); if (k > 0.12 && k < 0.7 && Math.random() < 0.25) G.audio?.ui?.('watchTick', 0.25); } },
-      // the installment and its deadline
-      { dur: 4.2, voss: true, enter: () => { const s = d(); this.setCount(`INSTALLMENT ${(s?.n ?? 0) + 1} OF ${s?.count ?? 5}`, fmt(s?.due ?? 0) + ' DUE', `BY DAY ${s?.dueDay ?? 3}`); this.say('The ledger wants an installment every few days. Miss one and the band bites. I do not enjoy that part. Much.'); },
-        tick: () => { const s = d(); if (s?.dueH != null) this.setCount(`INSTALLMENT ${(s.n ?? 0) + 1} OF ${s.count ?? 5}`, fmt(s.due) + ' DUE', `DAY ${s.dueDay} - ${Math.max(0, Math.floor(s.dueH))} H LEFT`); } },
-      // the watch on the same wrist: the job board (TAB raises it)
-      { dur: 4.4, voss: true, enter: () => { this.frame(v1.set(p.x, p.y + 1.0, p.z), 3.4, 1.6); this.setCount(this.touch ? 'THE WATCH' : 'THE WATCH  -  TAB', 'JOBS', 'PAY RESEARCH CREDIT'); this.say('Your watch. My jobs come through it, and they pay research credit: spend it on what the watch can do.'); } },
-      { dur: 0.3, enter: () => this.counter(null) },
-      // the way deeper
-      { dur: 3.6, voss: true, enter: () => { this.camOn = true; if (exit) this.frame(v1.set(exit.x, p.y + 0.5, exit.z), 1.2, 0.9); else this.frame(v1.set(p.x, p.y + 0.5, p.z), 0.8, 1); this.say('Clear the debt and the unit buys passage out at the depot. The deeper rooms pay better. They also bite.', exit ?? undefined); } },
-    ];
-  }
-
-  /** the last lesson, and the job once more, plainly */
-  private dataBeats(): Beat[] {
-    const p = G.local!;
-    return [
-      { dur: 0.1, enter: () => { this.lesson(7, 'DATA', ''); this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.0, 3); } },
-      { dur: 3.4, voss: true, enter: () => this.say('Last lesson. Data. Terminals, drives, journals: whatever remembers what happened here, read it. That pays me.') },
-      { dur: 3.4, voss: true, enter: () => this.say(this.touch ? 'And the inhabitants. They are organisms, not ghosts. Point the watch at one and scan it. From a distance, please.' : 'And the inhabitants. They are organisms, not ghosts. Hold N on one and the watch scans it. From a distance, please.') },
-      { dur: 7.2, enter: () => { this.frame(v1.set(p.x, p.y + 0.5, p.z), 1.1, 1.2); this.showRecap(true); G.audio?.ui?.('watchUp', 0.3); } },
-      { dur: 0.6, enter: () => this.showRecap(false) },
-      { dur: 2.6, voss: true, enter: () => this.say('That is the training. The next step is always written top right, and I will name it. Stand up straight, {n}. Somebody is always watching.') },
-    ];
-  }
-
-  // ================================================================== per frame
-  update(dt: number) {
-    if (this.step === 'done') return;
-    this.t += dt;
-    const p = G.local;
-    if (!p) return;
-    // pad Start skips
-    const pad = pollPadSkip(); if (pad === 'skip') { this.skip(); return; } else if (pad === 'wake') this.plate.el.classList.add('hot');
-    // the cutscene's beats
-    if (this.cine && this.beats.length) {
-      const b = this.beats[0];
-      if (!this.beatOn) { this.beatOn = true; this.beatT = 0; b.enter?.(); }
-      this.beatT += dt;
-      b.tick?.(this.beatT / b.dur, dt);
-      const h = G.handler;
-      const waitVoss = b.voss && h?.busy && this.beatT < b.dur + 2.5;
-      if (this.beatT >= b.dur && !waitVoss) { this.beats.shift(); this.beatOn = false; if (!this.beats.length) this.cutDone(); }
-    }
-    const h = G.handler;
-    const talking = !!h?.busy;
-    const head = () => v1.set(p.x, p.y + 2.3, p.z);
-    const ci = push()?.carryInfo?.() ?? null;
-    switch (this.step) {
-      case 'walk': {
-        if (p.speed > 0.6) this.walked += p.speed * dt;
-        this.setObjective('WALK', '', head);
-        if ((this.walked > 5 || G.missions?.flags?.has?.('tut:walk')) && this.t > 2.5 && !talking) this.go('run');
-        else if (this.t > 45) this.go('run');
-        break;
-      }
-      case 'run': {
-        if (p.running && p.speed > 2.4) this.held += dt; else this.held = Math.max(0, this.held - dt * 0.5);
-        this.setObjective('RUN', '', head);
-        if ((this.held > 0.9 && this.t > 1.5 && !talking) || this.t > 35) { this.held = 0; this.go('crouch'); }
-        break;
-      }
-      case 'crouch': {
-        if (p.sneaking) this.held += dt;
-        this.setObjective('CROUCH', '', head);
-        if ((this.held > 0.6 && this.t > 1.5 && !talking) || this.t > 35) { this.held = 0; this.go('brief'); }
-        break;
-      }
-      case 'grip': {
-        if (ci) { if (!this.hopper) this.findHopper(); this.go(this.hopper ? 'press' : 'link'); break; }
-        const o = this.targetObj;
-        // nothing liftable anywhere near (a bare room, everything already pressed): on to the next lesson, never a dead end
-        this.bareT = this.target ? 0 : this.bareT + dt;
-        if (this.bareT > 20) { this.bareT = 0; this.say('Nothing here the unit can lift. We will come back to the press. Next lesson.'); this.go('link'); break; }
-        if (!o || !this.alive(o) || this.t > 60) { this.findTarget(); this.t = Math.min(this.t, 1); if (this.target) h?.guide?.(this.target); }
-        this.setObjective('GET A GRIP', this.targetName(), () => (this.target ? v1.set(this.target.x, this.target.y + 1.4, this.target.z) : null));
-        this.light(this.target, 0xffe2b0);
-        break;
-      }
-      case 'carry': case 'feed': {
-        const hp = this.hopper;
-        if (!hp) { this.findHopper(); if (!this.hopper && this.t > 2) this.go('link'); break; }
-        if (G.missions?.flags?.has?.('contract:first_deposit') && this.t > 0.5 && !this.fed) { this.go('debt'); break; }
-        // fed: the ram comes down; the deposit moves the lesson on (or this, if the press is jammed)
-        if (this.fed) { if (this.t > 8) this.go('debt'); break; }
-        if (!ci) {
-          // put down or dropped: pick it back up
-          this.dropT += dt;
-          if (this.dropT > 0.8) {
-            this.locateTarget();
-            if (this.step === 'feed') this.go('carry');
-            this.setObjective('PICK IT BACK UP', this.touch ? 'tap it, then CARRY' : 'right button on it, or G', () => (this.target ? v1.set(this.target.x, this.target.y + 1.4, this.target.z) : null));
-            this.light(this.target, 0xffe2b0);
-          }
-          break;
-        }
-        this.dropT = 0;
-        if (ci.nearPress && this.step === 'carry') this.go('feed');
-        else if (!ci.nearPress && this.step === 'feed' && this.t > 0.6) this.go('carry');
-        if (this.step === 'feed') this.setObjective('FEED IT', this.touch ? 'tap FEED' : 'press E', () => v1.set(hp.x, p.y + 1.8, hp.z));
-        else this.setObjective('TO THE PRESS', ci.tier >= 2 ? 'heavy: slow and steady' : '', () => v1.set(hp.x, p.y + 1.8, hp.z));
-        this.light({ x: hp.x, z: hp.z, y: p.y }, 0xffd9a0);
-        break;
-      }
-      case 'link': {
-        const L = (G as unknown as { link?: { force?: (k: string) => void; state?: string } }).link;
-        if (!L) { this.go('data'); break; }
-        if (!this.slipped && this.t > 2 && !talking) { this.slipped = true; this.t = 0; try { L.force?.('desync'); } catch (e) { console.warn('link lesson', e); } }
-        if (this.slipped) {
-          if (L.state === 'desync') this.setObjective('RESYNC', this.touch ? 'tap LINK DESYNC' : 'press L', head);
-          else this.setObjective(null);
-          if ((L.state === 'ok' && this.t > 0.5) || this.t > 50) { if (L.state === 'ok') this.say('Locked. Good hands. Keep the unit calm and it will not happen often.'); this.go('data'); }
-        }
-        break;
-      }
-    }
-    this.paint(dt);
-  }
-  /** the unit got hold of something */
-  private onGrab(o: TileObject, mode: string) {
-    if (this.step !== 'grip' && this.step !== 'carry' && this.step !== 'feed') return;
-    if (mode === 'carry') { this.targetObj = o; TUT.target = o.uid; return; }
-    // pushing: too heavy to lift
-    this.refused.add(o.uid);
-    if (!this.saidHeavy) { this.saidHeavy = true; this.say(this.touch ? 'Too heavy to lift. That one you push. Let go and find something lighter: I have lit one.' : 'Too heavy to lift. That one you push. Let go, E, and find something lighter: I have lit one.'); }
-    if (this.step === 'grip') { this.findTarget(); if (this.target) G.handler?.guide?.(this.target); }
-  }
-
-  // ================================================================== cutscenes
-  private cut(beats: Beat[]) {
-    this.beats = beats; this.beatOn = false;
-    this.cine = true;
-    this.root.classList.add('cine');
-    this.plate.el.classList.add('on');
-    this.lock(true);
-    const h = G.handler as unknown as { cine?: boolean } | null;
-    if (h) h.cine = true;
     this.hookCamera();
   }
-  private cutDone() {
-    const next: Record<string, Step> = { brief: 'grip', press: 'carry', debt: 'link', data: 'done' };
-    const n = next[this.step];
-    if (n) this.go(n);
-  }
-  /** control back, the picture back to the game's */
-  private release() {
-    this.cine = false;
-    this.beats = [];
-    this.root.classList.remove('cine');
-    this.plate.el.classList.remove('hot');
-    this.eyeOff();
-    this.watch(false);
-    this.counter(null);
-    this.camOn = false;
-    G.camera?.pushIn?.(0, 0.6);
-    this.lock(false);
-    const h = G.handler as unknown as { cine?: boolean } | null;
-    if (h) h.cine = false;
-  }
-  /** her line (through the cutscene's door in the handler) */
-  private say(text: string, point?: { x: number; z: number }, pylon = false) {
-    // first in the queue when she is quiet; after her last line when she is mid-sentence (keeps the order)
-    G.handler?.say?.(text, { cine: true, pri: G.handler?.busy ? 1 : 3, point, pylon, dur: readTime(text) * 0.9 });
+  private refusedAt = -99;
+  private refuse(what: 'door' | 'press') {
+    if (this.clock - this.refusedAt < 6) return;
+    this.refusedAt = this.clock;
+    G.audio?.flat?.('door_locked', 'sfx', 0.5);
+    this.holo.jolt(0.5);
+    this.interject(what === 'door'
+      ? pick(['Not yet. That door opens when we are finished, and not a minute before.', 'Locked. I locked it. Lessons first, {n}.', 'The door is not part of this lesson. Come back.'])
+      : pick(['Not yet. The press can wait for a unit that knows what it is doing.', 'Lessons first, press after. The ledger is patient. I am less so.']));
   }
 
-  // ------------------------------------------------------------------ controls
-  private lock(on: boolean) {
-    if (on) {
-      if (this.lockOffs.length) return;
-      const g = this.g, inp = g.input as unknown as { hit: (a: Action) => boolean };
-      const own = Object.prototype.hasOwnProperty.call(inp, 'hit');
-      const prev = own ? inp.hit : undefined;
-      const orig = inp.hit.bind(inp);
-      inp.hit = (a: Action) => {
-        if (a === 'pause') {
-          const v = orig(a);
-          const ui = g.ui as unknown as { menuEl?: unknown; readerEl?: unknown; modal?: unknown } | undefined;
-          if (v && !(ui?.menuEl || ui?.readerEl || ui?.modal)) { this.skip(); return false; }
-          return v;
+  // ================================================================== the script
+  private async run() {
+    try { await this.script(); } catch (e) { if (e !== SKIP) console.warn('tutorial', e); }
+    this.finish();
+  }
+
+  private async script() {
+    const T = this.touch;
+    const p = () => G.local!;
+    const unit: Aim = () => this.screenOf(v1.set(p().x, p().y + 1.0, p().z));
+
+    // ---- she comes on: the camera close on the unit, her picture shimmering in
+    this.step = 'hello'; TUT.step = 'hello';
+    this.camFollow(2.3, 1.2);
+    await this.sleep(0.9);
+    this.holo.standAt(0.8, 0.93);
+    this.holo.appear();
+    await this.sleep(1.0);
+    this.holo.gesture('wave');
+    await this.say('There you are. Unit {n}, on its feet. And you, operator, somewhere behind its eyes.', { expr: 'smile' });
+    await this.say('Dr. Iris Calder. I am the light on your screen and the voice on its band. Meridian lets me keep you both alive. Within budget.');
+    const a0 = await this.ask(['Where am I?', 'What did they do to it?', 'Get me out of here.']);
+    if (a0 === 0) { await this.say('Level 0. The first room of a very long building nobody built.'); await this.say('You are not lost. You are exactly where the Institute put you. That is worse, but it is tidier.', { gesture: 'shrug' }); }
+    else if (a0 === 1) { await this.say('Intake. It is unpleasant and it is quick, and it is over.', { gesture: 'think' }); await this.say('I patched it on the way down. The bruises are on its file, not on its body. You are welcome.'); }
+    else if (a0 === 2) { await this.say('Out is a direction, not a door. Work first. Out comes later, if the ledger agrees.', { gesture: 'shrug' }); await this.say('And the ledger has never once agreed quickly.'); }
+    else { await this.say('Quiet type. Good. You will live longer than the ones who argue with me.'); }
+    await this.say('Lessons, then. I talk, you do. Every door in here stays shut until you have done them all. I checked.', { gesture: 'talk' });
+
+    // ---- walk
+    this.lesson('walk');
+    this.keys(T ? null : ['W', 'A', 'S', 'D'], 'wasd');
+    this.aim(unit);
+    await this.say(T ? 'The stick, bottom left. Walk it. Small steps, the legs are new to you.' : 'W, A, S, D. Walk it. Small steps, the legs are new to you.');
+    this.holo.point(null);
+    this.walked = 0;
+    await this.gate(() => this.walked > 4.5, [
+      'Any time now. The legs, {n}.',
+      T ? 'The stick. Bottom left. Push it.' : 'W, A, S, D. I can wait. The Institute bills by the hour.',
+      'It will not walk by itself. Well. Not yet. Walk it.',
+    ], 8);
+    this.keys(null);
+    await this.say(pick(['There. Like a newborn deer with a debt.', 'Good. One foot, then the other. You would be amazed how many get that wrong.']));
+
+    // ---- run, and the breath it costs (the balloon on the pump)
+    this.lesson('run');
+    this.keys(T ? null : ['Shift']);
+    await this.say(T ? 'Faster. Tap RUN, on the right.' : 'Faster. Hold Shift and it runs.');
+    this.runT = 0;
+    await this.gate(() => this.runT > 1.0, [T ? 'RUN. The button on the right. Go on.' : 'Shift. Hold it while it walks.', 'Run, {n}. Not far. Just enough to hurt.'], 8);
+    this.keys(null);
+    this.camFollow(1.7);
+    await this.show('balloon', 'Up there, on the machine. That balloon is its breath. Running empties it. Run it flat and it wheezes, and so will you.');
+    this.show(null);
+    await this.show('lung', T ? 'When it is winded, tap the pump. Try it now.' : 'The bellows under it is its lungs. H pumps them, on the beat. Try it. H.');
+    this.pumped = 0;
+    await this.gate(() => this.pumped > 0, [T ? 'The pump. Tap it.' : 'H. The pump.', 'In, out. It will not remember to breathe by itself when it is frightened. H.'], 8);
+    this.show(null);
+    await this.say('Good. Remember that when something is chasing it. Especially then.');
+
+    // ---- crouch
+    this.lesson('crouch');
+    this.keys(T ? null : ['C']);
+    await this.say(T ? 'Now get it low. SNEAK.' : 'Now get it low. C, or Control.');
+    this.sneakT = 0;
+    await this.gate(() => this.sneakT > 0.7, [T ? 'SNEAK. Low and slow.' : 'C. Down.', 'Lower, {n}. Pretend you are not here.'], 8);
+    this.keys(null);
+    await this.say('Quieter. Most of what lives down here hunts by ear. Some by smell. You do not want to meet the third kind.', { expr: 'think' });
+
+    // ---- the body console: shown part by part, the heart tried by hand
+    this.lesson('body');
+    this.camFollow(1.5);
+    await this.show('heart', 'Now the machine, top left. That is its body, as the rig reads it. The heart is its health.');
+    await this.say('Wounds show up as holes in it. They spurt on every beat. Click a hole and the first-aid board swings in.');
+    if (this.part('heart')) {
+      await this.say(T ? 'Tap the heart. Go on. It does not bite.' : 'Click the heart. Go on. It does not bite.');
+      this.heartClicked = 0;
+      await this.gate(() => this.heartClicked > 0, [T ? 'The heart. Tap it.' : 'The heart, {n}. Click it.', 'It is the red thing. Pumping. Top left.'], 9);
+      await this.say('Steady. Whole, for now. Keep it that way, the Institute bills for parts.');
+    }
+    await this.show('brain', 'The brain is its sanity. And yours: you share a wire. When it cracks, the link slips.');
+    await this.show('jar', 'The digester is food and water. Feed it, or it starts on itself. Slowly. Loudly.');
+    this.show(null);
+    const a1 = await this.ask(['Why is it a machine?', 'The brain is... mine too?', 'Got it.']);
+    if (a1 === 0) { await this.say('Because you read it better as plumbing than as a person. That is not my opinion. It is in the manual.', { gesture: 'shrug' }); }
+    else if (a1 === 1) { await this.say('Your fear goes down the wire, its fear comes back up. Nobody has found the volume knob.', { expr: 'think' }); await this.say('Be calm, and it will be. That is most of the trick.'); }
+    else if (a1 === 2) { await this.say('Good. I will not test you on it. The building will.'); }
+    else { await this.say('I will take that as a yes.'); }
+
+    // ---- the hotbar
+    if (this.rectOf('#hot12')) {
+      this.lesson('hotbar');
+      await this.showRect(() => this.rectOf('#hot12'), T ? 'Down there, its hands. A short list. Tap a slot and it takes the thing into its hand.' : 'Down there: its hands, the short list. One to five puts a thing in its hand.');
+      this.hotKey = 0;
+      await this.say(T ? 'Tap one.' : 'Press one. Any of them.');
+      await this.gate(() => this.hotKey > 0, [T ? 'A slot. Tap it.' : 'One. Two. Pick a number, {n}.', 'The little boxes, bottom of the screen.'], 8);
+      this.showRect(null);
+      const held = !!(p().handR || p().handL);
+      await this.say(held ? 'There. In its hand. Again puts it away.' : 'Empty. It fills up as the unit finds things. Inspect it to arrange them.');
+    }
+
+    // ---- the wrist light
+    this.lesson('light');
+    this.aim(unit);
+    this.keys(T ? null : ['F']);
+    await this.say(T ? 'Its wrist has a light. The bulb button, on the right.' : 'Its wrist has a light. F.');
+    this.holo.point(null);
+    const lit0 = p().flashlightOn;
+    await this.gate(() => p().flashlightOn !== lit0, [T ? 'The light. Tap it.' : 'F, {n}. The light.', 'Some rooms down here have no lights. Some have lights you do not want. F.'], 8);
+    this.keys(null);
+    await this.say(p().flashlightOn ? 'Better. The battery is the unit\'s. The dark is ours.' : 'Off. Brave. The battery thanks you.');
+
+    // ---- the pack
+    this.lesson('pack');
+    await this.show('pack', T ? 'The rucksack on the machine is its pack. Tap it.' : 'The rucksack on the machine is its pack. Press I, or click it.');
+    this.keys(T ? null : ['I']);
+    const inv = () => !!(G.ui as unknown as { inventory?: { open?: boolean } } | undefined)?.inventory?.open;
+    await this.gate(inv, [T ? 'The pack. Tap it.' : 'I. The pack.', 'Everything it owns is in there. Have a look.'], 8);
+    this.keys(null); this.show(null);
+    await this.say('Everything it carries. Weight matters. It is not a mule. Mostly.');
+    await this.say(T ? 'Close it again.' : 'Close it. I again, or Esc.');
+    await this.gate(() => !inv(), ['Close the pack, {n}.', 'You can rummage later. On your own time.'], 8);
+
+    // ---- the watch
+    this.lesson('watch');
+    await this.show('watch', T ? 'Under the brain: the watch. Tap WATCH.' : 'Under the brain: the watch. Tab raises it.');
+    const watch = () => !!(G as unknown as { watch?: { open?: boolean } }).watch?.open;
+    this.keys(T ? null : ['Tab']);
+    await this.gate(watch, [T ? 'WATCH. Tap it.' : 'Tab. The watch.', 'Raise the watch, {n}. It is on its wrist for a reason.'], 8);
+    this.keys(null); this.show(null);
+    await this.say('My jobs come through here. The map. The scanner, for the residents. Jobs pay research credit, and research is what the Institute actually wants from you.');
+    await this.say(T ? 'Lower it.' : 'Lower it. Tab.');
+    await this.gate(() => !watch(), ['Lower the watch.', 'Arm down, {n}.'], 8);
+
+    // ---- the job: a piece of furniture, whole
+    this.lesson('grip');
+    this.findTarget();
+    if (this.target) {
+      const tg = () => this.targetAt();
+      this.frameOn(tg, 2.1, 1.4);
+      this.aim(() => { const t = tg(); return t ? this.screenOf(v1.set(t.x, t.y + 1.1, t.z)) : null; });
+      await this.say('Now the job. The Institute collects furniture. Whole. Everything down here is built to last, so you do not break it, you carry it.', { gesture: 'present' });
+      await this.say(`That one. The ${this.targetName()}. Light enough for a new body.`);
+      this.camFollow(1.6, 1.4);
+      await this.say(T ? 'Walk up to it, tap its name, then CARRY.' : 'Walk up to it. Hold the right mouse button on it, or press G. Lift with the legs.');
+      this.holo.point(null);
+      await this.gate(() => !!push()?.carryInfo?.(), [
+        T ? 'Its name, then CARRY.' : 'Right button, held. Or G.',
+        `The ${this.targetName()}, {n}. Pick it up.`,
+        'It is a piece of furniture, not a riddle.',
+      ], 10, () => { if (!this.target || !this.alive(this.target)) this.findTarget(); this.light(); }, () => this.light());
+      await this.say('Got it. Good. Heavy things are slow, and slow things get caught. Keep that in mind.');
+      const a2 = await this.ask(['Why furniture?', 'It\'s heavy.', 'Fine.']);
+      if (a2 === 0) { await this.say('The Institute has a buyer on the other side. I have never asked who. You should not either.', { expr: 'think' }); }
+      else if (a2 === 1) { await this.say('It is a chair, {n}. The unit has carried worse. Into here, for instance.', { gesture: 'shrug' }); }
+      else if (a2 === 2) { await this.say('Fine is the best word I hear all week.'); }
+      else { await this.say('Strong and silent. The file will love you.'); }
+
+      // ---- the press: it opens now
+      const hp = this.findHopper();
+      if (hp) {
+        this.lesson('press');
+        this.pressOpen = true;
+        this.frameOn(() => v1.set(hp.x, p().y + 0.6, hp.z).clone(), 1.9, 1.1);
+        this.aim(() => this.screenOf(v1.set(hp.x, p().y + 1.4, hp.z)));
+        await this.say('That is a Remittance Press. It eats what you feed it, and it pays the unit\'s number down.', { gesture: 'present' });
+        this.camFollow(1.5, 1.2);
+        await this.say(T ? 'Carry it over. Next to the plate, tap FEED.' : 'Carry it over. Next to the plate, press E, and in it goes.');
+        this.holo.point(null);
+        this.fed = false;
+        await this.gate(() => this.fed, [
+          'To the press, {n}. The big machine.',
+          T ? 'Next to the plate. FEED.' : 'Next to the plate. E.',
+          'If you put it down, pick it up again. The press is not going anywhere.',
+        ], 10, undefined, () => this.lightAt(hp.x, hp.z, 0xffd9a0));
+        await this.sleep(2.2);
+        const d = this.debt();
+        await this.say('Hear that? The number went down. That is the whole job, {n}. Furniture to the press, until the ledger goes quiet.', { expr: 'smile' });
+        if (d && d.remaining > 0) await this.say(`It still owes ${fmt(d.remaining)} scrip. The ledger wants an installment every few days. Miss one, and the band bites. I do not enjoy that part. Much.`);
+        const a3 = await this.ask(['And if I don\'t?', 'How long will it take?', 'Understood.']);
+        if (a3 === 0) { this.holo.jolt(0.4); await this.say('Then the band does what bands do, and the Institute sends a new unit, and I have this conversation again.', { expr: 'think' }); await this.say('I am very tired of this conversation, {n}. Do not make me have it.'); }
+        else if (a3 === 1) { await this.say('That depends on how many chairs there are in hell. Quite a lot, it turns out.', { gesture: 'shrug' }); }
+        else if (a3 === 2) { await this.say('Understood is my second favourite word.'); }
+        else { await this.say('Nothing to say? That is allowed. It is noted, but it is allowed.'); }
+      } else this.pressOpen = true;
+    } else this.pressOpen = true;
+
+    // ---- an inhabitant, if one is about
+    const c = this.findCreature();
+    this.lesson('scan');
+    if (c) {
+      const at = () => (c.dead ? null : v1.set(c.x, c.y || p().y, c.z).clone());
+      this.frameOn(at, 1.8, 1.0);
+      this.aim(() => { const w = at(); return w ? this.screenOf(w.setY(w.y + 0.8)) : null; });
+      await this.say('And there: a resident. Not a ghost, {n}, an organism. It lives here. You are visiting.', { expr: 'surprised' });
+      await this.say(T ? 'Point the watch at it to scan it. From a distance, please.' : 'Hold N on it and the watch scans it. From a distance, please.');
+      this.camFollow(1.3, 1.0);
+      this.holo.point(null);
+      const scans0 = this.scans();
+      await this.gate(() => this.scans() > scans0 || c.dead, [T ? 'Scan it. The watch.' : 'N, held, on the creature.', 'From a distance. I said that part already.'], 10, undefined, undefined, 30);
+      if (this.scans() > scans0) await this.say('Filed. The lab will be thrilled. The lab is always thrilled, it is very unsettling.');
+    } else {
+      await this.say('You will meet the residents soon enough. Organisms, not ghosts. Point the watch at one and it scans it. From a distance, please.');
+    }
+
+    // ---- the link: she slips it on purpose
+    const L = (G as unknown as { link?: { force?: (k: string) => void; state?: string } }).link;
+    if (L?.force) {
+      this.lesson('link');
+      this.camFollow(1.4, 1.0);
+      await this.show('brain', 'Last thing, and you will hate it. When the brain cracks, the link slips: the unit lags, drifts, does things on its own.');
+      this.show(null);
+      await this.say(T ? 'I am going to slip it now. On purpose. Tap the LINK line to resync.' : 'I am going to slip it now. On purpose. L resyncs.', { gesture: 'think' });
+      this.keys(T ? null : ['L']);
+      try { L.force('desync'); } catch (e) { console.warn('link lesson', e); }
+      this.holo.jolt(1);
+      await this.sleep(0.6);
+      await this.gate(() => L.state === 'ok', [T ? 'The LINK line. Tap it.' : 'L, {n}. Resync.', 'It is drifting. Bring it back. L.'], 8, undefined, undefined, 50);
+      this.keys(null);
+      await this.say('Locked. Good hands. Keep it calm and it will not happen often. Keep it terrified and it will happen all the time.');
+    }
+
+    // ---- the door: open now
+    this.lesson('door');
+    const ex = this.findExit();
+    if (ex) {
+      this.frameOn(() => v1.set(ex.x, p().y + 0.5, ex.z).clone(), 1.6, 0.9);
+      this.aim(() => this.screenOf(v1.set(ex.x, p().y + 1.2, ex.z)));
+      await this.say('That way is deeper. Deeper pays better. It also bites.', { gesture: 'present' });
+    }
+    this.doorsOpen = true;
+    G.audio?.flat?.('door_open', 'sfx', 0.4);
+    await this.say('The doors were locked the whole time, by the way. They are open now. That is how you know you passed.', { expr: 'smile' });
+    this.holo.point(null);
+    this.camFollow(1.15, 0.8);
+    const a4 = await this.ask(['What\'s out there?', 'Will you be watching?', 'Thank you, doctor.']);
+    if (a4 === 0) { await this.say('Rooms. More rooms. Things that live in rooms. Data that remembers what happened in them. Bring me all of it.'); }
+    else if (a4 === 1) { await this.say('Always. It is in my contract, and in yours. Mine pays better.', { expr: 'smile' }); }
+    else if (a4 === 2) { await this.say('Oh. Nobody says that.', { expr: 'surprised' }); await this.say('...Do not make it weird, {n}. Go to work.', { gesture: 'shrug' }); }
+    else { await this.say('Right. Off you go then.'); }
+    await this.say('The job is written top right from now on, and I am on the band if you need me. Stand up straight. Somebody is always watching.', { gesture: 'wave' });
+    this.holo.dissolve();
+    this.camRelease();
+    await this.sleep(1.0);
+  }
+
+  // ================================================================== script helpers
+  /** wait until a condition holds (checked every frame); a skip throws SKIP */
+  private until(cond: () => boolean): Promise<void> {
+    if (this.over) return Promise.reject(SKIP);
+    return new Promise((res, rej) => this.waits.push({ cond, res, rej }));
+  }
+  private sleep(s: number) { const t = this.clock + s; return this.until(() => this.clock >= t); }
+  /** her line: the voice grains, the subtitle strip, her mouth and hands on the hologram */
+  private async say(text: string, o: { gesture?: ResearcherGesture; expr?: string } = {}) {
+    if (this.over) throw SKIP;
+    this.speak(text, o);
+    await this.sleep(this.lineDur + 0.3);
+  }
+  private lineDur = 0;
+  private speak(text: string, o: { gesture?: ResearcherGesture; expr?: string } = {}) {
+    text = text.replace(/\{n\}/g, this.num);
+    const voiced = this.voice.speak(text);
+    const d = Math.max(voiced, readTime(text) * 0.82);
+    this.lineDur = d;
+    offscreen(floatText(text, { kind: 'voss', name: 'DR. CALDER', life: d + 0.5, pri: 3 }), d + 0.5);
+    bus.emit('calderSpeak', { text, dur: d });
+    this.holo.talk(d);
+    if (o.expr) this.holo.expression(o.expr, Math.min(d, 3));
+    // while she points, the point is the gesture
+    if (this.holo.pointing) { /* arm on the target */ }
+    else if (o.gesture) this.holo.gesture(o.gesture, Math.min(d, 3.2));
+    else if (d > 2.2 && Math.random() < 0.5) this.holo.gesture(Math.random() < 0.75 ? 'talk' : 'nod', Math.min(d, 3));
+  }
+  /** a line that cuts in (a refusal) without waiting on the script */
+  private interject(text: string) { this.voice.stop(); this.speak(text, this.holo.pointing ? {} : { gesture: 'shrug' }); }
+  /** hold until the unit has done it: she repeats herself, then insists */
+  private async gate(cond: () => boolean, nags: string[], every = 9, onNag?: () => void, tick?: () => void, giveUp = 0) {
+    let i = 0;
+    const t0 = this.clock;
+    const c0 = cond;
+    cond = () => c0() || !!this.rushTo;
+    while (!cond()) {
+      const t1 = this.clock;
+      await this.until(() => { tick?.(); return cond() || this.clock - t1 > every + i * 2; });
+      if (cond()) break;
+      if (giveUp && this.clock - t0 > giveUp) break;
+      onNag?.();
+      this.holo.jolt(0.25);
+      if (i >= nags.length) this.holo.gesture(Math.random() < 0.5 ? 'clipboard' : 'think', 3);
+      await this.say(nags[i % nags.length]);
+      i++;
+    }
+  }
+  /** your answer (1-3, a click, a tap; -1 for silence) */
+  private async ask(opts: string[]): Promise<number> {
+    if (this.over) throw SKIP;
+    if (this.rushTo) return -1;
+    this.holo.gesture('think', 2.5);
+    let r = -2;
+    void askCalder(opts, { secs: 30 }).then((i) => { r = i; });
+    await this.until(() => r > -2);
+    if (this.over) throw SKIP;
+    return r;
+  }
+  private lesson(step: string) { this.step = step; TUT.step = step; G.audio?.ui?.('watchTick', 0.25); }
+
+  /** point at a part of the body console and light it while she says the line */
+  private async show(part: HudPart | null, text?: string) {
+    if (!part) { this.showRect(null); return; }
+    const at = () => this.part(part);
+    if (!at()) { if (text) await this.say(text); return; }
+    await this.showRect(() => this.partRect(part), text, at);
+  }
+  private async showRect(rect: (() => DOMRect | null) | null, text?: string, at?: Aim) {
+    this.hlFn = rect;
+    if (!rect) { this.hlEl.classList.remove('on'); this.holo.point(null); return; }
+    const aim: Aim = at ?? (() => { const r = rect(); return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null; });
+    const s = aim();
+    if (s) this.holo.standAt(this.spotFor(s), 0.93);
+    this.hlEl.classList.add('on');
+    G.audio?.ui?.('watchTick', 0.35);
+    this.holo.point(aim);
+    if (text) await this.say(text);
+  }
+  /** she steps beside the thing (screen), then points at it; null puts the arm down */
+  private aim(fn: Aim | null) {
+    if (fn) { const s = fn(); if (s) this.holo.standAt(this.spotFor(s), 0.93); }
+    this.holo.point(fn);
+  }
+  /** where she stands to point at a spot: beside it, on the side her right arm reaches */
+  private spotFor(s: Pt): number {
+    const tx = s.x / innerWidth;
+    if (s.y < innerHeight * 0.45 && tx < 0.35) return clamp(tx + 0.24, 0.28, 0.42);
+    return tx < 0.62 ? Math.min(0.88, tx + 0.27) : Math.max(0.12, tx - 0.3);
+  }
+  /** keycaps floating over the unit while it should press them */
+  private keys(list: string[] | null, cls = '', at?: () => THREE.Vector3 | null) {
+    if (!list) { this.keysEl.classList.remove('on'); this.keysAt = null; return; }
+    this.keysEl.className = 'tut-keys' + (cls ? ' ' + cls : '');
+    this.keysEl.innerHTML = list.map((k) => `<b data-k="${k}">${k}</b>`).join('');
+    this.keysAt = at ?? (() => { const p = G.local; return p ? v1.set(p.x, p.y + 2.25, p.z) : null; });
+    requestAnimationFrame(() => this.keysEl.classList.add('on'));
+  }
+
+  // ------------------------------------------------------------------ where things are on screen
+  private screenOf(w: THREE.Vector3): Pt | null {
+    const pr = G.pr as unknown as { worldToScreen?: (v: THREE.Vector3) => { x: number; y: number; z: number } };
+    const s = pr?.worldToScreen?.(w);
+    if (!s || !isFinite(s.x) || !isFinite(s.y)) return null;
+    return { x: clamp(s.x, 8, innerWidth - 8), y: clamp(s.y, 8, innerHeight - 8) };
+  }
+  private hudOn(): boolean {
+    const ov = document.querySelector('canvas.bh-ov');
+    if (!ov) return false;
+    const r = ov.getBoundingClientRect(), cs = getComputedStyle(ov);
+    return r.width > 4 && cs.display !== 'none' && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.05;
+  }
+  private part(kind: HudPart): Pt | null {
+    const hb = G.hudBody as unknown as { propScreen?: (k: string) => Pt } | null;
+    if (!hb?.propScreen || !this.hudOn()) return null;
+    try { const s = hb.propScreen(kind); return s && (s.x > 1 || s.y > 1) && isFinite(s.x) ? s : null; } catch { return null; }
+  }
+  private rectCache = new Map<string, { at: number; r: DOMRect | null }>();
+  /** the part's box on screen: sampled from the console's own hit test (cached), else a box round its centre */
+  private partRect(kind: HudPart): DOMRect | null {
+    const c = this.rectCache.get(kind), now = performance.now();
+    if (c && now - c.at < 700) return c.r;
+    let r: DOMRect | null = null;
+    const hb = G.hudBody as unknown as { pickAt?: (x: number, y: number) => { kind: string | null } } | null;
+    const ov = document.querySelector('canvas.bh-ov');
+    const want = PICK[kind];
+    if (hb?.pickAt && ov && this.hudOn()) {
+      const R = ov.getBoundingClientRect();
+      let l = Infinity, t = Infinity, rr = -Infinity, b = -Infinity;
+      try {
+        for (let y = R.top; y < R.bottom + 120; y += 6) for (let x = R.left; x < R.right; x += 6) {
+          const k = hb.pickAt(x, y).kind;
+          if (k && want.includes(k)) { l = Math.min(l, x); t = Math.min(t, y); rr = Math.max(rr, x); b = Math.max(b, y); }
         }
-        return false;
-      };
-      this.lockOffs.push(() => { if (prev) inp.hit = prev; else delete (inp as { hit?: unknown }).hit; });
-      const attractWas = g.attract;
-      g.attract = () => { const p = G.local; if (p) { p.vx *= 0.8; p.vz *= 0.8; } };
-      this.lockOffs.push(() => { g.attract = attractWas; });
-      const ui = g.ui as unknown as { onWorldClick?: unknown; onInteractKey?: unknown } | undefined;
-      if (ui) {
-        const click = ui.onWorldClick, key = ui.onInteractKey;
-        ui.onWorldClick = () => { /* locked */ }; ui.onInteractKey = () => { /* locked */ };
-        this.lockOffs.push(() => { ui.onWorldClick = click; ui.onInteractKey = key; });
-      }
-      const tap = (e: PointerEvent) => { if (this.plate.el.contains(e.target as Node)) return; this.plate.el.classList.add('hot'); };
-      window.addEventListener('pointerdown', tap, true);
-      this.lockOffs.push(() => window.removeEventListener('pointerdown', tap, true));
-      (g as unknown as { touch?: { setHidden?: (v: boolean) => void } }).touch?.setHidden?.(true);
-      this.lockOffs.push(() => (g as unknown as { touch?: { setHidden?: (v: boolean) => void } }).touch?.setHidden?.(false));
-    } else for (const f of this.lockOffs.splice(0).reverse()) { try { f(); } catch (e) { console.error(e); } }
+      } catch { /* no console */ }
+      if (l < Infinity) r = new DOMRect(l - 5, t - 5, rr - l + 10, b - t + 10);
+    }
+    if (!r) { const s = this.part(kind); if (s) r = new DOMRect(s.x - 28, s.y - 28, 56, 56); }
+    this.rectCache.set(kind, { at: now, r });
+    return r;
+  }
+  private rectOf(sel: string): DOMRect | null {
+    const e = document.querySelector(sel);
+    if (!e) return null;
+    const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+    return r.width > 4 && r.height > 4 && cs.display !== 'none' && cs.visibility !== 'hidden' ? r : null;
   }
 
-  // ------------------------------------------------------------------ the camera
-  private camHooked = false;
+  // ------------------------------------------------------------------ the camera (iso, framed and zoomed)
   private hookCamera() {
-    if (this.camHooked) return;
-    this.camHooked = true;
-    const cam = this.g.camera as unknown as { update: (dt: number) => void };
-    const own = Object.prototype.hasOwnProperty.call(cam, 'update') ? cam.update : null;
-    const orig = cam.update.bind(cam);
+    const camera = this.g.camera as unknown as { update: (dt: number) => void };
+    const own = Object.prototype.hasOwnProperty.call(camera, 'update') ? camera.update : null;
+    const orig = camera.update.bind(camera);
     const pr = this.g.pr;
-    const p = G.local!;
-    this.camFocus.set(p.x, p.y + 0.6, p.z); this.camZoom = 1;
+    const p0 = G.local!;
+    this.cam.focus.set(p0.x, p0.y + 0.6, p0.z);
     const fn = (dt: number) => {
+      // the camera's own state back first (its smoothing never sees our override)
+      if (this.camSaved) { pr.pxSize = this.camSaved.px; pr.target.copy(this.camSaved.target); this.camSaved = null; }
       orig(dt);
-      if (!this.camOn || eyeActive()) return;
-      const k = 1 - Math.exp(-dt * this.camRate);
-      this.camFocus.lerp(this.camGoal, k);
-      this.camZoom += (this.camZoomGoal - this.camZoom) * k;
-      pr.target.copy(this.camFocus);
-      pr.pxSize = pr.pxSize / Math.max(0.3, this.camZoom);
+      const c = this.cam, p = G.local;
+      c.w += ((c.on ? 1 : 0) - c.w) * (1 - Math.exp(-dt * (c.on ? 2.4 : 1.4)));
+      if (c.w < 0.002 && !c.on) return;
+      if (c.follow && p) c.goal.set(p.x, p.y + 0.6, p.z);
+      const k = 1 - Math.exp(-dt * c.rate);
+      c.focus.lerp(c.goal, k);
+      c.zoom += (c.zoomGoal - c.zoom) * k;
+      this.camSaved = { px: pr.pxSize, target: pr.target.clone() };
+      pr.target.lerp(c.focus, c.w);
+      pr.pxSize = pr.pxSize / Math.max(0.3, 1 + (c.zoom - 1) * c.w);
       pr.updateCamera(0);
     };
-    cam.update = fn;
-    this.offs.push(() => { if (cam.update !== fn) return; if (own) cam.update = own; else delete (cam as { update?: unknown }).update; });
-  }
-  private frame(focus: THREE.Vector3, zoom: number, rate = 2) {
-    if (!this.camOn) { const p = G.local!; this.camFocus.set(p.x, p.y + 0.6, p.z); this.camZoom = 1; }
-    this.camOn = true; this.camGoal.copy(focus); this.camZoomGoal = zoom; this.camRate = rate;
-  }
-  /** a cut to the unit's own eyes, looking at a spot (a dip to black covers it) */
-  private eyeOn(at: { x: number; z: number; y: number }, pitchDeg: number, h = 0.4) {
-    const p = G.local!;
-    const d = Math.hypot(at.x - p.x, at.z - p.z);
-    // only when it is close and in sight: never a first-person shot of a wall
-    if (d > 6.5 || d < 0.3 || (G.view?.vis && !G.view.vis.isVisible(Math.floor(at.x), Math.floor(at.z)))) return false;
-    const pitch = Math.max(4, Math.min(55, Math.atan2(p.y + 1.6 - (at.y + h), d) / DEG));
-    void pitchDeg;
-    this.dip(() => {
-      p.facing = Math.atan2(at.z - p.z, at.x - p.x);
-      eyeEnter({ pitchDeg: pitch, fov: 56 });
+    camera.update = fn;
+    this.offs.push(() => {
+      if (this.camSaved) { pr.pxSize = this.camSaved.px; pr.target.copy(this.camSaved.target); this.camSaved = null; }
+      if (camera.update !== fn) return;
+      if (own) camera.update = own; else delete (camera as { update?: unknown }).update;
     });
-    return true;
   }
-  private eyeOff() { if (eyeActive()) this.dip(() => eyeExit()); }
-  private dipFn: (() => void) | null = null;
-  private dip(mid: () => void) { this.shadeGoal = 1; this.dipFn = mid; }
-  private watch(on: boolean) {
-    const w = (G as unknown as { watch?: { toggle?: (v: boolean, page?: string) => void; open?: boolean } }).watch;
-    if (on === this.watchUp) return;
-    this.watchUp = on;
-    try { w?.toggle?.(on, on ? 'qst' : undefined); } catch { /* no watch */ }
+  /** close on the unit, following it */
+  private camFollow(zoom: number, rate = 1.6) {
+    const c = this.cam;
+    if (!c.on && c.w < 0.05) { const p = G.local!; c.focus.set(p.x, p.y + 0.6, p.z); c.zoom = 1; }
+    c.on = true; c.follow = true; c.zoomGoal = zoom; c.rate = rate;
   }
+  /** close on a thing (it may move: the function is read every frame while framed) */
+  private frameOn(at: () => THREE.Vector3 | null, zoom: number, rate = 1.4) {
+    const c = this.cam;
+    const w = at();
+    if (!w) return;
+    if (!c.on && c.w < 0.05) { const p = G.local!; c.focus.set(p.x, p.y + 0.6, p.z); c.zoom = 1; }
+    c.on = true; c.follow = false; c.goal.copy(w); c.zoomGoal = zoom; c.rate = rate;
+    this.frameFn = at;
+  }
+  private frameFn: (() => THREE.Vector3 | null) | null = null;
+  private camRelease() { this.cam.on = false; this.cam.zoomGoal = 1; this.frameFn = null; }
 
   // ------------------------------------------------------------------ world queries
   private alive(o: TileObject) { const z = G.view?.zone; return !!z?.objects.get(o.uid); }
-  /** the nearest piece of furniture the unit can lift whole: the lesson's target */
+  /** the nearest piece of furniture the unit can lift whole */
   private findTarget() {
     const p = G.local; const z = G.view?.zone; if (!p || !z) return;
     const pu = push();
@@ -545,127 +700,175 @@ export class Tutorial implements GameSystem {
       const dist = Math.hypot(o.x + 0.5 - p.x, o.y + 0.5 - p.z);
       if (dist < 1.2 || dist > 18) continue;
       if (G.view?.vis && !G.view.vis.isVisible(o.x, o.y) && dist > 4) continue;
-      // something with a bit of heft reads as furniture (a chair, a cabinet), not a cup
       const m = (d as { mass?: number }).mass ?? 20;
       const s = dist + (m < 8 ? 4 : 0);
       if (s < bs) { bs = s; best = o; }
     }
-    this.targetObj = best;
+    this.target = best;
     TUT.target = best ? best.uid : -1;
-    this.locateTarget();
   }
-  /** where the target stands now (it moves: carried, set down, dropped) */
-  private locateTarget() {
-    const z = G.view?.zone, o0 = this.targetObj;
+  private targetAt(): THREE.Vector3 | null {
+    const z = G.view?.zone, o0 = this.target;
     const o = o0 && z ? z.objects.get(o0.uid) ?? null : null;
-    if (!o || !z) { if (o0 && !o) this.findTarget(); else this.target = null; return; }
-    this.targetObj = o;
+    if (!o || !z) return null;
     const d = objDef(o.key)!;
     const w = d.w ?? 1, dd = d.d ?? 1, rw = o.rot % 2 === 0 ? w : dd, rd = o.rot % 2 === 0 ? dd : w;
-    this.target = { x: o.x + rw / 2, z: o.y + rd / 2, y: z.heightAt(o.x, o.y) };
+    return new THREE.Vector3(o.x + rw / 2, z.heightAt(o.x, o.y), o.y + rd / 2);
   }
-  private targetName() { const o = this.targetObj; if (!o) return 'a piece of furniture'; const n = objDef(o.key)?.name || 'that'; return 'the ' + n.toLowerCase(); }
-  private findHopper() {
-    const h = G.handler as unknown as { nearestHopperObj?: () => TileObject | null; nearestHopper?: () => { x: number; z: number } | null } | null;
-    const o = h?.nearestHopperObj?.(), c = h?.nearestHopper?.();
-    this.hopper = o && c ? { x: c.x, z: c.z, o } : null;
+  private targetName() { const o = this.target; return o ? (objDef(o.key)?.name || 'chair').toLowerCase() : 'chair'; }
+  private onGrab(o: TileObject, mode: string) {
+    if (this.step !== 'grip') return;
+    if (mode === 'carry') { this.target = o; TUT.target = o.uid; return; }
+    // pushing: too heavy to lift
+    this.refused.add(o.uid);
+    if (!this.saidHeavy) { this.saidHeavy = true; this.interject(this.touch ? 'Too heavy to lift. That one you push. Let go and find something lighter: I have lit one.' : 'Too heavy to lift. That one you push. Let go, and find something lighter: I have lit one.'); }
+    this.findTarget();
   }
-  /** a way out of this room toward deeper places (not the Seam) */
+  private findHopper(): { x: number; z: number } | null {
+    const h = G.handler as unknown as { nearestHopper?: () => { x: number; z: number } | null } | null;
+    return h?.nearestHopper?.() ?? null;
+  }
   private findExit(): { x: number; z: number } | null {
     const p = G.local, z = G.view?.zone; if (!p || !z) return null;
     let best: { x: number; z: number } | null = null, bd = 1e9;
     for (const pt of z.portals) {
       if (pt.hidden || pt.kind === 'loop' || pt.kind === 'walk') continue;
       const d = Math.hypot(pt.x + 0.5 - p.x, pt.y + 0.5 - p.z);
-      if (d < bd && d < 40) { bd = d; best = { x: pt.x + 0.5, z: pt.y + 0.5 }; }
+      if (d < bd && d < 30) { bd = d; best = { x: pt.x + 0.5, z: pt.y + 0.5 }; }
     }
     return best;
   }
-  private light(at: { x: number; z: number; y: number } | null, col: number) {
-    if (!at) return;
+  private findCreature(): { x: number; y: number; z: number; dead: boolean } | null {
+    const p = G.local; if (!p) return null;
+    const cs = (G as unknown as { creatures?: { creatures?: Map<string, { x: number; y: number; z: number; dead: boolean; zoneKey: string }> } }).creatures?.creatures;
+    let best: { x: number; y: number; z: number; dead: boolean } | null = null, bd = 16;
+    for (const c of cs?.values() ?? []) {
+      if (c.dead || c.zoneKey !== p.zoneKey) continue;
+      const d = Math.hypot(c.x - p.x, c.z - p.z);
+      if (d < bd && (!G.view?.vis || G.view.vis.isVisible(Math.floor(c.x), Math.floor(c.z)))) { bd = d; best = c; }
+    }
+    return best;
+  }
+  private scans(): number { let n = 0; for (const f of (G.missions?.flags ?? new Set<string>()) as Set<string>) if (f.startsWith('scan:')) n++; return n; }
+  private debt(): { remaining: number } | null { try { return (G as unknown as { debt?: { state?: () => { remaining: number } } }).debt?.state?.() ?? null; } catch { return null; } }
+  private light() { const t = this.targetAt(); if (t) this.lightAt(t.x, t.z, 0xffe2b0, t.y); }
+  private lightAt(x: number, z: number, col: number, y = G.local?.y ?? 0) {
     const k = 0.9 + 0.25 * Math.sin(G.time * 3.2);
-    (G as unknown as { pointLight?: (x: number, y: number, z: number, c: number, i: number, d: number) => void }).pointLight?.(at.x, at.y + 1.6, at.z, col, 1.6 * k, 4.5);
+    (G as unknown as { pointLight?: (x: number, y: number, z: number, c: number, i: number, d: number) => void }).pointLight?.(x, y + 1.6, z, col, 1.6 * k, 4.5);
   }
 
-  // ------------------------------------------------------------------ dom
-  private objKey = '';
-  private setObjective(word: string | null, hint = '', at: (() => THREE.Vector3 | null) | null = null) {
-    const key = word ? word + '|' + hint : '';
-    this.objAt = at;
-    if (key === this.objKey) return;
-    this.objKey = key;
-    if (!word) { this.obj.classList.remove('on'); this.obj.style.visibility = 'hidden'; return; }
-    this.obj.style.visibility = '';
-    this.obj.innerHTML = `<b>${word}</b>${hint ? `<i>${hint}</i>` : ''}<span class="arrow">v</span>`;
-    this.obj.classList.add('on');
-    G.audio?.ui?.('watchTick', 0.35);
+  // ================================================================== per frame
+  update(dt0: number) {
+    if (this.over) return;
+    const dt = Math.min(0.1, dt0);
+    if (this.rushTo && this.step === this.rushTo) this.rushTo = '';
+    this.clock += this.rushTo ? dt * 60 : dt;
+    const p = G.local;
+    // pad Start skips
+    const pad = pollPadSkip(); if (pad === 'skip') { this.skip(); return; } else if (pad === 'wake') this.plate.el.classList.add('hot');
+    if (p) {
+      const d = Math.hypot(p.x - this.lastPos.x, p.z - this.lastPos.z);
+      if (d < 2) this.walked += d;
+      this.lastPos = { x: p.x, z: p.z };
+      if (p.running && p.speed > 2.2) this.runT += dt;
+      if (p.sneaking) this.sneakT += dt;
+    }
+    // the framed thing moves (a creature, a chair being carried)
+    if (this.cam.on && !this.cam.follow && this.frameFn) { const w = this.frameFn(); if (w) this.cam.goal.copy(w); }
+    this.holo.update(dt0);
+    // the script's waits
+    for (let i = this.waits.length - 1; i >= 0; i--) {
+      const w = this.waits[i];
+      let ok = false;
+      try { ok = w.cond(); } catch { ok = true; }
+      if (ok) { this.waits.splice(i, 1); w.res(); }
+    }
+    this.paint();
+    void this.nagT;
   }
-  /** the broadcast's lesson card */
-  private castKey = '';
-  private lesson(n: number, title: string, keys: string) {
-    const key = n + title + keys;
-    if (key === this.castKey) return;
-    this.castKey = key;
-    this.cast.innerHTML = `<small><u>&#9679;</u> LIVE · DR. I. CALDER · LINK TRAINING ${n}/${LESSONS}</small><b>${title}</b>${keys ? `<i>${keys}</i>` : ''}`;
-    this.cast.classList.add('on');
-  }
-  private counter(at: (() => THREE.Vector3) | null) { this.countAt = at; this.count.classList.toggle('on', !!at); }
-  private setCount(label: string, big: string, sub: string) { this.count.innerHTML = `<small>${label}</small><b>${big}</b>${sub ? `<em>${sub}</em>` : ''}`; }
-  private showRecap(on: boolean) {
-    if (on) this.recap.innerHTML = `<h2>THE LOOP</h2><div class="loop">WAKE <span>&gt;</span> WORK <span>&gt;</span> PRESS <span>&gt;</span> OUT <span>&gt;</span> LAB <span>&gt;</span> NEXT UNIT</div>`
-      + `<p><b>WORK</b> furniture, carried whole · data from terminals and drives · scans and samples of the inhabitants</p>`
-      + `<p><b>PRESS</b> every piece it takes pays the debt down: <i>+SCRIP</i>. An installment is due every few days</p>`
-      + `<p><b>OUT</b> clear the debt and buy passage at the depot, or just survive as long as you can</p>`
-      + `<p><b>LAB</b> what the run filed becomes research: <i>+RP</i>. Spend it on upgrades, then send the next unit</p>`;
-    this.recap.classList.toggle('on', on);
-  }
-  private paint(dt: number) {
-    // the dip: down fast, run the cut, back up
-    if (this.shadeGoal > 0) {
-      this.shadeA = Math.min(1, this.shadeA + dt / 0.09);
-      if (this.shadeA >= 1) { const f = this.dipFn; this.dipFn = null; this.shadeGoal = 0; f?.(); }
-    } else this.shadeA = Math.max(0, this.shadeA - dt / 0.22);
-    this.shade.style.opacity = String(this.shadeA);
-    const place = (el: HTMLElement, at: (() => THREE.Vector3 | null) | null) => {
-      const v = at?.();
-      if (!v || !G.pr) { el.style.left = '50%'; el.style.top = '34%'; return; }
-      const s = (G.pr as unknown as { worldToScreen: (v: THREE.Vector3) => { x: number; y: number; z: number } }).worldToScreen(v);
-      const hw = Math.min(innerWidth / 2 - 8, el.offsetWidth / 2 + 12);
-      // never over the lesson card at the top
-      const top = this.cast.classList.contains('on') && !this.cine ? this.cast.getBoundingClientRect().bottom + 16 : innerHeight * 0.14;
-      const x = Math.max(hw, Math.min(innerWidth - hw, s.x)), y = Math.max(el.offsetHeight + top, Math.min(innerHeight * 0.86, s.y));
-      el.style.left = x.toFixed(0) + 'px'; el.style.top = y.toFixed(0) + 'px';
-    };
-    if (this.objKey) place(this.obj, this.objAt);
-    if (this.countAt) place(this.count, this.countAt);
+  private paint() {
+    // the highlight follows its element (the console eases in, a phone rotates)
+    if (this.hlFn) {
+      const r = this.hlFn();
+      if (r) {
+        const pad = 6;
+        const s = this.hlEl.style;
+        s.visibility = ''; s.left = Math.round(r.left - pad) + 'px'; s.top = Math.round(r.top - pad) + 'px';
+        s.width = Math.round(r.width + pad * 2) + 'px'; s.height = Math.round(r.height + pad * 2) + 'px';
+      } else this.hlEl.style.visibility = 'hidden';
+    }
+    if (this.keysAt) {
+      const w = this.keysAt();
+      const s = w ? this.screenOf(w) : null;
+      if (s) { this.keysEl.style.left = s.x.toFixed(0) + 'px'; this.keysEl.style.top = Math.max(60, s.y).toFixed(0) + 'px'; }
+      // the key lights while it is held
+      const inp = G.input as unknown as { keys?: Set<string> };
+      for (const b of this.keysEl.children as HTMLCollectionOf<HTMLElement>) {
+        const k = b.dataset.k || '';
+        const code = k.length === 1 ? 'Key' + k : k === 'Shift' ? 'ShiftLeft' : k;
+        b.classList.toggle('lit', !!inp.keys?.has?.(code));
+      }
+    }
   }
 
   // ================================================================== the end
   skip() {
-    if (this.step === 'done') return;
+    if (this.over) return;
     G.audio?.flat?.('static_burst', 'sfx', 0.25);
-    G.handler?.hush?.();
-    this.go('done');
+    this.voice.stop();
+    this.over = true;
+    cancelAsk();
+    this.holo.dissolve();
+    // the waiting script unwinds; run() finishes
+    for (const w of this.waits.splice(0)) w.rej(SKIP);
+    this.finish();
   }
+  private finished = false;
   private finish() {
+    if (this.finished) return;
+    this.finished = true;
+    this.over = true;
     this.step = 'done';
-    this.release();
-    this.setObjective(null);
-    this.showRecap(false);
-    this.cast.classList.remove('on');
+    cancelAsk();
+    for (const w of this.waits.splice(0)) w.rej(SKIP);
+    this.pressOpen = this.doorsOpen = true;
+    this.holo.point(null);
+    this.holo.dissolve();
+    this.camRelease();
+    this.hlEl.classList.remove('on'); this.keysEl.classList.remove('on');
     G.missions?.set?.('tut:done');
     TUT.running = false; TUT.step = ''; TUT.target = -1;
     const h = G.handler as unknown as { guide?: (t: null) => void; briefed?: boolean; cine?: boolean } | null;
     if (h) { h.guide?.(null); h.briefed = true; h.cine = false; }
     if (this.quietHeld) { floatQuiet(false); this.quietHeld = false; }
-    for (const f of this.offs.splice(0)) { try { f(); } catch (e) { console.error(e); } }
-    const root = this.root, plate = this.plate;
-    setTimeout(() => { plate.destroy(); root.remove(); }, 700);
+    G.input.pointerOverUI = false;
+    const root = this.root, plate = this.plate, holo = this.holo, g = this.g;
+    // the camera eases back out, the picture finishes dissolving; then the hooks come off
+    let t = 0;
+    const tail = {
+      name: 'tutorialTail',
+      update: (dt: number) => {
+        t += dt;
+        holo.update(dt);
+        if (t > 2.2) {
+          for (const f of this.offs.splice(0)) { try { f(); } catch (e) { console.error(e); } }
+          const i = g.systems.indexOf(tail as unknown as GameSystem); if (i >= 0) g.systems.splice(i, 1);
+          holo.hide();
+        }
+      },
+    };
+    g.addSystem(tail as unknown as GameSystem);
+    setTimeout(() => { plate.destroy(); root.remove(); }, 400);
     queueMicrotask(() => { const i = this.g.systems.indexOf(this); if (i >= 0) this.g.systems.splice(i, 1); });
     running = null;
     if (import.meta.env.DEV) (window as unknown as { __tut: Tutorial | null }).__tut = null;
   }
 
-  // ================================================================== dev: jump to a lesson (screenshots)
-  debugJump(step: Step) { this.beats = []; this.beatOn = false; G.handler?.hush?.(); this.go(step); }
+  // ================================================================== dev (screenshots)
+  /** dev: run the script at speed (gates pass, questions go unanswered) until it reaches a lesson */
+  rushTo = '';
+  debugTo(step: string) { this.rushTo = step; cancelAsk(); }
+  /** dev: jump the unit's counters so a gate passes (screenshot scripts) */
+  debugPass() { this.walked = 99; this.runT = 99; this.sneakT = 99; this.pumped = 9; this.heartClicked = 9; this.hotKey = 9; this.fed = true; }
+  get holoRef() { return this.holo; }
 }

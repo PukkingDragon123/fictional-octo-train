@@ -68,7 +68,7 @@ html:root body .nc-small { font-family: var(--font-small) !important; }
 
 /* a DOM element that should read as a lit tube (prefer src/gfx/crt.ts for 3D screens) */
 .nc-crt-dom {
-  position: relative; overflow: hidden; border-radius: 6% / 9%;
+  position: relative; overflow: hidden; border-radius: 0; clip-path: polygon(14px 0, calc(100% - 14px) 0, 100% 14px, 100% calc(100% - 14px), calc(100% - 14px) 100%, 14px 100%, 0 calc(100% - 14px), 0 14px);
   background: radial-gradient(ellipse at 50% 45%, #0b1410 0%, #050806 70%, #020302 100%);
   color: #9dffb5; font-family: var(--font-crt);
   text-shadow: 0 0 2px currentColor, 0 0 8px rgba(120, 255, 160, 0.45);

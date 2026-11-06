@@ -35,6 +35,8 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&
 const isTouch = () => document.documentElement.classList.contains('nc-touch') || (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches);
 
 const W = 360, H = 100;
+/** the compact plate (after the tutorial): the tube, the step and the pips; the detail line shows for a while when the step changes */
+const HC = 78;
 const CSS = `
 .lp-track { position: fixed; right: calc(12px + env(safe-area-inset-right)); top: calc(12px + env(safe-area-inset-top)); width: ${W}px; height: ${H}px; z-index: 58; pointer-events: none;
   font-family: var(--font-new); opacity: 0; transform: translateY(-8px); transition: opacity .4s, transform .4s; filter: drop-shadow(0 3px 0 rgba(0,0,0,.4)) drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
@@ -56,6 +58,11 @@ body.noclip-cine .lp-track.on:not(.tour), .lp-track.hush { opacity: 0; }
 .lp-track .lp-pips i { font-style: normal; color: #3c4643; text-shadow: 1px 1px 0 #0a0b10; }
 @keyframes lp-cur { 50% { opacity: .55; } }
 html.nc-touch .lp-track { top: calc(64px + env(safe-area-inset-top)); }
+.lp-track .lp-bgc { display: none; }
+.lp-track.compact { height: ${HC}px; }
+.lp-track.compact .lp-bgf, .lp-track.compact .lp-d { display: none; }
+.lp-track.compact .lp-bgc { display: block; }
+.lp-track.compact .lp-pips { top: 57px; }
 @media (max-width: 760px) { .lp-track { transform-origin: top right; scale: .75; } .lp-track.on { transform: none; } }
 /* rewards: they pop off the plate and rise */
 .lp-pop { position: fixed; z-index: 59; pointer-events: none; font-family: var(--font-new); text-align: right; white-space: nowrap; opacity: 0;
@@ -90,6 +97,8 @@ export class LoopTracker {
   private pops: HTMLElement[] = [];
   /** seconds on the same step without progress (Calder names it when it drags) */
   private stuckT = 0; private stuckKey = '';
+  /** the whole plate (with its detail line) until then; compact after */
+  private fullUntil = 0;
   private offs: (() => void)[] = [];
 
   constructor() {
@@ -105,7 +114,16 @@ export class LoopTracker {
     drawRecess(x, 10, 7, 76, 48);
     bitText(x, 'CALDER', 48, 57, { font: 'small', color: '#1a1e20', shadow: 'rgba(255,255,255,.2)', outline: null, align: 'center' });
     drawRecess(x, 8, 75, W - 16, 20, '#141819');
+    bg.c.classList.add('lp-bgf');
     el.appendChild(bg.c);
+    // the compact plate: no engraved name, the pip strip right under the tube
+    const bc = hiCanvas(W, HC);
+    drawPlate(bc.x, W, HC, 1213);
+    for (const [sx, sy] of [[5, 5], [W - 6, 5], [5, HC - 6], [W - 6, HC - 6]] as const) screw(bc.x, sx, sy);
+    drawRecess(bc.x, 10, 7, 76, 48);
+    drawRecess(bc.x, 8, 55, W - 16, 20, '#141819');
+    bc.c.classList.add('lp-bgc');
+    el.appendChild(bc.c);
     this.scope = new Scope(72, 44);
     this.scope.c.style.position = 'absolute'; this.scope.c.style.left = '12px'; this.scope.c.style.top = '9px';
     el.appendChild(this.scope.c);
@@ -189,8 +207,10 @@ export class LoopTracker {
     const tour = introOn && intro!.phase === 'tour';
     const watchUp = !!(G as unknown as { watch?: { open?: boolean } }).watch?.open;
     const cine = watchUp || !!document.querySelector('.tut-root.cine') || !!document.querySelector('.dz-root');
-    const show = (!introOn || tour) && !cine && !!G.local;
+    // hidden while Dr. Calder teaches (her lessons say it all); compact after, the whole plate for a while when the step changes
+    const show = (!introOn || tour) && !cine && !!G.local && !TUT.running;
     this.el.classList.toggle('on', show);
+    this.el.classList.toggle('compact', performance.now() > this.fullUntil);
     this.el.classList.toggle('tour', tour);
     if (!show && !force) return;
     const r = this.read();
@@ -199,6 +219,7 @@ export class LoopTracker {
     if (head !== this.head) { this.head = head; this.hEl.innerHTML = head; }
     if (r.step !== this.stepText) {
       const first = !this.stepText;
+      this.fullUntil = performance.now() + 9000;
       this.stepText = r.step; this.sEl.textContent = r.step;
       if (!first) { this.sEl.classList.remove('flash'); void this.sEl.offsetWidth; this.sEl.classList.add('flash'); G.audio?.ui?.('watchTick', 0.25); }
     }

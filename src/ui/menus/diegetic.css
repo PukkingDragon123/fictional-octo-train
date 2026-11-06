@@ -185,7 +185,7 @@
 .ob-sheet { background: #e4d8b0; border: var(--px) solid #a8986a; background-image: radial-gradient(rgba(120, 90, 40, 0.18) 20%, transparent 24%); background-size: calc(var(--px) * 9) calc(var(--px) * 11); }
 .ob-spots { display: flex; flex-wrap: wrap; gap: calc(var(--px) * 2); margin-bottom: calc(var(--px) * 4); }
 .ob-spot { display: flex; align-items: center; gap: calc(var(--px) * 2); padding: var(--px) calc(var(--px) * 3); background: #f4ecd0; border: var(--px) solid #8a7a50; font-family: var(--font-readout); font-size: var(--t-label); line-height: calc(var(--px) * 10); }
-.ob-spot i { width: calc(var(--px) * 3); height: calc(var(--px) * 3); border: var(--px) solid #5a4a30; border-radius: 50%; }
+.ob-spot i { width: calc(var(--px) * 3); height: calc(var(--px) * 3); border: var(--px) solid #5a4a30; border-radius: 0; }
 .ob-spot.inked i { background: #1e2a44; }
 .ob-spot.on { background: #1e2a44; color: #f4ecd0; border-color: #1e2a44; }
 .ob-spot.on i { border-color: #f4ecd0; }
@@ -195,7 +195,7 @@
 .ob-flash img { width: calc(var(--px) * 27); height: calc(var(--px) * 27); image-rendering: pixelated; }
 .ob-flash span { font-family: var(--font-readout); font-size: var(--t-label); line-height: var(--t-label); text-align: center; }
 .ob-flash.none { justify-content: center; min-height: calc(var(--px) * 30); border-color: #8a7a50; }
-.ob-flash.on { border: var(--px) solid var(--dg-red); border-radius: 40%; box-shadow: 0 0 0 var(--px) rgba(184, 38, 30, 0.35); }
+.ob-flash.on { border: var(--px) solid var(--dg-red); border-radius: 0; clip-path: polygon(calc(var(--px) * 4) 0, calc(100% - var(--px) * 4) 0, 100% calc(var(--px) * 4), 100% calc(100% - var(--px) * 4), calc(100% - var(--px) * 4) 100%, calc(var(--px) * 4) 100%, 0 calc(100% - var(--px) * 4), 0 calc(var(--px) * 4)); box-shadow: 0 0 0 var(--px) rgba(184, 38, 30, 0.35); }
 .ob-flash:hover, .ob-flash:focus-visible { background: rgba(255, 255, 255, 0.3); outline: none; }
 
 /* index card / fingerprint card / medical history */

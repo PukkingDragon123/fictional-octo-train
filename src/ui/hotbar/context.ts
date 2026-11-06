@@ -1,7 +1,7 @@
-// THE ADAPTIVE BUTTONS (round 12). One clear primary action and up to three
-// secondaries, chosen from what the unit is doing and what is in reach:
+// WHAT THE HANDS CAN DO (round 12 logic, round 14 presentation). One clear primary
+// action and a few secondaries, chosen from what the unit is doing and what is in reach:
 //   near a door          Open / Close
-//   near furniture       Search (a container) · Carry (lift it whole) · Push (too heavy to lift)
+//   near furniture       Search (a container) · Carry (lift it whole) · Grip (too heavy to lift)
 //   carrying             Place · Drop · Throw (light loads) · Turn      (Feed next to the press)
 //   holding (pushing)    Let go · Shove · Lift
 //   near an inhabitant   Scan · Sample (down or dead) · Strike (touch)
@@ -9,10 +9,13 @@
 //   in water             Swim
 //   in the dark          Light (the watch's built-in flashlight)
 //   near the press       Feed (the carried piece, or every valuable you have)
-// Desktop: a strip of key hints over the hotbar (E does the primary; G carry / drop,
-// R turn, Space throw, F light, N scan). Touch: a cluster of big pixel-art buttons
-// bottom right (the movement stick stays where it is). Every button runs the same
-// calls as the keys, so the game systems keep one path.
+// Round 14: no button stack. Each action names its target (tgt / name / head) and where
+// that target is in the world (anchor); src/ui/worldPrompt.ts floats "[E] Search: Filing
+// Cabinet" over it (tappable on touch). Actions with no anchor (Light, Swim, Strike) are
+// keybind-only on desktop (listed in the Controls menu) and live on the small chamfered
+// touch pad (src/ui/touch/actpad.ts). Keys: E the primary, G carry / grip / drop, R turn,
+// Space throw / shove, U the second E-thing, F light, N scan. Every label and pad button
+// runs the same calls as the keys, so the game systems keep one path.
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import type { Player } from '../../entities/player';
@@ -25,14 +28,16 @@ import { creatureSampleOption } from '../../research/collect';
 import { isDown, isStunned } from '../../combat/creatureState';
 import { isTouchMode } from '../touch/mode';
 import { fpOwner } from '../../fp/fp';
-import { ctxIconUrl } from './icons';
 import * as THREE from 'three';
+
+export interface V3 { x: number; y: number; z: number }
 
 export interface CtxAction {
   id: string;
+  /** the short verb (the sub-line under a label, the touch pad) */
   label: string;
   icon: string;
-  /** desktop key shown on the cap ('' = none) */
+  /** desktop key ('' = none) */
   key: string;
   run?: () => void;
   /** held like a key while the finger is down (touch) */
@@ -42,6 +47,14 @@ export interface CtxAction {
   on?: boolean;
   /** greyed (shown, but it would only say why not) */
   why?: string;
+  /** the thing it acts on (actions sharing a tgt float as one label) */
+  tgt?: string;
+  /** that thing's name ("Filing Cabinet") */
+  name?: string;
+  /** the verb in front of the name when this action heads its label ('' = the name alone; default: label) */
+  head?: string;
+  /** where the label floats (world metres, the top of the thing); live, read every frame */
+  anchor?: () => V3 | null;
 }
 
 const _p = new THREE.Vector3();
@@ -83,6 +96,22 @@ function nearFurniture(p: Player): TileObject | null {
   return best;
 }
 
+/** the floor height under a point of the unit's zone */
+function groundAt(p: Player, x: number, z: number): number {
+  try { return G.zones.get(p.zoneKey)?.heightAt(Math.floor(x), Math.floor(z)) ?? p.y; } catch { return p.y; }
+}
+/** the top of a piece of furniture (its footprint centre) */
+function objTop(p: Player, o: TileObject): V3 {
+  const d = objDef(o.key);
+  const w = d?.w ?? 1, dd = d?.d ?? 1, rw = o.rot % 2 === 0 ? w : dd, rd = o.rot % 2 === 0 ? dd : w;
+  const x = o.x + rw / 2 + (o.ox ?? 0), z = o.y + rd / 2 + (o.oz ?? 0);
+  return { x, y: groundAt(p, x, z) + Math.min(2.2, d?.height ?? 1) + 0.25, z };
+}
+/** over the unit's head (what it carries, what it holds on to) */
+const overUnit = (p: Player) => () => (G.local === p ? { x: p.x, y: p.y + 2.15, z: p.z } : null);
+const creatureName = (c: any) => { try { return String(c.displayName?.() || c.sp?.name || 'Something'); } catch { return 'Something'; } };
+const creatureTop = (c: any) => () => (c && !c.removed ? { x: c.x, y: (c.y ?? 0) + Math.max(0.4, c.height ?? 1) + 0.3, z: c.z } : null);
+
 /** what the unit can do right now, the primary first (at most four) */
 export function contextActions(p: Player, touch: boolean): CtxAction[] {
   const out: CtxAction[] = [];
@@ -90,24 +119,32 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
   const g: any = G;
   const push = g.destruct?.push;
   const grab = g.grab;
+  const pressAt = (hop: TileObject) => { const t = objTop(p, hop); return () => t; };
   // ---- carrying a piece of furniture
   const ci = push?.carryInfo?.();
   if (ci) {
-    if (ci.nearPress) out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: () => push.feed(p) });
-    out.push({ id: 'place', label: 'Place', icon: 'place', key: ci.nearPress ? '' : 'E', run: () => { push.setDown(); grab?.letGo?.(); } });
-    out.push({ id: 'drop', label: 'Drop', icon: 'drop', key: 'G', run: () => push.drop() });
-    if (ci.canThrow) out.push({ id: 'throw', label: 'Throw', icon: 'throw', key: 'Space', run: () => push.throw(p) });
-    else out.push({ id: 'turn', label: 'Turn', icon: 'turn', key: 'R', run: () => push.turn(p) });
-    if (ci.canThrow && out.length < 4) out.push({ id: 'turn', label: 'Turn', icon: 'turn', key: 'R', run: () => push.turn(p) });
+    const ct = 'carry';
+    const at = overUnit(p);
+    if (ci.nearPress) {
+      const hop = push.nearPress?.(p) as TileObject | null;
+      out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: () => push.feed(p), tgt: 'press', head: 'Feed the press', anchor: hop ? pressAt(hop) : at });
+    }
+    out.push({ id: 'place', label: 'Place', icon: 'place', key: ci.nearPress ? '' : 'E', run: () => { push.setDown(); grab?.letGo?.(); }, tgt: ct, name: ci.name, head: 'Place', anchor: at });
+    out.push({ id: 'drop', label: 'Drop', icon: 'drop', key: 'G', run: () => push.drop(), tgt: ct, name: ci.name, anchor: at });
+    if (ci.canThrow) out.push({ id: 'throw', label: 'Throw', icon: 'throw', key: 'Space', run: () => push.throw(p), tgt: ct, name: ci.name, anchor: at });
+    else out.push({ id: 'turn', label: 'Turn', icon: 'turn', key: 'R', run: () => push.turn(p), tgt: ct, name: ci.name, anchor: at });
+    if (ci.canThrow && out.length < 4) out.push({ id: 'turn', label: 'Turn', icon: 'turn', key: 'R', run: () => push.turn(p), tgt: ct, name: ci.name, anchor: at });
     return out.slice(0, 4);
   }
   // ---- holding on (pushing furniture, a door, a lever)
   if (grab?.holding) {
-    out.push({ id: 'letgo', label: 'Let go', icon: 'letgo', key: 'E', run: () => grab.letGo() });
+    const o = push?.holding ? push.st?.o as TileObject | undefined : undefined;
+    const nm = o ? objDef(o.key)?.name : undefined;
+    const at = o ? () => { const st = push.st; if (!st || st.o !== o) return null; return { x: st.cx, y: groundAt(p, st.cx, st.cz) + Math.min(2.2, st.h ?? 1) + 0.25, z: st.cz }; } : overUnit(p);
+    out.push({ id: 'letgo', label: 'Let go', icon: 'letgo', key: 'E', run: () => grab.letGo(), tgt: 'held', name: nm, head: 'Let go', anchor: at });
     if (push?.holding && push.mode === 'push') {
-      out.push({ id: 'shove', label: 'Shove', icon: 'push', key: 'Space', run: () => push.shove(p) });
-      const o = push.st?.o;
-      if (o && push.liftable(p, o, true)) out.push({ id: 'lift', label: 'Lift', icon: 'carry', key: 'G', run: () => { grab.letGo(); setTimeout(() => grab.grab(p, { kind: 'object', obj: o, point: _p.set(o.x + 0.5, 0.5, o.y + 0.5) }, 'virtual'), 60); } });
+      out.push({ id: 'shove', label: 'Shove', icon: 'push', key: 'Space', run: () => push.shove(p), tgt: 'held', anchor: at });
+      if (o && push.liftable(p, o, true)) out.push({ id: 'lift', label: 'Lift', icon: 'carry', key: 'G', run: () => { grab.letGo(); setTimeout(() => grab.grab(p, { kind: 'object', obj: o, point: _p.set(o.x + 0.5, 0.5, o.y + 0.5) }, 'virtual'), 60); }, tgt: 'held', anchor: at });
     }
     return out;
   }
@@ -121,8 +158,9 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
     try { opts = sys?.menu?.(p, hop) || []; } catch { /* no menu */ }
     const dep = opts.find((o) => /^Deposit all valuables/.test(o.label) && o.action && !o.disabled);
     const lever = opts.find((o) => /^Pull the lever/.test(o.label));
-    if (dep) out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: dep.action });
-    else if (lever) out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: lever.disabled ? undefined : lever.action, why: lever.disabled ? String(lever.disabled) : undefined });
+    const pr = { tgt: 'press', head: 'Feed the press', anchor: pressAt(hop) };
+    if (dep) out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: dep.action, ...pr });
+    else if (lever) out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: lever.disabled ? undefined : lever.action, why: lever.disabled ? String(lever.disabled) : undefined, ...pr });
   }
   // ---- inhabitants
   let near: any = null, nd = 8;
@@ -137,19 +175,22 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
   const sampleOf = (c: any) => { try { const o = creatureSampleOption(p, c); return o && !o.disabled && o.action ? o : null; } catch { return null; } };
   const target = body && bd < 1.8 ? body : near && nd < 2.6 && (isDown(near) || isStunned(near)) ? near : null;
   const smp = target ? sampleOf(target) : null;
-  if (smp) out.push({ id: 'sample', label: 'Sample', icon: 'sample', key: 'E', run: smp.action });
-  if (body) out.push({ id: 'searchbody', label: 'Search', icon: 'search', key: 'E', run: () => p.actions.add(new LootAction(p, body.inv, body)) });
-  if (near && g.scan?.canScan?.()) out.push({ id: 'scan', label: 'Scan', icon: 'scan', key: 'N', run: () => g.scan.begin(g.scan.creatureTarget(near)) });
+  const cr = (c: any) => ({ tgt: 'c:' + c.id, name: creatureName(c), anchor: creatureTop(c) });
+  if (smp) out.push({ id: 'sample', label: 'Sample', icon: 'sample', key: 'E', run: smp.action, head: 'Sample', ...cr(target) });
+  if (body) out.push({ id: 'searchbody', label: 'Search', icon: 'search', key: 'E', run: () => p.actions.add(new LootAction(p, body.inv, body)), head: 'Search', ...cr(body) });
+  if (near && g.scan?.canScan?.()) out.push({ id: 'scan', label: 'Scan', icon: 'scan', key: 'N', run: () => g.scan.begin(g.scan.creatureTarget(near)), head: 'Scan', ...cr(near) });
   if (near && touch && nd < 5) out.push({ id: 'strike', label: 'Strike', icon: 'strike', key: '', strike: true });
   // ---- furniture
   const f = nearFurniture(p);
   if (f) {
     const d = objDef(f.key)!;
     const t: any = { kind: 'object', obj: f, point: _p.set(f.x + 0.5, 0.5, f.y + 0.5) };
-    if (f.inv && !d.tags?.includes('portal')) out.push({ id: 'search', label: 'Search', icon: 'search', key: 'E', run: () => { p.actions.clear(); p.actions.add(new LootAction(p, f.inv, f)); } });
+    const top = objTop(p, f);
+    const fo = { tgt: 'o:' + f.uid, name: d.name, anchor: () => top };
+    if (f.inv && !d.tags?.includes('portal')) out.push({ id: 'search', label: 'Search', icon: 'search', key: 'E', run: () => { p.actions.clear(); p.actions.add(new LootAction(p, f.inv, f)); }, head: 'Search', ...fo });
     const kind = grab?.grabbable?.(p, t);
-    if (kind === 'carry') out.push({ id: 'carry', label: 'Carry', icon: 'carry', key: 'G', run: () => grab.grab(p, t, 'virtual') });
-    else if (kind === 'push') out.push({ id: 'pushf', label: 'Push', icon: 'push', key: 'G', run: () => grab.grab(p, t, 'virtual') });
+    if (kind === 'carry') out.push({ id: 'carry', label: 'Carry', icon: 'carry', key: 'G', run: () => grab.grab(p, t, 'virtual'), head: '', ...fo });
+    else if (kind === 'push') out.push({ id: 'pushf', label: 'Grip', icon: 'push', key: 'G', run: () => grab.grab(p, t, 'virtual'), head: 'Grip', ...fo });
   }
   // ---- doors
   const door = nearDoor(p);
@@ -158,14 +199,25 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
     const v = grab?.primaryOf?.(t);
     if (v) {
       const w = verbWord(v) || 'Open';
-      out.push({ id: 'door', label: w.length > 9 ? (door.edge.open ? 'Close' : 'Open') : w, icon: /close|shut/i.test(w) || door.edge.open ? 'close' : 'open', key: 'E', run: v.why ? undefined : v.run, why: v.why || undefined });
+      const word = w.length > 9 ? (door.edge.open ? 'Close' : 'Open') : w;
+      const mx = door.side === 0 ? door.x + 0.5 : door.x, mz = door.side === 0 ? door.y : door.y + 0.5;
+      const dt = { x: mx, y: groundAt(p, mx, mz) + 2.25, z: mz };
+      out.push({ id: 'door', label: word, icon: /close|shut/i.test(w) || door.edge.open ? 'close' : 'open', key: 'E', run: v.why ? undefined : v.run, why: v.why || undefined,
+        tgt: 'd:' + door.x + ',' + door.y + ',' + door.side, head: word + ' ' + (door.edge.kind === 'gate' ? 'gate' : 'door'), anchor: () => dt });
     }
   }
   // ---- things lying on the floor
-  if (floorItemsNear(z, p.x, p.z, 1.4).length) out.push({ id: 'pickup', label: 'Pick up', icon: 'pickup', key: 'E', run: () => g.pack?.lootFloor?.() });
-  // ---- water
+  const fl = floorItemsNear(z, p.x, p.z, 1.4);
+  if (fl.length) {
+    let bi = fl[0], bdd = Infinity;
+    for (const wi of fl) { const d = Math.hypot(wi.x - p.x, wi.z - p.z); if (d < bdd) { bdd = d; bi = wi; } }
+    const nm = (bi.item.name || itemDef(bi.item.key)?.name || 'Something') + (fl.length > 1 ? '  +' + (fl.length - 1) : '');
+    const ix = bi.x, iz = bi.z, iy = (bi.y ?? groundAt(p, ix, iz)) + 0.55;
+    out.push({ id: 'pickup', label: 'Pick up', icon: 'pickup', key: 'E', run: () => g.pack?.lootFloor?.(), tgt: 'floor', name: nm, head: '', anchor: () => ({ x: ix, y: iy, z: iz }) });
+  }
+  // ---- water (Shift: keybind only; the touch pad has it)
   if (p.stance === 'swim') out.push({ id: 'swim', label: 'Swim', icon: 'swim', key: 'Shift', hold: { down: () => { G.input.press('run'); G.input.press('power'); }, up: () => { G.input.release('run'); G.input.release('power'); } } });
-  // ---- the dark: the watch's built-in flashlight
+  // ---- the dark: the watch's built-in flashlight (F: keybind only; the touch pad has it)
   let dark = false;
   try { dark = G.lightLevelAt(p.x, p.z) < 0.45; } catch { /* no light grid */ }
   if (dark || p.flashlightOn) out.push({ id: 'light', label: p.flashlightOn ? 'Light off' : 'Light', icon: 'light', key: 'F', on: p.flashlightOn, run: () => { const w: any = G.watch; if (w?.flashlight) w.flashlight(); else G.toggleFlashlight(p); } });
@@ -195,26 +247,15 @@ export function ctxAllowed(): boolean {
   return true;
 }
 
-const KEYCAP: Record<string, string> = { Space: 'SPACE', Shift: 'SHIFT' };
-
 export class ContextBar {
-  readonly el: HTMLDivElement;
-  private desk: HTMLDivElement;
-  private touchEl: HTMLDivElement;
   list: CtxAction[] = [];
-  private sig = '';
+  /** changes whenever the list does (the world labels and the touch pad redraw on it) */
+  sig = '';
   private t = 0;
-  private held = new Map<number, CtxAction>();
   private wrapped = false;
   hidden = false;
 
   constructor() {
-    const el = this.el = document.createElement('div');
-    el.id = 'ctx12';
-    this.desk = document.createElement('div'); this.desk.className = 'ctx-desk';
-    this.touchEl = document.createElement('div'); this.touchEl.className = 'ctx-touch';
-    el.append(this.desk, this.touchEl);
-    document.body.appendChild(el);
     window.addEventListener('keydown', (e) => this.onKey(e), true);
     bus.on('inventoryChanged', () => { this.t = 0; });
     (G as any).ctxBar = this;
@@ -249,70 +290,25 @@ export class ContextBar {
     const p = G.local;
     const touch = isTouchMode();
     const ok = !this.hidden && ctxAllowed();
-    this.el.classList.toggle('on', ok);
-    this.el.classList.toggle('touch', touch);
-    if (!ok || !p) { if (this.held.size) this.releaseAll(); return; }
+    if (!ok || !p) return;
     this.t -= dt;
     if (this.t > 0) return;
     this.t = 0.12;
     let list: CtxAction[] = [];
     try { list = contextActions(p, touch); } catch (e) { console.warn('ctx', e); }
     this.list = list;
-    const sig = (touch ? 'T' : 'D') + list.map((a) => a.id + a.label + a.key + (a.on ? 1 : 0) + (a.why ? 'x' : '')).join('|');
-    if (sig === this.sig) return;
-    this.sig = sig;
-    this.render(touch);
+    this.sig = (touch ? 'T' : 'D') + list.map((a) => a.id + a.label + a.key + (a.tgt ?? '') + (a.head ?? '') + (a.name ?? '') + (a.on ? 1 : 0) + (a.why ? 'x' : '')).join('|');
   }
 
-  private render(touch: boolean) {
-    const list = this.list;
-    if (!touch) {
-      this.touchEl.innerHTML = '';
-      this.desk.innerHTML = list.map((a, i) => `<div class="cx-chip${i === 0 ? ' prim' : ''}${a.why ? ' dim' : ''}${a.on ? ' lit' : ''}">${a.key ? `<b class="cx-key">${KEYCAP[a.key] ?? a.key}</b>` : ''}<i style="background-image:url(${ctxIconUrl(a.icon, i === 0 ? 3 : 2)})"></i><span>${a.label}</span></div>`).join('');
-      return;
-    }
-    this.desk.innerHTML = '';
-    this.releaseAll();
-    this.touchEl.innerHTML = '';
-    list.forEach((a, i) => {
-      const b = document.createElement('div');
-      b.className = 'cx-btn' + (i === 0 ? ' prim' : ' sec s' + i) + (a.why ? ' dim' : '') + (a.on ? ' lit' : '');
-      b.innerHTML = `<i style="background-image:url(${ctxIconUrl(a.icon, i === 0 ? 3 : 2)})"></i><span>${a.label}</span>`;
-      b.addEventListener('pointerdown', (e) => this.down(e, a, b));
-      b.addEventListener('pointermove', (e) => { if (a.strike && this.held.get(e.pointerId) === a) (G as any).touch?.strikeMove?.(e); });
-      const up = (e: PointerEvent, cancel: boolean) => this.up(e, a, b, cancel);
-      b.addEventListener('pointerup', (e) => up(e, false));
-      b.addEventListener('pointercancel', (e) => up(e, true));
-      b.addEventListener('lostpointercapture', (e) => up(e, true));
-      b.addEventListener('contextmenu', (e) => e.preventDefault());
-      this.touchEl.appendChild(b);
-    });
-  }
-
-  private down(e: PointerEvent, a: CtxAction, b: HTMLElement) {
-    e.preventDefault(); e.stopPropagation();
-    try { b.setPointerCapture(e.pointerId); } catch { /* synthetic */ }
-    b.classList.add('down');
-    G.input.pointerOverUI = false;
-    try { (navigator as any).vibrate?.(12); } catch { /* not allowed */ }
-    if (a.why) { if (G.local) bus.emit('think', G.local, a.why.charAt(0).toUpperCase() + a.why.slice(1) + '.'); return; }
-    this.held.set(e.pointerId, a);
-    if (a.strike) { (G as any).touch?.strikeDown?.(e); return; }
-    if (a.hold) { a.hold.down(); return; }
-    a.run?.();
+  /** a tap on a world label (touch) or a pad button: the same call the key makes */
+  runAction(a: CtxAction): boolean {
+    if (a.why) { if (G.local) bus.emit('think', G.local, a.why.charAt(0).toUpperCase() + a.why.slice(1) + '.'); return false; }
+    if (!a.run) return false;
+    a.run();
     G.audio?.ui?.('click', 0.3);
+    try { (navigator as any).vibrate?.(12); } catch { /* not allowed */ }
     this.t = 0.05;
-  }
-  private up(e: PointerEvent, a: CtxAction, b: HTMLElement, cancel: boolean) {
-    b.classList.remove('down');
-    if (this.held.get(e.pointerId) !== a) return;
-    this.held.delete(e.pointerId);
-    if (a.strike) (G as any).touch?.strikeUp?.(cancel);
-    else if (a.hold) a.hold.up();
-  }
-  private releaseAll() {
-    for (const a of this.held.values()) { if (a.hold) a.hold.up(); if (a.strike) (G as any).touch?.strikeUp?.(true); }
-    this.held.clear();
+    return true;
   }
   /** the run of an action by id (tests, the hotbar) */
   act(id: string): boolean { const a = this.list.find((q) => q.id === id); if (!a?.run || a.why) return false; a.run(); return true; }
