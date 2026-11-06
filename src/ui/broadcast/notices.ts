@@ -65,7 +65,7 @@ function onQuest(e: { key: string; kind: 'offer' | 'ready' | 'done' | 'objective
       if (e.intro) return;
       offers.push(e.title); offerT = 1.6;
       break;
-    case 'ready': say(`${e.title}: that is done. Sign it off on the board, ${board()}.`, 'qready:' + e.key, 30); break;
+    case 'ready': say(`${e.title}: that is done. Pay and sign it off on the board, ${board()}.`, 'qready:' + e.key, 30); break;
     case 'done': if (!e.outro) say(`${e.title}. Filed.`, 'qdone:' + e.key, 30); break;
     case 'objective': if (e.text) say(`Done: ${e.text.replace(/\s*\([^)]*\)\s*$/, '')}.`, 'qobj', 4); break;
   }

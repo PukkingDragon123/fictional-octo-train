@@ -411,14 +411,18 @@ export class Tutorial implements GameSystem {
         this.aim(() => this.screenOf(v1.set(hp.x, p().y + 1.4, hp.z)));
         await this.say('That is a Remittance Press. It eats what you feed it, and it pays the unit\'s number down.', { gesture: 'present' });
         this.camFollow(1.5, 1.2);
-        await this.say(T ? 'Carry it over. Next to the plate, tap FEED.' : 'Carry it over. Next to the plate, press E, and in it goes.');
-        this.holo.point(null);
+        await this.say(T ? 'Carry it over. Next to the plate, tap Feed over the press.' : 'Carry it over. Next to the plate, press E, and in it goes.');
+        // she keeps a finger on the press; close to it, on its floating Feed label
+        const near = () => { const p0 = p(); if (Math.hypot(hp.x - p0.x, hp.z - p0.z) > 3.4 || !push()?.carryInfo?.()) return null; return (G as unknown as { worldPrompt?: { primaryRect?: () => DOMRect | null } }).worldPrompt?.primaryRect?.() ?? null; };
+        this.aim(() => { const r = near(); return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : this.screenOf(v1.set(hp.x, p().y + 1.4, hp.z)); });
+        this.hlFn = near; this.hlEl.classList.add('on');
         this.fed = false;
         await this.gate(() => this.fed, [
           'To the press, {n}. The big machine.',
-          T ? 'Next to the plate. FEED.' : 'Next to the plate. E.',
+          T ? 'Next to the plate. Tap Feed.' : 'Next to the plate. E.',
           'If you put it down, pick it up again. The press is not going anywhere.',
         ], 10, undefined, () => this.lightAt(hp.x, hp.z, 0xffd9a0));
+        this.hlFn = null; this.hlEl.classList.remove('on'); this.holo.point(null);
         await this.sleep(2.2);
         const d = this.debt();
         await this.say('Hear that? The number went down. That is the whole job, {n}. Furniture to the press, until the ledger goes quiet.', { expr: 'smile' });
