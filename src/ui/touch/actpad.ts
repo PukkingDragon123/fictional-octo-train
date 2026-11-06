@@ -1,7 +1,7 @@
 // THE TOUCH PAD (round 14). On a phone the world labels (src/ui/worldPrompt.ts) are tapped
 // to act on things; what has no thing to point at gets a small chamfered plate here, bottom
 // right: STRIKE (hold to aim, release to swing: the attack button's own aim-and-swing),
-// LIGHT (the watch's flashlight, F on a keyboard) and SWIM (held, only in water). No round
+// LAMP (the suit's helmet lamp, F on a keyboard) and SWIM (held, only in water). No round
 // buttons, no labels that change under the thumb. Every plate feeds the same input as the keys.
 import './actpad.css';
 import { G } from '../../game/G';
@@ -25,7 +25,7 @@ export class ActPad {
       move: (e) => (G as any).touch?.strikeMove?.(e),
       up: (c) => (G as any).touch?.strikeUp?.(c),
     });
-    this.plate('light', 'Light', 'light', 2, { down: () => G.input.tap('flashlight') });
+    this.plate('light', 'Lamp', 'light', 2, { down: () => G.input.tap('flashlight') });
     this.plate('swim', 'Swim', 'swim', 2, {
       down: () => { G.input.press('run'); G.input.press('power'); },
       up: () => { G.input.release('run'); G.input.release('power'); },

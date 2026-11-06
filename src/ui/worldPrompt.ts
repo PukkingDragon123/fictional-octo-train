@@ -9,7 +9,8 @@
 // not shimmer), fades in and out, and keeps clear of the body console (top left), the job
 // tracker (top right), the hotbar and the touch pad. On touch there are no keys: the label
 // itself is the button (tap the name for the main verb, a small verb for the others).
-// Actions with no target (Light, Swim, Strike) are keybind-only / on the touch pad.
+// Actions with no target (Lamp, Swim, Strike) are keybind-only / on the touch pad.
+// An inhabitant or anomaly nobody has scanned reads "[Q] Scan: <name>" (hold Q).
 import './worldPrompt.css';
 import * as THREE from 'three';
 import { G } from '../game/G';

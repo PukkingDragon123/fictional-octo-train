@@ -4,17 +4,18 @@
 //   near furniture       Search (a container) · Carry (lift it whole) · Grip (too heavy to lift)
 //   carrying             Place · Drop · Throw (light loads) · Turn      (Feed next to the press)
 //   holding (pushing)    Let go · Shove · Lift
-//   near an inhabitant   Scan · Sample (down or dead) · Strike (touch)
+//   near an inhabitant   Scan (unscanned: hold Q) · Sample (down or dead) · Strike (touch)
+//   near an anomaly      Scan (unscanned: hold Q)
 //   things on the floor  Pick up (the physical loot view)
 //   in water             Swim
-//   in the dark          Light (the watch's built-in flashlight)
+//   in the dark          Lamp (the suit's helmet lamp, F)
 //   near the press       Feed (the carried piece, or every valuable you have)
 // Round 14: no button stack. Each action names its target (tgt / name / head) and where
 // that target is in the world (anchor); src/ui/worldPrompt.ts floats "[E] Search: Filing
-// Cabinet" over it (tappable on touch). Actions with no anchor (Light, Swim, Strike) are
+// Cabinet" over it (tappable on touch). Actions with no anchor (Lamp, Swim, Strike) are
 // keybind-only on desktop (listed in the Controls menu) and live on the small chamfered
 // touch pad (src/ui/touch/actpad.ts). Keys: E the primary, G carry / grip / drop, R turn,
-// Space throw / shove, U the second E-thing, F light, N scan. Every label and pad button
+// Space throw / shove, U the second E-thing, F the suit lamp, Q (hold) scan. Every label and pad button
 // runs the same calls as the keys, so the game systems keep one path.
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -178,7 +179,15 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
   const cr = (c: any) => ({ tgt: 'c:' + c.id, name: creatureName(c), anchor: creatureTop(c) });
   if (smp) out.push({ id: 'sample', label: 'Sample', icon: 'sample', key: 'E', run: smp.action, head: 'Sample', ...cr(target) });
   if (body) out.push({ id: 'searchbody', label: 'Search', icon: 'search', key: 'E', run: () => p.actions.add(new LootAction(p, body.inv, body)), head: 'Search', ...cr(body) });
-  if (near && g.scan?.canScan?.()) out.push({ id: 'scan', label: 'Scan', icon: 'scan', key: 'N', run: () => g.scan.begin(g.scan.creatureTarget(near)), head: 'Scan', ...cr(near) });
+  // scanning (hold Q): only what nobody has scanned yet earns a label
+  const sc = g.scan;
+  const canScan = !!sc && (typeof sc.canScan === 'function' ? !!sc.canScan() : true);
+  const unknown = (t: any) => !!t && !sc?.known?.(t.kind, t.key);
+  if (near && canScan) {
+    let st: any = null;
+    try { st = sc.creatureTarget?.(near) ?? null; } catch { st = null; }
+    if (st ? unknown(st) : !near.scanned) out.push({ id: 'scan', label: 'Scan', icon: 'scan', key: 'Q', run: () => { try { sc.begin?.(sc.creatureTarget(near)); } catch { /* no scanner */ } }, head: 'Scan', ...cr(near) });
+  }
   if (near && touch && nd < 5) out.push({ id: 'strike', label: 'Strike', icon: 'strike', key: '', strike: true });
   // ---- furniture
   const f = nearFurniture(p);
@@ -215,12 +224,32 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
     const ix = bi.x, iz = bi.z, iy = (bi.y ?? groundAt(p, ix, iz)) + 0.55;
     out.push({ id: 'pickup', label: 'Pick up', icon: 'pickup', key: 'E', run: () => g.pack?.lootFloor?.(), tgt: 'floor', name: nm, head: '', anchor: () => ({ x: ix, y: iy, z: iz }) });
   }
+  // ---- an anomaly nobody has scanned (a fixture or a thing on the floor)
+  if (canScan && !out.some((a) => a.id === 'scan')) {
+    let best: { t: any; tgt: string; at: V3 } | null = null, bdd = 2.6;
+    for (const o of (G.interact?.objectsNear?.(p, 2.5) || []) as TileObject[]) {
+      let t: any = null;
+      try { t = sc.targetOf?.({ kind: 'object', obj: o }) ?? null; } catch { t = null; }
+      if (!t || t.kind !== 'anomaly' || !unknown(t)) continue;
+      const d = Math.hypot(t.x - p.x, t.z - p.z);
+      if (d < bdd) { bdd = d; best = { t, tgt: 'o:' + o.uid, at: objTop(p, o) }; }
+    }
+    for (const wi of floorItemsNear(z, p.x, p.z, 2.5)) {
+      if (!itemDef(wi.item.key)?.anomaly) continue;
+      let t: any = null;
+      try { t = sc.targetOf?.({ kind: 'item', wi }) ?? null; } catch { t = null; }
+      if (!t || !unknown(t)) continue;
+      const d = Math.hypot(wi.x - p.x, wi.z - p.z);
+      if (d < bdd) { bdd = d; best = { t, tgt: 'floor', at: { x: wi.x, y: (wi.y ?? p.y) + 0.55, z: wi.z } }; }
+    }
+    if (best) { const b = best; out.push({ id: 'scan', label: 'Scan', icon: 'scan', key: 'Q', run: () => { try { sc.begin?.(b.t); } catch { /* no scanner */ } }, tgt: b.tgt, name: String(b.t.title || 'Something'), head: 'Scan', anchor: () => b.at }); }
+  }
   // ---- water (Shift: keybind only; the touch pad has it)
   if (p.stance === 'swim') out.push({ id: 'swim', label: 'Swim', icon: 'swim', key: 'Shift', hold: { down: () => { G.input.press('run'); G.input.press('power'); }, up: () => { G.input.release('run'); G.input.release('power'); } } });
-  // ---- the dark: the watch's built-in flashlight (F: keybind only; the touch pad has it)
+  // ---- the dark: the suit's helmet lamp (F: keybind only; the touch pad has it)
   let dark = false;
   try { dark = G.lightLevelAt(p.x, p.z) < 0.45; } catch { /* no light grid */ }
-  if (dark || p.flashlightOn) out.push({ id: 'light', label: p.flashlightOn ? 'Light off' : 'Light', icon: 'light', key: 'F', on: p.flashlightOn, run: () => { const w: any = G.watch; if (w?.flashlight) w.flashlight(); else G.toggleFlashlight(p); } });
+  if (dark || p.flashlightOn) out.push({ id: 'light', label: p.flashlightOn ? 'Lamp off' : 'Lamp', icon: 'light', key: 'F', on: p.flashlightOn, run: () => G.toggleFlashlight(p) });
   // nothing at all: on touch, the fists
   if (!out.length && touch) out.push({ id: 'strike', label: 'Strike', icon: 'strike', key: '', strike: true });
   // one action per id; the primary is the first that can be done
@@ -232,7 +261,7 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
   // (O opens Inspect Yourself and J the quest broadcast, so only U is spare)
   const spare = ['U'];
   list.forEach((a, i) => {
-    if (i === 0 && !a.strike && a.key !== 'Shift') a.key = a.key === 'F' || a.key === 'N' ? a.key : 'E';
+    if (i === 0 && !a.strike && a.key !== 'Shift') a.key = a.key === 'F' || a.key === 'Q' ? a.key : 'E';
     else if (i > 0 && (a.key === 'E' || (!a.key && !a.strike))) a.key = spare.shift() ?? '';
   });
   return list.slice(0, 4);

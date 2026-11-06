@@ -387,16 +387,16 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
 export const CONTROLS: [string, string][] = [
   ['WASD', 'walk'], ['Shift', 'sprint · push harder · swim'], ['C / Ctrl', 'sneak'],
   ['E', 'the action floating over what is in reach'], ['G', 'carry · grip · drop what you carry (else the emote wheel)'], ['R', 'turn what you carry · reload · rotate when placing'],
-  ['Space', 'shove · kick · throw what you carry'], ['U', 'the second thing in reach'], ['F', 'flashlight (no button: the key only)'], ['N', 'scan the inhabitant nearby'],
+  ['Space', 'shove · kick · throw what you carry'], ['U', 'the second thing in reach'], ['F', 'suit lamp (no button: the key only)'], ['Q (hold)', 'scan what nobody has scanned yet ([Q] Scan over it)'],
   ['1 - 6', 'hotbar: take the bound thing in hand'], ['Left mouse', 'use the tool in hand · attack (hold to charge)'], ['Right mouse', 'grab · push · pull'],
-  ['Tab', 'the watch: quests and research'], ['J', 'quests: Dr. Calder\'s broadcast'], ['I', 'backpack'], ['O', 'inspect yourself'], ['H', 'lung pump · breathing'], ['Q', 'whistle (hold: shout)'],
+  ['J', 'Dr. Calder\'s task board'], ['I', 'backpack'], ['O', 'inspect yourself'], ['H', 'lung pump · breathing'],
   ['B', 'build mode'], ['M', 'map'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'],
   ['Middle mouse / Alt+drag', 'orbit the camera'], ['PageUp / PageDown · Alt+wheel', 'camera pitch'], ['P', 'photo mode'], ['V (hold)', 'talk (co-op voice, walkie when switched on)'],
   ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
 ];
 export const TOUCH_CONTROLS: [string, string][] = [
   ['Stick', 'move · push fully or double-tap to run'], ['Tap a floating name', 'do what it says (tap a small verb under it for the others)'], ['Tap', 'act on a thing · walk to a spot'], ['Hold', 'grab it · its other verbs'],
-  ['STRIKE (hold)', 'aim, release to strike'], ['LIGHT', 'flashlight'], ['SWIM (hold)', 'swim hard (in water)'],
+  ['STRIKE (hold)', 'aim, release to strike'], ['LAMP', 'suit lamp'], ['SWIM (hold)', 'swim hard (in water)'],
   ['Pinch', 'zoom'], ['Two-finger twist / swipe', 'turn the camera'],
 ];
 export const MENU_CONTROLS: [string, string][] = [['↑ ↓ ← →', 'move the cursor'], ['Enter', 'select'], ['Esc', 'back'], ['Q / E', 'switch tabs'], ['Gamepad', 'd-pad, A select, B back, LB/RB tabs']];

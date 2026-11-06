@@ -23,7 +23,7 @@
 #wpad .wpad-strike { --sz: 96px; --c: 14px; right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
 #wpad .wpad-strike .wpad-face { background: linear-gradient(#a2563a 0, #a2563a 3px, #7b3a24 3px, #5a2716 70%, #3b190d calc(100% - 3px), #240e07 calc(100% - 3px)); }
 #wpad .wpad-strike .wpad-face i { width: 42px; height: 42px; }
-/* LIGHT: beside it; lit while the flashlight is on */
+/* LAMP: beside it; lit while the suit lamp is on */
 #wpad .wpad-light { right: calc(126px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
 #wpad .wpad-light.lit .wpad-face { background: linear-gradient(#fff0b0 0, #fff0b0 3px, #e8bd45 3px, #b98a1c 70%, #7a5608 calc(100% - 3px), #4a3405 calc(100% - 3px)); color: #17150f; text-shadow: 0 1px 0 #ffe9a8; }
 /* SWIM: over STRIKE, only in water */

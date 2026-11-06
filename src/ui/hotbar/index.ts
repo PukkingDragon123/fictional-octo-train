@@ -28,8 +28,8 @@ export function installHud12() {
       ctx.update(dt); hot.update(dt);
       const g: any = G, touch = isTouchMode();
       const allowed = !ctx.hidden && ctxAllowed();
-      // the labels step aside for the pack, the watch, the inventory and the eye view
-      const labels = allowed && !G.ui?.inventory?.open && !g.pack?.open && !g.watch?.open && !g.camera?.photo?.active && !g.pr?.eyeCamera;
+      // the labels step aside for the pack, the inventory, photo mode and the eye view
+      const labels = allowed && !G.ui?.inventory?.open && !g.pack?.open && !g.camera?.photo?.active && !g.pr?.eyeCamera;
       wp.update(dt, ctx.list, labels, touch);
       pad.update(ctx.list, allowed, touch);
     } catch (e) { console.warn('hud12', e); }
