@@ -267,7 +267,7 @@ export class TradeUI {
       this.place('sell', it.key, it, v, -0.235 + (i % 5) * 0.085, 0.045 + Math.floor(i / 5) * 0.07, '+' + v, PAL.inkBlue, want, `YOURS: ${itemDef(it.key).name}  +${v}${want ? '  WANTED' : ''}`, true);
     });
     // jobs pinned along the back edge
-    const status = (k: string) => (G.watch?.questStatus?.(k) as string | undefined) ?? '';
+    const status = (k: string) => G.missions?.quests?.questStatus?.(k) ?? '';
     questDefs().filter((q) => q.category === 'tribe' && q.giver === TRIBES[t].name.toUpperCase()).slice(0, 3).forEach((q, i) => {
       const st = status(q.key);
       const locked = (q.requires || []).some((r) => r.startsWith('flag:') ? !G.missions?.flags?.has?.(r.slice(5)) : status(r) !== 'done');
@@ -367,10 +367,9 @@ export class TradeUI {
       if (this.T.sell(t, s.it) > 0) this.fly(s, -0.2);
     } else if (s.kind === 'job') {
       if (!s.ok) return;
-      const w = G.watch;
-      const ok = w?.acceptQuest?.(s.key) ?? w?.quests?.accept?.(s.key) ?? w?.accept?.(s.key);
+      const ok = G.missions?.quests?.acceptQuest?.(s.key);
       bus.emit('questOffer', { key: s.key, giver: TRIBES[t].name.toUpperCase(), accepted: ok !== false });
-      bus.emit('think', p, 'I pocket the card. The job goes up on the watch.');
+      bus.emit('think', p, 'I pocket the card. The job goes up on the board.');
       G.audio?.ui?.('click', 0.6);
       this.dirty = true;
     } else if (s.kind === 'join') {

@@ -87,7 +87,7 @@ export class MissionSystem implements GameSystem {
   private glitchT = 20;
   private roomKey = '';
   private endingStarted = false;
-  /** the watch's quests (src/missions/questRuntime.ts); the contract chain lives there now */
+  /** the quests on Calder's board (J) (src/missions/questRuntime.ts); the contract chain lives there now */
   quests: QuestRuntime;
 
   constructor() {

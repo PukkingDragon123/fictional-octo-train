@@ -259,7 +259,7 @@ export class InventoryUI {
     this.gtag = new GroundTag(W);
     this.tags = new TagRow(W);
     for (const s of [1, -1] as const) { const a = makeArm(s, 1.05); texturizeSleeves(a.root); g.add(a.root); this.arms.push(a); }
-    // the BAILIFF band on the left wrist (the watch: its lamp shows it is live)
+    // the BAILIFF band on the left wrist (its lamp shows it is live)
     const band = new THREE.Group();
     const cuff = new THREE.Mesh(new THREE.CylinderGeometry(0.034, 0.032, 0.036, 10), new THREE.MeshStandardMaterial({ color: 0x8a8e94, roughness: 0.35, metalness: 0.85 }));
     cuff.scale.set(1, 1, 0.84);

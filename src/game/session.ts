@@ -14,7 +14,8 @@ import { bus } from '../core/events';
 import { CreatureSystem } from '../creatures/manager';
 import { CombatSystem } from './combat';
 import { GoreSystem } from '../gore/gore';
-import { Scanner } from '../ui/scanner/scanner';
+import { installNotices } from '../ui/broadcast/notices';
+import { installSuitLamp } from './suitLamp';
 import { Holo } from '../ui/holo/holo';
 import { BodyHud } from '../ui/body/bodyHud';
 import { AudioEngine } from '../audio/audio';
@@ -81,12 +82,10 @@ class WorldExtras implements GameSystem {
     this.floor.update(g.zone, g.pr.target.x, g.pr.target.z, R, (x, y) => g.view!.vis.isVisible(x, y), dt);
     const inp = g.input;
     if (inp.hit('inventory')) g.ui?.inventory?.toggle();
-    if (inp.hit('scanner')) g.ui?.scanner?.toggle?.();
-    if (inp.hit('map')) g.ui?.scanner?.toggle?.(true, 'map');
     // Q: shout. Friends hear it across the floor; so does everything else.
     this.shoutT -= dt;
     // (with the social layer installed, Q is tap = whistle / hold = shout: src/social/social.ts)
-    if (!g.social && inp.hit('shout') && this.shoutT <= 0 && !g.local.body.dead && !g.ui?.scanner?.open) {
+    if (!g.social && inp.hit('shout') && this.shoutT <= 0 && !g.local.body.dead) {
       this.shoutT = 2.5;
       const p = g.local;
       const alone = g.players.size <= 1;
@@ -153,7 +152,9 @@ export function startSession(o: SessionOpts): Game {
   const ui = new UI();
   g.ui = ui;
   ui.inventory = new InventoryUI(ui);
-  new Scanner();
+  // round 14: no wrist watch. Calder says what it used to show (src/ui/broadcast/notices.ts); F is the suit lamp
+  installNotices();
+  installSuitLamp();
   g.holo = new Holo();
   g.hudBody = new BodyHud();
   const interact = new Interact();
@@ -176,8 +177,7 @@ export function startSession(o: SessionOpts): Game {
     applyLoadout(p, (o.cyber as any) ?? takePendingLoadout());
     // a Remittance debtor's intake kit (src/game/debt): jumpsuit, slip-ons, issue pack, a ration bar, a water pouch
     issueKit(p, (k, wear) => { if (!hasItemDef(k)) return null; const it = newItem(k); p.inv.add(it); if (wear) p.wear(it); return it; });
-    // free survival has no BAILIFF band: a plain wrist monitor projects the vitals instead
-    if (!missions.enabled && hasItemDef('wrist_monitor')) { const it = newItem('wrist_monitor'); p.inv.add(it); p.wear(it); }
+    // (free survival has no BAILIFF band; round 14: and no wrist monitor either, the body HUD shows the vitals)
     if (!p.worn.size) for (const k of ['tshirt', 'jeans', 'sneakers', 'socks']) if (hasItemDef(k)) { const it = newItem(k); p.inv.add(it); p.wear(it); }
     // the job's kit: clothing and bags go on (as the personnel-file preview shows), the rest into the pockets
     for (const k of occupationByKey(p.occupation).items) {
@@ -217,7 +217,6 @@ export function startSession(o: SessionOpts): Game {
     if (p.body.dead) return;
     if (items.placing && items.placementClick(b)) return;
     if (g.build?.click?.(t, b)) return;
-    if (ui.scanner?.open && t.kind === 'creature' && b === 0) { ui.scanner.scanCreature(t.c); return; }
     // the right button (tap = primary verb, hold = grab) and a tool on the left button are G.grab's (src/interact/grab.ts)
     void t;
   };

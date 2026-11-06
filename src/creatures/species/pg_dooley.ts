@@ -10,7 +10,8 @@ import { net, netOf, playAt, hashId, rng, localIn, thinkOnce, dist, lineOfSightB
 import { KitDef, KitRig, SkinB, BuildCtx, Page, Region, V3, Wt, Row, buildKitRig, kitSync, kitPersonalize, attackCurve, flinchOf, hash, tube, headLoft, handLoft, footLoft, FOOT_BARE, wLerp, lookAngles, nearestSurvivor } from '../kit/humanoids';
 import { chain, sac, plate, blade, paintCap, paintSkin } from '../kit/organic';
 import { ruleShown } from '../rules';
-import { SIDES, absBones, say, linePoll, watching, nearestUnit, gait, paintPlush, paintFelt, stitches, runs, soak } from './pg_common';
+import { SIDES, absBones, say, linePoll, watching, nearestUnit, gait, paintPlush, paintFelt, stitches, runs, soak, donor, fold, graft, donorTick, donorGrip } from './pg_common';
+import type { HumanRig } from '../../entities/humanRig';
 
 // =====================================================================================
 // DOOLEY DUCKBILL — the host of "Dooley's Dino Den" (Bright Hour Television,
@@ -19,12 +20,14 @@ import { SIDES, absBones, say, linePoll, watching, nearestUnit, gait, paintPlush
 // felt grin that never changes. The costume is still performing. The belly
 // seam has split from the breastbone to the crotch, and through it you can see
 // what wears it now: wet red meat pressed against the lining, the curve of a
-// rib, and a human hand that keeps gripping the edge of the split from inside.
-// Behind the mesh in its mouth, a real eye looks out.
+// rib, and a human forearm and hand that keep gripping the edge of the split
+// from inside. Behind the black mesh in its mouth, something breathes.
 // It performs. While you watch, it dances its numbers and only creeps closer
 // between them. Look away and the show is over: it runs at you for a hug.
-//   pg_dooley   skinned kit rig: plush torso with the split seam, flesh bulge and the
-//               inner hand, duck-bill head with a dropping jaw and the mouth mesh,
+//   pg_dooley   skinned kit rig: plush torso with the split seam and flesh bulge; the
+//               performer's forearm and hand are a HumanRig (the survivors' own base,
+//               body folded away) grafted out through the seam; duck-bill head with a
+//               dropping jaw and the mouth mesh,
 //               googly pupils on springs, crest, felt plates, mitts, foam feet, tail
 // VIDEO / POSTER API (stand-alone):
 //   buildDooley(variant?)                          -> KitRig (rig.root into any scene)
@@ -79,7 +82,6 @@ function layoutDooley(p: Page) {
   p.reg('EYE', 16, 16);
   p.reg('PUP', 8, 8);
   p.reg('MESH', 28, 12);
-  p.reg('SKIN', 16, 16);
   p.reg('CLAW', 8, 8);
   p.reg('CAP', 16, 16);
 }
@@ -130,14 +132,6 @@ function buildDooleyMesh(B: SkinB, x: BuildCtx) {
     const lp = sp.map((p, i): V3 => [k * (0.018 + Math.sin((i / 4) * Math.PI) * 0.058), p[1], p[2] - 0.004 + Math.sin((i / 4) * Math.PI) * 0.012]);
     sac(B, R('LIP'), 3, lp, lp.map((_, i) => [0.022 + Math.sin((i / 4) * Math.PI) * 0.01, 0.02] as [number, number]), lp.map(() => [BE, 0.7, SE, 0.3]), { n: 6, up: [0, 0, 1], bump: (a, t) => (hash(Math.round(a * 3), Math.round(t * 12) + k) - 0.5) * 0.35 });
   }
-  // the hand from inside: a forearm out of the split, the fingers curled over the lip, the thumb hooked inside
-  const IH = bi('inHand'), F1 = bi('inF1'), F2 = bi('inF2'), TH = bi('inTh');
-  sac(B, R('SKIN'), 4, [[0.0, 1.15, 0.4], [0.012, 1.18, 0.445], [0.02, 1.2, 0.48], [0.022, 1.205, 0.505]], [[0.03, 0.026], [0.032, 0.027], [0.03, 0.022], [0.022, 0.014]], [[SE, 1], [SE, 0.5, IH, 0.5], [IH, 1], [IH, 1]], { n: 8, up: [0, 1, 0] });
-  for (let i = 0; i < 4; i++) {
-    const fx = 0.022 + (i - 1.5) * 0.017, L = [1, 1.08, 1.04, 0.86][i];
-    sac(B, R('SKIN'), 5 + i, [[fx, 1.207, 0.505], [fx + 0.002, 1.206, 0.5 + 0.03 * L], [fx + 0.003, 1.19, 0.5 + 0.055 * L], [fx + 0.003, 1.16, 0.5 + 0.062 * L]], [[0.0085, 0.0075], [0.008, 0.007], [0.0072, 0.0065], [0.004, 0.004]], [[IH, 1], [F1, 1], [F1, 0.4, F2, 0.6], [F2, 1]], { n: 6 });
-  }
-  sac(B, R('SKIN'), 9, [[-0.002, 1.19, 0.49], [-0.022, 1.19, 0.51], [-0.034, 1.18, 0.522]], [[0.01, 0.009], [0.009, 0.008], [0.005, 0.005]], [[IH, 1], [TH, 1], [TH, 1]], { n: 6 });
   // ---- neck
   sac(B, R('NECK'), 10, [[0, 1.55 * s, -0.01], [0, 1.64 * s, 0.03], [0, 1.73 * s, 0.07], [0, 1.8 * s, 0.09]], [[0.19, 0.19], [0.175, 0.18], [0.17, 0.175], [0.165, 0.17]], [[CH, 1], [CH, 0.4, bi('neck'), 0.6], [bi('neck'), 0.6, bi('head'), 0.4], [bi('head'), 1]], { n: 14, start: false, end: false, up: [0, 0, 1] });
   // ---- the head: a big soft dome, a duck bill, a lower bill that drops, the mesh behind the grin
@@ -268,17 +262,9 @@ function paintDooley(p: Page, x: BuildCtx) {
     if (u > 0.3 && u < 0.7) Jw.set(xx, yy, (u > 0.38 && u < 0.62) ? FLESH[2 + ((xx + yy) % 4 === 0 ? 1 : 0)] : 0x1a0808);
     else if ((u > 0.2 && u <= 0.3) || (u >= 0.7 && u < 0.8)) { const ph = (yy % 5) / 5; if (Math.abs(ph - 0.5) < 0.38) Jw.set(xx, yy, 0xf4f0e2); }
   }
-  // the mesh and the eye behind it
+  // the mesh the performer looked out of: black, with something wet behind it
   const M = p.R('MESH');
-  for (let yy = 0; yy < M.h; yy++) for (let xx = 0; xx < M.w; xx++) {
-    const ex = (xx + 0.5 - M.w * 0.55) / 4.6, ey = (yy + 0.5 - M.h * 0.5) / 3.2, d = Math.hypot(ex, ey);
-    let c = 0x0e0a0a;
-    if (Math.hypot((xx - M.w * 0.55) / 9, (yy - M.h / 2) / 5) < 1) c = mixHex(0xc89a84, 0x6a4a3e, Math.min(1, Math.hypot((xx - M.w * 0.55) / 9, (yy - M.h / 2) / 5)));
-    if (d < 1) c = d < 0.34 ? 0x0a0604 : d < 0.62 ? 0x5a3a1c : hash(xx, yy) < 0.3 ? 0xd06a5a : 0xe8dcd0;
-    if ((xx + yy) % 2 === 0) c = mixHex(c, 0x000000, 0.55);
-    M.set(xx, yy, c);
-  }
-  M.set(M.w * 0.55 - 1, M.h / 2 - 1, 0xffffff);
+  for (let yy = 0; yy < M.h; yy++) for (let xx = 0; xx < M.w; xx++) { const d = Math.hypot((xx - M.w * 0.5) / (M.w * 0.45), (yy - M.h / 2) / (M.h * 0.5)); M.set(xx, yy, (xx + yy) % 2 === 0 ? 0x050404 : d < 0.6 ? mixHex(0x3a1a1a, 0x140808, d) : 0x0e0a0a); }
   // neck, arms, legs, tail: plush; the tail's belly cream; grime and blood on the legs and feet
   paintPlush(p.R('NECK'), FUR, { seed: sd + 18 });
   stitches(p.R('NECK'), 0, p.R('NECK').h - 2, p.R('NECK').w, p.R('NECK').h - 2, mixHex(C.fur, 0, 0.4), 0xe8dcc0, 3);
@@ -321,14 +307,18 @@ function paintDooley(p: Page, x: BuildCtx) {
   const Lp = p.R('LIP');
   paintPlush(Lp, FUR, { seed: sd + 37, pile: 0.8 });
   for (let yy = 0; yy < Lp.h; yy++) for (let xx = 0; xx < Lp.w; xx++) if (hash(xx, yy) < 0.5) Lp.blend(xx, yy, BLOOD[2], 0.55);
-  const Sk = p.R('SKIN');
-  paintSkin(Sk, makeRamp(0xb8a094, 7, { spread: 0.5 }), { seed: sd + 38, veins: 4, vein: 0x6a5a7a, mottle: 1.6 });
-  for (let xx = 0; xx < Sk.w; xx++) { Sk.set(xx, Sk.h - 1, 0x2a1a14); Sk.blend(xx, Sk.h - 2, 0x3a2418, 0.7); }
-  for (let i = 0; i < 4; i++) Sk.blob(hash(i, sd + 39) * Sk.w, hash(i, 40) * Sk.h, 1.6, 1.6, BLOOD[2], 0.9);
   paintCap(p.R('CAP'), C.fur, FLESH[3], BLOOD[1]);
 }
 
-const DOOLEY_KIT: KitDef = { key: 'pg_dooley', variants: 2, W: 256, H: 256, bones: bonesDooley, layout: layoutDooley, build: buildDooleyMesh, paint: paintDooley, sphere: [0, 1.1, -0.2, 1.7] };
+const DOOLEY_KIT: KitDef = { key: 'pg_dooley', variants: 2, W: 256, H: 256, bones: bonesDooley, layout: layoutDooley, build: buildDooleyMesh, paint: paintDooley, sphere: [0, 1.1, -0.2, 1.7], decorate: (rig, e) => attachPerformer(rig, e.variant) };
+/** whoever is inside: a HumanRig folded away in the belly, its right forearm and hand grafted out through the seam */
+function attachPerformer(rig: KitRig, variant: number) {
+  const hr = donor('pg_dooley_inside:' + (variant % 2), { skin: variant % 2 ? 0xb67a4c : 0xd39b6c, hair: 0x3b2a1e, hairStyle: 'short', face: 2 + (variant % 2), build: 'average', height: 1.0 },
+    { pale: 2, wet: 3, dirt: 2, blood: { farm_r: 1, hand_r: 2 } });
+  fold(hr, rig.parts.belly, [0, 0.06, 0.02]);
+  graft(hr, 'farmR', rig.parts.inHand, [0.0, -0.035, -0.235], [-1.35, 0.25, 0.0]);
+  rig.kit.m.inside = hr;
+}
 /** a Dooley rig (variant 0: tangerine and teal; 1: sun-faded mustard and brick) */
 export function buildDooley(variant = 0): KitRig { return buildKitRig(DOOLEY_KIT, variant, 2.05); }
 
@@ -419,6 +409,12 @@ function poseDooleyRig(K: KitRig, d: DooleyDrive) {
   if (P.inHand?.userData.p0) P.inHand.position.z = P.inHand.userData.p0.z + d.split * 0.04 - 0.01 * grip;
   P.inHand.rotation.set(-0.2 * grip, Math.sin(t * 0.6) * 0.15, 0);
   P.inF1.rotation.x = 0.2 + grip * 0.5 + d.flinch * 0.6; P.inF2.rotation.x = 0.3 + grip * 0.5; P.inTh.rotation.y = -0.3 * grip;
+  const inside = K.kit.m.inside as HumanRig | undefined;
+  if (inside) {
+    donorGrip(inside, 'R', Math.min(1, 0.45 + grip * 0.5 + d.flinch * 0.4 + d.dead * 0.4));
+    inside.bones.handR.rotation.set(0.5 + grip * 0.3 + d.dead * 0.4, 0, Math.sin(t * 0.7) * 0.15);
+    donorTick(inside, d.dt);
+  }
   // ---- dead: it sits down hard in itself
   if (d.dead > 0) {
     const k = d.dead;
@@ -453,9 +449,9 @@ function animateDooley(rig: Rig, c: Creature, t: number, dt: number) {
   if (p && !c.dead && c.visibleToLocal) {
     const dd = dist(p, c);
     if (n.md === 'hug' && dd < 14) thinkOnce(p, 'dooley_hug', 'I looked away. It is running at me with its arms open. LOOK AT IT.', 40);
-    else if ((n.split ?? 0) > 0.3 && dd < 8) thinkOnce(p, 'dooley_inside', 'There is a hand. Inside the costume. It is holding the seam shut from the inside.', 90);
+    else if (dd < 8) thinkOnce(p, 'dooley_inside', 'There is an arm coming out of the split in its belly. A person\'s arm. The hand is gripping the edge.', 90);
     else if (n.md === 'dance' && dd < 16) thinkOnce(p, 'dooley_show', 'It is dancing for me. If I keep watching, it keeps dancing.', 120);
-    else if (dd < 12) thinkOnce(p, 'dooley', ['A kids\' show dinosaur. A costume. It is waving at me.', 'Its belly is split open down the seam. Something in there is wet. Something in there is moving.', 'The grin is sewn on. Behind the mesh in its mouth there is an eye.'][Math.floor(t * 0.13) % 3], 100);
+    else if (dd < 12) thinkOnce(p, 'dooley', ['A kids\' show dinosaur. A costume. It is waving at me.', 'Its belly is split open down the seam. Something in there is wet. Something in there is moving.', 'The grin is sewn on. Behind the black mesh in its mouth something is breathing.'][Math.floor(t * 0.13) % 3], 100);
   }
 }
 
@@ -571,7 +567,7 @@ const DOOLEY = def({
     cls: 'Remnant / costume, broadcast-bound',
     notes: [
       'A walk-around dinosaur costume from a 1990s children\'s programme. It is still performing.',
-      'The belly seam has split. Inside: wet tissue, a rib, and a human hand that grips the edge.',
+      'The belly seam has split. Inside: wet tissue, a rib, and a human forearm whose hand grips the edge.',
       'Watched, it performs five numbers, approaching between them, then leaves. Look away or leave and it charges.',
       'Hugs crush. Hurt it and it charges whether you watch or not.',
     ],

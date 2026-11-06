@@ -1,7 +1,5 @@
-import { horrify } from '../kit/horror';
 import * as THREE from 'three';
 import { def, Rig } from '../species';
-import { makeRamp, mixHex } from '../../gfx/pixel';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import type { Creature } from '../creature';
@@ -9,12 +7,13 @@ import type { Player } from '../../entities/player';
 import type { Zone } from '../../world/zone';
 import { CS, zoneOf, pulse, attack, stop, faceTo, onPlayerHit } from '../behaviors_a';
 import { net, netOf, playAt, hashId, rng, localIn, thinkOnce, dist, playersIn, fx, fxPoll, live, lineOfSightB } from '../behaviors_b';
-import { KitDef, KitRig, BoneSpec, SkinB, BuildCtx, Page, V3, Wt, buildKitRig, kitSync, attackCurve, flinchOf, hash, gauss } from '../kit/humanoids';
-import { chain, sac, paintSkin, paintCap } from '../kit/organic';
+import { attackCurve, flinchOf, hash } from '../kit/humanoids';
+import { HumanRig, SKIN_TONES, type Appearance, type Outfit } from '../../entities/humanRig';
+import { BONES, BONE_PARENT, type BoneName } from '../../entities/humanModel';
+import { worldMaterial } from '../../gfx/materials';
 import { defDread } from '../dread';
 import { TEARS } from '../../gore/tearing';
 import { ruleShown } from '../rules';
-import { legIK, restOf, jointPos, type LegChain } from './whip_rat';
 import '../../audio/sounds_creatures_c';
 
 // =====================================================================================
@@ -30,234 +29,102 @@ import '../../audio/sounds_creatures_c';
 // its head, folds itself down to peer into rooms, and when it sees you it runs:
 // four-metre strides, arms out. Its rule: it sees movement, not people. Get into
 // a room and shut the door, or crouch and keep absolutely still.
+// The body is the game's one human base (HumanRig: the same mesh, face and paint as
+// every unit), its bones stretched (legs x3, arms x2.6, neck x2) and re-posed.
 // POSTER / VIDEO API (stand-alone, no game needed):
-//   buildStrider(variant?)                          -> KitRig (rig.root into any scene)
+//   buildStrider(variant?)                          -> StriderRig (rig.root into any scene; rig.hr is the HumanRig)
 //   poseStrider(rig, t, dt, pose, { speed, lookYaw, lookPitch, strikeT, move })
 //     pose: 'idle' | 'walk' | 'stalk' | 'listen' | 'peer' | 'spot' | 'charge' | 'grab' | 'hold' | 'flee' | 'dead'
 //   walking poses tread in place unless { move: true }, which carries rig.root forward
 //   along its own +z at the walking speed (feet stay planted on the floor).
 // =====================================================================================
 
-const SIDES = [['L', 1], ['R', -1]] as const;
-const LX = 0.16;
-const FING = [{ z: 0.034, len: 0.17 }, { z: 0.011, len: 0.19 }, { z: -0.012, len: 0.18 }, { z: -0.033, len: 0.15 }];
+// ------------------------------------------------------------------ the body: the shared human base (HumanRig), stretched
+// One HumanRig (the same body, face and paint every human in the game uses), its bones driven by our own
+// forward kinematics so each bone can be stretched along its own axes without shearing its children:
+// every bone's matrix is set directly (matrixAutoUpdate off), as its parent's inverse times its own
+// T(joint) * R(world) * S(stretch). The skin follows the bones as usual.
+const STRETCH: Partial<Record<BoneName, [number, number, number]>> = {
+  hips: [0.92, 1, 0.86], spine: [0.78, 1.55, 0.72], chest: [0.9, 1.18, 0.82], neck: [0.78, 2.1, 0.78], head: [0.82, 0.82, 0.82],
+  uarmL: [0.82, 2.6, 0.82], uarmR: [0.82, 2.6, 0.82], farmL: [0.8, 2.75, 0.8], farmR: [0.8, 2.75, 0.8], handL: [1.0, 1.55, 1.0], handR: [1.0, 1.55, 1.0],
+  fing1L: [1, 1.7, 1], fing1R: [1, 1.7, 1], fing2L: [1, 1.8, 1], fing2R: [1, 1.8, 1], thumbL: [1, 1.4, 1], thumbR: [1, 1.4, 1],
+  thighL: [0.82, 3.1, 0.82], thighR: [0.82, 3.1, 0.82], shinL: [0.78, 3.15, 0.78], shinR: [0.78, 3.15, 0.78], footL: [0.9, 1.0, 3.3], footR: [0.9, 1.0, 3.3],
+};
+const ONE: [number, number, number] = [1, 1, 1];
+const st = (b: BoneName) => STRETCH[b] ?? ONE;
+/** who it was: a woman of about forty, pale, bald now; the same face the creator would give a unit */
+const STRIDER_APP: Appearance = { skin: SKIN_TONES[0], hair: 0x1c1612, hairStyle: 'bald', face: 4, build: 'slim', height: 1, bodyShape: 0.55, eyeColor: 0, facialHair: 'none', freckles: 0.35, scars: 1, age: 0.55 };
+/** naked: no top; the brief painted the colour of its skin (smooth, sexless); grey with pallor, grimed from the carpet */
+const STRIDER_OUTFIT: Outfit = { torso: { tex: 'c_bare', color: SKIN_TONES[0] }, legs: { tex: 'c_underwear', color: 0xc8b8ac }, cond: { pale: 3, dirt: 1, expr: '' } };
 
-function bonesS(): BoneSpec[] {
-  const A: [string, string, V3, boolean?][] = [
-    ['base', '', [0, 0, 0]],
-    ['pelvis', 'base', [0, 3.0, 0], true],
-    ['belly', 'pelvis', [0, 3.2, 0.015]],
-    ['chest', 'belly', [0, 3.46, 0.03], true],
-    ['neck', 'chest', [0, 3.79, 0.05], true],
-    ['head', 'neck', [0, 3.98, 0.085], true],
-    ['jaw', 'head', [0, 3.955, 0.115]],
-  ];
-  for (const [s, k] of SIDES) {
-    const wx = k * 0.275, wz = 0.02, kn = 1.51;
-    A.push(['clav' + s, 'chest', [k * 0.05, 3.735, 0.035]], ['sh' + s, 'clav' + s, [k * 0.24, 3.725, 0.02], true], ['el' + s, 'sh' + s, [k * 0.262, 2.725, -0.025], true], ['wr' + s, 'el' + s, [wx, 1.675, wz], true]);
-    FING.forEach((f, i) => A.push(['f' + s + i + 'a', 'wr' + s, [wx, kn, wz + f.z]], ['f' + s + i + 'b', 'f' + s + i + 'a', [wx, kn - f.len * 0.52, wz + f.z]]));
-    A.push(['th' + s + 'a', 'wr' + s, [wx - k * 0.012, 1.615, wz + 0.04]], ['th' + s + 'b', 'th' + s + 'a', [wx - k * 0.016, 1.555, wz + 0.068]]);
-  }
-  // legs: the knee bends backward (it is behind the hip), then the shin runs down and forward
-  // to the heel, then the foot (as long as a man's shin) runs down to the ball it walks on
-  for (const [s, k] of SIDES) {
-    A.push(['hip' + s, 'pelvis', [k * LX, 2.95, 0], true], ['knee' + s, 'hip' + s, [k * LX, 1.95, -0.58], true], ['ank' + s, 'knee' + s, [k * LX, 0.78, 0.1], true], ['ball' + s, 'ank' + s, [k * LX, 0.05, -0.08]]);
-  }
-  const abs = new Map<string, V3>();
-  return A.map(([name, parent, p, cap]) => {
-    abs.set(name, p);
-    const q = parent ? abs.get(parent)! : [0, 0, 0];
-    return { name, parent, at: [p[0] - q[0], p[1] - q[1], p[2] - q[2]], cap };
-  });
+export interface StriderRig extends Rig { hr: HumanRig; m: Record<string, any> }
+/** the Strider's rig: a HumanRig (rig.hr) under rig.root, with stretched bones */
+export function buildStrider(_variant = 0): StriderRig {
+  const hr = new HumanRig(STRIDER_APP, worldMaterial({}));
+  hr.setOutfit(STRIDER_OUTFIT);
+  hr.setExpression('sleepy');
+  (hr.skin as any).clone = () => new THREE.Group();
+  hr.skin.frustumCulled = false;
+  for (const b of BONES) hr.bones[b].matrixAutoUpdate = false;
+  const root = new THREE.Group(), body = new THREE.Group();
+  root.add(body); body.add(hr.root);
+  return { root, body, parts: { ...hr.j }, headY: 3.7, hr, m: {} };
 }
 
-function layoutS(p: Page) {
-  p.reg('SKIN', 64, 64); p.reg('LIMB', 32, 64); p.reg('LEG', 32, 64); p.reg('HEAD', 32, 32); p.reg('JAW', 16, 16); p.reg('HAND', 24, 24);
-  p.reg('NAIL', 8, 8); p.reg('EYE', 8, 8); p.reg('MOUTH', 8, 8); p.reg('SOLE', 16, 16); p.reg('CAP', 8, 8);
+// ------------------------------------------------------------------ FK (model space = the HumanRig body's space, facing +z)
+const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _s = new THREE.Vector3(), _mi = new THREE.Matrix4();
+interface FK { P: Record<string, THREE.Vector3>; Q: Record<string, THREE.Quaternion>; M: Record<string, THREE.Matrix4> }
+function fkOf(R: StriderRig): FK {
+  return (R.m.fk ??= { P: Object.fromEntries(BONES.map((b) => [b, new THREE.Vector3()])), Q: Object.fromEntries(BONES.map((b) => [b, new THREE.Quaternion()])), M: Object.fromEntries(BONES.map((b) => [b, new THREE.Matrix4()])) }) as FK;
 }
-
-// torso rings: y, half width, half depth, centre z
-const TORSO: [number, number, number, number][] = [
-  [2.85, 0.05, 0.045, 0.0], [2.9, 0.13, 0.09, 0.0], [2.98, 0.185, 0.115, -0.005], [3.07, 0.17, 0.105, 0.0], [3.17, 0.125, 0.083, 0.012], [3.27, 0.13, 0.088, 0.02],
-  [3.37, 0.16, 0.108, 0.03], [3.47, 0.178, 0.118, 0.035], [3.57, 0.184, 0.12, 0.035], [3.65, 0.195, 0.108, 0.03], [3.72, 0.168, 0.088, 0.032], [3.79, 0.062, 0.055, 0.048],
-];
-const SPN: [string, number][] = [['pelvis', 3.0], ['belly', 3.2], ['chest', 3.5], ['neck', 3.8]];
-function spnW(x: BuildCtx, y: number): Wt {
-  const c = SPN.map(([n, by]) => [x.bi(n), Math.exp(-((y - by) ** 2) / (2 * 0.1 * 0.1))] as [number, number]).sort((a, b) => b[1] - a[1]).slice(0, 2);
-  const tot = c[0][1] + c[1][1] || 1;
-  return [c[0][0], c[0][1] / tot, c[1][0], c[1][1] / tot];
+const eq = (x: number, y: number, z: number, order: THREE.EulerOrder = 'XYZ') => _q.setFromEuler(_e.set(x, y, z, order));
+/** place bone b: its joint from the parent's (stretched) frame; world rotation `q` (or parent * local) */
+function place(R: StriderRig, F: FK, b: BoneName, q: THREE.Quaternion, local: boolean) {
+  const p = BONE_PARENT[b] as BoneName | '';
+  const off = R.hr.dims.off[b];
+  if (p) {
+    const ps = st(p);
+    _v.set(off[0] * ps[0], off[1] * ps[1], off[2] * ps[2]).applyQuaternion(F.Q[p]);
+    F.P[b].copy(F.P[p]).add(_v);
+    if (local) F.Q[b].copy(F.Q[p]).multiply(q); else F.Q[b].copy(q);
+  } else F.Q[b].copy(q);
+  const s = st(b);
+  F.M[b].compose(F.P[b], F.Q[b], _s.set(s[0], s[1], s[2]));
 }
-
-function buildS(B: SkinB, x: BuildCtx) {
-  const bi = x.bi, R = x.R, rest = x.rest;
-  // (the torso is lofted with per-vertex weights in buildTorso)
-  // ================= the neck: long, cords standing out, a bob of a larynx
-  const NK = rest('neck'), HD = rest('head');
-  sac(B, R('SKIN'), 2, [[0, NK[1] - 0.03, NK[2] - 0.005], [0, NK[1] + 0.06, NK[2] + 0.012], [0, HD[1] - 0.06, HD[2] - 0.01]], [[0.046, 0.04], [0.036, 0.035], [0.034, 0.034]],
-    [[bi('chest'), 0.4, bi('neck'), 0.6], [bi('neck'), 1], [bi('neck'), 0.4, bi('head'), 0.6]], { n: 10, up: [0, 0, 1], start: false, end: false,
-      bump: (a, t) => 0.22 * gauss(Math.abs(a), 0.55, 0.15) + 0.2 * gauss(a, 0, 0.18) * gauss(t, 0.4, 0.12) });
-  // ================= the head: small for the body, hairless, a slack and patient face
-  const H = HD, hw: Wt = [bi('head'), 1];
-  const HR: [number, number, number, number][] = [[-0.035, 0.05, 0.06, 0.012], [-0.012, 0.058, 0.068, 0.008], [0.012, 0.062, 0.074, 0.004], [0.04, 0.064, 0.077, 0.0], [0.072, 0.066, 0.079, -0.004], [0.105, 0.06, 0.072, -0.01], [0.135, 0.044, 0.054, -0.012], [0.155, 0.014, 0.017, -0.012]];
-  sac(B, R('HEAD'), 3, HR.map(([y, , , cz]) => [H[0], H[1] + y, H[2] + cz]), HR.map(([, rx, rz]) => [rx, rz] as [number, number]), HR.map(() => hw), {
-    n: 16, up: [0, 0, 1], start: false,
-    bump: (a, t) => {
-      const y = HR[0][0] + (HR[HR.length - 1][0] - HR[0][0]) * t, aa = Math.abs(a);
-      return -0.2 * gauss(aa, 0.5, 0.17) * gauss(y, 0.043, 0.014) + 0.07 * gauss(aa, 0.45, 0.4) * gauss(y, 0.065, 0.012)
-        + 0.24 * gauss(a, 0, 0.13) * gauss(y, 0.015, 0.018) - 0.1 * gauss(aa, 1.0, 0.25) * gauss(y, -0.005, 0.02)
-        + 0.18 * gauss(aa, Math.PI / 2, 0.14) * gauss(y, 0.035, 0.016) - 0.06 * gauss(a, 0, 0.3) * gauss(y, -0.032, 0.008);
-    },
-  });
-  // the lower jaw hangs off it: chin, a loose lower lip, a dark mouth behind
-  const J = rest('jaw'), jw: Wt = [bi('jaw'), 1];
-  sac(B, R('MOUTH'), 4, [[J[0], J[1] - 0.002, J[2] - 0.035], [J[0], J[1] - 0.004, J[2] - 0.005], [J[0], J[1], J[2] + 0.02]], [[0.04, 0.03], [0.038, 0.03], [0.025, 0.012]], [hw, hw, hw], { n: 8 });
-  sac(B, R('JAW'), 5, [[J[0], J[1] - 0.006, J[2] - 0.045], [J[0], J[1] - 0.022, J[2] - 0.02], [J[0], J[1] - 0.036, J[2] + 0.004], [J[0], J[1] - 0.046, J[2] + 0.02], [J[0], J[1] - 0.05, J[2] + 0.024]],
-    [[0.05, 0.03], [0.05, 0.034], [0.042, 0.03], [0.026, 0.02], [0.012, 0.01]], [jw, jw, jw, jw, jw], { n: 12, up: [0, 1, 0], bump: (a) => (Math.abs(a) < 0.5 ? 0.15 : 0) });
-  // eyes: small, wet, set deep under the brow, the lids half down
-  for (const [, k] of SIDES) {
-    const c: V3 = [H[0] + k * 0.025, H[1] + 0.043, H[2] + 0.06];
-    sac(B, R('EYE'), 6, [[c[0], c[1], c[2] - 0.008], [c[0], c[1], c[2]], [c[0], c[1], c[2] + 0.005]], [[0.006, 0.006], [0.011, 0.009], [0.005, 0.004]], [hw, hw, hw], { n: 8, up: [0, 1, 0] });
-  }
-  // ================= arms: as long as its legs are, bony at the elbow, the hands too long in the finger
-  for (const [s, k] of SIDES) {
-    const wr = rest('wr' + s);
-    chain(B, x, R('LIMB'), 10 + (k > 0 ? 0 : 1), { bones: ['sh' + s, 'el' + s, 'wr' + s], tip: [wr[0], 1.525, wr[2]], n: 8, rings: 4, knuckle: 0.35,
-      r: (t) => (t < 0.08 ? 0.064 - t * 0.2 : t < 0.5 ? 0.048 - (t - 0.08) * 0.05 + 0.006 * gauss(t, 0.48, 0.03) : 0.034 - (t - 0.5) * 0.024),
-      bump: (a, t) => 0.12 * gauss(Math.abs(a), 0.4, 0.3) * gauss(t, 0.62, 0.12) + 0.1 * gauss(Math.abs(a), 2.8, 0.3) * gauss(t, 0.47, 0.03) });
-    // the shoulder cap over the joint, blending the arm into the torso
-    const sh = rest('sh' + s);
-    sac(B, R('SKIN'), 12, [[sh[0] - k * 0.07, sh[1] + 0.02, sh[2]], [sh[0], sh[1] + 0.025, sh[2]], [sh[0] + k * 0.02, sh[1] - 0.06, sh[2]]], [[0.05, 0.06], [0.06, 0.06], [0.05, 0.05]],
-      [[bi('chest'), 1], [bi('chest'), 0.4, bi('sh' + s), 0.6], [bi('sh' + s), 1]], { n: 10 });
-    // the hand: a long narrow palm (hanging, palm to the thigh), four long fingers, a thumb
-    const W = bi('wr' + s);
-    sac(B, R('HAND'), 13, [[wr[0], wr[1] + 0.01, wr[2]], [wr[0], wr[1] - 0.05, wr[2] + 0.002], [wr[0], wr[1] - 0.12, wr[2]], [wr[0], 1.52, wr[2]]], [[0.016, 0.03], [0.019, 0.042], [0.017, 0.047], [0.014, 0.044]],
-      [[bi('el' + s), 0.3, W, 0.7], [W, 1], [W, 1], [W, 1]], { n: 10, up: [0, 0, 1] });
-    FING.forEach((f, i) => {
-      const a = rest('f' + s + i + 'a');
-      chain(B, x, R('HAND'), 14 + i, { bones: ['f' + s + i + 'a', 'f' + s + i + 'b'], tip: [a[0], a[1] - f.len, a[2]], r: (t) => 0.0105 - t * 0.004, n: 6, rings: 4, knuckle: 0.3, start: true, up: [1, 0, 0] });
-      const nw: Wt = [bi('f' + s + i + 'b'), 1], ty = a[1] - f.len;
-      sac(B, R('NAIL'), 20, [[a[0] - k * 0.007, ty + 0.03, a[2]], [a[0] - k * 0.008, ty + 0.012, a[2]], [a[0] - k * 0.006, ty - 0.002, a[2]]], [[0.002, 0.006], [0.0025, 0.007], [0.002, 0.005]], [nw, nw, nw], { n: 6 });
-    });
-    const t0 = rest('th' + s + 'a');
-    chain(B, x, R('HAND'), 21, { bones: ['th' + s + 'a', 'th' + s + 'b'], tip: [t0[0] - k * 0.02, t0[1] - 0.12, t0[2] + 0.05], r: (t) => 0.012 - t * 0.004, n: 6, rings: 3, knuckle: 0.25, start: true });
-  }
-  // ================= legs: thigh, the backward knee, the long shin, the heel high in the air, the foot drawn out to a third limb
-  for (const [s, k] of SIDES) {
-    const ball = rest('ball' + s);
-    chain(B, x, R('LEG'), 30 + (k > 0 ? 0 : 1), { bones: ['hip' + s, 'knee' + s, 'ank' + s], tip: ball, n: 9, rings: 5, knuckle: 0.4, start: false,
-      r: (t) => (t < 0.33 ? 0.098 - t * 0.12 : t < 0.72 ? 0.058 - (t - 0.33) * 0.05 : 0.036 - (t - 0.72) * 0.03) + 0.016 * gauss(t, 0.335, 0.025) + 0.012 * gauss(t, 0.72, 0.02),
-      bump: (a, t) => 0.14 * gauss(Math.abs(a), 0.0, 0.5) * gauss(t, 0.5, 0.08) + 0.1 * gauss(Math.abs(a), Math.PI, 0.5) * gauss(t, 0.78, 0.06) });
-    // where the thigh meets the hip: a smooth, featureless join
-    const hp = rest('hip' + s);
-    sac(B, R('SKIN'), 32, [[hp[0] * 0.6, hp[1] + 0.07, hp[2]], [hp[0], hp[1], hp[2] - 0.01], [hp[0], hp[1] - 0.12, hp[2] - 0.06]], [[0.1, 0.1], [0.1, 0.095], [0.09, 0.085]],
-      [[bi('pelvis'), 1], [bi('pelvis'), 0.5, bi('hip' + s), 0.5], [bi('hip' + s), 1]], { n: 10 });
-    // toes: five long human toes splayed on the floor, the ball as a pad under them
-    const bw: Wt = [bi('ball' + s), 1];
-    sac(B, R('SOLE'), 33, [[ball[0], 0.05, ball[2] - 0.03], [ball[0], 0.035, ball[2] + 0.02], [ball[0], 0.03, ball[2] + 0.06]], [[0.045, 0.03], [0.05, 0.026], [0.046, 0.02]], [[bi('ank' + s), 0.4, bi('ball' + s), 0.6], bw, bw], { n: 10, up: [0, 1, 0] });
-    for (let i = 0; i < 5; i++) {
-      const sx = (i - 2) * 0.019 * k, L = [0.16, 0.13, 0.12, 0.1, 0.085][i];
-      const r0: V3 = [ball[0] + sx, 0.03, ball[2] + 0.06], tip: V3 = [ball[0] + sx * 1.5, 0.014, ball[2] + 0.06 + L];
-      sac(B, R('SOLE'), 34, [r0, [(r0[0] + tip[0]) / 2, 0.026, (r0[2] + tip[2]) / 2 - 0.005], tip], [[0.013 - i * 0.0012, 0.011], [0.01 - i * 0.001, 0.009], [0.008 - i * 0.0008, 0.006]], [bw, bw, bw], { n: 6 });
-      sac(B, R('NAIL'), 35, [[tip[0], 0.03, tip[2] - 0.02], [tip[0], 0.028, tip[2] - 0.005]], [[0.008, 0.0025], [0.006, 0.002]], [bw, bw], { n: 5 });
-    }
+/** write the bone matrices (each relative to its parent) */
+function commit(R: StriderRig, F: FK) {
+  for (const b of BONES) {
+    const o = R.hr.bones[b], p = BONE_PARENT[b] as BoneName | '';
+    if (!p || o.parent !== R.hr.bones[p]) o.matrix.copy(F.M[b]);
+    else o.matrix.copy(_mi.copy(F.M[p]).invert()).multiply(F.M[b]);
+    o.matrixWorldNeedsUpdate = true;
   }
 }
-
-/** the torso: a narrow pelvis, a waist sunk to the spine, a ribcage like a birdcage (per-vertex weights: the shoulders take the top corners) */
-function buildTorso(B: SkinB, x: BuildCtx) {
-  const bi = x.bi, R = x.R;
-  const reg = R('SKIN'), N = 18;
-  const rings: { pts: V3[]; v: number; w: (p: V3) => Wt }[] = [];
-  const y0 = TORSO[0][0], y1 = TORSO[TORSO.length - 1][0];
-  TORSO.forEach(([y, rx, rz, cz], i) => {
-    const t = (y - y0) / (y1 - y0);
-    const pts: V3[] = [];
-    for (let j = 0; j <= N; j++) {
-      const a = -Math.PI + (Math.PI * 2 * j) / N, aa = Math.abs(a);
-      const ribs = y > 3.33 && y < 3.66 ? 0.07 * Math.pow(Math.max(0, Math.sin((y - 3.33) * Math.PI * 28)), 1.5) * (aa > 0.25 && aa < 2.5 ? 1 : 0.3) : 0;
-      const k = 1 + ribs + 0.05 * gauss(a, 0, 0.12) * gauss(y, 3.52, 0.07) - 0.16 * gauss(a, 0, 0.7) * gauss(y, 3.2, 0.06) + 0.18 * gauss(aa, 0.75, 0.2) * gauss(y, 3.02, 0.035)
-        + 0.09 * gauss(aa, Math.PI, 0.18) * Math.pow(Math.abs(Math.sin(y * Math.PI * 26)), 3) + 0.13 * gauss(aa, 2.35, 0.3) * gauss(y, 3.56, 0.06) + 0.14 * gauss(aa, 0.6, 0.25) * gauss(y, 3.715, 0.02);
-      pts.push([Math.sin(a) * rx * k, y, cz + Math.cos(a) * rz * k]);
-    }
-    pts[N] = pts[0];
-    rings.push({ pts, v: 1 - t, w: (p) => {
-      const base = spnW(x, p[1]);
-      // the top rings toward the sides go with the shoulders
-      if (p[1] > 3.6 && Math.abs(p[0]) > 0.1) { const s = p[0] > 0 ? 'L' : 'R', f = Math.min(1, (Math.abs(p[0]) - 0.1) / 0.09) * Math.min(1, (p[1] - 3.6) / 0.1) * 0.55; return [bi('sh' + s), f, base[0], base[1] * (1 - f), base[2], base[3] * (1 - f)]; }
-      return base;
-    } });
-    void i;
-  });
-  const us = Array.from({ length: N + 1 }, (_, j) => j / N);
-  B.loft(rings, us, reg, 1, { start: [0, y0 - 0.02, 0], startW: [bi('pelvis'), 1] });
+/**
+ * Planar two-bone IK in a limb's plane (rolled sideways about z): from joint H to the third joint C.
+ * Returns the roll and the two segments' angles (from straight down, + toward +z). bend +1: the
+ * middle joint goes forward (a knee), -1: back (an elbow).
+ */
+function ik2(H: THREE.Vector3, Cx: number, Cy: number, Cz: number, L1: number, L2: number, bend: number) {
+  const dx = Cx - H.x, dy = H.y - Cy, dz = Cz - H.z;
+  const roll = Math.atan2(dx, Math.max(0.05, dy));
+  const down = Math.hypot(dy, dx) * (dy >= 0 ? 1 : -1);
+  const d = Math.max(Math.abs(L1 - L2) + 1e-3, Math.min(L1 + L2 - 1e-3, Math.hypot(down, dz)));
+  const beta = Math.atan2(dz, down);
+  const gam = Math.acos(Math.max(-1, Math.min(1, (L1 * L1 + d * d - L2 * L2) / (2 * L1 * d))));
+  const a1 = beta + bend * gam;
+  const a2 = Math.atan2(dz - L1 * Math.sin(a1), down - L1 * Math.cos(a1));
+  return { roll, a1, a2 };
 }
-function buildAll(B: SkinB, x: BuildCtx) { buildTorso(B, x); buildS(B, x); }
-
-// ------------------------------------------------------------------ painting
-function paintS(p: Page) {
-  const SK = makeRamp(0xcab8b2, 8, { hueShift: 0.03, spread: 0.58 });
-  const VEIN = 0x8a96b0, RAW = 0xc07868;
-  /** stretched skin: a smooth subsurface ramp, long pale stretch marks along the limb, faint blue veins, grime low down */
-  const stretched = (r: ReturnType<Page['R']>, seed: number, marks: number, joints: number[]) => {
-    paintSkin(r, SK, { seed, veins: 5, vein: VEIN, mottle: 1.0, glint: 6, base: 4.2 });
-    for (let i = 0; i < marks; i++) {
-      const x0 = hash(i, seed) * r.w, y0 = hash(i, seed + 1) * r.h, L = 4 + hash(i, seed + 2) * 12;
-      for (let s = 0; s < L; s++) { const xx = x0 + Math.sin((y0 + s) * 0.4 + i) * 0.6; r.blend(xx, y0 + s, 0xf0e0d0, 0.55); r.blend(xx + 1, y0 + s, 0xb89080, 0.3); }
-    }
-    for (const j of joints) for (let yy = Math.floor(r.h * j) - 2; yy <= r.h * j + 2; yy++) for (let xx = 0; xx < r.w; xx++) r.blend(xx, yy, RAW, 0.28 * (1 - Math.abs(yy - r.h * j) / 3));
-  };
-  stretched(p.R('SKIN'), 3, 60, []);
-  // torso: shadow between the ribs comes from the geometry; the belly is grey where it has sunk, the crotch a smooth blank
-  const sk = p.R('SKIN');
-  for (let yy = 0; yy < sk.h; yy++) for (let xx = 0; xx < sk.w; xx++) {
-    const t = 1 - (yy + 0.5) / sk.h, a = (sk.deg(xx) * Math.PI) / 180;
-    if (t > 0.27 && t < 0.45 && Math.abs(a) < 0.8) sk.blend(xx, yy, 0x9a8a78, 0.25);
-    if (t > 0.48 && t < 0.82 && ((yy % 3) === 0) && Math.abs(a) > 0.3 && Math.abs(a) < 2.4) sk.blend(xx, yy, 0x8a7a68, 0.22);
-  }
-  stretched(p.R('LIMB'), 7, 34, [0.47]);
-  stretched(p.R('LEG'), 11, 40, [0.34, 0.72]);
-  // the soles and the toes: dirty from the carpet, calloused
-  const so = p.R('SOLE');
-  paintSkin(so, SK, { seed: 21, veins: 2, vein: VEIN, glint: 2, base: 3.6 });
-  for (let yy = 0; yy < so.h; yy++) for (let xx = 0; xx < so.w; xx++) if (Math.abs(so.deg(xx)) > 100 || hash(xx, yy) < 0.15) so.blend(xx, yy, 0x6a5a40, 0.5);
-  // the face: a smooth hairless skull; deep grey sockets; the nose; a slack grey-lipped mouth hanging open
-  const hd = p.R('HEAD');
-  paintSkin(hd, SK, { seed: 31, veins: 3, vein: VEIN, mottle: 0.8, glint: 4, base: 4.4 });
-  const yAt = (y: number) => hd.h * (1 - (y - HRmin) / (HRmax - HRmin));
-  for (let yy = 0; yy < hd.h; yy++) for (let xx = 0; xx < hd.w; xx++) {
-    const a = (hd.deg(xx) * Math.PI) / 180, aa = Math.abs(a);
-    const ey = yAt(0.043), my = yAt(-0.03);
-    const sock = Math.hypot((aa - 0.5) / 0.3, (yy - ey) / 2.6);
-    if (sock < 1) hd.blend(xx, yy, 0x6a5a58, 0.65 * (1 - sock * 0.6));
-    if (Math.abs(yy - my) < 1.2 && aa < 0.55) hd.blend(xx, yy, 0x5a3a3a, 0.7);
-    if (Math.abs(yy - yAt(0.014)) < 1 && aa < 0.12) hd.blend(xx, yy, 0x8a7060, 0.4);
-  }
-  const jw = p.R('JAW');
-  paintSkin(jw, SK, { seed: 41, veins: 1, vein: VEIN, glint: 2, base: 4 });
-  for (let xx = 0; xx < jw.w; xx++) { if (Math.abs(jw.deg(xx)) < 60) { jw.set(xx, 0, 0x7a4a48); jw.set(xx, 1, 0x9a6a62); } }
-  p.R('MOUTH').fill(makeRamp(0x2a1416, 4), (xx, yy) => 1 + (hash(xx, yy) - 0.5) * 0.8 + (yy < 2 ? 1 : 0));
-  const ey = p.R('EYE');
-  ey.fill(makeRamp(0x1a1614, 4), (xx, yy) => 1 + (yy < 3 ? 1.5 : 0) + (hash(xx, yy) - 0.5) * 0.5);
-  ey.set(2, 4, 0xe8e0d8);
-  paintSkin(p.R('HAND'), SK, { seed: 51, veins: 6, vein: VEIN, glint: 5, base: 4 });
-  const hn = p.R('HAND');
-  for (let yy = 2; yy < hn.h; yy += 5) for (let xx = 0; xx < hn.w; xx++) if (hash(xx, yy) < 0.6) hn.blend(xx, yy, RAW, 0.3);
-  p.R('NAIL').fill(makeRamp(0xc8b898, 4), (xx, yy) => 2.2 - (yy > 5 ? 1.2 : 0) + (hash(xx, yy) - 0.5) * 0.5);
-  paintCap(p.R('CAP'), 0xcab8b2, 0xb8303a, 0x5a1018);
-  void mixHex;
-}
-const HRmin = -0.035, HRmax = 0.155;
-
-const STRIDER_KIT: KitDef = { key: 'strider', variants: 1, W: 256, H: 256, bones: bonesS, layout: layoutS, build: buildAll, paint: paintS, sphere: [0, 2.2, 0, 3.6] };
-/** the Strider's rig */
-export function buildStrider(_variant = 0): KitRig { return buildKitRig(STRIDER_KIT, 0, 4.1); }
+/** world rotation of a down-pointing bone at angle a (from down, + toward +z) in a plane rolled by r */
+const downQ = (a: number, r: number, out: THREE.Quaternion) => out.setFromEuler(_e.set(-a, 0, r, 'ZXY'));
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion(), _qc = new THREE.Quaternion();
 
 // =====================================================================================
 // motion
 // =====================================================================================
 const sm = (ud: Record<string, number>, k: string, to: number, rate: number, dt: number) => (ud[k] = (ud[k] ?? to) + (to - (ud[k] ?? to)) * Math.min(1, dt * rate));
 const ease = (x: number) => (x <= 0 ? 0 : x >= 1 ? 1 : x * x * (3 - 2 * x));
-const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 interface Foot { x: number; z: number; fx: number; fz: number; u: number; lift: number; land: number }
 export interface StriderDrive {
   t: number; dt: number; md: string; seed: number;
@@ -272,9 +139,12 @@ export interface StriderDrive {
   onStep?: (side: number, v: number, high: boolean) => void;
 }
 const GRAB_REACH = 0.45;
+const SIDES2 = [['L', 1], ['R', -1]] as const;
 
-function poseS(K: KitRig, d: StriderDrive) {
-  const P = K.parts, ud = K.kit.m as Record<string, any>, t = d.t, dt = Math.min(0.1, d.dt), s9 = d.seed * 9;
+function poseS(R: StriderRig, d: StriderDrive) {
+  const ud = R.m as Record<string, any>, t = d.t, dt = Math.min(0.1, d.dt), s9 = d.seed * 9;
+  const hr = R.hr, off = hr.dims.off;
+  const F = fkOf(R);
   const is = (m: string) => (d.md === m ? 1 : 0);
   const alive = 1 - d.dead, dead = d.dead;
   const peer = sm(ud, 'peer', is('peer'), is('peer') ? 1.1 : 1.8, dt);
@@ -286,134 +156,137 @@ function poseS(K: KitRig, d: StriderDrive) {
   const hold = sm(ud, 'hold', Math.max(d.hold, gT >= GRAB_REACH ? 1 : 0), 6, dt);
   const grab = sm(ud, 'grab', Math.max(reach, hold), 7, dt);
   const v = Math.hypot(d.vx, d.vz);
+  // limb lengths (stretched)
+  const L1 = Math.abs(off.shinL[1]) * st('thighL')[1], L2 = Math.abs(off.footL[1]) * st('shinL')[1];
+  const A1 = Math.abs(off.farmL[1]) * st('uarmL')[1], A2 = Math.abs(off.handL[1]) * st('farmL')[1];
+  const HAND = (Math.abs(off.fing1L[1]) + Math.abs(off.fing2L[1]) + 0.05) * st('handL')[1];
+  // the toe tip in the foot's own (stretched) frame: forward along +z, a little below the ankle
+  const TOE_Z = 0.17 * st('footL')[2], TOE_Y = -0.062;
   // ---- the feet: planted on the floor, each stepping when the body has gone on too far without it
   const ps = Math.PI / 2 - d.f, cs = Math.cos(ps), sn = Math.sin(ps);
   const toW = (mx: number, mz: number): [number, number] => [d.bx + mx * cs + mz * sn, d.bz - mx * sn + mz * cs];
   const toM = (wx: number, wz: number): [number, number] => { const dx = wx - d.bx, dz = wz - d.bz; return [dx * cs - dz * sn, dx * sn + dz * cs]; };
-  const homeZ = -0.05 - 0.25 * peer - 0.1 * grab, homeX = 0.36 + 0.1 * peer + 0.06 * charge;
+  const homeZ = 0.15 - 0.3 * peer - 0.1 * grab + 0.25 * dead, homeX = 0.34 + 0.12 * peer + 0.06 * charge;
   let feet = ud.feet as Foot[] | undefined;
-  if (!feet) feet = ud.feet = SIDES.map(([, k]) => { const [x, z] = toW(k * homeX, homeZ); return { x, z, fx: x, fz: z, u: -1, lift: 0, land: 0 }; });
-  // its own clock (callers may pin t)
+  if (!feet) feet = ud.feet = SIDES2.map(([, k]) => { const [x, z] = toW(k * homeX, homeZ); return { x, z, fx: x, fz: z, u: -1, lift: 0, land: 0 }; });
   const clk = (ud.clk = (ud.clk ?? 0) + dt);
   const Ts = Math.max(0.3, Math.min(0.75, 0.78 - v * 0.085));
   const lead = Math.min(1.3, v * Ts * 0.62 + (v > 0.1 ? 0.12 : 0));
   const trig = v < 0.1 ? 0.3 : Math.min(1.35, 0.5 + 0.15 * v);
   const vxn = v > 1e-3 ? d.vx / v : 0, vzn = v > 1e-3 ? d.vz / v : 0;
-  SIDES.forEach(([, k], i) => {
-    const F = feet![i], O = feet![1 - i];
+  SIDES2.forEach(([, k], i) => {
+    const Ft = feet![i], O = feet![1 - i];
     const [hx, hz] = toW(k * homeX, homeZ);
     const tx = hx + vxn * lead, tz = hz + vzn * lead;
-    if (F.u < 0) {
-      const err = Math.hypot(F.x - hx, F.z - hz);
-      const otherOk = O.u < 0 || O.u > 0.72;
-      if (alive > 0.5 && err > trig && otherOk && clk - (ud.lastStep ?? -9) > Ts * 0.35) {
-        F.u = 0; F.fx = F.x; F.fz = F.z;
-        const high = !!d.over && d.over(F.x, F.z, tx, tz);
-        F.lift = high ? 2.95 : 0.35 + 0.12 * v + 0.15 * stalk;
+    if (Ft.u < 0) {
+      const err = Math.hypot(Ft.x - hx, Ft.z - hz);
+      if (alive > 0.5 && err > trig && (O.u < 0 || O.u > 0.72) && clk - (ud.lastStep ?? -9) > Ts * 0.35) {
+        Ft.u = 0; Ft.fx = Ft.x; Ft.fz = Ft.z;
+        const high = !!d.over && d.over(Ft.x, Ft.z, tx, tz);
+        Ft.lift = high ? 2.95 : 0.35 + 0.12 * v + 0.15 * stalk;
         ud.lastStep = clk;
       }
     }
-    if (F.u >= 0) {
-      F.u = Math.min(1, F.u + dt / (F.lift > 2 ? Ts * 1.6 : Ts));
-      // the landing point keeps tracking the body until late in the swing
-      if (F.u < 0.7) { F.land = 0; ud['tx' + i] = tx; ud['tz' + i] = tz; }
-      const e = ease(F.u);
-      F.x = F.fx + ((ud['tx' + i] ?? tx) - F.fx) * e; F.z = F.fz + ((ud['tz' + i] ?? tz) - F.fz) * e;
-      if (F.u >= 1) { F.u = -1; d.onStep?.(k, v, F.lift > 2); F.lift = 0; }
+    if (Ft.u >= 0) {
+      Ft.u = Math.min(1, Ft.u + dt / (Ft.lift > 2 ? Ts * 1.6 : Ts));
+      if (Ft.u < 0.7) { ud['tx' + i] = tx; ud['tz' + i] = tz; }
+      const e = ease(Ft.u);
+      Ft.x = Ft.fx + ((ud['tx' + i] ?? tx) - Ft.fx) * e; Ft.z = Ft.fz + ((ud['tz' + i] ?? tz) - Ft.fz) * e;
+      if (Ft.u >= 1) { Ft.u = -1; d.onStep?.(k, v, Ft.lift > 2); Ft.lift = 0; }
     }
+    if (dead > 0.5) { const [x, z] = toW(k * homeX, homeZ); Ft.x = x; Ft.z = z; Ft.u = -1; }
   });
-  // ---- the body: high and stooped under the ceiling line; folded right down to peer; leaning into a run
+  // ---- the body: high and stooped at the ceiling line; folded right down to peer; leaning into a run
   const swingL = feet[0].u >= 0 ? Math.sin(Math.PI * feet[0].u) : 0, swingR = feet[1].u >= 0 ? Math.sin(Math.PI * feet[1].u) : 0;
   const spread = Math.hypot(feet[0].x - feet[1].x, feet[0].z - feet[1].z);
-  const hy = sm(ud, 'hy', 2.92 - 0.12 * listen - 1.5 * peer - 0.42 * charge - 0.85 * grab * (1 - peer) - 0.25 * stalk - 2.1 * dead, peer > 0.5 || dead ? 1.4 : 3, dt);
+  const hy = sm(ud, 'hy', 2.78 - 0.12 * listen - 1.42 * peer - 0.42 * charge - 0.8 * grab * (1 - peer) - 0.22 * stalk - 1.9 * dead, peer > 0.5 || dead ? 1.4 : 3, dt);
   const bob = -Math.max(0, spread - 0.7) * 0.06 + (swingL + swingR) * 0.05 * (1 - peer);
   const br = Math.sin(t * 1.15 + s9) * alive;
-  const pel = P.pelvis;
-  const p0 = (o: THREE.Object3D) => o.userData.p0 as THREE.Vector3;
   const sway = sm(ud, 'sway', (swingL - swingR) * -0.07, 6, dt);
-  // accelerations tip the body (it leans into a start, rocks back when it stops)
   const acc = sm(ud, 'acc', (v - (ud.lv ?? v)) / Math.max(1e-3, dt), 3, dt); ud.lv = v;
-  pel.position.set(p0(pel).x + sway, hy + bob + br * 0.01, p0(pel).z);
   const lean = Math.max(-0.2, Math.min(0.3, acc * 0.05));
-  const pp = 0.16 + 0.55 * peer + 0.25 * charge + 0.2 * grab + 0.1 * stalk + lean + 0.3 * dead;
-  pel.rotation.set(pp, sway * 1.5, sway * 1.2);
-  const bp = 0.1 + 0.38 * peer + 0.15 * charge + 0.15 * grab + 0.08 * stalk - 0.06 * listen + 0.4 * dead;
-  P.belly.rotation.set(bp + br * 0.01, -sway * 1.2, -sway);
-  P.belly.scale.set(1 - br * 0.02, 1, 1 - br * 0.04);
-  const cp = 0.08 + 0.3 * peer + 0.1 * charge + 0.12 * grab - 0.05 * listen + 0.3 * dead;
-  P.chest.rotation.set(cp - br * 0.015, -sway, 0);
-  P.chest.scale.set(1 + br * 0.03, 1, 1 + br * 0.045);
+  const pp = 0.16 + 0.55 * peer + 0.25 * charge + 0.2 * grab + 0.1 * stalk + lean + 0.5 * dead;
+  const bp = 0.1 + 0.38 * peer + 0.15 * charge + 0.15 * grab + 0.08 * stalk - 0.06 * listen + 0.5 * dead;
+  const cp = 0.08 + 0.3 * peer + 0.1 * charge + 0.12 * grab - 0.05 * listen + 0.4 * dead;
   const torso = pp + bp + cp;
-  // ---- legs: IK to the planted / swinging feet
-  K.root.updateMatrixWorld(true);
-  const legs = (ud.legRest ??= Object.fromEntries(SIDES.map(([s]) => [s, { names: ['hip' + s, 'knee' + s, 'ank' + s], rest: restOf(K, ['hip' + s, 'knee' + s, 'ank' + s, 'ball' + s]) as LegChain['rest'] }]))) as Record<string, LegChain>;
-  const arms = (ud.armRest ??= Object.fromEntries(SIDES.map(([s]) => [s, { names: ['sh' + s, 'el' + s, 'wr' + s], rest: restOf(K, ['sh' + s, 'el' + s, 'wr' + s, 'f' + s + '1b']) as LegChain['rest'] }]))) as Record<string, LegChain>;
-  const HP = SIDES.map(([s]) => jointPos(K, 'hip' + s, new THREE.Vector3(), false));
-  const SP = SIDES.map(([s]) => jointPos(K, 'sh' + s, new THREE.Vector3(), false));
-  SIDES.forEach(([s, k], i) => {
-    const F = feet![i];
-    const [mx, mz] = toM(F.x, F.z);
-    const sw = F.u >= 0 ? Math.sin(Math.PI * F.u) : 0;
-    // over a wall the foot is lifted high and drawn up under it like a heron's
-    const y = 0.05 + (F.u >= 0 ? F.lift * Math.pow(sw, F.lift > 2 ? 0.6 : 0.75) : 0);
-    const endA = -0.24 - 0.7 * sw - (F.lift > 2 ? 0.6 * sw : 0) + 0.35 * peer + 0.15 * grab * (1 - peer);
-    legIK(K, legs[s], [k * LX + (mx - k * LX) * 0.85, y, mz], endA, -1, pp, HP[i]);
-    // the toes stay flat on the floor while it stands, curl as the foot comes up
-    const ballO = P['ball' + s];
-    const cum = pp + P['hip' + s].rotation.x + P['knee' + s].rotation.x + P['ank' + s].rotation.x;
-    ballO.rotation.set(-(Math.PI / 2 - 0.9 * sw - 1.47) - cum, 0, 0);
-  });
-  // ---- arms: dangling and swinging slack; reaching out in the run; planted on the floor to peer; snatching for a grab
-  const legPh = (feet[0].u >= 0 ? feet[0].u : 0) - (feet[1].u >= 0 ? feet[1].u : 0);
-  SIDES.forEach(([s, k], i) => {
-    const swing = sm(ud, 'asw' + s, -k * legPh * 0.35 * Math.min(1, v) - lean * 0.6, 2.5, dt);
-    // FK: hang from the shoulder whatever the torso is doing (a pendulum, lagging the body)
-    const fk = [-torso * 0.92 + swing + Math.sin(t * 0.8 + k + s9) * 0.04 * alive, k * (0.1 + 0.05 * Math.sin(t * 0.6 + k)), -0.25 - 0.1 * Math.abs(swing), -0.12];
-    const sh = P['sh' + s]; if (sh.rotation.order !== 'ZXY') sh.rotation.order = 'ZXY';
-    sh.rotation.set(fk[0], 0, fk[1]); P['el' + s].rotation.set(fk[2], 0, 0); P['wr' + s].rotation.set(fk[3], 0, 0);
-    // IK targets (model space) for the hands
-    let ikW = 0, T: V3 = [0, 0, 0], endA = 0.4;
-    if (peer > 0.01) { ikW = peer; T = [k * 0.62, 0.05, 1.1 - 0.15 * k * Math.sin(t * 0.3)]; endA = 1.2; }
-    if (charge > 0.01) { const w = charge * (1 - peer); if (w > ikW) { ikW = w * 0.8; T = [k * 0.78, 1.7 + Math.sin(t * 9 + k) * 0.08, 1.35]; endA = 1.45; } }
-    if (grab > 0.01) { const w = grab; if (w >= ikW) { ikW = w; const hz = 0.6 + 1.6 * reach * (1 - hold * 0.45), hy2 = 0.95 + 0.6 * hold; T = [k * (0.22 - 0.1 * hold), hy2, hz]; endA = 1.4 - hold * 0.9; } }
-    if (ikW > 0.01 && dead < 0.5) {
-      const a0 = sh.rotation.x, z0 = sh.rotation.z, e0 = P['el' + s].rotation.x, w0 = P['wr' + s].rotation.x;
-      legIK(K, arms[s], T, endA, -1, torso, SP[i], 1);
-      const lerp = (a: number, b: number) => a + (b - a) * ikW;
-      sh.rotation.set(lerp(a0, sh.rotation.x), 0, lerp(z0, sh.rotation.z));
-      P['el' + s].rotation.x = lerp(e0, P['el' + s].rotation.x); P['wr' + s].rotation.x = lerp(w0, P['wr' + s].rotation.x);
-    }
-    // fingers: hanging half-curled and twitching; splayed on the floor; spread to snatch; locked shut on a hold
-    const open = Math.max(reach * (1 - hold), peer * 0.6, charge * 0.7);
-    FING.forEach((_, f) => {
-      const tw = Math.pow(Math.max(0, Math.sin(t * 2.1 + f * 1.7 + k * 3 + s9)), 14) * 0.5 * alive;
-      const curl = 0.35 + tw - open * 0.5 + hold * 1.25 + dead * 0.6;
-      P['f' + s + f + 'a'].rotation.set((f - 1.5) * 0.08 * open, 0, -k * curl);
-      P['f' + s + f + 'b'].rotation.set(0, 0, -k * (curl * 1.1));
-    });
-    P['th' + s + 'a'].rotation.set(0.3 * hold, 0, -k * (0.2 + hold * 0.6)); P['th' + s + 'b'].rotation.set(0, 0, -k * (0.3 + hold * 0.5));
-  });
+  F.P.hips.set(sway + Math.sin(t * 60) * 0.03 * d.flinch, hy + bob + br * 0.01, 0);
+  place(R, F, 'hips', eq(pp, sway * 1.5, sway * 1.2), false);
+  place(R, F, 'spine', eq(bp + br * 0.012, -sway * 1.2, -sway), true);
+  place(R, F, 'chest', eq(cp - br * 0.018, -sway, 0), true);
   // ---- neck and head: it looks at you; the head tilts, birdlike, while it listens; held level while it peers
   const look = d.look * alive;
   const lyaw = Math.max(-1.3, Math.min(1.3, d.lyaw)) * look, lp = Math.max(-0.9, Math.min(0.7, d.lpitch)) * look;
-  const tilt = sm(ud, 'tilt', listen * (0.55 + 0.1 * Math.sin(t * 0.7)) * (ud.tiltS ?? 1) + peer * 0.25 * Math.sin(t * 0.4 + s9), 2, dt);
   if (listen < 0.05) ud.tiltS = hash(Math.floor(t * 0.1), 3) < 0.5 ? 1 : -1;
-  // scanning while it peers: the head sweeps slowly across the room it is looking into
+  const tilt = sm(ud, 'tilt', listen * (0.55 + 0.1 * Math.sin(t * 0.7)) * (ud.tiltS ?? 1) + peer * 0.25 * Math.sin(t * 0.4 + s9), 2, dt);
   const scan = peer * (1 - look) * Math.sin(t * 0.55 + s9) * 0.7;
-  P.neck.rotation.set(-torso * 0.62 - lp * 0.45 + 0.1 * dead + 0.15 * listen, (lyaw * 0.5 + scan * 0.6), tilt * 0.4);
-  P.head.rotation.set(-torso * 0.3 - lp * 0.5 + 0.05 * Math.sin(t * 0.5) * alive, lyaw * 0.45 + scan * 0.4, tilt * 0.75);
-  // the slack jaw: always a little open, working slowly at nothing; wide on the run and the grab
-  const chew = Math.max(0, Math.sin(t * 0.9 + s9)) * 0.08 * alive;
-  P.jaw.rotation.set(0.22 + chew + 0.45 * charge + 0.5 * grab + 0.15 * dead + d.flinch * 0.3, 0, Math.sin(t * 0.37) * 0.04);
-  P.base.position.set(Math.sin(t * 60) * 0.03 * d.flinch, 0, 0);
-  void listen;
+  place(R, F, 'neck', eq(-torso * 0.62 - lp * 0.45 + 0.25 * dead + 0.15 * listen, lyaw * 0.5 + scan * 0.6, tilt * 0.4), true);
+  place(R, F, 'head', eq(-torso * 0.3 - lp * 0.5 + 0.05 * Math.sin(t * 0.5) * alive + 0.2 * dead, lyaw * 0.45 + scan * 0.4, tilt * 0.75), true);
+  place(R, F, 'lids', _q.identity(), true);
+  // ---- legs: three long segments (thigh, the knee forward, the shin down and back to a heel high in the
+  // air, then the foot drawn out into a third limb down to the toes): IK to the planted / swinging feet
+  SIDES2.forEach(([s, k], i) => {
+    const Ft = feet![i];
+    const th = ('thigh' + s) as BoneName, sh = ('shin' + s) as BoneName, fo = ('foot' + s) as BoneName;
+    place(R, F, th, _q.identity(), true); // joint position first
+    const H = F.P[th];
+    const [mx, mz] = toM(Ft.x, Ft.z);
+    const sw = Ft.u >= 0 ? Math.sin(Math.PI * Ft.u) : 0;
+    const ty = 0.03 + (Ft.u >= 0 ? Ft.lift * Math.pow(sw, Ft.lift > 2 ? 0.6 : 0.75) : 0);
+    // the foot's angle (from down, + toward its toes): steep while it stands on the tips, folded back as it lifts
+    const a3 = 0.32 - 0.6 * sw - (Ft.lift > 2 ? 0.5 * sw : 0) + 0.45 * peer + 0.25 * grab * (1 - peer) + 0.6 * dead;
+    const th3 = Math.PI / 2 - a3;
+    const oy = TOE_Y * Math.cos(th3) - TOE_Z * Math.sin(th3), oz = TOE_Y * Math.sin(th3) + TOE_Z * Math.cos(th3);
+    const sol = ik2(H, k * LX2 + (mx - k * LX2) * 0.85, ty - oy, mz - oz, L1, L2, 1);
+    downQ(sol.a1, sol.roll, _qa); place(R, F, th, _qa, false);
+    downQ(sol.a2, sol.roll, _qb); place(R, F, sh, _qb, false);
+    _qc.setFromEuler(_e.set(th3, 0, sol.roll, 'ZXY')); place(R, F, fo, _qc, false);
+  });
+  // ---- arms: dangling and swinging slack; reaching out in the run; planted on the floor to peer; snatching for a grab
+  const legPh = (feet[0].u >= 0 ? feet[0].u : 0) - (feet[1].u >= 0 ? feet[1].u : 0);
+  SIDES2.forEach(([s, k]) => {
+    const ua = ('uarm' + s) as BoneName, fa = ('farm' + s) as BoneName, ha = ('hand' + s) as BoneName;
+    place(R, F, ua, _q.identity(), true);
+    const S = F.P[ua];
+    const swing = sm(ud, 'asw' + s, -k * legPh * 0.35 * Math.min(1, v) - lean * 0.6, 2.5, dt);
+    // FK: hang plumb from the shoulder whatever the torso is doing (a pendulum, lagging the body)
+    let a1 = swing + Math.sin(t * 0.8 + k + s9) * 0.04 * alive, a2 = a1 + 0.22 + 0.1 * Math.abs(swing), a3 = a2 + 0.1, roll = k * (0.07 + 0.04 * Math.sin(t * 0.6 + k));
+    if (dead > 0.5) { a1 = -0.2; a2 = 0.6; a3 = 0.9; roll = k * 0.5; }
+    // IK targets (model space) for the finger tips
+    let ikW = 0, T = [0, 0, 0], e3 = 0.4;
+    if (peer > 0.01) { ikW = peer; T = [k * 0.62, 0.05, 1.15 - 0.15 * k * Math.sin(t * 0.3)]; e3 = 1.2; }
+    if (charge > 0.01 && charge * (1 - peer) > ikW) { ikW = charge * (1 - peer) * 0.8; T = [k * 0.78, 1.6 + Math.sin(t * 9 + k) * 0.08, 1.35]; e3 = 1.45; }
+    if (grab > 0.01 && grab >= ikW) { ikW = grab; const hz = 0.6 + 1.6 * reach * (1 - hold * 0.45); T = [k * (0.22 - 0.1 * hold), 0.95 + 0.6 * hold, hz]; e3 = 1.4 - hold * 0.9; }
+    if (ikW > 0.01 && dead < 0.5) {
+      const Cy = T[1] + HAND * Math.cos(e3), Cz = T[2] - HAND * Math.sin(e3);
+      const sol = ik2(S, T[0], Cy, Cz, A1, A2, -1);
+      const w = ikW, lerp = (x: number, y: number) => x + (y - x) * w;
+      a1 = lerp(a1, sol.a1); a2 = lerp(a2, sol.a2); a3 = lerp(a3, e3); roll = lerp(roll, sol.roll);
+    }
+    downQ(a1, roll, _qa); place(R, F, ua, _qa, false);
+    downQ(a2, roll, _qb); place(R, F, fa, _qb, false);
+    downQ(a3, roll, _qc); place(R, F, ha, _qc, false);
+    // fingers: hanging half-curled and twitching; splayed on the floor; spread to snatch; locked shut on a hold
+    const open = Math.max(reach * (1 - hold), peer * 0.6, charge * 0.7);
+    const tw = Math.pow(Math.max(0, Math.sin(t * 2.1 + k * 3 + s9)), 14) * 0.5 * alive;
+    const g = Math.max(0, Math.min(1, 0.3 + tw - open * 0.45 + hold * 0.75 + dead * 0.4));
+    place(R, F, ('fing1' + s) as BoneName, eq(0, 0, -k * g * 1.45), true);
+    place(R, F, ('fing2' + s) as BoneName, eq(0, 0, -k * g * 1.6), true);
+    place(R, F, ('thumb' + s) as BoneName, eq(g * 0.5, k * g * 0.6, -k * g * 0.55), true);
+  });
+  commit(R, F);
+  // ---- the face: slack and half-lidded; it gapes when it runs and when it takes hold
+  const ex = dead > 0.5 ? 'dead' : grab > 0.4 || charge > 0.5 ? 'surprised' : listen > 0.4 ? 'think' : 'sleepy';
+  if (ud.ex !== ex) { ud.ex = ex; hr.setExpression(ex); }
+  hr.lookEyes(Math.max(-2, Math.min(2, -lyaw * 2.5)), lp < -0.2 ? 1 : 0);
+  (hr as any).gg?.update?.(dt);
+  hr.fx.value.y += dt;
 }
+const LX2 = 0.09;
 
 // ------------------------------------------------------------------ in-game animation
 function animateStrider(rig: Rig, c: Creature, t: number, dt: number) {
-  const K = rig as KitRig;
-  kitSync(K);
-  const n = netOf(c), ud = K.kit.m as Record<string, any>, seed = hashId(c.id, 7);
+  const K = rig as StriderRig;
+  const n = netOf(c), ud = K.m as Record<string, any>, seed = hashId(c.id, 7);
   // velocity from how far it moved (it is moved directly; it steps over the walls)
   const vx = ud.px === undefined ? 0 : (c.x - ud.px) / Math.max(1e-3, dt), vz = ud.pz === undefined ? 0 : (c.z - ud.pz) / Math.max(1e-3, dt);
   ud.px = c.x; ud.pz = c.z;
@@ -447,7 +320,7 @@ function animateStrider(rig: Rig, c: Creature, t: number, dt: number) {
       if (p && p.zoneKey === c.zoneKey && dist(p, c) < 9 && v > 2.5) G.camera?.shake?.(0.12, 0.25, 0.5);
     },
   });
-  const F = K.kit.F.fx.value; F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
+  K.hr.fx.value.z = Math.min(1, c.hitFlash / 0.15) * 0.5;
   const f = fxPoll(rig, c);
   if (f) {
     if (f.key === 'shriek') { playAt('stammer_shriek', c, 1, 30, 0.55); playAt('dread_chase', c, 0.6, 30, 0.9); }
@@ -674,14 +547,14 @@ const STRIDER = def({
       'It does not enter rooms. A shut door stops it seeing you. Stillness hides you.',
     ],
   },
-  gore: { blood: 'red', flesh: 0xb04048, sever: ['elL', 'elR', 'wrL', 'wrR', 'kneeL', 'kneeR', 'ankL', 'ankR', 'jaw'], head: 'head' },
+  gore: { blood: 'red', flesh: 0xb04048, gib: false },
   build: () => buildStrider(0), animate: animateStrider, think: thinkStrider,
 });
 onPlayerHit('strider', (p) => {
   bus.emit('think', p, ['Its hands go all the way round me.', 'It lifted me. My feet are off the floor— it is LOOKING at me—', 'Its face is right there. It is not angry. It is not anything.'][Math.floor(Math.random() * 3)]);
 });
-TEARS.strider = { parts: [['uarm_l', 2], ['uarm_r', 2], ['farm_l', 1], ['farm_r', 1]], chance: 0.06, hold: 1.8, verb: 'wrench', with: /wr|el/i, line: 'It is pulling— it is pulling my ARM—' };
-defDread('strider', { stutter: 0.06, tilt: 'head', tiltMax: 0.7, twitch: ['head', 'fL1a', 'fR2a'], twitchRate: 0.25, sting: 'swell', cam: 1, flick: 14 });
+TEARS.strider = { parts: [['uarm_l', 2], ['uarm_r', 2], ['farm_l', 1], ['farm_r', 1]], chance: 0.06, hold: 1.8, verb: 'wrench', with: /hand|farm/i, line: 'It is pulling— it is pulling my ARM—' };
+defDread('strider', { stutter: 0.06, sting: 'swell', cam: 1, flick: 14 });
 
 // ------------------------------------------------------------------ stand-alone posing (gallery, the video)
 export type StriderPose = 'idle' | 'walk' | 'stalk' | 'listen' | 'peer' | 'spot' | 'charge' | 'grab' | 'hold' | 'flee' | 'dead';
@@ -692,9 +565,8 @@ export type StriderPose = 'idle' | 'walk' | 'stalk' | 'listen' | 'peer' | 'spot'
  * `lookYaw`/`lookPitch` aim the head (+yaw toward its left). 'grab' strikes every 3 s
  * unless `strikeT` pins the moment.
  */
-export function poseStrider(rig: KitRig, t: number, dt: number, pose: StriderPose = 'idle', o: { speed?: number; lookYaw?: number; lookPitch?: number; strikeT?: number; move?: boolean } = {}) {
-  kitSync(rig);
-  const ud = rig.kit.m as Record<string, any>;
+export function poseStrider(rig: StriderRig, t: number, dt: number, pose: StriderPose = 'idle', o: { speed?: number; lookYaw?: number; lookPitch?: number; strikeT?: number; move?: boolean } = {}) {
+  const ud = rig.m as Record<string, any>;
   const speeds: Partial<Record<StriderPose, number>> = { walk: 1.25, stalk: 0.8, charge: 5.6, flee: 4.8 };
   const v = o.speed ?? speeds[pose] ?? 0;
   // the body travels along +z of the rig (model space == the floor's frame here)
@@ -707,12 +579,11 @@ export function poseStrider(rig: KitRig, t: number, dt: number, pose: StriderPos
     bx: 0, bz: ud.vbz, f: Math.PI / 2, vx: 0, vz: v, lyaw: o.lookYaw ?? 0, lpitch: o.lookPitch ?? (pose === 'peer' ? 0.0 : -0.35), look: lookOn ? 1 : 0,
     gT: pose === 'grab' ? st : pose === 'hold' ? 1.5 : -1, hold: pose === 'hold' ? 1 : 0, dead: pose === 'dead' ? 1 : 0, flinch: 0,
   });
-  rig.kit.F.fx.value.y += dt;
 }
 STRIDER.animateGallery = (rig: Rig, t: number) => {
   const u = new URLSearchParams(location.search);
   const q = (u.get('pose') || ['walk', 'listen', 'peer', 'charge', 'grab'][Math.floor(t / 6) % 5]) as StriderPose;
   const num = (k: string) => (u.get(k) !== null ? Number(u.get(k)) : undefined);
-  poseStrider(rig as KitRig, t, 1 / 60, q, { strikeT: num('st'), lookYaw: num('ly') });
+  poseStrider(rig as StriderRig, t, 1 / 60, q, { strikeT: num('st'), lookYaw: num('ly') });
 };
-horrify(STRIDER, { twitch: 0.25, snap: 0.08, breathe: 0.003, lunge: 0.15, parts: /head|jaw|f[LR]\da|th[LR]a/, keepMaterials: false });
+void STRIDER;

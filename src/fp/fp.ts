@@ -1,4 +1,4 @@
-// First-person close-ups (the watch, the backpack, inspecting an item, eating,
+// First-person close-ups (the backpack, inspecting an item, eating,
 // surgery views) all draw into the renderer's overlay scene (G.pr.overlayScene /
 // overlayCamera, rendered pixel-style over the world). Only one owner shows at a
 // time: claim the stage, build into your own group, release when done.
@@ -36,7 +36,7 @@ export const FP_CUT = {
   eye: true, divePush: 0.9, dive: 0.2, lidClose: 0.075, lidOpen: 0.24, eyeBars: 7,
 };
 /** where each owner's eyes rest (deg below the horizon) */
-const EYE_PITCH: Record<string, number> = { watch: 32, pack: 36, eat: 26, bench: 30, cook: 30, surgery: 30, trade: 16, dominion: 20 };
+const EYE_PITCH: Record<string, number> = { pack: 36, eat: 26, bench: 30, cook: 30, surgery: 30, trade: 16, dominion: 20 };
 
 let owner: string | null = null;
 let ownerPrio = 0;
@@ -79,7 +79,7 @@ export function fpGroup(name: string): THREE.Group {
 /** take the stage (a higher priority steals it; the loser gets bus 'fpLost' (name)) */
 export function fpClaim(name: string, prio = 0, opts: FpClaimOpts = {}): boolean {
   // a higher priority steals the stage; so does a full close-up over a passing glance of the same rank
-  // (opening the pack while the watch peeks at a message)
+  // (opening the pack while the quest board glances in)
   const full = (opts.cinematic ?? 'full') === 'full';
   if (owner && owner !== name && prio <= ownerPrio && !(full && mode !== 'full' && prio === ownerPrio)) return false;
   const prev = owner;

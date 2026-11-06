@@ -1,6 +1,6 @@
 // BAILIFF: the debtor's monitor band. The hologram vitals projection is retired:
 // the body HUD (src/ui/body: IV blood bag, lungs, acid-jar stomach) shows the
-// body now, and the watch shows quests. What stays here is the band itself:
+// body now, and Calder's board (J) shows quests. What stays here is the band itself:
 //
 // - the steel cuff bolted through the wrist (band3d.ts) on every survivor who
 //   wears one, its status lens blinking with the real pulse and going red on

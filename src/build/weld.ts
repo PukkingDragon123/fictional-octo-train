@@ -1,5 +1,5 @@
-// Welding: the hands-on moment of build mode. Hold the torch (or the watch
-// laser) to a tacked frame: sparks spray and skip off the floor, a blue-white
+// Welding: the hands-on moment of build mode. Hold the torch (the wrist laser
+// went with the watch) to a tacked frame: sparks spray and skip off the floor, a blue-white
 // arc glow pulses, the visor darkens the screen around the bead, the gas
 // hisses and crackles. Progress is saved on the frame (objState w) so you can
 // stop, walk away and come back; every peer sees the plates go on.
@@ -17,12 +17,8 @@ import type { TileObject } from '../world/zone';
 
 export type Welder = { kind: 'torch'; it: Item } | { kind: 'laser' } | { kind: 'hammer'; it: Item };
 
-/** the watch's welding arc counts as a welder once researched and charged (G.watch.laser) */
-export function laserReady(): boolean {
-  const l = (G as any).watch?.laser;
-  if (!l?.can) return false;
-  return !!l.can('weld') && (l.charge ?? 1) > 0.01;
-}
+/** the wrist watch's welding arc went with the watch (round 14): never ready (kept for older callers) */
+export function laserReady(): boolean { return false; }
 
 /** what this survivor can join a piece with (nail pieces want a hammer) */
 export function welderFor(p: Player, pc: Piece | undefined): Welder | null {
@@ -129,12 +125,12 @@ export class WeldAction extends TimedAction {
   start() { G.audio?.at?.(this.tool.kind === 'hammer' ? 'hammer' : 'whoosh', this.o.x + 0.5, this.o.y + 0.5, 0.7); }
   update(dt: number) {
     const local = this.p.isLocal;
-    // gas, or the watch's charge (it draws its own beam from the wrist to the bead)
+    // gas
     if (this.tool.kind === 'torch') this.tool.it.uses = Math.max(0, (this.tool.it.uses ?? 1) - dt / (itemDef('welding_torch').uses ?? 60));
     // fx
     this.fxT -= dt; this.sndT -= dt; this.sendT -= dt;
     beadPoint(this.o, this.pc, this.pt);
-    if (this.tool.kind === 'laser' && local && !(G as any).watch?.laser?.fire?.('weld', this.pt, dt)) { this.cancelled = true; this.p.actions.clear(); return; }
+    if (this.tool.kind === 'laser' && local) { this.cancelled = true; this.p.actions.clear(); return; }
     const hammer = this.tool.kind === 'hammer';
     if (this.fxT <= 0) {
       this.fxT = hammer ? 0.5 : 0.045;

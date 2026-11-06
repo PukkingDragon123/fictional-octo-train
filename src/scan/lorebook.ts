@@ -55,20 +55,27 @@ export function unknownInhabitants(): InhabitantLore[] { return INHABITANTS.filt
 
 if (import.meta.env?.DEV && typeof window !== 'undefined') (window as any).__lore = { loreLevel, advanceLore, revealAll, loreNotes };
 
-// ------------------------------------------------------------------ the watch: each completed scan of an inhabitant records its next section
-// (src/scan/scan.ts emits 'scanEntry' for every finished scan; the watch reads the new section out on the subtitle strip)
+// ------------------------------------------------------------------ each completed scan of an inhabitant records its next section
+// (src/scan/scan.ts emits 'scanEntry' for every finished sweep of the suit scanner; Dr. Calder reads the new
+// section out: her line queue via bus 'handlerSay', else straight onto the subtitle strip)
+function calder(text: string, tag: string) {
+  let n = 0;
+  try { n = (bus as any).map?.get?.('handlerSay')?.size ?? 0; } catch { /* no map */ }
+  if (n) bus.emit('handlerSay', { text });
+  else bus.emit('subtitle', { who: 'DR. CALDER // ' + tag, text, style: 'voss', dur: Math.min(14, 3 + text.length * 0.045) });
+}
 let lastReveal = '';
 bus.on('scanEntry', (s: { kind?: string; key?: string }) => {
   if (!s || s.kind !== 'creature' || !s.key || !inhabitant(s.key)) return;
   const r = advanceLore(s.key);
   const e = inhabitant(s.key)!;
   if (!r) {
-    // already fully recorded: the watch says so, once per species per session
-    if (lastReveal !== s.key + ':full') { lastReveal = s.key + ':full'; bus.emit('subtitle', { who: 'WATCH // ' + e.name.toUpperCase(), text: 'Entry complete. ' + RANK_INFO[e.rank].label + ', danger ' + e.danger + '/10.', style: 'radio', dur: 3 }); }
+    // already fully recorded: she says so, once per species per session
+    if (lastReveal !== s.key + ':full') { lastReveal = s.key + ':full'; calder(`${e.name}: the entry is complete. ${RANK_INFO[e.rank].label}, danger ${e.danger} of 10.`, e.name.toUpperCase()); }
     return;
   }
   lastReveal = s.key;
-  const head = r.level === 1 ? `${e.class.toUpperCase()}, RANK ${RANK_INFO[e.rank].numeral} ${RANK_INFO[e.rank].label}. ` : '';
-  const text = head + r.title + ': ' + r.text + (r.level >= LORE_MAX && e.harvest.length ? ' HARVEST: ' + e.harvest.map((h) => h.how).join(' ') : '');
-  bus.emit('subtitle', { who: `WATCH // ${e.name.toUpperCase()} ${r.level}/${LORE_MAX}`, text, style: 'radio', dur: Math.min(14, 3 + text.length * 0.045) });
+  const head = r.level === 1 ? `${e.name}. ${e.class}, rank ${RANK_INFO[e.rank].numeral}, ${RANK_INFO[e.rank].label}. ` : `${e.name}, ${r.level} of ${LORE_MAX}. `;
+  const text = head + r.title + ': ' + r.text + (r.level >= LORE_MAX && e.harvest.length ? ' Harvest: ' + e.harvest.map((h) => h.how).join(' ') : '');
+  calder(text, `${e.name.toUpperCase()} ${r.level}/${LORE_MAX}`);
 });

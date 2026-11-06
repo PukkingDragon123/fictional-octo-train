@@ -166,7 +166,7 @@ const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sc = new THREE.Vect
  * Is (cssX, cssY) on the local survivor's own body in the iso view? A capsule round
  * the body from the shins to the crown, tested against the camera ray, and nothing
  * else (a creature, another survivor, an item or a vehicle) standing in front of it.
- * The watch uses it: a click or tap on yourself raises your wrist.
+ * (The wrist watch used it to raise the wrist on a self-click; kept for whoever wants it.)
  */
 export function pickSelf(cssX: number, cssY: number): boolean {
   const g = G;

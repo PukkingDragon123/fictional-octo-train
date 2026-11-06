@@ -1,4 +1,4 @@
-// The first-person eye: while a full close-up is up (the watch, the pack, eating, inspecting...)
+// The first-person eye: while a full close-up is up (the pack, eating, inspecting...)
 // the world behind the hands is drawn from the survivor's own eyes instead of the iso camera.
 // A perspective camera sits at the head bone (so crouching, sitting and lying move it), looks
 // along the facing with a per-claim downward pitch, breathes, and twitches with every heartbeat
@@ -12,7 +12,7 @@ import * as THREE from 'three';
 import { G } from '../game/G';
 
 export interface EyeOpts {
-  /** look down by this much (deg); default 22, the watch wants ~30 */
+  /** look down by this much (deg); default 22, the pack wants ~36 */
   pitchDeg?: number;
   /** vertical field of view on a landscape screen (deg); portrait widens it to keep the view */
   fov?: number;

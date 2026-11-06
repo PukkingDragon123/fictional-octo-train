@@ -254,12 +254,90 @@ if (uHuman.x > 0.001) {
   float gh = fract(sin(gb * 7.13 + floor(uHuman.y * 10.0) * 3.71) * 4375.85);
   if (gh < uHuman.x * 0.28) diffuseColor.rgb = mix(diffuseColor.rgb, gh < uHuman.x * 0.1 ? vec3(1.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.9), 0.7);
 }
-diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.3, 0.25), uHuman.z);`);
+diffuseColor.rgb = mix(diffuseColor.rgb, vec3(1.0, 0.3, 0.25), uHuman.z);
+if (uHuman.w > 0.001) {
+  // the head flushing red, veins standing out (Timmy charging): head space, above the skull's base
+  vec3 hpF = (uHeadM * vec4(vWPos, 1.0)).xyz;
+  float onHead = smoothstep(-0.02, 0.04, hpF.y);
+  float vein = abs(sin(hpF.x * 150.0 + sin(hpF.y * 95.0) * 2.4) * sin(hpF.z * 125.0 + hpF.y * 64.0 + sin(hpF.x * 71.0)));
+  vec3 fc = mix(vec3(0.96, 0.22, 0.22), vec3(0.42, 0.03, 0.09), step(vein, 0.08) * min(1.0, uHuman.w * 1.5));
+  diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.3 + fc * 0.78, onHead * clamp(uHuman.w, 0.0, 1.0) * 0.88);
+}`);
     shader.vertexShader = vs; shader.fragmentShader = fs;
   };
   const key = b.customProgramCacheKey ? b.customProgramCacheKey() : 'base';
-  m.customProgramCacheKey = () => key + '|human3';
+  m.customProgramCacheKey = () => key + '|human4';
   return m;
+}
+
+/**
+ * Split every triangle that belongs to the head into four, `levels` times (midpoints shared along
+ * each face's edges; UVs and colours interpolated, skin weights merged), so an inflated head can
+ * round out instead of ballooning its low-poly planes. Only used with ggOverrides.inflate.
+ */
+function subdivideHead(geo: THREE.BufferGeometry, head: Set<number>, levels: number) {
+  for (let L = 0; L < levels; L++) {
+    const I = geo.getIndex(); if (!I) return;
+    const names = Object.keys(geo.attributes);
+    const arrs: Record<string, number[]> = {}, sizes: Record<string, number> = {}, ctors: Record<string, any> = {};
+    for (const n of names) { const a = geo.getAttribute(n) as THREE.BufferAttribute; sizes[n] = a.itemSize; arrs[n] = Array.from(a.array as ArrayLike<number>); ctors[n] = (a.array as any).constructor; }
+    const SI = arrs.skinIndex, SW = arrs.skinWeight;
+    if (!SI || !SW) return;
+    const hw = (v: number) => { let w = 0; for (let k = 0; k < 4; k++) if (head.has(SI[v * 4 + k])) w += SW[v * 4 + k]; return w; };
+    let nv = arrs.position.length / 3;
+    const mids = new Map<string, number>();
+    const mid = (a: number, b: number) => {
+      const key = a < b ? a + '_' + b : b + '_' + a;
+      let m = mids.get(key); if (m !== undefined) return m;
+      m = nv++;
+      for (const n of names) {
+        if (n === 'skinIndex' || n === 'skinWeight') continue;
+        const sz = sizes[n], A = arrs[n];
+        for (let k = 0; k < sz; k++) A.push((A[a * sz + k] + A[b * sz + k]) / 2);
+      }
+      const acc = new Map<number, number>();
+      for (const v of [a, b]) for (let k = 0; k < 4; k++) { const i = SI[v * 4 + k], w = SW[v * 4 + k]; if (w > 0) acc.set(i, (acc.get(i) ?? 0) + w / 2); }
+      const top = [...acc.entries()].sort((x, y) => y[1] - x[1]).slice(0, 4), tot = top.reduce((q, e) => q + e[1], 0) || 1;
+      for (let k = 0; k < 4; k++) { SI.push(top[k] ? top[k][0] : 0); SW.push(top[k] ? top[k][1] / tot : 0); }
+      mids.set(key, m);
+      return m;
+    };
+    const idx: number[] = [];
+    for (let t = 0; t < I.count; t += 3) {
+      const a = I.getX(t), b = I.getX(t + 1), c = I.getX(t + 2);
+      if (hw(a) > 0.6 && hw(b) > 0.6 && hw(c) > 0.6) { const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a); idx.push(a, ab, ca, ab, b, bc, ca, bc, c, ab, bc, ca); }
+      else idx.push(a, b, c);
+    }
+    for (const n of names) geo.setAttribute(n, new THREE.BufferAttribute(new ctors[n](arrs[n]), sizes[n]));
+    geo.setIndex(idx);
+  }
+}
+
+/**
+ * Balloon the cranium (ggOverrides.inflate, Timmy): every vertex skinned to the head is pushed out
+ * along its direction from the middle of the head, a little over the face and a lot over the crown,
+ * the back and the temples, so a big stretched skull carries an ordinary face. Hair and hats ride
+ * along (the push depends on direction only). Bind pose, body space; k 0..1.
+ */
+function inflateHead(geo: THREE.BufferGeometry, dims: Dims, k: number, head: Set<number>) {
+  const P = geo.getAttribute('position') as THREE.BufferAttribute, SI = geo.getAttribute('skinIndex'), SW = geo.getAttribute('skinWeight');
+  if (!P || !SI || !SW) return;
+  const r = dims.rest.head, u = r[1] / 6.4;
+  const cx = r[0], cy = r[1] + 0.42 * u, cz = r[2] - 0.04 * u;
+  const ss = (e0: number, e1: number, x: number) => { const q = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return q * q * (3 - 2 * q); };
+  for (let i = 0; i < P.count; i++) {
+    let w = 0;
+    for (let j = 0; j < 4; j++) if (head.has(SI.getComponent(i, j))) w += SW.getComponent(i, j);
+    if (w <= 0.001) continue;
+    const dx = P.getX(i) - cx, dy = P.getY(i) - cy, dz = P.getZ(i) - cz, l = Math.hypot(dx, dy, dz) || 1;
+    // everything but the face (front, below the brow) and the jaw rounds out toward one big sphere
+    const face = ss(0.2, 0.65, dz / l) * ss(0.5, 0.1, dy / l), m = (1 - face) * ss(-0.55, -0.15, dy / l);
+    // a little all over, then the cranium rounded out (layers keep their order: hair stays on the scalp)
+    const l0 = l * (1 + 0.1 * k * w), a = 0.92 * m * w * k;
+    const f = (Math.pow(l0, 1 - a) * Math.pow(1.02 * u, a)) / l;
+    P.setXYZ(i, cx + dx * f, cy + dy * f, cz + dz * f);
+  }
+  P.needsUpdate = true;
 }
 
 // ------------------------------------------------------------------ outline hull (standalone scenes)
@@ -407,7 +485,7 @@ export class HumanRig {
   readonly emotes: readonly string[] = EMOTES;
   /** triangles in the current body mesh */
   tris = 0;
-  /** shader effects: x corruption glitch 0..1, y time, z hit flash 0..1 */
+  /** shader effects: x corruption glitch 0..1, y time, z hit flash 0..1, w the head flushing red 0..1 (Timmy) */
   fx = { value: new THREE.Vector4(0, 0, 0, 0) };
   /** glossy PVC: rgb the hazmat suit's colour (linear), w head units (m) while a suit is on, 0 otherwise */
   private gloss = { value: new THREE.Vector4(0, 0, 0, 0) };
@@ -479,7 +557,7 @@ export class HumanRig {
     this.mesh.onBeforeRender = () => {
       this.ensurePainted();
       // head space for the hazmat visor (world -> head bone, the bind pose is a pure translation)
-      if (this.gloss.value.w > 0) this.headM.value.copy(this.j.head.matrixWorld).invert();
+      if (this.gloss.value.w > 0 || this.fx.value.w > 0) this.headM.value.copy(this.j.head.matrixWorld).invert();
     };
     this.mesh.onAfterRender = () => { this.gg.fullPending = false; };
     this.mesh.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.9, 0), 1.7);
@@ -662,7 +740,7 @@ export class HumanRig {
       this.gloss.value.set(lin(c[0]), lin(c[1]), lin(c[2]), this.dims.rest.head[1] / 6.4);
     } else this.gloss.value.w = 0;
     const appKey = JSON.stringify(this.app);
-    const shapeKey = JSON.stringify([D.top?.kind, D.top?.sleeve, D.outer?.kind, D.outer?.sleeve, D.bottom?.kind, D.legsKind, D.feet?.kind, D.hands?.kind, D.hat?.kind, D.mask?.kind, D.back?.kind, D.back?.size, !!D.wrist, D.suit, D.hatFlat, D.badge ? 1 : 0, this.ggOverrides.bust, this.ggOverrides.hairStyle, this.ggOverrides.hairVolume]);
+    const shapeKey = JSON.stringify([D.top?.kind, D.top?.sleeve, D.outer?.kind, D.outer?.sleeve, D.bottom?.kind, D.legsKind, D.feet?.kind, D.hands?.kind, D.hat?.kind, D.mask?.kind, D.back?.kind, D.back?.size, !!D.wrist, D.suit, D.hatFlat, D.badge ? 1 : 0, this.ggOverrides.bust, this.ggOverrides.hairStyle, this.ggOverrides.hairVolume, this.ggOverrides.inflate]);
     const severed = new Set([...(cond.sev || []), ...coveredParts(cond.cyber)]);
     const gk = this.lod + appKey + shapeKey + [...severed].sort().join(',');
     const { cond: _c, ...looks } = full;
@@ -673,6 +751,7 @@ export class HumanRig {
       this.geoKey = gk;
       this.texKey = '';
       const geo = this.gg.build(spec, this.dims, severed, this.lod, this.boneIndex);
+      if (this.ggOverrides.inflate) { const hb = new Set([this.boneIndex('head'), this.boneIndex('hair' as BoneKey)]); subdivideHead(geo, hb, 2); inflateHead(geo, this.dims, this.ggOverrides.inflate, hb); }
       const old = this.mesh.geometry;
       this.mesh.geometry = geo;
       if (this.hull) this.hull.geometry = geo;
@@ -821,6 +900,9 @@ export class HumanRig {
       if (h) E.hair.rotation.set(h[0], h[1], h[2]); else E.hair.rotation.set(0, 0, 0);
     }
   }
+
+  /** Advance the painted face (blinks, expressions, talking) and the shader clock for rigs posed with applyPose() directly. */
+  faceTick(dt: number) { this.ensurePainted(); this.fx.value.y += dt; this.gg.update(dt); }
 
   /** Animate with the rig's own animator and apply the pose. */
   animate(dt: number, input: AnimInput) {

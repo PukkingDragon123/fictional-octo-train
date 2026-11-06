@@ -1,12 +1,12 @@
 // The Phosphor Scope (key data_probe): a bakelite handheld scanner the
-// Sprocket Congregation solders together from dead televisions. With it (or the watch's SCAN research) hold N on
-// anything to read it for DATA.
+// Sprocket Congregation solders together from dead televisions. Carried, it
+// tunes the unit's suit scanner (hold N): sweeps finish faster.
 import { defItem } from '../items/item';
 import { rbox, capsule } from './shapes';
 
 defItem({
   key: 'data_probe', name: 'Phosphor Scope', cat: 'electronics', weight: 0.9, value: 90, durability: 400, noStack: true, tags: ['data_probe', 'scanner'],
-  desc: 'A cream bakelite box with a round green screen, a needle meter, a carrying handle and a card slot. Hold N and point it at something: it sweeps it for data and types you a punch card. Slower than a watch that knows how.',
+  desc: 'A cream bakelite box with a round green screen, a needle meter, a carrying handle and a card slot. Carried on the belt it tunes the suit scanner: hold N on something and the sweep finishes faster.',
   model: (mb) => {
     rbox(mb, 0, 0, 0, 0.12, 0.08, 0.07, 'plastic_beige', { color: 0xe2d4b4 }, 0.012, 2);
     rbox(mb, 0, 0.0, 0.0, 0.124, 0.016, 0.074, 'plastic_beige', { color: 0x5a3a22 }, 0.006, 2);

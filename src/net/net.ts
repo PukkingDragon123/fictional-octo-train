@@ -10,7 +10,8 @@ import { receiveGive } from '../game/worldOps';
 import { serializeItem } from '../items/factory';
 import { applyHitToPlayer } from '../creatures/manager';
 import { Player, PlayerNetState } from '../entities/player';
-import { itemDef, Item } from '../items/item';
+import { itemDef, hasItemDef, Item } from '../items/item';
+import { suitLampItem } from '../game/suitLamp';
 import { Voice } from './voice';
 import type { GameSystem } from '../game/game';
 import { Appearance, randomAppearance } from '../entities/humanRig';
@@ -312,7 +313,8 @@ export class Net implements GameSystem {
     // held items & outfit are visual mirrors
     if ((p.handR?.key || '') !== s.hr) p.handR = s.hr ? ({ uid: -1, key: s.hr, cond: 1, age: 0 } as Item) : null;
     if ((p.handL?.key || '') !== s.hl) p.handL = s.hl ? ({ uid: -2, key: s.hl, cond: 1, age: 0 } as Item) : null;
-    p.lightItem = s.light ? p.handR : null;
+    // a lit lamp in hand, else the lamp on the helmet (src/game/suitLamp.ts)
+    p.lightItem = s.light ? (p.handR && hasItemDef(p.handR.key) && itemDef(p.handR.key).light ? p.handR : suitLampItem()) : null;
     const ok = JSON.stringify(s.out);
     if (this.outfitKey.get(p.id) !== ok) { this.outfitKey.set(p.id, ok); p.rig.setOutfit(s.out); }
   }

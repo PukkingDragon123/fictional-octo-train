@@ -116,8 +116,8 @@ export class SurvivalSystem implements GameSystem {
     env.companion = this.companion;
     env.comfort = this.comfort;
     env.breathing = isBreathing(p);
-    const sc = G.ui?.scanner;
-    env.social = sc?.open && sc.page === 'sig' && (sc.st?.sigStrength ?? 0) > 0.6 ? (p.body.perks.has('radio_voice') ? 1 : 0.35) : 0;
+    // (the watch's radio, which kept a lonely unit company, went with the watch: round 14)
+    env.social = 0;
     p.body.wearingSocks = !!(p.worn.get('socks') || p.worn.get('feet'));
     this.quirks.preBody(p, env);
     // flashlight drains batteries

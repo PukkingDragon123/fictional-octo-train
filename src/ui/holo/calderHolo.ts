@@ -56,9 +56,12 @@ void main() {
   float a3 = texture2D(tCol, uv + vec2(0.0, px.y * 2.0)).a, a4 = texture2D(tCol, uv - vec2(0.0, px.y * 2.0)).a;
   float o1 = texture2D(tCol, uv + vec2(px.x * 5.0, 0.0)).a, o2 = texture2D(tCol, uv - vec2(px.x * 5.0, 0.0)).a;
   float o3 = texture2D(tCol, uv + vec2(0.0, px.y * 5.0)).a, o4 = texture2D(tCol, uv - vec2(0.0, px.y * 5.0)).a;
-  float body = step(0.5, c.a);
-  float outer = clamp(max(max(a1, a2), max(a3, a4)) * 0.7 + max(max(o1, o2), max(o3, o4)) * 0.3 - c.a, 0.0, 1.0);
-  float inner = clamp(c.a - min(min(a1, a2), min(a3, a4)), 0.0, 1.0);
+  // her body is solid wherever the cutout kept it (its texture's alpha is not coverage); the projector's light is additive
+  float body = step(0.3, c.a);
+  a1 = step(0.3, a1); a2 = step(0.3, a2); a3 = step(0.3, a3); a4 = step(0.3, a4);
+  o1 = step(0.3, o1); o2 = step(0.3, o2); o3 = step(0.3, o3); o4 = step(0.3, o4);
+  float outer = clamp(max(max(a1, a2), max(a3, a4)) * 0.7 + max(max(o1, o2), max(o3, o4)) * 0.3 - body, 0.0, 1.0);
+  float inner = clamp(body - min(min(a1, a2), min(a3, a4)), 0.0, 1.0);
   // the materialise sweep (0 at the feet, 1 over the head)
   float k = (uv.y - uFeet) / max(0.001, uHead - uFeet);
   float front = uShow * 1.3 - 0.15;
@@ -69,14 +72,15 @@ void main() {
   float sl = 0.84 + 0.16 * step(1.5, mod(gl_FragCoord.y + uOff, 3.0));
   float roll = 0.93 + 0.07 * sin(uv.y * 34.0 - uT * 5.0);
   float flick = 0.95 + 0.05 * h21(vec2(floor(uT * 24.0), 7.0));
-  vec3 col = c.rgb * vec3(0.92, 1.0, 1.08) * sl * roll * flick;
-  col += vec3(0.32, 0.78, 1.0) * inner * 0.5;
+  vec3 col = c.rgb * vec3(0.95, 1.0, 1.05) * sl * roll * flick;
+  col += vec3(0.32, 0.78, 1.0) * inner * 0.35;
   // a sparse light dust over the body
   col += vec3(0.5, 0.9, 1.0) * step(0.985, h21(floor(gl_FragCoord.xy / 2.0) + floor(uT * 8.0))) * 0.25 * body;
-  float a = c.a * 0.94 * vis;
-  vec3 glow = vec3(0.35, 0.85, 1.0) * (outer * 0.55 * vis + band * (body + outer) * 1.2);
-  float ga = (outer * 0.4 * vis + band * (body + outer) * 0.8);
-  gl_FragColor = vec4(col * vis * c.a + glow, clamp(a + ga * 0.5, 0.0, 1.0));
+  float a = body * 0.95 * vis;
+  vec3 glow = vec3(0.35, 0.85, 1.0) * (outer * 0.5 * vis + band * (body + outer) * 1.1);
+  float ga = (outer * 0.35 * vis + band * (body + outer) * 0.7);
+  vec3 light = c.rgb * (1.0 - body) * step(0.02, uShow);
+  gl_FragColor = vec4(col * a + light + glow, clamp(a + ga * 0.5, 0.0, 1.0));
   #include <colorspace_fragment>
 }`;
 
@@ -116,7 +120,7 @@ export class CalderHolo {
   constructor() {
     const c = this.canvas = document.createElement('canvas');
     c.className = 'cal-holo';
-    c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:50;pointer-events:none;image-rendering:pixelated;opacity:0;transition:opacity .2s';
+    c.style.cssText = 'position:fixed;left:0;top:0;width:100vw;height:100vh;z-index:50;pointer-events:none;opacity:0;transition:opacity .2s';
     document.body.appendChild(c);
     const r = this.renderer = new THREE.WebGLRenderer({ canvas: c, alpha: true, antialias: false, premultipliedAlpha: true, powerPreference: 'low-power' });
     r.setClearColor(0x000000, 0);
@@ -134,10 +138,10 @@ export class CalderHolo {
     q.frustumCulled = false;
     this.fs.add(q);
     // her light: a person's, not a phosphor ghost's
-    this.scene.add(new THREE.HemisphereLight(0xe8eeff, 0x5a4c44, 1.5));
-    const key = new THREE.DirectionalLight(0xfff0dc, 2.4); key.position.set(-2.5, 4, 5); this.scene.add(key);
-    const fill = new THREE.DirectionalLight(0xc8dcff, 0.7); fill.position.set(3, 1, 4); this.scene.add(fill);
-    const rim = new THREE.DirectionalLight(0x7fe0ff, 2.2); rim.position.set(1.5, 3, -4); this.scene.add(rim);
+    this.scene.add(new THREE.HemisphereLight(0xdfe6f4, 0x4a3e38, 1.1));
+    const key = new THREE.DirectionalLight(0xfff0dc, 1.7); key.position.set(-2.5, 4, 5); this.scene.add(key);
+    const fill = new THREE.DirectionalLight(0xc8dcff, 0.45); fill.position.set(3, 1, 4); this.scene.add(fill);
+    const rim = new THREE.DirectionalLight(0x7fe0ff, 1.6); rim.position.set(1.5, 3, -4); this.scene.add(rim);
     // her body
     this.rig = calderRig(worldMaterial({ noVis: true, noFog: true, noGrid: true }));
     this.rig.root.traverse((o) => { o.frustumCulled = false; });
@@ -146,7 +150,7 @@ export class CalderHolo {
     this.pad = new THREE.Mesh(new THREE.CircleGeometry(0.42, 40), new THREE.MeshBasicMaterial({ map: radial(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, color: 0x7fd8ff }));
     this.pad.rotation.x = -Math.PI / 2;
     this.scene.add(this.pad);
-    const bg = new THREE.CylinderGeometry(0.34, 0.44, 1.9, 28, 1, true); bg.translate(0, 0.95, 0);
+    const bg = new THREE.CylinderGeometry(0.22, 0.42, 1.7, 28, 1, true); bg.translate(0, 0.85, 0);
     this.beam = new THREE.Mesh(bg, new THREE.MeshBasicMaterial({ map: fade(), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, color: 0x6fcfff, opacity: 0.32 }));
     this.scene.add(this.beam);
     this.resize();
@@ -195,6 +199,10 @@ export class CalderHolo {
   }
   talk(secs: number) { this.talkT = Math.max(this.talkT, secs); this.rig.talk(secs); }
   expression(name: string, secs = 2.5) { this.rig.setExpression(name, secs); }
+  /** where her feet are going (screen fractions) */
+  get spot() { return { ...this.goal }; }
+  /** dev: all there, where she is going, now (screenshots) */
+  snap() { if (this.showGoal > 0) { this.show = 1; this.blinkT = -1; this.at = { ...this.goal }; this.place(true); this.canvas.style.opacity = '1'; } }
   /** a hiccup in the signal */
   jolt(k = 0.6) { this.glitch = Math.max(this.glitch, k); }
   /** her head on screen (CSS px), for whatever wants to hang by it */
@@ -266,7 +274,7 @@ export class CalderHolo {
   }
   private resize() {
     this.W = innerWidth; this.H = innerHeight;
-    const pr = Math.min(2, devicePixelRatio || 1) * 0.5;
+    const pr = Math.min(2, devicePixelRatio || 1);
     this.renderer.setPixelRatio(pr);
     this.renderer.setSize(this.W, this.H, false);
     const w = Math.max(4, Math.round(this.W * pr)), h = Math.max(4, Math.round(this.H * pr));
@@ -281,7 +289,7 @@ export class CalderHolo {
     u.uFeet.value = 0.5 + (root.position.y - 0.05) / HW; u.uHead.value = 0.5 + (root.position.y + 1.85) / HW;
     const pm = this.pad.material as THREE.MeshBasicMaterial, bm = this.beam.material as THREE.MeshBasicMaterial;
     pm.opacity = 0.75 * Math.min(1, this.show * 2) * (0.9 + 0.1 * Math.sin(this.T * 7));
-    bm.opacity = 0.22 * Math.min(1, this.show * 2);
+    bm.opacity = 0.11 * Math.min(1, this.show * 2);
     const r = this.renderer;
     r.setRenderTarget(this.rt);
     r.setClearColor(0x000000, 0);

@@ -16,6 +16,8 @@ import { lore } from '../content/loreRegistry';
 import { TimedAction } from '../actions/action';
 import { createItem } from '../items/factory';
 import { primaryVerb, LootAction } from './verbs';
+import { itemMenuOptions } from './itemMenu';
+import { injuryLabel } from '../actions/medical';
 
 /**
  * World interactions as data: the ordered verbs of furniture, doors, windows,
@@ -382,9 +384,10 @@ export class Interact {
       out.push({ label: 'Revive', action: at(new UseObjectAction(p, 'Revive', 6, 'bandage', () => G.net?.revive?.(o.id))) });
       out.push({ label: p.carrying === o.id ? 'Put down' : 'Carry over shoulder', action: () => G.net?.toggleCarry?.(o.id) });
     }
-    out.push({ label: 'Check health', action: () => ((G as any).watch?.showHealthOf ? (G as any).watch.showHealthOf(o) : G.ui?.scanner?.showHealthOf?.(o)) });
-    const meds = p.allItems().filter((i) => itemDef(i.key).medical);
-    if (meds.length) out.push({ label: 'Treat wounds…', action: () => ((G as any).watch?.showHealthOf ? (G as any).watch.showHealthOf(o) : G.ui?.scanner?.showHealthOf?.(o)) });
+    // (round 14: no wrist biomonitor: you look them over and say what you see; treating goes through your medical kit)
+    out.push({ label: 'Check health', action: () => checkHealth(p, o) });
+    const treat = treatOptions(p, o);
+    if (treat.length) out.push({ label: 'Treat wounds…', sub: treat });
     const gives = p.allItems().filter((i) => !p.isWorn(i)).slice(0, 14);
     if (gives.length) out.push({ label: 'Give', sub: gives.map((i) => ({ label: itemName(i), action: at(new UseObjectAction(p, 'Give', 1, 'hold_item', () => G.net?.giveItem?.(o.id, i))) })) });
     return out;
@@ -502,7 +505,32 @@ export class Interact {
       bus.emit('inventoryChanged', p);
     }));
   }
-  radioMenu(p: Player, it: Item) { G.net?.radioMenu?.(p, it) ?? G.ui?.scanner?.toggle?.(true, 'radio'); }
+  radioMenu(p: Player, it: Item) { G.net?.radioMenu?.(p, it); }
+}
+
+/** look another unit over: health, blood and the worst of the wounds, as a thought */
+function checkHealth(p: Player, o: Player) {
+  const b = o.body;
+  const inj = Object.values(b.parts).flatMap((pt: any) => pt.injuries as any[]);
+  const worst = inj.slice().sort((a, c) => (c.bleed ?? 0) - (a.bleed ?? 0)).slice(0, 2).map((i) => injuryLabel(i).toLowerCase());
+  const hp = Math.round(b.health), blood = Math.round(b.blood);
+  const state = b.dead ? 'gone' : o.body.downed || o.remote?.state?.down ? 'down' : hp > 80 ? 'holding up' : hp > 45 ? 'hurt' : 'in a bad way';
+  const text = `${o.name} is ${state}. Health ${hp}, blood ${blood}%.` + (worst.length ? ` ${cap(worst.join('; '))}${inj.length > 2 ? `, and ${inj.length - 2} more` : ''}.` : ' No wounds I can see.');
+  bus.emit('think', p, text);
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** every treatment your medical kit offers for this unit (the kit's own menu, filtered to them) */
+function treatOptions(p: Player, o: Player): MenuOption[] {
+  const out: MenuOption[] = [];
+  for (const it of p.allItems().filter((i) => itemDef(i.key).medical)) {
+    const c = p.containerOf(it);
+    if (!c) continue;
+    for (const opt of itemMenuOptions(p, it, c, [it])) {
+      const sub = (opt.sub || []).filter((x) => typeof x.label === 'string' && x.label.startsWith(o.name));
+      if (sub.length) out.push({ label: `${opt.label} (${itemName(it)})`, sub });
+    }
+  }
+  return out;
 }
 
 function portalVerb(key: string) {

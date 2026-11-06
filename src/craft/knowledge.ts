@@ -1,4 +1,4 @@
-// Crafting knowledge on the watch's research tree (branch 'recipe') and the
+// Crafting knowledge on the lab's research tree (branch 'recipe', bought between runs) and the
 // quests that teach hands-on crafting. Hand steps are found by doing; the
 // tree buys better methods (fewer strikes, tighter bindings, faster bench
 // work), blueprints for new tools, and the schematics that used to come only
@@ -24,7 +24,7 @@ defNode({ key: 'rc_tailor', branch: 'recipe', title: 'Pattern Cutting', cost: 4,
 defNode({ key: 'rc_field_medic', branch: 'recipe', title: 'Field Kit', cost: 4, requires: ['rc_scavenger'], icon: 'cross',
   desc: 'Schematics: suture kits, alcohol swabs and the rest of the medical recipes the Institute keeps in binders.' });
 defNode({ key: 'rc_schematics', branch: 'recipe', title: 'Recovered Schematics', cost: 8, requires: ['rc_bench'], icon: 'blueprint',
-  desc: 'R&D\'s salvage archive, decrypted onto your watch: every remaining schematic, from traps to electronics.' });
+  desc: 'R&D\'s salvage archive, decrypted into the unit\'s suit memory: every remaining schematic, from traps to electronics.' });
 
 /** which research node teaches a schematic (learned: true) recipe */
 export function nodeForRecipe(r: Recipe): string {
@@ -35,7 +35,7 @@ export function nodeForRecipe(r: Recipe): string {
 export function recipeHint(r: Recipe): string {
   if (!r.learned) return '';
   const n = nodeForRecipe(r);
-  return hasUnlock(n) ? '' : 'research it on the watch, or find it in print';
+  return hasUnlock(n) ? '' : 'research it in the lab between runs, or find it in print';
 }
 
 /** research you own teaches the survivor the schematics it covers */
@@ -45,7 +45,7 @@ export function syncKnowledge() {
   const known: Set<string> = p.knownRecipes || (p.knownRecipes = new Set<string>());
   let n = 0;
   for (const r of allRecipes()) if (r.learned && !known.has(r.key) && hasUnlock(nodeForRecipe(r))) { known.add(r.key); n++; }
-  if (n) bus.emit('think', p, n === 1 ? 'I know how to make something new.' : `${n} new schematics on the watch.`);
+  if (n) bus.emit('think', p, n === 1 ? 'I know how to make something new.' : `${n} new schematics in my head.`);
 }
 bus.on('researchUnlocked', () => { try { syncKnowledge(); } catch (e) { console.warn('knowledge', e); } });
 

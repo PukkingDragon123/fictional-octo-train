@@ -46,7 +46,7 @@ defQuest({
 });
 defQuest({
   key: 'q_bld_table', title: 'Mechanical Table', giver: 'MERIDIAN R&D', category: 'build', requires: ['q_bld_claim'],
-  desc: 'Research the Powered Workbench blueprint on the watch, then weld one. R&D will pay to watch you use it.',
+  desc: 'Research the Powered Workbench blueprint in the lab, then weld one. R&D will pay to watch you use it.',
   objectives: [{ id: 'bench', text: 'Weld a Powered Workbench', check: (m) => marked(m, 'piece:mech_bench') }],
   reward: { rp: 6, unlock: ['bp_compactor'] },
 });

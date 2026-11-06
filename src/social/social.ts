@@ -76,6 +76,8 @@ export class SocialSystem implements GameSystem {
     // ---- Q: tap = whistle, hold = shout
     const qDown = inp.down('whistle') || inp.down('shout');
     if ((inp.hit('whistle') || inp.hit('shout')) && !busy) { this.qT = 0; this.qShouted = false; }
+    // (Q also holds the suit scanner: a sweep it started is not a whistle or a shout, src/scan/scan.ts)
+    if (this.qT >= 0 && (g as any).scan?.active?.hold) this.qT = -1;
     if (this.qT >= 0) {
       if (qDown) {
         this.qT += dt;

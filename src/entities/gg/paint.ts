@@ -181,9 +181,21 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
   }
 
   function garmCol(g: Garm, c: Ctx): number[] {
+    if (g.tex === 'c_shirt_party') return partyCol(g, c);
     if (g.kind === 'stripe') return Math.floor(c.y / 0.022) % 2 ? g.col : mixc(g.col, [242, 238, 228], 0.8);
     if (g.kind === 'pajama') return (Math.floor((around(c) + 1) / 0.018) % 2) ? g.col : mixc(g.col, [250, 248, 244], 0.45);
     return g.col;
+  }
+
+  /** 'c_shirt_party': a loud all-over kids' print (polka dots, confetti, zigzags or checks, picked by the shirt colour) */
+  function partyCol(g: Garm, c: Ctx): number[] {
+    const kind = (g.col[0] * 3 + g.col[1] * 5 + g.col[2] * 7) % 4, u = around(c), v = c.y;
+    const ACC: C3[] = [[255, 226, 64], [255, 92, 150], [64, 168, 255], [96, 212, 96], [250, 248, 240], [255, 140, 40]];
+    const pick = (a: number, b: number) => ACC[Math.floor(h2(a, b, 41) * ACC.length)];
+    if (kind === 0) { const cx = Math.round(u / 0.03), cy = Math.round(v / 0.03 + (cx & 1) * 0.5); const dx = u - cx * 0.03, dy = v - (cy - (cx & 1) * 0.5) * 0.03; return dx * dx + dy * dy < 0.0085 * 0.0085 ? pick(cx, cy) : g.col; }
+    if (kind === 1) { const cx = Math.floor(u / 0.022), cy = Math.floor(v / 0.022); return h2(cx, cy, 43) < 0.32 && Math.abs((u / 0.022) % 1) < 0.55 && Math.abs((v / 0.022) % 1) < 0.35 ? pick(cx, cy) : g.col; }
+    if (kind === 2) { const z = Math.abs(((u / 0.03) % 1 + 1) % 1 - 0.5) * 0.03; const band = Math.floor((v + z) / 0.026); return band % 3 === 0 ? pick(band, 7) : g.col; }
+    return (Math.floor(u / 0.028) + Math.floor(v / 0.028)) % 2 ? g.col : mixc(g.col, [252, 248, 236], 0.55);
   }
 
   function handPx(c: Ctx, o: O4) {

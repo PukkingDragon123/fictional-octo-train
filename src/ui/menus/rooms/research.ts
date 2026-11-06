@@ -32,7 +32,7 @@ import * as THREE from 'three';
 import type { FMats } from '../scene/pixtex';
 import { Puffs, Dust, shaftMesh } from '../scene/fx';
 import type { Hot, StageRoom, Grade } from '../monitor/stage';
-import { bitText, bitMeasure } from '../../../gfx/bitfont';
+import { bitText } from '../../../gfx/bitfont';
 import {
   FacetBuilder, at, cbox, prism, lathe, extrude, hull, tube, bolt, C, LedBank, blink, busy, plate, paper, slab, glowCard, Wobble, crtSet, uiSound, gameSound,
 } from '../monitor/props';

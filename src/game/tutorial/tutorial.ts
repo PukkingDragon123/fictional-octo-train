@@ -496,10 +496,11 @@ export class Tutorial implements GameSystem {
     if (this.over) return Promise.reject(SKIP);
     return new Promise((res, rej) => this.waits.push({ cond, res, rej }));
   }
-  private sleep(s: number) { const t = this.clock + s; return this.until(() => this.clock >= t); }
+  private sleep(s: number) { if (this.rushTo) return Promise.resolve(); const t = this.clock + s; return this.until(() => this.clock >= t); }
   /** her line: the voice grains, the subtitle strip, her mouth and hands on the hologram */
   private async say(text: string, o: { gesture?: ResearcherGesture; expr?: string } = {}) {
     if (this.over) throw SKIP;
+    if (this.rushTo) return;
     this.speak(text, o);
     await this.sleep(this.lineDur + 0.3);
   }
@@ -542,6 +543,8 @@ export class Tutorial implements GameSystem {
   private async ask(opts: string[]): Promise<number> {
     if (this.over) throw SKIP;
     if (this.rushTo) return -1;
+    // the reply plates sit low in the middle: she steps aside for them
+    if (this.holo.spot.x > 0.18 && this.holo.spot.x < 0.8) { this.holo.point(null); this.holo.standAt(0.85, 0.93); }
     this.holo.gesture('think', 2.5);
     let r = -2;
     void askCalder(opts, { secs: 30 }).then((i) => { r = i; });
@@ -549,7 +552,7 @@ export class Tutorial implements GameSystem {
     if (this.over) throw SKIP;
     return r;
   }
-  private lesson(step: string) { this.step = step; TUT.step = step; G.audio?.ui?.('watchTick', 0.25); }
+  private lesson(step: string) { this.step = step; TUT.step = step; if (this.rushTo === step) { this.rushTo = ''; this.holo.snap(); } G.audio?.ui?.('watchTick', 0.25); }
 
   /** point at a part of the body console and light it while she says the line */
   private async show(part: HudPart | null, text?: string) {
@@ -762,8 +765,7 @@ export class Tutorial implements GameSystem {
   update(dt0: number) {
     if (this.over) return;
     const dt = Math.min(0.1, dt0);
-    if (this.rushTo && this.step === this.rushTo) this.rushTo = '';
-    this.clock += this.rushTo ? dt * 60 : dt;
+    this.clock += dt;
     const p = G.local;
     // pad Start skips
     const pad = pollPadSkip(); if (pad === 'skip') { this.skip(); return; } else if (pad === 'wake') this.plate.el.classList.add('hot');
@@ -782,7 +784,7 @@ export class Tutorial implements GameSystem {
     for (let i = this.waits.length - 1; i >= 0; i--) {
       const w = this.waits[i];
       let ok = false;
-      try { ok = w.cond(); } catch { ok = true; }
+      try { ok = !!this.rushTo || w.cond(); } catch { ok = true; }
       if (ok) { this.waits.splice(i, 1); w.res(); }
     }
     this.paint();
@@ -867,7 +869,7 @@ export class Tutorial implements GameSystem {
   }
 
   // ================================================================== dev (screenshots)
-  /** dev: run the script at speed (gates pass, questions go unanswered) until it reaches a lesson */
+  /** dev: run the script straight through (no lines, gates pass, questions unanswered) to a lesson */
   rushTo = '';
   debugTo(step: string) { this.rushTo = step; cancelAsk(); }
   /** dev: jump the unit's counters so a gate passes (screenshot scripts) */

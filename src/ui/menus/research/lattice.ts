@@ -112,7 +112,7 @@ export class TreeLattice {
   constructor(mats: FMats, hots: Hot[], o: LatticeOpts) {
     this.mats = mats; this.hots = hots; this.o = o;
     this.X0 = o.x - o.w / 2; this.X1 = o.x + o.w / 2; this.Y0 = o.y - o.h / 2; this.Y1 = o.y + o.h / 2; this.Z = o.z;
-    for (const k of Object.keys(STATE_COL) as Vis[]) this.frameMats.set(k, new THREE.MeshBasicMaterial({ color: STATE_COL[k], toneMapped: false }));
+    for (const k of Object.keys(STATE_COL) as Vis[]) this.frameMats.set(k, new THREE.MeshBasicMaterial({ color: new THREE.Color(STATE_COL[k]).multiplyScalar(0.8), toneMapped: false }));
     // the glass and its strips
     this.boardCv.width = Math.round(o.w * PPM); this.boardCv.height = Math.round(o.h * PPM);
     this.boardTex = canvasTex(this.boardCv);
@@ -190,7 +190,8 @@ export class TreeLattice {
     hb.add('metal', cbox(0.06, 0.2, 0.08, 0.01), 0x3a3e40, at(0.25, -0.04, 0.0));
     hb.add('hazard', cbox(0.062, 0.03, 0.082, 0.003), 0xffffff, at(0.25, -0.15, 0.0), { rep: 0.12 });
     this.head.add(hb.build(this.mats, { cast: false }));
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.27), new THREE.MeshBasicMaterial({ map: this.headTex, toneMapped: false }));
+    // (dimmed under the bloom threshold: a readable glass, not a glare)
+    const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.36, 0.27), new THREE.MeshBasicMaterial({ map: this.headTex, toneMapped: false, color: 0xb4b4ac }));
     screen.position.z = 0.0662; screen.userData.noGlow = true; this.head.add(screen);
     const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.03, 0.016, 0.01), this.headLamp);
     lamp.position.set(0.17, -0.163, 0.062); lamp.userData.noGlow = true; this.head.add(lamp);
@@ -491,7 +492,12 @@ export class TreeLattice {
       c.fillStyle = st === 'open' ? (blink ? '#ffb030' : '#5a3a10') : '#1a120a'; c.fillRect(8, H - 24, W - 16, 18);
       bitText(c, st === 'open' ? 'PULL THE LEVER  ·  RESEARCH' : st === 'max' ? 'NOTHING LEFT TO RESEARCH' : 'NOT AVAILABLE', W / 2, H - 23, { color: st === 'open' ? '#1a0c02' : '#6a5a40', outline: null, align: 'center' });
     }
-    if (this.headMsg) bitText(c, this.headMsg.text, W / 2, H / 2 - 16, { color: this.headMsg.col, outline: '#000000', scale: 2, align: 'center' });
+    if (this.headMsg) {
+      // a stamped band across the glass
+      c.fillStyle = 'rgba(2,6,3,0.92)'; c.fillRect(0, H / 2 - 26, W, 44);
+      c.fillStyle = this.headMsg.col; c.fillRect(0, H / 2 - 26, W, 2); c.fillRect(0, H / 2 + 16, W, 2);
+      bitText(c, this.headMsg.text, W / 2, H / 2 - 18, { color: this.headMsg.col, outline: '#000000', scale: 2, align: 'center' });
+    }
     c.fillStyle = 'rgba(0,0,0,0.25)';
     for (let yy = 0; yy < H; yy += 2) c.fillRect(0, yy, W, 1);
     this.headTex.needsUpdate = true;
@@ -700,7 +706,7 @@ export class TreeLattice {
     const cur = this.cur;
     if (cur) {
       const pulse = 0.55 + 0.45 * Math.sin(t * 4.2);
-      this.frameMats.get('open')!.color.setHex(STATE_COL.open).multiplyScalar(0.45 + 0.9 * pulse);
+      this.frameMats.get('open')!.color.setHex(STATE_COL.open).multiplyScalar(0.4 + 0.65 * pulse);
       this.pipMats.next.color.setHex(0xffb030).multiplyScalar(Math.floor(t * 3) % 2 ? 1.2 : 0.25);
       this.coreMats[1].color.setHex(0xb87a28).multiplyScalar(0.55 + 0.45 * pulse);
       for (const v of cur.nodes) {

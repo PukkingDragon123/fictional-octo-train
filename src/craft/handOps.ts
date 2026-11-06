@@ -2,7 +2,7 @@
 // tool, close up in first person (src/craft/inspect.ts). Each step is one
 // physical motion repeated until the work is done: saw strokes, strikes,
 // pulls, loops of binding. The basic ones are found by doing; better methods
-// and blueprints come from the watch's research tree (branch 'recipe').
+// and blueprints come from the lab's research tree (branch 'recipe', between runs).
 import type { Player } from '../entities/player';
 import type { TileObject } from '../world/zone';
 import { type Item, type ItemDef, itemDef } from '../items/item';

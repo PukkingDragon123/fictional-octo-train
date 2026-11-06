@@ -6,7 +6,11 @@
 //            kit (the cosmetics catalogue, src/game/cosmetics.ts). Owning one
 //            unlocks profile 'cos:<key>', so the unit room can dress the unit in it.
 //   recipe   RECIPES: the crafting and cooking research nodes the game already
-//            gates on (src/craft/knowledge.ts, src/cook/recipes.ts).
+//            gates on (src/craft/knowledge.ts, src/cook/recipes.ts), plus (round
+//            14: the wrist watch's in-run R&D page is gone, research is only done
+//            here between runs) build-mode blueprints (src/build/content.ts),
+//            dominion schematics (src/dominion/brains.ts) and the suit scanner's
+//            firmware (src/scan/scan.ts).
 //   chip     CHIPS: permanent implants with ranks; each rank behaves like a
 //            trait (src/survival/traits.ts) once the chip is fitted in a socket.
 //   limb     LIMBS: the cyberware catalogue's research nodes ('cyber:<key>',
@@ -26,7 +30,7 @@ import { file, saveFile } from './meridian';
 export type Branch = 'design' | 'recipe' | 'chip' | 'limb';
 export const BRANCHES: { key: Branch; name: string; sub: string; code: string }[] = [
   { key: 'design', name: 'Unit designs', sub: 'dyes · visors · helmets · kit', code: 'DSN' },
-  { key: 'recipe', name: 'Recipes', sub: 'crafting and cooking for the runs', code: 'RCP' },
+  { key: 'recipe', name: 'Recipes', sub: 'crafting, cooking, blueprints, schematics, scanner', code: 'RCP' },
   { key: 'chip', name: 'Chips', sub: 'permanent neural and somatic implants', code: 'CHP' },
   { key: 'limb', name: 'Limbs', sub: 'hardware for the unit room to fit', code: 'LMB' },
 ];
@@ -129,6 +133,46 @@ for (const [key, row, col, item, alt] of RECIPE_LAYOUT) {
     icon: { kind: 'item', key: item, alt }, gives: ['recipe: ' + (rn?.title ?? key)], desc: rn?.desc ?? '',
   });
   prevInRow[row] = key;
+}
+
+// ---- what the watch's R&D page used to sell mid-run: blueprints, dominion schematics, scanner firmware.
+// The research nodes are the game's own (same keys, so old saves keep what they bought); defined here too
+// when the menu runs without those modules, with the same costs and requirements.
+const FIELD: { lane: [number, string]; nodes: [string, string, number, string, string[], string, string[]?][] }[] = [
+  { lane: [12, 'Blueprints'], nodes: [
+    ['bp_spikes', 'Rebar Spikes', 2, 'Weld sharpened rebar to a plate. Anything that walks over it regrets it.', [], 'scrap_metal'],
+    ['bp_hatch', 'Bulkhead Hatch', 3, 'A welded door hung in a scrap-plate wall on a spring hinge.', [], 'sheet_metal'],
+    ['bp_hydro', 'Hydro Rack', 4, 'Two-tier hydroponic rack with grow LEDs. Fast crops, little water, needs power.', [], 'lightbulb'],
+    ['bp_mech_bench', 'Powered Workbench', 4, 'The first mechanical table: motorised vise, grinder, drill press. Counts as a workbench.', [], 'steel_frame'],
+    ['bp_compactor', 'Scrap Compactor', 5, 'A hydraulic platen: three scrap in, one sheet of metal out.', ['bp_mech_bench'], 'pipe'],
+    ['bp_gen_rig', 'Generator Rig', 5, 'Two salvaged motors run backwards off a fuel drum. Power for the whole base.', ['bp_mech_bench'], 'motor', ['battery']],
+    ['bp_turret', 'Pipe Sentry', 7, 'A motor-swivelled nail cannon. Shoots anything that is not a friend.', ['bp_gen_rig'], 'nail_gun'],
+  ] },
+  { lane: [14, 'Dominion'], nodes: [
+    ['tame_mk1', 'Cortex Valve', 8, 'Schematic: a one-valve mechanical brain for small things (up to 45 vitality).', [], 'brain_mk1', ['electronics_scrap']],
+    ['tame_station', 'Labour Directive', 14, 'Thralls take standing orders at a station: guard, haul, crank a generator, tend planters.', ['tame_mk1'], 'wire'],
+    ['tame_mk2', 'Twin-Valve Cortex', 22, 'Schematic: a two-valve cortex for mid-sized bodies (up to 110 vitality).', ['tame_mk1'], 'brain_mk2', ['electronics_scrap']],
+    ['tame_ride', 'Saddle Protocol', 18, 'Ride a thrall big enough to carry you.', ['tame_mk2'], 'rope'],
+    ['tame_pack', 'Hive Uplink', 25, 'Run up to six thralls at once (three without it).', ['tame_station'], 'walkie_talkie'],
+    ['tame_overclock', 'Overclock', 30, 'Thralls hit half again as hard and move a quarter faster. They run hot.', ['tame_mk2'], 'battery'],
+    ['tame_mk3', 'Titan Lobe', 50, 'Schematic: a three-valve, heat-finned lobe big enough for anything with a skull.', ['tame_mk2'], 'brain_mk3', ['electronics_scrap']],
+  ] },
+  { lane: [16, 'Suit scanner'], nodes: [
+    ['tool_beam', 'Scanner Beam', 4, 'A focusing lens for the visor emitter: scans reach 18 m and finish faster.', [], 'binoculars'],
+    ['scan_deep', 'Deep Scan', 14, 'Longer reach, faster sweeps and half again as much DATA from every scan.', ['tool_beam'], 'data_probe'],
+  ] },
+];
+for (const { lane: [row, label], nodes } of FIELD) {
+  lane('recipe', row, label);
+  nodes.forEach(([key, title, cost, desc, requires, item, alt], col) => {
+    if (!researchNode(key)) defNode({ key, branch: key.startsWith('bp_') ? 'blueprint' : key.startsWith('tame_') ? 'tame' : 'scanner', title: title.toUpperCase(), cost, desc, requires: requires.length ? requires : undefined });
+    const rn = researchNode(key);
+    add({
+      key, branch: 'recipe', row, col, title, ranks: 1, rn: [key], costs: [rn?.cost ?? cost],
+      req: requires, icon: { kind: 'item', key: item, alt: alt ?? ['scrap_metal'] },
+      gives: [(row === 12 ? 'blueprint: ' : row === 14 ? 'schematic: ' : 'scanner firmware: ') + title], desc: rn?.desc ?? desc,
+    });
+  });
 }
 
 // ================================================================== CHIPS (traits, by rank)

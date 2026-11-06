@@ -3,7 +3,8 @@
 // the nearest wall edge, R rotates), click to tack a frame together out of the
 // salvage it costs, then hold the welder on the frame until it is done.
 // X demolishes (frames refund in full, finished pieces about half). Pieces
-// are unlocked by blueprints on the watch's research tree (branch 'blueprint').
+// are unlocked by blueprints researched in the lab between runs (branch 'blueprint', on the
+// Control Room tree's RECIPES page: src/game/unitTree.ts).
 // Also runs the rest of the settlement: farms, turrets, spikes, stoves, workers.
 import { consume } from './keys';
 import * as THREE from 'three';
@@ -223,7 +224,7 @@ export class BuildSystem implements GameSystem {
 
   /** tack a frame together where the ghost is: materials go in now */
   place(p: Player, pc: Piece, s: Spot): boolean {
-    if (!this.unlocked(pc)) { bus.emit('think', p, `I don't know how to build that yet. (Blueprint: research it on the watch.)`); return false; }
+    if (!this.unlocked(pc)) { bus.emit('think', p, `I don't know how to build that yet. (Blueprint: research it in the lab, between runs.)`); return false; }
     if (!s.ok) { G.audio?.ui?.('dryfire'); bus.emit('think', p, s.why ? `Can't build: ${s.why}.` : 'Not there.'); return false; }
     if (!this.canAfford(p, pc)) {
       const miss = pc.cost.filter(([k, n]) => this.countOf(p, k) < n).map(([k, n]) => `${n - this.countOf(p, k)} ${itemDef(k).name}`);
@@ -246,7 +247,7 @@ export class BuildSystem implements GameSystem {
     const pc = piece(o.state.piece as string); if (!pc) return false;
     const tool = welderFor(p, pc);
     if (!tool) {
-      bus.emit('think', p, pc.join === 'nail' ? 'I need a hammer for this.' : 'I need a welding torch. Or something on this watch that burns.');
+      bus.emit('think', p, pc.join === 'nail' ? 'I need a hammer for this.' : 'I need a welding torch.');
       G.audio?.ui?.('dryfire');
       return false;
     }
@@ -553,7 +554,7 @@ export class BuildSystem implements GameSystem {
     else if (h.kind === 'prev' || h.kind === 'next') { this.cycle(h.kind === 'next' ? 1 : -1); G.audio?.ui?.('paper', 0.4); }
     else if (h.kind === 'demo') { this.demolish = !this.demolish; G.audio?.ui?.('switch', 0.6); }
     const pc = this.current();
-    if (p && h.kind !== 'demo' && !this.unlocked(pc)) (G as any).watch?.openResearch?.('blueprint', pc.node);
+    if (p && h.kind !== 'demo' && !this.unlocked(pc)) bus.emit('think', p, `No blueprint for that. The lab's research tree has it, between runs.`);
   }
   private boardState(p: Player): BoardState {
     const pc = this.current();

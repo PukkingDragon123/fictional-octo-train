@@ -1,9 +1,9 @@
-// The story's quests, uploaded to the watch (src/missions/questRuntime.ts).
+// The story's quests, on Dr. Calder's quest board (J; src/missions/questRuntime.ts).
 //
 // MAIN (the Remittance contract, uploaded by Dr. Iris Calder, the operator's
 // guide, accepted automatically): First Haul (get hold of a piece of
 // furniture, carry it whole to a press, feed it in) → Field Work (find
-// data, scan an inhabitant with the watch) alongside four installments, each
+// data, scan an inhabitant with the suit scanner) alongside four installments, each
 // due by a deadline → Discharge (clear the balance) → Passage (reach the
 // depot, buy a ticket, board). See src/game/debt.
 //
@@ -61,21 +61,21 @@ q({
     { id: 'walk', text: 'Walk the unit about (WASD, or the stick)', check: has('tut:walk'), optional: true },
     { id: 'carry', text: 'Get hold of a piece of furniture (hold the right button, or GRAB)', check: (m) => m.flags.has('tut:carry') || m.flags.has('tut:smash'), optional: true },
     { id: 'deposit', text: 'Carry it to a press and feed it in (E next to the plate)', check: has('contract:first_deposit'), where: nearestPress },
-    { id: 'scanner', text: 'Raise your watch (TAB) and read this', check: has('tut:scanner'), optional: true },
+    { id: 'scanner', text: 'Open the quest board (J) and read this', check: (m) => m.flags.has('tut:board') || m.flags.has('tut:scanner'), optional: true },
     { id: 'drink', text: 'Drink something', check: has('tut:drink'), optional: true },
-    { id: 'light', text: 'Find a light source', check: (m) => m.flags.has('got:light') || m.flags.has('tut:light'), optional: true },
+    { id: 'light', text: 'Switch on the suit lamp (F)', check: (m) => m.flags.has('got:light') || m.flags.has('tut:light'), optional: true },
   ],
   reward: { rp: 3 },
-  outro: 'That is the job. Again, and again. The first installment is due before you know it. I pay research credit for good work: spend it on that watch.',
+  outro: 'That is the job. Again, and again. The first installment is due before you know it. I pay research credit for good work. You spend it in the lab, between runs.',
 });
 
 q({
   key: 'field_work', main: true, auto: true, voice: 'handler', requires: ['first_haul'], title: 'Field Work', giver: CALDER, category: 'contract',
-  desc: 'The press pays the debt. Data pays me. Terminals and lore drives remember what happened here: read one. The inhabitants are organisms, not ghosts: point the watch at one and scan it. Keep the unit calm while you do it, the link does not like fear.',
-  intro: 'Something else, while you work. I need data. Read a terminal or a drive. And scan an inhabitant with the watch. From a distance, please.',
+  desc: 'The press pays the debt. Data pays me. Terminals and lore drives remember what happened here: read one. The inhabitants are organisms, not ghosts: face one and hold N, the visor scanner sweeps it. Keep the unit calm while you do it, the link does not like fear.',
+  intro: 'Something else, while you work. I need data. Read a terminal or a drive. And scan an inhabitant: face it and hold N. From a distance, please.',
   objectives: [
     { id: 'data', text: 'Find data: read a terminal, a drive or a journal', check: count('read:', 1) },
-    { id: 'scan', text: 'Scan an inhabitant with the watch (hold N, or open the watch and tap it)', check: count('scan:', 1) },
+    { id: 'scan', text: 'Scan an inhabitant (face it, hold N)', check: count('scan:', 1) },
     { id: 'calm', text: 'If the link slips, resync it (L, or tap LINK DESYNC)', check: has('link:resync'), optional: true },
   ],
   reward: { rp: 4 },
@@ -234,15 +234,15 @@ q({
 
 q({
   key: 'biology', requires: ['first_haul'], title: 'Field Biology', giver: 'MERIDIAN R&D', category: 'research',
-  desc: 'The watch catalogues every entity it scans. R&D filed a bounty schema for five specimens. Complete it and they upload the scanner beam firmware for free.',
+  desc: 'The suit scanner catalogues every entity it sweeps. R&D filed a bounty schema for five specimens. Complete it and they upload the deep scan firmware for free.',
   when: (m) => count('scan:', 1)(m),
   objectives: [
     { id: 'scan3', text: 'Scan three different entities', check: (m) => countOf(m, 'scan:') / 3 },
     { id: 'scan5', text: 'Scan five different entities', check: (m) => countOf(m, 'scan:') / 5 },
   ],
-  reward: { rp: 6, unlock: ['tool_beam'] },
+  reward: { rp: 6, unlock: ['scan_deep'] },
   onComplete: () => G.missions?.set?.('scanner_mk2'),
-  outro: 'FIRMWARE 9.1 INSTALLED. SCANNER BEAM ONLINE.',
+  outro: 'FIRMWARE 9.1 INSTALLED. DEEP SCAN ONLINE.',
 });
 
 q({

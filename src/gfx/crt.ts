@@ -1,4 +1,4 @@
-// A real-looking cathode-ray tube for every screen in the game: the watch, the
+// A real-looking cathode-ray tube for every screen in the game: the
 // menu's TV sets, surgery monitors, terminals. Draw into the screen's canvas,
 // call flush(), and the tube does the rest: curved glass, beam scanlines, an
 // aperture grille, phosphor bloom and convergence error, a slow rolling band,

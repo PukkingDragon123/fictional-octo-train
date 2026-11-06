@@ -7,24 +7,26 @@ export type Action =
   | 'scanner' | 'inventory' | 'map' | 'reload' | 'shout' | 'camLeft' | 'camRight' | 'talk' | 'chat'
   | 'pause' | 'hot1' | 'hot2' | 'hot3' | 'hot4' | 'hot5' | 'rotate' | 'grab' | 'walkToggle' | 'craft' | 'sleep'
   // the physical overhaul (additive): Shift = power, H = lung pump, Q = whistle (hold = shout), B = build mode,
-  // G = emote wheel, Tab = the watch; 'hold' / 'primary' have no keys (touch props press them; rebindable)
+  // G = emote wheel; 'watch' / 'scanner' / 'map' are retired (round 14: no wrist watch) and unbound;
+  // 'hold' / 'primary' have no keys (touch props press them; rebindable)
   | 'power' | 'breathe' | 'whistle' | 'build' | 'emote' | 'watch' | 'hold' | 'primary'
   // the iron cube (additive): draw / holster the tool in the tool roll's quick-draw holster
   | 'toolDraw'
-  // tribes / domination / scanning (additive): N = scan (hold), K = order your thralls
+  // tribes / domination / scanning (additive): hold Q (or N) = the suit scanner, K = order your thralls.
+  // Q is shared with whistle / shout: it scans only when an inhabitant, anomaly or stranger is in front (src/scan/scan.ts)
   | 'scan' | 'command';
 
 export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
   run: ['ShiftLeft', 'ShiftRight'], sneak: ['ControlLeft', 'KeyC'], shove: ['Space'], interact: ['KeyE'],
-  flashlight: ['KeyF'], scanner: ['Tab'], inventory: ['KeyI'], map: ['KeyM'], reload: ['KeyR'], shout: ['KeyQ'],
+  flashlight: ['KeyF'], scanner: [], inventory: ['KeyI'], map: [], reload: ['KeyR'], shout: ['KeyQ'],
   camLeft: ['KeyZ'], camRight: ['KeyX'], talk: ['KeyV'], chat: ['Enter', 'KeyT'], pause: ['Escape'],
   hot1: ['Digit1'], hot2: ['Digit2'], hot3: ['Digit3'], hot4: ['Digit4'], hot5: ['Digit5'],
   rotate: ['KeyR'], grab: ['KeyG'], walkToggle: ['CapsLock'], craft: [], sleep: ['KeyZ'],
-  power: ['ShiftLeft', 'ShiftRight'], breathe: ['KeyH'], whistle: ['KeyQ'], build: ['KeyB'], emote: ['KeyG'], watch: ['Tab'],
+  power: ['ShiftLeft', 'ShiftRight'], breathe: ['KeyH'], whistle: ['KeyQ'], build: ['KeyB'], emote: ['KeyG'], watch: [],
   hold: [], primary: [],
   toolDraw: ['Backquote', 'KeyY'],
-  scan: ['KeyN'], command: ['KeyK'],
+  scan: ['KeyQ', 'KeyN'], command: ['KeyK'],
 };
 
 /** combined movement input: unit direction (x right, y forward) plus strength 0..1 */

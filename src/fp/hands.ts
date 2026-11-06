@@ -1,4 +1,4 @@
-// First-person arms and hands, shared by every close-up (watch, backpack,
+// First-person arms and hands, shared by every close-up (backpack,
 // eating, inspection, bench, cooking, surgery, the intro). Low-poly but never
 // blocky: capsule phalanges with round knuckles, a cupped rounded palm, a
 // tapered forearm under a wrinkled jumpsuit sleeve, nails, crease shading in

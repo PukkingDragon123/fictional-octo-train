@@ -1,4 +1,5 @@
-// QUESTS AS A BROADCAST (round 12). J (the touch QUESTS button) puts Dr. Iris
+// QUESTS AS A BROADCAST (round 12; round 14: the only quest board, the wrist
+// watch is gone, and Calder's notices are src/ui/broadcast/notices.ts). J (the touch QUESTS button) puts Dr. Iris
 // Calder's field broadcast up in front of you: no hands, no wrist. She stands
 // on a small Meridian projector puck as cold phosphor light (the menu guide's
 // own body, src/game/prologue/calder.ts, on a projection material of this
@@ -24,6 +25,7 @@ import { calderRig } from '../../game/prologue/calder';
 import type { Researcher } from '../../entities/researcher';
 import type { QuestRuntime, QView } from '../../missions/questRuntime';
 import { Plate, PLATE_T, backdrop, lightBlend } from './plate';
+import { trackQuest } from './notices';
 import { isTouchMode } from '../touch/mode';
 
 type Tab = 'active' | 'offers' | 'done';
@@ -187,7 +189,6 @@ export class QuestBroadcast {
     const p = G.local; const g: any = G;
     if (!p || p.body.dead || g.intro?.running) return;
     if (!this.quests) { bus.emit('think', p, 'No feed from the Institute here.'); return; }
-    if (fpOwner() === 'watch') g.watch?.toggle?.(false);
     if (fpOwner() === 'self') { g.selfInspect?.close?.(true); fpRelease('self'); }
     if (fpOwner() && fpOwner() !== 'broadcast') return;
     this.build();
@@ -211,7 +212,7 @@ export class QuestBroadcast {
     G.audio?.ui?.('static_burst', 0.35);
     G.audio?.ui?.('questChime', 0.3);
     G.hudBody?.setHidden?.('broadcast', true);
-    G.missions?.set?.('watch:broadcast');
+    G.missions?.set?.('tut:board');
   }
 
   close(lost = false) {
@@ -398,12 +399,12 @@ export class QuestBroadcast {
     if (cost) { P.text(P.fit(cost.toUpperCase() + (v.payNote ? '  ·  ' + v.payNote : ''), W - 14, 8), 7, by - (rew ? 22 : 12), v.affordable ? ICE_D : BAD, 8); }
     // the action
     const touch = isTouchMode();
-    const act = v.status === 'off' || v.status === 'decl' ? 'ACCEPT' : v.status === 'ready' ? (v.affordable ? 'PAY AND COMPLETE' : 'CANNOT PAY') : v.status === 'act' ? (Q.tracked === v.key ? 'TRACKED ON THE WATCH' : 'TRACK ON THE WATCH') : '';
+    const act = v.status === 'off' || v.status === 'decl' ? 'ACCEPT' : v.status === 'ready' ? (v.affordable ? 'PAY AND COMPLETE' : 'CANNOT PAY') : v.status === 'act' ? (Q.tracked === v.key ? 'TRACKING' : 'TRACK IT') : '';
     by = H - 22;
     if (act) {
       const label = (touch ? '' : 'E  ') + act;
       const w = Math.min(W - 70, P.measure(label, 8) + 16);
-      const dim = act === 'CANNOT PAY' || act === 'TRACKED ON THE WATCH';
+      const dim = act === 'CANNOT PAY' || act === 'TRACKING';
       P.rect(7, by, w, 15, dim ? 'rgba(120,200,240,0.12)' : 'rgba(255,190,90,0.28)');
       P.frame(7, by, w, 15, dim ? ICE_DD : AMB);
       P.text(label, 7 + w / 2, by + 4, dim ? ICE_D : AMB, 8, 'center');
@@ -476,8 +477,8 @@ export class QuestBroadcast {
   private act() {
     const Q = this.quests, v = this.cur(); if (!Q || !v) return;
     if (v.status === 'act') {
-      Q.track(Q.tracked === v.key ? null : v.key);
-      if (Q.tracked === v.key) { this.say('Tracking it. Follow the arrow on your watch.'); this.rig?.gesture('nod', { dur: 1.2 }); }
+      trackQuest(Q.tracked === v.key ? null : v.key);
+      if (Q.tracked === v.key) { this.say(Q.target(v.key) ? 'Tracking it. I will mark the way on the floor.' : 'Tracking it. I will keep you on it.'); this.rig?.gesture('nod', { dur: 1.2 }); }
       G.audio?.ui?.('watchTick', 0.5); this.refresh(true); return;
     }
     const what = v.status === 'off' || v.status === 'decl' ? 'accept' : v.status === 'ready' ? 'pay' : '';
@@ -485,9 +486,9 @@ export class QuestBroadcast {
     const err = Q.request(v.key, what);
     if (err) { G.audio?.ui?.('watchDeny'); this.say(err.charAt(0).toUpperCase() + err.slice(1).toLowerCase() + '.'); this.rig?.gesture('shrug', { dur: 1.5 }); this.glitchT = 0.3; return; }
     if (what === 'accept') {
-      Q.track(v.key); Q.fresh.delete(v.key);
+      trackQuest(v.key); Q.fresh.delete(v.key);
       G.audio?.ui?.('questChime', 0.5);
-      this.say(v.def.main ? 'Good. The contract comes first. I will be watching the feed.' : 'Accepted. It is on your wrist now. Do not make me chase it.');
+      this.say(v.def.main ? 'Good. The contract comes first. I will be watching the feed.' : 'Accepted. It is on the board now. Do not make me chase it.');
       this.rig?.gesture('nod', { dur: 1.4 });
       this.tab = 'active';
     } else {

@@ -162,7 +162,7 @@ export function itemMenuOptions(p: Player, it: Item, c: Container, group: Item[]
     o.push({ label: 'Reload', disabled: !ammo ? 'no ammo' : (it.ammo ?? 0) >= d.weapon.mag ? 'full' : false, action: () => G.interact?.reload?.(p, it) });
   }
   if (d.weapon?.kind === 'thrown' || d.weapon?.fire) o.push({ label: 'Throw (aim + click)', action: pre(() => p.actions.add(new EquipAction(p, it, 'R'))) });
-  if (d.anomaly) o.push({ label: 'Study with scanner', action: () => G.ui?.scanner?.studyItem?.(it) });
+  if (d.anomaly) o.push({ label: 'Study with the suit scanner', action: () => (G as any).scan?.scanItem?.(it) });
   // research: the codex tools' verbs, residue samples off anomalies (src/research)
   researchItemMenu(p, it, o);
   itemSampleOption(p, it, o);

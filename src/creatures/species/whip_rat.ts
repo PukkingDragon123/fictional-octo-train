@@ -7,6 +7,7 @@ import { bus } from '../../core/events';
 import { worldMaterial } from '../../gfx/materials';
 import { makeItemMesh } from '../../items/itemMeshes';
 import { ModelBuilder } from '../../gfx/modelBuilder';
+import { HumanRig, SKIN_TONES, HAIR_COLORS, type Appearance, type Outfit } from '../../entities/humanRig';
 import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
 import { CS, zoneOf, pulse, attack, stop, faceTo, findSpot, onPlayerHit, floorItemsAround, takeFloorItem, dropStored, isPrecious, restoreStore, HeldAction } from '../behaviors_a';
@@ -41,10 +42,9 @@ const SIDES = [['L', 1], ['R', -1]] as const;
 /** eye-stalk segments and their length; tail-arm segments and theirs */
 const NS = 7, SEG = 0.115;
 const NT = 10, TSEG = 0.165;
-const FINGERS: { x: number; len: number; r: number }[] = [
-  { x: -0.038, len: 0.104, r: 0.0118 }, { x: -0.012, len: 0.115, r: 0.0125 }, { x: 0.014, len: 0.108, r: 0.0118 }, { x: 0.038, len: 0.088, r: 0.0102 },
-];
-const TAIL_Y = 0.44, TAIL_Z = -0.6, HAND_Z = TAIL_Z - TSEG * NT, KNUCK_Z = HAND_Z - 0.13;
+/** the hand is a man's, from the game's one human base (HumanRig): its forearm runs from the last tail joint to the wrist */
+const HAND_S = 1.05, FOREARM = 0.25 * HAND_S;
+const TAIL_Y = 0.44, TAIL_Z = -0.6, HAND_Z = TAIL_Z - TSEG * (NT - 1) - FOREARM;
 
 /** what is wrong with each one: which flank is torn open, which ear is bitten, coat colour */
 interface RatVar { torn: number; ear: number; fur: number; skin: number; scale: number }
@@ -83,11 +83,7 @@ function bonesR(): BoneSpec[] {
   }
   // the tail-arm: ten segments (rat tail into a man's forearm), the hand, four fingers and a thumb
   for (let i = 0; i < NT; i++) A.push(['t' + i, i ? 't' + (i - 1) : 'pelvis', [0, TAIL_Y, TAIL_Z - TSEG * i], i === 0 || i === 5]);
-  A.push(['thand', 't' + (NT - 1), [0, TAIL_Y, HAND_Z], true]);
-  FINGERS.forEach((f, i) => {
-    A.push(['tf' + i + 'a', 'thand', [f.x, TAIL_Y - 0.004, KNUCK_Z]], ['tf' + i + 'b', 'tf' + i + 'a', [f.x, TAIL_Y - 0.004, KNUCK_Z - f.len * 0.52]]);
-  });
-  A.push(['ttha', 'thand', [-0.05, TAIL_Y - 0.014, HAND_Z - 0.035]], ['tthb', 'ttha', [-0.072, TAIL_Y - 0.016, HAND_Z - 0.076]]);
+  A.push(['thand', 't' + (NT - 1), [0, TAIL_Y, HAND_Z]]);
   const abs = new Map<string, V3>();
   return A.map(([name, parent, p, cap]) => {
     abs.set(name, p);
@@ -99,8 +95,8 @@ function bonesR(): BoneSpec[] {
 // ------------------------------------------------------------------ geometry
 function layoutR(p: Page) {
   p.reg('HIDE', 64, 64); p.reg('HEAD', 48, 32); p.reg('LEG', 32, 32); p.reg('TAIL', 24, 48); p.reg('ARM', 32, 40);
-  p.reg('HAND', 32, 24); p.reg('STALK', 16, 48); p.reg('EYE', 16, 16); p.reg('SINEW', 16, 24); p.reg('EAR', 16, 16);
-  p.reg('PAW', 16, 16); p.reg('TOOTH', 8, 8); p.reg('CLAW', 8, 8); p.reg('NAIL', 8, 8); p.reg('NOSE', 8, 8); p.reg('SOCKET', 8, 8);
+  p.reg('STALK', 16, 48); p.reg('EYE', 16, 16); p.reg('SINEW', 16, 24); p.reg('EAR', 16, 16);
+  p.reg('PAW', 16, 16); p.reg('TOOTH', 8, 8); p.reg('CLAW', 8, 8); p.reg('NOSE', 8, 8); p.reg('SOCKET', 8, 8);
   p.reg('BONE', 16, 8); p.reg('WHISK', 4, 8); p.reg('GUM', 8, 8); p.reg('CAP', 8, 8);
 }
 
@@ -115,25 +111,6 @@ function spineW(x: BuildCtx, z: number): Wt {
   const c = SPINE.map(([n, bz]) => [x.bi(n), Math.exp(-((z - bz) ** 2) / (2 * 0.11 * 0.11))] as [number, number]).sort((a, b) => b[1] - a[1]).slice(0, 2);
   const tot = c[0][1] + c[1][1] || 1;
   return [c[0][0], c[0][1] / tot, c[1][0], c[1][1] / tot];
-}
-
-/** a human hand palm-down at the end of the tail: palm, four two-jointed fingers with nails, a thumb */
-function humanHand(B: SkinB, x: BuildCtx, R: (n: string) => Region, g: number) {
-  const bi = x.bi, H = x.rest('thand'), hw: Wt = [bi('thand'), 1];
-  // the palm: a flattened slab from wrist to knuckles, thicker at the heel
-  const pz = [H[2] + 0.012, H[2] - 0.025, H[2] - 0.068, H[2] - 0.11, H[2] - 0.134];
-  sac(B, R('HAND'), g, pz.map((z, i) => [0.0 - (i > 2 ? 0 : 0.005), H[1] - 0.005 - i * 0.001, z]), [[0.032, 0.021], [0.047, 0.021], [0.054, 0.019], [0.055, 0.016], [0.049, 0.013]],
-    pz.map((_, i) => (i === 0 ? [bi('t' + (NT - 1)), 0.4, bi('thand'), 0.6] : hw)), { n: 10, up: [0, 1, 0], bump: (a, t) => (Math.abs(a) < 0.5 ? 0.06 * Math.sin(t * 9) : 0) + (Math.abs(a) > 2.6 ? -0.08 : 0) });
-  // fingers: a run from the knuckle through the middle joint to the tip; a nail on the back of the last pad
-  FINGERS.forEach((f, i) => {
-    const a = x.rest('tf' + i + 'a');
-    chain(B, x, R('HAND'), g + 1 + i, { bones: ['tf' + i + 'a', 'tf' + i + 'b'], tip: [a[0] + (i - 1.5) * 0.004, a[1] - 0.002, a[2] - f.len], r: (t) => f.r * (1.05 - t * 0.28), n: 6, rings: 3, knuckle: 0.22, up: [0, 1, 0], start: true });
-    const tip = a[2] - f.len, nw: Wt = [bi('tf' + i + 'b'), 1];
-    sac(B, R('NAIL'), g + 6 + i, [[a[0], a[1] + f.r * 0.78, tip + 0.022], [a[0], a[1] + f.r * 0.86, tip + 0.012], [a[0], a[1] + f.r * 0.7, tip + 0.003]], [[f.r * 0.62, 0.0025], [f.r * 0.7, 0.003], [f.r * 0.55, 0.002]], [nw, nw, nw], { n: 6, up: [0, 1, 0] });
-  });
-  // the thumb, from the heel of the palm, angled in
-  const t0 = x.rest('ttha');
-  chain(B, x, R('HAND'), g + 12, { bones: ['ttha', 'tthb'], tip: [t0[0] - 0.042, t0[1] - 0.004, t0[2] - 0.078], r: (t) => 0.015 * (1 - t * 0.3), n: 6, rings: 3, knuckle: 0.18, start: true });
 }
 
 function buildR(B: SkinB, x: BuildCtx) {
@@ -266,11 +243,12 @@ function buildR(B: SkinB, x: BuildCtx) {
   { const p = rest('t5'), w5: Wt = [bi('t5'), 1];
     sac(B, R('SINEW'), 61, [[0, p[1], p[2] + 0.025], [0, p[1], p[2]], [0, p[1], p[2] - 0.03]], [[0.032, 0.032], [0.038, 0.037], [0.03, 0.03]], [[bi('t4'), 0.5, bi('t5'), 0.5], w5, w5],
       { n: 10, start: false, end: false, bump: (aa) => (hash(Math.round(aa * 4), 7) - 0.5) * 0.4 }); }
-  // the forearm swells to a man's and narrows at the wrist (one extra elbow knuckle where no elbow should be)
-  chain(B, x, R('ARM'), 62, { bones: [...tails.slice(5), 'thand'], tip: [0, TAIL_Y - 0.002, HAND_Z - 0.012], n: 9, rings: 3, knuckle: 0.06, start: false, end: false,
-    r: (t) => 0.027 + 0.012 * Math.sin(Math.min(1, t * 1.6) * Math.PI) * (t < 0.62 ? 1 : 0.3) + 0.012 * gauss(t, 0.3, 0.05) - 0.006 * t,
+  // the upper arm: skin over a swelling of muscle, one extra elbow knuckle where no elbow should be; it ends at the
+  // man's elbow, where the human forearm and hand (the shared HumanRig, see decorate) take over
+  const t9 = rest('t' + (NT - 1));
+  chain(B, x, R('ARM'), 62, { bones: tails.slice(5, NT - 1), tip: [0, TAIL_Y, t9[2] - 0.035], n: 9, rings: 3, knuckle: 0.06, start: false, end: true,
+    r: (t) => 0.03 + 0.014 * Math.sin(Math.min(1, t * 1.3) * Math.PI) + 0.012 * gauss(t, 0.3, 0.05),
     bump: (aa, t) => 0.06 * gauss(aa, 0.3, 0.5) * gauss(t, 0.5, 0.2) + (Math.abs(aa) > 2.4 ? -0.05 : 0) });
-  humanHand(B, x, R, 70);
 }
 
 // ------------------------------------------------------------------ painting
@@ -332,14 +310,6 @@ function paintR(p: Page, x: BuildCtx) {
   for (let yy = 0; yy < ar.h; yy++) for (let xx = 0; xx < ar.w; xx++) if (yy / ar.h > 0.82 && hash(xx, yy) < 0.35) ar.blend(xx, yy, 0x5a4030, 0.35);
   // the first rows of the arm: still a little scaly (where it grew out of the tail)
   for (let yy = 0; yy < 5; yy++) for (let xx = 0; xx < ar.w; xx++) if (hash(xx, yy + 50) < 0.5 - yy * 0.1) ar.put(xx, yy, TL, 2 + (yy % 2), 0.5);
-  // the hand: knuckle creases, pale palm, grime in the creases
-  const hn = p.R('HAND');
-  paintSkin(hn, SKH, { seed: 31 + v, veins: 3, vein: 0x8a8ab0, mottle: 1, glint: 6 });
-  for (let yy = 1; yy < hn.h; yy += 4) for (let xx = 0; xx < hn.w; xx++) if (Math.abs(hn.deg(xx)) < 100 && hash(xx, yy) < 0.6) hn.blend(xx, yy, 0x8a5a48, 0.45);
-  for (let yy = 0; yy < hn.h; yy++) for (let xx = 0; xx < hn.w; xx++) if (Math.abs(hn.deg(xx)) > 130) hn.blend(xx, yy, 0xf0c8b0, 0.35);
-  const nl = p.R('NAIL');
-  nl.fill(makeRamp(0xe8d8b0, 4, { spread: 0.4 }), (xx, yy) => 2.4 - (yy > 5 ? 1.2 : 0) + (hash(xx, yy) - 0.5) * 0.5);
-  for (let xx = 0; xx < nl.w; xx++) nl.set(xx, nl.h - 1, 0x2a1a10);
   // the stalks: wet ringed muscle, purple-red, veined, paler at the rings
   const st = p.R('STALK');
   const ST = makeRamp(0xa83a48, 7, { hueShift: 0.05, spread: 0.6 });
@@ -380,7 +350,44 @@ const RAT_KIT: KitDef = { key: 'whip_rat', variants: 3, W: 256, H: 256, bones: b
       const m = new THREE.Mesh(geo, mat); m.name = 'rat_shine'; m.position.set(0, 0.03, 0); m.castShadow = false;
       rig.parts[n].add(m); return m;
     });
+    attachHand(rig);
   } };
+
+// ------------------------------------------------------------------ the hand: the shared human base (HumanRig)
+// Every human hand in the game is the same body. This one is a man's right forearm and hand from a HumanRig,
+// hung on the last joint of the tail: the rest of that body is folded away to nothing inside the tail (its
+// root bone collapsed to a point at the elbow), the forearm bone re-parented to the rig's body and turned so
+// the fingers run on down the tail and the back of the hand is up. Same mesh, same skin painter as a unit.
+const HAND_APP: Appearance = { skin: SKIN_TONES[1], hair: HAIR_COLORS[1], hairStyle: 'short', face: 1, build: 'average', height: HAND_S, bodyShape: 0.08, facialHair: 'none', age: 0.5, scars: 0, freckles: 0 };
+const HAND_OUTFIT: Outfit = { torso: { tex: 'c_bare', color: SKIN_TONES[1] }, cond: { dirt: 2, pale: 1, blood: { hand_r: 1, farm_r: 1 } } };
+/** HumanRig axes -> tail-bone axes: fingers (-y) run on down the tail (-z), the back of the hand (-x) faces up (+y) */
+const HAND_BASIS = new THREE.Matrix4().makeBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(-1, 0, 0));
+function attachHand(rig: KitRig) {
+  const hr = new HumanRig(HAND_APP, worldMaterial({}));
+  hr.setOutfit(HAND_OUTFIT);
+  hr.faceAnim = false;
+  hr.skin.frustumCulled = false;
+  (hr.skin as any).clone = () => new THREE.Group();
+  // everything but the forearm collapses to a point at the elbow (inside the tail)
+  const hips = hr.bones.hips;
+  hips.matrixAutoUpdate = false; hips.matrix.makeScale(1e-4, 1e-4, 1e-4);
+  const fa = hr.bones.farmR;
+  hr.body.add(fa);
+  fa.matrixAutoUpdate = false; fa.matrix.copy(HAND_BASIS);
+  rig.parts['t' + (NT - 1)].add(hr.root);
+  rig.kit.m.hr = hr;
+}
+/** wrist flex (about the tail's x) and grip 0..1 on the HumanRig hand */
+function poseHand(K: KitRig, flex: number, grip: number, open: number) {
+  const hr = K.kit.m.hr as HumanRig | undefined;
+  if (!hr) return;
+  // a rotation about the tail's x axis is one about the hand's -z
+  hr.bones.handR.rotation.set(0, 0, -flex);
+  const g = Math.max(-0.25, Math.min(1, grip - open * 0.25));
+  hr.bones.fing1R.rotation.set(0, 0, g * 1.45);
+  hr.bones.fing2R.rotation.set(0, 0, g * 1.6);
+  hr.bones.thumbR.rotation.set(g * 0.5, -g * 0.6, g * 0.55);
+}
 
 /** a whip rat rig (variant 0..2) */
 export function buildWhipRat(variant = 0): KitRig { return buildKitRig(RAT_KIT, variant, 0.55); }
@@ -638,16 +645,9 @@ function poseRat(K: KitRig, d: RatDrive) {
   // the hand: flexes at the wrist; fingers spread to reach, curl to grip, drum the floor when bored
   P.thand.rotation.set(-0.15 * (1 - over) + 0.25 * reach - 0.15 * plant + 0.2 * drag + Math.sin(t * 2.3) * 0.05 * alive * (1 - drag), 0, 0);
   const grip = Math.max(hold, plant > 0.9 ? 1 : 0, dead * 0.7);
-  FINGERS.forEach((_, i) => {
-    const walk = Math.max(0, Math.sin(t * 9 - i * 1.1)) * fingersWalk * 0.5;
-    const open = reach * (1 - hold);
-    const curlA = -(0.25 + walk + grip * 1.15 - open * 0.45 + Math.sin(t * 1.3 + i) * 0.05 * alive);
-    const curlB = -(0.2 + walk * 0.8 + grip * 1.3 - open * 0.3);
-    P['tf' + i + 'a'].rotation.set(curlA, (i - 1.5) * 0.12 * (1 + open * 1.5) * (1 - grip * 0.6), 0);
-    P['tf' + i + 'b'].rotation.set(curlB, 0, 0);
-  });
-  P.ttha.rotation.set(-0.2 - grip * 0.6, -0.3 * grip + 0.3 * reach * (1 - hold), -0.2 * grip);
-  P.tthb.rotation.set(-0.3 - grip * 0.7, 0, 0);
+  // the fingers drum on the floor when it is bored (a slow, unbearable patience)
+  const drum = Math.max(0, Math.sin(t * 9)) * fingersWalk * 0.35;
+  poseHand(K, P.thand.rotation.x, 0.25 + drum + grip * 0.75 + Math.sin(t * 1.3) * 0.04 * alive, reach * (1 - hold));
   // ---- the item or meal it is carrying, held in the hand
   const it = K.kit.m.item as THREE.Object3D | undefined;
   if (it) it.visible = d.hold > 0.5;
@@ -1074,7 +1074,7 @@ const WHIP = def({
       'It avoids light. A beam held on it drives it back.',
     ],
   },
-  gore: { blood: 'red', flesh: 0xa82a28, sever: ['esL2', 'esR2', 'eyeL', 'eyeR', 'earL', 'earR', 't5', 'thand', 'elbowL', 'elbowR', 'kneeL', 'kneeR', 'jaw'], head: 'head' },
+  gore: { blood: 'red', flesh: 0xa82a28, sever: ['esL2', 'esR2', 'eyeL', 'eyeR', 'earL', 'earR', 'elbowL', 'elbowR', 'kneeL', 'kneeR', 'jaw'], head: 'head' },
   build: () => buildWhipRat(0), animate: animateRat, think: thinkRat,
 });
 onPlayerHit('whip_rat', (p, h) => {
@@ -1117,4 +1117,4 @@ WHIP.animateGallery = (rig: Rig, t: number) => {
   const num = (k: string) => (u.get(k) !== null ? Number(u.get(k)) : undefined);
   poseWhipRat(rig as KitRig, t, 1 / 60, q, { variant: num('v') ?? 0, strikeT: num('st'), lookYaw: num('ly'), item: u.get('item') ?? undefined });
 };
-horrify(WHIP, { twitch: 0.3, snap: 0.1, breathe: 0.004, lunge: 0.08, parts: /head|jaw|ear|nose|thand|tf\da|ttha/, keepMaterials: false });
+horrify(WHIP, { twitch: 0.3, snap: 0.1, breathe: 0.004, lunge: 0.08, parts: /head|jaw|ear|nose|thand/, keepMaterials: false });

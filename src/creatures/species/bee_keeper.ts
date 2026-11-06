@@ -453,6 +453,7 @@ function poseK(R: KRig, d: KDrive) {
   if (d.flinch > 0) { P.rootX = (P.rootX ?? 0) + Math.sin(t * 80) * 0.025 * d.flinch; add(P, 'head', 0, 0, Math.sin(t * 60) * 0.2 * d.flinch); }
   P.blink = 0;
   R.hr.applyPose(P);
+  // the face stays the wax cast it was (as on a Still Life): no face ticks, which would repaint it
   R.hr.fx.value.y += d.dt;
   poseExtra(keeperOverlay(R.hr), { t, growth: d.growth, buzz: d.mode === 'buzz' ? 1 : d.mode === 'flee' ? 0.6 : d.mode === 'wake' ? 1 - d.wake : 0, sting: d.mode === 'sting' ? d.atk : 0, quest: d.mode === 'watch' || d.mode === 'mimic' ? 1 : 0, chew: d.mode === 'inspect' ? 1 : 0, still: 0, dead: d.mode === 'dead' ? 1 : 0, seed: sd });
 }

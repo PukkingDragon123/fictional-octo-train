@@ -2,7 +2,7 @@
 // touch SELF button) stands your unit on the Meridian inspection turntable in
 // front of you: the whole body, lit like the intake bay, wearing what you wear
 // and holding what you hold. Glowing tags sit on it where things are: head,
-// torso, trousers, feet, the pack on your back, the tool roll, the watch, both
+// torso, trousers, feet, the pack on your back, the tool roll, the band, both
 // hands, the left and right pockets (and any chest / back pocket your clothes
 // have). Touch one and its sheet of light opens beside you with the real
 // things in it (their own models, turning slowly); pick one to wear it, take it
@@ -27,7 +27,7 @@ import { WearAction, EquipAction } from '../../actions/basic';
 import { floorContainer } from '../../items/worldItems';
 import { settlePack } from '../../items/packResolver';
 import { bindHot, hotSlots, hotOf, HOT_N } from '../hotbar/hotbar';
-import { Plate, PLATE_T, backdrop, lightBlend } from '../watch/plate';
+import { Plate, PLATE_T, backdrop, lightBlend } from '../broadcast/plate';
 import { isTouchMode } from '../touch/mode';
 
 type SpotId = 'head' | 'torso' | 'legs' | 'feet' | 'back' | 'belt' | 'wrist' | 'handL' | 'handR' | 'pocketL' | 'pocketR' | 'pocketC';
@@ -39,7 +39,7 @@ const SPOTS: SpotDef[] = [
   { id: 'feet', label: 'FEET', a: 'footL', b: 'footR', t: 0.5, off: [0, 0.02, 0.12], face: 'front', slots: ['socks', 'shoes', 'feet'] },
   { id: 'back', label: 'BACKPACK', a: 'chest', off: [0, -0.06, -0.24], face: 'back', slots: ['back'] },
   { id: 'belt', label: 'TOOL ROLL', a: 'hips', off: [0, 0.02, 0], face: 'side', slots: ['belt'] },
-  { id: 'wrist', label: 'WATCH', a: 'farmL', b: 'handL', t: 0.78, off: [0, 0, 0], face: 'side', slots: ['wrist'] },
+  { id: 'wrist', label: 'BAND', a: 'farmL', b: 'handL', t: 0.78, off: [0, 0, 0], face: 'side', slots: ['wrist'] },
   { id: 'handL', label: 'LEFT HAND', a: 'handL', off: [0, -0.06, 0], face: 'side', slots: ['hands'] },
   { id: 'handR', label: 'RIGHT HAND', a: 'handR', off: [0, -0.06, 0], face: 'side', slots: ['hands'] },
   { id: 'pocketL', label: 'LEFT POCKET', a: 'thighL', b: 'shinL', t: 0.2, off: [0, 0, 0.05], face: 'side' },
@@ -123,7 +123,6 @@ export class SelfInspect {
     if (this.open) return;
     const p = G.local, g: any = G;
     if (!p || p.body.dead || g.intro?.running) return;
-    if (fpOwner() === 'watch') g.watch?.toggle?.(false);
     if (fpOwner() === 'pack') g.pack?.toggle?.(false);
     if (fpOwner() === 'broadcast') { g.broadcast?.close?.(true); fpRelease('broadcast'); }
     if (fpOwner() && fpOwner() !== 'self') return;
@@ -415,7 +414,7 @@ export class SelfInspect {
       if (e.code !== 'KeyO' || e.repeat || e.ctrlKey || e.metaKey) return;
       const g: any = G;
       if (g.paused || G.ui?.modal || G.ui?.menuEl || G.ui?.readerEl || g.transitioning) return;
-      if (fpOwner() && fpOwner() !== 'watch' && fpOwner() !== 'pack') return;
+      if (fpOwner() && fpOwner() !== 'pack') return;
       this.toggle(true);
       if (this.open) { e.preventDefault(); e.stopImmediatePropagation(); }
       return;

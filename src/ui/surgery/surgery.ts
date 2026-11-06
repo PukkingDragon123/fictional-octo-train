@@ -4,7 +4,7 @@
 // limp in two slings and drops it on the pad, the straps snap shut (stage.ts).
 // Touch a part of the subject, or press its key in the region bank on the
 // desk: the tele-diagnostic CRT lists what can go there (the Scrapjack Arm to
-// begin with; the rest is researched on the watch, branch 'cyber', or found in
+// begin with; the rest is researched in the lab (LIMBS), or found in
 // a run), FIT sends the two manipulators in. BRAIN opens the programme
 // cartridges (the occupations) and the condition cards (the traits): all of
 // them are free to choose; the card reader holds four cards, two of them gifts
@@ -192,7 +192,7 @@ export function startSurgery(app: Appearance, onDone: (r: SurgeryResult | null) 
           pen.para('− ' + d.bad, X, y, W - 2 * X, PH.mid, 14, 18, 2);
         } else {
           pen.text('RESTRICTED HARDWARE', X, y, PH.hi, 14, 'left', 600); y += 19;
-          pen.para('Research it on the watch (the cyber branch), or find one out there.', X, y, W - 2 * X, PH.mid, 14, 18, 2, true);
+          pen.para('Research it in the lab (LIMBS), or find one out there.', X, y, W - 2 * X, PH.mid, 14, 18, 2, true);
         }
       }
       const can = d ? partUnlocked(d) && cur !== d.key : !!cur;

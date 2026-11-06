@@ -10,7 +10,7 @@ import type { GGSpec, Garm, Dress, FaceSpec } from './types';
 export const HAZMAT_YELLOW = 0xe8c228;
 
 const TOP: Record<string, string> = {
-  c_shirt: 'tee', c_shirt_stripe: 'stripe', c_shirt_button: 'shirt', c_sweater: 'knit', c_hoodie: 'hoodie', c_scrubs: 'scrubs', c_uniform: 'uniform',
+  c_shirt: 'tee', c_shirt_party: 'tee', c_shirt_stripe: 'stripe', c_shirt_button: 'shirt', c_sweater: 'knit', c_hoodie: 'hoodie', c_scrubs: 'scrubs', c_uniform: 'uniform',
   c_guard: 'guard', c_pajama: 'pajama', c_underwear: 'under', c_jumpsuit: 'jumpsuit', c_jsuit_stripe: 'jumpsuit', c_jsuit_hazard: 'jumpsuit', c_jsuit_circuit: 'jumpsuit',
   c_hazmat: 'hazmat', c_bandeau: 'bandeau', c_bare: 'bare', c_blouse: 'blouse',
 };
@@ -82,7 +82,7 @@ export function dressOf(o: Outfit, app: Appearance, seed: number): Dress {
   return D;
 }
 
-export interface SpecOverrides { bust?: number; makeup?: FaceSpec['makeup']; lipstick?: number; glasses?: FaceSpec['glasses']; hairStyle?: string; hairVolume?: number; badge?: { col: number[]; name: string }; blush?: number; eyeH?: number; eyeW?: number }
+export interface SpecOverrides { bust?: number; makeup?: FaceSpec['makeup']; lipstick?: number; glasses?: FaceSpec['glasses']; hairStyle?: string; hairVolume?: number; badge?: { col: number[]; name: string }; blush?: number; eyeH?: number; eyeW?: number; /** 0..1 balloon the cranium out (applied to the built mesh by HumanRig; Timmy) */ inflate?: number }
 
 /** the full spec for a rig */
 export function specOf(app: Appearance, o: Outfit, d: Dims, seed: number, cond: RigCondition, ov: SpecOverrides = {}): GGSpec {

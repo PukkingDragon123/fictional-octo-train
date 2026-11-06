@@ -5,7 +5,7 @@ import './hotbar.css';
 import { G } from '../../game/G';
 import { ContextBar, ctxAllowed } from './context';
 import { HotbarStrip } from './hotbar';
-import { QuestBroadcast } from '../watch/broadcast';
+import { QuestBroadcast } from '../broadcast/broadcast';
 import { SelfInspect } from '../selfInspect';
 import { WorldPrompt } from '../worldPrompt';
 import { ActPad } from '../touch/actpad';

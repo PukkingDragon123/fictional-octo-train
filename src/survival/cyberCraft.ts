@@ -1,7 +1,7 @@
 // Building cyberware on the operating table's jig (src/ui/surgery/field.ts).
 // The two machines are the tools, so a recipe here is only the material: what
 // goes into the part. A part can be built once the table can fit it (the
-// starter, or researched on the watch: cyber.ts partUnlocked). Pieces come out
+// starter, or researched in the lab: cyber.ts partUnlocked). Pieces come out
 // of anything you carry that is not worn; the part goes into your pack.
 import type { Player } from '../entities/player';
 import type { Item } from '../items/item';

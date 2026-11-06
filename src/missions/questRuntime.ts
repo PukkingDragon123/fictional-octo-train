@@ -1,6 +1,8 @@
 // The quest runtime: everything defQuest registers (src/game/quests.ts) is
-// offered ("uploaded to the watch"), accepted, tracked, paid for and rewarded
-// here. Owned by the MissionSystem (G.missions.quests, also G.watch.quests).
+// offered (on Dr. Calder's board, the J broadcast), accepted, tracked, paid for and rewarded
+// here. Owned by the MissionSystem (G.missions.quests). Notices go out on bus 'questNotice'
+// { key, kind: 'offer' | 'ready' | 'done' | 'objective', title, text?, intro?, outro? } (Calder says them:
+// src/ui/broadcast/notices.ts).
 //
 // State is one small record per quest, replicated as an absolute 'quest' op
 // (host-authoritative, logged, so co-op peers, late joiners and saves all
@@ -30,7 +32,7 @@ export type QStatus = 'off' | 'act' | 'ready' | 'done' | 'decl';
 /** s status · n completions · t clock hour of the last change · b baselines captured on accept · by who accepted */
 export interface QRec { s: QStatus; n: number; t: number; b?: Record<string, number>; by?: string }
 
-/** where an objective (or a quest) points: drawn on the watch's map and glance view */
+/** where an objective (or a quest) points: Calder's floor chevrons for the tracked quest */
 export interface QWhere { zone: string; x: number; z: number; label?: string }
 
 export interface QObjX extends QuestObjective { where?: () => QWhere | null }
@@ -55,7 +57,7 @@ export interface QuestX extends QuestDef {
   give?: [string, number][];
   /** map / glance target while active */
   where?: () => QWhere | null;
-  /** never offered by itself: someone hands it out (G.watch.acceptQuest). Tribe work is manual by default. */
+  /** never offered by itself: someone hands it out (G.missions.quests.acceptQuest). Tribe work is manual by default. */
   manual?: boolean;
 }
 export interface QView {
@@ -133,7 +135,7 @@ export class QuestRuntime {
     try { const v = o.check(this.m); return v === true ? 1 : v === false ? 0 : Math.max(0, Math.min(1, Number(v) || 0)); } catch { return 0; }
   }
 
-  /** quests by watch tab: active (accepted, ready to pay), offers (uploaded, declined), done */
+  /** quests by board tab: active (accepted, ready to pay), offers (uploaded, declined), done */
   list(tab: 'active' | 'offers' | 'done'): QView[] {
     const out: QView[] = [];
     for (const d of questDefs() as QuestX[]) {
@@ -207,12 +209,27 @@ export class QuestRuntime {
   }
 
   // ================================================================ local actions (any peer)
-  /** accept / decline / pay / abandon from the watch */
+  /** 'active' | 'ready' | 'done' | 'offered' | 'declined' | '' (the old watch's questStatus, for job boards) */
+  questStatus(k: string): string {
+    const s = this.status(k);
+    if (!s) return '';
+    if (s === 'done' || (this.completed(k) && s !== 'act' && s !== 'ready')) return 'done';
+    return s === 'act' ? 'active' : s === 'ready' ? 'ready' : s === 'off' ? 'offered' : 'declined';
+  }
+  /** take a job someone handed you in person (tribe job boards): straight onto the board, tracked */
+  acceptQuest(k: string): boolean {
+    const err = this.request(k, 'accept');
+    if (err) { G.audio?.ui?.('watchDeny'); return false; }
+    this.track(k);
+    return true;
+  }
+
+  /** accept / decline / pay / abandon from the board */
   request(k: string, act: 'accept' | 'decline' | 'pay' | 'abandon'): string | null {
     const d = this.def(k), r = this.recs.get(k), p = G.local;
     if (!d || !p) return 'NO SUCH QUEST';
     if (!r) {
-      // handed out in person (a tribe's job board): accept straight onto the watch
+      // handed out in person (a tribe's job board): accept straight onto the board
       if (act !== 'accept' || !this.available(d)) return 'NOT AVAILABLE';
       if (d.cost?.payOnAccept) { const a = this.affordable(d); if (!a.ok) return a.note; this.takeItems(p, d); }
       op('questReq', { k, act, by: p.id });
@@ -362,7 +379,7 @@ export class QuestRuntime {
         const fk = `obj:${d.key}:${o.id}`;
         if (flags.has(fk) && !this.seenObj.has(fk)) {
           this.seenObj.add(fk);
-          G.watch?.message?.('OBJECTIVE DONE', o.text, 'ok', 3, true);
+          bus.emit('questNotice', { key: d.key, kind: 'objective', title: d.title, text: o.text });
           G.audio?.ui?.('watchTick', 0.5);
         }
       }
@@ -370,24 +387,24 @@ export class QuestRuntime {
   }
 
   private announce(d: QuestX, r: QRec, was: string | undefined) {
-    const w = G.watch;
+    const note = (kind: 'offer' | 'ready' | 'done') => bus.emit('questNotice', { key: d.key, kind, title: d.title, intro: !!d.intro, outro: !!d.outro });
     const prevS = was?.split(':')[0];
     switch (r.s) {
       case 'off':
         this.fresh.add(d.key);
         this.m.unread = true;
         G.audio?.ui?.('questChime', 0.6);
-        w?.notify?.(d.key, 'offer');
+        bus.emit('questNotice', { key: d.key, kind: 'offer', title: d.title, intro: !!(d.intro && d.voice) });
         if (d.intro && d.voice) this.line(d, d.intro, 7);
         break;
       case 'act':
-        if (prevS === 'off' || prevS === 'decl') { G.watch?.message?.('QUEST ACCEPTED', d.title, 'ok', 2.5); G.audio?.ui?.('watchTick', 0.6); }
+        if (prevS === 'off' || prevS === 'decl') G.audio?.ui?.('watchTick', 0.6);
         else {
           // auto quests (the contract) arrive already accepted
           this.fresh.add(d.key);
           this.m.unread = true;
           G.audio?.ui?.('questChime', 0.6);
-          w?.notify?.(d.key, 'offer');
+          note('offer');
           if (d.intro) this.line(d, d.intro, 7);
         }
         // the objectives of a quest that was already done when it arrived are not news
@@ -395,11 +412,11 @@ export class QuestRuntime {
         break;
       case 'ready':
         G.audio?.ui?.('questChime', 0.45);
-        w?.notify?.(d.key, 'ready');
+        note('ready');
         break;
       case 'done': {
         G.audio?.ui?.('questDone', 0.6);
-        w?.notify?.(d.key, 'done');
+        note('done');
         if (d.outro) setTimeout(() => this.line(d, d.outro!, 8), 2200);
         if (this.tracked === d.key) this.track(null);
         break;

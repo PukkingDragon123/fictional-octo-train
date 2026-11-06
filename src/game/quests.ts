@@ -1,4 +1,4 @@
-// Quest definitions. Any system registers quests here; the watch's quest
+// Quest definitions. Any system registers quests here; the quest
 // runtime lists, offers, tracks and rewards them (and may bridge them onto the
 // MissionSystem). `m` in checks is the MissionSystem (flags, counters).
 export interface QuestObjective {
@@ -12,7 +12,7 @@ export interface QuestObjective {
 export interface QuestDef {
   key: string;
   title: string;
-  /** who uploads it to the watch: 'VOSS', a tribe, 'MERIDIAN R&D'... */
+  /** who posts it on the board: 'VOSS', a tribe, 'MERIDIAN R&D'... */
   giver?: string;
   desc: string;
   category?: string;

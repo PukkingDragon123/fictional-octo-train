@@ -10,7 +10,12 @@ import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
 import { CS, creatureMenu, poke, poked, pulse, stop, HeldAction } from '../behaviors_a';
 import { net, netOf, playAt, hashId, fakeCreature, localIn, thinkOnce, dist } from '../behaviors_b';
-import { KitDef, KitRig, BoneSpec, SkinB, BuildCtx, Page, V3, buildKitRig, kitSync, hash, nearestSurvivor, lookAngles, flinchOf } from '../kit/humanoids';
+import { KitDef, KitRig, BoneSpec, SkinB, BuildCtx, Page, V3, buildKitRig, kitSync, hash, nearestSurvivor, lookAngles, flinchOf, cutState, cutSync, type CutState } from '../kit/humanoids';
+import * as THREE from 'three';
+import { HumanRig, randomAppearance, type Pose as HPose } from '../../entities/humanRig';
+import { BONES } from '../../entities/humanModel';
+import { worldMaterial } from '../../gfx/materials';
+import { MEMORIES, ADULT_MEMORIES, replicaPose } from '../kit/replica';
 import { chain, sac, blade, plate, paintSkin, paintCap, paintCloth } from '../kit/organic';
 import { inhabitant } from '../lore';
 import { advanceLore, unknownInhabitants } from '../../scan/lorebook';
@@ -24,6 +29,10 @@ import '../../audio/sounds_creatures_c';
 // forms the headrest. It is alive: it breathes, its eyes move, its fingers
 // tighten. The King in Yellow makes them out of those who sought to know too
 // much. It whispers what it learned, to anyone who sits.
+// Round 14 (one human base): the person in it is a HumanRig (src/entities/humanRig.ts),
+// posed rigid in the chair, its face its own painter's (fear, pallor, the mouth
+// working when it whispers); the kit rig below is only the chair grown round them:
+// the tufted skin backing, the seat cushion, the upholstery, the wood and the nails.
 // =====================================================================================
 
 const SIDES = [['L', 1], ['R', -1]] as const;
@@ -58,30 +67,14 @@ function layoutS(p: Page) {
 function buildS(B: SkinB, x: BuildCtx) {
   const bi = x.bi, R = x.R;
   const BA = bi('base'), PV = bi('pelvis'), SP = bi('spine'), CH = bi('chest'), NK = bi('neck'), HD = bi('head'), JW = bi('jaw'), EY = bi('eyes');
-  // the backrest: the torso, chest forward, stretched broad and flat, buttoned through
-  sac(B, R('BACK'), 1, [[0, 0.44, -0.2], [0, 0.6, -0.24], [0, 0.78, -0.27], [0, 0.95, -0.29], [0, 1.03, -0.29]],
-    [[0.24, 0.12], [0.27, 0.13], [0.3, 0.14], [0.3, 0.13], [0.16, 0.09]], [[PV, 1], [PV, 0.5, SP, 0.5], [SP, 0.5, CH, 0.5], [CH, 1], [CH, 0.6, NK, 0.4]],
+  // the backing: skin stretched over a frame behind the body, buttoned through (the person sits in it)
+  sac(B, R('BACK'), 1, [[0, 0.44, -0.34], [0, 0.6, -0.37], [0, 0.78, -0.39], [0, 0.95, -0.4], [0, 1.06, -0.4]],
+    [[0.24, 0.07], [0.27, 0.08], [0.3, 0.08], [0.3, 0.08], [0.16, 0.06]], [[PV, 1], [PV, 0.5, SP, 0.5], [SP, 0.5, CH, 0.5], [CH, 1], [CH, 1]],
     { n: 12, up: [0, 0, 1], bump: (a, t) => Math.exp(-(a * a) / 0.5) * (Math.max(0, Math.sin(t * Math.PI * 7)) * 0.05) - (Math.abs(a) > 2.4 ? 0.1 : 0) });
-  // the seat: two thighs pressed side by side under a stretched skin cushion
-  for (const [s, k] of SIDES) {
-    const T = bi('thigh' + s), Sh = bi('shin' + s);
-    chain(B, x, R('LIMB'), 2 + (k > 0 ? 0 : 1), { bones: ['thigh' + s, 'shin' + s, 'foot' + s], tip: [k * 0.11, 0.02, 0.36], r: (t) => (t < 0.5 ? 0.1 - t * 0.06 : 0.055 - (t - 0.5) * 0.04), knuckle: 0.25, n: 8, rings: 3, up: [0, 1, 0] });
-    // the foot, flat on the floor like a chair's foot, toes forward
-    const fp = x.rest('foot' + s);
-    sac(B, R('LIMB'), 4 + (k > 0 ? 0 : 1), [[fp[0], 0.03, fp[2] - 0.05], [fp[0], 0.045, fp[2] + 0.04], [fp[0], 0.03, fp[2] + 0.13]], [[0.04, 0.03], [0.045, 0.035], [0.035, 0.018]], [[bi('foot' + s), 1], [bi('foot' + s), 1], [bi('foot' + s), 1]], { n: 7 });
-    void T; void Sh;
-  }
-  sac(B, R('SKIN'), 6, [[0, 0.47, -0.18], [0, 0.52, -0.05], [0, 0.53, 0.12], [0, 0.5, 0.27]], [[0.29, 0.06], [0.31, 0.07], [0.31, 0.07], [0.28, 0.05]], [[PV, 1], [PV, 0.6, bi('thighL'), 0.2, bi('thighR'), 0.2], [bi('thighL'), 0.5, bi('thighR'), 0.5], [bi('shinL'), 0.5, bi('shinR'), 0.5]],
+  // the seat cushion: skin stretched under the thighs
+  sac(B, R('SKIN'), 6, [[0, 0.4, -0.2], [0, 0.43, -0.05], [0, 0.44, 0.12], [0, 0.41, 0.27]], [[0.29, 0.05], [0.31, 0.06], [0.31, 0.06], [0.28, 0.04]], [[PV, 1], [PV, 1], [BA, 1], [BA, 1]],
     { n: 10, bump: (a, t) => Math.max(0, Math.sin(t * Math.PI * 3)) * 0.06 * Math.cos(a * 0.5) });
-  // the armrests: upper arms down from the shoulders, forearms laid forward, hands gripping the front edge
-  for (const [s, k] of SIDES) {
-    chain(B, x, R('LIMB'), 8 + (k > 0 ? 0 : 1), { bones: ['uarm' + s, 'farm' + s, 'hand' + s], tipLen: 0.08, r: (t) => (t < 0.45 ? 0.06 - t * 0.03 : 0.045 - (t - 0.45) * 0.03), knuckle: 0.3, n: 7, rings: 3, up: [0, 1, 0] });
-    // fingers curled down over the end of the armrest
-    const hp = x.rest('hand' + s), F = bi('fing' + s);
-    for (let f = 0; f < 4; f++) {
-      const xo = hp[0] + k * (f - 1.5) * 0.017;
-      sac(B, R('LIMB'), 10 + f, [[xo, hp[1] + 0.01, hp[2] + 0.05], [xo, hp[1] + 0.012, hp[2] + 0.09], [xo, hp[1] - 0.025, hp[2] + 0.11], [xo, hp[1] - 0.055, hp[2] + 0.1]], [[0.01, 0.009], [0.009, 0.008], [0.008, 0.007], [0.006, 0.005]], [[bi('hand' + s), 1], [F, 1], [F, 1], [F, 1]], { n: 5, start: false });
-    }
+  for (const [s] of SIDES) {
     // a wooden strut under each armrest, screwed through the elbow
     const fa = x.rest('farm' + s);
     sac(B, R('WOOD'), 14, [[fa[0], 0.5, fa[2] + 0.05], [fa[0], fa[1] - 0.03, fa[2] + 0.05]], [[0.02, 0.02], [0.018, 0.018]], [[BA, 1], [bi('farm' + s), 1]], { n: 6 });
@@ -103,12 +96,6 @@ function buildS(B: SkinB, x: BuildCtx) {
     sac(B, R('WOOD'), 15, prof.map(([y]) => [k * 0.22, y, -0.3 - (0.46 - y) * 0.06] as V3), prof.map(([, r]) => [r, r] as [number, number]), prof.map(([y]) => (y > 0.36 ? [PV, 1] : [BA, 1])), { n: 7, up: [0, 0, 1] });
     for (let n = 0; n < 3; n++) sac(B, R('NAIL'), 16, [[k * (0.2 + n * 0.012), 0.44 + n * 0.015, -0.29], [k * (0.2 + n * 0.012), 0.44 + n * 0.015, -0.24]], [[0.006, 0.006], [0.004, 0.004]], [[PV, 1], [PV, 1]], { n: 4 });
   }
-  // the neck, stretched, and the head that makes the headrest: the face looks out over whoever sits
-  chain(B, x, R('SKIN'), 17, { bones: ['neck', 'head'], tip: [0, 1.25, -0.27], r: [0.055, 0.05], n: 8, rings: 2, end: false });
-  sac(B, R('HEAD'), 18, [[0, 1.1, -0.29], [0, 1.15, -0.29], [0, 1.24, -0.29], [0, 1.31, -0.3], [0, 1.34, -0.3]], [[0.07, 0.075], [0.085, 0.095], [0.09, 0.1], [0.075, 0.085], [0.03, 0.035]],
-    [[NK, 0.3, HD, 0.7], [HD, 1], [HD, 1], [HD, 1], [HD, 1]], { n: 12, up: [0, 0, 1], start: false });
-  plate(B, R('FACE'), 19, [0, 1.2, -0.205], [1, 0, 0], [0, 1, 0], 0.07, 0.09, 0.025, (u, v) => (v < -0.35 ? [JW, 1] : [HD, 1]), { rows: 8, cols: 6 });
-  for (const [, k] of SIDES) sac(B, R('EYE'), 20, [[k * 0.03, 1.235, -0.2], [k * 0.03, 1.235, -0.188], [k * 0.03, 1.235, -0.181]], [[0.012, 0.012], [0.014, 0.012], [0.006, 0.005]], [[EY, 1], [EY, 1], [EY, 1]], { n: 7 });
   // the antimacassar: yellow cloth draped over the top of the head and down the back
   blade(B, R('CLOTH'), [[0, 1.33, -0.24], [0, 1.36, -0.32], [0, 1.25, -0.42], [0, 1.0, -0.43], [0, 0.82, -0.42]], [0.12, 0.14, 0.15, 0.15, 0.14], [1, 0, 0], [[HD, 1], [HD, 1], [HD, 0.5, CH, 0.5], [CH, 1], [CH, 1]], { offset: -0.5, edge: 0.3, seed: 4 });
 }
@@ -152,44 +139,94 @@ function paintS(p: Page) {
   paintCap(p.R('CAP'), SK[2], 0xb83838, 0x3a1010);
 }
 const SEATED_KIT: KitDef = { key: 'seated', variants: 1, W: 128, H: 256, bones: bonesS, layout: layoutS, build: buildS, paint: paintS, sphere: [0, 0.6, 0, 1.0] };
-function buildSeated(): Rig { return buildKitRig(SEATED_KIT, 0, 1.25); }
+// ------------------------------------------------------------------ the person in it: the human base, posed into the chair
+interface SRig extends KitRig { hr: HumanRig; cut: CutState; who: string }
+const POOL: SRig[] = [];
+const HR_Z = -0.16;
+function buildSeated(): Rig {
+  for (const r of POOL) if (!r.root.parent) { r.root.userData = {}; r.root.position.set(0, 0, 0); r.root.rotation.set(0, 0, 0); r.body.rotation.set(0, 0, 0); return r; }
+  const K = buildKitRig(SEATED_KIT, 0, 1.25) as SRig;
+  const hr = new HumanRig(MEMORIES[0].app, worldMaterial({}));
+  (hr.skin as any).clone = () => new THREE.Group();
+  hr.root.position.set(0, 0, HR_Z);
+  K.body.add(hr.root);
+  K.hr = hr; K.who = '';
+  K.cut = cutState(BONES.map((b) => hr.bones[b]), hr.skin.skeleton);
+  // the gore system cuts these: the person's hands and head, not the chair's
+  K.parts.handL = hr.j.handL; K.parts.handR = hr.j.handR; K.parts.head = hr.j.head;
+  POOL.push(K);
+  return K;
+}
+/** who it was: an operator who asked too much (a seeded face, a remembered set of clothes), gone pale, terrified */
+function dress(K: SRig, id: string) {
+  if (K.who === id) return;
+  K.who = id;
+  let h = 0; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+  let st = (h >>> 0) || 1;
+  const rnd = () => { st = (st * 1664525 + 1013904223) >>> 0; return st / 4294967296; };
+  const app = randomAppearance(rnd);
+  const mem = MEMORIES[ADULT_MEMORIES[Math.floor(rnd() * ADULT_MEMORIES.length)]];
+  K.hr.setAppearance(app);
+  K.hr.setOutfit({ ...mem.outfit, cond: { pale: 2, dirt: 1, blood: { hand_l: 1, hand_r: 1, head: 1 }, expr: 'fear' } });
+  K.hr.setExpression('fear');
+  K.cut = cutState(BONES.map((b) => K.hr.bones[b]), K.hr.skin.skeleton);
+}
+/** the chair pose: sat bolt upright, forearms along the armrests, hands gripping the ends, the neck stretched into the headrest */
+const SEAT_POSE = (() => { const P = replicaPose('sit', 0.2); return P; })();
+function seatPose(): HPose {
+  const P: HPose = { ...SEAT_POSE };
+  for (const k of Object.keys(P)) { const v = (P as any)[k]; if (Array.isArray(v)) (P as any)[k] = v.slice(); }
+  const J = (k: keyof HPose, x: number, y = 0, z = 0) => { (P as any)[k] = [x, y, z]; };
+  J('uarmL', -0.35, -0.12, 0.14); J('farmL', -1.22, 0, 0); J('handL', 0.4, 0, 0);
+  J('uarmR', -0.35, 0.12, -0.14); J('farmR', -1.22, 0, 0); J('handR', 0.4, 0, 0);
+  J('spine', -0.04, 0, 0); J('chest', -0.03, 0, 0); J('neck', -0.08, 0, 0); J('head', -0.12, 0, 0);
+  P.gripL = 0.85; P.gripR = 0.85; P.blink = 0;
+  return P;
+}
 
 // ------------------------------------------------------------------ animation
 function animateSeated(rig: Rig, c: Creature, t: number, dt: number) {
-  const K = rig as KitRig;
+  const K = rig as SRig;
+  dress(K, c.id);
   kitSync(K);
-  const P = rig.parts;
-  const R = (n: string, x: number, y = 0, z = 0) => { const o = P[n]; if (o) o.rotation.set(x, y, z); };
+  cutSync(K.cut, K.hr.body);
   const ud = rig.root.userData as Record<string, number>;
   const n = netOf(c), seed = hashId(c.id);
   const sm = (k: string, v: number, rate: number) => (ud[k] = (ud[k] ?? v) + (v - (ud[k] ?? v)) * Math.min(1, dt * rate));
-  // breathing: slow and shallow, the backrest rising; a catch in it now and then
+  const P = seatPose();
+  // breathing: slow and shallow, the chest rising; a catch in it now and then
   const catchB = Math.sin(t * 0.13 + seed * 9) > 0.92 ? Math.sin(t * 9) * 0.3 : 0;
   const br = Math.sin(t * 1.1 + seed * 5) + catchB;
-  const ch = P.chest; if (ch) ch.scale.set(1 + br * 0.03, 1 + br * 0.015, 1 + br * 0.05);
-  R('spine', br * 0.012, 0, 0);
-  // the eyes follow you; the head strains toward you as far as the neck will turn, which is not far
+  (P.chest as number[])[0] += br * 0.015;
+  // the head strains toward you as far as the neck will turn, which is not far; sat on, it leans in to your ear
   const tgt = nearestSurvivor(c, 12);
   let yaw = 0, pitch = 0;
   if (tgt) [yaw, pitch] = lookAngles(c, tgt.x, tgt.z, tgt.y, 1.23, 1.4, 0.6);
   const sit = sm('sit', n.s ? 1 : 0, 2), wh = sm('wh', n.w ? 1 : 0, 6);
   const dart = (hash(Math.floor(t * 0.7 + seed * 3), 4) - 0.5) * 0.8;
-  R('eyes', -pitch * 0.4, tgt ? Math.max(-0.5, Math.min(0.5, yaw)) : dart * 0.6, 0);
-  R('neck', -0.05 + sit * 0.35, (tgt ? yaw * 0.25 : 0) * (1 - sit), 0);
-  R('head', -0.1 - pitch * 0.2 + sit * 0.4 + Math.sin(t * 0.4) * 0.02, (tgt ? yaw * 0.15 : 0) + sit * 0.3 * (seed < 0.5 ? 1 : -1), Math.sin(t * 0.3 + seed) * 0.04 + sit * 0.2);
-  // whispering: the jaw works in small shapes; otherwise it hangs a little open
-  R('jaw', 0.12 + wh * (0.08 + Math.abs(Math.sin(t * 11 + Math.sin(t * 3) * 2)) * 0.18), 0, 0);
+  (P.neck as number[])[0] += sit * 0.35; (P.neck as number[])[1] += (tgt ? yaw * 0.3 : dart * 0.1) * (1 - sit);
+  (P.head as number[])[0] += -pitch * 0.25 + sit * 0.4 + Math.sin(t * 0.4) * 0.02;
+  (P.head as number[])[1] += (tgt ? yaw * 0.25 : 0) + sit * 0.3 * (seed < 0.5 ? 1 : -1);
+  (P.head as number[])[2] += Math.sin(t * 0.3 + seed) * 0.04 + sit * 0.2;
   // fingers: they tighten on the armrests, tap, tighten harder when someone sits
   for (const [s, k] of SIDES) {
     const tap = Math.pow(Math.max(0, Math.sin(t * 2.3 + k * 1.7 + seed * 6)), 18) * 0.5;
-    R('fing' + s, 0.2 + tap + sit * 0.4 + Math.sin(t * 13) * 0.04 * sit, 0, 0);
-    R('hand' + s, sit * 0.12, 0, 0);
-    R('farm' + s, 0, 0, k * Math.sin(t * 0.7 + k) * 0.01);
+    const g = Math.max(0.3, 0.85 - tap + sit * 0.15 + Math.sin(t * 13) * 0.04 * sit);
+    if (s === 'L') P.gripL = g; else P.gripR = g;
+    (P[('hand' + s) as keyof HPose] as number[])[0] += sit * 0.12;
   }
+  if (c.dead) { (P.head as number[])[0] += 0.6; P.gripL = 0.1; P.gripR = 0.1; }
   const fl = flinchOf(c);
-  rig.body.position.x = fl > 0 ? Math.sin(t * 80) * 0.02 * fl : 0;
+  P.rootX = fl > 0 ? Math.sin(t * 80) * 0.02 * fl : 0;
+  K.hr.applyPose(P);
+  // the neck, stretched a hand too long into the headrest
+  const hd = K.hr.j.head, ud2 = hd.userData as { s0?: THREE.Vector3 };
+  if (!ud2.s0) ud2.s0 = hd.position.clone();
+  hd.position.copy(ud2.s0).multiplyScalar(1.6);
+  // whispering: its own mouth works (the face painter's talking shapes); otherwise frozen in fear
+  K.hr.talking = !c.dead && wh > 0.5;
+  K.hr.faceTick(dt); K.hr.fx.value.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
   const F = K.kit.F.fx.value; F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
-  if (c.dead) { R('head', 0.6); R('jaw', 0.4); for (const [s] of SIDES) R('fing' + s, -0.2); }
   const p = localIn(c);
   if (p && !c.dead && tgt && tgt.d < 4 && c.visibleToLocal) thinkOnce(p, 'seated', ['That chair is breathing.', 'The armrests are arms. The hands are holding on.', 'Its eyes moved. It is looking at me. It is ASKING me to sit.'][Math.floor(t * 0.5) % 3], 50);
 }

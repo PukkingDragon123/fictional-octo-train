@@ -1,8 +1,8 @@
 // Main-chain walkthrough for the Remittance contract (src/game/debt, src/missions):
 //   quick start (band fitted at intake) → smash furniture → pick up a valuable → deposit it in a hopper
 //   → pay the installments (scrip topped up through page JS for pacing; one deadline is missed on purpose)
-//   → the watch (Tab, first-person stage) and its quests: a paid permit (Survey Licence) that uploads a
-//   watch function, a courier run to another level → clear the debt → buy passage at the kiosk
+//   → Dr. Calder's quest board (J, the broadcast) and its quests: a paid permit (Survey Licence) that uploads
+//   suit-scanner firmware, a courier run to another level → clear the debt → buy passage at the kiosk
 //   → the transport arrives → board → the ending,
 // plus the BAILIFF band (warning at the Seam, detonation, a replacement band at a hopper) and, on a
 // second page, the side chain (fuses → numbers → render nodes → root key → core → bands unlatch → exit).
@@ -82,7 +82,7 @@ async function session() {
       flags() { return [...T.g.missions.flags]; },
       has(f) { return T.g.missions.flags.has(f); },
       emitInv() { ev.bus.emit('inventoryChanged', T.p); },
-      /** the watch's quest runtime */
+      /** the quest runtime (Calder's board, J) */
       get Q() { return window.__game.missions.quests; },
       /** a quest (or old directive) finished (the host evaluates twice a second of game time) */
       async done(key, ms = 120000) { await T.until(() => T.has('done:' + key), ms, 'done:' + key); },
@@ -195,29 +195,30 @@ const step = async (page, name, fn, arg) => {
     await T.until(() => T.g.debt.paid + T.g.debt.surplus > paid0, 30000, 'credited');
     return { credited: T.g.debt.paid + T.g.debt.surplus - paid0 };
   });
-  await step(page, 'watch: Tab raises it into first person; quests are listed', async () => {
-    const T = window.T, w = T.g.watch, fp = await import('/src/fp/fp.ts');
-    w.toggle(true, 'qst');
-    await T.until(() => w.raise > 0.5, 60000, 'raised');
-    if (fp.fpOwner() !== 'watch') throw new Error('stage owner ' + fp.fpOwner());
+  await step(page, 'quest board: J puts up Calder\'s broadcast; quests are listed (no wrist watch)', async () => {
+    const T = window.T, b = T.g.broadcast, fp = await import('/src/fp/fp.ts');
+    if (T.g.watch) throw new Error('the wrist watch is still installed');
+    b.toggle(true);
+    await T.until(() => b.open && fp.fpOwner() === 'broadcast', 60000, 'board up');
     const active = T.Q.list('active').map((v) => v.key), offers = T.Q.list('offers').map((v) => v.key);
-    w.toggle(false);
+    b.toggle(false);
+    await T.until(() => fp.fpOwner() !== 'broadcast', 60000, 'board down');
     if (!T.Q.completed('first_haul')) throw new Error('first_haul not completed');
-    return { pages: w.pages.map((p) => p.key), active, offers };
+    return { active, offers };
   });
-  await step(page, 'watch: accept a permit, pay to complete it, a function is uploaded (Survey Licence)', async () => {
+  await step(page, 'board: accept a permit, pay to complete it, scanner firmware is uploaded (Survey Licence)', async () => {
     const T = window.T, Q = T.Q, R = await import('/src/game/research.ts');
     await T.until(() => Q.status('rd_licence') === 'off', 30000, 'licence offered');
-    const rp0 = R.researchPoints(), owed0 = T.g.debt.owed;
+    const rp0 = R.researchPoints(), owed0 = T.g.debt.owed, range0 = T.g.scan.range();
     const e1 = Q.request('rd_licence', 'accept'); if (e1) throw new Error('accept: ' + e1);
     await T.until(() => Q.status('rd_licence') === 'ready', 30000, 'ready to pay');
     const e2 = Q.request('rd_licence', 'pay'); if (e2) throw new Error('pay: ' + e2);
     await T.until(() => Q.status('rd_licence') === 'done', 30000, 'licence done');
-    await T.until(() => R.hasUnlock('watch_map'), 10000, 'map uploaded');
-    await T.until(() => T.g.watch.pages.some((p) => p.key === 'map'), 10000, 'map function');
-    return { rp: R.researchPoints() - rp0, billed: T.g.debt.owed - owed0 };
+    await T.until(() => R.hasUnlock('tool_beam'), 10000, 'scanner beam uploaded');
+    if (!(T.g.scan.range() > range0)) throw new Error('scan range did not grow');
+    return { rp: R.researchPoints() - rp0, billed: T.g.debt.owed - owed0, range: [range0, T.g.scan.range()] };
   });
-  await step(page, 'watch: courier run (carry the sealed case to another level, hand it in)', async () => {
+  await step(page, 'board: courier run (carry the sealed case to another level, hand it in)', async () => {
     const T = window.T, Q = T.Q;
     const { courierDest } = await import('/src/missions/researchQuests.ts');
     await T.until(() => Q.status('rd_courier') === 'off', 30000, 'courier offered');
@@ -330,7 +331,7 @@ if (!mainOnly) {
     await T.until(() => T.has('start:first_haul'), 60000, 'first_haul');
     for (const f of ['tut:smash', 'tut:valuable', 'contract:first_deposit']) T.g.missions.set(f);
     await T.done('first_haul');
-    // the side chain's first quest is offered on the watch and has to be accepted
+    // the side chain's first quest is offered on the board and has to be accepted
     await T.until(() => T.Q.status('first_light') === 'off', 30000, 'side chain offered');
     T.Q.request('first_light', 'accept');
     await T.until(() => T.has('start:first_light'), 30000, 'side chain');

@@ -1,9 +1,10 @@
-// Research missions: Meridian R&D uploads paid field work to the watch.
+// Research missions: Meridian R&D posts paid field work on the quest board (J).
 // Couriering a sealed case to another level, pressing a quota of scrip,
-// scanning entities and logging anomalies, bringing back samples, permits and
-// bribes that cost scrip to complete, field tests for the multi-tool. Most pay
-// research points (RP, the persistent currency the watch's research tree
-// spends); several repeat after a cooldown.
+// scanning entities and logging anomalies with the suit scanner, bringing back
+// samples, permits and bribes that cost scrip to complete. Most pay research
+// points (RP, the persistent currency the lab's research tree spends between
+// runs); several repeat after a cooldown. (Round 14: the wrist watch and its
+// multi-tool are gone; their field tests and calorie log went with them.)
 //
 // Counters ("scans", "dep_value"...) are crew-wide tallies on the quest
 // runtime (op 'qtally'); a quest captures a baseline when accepted so its
@@ -43,8 +44,6 @@ const tagged = (tag: string) => (key: string) => !!itemDef(key).tags?.includes(t
 const tally = (c: string, d = 1) => op('qtally', { c, d });
 bus.on('scanned', (c: any) => { tally('scans'); if ((c?.sp?.threat ?? 0) >= 3) tally('scan_threat'); });
 bus.on('anomalyLogged', () => tally('anomalies'));
-bus.on('watchFab', () => tally('fab'));
-bus.on('laserCut', () => tally('laser'));
 bus.on('consumed', (p: any, key: string) => { if (p?.isLocal && itemDef(key).cat === 'food') tally('meals'); });
 // the press is host business: every peer hears 'deposited', only the host counts it
 bus.on('deposited', (e: { keys?: string[]; value?: number }) => {
@@ -77,26 +76,23 @@ const zoneName = (k: string) => zoneSpec(k)?.name || k;
 // ================================================================ the missions
 q({
   key: 'rd_calibrate', title: 'Calibration Sweep', giver: RD, category: 'research', repeatable: true, cooldownH: 6, requires: ['first_haul'],
-  desc: 'R&D wants field data to calibrate the anomaly scanner. Scan two entities with the watch. Any entity. From a respectful distance, ideally.',
-  when: () => hasUnlock('watch_scan'),
+  desc: 'R&D wants field data to calibrate the suit scanner. Scan two entities (face one, hold N). Any entity. From a respectful distance, ideally.',
   begin: () => ({ scans: T('scans') }),
-  objectives: [{ id: 'scan', text: 'Scan 2 entities with the watch', check: since('rd_calibrate', 'scans', 2) }],
+  objectives: [{ id: 'scan', text: 'Scan 2 entities (hold N)', check: since('rd_calibrate', 'scans', 2) }],
   reward: { rp: 4 },
 });
 
 q({
   key: 'rd_anomaly', title: 'Anomaly Survey', giver: RD, category: 'research', repeatable: true, cooldownH: 12, requires: ['first_haul'],
-  desc: 'Anomalous objects distort the scanner sweep. Find three on the SCAN function and log them. Do not lick them.',
-  when: () => hasUnlock('watch_scan'),
+  desc: 'Anomalous objects distort the scanner sweep. Find three and log them with the suit scanner. Do not lick them.',
   begin: () => ({ n: T('anomalies') }),
-  objectives: [{ id: 'log', text: 'Log 3 anomalies (SCAN function)', check: () => (T('anomalies') - B('rd_anomaly', 'n')) / 3 }],
+  objectives: [{ id: 'log', text: 'Log 3 anomalies (scan them: hold N)', check: () => (T('anomalies') - B('rd_anomaly', 'n')) / 3 }],
   reward: { rp: 5 },
 });
 
 q({
   key: 'rd_threat', title: 'Threat Assessment', giver: RD, category: 'research', requires: ['first_haul'],
   desc: 'Our threat tables are out of date because the people who updated them are out of date. Complete a full scan of an entity rated THREAT 3 or worse.',
-  when: () => hasUnlock('watch_scan'),
   begin: () => ({ n: T('scan_threat') }),
   objectives: [{ id: 'scan', text: 'Scan an entity rated threat 3+', check: since('rd_threat', 'scan_threat', 1) }],
   reward: { rp: 6, scrip: 250 },
@@ -104,7 +100,7 @@ q({
 
 q({
   key: 'rd_samples', title: 'Sample Return', giver: RD, category: 'research', repeatable: true, cooldownH: 12, requires: ['first_haul'],
-  desc: 'Bring R&D two anomalous samples: dust that glows, pixels that failed, shards that remember. The watch takes custody when you hand them in.',
+  desc: 'Bring R&D two anomalous samples: dust that glows, pixels that failed, shards that remember. Sign them off on the board and a press takes custody.',
   objectives: [{ id: 'carry', text: 'Carry 2 anomalous samples', check: () => carrying(tagged('anomalous')) / 2 }],
   cost: { items: [['#anomalous', 2]] },
   reward: { rp: 6, scrip: 400 },
@@ -148,20 +144,11 @@ q({
 
 q({
   key: 'rd_licence', title: 'Survey Licence', giver: RD, category: 'permit', requires: ['first_haul'],
-  desc: 'Cartography is a licensed function. Pay the licence fee and R&D uploads the CARTOGRAPHY function to your watch: a map that draws itself as you walk.',
-  when: () => !hasUnlock('watch_map'),
+  desc: 'Scanning past ten metres is a licensed function. Pay the licence fee and R&D uploads the SCANNER BEAM firmware to your suit: scans reach eighteen metres and finish faster.',
+  when: () => !hasUnlock('tool_beam'),
   objectives: [{ id: 'auth', text: 'Authorise the transfer', check: () => true }],
   cost: { scrip: 600 },
-  reward: { rp: 1, unlock: ['watch_map'] },
-});
-
-q({
-  key: 'rd_permit_torch', title: 'Tool Permit', giver: RD, category: 'permit', requires: ['installment_1'],
-  desc: 'Units may not carry a light source without a permit. Buy one and R&D flashes the WRIST TORCH firmware onto your watch.',
-  when: () => !hasUnlock('tool_torch'),
-  objectives: [{ id: 'auth', text: 'Authorise the transfer', check: () => true }],
-  cost: { scrip: 900 },
-  reward: { rp: 1, unlock: ['tool_torch'] },
+  reward: { rp: 1, unlock: ['tool_beam'] },
 });
 
 q({
@@ -174,29 +161,3 @@ q({
   reward: { scrip: 900 },
 });
 
-q({
-  key: 'rd_meals', title: 'Calorie Log', giver: RD, category: 'research', repeatable: true, cooldownH: 24, requires: ['first_haul'],
-  desc: 'Your new calorie counter needs a baseline. Eat two meals with the watch on. Anything counts. R&D does not ask what.',
-  when: () => hasUnlock('watch_calories'),
-  begin: () => ({ n: T('meals') }),
-  objectives: [{ id: 'eat', text: 'Eat 2 meals', check: since('rd_meals', 'meals', 2) }],
-  reward: { rp: 3 },
-});
-
-q({
-  key: 'rd_laser_test', title: 'Field Test: Cutter', giver: RD, category: 'research', requires: ['first_haul'],
-  desc: 'The laser cutter is a prototype. R&D needs it used on something. Cut three pieces of furniture apart with it (arm it on the TOOL function, then point and click).',
-  when: () => hasUnlock('tool_laser'),
-  begin: () => ({ n: T('laser') }),
-  objectives: [{ id: 'cut', text: 'Cut 3 pieces of furniture apart', check: since('rd_laser_test', 'laser', 3) }],
-  reward: { rp: 4 },
-});
-
-q({
-  key: 'rd_fab_test', title: 'Field Test: Fabricator', giver: RD, category: 'research', requires: ['first_haul'],
-  desc: 'The field fabricator folds simple things out of what you carry. Make anything with it (FAB function) and send R&D the telemetry.',
-  when: () => hasUnlock('tool_fab'),
-  begin: () => ({ n: T('fab') }),
-  objectives: [{ id: 'fab', text: 'Fabricate something with the watch', check: since('rd_fab_test', 'fab', 1) }],
-  reward: { rp: 3 },
-});

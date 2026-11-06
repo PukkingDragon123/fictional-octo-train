@@ -77,7 +77,7 @@ export function verbsFor(p: Player, t: VerbTarget | null): Verb[] {
   else {
     let base: Verb[] = [];
     try { base = flatten(G.interact?.menu?.(p, t)?.opts || []); } catch (e) { console.warn('verbs', e); }
-    // corpses: searching comes first, scanning is the watch's business
+    // corpses: searching comes first, scanning is the suit scanner's business (hold N)
     if (t.kind === 'creature') {
       const c: any = t.c;
       base = base.filter((v) => !/^Scan with/.test(v.label));

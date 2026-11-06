@@ -77,7 +77,7 @@ function menuIcon(o: { label: string; icon?: string }): string {
  * All screen-space UI: world-anchored bubbles (thoughts, speech, halo
  * text), action bars, hover labels, the pixel cursor, context menus,
  * tooltips, readers and the inventory window. Kept deliberately minimal —
- * the scanner device is the main interface.
+ * the body HUD, Calder's voice and the J board are the main interface.
  */
 export class UI {
   root: HTMLElement;
@@ -94,6 +94,7 @@ export class UI {
   tipEl: HTMLDivElement | null = null;
   readerEl: HTMLDivElement | null = null;
   inventory: any = null;
+  /** retired (round 14: the wrist watch / scanner device is gone; scanning is G.scan, the suit scanner) */
   scanner: any = null;
   modal: HTMLElement | null = null;
   private hlMesh: THREE.Mesh | null = null;
@@ -202,7 +203,7 @@ export class UI {
   toast(title: string, sub = '', secs = 3.5) {
     // the unlock celebration below already covers plain "X UNLOCKED" notices
     if (/UNLOCKED$/.test(title) && performance.now() - this.lastUnlockAt < 2000) return;
-    sub = sub.replace(/on the watch/i, 'on the band');
+    sub = sub.replace(/on the watch/i, 'on the board');
     // entering a place: a title card, not a notice
     const zn = String((G.zone as any)?.name || '').toUpperCase();
     if (zn && title === zn) { this.placeCard(title, sub, secs + 1); return; }
@@ -245,7 +246,7 @@ export class UI {
   /** profile unlock: a new occupation or trait is on the intake form */
   unlockToast(id: string) {
     const [ns, key] = id.split(':');
-    // research ('rp:') and scan knowledge ('scan:') are presented by the watch and the scanner
+    // research ('rp:') and scan knowledge ('scan:') are presented by Dr. Calder and the lab's archive
     if (ns === 'rp' || ns === 'scan') return;
     let kind = 'UNLOCK', name = key || id, icon = '';
     if (ns === 'job') { const o = OCCUPATIONS.find((x) => x.key === key); kind = 'NEW OCCUPATION UNLOCKED'; name = o?.name || key; const k = o?.items?.[0]; if (k) { try { icon = itemIcon(k, '', iconRes(18)); } catch { /* no icon */ } } }
@@ -344,7 +345,7 @@ export class UI {
       if (hush && b.kind === 'think' && b.target === g.local && ((b as any).held ?? 0) < 8) { (b as any).held = ((b as any).held ?? 0) + dt; b.until += dt; b.born += dt; b.el.style.display = 'none'; continue; }
       const age = g.time - b.born;
       let x: number, y: number, z: number;
-      if (b.target instanceof Player) { x = b.target.x; y = b.target.y + 2.05; z = b.target.z; if (b.target.zoneKey !== g.local.zoneKey || (b.target === g.local && this.scanner?.open)) { b.el.style.display = 'none'; continue; } }
+      if (b.target instanceof Player) { x = b.target.x; y = b.target.y + 2.05; z = b.target.z; if (b.target.zoneKey !== g.local.zoneKey || false) { b.el.style.display = 'none'; continue; } }
       else { x = b.target.x; y = b.target.y; z = b.target.z; }
       const s = g.pr.worldToScreen(new THREE.Vector3(x, y, z));
       const lift = b.rise ? age * 28 : 0;
@@ -389,14 +390,16 @@ export class UI {
     for (const p of g.players.values()) {
       const a = p.actions.current;
       const showBar = p.isLocal ? (a && a.started && a.showBar) : (p.remote?.state?.ad ?? 0) > 0.6;
-      if (!showBar || p.zoneKey !== g.local.zoneKey) continue;
+      // the suit scanner's sweep (hold N, src/scan/scan.ts) fills the same plate while no timed action does
+      const sweep = p.isLocal && !showBar ? (g as any).scan?.plate?.() as { name: string; k: number } | null : null;
+      if ((!showBar && !sweep) || p.zoneKey !== g.local.zoneKey) continue;
       seen.add(p.id);
       let t = this.bars.get(p.id);
       if (!t) { t = new ActionPlate(); this.root.appendChild(t.el); this.bars.set(p.id, t); }
       // an action can show something else than its elapsed time (a struggle: the time left, draining)
-      const drain = p.isLocal && typeof (a as any)?.barK === 'function';
-      const prog = p.isLocal ? (drain ? (a as any).barK() : a!.progress) : Math.min(1, (p.remote!.state!.at ?? 0) / Math.max(0.01, p.remote!.state!.ad));
-      t.update(p.isLocal ? a!.name : String((p.remote?.state as any)?.an ?? ''), prog, g.time, drain);
+      const drain = !sweep && p.isLocal && typeof (a as any)?.barK === 'function';
+      const prog = sweep ? sweep.k : p.isLocal ? (drain ? (a as any).barK() : a!.progress) : Math.min(1, (p.remote!.state!.at ?? 0) / Math.max(0.01, p.remote!.state!.ad));
+      t.update(sweep ? sweep.name : p.isLocal ? a!.name : String((p.remote?.state as any)?.an ?? ''), prog, g.time, drain);
       // over the head (a struggle's own gauge and prompts sit there, so its plate goes higher)
       const s = g.pr.worldToScreen(this.tmpV.set(p.x, p.y + (drain ? 3.5 : 2.3), p.z));
       t.el.style.transform = `translate(${Math.round(s.x - t.w / 2)}px, ${Math.round(s.y - t.h)}px)`;
@@ -423,7 +426,6 @@ export class UI {
     if (g.net && !this.chatEl && g.input.hit('chat')) this.openChat();
     this.updateHover();
     this.inventory?.update?.(dt);
-    this.scanner?.update?.(dt);
   }
 
   /** world text must stay readable: lift any line that would write over another one (or over the hologram) */
@@ -503,7 +505,6 @@ export class UI {
       if (this.menuEl) this.closeMenu();
       else if (this.readerEl) this.closeReader();
       else if (this.inventory?.open) this.inventory.toggle(false);
-      else if (this.scanner?.open) this.scanner.toggle(false);
       else bus.emit('pauseMenu');
     }
   }

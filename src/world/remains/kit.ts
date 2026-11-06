@@ -23,6 +23,7 @@ import type { PixelCanvas } from '../../gfx/pixel';
 import type { ModelBuilder } from '../../gfx/modelBuilder';
 import { blob, tube, lathe, surf, spike, type V3 } from '../../creatures/kit/anomalies';
 import { defLoot } from '../../items/loot';
+import { bakeDeadUnit } from './corpse';
 
 export const REMAINS_TAG = 'remains';
 /** keys of the props with soft parts left on them (the bees' larder) */
@@ -388,60 +389,41 @@ defObj({
   key: 'rm_unit', name: 'Remains of a Unit', w: 2, d: 1, height: 0.45, block: 'none', movable: 0, hp: 400, sound: 'flesh',
   tags: [...T, 'unit', 'meridian'],
   container: { capacity: 12, kind: 'pile', name: 'Unit Remains', loot: 'rm_unit' },
-  desc: 'A unit from an earlier sending, still in the Institute\'s yellow hazmat. The suit is torn open where the soft parts were and the mask has fogged from the inside. There is an ID strip on the chest.',
+  desc: 'A unit from an earlier sending, still in the Institute\'s yellow hazmat. The suit is torn open where the soft parts were and the visor has fogged from the inside. There is an ID strip on the chest.',
   variant: (s) => (s.v ?? 0) % 3 + ':' + eatenOf(s),
   model: (mb, s) => {
     const v = (s.v ?? 0) % 3, e = eatenOf(s), keep = (lvl: number) => e < lvl;
-    const suit = e >= 2 ? 'rm_hazmat_foul' : 'rm_hazmat';
     stain(mb, 0.0, 0.0, 0.85, 0.42, v + 11, 'rm_crust');
-    // v 0: on its back; v 1: face down, legs gone at the knee; v 2: the top half, the rest dragged off
-    const legs = v === 0 ? 2 : v === 1 ? 1 : 0;
-    // pelvis and legs in the suit, boots
-    if (legs) {
-      blob(mb, [-0.25, 0.12, 0], [0.16, 0.1, 0.17], 12, 6, suit);
-      for (const k of [-1, 1]) {
-        const end = legs === 2 ? -0.95 : -0.62;
-        tube(mb, [P(-0.3, 0.1, k * 0.09), P(-0.55, 0.08, k * (0.12 + (v === 0 && k > 0 ? 0.08 : 0))), P(end, 0.07, k * (0.12 + (v === 0 && k > 0 ? 0.16 : 0)))], (t) => 0.075 - t * 0.02, 8, suit, { capEnd: legs === 2, bump: (t, a) => 1 + 0.06 * Math.sin(t * 20 + a * 3) });
-        if (legs === 2) { mb.push(); mb.translate(end - 0.02, 0, k * (0.12 + (k > 0 ? 0.16 : 0))); blob(mb, [-0.04, 0.06, 0], [0.09, 0.07, 0.065], 10, 5, 'rm_rubber'); mb.box(-0.12, 0, -0.05, 0.16, 0.03, 0.1, 'rm_rubber', { bevel: false }); mb.pop(); }
-        else { chunk(mb, [end, 0.07, k * 0.12], 0.06, k + 4, 'rm_flesh_old'); longBone(mb, P(end, 0.07, k * 0.12), P(end - 0.12, 0.05, k * 0.14), 0.018, 'rm_bone', true); }
-      }
-    } else {
-      // torn through at the waist: a ragged rim of suit and a spill of what was inside
-      flaps(mb, [-0.2, 0.08, 0], 6, 0.12, 1, suit);
-      if (keep(3)) gutLoop(mb, -0.42, 0.05, 0.2, 1.3, 2, 0.02, 0.03);
-      if (keep(2)) chunk(mb, [-0.28, 0.08, 0.05], 0.07, 9, 'rm_flesh');
-      vertebra(mb, -0.25, 0.08, 0, 1.4, 0);
-    }
-    // the torso: on its back the chest is torn open, face down the back of the suit is split
-    blob(mb, [0.15, 0.13, 0], [0.26, 0.12 - e * 0.012, 0.2], 14, 7, suit, { disp: (d) => 1 - (v === 1 ? 0 : 0.3 * Math.max(0, d[1]) * (e / 3)) });
+    // the body: the human base (a HumanRig in the hazmat suit, its own blood and pallor, limbs dropped by its own
+    // severing), posed where it fell and frozen into the prop (./corpse.ts). v 0 on its back, 1 face down with the
+    // legs gone at the knee, 2 the top half
+    const B = bakeDeadUnit(mb, v);
+    if (!B) return;
+    const [cx, cy, cz] = B.chest, [hx, , hz] = B.hips;
+    let ax = cx - hx, az = cz - hz; const al = Math.hypot(ax, az) || 1; ax /= al; az /= al;
+    const sx = -az, sz = ax;   // across the body
+    const along = (t: number, up: number, side = 0): V3 => [hx + (cx - hx) * t + sx * side, cy + up, hz + (cz - hz) * t + sz * side];
+    const rotAcross = Math.atan2(sz, sx);
     if (v !== 1) {
-      blob(mb, [0.15, 0.2, 0], [0.16, 0.05, 0.12], 12, 5, e >= 2 ? 'rm_crust' : 'rm_flesh');
-      for (let k = 0; k < 6; k++) for (const sd of [-1, 1]) rib(mb, 0.02 + k * 0.05, 0.22, 0, 0.12 + (k % 2) * 0.02, sd * 1.5, sd, e >= 2 ? 'rm_bone' : 'rm_bone_old', 0.5);
-      flaps(mb, [0.15, 0.2, 0], 7, 0.15, 2, suit);
-      if (keep(2)) for (let k = 0; k < 3; k++) chunk(mb, [0.05 + k * 0.09, 0.24, (k - 1) * 0.05], 0.04, k + 2, 'rm_flesh');
-      if (keep(3)) gutLoop(mb, 0.1, 0.33, 0.16, 1.2, 5, 0.02, 0.026);
+      // on its back: the chest and belly torn open through the suit, the ribs standing out of it
+      const ctr = along(0.55, 0.07);
+      blob(mb, ctr, [0.15, 0.04, 0.15], 12, 5, e >= 2 ? 'rm_crust' : 'rm_flesh');
+      for (let k = 0; k < 5; k++) for (const sd of [-1, 1]) { const p = along(0.75 + k * 0.08 - 0.3, 0.06); rib(mb, p[0], p[1], p[2], 0.11 + (k % 2) * 0.02, rotAcross + (sd > 0 ? 0 : Math.PI), sd, e >= 2 ? 'rm_bone' : 'rm_bone_old', 0.55); }
+      flaps(mb, along(0.55, 0.06), 7, 0.13, 2 + v, 'rm_hazmat_foul');
+      if (keep(2)) for (let k = 0; k < 3; k++) chunk(mb, along(0.35 + k * 0.18, 0.09, (k - 1) * 0.05), 0.04, k + 2, 'rm_flesh');
+      if (keep(3)) { const g = along(0.15, -0.05, 0.3); gutLoop(mb, g[0], g[2], 0.15, 1.3, 5, 0.02, 0.026); }
     } else {
-      // face down: the spine split out of the suit, a bloodied back
-      for (let k = 0; k < 5; k++) vertebra(mb, 0.0 + k * 0.06, 0.24, 0, 1.2, 0);
-      flaps(mb, [0.12, 0.23, 0], 5, 0.12, 3, suit);
+      // face down: the back split along the spine, vertebrae standing out of it
+      for (let k = 0; k < 5; k++) { const p = along(0.15 + k * 0.2, 0.08); vertebra(mb, p[0], p[1], p[2], 1.2, Math.atan2(az, ax)); }
+      flaps(mb, along(0.5, 0.07), 5, 0.12, 3, 'rm_hazmat_foul');
+      if (keep(2)) chunk(mb, along(0.45, 0.09, 0.04), 0.045, 6, 'rm_flesh');
     }
-    // the ID strip, chest left
-    mb.push(); mb.translate(0.24, 0.24, 0.12); mb.rotateX(-1.2); mb.box(0, 0, 0, 0.07, 0.005, 0.035, { top: 'rm_badge', sides: 'white' }, { fit: { top: true }, bevel: false }); mb.pop();
-    // arms: one flung out, one reaching for something that is not there any more
-    const shoulder = (k: number) => P(0.32, 0.12, k * 0.2);
-    tube(mb, [shoulder(1), P(0.4, 0.07, 0.42), P(0.55, 0.05, 0.48)], 0.05, 7, suit);
-    blob(mb, [0.6, 0.04, 0.5], [0.05, 0.03, 0.045], 8, 4, 'rm_rubber');
-    if (v === 2) { tube(mb, [shoulder(-1), P(0.25, 0.08, -0.45), P(0.0, 0.06, -0.48)], 0.05, 7, suit); blob(mb, [-0.06, 0.05, -0.48], [0.05, 0.03, 0.045], 8, 4, 'rm_rubber'); }
-    else if (keep(3)) { tube(mb, [shoulder(-1), P(0.42, 0.08, -0.38)], 0.05, 7, suit); chunk(mb, [0.44, 0.08, -0.4], 0.05, 8, 'rm_flesh_old'); longBone(mb, P(0.44, 0.08, -0.4), P(0.6, 0.04, -0.45), 0.014, 'rm_bone', true); }
-    // the head in the hood and mask: two round visor lenses, the filter canister, the hood torn back
-    mb.push(); mb.translate(0.55, 0.0, 0.0); mb.rotateY(v === 1 ? Math.PI : 0.25); mb.rotateX(v === 1 ? 0 : -0.15);
-    blob(mb, [0, 0.12, 0], [0.12, 0.11, 0.12], 12, 7, suit);
-    blob(mb, [0.04, 0.12, 0.0], [0.1, 0.1, 0.1], 12, 7, 'rm_rubber');
-    for (const k of [-1, 1]) { mb.push(); mb.translate(0.12, 0.15, k * 0.045); mb.rotateZ(-Math.PI / 2); mb.cylinder(0, 0, 0, 0.035, 0.015, 10, { top: 'rm_visor', sides: 'rm_rubber', bottom: 'rm_rubber' }, { fit: { top: true } }); mb.pop(); }
-    mb.push(); mb.translate(0.14, 0.07, 0); mb.rotateZ(-Math.PI / 2 + 0.4); mb.cylinder(0, 0, 0, 0.04, 0.06, 10, 'metal_grey', { color: 0x8a8a84 }); mb.pop();
-    mb.pop();
-    // the torch it was holding, still switched on (dead), and a smear where it was dragged
-    mb.push(); mb.translate(0.7, 0.03, 0.42); mb.rotateZ(Math.PI / 2); mb.rotateX(0.7); mb.cylinder(0, -0.08, 0, 0.022, 0.16, 8, 'rubber_black'); mb.cylinder(0, 0.08, 0, 0.03, 0.03, 8, 'metal_grey'); mb.pop();
+    if (v === 2 && keep(3)) { const g = along(-0.25, -0.06); gutLoop(mb, g[0], g[2], 0.2, 1.3, 2, 0.02, 0.03); chunk(mb, along(-0.08, -0.03), 0.06, 9, 'rm_flesh'); }
+    // the ID strip, left of the chest
+    if (v !== 1) { mb.push(); const p = along(0.9, 0.09, 0.08); mb.translate(p[0], p[1], p[2]); mb.rotateY(-Math.atan2(az, ax)); mb.rotateX(-0.1); mb.box(0, 0, 0, 0.07, 0.005, 0.035, { top: 'rm_badge', sides: 'white' }, { fit: { top: true }, bevel: false }); mb.pop(); }
+    // the torch it was holding, dead, by its hand
+    const [tx, , tz] = B.handR;
+    mb.push(); mb.translate(tx + sx * 0.12, 0.03, tz + sz * 0.12); mb.rotateY(rotAcross + 0.7); mb.rotateZ(Math.PI / 2); mb.cylinder(0, -0.08, 0, 0.022, 0.16, 8, 'rubber_black'); mb.cylinder(0, 0.08, 0, 0.03, 0.03, 8, 'metal_grey'); mb.pop();
   },
 });
 

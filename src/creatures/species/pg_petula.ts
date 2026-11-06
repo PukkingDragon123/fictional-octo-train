@@ -10,7 +10,8 @@ import { net, netOf, playAt, hashId, rng, localIn, thinkOnce, dist } from '../be
 import { KitDef, KitRig, SkinB, BuildCtx, Page, V3, Wt, buildKitRig, kitSync, kitPersonalize, attackCurve, flinchOf, hash, gauss } from '../kit/humanoids';
 import { chain, sac, plate, blade, paintCap, paintSkin } from '../kit/organic';
 import { ruleShown } from '../rules';
-import { absBones, say, linePoll, nearestUnit, seenBy, runs } from './pg_common';
+import { absBones, say, linePoll, nearestUnit, seenBy, runs, donor, fold, graft, donorTick } from './pg_common';
+import type { HumanRig } from '../../entities/humanRig';
 
 // =====================================================================================
 // PETULA — the sunflower who sang the songs on "Grow-Along with Petula" (Bright
@@ -19,13 +20,13 @@ import { absBones, say, linePoll, nearestUnit, seenBy, runs } from './pg_common'
 // stands in the playground now is two and a half metres of real, hairy, living
 // sunflower that walks on its roots. The petals are going brown at the tips.
 // In the middle of the seed head, where the puppet had a painted smile, there is
-// a baby's face: soft, plump and pink, with seeds pushing through the skin at
-// the edges and two glossy black seeds for eyes. Its face is always toward you.
+// a baby's face: soft, plump and pink (the survivors' own human base, grown
+// big and bald), with seeds packed up to its edges. Its face is always toward you.
 // It never moves while anyone is looking at it. Look away and it comes,
 // singing, and you can hear the song getting closer.
 //   pg_petula   skinned kit rig: hairy stem, drooping leaves, six walking roots, a seed
-//               disc with the baby face (cheeks, nose, black seed eyes) and a chin
-//               that drops to show the mouth of seed teeth, two rings of petals
+//               disc, two rings of petals; the baby face is a HumanRig head (bald,
+//               inflated, flattened) grafted into the middle of the seeds
 // VIDEO / POSTER API (stand-alone):
 //   buildPetula(variant?)                         -> KitRig
 //   posePetula(rig, t, dt, pose, { sing })        pose: 'sway' | 'sing' | 'creep' | 'frozen' | 'lunge' | 'dead'
@@ -58,9 +59,6 @@ function layoutPetula(p: Page) {
   p.reg('BACK', 48, 24);
   p.reg('SEPAL', 16, 24);
   p.reg('ROOT', 16, 32);
-  p.reg('CHIN', 24, 16);
-  p.reg('SKIN', 16, 16);
-  p.reg('SEYE', 8, 8);
   p.reg('CAP', 16, 16);
 }
 function buildPetulaMesh(B: SkinB, x: BuildCtx) {
@@ -87,13 +85,6 @@ function buildPetulaMesh(B: SkinB, x: BuildCtx) {
   const back: V3[] = [[0, HC[1], HC[2] - 0.17], [0, HC[1], HC[2] - 0.12], [0, HC[1], HC[2] - 0.06], [0, HC[1], HC[2] - 0.01], [0, HC[1], HC[2] + 0.005]];
   sac(B, R('BACK'), 10, back, [[0.08, 0.08], [0.22, 0.22], [0.3, 0.3], [RD + 0.01, RD + 0.01], [RD, RD]], back.map(() => [HD, 1]), { n: 20, end: false, up: [0, 1, 0] });
   plate(B, R('FACE'), 11, [HC[0], HC[1], HC[2] + 0.004], [1, 0, 0], [0, 1, 0], RD, RD, 0.07, [HD, 1], { rows: 10, cols: 10, oval: 1 });
-  // the baby face in the middle: cheeks, a button nose, two black seed eyes; a soft chin over the mouth
-  for (const k of [1, -1]) {
-    sac(B, R('SKIN'), 12, [[k * 0.075, HC[1] - 0.03, HC[2] + 0.05], [k * 0.078, HC[1] - 0.032, HC[2] + 0.082], [k * 0.078, HC[1] - 0.032, HC[2] + 0.1]], [[0.05, 0.045], [0.04, 0.036], [0.015, 0.014]], [[HD, 1], [HD, 1], [HD, 1]], { n: 10, up: [0, 1, 0] });
-    sac(B, R('SEYE'), 13, [[k * 0.058, HC[1] + 0.035, HC[2] + 0.06], [k * 0.058, HC[1] + 0.035, HC[2] + 0.078], [k * 0.058, HC[1] + 0.035, HC[2] + 0.088]], [[0.024, 0.021], [0.022, 0.019], [0.01, 0.009]], [[HD, 1], [HD, 1], [HD, 1]], { n: 10, up: [0, 1, 0] });
-  }
-  sac(B, R('SKIN'), 14, [[0, HC[1] + 0.0, HC[2] + 0.07], [0, HC[1] - 0.008, HC[2] + 0.095], [0, HC[1] - 0.012, HC[2] + 0.104]], [[0.016, 0.014], [0.012, 0.01], [0.005, 0.005]], [[HD, 1], [HD, 1], [HD, 1]], { n: 8 });
-  plate(B, R('CHIN'), 15, [0, 2.088, HC[2] + 0.078], [1, 0, 0], [0, 1, 0], 0.07, 0.042, 0.02, [JW, 1], { rows: 4, cols: 6, oval: 0.7 });
   // ---- petals: two rings, the front ones yellow and long, the back ones shorter; some wilted
   const ring = (n: number, r0: number, len: number, z: number, tilt: number, g: number, off: number) => {
     for (let i = 0; i < n; i++) {
@@ -120,7 +111,7 @@ function buildPetulaMesh(B: SkinB, x: BuildCtx) {
 function paintPetula(p: Page, x: BuildCtx) {
   const v = x.variant % 2, sd = x.seed % 997;
   const GREEN = makeRamp(0x5a8a32, 8, { hueShift: 0.04, spread: 0.6 }), YEL = makeRamp(v ? 0xe8a828 : 0xf0c430, 8, { hueShift: 0.05, spread: 0.55 });
-  const SEED = makeRamp(0x3a2414, 6, { spread: 0.6 }), BABY = makeRamp(0xe8a890, 8, { hueShift: 0.03, spread: 0.45 }), BLOOD = makeRamp(0x6a0a0a, 6, { spread: 0.6 });
+  const SEED = makeRamp(0x3a2414, 6, { spread: 0.6 });
   // the face: a spiral of seeds out to the rim, then the soft skin with seeds pushing through toward its edge
   const F = p.R('FACE');
   const cx = F.w / 2, cy = F.h / 2;
@@ -134,25 +125,8 @@ function paintPetula(p: Page, x: BuildCtx) {
     F.put(xx, yy, SEED, l, 0.5);
     if (d > 0.86 && hash(k, 3) < 0.35) F.blend(xx, yy, YEL[2], 0.45);   // tiny florets, pollen at the rim
   }
-  const skinR = 0.6;
-  F.fill(BABY, (xx, yy) => { const dx = (xx + 0.5 - cx) / (F.w / 2), dy = (yy + 0.5 - cy) / (F.h / 2); return 5 - (dx * dx + dy * dy) * 4 + dy * 0.8 + (F.fbm(xx, yy, 4, 2, sd + 1) - 0.5) * 0.8; },
-    (xx, yy) => Math.hypot((xx + 0.5 - cx) / (F.w / 2), (yy + 0.5 - cy) / (F.h / 2)) < skinR + (hash(Math.floor(Math.atan2(yy - cy, xx - cx) * 6), 4) - 0.5) * 0.06, 0.45);
-  // seeds pushing out through the skin near its edge, like teeth through a gum
-  for (let i = 0; i < 70; i++) {
-    const a = hash(i, sd + 2) * Math.PI * 2, r = (skinR - 0.02 - hash(i, sd + 3) * 0.18) * (F.w / 2);
-    const sx = cx + Math.cos(a) * r, sy = cy + Math.sin(a) * r;
-    F.ellipse(sx, sy, 1.3, 0.8, SEED[1], 0.9); F.blend(sx, sy - 1, BABY[2], 0.6); F.set(sx - 0.5, sy - 0.5, SEED[3]);
-  }
-  // rosy cheeks, faint brows, the mouth: a wide dark oval full of seed teeth (the chin covers it when shut)
-  for (const k of [1, -1]) { F.glow(cx + k * 13, cy + 5, 7, 5, 0xe86a6a, 0.45); for (let i = 0; i < 5; i++) F.blend(cx + k * (6 + i * 1.6), cy - 9 - Math.sin((i / 4) * Math.PI) * 1.2, 0xb88070, 0.7); }
-  const my = cy + 14;
-  for (let yy = -5; yy <= 5; yy++) for (let xx = -11; xx <= 11; xx++) {
-    if ((xx / 11) ** 2 + (yy / 5) ** 2 > 1) continue;
-    const tooth = (Math.abs(yy) > 2.2) && ((xx + 22) % 3 !== 0);
-    F.set(cx + xx, my + yy, tooth ? (yy < 0 ? 0xe8e0c4 : 0xd8d0b0) : 0x1a0606);
-  }
-  for (let xx = -12; xx <= 12; xx++) F.blend(cx + xx, my - 5.5 + Math.abs(xx) * 0.08, 0xc85a5a, 0.6);
-  runs(F, cx - 4, my + 5, 2, 10, BLOOD, sd + 4, 1);
+  // the middle, where the face is grafted, packed tight with the smallest, palest florets
+  F.glow(cx, cy, F.w * 0.3, F.h * 0.3, SEED[4], 0.35);
   // stem: green, ridged, with paler hairs; a ring of old rope burn where the puppet rod went
   const St = p.R('STEM');
   St.fill(GREEN, (xx, yy) => 3.6 + Math.cos((St.deg(xx) * Math.PI) / 180) * 1.2 + (Math.sin(xx * 1.6) > 0.6 ? 0.6 : 0) + (St.fbm(xx, yy, 3, 2, sd + 5) - 0.5) * 1.1, undefined, 0.5);
@@ -174,17 +148,27 @@ function paintPetula(p: Page, x: BuildCtx) {
   const Rt = p.R('ROOT');
   Rt.fill(makeRamp(0x8a7a5a, 6, { spread: 0.5 }), (xx, yy) => 2.6 + Math.cos((Rt.deg(xx) * Math.PI) / 180) * 0.9 + (Rt.fbm(xx, yy, 3, 2, sd + 15) - 0.5) * 1.4, undefined, 0.5);
   for (let yy = Math.floor(Rt.h * 0.5); yy < Rt.h; yy++) for (let xx = 0; xx < Rt.w; xx++) if (hash(xx, yy) < 0.5) Rt.blend(xx, yy, 0x3a2a1a, 0.5);
-  const Ch = p.R('CHIN');
-  Ch.fill(BABY, (xx, yy) => 4.6 - (yy / Ch.h) * 1.2 + (hash(xx, yy) - 0.5) * 0.4 - Math.abs(xx - Ch.w / 2) * 0.04);
-  for (let xx = 2; xx < Ch.w - 2; xx++) { Ch.blend(xx, 1 + Math.abs(xx - Ch.w / 2) * 0.06, 0xc85a5a, 0.85); Ch.blend(xx, 2 + Math.abs(xx - Ch.w / 2) * 0.06, 0xd87a72, 0.5); }
-  paintSkin(p.R('SKIN'), BABY, { seed: sd + 16, veins: 2, vein: 0xb87a8a, mottle: 0.8, base: 5, glint: 3 });
-  const Se = p.R('SEYE');
-  Se.fill(makeRamp(0x0c0808, 3), () => 0.6);
-  Se.set(2, 2, 0xffffff); Se.set(3, 2, 0xa8a8b8);
   paintCap(p.R('CAP'), GREEN[3], 0xc8d890, 0x6a8a3a);
 }
 
-const PETULA_KIT: KitDef = { key: 'pg_petula', variants: 2, W: 256, H: 256, bones: bonesPetula, layout: layoutPetula, build: buildPetulaMesh, paint: paintPetula, sphere: [0, 1.3, 0, 1.6] };
+const PETULA_KIT: KitDef = { key: 'pg_petula', variants: 2, W: 256, H: 256, bones: bonesPetula, layout: layoutPetula, build: buildPetulaMesh, paint: paintPetula, sphere: [0, 1.3, 0, 1.6], decorate: (rig, e) => attachBaby(rig, e.variant) };
+/** the baby face: the survivors' HumanRig head, bald and soft, blown up and pressed flat into the seed disc */
+function attachBaby(rig: KitRig, variant: number) {
+  const hr = donor('pg_petula_baby:' + (variant % 2), { skin: variant % 2 ? 0xf0c8b0 : 0xf3d2b8, hair: 0xd8c08a, hairStyle: 'bald', face: variant % 2 ? 4 : 2, eyeColor: 0x1a1210, build: 'broad', height: 0.95, age: 0, freckles: 0 }, { dirt: 1 }, 'smile');
+  fold(hr, rig.parts.head, [0, 0, -0.1]);
+  graft(hr, 'head', rig.parts.head, [0, -0.118, 0.07], [-0.05, 0, 0], [1.8, 1.8, 1.0]);
+  rig.kit.m.baby = hr;
+}
+/** the face lives only while it is not being watched: it sings (talks), smiles, bares its teeth to bite */
+function babyStep(K: KitRig, dt: number, md: string, sing: number, atk: number, dead: number, flash: number) {
+  const m = K.kit.m as Record<string, any>, hr = m.baby as HumanRig | undefined;
+  if (!hr) return;
+  if (md === 'frozen') { hr.fx.value.z = flash; return; }
+  donorTick(hr, dt, flash);
+  const want = dead > 0.5 ? 'dead' : atk > 0.2 || md === 'lunge' ? 'angry' : sing > 0.5 ? 'happy' : 'smile';
+  if (m.babyExpr !== want) { m.babyExpr = want; hr.setExpression(want); }
+  hr.talking = sing > 0.5 && dead < 0.5 && md !== 'lunge';
+}
 /** a Petula rig (variant 0: lemon petals; 1: deep marigold) */
 export function buildPetula(variant = 0): KitRig { return buildKitRig(PETULA_KIT, variant, 2.3); }
 
@@ -248,6 +232,7 @@ function animatePetula(rig: Rig, c: Creature, t: number, dt: number) {
   ud.sing = (ud.sing ?? 0) + (((n.md === 'creep' || n.md === 'sing') ? 1 : 0) - (ud.sing ?? 0)) * Math.min(1, dt * 3);
   posePetulaRig(K, { t: ud.ct ?? t, dt, md: frozen ? 'frozen' : c.dead ? '' : (n.md ?? ''), mdT: ud.mdT, speed: c.dead ? 0 : c.speed, sing: ud.sing, atk: Math.max(ac.wind, ac.strike), flinch: flinchOf(c), dead: ud.dk, seed: hashId(c.id, 4) });
   const F = K.kit.F.fx.value; if (!frozen) F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
+  babyStep(K, dt, frozen ? 'frozen' : (n.md ?? ''), ud.sing, Math.max(ac.wind, ac.strike), ud.dk, F.z);
   // the lullaby, from wherever it is (heard, not seen)
   if (!c.dead && (n.md === 'creep' || n.md === 'sing') && (ud.songT ?? 0) < t) { ud.songT = t + 4.5 + Math.random() * 2; playAt('music_box_broken', c, n.md === 'creep' ? 0.55 : 0.3, 22, 0.8 + hashId(c.id) * 0.15); }
   if (!c.dead && c.speed > 0.3 && (ud.rootT ?? 0) < t) { ud.rootT = t + 0.3; playAt('carpet_rustle', c, 0.25, 9, 0.5); }
@@ -338,7 +323,9 @@ export function posePetula(rig: KitRig, t: number, dt: number, pose: PetulaPose 
   const ud = rig.kit.m as Record<string, any>;
   if (ud.gp !== pose) { ud.gp = pose; ud.gT = 0; }
   ud.gT = (ud.gT ?? 0) + dt;
-  posePetulaRig(rig, { t, dt, md: pose === 'sway' || pose === 'dead' ? '' : pose, mdT: pose === 'lunge' ? ud.gT % 1.4 : ud.gT, speed: o.speed ?? (pose === 'creep' ? 2.2 : 0), sing: o.sing ?? (pose === 'sing' || pose === 'creep' ? 1 : 0), atk: 0, flinch: 0, dead: pose === 'dead' ? 1 : 0, seed: 0.23 });
+  const sing = o.sing ?? (pose === 'sing' || pose === 'creep' ? 1 : 0);
+  posePetulaRig(rig, { t, dt, md: pose === 'sway' || pose === 'dead' ? '' : pose, mdT: pose === 'lunge' ? ud.gT % 1.4 : ud.gT, speed: o.speed ?? (pose === 'creep' ? 2.2 : 0), sing, atk: 0, flinch: 0, dead: pose === 'dead' ? 1 : 0, seed: 0.23 });
+  babyStep(rig, dt, pose, sing, 0, pose === 'dead' ? 1 : 0, 0);
   if (pose !== 'frozen') rig.kit.F.fx.value.y += dt;
 }
 PETULA.animateGallery = (rig: Rig, t: number) => {

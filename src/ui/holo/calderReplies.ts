@@ -97,3 +97,4 @@ export function askCalder(opts: string[], o: { secs?: number } = {}): Promise<nu
 /** take the plates down now (resolves the open question with -1) */
 export function cancelAsk() { const c = cur; cur = null; c?.done(-1); }
 export function asking(): boolean { return !!cur; }
+if (import.meta.env.DEV && typeof window !== 'undefined') (window as unknown as { __askCalder: typeof askCalder }).__askCalder = askCalder;

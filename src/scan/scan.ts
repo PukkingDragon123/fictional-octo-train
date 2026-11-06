@@ -1,12 +1,22 @@
-// Scanning for DATA. Point at anything (a creature, an anomaly, a piece of
-// furniture, a tribe totem, a stranger, an item on the floor) and hold SCAN
-// (N): the watch (research node 'watch_scan') or a handheld Data Probe sweeps
-// it. Every scan yields DATA (a persistent profile stat); first scans of a
-// kind, anomalies and data milestones pay Research Points (grantResearch) and
-// unlock a knowledge entry (profile 'scan:<kind>:<key>') the watch can list
-// as a bestiary (G.scan.entries()). Old SEER-9 creature scans feed the same
-// pipeline. Bus: 'scanEntry' {kind, key, title, first, data, rp},
-// 'scanned' (creature, as before), 'scanData' {data, total}.
+// Scanning for DATA with the unit's suit scanner (round 14: the wrist watch
+// is gone; the emitter sits on the visor and needs no research). Point at
+// anything (an inhabitant, an anomaly, a piece of furniture, a tribe totem, a
+// stranger, an item on the floor) and hold SCAN (Q, or N): a cone of light sweeps it
+// in the world (src/scan/sweep.ts) and the action plate over the unit's head
+// fills (plate(), read by src/ui/ui.ts). Every scan yields DATA (a persistent
+// profile stat); first scans of a kind, anomalies and data milestones pay
+// Research Points (grantResearch) and unlock a codex entry (profile
+// 'scan:<kind>:<key>', G.scan.entries(); the lab's archive reads them). Dr.
+// Calder reads the result out on the subtitle strip (inhabitant sections:
+// src/scan/lorebook.ts). Research in the lab (the 'recipe' page of the
+// Control Room tree, src/game/unitTree.ts) widens and speeds the sweep:
+// SCANNER BEAM ('tool_beam') and DEEP SCAN ('scan_deep'). A Phosphor Scope
+// (data_probe) on the belt speeds it a little more. Q is also whistle / shout
+// (src/social/social.ts): on Q the scanner only takes an inhabitant, an
+// anomaly, an artefact or a stranger in front of the unit, else Q whistles;
+// N (scan only) takes anything.
+// Bus: 'scanEntry' {kind, key, title, first, data, rp}, 'scanned' (creature,
+// as before), 'scanData' {data, total}, 'anomalyLogged' (anomaly id).
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import type { GameSystem } from '../game/game';
@@ -17,7 +27,9 @@ import { itemDef } from '../items/item';
 import { species as getSpecies } from '../creatures/registry';
 import { scanSounds } from './sounds';
 import { loreNotes } from './lorebook';
-import { Scope } from './scope';
+import { ScanSweep } from './sweep';
+import { voss } from '../game/debt/voice';
+import * as THREE from 'three';
 
 export type ScanKind = 'creature' | 'tribe' | 'anomaly' | 'artefact' | 'object' | 'item' | 'survivor';
 
@@ -30,17 +42,23 @@ export interface ScanTarget {
   x: number; y: number; z: number;
   threat?: number;
   ref?: any;
+  /** carried by the unit (the item menu's study): the sweep plays over its hands */
+  held?: boolean;
 }
 
 export interface ScanEntry { kind: ScanKind; key: string; title: string; cls: string; notes: string[]; count: number }
 
-defNode({ key: 'watch_scan', branch: 'watch', title: 'SCAN', cost: 4, icon: 'scan',
-  desc: 'The watch learns to sweep what you point at: hold N on a creature, anomaly, object or stranger for DATA. First scans pay research.' });
-defNode({ key: 'scan_deep', branch: 'watch', title: 'DEEP SCAN', cost: 14, requires: ['watch_scan'], icon: 'scan',
+// the suit scanner's upgrades (researched in the lab between runs; old saves may own the retired 'watch_scan')
+defNode({ key: 'tool_beam', branch: 'scanner', title: 'SCANNER BEAM', cost: 4, icon: 'scan',
+  desc: 'A focusing lens for the visor emitter: scans reach 18 m and finish faster.' });
+defNode({ key: 'scan_deep', branch: 'scanner', title: 'DEEP SCAN', cost: 14, requires: ['tool_beam'], icon: 'scan',
   desc: 'Longer reach (18 m), faster sweeps and half again as much DATA from every scan.' });
 
 /** DATA milestones and the research they pay */
 const MILESTONES: [number, number][] = [[40, 3], [120, 4], [250, 5], [450, 6], [700, 8], [1000, 10], [1500, 12], [2200, 15], [3000, 18], [4000, 22], [5500, 26], [7500, 30]];
+
+/** what Q (shared with whistle) will scan: living things, the anomalous, strangers */
+const STRICT = new Set<ScanKind>(['creature', 'tribe', 'anomaly', 'artefact', 'survivor']);
 
 const ANOMALY_TAGS = ['anomaly', 'glitch', 'story', 'weird', 'wrong', 'replica', 'node'];
 
@@ -52,31 +70,32 @@ export class ScanSystem implements GameSystem {
   name = 'scan';
   /** the sweep in progress */
   active: { t: ScanTarget; prog: number; dur: number; lost: number; hold: boolean } | null = null;
-  /** the handheld readout: CRT, needle, punch cards */
-  scope: Scope;
+  /** the sweep in the world: the cone from the visor, the band over the target, the ring on the floor */
+  sweep: ScanSweep;
   private emitting = false;
+  private eye = new THREE.Vector3();
   private humT = 0;
   private hintT = 0;
 
   constructor() {
     G.scan = this;
     scanSounds();
-    this.scope = new Scope();
-    // the SEER-9 (if it is still around) scans creatures its own way: count those too
+    this.sweep = new ScanSweep();
+    // anything else that scans a creature its own way (bus 'scanned'): count those too
     bus.on('scanned', (c: any) => { if (!this.emitting && c?.sp) this.complete(this.creatureTarget(c), true); });
   }
 
   // ---------------------------------------------------------------- queries
   get data(): number { return stat('scan_data'); }
-  /** can the local survivor scan at all (watch function or a handheld probe) */
-  canScan(): boolean { return hasUnlock('watch_scan') || !!this.probe(); }
+  /** can the local survivor scan at all (the suit scanner is built in: always, while alive) */
+  canScan(): boolean { return !!G.local && !G.local.body?.dead; }
   probe() { return G.local?.findTool?.('#data_probe'); }
   range() { return hasUnlock('scan_deep') || hasUnlock('tool_beam') ? 18 : 10; }
   /** how many times this thing has been scanned (persistent) */
   count(kind: ScanKind, key: string) { return stat(`scan_n:${kind}:${key}`); }
   known(kind: ScanKind, key: string) { return isUnlocked(`scan:${kind}:${key}`); }
 
-  /** every knowledge entry so far (bestiary / codex for the watch) */
+  /** every knowledge entry so far (the codex: the lab's archive lists them) */
   entries(kind?: ScanKind): ScanEntry[] {
     const out: ScanEntry[] = [];
     for (const id of unlockedIds('scan:')) {
@@ -128,10 +147,10 @@ export class ScanSystem implements GameSystem {
     return null;
   }
 
-  /** what the survivor is pointing at, or the nearest living thing in front of them */
-  private pickTarget(): ScanTarget | null {
+  /** what the survivor is pointing at, or the nearest living thing in front of them (strict: worth a scan, not furniture) */
+  private pickTarget(strict = false): ScanTarget | null {
     const h = this.targetOf(G.ui?.hover);
-    if (h) return h;
+    if (h && (!strict || STRICT.has(h.kind))) return h;
     const p = G.local; if (!p) return null;
     let best: any = null, bd = this.range();
     for (const c of G.creatures?.list?.() || []) {
@@ -145,18 +164,30 @@ export class ScanSystem implements GameSystem {
     return best ? this.creatureTarget(best) : null;
   }
 
-  /** begin sweeping a target (the watch UI may call this directly; hold = only while N is held) */
-  begin(t: ScanTarget | null, hold = false): boolean {
-    if (!t) return false;
-    if (!this.canScan()) {
-      if (G.time > this.hintT) { this.hintT = G.time + 4; bus.emit('think', G.local, "Nothing to scan it with. The watch could learn to (research SCAN), or I find a probe."); }
+  /** begin sweeping a target (menus and the context bar call this directly; hold = only while the key is held) */
+  begin(t: ScanTarget | null, hold = false, hint = hold): boolean {
+    if (!this.canScan()) return false;
+    if (!t) {
+      if (hint && G.time > this.hintT) { this.hintT = G.time + 4; bus.emit('think', G.local, 'Nothing in front of the visor to scan.'); }
       return false;
     }
     const base = t.kind === 'creature' ? 1.5 + (t.threat ?? 1) * 0.25 : t.kind === 'tribe' || t.kind === 'artefact' ? 1.4 : t.kind === 'anomaly' ? 1.2 : t.kind === 'item' ? 0.5 : 0.8;
-    const dur = base * (hasUnlock('scan_deep') ? 0.7 : 1) * (hasUnlock('watch_scan') ? 1 : 1.35);
+    const dur = base * (hasUnlock('scan_deep') ? 0.7 : 1) * (hasUnlock('tool_beam') ? 0.75 : 1) * (this.probe() ? 0.85 : 1);
     this.active = { t, prog: 0, dur, lost: 0, hold };
     G.audio?.ui?.('scan_start', 0.45);
+    G.missions?.set?.('tut:scanner');
     return true;
+  }
+  /** study an anomalous thing you carry (the item menu's "Study with the scanner") */
+  scanItem(it: { key: string } | null | undefined): boolean {
+    const p = G.local; if (!p || !it) return false;
+    const d = itemDef(it.key);
+    return this.begin({ kind: d.anomaly ? 'anomaly' : 'item', key: d.key, title: d.name, cls: d.anomaly ? 'Anomalous object' : 'Object', notes: d.desc ? [d.desc] : [], x: p.x, y: (p.y ?? 0) + 1, z: p.z, held: true, ref: it });
+  }
+  /** for the action plate over the unit's head while a sweep runs (src/ui/ui.ts) */
+  plate(): { name: string; k: number } | null {
+    const a = this.active;
+    return a ? { name: 'Scanning ' + (this.known(a.t.kind, a.t.key) ? a.t.title : 'unknown signature'), k: Math.min(1, a.prog) } : null;
   }
 
   cancel() { this.active = null; }
@@ -165,16 +196,22 @@ export class ScanSystem implements GameSystem {
   update(dt: number) {
     const p = G.local;
     const inp = G.input;
-    if (!p || p.body?.dead) { this.active = null; this.scope.drop(); this.scope.update(dt); return; }
+    if (!p || p.body?.dead) { this.active = null; this.sweep.drop(); this.sweep.update(dt); return; }
     const held = !inp.textFocus && inp.down('scan');
-    if (held && !this.active && inp.hit('scan')) this.begin(this.pickTarget(), true);
+    if (held && !this.active && inp.hit('scan')) {
+      // the key is shared with whistle / shout (Q): only something worth a scan takes it, and no hint when nothing does
+      const shared = inp.hit('whistle') || inp.hit('shout');
+      this.begin(this.pickTarget(shared), true, !shared);
+    }
     const a = this.active;
+    let lost = false;
     if (a) {
-      // follow moving things
+      // follow moving things (a carried item rides with the unit)
       const r = a.t.ref;
-      if (r && typeof r.x === 'number' && (a.t.kind === 'creature' || a.t.kind === 'tribe' || a.t.kind === 'survivor')) { a.t.x = r.x; a.t.z = r.z; }
+      if (a.t.held) { a.t.x = p.x + Math.cos(p.facing) * 0.45; a.t.z = p.z + Math.sin(p.facing) * 0.45; a.t.y = (p.y ?? 0) + 1.0; }
+      else if (r && typeof r.x === 'number' && (a.t.kind === 'creature' || a.t.kind === 'tribe' || a.t.kind === 'survivor')) { a.t.x = r.x; a.t.z = r.z; }
       const d = Math.hypot(a.t.x - p.x, a.t.z - p.z);
-      const ok = d <= this.range() && (!r?.zoneKey || r.zoneKey === p.zoneKey);
+      const ok = d <= this.range() && (!r?.zoneKey || r.zoneKey === p.zoneKey) && !(r?.dead && a.t.kind !== 'creature');
       if (a.hold && !held) { this.active = null; }
       else if (ok) {
         a.prog += dt / a.dur; a.lost = 0;
@@ -182,17 +219,33 @@ export class ScanSystem implements GameSystem {
         if (this.humT <= 0) { this.humT = 0.32; G.audio?.ui?.('scan_tick', 0.22); }
         if (a.prog >= 1) { this.active = null; this.complete(a.t); p.playAnim?.('scanner', 0.6); }
       } else {
+        lost = true;
         a.lost += dt; a.prog = Math.max(0, a.prog - dt * 0.6);
         if (a.lost > 1.2) this.active = null;
       }
+      // the unit turns its visor to what it is sweeping
+      if (!a.t.held && !p.aiming && p.speed < 0.2) p.targetFacing = Math.atan2(a.t.z - p.z, a.t.x - p.x);
     }
     const cur = this.active;
     if (cur) {
-      this.scope.sweep({ title: cur.t.title, cls: cur.t.cls, known: this.known(cur.t.kind, cur.t.key), kind: cur.t.kind }, cur.prog);
-      const r = cur.t.ref, size = r?.height ? Math.max(0.6, r.height * 1.2) : 0.9;
-      this.scope.mark(cur.t.x, cur.t.y, cur.t.z, size, { x: p.x, y: (p.y ?? 0) + 1.25, z: p.z });
-    } else if (a) this.scope.drop();
-    this.scope.update(dt);
+      const r = cur.t.ref;
+      const tall = r?.height ? Math.max(0.3, r.height) : cur.t.kind === 'item' || cur.t.held ? 0.3 : Math.max(0.4, cur.t.y * 1.4);
+      const size = r?.height ? Math.max(0.55, Math.min(2.6, r.height * 0.7)) : cur.t.kind === 'item' || cur.t.held ? 0.4 : 0.9;
+      let ground = cur.t.held ? cur.t.y - 0.15 : 0;
+      if (!cur.t.held) { try { ground = Number(G.zone?.heightAt?.(Math.floor(cur.t.x), Math.floor(cur.t.z))) || 0; } catch { /* no zone */ } }
+      this.emitter(p, this.eye);
+      this.sweep.aim(this.eye, cur.t, size, tall, ground, cur.prog, lost);
+    } else this.sweep.drop();
+    this.sweep.update(dt);
+  }
+
+  /** the visor emitter: in front of the unit's head (the rig's head bone when it is built) */
+  private emitter(p: any, out: THREE.Vector3) {
+    const head = p.rig?.j?.head as THREE.Object3D | undefined;
+    const fx = Math.cos(p.facing), fz = Math.sin(p.facing);
+    if (head) { head.getWorldPosition(out); out.x += fx * 0.13; out.z += fz * 0.13; out.y += 0.06; }
+    else out.set(p.x + fx * 0.15, (p.y ?? 0) + 1.62, p.z + fz * 0.15);
+    return out;
   }
 
 
@@ -225,11 +278,25 @@ export class ScanSystem implements GameSystem {
       c.scanned = true;
       if (!viaSeer) { G.missions?.onScan?.(c); this.emitting = true; try { bus.emit('scanned', c); } finally { this.emitting = false; } }
     }
+    // anomalies: R&D's survey counts each one logged (once per thing)
+    if (kind === 'anomaly') {
+      const id = `${G.local?.zoneKey ?? ''}:${t.ref?.uid ?? t.ref?.item?.uid ?? key}`;
+      if (!G.missions?.flags?.has?.('anom:' + id)) { G.missions?.set?.('anom:' + id); bus.emit('anomalyLogged', id); }
+    }
     G.audio?.ui?.(first ? 'scan_new' : 'scanDone', 0.5);
-    this.scope.result({ title: t.title, kind: kind === 'creature' ? (t.cls || 'ENTITY') : kind, data, rp, first, total: before + data });
     bus.emit('scanEntry', { kind, key, title: t.title, first, data, rp });
     bus.emit('scanData', { data, total: before + data });
-    if (first && t.notes?.length && G.local) bus.emit('think', G.local, t.notes[0].length < 110 ? t.notes[0] : t.notes[0].slice(0, 107) + '...');
+    this.report(t, first, data, rp);
   }
 
+
+  /** Dr. Calder reads the sample out (an inhabitant's codex sections are hers too: src/scan/lorebook.ts) */
+  private report(t: ScanTarget, first: boolean, data: number, rp: number) {
+    if (!G.local) return;
+    const tally = `Data ${data}${rp ? `, research ${rp}` : ''}.`;
+    // a known inhabitant: the lorebook reads its next section; she only adds the numbers
+    if (t.kind === 'creature' && loreNotes(t.key).length) return;
+    const note = first && t.notes?.length ? ' ' + (t.notes[0].length < 120 ? t.notes[0] : t.notes[0].slice(0, 117) + '...') : '';
+    voss(first ? `New entry: ${t.title}.${note} ${tally}` : `${t.title} again. ${tally}`);
+  }
 }

@@ -12,7 +12,8 @@ import { KitDef, KitRig, SkinB, BuildCtx, Page, V3, Wt, buildKitRig, kitSync, ki
 import { chain, sac, plate, paintCap, paintSkin } from '../kit/organic';
 import { uprightDead } from '../kit/gel';
 import { ruleShown } from '../rules';
-import { absBones, say, linePoll, nearestUnit, paintFelt, runs, soak } from './pg_common';
+import { absBones, say, linePoll, nearestUnit, paintFelt, runs, soak, donor, fold, graft, donorTick } from './pg_common';
+import type { HumanRig } from '../../entities/humanRig';
 
 // =====================================================================================
 // LEFTY — the sock puppet from "Lefty's Laundry Hour" (Bright Hour Television,
@@ -26,8 +27,10 @@ import { absBones, say, linePoll, nearestUnit, paintFelt, runs, soak } from './p
 // sock has been. It talks. It wants what you have. It cannot go further from
 // its hole than the arm goes.
 //   pg_lefty   skinned kit rig: the sock (cuff, upper and lower jaw, tongue, buttons,
-//              pompom, yarn) on a 22-bone arm laid each frame along the path the sock
-//              took from its hole (the rest goes down into the hole); the hole's lip
+//              pompom, yarn) and the hole's lip; the arm is the survivors' own human
+//              base: four HumanRig arms (bodies folded away) joined wrist to shoulder and
+//              stretched, eight segments with an elbow or a pinched joint between each,
+//              laid every frame along the path the sock took from its hole
 //              VIDEO / POSTER API (stand-alone):
 //   buildLefty(variant?)                                      -> KitRig
 //   poseLefty(rig, t, dt, pose, { path, talk })                pose: 'lurk' | 'reach' | 'talk' | 'bite' |
@@ -35,17 +38,15 @@ import { absBones, say, linePoll, nearestUnit, paintFelt, runs, soak } from './p
 //   (path: points [x, z] in the rig's own space from the sock back to the hole; default a lazy S)
 // =====================================================================================
 
-const NA = 22, SEG = 0.62, REACH = 12.5;
+const NA = 8, SEG = 1.56, REACH = 12.5, DONORS = NA / 2;
 const WRIST: V3 = [0, 0.3, 0];
-/** where the arm bone joints rest (a0 behind the cuff, a1 sloping down, then along the ground) */
-const AREST: V3[] = Array.from({ length: NA + 1 }, (_, i) => (i === 0 ? [0, 0.27, -0.07] : i === 1 ? [0, 0.15, -0.5] : [0, 0.055, -0.5 - (i - 1) * SEG]));
+/** where the arm leaves the cuff (rig space) */
+const CUFF: V3 = [0, 0.27, -0.07];
 function bonesLefty() {
   const L: [string, string, V3, boolean?][] = [['base', '', [0, 0, 0]], ['wrist', 'base', WRIST, true], ['upper', 'wrist', [0, 0.325, 0.07], true], ['lower', 'wrist', [0, 0.27, 0.07]], ['hole', 'base', [0, 0, -1.4]]];
-  for (let i = 0; i < NA; i++) L.push(['a' + i, 'base', AREST[i], i < 3]);
   return absBones(L);
 }
 function layoutLefty(p: Page) {
-  p.reg('ARM', 32, 128);
   p.reg('SOCK', 64, 40);
   p.reg('JAW', 48, 24);
   p.reg('CUFF', 48, 12);
@@ -62,13 +63,8 @@ function layoutLefty(p: Page) {
 function buildLeftyMesh(B: SkinB, x: BuildCtx) {
   const bi = x.bi, R = x.R;
   const WR = bi('wrist'), UP = bi('upper'), LO = bi('lower');
-  // ---- the arm: one long grey tube, an elbow every few bones, the far end in the ground
-  const names = Array.from({ length: NA }, (_, i) => 'a' + i);
-  const elbows = [3, 7, 11, 15, 19];
-  chain(B, x, R('ARM'), 1, { bones: names, tip: AREST[NA], r: (t) => 0.056 - t * 0.012 + 0.006 * Math.sin(t * 61), n: 8, rings: 3, start: false, end: true, up: [0, 1, 0],
-    bump: (a, t) => { let e = 0; for (const k of elbows) e += Math.exp(-((t - k / NA) ** 2) / 0.00012) * (0.42 + 0.25 * Math.max(0, Math.cos(a))); return e + 0.05 * Math.sin(a * 3 + t * 200); } });
   // ---- the sock: a ribbed cuff round the arm, the head over the fingers, the thumb as the jaw
-  const cw = (i: number): Wt => (i < 2 ? [bi('a0'), 0.6, WR, 0.4] : [WR, 1]);
+  const cw = (_i: number): Wt => [WR, 1];
   const cp: V3[] = [[0, 0.285, -0.16], [0, 0.29, -0.1], [0, 0.295, -0.04], [0, 0.3, 0.0]];
   sac(B, R('CUFF'), 2, cp, [[0.07, 0.068], [0.078, 0.076], [0.082, 0.08], [0.084, 0.082]], cp.map((_, i) => cw(i)), { n: 14, start: false, end: false, up: [0, 0, 1], bump: (a) => 0.06 * Math.max(0, Math.sin(a * 9)) });
   const up: V3[] = [[0, 0.3, -0.005], [0, 0.322, 0.07], [0, 0.338, 0.15], [0, 0.335, 0.24], [0, 0.318, 0.31], [0, 0.305, 0.345]];
@@ -107,16 +103,6 @@ function paintLefty(p: Page, x: BuildCtx) {
   const v = x.variant % 2, C = PAL[v], sd = x.seed % 997;
   const SKIN = makeRamp(0xa89a8a, 8, { hueShift: 0.02, spread: 0.55 }), DIRT = makeRamp(0x4a3a28, 5, { spread: 0.5 }), BLOOD = makeRamp(0x6a0a0a, 6, { spread: 0.7 });
   const RA = makeRamp(C.a, 7, { spread: 0.5 }), RB = makeRamp(C.b, 7, { spread: 0.5 }), RC = makeRamp(C.c, 7, { spread: 0.4 });
-  // the arm: grey and hairless, wrinkled at every elbow, scraped and filthy from dragging over the ground
-  const A = p.R('ARM');
-  paintSkin(A, SKIN, { seed: sd + 1, veins: 22, vein: 0x6a6a82, mottle: 1.5, glint: 6 });
-  for (const k of [3, 7, 11, 15, 19]) {
-    const yy = (k / NA) * A.h;
-    for (let i = -3; i <= 3; i++) for (let xx = 0; xx < A.w; xx++) if (hash(xx, i + k) < 0.7) A.blend(xx, yy + i, i % 2 ? SKIN[2] : SKIN[5], 0.45);
-    A.glow(A.w / 2, yy, A.w * 0.3, 3, 0x6a3a5a, 0.4);
-  }
-  for (let yy = 0; yy < A.h; yy++) for (let xx = 0; xx < A.w; xx++) { const u = xx / A.w; if (u < 0.22 || u > 0.78) A.blend(xx, yy, DIRT[1 + ((xx + yy) & 1)], 0.4 + hash(xx, yy) * 0.3); }
-  for (let i = 0; i < 18; i++) A.line(hash(i, sd + 2) * A.w, hash(i, sd + 3) * A.h, hash(i, sd + 2) * A.w + 3, hash(i, sd + 3) * A.h + 6, BLOOD[2], 0.6);
   // the sock: stripes round the leg, a darker heel and toe, pills, grass, blood soaked up from the cuff
   const stripes = (r: ReturnType<Page['R']>, along: 'x' | 'y', seed: number) => {
     r.fill(RC, (xx, yy) => { const s = Math.floor((along === 'y' ? yy : xx) / 5) % 4; return s === 1 ? -100 : s === 3 ? -200 : 3.6 + 0.8 * Math.cos((r.deg(xx) * Math.PI) / 180) + (r.fbm(xx, yy, 4, 2, seed) - 0.5) * 1; }, undefined, 0.5);
@@ -163,7 +149,7 @@ function paintLefty(p: Page, x: BuildCtx) {
   paintCap(p.R('CAP'), SKIN[3], 0xb84a4a, 0x5a0a0a);
 }
 
-const LEFTY_KIT: KitDef = { key: 'pg_lefty', variants: 2, W: 256, H: 256, bones: bonesLefty, layout: layoutLefty, build: buildLeftyMesh, paint: paintLefty, sphere: [0, 0, 0, 16] };
+const LEFTY_KIT: KitDef = { key: 'pg_lefty', variants: 2, W: 256, H: 256, bones: bonesLefty, layout: layoutLefty, build: buildLeftyMesh, paint: paintLefty, sphere: [0, 0.2, 0, 1.6], decorate: (rig, e) => attachArm(rig, e.variant) };
 /** a Lefty rig (variant 0: mustard and maroon stripes; 1: navy and oatmeal) */
 export function buildLefty(variant = 0): KitRig { return buildKitRig(LEFTY_KIT, variant, 0.42); }
 
@@ -183,20 +169,49 @@ function trailStep(tr: Pt[], hx: number, hz: number, x: number, z: number) {
 function trailLen(tr: Pt[]) { let L = 0; for (let i = 1; i < tr.length; i++) L += Math.hypot(tr[i][0] - tr[i - 1][0], tr[i][1] - tr[i - 1][1]); return L; }
 
 const _v = new THREE.Vector3(), _q = new THREE.Quaternion(), _d = new THREE.Vector3(), _r = new THREE.Vector3();
+/** the arm: four donor HumanRigs, each giving a forearm and an upper arm (pg_common donor/graft) */
+function attachArm(rig: KitRig, variant: number) {
+  const arms: HumanRig[] = [];
+  for (let i = 0; i < DONORS; i++) {
+    const hr = donor('pg_lefty_arm:' + (variant % 2) + ':' + i, { skin: 0xc8b8a8, hair: 0x6a6660, hairStyle: 'bald', face: i % 6, build: 'slim', height: 1.04 },
+      { pale: 3, dirt: 3, blood: { farm_r: 1 + (i % 2), uarm_r: i % 2, hand_r: 2 } });
+    fold(hr, rig.parts.base, [0, -2, 0]);
+    graft(hr, 'farmR', rig.parts.base, [0, -2, 0]);
+    graft(hr, 'uarmR', rig.parts.base, [0, -2, 0]);
+    hr.bones.handR.scale.setScalar(0.001);
+    arms.push(hr);
+  }
+  rig.kit.m.arms = arms;
+}
+const _rs = new THREE.Vector3();
+/** point a grafted donor bone from `a` toward `b` (rig space), stretched so its child joint lands on b */
+function aimBone(hr: HumanRig, bone: 'farmR' | 'uarmR', a: V3, b: V3) {
+  const child = bone === 'farmR' ? 'handR' : 'farmR';
+  const r0 = hr.dims.rest[bone], r1 = hr.dims.rest[child];
+  const rx = r1[0] - r0[0], ry = r1[1] - r0[1], rz = r1[2] - r0[2];
+  _d.set(b[0] - a[0], b[1] - a[1], b[2] - a[2]);
+  const L = _d.length();
+  if (L < 1e-6) _d.set(0, -1, 0); else _d.multiplyScalar(1 / L);
+  const k = Math.sqrt(Math.max(1e-4, L * L - rx * rx - rz * rz)) / Math.max(1e-3, Math.abs(ry));
+  _rs.set(rx, ry * k, rz).normalize();
+  const o = hr.bones[bone];
+  o.position.set(a[0], a[1], a[2]);
+  o.quaternion.setFromUnitVectors(_rs, _d);
+  o.scale.set(1, k, 1);
+}
 /**
- * Lay the arm bones along a path given in the rig's local space (x, z pairs from the sock
+ * Lay the arm along a path given in the rig's local space (x, z pairs from the sock
  * back toward the hole); `hole` is the hole's local position. Whatever arm is left over
  * goes straight down into the hole.
  */
 function layArm(K: KitRig, path: Pt[], hole: Pt, t: number, slack: number) {
   const P = K.parts;
-  const pts: V3[] = [[AREST[0][0], AREST[0][1], AREST[0][2]]];
-  // walk the path from the sock, resampling at the bone spacing; a little snake-wave in it
+  const pts: V3[] = [[CUFF[0], CUFF[1], CUFF[2]]];
+  // walk the path from the sock, resampling at the segment length; a little snake-wave in it
   let seg = 0, along = 0, cx = path[0]?.[0] ?? 0, cz = path[0]?.[1] ?? 0;
-  const seglen = (i: number) => (i === 0 ? Math.hypot(AREST[1][0] - AREST[0][0], AREST[1][2] - AREST[0][2], AREST[1][1] - AREST[0][1]) : SEG);
   let inHole = false, depth = 0;
   for (let i = 1; i <= NA; i++) {
-    let need = seglen(i - 1);
+    let need = SEG;
     if (!inHole) {
       while (need > 0 && seg < path.length - 1) {
         const ax = path[seg][0], az = path[seg][1], bx = path[seg + 1][0], bz = path[seg + 1][1];
@@ -207,21 +222,20 @@ function layArm(K: KitRig, path: Pt[], hole: Pt, t: number, slack: number) {
       if (need > 0) inHole = true;
     }
     if (inHole) { depth += need > 0 ? need : SEG; need = 0; pts.push([hole[0], -0.05 - depth * 0.6, hole[1]]); continue; }
-    const wave = Math.sin(i * 1.3 - t * 2.2) * 0.07 * slack;
-    const y = i === 1 ? 0.14 : 0.055 + Math.max(0, Math.sin(i * 2.1 + t * 0.7)) * 0.015 * slack;
+    const wave = Math.sin(i * 1.3 - t * 2.2) * 0.09 * slack;
+    const y = 0.05 + Math.max(0, Math.sin(i * 2.1 + t * 0.7)) * 0.02 * slack;
     pts.push([cx + wave * 0.3, y, cz + wave]);
   }
-  for (let i = 0; i < NA; i++) {
-    const b = P['a' + i]; if (!b) continue;
-    const a = pts[i], n = pts[i + 1];
-    b.position.set(a[0], a[1], a[2]);
-    _r.set(AREST[i + 1][0] - AREST[i][0], AREST[i + 1][1] - AREST[i][1], AREST[i + 1][2] - AREST[i][2]).normalize();
-    _d.set(n[0] - a[0], n[1] - a[1], n[2] - a[2]);
-    if (_d.lengthSq() < 1e-8) _d.set(0, -1, 0);
-    _d.normalize();
-    _q.setFromUnitVectors(_r, _d);
-    b.quaternion.copy(_q);
-  }
+  // each donor: a forearm (elbow -> wrist, the wrist toward the sock) then an upper arm (shoulder -> elbow);
+  // its body is folded into the shoulder, where the next donor's wrist meets it
+  const arms = (K.kit.m.arms ?? []) as HumanRig[];
+  arms.forEach((hr, d) => {
+    const w = pts[d * 2], e = pts[d * 2 + 1], sh = pts[d * 2 + 2];
+    aimBone(hr, 'farmR', e, w);
+    aimBone(hr, 'uarmR', sh, e);
+    const h = hr.dims.off.hips;
+    hr.root.position.set(sh[0] - h[0], sh[1] - h[1], sh[2] - h[2]);
+  });
   const H = P.hole; if (H) { H.position.set(hole[0], 0, hole[1]); H.rotation.set(0, 0, 0); }
 }
 
@@ -264,7 +278,7 @@ function animateLefty(rig: Rig, c: Creature, t: number, dt: number) {
   const path: Pt[] = [];
   for (let i = tr.length - 1; i >= 0; i--) { _v.set(tr[i][0], 0, tr[i][1]); rig.body.worldToLocal(_v); path.push([_v.x, _v.z]); }
   // start the path just behind the cuff so the arm leaves the sock backward
-  path.unshift([AREST[0][0], AREST[0][2]]);
+  path.unshift([CUFF[0], CUFF[2]]);
   _v.set(hx, 0, hz); rig.body.worldToLocal(_v);
   const ac = attackCurve(rig, c, t);
   ud.dk = c.dead ? Math.min(1, (ud.dk ?? 0) + dt * 1.5) : 0;
@@ -279,11 +293,12 @@ function animateLefty(rig: Rig, c: Creature, t: number, dt: number) {
   layArm(K, path, [_v.x, _v.z], t, c.dead ? 0 : 1);
   uprightDead(K, c);
   const F = K.kit.F.fx.value; F.y += dt; F.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
+  for (const hr of (K.kit.m.arms ?? []) as HumanRig[]) donorTick(hr, dt, F.z);
   if (c.speed > 0.4 && !c.dead && c.visibleToLocal && (ud.drag ?? 0) < t) { ud.drag = t + 0.5; playAt('carpet_rustle', c, 0.25, 10, 0.7 + Math.random() * 0.2); }
   linePoll(rig, c, 'LEFTY');
   if (p && !c.dead && c.visibleToLocal) {
     const dd = dist(p, c), L = trailLen(tr);
-    if (L > 6 && dd < 10) thinkOnce(p, 'lefty_arm', 'The arm goes all the way back across the grass into a hole. It has elbows. It has a lot of elbows.', 90);
+    if (L > 6 && dd < 10) thinkOnce(p, 'lefty_arm', 'The arm goes all the way back across the grass into a hole. A person\'s arm. It has elbows. It has a lot of elbows.', 90);
     else if (dd < 9) thinkOnce(p, 'lefty', ['A sock puppet. Button eyes. It is talking to me. Somebody\'s arm is in it.', 'Whose arm is that? It is grey. It is coming up out of the ground.'][Math.floor(t * 0.2) % 2], 100);
   }
 }
@@ -414,7 +429,8 @@ export function poseLefty(rig: KitRig, t: number, dt: number, pose: LeftyPose = 
   const path = pose === 'lurk' ? [[0, -0.1], [0, -0.12]] as Pt[] : (o.path ?? DEF_PATH);
   const hole = path[path.length - 1];
   poseSock(rig, { t, dt, md: pose === 'dead' ? '' : pose, mdT: pose === 'bite' ? ud.gT % 1.2 : pose === 'grab' ? ud.gT % 1 : ud.gT, speed: pose === 'reach' ? 1.2 : 0, atk: 0, flinch: 0, dead: pose === 'dead' ? 1 : 0, seed: 0.3, yaw: 0, talk: o.talk ?? (pose === 'talk' ? 1 : 0) });
-  layArm(rig, [[AREST[0][0], AREST[0][2]], ...path], hole, t, pose === 'dead' ? 0 : 1);
+  layArm(rig, [[CUFF[0], CUFF[2]], ...path], hole, t, pose === 'dead' ? 0 : 1);
+  for (const hr of (rig.kit.m.arms ?? []) as HumanRig[]) donorTick(hr, dt);
   rig.kit.F.fx.value.y += dt;
 }
 LEFTY.animateGallery = (rig: Rig, t: number) => {

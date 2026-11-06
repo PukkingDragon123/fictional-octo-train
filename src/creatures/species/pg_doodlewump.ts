@@ -11,7 +11,8 @@ import { net, netOf, playAt, hashId, rng, localIn, thinkOnce, dist, lineOfSightB
 import { KitDef, KitRig, SkinB, BuildCtx, Page, Region, V3, Wt, Row, buildKitRig, kitSync, kitPersonalize, kitMaterial, kitFx, attackCurve, flinchOf, hash, tube, wLerp, lookAngles, nearestSurvivor } from '../kit/humanoids';
 import { chain, sac, plate, paintCap, paintEye } from '../kit/organic';
 import { ruleShown } from '../rules';
-import { SIDES, absBones, say, linePoll, nearestUnit, gait, paintPlush, paintFelt, runs, soak } from './pg_common';
+import { SIDES, absBones, say, linePoll, nearestUnit, gait, paintPlush, paintFelt, runs, soak, donor, fold, graft, donorTick } from './pg_common';
+import type { HumanRig, Appearance } from '../../entities/humanRig';
 
 // =====================================================================================
 // THE DOODLEWUMPS — the four-to-six of them from "The Doodlewumps" (Bright Hour
@@ -26,9 +27,11 @@ import { SIDES, absBones, say, linePoll, nearestUnit, gait, paintPlush, paintFel
 // screen and it "tunes in" to you, and the longer it does the less of you is
 // left watching. Fully tuned, it comes for a cuddle, and presses the hot glass
 // to you.
-//   pg_doodlewump   skinned kit rig (plush body, hood, doll face, glass eyes, the aerial,
-//                   TV housing + bezel) + an emissive glass with its own live 48x36 page
-//                   (static, colour bars, the unit's own face painted from their appearance)
+//   pg_doodlewump   skinned kit rig (plush body, hood, the aerial, TV housing + bezel); the
+//                   doll face is a HumanRig head (the survivors' own base, pale, bald) grafted
+//                   into the hood; the glass has its own live 48x36 page (static, colour bars)
+//                   and, when it sees you, goes clear over a second HumanRig head built from
+//                   the local unit's own Appearance, pressed flat against the inside of it
 // VIDEO / POSTER API (stand-alone):
 //   buildDoodlewump(variant?)                         -> KitRig
 //   poseDoodlewump(rig, t, dt, pose, { tune, screen }) pose: 'idle' | 'walk' | 'play' | 'stare' |
@@ -55,7 +58,6 @@ function bonesWump() {
 }
 function layoutWump(p: Page) {
   p.reg('BODY', 96, 76, [0.22, 1.49]);
-  p.reg('FACE', 48, 44);
   p.reg('ARM', 28, 36);
   p.reg('LEG', 28, 20);
   p.reg('MITT', 24, 20);
@@ -64,8 +66,6 @@ function layoutWump(p: Page) {
   p.reg('BEZEL', 40, 32);
   p.reg('PLAST', 24, 16);
   p.reg('KNOB', 8, 8);
-  p.reg('EYE', 12, 12);
-  p.reg('NUB', 8, 8);
   p.reg('ROD', 8, 24);
   p.reg('BALL', 8, 8);
   p.reg('CAP', 16, 16);
@@ -104,14 +104,7 @@ function buildWump(B: SkinB, x: BuildCtx) {
     },
     start: [0, 0.2, 0], end: [0, 1.48, -0.005],
   });
-  // ---- the doll face: a curved porcelain mask, glass eyes, a button nose, a rolled plush rim round it
-  plate(B, R('FACE'), 2, FC, [1, 0, 0], [0, 1, 0], 0.165, 0.15, 0.07, [HD, 1], { rows: 8, cols: 8, oval: 0.85 });
-  for (const k of [1, -1]) {
-    const e: V3 = [k * 0.055, FC[1] + 0.022, FC[2] + 0.058];
-    sac(B, R('EYE'), 3, [[e[0], e[1], e[2] - 0.012], [e[0], e[1], e[2] + 0.004], [e[0] + k * 0.002, e[1], e[2] + 0.014]], [[0.022, 0.019], [0.024, 0.021], [0.012, 0.011]], [[HD, 1], [HD, 1], [HD, 1]], { n: 10, up: [0, 1, 0] });
-    sac(B, R('NUB'), 4, [[k * 0.075, FC[1] - 0.035, FC[2] + 0.035], [k * 0.078, FC[1] - 0.035, FC[2] + 0.055]], [[0.03, 0.026], [0.02, 0.017]], [[HD, 1], [HD, 1]], { n: 8, up: [0, 1, 0] });   // round cheeks
-  }
-  sac(B, R('NUB'), 5, [[0, FC[1] - 0.012, FC[2] + 0.06], [0, FC[1] - 0.016, FC[2] + 0.078]], [[0.014, 0.012], [0.008, 0.007]], [[HD, 1], [HD, 1]], { n: 8, up: [0, 1, 0] });
+  // ---- the face is a HumanRig head grafted in at decorate (attachDoll); the rolled plush rim round it
   const rim: V3[] = [];
   for (let i = 0; i <= 18; i++) { const a = (i / 18) * Math.PI * 2; rim.push([Math.sin(a) * 0.178, FC[1] + Math.cos(a) * 0.162, FC[2] - 0.015 + Math.abs(Math.cos(a)) * -0.01]); }
   sac(B, R('HOOD'), 6, rim, rim.map(() => [0.034, 0.03] as [number, number]), rim.map((p) => (p[1] < 1.1 ? [CH, 0.3, HD, 0.7] : [HD, 1])), { n: 8, start: false, end: false, up: [0, 0, 1] });
@@ -154,7 +147,6 @@ function paintWump(p: Page, x: BuildCtx) {
   const v = x.variant % 3, C = PAL[v], sd = x.seed % 997;
   const PL = makeRamp(C.body, 9, { hueShift: 0.03, spread: 0.55 }), STAR = makeRamp(C.star, 4, { spread: 0.3 });
   const DIRT = makeRamp(0x5a5a3a, 5, { spread: 0.5 }), OIL = makeRamp(0x240a0a, 5, { spread: 0.5, hueShift: 0.02 });
-  const PORC = makeRamp(0xeedcc8, 8, { hueShift: 0.03, spread: 0.45 });
   // body: terry plush, an embroidered star every so often, grass and dirt at the bottom, a dark leak from under the TV
   const Bd = p.R('BODY');
   paintPlush(Bd, PL, { seed: sd + 1, pile: 0.75, matted: 5 });
@@ -176,20 +168,6 @@ function paintWump(p: Page, x: BuildCtx) {
   runs(Bd, Bd.X(10), Bd.Y(0.5), 2, Bd.h * 0.18, OIL, sd + 7, 1);
   // the hood rim: the same plush, a bit darker
   paintPlush(p.R('HOOD'), PL, { seed: sd + 8, base: 3.8, pile: 0.9 });
-  // the doll face: porcelain, rosy cheeks, painted brows, a tiny bow mouth, a hairline crack and a chip
-  const F = p.R('FACE');
-  F.fill(PORC, (xx, yy) => { const dx = (xx + 0.5) / F.w - 0.5, dy = (yy + 0.5) / F.h - 0.5; return 5.2 - (dx * dx + dy * dy) * 7 + (F.fbm(xx, yy, 3, 2, sd + 9) - 0.5) * 0.5 - dy * 0.8; }, undefined, 0.4);
-  for (const k of [1, -1]) {
-    F.glow(F.w * (0.5 + k * 0.27), F.h * 0.66, 6, 4.5, 0xe8908a, 0.55);
-    for (let i = 0; i < 6; i++) F.blend(F.w * (0.5 + k * (0.13 + i * 0.03)), F.h * 0.31 - Math.sin((i / 5) * Math.PI) * 1.4, 0x8a6a50, 0.8);
-    F.ellipse(F.w * (0.5 + k * 0.17), F.h * 0.42, 4.2, 3.6, PORC[2], 0.45);   // the sockets round the glass eyes
-  }
-  for (let xx = -4; xx <= 4; xx++) { const yy = F.h * 0.76 + Math.abs(xx) * 0.25 - (Math.abs(xx) < 2 ? 0.4 : 0); F.blend(F.w / 2 + xx, yy, xx === 0 ? 0xa8404a : 0xc85a60, 0.9); F.blend(F.w / 2 + xx, yy + 1, 0xd88078, 0.5); }
-  F.crack(F.w * 0.72, F.h * 0.08, 26, 110, 0x5a4a40, sd + 10, 0.85, 0.2, 0xfff4e8);
-  F.ellipse(F.w * 0.24, F.h * 0.84, 3.6, 2.6, 0x1a1210, 0.95); F.ellipse(F.w * 0.24 + 0.5, F.h * 0.84 - 0.5, 2.6, 1.8, 0x2a1a14, 0.9);
-  runs(F, F.w * 0.33, F.h * 0.48, 1, F.h * 0.35, OIL, sd + 11, 1);
-  paintEye(p.R('EYE'), [0x5a8ac8, 0x8a6a3a, 0x6a9a5a][v], 0x0a0a10, 0xf4f0ea, { size: 0.85 });
-  p.R('NUB').fill(PORC, (xx, yy) => 4.6 + (hash(xx, yy) - 0.5) * 0.5 - yy * 0.15);
   // the TV: cream plastic gone yellow, the bezel's dark recess, a speaker slot, the brand worn off
   const PS = makeRamp(0xd8cca8, 6, { spread: 0.35 });
   paintFelt(p.R('PLAST'), PS, sd + 12, 3.4);
@@ -225,8 +203,11 @@ function attachScreen(rig: KitRig) {
   const data = new Uint8Array(SW * SH * 4);
   const tex = new THREE.DataTexture(data, SW, SH, THREE.RGBAFormat, THREE.UnsignedByteType);
   tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.flipY = false; tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
-  const mesh = new THREE.Mesh(GEO ??= screenGeo(), kitMaterial(tex, kitFx()));
-  mesh.position.set(0, 0.005, 0.064);
+  const mat = kitMaterial(tex, kitFx());
+  mat.transparent = true; mat.depthWrite = false;
+  const mesh = new THREE.Mesh(GEO ??= screenGeo(), mat);
+  mesh.position.set(0, 0.005, 0.085);
+  mesh.renderOrder = 2;
   mesh.name = 'pg_screen';
   rig.parts.screen.add(mesh);
   rig.kit.m.scr = { tex, data, mesh, t: 0, mode: '', roll: 0 } as Screen;
@@ -246,31 +227,12 @@ function paintScreen(s: Screen, mode: string, tune: number, crack: number, flash
     for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) px(s, x, y, y < SH * 0.72 ? BARS[Math.floor((x / SW) * 7)] : (x < SW * 0.3 ? 0x101040 : x < SW * 0.6 ? 0xe8e8e8 : 0x200030));
     for (let x = 0; x < SW; x++) px(s, x, (s.roll + 4) % SH, 0x000000, 0.25);
   } else if (mode === 'face') {
-    const app = ((G as any)?.local as Player | undefined)?.app;
-    const skin = app?.skin ?? 0xd8a888, hair = app?.hair ?? 0x3a2a1a, eye = app?.eyeColor ?? 0x4a3a2a;
-    const cx = SW / 2 + Math.sin(s.t * 1.7) * (0.5 + tune * 2), cy = SH * 0.52, zoom = 1 + tune * 0.45;
-    for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
-      const dx = (x - cx) / (12 * zoom), dy = (y - cy) / (15 * zoom), d = dx * dx + dy * dy;
-      let c = mixHex(0x1a2430, 0x2a3440, y / SH);
-      if (d < 1) c = mixHex(skin, 0x000000, Math.max(0, dx * 0.35 + d * 0.25));
-      if (d < 1.35 && dy < -0.35 + Math.sin(dx * 6) * 0.06) c = mixHex(hair, 0x000000, 0.15 + (r() < 0.2 ? 0.2 : 0));
-      if (y > cy + 13 * zoom && Math.abs(x - cx) < 9 * zoom) c = mixHex(skin, 0x000000, 0.45);
-      px(s, x, y, c);
-    }
-    const ex = 4.5 * zoom, ey = cy - 2 * zoom, er = 1.5 + tune * 0.6;
-    for (const k of [-1, 1]) {
-      for (let y = -2; y <= 2; y++) for (let x = -3; x <= 3; x++) if (x * x / 9 + y * y / 4 <= 1) px(s, cx + k * ex + x, ey + y, tune > 0.7 ? 0x000000 : 0xe8e4dc);
-      if (tune <= 0.7) for (let y = -1; y <= 1; y++) for (let x = -1; x <= 1; x++) if (Math.abs(x) + Math.abs(y) <= er) px(s, cx + k * ex + x + Math.sin(s.t * 3) * 0.6, ey + y, x === 0 && y === 0 ? 0x080808 : eye);
-      for (let x = -3; x <= 3; x++) px(s, cx + k * ex + x, ey - 3 - (k * x > 0 ? 1 : 0), mixHex(hair, 0, 0.3));
-      if (tune > 0.5) for (let y = 0; y < (tune - 0.5) * 30; y++) px(s, cx + k * ex + (y > 6 ? k : 0), ey + 2 + y, 0x9a0a0a, 0.9);
-    }
-    const mo = 1 + tune * 4;
-    for (let y = -Math.floor(mo / 2); y <= Math.ceil(mo / 2); y++) for (let x = -2 - Math.floor(tune * 2); x <= 2 + Math.floor(tune * 2); x++) px(s, cx + x, cy + 7 * zoom + y, 0x2a0808);
-    // a red dot in the corner: live
+    // the picture clears: dark glass, scanlines, snow, a red dot; what shows through is the head pressed against it
+    for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) px(s, x, y, y % 2 ? 0x0a1620 : 0x020608);
+    for (let i = 0; i < 30 + tune * 200; i++) px(s, r() * SW, r() * SH, r() < 0.5 ? 0xffffff : 0x000000, 0.6);
+    if (tune > 0.6) for (let x = 0; x < SW; x++) px(s, x, (s.roll * 2) % SH, 0xffffff, 0.5);
+    if (tune > 0.5) for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) px(s, x, y, 0x9a0a0a, (tune - 0.5) * 0.5);
     if (Math.floor(s.t * 2) % 2 === 0) for (let y = 2; y < 5; y++) for (let x = 2; x < 5; x++) px(s, x, y, 0xe82020);
-    for (let y = 0; y < SH; y += 2) for (let x = 0; x < SW; x++) px(s, x, y, 0x000000, 0.18);
-    for (let i = 0; i < 40 + tune * 260; i++) px(s, r() * SW, r() * SH, r() < 0.5 ? 0xffffff : 0x000000, 0.5);
-    if (tune > 0.6) for (let x = 0; x < SW; x++) px(s, x + (r() < 0.5 ? 2 : -2), (s.roll * 2) % SH, 0xffffff, 0.4);
   } else {
     for (let y = 0; y < SH; y++) {
       const band = Math.abs(y - s.roll) < 3 ? 0.55 : 1;
@@ -285,10 +247,72 @@ function paintScreen(s: Screen, mode: string, tune: number, crack: number, flash
     L(30, 12, 2.5, 22); L(30, 12, 0.4, 14); L(30, 12, -1.6, 10); L(30, 12, 1.4, 18);
     for (let y = 8; y < 17; y++) for (let x = 26; x < 34; x++) if (Math.hypot(x - 30, y - 12) < 3.2) px(s, x, y, 0x000000, 0.9);
   }
+  // the glass is clear only while it shows you: scanlines and snow stay on it, the edges stay dark
+  for (let y = 0; y < SH; y++) for (let x = 0; x < SW; x++) {
+    const i = ((SH - 1 - y) * SW + x) * 4;
+    if (mode !== 'face') { s.data[i + 3] = 255; continue; }
+    const dx = (x + 0.5) / SW - 0.5, dy = (y + 0.5) / SH - 0.5, v = Math.max(0, dx * dx * 2.2 + dy * dy * 2.6 - 0.12);
+    const lum = s.data[i] + s.data[i + 1] + s.data[i + 2];
+    const red = s.data[i] > 180 && s.data[i + 1] < 80;
+    s.data[i + 3] = red && x < 6 && y < 6 ? 255 : Math.min(255, (y % 2 ? 70 : 36) + v * 420 + (lum > 600 ? 120 : 0) + tune * 40);
+  }
   s.tex.needsUpdate = true;
 }
 
-const WUMP_KIT: KitDef = { key: 'pg_doodlewump', variants: 3, W: 256, H: 256, bones: bonesWump, layout: layoutWump, build: buildWump, paint: paintWump, sphere: [0, 0.8, 0, 1.0], decorate: (rig) => attachScreen(rig) };
+// ------------------------------------------------------------------ the human parts: the doll's head, and you on the glass
+/** the doll: a pale, bald HumanRig head with glassy eyes, set into the hood */
+const DOLL: Partial<Appearance>[] = [
+  { skin: 0xf3d2b8, hair: 0xd8c08a, hairStyle: 'bald', face: 1, eyeColor: 0x4a7ab8, build: 'slim', height: 0.96, age: 0, freckles: 0.2 },
+  { skin: 0xf0d6c4, hair: 0x9c7a46, hairStyle: 'bald', face: 3, eyeColor: 0x6a4a2a, build: 'slim', height: 0.96, age: 0, freckles: 0 },
+  { skin: 0xf3d2b8, hair: 0xd8c08a, hairStyle: 'bald', face: 5, eyeColor: 0x5a8a5a, build: 'slim', height: 0.96, age: 0, freckles: 0.4 },
+];
+function attachDoll(rig: KitRig, variant: number) {
+  const v = variant % 3;
+  const hr = donor('pg_wump_doll:' + v, DOLL[v], { pale: 2, dirt: 1, blood: { head: 1 } }, 'smile');
+  fold(hr, rig.parts.head, [0, -0.13, -0.03]);
+  graft(hr, 'head', rig.parts.head, [0, -0.031, 0.095], [0, 0, 0], [1.1, 1.1, 1.0]);
+  rig.kit.m.doll = hr;
+}
+/** you, on the screen: a HumanRig head made from the local unit's own appearance, pressed flat inside the glass */
+function screenHead(rig: KitRig): HumanRig {
+  const app = ((G as any)?.local as Player | undefined)?.app ?? { skin: 0xe8b98f, hair: 0x3b2a1e, hairStyle: 'short', face: 2, eyeColor: 0x4a3a2a } as Partial<Appearance>;
+  const key = 'pg_wump_screen:' + JSON.stringify(app);
+  const m = rig.kit.m as Record<string, any>;
+  if (m.scrHead && m.scrKey === key) return m.scrHead;
+  if (m.scrHead) (m.scrHead as HumanRig).root.removeFromParent();
+  const hr = donor(key, app, {}, 'fear');
+  fold(hr, rig.parts.screen, [0, -0.05, -0.05]);
+  graft(hr, 'head', rig.parts.screen, [0, -0.05, 0.061], [0, 0, 0], [0.95, 0.95, 0.14]);
+  m.scrHead = hr; m.scrKey = key;
+  return hr;
+}
+/** per frame: both human parts live; the screen head shows only while the glass shows you */
+function humansStep(K: KitRig, dt: number, mode: string, tune: number, yaw: number, flash: number) {
+  const m = K.kit.m as Record<string, any>;
+  const doll = m.doll as HumanRig | undefined;
+  if (doll) {
+    donorTick(doll, dt, flash);
+    const want = tune > 0.75 ? 'grin' : tune > 0.3 ? 'happy' : 'smile';
+    if (m.dollExpr !== want) { m.dollExpr = want; doll.setExpression(want); }
+    doll.lookEyes(Math.max(-2, Math.min(2, -yaw * 2.2)), 0.2);
+  }
+  const face = mode === 'face';
+  if (face || m.scrHead) {
+    const hr = face ? screenHead(K) : (m.scrHead as HumanRig);
+    hr.root.visible = face;
+    if (face) {
+      donorTick(hr, dt, 0.28 + tune * 0.2);
+      const want = tune > 0.6 ? 'pain' : 'fear';
+      if (m.scrExpr !== want) { m.scrExpr = want; hr.setExpression(want); }
+      hr.lookEyes(0, 0.4);
+      const head = hr.bones.head, g0 = head.userData.g0;
+      // the closer it tunes, the harder the face is pressed to the glass
+      if (g0) head.scale.set(0.95 + tune * 0.12, 0.95 + tune * 0.12, 0.14 * (1 - tune * 0.4));
+    }
+  }
+}
+
+const WUMP_KIT: KitDef = { key: 'pg_doodlewump', variants: 3, W: 256, H: 256, bones: bonesWump, layout: layoutWump, build: buildWump, paint: paintWump, sphere: [0, 0.8, 0, 1.0], decorate: (rig, e) => { attachScreen(rig); attachDoll(rig, e.variant); } };
 /** a Doodlewump rig (variant 0 oatmeal, 1 coral, 2 powder blue) */
 export function buildDoodlewump(variant = 0): KitRig { return buildKitRig(WUMP_KIT, variant, 1.45); }
 
@@ -384,6 +408,7 @@ function animateWump(rig: Rig, c: Creature, t: number, dt: number) {
   const tuned = (n.md === 'tune' || n.md === 'hug' || n.md === 'squeeze') && (n.tune ?? 0) > 0.12;
   const mode = c.dead ? 'off' : tuned && p ? 'face' : (Math.floor(t * 0.31 + hashId(c.id) * 9) % 7 === 0 ? 'bars' : 'static');
   screenStep(K, dt, mode, ud.tune, (n.crack ?? 0), n.md === 'squeeze' ? Math.max(0, 0.6 - ud.mdT) : 0);
+  humansStep(K, dt, mode, ud.tune, ud.yaw, F.z);
   // the hum of the tube; giggles; lines
   if (!c.dead && c.visibleToLocal && (ud.humT ?? 0) < t) { ud.humT = t + 3 + Math.random() * 2; playAt(tuned ? 'static_burst' : 'crt', c, tuned ? 0.25 + ud.tune * 0.3 : 0.12, 8, 1); }
   if (c.speed > 0.2 && !c.dead) { ud.stp = (ud.stp ?? 0) + dt * c.speed; if (ud.stp > 0.55) { ud.stp = 0; if (c.visibleToLocal) playAt('plush_squeak', c, 0.12, 8, 0.6 + Math.random() * 0.2); } }
@@ -495,7 +520,9 @@ export function poseDoodlewump(rig: KitRig, t: number, dt: number, pose: WumpPos
   const tune = o.tune ?? (pose === 'stare' ? Math.min(1, ud.gT / 6) : pose === 'hug' || pose === 'squeeze' ? 1 : 0);
   const speed = o.speed ?? (pose === 'walk' ? 0.6 : pose === 'hug' ? 2.4 : 0);
   poseWumpRig(rig, { t, dt, speed, md: pose === 'stare' ? 'tune' : pose === 'idle' || pose === 'walk' || pose === 'dead' ? '' : pose, mdT: pose === 'squeeze' ? ud.gT % 1.4 : ud.gT, tune, atk: 0, flinch: 0, dead: pose === 'dead' ? 1 : 0, seed: 0.41, yaw: 0, pitch: 0 });
-  screenStep(rig, dt, o.screen ?? (pose === 'dead' ? 'off' : pose === 'stare' || pose === 'hug' || pose === 'squeeze' ? 'face' : 'static'), tune, o.crack ?? 0, pose === 'squeeze' ? Math.max(0, 0.6 - (ud.gT % 1.4)) : 0);
+  const mode = o.screen ?? (pose === 'dead' ? 'off' : pose === 'stare' || pose === 'hug' || pose === 'squeeze' ? 'face' : 'static');
+  screenStep(rig, dt, mode, tune, o.crack ?? 0, pose === 'squeeze' ? Math.max(0, 0.6 - (ud.gT % 1.4)) : 0);
+  humansStep(rig, dt, mode, tune, 0, 0);
   rig.kit.F.fx.value.y += dt;
 }
 WUMP.animateGallery = (rig: Rig, t: number) => {

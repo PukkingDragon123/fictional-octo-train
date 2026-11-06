@@ -50,7 +50,7 @@ export type CyberLoadout = Partial<Record<CyberSlot, string>>;
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
-// ------------------------------------------------------------------ research: the 'cyber' branch of the watch's tree
+// ------------------------------------------------------------------ research: the 'cyber' branch (the lab's LIMBS page, between runs)
 for (const d of CYBER_PARTS) {
   defNode({
     key: d.node || 'cyber:' + d.key, branch: 'cyber', title: d.name, icon: 'cyber',
@@ -63,7 +63,7 @@ export const partUnlocked = (d: CyberDef) => !d.node || hasUnlock(d.node);
 export function partHint(d: CyberDef): string {
   if (partUnlocked(d)) return '';
   const need = (d.requires || []).filter((r) => !hasUnlock(r)).map((r) => cyberDef(r.replace(/^cyber:/, ''))?.name || r);
-  return `Research on the watch: CYBER › ${d.name} (${d.cost ?? 5} RP)${need.length ? ` — needs ${need.join(', ')} first` : ''}. Or find one out there.`;
+  return `Research in the lab: LIMBS › ${d.name} (${d.cost ?? 5} RP)${need.length ? ` — needs ${need.join(', ')} first` : ''}. Or find one out there.`;
 }
 
 // ------------------------------------------------------------------ state

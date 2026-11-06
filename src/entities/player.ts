@@ -361,7 +361,8 @@ export class Player {
       const d = itemDef(it.key);
       const l = d.clothing?.look;
       if (d.bag && slot === 'back') { o.back = { tex: l?.tex || 'c_backpack', color: l?.color ?? d.tint ?? 0x4a5a6a, size: Math.min(1.2, 0.7 + d.bag.capacity / 40), item: it.key }; continue; }
-      if (slot === 'wrist') { o.wrist = { tex: l?.tex || 'watch', color: l?.color ?? 0x2e2a26, item: it.key }; continue; }
+      // round 14: no watch drawn on the wrist (the wrist slot still holds the band / a monitor as items)
+      if (slot === 'wrist') continue;
       if (!l) continue;
       const lp = { tex: l.tex, color: l.color, sleeve: l.sleeve, item: it.key, blood: q(it.bloody), wear: it.cond < 0.6 ? q(1 - it.cond) : undefined };
       switch (l.part) {

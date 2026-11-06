@@ -4,7 +4,11 @@
 // (host says, every peer shows), "is the unit watching it", a biped costume
 // gait, and painters for plush, felt, stitches, cardboard, foil and blood.
 // No species is defined here.
+import * as THREE from 'three';
 import { bus } from '../../core/events';
+import { HumanRig, normalizeAppearance, type Appearance, type RigCondition } from '../../entities/humanRig';
+import { BONES, BONE_PARENT, type BoneName } from '../../entities/humanModel';
+import { worldMaterial } from '../../gfx/materials';
 import { G } from '../../game/G';
 import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
@@ -151,4 +155,74 @@ export function paintFoil(r: Region, R: number[], seed = 9, base = R.length * 0.
     return base + v * 1.6 + 0.6 * Math.cos((r.deg(x) * Math.PI) / 180);
   }, undefined, 0.3);
   for (let i = 0; i < r.w * r.h * 0.01; i++) r.set(hash(i, seed + 5) * r.w, hash(i, seed + 6) * r.h, 0xffffff);
+}
+
+// ------------------------------------------------------------------ the one human base (HumanRig) for human parts
+/**
+ * Every human face, head, hand or arm on these creatures comes from the
+ * survivors' own HumanRig (src/entities/humanRig.ts) and its painter, never
+ * from the creature's page: a "donor" rig whose body is folded away to nothing
+ * (its hips scaled to a point, `fold`) and whose wanted joints are moved onto
+ * the creature's bones at full size (`graft`): a baby's head in a seed disc, a
+ * doll's head in a plush hood, a forearm out of a split seam, an arm stretched
+ * along the ground. Bones are pure translations in the bind pose, so a grafted
+ * joint skins correctly wherever it is parented. Donors are pooled per role
+ * (each owns a painted page) and reused once their old rig has left the scene.
+ */
+interface DonorRec { hr: HumanRig; key: string; at: number }
+const DONORS: DonorRec[] = [];
+function inScene(o: THREE.Object3D) { let p: THREE.Object3D | null = o; while (p) { if ((p as any).isScene) return true; p = p.parent; } return false; }
+const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+/** a donor HumanRig for `key` (an appearance and a visible condition), pooled */
+export function donor(key: string, app: Partial<Appearance>, cond: RigCondition = {}, expr = ''): HumanRig {
+  const t = now();
+  let d = DONORS.find((q) => q.key === key && !inScene(q.hr.root) && t - q.at > 2500);
+  if (d) {
+    const hr = d.hr;
+    hr.root.removeFromParent();
+    for (const b of BONES) {
+      const p = BONE_PARENT[b], want = p ? hr.bones[p] : hr.body;
+      if (hr.bones[b].parent !== want) want.add(hr.bones[b]);
+      const o = hr.dims.off[b]; hr.bones[b].position.set(o[0], o[1], o[2]); hr.bones[b].quaternion.identity(); hr.bones[b].scale.set(1, 1, 1);
+    }
+    hr.root.visible = true;
+  } else {
+    const hr = new HumanRig(normalizeAppearance(app), worldMaterial({}));
+    hr.setOutfit({ cond });
+    (hr.skin as any).clone = () => new THREE.Group();   // gore takes gibs from the creature, not from its donors
+    hr.skin.frustumCulled = false;
+    d = { hr, key, at: t };
+    DONORS.push(d);
+  }
+  d.at = t;
+  if (expr) d.hr.setExpression(expr);
+  return d.hr;
+}
+/** fold a donor's body away: everything below the grafts shrinks to a point at `at` (in host space) */
+export function fold(hr: HumanRig, host: THREE.Object3D, at: V3) {
+  host.add(hr.root);
+  const h = hr.dims.off.hips;
+  hr.root.position.set(at[0] - h[0], at[1] - h[1], at[2] - h[2]);
+  hr.root.rotation.set(0, 0, 0);
+  hr.j.hips.scale.setScalar(0.001);
+}
+/** move a donor joint (and everything on it) onto a host bone at full size */
+export function graft(hr: HumanRig, bone: BoneName, host: THREE.Object3D, pos: V3, rot: V3 = [0, 0, 0], scale: V3 = [1, 1, 1]) {
+  const b = hr.bones[bone];
+  host.add(b);
+  b.position.set(pos[0], pos[1], pos[2]); b.rotation.set(rot[0], rot[1], rot[2]); b.scale.set(scale[0], scale[1], scale[2]);
+  b.userData.g0 = { p: [...pos], r: [...rot], s: [...scale] };
+  return b;
+}
+/** per frame: the painted face lives (blinks, expressions, talking) and the shader clock runs; flash is the hit flash */
+export function donorTick(hr: HumanRig, dt: number, flash = 0) {
+  try { (hr as any).gg?.update?.(dt); } catch { /* a face that cannot animate still shows */ }
+  hr.fx.value.y += dt; hr.fx.value.z = flash;
+}
+/** curl a donor hand's fingers (0 open .. 1 fist), as the survivors' own grip does */
+export function donorGrip(hr: HumanRig, side: 'L' | 'R', g: number) {
+  const k = side === 'L' ? 1 : -1;
+  hr.bones[('fing1' + side) as BoneName]?.rotation.set(0, 0, -k * g * 1.45);
+  hr.bones[('fing2' + side) as BoneName]?.rotation.set(0, 0, -k * g * 1.6);
+  hr.bones[('thumb' + side) as BoneName]?.rotation.set(g * 0.5, k * g * 0.6, -k * g * 0.55);
 }

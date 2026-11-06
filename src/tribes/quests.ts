@@ -1,4 +1,4 @@
-// Tribe work (category 'tribe'): each faction uploads jobs to the watch once
+// Tribe work (category 'tribe'): each faction uploads jobs to the quest board once
 // you have met them. Rewards pay research, goods and standing.
 import { defQuest } from '../game/quests';
 import { G } from '../game/G';

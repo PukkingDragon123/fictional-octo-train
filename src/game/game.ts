@@ -127,7 +127,8 @@ export class Game {
   hudBody: any = null;
   /** cyberware: installed parts, effects, field surgery (src/survival/cyber.ts) */
   cyber: any = null;
-  /** the watch: quests, the research tree, unlockable functions, the multi-tool (laser, fab) (src/ui/watch) */
+  /** retired (round 14): the wrist watch is gone. Quests: the J broadcast (src/ui/broadcast); scanning: the suit
+   *  scanner (src/scan); the light: the suit lamp (src/game/suitLamp.ts); research: the lab between runs. Kept null for older callers. */
   watch: any = null;
   /** emotes, whistling, shouting, the 8-bit voice and floating speech (src/social) */
   social: any = null;
@@ -399,7 +400,7 @@ export class Game {
     else if (cur?.face && cur.started) p.targetFacing = Math.atan2(cur.face.z - p.z, cur.face.x - p.x);
     p.turn(dt, p.aiming ? 22 : 12);
     // flashlight
-    if (!locked && inp.hit('flashlight')) { const w = (this as any).watch; if (w?.flashlight) w.flashlight(); else this.toggleFlashlight(p); } // round 12: the watch's built-in light
+    if (!locked && inp.hit('flashlight')) this.toggleFlashlight(p); // round 14: a light held in hand, else the suit lamp
     // exertion for body sim
     if (p.running) p.exertionTimer = 1;
     p.exertionTimer = Math.max(0, p.exertionTimer - dt * 0.5);
@@ -416,6 +417,9 @@ export class Game {
   }
 
   toggleFlashlight(p: Player) {
+    // the local unit: a light held in hand, else the lamp on its helmet (src/game/suitLamp.ts)
+    const lamp = (this as any).suitLamp;
+    if (p === this.local && lamp?.toggle) { lamp.toggle(); return; }
     let light = p.lightItem;
     if (!light) {
       light = p.findItem((it, d) => !!d.light && (it.uses ?? 1) > 0) || null;
