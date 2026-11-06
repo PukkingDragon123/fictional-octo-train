@@ -140,7 +140,7 @@ function paintS(p: Page) {
   p.R('NAIL').fill(makeRamp(0x8a8a90, 4), (xx) => 2 + (xx & 1));
   paintCap(p.R('CAP'), SK[2], 0xb83838, 0x3a1010);
 }
-const SEATED_KIT: KitDef = { key: 'seated', variants: 1, W: 128, H: 128, bones: bonesS, layout: layoutS, build: buildS, paint: paintS, sphere: [0, 0.6, 0, 1.0] };
+const SEATED_KIT: KitDef = { key: 'seated', variants: 1, W: 128, H: 256, bones: bonesS, layout: layoutS, build: buildS, paint: paintS, sphere: [0, 0.6, 0, 1.0] };
 function buildSeated(): Rig { return buildKitRig(SEATED_KIT, 0, 1.25); }
 
 // ------------------------------------------------------------------ animation
@@ -251,7 +251,6 @@ const SEATED = def({
   rule: { name: 'IT ONLY ASKS', text: 'It cannot move or hurt you. Sit in it and it whispers what it learned before it was made into a chair: true things about the inhabitants.', tell: 'That armchair has hands.' },
   hp: 30, walk: 0, run: 0, turn: 0, radius: 0.38, height: 1.3, sight: 8, fov: 2, hearing: 0.5,
   zones: ['office', 'lab', 'hospital', 'undercroft'], weight: 0.3, maxPerZone: 3, diet: 'none',
-  flags: { furniture: 'armchair' },
   sounds: { hurt: 'still_crack', death: 'hollow_die', idle: 'still_creak' },
   scan: {
     cls: 'Remnant / furniture',

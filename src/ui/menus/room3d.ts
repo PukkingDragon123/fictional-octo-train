@@ -120,7 +120,8 @@ export class SubjectRoom {
   private rt: THREE.WebGLRenderTarget | null = null;
   private post = makePost();
   /** the cutscenes' bloom (scene/post.ts) */
-  private bloom = new Bloom();
+  // only true emitters bloom (the lamps, the tubes, the arc), not a lit yellow suit
+  private bloom = Object.assign(new Bloom(), { thr: 1.45, knee: 0.5 });
   private lensFx = new LensBlood();
   private lowW = 0; private lowH = 0;
   private raf = 0; private last = 0; private t = 0;
@@ -1149,11 +1150,9 @@ export class SubjectRoom {
       for (const [rk, part] of REGION_PART) { const g = REG[rk]; if (px >= g.x - PAD && px <= g.x + g.w + PAD && py >= g.y - PAD && py <= g.y + g.h + PAD) return part; }
     }
     if (gh) {
-      const b = gh.object.parent?.name ?? '';
       const BONE_PART: Record<string, PartKey> = { uarmL: 'armL', farmL: 'armL', handL: 'handL', uarmR: 'armR', farmR: 'armR', handR: 'handR', thighL: 'legL', shinL: 'legL', footL: 'legL', thighR: 'legR', shinR: 'legR', footR: 'legR', head: 'head', neck: 'torso', chest: 'torso', spine: 'torso', hips: 'torso' };
-      const hit = BONE_PART[b] ?? Object.entries(this.rig.bones).find(([, v]) => v === gh.object.parent)?.[0];
-      if (hit && (BONE_PART as any)[hit]) return (BONE_PART as any)[hit];
-      if (hit && BONE_PART[b]) return BONE_PART[b];
+      const bone = Object.entries(this.rig.bones).find(([, v]) => v === gh.object.parent)?.[0];
+      if (bone && BONE_PART[bone]) return BONE_PART[bone];
     }
     return null;
   }

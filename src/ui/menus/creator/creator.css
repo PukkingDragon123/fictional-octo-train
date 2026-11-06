@@ -277,6 +277,8 @@
   filter: drop-shadow(1px 0 0 #0a0b10) drop-shadow(-1px 0 0 #0a0b10) drop-shadow(0 1px 0 #0a0b10) drop-shadow(0 -1px 0 #0a0b10); animation: cz-mk 1.6s steps(4) infinite; }
 @keyframes cz-mk { 50% { transform: scale(0.75); } }
 .cz-mk span { opacity: 0.85; }
+.cz-mk.l { flex-direction: row-reverse; transform-origin: 0 0; }
+.cz-mk.l span { position: absolute; right: 22px; white-space: nowrap; }
 .cz-mk:hover span, .cz-mk:focus-visible span { opacity: 1; color: #ffffff; }
 .cz[data-phase='look']:not(.zoned):not(.operating) .cz-mk { opacity: 1; }
 .cz-hint { position: absolute; left: 50%; bottom: max(18px, 4vh); transform: translateX(-50%); pointer-events: none !important; font-size: 16px; line-height: 16px; color: #c8e8c8; text-shadow: var(--text-ink-2), var(--text-halo); opacity: 0; transition: opacity 0.3s; }

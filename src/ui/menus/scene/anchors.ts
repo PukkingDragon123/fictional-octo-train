@@ -74,9 +74,9 @@ export const SHOTS: Record<string, ShotDef> = {
   marks: { bone: 'head', at: [0.015, 0.08, 0.05], dist: 0.56, yaw: 0.5, pitch: 0.02, fov: 30, pDist: 0.92, pFov: 38 },
   skin: { bone: 'chest', at: [0, 0.2, 0.02], dist: 1.4, yaw: 0.32, pitch: 0.06, fov: 32, pDist: 2.3, pFov: 42 },
   // the unit room's hardware: the neck port, each arm, each leg
-  neck: { bone: 'chest', at: [0, 0.27, 0.03], dist: 0.78, yaw: 0.34, pitch: 0.08, fov: 30, pDist: 1.25, pFov: 40 },
-  armL: { bone: 'uarmL', at: [0, -0.22, 0.02], dist: 1.25, yaw: 0.62, pitch: 0.06, fov: 32, pDist: 1.9, pFov: 42 },
-  armR: { bone: 'uarmR', at: [0, -0.22, 0.02], dist: 1.25, yaw: -0.62, pitch: 0.06, fov: 32, pDist: 1.9, pFov: 42 },
+  neck: { bone: 'chest', at: [0, 0.24, 0.03], dist: 1.3, yaw: 0.5, pitch: 0.1, fov: 30, pDist: 1.9, pFov: 40 },
+  armL: { bone: 'uarmL', at: [0, -0.3, 0.02], dist: 2.0, yaw: 0.55, pitch: 0.08, fov: 32, pDist: 2.8, pFov: 42 },
+  armR: { bone: 'uarmR', at: [0, -0.3, 0.02], dist: 2.0, yaw: -0.55, pitch: 0.08, fov: 32, pDist: 2.8, pFov: 42 },
   legL: { bone: 'thighL', at: [0, -0.32, 0.03], dist: 1.6, yaw: 0.45, pitch: 0.12, fov: 32, pDist: 2.4, pFov: 42 },
   legR: { bone: 'thighR', at: [0, -0.32, 0.03], dist: 1.6, yaw: -0.45, pitch: 0.12, fov: 32, pDist: 2.4, pFov: 42 },
 };

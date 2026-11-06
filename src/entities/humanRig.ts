@@ -201,7 +201,7 @@ const GLOSS_GLSL = /* glsl */`
     vec3 R = reflect(-gV, gN);
     vec3 envC = lc * mix(vec3(0.12, 0.11, 0.09), vec3(0.8, 0.86, 0.92), smoothstep(-0.35, 0.6, R.y)) + vec3(0.003, 0.004, 0.006);
     float F = 0.05 + 0.95 * pow(1.0 - nv, 5.0);
-    add += envC * F * (pvc * 1.3 + rub * 0.9 + glass * 2.0);
+    add += envC * F * (pvc * 1.2 + rub * 0.8 + glass * 0.9);
     // ... and every tube nearby as a hot streak: on PVC that is the look (the tubes off to the side catch
     // the upright faces of the arms, legs and chest, not just the top of the hood)
     // (seen from the high camera an upright face would mirror only the floor: the glints are placed for an
@@ -214,9 +214,9 @@ const GLOSS_GLSL = /* glsl */`
       float d2 = dot(Lp, Lp);
       vec3 Ld = Lp * inversesqrt(d2);
       float rl = max(dot(R, Ld), 0.0), he = max(dot(gN, normalize(Ld + eyeV)), 0.0);
-      tubes += uGlowCol[i].rgb * (pow(rl, 60.0) * 2.0 + pow(he, 44.0) * 2.2 + pow(he, 10.0) * 0.1) / (1.0 + d2 * 0.12);
+      tubes += uGlowCol[i].rgb * (pow(rl, 70.0) * 1.8 + pow(he, 90.0) * 3.0 + pow(he, 24.0) * 0.12) / (1.0 + d2 * 0.12);
     }
-    add += tubes * (pvc * 1.0 + rub * 0.7 + glass * 1.4) * (0.6 + 0.4 * F);
+    add += tubes * (pvc * 1.0 + rub * 0.7 + glass * 0.55) * (0.6 + 0.4 * F);
   }
   totalEmissiveRadiance += add;
 }

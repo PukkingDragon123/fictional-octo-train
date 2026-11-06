@@ -134,6 +134,8 @@ const FEM = 0.88, MASC = 0.1;
 const HEAD_PICK: [string, string][] = [['chin', 'face'], ['jaw', 'face'], ['ear', 'face'], ['eyes', 'eyes'], ['eyeR', 'eyes'], ['brows', 'eyes'], ['nose', 'mouth'], ['mouth', 'mouth'], ['cheek', 'marks'], ['forehead', 'hair'], ['scalp', 'hair'], ['temple', 'hair'], ['templeR', 'hair'], ['crown', 'hair']];
 /** the zones that get a marker on the body in the overview */
 const MARKED = ['hair', 'face', 'eyes', 'neck', 'body', 'armL', 'armR', 'legL', 'legR'];
+/** where a zone's marker sits on the body (the legs by the shins, apart) */
+const MARK_AT: Record<string, string> = { legL: 'shin', legR: 'shinR' };
 
 /** a plain word for a colour: skin by depth, eyes and hair by hue */
 function colourName(c: number, kind: 'skin' | 'eye' | 'hair'): string {
@@ -452,7 +454,8 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
       marks.innerHTML = ''; markEls.clear();
       for (const k of MARKED) {
         const z = ZONES.find((q) => q.key === k)!;
-        const b = h('button', 'cz-mk', `<i></i><span>${esc(z.title)}</span>`) as HTMLButtonElement;
+        // the unit's right side is on the left of the screen: those labels read leftward
+        const b = h('button', 'cz-mk' + (k === 'armR' || k === 'legR' ? ' l' : ''), `<i></i><span>${esc(z.title)}</span>`) as HTMLButtonElement;
         b.type = 'button';
         b.addEventListener('click', () => { if (phase === 'look' && !busy) void goZone(z); });
         marks.append(b); markEls.set(k, b);
@@ -465,7 +468,7 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
       if (!zone) {
         for (const [k, b] of markEls) {
           const z = ZONES.find((q) => q.key === k)!;
-          const p = stage.anchorScreen(z.anchor);
+          const p = stage.anchorScreen(MARK_AT[k] ?? z.anchor);
           b.style.visibility = p ? '' : 'hidden';
           if (p) b.style.transform = `translate(${Math.round(p.x)}px, ${Math.round(p.y)}px)`;
         }
@@ -480,7 +483,7 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
       const right = px < VW * 0.42;
       let x = right ? px + 120 : px - 120 - cw;
       x = Math.max(16, Math.min(VW - cw - 16, x));
-      const y = Math.max(96, Math.min(VH - ch - 80, py - ch / 2));
+      const y = Math.max(head.getBoundingClientRect().bottom + 14, Math.min(VH - ch - 80, py - ch / 2));
       col.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
       const ex = right ? x : x + cw, ey = Math.max(y + 24, Math.min(y + ch - 24, py));
       const dx = px - ex, dy = py - ey, len = Math.hypot(dx, dy);
