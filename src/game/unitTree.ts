@@ -21,19 +21,18 @@
 // file (src/game/meridian.ts) and goes into every new run (src/game/metaRun.ts:
 // applyUnitFit).
 import { bus } from '../core/events';
-import { defNode, researchNode, hasUnlock, researchPoints, buyNode, type ResearchNode } from './research';
+import { defNode, researchNode, researchNodes, hasUnlock, researchPoints, buyNode, type ResearchNode } from './research';
+import { treeCategories, treeOfferList, treeDataVersion, categoryFor, treeCategory } from './treeData';
+import { hasItemDef } from '../items/item';
 import { unlock, isUnlocked } from './profile';
 import { COSMETIC, type CosSlot } from './cosmetics';
 import { CYBER_PARTS, cyberDef, type CyberSlot, SLOT_KIND, slotConflicts } from '../survival/cyberParts';
 import { file, saveFile } from './meridian';
 
-export type Branch = 'design' | 'recipe' | 'chip' | 'limb';
-export const BRANCHES: { key: Branch; name: string; sub: string; code: string }[] = [
-  { key: 'design', name: 'Unit designs', sub: 'dyes · visors · helmets · kit', code: 'DSN' },
-  { key: 'recipe', name: 'Recipes', sub: 'crafting, cooking, blueprints, schematics, scanner', code: 'RCP' },
-  { key: 'chip', name: 'Chips', sub: 'permanent neural and somatic implants', code: 'CHP' },
-  { key: 'limb', name: 'Limbs', sub: 'hardware for the unit room to fit', code: 'LMB' },
-];
+/** a branch of the tree: one per category of src/game/treeData.ts (design, recipe, build, device, chip, limb, and any registered) */
+export type Branch = string;
+/** the branches in lattice order (filled from src/game/treeData.ts; syncTree() keeps it current) */
+export const BRANCHES: { key: Branch; name: string; sub: string; code: string }[] = [];
 
 /** what a node's icon shows (src/ui/menus/research/icons.ts paints it) */
 export type IconSpec =
@@ -138,8 +137,8 @@ for (const [key, row, col, item, alt] of RECIPE_LAYOUT) {
 // ---- what the watch's R&D page used to sell mid-run: blueprints, dominion schematics, scanner firmware.
 // The research nodes are the game's own (same keys, so old saves keep what they bought); defined here too
 // when the menu runs without those modules, with the same costs and requirements.
-const FIELD: { lane: [number, string]; nodes: [string, string, number, string, string[], string, string[]?][] }[] = [
-  { lane: [12, 'Blueprints'], nodes: [
+const FIELD: { branch: Branch; lane: [number, string]; nodes: [string, string, number, string, string[], string, string[]?][] }[] = [
+  { branch: 'build', lane: [0, 'Blueprints'], nodes: [
     ['bp_spikes', 'Rebar Spikes', 2, 'Weld sharpened rebar to a plate. Anything that walks over it regrets it.', [], 'scrap_metal'],
     ['bp_hatch', 'Bulkhead Hatch', 3, 'A welded door hung in a scrap-plate wall on a spring hinge.', [], 'sheet_metal'],
     ['bp_hydro', 'Hydro Rack', 4, 'Two-tier hydroponic rack with grow LEDs. Fast crops, little water, needs power.', [], 'lightbulb'],
@@ -148,7 +147,7 @@ const FIELD: { lane: [number, string]; nodes: [string, string, number, string, s
     ['bp_gen_rig', 'Generator Rig', 5, 'Two salvaged motors run backwards off a fuel drum. Power for the whole base.', ['bp_mech_bench'], 'motor', ['battery']],
     ['bp_turret', 'Pipe Sentry', 7, 'A motor-swivelled nail cannon. Shoots anything that is not a friend.', ['bp_gen_rig'], 'nail_gun'],
   ] },
-  { lane: [14, 'Dominion'], nodes: [
+  { branch: 'device', lane: [2, 'Dominion'], nodes: [
     ['tame_mk1', 'Cortex Valve', 8, 'Schematic: a one-valve mechanical brain for small things (up to 45 vitality).', [], 'brain_mk1', ['electronics_scrap']],
     ['tame_station', 'Labour Directive', 14, 'Thralls take standing orders at a station: guard, haul, crank a generator, tend planters.', ['tame_mk1'], 'wire'],
     ['tame_mk2', 'Twin-Valve Cortex', 22, 'Schematic: a two-valve cortex for mid-sized bodies (up to 110 vitality).', ['tame_mk1'], 'brain_mk2', ['electronics_scrap']],
@@ -157,20 +156,20 @@ const FIELD: { lane: [number, string]; nodes: [string, string, number, string, s
     ['tame_overclock', 'Overclock', 30, 'Thralls hit half again as hard and move a quarter faster. They run hot.', ['tame_mk2'], 'battery'],
     ['tame_mk3', 'Titan Lobe', 50, 'Schematic: a three-valve, heat-finned lobe big enough for anything with a skull.', ['tame_mk2'], 'brain_mk3', ['electronics_scrap']],
   ] },
-  { lane: [16, 'Suit scanner'], nodes: [
+  { branch: 'device', lane: [0, 'Suit scanner'], nodes: [
     ['tool_beam', 'Scanner Beam', 4, 'A focusing lens for the visor emitter: scans reach 18 m and finish faster.', [], 'binoculars'],
     ['scan_deep', 'Deep Scan', 14, 'Longer reach, faster sweeps and half again as much DATA from every scan.', ['tool_beam'], 'data_probe'],
   ] },
 ];
-for (const { lane: [row, label], nodes } of FIELD) {
-  lane('recipe', row, label);
+for (const { branch, lane: [row, label], nodes } of FIELD) {
+  lane(branch, row, label);
   nodes.forEach(([key, title, cost, desc, requires, item, alt], col) => {
     if (!researchNode(key)) defNode({ key, branch: key.startsWith('bp_') ? 'blueprint' : key.startsWith('tame_') ? 'tame' : 'scanner', title: title.toUpperCase(), cost, desc, requires: requires.length ? requires : undefined });
     const rn = researchNode(key);
     add({
-      key, branch: 'recipe', row, col, title, ranks: 1, rn: [key], costs: [rn?.cost ?? cost],
+      key, branch, row, col, title, ranks: 1, rn: [key], costs: [rn?.cost ?? cost],
       req: requires, icon: { kind: 'item', key: item, alt: alt ?? ['scrap_metal'] },
-      gives: [(row === 12 ? 'blueprint: ' : row === 14 ? 'schematic: ' : 'scanner firmware: ') + title], desc: rn?.desc ?? desc,
+      gives: [(branch === 'build' ? 'blueprint: ' : label === 'Dominion' ? 'schematic: ' : 'scanner firmware: ') + title], desc: rn?.desc ?? desc,
     });
   });
 }
@@ -238,10 +237,60 @@ for (const n of NODES) {
 // a design research node also unlocks the cosmetic itself (the unit room checks profile 'cos:<key>')
 bus.on('researchUnlocked', (k: string) => { const n = NODES.find((q) => q.cos && q.rn.includes(k)); if (n?.cos) unlock('cos:' + n.cos); });
 
+// ================================================================== everything else research can buy (data)
+// src/game/treeData.ts: the categories (one branch each), the offers registered as data (the economy's
+// recipes, building pieces, device upgrades), and every research node no branch above places, sorted
+// into a category by its own branch. Re-read whenever something new is registered.
+const SKIP_BRANCH = new Set(['design', 'chip', 'cyber', 'limb']);
+let synced = -1, syncedNodes = -1;
+export function syncTree() {
+  const all = researchNodes();
+  if (synced === treeDataVersion() && syncedNodes === all.length) return;
+  synced = treeDataVersion(); syncedNodes = all.length;
+  const placed = new Set(NODES.flatMap((n) => n.rn));
+  const laneRow = (branch: Branch, label: string) => {
+    const hit = LANES.find((l) => l.branch === branch && l.label === label);
+    if (hit) return hit.row;
+    const row = LANES.filter((l) => l.branch === branch).reduce((m, l) => Math.max(m, l.row + 2), 0);
+    lane(branch, row, label);
+    return row;
+  };
+  const place = (o: { key: string; branch: Branch; lane: string; title: string; desc: string; costs: number[]; requires: string[]; item?: string; alt?: string[]; gives: string[] }) => {
+    if (BY_KEY.has(o.key)) return;
+    const row = laneRow(o.branch, o.lane);
+    const col = NODES.filter((n) => n.branch === o.branch && n.row === row).length;
+    const ranks = o.costs.length, rn = Array.from({ length: ranks }, (_, i) => rankKey(o.key, i + 1));
+    rn.forEach((k, i) => { if (!researchNode(k)) defNode({ key: k, branch: o.branch, title: o.title.toUpperCase() + (i ? ' ' + 'I'.repeat(i + 1) : ''), cost: o.costs[i], desc: o.gives[i] ?? o.desc, requires: i ? [rn[i - 1]] : o.requires.length ? o.requires.map((q) => BY_KEY.get(q)?.rn[0] ?? q) : undefined }); });
+    // the lattice draws a conduit from a requirement that sits on the same branch
+    const req = o.requires.map((q) => BY_KEY.get(q)?.key ?? NODES.find((n) => n.rn.includes(q))?.key).filter((q): q is string => !!q && BY_KEY.get(q)!.branch === o.branch);
+    const item = [o.item, ...(o.alt ?? [])].find((q) => q && hasItemDef(q));
+    add({ key: o.key, branch: o.branch, row, col, title: o.title, ranks, rn, costs: o.costs, req, icon: item ? { kind: 'item', key: item } : { kind: 'chip', glyph: 'recall', color: 0x9ac8ff }, gives: o.gives, desc: o.desc });
+    for (const k of rn) placed.add(k);
+  };
+  for (const o of treeOfferList()) {
+    const costs = Array.isArray(o.cost) ? o.cost : Array.from({ length: Math.max(1, o.ranks ?? 1) }, () => o.cost as number);
+    const gives = Array.isArray(o.gives) ? o.gives : Array.from({ length: costs.length }, () => (o.gives as string | undefined) ?? o.title);
+    if (!treeCategories().some((c) => c.key === o.category)) treeCategory({ key: o.category, name: cap(o.category), sub: 'research', code: o.category.slice(0, 3).toUpperCase() });
+    place({ key: o.key, branch: o.category, lane: o.lane ?? cap(o.category), title: o.title, desc: o.desc ?? '', costs, requires: o.requires ?? [], item: o.item, alt: o.alt, gives });
+  }
+  for (const n of all) {
+    if (placed.has(n.key) || SKIP_BRANCH.has(n.branch) || /~\d+$/.test(n.key)) continue;
+    const cat = categoryFor(n.branch);
+    if (!treeCategories().some((c) => c.key === cat)) treeCategory({ key: cat, name: cap(cat), sub: 'research', code: cat.slice(0, 3).toUpperCase() });
+    place({ key: n.key, branch: cat, lane: cat === n.branch ? 'Research' : cap(n.branch), title: titleCase(n.title), desc: n.desc, costs: [n.cost], requires: n.requires ?? [], item: n.icon, gives: [n.title.toLowerCase()] });
+  }
+  // the branches: every category that has nodes, in order
+  const keep = treeCategories().filter((c) => NODES.some((n) => n.branch === c.key));
+  BRANCHES.length = 0;
+  for (const c of keep) BRANCHES.push({ key: c.key, name: c.name, sub: c.sub, code: c.code });
+}
+const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+const titleCase = (s: string) => (s === s.toUpperCase() ? s.toLowerCase().replace(/(^|\s)\S/g, (m) => m.toUpperCase()) : s);
+
 // ================================================================== reading the tree
-export const treeNodes = (b?: Branch) => (b ? NODES.filter((n) => n.branch === b) : NODES);
-export const treeNode = (k: string) => BY_KEY.get(k);
-export const treeLanes = (b: Branch) => LANES.filter((l) => l.branch === b);
+export const treeNodes = (b?: Branch) => { syncTree(); return b ? NODES.filter((n) => n.branch === b) : NODES; };
+export const treeNode = (k: string) => { syncTree(); return BY_KEY.get(k); };
+export const treeLanes = (b: Branch) => { syncTree(); return LANES.filter((l) => l.branch === b); };
 /** ranks owned (a free starter node counts as owned) */
 export function rankOf(n: TreeNode): number {
   let r = 0;
