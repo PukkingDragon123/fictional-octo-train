@@ -11,6 +11,8 @@ import { plateBtn } from './btnKit';
 import { terminal } from './terminal';
 
 export { sfx } from './sfx';
+import { mxKnob, mxToggleCanvas, mxSkinKey, mxSwing } from '../machine/kit';
+import { mxOk } from '../machine/core';
 export { FocusNav } from './nav';
 
 export function h<K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = ''): HTMLElementTagNameMap[K] {
@@ -66,7 +68,10 @@ export function slider(label: string, value: number, min: number, max: number, s
   const inp = h('input') as HTMLInputElement;
   inp.type = 'range'; inp.min = String(min); inp.max = String(max); inp.step = String(step); inp.value = String(value);
   const out = h('span', 't-slider-v', esc(fmt(value)));
-  const paint = () => inp.style.setProperty('--p', String((Number(inp.value) - min) / (max - min || 1)));
+  // round 16: a bakelite knob beside the label turns with the value (src/ui/machine)
+  const knob = mxOk() ? mxKnob(28) : null;
+  const paint = () => { const f = (Number(inp.value) - min) / (max - min || 1); inp.style.setProperty('--p', String(f)); knob?.set(f, true); };
+  if (knob) { lab.prepend(knob.cv); lab.classList.add('mx'); }
   paint();
   hoverFocus(inp);
   inp.addEventListener('input', () => { const v = Number(inp.value); out.textContent = fmt(v); paint(); sfx('tick'); onInput(v); });
@@ -89,12 +94,17 @@ export function seg<T extends string | number | boolean>(label: string, vals: [T
     if (opts.tip) b.dataset.tip = opts.tip(v);
     hoverFocus(b);
     b.addEventListener('click', () => {
-      for (const o of btns) { o.classList.toggle('on', o === b); o.setAttribute('aria-checked', String(o === b)); }
+      for (const o of btns) { o.classList.toggle('on', o === b); o.setAttribute('aria-checked', String(o === b)); (o as any)._mxs?.setOn(o === b); }
       sfx('toggle');
       onPick(v);
     });
     btns.push(b);
     box.append(b);
+  }
+  // round 16: the choices are a row of latching push keys (the chosen one stays in)
+  if (mxOk()) {
+    box.classList.add('mx');
+    for (const b of btns) { const sk = mxSkinKey(b, { lamp: false, tone: 'olive', screws: false, sound: '' }); (b as any)._mxs = sk; sk?.setOn(b.classList.contains('on')); }
   }
   row.append(box);
   return row;
@@ -106,13 +116,17 @@ export function toggle(label: string, on: boolean, onChange: (v: boolean) => voi
   b.type = 'button';
   b.setAttribute('role', 'switch');
   b.setAttribute('aria-checked', String(on));
+  // round 16: a real bat toggle that flips (src/ui/machine)
+  const tg = mxOk() ? mxToggleCanvas(on) : null;
+  if (tg) { const sw = b.querySelector('.t-sw') as HTMLElement; sw.classList.add('mx'); sw.prepend(tg.cv); }
   hoverFocus(b);
   b.addEventListener('click', () => {
     on = !on;
     b.classList.toggle('on', on);
     b.setAttribute('aria-checked', String(on));
     (b.querySelector('.t-sw b') as HTMLElement).textContent = on ? 'ON' : 'OFF';
-    sfx('toggle');
+    tg?.flip(on);
+    sfx(tg ? 'rocker' : 'toggle', tg ? 0.6 : 1);
     onChange(on);
   });
   return b;
@@ -216,6 +230,7 @@ export function confirmDialog(o: ConfirmOpts): Promise<boolean> {
     const ok = plateBtn(o.ok || 'OK', () => done(true), { finish: o.danger ? 'oxblood' : 'brass', size: 'md', lamp: o.danger ? 'red' : 'green', sound: o.danger ? 'plate' : 'confirm' });
     t.keys.append(cancel, ok);
     veil.append(t.el);
+    if (mxOk()) mxSwing(t.el);
     veil.addEventListener('pointerdown', (e) => { if (e.target === veil) done(false); });
     document.body.append(veil);
     sfx(o.danger ? 'error' : 'open', 0.6);

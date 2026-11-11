@@ -10,6 +10,7 @@
 //   CREATE   the researched patterns: matter + tokens -> the thing on the plate
 //            (in the lab: down the chute at the start of the next run)
 //   LEDGER   the crew ledger (in a run)
+import { mxArrive } from '../../ui/machine/kit';
 import { G } from '../G';
 import { bus } from '../../core/events';
 import { op } from '../ops';
@@ -63,6 +64,7 @@ export function openPressTerminal(o: TermOpen) {
   t.screen.classList.add('amber');
   wrap.append(t.el);
   document.body.append(wrap);
+  mxArrive(t.el, 'bottom', { delay: 40 });
   let page: Page = o.page ?? 'account';
   const keys = new Map<Page, PlateButton>();
   const visible = PAGES.filter(([k]) => k !== 'ledger' || inRun);

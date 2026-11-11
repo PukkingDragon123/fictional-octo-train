@@ -26,6 +26,37 @@ import { DETAIL } from '../items/detailModels';
 import { pxBarcode, pxCrestEl } from './pxKit';
 import { itemValue } from '../game/debt/values';
 import type { MenuOption } from './ui';
+import { mxFrame, mxSkinKey, type MxFrame } from './machine/kit';
+import { mxOk } from './machine/core';
+import type { LampCol } from './machine/parts';
+
+/** round 16: the card is a 3D machine housing (src/ui/machine): olive enamel, a raised rail, corner guards, bolts, the render well set in a dark steel lip, a seam over the keys, hazard paint down a dangerous thing's edge */
+function plate3d(el: HTMLElement): boolean {
+  if (!mxOk()) return false;
+  let f = (el as any)._mxf as MxFrame | undefined;
+  if (!f) {
+    f = mxFrame(el, (W, H) => {
+      const pr = el.getBoundingClientRect();
+      const well = el.querySelector('.ip-well') as HTMLElement | null;
+      const keys = el.querySelector('.ip-keys') as HTMLElement | null;
+      const sc = pr.width ? W / pr.width : 1;
+      const rel = (r: DOMRect) => ({ x: Math.round((r.left - pr.left) * sc), y: Math.round((r.top - pr.top) * sc), w: Math.round(r.width * sc), h: Math.round(r.height * sc) });
+      const wr = well ? rel(well.getBoundingClientRect()) : null;
+      const ky = keys && keys.childElementCount ? Math.round((keys.getBoundingClientRect().top - pr.top) * sc) - 7 : 0;
+      return {
+        w: W, h: H, seed: 41, tone: 'olive', depth: 8, cut: 10, guards: true,
+        win: wr ? { ...wr, back: true, cut: 4, lip: 4, lipTone: 'dark' } : undefined,
+        seamsY: [28, ...(ky ? [ky] : [])],
+        hazPaint: el.dataset.haz ? [{ x: 3, y: 40, w: 5, h: H - 64 }] : undefined,
+        glands: [{ x: Math.round(W * 0.7), y: H - 6, col: 0x1a1a18, drop: 18 }],
+        welds: H > 200 ? [[W - 4, 50, W - 4, Math.min(H - 40, 160)]] : undefined,
+      };
+    }, { pad: 12 });
+    (el as any)._mxf = f;
+  } else f.repaint();
+  return true;
+}
+const LAMP_OF: Record<string, LampCol | false> = { go: 'green', warn: 'amber', stop: 'red', info: 'amber', off: false };
 
 type Lamp = 'go' | 'warn' | 'stop' | 'off' | 'info';
 interface Btn { el: HTMLButtonElement; run: () => void; off: boolean }
@@ -183,6 +214,15 @@ function style() {
 .ipnl .ip-key.off small { color: #ff9a7a; }
 .ipnl .ip-key.hov, .ipnl .ip-key.foc { filter: drop-shadow(0 0 3px rgba(242,173,50,0.85)) drop-shadow(0 0 1px #ffd06a); }
 .ipnl .ip-key.dn { transform: translateY(2px); padding-top: 2px; }
+.ipnl .ip-key.mxk { overflow: visible; padding-left: calc(var(--mx-cx, 6px) + 6px); color: #f2d65a; text-shadow: 1px 1px 0 #14160c; filter: none; }
+.ipnl .ip-key.mxk > :is(span, small) { transform: translate(var(--mx-dx, 0), var(--mx-dy, 0)); position: relative; }
+.ipnl .ip-key.mxk small { color: #c8d0a0; }
+.ipnl .ip-key.mxk.off { color: #8a8c74; }
+.ipnl .ip-key.mxk.off small { color: #ff9a7a; }
+.ipnl .ip-key.mxk.dn { transform: none; padding-top: 0; }
+.ipnl .ip-key.mxk.hov { filter: none; color: #fff2a8; }
+.ipnl .ip-x.mxk { color: #ffd2b8; }
+.ipnl.mxf { image-rendering: auto; }
 .ipnl .ip-key.foc::after { content: ''; position: absolute; inset: -3px; border: 2px solid transparent; border-image: linear-gradient(90deg, #ffd06a 0 6px, transparent 6px calc(100% - 6px), #ffd06a calc(100% - 6px)) 2; pointer-events: none; }
 .ipnl .ip-hint { margin-top: 8px; font-size: 10px; letter-spacing: 0.1em; color: #566069; text-transform: uppercase; text-align: right; }
 .ipnl.ip-dock { transform: none; transition: none; }
@@ -405,7 +445,8 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
     // paint the caps once they have a size
     requestAnimationFrame(() => { for (const b of this.btns) b.el.style.backgroundImage = (b.el as any)._art('up'); });
     const xb = this.el!.querySelector('[data-x]') as HTMLButtonElement;
-    xb.style.backgroundImage = `url(${keyArt(24, 20, 'up', 'off', false)})`;
+    if (mxOk()) mxSkinKey(xb, { tone: 'red', lamp: false, screws: false, sound: '' });
+    else xb.style.backgroundImage = `url(${keyArt(24, 20, 'up', 'off', false)})`;
     xb.addEventListener('pointerup', () => this.close());
   }
   private opWhy(h: HandOp, it: Item, mine: boolean): string {
@@ -487,6 +528,7 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
 
 /** paint a card's gunmetal plate behind its content (a canvas.ip-bg child), the render well (.ip-well) and the keys' separator (.ip-keys) */
 export function plateBg(el: HTMLElement) {
+  if (plate3d(el)) return;
   const W = el.offsetWidth, H = el.offsetHeight;
   const old = el.querySelector('canvas.ip-bg') as HTMLCanvasElement | null;
   const { cv, c } = crispCanvas(W, H);
@@ -561,6 +603,8 @@ export function hiKey(label: string, run: () => void, o: HiKeyOpts = {}): HTMLBu
   const art = (state: 'up' | 'hover' | 'down') => { const r = b.getBoundingClientRect(); return `url(${keyArt(Math.max(40, Math.round(r.width)), Math.max(20, Math.round(r.height)), state, lamp, off)})`; };
   (b as any)._art = art;
   (b as any)._off = off;
+  // round 16: a 3D push key (olive cap in a steel bezel, its status lamp in glass) when the machine renderer is up
+  if (mxOk()) { (b as any)._art = () => 'none'; mxSkinKey(b, { tone: o.danger ? 'red' : 'olive', lamp: LAMP_OF[lamp], dim: off, screws: false, sound: '' }); }
   b.addEventListener('pointerenter', () => { if (off) return; b.classList.add('hov'); b.style.backgroundImage = art('hover'); G.audio?.ui?.('mn_hover', 0.12); });
   b.addEventListener('pointerleave', () => { b.classList.remove('hov', 'dn'); b.style.backgroundImage = art(b.classList.contains('foc') ? 'hover' : 'up'); });
   b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (e.button !== 0) return; if (off) { G.audio?.ui?.('mn_error', 0.3); return; } b.classList.add('dn'); b.style.backgroundImage = art('down'); G.audio?.ui?.('tc_clack', 0.5); });

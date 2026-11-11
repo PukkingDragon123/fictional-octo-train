@@ -10,6 +10,8 @@ import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { mapRank, MAP_ECHO_R, MAP_PING_R } from '../../game/mapUpgrades';
 import { pxFrame } from '../pxKit';
+import { mxFrame, panelSpec } from '../machine/kit';
+import { mxOk } from '../machine/core';
 import { rect, dprK } from '../hiPixel';
 import type { Zone } from '../../world/zone';
 import type { QuestRuntime } from '../../missions/questRuntime';
@@ -52,7 +54,19 @@ export class SurveyMap {
     plot.append(this.head, this.cv, this.foot);
     el.append(plot);
     document.body.appendChild(el);
-    try { pxFrame(plot, { tone: 'steel', well: 16, wellTint: 0x0b0906, scan: true, hazard: true, chamfer: 12, seed: 41, crest: true, serial: 'SURVEY PLOTTER SP-4', vents: true, lamps: ['g', 'a', 0], welds: true, gland: true }); } catch { /* no canvas */ }
+    try {
+      // round 16: the plotter is a 3D machine (src/ui/machine): a deep olive hood with its nameplate, lamps and a vent,
+      // the plot glass set in a dark steel lip, grab handles, a hazard foot, cables out of the bottom
+      if (mxOk()) {
+        plot.classList.add('mx');
+        mxFrame(plot, (w, h) => {
+          const s = panelSpec(w, h, { title: 'SURVEY PLOTTER SP-4', serial: 'MI-SP4-0' + (41 % 9), seed: 41, lamps: ['green', 'amber', 'red'], glands: 3, handles: true, knobs: 2, toggles: 3,
+            win: { l: 26, t: 44, r: 26, b: 34, cut: 9, lip: 6 } });
+          s.win!.back = true;
+          return s;
+        }, { pad: 16, grow: { l: 12, t: 30, r: 12, b: 20 } });
+      } else pxFrame(plot, { tone: 'steel', well: 16, wellTint: 0x0b0906, scan: true, hazard: true, chamfer: 12, seed: 41, crest: true, serial: 'SURVEY PLOTTER SP-4', vents: true, lamps: ['g', 'a', 0], welds: true, gland: true });
+    } catch { /* no canvas */ }
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyM' && !e.repeat && !e.ctrlKey && !e.metaKey) {
         if (G.input?.textFocus || !G.local) return;

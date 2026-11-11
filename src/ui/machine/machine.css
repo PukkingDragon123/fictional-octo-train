@@ -1,0 +1,79 @@
+/* THE MACHINE KIT (src/ui/machine/kit.ts): 3D hardware drawn into canvases, DOM text on top.
+   Square and chamfered, never rounded; Alagard everywhere; olive + safety yellow; green / amber lamps. */
+:where(.mxf) { position: relative; }
+.mxf-cv { position: absolute; z-index: -1; pointer-events: none; image-rendering: pixelated; image-rendering: crisp-edges; }
+.mxf-cv.over { z-index: 4; }
+:where(.mxf) { isolation: isolate; }
+
+/* ---- push keys: the canvas carries the bezel + cap, the legend rides on the cap face */
+:where(.mxk) { position: relative; isolation: isolate; }
+.mxk { background: none !important; border: 0 !important; box-shadow: none !important; outline: none; border-radius: 0 !important; }
+.mxk > .mxk-cv { position: absolute; left: -5px; top: -5px; z-index: -1; pointer-events: none; image-rendering: pixelated; }
+.mxk:focus-visible { outline: none; }
+.mxk::before, .mxk::after { display: none !important; }
+
+.mxb { display: flex; align-items: center; justify-content: flex-start; padding: 0; margin: 0; cursor: pointer; font-family: var(--font-new); color: #f2d65a; text-align: left; flex: none; }
+.mxb .mxb-t { position: absolute; left: calc(var(--mx-cx, 8px) + 9px); right: 12px; top: 50%; transform: translate(var(--mx-dx, 0), calc(-50% + var(--mx-dy, 0px))); font-size: 18px; letter-spacing: .06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.1;
+  text-shadow: 1px 1px 0 #16180e, -1px 0 0 #16180e, 0 -1px 0 #16180e, 1px 0 0 #16180e, 0 1px 0 #16180e; pointer-events: none; }
+.mxb .mxb-s { position: absolute; right: 16px; bottom: 6px; transform: translate(var(--mx-dx, 0), var(--mx-dy, 0)); font-size: 11px; color: rgba(232,196,64,.7); letter-spacing: .08em; pointer-events: none; }
+.mxb.mx-hot .mxb-t, .mxb.on .mxb-t { color: #fff2a8; text-shadow: 1px 1px 0 #16180e, -1px 0 0 #16180e, 0 -1px 0 #16180e, 1px 0 0 #16180e, 0 1px 0 #16180e, 0 0 10px rgba(255,214,90,.35); }
+.mxb.ink-d { color: #1a160a; }
+.mxb.ink-d .mxb-t { text-shadow: 0 1px 0 rgba(255,236,160,.45); }
+.mxb.ink-d.mx-hot .mxb-t { color: #000; }
+.mxb.danger .mxb-t { color: #ffd2b8; }
+.mxb:disabled { cursor: default; }
+.mxb:disabled .mxb-t { color: #8a8a6a; }
+
+/* ---- toggles */
+.mxt { display: inline-flex; align-items: center; gap: 10px; padding: 0; background: none; border: 0; cursor: pointer; font-family: var(--font-new); color: #d8dcb0; text-align: left; }
+.mxt-cv { width: 38px; height: 50px; flex: none; image-rendering: pixelated; }
+.mxt-l { font-size: 16px; letter-spacing: .04em; }
+.mxt-l small { display: block; font-size: 11px; opacity: .65; }
+.mxt.on .mxt-l { color: #96ffb0; }
+
+.mxn-cv, .mxg-cv { image-rendering: pixelated; flex: none; }
+
+/* ---- mechanisms */
+@keyframes mx-arrive { 0% { transform: var(--mx-from); opacity: 0; } 55% { transform: none; opacity: 1; } 68% { transform: translate(0, -3px); } 80% { transform: none; } 88% { transform: translate(0, -1px); } 100% { transform: none; opacity: 1; } }
+.mx-arrive { animation: mx-arrive .5s cubic-bezier(.3,.9,.4,1) both; }
+@keyframes mx-swing { 0% { transform: perspective(900px) rotateX(-78deg); opacity: 0; } 58% { transform: perspective(900px) rotateX(5deg); opacity: 1; } 76% { transform: perspective(900px) rotateX(-2deg); } 100% { transform: none; opacity: 1; } }
+.mx-swing { transform-origin: 50% 0; animation: mx-swing .55s cubic-bezier(.3,.9,.4,1) both; }
+.reduce-flash .mx-arrive, .reduce-flash .mx-swing { animation: none; }
+
+/* ---- CRT glass inside a housing's window: dark green phosphor, scanlines, a sheen */
+.mx-crt { background: radial-gradient(ellipse 120% 100% at 50% 45%, #0c1a10 0%, #06100a 60%, #030805 100%); color: #8dffa6; position: relative; }
+.mx-crt::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background: repeating-linear-gradient(0deg, rgba(0,0,0,.22) 0 1px, rgba(0,0,0,0) 1px 3px),
+    linear-gradient(118deg, rgba(220,255,220,0) 30%, rgba(220,255,220,.05) 38%, rgba(220,255,220,0) 47%),
+    radial-gradient(ellipse 100% 90% at 50% 50%, rgba(0,0,0,0) 62%, rgba(0,0,0,.45) 100%); }
+
+/* ---- the 3D terminal (src/ui/menus/terminal.ts): the housing canvas is drawn OVER the tube, keys over it */
+.ct.ct3 > .mxf-cv { z-index: 3; }
+.ct.ct3 > .ct-keys { z-index: 5; }
+.ct.ct3 > .ct-scr { z-index: 1; }
+
+/* ---- the switch deck (settings): the tube's glass gives way to dark enamel with real controls on it */
+.ct-scr.ct-deck { background: #1a1e14 !important; }
+.ct-scr.ct-deck::before { background: repeating-linear-gradient(90deg, rgba(255,255,220,.018) 0 1px, rgba(0,0,0,0) 1px 4px), radial-gradient(ellipse 110% 90% at 40% 20%, rgba(120,140,80,.12), rgba(0,0,0,.35)) !important; animation: none !important; }
+.ct-scr.ct-deck::after { background: linear-gradient(180deg, rgba(0,0,0,.4), rgba(0,0,0,0) 14px), linear-gradient(90deg, rgba(0,0,0,.35), rgba(0,0,0,0) 12px) !important; animation: none !important; }
+.ct-scr.ct-deck :is(.t-seg-l, .t-slider-l, .t-toggle-l) { color: #e8c440; text-shadow: 1px 1px 0 #0a0b06; }
+.ct-scr.ct-deck .t-toggle-l small { color: rgba(232,220,170,.6); }
+.ct-scr.ct-deck .t-slider-v { color: #96ffb0; text-shadow: 0 0 4px rgba(80,255,120,.35); }
+.ct-scr .t-slider-l.mx { display: flex; align-items: center; gap: .55em; }
+.ct-scr .t-slider-l.mx .mxn-cv { width: 36px; height: 36px; margin: -4px 0; }
+.ct-scr .t-sw.mx i { display: none; }
+.ct-scr .t-sw.mx .mxt-cv { width: 42px; height: 56px; margin: -8px 0; }
+.ct-scr .t-toggle:has(.t-sw.mx) { min-height: 44px; }
+.ct-scr .t-seg.mx { gap: 6px 8px; }
+.ct-scr .t-seg.mx .t-seg-b { min-height: 30px; padding: 4px 14px 6px; color: #f2d65a; text-decoration: none; text-shadow: 1px 1px 0 #14160c; transform: translate(var(--mx-dx, 0), var(--mx-dy, 0)); }
+.ct-scr .t-seg.mx .t-seg-b > .mxk-cv { transform: translate(calc(-1 * var(--mx-dx, 0px)), calc(-1 * var(--mx-dy, 0px))); }
+.ct-scr .t-seg.mx .t-seg-b.on::before { content: none; }
+.ct-scr .t-seg.mx .t-seg-b.on { color: #96ffb0; }
+
+/* ---- plate keys (src/ui/menus/btnKit.ts) as 3D push keys */
+.pb.pb-mx { background: none !important; overflow: visible; color: #f2d65a; padding-left: calc(var(--mx-cx, 8px) + 8px) !important; }
+.pb.pb-mx > :is(.pb-l, .pb-s) { transform: translate(var(--mx-dx, 0), var(--mx-dy, 0)) !important; text-shadow: 1px 1px 0 #14160c; }
+.pb.pb-mx.ink-d { color: #1a160a; }
+.pb.pb-mx.ink-d > :is(.pb-l, .pb-s) { text-shadow: 0 1px 0 rgba(255,236,160,.4); }
+.pb.pb-mx.mx-hot:not(.ink-d) { color: #fff2a8; }
+.pb.pb-mx:disabled { color: rgba(200,200,170,.45); }

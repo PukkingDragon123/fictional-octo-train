@@ -17,6 +17,20 @@ import { ctxAllowed } from './context';
 import { crispCanvas, rect, rivet, GUN, AMB } from '../hiPixel';
 import { pxPlate, pxFrame } from '../pxKit';
 import { mixHex } from '../../gfx/pixel';
+import { mxSocketSheet, mxFrame, panelSpec, SOCK_PAD } from '../machine/kit';
+import { mxOk } from '../machine/core';
+
+/** round 16: a 3D socket (src/ui/machine): a deep olive cup with a felt bed, a bolt, a stamped yellow number tag, an amber lamp that lights in the hand */
+function drawSock(cv: HTMLCanvasElement, n: number, held: boolean): boolean {
+  const sh = mxSocketSheet(n); if (!sh) return false;
+  const fw = SW + SOCK_PAD * 2;
+  if (cv.width !== fw) { cv.width = fw; cv.height = fw; cv.style.width = fw + 'px'; cv.style.height = fw + 'px'; cv.style.left = -SOCK_PAD + 'px'; cv.style.top = -SOCK_PAD + 'px'; }
+  const c = cv.getContext('2d')!;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, fw, fw);
+  c.drawImage(sh, 0, held ? fw : 0, fw, fw, 0, 0, fw, fw);
+  return true;
+}
 
 // ---- the slots (round 15): just the six slots, each a physical socket in hi-res pixel art.
 // A chamfered gunmetal bezel with two screws, a recessed felt bed, a brass tag stamped with the
@@ -103,8 +117,8 @@ export class HotbarStrip {
       s.className = 'hb-slot';
       const sc = crispCanvas(SW, SW);
       sc.cv.className = 'hb-cv';
-      drawSlot(sc.c, i + 1, false, false);
-      (s as any)._c = sc.c;
+      if (!(mxOk() && drawSock(sc.cv, i + 1, false))) drawSlot(sc.c, i + 1, false, false);
+      (s as any)._c = sc.c; (s as any)._cv = sc.cv;
       s.append(sc.cv, document.createElement('i'));
       s.addEventListener('contextmenu', (e) => e.preventDefault());
       s.addEventListener('pointerdown', (e) => {
@@ -127,7 +141,10 @@ export class HotbarStrip {
     }
     document.body.appendChild(el);
     // the rail the six sockets sit in
-    try { pxFrame(el, { tone: 'dark', chamfer: 8, screws: false, seed: 66 }); } catch { /* no canvas */ }
+    try {
+      if (mxOk()) { el.classList.add('mx'); mxFrame(el, (w, h) => { const s = panelSpec(w, h, { seed: 66, hazard: false, vents: false, glands: 2, lamps: [] }); s.depth = 7; s.rivets = false; return s; }, { pad: 10 }); }
+      else pxFrame(el, { tone: 'dark', chamfer: 8, screws: false, seed: 66 });
+    } catch { /* no canvas */ }
     window.addEventListener('keydown', (e) => {
       if (e.repeat || G.input?.textFocus || !/^Digit[1-6]$/.test(e.code) || !ctxAllowed()) return;
       const p = G.local; if (!p) return;
@@ -160,7 +177,7 @@ export class HotbarStrip {
       el.classList.toggle('full', !!it);
       el.classList.toggle('held', held);
       const c = (el as any)._c as CanvasRenderingContext2D | undefined;
-      if (c) drawSlot(c, i + 1, !!it, held);
+      if (!(mxOk() && drawSock((el as any)._cv, i + 1, held)) && c) drawSlot(c, i + 1, !!it, held);
       el.title = it ? itemName(it) : 'empty';
     });
   }

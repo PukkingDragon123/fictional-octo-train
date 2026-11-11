@@ -16,6 +16,8 @@ import { grantResearch, researchPoints } from '../../game/research';
 import { flushStats } from '../../game/profile';
 import { outlook } from '../../game/loop/unlocks';
 import { drawPlate, drawRecess, screw, hiCanvas } from '../../game/loop/plate';
+import { mxFrame, mxSkinKey, panelSpec } from '../machine/kit';
+import { mxOk } from '../machine/core';
 import { sfx } from '../menus/sfx';
 import type { RunTracker, RunReport } from './stats';
 
@@ -147,9 +149,16 @@ function showSummary(g: Game, p: Player, r: RunReport) {
   };
   window.addEventListener('keydown', onKey, true);
   // the plate behind it, drawn to the size the words came out at
+  // round 16: a 3D machine housing behind the report (src/ui/machine), its keys 3D push keys
+  const mx = mxOk();
+  if (mx) {
+    root.classList.add('mx');
+    btns.forEach((b, i) => { mxSkinKey(b, { tone: i === 0 ? 'yellow' : 'olive', lamp: i === 0 ? 'green' : 'amber', screws: false, sound: 'plate' }); if (i === 0) b.classList.add('ink-d'); });
+    mxFrame(root, (w, h) => { const s = panelSpec(w, h, { seed: 909, lamps: ['green', 'amber'], glands: 2, hazard: true, win: { l: 12, t: 12, r: 12, b: 12, cut: 6, lip: 4 } }); s.win!.back = true; return s; }, { pad: 16 });
+  }
   requestAnimationFrame(() => {
     const W = Math.round(root.offsetWidth), H = Math.round(root.offsetHeight);
-    if (W > 20 && H > 20) {
+    if (W > 20 && H > 20 && !mx) {
       const k = hiCanvas(W, H);
       drawPlate(k.x, W, H, 909);
       for (const [sx, sy] of [[6, 6], [W - 7, 6], [6, H - 7], [W - 7, H - 7]] as const) screw(k.x, sx, sy);

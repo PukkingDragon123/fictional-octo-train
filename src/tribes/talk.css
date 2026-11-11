@@ -75,3 +75,16 @@ body.hm-talking .ft-subs { bottom: calc(max(14px, 2.6vh) + 96px); }
 .hm-opt.no .hm-in { filter: saturate(.4) brightness(.8); }
 .hm-opt.hm-esc .hm-in { border-image-source: var(--px-steel); filter: brightness(.85); }
 .hm-who .hm-name { -webkit-mask-image: var(--px-wear); mask-image: var(--px-wear); -webkit-mask-size: 48px 48px; mask-size: 48px 48px; }
+
+/* round 16 (src/ui/machine): an olive console under the conversation, the replies 3D push keys with lamps */
+.hm-talk.mx { padding: 12px 18px 16px; box-sizing: border-box; }
+.hm-talk.mx .hm-who { margin: 0 0 10px 4px; }
+.hm-talk.mx .hm-opts { gap: 8px; }
+.hm-opt.mxk { overflow: visible; }
+.hm-opt.mxk .hm-in { border: 0 !important; border-image: none !important; filter: none !important; padding: 4px 12px 6px calc(var(--mx-cx, 8px) + 6px); min-height: 46px; transform: translate(var(--mx-dx, 0), var(--mx-dy, 0)); }
+.hm-opt.mxk .hm-k { border: 0 !important; border-image: none !important; color: #e8c440; min-width: 18px; padding: 0; height: auto; }
+.hm-opt.mxk .hm-t { color: #f0e6c0; text-shadow: 1px 1px 0 #10120a; }
+.hm-opt.mxk.mx-hot .hm-t { color: #fff2a8; }
+.hm-opt.mxk.mx-hot .hm-k { color: #96ffb0; }
+.hm-opt.mxk.no .hm-t { color: #9a9a80; }
+body.hm-talking:has(.hm-talk.mx) .ft-subs { bottom: calc(max(14px, 2.6vh) + 124px); }

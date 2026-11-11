@@ -20,6 +20,12 @@ import { mixHex } from '../gfx/pixel';
 import './pxKit.css';
 import { sfx, type Sfx } from './menus/sfx';
 import { glyph5x7 } from './font5x7';
+import { mxOk } from './machine/core';
+import { mxFrame, mxButton, mxToggle, mxGauge, panelSpec } from './machine/kit';
+import type { Tone } from './machine/paint';
+
+/** round 16: the kit's plates and keys are 3D machine parts now (src/ui/machine); the 2D painters stay as the fallback */
+const mxTone = (t?: PxTone): Tone => (t === 'red' ? 'red' : t === 'brass' ? 'yellow' : 'olive');
 
 type C2 = CanvasRenderingContext2D;
 export type PxTone = 'steel' | 'olive' | 'red' | 'brass' | 'dark';
@@ -146,6 +152,18 @@ export function pxLamp(c: C2, x: number, y: number, on: boolean, ramp: number[] 
 
 /** a plate behind an element, repainted on resize */
 export function pxFrame(el: HTMLElement, o: PlateOpts & { pad?: number } = {}) {
+  if (mxOk()) {
+    const well = o.well ?? 0;
+    const f = mxFrame(el, (w, h) => {
+      const s = panelSpec(w, h, { tone: mxTone(o.tone), seed: o.seed, hazard: !!o.hazard, title: well >= 14 ? o.serial : undefined, lamps: well >= 14 ? (o.lamps ?? []).map((l) => (l === 'r' ? 'red' : l === 'g' ? 'green' : 'amber')) : [], vents: !!o.vents && well >= 14, glands: o.gland ? 2 : 0, guards: well >= 12, ...(well > 0 ? { win: { l: well, t: well, r: well, b: well, cut: Math.max(3, (o.chamfer ?? 8) - 3), lip: 4 } } : {}) });
+      if (s.win) s.win.back = true;
+      // lit lamps from the 2D spec
+      (o.lamps ?? []).forEach((l, i) => { if (s.lamps?.[i]) s.lamps[i].on = !!l; });
+      if (o.welds && h > 60) s.welds = [[3, h * 0.35, 3, h * 0.65], [w - 3, h * 0.35, w - 3, h * 0.65]];
+      return s;
+    }, { pad: 10 });
+    return { repaint: () => f.repaint(), dispose: () => f.dispose() };
+  }
   el.classList.add('pxf');
   const cv = document.createElement('canvas');
   cv.className = 'pxf-cv';
@@ -174,6 +192,11 @@ export interface PxButton extends HTMLButtonElement { setOn(on: boolean): void }
 /** a menu plate with an Alagard label and a lamp */
 export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: number; h?: number; lamp?: 'amber' | 'green' | 'red'; cls?: string; sub?: string; sound?: Sfx } = {}): PxButton {
   const W = o.w ?? 236, H = o.h ?? 34;
+  if (mxOk()) {
+    // olive caps; the green-lamp key (the way forward) wears safety yellow, a red one oxblood
+    const tone: Tone = o.lamp === 'green' ? 'yellow' : o.tone === 'red' || o.lamp === 'red' ? 'red' : mxTone(o.tone);
+    return mxButton(label, fn, { w: W, h: H, tone, lamp: o.lamp ?? 'amber', cls: 'pxb' + (o.cls ? ' ' + o.cls : ''), sub: o.sub, sound: o.sound ?? 'plate' }) as unknown as PxButton;
+  }
   const b = document.createElement('button') as PxButton;
   b.type = 'button';
   b.className = 'pxb' + (o.cls ? ' ' + o.cls : '');
@@ -238,6 +261,7 @@ installTactile();
 export interface PxToggle extends HTMLButtonElement { set(on: boolean): void; readonly on: boolean }
 /** a bat-handle toggle switch on a small screwed plate, with its label stencilled beside it */
 export function pxToggle(label: string, on0: boolean, onChange: (on: boolean) => void, o: { sub?: string } = {}): PxToggle {
+  if (mxOk()) return mxToggle(label, on0, onChange, o) as unknown as PxToggle;
   const b = document.createElement('button') as PxToggle;
   b.type = 'button'; b.className = 'px-toggle';
   const W = 30, H = 40;
@@ -426,6 +450,8 @@ export function pxCrestEl(s = 16) { return canvasEl(s, s, (c) => pxCrest(c, 0, 0
 export function pxPlacardEl(text: string, kind: 'warn' | 'danger' | 'info' = 'warn') { const w = text.length * 6 + 24, h = 15; return canvasEl(w, h, (c) => pxPlacard(c, 0, 0, w, h, kind, text), 'px-placard'); }
 /** an analog gauge element; returns it with set(v) */
 export function pxGaugeEl(s = 40, v = 0.3, label = '') {
+  const mg = mxOk() ? mxGauge(s, v, label) : null;
+  if (mg) { mg.classList.add('px-gauge'); return mg; }
   const { cv, c } = crispCanvas(s, s); cv.className = 'px-gauge';
   const g = cv as HTMLCanvasElement & { set(v: number): void };
   g.set = (q: number) => { c.clearRect(0, 0, s, s); pxGauge(c, 0, 0, s, q, { label }); };

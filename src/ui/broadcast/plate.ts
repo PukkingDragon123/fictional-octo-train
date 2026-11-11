@@ -9,6 +9,9 @@ import * as THREE from 'three';
 import { cssFont } from '../../gfx/crt';
 import { fpCamera } from '../../fp/fp';
 import { G } from '../../game/G';
+import { shoot, disposeTree, mxOk } from '../machine/core';
+import { panelSpec } from '../machine/kit';
+import { housing } from '../machine/parts';
 
 const K = 3;
 let FACE = "'Alagard', monospace", faceAt = -1e9;
@@ -41,7 +44,13 @@ void main() {
   #include <colorspace_fragment>
 }`;
 
-export interface PlateOpts { additive?: boolean; scan?: number; edge?: number; gain?: number }
+export interface PlateOpts {
+  additive?: boolean; scan?: number; edge?: number; gain?: number;
+  /** round 16: hang the plate in a 3D machine housing (src/ui/machine) this many texels wide round the content; its nameplate */
+  frame?: number; title?: string; seed?: number;
+  /** a deeper hood on top (texels) for the nameplate and lamps */
+  hood?: number;
+}
 
 export class Plate {
   readonly canvas = document.createElement('canvas');
@@ -51,9 +60,17 @@ export class Plate {
   readonly mesh: THREE.Mesh;
   private fg = document.createElement('canvas');
   private fx: CanvasRenderingContext2D;
+  /** the housing's margin (texels) and its baked picture */
+  readonly m: number;
+  /** the hood's depth (texels; = m without one) */
+  readonly mt: number;
+  private bg: HTMLCanvasElement | null = null;
 
-  constructor(readonly w: number, readonly h: number, o: PlateOpts = {}) {
-    this.canvas.width = this.fg.width = w * K; this.canvas.height = this.fg.height = h * K;
+  constructor(readonly w: number, readonly h: number, private o: PlateOpts = {}) {
+    this.m = o.frame && mxOk() ? o.frame : 0;
+    this.mt = this.m ? Math.max(this.m, o.hood ?? 0) : 0;
+    const m = this.m;
+    this.canvas.width = this.fg.width = (w + m * 2) * K; this.canvas.height = this.fg.height = (h + m + this.mt) * K;
     this.ctx = this.canvas.getContext('2d')!;
     this.fx = this.fg.getContext('2d')!;
     this.tex = new THREE.CanvasTexture(this.canvas);
@@ -75,10 +92,33 @@ export class Plate {
   set show(v: number) { this.mat.uniforms.uShow.value = v; }
   set glitch(v: number) { this.mat.uniforms.uGlitch.value = v; }
   /** world units per texel unit */
-  scaleTo(t: number) { this.mesh.scale.set(this.w * t, this.h * t, 1); }
+  scaleTo(t: number) { this.mesh.scale.set((this.w + this.m * 2) * t, (this.h + this.m + this.mt) * t, 1); }
+  get framed() { return this.m > 0; }
+  /** a hit's uv as content texels */
+  uvToTexel(u: number, v: number): { x: number; y: number } { return { x: u * (this.w + this.m * 2) - this.m, y: (1 - v) * (this.h + this.m + this.mt) - this.mt }; }
+  /** bake the 3D housing round the content (once) */
+  private housingBg(): HTMLCanvasElement | null {
+    if (this.bg || !this.m) return this.bg;
+    const m = this.m, mt = this.mt, W = this.w + m * 2, H = this.h + m + mt;
+    const spec = panelSpec(W, H, { title: this.o.title, seed: this.o.seed ?? 51, win: { l: m, t: mt, r: m, b: m, cut: 3, lip: Math.min(3, m * 0.4) }, glands: 0, vents: mt >= 18, hazard: H > 60, lamps: H > 40 ? ['green', 'amber'] : [], guards: H > 60 });
+    if (spec.win) spec.win.back = true;
+    spec.depth = Math.min(6, m * 0.6); spec.rivets = H > 40;
+    const hs = housing(spec);
+    const cv = document.createElement('canvas'); cv.width = W * K; cv.height = H * K;
+    shoot(hs.root, W, H, 0, cv.getContext('2d')!, 0, 0, { k: K, shadow: [0, 0], edge: 0.8 });
+    disposeTree(hs.root);
+    this.bg = cv;
+    return cv;
+  }
 
   // ---- drawing (texel units; colours are CSS)
-  clear() { this.ctx.setTransform(1, 0, 0, 1, 0, 0); this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); this.fx.setTransform(1, 0, 0, 1, 0, 0); this.fx.clearRect(0, 0, this.fg.width, this.fg.height); this.ctx.setTransform(K, 0, 0, K, 0, 0); this.fx.setTransform(K, 0, 0, K, 0, 0); }
+  clear() {
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0); this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); this.fx.setTransform(1, 0, 0, 1, 0, 0); this.fx.clearRect(0, 0, this.fg.width, this.fg.height);
+    const bg = this.housingBg();
+    if (bg) this.ctx.drawImage(bg, 0, 0);
+    const o = this.m * K, ot = this.mt * K;
+    this.ctx.setTransform(K, 0, 0, K, o, ot); this.fx.setTransform(K, 0, 0, K, o, ot);
+  }
   rect(x: number, y: number, w: number, h: number, col: string) { this.ctx.fillStyle = col; this.ctx.fillRect(x, y, w, h); }
   grad(x: number, y: number, w: number, h: number, a: string, b: string, vertical = true) {
     const g = vertical ? this.ctx.createLinearGradient(0, y, 0, y + h) : this.ctx.createLinearGradient(x, 0, x + w, 0);
@@ -134,7 +174,7 @@ export class Plate {
   commit() {
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.drawImage(this.fg, 0, 0);
-    this.ctx.setTransform(K, 0, 0, K, 0, 0);
+    this.ctx.setTransform(K, 0, 0, K, this.m * K, this.mt * K);
     this.tex.needsUpdate = true;
   }
 }

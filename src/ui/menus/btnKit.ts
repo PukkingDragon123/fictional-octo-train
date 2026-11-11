@@ -15,7 +15,13 @@
 // plate with CSS. Sprites are cached and repainted when the scale changes.
 import { PixelCanvas, mixHex, bayer } from '../../gfx/pixel';
 import { sfx, type Sfx } from './sfx';
+import { mxSkinKey } from '../machine/kit';
+import { mxOk } from '../machine/core';
+import type { Tone } from '../machine/paint';
 import './kit.css';
+
+/** round 16: plate keys are 3D push keys (src/ui/machine) when the machine renderer is up */
+const MX_TONE: Record<Finish, Tone> = { steel: 'olive', olive: 'olive', cream: 'cream', oxblood: 'red', brass: 'yellow', navy: 'dark' };
 
 export type Finish = 'steel' | 'olive' | 'cream' | 'oxblood' | 'brass' | 'navy';
 export type Shape = 'plate' | 'tag' | 'arrowL' | 'arrowR' | 'key' | 'notch';
@@ -411,10 +417,15 @@ export function plateBtn(label: string, onClick: (b: PlateButton) => void, o: Pl
     const k = `${aw}|${ah}|${s}`;
     if (k === key) return;
     key = k;
+    if ((b as any)._mx) { b.style.backgroundImage = 'none'; return; }
     const url = plateSheet({ W: aw, H: ah, finish, shape, seed, lamp: iconOnly ? false : lamp, glyph: o.glyph, glyphAt: iconOnly ? 'center' : 'left', wear: o.wear, rivets: iconOnly || o.tight ? false : undefined });
     b.style.backgroundImage = `url(${url})`;
     b.style.backgroundSize = `${aw * s}px ${ah * s * 4}px`;
   };
+  if (mxOk() && shape !== 'arrowL' && shape !== 'arrowR') {
+    const sk = mxSkinKey(b, { tone: MX_TONE[finish], lamp: lamp || false, screws: false, sound: '' });
+    if (sk) { (b as any)._mx = sk; b.classList.add('pb-mx'); }
+  }
   b.setLabel(label, o.sub ?? '');
   b.addEventListener('pointerenter', (e) => {
     if (e.pointerType !== 'mouse' || b.disabled) return;
