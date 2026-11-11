@@ -17,10 +17,12 @@
 // and with the cinematics off (automation, ?nocine, the setting) the plain travel runs
 // untouched. Holes stay the falls' (src/social/floors.ts).
 //
-// LOADER HAND-OFF (the loading screen is the UI worker's): while the screen is black the
-// shot emits bus 'travelDark' { from, to, kind, hold(promise) } just before the level is
-// built; a loader may pass a promise to hold() and the landing waits for it (8 s at most),
-// then bus 'travelLit' { to, kind } fires as the new level is revealed.
+// LOADER HAND-OFF (the loading screen is the UI worker's, src/ui/loading.ts): when the
+// departure has gone black the shot calls showLoading('travel') and the level's own travel
+// events carry the loader on (travelStart / travelEnd, src/ui/travelPlate.ts); the landing
+// waits until the loader is gone (isLoading()). For anything else listening: bus
+// 'travelDark' { from, to, kind, hold(promise) } just before the level is built (the landing
+// also waits for held promises, 8 s at most) and bus 'travelLit' { to, kind } as it is revealed.
 import * as THREE from 'three';
 import { G } from '../G';
 import { bus } from '../../core/events';
@@ -30,6 +32,7 @@ import type { Portal, Zone } from '../../world/zone';
 import { wallpaperTex, type WallDef } from '../../world/defs';
 import { playCine, cineEnabled, cineRunning, type Cine, type Script, ease, easeOut, lerp, clamp01 } from './engine';
 import { liftCab, stairShaft, duct, membrane, darkDoor } from './sets';
+import { showLoading, isLoading } from '../../ui/loading';
 
 export type Entrance = 'lift' | 'stairs_down' | 'stairs_up' | 'crawl_duct' | 'crawl_pipe' | 'liquid' | 'door';
 
@@ -392,6 +395,8 @@ export function crossing(kind: Entrance, portal: Portal | null, to: string, go: 
     if (went) return;
     went = true;
     try { bus.emit('travelDark', { from: ctx.from, to, kind, hold: (pr: Promise<unknown>) => { if (pr && typeof pr.then === 'function') holds.push(pr); } }); } catch (e) { console.warn('travelDark', e); }
+    // the loading screen of everything (the UI's, src/ui/loading.ts) takes over the black; the travel events carry it on
+    try { showLoading('travel'); } catch (e) { console.warn('loader', e); }
     // the level's own crossing (its fade sits under our black); the unit is let go for it
     const g = G as Game;
     g.transitioning = false;
@@ -399,6 +404,8 @@ export function crossing(kind: Entrance, portal: Portal | null, to: string, go: 
   };
   const settle = function* (c: Cine): Script {
     yield c.until(() => landed || !went, 40);
+    // the loader plays on to the name and fades; the landing starts once it is gone
+    yield c.until(() => { try { return !isLoading(); } catch { return true; } }, 12);
     if (holds.length) {
       let done = false;
       Promise.race([Promise.allSettled(holds), new Promise((r) => setTimeout(r, 8000))]).then(() => { done = true; });
