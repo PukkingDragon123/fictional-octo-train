@@ -69,6 +69,19 @@ export function clearAhead(p: Player, yaw: number, max: number): number {
   }
   return max;
 }
+/** how far ahead (m) the first wall or blocked tile is, finely (the wall that goes liquid) */
+function wallDist(p: Player, yaw: number, max: number): number {
+  const z = G.getZone(p.zoneKey);
+  const fx = Math.cos(yaw), fz = Math.sin(yaw);
+  let tx = Math.floor(p.x), ty = Math.floor(p.z);
+  for (let d = 0.05; d <= max; d += 0.05) {
+    const nx = Math.floor(p.x + fx * d), ny = Math.floor(p.z + fz * d);
+    if (nx === tx && ny === ty) continue;
+    if (!walkable(z, nx, ny) || (nx !== tx && z.edgeBlocks(tx, ty, nx - tx, 0, 'walk')) || (ny !== ty && z.edgeBlocks(tx, ty, 0, ny - ty, 'walk'))) return d;
+    tx = nx; ty = ny;
+  }
+  return max;
+}
 /** the facing on arrival: keep it if there is room ahead, else the most open of eight */
 export function openFacing(p: Player, want = 1.8): number {
   if (clearAhead(p, p.facing, want) >= want - 0.1) return p.facing;
@@ -204,6 +217,9 @@ function* departure(c: Cine, x: Ctx): Script {
       c.ease('pitch', 4, 0.4);
       const m = membrane(gelColour(x.from));
       atUnit(m.group, p, yaw); c.add(m.group);
+      // the surface stands where the wall is (or a step ahead, in the open)
+      const wd = Math.max(0.32, Math.min(0.85, wallDist(p, yaw, 1.2) - 0.04));
+      m.group.children[0].position.x = wd;
       const u = m.mat.uniforms;
       c.tween(9, (k) => { u.uTime.value = k * 9; });
       c.sfx('seam_ripple', 0.7);
@@ -212,7 +228,8 @@ function* departure(c: Cine, x: Ctx): Script {
       c.sfx('arv_squelch', 0.8);
       const fx = Math.cos(yaw), fz = Math.sin(yaw), x0 = p.x, z0 = p.z;
       // a step in: the surface swells round the face
-      c.tween(1.3, (k) => { const e = ease(k); p.x = x0 + fx * 0.5 * e; p.z = z0 + fz * 0.5 * e; p.speed = k < 1 ? 0.6 : 0; u.uTouch.value = 0.12 + 0.88 * e; u.uSwell.value = 0.7 * e; });
+      const step = Math.max(0, Math.min(0.5, wd - 0.25));
+      c.tween(1.3, (k) => { const e = ease(k); p.x = x0 + fx * step * e; p.z = z0 + fz * step * e; p.speed = k < 1 ? 0.6 : 0; u.uTouch.value = 0.12 + 0.88 * e; u.uSwell.value = 0.7 * e; });
       c.ease('fov', 52, 1.3);
       yield c.sleep(0.9);
       c.sfx('arv_gulp', 0.9);
