@@ -120,7 +120,7 @@ function stock(ctx: CanvasRenderingContext2D, kind: TagKind, w: number, h: numbe
     ctx.setTransform(S / ART, 0, 0, S / ART, 0, 0);
     ctx.imageSmoothingEnabled = false;
     plateArt(ctx, kind, w * ART, h * ART);
-  } else if (kind === 'card' || kind === 'blueprint') {  } else if (kind === 'card' || kind === 'blueprint') {
+  } else if (kind === 'card' || kind === 'blueprint') {
     const g = ctx.createLinearGradient(0, 0, 0, H);
     if (kind === 'card') { g.addColorStop(0, '#f1ead6'); g.addColorStop(1, '#e2d7bb'); } else { g.addColorStop(0, '#2c4f92'); g.addColorStop(1, '#22427c'); }
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);

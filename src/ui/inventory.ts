@@ -1,3 +1,4 @@
+import { openItemPanel, closeItemPanel, itemPanelOpen } from './itemPanel';
 import '../craft/craft.css';
 import * as THREE from 'three';
 import { G } from '../game/G';
@@ -877,7 +878,7 @@ export class InventoryUI {
 
   // ================================================================ keys
   private onKey(e: KeyboardEvent) {
-    if (!this.open || this.suspended || G.input.textFocus) return;
+    if (!this.open || this.suspended || G.input.textFocus || itemPanelOpen()) return;
     if (this.phase === 'opening' || this.phase === 'waiting') { if (e.code !== 'KeyI' && e.code !== 'Escape') { if (this.phase === 'opening') this.tw.finish(); e.stopImmediatePropagation(); e.preventDefault(); return; } }
     const stop = () => { e.stopImmediatePropagation(); e.preventDefault(); };
     if (e.code === 'Escape' || (G.input.bindings.inventory || []).includes(e.code)) { stop(); if (!e.repeat) this.toggle(false); return; }
@@ -1015,8 +1016,10 @@ export class InventoryUI {
     if (!this.open || this.phase !== 'open') return;
     if (this.drag) { this.turnHeld(); return; }
     const h = this.hitAt(e.clientX, e.clientY);
-    if (h?.kind === 'body') this.quickMove(h.b);
-    else if (h?.kind === 'held') { const p = G.local; this.inspect(h.it, p.containerOf(h.it) || p.inv); }
+    // right-click: the item card beside it (shift-click still moves it across)
+    if (h?.kind === 'body') { if (e.shiftKey) this.quickMove(h.b); else this.inspectBody(h.b); }
+    else if (h?.kind === 'held') { const p = G.local; this.inspect(h.it, p.containerOf(h.it) || p.inv, { x: e.clientX + 16, y: e.clientY }); }
+    else closeItemPanel();
   }
 
   private onWheel(e: WheelEvent) {
@@ -1170,15 +1173,19 @@ export class InventoryUI {
 
   private inspectBody(b: Body) {
     const c = this.binC(b.bin);
-    this.inspect(b.items[0], c ?? G.local.inv);
+    b.holder.getWorldPosition(_v); _s.copy(_v).project(fpCamera());
+    const x = ((_s.x + 1) / 2) * window.innerWidth, y = ((1 - _s.y) / 2) * window.innerHeight;
+    this.inspect(b.items[0], c ?? G.local.inv, { x: x + 24, y }, b.items);
   }
-  private inspect(it: Item, c: Container) {
+  /** the item card beside the thing (src/ui/itemPanel.ts); "Inspect in hand" on it takes it up to the eyes */
+  private inspect(it: Item, c: Container, at?: { x: number; y: number }, group?: Item[]) {
     this.endDrag(true); this.gtag.hide();
-    (G as any).craft?.inspect?.(it, c);
+    openItemPanel(it, c, at ?? { x: this.lastPX, y: this.lastPY }, group);
   }
 
   // ================================================================ gamepad: a cursor on the left stick
   private pollPad(dt: number) {
+    if (itemPanelOpen()) return;
     let gp: Gamepad | undefined;
     try { gp = [...(navigator.getGamepads?.() || [])].find(Boolean) as Gamepad | undefined; } catch { gp = undefined; }
     if (!gp) { if (this.pad.on) { this.pad.on = false; this.root.classList.remove('pad'); } return; }

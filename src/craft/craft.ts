@@ -13,6 +13,7 @@ import { pick } from '../game/picking';
 import { floorContainer } from '../items/worldItems';
 import { Inspect } from './inspect';
 import { Bench } from './bench';
+import { openItemPanel, closeItemPanel } from '../ui/itemPanel';
 import { opsForObject, HAND_OPS } from './handOps';
 import { syncKnowledge } from './knowledge';
 import { registerCraftSounds } from './craftSounds';
@@ -27,16 +28,27 @@ export class CraftSystem {
   constructor() {
     registerCraftSounds();
     window.addEventListener('dblclick', (e) => this.onDbl(e));
+    window.addEventListener('pointermove', (e) => { this.px = e.clientX; this.py = e.clientY; }, { passive: true });
     bus.on('handCrafted', () => { /* quests read the mission flags */ });
   }
 
   /** something is in your hands right now (no walking) */
   busy() { return this.insp.open || this.benchV.open; }
 
-  /** the close-up on an item; c = the container it is in (null = loose) */
-  inspect(it: Item, c: Container | null, opts: { op?: string; bench?: boolean } = {}) {
+  /**
+   * Look at an item: the item card (src/ui/itemPanel.ts) beside the pointer; a hand step or the bench
+   * goes straight to the hands. c = the container it is in (null = loose).
+   */
+  inspect(it: Item, c: Container | null, opts: { op?: string; bench?: boolean; at?: { x: number; y: number; w?: number; h?: number } } = {}) {
+    if (opts.op || opts.bench) { this.inspectInHand(it, c, opts); return; }
+    openItemPanel(it, c, opts.at ?? { x: this.px, y: this.py });
+  }
+  /** the first-person close-up: the unit holds it up in its own hands (eye camera), turn it over, look closer */
+  inspectInHand(it: Item, c: Container | null, opts: { op?: string; bench?: boolean } = {}) {
+    closeItemPanel();
     this.insp.show({ kind: 'item', it, c }, { op: opts.op, bench: opts.bench });
   }
+  private px = window.innerWidth / 2; private py = window.innerHeight / 2;
   /** the close-up on a piece of furniture you can take apart by hand (chairs) */
   workObject(o: TileObject) {
     if (!opsForObject(o).length) return false;
