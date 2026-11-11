@@ -200,6 +200,8 @@ export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: 
 /** press-in and a clunk on any element (a CC0 sample through src/ui/menus/sfx.ts) */
 export function tactile(el: HTMLElement, sound: Sfx = 'key') { el.classList.add('px-tactile'); el.dataset.pxSound = sound; installTactile(); }
 
+/** what presses in and clunks: the kit's own keys plus the game's older buttons (dialogue replies, report keys, terminal widgets, hotbar slots) */
+const TACTILE = '.px-key, .px-tactile, [data-px-tactile], .hm-opt, .rs-key, .dz-key, .ptm-make, .ct-scr .t-tab, .ct-scr .t-seg-b, .ct-scr .t-toggle, .hb-slot, .mg-cal';
 let tactileOn = false;
 /** one delegated hook for the whole page: .px-key, .px-tactile and [data-px-tactile] press in and clunk */
 export function installTactile() {
@@ -208,7 +210,7 @@ export function installTactile() {
   let held: HTMLElement | null = null;
   const up = () => { held?.classList.remove('px-down'); held = null; };
   document.addEventListener('pointerdown', (e) => {
-    const t = (e.target as HTMLElement | null)?.closest?.('.px-key, .px-tactile, [data-px-tactile]') as HTMLElement | null;
+    const t = (e.target as HTMLElement | null)?.closest?.(TACTILE) as HTMLElement | null;
     if (!t || (t as HTMLButtonElement).disabled) return;
     held = t; t.classList.add('px-down');
     sfx((t.dataset.pxSound || t.dataset.pxTactile || 'key') as Sfx, 0.5);

@@ -14,6 +14,7 @@
 import { gaugeIn, crispCanvas, GRN, RED, AMB } from '../hiPixel';
 import { pxFrame, pxLamp } from '../pxKit';
 import { FocusNav } from '../menus/nav';
+import { sfx } from '../menus/sfx';
 import './minigames.css';
 
 export interface CalibrateOpts { title?: string; sub?: string; dials?: number; difficulty?: number; host?: HTMLElement | null }
@@ -29,7 +30,7 @@ export function calibrate(o: CalibrateOpts = {}): Promise<CalibrateResult> {
     const overlay = o.host ? null : document.createElement('div');
     if (overlay) overlay.className = 'mg-cal-veil';
     const panel = document.createElement('div');
-    panel.className = 'mg-cal' + (o.host ? ' in-host' : '');
+    panel.className = 'mg-cal px-mech-in' + (o.host ? ' in-host' : '');
     const head = document.createElement('div'); head.className = 'mg-cal-head';
     head.innerHTML = `<b>${esc(o.title ?? 'Calibration')}</b><small>${esc(o.sub ?? 'stop each needle in the green · Space / E / click')}</small>`;
     const lamps = crispCanvas(N * 16 + 4, 14); lamps.cv.className = 'mg-cal-lamps';
@@ -70,6 +71,7 @@ export function calibrate(o: CalibrateOpts = {}): Promise<CalibrateResult> {
       const r = rows[cur]; if (!r || r.state !== 'run') return;
       const inZ = r.x >= r.zone[0] && r.x <= r.zone[1];
       r.state = inZ ? 'hit' : 'miss'; r.flash = 0.35;
+      sfx(inZ ? 'lever' : 'error', inZ ? 0.7 : 0.45);
       r.q = inZ ? 1 - Math.abs(r.x - (r.zone[0] + r.zone[1]) / 2) / ((r.zone[1] - r.zone[0]) / 2) : 0;
       cur++;
       if (cur < N) rows[cur].state = 'run';

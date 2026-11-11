@@ -119,7 +119,8 @@ function* facilityShot(c: Cine, f: FacInfo): Script {
   const yaw = Math.atan2(tz - p.z, tx - p.x);
   c.face(yaw, 0.7);
   const d = Math.hypot(tx - p.x, tz - p.z);
-  c.ease('pitch', Math.max(-12, Math.min(10, -Math.atan2(1.55 - 1.6, d) * 57)), 0.7);
+  // up at the plate, high on the wall (src/content/furniture/zf_facility.ts: 2.06..2.46 m)
+  c.ease('pitch', Math.max(-24, Math.min(10, -Math.atan2(2.26 - 1.6, Math.max(0.8, d)) * 57)), 0.7);
   c.sfx('fluoro_tick', 0.5); c.sfx('sting_low', 0.3);
   yield c.sleep(0.6);
   c.ease('fov', 46, 2.6);

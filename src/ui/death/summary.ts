@@ -68,11 +68,13 @@ const CSS = `
 .rs-row { display: grid; grid-template-columns: 1fr auto 3.5em; gap: 12px; color: #8dff7a; opacity: 0; transition: opacity .15s steps(2); }
 .rs-row.on { opacity: 1; }
 .rs-row span:nth-child(2) { color: #d8ffd2; text-align: right; } .rs-row span:nth-child(3) { color: #ffd27a; text-align: right; }
-.rs-tot { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; padding-top: 6px; border-top: 2px dashed rgba(141, 255, 122, .45); }
+.rs-tot { display: flex; justify-content: space-between; align-items: baseline; margin-top: 6px; padding-top: 6px; border-top: 2px solid transparent; border-image: repeating-linear-gradient(90deg, rgba(141, 255, 122, .45) 0 6px, transparent 6px 9px) 2; }
 .rs-tot b { font-weight: 400; font-size: 32px; line-height: 32px; color: #ffd27a; text-shadow: var(--text-ink-2); }
 .rs-root .dz-unl { margin-top: 8px; }
 .rs-keys { display: flex; gap: 8px 40px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
-.rs-key { background: none; border: 0; padding: 6px 10px; min-height: 44px; cursor: pointer; color: #f3eedf; font: 32px/32px var(--font-new); text-shadow: var(--text-ink-2); text-align: left; }
+.rs-key { border: 6px solid transparent; border-image: var(--px-key) 5 fill / 6px; background: none; padding: 4px 14px 8px; min-height: 44px; cursor: pointer; color: #f3eedf; font: 26px/28px var(--font-new); text-shadow: 1px 1px 0 #050404; text-align: left; }
+.rs-key:is(:hover, :focus-visible, .sel) { border-image-source: var(--px-key-hot); }
+.rs-key:is(:active, .px-down) { border-image-source: var(--px-key-down); transform: translateY(2px); }
 .rs-key small { display: block; font-size: 16px; line-height: 18px; color: #b8b09a; margin-left: 20px; text-shadow: var(--text-ink); }
 .rs-key .ar { color: #ffd27a; margin-right: 6px; visibility: hidden; }
 .rs-key.sel .ar, .rs-key:hover .ar, .rs-key:focus-visible .ar { visibility: visible; }

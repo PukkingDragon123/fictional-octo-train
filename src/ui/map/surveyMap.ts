@@ -16,6 +16,7 @@ import type { QuestRuntime } from '../../missions/questRuntime';
 import { isLoading } from '../loading';
 import { zoneSpec } from '../../world/worldGraph';
 import './surveyMap.css';
+import { sfx } from '../menus/sfx';
 
 type Fac = 'exit' | 'press' | 'check' | 'gen' | 'term' | 'lock';
 const FAC_RX: [Fac, RegExp][] = [['press', /hopper|press|crusher/], ['check', /checkpoint/], ['gen', /generator/], ['term', /terminal|computer|kiosk|console/], ['lock', /locked|keypad|safe\b|vault_door/]];
@@ -77,7 +78,8 @@ export class SurveyMap {
     this.open = on;
     this.el.classList.toggle('on', on);
     if (G.input) G.input.pointerOverUI = on;
-    G.audio?.ui?.(on ? 'paper_open' : 'paper_close', 0.35);
+    sfx(on ? 'relay' : 'lever', 0.6);
+    this.plot.classList.toggle('px-mech-in', on);
     if (on) { this.openT = 0; this.drawT = 0; }
   }
 
@@ -241,7 +243,7 @@ export class SurveyMap {
     c.beginPath(); c.moveTo(ux + Math.cos(f) * L, uy + Math.sin(f) * L); c.lineTo(ux + Math.cos(f + 2.5) * L * 0.7, uy + Math.sin(f + 2.5) * L * 0.7); c.lineTo(ux + Math.cos(f - 2.5) * L * 0.7, uy + Math.sin(f - 2.5) * L * 0.7); c.closePath(); c.fill();
     // the header and foot
     const zn = zoneSpec(z.key)?.name || z.key.replace(/[_-]+/g, ' ');
-    const htm = `<b>${String(zn).replace(/</g, '')}</b><small>suit survey · M</small>`;
+    const htm = `<b>${String(zn).replace(/</g, '')}</b><small class="px-stencil">suit survey · M</small>`;
     if (this.head.innerHTML !== htm) this.head.innerHTML = htm;
     const ft = legend.length ? legend.join(' · ') : 'research the survey map in the lab: echo · facilities · pings · pins · trace';
     if (this.foot.textContent !== ft) this.foot.textContent = ft;

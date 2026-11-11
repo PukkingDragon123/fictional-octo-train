@@ -63,3 +63,15 @@ body.hm-talking .ft-subs { bottom: calc(max(14px, 2.6vh) + 96px); }
   body.hm-talking .ft-subs { bottom: calc(max(14px, 2.6vh) + 190px); }
 }
 @media (prefers-reduced-motion: reduce) { .hm-opt { transition: none; transform: none; } }
+
+/* round 15b (UI kit, src/ui/pxKit.css): the replies are riveted steel plates with a bakelite keycap for the number,
+   lit amber when you are on one, pressed in (and clunking) when you choose it */
+.hm-opt { background: none !important; padding: 0; clip-path: none; }
+.hm-in { clip-path: none; min-height: 44px; padding: 2px 10px 2px 2px; border: 7px solid transparent; border-image: var(--px-steel) 8 fill / 7px; background: none; box-shadow: none; }
+.hm-opt:is(:hover, :focus-visible) .hm-in { border-image-source: var(--px-steel-hot); }
+.hm-opt:is(:active, .px-down) .hm-in { transform: translateY(2px); filter: brightness(.92); }
+.hm-k { clip-path: none; min-width: 26px; height: 26px; padding: 0 4px 2px; border: 5px solid transparent; border-image: var(--px-key) 5 fill / 5px; background: none !important; box-shadow: none; color: #e3d8bd; }
+.hm-opt:is(:hover, :focus-visible) .hm-k { border-image-source: var(--px-key-hot); color: #ffd88a; }
+.hm-opt.no .hm-in { filter: saturate(.4) brightness(.8); }
+.hm-opt.hm-esc .hm-in { border-image-source: var(--px-steel); filter: brightness(.85); }
+.hm-who .hm-name { -webkit-mask-image: var(--px-wear); mask-image: var(--px-wear); -webkit-mask-size: 48px 48px; mask-size: 48px 48px; }

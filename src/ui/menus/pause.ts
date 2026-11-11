@@ -56,7 +56,7 @@ export class PauseMenu {
     const pt = window.innerHeight > window.innerWidth * 1.05 || window.innerWidth < 720;
     const bw = pt ? 150 : 244, bh = pt ? 30 : 36;
     const plate = (label: string, fn: () => void, o: Parameters<typeof pxButton>[2] = {}) => {
-      const b = pxButton(label, () => { sfx(o.lamp === 'red' ? 'back' : 'click', 0.7); fn(); }, { w: bw, h: bh, ...o });
+      const b = pxButton(label, fn, { w: bw, h: bh, sound: o.lamp === 'red' ? 'lever' : 'plate', ...o });
       col.append(b);
       return b;
     };

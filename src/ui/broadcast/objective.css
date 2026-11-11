@@ -6,7 +6,7 @@
 .obj15.out { opacity: 0; visibility: visible; transition: opacity 1s ease; }
 .obj15-k { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 14px; line-height: 1; letter-spacing: .34em; text-transform: uppercase; color: #ffcf6a; text-shadow: var(--ink); }
 .obj15-k span { display: inline-flex; align-items: center; gap: 10px; padding-left: .34em; }
-.obj15-k span::before { content: ''; width: 7px; height: 7px; background: currentColor; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); box-shadow: 0 0 6px currentColor; }
+.obj15-k span::before { content: ''; animation: px-flicker 6.5s steps(1, end) infinite; width: 7px; height: 7px; background: currentColor; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); box-shadow: 0 0 6px currentColor; }
 .obj15-k i { display: block; height: 1px; width: min(150px, 18vw); background: linear-gradient(to right, transparent, currentColor); opacity: .8; transform: scaleX(0); transform-origin: right; transition: transform .8s cubic-bezier(.16,.84,.24,1) .05s; }
 .obj15-k i:last-child { background: linear-gradient(to left, transparent, currentColor); transform-origin: left; }
 .obj15.on .obj15-k i, .obj15.out .obj15-k i { transform: scaleX(1); }
