@@ -13,6 +13,12 @@
 // alive on the plate is crushed: each peer kills its own survivor, the host its
 // creatures.
 //
+// Round 15: the dial (src/game/economy) splits every load: REMIT credits its
+// scrip value to the debt (and stamps clearance tokens), KEEP banks its mass
+// as matter in the seam; the press TERMINAL (src/game/economy/terminal.ts,
+// the second verb) shows the account, sets the dial and creates things from
+// banked matter. With KEEP the crown's nixies count tenths of a kilo.
+//
 // Nothing about it is screen UI: the moving parts are local overlays on top
 // of the static model (src/content/furniture/zd_contract.ts): ram and piston
 // rods, the lever, the gauge needle, the plate's warning light, the beacon,
@@ -46,6 +52,7 @@ import { voss, bailiff, pick, fmt, L } from './voice';
 import '../../audio/sounds_press';
 import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../../gfx/crt';
 import './debt.css';
+import { settleLoad, pressCold } from '../economy';
 
 /** the cycle, seconds after the lever: horn, slam, hold, back up */
 export const CYCLE = { horn: 0.3, drop: 0.95, impact: 1.13, rise: 1.75, done: 3.3 };
@@ -54,7 +61,7 @@ const DIAL = new THREE.Vector3(...PRESS.gauge);
 const SEAM = 0xd8d0bc;
 
 interface SinkPiece { key?: string; obj?: string; state?: any; x: number; y: number; z: number; rot: number; objRot?: number }
-interface EatArgs { z: string; h: number; items: number[]; objs: number[]; value: number; keys: string[]; by: string; rej?: number[] }
+interface EatArgs { z: string; h: number; items: number[]; objs: number[]; value: number; keys: string[]; by: string; rej?: number[]; kg?: number }
 interface CycleArgs { z: string; h: number; by: string }
 
 defOp('hopperEat', (a: EatArgs) => {
@@ -90,7 +97,7 @@ defOp('hopperEat', (a: EatArgs) => {
   if (a.items.length || a.objs.length) bus.emit('deposited', { by: a.by, keys: a.keys, value: a.value, hopper: a.h });
   // research samples are tubed to the lab (src/research/bank.ts)
   if (samples.length) bus.emit('samplesPressed', { by: a.by, items: samples });
-  (G.debt?.hoppers as HopperSystem | undefined)?.play(z, a.h, a.value, sink, (a.rej || []).length, a.by);
+  (G.debt?.hoppers as HopperSystem | undefined)?.play(z, a.h, a.value, sink, (a.rej || []).length, a.by, a.kg ?? 0);
 });
 
 /** somebody threw the lever: every peer runs the show, the host weighs at the impact */
@@ -409,7 +416,7 @@ export class HopperSystem implements GameSystem {
       if (G.role !== 'client') G.creatures.damage('press', k.id, 99999, cx, cz, 0, 'vehicle', true);
     }
     // the host weighs and takes whatever is under the ram
-    if (G.role !== 'client' && G.debt?.on) {
+    if (G.role !== 'client' && (G.debt?.on || pressCold())) {
       const { items, objs } = this.contents(z, o);
       if (items.length || objs.length) this.process(z, o, items, objs, c.by);
     }
@@ -464,21 +471,30 @@ export class HopperSystem implements GameSystem {
   private process(z: Zone, o: TileObject, items: WorldItem[], objs: TileObject[], puller = '') {
     let value = 0;
     const keys: string[] = [], take: number[] = [], rej: number[] = [], objTake: number[] = [];
+    const taken: WorldItem[] = [];
     for (const wi of items) {
       const v = itemValue(wi.item);
       if (v <= 0 && isRejected(itemDef(wi.item.key))) { rej.push(wi.item.uid); continue; }
-      value += v; take.push(wi.item.uid); keys.push(wi.item.key);
+      value += v; take.push(wi.item.uid); keys.push(wi.item.key); taken.push(wi);
     }
     for (const q of objs) { value += objectValue(q); objTake.push(q.uid); keys.push(q.key); }
     // who gets the credit: whoever pulled the lever, else whoever stands closest
     let by = puller && G.players.has(puller) ? puller : '', bd = 8;
     if (!by) for (const p of G.players.values()) if (p.zoneKey === z.key) { const d = Math.hypot(p.x - (o.x + 1), p.z - (o.y + 1)); if (d < bd) { bd = d; by = p.id; } }
-    op('hopperEat', { z: z.key, h: o.uid, items: take, objs: objTake, value, keys, by, rej } as EatArgs);
-    if (value > 0) G.debt?.credit?.(value, 'deposit', by);
+    // the dial: the remitted share of the value goes to the debt (tokens with it), the kept share of the mass to the seam
+    const { credit, kg } = settleLoad(value, taken, objs, by);
+    op('hopperEat', { z: z.key, h: o.uid, items: take, objs: objTake, value: credit, keys, by, rej, kg: Math.round(kg * 100) / 100 } as EatArgs);
   }
 
   // ---------------------------------------------------------------- the show (every peer)
-  play(z: Zone, uid: number, value: number, sink: SinkPiece[], rejected: number, by: string) {
+  /** the seam flares under the plate (the terminal made something) */
+  seamFlash(o: TileObject) {
+    const f = this.fx.get(o.uid);
+    if (f) f.flash = 1;
+    G.audio?.play?.('press_hiss', o.x + 1, o.y + 1, { vol: 0.6, range: 14 });
+  }
+
+  play(z: Zone, uid: number, value: number, sink: SinkPiece[], rejected: number, by: string, kg = 0) {
     const o = z.objects.get(uid);
     const f = o && G.view?.zone === z ? this.ensureFx(z, o) : null;
     const cx = o ? o.x + 1 : 0, cz = o ? o.y + 1 : 0;
@@ -496,6 +512,8 @@ export class HopperSystem implements GameSystem {
         f.sinks.push({ mesh: m, y0: 0.07, x: s.x, z: s.z, t: 0 });
       }
       if (value > 0) { f.value = value; f.big = value >= 1000; f.roll = 0; }
+      // nothing remitted (the dial on KEEP): the crown counts the kept mass in tenths of a kilo
+      else if (kg > 0) { f.value = Math.round(kg * 10); f.big = false; f.roll = 0; }
     }
     const here = z.key === G.local?.zoneKey;
     if (here && o) {
@@ -666,7 +684,8 @@ export class HopperSystem implements GameSystem {
     const z = G.getZone(p.zoneKey);
     const debt = G.debt;
     const at = (name: string, secs: number, anim: string, fn: () => void) => () => queueAt(p, o.x + 1, o.y + 1, new UseObjectAction(p, name, secs, anim as any, fn), 2.0);
-    if (!debt?.on) { out.push({ label: 'The press is cold. Nobody is collecting.', disabled: true }); return out; }
+    const terminal = { label: 'Press terminal', action: at('Press terminal', 0.6, 'read', () => { void import('../economy/terminal').then((m) => m.openPressTerminal({ from: 'press', o, p })); }) };
+    if (!debt?.on && !pressCold()) { out.push({ label: 'The press is cold. Nobody is collecting.', disabled: true }, terminal); return out; }
     const est = this.estimate(z, o);
     out.push({
       label: est > 0 ? `Pull the lever (≈ ${fmt(est)} on the plate)` : 'Pull the lever',
@@ -674,7 +693,8 @@ export class HopperSystem implements GameSystem {
       danger: !est,
       action: () => this.pullAction(p, o),
     });
-    out.push({ label: 'Read the ledger', action: at('Read the ledger', 1.2, 'read', () => G.ui?.read?.('REMITTANCE PRESS', ledgerText(), 'terminal')) });
+    out.push(terminal);
+    if (!debt?.on) return out;
     const carried = p.allItems().filter((it) => !p.isWorn(it) && it.key !== 'bailiff_band');
     const valued = carried.map((it) => ({ it, v: itemValue(it) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v);
     const vals = valued.filter((x) => (itemDef(x.it.key).tags || []).includes('valuable'));

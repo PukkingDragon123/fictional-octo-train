@@ -11,8 +11,8 @@
 // apologies and amends, confronting a thief, gifts.
 // Two conversations start on their own: a MUGGING (someone walks up and wants the pack)
 // and being CAUGHT with a hand in someone's pocket (theft.ts).
-// Credit: the tribe's tab first, then the unit's scrip wallet if the economy exposes one
-// (G.wallet / G.currency / G.economy.wallet with balance('scrip') and spend('scrip', n)).
+// Credit is SCRIP: the tribe's tab first (what they owe you for goods), then the crew's surplus
+// scrip on the ledger.
 import './talk.css';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -41,7 +41,15 @@ const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 
 // ---------------------------------------------------------------- credit
-function wallet(): any { const g: any = G; return g.wallet ?? g.currency ?? g.economy?.wallet ?? null; }
+// SCRIP is the run's one money (src/game/economy): a tribe's tab is scrip they owe you; past the
+// tab, the crew's surplus scrip on the ledger (G.debt.surplus, spent with G.debt.spend) pays.
+function wallet(): any {
+  const g: any = G;
+  if (g.wallet?.balance) return g.wallet;
+  const d = g.debt;
+  if (d?.s?.on) return { balance: () => d.surplus ?? 0, spend: (_k: string, n: number, what: string) => d.spend(n, what) };
+  return null;
+}
 function walletScrip(): number { try { return Math.max(0, Math.floor(Number(wallet()?.balance?.('scrip')) || 0)); } catch { return 0; } }
 export function creditFor(S: TribeSystem, t: string) { return S.tab(t) + walletScrip(); }
 /** pay a tribe: their tab first, then scrip from the wallet */
@@ -400,8 +408,8 @@ export class Talk {
     const cost = Math.max(40, Math.round(RECRUIT_COST * (1.25 - a / 120) * (0.7 + tr.greed * 0.6)));
     const have = creditFor(S, t);
     const replies: Reply[] = [
-      { text: `${cost} credit, up front.`, why: have < cost ? `I only have ${have} credit with them` : undefined, go: () => { if (payCredit(S, t, cost)) { remember(c, 'paid'); this.join(a); } } },
-      { text: 'A fair share of what we find.', go: () => { if (Math.random() < 0.15 + a / 110 + (1 - tr.greed) * 0.35) this.join(a); else this.say(pick(['A share of nothing is nothing.', 'Shares. Right. Come back with credit.']), [this.back()], null, 'emote:shrug'); } },
+      { text: `${cost} scrip, up front.`, why: have < cost ? `I only have ${have} scrip to offer` : undefined, go: () => { if (payCredit(S, t, cost)) { remember(c, 'paid'); this.join(a); } } },
+      { text: 'A fair share of what we find.', go: () => { if (Math.random() < 0.15 + a / 110 + (1 - tr.greed) * 0.35) this.join(a); else this.say(pick(['A share of nothing is nothing.', 'Shares. Right. Come back with scrip.']), [this.back()], null, 'emote:shrug'); } },
     ];
     if (a >= 50) replies.unshift({ text: 'Because you trust me.', go: () => this.join(a) });
     this.say(pick(["And what's in it for me?", 'Walk with you. Into that. Why?', 'Maybe. What are you offering?']), replies, this.back());
@@ -507,7 +515,7 @@ export class Talk {
         if (Math.random() < tr.kindness * 0.6 + a / 150 + 0.15 - g * 0.05) { remember(c, 'sorry'); S.bumpRep(t, 2, 'an apology'); this.say(line(SAY.sorryYes), [this.back()], null); }
         else this.say(line(SAY.sorryNo), [this.back()], null, 'emote:shrug');
       } },
-      { text: `Let me make it right. (${amends} credit)`, why: have < amends ? `I only have ${have} credit with them` : undefined, go: () => {
+      { text: `Let me make it right. (${amends} scrip)`, why: have < amends ? `I only have ${have} scrip to offer` : undefined, go: () => {
         if (!payCredit(S, t, amends)) return;
         remember(c, 'sorry', Math.ceil(g / 1.5)); remember(c, 'paid');
         S.bumpRep(t, 4, 'you made amends');
@@ -577,7 +585,7 @@ export class Talk {
         if (Math.random() < 0.35 - m.caught * 0.1 + (1 - tr.temper) * 0.15) { remember(c, 'caught', -1); remember(c, 'told'); S.bumpRep(t, 6, 'it was a misunderstanding'); this.end(pick(['...Watch your feet, then.', 'Mm. Clumsy.']), 'emote:shrug'); }
         else { remember(c, 'lie'); this.turn(line(SAY.disbelieve), true); }
       } },
-      { text: `For your trouble. (${fee} credit)`, why: have < fee ? `I only have ${have} credit with them` : undefined, go: () => {
+      { text: `For your trouble. (${fee} scrip)`, why: have < fee ? `I only have ${have} scrip to offer` : undefined, go: () => {
         if (!payCredit(S, t, fee)) return;
         remember(c, 'paid'); remember(c, 'sorry');
         this.end(pick(["...Fine. We never spoke.", 'Bought and paid. Go.']), '');

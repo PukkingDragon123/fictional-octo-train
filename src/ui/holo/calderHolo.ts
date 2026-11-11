@@ -46,11 +46,11 @@ void main() {
   // rows tear sideways when the signal glitches
   float row = floor(uv.y * uRes.y / 3.0);
   float jr = h21(vec2(row, floor(uT * 30.0)));
-  uv.x += (jr - 0.5) * 0.03 * uGlitch * step(0.72, jr);
-  float ca = (0.7 + 3.0 * uGlitch) * px.x;
+  uv.x += (jr - 0.5) * 0.02 * uGlitch * step(0.8, jr);
+  float ca = 3.0 * uGlitch * px.x;
   vec4 c = texture2D(tCol, uv);
   float r = texture2D(tCol, uv + vec2(ca, 0.0)).r, b = texture2D(tCol, uv - vec2(ca, 0.0)).b;
-  c.r = mix(c.r, r, 0.65); c.b = mix(c.b, b, 0.65);
+  c.r = mix(c.r, r, uGlitch); c.b = mix(c.b, b, uGlitch);
   // the silhouette's edge: a glow outside it, a rim inside it
   float a1 = texture2D(tCol, uv + vec2(px.x * 2.0, 0.0)).a, a2 = texture2D(tCol, uv - vec2(px.x * 2.0, 0.0)).a;
   float a3 = texture2D(tCol, uv + vec2(0.0, px.y * 2.0)).a, a4 = texture2D(tCol, uv - vec2(0.0, px.y * 2.0)).a;
@@ -60,7 +60,7 @@ void main() {
   float body = step(0.3, c.a);
   a1 = step(0.3, a1); a2 = step(0.3, a2); a3 = step(0.3, a3); a4 = step(0.3, a4);
   o1 = step(0.3, o1); o2 = step(0.3, o2); o3 = step(0.3, o3); o4 = step(0.3, o4);
-  float outer = clamp(max(max(a1, a2), max(a3, a4)) * 0.7 + max(max(o1, o2), max(o3, o4)) * 0.3 - body, 0.0, 1.0);
+  float outer = clamp(max(max(a1, a2), max(a3, a4)) * 0.8 + max(max(o1, o2), max(o3, o4)) * 0.15 - body, 0.0, 1.0);
   float inner = clamp(body - min(min(a1, a2), min(a3, a4)), 0.0, 1.0);
   // the materialise sweep (0 at the feet, 1 over the head)
   float k = (uv.y - uFeet) / max(0.001, uHead - uFeet);
@@ -69,16 +69,14 @@ void main() {
   float vis = step(k + sp * 0.16, front);
   float band = smoothstep(0.1, 0.0, abs(k - front)) * (1.0 - step(0.999, uShow)) * step(0.001, uShow);
   // scanlines, a slow roll, the flicker
-  float sl = 0.84 + 0.16 * step(1.5, mod(gl_FragCoord.y + uOff, 3.0));
-  float roll = 0.93 + 0.07 * sin(uv.y * 34.0 - uT * 5.0);
-  float flick = 0.95 + 0.05 * h21(vec2(floor(uT * 24.0), 7.0));
-  vec3 col = c.rgb * vec3(0.95, 1.0, 1.05) * sl * roll * flick;
-  col += vec3(0.32, 0.78, 1.0) * inner * 0.35;
-  // a sparse light dust over the body
-  col += vec3(0.5, 0.9, 1.0) * step(0.985, h21(floor(gl_FragCoord.xy / 2.0) + floor(uT * 8.0))) * 0.25 * body;
-  float a = body * 0.95 * vis;
-  vec3 glow = vec3(0.35, 0.85, 1.0) * (outer * 0.5 * vis + band * (body + outer) * 1.1);
-  float ga = (outer * 0.35 * vis + band * (body + outer) * 0.7);
+  // her own colours, lit normally: faint scanlines, a thin cyan rim, a brief dip in the light when the signal hiccups
+  float sl = 0.95 + 0.05 * step(1.5, mod(gl_FragCoord.y + uOff, 3.0));
+  float flick = 1.0 - 0.18 * uGlitch * step(0.5, h21(vec2(floor(uT * 24.0), 7.0)));
+  vec3 col = c.rgb * sl * flick;
+  col += vec3(0.35, 0.8, 1.0) * inner * 0.22;
+  float a = body * 0.93 * vis;
+  vec3 glow = vec3(0.35, 0.85, 1.0) * (outer * 0.3 * vis + band * (body + outer) * 1.1);
+  float ga = (outer * 0.2 * vis + band * (body + outer) * 0.7);
   vec3 light = c.rgb * (1.0 - body) * step(0.02, uShow);
   gl_FragColor = vec4(col * a + light + glow, clamp(a + ga * 0.5, 0.0, 1.0));
   #include <colorspace_fragment>
@@ -176,7 +174,7 @@ export class CalderHolo {
   hide() { this.show = this.showGoal = 0; this.canvas.style.opacity = '0'; }
   /** where her feet are (fractions of the screen); a long way is a blink (off, across, on) */
   standAt(fx: number, fy = 0.93) {
-    fx = clamp(fx, 0.08, 0.92); fy = clamp(fy, 0.5, 0.97);
+    fx = this.clearOfUi(clamp(fx, 0.08, 0.92)); fy = clamp(fy, 0.5, 0.97);
     if (Math.abs(fx - this.goal.x) < 0.005 && Math.abs(fy - this.goal.y) < 0.005) return;
     this.goal = { x: fx, y: fy };
     if (this.show > 0.5 && Math.abs(fx - this.at.x) > 0.22) { this.blinkT = 0; G.audio?.flat?.('static_burst', 'sfx', 0.12); }
@@ -199,6 +197,16 @@ export class CalderHolo {
   }
   talk(secs: number) { this.talkT = Math.max(this.talkT, secs); this.rig.talk(secs); }
   expression(name: string, secs = 2.5) { this.rig.setExpression(name, secs); }
+  /** a spot (screen fraction) moved off the hotbar and out of the middle strip (subtitles, replies) */
+  private clearOfUi(fx: number): number {
+    const half = (this.H * 0.12) / Math.max(1, this.W);
+    let lo = 0.36, hi = 0.64;
+    const hb = document.getElementById('hot12');
+    if (hb) { const r = hb.getBoundingClientRect(); if (r.width > 4) { lo = Math.min(lo, r.left / this.W); hi = Math.max(hi, r.right / this.W); } }
+    lo -= half; hi += half;
+    if (fx > lo && fx < hi) fx = fx - lo < hi - fx ? lo : hi;
+    return clamp(fx, 0.06 + half * 0.5, 0.94 - half * 0.5);
+  }
   /** where her feet are going (screen fractions) */
   get spot() { return { ...this.goal }; }
   /** dev: all there, where she is going, now (screenshots) */
@@ -234,8 +242,8 @@ export class CalderHolo {
     if (this.blinkT < 0) { const k = 1 - Math.exp(-dt * 3.2); this.at.x += (this.goal.x - this.at.x) * k; this.at.y += (this.goal.y - this.at.y) * k; }
     this.place(false);
     // the signal: now and then a hiccup, more of them while she materialises
-    if (Math.random() < dt * (this.show < 1 ? 3 : 0.12)) this.glitch = Math.max(this.glitch, 0.25 + Math.random() * 0.45);
-    this.glitch = Math.max(0, this.glitch - dt * 2.4);
+    if (Math.random() < dt * (this.show < 1 ? 3 : 0.05)) this.glitch = Math.max(this.glitch, this.show < 1 ? 0.5 : 0.35);
+    this.glitch = Math.max(0, this.glitch - dt * (this.show < 1 ? 2.4 : 6));
     // where she looks and turns: at you while she talks to you, at the thing while she points
     const tgt = this.aimFn?.() ?? null;
     if (tgt) this.toWorld(tgt.x, tgt.y, this.aimW);

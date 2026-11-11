@@ -17,7 +17,7 @@ import { addTextureModule } from '../../gfx/textures/index';
 import { ph } from '../../gfx/pixel';
 import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
-import { SkinB, Region, V3, Wt, BoneSpec, usFor, hash } from './humanoids';
+import { SkinB, Region, V3, Wt, BoneSpec, usFor, hash, type KitRig } from './humanoids';
 
 // =====================================================================================
 // skeleton + geometry helpers
@@ -75,6 +75,38 @@ export function gyri(d: V3, k = 1, seed = 0): number {
 
 /** host: a rooted thing stays where it grew (blows knock creatures about) */
 export function pin(c: Creature) { c.x = c.home.x; c.z = c.home.z; c.vx = 0; c.vz = 0; c.speed = 0; }
+
+/**
+ * A group between the rig's body and its root bone, for things that live on
+ * walls and ceilings (or lie in odd ways): the species sets a full transform
+ * on it every frame with setMount(). The creature manager rolls dead bodies
+ * onto their side through rig.body; setMount() cancels that exactly, so the
+ * species' own death pose is what shows. Call addMount() in the kit's decorate().
+ */
+export function addMount(rig: KitRig): THREE.Group {
+  const mount = new THREE.Group();
+  mount.name = 'mount'; mount.matrixAutoUpdate = false;
+  rig.body.add(mount);
+  mount.add(rig.parts.base);
+  const i = rig.kit.idx.get('base');
+  if (i !== undefined && rig.kit.cut) rig.kit.cut.parent0[i] = mount;
+  rig.kit.m.mount = mount;
+  return mount;
+}
+const _MM = new THREE.Matrix4(), _MI = new THREE.Matrix4();
+export function setMount(rig: KitRig, c: Creature | null, W: THREE.Matrix4) {
+  const mount = rig.kit.m.mount as THREE.Group | undefined;
+  if (!mount) return;
+  mount.matrix.copy(W);
+  if (c && c.dead && rig.root.userData.creature === c) {
+    const k = Math.min(1, Math.min(1, c.deathT * 2 + (c.deathT > 0 ? 0 : 1)) + 0.01);
+    const th = (c.sp.flags?.flying ? 0 : Math.PI / 2) * k;
+    const h = ((rig.root.userData.restY as number | undefined) ?? 0) * k;
+    _MM.makeRotationZ(th).setPosition(0, h, 0);
+    mount.matrix.premultiply(_MI.copy(_MM).invert());
+  }
+  mount.matrixWorldNeedsUpdate = true;
+}
 
 // =====================================================================================
 // painting

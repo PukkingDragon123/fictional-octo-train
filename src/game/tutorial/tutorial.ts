@@ -588,7 +588,7 @@ export class Tutorial implements GameSystem {
   /** where she stands to point at a spot: beside it, on the side her right arm reaches */
   private spotFor(s: Pt): number {
     const tx = s.x / innerWidth;
-    if (s.y < innerHeight * 0.45 && tx < 0.35) return clamp(tx + 0.24, 0.28, 0.42);
+    if (s.y < innerHeight * 0.45 && tx < 0.35) return clamp(tx + 0.12, 0.14, 0.24);
     return tx < 0.62 ? Math.min(0.88, tx + 0.27) : Math.max(0.12, tx - 0.3);
   }
   /** keycaps floating over the unit while it should press them */

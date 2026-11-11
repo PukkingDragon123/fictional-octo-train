@@ -52,7 +52,7 @@ const dim = (c: number, f: number) => (Math.round(((c >> 16) & 255) * f) << 16) 
 export const TRIBES: Record<TribeKey, TribeDef> = {
   tally: {
     key: 'tally', name: 'The Tallymen', member: 'Tallyman', color: 0xe0a020, accent: 0xf2f0e8, css: '#e8a62a',
-    camps: [{ zone: 'market', size: 5 }, { zone: 'lobby', size: 2 }],
+    camps: [{ zone: 'market', size: 6 }, { zone: 'lobby', size: 4 }],
     app: (r) => app(r),
     outfit: (r) => ({
       torso: { tex: 'c_shirt', color: dim(0x7a6a52, 0.8 + r() * 0.3), sleeve: 'long' },
@@ -170,7 +170,7 @@ export const TRIBES: Record<TribeKey, TribeDef> = {
   },
   cog: {
     key: 'cog', name: 'The Sprocket Congregation', member: 'Sprocket', color: 0x4a3a2a, accent: 0xffa040, css: '#9ce07a',
-    camps: [{ zone: 'tunnels', size: 5 }, { zone: 'office', size: 2 }],
+    camps: [{ zone: 'tunnels', size: 5 }, { zone: 'office', size: 3 }],
     app: (r) => app(r, { hairStyle: pick(r, ['buzz', 'bald', 'short'] as const) }),
     outfit: (r) => ({
       torso: { tex: 'c_uniform', color: dim(0x4a3a2a, 0.8 + r() * 0.3), sleeve: 'long', wear: 0.7 },

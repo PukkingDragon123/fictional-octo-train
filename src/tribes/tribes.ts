@@ -16,7 +16,7 @@ import { Rng } from '../core/rng';
 import { itemValue } from '../game/debt/values';
 import { defScanInfo } from '../scan/scan';
 import { TRIBES, TRIBE_KEYS, standing, type TribeKey, type TribeDef } from './defs';
-import type { Camp } from './camp';
+import type { Camp, Drifter } from './camp';
 import { bark, memberName, prunePool, tribeOfCreature, sayAs } from './npc';
 import { TradeUI } from './tradeUI';
 import { Talk, talkTarget } from './talk';
@@ -137,6 +137,16 @@ export class TribeSystem implements GameSystem {
           if (dead !== undefined) { if (G.clock.hours - dead >= RESPAWN_H) op('tribe', { k: 'gen', key }); return; }
           this.spawnMember(camp.t, zk, s[0], s[1], id, { camp: camp.i, slot });
         });
+      }
+      // lone people out in the rooms
+      for (const d of (z.meta.tribeDrifters || []) as Drifter[]) {
+        const key = `${zk}:d:${d.i}`;
+        const id = `tb_${zk}_d${d.i}_${this.st.gen[key] ?? 0}`;
+        const c = G.creatures?.creatures?.get(id) as Creature | undefined;
+        if (c) { if ((c.dead || c.tamedBy) && this.st.deadAt[key] === undefined) op('tribe', { k: 'dead', key, v: G.clock.hours }); continue; }
+        const dead = this.st.deadAt[key];
+        if (dead !== undefined) { if (G.clock.hours - dead >= RESPAWN_H) op('tribe', { k: 'gen', key }); continue; }
+        this.spawnMember(d.t, zk, d.x, d.y, id, { drifter: 1 });
       }
     }
   }

@@ -29,6 +29,7 @@ import { tearDef, creatureLimbFx, CreatureLimbFx } from '../gore/tearing';
 import { redirectPart, isLimbPart } from '../survival/limbs';
 import { dreadBefore, dreadPlace, dreadAfter, dreadHost, dreadFrame, dreadFlickPoll, dreadFlickStep, lightOut } from './dread';
 import './spawnTables';
+import { temperBefore, temperAfter, temperPose } from './temper';
 import { steer, brake, heading, shoveBy, corpseFall, hasWeight } from './kit/physics';
 
 /** what a creature was hit with (passed to the gore system) */
@@ -132,7 +133,7 @@ export class CreatureSystem implements GameSystem {
     for (const p of G.players.values()) zones.add(p.zoneKey);
     for (const zk of zones) {
       const z = G.getZone(zk);
-      const here = [...this.creatures.values()].filter((c) => c.zoneKey === zk && !c.dead);
+      const here = [...this.creatures.values()].filter((c) => c.zoneKey === zk && !c.dead && !c.mem.noCap); // noCap: set pieces and their parts (a Fungus Mind and its nodes) do not fill the zone
       const cap = Math.round(z.creatureCap * G.sandbox.creatures * (1 + G.collapse * 0.8));
       // despawn far, unseen wanderers
       for (const c of here) {
@@ -237,6 +238,8 @@ export class CreatureSystem implements GameSystem {
     if (c.mem.cb && G.combat?.creatureStep?.(c, dt)) { this.applyMove(c, z, dt); return; }
     // wired with a mechanical brain: a thrall obeys its owner, not its species (src/dominion)
     if (c.mem.dom && G.dominion?.step?.(c, z, dt)) { this.applyMove(c, z, dt); return; }
+    // penned livestock wander their pen (src/game/economy/homestead.ts)
+    if (c.mem.pen && (G as any).econ?.penStep?.(c, z, dt)) { this.applyMove(c, z, dt); return; }
     // attack in progress
     if (c.attackPhase > 0) {
       c.attackPhase -= dt;
@@ -254,7 +257,12 @@ export class CreatureSystem implements GameSystem {
       c.thinkT = 0.18 + this.rng.next() * 0.08;
       this.perceive(c, z, 0.25);
     }
-    if (!(c.sp.think && c.sp.think(c, dt))) this.defaultBrain(c, z, dt, doThink);
+    // the temperament layer (src/creatures/temper.ts): warn first, ignore a calm unit, hunt when hungry
+    if (!temperBefore(c, z, dt)) {
+      const was = c.state;
+      if (!(c.sp.think && c.sp.think(c, dt))) this.defaultBrain(c, z, dt, doThink);
+      temperAfter(c, z, was);
+    }
     try { dreadHost(c, dt); } catch (e) { console.error('dreadHost', e); }
     this.applyMove(c, z, dt);
   }
@@ -794,14 +802,13 @@ export class CreatureSystem implements GameSystem {
       c.animT += dt;
       c.hitFlash = Math.max(0, c.hitFlash - dt);
       if (!held) try { c.sp.animate(c.rig, c, c.animT, dt); } catch (e) { console.error('anim', c.sp.key, e); }
-      if (!c.dead) { if (!held) { this.limbVisuals(c); G.combat?.creaturePose?.(c, dt); } }
+      if (!c.dead) { if (!held) { this.limbVisuals(c); G.combat?.creaturePose?.(c, dt); temperPose(c, c.animT); } }
       else if (c.rig.root.rotation.x || c.rig.root.rotation.z) { c.rig.root.rotation.x = 0; c.rig.root.rotation.z = 0; }
       try { dreadAfter(c, dt); dreadFlickPoll(c); } catch (e) { console.error('dread', c.sp.key, e); }
       if (c.dead) {
         // the body goes over the way the last blow drove it, bounces, settles (src/creatures/kit/physics.ts);
         // a corpse loaded from a save (or first seen dead) is simply lying there
-        if (!c.mem.fall && c.deathT > 3) (c.mem.fall as any) = undefined;
-        corpseFall(c, c.deathT > 3 && !c.mem.fall ? 10 : dt);
+        corpseFall(c, dt, c.deathT > 3);
         const th = (c.mem.fallThud ?? 0) as number;
         if (th !== (c.mem.fallThudP ?? 0)) {
           c.mem.fallThudP = th;
@@ -873,6 +880,10 @@ export interface HitInfo { dmg: number; kinds: InjuryType[]; corrupt: number; he
 export function applyHitToPlayer(p: Player, h: HitInfo) {
   // a dodge's i-frames, an execution in progress (src/game/combat.ts)
   if (G.combat?.evade?.(p, h)) return;
+  // a raised guard (right mouse in a fight): a parry stops it, a block takes most of it on the arms
+  const gm: number = G.combat?.guard?.(p, h) ?? 1;
+  if (gm <= 0) return;
+  if (gm < 1) h = { ...h, dmg: h.dmg * gm, knock: h.knock * 0.5, kinds: ['bruise'] as HitInfo['kinds'] };
   const rng = new Rng(Math.random() * 1e9);
   const table = h.parts?.length ? h.parts.map((x) => [x as BodyPart, 1] as [BodyPart, number]) : h.height < 0.9 ? PART_WEIGHTS_LOW : h.height < 2.0 ? PART_WEIGHTS_MID : PART_WEIGHTS_HIGH;
   let part = h.tear ? h.tear.part as BodyPart : p.body.downed ? rng.pick(['torso_u', 'torso_l', 'head'] as BodyPart[]) : rng.weighted(table);

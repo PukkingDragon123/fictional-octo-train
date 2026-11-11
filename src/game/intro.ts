@@ -573,6 +573,8 @@ export class Intro implements GameSystem {
 
   // ================================================================== dom
   private buildDom() {
+    // the floating world labels (src/ui/worldPrompt.ts) stay out of the cinematic, the land shot included
+    if (!document.getElementById('ix-noprompt')) { const st = document.createElement('style'); st.id = 'ix-noprompt'; st.textContent = 'body.noclip-cine #wprompt { visibility: hidden !important; }'; document.head.appendChild(st); }
     const root = this.root = document.createElement('div');
     root.className = 'ix-root letterbox' + (this.touch ? ' touch' : '');
     const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, html = '') => { const e = document.createElement(tag); e.className = cls; e.innerHTML = html; return e; };

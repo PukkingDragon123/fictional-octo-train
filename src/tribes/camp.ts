@@ -14,7 +14,14 @@ import { Rng } from '../core/rng';
 import { TRIBES, TRIBE_KEYS } from './defs';
 import type { TribeKey } from './defs';
 
-export interface Camp { t: TribeKey; i: number; x: number; y: number; r: number; slots: [number, number][]; fire: [number, number]; barter: [number, number] }
+export interface Camp {
+  t: TribeKey; i: number; x: number; y: number; r: number; slots: [number, number][]; fire: [number, number]; barter: [number, number];
+  /** round 15: where they sleep, the guards' corners, the stash, the kitchen */
+  beds?: [number, number][]; patrol?: [number, number][]; stash?: [number, number] | null; kitchen?: [number, number] | null;
+}
+/** lone people out in the rooms (no camp): drifters and quick hands */
+export interface Drifter { t: TribeKey; i: number; x: number; y: number }
+const DRIFT: Record<string, number> = { lobby: 1, office: 2, market: 1, suburbs: 1, tunnels: 1, depot: 1 };
 
 const walk = (z: Zone, x: number, y: number) => {
   if (!z.inb(x, y)) return false;
@@ -89,6 +96,7 @@ function findCampSpot(z: Zone, rng: Rng, taken: [number, number][]): { x: number
 export function placeCamps(z: Zone, seed: number) {
   const plans: { t: TribeKey; size: number }[] = [];
   for (const k of TRIBE_KEYS) for (const c of TRIBES[k].camps) if (c.zone === z.key) plans.push({ t: k, size: c.size });
+  placeDrifters(z, seed);
   if (!plans.length) return;
   const rng = new Rng(seed ^ 0x7b1be);
   const b = new ZoneBuilder(z, rng);
@@ -113,12 +121,42 @@ export function placeCamps(z: Zone, seed: number) {
       if (k < pl.size && k % 2 === 0) put('bedroll', dx, dy, (k % 4) as 0 | 1 | 2 | 3);
       slots.push([x + dx + 0.5, y + dy + 0.5]);
     }
-    if (h >= 4) { put('tent', -4, -4, 0); put('tent', 3, -4, 0); put('survivor_stash', 4, 3); put('crate_built', -4, 3); }
-    else if (h >= 3) { put('survivor_stash', 3, 3); put('crate_built', -3, -3); }
+    const beds: [number, number][] = slots.filter((_, k) => k % 2 === 0).map(([sx, sy]) => [sx, sy + 0.5] as [number, number]);
+    let stash: [number, number] | null = null;
+    if (h >= 4) { if (put('tent', -4, -4, 0)) beds.push([x - 2.6, y - 3]); if (put('tent', 3, -4, 0)) beds.push([x + 3.5, y - 2.4]); if (put('survivor_stash', 3, 3)) stash = [x + 3.5, y + 3.5]; put('crate_built', -3, 3); }
+    else if (h >= 3) { if (put('survivor_stash', 3, 3)) stash = [x + 3.5, y + 3.5]; put('crate_built', -3, -3); }
+    else if (put('survivor_stash', 2, -2)) stash = [x + 2.5, y - 1.5];
+    // round 15: a base, not a picnic. A kitchen by the fire, lamps on poles, a barricade round the edge
+    // with a gap in the middle of every side (the camp's doors), where the guards walk.
+    const kitchen = put('camp_kitchen', 1, -1, 0) ? [x + 1.5, y - 0.5] as [number, number] : null;
+    const lampAt = h >= 3 ? [[-(h - 1), h - 1], [h - 1, -(h - 1)]] : [[-2, -2]];
+    for (const [dx, dy] of lampAt) put('camp_lamp', dx, dy);
+    if (h >= 3) {
+      for (let k = -h; k <= h; k++) {
+        if (Math.abs(k) <= 1) continue; // the doors
+        put('camp_barricade', k, -h, 0); put('camp_barricade', k, h, 2);
+        if (Math.abs(k) < h) { put('camp_barricade', -h, k, 3); put('camp_barricade', h, k, 1); }
+      }
+    } else { put('camp_barricade', -2, 2, 2); put('camp_barricade', 2, 2, 2); put('camp_barricade', 2, -2, 0); }
+    const pr = Math.max(1, h - 1) + 0.5;
+    const patrol: [number, number][] = [[x + 0.5 - pr, y + 0.5 - pr], [x + 0.5, y + 0.5 - pr], [x + 0.5 + pr, y + 0.5 - pr], [x + 0.5 + pr, y + 0.5], [x + 0.5 + pr, y + 0.5 + pr], [x + 0.5, y + 0.5 + pr], [x + 0.5 - pr, y + 0.5 + pr], [x + 0.5 - pr, y + 0.5]];
     for (let yy = y - h - 1; yy <= y + h + 1; yy++) for (let xx = x - h - 1; xx <= x + h + 1; xx++) if (z.inb(xx, yy)) z.flags[z.idx(xx, yy)] |= TF.NOSPAWN | TF.NOBUILD;
     while (slots.length < pl.size) slots.push([x + 0.5 + rng.float(-1.5, 1.5), y + 0.5 + rng.float(-1.5, 1.5)]);
-    camps.push({ t: pl.t, i, x: x + 0.5, y: y + 0.5, r: h + 1.5, slots: slots.slice(0, pl.size), fire: [x + 0.5, y + 0.5], barter: [barter[0] + 0.5, barter[1] + 0.5] });
+    camps.push({ t: pl.t, i, x: x + 0.5, y: y + 0.5, r: h + 1.5, slots: slots.slice(0, pl.size), fire: [x + 0.5, y + 0.5], barter: [barter[0] + 0.5, barter[1] + 0.5], beds, patrol, stash, kitchen });
   });
 }
 
 onZoneGenerated(placeCamps);
+
+/** one or two lone people per level, somewhere a fair walk from the entrance */
+function placeDrifters(z: Zone, seed: number) {
+  const n = DRIFT[z.key]; if (!n) return;
+  const rng = new Rng(seed ^ 0xd21f7);
+  const sp = (z.meta.spawn as [number, number] | undefined) || [z.W >> 1, z.H >> 1];
+  const out: Drifter[] = (z.meta.tribeDrifters ||= []);
+  for (let i = 0; i < n; i++) {
+    const at = z.randomFloor(rng, (x, y) => walk(z, x, y) && free(z, x, y) && Math.hypot(x - sp[0], y - sp[1]) > 14 && Math.hypot(x - sp[0], y - sp[1]) < 70, 800);
+    if (!at) continue;
+    out.push({ t: TRIBE_KEYS[(rng.int(0, 99) + i) % TRIBE_KEYS.length], i, x: at[0] + 0.5, y: at[1] + 0.5 });
+  }
+}

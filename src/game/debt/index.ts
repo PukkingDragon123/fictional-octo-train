@@ -34,6 +34,7 @@ import { installHopperPlacement } from './hopperPlace';
 import { voss, selfThought, pick } from './voice';
 import { ensurePack } from '../arrivalKit/pack';
 import './sounds';
+import { installEconomy } from '../economy';
 
 export { DebtSystem, BandSystem, HopperSystem, TransportSystem };
 
@@ -52,6 +53,8 @@ export function installContract(g: Game) {
   const tr = new TransportSystem();
   debt.transport = tr;
   g.addSystem(tr);
+  // round 15: the press's dial, matter bank, tokens and terminal; forage, pens and livestock (src/game/economy)
+  try { installEconomy(g); } catch (e) { console.warn('economy', e); }
   if (!listening) {
     listening = true;
     bus.on('objBroken', (z: Zone, o: TileObject, by: string | null, how: string) => { try { onBroken(z, o, by, how); } catch (e) { console.warn('stash', e); } });

@@ -19,6 +19,7 @@ import { researchToolSystem } from '../research/tools';
 import { chipTraits, fittedLimbs } from './unitTree';
 import { applyLoadout, cyberDefByItem } from '../survival/cyber';
 import { grantNode, hasUnlock } from './research';
+import { dispatchedKit } from './economy';
 
 /**
  * The unit as the unit room left it: every fitted chip's traits (each rank
@@ -68,5 +69,7 @@ export function startMetaRun(g: Game, p: Player, o: { fresh: boolean; give: (key
   noteRunStart();
   try { applyUnitFit(p); } catch (e) { console.warn('unit fit', e); }
   for (const k of startingKit()) { try { o.give(k); } catch { /* unknown item */ } }
+  // what the lab's press terminal made between runs comes down the chute with the kit (src/game/economy)
+  for (const k of dispatchedKit()) { try { o.give(k); } catch { /* unknown item */ } }
   runStarted();
 }

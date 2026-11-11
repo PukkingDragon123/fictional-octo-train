@@ -150,7 +150,7 @@ for (const k of TRIBE_KEYS) {
     animate: animate(T),
     think: (c: Creature, dt: number) => {
       if (c.dead) return true;
-      if (c.tamedBy) return false; // a recruit: the companion brain follows its survivor
+      // members, raiders, drifters and followers all think as people (src/tribes/brain.ts)
       return G.tribes?.think?.(c, dt) ?? false;
     },
   });

@@ -4,6 +4,7 @@ import { worldMaterial } from '../gfx/materials';
 import type { Creature } from './creature';
 import type { InjuryType } from '../survival/body';
 import { defSpecies } from './registry';
+import type { Disposition } from './temper';
 
 export type Temperament = 'peaceful' | 'skittish' | 'curious' | 'neutral' | 'territorial' | 'hostile' | 'stalker' | 'ambush' | 'hazard';
 
@@ -57,6 +58,11 @@ export interface SpeciesDef {
   remains?: string;
   /** what it bleeds and what can be cut off it (gore system, src/gore) */
   gore?: GoreDef;
+  /**
+   * Round 15: how it decides between ignoring, warning and attacking a unit (src/creatures/temper.ts):
+   * mood, territory, warning display, calm distance, hunger. Filled in from its temperament when absent.
+   */
+  disposition?: Disposition | null;
   /** gallery-only animation hook (pose previews) */
   animateGallery?(rig: Rig, t: number, pose?: string): void;
   scan: { cls: string; notes: string[] };

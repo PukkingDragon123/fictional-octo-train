@@ -82,7 +82,7 @@ const _q = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0), _d = new TH
  * killing blow's direction (world) and strength. Applied every frame after the
  * species' own (dead) pose; returns false when the rig is not there yet.
  */
-export function corpseFall(c: Creature, dt: number): boolean {
+export function corpseFall(c: Creature, dt: number, settled = false): boolean {
   const rig = c.rig; if (!rig) return false;
   const body = rig.body as THREE.Object3D;
   let F = c.mem.fall as Fall | undefined;
@@ -110,7 +110,7 @@ export function corpseFall(c: Creature, dt: number): boolean {
     const restY = _box.isEmpty() ? -c.height * 0.25 : clamp(rig.root.position.y + 0.015 - _box.min.y, -c.height, 0.3);
     body.quaternion.identity();
     const flyH = c.sp.flags?.flying ? Math.max(0, (rig.root.position.y - c.y)) : 0;
-    F = c.mem.fall = { ax, ang: 0.02, av: 0.6 + k * 2.4, goal, restY, bounced: 0, drop: flyH, vy: 0, done: false };
+    F = c.mem.fall = settled ? { ax, ang: goal, av: 0, goal, restY, bounced: 2, drop: 0, vy: 0, done: true } : { ax, ang: 0.02, av: 0.6 + k * 2.4, goal, restY, bounced: 0, drop: flyH, vy: 0, done: false };
   }
   if (!F.done && dt > 0) {
     // a rod pivoting on its foot: angular acceleration ~ g sin(angle) / height
@@ -124,8 +124,9 @@ export function corpseFall(c: Creature, dt: number): boolean {
     }
     if (F.drop > 0) { F.vy -= 9.8 * dt; F.drop = Math.max(0, F.drop + F.vy * dt); if (F.drop <= 0 && F.ang >= F.goal - 1e-3) F.done = true; }
   }
-  _q.setFromAxisAngle(F.ax, F.ang);
-  body.quaternion.premultiply(_q);
-  body.position.y = F.restY * (F.ang / F.goal) - (F.drop > 0 ? 0 : 0);
+  // (absolute, like the old fixed fall onto the side: the species' dead pose moves the limbs, this the whole body)
+  _q.setFromAxisAngle(_d.set(F.ax.x, F.ax.y, F.ax.z), F.ang);
+  body.quaternion.copy(_q);
+  body.position.y = F.restY * (F.ang / F.goal) + F.drop;
   return true;
 }

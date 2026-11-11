@@ -291,6 +291,43 @@ export class PushDrag {
     return [st.x0, st.z0];
   }
 
+  /**
+   * A body barging into loose furniture (a sprint into it, a trip, a roll; src/entities/motion.ts):
+   * the momentum it hands over beats static friction and the piece slides off on its own, tall
+   * narrow things go over. One piece at a time (false: too heavy, fixed, or already moving one).
+   */
+  knock(p: Player, o: TileObject, vx: number, vz: number, bodyKg = 70): boolean {
+    if (this.st || !p.isLocal) return false;
+    const z = G.getZone(p.zoneKey);
+    const d = objDef(o.key);
+    if (!d || !z.objects.has(o.uid) || !pushable(d, o) || o.state?.held) return false;
+    const mass = objMass(d);
+    if (mass > 180) return false;
+    const m = objectMatrix(z, o, d);
+    const cx = m.elements[12], cz = m.elements[14];
+    const w = d.w ?? 1, dd = d.d ?? 1;
+    const rw = o.rot % 2 === 0 ? w : dd, rd = o.rot % 2 === 0 ? dd : w;
+    const [mu, muS] = this.friction(z, cx, cz, d);
+    const v = Math.hypot(vx, vz) || 1;
+    const J = bodyKg * v * 0.75, need = muS * mass * GRAV * 0.2;
+    if (J < need) return false;
+    const dv = Math.min(6, (J - need) / mass);
+    applyHold(z, o, p.id);
+    op('objHold', { z: z.key, uid: o.uid, by: p.id });
+    this.st = {
+      o, z, d, action: { done: false } as unknown as TimedAction, mode: 'push', relX: cx - p.x, relZ: cz - p.z, mass, mu, muS, muT: 0,
+      vx: vx / v * dv, vz: vz / v * dv, cx, cz, px: p.x, pz: p.z, x0: cx, z0: cz, rw, rd, h: d.height, lift: 0,
+      tall: d.height >= 1.1 && d.height / Math.max(0.2, Math.min(rw, rd)) >= 1.5,
+      effort: 0, stuck: 0, strainSaid: false, pullT: 0, breathT: 1, free: true, pendDmg: 0, by: p.id,
+      thrown: null, topple: null, sendT: 0, smearD: 0, scuffD: 0, moving: 0, loopKey: 'push:' + o.uid, t: 0,
+      tier: this.carryTier(mass), swx: 0, swz: 0, swvx: 0, swvz: 0, gait: 0, lvx: 0, lvz: 0, bumpT: 0, placing: 0, rotChanged: false, liftGoal: 0,
+    };
+    G.audio?.at?.('dmg_hit_' + hitMat(d), cx, cz, Math.min(1, 0.4 + dv * 0.15));
+    noise(p, cx, cz, 8 + dv * 3, 'smash');
+    if (this.st.tall && dv > 0.5) this.startTopple(this.st, vx / v, vz / v);
+    return true;
+  }
+
   /** Space while holding: a hard shove. It flies off the hands; tall things go over */
   shove(p: Player) {
     const st = this.st; if (!st || st.free || st.thrown || st.topple) return;
