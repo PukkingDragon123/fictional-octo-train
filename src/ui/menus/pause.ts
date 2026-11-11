@@ -18,7 +18,7 @@ import { bodyCanvas, moodleIcon, BODY_W, BODY_H } from '../moodles';
 import { lossSummary } from '../../survival/limbs';
 import { gearCluster, type GearCluster } from './gears3d';
 import { terminal, type Terminal } from './terminal';
-import { pxButton, type PxButton } from '../pxKit';
+import { pxButton, pxBanner, pxAccessLog, pxSerialEl, pxStamp, nodeId, type PxButton } from '../pxKit';
 import './diegetic.css';
 import './noir.css';
 import './pause.css';
@@ -45,6 +45,9 @@ export class PauseMenu {
     const z0 = p ? zoneSpec(p.zoneKey) : null;
     const top = h('div', 'ps2-bar top', `<div class="ps2-title"><b>${solo ? 'Time held' : 'Time does not stop'}</b><small>${esc(time)}${z0?.name ? ' · ' + esc(z0.name) : ''}</small></div><div class="ps2-id">${esc(num)}</div>`);
     const bot = h('div', 'ps2-bar bot', `<span class="ps2-hint">${solo ? 'nothing moves while the band projects' : 'the others are still out there'}</span><span class="ps2-hint">Esc resume · Q E pages</span>`);
+    top.querySelector('.ps2-id')?.replaceChildren(pxSerialEl('UNIT ' + num));
+    top.prepend(pxBanner());
+    bot.replaceChildren(pxAccessLog(nodeId(3)), h('span', 'ps2-hint', 'Esc resume · Q E pages'));
     const col = h('nav', 'ps2-col');
     const pages: Page[] = ['main', 'options', 'controls', ...(G.net ? ['coop' as Page] : [])];
     let cur = Math.max(0, pages.indexOf(page));
@@ -165,6 +168,7 @@ export class PauseMenu {
       cond.append(moods);
       out.push(cond);
     }
+    { const st = pxStamp('Eyes only'); st.classList.add('ps2-stamp'); out.push(st); }
     out.push(h('p', 't-note', solo ? 'The band holds time while it projects. It is the only kind thing it does.' : 'The simulation does not pause for anyone.'));
     return out;
   }

@@ -35,3 +35,10 @@
   .ps2-title small, .ps2-hint:first-child { display: none; }
 }
 .reduce-flash .ps2, .reduce-flash .ps2-bar, .reduce-flash .ps2-col, .reduce-flash .ps2-right { transition: none; }
+
+/* round 15c: Institute paperwork in the letterbox */
+.ps2-bar.top { flex-wrap: wrap; align-content: center; row-gap: 4px; }
+.ps2-bar.top .px-banner { position: absolute; left: 0; right: 0; top: 0; height: 18px; padding-top: 1px; padding-bottom: 1px; }
+.ps2-bar.top .ps2-title, .ps2-bar.top .ps2-id { margin-top: 16px; }
+.ps2-bar.bot .px-log { flex: 1; min-width: 0; }
+.ps2-stamp { position: absolute; right: 8%; top: 22%; font-size: 26px; z-index: 5; }

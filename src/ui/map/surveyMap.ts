@@ -52,7 +52,7 @@ export class SurveyMap {
     plot.append(this.head, this.cv, this.foot);
     el.append(plot);
     document.body.appendChild(el);
-    try { pxFrame(plot, { tone: 'steel', well: 9, wellTint: 0x0b0906, scan: true, hazard: true, chamfer: 12, seed: 41 }); } catch { /* no canvas */ }
+    try { pxFrame(plot, { tone: 'steel', well: 16, wellTint: 0x0b0906, scan: true, hazard: true, chamfer: 12, seed: 41, crest: true, serial: 'SURVEY PLOTTER SP-4', vents: true, lamps: ['g', 'a', 0], welds: true, gland: true }); } catch { /* no canvas */ }
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyM' && !e.repeat && !e.ctrlKey && !e.metaKey) {
         if (G.input?.textFocus || !G.local) return;

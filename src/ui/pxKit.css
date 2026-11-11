@@ -65,24 +65,43 @@ body.noclip-cine :is(.obj15, #hot12, .mg-tuner, .map15) { visibility: hidden !im
 
 /* ---- round 15b: the kit applied to the older 2D overlays ---- */
 /* the title and menu rooms: the menu words sit on riveted plates with a lamp instead of a chevron */
-.ft-item { border: 8px solid transparent; border-image: var(--px-steel) 8 fill / 8px; padding: 2px 16px 4px 8px; margin: 0 0 2px; }
-.ft-item:is(:hover, :focus-visible, :focus) { border-image-source: var(--px-steel-hot); }
-.ft-item:is(:active, .px-down) { border-image-source: var(--px-steel); filter: brightness(.9); }
-.ft-lg .ft-lab { font-size: 32px; }
-.ft-md .ft-lab, .ft-sm .ft-lab { font-size: 24px; }
-.ft-ptr { width: 10px !important; height: 10px; flex: none; background: #3a1c04; box-shadow: 0 0 0 1px #050404, 0 0 0 2px #566069; transition: none; }
-.ft-ptr::before { display: none; }
-.ft-item:is(:hover, :focus-visible, :focus) .ft-ptr { background: #ffd06a; box-shadow: 0 0 0 1px #050404, 0 0 0 2px #8d98a1, 0 0 8px 2px rgba(255,190,80,.55); }
-.mr-hotcap { border: 8px solid transparent; border-image: var(--px-steel) 8 fill / 8px; padding: 2px 12px 4px; }
-.mr-hotcap b { font-size: 24px; }
-.mr-hotcap small { -webkit-mask-image: var(--px-wear); mask-image: var(--px-wear); -webkit-mask-size: 48px 48px; mask-size: 48px 48px; }
-.mr-tip { font-family: var(--font-new); text-transform: uppercase; letter-spacing: .14em; -webkit-mask-image: var(--px-wear); mask-image: var(--px-wear); -webkit-mask-size: 48px 48px; mask-size: 48px 48px; }
+html .ft-item { border: 8px solid transparent; border-image: var(--px-steel) 8 fill / 8px; padding: 2px 16px 4px 8px; margin: 0 0 2px; }
+html .ft-item:is(:hover,html :focus-visible,html :focus) { border-image-source: var(--px-steel-hot); }
+html .ft-item:is(:active,html .px-down) { border-image-source: var(--px-steel); filter: brightness(.9); }
+html .ft-lg .ft-lab { font-size: 32px; }
+html .ft-md .ft-lab,html .ft-sm .ft-lab { font-size: 24px; }
+html .ft-ptr { width: 10px !important; height: 10px; flex: none; background: #3a1c04; box-shadow: 0 0 0 1px #050404, 0 0 0 2px #566069; transition: none; }
+html .ft-ptr::before { display: none; }
+html .ft-item:is(:hover,html :focus-visible,html :focus) .ft-ptr { background: #ffd06a; box-shadow: 0 0 0 1px #050404, 0 0 0 2px #8d98a1, 0 0 8px 2px rgba(255,190,80,.55); }
+html .mr-hotcap { border: 8px solid transparent; border-image: var(--px-steel) 8 fill / 8px; padding: 2px 12px 4px; }
+html .mr-hotcap b { font-size: 24px; }
+html .mr-hotcap small { -webkit-mask-image: var(--px-wear); mask-image: var(--px-wear); -webkit-mask-size: 48px 48px; mask-size: 48px 48px; }
+html .mr-tip { font-family: var(--font-new); text-transform: uppercase; letter-spacing: .14em; -webkit-mask-image: var(--px-wear); mask-image: var(--px-wear); -webkit-mask-size: 48px 48px; mask-size: 48px 48px; }
 /* HUD extras: the toasts are riveted plates */
-.k-toast { border: 8px solid transparent !important; border-image: var(--px-steel) 8 fill / 8px !important; font-family: var(--font-new) !important; color: #f3e8c8 !important; text-shadow: 1px 1px 0 #050404 !important;
+html .k-toast { border: 8px solid transparent !important; border-image: var(--px-steel) 8 fill / 8px !important; font-family: var(--font-new) !important; color: #f3e8c8 !important; text-shadow: 1px 1px 0 #050404 !important;
   animation: px-mech-in .46s steps(11, end) both !important; }
 /* the remaining CRT widgets: tabs and choices are phosphor keycaps drawn on the glass */
-.ct-scr .t-tab, .ct-scr .t-seg-b { padding: 0.08em 0.5em 0.14em !important; box-shadow: inset 0 0 0 1px rgba(var(--ct-rgb), .35), inset 0 -2px 0 rgba(var(--ct-rgb), .18); text-decoration: none !important; }
-.ct-scr :is(.t-tab, .t-seg-b).on { box-shadow: inset 0 0 0 1px var(--ct-ph), inset 0 -2px 0 var(--ct-dim), 0 0 6px var(--ct-glow); background: rgba(var(--ct-rgb), .12) !important; }
-.ct-scr :is(.t-tab, .t-seg-b):is(:active, .px-down) { transform: translateY(1px); box-shadow: inset 0 0 0 1px var(--ct-ph), inset 0 2px 0 rgba(0,0,0,.4); }
-.ct-scr .t-seg-b.on::before, .ct-scr .t-tab:focus span::before { content: none !important; }
-.ct-scr .t-slider input::-webkit-slider-runnable-track { background-image: repeating-linear-gradient(90deg, rgba(var(--ct-rgb), .45) 0 1px, transparent 1px 10%) !important; }
+html .ct-scr .t-tab,html .ct-scr .t-seg-b { padding: 0.08em 0.5em 0.14em !important; box-shadow: inset 0 0 0 1px rgba(var(--ct-rgb), .35), inset 0 -2px 0 rgba(var(--ct-rgb), .18); text-decoration: none !important; }
+html .ct-scr :is(.t-tab,html .t-seg-b).on { box-shadow: inset 0 0 0 1px var(--ct-ph), inset 0 -2px 0 var(--ct-dim), 0 0 6px var(--ct-glow); background: rgba(var(--ct-rgb), .12) !important; }
+html .ct-scr :is(.t-tab,html .t-seg-b):is(:active,html .px-down) { transform: translateY(1px); box-shadow: inset 0 0 0 1px var(--ct-ph), inset 0 2px 0 rgba(0,0,0,.4); }
+html .ct-scr .t-seg-b.on::before,html .ct-scr .t-tab:focus span::before { content: none !important; }
+html .ct-scr .t-slider input::-webkit-slider-runnable-track { background-image: repeating-linear-gradient(90deg, rgba(var(--ct-rgb), .45) 0 1px, transparent 1px 10%) !important; }
+
+/* ---- round 15c: the Institute's paperwork and plates (src/ui/pxKit.ts THE INSTITUTE) ---- */
+.px-mono { font-family: 'Courier Prime', 'IBM Plex Mono', monospace; letter-spacing: .03em; }
+.px-stamp { display: inline-block; padding: 2px 10px 1px; border: 3px double currentColor; color: #c0282a; font: 700 18px/1.1 'Courier Prime', monospace; letter-spacing: .22em; text-transform: uppercase;
+  transform: rotate(var(--tilt, -7deg)); opacity: .82; pointer-events: none; white-space: nowrap;
+  -webkit-mask-image: var(--px-wear); mask-image: var(--px-wear); -webkit-mask-size: 36px 36px; mask-size: 36px 36px; text-shadow: none; }
+.px-stamp.black { color: #17150f; } .px-stamp.green { color: #2e7a3a; }
+.px-redact { display: inline-block; height: .95em; vertical-align: -.12em; background: #0a0908; box-shadow: 1px 0 0 #0a0908, -1px 0 0 #0a0908; }
+.px-banner { display: flex; align-items: center; gap: 10px; padding: 3px 10px; background: repeating-linear-gradient(-45deg, #e8b52a 0 5px, #17150f 5px 10px) left / 8px 100% no-repeat, repeating-linear-gradient(-45deg, #e8b52a 0 5px, #17150f 5px 10px) right / 8px 100% no-repeat, linear-gradient(#4a0e0a, #330806);
+  padding-left: 16px; padding-right: 16px; font: 700 12px/1.2 'Courier Prime', monospace; letter-spacing: .18em; color: #f0d8c8; text-shadow: 1px 1px 0 #000; white-space: nowrap; overflow: hidden; }
+.px-banner > span:last-child { margin-left: auto; color: #ffd06a; }
+.px-crest, .px-serial, .px-placard, .px-gauge, .px-barcode { display: inline-block; flex: none; image-rendering: pixelated; vertical-align: middle; }
+.px-log { display: flex; align-items: center; gap: 10px; font: 11px/1.2 'Courier Prime', monospace; letter-spacing: .12em; color: rgba(236,226,204,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.px-doc { position: relative; color: #241c10; background: repeating-linear-gradient(to bottom, transparent 0 21px, rgba(60,80,120,.16) 21px 22px), linear-gradient(#e9dfc4, #ddd1b2);
+  box-shadow: inset 0 0 0 1px #8a7c5c, inset 0 0 22px rgba(90,70,30,.25); clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px); }
+.px-field { display: grid; grid-template-columns: auto 1fr; gap: 0 .8em; align-items: baseline; border-bottom: 1px dotted rgba(36,28,16,.45); padding: 2px 0; }
+.px-field > :first-child { font: 700 11px 'Courier Prime', monospace; letter-spacing: .14em; text-transform: uppercase; opacity: .7; }
+.ct-node { margin-left: auto; font: normal 11px/1 'Courier Prime', monospace; letter-spacing: .14em; color: var(--ct-dim); opacity: .8; }
+html .mr-banner { position: absolute; left: 0; right: 0; top: 0; z-index: 9; height: 18px; padding-top: 1px; padding-bottom: 1px; opacity: .92; }

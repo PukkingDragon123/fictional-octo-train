@@ -4,7 +4,7 @@
   background: radial-gradient(ellipse 80% 75% at 50% 50%, rgba(0,0,0,0) 45%, rgba(0,0,0,.6) 100%); }
 .map15.on { display: flex; animation: map15-in .32s cubic-bezier(.16,.84,.24,1) both; }
 @keyframes map15-in { from { opacity: 0; transform: scale(1.02); } to { opacity: 1; transform: none; } }
-.map15-plot { position: relative; width: min(1080px, 92vw); height: min(700px, 84vh); box-sizing: border-box; padding: 18px 22px 16px; display: flex; flex-direction: column; gap: 6px; }
+.map15-plot { position: relative; width: min(1080px, 92vw); height: min(700px, 84vh); box-sizing: border-box; padding: 24px 28px 22px; display: flex; flex-direction: column; gap: 6px; }
 .map15-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 6px; color: #ffcf6a; text-shadow: 0 0 8px rgba(255,180,70,.35), 1px 1px 0 #050404; }
 .map15-head b { font-weight: normal; font-size: 24px; letter-spacing: .04em; }
 .map15-head small { font-size: 14px; letter-spacing: .2em; text-transform: uppercase; color: rgba(255,207,106,.6); }

@@ -5,7 +5,7 @@
 .mg-tuner.out { opacity: 0; visibility: visible; transition: opacity .6s ease; }
 .mg-tuner small { font: normal 14px/1.2 var(--font-new); color: #efe3c0; letter-spacing: .04em; text-shadow: 1px 1px 0 #0a0806, -1px 0 0 #0a0806, 0 -1px 0 #0a0806, 1px 0 0 #0a0806; }
 .mg-cal-veil { position: fixed; inset: 0; z-index: 82; display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse 70% 65% at 50% 50%, rgba(6,5,3,.35), rgba(4,3,2,.78)); }
-.mg-cal { position: relative; box-sizing: border-box; width: min(540px, 92vw); padding: 18px 22px 14px; display: flex; flex-direction: column; gap: 10px;
+.mg-cal { position: relative; box-sizing: border-box; width: min(560px, 92vw); padding: 24px 28px 22px; display: flex; flex-direction: column; gap: 10px;
   font-family: var(--font-new); color: #efe3c0; cursor: var(--cur-hand, pointer); user-select: none; animation: mg-in .25s cubic-bezier(.16,.84,.24,1) both; }
 .mg-cal.in-host { width: 100%; }
 .mg-cal-veil.out, .mg-cal.out { opacity: 0; transition: opacity .45s ease; }

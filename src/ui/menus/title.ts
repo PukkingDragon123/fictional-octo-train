@@ -16,6 +16,7 @@
 // for the creator (intake.ts). SETTINGS sits beside a real 3D steel gear
 // (gears3d.ts); CONTROLS, ABOUT, CO-OP and the CASE FILES open on a green
 // phosphor terminal (terminal.ts).
+import { pxBanner, CLEARANCE } from '../pxKit';
 import { Game } from '../../game/game';
 import { randomAppearance } from '../../entities/humanRig';
 import { randomLooks } from '../../entities/humanLooks';
@@ -83,7 +84,8 @@ class TitleRoom {
   cap = h('div', 'tt3-cap kf');
   hotcap = h('div', 'mr-hotcap');
   feedNav = h('div', 'mr-feeds');
-  hud = h('div', 'mr-hud');
+  // the Institute banner across the top of the booth (the UI kit, round 15c)
+  hud = (() => { const d = h('div', 'mr-hud'); const bn = pxBanner(CLEARANCE, 'OBSERVATION BOOTH 4'); bn.classList.add('mr-banner'); d.append(bn); return d; })();
   foot = h('div', 'tt3-foot kf', '<span>arrows · enter · esc · 1 2 3 feeds</span><span>Observation · Meridian Institute</span>');
   over = h('div', 'nx-over');
   room: SubjectRoom;

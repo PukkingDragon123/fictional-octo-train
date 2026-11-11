@@ -62,7 +62,8 @@ const CSS = `
 .rs-root.on { opacity: 1; transform: translate(-50%, 0); }
 .rs-root > canvas { position: absolute; left: 0; top: 0; }
 .rs-in { position: relative; padding: 20px 24px 16px; width: min(560px, calc(100vw - 32px)); box-sizing: border-box; color: #8dff7a; font-size: 16px; line-height: 18px; }
-.rs-h { display: flex; justify-content: space-between; opacity: .75; }
+.rs-h { display: flex; justify-content: space-between; opacity: .75; font-family: 'Courier Prime', monospace; font-size: 12px; letter-spacing: .16em; }
+.rs-stamp { position: absolute; right: 22px; top: 44px; font-size: 22px; }
 .rs-sub { margin-top: 4px; } .rs-sub b { font-weight: 400; color: #d8ffd2; }
 .rs-rows { margin-top: 8px; }
 .rs-row { display: grid; grid-template-columns: 1fr auto 3.5em; gap: 12px; color: #8dff7a; opacity: 0; transition: opacity .15s steps(2); }
@@ -111,7 +112,8 @@ function showSummary(g: Game, p: Player, r: RunReport) {
   root.className = 'rs-root';
   const rows = r.lines.map((l) => `<div class="rs-row"><span>${esc(l.label)}</span><span>${esc(l.value)}</span><span>${l.rp ? '+' + l.rp : ''}</span></div>`).join('');
   root.innerHTML = `<div class="rs-in">
-    <div class="rs-h"><span>MERIDIAN INSTITUTE</span><span>RUN FILED</span></div>
+    <div class="rs-h"><span>MERIDIAN INSTITUTE · RUN REPORT · CLASSIFIED</span><span>RUN FILED</span></div>
+    <span class="px-stamp green rs-stamp" style="--tilt:-9deg">Filed</span>
     <div class="rs-sub">UNIT <b>${esc(r.name.toUpperCase())}</b> · ${esc(r.cause.text.toUpperCase())}</div>
     <div class="rs-rows">${rows}</div>
     <div class="rs-tot"><span>RESEARCH POINTS</span><b>+${r.rp}</b></div>

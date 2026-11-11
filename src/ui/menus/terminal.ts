@@ -270,7 +270,9 @@ export function terminal(o: TermOpts = {}): Terminal {
     head.hidden = false;
     const b = document.createElement('b'); b.textContent = t;
     head.append(b);
+    const nd = document.createElement('i'); nd.className = 'ct-node'; nd.textContent = 'NODE MI-' + String(seed % 97).padStart(2, '0') + '-' + String((seed >>> 7) % 1000).padStart(3, '0');
     if (s) { const sm = document.createElement('small'); sm.textContent = s; head.append(sm); }
+    head.append(nd);
   };
   setHead(o.title || '', o.sub || '');
   let last = '';

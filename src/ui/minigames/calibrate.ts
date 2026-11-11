@@ -47,7 +47,7 @@ export function calibrate(o: CalibrateOpts = {}): Promise<CalibrateResult> {
     panel.append(foot);
     if (overlay) { overlay.append(panel); document.body.append(overlay); } else o.host!.append(panel);
     let frame: { dispose: () => void } | null = null;
-    try { frame = pxFrame(panel, { tone: 'steel', well: 0, chamfer: 10, hazard: true, seed: 77 }); } catch { /* no canvas */ }
+    try { frame = pxFrame(panel, { tone: 'steel', well: 14, wellTint: 0x0e0d0b, chamfer: 10, hazard: true, seed: 77, crest: true, serial: 'CAL RIG C-7', lamps: ['a', 0], welds: true }); } catch { /* no canvas */ }
     let cur = 0, raf = 0, last = 0, done = false;
     // on top of any menu's focus stack: Esc walks away from this, not from the menu under it
     const nav = new FocusNav(panel, { onBack: () => finish(true) });

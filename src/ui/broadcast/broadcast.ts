@@ -32,6 +32,7 @@ type Tab = 'active' | 'offers' | 'done';
 const TABS: Tab[] = ['active', 'offers', 'done'];
 const TAB_NAME: Record<Tab, string> = { active: 'ACTIVE', offers: 'OFFERS', done: 'DONE' };
 const D = 2.4;
+const hashStr = (t: string) => { let h = 7; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return h; };
 // palette: Meridian projection light
 const ICE = '#cfeeff', ICE_D = '#7fb4d4', ICE_DD = '#3f6a86', AMB = '#ffd27a', AMB_D = '#c8933a', OK = '#9ef0b4', BAD = '#ff8f7a';
 
@@ -370,6 +371,7 @@ export class QuestBroadcast {
     P.grad(0, 0, W, H, 'rgba(16,44,64,0.78)', 'rgba(6,18,30,0.66)');
     P.frame(0, 0, W, H, 'rgba(120,200,240,0.4)');
     P.corners(1, 1, W - 2, H - 2, AMB_D, 8);
+    P.text('MERIDIAN INSTITUTE · CASE ' + 'MI/C-' + String(Math.abs(hashStr(this.cur()?.key ?? '')) % 10000).padStart(4, '0') + ' · CLEARANCE L2', W - 6, H - 9, ICE_DD, 6, 'right');
     const v = this.cur();
     if (!v) {
       P.text('NO SIGNAL', W / 2, H / 2 - 12, ICE_DD, 16, 'center');

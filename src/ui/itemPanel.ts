@@ -21,8 +21,9 @@ import { opsForItem, pickTool, pickParts, toolLabel, partLabel, type HandOp } fr
 import { hasUnlock, researchNode } from '../game/research';
 import { itemMatter, MAT, type Mat } from '../game/economy/matter';
 import { itemIcon, iconVariant } from './icons';
-import { crispCanvas, bevel, rivet, rect, glass, hazard, drawBar, GUN, AMB, GRN, RED, dprK } from './hiPixel';
+import { crispCanvas, bevel, rivet, rect, glass, hazard, drawBar, drawGauge, GUN, AMB, GRN, RED, dprK } from './hiPixel';
 import { DETAIL } from '../items/detailModels';
+import { pxBarcode, pxCrestEl } from './pxKit';
 import { itemValue } from '../game/debt/values';
 import type { MenuOption } from './ui';
 
@@ -67,6 +68,44 @@ function keyArt(w: number, h: number, state: 'up' | 'hover' | 'down', lamp: Lamp
   return url;
 }
 
+// ---------------------------------------------------------------- the Institute's paperwork
+type ClassK = 'inert' | 'bio' | 'haz' | 'ord' | 'anom';
+/** how the Institute files a thing: its class band, the label on it and the stamp across the card */
+export function classify(it: Item): { k: ClassK; lvl: string; label: string; stamp: string } {
+  const d = itemDef(it.key), tags = d.tags || [];
+  const mat = itemMatter(it);
+  const tot = Object.values(mat).reduce((a, b) => a + (b ?? 0), 0) || 1;
+  if (d.cat === 'anomaly' || d.anomaly || (mat.exotic ?? 0) / tot > 0.3) return { k: 'anom', lvl: 'CLASS IV', label: 'Anomalous', stamp: 'CONTAINED' };
+  if (d.weapon && (d.weapon.kind === 'firearm' || d.weapon.fire || d.weapon.kind === 'thrown')) return { k: 'ord', lvl: 'CLASS III', label: 'Ordnance', stamp: 'ARMED' };
+  if (d.weapon) return { k: 'haz', lvl: 'CLASS II', label: d.weapon.kind === 'blade' || d.weapon.kind === 'axe' ? 'Edged hazard' : 'Impact hazard', stamp: 'LOGGED' };
+  if ((mat.chem ?? 0) / tot > 0.4 || tags.includes('poison') || tags.includes('fuel')) return { k: 'haz', lvl: 'CLASS II', label: 'Chemical hazard', stamp: 'CAUTION' };
+  if (d.food || d.cat === 'corpse' || (mat.organic ?? 0) / tot > 0.5) return { k: 'bio', lvl: 'CLASS I', label: 'Biological', stamp: d.food?.fresh || d.food?.rot ? 'PERISHABLE' : 'RATIONED' };
+  if (d.medical) return { k: 'bio', lvl: 'CLASS I', label: 'Medical supply', stamp: 'ISSUED' };
+  return { k: 'inert', lvl: 'CLASS 0', label: 'Inert', stamp: 'LOGGED' };
+}
+/** the case number on the card: the kind's file and this one's tag */
+export function caseNo(it: Item): string {
+  const h = Math.abs([...it.key].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) | 0, 7));
+  return 'MI-EV-' + String(h % 90000 + 10000) + '/' + String(it.uid % 1000).padStart(3, '0');
+}
+/** a code-128-looking barcode for a case number (bars from its characters), bone label stock */
+function barcode(text: string, w: number, h: number): HTMLCanvasElement {
+  const { cv, c } = crispCanvas(w, h);
+  let s = 0;
+  for (const ch of text) s = (s * 131 + ch.charCodeAt(0)) >>> 0;
+  pxBarcode(c, 2, 2, w - 4, h - 4, s % 9973);
+  return cv;
+}
+
+/** patchy rubber-stamp ink (a mask) */
+function inkArt(): string {
+  const N = 48;
+  const { cv, c } = crispCanvas(N, N);
+  let s = 77;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) { s = (s * 1103515245 + 12345) >>> 0; const v = (s >> 8) % 100; if (v > 12) rect(c, x, y, 1, 1, 0x000000, v > 30 ? 1 : 0.5); }
+  return cv.toDataURL();
+}
+
 /** a point-of-interest reticle: amber corner brackets round a small dark chamfered plate */
 function markArt(on: boolean): string {
   const N = 26;
@@ -94,6 +133,7 @@ function style() {
 .ipnl .ip-lamp { position: absolute; left: 10px; top: 11px; width: 7px; height: 9px; background: #f2ad32; box-shadow: 0 0 7px rgba(242,173,50,0.85), inset 0 -3px 0 #d8861c, inset 1px 1px 0 #fff0bc; animation: ip-flick 5.3s steps(1) infinite; pointer-events: none; }
 .ipnl .ip-lamp.g { background: #48dc70; box-shadow: 0 0 7px rgba(72,220,112,0.8), inset 0 -3px 0 #24b04c, inset 1px 1px 0 #e0ffe8; }
 @keyframes ip-flick { 0% { opacity: 1; } 37% { opacity: 0.55; } 38% { opacity: 1; } 71% { opacity: 0.85; } 72% { opacity: 0.25; } 73% { opacity: 1; } 91% { opacity: 0.7; } 92% { opacity: 1; } }
+.ipnl .ip-crest { position: absolute; left: 22px; top: 9px; width: 14px; height: 14px; image-rendering: pixelated; pointer-events: none; }
 .ipnl .ip-hd { position: absolute; left: 22px; top: 9px; right: 96px; font-size: 11px; letter-spacing: 0.16em; color: #f2ad32; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
 .ipnl .ip-x { position: absolute; right: 12px; top: 6px; width: 24px; height: 20px; border: 0; padding: 0; background: transparent center/100% 100% no-repeat; color: #25201b; font: inherit; font-size: 12px; cursor: pointer; }
 .ipnl .ip-top { display: flex; gap: 12px; }
@@ -102,7 +142,27 @@ function style() {
 .ipnl .ip-well .ip-n { position: absolute; right: 6px; bottom: 4px; font-size: 13px; color: #ffd06a; }
 .ipnl .ip-id { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .ipnl .ip-name { font-size: 21px; line-height: 1.02; color: #f4efde; text-shadow: 0 2px 0 #07080a; }
-.ipnl .ip-kind { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #8d98a1; }
+.ipnl .ip-kind { font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; color: #c4bca2; -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 6px); mask-image: repeating-linear-gradient(90deg, #000 0 5px, transparent 5px 6px); }
+.ipnl .ip-ban { position: relative; display: flex; align-items: center; gap: 8px; height: 22px; margin: -2px 0 9px 0; padding: 0 6px 0 8px; background: #121417; box-shadow: inset 0 -1px 0 #566069, inset 0 2px 0 #000; overflow: hidden; }
+.ipnl .ip-ban b { font-weight: normal; font-size: 12px; letter-spacing: 0.16em; padding: 2px 6px 1px; color: #07080a; background: #c4bca2; }
+.ipnl .ip-ban em { font-style: normal; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: #c4bca2; flex: 1; white-space: nowrap; overflow: hidden; }
+.ipnl .ip-ban span { font-size: 10px; letter-spacing: 0.08em; color: #8d98a1; white-space: nowrap; }
+.ipnl .ip-ban canvas { flex: 0 0 auto; }
+.ipnl .ip-ban.k-bio b { background: #48dc70; } .ipnl .ip-ban.k-bio em { color: #96ffb0; }
+.ipnl .ip-ban.k-haz b { background: #f2ad32; } .ipnl .ip-ban.k-haz em { color: #ffd06a; }
+.ipnl .ip-ban.k-ord b { background: #f05a3a; } .ipnl .ip-ban.k-ord em { color: #ff9a7a; }
+.ipnl .ip-ban.k-anom b { background: #d88aff; } .ipnl .ip-ban.k-anom em { color: #e8c4ff; }
+.ipnl .ip-ban.k-haz, .ipnl .ip-ban.k-ord { background: repeating-linear-gradient(135deg, #17150f 0 6px, #2a2414 6px 12px); }
+.ipnl .ip-stamp { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%) rotate(-9deg); padding: 2px 6px 1px; font-size: 13px; letter-spacing: 0.22em; color: #e8442e; border: 2px solid currentColor; box-shadow: 0 0 0 1px rgba(232,68,46,0.25), inset 0 0 0 1px rgba(232,68,46,0.35); opacity: 0.86; white-space: nowrap; pointer-events: none; -webkit-mask-image: var(--ip-ink); mask-image: var(--ip-ink); -webkit-mask-size: 48px 48px; mask-size: 48px 48px; }
+.ipnl .ip-stamp.k-bio { color: #6ad88a; } .ipnl .ip-stamp.k-anom { color: #d88aff; } .ipnl .ip-stamp.k-inert { color: #8db4d8; }
+.ipnl .ip-gauge { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #b4bec4; }
+.ipnl .ip-gauge b { font-weight: normal; color: #f2ad32; font-size: 10px; letter-spacing: 0.1em; min-width: 40px; }
+.ipnl .ip-gauge canvas { flex: 1; min-width: 0; }
+.ipnl .ip-fields { margin-top: 7px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: #b4bec4; }
+.ipnl .ip-fields b { font-weight: normal; font-size: 10px; letter-spacing: 0.12em; color: #f2ad32; margin-right: 6px; }
+.ipnl .ip-fields q { quotes: none; color: #ffd06a; }
+.ipnl .ip-fields i { font-style: normal; font-size: 10px; color: #566069; letter-spacing: 0.08em; text-transform: uppercase; }
+.ipnl .ip-red { display: inline-block; height: 11px; vertical-align: -1px; background: #050506; box-shadow: inset 0 1px 0 #272b30, 1px 1px 0 #000; }
 .ipnl .ip-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #b4bec4; }
 .ipnl .ip-row b { font-weight: normal; color: #f2ad32; min-width: 40px; font-size: 11px; letter-spacing: 0.1em; }
 .ipnl .ip-row canvas { flex: 1; min-width: 0; }
@@ -140,7 +200,8 @@ function style() {
 .ip-mark.on i, .ip-mark:hover i { color: #25201b; text-shadow: none; }
 .ip-mark.back { opacity: 0.5; }
 `;
-  st.textContent += `:root { --ip-mark: url(${markArt(false)}); --ip-mark-on: url(${markArt(true)}); }`;
+  st.textContent += `:root { --ip-mark: url(${markArt(false)}); --ip-mark-on: url(${markArt(true)}); --ip-ink: url(${inkArt()}); }`;
+  st.textContent += `.ipnl .ip-lamp.r { background: #f05a3a; box-shadow: 0 0 7px rgba(240,90,58,0.85), inset 0 -3px 0 #8e1a10, inset 1px 1px 0 #ffe0d4; }`;
   document.head.appendChild(st);
 }
 
@@ -179,6 +240,9 @@ class ItemPanel {
     const W = Math.min(360, window.innerWidth - 16);
     el.style.width = W + 'px';
     el.innerHTML = this.html(it, group);
+    const crest = pxCrestEl(14); crest.className = 'ip-crest'; el.appendChild(crest);
+    const ck = classify(it).k;
+    if (ck === 'haz' || ck === 'ord' || ck === 'anom') el.dataset.haz = '1';
     document.body.appendChild(el);
     this.el = el;
     this.bars(it);
@@ -213,10 +277,10 @@ class ItemPanel {
   // ------------------------------------------------ content
   private html(it: Item, group: Item[]): string {
     const d = itemDef(it.key);
-    const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
+    const esc = (t: string) => t.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
     const sz = size3(it.key);
-    const cat = (d.cat || 'misc') + (d.weapon ? ' · ' + d.weapon.kind : d.medical ? ' · ' + d.medical.type : d.food?.ingredient ? ' · ' + d.food.ingredient : '');
-    const cid = 'CAT-' + (Math.abs([...it.key].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) | 0, 7)) % 9000 + 1000);
+    const cat = (d.cat || 'misc') + (d.weapon ? ' / ' + d.weapon.kind : d.medical ? ' / ' + d.medical.type : d.food?.ingredient ? ' / ' + d.food.ingredient : '');
+    const cl = classify(it);
     const icon = itemIcon(it.key, iconVariant(it), Math.min(176, Math.round(120 * dprK())));
     let val = d.value ?? 0;
     try { val = itemValue(it); } catch { /* no economy */ }
@@ -225,16 +289,20 @@ class ItemPanel {
       .map((k) => `<span><i style="background:${MAT[k].color}"></i>${MAT[k].code} ${(mat[k] ?? 0).toFixed(2)}</span>`).join('');
     const stats = this.stats(it).map(([k, v]) => `<div>${esc(k)}<span>${esc(v)}</span></div>`).join('');
     const lore = DETAIL[it.key]?.poi?.[0];
-    const loreText = lore ? (typeof lore.note === 'function' ? lore.note(it) : lore.note) : d.anomaly ? 'Anomalous. Logged for the archive.' : '';
-    return `<canvas class="ip-bg"></canvas><i class="ip-lamp"></i><div class="ip-hd">Item record · ${esc(cid)}</div><button class="ip-x" data-x title="Close (Esc)">X</button>
-<div class="ip-in"><div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}</div>
+    const loreText = lore ? (typeof lore.note === 'function' ? lore.note(it) : lore.note) : '';
+    const red = (n: number) => `<span class="ip-red" style="width:${n}px"></span>`;
+    const anom = cl.k === 'anom';
+    return `<canvas class="ip-bg"></canvas><i class="ip-lamp${anom ? ' r' : ''}"></i><div class="ip-hd" style="left:42px">Meridian Institute · Evidence card</div><button class="ip-x" data-x title="Close (Esc)">X</button>
+<div class="ip-in"><div class="ip-ban k-${cl.k}"><b>${cl.lvl}</b><em>${cl.label}</em><span>${caseNo(it)}</span><canvas class="ip-bc" data-case="${caseNo(it)}"></canvas></div>
+<div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}<div class="ip-stamp k-${cl.k}">${cl.stamp}</div></div>
 <div class="ip-id"><div class="ip-name">${esc(itemName(it))}</div><div class="ip-kind">${esc(cat)}</div>
 <div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg · ${sz[0]}x${sz[1]}x${sz[2]}</div>
-<div class="ip-row" data-bar="cond"><b>COND</b><canvas></canvas></div>
+<div class="ip-gauge" data-gauge="cond"><b>${d.durability || d.weapon ? 'CONDITION' : 'STATE'}</b><canvas></canvas><span>${Math.round(it.cond * 100)}%</span></div>
 ${this.meter(it) ? `<div class="ip-row" data-bar="meter"><b>${this.meter(it)![0]}</b><canvas></canvas></div>` : ''}
 <div class="ip-row"><b>VALUE</b>${val ? val + ' scrip' : 'no market'}</div>
 <div class="ip-mat">${mats}</div></div></div>
-${d.desc ? `<div class="ip-desc">${esc(d.desc)}</div>` : ''}${loreText ? `<div class="ip-lore">Field note: ${esc(loreText)}</div>` : ''}
+${d.desc ? `<div class="ip-desc">${esc(d.desc)}</div>` : ''}
+<div class="ip-fields"><div><b>RECOVERED</b>Level ${red(26)} · grid ${red(34)}</div>${anom ? `<div><b>PROPERTIES</b>${red(70)} ${red(46)} <i>research to declassify</i></div>` : ''}${loreText ? `<div><b>FIELD NOTE</b><q>${esc(loreText)}</q></div>` : ''}</div>
 ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
 <div class="ip-keys"></div><div class="ip-hint">Arrows · Enter · Esc  /  Pad: A use · B close</div></div>`;
   }
@@ -277,9 +345,18 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
       const pct = document.createElement('span'); pct.textContent = Math.round(frac * 100) + '%'; pct.style.minWidth = '30px'; pct.style.textAlign = 'right';
       row.appendChild(pct);
     };
-    const worn = d.durability || d.weapon;
-    put('cond', it.cond, it.cond > 0.6 ? GRN : it.cond > 0.3 ? AMB : RED);
-    if (!worn) { const r = el.querySelector('[data-bar="cond"] b'); if (r) r.textContent = 'STATE'; }
+    void d;
+    // the condition gauge: a riveted housing, the safe band lit green, the needle at the reading
+    const gr = el.querySelector('[data-gauge="cond"]') as HTMLElement | null, gc = gr?.querySelector('canvas');
+    if (gr && gc) {
+      const w = Math.max(60, Math.round(gr.getBoundingClientRect().width)), h = 26;
+      const { cv, c } = crispCanvas(w, h);
+      drawGauge(c, w, h, { zones: [[0.6, 1]], x: it.cond, fill: it.cond });
+      gc.replaceWith(cv);
+    }
+    // the case barcode
+    const bc = el.querySelector('canvas.ip-bc') as HTMLCanvasElement | null;
+    if (bc) { const k = barcode(bc.dataset.case || '', 92, 16); k.className = 'ip-bc'; bc.replaceWith(k); }
     const m = this.meter(it);
     if (m) put('meter', m[1], m[2]);
   }
@@ -437,6 +514,8 @@ export function plateBg(el: HTMLElement) {
   for (let y = H - 34; y < H - 7; y++) rect(c, 6, y, W - 16, 1, 0x1a1408, 0.011 * (y - (H - 34)));
   for (const [x, y] of [[9, H - 13], [W - 13, H - 13], [W - 52, 16]]) { rect(c, x - 5, y - 5, 11, 11, 0x1a1408, 0.14); rect(c, x - 1, y + 3, 2, 3 + R() * 7, 0x6a3a1a, 0.4); rect(c, x, y + 4, 1, 2 + R() * 5, 0x8a4c22, 0.35); }
   for (let i = 0; i < 26; i++) { const top = R() < 0.5, x = 6 + R() * (W - 18), y = top ? 2 + R() * 3 : H - 10 + R() * 3; rect(c, x, y, 1 + R() * 3, 1, GUN[9], 0.45); }
+  // dangerous things get hazard striping down the plate's left edge
+  if (el.dataset.haz) { hazard(c, 3, 40, 4, H - 64, 0xe8b52a, 0x17150f, 6); rect(c, 7, 40, 1, H - 64, 0x000000, 0.6); }
   // header band and a hazard notch (the lamp in it is a live element: it flickers)
   rect(c, 8, 6, W - 18, 20, GUN[1]); rect(c, 8, 26, W - 18, 1, GUN[6]);
   rect(c, 9, 10, 9, 11, 0x050404); rect(c, 9, 10, 9, 1, GUN[6]);

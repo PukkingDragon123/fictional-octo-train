@@ -34,6 +34,7 @@ import { Dymo, Slate } from './props';
 import { itemPois, type PoiAt } from '../items/itemLook';
 import { eyeActive } from '../fp/eye';
 import { hiKey, paintKey, plateBg, ensureCardStyle } from '../ui/itemPanel';
+import { pxCrestEl } from '../ui/pxKit';
 import { crispCanvas, drawBar, GRN, AMB, RED } from '../ui/hiPixel';
 import { metalMat } from './metal';
 import { Shape } from './shapes';
@@ -297,7 +298,7 @@ export class Inspect {
     const d = it ? itemDef(it.key) : null;
     const kind = d ? (d.cat || 'misc') + (d.weapon ? ' · ' + d.weapon.kind : '') : 'furniture';
     const desc = it ? (d?.desc || '') : 'Tipped over. Four legs held on with glue and habit. Each one a straight dry length of hardwood: a handle, a club, a splint.';
-    el.innerHTML = `<canvas class="ip-bg"></canvas><i class="ip-lamp g"></i><div class="ip-hd">In hand · ${esc(kind)}</div>
+    el.innerHTML = `<canvas class="ip-bg"></canvas><i class="ip-lamp g"></i><div class="ip-hd" style="left:42px">Meridian · in hand · ${esc(kind)}</div>
 <div class="ip-in"><div class="ip-name">${esc(name)}</div>
 ${it ? `<div class="ip-row" data-bar="cond"><b>COND</b></div><div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg${d?.value ? ' · ' + d.value + ' scrip' : ''}</div>` : ''}
 ${!it || !this.pois.length ? `<div class="ip-desc">${esc(desc)}</div>` : ''}
@@ -305,6 +306,7 @@ ${!it || !this.pois.length ? `<div class="ip-desc">${esc(desc)}</div>` : ''}
 <div class="ip-keys"></div><div class="ip-hint">${L.narrow ? 'Drag: turn · Pinch: closer' : 'Drag: turn · Wheel: closer · 1-4: marks · F: flip'}</div></div>`;
     el.addEventListener('pointerdown', (e) => e.stopPropagation());
     el.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+    const crest = pxCrestEl(14); crest.className = 'ip-crest'; el.appendChild(crest);
     this.root.appendChild(el);
     this.dock = el;
     if (it) {
