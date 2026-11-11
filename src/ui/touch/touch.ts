@@ -160,8 +160,7 @@ export class TouchControls implements GameSystem {
     this.btn(tl, 'emote', 'emote', { label: 'EMOTE', s: 0.85, tap: () => this.sys('social', 'toggleWheel', 'emote') });
     const tr = this.group('tr', 'nc-group nc-row nc-tr');
     this.btn(tr, 'chat', 'chat', { label: 'CHAT', s: 0.95, on: 'up', tap: () => this.openChat() });
-    this.btn(tr, 'map', 'map', { label: 'MAP', s: 0.95, tap: () => { const sc = this.g.ui?.scanner; if (sc?.open && sc.page === 'map') sc.toggle(false); else sc?.toggle(true, 'map'); } });
-    this.btn(tr, 'scanner', 'watch', { label: 'WATCH', s: 0.95, tap: () => { const w = (this.g as any).watch; if (w?.toggle) w.toggle(); else this.g.ui?.scanner?.toggle?.(); } });
+    // (round 14: the WATCH and MAP buttons went with the wrist watch; quests are QUESTS, scanning is hold Q)
     this.btn(tr, 'quest', 'quest', { label: 'QUESTS', s: 0.95, tap: () => (this.g as any).broadcast?.toggle?.() });
     this.btn(tr, 'self', 'self', { label: 'SELF', s: 0.95, tap: () => (this.g as any).selfInspect?.toggle?.() });
     this.btn(tr, 'inv', 'inventory', { label: 'PACK', s: 0.95, tap: () => { const pk = (this.g as any).pack; if (pk?.toggle) pk.toggle(); else this.g.ui?.inventory?.toggle?.(); } });
@@ -360,7 +359,7 @@ export class TouchControls implements GameSystem {
     this.show('run', free && mode === 'walk' && !scanCovers && !ad);
     this.show('power', free && mode === 'walk' && !scanCovers && !ad);
     this.show('act', free && mode === 'walk' && !scanCovers && !ad);
-    for (const k of ['photo', 'build', 'emote', 'map']) this.show(k, !ad);
+    for (const k of ['photo', 'build', 'emote']) this.show(k, !ad);
     this.show('quest', ad);
     this.show('self', ad);
     this.show('drive', free && mode === 'drive');
@@ -382,8 +381,6 @@ export class TouchControls implements GameSystem {
     this.setOn('grab', !!gr?.holding);
     this.setOn('power', inp.heldVirtual('power') || inp.down('power'));
     this.setOn('build', !!(g as any).build?.active);
-    this.setOn('scanner', scan || !!(g as any).watch?.open);
-    this.setOn('map', scan && sc.page === 'map');
     this.setOn('inv', inv || !!(g as any).pack?.open);
     if (seat) {
       this.setOn('hlights', !!seat.v.lights);
