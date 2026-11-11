@@ -4,7 +4,9 @@
 import * as THREE from 'three';
 import { fbox } from '../ui/touch/facet';
 import { worldMaterial } from '../gfx/materials';
-import { itemGeometry } from '../items/itemMeshes';
+import { itemGeometry, itemCloseGeometry } from '../items/itemMeshes';
+import { itemCloseMat } from '../items/itemLook';
+import type { Item } from '../items/item';
 import { ORIENT, type Rot } from '../items/grid';
 import { G } from '../game/G';
 import { fpArm, type FpArm, type HandPose } from '../fp/hands';
@@ -94,15 +96,16 @@ export interface ItemObj { outer: THREE.Group; mesh: THREE.Mesh | null; key: str
 /** an unknown item: a chamfered, faceted crate shape (never a raw cube) */
 const fallbackGeo = fbox(1, 1, 1, 0.18);
 /** an item model wrapped for fitting: position/scale/quaternion go on `outer` */
-export function makeItemObj(key: string, mat?: THREE.Material): ItemObj {
+export function makeItemObj(key: string, mat?: THREE.Material, it?: Item | null): ItemObj {
   const outer = new THREE.Group();
   const mid = new THREE.Group();
   outer.add(mid);
   const a = itemAlign(key);
-  const g = itemGeometry(key);
+  // the close-up model (detail mode, surfaces, contact shadow) in the real material, unless the caller brings its own
+  const g = mat ? itemGeometry(key) : itemCloseGeometry(key) || itemGeometry(key);
   let mesh: THREE.Mesh;
   if (g && a) {
-    mesh = new THREE.Mesh(g, mat || fpMat());
+    mesh = new THREE.Mesh(g, mat || (g.attributes.aSurf ? itemCloseMat(it) : fpMat()));
     mesh.position.copy(a.center).negate();
     mid.quaternion.copy(a.q);
   } else {

@@ -7,6 +7,7 @@ import { G } from '../G';
 import { installTravelCine, type Entrance } from './travel';
 import { installMoments, reentryShot, revealLevel, facilityFound, checkpointShot } from './moments';
 import { cineEnabled, cineRunning } from './engine';
+import { isLoading } from '../../ui/loading';
 import type { FacInfo } from '../../world/gen/facilities';
 
 export { cineEnabled, cineRunning, checkpointShot };
@@ -19,8 +20,10 @@ export function installCine(g: Game, o: { reentry?: boolean } = {}) {
     let t = 0;
     const sys = { name: 'cineReentry', update: (dt: number) => {
       t += dt;
-      if (t < 0.4) return;
-      g.systems.splice(g.systems.indexOf(sys), 1);
+      // after the boot loader has gone (the UI's, src/ui/loading.ts)
+      if (t < 0.4 || (isLoading() && t < 15)) return;
+      queueMicrotask(() => { const i = g.systems.indexOf(sys); if (i >= 0) g.systems.splice(i, 1); });
+      t = -1e9;
       const cp = (G as unknown as { checkpoint?: { label?: string } }).checkpoint;
       reentryShot(cp?.label || 'the relay');
     } };

@@ -12,6 +12,8 @@ import { sfx } from './sfx';
 import './kit.css';
 
 const K = 0x0a0806;
+/** the face plate's and the glass's 45-degree corner cuts, in art px (round 15: flat chamfers, never a rounded tube) */
+const FACE_CUT = 12, GLASS_CUT = 9;
 const OLIVE = [K, 0x141810, 0x22281a, 0x333b27, 0x465036, 0x5c6847, 0x84916a];
 const BEIGE = [K, 0x4a4030, 0x7a6c52, 0xa3967a, 0xbcb092, 0xd4c9aa, 0xeee4c8];
 const STEEL = [K, 0x121518, 0x1f2428, 0x2d343a, 0x3e474e, 0x56616a, 0x8a969e];
@@ -33,8 +35,8 @@ function drawHousing(pc: PixelCanvas, W: number, H: number, bz: Bezel, seed: num
   const sx = bz.S, sy = bz.T, sw = cw - bz.S * 2, sh = ch - bz.T - bz.B;
   const fp = 5; // beige face plate width
   const inFace = (x: number, y: number) => x >= sx - fp && y >= sy - fp && x < sx + sw + fp && y < sy + sh + fp
-    && !((x - (sx - fp)) + (y - (sy - fp)) < 7 || ((sx + sw + fp - 1) - x) + (y - (sy - fp)) < 7 || (x - (sx - fp)) + ((sy + sh + fp - 1) - y) < 7 || ((sx + sw + fp - 1) - x) + ((sy + sh + fp - 1) - y) < 7);
-  const inScr = (x: number, y: number) => x >= sx && y >= sy && x < sx + sw && y < sy + sh && !((x - sx) + (y - sy) < 4 || ((sx + sw - 1) - x) + (y - sy) < 4 || (x - sx) + ((sy + sh - 1) - y) < 4 || ((sx + sw - 1) - x) + ((sy + sh - 1) - y) < 4);
+    && !((x - (sx - fp)) + (y - (sy - fp)) < FACE_CUT || ((sx + sw + fp - 1) - x) + (y - (sy - fp)) < FACE_CUT || (x - (sx - fp)) + ((sy + sh + fp - 1) - y) < FACE_CUT || ((sx + sw + fp - 1) - x) + ((sy + sh + fp - 1) - y) < FACE_CUT);
+  const inScr = (x: number, y: number) => x >= sx && y >= sy && x < sx + sw && y < sy + sh && !((x - sx) + (y - sy) < GLASS_CUT || ((sx + sw - 1) - x) + (y - sy) < GLASS_CUT || (x - sx) + ((sy + sh - 1) - y) < GLASS_CUT || ((sx + sw - 1) - x) + ((sy + sh - 1) - y) < GLASS_CUT);
   const ring = (inside: (x: number, y: number) => boolean, x: number, y: number, max: number) => {
     for (let d = 1; d <= max; d++) for (let j = -d; j <= d; j++) for (let i = -d; i <= d; i++) if (Math.max(Math.abs(i), Math.abs(j)) === d && !inside(x + i, y + j)) return d - 1;
     return max;
@@ -293,6 +295,9 @@ export function terminal(o: TermOpts = {}): Terminal {
     canvas.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
     // place the glass and the strip contents on the art grid
     Object.assign(screen.style, { left: g.sx * s + 'px', top: g.sy * s + 'px', width: g.sw * s + 'px', height: g.sh * s + 'px' });
+    // the glass is a flat pane cut to the face plate's chamfers
+    const q = GLASS_CUT * s;
+    screen.style.clipPath = `polygon(${q}px 0, calc(100% - ${q}px) 0, 100% ${q}px, 100% calc(100% - ${q}px), calc(100% - ${q}px) 100%, ${q}px 100%, 0 calc(100% - ${q}px), 0 ${q}px)`;
     keys.hidden = !!o.slim;
     if (g.tray) Object.assign(keys.style, { top: (g.tray.y0 + 1) * s + 'px', height: (g.tray.y1 - g.tray.y0) * s + 'px', right: (W - g.tray.x1 + 2) * s + 'px', left: '' });
     else Object.assign(keys.style, { top: (g.stripY + 3) * s + 'px', height: (H - g.stripY - 7) * s + 'px', right: 14 * s + 'px' });
