@@ -277,7 +277,7 @@ export function syncTree() {
     if (placed.has(n.key) || SKIP_BRANCH.has(n.branch) || /~\d+$/.test(n.key)) continue;
     const cat = categoryFor(n.branch);
     if (!treeCategories().some((c) => c.key === cat)) treeCategory({ key: cat, name: cap(cat), sub: 'research', code: cat.slice(0, 3).toUpperCase() });
-    place({ key: n.key, branch: cat, lane: cat === n.branch ? 'Research' : cap(n.branch), title: titleCase(n.title), desc: n.desc, costs: [n.cost], requires: n.requires ?? [], item: n.icon, gives: [n.title.toLowerCase()] });
+    place({ key: n.key, branch: cat, lane: cat === n.branch ? 'More ' + (treeCategories().find((c) => c.key === cat)?.name ?? cat).toLowerCase() : cap(n.branch), title: titleCase(n.title), desc: n.desc, costs: [n.cost], requires: n.requires ?? [], item: n.icon, gives: [n.title.toLowerCase()] });
   }
   // the branches: every category that has nodes, in order
   const keep = treeCategories().filter((c) => NODES.some((n) => n.branch === c.key));
@@ -286,6 +286,7 @@ export function syncTree() {
 }
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const titleCase = (s: string) => (s === s.toUpperCase() ? s.toLowerCase().replace(/(^|\s)\S/g, (m) => m.toUpperCase()) : s);
+syncTree();
 
 // ================================================================== reading the tree
 export const treeNodes = (b?: Branch) => { syncTree(); return b ? NODES.filter((n) => n.branch === b) : NODES; };

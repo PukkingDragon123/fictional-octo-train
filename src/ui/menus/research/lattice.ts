@@ -28,7 +28,7 @@ import { bitText, bitMeasure } from '../../../gfx/bitfont';
 import { researchPoints } from '../../../game/research';
 import { codexStats } from '../../../game/codex';
 import {
-  BRANCHES, treeNodes, treeNode, treeLanes, rankOf, rankPlanned, nodeState, stage, clearPlan, confirmPlan, researchFor, pointsLeft,
+  BRANCHES, treeNodes, treeNode, treeLanes, rankOf, rankPlanned, nodeState, stage, clearPlan, confirmPlan, researchFor, pointsLeft, syncTree,
   type Branch, type TreeNode,
 } from '../../../game/unitTree';
 import type { Hot } from '../monitor/stage';
@@ -89,6 +89,7 @@ export class TreeLattice {
   private headLamp = new THREE.MeshBasicMaterial({ color: 0x40ff60, toneMapped: false });
   private headMsg: { text: string; col: string; t: number } | null = null;
   private moving = 0;
+  private keySig = '';
   // the console keys
   private keys: { g: THREE.Group; cap: THREE.Mesh; lit: THREE.MeshBasicMaterial; tex: THREE.CanvasTexture; cv: HTMLCanvasElement; label: string; dip: number; br: number }[] = [];
   // shared materials
@@ -217,18 +218,25 @@ export class TreeLattice {
   }
   private park() { return { x: this.X1 - 0.26, y: this.o.railY - 0.26 }; }
 
-  /** four branch keys and LOG OFF on the console */
+  /** a key per branch on the console's left (two rows of four) and LOG OFF on its right; rebuilt when branches are added */
   private consoleKeys() {
     const K = this.o.keys;
-    const labels = [...BRANCHES.map((b) => b.name.split(' ')[0].toUpperCase()), 'LOG OFF'];
-    labels.forEach((label, i) => {
+    for (const k of this.keys) { this.group.remove(k.g); const i = this.hots.findIndex((h) => h.key === 'lt:key' + k.br); if (i >= 0) this.hots.splice(i, 1); }
+    this.keys = [];
+    this.keySig = BRANCHES.map((b) => b.key).join();
+    const n = BRANCHES.length, OFF = 99;
+    const word = (name: string) => { const w = name.split(' '); return (name.length <= 8 ? name : w[w.length - 1]).toUpperCase().slice(0, 8); };
+    const labels: [string, number][] = [...BRANCHES.map((b, i) => [word(b.name), i] as [string, number]), ['LOG OFF', OFF]];
+    labels.forEach(([label, i]) => {
       const g = new THREE.Group();
-      g.position.set(K.x + i * 0.125 + (i === 4 ? 0.04 : 0), K.y, K.z);
+      // two rows down the rake (back row higher), LOG OFF beside the tape reader
+      const row = i === OFF ? 0 : Math.floor(i / 4), col = i === OFF ? 0 : i % 4, dz = n > 4 ? (row ? 0.075 : -0.07) : 0;
+      g.position.set(i === OFF ? K.x + 1.72 : K.x + col * 0.125, K.y - dz * Math.tan(K.tilt), K.z + dz);
       g.rotation.x = K.tilt;
       const b = new FacetBuilder();
-      b.add('metal', cbox(0.118, 0.012, 0.1, 0.003), C.darker, at(0, 0.004, 0));
+      b.add('metal', cbox(0.118, 0.012, 0.08, 0.003), C.darker, at(0, 0.004, 0));
       g.add(b.build(this.mats, { cast: false }));
-      const cap = new THREE.Mesh(cbox(0.1, 0.032, 0.08, 0.008), new THREE.MeshStandardMaterial({ color: i === 4 ? 0xa8261e : 0x2a2622, roughness: 0.45, flatShading: true }));
+      const cap = new THREE.Mesh(cbox(0.1, 0.032, 0.062, 0.008), new THREE.MeshStandardMaterial({ color: i === OFF ? 0xa8261e : 0x2a2622, roughness: 0.45, flatShading: true }));
       cap.position.y = 0.026; cap.castShadow = true;
       const cv = document.createElement('canvas'); cv.width = 96; cv.height = 24;
       const tex = canvasTex(cv);
@@ -240,13 +248,13 @@ export class TreeLattice {
       this.group.add(g);
       const k = { g, cap, lit, tex, cv, label, dip: 0, br: i };
       this.keys.push(k);
-      this.hots.push({ key: 'lt:key' + i, objs: [cap], label: '', off: true, press: () => { k.dip = 1; if (i === 4) this.close(); else this.setBranch(i); } });
+      this.hots.push({ key: 'lt:key' + i, objs: [cap], label: '', off: !this.active, press: () => { k.dip = 1; if (i === OFF) this.close(); else this.setBranch(i); } });
     });
     this.paintKeys();
   }
   private paintKeys() {
     for (const k of this.keys) {
-      const c = k.cv.getContext('2d')!, on = k.br === this.bi, off = k.br === 4;
+      const c = k.cv.getContext('2d')!, on = k.br === this.bi, off = k.br === 99;
       c.fillStyle = off ? '#3a0a08' : on ? '#ffb030' : '#1a140c'; c.fillRect(0, 0, 96, 24);
       c.fillStyle = off ? '#5a1410' : on ? '#fff0b0' : '#2a2014'; c.fillRect(0, 0, 96, 2);
       bitText(c, k.label, 48, 4, { color: off ? '#ff9a80' : on ? '#2a1404' : '#b88a40', outline: null, align: 'center' });
@@ -509,6 +517,7 @@ export class TreeLattice {
     this.active = true;
     this.onClose = o.onClose ?? null;
     clearPlan();
+    this.resync();
     if (o.branch) { const i = BRANCHES.findIndex((b) => b.key === o.branch); if (i >= 0 && i !== this.bi) this.show(i, true); }
     this.refresh();
     this.applyState();
@@ -639,6 +648,23 @@ export class TreeLattice {
   }
 
   // ================================================================== branches
+  /** the tree's data may have grown (src/game/treeData.ts): rebuild any branch whose nodes changed, and the keys */
+  private resync() {
+    syncTree();
+    const curKey = this.cur?.key;
+    for (const [k, bv] of [...this.branches]) {
+      const ns = treeNodes(k);
+      if (ns.length === bv.nodes.length && ns.every((n, i) => bv.nodes[i]?.n === n)) continue;
+      this.group.remove(bv.root);
+      const keys = new Set(bv.nodes.map((v) => v.hot.key));
+      for (let i = this.hots.length - 1; i >= 0; i--) if (keys.has(this.hots[i].key)) this.hots.splice(i, 1);
+      this.branches.delete(k);
+      if (this.cur === bv) this.cur = null;
+    }
+    if (this.keySig !== BRANCHES.map((b) => b.key).join()) this.consoleKeys();
+    const i = Math.max(0, BRANCHES.findIndex((b) => b.key === curKey));
+    this.show(i, true);
+  }
   setBranch(i: number) {
     if (i === this.bi || this.swap) return;
     this.focused = null;
@@ -648,6 +674,7 @@ export class TreeLattice {
   }
   /** put a branch on the rig (instantly: no plunge) */
   private show(i: number, instant = false) {
+    i = Math.max(0, Math.min(BRANCHES.length - 1, i));
     this.bi = i;
     const br = BRANCHES[i].key;
     if (this.cur) this.cur.root.visible = false;
