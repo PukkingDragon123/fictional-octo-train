@@ -29,6 +29,7 @@ import { tearDef, creatureLimbFx, CreatureLimbFx } from '../gore/tearing';
 import { redirectPart, isLimbPart } from '../survival/limbs';
 import { dreadBefore, dreadPlace, dreadAfter, dreadHost, dreadFrame, dreadFlickPoll, dreadFlickStep, lightOut } from './dread';
 import './spawnTables';
+import { steer, brake, heading, shoveBy, corpseFall, hasWeight } from './kit/physics';
 
 /** what a creature was hit with (passed to the gore system) */
 export interface GoreHit { dmg: number; kind: string; fx: number; fz: number; crit?: boolean; by?: string; head?: boolean }
@@ -455,8 +456,9 @@ export class CreatureSystem implements GameSystem {
       }
     }
     const ddx = tx - c.x, ddz = tz - c.z, dd = Math.hypot(ddx, ddz) || 1;
-    c.targetFacing = Math.atan2(ddz, ddx);
-    c.vx = (ddx / dd) * speed; c.vz = (ddz / dd) * speed;
+    // a body with weight (src/creatures/kit/physics.ts): it accelerates, swings round in an arc, faces where it is going
+    steer(c, (ddx / dd) * speed, (ddz / dd) * speed, dt);
+    c.targetFacing = heading(c, ddx, ddz);
     c.speed = speed;
     return false;
   }
@@ -464,7 +466,8 @@ export class CreatureSystem implements GameSystem {
   private applyMove(c: Creature, z: Zone, dt: number) {
     const turn = c.sp.turn ?? 8;
     c.facing = dampAngle(c.facing, c.targetFacing, turn, dt);
-    if (c.speed <= 0.01) { c.vx *= 0.7; c.vz *= 0.7; }
+    // no wish to move (or reeling from a blow): friction, not a dead stop
+    if (c.speed <= 0.01 || c.stagger > 0) brake(c, dt);
     // missing legs: it limps, crawls, drags itself
     const lf = limbFx(c);
     const lm = lf ? lf.move : 1;
@@ -476,7 +479,7 @@ export class CreatureSystem implements GameSystem {
       c.phase += moved / Math.max(0.3, c.radius * 2.2) * Math.PI;
       if (c.speed > 0 && moved < Math.hypot(mvx, mvz) * 0.15) { c.repathT = 0; c.path = null; }
     }
-    if (c.speed <= 0.01 && c.attackPhase <= 0) { c.vx = 0; c.vz = 0; }
+    if (c.speed <= 0.01 && c.attackPhase <= 0 && (!hasWeight(c) || Math.hypot(c.vx, c.vz) < 0.06)) { c.vx = 0; c.vz = 0; }
     // separation from other creatures
     // (things stuck to a host or a piece of furniture, like egg clutches, neither push nor are pushed)
     const stuck = !!c.sp.flags?.attached;
@@ -627,7 +630,9 @@ export class CreatureSystem implements GameSystem {
     c.hitFlash = 0.15;
     c.stagger = 0.25 + knock * 0.3;
     const dx = c.x - fx, dz = c.z - fz, d = Math.hypot(dx, dz) || 1;
-    c.vx = (dx / d) * knock * 6; c.vz = (dz / d) * knock * 6;
+    // the shove of it, by how heavy it is, and a reel the way it was hit (src/creatures/kit/physics.ts)
+    shoveBy(c, fx, fz, knock, G);
+    c.mem.lastHitDir = [dx / d, dz / d, knock + (crit ? 0.3 : 0) + Math.min(1, amount / 30)];
     c.awareness.set(byId, 1.5);
     c.targetId = G.players.has(byId) ? byId : c.targetId;
     c.lastSeen = { x: fx, z: fz, t: G.time };
@@ -793,18 +798,16 @@ export class CreatureSystem implements GameSystem {
       else if (c.rig.root.rotation.x || c.rig.root.rotation.z) { c.rig.root.rotation.x = 0; c.rig.root.rotation.z = 0; }
       try { dreadAfter(c, dt); dreadFlickPoll(c); } catch (e) { console.error('dread', c.sp.key, e); }
       if (c.dead) {
-        const k = Math.min(1, c.deathT * 2 + (c.deathT > 0 ? 0 : 1));
-        const rz = c.sp.flags?.flying ? 0 : Math.PI / 2;
-        // lying on its side, resting on the floor (measured once in the final pose)
-        let restY = c.rig.root.userData.restY as number | undefined;
-        if (restY === undefined) {
-          c.rig.body.rotation.z = rz; c.rig.body.position.y = 0;
-          c.rig.root.updateMatrixWorld(true);
-          const box = new THREE.Box3().setFromObject(c.rig.body);
-          restY = c.rig.root.userData.restY = box.isEmpty() ? -c.height * 0.25 : Math.min(0.3, c.rig.root.position.y + 0.015 - box.min.y);
+        // the body goes over the way the last blow drove it, bounces, settles (src/creatures/kit/physics.ts);
+        // a corpse loaded from a save (or first seen dead) is simply lying there
+        if (!c.mem.fall && c.deathT > 3) (c.mem.fall as any) = undefined;
+        corpseFall(c, c.deathT > 3 && !c.mem.fall ? 10 : dt);
+        const th = (c.mem.fallThud ?? 0) as number;
+        if (th !== (c.mem.fallThudP ?? 0)) {
+          c.mem.fallThudP = th;
+          const big = c.radius * 2 + c.height * 0.4;
+          if (d < 24) { G.audio?.at?.(big > 1.6 ? 'body_thud' : 'thud_soft', c.x, c.z, Math.min(1, 0.35 + big * 0.3)); if (big > 1.8 && d < 10) G.camera?.shake?.(Math.min(0.5, big * 0.12), 0.3); }
         }
-        c.rig.body.rotation.z = rz * Math.min(1, k + 0.01);
-        c.rig.body.position.y = restY * Math.min(1, k + 0.01);
       }
     }
   }

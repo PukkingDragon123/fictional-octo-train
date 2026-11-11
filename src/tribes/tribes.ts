@@ -157,7 +157,7 @@ export class TribeSystem implements GameSystem {
 
   /** the world prompt over a person: [E] Talk (followers too), [G] Pickpocket from behind */
   ctxActions(p: Player): any[] {
-    if (this.talk.open || this.ui.isOpen) return [];
+    if (this.talk.active || this.ui.isOpen) return [];
     const c = talkTarget(p); if (!c) return [];
     const t = tribeOfCreature(c)!;
     const at = () => (c.dead ? null : { x: c.x, y: c.y + c.height + 0.32, z: c.z });
@@ -316,7 +316,7 @@ export class TribeSystem implements GameSystem {
     this.talk.update(dt);
     // a word from people the unit walks past
     const p = G.local;
-    if (p && !this.talk.open && (this.barkT -= dt) <= 0) {
+    if (p && !this.talk.active && (this.barkT -= dt) <= 0) {
       this.barkT = 0.6;
       const c = talkTarget(p);
       if (c && Math.hypot(c.x - p.x, c.z - p.z) < 2.4 && !(c.state === 'chase' || c.state === 'attack')) passBark(c, p);

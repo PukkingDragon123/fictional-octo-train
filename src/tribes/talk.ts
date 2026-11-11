@@ -90,7 +90,7 @@ export class Talk {
     (G as any).talk = this;
   }
 
-  get open() { return !!this.c; }
+  get active() { return !!this.c; }
 
   private onKey(e: KeyboardEvent) {
     if (!this.c || this.suspended) return;
