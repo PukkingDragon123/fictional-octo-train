@@ -75,3 +75,9 @@
   .ptm-pat { grid-template-columns: calc(var(--ks) * 14) 1fr auto; }
   .ptm-pat .ptm-cost { grid-column: 2 / 3; }
 }
+
+/* round 15 (UI): the plate's calibration row, and the phosphor keys cut square with chamfered corners */
+.ptm-cal { display: flex; align-items: center; justify-content: space-between; gap: 1em; margin: 0 0 calc(var(--ks) * 3); padding: calc(var(--ks) * 2) calc(var(--ks) * 2);
+  background: repeating-linear-gradient(90deg, var(--ct-dark) 0 calc(var(--ks) * 2), transparent calc(var(--ks) * 2) calc(var(--ks) * 3)) 0 100% / 100% 1px no-repeat; }
+.ptm-cal span { color: var(--ct-dim); letter-spacing: 0.08em; }
+.ptm-make { clip-path: polygon(calc(var(--ks) * 1.5) 0, calc(100% - var(--ks) * 1.5) 0, 100% calc(var(--ks) * 1.5), 100% calc(100% - var(--ks) * 1.5), calc(100% - var(--ks) * 1.5) 100%, calc(var(--ks) * 1.5) 100%, 0 calc(100% - var(--ks) * 1.5), 0 calc(var(--ks) * 1.5)); }

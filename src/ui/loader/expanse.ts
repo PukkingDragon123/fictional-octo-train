@@ -363,9 +363,12 @@ export class Expanse {
     out.fov = THREE.MathUtils.lerp(64, 42, smoother(clamp01((e - 0.1) / 0.75)));
   }
 
+  /** render scale multiplier, lowered on a slow machine (frames over ~45 ms) */
+  private q = 1; private slow = 0; private vw = 0; private vh = 0;
   resize(w: number, h: number) {
+    this.vw = w; this.vh = h;
     this.aspect = w / Math.max(1, h);
-    const k = Math.min(1, Math.max(0.36, 450 / Math.max(1, h)));
+    const k = Math.min(1, Math.max(0.36, 450 / Math.max(1, h))) * this.q;
     const W = Math.max(2, Math.round(w * k)), H = Math.max(2, Math.round(h * k));
     if (W === this.W && H === this.H) return;
     this.W = W; this.H = H;
@@ -393,13 +396,17 @@ export class Expanse {
   }
   /** play on to the word (faster), hold a beat, then report done() */
   finish() { this.finishing = true; }
+  /** shown again before it finished: carry on looping from where it is */
+  resume() { this.finishing = false; this.finished = false; }
   get done() { return this.finished; }
   /** how far the reveal is (0..1, 1 = the word is up) */
   get revealed() { return this.phase === 'hold' ? 1 : this.phase === 'grow' ? clamp01(this.pt / GROW) : clamp01(1 - this.pt / DIVE); }
 
   private P: Pose = { pos: new THREE.Vector3(), look: new THREE.Vector3(), fov: 60, h: 1 };
   frame(dtRaw: number, fade: number) {
-    const dt = Math.min(0.1, Math.max(0, dtRaw));
+    const dt = Math.min(0.3, Math.max(0, dtRaw));
+    // keep it light: a run of slow frames drops the resolution a step (the pixels just get chunkier)
+    if (dtRaw > 0.045) { if (++this.slow > 8 && this.q > 0.4) { this.q *= 0.75; this.slow = 0; this.resize(this.vw, this.vh); } } else this.slow = Math.max(0, this.slow - 1);
     this.time += dt;
     // ---- the timeline
     let e = 0, cyc = this.cyc;

@@ -2,6 +2,7 @@
 // tile fires), generators and breakers, farming, traps, pushable carts,
 // carrying and placing furniture, building, rain collection and weather.
 // Host-authoritative: the host simulates and replicates through ops.
+import { calibrate, calibrating } from '../ui/minigames/calibrate';
 import * as THREE from 'three';
 import { bus } from '../core/events';
 import { G } from '../game/G';
@@ -416,9 +417,14 @@ export class WorldSystems implements GameSystem {
     out.push({ label: `Fuel: ${fuel.toFixed(1)} / 10 L${o.state.on ? ' — running' : ''}`, disabled: true });
     if (o.state.on) out.push({ label: 'Turn off', action: at('Turn off', 1, 'push', () => { op('objState', { z: z.key, uid: o.uid, patch: { on: false } }); G.audio?.at?.('power_off', o.x + 0.5, o.y + 0.5, 0.6); }) });
     else out.push({ label: 'Pull the starter cord', disabled: fuel <= 0 ? 'no fuel' : false, action: at('Start generator', 2.5, 'push', () => {
-      if (Math.random() < 0.3) { bus.emit('think', p, 'It coughs and dies. Again.'); G.audio?.at?.('machine_hum', o.x + 0.5, o.y + 0.5, 0.3); return; }
-      op('objState', { z: z.key, uid: o.uid, patch: { on: true } });
-      G.audio?.at?.('power_on', o.x + 0.5, o.y + 0.5);
+      // the pull is timed (src/ui/minigames/calibrate.ts): catch the compression in the green and it catches
+      const go = (ok: boolean) => {
+        if (!ok) { bus.emit('think', p, 'It coughs and dies. Again.'); G.audio?.at?.('machine_hum', o.x + 0.5, o.y + 0.5, 0.3); return; }
+        op('objState', { z: z.key, uid: o.uid, patch: { on: true } });
+        G.audio?.at?.('power_on', o.x + 0.5, o.y + 0.5);
+      };
+      if (!p.isLocal || calibrating()) { go(Math.random() >= 0.3); return; }
+      void calibrate({ title: 'Starter cord', sub: 'pull on the compression: stop the needle in the green', dials: 1, difficulty: 1 }).then((r) => go(!r.cancelled && r.hits > 0));
     }) });
     const can = p.findItem((i) => i.fluid?.type === 'gasoline' && i.fluid.amount > 0.05);
     out.push({ label: 'Add fuel', disabled: !can ? 'needs gasoline' : fuel >= 9.9 ? 'full' : false, action: at('Refuel', 4, 'pour', () => {

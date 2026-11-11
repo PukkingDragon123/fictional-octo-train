@@ -46,6 +46,8 @@ export function cineEnabled(): boolean {
 }
 
 let current: Cine | null = null;
+/** dev: ?cinespeed=N plays the shots N times faster (screenshots on a slow software renderer) */
+const SPEED = (() => { try { return import.meta.env.DEV ? Math.max(1, Number(new URLSearchParams(location.search).get('cinespeed')) || 1) : 1; } catch { return 1; } })();
 let seq = 0;
 export function cineRunning(): Cine | null { return current; }
 
@@ -221,7 +223,7 @@ export class Cine {
     if (this.done) return;
     G.input.pointerOverUI = true;
     hookCam();
-    const dt = Math.min(0.05, dt0);
+    const dt = Math.min(0.05, dt0) * SPEED;
     this.t += dt;
     const p = this.p;
     p.vx = p.vz = 0;

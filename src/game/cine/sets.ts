@@ -97,8 +97,8 @@ export function liftCab(o: { landing?: boolean; half?: number } = {}): LiftCab {
   // the front wall round the doorway, the jambs in hazard paint, the header
   for (const s of [-1, 1]) quad(mb, [X1, 0, s * DW], [X1, Y1, s * DW], [X1, Y1, s * H], [X1, 0, s * H], 'ix_steel', [-1, 0, 0]);
   quad(mb, [X1, DH, -DW], [X1, Y1, -DW], [X1, Y1, DW], [X1, DH, DW], 'ix_steel', [-1, 0, 0]);
-  for (const s of [-1, 1]) cbox(mb, X1 - 0.03, 0, s * (DW + 0.03), 0.08, DH, 0.07, 0.015, 'ix_haz');
-  cbox(mb, X1 - 0.03, DH, 0, 0.08, 0.08, DW * 2 + 0.14, 0.015, 'ix_haz');
+  for (const s of [-1, 1]) { cbox(mb, X1 - 0.03, 0, s * (DW + 0.03), 0.08, DH, 0.07, 0.015, 'ix_steel'); cbox(mb, X1 - 0.075, 0.05, s * (DW + 0.03), 0.01, 1.0, 0.05, 0.004, 'plastic_yellow'); }
+  cbox(mb, X1 - 0.03, DH, 0, 0.08, 0.08, DW * 2 + 0.14, 0.015, 'ix_steel');
   // a handrail round three walls, kick plates
   rod(mb, [X0 + 0.06, 0.95, -H + 0.08], [X0 + 0.06, 0.95, H - 0.08], 0.022, 6, 'ix_steel');
   for (const s of [-1, 1]) rod(mb, [X0 + 0.06, 0.95, s * (H - 0.06)], [X1 - 0.25, 0.95, s * (H - 0.06)], 0.022, 6, 'ix_steel');
@@ -143,15 +143,20 @@ export function liftCab(o: { landing?: boolean; half?: number } = {}): LiftCab {
   }
   const gate = new THREE.Group();
   {
+    // a collapsible gate: flat uprights, and between each pair the lattice of crossed straps in three bays
     const gb = new ModelBuilder();
-    const n = 8;
+    const n = 7, bays = 3, y0 = 0.08, y1 = DH - 0.12, bh = (y1 - y0) / bays;
+    for (let i = 0; i <= n; i++) cbox(gb, 0, y0, -(i / n) * DW * 2, 0.025, y1 - y0, 0.022, 0.004, 'ix_steel');
     for (let i = 0; i < n; i++) {
-      const z0 = (i / n) * DW * 2, z1 = ((i + 1) / n) * DW * 2;
-      rod(gb, [0, 0.1, -z0], [0, DH - 0.1, -z1], 0.012, 4, 'ix_steel');
-      rod(gb, [0, 0.1, -z1], [0, DH - 0.1, -z0], 0.012, 4, 'ix_steel');
+      const z0 = -(i / n) * DW * 2, z1 = -((i + 1) / n) * DW * 2;
+      for (let b = 0; b < bays; b++) {
+        const ya = y0 + b * bh, yb = ya + bh;
+        rod(gb, [0.012, ya, z0], [0.012, yb, z1], 0.008, 4, 'metal_grey');
+        rod(gb, [0.012, ya, z1], [0.012, yb, z0], 0.008, 4, 'metal_grey');
+      }
     }
-    rod(gb, [0, 0.1, 0], [0, 0.1, -DW * 2], 0.016, 4, 'ix_steel');
-    rod(gb, [0, DH - 0.1, 0], [0, DH - 0.1, -DW * 2], 0.016, 4, 'ix_steel');
+    cbox(gb, 0, y0 - 0.04, -DW, 0.04, 0.04, DW * 2, 0.008, 'ix_steel');
+    cbox(gb, 0, y1, -DW, 0.04, 0.05, DW * 2, 0.008, 'ix_steel');
     const gm = mesh(gb, lamps.map((l) => ({ ...l, at: [l.at[0] - (X1 - 0.18), l.at[1], l.at[2] - DW] as V3 })), 0.12);
     gate.add(gm);
     gate.position.set(X1 - 0.18, 0, DW);
@@ -271,38 +276,49 @@ export function duct(kind: 'duct' | 'pipe', open: boolean): Duct {
 // ================================================================== the wall gone liquid
 const MEM_VERT = /* glsl */`
 uniform float uTime; uniform float uTouch; uniform float uSwell;
-varying vec3 vWp; varying vec2 vUv; varying float vD;
-void main() {
-  vUv = uv;
-  vec2 c = (uv - 0.5) * vec2(4.2, 3.4) - vec2(0.0, 0.0);
+varying vec3 vWp; varying vec2 vUv; varying float vD; varying vec3 vN;
+float disp(vec2 c) {
   float r = length(c);
   float d = uTouch * 0.95 * exp(-r * r / (0.35 + uSwell * 1.6));
-  d += 0.025 * sin(r * 13.0 - uTime * 5.5) * exp(-r * 0.7) * (0.35 + uTouch);
-  d += 0.014 * sin(c.x * 3.1 + uTime * 1.3) * sin(c.y * 2.3 - uTime * 1.05);
+  d += 0.04 * sin(r * 12.0 - uTime * 5.5) * exp(-r * 0.55) * (0.45 + uTouch);
+  d += 0.022 * sin(c.x * 3.1 + uTime * 1.3) * sin(c.y * 2.3 - uTime * 1.05);
+  d += 0.012 * sin(c.x * 7.3 - uTime * 2.1 + c.y * 4.0);
   d += uSwell * 0.5 * (1.0 - smoothstep(0.0, 2.6, r));
+  return d;
+}
+void main() {
+  vUv = uv;
+  vec2 c = (uv - 0.5) * vec2(4.2, 3.4);
+  float e = 0.02;
+  float d = disp(c), du = disp(c + vec2(e, 0.0)), dv = disp(c + vec2(0.0, e));
+  // the plane was turned to face -X: u runs along +Z, v along +Y
+  vec3 Pu = vec3(0.0, 0.0, 1.0) * e + normal * (du - d), Pv = vec3(0.0, 1.0, 0.0) * e + normal * (dv - d);
+  vec3 n = normalize(cross(Pu, Pv));
+  if (dot(n, normal) < 0.0) n = -n;
+  vN = normalize(mat3(modelMatrix) * n);
   vD = d;
-  vec3 p = position + normal * d;
-  vec4 wp = modelMatrix * vec4(p, 1.0);
+  vec4 wp = modelMatrix * vec4(position + normal * d, 1.0);
   vWp = wp.xyz;
   gl_Position = projectionMatrix * viewMatrix * wp;
 }`;
 const MEM_FRAG = /* glsl */`
 layout(location = 1) out highp vec4 gNormal;
 uniform float uTime; uniform float uK; uniform vec3 uCol; uniform float uA;
-varying vec3 vWp; varying vec2 vUv; varying float vD;
+varying vec3 vWp; varying vec2 vUv; varying float vD; varying vec3 vN;
 void main() {
-  vec3 n = normalize(cross(dFdx(vWp), dFdy(vWp)));
+  vec3 n = normalize(vN);
   vec3 v = normalize(cameraPosition - vWp);
   if (dot(n, v) < 0.0) n = -n;
-  vec3 l = normalize(vec3(0.3, 0.85, 0.4));
-  float fres = pow(1.0 - max(0.0, dot(n, v)), 2.0);
-  float spec = pow(max(0.0, dot(reflect(-l, n), v)), 28.0);
+  vec3 l = normalize(vec3(-0.35, 0.8, 0.45)), l2 = normalize(vec3(0.5, 0.2, -0.6));
+  float fres = pow(1.0 - max(0.0, dot(n, v)), 2.5);
+  float dif = max(0.0, dot(n, l)) * 0.6 + max(0.0, dot(n, l2)) * 0.25;
+  float spec = pow(max(0.0, dot(reflect(-l, n), v)), 36.0) + 0.5 * pow(max(0.0, dot(reflect(-l2, n), v)), 18.0);
   vec2 q = vUv * vec2(9.0, 7.0);
   float caus = sin(q.x + sin(q.y * 1.3 + uTime * 0.9) * 1.6 + uTime * 0.6) * sin(q.y + sin(q.x * 1.1 - uTime * 0.7) * 1.4);
-  caus = smoothstep(0.55, 1.0, caus);
-  vec3 col = uCol * (0.42 + vD * 0.9) + uCol * 0.5 * fres + vec3(0.75, 0.95, 1.0) * spec * 0.9 + uCol * caus * 0.35;
+  caus = smoothstep(0.6, 1.0, caus);
+  vec3 col = uCol * (0.16 + dif * 0.7 + vD * 0.5) + uCol * 0.55 * fres + vec3(0.85, 0.97, 1.0) * spec * 1.1 + vec3(0.5, 0.9, 1.0) * caus * 0.12;
   col *= uK;
-  float edge = smoothstep(0.0, 0.08, min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y)));
+  float edge = smoothstep(0.0, 0.1, min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y)));
   gl_FragColor = vec4(col, uA * edge);
   gNormal = vec4(n * 0.5 + 0.5, 1.0);
 }`;

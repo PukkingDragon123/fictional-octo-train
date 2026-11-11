@@ -83,7 +83,10 @@
   background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.3) 0 1px, transparent 1px var(--ks)); }
 .ct-scr::after { content: ''; position: absolute; inset: 0; z-index: 4; pointer-events: none;
   background: linear-gradient(118deg, transparent 0 9%, rgba(220, 255, 230, 0.05) 9% 15%, transparent 15% 100%),
-    radial-gradient(ellipse 120% 110% at 50% 50%, transparent 62%, rgba(0, 0, 0, 0.55) 100%); }
+    linear-gradient(to right, rgba(0, 0, 0, 0.42), transparent 7%, transparent 93%, rgba(0, 0, 0, 0.42)),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.42), transparent 9%, transparent 91%, rgba(0, 0, 0, 0.42)); }
+/* the glass is a flat chamfered pane (round 15: nothing rounded), cut to match the face plate's 45-degree corners */
+.ct-scr { clip-path: polygon(calc(var(--ks) * 4) 0, calc(100% - var(--ks) * 4) 0, 100% calc(var(--ks) * 4), 100% calc(100% - var(--ks) * 4), calc(100% - var(--ks) * 4) 100%, calc(var(--ks) * 4) 100%, 0 calc(100% - var(--ks) * 4), 0 calc(var(--ks) * 4)); }
 .ct-in { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; padding: calc(var(--ks) * 4) calc(var(--ks) * 6) calc(var(--ks) * 3); box-sizing: border-box; }
 .ct-boot .ct-in { animation: ct-on 0.4s steps(8) both; }
 @keyframes ct-on { 0% { transform: scale(1, 0.01); filter: brightness(4); } 40% { transform: scale(1, 0.04); filter: brightness(3); } 70% { transform: scale(1, 1.02); filter: brightness(1.6); } 100% { transform: none; filter: none; } }

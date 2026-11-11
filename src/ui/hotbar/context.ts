@@ -179,6 +179,8 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
   const cr = (c: any) => ({ tgt: 'c:' + c.id, name: creatureName(c), anchor: creatureTop(c) });
   if (smp) out.push({ id: 'sample', label: 'Sample', icon: 'sample', key: 'E', run: smp.action, head: 'Sample', ...cr(target) });
   if (body) out.push({ id: 'searchbody', label: 'Search', icon: 'search', key: 'E', run: () => p.actions.add(new LootAction(p, body.inv, body)), head: 'Search', ...cr(body) });
+  // ---- people (src/tribes): [E] Talk, [G] Pickpocket (before the scan: a person is talked to first)
+  try { for (const a of (g.tribes?.ctxActions?.(p) || []) as CtxAction[]) out.push(a); } catch (e) { console.warn('ctx tribes', e); }
   // scanning (hold Q): only what nobody has scanned yet earns a label
   const sc = g.scan;
   const canScan = !!sc && (typeof sc.canScan === 'function' ? !!sc.canScan() : true);
@@ -189,8 +191,6 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
     if (st ? unknown(st) : !near.scanned) out.push({ id: 'scan', label: 'Scan', icon: 'scan', key: 'Q', run: () => { try { sc.begin?.(sc.creatureTarget(near)); } catch { /* no scanner */ } }, head: 'Scan', ...cr(near) });
   }
   if (near && touch && nd < 5) out.push({ id: 'strike', label: 'Strike', icon: 'strike', key: '', strike: true });
-  // ---- people (src/tribes): [E] Talk, [G] Pickpocket
-  try { for (const a of (g.tribes?.ctxActions?.(p) || []) as CtxAction[]) out.push(a); } catch (e) { console.warn('ctx tribes', e); }
   // ---- other systems' verbs (round 15: the relay booths and the presses' checkpoints, src/game/checkpoint.ts)
   for (const f of (g.ctxHooks || []) as ((p: Player, touch: boolean) => CtxAction[])[]) { try { for (const a of f(p, touch) || []) out.push(a); } catch (e) { console.warn('ctx hook', e); } }
   // ---- furniture

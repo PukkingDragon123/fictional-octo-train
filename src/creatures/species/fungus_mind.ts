@@ -845,8 +845,19 @@ bus.on('zoneGenerated', (z: Zone) => {
   for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) z.solid[z.idx(best[0] + dx, best[1] + dy)] = 1;
 });
 const MIND_GONE = new Set<string>();
+/** host: a level's mind is there from the moment a unit arrives (with its network already grown), checked every few seconds */
+function ensureMind(zk: string) {
+  if (G.role === 'client' || !G.creatures) return;
+  const z = G.zones.get(zk) as Zone | undefined;
+  const at = z?.meta?.fungusMind as [number, number] | undefined;
+  if (!z || !at || MIND_GONE.has(zk)) return;
+  if ([...CS().creatures.values()].some((o) => o.zoneKey === zk && o.sp.key === 'fungus_mind')) return;
+  const c = CS().spawn('fungus_mind', zk, at[0], at[1]);
+  if (c) { c.mem.persistent = true; c.mem.noCap = 1; c.facing = c.targetFacing = hashId(zk) * Math.PI * 2; thinkMind(c, 0); }
+}
 let mindSys = false;
-bus.on('enterZone', () => {
+bus.on('enterZone', (z: Zone) => {
+  try { if (z?.key) ensureMind(z.key); } catch (e) { console.error('fungus mind', e); }
   const g: any = G;
   if (mindSys || !g?.addSystem) return;
   mindSys = true;
@@ -855,16 +866,8 @@ bus.on('enterZone', () => {
     name: 'fungusMinds',
     update: (dt: number) => {
       acc += dt; if (acc < 2) return; acc = 0;
-      if (G.role === 'client' || !G.creatures) return;
       const zs = new Set<string>(); for (const p of G.players.values()) zs.add(p.zoneKey);
-      for (const zk of zs) {
-        const z = G.zones.get(zk) as Zone | undefined;
-        const at = z?.meta?.fungusMind as [number, number] | undefined;
-        if (!z || !at || MIND_GONE.has(zk) || mindOf(zk)) continue;
-        if (CS().creatures && [...CS().creatures.values()].some((o) => o.zoneKey === zk && o.sp.key === 'fungus_mind')) continue;
-        const c = CS().spawn('fungus_mind', zk, at[0], at[1]);
-        if (c) { c.mem.persistent = true; c.mem.noCap = 1; c.facing = c.targetFacing = hashId(zk) * Math.PI * 2; }
-      }
+      for (const zk of zs) ensureMind(zk);
     },
   });
 });

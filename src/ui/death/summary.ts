@@ -28,7 +28,9 @@ export function goToLab() {
   try { sessionStorage.setItem(MENU_GOTO_KEY, 'research'); } catch { /* blocked: the menu opens on the monitors */ }
   const u = new URL(location.href);
   for (const k of ['quick', 'intro', 'prologue', 'tutorial', 'seed']) u.searchParams.delete(k);
-  location.href = u.toString();
+  // the loading screen of everything comes up first, so the reload never flashes (src/ui/loading.ts)
+  void import('../loading').then((m) => m.showLoading('lab')).catch(() => { /* go anyway */ });
+  setTimeout(() => { location.href = u.toString(); }, 450);
 }
 
 /** what the lab total buys now (or what is next), for the reports */

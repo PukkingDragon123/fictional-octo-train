@@ -30,6 +30,7 @@ import { loreNotes } from './lorebook';
 import { ScanSweep } from './sweep';
 import { voss } from '../game/debt/voice';
 import * as THREE from 'three';
+import { scanTuner } from '../ui/minigames/tuner';
 
 export type ScanKind = 'creature' | 'tribe' | 'anomaly' | 'artefact' | 'object' | 'item' | 'survivor';
 
@@ -69,7 +70,7 @@ export function defScanInfo(kind: ScanKind, key: string, info: { title: string; 
 export class ScanSystem implements GameSystem {
   name = 'scan';
   /** the sweep in progress */
-  active: { t: ScanTarget; prog: number; dur: number; lost: number; hold: boolean } | null = null;
+  active: { t: ScanTarget; prog: number; dur: number; lost: number; hold: boolean; hard: number } | null = null;
   /** the sweep in the world: the cone from the visor, the band over the target, the ring on the floor */
   sweep: ScanSweep;
   private emitting = false;
@@ -173,7 +174,9 @@ export class ScanSystem implements GameSystem {
     }
     const base = t.kind === 'creature' ? 1.5 + (t.threat ?? 1) * 0.25 : t.kind === 'tribe' || t.kind === 'artefact' ? 1.4 : t.kind === 'anomaly' ? 1.2 : t.kind === 'item' ? 0.5 : 0.8;
     const dur = base * (hasUnlock('scan_deep') ? 0.7 : 1) * (hasUnlock('tool_beam') ? 0.75 : 1) * (this.probe() ? 0.85 : 1);
-    this.active = { t, prog: 0, dur, lost: 0, hold };
+    // hard targets fight the visor: the lock-on tuner (src/ui/minigames/tuner.ts) comes up a third of the way in
+    const hard = t.kind === 'anomaly' || t.kind === 'artefact' ? 2 : t.kind === 'creature' && (t.threat ?? 0) >= 3 ? Math.min(3, (t.threat ?? 3) - 1) : 0;
+    this.active = { t, prog: 0, dur, lost: 0, hold, hard };
     G.audio?.ui?.('scan_start', 0.45);
     G.missions?.set?.('tut:scanner');
     return true;
@@ -214,7 +217,8 @@ export class ScanSystem implements GameSystem {
       const ok = d <= this.range() && (!r?.zoneKey || r.zoneKey === p.zoneKey) && !(r?.dead && a.t.kind !== 'creature');
       if (a.hold && !held) { this.active = null; }
       else if (ok) {
-        a.prog += dt / a.dur; a.lost = 0;
+        const tune = a.hard && a.prog > 0.3 && !a.t.held ? scanTuner.step(dt, a.hard) : 1;
+        a.prog += (dt / a.dur) * tune; a.lost = 0;
         this.humT -= dt;
         if (this.humT <= 0) { this.humT = 0.32; G.audio?.ui?.('scan_tick', 0.22); }
         if (a.prog >= 1) { this.active = null; this.complete(a.t); p.playAnim?.('scanner', 0.6); }
@@ -227,6 +231,7 @@ export class ScanSystem implements GameSystem {
       if (!a.t.held && !p.aiming && p.speed < 0.2) p.targetFacing = Math.atan2(a.t.z - p.z, a.t.x - p.x);
     }
     const cur = this.active;
+    if (scanTuner.active && (!cur || !cur.hard || lost)) scanTuner.stop();
     if (cur) {
       const r = cur.t.ref;
       const tall = r?.height ? Math.max(0.3, r.height) : cur.t.kind === 'item' || cur.t.held ? 0.3 : Math.max(0.4, cur.t.y * 1.4);

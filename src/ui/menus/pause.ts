@@ -57,7 +57,6 @@ export class PauseMenu {
     const bw = pt ? 150 : 244, bh = pt ? 30 : 36;
     const plate = (label: string, fn: () => void, o: Parameters<typeof pxButton>[2] = {}) => {
       const b = pxButton(label, () => { sfx(o.lamp === 'red' ? 'back' : 'click', 0.7); fn(); }, { w: bw, h: bh, ...o });
-      b.classList.add('hs');
       col.append(b);
       return b;
     };

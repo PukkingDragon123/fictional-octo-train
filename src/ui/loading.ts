@@ -27,6 +27,9 @@ let raf = 0, last = 0, fadeIn = 0;
 let kindNow: LoadKind = 'boot';
 let state: 'off' | 'on' | 'finishing' | 'fading' = 'off';
 let waiters: (() => void)[] = [];
+let hideAt = 0;
+/** the most the screen plays on after the load is done (real time, whatever the frame rate) */
+const FINISH_CAP_MS = 2600;
 let bootObs: MutationObserver | null = null;
 let resizeBound = false;
 
@@ -47,7 +50,8 @@ function ensure(): HTMLElement {
 function loop(now: number) {
   if (state === 'off') { raf = 0; return; }
   raf = requestAnimationFrame(loop);
-  const dt = Math.min(0.1, (now - (last || now)) / 1000); last = now;
+  // real time while it plays on to the word (a slow machine skips ahead instead of dragging on)
+  const dt = Math.min(state === 'finishing' ? 0.3 : 0.1, (now - (last || now)) / 1000); last = now;
   fadeIn = Math.min(1, fadeIn + dt / 0.55);
   // once the load is done, keep the world still while the screen plays on to the word
   // (never before: a level crossing's own fade runs on game time)
@@ -55,7 +59,7 @@ function loop(now: number) {
   if (ex) {
     try { ex.frame(dt, fadeIn * fadeIn); } catch (e) { console.warn('loader frame', e); failed = true; ex = null; }
   }
-  if (state === 'finishing' && (!ex || ex.done)) fadeOut();
+  if (state === 'finishing' && (!ex || ex.done || performance.now() - hideAt > FINISH_CAP_MS)) fadeOut();
 }
 
 function fadeOut() {
@@ -75,13 +79,13 @@ function fadeOut() {
 export function showLoading(kind: LoadKind = 'boot') {
   const el = ensure();
   kindNow = kind;
-  if (state === 'on' || state === 'finishing') { state = 'on'; el.classList.add('on'); return; }
+  if (state === 'on' || state === 'finishing') { state = 'on'; ex?.resume(); el.classList.add('on'); return; }
   const wasFading = state === 'fading';
   state = 'on';
   el.classList.remove('out');
   el.classList.add('on');
   ex?.resize(window.innerWidth, window.innerHeight);
-  if (!wasFading) { ex?.restart(); fadeIn = 0; }
+  if (!wasFading) { ex?.restart(); fadeIn = 0; } else ex?.resume();
   if (!raf) { last = 0; raf = requestAnimationFrame(loop); }
 }
 
@@ -90,7 +94,7 @@ export function hideLoading(o: { now?: boolean } = {}): Promise<void> {
   if (state === 'off') return Promise.resolve();
   const p = new Promise<void>((res) => waiters.push(res));
   if (o.now || !ex) fadeOut();
-  else if (state === 'on') { state = 'finishing'; ex.finish(); }
+  else if (state === 'on') { state = 'finishing'; hideAt = performance.now(); ex.finish(); }
   return p;
 }
 

@@ -29,6 +29,7 @@ import {
 } from './matter';
 import { PATTERNS, PRESS_UPGRADES, type Pattern } from './registry';
 import './terminal.css';
+import { calibrate } from '../../ui/minigames/calibrate';
 
 export interface TermOpen {
   /** where it is used: at the press in a run, at a claim beacon (Seam Relay), or the lab between runs */
@@ -40,6 +41,8 @@ export interface TermOpen {
   onClose?: () => void;
 }
 type Page = 'account' | 'dial' | 'create' | 'ledger';
+/** the plate's calibration: 0 none, 1 close, 2 true (the next make prints a spare) */
+let calib = 0;
 const PAGES: [Page, string][] = [['account', 'Account'], ['dial', 'Dial'], ['create', 'Create'], ['ledger', 'Ledger']];
 
 let open: { close: () => void } | null = null;
@@ -183,6 +186,18 @@ export function openPressTerminal(o: TermOpen) {
     const batch = hasUnlock('pr_batch') ? 3 : 1;
     const where = o.from === 'lab' ? 'made here goes down the chute at the start of your next run' : o.from === 'relay' ? 'prints arrive at the beacon' : 'prints rise out of the seam onto the plate';
     el.append(h('p', 'ptm-note', `${esc(where)} · ${tokens()} token${tokens() === 1 ? '' : 's'} · ${fmtKg(bankTotal())} banked${batch > 1 ? ' · BATCH FORMER: ×3 per token fee' : ''}`));
+    // the plate's calibration (UI round 15, src/ui/minigames/calibrate.ts): a clean run prints a spare on the next make
+    const cal = h('div', 'ptm-cal');
+    cal.innerHTML = `<span>${calib === 2 ? 'PLATE TRUE · the next make prints one spare' : calib === 1 ? 'plate close · calibrate clean for a spare' : 'plate uncalibrated · a clean calibration prints one spare'}</span>`;
+    const cb = h('button', 'ptm-make', calib === 2 ? 'true' : 'calibrate') as HTMLButtonElement;
+    cb.type = 'button'; cb.disabled = calib === 2;
+    cb.addEventListener('click', async () => {
+      const r = await calibrate({ title: 'Plate calibration', sub: 'stop each needle in the green · Space / E / click', dials: 3, difficulty: hasUnlock('pr_batch') ? 3 : 2 });
+      if (!r.cancelled) { calib = r.perfect ? 2 : r.hits >= 2 ? 1 : 0; sfx(r.perfect ? 'stamp' : 'error', 0.6); }
+      render();
+    });
+    cal.append(cb);
+    el.append(cal);
     const list = h('div', 'ptm-pats');
     const known = PATTERNS.filter((q) => hasUnlock(q.key) && hasItemDef(q.item));
     const locked = PATTERNS.filter((q) => !hasUnlock(q.key) && hasItemDef(q.item));
@@ -215,7 +230,9 @@ export function openPressTerminal(o: TermOpen) {
   function make(q: Pattern, batch: number) {
     const cost = scaleMatter(q.cost, batch);
     if (!drawMatter(cost, q.tok)) { sfx('error'); return; }
-    const keys: string[] = Array.from({ length: q.n * batch }, () => q.item);
+    const spare = calib === 2 ? 1 : 0;
+    calib = 0;
+    const keys: string[] = Array.from({ length: q.n * batch + spare }, () => q.item);
     sfx('press', 0.7);
     if (o.from === 'lab' || !inRun) { dispatch(keys); sfx('stamp', 0.8); render(); return; }
     const z = G.getZone(G.local.zoneKey);

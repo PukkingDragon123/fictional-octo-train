@@ -42,6 +42,14 @@ const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 const now = () => performance.now() / 1000;
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 
+/** split a long line into subtitle-sized pieces (whole sentences, ~90 characters) */
+function chunks(text: string): string[] {
+  const sent = text.match(/[^.!?\u2026]+[.!?\u2026]+["')\]]*\s*|[^.!?\u2026]+$/g)?.map((q) => q.trim()).filter(Boolean) ?? [text];
+  const out: string[] = [];
+  for (const q of sent) { const l = out.length - 1; if (l >= 0 && out[l].length + q.length + 1 <= 90) out[l] += ' ' + q; else out.push(q); }
+  return out;
+}
+
 // ---------------------------------------------------------------- credit
 // SCRIP is the run's one money (src/game/economy): a tribe's tab is scrip they owe you; past the
 // tab, the crew's surplus scrip on the ledger (G.debt.surplus, spent with G.debt.spend) pays.
@@ -108,7 +116,7 @@ export class Talk {
     let i = -2;
     if (/^(Digit|Numpad)[1-4]$/.test(k)) i = Number(k.slice(-1)) - 1;
     else if (k === 'Escape') i = -1;
-    else if ((k === 'KeyE' || k === 'Space' || k === 'Enter') && this.pending) { this.showAt = 0; }
+    else if ((k === 'KeyE' || k === 'Space' || k === 'Enter') && this.pending) { this.showAt = 0; this.reveal(); }
     else if (/^(Digit|Numpad)\d$/.test(k) || k === 'KeyE' || k === 'Space' || k === 'Enter') { /* swallow */ }
     else return;
     e.preventDefault(); e.stopImmediatePropagation();
@@ -179,12 +187,26 @@ export class Talk {
     const c = this.c; if (!c) return;
     this.replies = replies.slice(0, 4); this.escReply = escReply;
     this.opts.innerHTML = ''; this.opts.classList.remove('vis');
-    if (text) sayAs(c, text);
     if (gesture) c.mem.gesture = { a: gesture, until: G.time + 1.8 };
     this.pending = true;
-    this.showAt = now() + (text ? Math.min(2.2, 0.55 + text.length * 0.022) : 0.15);
+    // a long answer runs as consecutive subtitles, a sentence or two at a time
+    const parts = text ? chunks(text) : [];
+    let at = 0;
+    const tok0 = this.token;
+    parts.forEach((q, i) => {
+      if (i === 0) sayAs(c, q);
+      else setTimeout(() => { if (tok0 === this.token && this.c === c) sayAs(c, q); }, at * 1000);
+      if (i < parts.length - 1) at += Math.min(3.4, 0.9 + q.length * 0.045);
+    });
+    const last = parts[parts.length - 1] ?? '';
+    this.showAt = now() + at + (last ? Math.min(2.2, 0.55 + last.length * 0.022) : 0.15);
     this.plate();
+    // the replies come up on the wall clock, whatever the frame rate
+    const tok = this.token;
+    setTimeout(() => this.reveal(tok), (this.showAt - now()) * 1000 + 10);
   }
+
+  private reveal(tok = this.token) { if (tok === this.token && this.c && this.pending && !this.suspended && now() >= this.showAt - 0.02) { this.pending = false; this.render(); } }
 
   private render() {
     const keys = ['1', '2', '3', '4'];
@@ -197,7 +219,7 @@ export class Talk {
 
   private choose(i: number) {
     if (!this.c || this.suspended) return;
-    if (this.pending) { this.showAt = 0; return; }
+    if (this.pending) { this.showAt = 0; this.reveal(); return; }
     const r = i === -1 ? this.escReply : this.replies[i];
     if (!r) return;
     const p = G.local!;

@@ -40,6 +40,7 @@ import '../../audio/sounds_creatures_c';
 //   poseLandJelly(rig, t, dt, pose, { fed?, speed?, variant? })
 //     pose: 'idle' | 'crawl' | 'rear' | 'climb' | 'ceiling' | 'drop' | 'latch' | 'fed' | 'dead'
 //   For 'climb' / 'ceiling' / 'drop' the pose sets the rig's own mount (wall in front, at +z).
+//   jellyOnFace(rig, headWorldPos, facing)                 after a 'latch' pose: sits it on a HumanRig's face
 // =====================================================================================
 
 const NTE = 8, TS = 6, NA = 4, AS = 4;
@@ -255,7 +256,10 @@ function surfaceFrame(wk: number, dw: number, cy: number, ceil: number, drop: nu
 function faceMatrix(p: Player, out: THREE.Matrix4): THREE.Matrix4 {
   const hb = (p as any).rig?.bones?.head as THREE.Object3D | undefined;
   if (hb) hb.getWorldPosition(_H); else _H.set(p.x, (p.y ?? 0) + 1.6, p.z);
-  const f = p.facing;
+  return faceAt(_H, p.facing, out);
+}
+function faceAt(head: THREE.Vector3, f: number, out: THREE.Matrix4): THREE.Matrix4 {
+  _H.copy(head);
   // model +y (the bell's top) points out of the face, model +z points up the head
   _Y.set(Math.cos(f), 0.12, Math.sin(f)).normalize();
   _Z.set(0, 1, 0);
@@ -553,6 +557,15 @@ export function poseLandJelly(rig: KitRig, t: number, dt: number, pose: LandJell
   else setMount(rig, null, _W.identity());
   poseJelly(rig, { t, dt, speed, ph: ud.ph, seed: 0.2, pump: pose === 'latch' ? 1 : 0.3, fed: o.fed ?? (pose === 'fed' || pose === 'latch' ? 0.9 : 0.1), rear: pose === 'rear' ? 1 : 0, latch: pose === 'latch' ? 1 : 0, drop: pose === 'drop' ? 1 - Math.min(1, (t % 2) / 0.5) * 0.5 : 0, dead: pose === 'dead' ? 1 : 0, flinch: 0, sting: 0, inv: pose === 'ceiling' ? 1 : 0 });
   rig.kit.F.fx.value.y += dt;
+}
+/**
+ * Stage a latched jelly on any head (the video): `head` is the head bone's world position, `facing`
+ * the face's direction (radians, world: +x is 0, +z is pi/2). Call after poseLandJelly(rig, ..., 'latch').
+ */
+export function jellyOnFace(rig: KitRig, head: THREE.Vector3, facing: number) {
+  rig.root.updateMatrixWorld(true);
+  _I.copy(rig.root.matrixWorld).invert();
+  setMount(rig, null, _W.multiplyMatrices(_I, faceAt(head, facing, _W)));
 }
 JELLY.animateGallery = (rig: Rig, t: number) => {
   const u = new URLSearchParams(location.search);

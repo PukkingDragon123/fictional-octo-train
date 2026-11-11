@@ -24,7 +24,8 @@ export interface Bezel { T: number; S: number; B: number; keysW: number }
 function drawHousing(pc: PixelCanvas, W: number, H: number, bz: Bezel, seed: number, o: { lamp?: boolean; compact?: boolean }) {
   const rnd = rng(seed);
   const cw = W - 2, ch = H - 2; // casing (the last 2 px are the drop shadow)
-  const c = Math.max(4, Math.round(Math.min(cw, ch) * 0.04));
+  // square housing with clean 45-degree chamfers (round 15: big enough to read as cut, never as rounded)
+  const c = Math.max(8, Math.round(Math.min(cw, ch) * 0.055));
   const inCase = (x: number, y: number) => x >= 0 && y >= 0 && x < cw && y < ch && !(x + y < c || (cw - 1 - x) + y < c || x + (ch - 1 - y) < c || (cw - 1 - x) + (ch - 1 - y) < c);
   // the drop shadow
   for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (inCase(x, y)) pc.blend(x + 2, y + 2, 0x000000, 0.7);
@@ -32,8 +33,8 @@ function drawHousing(pc: PixelCanvas, W: number, H: number, bz: Bezel, seed: num
   const sx = bz.S, sy = bz.T, sw = cw - bz.S * 2, sh = ch - bz.T - bz.B;
   const fp = 5; // beige face plate width
   const inFace = (x: number, y: number) => x >= sx - fp && y >= sy - fp && x < sx + sw + fp && y < sy + sh + fp
-    && !((x - (sx - fp)) + (y - (sy - fp)) < 3 || ((sx + sw + fp - 1) - x) + (y - (sy - fp)) < 3 || (x - (sx - fp)) + ((sy + sh + fp - 1) - y) < 3 || ((sx + sw + fp - 1) - x) + ((sy + sh + fp - 1) - y) < 3);
-  const inScr = (x: number, y: number) => x >= sx && y >= sy && x < sx + sw && y < sy + sh && !((x - sx) + (y - sy) < 2 || ((sx + sw - 1) - x) + (y - sy) < 2 || (x - sx) + ((sy + sh - 1) - y) < 2 || ((sx + sw - 1) - x) + ((sy + sh - 1) - y) < 2);
+    && !((x - (sx - fp)) + (y - (sy - fp)) < 7 || ((sx + sw + fp - 1) - x) + (y - (sy - fp)) < 7 || (x - (sx - fp)) + ((sy + sh + fp - 1) - y) < 7 || ((sx + sw + fp - 1) - x) + ((sy + sh + fp - 1) - y) < 7);
+  const inScr = (x: number, y: number) => x >= sx && y >= sy && x < sx + sw && y < sy + sh && !((x - sx) + (y - sy) < 4 || ((sx + sw - 1) - x) + (y - sy) < 4 || (x - sx) + ((sy + sh - 1) - y) < 4 || ((sx + sw - 1) - x) + ((sy + sh - 1) - y) < 4);
   const ring = (inside: (x: number, y: number) => boolean, x: number, y: number, max: number) => {
     for (let d = 1; d <= max; d++) for (let j = -d; j <= d; j++) for (let i = -d; i <= d; i++) if (Math.max(Math.abs(i), Math.abs(j)) === d && !inside(x + i, y + j)) return d - 1;
     return max;
@@ -93,7 +94,7 @@ function drawHousing(pc: PixelCanvas, W: number, H: number, bz: Bezel, seed: num
     // a rust run under it
     if (rnd() < 0.6) for (let k = 0; k < 2 + Math.floor(rnd() * 4); k++) blendC(x + 1 + (k > 2 ? 1 : 0), y + 4 + k, k < 2 ? 0x6a3412 : 0x4a220c, 0.5 - k * 0.07);
   };
-  const m = Math.max(3, c - 1);
+  const m = Math.max(3, Math.ceil(c / 2) + 2);
   screw(m, m); screw(cw - m - 4, m); screw(m, ch - m - 5); screw(cw - m - 4, ch - m - 5);
 
   // ---- vents along the hood (right half of the top bezel)

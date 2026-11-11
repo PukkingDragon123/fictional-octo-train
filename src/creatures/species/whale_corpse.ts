@@ -408,9 +408,19 @@ bus.on('zoneGenerated', (z: Zone) => {
   D(2.1, -4, 'decal_puddle', 2.2, 1.6); D(-2.1, 2, 'decal_puddle', 2, 1.5); D(-2.2, -3, 'decal_mold', 2, 1.6);
   D(2.8, 2.6, 'decal_blood_drip', 1.4, 1.4); D(3.2, -1.2, 'decal_blood_drip', 1.2, 1.2);
 });
-const WHALE_SPAWNED = new Set<string>();
+/** host: the carcass is always there (spawned the moment a unit arrives, and checked every few seconds) */
+function ensureWhale(zk: string) {
+  if (G.role === 'client' || !G.creatures) return;
+  const z = G.zones.get(zk) as Zone | undefined;
+  const at = z?.meta?.whale as [number, number, number] | undefined;
+  if (!z || !at) return;
+  if ([...CS().creatures.values()].some((o) => o.zoneKey === zk && o.sp.key === 'whale_corpse')) return;
+  const c = CS().spawn('whale_corpse', zk, at[0], at[1]);
+  if (c) { c.facing = c.targetFacing = at[2]; c.mem.persistent = true; c.mem.noCap = 1; thinkWhale(c, 0); }
+}
 let whaleSys = false;
-bus.on('enterZone', () => {
+bus.on('enterZone', (z: Zone) => {
+  try { if (z?.key) ensureWhale(z.key); } catch (e) { console.error('whale', e); }
   const g: any = G;
   if (whaleSys || !g?.addSystem) return;
   whaleSys = true;
@@ -419,16 +429,8 @@ bus.on('enterZone', () => {
     name: 'whaleCorpses',
     update: (dt: number) => {
       acc += dt; if (acc < 2) return; acc = 0;
-      if (G.role === 'client' || !G.creatures) return;
       const zs = new Set<string>(); for (const p of G.players.values()) zs.add(p.zoneKey);
-      for (const zk of zs) {
-        const z = G.zones.get(zk) as Zone | undefined;
-        const at = z?.meta?.whale as [number, number, number] | undefined;
-        if (!z || !at) continue;
-        if ([...CS().creatures.values()].some((o) => o.zoneKey === zk && o.sp.key === 'whale_corpse')) { WHALE_SPAWNED.add(zk); continue; }
-        const c = CS().spawn('whale_corpse', zk, at[0], at[1]);
-        if (c) { c.facing = c.targetFacing = at[2]; c.mem.persistent = true; c.mem.noCap = 1; WHALE_SPAWNED.add(zk); }
-      }
+      for (const zk of zs) ensureWhale(zk);
     },
   });
 });

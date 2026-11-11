@@ -65,7 +65,9 @@ export class ObjectiveLine {
       const v = q.view(k);
       this.push({ kind: 'Tracked', title: v?.title || k, step: nextStep(v), tone: 'up' });
     });
-    G.addSystem({ name: 'objectiveLine', update: (dt: number) => this.update(dt) });
+    // real time: a caption fades on the clock, whatever the world's time is doing (a tutorial beat may hold it)
+    let last = performance.now();
+    G.addSystem({ name: 'objectiveLine', update: () => { const now = performance.now(); this.update(Math.min(0.25, (now - last) / 1000)); last = now; } });
   }
 
   private push(c: Card) {

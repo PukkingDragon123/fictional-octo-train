@@ -1,4 +1,5 @@
 import { G } from '../game/G';
+import { calibrate } from '../ui/minigames/calibrate';
 import type { MenuOption } from '../ui/ui';
 import type { Player } from '../entities/player';
 import { PickTarget, targetPos, targetName } from '../game/picking';
@@ -247,6 +248,14 @@ export class Interact {
           if (bar) bar.cond = Math.max(0, bar.cond - 0.02);
           op('objState', { z: z.key, uid: o.uid, patch: { pried: true } });
           unlock('The lock gives.');
+        })) });
+        // work the pins with a knife tip or a needle: a quiet timing game, one dial per pin (UI round 15, src/ui/minigames/calibrate.ts)
+        const pick = p.findTool('#needle') || p.findTool('#knife');
+        if (p.isLocal) out.push({ label: 'Work the pins', disabled: !pick ? 'needs a needle or a knife' : false, action: at(new UseObjectAction(p, 'Work the pins', 1.2, 'craft', () => {
+          void calibrate({ title: 'The pins', sub: 'set each pin at the shear line: stop the needle in the green', dials: 3, difficulty: 2 }).then((r) => {
+            if (!r.cancelled && r.hits === r.of) { G.audio?.at?.('lock', cx, cz, 0.5); unlock('The pins set. It turns.'); }
+            else { noise(p, cx, cz, 4, 'pick'); if (!r.cancelled) bus.emit('think', p, r.hits ? 'A pin dropped. Again.' : 'Nothing caught.'); }
+          });
         })) });
         const hw = p.handR ? itemDef(p.handR.key).weapon : undefined;
         const heavy = p.handR && hw && (hw.kind === 'blunt' || hw.kind === 'axe') && itemDef(p.handR.key).weight >= 1.2 ? p.handR : null;

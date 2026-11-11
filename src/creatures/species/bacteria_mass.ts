@@ -50,7 +50,7 @@ function bonesB() {
   const PS: [number, number][] = [[Math.PI / 2, 0.85], [Math.PI / 2 + 1.1, 0.75], [Math.PI / 2 - 1.1, 0.75], [-Math.PI / 2, 0.7]];
   PS.forEach(([a, r], i) => { for (let k = 0; k < 3; k++) A.push(['p' + i + '_' + k, k ? 'p' + i + '_' + (k - 1) : 'core', [Math.cos(a) * (r + k * 0.22), 0.18 - k * 0.06, Math.sin(a) * (r + k * 0.22)], k === 1]); });
   // where the two people are held (the HumanRigs hang here)
-  A.push(['vicA', 'core', [0, 0.12, -0.75]], ['vicB', 'core', [0.18, 0.1, -0.15]]);
+  A.push(['vicA', 'core', [0, 0.3, -0.72]], ['vicB', 'core', [0.12, 0.3, -0.1]]);
   for (let i = 0; i < 5; i++) A.push(['pu' + i, 'l' + (i % NL), [Math.cos(i * 1.9) * 0.6, 0.62 + (i % 3) * 0.12, Math.sin(i * 1.9) * 0.55]]);
   return mkBones(A);
 }
@@ -71,12 +71,12 @@ function buildK(B: SkinB, x: BuildCtx) {
     n: 22, start: false, end: false, bump: (a, t) => (1 - t) * 0.16 * Math.sin(a * 5 + v * 2) + 0.08 * Math.sin(a * 13),
   });
   // colony crusts: flat rings of colour on the skin of it (opaque, sitting just proud of the gel)
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 16; i++) {
     const a = hash(i, 3 + v) * Math.PI * 2, el = 0.15 + hash(i, 5 + v) * 1.1;
     const d: V3 = [Math.cos(a) * Math.cos(el), Math.sin(el), Math.sin(a) * Math.cos(el)];
-    const c: V3 = [d[0] * 0.96, 0.42 + d[1] * 0.56, d[2] * 0.92];
-    const s = 0.08 + hash(i, 7) * 0.12;
-    skBlob(B, x.R('CRUST'), 10 + i, c, [s, s * 0.35, s], { n: 9, rings: 4, vr: [0.5, 1], w: W(c), bump: (dd) => 0.15 * Math.sin(Math.atan2(dd[2], dd[0]) * 6 + i) });
+    const c: V3 = [d[0] * 0.97, 0.4 + d[1] * 0.57, d[2] * 0.93];
+    const s = 0.05 + hash(i, 7) * 0.09;
+    skBlob(B, x.R('CRUST'), 10 + i, c, [s, s * 0.25, s], { n: 9, rings: 4, vr: [0.5, 1], w: W(c), bump: (dd) => 0.15 * Math.sin(Math.atan2(dd[2], dd[0]) * 6 + i) });
   }
   // pustules: blisters that swell and burst
   for (let i = 0; i < 5; i++) {
@@ -124,7 +124,7 @@ function buildF(B: SkinB, x: BuildCtx) {
 }
 function paintF(p: Page, x: BuildCtx) {
   const v = x.variant;
-  const RG = makeRamp(mixHex(0x9a9a52, 0xa88070, v * 0.45), 7, { spread: 0.6 });
+  const RG = makeRamp(mixHex(0x8a8a62, 0x9a7a70, v * 0.45), 7, { spread: 0.65 });
   paintSlime(p.R('GEL'), RG, { seed: 11 + v, colonies: 14, colony: [mixHex(RG[1], 0x8aa030, 0.5), mixHex(RG[2], 0xd86a8a, 0.4)], flecks: 40 });
   paintSlime(p.R('POD'), RG, { seed: 21 + v, colonies: 5, flecks: 18 });
   paintCap(p.R('CAP'), 0xc8c088, 0xe8e0b0, 0xa89060);
@@ -142,7 +142,9 @@ function appFor(seed: number, k: number): Appearance {
 const OUT_A: Outfit = { torso: { tex: 'c_bare', color: 0xd8c8b0, wear: 1, blood: 0.6 }, cond: { pale: 3, wet: 3, dirt: 1, corrupt: 1, expr: 'pain', blood: { head: 1, torso_u: 2, uarm_r: 2, farm_r: 3, hand_r: 3 }, sev: ['thigh_l', 'thigh_r', 'hand_l'] } };
 const OUT_B: Outfit = { torso: { tex: 'c_bare', color: 0xd0c0a8, wear: 1 }, legs: { tex: 'c_bare', color: 0xd0c0a8, wear: 1 }, cond: { pale: 3, wet: 3, corrupt: 2, expr: 'fear', blood: { torso_l: 2, thigh_l: 2 }, sev: ['farm_l', 'shin_r', 'foot_l'] } };
 function takeHuman(app: Appearance, out: Outfit): HumanRig {
-  const free = POOL.find((h) => !inScene(h.root));
+  // free: not in the scene and not just claimed by a rig still being built (it is not in the scene yet either)
+  const now = performance.now();
+  const free = POOL.find((h) => !inScene(h.root) && now - ((h.root.userData.claimT as number | undefined) ?? 0) > 2500);
   let hr: HumanRig;
   if (free) { free.root.removeFromParent(); hr = free; hr.setAppearance(app); }
   else {
@@ -153,11 +155,12 @@ function takeHuman(app: Appearance, out: Outfit): HumanRig {
     (hr.skin as any).clone = () => new THREE.Group();
   }
   hr.setOutfit(out);
+  hr.root.userData.claimT = now;
   return hr;
 }
 function attachHumans(rig: KitRig, seed: number) {
   const m = rig.kit.m;
-  for (const k of ['hA', 'hB']) if (m[k]) { (m[k] as HumanRig).root.removeFromParent(); m[k] = null; }
+  for (const k of ['hA', 'hB']) if (m[k]) { const h = m[k] as HumanRig; h.root.removeFromParent(); h.root.userData.claimT = 0; m[k] = null; }
   // A: on its back just under the surface, face up to the skin of it, one arm out through the front
   const a = takeHuman(appFor(seed, 1), OUT_A);
   a.root.scale.setScalar(0.82);
@@ -205,7 +208,7 @@ function poseHumans(K: KitRig, t: number, seed: number, d: { reach: number; dead
 // ------------------------------------------------------------------ the kit
 const MASS_KIT: KitDef = { key: 'bacteria_mass', variants: 3, W: 128, H: 128, bones: () => bonesB(), layout: layoutK, build: buildK, paint: paintK, sphere: [0, 0.5, 0, 1.8],
   decorate: (rig, e) => {
-    attachFilm(rig, GEL_KIT, e.variant, { opacity: 0.46, edge: 1.7, spec: 1.3, rim: 0.45, tint: 0.9 });
+    attachFilm(rig, GEL_KIT, e.variant, { opacity: 0.6, edge: 1.6, spec: 1.4, rim: 0.35, tint: 0.7 });
     attachHumans(rig, e.variant * 13 + 1);
   } };
 /** a bacteria mass rig (variant 0..2) */
@@ -283,7 +286,7 @@ function animateMass(rig: Rig, c: Creature, t: number, dt: number) {
   const ac = attackCurve(rig, c, t);
   poseMass(K, { t, dt, speed: c.dead ? 0 : c.speed, ph: ud.ph, seed: hashId(c.id, 2), absorb, engulf: md === 'hunt' ? 0.5 : 0, split: Math.sin(Math.PI * (ud.sp ?? 0)), recoil: ud.rc, dead: ud.dk, flinch: flinchOf(c), bite: Math.max(ac.wind * 0.6, ac.strike) });
   poseHumans(K, t, seed, { reach: md === 'hunt' ? 1 : 0, dead: ud.dk, absorb });
-  for (const fm of films(K)) (fm.material as THREE.MeshLambertMaterial).opacity = 0.5 * (1 - ud.dk * 0.5);
+  for (const fm of films(K)) (fm.material as THREE.MeshLambertMaterial).opacity = 0.6 * (1 - ud.dk * 0.5);
   K.kit.F.fx.value.y += dt; K.kit.F.fx.value.z = Math.min(1, c.hitFlash / 0.15) * 0.3;
   uprightDead(K, c);
   if (c.speed > 0.05 && c.visibleToLocal && (ud.sT ?? 0) < t) { ud.sT = t + 1.1; playAt(Math.random() < 0.5 ? 'bh_squelch' : 'drag_scrape', c, 0.35, 10, 0.6 + Math.random() * 0.2); }
@@ -434,5 +437,7 @@ MASS.animateGallery = (rig: Rig, t: number) => {
   const u = new URLSearchParams(location.search);
   const q = (u.get('pose') || ['idle', 'ooze', 'absorb', 'engulf', 'split'][Math.floor(t / 5) % 5]) as BacteriaPose;
   poseBacteriaMass(rig as KitRig, t, 1 / 60, q, { mass: u.get('mass') !== null ? Number(u.get('mass')) : undefined });
+  // ?film=0 (gallery): the gel off, to see what is inside it
+  if (u.get('film') === '0') for (const o of rig.body.children) if (/^(film|tint):/.test(o.name)) o.visible = false;
 };
 
