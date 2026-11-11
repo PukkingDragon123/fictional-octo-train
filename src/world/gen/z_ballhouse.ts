@@ -50,7 +50,7 @@ const SOFTPIT: Rect = { x0: 96, y0: 58, x1: 105, y1: 67 };
 const DEEP: Rect = { x0: 98, y0: 82, x1: 111, y1: 95 };
 /** where you come in from the mall, and where the fire exit to the playground is */
 const ENTRY = { x: 2, y: 48 }, FIRE = { x: 113, y: 62 };
-const LIGHT = 0xf6faff;
+const LIGHT = 0xf4f8ff;
 
 function room(b: ZoneBuilder, r: Rect, floor: string, paper: string, name: string, type: string, circuit: number) {
   b.fillFloor(r.x0, r.y0, r.x1, r.y1, floor);
@@ -61,7 +61,7 @@ function room(b: ZoneBuilder, r: Rect, floor: string, paper: string, name: strin
 function lights(b: ZoneBuilder, r: Rect, step: number, circuit: number, rng: Rng, flick = 0.06) {
   for (let y = r.y0 + 2; y <= r.y1 - 1; y += step) for (let x = r.x0 + 2; x <= r.x1 - 1; x += step) {
     const q = hh(x, y, 9101);
-    b.light(x + 0.5, y + 0.5, 'fluoro', { color: LIGHT, intensity: 0.98, radius: step + 1.6, circuit, flicker: q < flick ? 0.18 : 0 });
+    b.light(x + 0.5, y + 0.5, 'fluoro', { color: LIGHT, intensity: 0.88, radius: step + 1.6, circuit, flicker: q < flick ? 0.18 : 0 });
   }
   void rng;
 }
@@ -322,7 +322,7 @@ export function generateBallHouse(z: Zone, seed: number) {
   for (const k of [C_MAIN, C_PARTY, C_STAFF, C_CRAWL]) z.power.set(k, true);
   z.env = {
     ...z.env,
-    ambient: 0xe4e2dc, ambientI: 0.82, fog: 0xd8d6e0, fogNear: 26, fogFar: 64, void: 0x1a1a24, temp: 22,
+    ambient: 0xe0ded8, ambientI: 0.66, fog: 0xd8d6e0, fogNear: 26, fogFar: 64, void: 0x1a1a24, temp: 22,
     sky: false, grade: 'mall', reverb: 'mall', ambience: 'ballhouse', music: 'muzak', weather: 'none',
   } as Zone['env'];
   // the kids (src/creatures/species/timmy.ts), and the odd stuffed toy that got left behind

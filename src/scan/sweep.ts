@@ -11,8 +11,11 @@ import { G } from '../game/G';
 
 const ICE = new THREE.Color(0x9fe8ff), WARM = new THREE.Color(0xffd27a);
 
-/** additive light that never writes depth (it should glow over the room, not hide it) */
+/** additive light that never writes depth (it should glow over the room, not hide it). The main pass draws
+ *  into two targets (colour + the normal buffer, src/gfx/materials.ts): every shader writes both, the normal
+ *  buffer left as it was (alpha 0 blends away) */
 function lightMat(frag: string, uniforms: Record<string, THREE.IUniform>): THREE.ShaderMaterial {
+  frag = 'layout(location = 1) out highp vec4 gNormal;\n' + frag.replace(/\}\s*$/, '  gNormal = vec4(0.0);\n}\n');
   return new THREE.ShaderMaterial({
     uniforms,
     vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = -mv.xyz; gl_Position = projectionMatrix * mv; }',
@@ -20,6 +23,13 @@ function lightMat(frag: string, uniforms: Record<string, THREE.IUniform>): THREE
     transparent: true, depthWrite: false, depthTest: true, side: THREE.DoubleSide,
     blending: THREE.AdditiveBlending, fog: false,
   });
+}
+
+/** a built-in material made safe for the two-target main pass */
+export function mrtSafe<T extends THREE.Material>(m: T): T {
+  m.onBeforeCompile = (sh) => { sh.fragmentShader = 'layout(location = 1) out highp vec4 gNormal;\n' + sh.fragmentShader.replace(/\}\s*$/, '  gNormal = vec4(0.0);\n}\n'); };
+  m.customProgramCacheKey = () => 'scan-mrt-' + m.type;
+  return m;
 }
 
 const CONE_FRAG = /* glsl */`
@@ -106,7 +116,7 @@ export class ScanSweep {
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.6, 1, 96, 1), lightMat(RING_FRAG, this.U));
     this.ring.rotation.x = -Math.PI / 2;
     // the emitter's own small glint on the visor
-    this.dot = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshBasicMaterial({ color: 0xcff6ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+    this.dot = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), mrtSafe(new THREE.MeshBasicMaterial({ color: 0xcff6ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false })));
     for (const m of [this.cone, this.band, this.ring, this.dot]) { m.frustumCulled = false; m.renderOrder = 19; this.root.add(m); }
     this.root.visible = false;
     G.pr.scene.add(this.root);

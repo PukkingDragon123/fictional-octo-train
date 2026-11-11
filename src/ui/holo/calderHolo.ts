@@ -289,7 +289,7 @@ export class CalderHolo {
     u.uFeet.value = 0.5 + (root.position.y - 0.05) / HW; u.uHead.value = 0.5 + (root.position.y + 1.85) / HW;
     const pm = this.pad.material as THREE.MeshBasicMaterial, bm = this.beam.material as THREE.MeshBasicMaterial;
     pm.opacity = 0.75 * Math.min(1, this.show * 2) * (0.9 + 0.1 * Math.sin(this.T * 7));
-    bm.opacity = 0.11 * Math.min(1, this.show * 2);
+    bm.opacity = 0.07 * Math.min(1, this.show * 2);
     const r = this.renderer;
     r.setRenderTarget(this.rt);
     r.setClearColor(0x000000, 0);

@@ -16,6 +16,7 @@ import { defItem, itemDef, type Item } from '../items/item';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import type { Player } from '../entities/player';
+import { mrtSafe } from '../scan/sweep';
 
 /** the lamp as an item the light code understands (never in an inventory) */
 defItem({
@@ -63,7 +64,7 @@ export class SuitLamp {
   on = false;
   private views = new Map<string, View>();
   private mat: THREE.Material | null = null;
-  private lensMat = new THREE.MeshBasicMaterial({ color: 0x6a7480 });
+  private lensMat = mrtSafe(new THREE.MeshBasicMaterial({ color: 0x6a7480 }));
   private v = new THREE.Vector3();
   private t = 0;
 
@@ -128,7 +129,7 @@ export class SuitLamp {
   }
 
   private lit: THREE.MeshBasicMaterial | null = null;
-  private litMat() { return (this.lit ??= new THREE.MeshBasicMaterial({ color: 0xeaf6ff })); }
+  private litMat() { return (this.lit ??= mrtSafe(new THREE.MeshBasicMaterial({ color: 0xeaf6ff }))); }
 
   private view(q: Player): View | null {
     const rig: any = q.rig;
