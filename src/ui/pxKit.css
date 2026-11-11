@@ -60,3 +60,5 @@
 .px-toggle canvas { flex: none; image-rendering: pixelated; }
 .px-toggle-l small { display: block; font-size: 13px; color: rgba(236,226,204,.55); }
 .px-toggle:is(:hover, :focus-visible) .px-toggle-l { color: #ffd88a; }
+/* cinematics own the screen: the HUD overlays step out while body.noclip-cine is set (the objective caption re-queues itself) */
+body.noclip-cine :is(.obj15, #hot12, .mg-tuner, .map15) { visibility: hidden !important; opacity: 0 !important; transition: none !important; }

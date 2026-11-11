@@ -35,6 +35,7 @@ export class ObjectiveLine {
   private hold = 0;
   private lastSig = '';
   private zoneSaid = '';
+  private cur: Card | null = null;
 
   constructor() {
     const el = this.el = document.createElement('div');
@@ -82,18 +83,25 @@ export class ObjectiveLine {
 
   private blocked() {
     const g = G as unknown as { intro?: { running?: boolean }; pr?: { eyeCamera?: unknown } };
-    return isLoading() || TUT.running || !!g.intro?.running || !G.local || !!G.local.body?.dead || !!G.paused;
+    return document.body.classList.contains('noclip-cine') || isLoading() || TUT.running || !!g.intro?.running || !G.local || !!G.local.body?.dead || !!G.paused;
   }
 
   private update(dt: number) {
+    // a cinematic takes the screen: the caption steps out and comes back after it, in full
+    if (this.showing && document.body.classList.contains('noclip-cine')) {
+      this.el.classList.remove('on', 'out'); this.showing = 0; this.hold = 0;
+      if (this.cur) { this.queue.unshift(this.cur); this.cur = null; }
+      return;
+    }
     if (this.showing) {
       this.hold -= dt;
-      if (this.hold <= 0) { this.el.classList.remove('on'); this.el.classList.add('out'); this.showing = 0; this.hold = 0.7; }
+      if (this.hold <= 0) { this.el.classList.remove('on'); this.el.classList.add('out'); this.showing = 0; this.hold = 0.7; this.cur = null; }
       return;
     }
     if (this.hold > 0) { this.hold -= dt; return; }
     if (!this.queue.length || this.blocked()) return;
     const c = this.queue.shift()!;
+    this.cur = c;
     const el = this.el;
     el.className = 'obj15 t-' + (c.tone || 'up');
     el.innerHTML = `<div class="obj15-k"><i></i><span>${esc(c.kind)}</span><i></i></div>`

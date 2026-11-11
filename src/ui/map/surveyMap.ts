@@ -100,7 +100,7 @@ export class SurveyMap {
       }
     }
     if (!this.open) return;
-    if (!G.local || G.local.body?.dead) { this.toggle(false); return; }
+    if (!G.local || G.local.body?.dead || document.body.classList.contains('noclip-cine')) { this.toggle(false); return; }
     this.openT += dt;
     this.drawT -= dt;
     if (this.drawT <= 0) { this.drawT = 1 / 8; this.draw(); }
