@@ -66,7 +66,9 @@ export class SurveyMap {
     });
     this.cv.addEventListener('contextmenu', (e) => e.preventDefault());
     bus.on('travelStart', () => this.toggle(false));
-    G.addSystem({ name: 'surveyMap', update: (dt: number) => this.update(dt) });
+    // on the real clock (the plot and the echo carry on while a cinematic holds the world's time); the pause stops it
+    let last = performance.now();
+    G.addSystem({ name: 'surveyMap', update: () => { const now = performance.now(), dt = Math.min(0.25, (now - last) / 1000); last = now; if (!G.paused) this.update(dt); } });
     (G as any).surveyMap = this;
   }
 

@@ -369,7 +369,15 @@ export function darkDoor(w = 0.92, h = 2.08, tex = 'p_oak_door'): DarkDoor {
   const X = -0.075;
   quad(vb, [X, 0, -w / 2], [X, h, -w / 2], [X, h, w / 2], [X, 0, w / 2], 'white', [-1, 0, 0]);
   room(vb, X, 2.5, -0.02, h + 0.02, -w / 2 - 0.02, w / 2 + 0.02, { floor: 'white', ceil: 'white', wall: 'white' }, ['x0']);
-  const black = new THREE.Mesh(vb.build(), emitMat(0x000000, 0));
+  // true black: drawn over whatever the level has in the doorway (depth always passes) and written at the far
+  // plane, so the post passes read it as empty space (no haze, no rim, no outline): a hole, not a black wall
+  const voidMat = new THREE.ShaderMaterial({
+    vertexShader: 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'layout(location = 1) out highp vec4 gNormal;\nvoid main() { gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0); gNormal = vec4(0.5, 0.5, 1.0, 0.0); gl_FragDepth = 1.0; }',
+    side: THREE.DoubleSide, depthFunc: THREE.AlwaysDepth,
+  });
+  const black = new THREE.Mesh(vb.build(), voidMat);
+  black.renderOrder = 40;
   group.add(black);
   // the slab on its hinge (it swings toward the unit)
   const hinge = new THREE.Group();
@@ -378,6 +386,7 @@ export function darkDoor(w = 0.92, h = 2.08, tex = 'p_oak_door'): DarkDoor {
   cbox(sb, 0, 0.01, w / 2, 0.045, h - 0.02, w, 0.008, { all: tex }, { fit: true } as never);
   cbox(sb, -0.04, 1.0, w - 0.08, 0.05, 0.03, 0.12, 0.01, 'metal_brass');
   const slab = mesh(sb, [{ at: [-1.6, 2.0, w / 2], col: 0xfff0d8, k: 0.9, r: 2.6 }], 0.3, 0xd0c8b8);
+  slab.renderOrder = 41;
   hinge.add(slab);
   group.add(hinge);
   return { group, open(k) { hinge.rotation.y = k * 1.75; } };

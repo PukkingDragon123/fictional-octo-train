@@ -274,8 +274,9 @@ function* departure(c: Cine, x: Ctx): Script {
       yield c.sleep(0.6);
       const tx = spot.x - nx * 0.7, tz = spot.z - nz * 0.7;
       c.walk(tx, tz, 1.15);
-      yield c.sleep(0.55);
-      yield c.fade(1, 0.45);
+      // black by the time the eyes cross the threshold
+      yield c.sleep(0.3);
+      yield c.fade(1, 0.38);
       return;
     }
   }

@@ -18,6 +18,7 @@ import { objDef } from '../../world/objects';
 import { fpOwner } from '../../fp/fp';
 import { playCine, cineRunning, cineEnabled, type Cine, type Script, ease, lerp } from './engine';
 import type { FacInfo, FacKind } from '../../world/gen/facilities';
+import { openFacing } from './travel';
 
 const flags = () => G.missions?.flags;
 const seen = (k: string) => !!flags()?.has(k);
@@ -61,6 +62,8 @@ function revealFor(zoneKey: string): Reveal | null {
 }
 
 function* revealShot(c: Cine, r: Reveal): Script {
+  // turned to the most open view first (not a wall a step away)
+  c.face(openFacing(c.p, 3.5), 0.6);
   yield c.eyeUp();
   const dur = r.dur ?? 6;
   const [p0, p1] = r.pitch ?? [6, 1];
