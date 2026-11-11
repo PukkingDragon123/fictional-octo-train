@@ -27,6 +27,7 @@ import { bus } from '../../core/events';
 import type { Game } from '../game';
 import type { Player } from '../../entities/player';
 import type { Portal, Zone } from '../../world/zone';
+import { wallpaperTex, type WallDef } from '../../world/defs';
 import { playCine, cineEnabled, cineRunning, type Cine, type Script, ease, easeOut, lerp, clamp01 } from './engine';
 import { liftCab, stairShaft, duct, membrane, darkDoor } from './sets';
 
@@ -81,6 +82,23 @@ function wallDist(p: Player, yaw: number, max: number): number {
     tx = nx; ty = ny;
   }
   return max;
+}
+/** the paper on the wall ahead (what goes liquid), if there is a wall within reach */
+function wallTexAhead(p: Player, yaw: number, max: number): string | undefined {
+  const z = G.getZone(p.zoneKey);
+  const fx = Math.cos(yaw), fz = Math.sin(yaw);
+  let tx = Math.floor(p.x), ty = Math.floor(p.z);
+  for (let d = 0.05; d <= max; d += 0.05) {
+    const nx = Math.floor(p.x + fx * d), ny = Math.floor(p.z + fz * d);
+    if (nx === tx && ny === ty) continue;
+    let w: WallDef | null = null;
+    if (nx !== tx) w = z.wallWAt(Math.max(nx, tx), ty);
+    else w = z.wallNAt(tx, Math.max(ny, ty));
+    if (w) { const pp = z.paper[z.idx(tx, ty)]; return !w.noWallpaper && pp ? wallpaperTex(pp) || w.tex : w.tex; }
+    if (!walkable(z, nx, ny)) return undefined;
+    tx = nx; ty = ny;
+  }
+  return undefined;
 }
 /** the facing on arrival: keep it if there is room ahead, else the most open of eight */
 export function openFacing(p: Player, want = 1.8): number {
@@ -215,7 +233,7 @@ function* departure(c: Cine, x: Ctx): Script {
     case 'liquid': {
       const yaw = p.facing;
       c.ease('pitch', 4, 0.4);
-      const m = membrane(gelColour(x.from));
+      const m = membrane(gelColour(x.from), wallTexAhead(p, yaw, 1.3));
       atUnit(m.group, p, yaw); c.add(m.group);
       // the surface stands where the wall is (or a step ahead, in the open)
       const wd = Math.max(0.32, Math.min(0.85, wallDist(p, yaw, 1.2) - 0.04));
@@ -223,7 +241,7 @@ function* departure(c: Cine, x: Ctx): Script {
       const u = m.mat.uniforms;
       c.tween(9, (k) => { u.uTime.value = k * 9; });
       c.sfx('seam_ripple', 0.7);
-      yield c.tw(0.9, (k) => { u.uA.value = 0.94 * ease(k); u.uTouch.value = 0.12 * k; });
+      yield c.tw(0.9, (k) => { u.uA.value = (u.uWall.value ? 1 : 0.9) * ease(k); u.uTouch.value = 0.12 * k; });
       yield c.sleep(0.35);
       c.sfx('arv_squelch', 0.8);
       const fx = Math.cos(yaw), fz = Math.sin(yaw), x0 = p.x, z0 = p.z;

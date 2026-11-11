@@ -16,6 +16,8 @@ import * as THREE from 'three';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 import { face, cbox, rod, type V3 } from '../introKit/poly';
 import { emitMat, type EmitMat } from '../introKit/stageMat';
+import { atlas } from '../../gfx/atlas';
+import { U } from '../../gfx/materials';
 
 export interface Lamp { at: V3; col: number; k: number; r: number }
 
@@ -304,7 +306,14 @@ void main() {
 const MEM_FRAG = /* glsl */`
 layout(location = 1) out highp vec4 gNormal;
 uniform float uTime; uniform float uK; uniform vec3 uCol; uniform float uA;
+uniform sampler2D tAtlas; uniform float uAtlasSize; uniform vec4 uRect; uniform vec2 uRep; uniform float uWall;
 varying vec3 vWp; varying vec2 vUv; varying float vD; varying vec3 vN;
+vec3 wallTex(vec2 w) {
+  vec2 texPx = max(uRect.zw * uAtlasSize, vec2(1.0));
+  vec2 f = fract(w);
+  f = (floor(f * texPx) + 0.5) / texPx;
+  return texture2D(tAtlas, uRect.xy + vec2(f.x, 1.0 - f.y) * uRect.zw).rgb;
+}
 void main() {
   vec3 n = normalize(vN);
   vec3 v = normalize(cameraPosition - vWp);
@@ -316,18 +325,26 @@ void main() {
   vec2 q = vUv * vec2(9.0, 7.0);
   float caus = sin(q.x + sin(q.y * 1.3 + uTime * 0.9) * 1.6 + uTime * 0.6) * sin(q.y + sin(q.x * 1.1 - uTime * 0.7) * 1.4);
   caus = smoothstep(0.6, 1.0, caus);
-  vec3 col = uCol * (0.16 + dif * 0.7 + vD * 0.5) + uCol * 0.55 * fres + vec3(0.85, 0.97, 1.0) * spec * 1.1 + vec3(0.5, 0.9, 1.0) * caus * 0.12;
+  // the wall's own paper, dragged by the ripples (or the gel's colour in the open)
+  vec2 w = vUv * uRep + n.zy * 0.12 * (0.4 + vD) + vec2(0.0, vD * 0.35);
+  vec3 base = mix(uCol, wallTex(w), uWall);
+  vec3 col = base * (0.45 + dif * 0.75 + vD * 0.45) + uCol * 0.4 * fres + vec3(0.85, 0.97, 1.0) * spec * 1.15 + vec3(0.5, 0.9, 1.0) * caus * 0.1;
   col *= uK;
   float edge = smoothstep(0.0, 0.1, min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y)));
   gl_FragColor = vec4(col, uA * edge);
   gNormal = vec4(n * 0.5 + 0.5, 1.0);
 }`;
 export interface Membrane { group: THREE.Group; mat: THREE.ShaderMaterial }
-export function membrane(col: number): Membrane {
+export function membrane(col: number, wallTexName?: string): Membrane {
+  const A = atlas(), r = A.get(wallTexName || 'ix_caustic');
   const g = new THREE.PlaneGeometry(4.2, 3.4, 42, 34);
   g.rotateY(-Math.PI / 2);
   const mat = new THREE.ShaderMaterial({
-    uniforms: { uTime: { value: 0 }, uTouch: { value: 0 }, uSwell: { value: 0 }, uK: { value: 1 }, uCol: { value: new THREE.Color(col) }, uA: { value: 0 } },
+    uniforms: {
+      uTime: { value: 0 }, uTouch: { value: 0 }, uSwell: { value: 0 }, uK: { value: 1 }, uCol: { value: new THREE.Color(col) }, uA: { value: 0 },
+      tAtlas: { value: A.texture as THREE.Texture }, uAtlasSize: U.uAtlasSize, uRect: { value: new THREE.Vector4(r.u0, r.v0, r.du, r.dv) },
+      uRep: { value: new THREE.Vector2(4.2 / Math.max(0.1, r.mw), 3.4 / Math.max(0.1, r.mh)) }, uWall: { value: wallTexName ? 1 : 0 },
+    },
     vertexShader: MEM_VERT, fragmentShader: MEM_FRAG, transparent: true, side: THREE.DoubleSide, depthWrite: true,
   });
   const m = new THREE.Mesh(g, mat);
