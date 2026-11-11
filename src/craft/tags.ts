@@ -1,5 +1,8 @@
-// Printed things for the first-person close-ups: typewritten manila luggage
-// tags on string, index cards, engraved brass and bakelite plates, embossed
+// Printed things for the first-person close-ups: riveted gunmetal placards
+// with a bone enamel face (what used to be manila luggage tags), keycap faces
+// and the inspect record plate (round 15: crisp high-resolution pixel art drawn
+// with src/ui/hiPixel.ts, chamfered, never rounded), index cards, engraved brass
+// and bakelite plates, embossed
 // label tape, chalk slates, blueprint sheets, spring-scale dial faces, rubber
 // stamps. Each is a canvas drawn with real type (src/ui/fonts.css: the worn
 // typewriter, the enamel-sign condensed face, chalk handwriting...) on paper,
@@ -8,8 +11,9 @@
 import * as THREE from 'three';
 import { fontsReady, cssFont } from '../gfx/crt';
 import { metalEnv } from './metal';
+import { bevel, rivet, rect, GUN, AMB } from '../ui/hiPixel';
 
-export type TagKind = 'tag' | 'card' | 'plate' | 'dymo' | 'slate' | 'blueprint' | 'bakelite';
+export type TagKind = 'tag' | 'card' | 'plate' | 'dymo' | 'slate' | 'blueprint' | 'bakelite' | 'key' | 'spec';
 
 /** canvas pixels per layout unit (layout units are the sizes callers pass) */
 const S = 4;
@@ -24,7 +28,7 @@ function fonts() {
   };
   return FONTS;
 }
-const FACE: Record<TagKind, string> = { tag: 'type', card: 'type', plate: 'sign', bakelite: 'sign', dymo: 'sign', slate: 'pen', blueprint: 'typeset' };
+const FACE: Record<TagKind, string> = { tag: 'type', card: 'type', plate: 'sign', bakelite: 'sign', dymo: 'sign', slate: 'pen', blueprint: 'typeset', key: 'sign', spec: 'type' };
 export const inkFor = (k: TagKind) => (k === 'slate' ? '#ecebe2' : k === 'blueprint' ? '#e8f0ff' : k === 'dymo' ? '#f6f2ea' : k === 'plate' ? '#2a1c0c' : k === 'bakelite' ? '#e8dcc0' : '#25201b');
 
 let seedN = 1;
@@ -46,7 +50,13 @@ export interface PixTag {
   para(s: string, x: number, y: number, w: number, ink?: string | number, lineH?: number, maxLines?: number, size?: number): number;
   line(x0: number, y0: number, x1: number, y1: number, ink: string | number, width?: number): void;
   frame(x: number, y: number, w: number, h: number, ink: string | number, width?: number): void;
+  /** pixel art in whole art pixels (two per layout unit) with src/ui/hiPixel.ts primitives */
+  art(fn: (c: CanvasRenderingContext2D) => void): void;
 }
+/** art pixels per layout unit for PixTag.art */
+export const ART = 2;
+/** the bone enamel of placards and keycaps, dark to light */
+export const BONE = [0x4a4438, 0x6e6654, 0x8f8770, 0xaba38a, 0xc4bca2, 0xd8d1b8, 0xe8e2cc, 0xf4efde];
 
 const css = (c: string | number | undefined, k: TagKind) => (c === undefined ? inkFor(k) : typeof c === 'number' ? '#' + c.toString(16).padStart(6, '0') : c);
 
@@ -66,8 +76,9 @@ export function pixTag(kind: TagKind, w: number, h: number, size: number): PixTa
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 4;
-  tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
-  const mat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, roughness: kind === 'plate' ? 0.38 : kind === 'dymo' ? 0.45 : kind === 'bakelite' ? 0.4 : 0.92, metalness: kind === 'plate' ? 0.45 : 0, envMap: kind === 'plate' || kind === 'dymo' || kind === 'bakelite' ? metalEnv() : null, envMapIntensity: 0.6 });
+  const crisp = kind === 'tag' || kind === 'key' || kind === 'spec';
+  tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = crisp ? THREE.NearestFilter : THREE.LinearFilter;
+  const mat = new THREE.MeshStandardMaterial({ map: tex, transparent: true, alphaTest: 0.4, side: THREE.DoubleSide, roughness: kind === 'plate' ? 0.38 : kind === 'dymo' ? 0.45 : kind === 'bakelite' ? 0.4 : crisp ? 0.5 : 0.92, metalness: kind === 'plate' ? 0.45 : crisp ? 0.12 : 0, envMap: kind === 'plate' || kind === 'dymo' || kind === 'bakelite' || crisp ? metalEnv() : null, envMapIntensity: crisp ? 0.35 : 0.6 });
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(size, (size * h) / w), mat);
   const seed = Math.floor(Math.random() * 1e6);
   const entry: { t: PixTag; ops: (() => void)[] } = { t: null as unknown as PixTag, ops: [] };
@@ -80,6 +91,7 @@ export function pixTag(kind: TagKind, w: number, h: number, size: number): PixTa
     para(s, x, y, wpx, ink, lineH = 9, maxLines = 99, size = 7) { let n = 0; rec(() => { n = typePara(ctx, s, x, y, wpx, css(ink, kind), lineH, maxLines, size, kind); }); return n; },
     line(x0, y0, x1, y1, ink, width = 1) { rec(() => { ctx.strokeStyle = css(ink, kind); ctx.lineWidth = width * S; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x0 * S, y0 * S); ctx.lineTo(x1 * S, y1 * S); ctx.stroke(); }); },
     frame(x, y, fw, fh, ink, width = 1) { rec(() => { ctx.strokeStyle = css(ink, kind); ctx.lineWidth = width * S; ctx.strokeRect(x * S, y * S, fw * S, fh * S); }); },
+    art(fn) { rec(() => { ctx.save(); ctx.setTransform(S / ART, 0, 0, S / ART, 0, 0); ctx.imageSmoothingEnabled = false; fn(ctx); ctx.restore(); }); },
   };
   entry.t = t;
   if (!fontsIn) early.push(entry);
@@ -102,23 +114,13 @@ function stock(ctx: CanvasRenderingContext2D, kind: TagKind, w: number, h: numbe
   const W = w * S, H = h * S;
   ctx.clearRect(0, 0, W, H);
   ctx.save();
-  if (kind === 'tag') {
-    // manila luggage tag: clipped top corners, a reinforced eyelet, edge wear
-    const c = 5 * S;
-    ctx.beginPath(); ctx.moveTo(c, 0); ctx.lineTo(W - c, 0); ctx.lineTo(W, c); ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.lineTo(0, c); ctx.closePath();
-    ctx.clip();
-    const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, '#dcc690'); g.addColorStop(1, '#cdb47a');
-    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    fibres(ctx, W, H, '#8a6a3a', Math.round(W * H / 400));
-    speckle(ctx, W, H, Math.round(W * H / 300), '#5a3e1e', 0.25);
-    const eg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.3, W / 2, H / 2, Math.max(W, H) * 0.75);
-    eg.addColorStop(0, 'rgba(0,0,0,0)'); eg.addColorStop(1, 'rgba(70,45,15,0.35)');
-    ctx.fillStyle = eg; ctx.fillRect(0, 0, W, H);
-    const ex = W / 2, ey = 4.5 * S;
-    ctx.fillStyle = '#b89448'; ctx.beginPath(); ctx.arc(ex, ey, 3.2 * S, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#e2c878'; ctx.beginPath(); ctx.arc(ex - 0.5 * S, ey - 0.5 * S, 2.6 * S, 0, Math.PI * 2); ctx.fill();
-    ctx.globalCompositeOperation = 'destination-out'; ctx.beginPath(); ctx.arc(ex, ey, 1.5 * S, 0, Math.PI * 2); ctx.fill();
-  } else if (kind === 'card' || kind === 'blueprint') {
+  if (kind === 'tag' || kind === 'key' || kind === 'spec') {
+    ctx.restore();
+    ctx.save();
+    ctx.setTransform(S / ART, 0, 0, S / ART, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+    plateArt(ctx, kind, w * ART, h * ART);
+  } else if (kind === 'card' || kind === 'blueprint') {  } else if (kind === 'card' || kind === 'blueprint') {
     const g = ctx.createLinearGradient(0, 0, 0, H);
     if (kind === 'card') { g.addColorStop(0, '#f1ead6'); g.addColorStop(1, '#e2d7bb'); } else { g.addColorStop(0, '#2c4f92'); g.addColorStop(1, '#22427c'); }
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -175,6 +177,45 @@ function stock(ctx: CanvasRenderingContext2D, kind: TagKind, w: number, h: numbe
   ctx.restore();
 }
 
+/**
+ * The industrial stock, in whole art pixels: a riveted gunmetal placard with a bone enamel
+ * face under a header strip ('tag', where the typed label goes), a keycap top ('key': bone
+ * enamel, a lit lip, a dished face, a dark skirt line), or the record plate's housing ('spec').
+ */
+function plateArt(c: CanvasRenderingContext2D, kind: TagKind, W: number, H: number) {
+  const g = (k: number) => rnd() < k;
+  if (kind === 'key') {
+    rect(c, 2, 3, W - 2, H - 3, 0x000000, 0.35);
+    bevel(c, 1, 1, W - 3, H - 4, BONE.slice(1), { chamfer: 4 });
+    // the dish: a soft darker band low on the face, a lit band high, fine enamel grain
+    rect(c, 5, 3, W - 11, 1, 0xffffff, 0.35);
+    rect(c, 4, H - 9, W - 9, 2, BONE[2], 0.35);
+    for (let i = 0; i < W * H * 0.05; i++) rect(c, 2 + rnd() * (W - 6), 2 + rnd() * (H - 7), 1, 1, g(0.5) ? BONE[7] : BONE[2], 0.25);
+    // the skirt edge under the cap
+    rect(c, 5, H - 4, W - 11, 1, BONE[0], 0.8);
+    return;
+  }
+  // gunmetal housing with an ink edge and chamfered corners
+  rect(c, 3, 3, W - 3, H - 3, 0x000000, 0.35);
+  bevel(c, 1, 1, W - 4, H - 4, GUN.slice(3, 10), { chamfer: 6 });
+  // brushed streaks and wear on the metal
+  for (let y = 3; y < H - 4; y += 2) if (g(0.4)) rect(c, 3 + rnd() * 8, y, W * (0.3 + rnd() * 0.5), 1, GUN[g(0.5) ? 7 : 4], 0.18);
+  if (kind === 'tag') {
+    // header strip: two screws and a status lamp; the bone face below takes the type
+    const hb = 15;
+    rect(c, 5, hb, W - 11, 1, GUN[1]);
+    rivet(c, 9, 8, 2, true); rivet(c, W - 11, 8, 2, true);
+    rect(c, 15, 7, 1, 3, AMB[2]); rect(c, 16, 6, 2, 5, AMB[4]); rect(c, 16, 6, 1, 1, AMB[6]);
+    for (let x = 22; x < W - 18; x += 4) rect(c, x, 8, 2, 1, GUN[2], 0.8);
+    bevel(c, 5, hb + 2, W - 12, H - hb - 8, BONE.slice(2), { chamfer: 3, sunk: true });
+    for (let i = 0; i < W * H * 0.03; i++) rect(c, 6 + rnd() * (W - 14), hb + 3 + rnd() * (H - hb - 11), 1, 1, g(0.5) ? BONE[7] : BONE[2], 0.22);
+    rivet(c, 9, H - 9, 1); rivet(c, W - 11, H - 9, 1);
+  } else {
+    // the record plate: corner screws, a header band with a hazard notch
+    rivet(c, 8, 8, 2, true); rivet(c, W - 10, 8, 2, true); rivet(c, 8, H - 10, 2, true); rivet(c, W - 10, H - 10, 2, true);
+  }
+}
+
 // ---------------------------------------------------------------- type
 function typeLine(ctx: CanvasRenderingContext2D, str: string, x: number, y: number, ink: string, size: number, kind: TagKind, face?: string): number {
   const f = fonts();
@@ -184,7 +225,7 @@ function typeLine(ctx: CanvasRenderingContext2D, str: string, x: number, y: numb
   ctx.font = `${kind === 'dymo' || kind === 'plate' || kind === 'bakelite' ? '600 ' : ''}${px}px ${fam}`;
   ctx.textBaseline = 'top';
   let cx = x * S;
-  const typed = kind === 'tag' || kind === 'card' || (kind === 'blueprint' && !face);
+  const typed = kind === 'card' || (kind === 'blueprint' && !face);
   const raised = kind === 'dymo', engraved = kind === 'plate' || kind === 'bakelite', chalk = kind === 'slate';
   const text = kind === 'dymo' || engraved ? str.toUpperCase() : str;
   for (const ch of text) {
@@ -235,9 +276,10 @@ export function disposeTag(t: PixTag) {
 }
 
 /** a string from a tag's eyelet to whatever it is tied to */
-export function tagString(color = 0x8a7a5a): THREE.Line {
+/** a thin amber leader from a placard to whatever it describes (was a string; the colour asked for is kept as a hint only) */
+export function tagString(_color = 0x8a7a5a): THREE.Line {
   const g = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 1, 0)]);
-  return new THREE.Line(g, new THREE.LineBasicMaterial({ color }));
+  return new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0xf2ad32, transparent: true, opacity: 0.75, depthTest: false }));
 }
 export function setString(l: THREE.Line, a: THREE.Vector3, b: THREE.Vector3) {
   const p = l.geometry.attributes.position as THREE.BufferAttribute;
