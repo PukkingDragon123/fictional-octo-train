@@ -181,18 +181,19 @@ addTextureModule(() => {
 
 // ------------------------------------------------------------------ objects
 defObj({
-  key: 'fac_sign', name: 'Company Sign', height: 2.2, block: 'none', onWall: true, sound: 'metal', hp: 99999,
+  key: 'fac_sign', name: 'Company Sign', height: 2.6, block: 'none', onWall: true, sound: 'metal', hp: 99999,
   desc: 'An enamelled plate screwed to the wall. Somebody meant this place to be found again.',
   tags: [...T, 'sign', 'wall'],
   variant: (s) => String(s.sign ?? 'meridian_outpost'),
   model: (mb, s) => {
     const k = SIGNS[String(s.sign)] ? String(s.sign) : 'meridian_outpost';
-    mb.box(0, 1.55, -0.43, 1.5, 0.48, 0.035, { south: 'zf_sign_' + k, sides: 'metal_dark', top: 'metal_dark', bottom: 'metal_dark' }, { fit: { south: true } });
-    // stand-off bolts and a little conduit to the lamp above it
-    for (const x of [-0.66, 0.66]) mb.box(x, 1.75, -0.405, 0.04, 0.04, 0.02, 'metal_grey');
-    mb.box(0, 2.08, -0.44, 0.03, 0.1, 0.03, 'metal_grey');
-    mb.box(0, 2.04, -0.4, 0.34, 0.05, 0.1, 'metal_dark');
-    mb.box(0, 2.02, -0.37, 0.3, 0.02, 0.05, 'q_glow_green', { emissive: 0.5, color: 0xfff2d0 });
+    // high on the wall, over the tallest racks and booths of the set under it
+    mb.box(0, 2.06, -0.43, 1.28, 0.4, 0.035, { south: 'zf_sign_' + k, sides: 'metal_dark', top: 'metal_dark', bottom: 'metal_dark' }, { fit: { south: true } });
+    for (const x of [-0.56, 0.56]) for (const y of [2.1, 2.4]) mb.box(x, y, -0.405, 0.035, 0.035, 0.02, 'metal_grey');
+    // a little hooded lamp over it on its conduit
+    mb.box(0, 2.5, -0.44, 0.03, 0.2, 0.03, 'metal_grey');
+    mb.box(0, 2.49, -0.39, 0.32, 0.05, 0.1, 'metal_dark');
+    mb.box(0, 2.475, -0.36, 0.28, 0.015, 0.05, 'q_glow_green', { emissive: 0.5, color: 0xfff2d0 });
   },
 });
 

@@ -253,7 +253,8 @@ export class Inspect {
     this.turn.quaternion.copy(this.qT).multiply(_q.setFromEuler(_e.set(0.9, -1.4, 0.3)));
     const hx = this.lay.narrow ? 0 : -this.lay.halfW * 0.16;
     this.hold.position.set(hx, -0.5, -this.dist);
-    this.tw.add(0.32, (k) => { this.hold.position.y = -0.5 + 0.47 * k; }, easeBack);
+    const hy = this.lay.narrow ? 0.07 : -0.03;
+    this.tw.add(0.32, (k) => { this.hold.position.y = -0.5 + (hy + 0.5) * k; }, easeBack);
     G.audio?.itemSound?.(s.kind === 'item' ? s.it.key : 'plank', 'pick', G.local);
     this.sel = -1;
     this.pois = s.kind === 'item' ? itemPois(s.it, this.itemObj?.mesh?.geometry ?? null) : [];
@@ -296,7 +297,7 @@ export class Inspect {
     const d = it ? itemDef(it.key) : null;
     const kind = d ? (d.cat || 'misc') + (d.weapon ? ' · ' + d.weapon.kind : '') : 'furniture';
     const desc = it ? (d?.desc || '') : 'Tipped over. Four legs held on with glue and habit. Each one a straight dry length of hardwood: a handle, a club, a splint.';
-    el.innerHTML = `<canvas class="ip-bg"></canvas><div class="ip-hd">In hand · ${esc(kind)}</div>
+    el.innerHTML = `<canvas class="ip-bg"></canvas><i class="ip-lamp g"></i><div class="ip-hd">In hand · ${esc(kind)}</div>
 <div class="ip-in"><div class="ip-name">${esc(name)}</div>
 ${it ? `<div class="ip-row" data-bar="cond"><b>COND</b></div><div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg${d?.value ? ' · ' + d.value + ' scrip' : ''}</div>` : ''}
 ${!it || !this.pois.length ? `<div class="ip-desc">${esc(desc)}</div>` : ''}

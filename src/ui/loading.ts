@@ -17,6 +17,8 @@
 //                           (loaderStage is a no-op now; loaderText only for launch errors).
 import { Expanse } from './loader/expanse';
 import { hitstop } from '../gfx/juice';
+// the industrial UI kit (CSS nine-slices, the tactile press-and-clunk hook) for every page, from boot on
+import './pxKit';
 
 export type LoadKind = 'boot' | 'travel' | 'run' | 'lab';
 

@@ -9,9 +9,16 @@
 //   pxButton(label, fn, o)      a menu plate: Alagard label in a recessed channel, a lamp that
 //                               lights amber on hover / focus / selected
 //   pxLamp(c, x, y, on, ramp)   a small indicator lamp in a screwed bezel
+//   pxToggle(label, on, fn)     a bat-handle toggle switch that flips (and clunks)
+//   tactile(el, sound)          press-in + a CC0 clunk on any element (also: class px-key / data-px-tactile)
+// Round 15b: the old industrial machine. Plates are worn (paint chipped to bare metal at the
+// edges, scratches, grime settling at the bottom, a rust bloom under a screw); every press clunks
+// (src/ui/menus/sfx.ts samples), lamps light on hover, panels arrive on a mechanism (.px-mech-in).
+// The CSS layer (src/ui/pxKit.css) has the same look as nine-slices for CSS-only UI.
 import { bevel, rivet, hazard, rect, GUN, AMB, RED, GRN, crispCanvas, dprK } from './hiPixel';
 import { mixHex } from '../gfx/pixel';
 import './pxKit.css';
+import { sfx, type Sfx } from './menus/sfx';
 
 type C2 = CanvasRenderingContext2D;
 export type PxTone = 'steel' | 'olive' | 'red' | 'brass' | 'dark';
@@ -38,6 +45,10 @@ export interface PlateOpts {
   seed?: number;
   /** scanlines in the well (a screen) */
   scan?: boolean;
+  /** age: chipped paint, scratches, grime, rust (0 = factory new; default 0.6) */
+  wear?: number;
+  /** pressed in (a button held down): the bevel sinks */
+  sunk?: boolean;
 }
 
 /** a chamfered plate in high-res pixel art */
@@ -46,7 +57,7 @@ export function pxPlate(c: C2, x: number, y: number, w: number, h: number, o: Pl
   const seed = o.seed ?? 7;
   // a drop shadow under it
   rect(c, x + 3 + ch, y + h, w - ch * 2, 2, 0x000000, 0.35); rect(c, x + w, y + 3 + ch, 2, h - ch * 2, 0x000000, 0.3);
-  bevel(c, x, y, w, h, ramp.slice(2, 9), { chamfer: ch });
+  bevel(c, x, y, w, h, ramp.slice(2, 9), { chamfer: ch, sunk: o.sunk });
   // the chamfers: cut the corners clean and give each cut a lit / shaded facet
   for (let i = 0; i < ch; i++) {
     const k = ch - i;
@@ -60,6 +71,28 @@ export function pxPlate(c: C2, x: number, y: number, w: number, h: number, o: Pl
       const len = 3 + Math.floor(hsh(i, j, seed + 1) * 8);
       rect(c, i, j, Math.min(len, gx1 - i), 1, hsh(i, j, seed + 2) < 0.5 ? ramp[8] : ramp[3], 0.18);
     }
+  }
+  // age: chipped paint along the edges (bare bright metal with a dark lip), scratches, grime low down, rust under a screw
+  const wear = o.wear ?? 0.6;
+  if (wear > 0 && w > 16 && h > 10) {
+    const nChip = Math.round((w + h) / 26 * wear);
+    for (let i = 0; i < nChip; i++) {
+      const side = Math.floor(hsh(i, 3, seed) * 4), t = hsh(i, 5, seed), len = 2 + Math.floor(hsh(i, 7, seed) * 5);
+      const cx = side < 2 ? x + ch + 2 + Math.floor(t * (w - ch * 2 - 6)) : side === 2 ? x + 1 : x + w - 3;
+      const cy = side === 0 ? y + 1 : side === 1 ? y + h - 3 : y + ch + 2 + Math.floor(t * (h - ch * 2 - 6));
+      const hz = side < 2;
+      rect(c, cx, cy, hz ? len : 2, hz ? 2 : len, ramp[9], 0.55); rect(c, cx, cy + (hz ? 2 : 0), hz ? len : 1, 1, ramp[1], 0.6);
+    }
+    const nScr = Math.round((w * h) / 2400 * wear) + 1;
+    for (let i = 0; i < nScr; i++) {
+      let sx = x + 4 + Math.floor(hsh(i, 11, seed) * (w - 8)), sy = y + 3 + Math.floor(hsh(i, 13, seed) * (h - 6));
+      const n = 3 + Math.floor(hsh(i, 17, seed) * 9), dx = hsh(i, 19, seed) < 0.5 ? 1 : -1;
+      for (let k = 0; k < n && sx > x + 2 && sx < x + w - 3 && sy < y + h - 3; k++) { rect(c, sx, sy, 1, 1, ramp[9], 0.35); rect(c, sx, sy + 1, 1, 1, ramp[1], 0.25); sx += dx; if (k % 2) sy++; }
+    }
+    // grime settles toward the bottom edge
+    const gh = Math.min(10, Math.floor(h * 0.3));
+    for (let j = 0; j < gh; j++) for (let i = x + ch; i < x + w - ch; i += 2 + ((i + j) % 3)) if (hsh(i, j, seed + 21) < 0.28 * wear * (j / gh)) rect(c, i, y + h - gh - 2 + j, 1, 1, 0x1a1408, 0.35);
+    if (wear > 0.4 && w >= 40 && h >= 24 && o.screws !== false) { const rx = x + w - 9, ry = y + h - 6; for (let k = 0; k < 4; k++) rect(c, rx + (k % 2), ry + k, 1, 1, k < 2 ? 0x6a3412 : 0x4a220c, 0.45 - k * 0.08); }
   }
   const well = o.well ?? 0;
   if (well > 0 && w > well * 2 + 4 && h > well * 2 + 4) {
@@ -124,7 +157,7 @@ export function pxFrame(el: HTMLElement, o: PlateOpts & { pad?: number } = {}) {
 
 export interface PxButton extends HTMLButtonElement { setOn(on: boolean): void }
 /** a menu plate with an Alagard label and a lamp */
-export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: number; h?: number; lamp?: 'amber' | 'green' | 'red'; cls?: string; sub?: string } = {}): PxButton {
+export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: number; h?: number; lamp?: 'amber' | 'green' | 'red'; cls?: string; sub?: string; sound?: Sfx } = {}): PxButton {
   const W = o.w ?? 236, H = o.h ?? 34;
   const b = document.createElement('button') as PxButton;
   b.type = 'button';
@@ -135,12 +168,14 @@ export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: 
   const t = document.createElement('span'); t.className = 'pxb-t'; t.textContent = label;
   b.append(cv, t);
   if (o.sub) { const s = document.createElement('small'); s.className = 'pxb-s'; s.textContent = o.sub; b.append(s); }
-  let on = false;
+  let on = false, down = false;
   const ramp = o.lamp === 'green' ? GRN : o.lamp === 'red' ? RED : AMB;
   const draw = () => {
-    const hot = on || b.matches(':hover') || b.matches(':focus-visible') || document.activeElement === b;
+    const hot = on || down || b.matches(':hover') || b.matches(':focus-visible') || document.activeElement === b;
     c.clearRect(0, 0, W, H);
-    pxPlate(c, 1, 1, W - 4, H - 4, { tone: o.tone ?? 'steel', chamfer: 6, well: 0, screws: false, seed: label.length * 13 });
+    const dy = down ? 1 : 0;
+    c.save(); c.translate(0, dy);
+    pxPlate(c, 1, 1, W - 4, H - 4, { tone: o.tone ?? 'steel', chamfer: 6, well: 0, screws: false, seed: label.length * 13, sunk: down });
     // the recessed label channel
     const lx = 26, ly = 5, lw = W - 4 - lx - 10, lh = H - 4 - 10;
     rect(c, lx - 1, ly - 1, lw + 2, lh + 2, 0x050404);
@@ -150,11 +185,74 @@ export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: 
     // the lamp and two slot screws at the far end
     pxLamp(c, 13, Math.floor((H - 4) / 2) + 1, hot, ramp, 4);
     rivet(c, W - 9, 6, 1); rivet(c, W - 9, H - 9, 1);
-    b.classList.toggle('hot', hot);
+    c.restore();
+    b.classList.toggle('hot', hot); b.classList.toggle('down', down);
   };
+  b.addEventListener('pointerdown', () => { down = true; draw(); sfx(o.sound ?? 'plate', 0.55); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, () => { if (down) { down = false; draw(); } });
   b.setOn = (v: boolean) => { on = v; b.classList.toggle('on', v); draw(); };
   for (const ev of ['pointerenter', 'pointerleave', 'focus', 'blur']) b.addEventListener(ev, () => requestAnimationFrame(draw));
   b.addEventListener('click', () => fn());
+  draw();
+  return b;
+}
+
+/** press-in and a clunk on any element (a CC0 sample through src/ui/menus/sfx.ts) */
+export function tactile(el: HTMLElement, sound: Sfx = 'key') { el.classList.add('px-tactile'); el.dataset.pxSound = sound; installTactile(); }
+
+let tactileOn = false;
+/** one delegated hook for the whole page: .px-key, .px-tactile and [data-px-tactile] press in and clunk */
+export function installTactile() {
+  if (tactileOn) return;
+  tactileOn = true;
+  let held: HTMLElement | null = null;
+  const up = () => { held?.classList.remove('px-down'); held = null; };
+  document.addEventListener('pointerdown', (e) => {
+    const t = (e.target as HTMLElement | null)?.closest?.('.px-key, .px-tactile, [data-px-tactile]') as HTMLElement | null;
+    if (!t || (t as HTMLButtonElement).disabled) return;
+    held = t; t.classList.add('px-down');
+    sfx((t.dataset.pxSound || t.dataset.pxTactile || 'key') as Sfx, 0.5);
+  }, true);
+  document.addEventListener('pointerup', up, true);
+  document.addEventListener('pointercancel', up, true);
+}
+installTactile();
+
+export interface PxToggle extends HTMLButtonElement { set(on: boolean): void; readonly on: boolean }
+/** a bat-handle toggle switch on a small screwed plate, with its label stencilled beside it */
+export function pxToggle(label: string, on0: boolean, onChange: (on: boolean) => void, o: { sub?: string } = {}): PxToggle {
+  const b = document.createElement('button') as PxToggle;
+  b.type = 'button'; b.className = 'px-toggle';
+  const W = 30, H = 40;
+  const { cv, c } = crispCanvas(W, H);
+  const lab = document.createElement('span'); lab.className = 'px-toggle-l'; lab.innerHTML = label + (o.sub ? `<small>${o.sub}</small>` : '');
+  b.append(cv, lab);
+  let on = on0, anim = on0 ? 1 : 0;
+  const draw = () => {
+    c.clearRect(0, 0, W, H);
+    pxPlate(c, 1, 1, W - 4, H - 4, { tone: 'steel', chamfer: 4, screws: false, seed: 9, wear: 0.4 });
+    rivet(c, Math.floor(W / 2) - 1, 5, 1, true); rivet(c, Math.floor(W / 2) - 1, H - 9, 1, true);
+    // the boss and the bat handle, thrown up (on) or down (off)
+    const cx = Math.floor((W - 3) / 2), cy = Math.floor((H - 3) / 2);
+    rect(c, cx - 4, cy - 4, 9, 9, GUN[1]); rect(c, cx - 3, cy - 3, 7, 7, GUN[6]); rect(c, cx - 3, cy - 3, 7, 1, GUN[9]);
+    const k = anim * 2 - 1, len = 9;
+    for (let i = 1; i <= len; i++) {
+      const yy = cy - Math.round(k * i), ww = i > len - 3 ? 4 : 2;
+      rect(c, cx - Math.floor(ww / 2), yy, ww, 1, i > len - 3 ? GUN[9] : GUN[8]); rect(c, cx - Math.floor(ww / 2) + ww, yy, 1, 1, GUN[3]);
+    }
+    pxLamp(c, W - 9, 6, on, GRN, 2);
+    b.classList.toggle('on', on);
+  };
+  let raf = 0;
+  const flip = () => {
+    cancelAnimationFrame(raf);
+    const t0 = performance.now(), from = anim, to = on ? 1 : 0;
+    const step = (now: number) => { const u = Math.min(1, (now - t0) / 90); anim = from + (to - from) * u; draw(); if (u < 1) raf = requestAnimationFrame(step); };
+    raf = requestAnimationFrame(step);
+  };
+  b.set = (v: boolean) => { if (v === on) return; on = v; flip(); };
+  Object.defineProperty(b, 'on', { get: () => on });
+  b.addEventListener('click', () => { on = !on; sfx('rocker', 0.7); flip(); onChange(on); });
   draw();
   return b;
 }

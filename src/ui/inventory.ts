@@ -443,7 +443,7 @@ export class InventoryUI {
     this.renderSide();
     this.resetParts();
     this.updateTag();
-    this.help.textContent = matchMedia('(pointer: coarse)').matches ? 'drag things in or out  ·  long-press: look closer  ·  tap the flap: close' : 'drag things in or out  ·  right-click: send across  ·  double-click: look closer  ·  R turn  ·  Space shake  ·  I close';
+    this.help.textContent = matchMedia('(pointer: coarse)').matches ? 'drag things in or out  ·  long-press: item card  ·  tap the flap: close' : 'drag things in or out  ·  right-click: item card  ·  shift-click: send across  ·  R turn  ·  Space shake  ·  I close';
     this.hook();
   }
 

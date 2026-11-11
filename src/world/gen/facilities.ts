@@ -35,6 +35,8 @@ const BACK: Record<Side, 0 | 1 | 2 | 3> = { n: 0, e: 1, s: 2, w: 3 };
 interface Piece { key: string; lx: number; ly: number; state?: Record<string, unknown>; note?: string }
 interface Layout {
   W: number; D: number; wall: boolean; sign: string; signLx: number;
+  /** slide the plate along the wall by this many tiles (-0.5: centred over a two-tile piece) */
+  signOff?: number;
   name: string; company: string; pieces: Piece[];
   /** a note dropped on the floor at (lx, ly) */
   floorNote?: [number, number, string];
@@ -57,15 +59,15 @@ export const LAYOUTS: Record<FacKind, Layout> = {
     pieces: [
       { key: 'cryo_pod', lx: 0, ly: 0 },
       { key: 'cryo_pod', lx: 1, ly: 0 },
-      { key: 'specimen_tank', lx: 2, ly: 0 },
+      { key: 'crate_wood', lx: 2, ly: 0, state: { loot: 'fac_containment' } },
       { key: 'lab_cabinet', lx: 3, ly: 0, state: { loot: 'fac_containment' } },
-      { key: 'crate_wood', lx: 4, ly: 0, state: { loot: 'fac_containment' } },
+      { key: 'specimen_tank', lx: 4, ly: 0 },
       { key: 'hazard_barrier', lx: 4, ly: 2 },
     ],
     floorNote: [3, 1, 'zf_argent_manifest'],
   },
   maint: {
-    W: 5, D: 3, wall: true, sign: 'meridian_maint', signLx: 1, name: 'Maintenance Bay', company: 'Meridian Facilities', lamp: true,
+    W: 5, D: 3, wall: true, sign: 'meridian_maint', signLx: 1, signOff: -0.5, name: 'Maintenance Bay', company: 'Meridian Facilities', lamp: true,
     pieces: [
       { key: 'workbench', lx: 0, ly: 0, note: 'zf_maint_order' },
       { key: 'tool_chest', lx: 2, ly: 0, state: { loot: 'fac_maint' } },
@@ -89,7 +91,7 @@ export const LAYOUTS: Record<FacKind, Layout> = {
     floorNote: [1, 2, 'zf_halcyon_notice'],
   },
   checkpoint: {
-    W: 5, D: 3, wall: true, sign: 'meridian_checkpoint', signLx: 1, name: 'Security Checkpoint', company: 'Meridian Custody', lamp: true,
+    W: 5, D: 3, wall: true, sign: 'meridian_checkpoint', signLx: 1, signOff: -0.5, name: 'Security Checkpoint', company: 'Meridian Custody', lamp: true,
     pieces: [
       { key: 'security_desk', lx: 0, ly: 0 },
       { key: 'cp_relay', lx: 2, ly: 0 },
@@ -269,7 +271,11 @@ function placeSet(z: Zone, b: ZoneBuilder, f: Furnisher, rng: Rng, kind: FacKind
   }
   // the plate on the wall above the set (or on its post in the camp)
   const [sx, sy] = toWorld(s.side, s.px, s.py, L.W, L.D, L.signLx, 0);
-  if (L.wall && !z.objectsAt(sx, sy).some((o) => objDef(o.key)?.onWall)) b.obj('fac_sign', sx, sy, BACK[s.side], { sign: L.sign });
+  if (L.wall && !z.objectsAt(sx, sy).some((o) => objDef(o.key)?.onWall)) {
+    const [ux, uy] = toWorld(s.side, s.px, s.py, L.W, L.D, L.signLx + 1, 0);
+    const k = L.signOff ?? 0;
+    b.obj('fac_sign', sx, sy, BACK[s.side], { sign: L.sign }, k ? { ox: (ux - sx) * k, oz: (uy - sy) * k } : {});
+  }
   // a working light over it (on the room's own circuit, so a dead circuit leaves it dark)
   if (L.lamp) {
     const [cx, cy] = toWorld(s.side, s.px, s.py, L.W, L.D, Math.floor(L.W / 2), 1);

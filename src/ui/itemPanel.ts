@@ -48,6 +48,12 @@ function keyArt(w: number, h: number, state: 'up' | 'hover' | 'down', lamp: Lamp
   if (!down) { rect(c, 6, 3, w - 13, 1, 0xffffff, off ? 0.08 : 0.32); rect(c, 4, h - 10, w - 9, 2, off ? 0x000000 : BONE[2], 0.25); }
   let s = (w * 31 + h * 17) | 0;
   for (let i = 0; i < w * h * 0.04; i++) { s = (s * 1103515245 + 12345) & 0x7fffffff; const x = 3 + (s % (w - 8)); s = (s * 1103515245 + 12345) & 0x7fffffff; rect(c, x, 3 + (s % Math.max(1, h - 9)), 1, 1, s & 1 ? 0xffffff : 0x000000, 0.08); }
+  // a little old: grime in the corners and along the foot, the enamel worn bright where thumbs land
+  if (!off) {
+    rect(c, 3, h - 9, 5, 3, 0x3a3020, 0.18); rect(c, w - 9, h - 9, 5, 3, 0x3a3020, 0.18); rect(c, 4, 4, 3, 2, 0x3a3020, 0.12);
+    rect(c, Math.round(w * 0.45), Math.round(h * 0.3), Math.round(w * 0.2), 2, 0xffffff, 0.08);
+    for (let i = 0; i < 4; i++) { s = (s * 1103515245 + 12345) & 0x7fffffff; rect(c, 6 + (s % (w - 14)), 1 + (down ? 2 : 0), 2, 1, BONE[2], 0.5); }
+  }
   // the status lamp, set into the cap at the left
   const ly = Math.round((h - 5) / 2) - 3 + (down ? 2 : 0);
   rect(c, 6, ly, 8, 8, 0x0a0b0c);
@@ -85,7 +91,10 @@ function style() {
 .ipnl.on { opacity: 1; transform: none; }
 .ipnl > canvas.ip-bg { position: absolute; left: 0; top: 0; pointer-events: none; }
 .ipnl .ip-in { position: relative; padding: 32px 18px 18px 18px; }
-.ipnl .ip-hd { position: absolute; left: 20px; top: 9px; right: 96px; font-size: 11px; letter-spacing: 0.16em; color: #f2ad32; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
+.ipnl .ip-lamp { position: absolute; left: 10px; top: 11px; width: 7px; height: 9px; background: #f2ad32; box-shadow: 0 0 7px rgba(242,173,50,0.85), inset 0 -3px 0 #d8861c, inset 1px 1px 0 #fff0bc; animation: ip-flick 5.3s steps(1) infinite; pointer-events: none; }
+.ipnl .ip-lamp.g { background: #48dc70; box-shadow: 0 0 7px rgba(72,220,112,0.8), inset 0 -3px 0 #24b04c, inset 1px 1px 0 #e0ffe8; }
+@keyframes ip-flick { 0% { opacity: 1; } 37% { opacity: 0.55; } 38% { opacity: 1; } 71% { opacity: 0.85; } 72% { opacity: 0.25; } 73% { opacity: 1; } 91% { opacity: 0.7; } 92% { opacity: 1; } }
+.ipnl .ip-hd { position: absolute; left: 22px; top: 9px; right: 96px; font-size: 11px; letter-spacing: 0.16em; color: #f2ad32; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
 .ipnl .ip-x { position: absolute; right: 12px; top: 6px; width: 24px; height: 20px; border: 0; padding: 0; background: transparent center/100% 100% no-repeat; color: #25201b; font: inherit; font-size: 12px; cursor: pointer; }
 .ipnl .ip-top { display: flex; gap: 12px; }
 .ipnl .ip-well { position: relative; flex: 0 0 132px; height: 132px; display: flex; align-items: center; justify-content: center; }
@@ -111,7 +120,7 @@ function style() {
 .ipnl .ip-key small { font-size: 10px; color: #6e3608; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ipnl .ip-key.wide { grid-column: span 2; }
 .ipnl .ip-key.off { color: #9aa0a4; cursor: default; }
-.ipnl .ip-key.off small { color: #c8301e; }
+.ipnl .ip-key.off small { color: #ff9a7a; }
 .ipnl .ip-key.hov, .ipnl .ip-key.foc { filter: drop-shadow(0 0 3px rgba(242,173,50,0.85)) drop-shadow(0 0 1px #ffd06a); }
 .ipnl .ip-key.dn { transform: translateY(2px); padding-top: 2px; }
 .ipnl .ip-key.foc::after { content: ''; position: absolute; inset: -3px; border: 2px solid transparent; border-image: linear-gradient(90deg, #ffd06a 0 6px, transparent 6px calc(100% - 6px), #ffd06a calc(100% - 6px)) 2; pointer-events: none; }
@@ -136,7 +145,6 @@ function style() {
 }
 
 // ---------------------------------------------------------------- the panel
-const TAP = 0.45;
 class ItemPanel {
   private el: HTMLDivElement | null = null;
   private it: Item | null = null;
@@ -218,7 +226,7 @@ class ItemPanel {
     const stats = this.stats(it).map(([k, v]) => `<div>${esc(k)}<span>${esc(v)}</span></div>`).join('');
     const lore = DETAIL[it.key]?.poi?.[0];
     const loreText = lore ? (typeof lore.note === 'function' ? lore.note(it) : lore.note) : d.anomaly ? 'Anomalous. Logged for the archive.' : '';
-    return `<canvas class="ip-bg"></canvas><div class="ip-hd">Item record · ${esc(cid)}</div><button class="ip-x" data-x title="Close (Esc)">X</button>
+    return `<canvas class="ip-bg"></canvas><i class="ip-lamp"></i><div class="ip-hd">Item record · ${esc(cid)}</div><button class="ip-x" data-x title="Close (Esc)">X</button>
 <div class="ip-in"><div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}</div>
 <div class="ip-id"><div class="ip-name">${esc(itemName(it))}</div><div class="ip-kind">${esc(cat)}</div>
 <div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg · ${sz[0]}x${sz[1]}x${sz[2]}</div>
@@ -292,7 +300,7 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
     try { opts = itemMenuOptions(p, it, c, group); } catch (e) { console.warn('item panel options', e); opts = []; }
     const flat: { o: MenuOption; parent?: string }[] = [];
     for (const o of opts) {
-      if (!o.label?.trim() || /inspect|look closer/i.test(o.label)) continue;
+      if (!/[a-z0-9]/i.test(o.label || '') || /inspect|look closer/i.test(o.label)) continue;
       if (o.sub?.length) {
         // a verb's choices read as one key each ("Eat half"); a destination list keeps its verb under it
         const move = /move|put|stash/i.test(o.label);
@@ -422,9 +430,16 @@ export function plateBg(el: HTMLElement) {
   // brushed streaks and handling wear
   let s = W * 7 + H;
   for (let y = 4; y < H - 8; y += 2) { s = (s * 1103515245 + 12345) & 0x7fffffff; if (s % 5 < 2) rect(c, 6 + (s % 30), y, W * 0.25 + (s % Math.max(1, W >> 1)), 1, s & 1 ? GUN[7] : GUN[3], 0.16); }
-  // header band, a status lamp, a hazard notch
+  // an old machine: scratches through the paint, grime gathered at the foot and round the screws,
+  // rust weeping from them, the paint chipped off the chamfers
+  const R = () => { s = (s * 1103515245 + 12345) & 0x7fffffff; return (s % 10000) / 10000; };
+  for (let i = 0; i < (W * H) / 1100; i++) { const x = 12 + R() * (W - 40), y = 30 + R() * (H - 50), l = 3 + R() * 16, dy = (R() - 0.5) * 0.7; for (let j = 0; j < l; j++) rect(c, x + j, y + j * dy, 1, 1, GUN[8], 0.3); }
+  for (let y = H - 34; y < H - 7; y++) rect(c, 6, y, W - 16, 1, 0x1a1408, 0.011 * (y - (H - 34)));
+  for (const [x, y] of [[9, H - 13], [W - 13, H - 13], [W - 52, 16]]) { rect(c, x - 5, y - 5, 11, 11, 0x1a1408, 0.14); rect(c, x - 1, y + 3, 2, 3 + R() * 7, 0x6a3a1a, 0.4); rect(c, x, y + 4, 1, 2 + R() * 5, 0x8a4c22, 0.35); }
+  for (let i = 0; i < 26; i++) { const top = R() < 0.5, x = 6 + R() * (W - 18), y = top ? 2 + R() * 3 : H - 10 + R() * 3; rect(c, x, y, 1 + R() * 3, 1, GUN[9], 0.45); }
+  // header band and a hazard notch (the lamp in it is a live element: it flickers)
   rect(c, 8, 6, W - 18, 20, GUN[1]); rect(c, 8, 26, W - 18, 1, GUN[6]);
-  rect(c, 11, 12, 5, 7, AMB[3]); rect(c, 11, 12, 5, 3, AMB[5]); rect(c, 11, 12, 2, 1, AMB[6]);
+  rect(c, 9, 10, 9, 11, 0x050404); rect(c, 9, 10, 9, 1, GUN[6]);
   hazard(c, W - 84, 10, 38, 12, 0xe8b52a, 0x17150f, 6);
   rivet(c, 9, H - 13, 2, true); rivet(c, W - 13, H - 13, 2, true); rivet(c, W - 52, 16, 2, true);
   const pr = el.getBoundingClientRect();
@@ -476,4 +491,3 @@ const PANEL = new ItemPanel();
 export function openItemPanel(it: Item, c: Container | null, at: { x: number; y: number; w?: number; h?: number }, group?: Item[]) { PANEL.show(it, c, at, group); }
 export function closeItemPanel() { PANEL.close(); }
 export function itemPanelOpen(): boolean { return PANEL.open; }
-void TAP;
