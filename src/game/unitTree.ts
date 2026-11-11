@@ -30,6 +30,8 @@ import { unlock, isUnlocked } from './profile';
 import { COSMETIC, type CosSlot } from './cosmetics';
 import { CYBER_PARTS, cyberDef, type CyberSlot, SLOT_KIND, slotConflicts } from '../survival/cyberParts';
 import { file, saveFile } from './meridian';
+// the economy's offers (press patterns, press upgrades, homestead pieces, farming) register themselves as data
+import './economy/registry';
 
 /** a branch of the tree: one per category of src/game/treeData.ts (design, recipe, build, device, chip, limb, and any registered) */
 export type Branch = string;

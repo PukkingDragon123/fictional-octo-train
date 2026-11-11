@@ -643,9 +643,13 @@ export class CombatSystem implements GameSystem {
       p.anim?.impact?.(w.cls === 'blade' || w.cls === 'spear' ? 0.35 : 0.7);
       if (aoe) { shake(0.8, 0.45); G.audio?.at?.('cb_impact', p.x, p.z, 1); }
     } else if (k === 'light' || k === 'heavy' || k === 'lunge') {
-      // furniture, walls, windows in front
-      this.hitWorld(p, k === 'heavy' ? { ...w.w, dmg: [w.w.dmg[0] * (1 + m.power), w.w.dmg[1] * (1 + m.power)] as [number, number] } : w.w, w.it);
+      // furniture, walls, windows in front (a heavy blow that does not break loose furniture sends it skidding)
+      this.hitWorld(p, k === 'heavy' ? { ...w.w, dmg: [w.w.dmg[0] * (1 + m.power), w.w.dmg[1] * (1 + m.power)] as [number, number] } : w.w, w.it, k === 'light' ? 0 : (1 + m.power) * (1 + Math.max(0, w.heft)));
       if (k !== 'light') shake(0.15, 0.15);
+    } else if (k === 'shove' || k === 'tackle') {
+      // nothing alive in front: put the shoulder into the furniture (chairs skid, tall things go over)
+      const o = G.destruct?.objectInFront?.(p, 1.1, 0.8);
+      if (o && G.destruct?.push?.knock?.(p, o, Math.cos(m.dir) * (k === 'tackle' ? 4.2 : 2.6), Math.sin(m.dir) * (k === 'tackle' ? 4.2 : 2.6), k === 'tackle' ? 75 : 55)) { shake(0.2, 0.2); p.anim?.impact?.(0.6); }
     }
     noise(p, p.x, p.z, n ? w.w.noise * (k === 'heavy' ? 1.4 : 1) : w.w.noise * 0.5, 'melee');
     if (n) p.body.addXp('strength', k === 'heavy' ? 2 : 1);
@@ -995,9 +999,14 @@ export class CombatSystem implements GameSystem {
   /** a plain light strike now (older callers) */
   attack(p: Player) { const w = wielded(p); if (w.ranged) { if (w.w.kind === 'firearm') this.shoot(p, w.it!, w.w); else this.throwItem(p, w.it!); } else this.startMove(p, 'light', w); }
 
-  private hitWorld(p: Player, w: any, it: Item | null = null) {
+  private hitWorld(p: Player, w: any, it: Item | null = null, shove = 0) {
     // furniture, walls (src/world/destruction.ts)
-    if (G.destruct?.meleeWorld?.(p, w, it)) return;
+    const o = shove > 0 ? G.destruct?.objectInFront?.(p, (w.range ?? 0.85) + 0.35, 0.9) : null;
+    if (G.destruct?.meleeWorld?.(p, w, it)) {
+      // still standing after the blow: the weight of it shoves the piece along (src/world/pushDrag.ts knock)
+      if (o && G.getZone(p.zoneKey).objects.has(o.uid)) G.destruct?.push?.knock?.(p, o, Math.cos(p.facing) * (1.6 + shove), Math.sin(p.facing) * (1.6 + shove), 22 + shove * 14);
+      return;
+    }
     const z = G.getZone(p.zoneKey);
     const fx = p.x + Math.cos(p.facing) * 0.9, fz = p.z + Math.sin(p.facing) * 0.9;
     const tx = Math.floor(fx), ty = Math.floor(fz);

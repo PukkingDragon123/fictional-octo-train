@@ -61,6 +61,8 @@ export class UnitMotion {
   exVx = 0; exVz = 0;
   /** the last trip / fall / slam / roll (dev, tests) */
   last = '';
+  /** how the last fall landed (front / back) */
+  landed = '';
   private lean = 0;
   private prevSp = 0;
   private accF = 0;
@@ -315,11 +317,11 @@ export class UnitMotion {
     p.stopAnim();
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
     if (how === 'trip') {
-      // the feet stop, everything above keeps going: it pitches forward onto its hands
+      // the feet catch on the floor, everything above keeps going: it pitches forward onto its hands
       const v = Math.max(2.4, speed);
-      _v.set(dx * v, 0, dz * v);
-      _w.set(-dx * v * 1.1, 0.2, -dz * v * 1.1);
-      p.rig.startRagdoll(_v, _w, Math.random() < 0.5 ? 'shin_l' : 'shin_r', this.dur);
+      _v.set(dx * v * 0.75, 0, dz * v * 0.75);
+      _w.set(dx * (1.6 + v * 0.35), -0.9, dz * (1.6 + v * 0.35));
+      p.rig.startRagdoll(_v, _w, 'torso_u', this.dur);
     } else {
       _v.set(p.vx * 0.5 + dx * 0.6, 0, p.vz * 0.5 + dz * 0.6);
       _w.set(dx * (2 + 2.8 * strength), 0.5 + 1.2 * strength, dz * (2 + 2.8 * strength));
@@ -356,6 +358,7 @@ export class UnitMotion {
         if (R?.active) {
           R.trunkWorld(_u, _b);
           back = _b.y > 0.25;
+          this.landed = back ? 'back' : 'front';
           // the head end of the body: face it (face down) or turn the back to it (face up, the get-up sits forward over the feet)
           const hx = _u.x, hz = _u.z;
           if (Math.hypot(hx, hz) > 0.2) p.facing = p.targetFacing = back ? Math.atan2(-hz, -hx) : Math.atan2(hz, hx);
@@ -498,7 +501,7 @@ export class UnitMotion {
   }
 
   /** dev / tests */
-  debug() { return { st: this.st, t: +this.t.toFixed(2), prone: this.prone, blown: this.blown, last: this.last, ex: +Math.hypot(this.exVx, this.exVz).toFixed(2) }; }
+  debug() { return { st: this.st, t: +this.t.toFixed(2), prone: this.prone, blown: this.blown, last: this.last, landed: this.landed, ex: +Math.hypot(this.exVx, this.exVz).toFixed(2) }; }
 }
 
 export function motionOf(p: Player): UnitMotion { return p.motion ?? (p.motion = new UnitMotion()); }

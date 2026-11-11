@@ -99,6 +99,12 @@ export function initSubtitles(ui: UiLike) {
       case 'radio':
         radioLine(who, text, secs);
         break;
+      case 'tribe': {
+        // a person of the rooms (src/tribes): their own voice from their face, their name on the line
+        playLine(text, voiceFromApp(s.app || null, String(s.vid || who)), at ? { x: at.x, z: at.z } : null, { vol: 0.9 });
+        push(floatText(text, { kind: 'say', name: who || undefined, tint: String(s.vid || who), life: secs }), at, 'say');
+        break;
+      }
       case 'self': case 'player': {
         const p = speaker || G.local;
         if (!p) return;

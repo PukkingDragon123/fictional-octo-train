@@ -258,7 +258,8 @@ function unitGoals(S: TribeSystem, c: Creature, z: Zone, camp: Camp | null, role
   // ROB: quick hands sneak up behind the unit
   const thief = role === 'thief' || (role === 'drifter' && tr.greed > 0.6);
   const att = attitude(c);
-  if (thief && !m.loot?.length && (m.robT ?? 0) < G.time && att < 30 && d < 18 && stealables(p).length) {
+  if (thief) m.robT ??= G.time + 90 + Math.random() * 150; // they size you up first
+  if (thief && !m.loot?.length && m.robT < G.time && att < 30 && d < 18 && stealables(p).length) {
     const facing = unitFacing(p, c.x, c.z, 1.9);
     if (facing && d < 4.5 && d > 1.2) {
       // seen coming: shrug it off and try again later

@@ -68,7 +68,8 @@ export function prunePool() {
 
 function say(c: Creature, text: string, T: TribeDef) {
   // the subtitle strip (their name on the line), voiced from where they stand
-  bus.emit('subtitle', { who: memberName(c), text, dur: readTime(text), style: 'tribe', tribe: T.key, color: T.css, x: c.x, y: c.y + c.height + 0.25, z: c.z });
+  const app = (c.mem._app ??= T.app(seeded(idHash(c.id))));
+  bus.emit('subtitle', { who: memberName(c), text, dur: readTime(text), style: 'tribe', tribe: T.key, color: T.css, app, vid: c.id, x: c.x, y: c.y + c.height + 0.25, z: c.z });
 }
 /** a free line from this member (talk.ts, brain.ts) */
 export function sayAs(c: Creature, text: string) {

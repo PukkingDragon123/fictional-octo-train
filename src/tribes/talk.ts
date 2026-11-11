@@ -38,6 +38,8 @@ export type TalkMode = 'talk' | 'mug' | 'caught';
 interface Reply { text: string; say?: string; why?: string; go: () => void }
 const HOSTILE_T = new Set(['hostile', 'stalker', 'ambush', 'territorial']);
 const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+/** the conversation's pacing runs on the wall clock (a slow frame rate must not hold the replies back) */
+const now = () => performance.now() / 1000;
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 
 // ---------------------------------------------------------------- credit
@@ -167,7 +169,7 @@ export class Talk {
     if (this.suspended) return;
     if (this.mode === 'talk' && !c.tamedBy && this.S.hostile(c.mem.tribe)) { this.close(false); return; }
     this.face();
-    if (this.pending && G.time >= this.showAt) { this.pending = false; this.render(); }
+    if (this.pending && now() >= this.showAt) { this.pending = false; this.render(); }
     void dt;
   }
 
@@ -180,7 +182,7 @@ export class Talk {
     if (text) sayAs(c, text);
     if (gesture) c.mem.gesture = { a: gesture, until: G.time + 1.8 };
     this.pending = true;
-    this.showAt = G.time + (text ? Math.min(2.2, 0.55 + text.length * 0.022) : 0.15);
+    this.showAt = now() + (text ? Math.min(2.2, 0.55 + text.length * 0.022) : 0.15);
     this.plate();
   }
 

@@ -198,7 +198,7 @@ export function penStep(c: any, z: Zone, dt: number): boolean {
     c.mem.pg = g; c.mem.pgT = 3 + Math.random() * 7;
   }
   const dd = Math.hypot(g[0] - c.x, g[1] - c.z);
-  if (dd > 0.3) G.creatures.moveTo(c, z, g[0], g[1], (c.sp.walk ?? 1) * 0.55, dt, 0.25);
+  if (dd > 0.3) G.creatures.moveTo(c, z, g[0], g[1], (c.sp.walk ?? 1) * 0.8, dt, 0.25);
   else { c.speed = 0; c.vx *= 0.8; c.vz *= 0.8; }
   return true;
 }

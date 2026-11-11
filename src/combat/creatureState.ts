@@ -289,12 +289,14 @@ export function creaturePose(c: Creature, dt: number) {
     root.rotation.z += Math.sin(t * 19) * 0.08 * k;
   }
   if (fl) {
-    const e = Math.max(0, 1 - (t - fl.t) / 0.28);
+    // a big shove reels it longer (a stagger step), a jab only twitches it
+    const e = Math.max(0, 1 - (t - fl.t) / (0.24 + fl.s * 0.22));
     if (e <= 0) delete c.mem.cbFl;
     else {
       const k = e * e * fl.s;
       const l = Math.hypot(fl.dx, fl.dz) || 1;
       root.position.x += (fl.dx / l) * 0.13 * k; root.position.z += (fl.dz / l) * 0.13 * k;
+      root.position.y -= Math.min(0.12, c.height * 0.06) * k;   // the knees give a little
       // pitch away from the blow (in the creature's own frame)
       const fwd = (fl.dx * Math.cos(c.facing) + fl.dz * Math.sin(c.facing)) / l;
       root.rotation.x -= fwd * 0.28 * k;

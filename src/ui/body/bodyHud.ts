@@ -31,7 +31,7 @@ import { bus } from '../../core/events';
 import { fpOwner } from '../../fp/fp';
 
 /** first-person scenes that get the whole picture (eating too: its own scene in the room, no floating HUD) */
-const FULL_FP = new Set(['pack', 'inspect', 'bench', 'cook', 'trade', 'dominion', 'surgery', 'remote', 'eat', 'watch']);
+const FULL_FP = new Set(['pack', 'inspect', 'bench', 'cook', 'trade', 'dominion', 'surgery', 'remote', 'eat', 'watch', 'talk']);
 import type { Player } from '../../entities/player';
 import type { Injury } from '../../survival/body';
 import { Lungs, type PumpResult } from './lung';
