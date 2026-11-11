@@ -293,9 +293,10 @@ class ItemPanel {
     const red = (n: number) => `<span class="ip-red" style="width:${n}px"></span>`;
     const anom = cl.k === 'anom';
     return `<canvas class="ip-bg"></canvas><i class="ip-lamp${anom ? ' r' : ''}"></i><div class="ip-hd" style="left:42px">Meridian Institute · Evidence card</div><button class="ip-x" data-x title="Close (Esc)">X</button>
-<div class="ip-in"><div class="ip-ban k-${cl.k}"><b>${cl.lvl}</b><em>${cl.label}</em><span>${caseNo(it)}</span><canvas class="ip-bc" data-case="${caseNo(it)}"></canvas></div>
+<div class="ip-in"><div class="ip-ban k-${cl.k}"><b>${cl.lvl}</b><em>${cl.label}</em><canvas class="ip-bc" data-case="${caseNo(it)}"></canvas></div>
 <div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}<div class="ip-stamp k-${cl.k}">${cl.stamp}</div></div>
 <div class="ip-id"><div class="ip-name">${esc(itemName(it))}</div><div class="ip-kind">${esc(cat)}</div>
+<div class="ip-row"><b>CASE</b>${caseNo(it)}</div>
 <div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg · ${sz[0]}x${sz[1]}x${sz[2]}</div>
 <div class="ip-gauge" data-gauge="cond"><b>${d.durability || d.weapon ? 'CONDITION' : 'STATE'}</b><canvas></canvas><span>${Math.round(it.cond * 100)}%</span></div>
 ${this.meter(it) ? `<div class="ip-row" data-bar="meter"><b>${this.meter(it)![0]}</b><canvas></canvas></div>` : ''}
@@ -356,7 +357,7 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
     }
     // the case barcode
     const bc = el.querySelector('canvas.ip-bc') as HTMLCanvasElement | null;
-    if (bc) { const k = barcode(bc.dataset.case || '', 92, 16); k.className = 'ip-bc'; bc.replaceWith(k); }
+    if (bc) { const k = barcode(bc.dataset.case || '', 84, 14); k.className = 'ip-bc'; bc.replaceWith(k); }
     const m = this.meter(it);
     if (m) put('meter', m[1], m[2]);
   }
@@ -380,11 +381,16 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
       if (!/[a-z0-9]/i.test(o.label || '') || /inspect|look closer/i.test(o.label)) continue;
       if (o.sub?.length) {
         // a verb's choices read as one key each ("Eat half"); a destination list keeps its verb under it
-        const move = /move|put|stash/i.test(o.label);
-        for (const s of o.sub.slice(0, 4)) if (s.label?.trim()) flat.push(move ? { o: s, parent: o.label } : { o: { ...s, label: o.label + ' ' + s.label.charAt(0).toLowerCase() + s.label.slice(1) } });
+        for (const s of o.sub.slice(0, 4)) {
+          if (!s.label?.trim()) continue;
+          const short = s.label.length <= 10 && !/\s/.test(s.label) && !/move|put|stash/i.test(o.label);
+          flat.push(short ? { o: { ...s, label: o.label + ' ' + s.label.charAt(0).toLowerCase() + s.label.slice(1) } } : { o: s, parent: o.label });
+        }
       } else flat.push({ o });
     }
-    for (const { o, parent } of flat.slice(0, 9)) {
+    // what can be done now first; at most two greyed-out keys say what can't
+    const can = flat.filter((q) => q.o.action && !q.o.disabled), cannot = flat.filter((q) => !q.o.action || q.o.disabled);
+    for (const { o, parent } of [...can.slice(0, 8), ...cannot.slice(0, 2)]) {
       const off = o.disabled ? (typeof o.disabled === 'string' ? o.disabled : 'not now') : false;
       add(o.label, () => { this.close(true); o.action?.(); }, { sub: parent, off: off || (!o.action ? 'not now' : false), danger: o.danger });
     }

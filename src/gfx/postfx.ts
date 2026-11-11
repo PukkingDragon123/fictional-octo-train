@@ -776,8 +776,11 @@ void main() {
     if (act > 0.0) {
       float fres = 1.0 - clamp(abs(dot(n, uCamF)), 0.0, 1.0);
       float top = clamp(n.y, 0.0, 1.0);
-      vec3 lit = min(gridAt(P.xz), vec3(1.5));
-      c += (lit * 0.6 + uRimTint) * (fres * fres * 0.55 + top * 0.22 + 0.04) * act * uRim;
+      // a rim, not a wash: it only fills the headroom a body has left before the tonemap clips (an additive
+      // term scaled by the room's light used to bleach every person in a brightly lit hall, e.g. a camp, to white)
+      vec3 lit = min(gridAt(P.xz), vec3(1.0));
+      float room = clamp(1.0 - dot(c, vec3(0.2126, 0.7152, 0.0722)) * 1.5, 0.0, 1.0);
+      c += (lit * 0.6 + uRimTint) * (fres * fres * 0.55 + top * 0.22 + 0.04) * act * uRim * room;
     }
   }
 #endif

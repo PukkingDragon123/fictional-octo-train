@@ -452,7 +452,9 @@ class TitleRoom {
   // ================================================================== the room HUD
   private buildHud() {
     const hud = this.hud;
+    const bn = hud.querySelector('.mr-banner');
     hud.innerHTML = '';
+    if (bn) hud.append(bn);
     this.hudCam = null;
     if (this.view === 'monitor') { this.feedNav.hidden = false; return; }
     this.feedNav.hidden = true;
