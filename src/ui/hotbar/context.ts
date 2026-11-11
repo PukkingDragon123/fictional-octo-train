@@ -191,6 +191,8 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
   if (near && touch && nd < 5) out.push({ id: 'strike', label: 'Strike', icon: 'strike', key: '', strike: true });
   // ---- people (src/tribes): [E] Talk, [G] Pickpocket
   try { for (const a of (g.tribes?.ctxActions?.(p) || []) as CtxAction[]) out.push(a); } catch (e) { console.warn('ctx tribes', e); }
+  // ---- other systems' verbs (round 15: the relay booths and the presses' checkpoints, src/game/checkpoint.ts)
+  for (const f of (g.ctxHooks || []) as ((p: Player, touch: boolean) => CtxAction[])[]) { try { for (const a of f(p, touch) || []) out.push(a); } catch (e) { console.warn('ctx hook', e); } }
   // ---- furniture
   const f = nearFurniture(p);
   if (f) {

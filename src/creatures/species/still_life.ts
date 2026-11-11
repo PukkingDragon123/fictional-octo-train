@@ -20,8 +20,10 @@ import { CS, zoneOf, pulse, objectsNear, wallSpotsNear, walkable, galleryPose, s
 import { net, netOf, playersIn, seenByAny, hashId, localIn, thinkOnce, playAt, lightAt as lightAtB, fakeCreature } from '../behaviors_b';
 import { CutState, cutState, cutSync, cutRestore, lostParts, flinchOf } from '../kit/humanoids';
 import {
-  MEMORIES, Memory, ADULT_MEMORIES, CHILD_MEMORY, memoryOf, waxify, pageData, pageTexture, replicaPose, ReplicaPose, childProportions,
+  MEMORIES, Memory, ADULT_MEMORIES, CHILD_MEMORY, memoryOf, waxify, pageData, pageTexture, replicaPose, ReplicaPose, childProportions, REPLICA_CAST,
 } from '../kit/replica';
+import { REG, PAGE } from '../../entities/humanModel';
+import { KINDS } from '../../gore/kinds';
 import { REPLICA_KEYS } from '../../content/furniture/m_replicas';
 import '../../audio/sounds_creatures_c';
 
@@ -32,6 +34,10 @@ import '../../audio/sounds_creatures_c';
 // looking straight at them. Some get up while nobody is watching; some follow
 // you round the house at a polite distance; a rare few close their hands round
 // your throat. They do not bleed. They are wax, and something dark inside.
+// Round 15: they are SPONGE. The cast is a porous, yellow-ochre cellulose under a
+// skin of wax: it squashes when struck and springs back, it soaks up whatever it
+// stands in (darker and heavier, dripping) and squirts it out when hit, and it tears
+// apart in spongy chunks. The shape is still the one human base (HumanRig).
 // =====================================================================================
 
 addTextureModule(() => {
@@ -42,10 +48,66 @@ addTextureModule(() => {
     for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
       const d = Math.hypot(x + 0.5 - 8, y + 0.5 - 8) / 8;
       const n = ph(x, y, 91);
-      pc.set(x, y, d > 0.88 ? 0xb8a47c : d > 0.66 ? (n < 0.5 ? 0xe2d4b0 : 0xd2c296) : d > 0.52 ? 0x5a4632 : n < 0.3 ? 0x0c0808 : n < 0.8 ? 0x1a1210 : 0x2e1a16);
+      // a sponge cross-section: a thin wax rind, then open yellow cells with dark pores
+      const pore = ph(x >> 1, y >> 1, 37) < 0.35 && ((x + y) & 1) === 0;
+      pc.set(x, y, d > 0.9 ? 0xb8a47c : pore ? (n < 0.5 ? 0x5a3e14 : 0x7a5a20) : n < 0.3 ? 0xc89a3a : n < 0.75 ? 0xdcb050 : 0xecc868);
     }
   });
 });
+
+// ------------------------------------------------------------------ the sponge: over the wax cast, every cast part goes porous
+/**
+ * Repaint a cast page as sponge: the wax-coloured pixels (the cast skin) become a yellow-ochre
+ * cellulose that keeps the cast's shading, riddled with pores (a dark hole, lit on its lower lip,
+ * in a loose cell pattern) and a few larger torn cavities. Eyes, mouths, cloth stay as they are.
+ */
+export function spongify(d: Uint8Array | Uint8ClampedArray, seed: number) {
+  const S = PAGE;
+  const SP = [0x6a4a14, 0x8a6420, 0xa47a2a, 0xbc9034, 0xcca040, 0xdab04c, 0xe6c05a, 0xf0d070, 0xf8e090];
+  const regs = [REG.HEAD, REG.NECK, REG.TORSO, REG.ARM_L, REG.ARM_R, REG.HAND_L, REG.HAND_R, REG.LEG_L, REG.LEG_R, REG.FOOT_L, REG.FOOT_R].filter(Boolean);
+  const isWax = (r: number, g: number, b: number) => { const L = r * 0.3 + g * 0.59 + b * 0.11; return L > 70 && L < 245 && r >= g - 4 && g >= b && r - b > 18 && r - b < 120; };
+  const mask = new Uint8Array(S * S);
+  for (const R of regs) for (let y = R.y; y < R.y + R.h; y++) for (let x = R.x; x < R.x + R.w; x++) {
+    const i = (y * S + x) * 4;
+    if (isWax(d[i], d[i + 1], d[i + 2])) mask[y * S + x] = 1;
+  }
+  const put = (x: number, y: number, c: number, t = 1) => {
+    if (x < 0 || y < 0 || x >= S || y >= S || !mask[y * S + x]) return;
+    const i = (y * S + x) * 4;
+    d[i] = Math.round(d[i] + (((c >> 16) & 255) - d[i]) * t); d[i + 1] = Math.round(d[i + 1] + (((c >> 8) & 255) - d[i + 1]) * t); d[i + 2] = Math.round(d[i + 2] + ((c & 255) - d[i + 2]) * t);
+  };
+  // the body colour: the cast's own light and shade, mapped onto the sponge ramp, with a coarse cell grain
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    if (!mask[y * S + x]) continue;
+    const i = (y * S + x) * 4;
+    const L = (d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11) / 255;
+    const grain = (ph(x >> 1, y >> 1, seed % 97) - 0.5) * 1.4 + (ph(x, y, 5) - 0.5) * 0.8;
+    const k = Math.max(0, Math.min(SP.length - 1, Math.round(1.5 + L * 6.2 + grain)));
+    const c = SP[k];
+    d[i] = (c >> 16) & 255; d[i + 1] = (c >> 8) & 255; d[i + 2] = c & 255;
+  }
+  // pores: one in most 3x3 cells, offset and sized at random; a few big torn cavities
+  for (let cy = 0; cy < S; cy += 3) for (let cx = 0; cx < S; cx += 3) {
+    const h = ph(cx, cy, seed % 89 + 3);
+    if (h > 0.78 || !mask[cy * S + cx]) continue;
+    const px = cx + Math.floor(ph(cx, cy, 7) * 3), py = cy + Math.floor(ph(cx, cy, 8) * 3);
+    const big = h < 0.06;
+    put(px, py, 0x2a1a08, 0.92); put(px, py + 1, 0xf8e4a0, 0.5);
+    if (h < 0.3) { put(px + 1, py, 0x4a3210, 0.8); put(px + 1, py + 1, 0xf0d888, 0.45); }
+    if (big) { put(px, py - 1, 0x2a1a08, 0.9); put(px - 1, py, 0x3a2610, 0.85); put(px + 1, py - 1, 0x3a2610, 0.85); put(px - 1, py + 1, 0xf8e4a0, 0.5); }
+  }
+  // the cast clothes are the same sponge under the paint: sparser pores, the cloth's own colour darkened in them
+  const shadeAt = (x: number, y: number, f: number) => { const i = (y * S + x) * 4; d[i] = Math.round(d[i] * f); d[i + 1] = Math.round(d[i + 1] * f); d[i + 2] = Math.round(d[i + 2] * f); };
+  for (const R of regs) {
+    if (R === REG.HEAD) continue;
+    for (let cy = R.y; cy < R.y + R.h - 1; cy += 3) for (let cx = R.x; cx < R.x + R.w - 1; cx += 3) {
+      if (mask[cy * S + cx] || ph(cx, cy, seed % 83 + 11) > 0.45) continue;
+      const px = cx + Math.floor(ph(cx, cy, 12) * 2), py = cy + Math.floor(ph(cx, cy, 13) * 2);
+      shadeAt(px, py, 0.42); if (ph(cx, cy, 14) < 0.4) shadeAt(px + 1, py, 0.6);
+    }
+  }
+}
+REPLICA_CAST.push(spongify);
 
 // ------------------------------------------------------------------ rig (pooled: each HumanRig owns a texture page)
 interface SLRig extends Rig { hr: HumanRig; counter: THREE.Group; cut: CutState; who: string; m: Record<string, any>; glints: THREE.Mesh[] }
@@ -121,6 +183,7 @@ function adopt(r: SLRig, key: string, mem: Memory) {
   r.hr.setAppearance(mem.app);
   for (const o of Object.values(r.hr.j)) { delete o.userData.wd; o.scale.setScalar(1); }
   waxify(pageData(r.hr), mem, hashId(key, 3) * 1e6);
+  spongify(pageData(r.hr), hashId(key, 3) * 1e6);
   pageTexture(r.hr).needsUpdate = true;
   childProportions(r.hr, !!mem.child);
   r.cut = makeCut(r.hr);
@@ -299,6 +362,7 @@ function animateSL(rig: Rig, c: Creature, t: number, dt: number) {
   wrongPose(P, wrong, mode, seed, t);
   R.hr.applyPose(P);
   wrongBody(R, wrong);
+  spongeBody(R, c, n, t, dt, flinch);
   R.hr.fx.value.y += dt;
   // VHS wrongness: a rare tear through the image, more while it moves unseen, a lot while it strangles
   const tear = mode === 'strangle' ? 0.25 : moving && litAt(c) < 0.3 ? 0.08 : 0;
@@ -317,6 +381,43 @@ function animateSL(rig: Rig, c: Creature, t: number, dt: number) {
   strangleLocal(R, c, n, t, dt);
 }
 
+/** sponge: squashes on a hit and springs back; soaked, it is darker and it drips (and squirts when struck) */
+function spongeBody(R: SLRig, c: Creature, n: Record<string, any>, t: number, dt: number, flinch: number) {
+  const m = R.m;
+  m.sq = Math.max(m.sq ?? 0, flinch);
+  m.sq = Math.max(0, (m.sq ?? 0) - dt * 2.2);
+  const k = m.sq * Math.cos((1 - m.sq) * 14) * (m.sq > 0 ? 1 : 0);
+  R.counter.scale.set(1 + k * 0.14, 1 - k * 0.18, 1 + k * 0.14);
+  const wet = Math.max(0, Math.min(1, typeof n.wt === 'number' ? n.wt : 0));
+  const mat = R.hr.skin.material as THREE.MeshLambertMaterial;
+  const tone = 1 - wet * 0.38;
+  if (mat?.color && Math.abs(mat.color.r - tone) > 0.01) mat.color.setRGB(tone, tone * 0.98, tone * 0.94);
+  if (!c.visibleToLocal || c.dead) return;
+  // a fresh hit on a soaked one wrings it out
+  if (flinch > 0.9 && wet > 0.15 && (m.squirtT ?? 0) < t - 0.4) {
+    m.squirtT = t;
+    const a = c.facing + Math.PI + (Math.random() - 0.5) * 1.2;
+    G.gore?.jet?.(KINDS.pale, 0x8a8a70, c.x, 0.9, c.z, Math.cos(a), Math.sin(a), Math.round(6 + wet * 14), 2.2, 0.8, 1.1, 0.02, 0.05);
+    playAt('tc_squish', c, 0.7, 12, 0.9 + Math.random() * 0.2);
+  }
+  if (wet > 0.3 && (m.dripT = (m.dripT ?? 0) - dt) <= 0) {
+    m.dripT = 0.5 + Math.random() * (1.4 - wet);
+    G.gore?.jet?.(KINDS.pale, 0x8a8a70, c.x + (Math.random() - 0.5) * 0.3, 0.6 + Math.random() * 0.6, c.z + (Math.random() - 0.5) * 0.3, 0, 0, 1, 0.1, 0.2, -0.2, 0.014, 0.03);
+  }
+  void t;
+}
+/** host: it soaks up what it stands in (wet carpet, puddles, the pool), and dries out slowly */
+function soak(c: Creature, dt: number) {
+  const n = net(c);
+  if (typeof n.wt !== 'number') n.wt = Math.round(hashId(c.id, 9) * 50) / 100;
+  let f: any = null;
+  try { f = zoneOf(c).floorAt(Math.floor(c.x), Math.floor(c.z)); } catch { /* none */ }
+  const wetFloor = !!f && (f.water || String(f.sound ?? '').includes('wet') || String(f.key ?? '').includes('wet'));
+  const w = Math.max(0, Math.min(1, n.wt + (wetFloor ? dt * 0.12 : -dt * 0.004)));
+  if (Math.abs(w - n.wt) > 0.02) n.wt = Math.round(w * 100) / 100;
+  // wrung out a little by every blow
+  if (c.hitFlash > 0.12 && n.wt > 0.1) n.wt = Math.round(Math.max(0, n.wt - 0.08) * 100) / 100;
+}
 const litAt = (c: Creature) => (G && (G as any).players && c.zoneKey ? lightAtB(zoneOf(c), c.x, c.z) : 0.5);
 const _hp = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _inv = new THREE.Matrix4();
 function hideGlints(R: SLRig) { for (const g of R.glints) g.visible = false; }
@@ -516,6 +617,7 @@ function endStrangle(c: Creature) {
 
 function thinkSL(c: Creature, dt: number): boolean {
   if (!c.mem.init) init(c);
+  soak(c, dt);
   const cs = CS(), z = zoneOf(c), n = net(c);
   const ev = pulse(c);
   const role: Role = c.mem.role;
@@ -610,19 +712,19 @@ const sp = def({
   attack: { dmg: [5, 8], range: 0.8, cooldown: 1.2, kinds: ['bruise'], corrupt: 0, knock: 0, grab: true, parts: ['neck'] },
   zones: ['house', 'suburbs', 'school', 'hospital'], weight: 1.5, maxPerZone: 7, group: [1, 3], diet: 'none',
   flags: { weepingAngel: true, furniture: 'replica_seated' },
-  sounds: { hurt: 'still_crack', death: 'still_fall' },
+  sounds: { hurt: 'tc_squish', death: 'still_fall' },
   scan: {
-    cls: 'Replica (wax, hollow)',
+    cls: 'Replica (wax over sponge)',
     notes: [
       'A copy of a person, cast from memory. Waxy, too smooth, the features slightly wrong.',
       'Sometimes it is a copy of someone in your crew, down to the jumpsuit.',
       'Most never move. Their heads follow you when you are not looking straight at them.',
       'Some move only while nobody is watching. Some follow you round the house.',
       'Rarely, one will close its hands round a throat. Strike it or shove it to break the grip.',
-      'It does not bleed. It is wax, and something dark inside.',
+      'It does not bleed. Under a skin of wax it is sponge: it squashes, soaks up what it stands in, and tears apart in spongy chunks.',
     ],
   },
-  gore: { blood: 'dark', tint: 0x6a5a4a, flesh: 0xd8c8a0, sever: ['uarmL', 'uarmR', 'farmL', 'farmR', 'handL', 'handR', 'thighL', 'thighR', 'shinL', 'shinR'], head: 'head' },
+  gore: { blood: 'stuffing', tint: 0xe8c464, flesh: 0xdcb050, sever: ['uarmL', 'uarmR', 'farmL', 'farmR', 'handL', 'handR', 'thighL', 'thighR', 'shinL', 'shinR'], head: 'head' },
   remains: 'none',
   build: buildSL,
   animate: animateSL,

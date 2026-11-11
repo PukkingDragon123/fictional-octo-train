@@ -45,7 +45,8 @@ export class CookSystem implements GameSystem {
     bus.on('worldMenu', (p: Player, t: any, opts: MenuOption[]) => {
       if (t?.kind !== 'creature' || !t.c?.dead || !this.butchery.canButcher(t.c)) return;
       const tool = this.butchery.toolOf(p);
-      const v: MenuOption = { label: 'Butcher', disabled: tool ? false : 'needs a blade, an axe or a saw', action: () => { queueAt(p, t.c.x, t.c.z, new InstantAction(p, () => this.useCorpse(p, t.c), 'Kneel'), 1.3, false); } };
+      // round 15: a blade is best, but bare hands will do (slowly, wastefully): src/cook/butchery.ts
+      const v: MenuOption = { label: tool ? 'Butcher' : 'Butcher (bare hands)', disabled: false, action: () => { queueAt(p, t.c.x, t.c.z, new InstantAction(p, () => { if (p.isLocal) this.butchery.start(p, t.c, true); }, 'Kneel'), 1.3, false); } };
       const i = opts.findIndex((o) => o.label === 'Butcher');
       if (i >= 0) opts.splice(i, 1);
       const inHand = !!(p.handR && this.butchery.toolOf(p)?.it === p.handR);
@@ -59,6 +60,11 @@ export class CookSystem implements GameSystem {
   useObject(p: Player, o: TileObject): boolean {
     if (!p.isLocal || !this.view.stationKind(o)) return false;
     return this.view.openAt(p, o);
+  }
+  /** the knife-in-hand verb on a corpse (src/interact/toolUse.ts): walk up and start the harvest (src/cook/butchery.ts) */
+  butcher(p: Player, c: any) {
+    if (!p.isLocal || !this.butchery.canButcher(c)) return;
+    queueAt(p, c.x, c.z, new InstantAction(p, () => { this.butchery.start(p, c, true); }, 'Kneel'), 1.3, false);
   }
   useCorpse(p: Player, c: any): boolean {
     if (!p.isLocal) return false;

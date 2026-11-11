@@ -35,7 +35,7 @@ const S = 1.35;
 const sc = (p: V3): V3 => [p[0] * S, p[1] * S, p[2] * S];
 const SIDES = [['L', 1], ['R', -1]] as const;
 const NT = 6;
-const STK: [V3, number][] = [[[0.022, 0.158, -0.06], 0.11], [[-0.026, 0.162, 0.005], 0.14], [[0.012, 0.155, 0.065], 0.08], [[-0.018, 0.148, -0.125], 0.09]];
+const STK: [V3, number][] = [[[0.022, 0.158, -0.06], 0.08], [[-0.024, 0.162, 0.0], 0.1], [[0.012, 0.155, 0.06], 0.06], [[-0.018, 0.148, -0.12], 0.065], [[0.004, 0.16, -0.025], 0.12], [[0.03, 0.15, 0.025], 0.05]];
 
 function bonesR() {
   const A: [string, string, V3, boolean?][] = [
@@ -88,9 +88,9 @@ function buildR(B: SkinB, x: BuildCtx) {
   chain(B, x, R('SKIN'), 14, { bones: Array.from({ length: NT }, (_, i) => 't' + i), tipLen: 0.05 * S, r: (t) => (0.013 * (1 - t) + 0.002) * S, n: 5, rings: 2, bump: (_, t) => 0.12 * Math.max(0, Math.sin(t * 70)) });
   // the crest of fruiting bodies, and the cap out of the eye
   STK.forEach((_, i) => {
-    chain(B, x, R('STALK'), 20 + i, { bones: ['s' + i + 'a', 's' + i + 'b'], tip: rest('s' + i + 'c'), r: [0.008 * S, 0.006 * S], n: 5, rings: 2 });
-    const cp = rest('s' + i + 'c'), big = i === 1;
-    skBlob(B, R('CAPT'), 30 + i, [cp[0], cp[1] - 0.005, cp[2]], big ? [0.03 * S, 0.022 * S, 0.03 * S] : [0.022 * S, 0.016 * S, 0.022 * S], { n: 9, rings: 5, vr: [0.4, 1], w: [bi('s' + i + 'c'), 1], bump: (d) => 0.08 * Math.sin(Math.atan2(d[2], d[0]) * 7) });
+    chain(B, x, R('STALK'), 20 + i, { bones: ['s' + i + 'a', 's' + i + 'b'], tip: rest('s' + i + 'c'), r: [0.013 * S, 0.009 * S], n: 5, rings: 2, bump: (_, t) => 0.2 * Math.sin(t * 9 + i) });
+    const cp = rest('s' + i + 'c'), big = i === 1 || i === 4;
+    skBlob(B, R('CAPT'), 30 + i, [cp[0], cp[1] - 0.006, cp[2]], big ? [0.036 * S, 0.02 * S, 0.034 * S] : [0.026 * S, 0.015 * S, 0.025 * S], { n: 10, rings: 5, vr: [0.38, 1], w: [bi('s' + i + 'c'), 1], bump: (d) => 0.1 * Math.sin(Math.atan2(d[2], d[0]) * 7 + i) + (d[1] < 0.4 ? 0.12 : 0) });
   });
   const ec = rest('ec');
   skBlob(B, R('CAPT'), 40, [ec[0] + 0.006, ec[1] + 0.006, ec[2]], [0.02 * S, 0.016 * S, 0.02 * S], { n: 8, rings: 5, vr: [0.35, 1], w: [bi('ec'), 1] });
@@ -103,9 +103,9 @@ function buildR(B: SkinB, x: BuildCtx) {
 }
 function paintR(p: Page, x: BuildCtx) {
   const v = x.variant;
-  const FUR = makeRamp(mixHex(0x5a5048, 0x4a4440, v * 0.4), 7, { spread: 0.6 });
+  const FUR = makeRamp(mixHex(0x4a4038, 0x3e3a36, v * 0.4), 7, { spread: 0.6 });
   const f = p.R('FUR');
-  f.fill(FUR, (xx, yy) => 3 + Math.cos((f.deg(xx) * Math.PI) / 180) * 1.2 + ((xx + (yy >> 1)) % 3 === 0 ? -0.8 : 0.2) + (f.fbm(xx, yy, 4, 2, 7 + v) - 0.5) * 1.8, undefined, 0.5);
+  f.fill(FUR, (xx, yy) => 2 + Math.cos((f.deg(xx) * Math.PI) / 180) * 1.2 + ((xx + (yy >> 1)) % 3 === 0 ? -0.8 : 0.2) + (f.fbm(xx, yy, 4, 2, 7 + v) - 0.5) * 1.8, undefined, 0.5);
   // mycelium eating through in patches, pink bald skin round them
   for (let yy = 0; yy < f.h; yy++) for (let xx = 0; xx < f.w; xx++) {
     const n = f.fbm(xx, yy, 3, 3, 31 + v);
@@ -113,14 +113,14 @@ function paintR(p: Page, x: BuildCtx) {
   }
   for (let i = 0; i < 40; i++) f.crack(hash(i, 3) * f.w, hash(i + 5, 3) * f.h, 5, hash(i, 9) * 360, 0xe8e4ea, 3 + i, 0.5, 0.1);
   const h = p.R('HEAD');
-  h.fill(FUR, (xx, yy) => 3.2 + Math.cos((h.deg(xx) * Math.PI) / 180) - (yy / h.h) * 0.8 + (hash(xx, yy) - 0.5) * 0.8, undefined, 0.5);
+  h.fill(FUR, (xx, yy) => 2.2 + Math.cos((h.deg(xx) * Math.PI) / 180) - (yy / h.h) * 0.8 + (hash(xx, yy) - 0.5) * 0.8, undefined, 0.5);
   for (let yy = Math.floor(h.h * 0.7); yy < h.h; yy++) for (let xx = 0; xx < h.w; xx++) h.blend(xx, yy, 0xc88a90, 0.6);
   h.ellipse(h.X(0), h.h - 1.5, 2, 1.5, 0x3a2024, 1);
   paintSkin(p.R('SKIN'), makeRamp(0xc8969a, 6), { seed: 4, veins: 2, mottle: 1, glint: 3 });
   const sk = p.R('SKIN');
   for (let yy = 0; yy < sk.h; yy += 2) for (let xx = 0; xx < sk.w; xx++) sk.blend(xx, yy, 0x8a5a60, 0.3);
   const l = p.R('LEG');
-  l.fill(FUR, (xx, yy) => 2.6 + Math.cos((l.deg(xx) * Math.PI) / 180) * 0.8, undefined, 0.5);
+  l.fill(FUR, (xx, yy) => 1.8 + Math.cos((l.deg(xx) * Math.PI) / 180) * 0.8, undefined, 0.5);
   for (let yy = Math.floor(l.h * 0.6); yy < l.h; yy++) for (let xx = 0; xx < l.w; xx++) l.set(xx, yy, hash(xx, yy) < 0.5 ? 0xd0a0a4 : 0xb88890);
   paintCapTop(p.R('CAPT'), makeRamp(mixHex(0xc89a50, 0xb07a40, v * 0.5), 6, { spread: 0.7 }), { seed: 6 + v, scales: 8, scale: 0xf0e0b8 });
   p.R('STALK').fill(makeRamp(0xe0d8c8, 4), (xx, yy) => 2 + (hash(xx, yy) - 0.5), undefined, 0.5);

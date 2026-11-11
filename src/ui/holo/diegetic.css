@@ -157,10 +157,6 @@ html.nc-touch .sub-radio { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 .w-act canvas { position: absolute; left: 0; top: 0; }
 .w-act .wa-n { position: absolute; left: 21px; top: 3px; width: 92px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: normal 16px/16px var(--font-new); letter-spacing: 0.5px; color: #f3ead0; text-shadow: 1px 1px 0 #07060a, -1px 0 0 #07060a, 0 -1px 0 #07060a; }
 .w-act .wa-p { position: absolute; right: 11px; top: 3px; font: normal 16px/16px var(--font-new); font-style: normal; color: #ffd068; text-shadow: 1px 1px 0 #07060a, -1px 0 0 #07060a, 0 -1px 0 #07060a; }
-.tr-plate { position: fixed; left: 50%; bottom: max(28px, 8vh); z-index: 140; width: 300px; height: 44px; margin-left: -150px; pointer-events: none; opacity: 0; visibility: hidden; image-rendering: pixelated; filter: drop-shadow(0 4px 8px rgba(0,0,0,.5)); }
-.tr-plate.on { opacity: 1; visibility: visible; transition: opacity .2s ease .18s; }
-.tr-plate canvas { position: absolute; left: 0; top: 0; }
-.tr-plate b { position: absolute; left: 14px; right: 14px; top: 3px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font: normal 16px/16px var(--font-new); color: #f3ead0; text-shadow: 1px 1px 0 #07060a, -1px 0 0 #07060a, 0 -1px 0 #07060a; text-align: center; }
 @keyframes waIn { from { opacity: 0; margin-top: 6px; } to { opacity: 1; margin-top: 0; } }
 
 /* ---------------------------------------------------------------- right-click: tags and tape fanned from the target */

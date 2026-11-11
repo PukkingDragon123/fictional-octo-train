@@ -9,7 +9,9 @@ registerContent();
 loaderStage(0.18, 'Filing the inhabitants');
 
 const gallery = params.get('gallery');
-if (gallery) {
+if (import.meta.env.DEV && params.has('loader')) {
+  // dev: the loading screen alone (src/ui/loading.ts; window.__loader.seek(t) for stills)
+} else if (gallery) {
   import('./dev/gallery').then((m) => m.runGallery(gallery, params));
 } else if (import.meta.env.DEV && params.has('surgery')) {
   // dev: straight onto the operating table

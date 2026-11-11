@@ -195,8 +195,6 @@ export class Struggles {
       for (let i = 0; i < stage.need; i++) { const o = (i - (stage.need - 1) / 2) * 0.28; marks.mark(i < c.hits ? 'pip:on' : 'pip', hx + rt.x * o, hy + 0.98, hz + rt.z * o); }
     }
     // the time left is on the action plate over the head now (StruggleAction.barK), nothing on the floor
-    // what has us: a hazard sign over it
-    const k = c.cid ? G.creatures?.creatures?.get?.(c.cid) : null;
-    if (k) marks.mark('warn', k.x, k.y + Math.min(2.6, k.height + 0.4) + Math.abs(Math.sin(now * 9)) * 0.05, k.z);
+    // (round 15: no hazard sign over what has us: it is right there, on top of us)
   }
 }

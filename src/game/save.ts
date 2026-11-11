@@ -29,8 +29,16 @@ export interface SaveData {
   vehicles?: any[];
   /** the debt contract: ledger + band states (src/game/debt; the op log also carries them) */
   debt?: any;
+  /** round 15: the world's lineage (the id of the first file on this world; re-entries share it) */
+  lineage?: string;
+  /** round 15: the last checkpoint held on this world (src/game/checkpoint.ts) */
+  checkpoint?: CheckpointInfo;
+  /** round 15: how many times a unit has re-entered this world from a checkpoint */
+  reentries?: number;
 }
-export interface SaveMeta { id: string; name: string; savedAt: number; hours: number; zone: string; character: string; version: number }
+/** a held checkpoint: the snapshot lives in the 'saves' store under `id` (no meta row, so it is not a slot of its own) */
+export interface CheckpointInfo { id: string; label: string; zone: string; zoneName: string; at: number; x: number; y: number; day: number }
+export interface SaveMeta { id: string; name: string; savedAt: number; hours: number; zone: string; character: string; version: number; cp?: CheckpointInfo }
 
 // ---------------------------------------------------------------- IndexedDB
 function db(): Promise<IDBDatabase> {
@@ -61,10 +69,18 @@ export async function deleteSave(id: string) {
   await tx('saves', 'readwrite', (s) => s.delete(id));
   await tx('meta', 'readwrite', (s) => s.delete(id));
 }
-async function writeSave(d: SaveData) {
+export async function writeSave(d: SaveData) {
   await tx('saves', 'readwrite', (s) => s.put(d));
-  const meta: SaveMeta = { id: d.id, name: d.name, savedAt: d.savedAt, hours: d.hours, zone: d.player.zoneKey, character: d.player.name, version: d.version };
+  const meta: SaveMeta = { id: d.id, name: d.name, savedAt: d.savedAt, hours: d.hours, zone: d.player.zoneKey, character: d.player.name, version: d.version, ...(d.checkpoint ? { cp: d.checkpoint } : {}) };
   await tx('meta', 'readwrite', (s) => s.put(meta));
+}
+/** a checkpoint snapshot: the 'saves' store only (read it back with readSave(info.id)) */
+export async function writeCheckpoint(d: SaveData) { await tx('saves', 'readwrite', (s) => s.put(d)); }
+/** a new file on the old world, from a checkpoint snapshot: a new id, the same seed, op log and lineage */
+export function reentryFrom(cp: SaveData): SaveData {
+  const n = (cp.reentries || 0) + 1;
+  const base = String(cp.player?.name || 'Unit');
+  return { ...cp, id: 'w' + Date.now().toString(36), name: `${base} — re-entry ${n}`, savedAt: Date.now(), lineage: cp.lineage || cp.id, reentries: n };
 }
 
 // ---------------------------------------------------------------- body & player
@@ -124,9 +140,10 @@ export function snapshotGame(name?: string): SaveData {
   }
   const fires: Record<string, any> = {};
   for (const z of G.zones.values()) if (z.meta.fires && Object.keys(z.meta.fires).length) fires[z.key] = z.meta.fires;
+  const id = G.saveId || ('w' + Date.now().toString(36));
   return {
     version: SAVE_VERSION,
-    id: G.saveId || ('w' + Date.now().toString(36)),
+    id,
     name: name || `${p.name} — day ${Math.floor(G.clock.hours / 24) + 1}`,
     savedAt: Date.now(),
     seed: G.worldSeed, sandbox: G.sandbox, hours: G.clock.hours, collapse: G.collapse,
@@ -135,6 +152,9 @@ export function snapshotGame(name?: string): SaveData {
     player: serializePlayer(p),
     creatures, uid: peekUid(), vehicles: (G as any).vehicles?.serialize?.() ?? [],
     debt: { ledger: G.debt?.serialize?.() ?? null, band: G.band ? [...G.band.st] : [] },
+    lineage: (G as unknown as { lineage?: string }).lineage || id,
+    checkpoint: (G as unknown as { checkpoint?: CheckpointInfo | null }).checkpoint || undefined,
+    reentries: (G as unknown as { reentries?: number }).reentries || undefined,
     playMinutes: (G.playMinutes || 0) + (performance.now() - (G.sessionStart || 0)) / 60000,
   };
 }

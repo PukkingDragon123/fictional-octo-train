@@ -1,19 +1,14 @@
-/* round 12: the hotbar (src/ui/hotbar). The round-12 context buttons are gone (round 14):
-   src/ui/worldPrompt.css floats them over the world and src/ui/touch/actpad.css is the touch pad. */
+/* the hotbar (src/ui/hotbar, round 15): just the six slots, physical sockets in hi-res pixel art on a dark rail.
+   The context buttons are gone (src/ui/worldPrompt.css floats them over the world; src/ui/touch/actpad.css is the touch pad). */
 #hot12 { position: fixed; z-index: 24; pointer-events: none; font-family: var(--font-new); display: none; image-rendering: pixelated; }
-#hot12.on { display: block; }
-
-/* ---- the hotbar */
-#hot12 { left: 50%; bottom: 12px; transform: translateX(-50%); }
-#hot12.on { display: flex; gap: 4px; }
-#hot12.touch { bottom: calc(10px + env(safe-area-inset-bottom)); }
-.hb-slot { position: relative; width: 48px; height: 48px; pointer-events: auto; touch-action: none; cursor: pointer;
-  background: linear-gradient(#2e322a, #171915); border: 2px solid #0b0c0a; box-shadow: inset 2px 2px 0 #4a5044, inset -2px -2px 0 #0b0c0a; opacity: .8; }
-.hb-slot.full { opacity: 1; }
-.hb-slot i { position: absolute; left: 6px; top: 6px; width: 32px; height: 32px; background-size: 32px 32px; image-rendering: pixelated; }
-.hb-slot b { position: absolute; right: 3px; top: 1px; font-size: 16px; line-height: 16px; font-weight: normal; color: #cdd2c0; text-shadow: 1px 1px 0 #0b0c0a; }
-.hb-slot.held { background: linear-gradient(#6a5410, #2c2208); box-shadow: inset 2px 2px 0 #ffd768, inset -2px -2px 0 #7a5608, 0 0 8px rgba(255,215,104,.45); }
-.hb-slot.held b { color: #ffe8a8; }
-#hot12.touch .hb-slot { width: 44px; height: 44px; }
-#hot12.touch .hb-slot i { left: 4px; top: 4px; }
-@media (max-width: 520px) { #hot12.touch { left: 50%; bottom: auto; top: calc(64px + env(safe-area-inset-top)); } }
+#hot12 { left: 50%; bottom: 10px; transform: translateX(-50%); padding: 5px 6px 4px; }
+#hot12.on { display: flex; gap: 3px; }
+#hot12.touch { bottom: calc(8px + env(safe-area-inset-bottom)); }
+.hb-slot { position: relative; width: 54px; height: 54px; pointer-events: auto; touch-action: none; cursor: var(--cur-hand, pointer); transition: transform .14s cubic-bezier(.2,.9,.3,1.4); }
+.hb-cv { position: absolute; left: 0; top: 0; pointer-events: none; }
+.hb-slot i { position: absolute; left: 10px; top: 9px; width: 32px; height: 32px; background-size: 32px 32px; image-rendering: pixelated; filter: drop-shadow(2px 2px 0 rgba(0,0,0,.55)); opacity: .92; }
+.hb-slot.held { transform: translateY(-3px); }
+.hb-slot.held i { opacity: 1; filter: drop-shadow(2px 3px 0 rgba(0,0,0,.6)) brightness(1.08); }
+.hb-slot:hover i { opacity: 1; }
+#hot12.touch .hb-slot { width: 54px; height: 54px; }
+@media (max-width: 520px) { #hot12.touch { left: 50%; bottom: auto; top: calc(64px + env(safe-area-inset-top)); } #hot12.on { gap: 1px; } }

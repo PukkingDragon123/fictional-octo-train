@@ -10,6 +10,7 @@
 // Classes are the Institute's taxonomy (CLASSES below).
 
 import { PLAYGROUND_INHABITANTS } from './lore_playground';
+import { FUNGUS_SEA_INHABITANTS } from './lore_fungus_sea';
 
 export type SinRank = 'sloth' | 'gluttony' | 'lust' | 'greed' | 'envy' | 'wrath' | 'pride';
 
@@ -52,6 +53,7 @@ export const CLASSES: Record<string, string> = {
   Process: 'Part of the place\'s own upkeep: maintenance, drainage, observation.',
   Familiar: 'Dream-born companions grown out of what visitors remember fondly.',
   Sovereign: 'Apex beings that the rest of the ecology arranges itself around.',
+  Carrion: 'Dead things the place keeps: carcasses that have become habitats in their own right.',
 };
 
 const L = (e: InhabitantLore) => e;
@@ -169,6 +171,37 @@ export const INHABITANTS: InhabitantLore[] = [
     ],
   }),
 
+  // ============================================================== round 15: the cull's replacements
+  L({
+    id: 'driller', name: 'Driller', rank: 'wrath', class: 'Remnant', danger: 7,
+    summary: 'A person rebuilt around a mouth. The lower face has grown into a jaw as wide as the shoulders, ringed with spiral-grooved teeth, and behind them a ring of seven long teeth that turn in the gums like the bit of a core drill. It lives under the floor.',
+    biology: 'Everything above the collarbones has been given over to the jaw: the mandible is a slab of bone the size of a shovel blade, hinged on muscle as thick as a thigh, and the neck has thickened to carry it. The seven ring teeth sit in a collar of gum on a socket of cartilage that can turn, a quarter turn and back, very fast, hundreds of times a minute; the rim teeth are grooved in a spiral, like masonry bits, and grow back when they break. The eyes have shrunk to slits. The hands are callused to horn from bracing against concrete. It breathes through the floor dust and eats meat: people, mostly.',
+    behaviour: 'It travels under the levels: the floor heaves over it, cracks spread behind it and grit jumps on the carpet. It feels footsteps through the slab: running carries a long way, walking only close, and a unit that sneaks or stands still is not there to it. Fed, it lets a quiet unit pass over it. Before it bites it warns: it rears half out of the floor in front of you, jaw open, the ring screaming. Back away slowly and it goes back down. Keep coming, or run, and it comes up under you, bites, and goes back down. It surfaces to eat the dead and the downed, and now and then to breathe.',
+    habitat: 'Under anything with a floor slab: Level 0, the tunnels, the undercroft, car parks, the depot, the stairwells, the server rooms, and the corrupted levels. Never more than two to a level.',
+    lore: 'The Institute sent excavation crews down in the first years of the Remittance Programme, debtors with picks and core drills, to dig a way through to the lower levels instead of walking. The place gave them what they wanted. Calder\'s note on the file: "Every Driller we have scanned has a crew number tattooed inside the left wrist. We stopped sending crews. The holes they dug are still there, and they are still in them."',
+    harvest: [
+      { item: 'driller_tooth', how: 'Prise the ring teeth out of the gum collar of a dead one. They bite into concrete.' },
+      { item: 'driller_cheek', how: 'Cut the great chewing muscle off the jaw hinge. Tough, and it was a person.' },
+    ],
+  }),
+  L({
+    id: 'hermit', name: 'Partition Hermit', rank: 'greed', class: 'Remnant', danger: 2,
+    summary: 'An office worker who never left the desk, living on all fours under a shell of cubicle partitions that have grown into the spine and shoulder blades: fabric board, aluminium trim, memos still pinned to it.',
+    biology: 'The partition frames have fused with the ribs and the scapulae; where board meets back there is a raw pink seam of scar tissue that never quite closes. The person underneath is thin, pale, stiff at the hips from years on hands and knees, its nails grown long and yellow. The shell is not alive, but it is part of it now: cut the boards and it bleeds at the seams.',
+    behaviour: 'It claims a few metres of floor in a corner and keeps things there: mugs, staplers, a dead phone, a photo of someone. It watches you go past and does nothing. Step into its corner and it rears up under the shell and rattles the panels, hissing through its teeth: that is the warning. Keep coming and it rakes you with its nails, then pulls itself back under the boards, which take most of a blow. Hurt badly, it crawls away and starts a new corner.',
+    habitat: 'Offices, the annex, wards, the lab levels, the mall\'s back rooms, schools, the showroom: anywhere with cubicles.',
+    lore: 'A nameplate is usually still screwed to the ridge of the shell. The Institute has matched three of them to people on its own payroll. Calder: "It is not a punishment. It is what the place does with someone who keeps coming back to the same chair. It gives them the chair."',
+    harvest: [{ item: 'partition_board', how: 'Cut the boards off its back: building panels, still trimmed in aluminium.' }],
+  }),
+  L({
+    id: 'hum_possum', name: 'Hum Possum', rank: 'sloth', class: 'Fauna', danger: 1,
+    summary: 'The commonest animal in the backrooms and the gentlest: a grey, pink-skinned marsupial with wet black mirror eyes and a long naked tail, working the bins at night.',
+    biology: 'A true marsupial, adapted to the ceiling voids over generations: the fur has thinned to bristle over pink-grey skin under the fluorescent hum, the eyes have grown huge and reflective for the dark between the tiles, the tail is long, naked and prehensile. Fifty teeth. A low body temperature that makes it a poor host for most infections, though it carries worms. Mothers carry the young on their backs for weeks.',
+    behaviour: 'It scavenges at night: bins, break rooms, the scraps around camps. Meet one and it freezes. Come closer and it gapes and hisses and drools: all bluff. Run at it and it bolts; corner it or strike it and it falls over, tongue out, stiff, and smells of death until you go away. It almost never bites.',
+    habitat: 'Everywhere with a ceiling void: Level 0, offices, the mall and the market, houses and the suburbs, schools, the Fields, the tunnels, the depot.',
+    lore: 'The Institute thinks they came in through a seam somewhere with weather and have been here a very long time. Units learn to like them: a possum that is foraging calmly means nothing worse is near. Calder: "If the possums have all gone up into the ceiling, so should you."',
+    harvest: [{ item: 'possum_meat', how: 'Butcher it for a lean haunch or two. Cook it through: they carry worms.' }],
+  }),
   // ============================================================== the existing inhabitants
   // ============================================================== the Ledge (the far, melting edge of the place)
   L({
@@ -241,11 +274,11 @@ export const INHABITANTS: InhabitantLore[] = [
   L({
     id: 'still_life', name: 'Still Life', rank: 'sloth', class: 'Remnant', danger: 2,
     summary: 'People who do nothing. They stand facing walls or sit at tables, waxy and patient, slightly wrong: a neck too long, a head tipped over onto the shoulder, a smile that never moves.',
-    biology: 'A shell of something like wax over a dark, soft interior. No blood, no organs anyone can name. They are warm, a few degrees above the room. They grow very slowly into their poses; an old Still Life cannot unbend.',
+    biology: 'A thin skin of wax over a body of sponge: a coarse, yellow-ochre cellulose with pores you could put a finger in. No blood, no organs anyone can name. It soaks up whatever it stands in (old water, spilled drinks, blood) and grows darker and heavier with it, and it squashes when struck and springs back. Cut, it tears into spongy chunks. They are warm, a few degrees above the room, and grow very slowly into their poses; an old Still Life cannot unbend.',
     behaviour: 'Most never move. Their heads follow you when you are not looking straight at them. A few change chairs between one look and the next, a few follow at a polite distance, and very rarely one closes its hands round a throat. They are the Mulchers\' favourite hosts.',
     habitat: 'Furnished rooms: houses, the suburbs, schools, wards. Dinner tables most of all.',
     lore: 'The place remembers people who passed through and makes them again from memory, without quite remembering what people are for. Sometimes it remembers someone in your crew. Calder: "They are not copies. They are the place practising."',
-    harvest: [{ item: 'mulcher_roe', how: 'Clutches are often laid on them. Scoop them off.' }],
+    harvest: [{ item: 'sponge_chunk', how: 'Tear it apart: sponge, and a lump of tallow wax inside.' }, { item: 'mulcher_roe', how: 'Clutches are often laid on them. Scoop them off.' }],
   }),
   L({
     id: 'lumenmoth', name: 'Lumenmoth', rank: 'sloth', class: 'Fauna', danger: 1,
@@ -357,6 +390,7 @@ export const INHABITANTS: InhabitantLore[] = [
   }),
   // ============================================================== the Nostalgic Playground (src/creatures/lore_playground.ts)
   ...PLAYGROUND_INHABITANTS,
+  ...FUNGUS_SEA_INHABITANTS,
   // ============================================================== the Ball House (src/world/gen/z_ballhouse.ts)
   L({
     id: 'timmy', name: 'Timmy', rank: 'lust', class: 'Remnant', danger: 6,

@@ -89,6 +89,7 @@ export class UnitMotion {
     if (inp.down('sneak')) { if (this.sneakT0 < 0) this.sneakT0 = now; } else { this.sneakT0 = -1; this.sneakUsed = false; }
     if (locked || this.locked || p.inVehicle) return;
     const swim = p.stance === 'swim';
+    if (swim) this.prone = false;
     if (this.prone) {
       // up again: the sneak key (onto the knees), or Shift (straight up and away)
       const run = inp.hit('run');

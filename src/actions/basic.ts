@@ -120,7 +120,7 @@ export class EatAction extends TimedAction {
       if (f.leaves) this.p.inv.add(createItem(f.leaves, undefined, { pristine: true }));
     }
     bus.emit('inventoryChanged', this.p);
-    bus.emit('consumed', this.p, this.it.key);
+    bus.emit('consumed', this.p, this.it.key, this.it);
     if (fr === 'rotten' && this.bitten <= 0) bus.emit('think', this.p, 'That tasted rotten...');
   }
 }

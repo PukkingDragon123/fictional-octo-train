@@ -82,7 +82,7 @@ function bonesM(): ReturnType<typeof mkBones> {
   }
   for (const [s, k] of [['L', 1], ['R', -1]] as const) {
     A.push(['t' + s + '0', 'boss', [k * 0.42, 0.26, 0.8], true]);
-    for (let j = 1; j < TN; j++) A.push(['t' + s + j, 't' + s + (j - 1), [k * (0.48 + j * 0.09), 0.09, 0.8 + j * 0.3]]);
+    for (let j = 1; j < TN; j++) A.push(['t' + s + j, 't' + s + (j - 1), [k * (0.5 + Math.sin(j * 1.1) * 0.35), 0.08, 0.85 + j * 0.24]]);
   }
   return mkBones(A);
 }
@@ -100,9 +100,9 @@ function buildM(B: SkinB, x: BuildCtx) {
     const b = bi(n);
     const folia = n === 'back';
     skBlob(B, R(folia ? 'CERE' : 'RIND'), 10 + li, c, r, {
-      n: 22, rings: 14, w: (p: V3) => [b, 0.85, core, 0.15 * Math.max(0, 1 - (p[1] - 0.6))],
+      n: 32, rings: 18, w: (p: V3) => [b, 0.85, core, 0.15 * Math.max(0, 1 - (p[1] - 0.6))],
       bump: (d) => {
-        const fold = folia ? Math.pow(Math.abs(Math.sin(d[1] * 22 + d[0] * 3 + v)), 0.6) * 0.07 - 0.03 : (gyri(d, k * 1.15, v * 1.7 + li) - 0.55) * 0.13;
+        const fold = folia ? Math.pow(Math.abs(Math.sin(d[1] * 22 + d[0] * 3 + v)), 0.6) * 0.1 - 0.05 : (Math.pow(Math.max(0, gyri(d, k * 1.5, v * 1.7 + li)), 0.7) - 0.6) * 0.22;
         const under = d[1] < -0.5 ? (d[1] + 0.5) * 0.25 : 0;
         return fold + under + (hash(Math.round(d[0] * 6), Math.round(d[2] * 6) + li) - 0.5) * 0.03;
       },
@@ -118,7 +118,8 @@ function buildM(B: SkinB, x: BuildCtx) {
   for (let i = 0; i < ROOTS; i++) {
     const bones = [0, 1, 2, 3].map((k) => 'r' + i + '_' + k);
     const end = rest(bones[3]), a = rootAng(i);
-    chain(B, x, R('ROOT'), 30 + i, { bones, tip: [end[0] + Math.cos(a) * 0.5, -0.06, end[2] + Math.sin(a) * 0.5], r: (t) => 0.2 * Math.pow(1 - t, 0.9) + 0.022, flat: 0.55, n: 7, rings: 3, knuckle: 0.25,
+    chain(B, x, R('ROOT'), 30 + i, { bones, tip: [end[0] + Math.cos(a + 0.5) * 0.45, -0.05, end[2] + Math.sin(a + 0.5) * 0.45], r: (t) => 0.22 * Math.pow(1 - t, 0.7) + 0.03, flat: 0.5, n: 8, rings: 4, knuckle: 0.3,
+      bend: (k) => [-Math.sin(a) * 0.22 * (k % 2 ? 1 : -1), 0.02, Math.cos(a) * 0.22 * (k % 2 ? 1 : -1)],
       bump: (aa, t) => 0.12 * Math.max(0, Math.sin(t * 40 + i)) * (1 - t) + (hash(Math.round(aa * 3), Math.round(t * 20) + i) - 0.5) * 0.12 });
   }
   // ================= the lashers: two long rhizomorph tendrils coiled in front of it
@@ -157,23 +158,23 @@ function paintM(p: Page, x: BuildCtx) {
   const v = x.variant;
   const RIND = makeRamp(mixHex(0x2c2238, 0x1c1a28, v * 0.4), 8, { hueShift: 0.05, spread: 0.65 });
   const r = p.R('RIND');
-  r.fill(RIND, (xx, yy) => 2.2 + (r.fbm(xx, yy, 4, 3, 21 + v) - 0.5) * 2.4 + Math.cos((r.deg(xx) * Math.PI) / 180) * 0.6, undefined, 0.6);
+  r.fill(RIND, (xx, yy) => 1.1 + (r.fbm(xx, yy, 4, 3, 21 + v) - 0.5) * 1.8 + Math.cos((r.deg(xx) * Math.PI) / 180) * 0.5, undefined, 0.6);
   // fine mycelial fuzz in the sulci, violet veins, spore pores, wet glints
-  for (let i = 0; i < 70; i++) r.crack(hash(i, 31) * r.w, hash(i + 3, 31) * r.h, 4 + Math.floor(hash(i, 33) * 8), hash(i, 35) * 360, 0x8a8094, 31 + i, 0.4, 0.1);
-  for (let i = 0; i < 14; i++) r.crack(hash(i, 41) * r.w, hash(i + 3, 41) * r.h, 14 + Math.floor(hash(i, 43) * 20), 70 + hash(i, 45) * 40, 0x8a5ab0, 41 + i, 0.7, 0.25, 0xc89ae0);
+  for (let i = 0; i < 30; i++) r.crack(hash(i, 31) * r.w, hash(i + 3, 31) * r.h, 3 + Math.floor(hash(i, 33) * 5), hash(i, 35) * 360, 0x5a5262, 31 + i, 0.35, 0.1);
+  for (let i = 0; i < 9; i++) r.crack(hash(i, 41) * r.w, hash(i + 3, 41) * r.h, 8 + Math.floor(hash(i, 43) * 12), 70 + hash(i, 45) * 40, 0x5a2a80, 41 + i, 0.6, 0.2, 0x8a5ab8);
   for (let i = 0; i < 40; i++) { const px = hash(i, 51) * r.w, py = hash(i + 1, 51) * r.h; r.set(px, py, RIND[0]); r.blend(px + 1, py, 0xd8d0c0, 0.45); }
   for (let i = 0; i < 30; i++) { const gx = hash(i, 61) * r.w, gy = hash(i + 2, 61) * r.h; r.blend(gx, gy, 0xffffff, 0.85); r.blend(gx + 1, gy, 0xe8d8ff, 0.4); }
   const c = p.R('CERE');
-  c.fill(RIND, (xx, yy) => 2 + (yy % 3 === 0 ? -1.4 : 0.5) + (c.fbm(xx, yy, 3, 2, 22) - 0.5) * 1.8, undefined, 0.5);
+  c.fill(RIND, (xx, yy) => 1.2 + (yy % 3 === 0 ? -1 : 0.4) + (c.fbm(xx, yy, 3, 2, 22) - 0.5) * 1.4, undefined, 0.5);
   for (let i = 0; i < 10; i++) c.crack(hash(i, 71) * c.w, hash(i + 3, 71) * c.h, 12, 0, 0x7a50a0, 71 + i, 0.6, 0.1);
   paintMycelium(p.R('BOSS'), makeRamp(0x3a3040, 7, { spread: 0.7 }), { seed: 5, density: 0.03, ground: 1.6, strand: 0xd8d0dc, hi: 0xf4f0f4 });
   const bo = p.R('BOSS');
   for (let yy = Math.floor(bo.h * 0.7); yy < bo.h; yy++) for (let xx = 0; xx < bo.w; xx++) if (hash(xx, yy * 3) < (yy / bo.h - 0.65) * 2.2) bo.set(xx, yy, hash(xx, yy) < 0.5 ? 0xe8e4ea : 0xbab2c0);
   const ro = p.R('ROOT');
-  ro.fill(makeRamp(0x2a2030, 6), (xx, yy) => 2 + (yy % 6 < 1 ? 1.6 : 0) + (ro.fbm(xx, yy, 3, 2, 8) - 0.5) * 2, undefined, 0.5);
-  for (let i = 0; i < 26; i++) ro.crack(hash(i, 81) * ro.w, hash(i + 2, 81) * ro.h, 8, 90, 0xb8b0c0, 81 + i, 0.5, 0.2);
+  ro.fill(makeRamp(0x2a2030, 6), (xx, yy) => 0.9 + (yy % 6 < 1 ? 1.2 : 0) + (ro.fbm(xx, yy, 3, 2, 8) - 0.5) * 1.6, undefined, 0.5);
+  for (let i = 0; i < 18; i++) ro.crack(hash(i, 81) * ro.w, hash(i + 2, 81) * ro.h, 6, 90, 0x8a8094, 81 + i, 0.4, 0.2);
   const te = p.R('TEND');
-  te.fill(makeRamp(0x5a4a68, 6), (xx, yy) => 2.5 + Math.cos((te.deg(xx) * Math.PI) / 180) * 1.2 + (yy % 5 === 0 ? -1.5 : 0), undefined, 0.5);
+  te.fill(makeRamp(0x3a2e48, 6), (xx, yy) => 1.6 + Math.cos((te.deg(xx) * Math.PI) / 180) * 1.1 + (yy % 5 === 0 ? -1.2 : 0), undefined, 0.5);
   for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < te.w; xx++) te.blend(xx, te.h - 1 - yy, 0xe8dcf0, 0.6 - yy * 0.07);
   const st = p.R('STALK');
   st.fill(makeRamp(0xd8d0c8, 5), (xx, yy) => 2.4 + (hash(xx, yy >> 1) - 0.5) * 1.4 + Math.cos((st.deg(xx) * Math.PI) / 180) * 0.7, undefined, 0.6);
@@ -246,7 +247,7 @@ function poseMind(K: KitRig, d: MindDrive) {
   }
   // the glow: violet light through the veins on the beat; pinker and patchier when its network is cut
   const T = K.kit.F.tint.value;
-  T.set(mixC(1.35, 1.25, d.weak), mixC(0.82, 1.0, d.weak), mixC(1.55, 1.0, d.weak), Math.max(0, (0.1 + beat * (0.18 + d.alert * 0.25) + d.shriek * 0.3) * (1 - d.dead)));
+  T.set(mixC(1.5, 1.35, d.weak), mixC(0.8, 1.0, d.weak), mixC(1.8, 1.05, d.weak), Math.max(0, (0.04 + beat * (0.1 + d.alert * 0.2) + d.shriek * 0.25 + d.weak * 0.15) * (1 - d.dead)));
 }
 const mixC = (a: number, b: number, t: number) => a + (b - a) * Math.min(1, Math.max(0, t));
 
@@ -321,7 +322,7 @@ function poseNode(K: KitRig, d: NodeDrive, c: Creature | null = null) {
   const g = Math.max(0.02, Math.min(1, d.grow));
   // on a wall: hung on its brackets, stalks out of the wall and curling up toward the light
   _We.set(d.wall * Math.PI / 2, 0, 0); _Wq.setFromEuler(_We);
-  _Wp.set(0, d.wall * d.h, -d.wall * 0.1); _Ws.set(g, g * (1 - d.dead * 0.55), g);
+  _Wp.set(0, d.wall * d.h, -d.wall * 0.1); _Ws.set(g * 1.4, g * 1.4 * (1 - d.dead * 0.55), g * 1.4);
   setMount(K, c, _W.compose(_Wp, _Wq, _Ws));
   const beat = Math.pow(Math.max(0, Math.sin(t * (1.2 + d.sense * 4) + d.seed * 9)), 4);
   const s = (1 + beat * (0.04 + d.sense * 0.12)) * (1 - d.puff * 0.4) * (1 - d.dead * 0.5);
@@ -824,14 +825,17 @@ bus.on('zoneGenerated', (z: Zone) => {
   if (!ok || z.meta.fungusMind) return;
   const R = new Rng((z.seed ^ 0x5f3a) >>> 0);
   let best: [number, number] | null = null, bs = -1e9;
-  for (let k = 0; k < 900; k++) {
+  // a dark room well away from the ways in; failing that (crowded levels), anywhere clear enough
+  for (let k = 0; k < 1800 && !(k >= 900 && best && k % 900 === 0); k++) {
+    const strict = k < 900;
+    if (!strict && best) break;
     const x = 4 + Math.floor(R.next() * (z.W - 8)), y = 4 + Math.floor(R.next() * (z.H - 8));
     const rid = z.room[z.idx(x, y)], room = z.rooms[rid];
-    if (!room || !ok(room.type) || /arrival|exit|reception/.test(room.type)) continue;
+    if (!room || (strict && !ok(room.type)) || /arrival|exit|reception|stairs|lab_door/.test(room.type)) continue;
     if (!clearAround(z, x, y, 2)) continue;
     let dark = 0; for (const l of z.lights) { const d = Math.hypot(l.x - x, l.z - y); if (d < l.radius) dark -= (1 - d / l.radius) * l.intensity; }
     let far = 1e9; for (const p of z.portals) far = Math.min(far, Math.hypot(p.x - x, p.y - y));
-    if (far < 14) continue;
+    if (far < (strict ? 14 : 7)) continue;
     const s = dark * 6 + Math.min(far, 40) * 0.2 + R.next() * 2;
     if (s > bs) { bs = s; best = [x, y]; }
   }

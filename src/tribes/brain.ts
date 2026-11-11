@@ -121,7 +121,7 @@ function fightCreature(c: Creature, z: Zone, o: Creature, dt: number) {
   c.setState('chase');
   const d = dist(o, c), range = a.range + o.radius + 0.1;
   const ph = c.mem.pendingHit;
-  if (ph && G.time >= ph.at) { c.mem.pendingHit = null; const f = G.creatures?.creatures?.get(ph.id); if (f && !f.dead && dist(f, c) < range + 0.5) cs.damage(c.id, f.id, a.dmg[0] + Math.random() * (a.dmg[1] - a.dmg[0]), c.x, c.z, 0.5, TRIBES[c.mem.tribe as TribeKey].weaponKind === 'blade' ? 'cut' : 'blunt'); }
+  if (ph && G.time >= ph.at) { c.mem.pendingHit = null; const f = G.creatures?.creatures?.get(ph.id); if (f && !f.dead && dist(f, c) < range + 0.5) cs.damage(c.id, f.id, a.dmg[0] + Math.random() * (a.dmg[1] - a.dmg[0]), c.x, c.z, 0.5, TRIBES[c.mem.tribe as TribeKey].weaponKind === 'blade' ? 'blade' : 'blunt'); }
   if (d < range) {
     c.speed = 0; c.targetFacing = Math.atan2(o.z - c.z, o.x - c.x);
     if (c.attackT <= 0) { c.attackPhase = 0.38; c.mem.attackTarget = ''; c.attackT = a.cooldown; c.mem.pendingHit = { id: o.id, at: G.time + 0.22 }; }

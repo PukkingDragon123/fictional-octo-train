@@ -190,7 +190,7 @@ const CAUSES: Record<string, { k: string; wound: string }[]> = {
 const GENERIC = [{ k: '', wound: 'Bite marks everywhere, all of them small. Many mouths, over many days. The bees have been at it.' }];
 export function causesFor(zoneKey: string) { return CAUSES[zoneKey] ?? GENERIC; }
 const NAMES: Record<string, string> = {
-  grinhound: 'Grinhound', underlay: 'Underlay', stammer: 'Stammer', gummy_bear: 'Gummy Bear', queen_bee: 'the Queen', gloam: 'Gloam', surveyor: 'Surveyor',
+  driller: 'a Driller', whip_rat: 'Whip Rats', strider: 'the Strider', hum_possum: 'possums', gummy_bear: 'Gummy Bear', queen_bee: 'the Queen',
   king_in_yellow: 'the King in Yellow', seated: 'the Seated', mulcher: 'Mulchers',
 };
 

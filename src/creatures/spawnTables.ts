@@ -75,6 +75,19 @@ const TIMMY: Record<string, [string, number][]> = {
   school: [['timmy', 0.2]],
 };
 for (const k in TIMMY) ADD[k] = (ADD[k] || []).concat(TIMMY[k]);
+// the damp levels (round 15): Spore Rat packs (most hatch from a Fungus Mind's nodes), Land Jellyfish
+// on the ceilings, Bacteria Masses where the dead lie, Sea Worms scavenging round the pools. The
+// Fungus Mind and the Whale Corpse are set pieces their own files place (fungus_mind.ts, whale_corpse.ts).
+const DAMP: Record<string, [string, number][]> = {
+  undercroft: [['spore_rat', 0.8], ['land_jelly', 0.9], ['bacteria_mass', 0.7], ['sea_worm', 0.7]],
+  tunnels: [['spore_rat', 1.0], ['land_jelly', 0.8], ['bacteria_mass', 0.5], ['sea_worm', 0.4]],
+  pools: [['land_jelly', 1.4], ['sea_worm', 1.3], ['spore_rat', 0.35]],
+  hospital: [['bacteria_mass', 0.4], ['land_jelly', 0.25]],
+  parking: [['bacteria_mass', 0.25], ['spore_rat', 0.3]],
+  stairwell: [['land_jelly', 0.4]],
+  server: [['spore_rat', 0.3]],
+};
+for (const k in DAMP) ADD[k] = (ADD[k] || []).concat(DAMP[k]);
 /**
  * The new dimensions (src/world: shared floors) list these themselves; when a
  * dimension zone's key or name says which one it is and its table is missing

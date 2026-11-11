@@ -45,6 +45,10 @@ function zoneIndex(key: string) { return ZONE_INDEX[key] ?? 100 + (hashStr(key) 
 /** post-generation hooks (run inside the generator's deterministic uid range; e.g. hopper placement, src/game/debt) */
 const POST_GEN: ((z: Zone, seed: number) => void)[] = [];
 export function onZoneGenerated(fn: (z: Zone, seed: number) => void) { if (!POST_GEN.includes(fn)) POST_GEN.push(fn); }
+/** hooks that must run after every other post-gen hook, whatever the import order (round 15: the company
+ *  facilities, src/world/gen/facilities.ts: they take the last uids, so older objects keep theirs) */
+const POST_GEN_LATE: ((z: Zone, seed: number) => void)[] = [];
+export function onZoneGeneratedLate(fn: (z: Zone, seed: number) => void) { if (!POST_GEN_LATE.includes(fn)) POST_GEN_LATE.push(fn); }
 
 export function generateZone(key: string, worldSeed: number): Zone {
   const spec = zoneSpec(key);
@@ -56,6 +60,7 @@ export function generateZone(key: string, worldSeed: number): Zone {
   try {
     spec.gen(z, seed);
     for (const fn of POST_GEN) { try { fn(z, seed); } catch (e) { console.error('post-gen hook', key, e); } }
+    for (const fn of POST_GEN_LATE) { try { fn(z, seed); } catch (e) { console.error('late post-gen hook', key, e); } }
   } finally { endGenUids(); }
   refreshUnpowered(z);
   z.name = z.name || spec.name;

@@ -105,7 +105,7 @@ function paintK(p: Page, x: BuildCtx) {
   pu.fill(makeRamp(0xe8d870, 6), (xx, yy) => 4 - Math.hypot(xx - 8, yy - 4) / 4, undefined, 0.5);
   pu.set(6, 3, 0xffffff); pu.set(7, 3, 0xfff8e0);
   p.R('BONE').fill(makeRamp(0xe0d4b0, 5), (xx, yy) => 3 + Math.cos((p.R('BONE').deg(xx) * Math.PI) / 180) * 0.8 + (hash(xx, yy) < 0.1 ? -1.5 : 0), undefined, 0.5);
-  paintSlime(p.R('SKIRT'), makeRamp(mixHex(0xb8a868, 0xa89070, v * 0.4), 7), { seed: 5 + v, colonies: 8, flecks: 30 });
+  paintSlime(p.R('SKIRT'), makeRamp(mixHex(0x7a7040, 0x806050, v * 0.4), 7), { seed: 5 + v, colonies: 8, flecks: 30 });
   const gu = p.R('GUTS');
   gu.fill(makeRamp(0xa04848, 6), (xx, yy) => 3 + Math.sin(yy * 0.9) * 1 + (hash(xx, yy) - 0.5), undefined, 0.5);
   paintCap(p.R('CAP'), 0xc8b870, 0xb84848, 0x5a2020);
@@ -124,7 +124,7 @@ function buildF(B: SkinB, x: BuildCtx) {
 }
 function paintF(p: Page, x: BuildCtx) {
   const v = x.variant;
-  const RG = makeRamp(mixHex(0xc8c088, 0xd0a8a0, v * 0.45), 7, { spread: 0.55 });
+  const RG = makeRamp(mixHex(0x9a9a52, 0xa88070, v * 0.45), 7, { spread: 0.6 });
   paintSlime(p.R('GEL'), RG, { seed: 11 + v, colonies: 14, colony: [mixHex(RG[1], 0x8aa030, 0.5), mixHex(RG[2], 0xd86a8a, 0.4)], flecks: 40 });
   paintSlime(p.R('POD'), RG, { seed: 21 + v, colonies: 5, flecks: 18 });
   paintCap(p.R('CAP'), 0xc8c088, 0xe8e0b0, 0xa89060);
@@ -205,7 +205,7 @@ function poseHumans(K: KitRig, t: number, seed: number, d: { reach: number; dead
 // ------------------------------------------------------------------ the kit
 const MASS_KIT: KitDef = { key: 'bacteria_mass', variants: 3, W: 128, H: 128, bones: () => bonesB(), layout: layoutK, build: buildK, paint: paintK, sphere: [0, 0.5, 0, 1.8],
   decorate: (rig, e) => {
-    attachFilm(rig, GEL_KIT, e.variant, { opacity: 0.5, edge: 1.5, spec: 1.2, rim: 0.4, tint: 0.65 });
+    attachFilm(rig, GEL_KIT, e.variant, { opacity: 0.46, edge: 1.7, spec: 1.3, rim: 0.45, tint: 0.9 });
     attachHumans(rig, e.variant * 13 + 1);
   } };
 /** a bacteria mass rig (variant 0..2) */
@@ -435,4 +435,4 @@ MASS.animateGallery = (rig: Rig, t: number) => {
   const q = (u.get('pose') || ['idle', 'ooze', 'absorb', 'engulf', 'split'][Math.floor(t / 5) % 5]) as BacteriaPose;
   poseBacteriaMass(rig as KitRig, t, 1 / 60, q, { mass: u.get('mass') !== null ? Number(u.get('mass')) : undefined });
 };
-void Wt;
+

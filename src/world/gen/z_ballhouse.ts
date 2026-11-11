@@ -326,7 +326,7 @@ export function generateBallHouse(z: Zone, seed: number) {
     sky: false, grade: 'mall', reverb: 'mall', ambience: 'ballhouse', music: 'muzak', weather: 'none',
   } as Zone['env'];
   // the kids (src/creatures/species/timmy.ts), and the odd stuffed toy that got left behind
-  z.spawnTable = [['timmy', 8], ['plushkin', 0.4]];
+  z.spawnTable = [['timmy', 8], ['plushkin', 0.4], ['hum_possum', 0.6]];
   z.creatureCap = 9;
   z.meta.terminalLore = ['bx_calder', 'bx_closing'];
 }

@@ -59,22 +59,9 @@ export interface DreadProfile {
 }
 
 const PROFILES: Record<string, DreadProfile> = {
-  custodian: { stutter: 0.12, watchFreeze: true, tilt: 'head', tiltMax: 0.5, flick: 9, sting: 'swell', cam: 0.4 },
-  davenport: { twitch: ['legFL', 'legBR', 'armL'], twitchRate: 0.18, stretch: { parts: ['armL', 'armR'], amount: 0.45 }, sting: 'hit', cam: 0.8 },
-  drywall_man: { bend: ['shinL', 'shinR', 'farmL', 'farmR'], bendRate: 0.5, stutter: 0.3, skipDark: 0.6, tilt: 'head', tiltMax: 0.7, twitch: ['head', 'handL', 'handR'], twitchRate: 0.35, stretch: { parts: ['farmL', 'farmR'], amount: 0.5 }, sting: 'hit', cam: 0.8, flick: 7, flickStep: 2.5 },
-  echo: { bend: ['shinL', 'shinR', 'foreL', 'foreR'], bendRate: 0.4, stutter: 0.15, watchFreeze: true, tilt: 'head', tiltMax: 0.95, twitch: ['head'], twitchRate: 0.5, stretch: { parts: ['foreL', 'foreR'], amount: 0.35 }, sting: 'swell', cam: 0.6, flick: 6, flickStep: 3 },
-  employee: { bend: ['shinL', 'shinR', 'farmL', 'farmR', 'neck'], bendRate: 0.6, stutter: 0.2, skipDark: 0.8, tilt: 'head', tiltMax: 0.6, twitch: ['handL', 'handR', 'head'], twitchRate: 0.25, stretch: { parts: ['farmL', 'farmR'], amount: 0.4 }, sting: 'hit', cam: 0.6, flick: 8, flickStep: 3.5, moved: true },
-  grinhound: { bend: ['shin0', 'shin1', 'shin2', 'shin3'], bendRate: 0.3, twitch: ['head'], twitchRate: 0.3, shine: { part: 'head', off: [0, 0.06, 0.16], sep: 0.045, color: 0xd8ff9a, size: 0.035 }, sting: 'chase', cam: 0.9, skipDark: 0.25 },
   hollow: { bend: ['shinL', 'shinR', 'farmL', 'farmR'], bendRate: 0.25, skipDark: 0.5, tilt: 'head', tiltMax: 0.55, flick: 5, sting: 'hit', cam: 0.5 },
   lifeguard: { stretch: { parts: ['foreL', 'foreR'], amount: 0.5 }, sting: 'hit', cam: 0.9, tilt: 'head', tiltMax: 0.5 },
-  occupant: { flick: 16, cam: 1, sting: 'swell' },
   plushkin: { watchFreeze: true, tilt: 'bearhead', tiltMax: 0.6, twitch: ['bunnyhead', 'beararmL'], twitchRate: 0.2, moved: true },
-  sentinel: { shine: { part: 'head', off: [0, 0.02, 0.12], sep: 0.05, color: 0xfff2c8 }, flick: 10 },
-  stilt_doe: { bend: ['shin0', 'shin1', 'shin2', 'shin3'], bendRate: 0.5, stutter: 0.1, skipDark: 0.4, tilt: 'head', tiltMax: 0.8, shine: { part: 'head', off: [0, 0.05, 0.1], sep: 0.06, color: 0xf8f0b0 } },
-  swivel: { twitch: ['leg0', 'leg2', 'armL'], twitchRate: 0.25, sting: 'hit', cam: 0.7 },
-  underlay: { sting: 'hit', cam: 0.8, flick: 5 },
-  ventling: { shine: { part: 'head', off: [0, 0.03, 0.08], sep: 0.03, color: 0xffd060, size: 0.026 }, twitch: ['head'], twitchRate: 0.6 },
-  wrongbird: { stutter: 0.3, skipDark: 0.5, tilt: 'head', tiltMax: 1.1, twitch: ['head'], twitchRate: 0.6 },
   still_life: { moved: true },
 };
 /** new species register their profile here */

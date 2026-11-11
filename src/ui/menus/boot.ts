@@ -7,7 +7,6 @@ import { sfx } from './sfx';
 import { calm } from './settings';
 import { terminal } from './terminal';
 import { plateBtn } from './btnKit';
-import { crispCanvas, drawBar, GRN } from '../hiPixel';
 
 const LINES: [string, number][] = [
   ['MERIDIAN INSTITUTE  //  REMITTANCE PROGRAMME  //  UNIT ROOM 4', 0],
@@ -76,7 +75,7 @@ export function runBoot(): Promise<void> {
     const cursor = '<span class="ct-cursor"></span>';
     const nextLine = () => {
       if (done) return;
-      if (li >= LINES.length) { progress(0); return; }
+      if (li >= LINES.length) { wakeUp(); return; }
       const [raw, pause] = LINES[li++];
       const text = plain(raw);
       let i = 0;
@@ -90,29 +89,15 @@ export function runBoot(): Promise<void> {
       };
       typeTick();
     };
-    const bar = crispCanvas(232, 15);
-    bar.cv.className = 'bt3-hibar';
-    const progress = (p: number) => {
-      if (done) return;
-      const n = 24;
-      const k = Math.round(p * n);
-      // a lit phosphor bar in hi-res pixel art (src/ui/hiPixel.ts) instead of a row of block glyphs
-      pre.innerHTML = html;
-      bar.c.clearRect(0, 0, 232, 15);
-      drawBar(bar.c, 1, 1, 230, 13, p, { ramp: GRN, t: performance.now() / 1000, cell: 7, gap: 2 });
-      pre.append(bar.cv);
-      pre.insertAdjacentHTML('beforeend', `  ${String(Math.round(p * 100)).padStart(3, ' ')}%` + cursor);
-      if (k % 3 === 0) sfx('tick', 0.6);
-      if (p < 1) setTimeout(() => progress(Math.min(1, p + 0.045 + Math.random() * 0.06)), 45);
-      else {
-        setTimeout(() => {
-          if (done) return;
-          pre.classList.add('dim');
-          wake.classList.add('on');
-          sfx('confirm');
-          setTimeout(() => finish(), 1150);
-        }, 200);
-      }
+    // no loading bar here (round 15): the loading screen of everything is src/ui/loading.ts
+    const wakeUp = () => {
+      setTimeout(() => {
+        if (done) return;
+        pre.classList.add('dim');
+        wake.classList.add('on');
+        sfx('confirm');
+        setTimeout(() => finish(), 1150);
+      }, 260);
     };
     setTimeout(nextLine, 250);
   });

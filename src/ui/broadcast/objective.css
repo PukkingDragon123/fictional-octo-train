@@ -1,0 +1,21 @@
+/* the objective line (src/ui/broadcast/objective.ts): a caption, not a panel */
+.obj15 { position: fixed; left: 50%; top: max(64px, 10.5vh); transform: translateX(-50%); z-index: 26; width: min(780px, 92vw); pointer-events: none; text-align: center;
+  font-family: var(--font-new); color: #f3e8c8; opacity: 0; visibility: hidden;
+  --ink: 1px 1px 0 #0a0806, -1px 0 0 #0a0806, 0 -1px 0 #0a0806, 1px 0 0 #0a0806, 0 1px 0 #0a0806, 0 3px 10px rgba(0,0,0,.55); }
+.obj15.on { opacity: 1; visibility: visible; transition: opacity .5s ease; }
+.obj15.out { opacity: 0; visibility: visible; transition: opacity 1s ease; }
+.obj15-k { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 14px; line-height: 1; letter-spacing: .34em; text-transform: uppercase; color: #ffcf6a; text-shadow: var(--ink); }
+.obj15-k span { display: inline-flex; align-items: center; gap: 10px; padding-left: .34em; }
+.obj15-k span::before { content: ''; width: 7px; height: 7px; background: currentColor; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); box-shadow: 0 0 6px currentColor; }
+.obj15-k i { display: block; height: 1px; width: min(150px, 18vw); background: linear-gradient(to right, transparent, currentColor); opacity: .8; transform: scaleX(0); transform-origin: right; transition: transform .8s cubic-bezier(.16,.84,.24,1) .05s; }
+.obj15-k i:last-child { background: linear-gradient(to left, transparent, currentColor); transform-origin: left; }
+.obj15.on .obj15-k i, .obj15.out .obj15-k i { transform: scaleX(1); }
+.obj15-t { margin-top: 8px; font-size: clamp(22px, 2.6vw, 30px); line-height: 1.1; letter-spacing: .03em; text-shadow: var(--ink); transform: translateY(6px); transition: transform .7s cubic-bezier(.16,.84,.24,1); }
+.obj15.on .obj15-t { transform: none; }
+.obj15-d { margin-top: 5px; font-size: 16px; color: rgba(236,226,204,.55); text-shadow: var(--ink); }
+.obj15-d s { text-decoration-thickness: 1px; }
+.obj15-s { display: inline-flex; align-items: center; gap: 9px; margin-top: 5px; font-size: 18px; color: #ece2c8; text-shadow: var(--ink); }
+.obj15-s b { width: 6px; height: 9px; background: #ffcf6a; clip-path: polygon(0 0, 100% 50%, 0 100%); flex: none; }
+.obj15.t-ok .obj15-k { color: #9ef0b4; }
+.obj15.t-filed .obj15-k { color: #c8bfa8; }
+.reduce-flash .obj15, .reduce-flash .obj15 * { transition: none !important; }

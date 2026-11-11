@@ -29,6 +29,7 @@ import { unlockHtml, goToLab, wireRunEnd } from './summary';
 import { Tape } from './recorder';
 import { sceneFor, STAFF, type Line, type Who, type Scene } from './lines';
 import type { ObsRoom } from './room';
+import { heldCheckpoint, reenterCheckpoint } from '../../game/checkpoint';
 
 const HOLD_MS = 2700;
 
@@ -499,6 +500,9 @@ class DeathCinematic {
     // the loop's next step first: the lab, where the research is spent
     if (coop) mk('Continue', 'watch the crew', () => this.close());
     mk('To the lab', `spend ${researchPoints()} RP on upgrades`, () => this.toLab());
+    // round 15: a checkpoint held on this world -> a new file on the OLD world, put back at the relay (src/game/checkpoint.ts)
+    const cp = !coop ? heldCheckpoint() : null;
+    if (cp) mk('Re-enter at the checkpoint', `${cp.label} · the same world, a new file`, () => this.fadeOut(() => reenterCheckpoint(cp)));
     if (!coop) mk('New unit now', 'same file · straight back in', () => this.nextSubject());
     this.root.append(k);
     this.keysEl = k;

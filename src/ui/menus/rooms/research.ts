@@ -180,6 +180,8 @@ export class ResearchLab implements StageRoom {
       { key: 'tree', label: 'Research tree', run: () => this.focus('codex', () => this.onPanel?.('tree')) },
       { key: 'process', label: 'Process a sample', run: () => this.focus('fridge', () => this.onPanel?.('fridge')) },
       { key: 'req', label: 'Requisition', run: () => this.focus('req', () => this.onPanel?.('req')) },
+      // the Remittance Press's terminal, reached from outside the run: bank, dial, create (src/game/economy/terminal.ts)
+      { key: 'press', label: 'Press terminal', run: () => { void import('../../../game/economy/terminal').then((m) => m.openPressTerminal({ from: 'lab' })); } },
       { key: 'file', label: 'Meridian file', run: () => this.onPanel?.('file') },
     ];
     onFile(() => { this.dirty = true; });

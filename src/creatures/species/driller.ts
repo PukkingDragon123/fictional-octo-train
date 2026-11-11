@@ -450,7 +450,9 @@ function thinkDriller(c: Creature, dt: number): boolean {
       const p = m.pid ? (G.players.get(m.pid) as Player | undefined) : prey;
       if (p && !p.body.dead && p.zoneKey === c.zoneKey) faceTo(c, p.x, p.z);
       // fed by a bite: the downed and the bleeding are food
-      if (p && m.mT > 0.4 && m.mT < 0.5 && dist(p, c) < 1.9) feed(c, 0.22);
+      if (m.mT < 0.1) m.fedBite = 0;
+      if (p && !m.fedBite && m.mT > 0.4 && dist(p, c) < 1.9 && p.body.health < (m.hpAt ?? 999)) { m.fedBite = 1; feed(c, 0.22); }
+      if (m.mT < 0.1 && p) m.hpAt = p.body.health;
       if (p && m.mT > 1.4 && dist(p, c) < 1.9 && c.attackT <= 0 && (provoked(c) || hungerOf(c) > D_DISP.hunger!.sated! || p.body.downed)) { attack(c, p); m.mT = 0.5; fx(c, 'chew'); }
       if (m.mT > 2.6) { go(hungerOf(c) > 0.35 || provoked(c) ? 'hunt' : 'roam'); setMd(c, 'dive'); fx(c, 'dive'); m.calm = G.time + (hungerOf(c) > 0.35 ? 2 : 12); }
       return true;

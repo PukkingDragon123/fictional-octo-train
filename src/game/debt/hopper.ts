@@ -52,7 +52,7 @@ import { voss, bailiff, pick, fmt, L } from './voice';
 import '../../audio/sounds_press';
 import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../../gfx/crt';
 import './debt.css';
-import { settleLoad, pressCold } from '../economy';
+import { settleLoad, pressCold, fmtKg, matterKg, itemMatter } from '../economy';
 
 /** the cycle, seconds after the lever: horn, slam, hold, back up */
 export const CYCLE = { horn: 0.3, drop: 0.95, impact: 1.13, rise: 1.75, done: 3.3 };
@@ -733,7 +733,7 @@ export class HopperSystem implements GameSystem {
     if (!o) return;
     const v = itemValue(it);
     if (v <= 0) { opts.unshift({ label: 'Deposit', disabled: 'the press won\'t take it' }); return; }
-    opts.unshift({ label: `Deposit in press ≈ ${fmt(v)} scrip`, action: () => {
+    opts.unshift({ label: `Deposit in press ≈ ${fmt(v)} scrip · ${fmtKg(matterKg(itemMatter(it)))}`, action: () => {
       if (inWorld) { G.ui?.toast?.('PICK IT UP FIRST', '', 2); return; }
       queueAt(p, o.x + 1, o.y + 1, new UseObjectAction(p, 'Deposit', 0.8, 'pickup', () => this.depositItems(p, o, [it], true)), 2.0);
     } });

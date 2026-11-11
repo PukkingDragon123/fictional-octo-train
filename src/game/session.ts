@@ -43,6 +43,8 @@ import { SeamFx } from './seam';
 import { installSocial } from '../social';
 import { installAnomalies } from '../world/anomalies';
 import { installFactions } from '../tribes/install';
+import { installCheckpoints } from './checkpoint';
+import { installCine } from './cine';
 import '../game/worldOps';
 import '../world/zones';
 
@@ -60,6 +62,8 @@ export interface SessionOpts {
   net?: Net;
   welcome?: Welcome;
   save?: SaveData;
+  /** round 15: a new file on the old world from a checkpoint (plays the relay's re-entry) */
+  reentry?: boolean;
 }
 /** kept for dev entry points */
 export interface NewGameOpts { name: string; app?: Appearance; occupation?: string; traits?: string[]; seed?: number; cyber?: Record<string, string> }
@@ -201,6 +205,9 @@ export function startSession(o: SessionOpts): Game {
   try { installAnomalies(g); } catch (e) { console.warn('anomalies', e); }
   // scanning for data, brain-swap domination and thralls, the tribes (src/scan, src/dominion, src/tribes)
   installFactions(g);
+  // round 15 (WORLD): checkpoints (the presses, the relay booths) and the first-person cinematics (src/game/checkpoint.ts, src/game/cine)
+  try { installCheckpoints(g, s ?? null); } catch (e) { console.warn('checkpoints', e); }
+  try { installCine(g, { reentry: !!o.reentry }); } catch (e) { console.warn('cine', e); }
 
   // ---- the world: mission state, then every change ever made (op log)
   const mstate = w?.missions ?? s?.missions;

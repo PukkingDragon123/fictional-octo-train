@@ -2,7 +2,7 @@
 // and reloads; on boot the config is consumed and the right session starts
 // (new world, loaded save, co-op host or co-op client).
 import { startSession } from './session';
-import { readSave } from './save';
+import { readSave, writeSave, reentryFrom } from './save';
 import { Net } from '../net/net';
 import { Appearance, randomAppearance } from '../entities/humanRig';
 import { loaderText, loaderStage } from '../ui/loading';
@@ -11,6 +11,8 @@ interface Char { name: string; app: Appearance; occupation: string; traits: stri
 export type LaunchConfig =
   | ({ mode: 'new'; sandbox: Record<string, number>; seed: number; directives: boolean } & Char)
   | { mode: 'load'; id: string }
+  /** round 15: a new file on the old world, from a held checkpoint (src/game/checkpoint.ts) */
+  | { mode: 'reenter'; cp: string }
   | ({ mode: 'host'; server: string; roomName: string; public: boolean; pass: string; saveId?: string; sandbox: Record<string, number>; seed: number; directives: boolean } & Char)
   | ({ mode: 'join'; server: string; room: string; pass: string } & Char);
 
@@ -53,6 +55,15 @@ export async function launch(cfg: LaunchConfig) {
         const s = await readSave(cfg.id);
         if (!s) { bootText('That save could not be read.', true); return; }
         startSession({ mode: 'solo', name: s.player.name, save: s, directives: s.missions?.enabled ?? true });
+        break;
+      }
+      case 'reenter': {
+        bootText('<span class="boot-text">the relay is holding the line…</span>');
+        const cp = await readSave(cfg.cp);
+        if (!cp) { bootText('That checkpoint could not be read.', true); return; }
+        const s = reentryFrom(cp);
+        try { await writeSave(s); } catch (e) { console.warn('re-entry file', e); }
+        startSession({ mode: 'solo', name: s.player.name, save: s, directives: s.missions?.enabled ?? true, reentry: true });
         break;
       }
       case 'host': {

@@ -1,0 +1,14 @@
+/* the panel kit (src/ui/pxKit.ts): hi-res pixel plates behind panels, square and chamfered */
+.pxf { position: relative; isolation: isolate; background: none !important; border-color: transparent !important; box-shadow: none !important; border-radius: 0 !important; }
+.pxf > .pxf-cv { position: absolute; left: -1px; top: -1px; z-index: -1; pointer-events: none; image-rendering: pixelated; }
+.pxb { position: relative; display: block; flex: none; padding: 0; margin: 0; border: 0; border-radius: 0; background: none; box-shadow: none; cursor: var(--cur-hand, pointer);
+  font-family: var(--font-new); color: #e3d8bd; text-align: left; -webkit-tap-highlight-color: transparent; outline: none; }
+.pxb-cv { position: absolute; left: 0; top: 0; pointer-events: none; image-rendering: pixelated; }
+.pxb-t { position: absolute; left: 32px; right: 20px; top: 50%; transform: translateY(-62%); font-size: 19px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 1px 1px 0 #050404; letter-spacing: .03em; transition: color .12s; }
+.pxb-s { position: absolute; right: 22px; top: 50%; transform: translateY(-60%); font-size: 13px; color: rgba(236,226,204,.5); }
+.pxb.hot .pxb-t { color: #ffd88a; }
+.pxb.on .pxb-t { color: #fff2cc; }
+.pxb.danger .pxb-t { color: #e7b9a6; }
+.pxb.danger.hot .pxb-t { color: #ffa384; }
+.pxb:active .pxb-cv, .pxb:active .pxb-t { translate: 0 1px; }

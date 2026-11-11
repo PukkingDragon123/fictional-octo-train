@@ -32,6 +32,7 @@ import { CYBER_PARTS, cyberDef, type CyberSlot, SLOT_KIND, slotConflicts } from 
 import { file, saveFile } from './meridian';
 // the economy's offers (press patterns, press upgrades, homestead pieces, farming) register themselves as data
 import './economy/registry';
+import './mapUpgrades'; // the survey map's upgrades (UI worker, round 15)
 
 /** a branch of the tree: one per category of src/game/treeData.ts (design, recipe, build, device, chip, limb, and any registered) */
 export type Branch = string;

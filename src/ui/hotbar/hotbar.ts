@@ -13,6 +13,44 @@ import { EquipAction } from '../../actions/basic';
 import { itemIconFor, iconResCss } from '../icons';
 import { isTouchMode } from '../touch/mode';
 import { ctxAllowed } from './context';
+import { crispCanvas, rect, rivet, GUN, AMB } from '../hiPixel';
+import { pxPlate, pxFrame } from '../pxKit';
+import { mixHex } from '../../gfx/pixel';
+
+// ---- the slots (round 15): just the six slots, each a physical socket in hi-res pixel art.
+// A chamfered gunmetal bezel with two screws, a recessed felt bed, a brass tag stamped with the
+// key's number; the item sits on the felt with a hard shadow. The slot in the hand rises a
+// little and an amber strip lights along the bottom of its bed. Nothing else on the strip.
+const SW = 54;
+const FONT_DIGITS: Record<string, string[]> = {
+  '1': ['.#.', '##.', '.#.', '.#.', '###'], '2': ['##.', '..#', '.#.', '#..', '###'], '3': ['##.', '..#', '.#.', '..#', '##.'],
+  '4': ['#.#', '#.#', '###', '..#', '..#'], '5': ['###', '#..', '##.', '..#', '##.'], '6': ['.##', '#..', '##.', '#.#', '.#.'],
+};
+function drawSlot(c: CanvasRenderingContext2D, n: number, full: boolean, held: boolean) {
+  const W = SW, H = SW;
+  c.clearRect(0, 0, W, H);
+  pxPlate(c, 1, 1, W - 4, H - 4, { tone: 'steel', chamfer: 7, well: 0, screws: false, seed: n * 31 });
+  // the bed: recessed felt, a soft inner shadow, the weave
+  const bx = 6, by = 6, bw = W - 4 - 11, bh = H - 4 - 11, felt = held ? 0x2a1d0e : 0x15140f;
+  rect(c, bx - 1, by - 1, bw + 2, bh + 2, 0x050404);
+  rect(c, bx + 2, by, bw - 4, bh, felt); rect(c, bx, by + 2, bw, bh - 4, felt); rect(c, bx + 1, by + 1, bw - 2, bh - 2, felt);
+  for (let j = 0; j < bh; j += 2) for (let i = (j / 2) % 2; i < bw; i += 2) rect(c, bx + i, by + j, 1, 1, mixHex(felt, 0xffffff, 0.05));
+  rect(c, bx + 2, by, bw - 4, 2, 0x000000, 0.55); rect(c, bx, by + 2, 2, bh - 4, 0x000000, 0.45);
+  rect(c, bx + 2, by + bh - 1, bw - 4, 1, GUN[6], 0.5);
+  if (held) {
+    // the strip of light along the bed's foot, and a warm glow up the felt
+    for (let j = 0; j < 8; j++) rect(c, bx + 2, by + bh - 3 - j, bw - 4, 1, AMB[4], 0.16 * (1 - j / 8));
+    rect(c, bx + 3, by + bh - 3, bw - 6, 2, AMB[5]); rect(c, bx + 3, by + bh - 3, bw - 6, 1, AMB[6]);
+  }
+  // the brass tag with the number, top-left on the bezel
+  const tx = 2, ty = 2;
+  rect(c, tx, ty, 9, 9, 0x241808); rect(c, tx + 1, ty + 1, 7, 7, held ? 0xd4b45e : 0x9c7a2c); rect(c, tx + 1, ty + 1, 7, 1, held ? 0xfaecc0 : 0xd4b45e);
+  const g = FONT_DIGITS[String(n)] || [];
+  g.forEach((row, y) => { for (let x = 0; x < 3; x++) if (row[x] === '#') rect(c, tx + 3 + x, ty + 2 + y, 1, 1, 0x241808); });
+  // a screw bottom-right
+  rivet(c, W - 9, H - 9, 1, true);
+  if (!full) { rect(c, bx + bw / 2 - 4, by + bh / 2, 9, 1, 0xffffff, 0.06); }
+}
 
 export const HOT_N = 6;
 
@@ -62,7 +100,11 @@ export class HotbarStrip {
     for (let i = 0; i < HOT_N; i++) {
       const s = document.createElement('div');
       s.className = 'hb-slot';
-      s.innerHTML = `<i></i><b>${i + 1}</b>`;
+      const sc = crispCanvas(SW, SW);
+      sc.cv.className = 'hb-cv';
+      drawSlot(sc.c, i + 1, false, false);
+      (s as any)._c = sc.c;
+      s.append(sc.cv, document.createElement('i'));
       s.addEventListener('pointerdown', (e) => {
         e.preventDefault(); e.stopPropagation();
         const p = G.local; if (!p || !ctxAllowed()) return;
@@ -79,6 +121,8 @@ export class HotbarStrip {
       this.slots.push(s);
     }
     document.body.appendChild(el);
+    // the rail the six sockets sit in
+    try { pxFrame(el, { tone: 'dark', chamfer: 8, screws: false, seed: 66 }); } catch { /* no canvas */ }
     window.addEventListener('keydown', (e) => {
       if (e.repeat || G.input?.textFocus || !/^Digit[1-6]$/.test(e.code) || !ctxAllowed()) return;
       const p = G.local; if (!p) return;
@@ -107,8 +151,11 @@ export class HotbarStrip {
       const el = this.slots[i];
       const icon = el.querySelector('i') as HTMLElement;
       icon.style.backgroundImage = it ? `url(${itemIconFor(it, iconResCss(32))})` : '';
+      const held = !!it && (p.handR === it || p.handL === it);
       el.classList.toggle('full', !!it);
-      el.classList.toggle('held', !!it && (p.handR === it || p.handL === it));
+      el.classList.toggle('held', held);
+      const c = (el as any)._c as CanvasRenderingContext2D | undefined;
+      if (c) drawSlot(c, i + 1, !!it, held);
       el.title = it ? itemName(it) : 'empty';
     });
   }

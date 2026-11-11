@@ -380,6 +380,8 @@ export function childProportions(hr: HumanRig, on: boolean) {
 // =====================================================================================
 // cached memory rigs + the atlas copies for props
 // =====================================================================================
+/** extra passes over a replica's cast page (the Still Lifes register their sponge here: src/creatures/species/still_life.ts) */
+export const REPLICA_CAST: ((d: Uint8Array, seed: number) => void)[] = [];
 const RIGS = new Map<number, HumanRig>();
 const PAINTED = new Set<number>();
 
@@ -392,6 +394,7 @@ export function memoryRig(mi: number): HumanRig {
   hr = new HumanRig(m.app);
   hr.setOutfit(m.outfit);
   waxify(pageData(hr), m, hashStr('replica:' + m.key));
+  for (const f of REPLICA_CAST) f(pageData(hr), hashStr('replica:' + m.key));
   RIGS.set(mi, hr);
   return hr;
 }

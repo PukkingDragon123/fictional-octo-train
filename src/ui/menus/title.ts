@@ -583,6 +583,8 @@ class TitleRoom {
         const f = h('div', 'tt3-case', `<span class="n">${String(i + 1).padStart(3, '0')}</span><span class="t"><b>${esc(s.character)}</b><small>day ${Math.floor(s.hours / 24) + 1} · ${esc(s.zone)} · ${d.toLocaleDateString()} ${d.toLocaleTimeString().slice(0, 5)}</small></span>`);
         const acts = h('span', 'a');
         acts.append(crtAct('Resume', () => { sfx('confirm'); f.classList.add('go'); setTimeout(() => setLaunch({ mode: 'load', id: s.id }), 450); }));
+        // round 15: the last checkpoint held on this world -> a new file on the old world (src/game/checkpoint.ts)
+        if (s.cp) { const cp = s.cp; acts.append(crtAct('Re-enter', () => { sfx('confirm'); f.classList.add('go'); setTimeout(() => setLaunch({ mode: 'reenter', cp: cp.id }), 450); })); }
         acts.append(crtAct('Delete', async () => {
           const ok = await confirmDialog({ title: 'Delete case file', body: `Delete ${s.character}'s file? This world and everything in it will be gone for good.`, ok: 'Delete', cancel: 'Keep', danger: true });
           if (!ok) return;

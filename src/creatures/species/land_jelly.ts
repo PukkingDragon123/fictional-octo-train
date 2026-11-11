@@ -44,7 +44,7 @@ import '../../audio/sounds_creatures_c';
 
 const NTE = 8, TS = 6, NA = 4, AS = 4;
 const BELL_R = 0.28, BELL_Y = 0.36;
-const TR = [0.27, 0.4, 0.52, 0.66, 0.78, 0.9], TY = [0.33, 0.26, 0.11, 0.02, 0.005, 0.0];
+const TR = [0.26, 0.36, 0.47, 0.6, 0.74, 0.88], TY = [0.33, 0.24, 0.1, 0.02, 0.005, 0.0];
 const tAng = (i: number) => (i / NTE) * Math.PI * 2 + Math.PI / NTE;
 
 function bonesJ() {
@@ -73,7 +73,8 @@ function layoutJ(p: Page) { p.reg('TENT', 16, 48); p.reg('ARM', 32, 32); p.reg('
 function buildJ(B: SkinB, x: BuildCtx) {
   const bi = x.bi;
   for (let i = 0; i < NTE; i++) {
-    chain(B, x, x.R('TENT'), 1 + i, { bones: Array.from({ length: TS }, (_, k) => 'T' + i + '_' + k), tipLen: 0.16, r: (t) => 0.024 * Math.pow(1 - t, 0.8) + 0.004, n: 5, rings: 3, knuckle: 0.08,
+    chain(B, x, x.R('TENT'), 1 + i, { bones: Array.from({ length: TS }, (_, k) => 'T' + i + '_' + k), tipLen: 0.3, r: (t) => 0.017 * Math.pow(1 - t, 1.1) + 0.0025, n: 5, rings: 4, knuckle: 0.05,
+      bend: (k) => (k > 1 ? [Math.cos(tAng(i) + Math.PI / 2) * 0.05 * (k % 2 ? 1 : -1), 0.01, Math.sin(tAng(i) + Math.PI / 2) * 0.05 * (k % 2 ? 1 : -1)] : null),
       bump: (_, t) => 0.18 * Math.pow(Math.max(0, Math.sin(t * 60 + i)), 6) });
   }
   // the mouth-arms: ruffled curtains, frilled along their edges
@@ -86,8 +87,8 @@ function buildJ(B: SkinB, x: BuildCtx) {
 function paintJ(p: Page, x: BuildCtx) {
   const v = x.variant;
   const te = p.R('TENT');
-  te.fill(makeRamp(mixHex(0xe8c8e0, 0xc8d8f0, v * 0.5), 6), (xx, yy) => 3.2 + Math.cos((te.deg(xx) * Math.PI) / 180) * 1.2 + (yy % 4 === 0 ? 1.4 : 0), undefined, 0.5);
-  for (let yy = 0; yy < te.h; yy += 4) for (let xx = 0; xx < te.w; xx += 3) te.set(xx + (yy & 4 ? 1 : 0), yy, 0x8a4a7a);
+  te.fill(makeRamp(mixHex(0xc888b8, 0x8aa0d8, v * 0.5), 6), (xx, yy) => 2.2 + Math.cos((te.deg(xx) * Math.PI) / 180) * 1.2 + (yy % 4 === 0 ? 1.6 : 0), undefined, 0.5);
+  for (let yy = 0; yy < te.h; yy += 4) for (let xx = 0; xx < te.w; xx += 3) te.set(xx + (yy & 4 ? 1 : 0), yy, 0x6a2a5a);
   const ar = p.R('ARM');
   ar.fill(makeRamp(mixHex(0xe89a7a, 0xd88aa8, v * 0.5), 7), (xx, yy) => 3 + Math.sin(xx * 0.9 + yy * 0.4) * 1.3 + (ar.fbm(xx, yy, 3, 2, 3) - 0.5) * 1.4, undefined, 0.5);
   for (let i = 0; i < 12; i++) ar.crack(hash(i, 5) * ar.w, 0, 20, 90, 0xfff0f0, 5 + i, 0.5, 0.1);
@@ -138,19 +139,19 @@ function buildBell(B: SkinB, x: BuildCtx) {
 function paintB(p: Page, x: BuildCtx) {
   const v = x.variant;
   const r = p.R('BELL');
-  const RB = makeRamp(mixHex(0xb8c8f8, 0xe0b8f0, v * 0.5), 7, { spread: 0.5 });
-  r.fill(RB, (xx, yy) => 3.5 + (yy / r.h) * 1.5 + (r.fbm(xx, yy, 3, 2, 4 + v) - 0.5) * 1.4 + (xx % 8 === 0 ? -1.2 : 0), undefined, 0.5);
+  const RB = makeRamp(mixHex(0x8aa8e8, 0xc890e0, v * 0.5), 7, { spread: 0.55 });
+  r.fill(RB, (xx, yy) => 2.6 + (yy / r.h) * 1.4 + (r.fbm(xx, yy, 3, 2, 4 + v) - 0.5) * 1.4 + (xx % 8 === 0 ? -1.2 : 0), undefined, 0.5);
   for (let i = 0; i < 26; i++) { const px = hash(i, 7 + v) * r.w, py = hash(i + 3, 7) * r.h * 0.7; r.ellipse(px, py, 1, 1, 0xf8f0ff, 0.8); }
   for (let xx = 0; xx < r.w; xx++) { r.blend(xx, r.h - 1, 0x7a5aa8, 0.8); r.blend(xx, r.h - 2, 0x9a7ac8, 0.5); }
   paintCap(p.R('CAP'), 0xc8d0f8, 0xe0e8ff, 0xf8f8ff);
 }
-const INNER_KIT: KitDef = { key: 'land_jelly_inner', variants: 2, W: 64, H: 64, bones: () => bonesJ(), layout: layoutI, build: buildI, paint: paintI, sphere: [0, 0.4, 0, 1.1] };
+const INNER_KIT: KitDef = { key: 'land_jelly_inner', variants: 2, W: 64, H: 96, bones: () => bonesJ(), layout: layoutI, build: buildI, paint: paintI, sphere: [0, 0.4, 0, 1.1] };
 const BELL_KIT: KitDef = { key: 'land_jelly_bell', variants: 2, W: 128, H: 64, bones: () => bonesJ(), layout: layoutB, build: buildBell, paint: paintB, sphere: [0, 0.4, 0, 1.1] };
 const JELLY_KIT: KitDef = { key: 'land_jelly', variants: 2, W: 64, H: 128, bones: () => bonesJ(), layout: layoutJ, build: buildJ, paint: paintJ, sphere: [0, 0.4, 0, 1.2],
   decorate: (rig, e) => {
     addMount(rig);
     attachInner(rig, INNER_KIT, e.variant);
-    attachFilm(rig, BELL_KIT, e.variant, { opacity: 0.42, edge: 1.6, spec: 1.1, rim: 0.5, doubleSide: true, tint: 0.55 });
+    attachFilm(rig, BELL_KIT, e.variant, { opacity: 0.5, edge: 1.8, spec: 1.2, rim: 0.6, doubleSide: true, tint: 0.8 });
   } };
 /** a land jellyfish rig (variant 0..1) */
 export function buildLandJelly(variant = 0): KitRig { return buildKitRig(JELLY_KIT, variant, 0.5); }
@@ -426,7 +427,8 @@ function thinkJelly(c: Creature, dt: number): boolean {
     c.speed = 0; c.vx = c.vz = 0;
     if (now - (n.xt ?? now) > 0.5) {
       const tg = n.lp ? G.players.get(n.lp) : null;
-      if (tg && !tg.body.dead && dist(tg, c) < 1.0) { setSf(c, 'l'); fx(c, 'slap'); ruleShown(c); }
+      // it falls with its tentacles spread wide: anything under it, it gets
+      if (tg && !tg.body.dead && dist(tg, c) < 1.5) { setSf(c, 'l'); fx(c, 'slap'); ruleShown(c); }
       else { setSf(c, 'f'); n.lp = null; fx(c, 'slap'); c.stagger = 1.2; n.wk = 0; }
     }
     return true;

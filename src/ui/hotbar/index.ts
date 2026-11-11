@@ -6,6 +6,8 @@ import { G } from '../../game/G';
 import { ContextBar, ctxAllowed } from './context';
 import { HotbarStrip } from './hotbar';
 import { QuestBroadcast } from '../broadcast/broadcast';
+import { ObjectiveLine } from '../broadcast/objective';
+import { SurveyMap } from '../map/surveyMap';
 import { SelfInspect } from '../selfInspect';
 import { WorldPrompt } from '../worldPrompt';
 import { ActPad } from '../touch/actpad';
@@ -22,6 +24,10 @@ export function installHud12() {
   const pad = new ActPad();
   // the quest broadcast (J) and Inspect Yourself (O) live beside them
   try { new QuestBroadcast(); } catch (e) { console.warn('broadcast', e); }
+  // quest tracking: a caption line when a task is assigned or moves on, then nothing (round 15)
+  try { new ObjectiveLine(); } catch (e) { console.warn('objective line', e); }
+  // the survey map on M and its lab upgrades (src/game/mapUpgrades.ts)
+  try { new SurveyMap(); } catch (e) { console.warn('survey map', e); }
   try { new SelfInspect(); } catch (e) { console.warn('selfInspect', e); }
   G.addSystem({ name: 'hud12', update: (dt: number) => {
     try {

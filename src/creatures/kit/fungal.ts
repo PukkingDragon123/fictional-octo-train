@@ -70,7 +70,7 @@ export function gyri(d: V3, k = 1, seed = 0): number {
   const a = Math.sin(d[0] * 9.1 * k + Math.sin(d[1] * 7.3 * k + seed) * 1.9 + seed);
   const b = Math.sin(d[2] * 8.3 * k + Math.sin(d[0] * 6.1 * k - seed) * 2.1);
   const c = Math.sin(d[1] * 10.7 * k + d[2] * 4 + seed * 2);
-  return 1 - Math.abs(a * 0.55 + b * 0.35 + c * 0.25);
+  return Math.max(0, 1 - Math.abs(a * 0.55 + b * 0.35 + c * 0.25));
 }
 
 /** host: a rooted thing stays where it grew (blows knock creatures about) */
