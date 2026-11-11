@@ -129,7 +129,7 @@ function style() {
 .ip-mark i { position: absolute; inset: 0; font-style: normal; font-family: var(--font-new, monospace); font-size: 12px; color: #ffd06a; text-align: center; line-height: 26px; text-shadow: 0 1px 0 #000; }
 .ip-mark:hover, .ip-mark.on { background-image: var(--ip-mark-on); }
 .ip-mark.on i, .ip-mark:hover i { color: #25201b; text-shadow: none; }
-.ip-mark.back { opacity: 0.35; }
+.ip-mark.back { opacity: 0.5; }
 `;
   st.textContent += `:root { --ip-mark: url(${markArt(false)}); --ip-mark-on: url(${markArt(true)}); }`;
   document.head.appendChild(st);
@@ -292,9 +292,12 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
     try { opts = itemMenuOptions(p, it, c, group); } catch (e) { console.warn('item panel options', e); opts = []; }
     const flat: { o: MenuOption; parent?: string }[] = [];
     for (const o of opts) {
-      if (/inspect|look closer/i.test(o.label)) continue;
-      if (o.sub?.length) { for (const s of o.sub.slice(0, 4)) flat.push({ o: s, parent: o.label }); }
-      else flat.push({ o });
+      if (!o.label?.trim() || /inspect|look closer/i.test(o.label)) continue;
+      if (o.sub?.length) {
+        // a verb's choices read as one key each ("Eat half"); a destination list keeps its verb under it
+        const move = /move|put|stash/i.test(o.label);
+        for (const s of o.sub.slice(0, 4)) if (s.label?.trim()) flat.push(move ? { o: s, parent: o.label } : { o: { ...s, label: o.label + ' ' + s.label.charAt(0).toLowerCase() + s.label.slice(1) } });
+      } else flat.push({ o });
     }
     for (const { o, parent } of flat.slice(0, 9)) {
       const off = o.disabled ? (typeof o.disabled === 'string' ? o.disabled : 'not now') : false;

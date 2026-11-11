@@ -797,6 +797,8 @@ ${!it || !this.pois.length ? `<div class="ip-desc">${esc(desc)}</div>` : ''}
       rt.x += Math.cos(a) * 0.04; rt.y += Math.sin(a) * 0.04; rt.z += 0.03;
     } else rt = this.worldOf(_v.set(0, 0, L * 0.42), new THREE.Vector3());
     if (this.chair && !w) rt.set(0.32, -0.32, -0.95);
+    // holding it (not hovering over it): the wrists sit under and behind the ends so the palms close round them
+    if (!w) { lt.y -= 0.045; lt.z += 0.03; rt.y -= 0.045; rt.z += 0.03; }
     this.gl.lerp(lt, 1 - Math.exp(-16 * dt)); this.gr.lerp(rt, 1 - Math.exp(-16 * dt));
     aL.target.copy(this.gl); aR.target.copy(this.gr);
     const v = w?.h.verb;

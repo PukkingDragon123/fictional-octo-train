@@ -191,7 +191,7 @@ float lpSc = lpScratch(lpP * 70.0) * lpAA(1400.0) * (0.2 + lpWear);
 lpRough = 0.7; lpMetal = 0.0; lpBump = (lpF - 0.5) * 0.12;
 if (lpS == 1.0) {
   float br = mix(0.5, lpN(vec2(lpP.x * 2400.0, lpP.y * 60.0)), lpAA(2400.0));
-  lpMetal = 1.0; lpRough = 0.28 + br * 0.14 + lpM * 0.1 + lpWear * 0.08; lpC *= 0.9 + br * 0.2; lpC += lpSc * 0.22; lpRough -= lpSc * 0.12;
+  lpMetal = 1.0; lpRough = 0.36 + br * 0.14 + lpM * 0.1 + lpWear * 0.08; lpC *= 0.9 + br * 0.2; lpC += lpSc * 0.22; lpRough -= lpSc * 0.12;
   lpBump = (br - 0.5) * 0.25 - lpSc * 0.6;
 } else if (lpS == 2.0) {
   float chip = smoothstep(0.66 - lpWear * 0.3, 0.72 - lpWear * 0.3, lpM * 0.55 + lpB * 0.45);
@@ -262,7 +262,7 @@ function closeMat(wear: number, grime: number, blood: number, wet: number): THRE
   const hit = mats.get(key);
   if (hit) return hit;
   const A = atlas();
-  const m = new THREE.MeshStandardMaterial({ map: A.texture, vertexColors: true, roughness: 0.7, metalness: 0, envMap: metalEnv(), envMapIntensity: 0.85 });
+  const m = new THREE.MeshStandardMaterial({ map: A.texture, vertexColors: true, roughness: 0.7, metalness: 0, envMap: metalEnv(), envMapIntensity: 0.55 });
   m.onBeforeCompile = (sh) => {
     sh.uniforms.uAtlasSize = U.uAtlasSize;
     sh.uniforms.uHdMap = { value: A.hdEnabled ? A.hdTexture : A.texture };

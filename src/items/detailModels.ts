@@ -198,7 +198,7 @@ export const DETAIL: Record<string, Detail> = {
   },
   flashlight: {
     add: (mb) => {
-      for (let x = -0.094; x < 0.042; x += 0.0075) band(mb, 'x', x, 0.019, 0, 0.0186, 0.0032, 'i_metal', 0x2c2c32);
+      for (let x = -0.09; x < 0.04; x += 0.011) band(mb, 'x', x, 0.019, 0, 0.0185, 0.0022, 'i_rubber', 0x1c1c20);
       band(mb, 'x', -0.103, 0.019, 0, 0.0186, 0.008, 'i_metal', 0x52525a, 14);
       mb.box(-0.111, 0.0165, 0, 0.007, 0.005, 0.011, 'i_black');
       band(mb, 'x', 0.1045, 0.026, 0, 0.0286, 0.004, 'chrome', 0xd8dce0, 16);
@@ -304,7 +304,7 @@ export const DETAIL: Record<string, Detail> = {
     add: (mb) => {
       mb.box(0.007, 0.1222, 0, 0.016, 0.0012, 0.009, 'i_metal', { color: 0xd8dce0 });
       mb.cylinder(0.002, 0.1222, 0, 0.0022, 0.0014, 8, 'i_metal', { color: 0xc0c4c8 });
-      mb.box(-0.0275, 0.06, 0, 0.0008, 0.11, 0.003, 'i_tin', { color: 0xa8acb0, bevel: false });
+      mb.box(-0.0333, 0.008, 0, 0.0008, 0.106, 0.003, 'i_tin', { color: 0xa8acb0, bevel: false });
     },
     poi: [
       { at: [0.008, 0.124, 0], label: 'TAB', note: 'Ring pull, still sealed. Warm, but carbonated.' },
@@ -354,7 +354,7 @@ export const DETAIL: Record<string, Detail> = {
     add: (mb) => {
       band(mb, 'x', 0, 0.07, -0.087, 0.0045, 0.2, 'i_plastic', 0x9a1c18, 10);
       for (const [x, z] of [[-0.118, -0.083], [0.118, -0.083], [-0.118, 0.083], [0.118, 0.083]]) mb.box(x, -0.001, z, 0.014, 0.084, 0.014, 'i_rubber', { color: 0x2a2a2a });
-      for (const s of [-1, 1]) screw(mb, s * 0.04, 0.042, 0.0905, 0.0022, '+z');
+      for (const s of [-1, 1]) screw(mb, s * 0.04, 0.042, 0.0885, 0.0022, '+z');
       for (let i = 0; i < 5; i++) mb.box(-0.03 + i * 0.015, 0.098, -0.05, 0.004, 0.0012, 0.015, 'i_black', { bevel: false });
       stitch(mb, [-0.105, 0.0835, 0.065], [0.105, 0.0835, 0.065], 22, 0xf0f0ea, 'i_white');
     },
