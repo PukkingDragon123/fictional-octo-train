@@ -19,7 +19,7 @@ import type { CtxAction, V3 } from './hotbar/context';
 const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 const KEYCAP: Record<string, string> = { Space: 'Space', Shift: 'Shift' };
 /** things the labels must not cover (refreshed a few times a second) */
-const KEEP_OUT = ['canvas.bh-ov', '.bh-lab', '.lp-track', '#hot12', '.lp-next.on', '#wpad', '#nc-touch .nc-tl', '#nc-touch .nc-tr'];
+const KEEP_OUT = ['canvas.bh-ov', '.bh-lab', '.obj15.on', '.lp-track', '#hot12', '.lp-next.on', '#wpad', '#nc-touch .nc-tl', '#nc-touch .nc-tr'];
 /** the mouse hint of the grab system (src/interact/grab.ts) floats over held things: stand above it */
 const MOUSE_HINT = 'gx-hint';
 /** targets the unit is already holding: a quieter label (the grab hint shows the mouse) */
