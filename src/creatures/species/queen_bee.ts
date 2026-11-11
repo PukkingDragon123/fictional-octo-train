@@ -546,9 +546,9 @@ function animateQueen(rig: Rig, c: Creature, t: number, dt: number) {
   const lp = localIn(c);
   const look = lp && !c.dead ? Math.max(-1, Math.min(1, angd(Math.atan2(lp.z - c.z, lp.x - c.x), c.facing) * -0.7)) : 0;
   poseQueen(K, {
-    t, dt, seed, gape: sm('gp', md === 'gape' ? 1 : 0, 2), suck: sm('sk', md === 'suck' ? 1 : 0, md === 'suck' ? 2.5 : 4), gulp: ud.gl, spit: Math.max(ud.sp, sm('spm', md === 'spit' ? 1 : 0, 5)),
+    t, dt, seed, gape: sm('gp', md === 'gape' || md === 'warn' ? 1 : 0, md === 'warn' ? 4 : 2), suck: sm('sk', md === 'suck' ? 1 : 0, md === 'suck' ? 2.5 : 4), gulp: ud.gl, spit: Math.max(ud.sp, sm('spm', md === 'spit' ? 1 : 0, 5)),
     churn: sm('ch', gut.length || n.sw ? 1 : 0.15, 0.8), lay: sm('ly', md === 'lay' ? 1 : 0, 1.2), fed: sm('fd', md === 'fed' ? 1 : 0, 3),
-    look: sm('lk', look, 1.5), rake: sm('rk', md === 'suck' || md === 'fed' ? 1 : 0.1, 3), kick: sm('kk', n.sw ? 1 : 0, 3),
+    look: sm('lk', look, 1.5), rake: sm('rk', md === 'suck' || md === 'fed' || md === 'warn' ? 1 : 0.1, 3), kick: sm('kk', n.sw ? 1 : 0, 3),
     dead: ud.dk * ud.dk * (3 - 2 * ud.dk), flinch: flinchOf(c),
   });
   uprightDead(K, c);
@@ -558,7 +558,8 @@ function animateQueen(rig: Rig, c: Creature, t: number, dt: number) {
   if (G.local) swallowedLocal(c, n, G.local, dt);
   if (lp && !c.dead && c.visibleToLocal) {
     const d = dist(lp, c);
-    if (n.sw && n.sw !== lp.id && d < 14) thinkOnce(lp, 'queen_sw', 'It swallowed them. They are still moving in there. I can cut them out.', 30);
+    if (n.md === 'warn' && d < 8) thinkOnce(lp, 'queen_warn', 'She is gaping at me, legs raking the floor. I am too close to her comb. Back off.', 20);
+    else if (n.sw && n.sw !== lp.id && d < 14) thinkOnce(lp, 'queen_sw', 'It swallowed them. They are still moving in there. I can cut them out.', 30);
     else if (gut.length && d < 9) thinkOnce(lp, 'queen_gut', ['I can see things turning over inside her. Through her skin.', 'There is a chair in there. And something with legs.'][Math.floor(t * 0.1) % 2], 70);
     else if (d < 12) thinkOnce(lp, 'queen', ['A bee the size of a car. Her belly is open. It is a mouth.', 'The whole front of her is a mouth, and it is breathing.', 'The bees bring her meat. She does not even look at it. She just opens.'][Math.floor(t * 0.13) % 3], 90);
   }
@@ -576,13 +577,15 @@ let held: Held | null = null;
 const DMG_EVERY = 1.3, MAX_ROUNDS = 3;
 function swallowedLocal(c: Creature, n: Record<string, any>, p: Player, dt: number) {
   // being pulled in: the inhale drags at anyone in front of her
+  // (only the unit she means to take is really pulled; anyone else close by just feels the draught)
   if (n.md === 'suck' && !c.dead && p.zoneKey === c.zoneKey && !p.body.dead && n.sw !== p.id) {
     const m = mawPoint(c, 0.2), dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz);
     const ahead = Math.cos(angd(Math.atan2(p.z - c.z, p.x - c.x), c.facing));
-    if (d < 4.2 && ahead > 0.2) {
-      const k = (1 - d / 4.2) * 2.6 * dt * 6;
+    const R = n.tp === p.id ? 4.2 : 2.2;
+    if (d < R && ahead > 0.2) {
+      const k = (1 - d / R) * (n.tp === p.id ? 2.6 : 0.8) * dt * 6;
       p.vx += (dx / (d || 1)) * k; p.vz += (dz / (d || 1)) * k;
-      G.pr.shake = Math.max(G.pr.shake, 0.2 * (1 - d / 4.2));
+      G.pr.shake = Math.max(G.pr.shake, 0.2 * (1 - d / R));
       thinkOnce(p, 'queen_pull', 'She is breathing in, and I am going with it. RUN.', 25);
     }
   }
@@ -660,7 +663,7 @@ function releaseLocal(p: Player, c: Creature, tore: boolean) {
 }
 
 // ------------------------------------------------------------------ host brain
-const DIGEST_T = 40, SUCK_T = 1.7, GULP_T = 1.2, LAY_T = 6, SPIT_T = 1.1, FED_T = 2.4;
+const WARN_T = 2.6, DIGEST_T = 40, SUCK_T = 1.7, GULP_T = 1.2, LAY_T = 6, SPIT_T = 1.1, FED_T = 2.4;
 const SPARE = new Set(['queen_bee', 'bumble_bee', 'bee_keeper']);
 function setMd(c: Creature, md: string) { const n = net(c); if (n.md !== md) { n.md = md; c.mem.mdT = 0; } }
 interface Tgt { kind: 'p' | 'c' | 'i' | 'o'; id: string; x: number; z: number; d: number; ref: any }
@@ -677,9 +680,12 @@ function pickTarget(c: Creature, z: Zone): Tgt | null {
   const m = mawPoint(c, 0.3), skip = (c.mem.skip ?? {}) as Record<string, number>;
   let best: Tgt | null = null;
   const consider = (t: Tgt) => { if (t.d < 3.6 && inFront(c, t.x, t.z) > -0.2 && (!best || t.d < best.d)) best = t; };
+  // units: territorial, not a hunter. Only one standing in her bowl (after a warning), or one that hurt her
+  const anger = c.mem.anger as { pid: string; until: number } | undefined;
   for (const p of playersIn(c.zoneKey)) {
     if (p.body.dead || p.inVehicle || (skip[p.id] ?? 0) > G.time) continue;
-    consider({ kind: 'p', id: p.id, x: p.x, z: p.z, d: Math.hypot(p.x - m.x, p.z - m.z) - 0.6, ref: p });
+    const d = Math.hypot(p.x - m.x, p.z - m.z) - 0.6, angry = anger && anger.pid === p.id && anger.until > G.time;
+    if (d < (angry ? 3.4 : 1.7)) consider({ kind: 'p', id: p.id, x: p.x, z: p.z, d, ref: p });
   }
   for (const o of CS().creatures.values()) {
     if (o.zoneKey !== c.zoneKey || o === c || SPARE.has(o.sp.key) || o.sp.flags?.ghost || o.sp.flags?.immortal || (o.height ?? 1) > 2.4) continue;
@@ -792,6 +798,10 @@ function thinkQueen(c: Creature, dt: number): boolean {
     else if ((m.swPain ?? 0) > 24) release(c, 'pain');
     else { setMd(c, 'churn'); if ((m.swSnd ?? 0) < G.time) { m.swSnd = G.time + rng.float(1.5, 3); playAt(rng.chance(0.5) ? 'bh_gurgle' : 'arv_squelch', c, 0.9, 14, 0.5); } return true; }
   }
+  if (ev.hurt > 0) {
+    const pid = c.targetId && G.players.has(c.targetId) ? c.targetId : playersIn(c.zoneKey).sort((a, b) => dist(a, c) - dist(b, c))[0]?.id;
+    if (pid) m.anger = { pid, until: G.time + 18 };
+  }
   if (ev.hurt > 0 && n.md !== 'spit' && n.md !== 'suck') {
     // hurt: a heave that brings up the last thing she swallowed, at whoever did it
     setMd(c, 'spit'); fx(c, 'spit'); playAt('arv_spit', c, 0.9, 16, 0.55);
@@ -842,8 +852,14 @@ function thinkQueen(c: Creature, dt: number): boolean {
     const tg = pickTarget(c, z);
     if (tg) {
       faceTo(c, tg.x, tg.z);
+      const angry = (m.anger?.pid === tg.id && m.anger.until > G.time);
+      // a unit in her bowl gets a warning first: the maw thrown wide, the front legs raking, a hiss. Back off and that is all
+      if (tg.kind === 'p' && !angry && !(md === 'warn' && m.mdT > WARN_T)) {
+        if (md !== 'warn') { setMd(c, 'warn'); playAt('arv_hiss', c, 0.9, 14, 0.45); playAt('limb_flies', c, 0.7, 12, 1.3); }
+        return true;
+      }
       if (inFront(c, tg.x, tg.z) > 0.8 || tg.d < 1) {
-        m.tg = tg; setMd(c, 'suck');
+        m.tg = tg; setMd(c, 'suck'); n.tp = tg.kind === 'p' ? tg.id : '';
         playAt('bh_in', c, 1, 16, 0.45); playAt('arv_hiss', c, 0.7, 14, 0.5);
         if (tg.kind === 'p') for (const q of playersIn(c.zoneKey)) if (dist(q, c) < 12) ruleShown(c);
       }
@@ -851,6 +867,7 @@ function thinkQueen(c: Creature, dt: number): boolean {
     }
   }
   // nothing in reach: she breathes, gapes now and then, watches
+  if (md === 'warn') setMd(c, '');
   const near = playersIn(c.zoneKey).filter((p) => dist(p, c) < 9).sort((a, b) => dist(a, c) - dist(b, c))[0];
   if (near) faceTo(c, near.x, near.z);
   if (md === '' && rng.chance(dt * 0.08)) setMd(c, 'gape');
@@ -861,7 +878,7 @@ function thinkQueen(c: Creature, dt: number): boolean {
 
 const QUEEN = def({
   key: 'queen_bee', name: 'Queen Bee', code: 'LG-03 // FAUNA, APID (SOVEREIGN)', temperament: 'neutral', threat: 3,
-  rule: { name: 'THE OPEN STOMACH', text: 'She cannot move and she does not chase. Anything that comes within reach of her front legs, she inhales and swallows: things on the floor, furniture, animals, you. When she breathes in, run. Swallowed, fight the struggle to tear out through her lips; a partner can cut you free, or hurt her until she heaves you up.', tell: 'A bee the size of a car, sitting in the comb. The whole front of her belly is a mouth, and it is open.' },
+  rule: { name: 'THE OPEN STOMACH', text: 'She cannot move and she does not chase. She swallows whatever lies within reach of her front legs, but a unit only if it steps into her bowl and stays after she gapes and rakes at it, or if it hurts her. Keep out of the comb and she leaves you be. Swallowed, fight the struggle to tear out through her lips; a partner can cut you free, or hurt her until she heaves you up.', tell: 'A bee the size of a car, sitting in the comb. The whole front of her belly is a mouth, and it is open.' },
   hp: 260, walk: 0.05, run: 0.1, turn: 0.55, radius: 1.25, height: 2.1, sight: 9, fov: 1.8, hearing: 1, smell: true,
   zones: ['ledge'], weight: 0, group: [1, 1], maxPerZone: 1, diet: 'meat',
   meat: [['meat_raw', 4]],

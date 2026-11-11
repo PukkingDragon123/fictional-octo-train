@@ -367,12 +367,12 @@ export class Tutorial implements GameSystem {
     await this.say(T ? 'Close it again.' : 'Close it. I again, or Esc.');
     await this.gate(() => !inv(), ['Close the pack, {n}.', 'You can rummage later. On your own time.'], 8);
 
-    // ---- the jobs: from her, out loud (and her broadcast, when wanted)
+    // ---- the jobs: from her, out loud (and the J task board, when wanted)
     this.lesson('jobs');
     this.aim(unit);
     await this.say('Jobs come from me. I will say them as you go, and I will say them again when you forget.', { expr: 'smile' });
     this.holo.point(null);
-    await this.say(T ? 'If you want them in front of you, my broadcast. It is on the pad.' : 'If you want them in front of you, J puts my broadcast up. Jobs pay research credit, and research is what the Institute actually wants from you.');
+    await this.say(T ? 'If you want them in front of you, my task board. It is on the pad.' : 'If you want them in front of you, J brings up my task board. Jobs pay research credit, and research is what the Institute actually wants from you.');
 
     // ---- the job: a piece of furniture, whole
     this.lesson('grip');
