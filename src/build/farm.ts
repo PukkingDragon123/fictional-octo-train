@@ -27,6 +27,8 @@ export class Farm {
 
   /** 0..1 how well lit this planter is for growing */
   light(z: Zone, o: TileObject): number {
+    // a fungus bed sits under its damp sack (src/content/furniture/ze_base.ts)
+    if (objDef(o.key)?.tags?.includes('dark_bed')) return 0.15;
     if (z.floorAt(o.x, o.y)?.outdoor && z.env.sky) { const h = G.clock.hours % 24; return h > 6 && h < 20 ? 1 : 0.25; }
     let best = isHydro(o) ? 0.8 : 0.2;
     for (let y = o.y - 4; y <= o.y + 4; y++) for (let x = o.x - 4; x <= o.x + 4; x++) {

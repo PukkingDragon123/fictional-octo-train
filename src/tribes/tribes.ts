@@ -66,6 +66,28 @@ export class TribeSystem implements GameSystem {
     bus.on('creatureHurt', (c: Creature, hit: any) => this.onHurt(c, hit));
     bus.on('creatureKilled', (c: Creature, killer: any) => this.onKilled(c, killer));
     bus.on('thrallMade', (r: any) => { if (r?.owner && G.role !== 'client') this.bump('thralls', 1); });
+    // dev hooks (screenshots, tests): __humans.toCamp(), __humans.talk(), __humans.people()
+    if (import.meta.env.DEV) (window as any).__humans = {
+      S: this,
+      camps: () => (G.local ? (G.getZone(G.local.zoneKey).meta.tribeCamps || []) : []),
+      toCamp: (i = 0, dx = 0, dy = 3.2, facing = -Math.PI / 2) => {
+        const p = G.local; if (!p) return null;
+        const z = G.getZone(p.zoneKey), k = ((z.meta.tribeCamps || []) as Camp[])[i];
+        if (!k) return null;
+        const [x, y] = (G as any).nearestWalkable(z, Math.floor(k.x + dx), Math.floor(k.y + dy));
+        (G as any).placePlayer(p, z.key, x, y, facing);
+        return [x, y];
+      },
+      talk: (mode: 'talk' | 'mug' | 'caught' = 'talk', id?: string) => {
+        const p = G.local; if (!p) return false;
+        let c = id ? G.creatures.creatures.get(id) as Creature : null;
+        if (!c) { let bd = 30; for (const o of G.creatures.creatures.values() as Iterable<Creature>) { if (o.dead || !o.mem.tribe || o.zoneKey !== p.zoneKey) continue; const d = Math.hypot(o.x - p.x, o.z - p.z); if (d < bd) { bd = d; c = o; } } }
+        if (!c) return false;
+        if (Math.hypot(c.x - p.x, c.z - p.z) > 2) { p.x = c.x + Math.cos(c.facing) * 1.5; p.z = c.z + Math.sin(c.facing) * 1.5; }
+        return this.talk.open(c, mode);
+      },
+      people: () => [...(G.creatures?.creatures?.values?.() || [])].filter((c: any) => c.mem?.tribe).map((c: any) => ({ id: c.id, name: memberName(c), role: c.mem.role, att: attitude(c), state: c.state, job: c.mem.jobTag, x: +c.x.toFixed(1), z: +c.z.toFixed(1) })),
+    };
   }
 
   // ---------------------------------------------------------------- queries

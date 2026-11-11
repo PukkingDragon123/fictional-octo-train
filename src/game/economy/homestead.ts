@@ -79,17 +79,18 @@ export function placeForage(z: Zone, seed: number) {
   for (let tries = 0; tries < want * 60 && placed < want; tries++) {
     const x = rng.int(1, z.W - 2), y = rng.int(1, z.H - 2);
     if (!freeFloor(z, x, y)) continue;
-    // against a wall: moss and ears grow where the damp collects
-    const wallish = z.wallN[z.idx(x, y)] || z.wallW[z.idx(x, y)] || (z.inb(x + 1, y) && z.wallW[z.idx(x + 1, y)]) || (z.inb(x, y + 1) && z.wallN[z.idx(x, y + 1)]);
-    if (!wallish && rng.next() < 0.75) continue;
+    // against a wall: moss and ears grow where the damp collects (the model's back, -z at rot 0, to the wall)
+    const n = !!z.wallN[z.idx(x, y)], w = !!z.wallW[z.idx(x, y)], e = z.inb(x + 1, y) && !!z.wallW[z.idx(x + 1, y)], so = z.inb(x, y + 1) && !!z.wallN[z.idx(x, y + 1)];
+    if (!(n || w || e || so) && rng.next() < 0.75) continue;
+    const rot = (n ? 0 : e ? 1 : so ? 2 : w ? 3 : rng.int(0, 3)) as 0 | 1 | 2 | 3;
     let near = false;
     for (const o of z.objects.values()) if (isForage(o.key) && Math.abs(o.x - x) + Math.abs(o.y - y) < 12) { near = true; break; }
     if (near) continue;
     const key = rng.weighted(kinds);
-    if (b.obj(key, x, y, rng.int(0, 3) as 0 | 1 | 2 | 3, {})) placed++;
+    if (b.obj(key, x, y, rot, {})) placed++;
   }
 }
-const ready = (o: TileObject) => o.state.at === undefined || G.clock.hours - o.state.at >= REGROW;
+const ready = (o: TileObject) => o.state.at == null || G.clock.hours - o.state.at >= REGROW;
 function forageMenu(p: Player, o: TileObject): MenuOption[] {
   const f = FORAGE[o.key];
   const pl = PLANTS.find((q) => q.crop === f.plant);
@@ -212,6 +213,8 @@ export function homesteadUpdate(dh: number) {
   const rate = hasUnlock('hb_breeding') ? 1.5 : 1, thrift = hasUnlock('hb_rations') ? 0.5 : 1;
   for (const z of G.zones.values()) {
     for (const o of z.objects.values()) {
+      // picked forage grows back
+      if (o.state.at != null && isForage(o.key)) { if (G.clock.hours - o.state.at >= REGROW) op('objState', { z: z.key, uid: o.uid, patch: { at: null } }); continue; }
       if (o.key !== 'bld_pen') continue;
       const herd = penned(z, o);
       if (!herd.length) continue;
