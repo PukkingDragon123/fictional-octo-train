@@ -95,6 +95,12 @@ export class ModelBuilder {
   facets = ModelBuilder.facetsDefault;
   /** turn the facet look on / off for everything this builder emits from now on (walls, tiles: off) */
   setFacets(on: boolean) { this.facets = on; return this; }
+  /**
+   * Close-up item detail (src/items/itemLook.ts): every small box gets a chamfer in proportion to
+   * its thinnest side, cylinders get rounder and bevelled rims, so a hand-sized model held up to the
+   * eyes never shows a raw cube edge. Off for the world.
+   */
+  detail = false;
 
   get vertexCount() { return this.pos.length / 3; }
   get isEmpty() { return this.idx.length === 0; }
@@ -226,6 +232,7 @@ export class ModelBuilder {
     if (o.skip && o.skip.some((f) => f !== 'bottom')) return 0;
     const mnH = Math.min(w, d), mxH = Math.max(w, d);
     if (typeof o.bevel === 'number') return Math.min(o.bevel, h * 0.45, mnH * 0.3);
+    if (this.detail) { const mn = Math.min(w, h, d); return mn >= 0.0025 ? Math.min(0.006, mn * 0.17) : 0; }
     if (!this.facets) return 0;
     const mx = Math.max(mxH, h);
     if (mx < 0.12 || mx > 4.5) return 0;
@@ -361,6 +368,7 @@ export class ModelBuilder {
   cylinder(x: number, y: number, z: number, r: number, h: number, segs: number, tex: TexSpec, o: PrimOpts & { rTop?: number; caps?: boolean } = {}) {
     const c = o.color ?? 0xffffff, e = o.emissive ?? 0;
     const rt = o.rTop ?? r;
+    if (this.detail && Math.max(r, rt) > 0.006 && segs >= 4) segs = Math.min(18, Math.max(segs, Math.round(segs * 1.75)));
     const sideT = this.texFor(tex, 'north');
     const sr = atlas().get(sideT);
     const circ = 2 * Math.PI * Math.max(r, rt);
@@ -375,6 +383,7 @@ export class ModelBuilder {
       if (typeof o.bevel === 'number') cb = Math.min(o.bevel, h * 0.3, Math.min(r, rt) * 0.4);
       else if (facet && Math.max(r, rt) >= 0.05 && h >= 0.05) cb = Math.min(0.04, 0.16 * Math.min(r, rt, h));
     }
+    if (this.detail && !cb && o.caps !== false && o.bevel !== false && o.bevel !== 0 && h > 0.003 && Math.min(r, rt) >= 0.004) cb = Math.min(0.0035, 0.16 * Math.min(r, rt, h));
     const rAt = (yy: number) => r + (rt - r) * (yy / h);
     const yb = cb, ytp = h - cb;
     const rB = rAt(yb), rT = rAt(ytp);

@@ -278,7 +278,7 @@ export function duct(kind: 'duct' | 'pipe', open: boolean): Duct {
 // ================================================================== the wall gone liquid
 const MEM_VERT = /* glsl */`
 uniform float uTime; uniform float uTouch; uniform float uSwell;
-varying vec3 vWp; varying vec2 vUv; varying float vD; varying vec3 vN;
+varying vec3 vWp; varying vec2 vUv; varying float vD; varying vec3 vN; varying vec3 vN0;
 float disp(vec2 c) {
   float r = length(c);
   float d = uTouch * 0.95 * exp(-r * r / (0.35 + uSwell * 1.6));
@@ -298,6 +298,7 @@ void main() {
   vec3 n = normalize(cross(Pu, Pv));
   if (dot(n, normal) < 0.0) n = -n;
   vN = normalize(mat3(modelMatrix) * n);
+  vN0 = normalize(mat3(modelMatrix) * normal);
   vD = d;
   vec4 wp = modelMatrix * vec4(position + normal * d, 1.0);
   vWp = wp.xyz;
@@ -307,7 +308,7 @@ const MEM_FRAG = /* glsl */`
 layout(location = 1) out highp vec4 gNormal;
 uniform float uTime; uniform float uK; uniform vec3 uCol; uniform float uA;
 uniform sampler2D tAtlas; uniform float uAtlasSize; uniform vec4 uRect; uniform vec2 uRep; uniform float uWall;
-varying vec3 vWp; varying vec2 vUv; varying float vD; varying vec3 vN;
+varying vec3 vWp; varying vec2 vUv; varying float vD; varying vec3 vN; varying vec3 vN0;
 vec3 wallTex(vec2 w) {
   vec2 texPx = max(uRect.zw * uAtlasSize, vec2(1.0));
   vec2 f = fract(w);
@@ -328,7 +329,11 @@ void main() {
   // the wall's own paper, dragged by the ripples (or the gel's colour in the open)
   vec2 w = vUv * uRep + n.zy * 0.12 * (0.4 + vD) + vec2(0.0, vD * 0.35);
   vec3 base = mix(uCol, wallTex(w), uWall);
-  vec3 col = base * (0.45 + dif * 0.75 + vD * 0.45) + uCol * 0.4 * fres + vec3(0.85, 0.97, 1.0) * spec * 1.15 + vec3(0.5, 0.9, 1.0) * caus * 0.1;
+  // relief: how far the ripple tilts the surface toward (or away from) the light, read as bands of light and shade
+  vec3 n0 = normalize(vN0); if (dot(n0, v) < 0.0) n0 = -n0;
+  float relief = clamp(1.0 + 3.2 * (dot(n, l) - dot(n0, l)) + 1.6 * (dot(n, l2) - dot(n0, l2)), 0.35, 1.9);
+  float close = 1.0 - 0.55 * smoothstep(0.3, 0.95, vD);
+  vec3 col = base * (0.62 + dif * 0.5) * relief * close + uCol * 0.35 * fres + vec3(0.85, 0.97, 1.0) * spec * 1.2 + vec3(0.5, 0.9, 1.0) * caus * 0.08;
   col *= uK;
   float edge = smoothstep(0.0, 0.1, min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y)));
   gl_FragColor = vec4(col, uA * edge);
