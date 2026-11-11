@@ -4,6 +4,7 @@
 // pocket to pack. Keys 1-6 (a tap on the strip on touch) take it into the right
 // hand, or put it away again when it is already there. Binding is drag and drop
 // in Inspect Yourself (src/ui/selfInspect) or from the pack view.
+import { openItemPanel } from '../itemPanel';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import type { Item } from '../../items/item';
@@ -105,14 +106,18 @@ export class HotbarStrip {
       drawSlot(sc.c, i + 1, false, false);
       (s as any)._c = sc.c;
       s.append(sc.cv, document.createElement('i'));
+      s.addEventListener('contextmenu', (e) => e.preventDefault());
       s.addEventListener('pointerdown', (e) => {
         e.preventDefault(); e.stopPropagation();
         const p = G.local; if (!p || !ctxAllowed()) return;
-        // a click (desktop) or a tap: use it; a long press opens Inspect Yourself to rearrange
+        // right-click (or a long press on a filled socket): the item card beside the socket (src/ui/itemPanel.ts)
+        const card = () => { const it = hotSlots(p)[i]; if (!it) return false; const r = s.getBoundingClientRect(); openItemPanel(it, p.containerOf(it) || p.inv, { x: r.left, y: r.top - 260, w: r.width, h: r.height }); return true; };
+        if (e.button === 2) { card(); return; }
+        // a click (desktop) or a tap: use it; a long press opens the card (an empty socket: Inspect Yourself to rearrange)
         const t0 = performance.now();
         const up = () => {
           window.removeEventListener('pointerup', up);
-          if (performance.now() - t0 > 480) (G as any).selfInspect?.toggle?.(true);
+          if (performance.now() - t0 > 480) { if (!card()) (G as any).selfInspect?.toggle?.(true); }
           else useHot(p, i + 1);
         };
         window.addEventListener('pointerup', up);

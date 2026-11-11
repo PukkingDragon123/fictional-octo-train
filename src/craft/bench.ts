@@ -97,9 +97,9 @@ export class Bench {
     const sweep = clickTag('Sweep back into the cube', 'tag', 110, 0.27), away = clickTag('Step away', 'tag', 70, 0.21, '(Esc)');
     // both tags hang off hooks on the pegboard, swinging a little
     // tags you can pull: one tied to the cube's corner, one hung on the vice's tommy bar
-    sweep.mesh.geometry.translate(0, -0.05, 0); away.mesh.geometry.translate(0, -0.04, 0);
-    sweep.mesh.position.set(-0.5, 0.07, 0.24); sweep.mesh.rotation.set(-0.38, 0.08, 0.05);
-    away.mesh.position.set(0.6, 0.08, 0.1); away.mesh.rotation.set(-0.42, -0.12, -0.06);
+    // keycaps standing on the bench edge (src/craft/props.ts clickTag), tipped toward you
+    sweep.mesh.position.set(-0.5, 0.07 - 0.046, 0.24 + 0.018); sweep.mesh.rotation.set(-0.38, 0.08, 0.05);
+    away.mesh.position.set(0.6, 0.08 - 0.037, 0.1 + 0.016); away.mesh.rotation.set(-0.42, -0.12, -0.06);
     this.top.add(sweep.mesh, away.mesh);
     this.fixed = [{ t: sweep, run: () => this.clear() }, { t: away, run: () => this.close() }];
     g.add(this.dust.points, this.sparks.points);
@@ -551,7 +551,7 @@ export class Bench {
     const pr = this.press;
     if (pr && pr.id === e.pointerId) {
       this.press = null;
-      if (pr.sheet && Math.hypot(e.clientX - pr.x, e.clientY - pr.y) < 12 && this.sheetAt(e.clientX, e.clientY) === pr.sheet) { G.audio?.ui?.('bag_rot', 0.35); pr.sheet.run(); }
+      if (pr.sheet && Math.hypot(e.clientX - pr.x, e.clientY - pr.y) < 12 && this.sheetAt(e.clientX, e.clientY) === pr.sheet) { if (!pr.sheet.t.mesh.userData.key) G.audio?.ui?.('bag_rot', 0.35); pr.sheet.run(); }
       return;
     }
     const d = this.drag;

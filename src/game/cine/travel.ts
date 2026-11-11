@@ -64,7 +64,8 @@ export function clearAhead(p: Player, yaw: number, max: number): number {
   for (let d = 0.25; d <= max + 0.35; d += 0.25) {
     const nx = Math.floor(p.x + fx * d), ny = Math.floor(p.z + fz * d);
     if (nx !== tx || ny !== ty) {
-      if (!walkable(z, nx, ny)) return Math.max(0, d - 0.55);
+      // (never onto another way out: the landing must not walk the unit straight through the next portal)
+      if (!walkable(z, nx, ny) || z.portals.some((q) => q.kind !== 'loop' && q.x === nx && q.y === ny)) return Math.max(0, d - 0.55);
       if (nx !== tx && ny === ty && z.edgeBlocks(tx, ty, nx - tx, 0, 'walk')) return Math.max(0, d - 0.55);
       if (ny !== ty && nx === tx && z.edgeBlocks(tx, ty, 0, ny - ty, 'walk')) return Math.max(0, d - 0.55);
       if (nx !== tx && ny !== ty) return Math.max(0, d - 0.55);

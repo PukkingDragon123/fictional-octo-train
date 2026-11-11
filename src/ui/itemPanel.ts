@@ -23,6 +23,7 @@ import { itemMatter, MAT, type Mat } from '../game/economy/matter';
 import { itemIcon, iconVariant } from './icons';
 import { crispCanvas, bevel, rivet, rect, glass, hazard, drawBar, GUN, AMB, GRN, RED, dprK } from './hiPixel';
 import { DETAIL } from '../items/detailModels';
+import { itemValue } from '../game/debt/values';
 import type { MenuOption } from './ui';
 
 type Lamp = 'go' | 'warn' | 'stop' | 'off' | 'info';
@@ -60,6 +61,19 @@ function keyArt(w: number, h: number, state: 'up' | 'hover' | 'down', lamp: Lamp
   return url;
 }
 
+/** a point-of-interest reticle: amber corner brackets round a small dark chamfered plate */
+function markArt(on: boolean): string {
+  const N = 26;
+  const { cv, c } = crispCanvas(N, N);
+  rect(c, 7, 7, 12, 12, 0x000000, 0.45);
+  bevel(c, 6, 6, 13, 13, on ? AMB.slice(1) : GUN.slice(1, 7), { chamfer: 2 });
+  for (const [x, y, dx, dy] of [[1, 1, 1, 1], [N - 2, 1, -1, 1], [1, N - 2, 1, -1], [N - 2, N - 2, -1, -1]]) {
+    rect(c, Math.min(x, x + dx * 5), y, 6, 2, 0x000000, 0.6); rect(c, x, Math.min(y, y + dy * 5), 2, 6, 0x000000, 0.6);
+    rect(c, Math.min(x, x + dx * 4), y, 5, 1, on ? AMB[6] : AMB[4]); rect(c, x, Math.min(y, y + dy * 4), 1, 5, on ? AMB[6] : AMB[4]);
+  }
+  return cv.toDataURL();
+}
+
 // ---------------------------------------------------------------- styles
 let styled = false;
 function style() {
@@ -91,8 +105,9 @@ function style() {
 .ipnl .ip-stats { margin-top: 8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px 8px; }
 .ipnl .ip-stats div { font-size: 11px; color: #8d98a1; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
 .ipnl .ip-stats div span { color: #f4efde; margin-left: 4px; text-transform: none; letter-spacing: 0; font-size: 13px; }
-.ipnl .ip-keys { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.ipnl .ip-key { position: relative; height: 34px; border: 0; padding: 0 6px 3px 24px; background: transparent center/100% 100% no-repeat; color: #25201b; font: inherit; font-size: 14px; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: center; line-height: 1; outline: none; transition: filter 0.08s, transform 0.05s; }
+.ipnl .ip-keys { margin-top: 12px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 6px; }
+.ipnl .ip-key { position: relative; min-width: 0; overflow: hidden; height: 34px; border: 0; padding: 0 6px 3px 24px; background: transparent center/100% 100% no-repeat; color: #25201b; font: inherit; font-size: 14px; text-align: left; cursor: pointer; display: flex; flex-direction: column; justify-content: center; line-height: 1; outline: none; transition: filter 0.08s, transform 0.05s; }
+.ipnl .ip-key span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ipnl .ip-key small { font-size: 10px; color: #6e3608; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ipnl .ip-key.wide { grid-column: span 2; }
 .ipnl .ip-key.off { color: #9aa0a4; cursor: default; }
@@ -101,7 +116,22 @@ function style() {
 .ipnl .ip-key.dn { transform: translateY(2px); padding-top: 2px; }
 .ipnl .ip-key.foc::after { content: ''; position: absolute; inset: -3px; border: 2px solid transparent; border-image: linear-gradient(90deg, #ffd06a 0 6px, transparent 6px calc(100% - 6px), #ffd06a calc(100% - 6px)) 2; pointer-events: none; }
 .ipnl .ip-hint { margin-top: 8px; font-size: 10px; letter-spacing: 0.1em; color: #566069; text-transform: uppercase; text-align: right; }
+.ipnl.ip-dock { transform: none; transition: none; }
+.ipnl .ip-poi { margin-top: 8px; display: flex; flex-direction: column; gap: 2px; }
+.ipnl .ip-pl { position: relative; font-size: 13px; color: #b4bec4; padding: 2px 4px 1px 26px; cursor: pointer; }
+.ipnl .ip-pl i { position: absolute; left: 3px; top: 1px; width: 16px; height: 15px; font-style: normal; font-size: 11px; text-align: center; line-height: 16px; color: #25201b; background: ${hx(BONE[5])}; clip-path: polygon(3px 0, calc(100% - 3px) 0, 100% 3px, 100% calc(100% - 3px), calc(100% - 3px) 100%, 3px 100%, 0 calc(100% - 3px), 0 3px); }
+.ipnl .ip-pl:hover { color: #f4efde; }
+.ipnl .ip-pl.on { color: #ffd06a; background: rgba(242,173,50,0.1); }
+.ipnl .ip-pl.on i { background: #f2ad32; }
+.ipnl .ip-note { margin-top: 6px; min-height: 46px; padding: 6px 8px 6px 8px; font-size: 12.5px; line-height: 1.25; color: #ffd06a; background: #0a0f0c; box-shadow: inset 0 2px 0 #000, inset 0 -1px 0 #566069; }
+.ipnl .ip-note b { display: block; font-weight: normal; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: #3ec8da; margin-bottom: 2px; }
+.ip-mark { position: fixed; left: -13px; top: -13px; width: 26px; height: 26px; z-index: 66; cursor: pointer; background: var(--ip-mark) center/100% 100% no-repeat; image-rendering: pixelated; transition: opacity 0.15s; }
+.ip-mark i { position: absolute; inset: 0; font-style: normal; font-family: var(--font-new, monospace); font-size: 12px; color: #ffd06a; text-align: center; line-height: 26px; text-shadow: 0 1px 0 #000; }
+.ip-mark:hover, .ip-mark.on { background-image: var(--ip-mark-on); }
+.ip-mark.on i, .ip-mark:hover i { color: #25201b; text-shadow: none; }
+.ip-mark.back { opacity: 0.35; }
 `;
+  st.textContent += `:root { --ip-mark: url(${markArt(false)}); --ip-mark-on: url(${markArt(true)}); }`;
   document.head.appendChild(st);
 }
 
@@ -180,14 +210,15 @@ class ItemPanel {
     const cat = (d.cat || 'misc') + (d.weapon ? ' · ' + d.weapon.kind : d.medical ? ' · ' + d.medical.type : d.food?.ingredient ? ' · ' + d.food.ingredient : '');
     const cid = 'CAT-' + (Math.abs([...it.key].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) | 0, 7)) % 9000 + 1000);
     const icon = itemIcon(it.key, iconVariant(it), Math.min(176, Math.round(120 * dprK())));
-    const val = d.value ?? 0;
+    let val = d.value ?? 0;
+    try { val = itemValue(it); } catch { /* no economy */ }
     const mat = itemMatter(it);
     const mats = (Object.keys(mat) as Mat[]).filter((k) => (mat[k] ?? 0) > 0.005).sort((a, b) => (mat[b] ?? 0) - (mat[a] ?? 0)).slice(0, 4)
       .map((k) => `<span><i style="background:${MAT[k].color}"></i>${MAT[k].code} ${(mat[k] ?? 0).toFixed(2)}</span>`).join('');
     const stats = this.stats(it).map(([k, v]) => `<div>${esc(k)}<span>${esc(v)}</span></div>`).join('');
     const lore = DETAIL[it.key]?.poi?.[0];
     const loreText = lore ? (typeof lore.note === 'function' ? lore.note(it) : lore.note) : d.anomaly ? 'Anomalous. Logged for the archive.' : '';
-    return `<canvas class="ip-bg"></canvas><div class="ip-hd">Item record · ${esc(cid)}</div><button class="ip-x" data-x title="Close (Esc)">x</button>
+    return `<canvas class="ip-bg"></canvas><div class="ip-hd">Item record · ${esc(cid)}</div><button class="ip-x" data-x title="Close (Esc)">X</button>
 <div class="ip-in"><div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}</div>
 <div class="ip-id"><div class="ip-name">${esc(itemName(it))}</div><div class="ip-kind">${esc(cat)}</div>
 <div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg · ${sz[0]}x${sz[1]}x${sz[2]}</div>
@@ -249,22 +280,12 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
   private keys(it: Item, c: Container, group: Item[]) {
     const p = G.local;
     const host = this.el!.querySelector('.ip-keys') as HTMLElement;
-    const add = (label: string, run: () => void, o: { sub?: string; lamp?: Lamp; off?: boolean | string; wide?: boolean; danger?: boolean } = {}) => {
+    const add = (label: string, run: () => void, o: HiKeyOpts = {}) => {
       if (this.btns.length >= 14) return;
-      const b = document.createElement('button');
-      b.className = 'ip-key' + (o.wide ? ' wide' : '') + (o.off ? ' off' : '');
-      b.innerHTML = `<span>${label.replace(/[&<>]/g, '')}</span>` + (o.sub || typeof o.off === 'string' ? `<small>${String(typeof o.off === 'string' ? o.off : o.sub).replace(/[&<>]/g, '')}</small>` : '');
-      const lamp: Lamp = o.off ? 'stop' : o.lamp ?? (o.danger ? 'warn' : 'go');
-      const btn: Btn = { el: b, run, off: !!o.off };
       const n = this.btns.length;
-      const art = (state: 'up' | 'hover' | 'down') => { const r = b.getBoundingClientRect(); return `url(${keyArt(Math.max(40, Math.round(r.width)), Math.max(20, Math.round(r.height)), state, lamp, !!o.off)})`; };
-      b.addEventListener('pointerenter', () => { if (btn.off) return; b.classList.add('hov'); b.style.backgroundImage = art('hover'); G.audio?.ui?.('mn_hover', 0.12); });
-      b.addEventListener('pointerleave', () => { b.classList.remove('hov', 'dn'); b.style.backgroundImage = art(this.foc === n ? 'hover' : 'up'); });
-      b.addEventListener('pointerdown', (e) => { e.preventDefault(); if (e.button !== 0) return; if (btn.off) { G.audio?.ui?.('mn_error', 0.3); return; } b.classList.add('dn'); b.style.backgroundImage = art('down'); G.audio?.ui?.('tc_clack', 0.5); });
-      b.addEventListener('pointerup', (e) => { if (e.button !== 0 || btn.off || !b.classList.contains('dn')) return; b.classList.remove('dn'); this.fire(n); });
-      (b as any)._art = art;
+      const b = hiKey(label, () => this.fire(n), o);
       host.appendChild(b);
-      this.btns.push(btn);
+      this.btns.push({ el: b, run, off: !!o.off });
     };
     // the ordinary verbs: what the item menu offers (equip, eat, drop, move...), sub-menus opened out
     let opts: MenuOption[] = [];
@@ -281,8 +302,9 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
     }
     // what the hands can do to it (take apart, sharpen, bind...): done in the hands, up close
     const mine = p.allItems().includes(it);
-    for (const h of opsForItem(it).slice(0, 3)) {
-      const why = this.opWhy(h, it, mine);
+    const ops = opsForItem(it).map((h) => ({ h, why: this.opWhy(h, it, mine) }));
+    const ready = ops.filter((q) => !q.why);
+    for (const { h, why } of (ready.length ? ready : ops).slice(0, ready.length ? 3 : 1)) {
       add(h.name, () => { this.close(true); (G as any).craft?.inspectInHand?.(it, c, { op: h.key }); }, { sub: why ? undefined : this.opSub(h, it), off: why || false, lamp: 'warn' });
     }
     add('Inspect in hand', () => { this.close(true); (G as any).craft?.inspectInHand?.(it, c); }, { sub: 'turn it over, look closer   (F)', wide: true, lamp: 'info' });
@@ -330,39 +352,7 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
   }
 
   // ------------------------------------------------ the plate
-  private paint() {
-    const el = this.el!;
-    const W = el.offsetWidth, H = el.offsetHeight;
-    const old = el.querySelector('canvas.ip-bg') as HTMLCanvasElement;
-    const { cv, c } = crispCanvas(W, H);
-    cv.className = 'ip-bg';
-    rect(c, 4, 5, W - 4, H - 5, 0x000000, 0.55);
-    bevel(c, 1, 1, W - 5, H - 6, GUN.slice(2, 9), { chamfer: 10 });
-    // brushed streaks and handling wear
-    let s = W * 7 + H;
-    for (let y = 4; y < H - 8; y += 2) { s = (s * 1103515245 + 12345) & 0x7fffffff; if (s % 5 < 2) rect(c, 6 + (s % 30), y, W * 0.25 + (s % Math.max(1, W >> 1)), 1, s & 1 ? GUN[7] : GUN[3], 0.16); }
-    // header band, a status lamp, a hazard notch
-    rect(c, 8, 6, W - 18, 20, GUN[1]); rect(c, 8, 26, W - 18, 1, GUN[6]);
-    rect(c, 11, 12, 5, 7, AMB[3]); rect(c, 11, 12, 5, 3, AMB[5]); rect(c, 11, 12, 2, 1, AMB[6]);
-    hazard(c, W - 84, 10, 38, 12, 0xe8b52a, 0x17150f, 6);
-    rivet(c, 9, H - 13, 2, true); rivet(c, W - 13, H - 13, 2, true); rivet(c, W - 52, 16, 2, true);
-    // the render well: recessed glass with a faint grid and amber corner marks
-    const well = el.querySelector('.ip-well') as HTMLElement;
-    const pr = el.getBoundingClientRect(), wr = well.getBoundingClientRect();
-    const wx = Math.round(wr.left - pr.left), wy = Math.round(wr.top - pr.top), ww = Math.round(wr.width), wh = Math.round(wr.height);
-    glass(c, wx, wy, ww, wh, 0x0c1210);
-    for (let x = wx + 8; x < wx + ww; x += 12) rect(c, x, wy + 1, 1, wh - 2, 0x3ec8da, 0.06);
-    for (let y = wy + 8; y < wy + wh; y += 12) rect(c, wx + 1, y, ww - 2, 1, 0x3ec8da, 0.06);
-    for (const [x, y, dx, dy] of [[wx + 3, wy + 3, 1, 1], [wx + ww - 4, wy + 3, -1, 1], [wx + 3, wy + wh - 4, 1, -1], [wx + ww - 4, wy + wh - 4, -1, -1]]) { rect(c, Math.min(x, x + dx * 6), y, 7, 1, AMB[4], 0.9); rect(c, x, Math.min(y, y + dy * 6), 1, 7, AMB[4], 0.9); }
-    // a soft light pooled under the item
-    for (let i = 0; i < 6; i++) rect(c, wx + ww / 2 - 30 + i * 4, wy + wh - 18 + i, 60 - i * 8, 1, 0xffd06a, 0.05);
-    // separators above the text and the keys
-    const keys = el.querySelector('.ip-keys') as HTMLElement;
-    const ky = Math.round(keys.getBoundingClientRect().top - pr.top) - 7;
-    rect(c, 12, ky, W - 26, 1, GUN[1]); rect(c, 12, ky + 1, W - 26, 1, GUN[6], 0.6);
-    for (let x = 16; x < W - 18; x += 10) rect(c, x, ky - 3, 4, 1, GUN[5], 0.5);
-    old.replaceWith(cv);
-  }
+  private paint() { plateBg(this.el!); }
 
   // ------------------------------------------------ input
   private listen() {
@@ -400,6 +390,83 @@ ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
     this.pad.a = a; this.pad.b = b;
   }
 }
+
+/** paint a card's gunmetal plate behind its content (a canvas.ip-bg child), the render well (.ip-well) and the keys' separator (.ip-keys) */
+export function plateBg(el: HTMLElement) {
+  const W = el.offsetWidth, H = el.offsetHeight;
+  const old = el.querySelector('canvas.ip-bg') as HTMLCanvasElement | null;
+  const { cv, c } = crispCanvas(W, H);
+  cv.className = 'ip-bg';
+  rect(c, 4, 5, W - 4, H - 5, 0x000000, 0.55);
+  // the body: an ink edge, chamfered corners, a soft dithered fall from a lit top to a darker foot (one ImageData pass)
+  const ch = 10;
+  const off = document.createElement('canvas'); off.width = W; off.height = H;
+  const oc = off.getContext('2d')!, id = oc.createImageData(W, H), D = id.data;
+  const put = (x: number, y: number, col: number) => { const i = (y * W + x) * 4; D[i] = (col >> 16) & 255; D[i + 1] = (col >> 8) & 255; D[i + 2] = col & 255; D[i + 3] = 255; };
+  for (let y = 0; y < H - 5; y++) {
+    const cut = y < ch ? ch - y : y > H - 6 - ch ? y - (H - 6 - ch) : 0;
+    for (let x = cut; x < W - 4 - cut; x++) {
+      const edge = y === 0 || y === H - 6 || x === cut || x === W - 5 - cut;
+      if (edge) { put(x, y, 0x07080a); continue; }
+      const u = y / (H - 6), t = 4.35 - u * 1.1;
+      const k = Math.floor(t + (((x * 7 + y * 13) % 16) / 16 - 0.5) * 0.9);
+      put(x, y, x === cut + 1 || y === 1 ? GUN[7] : x === W - 6 - cut || y === H - 7 ? GUN[1] : GUN[Math.max(2, Math.min(6, k))]);
+    }
+  }
+  oc.putImageData(id, 0, 0);
+  c.drawImage(off, 0, 0);
+  rect(c, ch, 1, W - 5 - ch * 2, 1, GUN[8]); rect(c, ch, H - 7, W - 5 - ch * 2, 1, GUN[1]);
+  // brushed streaks and handling wear
+  let s = W * 7 + H;
+  for (let y = 4; y < H - 8; y += 2) { s = (s * 1103515245 + 12345) & 0x7fffffff; if (s % 5 < 2) rect(c, 6 + (s % 30), y, W * 0.25 + (s % Math.max(1, W >> 1)), 1, s & 1 ? GUN[7] : GUN[3], 0.16); }
+  // header band, a status lamp, a hazard notch
+  rect(c, 8, 6, W - 18, 20, GUN[1]); rect(c, 8, 26, W - 18, 1, GUN[6]);
+  rect(c, 11, 12, 5, 7, AMB[3]); rect(c, 11, 12, 5, 3, AMB[5]); rect(c, 11, 12, 2, 1, AMB[6]);
+  hazard(c, W - 84, 10, 38, 12, 0xe8b52a, 0x17150f, 6);
+  rivet(c, 9, H - 13, 2, true); rivet(c, W - 13, H - 13, 2, true); rivet(c, W - 52, 16, 2, true);
+  const pr = el.getBoundingClientRect();
+  // the render well: recessed glass with a faint grid and amber corner marks
+  const well = el.querySelector('.ip-well') as HTMLElement | null;
+  if (well) {
+    const wr = well.getBoundingClientRect();
+    const wx = Math.round(wr.left - pr.left), wy = Math.round(wr.top - pr.top), ww = Math.round(wr.width), wh = Math.round(wr.height);
+    glass(c, wx, wy, ww, wh, 0x0c1210);
+    for (let x = wx + 8; x < wx + ww; x += 12) rect(c, x, wy + 1, 1, wh - 2, 0x3ec8da, 0.06);
+    for (let y = wy + 8; y < wy + wh; y += 12) rect(c, wx + 1, y, ww - 2, 1, 0x3ec8da, 0.06);
+    for (const [x, y, dx, dy] of [[wx + 3, wy + 3, 1, 1], [wx + ww - 4, wy + 3, -1, 1], [wx + 3, wy + wh - 4, 1, -1], [wx + ww - 4, wy + wh - 4, -1, -1]]) { rect(c, Math.min(x, x + dx * 6), y, 7, 1, AMB[4], 0.9); rect(c, x, Math.min(y, y + dy * 6), 1, 7, AMB[4], 0.9); }
+    for (let i = 0; i < 6; i++) rect(c, wx + ww / 2 - 30 + i * 4, wy + wh - 18 + i, 60 - i * 8, 1, 0xffd06a, 0.05);
+  }
+  // a separator above the keys
+  const keys = el.querySelector('.ip-keys') as HTMLElement | null;
+  if (keys && keys.childElementCount) {
+    const ky = Math.round(keys.getBoundingClientRect().top - pr.top) - 7;
+    rect(c, 12, ky, W - 26, 1, GUN[1]); rect(c, 12, ky + 1, W - 26, 1, GUN[6], 0.6);
+    for (let x = 16; x < W - 18; x += 10) rect(c, x, ky - 3, 4, 1, GUN[5], 0.5);
+  }
+  if (old) old.replaceWith(cv); else el.prepend(cv);
+}
+
+export interface HiKeyOpts { sub?: string; lamp?: Lamp; off?: boolean | string; wide?: boolean; danger?: boolean }
+/** a chamfered bone-enamel keycap button (hover glow, pressed state, a recorded clack); call paintKey once it is in the page */
+export function hiKey(label: string, run: () => void, o: HiKeyOpts = {}): HTMLButtonElement {
+  style();
+  const b = document.createElement('button');
+  b.className = 'ip-key' + (o.wide ? ' wide' : '') + (o.off ? ' off' : '');
+  b.innerHTML = `<span>${label.replace(/[&<>]/g, '')}</span>` + (o.sub || typeof o.off === 'string' ? `<small>${String(typeof o.off === 'string' ? o.off : o.sub).replace(/[&<>]/g, '')}</small>` : '');
+  const lamp: Lamp = o.off ? 'stop' : o.lamp ?? (o.danger ? 'warn' : 'go');
+  const off = !!o.off;
+  const art = (state: 'up' | 'hover' | 'down') => { const r = b.getBoundingClientRect(); return `url(${keyArt(Math.max(40, Math.round(r.width)), Math.max(20, Math.round(r.height)), state, lamp, off)})`; };
+  (b as any)._art = art;
+  (b as any)._off = off;
+  b.addEventListener('pointerenter', () => { if (off) return; b.classList.add('hov'); b.style.backgroundImage = art('hover'); G.audio?.ui?.('mn_hover', 0.12); });
+  b.addEventListener('pointerleave', () => { b.classList.remove('hov', 'dn'); b.style.backgroundImage = art(b.classList.contains('foc') ? 'hover' : 'up'); });
+  b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (e.button !== 0) return; if (off) { G.audio?.ui?.('mn_error', 0.3); return; } b.classList.add('dn'); b.style.backgroundImage = art('down'); G.audio?.ui?.('tc_clack', 0.5); });
+  b.addEventListener('pointerup', (e) => { e.stopPropagation(); if (e.button !== 0 || off || !b.classList.contains('dn')) return; b.classList.remove('dn'); b.style.backgroundImage = art('hover'); run(); });
+  return b;
+}
+/** paint a key's art for its laid-out size */
+export function paintKey(b: HTMLElement, state: 'up' | 'hover' | 'down' = 'up') { const f = (b as any)._art; if (f) b.style.backgroundImage = f(state); }
+export function ensureCardStyle() { style(); }
 
 const PANEL = new ItemPanel();
 /** open the item card beside a slot (screen rect or point); the same item again closes it */

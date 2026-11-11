@@ -219,7 +219,7 @@ export function installMoments() {
       if (!p || !cineEnabled()) return;
       if (pend) {
         pendT += dt;
-        if (p.zoneKey !== pend || pendT > 20) pend = null;
+        if (p.zoneKey !== pend || pendT > 45) pend = null;
         else if (pendT > 0.7 && !cineRunning() && !G.transitioning && !fpOwner()) { const zk = pend; pend = null; revealLevel(zk); }
         return;
       }

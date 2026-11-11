@@ -8,6 +8,9 @@ import { itemDef, itemName, itemWeight } from '../items/item';
 import { size3 } from '../items/grid';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { pixTag, dialFace, tagString, setString, type PixTag } from './tags';
+import { rect, GRN, AMB, RED } from '../ui/hiPixel';
+import { G } from '../game/G';
+import { fpCamera } from '../fp/fp';
 import { damp } from './fpKit';
 import { metalMat, metalEnv } from './metal';
 import { Shape } from './shapes';
@@ -143,14 +146,116 @@ export class Slate {
   hide() { this.tag.mesh.visible = false; }
 }
 
-/** a typed tag you can click: its mesh carries userData.click */
-export function clickTag(text: string, kind: 'tag' | 'card' = 'tag', w = 54, size = 0.12, sub = ''): PixTag {
-  const t = pixTag(kind, w, sub ? 28 : 21, size);
-  t.clear();
-  t.type(text, 6, kind === 'tag' ? 9.5 : 6, undefined, 7.5);
-  if (sub) t.type(sub, 6, 18.5, '#7a3a1a', 6);
-  t.flush();
+/**
+ * A keycap you can press (was a hanging luggage tag): a bone-enamel cap with a status lamp and its
+ * legend in crisp pixel art (src/craft/tags.ts 'key'), standing on a dark chamfered skirt over a
+ * recessed well. It glows amber when the pointer is on it, sinks when pressed and clacks (recorded
+ * CC0 key samples). The PixTag's mesh is the cap face; callers place and click it as before.
+ */
+export type KeyLamp = 'go' | 'warn' | 'stop' | 'off';
+export function clickTag(text: string, _kind: 'tag' | 'card' = 'tag', w = 54, size = 0.12, sub = '', lamp: KeyLamp = 'go'): PixTag {
+  const h = sub ? 24 : 18;
+  const t = pixTag('key', w, h, size);
+  keyLegend(t, text, sub, lamp);
+  keycap(t);
   return t;
+}
+/** write a key's legend and lamp again */
+export function keyLegend(t: PixTag, text: string, sub = '', lamp: KeyLamp = 'go') {
+  t.clear();
+  t.art((c) => {
+    const ly = Math.round((t.h * 2 - 5) / 2) - 4;
+    rect(c, 7, ly, 9, 9, 0x0a0b0c);
+    const R = lamp === 'go' ? GRN : lamp === 'warn' ? AMB : lamp === 'stop' ? RED : null;
+    if (R) { rect(c, 8, ly + 1, 7, 7, R[2]); rect(c, 8, ly + 1, 7, 3, R[3]); rect(c, 9, ly + 2, 3, 2, R[5]); rect(c, 9, ly + 2, 1, 1, R[6]); }
+    else rect(c, 8, ly + 1, 7, 7, 0x272b30);
+  });
+  t.type(text, 10, sub ? 3.5 : 4.5, '#25201b', 7.5);
+  if (sub) t.type(sub, 10, 13, '#6e3608', 5.5);
+  t.flush();
+}
+
+const KEYS = new Set<THREE.Mesh>();
+interface KeyState { hov: number; dn: number; hovOn: boolean; dnOn: boolean; body: THREE.Object3D; glow: THREE.Mesh; u: { uPress: { value: number } }; last: number }
+let skirtMat: THREE.MeshStandardMaterial | null = null, wellMat: THREE.MeshStandardMaterial | null = null;
+const SINK = 0.0045;
+function keycap(t: PixTag) {
+  const m = t.mesh, mat = m.material as THREE.MeshStandardMaterial;
+  const pg = m.geometry as THREE.PlaneGeometry;
+  const W = pg.parameters.width, H = pg.parameters.height, D = Math.min(W, H) * 0.32;
+  skirtMat ??= new THREE.MeshStandardMaterial({ color: 0x8a8270, roughness: 0.5, metalness: 0.05, envMap: metalEnv(), envMapIntensity: 0.4, flatShading: true });
+  wellMat ??= new THREE.MeshStandardMaterial({ color: 0x1c1f23, roughness: 0.42, metalness: 0.6, envMap: metalEnv(), envMapIntensity: 0.5, flatShading: true });
+  // the cap's skirt: wider at its foot, the face sits on its top
+  const sk = new Shape(6);
+  sk.taper(0, 0, 0, W * 1.08, H * 1.14, W * 0.99, H * 0.98, D, 0xffffff, [Math.PI / 2, 0, 0]);
+  const body = new THREE.Mesh(sk.build(), skirtMat);
+  body.position.z = -D - 0.0006;
+  const well = new Shape(6);
+  well.box(0, -H * 0.62, -D - 0.0045, W * 1.22, H * 1.24, 0.004, 0xffffff, 0.0015);
+  const base = new THREE.Mesh(well.build(), wellMat);
+  const glow = new THREE.Mesh(new THREE.PlaneGeometry(W * 1.16, H * 1.3), new THREE.MeshBasicMaterial({ color: 0xffb040, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  glow.position.z = -0.0012;
+  const holder = new THREE.Group(); holder.add(body); m.add(holder, base, glow);
+  const u = { uPress: { value: 0 } };
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uPress = u.uPress;
+    sh.vertexShader = sh.vertexShader.replace('#include <common>', '#include <common>\nuniform float uPress;').replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed.z -= uPress;');
+  };
+  mat.customProgramCacheKey = () => 'keycap-face';
+  const st: KeyState = { hov: 0, dn: 0, hovOn: false, dnOn: false, body: holder, glow, u, last: performance.now() };
+  m.userData.key = st;
+  m.onBeforeRender = () => {
+    const now = performance.now(), dt = Math.min(0.05, (now - st.last) / 1000); st.last = now;
+    st.hov = damp(st.hov, st.hovOn ? 1 : 0, 14, dt); st.dn = damp(st.dn, st.dnOn ? 1 : 0, 30, dt);
+    const z = st.dn * SINK - st.hov * 0.0015;
+    u.uPress.value = z; holder.position.z = -z;
+    (glow.material as THREE.MeshBasicMaterial).opacity = st.hov * 0.55;
+    mat.emissive.setRGB(0.35 * st.hov, 0.2 * st.hov, 0.04 * st.hov);
+    mat.color.setScalar(1 - st.dn * 0.18);
+  };
+  KEYS.add(m);
+  keyInput();
+}
+
+// one pointer watcher for every keycap on the stage: hover, press, the clack
+let keyIn = false, hovered: THREE.Mesh | null = null, pressed: THREE.Mesh | null = null;
+const _rc = new THREE.Raycaster(), _nd = new THREE.Vector2();
+function onStage(o: THREE.Object3D): boolean { let q: THREE.Object3D | null = o; while (q) { if (!q.visible) return false; if ((q as THREE.Scene).isScene) return true; q = q.parent; } return false; }
+function keyAt(x: number, y: number): THREE.Mesh | null {
+  const live = [...KEYS].filter((k) => onStage(k));
+  for (const k of KEYS) if (!k.parent) KEYS.delete(k);
+  if (!live.length) return null;
+  let cam: THREE.Camera;
+  try { cam = fpCamera(); } catch { return null; }
+  _nd.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1);
+  _rc.setFromCamera(_nd, cam);
+  const hit = _rc.intersectObjects(live, true)[0];
+  if (!hit) return null;
+  let o: THREE.Object3D | null = hit.object;
+  while (o && !KEYS.has(o as THREE.Mesh)) o = o.parent;
+  return o as THREE.Mesh | null;
+}
+const kst = (m: THREE.Mesh | null) => (m?.userData.key as KeyState | undefined);
+function keyInput() {
+  if (keyIn) return;
+  keyIn = true;
+  window.addEventListener('pointermove', (e) => {
+    const k = keyAt(e.clientX, e.clientY);
+    if (k === hovered) return;
+    const a = kst(hovered); if (a) a.hovOn = false;
+    hovered = k;
+    const b = kst(k); if (b) { b.hovOn = true; G.audio?.ui?.('mn_hover', 0.12); }
+  }, { passive: true });
+  window.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    const k = keyAt(e.clientX, e.clientY);
+    const s = kst(k); if (!s) return;
+    pressed = k; s.dnOn = true;
+    G.audio?.ui?.('tc_clack', 0.5);
+  }, true);
+  const up = () => { const s = kst(pressed); if (s) { s.dnOn = false; G.audio?.ui?.('tc_clack_up', 0.3); } pressed = null; };
+  window.addEventListener('pointerup', up, true);
+  window.addEventListener('pointercancel', up, true);
 }
 
 /** a brass spring scale in an octagonal case: load against what you can carry, and a PACE sub-needle */

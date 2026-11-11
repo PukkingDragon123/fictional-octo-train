@@ -1,14 +1,15 @@
-// Close-up inspection and hands-on work. Double-click an item (in the cube,
-// a tray, on the floor) or a chair in the world and it comes up in front of
-// your face: drag to turn it over, F (or the FLIP tag) to see the underside,
-// wheel to bring it closer. A manila tag tied to it says what it is. On the
-// work cloth below lie cards for what your hands can do to it with what you
-// carry, each with the tool you'd use: saw a leg off a chair, beat scrap to an
-// edge with a rock, tear a shirt into strips, braid strips into rope, seat a
-// head on a handle and bind it. Each is a short physical motion, repeated:
-// drag the saw along the chalk line, click to strike the edge, pull the cloth
-// apart, circle round the joint. A slate keeps the tally. The ordinary things
-// (eat, wear, drop) hang as tags on nails to the right. No DOM.
+// Inspect in hand (round 15): the unit holds the thing up in its own two hands,
+// seen through its own eyes (the eye camera, fpClaim 'full'): drag to turn it
+// over, the wheel (or a mark) to bring it closer, F to flip it. Numbered marks
+// sit on its points of interest (src/items/itemLook.ts itemPois); pick one and
+// the hands turn it to you and the readout gives the note. A soft key light,
+// a cool rim and the room's reflections on its real surfaces. The readout at
+// the side is the same riveted pixel-art card as the item card
+// (src/ui/itemPanel.ts) with its keycaps: what the hands can do to it (saw a
+// leg off a chair, beat scrap to an edge, tear a shirt into strips, bind a head
+// on a handle: each a short physical motion, repeated, a chalk line showing
+// where, a slate keeping the tally) and the ordinary verbs. Opened from the
+// item card's "Inspect in hand", or straight in for a hand step.
 import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
@@ -27,10 +28,13 @@ import { hasUnlock, researchNode, grantResearch } from '../game/research';
 import { shake as camShake } from '../gfx/juice';
 import { type HandOp, opsForItem, opsForObject, opWork, pickTool, pickParts, type PartPick, partLabel, toolLabel } from './handOps';
 import { Tweens, easeOut, easeBack, easeInOut, makeArm, poseArm, holdInGrip, type Arm, makeItemObj, type ItemObj, itemAlign, Particles, damp, pointerRay, keepEye } from './fpKit';
-import { pixTag, stamp, type PixTag } from './tags';
 import { pixMat } from './fpTex';
-import { ink, inkMesh, WorkLamp, Twine } from './fpScene';
-import { Dymo, Slate, clickTag } from './props';
+import { inkMesh } from './fpScene';
+import { Dymo, Slate } from './props';
+import { itemPois, type PoiAt } from '../items/itemLook';
+import { eyeActive } from '../fp/eye';
+import { hiKey, paintKey, plateBg, ensureCardStyle } from '../ui/itemPanel';
+import { crispCanvas, drawBar, GRN, AMB, RED } from '../ui/hiPixel';
 import { metalMat } from './metal';
 import { Shape } from './shapes';
 import type { MenuOption } from '../ui/ui';
@@ -42,13 +46,12 @@ interface Work {
   t: number; dir: number; travel: number; ang: number; angAcc: number; pullX: number; pulling: boolean; needRelease: boolean;
   head: ItemObj | null; bands: THREE.Object3D[]; kerf: THREE.Mesh | null; swing: number;
 }
-interface Prop { mesh: THREE.Object3D; click: () => void }
 
 const _X = new THREE.Vector3(1, 0, 0);
 /** how far down the eyes look while you turn a thing over in your hands */
-const INSPECT_PITCH = 36;
+const INSPECT_PITCH = 20;
 const coarse = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler();
+const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _e2 = new THREE.Vector3(), _v2 = new THREE.Vector3();
 const VERB_LABEL: Record<string, string> = { saw: 'SAWING', grind: 'GRINDING', strike: 'STRIKING', tear: 'TEARING', wrap: 'BINDING', braid: 'BRAIDING' };
 const VERB_HINT: Record<string, string> = {
   saw: 'hold and drag back and forth along the chalk line', grind: 'hold and drag back and forth along the edge', strike: 'click the chalked edge to strike it',
@@ -111,19 +114,14 @@ export class Inspect {
   private lastT = performance.now();
   private onClose: (() => void) | null = null;
   private rc = new THREE.Raycaster();
-  // props
-  private info!: PixTag;
-  private infoString!: THREE.Line;
-  private twine = new Twine(0x9a8a62);
-  private fixedG = new THREE.Group();
-  private torch!: WorkLamp;
-  private cloth = new THREE.Group();
-  private nails = new THREE.Group();
-  private props: Prop[] = [];
-  private fixed: Prop[] = [];
+  // the readout card, the marks on the thing, the work props
+  private dock: HTMLDivElement | null = null;
+  private marks: { el: HTMLDivElement; p: PoiAt }[] = [];
+  private pois: PoiAt[] = [];
+  private sel = -1;
   private slate!: Slate;
   private dymo!: Dymo;
-  private press: { id: number; x: number; y: number; prop: Prop | null } | null = null;
+  private padS = { a: true, b: true, x: true, t: 0 };
   root: HTMLDivElement;
 
   constructor() {
@@ -136,7 +134,7 @@ export class Inspect {
     window.addEventListener('pointerup', (e) => this.onUp(e));
     window.addEventListener('pointercancel', (e) => this.onUp(e));
     window.addEventListener('keydown', (e) => this.onKey(e), true);
-    r.addEventListener('wheel', (e) => { e.preventDefault(); if (!this.work) this.distT = Math.max(0.75, Math.min(1.6, this.distT + (e.deltaY > 0 ? 0.08 : -0.08))); }, { passive: false });
+    r.addEventListener('wheel', (e) => { e.preventDefault(); if (!this.work) this.distT = Math.max(0.5, Math.min(1.3, this.distT + (e.deltaY > 0 ? 0.07 : -0.07))); }, { passive: false });
     r.addEventListener('contextmenu', (e) => e.preventDefault());
     r.addEventListener('touchmove', (e) => { if (this.open) e.preventDefault(); }, { passive: false });
     this.guide = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), this.guideMat);
@@ -149,11 +147,13 @@ export class Inspect {
     if (this.built) return;
     this.built = true;
     const g = (this.g = fpGroup('inspect'));
-    // no backdrop: crouched with the thing in your hands, the floor and the room the eyes see behind it
-    g.add(new THREE.HemisphereLight(0xc8c0b0, 0x2a2018, 0.55));
-    const key = new THREE.DirectionalLight(0xffe8c8, 0.9); key.position.set(-0.6, 1.2, 0.9); g.add(key);
-    const rim = new THREE.DirectionalLight(0xffb060, 0.45); rim.position.set(0.9, 0.2, -0.4); g.add(rim);
-    this.torch = new WorkLamp(g, new THREE.Vector3(-0.35, 0.55, -0.55), new THREE.Vector3(0, -0.35, -1.1), { color: 0xffe2b8, intensity: 3.2, angle: 0.75, dist: 2.2, mapSize: 512 });
+    // no backdrop: the room the eyes see behind it. A soft key from the upper left, a cool rim from
+    // behind on the right that draws its outline, a warm bounce from below, a soft sky fill
+    g.add(new THREE.HemisphereLight(0xe4ebf2, 0x3a3128, 0.75));
+    const key = new THREE.DirectionalLight(0xfff0dc, 1.55); key.position.set(-0.75, 0.95, 0.55); g.add(key);
+    const rim = new THREE.DirectionalLight(0xc4dcff, 1.7); rim.position.set(0.85, 0.45, -1.1); g.add(rim);
+    const rim2 = new THREE.DirectionalLight(0xffd8a8, 0.6); rim2.position.set(-0.9, 0.1, -0.9); g.add(rim2);
+    const bounce = new THREE.DirectionalLight(0xffc890, 0.32); bounce.position.set(0.3, -0.8, 0.4); g.add(bounce);
     g.add(this.hold); this.hold.add(this.turn);
     const ab = new Shape(3);
     ab.box(0, -0.05, 0, 0.22, 0.05, 0.11, 0xffffff, 0.008);
@@ -165,35 +165,8 @@ export class Inspect {
     this.anvil.visible = false;
     this.hold.add(this.anvil);
     g.add(this.toolG, this.sparks.points, this.dust.points, this.guide);
-    // the tool roll spread on the floor in front of you: waxed canvas, stitched pockets with tools
-    // in them, leather straps and a brass buckle; the cards and the tags you can pull lie on it
-    const canvas = new Shape(4), leather = new Shape(5), brass = new Shape(9), wood = new Shape(9), steel = new Shape(8);
-    canvas.jbox(0, -0.008, -0.05, 1.36, 0.008, 0.5, 0xffffff, 0.002, 3);
-    canvas.jbox(0, -0.004, -0.27, 1.36, 0.008, 0.07, 0xe0d8c0, 0.002, 5);
-    for (let i = 0; i < 9; i++) {
-      const x = -0.62 + i * 0.155;
-      canvas.box(x, 0.0, -0.26, 0.004, 0.006, 0.07, 0x8a8060, 0.001);
-      if (i % 2 === 0 && Math.abs(x) > 0.3) { wood.rod([x + 0.06, 0.005, -0.25], [x + 0.065, 0.02, -0.31], 0.008, 0xffffff, 6); steel.rod([x + 0.065, 0.02, -0.31], [x + 0.068, 0.03, -0.36], 0.003, 0xffffff, 5); }
-    }
-    for (const x of [-0.5, 0.5]) { leather.box(x, 0.0, -0.05, 0.045, 0.006, 0.51, 0xffffff, 0.002); brass.box(x, 0.004, 0.15, 0.05, 0.004, 0.03, 0xffffff, 0.002); }
-    leather.jbox(0.69, -0.006, -0.05, 0.06, 0.012, 0.5, 0xe0d0c0, 0.002, 7);
-    const cmesh = (sh: Shape, mat: THREE.Material) => { const m = new THREE.Mesh(sh.build(), mat); m.receiveShadow = true; this.cloth.add(m); return m; };
-    cmesh(canvas, pixMat('canvas')); cmesh(leather, pixMat('leather')); cmesh(brass, pixMat('brass')); cmesh(wood, pixMat('handle')); cmesh(steel, pixMat('steel'));
-    ink(this.cloth, 0.002);
-    g.add(this.cloth);
-    // the ordinary verbs: luggage tags laid out on the roll's right end (this group lies on the cloth)
-    g.add(this.nails);
-    this.info = pixTag('tag', 110, 96, 0.24);
-    this.info.mesh.renderOrder = 12;
-    this.infoString = this.twine.line;
-    g.add(this.info.mesh, this.infoString);
     this.slate = new Slate(g);
     this.dymo = new Dymo(g, 0, 'stick');
-    // the two tags that are always there
-    const flip = clickTag('Flip it  (F)', 'tag', 64, 0.13), back = clickTag('Put it down', 'tag', 70, 0.13, '(Esc)');
-    // the two tags that are always there head the rows of tags on the roll's right end
-    g.add(this.fixedG); this.fixedG.add(flip.mesh, back.mesh);
-    this.fixed = [{ mesh: flip.mesh, click: () => this.flip() }, { mesh: back.mesh, click: () => this.close() }];
     for (const s of [1, -1] as const) { const a = makeArm(s); g.add(a.root); this.arms.push(a); }
   }
 
@@ -202,23 +175,12 @@ export class Inspect {
     const asp = window.innerWidth / Math.max(1, window.innerHeight);
     const D = 1.05, halfH = Math.tan((fpCamera().fov * Math.PI) / 360) * D, halfW = halfH * asp;
     const k = Math.min(1, asp / 1.5);
-    this.lay = { halfW, halfH, D, k, narrow: false };
-    const ck = Math.max(0.6, k);
-    this.cloth.position.set(0, -halfH * 0.86, -D); this.cloth.rotation.x = 0.95; this.cloth.scale.setScalar(ck);
     const narrow = asp < 1.2;
-    this.lay.narrow = narrow;
-    // tags lie on the roll's right end (portrait: across the middle of the roll, under the cards)
-    this.nails.position.set(narrow ? -halfW * 0.55 : Math.min(halfW * 0.62, 0.34 * ck), narrow ? -halfH * 0.62 : -halfH * 0.3, narrow ? -D + 0.02 : -D - 0.1);
-    this.nails.rotation.set(0.95 - Math.PI / 2, 0, 0); this.nails.scale.setScalar(narrow ? 0.62 : ck * 0.9);
-    this.info.mesh.scale.setScalar(Math.max(0.65, k));
-    // the slate lies on the roll while you work; label tape is stuck along the roll's front edge
-    this.slate.tag.mesh.position.set(0, -halfH * 0.62, -D + 0.04); this.slate.tag.mesh.rotation.set(0.95 - Math.PI / 2 + 0.25, 0, 0.02); this.slate.tag.mesh.scale.setScalar(Math.max(0.7, k));
-    this.dymo.place(-0.2 * ck, -halfH * 0.97, -D + 0.12);
-    this.dymo.tag.mesh.rotation.set(0.95 - Math.PI / 2 + 0.3, 0, 0);
-    // FLIP and PUT IT DOWN: the first row of tags on the roll (the verbs' rows follow under them)
-    this.fixedG.position.copy(this.nails.position); this.fixedG.rotation.copy(this.nails.rotation); this.fixedG.scale.copy(this.nails.scale);
-    this.fixed[0].mesh.position.set(0, 0, 0.004); this.fixed[0].mesh.rotation.z = -0.05;
-    this.fixed[1].mesh.position.set(narrow ? 0.17 : 0.14, 0, 0.006); this.fixed[1].mesh.rotation.z = 0.06;
+    this.lay = { halfW, halfH, D, k, narrow };
+    // the slate stands low on the right while you work; label tape is pressed on at the bottom
+    this.slate.tag.mesh.position.set(narrow ? 0 : halfW * 0.55, -halfH * 0.62, -D + 0.04); this.slate.tag.mesh.rotation.set(-0.15, 0, 0.02); this.slate.tag.mesh.scale.setScalar(Math.max(0.7, k));
+    this.dymo.place(-0.2 * Math.max(0.6, k), -halfH * 0.85, -D + 0.12);
+    this.dymo.tag.mesh.rotation.set(-0.2, 0, 0);
   }
 
   get busy() { return !!this.work; }
@@ -236,6 +198,7 @@ export class Inspect {
     this.root.classList.add('on');
     G.input.pointerOverUI = true;
     this.layout();
+    this.distT = this.dist = 1.05;
     this.setSubject(s);
     if (opts.op) { const h = this.opsFor().find((o) => o.key === opts.op); if (h) this.startOp(h); }
   }
@@ -260,6 +223,7 @@ export class Inspect {
     }
     if (this.model) { this.turn.remove(this.model); this.model = null; }
     this.subj = null;
+    this.dropDock();
     G.input.pointerOverUI = !!G.ui?.inventory?.open;
     const cb = this.onClose; this.onClose = null;
     cb?.();
@@ -271,10 +235,11 @@ export class Inspect {
     this.subj = s;
     this.itemObj = null; this.chair = null;
     if (s.kind === 'item') {
-      const o = makeItemObj(s.it.key);
+      const o = makeItemObj(s.it.key, undefined, s.it);
       const al = itemAlign(s.it.key);
       const big = al ? Math.max(...al.base) : 0.2;
       o.outer.scale.setScalar(0.3 / Math.max(0.05, big));
+      o.mesh && (o.mesh.castShadow = true);
       this.itemObj = o; this.model = o.outer;
       workPose(0.55, this.qT);
     } else {
@@ -286,10 +251,13 @@ export class Inspect {
     this.turn.add(this.model);
     // it comes up into the hands turned away, and turns to face you
     this.turn.quaternion.copy(this.qT).multiply(_q.setFromEuler(_e.set(0.9, -1.4, 0.3)));
-    this.hold.position.set(0.04, -0.5, -this.dist);
-    this.tw.add(0.32, (k) => { this.hold.position.y = -0.5 + 0.52 * k; }, easeBack);
+    const hx = this.lay.narrow ? 0 : -this.lay.halfW * 0.16;
+    this.hold.position.set(hx, -0.5, -this.dist);
+    this.tw.add(0.32, (k) => { this.hold.position.y = -0.5 + 0.47 * k; }, easeBack);
     G.audio?.itemSound?.(s.kind === 'item' ? s.it.key : 'plank', 'pick', G.local);
-    this.renderInfo(); this.renderProps();
+    this.sel = -1;
+    this.pois = s.kind === 'item' ? itemPois(s.it, this.itemObj?.mesh?.geometry ?? null) : [];
+    this.renderDock();
   }
 
   private flip() {
@@ -307,116 +275,126 @@ export class Inspect {
   }
   private carried(it: Item): boolean { return G.local.allItems().includes(it); }
 
-  private renderInfo() {
-    const s = this.subj!;
-    const t = this.info;
-    t.clear();
-    if (s.kind === 'obj') {
-      const d = objDef(s.o.key);
-      t.para(d?.name || s.o.key, 6, 10, 98, undefined, 8, 2);
-      t.para('Tipped over. Four legs held on with glue and habit. Each one a straight dry length of hardwood: a handle, a club, a splint.', 6, 30, 98, 0x4a3a2a, 8, 7);
-      t.flush();
-      return;
-    }
-    const it = s.it, d = itemDef(it.key);
-    const sz = size3(it.key);
-    let y = 10;
-    y += t.para(itemName(it), 6, y, 98, undefined, 8, 2) * 8 + 2;
-    t.type(itemWeight(it).toFixed(2) + 'KG  ' + sz[0] + 'x' + sz[1] + 'x' + sz[2], 6, y, 0x6a3a1a); y += 9;
-    const line2 = (d.durability || d.weapon ? 'COND ' + Math.round(it.cond * 100) + '%  ' : '') + (d.value ? d.value + ' SCRIP' : '') + (it.fluid ? ' ' + it.fluid.amount.toFixed(1) + 'L ' + it.fluid.type : '');
-    if (line2.trim()) { t.type(line2.trim(), 6, y, 0x6a3a1a); y += 9; }
-    if (d.desc) y += t.para(d.desc, 6, y + 1, 98, 0x3a3028, 8, Math.max(1, Math.floor((86 - y) / 8))) * 8 + 2;
-    if (s.c && !this.carried(it)) stamp(t, 'NOT YOURS', 30, 84);
-    t.flush();
-  }
-
-  private clearProps() {
-    for (const p of this.props) {
-      p.mesh.parent?.remove(p.mesh);
-      const m = (p.mesh as THREE.Mesh).material as THREE.MeshStandardMaterial | undefined;
-      if (m && (p.mesh as THREE.Mesh).isMesh && m.map instanceof THREE.CanvasTexture) { m.map.dispose(); m.dispose(); (p.mesh as THREE.Mesh).geometry.dispose(); }
-    }
-    this.props = [];
-  }
-
-  private renderProps() {
-    this.clearProps();
+  /** the readout card at the side: name, condition, the marks and their notes, the keycaps */
+  private renderDock() {
+    this.dropDock();
+    const s = this.subj;
+    if (!s) return;
+    ensureCardStyle();
     const p = G.local;
-    const s = this.subj!;
     const it = s.kind === 'item' ? s.it : null;
     const mine = !it || this.carried(it);
-    // cards on the cloth, each with the tool you'd use lying on it
-    const ops = this.opsFor().slice(0, 5);
-    const n = ops.length;
-    ops.forEach((h, i) => {
-      const tool = pickTool(p, h, it);
-      const parts = pickParts(p, h, it);
-      const missing = parts.filter((q) => q.missing);
-      let why = '';
-      if (h.requires && !hasUnlock(h.requires)) why = 'RESEARCH';
-      else if (!mine) why = 'TAKE IT';
-      else if (!tool) why = 'NEED TOOL';
-      else if (missing.length) why = 'NEED PARTS';
-      const card = pixTag('card', 76, 46, 0.2);
-      card.clear();
-      card.para(h.name, 11, 7, 62, undefined, 8.5, 2, 8);
-      const sub = why === 'RESEARCH' ? (researchNode(h.requires!)?.title || '') : why === 'NEED TOOL' ? toolLabel(h) : why === 'NEED PARTS' ? missing.map((m) => partLabel(m.req)).join(', ') : tool?.it ? 'with ' + itemName(tool.it) : 'bare hands';
-      card.para(sub, 11, 25, 62, '#5a4a3a', 6.5, 2, 6);
-      if (why) stamp(card, why, 14, 36); else stamp(card, 'ready', 14, 36, '#2a6a2a');
-      card.flush();
-      const L = this.lay, ck = Math.max(0.6, L.k);
-      const x = (n > 1 ? (i - (n - 1) / 2) * (n > 3 ? 0.155 : 0.19) * ck : 0);
-      card.mesh.scale.setScalar(ck * (n > 3 ? 0.78 : 0.9));
-      // lying on the roll, a little crooked, the tool you'd use set down on it
-      card.mesh.position.set(x, L.narrow ? -L.halfH * 0.46 : -L.halfH * 0.6, -L.D - 0.04);
-      card.mesh.rotation.set(0.95 - Math.PI / 2 + 0.14, 0, (i % 2 ? 0.035 : -0.04));
-      this.g.add(card.mesh);
-      this.props.push({ mesh: card.mesh, click: () => { if (!why) this.startOp(h); else this.dymo.show(why === 'TAKE IT' ? 'take it first' : why.toLowerCase() + ': ' + sub, true); } });
-      if (tool?.it) {
-        const to = makeItemObj(tool.it.key);
-        const al = itemAlign(tool.it.key);
-        to.outer.scale.setScalar(0.12 / Math.max(0.05, al ? Math.max(...al.base) : 0.2));
-        to.outer.position.set(x / Math.max(0.6, L.k) + 0.03, 0.02, 0.03);
-        to.outer.rotation.set(0, 0.6, 0);
-        this.cloth.add(to.outer);
-        this.props.push({ mesh: to.outer, click: () => { if (!why) this.startOp(h); } });
-      }
-    });
-    if (!n) {
-      const t = pixTag('card', 76, 26, 0.2); t.clear(); t.para('Nothing your hands can do to this.', 11, 7, 62, '#5a4a3a', 8, 2, 7); t.flush();
-      t.mesh.rotation.set(0.95 - Math.PI / 2 + 0.14, 0, 0.03); t.mesh.position.set(0, -this.lay.halfH * 0.6, -this.lay.D - 0.04);
-      this.g.add(t.mesh); this.props.push({ mesh: t.mesh, click: () => {} });
+    const L = this.lay;
+    const el = document.createElement('div');
+    el.className = 'ipnl on ip-dock';
+    const W = L.narrow ? Math.min(360, window.innerWidth - 16) : Math.min(330, Math.round(window.innerWidth * 0.3));
+    el.style.width = W + 'px';
+    if (L.narrow) { el.style.left = '50%'; el.style.marginLeft = -W / 2 + 'px'; el.style.bottom = '10px'; }
+    else { el.style.right = '18px'; el.style.top = Math.round(window.innerHeight * 0.1) + 'px'; }
+    const esc = (t: string) => t.replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
+    const name = it ? itemName(it) : (objDef((s as { o: TileObject }).o.key)?.name || 'Chair');
+    const d = it ? itemDef(it.key) : null;
+    const kind = d ? (d.cat || 'misc') + (d.weapon ? ' · ' + d.weapon.kind : '') : 'furniture';
+    const desc = it ? (d?.desc || '') : 'Tipped over. Four legs held on with glue and habit. Each one a straight dry length of hardwood: a handle, a club, a splint.';
+    el.innerHTML = `<canvas class="ip-bg"></canvas><div class="ip-hd">In hand · ${esc(kind)}</div>
+<div class="ip-in"><div class="ip-name">${esc(name)}</div>
+${it ? `<div class="ip-row" data-bar="cond"><b>COND</b></div><div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg${d?.value ? ' · ' + d.value + ' scrip' : ''}</div>` : ''}
+${!it || !this.pois.length ? `<div class="ip-desc">${esc(desc)}</div>` : ''}
+<div class="ip-poi"></div><div class="ip-note"></div>
+<div class="ip-keys"></div><div class="ip-hint">${L.narrow ? 'Drag: turn · Pinch: closer' : 'Drag: turn · Wheel: closer · 1-4: marks · F: flip'}</div></div>`;
+    el.addEventListener('pointerdown', (e) => e.stopPropagation());
+    el.addEventListener('wheel', (e) => e.stopPropagation(), { passive: true });
+    this.root.appendChild(el);
+    this.dock = el;
+    if (it) {
+      const row = el.querySelector('[data-bar="cond"]') as HTMLElement;
+      const w = Math.max(60, W - 110);
+      const { cv, c } = crispCanvas(w, 12);
+      drawBar(c, 1, 1, w - 2, 9, it.cond, { ramp: it.cond > 0.6 ? GRN : it.cond > 0.3 ? AMB : RED, cell: 4, gap: 1 });
+      const pct = document.createElement('span'); pct.textContent = Math.round(it.cond * 100) + '%';
+      row.append(cv, pct);
     }
-    // the ordinary things, hung on nails
+    // the marks: a numbered list on the card, a numbered reticle on the thing
+    const list = el.querySelector('.ip-poi') as HTMLElement;
+    this.pois.forEach((q, i) => {
+      const li = document.createElement('div');
+      li.className = 'ip-pl';
+      li.innerHTML = `<i>${i + 1}</i>${esc(q.label)}`;
+      li.addEventListener('pointerup', () => this.pick(i));
+      list.appendChild(li);
+      const m = document.createElement('div');
+      m.className = 'ip-mark';
+      m.innerHTML = `<i>${i + 1}</i>`;
+      m.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault(); });
+      m.addEventListener('pointerup', (e) => { e.stopPropagation(); this.pick(i); });
+      this.root.appendChild(m);
+      this.marks.push({ el: m, p: q });
+    });
+    // the keys: what the hands can do to it, the ordinary verbs, flip and put down
+    const keys = el.querySelector('.ip-keys') as HTMLElement;
+    const add = (b: HTMLButtonElement) => { keys.appendChild(b); return b; };
+    const ops = this.opsFor().map((h) => {
+      const tool = pickTool(p, h, it), parts = pickParts(p, h, it), missing = parts.filter((q) => q.missing);
+      let why = '';
+      if (h.requires && !hasUnlock(h.requires)) why = 'research: ' + (researchNode(h.requires)?.title || 'locked');
+      else if (!mine) why = 'take it first';
+      else if (!tool) why = 'need ' + toolLabel(h);
+      else if (missing.length) why = 'need ' + missing.map((m) => partLabel(m.req)).join(', ');
+      return { h, tool, why };
+    });
+    const ready = ops.filter((q) => !q.why);
+    // what the hands can do now first; a step still out of reach shows only when nothing else can be done
+    for (const { h, tool, why } of (ready.length ? ready : ops).slice(0, ready.length ? 4 : 2)) add(hiKey(h.name, () => this.startOp(h), { sub: tool?.it ? 'with ' + itemName(tool.it) : 'bare hands', off: why || false, lamp: 'warn' }));
     if (it && s.kind === 'item') {
-      const acts: { label: string; fn: () => void }[] = [];
-      if (!mine && s.c) acts.push({ label: 'TAKE', fn: () => { queueTransfers(p, [it], s.c!, p.inv); this.close(); } });
+      if (!mine && s.c) add(hiKey('Take', () => { queueTransfers(p, [it], s.c!, p.inv); this.close(); }));
       else if (s.c) {
         let opts: MenuOption[] = [];
         try { opts = itemMenuOptions(p, it, s.c, [it]); } catch { opts = []; }
         const flat: MenuOption[] = [];
-        for (const o of opts) { if (o.sub) flat.push(...o.sub.slice(0, 2)); else flat.push(o); }
-        for (const o of flat.filter((q) => q.action && !q.disabled).slice(0, 6)) acts.push({ label: o.label, fn: () => { this.close(); o.action!(); } });
+        for (const o of opts) { if (/inspect|look closer/i.test(o.label)) continue; if (o.sub) flat.push(...o.sub.slice(0, 2)); else flat.push(o); }
+        for (const o of flat.filter((q) => q.action && !q.disabled).slice(0, 4)) add(hiKey(o.label, () => { this.close(); o.action!(); }, { danger: o.danger }));
       }
-      acts.forEach((a, i) => {
-        const t = clickTag(a.label, 'tag', 64, 0.13);
-        // two columns of tags laid on the roll's right end, fanned a little
-        t.mesh.position.set((i % 2) * (this.lay.narrow ? 0.17 : 0.14), -(Math.floor(i / 2) + 1) * 0.062, 0.004 + (i % 2) * 0.002);
-        t.mesh.rotation.z = (i % 2 ? 0.08 : -0.06);
-        this.nails.add(t.mesh);
-        this.props.push({ mesh: t.mesh, click: a.fn });
-      });
-      this.nails.visible = acts.length > 0;
-    } else this.nails.visible = false;
-    this.setPropsVisible(true);
+    }
+    add(hiKey('Flip it', () => this.flip(), { sub: '(F)', lamp: 'info' }));
+    add(hiKey('Put it down', () => this.close(), { sub: '(Esc)', lamp: 'off' }));
+    requestAnimationFrame(() => { if (this.dock !== el) return; for (const b of el.querySelectorAll('.ip-key')) paintKey(b as HTMLElement); plateBg(el); });
+    if (this.pois.length) this.noteFor(-1);
+  }
+  private dropDock() {
+    this.dock?.remove(); this.dock = null;
+    for (const m of this.marks) m.el.remove();
+    this.marks = [];
+  }
+  /** the note under the marks list: the picked mark's, or how to look */
+  private noteFor(i: number) {
+    const n = this.dock?.querySelector('.ip-note') as HTMLElement | null;
+    if (!n) return;
+    const q = this.pois[i];
+    n.innerHTML = q ? `<b>${i + 1} · ${q.label.replace(/[&<>]/g, '')}</b>${q.note.replace(/[&<>]/g, '')}` : '<b>Marks</b>Pick a mark on it (or 1-4) and the hands turn it to you.';
+    this.dock?.querySelectorAll('.ip-pl').forEach((e, k) => e.classList.toggle('on', k === i));
+    this.marks.forEach((m, k) => m.el.classList.toggle('on', k === i));
+  }
+  /** turn the thing so a mark faces you, a little closer */
+  private pick(i: number) {
+    if (this.work || !this.itemObj?.mesh || !this.pois[i]) return;
+    const mesh = this.itemObj.mesh;
+    if (this.sel === i) { this.sel = -1; this.distT = 1.05; this.noteFor(-1); G.audio?.ui?.('tc_clack_up', 0.3); return; }
+    this.sel = i;
+    const g = mesh.geometry; if (!g.boundingBox) g.computeBoundingBox();
+    // the mark's direction from the middle, in the turn group's frame, as the target pose holds it
+    mesh.updateWorldMatrix(true, false);
+    const pw = mesh.localToWorld(_v.copy(this.pois[i].at)), cw = mesh.localToWorld(g.boundingBox!.getCenter(_w));
+    this.turn.worldToLocal(pw); this.turn.worldToLocal(cw);
+    const dir = pw.sub(cw).applyQuaternion(this.turn.quaternion.clone().invert()).applyQuaternion(this.qT);
+    if (dir.lengthSq() > 1e-8) { _q.setFromUnitVectors(dir.normalize(), _w.set(0.2, 0.3, 1).normalize()); this.qT.premultiply(_q); }
+    this.distT = 0.82;
+    this.noteFor(i);
+    G.audio?.ui?.('tc_clack', 0.35);
   }
 
   private setPropsVisible(on: boolean) {
-    this.cloth.visible = on;
-    for (const p of this.props) if (p.mesh.parent === this.g) p.mesh.visible = on;
-    this.nails.visible = on && this.props.some((p) => p.mesh.parent === this.nails);
-    this.info.mesh.visible = on; this.infoString.visible = on;
-    this.fixed[0].mesh.visible = on;
+    if (this.dock) this.dock.style.display = on ? '' : 'none';
+    for (const m of this.marks) m.el.style.display = on ? '' : 'none';
   }
 
   // ---------------------------------------------------------------- work
@@ -598,7 +576,7 @@ export class Inspect {
     this.slate.hide();
     if (w.head) w.head.outer.parent?.remove(w.head.outer);
     // look at what you made
-    this.later(() => { if (this.open && out0) this.setSubject({ kind: 'item', it: out0, c: p.containerOf(out0) || p.inv }); else if (this.open) { this.setPropsVisible(true); this.renderProps(); } }, s.kind === 'obj' ? 600 : 250);
+    this.later(() => { if (this.open && out0) this.setSubject({ kind: 'item', it: out0, c: p.containerOf(out0) || p.inv }); else if (this.open) { this.setPropsVisible(true); this.renderDock(); } }, s.kind === 'obj' ? 600 : 250);
   }
 
   // ---------------------------------------------------------------- input
@@ -607,6 +585,8 @@ export class Inspect {
     e.stopImmediatePropagation(); e.preventDefault();
     if (e.code === 'Escape') { if (this.work) this.endWork(false); else this.close(); return; }
     if (e.code === 'KeyF') { this.flip(); return; }
+    if (/^Digit[1-4]$/.test(e.code)) { this.pick(Number(e.code.slice(5)) - 1); return; }
+    if (!this.work && /^Arrow/.test(e.code)) { const a = 0.35; _q.setFromAxisAngle(_v.set(e.code === 'ArrowUp' || e.code === 'ArrowDown' ? 1 : 0, e.code === 'ArrowLeft' || e.code === 'ArrowRight' ? 1 : 0, 0), (e.code === 'ArrowLeft' || e.code === 'ArrowUp' ? -a : a)); this.qT.premultiply(_q); return; }
     if ((G.input.bindings.inventory || []).includes(e.code)) this.close();
   }
 
@@ -623,26 +603,13 @@ export class Inspect {
     _w.set((x / window.innerWidth) * 2 - 1, -(y / window.innerHeight) * 2 + 1, 0.5).unproject(cam).normalize();
     return out.copy(_w).multiplyScalar(z / _w.z);
   }
-  private propAt(x: number, y: number): Prop | null {
-    pointerRay(this.rc, fpCamera(), x, y);
-    const all = [...this.props, ...this.fixed].filter((p) => p.mesh.visible && (p.mesh.parent?.visible ?? true));
-    const hits = this.rc.intersectObjects(all.map((p) => p.mesh), true);
-    for (const h of hits) { let o: THREE.Object3D | null = h.object; while (o) { const pr = all.find((p) => p.mesh === o); if (pr) return pr; o = o.parent; } }
-    return null;
-  }
-
   private sa = { x: 0, y: 0 }; private sb = { x: 0, y: 0 }; private sj = { x: 0, y: 0 };
 
   private onDown(e: PointerEvent) {
     if (!this.open) return;
     this.px = e.clientX; this.py = e.clientY; this.down = true;
     const w = this.work;
-    if (!w) {
-      const prop = this.propAt(e.clientX, e.clientY);
-      this.press = { id: e.pointerId, x: e.clientX, y: e.clientY, prop };
-      if (!prop) this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
-      return;
-    }
+    if (!w) { this.drag = { id: e.pointerId, x: e.clientX, y: e.clientY }; return; }
     if (w.phase === 'seat') {
       if (w.head) {
         const head = w.head;
@@ -712,11 +679,6 @@ export class Inspect {
     if (!this.open) return;
     this.down = false;
     if (this.drag && this.drag.id === e.pointerId) this.drag = null;
-    const pr = this.press;
-    if (pr && pr.id === e.pointerId) {
-      this.press = null;
-      if (pr.prop && Math.hypot(e.clientX - pr.x, e.clientY - pr.y) < 12 && this.propAt(e.clientX, e.clientY) === pr.prop) { G.audio?.ui?.('bag_rot', 0.3); pr.prop.click(); }
-    }
     const w = this.work;
     if (w) { w.pulling = false; w.needRelease = false; w.ang = NaN; }
   }
@@ -753,20 +715,8 @@ export class Inspect {
     else this.turn.position.set(0, 0, 0);
     this.sparks.update(dt, 2.6); this.dust.update(dt, 1.6);
     this.dymo.update(dt);
-    this.torch.update(dt, 0.02);
-    // the tag's string runs to the thing
-    if (this.info.mesh.visible && this.model) {
-      // tied to the thing's far end, it hangs off to the left on its string and sways
-      const al = this.itemObj ? itemAlign(this.itemObj.key) : null;
-      this.worldOf(_w.set(0, 0, al ? -al.base[1] * 0.46 : -0.1), _w);
-      const m = this.info.mesh, sc = m.scale.x, sw = Math.sin(now * 0.0016) * 0.02;
-      const nar = this.lay.narrow;
-      _v.set(_w.x - (nar ? 0.03 : 0.16) * sc + sw, _w.y - 0.02 - (nar ? 0.15 : 0.1) * sc, _w.z + 0.08);
-      m.position.lerp(_v, 1 - Math.exp(-dt * 10));
-      m.rotation.set(0, 0, 0.12 + sw * 2);
-      _v.set(m.position.x, m.position.y + 0.1 * sc, m.position.z);
-      this.twine.set(_v, _w, 0.015);
-    }
+    this.placeMarks();
+    this.pollPad(dt);
     const w = this.work;
     if (w && this.model) {
       this.worldOf(w.a, _v); this.worldOf(w.b, _w);
@@ -787,6 +737,42 @@ export class Inspect {
       else { this.toolAt.set(at.x + 0.06, at.y - 0.08, at.z + 0.1); wr.rotation.x = 0; }
     }
     this.poseHands(dt);
+  }
+
+  /** the numbered reticles ride on the thing (dim when the mark is round the back) */
+  private placeMarks() {
+    // only once the eyes are open on it (never over the iso view during the cut)
+    if (this.dock) this.dock.style.visibility = eyeActive() ? '' : 'hidden';
+    const mesh = this.itemObj?.mesh;
+    if (!mesh || !this.marks.length) return;
+    const live = eyeActive() && !this.work;
+    for (const m of this.marks) m.el.style.display = live ? '' : 'none';
+    if (!live) return;
+    const g = mesh.geometry; if (!g.boundingBox) g.computeBoundingBox();
+    mesh.updateWorldMatrix(true, false);
+    const cw = mesh.localToWorld(g.boundingBox!.getCenter(_w));
+    const cam = fpCamera();
+    for (const m of this.marks) {
+      const pw = mesh.localToWorld(_v.copy(m.p.at));
+      const facing = _e2.copy(pw).sub(cw).normalize().dot(_v2.copy(pw).negate().normalize());
+      pw.applyMatrix4(this.g.matrixWorld).project(cam);
+      m.el.style.transform = `translate(${Math.round(((pw.x + 1) / 2) * window.innerWidth)}px, ${Math.round(((1 - pw.y) / 2) * window.innerHeight)}px)`;
+      m.el.classList.toggle('back', facing < -0.05);
+    }
+  }
+  /** the pad: left stick turns it, A the next mark, X flips it, B puts it down */
+  private pollPad(dt: number) {
+    let gp: Gamepad | undefined;
+    try { gp = [...(navigator.getGamepads?.() || [])].find(Boolean) as Gamepad | undefined; } catch { gp = undefined; }
+    if (!gp || this.work) return;
+    const ax = gp.axes[0] ?? 0, ay = gp.axes[1] ?? 0, ry = gp.axes[3] ?? 0;
+    if (Math.hypot(ax, ay) > 0.2) { _q.setFromAxisAngle(_v.set(0, 1, 0), ax * dt * 2.6); this.qT.premultiply(_q); _q.setFromAxisAngle(_v.set(1, 0, 0), ay * dt * 2.6); this.qT.premultiply(_q); }
+    if (Math.abs(ry) > 0.3) this.distT = Math.max(0.5, Math.min(1.3, this.distT + ry * dt * 0.8));
+    const a = !!gp.buttons[0]?.pressed, b = !!gp.buttons[1]?.pressed, x = !!gp.buttons[2]?.pressed;
+    if (a && !this.padS.a && this.pois.length) this.pick((this.sel + 1) % this.pois.length);
+    if (x && !this.padS.x) this.flip();
+    if (b && !this.padS.b) this.close();
+    this.padS.a = a; this.padS.b = b; this.padS.x = x;
   }
 
   private gl = new THREE.Vector3(-0.3, -0.25, -1); private gr = new THREE.Vector3(0.3, -0.25, -1);
