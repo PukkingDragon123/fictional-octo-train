@@ -88,8 +88,12 @@ export class Plate {
   /** corner brackets */
   corners(x: number, y: number, w: number, h: number, col: string, l = 6) {
     const c = this.ctx; c.fillStyle = col;
+    // machine corners in light (round 15b, the UI kit): the bracket, a 45-degree cut across it, a rivet inside
     for (const [px, py, sx, sy] of [[x, y, 1, 1], [x + w, y, -1, 1], [x, y + h, 1, -1], [x + w, y + h, -1, -1]] as const) {
       c.fillRect(sx > 0 ? px : px - l, sy > 0 ? py : py - 1, l, 1); c.fillRect(sx > 0 ? px : px - 1, sy > 0 ? py : py - l, 1, l);
+      const k = Math.max(2, Math.floor(l / 2));
+      for (let i = 0; i < k; i++) c.fillRect(px + sx * (k - 1 - i) - (sx < 0 ? 1 : 0), py + sy * (i + 1) - (sy < 0 ? 1 : 0), 1, 1);
+      c.fillRect(px + sx * (k + 1) - (sx < 0 ? 2 : 0), py + sy * (k + 1) - (sy < 0 ? 2 : 0), 2, 2);
     }
   }
   /** one line of text; returns its width (texels). size in texel units */
