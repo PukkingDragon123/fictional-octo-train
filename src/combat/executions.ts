@@ -239,7 +239,8 @@ export class Executions {
       p.body.addXp('strength', 3);
     }
     if (b.slow) slowmo(b.slow[0], b.slow[1]);
-    if (b.word) words.pop(b.word, c.x, c.y + Math.min(2.2, c.height + 0.3), c.z, 'fin', 1.7);
+    // (round 15: no floating finisher word; the slow-motion, the sound and the body say it)
+    void words;
     void marks;
   }
 

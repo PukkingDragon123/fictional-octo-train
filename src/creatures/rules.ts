@@ -73,8 +73,7 @@ type Pred = (c: Creature, p: Player, d: number) => boolean;
 const fleeing: Pred = (c, _p, d) => c.state === 'flee' && d < 14;
 /** rules that show in replicated state alone (the newer species call ruleShown instead) */
 const LEARN: Record<string, Pred> = {
-  gloam: fleeing, echo: fleeing, stilt_doe: fleeing, wrongbird: fleeing, ventling: (c, p, d) => (c.state === 'flee' || c.state === 'hide') && d < 10,
-  grinhound: (c, p, d) => c.state === 'flee' && d < 12,
+  hum_possum: (c, _p, d) => (c.state === 'flee' || c.state === 'frozen') && d < 10,
   lumenmoth: (c, p, d) => d < 4 && p.flashlightOn,
   lamplighter: (c, _p, d) => c.state === 'hide' && d < 10,
   hollow: (c, p, d) => d < 6 && c.state === 'idle' && !p.flashlightOn,

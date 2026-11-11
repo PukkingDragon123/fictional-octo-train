@@ -21,7 +21,7 @@ interface Figure { root: THREE.Object3D; t: number; life: number; x: number; z: 
 interface Ghost { mesh: THREE.Mesh; base: THREE.Matrix4; t: number; life: number; dx: number; dz: number }
 
 /** silhouettes that read as 'someone standing there' (no disguised or pool-bound species) */
-const FIGURES = ['hollow', 'employee', 'echo', 'stilt_doe', 'grinhound', 'lifeguard'];
+const FIGURES = ['hollow', 'strider', 'driller', 'still_life', 'whip_rat', 'lifeguard'];
 const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
 
 export class Hallucinations {

@@ -890,7 +890,7 @@ export function generateSuburbs(z: Zone, seed: number) {
     sky: true, sun: 0xff9a5a, sunI: 0.45, skyColor: 0x7a74b8, outdoorAmbient: 0x7a6a98,
     grade: 'suburbs', reverb: 'outdoor', ambience: 'suburbs', music: 'musicbox', weather: 'none',
   };
-  z.spawnTable = [['grinhound', 3], ['goodboy', 1.5], ['wrongbird', 2], ['stilt_doe', 1], ['sentinel', 1], ['hollow', 1]];
+  z.spawnTable = [['hollow', 1], ['hum_possum', 1.4], ['driller', 0.3]];
   z.creatureCap = 10;
   z.meta.terminalLore = ['terminal_generic'];
   z.meta.shiftRate = 0.8;

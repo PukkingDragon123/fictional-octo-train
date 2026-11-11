@@ -4,6 +4,7 @@
 import { G } from '../game/G';
 import type { Player } from '../entities/player';
 import { itemDef, type Item, type WeaponProps } from '../items/item';
+const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
 export type WClass = 'unarmed' | 'blade' | 'blunt' | 'axe' | 'spear' | 'heavy' | 'improvised' | 'cyber';
 
@@ -66,8 +67,12 @@ export interface Wielded {
   armed: boolean;
   cls: WClass;
   feel: ClassFeel;
-  /** combined damage / speed / poise multipliers from cyberware */
+  /** combined damage / speed / poise multipliers from cyberware (and the weapon's heft) */
   dmgMul: number; speedMul: number; poiseMul: number; stamMul: number;
+  /** knockback multiplier from the weapon's heft */
+  knockMul: number;
+  /** what is swung (kg) and how that feels in these arms: -0.35 quick and light .. 1 a real weight */
+  mass: number; heft: number;
   hitKind: string;
   /** a gun or a throwable: those keep their own verbs */
   ranged: boolean;
@@ -105,7 +110,17 @@ export function wielded(p: Player): Wielded {
   }
   if (cls === 'cyber' && w === UNARMED) w = { ...UNARMED, dmg: [5, 9], range: 0.95, knock: 0.7 };
   const feel = FEEL[cls];
-  return { it, w, armed: !!d?.weapon, cls, feel, dmgMul, speedMul, poiseMul, stamMul, hitKind: hitKind || (w.kind === 'unarmed' ? 'unarmed' : feel.hitKind === 'blunt' && w.kind !== 'blunt' ? w.kind : feel.hitKind), ranged: w.kind === 'firearm' || w.kind === 'thrown' };
+  // heft by mass: a heavier thing winds up and recovers slower, costs more breath, and carries more
+  // through (knockback, poise); strong arms feel it less. Within a class (two clubs), the heavy one hits like it.
+  const mass = it ? Math.max(0.05, (d as any)?.weight ?? 0.5) : 0;
+  const heft = it ? clamp((mass - 1.2) / 2.8, -0.35, 1) : -0.3;
+  const str = (() => { try { return p.body.skill('strength'); } catch { return 0; } })();
+  const he = heft * (heft > 0 ? 1 - Math.min(0.6, str * 0.06) : 1);
+  speedMul /= 1 + 0.2 * he;
+  poiseMul *= 1 + 0.35 * he;
+  stamMul *= 1 + 0.5 * Math.max(0, he);
+  const knockMul = 1 + 0.45 * he;
+  return { it, w, armed: !!d?.weapon, cls, feel, dmgMul, speedMul, poiseMul, stamMul, knockMul, mass, heft: he, hitKind: hitKind || (w.kind === 'unarmed' ? 'unarmed' : feel.hitKind === 'blunt' && w.kind !== 'blunt' ? w.kind : feel.hitKind), ranged: w.kind === 'firearm' || w.kind === 'thrown' };
 }
 
 // ------------------------------------------------------------------ the moves

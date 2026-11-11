@@ -51,7 +51,7 @@ export const ACHIEVEMENTS: Achievement[] = [
   A('frequent', 'Frequent Dier', 'Died ten times. Loyalty points do not apply.', 'Die. Often.', { cos: 'suit_hivis', rp: 8 }),
   A('grant', 'Grant Funded', 'Held 100 research points at once.', 'Save up.', { deco: 'd_moth' }),
   A('fire_drill', 'Fire Drill', 'Pulled the fume-hood alarm five times. Nobody evacuated.', 'The red handle by the fume hood.', { rp: 2 }),
-  A('noise', 'Noise Complaint', 'Killed a Hush. It was very quiet about it.', 'Silence the silent one.', { rp: 8 }),
+  A('noise', 'Noise Complaint', 'Killed a Driller. It heard you coming the whole way.', 'Silence the thing that listens through the floor.', { rp: 8 }),
 ];
 export const ACH = new Map(ACHIEVEMENTS.map((a) => [a.key, a]));
 export function earned(key: string) { return !!file().ach[key]; }
@@ -146,7 +146,7 @@ export function wireAchievements(localId: () => string | undefined) {
     if (!e || (e.by && e.by !== localId())) return;
     if ((e.keys || []).some((k) => hasItemDef(k) && (itemDef(k) as any).clothing?.slot === 'shoes')) earn('sole');
   });
-  bus.on('creatureKilled', (c: any, killer: any) => { if (c?.sp?.key === 'hush' && me(killer)) earn('noise'); });
+  bus.on('creatureKilled', (c: any, killer: any) => { if (c?.sp?.key === 'driller' && me(killer)) earn('noise'); });
   bus.on('sampleTaken', (e: { p?: any; alive?: boolean }) => {
     if (!me(e?.p)) return;
     if (e.alive) earn('unethical');

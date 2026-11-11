@@ -11,7 +11,7 @@ import type { Player } from '../entities/player';
 import type { Env } from './body';
 
 const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
-const CANINE = new Set(['grinhound', 'goodboy']);
+const CANINE = new Set(['hum_possum']); // the only dog-sized, dog-ish thing left down here (the hounds were culled in round 15)
 const CAT_LIKE = new Set(['plushkin', 'lamplighter']);
 const DUSTY = new Set(['lobby', 'office', 'school', 'house', 'suburbs', 'mall']);
 

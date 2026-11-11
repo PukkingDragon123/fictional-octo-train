@@ -8,7 +8,6 @@ defLore({
 A tall man with glasses ("DADDY"). A small girl with a yellow dress ("ME"). A brown dog with a huge smile ("BISCUIT"). A house with a red door. Green grass all the way to the edges of the paper. A big yellow sun.
 
 In the corner, in an adult's handwriting: "Mia, age 6 — the house on Alder Lane".`,
-  codex: ['goodboy'],
 });
 
 defLore({
@@ -68,7 +67,6 @@ There's a school. The bell goes but nobody comes. On the noticeboard there's a l
 There are tall white things in the fields at dusk. Like deer on stilts. They don't hurt you if you don't run.
 
 Manhole on Elm. The tunnels are under all of it.`,
-  codex: ['stilt_doe'],
 });
 
 defLore({
@@ -102,5 +100,4 @@ Answers to "good boy".
 Please call Alder Lane, ask for Mia.
 
 (The photo has been rained on so many times the dog's smile has run down its face.)`,
-  codex: ['goodboy', 'grinhound'],
 });

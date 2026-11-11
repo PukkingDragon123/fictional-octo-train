@@ -167,20 +167,9 @@ export class TradeUI {
 
   update(dt: number) {
     const p = G.local, inp = G.input; if (!p) return;
-    this.focus = this.c ? null : this.findFocus();
-    if (!inp.textFocus && inp.hit('interact') && !G.dominion?.ui?.open && !G.dominion?.surgery?.active) {
-      if (this.c) this.close();
-      else if (this.focus && !G.dominion?.riding?.()) this.open(this.focus);
-    }
-    // the tag over their head
-    const f = this.focus;
-    if (f) {
-      const t = tribeOfCreature(f)!;
-      const hostile = this.T.hostile(t) || f.state === 'chase' || f.state === 'attack';
-      const name = memberName(f).toUpperCase();
-      if (hostile) this.worldTag.show(f.x, f.y + f.height + 0.25, f.z, name + ' - HOSTILE', 'red', '');
-      else this.worldTag.show(f.x, f.y + f.height + 0.25, f.z, (f.tamedBy === p.id ? 'TALK ' : 'TRADE ') + name, 'paper');
-    } else this.worldTag.hide();
+    // round 15: people are talked to (talk.ts, [E] Talk in the world prompt); the cloth opens from the conversation. E here steps back.
+    if (this.c && !inp.textFocus && inp.hit('interact')) this.close();
+    this.worldTag.hide();
     const c = this.c;
     if (!c) return;
     if (c.dead || c.zoneKey !== p.zoneKey || Math.hypot(c.x - p.x, c.z - p.z) > 4.5 || p.body.dead) { this.close(); return; }
@@ -227,10 +216,15 @@ export class TradeUI {
     G.audio?.ui?.('bagOpen', 0.4);
   }
 
+  /** back to the conversation when the cloth closes (talk.ts) */
+  afterClose: (() => void) | null = null;
+
   close() {
     if (!this.c) return;
     const c = this.c; this.c = null;
     this.layer.on = false;
+    const back = this.afterClose; this.afterClose = null;
+    if (back && !c.dead) { back(); fpRelease('trade'); G.audio?.ui?.('bagClose', 0.35); return; }
     fpRelease('trade');
     if (!c.dead) bark(c, 'bye', true);
     G.audio?.ui?.('bagClose', 0.35);

@@ -3,7 +3,7 @@
 // screen. Nothing here is a 2D overlay: every word is drawn into the scene.
 //   the board     the housing's phosphor glass behind the rig: lane names, each
 //                 node's name under its socket, the key strip along the bottom
-//   the ticker    a lit strip across the top: the four branches, the node under
+//   the ticker    a lit strip across the top: the branches, the node under
 //                 the pointer, the points banked, the codex
 //   the sockets   one per node: a bolted steel plate, a holo shelf, and on it a
 //                 small 3D model of what the node unlocks (research/models.ts)
@@ -15,7 +15,10 @@
 //   the reader    an XY gantry on a rail over the housing: a small CRT with a
 //                 RESEARCH lever. Pick a node and the camera closes on it while
 //                 the reader drives over beside it and prints the node's file
-//   the keys      four branch keys and LOG OFF on the console under the housing
+//   the keys      a key per branch and LOG OFF on the console under the housing
+// The branches are the categories of src/game/treeData.ts (designs, recipes,
+// building, devices, chips, limbs, and any registered as data): each open
+// re-reads them and rebuilds a branch whose nodes changed.
 // Mouse / touch: hover or tap a node, tap the lever. Keys: arrows move, Enter
 // inspects (again: research), R researches, Q / E branch, Esc back. Gamepad:
 // d-pad, A, X research, LB / RB, B. A hidden focus key carries keyboard and pad

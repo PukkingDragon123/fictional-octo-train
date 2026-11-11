@@ -20,7 +20,6 @@ Three nodes: SRV-1 renders the buffer levels. SRV-2 renders her memories. SRV-3 
 
 > LOG 90
 Let her go.`,
-  codex: ['custodian'],
 });
 
 defLore({
@@ -59,7 +58,7 @@ KERNEL PROCESSES
 
 UNKNOWN ORIGIN
   "The Occupant" — something very large in the long hallways. Do not follow the sound.`,
-  codex: ['grinhound', 'goodboy', 'stilt_doe', 'lamplighter', 'plushkin', 'custodian', 'employee', 'occupant'],
+  codex: ['lamplighter', 'plushkin', 'hollow', 'still_life'],
 });
 
 defLore({

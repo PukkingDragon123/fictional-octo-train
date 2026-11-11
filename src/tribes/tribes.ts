@@ -17,8 +17,14 @@ import { itemValue } from '../game/debt/values';
 import { defScanInfo } from '../scan/scan';
 import { TRIBES, TRIBE_KEYS, standing, type TribeKey, type TribeDef } from './defs';
 import type { Camp } from './camp';
-import { bark, memberName, prunePool, tribeOfCreature } from './npc';
+import { bark, memberName, prunePool, tribeOfCreature, sayAs } from './npc';
 import { TradeUI } from './tradeUI';
+import { Talk, talkTarget } from './talk';
+import { tribeBrain, alarm, passBark } from './brain';
+import { remember, attitude, shiftLoyalty, RECRUIT_COST, RECRUIT_REP, MAX_FOLLOWERS } from './mind';
+import { SAY, line } from './speech';
+import { fillBody, pickOdds, startPickpocket } from './theft';
+import type { Player } from '../entities/player';
 
 export interface TribeState {
   rep: Record<string, number>;
@@ -29,11 +35,15 @@ export interface TribeState {
   aggro: Record<string, number>;
   met: Record<string, number>;
   raid: Record<string, number>;
+  /** what each person remembers about the unit (src/tribes/mind.ts) */
+  mind: Record<string, Record<string, number>>;
+  /** followers' loyalty */
+  loyal: Record<string, number>;
 }
-const blank = (): TribeState => ({ rep: Object.fromEntries(TRIBE_KEYS.map((k) => [k, TRIBES[k].startRep])), tab: {}, stat: {}, gen: {}, deadAt: {}, aggro: {}, met: {}, raid: {} });
+const blank = (): TribeState => ({ rep: Object.fromEntries(TRIBE_KEYS.map((k) => [k, TRIBES[k].startRep])), tab: {}, stat: {}, gen: {}, deadAt: {}, aggro: {}, met: {}, raid: {}, mind: {}, loyal: {} });
 const HOSTILE = new Set(['hostile', 'stalker', 'ambush', 'territorial']);
 const RESPAWN_H = 20;
-export const RECRUIT_COST = 150, RECRUIT_REP = 30;
+export { RECRUIT_COST, RECRUIT_REP };
 
 for (const k of TRIBE_KEYS) defScanInfo('tribe', k, { title: TRIBES[k].name, cls: TRIBES[k].lore.cls, notes: TRIBES[k].lore.notes });
 
@@ -41,6 +51,9 @@ export class TribeSystem implements GameSystem {
   name = 'tribes';
   st: TribeState = blank();
   ui: TradeUI;
+  talk: Talk;
+  /** shared cool-downs (warnings shouted, muggings) */
+  warnT = 0; mugT = 0;
   private popT = 0;
   private lastHour = -1;
   private hurtT = new Map<string, number>();
@@ -49,6 +62,7 @@ export class TribeSystem implements GameSystem {
   constructor() {
     G.tribes = this;
     this.ui = new TradeUI(this);
+    this.talk = new Talk(this);
     bus.on('creatureHurt', (c: Creature, hit: any) => this.onHurt(c, hit));
     bus.on('creatureKilled', (c: Creature, killer: any) => this.onKilled(c, killer));
     bus.on('thrallMade', (r: any) => { if (r?.owner && G.role !== 'client') this.bump('thralls', 1); });
@@ -88,9 +102,11 @@ export class TribeSystem implements GameSystem {
   bump(k: string, n = 1) { op('tribe', { k: 'stat', key: k, n }); }
   meet(t: string) { if (!this.met(t)) { op('tribe', { k: 'met', t }); G.missions?.set?.(`tribe:${t}:met`); } }
 
-  apply(a: { k: string; t?: string; n?: number; key?: string; v?: number }) {
+  apply(a: { k: string; t?: string; n?: number; key?: string; v?: number; id?: string }) {
     const s = this.st;
     switch (a.k) {
+      case 'mem': { const m = ((s.mind ||= {})[a.id!] ||= {}); m[a.key!] = Math.max(0, (m[a.key!] ?? 0) + (a.n ?? 1)); bus.emit('tribeMemory', a.id, a.key); break; }
+      case 'loyal': (s.loyal ||= {})[a.id!] = Math.max(0, Math.min(100, (s.loyal[a.id!] ?? 60) + (a.n ?? 0))); break;
       case 'rep': s.rep[a.t!] = Math.max(-100, Math.min(100, (s.rep[a.t!] ?? 0) + (a.n ?? 0))); bus.emit('tribeRep', a.t, s.rep[a.t!]); break;
       case 'tab': s.tab[a.t!] = Math.max(0, (s.tab[a.t!] ?? 0) + (a.n ?? 0)); bus.emit('tribeTab', a.t, s.tab[a.t!]); break;
       case 'stat': s.stat[a.key!] = (s.stat[a.key!] ?? 0) + (a.n ?? 1); break;
@@ -134,51 +150,28 @@ export class TribeSystem implements GameSystem {
     return c;
   }
 
-  /** a member's brain (host); false hands it to the default brain */
-  think(c: Creature, dt: number): boolean {
-    const t = c.mem.tribe as TribeKey; if (!t) return false;
-    const cs = G.creatures, z: Zone = G.getZone(c.zoneKey);
-    const raid = !!c.mem.raid;
-    if (raid && G.time > (c.mem.raidUntil ?? 0) && !this.nearPlayer(c, 30)) { cs.remove(c); return true; }
-    // who it wants to hurt
-    let foe: any = null, fd = raid ? 60 : 11;
-    if (raid || this.hostile(t)) for (const p of G.players.values()) {
-      if (p.zoneKey !== c.zoneKey || p.body.dead) continue;
-      const d = Math.hypot(p.x - c.x, p.z - c.z);
-      if (d < fd) { fd = d; foe = p; }
+  /** a member's brain (host); false hands it to the default brain (src/tribes/brain.ts) */
+  think(c: Creature, dt: number): boolean { return tribeBrain(this, c, dt); }
+  /** a member shouts for the camp: everyone of the tribe in earshot turns on that player */
+  alarm(c: Creature, pid: string, why: 'thief' | 'hurt' | 'attack' = 'attack') { alarm(c, pid, why); }
+
+  /** the world prompt over a person: [E] Talk (followers too), [G] Pickpocket from behind */
+  ctxActions(p: Player): any[] {
+    if (this.talk.open || this.ui.isOpen) return [];
+    const c = talkTarget(p); if (!c) return [];
+    const t = tribeOfCreature(c)!;
+    const at = () => (c.dead ? null : { x: c.x, y: c.y + c.height + 0.32, z: c.z });
+    const tgt = { tgt: 'c:' + c.id, name: memberName(c), anchor: at };
+    const fighting = (c.state === 'chase' || c.state === 'attack') && c.targetId === p.id;
+    const out: any[] = [];
+    if (fighting || (this.hostile(t) && !c.tamedBy)) out.push({ id: 'talk', label: 'Talk', icon: 'talk', key: 'E', why: 'they want me dead', head: 'Talk', ...tgt });
+    else out.push({ id: 'talk', label: 'Talk', icon: 'talk', key: 'E', run: () => this.talk.open(c), head: 'Talk', ...tgt });
+    const d = Math.hypot(c.x - p.x, c.z - p.z);
+    if (!c.tamedBy && !fighting && d < 1.5) {
+      const odds = pickOdds(p, c);
+      out.push({ id: 'pickpocket', label: odds > 0.6 ? 'Pickpocket' : 'Pickpocket (risky)', icon: 'steal', key: 'G', run: () => startPickpocket(p, c), ...tgt });
     }
-    const net = (v: Record<string, any>) => { const o = c.mem.net || {}; for (const k in v) if (o[k] !== v[k]) { c.mem.net = { ...o, ...v }; return; } };
-    if (foe) {
-      net({ sit: 0, act: '', raid: raid ? 1 : 0 });
-      c.targetId = foe.id; c.setState('chase');
-      const range = (c.sp.attack?.range ?? 1) + foe.radius;
-      if (fd < range) { c.speed = 0; c.targetFacing = Math.atan2(foe.z - c.z, foe.x - c.x); if (c.attackT <= 0) cs.startAttack(c, foe); }
-      else cs.moveTo(c, z, foe.x, foe.z, c.sp.run, dt, range * 0.8);
-      return true;
-    }
-    if (raid) { c.setState('travel'); const p = [...G.players.values()].find((q) => q.zoneKey === c.zoneKey); if (p) cs.moveTo(c, z, p.x, p.z, c.sp.walk * 1.4, dt, 3); return true; }
-    // camp routine: sit by the fire, work at the cloth, stand a post, wander a little
-    const camp = ((z.meta.tribeCamps || []) as Camp[]).find((k) => k.i === c.mem.camp) || null;
-    if (c.state === 'chase' || c.state === 'attack') c.setState('idle');
-    const m = c.mem;
-    if (!m.job || G.time > m.jobT) {
-      const r = Math.random();
-      const post = m.post as [number, number];
-      if (camp && r < 0.35) { const a = Math.random() * 6.28; m.job = { x: camp.fire[0] + Math.cos(a) * 1.3, z: camp.fire[1] + Math.sin(a) * 1.3, sit: 1, act: '' }; }
-      else if (camp && r < 0.55) m.job = { x: camp.barter[0] - 0.9, z: camp.barter[1], sit: 0, act: Math.random() < 0.5 ? 'craft' : 'hammer' };
-      else if (camp && r < 0.65) m.job = { x: camp.fire[0] + (Math.random() - 0.5) * camp.r * 1.6, z: camp.fire[1] + (Math.random() - 0.5) * camp.r * 1.6, sit: 0, act: t === 'wax' || t === 'cog' ? 'pray' : '' };
-      else m.job = { x: post[0], z: post[1], sit: 0, act: '' };
-      m.jobT = G.time + 8 + Math.random() * 14;
-    }
-    const j = m.job;
-    if (cs.moveTo(c, z, j.x, j.z, c.sp.walk, dt, 0.35)) {
-      c.setState('idle');
-      net({ sit: j.sit, act: j.act, raid: 0 });
-      if (camp && j.sit) c.targetFacing = Math.atan2(camp.fire[1] - c.z, camp.fire[0] - c.x);
-      // turn to face a survivor who walks up
-      for (const p of G.players.values()) if (p.zoneKey === c.zoneKey && Math.hypot(p.x - c.x, p.z - c.z) < 3.5) { c.targetFacing = Math.atan2(p.z - c.z, p.x - c.x); net({ sit: 0, act: '' }); }
-    } else { c.setState('travel'); net({ sit: 0, act: '' }); }
-    return true;
+    return out;
   }
   private nearPlayer(c: Creature, r: number) { for (const p of G.players.values()) if (p.zoneKey === c.zoneKey && Math.hypot(p.x - c.x, p.z - c.z) < r) return true; return false; }
 
@@ -190,11 +183,15 @@ export class TribeSystem implements GameSystem {
     const p = by ? G.players.get(by) : null;
     const owner = p ?? (by ? G.players.get(G.dominion?.rec?.(by)?.owner ?? '') : null);
     if (owner) c.mem.lastBy = owner.id;
-    if (!t || !owner || c.tamedBy) return;
+    if (!t || !owner) return;
     const k = c.id;
     if ((this.hurtT.get(k) ?? 0) > G.time) return;
     this.hurtT.set(k, G.time + 2);
+    // a follower takes it personally, and may walk
+    if (c.tamedBy) { if (c.tamedBy === owner.id) { shiftLoyalty(c, -25); sayAs(c, line(SAY.followHurt)); } return; }
+    remember(c, 'hit');
     this.bumpRep(t, c.mem.raid ? -1 : -6, 'you struck one of them');
+    if (!c.mem.raid) alarm(c, owner.id, 'hurt');
     op('tribe', { k: 'aggro', t, v: G.clock.hours + 0.75 });
   }
 
@@ -203,7 +200,10 @@ export class TribeSystem implements GameSystem {
     const t = c.mem.tribe as TribeKey | undefined;
     const kp = killer || (c.mem.lastBy ? G.players.get(c.mem.lastBy) : null);
     if (t) {
+      fillBody(c);
       if (c.tamedBy) return;
+      // followers of that tribe saw it
+      if (kp) for (const f of this.recruits(kp.id)) if (f.mem.tribe === t && Math.hypot(f.x - c.x, f.z - c.z) < 20) { shiftLoyalty(f, -30); sayAs(f, 'That was one of mine.'); }
       // killing a member: they remember. Their rivals approve.
       this.bumpRep(t, c.mem.raid ? -3 : -25, 'you killed ' + memberName(c));
       this.bumpRep(this.def(t).rival, 4, 'an enemy of theirs died');
@@ -218,6 +218,13 @@ export class TribeSystem implements GameSystem {
       // a monster put down near a camp: they saw that
       const z = G.zones.get(c.zoneKey);
       for (const camp of ((z?.meta.tribeCamps || []) as Camp[])) if (Math.hypot(camp.x - c.x, camp.y - c.z) < 14) this.bumpRep(camp.t, 2, 'you killed something near their camp');
+      // anyone it was after owes the unit for that
+      for (const o of (G.creatures?.creatures?.values?.() || []) as Iterable<Creature>) {
+        if (o.dead || !o.mem.tribe || o.tamedBy || o.zoneKey !== c.zoneKey || Math.hypot(o.x - c.x, o.z - c.z) > 7) continue;
+        remember(o, 'help');
+        if (Math.random() < 0.5) sayAs(o, ['Thank you. I mean it.', 'That was close. Too close.', 'I owe you for that one.'][Math.floor(Math.random() * 3)]);
+        break;
+      }
     }
   }
 
@@ -241,7 +248,13 @@ export class TribeSystem implements GameSystem {
     if (!spot) return 0;
     const n = 2 + Math.floor(Math.random() * 2) + (this.rep(t) < -60 ? 1 : 0);
     for (let i = 0; i < n; i++) {
-      const c = this.spawnMember(t, z.key, spot[0] + 0.5 + (Math.random() - 0.5) * 2, spot[1] + 0.5 + (Math.random() - 0.5) * 2, `raid_${t}_${Math.floor(G.time * 10)}_${i}`, { raid: 1, raidUntil: G.time + 300, persistent: false });
+      // half of them go ahead and lie in wait where the survivor is walking
+      let sx = spot[0] + 0.5 + (Math.random() - 0.5) * 2, sz = spot[1] + 0.5 + (Math.random() - 0.5) * 2, ambush = 0;
+      if (i % 2 === 1) {
+        const ax = Math.floor(p.x + Math.cos(p.facing) * 11 + (Math.random() - 0.5) * 6), az = Math.floor(p.z + Math.sin(p.facing) * 11 + (Math.random() - 0.5) * 6);
+        if (z.inb(ax, az) && z.floor[z.idx(ax, az)] && !z.solid[z.idx(ax, az)]) { sx = ax + 0.5; sz = az + 0.5; ambush = 1; }
+      }
+      const c = this.spawnMember(t, z.key, sx, sz, `raid_${t}_${Math.floor(G.time * 10)}_${i}`, { raid: 1, raidUntil: G.time + 300, persistent: false, ambush });
       if (c) c.mem.net = { raid: 1 };
     }
     bus.emit('tribeRaid', t, p.id);
@@ -278,7 +291,7 @@ export class TribeSystem implements GameSystem {
     G.audio?.ui?.('tribe_trade', 0.5);
     bus.emit('tribeTrade', t, v);
   }
-  canRecruit(t: string) { const p = G.local; return !!p && this.rep(t) >= RECRUIT_REP && this.tab(t) >= RECRUIT_COST && this.recruits(p.id).length < 2; }
+  canRecruit(t: string) { const p = G.local; return !!p && this.rep(t) >= RECRUIT_REP && this.tab(t) >= RECRUIT_COST && this.recruits(p.id).length < MAX_FOLLOWERS; }
   recruit(c: Creature): boolean {
     const p = G.local, t = tribeOfCreature(c);
     if (!p || !t || !this.canRecruit(t)) return false;
@@ -300,7 +313,16 @@ export class TribeSystem implements GameSystem {
     this.pruneT -= dt;
     if (this.pruneT <= 0) { this.pruneT = 10; prunePool(); }
     this.ui.update(dt);
+    this.talk.update(dt);
+    // a word from people the unit walks past
+    const p = G.local;
+    if (p && !this.talk.open && (this.barkT -= dt) <= 0) {
+      this.barkT = 0.6;
+      const c = talkTarget(p);
+      if (c && Math.hypot(c.x - p.x, c.z - p.z) < 2.4 && !(c.state === 'chase' || c.state === 'attack')) passBark(c, p);
+    }
   }
+  private barkT = 0;
 
   /** recruits follow their survivor through portals */
   private recruitsKeepUp() {

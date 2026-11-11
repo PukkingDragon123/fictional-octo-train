@@ -596,7 +596,7 @@ export function generateSchool(z: Zone, seed: number) {
     ambient: 0x3a3c34, ambientI: 0.55, fog: 0x1c1e1a, fogNear: 14, fogFar: 34, void: 0x0c0d0b, temp: 20,
     grade: 'school', reverb: 'hall', ambience: 'school', music: 'musicbox',
   };
-  z.spawnTable = [['echo', 2], ['swivel', 2], ['plushkin', 1], ['employee', 1], ['lamplighter', 1]];
+  z.spawnTable = [['plushkin', 1], ['lamplighter', 1], ['hum_possum', 0.8], ['hermit', 0.6]];
   z.creatureCap = 6;
   z.meta.terminalLore = ['terminal_generic'];
   z.meta.shiftRate = 1;

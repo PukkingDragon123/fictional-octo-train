@@ -533,7 +533,7 @@ function generateLab(z: Zone, seed: number) {
     ambient: 0x26303a, ambientI: 0.5, fog: 0x0e1418, fogNear: 10, fogFar: 26, void: 0x050709, temp: 17,
     grade: 'lab', reverb: 'office', ambience: 'lab', music: 'drone',
   };
-  z.spawnTable = [['custodian', 2], ['hollow', 1], ['echo', 1], ['employee', 1]];
+  z.spawnTable = [['hollow', 1], ['hermit', 0.8], ['hum_possum', 0.5]];
   z.creatureCap = 6;
   z.meta.terminalLore = ['terminal', 'laptop_meridian', 'terminal_generic'];
   z.meta.shiftRate = 0.9;

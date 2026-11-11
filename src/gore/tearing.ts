@@ -30,37 +30,15 @@ export interface TearDef {
 
 const ARMS: [BodyPart, number][] = [['hand_l', 2], ['hand_r', 2], ['farm_l', 2], ['farm_r', 2], ['uarm_l', 1], ['uarm_r', 1]];
 export const TEARS: Record<string, TearDef> = {
-  // hounds worry hands and forearms until they come off
-  grinhound: { parts: [['hand_l', 3], ['hand_r', 3], ['farm_l', 2], ['farm_r', 2]], chance: 0.09, hold: 1.4, verb: 'bite', with: /head|jaw/i, line: 'It has my arm— it has my ARM—' },
-  goodboy: { parts: [['hand_l', 1], ['hand_r', 1]], chance: 0.004, hold: 1.2, verb: 'bite', with: /head|jaw/i, line: 'Bad dog— BAD—' },
-  // the sofa folds shut on a leg and rips it out at the knee or the hip
-  davenport: { parts: [['shin_l', 3], ['shin_r', 3], ['thigh_l', 1], ['thigh_r', 1], ['foot_l', 1], ['foot_r', 1]], chance: 0.1, hold: 1.7, verb: 'crush', line: 'The cushions— my leg is IN it—' },
-  // the thing under the carpet takes feet
-  underlay: { parts: [['foot_l', 5], ['foot_r', 5], ['shin_l', 1], ['shin_r', 1]], chance: 0.13, hold: 1.9, verb: 'pull', with: /arm/i, line: 'Something has my foot under the floor—' },
-  // the drywall man wrenches an arm into the wall and keeps it
-  drywall_man: { parts: ARMS, chance: 0.08, hold: 1.8, verb: 'wrench', with: /arm|hand/i, line: 'He is pulling it into the WALL—' },
-  // the corridor leviathan rolls over legs and crushes them flat
-  occupant: { parts: [['thigh_l', 2], ['thigh_r', 2], ['shin_l', 3], ['shin_r', 3], ['foot_l', 1], ['foot_r', 1]], chance: 0.14, hold: 1.1, verb: 'crush', line: 'It is ON me— my legs—' },
+  // (round 15: the hounds, the sofa, the thing under the carpet, the drywall man and the corridor leviathan were culled)
   // the rest, rarely
-  echo: { parts: ARMS, chance: 0.04, hold: 1.5, verb: 'pull', with: /arm|fore/i, line: 'It is wearing my voice and pulling—' },
-  employee: { parts: [['hand_l', 2], ['hand_r', 2], ['farm_l', 1], ['farm_r', 1]], chance: 0.04, hold: 1.2, verb: 'snap', with: /arm|hand/i, line: 'Its grip is plastic— it will not let go—' },
-  swivel: { parts: [['foot_l', 1], ['foot_r', 1]], chance: 0.03, hold: 1.3, verb: 'bite', line: 'The wheels— my foot—' },
   lifeguard: { parts: [['foot_l', 2], ['foot_r', 2], ['shin_l', 1], ['shin_r', 1]], chance: 0.05, hold: 2.0, verb: 'pull', with: /arm|fore/i, line: 'It is dragging me under—' },
   hollow: { parts: [['hand_l', 1], ['hand_r', 1], ['farm_l', 1], ['farm_r', 1]], chance: 0.03, hold: 1.6, verb: 'pull', with: /arm/i, line: 'Let GO of me—' },
-  ventling: { parts: [['hand_l', 1], ['hand_r', 1]], chance: 0.012, hold: 1.0, verb: 'bite', with: /head/i, line: 'My fingers— it took my—' },
-  stilt_doe: { parts: [['uarm_l', 1], ['uarm_r', 1]], chance: 0.02, hold: 1.0, verb: 'snap', line: 'It kicked— my arm—' },
-  // the monster pass (src/creatures/species/stammer.ts, surveyor.ts, plenum.ts, gloam.ts, still_life.ts)
-  stammer: { parts: [['uarm_l', 2], ['uarm_r', 2], ['farm_l', 2], ['farm_r', 2]], chance: 0.08, hold: 1.5, verb: 'snap', with: /fore|hand/i, line: 'Its fingers go all the way round my arm— it is FOLDING it—' },
-  surveyor: { parts: [['foot_l', 1], ['foot_r', 1], ['hand_l', 2], ['hand_r', 2]], chance: 0.04, hold: 1.8, verb: 'pull', with: /arm|fore/i, line: 'It is pulling me along the rope— into the dark—' },
-  plenum: { parts: [['hand_l', 2], ['hand_r', 2], ['foot_l', 2], ['foot_r', 2], ['shin_l', 1], ['shin_r', 1]], chance: 0.07, hold: 1.2, verb: 'bite', with: /head|jaw/i, line: 'It is chewing— under the face— it is CHEWING—' },
-  gloam: { parts: [['hand_l', 3], ['hand_r', 3], ['farm_l', 2], ['farm_r', 2]], chance: 0.09, hold: 1.3, verb: 'bite', with: /head|jaw/i, line: 'Teeth in the dark— my hand is in the TEETH—' },
-  still_life: { parts: [['hand_l', 1], ['hand_r', 1]], chance: 0.015, hold: 2.2, verb: 'wrench', with: /arm|hand/i, line: 'Wax fingers— they will not open—' },
-  // the rule-bound ones and the dimension creatures (src/creatures/species/tallyman.ts, mirrorling.ts, lintel.ts, tithe.ts, hush.ts, chess.ts, moon.ts)
-  tallyman: { parts: [['hand_l', 2], ['hand_r', 2], ['farm_l', 1], ['farm_r', 1]], chance: 0.06, hold: 1.4, verb: 'snap', with: /fore|hand/i, line: 'It is counting my fingers— one— two—' },
-  mirrorling: { parts: [['hand_l', 2], ['hand_r', 2], ['farm_l', 1], ['farm_r', 1]], chance: 0.05, hold: 1.5, verb: 'pull', with: /arm|fore/i, line: 'It has my hand— the same hand— it is pulling me INTO it—' },
-  lintel: { parts: [['uarm_l', 2], ['uarm_r', 2], ['shin_l', 1], ['shin_r', 1]], chance: 0.1, hold: 1.3, verb: 'crush', with: /arm|jaw/i, line: 'The door— it shut ON me—' },
-  tithe: { parts: [['hand_l', 3], ['hand_r', 3]], chance: 0.06, hold: 1.2, verb: 'bite', with: /head|jaw/i, line: 'It wants what is in my hand— it is taking the HAND—' },
-  hush: { parts: [['hand_l', 1], ['hand_r', 1], ['farm_l', 2], ['farm_r', 2]], chance: 0.06, hold: 1.6, verb: 'wrench', with: /arm|fore|hand/i, line: 'Shhh— shhh— it is twisting— shhhh—' },
+  // the Still Lifes (sponge: a hand comes away soaked, src/creatures/species/still_life.ts)
+  still_life: { parts: [['hand_l', 1], ['hand_r', 1]], chance: 0.015, hold: 2.2, verb: 'wrench', with: /arm|hand/i, line: 'Wet sponge fingers— they will not open—' },
+  // the dimension creatures (src/creatures/species/chess.ts, moon.ts)
+  // round 15: the Driller bites a leg off at the knee and pulls it under the floor (src/creatures/species/driller.ts)
+  driller: { parts: [['shin_l', 3], ['shin_r', 3], ['foot_l', 2], ['foot_r', 2], ['thigh_l', 1], ['thigh_r', 1]], chance: 0.12, hold: 1.4, verb: 'bite', with: /jaw|head/i, line: 'It has my LEG— it is pulling me DOWN— into the floor—' },
   chess_knight: { parts: [['hand_l', 1], ['hand_r', 1], ['farm_l', 1], ['farm_r', 1]], chance: 0.05, hold: 1.0, verb: 'bite', with: /head|jaw/i, line: 'Stone teeth— my arm is in the HORSE—' },
   moon_strider: { parts: [['foot_l', 2], ['foot_r', 2], ['shin_l', 2], ['shin_r', 2]], chance: 0.07, hold: 1.4, verb: 'bite', with: /jaw|head/i, line: 'It landed on my leg— it is chewing sideways—' },
 };
@@ -86,7 +64,7 @@ export function limbId(name: string): string {
 }
 
 /** things that keep going without a head */
-export const HEADLESS_OK = new Set(['employee', 'davenport', 'swivel', 'plushkin', 'custodian', 'occupant', 'lamplighter', 'still_life', 'surveyor', 'lintel']);
+export const HEADLESS_OK = new Set(['plushkin', 'lamplighter', 'still_life']);
 
 export interface CreatureLimbFx {
   /** movement multiplier */

@@ -413,7 +413,7 @@ export function generateMall(z: Zone, seed: number) {
     ambient: 0x4a4040, ambientI: 0.7, fog: 0x2e262a, fogNear: 16, fogFar: 40, void: 0x120e12, temp: 20,
     grade: 'mall', reverb: 'mall', ambience: 'mall', music: 'muzak',
   };
-  z.spawnTable = [['davenport', 2], ['hollow', 2], ['employee', 1], ['ventling', 1], ['lumenmoth', 1], ['custodian', 0.5]];
+  z.spawnTable = [['hollow', 2], ['lumenmoth', 1], ['hum_possum', 1.2], ['hermit', 0.6]];
   z.creatureCap = 9;
   z.meta.terminalLore = ['terminal_generic', 'terminal'];
   // a couple of shuttered units are wrong inside (world stream 3)

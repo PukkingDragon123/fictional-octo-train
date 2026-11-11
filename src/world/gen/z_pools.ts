@@ -343,7 +343,7 @@ export function generatePools(z: Zone, seed: number) {
     ambient: 0xb0c8d0, ambientI: 0.6, fog: 0xcfe4ea, fogNear: 14, fogFar: 38, void: 0x9fb9c1, temp: 27,
     sky: false, grade: 'pool', reverb: 'pool', ambience: 'pool', music: 'pads',
   };
-  z.spawnTable = [['lifeguard', 2], ['lumenmoth', 1], ['echo', 1], ['hollow', 0.5]];
+  z.spawnTable = [['lifeguard', 2], ['lumenmoth', 1], ['hollow', 0.5]];
   z.creatureCap = 6;
   z.meta.terminalLore = ['terminal_generic', 'terminal'];
   z.meta.shiftRate = 1;

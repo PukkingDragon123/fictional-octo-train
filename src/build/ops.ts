@@ -36,7 +36,7 @@ defOp('bldFinish', (a: { z: string; uid: number; nu: number; cu: number; by?: st
     const side = o.state.side === 1 ? 1 : 0;
     setWall(z, o.x, o.y, side, wallId(pc.wall));
     if (pc.kind === 'door') {
-      z.setEdge(o.x, o.y, side, { kind: 'door', style: 'door_metal', open: false, locked: false, hp: 400, maxHp: 400, barricade: 0, swing: 1, hinge: 0 });
+      z.setEdge(o.x, o.y, side, { kind: 'door', style: pc.doorStyle ?? 'door_metal', open: false, locked: false, hp: 400, maxHp: 400, barricade: 0, swing: 1, hinge: 0 });
     }
     builtWalls(z)[edgeKey(o.x, o.y, side)] = pc.key;
   }

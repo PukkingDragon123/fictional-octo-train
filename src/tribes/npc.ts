@@ -67,7 +67,14 @@ export function prunePool() {
 }
 
 function say(c: Creature, text: string, T: TribeDef) {
+  // the subtitle strip (their name on the line), voiced from where they stand
   bus.emit('subtitle', { who: memberName(c), text, dur: readTime(text), style: 'tribe', tribe: T.key, color: T.css, x: c.x, y: c.y + c.height + 0.25, z: c.z });
+}
+/** a free line from this member (talk.ts, brain.ts) */
+export function sayAs(c: Creature, text: string) {
+  const T = TRIBES[tribeOfCreature(c)!]; if (!T || !text) return;
+  c.mem._barkT = G.time + 6;
+  say(c, text, T);
 }
 /** a line from this member (local only; every peer voices its own survivor's encounters) */
 export function bark(c: Creature, kind: keyof TribeDef['lines'], force = false) {
@@ -86,25 +93,29 @@ function animate(T: TribeDef) {
     const n = (G.role === 'client' ? c.mem.netMem : c.mem.net) || {};
     const hostile = c.state === 'chase' || c.state === 'attack' || c.attackPhase > 0;
     let full = '' as any, action = '', at = 0, dur = 1;
+    const ges = c.mem.gesture as { a: string; until: number } | undefined;
     if (c.dead) full = 'dead';
     else if (c.attackPhase > 0) { action = 'swing'; at = 0.4 - c.attackPhase; dur = 0.5; }
+    else if (ges && G.time < ges.until && c.speed < 0.2) { action = ges.a; at = 1.8 - (ges.until - G.time); dur = 1.8; }
+    else if (n.lie && c.speed < 0.1) full = 'lie_side';
     else if (n.sit && c.speed < 0.1) full = 'sit';
+    else if (n.kneel && c.speed < 0.1) { full = 'kneel'; if (n.act) { action = n.act; at = (t % 2); dur = 2; } }
     else if (n.act && c.speed < 0.1) { action = n.act; at = (t % 2); dur = 2; }
+    else if (n.aim) action = 'aim_melee';
     // look at the local survivor when they are close
     const p = G.local;
     let look = 0;
     if (p && p.zoneKey === c.zoneKey && !c.dead) {
       const d = Math.hypot(p.x - c.x, p.z - c.z);
-      if (d < 6) {
+      if (d < 6 && !n.lie) {
         const want = Math.atan2(p.z - c.z, p.x - c.x) - c.facing;
         look = Math.max(-1.1, Math.min(1.1, Math.atan2(Math.sin(want), Math.cos(want))));
-        // they talk to whoever walks up
-        if (d < 4.2 && !G.dominion?.isDowned?.(c)) bark(c, hostile ? 'hostile' : c.tamedBy === p.id ? 'follow' : (c.mem._greeted ? 'idle' : 'greet'));
-        if (d < 4.2) c.mem._greeted = true;
+        // passing words are the tribe system's (brain.ts passBark); a fight is loud
+        if (hostile && d < 4.2 && !G.dominion?.isDowned?.(c)) bark(c, 'hostile');
       } else if (hostile && d < 14) bark(c, (n.raid ? 'raid' : 'hostile'));
     }
     hr.animate(dt, {
-      speed: c.speed, stance: 'stand', full, action: action as never, actionT: at, actionDur: dur, twoHanded: false,
+      speed: c.speed, stance: n.sneak ? 'sneak' : 'stand', full, action: action as never, actionT: at, actionDur: dur, twoHanded: false,
       limp: 0, tired: 0, panic: hostile ? 0.3 : 0, cold: 0, aimPitch: 0, holdingLight: false, holding: true, lookYaw: -look * 0.8, weapon: hostile ? T.weaponKind : '', fidget: false,
     } as any);
     hr.fx.value.z = Math.min(1, c.hitFlash / 0.15) * 0.6;

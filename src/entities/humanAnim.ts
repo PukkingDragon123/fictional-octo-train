@@ -137,6 +137,8 @@ export interface AnimInput {
   clutch?: string;
   hunger?: number;        // 0..1
   sick?: number;          // 0..1 nausea
+  /** extra forward lean (radians) from the body's own acceleration and sprinting (src/entities/motion.ts) */
+  lean?: number;
 }
 
 const MIRROR_J: Record<JointName, JointName> = {
@@ -435,7 +437,7 @@ export class HumanAnimator {
   private balance(p: Pose, dt: number, inp: AnimInput) {
     const up = (1 - this.fullW) * (1 - Math.max(this.swimW, this.crawlW)) * (this.oneLeg ? 0.5 : 1);
     const g = this.gait;
-    const leanT = clamp(g.acc * 0.012, -0.07, 0.1) * up;
+    const leanT = (clamp(g.acc * 0.012, -0.07, 0.1) + clamp(inp.lean ?? 0, -0.12, 0.16)) * up;
     const bankT = clamp(-g.v * g.turn * 0.02, -0.16, 0.16) * up;
     this.bal[0] = spring(this.bal[0], this.balV, 0, leanT, 8, dt, 0.65);
     this.bal[1] = spring(this.bal[1], this.balV, 1, bankT, 8, dt, 0.75);
@@ -443,7 +445,6 @@ export class HumanAnimator {
     p.bodyRoll = (p.bodyRoll ?? 0) + this.bal[1];
     // turning on the spot: the head leads into the turn
     if (!g.moving && up > 0.5) add(p, 'head', 0, clamp(g.turn * 0.1, -0.4, 0.4), 0);
-    void inp;
   }
 
   // ================================================================ hands

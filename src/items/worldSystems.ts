@@ -58,7 +58,13 @@ defOp('fire', (a: { z: string; x: number; y: number; i: number; f?: number }) =>
 });
 
 // ---------------------------------------------------------------- crops
-interface CropDef { name: string; days: number; yield: [number, number]; item: string; color: number }
+export interface CropDef {
+  name: string; days: number; yield: [number, number]; item: string; color: number;
+  /** fungi: grow best in the dark (the light a planter gets slows them instead) */
+  dark?: boolean;
+  /** how the planter draws it (src/game/economy/plantModels.ts); default leafy rows */
+  look?: string;
+}
 export const CROPS: Record<string, CropDef> = {
   potato: { name: 'Potatoes', days: 6, yield: [3, 6], item: 'potato', color: 0xc8a060 },
   carrot: { name: 'Carrots', days: 4, yield: [3, 6], item: 'carrot', color: 0xe8802a },

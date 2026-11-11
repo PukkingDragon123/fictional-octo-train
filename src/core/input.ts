@@ -14,11 +14,13 @@ export type Action =
   | 'toolDraw'
   // tribes / domination / scanning (additive): hold Q (or N) = the suit scanner, K = order your thralls.
   // Q is shared with whistle / shout: it scans only when an inhabitant, anomaly or stranger is in front (src/scan/scan.ts)
-  | 'scan' | 'command';
+  | 'scan' | 'command'
+  // round 15 motion: C = dodge roll (hold the sneak key to drop prone and crawl)
+  | 'roll';
 
 export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'],
-  run: ['ShiftLeft', 'ShiftRight'], sneak: ['ControlLeft', 'KeyC'], shove: ['Space'], interact: ['KeyE'],
+  run: ['ShiftLeft', 'ShiftRight'], sneak: ['ControlLeft'], shove: ['Space'], interact: ['KeyE'],
   flashlight: ['KeyF'], scanner: [], inventory: ['KeyI'], map: [], reload: ['KeyR'], shout: ['KeyQ'],
   camLeft: ['KeyZ'], camRight: ['KeyX'], talk: ['KeyV'], chat: ['Enter', 'KeyT'], pause: ['Escape'],
   hot1: ['Digit1'], hot2: ['Digit2'], hot3: ['Digit3'], hot4: ['Digit4'], hot5: ['Digit5'],
@@ -27,6 +29,7 @@ export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   hold: [], primary: [],
   toolDraw: ['Backquote', 'KeyY'],
   scan: ['KeyQ', 'KeyN'], command: ['KeyK'],
+  roll: ['KeyC'],
 };
 
 /** combined movement input: unit direction (x right, y forward) plus strength 0..1 */

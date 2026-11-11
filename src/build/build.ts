@@ -43,6 +43,7 @@ const FRAME_FOR = (pc: Piece, rot: number) => {
   const w = pc.w ?? 1, d = pc.d ?? 1;
   if (w === 1 && d === 1) return 'bld_frame';
   const rw = rot % 2 === 0 ? w : d, rd = rot % 2 === 0 ? d : w;
+  if (rw >= 2 && rd >= 2) return rw >= rd ? 'bld_frame_3x2' : 'bld_frame_2x3';
   return rw > rd ? 'bld_frame_2x1' : 'bld_frame_1x2';
 };
 interface Spot { x: number; y: number; side: 0 | 1; rot: 0 | 1 | 2 | 3; ok: boolean; why: string }

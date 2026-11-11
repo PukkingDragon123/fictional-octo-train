@@ -880,7 +880,7 @@ function generateTunnels(z: Zone, seed: number) {
     ambient: 0x1a201a, ambientI: 0.44, fog: 0x0b0e0b, fogNear: 7, fogFar: 23, void: 0x040504, temp: 14,
     grade: 'tunnels', reverb: 'tunnel', ambience: 'tunnels', music: 'drone',
   };
-  z.spawnTable = [['underlay', 2], ['ventling', 2], ['drywall_man', 1], ['grinhound', 1.5], ['occupant', 0.6]];
+  z.spawnTable = [['driller', 1.8], ['whip_rat', 1.5], ['hum_possum', 1]];
   z.creatureCap = 8;
   z.meta.shiftRate = 1.1;
   void TF; void wallId; void freeTile;

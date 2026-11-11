@@ -13,6 +13,7 @@ import { generateZone, zoneSpec } from '../world/worldGraph';
 import { moveCircle } from '../world/collision';
 import { floorDef } from '../world/defs';
 import { Player } from '../entities/player';
+import { motionOf } from '../entities/motion';
 import { Clock } from './clock';
 import { setGame } from './G';
 import { itemDef } from '../items/item';
@@ -351,9 +352,13 @@ export class Game {
     const mods = p.body.mods(p.heavyLoad());
     const cur = p.actions.current;
     const locked = (cur && cur.started && cur.locks) || p.body.downed || this.transitioning || p.sleeping || p.carriedBy || p.inVehicle;
+    // the body in motion (src/entities/motion.ts): roll (C), hold the sneak key to go prone; rolling / stumbling / on the floor steer nothing
+    const M = motionOf(p);
+    M.input(p, inp, !!locked || !!this.ui?.blocksMovement?.());
+    const mlock = M.locked;
     // camera-relative movement (keys, or the analog on-screen stick)
     let ix = 0, iy = 0, mag = 0, analog = false;
-    if (!locked && !this.ui?.blocksMovement?.()) {
+    if (!locked && !mlock && !this.ui?.blocksMovement?.()) {
       const mv = inp.moveAxis();
       ix = mv.x; iy = mv.y; mag = mv.mag; analog = mv.analog;
     }
@@ -365,26 +370,23 @@ export class Game {
     if (ml > 0) { mx /= ml; mz /= ml; }
     const moving = ml > 0;
     if (moving && cur && !cur.canMove) p.actions.clear();
-    if (!locked && inp.hit('sneak')) p.sneaking = !p.sneaking;
+    if (!locked && !mlock && inp.hit('sneak')) p.sneaking = !p.sneaking;
     const f = z.floorAt(p.tileX(), p.tileY());
     const deep = f?.water === 'deep';
-    // no legs to stand on (limb loss, src/survival/limbs.ts): crawl
-    p.stance = p.body.downed || mods.crawl ? 'crawl' : deep ? 'swim' : p.sneaking ? 'sneak' : 'stand';
+    // no legs to stand on (limb loss, src/survival/limbs.ts), legs too hurt to carry it, or chose to go flat: crawl
+    p.stance = p.body.downed || mods.crawl ? 'crawl' : deep ? 'swim' : M.crawling(p, mods.limp) ? 'crawl' : p.sneaking ? 'sneak' : 'stand';
     // run: Shift, the touch run latch, or the stick pushed to its rim; a latched run also speeds up tap-to-walk
     const autoWalk = !!(cur && cur.started && cur.name === 'Walk');
     const wantRun = inp.down('run') || inp.runLatch || (analog && mag >= 0.92);
-    p.running = (moving || (autoWalk && inp.runLatch)) && wantRun && mods.canRun && p.stance === 'stand' && !p.aiming;
-    let speed = p.running ? 4.15 : p.stance === 'sneak' ? 1.15 : p.stance === 'swim' ? 1.05 * (p.body.perks.has('swimmer') ? 1.5 : 1) : p.stance === 'crawl' ? 0.35 : 2.0;
-    speed *= mods.move * (f?.slow ?? 1) * (p.packSlow?.() ?? 1);
+    p.running = (moving || (autoWalk && inp.runLatch)) && wantRun && mods.canRun && p.stance === 'stand' && !p.aiming && M.canRun(p);
+    let speed = p.running ? 4.15 : p.stance === 'sneak' ? 1.15 : p.stance === 'swim' ? 1.05 * (p.body.perks.has('swimmer') ? 1.5 : 1) : p.stance === 'crawl' ? M.crawlSpeed(p, mods.limp) : 2.0;
+    speed *= mods.move * (f?.slow ?? 1) * (p.packSlow?.() ?? 1) * M.speedMul(p);
     // a small stick deflection creeps
     if (analog && !p.running) speed *= 0.4 + 0.6 * clamp((mag - 0.15) / 0.65, 0, 1);
     if (p.aiming) speed *= 0.55;
     const tvx = mx * speed, tvz = mz * speed;
-    p.vx = damp(p.vx, tvx, 14, dt); p.vz = damp(p.vz, tvz, 14, dt);
-    if (Math.hypot(p.vx, p.vz) > 0.01) {
-      moveCircle(z, p, p.vx * dt, p.vz * dt, { ignoreLow: false });
-    }
-    p.speed = Math.hypot(p.vx, p.vz);
+    // momentum, turning arcs, trips, slams, knockback (src/entities/motion.ts)
+    M.integrate(z, p, tvx, tvz, dt);
     p.y = damp(p.y, z.heightAt(p.tileX(), p.tileY()) + (deep ? -0.9 : 0), 12, dt);
     // aim (right mouse held, or the on-screen attack button)
     const over = inp.pointerOverUI;
@@ -395,10 +397,11 @@ export class Game {
       const wp = this.pr.screenToWorld(inp.mouseX, inp.mouseY, 0.9);
       if (wp) { p.aimX = wp.x; p.aimZ = wp.z; }
     }
-    if (p.aiming) p.targetFacing = Math.atan2(p.aimZ - p.z, p.aimX - p.x);
-    else if (moving) p.targetFacing = Math.atan2(mz, mx);
+    if (mlock) p.targetFacing = M.dir;
+    else if (p.aiming) p.targetFacing = Math.atan2(p.aimZ - p.z, p.aimX - p.x);
+    else if (moving) p.targetFacing = M.faceDir(p, mx, mz);
     else if (cur?.face && cur.started) p.targetFacing = Math.atan2(cur.face.z - p.z, cur.face.x - p.x);
-    p.turn(dt, p.aiming ? 22 : 12);
+    p.turn(dt, p.aiming ? 22 : M.turnRate(p));
     // flashlight
     if (!locked && inp.hit('flashlight')) this.toggleFlashlight(p); // round 14: a light held in hand, else the suit lamp
     // exertion for body sim

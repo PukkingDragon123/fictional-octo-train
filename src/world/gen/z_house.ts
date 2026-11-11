@@ -220,7 +220,7 @@ export function generateHouse(z: Zone, seed: number) {
     ambient: 0x3c3226, ambientI: 0.5, fog: 0x1e160e, fogNear: 7, fogFar: 17, void: 0x0a0705, temp: 21,
     sky: false, grade: 'house', reverb: 'small', ambience: 'house', music: 'musicbox',
   };
-  z.spawnTable = [['plushkin', 2], ['lamplighter', 2], ['echo', 1], ['davenport', 1]];
+  z.spawnTable = [['plushkin', 2], ['lamplighter', 2], ['hum_possum', 0.8]];
   z.creatureCap = 5;
   z.meta.terminalLore = ['terminal', 'laptop_meridian'];
   return b;

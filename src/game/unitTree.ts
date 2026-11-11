@@ -1,7 +1,9 @@
-// THE CONTROL ROOM'S RESEARCH TREE (the main computer, src/ui/menus/research/tree.ts)
+// THE CONTROL ROOM'S RESEARCH TREE (the 3D lattice on the main computer, src/ui/menus/research/lattice.ts)
 // and THE UNIT'S FIT (the unit room, src/ui/menus/intake.ts). Research points
-// (src/game/research.ts) buy nodes; four branches, each a page of lanes whose
-// nodes chain left to right and lock until the node before them is owned:
+// (src/game/research.ts) buy nodes; a branch per category of src/game/treeData.ts
+// (recipes, building pieces, device upgrades registered there as data, or any
+// defNode() research node, appear on their branch by themselves), each a page of
+// lanes whose nodes chain left to right and lock until the node before is owned:
 //   design   UNIT DESIGNS: suit dyes and patterns, visors, helmets, masks and
 //            kit (the cosmetics catalogue, src/game/cosmetics.ts). Owning one
 //            unlocks profile 'cos:<key>', so the unit room can dress the unit in it.

@@ -26,6 +26,8 @@ export interface Piece {
   stats?: PieceStats;
   /** a station a worker (robot thrall) can be assigned to */
   station?: 'farm' | 'forge' | 'guard' | 'power' | 'kitchen' | 'store';
+  /** door pieces: the leaf hung in the wall (default 'door_metal') */
+  doorStyle?: string;
   desc: string;
 }
 
@@ -59,5 +61,7 @@ export const PIECES: Piece[] = [
 
 const BY = new Map(PIECES.map((p) => [p.key, p]));
 export const piece = (k: string) => BY.get(k);
+/** add a piece to the catalogue (src/game/economy/registry.ts adds the homestead pieces) */
+export function defPiece(p: Piece) { if (BY.has(p.key)) return BY.get(p.key)!; PIECES.push(p); BY.set(p.key, p); return p; }
 export const pieceForObj = (objKey: string) => PIECES.find((p) => p.obj === objKey);
 export const CAT_NAMES: Record<PieceCat, string> = { struct: 'STRUCTURE', machine: 'MACHINES', defense: 'DEFENCE', living: 'LIVING', farm: 'FARM' };

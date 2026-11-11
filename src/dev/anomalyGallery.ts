@@ -46,7 +46,7 @@ export function rigStats(key: string) {
 /**
  * In-game staging (?quick): spawn a creature next to the local survivor with
  * its brain switched off, in a given state, for screenshots in real lighting.
- *   const m = await import('/src/dev/anomalyGallery.ts'); m.stage('swivel', -1.2, -0.6, 'disguised')
+ *   const m = await import('/src/dev/anomalyGallery.ts'); m.stage('still_life', -1.2, -0.6, 'disguised')
  */
 export async function stage(key: string, dx: number, dz: number, state = 'idle', o: { facing?: number; speed?: number; attack?: number; zoom?: number; mem?: Record<string, any>; hp?: number } = {}) {
   const { G } = await import('../game/G');

@@ -122,7 +122,7 @@ function generateStairwell(z: Zone, seed: number) {
     ambient: 0x2a2e33, ambientI: 0.55, fog: 0x0d0f11, fogNear: 9, fogFar: 25, void: 0x020203, temp: 15,
     grade: 'stairwell', reverb: 'stair', ambience: 'stairwell', music: '',
   };
-  z.spawnTable = [['echo', 2], ['hollow', 1.5], ['employee', 1], ['occupant', 0.3]];
+  z.spawnTable = [['hollow', 1.5], ['driller', 0.9], ['hum_possum', 0.8]];
   z.creatureCap = 5;
   z.meta.terminalLore = ['terminal'];
   z.meta.landings = LABELS.map((l, m) => ({ label: l, y: y0Of(m) }));

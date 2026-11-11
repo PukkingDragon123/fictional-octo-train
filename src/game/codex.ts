@@ -59,7 +59,7 @@ export { WORLD_ANOMALIES, type WorldAnomaly };
 /** the world anomaly behind a codex key ('anom:ledge'), or null for the six item anomalies */
 export function worldAnomalyOf(codexKey: string): WorldAnomaly | null { return WORLD_ANOMALIES.find((a) => 'anom:' + a.key === codexKey) ?? null; }
 const TEMP_TOOL: Record<string, ToolKey> = { peaceful: 'inhaler', skittish: 'lure', curious: 'pinger', neutral: 'kit2', territorial: 'foam', hostile: 'dart', stalker: 'pinger', ambush: 'foam', hazard: 'filter' };
-const TOOL_OVERRIDE: Record<string, ToolKey> = { hush: 'inhaler', echo: 'pinger', lumenmoth: 'lure', ventling: 'filter', surveyor: 'kit2', grinhound: 'dart', cowerling: 'kit2', stammer: 'dart', still_life: 'foam' };
+const TOOL_OVERRIDE: Record<string, ToolKey> = { lumenmoth: 'lure', still_life: 'foam', driller: 'dart', hum_possum: 'lure', hermit: 'kit2' };
 
 let cache: Entry[] | null = null; let cacheN = -1;
 export function entries(): Entry[] {

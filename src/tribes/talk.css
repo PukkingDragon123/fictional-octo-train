@@ -1,0 +1,65 @@
+/* Conversations (src/tribes/talk.ts): a name plate and up to four square, chamfered
+   replies in the bottom cinema bar. Pixel-hard edges (chamfers by clip-path, 2px
+   frames, a 4px dither), Alagard at its native 16px, no rounded corners, no panel. */
+.hm-talk {
+  position: fixed; left: 50%; bottom: max(14px, 2.6vh); transform: translateX(-50%);
+  z-index: 64; width: min(1000px, calc(100vw - 32px)); pointer-events: none;
+  opacity: 0; transition: opacity .3s ease-out; font-family: var(--font-new);
+  --cut: polygon(var(--ch) 0, calc(100% - var(--ch)) 0, 100% var(--ch), 100% calc(100% - var(--ch)), calc(100% - var(--ch)) 100%, var(--ch) 100%, 0 calc(100% - var(--ch)), 0 var(--ch));
+}
+.hm-talk.on { opacity: 1; }
+.hm-who {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 8px 2px;
+  font-size: 16px; line-height: 16px; color: #efe4c8; text-shadow: var(--ink1, 1px 1px 0 #07060a, -1px 0 0 #07060a, 0 -1px 0 #07060a);
+}
+.hm-name { color: var(--tc, #ffd768); letter-spacing: 1px; text-transform: uppercase; }
+.hm-role { color: #b9ad90; }
+.hm-mood { text-transform: uppercase; letter-spacing: 1px; }
+.hm-mood i { display: inline-block; width: 8px; height: 8px; margin: 0 6px 1px 0; vertical-align: middle; background: currentColor; clip-path: polygon(2px 0, 6px 0, 8px 2px, 8px 6px, 6px 8px, 2px 8px, 0 6px, 0 2px); box-shadow: 0 0 6px currentColor; }
+.hm-mood.m-warm { color: #9fd36a; } .hm-mood.m-easy { color: #cfe08a; } .hm-mood.m-wary { color: #e8c25a; } .hm-mood.m-cold { color: #e08a5a; } .hm-mood.m-hostile { color: #ff5a48; }
+.hm-loy { display: inline-block; width: 52px; height: 6px; background: linear-gradient(90deg, #9fd36a var(--l), #2a2620 var(--l)); box-shadow: 0 0 0 1px #07060a, 0 0 0 2px #5a4c34; }
+
+.hm-opts { display: flex; flex-wrap: wrap; gap: 6px; align-items: stretch; }
+.hm-opt {
+  --ch: 7px; flex: 1 1 190px; display: block; border: 0; margin: 0; padding: 2px; cursor: pointer;
+  pointer-events: none; background: #7a6644; clip-path: var(--cut);
+  opacity: 0; transform: translateY(5px);
+  transition: opacity .2s ease-out var(--d, 0ms), transform .2s ease-out var(--d, 0ms), background .08s;
+  font: inherit; color: inherit; -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+}
+.hm-opts.vis .hm-opt { opacity: 1; transform: none; pointer-events: auto; }
+.hm-in {
+  --ch: 6px; display: flex; align-items: center; gap: 10px; height: 100%; min-height: 38px; box-sizing: border-box;
+  padding: 6px 12px 6px 6px; clip-path: var(--cut);
+  background:
+    repeating-conic-gradient(rgba(255, 236, 190, .035) 0 25%, transparent 0 50%) 0 0 / 4px 4px,
+    linear-gradient(180deg, #2a241c 0, #1c1813 55%, #141210 100%);
+  box-shadow: inset 0 2px 0 rgba(255, 236, 190, .09), inset 0 -2px 0 rgba(0, 0, 0, .5), inset 2px 0 0 rgba(255, 236, 190, .04);
+}
+.hm-k {
+  --ch: 4px; flex: 0 0 auto; min-width: 24px; height: 24px; padding: 0 5px; box-sizing: border-box;
+  display: grid; place-items: center; font-style: normal; font-size: 16px; line-height: 16px;
+  color: #ffd768; background: #3c3326; clip-path: var(--cut);
+  box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .45), inset 0 2px 0 rgba(255, 236, 190, .12);
+}
+.hm-t { display: block; text-align: left; font-size: 16px; line-height: 18px; color: #efe4c8; text-shadow: 1px 1px 0 #07060a; }
+.hm-t em { display: block; font-style: normal; color: #c98a5e; opacity: .9; }
+.hm-opt:hover, .hm-opt:focus-visible { background: #e2bd62; outline: none; }
+.hm-opt:hover .hm-k, .hm-opt:focus-visible .hm-k { background: #e2bd62; color: #17130d; }
+.hm-opt:hover .hm-t { color: #fff6dc; }
+.hm-opt:active .hm-in { transform: translateY(1px); }
+.hm-opt.no { background: #3e3629; }
+.hm-opt.no .hm-t { color: #8d8676; }
+.hm-opt.no .hm-k { color: #8d8676; }
+.hm-opt.hm-esc { --ch: 6px; flex: 0 0 auto; background: #4a3f30; }
+.hm-opt.hm-esc .hm-k { color: #d9cba2; }
+.hm-opt.hm-esc .hm-t { color: #b9ad90; }
+
+/* the subtitle strip climbs above the replies while a conversation is open */
+body.hm-talking .ft-subs { bottom: calc(max(14px, 2.6vh) + 96px); }
+@media (max-width: 700px) {
+  .hm-opt { flex-basis: calc(50% - 3px); }
+  .hm-opt.hm-esc { flex-basis: 100%; }
+  body.hm-talking .ft-subs { bottom: calc(max(14px, 2.6vh) + 190px); }
+}
+@media (prefers-reduced-motion: reduce) { .hm-opt { transition: none; transform: none; } }

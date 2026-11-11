@@ -2,7 +2,7 @@
 // dread layer). Use from the console in a ?quick game:
 //   const m = await import('/src/dev/monsterGallery.ts');
 //   await m.toZone('house'); await m.dinner();          // a Still Life dinner
-//   await m.spawnNear('stammer', 0, -6);                  // something at 6 m
+//   await m.spawnNear('driller', 0, -6);                  // something at 6 m
 //   m.lights(0.1)                                         // dim the zone (dark shots)
 import { G } from '../game/G';
 import { objDef } from '../world/objects';

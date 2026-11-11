@@ -1,48 +1,27 @@
 // Where the new things live. Zone generators own their spawn tables; this
-// only adds the monster pass's species to zones that do not already list them
+// only adds the inhabitant passes' species to zones that do not already list them
 // (a generator that names a species keeps its own weight), right after the
 // zone is generated, identically on every peer.
 import { bus } from '../core/events';
 import type { Zone } from '../world/zone';
 import './rules';
 
+/** species removed in the round-15 cull (old saves may still name them: they are skipped on load) */
+export const RETIRED = new Set(['grinhound', 'goodboy', 'stilt_doe', 'tallyman', 'lintel', 'drywall_man', 'employee', 'occupant', 'custodian', 'gloam', 'echo', 'cowerling', 'ventling', 'plenum', 'underlay', 'swivel', 'stammer', 'wrongbird', 'mirrorling', 'surveyor', 'tithe', 'davenport', 'hush', 'sentinel']);
+// Round 15 (the cull): the old monster pass and the rule-bound pass are gone (their species were
+// removed); the zone generators now list the new natives themselves (the Driller, the Hum Possum,
+// the Partition Hermit). These are the passes that are still added on top.
 const ADD: Record<string, [string, number][]> = {
-  lobby: [['stammer', 1], ['plenum', 1.2], ['gloam', 0.9], ['surveyor', 0.7], ['still_life', 0.6]],
-  house: [['still_life', 3], ['gloam', 0.6], ['stammer', 0.4]],
-  suburbs: [['still_life', 1.2], ['gloam', 1], ['stammer', 0.8], ['surveyor', 0.4]],
-  school: [['plenum', 1.4], ['still_life', 0.8], ['stammer', 0.6]],
-  office: [['plenum', 1.6], ['stammer', 1], ['still_life', 0.5], ['surveyor', 0.4]],
-  hospital: [['plenum', 1.2], ['stammer', 1.2], ['still_life', 0.8], ['gloam', 0.6]],
-  stairwell: [['stammer', 1.4], ['gloam', 1.2]],
-  parking: [['gloam', 1.4], ['stammer', 1], ['surveyor', 0.6]],
-  tunnels: [['surveyor', 1.6], ['gloam', 1.6], ['plenum', 0.6]],
-  pools: [['surveyor', 0.8], ['stammer', 0.5]],
-  fields: [['surveyor', 0.6], ['stammer', 0.4]],
-  mall: [['plenum', 0.9], ['still_life', 0.6], ['gloam', 0.6]],
-  market: [['plenum', 0.9], ['gloam', 0.6]],
-  lab: [['surveyor', 1.4], ['plenum', 0.9], ['still_life', 0.5]],
-  corrupt: [['stammer', 1.5], ['still_life', 1], ['gloam', 1], ['plenum', 0.8]],
-  server: [['stammer', 0.6], ['hush', 0.8]],
+  lobby: [['still_life', 0.6]],
+  house: [['still_life', 3]],
+  suburbs: [['still_life', 1.2]],
+  school: [['still_life', 0.8]],
+  office: [['still_life', 0.5]],
+  hospital: [['still_life', 0.8], ['mulcher', 0.4]],
+  mall: [['still_life', 0.6]],
+  lab: [['still_life', 0.5]],
+  corrupt: [['still_life', 1]],
 };
-// the rule-bound pass (tallyman, mirrorling, lintel, tithe, hush) and the timid cowerlings
-const RULES: Record<string, [string, number][]> = {
-  lobby: [['tallyman', 0.4], ['mirrorling', 0.35], ['tithe', 0.5], ['cowerling', 1.2]],
-  house: [['mirrorling', 0.8], ['lintel', 1], ['cowerling', 1]],
-  suburbs: [['mirrorling', 0.5], ['cowerling', 1.2]],
-  school: [['tallyman', 0.8], ['lintel', 0.8], ['cowerling', 0.8]],
-  office: [['tallyman', 1], ['lintel', 0.6], ['tithe', 0.6]],
-  hospital: [['tallyman', 0.7], ['mirrorling', 0.7], ['lintel', 0.7]],
-  stairwell: [['hush', 1]],
-  parking: [['tithe', 0.6], ['cowerling', 1]],
-  tunnels: [['hush', 1.4], ['cowerling', 0.8]],
-  pools: [['hush', 0.8]],
-  fields: [['cowerling', 1.2]],
-  mall: [['tithe', 1], ['mirrorling', 0.6], ['tallyman', 0.5]],
-  market: [['tithe', 1.2]],
-  lab: [['lintel', 0.6], ['hush', 0.7]],
-  corrupt: [['hush', 1], ['mirrorling', 0.6], ['tallyman', 0.6]],
-};
-for (const k in RULES) ADD[k] = (ADD[k] || []).concat(RULES[k]);
 // the inhabitants pass (src/creatures/lore.ts): Mulchers in anything furnished, Stilt Gulls
 // where the rooms are big and open, the Seated where people sat and asked, the King deepest down
 const INHABIT: Record<string, [string, number][]> = {
@@ -109,6 +88,8 @@ const DIMS: [RegExp, [string, number][]][] = [
 
 bus.on('zoneGenerated', (z: Zone) => {
   if (!Array.isArray(z.spawnTable)) return;
+  // species retired in the round-15 cull never come back through an old table (or an old save's zone)
+  for (let i = z.spawnTable.length - 1; i >= 0; i--) if (RETIRED.has(z.spawnTable[i][0])) z.spawnTable.splice(i, 1);
   // the Ledge (however its generator names it) always gets its natives, even from an empty table
   if (/ledge/i.test(z.key + ' ' + (z.name || '') + ' ' + ((z.meta as any)?.dimension ?? ''))) {
     for (const [k, w] of LEDGE) if (!z.spawnTable.some(([s]) => s === k)) z.spawnTable.push([k, w]);

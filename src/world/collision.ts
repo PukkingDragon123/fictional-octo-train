@@ -8,6 +8,7 @@ export interface MoveOpts {
   ignoreLow?: boolean;     // vaulting
   ghost?: boolean;         // passes walls (wall-hiders)
   height?: number;         // tall creatures collide with low ceilings? (unused)
+  under?: boolean;         // flat on the floor (crawling, rolling): passes under tables
 }
 
 const segs: number[] = [];
@@ -50,7 +51,8 @@ export function tileSolid(z: Zone, x: number, y: number, o: MoveOpts): boolean {
   const i = z.idx(x, y);
   if (!z.floor[i]) return true;
   const s = z.solid[i];
-  if (s === 1 || s === 3) return true;
+  if (s === 1) return true;
+  if (s === 3) return !o.under;
   if (s === 2 && !o.ignoreLow) return true;
   return false;
 }

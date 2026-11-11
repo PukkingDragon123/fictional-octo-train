@@ -35,14 +35,15 @@ Take the tag off my chest. They pay for those.
 At least someone gets something out of this.`,
 });
 defLore({
-  id: 'rm_note_map', title: 'A map drawn on graph paper, bloodied', codex: ['grinhound'],
+  id: 'rm_note_map', title: 'A map drawn on graph paper, bloodied', codex: ['driller'],
   text: `[a sketch of corridors, most of them crossed out]
 
 X = where it waits
 X = where it waited YESTERDAY
 X = (scribbled over)
 
-it is not the same corridors. it is the same smile.`,
+it is not the same corridors. it is the same holes in the floor.
+keep to the tiles. it cannot hear you on the tiles.`,
 });
 defLore({
   id: 'rm_note_hum', title: 'A page torn from a field log',

@@ -15,6 +15,7 @@ import type { Player } from '../entities/player';
 import type { Zone, TileObject } from '../world/zone';
 import type { MenuOption } from '../ui/ui';
 import { bump } from './progress';
+import { hasUnlock } from '../game/research';
 
 export const isPlanter = (o: TileObject) => o.key === 'farm_planter' || !!objDef(o.key)?.tags?.includes('bplanter');
 const isHydro = (o: TileObject) => o.key === 'bld_hydro';
@@ -43,7 +44,7 @@ export class Farm {
     const st = Math.floor(s.stage ?? 0);
     const what = s.dead ? 'withered' : st >= 5 ? 'rotting' : st >= 4 ? 'READY' : ['seeded', 'sprouting', 'growing', 'flowering'][st];
     const l = this.light(z, o);
-    return `${c?.name ?? 'Crop'}: ${what} · water ${Math.round(s.water ?? 0)}%${l < 0.5 ? ' · too dark' : ''}`;
+    return `${c?.name ?? 'Crop'}: ${what} · water ${Math.round(s.water ?? 0)}%${c?.dark ? (l > 0.7 ? ' · too bright' : '') : l < 0.5 ? ' · too dark' : ''}`;
   }
 
   /** the one obvious thing to do with a planter (E / tap) */
@@ -124,7 +125,7 @@ export class Farm {
       if (!c || Math.floor(o.state.stage ?? 0) < 4 || o.state.dead) return;
       const skill = p.body.skill('farming');
       const mul = (isHydro(o) ? 1.5 : 1) * (1 + skill * 0.08);
-      const n = Math.max(1, Math.round((c.yield[0] + Math.random() * (c.yield[1] - c.yield[0])) * mul));
+      const n = Math.max(1, Math.round((c.yield[0] + Math.random() * (c.yield[1] - c.yield[0])) * mul)) + (hasUnlock('hb_compost') ? 1 : 0);
       if (hasItemDef(c.item)) for (let i = 0; i < n; i++) p.inv.add(createItem(c.item));
       G.audio?.at?.('rummage', o.x + 0.5, o.y + 0.5, 0.7);
       // a few seeds come back
@@ -174,7 +175,9 @@ export class Farm {
         let growth = o.state.growth ?? 0;
         const light = this.light(z, o);
         const powered = !hydro || !!G.items?.generatorPowers?.(z, o.x, o.y) || z.circuitPowered?.(z.roomAt(o.x, o.y).circuit);
-        if (water > 5) growth += h / (c.days * 24) * 4 * light * (hydro ? (powered ? 1.6 : 0.8) : 1) * (o.state.worker ? 1.2 : 1);
+        // fungi grow best in the dark: light slows them
+        const lk = c.dark ? Math.max(0.25, 1.1 - light * 0.8) : light;
+        if (water > 5) growth += h / (c.days * 24) * 4 * lk * (c.dark && hasUnlock('hb_mycology') ? 1.5 : 1) * (hydro ? (powered ? 1.6 : 0.8) : 1) * (o.state.worker ? 1.2 : 1);
         const dry = water <= 0 ? (o.state.dry ?? 0) + h : 0;
         const stage = Math.min(5, Math.floor(growth));
         const patch: Record<string, any> = { water, growth, dry };
@@ -191,7 +194,7 @@ let seedIndex: Map<string, string> | null = null;
 function findSeedFor(crop: string): string | null {
   if (!seedIndex) {
     seedIndex = new Map();
-    for (const k of ['seeds_potato', 'seeds_carrot', 'seeds_tomato', 'seeds_cabbage', 'seeds_strawberry', 'seeds_lettuce', 'seeds_dreamlily']) if (hasItemDef(k)) { const s = itemDef(k).seed; if (s) seedIndex.set(s, k); }
+    for (const k of ['seeds_potato', 'seeds_carrot', 'seeds_tomato', 'seeds_cabbage', 'seeds_strawberry', 'seeds_lettuce', 'seeds_dreamlily', 'seeds_lamp_moss', 'seeds_thistle', 'seeds_vent_tuber', 'spawn_ear', 'spawn_morel', 'spawn_humcap', 'spawn_puffball']) if (hasItemDef(k)) { const s = itemDef(k).seed; if (s) seedIndex.set(s, k); }
   }
   return seedIndex.get(crop) ?? null;
 }

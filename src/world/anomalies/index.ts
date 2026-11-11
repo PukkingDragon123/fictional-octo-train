@@ -79,7 +79,7 @@ export class AnomalySystem {
     const a = worldAnomaly(key); if (!a) return;
     const first = !entryKnown('anom:' + key);
     discover('anom:' + key);
-    if (first && !quiet) bus.emit('subtitle', { who: 'WATCH // ' + a.code, text: `${a.name} logged. ${a.study}`, style: 'radio', dur: 6 });
+    if (first && !quiet) bus.emit('subtitle', { who: 'SCAN // ' + a.code, text: `${a.name} logged. ${a.study}`, style: 'radio', dur: 6 });
     void p;
   }
 
@@ -92,7 +92,7 @@ export class AnomalySystem {
     const n = this.scanN.get(key) ?? 0;
     this.scanN.set(key, n + 1);
     const text = n < 2 ? a.notes[n] : `Entry on file: ${a.cls}, threat ${a.threat}. ${a.behaviour} The rest is in the samples.`;
-    bus.emit('subtitle', { who: `WATCH // ${a.code}`, text, style: 'radio', dur: Math.min(12, 3 + text.length * 0.045) });
+    bus.emit('subtitle', { who: `SCAN // ${a.code}`, text, style: 'radio', dur: Math.min(12, 3 + text.length * 0.045) });
   }
 
   // ---------------------------------------------------------------- the fixture's menu: its verb, then the sample

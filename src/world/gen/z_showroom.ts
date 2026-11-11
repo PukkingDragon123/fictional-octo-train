@@ -201,7 +201,7 @@ export function generateShowroom(z: Zone, seed: number) {
     ambient: 0x3a3a38, ambientI: 0.6, fog: 0x1e1e1c, fogNear: 16, fogFar: 38, void: 0x0a0a09, temp: 19,
     grade: 'market', reverb: 'mall', ambience: 'market', music: 'muzak',
   };
-  z.spawnTable = [['still_life', 4], ['davenport', 1.5], ['hollow', 1], ['employee', 1.5], ['swivel', 1], ['plushkin', 0.6], ['plenum', 0.8], ['stammer', 0.6]];
+  z.spawnTable = [['still_life', 4], ['hollow', 1], ['plushkin', 0.6], ['hermit', 0.6]];
   z.creatureCap = 8;
   z.meta.terminalLore = ['zw_showroom_memo', 'zw_assembly', 'terminal_generic'];
 }

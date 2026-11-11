@@ -195,7 +195,7 @@ export function generateMarket(z: Zone, seed: number) {
     ambient: 0x343a3a, ambientI: 0.62, fog: 0x1e2424, fogNear: 14, fogFar: 34, void: 0x0a0c0c, temp: 17,
     grade: 'market', reverb: 'mall', ambience: 'market', music: 'muzak',
   };
-  z.spawnTable = [['swivel', 1], ['ventling', 2], ['hollow', 1], ['grinhound', 1]];
+  z.spawnTable = [['hollow', 1], ['hum_possum', 1.4], ['driller', 0.6], ['hermit', 0.5]];
   z.creatureCap = 6;
   z.meta.terminalLore = ['terminal_generic', 'terminal'];
   z.meta.shiftRate = 1;

@@ -189,6 +189,8 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
     if (st ? unknown(st) : !near.scanned) out.push({ id: 'scan', label: 'Scan', icon: 'scan', key: 'Q', run: () => { try { sc.begin?.(sc.creatureTarget(near)); } catch { /* no scanner */ } }, head: 'Scan', ...cr(near) });
   }
   if (near && touch && nd < 5) out.push({ id: 'strike', label: 'Strike', icon: 'strike', key: '', strike: true });
+  // ---- people (src/tribes): [E] Talk, [G] Pickpocket
+  try { for (const a of (g.tribes?.ctxActions?.(p) || []) as CtxAction[]) out.push(a); } catch (e) { console.warn('ctx tribes', e); }
   // ---- furniture
   const f = nearFurniture(p);
   if (f) {

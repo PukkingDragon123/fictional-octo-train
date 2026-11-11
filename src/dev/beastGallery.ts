@@ -1,7 +1,7 @@
 // Dev contact sheets for creature animation: several copies of one species,
 // each simulated to a later moment of the same gallery pose, laid out in a
 // row across the screen. Load an empty gallery, then in the page:
-//   await (await import('/src/dev/beastGallery.ts')).filmstrip(window.__gallery, 'grinhound', 6, 0.12)
+//   await (await import('/src/dev/beastGallery.ts')).filmstrip(window.__gallery, 'hum_possum', 6, 0.12)
 // with ?pose=<walk|gallop|stalk|warn|attack|idle|sleep|dead...> in the URL (species-specific).
 import * as THREE from 'three';
 import { species } from '../creatures/registry';

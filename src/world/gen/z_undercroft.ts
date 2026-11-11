@@ -137,7 +137,7 @@ export function generateUndercroft(z: Zone, seed: number) {
     ambient: 0x23272c, ambientI: 0.52, fog: 0x0b0c0e, fogNear: 10, fogFar: 26, void: 0x020203, temp: 9,
     grade: 'tunnels', reverb: 'void', ambience: 'tunnels', music: 'drone',
   };
-  z.spawnTable = [['still_life', 2], ['hollow', 1.5], ['occupant', 1], ['underlay', 1], ['echo', 1], ['grinhound', 0.5], ['gloam', 1.5], ['surveyor', 0.8]];
+  z.spawnTable = [['still_life', 2], ['hollow', 1.5], ['driller', 1.2]];
   z.creatureCap = 6;
   z.meta.terminalLore = ['zw_under_scratch'];
 }

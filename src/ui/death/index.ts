@@ -52,8 +52,8 @@ export function installDeath(g: Game, p: Player): DeathHooks {
     (window as any).__death = {
       tracker, tape,
       report: () => tracker.report(),
-      /** kill the survivor: by a creature key ('drywall_man'), 'press', 'band', 'thirst', 'bleed' ... */
-      kill(how = 'drywall_man') {
+      /** kill the survivor: by a creature key ('driller'), 'press', 'band', 'thirst', 'bleed' ... */
+      kill(how = 'driller') {
         const b: any = p.body;
         if (b.dead) return;
         if (how === 'thirst') b.thirst = 100; else if (how === 'hunger') b.hunger = 100; else if (how === 'cold') b.temp = 32; else if (how === 'bleed') b.blood = 10;

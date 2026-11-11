@@ -10,6 +10,7 @@ import type { ModelBuilder } from '../../gfx/modelBuilder';
 import { makeRamp, ph, bayer } from '../../gfx/pixel';
 import { rod } from './b_common';
 import { PIECES, piece } from '../../build/pieces';
+import { lookOf, plantRow } from '../../game/economy/plantModels';
 
 const T = ['build', 'buildable'];
 const SEAM = 0xffd890;
@@ -113,6 +114,9 @@ const frameDef = (key: string, w: number, d: number) => defObj({
 frameDef('bld_frame', 1, 1);
 frameDef('bld_frame_2x1', 2, 1);
 frameDef('bld_frame_1x2', 1, 2);
+// the big homestead pieces (the livestock pen, src/game/economy/registry.ts)
+frameDef('bld_frame_3x2', 3, 2);
+frameDef('bld_frame_2x3', 2, 3);
 defObj({
   key: 'bld_frame_wall', name: 'Wall Frame', w: 1, d: 1, height: 2.6, block: 'none', sound: 'metal', flammable: 0, hp: 60,
   tags: ['build', 'bld_frame'], desc: 'A wall frame tacked to the floor, waiting for plates.',
@@ -289,6 +293,9 @@ defObj({
 // ---------------------------------------------------------------- farm: state.crop, state.cc (crop colour), state.stage 0..5, state.dead
 function crops(mb: ModelBuilder, s: Record<string, any>, y: number, w: number, n: number) {
   if (!s.crop) return;
+  // the backrooms crops and fungi have their own shapes (src/game/economy/plantModels.ts)
+  const look = lookOf(s.crop as string);
+  if (look) { plantRow(mb, look, s, y, w, n); return; }
   const st = Math.floor(s.stage ?? 0), dead = !!s.dead || st >= 5;
   const leaf = dead ? 0x8a6a3a : st >= 4 ? 0x4a8a2a : 0x6ab04a;
   for (let i = 0; i < n; i++) {

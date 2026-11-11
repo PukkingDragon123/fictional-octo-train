@@ -211,7 +211,7 @@ export function generateParking(z: Zone, seed: number) {
     ambient: 0x2a2218, ambientI: 0.5, fog: 0x18120c, fogNear: 10, fogFar: 30, void: 0x0a0806, temp: 13,
     grade: 'parking', reverb: 'tunnel', ambience: 'parking', music: '',
   };
-  z.spawnTable = [['grinhound', 2], ['hollow', 1.5], ['sentinel', 1.5], ['occupant', 0.5]];
+  z.spawnTable = [['hollow', 1.5], ['driller', 1.2], ['hum_possum', 0.8]];
   z.creatureCap = 9;
   z.meta.terminalLore = ['terminal_generic'];
   z.meta.shiftRate = 0.8;

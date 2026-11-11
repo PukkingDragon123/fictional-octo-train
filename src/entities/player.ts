@@ -580,6 +580,7 @@ export class Player {
     I.cold = m.cold; I.aimPitch = 0; I.holdingLight = !!this.lightItem && this.flashlightOn && this.handR === this.lightItem;
     I.holding = !!this.handR || !!this.propKey; I.heldL = !!this.handL && this.handL !== this.handR; I.lookYaw = 0;
     I.weapon = w ? w.kind : this.handR ? 'tool' : 'unarmed'; I.limpSide = limpSide; I.armHurtL = armL; I.armHurtR = armR;
+    I.lean = local ? this.motionLean ?? 0 : 0;
     I.exhausted = local ? Math.max(0, 1 - this.body.endurance / 0.3) : 0; I.drunk = m.drunk; I.hot = local && this.body.temp > 37.6 ? Math.min(1, (this.body.temp - 37.4) / 1.5) : 0;
     I.turn = dt > 0 ? wrapAngle(yaw - prevF) / dt : 0; I.hasWatch = !!this.rig.outfit.wrist && !(LS && LS.arm.l >= 2);
     I.unconscious = this.body.dead || (this.body.downed && this.body.downedTime > 30);

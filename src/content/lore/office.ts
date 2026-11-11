@@ -91,5 +91,4 @@ DO NOT LOOK AWAY.
 The Employee is part of the building. The Employee only moves when it is not being observed. Back away while facing it. Do not blink unnecessarily.
 
 THINK SAFE. WORK SAFE. STAY SEEN.`,
-  codex: ['employee'],
 });

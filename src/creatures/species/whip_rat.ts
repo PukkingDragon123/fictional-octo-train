@@ -758,7 +758,7 @@ function dragLocal(rig: Rig, c: Creature, n: Record<string, any>, t: number, dt:
 }
 
 // ------------------------------------------------------------------ host brain
-const PREY = new Set(['cowerling', 'ventling', 'paper_grazer', 'tallow_pigeon', 'mulcher', 'moon_calf', 'bubble_rabbit', 'goodboy']);
+const PREY = new Set(['hum_possum', 'paper_grazer', 'tallow_pigeon', 'mulcher', 'moon_calf', 'bubble_rabbit']);
 const DRAG_T = 2.8, FEED_T = 14, WHIP_RANGE = 2.5, GRAB_RANGE = 2.2;
 /** how far behind it the tail's hand holds what it drags */
 const DRAG_BACK = 2.15;

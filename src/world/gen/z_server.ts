@@ -261,7 +261,7 @@ function generateServer(z: Zone, seed: number) {
     ambient: 0x101a2c, ambientI: 0.5, fog: 0x050912, fogNear: 9, fogFar: 27, void: 0x020306, temp: 16,
     grade: 'server', reverb: 'server', ambience: 'server', music: '',
   };
-  z.spawnTable = [['custodian', 3], ['sentinel', 1]];
+  z.spawnTable = [['whip_rat', 1], ['driller', 0.8], ['hum_possum', 0.6]];
   z.creatureCap = 5;
   z.meta.terminalLore = ['terminal', 'core_console'];
   z.meta.shiftRate = 1.2;

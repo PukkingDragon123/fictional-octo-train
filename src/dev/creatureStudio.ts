@@ -2,7 +2,7 @@
 // game's own renderer (light grid, fog, outlines, grade), each driven by its
 // real animate() with a stand-in creature in a chosen state.
 //   open ?gallery=creatures&filter=__none__ then in the page:
-//   (await import('/src/dev/creatureStudio.ts')).creatureStudio({ keys: ['grinhound'], zoom: 90, states: ['idle'] })
+//   (await import('/src/dev/creatureStudio.ts')).creatureStudio({ keys: ['hum_possum'], zoom: 90, states: ['idle'] })
 // states: idle | wander | chase | attack | dead | hurt (per creature, cycled over keys if fewer)
 import * as THREE from 'three';
 import { PixelRenderer } from '../gfx/renderer';

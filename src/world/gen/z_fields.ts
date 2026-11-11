@@ -247,7 +247,7 @@ export function generateFields(z: Zone, seed: number) {
     sky: true, sun: 0xffe2b4, sunI: 1.25, skyColor: 0xaecfff, outdoorAmbient: 0xb8c8e0,
     grade: 'fields', reverb: 'dream', ambience: 'fields', music: 'musicbox', weather: 'none',
   };
-  z.spawnTable = [['stilt_doe', 4], ['wrongbird', 3], ['goodboy', 1], ['sentinel', 1], ['plushkin', 0.5], ['grinhound', 1]];
+  z.spawnTable = [['plushkin', 0.5], ['hum_possum', 1.2]];
   z.creatureCap = 8;
   z.meta.terminalLore = ['terminal_generic'];
   return b;

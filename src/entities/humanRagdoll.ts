@@ -416,6 +416,14 @@ export class Ragdoll {
 
   /** world position of a particle (e.g. for blood pools under the body) */
   pelvisWorld(out: THREE.Vector3) { return out.set(this.pos[0], this.pos[1], this.pos[2]); }
+  /** how the trunk lies (world): `up` pelvis -> chest, `belly` out of the front (belly.y < 0: face down) */
+  trunkWorld(up: THREE.Vector3, belly: THREE.Vector3) {
+    const p = this.pos;
+    up.set(p[3] - p[0], p[4] - p[1], p[5] - p[2]).normalize();
+    _a.set(p[39] - p[51], p[40] - p[52], p[41] - p[53]);   // hip L (13) - hip R (17): the body's left
+    belly.crossVectors(_a, up).normalize();
+    return up;
+  }
 }
 
 /** quaternion of a frame with x along `across` and y roughly along `up` */

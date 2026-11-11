@@ -564,7 +564,7 @@ function generateCorrupt(z: Zone, seed: number) {
     ambient: 0x2a2236, ambientI: 0.52, fog: 0x0a0710, fogNear: 10, fogFar: 32, void: 0x040306, temp: 12,
     grade: 'corrupt', reverb: 'void', ambience: 'corrupt', music: 'broken', collapseResist: 0,
   };
-  z.spawnTable = [['custodian', 2], ['hollow', 2], ['echo', 1.5], ['drywall_man', 1], ['grinhound', 1], ['occupant', 1]];
+  z.spawnTable = [['hollow', 2], ['driller', 1], ['hum_possum', 0.6]];
   z.creatureCap = 9;
   z.meta.shiftRate = 1.6;
   z.meta.terminalLore = ['corrupt_text', 'terminal'];

@@ -154,7 +154,6 @@ export class Struggles {
       c.si++; c.prog = 0; c.hits = 0; c.ring = 1.15;
       if (c.si >= c.stages.length) { this.finish(true); return; }
       hitstop(60); punch(0.05, 0.2); G.audio?.ui?.('cb_good', 0.8);
-      words.pop('Again', p.x, p.y + 2.7, p.z, 'ev', 0.6);
     }
     if (c.t >= c.dur) { this.finish(false); return; }
     this.draw(p, c, marks, words, rt);

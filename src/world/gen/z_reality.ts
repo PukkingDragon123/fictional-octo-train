@@ -207,7 +207,7 @@ function generateReality(z: Zone, seed: number) {
 
   // nobody else is here, and nothing lives here (yet)
   b.flag(0, 0, z.W - 1, z.H - 1, TF.NOSPAWN | TF.SAFE);
-  z.spawnTable = [['employee', 1]];
+  z.spawnTable = [['hollow', 1]];
   z.creatureCap = 0;
   z.env = {
     ...z.env,

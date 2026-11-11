@@ -610,7 +610,7 @@ export function generateHospital(z: Zone, seed: number) {
     ambient: 0x2a3432, ambientI: 0.5, fog: 0x101614, fogNear: 12, fogFar: 30, void: 0x080b0a, temp: 18,
     grade: 'hospital', reverb: 'office', ambience: 'hospital', music: 'drone',
   };
-  z.spawnTable = [['hollow', 3], ['echo', 1.5], ['employee', 1], ['ventling', 1], ['custodian', 1]];
+  z.spawnTable = [['hollow', 3], ['hermit', 0.8], ['hum_possum', 0.6]];
   z.creatureCap = 8;
   z.meta.terminalLore = ['terminal_generic'];
   z.meta.shiftRate = 1;

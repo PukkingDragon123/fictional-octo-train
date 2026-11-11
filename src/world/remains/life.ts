@@ -167,9 +167,9 @@ class Flies {
 /** what killed them, by zone: the wound the watch describes, the inhabitant it points to */
 const CAUSES: Record<string, { k: string; wound: string }[]> = {
   lobby: [
-    { k: 'grinhound', wound: 'Tooth marks in a wide arc, dozens of them, all at the same angle. It was run down from behind.' },
-    { k: 'underlay', wound: 'Both ankles crushed, the rest untouched at first. It was pulled down through the carpet and held.' },
-    { k: 'stammer', wound: 'No bites. The neck is broken in four places, very neatly, one after another.' },
+    { k: 'driller', wound: 'The legs are gone below the knee, sheared in a ring, and the carpet under it is torn open in a circle. It was eaten from underneath.' },
+    { k: 'strider', wound: 'Both shoulders dislocated, the feet clear of the floor in the bruising. It was lifted up to the ceiling tiles and dropped.' },
+    { k: 'whip_rat', wound: 'Welts in long stripes across the face and hands, and the eyes taken. Small teeth did the rest, in the dark.' },
   ],
   ledge: [
     { k: 'gummy_bear', wound: 'The skin is burned off in a sheet, sweet-smelling. Something swallowed it whole and gave up halfway.' },
@@ -177,9 +177,9 @@ const CAUSES: Record<string, { k: string; wound: string }[]> = {
     { k: '', wound: 'No wound. The suit has run like the carpet. It sat down in the heat and did not get up.' },
   ],
   tunnels: [
-    { k: 'gloam', wound: 'Puncture wounds on the neck and wrists, pairs of them, drained. In the dark, from above.' },
-    { k: 'surveyor', wound: 'A tether line is still knotted round one leg. It was walked somewhere and left.' },
-    { k: 'grinhound', wound: 'Torn open in a long run of bites. The trail leads back up the tunnel.' },
+    { k: 'driller', wound: 'Bitten through at the waist in one mouthful. A ragged hole in the concrete next to it, still warm, still trickling grit.' },
+    { k: 'whip_rat', wound: 'Torn open in a long run of small bites. The welts on the arms are in sets of three, from the whips.' },
+    { k: 'hum_possum', wound: 'An old death. The pockets are turned out and the soft parts picked at by something small and polite.' },
   ],
   undercroft: [
     { k: 'king_in_yellow', wound: 'There is not a mark on it. The eyes are open and the face is turned up at something.' },

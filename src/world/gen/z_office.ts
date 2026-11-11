@@ -808,7 +808,7 @@ function generateOffice(z: Zone, seed: number) {
     ambient: 0x2c3136, ambientI: 0.56, fog: 0x15191d, fogNear: 14, fogFar: 32, void: 0x0b0d10, temp: 20,
     grade: 'office', reverb: 'office', ambience: 'office', music: 'drone',
   };
-  z.spawnTable = [['employee', 3], ['swivel', 3], ['drywall_man', 1.5], ['ventling', 2], ['hollow', 1], ['custodian', 0.5]];
+  z.spawnTable = [['hollow', 1], ['hermit', 2], ['hum_possum', 1.2], ['driller', 0.5]];
   z.creatureCap = 9;
   z.meta.terminalLore = ['terminal_mail_1', 'terminal_mail_2', 'terminal_generic'];
   z.meta.shiftRate = 1.0;
