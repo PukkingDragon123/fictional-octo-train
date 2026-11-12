@@ -20,16 +20,12 @@ import { mixHex } from '../gfx/pixel';
 import './pxKit.css';
 import { sfx, type Sfx } from './menus/sfx';
 import { glyph5x7 } from './font5x7';
-import { paintSlate, installSlateVars, type SlateTone, type SlateOpts } from './slate';
+import { mxOk } from './machine/core';
+import { mxFrame, mxButton, mxToggle, mxGauge, panelSpec } from './machine/kit';
+import type { Tone } from './machine/paint';
 
-installSlateVars();
-const slateCache = new Map<string, HTMLCanvasElement>();
-function paintCached(aw: number, ah: number, o: SlateOpts) {
-  const k = `${aw}|${ah}|${o.st}|${o.tone}|${o.lamp}|${o.seed}`;
-  let cv = slateCache.get(k);
-  if (!cv) { cv = paintSlate(aw, ah, o); if (slateCache.size > 200) slateCache.delete(slateCache.keys().next().value as string); slateCache.set(k, cv); }
-  return cv;
-}
+/** round 16: the kit's plates and keys are 3D machine parts now (src/ui/machine); the 2D painters stay as the fallback */
+const mxTone = (t?: PxTone): Tone => (t === 'red' ? 'red' : t === 'brass' ? 'yellow' : 'olive');
 
 type C2 = CanvasRenderingContext2D;
 export type PxTone = 'steel' | 'olive' | 'red' | 'brass' | 'dark';
@@ -155,7 +151,19 @@ export function pxLamp(c: C2, x: number, y: number, on: boolean, ramp: number[] 
 }
 
 /** a plate behind an element, repainted on resize */
-export function pxFrame(el: HTMLElement, o: PlateOpts & { pad?: number; /** art pixel size in CSS px (2 = chunky 2x art) */ scale?: number } = {}) {
+export function pxFrame(el: HTMLElement, o: PlateOpts & { pad?: number } = {}) {
+  if (mxOk()) {
+    const well = o.well ?? 0;
+    const f = mxFrame(el, (w, h) => {
+      const s = panelSpec(w, h, { tone: mxTone(o.tone), seed: o.seed, hazard: !!o.hazard, title: well >= 14 ? o.serial : undefined, lamps: well >= 14 ? (o.lamps ?? []).map((l) => (l === 'r' ? 'red' : l === 'g' ? 'green' : 'amber')) : [], vents: !!o.vents && well >= 14, glands: o.gland ? 2 : 0, guards: well >= 12, ...(well > 0 ? { win: { l: well, t: well, r: well, b: well, cut: Math.max(3, (o.chamfer ?? 8) - 3), lip: 4 } } : {}) });
+      if (s.win) s.win.back = true;
+      // lit lamps from the 2D spec
+      (o.lamps ?? []).forEach((l, i) => { if (s.lamps?.[i]) s.lamps[i].on = !!l; });
+      if (o.welds && h > 60) s.welds = [[3, h * 0.35, 3, h * 0.65], [w - 3, h * 0.35, w - 3, h * 0.65]];
+      return s;
+    }, { pad: 10 });
+    return { repaint: () => f.repaint(), dispose: () => f.dispose() };
+  }
   el.classList.add('pxf');
   const cv = document.createElement('canvas');
   cv.className = 'pxf-cv';
@@ -166,14 +174,13 @@ export function pxFrame(el: HTMLElement, o: PlateOpts & { pad?: number; /** art 
     if (w < 8 || h < 8) return;
     if (w === lastW && h === lastH && cv.width) return;
     lastW = w; lastH = h;
-    const k = dprK(), sc = o.scale ?? 1;
+    const k = dprK();
     cv.width = (w + 2) * k; cv.height = (h + 2) * k;
     cv.style.width = w + 2 + 'px'; cv.style.height = h + 2 + 'px';
     const c = cv.getContext('2d')!;
-    c.imageSmoothingEnabled = false; c.setTransform(k * sc, 0, 0, k * sc, 0, 0);
+    c.imageSmoothingEnabled = false; c.setTransform(k, 0, 0, k, 0, 0);
     c.clearRect(0, 0, w + 2, h + 2);
-    if (sc > 1) pxPlate(c, 0, 0, Math.floor(w / sc), Math.floor(h / sc), o);
-    else pxPlate(c, 1, 1, w - 2, h - 2, o);
+    pxPlate(c, 1, 1, w - 2, h - 2, o);
   };
   let ro: ResizeObserver | null = null;
   try { ro = new ResizeObserver(() => repaint()); ro.observe(el); } catch { /* old browser */ }
@@ -185,26 +192,38 @@ export interface PxButton extends HTMLButtonElement { setOn(on: boolean): void }
 /** a menu plate with an Alagard label and a lamp */
 export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: number; h?: number; lamp?: 'amber' | 'green' | 'red'; cls?: string; sub?: string; sound?: Sfx } = {}): PxButton {
   const W = o.w ?? 236, H = o.h ?? 34;
+  if (mxOk()) {
+    // olive caps; the green-lamp key (the way forward) wears safety yellow, a red one oxblood
+    const tone: Tone = o.lamp === 'green' ? 'yellow' : o.tone === 'red' || o.lamp === 'red' ? 'red' : mxTone(o.tone);
+    return mxButton(label, fn, { w: W, h: H, tone, lamp: o.lamp ?? 'amber', cls: 'pxb' + (o.cls ? ' ' + o.cls : ''), sub: o.sub, sound: o.sound ?? 'plate' }) as unknown as PxButton;
+  }
   const b = document.createElement('button') as PxButton;
   b.type = 'button';
   b.className = 'pxb' + (o.cls ? ' ' + o.cls : '');
   b.style.width = W + 'px'; b.style.height = H + 'px';
-  // the classic slate key (src/ui/slate.ts) at 2x: one art pixel = two CSS pixels, nearest filtered
-  const aw = Math.round(W / 2), ah = Math.round(H / 2);
-  const cv = document.createElement('canvas');
-  cv.width = aw; cv.height = ah; cv.style.width = aw * 2 + 'px'; cv.style.height = ah * 2 + 'px';
+  const { cv, c } = crispCanvas(W, H);
   cv.className = 'pxb-cv';
-  const c = cv.getContext('2d')!;
   const t = document.createElement('span'); t.className = 'pxb-t'; t.textContent = label;
   b.append(cv, t);
   if (o.sub) { const s = document.createElement('small'); s.className = 'pxb-s'; s.textContent = o.sub; b.append(s); }
   let on = false, down = false;
-  const tone: SlateTone = o.tone === 'olive' ? 'olive' : o.tone === 'red' ? 'red' : o.tone === 'brass' ? 'brass' : 'slate';
-  const seed = label.length * 13 + label.charCodeAt(0);
+  const ramp = o.lamp === 'green' ? GRN : o.lamp === 'red' ? RED : AMB;
   const draw = () => {
     const hot = on || down || b.matches(':hover') || b.matches(':focus-visible') || document.activeElement === b;
-    c.clearRect(0, 0, aw, ah);
-    c.drawImage(paintCached(aw, ah, { st: down ? 2 : hot ? 1 : 0, tone, lamp: o.lamp ?? 'amber', seed }), 0, 0);
+    c.clearRect(0, 0, W, H);
+    const dy = down ? 1 : 0;
+    c.save(); c.translate(0, dy);
+    pxPlate(c, 1, 1, W - 4, H - 4, { tone: o.tone ?? 'steel', chamfer: 6, well: 0, screws: false, seed: label.length * 13, sunk: down });
+    // the recessed label channel
+    const lx = 26, ly = 5, lw = W - 4 - lx - 10, lh = H - 4 - 10;
+    rect(c, lx - 1, ly - 1, lw + 2, lh + 2, 0x050404);
+    rect(c, lx, ly, lw, lh, hot ? 0x1c140a : 0x0d0c0b);
+    rect(c, lx, ly, lw, 1, 0x000000, 0.6); rect(c, lx, ly + lh, lw, 1, GUN[7], 0.6);
+    if (hot) { for (let i = 0; i < lw; i += 2) rect(c, lx + i, ly + lh - 1, 1, 1, ramp[4], 0.55); }
+    // the lamp and two slot screws at the far end
+    pxLamp(c, 13, Math.floor((H - 4) / 2) + 1, hot, ramp, 4);
+    rivet(c, W - 9, 6, 1); rivet(c, W - 9, H - 9, 1);
+    c.restore();
     b.classList.toggle('hot', hot); b.classList.toggle('down', down);
   };
   b.addEventListener('pointerdown', () => { down = true; draw(); sfx(o.sound ?? 'plate', 0.55); });
@@ -242,6 +261,7 @@ installTactile();
 export interface PxToggle extends HTMLButtonElement { set(on: boolean): void; readonly on: boolean }
 /** a bat-handle toggle switch on a small screwed plate, with its label stencilled beside it */
 export function pxToggle(label: string, on0: boolean, onChange: (on: boolean) => void, o: { sub?: string } = {}): PxToggle {
+  if (mxOk()) return mxToggle(label, on0, onChange, o) as unknown as PxToggle;
   const b = document.createElement('button') as PxToggle;
   b.type = 'button'; b.className = 'px-toggle';
   const W = 30, H = 40;
@@ -430,6 +450,8 @@ export function pxCrestEl(s = 16) { return canvasEl(s, s, (c) => pxCrest(c, 0, 0
 export function pxPlacardEl(text: string, kind: 'warn' | 'danger' | 'info' = 'warn') { const w = text.length * 6 + 24, h = 15; return canvasEl(w, h, (c) => pxPlacard(c, 0, 0, w, h, kind, text), 'px-placard'); }
 /** an analog gauge element; returns it with set(v) */
 export function pxGaugeEl(s = 40, v = 0.3, label = '') {
+  const mg = mxOk() ? mxGauge(s, v, label) : null;
+  if (mg) { mg.classList.add('px-gauge'); return mg; }
   const { cv, c } = crispCanvas(s, s); cv.className = 'px-gauge';
   const g = cv as HTMLCanvasElement & { set(v: number): void };
   g.set = (q: number) => { c.clearRect(0, 0, s, s); pxGauge(c, 0, 0, s, q, { label }); };

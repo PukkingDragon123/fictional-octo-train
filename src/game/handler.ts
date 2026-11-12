@@ -647,7 +647,7 @@ export class Handler implements GameSystem {
         if (this.bootT > 2.5) {
           // dev: ?tutorial=1 stages the full tutorial on a quick start
           if (/[?&]tutorial=1/.test(location.search) && startTutorial()) { this.begin(); return; }
-          if (!m?.flags?.has?.('contract:first_deposit')) this.say('Unit {n}, Dr. Calder, on the band. Link is up. Pick up a piece of furniture, carry it to the press, feed it in. Scan what moves. The next step is always written top right.');
+          if (!m?.flags?.has?.('contract:first_deposit')) this.say('Hello again, operator. Dr. Calder, on the band. The link is up. Pick up a piece of furniture, carry it to the press, feed it in. Scan what moves. The next step is always written top right.');
           this.begin();
         }
       }

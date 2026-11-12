@@ -10,3 +10,6 @@
 .map15-head small { font-size: 14px; letter-spacing: .2em; text-transform: uppercase; color: rgba(255,207,106,.6); }
 .map15-cv { flex: 1; min-height: 0; width: 100%; image-rendering: pixelated; cursor: crosshair; }
 .map15-foot { padding: 0 6px 4px; font-size: 14px; letter-spacing: .1em; color: rgba(255,207,106,.55); text-shadow: 1px 1px 0 #050404; text-align: right; }
+/* round 16: the 3D plotter housing grows round the plot (src/ui/machine) */
+.map15-plot.mx { width: min(1040px, calc(92vw - 24px)); height: min(640px, calc(84vh - 50px)); padding: 16px 16px 8px; margin-top: 10px; }
+.map15-plot.mx .map15-cv { background: #070a06; }

@@ -112,12 +112,12 @@
 .dz-root .dz-key small, .dz-vo .dz-txt, .dz-vo .dz-who { text-shadow: var(--text-ink), var(--text-halo); }
 
 /* round 15b (UI kit): the report's keys are bakelite keycaps with a lamp, pressed in with a clunk */
-.dz-key { border: 6px solid transparent !important; border-image: var(--px-key) 6 fill / 6px !important; padding: 4px 16px 8px; font-size: 26px; line-height: 28px; }
+.dz-key { border: 6px solid transparent !important; border-image: var(--px-key) 5 fill / 6px !important; padding: 4px 16px 8px; font-size: 26px; line-height: 28px; }
 .dz-key.sel, .dz-key:hover, .dz-key:focus-visible { border-image-source: var(--px-key-hot) !important; }
 .dz-key:is(:active, .px-down) { border-image-source: var(--px-key-down) !important; transform: translateY(2px); }
 .dz-key small { margin-left: 0; }
 .dz-arrow { width: 10px; height: 10px; margin-right: 10px; vertical-align: 2px; visibility: visible; font-size: 0; background: #3a1c04; box-shadow: 0 0 0 1px #050404, 0 0 0 2px #566069; }
-.dz-key.sel .dz-arrow { background: #ffd06a; box-shadow: 0 0 0 1px #050404, 0 0 0 2px #8d98a1, 0 0 0 4px rgba(255,190,80,.24); }
+.dz-key.sel .dz-arrow { background: #ffd06a; box-shadow: 0 0 0 1px #050404, 0 0 0 2px #8d98a1, 0 0 8px 2px rgba(255,190,80,.55); }
 @media (max-width: 700px), (max-height: 480px) { .dz-key { font-size: 16px; line-height: 20px; } .dz-arrow { width: 8px; height: 8px; } }
 
 /* round 15c: the incident report is an Institute document: a classification line and a stamp */
@@ -127,3 +127,18 @@
 .dz-case.on::after { content: 'EYES ONLY'; position: absolute; inset: auto 16% 0 auto; background: none; padding: 2px 10px 1px; border: 3px double #e0403a; color: #e0403a; font: 700 18px/1.1 'Courier Prime', monospace; letter-spacing: .22em;
   transform: rotate(-8deg); opacity: .78; -webkit-mask-image: var(--px-wear); mask-image: var(--px-wear); -webkit-mask-size: 36px 36px; mask-size: 36px 36px; pointer-events: none; }
 
+/* round 16 (src/ui/machine): the end keys are 3D push keys on an olive console */
+.dz-keys.mx { left: 50%; right: auto; transform: translateX(-50%); padding: 40px 22px 20px; gap: 12px 14px; width: max-content; max-width: calc(100vw - 48px); box-sizing: border-box; }
+.dz-keys.mx.on { transform: translateX(-50%); animation: dz-mx-in .5s cubic-bezier(.3,.9,.4,1) both; }
+@keyframes dz-mx-in { 0% { transform: translate(-50%, 46px); } 55% { transform: translate(-50%, 0); } 70% { transform: translate(-50%, -3px); } 84% { transform: translate(-50%, 0); } 92% { transform: translate(-50%, -1px); } 100% { transform: translate(-50%, 0); } }
+.dz-key.mxk { min-height: 58px; padding: 6px 18px 8px calc(var(--mx-cx, 8px) + 10px); font-size: 26px; line-height: 28px; color: #f2d65a; text-shadow: 1px 1px 0 #14160c; transform: translate(var(--mx-dx, 0), var(--mx-dy, 0)); }
+.dz-key.mxk > .mxk-cv { transform: translate(calc(-1 * var(--mx-dx, 0px)), calc(-1 * var(--mx-dy, 0px))); }
+.dz-key.mxk.ink-d { color: #1a160a; text-shadow: 0 1px 0 rgba(255,236,160,.4); }
+.dz-key.mxk.ink-d small { color: #3a2e10; text-shadow: none; }
+.dz-key.mxk small { color: #c8d0a0; }
+.dz-key.mxk .dz-arrow { display: none; }
+.rs-root.mx .rs-key { border: 0; border-image: none; padding: 6px 16px 8px calc(var(--mx-cx, 8px) + 10px); min-height: 56px; color: #f2d65a; transform: translate(var(--mx-dx, 0), var(--mx-dy, 0)); }
+.rs-root.mx .rs-key > .mxk-cv { transform: translate(calc(-1 * var(--mx-dx, 0px)), calc(-1 * var(--mx-dy, 0px))); }
+.rs-root.mx .rs-key.ink-d { color: #1a160a; text-shadow: 0 1px 0 rgba(255,236,160,.4); }
+.rs-root.mx .rs-key.ink-d small { color: #3a2e10; text-shadow: none; }
+.rs-root.mx .rs-key .ar { display: none; }

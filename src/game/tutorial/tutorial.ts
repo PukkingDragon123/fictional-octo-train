@@ -264,8 +264,10 @@ export class Tutorial implements GameSystem {
     this.holo.appear();
     await this.sleep(1.0);
     this.holo.gesture('wave');
-    await this.say('There you are. Unit {n}, on its feet. And you, operator, somewhere behind its eyes.', { expr: 'smile' });
-    await this.say('Dr. Iris Calder. I am the light on your screen and the voice in its helmet. Meridian lets me keep you both alive. Within budget.');
+    // a proper hello first (her voice: public/voice/calder, src/audio/calderVoice.ts)
+    await this.say('Hello! I am Dr. Iris Calder, from the Meridian Institute. It is so good to finally meet you, operator.', { expr: 'smile' });
+    await this.say('That body on your screen is your unit. You are linked into it now, and I will be with you the whole way: the light on your screen, and the voice in its helmet.');
+    await this.say('My job is to keep you both alive. Within budget.', { expr: 'smile' });
     const a0 = await this.ask(['Where am I?', 'What did they do to it?', 'Get me out of here.']);
     if (a0 === 0) { await this.say('Level 0. The first room of a very long building nobody built.'); await this.say('You are not lost. You are exactly where the Institute put you. That is worse, but it is tidier.', { gesture: 'shrug' }); }
     else if (a0 === 1) { await this.say('Intake. It is unpleasant and it is quick, and it is over.', { gesture: 'think' }); await this.say('I patched it on the way down. The bruises are on its file, not on its body. You are welcome.'); }

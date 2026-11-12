@@ -34,7 +34,9 @@ const TAB_NAME: Record<Tab, string> = { active: 'ACTIVE', offers: 'OFFERS', done
 const D = 2.4;
 const hashStr = (t: string) => { let h = 7; for (let i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) | 0; return h; };
 // palette: Meridian projection light
-const ICE = '#cfeeff', ICE_D = '#7fb4d4', ICE_DD = '#3f6a86', AMB = '#ffd27a', AMB_D = '#c8933a', OK = '#9ef0b4', BAD = '#ff8f7a';
+// round 16: the board is a bank of machine monitors (olive housings, green phosphor, amber picks)
+const ICE = '#b8ffc8', ICE_D = '#6ad08a', ICE_DD = '#33704a', AMB = '#ffd27a', AMB_D = '#c8933a', OK = '#9ef0b4', BAD = '#ff8f7a';
+const GLASS_A = 'rgba(6,24,12,0.96)', GLASS_B = 'rgba(2,10,5,0.96)';
 
 // ---------------------------------------------------------------- her light
 const HU = {
@@ -243,7 +245,7 @@ export class QuestBroadcast {
       r.root.traverse((o) => { o.castShadow = false; o.receiveShadow = false; (o as THREE.Mesh).renderOrder = 20; o.frustumCulled = false; });
       this.root.add(r.root);
     } catch (e) { console.warn('broadcast: Calder', e); this.rig = null; }
-    this.list = new Plate(168, 176); this.detail = new Plate(184, 196); this.head = new Plate(320, 16, { scan: 0.15 }); this.cap = new Plate(220, 34);
+    this.list = new Plate(168, 176, { frame: 9, hood: 22, title: 'TASK BOARD', seed: 53 }); this.detail = new Plate(184, 196, { frame: 9, hood: 22, title: 'CASE FILE', seed: 57 }); this.head = new Plate(320, 16, { scan: 0.15, frame: 4, seed: 59 }); this.cap = new Plate(220, 34, { frame: 5, seed: 61 });
     for (const pl of [this.list, this.detail, this.head, this.cap]) this.root.add(pl.mesh);
     // dust in the beam
     const n = 26, pos = new Float32Array(n * 3);
@@ -317,9 +319,8 @@ export class QuestBroadcast {
     const P = this.list, W = P.w, H = P.h, Q = this.quests!;
     const hits: Hit[] = this.hitsL = [];
     P.clear();
-    P.grad(0, 0, W, H, 'rgba(14,40,60,0.72)', 'rgba(6,18,30,0.6)');
-    P.frame(0, 0, W, H, 'rgba(120,200,240,0.35)');
-    P.corners(1, 1, W - 2, H - 2, ICE, 7);
+    if (P.framed) P.grad(0, 0, W, H, GLASS_A, GLASS_B);
+    else { P.grad(0, 0, W, H, 'rgba(14,40,60,0.72)', 'rgba(6,18,30,0.6)'); P.frame(0, 0, W, H, 'rgba(110,230,140,0.35)'); P.corners(1, 1, W - 2, H - 2, ICE, 7); }
     // channel tabs
     let x = 6;
     TABS.forEach((t, i) => {
@@ -331,7 +332,7 @@ export class QuestBroadcast {
       hits.push({ kind: 'tab', i, x: x - 2, y: 2, w, h: 15 });
       x += w + 4;
     });
-    P.rect(4, 19, W - 8, 1, 'rgba(120,200,240,0.3)');
+    P.rect(4, 19, W - 8, 1, 'rgba(110,230,140,0.3)');
     // the rows
     const ROW = 15, top = 23, rows = Math.floor((H - top - 18) / ROW);
     const sel = this.sel[this.tab];
@@ -345,7 +346,7 @@ export class QuestBroadcast {
       const i = this.scroll + r, v = this.views[i]; if (!v) break;
       const y = top + r * ROW, on = i === sel, hov = i === this.hover;
       if (on) { P.rect(3, y - 1, W - 6, ROW - 1, 'rgba(255,196,96,0.2)'); P.rect(3, y - 1, 2, ROW - 1, AMB); }
-      else if (hov) P.rect(3, y - 1, W - 6, ROW - 1, 'rgba(120,200,240,0.12)');
+      else if (hov) P.rect(3, y - 1, W - 6, ROW - 1, 'rgba(110,230,140,0.12)');
       const mark = v.status === 'ready' ? '$' : v.status === 'done' ? '+' : v.def.main ? '>' : v.status === 'decl' ? 'x' : Q.fresh.has(v.key) ? '*' : '-';
       const mcol = v.status === 'ready' ? AMB : v.status === 'done' ? OK : v.status === 'decl' ? ICE_DD : Q.fresh.has(v.key) ? AMB : ICE_D;
       P.text(mark, 9, y + 2, mcol, 8);
@@ -357,9 +358,9 @@ export class QuestBroadcast {
     }
     if (this.views.length > rows) {
       const bh = Math.max(8, (rows / this.views.length) * (rows * ROW)), by = top + (this.scroll / this.views.length) * (rows * ROW);
-      P.rect(W - 3, top, 1, rows * ROW, 'rgba(120,200,240,0.2)'); P.rect(W - 3, by, 1, bh, ICE);
+      P.rect(W - 3, top, 1, rows * ROW, 'rgba(110,230,140,0.2)'); P.rect(W - 3, by, 1, bh, ICE);
     }
-    P.rect(4, H - 16, W - 8, 1, 'rgba(120,200,240,0.3)');
+    P.rect(4, H - 16, W - 8, 1, 'rgba(110,230,140,0.3)');
     P.text(isTouchMode() ? 'TAP A ROW  ·  TAP OUTSIDE TO CLOSE' : 'W S PICK  ·  A D CHANNEL  ·  J CLOSE', W / 2, H - 12, ICE_DD, 8, 'center');
     P.commit();
   }
@@ -368,9 +369,8 @@ export class QuestBroadcast {
     const P = this.detail, W = P.w, H = P.h, Q = this.quests!;
     const hits: Hit[] = this.hitsD = [];
     P.clear();
-    P.grad(0, 0, W, H, 'rgba(16,44,64,0.78)', 'rgba(6,18,30,0.66)');
-    P.frame(0, 0, W, H, 'rgba(120,200,240,0.4)');
-    P.corners(1, 1, W - 2, H - 2, AMB_D, 8);
+    if (P.framed) P.grad(0, 0, W, H, GLASS_A, GLASS_B);
+    else { P.grad(0, 0, W, H, 'rgba(16,44,64,0.78)', 'rgba(6,18,30,0.66)'); P.frame(0, 0, W, H, 'rgba(110,230,140,0.4)'); P.corners(1, 1, W - 2, H - 2, AMB_D, 8); }
     P.text('MERIDIAN INSTITUTE · CASE ' + 'MI/C-' + String(Math.abs(hashStr(this.cur()?.key ?? '')) % 10000).padStart(4, '0') + ' · CLEARANCE L2', W - 6, H - 9, ICE_DD, 6, 'right');
     const v = this.cur();
     if (!v) {
@@ -384,13 +384,13 @@ export class QuestBroadcast {
     const tl = P.wrap(v.title.toUpperCase(), W - 14, 16).slice(0, 2);
     tl.forEach((l, i) => P.text(l, 7, y + i * 15, AMB, 16)); y += tl.length * 15 + 3;
     y += P.para(v.desc, 7, y, W - 14, ICE, 8, 10, 4) * 10 + 4;
-    P.rect(6, y, W - 12, 1, 'rgba(120,200,240,0.3)'); y += 4;
+    P.rect(6, y, W - 12, 1, 'rgba(110,230,140,0.3)'); y += 4;
     for (const o of v.objectives) {
       if (y > H - 46) { P.text('…', 9, y, ICE_D, 8); y += 10; break; }
       const box = o.done ? '[x]' : '[ ]';
       P.text(box, 7, y, o.done ? OK : ICE_D, 8);
       const n = P.para(o.text, 25, y, W - 34, o.done ? OK : ICE, 8, 10, 2);
-      if (!o.done && o.prog > 0) { P.rect(25, y + n * 10, W - 34, 2, 'rgba(120,200,240,0.2)'); P.rect(25, y + n * 10, (W - 34) * o.prog, 2, AMB); y += 4; }
+      if (!o.done && o.prog > 0) { P.rect(25, y + n * 10, W - 34, 2, 'rgba(110,230,140,0.2)'); P.rect(25, y + n * 10, (W - 34) * o.prog, 2, AMB); y += 4; }
       y += n * 10 + 1;
     }
     // what it pays / costs
@@ -407,7 +407,7 @@ export class QuestBroadcast {
       const label = (touch ? '' : 'E  ') + act;
       const w = Math.min(W - 70, P.measure(label, 8) + 16);
       const dim = act === 'CANNOT PAY' || act === 'TRACKING';
-      P.rect(7, by, w, 15, dim ? 'rgba(120,200,240,0.12)' : 'rgba(255,190,90,0.28)');
+      P.rect(7, by, w, 15, dim ? 'rgba(110,230,140,0.12)' : 'rgba(255,190,90,0.28)');
       P.frame(7, by, w, 15, dim ? ICE_DD : AMB);
       P.text(label, 7 + w / 2, by + 4, dim ? ICE_D : AMB, 8, 'center');
       if (!dim) hits.push({ kind: 'act', i: 0, x: 7, y: by, w, h: 15 });
@@ -427,8 +427,8 @@ export class QuestBroadcast {
   private drawHead() {
     const P = this.head, W = P.w, H = P.h;
     P.clear();
-    P.grad(0, 0, W, H, 'rgba(10,30,46,0.7)', 'rgba(6,18,30,0.5)', false);
-    P.rect(0, H - 1, W, 1, 'rgba(120,200,240,0.45)');
+    P.grad(0, 0, W, H, P.framed ? GLASS_A : 'rgba(10,30,46,0.7)', P.framed ? GLASS_B : 'rgba(6,18,30,0.5)', false);
+    P.rect(0, H - 1, W, 1, 'rgba(110,230,140,0.45)');
     const live = Math.floor(this.t * 1.6) % 2 === 0;
     P.rect(6, 5, 6, 6, live ? '#ff5a4a' : '#5a2420');
     P.text('LIVE', 16, 4, live ? '#ff8a7a' : ICE_DD, 8);
@@ -448,7 +448,7 @@ export class QuestBroadcast {
   private drawCap() {
     const P = this.cap, W = P.w, H = P.h;
     P.clear();
-    P.grad(0, 0, W, H, 'rgba(8,24,38,0.82)', 'rgba(8,24,38,0.35)', false);
+    P.grad(0, 0, W, H, P.framed ? GLASS_A : 'rgba(8,24,38,0.82)', P.framed ? GLASS_B : 'rgba(8,24,38,0.35)', false);
     P.rect(0, 0, 2, H, AMB);
     P.text('DR. IRIS CALDER', 7, 3, AMB, 8);
     P.text('RESEARCH LEAD', 7 + P.measure('DR. IRIS CALDER  ', 8), 3, ICE_DD, 8);
@@ -545,7 +545,7 @@ export class QuestBroadcast {
     const hits = this.rc.intersectObjects(plates.map((q) => q[0].mesh), false);
     if (!hits.length || !hits[0].uv) return null;
     const P = plates.find((q) => q[0].mesh === hits[0].object)!;
-    const u = hits[0].uv.x * P[0].w, v = (1 - hits[0].uv.y) * P[0].h;
+    const { x: u, y: v } = P[0].uvToTexel(hits[0].uv.x, hits[0].uv.y);
     const h = P[2].find((q) => u >= q.x && u <= q.x + q.w && v >= q.y && v <= q.y + q.h) ?? null;
     return { plate: P[1], h };
   }

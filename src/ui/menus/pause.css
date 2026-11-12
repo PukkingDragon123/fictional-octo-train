@@ -43,5 +43,12 @@
 .ps2-bar.bot .px-log { flex: 1; min-width: 0; }
 .ps2-stamp { position: absolute; right: 8%; top: 22%; font-size: 26px; z-index: 5; }
 
+/* round 16: the column is a 3D control console (src/ui/machine) */
+.ps2-col.mx { padding: 40px 22px 18px; gap: 7px; }
+.ps2-col.mx .ps2-gap { height: 6px; }
+.ps2-foot { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding-left: 4px; }
+.ps2-foot-l { font-size: 15px; color: #e8c440; letter-spacing: .06em; text-shadow: 1px 1px 0 #14160c; }
+.ps2-foot-l small { display: block; font-size: 11px; color: rgba(232,220,170,.6); }
+@media (max-width: 720px), (orientation: portrait) { .ps2-col.mx { padding: 30px 14px 14px; } .ps2-foot { display: none; } }
 /* the world's prompts never float over the held picture */
 body:has(.ps2) .wp-tag { visibility: hidden; }

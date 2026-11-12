@@ -15,7 +15,13 @@
 // plate with CSS. Sprites are cached and repainted when the scale changes.
 import { PixelCanvas, mixHex, bayer } from '../../gfx/pixel';
 import { sfx, type Sfx } from './sfx';
+import { mxSkinKey } from '../machine/kit';
+import { mxOk } from '../machine/core';
+import type { Tone } from '../machine/paint';
 import './kit.css';
+
+/** round 16: plate keys are 3D push keys (src/ui/machine) when the machine renderer is up */
+const MX_TONE: Record<Finish, Tone> = { steel: 'olive', olive: 'olive', cream: 'cream', oxblood: 'red', brass: 'yellow', navy: 'dark' };
 
 export type Finish = 'steel' | 'olive' | 'cream' | 'oxblood' | 'brass' | 'navy';
 export type Shape = 'plate' | 'tag' | 'arrowL' | 'arrowR' | 'key' | 'notch';
@@ -145,10 +151,9 @@ function drawPlate(pc: PixelCanvas, ox: number, oy: number, p: PlateSpec, st: St
   const pw = p.W - 1, ph = p.H - 2;
   const inside = shapeFn(p.shape, pw, ph);
   const dn = st === 2 ? 1 : 0;
-  // drop shadow: one solid pixel step, then a checkered (dithered) one
+  // drop shadow (a hard pixel shadow, two rows deep)
   if (!opts.noShadow) for (let v = 0; v < ph; v++) for (let u = 0; u < pw; u++) if (inside(u, v)) {
-    if (!inside(u + 1, v + 1)) pc.blend(ox + u + 1, oy + v + 1, 0x000000, 0.62);
-    if (!dn && !inside(u + 1, v + 2) && !inside(u, v + 2) && ((u + v) & 1) === 0) pc.blend(ox + u + 1, oy + v + 2, 0x000000, 0.45);
+    pc.blend(ox + u + 1, oy + v + 2, 0x000000, 0.62);
   }
   const { ring, lit } = rings(inside, pw, ph);
   const rnd = rng(p.seed * 7 + 13);
@@ -228,13 +233,6 @@ function drawPlate(pc: PixelCanvas, ox: number, oy: number, p: PlateSpec, st: St
     }
   }
 
-  // ---- a specular pixel on the lit corner; hot: a warm rim on the lit lip and a stepped diagonal glint
-  if (st !== 2) { const c0 = Math.max(2, Math.round(ph * 0.2)); put(c0, 1, F.tex === 'brushed' ? 0xdde4e6 : mixHex(R[6], 0xffffff, 0.5)); }
-  if (st === 1) {
-    for (let u = 2; u < pw - 2; u++) if (ring[1 * pw + u] === 1 && lit[1 * pw + u] > 0) blendIn(u, 1, 0xffc860, 0.4);
-    const g0 = Math.round(pw * 0.7);
-    for (let v = 2; v < ph - 2; v++) { const u = g0 - (v >> 1); for (const [du, a] of [[0, 0.2], [1, 0.2], [4, 0.1]] as const) if (ring[v * pw + u + du] >= 2) blendIn(u + du, v, 0xffffff, a); }
-  }
   // ---- rivets (right end, and the left end when there is no lamp)
   const rivet = (u: number, v: number) => {
     put(u, v, RIVET.hi); put(u + 1, v, RIVET.mid); put(u, v + 1, RIVET.mid); put(u + 1, v + 1, RIVET.lo);
@@ -403,7 +401,7 @@ export function plateBtn(label: string, onClick: (b: PlateButton) => void, o: Pl
     b.style.setProperty('--bh', hPx + 'px');
     b.style.fontSize = labelPx(ah, s, hasSub) + 'px';
     const iconOnly = !lab.textContent && !!o.glyph;
-    const padL = iconOnly ? 0 : (o.tight ? (lamp || o.glyph ? 10 : 4) : (lamp || o.glyph ? 10 : 7)) + (shape === 'arrowL' ? Math.floor((ah - 2) / 2) - 2 : 0);
+    const padL = iconOnly ? 0 : (o.tight ? (lamp || o.glyph ? 9 : 4) : (lamp || o.glyph ? 10 : 7)) + (shape === 'arrowL' ? Math.floor((ah - 2) / 2) - 2 : 0);
     const padR = iconOnly ? 0 : (o.tight ? 4 : 8) + (shape === 'arrowR' ? Math.floor((ah - 2) / 2) - 2 : 0);
     b.style.paddingLeft = padL * s + 'px';
     b.style.paddingRight = padR * s + 'px';
@@ -419,10 +417,15 @@ export function plateBtn(label: string, onClick: (b: PlateButton) => void, o: Pl
     const k = `${aw}|${ah}|${s}`;
     if (k === key) return;
     key = k;
+    if ((b as any)._mx) { b.style.backgroundImage = 'none'; return; }
     const url = plateSheet({ W: aw, H: ah, finish, shape, seed, lamp: iconOnly ? false : lamp, glyph: o.glyph, glyphAt: iconOnly ? 'center' : 'left', wear: o.wear, rivets: iconOnly || o.tight ? false : undefined });
     b.style.backgroundImage = `url(${url})`;
     b.style.backgroundSize = `${aw * s}px ${ah * s * 4}px`;
   };
+  if (mxOk() && shape !== 'arrowL' && shape !== 'arrowR') {
+    const sk = mxSkinKey(b, { tone: MX_TONE[finish], lamp: lamp || false, screws: false, sound: '' });
+    if (sk) { (b as any)._mx = sk; b.classList.add('pb-mx'); }
+  }
   b.setLabel(label, o.sub ?? '');
   b.addEventListener('pointerenter', (e) => {
     if (e.pointerType !== 'mouse' || b.disabled) return;
