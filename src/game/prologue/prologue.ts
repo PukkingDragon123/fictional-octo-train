@@ -35,6 +35,8 @@ export function replayPrologue() {
   u.searchParams.set('prologue', '1');
   location.href = u.toString();
 }
+/** the first link has been played on this browser (the title's New unit runs it the first time) */
+export function prologueSeen(): boolean { try { return !!localStorage.getItem(KEY); } catch { return true; } }
 function markSeen() { try { localStorage.setItem(KEY, '1'); } catch { /* private mode */ } }
 
 const FIRST = ['Robin', 'Sam', 'Alex', 'Jordan', 'Casey', 'Morgan', 'Riley', 'Quinn', 'Noor', 'Emil', 'Ines', 'Tomas', 'Aiko', 'Mara', 'Felix', 'Rosa', 'Theo', 'Wren', 'Priya', 'Kofi', 'Elena', 'Otis', 'Hana', 'Cyril'];

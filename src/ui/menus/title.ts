@@ -572,6 +572,11 @@ class TitleRoom {
     return r;
   }
   private async newGame(directives: boolean, part?: string) {
+    // the very first unit: the prologue (the link, the intake drag, the wake and Dr. Calder's lesson)
+    if (directives && !part && !navigator.webdriver) {
+      const P = await import('../../game/prologue');
+      if (!P.prologueSeen()) { sfx('confirm'); P.replayPrologue(); return; }
+    }
     const r = await this.runIntake({ directives, part: part as any });
     if (r) setLaunch({ mode: 'new', ...r });
   }

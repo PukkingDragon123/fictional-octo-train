@@ -31,9 +31,10 @@ if (import.meta.env.DEV && params.has('loader')) {
     loaderStage(0.55, 'Opening the files');
     const cfg = L.takeLaunch();
     if (cfg) { L.launch(cfg); return; }
-    // the first time (or ?prologue): straight into the first run (the link, the intake cinematic, the wake in Level 0: src/game/prologue)
+    // ?prologue: straight into the first run. Otherwise the title menu always comes first; its
+    // New unit plays the prologue the first time (src/ui/menus/title.ts newGame)
     const P = await import('./game/prologue');
-    if (P.prologueWanted()) { await P.runPrologue(); return; }
+    if (new URLSearchParams(location.search).get('prologue') === '1' && P.prologueWanted()) { await P.runPrologue(); return; }
     await import('./ui/menus/title').then((m) => m.showTitle());
     // the way back into it, while the title's menu is up
     try { P.prologueEntry(); } catch (e) { console.warn('prologue entry', e); }

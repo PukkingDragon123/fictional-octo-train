@@ -3,6 +3,6 @@
 // transition (./signal.ts), the old intake drag cinematic, then the wake in
 // Level 0 and Dr. Calder's tutorial.
 //   prologueWanted(), runPrologue(), replayPrologue(), prologueEntry(el?)
-export { prologueWanted, runPrologue, replayPrologue, CALDER_VOICE, INTRO_FROM_KEY } from './prologue';
+export { prologueWanted, prologueSeen, runPrologue, replayPrologue, CALDER_VOICE, INTRO_FROM_KEY } from './prologue';
 export { prologueEntry } from './entry';
 export { SignalWipe, SIGNAL_DUR } from './signal';
