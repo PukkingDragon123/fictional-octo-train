@@ -23,8 +23,6 @@ import { slowmo } from '../../gfx/juice';
 import { grantResearch, researchPoints } from '../../game/research';
 import { flushStats } from '../../game/profile';
 import { sfx } from '../menus/sfx';
-import { mxFrame, mxSkinKey, panelSpec } from '../machine/kit';
-import { mxOk } from '../machine/core';
 import { letterTimes } from '../../social/chipVoice';
 import { RunTracker, type RunReport } from './stats';
 import { unlockHtml, goToLab, wireRunEnd } from './summary';
@@ -508,14 +506,6 @@ class DeathCinematic {
     if (!coop) mk('New unit now', 'same file · straight back in', () => this.nextSubject());
     this.root.append(k);
     this.keysEl = k;
-    // round 16: the keys are 3D push keys on an olive console (src/ui/machine), the first one safety yellow
-    if (mxOk()) {
-      k.classList.add('mx');
-      this.keys.forEach((b, i) => mxSkinKey(b, { tone: i === 0 ? 'yellow' : 'olive', lamp: i === 0 ? 'green' : 'amber', screws: false, sound: 'plate' }));
-      this.keys[0]?.classList.add('ink-d');
-      mxFrame(k, (w, h) => panelSpec(w, h, { title: 'INCIDENT CONTROL', seed: 71, lamps: ['red', 'amber'], glands: 2, hazard: true, vents: false, top: 40, bot: 20 }), { pad: 16 });
-      setTimeout(() => sfx('clamp', 0.45), 320);
-    }
     this.placeCase();
     requestAnimationFrame(() => k.classList.add('on'));
     this.setFocus(0, false);

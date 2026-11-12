@@ -17,20 +17,6 @@ import { ctxAllowed } from './context';
 import { crispCanvas, rect, rivet, GUN, AMB } from '../hiPixel';
 import { pxPlate, pxFrame } from '../pxKit';
 import { mixHex } from '../../gfx/pixel';
-import { mxSocketSheet, mxFrame, panelSpec, SOCK_PAD } from '../machine/kit';
-import { mxOk } from '../machine/core';
-
-/** round 16: a 3D socket (src/ui/machine): a deep olive cup with a felt bed, a bolt, a stamped yellow number tag, an amber lamp that lights in the hand */
-function drawSock(cv: HTMLCanvasElement, n: number, held: boolean): boolean {
-  const sh = mxSocketSheet(n); if (!sh) return false;
-  const fw = SW + SOCK_PAD * 2;
-  if (cv.width !== fw) { cv.width = fw; cv.height = fw; cv.style.width = fw + 'px'; cv.style.height = fw + 'px'; cv.style.left = -SOCK_PAD + 'px'; cv.style.top = -SOCK_PAD + 'px'; }
-  const c = cv.getContext('2d')!;
-  c.setTransform(1, 0, 0, 1, 0, 0);
-  c.clearRect(0, 0, fw, fw);
-  c.drawImage(sh, 0, held ? fw : 0, fw, fw, 0, 0, fw, fw);
-  return true;
-}
 
 // ---- the slots (round 15): just the six slots, each a physical socket in hi-res pixel art.
 // A chamfered gunmetal bezel with two screws, a recessed felt bed, a brass tag stamped with the
@@ -41,30 +27,34 @@ const FONT_DIGITS: Record<string, string[]> = {
   '1': ['.#.', '##.', '.#.', '.#.', '###'], '2': ['##.', '..#', '.#.', '#..', '###'], '3': ['##.', '..#', '.#.', '..#', '##.'],
   '4': ['#.#', '#.#', '###', '..#', '..#'], '5': ['###', '#..', '##.', '..#', '##.'], '6': ['.##', '#..', '##.', '#.#', '.#.'],
 };
+/** a socket in 2x pixel art (27x27 art pixels on a 54 px slot): a notched slate bezel with a pixel bevel,
+ *  a recessed felt bed in a checker dither, a brass number tag, a screw; held: an amber strip and a dithered glow */
 function drawSlot(c: CanvasRenderingContext2D, n: number, full: boolean, held: boolean) {
-  const W = SW, H = SW;
-  c.clearRect(0, 0, W, H);
-  pxPlate(c, 1, 1, W - 4, H - 4, { tone: 'steel', chamfer: 7, well: 0, screws: false, seed: n * 31 });
-  // the bed: recessed felt, a soft inner shadow, the weave
-  const bx = 6, by = 6, bw = W - 4 - 11, bh = H - 4 - 11, felt = held ? 0x2a1d0e : 0x15140f;
-  rect(c, bx - 1, by - 1, bw + 2, bh + 2, 0x050404);
-  rect(c, bx + 2, by, bw - 4, bh, felt); rect(c, bx, by + 2, bw, bh - 4, felt); rect(c, bx + 1, by + 1, bw - 2, bh - 2, felt);
-  for (let j = 0; j < bh; j += 2) for (let i = (j / 2) % 2; i < bw; i += 2) rect(c, bx + i, by + j, 1, 1, mixHex(felt, 0xffffff, 0.05));
-  rect(c, bx + 2, by, bw - 4, 2, 0x000000, 0.55); rect(c, bx, by + 2, 2, bh - 4, 0x000000, 0.45);
-  rect(c, bx + 2, by + bh - 1, bw - 4, 1, GUN[6], 0.5);
+  const A = SW / 2;
+  c.save();
+  c.clearRect(0, 0, A, A);
+  pxPlate(c, 1, 1, A - 3, A - 3, { tone: 'steel', chamfer: 3, well: 0, screws: false, seed: n * 31, wear: 0.3 });
+  // the bed: ink lip, felt, a checker weave, inner shadow top-left, lit lip bottom-right
+  const bx = 5, by = 5, bw = A - 11, bh = A - 11, felt = held ? 0x2a1d0e : 0x15140f;
+  rect(c, bx - 1, by, bw + 2, bh, 0x050404); rect(c, bx, by - 1, bw, bh + 2, 0x050404);
+  rect(c, bx, by, bw, bh, felt);
+  for (let j = 1; j < bh - 1; j++) for (let i = 1 + (j & 1); i < bw - 1; i += 2) rect(c, bx + i, by + j, 1, 1, mixHex(felt, 0xffffff, 0.05));
+  rect(c, bx, by, bw, 1, 0x000000, 0.6); rect(c, bx, by, 1, bh, 0x000000, 0.45);
+  rect(c, bx + 1, by + bh, bw - 1, 1, GUN[7], 0.7); rect(c, bx + bw, by + 1, 1, bh - 1, GUN[6], 0.6);
   if (held) {
-    // the strip of light along the bed's foot, and a warm glow up the felt
-    for (let j = 0; j < 8; j++) rect(c, bx + 2, by + bh - 3 - j, bw - 4, 1, AMB[4], 0.16 * (1 - j / 8));
-    rect(c, bx + 3, by + bh - 3, bw - 6, 2, AMB[5]); rect(c, bx + 3, by + bh - 3, bw - 6, 1, AMB[6]);
+    // the strip of light along the bed's foot, and a dithered glow up the felt
+    for (let j = 0; j < 5; j++) for (let i = 1; i < bw - 1; i++) if (j < 2 || ((i + j) & 1) === 0) rect(c, bx + i, by + bh - 3 - j, 1, 1, AMB[4], 0.3 - j * 0.05);
+    rect(c, bx + 1, by + bh - 2, bw - 2, 1, AMB[5]); rect(c, bx + 2, by + bh - 2, 3, 1, AMB[6]);
   }
   // the brass tag with the number, top-left on the bezel
-  const tx = 2, ty = 2;
-  rect(c, tx, ty, 9, 9, 0x241808); rect(c, tx + 1, ty + 1, 7, 7, held ? 0xd4b45e : 0x9c7a2c); rect(c, tx + 1, ty + 1, 7, 1, held ? 0xfaecc0 : 0xd4b45e);
+  const tx = 1, ty = 1;
+  rect(c, tx, ty, 7, 9, 0x241808); rect(c, tx + 1, ty + 1, 5, 7, held ? 0xd4b45e : 0x9c7a2c); rect(c, tx + 1, ty + 1, 5, 1, held ? 0xfaecc0 : 0xd4b45e); rect(c, tx + 1, ty + 7, 5, 1, held ? 0x9c7a2c : 0x664818);
   const g = FONT_DIGITS[String(n)] || [];
-  g.forEach((row, y) => { for (let x = 0; x < 3; x++) if (row[x] === '#') rect(c, tx + 3 + x, ty + 2 + y, 1, 1, 0x241808); });
+  g.forEach((row, y) => { for (let x = 0; x < 3; x++) if (row[x] === '#') rect(c, tx + 2 + x, ty + 2 + y, 1, 1, 0x241808); });
   // a screw bottom-right
-  rivet(c, W - 9, H - 9, 1, true);
-  if (!full) { rect(c, bx + bw / 2 - 4, by + bh / 2, 9, 1, 0xffffff, 0.06); }
+  rect(c, A - 6, A - 6, 2, 2, GUN[9]); rect(c, A - 5, A - 5, 1, 1, GUN[5]); rect(c, A - 4, A - 5, 1, 2, 0x050404, 0.8); rect(c, A - 6, A - 4, 3, 1, 0x050404, 0.8);
+  if (!full) rect(c, bx + Math.floor(bw / 2) - 2, by + Math.floor(bh / 2), 5, 1, 0xffffff, 0.06);
+  c.restore();
 }
 
 export const HOT_N = 6;
@@ -115,10 +105,10 @@ export class HotbarStrip {
     for (let i = 0; i < HOT_N; i++) {
       const s = document.createElement('div');
       s.className = 'hb-slot';
-      const sc = crispCanvas(SW, SW);
+      const sc = crispCanvas(SW / 2, SW / 2, 2);
       sc.cv.className = 'hb-cv';
-      if (!(mxOk() && drawSock(sc.cv, i + 1, false))) drawSlot(sc.c, i + 1, false, false);
-      (s as any)._c = sc.c; (s as any)._cv = sc.cv;
+      drawSlot(sc.c, i + 1, false, false);
+      (s as any)._c = sc.c;
       s.append(sc.cv, document.createElement('i'));
       s.addEventListener('contextmenu', (e) => e.preventDefault());
       s.addEventListener('pointerdown', (e) => {
@@ -141,10 +131,7 @@ export class HotbarStrip {
     }
     document.body.appendChild(el);
     // the rail the six sockets sit in
-    try {
-      if (mxOk()) { el.classList.add('mx'); mxFrame(el, (w, h) => { const s = panelSpec(w, h, { seed: 66, hazard: false, vents: false, glands: 2, lamps: [] }); s.depth = 7; s.rivets = false; return s; }, { pad: 10 }); }
-      else pxFrame(el, { tone: 'dark', chamfer: 8, screws: false, seed: 66 });
-    } catch { /* no canvas */ }
+    try { pxFrame(el, { tone: 'dark', chamfer: 4, screws: false, seed: 66, scale: 2, wear: 0.3 }); } catch { /* no canvas */ }
     window.addEventListener('keydown', (e) => {
       if (e.repeat || G.input?.textFocus || !/^Digit[1-6]$/.test(e.code) || !ctxAllowed()) return;
       const p = G.local; if (!p) return;
@@ -177,7 +164,7 @@ export class HotbarStrip {
       el.classList.toggle('full', !!it);
       el.classList.toggle('held', held);
       const c = (el as any)._c as CanvasRenderingContext2D | undefined;
-      if (!(mxOk() && drawSock((el as any)._cv, i + 1, held)) && c) drawSlot(c, i + 1, !!it, held);
+      if (c) drawSlot(c, i + 1, !!it, held);
       el.title = it ? itemName(it) : 'empty';
     });
   }

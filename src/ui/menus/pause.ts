@@ -19,8 +19,6 @@ import { lossSummary } from '../../survival/limbs';
 import { gearCluster, type GearCluster } from './gears3d';
 import { terminal, type Terminal } from './terminal';
 import { pxButton, pxBanner, pxAccessLog, pxSerialEl, pxStamp, nodeId, type PxButton } from '../pxKit';
-import { mxFrame, panelSpec, mxGauge, mxArrive } from '../machine/kit';
-import { mxOk } from '../machine/core';
 import './diegetic.css';
 import './noir.css';
 import './pause.css';
@@ -94,7 +92,6 @@ export class PauseMenu {
           const cl = gearCluster(a.pages.map((x) => x[0] + x.slice(1).toLowerCase()), (i) => { if (a.index !== i) a.select(i); }, a.index);
           a.onChange((i) => { if (cl.index !== i) cl.select(i, true); });
           gearSlot.append(cl.el);
-          if (mxOk() && !gearSlot.classList.contains('mxf')) mxFrame(gearSlot, (w, hh) => { const s = panelSpec(w, hh, { title: 'PAGE', seed: 31, lamps: ['amber'], glands: 1, hazard: false, vents: false, win: { l: 8, t: 26, r: 8, b: 12, cut: 5, lip: 3 } }); s.win!.back = true; return s; }, { pad: 12, grow: { l: 10, t: 30, r: 118, b: 10 } });
           this.cluster = cl;
           tabFn = (d) => cl.turn(d);
           requestAnimationFrame(() => cl.layout(window.innerHeight > window.innerWidth * 1.05 ? 'h' : 'v'));
@@ -103,8 +100,6 @@ export class PauseMenu {
       else if (pg === 'controls') frag.append(controlsPanel());
       else if (pg === 'coop') frag.append(...this.coopPage());
       t.setHead(`Bailiff · ${num}`, NAMES[pg][0] + ' · ' + NAMES[pg][1]);
-      // the settings open the tube's switch deck: knobs, bat toggles and latching keys on dark enamel
-      if (mxOk()) t.screen.classList.toggle('ct-deck', pg === 'options');
       for (const [k, b] of pageBtns) b.setOn(k === pg);
       swapPage(t.body, frag, dir);
       t.body.scrollTop = 0;
@@ -117,21 +112,10 @@ export class PauseMenu {
       sfx('key');
       render(d);
     };
-    // round 16: the column is a control console of its own (3D housing, a time gauge at its foot)
-    if (mxOk()) {
-      col.classList.add('mx');
-      const foot = h('div', 'ps2-foot');
-      const g = mxGauge(50, solo ? 0 : 0.55, 'TIME');
-      if (g) foot.append(g);
-      foot.append(h('span', 'ps2-foot-l', solo ? 'Time held<small>band projecting</small>' : 'Time running<small>co-op link</small>'));
-      col.append(foot);
-      mxFrame(col, (w, hh) => { const s = panelSpec(w, hh, { title: 'OPERATOR CONTROL', seed: 23, lamps: ['green', 'amber'], glands: 2, hazard: true, top: 40, bot: 18 }); return s; }, { pad: 16 });
-    }
     el.append(right, col, top, bot);
     render(0);
     document.body.append(el);
     requestAnimationFrame(() => el.classList.add('on'));
-    if (mxOk()) setTimeout(() => sfx('clamp', 0.4), 380);
     this.el = el;
     G.input.pointerOverUI = true;
     sfx(solo ? 'freeze' : 'open', 0.8);

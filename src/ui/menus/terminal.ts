@@ -9,58 +9,7 @@ import { PixelCanvas, mixHex, bayer } from '../../gfx/pixel';
 import { kitScale, artH, strSeed } from './btnKit';
 import { uiSettings, calm } from './settings';
 import { sfx } from './sfx';
-import { mxOk } from '../machine/core';
-import { mxFrame } from '../machine/kit';
-import type { HousingSpec } from '../machine/parts';
 import './kit.css';
-
-/**
- * Round 16: the terminal's housing is 3D (src/ui/machine): an olive enamel case with a raised
- * rail, a dark steel lip round the tube, a hood with a yellow nameplate, a vent, the crest and
- * the lamps; a lower strip with a speaker grille, bat toggles, a knob, a hazard foot, the maker's
- * plate and the recessed tray the keys sit in; cables out of glands at the bottom; grab handles
- * on a tall one. Sizes in CSS px. The 2D drawHousing below stays as the no-WebGL fallback.
- */
-function termSpec(W: number, H: number, bz: { T: number; S: number; B: number; tray: number }, seed: number, o: { model: string; title: string; slim: boolean }): HousingSpec {
-  const win = { x: bz.S, y: bz.T, w: W - bz.S * 2, h: H - bz.T - bz.B, cut: 10, lip: 6, lipTone: 'dark' as const };
-  const s: HousingSpec = { w: W, h: H, seed, tone: 'olive', depth: 10, cut: Math.max(8, Math.min(16, Math.round(Math.min(W, H) * 0.05))), win, guards: W > 200 && H > 160,
-    plates: [], lamps: [], vents: [], glands: [], hazards: [], stencils: [], toggles: [], knobs: [], grilles: [], wells: [], seamsY: [bz.T - 3], stickers: [], placards: [], pipes: [], valves: [] };
-  const cut = s.cut!;
-  // ---- the hood
-  const hy = bz.T / 2;
-  if (bz.T >= 26) {
-    const ph = Math.min(20, bz.T - 12);
-    const tw = Math.min(Math.round(W * 0.34), Math.max(90, o.title.length * 9 + 30));
-    if (o.title) s.plates!.push({ x: cut + 16, y: Math.round(hy - ph / 2), w: tw, h: ph, text: o.title.toUpperCase(), ground: 'yellow' });
-    if (W > 380) s.vents!.push({ x: Math.round(W * 0.56), y: Math.round(hy - (bz.T - 18) / 2), w: Math.round(Math.min(110, W * 0.17)), h: Math.max(6, bz.T - 18) });
-    if (W > 300) s.hazPaint = [{ x: cut + 22 + tw, y: Math.round(hy - 3), w: Math.min(46, Math.round(W * 0.06)), h: 6 }];
-    const sx0 = cut + 30 + tw + Math.min(46, Math.round(W * 0.06));
-    if (W > 520 && sx0 + 44 < W * 0.55) s.stickers!.push({ x: sx0, y: Math.round(hy - 7), w: 38, h: 14, text: 'INV ' + String(1000 + (seed % 9000)) });
-    if (W > 620 && s.vents!.length) { const v = s.vents![0]; s.pipes!.push([v.x + v.w + 12, hy, v.x + v.w + 70, hy]); s.valves!.push({ x: v.x + v.w + 41, y: hy, r: Math.min(6.5, bz.T * 0.17) }); }
-  }
-  ['green', 'amber', 'red'].slice(0, W > 300 ? 3 : 2).forEach((c, i) => s.lamps!.push({ x: W - cut - 14 - i * 14, y: hy, r: Math.min(4, bz.T * 0.14), col: c as 'green', on: i === 0 }));
-  if (o.slim) return s;
-  // ---- the lower strip
-  const by = H - bz.B / 2;
-  let x = cut + 14;
-  if (bz.B >= 30) {
-    const gh = Math.min(bz.B - 18, 26);
-    s.grilles!.push({ x, y: Math.round(by - gh / 2), w: 34, h: gh }); x += 46;
-    if (W > 360) { for (let i = 0; i < 3; i++) s.toggles!.push({ x: x + i * 15, y: by, on: (seed >> i) % 3 !== 0 }); x += 52; }
-    if (W > 440) { s.knobs!.push({ x: x + 6, y: by, r: Math.min(7, bz.B * 0.2), a: (seed % 5) * 0.6 - 1.2 }); x += 26; }
-    const trayX = W - cut - 12 - bz.tray;
-    const pw = Math.min(200, trayX - x - 16);
-    if (pw >= 70) s.plates!.push({ x: x + 4, y: Math.round(by - 9), w: pw, h: 18, text: o.model.toUpperCase(), ground: 'brass', px: 12 });
-    if (trayX - (x + 4 + pw) > 90) s.placards!.push({ x: x + 14 + pw, y: Math.round(by - 7), w: 66, h: 14, text: 'LIVE' });
-    if (bz.tray > 0) s.wells!.push({ x: trayX - 4, y: Math.round(H - bz.B + 7), w: bz.tray + 8, h: bz.B - 14 });
-    s.hazards!.push({ x: cut + 10, y: H - 9, w: Math.min(120, Math.round(W * 0.22)), h: 6 });
-  }
-  const cab = [0x1a1a18, 0xc8a020, 0x7a1810];
-  const ng = W > 400 ? 3 : W > 200 ? 2 : 1;
-  for (let i = 0; i < ng; i++) s.glands!.push({ x: Math.round(W * (0.36 + i * 0.13)), y: H - 6, col: cab[(i + seed) % 3], drop: 24 });
-  if (H > 330) s.handles = [{ x: 9, y0: H * 0.3, y1: H * 0.62 }, { x: W - 9, y0: H * 0.3, y1: H * 0.62 }];
-  return s;
-}
 
 const K = 0x0a0806;
 /** the face plate's and the glass's 45-degree corner cuts, in art px (round 15: flat chamfers, never a rounded tube) */
@@ -327,33 +276,6 @@ export function terminal(o: TermOpts = {}): Terminal {
   };
   setHead(o.title || '', o.sub || '');
   let last = '';
-  // ---- the 3D housing (round 16)
-  if (mxOk()) {
-    canvas.remove();
-    el.classList.add('ct3');
-    const fr = mxFrame(el, (W, H) => {
-      const kw = !o.slim && keys.children.length ? Math.ceil(keys.scrollWidth) + 12 : 0;
-      const wide = W > 420;
-      const keyH = keys.children.length ? Math.max(...[...keys.children].map((k) => (k as HTMLElement).offsetHeight || 0)) : 0;
-      const bz = o.slim ? { T: 22, S: 14, B: 18, tray: 0 } : { T: wide ? 40 : 32, S: wide ? 24 : 18, B: Math.max(46, keyH + 22), tray: Math.max(keysW * kitScale(), kw) };
-      const sw = W - bz.S * 2, sh = H - bz.T - bz.B;
-      Object.assign(screen.style, { left: bz.S + 'px', top: bz.T + 'px', width: sw + 'px', height: Math.max(10, sh) + 'px' });
-      const q = 10;
-      screen.style.clipPath = `polygon(${q}px 0, calc(100% - ${q}px) 0, 100% ${q}px, 100% calc(100% - ${q}px), calc(100% - ${q}px) 100%, ${q}px 100%, 0 calc(100% - ${q}px), 0 ${q}px)`;
-      keys.hidden = !!o.slim;
-      Object.assign(keys.style, { top: H - bz.B + 'px', height: bz.B + 'px', right: (Math.max(8, Math.min(16, Math.round(Math.min(W, H) * 0.05))) + 12) + 'px', left: '' });
-      plate.hidden = true;
-      return termSpec(W, H, bz, seed, { model: o.model ?? 'Meridian · Type 4', title: o.title || '', slim: !!o.slim });
-    }, { over: true, pad: 14 });
-    let kwLast = -1;
-    try { new ResizeObserver(() => { const k = keys.scrollWidth; if (k !== kwLast && kwLast >= 0) fr.repaint(); kwLast = k; }).observe(keys); } catch { /* ignore */ }
-    if (o.powerOn !== false && !calm()) {
-      screen.classList.add('ct-boot');
-      setTimeout(() => sfx('relay', 0.7), 30);
-      setTimeout(() => screen.classList.remove('ct-boot'), 420);
-    }
-    return { el, screen, head, body, keys, plate, setHead, paint: () => fr.repaint(), setKeysW: (w: number) => { keysW = w; fr.repaint(); } };
-  }
   const paint = () => {
     if (!el.isConnected) return;
     const s = kitScale();

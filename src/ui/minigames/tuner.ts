@@ -11,8 +11,6 @@
 //   scanTuner.stop()                     when the sweep ends
 import { crispCanvas, rect, glass, rivet, GUN, AMB, GRN } from '../hiPixel';
 import { pxPlate, pxLamp } from '../pxKit';
-import { mxFrame, type MxFrame } from '../machine/kit';
-import { mxOk } from '../machine/core';
 import './minigames.css';
 
 const W = 292, H = 66;
@@ -24,8 +22,6 @@ class ScanTuner {
   private c: CanvasRenderingContext2D | null = null;
   private f = 0.5; private n = 0.5; private lock = 0; private t = 0; private seed = 1; private hard = 1;
   private onIt = false; private drawT = 0;
-  /** round 16: the 3D housing (src/ui/machine) the scope sits in; its lamp lights on the carrier */
-  private fr: MxFrame | null = null; private lampOn = false;
   private wheel = (e: WheelEvent) => { if (!this.active) return; e.preventDefault(); e.stopPropagation(); this.n = clamp(this.n + Math.sign(e.deltaY) * 0.035); };
   private move = (e: PointerEvent) => { if (!this.active) return; const k = e.pointerType === 'touch' ? 0.006 : 0.0032; this.n = clamp(this.n + (e.movementX || 0) * k); };
   private key = (e: KeyboardEvent) => { if (!this.active) return; if (e.code === 'ArrowLeft') { this.n = clamp(this.n - 0.04); e.preventDefault(); } else if (e.code === 'ArrowRight') { this.n = clamp(this.n + 0.04); e.preventDefault(); } };
@@ -35,15 +31,7 @@ class ScanTuner {
     el.className = 'mg-tuner';
     const k = crispCanvas(W, H);
     this.c = k.c;
-    if (mxOk()) {
-      const box = document.createElement('div'); box.className = 'mg-tuner-box';
-      box.append(k.cv); el.append(box);
-      const gx = 34, gw = W - 4 - gx - 12;
-      this.fr = mxFrame(box, (w, h) => ({ w, h, seed: 23, tone: 'olive', depth: 7, cut: 7, guards: false, rivets: false,
-        wells: [{ x: gx - 2, y: 6, w: gw + 4, h: 46 }], lamps: [{ x: 18, y: 22, r: 4, col: 'amber', on: false }],
-        glands: [{ x: Math.round(w * 0.78), y: h - 5, col: 0x1a1a18, drop: 14 }], hazPaint: [{ x: 8, y: h - 12, w: 18, h: 6 }],
-        stencils: [{ text: 'TUNE', x: 18, y: 46, px: 9, align: 'center' }] }), { pad: 12 });
-    } else el.append(k.cv);
+    el.append(k.cv);
     let seen = 0;
     try { seen = Number(localStorage.getItem('lp.tunerHint') || 0); } catch { /* storage blocked */ }
     if (seen < 3) { const hnt = document.createElement('small'); hnt.textContent = 'sweep the mouse or turn the wheel to hold the carrier'; el.append(hnt); try { localStorage.setItem('lp.tunerHint', String(seen + 1)); } catch { /* storage blocked */ } }
@@ -93,12 +81,9 @@ class ScanTuner {
   private draw(band: number) {
     const c = this.c; if (!c) return;
     c.clearRect(0, 0, W, H);
-    if (this.fr) { if (this.lampOn !== this.onIt) { this.lampOn = this.onIt; this.fr.lamp(0, this.onIt); } }
-    else {
-      pxPlate(c, 1, 1, W - 4, H - 4, { tone: 'steel', chamfer: 6, screws: false, seed: 23 });
-      rivet(c, 7, 7, 1, true); rivet(c, 7, H - 10, 1, true); rivet(c, W - 10, 7, 1, true); rivet(c, W - 10, H - 10, 1, true);
-      pxLamp(c, 20, 22, this.onIt, this.onIt ? GRN : AMB, 4);
-    }
+    pxPlate(c, 1, 1, W - 4, H - 4, { tone: 'steel', chamfer: 6, screws: false, seed: 23 });
+    rivet(c, 7, 7, 1, true); rivet(c, 7, H - 10, 1, true); rivet(c, W - 10, 7, 1, true); rivet(c, W - 10, H - 10, 1, true);
+    pxLamp(c, 20, 22, this.onIt, this.onIt ? GRN : AMB, 4);
     // the scope: dark glass, a grid, the band round the carrier, the trace
     const gx = 34, gy = 8, gw = W - 4 - gx - 12, gh = 30;
     glass(c, gx, gy, gw, gh, 0x04100a);

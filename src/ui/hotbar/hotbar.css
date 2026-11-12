@@ -12,9 +12,3 @@
 .hb-slot:hover i { opacity: 1; }
 #hot12.touch .hb-slot { width: 54px; height: 54px; }
 @media (max-width: 520px) { #hot12.touch { left: 50%; bottom: auto; top: calc(64px + env(safe-area-inset-top)); } #hot12.on { gap: 1px; } }
-/* round 16: 3D sockets on an olive rail (src/ui/machine); the item sits down in the cup */
-#hot12.mx { padding: 9px 12px 8px; }
-#hot12.mx.on { gap: 6px; }
-#hot12.mx .hb-cv { image-rendering: pixelated; }
-#hot12.mx .hb-slot i { left: 12px; top: 10px; }
-#hot12.mx .hb-slot.held { transform: none; }

@@ -16,7 +16,3 @@
 .mg-cal-lamps { flex: none; image-rendering: pixelated; }
 .mg-cal-g { position: relative; height: 42px; }
 .mg-cal-foot { font-size: 13px; color: rgba(236,226,204,.45); text-align: right; padding: 0 6px; }
-/* round 16: the tuner's scope sits in a 3D olive housing (src/ui/machine) */
-.mg-tuner-box { position: relative; width: 292px; height: 66px; }
-.mg-tuner-box > canvas:not(.mxf-cv) { position: relative; z-index: 1; }
-.mg-tuner:has(.mg-tuner-box) { filter: none; }
