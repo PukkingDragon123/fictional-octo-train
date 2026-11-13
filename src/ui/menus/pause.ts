@@ -21,6 +21,7 @@ import { terminal, type Terminal } from './terminal';
 import { pxButton, pxBanner, pxAccessLog, pxSerialEl, pxStamp, nodeId, type PxButton } from '../pxKit';
 import { mxFrame, panelSpec, mxGauge, mxArrive } from '../machine/kit';
 import { mxOk } from '../machine/core';
+import { mxMount, type IconKind } from '../machine/decor';
 import './diegetic.css';
 import './noir.css';
 import './pause.css';
@@ -65,17 +66,18 @@ export class PauseMenu {
       col.append(b);
       return b;
     };
-    plate('Resume', () => this.close(), { tone: 'olive', lamp: 'green' });
-    if (G.role !== 'client') plate(pt ? 'Save' : 'Save tape', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', ok ? 'progress written to this browser' : '', 2); this.close(); });
+    plate('Resume', () => this.close(), { tone: 'olive', lamp: 'green', icon: 'play' });
+    if (G.role !== 'client') plate(pt ? 'Save' : 'Save tape', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', ok ? 'progress written to this browser' : '', 2); this.close(); }, { icon: 'tape' });
     col.append(h('i', 'ps2-gap'));
-    for (const pg of pages) pageBtns.set(pg, plate(NAMES[pg][0], () => select(pages.indexOf(pg))));
+    const PAGE_ICON: Record<Page, IconKind> = { main: 'clipboard', options: 'gear', controls: 'key', coop: 'radio' };
+    for (const pg of pages) pageBtns.set(pg, plate(NAMES[pg][0], () => select(pages.indexOf(pg)), { icon: PAGE_ICON[pg] }));
     col.append(h('i', 'ps2-gap'));
     plate(pt ? 'Quit' : 'Quit to title', async () => {
       const ok = await confirmDialog({ title: 'Quit to title', body: G.role === 'client' ? 'Leave the room and go back to the title?' : 'Your progress is saved first, then the tape rewinds to the title.', ok: 'Quit', cancel: 'Stay', danger: true });
       if (!ok) return;
       if (G.role !== 'client') await saveGame();
       location.reload();
-    }, { tone: 'red', lamp: 'red', cls: 'danger' });
+    }, { tone: 'red', lamp: 'red', cls: 'danger', icon: 'door' });
 
     let tabFn: ((d: -1 | 1) => void) | null = null;
     const render = (dir: 1 | -1 | 0) => {
@@ -126,6 +128,16 @@ export class PauseMenu {
       foot.append(h('span', 'ps2-foot-l', solo ? 'Time held<small>band projecting</small>' : 'Time running<small>co-op link</small>'));
       col.append(foot);
       mxFrame(col, (w, hh) => { const s = panelSpec(w, hh, { title: 'OPERATOR CONTROL', seed: 23, lamps: ['green', 'amber'], glands: 2, hazard: true, top: 40, bot: 18 }); return s; }, { pad: 16 });
+      // the little things round the console: a spanner on its peg, the specimen jar in the gap (it watches the
+      // pointer), a beacon on the terminal's hood that turns when something is wrong (debt overdue, the unit down)
+      if (!pt) {
+        mxMount(col, 'wrench', { right: -24, top: 64, z: 3 });
+        const jar = mxMount(right, 'jar', { left: -150, bottom: 6, z: 3 }, { title: 'Specimen 07' });
+        jar?.el.classList.add('ps2-jar');
+        const d = G.debt as any, p = G.local;
+        const bad = !!p && (p.body.downed || p.body.dead || (!!d?.on && !d.cleared && (d.hoursLeft ?? 99) < 12));
+        mxMount(t.el, 'beacon', { right: 74, top: -31, z: 6 }, { col: bad ? 'red' : 'amber', alert: bad });
+      }
     }
     el.append(right, col, top, bot);
     render(0);

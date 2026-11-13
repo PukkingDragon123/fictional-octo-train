@@ -75,6 +75,14 @@ const TIMMY: Record<string, [string, number][]> = {
   school: [['timmy', 0.2]],
 };
 for (const k in TIMMY) ADD[k] = (ADD[k] || []).concat(TIMMY[k]);
+// round 16: the Stalker, the unit's own copy (src/creatures/species/stalker.ts): rare, Level 0 and the
+// beige levels that look like it
+const STALKER: Record<string, [string, number][]> = {
+  lobby: [['stalker', 0.3]],
+  annex: [['stalker', 0.28]],
+  office: [['stalker', 0.12]],
+};
+for (const k in STALKER) ADD[k] = (ADD[k] || []).concat(STALKER[k]);
 // the damp levels (round 15): Spore Rat packs (most hatch from a Fungus Mind's nodes), Land Jellyfish
 // on the ceilings, Bacteria Masses where the dead lie, Sea Worms scavenging round the pools. The
 // Fungus Mind and the Whale Corpse are set pieces their own files place (fungus_mind.ts, whale_corpse.ts).

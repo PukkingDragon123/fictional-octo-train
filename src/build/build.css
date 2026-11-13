@@ -1,3 +1,8 @@
 /* Build mode has no panels: the clipboard, gauges and stamps are 3D props in first person.
    This is only the welding mask: the screen goes dark around the arc. */
 .bld-visor { position: fixed; inset: 0; z-index: 30; pointer-events: none; opacity: 0; transition: opacity .12s; }
+/* round 16: the ghost's floating words (src/build/ghostTag.ts) sit in the world prompt's type; only
+   the salvage line gets its two inks: have it (pale green), short of it (the prompt's own warning orange) */
+#wprompt .bld-tag .bld-cost .wp-sub.ok { color: #c8e6a0; }
+#wprompt .bld-tag .bld-cost .wp-sub.no { color: #e08a5a; }
+#wprompt .bld-tag .bld-keys .wp-sub { color: #cfc4a4; }

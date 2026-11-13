@@ -32,6 +32,10 @@ import { builtWalls, edgeKey } from './ops';
 import { Farm, isPlanter } from './farm';
 import { Settlement } from './settlement';
 import { bump, mark } from './progress';
+import { Camp } from './camp';
+import { GhostTag, type TagState } from './ghostTag';
+import { upgradeOf, upgradeCost, CLAIM_OBJS } from './kit2';
+import { storeItems, takeFromStore } from '../craft/stores';
 import type { GameSystem } from '../game/game';
 import type { Player } from '../entities/player';
 import type { MenuOption } from '../ui/ui';
@@ -59,6 +63,9 @@ export class BuildSystem implements GameSystem {
   cat: PieceCat = 'struct';
   farm = new Farm();
   settle = new Settlement();
+  /** round 16: the camp pieces at run time (power grid, water, traps, probes, upkeep, beds, radio, upgrades) */
+  camp = new Camp();
+  private tag = new GhostTag();
   spot: Spot | null = null;
   hover: Hover = null;
   private ghost: THREE.Mesh;
@@ -116,7 +123,7 @@ export class BuildSystem implements GameSystem {
     }
     this.active = on;
     this.demolish = false;
-    if (!on) { this.ghost.visible = false; this.ring.visible = false; this.claimRing.visible = false; setVisor(0); }
+    if (!on) { this.ghost.visible = false; this.ring.visible = false; this.claimRing.visible = false; setVisor(0); this.tag.hide(); }
     this.board.show(on);
     if (!on && this.boardOver) { G.input.pointerOverUI = false; this.boardOver = false; }
     G.audio?.ui?.(on ? 'paper' : 'menu', 0.5);
@@ -124,6 +131,12 @@ export class BuildSystem implements GameSystem {
   }
   /** true while build mode owns the mouse (combat / grab should leave clicks alone) */
   captures() { return this.active; }
+  /** the radius of a claim object (beacon 12, camp flag 8) */
+  claimRadius(o: TileObject) { return CLAIM_OBJS[o.key] ?? 12; }
+  /** src/build/speed.ts: a lit camp with a bench is quicker to work in */
+  campBonus(p: Player, kind: 'build' | 'craft') { return this.camp.campBonus(p, kind); }
+  /** the creature manager's hook: a creature probing the camp (src/build/camp.ts) */
+  probeStep(c: any, z: Zone, dt: number) { return this.camp.probeStep(c, z, dt); }
   current(): Piece { return PIECES[this.sel] ?? PIECES[0]; }
   unlocked(pc: Piece) { return !pc.node || hasUnlock(pc.node); }
   select(key: string) { const i = PIECES.findIndex((p) => p.key === key); if (i >= 0) { this.sel = i; this.cat = PIECES[i].cat; this.ghostKey = ''; this.demolish = false; } }
@@ -138,7 +151,8 @@ export class BuildSystem implements GameSystem {
   // ================================================================= materials
   countOf(p: Player, key: string): number {
     let n = 0;
-    for (const it of p.allItems()) {
+    // the crates and lockers of the camp count as your hands (src/craft/stores.ts)
+    for (const it of [...p.allItems(), ...storeItems(p)]) {
       if (it.key !== key) continue;
       const d = itemDef(it.key);
       n += d.uses && d.cat === 'material' ? Math.floor((it.uses ?? 1) * d.uses + 1e-6) : 1;
@@ -146,21 +160,27 @@ export class BuildSystem implements GameSystem {
     return n;
   }
   canAfford(p: Player, pc: Piece) { return pc.cost.every(([k, n]) => this.countOf(p, k) >= n); }
-  private takeMats(p: Player, mats: [string, number][]) {
+  takeMats(p: Player, mats: [string, number][]) {
     for (const [key, n] of mats) {
       let left = n;
-      for (const it of [...p.allItems()]) {
+      const own = p.allItems();
+      for (const it of [...own, ...storeItems(p)]) {
         if (left <= 0) break;
         if (it.key !== key) continue;
+        const mine = own.includes(it);
         const d = itemDef(key);
         if (d.uses && d.cat === 'material') {
           const have = Math.floor((it.uses ?? 1) * d.uses + 1e-6), use = Math.min(have, left);
-          it.uses = (it.uses ?? 1) - use / d.uses; left -= use;
-          if (it.uses <= 0.001) p.removeItem(it);
-        } else { p.removeItem(it); left--; }
+          const rest = (it.uses ?? 1) - use / d.uses; left -= use;
+          if (mine) { it.uses = rest; if (it.uses <= 0.001) p.removeItem(it); } else takeFromStore(p, it, rest > 0.001 ? rest : null);
+        } else { if (mine) p.removeItem(it); else takeFromStore(p, it); left--; }
       }
     }
     bus.emit('inventoryChanged', p);
+  }
+  /** what is short of a cost, as words ('2 Plank'), crates in the camp counted */
+  missing(p: Player, mats: [string, number][]): string[] {
+    return mats.filter(([k, n]) => this.countOf(p, k) < n).map(([k, n]) => `${n - this.countOf(p, k)} ${itemDef(k).name}`);
   }
   private refund(p: Player, mats: [string, number][], frac: number) {
     const got: string[] = [];
@@ -324,7 +344,7 @@ export class BuildSystem implements GameSystem {
     if (d.tags?.includes('bld_frame')) { this.weld(p, o, () => true); return true; }
     if (isPlanter(o)) return this.farm.use(p, o);
     if (o.key === 'bld_compactor') { this.compact(p, o); return true; }
-    if (o.key === 'bld_beacon') {
+    if (o.key === 'bld_beacon' || o.key === 'bld_camp_flag') {
       const s = this.settle.cache.get(o.uid);
       bus.emit('think', p, s ? `${s.rank}. Defence ${s.def}, comfort ${s.comfort}, food ${s.food}, power ${s.power}.` : 'The beacon blinks. Everything near it is mine.');
       return true;
@@ -345,7 +365,11 @@ export class BuildSystem implements GameSystem {
       for (let i = out.length - 1; i >= 0; i--) if (/^(Crop|Water|Harvest|Pull up|Fertilize)/.test(out[i].label)) out.splice(i, 1);
       out.unshift({ label: this.farm.verb(p, o), action: () => this.farm.use(p, o) }, ...this.farm.options(p, o));
     }
-    if (o.key === 'bld_beacon') out.unshift({ label: 'Check the settlement', action: () => this.useObject(p, o) });
+    if (o.key === 'bld_beacon' || o.key === 'bld_camp_flag') out.unshift({ label: 'Check the settlement', action: () => this.useObject(p, o) });
+    if (pieceForObj(o.key) && o.state.built && upgradeOf(pieceForObj(o.key)!.key)) {
+      const to = upgradeOf(pieceForObj(o.key)!.key)!;
+      out.push({ label: `Upgrade to ${to.name}`, action: () => this.upgradeAt(p, { kind: 'piece', o }) });
+    }
     if (o.key === 'bld_compactor') out.unshift({ label: 'Compact 3 scrap into sheet metal', disabled: this.countOf(p, 'scrap_metal') < 3 ? 'needs 3 scrap metal' : false, action: () => this.compact(p, o) });
     if (pieceForObj(o.key) && o.state.built) out.push({ label: 'Cut it apart (salvage half)', danger: true, action: () => this.demolishAt(p, { kind: 'piece', o }) });
   }
@@ -419,6 +443,7 @@ export class BuildSystem implements GameSystem {
     if (this.active && p) this.updateMode(dt, p);
     this.farm.update(dh);
     this.settle.update(dt, this.active);
+    try { this.camp.update(dt, dh); } catch (e) { console.warn('camp', e); }
     this.defT -= dt; if (this.defT <= 0) { this.defT = 0.5; this.defences(); }
     this.stoveT -= dt; this.stoves();
     if (this.active && p) this.board.update(dt, this.boardState(p));
@@ -442,6 +467,8 @@ export class BuildSystem implements GameSystem {
     const t = over ? null : pick(inp.mouseX, inp.mouseY, { ignore: p });
     this.hover = this.hoverOf(t) ?? (over ? null : this.wallUnderCursor(p));
     if (inp.keyHit('KeyX') || inp.keyHit('Delete')) this.demolishAt(p, this.hover);
+    if (inp.keyHit('KeyU') && this.hover && this.hover.kind !== 'frame') this.upgradeAt(p, this.hover);
+    if (inp.keyHit('Tab')) { this.nextCat(); inp.pressed.delete('Tab'); }
     const pc = this.current();
     const z = G.getZone(p.zoneKey);
     // the ghost: hidden while pointing at a frame / piece to weld or demolish
@@ -460,8 +487,8 @@ export class BuildSystem implements GameSystem {
     // claim ring around the nearest beacon
     const b = this.settle.claimAt(p.zoneKey, p.x, p.z) ?? null;
     this.claimRing.visible = !!b;
-    if (b) { this.claimRing.position.set(b.x + 0.5, z.heightAt(b.x, b.y), b.y + 0.5); this.claimRing.scale.setScalar(12); }
-    void dt;
+    if (b) { this.claimRing.position.set(b.x + 0.5, z.heightAt(b.x, b.y), b.y + 0.5); this.claimRing.scale.setScalar(this.claimRadius(b)); }
+    this.tag.update(dt, this.tagState(p, z, pc));
   }
 
   private drawGhost(z: Zone, pc: Piece, s: Spot | null) {
@@ -501,6 +528,71 @@ export class BuildSystem implements GameSystem {
       g = mb.build(); this.wallGeo.set(k, g);
     }
     return g;
+  }
+
+  // ================================================================= upgrades (U)
+  upgradeAt(p: Player, h: Hover): boolean {
+    if (!h || h.kind === 'frame') return false;
+    return this.camp.upgrade(p, h, {
+      has: (c) => this.missing(p, c),
+      take: (c) => this.takeMats(p, c),
+      unlocked: (pc) => this.unlocked(pc),
+    });
+  }
+  private nextCat() {
+    const cats = [...new Set(PIECES.map((q) => q.cat))];
+    const i = cats.indexOf(this.cat);
+    this.cat = cats[(i + 1) % cats.length];
+    const first = PIECES.find((q) => q.cat === this.cat && this.unlocked(q)) ?? PIECES.find((q) => q.cat === this.cat);
+    if (first) this.select(first.key);
+    G.audio?.ui?.('paper', 0.5);
+  }
+
+  // ================================================================= the ghost's floating words (src/build/ghostTag.ts)
+  private costLine(p: Player, mats: [string, number][]) {
+    return mats.map(([k, n]) => { const have = this.countOf(p, k); return { text: `${itemDef(k).name} ${Math.min(have, 99)}/${n}`, ok: have >= n }; });
+  }
+  private tagState(p: Player, z: Zone, pc: Piece): TagState | null {
+    const h = this.hover;
+    if (this.demolish) {
+      if (!h) return null;
+      const at = this.hoverTop(z, h);
+      const pk = h.kind === 'wall' ? piece(h.key) : h.kind === 'frame' ? piece(h.o.state.piece as string) : pieceForObj(h.o.key);
+      return { key: 'demo', head: 'Take down', name: pk?.name ?? 'piece', at, cost: pk ? this.refundLine(pk, h.kind === 'frame' ? 1 : 0.5) : [], keys: [] };
+    }
+    if (h && h.kind === 'frame') {
+      const fp = piece(h.o.state.piece as string);
+      const w = welderFor(p, fp);
+      const verb = fp?.join === 'nail' ? 'Hammer' : 'Weld';
+      return { key: 'frame', head: verb, name: `${fp?.name ?? 'frame'} ${Math.round((h.o.state.w ?? 0) * 100)}%`, why: w ? undefined : fp?.join === 'nail' ? 'needs a hammer' : 'needs a welding torch', at: this.hoverTop(z, h), keys: [['X', 'Knock apart']] };
+    }
+    if (h && (h.kind === 'piece' || h.kind === 'wall') && !this.spot?.ok) {
+      const from = h.kind === 'wall' ? piece(h.key) : pieceForObj(h.o.key);
+      const to = from ? upgradeOf(from.key) : null;
+      const keys: [string, string][] = [['X', 'Take down']];
+      if (to) keys.unshift(['U', 'Upgrade']);
+      return {
+        key: 'piece', head: to ? 'Upgrade' : '', name: to ? `${from!.name} to ${to.name}` : from?.name ?? '', at: this.hoverTop(z, h),
+        why: to && !this.unlocked(to) ? 'blueprint in the lab' : undefined,
+        cost: to ? this.costLine(p, upgradeCost(to)) : from ? this.refundLine(from, 0.5) : [], keys,
+      };
+    }
+    const s = this.spot;
+    if (!s) return null;
+    const unlocked = this.unlocked(pc);
+    const why = !unlocked ? 'no blueprint: research it in the lab' : !s.ok ? s.why : !this.canAfford(p, pc) ? 'not enough salvage' : !welderFor(p, pc) ? (pc.join === 'nail' ? 'needs a hammer to finish' : 'needs a welding torch to finish') : undefined;
+    const w = pc.w ?? 1, d = pc.d ?? 1, rw = s.rot % 2 === 0 ? w : d, rd = s.rot % 2 === 0 ? d : w;
+    const at = pc.kind === 'obj' ? { x: s.x + rw / 2, y: z.heightAt(s.x, s.y) + Math.min(2.2, pc.h) + 0.35, z: s.y + rd / 2 } : { x: s.side === 0 ? s.x + 0.5 : s.x, y: z.heightAt(s.x, s.y) + 2.5, z: s.side === 0 ? s.y : s.y + 0.5 };
+    const keys: [string, string][] = [['R', 'Rotate'], ['[ ]', 'Piece'], ['Tab', 'Shelf'], ['X', 'Take down'], ['B', 'Done']];
+    return { key: 'place:' + pc.key, head: 'Build', name: pc.name, why: why && why !== 'not enough salvage' ? why : undefined, cost: this.costLine(p, pc.cost), keys, at };
+  }
+  private refundLine(pc: Piece, frac: number) {
+    return pc.cost.map(([k, n]) => ({ text: `+${frac >= 1 ? n : Math.max(k === pc.cost[0][0] ? 1 : 0, Math.floor(n * frac))} ${itemDef(k).name}`, ok: true })).filter((c) => !c.text.startsWith('+0 '));
+  }
+  private hoverTop(z: Zone, h: NonNullable<Hover>) {
+    if (h.kind === 'wall') return { x: h.side === 0 ? h.x + 0.5 : h.x, y: z.heightAt(h.x, h.y) + 2.6, z: h.side === 0 ? h.y : h.y + 0.5 };
+    const d = objDef(h.o.key); const w = d?.w ?? 1, dd = d?.d ?? 1, rw = h.o.rot % 2 === 0 ? w : dd, rd = h.o.rot % 2 === 0 ? dd : w;
+    return { x: h.o.x + rw / 2, y: z.heightAt(h.o.x, h.o.y) + Math.min(2.4, (d?.height ?? 1)) + 0.3, z: h.o.y + rd / 2 };
   }
 
   // ================================================================= settlement machines

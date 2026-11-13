@@ -22,7 +22,7 @@ export interface Recipe {
   time: number;             // seconds of real-time action at skill 0
   skill?: [string, number]; // required skill level
   xp?: [string, number];
-  needs?: ('fire' | 'stove' | 'workbench' | 'water' | 'power' | 'light' | 'surface')[];
+  needs?: ('fire' | 'stove' | 'workbench' | 'bench2' | 'bench3' | 'water' | 'power' | 'light' | 'surface')[];
   /** must be learned from a magazine/schematic first */
   learned?: boolean;
   anim?: 'craft' | 'hammer' | 'saw' | 'cook' | 'stitch' | 'mix';
@@ -30,6 +30,8 @@ export interface Recipe {
   desc?: string;
   /** the output takes the input's condition (e.g. sharpening) */
   keepCondFrom?: string;
+  /** round 16: a schematic that can also be learned by scanning or taking apart one of these (item / object keys) */
+  discover?: string[];
 }
 
 const REG = new Map<string, Recipe>();

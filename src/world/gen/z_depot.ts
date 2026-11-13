@@ -492,6 +492,15 @@ function moduleTwo(c: Ctx, ms: number) {
     f.floorItem('note', x0 + 8, ROOM0 + 2, { lore: 'zw_depot_ticket' });
     for (const lx of [x0 + 3, x0 + 12]) lamp(b, lx, ROOM0 + 6, 'fluoro', C_ROOMS, { intensity: 0.5, flicker: 0.1 });
   }
+  // round 16: the Metro. Stairs down off Platform 0 to Westgate Station on the Inner Loop (z_subway.ts)
+  {
+    const sx = ms + 11, sy = PLAT0 + 1;
+    force(c, 'staircase_down', sx, sy, 0, { portal: 'p_depot_subway' });
+    b.portal({ id: 'p_depot_subway', x: sx, y: sy, kind: 'stairs_down', to: 'subway', tx: 33, ty: 28, label: 'Go down to the Metro' });
+    arrive(b, 'r_depot_subway', sx, sy + 3, 's', 2);
+    if (objDef('su_metro_sign')) put(c, 'su_metro_sign', sx - 1, sy, 0, {});
+    lamp(b, sx, sy + 1, 'fluoro', C_PLAT, { color: 0xe8f4ec, flicker: 0.05 });
+  }
   for (let i = 0; i < 8; i++) {
     const x = ms + c.rng.int(0, 31), y = c.rng.int(PLAT0, PLAT1 - 1);
     if (isOpen(z, x, y)) f.floorLoot('zw_floor_depot', x, y);

@@ -52,3 +52,5 @@
 @media (max-width: 720px), (orientation: portrait) { .ps2-col.mx { padding: 30px 14px 14px; } .ps2-foot { display: none; } }
 /* the world's prompts never float over the held picture */
 body:has(.ps2) .wp-tag { visibility: hidden; }
+/* round 16: the specimen jar stands in the gap; the settings' gear works take its place */
+.ps2-right.with-gears .ps2-jar { display: none; }

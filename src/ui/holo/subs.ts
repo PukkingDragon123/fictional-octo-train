@@ -16,6 +16,7 @@ import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { floatText } from '../../social/floatText';
 import { playLine, voiceForStyle, voiceFromApp } from '../../social/chipVoice';
+import { calderHas, calderSay, calderSpeaking } from '../../audio/calderVoice';
 
 interface UiLike { bubbles: any[]; root: HTMLElement }
 let uiRef: UiLike | null = null;
@@ -122,8 +123,12 @@ export function initSubtitles(ui: UiLike) {
           const v = new THREE.Vector3();
           if (handlerPos(v)) target = { x: v.x, y: v.y, z: v.z };
         }
-        // the sergeant has his own synthetic voice: the blips only tick under it
-        playLine(text, voiceForStyle(isGuard ? 'guard' : 'voss', who), target ? { x: target.x, z: target.z } : null, { vol: isGuard ? 1 : 0.28 });
+        // Dr. Calder speaks in her own recorded voice (src/audio/calderVoice.ts): already playing when her
+        // line came through her radio, said here when it came straight down the bus; the grains otherwise
+        const calder = !isGuard && /calder|^$/i.test(who);
+        if (calder && calderSpeaking(text)) { /* her radio has it */ }
+        else if (calder && calderHas(text)) calderSay(text, { vol: 0.95 });
+        else playLine(text, voiceForStyle(isGuard ? 'guard' : 'voss', who), target ? { x: target.x, z: target.z } : null, { vol: isGuard ? 1 : 0.28 });
         if (!target && !isGuard && G.holo?.visible && G.holo.showLine) { G.holo.showLine(text, secs, 'voss', who || 'CALDER'); return; }
         if (!target) { offscreen(el, secs); return; }
         push(el, target, isGuard ? 'guard' : 'voss');

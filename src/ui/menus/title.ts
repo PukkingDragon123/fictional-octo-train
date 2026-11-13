@@ -23,6 +23,8 @@ import { randomLooks } from '../../entities/humanLooks';
 import { AudioEngine } from '../../audio/audio';
 import { listSaves, deleteSave, SaveMeta } from '../../game/save';
 import { setLaunch } from '../../game/launch';
+import { loadout as talentLoadout } from '../../game/talentFile';
+import { talentTraits } from '../../survival/talents';
 import { defaultServerUrl } from '../../net/net';
 import { intakeForm, unitOutfit } from './intake';
 import { h, esc, optionsPanel, controlsPanel, applyGfx, confirmDialog, FocusNav, sfx, type OptionsApi } from './common';
@@ -50,6 +52,11 @@ import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRoom
 import { installDecoAndGuide, onBuildMode } from './deco';
 import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePanel, type PanelHost } from './research/panel';
 import * as THREE from 'three';
+import { mxOk } from '../machine/core';
+import { mxFrame, mxSkinKey, panelSpec } from '../machine/kit';
+import { mxIcon, mxMount, type IconKind, type MxDecor } from '../machine/decor';
+
+const TITLE_ICON: Record<string, IconKind> = { continue: 'play', new: 'bolt', free: 'door', coop: 'radio', load: 'tape', controls: 'key', about: 'clipboard' };
 
 export function showTitle() {
   const canvas = document.getElementById('view') as HTMLCanvasElement;
@@ -136,7 +143,7 @@ class TitleRoom {
     this.stage.onHot = (hh, x, y) => this.hotCaption(hh, x, y);
     this.stage.onPointer = (x, y) => this.pointer(x, y);
     // a tap on nothing while the research lattice is up steps back out of it
-    this.stage.onMiss = () => { if (treeOpen()) (this.research?.lattice as { back?: () => void } | undefined)?.back?.(); else if (this.view === 'research') this.research?.unfocus(); };
+    this.stage.onMiss = () => { if (treeOpen()) (this.research?.lattice as { back?: () => void } | undefined)?.back?.(); else if (this.view === 'research') { if (!this.research?.talent.miss()) this.research?.unfocus(); } };
     this.root.dataset.view = 'monitor';
     listSaves().then((s) => { this.saves = s; this.build(); }).catch(() => this.build());
     this.build();
@@ -176,6 +183,9 @@ class TitleRoom {
     window.addEventListener('pointerup', (e) => { if (this.view === 'archive') arc.drag('up', e.clientX, e.clientY); });
     this.stageHost.addEventListener('wheel', (e) => { if (this.view === 'archive' && arc.state === 'holo') { e.preventDefault(); arc.wheel(e.deltaY); } }, { passive: false });
     lab.rayAt = (x, y) => this.stage.rayAt(x, y);
+    // the talent bench by the door (rooms/talentBench.ts): its floating tags ride the stage's projection
+    lab.talent.project = (p) => this.stage.project(p);
+    lab.talent.onFocus = (on) => { this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
     lab.onBench = (on) => { this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
     const reg = (id: MenuRoomId, r: { scene: THREE.Scene; cam: THREE.Camera; deco: THREE.Group; floor: any; surfaces: any; guideSpot: any }) =>
       registerMenuRoom({ id, scene: r.scene, camera: r.cam, deco: r.deco, floor: r.floor, surfaces: r.surfaces, guideSpot: r.guideSpot, host: this.stageHost, pick: (x, y) => this.pickFloor(x, y, r.floor.y, r.surfaces) });
@@ -245,6 +255,17 @@ class TitleRoom {
       b.addEventListener('click', () => this.activate(it));
       this.menu.append(b);
       this.btns.set(it.key, b);
+      // round 16: the words are keys on the observation desk's console, each with its little model
+      if (mxOk()) {
+        const big = it.size === 'lg', go = it.key === 'new' || it.key === 'continue';
+        b.style.width = (pt ? (big ? 236 : 204) : (big ? 268 : 226)) + 'px';
+        b.style.height = (big ? (pt ? 44 : 50) : (pt ? 38 : 40)) + 'px';
+        const ic = mxIcon(TITLE_ICON[it.key] ?? 'gear', big && !pt ? 26 : 22);
+        if (ic) b.append(ic);
+        mxSkinKey(b, { tone: go ? 'yellow' : 'olive', lamp: go ? 'green' : 'amber', sound: '', seed: 40 + i });
+        if (go) b.classList.add('ink-d');
+        b.addEventListener('focus', () => this.beacon?.alert(it.key === 'new' || it.key === 'continue'));
+      }
     });
     this.gear?.dispose();
     const gi: Item = { key: 'options', label: 'Settings', sub: 'sound · picture · interface', act: () => this.options() };
@@ -255,7 +276,21 @@ class TitleRoom {
     this.menu.append(gb);
     this.btns.set('options', gb);
     this.gear = gb;
+    if (mxOk()) this.machine(pt);
     if (this.live) { this.menu.classList.add('in'); if (this.view === 'monitor') this.focusKey(this.btns.has(this.lastKey) ? this.lastKey : 'new'); }
+  }
+  private beacon: MxDecor | null = null;
+  /** round 16: the menu as a console on the desk: an enamel housing, a beacon on its hood that turns while the
+   * way in is lit, a spanner on a peg and the specimen jar beside it, watching the pointer */
+  private machine(pt: boolean) {
+    this.menu.classList.add('mx');
+    this.menu.querySelector(':scope > .mxf-cv')?.remove();
+    mxFrame(this.menu, (w, hh) => panelSpec(w, hh, { title: 'OBSERVATION DESK', serial: 'MI-OB4', seed: 71, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 44, bot: 26, toggles: 2, knobs: 1 }), { pad: 16, grow: pt ? { l: 14, t: 48, r: 14, b: 28 } : { l: 20, t: 50, r: 22, b: 30 } });
+    this.beacon = mxMount(this.menu, 'beacon', { right: pt ? 18 : 26, top: pt ? -78 : -80, z: 3 }, { col: 'amber', alert: this.lastKey === 'new' || this.lastKey === 'continue' });
+    if (!pt) {
+      mxMount(this.menu, 'jar', { right: -110, bottom: -30, z: 3 }, { title: 'Specimen 07' });
+      mxMount(this.menu, 'wrench', { right: -48, top: -26, z: 3 });
+    }
   }
   private focusKey(k: string) { requestAnimationFrame(() => (this.btns.get(k) ?? this.feedBtns.get(k as FeedKey))?.focus({ preventScroll: true })); }
   private caption(it: { sub: string }, b: HTMLElement) {
@@ -426,7 +461,7 @@ class TitleRoom {
   }
   /** Q / E in a room: the next channel */
   private channel(d: -1 | 1) {
-    if (this.view === 'monitor' || this.root.classList.contains('lit') || this.research?.bench || treeOpen()) return;
+    if (this.view === 'monitor' || this.root.classList.contains('lit') || this.research?.bench || this.research?.talent.active || treeOpen()) return;
     // in the archive Q / E run along the drawers, or along the files in the projection
     const A = this.archive;
     if (this.view === 'archive' && A && A.state !== 'room') { if (A.state === 'holo') A.nextFile(d); else A.nextDrawer(d); return; }
@@ -441,7 +476,7 @@ class TitleRoom {
     if (this.view !== 'monitor') void this.back();
   }
   private onKey = (e: KeyboardEvent) => {
-    if (!this.live || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on') || panelOpen() || treeOpen() || this.research?.bench) return;
+    if (!this.live || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on') || panelOpen() || treeOpen() || this.research?.bench || this.research?.talent.active) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     if (this.view === 'archive' && this.archive && this.archive.state !== 'room') { if (this.archive.key(e)) { e.preventDefault(); e.stopPropagation(); } return; }
@@ -486,7 +521,7 @@ class TitleRoom {
     bar.append(word('Monitors', 'home', () => void this.back(), 'Back to the monitors (Esc)'));
     bar.append(word(nf.label + ' ›', 'next', () => void this.go(next), `Next feed: ${nf.label} (E)`, nf.cam + ' ›'));
     hud.append(acts, bar);
-    const tip = h('div', 'mr-tip', k === 'subject' ? 'tap a part of the unit to work on it · Q E change feed · Esc monitors' : k === 'research' ? 'tap the main computer, the fridge, the pegboard · Q E change feed · Esc monitors' : k === 'archive' ? 'tap a cabinet, pull a file, watch it project · Q E change feed · Esc monitors' : 'tap things · Q E change feed · Esc monitors');
+    const tip = h('div', 'mr-tip', k === 'subject' ? 'tap a part of the unit to work on it · Q E change feed · Esc monitors' : k === 'research' ? 'tap the main computer, the fridge, the talent bench · Q E change feed · Esc monitors' : k === 'archive' ? 'tap a cabinet, pull a file, watch it project · Q E change feed · Esc monitors' : 'tap things · Q E change feed · Esc monitors');
     hud.append(tip);
     requestAnimationFrame(() => (acts.querySelector('button') as HTMLElement | null ?? bar.querySelector('.home') as HTMLElement | null)?.focus({ preventScroll: true }));
   }
@@ -578,7 +613,16 @@ class TitleRoom {
       if (!P.prologueSeen()) { sfx('confirm'); P.replayPrologue(); return; }
     }
     const r = await this.runIntake({ directives, part: part as any });
-    if (r) setLaunch({ mode: 'new', ...r });
+    if (!r) return;
+    // the talent bench in the control room weighs the unit before it is linked (null: backed out)
+    const tal = await this.talentStep();
+    if (tal) setLaunch({ mode: 'new', ...r, traits: [...r.traits, ...talentTraits(tal)] });
+  }
+  /** a new unit's last stop: the control room's talent bench (scripted browsers skip it unless ?talent) */
+  private async talentStep(): Promise<string[] | null> {
+    if (!this.research || (navigator.webdriver && !/[?&]talent/.test(location.search))) return talentLoadout();
+    await this.go('research');
+    return this.research.talent.open({ intake: true });
   }
 
   /** the case files: one per save */
@@ -633,7 +677,7 @@ class TitleRoom {
       this.closeOver();
       const r = await this.runIntake({ title: 'UNIT INTAKE · HOST' });
       if (!r) return;
-      setLaunch({ mode: 'host', server, roomName: roomName || r.name, public: !pass, pass, ...r });
+      setLaunch({ mode: 'host', server, roomName: roomName || r.name, public: !pass, pass, ...r, traits: [...r.traits, ...talentTraits(talentLoadout())] });
     }));
     if (this.saves.length) hostBox.append(crtAct('Host a saved world', () => {
       remember();
@@ -652,7 +696,7 @@ class TitleRoom {
       this.closeOver();
       const r = await this.runIntake({ title: 'UNIT INTAKE · JOIN', sandbox: false, submit: 'JOIN TEAM' });
       if (!r) return;
-      setLaunch({ mode: 'join', server, room, pass, name: r.name, app: r.app, occupation: r.occupation, traits: r.traits });
+      setLaunch({ mode: 'join', server, room, pass, name: r.name, app: r.app, occupation: r.occupation, traits: [...r.traits, ...talentTraits(talentLoadout())] });
     }));
     joinBox.append(crtAct('List open lines', async () => {
       rooms.textContent = 'ringing…';

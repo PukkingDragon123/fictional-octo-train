@@ -7,6 +7,8 @@ import { TimedAction } from '../actions/action';
 import { createItem } from '../items/factory';
 import { bus } from '../core/events';
 import { SkillKey } from '../survival/traits';
+import { storeItems, storeOf, takeFromStore, craftQuality, applyQuality, GRADES } from '../craft/stores';
+import { craftSpeed } from '../build/speed';
 
 function matches(it: Item, key: string): boolean {
   if (key.startsWith('#')) { const d = itemDef(it.key); return (d.tags || []).includes(key.slice(1)) || d.key === key.slice(1); }
@@ -20,7 +22,8 @@ export function checkRecipe(p: Player, r: Recipe, prefer?: Item[] | null): Craft
   const missing: string[] = [];
   const picks: CraftCheck['picks'] = [];
   const used = new Set<Item>();
-  let pool = p.allItems().filter((i) => !p.isWorn(i));
+  // round 16: the crates and lockers of the camp you stand in are part of your hands (src/craft/stores.ts)
+  let pool = [...p.allItems().filter((i) => !p.isWorn(i)), ...storeItems(p)];
   // things laid out on the workbench get used first
   if (prefer?.length) { const pref = new Set(prefer); pool = [...pool.filter((i) => pref.has(i)), ...pool.filter((i) => !pref.has(i))]; }
   for (const inp of r.inputs) {
@@ -41,6 +44,8 @@ export function checkRecipe(p: Player, r: Recipe, prefer?: Item[] | null): Craft
   for (const n of needs) {
     if (n === 'fire' || n === 'stove') { if (!G.interact?.nearHeat?.(p)) missing.push('heat source'); }
     else if (n === 'workbench') { if (!G.interact?.nearTag?.(p, 'workbench')) missing.push('workbench'); }
+    else if (n === 'bench2') { if (!G.interact?.nearTag?.(p, 'bench2')) missing.push('powered workbench'); }
+    else if (n === 'bench3') { if (!G.interact?.nearTag?.(p, 'bench3')) missing.push("machinist's bench"); }
     else if (n === 'water') { if (!G.interact?.nearWater?.(p)) missing.push('water source'); }
     else if (n === 'power') { if (!G.interact?.hasPower?.(p)) missing.push('electricity'); }
     else if (n === 'light') { if (G.lightLevelAt(p.x, p.z) < 0.1) missing.push('light'); }
@@ -53,9 +58,9 @@ export class CraftAction extends TimedAction {
   prefer: Item[] | null = null;
   constructor(p: Player, public r: Recipe, public times = 1) {
     super(p);
-    this.name = r.name;
+    this.name = times > 1 ? `${r.name} (${times} queued)` : r.name;
     const sk = r.xp ? p.body.skill(r.xp[0] as SkillKey) : 0;
-    this.duration = r.time * (1 - sk * 0.05) * (p.body.has('handy') && r.category === 'carpentry' ? 0.75 : 1);
+    this.duration = r.time * (1 - sk * 0.05) * (p.body.has('handy') && r.category === 'carpentry' ? 0.75 : 1) / craftSpeed(p);
     this.anim = r.anim === 'hammer' ? 'hammer' : r.anim === 'saw' ? 'saw' : r.anim === 'cook' ? 'craft' : 'craft';
     this.sound = r.sound;
   }
@@ -70,8 +75,19 @@ export class CraftAction extends TimedAction {
     // kept inputs an output refers to are changed in place (boiling, purifying, repairs, patches, charging)
     const inPlace = new Set(this.r.outputs.map((o) => o.item));
     const kept = new Map<string, Item[]>();
+    // the grade of what comes out: the tools' condition, the bench, the skill (src/craft/stores.ts)
+    const tools = chk.picks.filter((pk) => pk.inp.keep && !inPlace.has(pk.inp.item) && !pk.inp.fluid).flatMap((pk) => pk.items);
+    const q = craftQuality(this.p, this.r, tools);
     for (const pk of chk.picks) {
       for (const it of pk.items) {
+        // out of a camp store: it leaves through the store's op
+        if (!this.p.containerOf(it) && storeOf(this.p, it)) {
+          if (pk.inp.keep) { const d = itemDef(it.key); if (d.durability) it.cond = Math.max(0, it.cond - 1 / d.durability); continue; }
+          if (pk.inp.uses) { takeFromStore(this.p, it, (it.uses ?? 1) - pk.inp.uses); continue; }
+          if (pk.inp.fluid && it.fluid) { it.fluid.amount -= pk.inp.fluid[1]; if (it.fluid.amount <= 0.005) it.fluid = null; continue; }
+          takeFromStore(this.p, it);
+          continue;
+        }
         if (this.r.keepCondFrom && matches(it, this.r.keepCondFrom)) condFrom = it;
         if (pk.inp.keep) {
           const d = itemDef(it.key);
@@ -109,17 +125,40 @@ export class CraftAction extends TimedAction {
       for (let i = 0; i < (out.count ?? 1); i++) {
         const it = createItem(out.item, undefined, { pristine: true });
         if (condFrom) it.cond = Math.min(1, condFrom.cond + 0.25);
+        else applyQuality(it, q);
         if (itemDef(out.item).food?.cookable && this.r.category === 'cooking') it.cooked = 1;
         this.p.inv.add(it);
       }
       label = label || `+${out.count ?? 1} ${itemDef(out.item).name}`;
+      const od = itemDef(out.item);
+      if ((od.durability || od.weapon) && !condFrom && q !== 1) label += ` (${GRADES[q]})`;
     }
     if (this.r.xp) this.p.body.addXp(this.r.xp[0] as SkillKey, this.r.xp[1]);
     if (label) bus.emit('halo', this.p, label, 'good');
     bus.emit('crafted', this.p, this.r);
     bus.emit('inventoryChanged', this.p);
+    // the craft queue: the next one goes to the front of the line while it still can be made
+    if (this.times > 1 && checkRecipe(this.p, this.r).ok) this.p.actions.list.unshift(new CraftAction(this.p, this.r, this.times - 1));
   }
 }
+
+/** how many times over this recipe can be made right now (capped) */
+export function craftableTimes(p: Player, r: Recipe, cap = 10): number {
+  const chk = checkRecipe(p, r);
+  if (!chk.ok) return 0;
+  let n = cap;
+  for (const pk of chk.picks) {
+    if (pk.inp.keep) continue;
+    const need = pk.inp.count ?? 1;
+    const pool = [...p.allItems().filter((i) => !p.isWorn(i)), ...storeItems(p)].filter((i) => matches(i, pk.inp.item));
+    if (pk.inp.uses) n = Math.min(n, Math.floor(pool.reduce((a, i) => a + (i.uses ?? 1), 0) / pk.inp.uses + 1e-6));
+    else if (pk.inp.fluid) n = Math.min(n, 1);
+    else n = Math.min(n, Math.floor(pool.length / need));
+  }
+  return Math.max(1, n);
+}
+/** queue the same recipe n times (the craft queue) */
+export function queueCraft(p: Player, r: Recipe, n: number) { p.actions.add(new CraftAction(p, r, Math.max(1, Math.min(10, n)))); }
 
 export function recipesUsing(it: Item): Recipe[] {
   return allRecipes().filter((r) => r.inputs.some((inp) => matches(it, inp.item)));
@@ -131,6 +170,8 @@ export function craftOptionsForItem(p: Player, it: Item): MenuOption[] {
     if (r.learned && !(p as any).knownRecipes?.has(r.key)) continue;
     const chk = checkRecipe(p, r);
     out.push({ label: r.name, disabled: chk.ok ? false : 'needs ' + chk.missing.slice(0, 2).join(', '), action: () => p.actions.add(new CraftAction(p, r)) });
+    const n = chk.ok ? Math.min(5, craftableTimes(p, r, 5)) : 0;
+    if (n >= 2) out.push({ label: `${r.name} ×${n}`, action: () => queueCraft(p, r, n) });
   }
   return out;
 }

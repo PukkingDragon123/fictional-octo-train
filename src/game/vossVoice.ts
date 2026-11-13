@@ -5,6 +5,7 @@
 // either end. It does not say real words. It sounds like somebody who means them.
 import { G } from './G';
 import { renderLine, voiceForStyle, letterTimes, type ChipVoice } from '../social/chipVoice';
+import { calderSay, calderStop, calderSpeaking, loadCalderVoice } from '../audio/calderVoice';
 
 /** the voices this radio can speak with (recorded grain sets only) */
 const STYLES: Record<string, () => ChipVoice> = {
@@ -19,7 +20,7 @@ export class RadioVoice {
   private src: AudioBufferSourceNode | null = null;
   private stopAt = 0;
   /** base pitch (Hz, ~96 a man's speaking voice, ~205 Dr. Calder's), speaking rate, the voice ('voss' | 'calder') */
-  constructor(public base = 96, public rate = 1, public style: 'voss' | 'calder' = 'voss') {}
+  constructor(public base = 96, public rate = 1, public style: 'voss' | 'calder' = 'voss') { if (style === 'calder') void loadCalderVoice(); }
 
   get ctx(): AudioContext | null { const a = G.audio; return a?.ctx && a.ready ? a.ctx as AudioContext : null; }
 
@@ -30,6 +31,17 @@ export class RadioVoice {
     const out: AudioNode | null = G.audio?.voiceInput?.() ?? null;
     if (!ctx || !out || !text.trim()) return dur;
     this.stop();
+    // Dr. Calder's own recorded voice when the line has one (src/audio/calderVoice.ts); the grains otherwise
+    if (this.style === 'calder') {
+      const d = calderSay(text, { vol: (o.vol ?? 0.85) * 1.15, out });
+      if (d !== null) {
+        if (o.clicks !== false) G.audio?.flat?.('radio_on', 'voice', 0.18);
+        this.neural = true;
+        this.stopAt = ctx.currentTime + d;
+        return d + 0.15;
+      }
+    }
+    this.neural = false;
     try {
       const v = (STYLES[this.style] ?? STYLES.voss)();
       const ref = this.style === 'calder' ? 205 : 96;
@@ -51,8 +63,10 @@ export class RadioVoice {
     return dur + 0.2;
   }
 
+  private neural = false;
   /** cut the current line off (with a squelch if it was still going) */
   stop() {
+    if (this.neural) { this.neural = false; if (calderSpeaking()) { calderStop(); G.audio?.flat?.('radio_off', 'voice', 0.2); } this.stopAt = 0; }
     const ctx = this.ctx, s = this.src;
     if (!ctx || !s) return;
     this.src = null;

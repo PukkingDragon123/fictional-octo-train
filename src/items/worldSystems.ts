@@ -397,13 +397,15 @@ export class WorldSystems implements GameSystem {
           if (Math.random() < 0.25) bus.emit('noise', { x: o.x + 0.5, z: o.y + 0.5, radius: 20, kind: 'machine', zone: z.key });
         }
       }
-      z.extPower = any ? (x: number, y: number) => this.running.some((r) => r.z === z && Math.hypot(r.x - x, r.y - y) < 14) : null;
+      // round 16: wire poles (src/build/camp.ts) carry a running generator's current further
+      const poles = (G as any).build?.camp?.gridPowers as ((z: Zone, x: number, y: number) => boolean) | undefined;
+      z.extPower = any ? (x: number, y: number) => this.running.some((r) => r.z === z && Math.hypot(r.x - x, r.y - y) < 14) || !!poles?.(z, x, y) : null;
       // appliances near a generator light up (or go dark) when it starts or stops
       const sig = this.running.filter((r) => r.z === z).map((r) => r.o.uid).join(',');
       if (sig !== (z.meta.__genSig ?? '')) { z.meta.__genSig = sig; refreshUnpowered(z); }
     }
   }
-  generatorPowers(z: Zone, x: number, y: number) { return this.running.some((r) => r.z === z && Math.hypot(r.x - (x + 0.5), r.y - (y + 0.5)) < 14); }
+  generatorPowers(z: Zone, x: number, y: number) { return this.running.some((r) => r.z === z && Math.hypot(r.x - (x + 0.5), r.y - (y + 0.5)) < 14) || !!(G as any).build?.camp?.gridPowers?.(z, x + 0.5, y + 0.5); }
   circuitOnGenerator(z: Zone, c: number) {
     if (!this.running.some((r) => r.z === z)) return false;
     return z.lights.some((l) => l.circuit === c && this.running.some((r) => r.z === z && Math.hypot(r.x - l.x, r.y - l.z) < 14));

@@ -77,6 +77,9 @@ export function issueKit(p: Player, add: (key: string, wear?: boolean) => Item |
   add('tool_roll', true);
   add('ration_bar');
   add('water_pouch');
+  // round 16 (src/build): building starts on the first day: a claw hammer and a box of nails for the first camp
+  add('hammer');
+  add('nails');
 }
 
 /** the session is starting without the intro (?quick, intro off): the band is already on */

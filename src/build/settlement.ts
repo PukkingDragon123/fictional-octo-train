@@ -15,6 +15,7 @@ import { createItem, serializeItem } from '../items/factory';
 import { builtWalls } from './ops';
 import { isPlanter } from './farm';
 import { mark } from './progress';
+import { CLAIM_OBJS } from './kit2';
 
 export const CLAIM_R = 12;
 export interface SettleStats { def: number; comfort: number; food: number; power: number; beds: number; stations: number; workers: number; crops: number; score: number; rank: string }
@@ -28,19 +29,21 @@ export class Settlement {
   cache = new Map<number, SettleStats>();
   private t = 0;
 
-  beacons(z: Zone): TileObject[] { const out: TileObject[] = []; for (const o of z.objects.values()) if (o.key === 'bld_beacon') out.push(o); return out; }
+  /** every claim in the zone: claim beacons and (round 16) camp flags */
+  beacons(z: Zone): TileObject[] { const out: TileObject[] = []; for (const o of z.objects.values()) if (o.key in CLAIM_OBJS) out.push(o); return out; }
+  radius(o: TileObject) { return CLAIM_OBJS[o.key] ?? CLAIM_R; }
 
   /** the claim (beacon) covering this point, if any */
   claimAt(zk: string, x: number, y: number): TileObject | null {
     const z = G.zones.get(zk); if (!z) return null;
     let best: TileObject | null = null, bd = 1e9;
-    for (const b of this.beacons(z)) { const d = Math.hypot(b.x + 0.5 - x, b.y + 0.5 - y); if (d <= CLAIM_R && d < bd) { bd = d; best = b; } }
+    for (const b of this.beacons(z)) { const d = Math.hypot(b.x + 0.5 - x, b.y + 0.5 - y); if (d <= this.radius(b) && d < bd) { bd = d; best = b; } }
     return best;
   }
 
   compute(z: Zone, b: TileObject): SettleStats {
     const s: SettleStats = { def: 0, comfort: 0, food: 0, power: 0, beds: 0, stations: 0, workers: 0, crops: 0, score: 0, rank: 'CAMP' };
-    const bx = b.x + 0.5, by = b.y + 0.5, R = CLAIM_R;
+    const bx = b.x + 0.5, by = b.y + 0.5, R = this.radius(b);
     let gen = 0, use = 0, stored = 0;
     for (const o of z.objects.values()) {
       if (Math.abs(o.x - b.x) > R || Math.abs(o.y - b.y) > R || Math.hypot(o.x + 0.5 - bx, o.y + 0.5 - by) > R) continue;
@@ -70,6 +73,8 @@ export class Settlement {
       s.def += piece(key)?.stats?.def ?? 0;
     }
     s.food += Math.min(8, Math.floor(stored / 6));
+    // round 16: a fed camp is a comfortable one, a hungry one is not (src/build/camp.ts upkeep)
+    s.comfort += G.build?.camp?.upkeepBonus?.(b) ?? 0;
     s.power = gen - use;
     s.def = Math.round(s.def); s.comfort = Math.round(s.comfort); s.food = Math.round(s.food);
     s.score = s.def + s.comfort + s.food + Math.max(0, s.power) * 2;

@@ -288,6 +288,7 @@ export class DisassembleAction extends TimedAction {
     if (skill) p.body.addXp(skill, 8);
     noise(p, this.o.x, this.o.y, 10, 'work');
     bus.emit('inventoryChanged', p);
+    bus.emit('disassembled', p, this.o.key);
   }
 }
 

@@ -12,6 +12,7 @@ import { itemDef, type Item } from '../items/item';
 import { PK } from '../gore/particles';
 import { shake, punch } from '../gfx/juice';
 import { piece, type Piece } from './pieces';
+import { buildSpeed } from './speed';
 import type { Player } from '../entities/player';
 import type { TileObject } from '../world/zone';
 
@@ -102,7 +103,8 @@ export class WeldAction extends TimedAction {
     this.lastW = this.w0;
     const skill = p.body.skill(this.tool.kind === 'hammer' ? 'carpentry' : 'mechanics');
     const rate = tool.kind === 'laser' ? 1.35 : 1;
-    this.duration = Math.max(0.6, this.pc.weld * (1 - this.w0) * (1 - Math.min(0.35, skill * 0.05)) / rate);
+    // buildSpeed: talents, traits and a lit camp with a bench (src/build/speed.ts)
+    this.duration = Math.max(0.6, this.pc.weld * (1 - this.w0) * (1 - Math.min(0.35, skill * 0.05)) / rate / buildSpeed(p));
     this.fixedTime = true;
     this.name = tool.kind === 'hammer' ? 'Nail ' + this.pc.name : 'Weld ' + this.pc.name;
     this.anim = tool.kind === 'hammer' ? 'hammer' : 'craft';

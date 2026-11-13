@@ -23,6 +23,7 @@ import { glyph5x7 } from './font5x7';
 import { mxOk } from './machine/core';
 import { mxFrame, mxButton, mxToggle, mxGauge, panelSpec } from './machine/kit';
 import type { Tone } from './machine/paint';
+import { mxIcon, type IconKind } from './machine/decor';
 
 /** round 16: the kit's plates and keys are 3D machine parts now (src/ui/machine); the 2D painters stay as the fallback */
 const mxTone = (t?: PxTone): Tone => (t === 'red' ? 'red' : t === 'brass' ? 'yellow' : 'olive');
@@ -190,12 +191,12 @@ export function pxFrame(el: HTMLElement, o: PlateOpts & { pad?: number } = {}) {
 
 export interface PxButton extends HTMLButtonElement { setOn(on: boolean): void }
 /** a menu plate with an Alagard label and a lamp */
-export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: number; h?: number; lamp?: 'amber' | 'green' | 'red'; cls?: string; sub?: string; sound?: Sfx } = {}): PxButton {
+export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: number; h?: number; lamp?: 'amber' | 'green' | 'red'; cls?: string; sub?: string; sound?: Sfx; /** round 16: a little 3D model on the key (machine kit only) */ icon?: IconKind } = {}): PxButton {
   const W = o.w ?? 236, H = o.h ?? 34;
   if (mxOk()) {
     // olive caps; the green-lamp key (the way forward) wears safety yellow, a red one oxblood
     const tone: Tone = o.lamp === 'green' ? 'yellow' : o.tone === 'red' || o.lamp === 'red' ? 'red' : mxTone(o.tone);
-    return mxButton(label, fn, { w: W, h: H, tone, lamp: o.lamp ?? 'amber', cls: 'pxb' + (o.cls ? ' ' + o.cls : ''), sub: o.sub, sound: o.sound ?? 'plate' }) as unknown as PxButton;
+    return mxButton(label, fn, { w: W, h: H, tone, lamp: o.lamp ?? 'amber', cls: 'pxb' + (o.cls ? ' ' + o.cls : ''), sub: o.sub, sound: o.sound ?? 'plate', icon: o.icon ? mxIcon(o.icon, Math.min(22, H - 12)) : null }) as unknown as PxButton;
   }
   const b = document.createElement('button') as PxButton;
   b.type = 'button';

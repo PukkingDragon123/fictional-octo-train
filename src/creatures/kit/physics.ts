@@ -50,7 +50,7 @@ export function steer(c: Creature, wx: number, wz: number, dt: number) {
 
 /** no wish to move: friction brings it to a stop (or the knockback slides out) */
 export function brake(c: Creature, dt: number) {
-  if (!hasWeight(c)) { c.vx *= 0.7; c.vz *= 0.7; return; }
+  if (!hasWeight(c)) { const k = Math.exp(-21 * dt); c.vx *= k; c.vz *= k; return; } // (0.7 a frame at 60 fps, at any frame rate)
   const k = c.sp.flags?.flying ? 3 : clamp(agility(c) * 0.6, 4, 12);
   const f = Math.exp(-k * dt);
   c.vx *= f; c.vz *= f;

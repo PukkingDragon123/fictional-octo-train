@@ -25,6 +25,7 @@ import { pixTag, stamp, disposeTag, type PixTag } from './tags';
 import { Shape } from './shapes';
 import { Dymo, Slate, HoverTag, clickTag } from './props';
 import { recipeHint } from './knowledge';
+import { craftSpeed } from '../build/speed';
 
 interface Staged { it: Item; obj: ItemObj; spot: number; sh: THREE.Mesh }
 interface Sheet { t: PixTag; run: () => void }
@@ -438,7 +439,7 @@ export class Bench {
 
   /** hold your hands on the work until it comes together */
   private assemble(r: Recipe) {
-    const speed = hasUnlock('rc_bench') ? 0.65 : 1;
+    const speed = (hasUnlock('rc_bench') ? 0.65 : 1) / craftSpeed(G.local);
     const dur = Math.max(0.9, Math.min(5, r.time * 0.12 * speed));
     this.hold = { r, t: 0, dur, down: false, tick: 0 };
     this.drawSlate();

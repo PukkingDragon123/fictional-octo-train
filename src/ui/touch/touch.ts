@@ -760,8 +760,8 @@ export class TouchControls implements GameSystem {
   strikeDown(e: PointerEvent) { this.atkDown(e); }
   strikeMove(e: PointerEvent) { this.atkMove(e); }
   strikeUp(cancelled: boolean) { this.atkUp(cancelled); }
-  /** the adaptive layout replaces the on-foot cluster (stick, top bars and the car stay) */
-  adaptive = true;
+  /** the adaptive layout replaced the on-foot cluster (round 12-15); round 16 brings the found-object cluster back */
+  adaptive = false;
 
   private atkDown(e: PointerEvent) {
     const p = this.g.local;

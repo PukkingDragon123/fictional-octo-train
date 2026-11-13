@@ -60,7 +60,11 @@ void main() {
 #ifdef DECAL
   if (t.a < 0.5) discard;
 #endif
+#ifdef FULL
+  base = mix(base, t.rgb, t.a);
+#else
   base = mix(base, t.rgb, t.a * smoothstep(0.15, 0.45, n.z));
+#endif
 #endif
   vec3 q = vLoc + vec3(uSeed);
   // grime: broad blotches and a fine grain (units are screen pixels)
@@ -123,13 +127,13 @@ void main() {
 }`;
 const HALO_VERT = /* glsl */`varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 
-export interface MatOpts { map?: THREE.Texture | null; wear?: number; decal?: boolean; seed?: number; glow?: number }
+export interface MatOpts { map?: THREE.Texture | null; wear?: number; decal?: boolean; seed?: number; glow?: number; /** the map covers every facet (an eyeball), not only the ones facing out */ full?: boolean }
 let seedN = 0;
 /** the machine's solid material (per-vertex colour + surface from the Mold, optional painted map) */
 export function mxMat(o: MatOpts = {}): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG, side: THREE.DoubleSide,
-    defines: o.map ? (o.decal ? { USE_MAP: '', DECAL: '' } : { USE_MAP: '' }) : {},
+    defines: o.map ? { USE_MAP: '', ...(o.decal ? { DECAL: '' } : {}), ...(o.full ? { FULL: '' } : {}) } : {},
     uniforms: {
       uKey: MXU.uKey, uLight: MXU.uLight, uTint: MXU.uTint, uRust: MXU.uRust,
       uGlow: { value: new THREE.Vector3() }, uSeed: { value: o.seed ?? (seedN++ * 17.3) % 300 }, uWear: { value: o.wear ?? 0.5 },
@@ -354,7 +358,7 @@ const lives = new Set<Live>();
 let raf = 0, last = 0;
 function tick(now: number) {
   raf = 0;
-  const dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now;
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = Math.max(last, now);
   for (const l of [...lives]) { let more = false; try { more = l.step(dt); } catch (e) { console.error(e); } if (!more) lives.delete(l); }
   if (lives.size) raf = requestAnimationFrame(tick);
 }

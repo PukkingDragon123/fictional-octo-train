@@ -46,6 +46,7 @@ import { BenchRun, type BenchHost, type Station } from './researchBench';
 import { Dresser } from './dress';
 import { Vault, blob, frostCard } from './vault';
 import { Pokes } from './pokes';
+import { TalentBench } from './talentBench';
 import type { Sample } from '../../../game/codex';
 
 const W = 3.6, BACK = -3.0, FRONT = 3.3, H = 3.05;
@@ -132,6 +133,8 @@ export class ResearchLab implements StageRoom {
   private screenGlow = new THREE.PointLight(0x7aff9a, 0.9, 2.6, 1.8);
   /** the research tree's rig on the main computer (research/lattice.ts) */
   lattice!: TreeLattice;
+  /** the talent bench by the door: tin cans of marbles and the balance (rooms/talentBench.ts) */
+  talent!: TalentBench;
   // the fridge's racks
   private racks: { mesh: THREE.InstancedMesh; kind: string }[] = [];
   private rackSlots: THREE.Vector3[] = [];
@@ -167,6 +170,8 @@ export class ResearchLab implements StageRoom {
     S.add(this.pokes.group);
     S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter(), this.chamber(), this.dressing());
     S.add(this.chamL, this.chamL.target, this.chamRed, this.redL);
+    this.talent = new TalentBench(this.mats, this.hots, { wallX: -W, z0: 1.62, z1: 3.12, top: 0.9 });
+    S.add(this.talent.group);
     S.add(this.leds.mesh, this.puffs.mesh, this.deco, this.hemi, this.dust.points);
     // wet floor: dark specular puddles that pick up the troughs and the screen
     for (const [x, z, w, d] of [[TABLE.x + 0.9, TABLE.z + 0.75, 1.1, 0.7], [-1.6, 1.4, 0.8, 1.2], [1.9, 1.8, 0.6, 0.5]] as [number, number, number, number][]) {
@@ -178,6 +183,7 @@ export class ResearchLab implements StageRoom {
     this.cam.position.copy(this.camP); this.cam.lookAt(this.camL);
     this.actions = [
       { key: 'tree', label: 'Research tree', run: () => this.focus('codex', () => this.onPanel?.('tree')) },
+      { key: 'talent', label: 'Talent bench', run: () => { void this.talent.open(); } },
       { key: 'process', label: 'Process a sample', run: () => this.focus('fridge', () => this.onPanel?.('fridge')) },
       { key: 'req', label: 'Requisition', run: () => this.focus('req', () => this.onPanel?.('req')) },
       // the Remittance Press's terminal, reached from outside the run: bank, dial, create (src/game/economy/terminal.ts)
@@ -885,10 +891,10 @@ export class ResearchLab implements StageRoom {
   /** back to the room view (a panel closed) */
   unfocus() { if (!this.bench) this.pose = 'room'; this.pokes.hideNote(); }
   /** the stage switched away: come back to the room view next time */
-  leave() { if (this.lattice.active) this.lattice.close(); this.unfocus(); }
+  leave() { if (this.lattice.active) this.lattice.close(); this.talent.close(true); this.unfocus(); }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); this.bench?.pointer(nx, ny); }
   /** dev / screenshots: skip the camera flight (software GL runs a few frames a second) */
-  settle() { const g = this.lattice.camGoal() ?? POSES[this.pose] ?? POSES.room; this.camP.copy(g.pos); this.camL.copy(g.look); this.camF = g.fov; this.lattice.settle(); }
+  settle() { this.talent.settle(); const g = this.lattice.camGoal() ?? this.talent.camGoal() ?? POSES[this.pose] ?? POSES.room; this.camP.copy(g.pos); this.camL.copy(g.look); this.camF = g.fov; this.lattice.settle(); }
   setBuild(on: boolean) { this.buildT = on ? 1 : 0; }
 
   frame(aspect: number, portrait: boolean) {
@@ -945,6 +951,7 @@ export class ResearchLab implements StageRoom {
     for (const r of this.readouts) { r.acc += dt; if (r.acc >= r.every && !(this.bench && r === this.readouts[0] && this.bench.usesScreen)) { r.acc = 0; r.draw(r.ctx, t); r.tex.needsUpdate = true; } }
     if (this.bench?.usesScreen && this.readouts[0]) this.readouts[0].tex.needsUpdate = true;
     this.lattice.update(dt, t, full);
+    this.talent.update(dt, t, full, this.cam, !!this.lattice.active);
     if (full && Math.random() < dt * 0.8) this.puffs.emit(this.v.set(HOOD.x + 0.1, 1.95, HOOD.z + (Math.random() - 0.5) * 0.8), new THREE.Vector3(0, 0.25, 0), { life: 2.2, s0: 0.01, s1: 0.03, color: 0xd8f0e8, rise: 0.3 });
     if (full) this.puffs.update(dt, this.cam, () => 0.6);
     if (full) this.pokes.update(dt, t, this.cam);
@@ -956,11 +963,11 @@ export class ResearchLab implements StageRoom {
     this.build = damp(this.build, this.buildT, 3, dt);
     const lg = this.lattice.camGoal();
     // the room's own props go quiet while the lattice is up (its sockets, lever and keys take the pointer)
-    for (const h of this.hots) if (!h.key.startsWith('lt:')) h.off = !!lg;
-    const goal = this.build > 0.5 ? POSES.build : lg ?? POSES[this.pose] ?? POSES.room;
+    for (const h of this.hots) if (!h.key.startsWith('lt:') && !h.key.startsWith('tb:')) h.off = !!lg || this.talent.active;
+    const goal = this.build > 0.5 ? POSES.build : lg ?? this.talent.camGoal() ?? POSES[this.pose] ?? POSES.room;
     const k = 1 - Math.exp(-dt * (lg ? 3.6 : 4.5));
     this.camP.lerp(goal.pos, k); this.camL.lerp(goal.look, k); this.camF += (goal.fov - this.camF) * k;
-    const par = lg ? 0.06 : this.pose === 'room' ? 1 : this.pose === 'obs' ? 0.45 : 0.25;
+    const par = lg || this.talent.active ? 0.06 : this.pose === 'room' ? 1 : this.pose === 'obs' ? 0.45 : 0.25;
     this.cam.position.set(this.camP.x - this.ptrS.x * 0.18 * par + Math.sin(t * 0.27) * 0.01, this.camP.y + this.ptrS.y * 0.06 * par + Math.sin(t * 0.39) * 0.006, this.camP.z);
     this.cam.lookAt(this.v.set(this.camL.x + this.ptrS.x * 0.3 * par, this.camL.y - this.ptrS.y * 0.12 * par, this.camL.z));
   }

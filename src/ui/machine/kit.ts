@@ -203,7 +203,7 @@ export function mxSkinKey(el: HTMLElement, o: KeySkin = {}): { setOn(v: boolean)
 
 export interface MxButton extends HTMLButtonElement { setOn(on: boolean): void }
 /** a push key with an Alagard legend */
-export function mxButton(label: string, fn: () => void, o: KeySkin & { w?: number; h?: number; cls?: string; sub?: string } = {}): MxButton {
+export function mxButton(label: string, fn: () => void, o: KeySkin & { w?: number; h?: number; cls?: string; sub?: string; /** a little 3D model on the cap (src/ui/machine/decor.ts mxIcon) */ icon?: HTMLCanvasElement | null } = {}): MxButton {
   const b = document.createElement('button') as MxButton;
   b.type = 'button';
   b.className = 'mxb' + (o.cls ? ' ' + o.cls : '') + (o.tone === 'yellow' ? ' ink-d' : '');
@@ -212,6 +212,7 @@ export function mxButton(label: string, fn: () => void, o: KeySkin & { w?: numbe
   const t = document.createElement('span'); t.className = 'mxb-t'; t.textContent = label;
   b.append(t);
   if (o.sub) { const s = document.createElement('small'); s.className = 'mxb-s'; s.textContent = o.sub; b.append(s); }
+  if (o.icon) { b.classList.add('has-i'); b.append(o.icon); }
   const sk = mxSkinKey(b, { lamp: 'amber', ...o });
   b.setOn = (v: boolean) => { b.classList.toggle('on', v); sk?.setOn(v); };
   b.addEventListener('click', () => fn());

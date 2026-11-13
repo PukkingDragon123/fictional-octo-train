@@ -545,6 +545,11 @@ function generateTunnels(z: Zone, seed: number) {
     bulb(b, r.x0 + 3, r.y0 + 3, C_(cx, cy), {}); bulb(b, r.x1 - 3, r.y1 - 3, C_(cx, cy), { flicker: 0.1 }); bulb(b, r.x1 - 3, r.y0 + 3, C_(cx, cy), { broken: true });
     f.floorItem('note', cx + 1, cy + 1, { lore: 'note_generic' });
     f.floorItem('chalk', cx - 1, cy + 2);
+    // round 16: a steel door in the east wall, through to the Metro's signal room (z_subway.ts)
+    b.door(r.x1 + 1, 70, 1, 'door_metal', { portal: 'p_tunnels_subway', sign: 'maintenance' });
+    b.portal({ id: 'p_tunnels_subway', x: r.x1, y: 70, kind: 'door', to: 'subway', tx: 16, ty: 43, label: 'Open the door marked METRO' });
+    anchorAt(b, 'r_tunnels_subway', r.x1 - 2, 70, 'w', 2);
+    mount(b, 'zg_room_plate', r.x1 + 1, 69, 'w', { label: 'METRO' });
   }
   // the tunnel marked J4: seamless loop, period 24, everything repeats every 8 tiles
   {
@@ -872,7 +877,7 @@ function generateTunnels(z: Zone, seed: number) {
   connectRegions(z, b, first[0], first[1], rng, { keep: [...blockRects, rect(LOOP.x0, LOOP.y0, LOOP.x1, LOOP.y1), VEST] });
   // anchors first in the table = the manhole (zonecheck reachability starts there)
   const a = z.meta.anchors;
-  z.meta.anchors = { p_suburbs_manhole: a.p_suburbs_manhole, p_pools_drain: a.p_pools_drain, p_hospital_basement: a.p_hospital_basement, r_tunnels_lab: a.r_tunnels_lab, lab_door: a.lab_door, fold_j3: a.fold_j3, fold_j8: a.fold_j8, p_under_tunnels: a.p_under_tunnels };
+  z.meta.anchors = { p_suburbs_manhole: a.p_suburbs_manhole, p_pools_drain: a.p_pools_drain, p_hospital_basement: a.p_hospital_basement, r_tunnels_lab: a.r_tunnels_lab, lab_door: a.lab_door, fold_j3: a.fold_j3, fold_j8: a.fold_j8, p_under_tunnels: a.p_under_tunnels, r_tunnels_subway: a.r_tunnels_subway };
 
   for (let c = 1; c <= 9; c++) z.power.set(c, c !== DEAD);
   z.env = {

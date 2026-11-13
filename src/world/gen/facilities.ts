@@ -154,6 +154,7 @@ const PLAN: Record<string, FacKind[]> = {
   playground: ['survey', 'relay'],
   ballhouse: ['relay'],
   moon: ['survey'],
+  subway: ['maint', 'relay'],
 };
 
 const isCeil = (key: string) => !!objDef(key)?.ceiling;

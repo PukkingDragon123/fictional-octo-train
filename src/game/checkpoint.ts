@@ -50,17 +50,18 @@ const placeName = (zk: string) => { const z = G.zones.get(zk); return String(z?.
 
 let busy = false;
 /** hold a checkpoint at this relay or press (the shot first, then the save) */
-export async function holdCheckpoint(p: Player, o: TileObject, kind: 'relay' | 'press', quiet = false): Promise<boolean> {
+export async function holdCheckpoint(p: Player, o: TileObject, kind: 'relay' | 'press' | 'bed', quiet = false): Promise<boolean> {
   if (busy || p !== G.local || p.body.dead) return false;
   if (G.role === 'client') { bus.emit('think', p, 'The relay only answers the host.'); return false; }
   busy = true;
   try {
     const z = G.getZone(p.zoneKey);
-    const label = `${kind === 'relay' ? 'Relay booth' : 'Remittance Press'}, ${placeName(z.key)}`;
+    const label = `${kind === 'relay' ? 'Relay booth' : kind === 'bed' ? 'Camp bed' : 'Remittance Press'}, ${placeName(z.key)}`;
     const here = `cp:at:${z.key}:${o.uid}`;
     const first = !G.missions?.flags?.has(here);
     if (first) { try { G.missions?.set?.(here); } catch { /* no missions */ } }
-    const shot = !quiet || first;
+    // a camp bed (src/build/camp.ts) holds it quietly: the unit is asleep, no shot
+    const shot = kind !== 'bed' && (!quiet || first);
     if (shot && cineEnabled()) await checkpointShot(o, kind, label);
     const ok = await writeHeld(p, label, z.key, o);
     if (!shot || !cineEnabled()) bus.emit('subtitle', { who: 'RELAY', text: ok ? `CHECKPOINT HELD · ${label.toUpperCase()}` : 'THE RELAY COULD NOT HOLD THE LINE', dur: 2.6, style: 'radio' });

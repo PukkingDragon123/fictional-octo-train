@@ -77,3 +77,28 @@
 .pb.pb-mx.ink-d > :is(.pb-l, .pb-s) { text-shadow: 0 1px 0 rgba(255,236,160,.4); }
 .pb.pb-mx.mx-hot:not(.ink-d) { color: #fff2a8; }
 .pb.pb-mx:disabled { color: rgba(200,200,170,.45); }
+
+/* ---- the little 3D things (src/ui/machine/decor.ts): a box the size of the model, its canvas spills over */
+.mxd { position: relative; flex: none; pointer-events: auto; }
+.mxd > canvas { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; }
+.mxd-jar, .mxd-wrench, .mxd-valve, .mxd-buttons, .mxd-gears { cursor: pointer; }
+.mxi-cv { image-rendering: pixelated; image-rendering: crisp-edges; pointer-events: none; flex: none; }
+/* a 3D icon on a key's cap rides with the cap (sinks with it) */
+.mxk > .mxi-cv { position: absolute; right: 10px; top: 50%; transform: translate(var(--mx-dx, 0), calc(-50% + var(--mx-dy, 0px))); z-index: 1; }
+.mxb.has-i .mxb-t { right: 40px; }
+.mxk.mx-hot > .mxi-cv { filter: brightness(1.15); }
+.mxk:disabled > .mxi-cv, .mxk.dim > .mxi-cv { filter: grayscale(.7) brightness(.6); }
+
+/* ---- the title's console (src/ui/menus/title.ts): the menu words become keys on an enamel housing */
+.tt3-menu.ft-menu.mx { gap: 6px; }
+html .ft-menu.mx .ft-item { border: 0 !important; border-image: none !important; padding: 0 44px 0 calc(var(--mx-cx, 8px) + 10px) !important; margin: 0; color: #f2d65a; justify-content: flex-start; box-sizing: border-box; }
+html .ft-menu.mx .ft-item:is(:hover, :focus, :focus-visible, :active, .px-down) { transform: none; filter: none; }
+.ft-menu.mx .ft-item .ft-ptr { display: none !important; }
+.ft-menu.mx .ft-item .ft-lab { transform: translate(var(--mx-dx, 0), var(--mx-dy, 0)); white-space: nowrap; animation: none !important;
+  text-shadow: 1px 1px 0 #16180e, -1px 0 0 #16180e, 0 -1px 0 #16180e, 1px 0 0 #16180e, 0 1px 0 #16180e, 0 2px 0 #16180e; }
+.ft-menu.mx .ft-item.ink-d { color: #1a160a; }
+.ft-menu.mx .ft-item.ink-d .ft-lab { text-shadow: 0 1px 0 rgba(255,236,160,.45); }
+.ft-menu.mx .ft-item.mx-hot:not(.ink-d) { color: #fff2a8; }
+html .ft-menu.mx .ft-lg .ft-lab { font-size: 32px; }
+html .ft-menu.mx :is(.ft-md, .ft-sm) .ft-lab { font-size: 24px; color: inherit; }
+.ft-menu.mx > .tt4-gear { margin-top: 8px; }

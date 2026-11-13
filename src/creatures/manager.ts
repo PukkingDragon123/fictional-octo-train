@@ -31,6 +31,7 @@ import { dreadBefore, dreadPlace, dreadAfter, dreadHost, dreadFrame, dreadFlickP
 import './spawnTables';
 import { temperBefore, temperAfter, temperPose } from './temper';
 import { steer, brake, heading, shoveBy, corpseFall, hasWeight } from './kit/physics';
+import { visualMotion, smoothBegin, smoothEnd, leanOf, type VisMotion } from './kit/smooth';
 
 /** what a creature was hit with (passed to the gore system) */
 export interface GoreHit { dmg: number; kind: string; fx: number; fz: number; crit?: boolean; by?: string; head?: boolean }
@@ -240,10 +241,12 @@ export class CreatureSystem implements GameSystem {
     if (c.mem.dom && G.dominion?.step?.(c, z, dt)) { this.applyMove(c, z, dt); return; }
     // penned livestock wander their pen (src/game/economy/homestead.ts)
     if (c.mem.pen && (G as any).econ?.penStep?.(c, z, dt)) { this.applyMove(c, z, dt); return; }
+    // probing a camp: it walks in and breaks what is in its way (src/build/camp.ts)
+    if (c.mem.probe && (G as any).build?.probeStep?.(c, z, dt)) { this.applyMove(c, z, dt); return; }
     // attack in progress
     if (c.attackPhase > 0) {
       c.attackPhase -= dt;
-      c.vx *= 0.8; c.vz *= 0.8;
+      { const k = Math.exp(-13 * dt); c.vx *= k; c.vz *= k; }
       if (c.attackPhase <= 0) this.resolveAttack(c);
       this.applyMove(c, z, dt);
       return;
@@ -460,6 +463,11 @@ export class CreatureSystem implements GameSystem {
           if (!c.path) { c.speed = 0; return d < stop + 2; }
         }
         while (c.path && c.pathIdx < c.path.length && Math.hypot(c.path[c.pathIdx][0] + 0.5 - c.x, c.path[c.pathIdx][1] + 0.5 - c.z) < 0.45) c.pathIdx++;
+        // look ahead: cut the corner to the node after next when nothing is in the way (no zigzag along the grid)
+        if (c.path && c.pathIdx + 1 < c.path.length) {
+          const nx = c.path[c.pathIdx + 1][0] + 0.5, nz = c.path[c.pathIdx + 1][1] + 0.5;
+          if (Math.hypot(nx - c.x, nz - c.z) < 4.5 && lineOfSight(z, c.x, c.z, nx, nz)) c.pathIdx++;
+        }
         if (c.path && c.pathIdx < c.path.length) { tx = c.path[c.pathIdx][0] + 0.5; tz = c.path[c.pathIdx][1] + 0.5; }
       }
     }
@@ -473,7 +481,20 @@ export class CreatureSystem implements GameSystem {
 
   private applyMove(c: Creature, z: Zone, dt: number) {
     const turn = c.sp.turn ?? 8;
-    c.facing = dampAngle(c.facing, c.targetFacing, turn, dt);
+    if (!hasWeight(c) || dt <= 0) c.facing = dampAngle(c.facing, c.targetFacing, turn, dt);
+    else {
+      // a body turns with an angular speed it has to build up and bleed off (round 16): no snapped
+      // about-faces; small corrections still settle as quickly as before
+      const err = angleDiff(c.facing, c.targetFacing);
+      const wMax = turn * 1.25 + 1.5, acc = turn * 10 + 20;
+      const want = clamp(err * turn, -wMax, wMax);
+      let w = (c.mem._fw as number | undefined) ?? 0;
+      w += clamp(want - w, -acc * dt, acc * dt);
+      // never overshoot the heading it wants
+      if (Math.abs(w * dt) > Math.abs(err) && Math.sign(w) === Math.sign(err)) { c.facing = c.targetFacing; w *= 0.5; }
+      else c.facing = wrapAngle(c.facing + w * dt);
+      c.mem._fw = w;
+    }
     // no wish to move (or reeling from a blow): friction, not a dead stop
     if (c.speed <= 0.01 || c.stagger > 0) brake(c, dt);
     // missing legs: it limps, crawls, drags itself
@@ -791,20 +812,28 @@ export class CreatureSystem implements GameSystem {
       c.rig.root.visible = show || !!c.rig.eyes;
       if (c.rig.eyes) for (const e of c.rig.eyes) e.visible = show || (d < 16 && lineOfSight(G.zone, local.x, local.z, c.x, c.z) && !c.dead);
       c.rig.body.visible = show && !c.mem.gibbed;
+      // the smoothing layer (src/creatures/kit/smooth.ts): last frame's raw pose back first, then the drawn
+      // facing / the real speed for this frame
+      try { smoothBegin(c.rig); } catch (e) { console.error('smooth', e); }
+      const vm: VisMotion | null = (() => { try { return visualMotion(c, c.rig!, dt); } catch { return null; } })();
       // the dread layer may hold this frame (stop-motion, frozen while you look at it)
       let held = false;
       try { held = dreadBefore(c, dt); } catch (e) { console.error('dread', e); }
       if (!held) {
         c.rig.root.position.set(c.x, c.y, c.z);
-        c.rig.root.rotation.y = Math.PI / 2 - c.facing;
+        c.rig.root.rotation.y = Math.PI / 2 - (vm ? vm.f : c.facing);
         dreadPlace(c, dt);
       }
       c.animT += dt;
       c.hitFlash = Math.max(0, c.hitFlash - dt);
+      // species animate with the facing the rig is drawn at and the speed it really moves at
+      const simSpeed = c.speed, simFacing = c.facing;
+      if (vm) { c.speed = vm.v; c.facing = vm.f; }
       if (!held) try { c.sp.animate(c.rig, c, c.animT, dt); } catch (e) { console.error('anim', c.sp.key, e); }
-      if (!c.dead) { if (!held) { this.limbVisuals(c); G.combat?.creaturePose?.(c, dt); temperPose(c, c.animT); } }
+      if (!c.dead) { if (!held) { this.limbVisuals(c, vm); G.combat?.creaturePose?.(c, dt); temperPose(c, c.animT); } }
       else if (c.rig.root.rotation.x || c.rig.root.rotation.z) { c.rig.root.rotation.x = 0; c.rig.root.rotation.z = 0; }
       try { dreadAfter(c, dt); dreadFlickPoll(c); } catch (e) { console.error('dread', c.sp.key, e); }
+      if (vm) { if (c.speed === vm.v) c.speed = simSpeed; if (c.facing === vm.f) c.facing = simFacing; }
       if (c.dead) {
         // the body goes over the way the last blow drove it, bounces, settles (src/creatures/kit/physics.ts);
         // a corpse loaded from a save (or first seen dead) is simply lying there
@@ -816,6 +845,7 @@ export class CreatureSystem implements GameSystem {
           if (d < 24) { G.audio?.at?.(big > 1.6 ? 'body_thud' : 'thud_soft', c.x, c.z, Math.min(1, 0.35 + big * 0.3)); if (big > 1.8 && d < 10) G.camera?.shake?.(Math.min(0.5, big * 0.12), 0.3); }
         }
       }
+      try { smoothEnd(c, c.rig, dt, held, vm); } catch (e) { console.error('smooth', c.sp.key, e); }
     }
   }
 
@@ -824,10 +854,12 @@ export class CreatureSystem implements GameSystem {
    * a limp roll, a low dragging crawl, a jerking pull while it holds someone. Species that animate
    * their own losses set `handlesSevered: true` on their def to opt out of the crawl part.
    */
-  private limbVisuals(c: Creature) {
+  private limbVisuals(c: Creature, vm: VisMotion | null = null) {
     const root = c.rig!.root;
     root.rotation.order = 'YXZ';
-    let pitch = 0, roll = 0, drop = 0, back = 0;
+    // leaning into turns and pushes (bodies with weight; not while knocked about by combat)
+    const ln = hasWeight(c) && !c.mem.cb ? leanOf(c, vm) : { pitch: 0, roll: 0 };
+    let pitch = ln.pitch, roll = ln.roll, drop = 0, back = 0;
     const lf = limbFx(c);
     if (lf && lf.crawl && !(c.sp as any).handlesSevered) {
       const k = lf.crawl === 2 ? 1 : 0.45;

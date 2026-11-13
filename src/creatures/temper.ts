@@ -275,7 +275,9 @@ export function temperPose(c: Creature, t: number) {
   const n = c.mem.netMem || c.mem.net || {};
   const ud = rig.root.userData as Record<string, any>;
   const on = !c.dead && n.tw === 1;
-  ud.tw = (ud.tw ?? 0) + ((on ? 1 : 0) - (ud.tw ?? 0)) * 0.12;
+  // (0.12 a frame at 60 fps, at any frame rate)
+  const fdt = Math.min(0.1, Math.max(0, t - (ud.twT ?? t))); ud.twT = t;
+  ud.tw = (ud.tw ?? 0) + ((on ? 1 : 0) - (ud.tw ?? 0)) * (1 - Math.exp(-7.7 * fdt));
   if (ud.tw < 0.01 && !ud.twS) return;
   const k = ud.tw;
   if (n.tf !== undefined && ud.tf !== n.tf) { ud.tf = n.tf; ud.feintT = t; }
