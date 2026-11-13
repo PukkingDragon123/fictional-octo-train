@@ -5,8 +5,9 @@
 .ins * { border-radius: 0 !important; }
 .ins-term { align-self: center; padding: 10px 12px; background: linear-gradient(#0b2414, #04110a); color: #72ff98; text-shadow: 0 0 3px rgba(70,255,130,.45);
   box-shadow: 0 0 0 2px #0a0b08, 0 0 0 5px #3b4428, 0 0 0 7px #0a0b08; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%); transition: opacity .4s, transform .4s; }
-.ins-th { display: flex; justify-content: space-between; gap: 10px; color: #43a862; border-bottom: 1px solid #1a4f2a; padding-bottom: 4px; margin-bottom: 6px; }
-.ins-th b { font-weight: normal; color: #dcffe4; letter-spacing: .12em; }
+.ins-th { display: flex; flex-direction: column; gap: 2px; color: #43a862; border-bottom: 1px solid #1a4f2a; padding-bottom: 5px; margin-bottom: 6px; }
+.ins-th b { font-weight: normal; color: #dcffe4; letter-spacing: .12em; white-space: nowrap; }
+.ins-th small { font-size: 12px; letter-spacing: .08em; color: #43a862; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ins-file { font-size: 24px; color: #dcffe4; margin-bottom: 8px; }
 .ins-bar { position: relative; height: 16px; box-shadow: inset 0 0 0 2px #1a4f2a; margin-bottom: 8px; }
 .ins-bar i { position: absolute; left: 2px; top: 2px; bottom: 2px; width: 0; background: repeating-linear-gradient(90deg, #72ff98 0 6px, #2e8a4a 6px 8px); }

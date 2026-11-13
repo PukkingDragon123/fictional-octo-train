@@ -5,9 +5,9 @@
 // beacon once the Seam Relay is researched, and in the lab between runs
 // (openPressTerminal({ from: 'lab' }): the Control Room / Monitor room prop).
 // Pages (Q / E or the plate keys):
-//   ACCOUNT  scrip on the debt, tokens, RP, the matter bank by material, how they relate
+//   ACCOUNT  the three currencies (credits on the debt, the researcher's dollars, RP), the matter bank by material
 //   DIAL     REMIT / SPLIT / KEEP, and (Assay Lens) what is on the plate right now
-//   CREATE   the researched patterns: matter + tokens -> the thing on the plate
+//   CREATE   the researched patterns: matter + dollars -> the thing on the plate
 //            (in the lab: down the chute at the start of the next run)
 //   LEDGER   the crew ledger (in a run)
 import { mxArrive } from '../../ui/machine/kit';
@@ -31,6 +31,7 @@ import {
 } from './matter';
 import { PATTERNS, PRESS_UPGRADES, type Pattern } from './registry';
 import { slagWords } from './crusher';
+import { INSTALLMENT_DOLLARS } from './money';
 import { itemValue } from '../debt/values';
 import './terminal.css';
 import { calibrate } from '../../ui/minigames/calibrate';
@@ -132,7 +133,7 @@ export function openPressTerminal(o: TermOpen) {
   function show(k: Page) { page = k; for (const [q, b] of keys) b.classList.toggle('on', q === k); render(); }
 
   function render() {
-    const sub: Record<Page, string> = { feed: 'feed the press · item by item', account: 'account · scrip · tokens · matter · research', dial: 'the dial · what the plate holds', create: 'creation patterns', ledger: 'crew ledger' };
+    const sub: Record<Page, string> = { feed: 'feed the press · item by item', account: 'account · credits · dollars · research · matter', dial: 'the dial · what the plate holds', create: 'creation patterns', ledger: 'crew ledger' };
     t.setHead('Remittance Press', sub[page]);
     const body = t.body;
     const keep = body.scrollTop;
@@ -234,11 +235,11 @@ export function openPressTerminal(o: TermOpen) {
     const d = G?.debt;
     const rows = h('div', 'ptm-acct');
     const row = (code: string, name: string, val: string, note: string) => rows.append(h('div', 'ptm-row', `<span class="ptm-code">${code}</span><b>${name}</b><span class="ptm-v">${val}</span><small>${note}</small>`));
-    if (inRun && d?.on) row('SCR', 'Scrip', d.cleared ? `${fmt(d.surplus)} surplus` : `${fmt(d.paid)} / ${fmt(d.owed)}`, d.cleared ? 'the debt is discharged; surplus buys passage at the depot' : `paid on the crew debt · ${fmt(d.remaining)} to go`);
-    else row('SCR', 'Scrip', inRun ? 'no contract' : '—', inRun ? 'nobody is collecting in this world' : 'scrip belongs to a run: it pays that world\'s debt');
+    if (inRun && d?.on) row('CR', 'Credits', d.cleared ? `${fmt(d.surplus)} surplus` : `${fmt(d.paid)} / ${fmt(d.owed)}`, d.cleared ? 'the debt is discharged; surplus buys passage at the depot' : `paid on the crew debt · ${fmt(d.remaining)} to go`);
+    else row('CR', 'Credits', inRun ? 'no contract' : '—', inRun ? 'nobody is collecting in this world' : 'credits belong to a run: they pay that world\'s debt');
     const p = press();
     const rate = SCRIP_PER_TOKEN;
-    row('TOK', 'Tokens', `${p.tok}`, `clearance to create · one per ${rate} scrip remitted (${Math.round(rate - p.rem)} to the next) · +3 per installment`);
+    row('$', 'Dollars', `$${fmt(tokens())}`, `the researcher's money · $1 per ${rate} credits remitted (${Math.round(rate - p.rem)} to the next) · +$${INSTALLMENT_DOLLARS} per installment · commissary, jukebox, creation`);
     row('RP', 'Research', `${researchPoints()}`, 'knowledge · buys patterns and upgrades on the lab lattice');
     row('KG', 'Matter', fmtKg(bankTotal()), 'banked in the seam reservoir · creation draws it back out kilo for kilo');
     el.append(rows);
@@ -252,7 +253,7 @@ export function openPressTerminal(o: TermOpen) {
       bars.append(b);
     }
     el.append(bars);
-    el.append(h('div', 'ptm-how', `<p><b>REMIT</b> pays a load's <b>value</b> to the debt as scrip and stamps <b>tokens</b>. <b>KEEP</b> banks its <b>mass</b> as matter. <b>CREATE</b> spends matter and tokens on a pattern you have <b>researched</b>.</p><p class="dim">The seam destroys and makes equally: what goes down comes back up, kilo for kilo.</p>`));
+    el.append(h('div', 'ptm-how', `<p><b>REMIT</b> pays a load's <b>value</b> to the debt in <b>credits</b>, and the Institute pays you <b>dollars</b> for it. <b>KEEP</b> banks its <b>mass</b> as matter. <b>CREATE</b> spends matter and dollars on a pattern you have <b>researched</b>.</p><p class="dim">The seam destroys and makes equally: what goes down comes back up, kilo for kilo.</p>`));
     if (p.disp.length) el.append(h('p', 'ptm-note', `Waiting at the chute for the next run: ${esc(summarise(p.disp))}`));
   }
 
@@ -284,9 +285,9 @@ export function openPressTerminal(o: TermOpen) {
       for (const q of c.objs) objMatter(q, m);
       const val = Math.round(P?.estimate?.(z, o.o) ?? 0);
       const share = MODES.find((q) => q.key === cur)!.share * (contract ? 1 : 0);
-      sec.append(h('p', '', `PLATE: ${c.items.length + c.objs.length} thing${c.items.length + c.objs.length === 1 ? '' : 's'} · ${fmtKg(matterKg(m))} · ≈ ${fmt(val)} scrip`));
+      sec.append(h('p', '', `PLATE: ${c.items.length + c.objs.length} thing${c.items.length + c.objs.length === 1 ? '' : 's'} · ${fmtKg(matterKg(m))} · ≈ ${fmt(val)} credits`));
       sec.append(h('p', 'ptm-cost', costLine(m)));
-      sec.append(h('p', '', `THIS PULL: <b>${fmt(val * share)}</b> scrip to the debt · <b>${fmtKg(matterKg(m) * (1 - share))}</b> kept`));
+      sec.append(h('p', '', `THIS PULL: <b>${fmt(val * share)}</b> credits to the debt · <b>${fmtKg(matterKg(m) * (1 - share))}</b> kept`));
     }
     el.append(sec);
     const pull = h('button', 'ptm-act', '&gt; PULL THE LEVER') as HTMLButtonElement;
@@ -300,7 +301,7 @@ export function openPressTerminal(o: TermOpen) {
   function create(el: HTMLElement) {
     const batch = hasUnlock('pr_batch') ? 3 : 1;
     const where = o.from === 'lab' ? 'made here goes down the chute at the start of your next run' : o.from === 'relay' ? 'prints arrive at the beacon' : 'prints rise out of the seam onto the plate';
-    el.append(h('p', 'ptm-note', `${esc(where)} · ${tokens()} token${tokens() === 1 ? '' : 's'} · ${fmtKg(bankTotal())} banked${batch > 1 ? ' · BATCH FORMER: ×3 per token fee' : ''}`));
+    el.append(h('p', 'ptm-note', `${esc(where)} · $${fmt(tokens())} in the purse · ${fmtKg(bankTotal())} banked${batch > 1 ? ' · BATCH FORMER: ×3 per fee' : ''}`));
     // the plate's calibration (UI round 15, src/ui/minigames/calibrate.ts): a clean run prints a spare on the next make
     const cal = h('div', 'ptm-cal');
     cal.innerHTML = `<span>${calib === 2 ? 'PLATE TRUE · the next make prints one spare' : calib === 1 ? 'plate close · calibrate clean for a spare' : 'plate uncalibrated · a clean calibration prints one spare'}</span>`;
@@ -334,8 +335,8 @@ export function openPressTerminal(o: TermOpen) {
     const busy = o.from === 'press' && !!o.o && !!(G.press ?? G.debt?.hoppers)?.busy?.(o.o);
     const r = h('div', 'ptm-pat' + (short || poor ? ' cant' : ''));
     const icon = canIcon() ? `<img src="${itemIcon(q.item, '', 24)}" alt="">` : `<span class="ptm-noicon"></span>`;
-    r.innerHTML = `${icon}<b>${esc(iname(q.item))}${q.n * batch > 1 ? ` ×${q.n * batch}` : ''}</b><span class="ptm-cost">${costLine(cost)} · <i class="tok">${q.tok} tok</i></span>`;
-    const b = h('button', 'ptm-make', short ? 'short' : poor ? 'tokens' : busy ? 'busy' : 'make') as HTMLButtonElement;
+    r.innerHTML = `${icon}<b>${esc(iname(q.item))}${q.n * batch > 1 ? ` ×${q.n * batch}` : ''}</b><span class="ptm-cost">${costLine(cost)} · <i class="tok">$${q.tok}</i></span>`;
+    const b = h('button', 'ptm-make', short ? 'short' : poor ? 'dollars' : busy ? 'busy' : 'make') as HTMLButtonElement;
     b.type = 'button';
     b.disabled = short || poor || busy;
     b.addEventListener('click', () => make(q, batch));

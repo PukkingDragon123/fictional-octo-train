@@ -10,7 +10,7 @@
 //     lab    back at the Institute: spend the research the run earned
 //     next   the next unit
 //
-// Rewards still pop: +SCRIP when the press takes something, +RP when research
+// Rewards still pop: +CREDITS when the press takes something, +RP when research
 // credit comes in, as Alagard type rising off the unit's head (no box). When
 // the unit has been stuck on a step for a while, or after a deposit now and
 // then, Calder names the next step. Nothing speaks while her tutorial runs
@@ -91,7 +91,7 @@ export class LoopTracker {
     on('deposited', (d: { by?: string; value?: number }) => {
       if (!d || (d.by && d.by !== G.local?.id) || !(Number(d.value) > 0)) return;
       const v = Math.round(Number(d.value));
-      this.pop('+' + fmt(v), 'SCRIP TO THE LEDGER', '#ffd890', 'rgba(255, 200, 90, .6)');
+      this.pop('+' + fmt(v), 'CREDITS TO THE LEDGER', '#ffd890', 'rgba(255, 200, 90, .6)');
       this.stuckT = 0;
       setTimeout(() => G.audio?.ui?.('watchTick', 0.35), 120);
       this.nextStepLine('deposit');
@@ -158,7 +158,7 @@ export class LoopTracker {
     }
     let text = '';
     switch (r.stage) {
-      case 'work': text = r.step === 'get a grip on furniture' ? 'Next step, {n}: a piece of furniture. Get a grip on it and carry it whole to the press.' : d?.on && d.due > 0 ? `Next step: the press. ${fmt(d.due)} scrip by day ${d.dueDay}. Data and scans for the lab, when you can.` : 'Next step: more for the press. Or data. Or a scan. Anything but standing still.'; break;
+      case 'work': text = r.step === 'get a grip on furniture' ? 'Next step, {n}: a piece of furniture. Get a grip on it and carry it whole to the press.' : d?.on && d.due > 0 ? `Next step: the press. ${fmt(d.due)} credits by day ${d.dueDay}. Data and scans for the lab, when you can.` : 'Next step: more for the press. Or data. Or a scan. Anything but standing still.'; break;
       case 'press': text = 'Next step: the press. Set it on the plate and feed it in.'; break;
       case 'out': text = 'Next step: passage. The kiosk sells the ride out. After that, the lab, and the next unit.'; break;
       default: return;

@@ -1,7 +1,7 @@
 // Research missions: Meridian R&D posts paid field work on the quest board (J).
-// Couriering a sealed case to another level, pressing a quota of scrip,
+// Couriering a sealed case to another level, pressing a quota of credits,
 // scanning entities and logging anomalies with the suit scanner, bringing back
-// samples, permits and bribes that cost scrip to complete. Most pay research
+// samples, permits and bribes that cost credits to complete. Most pay research
 // points (RP, the persistent currency the lab's research tree spends between
 // runs); several repeat after a cooldown. (Round 14: the wrist watch and its
 // multi-tool are gone; their field tests and calorie log went with them.)
@@ -116,9 +116,9 @@ q({
 
 q({
   key: 'rd_quota', title: 'Quota', giver: 'REMITTANCE LEDGER', category: 'research', repeatable: true, cooldownH: 10, requires: ['first_haul'],
-  desc: 'Throughput is research too. Remit another 1,500 scrip through any press machine and R&D will log the yield.',
+  desc: 'Throughput is research too. Remit another 1,500 credits through any press machine and R&D will log the yield.',
   begin: () => ({ v: T('dep_value') }),
-  objectives: [{ id: 'remit', get text() { const left = Math.max(0, 1500 - (T('dep_value') - B('rd_quota', 'v'))); return `Remit 1,500 scrip (${fmt(left)} to go)`; }, check: () => (T('dep_value') - B('rd_quota', 'v')) / 1500 }],
+  objectives: [{ id: 'remit', get text() { const left = Math.max(0, 1500 - (T('dep_value') - B('rd_quota', 'v'))); return `Remit 1,500 credits (${fmt(left)} to go)`; }, check: () => (T('dep_value') - B('rd_quota', 'v')) / 1500 }],
   reward: { rp: 5 },
 } as QuestX);
 

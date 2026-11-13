@@ -4,9 +4,11 @@
 // sitting in its wire coil with a code and price strip; a big display window
 // for the selected item (live, turning) with its name on embossed label tape
 // and a typed card; the BUY key; the series keys (Headcases / Stance /
-// Decor); the delivery flap. Buying spends research points (spendResearch)
+// Decor); the delivery flap. Buying spends the researcher's dollars (round 17, spendDollars)
 // and drops the item out of its coil into the tray.
-import { researchPoints, spendResearch } from '../../../game/research';
+import { dollars, spendDollars } from '../../../game/economy/money';
+/** round 17: the commissary takes DOLLARS (the researcher's money); catalogue figures are x10 */
+const cost = (it: { price: number }) => it.price * 10;
 import { PixelCanvas, makeRamp } from '../../../gfx/pixel';
 import { bitText, bitMeasure } from '../../../gfx/bitfont';
 import { FocusNav } from '../nav';
@@ -242,7 +244,7 @@ export class Shop {
   }
   private drawRP() {
     const L = this.L!;
-    const rp = Math.round(researchPoints());
+    const rp = dollars();
     if (rp === this.rpShown && this.flash <= 0) return;
     this.rpShown = rp;
     const ctx = this.body.getContext('2d')!;
@@ -252,7 +254,7 @@ export class Shop {
     const red = this.flash > 0 && Math.floor(this.flash * 8) % 2 === 0;
     bitText(ctx, '8888'.slice(0, s.length), b.x + b.w - 4, b.y + 1, { color: '#2a1606', outline: null, align: 'right' });
     bitText(ctx, s, b.x + b.w - 4, b.y + 1, { color: red ? '#ff4a2a' : '#ffb43c', outline: null, align: 'right' });
-    bitText(ctx, 'RP', b.x + 4, b.y + 1, { color: '#8a5a20', outline: null });
+    bitText(ctx, '$', b.x + 4, b.y + 1, { color: '#8a5a20', outline: null });
   }
 
   // ---------------------------------------------------------------- slots
@@ -308,8 +310,8 @@ export class Shop {
     ctx.fillStyle = '#b8ac88'; ctx.fillRect(1, RH + 12, cw, 1);
     bitText(ctx, s.code, 1 + cw / 2, RH - 1, { color: '#2a1d0e', outline: null, align: 'center' });
     ctx.fillStyle = '#100604'; ctx.fillRect(cw + 2, RH + 1, W - cw - 3, 12);
-    const price = String(it.price);
-    bitText(ctx, price, W - 3, RH - 1, { color: !it.price ? '#8aff9a' : it.price > researchPoints() ? '#8a4a2a' : '#ffb43c', outline: null, align: 'right' });
+    const price = it.price ? '$' + cost(it) : '0';
+    bitText(ctx, price, W - 3, RH - 1, { color: !it.price ? '#8aff9a' : cost(it) > dollars() ? '#8a4a2a' : '#ffb43c', outline: null, align: 'right' });
     const n = owned(s.id);
     if (n) { ctx.fillStyle = '#0a0806'; ctx.fillRect(1, 1, 15, 10); bitText(ctx, '×' + n, 2, -2, { color: '#8aff9a', outline: null }); }
     if (on) {
@@ -327,8 +329,8 @@ export class Shop {
     this.nameEl.innerHTML = `<b>${esc(it.name)}</b>`;
     const sub = SERIES.find((s) => s.key === it.series)!;
     this.blurbEl.innerHTML = `${esc(it.blurb)}<small>${esc(sub.name)} · ${n ? `owned ${n}${sp < n ? ` · ${n - sp} placed` : ''}` : 'not owned'}</small>`;
-    this.priceEl.innerHTML = it.price ? `<b>${it.price}</b><small>RP</small>` : '<b>FREE</b>';
-    this.priceEl.classList.toggle('short', it.price > researchPoints());
+    this.priceEl.innerHTML = it.price ? `<b>$${cost(it)}</b><small>DOLLARS</small>` : '<b>FREE</b>';
+    this.priceEl.classList.toggle('short', cost(it) > dollars());
     if (this.buyBtn) { this.buyBtn.setLabel(it.price ? 'Buy' : 'Take'); this.buyBtn.paint(); }
     if (!quiet) this.noteEl.textContent = '';
   }
@@ -347,7 +349,7 @@ export class Shop {
   private buy() {
     const it = ITEM.get(this.sel);
     if (!it) return;
-    if (it.price > 0 && !spendResearch(it.price, 'deco:' + it.id)) {
+    if (it.price > 0 && !spendDollars(cost(it), 'deco:' + it.id)) {
       sfx('error'); this.flash = 1.2;
       this.noteEl.textContent = 'insufficient research points';
       this.host.say('poor');

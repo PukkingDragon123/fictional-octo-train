@@ -15,6 +15,7 @@ import { itemIcon, iconRes } from './icons';
 import { sfx } from './menus/sfx';
 import { calm } from './menus/settings';
 import './holo/diegetic.css';
+import './bandline.css';
 import { initSubtitles, scrawl, speech, shout, radioLine, offscreen } from './holo/subs';
 import { debtorNo } from './holo/holo';
 import { openVerbTag } from '../interact/verbTag';
@@ -187,19 +188,7 @@ export class UI {
   }
 
   // ---------------- toasts ----------------
-  private toastHost: HTMLDivElement | null = null;
   private lastUnlockAt = -1e9;
-  private host(): HTMLDivElement {
-    if (!this.toastHost || !this.toastHost.isConnected) { this.toastHost = document.createElement('div'); this.toastHost.className = 'k-toasts'; document.body.appendChild(this.toastHost); }
-    return this.toastHost;
-  }
-  private pushToast(el: HTMLDivElement, secs: number) {
-    const host = this.host();
-    host.appendChild(el);
-    while (host.children.length > 4) host.firstChild!.remove();
-    setTimeout(() => el.classList.add('out'), secs * 1000);
-    setTimeout(() => el.remove(), secs * 1000 + 700);
-  }
   toast(title: string, sub = '', secs = 3.5) {
     // the unlock celebration below already covers plain "X UNLOCKED" notices
     if (/UNLOCKED$/.test(title) && performance.now() - this.lastUnlockAt < 2000) return;
@@ -209,18 +198,25 @@ export class UI {
     if (zn && title === zn) { this.placeCard(title, sub, secs + 1); return; }
     // the band projects everything else while its hologram is up
     if (G.holo?.toast?.(title, sub, secs)) return;
-    const el = document.createElement('div');
-    el.className = 'k-toast osd';
-    el.dataset.t = title;
-    el.dataset.at = String(performance.now());
-    el.innerHTML = `<span class="tt"></span>${sub ? `<small>${escapeHtml(sub)}</small>` : ''}`;
-    const tt = el.firstChild as HTMLElement;
-    this.pushToast(el, secs);
-    // teletype the headline
-    if (calm()) { tt.textContent = title; return; }
-    let i = 0;
-    const step = () => { if (!el.isConnected) return; i = Math.min(title.length, i + 2); tt.textContent = title.slice(0, i) + (i < title.length ? '▮' : ''); if (i < title.length) setTimeout(step, 18); };
-    step();
+    // round 17: no boxes stacking up: everything else is one line from the band, low over the hotbar
+    this.bandLine(title, sub, secs);
+  }
+
+  private bandEl: HTMLDivElement | null = null;
+  private bandTimer = 0;
+  /**
+   * one line from the unit's band (round 17, no pop-up boxes): a lit lamp, the word, what it means. No box, no
+   * stack: a newer line replaces the one showing; a soft tick says it arrived.
+   */
+  bandLine(title: string, sub = '', secs = 3.5, icon?: string) {
+    let el = this.bandEl;
+    if (!el || !el.isConnected) { el = this.bandEl = document.createElement('div'); el.className = 'k-band'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
+    el.innerHTML = `${icon ? `<img src="${icon}" alt="">` : '<i></i>'}<b>${escapeHtml(title)}</b>${sub ? `<span>${escapeHtml(sub)}</span>` : ''}`;
+    el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+    clearTimeout(this.bandTimer);
+    const e = el;
+    this.bandTimer = window.setTimeout(() => e.classList.remove('on'), Math.max(1.5, secs) * 1000);
+    G.audio?.ui?.('watchTick', 0.3);
   }
 
   private placeEl: HTMLDivElement | null = null;
@@ -252,16 +248,8 @@ export class UI {
     if (ns === 'job') { const o = OCCUPATIONS.find((x) => x.key === key); kind = 'NEW OCCUPATION UNLOCKED'; name = o?.name || key; const k = o?.items?.[0]; if (k) { try { icon = itemIcon(k, '', iconRes(18)); } catch { /* no icon */ } } }
     else if (ns === 'trait') { const t = TRAITS.find((x) => x.key === key); kind = 'NEW TRAIT UNLOCKED'; name = t?.name || key; }
     this.lastUnlockAt = performance.now();
-    // drop a plain notice another system may have just posted for the same unlock
-    this.toastHost?.querySelectorAll('.k-toast:not(.unlock)').forEach((n) => { const e = n as HTMLElement; if (/UNLOCKED$/.test(e.dataset.t || '') && performance.now() - Number(e.dataset.at || 0) < 2000) e.remove(); });
-    const el = document.createElement('div');
-    el.className = 'k-toast unlock tape';
-    el.setAttribute('role', 'status');
-    el.innerHTML = `<div class="tp"><div class="tp-k">MERIDIAN HR // ${escapeHtml(kind)}</div><div class="tp-row">${icon ? `<img src="${icon}" alt="">` : ''}<div class="tp-name">${escapeHtml(name)}</div></div><div class="tp-sub">Now on the personnel file for your next run.</div><div class="tp-stamp">FILED</div></div>`;
-    void glyphUrl;
-    this.pushToast(el, 6.5);
-    sfx('unlock');
-    G.audio?.ui?.('scanDone', 0.4);
+    // round 17: a line from the band, not a card
+    this.bandLine(kind.replace(/ UNLOCKED$/, ''), `${name} · on the personnel file for your next run`, 5.5, icon || undefined);
   }
 
   // ---------------- context menu (neutralised) ----------------

@@ -43,7 +43,7 @@ export function numWords(n: number): string {
 function phones(text: string): Ph[] {
   const t = text.toLowerCase()
     .replace(/(\d[\d,]*)/g, (m) => ' ' + numWords(Number(m.replace(/,/g, ''))) + ' ')
-    .replace(/¤/g, ' scrip ').replace(/d-(\d)/g, 'dee $1').replace(/%/g, ' percent')
+    .replace(/¤/g, ' credits ').replace(/d-(\d)/g, 'dee $1').replace(/%/g, ' percent')
     .replace(/[^a-z .,!?;:'-]/g, ' ');
   const out: Ph[] = [];
   const words = t.split(/(\s+|[.,!?;:])/).filter((w) => w && w !== ' ');

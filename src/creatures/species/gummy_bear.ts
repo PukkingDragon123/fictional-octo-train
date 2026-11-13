@@ -20,8 +20,9 @@ import '../../audio/sounds_creatures_c';
 // edge of the place, where things soften and run) and lived. Its whole body
 // has gone to a translucent amber-red jelly the consistency of a sweet. Inside
 // it you can see what is left of the bear: the spine, the ribs, a heart, a
-// stomach, whatever it last ate. Islands of real wet fur still float on the
-// surface, and the bear's limbs are still there, but not where they were: a
+// stomach, whatever it last ate. Its fur still grows: wet, matted clumps of it
+// push out through the jelly all over, lying back and dripping, torn away in
+// patches where the bare candy shows, and the bear's limbs are still there, but not where they were: a
 // paw comes out of its flank, a jaw opens where a shoulder should be, the head
 // has slid forward and sideways and hangs half-sunk in the front of the blob.
 // It hunts the Giant Bumble Bees (stalk, coil, lunge, engulf, digest) and,
@@ -159,6 +160,34 @@ function furIsland(B: SkinB, x: BuildCtx, reg: Region, g: number, t0: number, t1
   B.loft(rings, us, reg, g, { double: true });
 }
 
+/**
+ * Fur growing through the jelly: hundreds of wet, matted clumps rooted under the gel surface and pushing out
+ * through it, lying back toward the tail and drooping with the wet. Where it is thin or torn away (a slow noise
+ * over the body, different for every individual) the bare candy shows through.
+ */
+function furClumps(B: SkinB, x: BuildCtx, reg: Region, g: number, seed: number) {
+  const v = x.variant, NT = 26, NA = 22;
+  for (let i = 0; i < NT; i++) for (let j = 0; j < NA; j++) {
+    const h1 = hash(i * 31 + j, seed), h2 = hash(j * 17 + i, seed + 3), h3 = hash(i + j * 7, seed + 9);
+    const t = 0.06 + (i + 0.2 + h1 * 0.6) / NT * 0.86, a = -2.35 + (j + h2) / NA * 4.7;
+    // torn and thin patches: the gummy shows through
+    const cover = 0.55 + 0.3 * Math.sin(3 * a + 5 * t + v * 1.7) + 0.22 * Math.sin(7 * a - 9 * t + v * 2.3) + 0.18 * Math.sin(2 * a + 13 * t + v) + (h3 - 0.5) * 0.3;
+    if (cover < 0.32 || (t > 0.86 && Math.abs(a) < 1.2)) continue;
+    const base = blobAt(t, a, v, 0.95), o = blobAt(t, a, v, 1.12);
+    const n: V3 = [o[0] - base[0], o[1] - base[1], o[2] - base[2]], nl = Math.hypot(n[0], n[1], n[2]) || 1;
+    n[0] /= nl; n[1] /= nl; n[2] /= nl;
+    // wet fur does not stand up: each clump lies back along the body and hangs, plastered to the jelly
+    const L = (0.07 + 0.08 * h3) * (0.7 + Math.min(1, cover) * 0.5), th = 0.8 + h1 * 0.6;
+    const hang: V3 = [(h2 - 0.5) * 0.3, -0.55, -0.8];
+    const dn = hang[0] * n[0] + hang[1] * n[1] + hang[2] * n[2];
+    const tg: V3 = [hang[0] - n[0] * dn, hang[1] - n[1] * dn, hang[2] - n[2] * dn], tl = Math.hypot(tg[0], tg[1], tg[2]) || 1;
+    tg[0] /= tl; tg[1] /= tl; tg[2] /= tl;
+    const at = (k: number, o: number): V3 => [base[0] + tg[0] * L * k + n[0] * L * o, base[1] + tg[1] * L * k + n[1] * L * o, base[2] + tg[2] * L * k + n[2] * L * o];
+    const w = gelW(x, base);
+    sac(B, reg, g, [base, at(0.4, 0.3), at(0.75, 0.3), at(1, 0.2)], [[0.03 * th, 0.024 * th], [0.026 * th, 0.019 * th], [0.014 * th, 0.011 * th], [0.003, 0.003]], [w, w, w, w], { n: 5 });
+  }
+}
+
 /** a lofted limb with a furry cuff where it comes out of the jelly */
 function cuff(B: SkinB, x: BuildCtx, reg: Region, g: number, bone: string, child: string, r0: number, seed: number) {
   const a = x.rest(bone), b = x.rest(child);
@@ -213,6 +242,8 @@ function buildG(B: SkinB, x: BuildCtx) {
   const rest = x.rest;
   // ================= fur islands floating on the jelly (real, wet bear fur)
   W.fur.forEach(([t0, t1, a0, a1], i) => furIsland(B, x, R(i % 2 ? 'FUR2' : 'FUR'), 20 + i, t0, t1, a0, a1, 31 + i * 7 + v));
+  // ...and the coat growing back through the jelly everywhere else, wet and clumped
+  furClumps(B, x, R('FUR2'), 95, 101 + v);
 
   // ================= the head: a bear's, slid forward and sideways and half sunk in the front of the blob
   const H = rest('head');

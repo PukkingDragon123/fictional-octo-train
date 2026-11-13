@@ -462,7 +462,7 @@ export class MissionSystem implements GameSystem {
     this.set('escaped');
     G.audio?.flat?.('choir', 'music', 0.4, 1, 0, 60);
     const days = Math.floor(G.clock.hours / 24), hrs = Math.floor(G.clock.hours % 24);
-    const owed = G.debt?.on && !G.debt.cleared ? `${Math.round(G.debt.remaining).toLocaleString('en-GB')} scrip unpaid.` : '';
+    const owed = G.debt?.on && !G.debt.cleared ? `${Math.round(G.debt.remaining).toLocaleString('en-GB')} credits unpaid.` : '';
     const el = document.createElement('div');
     el.className = 'k-ending';
     el.innerHTML = `<div class="k-ending-inner">

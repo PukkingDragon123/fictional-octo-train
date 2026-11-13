@@ -428,7 +428,7 @@ export class Tutorial implements GameSystem {
         await this.sleep(2.2);
         const d = this.debt();
         await this.say('Hear that? The number went down. That is the whole job, {n}. Furniture to the press, until the ledger goes quiet.', { expr: 'smile' });
-        if (d && d.remaining > 0) await this.say(`It still owes ${fmt(d.remaining)} scrip. The ledger wants an installment every few days. Miss one, and the band bites. I do not enjoy that part. Much.`);
+        if (d && d.remaining > 0) await this.say(`It still owes ${fmt(d.remaining)} credits. The ledger wants an installment every few days. Miss one, and the band bites. I do not enjoy that part. Much.`);
         const a3 = await this.ask(['And if I don\'t?', 'How long will it take?', 'Understood.']);
         if (a3 === 0) { this.holo.jolt(0.4); await this.say('Then the band does what bands do, and the Institute sends a new unit, and I have this conversation again.', { expr: 'think' }); await this.say('I am very tired of this conversation, {n}. Do not make me have it.'); }
         else if (a3 === 1) { await this.say('That depends on how many chairs there are in hell. Quite a lot, it turns out.', { gesture: 'shrug' }); }

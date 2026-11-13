@@ -1,7 +1,7 @@
 // Items stream — VALUABLES: the things the Remittance Programme wants back.
 // Rings sewn into sofa cushions, watches in desk drawers, cash rolls behind
 // skirting, jewellery boxes, old electronics stripped for copper and boards.
-// Every one carries an explicit scrip `value` (the debt contract pays that,
+// Every one carries an explicit credits `value` (the debt contract pays that,
 // scaled by condition) and the tag 'valuable' (tut:valuable, hopper scan
 // lines). Furniture spills them when it is smashed (src/game/debt/values.ts).
 import { defItem } from '../../items/item';

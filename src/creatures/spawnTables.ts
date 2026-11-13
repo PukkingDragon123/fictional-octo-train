@@ -111,6 +111,12 @@ const SUBWAY: Record<string, [string, number][]> = {
   depot: [['ringer', 0.5]],
 };
 for (const k in SUBWAY) ADD[k] = (ADD[k] || []).concat(SUBWAY[k]);
+// the Plunge (round 17, src/world/gen/z_plunge.ts lists its own; the Gulper is a set piece pl_pool.ts places):
+// tadpoles, frog piranhas and balloon puffers have got through into the Poolrooms
+const PLUNGE: Record<string, [string, number][]> = {
+  pools: [['gulper_tadpole', 0.8], ['frog_piranha', 0.5], ['balloon_puffer', 0.6]],
+};
+for (const k in PLUNGE) ADD[k] = (ADD[k] || []).concat(PLUNGE[k]);
 /**
  * The new dimensions (src/world: shared floors) list these themselves; when a
  * dimension zone's key or name says which one it is and its table is missing

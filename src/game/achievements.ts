@@ -97,6 +97,16 @@ function medal(): HTMLCanvasElement {
 }
 export function toast(a: { name: string; reward?: Reward }, kicker = 'COMMENDATION') {
   if (typeof document === 'undefined') return;
+  // round 17: in a run it is one line from the band (the medal as its lamp), not a box stacking up
+  const ui = G?.ui as { bandLine?: (t: string, s?: string, secs?: number, icon?: string) => void } | undefined;
+  if (ui?.bandLine) {
+    const rw0 = a.reward ? rewardText(a.reward) : '';
+    let icon: string | undefined;
+    try { icon = medal().toDataURL(); } catch { /* no canvas */ }
+    ui.bandLine(kicker, a.name + (rw0 ? ' · ' + rw0 : ''), 4.6, icon);
+    try { if (G?.audio?.ui) G.audio.ui('scan_new', 0.5); else sfx('unlock', 0.7); } catch { /* no audio */ }
+    return;
+  }
   if (!stack || !stack.isConnected) { stack = document.createElement('div'); stack.className = 'ach-stack'; document.body.append(stack); }
   const el = document.createElement('div');
   el.className = 'ach-toast';

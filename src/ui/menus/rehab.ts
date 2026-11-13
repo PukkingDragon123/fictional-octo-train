@@ -33,7 +33,7 @@ const filmUrl = (t: Trait) => {
 
 export function rehabStation(ctx: RehabCtx) {
   const el = h('div', 'rh-wrap');
-  const top = h('div', 'rh-top', '<div class="rh-sign"><b>REHAB SECTION</b><span>programmes · conditions · credits</span></div><div class="rh-tip">Every programme and condition gives you something <i class="g">✚</i> and takes something <i class="b">✖</i>. Programmes cost or give credits; assets cost credits, liabilities pay them back. Finish at 0 or above.</div>');
+  const top = h('div', 'rh-top', '<div class="rh-sign"><b>REHAB SECTION</b><span>programmes · conditions · points</span></div><div class="rh-tip">Every programme and condition gives you something <i class="g">✚</i> and takes something <i class="b">✖</i>. Programmes cost or give credits; assets cost credits, liabilities pay them back. Finish at 0 or above.</div>');
   const cols = h('div', 'rh-cols');
   const left = h('div', 'rh-left');
   const right = h('div', 'rh-right');
@@ -109,7 +109,7 @@ export function rehabStation(ctx: RehabCtx) {
       return;
     }
     const avail = traitAvailable(t), conflict = conflictOf(t);
-    reader.innerHTML = `<b class="rh-r-n">${esc(t.name)} <em class="${t.cost < 0 ? 'neg' : 'pos'}">${cr(t.cost)} CREDITS</em></b>
+    reader.innerHTML = `<b class="rh-r-n">${esc(t.name)} <em class="${t.cost < 0 ? 'neg' : 'pos'}">${cr(t.cost)} POINTS</em></b>
       <div class="rh-line good"><i>✚</i><span>${esc(t.good || '')}</span></div>
       <div class="rh-line bad"><i>✖</i><span>${esc(t.bad || '')}</span></div>
       ${!avail ? `<div class="rh-r-warn">SEALED · ${esc(t.unlock?.hint || 'Not yet available.')}</div>` : conflict ? `<div class="rh-r-warn">CONFLICTS WITH ${esc(conflict.name.toUpperCase())}</div>` : ''}`;
@@ -132,7 +132,7 @@ export function rehabStation(ctx: RehabCtx) {
       const b = h('button', 'rh-film' + (avail ? '' : ' locked'), `<img src="${filmUrl(t)}" alt=""><span class="n">${esc(t.name)}</span><span class="c">${cr(t.cost)}</span><i class="clip"></i>`);
       b.type = 'button';
       b.title = '';
-      b.setAttribute('aria-label', `${t.name}, ${t.cost < 0 ? 'costs ' + -t.cost : 'gives ' + t.cost} credits. Good: ${t.good}. Bad: ${t.bad}`);
+      b.setAttribute('aria-label', `${t.name}, ${t.cost < 0 ? 'costs ' + -t.cost : 'gives ' + t.cost} points. Good: ${t.good}. Bad: ${t.bad}`);
       hoverFocus(b);
       b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') read(t); });
       b.addEventListener('focus', () => read(t));
@@ -153,8 +153,8 @@ export function rehabStation(ctx: RehabCtx) {
   const isNew = (t: Trait) => ['hoarder', 'snitch', 'lifer', 'wrecking_ball', 'sweet_on_sarge', 'gallows_humour', 'fresh_fish', 'born_in_debt', 'band_picker'].includes(t.key);
   banks.append(
     bank('REMITTANCE CONDITIONS · both ways', TRAITS.filter(isNew), 'mixed'),
-    bank('ASSETS · cost credits', TRAITS.filter((t) => t.cost < 0 && !isNew(t)), 'assets'),
-    bank('LIABILITIES · pay credits', TRAITS.filter((t) => t.cost > 0 && !isNew(t)), 'liabs'),
+    bank('ASSETS · cost points', TRAITS.filter((t) => t.cost < 0 && !isNew(t)), 'assets'),
+    bank('LIABILITIES · pay points', TRAITS.filter((t) => t.cost > 0 && !isNew(t)), 'liabs'),
   );
   box.addEventListener('pointerleave', () => read(null));
 

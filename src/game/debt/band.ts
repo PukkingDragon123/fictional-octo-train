@@ -451,10 +451,10 @@ function bandText(p: Player) {
   const d = G.debt;
   const lines = [`UNIT ${debtorNo(p)} :: ${p.name.toUpperCase()}`, 'REMITTANCE PROGRAMME — MERIDIAN INSTITUTE OF LIMINALITY', ''];
   if (d?.on) {
-    lines.push(`BALANCE OWED   ${Math.round(d.remaining).toLocaleString('en-GB')} SCRIP`);
-    lines.push(`PAID TO DATE   ${Math.round(d.paid).toLocaleString('en-GB')} SCRIP`);
+    lines.push(`BALANCE OWED   ${Math.round(d.remaining).toLocaleString('en-GB')} CREDITS`);
+    lines.push(`PAID TO DATE   ${Math.round(d.paid).toLocaleString('en-GB')} CREDITS`);
     if (!d.cleared) lines.push(`INSTALLMENT ${d.installment}/${d.count}  ${Math.round(d.due).toLocaleString('en-GB')} DUE BY DAY ${d.dueDay} (${Math.floor(d.hoursLeft)}H ${Math.floor((d.hoursLeft % 1) * 60)}M)`);
-    else lines.push(`CONTRACT DISCHARGED. SURPLUS ${Math.round(d.surplus).toLocaleString('en-GB')} SCRIP`);
+    else lines.push(`CONTRACT DISCHARGED. SURPLUS ${Math.round(d.surplus).toLocaleString('en-GB')} CREDITS`);
   } else lines.push('NO CONTRACT ON FILE.');
   lines.push('', 'TAMPERING, ABSCONDING AND APPROACHING THE SEAM', 'WILL RESULT IN CORRECTIVE DISCHARGE.', '', `HEART ${Math.round(70 + p.body.panic * 0.6)} BPM`);
   void itemDef;

@@ -1,5 +1,5 @@
 // World stream 3 — loot tables for the film-mood zones (depot, showroom,
-// homestead, annex, undercroft) and their props. Valuables (scrip value) are
+// homestead, annex, undercroft) and their props. Valuables (credits value) are
 // woven in sparingly: most of the money is in the furniture you smash.
 import { defLoot } from '../../items/loot';
 

@@ -36,7 +36,7 @@ export function selfThought(text: string) {
 /** pick one line (stable-ish variety) */
 export function pick<T>(a: T[]): T { return a[Math.floor(Math.random() * a.length)]; }
 
-/** scrip with thousands separators */
+/** credits with thousands separators */
 export function fmt(n: number) { return Math.round(n).toLocaleString('en-GB'); }
 
 // ---------------------------------------------------------------- lines
@@ -49,7 +49,7 @@ export const L = {
   installment: (n: number, c: number) => `Installment ${n} of ${c} received. The unit keeps both wrists another day.`,
   installmentBailiff: (n: number) => `INSTALLMENT ${n} CLEARED. SCHEDULE UPDATED.`,
   missed: ['You missed a payment. The unit felt that. So did you, through the link.', 'Late. The Programme charges for late. The band collected in kind.', 'I did not forget. I never forget. The band never forgets either.'],
-  missedBailiff: (pen: number) => `INSTALLMENT OVERDUE. PENALTY ${fmt(pen)} SCRIP APPLIED. CORRECTIVE STIMULUS ADMINISTERED.`,
+  missedBailiff: (pen: number) => `INSTALLMENT OVERDUE. PENALTY ${fmt(pen)} CREDITS APPLIED. CORRECTIVE STIMULUS ADMINISTERED.`,
   cleared: 'Balance zero. Hm. Most units never get here. Surplus goes on account. There is a depot. Passage is not free.',
   clearedBailiff: 'LEDGER BALANCE 0. CONTRACT DISCHARGED. SURPLUS CREDITED.',
   defaultLethal: 'Final deadline. Default. I am sorry, unit. I am writing that down.',

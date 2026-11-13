@@ -72,7 +72,7 @@ const BIOMES: Biome[] = [
     minH: 0.22, maxH: 1.7, pal: pal('indoor', 0x8a7a50, 0x6a5a3a, 0x8a8478, [0x7a6a40, 0x6a6040, 0x8a7a50], [0xd8c870, 0xb8a080, 0xc87a5a]), hue: [0x5a5048, 0x6a5a4a, 0x4a4440, 0x6a4a40] },
 ];
 /** set pieces and special floors keep only their own */
-const SKIP = /^(exit|ledge|meridian|title|tutorial|intro|void)$/i;
+const SKIP = /^(exit|ledge|meridian|title|tutorial|intro|void|pools)$/i;
 
 const LEGS: Record<string, number> = { hexapod: 6, octopod: 8, quadruped: 4, biped: 2, hexapodV: 6, serpent: 0, gastropod: 0, hominid: 2 };
 const FAM = new Map<string, WildInfo[]>();
@@ -288,6 +288,6 @@ try {
   const f = q.get('filter') || '';
   if (q.get('gallery') === 'creatures' && f.startsWith('wild')) {
     const m = /^wild_([a-z]+)/.exec(f);
-    for (const zk of m ? [m[1]] : ['lobby', 'pools', 'fields', 'hospital']) familyOf(zk);
+    for (const zk of m ? [m[1]] : ['lobby', 'undercroft', 'fields', 'hospital']) familyOf(zk);
   }
 } catch { /* no location (tests) */ }

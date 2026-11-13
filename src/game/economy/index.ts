@@ -1,13 +1,16 @@
 // =============================================================================
 // THE ECONOMY: one model, four quantities (round 15)
 //
-//   SCRIP   the run's money. What a load is WORTH to Meridian. The press credits
+//   (round 17: there are three currencies, src/game/economy/money.ts: CREDITS in a run (the old
+//   "scrip"), DOLLARS for the researcher between runs (the old clearance tokens became dollars),
+//   RESEARCH POINTS. The notes below are the round 15 design, with those names.)
+//   CREDITS   the run's money. What a load is WORTH to Meridian. The press credits
 //           it to the crew's debt (src/game/debt/ledger.ts); once the debt is
-//           cleared, surplus scrip buys passage at the depot. Strangers trade in
+//           cleared, surplus credits buys passage at the depot. Strangers trade in
 //           it too. It lives in the save of one world. Shown on the press's
 //           nixie tubes and the ledger.
 //   TOKENS  clearance tokens: Meridian's permission to make things. The press
-//           stamps one for every 250 scrip remitted (150 with the Token Stamp)
+//           stamps one for every 250 credits remitted (150 with the Token Stamp)
 //           and three for every installment met. Paying the debt is how you
 //           earn them. Every creation at the press costs tokens.
 //   MATTER  what a load is MADE OF, in kg by material (metal, polymer, fibre,
@@ -18,13 +21,13 @@
 //           lab's research lattice spends them. A creation PATTERN must be
 //           researched before the press can make it.
 //
-//   the dial on the press:   REMIT  value -> scrip (debt) -> tokens
+//   the dial on the press:   REMIT  value -> credits (debt) -> tokens
 //                            SPLIT  half and half
 //                            KEEP   mass  -> matter (bank)
 //   to create:               pattern (RP, once) + matter (kg) + tokens  -> the item on the plate
 //
 // Tokens, matter and RP belong to the operator (the Meridian file, kept
-// between runs, read by the lab terminal); scrip belongs to the run.
+// between runs, read by the lab terminal); credits belongs to the run.
 //
 // Modules: matter.ts (the bank, materials, tokens), registry.ts (everything
 // as data for the lab's lattice: patterns, press upgrades, homestead pieces,
@@ -40,7 +43,7 @@ import type { TileObject, Zone } from '../../world/zone';
 import type { MenuOption } from '../../ui/ui';
 import type { WorldItem } from '../../items/worldItems';
 import {
-  itemMatter, objMatter, scaleMatter, matterKg, bankMatter, issueTokens, remitShare, setScripPerToken, takeDispatch, fmtKg, type Matter,
+  itemMatter, objMatter, scaleMatter, matterKg, bankMatter, issueTokens, remitShare, setScripPerToken, takeDispatch, fmtKg, migratePressTokens, type Matter,
 } from './matter';
 import { wireHomestead, penStep, homesteadUpdate } from './homestead';
 import { seedEconomyLoot } from '../../content/items/ze_economy';
@@ -48,6 +51,7 @@ import { selfThought } from '../debt/voice';
 import './registry';
 
 export * from './matter';
+export * from './money';
 export { economyCatalogue, PATTERNS, PRESS_UPGRADES, HOMESTEAD, PLANTS, LIVESTOCK, HUSBANDRY, ECON_RECIPES } from './registry';
 
 /** the press runs with no contract (free survival, before intake) once Cold Start is researched */
@@ -55,8 +59,8 @@ export const pressCold = () => hasUnlock('pr_cold');
 
 /**
  * Host: settle a load the press just took. The dial splits it: the remitted
- * share of its scrip VALUE goes to the debt (and stamps tokens), the kept
- * share of its MATTER goes to the bank. Returns the scrip credited.
+ * share of its credits VALUE goes to the debt (and pays the operator dollars), the kept
+ * share of its MATTER goes to the bank. Returns the credits paid.
  */
 export function settleLoad(value: number, items: WorldItem[], objs: TileObject[], by: string): { credit: number; kg: number } {
   const m: Matter = {};
@@ -83,7 +87,7 @@ let saidTok = false, saidKeep = false;
 function noteTokens(n: number) {
   if (saidTok) return;
   saidTok = true;
-  setTimeout(() => selfThought(n > 1 ? `The press stamped ${n} clearance tokens. The terminal keeps count.` : 'The press stamped a clearance token. The terminal keeps count.'), 2600);
+  setTimeout(() => selfThought(`The Institute paid my operator $${n} for that. Dollars: the lab commissary takes them.`), 2600);
 }
 function noteKept(kg: number) {
   if (saidKeep) return;
@@ -105,10 +109,11 @@ export function installEconomy(g: Game) {
   wireHomestead();
   try { seedEconomyLoot(); } catch (e) { console.warn('economy loot', e); }
   g.addSystem(new EconomySystem());
-  setScripPerToken(hasUnlock('pr_stamp') ? 150 : 250);
+  setScripPerToken(hasUnlock('pr_stamp') ? 15 : 25);
+  migratePressTokens();
   if (wired) return;
   wired = true;
-  bus.on('researchUnlocked', () => setScripPerToken(hasUnlock('pr_stamp') ? 150 : 250));
+  bus.on('researchUnlocked', () => setScripPerToken(hasUnlock('pr_stamp') ? 15 : 25));
   // the Seam Relay: a claim beacon is a press terminal
   bus.on('objectMenu', (p: Player, o: TileObject, out: MenuOption[]) => {
     if (o.key !== 'bld_beacon' || !hasUnlock('pr_relay')) return;

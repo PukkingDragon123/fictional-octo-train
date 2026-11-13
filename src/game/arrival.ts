@@ -803,7 +803,7 @@ class Arrival implements GameSystem {
       this.eyeOn({ yaw: a.yaw, pitch: a.pitch + 3 * DEG, fov: 52, snap: true });
       this.eyeGoal.fov = 40; this.eyeGoal.rate = 0.35;
     }
-    this.voss('You owe the Institute {owed} scrip. Interest compounds. So does my patience. That one\'s a lie.'.replace('{owed}', this.owed()), { gesture: 'jab_finger' });
+    this.voss('You owe the Institute {owed} credits. Interest compounds. So does my patience. That one\'s a lie.'.replace('{owed}', this.owed()), { gesture: 'jab_finger' });
     yield until(() => !h?.busy, 12);
     this.voss('This place is full of goods nobody is using. You find them, you break them open, you get them to the other side. For that you\'ll need something to carry it in.', { gesture: 'dismiss' });
     yield secs(2.2);

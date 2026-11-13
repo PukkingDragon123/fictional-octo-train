@@ -34,7 +34,7 @@ const ROWS: Row[] = [
 /** the debt contract's sandbox fields: known ones get sensible choices, others a generic stepper */
 const CONTRACT_ROWS: Record<string, { label: string; vals?: (d: number) => [number, string][]; bool?: [string, string] }> = {
   contract: { label: 'Contract', bool: ['none', 'signed'] },
-  debt: { label: 'Debt owed', vals: (d) => [0.5, 1, 2, 4].map((k) => [Math.round((d || 1000) * k), Math.round((d || 1000) * k).toLocaleString('en') + ' scrip'] as [number, string]) },
+  debt: { label: 'Debt owed', vals: (d) => [0.5, 1, 2, 4].map((k) => [Math.round((d || 1000) * k), Math.round((d || 1000) * k).toLocaleString('en') + ' credits'] as [number, string]) },
   installmentDays: { label: 'Installment every', vals: () => [[1, '1 day'], [2, '2 days'], [3, '3 days'], [5, '5 days'], [7, '7 days']] },
   debtDays: { label: 'Installment every', vals: () => [[0.5, '12 hours'], [1, '1 day'], [2, '2 days'], [3, '3 days'], [5, '5 days']] },
   bandLethal: { label: 'Band detonation', bool: ['takes the hand', 'kills'] },

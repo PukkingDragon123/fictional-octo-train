@@ -98,7 +98,7 @@ export class SurveyMap {
 
   /** round 17: the band desktop's Map app shows the plot in its window: the canvas moves there while it is open */
   private embedded = false;
-  embed(host: HTMLElement) { if (this.open) this.toggle(false); this.embedded = true; host.append(this.cv); this.openT = 1; this.drawT = 0; }
+  embed(host: HTMLElement) { if (this.open) this.toggle(false); this.embedded = true; host.append(this.cv); this.openT = 1; this.drawT = 0; this.echoT = 0; }
   unembed() { if (!this.embedded) return; this.embedded = false; this.head.after(this.cv); }
   /** the desktop drives the embedded plot (the game's systems sleep while time is held) */
   embedTick(dt: number) { if (this.embedded) this.update(dt); }
@@ -122,6 +122,12 @@ export class SurveyMap {
     this.echoT -= dt;
     if (this.echoT <= 0) {
       this.echoT = 0.5;
+      // with the fog off nothing marks tiles explored: the suit's own survey takes what the unit walks past
+      const pw = G.local, zw = this.zone();
+      if (pw && zw && !(G as any).view?.vis?.enabled) {
+        const cx = Math.floor(pw.x), cy = Math.floor(pw.z), RW = 7;
+        for (let y = Math.max(0, cy - RW); y <= Math.min(zw.H - 1, cy + RW); y++) for (let x = Math.max(0, cx - RW); x <= Math.min(zw.W - 1, cx + RW); x++) if ((x - cx) * (x - cx) + (y - cy) * (y - cy) <= RW * RW) zw.explored[y * zw.W + x] = 1;
+      }
       const R = MAP_ECHO_R[mapRank('map_echo', 3)] || 0, p = G.local, z = this.zone();
       if (R > 0 && p && z) {
         const cx = Math.floor(p.x), cy = Math.floor(p.z);
@@ -164,9 +170,11 @@ export class SurveyMap {
     let x0 = z.W, y0 = z.H, x1 = 0, y1 = 0;
     for (let y = 0; y < z.H; y++) for (let x = 0; x < z.W; x++) if (z.explored[y * z.W + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
     const px = Math.floor(p.x), py = Math.floor(p.z);
-    x0 = Math.min(x0, px - 10); y0 = Math.min(y0, py - 8); x1 = Math.max(x1, px + 10); y1 = Math.max(y1, py + 8);
+    const mx0 = this.embedded ? 6 : 10, my0 = this.embedded ? 4 : 8;
+    x0 = Math.min(x0, px - mx0); y0 = Math.min(y0, py - my0); x1 = Math.max(x1, px + mx0); y1 = Math.max(y1, py + my0);
     x0 -= 3; y0 -= 3; x1 += 3; y1 += 3;
-    const s = Math.max(2, Math.min(14, Math.floor(Math.min(cw / (x1 - x0 + 1), ch / (y1 - y0 + 1)))));
+    // in a desktop window a small survey is drawn bigger, so the plot is never a speck
+    const s = Math.max(2, Math.min(this.embedded ? 24 : 14, Math.floor(Math.min(cw / (x1 - x0 + 1), ch / (y1 - y0 + 1)))));
     const ox = Math.floor((cw - (x1 - x0 + 1) * s) / 2), oy = Math.floor((ch - (y1 - y0 + 1) * s) / 2);
     this.view = { x0, y0, s, ox, oy };
     const X = (tx: number) => ox + (tx - x0) * s, Y = (ty: number) => oy + (ty - y0) * s;
@@ -194,7 +202,11 @@ export class SurveyMap {
       for (let x = Math.max(0, x0); x <= Math.min(z.W - 1, x1); x++) {
         const i = y * z.W + x;
         const seen = ex[i] || (y > 0 && ex[i - z.W]) || (x > 0 && ex[i - 1]);
-        if (!seen) continue;
+        if (!seen) {
+          // in a desktop window, the archive's old blueprint of the level shows faintly round the survey
+          if (this.embedded) { if (z.wallN[i]) rect(c, X(x), Y(y), s, 1, 0xffcf6a, 0.13); if (z.wallW[i]) rect(c, X(x), Y(y), 1, s, 0xffcf6a, 0.13); }
+          continue;
+        }
         if (z.wallN[i]) rect(c, X(x) - (wt >> 1), Y(y) - (wt >> 1), s + wt, wt, 0xffcf6a);
         if (z.wallW[i]) rect(c, X(x) - (wt >> 1), Y(y) - (wt >> 1), wt, s + wt, 0xffcf6a);
       }

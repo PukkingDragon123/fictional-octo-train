@@ -35,7 +35,7 @@ export interface LedgerState {
   dueH: number;
   missed: number;
   cleared: boolean;
-  /** lifetime scrip deposited */
+  /** lifetime credits deposited */
   total: number;
   deposits: number;
 }
@@ -107,7 +107,7 @@ export class DebtSystem implements GameSystem {
     this.publish([{ k: 'start' }]);
   }
 
-  /** host: put scrip on the account (deposits). Returns the amount applied. */
+  /** host: put credits on the account (deposits). Returns the amount applied. */
   credit(value: number, why = 'deposit', by?: string): number {
     if (!this.host || !this.s.on || !(value > 0)) return 0;
     const s = this.s, ev: LedgerEv[] = [{ k: 'credit', v: Math.round(value), by, why }];

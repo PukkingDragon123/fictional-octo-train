@@ -1,6 +1,6 @@
 // What things are worth to the Remittance Programme, and what furniture hides.
 //
-// Every item has a scrip value: an explicit ItemDef.value, else one derived
+// Every item has a value in credits: an explicit ItemDef.value, else one derived
 // from its category, weight, rarity and tags (anomalies and rare tech high,
 // food and medicine low), scaled by condition, plus whatever it contains.
 // Furniture is worth its weight, its salvage and what is still inside it.
@@ -39,7 +39,7 @@ function derived(d: ItemDef): number {
   return v;
 }
 
-/** scrip the hopper pays for one item (0 = rejected) */
+/** credits the hopper pays for one item (0 = rejected) */
 export function itemValue(it: Item): number {
   const d = itemDef(it.key);
   if (isRejected(d)) return 0;
@@ -59,7 +59,7 @@ export function itemValue(it: Item): number {
   return Math.max(0, Math.round(v));
 }
 
-/** scrip for a whole piece of furniture by key */
+/** credits for a whole piece of furniture by key */
 export function objKeyValue(key: string, state: Record<string, any> = {}): number {
   const d = objDef(key);
   if (!d) return 10;
@@ -75,7 +75,7 @@ export function objKeyValue(key: string, state: Record<string, any> = {}): numbe
   return Math.round(Math.max(12, Math.min(950, v)));
 }
 
-/** scrip for a placed object including its container contents (host only: contents are authoritative there) */
+/** credits for a placed object including its container contents (host only: contents are authoritative there) */
 export function objectValue(o: TileObject): number {
   let v = objKeyValue(o.key, o.state);
   if (o.inv) for (const it of o.inv.items) v += itemValue(it);

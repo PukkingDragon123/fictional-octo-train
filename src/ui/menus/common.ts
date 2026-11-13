@@ -381,7 +381,7 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
       f.append(h('p', 't-note', client ? 'Set by the host for everyone in this world.' : 'Saved with this world (co-op guests use your setting).'));
       // the rest of the sentencing terms (world rules, the debt contract's own fields): fixed at intake, shown for reference
       const TERM_LABELS: Record<string, string> = { dayLength: 'Day length (min)', creatures: 'Entities', loot: 'Valuables', startHour: 'Arrived at', collapseSpeed: 'Collapse', waterShutoffDays: 'Water fails (day)', powerShutoffDays: 'Power fails (day)',
-        contract: 'Contract', debt: 'Debt owed (scrip)', debtDays: 'Days per installment', installmentDays: 'Days per installment', bandLethal: 'Band detonation kills', finalLethal: 'Final deadline lethal' };
+        contract: 'Contract', debt: 'Debt owed (credits)', debtDays: 'Days per installment', installmentDays: 'Days per installment', bandLethal: 'Band detonation kills', finalLethal: 'Final deadline lethal' };
       const rest = Object.entries(sbx).filter(([k, v]) => typeof v === 'number' && k !== 'gore' && k !== 'limbLoss' && k !== 'friendlyFire');
       if (rest.length) {
         f.append(h('div', 't-ctl-h', 'SENTENCING TERMS · fixed at intake'));

@@ -84,7 +84,7 @@ addTextureModule(() => {
     pc.wrap = false;
     pc.fill(0xc03a2a);
     for (let x = 0; x < 64; x++) { pc.set(x, 0, 0xe06048); pc.set(x, 9, 0x7a1a14); }
-    textC(pc, 'TICKETS - SCRIP ONLY', 32, 3, 0xfff4e0);
+    textC(pc, 'TICKETS - CREDITS', 32, 3, 0xfff4e0);
   });
   // ticket machine face: CRT, coin slot, keypad, return tray
   A.add('zw_tvm', 20, 40, (pc) => {

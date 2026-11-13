@@ -58,7 +58,7 @@ export const NOTES = {
     red('Alarm beacon', 'TEST', 'Rotating while a cell is open, or while anything inside is awake.', 'It has not stopped in eleven years.'),
   ],
   dossiers: [
-    red('Dossier · unit 4', 'REDACTED', 'Debt: 41,880 scrip. Crossings: 6. Returned: 6.', 'Remarks: ████████ speaks in its sleep in a voice that is not its own.'),
+    red('Dossier · unit 4', 'REDACTED', 'Debt: 41,880 credits. Crossings: 6. Returned: 6.', 'Remarks: ████████ speaks in its sleep in a voice that is not its own.'),
     red('Dossier · operator', 'EYES ONLY', 'Operator ██████: eleven units recovered, one lost.', 'The lost one still calls the intercom at 02:00.'),
     memo('Dossier · field note', 'Yellow room, east run: carpet damp to the touch.', 'Followed the hum for 40 minutes. The hum followed back.'),
   ],

@@ -14,7 +14,7 @@
 // creatures.
 //
 // Round 15: the dial (src/game/economy) splits every load: REMIT credits its
-// scrip value to the debt (and stamps clearance tokens), KEEP banks its mass
+// credits value to the debt (and pays the operator dollars), KEEP banks its mass
 // as matter in the seam; the press TERMINAL (src/game/economy/terminal.ts,
 // the second verb) shows the account, sets the dial and creates things from
 // banked matter. With KEEP the crown's nixies count tenths of a kilo.
@@ -483,7 +483,7 @@ export class HopperSystem implements GameSystem {
     // who gets the credit: whoever pulled the lever, else whoever stands closest
     let by = puller && G.players.has(puller) ? puller : '', bd = 8;
     if (!by) for (const p of G.players.values()) if (p.zoneKey === z.key) { const d = Math.hypot(p.x - (o.x + 1), p.z - (o.y + 1)); if (d < bd) { bd = d; by = p.id; } }
-    // the dial: the remitted share of the value goes to the debt (tokens with it), the kept share of the mass to the seam
+    // the dial: the remitted share of the value goes to the debt (dollars for the operator with it), the kept share of the mass to the seam
     const { credit, kg } = settleLoad(value, taken, objs, by);
     // round 17 (src/game/economy/crusher.ts): the slag comes back out of the lip by what the load was made of,
     // and about one pull in ten the seam pays more: the credit doubled, or a part nobody put in
@@ -780,7 +780,7 @@ export class HopperSystem implements GameSystem {
     if (!o) return;
     const v = itemValue(it);
     if (v <= 0) { opts.unshift({ label: 'Deposit', disabled: 'the press won\'t take it' }); return; }
-    opts.unshift({ label: `Deposit in press ≈ ${fmt(v)} scrip · ${fmtKg(matterKg(itemMatter(it)))}`, action: () => {
+    opts.unshift({ label: `Deposit in press ≈ ${fmt(v)} credits · ${fmtKg(matterKg(itemMatter(it)))}`, action: () => {
       if (inWorld) { G.ui?.toast?.('PICK IT UP FIRST', '', 2); return; }
       queueAt(p, o.x + 1, o.y + 1, new UseObjectAction(p, 'Deposit', 0.8, 'pickup', () => this.depositItems(p, o, [it], true)), 2.0);
     } });

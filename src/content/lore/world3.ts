@@ -1,6 +1,6 @@
 // Lore: the Depot, the Showroom, the Homestead, Annex B, the Undercroft and
 // the wrong rooms. Everything here is told from inside the Remittance
-// Programme: debtors, scrip, the BAILIFF band, the Still Lifes.
+// Programme: debtors, credits, the BAILIFF band, the Still Lifes.
 import { defLore } from '../loreRegistry';
 
 // ---------------------------------------------------------------- the depot
@@ -10,7 +10,7 @@ defLore({
 
 Transport from this interchange is available to Remittance clients in good standing.
 
-• Tickets are sold for scrip only, at the booth, when your balance reads ZERO.
+• Tickets are sold for credits only, at the booth, when your balance reads ZERO.
 • Your monitor band will be checked at the door of the vehicle.
 • Clients with an outstanding balance will not be carried.
 • Clients who attempt to board without a ticket will not be carried.
@@ -82,7 +82,7 @@ FAMILY SET (4 PERSONS)     999
   beds x3, persons x4
 DELIVERY                     0
 -----------------------------
-TOTAL                      999 SCRIP
+TOTAL                      999 CREDITS
 PAID BY: CLIENT D-2210
 BALANCE AFTER PAYMENT: -4,180
 

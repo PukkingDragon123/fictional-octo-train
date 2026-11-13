@@ -3,7 +3,7 @@
 // beside it: a riveted gunmetal plate in crisp high-resolution pixel art
 // (src/ui/hiPixel.ts), chamfered, never rounded, Alagard type. It holds a large
 // render of the item (from its 3D model), its name and kind, condition and wear,
-// weight, value in scrip, what it is made of (matter), a description and a
+// weight, value in credits, what it is made of (matter), a description and a
 // field note, the stats that matter for it (nutrition, damage, uses...), and its
 // actions as bone-enamel keycaps with a status lamp: hover glow, a pressed
 // state, a recorded click. "Inspect in hand" takes it up to the eyes (the
@@ -342,7 +342,7 @@ class ItemPanel {
 <div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg · ${sz[0]}x${sz[1]}x${sz[2]}</div>
 <div class="ip-gauge" data-gauge="cond"><b>${d.durability || d.weapon ? 'CONDITION' : 'STATE'}</b><canvas></canvas><span>${Math.round(it.cond * 100)}%</span></div>
 ${this.meter(it) ? `<div class="ip-row" data-bar="meter"><b>${this.meter(it)![0]}</b><canvas></canvas></div>` : ''}
-<div class="ip-row"><b>VALUE</b>${val ? val + ' scrip' : 'no market'}</div>
+<div class="ip-row"><b>VALUE</b>${val ? val + ' credits' : 'no market'}</div>
 <div class="ip-mat">${mats}</div></div></div>
 ${d.desc ? `<div class="ip-desc">${esc(d.desc)}</div>` : ''}
 <div class="ip-fields"><div><b>RECOVERED</b>Level ${red(26)} · grid ${red(34)}</div>${anom ? `<div><b>PROPERTIES</b>${red(70)} ${red(46)} <i>research to declassify</i></div>` : ''}${loreText ? `<div><b>FIELD NOTE</b><q>${esc(loreText)}</q></div>` : ''}</div>

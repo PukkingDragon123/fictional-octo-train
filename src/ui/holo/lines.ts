@@ -4,7 +4,7 @@
 export const BOOT_LINES = [
   'Bailiff unit seated. Vascular lock confirmed.',
   'Welcome to the Remittance Programme, debtor {id}.',
-  'Your liability is {owed} scrip. Removal of this unit will be treated as default.',
+  'Your liability is {owed} credits. Removal of this unit will be treated as default.',
 ];
 
 /** state lines by moodle key, worst level first is chosen by the caller */
@@ -33,11 +33,11 @@ export const CREATURE = [
 ];
 
 export const DEPOSIT = [
-  'Remittance accepted. {value} scrip credited.', 'Deposit verified. {value} scrip. Balance outstanding: {owed}.',
+  'Remittance accepted. {value} credits on the ledger.', 'Deposit verified. {value} credits. Balance outstanding: {owed}.',
   'Credited. {value}. The Institute thanks your furniture.', 'Accepted. Keep breaking things, debtor.',
 ];
 export const CLEARED = ['Debt cleared. Transport purchase authorised.', 'Account settled. You may now purchase your way out.'];
-export const DUE_SOON = ['Installment due in {h} hours.', 'Reminder. {due} scrip due in {h} hours.', 'Next installment approaching. {h} hours.'];
+export const DUE_SOON = ['Installment due in {h} hours.', 'Reminder. {due} credits due in {h} hours.', 'Next installment approaching. {h} hours.'];
 export const OVERDUE = ['Installment overdue. Corrective measures authorised.', 'Payment missed. Interest compounding.'];
 
 export const WARN: Record<string, string[]> = {

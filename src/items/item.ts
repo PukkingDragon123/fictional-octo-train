@@ -110,7 +110,7 @@ export interface ItemDef {
   burn?: number;             // hours of fuel in fire
   seed?: string;             // crop key
   place?: string;            // object key created when placed
-  /** salvage value in scrip (the debt currency); unset = derived by the debt system */
+  /** salvage value in credits (the debt currency); unset = derived by the debt system */
   value?: number;
   /** backpack-grid footprint in cells [w, h]; unset = derived by the inventory grid */
   grid?: [number, number];

@@ -253,7 +253,7 @@ export class TradeUI {
     // their goods: two rows on the far half
     this.T.wares(t).slice(0, 10).forEach((k, i) => {
       const pr = this.T.buyPrice(t, k);
-      this.place('buy', k, undefined, pr, -0.235 + (i % 5) * 0.085, -0.125 + Math.floor(i / 5) * 0.075, String(pr), tab >= pr ? PAL.ink : PAL.inkRed, false, `${itemDef(k).name}  -  ${pr} SCRIP`, tab >= pr);
+      this.place('buy', k, undefined, pr, -0.235 + (i % 5) * 0.085, -0.125 + Math.floor(i / 5) * 0.075, String(pr), tab >= pr ? PAL.ink : PAL.inkRed, false, `${itemDef(k).name}  -  ${pr} CREDITS`, tab >= pr);
     });
     // yours: two rows on the near half
     this.sellable(p, t).slice(0, 10).forEach((it, i) => {

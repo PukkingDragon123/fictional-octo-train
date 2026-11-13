@@ -165,7 +165,7 @@ export class Guide {
       { text: 'Your options float over there. New unit starts the contract.', point: { el: () => this.host.anchor('menu') } },
       ...ROOM_INTRO[r.id].map((text, i) => ({ text, look: i === 0 ? { at: this.roomPoint(r) } : undefined } as Line)),
       { text: 'See the little blueprint? Build mode. Make these rooms yours.', point: { el: () => this.host.anchor('blueprint') } },
-      { text: 'The commissary sells figures and lab decor, for research points.', point: { el: () => this.host.anchor('shop') } },
+      { text: 'The commissary sells figures and lab decor, for dollars: the Institute pays you for every load your units remit.', point: { el: () => this.host.anchor('shop') } },
       { text: 'I left two things in your tray. A plant. And a figure of me. For morale.', emote: 'shrug', then: () => this.onGift?.() },
       { text: 'The telephone up there puts me on hold if you want me quiet.', point: { el: () => this.host.anchor('guide') } },
     ]);

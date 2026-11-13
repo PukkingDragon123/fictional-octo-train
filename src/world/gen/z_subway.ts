@@ -90,6 +90,9 @@ export function generateSubway(z: Zone, seed: number) {
   b.fillFloor(SR.x0, SR.y0, SR.x1, SR.y1, 'linoleum_green', 0); K(SR.x0, SR.y0, SR.x1, SR.y1, K_STAFF);
   b.fillFloor(SR.x1 + 1, 43, PX0 - 1, 44, 'linoleum_green', 0); K(SR.x1 + 1, 43, PX0 - 1, 44, K_STAFF);
   b.fillFloor(LW1 + 1, 44, SR.x0 - 1, 44, 'grate', 0); K(LW1 + 1, 44, SR.x0 - 1, 44, K_TRACK);
+  // the pump house off the east loop tunnel (round 17): the stair up to the Plunge
+  b.fillFloor(LE1 + 2, 23, LE1 + 4, 30, 'concrete', 0); K(LE1 + 2, 23, LE1 + 4, 30, K_STAFF);
+  b.fillFloor(LE1 + 1, 26, LE1 + 1, 27, 'grate', 0); K(LE1 + 1, 26, LE1 + 1, 27, K_STAFF);
   // the dead train's cars stand at platform height on the siding
   for (const [x0, x1] of CARS) { b.fillFloor(x0, CAR_Y0, x1, CAR_Y1, 'rubber', 0); K(x0, CAR_Y0, x1, CAR_Y1, K_CAR); }
 
@@ -143,6 +146,7 @@ export function generateSubway(z: Zone, seed: number) {
   b.addRoom('Signal Room', 'signal_room', SR.x0, SR.y0, SR.x1, SR.y1, { circuit: C_STAFF, temp: 18, lootMul: 1.4 });
   b.addRoom('Staff Passage', 'staff', SR.x1 + 1, 43, PX0 - 1, 44, { circuit: C_STAFF, temp: 15 });
   b.addRoom('Cable Passage', 'staff', LW1 + 1, 44, SR.x0 - 1, 44, { circuit: C_TUN, temp: 13 });
+  b.addRoom('Pump House', 'pumps', LE1 + 1, 23, LE1 + 4, 30, { circuit: C_STAFF, temp: 22 });
   CARS.forEach(([x0, x1], i) => b.addRoom(`Car ${3 - i}`, 'train_car', x0, CAR_Y0, x1, CAR_Y1, { circuit: C_CAR, temp: 14, lootMul: 1.2 }));
 
   // ============================================================ track, ballast, the ring
@@ -263,6 +267,19 @@ export function generateSubway(z: Zone, seed: number) {
     arrive(b, 'p_depot_subway', sx + 3, sy, 'e', 3);
     mount(b, 'su_advert', sx + 1, 27, 'n', { v: 4 });
     lamp(b, sx + 2, 29, 'fluoro', C_MEZZ, { flicker: 0.1 });
+  }
+
+  // the pump house: a steel door off the east loop tunnel, pipes, and the stair up to the Plunge
+  {
+    b.door(LE1 + 1, 26, 1, 'door_metal', { sign: 'maintenance', open: false });
+    const sx = LE1 + 3, sy = 23;
+    force(c, 'staircase_up', sx, sy, 0, { portal: 'p_subway_plunge' });
+    b.portal({ id: 'p_subway_plunge', x: sx, y: sy, kind: 'stairs_up', to: 'plunge', tx: 6, ty: 11, label: 'Climb the stairs to the Plunge (the smell of chlorine)' });
+    arrive(b, 'r_subway_plunge', sx, sy + 4, 'n', 2);
+    for (const y of [25, 28, 29]) mount(b, 'pipes_cluster', LE1 + 4, y, 'e');
+    put(c, 'pump_machine', LE1 + 2, 29, 0, {});
+    lamp(b, LE1 + 3, 26, 'bulb', C_STAFF, { flicker: 0.15 });
+    lamp(b, LE1 + 3, 29, 'bulb', C_STAFF);
   }
 
   // ============================================================ the ring, for the Worm Train

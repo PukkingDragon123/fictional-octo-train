@@ -83,7 +83,7 @@ export class HoverTag {
       const s = size3(it.key);
       const y = 12 + lines * 8.5;
       t.type(itemWeight(it).toFixed(1) + ' kg · ' + s[0] + '×' + s[1] + '×' + s[2], 6, y, '#5a3418', 6.5);
-      const extra = d.durability || d.weapon ? 'condition ' + Math.round(it.cond * 100) + '%' : d.value ? d.value + ' scrip' : (d.cat || '');
+      const extra = d.durability || d.weapon ? 'condition ' + Math.round(it.cond * 100) + '%' : d.value ? d.value + ' credits' : (d.cat || '');
       t.type(extra, 6, y + 8, '#5a3418', 6.5);
       t.flush();
     }

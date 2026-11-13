@@ -6,7 +6,7 @@
 // the scanner uses (borrowed through a scratch Screen mask).
 import { Screen } from '../font5x7';
 
-/** 3x5 glyphs, rows top to bottom, 3 bits each ('1' lit). '¤' is the scrip sign. */
+/** 3x5 glyphs, rows top to bottom, 3 bits each ('1' lit). '¤' is the credits sign. */
 const F3: Record<string, string> = {
   '0': '111101101101111', '1': '010110010010111', '2': '111001111100111', '3': '111001011001111', '4': '101101111001001',
   '5': '111100111001111', '6': '111100111101111', '7': '111001010010010', '8': '111101111101111', '9': '111101111001111',
@@ -26,7 +26,7 @@ const F3B = new Map<string, Uint8Array>();
 for (const [k, s] of Object.entries(F3)) { const b = new Uint8Array(15); for (let i = 0; i < 15; i++) b[i] = s[i] === '1' ? 1 : 0; F3B.set(k, b); }
 const F3Q = F3B.get('?')!;
 
-/** a 3x5 glyph as a white mask image (DOM text that needs the band's own signs, like scrip) */
+/** a 3x5 glyph as a white mask image (DOM text that needs the band's own signs, like credits) */
 const glyph3Cache = new Map<string, string>();
 export function glyph3Url(ch: string, k = 4): string {
   let u = glyph3Cache.get(ch);

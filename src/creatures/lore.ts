@@ -12,6 +12,7 @@
 import { PLAYGROUND_INHABITANTS } from './lore_playground';
 import { FUNGUS_SEA_INHABITANTS } from './lore_fungus_sea';
 import { SUBWAY_INHABITANTS } from './lore_subway';
+import { POOL_INHABITANTS } from './lore_pool';
 
 export type SinRank = 'sloth' | 'gluttony' | 'lust' | 'greed' | 'envy' | 'wrath' | 'pride';
 
@@ -208,15 +209,15 @@ export const INHABITANTS: InhabitantLore[] = [
   }),
   L({
     id: 'battering_hare', name: 'Battering Hare', rank: 'wrath', class: 'Fauna', danger: 8,
-    summary: 'A hare the size of an elephant on three legs: the right hind leg is gone, healed over into a knot of scar and bone against the haunch, and it bounds lopsided on the other one, dropping toward the stump on every landing and still covering ground faster than you can run. Matted, scabbed coat; long torn ears veined like leaves; pink wet eyes; yellow chisel teeth as long as a forearm; a boss of horn grown out of its forehead from everything it has hit.',
-    biology: 'A leporid grown far past anything its skeleton was drawn for. The good hind leg is enormous, half the animal\'s muscle, and the spine has twisted to put the weight over it. The forehead boss is callus on callus: the skull underneath is cracked through in old breaks that have knitted. It eats grass, hedges, insulation and anything green, and it is not a hunter. It is defending a space it carries around with it.',
-    behaviour: 'It does not chase. It lowers its head, scrapes the floor with one forefoot, lined up on you, and then comes in a dead straight line through whatever is in the way: furniture, cars, barricades, the plank and drywall walls of a camp. It cannot turn once it has started. If it hits something it cannot break, the place\'s own concrete, a pillar, a steel barricade, it stands there dazed and swaying for a few seconds, which is the only time to hurt it. It hears you behind a wall and will come through the wall.',
+    summary: 'A rabbit the size of an elephant and grotesquely fat, on three legs: the right hind leg is gone, healed over into a knot of scar and bone sunk in the haunch. It does not hop. It crawls, hunched and low, its sagging belly dragging on the floor, the forelegs reaching and pulling and the one huge hind leg shoving, slewing toward the stump on every shove, and still covers ground faster than you can run. Enormous rounded haunches; a matted, scabbed coat; long ears, veined and torn, that flop and twitch; a blunt muzzle with a split lip over yellow chisel teeth as long as a forearm; big wet dark eyes; a callus on its forehead from everything it has hit.',
+    biology: 'A leporid grown far past anything its skeleton was drawn for, and fat past anything its legs were: most of its weight is a belly it can no longer lift. The good hind leg is enormous, half the animal\'s muscle, and the spine has twisted to put the weight over it. The forehead is callus on callus: the skull underneath is cracked through in old breaks that have knitted. It eats grass, hedges, insulation and anything green, and it is not a hunter. It is defending a space it carries around with it.',
+    behaviour: 'It does not chase. It lowers its head, scrapes the floor with one forefoot, lined up on you, and then comes in a dead straight line, a low lunging scramble, through whatever is in the way: furniture, cars, barricades, the plank and drywall walls of a camp. It cannot turn once it has started. If it hits something it cannot break, the place\'s own concrete, a pillar, a steel barricade, it stands there dazed and swaying for a few seconds, which is the only time to hurt it. It hears you behind a wall and will come through the wall.',
     habitat: 'The big open levels: the Fields, the Meadow, the Homestead\'s paddocks, the parking structure, the gardens of the estates. One to a level.',
     lore: 'Survey teams call it the Lorry. A camp in the Fields built a double plank wall against the Gaunt Wolf and woke up with a hare-shaped hole through both. Calder: "Do not stand between it and anything. Put something solid behind you and step aside at the last moment. It will knock itself silly on your wall, and then it is yours."',
     harvest: [
       { item: 'hare_haunch', how: 'Butcher the good hind leg: there is enough meat on it for a camp.' },
       { item: 'hare_incisor', how: 'Lever a front tooth out of the jaw with something long. It is a blade already.' },
-      { item: 'horn_boss', how: 'Saw the horn off its forehead. Heavy; the workshop can make a ram of it.' },
+      { item: 'horn_boss', how: 'Saw the callus off its forehead. Heavy as a brick; the workshop can make a ram of it.' },
     ],
   }),
   L({
@@ -491,6 +492,7 @@ export const INHABITANTS: InhabitantLore[] = [
   ...PLAYGROUND_INHABITANTS,
   ...FUNGUS_SEA_INHABITANTS,
   ...SUBWAY_INHABITANTS,
+  ...POOL_INHABITANTS,
   // ============================================================== the Ball House (src/world/gen/z_ballhouse.ts)
   L({
     id: 'timmy', name: 'Timmy', rank: 'lust', class: 'Remnant', danger: 6,

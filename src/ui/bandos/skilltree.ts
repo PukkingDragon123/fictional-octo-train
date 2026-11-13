@@ -115,6 +115,7 @@ export function buildSkillTree(host: HTMLElement, o: { lab: boolean; onClose?: (
       const ic = mxOk() ? mxIconAnim(nodeIcon(n), 44) : null;
       const sock = el('span', 'st-sock');
       if (ic) sock.append(ic.cv);
+      sock.append(el('i', 'st-lock'));
       b.append(sock, el('span', 'st-name', esc(n.title)), el('span', 'st-pips'), el('span', 'st-q'));
       b.addEventListener('click', () => { sel = n.key; sfx('key', 0.5); paint(); });
       b.addEventListener('dblclick', () => { if (o.lab) research(n); });

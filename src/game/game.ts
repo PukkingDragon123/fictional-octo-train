@@ -69,7 +69,7 @@ export class Game {
   role: 'solo' | 'host' | 'client' = 'solo';
   /** gore: 0 off, 1 normal, 2 heavy (dismemberment, gibs, arterial spray); limbLoss: 1 = survivors can lose limbs */
   sandbox = { dayLength: 60, creatures: 1, loot: 1, startHour: 8.5, collapseSpeed: 1, waterShutoffDays: 14, powerShutoffDays: 10, gore: 2, limbLoss: 1,
-    /** debt contract (src/game/debt): starting debt in scrip, installment interval in in-game days, band detonation 0 maims / 1 kills, final deadline 1 = lethal */
+    /** debt contract (src/game/debt): starting debt in credits, installment interval in in-game days, band detonation 0 maims / 1 kills, final deadline 1 = lethal */
     debt: 25000, debtDays: 2, bandLethal: 0, finalLethal: 0,
     /** co-op: survivors' blows hurt each other (src/game/combat.ts) */
     friendlyFire: 0 };

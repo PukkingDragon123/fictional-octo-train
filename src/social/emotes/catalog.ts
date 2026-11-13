@@ -1,6 +1,6 @@
 // The emote catalogue (the shop's records) and what this operator owns and has
 // on the wheel. Prices are in dollars, spent from the lab commissary's
-// purse (src/game/research.ts). Four basics come with every operator. Owned emotes and
+// purse (src/game/economy/money.ts). Four basics come with every operator. Owned emotes and
 // the eight wheel slots are kept in this browser (localStorage 'noclip.emotes').
 // Round 17: the shop is paid in DOLLARS (the researcher's currency); it spends
 // through the same purse the lab commissary uses (balance / spend below, the one
@@ -8,7 +8,7 @@
 //
 //   EMOTES_ALL, emoteInfo(id), owns(id), ownedList(), buyEmote(id) -> 'ok' | 'poor' | 'owned'
 //   wheelSlots() -> (id | '')[8], setSlot(i, id), onEmotes(cb)
-import { researchPoints, spendResearch } from '../../game/research';
+import { dollars, spendDollars } from '../../game/economy/money';
 import './moves';
 
 export type Rarity = 'basic' | 'common' | 'rare' | 'epic' | 'legendary';
@@ -26,7 +26,8 @@ export interface EmoteInfo {
   code: string;
 }
 
-const L = (id: string, anim: string, name: string, rarity: Rarity, price: number, blurb: string, o: Partial<EmoteInfo> = {}): Omit<EmoteInfo, 'code'> => ({ id, anim, name, rarity, price, blurb, ...o });
+// round 17: prices are in dollars (the old figures x10: the researcher's purse, src/game/economy/money.ts)
+const L = (id: string, anim: string, name: string, rarity: Rarity, price: number, blurb: string, o: Partial<EmoteInfo> = {}): Omit<EmoteInfo, 'code'> => ({ id, anim, name, rarity, price: price * 10, blurb, ...o });
 const RAW = [
   L('wave', 'wave', 'Wave', 'basic', 0, 'Standard issue. Hello, I am still alive.'),
   L('point', 'point', 'Point', 'basic', 0, 'That way. Or that thing. Usually that thing.'),
@@ -98,7 +99,7 @@ export function buyEmote(id: string): 'ok' | 'poor' | 'owned' | 'none' {
   const e = BY.get(id);
   if (!e) return 'none';
   if (owns(id)) return 'owned';
-  if (e.price > 0 && !spendResearch(e.price, 'emote:' + id)) return 'poor'; // the commissary's purse (see the header)
+  if (e.price > 0 && !spendDollars(e.price, 'emote:' + id)) return 'poor'; // the researcher's dollars (see the header)
   const s = load();
   s.owned.push(id);
   const free = s.slots.indexOf('');
@@ -106,7 +107,7 @@ export function buyEmote(id: string): 'ok' | 'poor' | 'owned' | 'none' {
   save();
   return 'ok';
 }
-export const balance = () => Math.floor(researchPoints());
+export const balance = () => dollars();
 /** how prices read in the jukebox */
 export const CURRENCY = { name: 'DOLLARS', fmt: (n: number) => '$' + n };
 if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __emotes: unknown }).__emotes = { EMOTES_ALL, owns, buyEmote, wheelSlots, setSlot, reset: () => { state = null; try { localStorage.removeItem(KEY); } catch { /* */ } } };

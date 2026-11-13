@@ -57,7 +57,11 @@ export function generatePools(z: Zone, seed: number) {
   for (const x of [38, 39, 74, 75, 98, 99]) put(b, f, 'pool_lounger', x, 48, 0);
   for (const x of [44, 45, 86, 87]) put(b, f, 'pool_lounger', x, 60, 2);
   for (let i = 0; i < 10; i++) f.anywhere('float_ring', 11, 51, 116, 58);
-  put(b, f, 'towel_stack', 4, 48, 0); put(b, f, 'towel_stack', 123, 61, 0); put(b, f, 'shower_pool', 4, 61, 2); put(b, f, 'shower_pool', 123, 48, 0);
+  put(b, f, 'towel_stack', 4, 48, 0); put(b, f, 'towel_stack', 123, 61, 0);
+  // round 17: a glass door at the east end of the long hall, through to the Plunge (z_plunge.ts)
+  b.door(125, 54, 1, 'door_glass', { portal: 'p_pools_plunge', sign: 'pool' });
+  b.portal({ id: 'p_pools_plunge', x: 124, y: 54, kind: 'door', to: 'plunge', tx: 7, ty: 5, label: 'Go through to the Plunge' });
+  setAnchor(b, 'r_pools_plunge', 122, 54, Math.PI, 2); put(b, f, 'shower_pool', 4, 61, 2); put(b, f, 'shower_pool', 123, 48, 0);
   for (const [x, y] of [[29, 48], [34, 48], [89, 48], [94, 48]] as const) b.obj('exit_sign', x, y, 0);
   wet(4, 48, 123, 50, 40); wet(4, 59, 123, 61, 40);
   for (let i = 0; i < 6; i++) f.floorItem('toy_rubber_duck', rng.int(12, 115), rng.int(52, 57));

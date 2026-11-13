@@ -300,7 +300,7 @@ export class Inspect {
     const desc = it ? (d?.desc || '') : 'Tipped over. Four legs held on with glue and habit. Each one a straight dry length of hardwood: a handle, a club, a splint.';
     el.innerHTML = `<canvas class="ip-bg"></canvas><i class="ip-lamp g"></i><div class="ip-hd" style="left:42px">Meridian · in hand · ${esc(kind)}</div>
 <div class="ip-in"><div class="ip-name">${esc(name)}</div>
-${it ? `<div class="ip-row" data-bar="cond"><b>COND</b></div><div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg${d?.value ? ' · ' + d.value + ' scrip' : ''}</div>` : ''}
+${it ? `<div class="ip-row" data-bar="cond"><b>COND</b></div><div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg${d?.value ? ' · ' + d.value + ' credits' : ''}</div>` : ''}
 ${!it || !this.pois.length ? `<div class="ip-desc">${esc(desc)}</div>` : ''}
 <div class="ip-poi"></div><div class="ip-note"></div>
 <div class="ip-keys"></div><div class="ip-hint">${L.narrow ? 'Drag: turn · Pinch: closer' : 'Drag: turn · Wheel: closer · 1-4: marks · F: flip'}</div></div>`;

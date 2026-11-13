@@ -1,7 +1,7 @@
 // The debt contract's sandbox fields and their defaults (also in Game.sandbox),
 // importable by the menus without pulling in the game systems.
 export const CONTRACT_SANDBOX: Record<string, number> = {
-  /** starting debt in scrip */
+  /** starting debt in credits */
   debt: 25000,
   /** in-game days between installments */
   debtDays: 2,

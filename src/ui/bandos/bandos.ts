@@ -14,6 +14,7 @@
 // On a phone held upright every app is full screen, with the dock along the bottom.
 // The apps (./apps.ts) reuse the game's own pages and systems: the pause's file, the survey plotter,
 // the quest runtime, the lab's codex and requisition panels, the options panel.
+import { purseLine } from '../../game/economy/money';
 import './bandos.css';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -100,7 +101,7 @@ export class BandOS {
   private frame = (now: number) => {
     if (!this.open) return;
     const dt = Math.min(0.1, Math.max(0, (now - this.last) / 1000)); this.last = now;
-    for (const w of this.wins) if (!w.min) w.tick?.(dt);
+    for (const w of this.wins) if (!w.min) { try { w.tick?.(dt); } catch (e) { console.warn('band app', w.key, e); w.tick = undefined; } }
     this.clockT -= dt;
     if (this.clockT <= 0) { this.clockT = 1; this.refreshBar(); }
     this.raf = requestAnimationFrame(this.frame);
@@ -202,7 +203,8 @@ export class BandOS {
     let rp = 0;
     try { rp = researchPoints(); } catch { /* no profile */ }
     const stat = this.bar.querySelector('.bos-bar-stat') as HTMLElement;
-    stat.textContent = (d?.on && !d.cleared ? `${Math.round(d.remaining ?? 0).toLocaleString('en-GB')} owed · ` : '') + `${rp} RP`;
+    // round 17: the three currencies (src/game/economy/money.ts): credits owed (or in hand), the researcher's dollars, RP
+    stat.textContent = (d?.on && !d.cleared ? `${Math.round(d.remaining ?? 0).toLocaleString('en-GB')} cr owed · ` : '') + purseLine(d?.on && d.cleared ? (d.surplus ?? 0) : null);
     (this.bar.querySelector('.bos-bar-clock') as HTMLElement).textContent = `DAY ${c?.day ?? Math.floor(hrs / 24) + 1} · ${String(Math.floor(hrs % 24)).padStart(2, '0')}:${String(Math.floor((hrs % 1) * 60)).padStart(2, '0')}${G.role === 'solo' ? ' · HELD' : ''}`;
   }
 

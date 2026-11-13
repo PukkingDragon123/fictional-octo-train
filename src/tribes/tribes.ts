@@ -1,4 +1,4 @@
-// The tribes: standing (reputation), a chalked tab of scrip per tribe (sell
+// The tribes: standing (reputation), a chalked tab of credits per tribe (sell
 // them things, buy from them against it), camps that fill with members,
 // hostility when you hurt them, raids when they decide you are a problem,
 // recruits who walk with you. World state lives in one replicated op
@@ -99,7 +99,7 @@ export class TribeSystem implements GameSystem {
   standing(t: string) { return standing(this.rep(t)); }
   hostile(t: string) { return this.rep(t) < -12 || (this.st.aggro[t] ?? -1) > G.clock.hours; }
   met(t: string) { return !!this.st.met[t]; }
-  /** price the tribe charges for an item (scrip off the tab) */
+  /** price the tribe charges for an item (credits off the tab) */
   buyPrice(t: string, key: string) {
     const v = Math.max(4, itemValue(createItemCached(key)));
     return Math.round(v * Math.max(0.85, Math.min(2, 1.6 - this.rep(t) * 0.007)) * talentMul(G.local?.body, 'buy'));

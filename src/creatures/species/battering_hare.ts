@@ -22,80 +22,116 @@ import { ruleShown } from '../rules';
 import '../../audio/sounds_creatures_c';
 
 // =====================================================================================
-// THE BATTERING HARE — a hare the size of an elephant, on three legs. One hind leg is
-// gone: what is left of it has fused into a knotted stump of scar and bone against the
-// haunch, so it bounds lopsided, the body slewing and dropping toward the missing side
-// on every landing, and still covers ground horribly fast. The coat is matted and
-// scabbed, the eyes are pink and wet, the ears are long and veined and torn, the front
-// teeth are yellow chisels as long as a forearm, and the forehead has grown a boss of
-// horn from all the things it has hit. It rams: it lowers its head, scrapes the floor
-// with a forefoot, and comes in a dead straight line through whatever is in the way:
-// units, animals, furniture, barricades, the walls of a camp. It cannot turn once it
-// has started; it stops when it hits something it cannot break, and stands there dazed.
-// Built with the user's creature software (src/creatures/life, ported), the right hind
-// leg removed from its rig before sculpting; the stump, the horn, the teeth and the ears
-// are added on top here.
+// THE BATTERING HARE — a rabbit the size of an elephant, grotesquely fat, on three legs.
+// One hind leg is gone: what is left of it has fused into a knot of scar and bone sunk
+// in the haunch. It does not hop and it does not walk: it crawls, hunched and low, its
+// sagging belly an inch off the floor and wobbling, the forelegs reaching and pulling,
+// the one huge hind leg shoving, the whole body slewing toward the missing side on every
+// shove. A true rabbit's shape gone wrong: enormous rounded haunches, a short fat barrel
+// of a body, long upright ears that flop and twitch (one torn), a blunt rounded muzzle
+// with a split lip over yellow chisel teeth, big wet dark eyes, a matted cotton tail. It
+// rams: it lowers its head, scrapes the floor with a forefoot, and comes in a dead
+// straight line, a low, fast lunging scramble, through whatever is in the way: units,
+// animals, furniture, barricades, the walls of a camp. It cannot turn once it has
+// started; it stops when it hits something it cannot break, and lies there dazed.
+// Built with the user's creature software (src/creatures/life, ported): the right hind
+// leg is removed from its rig before sculpting and belly, ear and tail bones added; the
+// haunches, belly, ears, muzzle, eyes, teeth and stump are sculpted on top here.
 // =====================================================================================
 
-const SCALE = 2.5;
+const SCALE = 2.6;
 const DESIGN: Design = {
   name: 'Battering Hare', latin: 'Lepus ariens', plan: 'quadruped', lineage: 'vertebrate',
   genes: ['vert_quadruped', 'leg_cursorial', 'eye_camera', 'molars', 'fur', 'endotherm', 'live_birth'],
-  size: 0.34, len: 0.15, girth: 0.98, legLen: 0.5, legThick: 0.55, neck: 0.12, head: 0.78, tail: 0.04, segs: 3,
-  colors: { base: 0x8a7a66, belly: 0xc8b8a0, pattern: 0x4e4236, accent: 0xc87a8a, eye: 0xd84a6a },
+  size: 0.34, len: 0.05, girth: 1, legLen: 0.32, legThick: 0.75, neck: 0, head: 0.85, tail: 0, segs: 3,
+  colors: { base: 0x7e6e5c, belly: 0xc8b8a0, pattern: 0x4a3e32, accent: 0xc87a8a, eye: 0x1a1010 },
   pattern: 'mottled', patScale: 0.9, cover: 'fur', seed: 6619,
 };
-/** the hind leg that is gone (right side) */
+/** the hind leg that is gone (right side), and the bones added for the belly, the ears and the scut */
 let MISSING: { bones: number[] } | null = null;
+const XB = { belly: -1, earL: -1, earR: -1, scut: -1 };
 function tweak(rig: any) {
   const i = rig.legs.findIndex((l: any) => l.kind === 'hind' && l.side > 0);
   if (i >= 0) { MISSING = { bones: rig.legs[i].bones }; rig.legs.splice(i, 1); }
-  // a hare's proportions: the one good hind leg long and hugely muscled, the forelegs short
+  // a rabbit's legs: the one good hind leg long and hugely muscled (folded under it), the forelegs short
   for (const lg of rig.legs) {
-    const k = lg.kind === 'hind' ? 1.45 : 0.8;
+    const k = lg.kind === 'hind' ? 1.35 : 0.85;
     for (let j = 1; j < lg.bones.length; j++) { const p = rig.bones[lg.bones[j]].pos; p[0] *= k; p[1] *= k; p[2] *= k; }
     lg.lens = lg.lens.map((x: number) => x * k);
+    if (lg.kind === 'fore') lg.foot = [lg.foot[0] * 1.3, lg.foot[1] + rig.dims.T * 0.15]; // reaching, splayed
   }
+  const { W, H, T, hl, hw, hh } = rig.dims;
+  const add = (name: string, parent: number, pos: number[]) => { rig.bones.push({ name, parent, pos }); return rig.bones.length - 1; };
+  XB.belly = add('belly', rig.root, [0, -H * 0.32, T * 0.38]);
+  XB.earL = add('earL', rig.head, [-hw * 0.24, hh * 0.42, -hl * 0.12]);
+  XB.earR = add('earR', rig.head, [hw * 0.24, hh * 0.42, -hl * 0.12]);
+  XB.scut = add('scut', rig.root, [0, H * 0.32, -T * 0.42]);
+  // a blunt, rounded muzzle (the snout half as long)
+  rig.dims.sl *= 0.55;
+  void W;
 }
 function grotesque(S: Ctx, page: Page) {
-  const D = S.rig.dims, iH = S.bi('head'), H0 = S.at(iH);
-  const { hl, hw, hh } = D;
-  const HORN = S.fixed('BH_HORN', 12, 12), TOOTH = S.fixed('BH_TOOTH', 6, 10), EAR = S.fixed('BH_EAR', 12, 24), SCAR = S.fixed('BH_SCAR', 12, 12);
-  // the boss of horn on the forehead (what it rams with)
-  ball(S.B, HORN, S.gid(), [H0[0], H0[1] + hh * 0.42, H0[2] + hl * 0.35], [0, 0.6, 0.8], [hw * 0.42, hh * 0.22, hl * 0.3], [iH, 1], { n: 10, rings: 6, bump: (a, t) => 0.25 * Math.max(0, Math.sin(a * 5)) * Math.sin(t * Math.PI) });
-  // the chisel teeth
-  for (const s of [-1, 1]) {
-    const b: V3 = [H0[0] + s * hw * 0.07, H0[1] - hh * 0.35, H0[2] + hl * 0.82];
-    sac(S.B, TOOTH, S.gid(), [b, [b[0], b[1] - hh * 0.3, b[2] + hl * 0.03], [b[0], b[1] - hh * 0.55, b[2] + hl * 0.01]], [[hw * 0.07, hw * 0.03], [hw * 0.065, hw * 0.028], [hw * 0.05, hw * 0.02]], [[iH, 1], [iH, 1], [iH, 1]], { n: 6, sq: 3 });
-  }
-  // the long ears: as long as the head and more, veined, one torn ragged at the tip and flopped
-  for (const s of [-1, 1]) {
-    const b: V3 = [H0[0] + s * hw * 0.26, H0[1] + hh * 0.45, H0[2] - hl * 0.1];
-    const tear = s > 0 ? 0.62 : 1, E = hl * 1.6;
-    const tip: V3 = s > 0 ? [b[0] + s * hw * 0.9, b[1] + E * 0.45, b[2] - E * 0.55] : [b[0] + s * hw * 0.25, b[1] + E * 0.95, b[2] - E * 0.3];
-    const midP: V3 = [(b[0] + tip[0]) / 2 + s * hw * 0.05, (b[1] + tip[1]) / 2 + E * 0.06, (b[2] + tip[2]) / 2];
-    sac(S.B, EAR, S.gid(), [b, midP, tip], [[hw * 0.2, hw * 0.07], [hw * 0.42, hw * 0.06], [hw * 0.2 * tear, hw * 0.04]], [[iH, 1], [iH, 1], [iH, 1]], { n: 10 });
-  }
-  // the eyes: big, bulging, pink and wet, set on the sides of the skull
-  const EYE = S.fixed('BH_EYE', 8, 8);
-  for (const s of [-1, 1]) ball(S.B, EYE, S.gid(), [H0[0] + s * hw * 0.4, H0[1] + hh * 0.22, H0[2] + hl * 0.12], [s, 0.1, 0.3], [hw * 0.17, hw * 0.15, hw * 0.17], [iH, 1], { n: 10, rings: 6 });
-  for (let y = 0; y < EYE.h; y++) for (let x = 0; x < EYE.w; x++) { const r = Math.hypot(EYE.th(x), (y / EYE.h - 0.5) * 3); EYE.set(x, y, r < 0.5 ? 0x1a0808 : r < 1.1 ? mixHex(0xd84a6a, 0x8a1a2a, r - 0.5) : mixHex(0xe8c0c0, 0xa86060, hash(x, y) * 0.5)); }
-  EYE.set(Math.floor(EYE.w * 0.45), Math.floor(EYE.h * 0.35), 0xffffff);
-  // the stump: what is left of the right hind leg, fused into a knot of scar and bone against the haunch
+  const D = S.rig.dims, iH = S.bi('head'), H0 = S.at(iH), iR = S.rig.root, R0 = S.at(iR);
+  const { hl, hw, hh, W, H, T } = D;
+  const FAT = S.fixed('BH_FAT', 24, 24), TOOTH = S.fixed('BH_TOOTH', 6, 10), EAR = S.fixed('BH_EAR', 12, 24), SCAR = S.fixed('BH_SCAR', 12, 12);
+  const SKIN = S.fixed('BH_SKIN', 12, 12), TAILR = S.fixed('BH_TAIL', 12, 12), EYE = S.fixed('BH_EYE', 8, 8), BOSS = S.fixed('BH_HORN', 12, 12);
+  const fuzzy = (amp: number) => (a: number, t: number) => amp * (Math.sin(a * 13 + t * 9) * 0.5 + Math.sin(a * 29 - t * 17) * 0.3);
+  // ---- the fat: a sagging belly (on its own bone, so it wobbles), a high rounded rump, enormous haunches
+  ball(S.B, FAT, S.gid(), addV(R0, [0, -H * 0.3, T * 0.36]), [0, 1, 0], [W * 0.62, H * 0.5, T * 0.72], [XB.belly, 0.75, iR, 0.25], { n: 14, rings: 9, bump: fuzzy(0.04) });
+  ball(S.B, FAT, S.gid(), addV(R0, [0, H * 0.2, -T * 0.12]), [0, 1, 0], [W * 0.58, H * 0.52, T * 0.5], [iR, 1], { n: 14, rings: 9, bump: fuzzy(0.05) });
+  const good = S.rig.legs.find((l) => l.kind === 'hind');
+  if (good) { const hp = S.at(good.bones[0]); ball(S.B, FAT, S.gid(), [hp[0] + good.side * W * 0.08, hp[1] + H * 0.02, hp[2] - T * 0.04], [0, 1, 0], [W * 0.36, H * 0.52, T * 0.46], [good.bones[0], 0.55, iR, 0.45], { n: 12, rings: 8, bump: fuzzy(0.05) }); }
+  // the stump: what is left of the right hind leg, fused into a knot of scar and bone sunk in a smaller haunch
   if (MISSING) {
-    const hip = S.at(MISSING.bones[0]), wh = [MISSING.bones[0], 1] as number[];
-    const iP = S.rig.root;
-    ball(S.B, SCAR, S.gid(), [hip[0] + 0.02, hip[1] - D.lt * 0.6, hip[2]], [0, -1, 0.2], [D.lt * 1.3, D.lt * 1.0, D.lt * 1.2], [iP, 1], { n: 10, rings: 7, bump: (a, t) => 0.18 * Math.sin(a * 4 + t * 7) + 0.1 * Math.sin(a * 9) });
-    void wh;
+    const hip = S.at(MISSING.bones[0]);
+    ball(S.B, FAT, S.gid(), [hip[0] + W * 0.05, hip[1] + H * 0.05, hip[2] - T * 0.04], [0, 1, 0], [W * 0.3, H * 0.42, T * 0.38], [iR, 1], { n: 12, rings: 8, bump: fuzzy(0.05) });
+    ball(S.B, SCAR, S.gid(), [hip[0] + W * 0.2, hip[1] - H * 0.22, hip[2] - T * 0.02], [0.6, -1, 0.2], [D.lt * 1.2, D.lt * 1.0, D.lt * 1.1], [iR, 1], { n: 10, rings: 7, bump: (a, t) => 0.2 * Math.sin(a * 4 + t * 7) + 0.1 * Math.sin(a * 9) });
   }
+  // the cotton tail, matted into a dirty ball
+  ball(S.B, TAILR, S.gid(), addV(R0, [0, H * 0.32, -T * 0.5]), [0, 0.3, -1], [W * 0.17, W * 0.16, W * 0.15], [XB.scut, 1], { n: 10, rings: 6, bump: fuzzy(0.18) });
+  // ---- the head: a blunt rounded muzzle with fat whisker pads and a split lip, chisel teeth under it
+  const mz: V3 = [H0[0], H0[1] - hh * 0.12, H0[2] + hl * 0.5];
+  for (const s of [-1, 1]) ball(S.B, SKIN, S.gid(), [mz[0] + s * hw * 0.13, mz[1], mz[2]], [s * 0.3, 0, 1], [hw * 0.17, hh * 0.24, hl * 0.16], [iH, 1], { n: 10, rings: 6, bump: fuzzy(0.06) });
+  ball(S.B, SKIN, S.gid(), [mz[0], mz[1] + hh * 0.18, mz[2] + hl * 0.02], [0, 0.3, 1], [hw * 0.12, hh * 0.1, hl * 0.08], [iH, 1], { n: 8, rings: 5 }); // the nose
+  for (const s of [-1, 1]) {
+    const b: V3 = [mz[0] + s * hw * 0.045, mz[1] - hh * 0.12, mz[2] + hl * 0.1];
+    sac(S.B, TOOTH, S.gid(), [b, [b[0], b[1] - hh * 0.3, b[2] + hl * 0.03], [b[0], b[1] - hh * 0.55, b[2] + hl * 0.01]], [[hw * 0.05, hw * 0.022], [hw * 0.048, hw * 0.02], [hw * 0.04, hw * 0.016]], [[iH, 1], [iH, 1], [iH, 1]], { n: 6, sq: 3 });
+  }
+  // a callus on the forehead from everything it has hit
+  ball(S.B, BOSS, S.gid(), [H0[0], H0[1] + hh * 0.36, H0[2] + hl * 0.25], [0, 0.6, 0.8], [hw * 0.3, hh * 0.14, hl * 0.2], [iH, 1], { n: 10, rings: 6, bump: (a, t) => 0.25 * Math.max(0, Math.sin(a * 5)) * Math.sin(t * Math.PI) });
+  // the long ears, on their own bones (they flop and twitch): broad, veined, the right one torn ragged
+  for (const s of [-1, 1]) {
+    const ib = s < 0 ? XB.earL : XB.earR, b = S.at(ib);
+    const tear = s > 0 ? 0.6 : 1, E = hl * 1.9;
+    const tip: V3 = [b[0] + s * hw * 0.3, b[1] + E * 0.95, b[2] - E * 0.22];
+    const midP: V3 = [b[0] + s * hw * 0.16, b[1] + E * 0.5, b[2] - E * 0.06];
+    sac(S.B, EAR, S.gid(), [b, midP, tip], [[hw * 0.2, hw * 0.08], [hw * 0.36, hw * 0.07], [hw * 0.16 * tear, hw * 0.05]], [[ib, 1], [ib, 1], [ib, 1]], { n: 10, bump: fuzzy(0.05) });
+  }
+  // the eyes: big, dark, wet, bulging out of the sides of the skull, the rims raw
+  for (const s of [-1, 1]) ball(S.B, EYE, S.gid(), [H0[0] + s * hw * 0.38, H0[1] + hh * 0.2, H0[2] + hl * 0.12], [s, 0.1, 0.3], [hw * 0.2, hw * 0.18, hw * 0.2], [iH, 1], { n: 12, rings: 7 });
   // ---- paint
-  HORN.fill(makeRamp(0x8a7a60, 6, { spread: 0.5 }), (x, y) => 2.6 + Math.cos(HORN.th(x)) * 1.1 + ((y % 3) === 0 ? -1 : 0) + (hash(x, y) - 0.5) * 0.8);
+  const coat = makeRamp(0x6a5a48, 6, { spread: 0.45 });
+  FAT.fill(coat, (x, y) => 2.1 + Math.cos(FAT.th(x)) * 0.9 + (FAT.fbm(x, y, 4, 2, 5) - 0.5) * 1.6 + (hash(x, y) - 0.5) * 0.9);
+  for (let y = 0; y < FAT.h; y++) for (let x = 0; x < FAT.w; x++) {
+    const m = FAT.fbm(x, y, 5, 2, 33), h = hash(x * 7, y * 3);
+    if (Math.cos(FAT.th(x)) < -0.6) FAT.blend(x, y, 0xb0a088, 0.35); // the paler underside
+    if (m > 0.72) FAT.set(x, y, h < 0.25 ? 0x5a1a14 : mixHex(0xb88a84, 0xd8a8a0, hash(x * 5, y))); // mange, scabs, stretch-raw skin
+    else if (m < 0.2) FAT.blend(x, y, 0x241c16, 0.55); // matted, filthy
+    if ((x + y * 3) % 7 === 0 && h < 0.4) FAT.blend(x, y, 0x3a2e24, 0.4); // the lie of the hair
+  }
   for (let y = 0; y < TOOTH.h; y++) for (let x = 0; x < TOOTH.w; x++) TOOTH.set(x, y, mixHex(0xe8d088, 0x8a5a20, y / TOOTH.h * 0.7 + hash(x, y) * 0.15));
+  SKIN.fill(makeRamp(0x9a8a76, 6, { spread: 0.4 }), (x, y) => 2.8 + Math.cos(SKIN.th(x)) * 0.8 + (hash(x, y) - 0.5));
+  for (let x = 0; x < SKIN.w; x++) if (Math.abs(SKIN.th(x)) < 0.25) for (let y = 0; y < SKIN.h; y++) SKIN.set(x, y, 0x3a1414); // the split
+  for (let i = 0; i < 10; i++) SKIN.set(Math.floor(hash(i, 2) * SKIN.w), Math.floor(hash(i, 3) * SKIN.h), 0x1a1210); // whisker pits
   EAR.fill(makeRamp(0xc89090, 6, { spread: 0.5 }), (x, y) => 2.8 + Math.cos(EAR.th(x)) * 0.9 + (hash(x, y) - 0.5) * 0.5);
   for (let i = 0; i < 7; i++) EAR.line(EAR.w * (0.2 + hash(i, 3) * 0.6), 0, EAR.w * (0.2 + hash(i, 4) * 0.6), EAR.h, 0x8a3a4a, 0.55);
-  for (let x = 0; x < EAR.w; x++) if (Math.abs(EAR.th(x)) > 1.6) for (let y = 0; y < EAR.h; y++) EAR.blend(x, y, 0x6a5a4a, 0.6); // furred backs
+  for (let x = 0; x < EAR.w; x++) if (Math.abs(EAR.th(x)) > 1.6) for (let y = 0; y < EAR.h; y++) EAR.blend(x, y, 0x6a5a4a, 0.7); // furred backs
   SCAR.fill(makeRamp(0xc88a8a, 6, { spread: 0.55 }), (x, y) => 2.6 + Math.sin(x * 1.3 + y * 0.7) * 1.2 + (hash(x, y) - 0.5));
   for (let i = 0; i < 8; i++) SCAR.line(hash(i, 5) * SCAR.w, hash(i, 6) * SCAR.h, hash(i, 7) * SCAR.w, hash(i, 8) * SCAR.h, 0xe8c8b8, 0.7);
+  for (let y = 0; y < TAILR.h; y++) for (let x = 0; x < TAILR.w; x++) TAILR.set(x, y, hash(x * 3, y) < 0.2 ? 0x6a5a46 : mixHex(0xe0d8c8, 0xa89880, hash(x, y * 5)));
+  BOSS.fill(makeRamp(0x8a7a60, 6, { spread: 0.5 }), (x, y) => 2.6 + Math.cos(BOSS.th(x)) * 1.1 + ((y % 3) === 0 ? -1 : 0) + (hash(x, y) - 0.5) * 0.8);
+  for (let y = 0; y < EYE.h; y++) for (let x = 0; x < EYE.w; x++) { const r = Math.hypot(EYE.th(x), (y / EYE.h - 0.5) * 3); EYE.set(x, y, r < 0.9 ? mixHex(0x0e0808, 0x2a1810, r) : r < 1.3 ? 0x8a2a2a : mixHex(0xc89090, 0x8a5050, hash(x, y) * 0.5)); }
+  EYE.set(Math.floor(EYE.w * 0.45), Math.floor(EYE.h * 0.35), 0xffffff);
   for (const name of ['BODY', 'HEAD', 'LIMB']) {
     const r = page.regs.get(name); if (!r) continue;
     for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
@@ -111,36 +147,66 @@ export function buildBatteringHare(): LifeGameRig {
   return lifeRig(model, SCALE, model.rig.height * SCALE);
 }
 
-// ------------------------------------------------------------------ the pose: a lopsided three-legged bound, the ram
+// ------------------------------------------------------------------ the pose: a low, hunched three-legged crawl, the ram
 export type HarePose = 'idle' | 'bound' | 'scrape' | 'charge' | 'dazed' | 'dead';
-const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3();
+const _q = new THREE.Quaternion(), _e = new THREE.Euler();
 function poseH(R: LifeGameRig, t: number, dt: number, md: HarePose, speed: number, far: boolean, flinch: number) {
   const L = R.life, rig = L.model.rig, B = L.bones, ud = L.m as Record<string, number>;
-  const st = md === 'dead' ? 'dead' : md === 'dazed' ? 'stunned' : md === 'scrape' ? 'idle' : speed > 0.1 ? 'move' : 'idle';
-  if (!lifeAnimate(R, dt, { speed: speed / SCALE, state: st as any }, 0, far)) return;
-  const mv = Math.min(1, speed / 2);
-  // the bound: up off the good hind leg, a long hang, and down hard and crooked toward the stump
-  ud.bph = (ud.bph ?? 0) + dt * speed / (md === 'charge' ? 6 : 3.2);
+  const rb = rig.bones[rig.root].pos, r0 = ((L.model as any).r0 ??= [rb[0], rb[1], rb[2]]) as number[];
+  const mv = Math.min(1, speed / 2), charge = md === 'charge';
+  // the crawl: the hind leg shoves (the body surges forward and up a little), then it drags itself on the forelegs
+  ud.bph = (ud.bph ?? 0) + dt * speed / (charge ? 3.4 : 2.0) / SCALE * 2.6;
   const u = ((ud.bph % 1) + 1) % 1;
-  const air = Math.max(0, Math.sin(Math.min(1, u / 0.7) * Math.PI)) * mv;
-  R.body.position.y = air * (md === 'charge' ? 0.6 : 1.1);
-  R.body.rotation.z = (0.08 + 0.12 * Math.max(0, Math.sin(u * Math.PI * 2 + 2))) * mv + 0.05;
-  R.body.rotation.x = (u < 0.5 ? -0.12 : 0.1) * mv;
-  const low = (ud.low = (ud.low ?? 0) + (((md === 'scrape' || md === 'charge') ? 1 : 0) - (ud.low ?? 0)) * (1 - Math.exp(-6 * dt)));
+  const shove = u < 0.32 ? Math.sin(Math.PI * u / 0.32) : 0;
+  // low to the floor: lower still in the charge, the scrape and the daze
+  const lowT = md === 'dead' ? 1 : charge ? 0.56 : md === 'scrape' ? 0.66 : md === 'dazed' ? 0.6 : 0.74 - 0.04 * mv;
+  ud.lowH = (ud.lowH ?? lowT) + (lowT - (ud.lowH ?? lowT)) * (1 - Math.exp(-5 * dt));
+  rb[1] = r0[1] * ud.lowH + shove * r0[1] * (charge ? 0.1 : 0.16) * mv;
+  rb[2] = r0[2] + (shove - 0.35) * r0[1] * (charge ? 0.4 : 0.28) * mv;
+  const st = md === 'dead' ? 'dead' : md === 'dazed' ? 'stunned' : md === 'scrape' ? 'idle' : speed > 0.1 ? 'move' : 'idle';
+  const ok = lifeAnimate(R, dt, { speed: speed / SCALE * (charge ? 0.8 : 1), state: st as any }, 0, far);
+  rb[1] = r0[1]; rb[2] = r0[2];
+  if (!ok) return;
+  // slewing toward the missing leg on every shove, nose dipping as the forelegs pull
+  R.body.position.y = 0;
+  R.body.rotation.z = -((0.05 + 0.09 * (1 - shove)) * mv + 0.05);
+  R.body.rotation.x = (shove > 0 ? -0.05 * shove : 0.06) * mv;
+  const low = (ud.low = (ud.low ?? 0) + (((md === 'scrape' || charge) ? 1 : 0) - (ud.low ?? 0)) * (1 - Math.exp(-6 * dt)));
   const daze = (ud.dz = (ud.dz ?? 0) + ((md === 'dazed' ? 1 : 0) - (ud.dz ?? 0)) * (1 - Math.exp(-5 * dt)));
-  // head down to ram (the horn boss forward); dazed: head swaying, low
+  // head down to ram; dazed: head swaying, low
   const neck = rig.neck[0];
-  if (neck !== undefined && neck >= 0) { _q.setFromEuler(_e.set(0.55 * low + 0.3 * daze, Math.sin(t * 2.3) * 0.35 * daze, Math.sin(t * 1.7) * 0.25 * daze)); B[neck].quaternion.premultiply(_q); }
-  if (rig.head >= 0) { _q.setFromEuler(_e.set(0.35 * low, 0, 0)); B[rig.head].quaternion.multiply(_q); }
+  if (neck !== undefined && neck >= 0) { _q.setFromEuler(_e.set(0.45 * low + 0.35 * daze, Math.sin(t * 2.3) * 0.35 * daze, Math.sin(t * 1.7) * 0.25 * daze)); B[neck].quaternion.premultiply(_q); }
+  if (rig.head >= 0) { _q.setFromEuler(_e.set(0.3 * low, 0, 0)); B[rig.head].quaternion.multiply(_q); }
   // scraping: one forefoot raking back along the floor
   if (md === 'scrape') {
     const fore = rig.legs.find((l) => l.kind === 'fore' && l.side < 0);
     if (fore) { const k = Math.sin(t * 9); _q.setFromEuler(_e.set(-0.5 + 0.8 * Math.max(0, k), 0, 0)); B[fore.bones[0]].quaternion.multiply(_q); }
   }
+  // the belly: a sack of fat on a spring, slapped about by every shove
+  if (XB.belly >= 0) {
+    const vy = (rb[1] + shove * r0[1] * 0.16 * mv - (ud.py ?? 0)) / Math.max(dt, 1e-3); ud.py = rb[1] + shove * r0[1] * 0.16 * mv;
+    ud.bv = (ud.bv ?? 0) + (-(ud.bo ?? 0) * 140 - (ud.bv ?? 0) * 5 - Math.max(-3, Math.min(3, vy)) * 6) * dt;
+    ud.bo = Math.max(-0.25, Math.min(0.25, (ud.bo ?? 0) + ud.bv * dt));
+    const bb = B[XB.belly];
+    bb.position.y += ud.bo * r0[1] * 0.25 - r0[1] * 0.04 * (1 - mv); // it sags when it stops
+    bb.scale.set(1 + Math.abs(ud.bo) * 0.25 + 0.04 * (1 - mv), 1 - ud.bo * 0.4, 1 + Math.abs(ud.bo) * 0.15);
+  }
+  // the ears: laid back by the speed, flopping with the shoves, twitching on their own
+  if (XB.earL >= 0) {
+    if ((ud.twT ?? 0) < t) { ud.twT = t + 0.6 + Math.random() * 2.2; ud.twS = Math.random() < 0.5 ? -1 : 1; ud.tw0 = t; }
+    const tw = Math.exp(-((t - (ud.tw0 ?? -9)) * 9)) * Math.sin((t - (ud.tw0 ?? -9)) * 40);
+    for (const s of [-1, 1]) {
+      const b = B[s < 0 ? XB.earL : XB.earR];
+      const back = -0.35 * mv - (charge ? 0.75 : 0) - 0.3 * daze, flop = (s > 0 ? 0.55 : 0.12) + shove * 0.2 * mv + 0.35 * daze;
+      _q.setFromEuler(_e.set(back + (s === ud.twS ? tw * 0.25 : 0), s * (0.1 + (s === ud.twS ? tw * 0.3 : 0)), s * flop));
+      b.quaternion.multiply(_q);
+    }
+  }
+  if (XB.scut >= 0) { _q.setFromEuler(_e.set(Math.sin(t * 7) * 0.15 * mv, Math.sin(t * 11) * 0.2, 0)); B[XB.scut].quaternion.multiply(_q); }
   if (flinch > 0) B[rig.root].position.x += Math.sin(t * 60) * 0.02 * flinch;
 }
 export function poseBatteringHare(R: LifeGameRig, t: number, dt: number, pose: HarePose = 'idle', o: { speed?: number } = {}) {
-  poseH(R, t, dt, pose, o.speed ?? (pose === 'bound' ? 4 : pose === 'charge' ? 11 : 0), false, 0);
+  poseH(R, t, dt, pose, o.speed ?? (pose === 'bound' ? 3 : pose === 'charge' ? 10 : 0), false, 0);
 }
 
 /** dust, sounds and shakes of a rammer (the hare and the procedural heavies) */
@@ -172,15 +238,16 @@ function animateHare(rig: Rig, c: Creature, t: number, dt: number) {
   // the landings: the ground takes every one, harder on the stump side
   if (!c.dead && c.speed > 1 && live()) {
     const u = (((ud.bph ?? 0) % 1) + 1) % 1;
-    if (u > 0.72 && !ud.landed) { ud.landed = 1; if (d < 30) { playAt('strider_land', c, Math.min(1, 0.4 + c.speed * 0.05), 30, 0.7); if (d < 12) G.camera?.shake?.(0.06 + c.speed * 0.01, 0.2, 0.5); } }
-    else if (u < 0.3) ud.landed = 0;
+    // every shove ends with the weight of it slapping down; between shoves the belly drags on the floor
+    if (u > 0.3 && !ud.landed) { ud.landed = 1; if (d < 30) { playAt('strider_land', c, Math.min(1, 0.4 + c.speed * 0.05), 30, 0.6); if ((ud.drT ?? 0) < t) { ud.drT = t + 1.4; playAt('drag_scrape', c, 0.5, 18, 0.7); } if (d < 12) G.camera?.shake?.(0.05 + c.speed * 0.01, 0.2); } }
+    else if (u < 0.1) ud.landed = 0;
   }
   ramFeedback(rig, c, t, d);
   const lp = localIn(c);
   if (lp && !c.dead && c.visibleToLocal && d < 40) {
     if (n.md === 'scrape') thinkOnce(lp, 'hare_scrape', ['It has its head down. It is scraping the floor. It is lined up on ME.', 'Get out of the line. Sideways. NOW.'][Math.floor(t) % 2], 20);
     else if (n.md === 'dazed') thinkOnce(lp, 'hare_daze', 'It hit the wall and it is just standing there, swaying. Now is the time.', 30);
-    else thinkOnce(lp, 'hare', ['A hare. The size of an elephant. On three legs.', 'One back leg is just a lump of scar. It does not slow it down at all.'][Math.floor(t * 0.15) % 2], 90);
+    else thinkOnce(lp, 'hare', ['A rabbit. The size of an elephant. Dragging itself along on three legs.', 'It is so fat its belly drags on the floor. One back leg is just a lump of scar. It is still fast.'][Math.floor(t * 0.15) % 2], 90);
   }
 }
 
@@ -190,6 +257,10 @@ function setMd(c: Creature, md: string) { const n = net(c); if (n.md !== md) { n
 export interface RamCfg { v: number; max: number; dmg: [number, number]; cdmg: number; scrape: number; sight: number; wander: number }
 const HARE_RAM: RamCfg = { v: 11, max: 30, dmg: [26, 42], cdmg: 70, scrape: 1.5, sight: 26, wander: 18 };
 const ramOf = (c: Creature): RamCfg => (c.sp as any).ram ?? HARE_RAM;
+function clearGap(z: ReturnType<typeof zoneOf>, x: number, y: number, side: 0 | 1) {
+  if (z.edge(x, y, side)) op('edge', { z: z.key, x, y, side, patch: null });
+  if ((side === 0 ? z.wallN : z.wallW)[z.idx(x, y)]) op('wall', { z: z.key, x, y, side, wall: 0 });
+}
 /** the hare at full tilt along a fixed heading: whatever is in the way is hit */
 function ramStep(c: Creature, dt: number): 'go' | 'stop' | 'wall' {
   const z = zoneOf(c), m = c.mem, RC = ramOf(c), CHARGE_V = RC.v;
@@ -227,12 +298,17 @@ function ramStep(c: Creature, dt: number): 'go' | 'stop' | 'wall' {
     const e = z.edge(ex, ey, side);
     if (e) {
       if (e.open && !e.barricade) continue;
-      if (!sm[key]) { sm[key] = 1; op('edge', { z: z.key, x: ex, y: ey, side, patch: { locked: false, open: true, hp: Math.round((e.maxHp || 40) * 0.2), barricade: 0 } }); fx(c, 'smash'); m.ramV = Math.max(0.55, (m.ramV ?? 1) - 0.12); }
+      // a door (or a hole already knocked through): the door, the frame and all, goes; what is left is a ragged gap
+      if (!sm[key]) { sm[key] = 1; clearGap(z, ex, ey, side); if (e.kind !== 'arch') { fx(c, 'smash'); m.ramV = Math.max(0.55, (m.ramV ?? 1) - 0.12); } }
       continue;
     }
     const wid = side === 0 ? z.wallN[i] : z.wallW[i];
     if (!wid) continue;
-    if (!sm[key]) { sm[key] = 1; op('wallSmash', { z: z.key, x: ex, y: ey, side, d: 420, how: 'blunt', by: null, u: 0.5, h: 1.0, n: nn }); fx(c, 'smash'); }
+    if (!sm[key]) {
+      sm[key] = 1; op('wallSmash', { z: z.key, x: ex, y: ey, side, d: 420, how: 'blunt', by: null, u: 0.5, h: 1.0, n: nn }); fx(c, 'smash');
+      // broken through: no jambs left standing in the hole (it is as wide as the animal)
+      if (z.edges.get(i * 2 + side)?.kind === 'arch') clearGap(z, ex, ey, side);
+    }
     if (!z.edges.has(i * 2 + side) && (side === 0 ? z.wallN[i] : z.wallW[i])) return 'wall';
   }
   if (z.solid[z.idx(tx, ty)] || !z.floor[z.idx(tx, ty)]) return 'wall';
@@ -302,7 +378,7 @@ export function thinkRammer(c: Creature, dt: number): boolean {
 const HARE = def({
   key: 'battering_hare', name: 'Battering Hare', code: 'OP-05 // FAUNA, LEPORID (GIGANTIC, MAIMED)', temperament: 'territorial', threat: 4,
   rule: { name: 'IT RAMS IN A STRAIGHT LINE', text: 'It lowers its head and scrapes the floor, lined up on you, then charges in a dead straight line through anything in the way: furniture, barricades, the walls of a camp. It cannot turn once it has started. Step out of the line. If it hits something it cannot break (the place\'s own walls, a pillar) it stands dazed for a few seconds.', tell: 'Head down, scraping the floor with one foot. Lined up on me.' },
-  hp: 380, walk: 2.2, run: 6, turn: 2.6, radius: 1.4, height: 3.6, sight: 26, fov: 1.6, hearing: 1.6,
+  hp: 420, walk: 1.6, run: 6.5, turn: 2.4, radius: 1.4, height: 3.6, sight: 26, fov: 1.6, hearing: 1.6,
   attack: { dmg: [26, 40], range: 2.2, cooldown: 2.5, kinds: ['fracture', 'bruise'], corrupt: 0, knock: 2 },
   zones: ['fields', 'meadow', 'parking', 'suburbs', 'homestead'], weight: 0.15, group: [1, 1], maxPerZone: 1, diet: 'grass',
   meat: [['hare_haunch', 4], ['hare_incisor', 1]],
@@ -311,8 +387,8 @@ const HARE = def({
   scan: {
     cls: 'Fauna / gigantic leporid (maimed)',
     notes: [
-      'A hare the size of an elephant. The right hind leg is missing, fused into a stump of scar; it bounds on three.',
-      'Horned forehead boss, chisel incisors, long torn ears, pink eyes, mange.',
+      'A rabbit the size of an elephant, grossly fat. The right hind leg is missing, fused into a stump of scar; it crawls low on three, belly dragging.',
+      'Huge haunches, sagging belly, long torn ears, split lip over chisel incisors, big dark eyes, a callused forehead, mange.',
       'Rams: lowers the head, scrapes, charges in a straight line through furniture, barricades and base walls.',
       'Cannot turn once charging. A hit on solid structure leaves it dazed for a few seconds.',
     ],
@@ -327,4 +403,4 @@ HARE.animateGallery = (rig: Rig, t: number) => {
   const q = (new URLSearchParams(location.search).get('pose') || GAL[Math.floor(t / 3) % GAL.length]) as HarePose;
   poseBatteringHare(rig as LifeGameRig, t, 1 / 60, q);
 };
-void _v; void addV;
+

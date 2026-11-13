@@ -1,0 +1,15 @@
+/* one line from the band (src/ui/ui.ts bandLine, round 17): no box, no stack, low over the hotbar. A lit lamp,
+   the word in amber, what it means in cream; it fades in, holds, fades out, and a newer line takes its place. */
+.k-band { position: fixed; left: 50%; bottom: calc(86px + env(safe-area-inset-bottom)); transform: translate(-50%, 6px); z-index: 30; max-width: min(86vw, 900px);
+  display: flex; align-items: center; gap: 10px; pointer-events: none; opacity: 0; transition: opacity .35s ease, transform .35s ease;
+  font-family: var(--font-new); font-size: 20px; line-height: 1.1; white-space: nowrap;
+  text-shadow: 1px 1px 0 #050605, -1px 0 0 #050605, 0 -1px 0 #050605, 1px 0 0 #050605, 0 2px 0 #050605, 0 3px 10px rgba(0,0,0,.6); }
+.k-band.on { opacity: 1; transform: translate(-50%, 0); }
+.k-band i { flex: none; width: 8px; height: 8px; background: #ffc040; box-shadow: 0 0 0 2px #050605, 0 0 8px #ffb030; animation: k-band-blink 1.2s steps(1) 3; }
+.k-band img { flex: none; width: 24px; height: 24px; image-rendering: pixelated; }
+.k-band b { flex: none; font-weight: normal; color: #ffcf6a; letter-spacing: .08em; text-transform: uppercase; }
+.k-band span { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: #f2ead2; }
+@keyframes k-band-blink { 50% { opacity: .35; } }
+@media (max-width: 520px) and (orientation: portrait) { .k-band { bottom: auto; top: calc(var(--hb-bottom, 236px) + 74px); font-size: 16px; white-space: normal; flex-wrap: wrap; justify-content: center; text-align: center; } }
+body.noclip-cine .k-band, body:has(.bos.on) .k-band { visibility: hidden; }
+.reduce-flash .k-band i { animation: none; }

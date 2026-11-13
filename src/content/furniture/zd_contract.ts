@@ -105,7 +105,7 @@ addTextureModule(() => {
       for (let r = 7.5; r < 9.6; r += 0.5) pc.set(Math.round(12 + Math.cos(a) * r - 0.5), Math.round(12 + Math.sin(a) * r - 0.5), i >= 8 ? 0xc0281e : 0x1a1a1a);
     }
     for (let i = 0; i < 40; i++) { const a = Math.PI * 0.75 + (i / 40) * Math.PI * 1.5; pc.set(Math.round(12 + Math.cos(a) * 9.2 - 0.5), Math.round(12 + Math.sin(a) * 9.2 - 0.5), i > 31 ? 0xc0281e : 0x5a5a5a); }
-    txtC(pc, 'SCRIP', 12, 15, 0x3a3a3a);
+    txtC(pc, 'CR', 12, 15, 0x3a3a3a);
     pc.set(11, 11, 0x1a1a1a); pc.set(12, 11, 0x1a1a1a); pc.set(11, 12, 0x1a1a1a); pc.set(12, 12, 0x1a1a1a);
     pc.blend(7, 6, 0xffffff, 0.6); pc.blend(8, 5, 0xffffff, 0.5); pc.blend(6, 7, 0xffffff, 0.4);
   });
@@ -255,7 +255,7 @@ addTextureModule(() => {
     // enamel name plate
     pc.rect(6, 1, 25, 6, 0x1e2a36); pc.strokeRect(6, 1, 25, 6, 0x8a9098);
     txt(pc, 'PRESS', 8, 1, 0xe8e4d8); txt(pc, '07', 24, 1, HAZ_Y);
-    // the nixie window: a black recess with a chrome lip (the tubes stand in it), SCRIP stamped beside
+    // the nixie window: a black recess with a chrome lip (the tubes stand in it), CREDITS stamped beside
     pc.rect(33, 1, 22, 6, 0x0a0a0c); pc.strokeRect(32, 0, 24, 8, 0xb8bcc2);
     pc.set(57, 3, 0xd8d2bc); pc.set(57, 5, 0xd8d2bc);
   }, 1.98, 0.24);

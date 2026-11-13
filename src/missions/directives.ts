@@ -89,13 +89,13 @@ for (let n = 1; n <= INST; n++) {
     get desc() {
       const d = debt();
       if (!d?.on) return 'The ledger is waiting for your first deposit.';
-      return `Balance ${fmt(d.remaining)} scrip. Installment ${n} must be on the ledger by day ${d.dueDay}. Miss it and the band will remind you, and the Programme adds a penalty.`;
+      return `Balance ${fmt(d.remaining)} credits. Installment ${n} must be on the ledger by day ${d.dueDay}. Miss it and the band will remind you, and the Programme adds a penalty.`;
     },
     intro: n === 1 ? 'First installment. I would rather not have to remind you.' : n === INST ? 'One more installment after this and the unit is square. Do not get comfortable.' : undefined,
     objectives: [
       {
         id: 'pay',
-        get text() { const d = debt(); return d?.on && d.installment === n && !d.cleared ? `Remit ${fmt(d.due)} more scrip by day ${d.dueDay}` : `Pay installment ${n}`; },
+        get text() { const d = debt(); return d?.on && d.installment === n && !d.cleared ? `Remit ${fmt(d.due)} more credits by day ${d.dueDay}` : `Pay installment ${n}`; },
         check: has('contract:installment:' + n),
         where: nearestPress,
       },
@@ -106,10 +106,10 @@ for (let n = 1; n <= INST; n++) {
 
 q({
   key: 'clear_debt', main: true, auto: true, voice: 'handler', requires: ['installment_' + INST], title: 'Discharge', giver: 'REMITTANCE LEDGER', category: 'contract',
-  get desc() { const d = debt(); return `The last installment is the rest of it: ${fmt(d?.remaining ?? 0)} scrip. Clear the balance and the contract is discharged.`; },
+  get desc() { const d = debt(); return `The last installment is the rest of it: ${fmt(d?.remaining ?? 0)} credits. Clear the balance and the contract is discharged.`; },
   intro: 'Last one. Clear it and we can talk about leaving.',
   objectives: [
-    { id: 'clear', get text() { const d = debt(); return d?.on && !d.cleared ? `Clear the balance (${fmt(d.remaining)} scrip)` : 'Clear the balance'; }, check: has('contract:debt_cleared') },
+    { id: 'clear', get text() { const d = debt(); return d?.on && !d.cleared ? `Clear the balance (${fmt(d.remaining)} credits)` : 'Clear the balance'; }, check: has('contract:debt_cleared') },
   ],
   reward: { rp: 5 },
 } as QuestX);
@@ -119,9 +119,9 @@ q({
   get desc() {
     const d = debt();
     const where = zoneSpec('depot') ? 'the depot\'s kiosk' : 'the passage kiosk beside the Lobby press';
-    return `Discharged units may buy passage out at ${where}. Surplus scrip pays for it: ${fmt(d?.surplus ?? 0)} on account. The cheap ride goes somewhere. The dear one goes home.`;
+    return `Discharged units may buy passage out at ${where}. Surplus credits pays for it: ${fmt(d?.surplus ?? 0)} on account. The cheap ride goes somewhere. The dear one goes home.`;
   },
-  intro: 'There is a depot. Things leave from it. Keep depositing: every scrip over zero goes toward your ticket.',
+  intro: 'There is a depot. Things leave from it. Keep depositing: every credit over zero goes toward your ticket.',
   objectives: [
     { id: 'depot', get text() { return zoneSpec('depot') ? 'Reach the depot' : 'Find the passage kiosk'; }, check: (m) => !zoneSpec('depot') || m.flags.has('visit:depot') },
     { id: 'ticket', text: 'Buy passage at the kiosk', check: has('contract:ticket') },

@@ -12,7 +12,7 @@ import { WZ } from './a_lib';
 
 const T = ['showroom', 'zw'];
 
-/** price stands: product, price (scrip) */
+/** price stands: product, price (credits) */
 export const ZW_PRICES: [string, string][] = [
   ['SETTLE', '299'], ['HOMEBODY', '149'], ['FOREVER', '89'], ['LONG STAY', '199'], ['STILL', '19'],
   ['FAMILY SET', '999'], ['STAY', '45'], ['RESTFUL', '129'], ['WAITING', '9'], ['HOME', 'SOLD'],
@@ -139,7 +139,7 @@ defObj({
 defObj({
   key: 'zw_price_stand', name: 'Price Stand', height: 1.3, block: 'none', movable: 3,
   sound: 'metal', hp: 40,
-  desc: 'A price card on a chrome stand. The product name is a promise. The price is in scrip.',
+  desc: 'A price card on a chrome stand. The product name is a promise. The price is in credits.',
   tags: [...T, 'sign'],
   variant: (s) => String((s.v ?? 0) % ZW_PRICES.length),
   model: (mb, s) => {

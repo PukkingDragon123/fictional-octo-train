@@ -1,5 +1,5 @@
 // Sounds of the BAILIFF band itself (the voice is rendered per line in
-// voice.ts): boot, projector open/close, the scrip register, warning tones,
+// voice.ts): boot, projector open/close, the credits register, warning tones,
 // the corrective shock, glitches and the countdown tick.
 import { defSound } from '../../audio/sounds';
 import { Buf, noise, osc, lowpass, highpass, bandpass, decay, perc, adsr, rnd } from '../../audio/synth';
@@ -27,7 +27,7 @@ defSound('band_close', () => {
   return b.normalize(0.3);
 });
 
-/** the scrip register: a cold digital coin roll */
+/** the credits register: a cold digital coin roll */
 defSound('band_ping', (v) => {
   const b = new Buf(0.7);
   for (let i = 0; i < 6; i++) { const f = 1800 + i * 160 + v * 40; const t = osc(0.06, 'square', f, 0.25); lowpass(t, 5000); t.env(decay(70)); b.mix(t, i * 0.045, 0.25 * (1 - i * 0.08)); }

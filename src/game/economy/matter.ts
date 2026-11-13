@@ -1,10 +1,11 @@
 // MATTER: what things are made of. The Remittance Press weighs every load by
 // mass and material; whatever the dial keeps goes down the seam into the lab's
-// reservoir (the bank), the rest is remitted as scrip. Creating something at the
+// reservoir (the bank), the rest is remitted as credits. Creating something at the
 // press draws exactly its mass back out of the bank (matter is conserved: the
 // machine destroys and creates equally). The bank, the tokens and the press dial
 // live in the Meridian file (src/game/meridian.ts), so they carry across runs and
 // the lab's terminal reads the same numbers. See src/game/economy/index.ts.
+import { dollars, addDollars, spendDollars, migrateMoney, INSTALLMENT_DOLLARS } from './money';
 import { file, saveFile } from '../meridian';
 import { bus } from '../../core/events';
 import { itemDef, hasItemDef, type Item, type ItemDef } from '../../items/item';
@@ -98,16 +99,16 @@ export function fmtKg(kg: number): string { return kg < 1 ? `${Math.round(kg * 1
 // ------------------------------------------------------------------ the bank (persistent)
 export type PressMode = 'remit' | 'split' | 'keep';
 export const MODES: { key: PressMode; name: string; share: number; line: string }[] = [
-  { key: 'remit', name: 'REMIT', share: 1, line: 'every load is paid to the debt as scrip; the seam keeps nothing' },
+  { key: 'remit', name: 'REMIT', share: 1, line: 'every load is paid to the debt in credits; the seam keeps nothing' },
   { key: 'split', name: 'SPLIT', share: 0.5, line: 'half of every load is paid, half of its matter is kept' },
   { key: 'keep', name: 'KEEP', share: 0, line: 'every load is kept as matter; the debt gets nothing' },
 ];
 export interface PressFile {
   /** banked matter, kg by material */
   m: Matter;
-  /** Meridian clearance tokens */
+  /** retired Meridian clearance tokens (round 17: converted to dollars once, src/game/economy/money.ts) */
   tok: number;
-  /** scrip remitted toward the next token */
+  /** credits remitted toward the operator's next dollar */
   rem: number;
   /** the dial on the press */
   mode: PressMode;
@@ -130,7 +131,8 @@ export function press(): PressFile {
 const changed = () => { saveFile(); bus.emit('matterChanged', press()); };
 export const banked = (k: Mat) => press().m[k] ?? 0;
 export const bankTotal = () => matterKg(press().m);
-export const tokens = () => press().tok;
+/** round 17: creation is paid in DOLLARS, the researcher's money (src/game/economy/money.ts; tokens are retired) */
+export const tokens = () => dollars();
 export const pressMode = () => press().mode;
 export const remitShare = () => MODES.find((q) => q.key === press().mode)!.share;
 export function setPressMode(m: PressMode) { const p = press(); if (p.mode === m) return; p.mode = m; changed(); }
@@ -143,33 +145,35 @@ export function bankMatter(m: Matter) {
   changed();
 }
 export const canAfford = (m: Matter) => Object.entries(m).every(([k, v]) => banked(k as Mat) + 1e-6 >= (v || 0));
-/** take matter (and tokens) out to create something; false when the bank is short */
-export function drawMatter(m: Matter, tok: number): boolean {
+/** take matter out (and pay the dollars) to create something; false when the bank or the purse is short */
+export function drawMatter(m: Matter, cost: number): boolean {
   const p = press();
-  if (!canAfford(m) || p.tok < tok) return false;
+  if (!canAfford(m) || dollars() < cost) return false;
+  if (cost > 0 && !spendDollars(cost, 'create')) return false;
   for (const k in m) (p.m as any)[k] = Math.max(0, Math.round((((p.m as any)[k] ?? 0) - ((m as any)[k] || 0)) * 1000) / 1000);
-  p.tok -= tok;
   p.made += matterKg(m);
   changed();
   return true;
 }
 
-/** scrip per token (the Token Stamp upgrade lowers it) */
-export let SCRIP_PER_TOKEN = 250;
-export const INSTALLMENT_TOKENS = 3;
+/** credits remitted per dollar paid to the operator (the Stamp upgrade lowers it; the old name stays for callers) */
+export let SCRIP_PER_TOKEN = 25;
 export function setScripPerToken(v: number) { SCRIP_PER_TOKEN = v; }
-/** scrip was remitted to the debt: Meridian stamps a token for every SCRIP_PER_TOKEN, and a few for each installment met */
-export function issueTokens(scrip: number, installments = 0): number {
+/** credits were remitted to the debt: the Institute pays its operator a dollar for every SCRIP_PER_TOKEN, and a bonus for each installment met */
+export function issueTokens(credits: number, installments = 0): number {
   const p = press();
-  p.rem += Math.max(0, scrip);
+  p.rem += Math.max(0, credits);
   let n = Math.floor(p.rem / SCRIP_PER_TOKEN);
   p.rem -= n * SCRIP_PER_TOKEN;
-  n += Math.max(0, installments) * INSTALLMENT_TOKENS;
-  if (n > 0) { p.tok += n; p.earned += n; }
+  n += Math.max(0, installments) * INSTALLMENT_DOLLARS;
+  if (n > 0) { p.earned += n; addDollars(n, 'remit'); }
   changed();
   return n;
 }
-export function addTokens(n: number) { const p = press(); p.tok = Math.max(0, p.tok + n); if (n > 0) p.earned += n; changed(); }
+/** dollars straight to the operator (the old token grant) */
+export function addTokens(n: number) { if (n > 0) addDollars(n, 'grant'); changed(); }
+/** round 17: tokens held on an old profile become dollars, once */
+export function migratePressTokens() { migrateMoney(() => press().tok, () => { const p = press(); p.tok = 0; saveFile(); }); }
 
 /** made at the lab terminal: queued for the next run */
 export function dispatch(keys: string[]) { const p = press(); p.disp.push(...keys); changed(); }

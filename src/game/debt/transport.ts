@@ -1,5 +1,5 @@
 // The way out you are allowed to take: once the crew's debt reads zero,
-// surplus scrip buys passage at the depot's kiosk ('ticket_kiosk' at the
+// surplus credits buys passage at the depot's kiosk ('ticket_kiosk' at the
 // depot's 'ticket_kiosk' anchor; without a depot zone, next to the Lobby
 // hopper). The transport pulls in at the 'transport_bay' anchor, opens up and
 // waits; walk into its door to board. It leaves when everybody in the zone is
@@ -143,8 +143,8 @@ export class TransportSystem implements GameSystem {
     const band = G.band?.get?.(p.id);
     const why = !debt.cleared ? `debt not cleared (${fmt(debt.remaining)} owed)` : band === 'removed' ? 'no band, no passage' : this.ride && this.ride.phase !== 'gone' ? 'a transport is already on its way' : '';
     for (const t of TRANSPORTS) {
-      const short = debt.cleared && debt.surplus < t.price ? `${fmt(t.price - debt.surplus)} more scrip` : '';
-      out.push({ label: `${t.name} — ${fmt(t.price)} scrip`, disabled: why || short || false, action: at('Press the band to the cradle', 2.2, () => this.buy(p, t.key)) });
+      const short = debt.cleared && debt.surplus < t.price ? `${fmt(t.price - debt.surplus)} more credits` : '';
+      out.push({ label: `${t.name} — ${fmt(t.price)} credits`, disabled: why || short || false, action: at('Press the band to the cradle', 2.2, () => this.buy(p, t.key)) });
     }
     return out;
   }
@@ -341,7 +341,7 @@ export class TransportSystem implements GameSystem {
       <p class="l1">${esc(t.ending[0])}</p>
       <p class="l2">${esc(t.ending[1])}</p>
       <p class="l3">${esc(t.ending[2])}</p>
-      <p class="l4">${esc(p.name)} — ${days} days, ${hrs} hours in the Programme. ${fmt(debt?.s?.total ?? 0)} scrip remitted.</p>
+      <p class="l4">${esc(p.name)} — ${days} days, ${hrs} hours in the Programme. ${fmt(debt?.s?.total ?? 0)} credits remitted.</p>
       <p class="l5">${esc(t.ending[4])}</p>
       <button class="dbt-end-btn">Wake up again</button>${G.net ? '<button class="dbt-end-btn ghost">Stay and watch</button>' : ''}</div>`;
     document.body.appendChild(el);

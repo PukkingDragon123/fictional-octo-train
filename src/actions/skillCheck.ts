@@ -113,10 +113,11 @@ export class SkillCheck {
   }
 
   /** read and eat this frame's press (so it never also opens a menu or throws a shove) */
-  private press(): boolean {
+  private press(keysOnly = false): boolean {
     const inp: any = G.input;
     let hit = false;
     for (const a of ['interact', 'shove']) if (inp.hit(a)) { hit = true; for (const c of inp.bindings[a]) inp.pressed.delete(c); }
+    if (keysOnly) return hit;
     if (inp.mousePressed?.[0] && !inp.pointerOverUI) { hit = true; inp.mousePressed[0] = false; }
     if (taps) { hit = true; taps = 0; }
     return hit;
@@ -134,19 +135,27 @@ export class SkillCheck {
       if (this.i < this.marks.length && a.progress >= this.o.at[this.i]) {
         if (AUTO) { this.mark('hit'); return false; }
         this.openWindow();
-      } else { if (this.flashT > 0) this.draw(a, false); else checkGauge.hide(); return false; }
+      } else {
+        // a press before the next window is the hand getting ready, not a new order (it never cancels the work)
+        if (this.i < this.marks.length && !AUTO) this.press(true);
+        if (this.flashT > 0) this.draw(a, false); else checkGauge.hide();
+        return false;
+      }
     }
     this.wt += dt;
     const E = this.ease();
     if ((this.o.kind ?? 'tap') === 'tap') {
       const sp = (this.o.speed ?? 1.2) / Math.sqrt(E);
-      this.x += this.v * sp * dt;
-      if (this.x > 1) { this.x = 2 - this.x; this.v = -1; }
-      if (this.x < 0) { this.x = -this.x; this.v = 1; }
+      // judge the press against the needle the player was looking at (before this frame moves it)
       if (this.press()) {
         const inB = this.x >= this.band[0] && this.x <= this.band[1];
         this.mark(!inB ? 'miss' : this.x >= this.core[0] && this.x <= this.core[1] ? 'perfect' : 'hit');
       } else if (this.wt * sp > 2.6) this.mark('miss');
+      else {
+        this.x += this.v * sp * Math.min(dt, 0.05);
+        if (this.x > 1) { this.x = 2 - this.x; this.v = -1; }
+        if (this.x < 0) { this.x = -this.x; this.v = 1; }
+      }
     } else {
       // hold: arm on a fresh press, push while held, let go in the green
       const held = this.holding();

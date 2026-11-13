@@ -16,6 +16,7 @@ import { G } from './G';
 import { addStat, stat } from './profile';
 import { gateNode, researchNode } from './research';
 import { voss } from './debt/voice';
+import { objDef } from '../world/objects';
 
 export interface ReqProgress { id: string; node: string; title: string; text: string; progress: number; goal: number; done: boolean }
 interface ReqDef { id: string; node: string; title: string; text: string; goal: number }
@@ -106,7 +107,7 @@ function poweredCamp(): boolean {
   const built: { x: number; y: number }[] = [];
   for (const o of z.objects.values()) {
     if (o.state?.built) built.push(o);
-    if (o.state?.on && (o.state.fuel ?? 0) > 0 && /gen/.test(o.key) && (o.state.built || G.build)) gens.push(o);
+    if (o.state?.on && (o.state.fuel ?? 0) > 0 && objDef(o.key)?.tags?.includes('generator')) gens.push(o);
   }
   return gens.some((g) => built.filter((b) => b !== g && Math.hypot(b.x - g.x, b.y - g.y) <= 10).length >= 3);
 }

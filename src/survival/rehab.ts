@@ -164,7 +164,7 @@ export class RehabEffects {
   }
 }
 
-/** scrip multiplier for a depositor's programme (the debt contract may call this when it credits a deposit) */
+/** credits multiplier for a depositor's programme (the debt contract may call this when it credits a deposit) */
 export function scripRate(p: Player | null | undefined): number {
   return p?.body?.perks?.has('fence') || p?.occupation === 'fence' ? 1.15 : 1;
 }

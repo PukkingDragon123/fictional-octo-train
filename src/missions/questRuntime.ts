@@ -12,7 +12,7 @@
 //
 // Crew quests: the whole crew shares one record. Every peer evaluates the
 // objectives it can see (its own position, inventory) and latches them; the
-// host decides offers and completion and runs the ledger side (scrip costs and
+// host decides offers and completion and runs the ledger side (credits costs and
 // rewards); every peer grants its own RP / research unlocks / items when a
 // quest completes (RP and research are per-profile).
 import { bus } from '../core/events';
@@ -51,7 +51,7 @@ export interface QuestX extends QuestDef {
   signals?: SignalDef[];
   /** repeatables: game hours before it is offered again (default 8) */
   cooldownH?: number;
-  /** baselines captured when accepted (relative objectives: "remit 1,500 more scrip") */
+  /** baselines captured when accepted (relative objectives: "remit 1,500 more credits") */
   begin?: (m: MissionSystem) => Record<string, number>;
   /** handed to whoever accepts (a sealed case to carry) */
   give?: [string, number][];
@@ -65,13 +65,13 @@ export interface QView {
   title: string; giver: string; desc: string; category: string;
   objectives: { id: string; text: string; done: boolean; prog: number; optional: boolean }[];
   rewardText: string; costText: string;
-  /** can the local player pay what this needs right now (scrip, items) */
+  /** can the local player pay what this needs right now (credits, items) */
   affordable: boolean; payNote: string;
 }
 
 const HOUR = () => G.clock?.hours ?? 0;
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
-export const SCRIP = ' SCRIP';
+export const SCRIP = ' CREDITS';
 
 // ---------------------------------------------------------------- replication
 defOp('quest', (a: { k: string; r: QRec | null }) => { (G.missions?.quests as QuestRuntime | undefined)?.apply(a.k, a.r); });
@@ -80,7 +80,7 @@ defOp('questReq', (a: { k: string; act: string; by: string }, ctx) => {
   if (!ctx.host || isReplaying()) return;
   (G.missions?.quests as QuestRuntime | undefined)?.hostRequest(a.k, a.act, a.by);
 });
-/** crew-wide event counters (scans, anomalies logged, scrip pressed, laser cuts...): increments replay deterministically */
+/** crew-wide event counters (scans, anomalies logged, credits pressed, laser cuts...): increments replay deterministically */
 defOp('qtally', (a: { c: string; d: number }) => {
   const q = G.missions?.quests as QuestRuntime | undefined;
   if (q) q.tallies.set(a.c, (q.tallies.get(a.c) || 0) + (Number(a.d) || 0));
@@ -116,7 +116,7 @@ export class QuestRuntime {
   completed(k: string) { const r = this.recs.get(k); return !!r && (r.n > 0 || r.s === 'done'); }
 
   private needsDebt(d: QuestX) { return !!(d.cost?.scrip || d.reward?.scrip); }
-  /** requirements met (quest keys completed, 'flag:' mission flags, scrip quests need the contract) */
+  /** requirements met (quest keys completed, 'flag:' mission flags, credits quests need the contract) */
   available(d: QuestX): boolean {
     const m = this.m;
     if (!m.enabled && (d.main || this.needsDebt(d))) return false;
@@ -167,7 +167,7 @@ export class QuestRuntime {
     };
   }
 
-  /** the local player's scrip / items against this quest's cost */
+  /** the local player's credits / items against this quest's cost */
   affordable(d: QuestX): { ok: boolean; note: string } {
     const c = d.cost;
     if (!c) return { ok: true, note: '' };
