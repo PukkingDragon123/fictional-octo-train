@@ -289,10 +289,12 @@ export class BandOS {
     this.g3.add(arm.root);
     this.arm = arm;
     // a lamp-lit close-up: warm key from over the left shoulder onto the forearm and the case, a cool fill, a rim
-    const hemi = new THREE.HemisphereLight(0xfff0dc, 0x3a3028, 1.1);
+    const hemi = new THREE.HemisphereLight(0xfff0dc, 0x3a3028, 1.4);
     const key = new THREE.DirectionalLight(0xffe6c4, 2.4); key.position.set(-0.4, 0.6, 0.4); key.target.position.set(0, -0.15, -0.3);
     const fill = new THREE.DirectionalLight(0x9ab0d0, 0.7); fill.position.set(0.6, 0.1, 0.2); fill.target.position.set(0, -0.15, -0.3);
-    this.g3.add(hemi, key, key.target, fill, fill.target);
+    // a cool rim from behind: the black gauntlet's edges catch it and the arm reads against the room
+    const rim = new THREE.DirectionalLight(0xb8d0ff, 2.2); rim.position.set(0.5, 0.35, -0.9); rim.target.position.set(0, -0.15, -0.3);
+    this.g3.add(hemi, key, key.target, fill, fill.target, rim, rim.target);
     this.armKind = L.kind;
   }
 

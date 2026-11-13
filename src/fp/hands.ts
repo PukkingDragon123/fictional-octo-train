@@ -82,8 +82,12 @@ export function fpArm(side: 'right' | 'left' = 'right', o: FpArmOpts = {}): FpAr
     if (side === 'left' && p?.worn && [...p.worn.values()].some((it) => /band/.test(it.key))) out.wrist = { tex: 'c_gloves', color: 0x8a8e94 } as Outfit['wrist'];
     return out;
   };
-  const rig = new HumanRig(app, worldMaterial({ noVis: true, noFog: true, noGrid: true }), { hd: true });
+  // painted at four times the world's density (the weave, the seams, the cuff, the glove's grip at arm's length),
+  // shaded smooth so the arm reads round; the screen's pixel filter stays as it is
+  const rig = new HumanRig(app, worldMaterial({ noVis: true, noFog: true, noGrid: true }), { paint: 4 });
   rig.setOutfit(outfit());
+  const rm = rig.material as THREE.MeshLambertMaterial;
+  if ('flatShading' in rm) { rm.flatShading = false; rm.needsUpdate = true; }
   rig.root.traverse((ob) => { ob.castShadow = false; ob.frustumCulled = false; });
 
   const root = new THREE.Group(); root.name = 'fpArm:' + side;

@@ -172,7 +172,8 @@ export class InventoryUI {
     const st = document.createElement('style');
     st.textContent = `.pk12-note{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);font-family:var(--font-new);font-size:32px;line-height:32px;color:#ffe8a8;text-shadow:2px 2px 0 #0b0a07,-2px 0 0 #0b0a07,0 -2px 0 #0b0a07;pointer-events:none;opacity:0;transition:opacity .2s;white-space:nowrap}
 .pk12-note.on{opacity:1}.pk12-note.bad{color:#ff8a6a}
-.pk12-help{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);font-family:var(--font-new);font-size:16px;line-height:16px;color:#d8cfb4;text-shadow:2px 2px 0 #0b0a07;pointer-events:none;white-space:nowrap;opacity:.85}
+.pk12-help{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);display:flex;gap:6px;font-family:var(--font-new);font-size:13px;line-height:13px;pointer-events:none;white-space:nowrap;opacity:.85}
+.pk12-help kbd{font:inherit;padding:3px 7px 4px;color:#e8dcb8;background:linear-gradient(#4a4a40,#2a2a24);box-shadow:inset 0 -2px 0 #14140f,inset 0 1px 0 #6a6a5c,0 0 0 1px #0b0a07;text-shadow:1px 1px 0 #0b0a07}
 .pk12-cursor{position:fixed;width:16px;height:16px;margin:-8px 0 0 -8px;border:3px solid #ffe08a;border-radius:0;box-shadow:0 0 0 2px #0b0a07;pointer-events:none;display:none}
 #bag-root.pad .pk12-cursor{display:block}`;
     r.appendChild(st);
@@ -443,7 +444,11 @@ export class InventoryUI {
     this.renderSide();
     this.resetParts();
     this.updateTag();
-    this.help.textContent = matchMedia('(pointer: coarse)').matches ? 'drag things in or out  ·  long-press: item card  ·  tap the flap: close' : 'drag things in or out  ·  right-click: item card  ·  shift-click: send across  ·  R turn  ·  Space shake  ·  I close';
+    // round 17: no sentence along the bottom: a few key caps, for the first few opens only
+    let opens = 0;
+    try { opens = Number(localStorage.getItem('pack.opens') ?? 0) || 0; localStorage.setItem('pack.opens', String(opens + 1)); } catch { /* private window */ }
+    const coarse = matchMedia('(pointer: coarse)').matches;
+    this.help.innerHTML = opens >= 3 || coarse ? '' : ['RMB', 'SHIFT', 'R', 'SPACE', 'I'].map((k) => `<kbd>${k}</kbd>`).join('');
     this.hook();
   }
 

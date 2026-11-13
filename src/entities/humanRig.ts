@@ -528,10 +528,11 @@ export class HumanRig {
   /** level of detail of the body mesh (0 sculpted, 1 coarse: crowds, far NPCs); see setLod() */
   lod = 0;
 
-  constructor(app: Appearance, material?: THREE.Material, opts: { secondary?: boolean; lod?: number; hd?: boolean } = {}) {
+  constructor(app: Appearance, material?: THREE.Material, opts: { secondary?: boolean; lod?: number; hd?: boolean; /** paint resolution multiple (1 the world, 2 hd; close-ups up to 4) */ paint?: number } = {}) {
     this.lod = opts.lod ?? 0;
-    this.page = makePageTexture(opts.hd ? PAGE * 2 : PAGE);
-    this.gg = new GGSkin(opts.hd ? 2 : 1, this.page);
+    const pk = opts.paint ?? (opts.hd ? 2 : 1);
+    this.page = makePageTexture(PAGE * pk);
+    this.gg = new GGSkin(pk, this.page);
     this.app = normalizeAppearance(app);
     this.s = this.app.height;
     this.seed = hashApp(this.app);
