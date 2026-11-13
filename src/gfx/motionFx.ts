@@ -18,12 +18,12 @@ import { FS_VERT } from './postfx';
 import type { QualityLevel } from './fxconfig';
 
 export type BlurLevel = 'off' | 'low' | 'normal' | 'heavy';
-/** shutter (s of motion smeared), the history kept for moving bodies, taps along the motion */
-const LEVELS: Record<BlurLevel, { shutter: number; keep: number; taps: number }> = {
-  off: { shutter: 0, keep: 0, taps: 0 },
-  low: { shutter: 0.035, keep: 0.2, taps: 6 },
-  normal: { shutter: 0.07, keep: 0.36, taps: 10 },
-  heavy: { shutter: 0.12, keep: 0.52, taps: 14 },
+/** shutter (s of motion smeared), the history kept for moving bodies, taps along the motion, the longest streak (px) */
+const LEVELS: Record<BlurLevel, { shutter: number; keep: number; taps: number; max: number }> = {
+  off: { shutter: 0, keep: 0, taps: 0, max: 0 },
+  low: { shutter: 0.025, keep: 0.2, taps: 6, max: 16 },
+  normal: { shutter: 0.045, keep: 0.33, taps: 10, max: 32 },
+  heavy: { shutter: 0.08, keep: 0.5, taps: 14, max: 56 },
 };
 /** quality caps: phones get the history trail and a short smear only */
 const TAPS_CAP: Record<QualityLevel, number> = { low: 4, medium: 8, high: 14 };
@@ -62,8 +62,16 @@ uniform float uMind;
 uniform vec4 uHal;
 uniform float uShake;
 uniform float uPersp;
+uniform vec4 uBodyA[16];
+uniform vec4 uBodyB[16];
+uniform int uBodyN;
+uniform float uDt;
+uniform float uMaxBlur;
+uniform float uSway;
 
 float hh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+float capsule(vec2 p, vec2 a, vec2 b, float r) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - r; }
+float smin(float a, float b, float k) { float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0); return mix(b, a, h) - k * h * (1.0 - h); }
 float vnoise(float t) { float i = floor(t), f = fract(t); f = f * f * (3.0 - 2.0 * f); return mix(hh(vec2(i, 1.7)), hh(vec2(i + 1.0, 1.7)), f) * 2.0 - 1.0; }
 
 void main() {
@@ -73,23 +81,34 @@ void main() {
   // panic: the view breathes in and out a little, and shakes
   if (P > 0.001) {
     float br = 0.5 + 0.5 * sin(uTime * (1.6 + P * 1.4));
-    uv = 0.5 + c0 * (1.0 - P * 0.03 * br - P * 0.012 * uBeat);
+    uv = 0.5 + c0 * (1.0 - (P * 0.03 * br + P * 0.012 * uBeat) * uSway);
     uv += vec2(vnoise(uTime * 9.0), vnoise(uTime * 11.0 + 4.0)) * 0.0028 * P * uShake;
   }
   // low mind: straight lines slowly bend
   if (M > 0.001) {
-    uv += vec2(sin(uv.y * 5.5 + uTime * 0.41) + sin(uv.y * 2.1 - uTime * 0.23) * 0.6, sin(uv.x * 4.6 - uTime * 0.37) + sin(uv.x * 1.7 + uTime * 0.19) * 0.6) * 0.0035 * M * M;
+    uv += vec2(sin(uv.y * 5.5 + uTime * 0.41) + sin(uv.y * 2.1 - uTime * 0.23) * 0.6, sin(uv.x * 4.6 - uTime * 0.37) + sin(uv.x * 1.7 + uTime * 0.19) * 0.6) * 0.0035 * M * M * uSway;
   }
   // ---- reproject: where was this pixel last frame (the camera's own motion)
   float dr = texture2D(tDepth, uv).r;
   vec4 wp = uInvVP * vec4(uv * 2.0 - 1.0, dr * 2.0 - 1.0, 1.0);
   wp /= wp.w;
-  vec4 pc = uPrevVP * wp;
+  // a body that moves on its own (the unit the camera follows, a charging inhabitant) moved with its own
+  // velocity: where it was is a step back along that, so the unit stays sharp in a tracking shot and a fast
+  // inhabitant streaks against a still background
+  vec3 W = wp.xyz;
+  for (int i = 0; i < 16; i++) {
+    if (i >= uBodyN) break;
+    vec4 a = uBodyA[i];
+    vec2 dxz = W.xz - a.xz;
+    if (dot(dxz, dxz) < a.w * a.w && W.y > a.y - 0.15 && W.y < a.y + uBodyB[i].w) { W -= uBodyB[i].xyz * uDt; break; }
+  }
+  vec4 pc = uPrevVP * vec4(W, 1.0);
   vec2 puv = pc.xy / pc.w * 0.5 + 0.5;
   vec2 mv = (uv - puv) * uRes;                     // pixels this frame
   vec2 blur = mv * uShutterK * (1.0 + P * 0.8);
   float bl = length(blur);
-  if (bl > 48.0) blur *= 48.0 / bl;
+  float bmax = uMaxBlur * (1.0 + P * 0.5);
+  if (bl > bmax) blur *= bmax / max(bl, 1e-4);
   // panic adds an outward smear (tunnel vision): stronger toward the rim, swelling on the beat
   blur += c0 * uRes * P * (0.02 + 0.014 * uBeat) * smoothstep(0.08, 0.5, length(c0));
   bl = length(blur);
@@ -108,7 +127,7 @@ void main() {
   }
   // low mind: a second image drifting off the first, colours splitting toward the edges
   if (M > 0.001) {
-    vec2 dv = vec2(sin(uTime * 0.37) + sin(uTime * 0.13) * 0.5, cos(uTime * 0.29) * 0.8) * (2.0 + 7.0 * M) / uRes;
+    vec2 dv = vec2(sin(uTime * 0.37) + sin(uTime * 0.13) * 0.5, cos(uTime * 0.29) * 0.8) * (2.0 + 7.0 * M) * (0.5 + 0.5 * uSway) / uRes;
     col = mix(col, texture2D(tCur, uv + dv).rgb, 0.32 * M);
     // (none in the middle, up to 8 px at the edges)
     vec2 rd = c0 * 2.0 * dot(c0, c0) * 4.0 * (2.0 + 6.0 * M) * M / uRes;
@@ -126,19 +145,25 @@ void main() {
     float l = dot(col, vec3(0.299, 0.587, 0.114));
     col = mix(col, vec3(l) * vec3(0.96, 0.97, 1.02), P * 0.5);
     float r = length(c0 * vec2(uRes.x / uRes.y, 1.0));
-    float edge = 0.78 - P * 0.3 - uBeat * P * 0.06;
-    float tun = smoothstep(edge, edge + 0.32, r);
-    col = mix(col, col * vec3(0.18, 0.05, 0.06), tun * (0.55 + 0.35 * P));
+    float edge = 0.86 - P * 0.26 - uBeat * P * 0.05;
+    float tun = smoothstep(edge, edge + 0.42, r);
+    col = mix(col, col * vec3(0.24, 0.08, 0.09), tun * (0.4 + 0.4 * P));
   }
-  // low mind: a shape at the edge of sight, for a frame
+  // low mind: a shape at the edge of sight, for a frame: too tall, too thin, arms too long
   if (uHal.x > 0.001) {
     vec2 a = (vUv - uHal.yz) * vec2(uRes.x / uRes.y, 1.0);
     float k = uHal.w;
-    float head = smoothstep(0.035, 0.026, length(a - vec2(0.0, 0.09 + k * 0.02)));
-    float body = smoothstep(0.03, 0.02, abs(a.x + sin(a.y * 9.0 + k * 6.0) * 0.01) - (0.03 - a.y * 0.06)) * step(-0.16, a.y) * step(a.y, 0.08);
-    float arm = smoothstep(0.012, 0.006, abs(a.y - 0.04 + a.x * (0.6 + k))) * step(abs(a.x), 0.09 + k * 0.05);
-    float s = clamp(head + body + arm, 0.0, 1.0);
-    col = mix(col, vec3(0.02, 0.015, 0.02), s * uHal.x);
+    a.x += a.y * (k - 0.5) * 0.35;                    // it leans
+    float d = length((a - vec2(0.0, 0.105)) / vec2(0.016, 0.022)) - 1.0;
+    d *= 0.016;
+    d = smin(d, capsule(a, vec2(0.0, 0.085), vec2(0.0, -0.02), 0.015), 0.012);
+    d = smin(d, capsule(a, vec2(-0.008, -0.02), vec2(-0.011, -0.18), 0.006), 0.01);
+    d = smin(d, capsule(a, vec2(0.008, -0.02), vec2(0.012, -0.18), 0.006), 0.01);
+    d = smin(d, capsule(a, vec2(-0.017, 0.07), vec2(-0.03 - k * 0.02, -0.075), 0.0045), 0.01);
+    d = smin(d, capsule(a, vec2(0.017, 0.07), vec2(0.032, -0.07 + k * 0.03), 0.0045), 0.01);
+    float s = smoothstep(0.006, -0.002, d) * smoothstep(-0.2, -0.08, a.y);   // the feet fade into the ground
+    s *= 0.75 + 0.25 * hh(floor(vUv * uRes * 0.5));
+    col = mix(col, col * 0.12 + vec3(0.01, 0.008, 0.012), s * uHal.x * 0.85);
   }
   gl_FragColor = vec4(col, 1.0);
 }
@@ -156,6 +181,7 @@ export class MotionFx {
   private vp = new THREE.Matrix4();
   private hasPrev = false;
   private prevPos = new THREE.Vector3();
+  private prevB: number[] = [];
   private time = 0;
   private lastRun = 0;
   /** dev / probes: the last frame's settings */
@@ -169,6 +195,7 @@ export class MotionFx {
         uInvVP: { value: new THREE.Matrix4() }, uPrevVP: { value: new THREE.Matrix4() }, uRes: { value: new THREE.Vector2(1, 1) },
         uShutterK: { value: 0 }, uKeep: { value: 0 }, uHistOn: { value: 0 }, uTaps: { value: 0 }, uTime: { value: 0 },
         uPanic: { value: 0 }, uBeat: { value: 0 }, uMind: { value: 0 }, uHal: { value: new THREE.Vector4() }, uShake: { value: 1 }, uPersp: { value: 0 },
+        uBodyA: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, uBodyB: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, uBodyN: { value: 0 }, uDt: { value: 1 / 60 }, uMaxBlur: { value: 32 }, uSway: { value: 1 },
       },
     });
   }
@@ -185,6 +212,26 @@ export class MotionFx {
     this.hasPrev = false;
   }
 
+  /** survivors and creatures (the contact-shadow bodies): each matched to where it was last frame for its velocity */
+  private bodies(b: { blobs: THREE.Vector4[]; blobH: Float32Array; blobN: number } | undefined, dt: number) {
+    const u = this.mat.uniforms, A = u.uBodyA.value as THREE.Vector4[], B = u.uBodyB.value as THREE.Vector4[];
+    const n = b ? Math.min(16, b.blobN) : 0, prev = this.prevB, next: number[] = [];
+    for (let i = 0; i < n; i++) {
+      const p = b!.blobs[i];
+      let best = -1, bd = (1.2 + dt * 14) ** 2;
+      for (let j = 0; j < prev.length; j += 4) {
+        const dx = p.x - prev[j], dz = p.z - prev[j + 2], d = dx * dx + dz * dz;
+        if (d < bd && Math.abs(prev[j + 3] - p.w) < p.w * 0.4 + 0.05) { bd = d; best = j; }
+      }
+      A[i].set(p.x, p.y, p.z, p.w * 1.8 + 0.1);
+      if (best >= 0 && this.hasPrev) B[i].set((p.x - prev[best]) / dt, (p.y - prev[best + 1]) / dt, (p.z - prev[best + 2]) / dt, b!.blobH[i] * 1.08);
+      else B[i].set(0, 0, 0, b!.blobH[i] * 1.08);
+      next.push(p.x, p.y, p.z, p.w);
+    }
+    this.prevB = next;
+    u.uBodyN.value = n;
+  }
+
   /** forget the history (a cut: zone change, teleport, the eye view toggled) */
   reset() { this.hasPrev = false; }
 
@@ -192,7 +239,8 @@ export class MotionFx {
    * Run the pass on the composited picture; returns the texture to put on screen. cam: the camera the
    * world was drawn with this frame (its matrices are current).
    */
-  run(pass: (m: THREE.ShaderMaterial, rt: THREE.WebGLRenderTarget) => void, color: THREE.Texture, depth: THREE.Texture, cam: THREE.Camera, dt: number): THREE.Texture {
+  run(pass: (m: THREE.ShaderMaterial, rt: THREE.WebGLRenderTarget) => void, color: THREE.Texture, depth: THREE.Texture, cam: THREE.Camera, dt: number,
+    focus: THREE.Vector3, bodies?: { blobs: THREE.Vector4[]; blobH: Float32Array; blobN: number }): THREE.Texture {
     const L = LEVELS[this.level];
     this.time += dt;
     // the pass sat idle (blur off, a calm mind): what the history holds is old
@@ -201,9 +249,8 @@ export class MotionFx {
     this.lastRun = now;
     this.vp.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     // a jump of the camera (a level change, a teleport, a loop in the suburbs) is a cut, not a smear
-    const pos = (cam as any).position as THREE.Vector3;
-    if (this.hasPrev && pos.distanceTo(this.prevPos) > 6) this.hasPrev = false;
-    this.prevPos.copy(pos);
+    if (this.hasPrev && focus.distanceTo(this.prevPos) > 6) this.hasPrev = false;
+    this.prevPos.copy(focus);
     const u = this.mat.uniforms;
     u.tCur.value = color; u.tDepth.value = depth;
     u.uInvVP.value.copy(this.vp).invert();
@@ -211,6 +258,9 @@ export class MotionFx {
     u.uRes.value.set(this.W, this.H);
     // the shutter in frames: the same streak at any frame rate
     const fdt = Math.max(1 / 240, Math.min(0.1, dt || 1 / 60));
+    this.bodies(bodies, fdt);
+    u.uDt.value = fdt;
+    u.uMaxBlur.value = Math.max(L.max, 12);
     u.uShutterK.value = L.shutter > 0 ? Math.min(4, L.shutter / fdt) : 0;
     u.uTaps.value = Math.min(L.taps, TAPS_CAP[this.quality] ?? 8, 16) || (MINDFX.panic > 0.05 ? Math.min(6, TAPS_CAP[this.quality] ?? 6) : 0);
     // the trail lasts the same time at any frame rate
@@ -222,6 +272,7 @@ export class MotionFx {
     u.uMind.value = MINDFX.mind;
     u.uHal.value.set(MINDFX.calm ? 0 : MINDFX.hal, MINDFX.halX, MINDFX.halY, MINDFX.halK);
     u.uShake.value = MINDFX.shake * (MINDFX.comfort ? 0.35 : 1);
+    u.uSway.value = MINDFX.comfort ? 0.4 : 1;
     u.uPersp.value = (cam as THREE.PerspectiveCamera).isPerspectiveCamera ? 1 : 0;
     const src = this.rt[this.cur], dst = this.rt[1 - this.cur];
     u.tHist.value = src.texture;

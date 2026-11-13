@@ -114,7 +114,8 @@ export class BandOS {
   /** into the eyes (or, without the overlay, the flat fallback), the root up, the frame running */
   private raiseUp() {
     if (G.input) G.input.pointerOverUI = true;
-    G.hudBody?.setHidden?.('bandos', true);
+    // (a fumble keeps the body console up: its heart is the cue)
+    if (this.fumble < 0) G.hudBody?.setHidden?.('bandos', true);
     this.root.classList.remove('on', 'up', 'fp', 'flat2d');
     this.crt.el.querySelector('.crt-tube')?.classList.remove('lit', 'dot');
     this.powered = false;
@@ -162,7 +163,10 @@ export class BandOS {
     this.fumble = 0;
     panicFumble('watch');
     this.raiseUp();
-    this.raiseGoal = 0.45;
+    this.raiseGoal = 0.7;
+    // the unit's own lamp blinks red (the body console is out of sight in the eyes)
+    this.msgLamp.classList.add('pnc');
+    setTimeout(() => this.msgLamp.classList.remove('pnc'), 1600);
   }
   private later(ms: number, fn: () => void) { const id = window.setTimeout(() => { this.timers = this.timers.filter((x) => x !== id); if (this.open) fn(); }, ms); this.timers.push(id); }
 
@@ -215,7 +219,7 @@ export class BandOS {
     const fov = 30, half = Math.tan((fov * Math.PI) / 360), asp = cam.aspect || window.innerWidth / Math.max(1, window.innerHeight);
     if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
     const k = (L.kind === 'wide' ? 0.18 : 0.092) / L.W, Wm = L.W * k, Hm = L.H * k;
-    const fill = L.kind === 'wide' ? 0.8 : 0.9;
+    const fill = L.kind === 'wide' ? 0.74 : 0.82;
     const d = Math.max(Hm / (fill * 2 * half), Wm / (fill * 2 * half * asp));
     // breathing, a little sway; the panic shakes it (and the fumble shakes it hard)
     const panic = Math.min(1, ((G.local?.body as any)?.panic ?? 0) / 100);
@@ -224,8 +228,9 @@ export class BandOS {
     const t = this.t;
     const jx = (Math.sin(t * 31) + Math.sin(t * 47)) * 0.0012 * shake, jy = (Math.sin(t * 37) + Math.sin(t * 53)) * 0.0012 * shake;
     const b3 = this.body3!;
-    b3.position.set(d * 0.03 + Math.sin(t * 0.9) * 0.0016 + jx, -d * 0.025 + Math.sin(t * 1.55) * 0.0022 - lo * d * 0.95 + jy, -d - lo * d * 0.25);
-    b3.rotation.set(-0.06 + lo * 1.0 + Math.sin(t * 1.1) * 0.006, 0.12 + Math.sin(t * 0.8) * 0.008, -0.035 + Math.sin(t * 0.7) * 0.01 + lo * 0.25);
+    const tall = L.kind === 'tall';
+    b3.position.set((tall ? -0.012 : 0.03) * d + Math.sin(t * 0.9) * 0.0016 + jx, -d * 0.025 + Math.sin(t * 1.55) * 0.0022 - lo * d * 0.95 + jy, -d - lo * d * 0.25);
+    b3.rotation.set(-0.06 + lo * 1.0 + Math.sin(t * 1.1) * 0.006, (tall ? 0.04 : 0.12) + Math.sin(t * 0.8) * 0.008, (tall ? -0.015 : -0.035) + Math.sin(t * 0.7) * 0.01 + lo * 0.25);
     b3.updateMatrixWorld(true);
     // the forearm under the case, its back to the eyes (palm away)
     const arm = this.arm!;
@@ -262,8 +267,6 @@ export class BandOS {
     const A = watchArm(L, k);
     const arm = makeArm(-1, A.wrist.distanceTo(A.elbow) / 0.26);
     arm.want = 'relaxed';
-    // no upper arm: the elbow is off the picture
-    arm.fp.reach = null;
     // a work glove on the hand (the sleeve covers the forearm)
     arm.fp.setLook({ skin: 0x3a3127 });
     this.g3.add(arm.root);
@@ -469,9 +472,9 @@ export class BandOS {
     const d = (G as any).debt;
     let rp = 0;
     try { rp = researchPoints(); } catch { /* no profile */ }
-    // numbers, not sentences: the debt as a negative, the purse, the clock (II while time is held)
+    // numbers, not sentences: the debt as a negative, the purse, the clock (it runs: the band holds nothing)
     const money = (d?.on && !d.cleared ? `-${Math.round(d.remaining ?? 0).toLocaleString('en-GB')} CR · ` : '') + purseLine(d?.on && d.cleared ? (d.surplus ?? 0) : null);
-    const clock = `D${c?.day ?? Math.floor(hrs / 24) + 1} ${String(Math.floor(hrs % 24)).padStart(2, '0')}:${String(Math.floor((hrs % 1) * 60)).padStart(2, '0')}${G.role === 'solo' ? ' II' : ''}`;
+    const clock = `D${c?.day ?? Math.floor(hrs / 24) + 1} ${String(Math.floor(hrs % 24)).padStart(2, '0')}:${String(Math.floor((hrs % 1) * 60)).padStart(2, '0')}`;
     this.topR.textContent = this.L.kind === 'tall' ? clock : `${clock} · ${money}${money.includes('RP') ? '' : ` · ${rp} RP`}`;
   }
   private footLine() {

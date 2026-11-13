@@ -121,20 +121,7 @@ function pose(g: THREE.BufferGeometry, obj: boolean): { yaw: number; pitch: numb
   return { yaw: best.yaw, pitch, box: best.box };
 }
 
-/** the item turning on a turntable (the band's pack tiles while hovered): frame f of n, rendered on demand, cached */
-const turnCache = new Map<string, string[]>();
-export function itemIconTurn(key: string, size: number, f: number, n = 12): string {
-  const ck = key + '|' + size + '|' + n;
-  let arr = turnCache.get(ck);
-  if (!arr) { arr = []; turnCache.set(ck, arr); }
-  const i = ((f % n) + n) % n;
-  if (arr[i]) return arr[i];
-  let url = '';
-  try { url = renderIcon(key, '', size, (i / n) * Math.PI * 2); } catch (e) { console.warn('icon turn', key, e); }
-  return (arr[i] = url || itemIcon(key, '', size));
-}
-
-function renderIcon(key: string, variant: string, size: number, turn?: number): string {
+function renderIcon(key: string, variant: string, size: number): string {
   const obj = variant === 'obj';
   if (!obj && !hasItemDef(key)) return '';
   const g = obj ? buildObjGeometry(key) : itemGeometry(key);
@@ -152,13 +139,12 @@ function renderIcon(key: string, variant: string, size: number, turn?: number): 
   const mesh = new THREE.Mesh(g, worldMaterial({ noVis: true, noFog: true, noGrid: true }));
   const center = new THREE.Vector3(); g.boundingBox!.getCenter(center);
   mesh.position.copy(center).multiplyScalar(-1);
-  const spin = new THREE.Group(); spin.add(mesh); spin.rotation.y = yaw + (turn ?? 0);
+  const spin = new THREE.Group(); spin.add(mesh); spin.rotation.y = yaw;
   pivot!.add(spin);
-  // frame: one final pixel of margin for the outline on every side (turning: round the whole model, so no frame clips it)
+  // frame: one final pixel of margin for the outline on every side
   const [x0, x1, y0, y1] = box;
-  const half = turn === undefined ? 0 : g.boundingBox!.getSize(new THREE.Vector3()).length() / 2;
-  const span = (turn === undefined ? Math.max(x1 - x0, y1 - y0) : half * 2) * (size / (size - 2)) + 1e-4;
-  const mx = turn === undefined ? (x0 + x1) / 2 : 0, my = turn === undefined ? (y0 + y1) / 2 : 0;
+  const span = Math.max(x1 - x0, y1 - y0) * (size / (size - 2)) + 1e-4;
+  const mx = (x0 + x1) / 2, my = (y0 + y1) / 2;
   cam!.left = mx - span / 2; cam!.right = mx + span / 2; cam!.bottom = my - span / 2; cam!.top = my + span / 2;
   const dist = span * 4 + 2;
   cam!.position.set(0, Math.sin(pitch) * dist, Math.cos(pitch) * dist);

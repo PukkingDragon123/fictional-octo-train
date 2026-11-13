@@ -161,13 +161,15 @@ export function watchBody(L: WristLayout, k: number): THREE.Group {
   const A = watchArm(L, k);
   const ax = A.wrist.clone().sub(A.elbow).normalize();
   const wide = L.kind === 'wide';
-  for (const t of wide ? [-(W / 2 + 0.012), W / 2 + 0.01] : [-(H / 2 + 0.012), H / 2 + 0.01]) {
+  const R = 0.05 * (A.wrist.distanceTo(A.elbow) / 0.26) + 0.008;
+  for (const t of wide ? [-(W / 2 + 0.006), W / 2 + 0.004] : [-(H / 2 + 0.006), H / 2 + 0.004]) {
     // a strap round the forearm where it leaves the case, its buckle on the camera side
-    const c = wide ? new THREE.Vector3(t, A.elbow.y + (A.wrist.y - A.elbow.y) * ((t - A.elbow.x) / (A.wrist.x - A.elbow.x)), A.wrist.z) : new THREE.Vector3(A.elbow.x + (A.wrist.x - A.elbow.x) * ((t - A.elbow.y) / (A.wrist.y - A.elbow.y)), t, A.wrist.z);
-    const s = box(0.022, 0.1, 0.1, web, c.x, c.y, c.z);
+    const c = wide ? new THREE.Vector3(t, A.elbow.y + (A.wrist.y - A.elbow.y) * ((t - A.elbow.x) / (A.wrist.x - A.elbow.x)), A.elbow.z + (A.wrist.z - A.elbow.z) * ((t - A.elbow.x) / (A.wrist.x - A.elbow.x)))
+      : new THREE.Vector3(A.elbow.x + (A.wrist.x - A.elbow.x) * ((t - A.elbow.y) / (A.wrist.y - A.elbow.y)), t, A.elbow.z + (A.wrist.z - A.elbow.z) * ((t - A.elbow.y) / (A.wrist.y - A.elbow.y)));
+    const s = box(0.016, R * 2, R * 2, web, c.x, c.y, c.z);
     s.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), ax);
-    const b = box(0.026, 0.034, 0.008, steel, c.x, c.y, c.z + 0.051);
-    b.quaternion.copy(s.quaternion);
+    const b = box(0.02, 0.026, 0.006, steel, 0, 0, R + 0.003);
+    s.add(b); g.remove(b);
   }
   g.add(fpLightRig());
   return g;
@@ -175,9 +177,10 @@ export function watchBody(L: WristLayout, k: number): THREE.Group {
 /** where the forearm runs under the case (case-local metres): from the elbow (off the picture) to the wrist */
 export function watchArm(L: WristLayout, k: number): { elbow: THREE.Vector3; wrist: THREE.Vector3 } {
   const W = L.W * k, H = L.H * k;
+  // (behind the case: the forearm's front just clears its back plate)
   return L.kind === 'wide'
-    ? { elbow: new THREE.Vector3(-W / 2 - 0.2, -H * 0.42, -0.05), wrist: new THREE.Vector3(W / 2 + 0.035, -H * 0.04, -0.045) }
-    : { elbow: new THREE.Vector3(W * 0.05, -H / 2 - 0.2, -0.05), wrist: new THREE.Vector3(-W * 0.02, H / 2 + 0.03, -0.045) };
+    ? { elbow: new THREE.Vector3(-W / 2 - 0.07, -H / 2 - 0.06, -0.09), wrist: new THREE.Vector3(W / 2 + 0.025, -H * 0.08, -0.082) }
+    : { elbow: new THREE.Vector3(W * 0.12, -H / 2 - 0.08, -0.09), wrist: new THREE.Vector3(-W * 0.04, H / 2 + 0.02, -0.082) };
 }
 
 // ---------------------------------------------------------------- the SELECT dial

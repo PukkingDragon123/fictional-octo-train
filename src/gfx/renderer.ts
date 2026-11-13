@@ -639,7 +639,7 @@ export class PixelRenderer {
     let shown: THREE.Texture = this.rtPost.texture;
     if (!this.postfx.bypass && this.motion.active()) {
       this.motion.quality = this.qualityOverride ?? this.quality;
-      shown = this.motion.run(this.pass, this.rtPost.texture, this.rtScene.depthTexture!, eye ?? this.camera, dt);
+      shown = this.motion.run(this.pass, this.rtPost.texture, this.rtScene.depthTexture!, eye ?? this.camera, dt, eye ? eye.position : this.target, this.postfx);
     }
     // 4. overlay scene (held devices) into its own low-res target, then its film (grade, outline, grain)
     // once per low-res pixel into rtOverlayPost

@@ -142,3 +142,6 @@ body:has(.wt.on) :is(.wp-tag, .obj15, .ft-subs .w-bubble) { visibility: hidden !
 /* eight apps: four by two across, two by four upright */
 .wt.wide .wt-home { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); }
 .wt.tall .wt-home { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); }
+/* the phone's on-screen keys step aside while the unit is up */
+body:has(.wt.fp.on) #nc-touch { visibility: hidden; }
+.wt-msg.pnc { background: radial-gradient(circle, #fff0e8 0 16%, #ff3a22 40%, rgba(255, 58, 34, 0.4) 56%, rgba(255, 58, 34, 0) 74%); animation: wt-blink 0.22s steps(1) infinite; }
