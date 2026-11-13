@@ -162,7 +162,7 @@ export class PressView {
     el.append(this.cv);
     try {
       this.r = new THREE.WebGLRenderer({ canvas: this.cv, antialias: false, alpha: false, powerPreference: 'low-power' });
-      this.r.setPixelRatio(0.5);
+      this.r.setPixelRatio(Math.min(1, window.devicePixelRatio || 1) * (window.innerWidth < 700 ? 1 : 0.75));
       this.r.setClearColor(0x0d0c09, 1);
       this.r.outputColorSpace = THREE.SRGBColorSpace;
     } catch (e) { console.warn('press 3d: no WebGL', e); this.r = null; }
@@ -190,6 +190,12 @@ export class PressView {
     this.ro.observe(el);
     this.last = performance.now();
     this.raf = requestAnimationFrame((t) => this.frame(t));
+    if (import.meta.env?.DEV) (window as unknown as { __pressView?: PressView }).__pressView = this;
+  }
+  /** where each turntable sits on screen (CSS px, page coordinates): for scripted runs */
+  tablePoints(): { x: number; y: number }[] {
+    const r = this.cv.getBoundingClientRect(), v = new THREE.Vector3();
+    return this.tables.map((t) => { t.g.getWorldPosition(v); v.y += 0.4; v.project(this.cam); return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height }; });
   }
 
   // ================================================================ the machine
