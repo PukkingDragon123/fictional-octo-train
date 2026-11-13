@@ -31,48 +31,9 @@
 .wt-msg.on { background: radial-gradient(circle, #fff4d0 0 18%, #ffb030 40%, rgba(255, 176, 48, 0.35) 56%, rgba(255, 176, 48, 0) 72%); animation: wt-blink 1.1s steps(1) infinite; }
 @keyframes wt-blink { 50% { opacity: 0.25; } }
 
-/* ---- the tube */
-.wt-crt { position: absolute; overflow: hidden; background: #010302; box-shadow: inset 0 0 0 2px #000; }
-.wt-tube { position: absolute; inset: 0; opacity: 0; transform-origin: 50% 50%; filter: brightness(var(--wt-b, 1)); }
-.wt-tube.lit, .wt-tube.dot { opacity: 1; }
-.wt-tube.lit { animation: wt-on 0.52s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
-.wt-tube.lit.quick { animation-duration: 0.26s; }
-.wt-tube.dot { animation: wt-dot 0.28s ease-in both; }
-@keyframes wt-on {
-  0% { transform: scale(0.02, 0.006); filter: brightness(7); }
-  24% { transform: scale(1, 0.006); filter: brightness(5); }
-  50% { transform: scale(1, 1.05); filter: brightness(1.9); }
-  64% { transform: scale(1, 0.985); }
-  100% { transform: none; filter: brightness(var(--wt-b, 1)); }
-}
-@keyframes wt-dot {
-  0% { transform: none; }
-  45% { transform: scale(1, 0.008); filter: brightness(4); }
-  78% { transform: scale(0.014, 0.008); filter: brightness(7); opacity: 1; }
-  100% { transform: scale(0.005, 0.005); filter: brightness(9); opacity: 0; }
-}
-.wt-flash { position: absolute; inset: 0; pointer-events: none; background: var(--ph-hi); opacity: 0; }
-.wt-tube.lit .wt-flash { animation: wt-flash 0.52s ease-out both; }
-.wt-tube.lit.quick .wt-flash { animation-duration: 0.26s; }
-.wt-tube.dot .wt-flash { opacity: 0.85; }
-@keyframes wt-flash { 0% { opacity: 1; } 40% { opacity: 0.7; } 100% { opacity: 0; } }
-
-.wt-glass { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 9px 14px 8px; box-sizing: border-box; color: var(--ph);
-  background: radial-gradient(ellipse at 50% 46%, rgba(var(--ph-rgb), 0.075), rgba(var(--ph-rgb), 0.02) 60%, #010302 100%), #020503;
-  text-shadow: 0 0 1px var(--ph), 0 0 7px var(--glow); animation: wt-flicker 5.3s steps(1) infinite; }
-@keyframes wt-flicker { 0%, 100% { opacity: 1; } 31% { opacity: 0.94; } 32% { opacity: 1; } 67% { opacity: 0.97; } 68% { opacity: 1; } 83% { opacity: 0.92; } 84% { opacity: 1; } }
-.wt-tube.roll .wt-glass { animation: wt-vroll 0.36s steps(8) both; }
-@keyframes wt-vroll { 0% { transform: translateY(-100%); } 30% { transform: translateY(38%); } 55% { transform: translateY(-12%) skewX(-2deg); } 76% { transform: translateY(4%); } 100% { transform: none; } }
-.wt-scan { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.34) 0 1px, rgba(0, 0, 0, 0) 1px 3px); }
-.wt-roll { position: absolute; left: 0; right: 0; top: -30%; height: 24%; pointer-events: none; background: linear-gradient(rgba(var(--ph-rgb), 0), rgba(var(--ph-rgb), 0.07), rgba(var(--ph-rgb), 0)); animation: wt-rollbar 7.5s linear infinite; }
-@keyframes wt-rollbar { to { transform: translateY(560%); } }
-.wt-grain { position: absolute; inset: -40px; pointer-events: none; opacity: 0.16; mix-blend-mode: screen; background-size: 160px 160px; image-rendering: pixelated; animation: wt-grain 0.48s steps(6) infinite; }
-@keyframes wt-grain { 0% { transform: translate(0, 0); } 17% { transform: translate(-23px, 11px); } 33% { transform: translate(14px, -19px); } 50% { transform: translate(-9px, 27px); } 67% { transform: translate(31px, 6px); } 83% { transform: translate(-17px, -28px); } }
-.wt-fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; image-rendering: pixelated; mix-blend-mode: screen; opacity: 0.9; }
-.wt-vig { position: absolute; inset: 0; pointer-events: none;
-  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0) 56%, rgba(0, 0, 0, 0.62) 100%), linear-gradient(162deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0.02) 22%, rgba(255, 255, 255, 0) 36%);
-  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.95), inset 0 0 4px #000; }
-.reduce-flash .wt-glass, .reduce-flash .wt-grain, .reduce-flash .wt-roll { animation: none; }
+/* ---- the tube: the shared CRT skin (src/ui/crt) laid into the case's window */
+.wt-crt { position: absolute; overflow: hidden; background: #010302; }
+.wt-glass { padding: 9px 14px 8px; }
 
 /* ---- the lines on the tube */
 .wt-top { flex: none; display: flex; align-items: baseline; gap: 12px; padding-bottom: 3px; margin-bottom: 4px; font-size: 15px; letter-spacing: 0.08em; box-shadow: 0 2px 0 var(--ph-dim); white-space: nowrap; }
@@ -84,24 +45,10 @@
 .wt-foot.line span { color: var(--acc); }
 .wt-cur { display: inline-block; width: 9px; height: 14px; background: var(--ph); animation: wt-blink 0.8s steps(1) infinite; }
 
-/* ---- home: the apps as big turning models */
+/* ---- home: the apps as big turning models (crtIcon), the name only on the one picked */
 .wt-home { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 0 6px; }
 .wt-home[hidden], .wt-app[hidden] { display: none; }
-.wt-ic { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; min-height: 0; padding: 0; border: 0; background: none; color: var(--ph); cursor: pointer; text-shadow: inherit; }
-.wt-ic-m { position: relative; display: flex; align-items: center; justify-content: center; padding: 0 8px; line-height: 0; }
-.wt-ic-m canvas { display: block; width: 78px; height: 78px; image-rendering: pixelated; filter: var(--mono) drop-shadow(0 0 5px var(--glow)); opacity: 0.82; transition: opacity 0.12s steps(2), transform 0.12s steps(2); }
-.wt-ic-m b { display: flex; align-items: center; justify-content: center; width: 70px; height: 70px; font-weight: normal; font-size: 30px; box-shadow: inset 0 0 0 3px var(--ph-dim); }
-.wt-ic-l { font-size: 18px; letter-spacing: 0.12em; line-height: 1; padding: 2px 6px 1px; }
-.wt-ic-l i { font-style: normal; font-size: 12px; color: var(--ph-dim); margin-right: 5px; vertical-align: 2px; }
-/* the pick: square corner brackets round the model, the label lit, the model turning quicker and brighter */
-.wt-ic.sel .wt-ic-m { background:
-  linear-gradient(var(--acc), var(--acc)) left top / 14px 3px no-repeat, linear-gradient(var(--acc), var(--acc)) left top / 3px 14px no-repeat,
-  linear-gradient(var(--acc), var(--acc)) right top / 14px 3px no-repeat, linear-gradient(var(--acc), var(--acc)) right top / 3px 14px no-repeat,
-  linear-gradient(var(--acc), var(--acc)) left bottom / 14px 3px no-repeat, linear-gradient(var(--acc), var(--acc)) left bottom / 3px 14px no-repeat,
-  linear-gradient(var(--acc), var(--acc)) right bottom / 14px 3px no-repeat, linear-gradient(var(--acc), var(--acc)) right bottom / 3px 14px no-repeat; }
-.wt-ic.sel .wt-ic-m canvas { opacity: 1; transform: translateY(-2px) scale(1.06); filter: var(--mono) brightness(1.25) drop-shadow(0 0 7px var(--glow)); }
-.wt-ic.sel .wt-ic-l { color: #021006; background: var(--ph); text-shadow: none; }
-.wt-ic.sel .wt-ic-l i { color: #0a3a18; }
+.wt-ic { position: relative; display: flex; align-items: center; justify-content: center; min-height: 0; padding: 0; border: 0; background: none; color: var(--ph); cursor: pointer; text-shadow: inherit; }
 .wt-ic:focus-visible { outline: none; }
 
 /* ---- an app, full screen in the tube */
@@ -168,8 +115,6 @@
 .wt .bos-term-in { flex: 1; background: none; border: 0; outline: none; color: var(--ph-hi); font: inherit; caret-color: var(--ph); text-shadow: inherit; }
 
 /* ---- the phone held upright: the unit fills the screen, thumb-sized icons */
-.wt.tall .wt-ic-m canvas { width: 84px; height: 84px; }
-.wt.tall .wt-ic-l { font-size: 17px; }
 .wt.tall .wt-glass { padding: 8px 10px 8px; }
 .wt.tall .wt-top, .wt.tall .wt-foot { font-size: 14px; }
 .wt.tall .bos-split { grid-template-columns: 1fr; grid-template-rows: minmax(110px, 36%) 1fr; }
