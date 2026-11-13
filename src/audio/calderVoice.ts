@@ -27,6 +27,22 @@ const byKey = new Map<string, number>();
 const bufs = new Map<string, AudioBuffer>();
 const pend = new Map<string, Promise<AudioBuffer | null>>();
 const bad = new Set<string>();
+// release builds pack the clips into a few files (scripts/voicepack.mjs): clip -> [pack, offset, length]
+interface Packs { v: number; files: string[]; clips: Record<string, [number, number, number]> }
+let packs: Packs | null = null;
+const packBytes = new Map<number, Promise<ArrayBuffer | null>>();
+const abs = (rel: string) => { try { return new URL(DIR + rel, document.baseURI).toString(); } catch { return DIR + rel; } };
+function packOf(i: number): Promise<ArrayBuffer | null> {
+  let p = packBytes.get(i);
+  if (!p) { p = fetch(abs(packs!.files[i])).then((r) => (r.ok ? r.arrayBuffer() : null)).catch(() => null); packBytes.set(i, p); }
+  return p;
+}
+/** a clip's encoded bytes: its own file in development, a slice of its pack in a release build */
+function clipBytes(f: string): Promise<ArrayBuffer | null> {
+  const at = packs?.clips[f];
+  if (at) return packOf(at[0]).then((ab) => (ab ? ab.slice(at[1], at[1] + at[2]) : null));
+  return fetch(url(f)).then((r) => (r.ok ? r.arrayBuffer() : null));
+}
 
 /** the same normalisation the clip generator used */
 export function calderKey(text: string): string {
@@ -42,7 +58,8 @@ export function loadCalderVoice(): Promise<Manifest | null> {
   if (typeof fetch !== 'function' || typeof document === 'undefined') return Promise.resolve(null);
   let u = DIR + 'manifest.json';
   try { u = new URL(u, document.baseURI).toString(); } catch { /* relative */ }
-  loading = fetch(u).then((r) => (r.ok ? r.json() : null)).then((m: Manifest | null) => {
+  const pk = fetch(abs('packs.json')).then((r) => (r.ok ? r.json() : null)).then((j: Packs | null) => { if (j && j.files && j.clips) packs = j; }).catch(() => undefined);
+  loading = Promise.all([fetch(u).then((r) => (r.ok ? r.json() : null)), pk]).then(([m]: [Manifest | null, unknown]) => {
     if (!m || !Array.isArray(m.lines)) { off = true; return null; }
     man = m;
     m.lines.forEach((e, i) => { if (!byKey.has(e.k)) byKey.set(e.k, i); });
@@ -64,7 +81,7 @@ function clip(f: string): Promise<AudioBuffer | null> {
   if (bad.has(f)) return Promise.resolve(null);
   let p = pend.get(f);
   if (p) return p;
-  p = fetch(url(f)).then((r) => (r.ok ? r.arrayBuffer() : null)).then(async (ab) => {
+  p = clipBytes(f).then(async (ab) => {
     const ctx = ctxOf();
     if (!ab || !ctx) return null;
     const b = await ctx.decodeAudioData(ab);

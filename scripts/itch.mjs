@@ -14,6 +14,10 @@ const zip = join(rel, 'limbo-phobia-itch.zip');
 rmSync(out, { recursive: true, force: true });
 execFileSync('npx', ['vite', 'build', '--outDir', out, '--emptyOutDir'], { cwd: root, stdio: 'inherit', env: { ...process.env, VITE_SANDBOXED: '1', VITE_ITCH: '1' } });
 
+// the voice clips go into a few packs (itch caps an upload at 1000 files); the brand art is for the store page, not the game
+execFileSync('node', [join(root, 'scripts/voicepack.mjs'), out], { cwd: root, stdio: 'inherit' });
+rmSync(join(out, 'brand'), { recursive: true, force: true });
+
 // itch rules: index.html at the root, at most 1000 files, no absolute asset URLs
 const files = [];
 const walk = (d) => { for (const f of readdirSync(d)) { const p = join(d, f); statSync(p).isDirectory() ? walk(p) : files.push(p); } };
