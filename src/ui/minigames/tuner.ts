@@ -275,7 +275,7 @@ class ScanLock {
     // ---- lamps: on the signature (green) / hunting (amber); overheating (red)
     pxLamp(c, SX - 8, cy + 3, end ? end !== 'fail' : this.on || Math.floor(t * 3) % 2 === 0, end === 'fail' ? RED : this.on || end === 'clean' ? GRN : AMB, 2);
     pxLamp(c, SX + SW + 6, cy + 3, this.heat > 0.4 || end === 'fail' ? Math.floor(t * 9) % 2 === 0 || end === 'fail' : false, RED, 2);
-    // the result stamped across the glass: a band of light, no words
+    // the result as light on the glass itself (a level bar of colour, no words, nothing tilted)
     if (end && this.endT > 0) {
       const R = end === 'clean' ? GRN : end === 'fail' ? RED : AMB;
       rect(c, SX, SY, SW, SH, R[4], 0.22);

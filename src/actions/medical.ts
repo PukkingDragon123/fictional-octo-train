@@ -103,7 +103,7 @@ export class StitchAction extends MedAction {
   constructor(p: Player, target: Player, inj: Injury, public needle: Item, public thread: Item | null) {
     super(p, target, inj); this.name = 'Stitch wound'; this.duration = this.scale(9);
     // round 17: three passes of the needle, each a steady push let go at the right depth (pain and nerves shake it)
-    this.check = new SkillCheck({ kind: 'hold', at: [0.18, 0.48, 0.78], band: 0.2, speed: 0.55, tremor: tremorOf(p) * 0.9, ease: this.handEase, glyph: 'PASS',
+    this.check = new SkillCheck({ kind: 'hold', at: [0.18, 0.48, 0.78], band: 0.2, speed: 0.55, tremor: tremorOf(p) * 0.9, ease: this.handEase, glyph: 'SUTURE',
       sounds: { hit: 'mn_squeeze', perfect: 'mn_squeeze', miss: 'gore_squelch' },
       onMark: (m) => { if (m === 'miss') { this.target.body.panic = Math.min(100, this.target.body.panic + 6); G.audio?.at?.('flesh_cut', this.target.x, this.target.z, 0.4); } } });
   }

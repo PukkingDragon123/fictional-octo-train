@@ -61,7 +61,7 @@
 .ej-view .ej-glass { position: absolute; inset: 0; background: radial-gradient(ellipse 90% 70% at 50% 40%, #2e2a1c 0%, #15140c 70%, #0a0a06 100%); }
 .ej-view canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; }
 .ej-view::after { content: ''; position: absolute; inset: 0; z-index: 2; pointer-events: none; background: repeating-linear-gradient(0deg, rgba(0, 0, 0, .14) 0 1px, rgba(0, 0, 0, 0) 1px 3px), linear-gradient(118deg, rgba(255, 255, 220, 0) 30%, rgba(255, 255, 220, .05) 38%, rgba(255, 255, 220, 0) 47%); }
-.ej-tag { position: absolute; z-index: 6; right: 10px; top: 10px; transform: rotate(4deg); padding: 6px 10px 5px; background: #f2ead0; color: #1a160a; box-shadow: 2px 3px 0 rgba(0, 0, 0, .5), inset 0 0 0 1px #8a7a50; font-size: 16px; line-height: 16px; }
+.ej-tag { position: absolute; z-index: 6; right: 10px; top: 10px; padding: 6px 10px 5px; background: #f2ead0; color: #1a160a; box-shadow: 2px 3px 0 rgba(0, 0, 0, .5), inset 0 0 0 1px #8a7a50; font-size: 16px; line-height: 16px; }
 .ej-tag small { display: block; font-size: 10px; letter-spacing: .14em; color: #6a5a30; }
 .ej-tag.owned { background: #a8e8a0; }
 .ej-tag::before { content: ''; position: absolute; left: 50%; top: -7px; width: 7px; height: 7px; margin-left: -3px; background: #14120c; box-shadow: 0 0 0 2px #c8c0a0; }
