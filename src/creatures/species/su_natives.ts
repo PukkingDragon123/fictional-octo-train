@@ -263,7 +263,7 @@ const WHELK = def({
   key: 'token_whelk', name: 'Token Whelk', code: 'TW-04 // FAUNA, GASTROPOD (SESSILE, TRADER)', temperament: 'neutral', threat: 1,
   rule: { name: 'ONE COIN, ONE TOKEN', text: 'It trades: a coin through the trough buys a token. It never leaves the booth. Strike it and it shuts its horn door (most of the next blows go nowhere) and remembers you for a while: stand at the window and it lashes you through the trough.', tell: 'A snail the size of an armchair in the token booth, eyes on stalks.' },
   hp: 160, walk: 0, run: 0, turn: 0, radius: 0.6, height: 1.3, sight: 9, fov: 2, hearing: 1,
-  attack: { dmg: [6, 12], range: 2.4, cooldown: 1.6, kinds: ['bruise', 'laceration'], corrupt: 0, knock: 0.6, parts: ['hand_l', 'hand_r', 'forearm_l', 'forearm_r'] },
+  attack: { dmg: [6, 12], range: 2.4, cooldown: 1.6, kinds: ['bruise', 'laceration'], corrupt: 0, knock: 0.6, parts: ['hand_l', 'hand_r', 'farm_l', 'farm_r'] },
   zones: ['subway'], weight: 0, maxPerZone: 1, diet: 'none',
   meat: [['whelk_meat', 3]],
   flags: { attached: true },

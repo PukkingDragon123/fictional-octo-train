@@ -25,7 +25,7 @@ import type { Creature } from '../creature';
 import type { Player } from '../../entities/player';
 import type { Zone } from '../../world/zone';
 import { Page, OB, V3, bpart, registerPage, applyLook, ramp, clamp01, lerp, damp, bodyRing, galleryPoseParam } from '../kit/beasts';
-import { tpart, surfaceMat, eye, flat, hitPlayer } from '../kit/oddkit';
+import { tpart, surfaceMat, eye, flat, hitPlayer, filmMat } from '../kit/oddkit';
 import { net, netOf, playersIn, dist, hashId, rng, fx, fxPoll, playAt, localIn, thinkOnce, fakeCreature } from '../behaviors_b';
 import { CS, pulse, attack, onPlayerHit } from '../behaviors_a';
 import { ruleShown } from '../rules';
@@ -61,35 +61,54 @@ const PG = registerPage(new Page('c_plpool', 224, 160, [
   ['PSKIN', 32, 32], ['PBELLY', 16, 16], ['PFIN', 16, 16], ['PEYE', 8, 8], ['PTOOTH', 8, 8], ['PLEG', 16, 24],
   ['LATEX', 48, 48], ['KNOT', 16, 16], ['STRING', 4, 16], ['EYEB', 16, 16], ['IRISC', 16, 16], ['SPIKE', 8, 8],
 ], 3));
-const LATEX = [0xe83a5a, 0x3a8ae8, 0xf0c030];
+const LATEX = [0xc81838, 0x1a58c8, 0xe09810];
 const IRIS = [0x4a7ab8, 0x6a8a3a, 0x6a4a2a];
 PG.paint((P, v) => {
-  // gulper: leucistic white, a pink flush, wrinkles and pores
+  // gulper: leucistic white, but not paper: grey-pink mottling under the white, tubercles with darker
+  // rims, the lateral-line pores in a dotted row, a pink flush where the skin is thin (the belly band)
   {
     const r = P.R('GSKIN');
-    const R = ramp(mixHex(0xf2ece4, 0xf0d8d4, v * 0.3), 7, 0x9a8a8a, 0.35);
+    const R = ramp(mixHex(0xe4dcd2, 0xe8d0cc, v * 0.35), 8, 0x5e4c4c, 0.3);
+    const L = new Float32Array(r.w * r.h);
     P.fill(r, R, (u, vv, x, y) => {
-      const wr = Math.sin(y * 0.9 + Math.sin(x * 0.4) * 2) * 0.7 + Math.sin(x * 0.35 + y * 0.2) * 0.4;
-      return 3.6 + wr + (P.n(r, x, y, 4, 3, 11 + v) - 0.5) * 1.4 - (Math.abs(u - 0.5) < 0.12 ? 0.6 : 0);
-    }, 0.4);
-    for (let i = 0; i < 70; i++) P.set(r, P.rng.int(0, r.w - 1), P.rng.int(0, r.h - 1), 0xc8b0ac);
-    for (let i = 0; i < 9; i++) P.walk(r, P.rng.int(0, r.w - 1), P.rng.int(0, r.h - 1), 12, 1, 0, 0xe0b4b4, 0.5, 0.4);
+      const wr = Math.sin(y * 0.95 + Math.sin(x * 0.45) * 2.2) * 0.85 + Math.sin(x * 0.33 + y * 0.21) * 0.45;
+      const mott = P.n(r, x, y, 5, 3, 11 + v);
+      const belly = Math.min(u, 1 - u) < 0.14 ? -0.8 : 0;
+      const l = 4.6 + wr + (mott - 0.5) * 2.6 + belly - (mott < 0.38 ? 1.1 : 0);
+      L[y * r.w + x] = l;
+      return l;
+    }, 0.35);
+    // the pink flush round the belly band (thin skin, blood near the surface)
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) { const u = (x + 0.5) / r.w, b = Math.min(u, 1 - u); if (b < 0.2) P.blend(r, x, y, 0xe89a9a, (0.2 - b) * 2.2 * (0.6 + P.n(r, x, y, 3, 2, 15) * 0.5)); }
+    // tubercles: pale raised dots with a darker rim
+    for (let i = 0; i < 110; i++) { const x = P.rng.int(0, r.w - 1), y = P.rng.int(0, r.h - 1); P.spot(r, x, y, 1.3, 1.1, 0x8a7472, 0.55); P.set(r, x, y, 0xfaf4ee); }
+    // the lateral line: a row of dark pores each side, at the flank
+    for (const u0 of [0.3, 0.7]) for (let y = 1; y < r.h; y += 3) P.set(r, Math.round(u0 * r.w + Math.sin(y * 0.4) * 0.8), y, 0x3a2a2a);
+    for (let i = 0; i < 14; i++) P.walk(r, P.rng.int(0, r.w - 1), P.rng.int(0, r.h - 1), 14, 1, 0.2, 0xd8a8a8, 0.45, 0.5);
+    for (let y = 2; y < r.h; y += 6) P.glint(r, (y * 11) % r.w, y, 4, 0xffffff, 0.4);
+    void L;
   }
   {
     const r = P.R('GFOLD');
-    P.fill(r, ramp(0xf0e2dc, 6, 0x8a7070, 0.35), (u, vv, x, y) => 3 + Math.sin(x * 1.1) * 1.4 + (P.n(r, x, y, 3, 2, 21) - 0.5), 0.4);
+    P.fill(r, ramp(0xe8d8d0, 7, 0x6a5050, 0.3), (u, vv, x, y) => 3.4 + Math.sin(x * 1.1) * 1.6 + (P.n(r, x, y, 3, 2, 21) - 0.5) * 1.2 - vv * 0.8, 0.4);
+    // the fold edges flush pink and wet
+    for (let y = r.h - 6; y < r.h; y++) for (let x = 0; x < r.w; x++) P.blend(r, x, y, 0xe89090, 0.35 * ((y - (r.h - 6)) / 6));
+    for (let y = 3; y < r.h; y += 7) P.glint(r, (y * 5) % r.w, y, 3, 0xffffff, 0.5);
   }
   {
     const r = P.R('GMOUTH');
-    P.fill(r, ramp(0xe89aa0, 7, 0x5a1a24, 0.3), (u, vv, x, y) => 2.6 + Math.sin(y * 0.8) * 0.8 + (P.n(r, x, y, 3, 2, 31) - 0.5) * 1.2 - Math.abs(u - 0.5) * 2, 0.4);
-    for (let y = 2; y < r.h; y += 5) P.glint(r, (y * 7) % r.w, y, 3, 0xffffff, 0.45);
+    P.fill(r, ramp(0xe08890, 8, 0x4a1018, 0.3), (u, vv, x, y) => 3 + Math.sin(y * 0.8) * 0.9 + (P.n(r, x, y, 3, 2, 31) - 0.5) * 1.4 - Math.abs(u - 0.5) * 2.4, 0.4);
+    for (let i = 0; i < 6; i++) P.walk(r, P.rng.int(0, r.w - 1), P.rng.int(0, r.h - 1), 10, 0, 1, 0x8a2030, 0.6, 0.5);
+    for (let y = 2; y < r.h; y += 4) P.glint(r, (y * 7) % r.w, y, 3, 0xffffff, 0.55);
   }
   flat(P, P.R('GTOOTH'), 0xf4f0e0, 0.05);
-  eye(P, P.R('GEYE'), 0xe86a7a, { pupil: 0x6a1020, sclera: 0xf0b0b8 });
-  { const r = P.R('GNOSE'); P.fill(r, ramp(0x5a3a3a, 4, 0x1a0808, 0.3), (u, vv) => 1 + vv, 0.3); }
+  eye(P, P.R('GEYE'), 0xd85060, { pupil: 0x3a0810, sclera: 0xd88890 });
+  { const r = P.R('GNOSE'); P.fill(r, ramp(0x4a2a2a, 4, 0x140606, 0.3), (u, vv) => 1 + vv, 0.3); }
   {
     const r = P.R('GTAIL');
-    P.fill(r, ramp(0xf0e6de, 6, 0x9a8686, 0.35), (u, vv, x, y) => 3.2 + Math.sin(y * 1.4) * 0.5 + (P.n(r, x, y, 3, 2, 41) - 0.5) * 1.2 - vv * 0.6, 0.4);
+    P.fill(r, ramp(0xe4dad0, 7, 0x6a5656, 0.3), (u, vv, x, y) => 4 + Math.sin(y * 1.4) * 0.6 + (P.n(r, x, y, 4, 2, 41) - 0.5) * 2.2 - vv * 0.8, 0.4);
+    for (let i = 0; i < 30; i++) P.spot(r, P.rng.int(0, r.w), P.rng.int(0, r.h), 1, 1, 0x8a7070, 0.4);
+    for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) if (y < 3) P.blend(r, x, y, 0xe8a8a8, 0.4);
   }
   // tadpole: translucent-looking pale skin with the organs showing pink through it
   {
@@ -148,113 +167,147 @@ PG.paint((P, v) => {
 // GULPER
 // =====================================================================================
 const G_LEGS = [['FL', 1, 0.55], ['FR', -1, 0.55], ['BL', 1, -0.6], ['BR', -1, -0.6]] as const;
+const SUCK_N = 14;
 function buildGulper(): Rig {
   const rig = newRig(0.5);
   const S = PG.reg('GSKIN'), F = PG.reg('GFOLD'), M = PG.reg('GMOUTH'), Tt = PG.reg('GTOOTH'), E = PG.reg('GEYE'), N = PG.reg('GNOSE'), TL = PG.reg('GTAIL');
-  // the trunk: broad and flat, folds of loose skin hanging down both flanks
-  const trunk = bpart(rig, 'trunk', rig.body, [0, 0.36, 0], PG, 'gtrunk', (ob) => {
-    const zs = [-0.95, -0.6, -0.2, 0.2, 0.6, 0.95];
-    const ks = [0.72, 0.92, 1, 1, 0.94, 0.82];
-    ob.loft(zs.map((z, i) => ({ pts: bodyRing(z, 0, 0.56 * ks[i], 0.22 * ks[i], 0.2 * ks[i], 15, 2.4, (th) => 0.05 * Math.sin(th * 7 + i)), v: 1 - i / 5 })), S, { start: 'pole', end: 'pole', startBulge: 0.08, endBulge: 0.05 });
-    // the flank folds: wavy flaps of loose skin, three layers each side
-    for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) {
+  const wet = surfaceMat('lacquer', { alphaTest: 0.5 });
+  // the trunk: broad and flat, a wet clear-coat on it; loose skin hanging in folds and flaps down both flanks
+  const trunk = tpart(rig, 'trunk', rig.body, [0, 0.36, 0], PG, 'gtrunk', wet, (ob) => {
+    const zs = [-0.95, -0.75, -0.45, -0.15, 0.15, 0.45, 0.75, 0.95];
+    const ks = [0.7, 0.86, 0.96, 1, 1, 0.97, 0.9, 0.82];
+    ob.loft(zs.map((z, i) => ({ pts: bodyRing(z, 0, 0.56 * ks[i], 0.21 * ks[i], 0.19 * ks[i], 21, 2.6, (th) => 0.035 * Math.sin(th * 9 + i * 1.7) + 0.02 * Math.sin(th * 23 + i)), v: 1 - i / 7 })), S, { start: 'pole', end: 'pole', startBulge: 0.08, endBulge: 0.05 });
+    // the flank folds: four wavy layers of loose skin each side, sagging between the legs
+    for (const sx of [-1, 1]) for (let k = 0; k < 4; k++) {
       const a: V3[] = [], b2: V3[] = [];
-      for (let i = 0; i <= 16; i++) {
-        const z = -0.88 + i * (1.76 / 16), w = Math.sin(i * 1.7 + k * 2) * 0.06, sag = Math.sin((i / 16) * Math.PI);
-        a.push([sx * (0.5 - k * 0.05), 0.02 - k * 0.08, z]);
-        b2.push([sx * (0.7 + sag * 0.08 - k * 0.04 + w), -0.16 - k * 0.07 - sag * 0.06 + w * 0.6, z + w * 0.3]);
+      for (let i = 0; i <= 20; i++) {
+        const z = -0.9 + i * (1.8 / 20), w = Math.sin(i * 1.9 + k * 2.3) * 0.05 + Math.sin(i * 0.7 + k) * 0.03, sag = Math.sin((i / 20) * Math.PI);
+        a.push([sx * (0.5 - k * 0.04), 0.03 - k * 0.07, z]);
+        b2.push([sx * (0.72 + sag * 0.1 - k * 0.04 + w), -0.14 - k * 0.07 - sag * 0.07 + w * 0.6, z + w * 0.4]);
       }
       ob.strip(a, b2, F, { double: true });
     }
-    // wrinkle ridges across the back
-    for (let i = 0; i < 9; i++) ob.tube([[-0.45, 0.12, -0.75 + i * 0.19], [0, 0.2 + Math.sin(i) * 0.01, -0.73 + i * 0.19], [0.45, 0.12, -0.75 + i * 0.19]], [0.018, 0.022, 0.018], 5, F, { start: 'pole', end: 'pole' });
-    // the warts along the back
-    for (let i = 0; i < 16; i++) ob.blob([Math.sin(i * 2.3) * 0.36, 0.18 + Math.cos(i) * 0.02, -0.8 + i * 0.105], [0.035, 0.02, 0.035], 5, 3, S, {});
+    // wrinkle ridges across the back, and the lateral-line pores along each flank
+    for (let i = 0; i < 11; i++) ob.tube([[-0.46, 0.1, -0.82 + i * 0.165], [-0.2, 0.19, -0.8 + i * 0.165], [0.2, 0.19 + Math.sin(i) * 0.01, -0.81 + i * 0.165], [0.46, 0.1, -0.82 + i * 0.165]], [0.016, 0.022, 0.022, 0.016], 5, F, { start: 'pole', end: 'pole' });
+    for (const sx of [-1, 1]) for (let i = 0; i < 16; i++) ob.blob([sx * 0.535, 0.02 + Math.sin(i * 0.8) * 0.01, -0.8 + i * 0.105], [0.012, 0.012, 0.012], 4, 3, N, {});
+    // tubercles all over the back
+    for (let i = 0; i < 46; i++) { const a = (i * 2.399) % 1, z = -0.85 + (i / 46) * 1.7; ob.blob([(a - 0.5) * 0.8, 0.18 + Math.cos((a - 0.5) * 2.5) * 0.02, z], [0.03, 0.018, 0.03], 5, 3, S, {}); }
+    // the gular folds: loose skin hanging in pleats under the throat
+    for (let k = 0; k < 3; k++) ob.strip([[-0.42, -0.16, 0.74 + k * 0.08], [0, -0.18, 0.76 + k * 0.08], [0.42, -0.16, 0.74 + k * 0.08]], [[-0.4, -0.26 - k * 0.02, 0.7 + k * 0.08], [0, -0.3 - k * 0.02, 0.72 + k * 0.08], [0.4, -0.26 - k * 0.02, 0.7 + k * 0.08]], F, { double: true });
   });
   // the belly bulge (what it has swallowed)
   bpart(rig, 'bulge', trunk, [0, -0.06, 0.05], PG, 'gbulge', (ob) => {
     ob.blob([0, 0, 0], [0.42, 0.2, 0.62], 12, 7, S, {});
-    // a knee and an elbow pressing out
+    // a knee and an elbow pressing out from inside
     ob.blob([0.22, 0.08, 0.3], [0.12, 0.1, 0.12], 7, 5, S, {}); ob.blob([-0.18, 0.06, -0.3], [0.13, 0.1, 0.14], 7, 5, S, {});
   });
-  // the head: flat, broad, all upper jaw; it pivots back to open the mouth
-  const head = bpart(rig, 'head', trunk, [0, 0.02, 0.88], PG, 'ghead', (ob) => {
-    const zs = [0, 0.25, 0.55, 0.85, 1.05, 1.15];
-    const rx = [0.5, 0.66, 0.74, 0.74, 0.62, 0.36], up = [0.2, 0.18, 0.15, 0.12, 0.09, 0.05];
-    ob.loft(zs.map((z, i) => ({ pts: bodyRing(z, 0, rx[i], up[i], 0.02, 17, 2.6), v: 1 - i / 5 })), S, { end: 'pole', endBulge: 0.04 });
+  // the head: flat and wide as the body, a rounded spade of a snout; it tips back to open the mouth
+  const head = tpart(rig, 'head', trunk, [0, 0.02, 0.88], PG, 'ghead', wet, (ob) => {
+    const zs = [0, 0.2, 0.42, 0.65, 0.86, 1.02, 1.12];
+    const rx = [0.5, 0.64, 0.73, 0.76, 0.7, 0.55, 0.32], up = [0.2, 0.18, 0.155, 0.13, 0.1, 0.075, 0.045];
+    ob.loft(zs.map((z, i) => ({ pts: bodyRing(z, 0, rx[i], up[i], 0.02, 21, 2.8, (th) => 0.03 * Math.sin(th * 11 + i * 2)), v: 1 - i / 6 })), S, { end: 'pole', endBulge: 0.035 });
     // the palate under it
-    ob.loft(zs.slice(0, 5).map((z, i) => ({ pts: bodyRing(z, -0.015, rx[i] * 0.92, 0.01, 0.01, 13, 2.4), v: 1 - i / 4 })), M, { end: 'flat' });
-    // a row of tiny teeth all round the upper jaw rim
-    for (let i = 0; i < 46; i++) {
-      const t = i / 45, a = (t - 0.5) * Math.PI * 1.05;
-      const x = Math.sin(a) * 0.66, z = 0.4 + Math.cos(a) * 0.7;
-      ob.cone([x, -0.02, z], [0, -1, 0], 0.012, 0.045, 4, Tt);
+    ob.loft(zs.slice(0, 6).map((z, i) => ({ pts: bodyRing(z, -0.015, rx[i] * 0.9, 0.01, 0.01, 15, 2.4), v: 1 - i / 5 })), M, { end: 'flat' });
+    // a row of tiny teeth all round the upper jaw rim, inside the lip
+    for (let i = 0; i < 56; i++) {
+      const t = i / 55, a = (t - 0.5) * Math.PI * 1.05;
+      ob.cone([Math.sin(a) * 0.66, -0.025, 0.4 + Math.cos(a) * 0.68], [0, -1, -0.1], 0.01, 0.04, 4, Tt);
     }
-    // tiny pink eyes, high on the head; the nostrils right at the tip of the snout
+    // the upper lip: a fleshy rim all round the jaw edge
+    const lip: V3[] = [];
+    for (let i = 0; i <= 18; i++) { const a = (i / 18 - 0.5) * Math.PI * 1.1; lip.push([Math.sin(a) * 0.72, -0.015, 0.38 + Math.cos(a) * 0.74]); }
+    ob.tube(lip, lip.map(() => [0.04, 0.03] as [number, number]), 6, F, { start: 'pole', end: 'pole' });
+    // tiny lidless eyes far apart on top, the nostrils close together right at the tip
     for (const sx of [-1, 1]) {
-      ob.blob([sx * 0.3, 0.17, 0.62], [0.035, 0.03, 0.035], 7, 5, E, { emis: 0.25 });
-      ob.blob([sx * 0.11, 0.08, 1.1], [0.03, 0.025, 0.025], 6, 4, N, {});
+      ob.blob([sx * 0.38, 0.13, 0.72], [0.045, 0.03, 0.04], 6, 4, S, {});
+      ob.blob([sx * 0.38, 0.155, 0.73], [0.026, 0.022, 0.026], 7, 5, E, { emis: 0.3 });
+      ob.blob([sx * 0.08, 0.075, 1.08], [0.028, 0.02, 0.024], 6, 4, N, {});
     }
-    // lumpy lips and the skin bags at the corners of the mouth
-    for (const sx of [-1, 1]) ob.blob([sx * 0.66, -0.01, 0.3], [0.1, 0.06, 0.18], 7, 5, F, {});
+    // tubercles over the skull and down the snout
+    for (let i = 0; i < 34; i++) { const a = ((i * 2.399) % 1 - 0.5) * 1.2, z = 0.08 + (i / 34) * 0.95; ob.blob([a * (0.7 - z * 0.25), 0.13 - z * 0.06 + 0.02, z], [0.026, 0.014, 0.026], 5, 3, S, {}); }
   });
   void head;
-  // the lower jaw: it drops almost straight down, a plate rimmed with teeth and a pink floor
+  // the lower jaw: it drops away, a plate rimmed with lip and teeth, a pink floor and a fat tongue
   bpart(rig, 'jaw', rig.parts.head, [0, -0.03, 0.04], PG, 'gjaw', (ob) => {
-    const zs = [0, 0.3, 0.6, 0.9, 1.1];
+    const zs = [0, 0.3, 0.6, 0.88, 1.08];
     const rx = [0.5, 0.68, 0.74, 0.66, 0.4];
-    ob.loft(zs.map((z, i) => ({ pts: bodyRing(z, -0.06, rx[i], 0.04, 0.09, 15, 2.6), v: 1 - i / 4 })), S, { end: 'pole', endBulge: 0.03 });
+    ob.loft(zs.map((z, i) => ({ pts: bodyRing(z, -0.06, rx[i], 0.04, 0.09, 17, 2.6, (th) => 0.03 * Math.sin(th * 9 + i)), v: 1 - i / 4 })), S, { end: 'pole', endBulge: 0.03 });
     ob.loft(zs.slice(0, 4).map((z, i) => ({ pts: bodyRing(z, -0.02, rx[i] * 0.9, 0.02, 0.01, 13, 2.4), v: 1 - i / 3 })), M, { end: 'flat' });
-    for (let i = 0; i < 40; i++) {
-      const t = i / 39, a = (t - 0.5) * Math.PI;
-      ob.cone([Math.sin(a) * 0.62, -0.01, 0.42 + Math.cos(a) * 0.62], [0, 1, 0], 0.011, 0.04, 4, Tt);
-    }
-    // the tongue: a broad pad lying on the floor of the mouth
-    ob.blob([0, 0.01, 0.45], [0.3, 0.04, 0.32], 9, 5, M, {});
+    for (let i = 0; i < 48; i++) { const t = i / 47, a = (t - 0.5) * Math.PI; ob.cone([Math.sin(a) * 0.62, -0.01, 0.42 + Math.cos(a) * 0.62], [0, 1, -0.1], 0.01, 0.036, 4, Tt); }
+    const lip: V3[] = [];
+    for (let i = 0; i <= 16; i++) { const a = (i / 16 - 0.5) * Math.PI; lip.push([Math.sin(a) * 0.68, 0.0, 0.42 + Math.cos(a) * 0.68]); }
+    ob.tube(lip, lip.map(() => [0.035, 0.03] as [number, number]), 6, F, { start: 'pole', end: 'pole' });
+    ob.blob([0, 0.01, 0.45], [0.3, 0.045, 0.32], 9, 5, M, {});
   });
-  // the throat pouch, which swells as it gulps
-  bpart(rig, 'throat', trunk, [0, -0.12, 0.78], PG, 'gthroat', (ob) => { ob.blob([0, 0, 0], [0.42, 0.14, 0.32], 10, 6, F, {}); });
-  // stubby splayed legs with fat toes
+  // the labial lobes: fleshy flaps at the corners of the mouth; they close in to make the mouth a tube when it sucks
+  for (const sx of [-1, 1]) bpart(rig, sx > 0 ? 'lobeL' : 'lobeR', rig.parts.head, [sx * 0.68, -0.04, 0.24], PG, 'globe', (ob) => {
+    ob.blob([0, 0, 0.08], [0.07, 0.09, 0.2], 9, 6, F, {});
+    ob.blob([0, -0.02, 0.2], [0.05, 0.06, 0.1], 7, 5, M, {});
+  });
+  // the throat pouch: it drops and swells as it sucks, and pumps as it swallows
+  bpart(rig, 'throat', trunk, [0, -0.12, 0.8], PG, 'gthroat', (ob) => { ob.blob([0, 0, 0.06], [0.44, 0.15, 0.36], 12, 7, F, {}); });
+  // stubby limbs, four fat toes webbed with skin
   for (const [n, sx, z] of G_LEGS) {
     const up = bpart(rig, 'leg' + n + 'u', trunk, [sx * 0.46, -0.08, z], PG, 'glegu', (ob) => {
-      ob.tube([[0, 0, 0], [0.18, -0.06, 0.02], [0.32, -0.1, 0.02]], [0.11, 0.09, 0.08], 8, S, { start: 'pole', end: 'pole' });
+      ob.tube([[0, 0, 0], [0.18, -0.06, 0.02], [0.32, -0.1, 0.02]], [0.12, 0.1, 0.085], 9, S, { start: 'pole', end: 'pole', bump: (i, th) => 0.06 * Math.sin(th * 5 + i) });
+      // a skin flap trailing behind the limb
+      ob.strip([[0.05, -0.02, -0.06], [0.28, -0.08, -0.06]], [[0.04, -0.1, -0.16], [0.26, -0.14, -0.12]], F, { double: true });
     });
     if (sx < 0) up.scale.x = -1;
     bpart(rig, 'leg' + n + 'd', up, [0.32, -0.1, 0.02], PG, 'glegd', (ob) => {
-      ob.tube([[0, 0, 0], [0.04, -0.14, 0.02], [0.06, -0.24, 0.03]], [0.08, 0.07, 0.06], 7, S, { start: 'pole' });
-      for (let k = 0; k < 4; k++) { const a = -0.6 + k * 0.4; ob.tube([[0.06, -0.24, 0.03], [0.06 + Math.sin(a) * 0.12, -0.27, 0.03 + Math.cos(a) * 0.12]], [0.03, 0.02], 5, F, { end: 'pole' }); }
+      ob.tube([[0, 0, 0], [0.04, -0.14, 0.02], [0.06, -0.24, 0.03]], [0.085, 0.075, 0.065], 8, S, { start: 'pole' });
+      const tips: V3[] = [];
+      for (let k = 0; k < 4; k++) {
+        const a = -0.55 + k * 0.37, tip: V3 = [0.06 + Math.sin(a) * 0.14, -0.27, 0.03 + Math.cos(a) * 0.14];
+        tips.push(tip);
+        ob.tube([[0.06, -0.24, 0.03], [(0.06 + tip[0]) / 2, -0.265, (0.03 + tip[2]) / 2], tip], [0.035, 0.026, 0.02], 6, S, { end: 'pole', endBulge: 0.01 });
+      }
+      // the webbing between the toes
+      for (let k = 0; k < 3; k++) ob.strip([[0.06, -0.255, 0.03], [0.06, -0.255, 0.03]], [[tips[k][0] * 0.75 + 0.015, -0.265, tips[k][2] * 0.75], [tips[k + 1][0] * 0.75 + 0.015, -0.265, tips[k + 1][2] * 0.75]], F, { double: true });
     });
   }
-  // the long paddle tail: four segments, each a tall thin blade
+  // the long paddle tail: four segments, each a tall thin blade, a fin of skin along the top
   let par: THREE.Object3D = trunk, at: V3 = [0, 0, -0.92];
   for (let i = 0; i < 4; i++) {
     const L = 0.4, h = 0.24 - i * 0.03, w = 0.17 - i * 0.035;
-    par = bpart(rig, 'tail' + i, par, at, PG, 'gtail' + i, (ob) => {
+    par = tpart(rig, 'tail' + i, par, at, PG, 'gtail' + i, wet, (ob) => {
       const zs = [0, -L * 0.5, -L];
-      ob.loft(zs.map((z, j) => ({ pts: bodyRing(z, 0.02, (w - j * 0.015) * 0.55, h - j * 0.015 + 0.04, h * 0.8 - j * 0.01, 13, 2.2), v: 1 - j / 2 })), TL, { end: i === 3 ? 'pole' : null, endBulge: 0.1 });
+      ob.loft(zs.map((z, j) => ({ pts: bodyRing(z, 0.02, (w - j * 0.015) * 0.55, h - j * 0.015 + 0.04, h * 0.8 - j * 0.01, 15, 2.2, (th) => 0.03 * Math.sin(th * 7 + j)), v: 1 - j / 2 })), TL, { end: i === 3 ? 'pole' : null, endBulge: 0.1 });
+      ob.strip([[0, h + 0.05, 0], [0, h + 0.04, -L]], [[0, h + 0.13 - i * 0.015, -0.02], [0, h + 0.11 - i * 0.015, -L]], F, { double: true });
     });
     at = [0, 0, -0.4];
   }
+  // the suction: water and grit rushing into the mouth, and the pull ring in the water ahead of it
+  const suck = new THREE.Group(); suck.name = 'suck'; rig.root.add(suck); rig.parts.suck = suck; suck.visible = false;
+  for (let i = 0; i < SUCK_N; i++) bpart(rig, 'sb' + i, suck, [0, 0, 0], PG, 'gsuckbit', (ob) => { ob.blob([0, 0, 0], [0.035, 0.03, 0.05], 5, 4, PG.reg('GTOOTH'), { emis: 0.4 }); });
+  tpart(rig, 'sring', suck, [0, 0, 0], PG, 'gsring', filmMat(0.45), (ob) => {
+    const path: V3[] = []; for (let i = 0; i <= 24; i++) { const a = (i / 24) * Math.PI * 2; path.push([Math.cos(a), Math.sin(a) * 0.55, 0]); }
+    ob.tube(path, path.map(() => 0.035), 6, PG.reg('TFIN'), { emis: 0.5 });
+  });
   rig.eyes = [];
   return rig;
 }
 
-interface GulpDrive { t: number; dt: number; speed: number; gape: number; sub: number; gulp: number; struggle: number; swim: number; dead: number; flinch: number }
+interface GulpDrive { t: number; dt: number; speed: number; gape: number; sub: number; gulp: number; struggle: number; swim: number; dead: number; flinch: number; suck: number; pump: number; pucker: number }
 function poseGulper(rig: Rig, d: GulpDrive) {
   const P = rig.parts, t = d.t, ud = rig.root.userData as Record<string, any>;
   ud.ph = (ud.ph ?? 0) + d.dt * (1.2 + d.speed * 2.5);
   const ph = ud.ph;
   const swim = d.swim, walk = clamp01(d.speed / 0.6) * (1 - swim);
-  // breathing, the throat flutter that a salamander does with its mouth shut
+  // breathing; the throat pumps (buccal pumping, the way they breathe) and drops wide to suck
   const br = Math.sin(t * 1.4) * 0.03;
   P.trunk.position.y = 0.36 + br * 0.3 - d.dead * 0.2;
   P.trunk.rotation.set(0, Math.sin(ph) * 0.12 * (walk + swim * 0.6), Math.sin(ph * 0.5) * 0.04 * walk + (d.dead ? 2.9 : 0));
-  P.throat.scale.set(1 + d.gulp * 0.5, 1 + Math.max(0, Math.sin(t * 7)) * 0.25 * (1 - d.gape) + d.gulp * 0.9, 1 + d.gulp * 0.3);
-  // the mouth: skull back, jaw down; together almost flat open
-  const g = d.gape;
-  // (lying low in the water the head tips up, just enough to put the nostrils and eyes at the surface)
+  const pumpK = Math.max(0, Math.sin(t * 6)) * 0.12 * (1 - d.gape) + d.pump * Math.max(0, Math.sin(t * 9)) * 0.5;
+  P.throat.scale.set(1 + d.gulp * 0.4 + d.suck * 0.35, 1 + pumpK + d.gulp * 0.7 + d.suck * 1.6, 1 + d.gulp * 0.25 + d.suck * 0.25);
+  P.throat.position.y = -0.12 - d.suck * 0.12;
+  // the mouth: skull back, jaw down. Sucking it opens fast and only part way, lobes closed in to a tube
+  const g = Math.max(d.gape, d.suck * 0.42);
   P.head.rotation.set(-g * 1.25 + d.flinch * 0.1 - clamp01(d.sub) * 0.2 * swim, Math.sin(ph) * -0.08 * walk, 0);
   P.jaw.rotation.set(g * 1.45 + Math.sin(t * 3) * 0.02, 0, 0);
+  const pk = d.pucker;
+  P.lobeL.rotation.set(0, -0.15 + pk * 0.95, 0); P.lobeR.rotation.set(0, 0.15 - pk * 0.95, 0);
+  P.lobeL.scale.set(1, 1 + pk * 0.8, 1 + pk * 0.3); P.lobeR.scale.set(1, 1 + pk * 0.8, 1 + pk * 0.3);
   // the bulge: something whole inside it, kicking
   const bg = d.gulp;
   P.bulge.visible = bg > 0.02;
@@ -265,11 +318,28 @@ function poseGulper(rig: Rig, d: GulpDrive) {
     const off = i === 0 || i === 3 ? 0 : Math.PI;
     const s = Math.sin(ph + off);
     const tuck = swim;
-    P['leg' + n + 'u'].rotation.set(0, (s * 0.5 * walk) * (n.startsWith('F') ? 1 : -1) * sx + tuck * 0.9 * sx * (n.startsWith('F') ? -1 : 1), (-0.35 + Math.max(0, Math.cos(ph + off)) * 0.4 * walk) * 1 + tuck * 0.3 - d.dead * 0.6);
+    P['leg' + n + 'u'].rotation.set(0, (s * 0.5 * walk) * (n.startsWith('F') ? 1 : -1) * sx + tuck * 0.9 * sx * (n.startsWith('F') ? -1 : 1), -0.35 + Math.max(0, Math.cos(ph + off)) * 0.4 * walk + tuck * 0.3 - d.dead * 0.6);
     P['leg' + n + 'd'].rotation.set(0, 0, 0.5 - s * 0.2 * walk);
   });
   // the tail: a wave down it; strong strokes swimming, a drag on land
   for (let i = 0; i < 4; i++) P['tail' + i].rotation.set(0, Math.sin(ph * (swim ? 1.6 : 1) - i * 0.8) * (0.18 + swim * 0.3 + i * 0.05) * (1 - d.dead * 0.8) + (d.dead ? 0.2 : 0), 0);
+  // the suction: grit and water streaming in from a cone ahead of the mouth, the pull ring closing on it
+  const sk = d.suck;
+  P.suck.visible = sk > 0.02;
+  if (P.suck.visible) {
+    const mouthZ = 2.2, mouthY = 0.38;
+    for (let i = 0; i < SUCK_N; i++) {
+      const ph2 = ((t * 2.6 + i / SUCK_N) % 1);
+      const a = i * 2.399, r0 = 1.4 * (1 - ph2);
+      const b = P['sb' + i];
+      b.position.set(Math.cos(a) * r0 * 0.9, mouthY + Math.sin(a) * r0 * 0.4 + 0.05, mouthZ + (1 - ph2) * 2.6);
+      b.scale.setScalar((0.6 + (1 - ph2) * 0.8) * sk);
+      b.rotation.set(0, 0, a);
+    }
+    const ring = P.sring, rk = (t * 2.2) % 1;
+    ring.position.set(0, mouthY + 0.05, mouthZ + 0.4 + (1 - rk) * 1.8);
+    ring.scale.setScalar((0.25 + (1 - rk) * 1.4) * sk);
+  }
 }
 
 type GMd = 'lurk' | 'stalk' | 'burst' | 'gulp' | 'return' | 'haul';
@@ -288,7 +358,7 @@ function thinkGulper(c: Creature, dt: number): boolean {
     c.speed = 0; c.vx = c.vz = 0; c.setState('eat');
     m.gulpHurt = (m.gulpHurt ?? 0) + ev.hurt;
     if (p && !p.body.dead) {
-      if (now > (m.chewT ?? 0)) { m.chewT = now + 1.1; hitPlayer(c, p, rng.float(5, 9), ['bite', 'bruise'], 0, ['torso', 'chest'], 0.01); fx(c, 'chew'); }
+      if (now > (m.chewT ?? 0)) { m.chewT = now + 1.1; hitPlayer(c, p, rng.float(5, 9), ['bite', 'bruise'], 0, ['torso_u', 'torso_l'], 0.01); fx(c, 'chew'); }
     }
     if (!p || p.body.dead || now > m.gulpEnd || m.gulpHurt > 28) {
       // spat out (or done): it lets go and goes back down
@@ -349,7 +419,7 @@ function thinkGulper(c: Creature, dt: number): boolean {
       const p = G.players.get(m.prey);
       if (p && !p.body.dead && dist(p, c) < 1.9) {
         gSet(c, 'gulp'); n.gp = p.id; m.gulpEnd = now + rng.float(4.5, 6.5); m.gulpHurt = 0; fx(c, 'gulp', { pid: p.id });
-        hitPlayer(c, p, rng.float(8, 14), ['bite', 'deep'], 0, ['torso', 'thigh_l', 'thigh_r'], 0.02);
+        hitPlayer(c, p, rng.float(8, 14), ['bite', 'deep'], 0, ['torso_u', 'torso_l', 'thigh_l', 'thigh_r'], 0.02);
       } else { gSet(c, 'return'); m.restT = now + 4; fx(c, 'miss'); }
     }
     return true;
@@ -365,7 +435,7 @@ function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
   const z = live() ? G.zones.get(c.zoneKey) as Zone ?? null : null;
   const f = fxPoll(rig, c);
   if (f) {
-    if (f.key === 'burst') { playAt('lifeguard_splash', c, 1, 26, 0.7); playAt('davenport_roar', c, 0.8, 30, 0.45); if (G.local && dist(G.local, c) < 10) G.camera?.shake?.(0.35, 0.5); }
+    if (f.key === 'burst') { playAt('lifeguard_splash', c, 1, 26, 0.7); playAt('arv_gulp', c, 1, 26, 0.5); playAt('davenport_roar', c, 0.6, 30, 0.45); if (G.local && dist(G.local, c) < 10) G.camera?.shake?.(0.35, 0.5); }
     else if (f.key === 'gulp') { playAt('bh_gulp', c, 1, 18, 0.55); playAt('bh_swallow', c, 0.9, 16, 0.6); ud.gulpT = t; }
     else if (f.key === 'chew') playAt(rng.chance(0.5) ? 'bh_squelch' : 'gore_squelch', c, 0.7, 12, 0.6);
     else if (f.key === 'spit') { playAt('arv_spit', c, 1, 20, 0.6); playAt('lifeguard_splash', c, 0.8, 20, 0.9); spitOut(c, f.a?.pid, f.a?.a ?? c.facing); }
@@ -380,13 +450,30 @@ function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
   rig.root.position.y = c.y - (ud.sub ?? 0) * 0.63 + (md === 'burst' ? Math.sin(Math.min(1, (t - (ud.bT ?? t)) / 0.55) * Math.PI) * 0.4 : 0);
   if (md === 'burst' && ud.lastMd !== 'burst') ud.bT = t;
   ud.lastMd = md;
-  // the gape
-  const gT = md === 'burst' ? 1 : c.attackPhase > 0 ? 0.8 : md === 'gulp' ? (t - (ud.gulpT ?? -9) < 0.4 ? 1 : 0) : md === 'stalk' ? 0.08 : 0.02;
+  // the strike is a suction strike: the throat drops, the jaws flash open only part way with the lip lobes
+  // closed in to a tube, and the water ahead (and whatever is in it) rushes into the mouth; then it snaps shut
+  const bt = md === 'burst' ? t - (ud.bT ?? t) : 9;
+  const suckT = md === 'burst' ? (bt < 0.5 ? 1 : 0) : 0;
+  // idle gulps: every few seconds it drops its throat and snaps a mouthful of water
+  if (!c.dead && (md === 'lurk' || md === 'stalk') && t > (ud.igT ?? 0)) { ud.igT = t + rng.float(4.5, 8); ud.igS = t; if (G.local && dist(G.local, c) < 12) playAt('bh_gulp', c, 0.35, 10, 0.9); }
+  const ig = t - (ud.igS ?? -9) < 0.45 ? Math.sin(((t - (ud.igS ?? -9)) / 0.45) * Math.PI) : 0;
+  ud.sk = (ud.sk ?? 0) + (Math.max(suckT, ig * 0.35) - (ud.sk ?? 0)) * damp(suckT ? 30 : 9, dt);
+  ud.pk = (ud.pk ?? 0) + (Math.max(suckT, ig * 0.7) - (ud.pk ?? 0)) * damp(20, dt);
+  // the full, flat-open gape is its threat: struck at, or striking at a unit already in its reach
+  const gT = c.attackPhase > 0 ? 0.85 : md === 'gulp' ? (t - (ud.gulpT ?? -9) < 0.25 ? 0.5 : 0) : md === 'stalk' ? 0.05 : 0.02;
   ud.g = (ud.g ?? 0) + (gT - (ud.g ?? 0)) * damp(gT > (ud.g ?? 0) ? 16 : 6, dt);
   const gl = md === 'gulp' ? 1 : 0;
   ud.gl = (ud.gl ?? 0) + (gl - (ud.gl ?? 0)) * damp(gl ? 4 : 1.2, dt);
   ud.dk = c.dead ? Math.min(1, (ud.dk ?? 0) + dt) : 0;
-  poseGulper(rig, { t, dt, speed: c.speed, gape: ud.g, sub: ud.sub, gulp: ud.gl, struggle: gl, swim: ud.sw, dead: ud.dk, flinch: clamp01(c.hitFlash / 0.15) });
+  const pump = md === 'gulp' && t - (ud.gulpT ?? -9) < 2.5 ? 1 : 0;
+  poseGulper(rig, { t, dt, speed: c.speed, gape: ud.g, sub: ud.sub, gulp: ud.gl, struggle: gl, swim: ud.sw, dead: ud.dk, flinch: clamp01(c.hitFlash / 0.15), suck: ud.sk, pump, pucker: ud.pk });
+  // the pull: a unit in front of the mouth while it sucks is dragged toward it (on their own machine)
+  if (live() && G.local && suckT && !c.dead) {
+    const me = G.local, hx = c.x + Math.cos(c.facing) * 1.9, hz = c.z + Math.sin(c.facing) * 1.9;
+    const dx = hx - me.x, dz = hz - me.z, d = Math.hypot(dx, dz);
+    const ahead = (me.x - c.x) * Math.cos(c.facing) + (me.z - c.z) * Math.sin(c.facing);
+    if (d < 4.2 && d > 0.3 && ahead > 0) { const k = (1 - d / 4.2) * 6 * dt; me.x += (dx / d) * k * 2.2; me.z += (dz / d) * k * 2.2; thinkOnce(me, 'pl_suck', 'It is PULLING me in. The water is going into its mouth and I am going with it.', 20); }
+  }
   // the swallowed unit: held inside it (on their own machine)
   if (live() && G.local) {
     const me = G.local;
@@ -885,14 +972,16 @@ bus.on('enterZone', (z: Zone) => {
 // galleries
 // =====================================================================================
 GULPER.animateGallery = (rig: Rig, t: number) => {
-  const q = galleryPoseParam() || ['lurk', 'walk', 'gape', 'gulp', 'swim'][Math.floor(t / 4) % 5];
-  const fc = (rig.root.userData.fake ||= fakeCreature(GULPER, { id: 'g-gulper', facing: Math.PI / 2, mem: { netMem: {} } })) as Creature;
+  const q = galleryPoseParam() || ['lurk', 'suck', 'walk', 'gape', 'gulp', 'swim'][Math.floor(t / 4) % 6];
   const ud = rig.root.userData as Record<string, any>;
-  const P = rig.parts;
-  ud.g = (ud.g ?? 0) + ((q === 'gape' ? 1 : 0.02) - (ud.g ?? 0)) * damp(q === 'gape' ? 10 : 4, 1 / 60);
-  ud.gl = (ud.gl ?? 0) + ((q === 'gulp' ? 1 : 0) - (ud.gl ?? 0)) * damp(3, 1 / 60);
-  poseGulper(rig, { t, dt: 1 / 60, speed: q === 'walk' ? 0.6 : q === 'swim' ? 1 : 0, gape: ud.g, sub: 0, gulp: ud.gl, struggle: q === 'gulp' ? 1 : 0, swim: q === 'swim' ? 1 : 0, dead: 0, flinch: 0 });
-  void P; void fc;
+  const dt = 1 / 60;
+  // the suction strike loops every 1.6 s: throat drop, mouth flashes open to a tube, water rushes in, snap shut
+  const st = t % 1.6, suckT = q === 'suck' && st < 0.5 ? 1 : 0;
+  ud.sk = (ud.sk ?? 0) + (suckT - (ud.sk ?? 0)) * damp(suckT ? 30 : 9, dt);
+  ud.pk = (ud.pk ?? 0) + (suckT - (ud.pk ?? 0)) * damp(20, dt);
+  ud.g = (ud.g ?? 0) + ((q === 'gape' ? 1 : 0.02) - (ud.g ?? 0)) * damp(q === 'gape' ? 10 : 4, dt);
+  ud.gl = (ud.gl ?? 0) + ((q === 'gulp' ? 1 : 0) - (ud.gl ?? 0)) * damp(3, dt);
+  poseGulper(rig, { t, dt, speed: q === 'walk' ? 0.6 : q === 'swim' ? 1 : 0, gape: ud.g, sub: 0, gulp: ud.gl, struggle: q === 'gulp' ? 1 : 0, swim: q === 'swim' ? 1 : 0, dead: 0, flinch: 0, suck: ud.sk, pump: q === 'gulp' ? 1 : 0, pucker: Math.max(ud.pk, q === 'lurk' ? (Math.sin(t * 1.2) > 0.9 ? 0.6 : 0) : 0) });
 };
 TADPOLE.animateGallery = (rig: Rig, t: number) => {
   const fc = (rig.root.userData.fake ||= fakeCreature(TADPOLE, { id: 'g-tad', facing: 0, mem: { netMem: { age: 400 } } })) as Creature;

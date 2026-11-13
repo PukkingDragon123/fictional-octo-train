@@ -78,7 +78,7 @@ class CheckGauge {
     const down = !!st.held;
     const kx = 4, ky = 4 + (down ? 1 : 0), kw = 20, kh = 18 - (down ? 1 : 0);
     rect(c, kx - 1, 3, kw + 2, 21, 0x07060a);
-    bevel(c, kx, ky, kw, kh, down ? GUN.slice(1, 8) : GUN.slice(4, 11), { chamfer: 2 });
+    bevel(c, kx, ky, kw, kh, down ? GUN.slice(3, 10) : GUN.slice(4, 11), { chamfer: 2 });
     const hot = st.live && (st.kind === 'hold' ? true : st.x >= st.band[0] && st.x <= st.band[1]);
     if (st.key) {
       const tw = st.key.length * 6 - 1;
