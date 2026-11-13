@@ -35,7 +35,8 @@ import { WIDE, TALL, wristArt, wristDial, watchBody, watchArm, type WristLayout 
 import * as THREE from 'three';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera, fpBlend } from '../../fp/fp';
 import { eyeActive } from '../../fp/eye';
-import { makeArm, poseArm, type Arm } from '../../craft/fpKit';
+import { createPreviewRig, type HumanRig } from '../../entities/humanRig';
+import { reachArm } from '../../game/cutPose';
 import { panicLocks, panicFumble, huntedBy } from '../../game/panic';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
@@ -70,7 +71,7 @@ export class BandOS {
   private timers: number[] = [];
   // first person: the 3D body and the arm in the overlay scene, the raise (0 down .. 1 up), the fumble
   private fp = false;
-  private g3: THREE.Group | null = null; private body3: THREE.Group | null = null; private arm: Arm | null = null; private armKind = '';
+  private g3: THREE.Group | null = null; private body3: THREE.Group | null = null; private body: HumanRig | null = null; private armKind = ''; private rigSig = '';
   private raise = 0; private raiseGoal = 0; private fumble = -1; private t = 0; private huntT = 0;
   private powered = false;
   private dof!: HTMLElement;
@@ -120,7 +121,7 @@ export class BandOS {
     this.crt.el.querySelector('.crt-tube')?.classList.remove('lit', 'dot');
     this.powered = false;
     this.raise = 0; this.raiseGoal = 1;
-    this.fp = !!G.pr?.overlayScene && fpClaim('watch', 1.4, { cinematic: 'full', eyePitch: this.L.kind === 'tall' ? 8 : 12 });
+    this.fp = !!G.pr?.overlayScene && fpClaim('watch', 1.4, { cinematic: 'full', eyePitch: 24 });
     this.root.classList.add(this.fp ? 'fp' : 'flat2d');
     if (this.fp) this.build3d();
     document.body.append(this.root);
@@ -215,11 +216,12 @@ export class BandOS {
     } else if (this.open && !this.powered && this.raise >= 0.97) { this.powered = true; this.powerOn(); }
     if (!this.fp) return;
     const cam = fpCamera();
-    cam.position.set(0, 0, 0); cam.rotation.set(0, 0, 0);
+    // the eyes look down at the wrist (the arm can then hold the unit with a bent elbow, as people do)
+    cam.position.set(0, 0, 0); cam.rotation.set(-PITCH, 0, 0); cam.updateMatrixWorld(true);
     const fov = 30, half = Math.tan((fov * Math.PI) / 360), asp = cam.aspect || window.innerWidth / Math.max(1, window.innerHeight);
     if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
     const k = (L.kind === 'wide' ? 0.18 : 0.092) / L.W, Wm = L.W * k, Hm = L.H * k;
-    const fill = L.kind === 'wide' ? 0.74 : 0.82;
+    const fill = L.kind === 'wide' ? 0.66 : 0.72;
     const d = Math.max(Hm / (fill * 2 * half), Wm / (fill * 2 * half * asp));
     // breathing, a little sway; the panic shakes it (and the fumble shakes it hard)
     const panic = Math.min(1, ((G.local?.body as any)?.panic ?? 0) / 100);
@@ -229,18 +231,25 @@ export class BandOS {
     const jx = (Math.sin(t * 31) + Math.sin(t * 47)) * 0.0012 * shake, jy = (Math.sin(t * 37) + Math.sin(t * 53)) * 0.0012 * shake;
     const b3 = this.body3!;
     const tall = L.kind === 'tall';
-    b3.position.set((tall ? -0.012 : 0.03) * d + Math.sin(t * 0.9) * 0.0016 + jx, -d * 0.025 + Math.sin(t * 1.55) * 0.0022 - lo * d * 0.95 + jy, -d - lo * d * 0.25);
+    // (set a little high in the view: the forearm it rides on shows across the bottom)
+    b3.position.set((tall ? -0.012 : 0.02) * d + Math.sin(t * 0.9) * 0.0016 + jx, d * (tall ? 0.07 : 0.085) + Math.sin(t * 1.55) * 0.0022 - lo * d * 0.95 + jy, -d - lo * d * 0.25);
     b3.rotation.set(-0.06 + lo * 1.0 + Math.sin(t * 1.1) * 0.006, (tall ? 0.04 : 0.12) + Math.sin(t * 0.8) * 0.008, (tall ? -0.015 : -0.035) + Math.sin(t * 0.7) * 0.01 + lo * 0.25);
+    // (placed in the eyes' own frame, then turned with their downward look)
+    b3.position.applyQuaternion(cam.quaternion);
+    b3.quaternion.premultiply(cam.quaternion);
     b3.updateMatrixWorld(true);
-    // the forearm under the case, its back to the eyes (palm away)
-    const arm = this.arm!;
-    const A = watchArm(L, k);
-    arm.elbow.copy(b3.localToWorld(A.elbow.clone()));
-    arm.target.copy(b3.localToWorld(A.wrist.clone()));
-    const dir = this.v1.subVectors(arm.target, arm.elbow).normalize();
-    this.q1.setFromUnitVectors(this.up, dir).invert();
-    const tl = this.v2.copy(arm.target).applyQuaternion(this.q1);
-    poseArm(arm, Math.atan2(tl.x, tl.z) * arm.side, dt);
+    // the unit's own left arm (its HumanRig) bent so the wrist sits under the case's right end, the elbow up and
+    // out to the left: a forearm held level across the bottom of the view, the case riding on it
+    const rig = this.body;
+    if (rig) {
+      const A = watchArm(L, k);
+      rig.root.updateMatrixWorld(true);
+      const wrist = b3.localToWorld(this.v1.copy(A.wrist));
+      const elbowAim = b3.localToWorld(this.v2.copy(A.elbow));
+      rig.j.uarmL.getWorldPosition(this.v3);
+      reachArm(rig, 'L', wrist, 1, elbowAim.sub(this.v3).normalize());
+      rig.root.updateMatrixWorld(true);
+    }
     // the face: its four corners on screen, the DOM picture laid onto them
     const vw = window.innerWidth, vh = window.innerHeight;
     const pts = [[-Wm / 2, Hm / 2], [Wm / 2, Hm / 2], [Wm / 2, -Hm / 2], [-Wm / 2, -Hm / 2]].map(([x, y]) => {
@@ -255,22 +264,55 @@ export class BandOS {
     this.root.style.setProperty('--fr', Math.round(Math.hypot(pts[2][0] - pts[0][0], pts[2][1] - pts[0][1]) * 0.62) + 'px');
   }
   private v1 = new THREE.Vector3(); private v2 = new THREE.Vector3(); private v3 = new THREE.Vector3(); private q1 = new THREE.Quaternion(); private up = new THREE.Vector3(0, 1, 0);
-  /** the case's body and the gloved left forearm in the overlay scene (rebuilt when the layout changes) */
+  /** the unit's own body (its HumanRig, dressed as it is, a work glove on): the eyes at the camera, the head
+   *  folded away so it never shows; only the raised left arm comes into view */
+  private ensureRig() {
+    const p = G.local as any;
+    if (!p) return;
+    let out: any = {};
+    try { out = p.computeOutfit?.() ?? {}; } catch { out = {}; }
+    out = { ...out, hands: out.hands ?? { tex: 'c_gloves', color: 0x3a3127 } };
+    const sig = JSON.stringify(p.app) + JSON.stringify(out);
+    if (this.body && sig === this.rigSig) return;
+    this.rigSig = sig;
+    if (!this.body) {
+      try { this.body = createPreviewRig(p.app, out, { outline: false }); } catch (e) { console.warn('band rig', e); this.body = null; return; }
+      const rig = this.body;
+      rig.root.traverse((o) => { o.castShadow = false; o.frustumCulled = false; });
+      // facing away from the camera (the eyes look down -z), the eyes on the camera
+      rig.root.rotation.y = Math.PI;
+      rig.root.updateMatrixWorld(true);
+      const head = rig.j.head.getWorldPosition(new THREE.Vector3());
+      rig.root.position.set(-head.x, -(head.y + 0.075 * rig.s), -head.z + 0.06 * rig.s);
+      rig.j.head.scale.setScalar(0.001);
+      // two webbing straps on the forearm, a steel buckle each, either side of the case
+      const web = new THREE.MeshStandardMaterial({ color: 0x5e5a38, roughness: 0.95 }), steel = new THREE.MeshStandardMaterial({ color: 0xb8c0bc, roughness: 0.3, metalness: 0.85 });
+      const fl = rig.j.handL.position.length() || 0.25;
+      for (const t of [0.45, 0.86]) {
+        const st = new THREE.Mesh(new THREE.BoxGeometry(0.084 * rig.s, 0.016 * rig.s, 0.084 * rig.s), web);
+        st.position.set(0, -t * fl, 0);
+        const bk = new THREE.Mesh(new THREE.BoxGeometry(0.026 * rig.s, 0.024 * rig.s, 0.008 * rig.s), steel);
+        bk.position.set(0, 0, 0.043 * rig.s); st.add(bk);
+        rig.j.farmL.add(st);
+      }
+    } else this.body.setOutfit(out);
+  }
+  /** the case's body and the unit's raised left arm in the overlay scene (rebuilt when the layout changes) */
   private build3d() {
     const L = this.L;
     if (!this.g3) this.g3 = fpGroup('watch');
-    if (this.armKind === L.kind && this.body3 && this.arm) return;
+    if (this.armKind === L.kind && this.body3 && this.body) { this.ensureRig(); return; }
     this.g3.clear();
     const k = (L.kind === 'wide' ? 0.18 : 0.092) / L.W;
     this.body3 = watchBody(L, k);
     this.g3.add(this.body3);
-    const A = watchArm(L, k);
-    const arm = makeArm(-1, A.wrist.distanceTo(A.elbow) / 0.26);
-    arm.want = 'relaxed';
-    // a work glove on the hand (the sleeve covers the forearm)
-    arm.fp.setLook({ skin: 0x3a3127 });
-    this.g3.add(arm.root);
-    this.arm = arm;
+    this.ensureRig();
+    if (this.body) this.g3.add(this.body.root);
+    // a lamp-lit close-up: warm key from over the left shoulder onto the forearm and the case, a cool fill, a rim
+    const hemi = new THREE.HemisphereLight(0xfff0dc, 0x3a3028, 1.1);
+    const key = new THREE.DirectionalLight(0xffe6c4, 2.4); key.position.set(-0.4, 0.6, 0.4); key.target.position.set(0, -0.15, -0.3);
+    const fill = new THREE.DirectionalLight(0x9ab0d0, 0.7); fill.position.set(0.6, 0.1, 0.2); fill.target.position.set(0, -0.15, -0.3);
+    this.g3.add(hemi, key, key.target, fill, fill.target);
     this.armKind = L.kind;
   }
 
@@ -531,6 +573,9 @@ export class BandOS {
     if (m && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); const i = Number(m[1]) - 1; if (APPS[i]) { this.select(i, true); this.launch(APPS[i].key); } }
   }
 }
+
+/** how far the eyes look down at the wrist (rad) */
+const PITCH = 0.42;
 
 /** the CSS transform that lays a w x h element onto a screen quad (top-left, top-right, bottom-right, bottom-left) */
 function quadMatrix(w: number, h: number, q: [number, number][]): string {

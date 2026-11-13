@@ -9,8 +9,8 @@
 //   the right     the brightness knob, the phosphor toggle, a vent
 //   the foot      three push keys (RESUME, SAVE, QUIT) sit in the strip under the tube
 //
-// In first person (./bandos.ts) that face is laid onto the front of watchBody(): the case's 3D body, webbing
-// straps round the forearm, the light; the forearm itself is the close-ups' arm (src/craft/fpKit.ts makeArm).
+// In first person (./bandos.ts) that face is laid onto the front of watchBody(): the case's 3D body and the light;
+// the forearm is the unit's own HumanRig arm, bent to hold it (./bandos.ts), webbing straps on its forearm.
 // The moving parts (the dial, the knob, the toggle, the keys, a lamp that blinks) are separate sprites from the
 // machine kit laid over the face; their places are in the layout.
 // Two layouts: 'wide' (a desktop: the unit across the forearm) and 'tall' (a phone held upright).
@@ -146,8 +146,7 @@ function buildCase(L: WristLayout): THREE.Group {
 
 // ---------------------------------------------------------------- the unit in first person
 /** the unit's body as a 3D object (metres) for the first-person view: the case behind its painted face (the face
- *  itself is the DOM picture laid onto the plane z = 0), a back plate, webbing straps with steel buckles round the
- *  forearm, a light rig. `k` is metres per design pixel. */
+ *  itself is the DOM picture laid onto the plane z = 0), a back plate, a light rig. `k` is metres per design pixel. */
 export function watchBody(L: WristLayout, k: number): THREE.Group {
   const g = new THREE.Group();
   const W = L.W * k, H = L.H * k;
@@ -158,29 +157,15 @@ export function watchBody(L: WristLayout, k: number): THREE.Group {
   const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); g.add(me); return me; };
   box(W * 0.985, H * 0.985, 0.022, olive, 0, 0, -0.0115);
   box(W * 0.9, H * 0.9, 0.012, dark, 0, 0, -0.028);
-  const A = watchArm(L, k);
-  const ax = A.wrist.clone().sub(A.elbow).normalize();
-  const wide = L.kind === 'wide';
-  const R = 0.05 * (A.wrist.distanceTo(A.elbow) / 0.26) + 0.008;
-  for (const t of wide ? [-(W / 2 + 0.006), W / 2 + 0.004] : [-(H / 2 + 0.006), H / 2 + 0.004]) {
-    // a strap round the forearm where it leaves the case, its buckle on the camera side
-    const c = wide ? new THREE.Vector3(t, A.elbow.y + (A.wrist.y - A.elbow.y) * ((t - A.elbow.x) / (A.wrist.x - A.elbow.x)), A.elbow.z + (A.wrist.z - A.elbow.z) * ((t - A.elbow.x) / (A.wrist.x - A.elbow.x)))
-      : new THREE.Vector3(A.elbow.x + (A.wrist.x - A.elbow.x) * ((t - A.elbow.y) / (A.wrist.y - A.elbow.y)), t, A.elbow.z + (A.wrist.z - A.elbow.z) * ((t - A.elbow.y) / (A.wrist.y - A.elbow.y)));
-    const s = box(0.016, R * 2, R * 2, web, c.x, c.y, c.z);
-    s.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), ax);
-    const b = box(0.02, 0.026, 0.006, steel, 0, 0, R + 0.003);
-    s.add(b); g.remove(b);
-  }
+  // (the straps ride on the unit's own forearm: ./bandos.ts)
   g.add(fpLightRig());
   return g;
 }
-/** where the forearm runs under the case (case-local metres): from the elbow (off the picture) to the wrist */
+/** the forearm under the case (case-local metres): the wrist under its right end, and where the elbow should aim
+ *  (out to the left, level with the case's foot): the arm held across the bottom of the view, the case on top */
 export function watchArm(L: WristLayout, k: number): { elbow: THREE.Vector3; wrist: THREE.Vector3 } {
   const W = L.W * k, H = L.H * k;
-  // (behind the case: the forearm's front just clears its back plate)
-  return L.kind === 'wide'
-    ? { elbow: new THREE.Vector3(-W / 2 - 0.07, -H / 2 - 0.06, -0.09), wrist: new THREE.Vector3(W / 2 + 0.025, -H * 0.08, -0.082) }
-    : { elbow: new THREE.Vector3(W * 0.12, -H / 2 - 0.08, -0.09), wrist: new THREE.Vector3(-W * 0.04, H / 2 + 0.02, -0.082) };
+  return { elbow: new THREE.Vector3(-W / 2 - 0.2, -H / 2 - 0.01, 0.02), wrist: new THREE.Vector3(W / 2 + 0.02, -H / 2 + 0.006, -0.05) };
 }
 
 // ---------------------------------------------------------------- the SELECT dial
