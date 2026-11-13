@@ -206,6 +206,8 @@ export class ScanSystem implements GameSystem {
   /** for the action plate over the unit's head while a sweep runs (src/ui/ui.ts) */
   plate(): { name: string; k: number } | null {
     const a = this.active;
+    // the dials are the readout while the lock is up: no second plate over the head
+    if (scanTuner.active) return null;
     return a ? { name: 'Scanning' + (this.known(a.t.kind, a.t.key) ? ' ' + a.t.title : '...'), k: Math.min(1, a.prog) } : null;
   }
 
@@ -263,7 +265,7 @@ export class ScanSystem implements GameSystem {
     const inp = G.input;
     // the lab's requirement quests watch the field from here (src/game/reqQuests.ts)
     try { reqTick(dt); } catch (e) { console.warn('reqQuests', e); }
-    if (!p || p.body?.dead) { this.active = null; this.sweep.drop(); this.sweep.update(dt); return; }
+    if (!p || p.body?.dead) { this.active = null; this.sweep.drop(); this.sweep.update(dt); if (this.busy) { this.busy = false; document.documentElement.classList.remove('lp-busy'); } return; }
     const held = !inp.textFocus && inp.down('scan');
     if (held && !this.active && inp.hit('scan')) {
       // the key is shared with whistle / shout (Q): only something worth a scan takes it, and no hint when nothing does
@@ -331,7 +333,12 @@ export class ScanSystem implements GameSystem {
       this.sweep.aim(this.eye, cur.t, size, tall, ground, cur.prog, lost);
     } else this.sweep.drop();
     this.sweep.update(dt);
+    // round 17: while the unit is busy only its own readout talks (the objective caption and world labels step back, minigames.css)
+    const ca = p.actions.current;
+    const busy = !!this.active || scanTuner.active || !!(ca?.started && (ca.showBar || ca.check?.isOpen));
+    if (busy !== this.busy) { this.busy = busy; document.documentElement.classList.toggle('lp-busy', busy); }
   }
+  private busy = false;
 
   /** the visor emitter: in front of the unit's head (the rig's head bone when it is built) */
   private emitter(p: any, out: THREE.Vector3) {

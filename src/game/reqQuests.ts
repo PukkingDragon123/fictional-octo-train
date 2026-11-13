@@ -47,7 +47,7 @@ export function nodeQuest(key: string): ReqProgress | null {
   return d ? prog(d) : null;
 }
 
-for (const d of DEFS) gateNode(d.node, () => stat(K(d.id)) >= d.goal, () => { const p = prog(d); return `QUEST · ${d.text} · ${p.progress}/${p.goal}`; });
+for (const d of DEFS) gateNode(d.node, () => stat(K(d.id)) >= d.goal, () => { const p = prog(d); return `QUEST ${p.progress}/${p.goal} · ${d.text}`; });
 
 /** count a step (by: the player it is about; only the local unit's deeds count here) */
 export function reqBump(id: string, n = 1) {

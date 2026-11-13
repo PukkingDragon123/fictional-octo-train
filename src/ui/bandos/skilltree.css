@@ -27,7 +27,7 @@
 .st-pips i { width: 8px; height: 8px; box-shadow: inset 0 0 0 2px #3a4034; }
 .st-pips i.on { background: #7affa0; box-shadow: inset 0 0 0 2px #1a4f2a; }
 .st-pips em { font-style: normal; color: #ffcf6a; margin-left: 4px; font-size: 16px; }
-.st-q { display: none; max-width: 150px; padding: 1px 6px; font-size: 14px; line-height: 1.1; text-align: center; color: #1a160a; background: #e2c066; box-shadow: 0 0 0 2px #0a0b08; }
+.st-q { display: none; max-width: 136px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 1px 6px; font-size: 14px; line-height: 1.1; text-align: center; color: #1a160a; background: #e2c066; box-shadow: 0 0 0 2px #0a0b08; }
 .st-q.on { display: block; }
 /* states: locked in shadow behind a hasp, open pulses amber, owned burns green */
 .st-node.s-locked .st-sock canvas { filter: grayscale(1) brightness(.5) contrast(1.4); }

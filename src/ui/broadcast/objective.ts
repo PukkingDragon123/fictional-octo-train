@@ -87,7 +87,7 @@ export class ObjectiveLine {
 
   private blocked() {
     const g = G as unknown as { intro?: { running?: boolean }; pr?: { eyeCamera?: unknown } };
-    return document.body.classList.contains('noclip-cine') || isLoading() || TUT.running || !!g.intro?.running || !G.local || !!G.local.body?.dead || !!G.paused;
+    return document.body.classList.contains('noclip-cine') || document.documentElement.classList.contains('lp-busy') || isLoading() || TUT.running || !!g.intro?.running || !G.local || !!G.local.body?.dead || !!G.paused;
   }
 
   private update(dt: number) {
@@ -98,6 +98,8 @@ export class ObjectiveLine {
       return;
     }
     if (this.showing) {
+      // round 17: the unit is busy (html.lp-busy): the caption is faded out and keeps its time for after
+      if (document.documentElement.classList.contains('lp-busy')) return;
       this.hold -= dt;
       if (this.hold <= 0) { this.el.classList.remove('on'); this.el.classList.add('out'); this.showing = 0; this.hold = 0.7; this.cur = null; this.beacon?.alert(false); }
       return;

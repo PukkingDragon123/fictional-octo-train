@@ -35,3 +35,7 @@
 @keyframes mg-pop { 0% { filter: drop-shadow(0 0 8px rgba(150,255,176,.9)) brightness(1.5); } 100% { filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); } }
 @keyframes mg-shake { 0%, 100% { margin-left: 0; } 25% { margin-left: -3px; } 50% { margin-left: 3px; } 75% { margin-left: -2px; } }
 .mg-tuner:not(.on) .mxd { pointer-events: none; }
+/* round 17: while the unit is busy (a timed action, a scan, a quick-time window: html.lp-busy, src/scan/scan.ts) only its own
+   readout talks: the objective caption steps up and out (it holds until the work is done), the world labels hide */
+html.lp-busy .obj15.on { opacity: 0; transform: translate(-50%, -14px); transition: opacity .25s ease, transform .25s ease; }
+html.lp-busy #wprompt .wp-tag.vis { opacity: 0; }

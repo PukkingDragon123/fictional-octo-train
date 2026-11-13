@@ -127,14 +127,23 @@ export class SkillCheck {
     return !!(inp.down('interact') || inp.down('shove') || inp.mouseDown?.[0] || touchHeld);
   }
 
+  /** the action plate over the head steps aside while the gauge holds its lane (one readout at a time) */
+  private plate(a: TimedAction, on: boolean) {
+    if (on) { if (this.bar === null) { this.bar = a.showBar; a.showBar = false; } }
+    else if (this.bar !== null) { a.showBar = this.bar; this.bar = null; }
+  }
+  private bar: boolean | null = null;
+
   /** one frame inside the action: true while a window is open (the work waits on the hand) */
   step(a: TimedAction, dt: number): boolean {
     if (this.ended || !a.p.isLocal) return false;
     if (this.flashT > 0) this.flashT -= dt;
+    this.plate(a, this.open || this.flashT > 0);
     if (!this.open) {
       if (this.i < this.marks.length && a.progress >= this.o.at[this.i]) {
         if (AUTO) { this.mark('hit'); return false; }
         this.openWindow();
+        this.plate(a, true);
       } else {
         // a press before the next window is the hand getting ready, not a new order (it never cancels the work)
         if (this.i < this.marks.length && !AUTO) this.press(true);
@@ -184,7 +193,8 @@ export class SkillCheck {
     const s = G.pr.worldToScreen(V.set(p.x, p.y + 2.3, p.z));
     const touch = !!(G.systems.find((q: any) => q.name === 'touch') as any)?.active;
     const kn = (G.input?.keyName?.('interact') || 'E').toUpperCase().slice(0, 3);
-    checkGauge.show(s.x, s.y - 42, {
+    // the action plate's own lane (it is hidden meanwhile): the gauge's foot where the plate's foot was
+    checkGauge.show(s.x, s.y - 6, {
       kind: this.o.kind ?? 'tap', x: this.x, band: this.band, core: this.core, marks: this.marks, cur: this.i,
       key: touch ? '' : kn, flash: this.flashT > 0 ? this.flash : '', t: G.time, glyph: this.o.glyph, held: live && this.o.kind === 'hold' && this.holding(), live,
     });
@@ -195,6 +205,7 @@ export class SkillCheck {
     if (this.ended) return;
     this.ended = true; this.open = false;
     if (owner === this) { owner = null; listen(false); }
+    if (a) this.plate(a, false);
     checkGauge.hide();
     if (a?.p?.isLocal && this.i > 0) bus.emit('skillCheck', { name: a.name, hits: this.hits, misses: this.misses, perfects: this.perfects, of: this.of });
   }
