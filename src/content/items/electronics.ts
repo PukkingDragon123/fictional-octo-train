@@ -2,6 +2,7 @@
 // `uses` (100 = full) and drain while on; `radio` describes receivers and
 // two-way sets (channels, range in tiles).
 import { defItem } from '../../items/item';
+import { drawRadioFace } from './radioFace';
 import { tex, decal, T, K, rp, dk, lt, txt, txtC, stamp, dashes, band, slab, rodX, rodZ, prism, ph, MB, PixelCanvas } from './_kit';
 
 // ---------------------------------------------------------------- textures
@@ -9,12 +10,8 @@ const grille = (pc: PixelCanvas, x: number, y: number, w: number, h: number, c: 
   pc.rect(x, y, w, h, bg);
   for (let j = 0; j < h; j += 2) for (let i = (j >> 1) & 1; i < w; i += 2) pc.set(x + i, y + j, c);
 };
-const D_RADIO = decal('i_radio_front', 20, 12, (pc) => {
-  pc.fill(0x3a3a40); pc.strokeRect(0, 0, 20, 12, 0x2a2a2e);
-  grille(pc, 1, 2, 8, 8, 0x5a5a62, 0x1c1c20);
-  pc.rect(11, 2, 8, 3, 0xc8b878); for (let x = 12; x < 19; x += 2) pc.set(x, 4, 0x3a3a2a); pc.set(15, 3, 0xc8302a);
-  pc.circle(13, 8, 1.6, 0xc8ccd0); pc.circle(17, 8, 1.6, 0xc8ccd0);
-});
+// the field radio's front (./radioFace.ts: the same design as the band's radio icon and the camp set)
+const D_RADIO = decal('i_radio_front2', 34, 20, (pc) => drawRadioFace(pc, 34, 20));
 const D_WALKIE = decal('i_walkie_front', 8, 16, (pc) => {
   pc.fill(0xe8b81a); pc.rect(0, 0, 8, 16, 0x2a2a2e); pc.rect(0, 0, 8, 5, 0xe8b81a);
   pc.rect(1, 1, 6, 3, 0x8aa88a); txt(pc, '3', 3, 0, 0x1c2a1c);
@@ -78,11 +75,35 @@ defItem({
   radio: { channels: 12, range: 400 }, tags: ['radio', 'electronics'],
   desc: 'AM/FM receiver. Mostly static down here — and, on some frequencies, voices reading numbers.',
   model: (mb) => {
-    mb.box(0, 0, 0, 0.2, 0.12, 0.07, T.plastic, { color: 0x3a3a40 });
-    mb.panel(-0.1, 0.0351, 0.1, 0.0351, 0.005, 0.115, D_RADIO, { fit: true });
-    mb.box(0, 0.12, 0, 0.12, 0.012, 0.02, T.plastic, { color: 0x2a2a2e });
-    for (const s of [-1, 1]) mb.box(s * 0.055, 0.12, 0, 0.012, 0.03, 0.02, T.plastic, { color: 0x2a2a2e });
-    mb.push().translate(0.085, 0.12, -0.02).rotateZ(-0.5); mb.cylinder(0, 0, 0, 0.003, 0.22, 4, 'chrome'); mb.pop();
+    // an olive field set in a dark trim (rails top and bottom, end caps), the face decal, rubber feet
+    mb.box(0, 0.008, 0, 0.2, 0.11, 0.066, T.plastic, { color: 0x5e6a40 });
+    mb.box(0, 0.118, 0, 0.206, 0.008, 0.072, T.plastic, { color: 0x2e3420 });
+    mb.box(0, 0.004, 0, 0.206, 0.008, 0.072, T.plastic, { color: 0x2e3420 });
+    for (const s of [-1, 1]) mb.box(s * 0.101, 0.006, 0, 0.008, 0.116, 0.072, T.plastic, { color: 0x3b4428 });
+    for (const x of [-0.085, 0.085]) for (const z of [-0.026, 0.026]) mb.box(x, 0, z, 0.016, 0.005, 0.012, T.rubber);
+    mb.panel(-0.098, 0.0336, 0.098, 0.0336, 0.012, 0.116, D_RADIO, { fit: true });
+    // two knurled knobs standing off the face, where the decal paints them
+    for (const x of [0.043, 0.072]) {
+      mb.cylinderZ(x, 0.041, 0.0356, 0.011, 0.004, 10, T.metal, { color: 0x9aa29c });
+      mb.cylinderZ(x, 0.041, 0.042, 0.0088, 0.009, 10, T.rubber, { color: 0x1a1a16 });
+      mb.box(x, 0.0435, 0.0468, 0.002, 0.005, 0.001, T.plastic, { color: 0xf0e4c0 });
+    }
+    // the strap handle on two chrome lugs
+    for (const s of [-1, 1]) {
+      mb.box(s * 0.065, 0.122, 0, 0.014, 0.012, 0.022, 'chrome');
+      mb.box(s * 0.065, 0.134, 0, 0.01, 0.022, 0.014, T.rubber, { color: 0x3a2a1a });
+    }
+    mb.box(0, 0.146, 0, 0.14, 0.01, 0.016, T.rubber, { color: 0x4a3420 });
+    // the telescopic aerial: a mount, three tapering sections with collars, a ball tip
+    mb.cylinder(-0.085, 0.122, -0.022, 0.007, 0.01, 8, T.metal, { color: 0x3a3f38 });
+    mb.push().translate(-0.085, 0.132, -0.022).rotateZ(0.24);
+    mb.cylinder(0, 0, 0, 0.0034, 0.075, 6, 'chrome');
+    mb.cylinder(0, 0.073, 0, 0.0042, 0.004, 6, 'chrome');
+    mb.cylinder(0, 0.075, 0, 0.0026, 0.07, 6, 'chrome');
+    mb.cylinder(0, 0.143, 0, 0.0033, 0.004, 6, 'chrome');
+    mb.cylinder(0, 0.145, 0, 0.0018, 0.065, 6, 'chrome');
+    mb.sphere(0, 0.212, 0, 0.0045, 6, 4, 'chrome');
+    mb.pop();
   },
 });
 defItem({

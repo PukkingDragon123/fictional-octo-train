@@ -20,7 +20,7 @@
 import * as THREE from 'three';
 import { sheet, mxOk, mxMat, SHEAR, type ShotOpts } from './core';
 import { Mold, M, STEEL, CHROME, BRASS, RUBBER, PLASTIC, PAINT, GLASS, PAPER } from '../touch/stage3d';
-import { fcyl, fbox, fdome, fring, frod, plate, clipRect, gem, flathe, ngon } from '../touch/facet';
+import { fcyl, fbox, fdome, fring, frod, plate, clipRect, gem, flathe, ngon, face } from '../touch/facet';
 import { meshOf, bolt, screw, R90 } from './parts';
 import { TONES, labelCanvas, canvasTex, hh, mixC } from './paint';
 import { mxGauge } from './kit';
@@ -773,10 +773,53 @@ function iconModel(kind: IconKind, S: number, yaw = 0): THREE.Group {
       break;
     }
     case 'radio': {
-      m.add(plate(clipRect(18 * u, 12 * u, 1.5 * u), 4 * u, 0.6), M(0, -1.5 * u, -2 * u), 0x56603c, PAINT);
-      for (let y = 0; y < 3; y++) for (let x = 0; x < 4; x++) m.add(fbox(1.2 * u, 1.2 * u, 0.6 * u, 0), M((-6.5 + x * 2.2) * u, (-0.5 - y * 2.4) * u, 2.1 * u), 0x10120c, STEEL);
-      m.add(fcyl(2.4 * u, 2 * u, 8, 2.6 * u, 0.25), M(4.4 * u, -2.4 * u, 2.6 * u, R90), 0x1a1a16, PLASTIC);
-      m.add(frod([-6 * u, 4.5 * u, 0], [-8 * u, 10 * u, 0], 0.6 * u, 4), null, 0xc8ccc4, CHROME);
+      // a vintage field set: a bevelled olive case in dark trim, a perforated speaker grille, a lit tuning
+      // window with its needle, two knurled knobs, a toggle and a lamp, a strap handle, a telescopic aerial
+      const cy = -2.2 * u, Z = 2.4 * u;
+      // the trim (a darker bevelled shell), the case proud of it
+      m.add(plate(clipRect(19.6 * u, 13.4 * u, 2 * u), 4.4 * u, 0.9 * u), M(0, cy, -2.2 * u), (_x, _y, _z, _nx, ny, nz) => (nz > 0.5 ? 0x2e3420 : ny > 0.3 ? 0x48522e : 0x1e2214), PAINT);
+      m.add(plate(clipRect(18 * u, 11.8 * u, 1.4 * u), 1.6 * u, 0.5 * u), M(0, cy, 0.8 * u), (_x, _y, _z, _nx, ny, nz) => (nz > 0.5 ? 0x5e6a40 : ny > 0.3 ? 0x7a865a : 0x3b4428), PAINT);
+      // the grille's raised frame (its perforated plate is a texture, below)
+      m.add(plate(clipRect(8.2 * u, 9.4 * u, 0.8 * u), 0.7 * u, 0.25 * u, [clipRect(7 * u, 8.2 * u, 0.5 * u)]), M(-4.3 * u, cy, Z), 0x3b4428, PAINT);
+      // the tuning window's chrome bezel
+      m.add(plate(clipRect(7.8 * u, 4.2 * u, 0.5 * u), 0.6 * u, 0.2 * u, [clipRect(6.8 * u, 3.2 * u, 0.3 * u)]), M(4.4 * u, cy + 3 * u, Z), 0xc8ccc4, CHROME);
+      // two knurled knobs (ridged skirts, a light pointer)
+      for (const [kx, a] of [[2.4, 0.6], [6.4, -0.9]] as [number, number][]) {
+        m.add(fcyl(1.9 * u, 0.6 * u, 12, 2 * u, 0.2), M(kx * u, cy - 2.4 * u, Z + 0.3 * u, R90), 0x9aa29c, STEEL);
+        m.add(fcyl(1.45 * u, 1.6 * u, 12, 1.6 * u, 0.2), M(kx * u, cy - 2.4 * u, Z + 1.3 * u, R90), 0x1a1a16, PLASTIC);
+        for (let i = 0; i < 10; i++) { const q = (i / 10) * TAU; m.add(fbox(0.35 * u, 0.35 * u, 1.6 * u, 0), M(kx * u + Math.cos(q) * 1.55 * u, cy - 2.4 * u + Math.sin(q) * 1.55 * u, Z + 1.3 * u), 0x3a3a32, PLASTIC); }
+        m.add(fbox(0.4 * u, 1.1 * u, 0.3 * u, 0), M(kx * u - Math.sin(a) * 0.6 * u, cy - 2.4 * u + Math.cos(a) * 0.6 * u, Z + 2.2 * u, 0, 0, a), 0xf0e4c0, PAINT);
+      }
+      // the toggle (a bat on a nut) and the lamp, under the knobs
+      m.add(fcyl(0.8 * u, 0.5 * u, 6, 0.8 * u, 0.2), M(2.4 * u, cy - 5 * u, Z + 0.2 * u, R90), 0xa8b0ac, CHROME);
+      m.add(frod([2.4 * u, cy - 5 * u, Z + 0.4 * u], [2.4 * u, cy - 4 * u, Z + 1.9 * u], 0.32 * u, 5), null, 0xe2e8e4, CHROME);
+      m.add(fcyl(0.95 * u, 0.5 * u, 8, 1 * u, 0.2), M(6.4 * u, cy - 5 * u, Z + 0.2 * u, R90), 0x3a3f38, STEEL);
+      m.add(gem(0.75 * u, 0, 0.05, 3), M(6.4 * u, cy - 5 * u, Z + 0.7 * u), 0xffb02a, GLASS, 1);
+      // screws in the case's corners
+      for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) m.add(fcyl(0.45 * u, 0.4 * u, 6, 0.45 * u, 0.2), M(sx * 8.1 * u, cy + sy * 5 * u, Z + 0.1 * u, R90), 0xb0b8b4, CHROME);
+      // the strap handle on two lugs
+      for (const sx of [-1, 1]) {
+        m.add(fbox(1.4 * u, 1.6 * u, 1.8 * u, 0.3), M(sx * 5.6 * u, cy + 7.2 * u, 0), 0xb0b8b4, CHROME);
+        m.add(fbox(1 * u, 2.4 * u, 1.2 * u, 0.25), M(sx * 5.6 * u, cy + 8.6 * u, 0), 0x3a2a1a, RUBBER);
+      }
+      m.add(fbox(12.2 * u, 1.1 * u, 1.3 * u, 0.3), M(0, cy + 9.8 * u, 0), (_x, y) => (y > cy + 10 * u ? 0x5a4028 : 0x3a2a1a), RUBBER);
+      // the telescopic aerial: a mount, three tapering chrome sections with collars, a ball tip
+      const base: [number, number, number] = [-7.4 * u, cy + 6.7 * u, -0.6 * u];
+      m.add(fcyl(0.9 * u, 1 * u, 8, 1 * u, 0.2), M(base[0], base[1] + 0.3 * u, base[2]), 0x3a3f38, STEEL);
+      const dir = [-0.24, 1, 0], segs = [[0.5, 3.4], [0.38, 3.2], [0.27, 3]];
+      let p0: [number, number, number] = [base[0], base[1] + 0.8 * u, base[2]];
+      for (const [r, L] of segs) {
+        const p1: [number, number, number] = [p0[0] + dir[0] * L * u, p0[1] + dir[1] * L * u, p0[2]];
+        m.add(frod(p0, p1, r * u, 6), null, 0xd8dcd8, CHROME);
+        m.add(fcyl(r * 1.45 * u, 0.4 * u, 6, r * 1.45 * u, 0.2), M(p0[0], p0[1] + 0.2 * u, p0[2], 0, 0, Math.atan2(-dir[0], dir[1])), 0xa8b0ac, CHROME);
+        p0 = p1;
+      }
+      m.add(gem(0.6 * u, 0, 0.05, 2), M(p0[0], p0[1], p0[2]), 0xe8ece8, CHROME);
+      // the textured faces: the perforated grille and the lit tuning scale
+      const fg = new Mold().add(face(clipRect(7 * u, 8.2 * u, 0.5 * u)), M(-4.3 * u, cy, Z + 0.15 * u), 0xffffff, STEEL);
+      meshOf(fg, mxMat({ map: canvasTex(grilleCanvas(Math.max(4, Math.round(7 * u)), Math.max(4, Math.round(8.2 * u)), u)), wear: 0.2, seed: 5 }), g);
+      const fd = new Mold().add(face(clipRect(6.8 * u, 3.2 * u, 0.3 * u)), M(4.4 * u, cy + 3 * u, Z + 0.1 * u), 0xffffff, GLASS, 0.5);
+      meshOf(fd, mxMat({ map: canvasTex(tuneCanvas(Math.max(6, Math.round(6.8 * u)), Math.max(3, Math.round(3.2 * u)))), wear: 0, seed: 6 }), g);
       break;
     }
     case 'key': {
@@ -936,7 +979,7 @@ function iconModel(kind: IconKind, S: number, yaw = 0): THREE.Group {
       m.add(plate(clipRect(16 * u, 13 * u, 0.5 * u), 0.6 * u, 0), M(0.8 * u, 1.4 * u, -1.6 * u, 0, 0, 0.06), 0xe8e0c8, PAPER);
       m.add(plate(clipRect(16 * u, 13 * u, 0.5 * u), 0.6 * u, 0), M(1.4 * u, 2 * u, -2.4 * u, 0, 0, 0.12), 0xd8d0b4, PAPER);
       m.add(plate([[-8, -6.5], [8, -6.5], [8, 6.5], [1, 6.5], [0, 7.8], [-6, 7.8], [-7, 6.5], [-8, 6.5]].map(([x, y]) => new THREE.Vector2(x * u, y * u)), 1 * u, 0.3), M(0, 0, 0), 0xc8a86a, PAPER);
-      m.add(fbox(16.2 * u, 2.6 * u, 0.4 * u, 0), M(0, -1 * u, 1.1 * u, 0, 0, -0.12), 0xb3261c, PAINT);
+      m.add(fbox(16.2 * u, 2.6 * u, 0.4 * u, 0), M(0, -1 * u, 1.1 * u), 0xb3261c, PAINT);
       m.add(fbox(1.2 * u, 5 * u, 0.6 * u, 0.2), M(5.5 * u, 5.8 * u, 1.3 * u), 0xc8ccc4, CHROME);
       m.add(fcyl(1.1 * u, 0.6 * u, 8, 1.1 * u, 0.2), M(0, -5 * u, 1.4 * u, R90), 0x8a6a3a, PAINT);
       break;
@@ -950,10 +993,35 @@ function iconModel(kind: IconKind, S: number, yaw = 0): THREE.Group {
   }
   if (!m.empty) {
     const mat = mxMat({ wear: 0.4, seed: 7 });
-    if (kind === 'lamp' || kind === 'bolt' || kind === 'siren' || kind === 'walkie') mat.uniforms.uGlow.value.set(1, 0.8, 0.4);
+    if (kind === 'lamp' || kind === 'bolt' || kind === 'siren' || kind === 'walkie' || kind === 'radio') mat.uniforms.uGlow.value.set(1, 0.8, 0.4);
     meshOf(m, mat, g);
   }
   return root;
+}
+/** the radio's perforated speaker plate at its own pixel size: holes in staggered rows, a lit edge under each */
+function grilleCanvas(w: number, h: number, u: number): HTMLCanvasElement {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const c = cv.getContext('2d')!;
+  c.fillStyle = '#4a5236'; c.fillRect(0, 0, w, h);
+  const st = u >= 2.4 ? 3 : 2, hs = st - 1;
+  for (let y = 1, r = 0; y < h - 1; y += st, r++) for (let x = 1 + (r & 1 ? Math.floor(st / 2) : 0); x < w - 1; x += st) {
+    c.fillStyle = '#0a0c07'; c.fillRect(x, y, hs, hs);
+    c.fillStyle = '#6a7450'; c.fillRect(x, y + hs, hs, 1);
+  }
+  c.fillStyle = 'rgba(0,0,0,0.35)'; c.fillRect(0, 0, w, 1); c.fillRect(0, 0, 1, h);
+  return cv;
+}
+/** the tuning window: a warm lit scale, ticks, a red needle */
+function tuneCanvas(w: number, h: number): HTMLCanvasElement {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+  const c = cv.getContext('2d')!;
+  const gr = c.createLinearGradient(0, 0, w, 0); gr.addColorStop(0, '#b88a3a'); gr.addColorStop(0.5, '#f4e0a0'); gr.addColorStop(1, '#b88a3a');
+  c.fillStyle = gr; c.fillRect(0, 0, w, h);
+  c.fillStyle = '#3a2a14';
+  for (let x = 1; x < w - 1; x += 2) c.fillRect(x, h - (x % 4 === 1 ? 3 : 2), 1, x % 4 === 1 ? 2 : 1);
+  if (h >= 6) c.fillRect(1, Math.floor(h * 0.3), w - 2, 1);
+  c.fillStyle = '#d8301e'; c.fillRect(Math.round(w * 0.62), 0, Math.max(1, Math.round(w / 24)), h);
+  return cv;
 }
 const ICON_F = 10;
 const iconFree = (kind: IconKind) => kind === 'eye' || kind === 'jar' || kind === 'siren' || kind === 'phone' || kind === 'phoneOff' || kind === 'ledger';

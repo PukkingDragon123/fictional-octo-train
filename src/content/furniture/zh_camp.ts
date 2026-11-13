@@ -10,6 +10,7 @@ import { addTextureModule } from '../../gfx/textures/index';
 import type { ModelBuilder } from '../../gfx/modelBuilder';
 import { makeRamp, ph } from '../../gfx/pixel';
 import { rod } from './b_common';
+import { drawRadioFace } from '../items/radioFace';
 
 const T = ['build', 'buildable'];
 const M = 'metal_rusty', ST = 'metal_grey', DK = 'metal_dark', DW = 'wood_dark', LW = 'wood_light', PL = 'q_rough_plank', POLE = 'q_pole_wood';
@@ -56,6 +57,8 @@ addTextureModule(() => {
     pc.each((x, y) => pc.set(x, y, ph(x, y, 311) < 0.1 ? 0x8a2a1e : (x + (y >> 2)) % 6 < 3 ? 0xc83a2a : 0xb0321e));
     for (let y = 3; y < 9; y++) for (let x = 5; x < 11; x++) if (Math.abs(x - 7.5) + Math.abs(y - 5.5) < 3.2) pc.set(x, y, 0xf2e8c8);
   });
+  // the set's front: the field radio's face (src/content/items/radioFace.ts), as the item and the band's icon
+  A.add('bt_radio_face', 44, 26, (pc) => drawRadioFace(pc, 44, 26));
   A.add('bt_dial_radio', 16, 8, (pc) => {
     pc.fill(0xe8d8a0); pc.strokeRect(0, 0, 16, 8, 0x5a4a2a);
     for (let x = 2; x < 15; x += 2) pc.vline(x, 1, 3, 0x3a2a1a);
@@ -319,10 +322,27 @@ defObj({
   model: (mb) => {
     mb.box(0, 0, 0, 0.62, 0.5, 0.46, { all: 'q_crate_side', top: 'q_crate_top' });
     mb.box(-0.12, 0.08, 0.235, 0.24, 0.16, 0.01, DK);
-    mb.box(0.06, 0.5, 0, 0.44, 0.28, 0.28, 'q_bakelite', { color: 0x6a3a22 });
-    mb.box(0.06, 0.62, 0.142, 0.22, 0.09, 0.004, 'bt_dial_radio', { fit: true, emissive: 0.5 });
-    for (const x of [-0.08, 0.2]) mb.cylinderZ(x, 0.56, 0.15, 0.025, 0.02, 8, 'q_bakelite', { color: 0xe8d8b0 });
-    mb.box(0.06, 0.52, 0.142, 0.3, 0.035, 0.004, 'q_grille_dark');
+    // the set: an olive field radio in a dark trim (rails, end caps, rubber feet), its face, knurled knobs
+    for (const x of [-0.12, 0.24]) for (const z of [-0.1, 0.1]) mb.box(x, 0.5, z, 0.04, 0.012, 0.03, 'rubber_black');
+    mb.box(0.06, 0.512, 0, 0.44, 0.27, 0.27, 'q_bakelite', { color: 0x5e6a40 });
+    mb.box(0.06, 0.776, 0, 0.452, 0.016, 0.282, 'q_bakelite', { color: 0x2e3420 });
+    mb.box(0.06, 0.506, 0, 0.452, 0.016, 0.282, 'q_bakelite', { color: 0x2e3420 });
+    for (const s of [-1, 1]) mb.box(0.06 + s * 0.222, 0.51, 0, 0.016, 0.28, 0.282, 'q_bakelite', { color: 0x3b4428 });
+    mb.panel(-0.155, 0.1362, 0.275, 0.1362, 0.522, 0.774, 'bt_radio_face', { fit: true, emissive: 0.15 });
+    for (const x of [0.17, 0.225]) {
+      mb.cylinderZ(x, 0.62, 0.14, 0.024, 0.008, 10, 'metal_dark', { color: 0x9aa29c });
+      mb.cylinderZ(x, 0.62, 0.153, 0.019, 0.02, 10, 'rubber_black');
+      mb.box(x, 0.627, 0.164, 0.004, 0.012, 0.002, 'paper');
+    }
+    // the strap handle on two lugs, and a telescopic aerial beside the wire one
+    for (const s of [-1, 1]) { mb.box(0.06 + s * 0.15, 0.784, 0, 0.03, 0.03, 0.05, 'chrome'); mb.box(0.06 + s * 0.15, 0.81, 0, 0.022, 0.05, 0.03, 'rubber_black'); }
+    mb.box(0.06, 0.85, 0, 0.32, 0.022, 0.034, 'rubber_black', { color: 0x5a4028 });
+    mb.cylinder(0.24, 0.784, -0.08, 0.014, 0.02, 8, 'metal_dark');
+    mb.push().translate(0.24, 0.8, -0.08).rotateZ(-0.22);
+    mb.cylinder(0, 0, 0, 0.007, 0.16, 6, 'chrome'); mb.cylinder(0, 0.155, 0, 0.0085, 0.008, 6, 'chrome');
+    mb.cylinder(0, 0.16, 0, 0.0052, 0.15, 6, 'chrome'); mb.cylinder(0, 0.305, 0, 0.0068, 0.008, 6, 'chrome');
+    mb.cylinder(0, 0.31, 0, 0.0036, 0.14, 6, 'chrome'); mb.sphere(0, 0.455, 0, 0.009, 6, 4, 'chrome');
+    mb.pop();
     // the aerial pole and its wire
     mb.box(-0.27, 0.5, -0.18, 0.04, 1.4, 0.04, POLE);
     P(mb, -0.27, 1.9, -0.18, -0.27, 2.3, -0.18, 0.005, 'chrome');

@@ -48,6 +48,22 @@ export function itemIcon(key: string, variant: string = '', size = 18): string {
   return url;
 }
 
+/**
+ * Round 17: one frame of an item turning on the spot (the press screen's assay view). The same pixel
+ * pass as an icon, framed on the model's bounding sphere so it holds still while it turns; '' when
+ * there is no model or no renderer (the caller keeps the plain icon).
+ */
+export function itemIconTurn(key: string, size: number, frame: number, frames = 12): string {
+  const f = ((frame % frames) + frames) % frames;
+  const ck = key + '|turn' + f + '/' + frames + '|' + size;
+  const hit = cache.get(ck);
+  if (hit !== undefined) return hit;
+  let url = '';
+  try { url = renderIcon(key, '', size, (f / frames) * Math.PI * 2); } catch (e) { console.warn('icon', key, e); }
+  cache.set(ck, url);
+  return url;
+}
+
 /** the icon for a specific item, showing its state (blood, burnt, rotten, frozen) */
 export function itemIconFor(it: Item, size = 18): string { return itemIcon(it.key, iconVariant(it), size); }
 export function iconVariant(it: Item): IconVariant {
@@ -121,7 +137,7 @@ function pose(g: THREE.BufferGeometry, obj: boolean): { yaw: number; pitch: numb
   return { yaw: best.yaw, pitch, box: best.box };
 }
 
-function renderIcon(key: string, variant: string, size: number): string {
+function renderIcon(key: string, variant: string, size: number, turn?: number): string {
   const obj = variant === 'obj';
   if (!obj && !hasItemDef(key)) return '';
   const g = obj ? buildObjGeometry(key) : itemGeometry(key);
@@ -135,7 +151,12 @@ function renderIcon(key: string, variant: string, size: number): string {
     rt = new THREE.WebGLRenderTarget(W, W, { minFilter: THREE.NearestFilter, magFilter: THREE.NearestFilter, depthBuffer: true });
     rtSize = W;
   }
-  const { yaw, pitch, box } = pose(g, obj);
+  let { yaw, pitch, box } = pose(g, obj);
+  if (turn !== undefined) {
+    // turning: the frame holds the whole sphere the model sweeps, so no frame jumps in size
+    const R = g.boundingBox!.getSize(new THREE.Vector3()).length() / 2;
+    yaw += turn; box = [-R, R, -R, R];
+  }
   const mesh = new THREE.Mesh(g, worldMaterial({ noVis: true, noFog: true, noGrid: true }));
   const center = new THREE.Vector3(); g.boundingBox!.getCenter(center);
   mesh.position.copy(center).multiplyScalar(-1);
