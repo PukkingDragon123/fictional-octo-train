@@ -31,6 +31,7 @@ import {
 } from './matter';
 import { PATTERNS, PRESS_UPGRADES, type Pattern } from './registry';
 import { slagWords } from './crusher';
+import { PressView } from './press3d';
 import { INSTALLMENT_DOLLARS } from './money';
 import { itemValue } from '../debt/values';
 import './terminal.css';
@@ -97,19 +98,35 @@ export function openPressTerminal(o: TermOpen) {
     onBack: () => close(),
     onTab: (d) => { const i = visible.findIndex(([k]) => k === page); show(visible[(i + d + visible.length) % visible.length][0]); },
   });
-  const off = () => { if (wrap.isConnected && !(page === 'feed' && pay)) render(); };
+  const off = () => { if (wrap.isConnected && !(page === 'feed' && (waiting || pay && !pay.done))) render(); };
   // ---- the FEED page's state: what is in the hopper slots, and the payout the screen is counting
   const queue: Item[] = [];
   let pay: { value: number; t0: number; out: string[]; jack: number; bonus: number; drop: string; done: boolean } | null = null;
   let waiting = false;
+  // the live 3D machine (src/game/economy/press3d.ts); the list below is its fallback without WebGL
+  let view: PressView | null = null;
+  let noGL = false;
   const onDeposit = (e: { hopper?: number; value?: number; out?: string[]; jack?: number; bonus?: number }) => {
     if (!wrap.isConnected || !o.o || e.hopper !== o.o.uid || !waiting) return;
     waiting = false;
     pay = { value: e.value ?? 0, t0: performance.now(), out: e.out ?? [], jack: e.jack ?? 0, bonus: e.bonus ?? 0, drop: '', done: false };
+    if (view) {
+      // the machine pours and rolls its own counter; the strip under it catches up once it has
+      view.payout(pay.value, pay.out, pay.jack);
+      const mine = pay;
+      window.setTimeout(() => { mine.done = true; if (wrap.isConnected && page === 'feed') render(); }, 1700);
+      return;
+    }
     if (page === 'feed') render();
     countUp();
   };
-  const onJack = (e: { hopper?: number; drop?: string }) => { if (pay && o.o && e.hopper === o.o.uid) { pay.drop = e.drop ?? ''; const el = wrap.querySelector('.ptm-count'); el?.classList.add('jack'); const j = wrap.querySelector('.ptm-jack'); if (j) j.innerHTML = jackText(); sfx('stamp', 0.9); } };
+  const onJack = (e: { hopper?: number; drop?: string }) => { if (pay && o.o && e.hopper === o.o.uid) { pay.drop = e.drop ?? ''; if (view) return; const el = wrap.querySelector('.ptm-count'); el?.classList.add('jack'); const j = wrap.querySelector('.ptm-jack'); if (j) j.innerHTML = jackText(); sfx('stamp', 0.9); } };
+  // Space / Enter pulls the lever while the machine is on screen; any key skips the show
+  const onKey = (e: KeyboardEvent) => {
+    if (page !== 'feed' || !view || e.repeat || !['Space', 'Enter'].includes(e.code)) return;
+    if (view.key(e.code)) { e.preventDefault(); e.stopPropagation(); }
+  };
+  window.addEventListener('keydown', onKey, true);
   const unsub = [bus.on('matterChanged', off), bus.on('debtChanged', off), bus.on('deposited', onDeposit), bus.on('pressJackpot', onJack)];
   let tick = 0;
   // the plate reading follows what lands on it
@@ -120,6 +137,8 @@ export function openPressTerminal(o: TermOpen) {
     nav.destroy();
     window.clearInterval(iv);
     for (const u of unsub) u();
+    window.removeEventListener('keydown', onKey, true);
+    view?.destroy(); view = null;
     wrap.classList.add('off');
     setTimeout(() => wrap.remove(), 160);
     if (G?.ui && G.ui.modal === wrap) G.ui.modal = prevModal;
@@ -147,24 +166,77 @@ export function openPressTerminal(o: TermOpen) {
   }
 
   // ---------------------------------------------------------------- FEED (round 17)
-  // The press's own screen for a deposit: the unit's pack on the left, the hopper's ten slots on the
-  // right, each thing's value and what the crusher will give back; CRUSH puts the load on the plate and
-  // throws the lever, then the screen counts the payout up, lists the slag and calls a jackpot.
-  function feed(el: HTMLElement) {
+  // The press's own screen for a deposit, now a live 3D machine (press3d.ts): the unit's pack spins on
+  // turntables, a tap throws a thing into the cut-away hopper, the lever (or CRUSH, or Space) brings the
+  // ram down, the chute pours what the crusher gives back and a flip counter rolls up the payout.
+  // Without WebGL it falls back to the list: pack on the left, ten slots, CRUSH, a counter.
+  type Hoppers = { depositItems?: (p: Player, o: TileObject, items: Item[], press?: boolean) => void; busy?: (o: TileObject) => boolean } | undefined;
+  const hoppers = () => G.debt?.hoppers as Hoppers;
+  const canCrush = () => !!queue.length && !waiting && !hoppers()?.busy?.(o.o!) && (!!G?.debt?.on || hasUnlock('pr_cold'));
+  function crushNow() {
     const pl = o.p ?? G.local;
-    const P = G.debt?.hoppers as { depositItems?: (p: Player, o: TileObject, items: Item[], press?: boolean) => void; busy?: (o: TileObject) => boolean } | undefined;
+    if (!pl || !o.o || !canCrush()) return;
+    waiting = true; pay = null;
+    if (view) view.crush(); else sfx('lever', 0.9);
+    hoppers()?.depositItems?.(pl, o.o, queue.splice(0), true);
+    render();
+  }
+  function feed(el: HTMLElement) {
+    if (!view && !noGL) {
+      view = new PressView({
+        onLoad: (it) => { if (queue.length < SLOTS && !waiting && !queue.includes(it)) { queue.push(it); render(); } },
+        onUnload: (it) => { const i = queue.indexOf(it); if (i >= 0 && !waiting) { queue.splice(i, 1); sfx('back', 0.4); render(); } },
+        onCrush: () => crushNow(),
+        canCrush,
+      });
+      if (!view.ok) { view.destroy(); view = null; noGL = true; }
+    }
+    if (view) feed3d(el, view); else feedList(el);
+  }
+  /** what the unit carries that the press would take, grouped, dearest first */
+  function packRows(pl: Player | null | undefined): Item[][] {
+    if (pl) for (let i = queue.length - 1; i >= 0; i--) if (!pl.containerOf(queue[i])) queue.splice(i, 1);
+    const carried = pl ? pl.allItems().filter((it) => !pl.isWorn(it) && it.key !== 'bailiff_band' && it.key !== 'build_kit' && !queue.includes(it) && (itemValue(it) > 0 || matterKg(itemMatter(it)) > 0.02)) : [];
+    const groups = new Map<string, Item[]>();
+    for (const it of carried) { const k = it.key + ':' + (it.name ?? ''); (groups.get(k) ?? groups.set(k, []).get(k)!).push(it); }
+    return [...groups.values()].sort((a, b) => itemValue(b[0]) - itemValue(a[0]));
+  }
+  // the machine itself, and one strip of words under it: the estimate, or what it paid
+  function feed3d(el: HTMLElement, v: PressView) {
+    const pl = o.p ?? G.local;
+    const rows = packRows(pl);
+    const box = h('div', 'ptm-f3d');
+    box.append(v.el);
+    v.setQueue(queue);
+    v.setPack(rows.map((g) => ({ it: g[0], value: Math.round(itemValue(g[0])), count: g.length })));
+    const val = queue.reduce((a, it) => a + itemValue(it), 0);
+    if (!pay && !waiting) v.estimate(val);
+    const strip = h('div', 'ptm-fstrip');
+    let words: string;
+    if (pay?.done) words = `PAID <b>${fmt(pay.value)}</b> cr${pay.jack === 2 ? ' · <b class="ptm-jk">JACKPOT</b>' : pay.jack ? ` · <b class="ptm-jk">${esc(iname(pay.drop || pay.out[pay.out.length - 1] || ''))}</b>` : ''}${pay.out.length ? `<small> · ${esc(outText(pay.out).replace('OUT OF THE LIP: ', ''))}</small>` : ''}`;
+    else if (waiting || pay) words = '<small>…</small>';
+    else if (queue.length) words = `${queue.length} / ${SLOTS} · ≈ <b>${fmt(val)}</b> cr`;
+    else words = rows.length ? '<small>tap a turntable to load · pull the lever</small>' : '<small>nothing on you the press would take</small>';
+    strip.append(h('span', 'ptm-fwords', words));
+    const crush = h('button', 'ptm-act ptm-crush', '&gt; CRUSH') as HTMLButtonElement;
+    crush.type = 'button';
+    crush.disabled = !canCrush();
+    crush.addEventListener('click', () => crushNow());
+    strip.append(crush);
+    box.append(strip);
+    el.append(box);
+  }
+  function feedList(el: HTMLElement) {
+    const pl = o.p ?? G.local;
+    const P = hoppers();
     const contract = !!G?.debt?.on;
     const share = contract ? MODES.find((q) => q.key === pressMode())!.share : 0;
-    for (let i = queue.length - 1; i >= 0; i--) if (!pl?.containerOf(queue[i])) queue.splice(i, 1);
     const grid = h('div', 'ptm-feed');
     // the pack: everything the press takes, grouped
     const left = h('div', 'ptm-fcol');
     left.append(h('p', 'ptm-sub', 'YOUR PACK · tap to load'));
     const list = h('div', 'ptm-flist');
-    const carried = pl ? pl.allItems().filter((it) => !pl.isWorn(it) && it.key !== 'bailiff_band' && it.key !== 'build_kit' && !queue.includes(it) && (itemValue(it) > 0 || matterKg(itemMatter(it)) > 0.02)) : [];
-    const groups = new Map<string, Item[]>();
-    for (const it of carried) { const k = it.key + ':' + (it.name ?? ''); (groups.get(k) ?? groups.set(k, []).get(k)!).push(it); }
-    const rows = [...groups.values()].sort((a, b) => itemValue(b[0]) - itemValue(a[0]));
+    const rows = packRows(pl);
     if (!rows.length) list.append(h('p', 'dim', 'Nothing on you the press would take.'));
     for (const g of rows.slice(0, 40)) {
       const it = g[0];
@@ -195,13 +267,7 @@ export function openPressTerminal(o: TermOpen) {
     const crush = h('button', 'ptm-act ptm-crush', waiting ? '&gt; THE RAM IS COMING DOWN' : '&gt; CRUSH') as HTMLButtonElement;
     crush.type = 'button';
     crush.disabled = !queue.length || waiting || !!P?.busy?.(o.o!) || (!contract && !hasUnlock('pr_cold'));
-    crush.addEventListener('click', () => {
-      if (!pl || !o.o || !queue.length) return;
-      waiting = true; pay = null;
-      sfx('lever', 0.9);
-      P?.depositItems?.(pl, o.o, queue.splice(0), true);
-      render();
-    });
+    crush.addEventListener('click', () => crushNow());
     right.append(crush);
     // the counter: nixie digits counting the payout up, the slag, the jackpot
     const cnt = h('div', 'ptm-count' + (pay?.jack ? ' jack' : ''));

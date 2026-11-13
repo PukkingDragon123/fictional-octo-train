@@ -146,10 +146,10 @@ html.nc-touch .sub-radio { top: calc(env(safe-area-inset-top, 0px) + 64px); }
   position: relative; display: inline-flex; align-items: center; gap: calc(var(--px) * 4); margin-top: calc(var(--px) * 14); padding: calc(var(--px) * 3) calc(var(--px) * 9) calc(var(--px) * 3) calc(var(--px) * 14); min-height: 0;
   border: 0; border-image: none; color: #2a2418; background: #d8c79c; font-family: var(--font-stamp); font-weight: 700; font-size: calc(var(--px) * 9 + 4px); line-height: 1.1; letter-spacing: 0.08em; text-transform: uppercase; text-shadow: 0 1px 0 rgba(255, 255, 255, 0.3);
   clip-path: polygon(calc(var(--px) * 8) 0, 100% 0, 100% 100%, calc(var(--px) * 8) 100%, 0 50%);
-  transform: rotate(-3deg); box-shadow: inset 0 0 0 1px rgba(60, 40, 20, 0.25); cursor: var(--cur-hand, pointer); transition: transform 0.12s steps(2), background 0.12s steps(2);
+  transform: none; box-shadow: inset 0 0 0 1px rgba(60, 40, 20, 0.25); cursor: var(--cur-hand, pointer); transition: transform 0.12s steps(2), background 0.12s steps(2);
   background-image: radial-gradient(circle at calc(var(--px) * 7) 50%, #1a1610 calc(var(--px) * 2), transparent calc(var(--px) * 2 + 0.5px)), repeating-linear-gradient(97deg, rgba(0, 0, 0, 0.03) 0 3px, transparent 3px 7px);
 }
-.k-btn.k-stamp:hover, .k-btn.k-stamp:focus-visible, .k-center-msg.burn .k-btn:hover, .k-center-msg.burn .k-btn:focus-visible { transform: rotate(0deg) scale(1.06); background-color: #f0dfb0; outline: none; }
+.k-btn.k-stamp:hover, .k-btn.k-stamp:focus-visible, .k-center-msg.burn .k-btn:hover, .k-center-msg.burn .k-btn:focus-visible { transform: scale(1.04); background-color: #f0dfb0; outline: none; }
 .k-center-msg.burn .k-btn:focus-visible { box-shadow: inset 0 0 0 1px rgba(60, 40, 20, 0.25), 0 0 0 2px #f2ecdc; }
 
 /* ---------------------------------------------------------------- timed actions */
@@ -202,7 +202,7 @@ html.nc-touch .sub-radio { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 
 /* what the pointer is over: a scrap of tape with the name written on it */
 #hover-label { padding: calc(var(--px) * 1) calc(var(--px) * 5) calc(var(--px) * 1) calc(var(--px) * 4); background: rgba(226, 214, 168, 0.9); box-shadow: none; color: #1a1712; text-transform: none;
-  font-family: var(--font-hand); font-weight: 600; font-size: calc(var(--px) * 9 + 3px); line-height: 1.05; transform: rotate(-3deg);
+  font-family: var(--font-hand); font-weight: 600; font-size: calc(var(--px) * 9 + 3px); line-height: 1.05; transform: none;
   clip-path: polygon(0 10%, 6% 0, 14% 6%, 26% 0, 40% 5%, 55% 0, 70% 6%, 86% 0, 100% 6%, 97% 50%, 100% 95%, 85% 100%, 68% 94%, 50% 100%, 32% 95%, 15% 100%, 0 94%, 3% 50%); }
 
 /* teammates: the number their band projects over them */

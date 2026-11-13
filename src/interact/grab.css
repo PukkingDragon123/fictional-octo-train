@@ -40,7 +40,7 @@
 .gx-pips i { width: 4px; height: 4px; border-radius: 0; background: radial-gradient(circle at 35% 35%, #e9cf8a, #8a6a2a); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.8); }
 .gx-pips i.on { background: radial-gradient(circle at 35% 35%, #ff8a70, #9a2318); }
 /* why it cannot be done: red, as if stamped */
-.gx-why { display: block !important; font-family: var(--font-type, 'Special Elite', monospace); font-style: normal; text-transform: none; letter-spacing: 0; color: #e0634f; transform: rotate(-2deg); margin-top: 2px; }
+.gx-why { display: block !important; font-family: var(--font-type, 'Special Elite', monospace); font-style: normal; text-transform: none; letter-spacing: 0; color: #e0634f; margin-top: 2px; }
 html.nc-touch #gx-hint { display: none !important; }
 /* the verb picker at the pointer (a list handed to G.ui.openMenu): the same free text */
 .gx-tag { position: fixed; z-index: 120; pointer-events: auto; user-select: none; animation: gx-in 0.14s cubic-bezier(.34, 1.56, .64, 1); }

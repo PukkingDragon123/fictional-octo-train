@@ -420,6 +420,15 @@ export class TreeLattice {
         const rank = v.n.ranks > 1 ? `${rankOf(v.n)}/${v.n.ranks}` : rankOf(v.n) ? 'OWNED' : `${v.n.costs[rankPlanned(v.n)] ?? '-'} RP`;
         const [rx, ry] = this.toPx(v.p.x + v.s / 2 - 0.004, v.p.y + v.s / 2 - 0.004);
         bitText(c, rank, rx, ry, { color: v.vis === 'open' ? '#ffb030' : '#5a7a62', outline: '#020403', align: 'right' });
+        // round 17: a requirement quest still open (src/game/reqQuests.ts): amber cells and the count, top left of the socket
+        const rq = rankOf(v.n) < 1 ? nodeQuest(v.n.rn[0]) : null;
+        if (rq && !rq.done) {
+          const [qx, qy] = this.toPx(v.p.x - v.s / 2 + 0.004, v.p.y + v.s / 2 - 0.004);
+          const cells = Math.min(10, rq.goal), lit = Math.floor((rq.progress / rq.goal) * cells), cw = 5;
+          c.fillStyle = '#020403'; c.fillRect(qx - 1, qy - 1, cells * cw + 1, 7);
+          for (let i = 0; i < cells; i++) { c.fillStyle = i < lit ? '#f2ad32' : '#2a3a2e'; c.fillRect(qx + i * cw, qy, cw - 1, 5); }
+          bitText(c, `${rq.progress}/${rq.goal}`, qx, qy + 8, { color: '#ffb030', outline: '#020403' });
+        }
       }
     }
     // the key strip
@@ -453,7 +462,8 @@ export class TreeLattice {
       const v = this.focused ?? this.sel;
       if (v) {
         const st2 = nodeState(v.n), r = rankPlanned(v.n);
-        msg = `${v.n.title.toUpperCase()} · ${st2 === 'max' ? 'COMPLETE' : st2 === 'open' ? `OPEN ${v.n.costs[r]} RP` : st2 === 'poor' ? `SHORT ${v.n.costs[r]} RP` : 'LOCKED'}`;
+        const rq2 = st2 === 'locked' && rankOf(v.n) < 1 ? nodeQuest(v.n.rn[0]) : null;
+        msg = `${v.n.title.toUpperCase()} · ${st2 === 'max' ? 'COMPLETE' : st2 === 'open' ? `OPEN ${v.n.costs[r]} RP` : st2 === 'poor' ? `SHORT ${v.n.costs[r]} RP` : rq2 && !rq2.done ? `FIELD QUEST ${rq2.progress}/${rq2.goal}` : 'LOCKED'}`;
         col = st2 === 'open' ? '#ffd890' : st2 === 'max' ? '#7aff9a' : st2 === 'poor' ? '#c89a58' : '#7a8a7e';
       } else msg = `R-NET 7 · ${BRANCHES[this.bi].name.toUpperCase()} · ${BRANCHES[this.bi].sub.toUpperCase()}`;
     }
@@ -637,7 +647,9 @@ export class TreeLattice {
     const st = nodeState(v.n);
     if (st !== 'open') {
       v.deny = 1;
-      this.headMsg = { text: st === 'max' ? 'COMPLETE' : st === 'poor' ? 'NOT ENOUGH RP' : 'LOCKED', col: '#ff6a4a', t: 1.4 };
+      // a node still waiting on its field quest answers in amber with the count, not a red refusal
+      const rq = st === 'locked' && rankOf(v.n) < 1 ? nodeQuest(v.n.rn[0]) : null;
+      this.headMsg = rq && !rq.done ? { text: `FIELD QUEST ${rq.progress}/${rq.goal}`, col: '#ffb030', t: 1.4 } : { text: st === 'max' ? 'COMPLETE' : st === 'poor' ? 'NOT ENOUGH RP' : 'LOCKED', col: '#ff6a4a', t: 1.4 };
       setTimeout(() => { sfx('error', 0.6); gameSound('buzzer', 0.35); }, 140);
       this.headDirty = true;
       return;

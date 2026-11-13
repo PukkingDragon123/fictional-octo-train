@@ -52,6 +52,16 @@ function itemMaterial(): THREE.MeshLambertMaterial {
 }
 const M = (color: number, emissive = 0) => new THREE.MeshLambertMaterial({ color, emissive: emissive ? new THREE.Color(color).multiplyScalar(emissive) : 0x000000, flatShading: true });
 const STEEL = 0x8a8e88, DARK = 0x2a2c28, OLIVE = 0x5a6440, YELLOW = 0xd8b030, RUST = 0x7a4a2a, BRASS = 0xb8903a;
+// shared by every turntable (and every opening of the screen): never disposed
+const GEO = {
+  disc: new THREE.CylinderGeometry(0.42, 0.46, 0.08, 8),
+  rim: new THREE.CylinderGeometry(0.47, 0.47, 0.03, 8),
+  dial: new THREE.PlaneGeometry(0.86, 0.35),
+  gold: new THREE.IcosahedronGeometry(0.11, 0),
+  stub: new THREE.BoxGeometry(0.3, 0.2, 0.2),
+};
+const ROW = 1.18;
+const MAT = { steel: M(STEEL), brass: M(BRASS), dark: M(DARK), yellow: M(YELLOW), gold: new THREE.MeshLambertMaterial({ color: 0xffc830, emissive: 0x6a4808, flatShading: true }) };
 
 /** an item model, scaled to fit `size` units and centred on its base */
 function itemMesh(key: string, size: number): THREE.Object3D | null {
@@ -142,6 +152,9 @@ export class PressView {
   private ro: ResizeObserver | null = null;
   private dead = false;
 
+  /** false when this browser gave no WebGL (the terminal falls back to its list) */
+  get ok() { return !!this.r; }
+
   constructor(private o: PressViewOpts) {
     const el = this.el = document.createElement('div');
     el.className = 'p3d';
@@ -168,6 +181,7 @@ export class PressView {
     this.sparkPts = mkPts(240, 0.07, 0xffd070, true);
     this.dustPts = mkPts(160, 0.14, 0x9a9282, false);
     this.gauge = this.press.getObjectByName('gauge') as THREE.Mesh;
+    this.buildJackPlate();
     // input
     this.cv.addEventListener('pointermove', (e) => this.onMove(e));
     this.cv.addEventListener('pointerleave', () => this.ptr.set(-9, -9));
@@ -234,37 +248,76 @@ export class PressView {
     }
   }
 
+  /** a flat plate on the crown that lights for a jackpot (never a stamp) */
+  private jackPlate!: THREE.Mesh;
+  private jackMat!: THREE.MeshBasicMaterial;
+  private buildJackPlate() {
+    const c = document.createElement('canvas'); c.width = 64; c.height = 14;
+    const g = c.getContext('2d')!;
+    g.fillStyle = '#1a1408'; g.fillRect(0, 0, 64, 14); g.fillStyle = '#ffd040'; g.font = 'bold 11px monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('JACKPOT', 32, 8);
+    const tex = new THREE.CanvasTexture(c); tex.magFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
+    this.jackMat = new THREE.MeshBasicMaterial({ map: tex, color: 0x3a3020 });
+    this.jackPlate = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.26), this.jackMat);
+    this.jackPlate.position.set(0, 3.27, 0.5);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.34, 0.08), MAT.dark); back.position.set(0, 3.27, 0.45);
+    this.press.add(back, this.jackPlate);
+  }
+
   // ================================================================ the shelf
-  /** the things the unit can feed it (one turntable per kind) */
+  /** the things the unit can feed it (one turntable per kind; kept across refreshes so they keep spinning) */
   setPack(list: ShelfEntry[]) {
-    const sig = list.map((e) => e.it.uid + ':' + e.count).join(',');
-    if (sig === this.sig) return;
+    const max = this.portrait ? 8 : 12;
+    list = list.slice(0, max);
+    const sig = list.map((e) => e.it.key + ':' + e.count + ':' + e.value).join(',') + (this.portrait ? 'P' : 'L');
+    if (sig === this.sig) { list.forEach((e, i) => { if (this.tables[i]) this.tables[i].it = e.it; }); return; }
     this.sig = sig;
-    for (const t of this.tables) this.shelf.remove(t.g);
+    const old = new Map(this.tables.map((t) => [t.it.key, t]));
     this.tables = [];
-    const cols = this.portrait ? 4 : 4, max = this.portrait ? 8 : 12;
-    list.slice(0, max).forEach((e, i) => {
-      const g = new THREE.Group();
-      const c = i % cols, r = Math.floor(i / cols);
-      const home = new THREE.Vector3(c * 1.0, 0, r * 1.0);
-      g.position.copy(home);
-      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.44, 0.08, 8), M(STEEL)); g.add(disc);
-      const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.03, 8), M(BRASS)); rim.position.y = -0.04; g.add(rim);
-      const model = itemMesh(e.it.key, 0.55);
-      if (model) { model.position.y = 0.34; g.add(model); }
-      // the little value dial (shown on hover)
-      const dc = document.createElement('canvas'); dc.width = 48; dc.height = 20;
-      const dg = dc.getContext('2d')!; dg.fillStyle = '#16140e'; dg.fillRect(0, 0, 48, 20); dg.fillStyle = '#6a5a30'; dg.fillRect(0, 0, 48, 1); dg.fillRect(0, 19, 48, 1);
-      dg.fillStyle = e.value > 0 ? '#ffc850' : '#8a8470'; dg.font = 'bold 14px monospace'; dg.textAlign = 'center'; dg.textBaseline = 'middle';
-      dg.fillText(e.value > 0 ? `${e.value}cr` : '—', 24, 11);
-      if (e.count > 1) { dg.fillStyle = '#c8bca0'; dg.font = '10px monospace'; dg.textAlign = 'left'; dg.fillText('×' + e.count, 2, 6); }
-      const dt = new THREE.CanvasTexture(dc); dt.magFilter = THREE.NearestFilter;
-      const dial = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.29), new THREE.MeshBasicMaterial({ map: dt, transparent: true }));
-      dial.position.set(0, 0.95, 0.1); dial.visible = false; g.add(dial);
-      this.shelf.add(g);
-      this.tables.push({ it: e.it, g, model, spin: Math.random() * 6, lift: 0, hover: false, dial, value: e.value, home });
-    });
+    for (const e of list) {
+      let t = old.get(e.it.key);
+      if (t) { old.delete(e.it.key); t.it = e.it; } else {
+        const g = new THREE.Group();
+        g.add(new THREE.Mesh(GEO.disc, MAT.steel));
+        const rim = new THREE.Mesh(GEO.rim, MAT.brass); rim.position.y = -0.05; g.add(rim);
+        const model = itemMesh(e.it.key, 0.6);
+        if (model) { model.position.y = 0.36; g.add(model); }
+        const dial = new THREE.Mesh(GEO.dial, new THREE.MeshBasicMaterial({ transparent: true, depthTest: false }));
+        dial.renderOrder = 5; dial.position.set(0, -0.2, 0.6); dial.visible = false; g.add(dial);
+        this.shelf.add(g);
+        t = { it: e.it, g, model, spin: Math.random() * 6, lift: 0, hover: false, dial, value: -1, home: new THREE.Vector3() };
+      }
+      if (t.value !== e.value * 1000 + e.count) { t.value = e.value * 1000 + e.count; this.paintDial(t, e.value, e.count); }
+      this.tables.push(t);
+    }
+    for (const t of old.values()) { this.shelf.remove(t.g); ((t.dial.material as THREE.MeshBasicMaterial).map)?.dispose(); }
+    this.tables.forEach((t, i) => { const c = i % 4, r = Math.floor(i / 4); t.home.set(c * 1.05, -r * ROW, 0); t.g.position.copy(t.home); });
+    this.planks();
     this.layout();
+  }
+  /** the dial over a hovered turntable: its value in credits, how many of it */
+  private paintDial(t: Table, value: number, count: number) {
+    const dc = document.createElement('canvas'); dc.width = 64; dc.height = 26;
+    const dg = dc.getContext('2d')!;
+    dg.fillStyle = '#16140e'; dg.fillRect(0, 0, 64, 26); dg.fillStyle = '#8a7238'; dg.fillRect(0, 0, 64, 2); dg.fillRect(0, 24, 64, 2);
+    dg.fillStyle = value > 0 ? '#ffc850' : '#8a8470'; dg.font = 'bold 17px monospace'; dg.textAlign = 'center'; dg.textBaseline = 'middle';
+    dg.fillText(value > 0 ? `${value > 9999 ? Math.round(value / 1000) + 'k' : value}cr` : '—', count > 1 ? 36 : 32, 14);
+    if (count > 1) { dg.fillStyle = '#c8bca0'; dg.font = 'bold 11px monospace'; dg.textAlign = 'left'; dg.fillText('×' + Math.min(99, count), 2, 13); }
+    const tex = new THREE.CanvasTexture(dc); tex.magFilter = THREE.NearestFilter; tex.minFilter = THREE.NearestFilter; tex.colorSpace = THREE.SRGBColorSpace;
+    const m = t.dial.material as THREE.MeshBasicMaterial;
+    m.map?.dispose(); m.map = tex; m.needsUpdate = true;
+  }
+  /** a steel rack plank under each row of turntables */
+  private plankGroup = new THREE.Group();
+  private planks() {
+    this.shelf.remove(this.plankGroup);
+    this.plankGroup = new THREE.Group();
+    const rows = Math.ceil(this.tables.length / 4);
+    for (let r = 0; r < rows; r++) {
+      const n = Math.min(4, this.tables.length - r * 4);
+      const p = new THREE.Mesh(new THREE.BoxGeometry(n * 1.05 + 0.1, 0.1, 1.0), MAT.dark); p.position.set((n - 1) * 0.525, -r * ROW - 0.1, 0); this.plankGroup.add(p);
+      const lip = new THREE.Mesh(new THREE.BoxGeometry(n * 1.05 + 0.1, 0.05, 0.05), MAT.yellow); lip.position.set((n - 1) * 0.525, -r * ROW - 0.1, 0.5); this.plankGroup.add(lip);
+    }
+    this.shelf.add(this.plankGroup);
   }
 
   /** what is in the hopper right now (in from the shelf: flies; out: flies back) */
@@ -272,7 +325,7 @@ export class PressView {
     for (const b of [...this.bodies]) if (!items.includes(b.it) && this.phase === 'idle') { this.press.remove(b.g); this.bodies.splice(this.bodies.indexOf(b), 1); }
     for (const it of items) {
       if (this.bodies.some((b) => b.it === it)) continue;
-      const g = itemMesh(it.key, 0.42) ?? new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.2), M(STEEL));
+      const g = itemMesh(it.key, 0.42) ?? new THREE.Mesh(GEO.stub, MAT.steel);
       const t = this.tables.find((q) => q.it.key === it.key);
       const from = t ? this.press.worldToLocal(t.g.getWorldPosition(new THREE.Vector3())).add(new THREE.Vector3(0, 0.4, 0)) : new THREE.Vector3(0, 3, 0);
       const p = new THREE.Vector3((Math.random() - 0.5) * 0.9, 2.1, (Math.random() - 0.5) * 0.5);
@@ -281,8 +334,7 @@ export class PressView {
       this.bodies.push({ it, g, p, v: new THREE.Vector3(), r: 0.2, spin: new THREE.Vector3((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8), fly: 0, from, flatten: 0 });
       G.audio?.ui?.('cube_place', 0.45);
     }
-    this.gaugeTo(items.length / 10);
-    if (this.phase === 'idle') this.counterTo(0, false);
+    if (this.phase === 'idle') this.gaugeTo(items.length / 10);
   }
   /** the hopper's estimate on the counter while loading (dim amber) */
   estimate(v: number) { if (this.phase === 'idle') { this.target = v; this.shown = v; this.paintDigits(v, '#c89838'); } }
@@ -331,7 +383,7 @@ export class PressView {
 
   private spawnChunk(key: string, settled = false) {
     let g: THREE.Object3D | null;
-    if (key === '#gold') { const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.11, 0), new THREE.MeshLambertMaterial({ color: 0xffc830, emissive: 0x6a4808, flatShading: true })); g = m; }
+    if (key === '#gold') g = new THREE.Mesh(GEO.gold, MAT.gold);
     else g = itemMesh(key, 0.3);
     if (!g) return;
     const p = settled ? new THREE.Vector3(0.3 + (Math.random() - 0.5) * 1.2, 0.25, 1.75 + (Math.random() - 0.5) * 0.5) : new THREE.Vector3(0.55 + (Math.random() - 0.5) * 0.2, 0.75, 0.75);
@@ -364,7 +416,7 @@ export class PressView {
       t.spin += dt * (t.hover ? 3.2 : 0.7);
       t.lift += ((t.hover ? 1 : 0) - t.lift) * Math.min(1, dt * 10);
       if (t.model) { t.model.rotation.y = t.spin; t.model.position.y = 0.34 + t.lift * 0.25 + Math.sin(T * 2 + t.home.x) * 0.02; }
-      t.dial.visible = t.lift > 0.3;
+      t.dial.visible = this.portrait || t.lift > 0.3;
       t.dial.quaternion.copy(this.cam.quaternion);
     }
     // the hopper's load: flying in, then tumbling and stacking
@@ -459,6 +511,7 @@ export class PressView {
     }
     // jackpot: the lamps spin and flare
     this.jackT = Math.max(0, this.jackT - dt);
+    this.jackMat.color.setHex(this.jackT > 0 ? (Math.floor(T * 8) % 2 ? 0xffffff : 0xffd080) : 0x3a3020);
     this.lamps.forEach((l, i) => { l.rotation.y += dt * (this.jackT > 0 ? 14 : 0.6); this.lampLights[i].intensity = this.jackT > 0 ? 6 + Math.sin(T * 20 + i * 3) * 4 : 0; });
     // particles
     this.stepPts(this.sparks, this.sparkPts, dt, 6);
@@ -495,18 +548,28 @@ export class PressView {
     this.layout();
   }
   private layout() {
-    const n = Math.max(1, this.tables.length), rows = Math.ceil(n / 4);
+    const n = Math.max(1, this.tables.length), rows = Math.ceil(n / 4), cols = Math.min(4, n);
+    // content bounds (x0, x1, y0, y1) the camera must hold
+    let x0: number, x1: number, y0: number, y1: number;
     if (this.portrait) {
-      // the shelf above, the machine below
-      this.shelf.position.set(-1.5, 3.9, -0.6 - (rows - 1) * 0.5);
-      this.press.position.set(0, 0, 0);
-      this.camLook.set(0, 2.2, 0.4); this.camBase.set(0, 5.4, 11.5);
+      // the rack above, the machine below
+      const top = 4.0 + (rows - 1) * ROW;
+      this.shelf.position.set(-(cols - 1) * 0.525, top, -0.3);
+      this.press.position.set(-0.1, 0, 0);
+      x0 = -2.05; x1 = 2.05; y0 = -0.2; y1 = top + 1.25;
     } else {
-      // the shelf on the left, the machine on the right
-      this.shelf.position.set(-5.0, 0.6, -0.6 - (rows - 1) * 0.35);
-      this.press.position.set(1.6, 0, 0);
-      this.camLook.set(-0.8, 1.4, 0.3); this.camBase.set(-0.8, 4.4, 9.6);
+      // the rack on the left, the machine on the right
+      const top = 0.9 + (rows - 1) * ROW;
+      this.shelf.position.set(-5.2, top, 0.2);
+      this.press.position.set(1.4, 0, 0);
+      x0 = -5.75; x1 = 3.0; y0 = -0.2; y1 = Math.max(3.6, top + 1.3);
     }
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, hw = (x1 - x0) / 2, hh = (y1 - y0) / 2;
+    const t = Math.tan(THREE.MathUtils.degToRad(this.cam.fov / 2));
+    const d = Math.max(hh / t, hw / (t * this.cam.aspect)) * 1.12 + 1.2;
+    const pitch = THREE.MathUtils.degToRad(this.portrait ? 12 : 16);
+    this.camLook.set(cx, cy, 0.4);
+    this.camBase.set(cx, cy + Math.sin(pitch) * d, 0.4 + Math.cos(pitch) * d);
   }
   private onMove(e: PointerEvent) {
     const r = this.cv.getBoundingClientRect();
@@ -552,8 +615,17 @@ export class PressView {
     this.dead = true;
     cancelAnimationFrame(this.raf);
     this.ro?.disconnect();
-    for (const L of this.lampLights) this.scene.remove(L);
-    this.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.geometry && !(m.material as THREE.Material & { map?: THREE.Texture })?.map?.isDataTexture) { if (!this.isShared(m.geometry)) m.geometry.dispose(); } });
+    // this view's own geometry, canvases and materials; the shared ones (GEO, MAT, the item models) stay
+    const keepG = new Set<THREE.BufferGeometry>(Object.values(GEO)), keepM = new Set<THREE.Material>([...Object.values(MAT), itemMaterial()]);
+    this.scene.traverse((o) => {
+      const m = o as THREE.Mesh;
+      if (m.geometry && !keepG.has(m.geometry) && !this.isShared(m.geometry)) m.geometry.dispose();
+      for (const mat of (Array.isArray(m.material) ? m.material : m.material ? [m.material] : []) as (THREE.Material & { map?: THREE.Texture | null })[]) {
+        if (keepM.has(mat)) continue;
+        if (mat.map && !(mat.map as THREE.DataTexture).isDataTexture) mat.map.dispose();
+        mat.dispose();
+      }
+    });
     try { this.r?.dispose(); this.r?.forceContextLoss(); } catch { /* gone */ }
     this.r = null;
     this.el.remove();

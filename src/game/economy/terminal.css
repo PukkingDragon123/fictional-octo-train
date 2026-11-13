@@ -110,3 +110,12 @@
 .ptm-count.jack .ptm-nix { color: #fff0b0; text-shadow: 0 0 12px #ffc040; }
 @keyframes ptm-jack { 50% { background: rgba(255, 192, 64, 0.22); } }
 @media (max-width: 640px) { .ptm-feed { grid-template-columns: 1fr; } }
+/* the live machine (src/game/economy/press3d.ts): the view fills the page, one strip of words and CRUSH under it */
+.ptm-f3d { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: calc(var(--ks) * 2); }
+.p3d { position: relative; flex: 1 1 auto; min-height: 220px; box-shadow: inset 0 0 0 1px var(--ct-dark); background: #0d0c09; overflow: hidden; }
+.p3d canvas { position: absolute; inset: 0; display: block; image-rendering: pixelated; touch-action: none; }
+.ptm-fstrip { display: flex; align-items: center; justify-content: space-between; gap: 1em; flex: 0 0 auto; }
+.ptm-fwords { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.ptm-fwords small { color: var(--ct-dim); }
+.ptm-fwords .ptm-jk { color: #ffe08a; letter-spacing: 0.12em; }
+.ptm-fstrip .ptm-crush { margin: 0; flex: 0 0 auto; }
