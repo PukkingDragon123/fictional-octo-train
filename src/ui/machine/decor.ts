@@ -848,28 +848,33 @@ function iconModel(kind: IconKind, S: number): THREE.Group {
     }
     case 'phone':
     case 'phoneOff': {
-      // a bakelite desk telephone with a rotary dial; on hold the handset is off its cradle and the line lamp burns red
+      // an olive enamel desk telephone, front on: a cream rotary dial, the black handset on its chrome cradle;
+      // on hold the handset hangs off the hook on its cord and the line lamp burns red
       const off = kind === 'phoneOff';
-      m.add(flathe([[8 * u, 0], [7.6 * u, 3.4 * u], [6 * u, 5.6 * u], [3 * u, 6.4 * u], [0, 6.6 * u]], 8), M(0, -6 * u, 0, 0, PI / 8, 0, 1, 1, 0.8), (_x, y) => (y > -1.2 * u ? 0x8e9a66 : 0x6e7a4c), PAINT);
-      m.add(fcyl(3.2 * u, 0.8 * u, 12, 3.2 * u, 0.2), M(0, -3.4 * u, 4.4 * u, 0.8, 0, 0), 0xd8d0b8, PAINT);
-      m.add(fring(2.4 * u, 0.5 * u, 10, 4), M(0, -3.4 * u, 4.9 * u, 0.8, 0, 0), 0x2a2620, PLASTIC);
-      m.add(fcyl(0.9 * u, 0.6 * u, 8, 0.9 * u, 0.2), M(0, -3.4 * u, 5 * u, 0.8, 0, 0), 0xb3261c, PAINT);
-      // the cradle's two prongs
-      for (const x of [-5, 5]) m.add(fbox(1.4 * u, 2.4 * u, 1.6 * u, 0.2), M(x * u, 0.4 * u, -0.6 * u), 0xb8c0bc, CHROME);
+      const body = [[-8.5, -8], [8.5, -8], [6.4, 1.2], [-6.4, 1.2]].map(([x, y]) => new THREE.Vector2(x * u, y * u));
+      m.add(plate(body, 7 * u, 0.8), M(0, 0, -3.5 * u), (_x, _y, z) => (z > 3 * u ? 0x7c8856 : 0x56603c), PAINT);
+      m.add(fcyl(3.4 * u, 0.8 * u, 12, 3.4 * u, 0.2), M(0, -3.6 * u, 3.8 * u, R90), 0xe8dcb8, PAINT);
+      for (let i = 0; i < 7; i++) { const q = 0.7 + i * 0.62; m.add(fcyl(0.55 * u, 0.6 * u, 6, 0.55 * u, 0), M(Math.cos(q) * 2.3 * u, -3.6 * u + Math.sin(q) * 2.3 * u, 4.3 * u, R90), 0x24221c, PLASTIC); }
+      m.add(fcyl(0.9 * u, 0.6 * u, 8, 0.9 * u, 0.2), M(0, -3.6 * u, 4.4 * u, R90), 0xb3261c, PAINT);
+      for (const x of [-5, 5]) m.add(fbox(1.4 * u, 2.6 * u, 1.4 * u, 0.2), M(x * u, 2.2 * u, 0), 0xb8c0bc, CHROME);
       const hs = new THREE.Group();
-      if (off) { hs.position.set(4.5 * u, -9 * u, 5 * u); hs.rotation.set(0.3, 0.2, -0.5); } else hs.position.set(0, 2 * u, -0.6 * u);
+      if (off) { hs.position.set(9.5 * u, -6 * u, 2 * u); hs.rotation.set(0, 0, -1.25); } else hs.position.set(0, 4.4 * u, 0);
       g.add(hs);
       const h = new Mold();
-      h.add(fbox(12 * u, 2.2 * u, 2.4 * u, 0.3), M(0, 0, 0), 0x2a2822, PLASTIC);
-      h.add(fbox(9 * u, 0.6 * u, 0.4 * u, 0), M(0, 0.9 * u, 1.2 * u), 0x6a6458, PLASTIC);
-      for (const x of [-6.4, 6.4]) h.add(fcyl(2.4 * u, 2.2 * u, 8, 1.8 * u, 0.25), M(x * u, -1.4 * u, 0), 0x1c1a16, PLASTIC);
+      h.add(fbox(10 * u, 2 * u, 2.4 * u, 0.3), M(0, 0.6 * u, 0), 0x2a2822, PLASTIC);
+      for (const x of [-5.6, 5.6]) h.add(fcyl(2.6 * u, 2.6 * u, 8, 2 * u, 0.25), M(x * u, -0.8 * u, 0), 0x22201a, PLASTIC);
       meshOf(h, mxMat({ wear: 0.3, seed: 9 }), hs);
-      // the line lamp: dark until she is on hold
-      const lm = new Mold().add(fdome(1.8 * u, 8, 2, 0.8), M(-5.4 * u, -7 * u, 3.8 * u, 0.6, 0, 0), off ? 0xff5a3a : 0x5a2018, GLASS, off ? 1 : 0);
+      if (off) {
+        // the cord, curled, from the body's side to the handset
+        let px = 7.6 * u, py = -6.5 * u;
+        for (let i = 1; i <= 5; i++) { const nx = 7.6 * u + i * 0.5 * u + (i % 2 ? 1.2 : -0.4) * u, ny = -6.5 * u - i * 1.1 * u; m.add(frod([px, py, 1 * u], [nx, ny, 1 * u], 0.5 * u, 4), null, 0x1c1a16, RUBBER); px = nx; py = ny; }
+      }
+      const lm = new Mold().add(fdome(1.5 * u, 8, 2, 0.8), M(-5.2 * u, -0.6 * u, 3.6 * u, R90), off ? 0xff5a3a : 0x5a2018, GLASS, off ? 1 : 0);
       const lmat = mxMat({ seed: 2 });
       if (off) lmat.uniforms.uGlow.value.set(1, 0.3, 0.15);
       meshOf(lm, lmat, g);
-      g.rotation.x = 0.42;
+      g.position.y += 1.5 * u;
+      g.rotation.x = 0.22;
       break;
     }
     case 'siren': {

@@ -11,6 +11,9 @@ import { HumanRig, SKIN_TONES, type Appearance, type Outfit, type Pose as HPose 
 import { BONES, BONE_PARENT, type BoneName } from '../../entities/humanModel';
 import type { AnimInput } from '../../entities/humanAnim';
 import { worldMaterial } from '../../gfx/materials';
+import { mixHex } from '../../gfx/pixel';
+import { EXPRESSIONS } from '../../entities/gg/face';
+import { PK } from '../../gore/particles';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 import { defDread } from '../dread';
 import { ruleShown } from '../rules';
@@ -43,16 +46,22 @@ import '../../audio/sounds_creatures_c';
 
 type V3 = [number, number, number];
 const ONE: V3 = [1, 1, 1];
-/** too long everywhere; the left leg (the dragged one) longer still */
+/**
+ * About 1.4 times your height, almost all of it the wrong places: legs half as long again (the left, the
+ * dragged one, longer still), a long thin trunk too narrow for the shoulders, a neck more than twice as long,
+ * arms long enough that the hands hang at the knees, and a head a size too small for all of it.
+ */
 const STRETCH: Partial<Record<BoneName, V3>> = {
-  hips: [0.96, 1, 0.94], spine: [0.92, 1.24, 0.9], chest: [0.96, 1.1, 0.92], neck: [0.8, 1.7, 0.8],
-  uarmL: [0.88, 1.36, 0.88], uarmR: [0.88, 1.36, 0.88], farmL: [0.86, 1.46, 0.86], farmR: [0.86, 1.46, 0.86], handL: [0.96, 1.32, 0.96], handR: [0.96, 1.32, 0.96],
-  fing1L: [1, 1.4, 1], fing1R: [1, 1.4, 1], fing2L: [1, 1.5, 1], fing2R: [1, 1.5, 1], thumbL: [1, 1.2, 1], thumbR: [1, 1.2, 1],
-  thighL: [0.9, 1.5, 0.9], shinL: [0.86, 1.5, 0.86], footL: [0.92, 1, 1.25],
-  thighR: [0.92, 1.32, 0.92], shinR: [0.88, 1.34, 0.88], footR: [0.95, 1, 1.15],
+  hips: [0.8, 1, 0.84], spine: [0.74, 1.34, 0.8], chest: [0.78, 1.16, 0.82], neck: [0.7, 2.4, 0.7], head: [0.8, 0.86, 0.82],
+  uarmL: [0.76, 1.52, 0.76], uarmR: [0.76, 1.52, 0.76], farmL: [0.74, 1.66, 0.74], farmR: [0.74, 1.66, 0.74], handL: [0.9, 1.45, 0.9], handR: [0.9, 1.45, 0.9],
+  fing1L: [1, 1.55, 1], fing1R: [1, 1.55, 1], fing2L: [1, 1.65, 1], fing2R: [1, 1.65, 1], thumbL: [1, 1.3, 1], thumbR: [1, 1.3, 1],
+  thighL: [0.8, 1.6, 0.8], shinL: [0.78, 1.6, 0.78], footL: [0.9, 1, 1.25],
+  thighR: [0.82, 1.46, 0.82], shinR: [0.8, 1.46, 0.8], footR: [0.92, 1, 1.15],
 };
+// the thin fixed smile: the mouth too wide and the lips pressed, the eyes held open
+EXPRESSIONS.stalker_smile = { corner: 1.6, mouthW: 1.28, cheek: 0.1, lower: 0, upper: 1.32, brow: 0.55, lines: 0.2 };
 /** the leg it walks on: how much longer than yours (gait speed is scaled down by this so the feet do not slide) */
-const K_LEG = 1.33;
+const K_LEG = 1.46;
 
 /** stand-in look for the gallery and before it has seen anyone: a debtor in the Remittance suit */
 const DEFAULT_APP: Appearance = { skin: SKIN_TONES[1], hair: 0x3b2a1e, hairStyle: 'short', face: 2, build: 'average', height: 1, bodyShape: 0.25, facialHair: 'stubble', age: 0.3 };
@@ -90,7 +99,7 @@ export function buildStalker(): StalkerRig {
   }
   const hr = new HumanRig(DEFAULT_APP, worldMaterial({}));
   // the eyes: too round, too wide open
-  hr.ggOverrides = { eyeW: 1.3, eyeH: 1.6 };
+  hr.ggOverrides = { eyeW: 1.12, eyeH: 1.5, eyeGap: 1.3 };
   hr.setOutfit({ ...HAZMAT, cond: { pale: 2, dirt: 1 } } as Outfit);
   (hr.skin as any).clone = () => new THREE.Group();
   hr.skin.frustumCulled = false;
@@ -119,8 +128,11 @@ export function dressStalker(R: StalkerRig, app: Appearance, outfit: Outfit, key
   const o: Outfit = { ...outfit, cond: { ...(outfit.cond || {}), pale: 2, dirt: Math.max(1, (outfit.cond as any)?.dirt ?? 0), expr: '', bleeding: undefined } as any };
   // it got the suit nearly right: the same yellow, the same number (almost), but no hood and no visor,
   // so the face is bare (it has not worked out what the hood is for)
-  if (o.torso?.tex === 'c_hazmat') { o.torso = { ...o.torso, tex: 'c_jumpsuit', item: 'prison_jumpsuit' }; o.torsoOuter = undefined; }
-  if (o.legs?.tex === 'c_hazmat') o.legs = { ...o.legs, tex: 'c_jumpsuit', item: 'prison_jumpsuit' };
+  // the colour is yours, a shade off: a little greener, a little browner, older
+  const off = (c: number) => mixHex(c, 0x6a6a2a, 0.16);
+  if (o.torso?.tex === 'c_hazmat') { o.torso = { ...o.torso, tex: 'c_jumpsuit', item: 'stalker_suit', color: off(o.torso.color), wear: Math.max(0.35, o.torso.wear ?? 0), blood: o.torso.blood }; o.torsoOuter = undefined; }
+  if (o.legs?.tex === 'c_hazmat') o.legs = { ...o.legs, tex: 'c_jumpsuit', item: 'stalker_suit', color: off(o.legs.color), wear: Math.max(0.35, o.legs.wear ?? 0) };
+  (o.cond as any).dirt = Math.max(2, (o.cond as any).dirt ?? 0);
   o.head = undefined; o.eyes = undefined;
   R.hr.outfit = o;
   R.hr.setAppearance(a);
@@ -148,10 +160,10 @@ function fkOf(R: StalkerRig): FK {
 }
 function stretchOf(R: StalkerRig, seed: number): Record<string, V3> {
   if (R.m.S && R.m.Sseed === seed) return R.m.S;
-  // the head: on some a size too big, on some a size too small, and never quite the right shape
-  const big = hash(seed, 3) < 0.5;
+  // the head: a size too small for the height, and never quite the right shape (narrower or longer on each one)
+  const k = hash(seed, 3);
   const S: Record<string, V3> = { ...STRETCH } as Record<string, V3>;
-  S.head = big ? [1.12, 1.22, 1.08] : [0.84, 0.92, 0.86];
+  S.head = [0.78 + k * 0.05, 0.84 + (1 - k) * 0.06, 0.8];
   R.m.S = S; R.m.Sseed = seed;
   return S;
 }
@@ -203,24 +215,38 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
   const lunge = sm(ud, 'lg', d.md === 'lunge' ? 1 : 0, 5, dt);
   const still = sm(ud, 'still', d.md === 'test' && d.test === 'still' ? 1 : 0, 6, dt);
   const watch = sm(ud, 'wt', d.md === 'watch' || d.md === 'test' ? 1 : 0, 3, dt);
+  // ---- its copy of you is a beat off and overdone: the actions run fast and stutter, the step drifts
+  // in and out of time, the crouch goes in late, overshoots and goes far too low
+  const crouchW = d.stance === 'sneak' ? 1 : 0;
+  ud.crV = (ud.crV ?? 0) + (((crouchW - (ud.crK ?? 0)) * 90 - (ud.crV ?? 0) * 7) * dt) * (t - (ud.stT ?? -9) > 0.22 ? 1 : 0);
+  if (ud.stLast !== d.stance) { ud.stLast = d.stance; ud.stT = t; }
+  ud.crK = (ud.crK ?? 0) + ud.crV * dt;
+  const crouch = Math.max(-0.2, Math.min(1.35, ud.crK)) * alive;
+  const actT = d.actionT * 1.25 + Math.max(0, Math.sin(t * 13)) * 0.06;
+  const beat = 1 + 0.18 * Math.sin(t * 0.9 + d.seed * 7) + 0.12 * Math.sin(t * 2.3);
   // ---- the human animator (it limps on the left; the gait is slowed to the long legs' stride)
   const inp: AnimInput = {
-    speed: d.dead ? 0 : d.speed / K_LEG, stance: d.stance, full: '', action: (d.dead ? '' : d.action) as any, actionT: d.actionT, actionDur: d.actionDur || 1,
+    speed: d.dead ? 0 : d.speed / K_LEG * beat, stance: d.stance, full: '', action: (d.dead ? '' : d.action) as any, actionT: actT, actionDur: d.actionDur || 1,
     twoHanded: false, limp: 0.85, limpSide: 'L', tired: 0.3, panic: lunge * 0.3, cold: 0, aimPitch: 0, holdingLight: false, holding: false,
     lookYaw: 0, fidget: false, exhausted: 0,
   };
   const P = hr.anim.update(dt, inp) as HPose;
   // ---- its own wrongness, over the copied movement
-  // stooped under its own height; the head hangs forward on the long neck, tilted
-  add(P, 'spine', 0.12 + 0.14 * lunge, 0, 0);
-  add(P, 'chest', 0.05 + 0.06 * lunge, 0, 0);
+  // stooped under its own height; folded right over when it crouches (your crouch, done too low)
+  add(P, 'spine', 0.12 + 0.14 * lunge + 0.5 * crouch, 0, 0);
+  add(P, 'chest', 0.05 + 0.06 * lunge + 0.3 * crouch, 0, 0);
+  for (const s of ['L', 'R']) add(P, 'uarm' + s, 0.25 * crouch, 0, 0);
   const tiltSide = hash(d.seed, 7) < 0.5 ? 1 : -1;
   const tilt = sm(ud, 'tilt', (0.22 + 0.2 * watch) * tiltSide + Math.sin(t * 0.37 + d.seed * 9) * 0.06, 2.2, dt);
-  // the hitch of the drag: the body drops onto the long leg and is hauled up again every stride
-  const ph = (ud.ph = (ud.ph ?? 0) + dt * Math.min(6, d.speed * 2.6));
-  const hitch = Math.min(1, d.speed / 1.2) * alive;
-  add(P, 'hips', 0, 0.06 * Math.sin(ph) * hitch, 0.07 * hitch + 0.05 * Math.sin(ph) * hitch);
-  add(P, 'chest', 0, -0.05 * Math.sin(ph) * hitch, -0.06 * hitch);
+  // the hitch of the drag, readable from above: every stride the hip on the bad side is hiked up and the
+  // body swung round to haul the stiff leg after it, and the shoulders drop toward the bad side as it lands
+  const ph = (ud.ph = (ud.ph ?? 0) + dt * Math.min(6.5, d.speed * 3.2));
+  const hitch = Math.min(1, d.speed / 0.9) * alive;
+  const haul = Math.max(0, Math.sin(ph)), land = Math.max(0, -Math.sin(ph));
+  add(P, 'hips', 0, 0.16 * Math.sin(ph) * hitch, (0.1 + 0.14 * haul) * hitch);
+  add(P, 'spine', 0, -0.08 * Math.sin(ph) * hitch, -0.06 * hitch);
+  add(P, 'chest', 0.04 * land * hitch, -0.06 * Math.sin(ph) * hitch, -(0.14 + 0.16 * land) * hitch - 0.06 * alive);
+  ud.hitchUp = haul * hitch;
   // a jerk now and then: the head snaps out of true and creeps back (it is not quite running you right)
   if ((ud.jkN ?? 0) < t) {
     ud.jkN = t + 0.5 + hash(Math.floor(t * 3.1), d.seed) * (watch > 0.5 ? 1.0 : 2.2);
@@ -264,11 +290,13 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
     add(P, 'thighR', -0.3 * k, 0, 0); add(P, 'shinR', 0.6 * k, 0, 0);
     P.gripL = 0.4; P.gripR = 0.4;
   }
+  // the lamp flick: the right hand jerks up to its temple and the head snaps with it
+  { const lt2 = t - (ud.lampT ?? -9); if (lt2 >= 0 && lt2 < 0.6) { const k = Math.sin((lt2 / 0.6) * Math.PI) * alive; add(P, 'uarmR', -2.3 * k, 0, -0.3 * k); add(P, 'farmR', -1.4 * k, 0, 0); add(P, 'head', 0.15 * Math.sin(lt2 * 40) * k, 0, -0.2 * k); } }
   // ---- stretched FK
   const sole = (hr as any).sole ?? 0;
   const ank = hr.dims.rest.footR[1];
   const baseHip = hr.dims.hipY + sole + (P.rootY ?? 0);
-  F.P.hips.set((P.rootX ?? 0) * K_LEG, ank + (baseHip - ank) * K_LEG - 0.04 * lunge, (P.rootZ ?? 0) * K_LEG);
+  F.P.hips.set((P.rootX ?? 0) * K_LEG + 0.05 * (ud.hitchUp ?? 0), ank + (baseHip - ank) * K_LEG - 0.04 * lunge + 0.05 * (ud.hitchUp ?? 0), (P.rootZ ?? 0) * K_LEG);
   place(R, F, S, 'hips', eul(P.hips, _q), false);
   for (const b of ['spine', 'chest', 'neck', 'head', 'uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR', 'thighR', 'shinR', 'footR'] as BoneName[]) place(R, F, S, b, eul((P as any)[b], _q), true);
   // ---- the dragged leg: too long to stand on, knee locked, trailing back on the tops of its toes
@@ -276,18 +304,18 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
   const H = F.P.thighL;
   const off = hr.dims.off;
   const Lt = Math.abs(off.shinL[1]) * (S.thighL ?? ONE)[1], Ls = Math.abs(off.footL[1]) * (S.shinL ?? ONE)[1];
-  const knee = 0.08 + 0.1 * (d.stance === 'sneak' ? 1 : 0);
+  const knee = 0.08 + 0.25 * Math.max(0, crouch);
   // the straight-ish leg reaches the floor at this angle back from plumb
   const reach = Lt + Ls * Math.cos(knee);
   const ankY = 0.07 * hr.s;
   const aBack = Math.acos(clamp((H.y - ankY) / reach, -1, 1));
   const sway = Math.sin(ph) * 0.08 * hitch;
   if (d.dead < 0.5) {
-    _qa.setFromEuler(_e.set(aBack + sway, 0.18, 0.1 + 0.04 * Math.sin(ph * 0.5), 'YXZ'));
+    _qa.setFromEuler(_e.set(aBack + sway, 0.3, 0.2 + 0.05 * Math.sin(ph * 0.5) + 0.08 * (ud.hitchUp ?? 0), 'YXZ'));
     place(R, F, S, 'thighL', _qa, false);
     place(R, F, S, 'shinL', _qb.setFromEuler(_e.set(knee, 0, 0, 'XYZ')), true);
     // the foot turned in and over: it drags on the tops of its toes
-    place(R, F, S, 'footL', _qc.setFromEuler(_e.set(1.15 - 0.25 * Math.sin(ph) * hitch, -0.3, 0.15, 'XYZ')), true);
+    place(R, F, S, 'footL', _qc.setFromEuler(_e.set(1.15 - 0.25 * Math.sin(ph) * hitch, -0.65, 0.25, 'XYZ')), true);
   } else {
     place(R, F, S, 'thighL', eul((P as any).thighL, _q), true);
     place(R, F, S, 'shinL', eul((P as any).shinL, _q), true);
@@ -307,13 +335,14 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
   commit(R, F);
   hr.body.rotation.set(P.bodyPitch ?? 0, P.bodyYaw ?? 0, P.bodyRoll ?? 0);
   hr.body.position.y = (P.bodyY ?? 0) * K_LEG;
-  // ---- the face: it will not hold still. A smile, mostly; then something else for a frame or two
-  const base = d.dead > 0.5 ? 'dead' : lunge > 0.5 ? 'happy' : d.md === 'test' ? 'smile' : watch > 0.5 ? 'neutral' : 'smile';
+  // ---- the face: almost yours. A fixed thin smile that never reaches the eyes, the eyes too round and too
+  // far apart; every few seconds the whole face drops out of it for a frame and snaps back
+  const base = d.dead > 0.5 ? 'dead' : 'stalker_smile';
   if ((ud.exN ?? 0) < t) {
-    const r = hash(Math.floor(t * 13.7), d.seed + 2);
-    const flick = alive > 0.5 && r < (watch > 0.5 ? 0.5 : 0.3);
-    ud.exShow = flick ? ['surprised', 'grin', 'sad', 'neutral', 'fear', 'happy'][Math.floor(hash(t, d.seed) * 6)] : base;
-    ud.exN = t + (flick ? 0.05 + r * 0.12 : 0.25 + hash(t, 9) * 0.9);
+    const flick = alive > 0.5 && !ud.exFlick && hash(Math.floor(t * 7.1), d.seed + 2) < 0.6;
+    ud.exFlick = flick;
+    ud.exShow = flick ? ['surprised', 'neutral', 'sad'][Math.floor(hash(t, d.seed) * 3)] : base;
+    ud.exN = t + (flick ? 0.06 + hash(t, 8) * 0.05 : 2.5 + hash(t, 9) * 4.5);
   }
   const ex = d.dead > 0.5 ? 'dead' : (ud.exShow as string) || base;
   if (ud.ex !== ex) { ud.ex = ex; hr.setExpression(ex); }
@@ -321,9 +350,13 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
   const dart = alive > 0.5 && hash(Math.floor(t * 5.3), d.seed + 4) < 0.18;
   hr.lookEyes(dart ? (hash(t, 5) - 0.5) * 4 : clamp(-d.lyaw * 2.5, -2, 2), dart ? hash(t, 6) * 2 - 0.5 : lp < -0.2 ? 1 : 0);
   hr.faceTick(dt);
-  // ---- your lamp, on its head
-  const on = d.lamp > 0.5 && alive > 0.5;
+  // ---- your lamp, on its head: switched the way you switched it, but badly (it stutters on and off)
+  if (ud.lampLast !== d.lamp) { if (ud.lampLast !== undefined) ud.lampT = t; ud.lampLast = d.lamp; }
+  const lt = t - (ud.lampT ?? -9);
+  const stutter = lt >= 0 && lt < 0.55;
+  const on = alive > 0.5 && (stutter ? hash(Math.floor(lt * 22), d.seed + 6) < 0.5 : d.lamp > 0.5);
   R.lens.visible = on;
+  ud.lampOn = on;
 }
 
 // ------------------------------------------------------------------ in-game animation
@@ -350,10 +383,23 @@ function animateStalker(rig: Rig, c: Creature, t: number, dt: number) {
     lyaw, lpitch, look, dead: ease(ud.dk), flinch: flinchOf(c), strike: c.attackPhase > 0 ? 1 : 0,
   });
   R.hr.fx.value.z = Math.min(1, c.hitFlash / 0.15) * 0.5;
-  // your lamp lights the floor in front of it
-  if (n.li && !c.dead && live() && G.view?.zone?.key === c.zoneKey && c.visibleToLocal) {
-    G.pointLight(c.x + Math.cos(c.facing) * 1.6, c.y + 0.5, c.z + Math.sin(c.facing) * 1.6, 0xe6f2ff, 0.9, 5);
+  // your lamp lights a pool of floor in front of it (not itself: it stays the colour it is)
+  if (ud.lampOn && !c.dead && live() && G.view?.zone?.key === c.zoneKey && c.visibleToLocal) {
+    G.pointLight(c.x + Math.cos(c.facing) * 2.3, c.y + 0.15, c.z + Math.sin(c.facing) * 2.3, 0xe6f2ff, 0.45, 3.6);
   }
+  // the dragged foot scuffs up the carpet dust each time it is hauled forward
+  const up = (ud.hitchUp ?? 0) as number;
+  if (up > 0.6 && !ud.puffed && !c.dead && live() && c.visibleToLocal) {
+    ud.puffed = 1;
+    const dust = (G as any).destruct?.dust;
+    if (dust) {
+      R.hr.bones.footL.getWorldPosition(_v);
+      for (let i = 0; i < 4; i++) {
+        const a = c.facing + Math.PI + (Math.random() - 0.5) * 1.6, sp = 0.25 + Math.random() * 0.4;
+        dust.add(PK.Dust, _v.x + (Math.random() - 0.5) * 0.15, 0.04, _v.z + (Math.random() - 0.5) * 0.15, Math.cos(a) * sp, 0.15 + Math.random() * 0.35, Math.sin(a) * sp, 0.03 + Math.random() * 0.03, 0.7 + Math.random() * 0.6, [0xb8a888, 0x9a8a6e, 0xc8bca0][i % 3]);
+      }
+    }
+  } else if (up < 0.2) ud.puffed = 0;
   // the dragged foot on the carpet, the good one stepping
   if (!c.dead && c.speed > 0.25 && live()) {
     ud.stp = (ud.stp ?? 0) + dt * c.speed;

@@ -61,7 +61,7 @@ export class FacePainter {
       earTopY: Y(P.earTop), earBotY: Y(P.earBot),
     };
     const es = F.eyeShape;
-    L.eyeX = L.hw * 0.385;
+    L.eyeX = L.hw * 0.385 * (F.eyeGap ?? 1);
     L.ew = L.hw * 0.185 * F.eyeW;
     L.eh = s * lerp(2.0, 2.25, f) * F.eyeH * (F.lid === 'mono' ? 0.9 : 1);
     L.tilt = s * F.tilt;

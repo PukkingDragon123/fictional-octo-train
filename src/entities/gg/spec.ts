@@ -82,7 +82,7 @@ export function dressOf(o: Outfit, app: Appearance, seed: number): Dress {
   return D;
 }
 
-export interface SpecOverrides { bust?: number; makeup?: FaceSpec['makeup']; lipstick?: number; glasses?: FaceSpec['glasses']; hairStyle?: string; hairVolume?: number; badge?: { col: number[]; name: string }; blush?: number; eyeH?: number; eyeW?: number; /** 0..1 balloon the cranium out (applied to the built mesh by HumanRig; Timmy) */ inflate?: number }
+export interface SpecOverrides { bust?: number; makeup?: FaceSpec['makeup']; lipstick?: number; glasses?: FaceSpec['glasses']; hairStyle?: string; hairVolume?: number; badge?: { col: number[]; name: string }; blush?: number; eyeH?: number; eyeW?: number; /** eyes set further apart (the Stalker's copy of a face) */ eyeGap?: number; /** 0..1 balloon the cranium out (applied to the built mesh by HumanRig; Timmy) */ inflate?: number }
 
 /** the full spec for a rig */
 export function specOf(app: Appearance, o: Outfit, d: Dims, seed: number, cond: RigCondition, ov: SpecOverrides = {}): GGSpec {
@@ -97,7 +97,7 @@ export function specOf(app: Appearance, o: Outfit, d: Dims, seed: number, cond: 
   const gl = dress.eyes ? { kind: (dress.eyes.kind === 'goggles' ? 'goggles' : dress.eyes.kind === 'sun' ? 'sun' : h2(seed, 5, 1) < 0.4 ? 'round' : 'rect') as 'rect' | 'round' | 'sun' | 'goggles', col: dress.eyes.kind === 'goggles' ? [40, 44, 48] : mixc(dress.eyes.col, [30, 26, 26], 0.4), thick: 1 } : undefined;
   const face: FaceSpec = {
     iris: hex(app.eyeColor ?? [0x5a3a22, 0x3a2414, 0x6a7a3a, 0x3a6a9a, 0x6a8aa8, 0x8a6a3a, 0x4a5a5a][Math.floor(h2(seed, 1, 2) * 7)]),
-    eyeW: (es === 2 ? 1.12 : es === 1 ? 1.04 : 1) * (ov.eyeW ?? 1), eyeH: (es === 1 ? 0.72 : es === 2 ? 1.22 : es === 3 ? 0.9 : 1) * (ov.eyeH ?? 1), tilt: 0.4 + h2(seed, 2, 3) * 0.5 + (es === 4 ? -0.6 : 0),
+    eyeW: (es === 2 ? 1.12 : es === 1 ? 1.04 : 1) * (ov.eyeW ?? 1), eyeH: (es === 1 ? 0.72 : es === 2 ? 1.22 : es === 3 ? 0.9 : 1) * (ov.eyeH ?? 1), eyeGap: ov.eyeGap, tilt: 0.4 + h2(seed, 2, 3) * 0.5 + (es === 4 ? -0.6 : 0),
     lid: es === 3 ? 'hooded' : h2(seed, 3, 4) < 0.3 ? 'mono' : 'double', eyeShape: es,
     brows: bs, browW: bs === 1 ? 1.45 : bs === 3 ? 0.6 : bs === 4 ? 1.2 : 1, browArch: bs === 2 ? 2 : bs === 0 ? 0.5 : bs === 1 ? 0.6 : fem > 0.5 ? 1.5 : 0.9,
     nose: noseOf(app), mouth: mouthOf(app), ears: app.ears ?? 0,

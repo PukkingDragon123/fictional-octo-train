@@ -175,7 +175,7 @@ export class TouchControls implements GameSystem {
     this.btn(act, 'sneak', 'sneak', { label: 'SNEAK', x: 1.95, y: 1.45, s: 1.05, tap: () => this.g.input.tap('sneak') });
     this.btn(act, 'light', 'light', { label: 'LIGHT', x: 3.3, y: 0.08, w: 0.9, h: 2.15, tap: () => this.g.input.tap('flashlight') });
     // the whistle: Q (whistle, hold to shout) is bound to both actions, so the prop presses both
-    this.btn(act, 'shout', 'shout', { label: 'WHISTLE', x: 0.3, y: 2.75, s: 1.05, down: () => { this.g.input.press('whistle'); this.g.input.press('shout'); }, up: () => { this.g.input.release('whistle'); this.g.input.release('shout'); } });
+    this.btn(act, 'shout', 'shout', { label: 'WHISTLE', x: 0.45, y: 2.75, s: 1.05, down: () => { this.g.input.press('whistle'); this.g.input.press('shout'); }, up: () => { this.g.input.release('whistle'); this.g.input.release('shout'); } });
     // GRAB: hold on to what is in reach while the glove is held (the stick pushes / pulls it)
     this.btn(act, 'grab', 'grab', { label: 'GRAB', x: 3.25, y: 2.35, s: 1.05, hold: 'hold' });
     // the lung pump (H)

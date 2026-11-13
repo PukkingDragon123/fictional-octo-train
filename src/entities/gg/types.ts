@@ -61,7 +61,7 @@ export interface Dress {
 }
 
 export interface FaceSpec {
-  iris: number[]; eyeW: number; eyeH: number; tilt: number; lid: 'double' | 'mono' | 'hooded';
+  iris: number[]; eyeW: number; eyeH: number; /** eye spacing multiplier (1 = a person's) */ eyeGap?: number; tilt: number; lid: 'double' | 'mono' | 'hooded';
   eyeShape: number; brows: number; browW: number; browArch: number; nose: number; mouth: number; ears: number;
   lipFull: number; lipstick?: number[]; blush: number;
   makeup?: { liner?: number; lash?: number; shadow?: number[] | null; blush?: number[]; highlight?: number; lower?: boolean };
