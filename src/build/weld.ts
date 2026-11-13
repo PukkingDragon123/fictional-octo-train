@@ -15,6 +15,7 @@ import { piece, type Piece } from './pieces';
 import { buildSpeed } from './speed';
 import type { Player } from '../entities/player';
 import type { TileObject } from '../world/zone';
+import { talentMul } from '../survival/talents';
 
 export type Welder = { kind: 'torch'; it: Item } | { kind: 'laser' } | { kind: 'hammer'; it: Item };
 
@@ -104,7 +105,7 @@ export class WeldAction extends TimedAction {
     const skill = p.body.skill(this.tool.kind === 'hammer' ? 'carpentry' : 'mechanics');
     const rate = tool.kind === 'laser' ? 1.35 : 1;
     // buildSpeed: talents, traits and a lit camp with a bench (src/build/speed.ts)
-    this.duration = Math.max(0.6, this.pc.weld * (1 - this.w0) * (1 - Math.min(0.35, skill * 0.05)) / rate / buildSpeed(p));
+    this.duration = Math.max(0.6, this.pc.weld * (1 - this.w0) * (1 - Math.min(0.35, skill * 0.05)) / rate / buildSpeed(p) * talentMul(p.body, 'build'));
     this.fixedTime = true;
     this.name = tool.kind === 'hammer' ? 'Nail ' + this.pc.name : 'Weld ' + this.pc.name;
     this.anim = tool.kind === 'hammer' ? 'hammer' : 'craft';

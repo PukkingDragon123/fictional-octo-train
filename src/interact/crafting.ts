@@ -9,6 +9,7 @@ import { bus } from '../core/events';
 import { SkillKey } from '../survival/traits';
 import { storeItems, storeOf, takeFromStore, craftQuality, applyQuality, GRADES } from '../craft/stores';
 import { craftSpeed } from '../build/speed';
+import { talentMul } from '../survival/talents';
 
 function matches(it: Item, key: string): boolean {
   if (key.startsWith('#')) { const d = itemDef(it.key); return (d.tags || []).includes(key.slice(1)) || d.key === key.slice(1); }
@@ -60,7 +61,7 @@ export class CraftAction extends TimedAction {
     super(p);
     this.name = times > 1 ? `${r.name} (${times} queued)` : r.name;
     const sk = r.xp ? p.body.skill(r.xp[0] as SkillKey) : 0;
-    this.duration = r.time * (1 - sk * 0.05) * (p.body.has('handy') && r.category === 'carpentry' ? 0.75 : 1) / craftSpeed(p);
+    this.duration = r.time * (1 - sk * 0.05) * (p.body.has('handy') && r.category === 'carpentry' ? 0.75 : 1) / craftSpeed(p) * talentMul(p.body, 'craft');
     this.anim = r.anim === 'hammer' ? 'hammer' : r.anim === 'saw' ? 'saw' : r.anim === 'cook' ? 'craft' : 'craft';
     this.sound = r.sound;
   }

@@ -13,6 +13,7 @@ import { serializeItem } from '../items/factory';
 import { rollLoot } from '../items/loot';
 import { Rng } from '../core/rng';
 import { clamp } from '../core/math';
+import { talentMul } from '../survival/talents';
 
 const zk = (p: Player) => p.zoneKey;
 const edgeArgs = (p: Player, x: number, y: number, side: 0 | 1, patch: Partial<EdgeObj>) => ({ z: zk(p), x, y, side, patch });
@@ -72,7 +73,7 @@ function swingAway(p: Player, x: number, y: number, side: 0 | 1): 1 | -1 {
 
 export class BarricadeAction extends TimedAction {
   constructor(p: Player, public x: number, public y: number, public side: 0 | 1, public metal = false) {
-    super(p); this.name = 'Barricade'; this.duration = metal ? 12 : 8; this.anim = 'hammer';
+    super(p); this.name = 'Barricade'; this.duration = (metal ? 12 : 8) * talentMul(p.body, 'build'); this.anim = 'hammer';
   }
   isValid() {
     const p = this.p;

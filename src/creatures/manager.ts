@@ -32,6 +32,7 @@ import './spawnTables';
 import { temperBefore, temperAfter, temperPose } from './temper';
 import { steer, brake, heading, shoveBy, corpseFall, hasWeight } from './kit/physics';
 import { visualMotion, smoothBegin, smoothEnd, leanOf, type VisMotion } from './kit/smooth';
+import { talentMul } from '../survival/talents';
 
 /** what a creature was hit with (passed to the gore system) */
 export interface GoreHit { dmg: number; kind: string; fx: number; fz: number; crit?: boolean; by?: string; head?: boolean }
@@ -121,6 +122,7 @@ export class CreatureSystem implements GameSystem {
     else if (snd === 'water' || snd === 'wetcarpet') r *= 1.3;
     if (p.body.has('graceful') || p.body.perks.has('lightstep')) r *= 0.7;
     if (p.body.has('clumsy')) r *= 1.3;
+    r *= talentMul(p.body, p.stance === 'crawl' ? 'crawlNoise' : 'noise');
     r *= 1 + Math.max(0, p.heavyLoad()) * 0.5;
     bus.emit('noise', { x: p.x, z: p.z, radius: r, kind: p.running ? 'run' : 'step', zone: p.zoneKey, by: p.id });
     // scent trail for trackers

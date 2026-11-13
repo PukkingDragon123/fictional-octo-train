@@ -4,6 +4,7 @@ import { clamp, clamp01 } from '../core/math';
 import { Rng, uid } from '../core/rng';
 import { MindState, newMind, ssriEffect, anxiolyticEffect } from './mind';
 import { LimbAids, LimbState, limbState, noAids, aidsKey, redirectPart } from './limbs';
+import { talentMul, talentAdd } from './talents';
 
 export type InjuryType = 'scratch' | 'laceration' | 'deep' | 'bite' | 'burn' | 'fracture' | 'glass' | 'bullet' | 'bruise' | 'amputation';
 
@@ -358,6 +359,9 @@ export class Body {
     if (quality.raw) poison += 25 * k;
     if (this.has('iron_gut')) poison *= 0.4;
     if (this.has('weak_stomach')) poison *= 1.6;
+    // the talent marbles (survival/talents.ts): a stomach for raw meat, or a sour one
+    if (quality.raw || quality.rotten) poison *= talentMul(this, 'rawPoison');
+    poison *= talentMul(this, 'poison');
     if (this.perks.has('hazmat_filter')) poison *= 0.35; // the research lab's hazmat filter (src/research/tools.ts)
     if (poison > 0 && this.rng.chance(Math.min(1, poison / 30))) this.sickness = clamp(this.sickness + poison, 0, 100);
   }
@@ -405,9 +409,11 @@ export class Body {
     if (T('light_eater')) hungerRate *= 0.75;
     if (T('hearty_appetite')) hungerRate *= 1.3;
     if (T('snack_goblin')) hungerRate *= 1.1;
+    hungerRate *= talentMul(this, 'hunger');
     if (this.temp < 36) hungerRate *= 1.25;
     this.hunger = clamp(this.hunger + hungerRate * dh, 0, 100);
     let thirstRate = (env.asleep ? 2.4 : 4.6) * (1 + exert * 0.8) * (this.temp > 37.6 ? 1.6 : 1) * (this.drunk > 20 ? 1.3 : 1);
+    thirstRate *= talentMul(this, 'thirst');
     this.thirst = clamp(this.thirst + thirstRate * dh, 0, 100);
     this.stuffed = clamp(this.stuffed - 14 * dh, 0, 100);
     this.calories -= (100 + exert * 140 + (this.temp < 36.3 ? 60 : 0)) * dh;
@@ -436,6 +442,7 @@ export class Body {
       if (mind.caffeine > 0) fr *= 0.55;
       if (mind.anxiolytic > 0) fr *= 1.35;            // calm, but drowsy
       fr *= 1 + mind.depression * 0.3 + mind.insomnia * 0.2;
+      fr *= talentMul(this, 'fatigue');
       this.fatigue = clamp(this.fatigue + fr * dh, 0, 100);
       if (mind.groggy > 0) this.fatigue = Math.max(this.fatigue, 22);
       this.sleepHours = 0;
@@ -444,7 +451,7 @@ export class Body {
     // ---- endurance (real time) ----
     const fit = this.skill('fitness');
     if (env.running) {
-      this.endurance -= dt * (0.024 - fit * 0.0012) * (1 + env.heavyLoad * 0.8) * (T('gym_rat') ? 0.85 : 1) * (T('couch_potato') ? 1.25 : 1) * (mind.hangover > 0 ? 1.2 : 1);
+      this.endurance -= dt * (0.024 - fit * 0.0012) * (1 + env.heavyLoad * 0.8) * (T('gym_rat') ? 0.85 : 1) * (T('couch_potato') ? 1.25 : 1) * (mind.hangover > 0 ? 1.2 : 1) * talentMul(this, 'stamina');
       // running trains the legs and lungs (fitness is passive and slow)
       this.addXp('sprinting', dt * 0.25);
       this.addXp('fitness', dt * 0.15);
@@ -480,7 +487,7 @@ export class Body {
 
     // ---- injuries: bleeding, healing, infection ----
     let bleedTotal = 0;
-    const healMul = (T('fast_healer') ? 1.5 : 1) * (T('slow_healer') ? 0.6 : 1) * (env.asleep ? 1.6 : 1) * (this.hunger > 45 ? 0.6 : 1) * (this.thirst > 45 ? 0.6 : 1);
+    const healMul = (T('fast_healer') ? 1.5 : 1) * (T('slow_healer') ? 0.6 : 1) * (env.asleep ? 1.6 : 1) * (this.hunger > 45 ? 0.6 : 1) * (this.thirst > 45 ? 0.6 : 1) * talentMul(this, 'heal');
     for (const inj of this.allInjuries()) {
       inj.age += dh;
       if (inj.tq != null) inj.tq += dh;
@@ -559,6 +566,7 @@ export class Body {
     if (T('brave')) panicGain *= 0.5;
     if (T('cowardly')) panicGain *= 1.6;
     if (T('dramatic')) panicGain *= 2;
+    panicGain *= talentMul(this, 'panic');
     if (this.perks.has('exterminator')) panicGain *= 0.7;
     if (env.nearTeam > 0) panicGain *= 0.7;
     if ((env.companion ?? 0) > 0) panicGain *= T('cat_person') || T('dog_person') ? 0.7 : 0.85;
@@ -634,6 +642,7 @@ export class Body {
     let c = 6 + this.skill('strength') * 1.3;
     if (this.has('strong')) c += 2; if (this.has('weak')) c -= 2;
     if (this.has('pocket_hoarder')) c += 2;
+    c += talentAdd(this, 'carry');
     return c;
   }
 

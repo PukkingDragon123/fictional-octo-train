@@ -117,10 +117,16 @@ export function dressStalker(R: StalkerRig, app: Appearance, outfit: Outfit, key
   // older than you, paler than you, eyes washed almost white
   const a: Appearance = { ...app, eyeColor: 0xc8cec6, age: Math.min(1, (app.age ?? 0.2) + 0.3), scars: 0 };
   const o: Outfit = { ...outfit, cond: { ...(outfit.cond || {}), pale: 2, dirt: Math.max(1, (outfit.cond as any)?.dirt ?? 0), expr: '', bleeding: undefined } as any };
+  // it got the suit nearly right: the same yellow, the same number (almost), but no hood and no visor,
+  // so the face is bare (it has not worked out what the hood is for)
+  if (o.torso?.tex === 'c_hazmat') { o.torso = { ...o.torso, tex: 'c_jumpsuit', item: 'prison_jumpsuit' }; o.torsoOuter = undefined; }
+  if (o.legs?.tex === 'c_hazmat') o.legs = { ...o.legs, tex: 'c_jumpsuit', item: 'prison_jumpsuit' };
+  o.head = undefined; o.eyes = undefined;
   R.hr.outfit = o;
   R.hr.setAppearance(a);
-  R.lamp.position.set(-0.085 * R.hr.s, 0.115 * R.hr.s, 0.035 * R.hr.s);
-  R.lamp.scale.setScalar(R.hr.s);
+  R.lamp.position.set(-0.098 * R.hr.s, 0.135 * R.hr.s, 0.035 * R.hr.s);
+  R.lamp.rotation.set(0.12, -0.08, 0);
+  R.lamp.scale.setScalar(R.hr.s * 1.15);
 }
 /** the unit it is copying, as this peer sees it: the one it is after, else whoever is watching */
 function copyLook(R: StalkerRig, c: Creature) {
@@ -200,14 +206,14 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
   // ---- the human animator (it limps on the left; the gait is slowed to the long legs' stride)
   const inp: AnimInput = {
     speed: d.dead ? 0 : d.speed / K_LEG, stance: d.stance, full: '', action: (d.dead ? '' : d.action) as any, actionT: d.actionT, actionDur: d.actionDur || 1,
-    twoHanded: false, limp: 0.85, limpSide: 'L', tired: 0.3, panic: lunge * 0.8, cold: 0, aimPitch: 0, holdingLight: false, holding: false,
+    twoHanded: false, limp: 0.85, limpSide: 'L', tired: 0.3, panic: lunge * 0.3, cold: 0, aimPitch: 0, holdingLight: false, holding: false,
     lookYaw: 0, fidget: false, exhausted: 0,
   };
   const P = hr.anim.update(dt, inp) as HPose;
   // ---- its own wrongness, over the copied movement
   // stooped under its own height; the head hangs forward on the long neck, tilted
-  add(P, 'spine', 0.12 + 0.3 * lunge, 0, 0);
-  add(P, 'chest', 0.05 + 0.12 * lunge, 0, 0);
+  add(P, 'spine', 0.12 + 0.14 * lunge, 0, 0);
+  add(P, 'chest', 0.05 + 0.06 * lunge, 0, 0);
   const tiltSide = hash(d.seed, 7) < 0.5 ? 1 : -1;
   const tilt = sm(ud, 'tilt', (0.22 + 0.2 * watch) * tiltSide + Math.sin(t * 0.37 + d.seed * 9) * 0.06, 2.2, dt);
   // the hitch of the drag: the body drops onto the long leg and is hauled up again every stride
@@ -226,8 +232,9 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
   const J = (ud.jkA ?? [0, 0, 0]) as number[];
   // it looks at you
   const ly = clamp(d.lyaw, -1.2, 1.2) * d.look * alive, lp = clamp(d.lpitch, -0.8, 0.6) * d.look * alive;
-  add(P, 'neck', 0.25 - lp * 0.4 + J[0] * jk * 0.4, ly * 0.5 + J[1] * jk * 0.3, tilt * 0.5 + J[2] * jk * 0.4);
-  add(P, 'head', -0.08 - lp * 0.5 + J[0] * jk * 0.6, ly * 0.45 + J[1] * jk * 0.7, tilt * 0.7 + J[2] * jk);
+  // (in the lunge the head comes up to keep you in sight over the stoop)
+  add(P, 'neck', 0.25 - 0.55 * lunge - lp * 0.4 + J[0] * jk * 0.4, ly * 0.5 + J[1] * jk * 0.3, tilt * 0.5 + J[2] * jk * 0.4);
+  add(P, 'head', -0.08 - 0.35 * lunge - lp * 0.5 + J[0] * jk * 0.6, ly * 0.45 + J[1] * jk * 0.7, tilt * 0.7 + J[2] * jk);
   // arms: too long and too slack; reaching out in the lunge; palms up and out while it waits for you to stop
   if (lunge > 0.01) {
     for (const [s, k] of [['L', 1], ['R', -1]] as const) {

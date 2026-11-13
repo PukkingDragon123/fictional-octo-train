@@ -25,6 +25,7 @@ import { bump, mark } from '../build/progress';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import type { Player } from '../entities/player';
+import { talentMul } from '../survival/talents';
 
 type Tool = 'knife' | 'saw' | 'axe' | 'hands';
 /** [item, count, chance (default 1)] */
@@ -118,7 +119,7 @@ class HarvestAction extends TimedAction {
     const done: string[] = c.mem.hv || [];
     this.st = stagesOf(h, tool).filter((s) => !done.includes(s.id));
     const big = (c.radius ?? 0.4) > 0.45;
-    const mul = TOOL_MUL[tool] * (tool === 'axe' || tool === 'saw' ? (big ? 0.85 : 1.25) : 1) * (1 - Math.min(0.35, p.body.skill('trapping') * 0.04));
+    const mul = TOOL_MUL[tool] * (tool === 'axe' || tool === 'saw' ? (big ? 0.85 : 1.25) : 1) * (1 - Math.min(0.35, p.body.skill('trapping') * 0.04)) * talentMul(p.body, 'butcher');
     this.duration = Math.max(3, (h.time ?? 12) * mul * (this.st.length / Math.max(1, stagesOf(h, tool).length)));
     this.name = 'Butcher ' + (c.scanned ? String(c.sp.name) : 'the body').toLowerCase();
     this.anim = 'loot';

@@ -6,12 +6,13 @@ import { bus } from '../core/events';
 import { G } from '../game/G';
 import { createItem } from '../items/factory';
 import { isLimbPart, chainOf } from '../survival/limbs';
+import { talentMul } from '../survival/talents';
 
 /** Medical treatment on yourself or a teammate (target may be another player). */
 abstract class MedAction extends TimedAction {
   constructor(p: Player, public target: Player, public inj: Injury) { super(p); this.anim = 'bandage'; }
   get skill() { return this.p.body.skill('firstaid'); }
-  scale(base: number) { return base * (1 - this.skill * 0.06) * (this.p.occupation === 'nurse' ? 0.7 : 1) * (this.target === this.p ? 1 : 0.85); }
+  scale(base: number) { return base * (1 - this.skill * 0.06) * (this.p.occupation === 'nurse' ? 0.7 : 1) * (this.target === this.p ? 1 : 0.85) * talentMul(this.p.body, 'medic'); }
   isValid() {
     if (!this.target.body.allInjuries().includes(this.inj)) return false;
     return this.target === this.p || Math.hypot(this.target.x - this.p.x, this.target.z - this.p.z) < 1.8;

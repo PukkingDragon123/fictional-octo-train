@@ -24,6 +24,7 @@ import { Struggles, StruggleAction, type Stage } from '../combat/qte';
 import { Executions } from '../combat/executions';
 import { motionOf } from '../entities/motion';
 import { combatHit, creatureStep, creaturePose, executable, isDown, isStunned, inExec, killable, flinch, cbOp, type HitExtra } from '../combat/creatureState';
+import { talentMul } from '../survival/talents';
 
 // a hit on a creature: from a client to the host (the host applies its own directly)
 defOp('creatureHit', (a: { id: string; dmg: number; fx: number; fz: number; knock: number; by: string; k?: string; cr?: 1 } & HitExtra, ctx) => {
@@ -661,7 +662,7 @@ export class CombatSystem implements GameSystem {
     const skill = p.body.skill(skillFor(w.w.kind));
     const foot = k === 'stomp' || k === 'shove' || k === 'tackle';
     const kickMul = 1;
-    let dmg = (foot ? this.rng.float(4, 8) : this.rng.float(w.w.dmg[0], w.w.dmg[1])) * (mods.attack ?? 1) * (1 + skill * 0.07) * spec.dmg * w.dmgMul * kickMul;
+    let dmg = (foot ? this.rng.float(4, 8) : this.rng.float(w.w.dmg[0], w.w.dmg[1])) * (mods.attack ?? 1) * (1 + skill * 0.07) * spec.dmg * w.dmgMul * kickMul * talentMul(p.body, 'melee');
     if (k === 'heavy') dmg *= (1.2 + (w.feel.heavyMul - 1.2) * m.power) * (m.perfect ? 1.35 : 1);
     if (k === 'lunge') dmg *= w.feel.lungeMul;
     if (k === 'light') dmg *= 1 + 0.1 * Math.max(0, m.chain - 1) + (m.perfect ? 0.2 : 0);

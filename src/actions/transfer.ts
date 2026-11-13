@@ -7,6 +7,7 @@ import { bus } from '../core/events';
 import { G } from '../game/G';
 import { Placement, Rot, containerOcc, testFit, findSpot, weightOk } from '../items/grid';
 import { bestDest } from '../items/packResolver';
+import { talentMul } from '../survival/talents';
 
 /**
  * Moving an item between containers takes time scaled by its weight (PZ
@@ -26,6 +27,7 @@ export class TransferAction extends TimedAction {
     if (!isWorldContainer(from) && !isWorldContainer(to) && from.kind !== 'floor' && to.kind !== 'floor') d *= 0.6;
     if (p.body.has('dextrous')) d *= 0.5;
     if (p.body.has('all_thumbs')) d *= 2.5;
+    d *= talentMul(p.body, 'loot');
     this.duration = d;
     this.name = 'Transfer';
     this.anim = from.kind === 'floor' || to.kind === 'floor' ? 'pickup' : isWorldContainer(from) || isWorldContainer(to) ? 'loot' : 'craft';

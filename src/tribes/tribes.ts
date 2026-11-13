@@ -25,6 +25,7 @@ import { remember, attitude, shiftLoyalty, RECRUIT_COST, RECRUIT_REP, MAX_FOLLOW
 import { SAY, line } from './speech';
 import { fillBody, pickOdds, startPickpocket } from './theft';
 import type { Player } from '../entities/player';
+import { talentMul } from '../survival/talents';
 
 export interface TribeState {
   rep: Record<string, number>;
@@ -101,14 +102,14 @@ export class TribeSystem implements GameSystem {
   /** price the tribe charges for an item (scrip off the tab) */
   buyPrice(t: string, key: string) {
     const v = Math.max(4, itemValue(createItemCached(key)));
-    return Math.round(v * Math.max(0.85, Math.min(2, 1.6 - this.rep(t) * 0.007)));
+    return Math.round(v * Math.max(0.85, Math.min(2, 1.6 - this.rep(t) * 0.007)) * talentMul(G.local?.body, 'buy'));
   }
   /** what they credit for an item */
   sellPrice(t: string, it: Item) {
     const T = this.def(t), d = itemDef(it.key);
     const want = T.wants.includes(d.cat) || (d.tags || []).some((g) => T.wants.includes(g)) || T.wants.includes(d.key);
     const v = itemValue(it);
-    return Math.max(0, Math.round(v * Math.max(0.3, Math.min(0.9, 0.5 + this.rep(t) * 0.004)) * (want ? 1.5 : 1)));
+    return Math.max(0, Math.round(v * Math.max(0.3, Math.min(0.9, 0.5 + this.rep(t) * 0.004)) * (want ? 1.5 : 1) * talentMul(G.local?.body, 'sell')));
   }
   wanted(t: string, it: Item) { const T = this.def(t), d = itemDef(it.key); return T.wants.includes(d.cat) || (d.tags || []).some((g) => T.wants.includes(g)) || T.wants.includes(d.key); }
   wares(t: string): string[] { const r = this.rep(t); return this.def(t).wares.filter(([, min]) => r >= min).map(([k]) => k); }
