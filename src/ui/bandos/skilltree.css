@@ -1,0 +1,71 @@
+/* the flat skill tree board (./skilltree.ts): only a fallback where the research lattice is not built */
+.st { display: flex; flex-direction: column; height: 100%; min-height: 0; color: #e4ead8; font-family: var(--font-new); }
+.st-head { flex: none; display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.st-tabs { flex: 1; display: flex; flex-wrap: wrap; gap: 4px; }
+.st-tab { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px; border: 0; cursor: pointer; color: #f2d65a; background: linear-gradient(#2e3420, #1a1e12); box-shadow: inset 0 0 0 2px #0a0b08; font-size: 16px;
+  clip-path: polygon(6px 0, 100% 0, 100% calc(100% - 6px), calc(100% - 6px) 100%, 0 100%, 0 6px); }
+.st-tab b { font-weight: normal; color: #96ffb0; }
+.st-tab.on { background: linear-gradient(#e2c066, #b08a3a); color: #1a160a; }
+.st-tab.on b { color: #1a4f2a; }
+.st-rp { flex: none; padding: 2px 12px; color: #96ffb0; background: #0b120e; box-shadow: inset 0 0 0 2px #2e6a3a; }
+.st-rp b { font-weight: normal; font-size: 24px; } .st-rp small { margin-left: 6px; color: rgba(150,255,176,.6); }
+.st-main { flex: 1; min-height: 0; display: flex; gap: 10px; }
+.st-board { flex: 1; min-width: 0; overflow: auto; position: relative; scrollbar-width: thin; scrollbar-color: #56603c #0b120e;
+  background: repeating-linear-gradient(0deg, rgba(120,200,150,.05) 0 1px, transparent 1px 24px), repeating-linear-gradient(90deg, rgba(120,200,150,.05) 0 1px, transparent 1px 24px), radial-gradient(ellipse at 40% 30%, #12201a, #060a08);
+  box-shadow: inset 0 0 0 2px #1a2216; }
+.st-layer { position: relative; }
+.st-links { position: absolute; left: 0; top: 0; pointer-events: none; }
+.st-lane { position: absolute; left: 10px; width: 126px; color: rgba(226,192,102,.55); font-size: 16px; letter-spacing: .06em; pointer-events: none; }
+.st-node { position: absolute; width: 100px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 0; border: 0; background: none; cursor: pointer; color: #dce8d4; outline: none; }
+.st-sock { position: relative; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 42%, #1e2a22, #0a100c 70%); box-shadow: inset 0 0 0 2px #0a0b08, inset 0 0 0 4px #3a4034, inset 0 3px 0 4px #56603c, 0 4px 0 rgba(0,0,0,.4);
+  clip-path: polygon(10px 0, calc(100% - 10px) 0, 100% 10px, 100% calc(100% - 10px), calc(100% - 10px) 100%, 10px 100%, 0 calc(100% - 10px), 0 10px); }
+.st-sock canvas { width: 50px; height: 50px; image-rendering: pixelated; transition: filter .3s, transform .14s steps(2); }
+.st-sock::before { content: ''; position: absolute; inset: 6px; pointer-events: none; box-shadow: 4px 4px 0 -2px #8a928e, -4px 4px 0 -2px #8a928e, 4px -4px 0 -2px #8a928e, -4px -4px 0 -2px #8a928e; opacity: .5; }
+.st-name { max-width: 120px; font-size: 16px; text-align: center; line-height: 1.05; text-shadow: 1px 1px 0 #050605, -1px 0 0 #050605; }
+.st-pips { display: flex; align-items: center; gap: 3px; }
+.st-pips i { width: 8px; height: 8px; box-shadow: inset 0 0 0 2px #3a4034; }
+.st-pips i.on { background: #7affa0; box-shadow: inset 0 0 0 2px #1a4f2a; }
+.st-pips em { font-style: normal; color: #ffcf6a; margin-left: 4px; font-size: 16px; }
+.st-q { display: none; max-width: 150px; padding: 1px 6px; font-size: 14px; line-height: 1.1; text-align: center; color: #1a160a; background: #e2c066; box-shadow: 0 0 0 2px #0a0b08; }
+.st-q.on { display: block; }
+/* states: locked in shadow behind a hasp, open pulses amber, owned burns green */
+.st-node.s-locked .st-sock canvas { filter: grayscale(1) brightness(.5) contrast(1.4); }
+.st-node.s-locked .st-name { color: rgba(220,232,212,.45); }
+/* a small padlock badge in the socket's corner: body, shackle */
+.st-node.s-locked .st-sock::after { content: ''; position: absolute; right: 7px; bottom: 7px; width: 12px; height: 9px; background: #8a7a4a; box-shadow: inset 0 0 0 2px #0a0b08, inset 0 3px 0 2px #c49a3c; }
+.st-node.s-locked .st-sock > .st-lock { display: block; }
+.st-lock { display: none; position: absolute; right: 9px; bottom: 15px; width: 4px; height: 4px; border: 2px solid #c49a3c; border-bottom: 0; box-shadow: 0 0 0 1px #0a0b08; }
+.st-node.s-poor .st-sock canvas { filter: brightness(.7) saturate(.7); }
+.st-node.s-open .st-sock canvas { filter: drop-shadow(0 0 4px rgba(255,176,48,.55)) brightness(1.08); }
+.st-node.s-open .st-sock { animation: st-pulse 1.4s steps(4) infinite; }
+@keyframes st-pulse { 0%, 100% { box-shadow: inset 0 0 0 2px #0a0b08, inset 0 0 0 4px #7a5a1a, inset 0 3px 0 4px #c49a3c, 0 4px 0 rgba(0,0,0,.4), 0 0 0 2px rgba(255,176,48,.0); }
+  50% { box-shadow: inset 0 0 0 2px #0a0b08, inset 0 0 0 4px #c49a3c, inset 0 3px 0 4px #ffd070, 0 4px 0 rgba(0,0,0,.4), 0 0 14px 2px rgba(255,176,48,.35); } }
+.st-node.own .st-sock, .st-node.s-max .st-sock { background: radial-gradient(circle at 50% 42%, #1e4a2a, #0a180e 70%); box-shadow: inset 0 0 0 2px #0a0b08, inset 0 0 0 4px #2e8a4a, inset 0 3px 0 4px #7affa0, 0 4px 0 rgba(0,0,0,.4), 0 0 16px rgba(90,255,138,.3); }
+.st-node.sel .st-sock { outline: 2px solid #f6e09a; outline-offset: 2px; }
+.st-node:hover .st-sock canvas, .st-node:focus-visible .st-sock canvas { transform: translateY(-3px); }
+.st-side { flex: none; width: 250px; overflow: auto; padding: 8px 10px; background: rgba(8,16,12,.7); box-shadow: inset 0 0 0 2px #1a2216; }
+.st-h { margin: 0 0 6px; font-weight: normal; font-size: 24px; color: #f6e09a; }
+.st-h small { font-size: 16px; color: #96ffb0; }
+.st-p { margin: 0 0 8px; color: #dce8d4; line-height: 1.3; }
+.st-dim { margin: 4px 0; color: rgba(220,232,212,.55); }
+.st-gives { margin: 4px 0 8px; padding: 0 0 0 16px; color: rgba(220,232,212,.7); line-height: 1.25; }
+.st-gives li { margin-bottom: 4px; }
+.st-gives li.on { color: #96ffb0; }
+.st-quest { margin: 6px 0; padding: 4px 8px; color: #1a160a; background: #e2c066; box-shadow: 0 0 0 2px #0a0b08; }
+.st-cost { margin: 10px 0 6px; color: #ffcf6a; font-size: 24px; line-height: 1.1; }
+.st-go { width: 100%; margin-top: 6px; padding: 8px; border: 0; cursor: pointer; font-size: 20px; letter-spacing: .1em; color: #1a160a; background: linear-gradient(#e2c066, #b08a3a); box-shadow: inset 0 0 0 2px #0a0b08, inset 0 3px 0 #f6e09a; }
+.st-go.off { background: linear-gradient(#3a3f38, #24281e); color: rgba(220,232,212,.5); box-shadow: inset 0 0 0 2px #0a0b08; cursor: default; }
+.st-go:not(.off):hover { filter: brightness(1.12); }
+.st-go:not(.off):active { transform: translateY(2px); }
+/* the lab's main computer: the board full screen */
+.st-veil { position: fixed; inset: 0; z-index: 85; background: rgba(2,6,4,.8); opacity: 0; transition: opacity .25s; }
+.st-veil.on { opacity: 1; }
+.st-full { position: absolute; inset: max(16px, 3vh) max(16px, 3vw); display: flex; flex-direction: column; padding: 10px 12px 12px; background: #0b120e;
+  box-shadow: 0 0 0 2px #0a0b08, 0 0 0 5px #3b4428, 0 0 0 7px #0a0b08; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 16px), calc(100% - 16px) 100%, 0 100%); }
+.st-full > .st { flex: 1; min-height: 0; height: auto; }
+.st-bar { flex: none; display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px; color: #f2d65a; }
+.st-bar b { font-weight: normal; font-size: 24px; letter-spacing: .14em; }
+.st-bar small { flex: 1; color: rgba(150,255,176,.6); }
+.st-x { border: 0; cursor: pointer; padding: 4px 14px; color: #ffd2b8; background: linear-gradient(#8c3020, #5a1810); box-shadow: inset 0 0 0 2px #0a0b08; font-family: inherit; font-size: 16px; }
+@media (max-width: 760px) { .st-main { flex-direction: column; } .st-side { width: auto; max-height: 34%; } }

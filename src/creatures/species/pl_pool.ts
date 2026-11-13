@@ -311,7 +311,7 @@ function gPaint(p: KPage, x: BuildCtx) {
   const v = x.variant;
   const B = p.R('BODY');
   // cold off-white, grey-green mottling under it, blue-grey veins, pink where the skin is thin
-  const RB = makeRamp(mixHex(0xa6ab9c, 0xaca49c, v * 0.3), 9, { hueShift: 0.02, spread: 0.7 });
+  const RB = makeRamp(mixHex(0x8e9486, 0x968e88, v * 0.3), 9, { hueShift: 0.02, spread: 0.75 });
   B.fill(RB, (xx, yy) => {
     const a = (B.deg(xx) * Math.PI) / 180, top = Math.cos(a);
     const m = B.fbm(xx, yy, 5, 3, 3 + v);
@@ -319,7 +319,7 @@ function gPaint(p: KPage, x: BuildCtx) {
   }, undefined, 0.45);
   for (let yy = 0; yy < B.h; yy++) for (let xx = 0; xx < B.w; xx++) {
     const a = (B.deg(xx) * Math.PI) / 180, m = B.fbm(xx + 40, yy, 4, 3, 7 + v);
-    if (m < 0.46) B.blend(xx, yy, 0x56664e, 0.5 * (0.46 - m) / 0.46 + 0.25);
+    if (m < 0.5) B.blend(xx, yy, 0x4a5a42, 0.55 * (0.5 - m) / 0.5 + 0.3);
     if (Math.cos(a) < -0.4) B.blend(xx, yy, 0xd89290, 0.35 * (-Math.cos(a) - 0.4));
   }
   for (let i = 0; i < 34; i++) B.crack(hash(i, 1) * B.w, hash(i, 2) * B.h, 10 + hash(i, 3) * 18, hash(i, 4) * 360, 0x3c4a72, 20 + i, 0.65, 0.35);
@@ -349,7 +349,7 @@ function gPaint(p: KPage, x: BuildCtx) {
   for (let i = 0; i < 60; i++) { const xx = hash(i, 71) * J.w, yy = hash(i, 72) * J.h; J.ellipse(xx, yy, 1, 1, 0x6a6a5c, 0.4); J.set(xx, yy, 0xf0f0e6); }
   // the folds: waxy, with blue veins and pink flesh showing at the thin edges
   const F = p.R('FOLD');
-  F.fill(makeRamp(0xaeae9e, 8, { spread: 0.65 }), (xx, yy) => 4 + Math.sin(xx * 0.9) * 1.6 + (F.fbm(xx, yy, 4, 2, 31) - 0.5) * 1.6 - (yy / F.h) * 1.2, undefined, 0.4);
+  F.fill(makeRamp(0x96968a, 8, { spread: 0.7 }), (xx, yy) => 4 + Math.sin(xx * 0.9) * 1.6 + (F.fbm(xx, yy, 4, 2, 31) - 0.5) * 1.6 - (yy / F.h) * 1.2, undefined, 0.4);
   for (let yy = 0; yy < F.h; yy++) for (let xx = 0; xx < F.w; xx++) if (yy > F.h * 0.6) F.blend(xx, yy, 0xd88888, 0.45 * (yy / F.h - 0.6) / 0.4);
   for (let i = 0; i < 12; i++) F.crack(hash(i, 81) * F.w, hash(i, 82) * F.h, 10, 90 + (hash(i, 83) - 0.5) * 60, 0x3c4a72, 90 + i, 0.7, 0.25);
   for (let i = 0; i < 20; i++) F.blend(hash(i, 84) * F.w, hash(i, 85) * F.h, 0xffffff, 0.75);
@@ -360,7 +360,7 @@ function gPaint(p: KPage, x: BuildCtx) {
   for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < M.w; xx++) M.blend(xx, yy, 0xf0d0d0, 0.6);
   for (let i = 0; i < 18; i++) M.blend(hash(i, 94) * M.w, hash(i, 95) * M.h, 0xffffff, 0.8);
   const D = p.R('DEW');
-  D.fill(makeRamp(0xaaa698, 8, { spread: 0.65 }), (xx, yy) => 4 + Math.sin(xx * 1.3 + yy * 0.2) * 1.1 + (D.fbm(xx, yy, 4, 2, 51) - 0.5) * 2, undefined, 0.45);
+  D.fill(makeRamp(0x949084, 8, { spread: 0.7 }), (xx, yy) => 4 + Math.sin(xx * 1.3 + yy * 0.2) * 1.1 + (D.fbm(xx, yy, 4, 2, 51) - 0.5) * 2, undefined, 0.45);
   for (let yy = 0; yy < D.h; yy++) for (let xx = 0; xx < D.w; xx++) if (yy > D.h * 0.45) D.blend(xx, yy, 0xd89a9a, 0.4 * (yy / D.h - 0.45));
   for (let i = 0; i < 8; i++) D.crack(hash(i, 101) * D.w, hash(i, 102) * D.h, 10, hash(i, 103) * 360, 0x3c4a72, 110 + i, 0.7, 0.3);
   const L = p.R('LIMB');

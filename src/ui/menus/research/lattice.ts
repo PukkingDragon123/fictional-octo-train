@@ -10,8 +10,13 @@
 //                 turning slowly in the field. Locked: the model dark behind a
 //                 cage. Affordable: the frame and the shelf pulse amber. Owned:
 //                 green, the cage gone. Hover / selection lifts and lights it.
-//   the conduits  square steel runs between the sockets; their cores light and
-//                 carry beads of light once the node they come from is owned
+//   the conduits  square steel runs between the sockets. Their cores carry the
+//                 tree's power: dark (nothing feeds them), dim amber (fed, the next
+//                 node not yet affordable), pulsing amber with fast beads (fed into a
+//                 node you can research now), green (both ends owned). The inspected
+//                 node's runs light up: white where they are live, a pulsing red-orange
+//                 where a requirement is still missing. Researching sends a charge down
+//                 each run out of the node, and the node it reaches flashes
 //   the reader    an XY gantry on a rail over the housing: a small CRT with a
 //                 RESEARCH lever. Pick a node and the camera closes on it while
 //                 the reader drives over beside it and prints the node's file
@@ -31,6 +36,8 @@ import { bitText, bitMeasure } from '../../../gfx/bitfont';
 import { researchPoints } from '../../../game/research';
 import { codexStats } from '../../../game/codex';
 import { nodeQuest } from '../../../game/reqQuests';
+import { G } from '../../../game/G';
+import type { QuestRuntime } from '../../../missions/questRuntime';
 import {
   BRANCHES, treeNodes, treeNode, treeLanes, rankOf, rankPlanned, nodeState, stage, clearPlan, confirmPlan, researchFor, pointsLeft, syncTree,
   type Branch, type TreeNode,
@@ -44,6 +51,7 @@ const HEADER = 0.12, FOOT = 0.075, LABEL_W = 0.46, PPM = 440;
 const ROMAN = ['0', 'I', 'II', 'III', 'IV', 'V'];
 const damp = (a: number, b: number, k: number, dt: number) => a + (b - a) * (1 - Math.exp(-k * dt));
 type Vis = 'max' | 'owned' | 'open' | 'poor' | 'locked';
+const BEADS = 160;
 const STATE_COL: Record<Vis, number> = { max: 0x5aff8a, owned: 0x5aff8a, open: 0xffb030, poor: 0x8a5a1c, locked: 0x2a1610 };
 export interface Pose { pos: THREE.Vector3; look: THREE.Vector3; fov: number }
 
@@ -55,7 +63,9 @@ interface NodeV {
   hit: THREE.Mesh; hot: Hot;
   vis: Vis; look: Look; hover: boolean; lift: number; cageK: number; burst: number; deny: number; ph: number; plunge: number;
 }
-interface LinkV { from: NodeV; to: NodeV; pts: THREE.Vector3[]; len: number; core: THREE.Mesh; lit: 0 | 1 | 2 }
+/** lit: 0 dead, 1 fed, 2 fed into a node open now, 3 both ends owned. charge: a pulse running down the run after a
+ *  research (0..1 while it runs, below 0 waiting its turn, 1 settled); ping: flash the node it reaches */
+interface LinkV { from: NodeV; to: NodeV; pts: THREE.Vector3[]; len: number; core: THREE.Mesh; lit: 0 | 1 | 2 | 3; charge: number; ping: boolean }
 interface BranchV { key: Branch; root: THREE.Group; nodes: NodeV[]; links: LinkV[]; lanes: { row: number; label: string; y: number }[]; colW: number; rowH: number; s: number }
 
 export interface LatticeOpts {
@@ -98,7 +108,8 @@ export class TreeLattice {
   private keys: { g: THREE.Group; cap: THREE.Mesh; lit: THREE.MeshBasicMaterial; tex: THREE.CanvasTexture; cv: HTMLCanvasElement; label: string; dip: number; br: number }[] = [];
   // shared materials
   private frameMats = new Map<Vis, THREE.MeshBasicMaterial>();
-  private coreMats = [0x241c12, 0xb87a28, 0xffc860].map((c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false }));
+  // the conduit cores: dead, fed, open (pulses), owned, the inspected node's live runs (pulse), its missing requirements (pulse)
+  private coreMats = [0x241c12, 0x6a4a1c, 0xb87a28, 0x48dc70, 0xfff0c0, 0xff6a3a].map((c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false }));
   private pipMats = { on: new THREE.MeshBasicMaterial({ color: 0x5aff8a, toneMapped: false }), next: new THREE.MeshBasicMaterial({ color: 0xffb030, toneMapped: false }), off: new THREE.MeshBasicMaterial({ color: 0x1a1612, toneMapped: false }) };
   private cageMat = new THREE.MeshStandardMaterial({ color: 0x6a6e70, metalness: 0.75, roughness: 0.35, flatShading: true });
   private hitMat = new THREE.MeshBasicMaterial({ visible: false });
@@ -112,7 +123,7 @@ export class TreeLattice {
   private padX = false;
   private dirty = true; private tickDirty = true; private headDirty = true;
   private t = 0;
-  private m4 = new THREE.Matrix4(); private v = new THREE.Vector3();
+  private m4 = new THREE.Matrix4(); private v = new THREE.Vector3(); private col = new THREE.Color();
 
   constructor(mats: FMats, hots: Hot[], o: LatticeOpts) {
     this.mats = mats; this.hots = hots; this.o = o;
@@ -132,7 +143,7 @@ export class TreeLattice {
     this.group.add(this.board, tick, this.frameRig(), this.light);
     this.light.position.set(o.x, o.y - 0.1, o.z + 1.3);
     // the beads that run the lit conduits
-    this.beads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.018, 0.018, 0.018), new THREE.MeshBasicMaterial({ color: 0xfff0c0, toneMapped: false }), 96);
+    this.beads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.018, 0.018, 0.018), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), BEADS);
     this.beads.count = 0; this.beads.frustumCulled = false; this.beads.userData.noGlow = true;
     this.group.add(this.beads);
     this.burstCard.visible = false; this.group.add(this.burstCard);
@@ -350,7 +361,7 @@ export class TreeLattice {
       const core = new THREE.Mesh(g ?? new THREE.BufferGeometry(), this.coreMats[0]);
       core.userData.noGlow = true;
       root.add(core);
-      links.push({ from, to, pts, len, core, lit: 0 });
+      links.push({ from, to, pts, len, core, lit: 0, charge: 1, ping: false });
     }
     root.add(fb.build(this.mats, { cast: false }));
     this.group.add(root);
@@ -372,8 +383,8 @@ export class TreeLattice {
       v.pips.forEach((pp, i) => { pp.material = i < r ? this.pipMats.on : i === r && v.vis === 'open' ? this.pipMats.next : this.pipMats.off; });
     }
     for (const L of bv.links) {
-      L.lit = rankOf(L.from.n) > 0 ? 2 : L.to.vis === 'open' ? 1 : 0;
-      L.core.material = this.coreMats[L.lit];
+      const fed = rankOf(L.from.n) > 0;
+      L.lit = fed && rankOf(L.to.n) > 0 ? 3 : fed && L.to.vis === 'open' ? 2 : fed ? 1 : 0;
     }
     this.drawBoard();
   }
@@ -428,6 +439,13 @@ export class TreeLattice {
           c.fillStyle = '#020403'; c.fillRect(qx - 1, qy - 1, cells * cw + 1, 7);
           for (let i = 0; i < cells; i++) { c.fillStyle = i < lit ? '#f2ad32' : '#2a3a2e'; c.fillRect(qx + i * cw, qy, cw - 1, 5); }
           bitText(c, `${rq.progress}/${rq.goal}`, qx, qy + 8, { color: '#ffb030', outline: '#020403' });
+        } else if (!rq) {
+          const fr = fieldReq(v.n);
+          if (fr && !fr.done) {
+            const [qx, qy] = this.toPx(v.p.x - v.s / 2 + 0.004, v.p.y + v.s / 2 - 0.004);
+            c.fillStyle = '#020403'; c.fillRect(qx - 1, qy - 1, 8, 8); c.fillStyle = '#f2ad32'; c.fillRect(qx + 1, qy + 1, 4, 4);
+            bitText(c, 'QUEST', qx + 10, qy - 1, { color: '#ffb030', outline: '#020403' });
+          }
         }
       }
     }
@@ -462,8 +480,8 @@ export class TreeLattice {
       const v = this.focused ?? this.sel;
       if (v) {
         const st2 = nodeState(v.n), r = rankPlanned(v.n);
-        const rq2 = st2 === 'locked' && rankOf(v.n) < 1 ? nodeQuest(v.n.rn[0]) : null;
-        msg = `${v.n.title.toUpperCase()} · ${st2 === 'max' ? 'COMPLETE' : st2 === 'open' ? `OPEN ${v.n.costs[r]} RP` : st2 === 'poor' ? `SHORT ${v.n.costs[r]} RP` : rq2 && !rq2.done ? `FIELD QUEST ${rq2.progress}/${rq2.goal}` : 'LOCKED'}`;
+        const rq2 = st2 === 'locked' ? fieldReq(v.n) : null;
+        msg = `${v.n.title.toUpperCase()} · ${st2 === 'max' ? 'COMPLETE' : st2 === 'open' ? `OPEN ${v.n.costs[r]} RP` : st2 === 'poor' ? `SHORT ${v.n.costs[r]} RP` : rq2 && !rq2.done ? (rq2.goal ? `FIELD QUEST ${rq2.progress}/${rq2.goal}` : 'FIELD QUEST') : 'LOCKED'}`;
         col = st2 === 'open' ? '#ffd890' : st2 === 'max' ? '#7aff9a' : st2 === 'poor' ? '#c89a58' : '#7a8a7e';
       } else msg = `R-NET 7 · ${BRANCHES[this.bi].name.toUpperCase()} · ${BRANCHES[this.bi].sub.toUpperCase()}`;
     }
@@ -499,15 +517,20 @@ export class TreeLattice {
       bitText(c, status, 22, y, { color: scol, outline: null, maxW: W - 32 });
       y += 15 * Math.max(1, Math.ceil(bitMeasure(status) / (W - 40))) + 6;
       // round 17: a requirement quest (src/game/reqQuests.ts): what the field must see first, and how far along
-      const rq = rp < 1 ? nodeQuest(n.rn[0]) : null;
+      // (also a quest named by the research itself, or a gate's own hint: whatever the node waits on in the field)
+      const rq = rp < 1 ? fieldReq(n) : null;
       if (rq) {
         const qc = rq.done ? '#7aff9a' : '#ffd040', qt = `${rq.done ? 'FIELD DONE' : 'FIELD QUEST'} · ${rq.text.toUpperCase()}`;
-        bitText(c, qt, 10, y, { color: qc, outline: null, maxW: W - 20 });
-        y += 15 * Math.max(1, Math.ceil(bitMeasure(qt) / (W - 20))) + 2;
-        const cells = Math.min(20, rq.goal), cw = Math.max(3, Math.floor((W - 70) / cells)), lit = Math.round((rq.progress / rq.goal) * cells);
-        for (let i = 0; i < cells; i++) { c.fillStyle = i < lit ? (rq.done ? '#48dc70' : '#f2ad32') : '#1a2a1e'; c.fillRect(10 + i * cw, y + 2, cw - 1, 8); }
-        bitText(c, `${rq.progress}/${rq.goal}`, W - 12, y - 1, { color: qc, outline: null, align: 'right' });
-        y += 16;
+        // a lamp: lit amber while the field still owes it, green once done
+        c.fillStyle = '#020403'; c.fillRect(9, y + 1, 10, 10); c.fillStyle = rq.done ? '#48dc70' : Math.floor(this.t * 2) % 2 ? '#ffb030' : '#7a4a10'; c.fillRect(11, y + 3, 6, 6);
+        bitText(c, qt, 24, y, { color: qc, outline: null, maxW: W - 34 });
+        y += 15 * Math.max(1, Math.ceil(bitMeasure(qt) / (W - 34))) + 2;
+        if (rq.goal > 0) {
+          const cells = Math.min(20, rq.goal), cw = Math.max(3, Math.floor((W - 70) / cells)), lit = Math.round((rq.progress / rq.goal) * cells);
+          for (let i = 0; i < cells; i++) { c.fillStyle = i < lit ? (rq.done ? '#48dc70' : '#f2ad32') : '#1a2a1e'; c.fillRect(10 + i * cw, y + 2, cw - 1, 8); }
+          bitText(c, `${rq.progress}/${rq.goal}`, W - 12, y - 1, { color: qc, outline: null, align: 'right' });
+          y += 16;
+        }
       }
       c.fillStyle = 'rgba(255,184,72,0.4)'; c.fillRect(10, y - 2, W - 20, 1); y += 4;
       n.gives.forEach((gv, i) => {
@@ -648,8 +671,8 @@ export class TreeLattice {
     if (st !== 'open') {
       v.deny = 1;
       // a node still waiting on its field quest answers in amber with the count, not a red refusal
-      const rq = st === 'locked' && rankOf(v.n) < 1 ? nodeQuest(v.n.rn[0]) : null;
-      this.headMsg = rq && !rq.done ? { text: `FIELD QUEST ${rq.progress}/${rq.goal}`, col: '#ffb030', t: 1.4 } : { text: st === 'max' ? 'COMPLETE' : st === 'poor' ? 'NOT ENOUGH RP' : 'LOCKED', col: '#ff6a4a', t: 1.4 };
+      const rq = st === 'locked' ? fieldReq(v.n) : null;
+      this.headMsg = rq && !rq.done ? { text: rq.goal ? `FIELD QUEST ${rq.progress}/${rq.goal}` : 'FIELD QUEST', col: '#ffb030', t: 1.4 } : { text: st === 'max' ? 'COMPLETE' : st === 'poor' ? 'NOT ENOUGH RP' : 'LOCKED', col: '#ff6a4a', t: 1.4 };
       setTimeout(() => { sfx('error', 0.6); gameSound('buzzer', 0.35); }, 140);
       this.headDirty = true;
       return;
@@ -658,6 +681,11 @@ export class TreeLattice {
     const ok = stage(v.n.key) && confirmPlan().includes(v.n.key);
     if (!ok) { sfx('error', 0.6); return; }
     v.burst = 1;
+    // the charge: down every run into the node first, then out of it to the nodes it feeds (each flashes as it lands)
+    for (const L of this.cur?.links ?? []) {
+      if (L.to === v) { L.charge = 0; L.ping = false; }
+      else if (L.from === v) { L.charge = -0.55; L.ping = true; }
+    }
     this.headMsg = { text: 'RESEARCHED', col: '#7aff9a', t: 1.6 };
     setTimeout(() => { sfx('stamp'); gameSound('cy_thunk', 0.6); }, 120);
     setTimeout(() => { sfx('relay', 0.7); gameSound('cy_powerup', 0.5); }, 320);
@@ -762,7 +790,22 @@ export class TreeLattice {
       const pulse = 0.55 + 0.45 * Math.sin(t * 4.2);
       this.frameMats.get('open')!.color.setHex(STATE_COL.open).multiplyScalar(0.4 + 0.65 * pulse);
       this.pipMats.next.color.setHex(0xffb030).multiplyScalar(Math.floor(t * 3) % 2 ? 1.2 : 0.25);
-      this.coreMats[1].color.setHex(0xb87a28).multiplyScalar(0.55 + 0.45 * pulse);
+      this.coreMats[2].color.setHex(0xb87a28).multiplyScalar(0.55 + 0.6 * pulse);
+      this.coreMats[3].color.setHex(0x48dc70).multiplyScalar(0.85 + 0.15 * Math.sin(t * 1.6));
+      const fast = 0.5 + 0.5 * Math.sin(t * 7);
+      this.coreMats[4].color.setHex(0xfff0c0).multiplyScalar(0.7 + 0.4 * fast);
+      this.coreMats[5].color.setHex(0xff6a3a).multiplyScalar(0.35 + 0.75 * fast);
+      // each run's core: the inspected (or selected) node's runs lit, a charge in flight dims it until it lands
+      const fv0 = this.active ? this.focused ?? this.sel : null;
+      for (const L of cur.links) {
+        if (L.charge < 1) {
+          L.charge = Math.min(1, L.charge + dt * 1.7);
+          if (L.charge >= 1 && L.ping) { L.ping = false; L.to.burst = Math.max(L.to.burst, 0.55); sfx('tick', 0.35); }
+        }
+        const hot = !!fv0 && (L.to === fv0 || L.from === fv0);
+        const m = this.coreMats[L.charge < 1 ? 1 : hot ? (L.lit ? 4 : 5) : L.lit];
+        if (L.core.material !== m) L.core.material = m;
+      }
       for (const v of cur.nodes) {
         const on = v.hover || v === this.sel || v === this.focused;
         v.lift = damp(v.lift, on && this.active ? 1 : 0, 9, dt);
@@ -783,18 +826,27 @@ export class TreeLattice {
         if (v.burst > 0) { const bc = this.burstCard; bc.visible = true; bc.position.set(v.p.x, v.p.y, v.p.z + 0.02); bc.scale.setScalar(0.4 + (1 - v.burst) * 1.6); (bc.material as THREE.MeshBasicMaterial).opacity = v.burst; }
       }
       if (!cur.nodes.some((v) => v.burst > 0)) this.burstCard.visible = false;
-      // beads down the lit conduits
+      // beads down the live conduits: green and slow on owned runs, amber and quick into a node open now,
+      // white on the inspected node's runs, red-orange up its missing requirements, and a big charge head after a research
       let bi = 0;
-      for (const L of cur.links) {
-        if (!L.lit || L.len < 0.02 || bi >= 96) continue;
-        const f = ((t * (L.lit === 2 ? 0.35 : 0.2) + L.from.ph) % 1) * L.len;
-        let d = f, p = L.pts[0];
+      const put = (L: LinkV, f: number, col: number, sz: number) => {
+        if (bi >= BEADS) return;
+        let d = f * L.len, p = L.pts[0];
         for (let i = 0; i < L.pts.length - 1; i++) { const sl = L.pts[i].distanceTo(L.pts[i + 1]); if (d <= sl) { p = this.v.copy(L.pts[i]).lerp(L.pts[i + 1], d / Math.max(1e-4, sl)); break; } d -= sl; p = L.pts[i + 1]; }
-        this.m4.makeTranslation(p.x, p.y, p.z + 0.006);
-        this.beads.setMatrixAt(bi++, this.m4);
+        this.m4.makeScale(sz, sz, sz).setPosition(p.x, p.y, p.z + 0.006);
+        this.beads.setMatrixAt(bi, this.m4);
+        this.beads.setColorAt(bi++, this.col.setHex(col));
+      };
+      for (const L of cur.links) {
+        if (L.len < 0.02) continue;
+        if (L.charge >= 0 && L.charge < 1) { put(L, L.charge, 0xffffff, 2.4); put(L, Math.max(0, L.charge - 0.06), 0xfff0b0, 1.6); continue; }
+        const hot = !!fv0 && (L.to === fv0 || L.from === fv0);
+        const [n, sp, col] = hot ? (L.lit ? [3, 0.5, 0xfff4d8] : [2, 0.32, 0xff7a4a]) : L.lit === 3 ? [1, 0.18, 0x8affa8] : L.lit === 2 ? [2, 0.42, 0xffd070] : L.lit === 1 ? [1, 0.12, 0xb88a40] : [0, 0, 0];
+        for (let j = 0; j < n; j++) put(L, (t * sp * (0.3 / Math.max(0.15, L.len)) + L.from.ph + j / n) % 1, col, hot ? 1.25 : 1);
       }
       this.beads.count = bi;
       this.beads.instanceMatrix.needsUpdate = true;
+      if (this.beads.instanceColor) this.beads.instanceColor.needsUpdate = true;
     }
     // the reader drives over beside the inspected node (or back to its park)
     const fv = this.focused;
@@ -856,8 +908,25 @@ function missing(n: TreeNode): string {
   const need = n.req.map((k) => treeNode(k)).filter((m) => m && rankPlanned(m) < 1).map((m) => m!.title);
   const rn = researchFor(n, rankPlanned(n) + 1);
   for (const q of rn?.requires ?? []) { const m = treeNodes().find((t) => t.rn.includes(q)); if (m && rankPlanned(m) < 1 && !need.includes(m.title)) need.push(m.title); }
-  const q = nodeQuest(n.rn[0]);
+  const q = fieldReq(n);
   return need.length ? need.join(', ') : q && !q.done ? 'a field quest' : 'an earlier node';
+}
+/** what a node still waits on outside research: a requirement quest's count (src/game/reqQuests.ts), a quest named by
+ *  the research (quest / reqQuest, read from the quest runtime), or its gate's hint (goal 0: no count to show) */
+function fieldReq(n: TreeNode): { text: string; progress: number; goal: number; done: boolean } | null {
+  if (rankOf(n) >= 1) return null;
+  const rq = nodeQuest(n.rn[0]);
+  if (rq) return { text: rq.text, progress: rq.progress, goal: rq.goal, done: rq.done };
+  const rn = researchFor(n, 1) as (ReturnType<typeof researchFor> & { quest?: string; reqQuest?: string }) | undefined;
+  if (!rn) return null;
+  const qk = rn.quest ?? rn.reqQuest;
+  if (qk) {
+    const v = (G.missions?.quests as QuestRuntime | undefined)?.view?.(qk);
+    const objs = v?.objectives ?? [];
+    return { text: v?.title ?? qk, progress: objs.filter((o) => o.done).length, goal: objs.length, done: v?.status === 'done' };
+  }
+  if (rn.gate && !rn.gate()) return { text: rn.gateHint || 'not yet earned', progress: 0, goal: 0, done: false };
+  return null;
 }
 /** cut a text to at most `lines` wrapped lines of maxW font px (an ellipsis on the last) */
 function clip(s: string, maxW: number, lines: number): string {

@@ -46,7 +46,7 @@ export function generatePlunge(z: Zone, seed: number) {
   const c: Ctx = { z, b, f, rng, seed };
   z.name = 'The Plunge';
   const fill = (r: R, floor: string, h = 0) => b.fillFloor(r.x0, r.y0, r.x1, r.y1, floor, h);
-  const sky = (x: number, y: number, i = 0.85, rad = 9) => b.light(x + 0.5, y + 0.5, 'sky', { color: 0xeaf6ff, intensity: i, radius: rad, y: 6, circuit: 0 });
+  const sky = (x: number, y: number, i = 0.85, rad = 9) => b.light(x + 0.5, y + 0.5, 'sky', { color: 0xeaf6ff, intensity: i * 0.7, radius: rad - 1, y: 6, circuit: 0 });
 
   // ============================================================ shells
   for (const [r, floor] of [[FOYER, DECK], [VILLAGE, BLUE], [PLANT, 'concrete'], [HALL, DECK]] as const) {
@@ -248,7 +248,7 @@ export function generatePlunge(z: Zone, seed: number) {
   for (const cc of [C_HALL, C_FOYER, C_PLANT, C_CAFE]) z.power.set(cc, true);
   z.env = {
     ...z.env,
-    ambient: 0xc0d4dc, ambientI: 0.68, fog: 0xd8eaf0, fogNear: 22, fogFar: 54, void: 0xa8c4cc, temp: 28,
+    ambient: 0xb4c8d0, ambientI: 0.55, fog: 0xd8eaf0, fogNear: 22, fogFar: 54, void: 0xa8c4cc, temp: 28,
     sky: false, grade: 'pool', reverb: 'pool', ambience: 'pool', music: 'pads',
   };
   z.spawnTable = [['gulper_tadpole', 3], ['frog_piranha', 2], ['balloon_puffer', 2.2], ['lifeguard', 0.4]];

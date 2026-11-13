@@ -45,11 +45,11 @@ export const GRASS_ZONES = new Set(['meadow', 'fields', 'suburbs', 'parking', 'h
 interface Biome { dens: number; flowers: number; flowerMix: [number, number]; clover: number; straw: number; tall: number; short: number; bare: number }
 const BIOMES: Biome[] = [
   // the Meadow: even, lush, pastel flowers, hardly a dry blade
-  { dens: 13, flowers: 0.075, flowerMix: [0.4, 0.68], clover: 0.05, straw: 0.012, tall: 0.03, short: 0.1, bare: 0.86 },
+  { dens: 10, flowers: 0.075, flowerMix: [0.4, 0.68], clover: 0.05, straw: 0.012, tall: 0.03, short: 0.1, bare: 0.86 },
   // the Fields: a summer afternoon, seed heads and straw, buttercups
-  { dens: 15, flowers: 0.08, flowerMix: [0.42, 0.8], clover: 0.07, straw: 0.13, tall: 0.12, short: 0.1, bare: 0.8 },
+  { dens: 11, flowers: 0.08, flowerMix: [0.42, 0.8], clover: 0.07, straw: 0.13, tall: 0.12, short: 0.1, bare: 0.8 },
   // lawns: mown short, clover and daisies, the verges by walls left long
-  { dens: 12, flowers: 0.035, flowerMix: [0.6, 0.9], clover: 0.14, straw: 0.04, tall: 0.02, short: 0.5, bare: 0.83 },
+  { dens: 9, flowers: 0.035, flowerMix: [0.6, 0.9], clover: 0.14, straw: 0.04, tall: 0.02, short: 0.5, bare: 0.83 },
 ];
 
 /** wind per level (0..1), slightly stronger under rain */
@@ -107,27 +107,29 @@ vec3 objectNormal;
   float crest = wave * wave * wave * (0.3 + 0.7 * front);
   float fl = sin(uTime * (2.1 + seed * 2.7) + seed * 37.0) * 0.6 + sin(uTime * (4.6 + seed * 1.9) + seed * 11.0) * 0.4;
   vec2 wind = (wd * (0.1 + 0.85 * crest * uGWind.w) + (wq * 0.8 + wd * 0.4) * fl * 0.12) * uGWind.z;
-  vec2 bend = (wind * (1.0 - tr * 0.85) + gb.xy) * vd.z;
+  vec2 bend = (wind * (1.0 - tr * 0.85) + gb.xy) * max(vd.w, 0.0);
   float bl = length(bend);
   if (bl > 1.15) bend *= 1.15 / bl;
   float px = position.x, hy = position.y;
+  // across the card: the painted box (left .. right of the root, metres)
+  float gx = mix(vd.x, vd.y, px + 0.5);
   float col = mod(float(vi), ${COLS}.0), row = floor(float(vi) / ${COLS}.0);
   vec2 cell = vec2(col * uGCell.x, row * uGCell.y);
-  if (vd.w > 0.5) {
+  if (vd.w < -0.5) {
     // a flat patch on the ground, screen aligned (painted foreshortened: one texel per pixel)
-    gWPos = root + gR * (px * vd.x) + gF * ((hy - 0.5) * vd.y) + vec3(0.0, 0.006, 0.0);
-    vGUv = (cell + vec2(uGCell.x * 0.5 + px * vd.x * uGInfo.x, (1.0 - hy) * vd.y * uGInfo.z)) * uGCell.zw;
+    gWPos = root + gR * gx + gF * ((hy - 0.5) * vd.z) + vec3(0.0, 0.006, 0.0);
+    vGUv = (cell + vec2(uGCell.x * 0.5 + gx * uGInfo.x, (1.0 - hy) * vd.z * uGInfo.z)) * uGCell.zw;
     objectNormal = vec3(0.0, 1.0, 0.0);
     vGShift = 0.0;
   } else {
     // an upright card: a cut tuft loses its top (the sheet is cropped, not squashed)
     float cutK = mix(1.0, 0.34, cut);
-    float H = vd.y * cutK;
+    float H = vd.z * cutK;
     float k = pow(hy, 1.5);
     vec2 off = (bend * 0.85 + lay * tr * 0.95) * H * k;
     float squash = (1.0 - 0.42 * min(1.0, dot(bend, bend))) * (1.0 - 0.7 * tr);
-    gWPos = root + gR * (px * vd.x) + vec3(off.x, hy * H * squash, off.y);
-    vGUv = (cell + vec2(uGCell.x * 0.5 + px * vd.x * uGInfo.x, uGCell.y - hy * H * uGInfo.y)) * uGCell.zw;
+    gWPos = root + gR * gx + vec3(off.x, hy * H * squash, off.y);
+    vGUv = (cell + vec2(uGCell.x * 0.5 + gx * uGInfo.x, uGCell.y - hy * H * uGInfo.y)) * uGCell.zw;
     // lit like the ground it grows from, turned a little toward the camera and the way it leans
     objectNormal = normalize(vec3(0.0, 1.0, 0.0) - gF * 0.3 + vec3(bend.x, 0.0, bend.y) * 0.25);
     // palette steps: lush patches, gust crests (the blades show their pale side), trampled grass
@@ -242,6 +244,8 @@ interface GChunk { ci: number; sig: number; mesh: THREE.Mesh | null; geo: THREE.
 export class GrassSystem {
   name = 'grass';
   enabled = true;
+  /** a software rasteriser (no GPU): draw the light version whatever the preset says (null: not looked yet) */
+  soft: boolean | null = null;
   readonly root = new THREE.Group();
   private zone: Zone | null = null;
   private active = false;
@@ -277,7 +281,8 @@ export class GrassSystem {
     pal.magFilter = pal.minFilter = THREE.NearestFilter; pal.generateMipmaps = false; pal.flipY = false;
     pal.colorSpace = THREE.SRGBColorSpace; pal.needsUpdate = true;
     const vars: THREE.Vector4[] = [];
-    for (let i = 0; i < 64; i++) { const v = VARIANTS[i]; vars.push(v ? new THREE.Vector4(v.w, v.h, v.stiff, v.kind === 'flat' ? 1 : 0) : new THREE.Vector4(0.1, 0.1, 1, 0)); }
+    // per variant: painted box left, right, height (or flat depth), stiffness (-1: a flat patch); refitted with every sheet
+    for (let i = 0; i < 64; i++) { const v = VARIANTS[i]; vars.push(v ? new THREE.Vector4(-v.w / 2, v.w / 2, v.h, v.kind === 'flat' ? -1 : v.stiff) : new THREE.Vector4(-0.01, 0.01, 0.01, 1)); }
     this.uni = {
       uGTex: { value: null }, uGPal: { value: pal }, uGBend: { value: null }, uGState: { value: null },
       uGWin: { value: new THREE.Vector4(0, 0, 1 / SIM_M, 0) }, uGWind: { value: new THREE.Vector4(1, 0, 0.5, 1) },
@@ -333,14 +338,15 @@ export class GrassSystem {
     const fx = eye ? eye.position.x : pr.target.x, fz = eye ? eye.position.z : pr.target.z;
     const lvl = (pr.qualityOverride ?? pr.quality) as keyof typeof QUALITY;
     const Q: any = QUALITY[lvl] ?? QUALITY.high;
+    if (this.soft === null) this.soft = isSoftware(pr.renderer);
     this.updateSheet(pr, dt);
-    this.updateChunks(z, fx, fz, eye ? 30 : pr.lowW * pr.pxSize * 0.75 + 4, Q.grass ?? 1, 1 / pr.pxSize, !!eye);
+    this.updateChunks(z, fx, fz, eye ? 30 : pr.lowW * pr.pxSize * 0.75 + 4, Math.min(Q.grass ?? 1, this.soft ? 0.45 : 1), 1 / pr.pxSize, !!eye);
     // wind: a slow veer, stronger in the rain
     const wet = /rain|storm/.test(z.env.weather || '') ? 1.6 : 1;
     this.windAng = 0.6 + Math.sin(this.time * 0.031) * 0.5;
     const W = this.uni.uGWind.value as THREE.Vector4;
     W.set(Math.cos(this.windAng), Math.sin(this.windAng), Math.min(1, (WIND[z.key] ?? 0.4) * wet), 1);
-    if (!g.paused) this.simulate(pr.renderer, z, fx, fz, dt, Q.grassSim ?? 256);
+    if (!g.paused) this.simulate(pr.renderer, z, fx, fz, dt, this.soft ? Math.min(160, Q.grassSim ?? 256) : (Q.grassSim ?? 256));
   }
 
   private setZone(z: Zone) {
@@ -379,6 +385,8 @@ export class GrassSystem {
     this.uni.uGTex.value = tex;
     (this.uni.uGCell.value as THREE.Vector4).set(sh.cw, sh.ch, 1 / sh.w, 1 / sh.h);
     (this.uni.uGInfo.value as THREE.Vector4).set(sh.D, sh.Dv, sh.Df, 0);
+    const vars = this.uni.uGVar.value as THREE.Vector4[];
+    sh.box.forEach((b, i) => { vars[i].x = b[0]; vars[i].y = b[1]; vars[i].z = b[2]; });
     this.stats.D = D;
   }
 
@@ -613,6 +621,16 @@ export class GrassSystem {
 
   /** dev: drop every chunk so they are grown again (after tuning) */
   rebuild() { this.clearChunks(); }
+}
+
+/** SwiftShader / llvmpipe: every fragment costs CPU time, so the grass goes light */
+function isSoftware(r: THREE.WebGLRenderer): boolean {
+  try {
+    const gl = r.getContext();
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const name = String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER) || '');
+    return /swiftshader|llvmpipe|software|softpipe/i.test(name);
+  } catch { return false; }
 }
 
 // ---------------------------------------------------------------- growing a chunk

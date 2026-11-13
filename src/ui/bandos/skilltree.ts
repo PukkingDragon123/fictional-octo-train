@@ -8,7 +8,7 @@
 //   the band desktop's Research app   look over the tree mid-run (research is bought at the lab)
 //   the lab's main computer           openSkillTree({ lab: true }) full screen: stage and research; every
 //                                     purchase plays the install sequence (./install.ts)
-import './bandos.css';
+import './skilltree.css';
 import { G } from '../../game/G';
 import { sfx } from '../menus/sfx';
 import { mxOk } from '../machine/core';

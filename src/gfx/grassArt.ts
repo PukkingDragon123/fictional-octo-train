@@ -96,12 +96,12 @@ for (let k = 0; k < 6; k++) add('flat', 0.54, 0.5, 0, (r, v) => {
 // rows: 0 the Meadow (too green, pastel), 1 the Fields (a soft summer afternoon), 2 lawns and verges
 const P = (grass: number[], straw: number[], clover: number[], petals: number[], earth: number[], extra: number[]) => [...grass, ...straw, ...clover, ...petals, ...earth, ...extra];
 export const PALETTES: number[][] = [
-  P([0x16604a, 0x23845a, 0x35a862, 0x4cc46c, 0x7edc7c, 0xc8f294], [0x8aa65e, 0xbccb7c, 0xe8efb0], [0x1f735e, 0x2f9372, 0x58b98c],
-    [0xfdfbf4, 0xffe45e, 0xb89cf2, 0xf4b83a], [0x9a7a78, 0xb69890, 0xd0b6aa, 0xf2e4ea, 0x7a5e60], [0xf8b4d4, 0x8a6cd2, 0xd6d2e6, 0, 0, 0, 0, 0]),
-  P([0x1d4c32, 0x2a6a3a, 0x3e8a44, 0x5aa850, 0x8cc65e, 0xd2e27c], [0x9a8446, 0xc8ae62, 0xeed898], [0x285e46, 0x3e7e58, 0x64a276],
-    [0xfcfaf0, 0xf8d040, 0xa88ae2, 0xf0a634], [0x6a4c36, 0x86664a, 0xa4845e, 0xccb89e, 0x4a3424], [0xf2a4c2, 0x7658b6, 0xd8d6cc, 0, 0, 0, 0, 0]),
-  P([0x1a3a20, 0x29552c, 0x3b7036, 0x558a42, 0x7ca852, 0xb2c86a], [0x86763f, 0xab9b5a, 0xd2c486], [0x244f34, 0x386e46, 0x5a905c],
-    [0xf6f4e8, 0xf0cc3c, 0x9a7ad0, 0xe8a82e], [0x584030, 0x745640, 0x907052, 0xb2a48e, 0x3c2c20], [0xeaa0be, 0x7056a8, 0xd2d2c6, 0, 0, 0, 0, 0]),
+  P([0x1c8a4c, 0x2ea65a, 0x44c26a, 0x60de7e, 0x96f090, 0xd8fca8], [0x9ab868, 0xc8d888, 0xeef6b8], [0x1f7a5e, 0x32a074, 0x5cc492],
+    [0xfdfbf4, 0xffe45e, 0xb89cf2, 0xf4b83a], [0xa08078, 0xbc9e92, 0xd6bcae, 0xf4e8ee, 0x80625e], [0xf8b4d4, 0x8a6cd2, 0xd6d2e6, 0, 0, 0, 0, 0]),
+  P([0x2a7448, 0x3a9058, 0x52aa68, 0x6cc482, 0xa0da8e, 0xe0eca0], [0xa48e50, 0xd0b86c, 0xf2e0a2], [0x2c6c50, 0x428c62, 0x6aae7e],
+    [0xfcfaf0, 0xf8d040, 0xa88ae2, 0xf0a634], [0x70523a, 0x8c6c4e, 0xaa8a62, 0xd0bca2, 0x503a28], [0xf2a4c2, 0x7658b6, 0xd8d6cc, 0, 0, 0, 0, 0]),
+  P([0x2a4c26, 0x3a6432, 0x4e7c3e, 0x62944a, 0x8cb45c, 0xc4d478], [0x8e7e44, 0xb4a260, 0xd8ca8c], [0x2a5638, 0x3e744a, 0x5e9460],
+    [0xf6f4e8, 0xf0cc3c, 0x9a7ad0, 0xe8a82e], [0x5c4232, 0x785a42, 0x947454, 0xb4a690, 0x402e22], [0xeaa0be, 0x7056a8, 0xd2d2c6, 0, 0, 0, 0, 0]),
 ];
 
 /** palette as an RGBA8 image (PAL_N x rows) */
@@ -112,7 +112,11 @@ export function paletteData(): Uint8Array {
 }
 
 // ---------------------------------------------------------------- painting the sheet at a pixel density
-export interface Sheet { data: Uint8Array; w: number; h: number; cw: number; ch: number; D: number; Dv: number; Df: number }
+export interface Sheet {
+  data: Uint8Array; w: number; h: number; cw: number; ch: number; D: number; Dv: number; Df: number;
+  /** per variant, the painted pixels' box in metres: left, right (from the root), height (upright) or depth (flat) */
+  box: [number, number, number][];
+}
 
 /** hash 0..1 */
 const hf = (x: number, y: number, s: number) => { let h = (Math.imul(x | 0, 374761393) + Math.imul(y | 0, 668265263) + Math.imul(s | 0, 2147483647)) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -127,6 +131,7 @@ export function paintSheet(D: number, cosP: number, sinP: number): Sheet {
   const w = cw * COLS, h = ch * ROWS;
   const data = new Uint8Array(w * h * 4);
   const fat = D >= 100 ? 2 : 1;
+  const box: [number, number, number][] = [];
   for (const v of VARIANTS) {
     const col = v.i % COLS, row = Math.floor(v.i / COLS);
     const x0 = col * cw, y0 = row * ch;
@@ -137,7 +142,15 @@ export function paintSheet(D: number, cosP: number, sinP: number): Sheet {
       data[o] = Math.max(0, Math.min(31, idx)) * 8 + 4; data[o + 1] = 0; data[o + 2] = 0; data[o + 3] = 255;
     };
     const has = (x: number, y: number) => x >= 0 && y >= 0 && x < cw && y < ch && data[((y0 + y) * w + x0 + x) * 4 + 3] > 0;
-    if (v.kind === 'flat') { paintFlat(v, put, cw, D, Df); continue; }
+    // the card is cut to what was painted (most of a cell is empty: the quads stay small)
+    const fit = () => {
+      let x0b = cw, x1b = -1, y0b = ch, y1b = -1;
+      for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) if (has(x, y)) { x0b = Math.min(x0b, x); x1b = Math.max(x1b, x); y0b = Math.min(y0b, y); y1b = Math.max(y1b, y); }
+      if (x1b < 0) { box.push([-0.01, 0.01, 0.01]); return; }
+      const c = cw / 2;
+      box.push([(x0b - c) / D, (x1b + 1 - c) / D, v.kind === 'flat' ? (y1b + 1) / Df : (ch - y0b) / Dv]);
+    };
+    if (v.kind === 'flat') { paintFlat(v, put, cw, D, Df); fit(); continue; }
     const cx = Math.floor(cw / 2), bottom = ch - 1;
     // ---- blades
     for (const b of v.blades) {
@@ -215,13 +228,13 @@ export function paintSheet(D: number, cosP: number, sinP: number): Sheet {
     for (let x = 0; x < cw; x++) if (has(x, bottom)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
     if (maxX >= 0) {
       for (let x = minX; x <= maxX; x++) {
-        if (has(x, bottom)) put(x, bottom, 0);
-        else if (hf(x, v.i, 31) < 0.55) put(x, bottom, 1);
-        if (has(x, bottom - 1) && hf(x, v.i, 37) < 0.5) put(x, bottom - 1, 1);
+        if (has(x, bottom)) put(x, bottom, hf(x, v.i, 37) < 0.4 ? 0 : 1);
+        else if (hf(x, v.i, 31) < 0.2) put(x, bottom, 1);
       }
     }
+    fit();
   }
-  return { data, w, h, cw, ch, D, Dv, Df };
+  return { data, w, h, cw, ch, D, Dv, Df, box };
 }
 
 /** a flat patch of bare earth: ragged edge, grains, pebbles with a lit top and a shadow (painted foreshortened) */

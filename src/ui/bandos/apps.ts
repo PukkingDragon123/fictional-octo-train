@@ -1,6 +1,7 @@
-// The band desktop's apps (./bandos.ts). Each builds into its window's body and returns what it needs
-// each frame (tick) and on close (dispose). They reuse the game's own pages and systems; none of the
-// game's logic lives here.
+// The wrist terminal's apps (./bandos.ts). Each builds into the tube (full screen) and returns what it
+// needs each frame (tick) and when it closes (dispose). They reuse the game's own pages and systems; none
+// of the game's logic lives here. The research tree is not here: it is the 3D lattice on the lab's main
+// computer (src/ui/menus/research/lattice.ts).
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import type { IconKind } from '../machine/decor';
@@ -15,16 +16,13 @@ import { trackQuest } from '../broadcast/notices';
 import { lore } from '../../content/loreRegistry';
 import type { QuestRuntime, QView } from '../../missions/questRuntime';
 import { researchPoints } from '../../game/research';
-import { skillTreeApp } from './skilltree';
 
 export interface AppRun { dispose?: () => void; tick?: (dt: number) => void }
 export interface AppDef {
   key: string; title: string; sub: string; icon: IconKind; w: number; h: number;
-  /** on the desktop as an icon (default true) */
-  desk?: boolean;
-  /** apps sharing one host (the lab's panels): opening one closes the other */
+  /** apps sharing one host (the lab's panels) */
   group?: string;
-  /** give back what it borrowed when the desktop goes down */
+  /** gives back what it borrowed when it closes (every app closes when the band goes down) */
   closeOnHide?: boolean;
   build(w: WinApi): AppRun | void;
 }
@@ -40,6 +38,8 @@ const LINES: Mail[] = [];
 const DOCS: string[] = [];
 const stamp = () => { const h = (G.clock as any)?.hours ?? 0; return `D${Math.floor(h / 24) + 1} ${String(Math.floor(h % 24)).padStart(2, '0')}:${String(Math.floor((h % 1) * 60)).padStart(2, '0')}`; };
 let hooked = false;
+/** how many of Dr. Calder's lines the band has logged (the message lamp) */
+export const mailCount = () => LINES.length;
 export function hookMail() {
   if (hooked) return;
   const h = G.handler as { say?: (t: string, o?: unknown) => unknown } | undefined;
@@ -64,7 +64,7 @@ export const APPS: AppDef[] = [
     },
   },
   {
-    key: 'tasks', title: 'Tasks', sub: 'the board: offers, work, filed', icon: 'clipboard', w: 640, h: 440,
+    key: 'tasks', title: 'Tasks', sub: 'offers, work in hand, filed', icon: 'clipboard', w: 640, h: 440,
     build(w) {
       const q = Q();
       if (!q) { w.body.append(el('p', 'bos-p', 'No feed from the Institute here.')); return; }
@@ -148,7 +148,7 @@ export const APPS: AppDef[] = [
     },
   },
   {
-    key: 'status', title: 'Status', sub: 'the debtor\'s file', icon: 'eye', w: 600, h: 480,
+    key: 'status', title: 'Status', sub: 'the unit, the debt, the crew', icon: 'eye', w: 600, h: 480,
     build(w) {
       const box = el('div', 'bos-crt');
       w.body.append(box);
@@ -161,10 +161,6 @@ export const APPS: AppDef[] = [
   {
     key: 'codex', title: 'Codex', sub: 'specimens and anomalies on file', icon: 'dossier', w: 760, h: 520, group: 'lab', closeOnHide: true,
     build(w) { return labPanel(w, openCodex); },
-  },
-  {
-    key: 'research', title: 'Research', sub: 'the skill tree', icon: 'gear', w: 860, h: 560,
-    build(w) { return skillTreeApp(w); },
   },
   {
     key: 'mail', title: 'Mail', sub: 'Dr. Calder\'s lines, papers read', icon: 'radio', w: 620, h: 420,
@@ -212,7 +208,7 @@ export const APPS: AppDef[] = [
     },
   },
   {
-    key: 'term', title: 'Terminal', sub: 'the band\'s shell', icon: 'key', w: 560, h: 360,
+    key: 'term', title: 'Terminal', sub: 'the band\'s radio shell', icon: 'walkie', w: 560, h: 360,
     build(w) { return terminalApp(w); },
   },
 ];
@@ -229,15 +225,16 @@ function labPanel(w: WinApi, open: (h: PanelHost) => void): AppRun {
 // ---------------------------------------------------------------- the terminal toy
 function terminalApp(w: WinApi): AppRun {
   const out = el('div', 'bos-term-out');
-  const row = el('label', 'bos-term-row', '<span>op@band:~$</span>');
+  const row = el('label', 'bos-term-row', '<span>OP&gt;</span>');
   const inp = el('input', 'bos-term-in') as HTMLInputElement;
   inp.spellcheck = false; inp.autocomplete = 'off';
   row.append(inp);
   w.body.append(out, row);
   w.body.classList.add('bos-term');
+  setTimeout(() => inp.focus({ preventScroll: true }), 420);
   const hist: string[] = []; let hi = 0;
   const print = (t: string, cls = '') => { const d = el('div', cls); d.textContent = t; out.append(d); out.scrollTop = out.scrollHeight; };
-  print('BAND OS 3.1 shell. Type help.', 'dim');
+  print('MI-7 BAND SHELL. TYPE HELP.', 'dim');
   const p = () => G.local;
   const CMDS: Record<string, (a: string[]) => void> = {
     help: () => print('help · whoami · status · debt · time · where · tasks · rp · ls · cat <id> · open <app> · bishop · clear · exit'),
@@ -261,7 +258,7 @@ function terminalApp(w: WinApi): AppRun {
       const line = inp.value.trim(); inp.value = '';
       if (!line) return;
       hist.push(line); hi = hist.length;
-      print('op@band:~$ ' + line, 'echo');
+      print('OP> ' + line, 'echo');
       const [c, ...a] = line.split(/\s+/);
       const f = CMDS[c.toLowerCase()];
       if (f) f(a); else print(`${c}: command not found`, 'err');

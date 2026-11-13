@@ -984,6 +984,26 @@ export function mxIconAnim(kind: IconKind, size = 36): { cv: HTMLCanvasElement; 
   } };
   return { cv, hot: (v: boolean) => { on = v; if (v || cur !== 0) { moving = true; tickOf.set(cv, t); clock(t); } } };
 }
+const SPIN_F = 24;
+/**
+ * a 3D icon turning slowly all the way round on its turntable (the band's home screen), quicker while hot:
+ * a sheet of SPIN_F headings rendered once (straight on), flipped by the shared clock while it is on screen
+ */
+export function mxIconSpin(kind: IconKind, size = 72): { cv: HTMLCanvasElement; hot(on: boolean): void; wake(): void } | null {
+  if (!mxOk()) return null;
+  const sh = sheet(`icoS|${kind}|${size}`, size, size, 4, SPIN_F, (f) => iconModel(kind, size, (f / SPIN_F) * TAU), FREE);
+  if (!sh) return null;
+  const fw = size + 8, fh = size + 8;
+  const cv = frameCanvas(fw, fh, 'mxi-cv');
+  let ph = Math.random() * SPIN_F, on = false, cur = -1;
+  const draw = () => { const f = Math.floor(ph) % SPIN_F; if (f === cur) return; cur = f; blit(cv, sh, f, fw, fh); };
+  draw();
+  const t: Ticker = { el: cv, seen: 0, tick: (_n, dt) => { if (reduce()) return; ph = (ph + dt * (on ? 16 : 3.2)) % SPIN_F; cur = -1; draw(); } };
+  tickOf.set(cv, t); clock(t);
+  return { cv, hot: (v: boolean) => { on = v; wake(cv); }, wake: () => wake(cv) };
+}
+/** bake an icon's turntable sheet ahead of time (idle), so the band's home turns at once when it opens */
+export function mxIconSpinWarm(kind: IconKind, size = 72) { if (mxOk()) sheet(`icoS|${kind}|${size}`, size, size, 4, SPIN_F, (f) => iconModel(kind, size, (f / SPIN_F) * TAU), FREE); }
 /** a little 3D icon (cached): a canvas of size + 2 x 3 px */
 export function mxIcon(kind: IconKind, size = 22): HTMLCanvasElement | null {
   if (!mxOk()) return null;
