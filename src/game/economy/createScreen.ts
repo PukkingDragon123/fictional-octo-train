@@ -11,6 +11,8 @@ import { hasItemDef, itemDef } from '../../items/item';
 import { mxItemSpin, type ItemSpin } from '../../ui/machine/itemSpin';
 import { sfx } from '../../ui/menus/sfx';
 import { crtScreen, type Crt } from '../../ui/crt/crt';
+import { itemIcon } from '../../ui/icons';
+import { G } from '../G';
 import { MATS, fmtKg, type Matter } from './matter';
 import type { Pattern } from './registry';
 
@@ -45,7 +47,7 @@ export class CreateScreen {
   private holder = h('div', 'pf-host pc-host');
   private spins = new Map<string, ItemSpin | null>();
   private lit = false;
-  private hold: { q: Pattern; t: number; el: HTMLElement; id: number } | null = null;
+  private hold: { q: Pattern; t: number; t0: number; el: HTMLElement; id: number } | null = null;
   private raf = 0; private last = 0; private dead = false;
 
   constructor(private host: CreateHost) {
@@ -109,6 +111,13 @@ export class CreateScreen {
     let sp = this.spins.get(k);
     if (sp === undefined) { sp = mxItemSpin(k, 64); this.spins.set(k, sp); }
     if (sp) { m.append(sp.cv); sp.hot(false); }
+    else {
+      // no model to turn: its still (the game's own icon), the same size
+      const im = document.createElement('img'); im.className = 'mxi-cv'; im.alt = '';
+      const u = (G as unknown as { pr?: { renderer?: unknown } })?.pr?.renderer ? itemIcon(k, '', 64) : '';
+      if (u) im.src = u;
+      m.append(im);
+    }
     m.append(h('i', 'pc-plinth'));
     if (locked) m.append(h('span', 'pc-lk', LOCK));
     t.append(m);
@@ -130,7 +139,7 @@ export class CreateScreen {
       t.addEventListener('pointerdown', (e) => {
         if (e.button > 0) return;
         if (why) { sfx('error', 0.4); t.classList.remove('nope'); void t.offsetWidth; t.classList.add('nope'); return; }
-        this.hold = { q, t: 0, el: t, id: e.pointerId };
+        this.hold = { q, t: 0, t0: performance.now(), el: t, id: e.pointerId };
         t.classList.add('down');
         sfx('rocker', 0.45);
       });
@@ -156,11 +165,12 @@ export class CreateScreen {
     setTimeout(() => this.host.make(q), 220);
   }
 
-  private tick(dt: number) {
+  private tick(_dt: number) {
     const hd = this.hold;
     if (!hd) return;
     if (!hd.el.isConnected) { this.hold = null; return; }
-    hd.t += dt;
+    // held time is real time (a slow frame must not make the plinth harder to buy)
+    hd.t = (performance.now() - hd.t0) / 1000;
     const k = Math.min(1, hd.t / HOLD);
     (hd.el.querySelector('.pc-hold i') as HTMLElement | null)?.style.setProperty('width', Math.round(k * 100) + '%');
     if (Math.random() < 0.3) sfx('tick', 0.15);
