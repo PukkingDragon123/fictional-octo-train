@@ -18,8 +18,18 @@ import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import type { TimedAction } from './action';
-import { checkGauge, type GaugeMark } from '../ui/minigames/check';
-import { qteAssist } from '../ui/menus/settings';
+import type { GaugeMark, GaugeState } from '../ui/minigames/check';
+import { qteAssist } from '../core/assist';
+
+// the gauge is UI: loaded on the first window, never at import (game logic stays node-safe for the zone checks)
+let gauge: { show(x: number, y: number, st: GaugeState): void; hide(): void } | null = null;
+let gaugeLoading = false;
+function loadGauge() {
+  if (gauge || gaugeLoading || typeof document === 'undefined') return;
+  gaugeLoading = true;
+  import('../ui/minigames/check').then((m) => { gauge = m.checkGauge; }).catch((e) => { gaugeLoading = false; console.warn('check gauge', e); });
+}
+const checkGauge = { show: (x: number, y: number, st: GaugeState) => { if (gauge) gauge.show(x, y, st); else loadGauge(); }, hide: () => gauge?.hide() };
 
 export type CheckKind = 'tap' | 'hold';
 export type CheckMark = 'perfect' | 'hit' | 'miss';
@@ -42,7 +52,7 @@ export interface CheckOpts {
   onMark?: (m: CheckMark, i: number) => void;
 }
 
-const AUTO = typeof navigator !== 'undefined' && !!navigator.webdriver && !/[?&]qte/.test(location.search);
+const AUTO = typeof navigator !== 'undefined' && !!navigator.webdriver && typeof location !== 'undefined' && !/[?&]qte/.test(location.search);
 const V = new THREE.Vector3();
 function vn(t: number, s: number) { const i = Math.floor(t), f = t - i, u = f * f * (3 - 2 * f); const h = (k: number) => { const x = Math.sin(k * 127.1 + s * 311.7) * 43758.5453; return x - Math.floor(x); }; return h(i) * (1 - u) + h(i + 1) * u; }
 
@@ -59,7 +69,7 @@ const onDown = (e: PointerEvent) => {
 const onUp = (e: PointerEvent) => { if (e.pointerType !== 'mouse') touchHeld = false; };
 let listening = false;
 function listen(on: boolean) {
-  if (on === listening) return;
+  if (on === listening || typeof window === 'undefined') return;
   listening = on;
   if (on) { window.addEventListener('pointerdown', onDown, { capture: true, passive: false }); window.addEventListener('pointerup', onUp, true); window.addEventListener('pointercancel', onUp, true); }
   else { window.removeEventListener('pointerdown', onDown, { capture: true }); window.removeEventListener('pointerup', onUp, true); window.removeEventListener('pointercancel', onUp, true); taps = 0; touchHeld = false; }
@@ -97,7 +107,7 @@ export class SkillCheck {
     this.core = [cm - cw / 2, cm + cw / 2];
     const G2 = G as unknown as { input?: { down(a: string): boolean; mouseDown: boolean[] } };
     this.armed = !(G2.input?.down('interact') || G2.input?.down('shove') || G2.input?.mouseDown?.[0] || touchHeld);
-    owner = this; listen(true); taps = 0;
+    owner = this; listen(true); taps = 0; loadGauge();
     G.audio?.ui?.('mn_tick', 0.35);
   }
 

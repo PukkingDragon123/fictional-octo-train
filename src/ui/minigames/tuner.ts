@@ -24,7 +24,7 @@ import { pxPlate, pxLamp } from '../pxKit';
 import { mxFrame, type MxFrame } from '../machine/kit';
 import { mxMount, type MxDecor } from '../machine/decor';
 import { mxOk } from '../machine/core';
-import { qteAssist } from '../menus/settings';
+import { qteAssist } from '../../core/assist';
 import './minigames.css';
 
 const W = 300, H = 78;

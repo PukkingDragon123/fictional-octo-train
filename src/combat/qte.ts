@@ -13,7 +13,7 @@ import { shake, punch, hitstop, slowmo } from '../gfx/juice';
 import { gaugeName, type Marks } from './glyphs';
 import type { Words } from './words';
 import { bus } from '../core/events';
-import { qteAssist } from '../ui/menus/settings';
+import { qteAssist } from '../core/assist';
 
 export type QteKind = 'mash' | 'alt' | 'timed';
 export interface Stage { kind: QteKind; need: number }

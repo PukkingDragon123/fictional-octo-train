@@ -81,13 +81,8 @@ export function reducedMotion(): boolean {
 export function coarsePointer(): boolean {
   try { return matchMedia('(pointer: coarse)').matches; } catch { return false; }
 }
-/** the quick-time assists (src/actions/skillCheck.ts, src/combat/qte.ts, the scanner's lock): read every frame, cached */
-let assist: { hold: boolean; slow: boolean } | null = null;
-bus.on('uiSettings', () => { assist = null; });
-export function qteAssist(): { hold: boolean; slow: boolean } {
-  if (!assist) { const s = uiSettings(); assist = { hold: !!s.qteHold, slow: !!s.qteSlow }; }
-  return assist;
-}
+/** the quick-time assists live in src/core/assist.ts (game logic reads them without importing UI) */
+export { qteAssist } from '../../core/assist';
 /** true when flicker / glitch / blinking effects should stay still */
 export function calm(): boolean { return document.documentElement.classList.contains('reduce-flash'); }
 
