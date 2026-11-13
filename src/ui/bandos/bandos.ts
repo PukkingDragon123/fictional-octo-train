@@ -129,7 +129,7 @@ export class BandOS {
     this.tube.classList.add('dot');
     this.dial?.to(0);
     const root = this.root;
-    setTimeout(() => { root.classList.remove('up'); }, reduce() ? 0 : 220);
+    setTimeout(() => { if (!this.open) root.classList.remove('up'); }, reduce() ? 0 : 220);
     setTimeout(() => { if (!this.open) { root.classList.remove('on'); cancelAnimationFrame(this.raf); } }, reduce() ? 60 : 520);
     setTimeout(() => { if (!this.open) root.remove(); }, reduce() ? 80 : 640);
   }

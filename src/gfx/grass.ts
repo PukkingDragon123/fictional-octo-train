@@ -45,11 +45,11 @@ export const GRASS_ZONES = new Set(['meadow', 'fields', 'suburbs', 'parking', 'h
 interface Biome { dens: number; flowers: number; flowerMix: [number, number]; clover: number; straw: number; tall: number; short: number; bare: number }
 const BIOMES: Biome[] = [
   // the Meadow: even, lush, pastel flowers, hardly a dry blade
-  { dens: 10, flowers: 0.075, flowerMix: [0.4, 0.68], clover: 0.05, straw: 0.012, tall: 0.03, short: 0.1, bare: 0.86 },
+  { dens: 13, flowers: 0.09, flowerMix: [0.4, 0.68], clover: 0.05, straw: 0.012, tall: 0.03, short: 0.1, bare: 0.86 },
   // the Fields: a summer afternoon, seed heads and straw, buttercups
-  { dens: 11, flowers: 0.08, flowerMix: [0.42, 0.8], clover: 0.07, straw: 0.13, tall: 0.12, short: 0.1, bare: 0.8 },
+  { dens: 13, flowers: 0.09, flowerMix: [0.42, 0.8], clover: 0.07, straw: 0.13, tall: 0.12, short: 0.1, bare: 0.8 },
   // lawns: mown short, clover and daisies, the verges by walls left long
-  { dens: 9, flowers: 0.035, flowerMix: [0.6, 0.9], clover: 0.14, straw: 0.04, tall: 0.02, short: 0.5, bare: 0.83 },
+  { dens: 11, flowers: 0.04, flowerMix: [0.6, 0.9], clover: 0.14, straw: 0.04, tall: 0.02, short: 0.5, bare: 0.83 },
 ];
 
 /** wind per level (0..1), slightly stronger under rain */
@@ -657,8 +657,29 @@ function growChunk(z: Zone, cx: number, cy: number) {
   const bioAt = (x: number, y: number) => { if (!z.inb(x, y)) return -1; const f = z.floor[z.idx(x, y)]; if (!f) return -1; const b = GRASS_FLOORS[floorDef(f)?.key ?? '']; return b === undefined ? -1 : b; };
   for (let y = cy * CHUNK; y < Math.min(z.H, (cy + 1) * CHUNK); y++) for (let x = cx * CHUNK; x < Math.min(z.W, (cx + 1) * CHUNK); x++) {
     const bio = bioAt(x, y);
-    if (bio < 0) continue;
     const i = z.idx(x, y);
+    if (bio < 0) {
+      // the grass creeps over the edge of a path, a kerb, a patio: a few short blades on this side of the seam
+      const f = z.floor[i];
+      if (!f || z.solid[i] || floorDef(f)?.water) continue;
+      const gy = z.height[i] * 0.1;
+      const spill = (nb: number, at: (t: number, d: number) => [number, number]) => {
+        if (nb < 0) return;
+        for (let k = 0; k < 3; k++) {
+          const t = (k + hf(x * 3 + k, y, seed + 131)) / 3, d = 0.02 + 0.12 * hf(x, y * 3 + k, seed + 137);
+          if (hf(x + k, y - k, seed + 139) < 0.3) continue;
+          const [u, v] = at(t, d);
+          roots.push(x + u, gy, y + v, hf(x, y + k, seed + 149));
+          vars.push(pick(hf(y, x + k, seed + 151) < 0.75 ? 'short' : 'tuft', hf(x + k, y, seed + 157)), nb, 0, 0);
+        }
+      };
+      if (!z.wallN[i]) spill(bioAt(x, y - 1), (t, d) => [t, d]);
+      if (!(z.inb(x, y + 1) && z.wallN[z.idx(x, y + 1)])) spill(bioAt(x, y + 1), (t, d) => [t, 1 - d]);
+      if (!z.wallW[i]) spill(bioAt(x - 1, y), (t, d) => [d, t]);
+      if (!(z.inb(x + 1, y) && z.wallW[z.idx(x + 1, y)])) spill(bioAt(x + 1, y), (t, d) => [1 - d, t]);
+      ymin = Math.min(ymin, gy); ymax = Math.max(ymax, gy);
+      continue;
+    }
     if (z.solid[i] === 1 || z.solid[i] === 3) continue;
     const B = BIOMES[bio];
     const gy = z.height[i] * 0.1;

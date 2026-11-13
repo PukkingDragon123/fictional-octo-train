@@ -13,7 +13,6 @@ import type { Design } from '../life/design';
 import type { Ctx } from '../life/sculpt';
 import { sac, ball, hash, norm, addV, scl, type V3, type Page } from '../life/kit';
 import { makeRamp, mixHex } from '../../gfx/pixel';
-import { PK } from '../../gore/particles';
 import { defDread } from '../dread';
 import { ruleShown } from '../rules';
 import { TEARS } from '../../gore/tearing';
@@ -178,6 +177,56 @@ export function poseGauntWolf(R: WolfRig, t: number, dt: number, pose: WolfPose 
 }
 
 // ------------------------------------------------------------------ in-game animation
+// ------------------------------------------------------------------ breath
+let BREATH: THREE.SpriteMaterial | null = null;
+function breathMat(): THREE.SpriteMaterial {
+  if (BREATH) return BREATH;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 32;
+  const g = cv.getContext('2d')!;
+  const gr = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  gr.addColorStop(0, 'rgba(232,232,236,0.5)'); gr.addColorStop(0.45, 'rgba(226,226,232,0.22)'); gr.addColorStop(1, 'rgba(220,220,228,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 32, 32);
+  const tex = new THREE.CanvasTexture(cv);
+  BREATH = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, opacity: 1 });
+  return BREATH;
+}
+interface Puff { s: THREE.Sprite; age: number; life: number; v: THREE.Vector3 }
+function breath(R: LifeGameRig, c: Creature, t: number, dt: number, on: boolean, hard: boolean) {
+  const ud = R.life.m as Record<string, any>;
+  const puffs: Puff[] = ud.puffs ??= [];
+  const jaw = R.life.model.rig.jaw;
+  if (on && jaw >= 0 && (ud.brT ?? 0) < t) {
+    // a breath every second or so walking, short hard ones charging
+    ud.brT = t + (hard ? 0.35 : 0.9 + Math.random() * 0.4);
+    let p = puffs.find((q) => q.age >= q.life);
+    if (!p && puffs.length < 6) {
+      const s = new THREE.Sprite(breathMat().clone());
+      s.renderOrder = 5; s.castShadow = false;
+      R.root.add(s);
+      p = { s, age: 0, life: 1, v: new THREE.Vector3() };
+      puffs.push(p);
+    }
+    if (p) {
+      R.life.bones[jaw].getWorldPosition(_v);
+      R.root.worldToLocal(_v);
+      p.s.position.copy(_v).add(_w.set(0, -0.1, 0.5));
+      p.v.set((Math.random() - 0.5) * 0.3, 0.25 + Math.random() * 0.15, 0.9 + Math.random() * 0.4);
+      p.age = 0; p.life = hard ? 0.6 : 1.1;
+      p.s.visible = true;
+    }
+  }
+  for (const p of puffs) {
+    if (p.age >= p.life) { p.s.visible = false; continue; }
+    p.age += dt;
+    const k = Math.min(1, p.age / p.life);
+    p.s.position.addScaledVector(p.v, dt);
+    p.v.multiplyScalar(Math.exp(-2.2 * dt));
+    const sz = 0.35 + k * 1.1;
+    p.s.scale.set(sz, sz, 1);
+    (p.s.material as THREE.SpriteMaterial).opacity = (1 - k) * Math.min(1, k * 6) * (on ? 0.85 : 0);
+  }
+}
+
 function animateWolf(rig: Rig, c: Creature, t: number, dt: number) {
   const R = rig as WolfRig, n = netOf(c);
   const p = live() ? G.local : null;
@@ -188,18 +237,9 @@ function animateWolf(rig: Rig, c: Creature, t: number, dt: number) {
   const md = (c.dead ? 'dead' : (n.md as WolfPose)) || (c.speed > 6 ? 'charge' : c.speed > 2.5 ? 'lope' : c.speed > 0.1 ? 'walk' : 'idle');
   poseW(R, { t, dt, md, speed: c.dead ? 0 : c.speed, lookYaw: lyaw, lookPitch: lpitch, act: c.attackPhase > 0 ? 1 - c.attackPhase / 0.38 : 0, far: d > 40, flinch: flinchOf(c), dead: c.dead });
   R.life.F.fx.value.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
-  // steaming breath from the mouth, slow in the cold air
+  // steaming breath from the mouth: soft puffs that swell and fade (a few camera-facing wisps per wolf, not particles)
   const ud = R.life.m;
-  if (!c.dead && live() && c.visibleToLocal && (ud.brT ?? 0) < t) {
-    ud.brT = t + (n.md === 'charge' ? 0.12 : 0.3);
-    const dust = (G as any).destruct?.dust;
-    const hb = R.life.model.rig.jaw >= 0 ? R.life.bones[R.life.model.rig.jaw] : null;
-    if (dust && hb) {
-      hb.getWorldPosition(_v);
-      const f = c.facing;
-      for (let i = 0; i < 2; i++) dust.add(PK.Mist, _v.x + Math.cos(f) * 0.6, _v.y, _v.z + Math.sin(f) * 0.6, Math.cos(f) * 0.6 + (Math.random() - 0.5) * 0.3, 0.25 + Math.random() * 0.2, Math.sin(f) * 0.6 + (Math.random() - 0.5) * 0.3, 0.12 + Math.random() * 0.08, 1.4 + Math.random() * 0.8, 0xe8e8ec);
-    }
-  }
+  breath(R, c, t, dt, !c.dead && live() && c.visibleToLocal, n.md === 'charge' || n.md === 'maul');
   // the ground shakes under it
   if (!c.dead && c.speed > 2 && live()) {
     ud.stp = (ud.stp ?? 0) + dt * c.speed;

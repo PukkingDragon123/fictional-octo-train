@@ -36,7 +36,7 @@ export class PauseMenu {
   private nav: FocusNav | null = null;
   private cluster: GearCluster | null = null;
   constructor() {
-    // round 17: Esc / MENU put up the band desktop (src/ui/bandos); this console answers to 'pauseMenuClassic'
+    // round 17: Esc / MENU raise the wrist terminal (src/ui/bandos); this console answers to 'pauseMenuClassic'
     bus.on('pauseMenuClassic', () => (this.el ? this.close() : this.open()));
   }
   open(page: Page = 'main') {
