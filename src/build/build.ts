@@ -34,7 +34,7 @@ import { Settlement } from './settlement';
 import { bump, mark } from './progress';
 import { Camp } from './camp';
 import { Gathering } from './gather';
-import { GhostTag, type TagState } from './ghostTag';
+import { GhostTag, noteBuildOpen, type TagState, type TagCost } from './ghostTag';
 import { upgradeOf, upgradeCost, CLAIM_OBJS } from './kit2';
 import { storeItems, takeFromStore } from '../craft/stores';
 import { knowsBlueprint, whereToFind } from './blueprints';
@@ -129,6 +129,7 @@ export class BuildSystem implements GameSystem {
     this.demolish = false;
     // the ghost's own words take over the world prompt while building (src/build/build.css)
     document.body.classList.toggle('bld-on', on);
+    if (on) noteBuildOpen();
     if (!on) { this.ghost.visible = false; this.ring.visible = false; this.claimRing.visible = false; setVisor(0); this.tag.hide(); }
     this.board.show(on);
     if (!on && this.boardOver) { G.input.pointerOverUI = false; this.boardOver = false; }
@@ -576,45 +577,37 @@ export class BuildSystem implements GameSystem {
   }
 
   // ================================================================= the ghost's floating words (src/build/ghostTag.ts)
-  private costLine(p: Player, mats: [string, number][]) {
-    return mats.map(([k, n]) => { const have = this.countOf(p, k); return { text: `${itemDef(k).name} ${Math.min(have, 99)}/${n}`, ok: have >= n }; });
+  private costLine(p: Player, mats: [string, number][]): TagCost[] {
+    return mats.map(([k, n]) => ({ key: k, have: this.countOf(p, k), need: n }));
   }
+  /** round 17: no walls of words: a name, a padlock when locked, the salvage as icons with have/need */
   private tagState(p: Player, z: Zone, pc: Piece): TagState | null {
     const h = this.hover;
     if (this.demolish) {
       if (!h) return null;
-      const at = this.hoverTop(z, h);
       const pk = h.kind === 'wall' ? piece(h.key) : h.kind === 'frame' ? piece(h.o.state.piece as string) : pieceForObj(h.o.key);
-      return { key: 'demo', head: 'Take down', name: pk?.name ?? 'piece', at, cost: pk ? this.refundLine(pk, h.kind === 'frame' ? 1 : 0.5) : [], keys: [] };
+      return { key: 'demo', pre: '✕', name: pk?.name ?? 'piece', at: this.hoverTop(z, h), cost: pk ? this.refundLine(pk, h.kind === 'frame' ? 1 : 0.5) : [] };
     }
     if (h && h.kind === 'frame') {
       const fp = piece(h.o.state.piece as string);
-      const w = welderFor(p, fp);
-      const verb = fp?.join === 'nail' ? 'Hammer' : 'Weld';
-      return { key: 'frame', head: verb, name: `${fp?.name ?? 'frame'} ${Math.round((h.o.state.w ?? 0) * 100)}%`, why: w ? undefined : fp?.join === 'nail' ? 'needs a hammer' : 'needs a welding torch', at: this.hoverTop(z, h), keys: [['X', 'Knock apart']] };
+      return { key: 'frame', pre: `${Math.round((h.o.state.w ?? 0) * 100)}%`, name: fp?.name ?? 'frame', at: this.hoverTop(z, h) };
     }
     if (h && (h.kind === 'piece' || h.kind === 'wall') && !this.spot?.ok) {
       const from = h.kind === 'wall' ? piece(h.key) : pieceForObj(h.o.key);
       const to = from ? upgradeOf(from.key) : null;
-      const keys: [string, string][] = [['X', 'Take down']];
-      if (to) keys.unshift(['U', 'Upgrade']);
       return {
-        key: 'piece', head: to ? 'Upgrade' : '', name: to ? `${from!.name} to ${to.name}` : from?.name ?? '', at: this.hoverTop(z, h),
-        why: to && !this.unlocked(to) ? 'blueprint needed: ' + whereToFind(to) : undefined,
-        cost: to ? this.costLine(p, upgradeCost(to)) : from ? this.refundLine(from, 0.5) : [], keys,
+        key: 'piece', pre: to ? '↑' : '', name: to ? to.name : from?.name ?? '', at: this.hoverTop(z, h), locked: !!to && !this.unlocked(to),
+        cost: to ? this.costLine(p, upgradeCost(to)) : from ? this.refundLine(from, 0.5) : [],
       };
     }
     const s = this.spot;
     if (!s) return null;
-    const unlocked = this.unlocked(pc);
-    const why = !unlocked ? 'blueprint needed: ' + whereToFind(pc) : !s.ok ? s.why : !this.canAfford(p, pc) ? 'not enough salvage' : !welderFor(p, pc) ? (pc.join === 'nail' ? 'needs a hammer to finish' : 'needs a welding torch to finish') : undefined;
     const w = pc.w ?? 1, d = pc.d ?? 1, rw = s.rot % 2 === 0 ? w : d, rd = s.rot % 2 === 0 ? d : w;
     const at = pc.kind === 'obj' ? { x: s.x + rw / 2, y: z.heightAt(s.x, s.y), z: s.y + rd / 2 } : { x: s.side === 0 ? s.x + 0.5 : s.x, y: z.heightAt(s.x, s.y), z: s.side === 0 ? s.y : s.y + 0.5 };
-    const keys: [string, string][] = [['R', 'Rotate'], [', .', 'Piece'], ['Tab', 'Shelf'], ['X', 'Take down'], ['Esc', 'Put away']];
-    return { key: 'place:' + pc.key, head: 'Build', name: pc.name, why: why && why !== 'not enough salvage' ? why : undefined, cost: this.costLine(p, pc.cost), keys, at };
+    return { key: 'place:' + pc.key, name: pc.name, locked: !this.unlocked(pc), cost: this.costLine(p, pc.cost), at };
   }
-  private refundLine(pc: Piece, frac: number) {
-    return pc.cost.map(([k, n]) => ({ text: `+${frac >= 1 ? n : Math.max(k === pc.cost[0][0] ? 1 : 0, Math.floor(n * frac))} ${itemDef(k).name}`, ok: true })).filter((c) => !c.text.startsWith('+0 '));
+  private refundLine(pc: Piece, frac: number): TagCost[] {
+    return pc.cost.map(([k, n]) => ({ key: k, have: 0, need: frac >= 1 ? n : Math.max(k === pc.cost[0][0] ? 1 : 0, Math.floor(n * frac)), give: true })).filter((c) => c.need > 0);
   }
   private hoverTop(z: Zone, h: NonNullable<Hover>) {
     if (h.kind === 'wall') return { x: h.side === 0 ? h.x + 0.5 : h.x, y: z.heightAt(h.x, h.y), z: h.side === 0 ? h.y : h.y + 0.5 };

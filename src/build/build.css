@@ -1,12 +1,17 @@
 /* Build mode has no panels: the clipboard, gauges and stamps are 3D props in first person.
    This is only the welding mask: the screen goes dark around the arc. */
 .bld-visor { position: fixed; inset: 0; z-index: 30; pointer-events: none; opacity: 0; transition: opacity .12s; }
-/* round 16: the ghost's floating words (src/build/ghostTag.ts) sit in the world prompt's type; only
-   the salvage line gets its two inks: have it (pale green), short of it (the prompt's own warning orange) */
-#wprompt .bld-tag .bld-cost .wp-sub.ok { color: #c8e6a0; }
-#wprompt .bld-tag .bld-cost .wp-sub.no { color: #e08a5a; }
-#wprompt .bld-tag .bld-keys .wp-sub { color: #cfc4a4; }
+/* round 16-17: the ghost's floating words (src/build/ghostTag.ts): a name, a padlock when locked, the
+   salvage as small icons with have / need (pale when there, the prompt's warning orange when short), and
+   compact key caps for the first few uses. In the world prompt's own type; nothing rounded. */
+#wprompt .wp-tag.prim.bld-tag .wp-head { font-size: 16px; line-height: 18px; letter-spacing: 1px; text-shadow: var(--ink1); display: flex; align-items: center; justify-content: center; gap: 5px; }
+#wprompt .bld-tag .bld-lock { width: 14px; height: 16px; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 #0b0a07); }
+#wprompt .bld-tag .bld-cost { display: flex; justify-content: center; gap: 10px; margin-top: 3px; }
+#wprompt .bld-tag .bld-c { display: inline-flex; align-items: center; gap: 2px; font-size: 16px; line-height: 16px; text-shadow: var(--ink1); }
+#wprompt .bld-tag .bld-c img { width: 16px; height: 16px; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 #0b0a07); }
+#wprompt .bld-tag .bld-c.ok { color: #e6dcc0; }
+#wprompt .bld-tag .bld-c.no { color: #e8704a; }
+#wprompt .bld-tag .bld-c.no img { opacity: 0.6; }
+#wprompt .bld-tag .bld-keys { display: flex; justify-content: center; gap: 5px; margin-top: 5px; opacity: 0.8; }
+#wprompt .bld-tag .bld-kc { font-size: 16px; line-height: 14px; padding: 1px 4px 2px; color: #ffd768; background: rgba(11, 10, 7, 0.72); box-shadow: inset 0 0 0 1px #6a5a30, 0 2px 0 #0b0a07; }
 body.bld-on #wprompt .wp-tag:not(.bld-tag) { visibility: hidden; }
-/* the ghost's words are a working label, not a headline: the world prompt's small size */
-#wprompt .wp-tag.prim.bld-tag .wp-head { font-size: 16px; line-height: 18px; letter-spacing: 1px; text-shadow: var(--ink1); }
-#wprompt .wp-tag.prim.bld-tag .wp-head .wp-key { margin-right: 6px; }

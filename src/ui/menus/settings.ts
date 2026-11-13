@@ -11,7 +11,9 @@ import { installPixelKit } from '../pixelkit';
 export type UiTheme = 'green' | 'amber';
 export interface UiSettings { theme: UiTheme; scale: number; reduceFlash: boolean; /** 0 = auto, else art-pixel scale 2..4 */ px?: number;
   /** quick-time assists (round 17): hold a key instead of hammering it; slower needles, wider bands, longer struggles */
-  qteHold?: boolean; qteSlow?: boolean }
+  qteHold?: boolean; qteSlow?: boolean;
+  /** round 17: keep the build ghost's key caps (they retire after the first few times the kit comes out) */
+  buildHints?: boolean }
 
 const KEY = 'noclip.ui';
 const DEF: UiSettings = { theme: 'green', scale: 1, reduceFlash: false, px: 0 };
