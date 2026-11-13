@@ -84,7 +84,7 @@ export const APPS: AppDef[] = [
         list.replaceChildren(...views.map((v) => {
           const b = el('button', 'bos-li' + (v.key === sel ? ' on' : '') + (v.status === 'ready' ? ' ready' : '') + (q.fresh?.has?.(v.key) ? ' fresh' : '')) as HTMLButtonElement;
           b.type = 'button';
-          b.innerHTML = `<b>${esc(v.title)}</b><small>${esc(v.giver)} · ${esc(v.status === 'ready' ? 'ready to settle' : v.category)}</small>`;
+          b.innerHTML = `<b>${esc(v.title)}</b>${v.status === 'ready' ? '<small>READY</small>' : ''}`;
           b.addEventListener('click', () => { sel = v.key; sig = ''; render(); });
           return b;
         }));
@@ -93,12 +93,13 @@ export const APPS: AppDef[] = [
         pane.replaceChildren(...(v ? detail(v) : []));
       };
       const detail = (v: QView): HTMLElement[] => {
-        const out: HTMLElement[] = [el('h3', 'bos-h', esc(v.title)), el('p', 'bos-dim', `${esc(v.giver)} · ${esc(v.category)}`), el('p', 'bos-p', esc(v.desc))];
+        // the job in numbers and boxes: its name, who set it, the objectives, the pay (no paragraphs on the glass)
+        const out: HTMLElement[] = [el('h3', 'bos-h', esc(v.title)), el('p', 'bos-dim', esc(v.giver).toUpperCase())];
         const ol = el('div', 'bos-objs');
-        for (const o of v.objectives) ol.append(el('div', 'bos-obj' + (o.done ? ' done' : ''), `<i></i><span>${esc(o.text)}${o.optional ? ' <em>optional</em>' : ''}</span>${o.prog > 0 && !o.done ? `<s style="--p:${Math.round(o.prog * 100)}%"></s>` : ''}`));
+        for (const o of v.objectives) ol.append(el('div', 'bos-obj' + (o.done ? ' done' : ''), `<i></i><span>${esc(o.text.replace(/\s*\(optional\)/i, ''))}${o.optional ? ' <em>OPT</em>' : ''}</span>${o.prog > 0 && !o.done ? `<s style="--p:${Math.round(o.prog * 100)}%"></s>` : ''}`));
         out.push(ol);
-        if (v.rewardText) out.push(el('p', 'bos-rew', `Reward: ${esc(v.rewardText)}`));
-        if (v.costText) out.push(el('p', 'bos-dim', `Cost: ${esc(v.costText)}${v.payNote ? ' · ' + esc(v.payNote) : ''}`));
+        if (v.rewardText) out.push(el('p', 'bos-rew', `+ ${esc(v.rewardText)}`));
+        if (v.costText) out.push(el('p', 'bos-dim', `- ${esc(v.costText)}`));
         const keys = el('div', 'bos-keys');
         if (v.status === 'new') keys.append(btn('Accept', () => act(v.key, 'accept'), 'go'), btn('Decline', () => act(v.key, 'decline')));
         else if (v.status === 'ready') keys.append(btn('Pay and settle', () => act(v.key, 'pay'), v.affordable ? 'go' : 'off'));

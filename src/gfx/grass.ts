@@ -72,6 +72,7 @@ uniform vec4 uGVar[64];
 varying vec2 vGUv;
 varying float vGShift;
 varying float vGRow;
+varying float vGTr;
 `;
 
 // computed where three starts the normal, so position and normal come from one place
@@ -126,21 +127,28 @@ vec3 objectNormal;
     float cutK = mix(1.0, 0.34, cut);
     float H = vd.z * cutK;
     float k = pow(hy, 1.5);
-    vec2 off = (bend * 0.85 + lay * tr * 0.95) * H * k;
-    float squash = (1.0 - 0.42 * min(1.0, dot(bend, bend))) * (1.0 - 0.78 * tr);
-    // a flattened lane: half the tufts are pressed right into the ground
-    if (tr > 0.45 && fract(seed * 7.13) < 0.5) squash *= 1.0 - smoothstep(0.45, 0.9, tr) * 0.85;
-    gWPos = root + gR * gx + vec3(off.x, hy * H * squash, off.y);
+    // trodden flat, the card lies down along the way the trampler went, its width across that way
+    float trE = smoothstep(0.22, 0.85, tr);
+    vec3 lp = vec3(-lay.y, 0.0, lay.x);
+    lp *= dot(lp, gR) < 0.0 ? -1.0 : 1.0;
+    vec3 wAx = normalize(mix(gR, lp, trE) + vec3(1e-4, 0.0, 0.0));
+    vec3 uAx = normalize(mix(vec3(0.0, 1.0, 0.0), vec3(lay.x, 0.16, lay.y), trE));
+    vec2 off = (bend * 0.85 * (1.0 - trE) + lay * tr * 0.35 * (1.0 - trE)) * H * k;
+    float squash = 1.0 - 0.42 * min(1.0, dot(bend, bend)) * (1.0 - trE);
+    gWPos = root + wAx * gx + uAx * (hy * H * squash) + vec3(off.x, 0.012 * trE * hy, off.y);
     vGUv = (cell + vec2(uGCell.x * 0.5 + gx * uGInfo.x, uGCell.y - hy * H * uGInfo.y)) * uGCell.zw;
     // lit like the ground it grows from, turned a little toward the camera and the way it leans
-    objectNormal = normalize(vec3(0.0, 1.0, 0.0) - gF * 0.3 + vec3(bend.x, 0.0, bend.y) * 0.25);
+    objectNormal = normalize(vec3(0.0, 1.0, 0.0) - gF * 0.3 * (1.0 - trE) + vec3(bend.x, 0.0, bend.y) * 0.25);
+    // both faces draw (a lying card may show its back): keep the light normal on the side we see
+    if (dot(cross(wAx, uAx), cB) < 0.0) objectNormal = -objectNormal;
     // palette steps: lush patches, gust crests (the blades show their pale side), trampled grass
     float lush = sin(root.x * 0.19 + sin(root.z * 0.15) * 1.7) * 0.5 + sin(root.z * 0.12 - root.x * 0.07 + 2.0) * 0.5;
     // (and a step darker down in the turf, so every tuft stands out of the ground it grows from;
     // flattened grass shows its pale side: a trampled lane reads as a lighter streak)
-    vGShift = lush * 0.55 + (seed - 0.5) * 0.9 + crest * uGWind.z * 1.5 * (1.0 - tr) + tr * 2.2 - cut * 0.4 + mix(-1.1, 0.3, hy) * (1.0 - tr);
+    vGShift = lush * 0.55 + (seed - 0.5) * 0.9 + crest * uGWind.z * 1.5 * (1.0 - tr) + tr * 0.6 - cut * 0.4 + mix(-1.1, 0.3, hy) * (1.0 - tr);
   }
   vGRow = aVar.y;
+  vGTr = vd.w < -0.5 ? 0.0 : tr;
 }
 `;
 
@@ -150,6 +158,7 @@ uniform sampler2D uGPal;
 varying vec2 vGUv;
 varying float vGShift;
 varying float vGRow;
+varying float vGTr;
 `;
 
 const FMAP = /* glsl */`
@@ -159,7 +168,11 @@ const FMAP = /* glsl */`
   float gi = floor(gt.r * 255.0 / 8.0);
   // whole palette steps, dithered in screen space, never a smooth tint
   float s = floor(vGShift + bayer4(gl_FragCoord.xy));
-  if (gi < 5.5) gi = clamp(gi + s, 0.0, 5.0);
+  if (gi < 5.5) {
+    gi = clamp(gi + s, 0.0, 5.0);
+    // trodden flat: the blades lie on their backs, a paler and greyer green (dithered in with the trample)
+    if (bayer4(gl_FragCoord.xy + vec2(2.0, 1.0)) < vGTr * 1.3 - 0.15) gi = 24.0 + clamp(floor(gi * 0.5), 0.0, 2.0);
+  }
   else if (gi < 8.5) gi = clamp(gi + s, 6.0, 8.0);
   else if (gi < 11.5) gi = clamp(gi + s, 9.0, 11.0);
   diffuseColor.rgb *= texelFetch(uGPal, ivec2(int(gi), int(vGRow + 0.5)), 0).rgb;
@@ -296,7 +309,7 @@ export class GrassSystem {
     // the world pipeline's own hook (lighting, light grid, fog, vision, normal buffer), then the grass on top
     const base = worldMaterial({ outline: 0 }) as THREE.MeshLambertMaterial;
     const baseHook = base.onBeforeCompile;
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.FrontSide });
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
     mat.onBeforeCompile = (sh, r) => {
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\n' + VDECL)
@@ -528,7 +541,7 @@ export class GrassSystem {
     for (const p of g.players?.values?.() ?? []) {
       if (p.zoneKey !== z.key || p.inVehicle) continue;
       const crawl = p.stance === 'crawl';
-      body('p' + p.id, p.x, p.z, crawl ? 0.5 : 0.36, crawl ? 1.1 : 1, crawl ? 1.6 : 0.55, 0);
+      body('p' + p.id, p.x, p.z, crawl ? 0.6 : 0.48, crawl ? 1.1 : 1, crawl ? 1.8 : 0.8, 0);
     }
     // creatures: the big ones flatten wide swathes, corpses lie in the grass they crushed
     for (const c of g.creatures?.creatures?.values?.() ?? []) {

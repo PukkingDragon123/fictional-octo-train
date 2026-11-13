@@ -62,10 +62,14 @@ function itemModel(key: string, S: number, yaw: number): THREE.Object3D {
   if (!g) return root;
   (g as unknown as { _keep: boolean })._keep = true; // the game's cached geometry: never disposed here
   if (!g.boundingBox) g.computeBoundingBox();
-  const b = g.boundingBox!, c = b.getCenter(new THREE.Vector3());
-  const R = Math.max(1e-3, b.getSize(new THREE.Vector3()).length() / 2);
-  const k = (S * 0.48) / R;
-  const tilt = new THREE.Group(); tilt.position.set(S / 2, -S / 2, 0); tilt.rotation.x = 0.42;
+  const b = g.boundingBox!, c = b.getCenter(new THREE.Vector3()), d = b.getSize(new THREE.Vector3());
+  // the frame holds the whole turn: across, the radius it sweeps; up and down, its height tilted plus that radius
+  // flat things (a ring, a note, a plank) are seen from higher up, or they turn edge-on
+  const flat = d.y < 0.45 * Math.max(d.x, d.z);
+  const T = flat ? 0.95 : 0.42, rxz = Math.hypot(d.x, d.z) / 2;
+  const R = Math.max(1e-3, rxz, (d.y / 2) * Math.cos(T) + rxz * Math.sin(T));
+  const k = (S * 0.5) / R;
+  const tilt = new THREE.Group(); tilt.position.set(S / 2, -S / 2, 0); tilt.rotation.x = T;
   const tt = new THREE.Group(); tt.rotation.y = yaw; tilt.add(tt);
   const m = new THREE.Mesh(g, itemMat());
   m.scale.setScalar(k); m.position.copy(c).multiplyScalar(-k);

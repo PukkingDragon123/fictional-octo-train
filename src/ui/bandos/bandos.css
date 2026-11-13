@@ -122,3 +122,10 @@
 /* item cards and dialogs sit over the unit; nothing of the world floats over it */
 body:has(.wt.on) .ipnl { z-index: 980; }
 body:has(.wt.on) :is(.wp-tag, .obj15, .ft-subs .w-bubble) { visibility: hidden !important; }
+.wt-foot kbd + kbd { margin-left: -4px; }
+.wt-back { flex: none; padding: 0 8px; border: 0; cursor: pointer; font: inherit; font-size: 14px; letter-spacing: 0.08em; color: var(--ph); background: none; box-shadow: inset 0 0 0 2px var(--ph-dim); text-shadow: inherit; }
+.wt-back:hover, .wt-back:focus-visible { color: #021006; background: var(--ph); text-shadow: none; outline: none; }
+.wt.tall .wt-back { padding: 2px 14px; font-size: 16px; }
+/* names only on the one picked */
+.wt .bos-tile span { visibility: hidden; }
+.wt .bos-tile:hover span, .wt .bos-tile:focus-visible span { visibility: visible; }

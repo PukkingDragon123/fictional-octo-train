@@ -148,7 +148,9 @@ function buildCase(L: WristLayout): THREE.Group {
   return g;
 }
 
-/** the left forearm under the case (the hand out to the right), and two straps round it */
+/** the left forearm under the case (the hand out to the right), and two webbing straps round it.
+ *  The arm is the close-ups' 3D arm (src/fp/hands.ts), posed, then baked into one machine-shaded mesh so it is
+ *  lit, inked and dithered like the case. */
 function buildArm(L: WristLayout, skin: number, sleeve: number): { g: THREE.Group; dispose(): void } {
   const g = new THREE.Group();
   const SC = 4300;
@@ -160,39 +162,43 @@ function buildArm(L: WristLayout, skin: number, sleeve: number): { g: THREE.Grou
   const holder = new THREE.Group();
   holder.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, -1)));
   holder.scale.setScalar(SC);
-  holder.add(arm.root);
   const ay = -L.H * 0.5 + 56, az = -235, elbowX = -220;
   holder.position.set(elbowX, ay, az);
-  g.add(holder);
+  holder.add(arm.root);
+  holder.updateMatrixWorld(true);
+  const body = new Mold(true);
+  arm.root.traverse((o) => {
+    const me = o as THREE.Mesh;
+    if (!me.isMesh || !me.visible) return;
+    let vis = true; for (let q: THREE.Object3D | null = me; q; q = q.parent) if (!q.visible) vis = false;
+    if (!vis) return;
+    const mt = me.material as THREE.MeshStandardMaterial;
+    const hex = mt.color ? mt.color.getHex() : 0xc0a080;
+    const cloth = hex === new THREE.Color(sleeve).getHex();
+    body.add(me.geometry.clone(), me.matrixWorld.clone(), hex, cloth ? CLOTH : SKIN);
+  });
+  holder.remove(arm.root);
+  arm.dispose();
   // the sleeve carries on past the elbow, out of the picture
-  const cloth = new Mold().add(fcyl(226, 560, 14, 236, 0.2), M(elbowX - 270, ay, az, 0, 0, R90), sleeve, CLOTH);
-  // the straps: webbing round the arm either side of the case, a steel buckle on each
+  body.add(fcyl(226, 560, 14, 236, 0.2), M(elbowX - 270, ay, az, 0, 0, R90), sleeve, CLOTH);
+  // the straps: khaki webbing round the arm either side of the case, a steel buckle on each
   const st = new Mold();
-  for (const [x, d] of [[-30, 470], [L.W + 22, 390]]) {
-    st.add(fbox(40, d, d, 0.12), M(x, ay, az), 0x3b3a2a, CLOTH);
-    st.add(fbox(46, 64, 12, 0.3), M(x, ay + 20, az + d / 2 + 4), 0xb0b8b4, CHROME);
-    st.add(fbox(30, 44, 6, 0.2), M(x, ay + 20, az + d / 2 + 9), 0x2a2e2c, RUBBER);
-    st.add(fbox(8, 52, 8, 0.2), M(x, ay + 20, az + d / 2 + 12), 0xd0d8d4, CHROME);
+  for (const [x, d] of [[-34, 468], [L.W + 30, 388]]) {
+    st.add(fbox(22, d, d, 0.1), M(x, ay, az), 0x6a6440, CLOTH);
+    st.add(fbox(30, 46, 10, 0.3), M(x, ay + 20, az + d / 2 + 3), 0xb0b8b4, CHROME);
+    st.add(fbox(18, 30, 5, 0.2), M(x, ay + 20, az + d / 2 + 7), 0x2a2e2c, RUBBER);
+    st.add(fbox(6, 36, 6, 0.2), M(x, ay + 20, az + d / 2 + 10), 0xd0d8d4, CHROME);
   }
-  const mats: THREE.Material[] = [];
-  const cm = mxMat({ wear: 0.2, seed: 41 }); mats.push(cm);
-  const sm = mxMat({ wear: 0.4, seed: 43 }); mats.push(sm);
-  meshOf(cloth, cm, g);
-  meshOf(st, sm, g);
-  // light for the arm's own (standard) materials; the case's shader carries its own
-  const hemi = new THREE.HemisphereLight(0xfff4e0, 0x403828, 2.6);
-  const key = new THREE.DirectionalLight(0xfff0d8, 3.2); key.position.set(-0.4, 0.8, 1);
-  g.add(hemi, key);
+  const mats = [mxMat({ wear: 0.12, seed: 41 }), mxMat({ wear: 0.4, seed: 43 })];
+  meshOf(body, mats[0], g);
+  meshOf(st, mats[1], g);
   return {
     g,
-    dispose: () => {
-      holder.remove(arm.root);
-      arm.dispose();
-      for (const o of [...g.children]) if ((o as THREE.Mesh).isMesh) { (o as THREE.Mesh).geometry.dispose(); }
-      for (const mt of mats) mt.dispose();
-    },
+    dispose: () => { for (const o of [...g.children]) if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose(); for (const mt of mats) mt.dispose(); },
   };
 }
+/** skin: a little sheen, no rust, takes grime */
+const SKIN: [number, number, number, number] = [0.14, 0, 0.8, 0];
 
 // ---------------------------------------------------------------- the SELECT dial
 /** H (home) and the nine apps round 270 degrees of a dark plate */

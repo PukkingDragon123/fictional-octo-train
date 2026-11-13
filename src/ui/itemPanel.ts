@@ -22,7 +22,7 @@ import { hasUnlock, researchNode } from '../game/research';
 import { itemMatter, MAT, type Mat } from '../game/economy/matter';
 import { itemIcon, iconVariant } from './icons';
 import { crispCanvas, bevel, rivet, rect, glass, hazard, drawBar, drawGauge, GUN, AMB, GRN, RED, dprK } from './hiPixel';
-import { DETAIL } from '../items/detailModels';
+import '../items/detailModels';
 import { pxBarcode, pxCrestEl } from './pxKit';
 import { itemValue } from '../game/debt/values';
 import type { MenuOption } from './ui';
@@ -328,24 +328,19 @@ class ItemPanel {
     const mats = (Object.keys(mat) as Mat[]).filter((k) => (mat[k] ?? 0) > 0.005).sort((a, b) => (mat[b] ?? 0) - (mat[a] ?? 0)).slice(0, 4)
       .map((k) => `<span><i style="background:${MAT[k].color}"></i>${MAT[k].code} ${(mat[k] ?? 0).toFixed(2)}</span>`).join('');
     const stats = this.stats(it).map(([k, v]) => `<div>${esc(k)}<span>${esc(v)}</span></div>`).join('');
-    const lore = DETAIL[it.key]?.poi?.[0];
-    const loreText = lore ? (typeof lore.note === 'function' ? lore.note(it) : lore.note) : '';
-    const red = (n: number) => `<span class="ip-red" style="width:${n}px"></span>`;
     const anom = cl.k === 'anom';
     return `<canvas class="ip-bg"></canvas><i class="ip-lamp${anom ? ' r' : ''}"></i><div class="ip-hd" style="left:42px">Meridian Institute of Liminality</div><button class="ip-x" data-x title="Close (Esc)">X</button>
 <div class="ip-in"><div class="ip-ban k-${cl.k}"><b>${cl.lvl}</b><em>${cl.label}</em><canvas class="ip-bc" data-case="${caseNo(it)}"></canvas></div>
-<div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}</div>
+<div class="ip-top"><div class="ip-well"${d.desc ? ` title="${esc(d.desc)}"` : ''}><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}</div>
 <div class="ip-id"><div class="ip-name">${esc(itemName(it))}</div><div class="ip-kind">${esc(cat)}</div>
 <div class="ip-row"><b>CASE</b>${caseNo(it)}</div>
 <div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg · ${sz[0]}x${sz[1]}x${sz[2]}</div>
 <div class="ip-gauge" data-gauge="cond"><b>${d.durability || d.weapon ? 'CONDITION' : 'STATE'}</b><canvas></canvas><span>${Math.round(it.cond * 100)}%</span></div>
 ${this.meter(it) ? `<div class="ip-row" data-bar="meter"><b>${this.meter(it)![0]}</b><canvas></canvas></div>` : ''}
-<div class="ip-row"><b>VALUE</b>${val ? val + ' credits' : 'no market'}</div>
+<div class="ip-row"><b>VALUE</b>${val ? val + ' CR' : '-'}</div>
 <div class="ip-mat">${mats}</div></div></div>
-${d.desc ? `<div class="ip-desc">${esc(d.desc)}</div>` : ''}
-<div class="ip-fields"><div><b>RECOVERED</b>Level ${red(26)} · grid ${red(34)}</div>${anom ? `<div><b>PROPERTIES</b>${red(70)} ${red(46)} <i>research to declassify</i></div>` : ''}${loreText ? `<div><b>FIELD NOTE</b><q>${esc(loreText)}</q></div>` : ''}</div>
 ${stats ? `<div class="ip-stats">${stats}</div>` : ''}
-<div class="ip-keys"></div><div class="ip-hint">Arrows · Enter · Esc  /  Pad: A use · B close</div></div>`;
+<div class="ip-keys"></div></div>`;
   }
 
   /** a second meter under condition: freshness, charge, fill, ammo */

@@ -450,7 +450,8 @@ export class TreeLattice {
       }
     }
     // the key strip
-    const hint = 'ARROWS MOVE   ENTER INSPECT   R / LEVER RESEARCH   Q E BRANCH   ESC BACK';
+    // keys only (the lever and the sockets say the rest)
+    const hint = 'ARROWS   ENTER   R   Q / E   ESC';
     bitText(c, hint, W / 2, fy + (H - fy) / 2 - 8, { color: '#6aff8e', outline: null, align: 'center' });
     // scanlines and a roll bar
     c.fillStyle = 'rgba(0,0,0,0.2)';
@@ -540,8 +541,6 @@ export class TreeLattice {
         const lines = Math.max(1, Math.ceil(bitMeasure(gv) / (W - 52)));
         bitText(c, gv, 40, y, { color: own ? '#c8ffd0' : '#e8dcb8', outline: null, maxW: W - 52 }); y += 18 * lines;
       });
-      const desc = n.desc || researchFor(n, Math.min(n.ranks, rp + 1))?.desc || '';
-      if (desc && y < H - 60) { y += 4; bitText(c, clip(desc, W - 20, Math.max(1, Math.floor((H - 46 - y) / 18))), 10, y, { color: '#8aa890', outline: null, maxW: W - 20 }); }
       const where = n.branch === 'chip' || n.branch === 'limb' ? 'FIT IT ON THE UNIT IN UNIT ROOM 4' : n.branch === 'design' ? 'DRESS THE UNIT IN IT IN UNIT ROOM 4' : 'KNOWN ON EVERY NEW RUN';
       bitText(c, where, 10, H - 42, { color: '#5a8a6a', outline: null });
       const blink = Math.floor(this.t * 2) % 2 === 0;

@@ -68,7 +68,7 @@ function run(o: InstallOpts) {
   if (part) pw.append(part.cv);
   stage.append(fx, ring, pw);
   const reveal = el('div', 'ins-rev', `<b>INSTALLED</b><span>${esc(o.title)}</span>${o.gives ? `<small>${esc(o.gives)}</small>` : ''}`);
-  v.append(term, stage, reveal, el('div', 'ins-hint', 'click to skip'));
+  v.append(term, stage, reveal);
   document.body.append(v);
   requestAnimationFrame(() => v.classList.add('on'));
   part?.hot(true);

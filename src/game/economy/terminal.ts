@@ -115,6 +115,12 @@ export function openPressTerminal(o: TermOpen) {
     if (page === 'feed') render();
   };
   const onJack = (e: { hopper?: number; drop?: string }) => { if (pay && o.o && e.hopper === o.o.uid && e.drop) { pay.drop = e.drop; fs?.rare(e.drop); } };
+  // Space pulls the FEED page's lever; during the show any of them skips it
+  const onKey = (e: KeyboardEvent) => {
+    if (page !== 'feed' || !fs || e.repeat || e.code !== 'Space') return;
+    if (fs.pressKey(e.code)) { e.preventDefault(); e.stopPropagation(); }
+  };
+  window.addEventListener('keydown', onKey, true);
   const unsub = [bus.on('matterChanged', off), bus.on('debtChanged', off), bus.on('deposited', onDeposit), bus.on('pressJackpot', onJack)];
   let tick = 0;
   // the plate reading follows what lands on it
@@ -125,6 +131,7 @@ export function openPressTerminal(o: TermOpen) {
     nav.destroy();
     window.clearInterval(iv);
     for (const u of unsub) u();
+    window.removeEventListener('keydown', onKey, true);
     fs?.destroy(); fs = null;
     t.screen.style.transform = '';
     wrap.classList.add('off');
@@ -144,7 +151,8 @@ export function openPressTerminal(o: TermOpen) {
     t.setHead('Remittance Press', sub[page]);
     const body = t.body;
     const keep = body.scrollTop;
-    body.innerHTML = '';
+    // the FEED page keeps its tube attached (re-attaching would replay the power-on): it clears its own leftovers
+    if (page !== 'feed') body.innerHTML = '';
     if (page === 'feed') feed(body);
     else if (page === 'account') account(body);
     else if (page === 'dial') dial(body);

@@ -338,21 +338,24 @@ export class BandOS {
   // ---------------------------------------------------------------- the lines on the tube
   private refreshTop() {
     if (!this.topL) return;
-    this.topL.textContent = `MI-7 · ${this.cur ? this.cur.app.title.toUpperCase() : 'HOME'}`;
+    this.topL.textContent = this.cur ? this.cur.app.title.toUpperCase() : 'MI-7';
     const c = G.clock as any;
     const hrs = c?.hours ?? 0;
     const d = (G as any).debt;
     let rp = 0;
     try { rp = researchPoints(); } catch { /* no profile */ }
-    const money = (d?.on && !d.cleared ? `${Math.round(d.remaining ?? 0).toLocaleString('en-GB')} CR OWED · ` : '') + purseLine(d?.on && d.cleared ? (d.surplus ?? 0) : null);
-    const clock = `D${c?.day ?? Math.floor(hrs / 24) + 1} ${String(Math.floor(hrs % 24)).padStart(2, '0')}:${String(Math.floor((hrs % 1) * 60)).padStart(2, '0')}${G.role === 'solo' ? ' HELD' : ''}`;
+    // numbers, not sentences: the debt as a negative, the purse, the clock (II while time is held)
+    const money = (d?.on && !d.cleared ? `-${Math.round(d.remaining ?? 0).toLocaleString('en-GB')} CR · ` : '') + purseLine(d?.on && d.cleared ? (d.surplus ?? 0) : null);
+    const clock = `D${c?.day ?? Math.floor(hrs / 24) + 1} ${String(Math.floor(hrs % 24)).padStart(2, '0')}:${String(Math.floor((hrs % 1) * 60)).padStart(2, '0')}${G.role === 'solo' ? ' II' : ''}`;
     this.topR.textContent = this.L.kind === 'tall' ? clock : `${clock} · ${money}${money.includes('RP') ? '' : ` · ${rp} RP`}`;
   }
   private footLine() {
     if (!this.foot || this.lineT > 0) return;
-    const a = APPS[this.sel];
+    // keys, not sentences; in an app a soft key back to home (a phone has no Esc)
     this.foot.classList.remove('line');
-    this.foot.innerHTML = this.cur ? `<span>${esc(this.cur.app.sub)}</span><kbd>${isTouchMode() ? 'DIAL · BACK' : 'ESC · BACK'}</kbd>` : `<span>${esc(a?.sub ?? '')}</span><kbd>${isTouchMode() ? 'TAP · OPEN' : 'ENTER · OPEN'}</kbd>`;
+    const touch = isTouchMode();
+    this.foot.innerHTML = this.cur ? `<button type="button" class="wt-back">&lt; HOME</button><span></span>${touch ? '' : '<kbd>ESC</kbd>'}` : `<span></span>${touch ? '' : '<kbd>1-9</kbd><kbd>ENTER</kbd><kbd>ESC</kbd>'}`;
+    this.foot.querySelector('.wt-back')?.addEventListener('click', () => this.back());
   }
   /** a line from the band: on the tube's foot line for a while, never a box */
   toast(text: string) {

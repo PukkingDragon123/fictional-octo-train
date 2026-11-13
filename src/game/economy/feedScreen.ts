@@ -1,24 +1,28 @@
-// THE PRESS'S FEED SCREEN (round 17): the terminal page a unit feeds the press from,
-// item by item. All 2D pixel art at one scale (one art pixel = 2 CSS px), amber on the
-// terminal's glass, nothing rounded, no stamps:
-//   PACK    what the unit carries that the press takes: a crisp pixel render of each
-//           thing, its name, mass, a condition bar, its value and what it leaves behind;
-//           the selected line carries a scanning bar
-//   ASSAY   the selected (or hovered) thing big, turning frame by frame, with the spec
-//           sheet: assay code, mass, condition, hazard class, value, the debt and dollar
-//           conversion, a serial, what it is made of as little bar graphs, the yield
-//   HOPPER  ten slots, a fill meter, the weight; CRUSH brings a pixel ram down over the
-//           slots (sparks, dust, a few pixels of shake, a log scrolling the pressure),
-//           then a flip-digit counter rolls the payout; a jackpot blinks the lamps and
-//           overspins the counter in gold. A click skips the show.
-// The terminal (terminal.ts) owns the state (queue, waiting, payout) and the world press;
-// this draws it and keeps its animated parts alive across the terminal's re-renders.
+// THE PRESS'S FEED SCREEN (round 17): the press terminal's page for feeding it, item by item,
+// built as a sibling of the band's wrist terminal: the same tube (src/ui/crt: amber phosphor,
+// scanlines, grain, a rolling bar, a flicker, the bulge and bloom), big turning 3D models
+// (src/ui/machine/itemSpin.ts, dressed like crtIcon) instead of words.
+//   the pack     everything the unit carries that the press takes, each kind a big turning
+//                model (src/ui/machine/itemSpin.ts); hover or tap lifts it, turns it faster and
+//                shows one number: what it is worth, in credits
+//   the readout  the picked thing's name, its value, and what the crusher gives back as little
+//                material models (dim: only a chance)
+//   the hopper   ten slots; tap a model (or drag it) and it flies in and snaps; tap a slot to take
+//                it back; the gauge fills, the kilos count up
+//   the lever    drag it down (or click it, or Space): the screen shakes, static, the load crunches
+//                and the materials pop out into the tray while the flip counter rolls the payout;
+//                a jackpot flashes amber and overspins the counter in gold
+// No rounded corners, no stamps, almost no text. The terminal (terminal.ts) owns the state (the
+// queue, waiting, the payout) and the world press; this draws it and keeps its moving parts
+// alive across the terminal's re-renders.
 import { G } from '../G';
 import { itemDef, hasItemDef, type Item } from '../../items/item';
-import { itemIcon, itemIconTurn } from '../../ui/icons';
+import { mxItemSpin, mxItemStill, type ItemSpin } from '../../ui/machine/itemSpin';
+import { itemIcon } from '../../ui/icons';
 import { sfx } from '../../ui/menus/sfx';
+import { crtScreen, type Crt } from '../../ui/crt/crt';
 import { itemValue } from '../debt/values';
-import { MATS, itemMatter, matterKg, fmtKg, SCRIP_PER_TOKEN, type Matter } from './matter';
+import { itemMatter, matterKg, fmtKg } from './matter';
 import { slagOf } from './crusher';
 
 export interface FeedHost {
@@ -33,53 +37,38 @@ export interface FeedHost {
   crush(): void;
   /** the share of a load's value that goes to the debt (0 with no contract) */
   share(): number;
-  /** the terminal's glass, shaken a few pixels when the ram lands */
+  /** the terminal's glass, shaken when the load crunches */
   screen: HTMLElement;
 }
 export interface Payout { value: number; out: string[]; jack: number; bonus: number; drop: string }
-
-const PX = 2; // CSS px per art pixel, everywhere on this screen
-const ICON = 16; // list and slot icons, art px
-const BIG = 48; // the assay view, art px
-const TURN = 12; // frames in a turn
 
 const esc = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 const iname = (k: string) => (hasItemDef(k) ? itemDef(k).name : k.replace(/_/g, ' '));
 const nameOf = (it: Item) => it.name || iname(it.key);
 const h = (tag: string, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
-const canIcon = () => !!(G as unknown as { pr?: { renderer?: unknown } })?.pr?.renderer;
-const hash = (s: string) => { let x = 2166136261; for (let i = 0; i < s.length; i++) x = Math.imul(x ^ s.charCodeAt(i), 16777619); return x >>> 0; };
-const icon = (key: string, size = ICON) => (canIcon() ? itemIcon(key, '', size) : '');
-const img = (key: string, cls: string, size = ICON) => { const u = icon(key, size); return u ? `<img class="${cls}" src="${u}" width="${size * PX}" height="${size * PX}" alt="">` : `<span class="${cls} pf-noic"></span>`; };
 const kgOf = (it: Item) => { const m = matterKg(itemMatter(it)); return m > 0 ? m : (hasItemDef(it.key) ? itemDef(it.key).weight ?? 0 : 0); };
-
-/** a hazard class from what the thing is */
-function hazard(it: Item): [string, string] {
-  const t = (hasItemDef(it.key) ? (itemDef(it.key).tags ?? []).join(' ') : '') + ' ' + it.key;
-  if (/glow|exotic|anomal|seam/.test(t)) return ['H3', 'EXOTIC'];
-  if (/fuel|flamm|lighter|petrol|alcohol|acid|bleach|solvent|reagent|chem/.test(t)) return ['H2', 'CHEM'];
-  if (/blade|knife|sharp|glass|shard|needle|saw|razor/.test(t)) return ['H1', 'SHARP'];
-  if (/battery|cell|electr/.test(t)) return ['H1', 'CELL'];
-  return ['H0', 'INERT'];
+const reduce = () => document.documentElement.classList.contains('reduce-flash') || document.body.classList.contains('reduce-flash');
+const audio = (key: string, vol: number) => { try { G?.audio?.ui?.(key, vol); } catch { /* no audio */ } };
+/** the credit glyph: a pixel cent sign (7 x 9), in the text's colour */
+export const CR = '<svg class="pf-cr" viewBox="0 0 7 9" shape-rendering="crispEdges" aria-label="credits"><path fill="currentColor" d="M3 0h1v1h2v1H4v5h2v1H4v1H3V8H1V7H0V2h1V1h2zm0 2H1v5h2z"/></svg>';
+/** a still of an item as a canvas (the machine kit), or its plain icon */
+function still(key: string, size: number): HTMLElement {
+  const cv = mxItemStill(key, size);
+  if (cv) return cv;
+  const u = (G as unknown as { pr?: { renderer?: unknown } })?.pr?.renderer ? itemIcon(key, '', size) : '';
+  const im = h('img', 'mxi-cv') as HTMLImageElement; if (u) im.src = u; im.width = size + 8; im.height = size + 8;
+  return im;
 }
-/** what a load leaves behind, in short words */
-function yieldWords(items: Item[], max = 2): string {
-  const parts = [...slagOf(items)].sort((a, b) => b[1] - a[1]).map(([k, n]) => (n >= 0.95 ? `${Math.round(n)} ${iname(k)}` : `~${iname(k)}`));
-  return parts.slice(0, max).join(' · ');
-}
-/** a segmented bar (condition, material share), filled to k */
-const bar = (k: number, cls = 'pf-bar') => `<span class="${cls}"><i style="width:${Math.round(Math.max(0, Math.min(1, k)) * 100)}%"></i></span>`;
 
-// ------------------------------------------------------------------ the flip-digit counter
-// Seven-segment digits, two art pixels thick, printed on flip cards (9 x 16 art px each);
-// a lamp each side. A digit that changes flips: the top half folds down, the new bottom
-// half drops into place.
-const SEG: Record<string, string> = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg', '-': 'g', ' ': '' };
+// ------------------------------------------------------------------ the flip counter
+// Seven-segment digits two art pixels thick on flip cards (9 x 16), drawn at 2 CSS px a pixel;
+// a lamp each side. A changing digit flips: the old top leaf folds down, the new bottom drops.
+const SEG: Record<string, string> = { '0': 'abcdef', '1': 'bc', '2': 'abged', '3': 'abgcd', '4': 'fgbc', '5': 'afgcd', '6': 'afgedc', '7': 'abc', '8': 'abcdefg', '9': 'abcdfg' };
 const SEGR: Record<string, [number, number, number, number]> = { a: [0, 0, 7, 2], d: [0, 10, 7, 2], g: [0, 5, 7, 2], f: [0, 0, 2, 7], b: [5, 0, 2, 7], e: [0, 5, 2, 7], c: [5, 5, 2, 7] };
-const CW = 9, CH = 16, DIG = 6;
+const CW = 9, CH = 16, DIG = 6, PXC = 2;
 type Ink = 'amber' | 'green' | 'gold' | 'dim';
-const INK: Record<Ink, [string, string]> = { amber: ['#ffc850', '#8a5a18'], green: ['#9affb0', '#2a6a3a'], gold: ['#fff0a0', '#c89020'], dim: ['#6a4a1a', '#3a2810'] };
+const INK: Record<Ink, [string, string]> = { amber: ['#ffc850', '#7a4e14'], green: ['#9affb0', '#2a6a3a'], gold: ['#fff4b0', '#c89020'], dim: ['#6a4818', '#2e1f0a'] };
 const cards = new Map<string, HTMLCanvasElement>();
 function card(ch: string, ink: Ink): HTMLCanvasElement {
   const k = ch + ink;
@@ -87,14 +76,12 @@ function card(ch: string, ink: Ink): HTMLCanvasElement {
   if (c) return c;
   c = document.createElement('canvas'); c.width = CW; c.height = CH;
   const g = c.getContext('2d')!;
-  g.fillStyle = '#1c140a'; g.fillRect(0, 0, CW, CH);
-  g.fillStyle = '#2c2010'; g.fillRect(0, 0, CW, 1);
-  g.fillStyle = '#0c0805'; g.fillRect(0, CH - 1, CW, 1);
+  g.fillStyle = '#140d06'; g.fillRect(0, 0, CW, CH);
+  g.fillStyle = '#241708'; g.fillRect(0, 0, CW, 1);
   const [fg, sh] = INK[ink];
-  for (const s of SEG[ch] ?? '') { const [x, y, w, hh] = SEGR[s]; g.fillStyle = sh; g.fillRect(1 + x + 1, 2 + y + 1, w, hh); }
+  for (const s of SEG[ch] ?? '') { const [x, y, w, hh] = SEGR[s]; g.fillStyle = sh; g.fillRect(2 + x, 3 + y, w, hh); }
   for (const s of SEG[ch] ?? '') { const [x, y, w, hh] = SEGR[s]; g.fillStyle = fg; g.fillRect(1 + x, 2 + y, w, hh); }
-  // the split between the two leaves
-  g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 8, CW, 1);
+  g.fillStyle = 'rgba(0,0,0,0.6)'; g.fillRect(0, 8, CW, 1);
   cards.set(k, c);
   return c;
 }
@@ -104,13 +91,12 @@ class Counter {
   private next: string[] = Array(DIG).fill('0');
   private t: number[] = Array(DIG).fill(1);
   private ink: Ink = 'dim';
-  lamps = 0; // 0 off, 1 steady, 2 jackpot blink
+  lamps = 0; // 0 off, 1 lit, 2 jackpot blink
   readonly W = 2 + 6 + 3 + DIG * CW + (DIG - 1) + 3 + 6 + 2;
   readonly H = CH + 4;
   constructor() {
-    this.cv.width = this.W; this.cv.height = this.H;
-    this.cv.className = 'pf-cnt';
-    this.cv.style.width = this.W * PX + 'px'; this.cv.style.height = this.H * PX + 'px';
+    this.cv.width = this.W; this.cv.height = this.H; this.cv.className = 'pf-cnt';
+    this.cv.style.width = this.W * PXC + 'px'; this.cv.style.height = this.H * PXC + 'px';
     this.draw(0);
   }
   set(v: number, ink: Ink) {
@@ -125,159 +111,192 @@ class Counter {
   private draw(now: number) {
     const g = this.cv.getContext('2d')!;
     g.imageSmoothingEnabled = false;
-    // the housing: a dark steel bezel, one light lip, one dark lip
-    g.fillStyle = '#3a3226'; g.fillRect(0, 0, this.W, this.H);
-    g.fillStyle = '#5a4e3a'; g.fillRect(0, 0, this.W, 1); g.fillRect(0, 0, 1, this.H);
-    g.fillStyle = '#171310'; g.fillRect(0, this.H - 1, this.W, 1); g.fillRect(this.W - 1, 0, 1, this.H);
-    g.fillStyle = '#0c0906'; g.fillRect(10, 1, DIG * CW + DIG + 1, CH + 2);
-    // the lamps
+    g.clearRect(0, 0, this.W, this.H);
+    g.fillStyle = '#0a0703'; g.fillRect(0, 0, this.W, this.H);
+    g.fillStyle = '#5a3c12'; g.fillRect(0, 0, this.W, 1); g.fillRect(0, this.H - 1, this.W, 1); g.fillRect(0, 0, 1, this.H); g.fillRect(this.W - 1, 0, 1, this.H);
     const blink = this.lamps === 2 ? Math.floor(now / 110) % 2 : 0;
     for (const [i, x] of [[0, 3], [1, this.W - 9]] as [number, number][]) {
       const on = this.lamps === 1 || (this.lamps === 2 && (blink + i) % 2 === 0);
-      g.fillStyle = '#171310'; g.fillRect(x - 1, 6, 8, 8);
-      g.fillStyle = on ? (this.lamps === 2 ? '#fff0a0' : '#ffb840') : '#4a3410'; g.fillRect(x, 7, 6, 6);
-      g.fillStyle = on ? '#ffffff' : '#6a4c1c'; g.fillRect(x + 1, 8, 2, 1);
-      g.fillStyle = on ? '#c87818' : '#2a1c08'; g.fillRect(x, 12, 6, 1);
+      g.fillStyle = on ? (this.lamps === 2 ? '#fff0a0' : '#ffb840') : '#3a2608'; g.fillRect(x, 7, 6, 6);
+      g.fillStyle = on ? '#ffffff' : '#5a3c12'; g.fillRect(x + 1, 8, 2, 1);
     }
     for (let i = 0; i < DIG; i++) {
       const x = 11 + i * (CW + 1), y = 2;
       const t = this.t[i], a = card(this.cur[i], this.ink), b = card(this.next[i], this.ink);
       if (t >= 1) { g.drawImage(b, x, y); continue; }
       const half = CH / 2;
-      if (t < 0.5) {
-        // the old top leaf folds down over the new top
-        g.drawImage(b, 0, 0, CW, half, x, y, CW, half);
-        g.drawImage(a, 0, half, CW, half, x, y + half, CW, half);
-        const hh = Math.max(1, Math.round(half * (1 - t * 2)));
-        g.drawImage(a, 0, 0, CW, half, x, y + half - hh, CW, hh);
-      } else {
-        // the new bottom leaf drops over the old bottom
-        g.drawImage(b, 0, 0, CW, half, x, y, CW, half);
-        g.drawImage(a, 0, half, CW, half, x, y + half, CW, half);
-        const hh = Math.max(1, Math.round(half * (t - 0.5) * 2));
-        g.drawImage(b, 0, half, CW, half, x, y + half, CW, hh);
-      }
+      g.drawImage(b, 0, 0, CW, half, x, y, CW, half);
+      g.drawImage(a, 0, half, CW, half, x, y + half, CW, half);
+      if (t < 0.5) { const hh = Math.max(1, Math.round(half * (1 - t * 2))); g.drawImage(a, 0, 0, CW, half, x, y + half - hh, CW, hh); }
+      else { const hh = Math.max(1, Math.round(half * (t - 0.5) * 2)); g.drawImage(b, 0, half, CW, half, x, y + half, CW, hh); }
     }
   }
 }
 
-// ------------------------------------------------------------------ the ram over the hopper
-interface Bit { x: number; y: number; vx: number; vy: number; life: number; max: number; c: string }
-class Ram {
+// ------------------------------------------------------------------ the lever
+// A phosphor drawing of a heavy lever in a slotted track: drag the handle down to the stop.
+class Lever {
   readonly cv = document.createElement('canvas');
-  t = -1; // seconds since the lever; -1 idle
-  private load: { img: HTMLImageElement; x: number; y: number; s: number }[] = [];
-  private bits: Bit[] = [];
-  private dust: Bit[] = [];
-  private landed = false;
-  onLand: () => void = () => {};
-  constructor() { this.cv.className = 'pf-fx'; }
-  get active() { return this.t >= 0 && this.t < 1.2 || this.bits.length > 0 || this.dust.length > 0; }
-  /** the lever: the things in the slots (their art rects) are what it crushes */
-  start(load: { key: string; x: number; y: number; s: number }[]) {
-    this.t = 0; this.landed = false; this.bits = []; this.dust = [];
-    this.load = load.map((l) => { const im = new Image(); const u = icon(l.key); if (u) im.src = u; return { img: im, x: l.x, y: l.y, s: l.s }; });
+  p = 0; // 0 up .. 1 down
+  private W = 52; private H = 200;
+  private ok = false;
+  constructor(private fire: () => void, private can: () => boolean) {
+    this.cv.className = 'pf-lever';
+    let drag: { y0: number; p0: number; moved: boolean } | null = null;
+    this.cv.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (!this.can()) { sfx('error', 0.4); this.nudge(); return; }
+      drag = { y0: e.clientY, p0: this.p, moved: false };
+      this.cv.setPointerCapture?.(e.pointerId);
+      sfx('rocker', 0.4);
+    });
+    this.cv.addEventListener('pointermove', (e) => {
+      if (!drag) return;
+      const dy = e.clientY - drag.y0;
+      if (Math.abs(dy) > 4) drag.moved = true;
+      this.p = Math.max(0, Math.min(1, drag.p0 + dy / this.travel()));
+      if (this.p >= 0.94) { drag = null; this.throw(); }
+    });
+    const up = () => {
+      if (!drag) return;
+      const tap = !drag.moved; drag = null;
+      if (tap) this.throw(); else this.spring();
+    };
+    this.cv.addEventListener('pointerup', up);
+    this.cv.addEventListener('pointercancel', () => { drag = null; this.spring(); });
   }
-  skip() { this.t = 1.2; this.bits = []; this.dust = []; this.load = []; }
+  private travel() { return (this.H - 40) * (this.cv.getBoundingClientRect().height / this.H || 1); }
+  private anim(to: number, ms: number, then?: () => void) {
+    const from = this.p, t0 = performance.now();
+    const step = (now: number) => { const k = Math.min(1, (now - t0) / ms); this.p = from + (to - from) * (to > from ? k * k : 1 - (1 - k) * (1 - k)); this.draw(); if (k < 1) requestAnimationFrame(step); else then?.(); };
+    requestAnimationFrame(step);
+  }
+  /** all the way down: the press takes the load */
+  throw() { if (!this.can()) { this.spring(); return; } this.anim(1, 110, () => { sfx('lever', 0.9); this.fire(); setTimeout(() => this.spring(), 380); }); }
+  private spring() { this.anim(0, 260); }
+  private nudge() { this.anim(0.12, 70, () => this.anim(0, 120)); }
+  size(w: number, h: number) { this.W = w; this.H = h; this.cv.width = w; this.cv.height = h; this.cv.style.width = w + 'px'; this.cv.style.height = h + 'px'; this.draw(); }
+  setOk(v: boolean) { if (v !== this.ok) { this.ok = v; this.draw(); } }
+  private beat = -1;
+  /** the chevrons run down the track while there is a load to crush */
+  tick(now: number) { const b = Math.floor(now / 110); if (this.ok && b !== this.beat) { this.beat = b; this.draw(now); } }
+  draw(now = performance.now()) {
+    const g = this.cv.getContext('2d')!, W = this.W, H = this.H;
+    g.clearRect(0, 0, W, H);
+    const ph = this.ok ? '#ffb43a' : '#8a5a14', hi = this.ok ? '#fff0d0' : '#b88a40', dim = '#5a3c12', dark = '#1e1404';
+    const cx = Math.round(W / 2), top = 6, bot = H - 8, travel = bot - top - 26;
+    // the housing: a plate with a slot down it, a bolt top and bottom
+    g.fillStyle = dark; g.fillRect(cx - 12, top, 24, bot - top);
+    g.fillStyle = dim; g.fillRect(cx - 12, top, 24, 2); g.fillRect(cx - 12, bot - 2, 24, 2); g.fillRect(cx - 12, top, 2, bot - top); g.fillRect(cx + 10, top, 2, bot - top);
+    g.fillStyle = '#000'; g.fillRect(cx - 3, top + 8, 6, bot - top - 16);
+    for (const by of [top + 4, bot - 6]) { g.fillStyle = dim; g.fillRect(cx - 8, by - 1, 3, 3); g.fillRect(cx + 5, by - 1, 3, 3); }
+    const y = top + 4 + Math.round(travel * this.p);
+    // chevrons below the grip, running down while there is a load
+    const step = Math.floor(now / 110);
+    for (let i = 0, cy = y + 26; cy < bot - 12; i++, cy += 15) {
+      const lit = this.ok && ((step - i) % 5 + 5) % 5 === 0;
+      g.fillStyle = lit ? hi : this.ok ? ph : dim;
+      if (!lit && this.ok) g.globalAlpha = 0.45;
+      for (let r = 0; r < 5; r++) { g.fillRect(cx - 9 + r * 2, cy + r * 2, 2, 2); g.fillRect(cx + 7 - r * 2, cy + r * 2, 2, 2); }
+      g.globalAlpha = 1;
+    }
+    // the grip: a heavy bar across the whole column, ridged
+    g.fillStyle = dark; g.fillRect(0, y - 2, W, 22);
+    g.fillStyle = ph; g.fillRect(2, y, W - 4, 18);
+    g.fillStyle = hi; g.fillRect(2, y, W - 4, 2);
+    g.fillStyle = '#6a3e0c'; g.fillRect(2, y + 16, W - 4, 2);
+    for (let x = 6; x < W - 6; x += 4) { g.fillStyle = '#7a4a10'; g.fillRect(x, y + 5, 2, 8); }
+    g.fillStyle = dark; g.fillRect(cx - 3, y + 18, 6, 4);
+    // the stop lights when it is home
+    g.fillStyle = this.p > 0.95 ? hi : dim; g.fillRect(cx - 14, bot - 4, 28, 4);
+  }
+}
+
+// ------------------------------------------------------------------ the crunch over the hopper
+interface Bit { x: number; y: number; vx: number; vy: number; life: number; max: number; c: string; s: number }
+class Crunch {
+  readonly cv = document.createElement('canvas');
+  t = -1;
+  private load: { im: HTMLCanvasElement; x: number; y: number; w: number; h: number }[] = [];
+  private bits: Bit[] = [];
+  private hit = false;
+  onHit: () => void = () => {};
+  constructor() { this.cv.className = 'pf-fx'; }
+  get active() { return this.t >= 0 && (this.t < 0.7 || this.bits.length > 0); }
+  /** a phosphor bar the width of the hopper, its face a row of hazard blocks */
+  private ram(g: CanvasRenderingContext2D, W: number, y: number) {
+    g.fillStyle = '#ffb43a'; g.fillRect(0, y - 10, W, 10);
+    g.fillStyle = '#fff0d0'; g.fillRect(0, y - 10, W, 2);
+    for (let x = 0; x < W; x += 8) { g.fillStyle = (x >> 3) % 2 ? '#1e1404' : '#ffd860'; g.fillRect(x, y - 4, 8, 4); }
+  }
+  start(load: { im: HTMLCanvasElement; x: number; y: number; w: number; h: number }[]) { this.t = 0; this.hit = false; this.bits = []; this.load = load; }
+  skip() { this.t = -1; this.bits = []; this.load = []; this.cv.getContext('2d')?.clearRect(0, 0, this.cv.width, this.cv.height); }
   step(dt: number, W: number, H: number) {
-    if (this.cv.width !== W || this.cv.height !== H) { this.cv.width = W; this.cv.height = H; this.cv.style.width = W * PX + 'px'; this.cv.style.height = H * PX + 'px'; }
+    if (this.cv.width !== W || this.cv.height !== H) { this.cv.width = W; this.cv.height = H; this.cv.style.width = W + 'px'; this.cv.style.height = H + 'px'; }
     const g = this.cv.getContext('2d')!;
     g.imageSmoothingEnabled = false;
     g.clearRect(0, 0, W, H);
     if (this.t < 0) return;
     this.t += dt;
     const t = this.t;
-    const RH = 9, floorY = H - 2, crushTo = 5;
-    // where the ram's face is
-    let face: number;
-    if (t < 0.16) face = -2 + (floorY - crushTo + 2) * (t / 0.16) ** 2;
-    else if (t < 0.75) face = floorY - crushTo + (t < 0.2 ? 1 : 0);
-    else if (t < 1.05) face = floorY - crushTo - (floorY - crushTo + RH + 6) * ((t - 0.75) / 0.3) ** 1.5;
-    else face = -RH - 8;
-    face = Math.round(face);
-    if (!this.landed && t >= 0.16) {
-      this.landed = true;
-      this.onLand();
-      for (let i = 0; i < 46; i++) {
-        const x = 2 + Math.random() * (W - 4), s = 40 + Math.random() * 90;
-        this.bits.push({ x, y: floorY - crushTo, vx: (Math.random() - 0.5) * 2 * s, vy: -Math.random() * s * 0.9, life: 0, max: 0.25 + Math.random() * 0.4, c: Math.random() < 0.3 ? '#ffffff' : Math.random() < 0.6 ? '#ffd860' : '#ff9030' });
+    // the load squeezes flat (in steps, like frames of a sprite), then bursts
+    if (t < 0.13) {
+      const k = Math.floor((t / 0.13) * 4) / 4;
+      for (const l of this.load) {
+        const hh = Math.max(3, Math.round(l.h * (1 - k * 0.85))), ww = Math.round(l.w * (1 + k * 0.45));
+        g.drawImage(l.im, Math.round(l.x + (l.w - ww) / 2), Math.round(l.y + l.h - hh - l.h * 0.12), ww, hh);
       }
-      for (let i = 0; i < 26; i++) {
-        const x = Math.random() * W;
-        this.dust.push({ x, y: floorY - Math.random() * 4, vx: (x < W / 2 ? -1 : 1) * (8 + Math.random() * 30), vy: -4 - Math.random() * 10, life: 0, max: 0.6 + Math.random() * 0.6, c: Math.random() < 0.5 ? '#8a7c62' : '#5e5444' });
+      this.ram(g, W, Math.round((t / 0.13) * (H - 16)));
+    } else if (!this.hit) {
+      this.hit = true;
+      this.onHit();
+      for (const l of this.load) for (let i = 0; i < 26; i++) {
+        const a = Math.random() * Math.PI * 2, s = 80 + Math.random() * 220;
+        this.bits.push({ x: l.x + l.w / 2, y: l.y + l.h * 0.7, vx: Math.cos(a) * s, vy: Math.sin(a) * s * 0.7 - 80, life: 0, max: 0.3 + Math.random() * 0.45, c: Math.random() < 0.3 ? '#fff0d0' : Math.random() < 0.6 ? '#ffb43a' : '#9a6418', s: Math.random() < 0.3 ? 4 : 2 });
       }
+      this.load = [];
     }
-    // the load: squashed under the face, then gone to slag (dithered out)
-    const fade = t < 0.75 ? 1 : Math.max(0, 1 - (t - 0.75) / 0.25);
-    if (fade > 0) for (const l of this.load) {
-      if (!l.img.complete || !l.img.naturalWidth) continue;
-      const top = Math.max(l.y, face), hh = Math.max(2, l.y + l.s - top), k = hh / l.s;
-      const ww = Math.round(l.s * (1 + (1 - k) * 0.35));
-      if (fade >= 1) g.drawImage(l.img, Math.round(l.x + (l.s - ww) / 2), Math.round(l.y + l.s - hh), ww, Math.round(hh));
-      else {
-        // ordered dissolve: a 4 x 4 threshold eats the squashed pixels
-        g.drawImage(l.img, Math.round(l.x + (l.s - ww) / 2), Math.round(l.y + l.s - hh), ww, Math.round(hh));
-        g.fillStyle = '#000';
-        g.globalCompositeOperation = 'destination-out';
-        for (let y = Math.round(l.y + l.s - hh); y < l.y + l.s; y++) for (let x = Math.round(l.x - 4); x < l.x + l.s + 4; x++) if (BAYER[(y & 3) * 4 + (x & 3)] / 16 > fade) g.fillRect(x, y, 1, 1);
-        g.globalCompositeOperation = 'source-over';
-      }
-    }
-    // the ram: two rods, the platen, a hazard band of square blocks along its face
-    if (face > -RH - 6) {
-      for (const rx of [Math.round(W * 0.22), Math.round(W * 0.78) - 3]) {
-        g.fillStyle = '#c8ccc4'; g.fillRect(rx, 0, 3, Math.max(0, face - RH));
-        g.fillStyle = '#7a7e76'; g.fillRect(rx + 2, 0, 1, Math.max(0, face - RH));
-      }
-      const y0 = face - RH;
-      g.fillStyle = '#6c706a'; g.fillRect(0, y0, W, RH);
-      g.fillStyle = '#9ca29a'; g.fillRect(0, y0, W, 1);
-      g.fillStyle = '#4a4e48'; g.fillRect(0, y0 + RH - 4, W, 1);
-      for (let x = 0; x < W; x += 4) { g.fillStyle = (x >> 2) % 2 ? '#17150f' : '#e8b52a'; g.fillRect(x, y0 + RH - 3, 4, 3); }
-      for (let x = 5; x < W - 3; x += 14) { g.fillStyle = '#c8ccc4'; g.fillRect(x, y0 + 2, 1, 1); g.fillStyle = '#2a2c28'; g.fillRect(x + 1, y0 + 3, 1, 1); }
-    }
-    // sparks and dust
-    for (const b of this.bits) { b.life += dt; b.vy += 260 * dt; b.x += b.vx * dt; b.y += b.vy * dt; if (b.y > floorY) { b.y = floorY; b.vy *= -0.3; b.vx *= 0.6; } }
-    this.bits = this.bits.filter((b) => b.life < b.max && b.x > -2 && b.x < W + 2);
-    for (const b of this.bits) { g.fillStyle = b.life / b.max > 0.6 ? '#c86018' : b.c; g.fillRect(Math.round(b.x), Math.round(b.y), 1, 1); }
-    for (const d of this.dust) { d.life += dt; d.vx *= 1 - dt * 1.5; d.x += d.vx * dt; d.y += d.vy * dt; d.vy *= 1 - dt; }
-    this.dust = this.dust.filter((d) => d.life < d.max);
-    for (const d of this.dust) {
-      const a = 1 - d.life / d.max, x = Math.round(d.x), y = Math.round(d.y);
-      g.fillStyle = d.c;
-      for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) if (BAYER[((y + j) & 3) * 4 + ((x + i) & 3)] / 16 < a * 0.8) g.fillRect(x + i, y + j, 1, 1);
-    }
+    // the ram's face: down hard, a beat on the floor, back up
+    if (t >= 0.13 && t < 0.5) this.ram(g, W, Math.round(t < 0.3 ? H - 16 : (H - 16) * (1 - (t - 0.3) / 0.2)));
+    for (const b of this.bits) { b.life += dt; b.vy += 420 * dt; b.x += b.vx * dt; b.y += b.vy * dt; if (b.y > H - 3) { b.y = H - 3; b.vy *= -0.35; b.vx *= 0.6; } }
+    this.bits = this.bits.filter((b) => b.life < b.max);
+    for (const b of this.bits) { g.fillStyle = b.life / b.max > 0.65 ? '#5a3c12' : b.c; g.fillRect(Math.round(b.x / 2) * 2, Math.round(b.y / 2) * 2, b.s, b.s); }
+    if (t > 0.7 && !this.bits.length) this.t = -1;
   }
 }
-const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 
 // ------------------------------------------------------------------ the screen
 export class FeedScreen {
   private sel: Item | null = null;
   private selKey = '';
-  private det = h('div', 'pf-det');
+  private spins = new Map<string, ItemSpin | null>();
+  private slotSpins = new Map<number, ItemSpin | null>();
   private counter = new Counter();
-  private ram = new Ram();
-  private log = h('div', 'pf-log');
-  private lines: string[] = ['READY · LOAD THE HOPPER'];
-  private frame = 0; private turnKey = ''; private turnT = 0;
+  private crunch = new Crunch();
+  private crt: Crt = crtScreen({ phos: 'amber', sound: false });
+  private lit = false;
+  private lever: Lever;
+  private tray = h('div', 'pf-tray');
+  private read = h('div', 'pf-read');
+  private root: HTMLElement | null = null;
+  private holder = h('div', 'pf-host');
+  private hbox: HTMLElement | null = null;
   private raf = 0; private last = 0;
-  private roll: { from: number; to: number; t: number; dur: number; over: boolean; ink: Ink } | null = null;
+  private roll: { to: number; t: number; dur: number; over: boolean; ink: Ink } | null = null;
   private jackT = 0;
-  private pressT = -1;
   private dead = false;
-  private bay: HTMLElement | null = null;
   private lastPtr = 'mouse';
+  private drag: { it: Item; x0: number; y0: number; ghost: HTMLElement | null; from: HTMLElement } | null = null;
+  private tall = false;
 
   constructor(private host: FeedHost) {
-    this.ram.onLand = () => {
-      sfx('slam', 0.9); sfx('spark', 0.5);
-      try { G?.audio?.ui?.('press_slam', 0.7); } catch { /* no audio */ }
+    this.lever = new Lever(() => this.host.crush(), () => this.host.canCrush());
+    this.holder.append(this.crt.el);
+    this.crunch.onHit = () => {
+      sfx('slam', 0.9); sfx('grind', 0.5); audio('press_slam', 0.7);
       this.shake();
-      this.say(`RAM DOWN · ${fmt(1100 + Math.random() * 300)} kN`);
-      this.pressT = 0;
+      void this.crt.swap(() => {});
     };
-    this.paintLog();
     this.last = performance.now();
     const loop = (now: number) => {
       if (this.dead) return;
@@ -286,201 +305,309 @@ export class FeedScreen {
       this.tick(dt, now);
     };
     this.raf = requestAnimationFrame(loop);
+    window.addEventListener('pointermove', this.onDragMove);
+    window.addEventListener('pointerup', this.onDragUp);
   }
 
-  destroy() { this.dead = true; cancelAnimationFrame(this.raf); }
+  destroy() {
+    this.dead = true; cancelAnimationFrame(this.raf);
+    window.removeEventListener('pointermove', this.onDragMove);
+    window.removeEventListener('pointerup', this.onDragUp);
+    this.drag?.ghost?.remove(); this.drag = null;
+    this.crt.dispose();
+  }
+  /** Space pulls the lever */
+  pressKey(code: string): boolean { if (code === 'Space' && this.host.canCrush()) { this.lever.throw(); return true; } if (this.busyShow()) { this.skip(); return true; } return false; }
 
   // ---------------------------------------------------------------- the page
   render(el: HTMLElement) {
     const H = this.host;
     const rows = H.rows();
-    const flat = rows.map((g) => g[0]);
-    // keep the selection on its kind; else the first line
     if (!this.sel || (!H.queue.includes(this.sel) && !rows.some((g) => g.includes(this.sel!)))) {
       const same = rows.find((g) => this.key(g[0]) === this.selKey);
-      this.sel = same?.[0] ?? flat[0] ?? H.queue[0] ?? null;
+      this.sel = same?.[0] ?? null;
     }
     this.selKey = this.sel ? this.key(this.sel) : '';
-    const root = h('div', 'pf');
-    // ---- PACK
-    const L = h('div', 'pf-col pf-pack');
-    L.append(h('div', 'pf-hd', `<b>PACK</b><span>${rows.length} LINE${rows.length === 1 ? '' : 'S'}</span><span class="pf-tick"></span>`));
-    const list = h('div', 'pf-list');
-    const locked = H.queue.length >= H.slots || this.busyShow();
-    if (!rows.length) list.append(h('p', 'pf-none', 'NOTHING ON YOU THE PRESS WOULD TAKE'));
+    this.tall = el.clientWidth > 0 && el.clientWidth < 560;
+    const root = this.root = h('div', 'pf' + (this.tall ? ' tall' : '') + (this.jackT > 0 ? ' jack' : ''));
+    this.crt.glass.innerHTML = '';
+    this.crt.glass.append(root);
+    const full = H.queue.length >= H.slots || H.busy();
+    // ---- the pack: big turning models
+    const pack = h('div', 'pf-pack');
+    const size = this.tall ? 56 : 60;
+    const keep = new Set<string>();
     for (const g of rows.slice(0, 40)) {
-      const it = g[0], v = itemValue(it), kg = kgOf(it), y = yieldWords([it]);
-      const r = h('button', 'pf-row' + (this.key(it) === this.selKey ? ' sel' : ''), `${img(it.key, 'pf-ic')}<span class="pf-nm">${esc(nameOf(it))}${g.length > 1 ? ` <i>×${g.length}</i>` : ''}</span><span class="pf-v">${v > 0 ? fmt(v) : '—'}<small>CR</small></span><span class="pf-sub">${bar(it.cond ?? 1, 'pf-cb')}<span>${fmtKg(kg).toUpperCase()}</span>${y ? `<em>→ ${esc(y)}</em>` : ''}</span>`) as HTMLButtonElement;
-      r.type = 'button';
-      r.dataset.k = this.key(it);
-      r.disabled = locked;
-      r.addEventListener('pointerdown', (e) => { this.lastPtr = e.pointerType; });
-      r.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this.select(it, list); });
-      r.addEventListener('focus', () => this.select(it, list));
-      r.addEventListener('click', () => {
-        // a touch picks first, then loads; a mouse (or a key) loads straight away
-        if (this.lastPtr !== 'mouse' && this.key(this.sel ?? it) !== this.key(it)) { this.select(it, list); this.lastPtr = 'mouse'; return; }
-        this.lastPtr = 'mouse';
-        if (H.queue.length < H.slots) { sfx('plate', 0.5); H.load(it); }
+      const it = g[0], k = this.key(it), v = itemValue(it);
+      keep.add(it.key + '|' + size);
+      const t = h('button', 'pf-t crt-ic' + (k === this.selKey ? ' sel hot' : '') + (full ? ' off' : '')) as HTMLButtonElement;
+      t.type = 'button'; t.dataset.k = k;
+      t.setAttribute('aria-label', `${nameOf(it)}, ${fmt(v)} credits`);
+      const w = h('span', 'crt-ic-m');
+      const sp = this.spin(it.key, size);
+      if (sp) { w.append(sp.cv); sp.hot(k === this.selKey); } else w.append(still(it.key, size));
+      t.append(w, h('span', 'crt-ic-l', `${g.length > 1 ? `<i>×${g.length}</i>` : ''}<em>${CR}${v > 0 ? fmt(v) : '0'}</em>`));
+      t.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this.select(it, pack); });
+      t.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && this.sel === it && !this.drag) { /* stays picked: the readout keeps it */ } });
+      t.addEventListener('focus', () => this.select(it, pack));
+      t.addEventListener('pointerdown', (e) => {
+        this.lastPtr = e.pointerType;
+        if (full || e.button > 0) return;
+        this.drag = { it, x0: e.clientX, y0: e.clientY, ghost: null, from: w };
       });
-      list.append(r);
+      t.addEventListener('click', () => {
+        if (this.dragged) { this.dragged = false; return; }
+        // a touch picks first, then loads; a mouse (or a key) loads straight away
+        if (this.lastPtr !== 'mouse' && this.selKey !== k) { this.select(it, pack); this.lastPtr = 'mouse'; return; }
+        this.lastPtr = 'mouse';
+        if (!full) this.fly(it, w);
+      });
+      pack.append(t);
     }
-    // a disabled button swallows pointerenter in some browsers: the list itself still shows the assay
-    list.addEventListener('pointermove', (e) => {
-      if (e.pointerType !== 'mouse') return;
-      const r = (e.target as HTMLElement).closest?.('.pf-row') as HTMLElement | null;
-      if (r && r.dataset.k !== this.selKey) { const g = rows.find((q) => this.key(q[0]) === r.dataset.k); if (g) this.select(g[0], list); }
-    });
-    L.append(list);
-    // ---- ASSAY
-    const M = h('div', 'pf-col pf-assay');
-    M.append(this.det);
-    this.paintDetail();
-    // ---- HOPPER
-    const R = h('div', 'pf-col pf-hop');
-    const kgIn = H.queue.reduce((a, it) => a + kgOf(it), 0);
-    R.append(h('div', 'pf-hd', `<b>HOPPER</b><span>${String(H.queue.length).padStart(2, '0')}/${H.slots} · ${fmtKg(kgIn).toUpperCase()}</span>`));
-    const bay = this.bay = h('div', 'pf-bay');
+    if (!rows.length) pack.append(h('div', 'pf-empty', '—'));
+    for (const [k] of this.spins) if (!keep.has(k)) this.spins.delete(k);
+    // ---- the readout under the pack
+    this.paintRead();
+    // ---- the hopper
+    const hop = h('div', 'pf-hop');
+    const hbox = this.hbox = h('div', 'pf-hbox' + (H.queue.length ? ' fed' : ''));
     const slots = h('div', 'pf-slots');
+    const live = new Set<number>();
     for (let i = 0; i < H.slots; i++) {
       const it = H.queue[i];
-      const b = h('button', 'pf-slot' + (it ? ' full' : ''), it ? img(it.key, 'pf-sic') : '') as HTMLButtonElement;
+      const b = h('button', 'pf-slot' + (it ? ' full' : '')) as HTMLButtonElement;
       b.type = 'button';
       if (it) {
-        b.title = nameOf(it);
+        live.add(it.uid);
+        let sp = this.slotSpins.get(it.uid);
+        if (sp === undefined) { sp = mxItemSpin(it.key, 38, (it.uid % 7) / 7); this.slotSpins.set(it.uid, sp); }
+        b.append(sp ? sp.cv : still(it.key, 38));
+        b.setAttribute('aria-label', nameOf(it));
         b.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this.select(it, null); });
-        b.addEventListener('click', () => { if (!this.busyShow()) { sfx('back', 0.4); H.unload(it); } });
+        b.addEventListener('click', () => { if (!this.busyShow() && !H.busy()) { sfx('back', 0.4); H.unload(it); } });
       } else b.disabled = true;
       slots.append(b);
     }
-    bay.append(slots, this.ram.cv);
-    bay.addEventListener('pointerdown', () => { if (this.busyShow()) this.skip(); });
-    R.append(bay);
-    const fill = h('div', 'pf-fill');
-    for (let i = 0; i < H.slots; i++) fill.append(h('i', i < H.queue.length ? 'on' : ''));
-    R.append(fill);
-    const val = H.queue.reduce((a, it) => a + itemValue(it), 0), share = H.share();
-    R.append(h('div', 'pf-est', H.queue.length ? `≈ <b>${fmt(val)}</b> CR${share > 0 ? ` · <b>${fmt(val * share)}</b> TO DEBT` : ''}<small>${esc(yieldWords(H.queue, 3))}</small>` : '<small>TAP A LINE TO LOAD IT · TAP A SLOT TO TAKE IT BACK</small>'));
-    const crush = h('button', 'ptm-act pf-crush', H.busy() ? '&gt; RAM IS DOWN' : '&gt; CRUSH') as HTMLButtonElement;
-    crush.type = 'button';
-    crush.disabled = !H.canCrush();
-    crush.addEventListener('click', () => H.crush());
-    R.append(crush);
+    for (const [u] of this.slotSpins) if (!live.has(u)) this.slotSpins.delete(u);
+    hbox.append(slots, this.crunch.cv);
+    hbox.addEventListener('pointerdown', () => { if (this.busyShow()) this.skip(); });
+    hop.append(hbox);
+    const kg = H.queue.reduce((a, it) => a + kgOf(it), 0);
+    const gauge = h('div', 'pf-gauge');
+    const segs = h('span', 'pf-segs');
+    for (let i = 0; i < H.slots; i++) segs.append(h('i', i < H.queue.length ? 'on' : ''));
+    gauge.append(segs, h('span', 'pf-kg', H.queue.length ? fmtKg(kg).toUpperCase() : ''));
+    hop.append(gauge, this.tray);
     const ctr = h('div', 'pf-ctr');
-    ctr.append(this.counter.cv, h('small', '', 'PAYOUT · CR'));
+    ctr.append(h('span', 'pf-crbig', CR), this.counter.cv);
     ctr.addEventListener('pointerdown', () => { if (this.busyShow()) this.skip(); });
-    R.append(ctr, this.log);
-    root.append(L, M, R);
-    el.append(root);
-    if (!this.roll && this.ram.t < 0 && !H.busy()) this.counter.set(val, H.queue.length ? 'amber' : 'dim');
-    // the selected line in view
-    requestAnimationFrame(() => list.querySelector('.pf-row.sel')?.scrollIntoView?.({ block: 'nearest' }));
+    hop.append(ctr);
+    // ---- the lever
+    const lev = h('div', 'pf-lev' + (H.canCrush() ? ' ok' : ''));
+    lev.append(this.lever.cv);
+    this.lever.setOk(H.canCrush());
+    root.append(pack, this.read, hop, lev, h('i', 'pf-flash'));
+    for (const c of [...el.children]) if (c !== this.holder) c.remove();
+    if (this.holder.parentElement !== el) el.append(this.holder);
+    if (!this.lit) { this.lit = true; requestAnimationFrame(() => void this.crt.powerOn(true)); }
+    requestAnimationFrame(() => {
+      // layout sizes (the tube may be mid power-on, scaled)
+      if (lev.clientHeight > 40) this.lever.size(Math.max(44, Math.min(64, lev.clientWidth)), lev.clientHeight);
+    });
+    const val = H.queue.reduce((a, it) => a + itemValue(it), 0);
+    if (!this.roll && this.crunch.t < 0 && !H.busy()) this.counter.set(val, H.queue.length ? 'amber' : 'dim');
   }
 
+  private dragged = false;
   private key(it: Item) { return it.key + ':' + (it.name ?? ''); }
-  /** the show is running (the ram, the roll): clicks skip it */
-  private busyShow() { return this.ram.t >= 0 && this.ram.t < 1.05 || !!this.roll; }
+  private spin(key: string, size: number): ItemSpin | null {
+    const k = key + '|' + size;
+    let s = this.spins.get(k);
+    if (s === undefined) { s = mxItemSpin(key, size); this.spins.set(k, s); }
+    return s;
+  }
+  private busyShow() { return this.crunch.active || !!this.roll; }
 
-  private select(it: Item, list: HTMLElement | null) {
+  private select(it: Item, pack: HTMLElement | null) {
     if (this.sel === it) return;
+    const old = this.sel;
     this.sel = it;
-    if (list) { this.selKey = this.key(it); for (const r of list.querySelectorAll<HTMLElement>('.pf-row')) r.classList.toggle('sel', r.dataset.k === this.selKey); }
-    sfx('hover', 0.25);
-    this.paintDetail();
+    if (pack) {
+      this.selKey = this.key(it);
+      for (const t of pack.querySelectorAll<HTMLElement>('.pf-t')) {
+        const on = t.dataset.k === this.selKey;
+        t.classList.toggle('sel', on); t.classList.toggle('hot', on);
+      }
+      for (const [k, s] of this.spins) s?.hot(k.startsWith(it.key + '|'));
+    }
+    if (old?.key !== it.key) sfx('hover', 0.25);
+    this.paintRead();
   }
 
-  /** the assay sheet for the selected thing */
-  private paintDetail() {
-    const it = this.sel, d = this.det;
-    if (!it) { d.innerHTML = `<div class="pf-hd"><b>ASSAY</b><span>NO SAMPLE</span><span class="pf-cur">_</span></div><div class="pf-dtop"><div class="pf-view"><i class="pf-scan"></i></div></div>`; this.turnKey = ''; return; }
-    const v = itemValue(it), kg = kgOf(it), share = this.host.share();
-    const [hz, hzw] = hazard(it);
-    const code = 'ASY-' + (hash(it.key) % 1679616).toString(36).toUpperCase().padStart(4, '0');
-    const sn = (hash('sn' + it.uid) % 65536).toString(16).toUpperCase().padStart(4, '0') + '-' + String(it.uid % 100000).padStart(5, '0');
-    const m: Matter = itemMatter(it), tot = Object.values(m).reduce((a, b) => a + (b ?? 0), 0) || 1;
-    const comp = MATS.map((q) => [q, (m[q.key] ?? 0) / tot] as const).filter(([, k]) => k > 0.005).sort((a, b) => b[1] - a[1]).slice(0, 4);
-    const y = yieldWords([it], 3);
-    if (this.turnKey !== it.key) this.frame = 0;
-    const big = canIcon() ? itemIconTurn(it.key, BIG, this.frame, TURN) || icon(it.key, BIG) : '';
-    const usd = v / SCRIP_PER_TOKEN;
-    d.innerHTML = `<div class="pf-hd"><b>${esc(nameOf(it).toUpperCase())}</b><span>${code}</span><span class="pf-cur">_</span></div>`
-      + `<div class="pf-dtop"><div class="pf-view">${big ? `<img class="pf-big" src="${big}" width="${BIG * PX}" height="${BIG * PX}" alt="">` : ''}<i class="pf-scan"></i></div>`
-      + `<dl class="pf-spec">`
-      + `<dt>MASS</dt><dd>${fmtKg(kg).toUpperCase()}</dd>`
-      + `<dt>COND</dt><dd>${bar(it.cond ?? 1, 'pf-cb')}${Math.round((it.cond ?? 1) * 100)}%</dd>`
-      + `<dt>HAZ</dt><dd>${hz} ${hzw}</dd>`
-      + `<dt>VALUE</dt><dd><b>${fmt(v)}</b> CR</dd>`
-      + `<dt>DEBT</dt><dd>${share > 0 ? `+${fmt(v * share)} CR` : '—'}</dd>`
-      + `<dt>USD</dt><dd>$${usd < 10 ? usd.toFixed(2) : fmt(usd)}</dd>`
-      + `<dt>SN</dt><dd>${sn}</dd>`
-      + `</dl></div>`
-      + `<div class="pf-comp">${comp.length ? comp.map(([q, k]) => `<span class="pf-mc">${q.code}</span>${bar(k, 'pf-mb')}<span class="pf-mp">${Math.round(k * 100)}%</span>`).join('') : '<span class="pf-mc">—</span><span class="pf-mb"></span><span class="pf-mp"></span>'}</div>`
-      + `<div class="pf-yl"><span>YIELD</span>${y ? esc(y) : 'NOTHING BACK'}</div>`;
-    if (this.turnKey !== it.key) { this.turnKey = it.key; this.frame = 0; this.turnT = 0; }
+  /** the picked thing: its name, one value, what the crusher gives back (models; dim = only a chance) */
+  private paintRead() {
+    const it = this.sel, r = this.read;
+    r.innerHTML = '';
+    if (!it) return;
+    const v = itemValue(it);
+    r.append(h('b', 'pf-rn', esc(nameOf(it))), h('span', 'pf-rv', `${CR}${fmt(v)}`));
+    const ys = [...slagOf([it])].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    if (ys.length) {
+      const y = h('span', 'pf-ry');
+      y.append(h('i', 'pf-arrow', '→'));
+      for (const [k, n] of ys) { const s = h('span', 'pf-yi' + (n < 0.95 ? ' maybe' : '')); s.title = iname(k); s.append(still(k, 16)); if (n >= 1.5) s.append(h('small', '', '×' + Math.round(n))); y.append(s); }
+      r.append(y);
+    }
   }
+
+  // ---------------------------------------------------------------- moving things in
+  /** a model flies from its turntable into the next slot, and snaps */
+  private fly(it: Item, from: HTMLElement) {
+    const H = this.host;
+    if (H.queue.length >= H.slots || H.busy()) return;
+    const slot = this.hbox?.querySelectorAll<HTMLElement>('.pf-slot')[H.queue.length];
+    const src = from.querySelector('canvas,img') as HTMLCanvasElement | HTMLImageElement | null;
+    if (!src) { this.snap(it); return; }
+    if (slot && src && !reduce()) {
+      const a = src.getBoundingClientRect(), b = slot.getBoundingClientRect();
+      const g = this.ghost(src, a);
+      const dx = b.left + b.width / 2 - (a.left + a.width / 2), dy = b.top + b.height / 2 - (a.top + a.height / 2);
+      const k = 38 / a.width;
+      g.animate([
+        { transform: 'translate(0,0) scale(1)' },
+        { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - 60}px) scale(${(1 + k) / 2 + 0.1})`, offset: 0.5 },
+        { transform: `translate(${dx}px, ${dy}px) scale(${k})` },
+      ], { duration: 240, easing: 'steps(8, end)' }).onfinish = () => { g.remove(); };
+      sfx('whoosh', 0.35);
+      setTimeout(() => this.snap(it), 230);
+    } else this.snap(it);
+  }
+  private snap(it: Item) {
+    const H = this.host;
+    if (H.queue.length >= H.slots || H.busy()) return;
+    sfx('clamp', 0.6);
+    H.load(it);
+    const n = H.queue.length - 1;
+    const slot = this.hbox?.querySelectorAll<HTMLElement>('.pf-slot')[n];
+    slot?.classList.add('snap');
+  }
+  private ghost(src: HTMLCanvasElement | HTMLImageElement, r: DOMRect): HTMLElement {
+    const g = h('div', 'pf-ghost');
+    const c = document.createElement('canvas');
+    c.width = (src as HTMLCanvasElement).width || r.width; c.height = (src as HTMLCanvasElement).height || r.height;
+    try { c.getContext('2d')!.drawImage(src, 0, 0); } catch { /* not ready */ }
+    c.style.width = r.width + 'px'; c.style.height = r.height + 'px';
+    g.append(c);
+    g.style.left = r.left + 'px'; g.style.top = r.top + 'px';
+    document.body.append(g);
+    return g;
+  }
+  private onDragMove = (e: PointerEvent) => {
+    const d = this.drag;
+    if (!d) return;
+    if (!d.ghost) {
+      if (Math.hypot(e.clientX - d.x0, e.clientY - d.y0) < 8) return;
+      const src = d.from.querySelector('canvas,img') as HTMLCanvasElement | null;
+      if (!src) { this.drag = null; return; }
+      d.ghost = this.ghost(src, src.getBoundingClientRect());
+      d.ghost.classList.add('drag');
+      this.dragged = true;
+      sfx('rocker', 0.3);
+    }
+    const r = d.from.getBoundingClientRect();
+    d.ghost.style.transform = `translate(${e.clientX - d.x0}px, ${e.clientY - d.y0}px)`;
+    void r;
+    const hb = this.hbox?.getBoundingClientRect();
+    this.hbox?.classList.toggle('over', !!hb && e.clientX >= hb.left && e.clientX <= hb.right && e.clientY >= hb.top - 20 && e.clientY <= hb.bottom);
+  };
+  private onDragUp = (e: PointerEvent) => {
+    const d = this.drag;
+    this.drag = null;
+    if (!d?.ghost) return;
+    const hb = this.hbox?.getBoundingClientRect();
+    this.hbox?.classList.remove('over');
+    const inside = !!hb && e.clientX >= hb.left && e.clientX <= hb.right && e.clientY >= hb.top - 20 && e.clientY <= hb.bottom;
+    const g = d.ghost;
+    if (inside && this.host.queue.length < this.host.slots) {
+      const slot = this.hbox?.querySelectorAll<HTMLElement>('.pf-slot')[this.host.queue.length];
+      const b = slot?.getBoundingClientRect(), a = g.getBoundingClientRect();
+      if (b) g.animate([{ transform: g.style.transform }, { transform: `translate(${e.clientX - d.x0 + b.left + b.width / 2 - (a.left + a.width / 2)}px, ${e.clientY - d.y0 + b.top + b.height / 2 - (a.top + a.height / 2)}px) scale(${38 / a.width})` }], { duration: 90, easing: 'steps(3, end)' }).onfinish = () => g.remove();
+      else g.remove();
+      setTimeout(() => this.snap(d.it), 80);
+    } else {
+      g.animate([{ transform: g.style.transform }, { transform: 'translate(0,0)' }], { duration: 160, easing: 'steps(5, end)' }).onfinish = () => g.remove();
+      sfx('back', 0.3);
+    }
+  };
 
   // ---------------------------------------------------------------- the show
-  /** the lever: crush what is in the slots now (call before the terminal empties them) */
+  /** the lever went down: crunch what is in the slots now (call before the terminal empties them) */
   crushStart() {
-    const bay = this.bay, H = this.host;
-    sfx('lever', 0.9);
-    this.lines = [];
-    this.say(`LEVER · ${H.queue.length} LINE${H.queue.length === 1 ? '' : 'S'} · ${fmtKg(H.queue.reduce((a, it) => a + kgOf(it), 0)).toUpperCase()}`);
-    const load: { key: string; x: number; y: number; s: number }[] = [];
-    if (bay) {
-      const b = bay.getBoundingClientRect();
-      bay.querySelectorAll<HTMLElement>('.pf-slot.full .pf-sic').forEach((e, i) => {
-        const r = e.getBoundingClientRect(), it = H.queue[i];
-        if (it) load.push({ key: it.key, x: Math.round((r.left - b.left) / PX), y: Math.round((r.top - b.top) / PX), s: ICON });
+    const hb = this.hbox;
+    const load: { im: HTMLCanvasElement; x: number; y: number; w: number; h: number }[] = [];
+    if (hb) {
+      const b = hb.getBoundingClientRect();
+      hb.querySelectorAll<HTMLCanvasElement>('.pf-slot.full canvas').forEach((c) => {
+        const r = c.getBoundingClientRect();
+        const im = document.createElement('canvas'); im.width = c.width; im.height = c.height;
+        try { im.getContext('2d')!.drawImage(c, 0, 0); } catch { /* skip */ }
+        load.push({ im, x: r.left - b.left, y: r.top - b.top, w: r.width, h: r.height });
       });
     }
-    this.ram.start(load);
+    this.tray.innerHTML = '';
+    this.crunch.start(load);
     this.counter.set(0, 'dim');
+    this.counter.lamps = 0;
     this.roll = null;
   }
-  /** the press paid: roll the counter, log the yield (a jackpot blinks and overspins) */
+  /** the press paid: the materials pop out into the tray, the counter rolls (a jackpot flashes and overspins) */
   paid(p: Payout) {
-    this.pressT = -1;
-    const n = new Map<string, number>(); for (const k of p.out) n.set(k, (n.get(k) ?? 0) + 1);
-    this.say('ASSAY OK');
-    if (n.size) this.say('OUT OF THE LIP · ' + [...n].map(([k, c]) => `${c} ${iname(k).toUpperCase()}`).join(' · '));
-    if (p.jack === 2) this.say(`JACKPOT · PAID DOUBLE · +${fmt(p.bonus)}`);
-    else if (p.jack) this.say(`RARE FIND · ${iname(p.drop || p.out[p.out.length - 1] || '').toUpperCase()}`);
-    this.say(`CREDITED ${fmt(p.value)} CR`);
-    this.roll = { from: 0, to: p.value, t: 0, dur: p.jack ? 1.8 : 1.3, over: !!p.jack, ink: p.jack ? 'gold' : 'green' };
+    const out = p.out.slice(0, 10);
+    out.forEach((k, i) => setTimeout(() => this.pop(k, i, out.length), 90 + i * 85));
+    this.roll = { to: p.value, t: 0, dur: p.jack ? 1.8 : 1.3, over: !!p.jack, ink: p.jack ? 'gold' : 'green' };
     this.counter.lamps = p.jack ? 2 : 1;
-    this.jackT = p.jack ? 3.2 : 0;
-    if (p.jack) sfx('klaxon', 0.7);
+    if (p.jack) {
+      this.jackT = 2.6;
+      this.root?.classList.add('jack');
+      this.crt.burst(0.5, 0.25);
+      sfx('klaxon', 0.7);
+    }
   }
-  /** a rare find named after the payout landed */
-  rare(drop: string) { if (drop) this.say(`RARE FIND · ${iname(drop).toUpperCase()}`); }
+  /** a rare find, named once the payout landed */
+  rare(drop: string) { if (drop && ![...this.tray.querySelectorAll<HTMLElement>('.pf-pop')].some((e) => e.dataset.k === drop)) this.pop(drop, this.tray.children.length, this.tray.children.length + 1, true); }
+  private pop(key: string, i: number, n: number, gold = false) {
+    if (!this.tray.isConnected) return;
+    const e = h('span', 'pf-pop' + (gold ? ' gold' : ''));
+    e.dataset.k = key; e.title = iname(key);
+    e.append(still(key, 28));
+    this.tray.append(e);
+    sfx('plate', 0.35);
+    if (!reduce() && this.hbox) {
+      const a = this.hbox.getBoundingClientRect(), b = e.getBoundingClientRect();
+      const dx = a.left + a.width / 2 - (b.left + b.width / 2), dy = a.top + a.height / 2 - (b.top + b.height / 2);
+      e.animate([
+        { transform: `translate(${dx}px, ${dy}px) scale(0.2)` },
+        { transform: `translate(${dx * 0.45}px, ${dy * 0.45 - 34}px) scale(1.3)`, offset: 0.55 },
+        { transform: 'translate(0, 0) scale(1)' },
+      ], { duration: 300, easing: 'steps(9, end)' });
+    }
+    void n;
+  }
   skip() {
-    this.ram.skip();
+    this.crunch.skip();
     if (this.roll) { this.counter.set(this.roll.to, this.roll.ink); this.roll = null; sfx('relay', 0.6); }
   }
 
-  private say(line: string) { this.lines.push(line); if (this.lines.length > 4) this.lines.splice(0, this.lines.length - 4); this.paintLog(); }
-  private paintLog() { this.log.innerHTML = this.lines.map((l, i) => `<p${i === this.lines.length - 1 ? ' class="new"' : ''}>&gt; ${esc(l)}${i === this.lines.length - 1 ? '<span class="pf-cur">_</span>' : ''}</p>`).join(''); }
-
   private shake() {
+    if (reduce()) return;
     const s = this.host.screen;
-    const seq = [[2, -2], [-2, 1], [1, 2], [-1, -1], [1, 0], [0, 0]];
-    seq.forEach(([x, y], i) => setTimeout(() => { s.style.transform = x || y ? `translate(${x * PX}px, ${y * PX}px)` : ''; }, i * 45));
+    const seq = [[5, -4], [-6, 3], [4, 5], [-3, -3], [2, 1], [0, 0]];
+    seq.forEach(([x, y], i) => setTimeout(() => { s.style.transform = x || y ? `translate(${x}px, ${y}px)` : ''; }, i * 40));
   }
 
   private tick(dt: number, now: number) {
-    if (!this.det.isConnected) return;
-    // the ram over the bay
-    if (this.bay?.isConnected) {
-      const W = Math.max(8, Math.round(this.bay.clientWidth / PX)), Hh = Math.max(8, Math.round(this.bay.clientHeight / PX));
-      if (this.ram.t >= 0 || this.ram.active) this.ram.step(dt, W, Hh);
-    }
-    // the pressure, while the world press works
-    if (this.pressT >= 0) {
-      this.pressT += dt;
-      if (this.pressT > 0.35) { this.pressT = 0.0001; const last = this.lines[this.lines.length - 1] ?? ''; const kn = `COMPRESSING · ${fmt(1150 + Math.random() * 260)} kN`; if (last.startsWith('COMPRESSING')) { this.lines[this.lines.length - 1] = kn; this.paintLog(); } else this.say(kn); }
-    }
-    // the counter rolls (a jackpot runs past the figure and settles back)
+    if (!this.root?.isConnected) return;
+    if (this.hbox?.isConnected && (this.crunch.t >= 0 || this.crunch.active)) this.crunch.step(dt, Math.max(8, this.hbox.clientWidth), Math.max(8, this.hbox.clientHeight));
     if (this.roll) {
       const r = this.roll;
       r.t = Math.min(1, r.t + dt / r.dur);
@@ -490,17 +617,8 @@ export class FeedScreen {
       if (Math.random() < 0.25) sfx('tick', 0.2);
       if (r.t >= 1) { this.counter.set(r.to, r.ink); this.roll = null; sfx(r.over ? 'unlock' : 'relay', 0.7); }
     }
-    if (this.jackT > 0) { this.jackT -= dt; if (this.jackT <= 0) this.counter.lamps = 1; }
+    if (this.jackT > 0) { this.jackT -= dt; if (this.jackT <= 0) { this.counter.lamps = 1; this.root.classList.remove('jack'); } }
+    this.lever.tick(now);
     this.counter.step(dt, now);
-    // the assay view turns, a frame at a time (each frame rendered once, then cached)
-    const im = this.det.querySelector<HTMLImageElement>('.pf-big');
-    if (im && this.sel) {
-      this.turnT += dt;
-      if (this.turnT > 0.16) {
-        this.turnT = 0;
-        const u = canIcon() ? itemIconTurn(this.sel.key, BIG, ++this.frame, TURN) : '';
-        if (u && im.src !== u) im.src = u;
-      }
-    }
   }
 }
