@@ -1,5 +1,5 @@
 /* Room decoration (deco/*) and the guide (guide/*): pixel keys in the corner, build mode's
-   blueprint overlay and tray, the commissary machine, the guide's speech clouds.
+   blueprint overlay and tray, the commissary machine, the guide's subtitle line.
    Text is Alagard on the 16px grid with ink outlines, floating or printed on an object. */
 .dk-ui { position: fixed; inset: 0; z-index: 52; pointer-events: none; font-family: var(--font-new); }
 .dk-ui.off > * { visibility: hidden !important; }
@@ -94,12 +94,8 @@ body.deco-build .nx-title .tt3-menu, body.deco-build .nx-title .tt3-cap, body.de
 body.deco-build .nx-title .mr-hud, body.deco-build .nx-title .mr-feeds, body.deco-build .nx-title .mr-hotcap,
 body.deco-build [data-deco-hide], body.deco-shop [data-deco-hide] { visibility: hidden !important; }
 
-/* ---- the guide's speech clouds */
-  white-space: normal; overflow-wrap: break-word; }
-@media (max-aspect-ratio: 20/21) { .hb-txt { max-width: 220px; } }
 @media (prefers-reduced-motion: reduce) { .dk-card, .dk-icap { transition: none; } .dk-note { animation: none; } }
 .dk-tabs .pb[hidden] { display: none; }
-/* the guide talks in floating words, not clouds: no cloud body, no tail; light Alagard with a hard ink outline */
 
 /* Dr. Calder's lines (src/ui/menus/guide/subline.ts): a film subtitle low in the picture, her name over the words */
 .gd-sub { position: absolute; left: 50%; bottom: calc(max(2.4vh, 12px) + 46px); transform: translateX(-50%); z-index: 3; max-width: min(860px, calc(100vw - 48px));
