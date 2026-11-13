@@ -25,6 +25,8 @@ import { BuildMode } from './blueprint';
 import { Shop } from './shop';
 import { Preview } from './preview';
 import { blueprintSheet, shopSheet, guideSheet } from './icons';
+import { mxOk } from '../../machine/core';
+import { mxIcon, type IconKind } from '../../machine/decor';
 import { GIFTS } from './catalog';
 import { owned, addOwned, flag, setFlag } from './store';
 import { Guide } from '../guide/guide';
@@ -55,6 +57,7 @@ export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unkno
     b.className = 'dk-icon';
     b.setAttribute('aria-label', aria);
     b.dataset.sheet = sheet;
+    b.dataset.k = label;
     const cap = document.createElement('span');
     cap.className = 'dk-icap';
     cap.textContent = label;
@@ -159,9 +162,21 @@ export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unkno
   const guideKey = icon(guideSheet(guide.muted), 'Guide', 'Guide: mute or call Dr. Calder', () => { sfx('toggle'); guide.setMuted(!guide.muted); });
   guide.onMute = (m) => { guideKey.dataset.sheet = guideSheet(m); paintKeys(); guideKey.classList.toggle('muted', m); };
   guideKey.classList.toggle('muted', guide.muted);
+  // round 16: the keys are little 3D props from the machine kit (src/ui/machine/decor.ts), drawn at half size and
+  // shown twice as big so they keep the hub's chunky pixels; the flat sheets stay as the no-WebGL fallback
+  const MODEL: Record<string, () => IconKind> = { Blueprint: () => 'blueprint', Commissary: () => 'ledger', Guide: () => (guide.muted ? 'phoneOff' : 'phone') };
   const paintKeys = () => {
     const S = Math.max(2, Math.round(kitScale() * (devicePixelRatio || 1) * 0.75) / (devicePixelRatio || 1));
     for (const b of [bpKey, shopKey, guideKey]) {
+      const u = Math.round(12 * S);
+      const ic = mxOk() ? mxIcon(MODEL[b.dataset.k ?? '']?.() ?? 'gear', u) : null;
+      b.querySelector(':scope > .mxi-cv')?.remove();
+      if (ic) {
+        ic.style.width = ic.width * 2 + 'px'; ic.style.height = ic.height * 2 + 'px';
+        b.prepend(ic); b.classList.add('dk-3d');
+        Object.assign(b.style, { width: u * 2 + 'px', height: u * 2 + 'px', backgroundImage: 'none' });
+        continue;
+      }
       Object.assign(b.style, { width: 24 * S + 'px', height: 24 * S + 'px', backgroundImage: `url(${b.dataset.sheet})`, backgroundSize: `${24 * S}px ${72 * S}px` });
       b.style.setProperty('--h', 24 * S + 'px');
     }

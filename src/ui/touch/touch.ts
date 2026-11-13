@@ -182,9 +182,9 @@ export class TouchControls implements GameSystem {
     this.btn(act, 'pump', 'pump', { label: 'PUMP', x: 3.35, y: 3.5, s: 0.95, hold: 'breathe', tap: () => { if (!this.g.hudBody && this.g.local) startBreathing(this.g.local); } });
     this.btn(act, 'talk', 'talk', { label: 'TALK', x: 1.75, y: 2.6, s: 1.0, cls: 'rec', hold: 'talk' });
     // round 16: the newer moves on the cluster's top row: SCAN (hold, Q), ROLL (C), CRAWL (hold Ctrl: down flat, again to get up)
-    this.btn(act, 'qscan', 'scan', { label: 'SCAN', x: 0.2, y: 3.85, s: 1.0, hold: 'scan' });
-    this.btn(act, 'roll', 'roll', { label: 'ROLL', x: 1.3, y: 3.8, s: 0.95, tap: () => this.g.input.tap('roll') });
-    this.btn(act, 'crawl', 'crawl', { label: 'CRAWL', x: 2.3, y: 3.75, s: 0.95, tap: () => this.crawl() });
+    this.btn(act, 'qscan', 'scan', { label: 'SCAN', x: 0.42, y: 3.85, s: 0.95, hold: 'scan' });
+    this.btn(act, 'roll', 'roll', { label: 'ROLL', x: 1.42, y: 3.8, s: 0.95, tap: () => this.g.input.tap('roll') });
+    this.btn(act, 'crawl', 'crawl', { label: 'CRAWL', x: 2.38, y: 3.75, s: 0.95, tap: () => this.crawl() });
 
     // ---- driver's seat (the stick steers)
     const drive = this.group('drive', 'nc-group nc-br');

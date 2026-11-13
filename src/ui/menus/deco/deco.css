@@ -95,23 +95,22 @@ body.deco-build .nx-title .mr-hud, body.deco-build .nx-title .mr-feeds, body.dec
 body.deco-build [data-deco-hide], body.deco-shop [data-deco-hide] { visibility: hidden !important; }
 
 /* ---- the guide's speech clouds */
-.hb-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; contain: strict; }
-.hb { position: absolute; left: 0; top: 0; width: 0; height: 0; will-change: transform, opacity; }
-.hb-in { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
-.hb-body { position: absolute; left: 0; top: 0; }
-.hb-bg, .hb-tail { position: absolute; image-rendering: pixelated; display: block; }
-.hb-txt { position: absolute; max-width: 300px; width: max-content; text-align: center; font-family: var(--font-new); font-size: 16px; line-height: 16px; color: #2a1d12;
   white-space: normal; overflow-wrap: break-word; }
-.hb.shout .hb-txt { color: #3a1414; }
-.hb.think .hb-txt { color: #3a3046; }
-.hb-w { display: inline-block; white-space: nowrap; }
-.hb-c { display: inline-block; opacity: 0; transform: translateY(4px) scale(0.5); }
-.hb-c.on { opacity: 1; transform: none; transition: transform 0.18s cubic-bezier(0.3, 1.9, 0.5, 1), opacity 0.06s linear; }
 @media (max-aspect-ratio: 20/21) { .hb-txt { max-width: 220px; } }
-@media (prefers-reduced-motion: reduce) { .hb-c.on, .dk-card, .dk-icap { transition: none; } .dk-note { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .dk-card, .dk-icap { transition: none; } .dk-note { animation: none; } }
 .dk-tabs .pb[hidden] { display: none; }
 /* the guide talks in floating words, not clouds: no cloud body, no tail; light Alagard with a hard ink outline */
-.hb-bg, .hb-tail { display: none !important; }
-.hb-txt { color: #fbf3dc; text-shadow: var(--text-ink-2), var(--text-halo); }
-.hb.shout .hb-txt { color: #ffd890; }
-.hb.think .hb-txt { color: #d8dcf8; }
+
+/* Dr. Calder's lines (src/ui/menus/guide/subline.ts): a film subtitle low in the picture, her name over the words */
+.gd-sub { position: absolute; left: 50%; bottom: calc(max(2.4vh, 12px) + 46px); transform: translateX(-50%); z-index: 3; max-width: min(860px, calc(100vw - 48px));
+  display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; pointer-events: none; opacity: 0; transition: opacity 0.25s ease; }
+.gd-sub.on { opacity: 1; }
+.gd-sub b { font-weight: normal; font-size: 14px; line-height: 1; letter-spacing: 0.22em; text-transform: uppercase; color: #ffcf6a; text-shadow: var(--text-ink); }
+.gd-sub span { font-size: 24px; line-height: 1.2; color: #f4ecd2; text-shadow: var(--text-ink-2); min-height: 1.2em; }
+.gd-sub.s-think span { color: #cfc6ad; font-style: italic; }
+.gd-sub.s-shout span { font-size: 32px; color: #fff2c8; }
+@media (max-aspect-ratio: 1/1.05) { .gd-sub { bottom: auto; top: 13vh; } .gd-sub span { font-size: 18px; } }
+/* round 16: the hub keys as 3D props; they lift on hover and sink on a press */
+.dk-icon.dk-3d > .mxi-cv { position: absolute; left: -6px; top: -6px; image-rendering: pixelated; pointer-events: none; transition: transform 0.12s steps(2), filter 0.12s steps(2); }
+.dk-icon.dk-3d:hover > .mxi-cv, .dk-icon.dk-3d:focus-visible > .mxi-cv { transform: translateY(-2px); filter: brightness(1.15); }
+.dk-icon.dk-3d:active > .mxi-cv { transform: translateY(2px); filter: brightness(0.92); }

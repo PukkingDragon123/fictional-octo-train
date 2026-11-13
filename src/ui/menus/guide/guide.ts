@@ -1,12 +1,12 @@
 // The guide: Dr. Iris Calder walks the player through the menu, the rooms,
-// build mode and the commissary in short lines (pixel speech clouds in
-// Alagard), points at what she is talking about (a 3D spot in the room or a
-// key on screen), reacts when she is clicked, follows the player from room
-// to room (she walks in from the side), and can be muted (the speech-cloud
-// key): she says so and steps out until she is called back.
+// build mode and the commissary in short lines (typed into the subtitle strip
+// at the bottom of the picture, ./subline.ts), points at what she is talking
+// about (a 3D spot in the room or a key on screen), reacts when she is clicked,
+// follows the player from room to room (she walks in from the side), and can be
+// muted (the desk telephone key): she says so and steps out until called back.
 import * as THREE from 'three';
 import type { MenuRoom, MenuRoomId } from '../menuRooms';
-import { Bubbles, type Style } from './bubbles';
+import { SubLine, type Style } from './subline';
 import { createGuideRig, type GuideRig } from './researcher';
 import { flag, setFlag } from '../deco/store';
 import { sfx } from '../sfx';
@@ -51,13 +51,14 @@ const TIPS = [
 
 export class Guide {
   private host: GuideHost;
-  bubbles: Bubbles;
+  /** her lines, in the subtitle strip (no speech bubbles) */
+  subs: SubLine;
   private rig: GuideRig | null = null;
   private loading = false;
   private roomId: MenuRoomId | null = null;
   private room: MenuRoom | null = null;
   private queue: Line[] = [];
-  private cur: (Line & { h: ReturnType<Bubbles['say']>; t: number; hold: number }) | null = null;
+  private cur: (Line & { h: ReturnType<SubLine['say']>; t: number; hold: number }) | null = null;
   private pos = new THREE.Vector3(); private goal = new THREE.Vector3();
   private walking = false; private yaw = 0;
   private gone = false; // muted and stepped out
@@ -70,7 +71,7 @@ export class Guide {
 
   constructor(host: GuideHost) {
     this.host = host;
-    this.bubbles = new Bubbles(host.layer);
+    this.subs = new SubLine(host.layer);
     this.gone = this.muted;
     this.fill.position.set(0.25, 1.75, 0.75);
     this.fill.castShadow = false;
@@ -82,7 +83,7 @@ export class Guide {
     if (!room || room.id === this.roomId) return;
     const first = this.roomId === null;
     this.roomId = room.id; this.room = room;
-    this.bubbles.clear(); this.cur = null;
+    this.subs.clear(); this.cur = null;
     this.queue = this.queue.filter((l) => !l.look && !l.point);
     if (!this.rig) { this.ensureRig().then(() => this.arrive(room, first)); return; }
     this.arrive(room, first);
@@ -166,7 +167,7 @@ export class Guide {
       { text: 'See the little blueprint? Build mode. Make these rooms yours.', point: { el: () => this.host.anchor('blueprint') } },
       { text: 'The commissary sells figures and lab decor, for research points.', point: { el: () => this.host.anchor('shop') } },
       { text: 'I left two things in your tray. A plant. And a figure of me. For morale.', emote: 'shrug', then: () => this.onGift?.() },
-      { text: 'Tap the speech cloud up there if you want me quiet.', point: { el: () => this.host.anchor('guide') } },
+      { text: 'The telephone up there puts me on hold if you want me quiet.', point: { el: () => this.host.anchor('guide') } },
     ]);
   }
   onGift?: () => void;
@@ -174,7 +175,7 @@ export class Guide {
   // ---------------------------------------------------------------- talking
   say(lines: Line[], interrupt = false) {
     if (this.gone) return;
-    if (interrupt) { this.queue = []; this.bubbles.clear(); this.cur = null; }
+    if (interrupt) { this.queue = []; this.subs.clear(); this.cur = null; }
     this.queue.push(...lines);
     this.idleT = 0;
   }
@@ -215,9 +216,9 @@ export class Guide {
     setFlag('guide.muted', m);
     this.onMute?.(m);
     if (m) {
-      this.queue = []; this.bubbles.clear(); this.cur = null;
+      this.queue = []; this.subs.clear(); this.cur = null;
       this.gone = false;
-      this.say([{ text: 'I will be quiet. Tap the cloud if you need me.', emote: 'bow', then: () => { this.gone = true; } }], true);
+      this.say([{ text: 'I will be quiet. Pick up the telephone if you need me.', emote: 'bow', then: () => { this.gone = true; } }], true);
     } else {
       this.gone = false;
       if (this.rig) this.rig.root.visible = true;
@@ -236,7 +237,7 @@ export class Guide {
     ray.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), room.camera);
     if (!ray.intersectObject(rig.hitProxy, false).length) return false;
     rig.flinch();
-    if (this.cur && !this.cur.h.typed) { this.bubbles.skip(); return true; }
+    if (this.cur && !this.cur.h.typed) { this.subs.skip(); return true; }
     if (this.cur || this.queue.length) { this.next(); return true; }
     const [text, emote] = POKES[this.pokeN++ % POKES.length];
     this.now(text, { emote });
@@ -261,7 +262,7 @@ export class Guide {
     const rig = this.rig, room = this.room;
     if (!rig || !room) return;
     const hide = this.host.hidden();
-    this.bubbles.layer.style.visibility = hide ? 'hidden' : '';
+    this.subs.layer.style.visibility = hide ? 'hidden' : '';
     // gone (muted): walk out of the picture, then vanish
     if (this.gone && rig.root.visible) {
       const F = room.floor;
@@ -307,8 +308,8 @@ export class Guide {
     const ln = this.cur;
     const point = ln?.point && ln.t > 0.25 && ln.t < ln.hold ? this.aim(ln.point, room) : null;
     const look = point ?? (ln?.look ? this.aim(ln.look, room) : null) ?? room.camera.getWorldPosition(this.w);
-    rig.update(dt, { speed: this.walking ? speed : 0, look, point, talking: this.bubbles.talking });
-    this.bubbles.update(dt, room.camera, this.host.rect());
+    rig.update(dt, { speed: this.walking ? speed : 0, look, point, talking: this.subs.talking });
+    this.subs.update(dt);
   }
   private turnTo(a: number, dt: number, k: number) {
     let da = a - this.yaw;
@@ -318,7 +319,8 @@ export class Guide {
   private start(l: Line) {
     const rig = this.rig!;
     this.chars = 0;
-    const h = this.bubbles.say(() => rig.head(this.w.clone()), l.text, {
+    // the one place a line starts (a recorded voice for the line hooks in here)
+    const h = this.subs.say(l.text, {
       style: l.style, dur: l.dur,
       onChar: (ch) => { if (ch !== ' ' && (this.chars++ & 1) === 0) sfx('type', 0.12); },
     });
@@ -342,5 +344,5 @@ export class Guide {
     return new THREE.Vector3(Math.max(-1.2, Math.min(1.2, nx)), Math.max(-1.2, Math.min(1.2, ny)), this.v.z).unproject(room.camera);
   }
 
-  dispose() { this.rig?.dispose(); this.rig = null; this.bubbles.dispose(); }
+  dispose() { this.rig?.dispose(); this.rig = null; this.subs.dispose(); }
 }

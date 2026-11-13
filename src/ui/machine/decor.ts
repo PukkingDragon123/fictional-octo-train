@@ -19,7 +19,7 @@
 // mxIcon(kind) gives the same kind of little model as a key icon.
 import * as THREE from 'three';
 import { sheet, mxOk, mxMat, SHEAR, type ShotOpts } from './core';
-import { Mold, M, STEEL, CHROME, BRASS, RUBBER, PLASTIC, PAINT, GLASS } from '../touch/stage3d';
+import { Mold, M, STEEL, CHROME, BRASS, RUBBER, PLASTIC, PAINT, GLASS, PAPER } from '../touch/stage3d';
 import { fcyl, fbox, fdome, fring, frod, plate, clipRect, gem, flathe, ngon } from '../touch/facet';
 import { meshOf, bolt, screw, R90 } from './parts';
 import { TONES, labelCanvas, canvasTex, hh, mixC } from './paint';
@@ -706,7 +706,9 @@ export function mxMount(host: HTMLElement, kind: DecorKind, at: { left?: number;
 }
 
 // ================================================================ ICONS: the same little models, small, for keys
-export type IconKind = 'gear' | 'wrench' | 'play' | 'tape' | 'clipboard' | 'door' | 'eye' | 'radio' | 'key' | 'lamp' | 'map' | 'skull' | 'jar' | 'bolt' | 'coin' | 'crate' | 'siren';
+export type IconKind = 'gear' | 'wrench' | 'play' | 'tape' | 'clipboard' | 'door' | 'eye' | 'radio' | 'key' | 'lamp' | 'map' | 'skull' | 'jar' | 'bolt' | 'coin' | 'crate' | 'siren'
+  // the lab menus' hub: a rolled blueprint, the commissary's ledger and coin tin, Dr. Calder's desk telephone (and off the hook)
+  | 'blueprint' | 'ledger' | 'phone' | 'phoneOff';
 function iconModel(kind: IconKind, S: number): THREE.Group {
   const root = new THREE.Group();
   const g = new THREE.Group();
@@ -823,6 +825,52 @@ function iconModel(kind: IconKind, S: number): THREE.Group {
       m.add(fbox(1.4 * u, 13 * u, 0.6 * u, 0), M(0, -1 * u, 4.8 * u, 0, 0, 0.7), 0x5a4224, PAINT);
       break;
     }
+    case 'blueprint': {
+      // a rolled sheet lying across, its spiral end showing, a red band, the corner of the drawing unrolled under it
+      const roll = new THREE.Group(); roll.rotation.z = 0.42; g.add(roll);
+      const b = new Mold();
+      b.add(plate(clipRect(12 * u, 7 * u, 0.4 * u), 0.5 * u, 0), M(-1.5 * u, -5 * u, -1 * u, 0, 0, 0.1), (x, y) => (Math.abs(((x / u) % 3)) < 0.35 || Math.abs(((y / u) % 3)) < 0.35 ? 0xb8d8ff : 0x2a5a9a), PAINT);
+      b.add(fcyl(3.6 * u, 19 * u, 10, 3.6 * u, 0.15), M(0, 0, 0, 0, 0, R90), (_x, y, z) => (Math.abs(y) < 0.4 * u && z > 0 ? 0xc8e0ff : 0x3a6aaa), PAINT);
+      for (const x of [-9.6, 9.6]) { b.add(fring(2.4 * u, 0.35 * u, 10, 4), M(x * u, 0, 0, 0, R90, 0), 0xd8e8ff, PAPER); b.add(fring(1.2 * u, 0.3 * u, 8, 4), M(x * u, 0, 0, 0, R90, 0), 0xa8c8f0, PAPER); }
+      b.add(fring(3.75 * u, 0.5 * u, 10, 4), M(3.6 * u, 0, 0, 0, R90, 0), 0xc8281c, RUBBER);
+      meshOf(b, mxMat({ wear: 0.4, seed: 5 }), roll);
+      break;
+    }
+    case 'ledger': {
+      // the commissary's ledger (green cloth, cream page edges, a red ribbon) with a brass coin tin on it, lid ajar
+      m.add(plate(clipRect(17 * u, 12 * u, 0.8 * u), 3 * u, 0.4), M(0, -3 * u, -3 * u), (_x, _y, z) => (z > -2.5 * u && z < -0.5 * u ? 0xe8e0c8 : 0x2e5a3a), PAINT);
+      m.add(fbox(1.2 * u, 5 * u, 0.4 * u, 0), M(5 * u, -9 * u, 0.2 * u), 0xb3261c, PAINT);
+      m.add(fcyl(5 * u, 4 * u, 12, 5 * u, 0.2), M(-1 * u, 1.5 * u, 2.6 * u, R90), 0xb08a3a, BRASS);
+      m.add(fcyl(5.4 * u, 1.2 * u, 12, 5.4 * u, 0.25), M(0.5 * u, 3.6 * u, 5.6 * u, R90 - 0.5, 0, 0.2), 0xc8a24a, BRASS);
+      for (let i = 0; i < 3; i++) m.add(fcyl(2.2 * u, 0.7 * u, 10, 2.2 * u, 0.25), M((-2 + i * 1.6) * u, (0.6 + i * 0.5) * u, (4.8 + i * 0.6) * u, R90), 0xead08a, BRASS);
+      g.rotation.x = 0.35;
+      break;
+    }
+    case 'phone':
+    case 'phoneOff': {
+      // a bakelite desk telephone with a rotary dial; on hold the handset is off its cradle and the line lamp burns red
+      const off = kind === 'phoneOff';
+      m.add(flathe([[8 * u, 0], [7.6 * u, 3.4 * u], [6 * u, 5.6 * u], [3 * u, 6.4 * u], [0, 6.6 * u]], 8), M(0, -6 * u, 0, 0, PI / 8, 0, 1, 1, 0.8), 0x1c1a16, PLASTIC);
+      m.add(fcyl(3.2 * u, 0.8 * u, 12, 3.2 * u, 0.2), M(0, -3.4 * u, 4.4 * u, 0.8, 0, 0), 0xd8d0b8, PAINT);
+      m.add(fring(2.4 * u, 0.5 * u, 10, 4), M(0, -3.4 * u, 4.9 * u, 0.8, 0, 0), 0x2a2620, PLASTIC);
+      m.add(fcyl(0.9 * u, 0.6 * u, 8, 0.9 * u, 0.2), M(0, -3.4 * u, 5 * u, 0.8, 0, 0), 0xb3261c, PAINT);
+      // the cradle's two prongs
+      for (const x of [-5, 5]) m.add(fbox(1.4 * u, 2.4 * u, 1.6 * u, 0.2), M(x * u, 0.4 * u, -0.6 * u), 0x24221c, PLASTIC);
+      const hs = new THREE.Group();
+      if (off) { hs.position.set(4.5 * u, -9 * u, 5 * u); hs.rotation.set(0.3, 0.2, -0.5); } else hs.position.set(0, 2 * u, -0.6 * u);
+      g.add(hs);
+      const h = new Mold();
+      h.add(fbox(12 * u, 2.2 * u, 2.4 * u, 0.3), M(0, 0, 0), 0x24221c, PLASTIC);
+      for (const x of [-6.4, 6.4]) h.add(fcyl(2.4 * u, 2.2 * u, 8, 1.8 * u, 0.25), M(x * u, -1.4 * u, 0), 0x1c1a16, PLASTIC);
+      meshOf(h, mxMat({ wear: 0.3, seed: 9 }), hs);
+      // the line lamp: dark until she is on hold
+      const lm = new Mold().add(fdome(1.4 * u, 8, 2, 0.8), M(-5.6 * u, -7.4 * u, 3.6 * u, 0.6, 0, 0), off ? 0xff5a3a : 0x4a1a12, GLASS, off ? 1 : 0);
+      const lmat = mxMat({ seed: 2 });
+      if (off) lmat.uniforms.uGlow.value.set(1, 0.3, 0.15);
+      meshOf(lm, lmat, g);
+      g.rotation.x = 0.42;
+      break;
+    }
     case 'siren': {
       m.add(fcyl(6 * u, 3 * u, 8, 6.6 * u, 0.25), M(0, -6 * u, 0), 0x3b4428, PAINT);
       m.add(flathe([[5.4 * u, 0], [5.4 * u, 6 * u], [4 * u, 9 * u], [0, 10 * u]], 10), M(0, -4.5 * u, 0), (x, _y, z) => (Math.cos(Math.atan2(z, x) - 1.2) > 0.6 ? 0xfff0d0 : 0xff3a22), GLASS, 1);
@@ -840,7 +888,8 @@ function iconModel(kind: IconKind, S: number): THREE.Group {
 /** a little 3D icon (cached): a canvas of size + 2 x 3 px */
 export function mxIcon(kind: IconKind, size = 22): HTMLCanvasElement | null {
   if (!mxOk()) return null;
-  const sh = sheet(`ico|${kind}|${size}`, size, size, 3, 1, () => iconModel(kind, size), kind === 'eye' || kind === 'jar' || kind === 'siren' ? FREE : WALL);
+  const free = kind === 'eye' || kind === 'jar' || kind === 'siren' || kind === 'phone' || kind === 'phoneOff' || kind === 'ledger';
+  const sh = sheet(`ico|${kind}|${size}`, size, size, 3, 1, () => iconModel(kind, size), free ? FREE : WALL);
   if (!sh) return null;
   const cv = frameCanvas(sh.width, sh.height, 'mxi-cv');
   cv.getContext('2d')!.drawImage(sh, 0, 0);
