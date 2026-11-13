@@ -850,21 +850,22 @@ function iconModel(kind: IconKind, S: number): THREE.Group {
     case 'phoneOff': {
       // a bakelite desk telephone with a rotary dial; on hold the handset is off its cradle and the line lamp burns red
       const off = kind === 'phoneOff';
-      m.add(flathe([[8 * u, 0], [7.6 * u, 3.4 * u], [6 * u, 5.6 * u], [3 * u, 6.4 * u], [0, 6.6 * u]], 8), M(0, -6 * u, 0, 0, PI / 8, 0, 1, 1, 0.8), 0x1c1a16, PLASTIC);
+      m.add(flathe([[8 * u, 0], [7.6 * u, 3.4 * u], [6 * u, 5.6 * u], [3 * u, 6.4 * u], [0, 6.6 * u]], 8), M(0, -6 * u, 0, 0, PI / 8, 0, 1, 1, 0.8), (_x, y) => (y > -1.2 * u ? 0x8e9a66 : 0x6e7a4c), PAINT);
       m.add(fcyl(3.2 * u, 0.8 * u, 12, 3.2 * u, 0.2), M(0, -3.4 * u, 4.4 * u, 0.8, 0, 0), 0xd8d0b8, PAINT);
       m.add(fring(2.4 * u, 0.5 * u, 10, 4), M(0, -3.4 * u, 4.9 * u, 0.8, 0, 0), 0x2a2620, PLASTIC);
       m.add(fcyl(0.9 * u, 0.6 * u, 8, 0.9 * u, 0.2), M(0, -3.4 * u, 5 * u, 0.8, 0, 0), 0xb3261c, PAINT);
       // the cradle's two prongs
-      for (const x of [-5, 5]) m.add(fbox(1.4 * u, 2.4 * u, 1.6 * u, 0.2), M(x * u, 0.4 * u, -0.6 * u), 0x24221c, PLASTIC);
+      for (const x of [-5, 5]) m.add(fbox(1.4 * u, 2.4 * u, 1.6 * u, 0.2), M(x * u, 0.4 * u, -0.6 * u), 0xb8c0bc, CHROME);
       const hs = new THREE.Group();
       if (off) { hs.position.set(4.5 * u, -9 * u, 5 * u); hs.rotation.set(0.3, 0.2, -0.5); } else hs.position.set(0, 2 * u, -0.6 * u);
       g.add(hs);
       const h = new Mold();
-      h.add(fbox(12 * u, 2.2 * u, 2.4 * u, 0.3), M(0, 0, 0), 0x24221c, PLASTIC);
+      h.add(fbox(12 * u, 2.2 * u, 2.4 * u, 0.3), M(0, 0, 0), 0x2a2822, PLASTIC);
+      h.add(fbox(9 * u, 0.6 * u, 0.4 * u, 0), M(0, 0.9 * u, 1.2 * u), 0x6a6458, PLASTIC);
       for (const x of [-6.4, 6.4]) h.add(fcyl(2.4 * u, 2.2 * u, 8, 1.8 * u, 0.25), M(x * u, -1.4 * u, 0), 0x1c1a16, PLASTIC);
       meshOf(h, mxMat({ wear: 0.3, seed: 9 }), hs);
       // the line lamp: dark until she is on hold
-      const lm = new Mold().add(fdome(1.4 * u, 8, 2, 0.8), M(-5.6 * u, -7.4 * u, 3.6 * u, 0.6, 0, 0), off ? 0xff5a3a : 0x4a1a12, GLASS, off ? 1 : 0);
+      const lm = new Mold().add(fdome(1.8 * u, 8, 2, 0.8), M(-5.4 * u, -7 * u, 3.8 * u, 0.6, 0, 0), off ? 0xff5a3a : 0x5a2018, GLASS, off ? 1 : 0);
       const lmat = mxMat({ seed: 2 });
       if (off) lmat.uniforms.uGlow.value.set(1, 0.3, 0.15);
       meshOf(lm, lmat, g);
