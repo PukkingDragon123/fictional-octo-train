@@ -22,7 +22,8 @@ import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { sfx } from '../menus/sfx';
 import { mxOk } from '../machine/core';
-import { mxIconSpin, mxIconSpinWarm } from '../machine/decor';
+import { mxIconSpinWarm } from '../machine/decor';
+import { crtScreen, crtIcon, type Crt, type CrtIcon } from '../crt/crt';
 import { mxButton, mxKnob, mxToggleCanvas } from '../machine/kit';
 import { isTouchMode } from '../touch/mode';
 import { isLoading } from '../loading';
@@ -39,17 +40,15 @@ const store = { get(k: string) { try { return localStorage.getItem(k); } catch {
 /** what an app gets: its body in the tube, and the unit */
 export interface WinApi { readonly body: HTMLElement; readonly key: string; setTitle(t: string): void; close(): void; focus(): void; readonly os: BandOS }
 interface Run { app: AppDef; api: WinApi; body: HTMLElement; dispose?: () => void; tick?: (dt: number) => void }
-type Spin = NonNullable<ReturnType<typeof mxIconSpin>>;
 
 export class BandOS {
   open = false;
   private root = el('div', 'wt');
   private L: WristLayout = WIDE;
   private built = '';
-  private rig!: HTMLElement; private lift!: HTMLElement; private tube!: HTMLElement; private glass!: HTMLElement;
+  private rig!: HTMLElement; private lift!: HTMLElement; private crt!: Crt;
   private topL!: HTMLElement; private topR!: HTMLElement; private foot!: HTMLElement; private home!: HTMLElement; private appEl!: HTMLElement;
-  private fx!: HTMLCanvasElement;
-  private icons: { b: HTMLButtonElement; spin: Spin | null }[] = [];
+  private icons: { b: HTMLButtonElement; ic: CrtIcon }[] = [];
   private dial: ReturnType<typeof wristDial> = null;
   private knob: ReturnType<typeof mxKnob> = null;
   private tog: ReturnType<typeof mxToggleCanvas> = null;
@@ -58,7 +57,6 @@ export class BandOS {
   private cur: Run | null = null;
   private busy = 0;
   private raf = 0; private last = 0; private clockT = 0;
-  private fxEnd = 0; private fxDur = 1; private fxK = 0;
   private amber = store.get('band.phos') === 'amber';
   private bright = Number(store.get('band.bright') ?? 2) || 2;
   private lineT = 0;
@@ -94,12 +92,12 @@ export class BandOS {
     G.hudBody?.setHidden?.('bandos', true);
     this.root.classList.toggle('live', !solo);
     this.root.classList.remove('on', 'up');
-    this.tube.classList.remove('lit');
+    this.crt.el.querySelector('.crt-tube')?.classList.remove('lit', 'dot');
     document.body.append(this.root);
     this.layout();
     this.toHome(true);
     this.refreshTop();
-    for (const ic of this.icons) ic.spin?.wake();
+    for (const x of this.icons) x.ic.wake();
     this.dial?.to(0, true);
     // the arm comes up, then the tube powers on
     void this.root.offsetWidth;
@@ -125,8 +123,7 @@ export class BandOS {
     G.hudBody?.setHidden?.('bandos', false);
     if (!quiet) sfx('back', 0.5);
     // the tube collapses to a dot, then the arm goes down
-    this.tube.classList.remove('lit', 'roll');
-    this.tube.classList.add('dot');
+    void this.crt.powerOff();
     this.dial?.to(0);
     const root = this.root;
     setTimeout(() => { if (!this.open) root.classList.remove('up'); }, reduce() ? 0 : 220);
@@ -137,12 +134,7 @@ export class BandOS {
 
   /** the tube powers on: a bright line opens to the picture, the static settles */
   private powerOn(short = false) {
-    this.tube.classList.remove('dot', 'roll');
-    void this.tube.offsetWidth;
-    this.tube.classList.add('lit');
-    this.tube.classList.toggle('quick', short);
-    this.staticBurst(short ? 0.45 : 0.85, short ? 0.35 : 0.7);
-    sfx('boot', short ? 0.3 : 0.5);
+    void this.crt.powerOn(short);
     if (!short) this.later(160, () => this.dial?.to(this.sel + 1));
     this.later(short ? 220 : 520, () => { this.busy = 0; });
   }
@@ -156,26 +148,8 @@ export class BandOS {
     this.clockT -= dt;
     if (this.clockT <= 0) { this.clockT = 1; this.refreshTop(); this.syncMsg(); }
     if (this.lineT > 0) { this.lineT -= dt; if (this.lineT <= 0) this.footLine(); }
-    this.drawFx(now);
     this.raf = requestAnimationFrame(this.frame);
   };
-  /** static on the tube: k strength, for t seconds (fading) */
-  private staticBurst(k: number, t: number) { if (reduce()) return; this.fxK = k; this.fxDur = t; this.fxEnd = performance.now() + t * 1000; }
-  /** (on the clock, not the frame count: a slow frame never leaves the static stuck on the glass) */
-  private drawFx(now: number) {
-    const cv = this.fx, c = cv.getContext('2d')!;
-    const left = (this.fxEnd - Math.max(now, performance.now())) / 1000;
-    if (left <= 0) { if (cv.dataset.on) { c.clearRect(0, 0, cv.width, cv.height); delete cv.dataset.on; } return; }
-    cv.dataset.on = '1';
-    const w = cv.width, h = cv.height, im = c.createImageData(w, h), d = im.data;
-    const a = Math.min(1, this.fxK * Math.min(1, (left / this.fxDur) * 2.2)) * 255;
-    for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 255; d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = Math.random() < 0.85 ? a : 0; }
-    // a few torn bright lines
-    c.putImageData(im, 0, 0);
-    c.fillStyle = `rgba(255,255,255,${(0.5 * a / 255).toFixed(2)})`;
-    for (let k = 0; k < 3; k++) c.fillRect(0, Math.floor(Math.random() * h), w, 1);
-  }
-
   // ---------------------------------------------------------------- building
   private build() {
     const L = this.L, key = L.kind + (mxOk() ? 'm' : '');
@@ -194,41 +168,35 @@ export class BandOS {
     const art = wristArt(L, skin);
     if (art) { art.className = 'wt-art'; art.style.left = L.ox + 'px'; art.style.top = L.oy + 'px'; art.style.width = L.cw + 'px'; art.style.height = L.ch + 'px'; this.lift.append(art); }
     else this.lift.classList.add('flat');
-    // the tube
-    const crt = el('div', 'wt-crt');
-    Object.assign(crt.style, { left: L.scr.x + 'px', top: L.scr.y + 'px', width: L.scr.w + 'px', height: L.scr.h + 'px' });
-    this.tube = el('div', 'wt-tube');
-    this.glass = el('div', 'wt-glass');
+    // the tube (the shared CRT skin, src/ui/crt)
+    const win = el('div', 'wt-crt');
+    Object.assign(win.style, { left: L.scr.x + 'px', top: L.scr.y + 'px', width: L.scr.w + 'px', height: L.scr.h + 'px' });
+    this.crt?.dispose();
+    this.crt = crtScreen({ phos: this.amber ? 'amber' : 'green' });
+    this.crt.glass.classList.add('wt-glass');
     const top = el('div', 'wt-top');
     this.topL = el('b'); this.topR = el('span');
     top.append(this.topL, this.topR);
     this.home = el('div', 'wt-home');
     this.appEl = el('div', 'wt-app');
     this.foot = el('div', 'wt-foot');
-    this.glass.append(top, this.home, this.appEl, this.foot);
-    this.fx = document.createElement('canvas'); this.fx.className = 'wt-fx';
-    this.fx.width = Math.ceil(L.scr.w / 3); this.fx.height = Math.ceil(L.scr.h / 3);
-    const grain = el('i', 'wt-grain');
-    grain.style.backgroundImage = `url(${grainUrl()})`;
-    this.tube.append(this.glass, el('i', 'wt-scan'), el('i', 'wt-roll'), grain, this.fx, el('i', 'wt-vig'), el('i', 'wt-flash'));
-    crt.append(this.tube);
-    this.lift.append(crt);
-    this.glass.style.filter = `url(#${crtFilter(L.scr.w, L.scr.h)})`;
+    this.crt.glass.append(top, this.home, this.appEl, this.foot);
+    win.append(this.crt.el);
+    this.lift.append(win);
     // home: the apps three by three
     this.icons = [];
     const size = this.iconSize();
     APPS.forEach((a, i) => {
       const b = el('button', 'wt-ic') as HTMLButtonElement;
       b.type = 'button'; b.dataset.k = a.key; b.setAttribute('aria-label', `${a.title}: ${a.sub}`);
-      const spin = mxOk() ? mxIconSpin(a.icon, size) : null;
-      const well = el('span', 'wt-ic-m');
-      if (spin) well.append(spin.cv); else well.append(el('b', '', esc(a.title.slice(0, 2).toUpperCase())));
-      b.append(well, el('span', 'wt-ic-l', `<i>${i + 1}</i>${esc(a.title.toUpperCase())}`));
+      // a big turning model, its key number; the name only on the one picked
+      const ic = crtIcon(a.icon, size, { name: a.title, num: i + 1 });
+      b.append(ic.el);
       b.addEventListener('pointerenter', () => { if (!this.cur && !this.busy) this.select(i); });
       b.addEventListener('focus', () => { if (!this.cur) this.select(i, true); });
       b.addEventListener('click', () => { this.select(i, true); this.launch(a.key); });
       this.home.append(b);
-      this.icons.push({ b, spin });
+      this.icons.push({ b, ic });
     });
     // the moving parts on the case
     const D = L.dial;
@@ -260,7 +228,7 @@ export class BandOS {
     tw.type = 'button'; tw.setAttribute('aria-label', 'Phosphor: green or amber');
     Object.assign(tw.style, { left: L.tog.x - 4 + 'px', top: L.tog.y - 4 + 'px' });
     if (tg) tw.append(tg.cv); else tw.textContent = 'PHOS';
-    tw.addEventListener('click', () => { this.amber = !this.amber; store.set('band.phos', this.amber ? 'amber' : 'green'); tg?.flip(!this.amber); sfx('rocker', 0.6); this.applyLook(); this.staticBurst(0.4, 0.25); });
+    tw.addEventListener('click', () => { this.amber = !this.amber; store.set('band.phos', this.amber ? 'amber' : 'green'); tg?.flip(!this.amber); sfx('rocker', 0.6); this.applyLook(); this.crt.burst(0.4, 0.25); });
     this.lift.append(tw);
     // RESUME, SAVE, QUIT under the tube
     const keyDefs: [string, () => void, 'olive' | 'yellow' | 'red', 'green' | 'amber' | 'red'][] = [
@@ -283,7 +251,8 @@ export class BandOS {
   }
   private applyLook() {
     this.root.classList.toggle('amb', this.amber);
-    this.tube?.style.setProperty('--wt-b', String([0.72, 0.88, 1, 1.16][this.bright] ?? 1));
+    this.crt?.setPhos(this.amber ? 'amber' : 'green');
+    this.crt?.setBright([0.72, 0.88, 1, 1.16][this.bright] ?? 1);
   }
   /** fit the unit to the window (the arm may run past the edges) */
   private layout() {
@@ -300,7 +269,7 @@ export class BandOS {
     i = (i + APPS.length) % APPS.length;
     const was = this.sel;
     this.sel = i;
-    this.icons.forEach((ic, k) => { ic.b.classList.toggle('sel', k === i); ic.spin?.hot(k === i); });
+    this.icons.forEach((x, k) => { x.b.classList.toggle('sel', k === i); x.ic.hot(k === i); });
     if (!this.cur) this.footLine();
     if (i !== was && !quiet) sfx('hover', 0.3);
     if (!this.busy) this.dial?.to(i + 1);
@@ -337,13 +306,8 @@ export class BandOS {
     this.sel = i;
     this.dial?.to(i + 1);
     this.busy = 1;
-    sfx('relay', 0.45);
-    sfx('hiss', 0.25);
-    this.staticBurst(0.9, 0.32);
-    this.tube.classList.remove('roll');
-    void this.tube.offsetWidth;
-    if (!reduce()) this.tube.classList.add('roll');
-    this.later(reduce() ? 0 : 110, () => {
+    void this.crt.swap(() => {
+      if (!this.open) return;
       this.endApp();
       const body = el('div', 'wt-app-body wt-a-' + a.key);
       this.appEl.replaceChildren(body);
@@ -360,8 +324,7 @@ export class BandOS {
       if (key === 'mail') { this.mailSeen = mailCount(); this.syncMsg(); }
       this.refreshTop();
       this.footLine();
-    });
-    this.later(reduce() ? 0 : 380, () => { this.busy = 0; this.tube.classList.remove('roll'); });
+    }).then(() => { this.busy = 0; });
   }
   /** Esc / B: out of an app (the picture collapses to a dot and home powers back on); on home, lower the arm */
   back() {
@@ -369,9 +332,7 @@ export class BandOS {
     if (this.busy) return;
     this.busy = 1;
     sfx('back', 0.45);
-    this.tube.classList.remove('lit', 'roll');
-    this.tube.classList.add('dot');
-    this.later(reduce() ? 0 : 260, () => { this.toHome(); this.powerOn(true); });
+    void this.crt.powerOff().then(() => { if (!this.open) return; this.toHome(); this.powerOn(true); });
   }
 
   // ---------------------------------------------------------------- the lines on the tube
@@ -438,55 +399,6 @@ export class BandOS {
     const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
     if (m && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); const i = Number(m[1]) - 1; if (APPS[i]) { this.select(i, true); this.launch(APPS[i].key); } }
   }
-}
-
-// ---------------------------------------------------------------- film grain (one tile, shifted about by CSS)
-let grain = '';
-function grainUrl(): string {
-  if (grain) return grain;
-  const cv = document.createElement('canvas'); cv.width = cv.height = 160;
-  const c = cv.getContext('2d')!, im = c.createImageData(160, 160), d = im.data;
-  for (let i = 0; i < d.length; i += 4) { const v = Math.random() < 0.5 ? 0 : Math.floor(Math.random() * 255); d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = Math.random() < 0.6 ? 255 : 0; }
-  c.putImageData(im, 0, 0);
-  return (grain = cv.toDataURL());
-}
-
-// ---------------------------------------------------------------- the tube's SVG filter: bulge, fringe, bloom
-const filters = new Set<string>();
-function crtFilter(w: number, h: number): string {
-  const id = `wt-crt-${w}x${h}`;
-  if (filters.has(id)) return id;
-  filters.add(id);
-  // a displacement map: each pixel samples a little further out the further it is from the centre (a slight barrel)
-  const S = 44, k = 0.034;
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-  const c = cv.getContext('2d')!, im = c.createImageData(w, h), d = im.data;
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    const nx = (x / w) * 2 - 1, ny = (y / h) * 2 - 1, r2 = nx * nx + ny * ny;
-    const dx = nx * k * r2 * (w / 2), dy = ny * k * r2 * (h / 2);
-    const i = (y * w + x) * 4;
-    d[i] = Math.max(0, Math.min(255, Math.round(127.5 + (dx / S) * 255)));
-    d[i + 1] = Math.max(0, Math.min(255, Math.round(127.5 + (dy / S) * 255)));
-    d[i + 2] = 128; d[i + 3] = 255;
-  }
-  c.putImageData(im, 0, 0);
-  const svgNS = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(svgNS, 'svg');
-  svg.setAttribute('width', '0'); svg.setAttribute('height', '0'); svg.setAttribute('aria-hidden', 'true');
-  svg.style.position = 'absolute';
-  svg.innerHTML = `<filter id="${id}" filterUnits="userSpaceOnUse" primitiveUnits="userSpaceOnUse" x="0" y="0" width="${w}" height="${h}" color-interpolation-filters="sRGB">
-    <feImage href="${cv.toDataURL()}" x="0" y="0" width="${w}" height="${h}" preserveAspectRatio="none" result="map"/>
-    <feDisplacementMap in="SourceGraphic" in2="map" scale="${S}" xChannelSelector="R" yChannelSelector="G" result="bent"/>
-    <feColorMatrix in="bent" type="matrix" values="1 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="r"/>
-    <feOffset in="r" dx="1.4" dy="0" result="r2"/>
-    <feColorMatrix in="bent" type="matrix" values="0 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 1 0" result="gb"/>
-    <feOffset in="gb" dx="-0.6" dy="0" result="gb2"/>
-    <feComposite in="r2" in2="gb2" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="split"/>
-    <feGaussianBlur in="split" stdDeviation="3.2" result="blur"/>
-    <feComposite in="split" in2="blur" operator="arithmetic" k1="0" k2="1" k3="0.65" k4="0"/>
-  </filter>`;
-  document.body.append(svg);
-  return id;
 }
 
 let os: BandOS | null = null;

@@ -1,0 +1,66 @@
+/* THE CRT SKIN (./crt.ts): an old monochrome tube. Phosphor green (or amber, .amb) with the other as the accent,
+   scanlines, grain, a vignette, a rolling bar, a flicker; the glass's SVG filter adds the bulge, the fringe and the
+   bloom. Square everywhere; Alagard. The custom properties are the palette for whatever is shown in the glass. */
+.crt { --ph: #5cff8a; --ph-hi: #dcffe6; --ph-dim: #2f8f4e; --ph-dark: #0f3d1e; --ph-rgb: 92, 255, 138; --acc: #ffb438; --acc-dim: #8a5a14; --glow: rgba(80, 255, 140, 0.6);
+  --mono: grayscale(1) brightness(1.08) sepia(1) saturate(2.8) hue-rotate(72deg);
+  position: absolute; inset: 0; overflow: hidden; background: #010302; box-shadow: inset 0 0 0 2px #000; font-family: var(--font-new); }
+.crt.amb { --ph: #ffb43a; --ph-hi: #fff0d0; --ph-dim: #9a6418; --ph-dark: #3d2608; --ph-rgb: 255, 180, 58; --acc: #7aff9a; --acc-dim: #2a7a3a; --glow: rgba(255, 168, 60, 0.6);
+  --mono: grayscale(1) brightness(1.08) sepia(1) saturate(3.4) hue-rotate(-14deg); }
+.crt, .crt * { border-radius: 0 !important; }
+.crt-tube { position: absolute; inset: 0; opacity: 0; transform-origin: 50% 50%; filter: brightness(var(--crt-b, 1)); }
+.crt-tube.lit, .crt-tube.dot { opacity: 1; }
+.crt-tube.lit { animation: crt-on 0.52s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+.crt-tube.lit.quick { animation-duration: 0.26s; }
+.crt-tube.dot { animation: crt-dot 0.28s ease-in both; }
+@keyframes crt-on {
+  0% { transform: scale(0.02, 0.006); filter: brightness(7); }
+  24% { transform: scale(1, 0.006); filter: brightness(5); }
+  50% { transform: scale(1, 1.05); filter: brightness(1.9); }
+  64% { transform: scale(1, 0.985); }
+  100% { transform: none; filter: brightness(var(--crt-b, 1)); }
+}
+@keyframes crt-dot {
+  0% { transform: none; }
+  45% { transform: scale(1, 0.008); filter: brightness(4); }
+  78% { transform: scale(0.014, 0.008); filter: brightness(7); opacity: 1; }
+  100% { transform: scale(0.005, 0.005); filter: brightness(9); opacity: 0; }
+}
+.crt-flash { position: absolute; inset: 0; pointer-events: none; background: var(--ph-hi); opacity: 0; }
+.crt-tube.lit .crt-flash { animation: crt-flash 0.52s ease-out both; }
+.crt-tube.lit.quick .crt-flash { animation-duration: 0.26s; }
+.crt-tube.dot .crt-flash { opacity: 0.85; }
+@keyframes crt-flash { 0% { opacity: 1; } 40% { opacity: 0.7; } 100% { opacity: 0; } }
+.crt-glass { position: absolute; inset: 0; display: flex; flex-direction: column; box-sizing: border-box; color: var(--ph);
+  background: radial-gradient(ellipse at 50% 46%, rgba(var(--ph-rgb), 0.075), rgba(var(--ph-rgb), 0.02) 60%, #010302 100%), #020503;
+  text-shadow: 0 0 1px var(--ph), 0 0 7px var(--glow); animation: crt-flicker 5.3s steps(1) infinite; }
+@keyframes crt-flicker { 0%, 100% { opacity: 1; } 31% { opacity: 0.94; } 32% { opacity: 1; } 67% { opacity: 0.97; } 68% { opacity: 1; } 83% { opacity: 0.92; } 84% { opacity: 1; } }
+.crt-tube.rolling .crt-glass { animation: crt-vroll 0.36s steps(8) both; }
+@keyframes crt-vroll { 0% { transform: translateY(-100%); } 30% { transform: translateY(38%); } 55% { transform: translateY(-12%) skewX(-2deg); } 76% { transform: translateY(4%); } 100% { transform: none; } }
+.crt-scan { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, rgba(0, 0, 0, 0.34) 0 1px, rgba(0, 0, 0, 0) 1px 3px); }
+.crt-roll { position: absolute; left: 0; right: 0; top: -30%; height: 24%; pointer-events: none; background: linear-gradient(rgba(var(--ph-rgb), 0), rgba(var(--ph-rgb), 0.07), rgba(var(--ph-rgb), 0)); animation: crt-rollbar 7.5s linear infinite; }
+@keyframes crt-rollbar { to { transform: translateY(560%); } }
+.crt-grain { position: absolute; inset: -40px; pointer-events: none; opacity: 0.16; mix-blend-mode: screen; background-size: 160px 160px; image-rendering: pixelated; animation: crt-grain 0.48s steps(6) infinite; }
+@keyframes crt-grain { 0% { transform: translate(0, 0); } 17% { transform: translate(-23px, 11px); } 33% { transform: translate(14px, -19px); } 50% { transform: translate(-9px, 27px); } 67% { transform: translate(31px, 6px); } 83% { transform: translate(-17px, -28px); } }
+.crt-fx { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; image-rendering: pixelated; mix-blend-mode: screen; opacity: 0.9; }
+.crt-vig { position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0) 56%, rgba(0, 0, 0, 0.62) 100%), linear-gradient(162deg, rgba(255, 255, 255, 0.075) 0%, rgba(255, 255, 255, 0.02) 22%, rgba(255, 255, 255, 0) 36%);
+  box-shadow: inset 0 0 22px rgba(0, 0, 0, 0.95), inset 0 0 4px #000; }
+.reduce-flash .crt-glass, .reduce-flash .crt-grain, .reduce-flash .crt-roll { animation: none; }
+
+/* ---- big 3D icons: toned to the phosphor, lifted and bracketed while hot, the name only then */
+.crt-ic { position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 1px; color: var(--ph); }
+.crt-ic-m { position: relative; display: flex; align-items: center; justify-content: center; padding: 0 8px; line-height: 0; }
+.crt-ic-m canvas { display: block; image-rendering: pixelated; filter: var(--mono) drop-shadow(0 0 5px var(--glow)); opacity: 0.8; transition: opacity 0.12s steps(2), transform 0.12s steps(2); }
+.crt-ic-m b { display: flex; align-items: center; justify-content: center; font-weight: normal; font-size: 28px; box-shadow: inset 0 0 0 3px var(--ph-dim); }
+.crt-ic-l { display: flex; align-items: baseline; gap: 5px; min-height: 20px; font-size: 18px; letter-spacing: 0.12em; line-height: 1; padding: 2px 6px 1px; }
+.crt-ic-l i { font-style: normal; font-size: 13px; color: var(--ph-dim); }
+.crt-ic-l em { font-style: normal; display: none; }
+.crt-ic.hot .crt-ic-m { background:
+  linear-gradient(var(--acc), var(--acc)) left top / 14px 3px no-repeat, linear-gradient(var(--acc), var(--acc)) left top / 3px 14px no-repeat,
+  linear-gradient(var(--acc), var(--acc)) right top / 14px 3px no-repeat, linear-gradient(var(--acc), var(--acc)) right top / 3px 14px no-repeat,
+  linear-gradient(var(--acc), var(--acc)) left bottom / 14px 3px no-repeat, linear-gradient(var(--acc), var(--acc)) left bottom / 3px 14px no-repeat,
+  linear-gradient(var(--acc), var(--acc)) right bottom / 14px 3px no-repeat, linear-gradient(var(--acc), var(--acc)) right bottom / 3px 14px no-repeat; }
+.crt-ic.hot .crt-ic-m canvas { opacity: 1; transform: translateY(-3px) scale(1.06); filter: var(--mono) brightness(1.25) drop-shadow(0 0 7px var(--glow)); }
+.crt-ic.hot .crt-ic-l { color: #021006; background: var(--ph); text-shadow: none; }
+.crt-ic.hot .crt-ic-l i { color: #0a3a18; }
+.crt-ic.hot .crt-ic-l em { display: inline; }
