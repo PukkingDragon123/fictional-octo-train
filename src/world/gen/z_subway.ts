@@ -108,7 +108,8 @@ export function generateSubway(z: Zone, seed: number) {
   const opens = (a: number, b2: number) => a === b2 || (a !== K_ROCK && b2 !== K_ROCK && !(a === K_CAR || b2 === K_CAR) && !(a === K_STAFF || b2 === K_STAFF));
   for (let y = 1; y < H; y++) for (let x = 1; x < W; x++) {
     const k = kAt(x, y), kn = kAt(x, y - 1), kw = kAt(x - 1, y);
-    if (!opens(k, kn) && (k || kn)) b.hwall(x, x, y, wallFor(k, kn));
+    // across Track 2 from the platform the wall is a low parapet: you can see the whole train standing in the station
+    if (!opens(k, kn) && (k || kn)) b.hwall(x, x, y, y === T21 + 1 && x >= PX0 && x <= PX1 ? 'su_trackside_low' : wallFor(k, kn));
     if (!opens(k, kw) && (k || kw)) b.vwall(x, y, y, wallFor(k, kw));
   }
   // the track beds meet the platform edges with no wall; mezzanine and stairs, platform and stairs: open (done above).
@@ -315,7 +316,7 @@ export function generateSubway(z: Zone, seed: number) {
     ambient: 0x4a4638, ambientI: 0.62, fog: 0x1a1812, fogNear: 18, fogFar: 46, void: 0x060504, temp: 15,
     grade: 'mall', reverb: 'tunnel', ambience: 'tunnels', music: 'muzak',
   };
-  z.spawnTable = [['ringer', 2.4], ['worm_egg', 1.4], ['worm_larva', 0.5], ['stile_mantis', 0.4]];
+  z.spawnTable = [['ringer', 2.4], ['worm_egg', 1.4], ['worm_larva', 0.5]];
   z.creatureCap = 7;
   z.meta.terminalLore = ['su_last_train', 'su_driver', 'su_booth_log'];
 }

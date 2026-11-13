@@ -16,6 +16,7 @@ import * as THREE from 'three';
 import { bitText, bitMeasure, bitIsReady, bitReady } from '../../../gfx/bitfont';
 import type { SinRank } from '../../../creatures/lore';
 import { RANK_INFO } from '../../../creatures/lore';
+import { drawPortrait } from '../../../entities/portrait';
 
 export const RANK_COL: Record<SinRank, number> = { sloth: 0x7a9a86, gluttony: 0xb08a3a, lust: 0xc85a86, greed: 0xd8b02a, envy: 0x3aa860, wrath: 0xc8321e, pride: 0x7a4ab8 };
 /** the Institute's working class names per rank (placards fall back on these) */
@@ -63,6 +64,8 @@ export function pixTex(w: number, h: number, draw: Draw, o: { seed?: number; alp
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; t.colorSpace = THREE.SRGBColorSpace;
   if (o.repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   if (!bitIsReady()) void bitReady().then(() => { paint(); t.needsUpdate = true; });
+  // drawn again when something on it arrives later (a portrait render, entities/portrait.ts)
+  t.userData.repaint = () => { paint(); t.needsUpdate = true; };
   return t;
 }
 const R_ = (c: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, col: string) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h)); };
@@ -254,7 +257,7 @@ export function signTex(kind: SignKind): THREE.CanvasTexture {
 // ------------------------------------------------------------------ dossiers
 /** a dossier page, 112 x 148 px: header, a mugshot or diagram, redacted lines, a stamp */
 export function pageTex(seed: number, o: { photo?: boolean; stamp?: string; rank?: SinRank } = {}): THREE.CanvasTexture {
-  return pixTex(112, 148, (c, R) => {
+  const t: THREE.CanvasTexture = pixTex(112, 148, (c, R) => {
     const W = 112, H = 148;
     R_(c, 0, 0, W, H, '#ece6d2');
     specks(c, R, 0, 0, W, H, '#d8d0b8', 500); specks(c, R, 0, 0, W, H, '#f8f4e8', 300);
@@ -268,12 +271,9 @@ export function pageTex(seed: number, o: { photo?: boolean; stamp?: string; rank
     if (o.rank) { const rc = RANK_COL[o.rank]; R_(c, W - 26, 26, 21, 8, hex(rc)); micro(c, RANK_INFO[o.rank].numeral, W - 24, 28, '#fffaf0'); }
     let y = 38;
     if (o.photo !== false) {
-      // a mugshot clipped to the page: grey ground, a dark head and shoulders, a height chart
+      // a mugshot clipped to the page: grey ground, a height chart, and the unit: a render of a HumanRig (entities/portrait.ts)
       R_(c, 6, 37, 32, 40, '#6a6a68'); for (let k = 0; k < 6; k++) R_(c, 6, 40 + k * 6, 4, 1, '#c8c8c0');
-      for (let yy = 0; yy < 40; yy++) for (let xx = 0; xx < 32; xx++) {
-        const hx = xx - 18, hy = yy - 15, head = (hx * hx) / 64 + (hy * hy) / 110 < 1, sh = yy > 27 && Math.abs(xx - 18) < 13 - (40 - yy) * 0.25;
-        if (head || sh) R_(c, 6 + xx, 37 + yy, 1, 1, (xx + yy) % 5 === 0 ? '#3a3a3a' : '#242424');
-      }
+      drawPortrait(c, 6, 37, 32, 40, { seed: 300 + (seed % 9), outfit: 'jumpsuit', light: 'mugshot', tone: 'grey', bg: null }, () => (t.userData.repaint as (() => void) | undefined)?.());
       if (R() < 0.6) R_(c, 13, 46, 16, 5, '#0c0c0e');
       // the paperclip
       for (let k = 0; k < 14; k++) { R_(c, 30, 33 + k, 1, 1, '#9aa0a8'); R_(c, 34, 31 + k, 1, 1, '#9aa0a8'); }
@@ -291,6 +291,7 @@ export function pageTex(seed: number, o: { photo?: boolean; stamp?: string; rank
     // the stamp's ink is patchy
     for (let i = 0; i < 70; i++) R_(c, sx + R() * sw, sy + R() * 16, 1, 1, '#ece6d2');
   }, { seed });
+  return t;
 }
 /** a manila folder cover, 112 x 148 px: tab, crest stamp, red band, rank sticker */
 export function folderTex(seed: number, rank?: SinRank): THREE.CanvasTexture {
@@ -481,7 +482,7 @@ export const paddedTex = () => pixTex(64, 64, (c, R) => {
 }, { seed: 33, repeat: true });
 /** an evidence board: cork, pinned photographs, cards, a map scrap, red string */
 export function evidenceTex(seed: number, W = 192, H = 120): THREE.CanvasTexture {
-  return pixTex(W, H, (c, R) => {
+  const t: THREE.CanvasTexture = pixTex(W, H, (c, R) => {
     R_(c, 0, 0, W, H, '#a8794a');
     for (let i = 0; i < W * H * 0.25; i++) R_(c, R() * W, R() * H, 1, 1, ['#946a3e', '#b8885a', '#8a5e34', '#c09468'][Math.floor(R() * 4)]);
     frame(c, 0, 0, W, H, '#3a2414'); frame(c, 1, 1, W - 2, H - 2, '#6a4424'); frame(c, 2, 2, W - 4, H - 4, '#3a2414');
@@ -489,10 +490,10 @@ export function evidenceTex(seed: number, W = 192, H = 120): THREE.CanvasTexture
     for (let i = 0; i < 11; i++) {
       const kind = R(), w = kind < 0.45 ? 22 : kind < 0.8 ? 26 : 30, h = kind < 0.45 ? 26 : kind < 0.8 ? 18 : 22;
       const x = 6 + R() * (W - w - 12), y = 6 + R() * (H - h - 12);
-      if (kind < 0.45) { // a photograph: white border, a grim grey scene
+      if (kind < 0.45) { // a photograph: white border, a grim grey print of somebody (a HumanRig render, entities/portrait.ts)
         R_(c, x, y, w, h, '#ece8dc'); R_(c, x + 2, y + 2, w - 4, h - 7, '#3a3e3a');
         for (let k = 0; k < 30; k++) R_(c, x + 2 + R() * (w - 4), y + 2 + R() * (h - 7), 2, 1, R() < 0.5 ? '#5a5e56' : '#2a2c28');
-        const sx = x + w / 2 + (R() - 0.5) * 6; R_(c, sx - 2, y + 6, 4, h - 13, '#0e0e0e'); R_(c, sx - 1, y + 4, 3, 3, '#0e0e0e');
+        drawPortrait(c, x + 2, y + 2, w - 4, h - 7, { seed: 320 + ((seed + i) % 7), outfit: i % 3 ? 'civilian' : 'jumpsuit', light: 'dim', frame: 'chest', tone: 'grey', bg: null }, () => (t.userData.repaint as (() => void) | undefined)?.());
         if (R() < 0.5) for (let k = 0; k < 7; k++) R_(c, x + w / 2 - 6 + k * 2, y + 4 + Math.abs(3 - k), 1, 1, '#d8301e');
       } else if (kind < 0.8) { // an index card, half redacted
         R_(c, x, y, w, h, '#f2ecd8'); R_(c, x, y + 3, w, 1, '#d86a6a');
@@ -512,6 +513,7 @@ export function evidenceTex(seed: number, W = 192, H = 120): THREE.CanvasTexture
       for (let k = 0; k <= n; k++) { const t = k / n, sag = Math.sin(t * Math.PI) * 3; R_(c, x0 + (x1 - x0) * t, y0 + (y1 - y0) * t + sag, 1, 1, '#c81e14'); }
     }
   }, { seed });
+  return t;
 }
 
 // ------------------------------------------------------------------ the redacted terminal

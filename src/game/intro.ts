@@ -385,7 +385,7 @@ export class Intro implements GameSystem {
     this.L = z.meta.intro as RealityLayout;
     this.num = (p as unknown as { prisonerNo?: string }).prisonerNo || rigNumber(p.rig);
     (p as unknown as { prisonerNo: string }).prisonerNo = this.num;
-    paintMugshot({ skin: p.app.skin, hair: p.app.hair, hairStyle: p.app.hairStyle, number: this.num });
+    paintMugshot({ skin: p.app.skin, hair: p.app.hair, hairStyle: p.app.hairStyle, number: this.num, app: p.app });
     this.dress();
     // directives wait until the contract starts (no radio chatter in the processing wing)
     const m = g.missions;

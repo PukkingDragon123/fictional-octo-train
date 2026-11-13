@@ -9,6 +9,7 @@ import {
   makeRamp, mixHex, scaleHex, bayer, ph, tileFbm, hashf, text, textC, scribble, fillNoise, chips, stripes, woodFill,
   grimeBottom, glow, poly, rod, torus, disc, discY, fan, drape, rockBlob, quadW, triW, gradV,
 } from './b_common';
+import { blitPortrait, atlasRepaint } from '../../entities/portrait';
 
 const T = ['setB', 'survival'];
 
@@ -148,7 +149,7 @@ addTextureModule(() => {
   });
   photo('q_photo_a', 0x9ac8e8, 0x6aa050, (pc) => { pc.set(2, 3, 0x2a2a2a); pc.set(2, 4, 0x2a2a2a); pc.set(3, 3, 0x6a3a2a); pc.set(3, 4, 0x6a3a2a); });
   photo('q_photo_b', 0xf0c8a8, 0x8a8a8a, (pc) => { pc.rect(2, 2, 2, 2, 0xe8e4dc); pc.set(2, 2, 0xa83a2a); pc.set(3, 2, 0xa83a2a); });
-  photo('q_photo_c', 0x3a3a4a, 0x2a2a30, (pc) => { pc.set(2, 2, 0xe8d8c8); pc.set(3, 2, 0xe8d8c8); pc.set(2, 3, 0xe8d8c8); pc.set(3, 3, 0x8a6a5a); });
+  photo('q_photo_c', 0x3a3a4a, 0x2a2a30, (pc) => { blitPortrait(pc, 1, 1, 4, 5, { seed: 392, light: 'studio', bg: 0x3a3a4a }, 0x3a3a4a, atlasRepaint('q_photo_c')); });
   A.add('q_candle', 4, 8, (pc) => {
     pc.each((x, y) => pc.set(x, y, x === 0 ? 0xf8f0d8 : x === 3 ? 0xc8b890 : 0xe8dcb8));
     pc.set(1, 1, 0xfff8e8); pc.set(2, 2, 0xfff8e8); pc.set(1, 3, 0xfff8e8);

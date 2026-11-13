@@ -100,6 +100,7 @@ function numberParts(text: string): string[] {
 }
 
 let live: { text: string; srcs: AudioBufferSourceNode[]; until: number; gen: number } | null = null;
+let lastLag = 0;
 let gen = 0;
 
 /** play a recorded line now; its length in seconds, or null when there is no recording (use the chip voice) */
@@ -119,7 +120,8 @@ export function calderSay(text: string, o: { vol?: number; out?: AudioNode | nul
   void Promise.all(files.map(clip)).then((bs) => {
     if (gen !== my || !live) return;
     // too late (a slow network): the subtitle has moved on, stay quiet rather than lag behind it
-    if (performance.now() - t0 > 1800) { live = null; return; }
+    lastLag = performance.now() - t0;
+    if (lastLag > 2500) { live = null; return; }
     const g = ctx.createGain(); g.gain.value = o.vol ?? 1;
     g.connect(out);
     let t = ctx.currentTime + (o.delay ?? 0.03);
@@ -149,4 +151,4 @@ export function calderSpeaking(text?: string): boolean {
   return text === undefined || calderKey(text) === calderKey(live.text);
 }
 
-if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __calderVoice: unknown }).__calderVoice = { loadCalderVoice, calderHas, calderSay, calderStop, calderSpeaking, calderKey };
+if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __calderVoice: unknown }).__calderVoice = { loadCalderVoice, calderHas, calderSay, calderStop, calderSpeaking, calderKey, lag: () => lastLag };

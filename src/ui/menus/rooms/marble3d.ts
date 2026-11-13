@@ -105,14 +105,14 @@ function vanes(R: number, colors: number[], r: () => number): THREE.Mesh {
       for (let j = 0; j <= V; j++) {
         const v = j / V, rad = rr * Math.pow(v, 0.9), cup = Math.sin(v * Math.PI) * R * 0.06;
         pos.push(Math.cos(a) * rad - Math.sin(a) * cup, y, Math.sin(a) * rad + Math.cos(a) * cup);
-        const k = 0.75 + v * 0.35; cols.push(cc.r * k, cc.g * k, cc.b * k);
+        const k = 0.5 + v * 0.3; cols.push(cc.r * k, cc.g * k, cc.b * k);
       }
     }
     for (let i = 0; i < U; i++) for (let j = 0; j < V; j++) { const a = base + i * (V + 1) + j, b = a + V + 1; idx.push(a, b, a + 1, b, b + 1, a + 1); }
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); g.setIndex(idx); g.computeVertexNormals();
-  return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.35, metalness: 0.05, emissive: col(colors[0]).multiplyScalar(0.05) }));
+  return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.05, emissive: col(colors[0]).multiplyScalar(0.03) }));
 }
 /** helix ribbons wound round inside the glass */
 function ribbons(R: number, colors: number[], r: () => number): THREE.Mesh {

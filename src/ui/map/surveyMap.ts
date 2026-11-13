@@ -68,9 +68,12 @@ export class SurveyMap {
           return s;
         }, { pad: 16, grow: { l: 12, t: 30, r: 12, b: 20 } });
         this.bcn = mxMount(plot, 'beacon', { right: 150, top: -62, z: 4 }, { col: 'red' });
-        mxMount(plot, 'gears', { left: -86, top: 70, z: 4 }, { speed: 0.6 });
-        mxMount(plot, 'wrench', { right: -46, top: 40, z: 4 });
-        mxMount(plot, 'buttons', { left: 300, bottom: -46, z: 4 });
+        // the side works only where the screen has room beside the plotter
+        if (window.innerWidth >= 1230) {
+          mxMount(plot, 'gears', { left: -88, top: 70, z: 4 }, { speed: 0.6 });
+          mxMount(plot, 'wrench', { right: -48, top: 40, z: 4 });
+          mxMount(plot, 'buttons', { right: -96, bottom: 40, z: 4 });
+        }
       } else pxFrame(plot, { tone: 'steel', well: 16, wellTint: 0x0b0906, scan: true, hazard: true, chamfer: 12, seed: 41, crest: true, serial: 'SURVEY PLOTTER SP-4', vents: true, lamps: ['g', 'a', 0], welds: true, gland: true });
     } catch { /* no canvas */ }
     window.addEventListener('keydown', (e) => {

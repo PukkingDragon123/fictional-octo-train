@@ -171,6 +171,8 @@ class Board {
       return;
     }
     if (s.phase === 'idle') {
+      // the clock's button was struck (Flagfall, src/creatures/species/chess_toys.ts): black waits its move
+      if ((G.zones.get('chess')?.meta as any)?.boardHold > G.time) return;
       s.clock -= dt;
       if (s.clock <= 0) {
         const mv = this.chooseMove();

@@ -4,6 +4,8 @@
 // rubber stamps. Everything returns a PixelCanvas (toUrl() for <img>/CSS).
 import { PixelCanvas, makeRamp, mixHex, ph } from '../../gfx/pixel';
 import { TATTOOS } from '../../entities/humanLooks';
+import { blitPortrait, stockLook } from '../../entities/portrait';
+import type { Appearance } from '../../entities/humanRig';
 
 // ------------------------------------------------------------------ 3x5 font
 const F3: Record<string, string> = {
@@ -103,45 +105,13 @@ export function tattooImage(key: string, k = 3): PixelCanvas {
 }
 
 // ------------------------------------------------------------------ hairstyle cards (barber chart)
-/** a tiny head-and-shoulders silhouette with the hairstyle on it */
+/** a tiny head with the hairstyle on it: a render of a HumanRig wearing it (entities/portrait.ts), never drawn */
 export function hairIcon(style: string, hair: number, skin: number): PixelCanvas {
   const W = 16, H = 16;
   const pc = new PixelCanvas(W, H);
   pc.wrap = false;
-  const HR = makeRamp(hair, 4, { spread: 0.5 }), SR = makeRamp(skin, 4, { spread: 0.4 });
-  const cx = 7.5, cy = 7.2, rx = 3.6, ry = 4.4;
-  const inHead = (x: number, y: number) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
-  // shoulders (jumpsuit yellow)
-  for (let y = 13; y < H; y++) for (let x = 1; x < W - 1; x++) if (Math.abs(x - cx) < 3 + (y - 12) * 2) pc.set(x, y, y === 13 ? 0xb08a1c : 0xd9a826);
-  for (let y = 11; y < 14; y++) for (let x = 6; x < 10; x++) pc.set(x, y, SR[1]);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (inHead(x + 0.5, y + 0.5)) pc.set(x, y, SR[2 + (x < cx ? 0 : -1) + 0]);
-  const top = (x: number, y: number) => inHead(x + 0.5, y + 0.5) && y < cy - 1.2;
-  const hairAt = (x: number, y: number, c = HR[2]) => { if (x >= 0 && y >= 0 && x < W && y < H) pc.set(x, y, c); };
-  const s = style;
-  if (s !== 'bald') for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const outer = ((x + 0.5 - cx) / (rx + 1)) ** 2 + ((y + 0.5 - cy + 0.4) / (ry + 0.8)) ** 2 <= 1;
-    const side = Math.abs(x + 0.5 - cx) > 2.2;
-    switch (s) {
-      case 'shaved': case 'buzz': case 'cornrows': if (top(x, y)) hairAt(x, y, s === 'shaved' ? SR[0] : s === 'cornrows' && x % 2 ? HR[0] : HR[1]); break;
-      case 'receding': if (top(x, y) && (side || y < 3)) hairAt(x, y, HR[1]); break;
-      case 'mohawk': if (outer && !side && y < cy) hairAt(x, y, HR[2]); if (y < 2 && Math.abs(x - cx) < 1.5) hairAt(x, y, HR[3]); break;
-      case 'undercut': if (outer && y < cy - 1.6) hairAt(x, y, HR[2]); else if (top(x, y)) hairAt(x, y, SR[0]); break;
-      case 'spiky': if (outer && y < cy - 1) hairAt(x, y, HR[2]); if (y === 1 && x % 2 === 0 && Math.abs(x - cx) < 4) hairAt(x, y, HR[3]); break;
-      case 'curly': case 'afro': {
-        const big = s === 'afro' ? 2.2 : 1;
-        if (((x + 0.5 - cx) / (rx + big)) ** 2 + ((y + 0.5 - cy + 1) / (ry + big * 0.6)) ** 2 <= 1 && (y < cy - 0.5 || side)) hairAt(x, y, (x + y) % 2 ? HR[2] : HR[1]);
-        break;
-      }
-      case 'long': if (outer && (y < cy - 1 || side)) hairAt(x, y, HR[2]); if (side && y >= cy && y < 15 && Math.abs(x + 0.5 - cx) < rx + 1.2) hairAt(x, y, HR[1]); break;
-      case 'bob': if (outer && (y < cy - 1 || side) && y < cy + 3) hairAt(x, y, HR[2]); break;
-      case 'mullet': if (outer && y < cy - 1) hairAt(x, y, HR[2]); if (y >= cy && y < 14 && Math.abs(x + 0.5 - cx) > 2.8 && Math.abs(x + 0.5 - cx) < rx + 1.2) hairAt(x, y, HR[1]); break;
-      case 'ponytail': if (outer && y < cy - 1) hairAt(x, y, HR[2]); if (x === 12 && y > 3 && y < 11) hairAt(x, y, HR[1]); break;
-      case 'topknot': if (outer && y < cy - 1) hairAt(x, y, HR[2]); if (y < 2 && Math.abs(x + 0.5 - cx) < 1.6) hairAt(x, y, HR[3]); break;
-      default: if (outer && y < cy - 1.2) hairAt(x, y, HR[2]); break;
-    }
-  }
-  // eyes
-  pc.set(6, 8, 0x1a1410); pc.set(9, 8, 0x1a1410);
+  const app = { ...stockLook(16), hairStyle: style, hair, skin } as unknown as Appearance;
+  blitPortrait(pc, 0, 0, W, H, { app, outfit: 'jumpsuit', frame: 'head', light: 'studio', bg: null, ink: true });
   return pc;
 }
 

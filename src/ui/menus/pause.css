@@ -55,3 +55,4 @@ body:has(.ps2) .wp-tag { visibility: hidden; }
 /* round 16: the specimen jar stands in the gap; the settings' gear works take its place */
 .ps2-right.with-gears .ps2-jar { display: none; }
 @media (max-width: 1180px) { .ps2-jar { display: none; } }
+.ps2:has(.ps2-right.with-gears) .ps2-col > .mxd-wrench { display: none; }

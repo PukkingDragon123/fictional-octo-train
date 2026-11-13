@@ -20,6 +20,7 @@ import { atlas } from '../../gfx/atlas';
 import { addTextureModule } from '../../gfx/textures/index';
 import { makeRamp, mixHex, ph, tileFbm } from '../../content/furniture/b_common';
 import type { PixelCanvas } from '../../gfx/pixel';
+import { blitPortrait, atlasRepaint } from '../../entities/portrait';
 import type { ModelBuilder } from '../../gfx/modelBuilder';
 import { blob, tube, lathe, surf, spike, type V3 } from '../../creatures/kit/anomalies';
 import { defLoot } from '../../items/loot';
@@ -115,7 +116,8 @@ addTextureModule(() => {
   A.add('rm_badge', 16, 8, (pc) => {
     // a Meridian ID strip: the M-in-a-circle, a unit number, a photo square gone brown
     pc.fill(0xe8e4d8);
-    pc.rect(1, 1, 5, 6, 0x8a6a4a); pc.rect(2, 2, 3, 3, 0x5a4030);
+    pc.rect(1, 1, 5, 6, 0x8a6a4a);
+    blitPortrait(pc, 2, 2, 3, 4, { seed: 393, outfit: 'jumpsuit', tone: 'sepia', bg: 0x5a4030 }, 0x5a4030, atlasRepaint('rm_badge'));
     pc.ellipseBlend(10, 3, 2, 2, 0x2a3a6a, 0.9); pc.set(10, 3, 0xe8e4d8);
     for (let x = 7; x < 15; x += 2) pc.set(x, 6, 0x2a2a2a);
     pc.ellipseBlend(13, 5, 2, 2, BLOOD.dry, 0.6);

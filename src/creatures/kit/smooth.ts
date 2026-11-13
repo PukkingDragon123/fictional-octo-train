@@ -22,7 +22,7 @@ import type { Creature } from '../creature';
 import type { Rig } from '../species';
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
-const wrap = (a: number) => { while (a > Math.PI) a -= Math.PI * 2; while (a < -Math.PI) a += Math.PI * 2; return a; };
+const wrap = (a: number) => (Number.isFinite(a) ? a - Math.PI * 2 * Math.floor((a + Math.PI) / (Math.PI * 2)) : 0);
 
 // =====================================================================================
 // visual motion: facing spring, measured speed
@@ -64,6 +64,7 @@ export function visualMotion(c: Creature, rig: Rig, dt: number): VisMotion {
   M.acc += (clamp((M.v - v0) / h, -20, 20) - M.acc) * (1 - Math.exp(-8 * h));
   // ---- facing: a critically damped spring onto the simulated facing (with a top speed)
   const w0 = 22;
+  if (!Number.isFinite(M.f)) { M.f = Number.isFinite(c.facing) ? c.facing : 0; M.fw = 0; }
   const err = wrap(c.facing - M.f);
   if (Math.abs(err) > 2.6 && c.dead) { M.f = c.facing; M.fw = 0; }
   else {

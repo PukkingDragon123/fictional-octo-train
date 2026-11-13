@@ -4,6 +4,7 @@
 // are never in random loot tables — story/mission code places them.
 import { defItem } from '../../items/item';
 import { tex, decal, T, K, rp, dk, lt, txt, txtC, stamp, stampC, dashes, band, panels, slab, rodX, rodZ, prism, ph, bayer, MB, PixelCanvas } from './_kit';
+import { blitPortrait, atlasRepaint } from '../../entities/portrait';
 
 // ---------------------------------------------------------------- textures
 const S_GLOWDUST = tex('i_glowdust', 8, 8, (pc) => pc.each((x, y) => pc.set(x, y, ph(x, y, 3) < 0.25 ? 0x8af8d0 : ph(x, y, 4) < 0.5 ? 0x2ad8a0 : 0x169a78)), true);
@@ -42,7 +43,8 @@ const D_PHOTO = decal('i_photo_old', 12, 14, (pc) => {
   pc.fill(0xf2ecdc);
   pc.rect(1, 1, 10, 9, 0xc8b45a);
   for (let x = 1; x < 11; x++) for (let y = 1; y < 10; y++) { if (y > 6) pc.set(x, y, 0x9a8a44); if (x % 3 === 0 && y < 7) pc.set(x, y, 0xd8c46a); }
-  pc.rect(6, 3, 2, 5, 0x2a2420); pc.set(6, 2, 0x2a2420); pc.set(7, 2, 0x2a2420);
+  // somebody in the doorway: a HumanRig render (entities/portrait.ts), faded with the print
+  blitPortrait(pc, 6, 2, 2, 6, { seed: 389, light: 'studio', frame: 'chest', tone: 'sepia', bg: null }, 0, atlasRepaint('i_photo_old'));
   pc.hline(2, 9, 1, 0xf6f0c0);
   dashes(pc, 2, 11, 7, 0x5a5a8a, 4);
 });
@@ -57,7 +59,8 @@ const D_EXITCODE = decal('i_exit_code', 16, 6, (pc) => {
 });
 const D_IDBADGE = decal('i_id_badge', 10, 14, (pc) => {
   pc.fill(0xf2f2ee); pc.rect(0, 0, 10, 3, 0x2a5a9a); pc.set(4, 1, 0xf2f2ee); pc.set(5, 1, 0xf2f2ee);
-  pc.rect(2, 4, 6, 5, 0xc8b8a0); pc.rect(4, 5, 2, 2, 0x8a6a5a); pc.rect(3, 7, 4, 2, 0x5a6a8a);
+  // the photo is you: a HumanRig render in a staff coat (entities/portrait.ts)
+  blitPortrait(pc, 2, 4, 6, 5, { seed: 4471, outfit: 'labcoat', light: 'studio', bg: 0xc8b8a0 }, 0xc8b8a0, atlasRepaint('i_id_badge'));
   dashes(pc, 1, 10, 8, 0x2a2a2a, 2); dashes(pc, 2, 12, 6, 0xc8302a, 3);
 });
 const L_SPECIMEN = tex('i_specimen_label', 16, 6, (pc) => { pc.fill(0xb8d8c0); panels(pc, 2, (x0, pw) => { pc.rect(x0 + 1, 1, pw - 2, 4, 0xf2f2ee); dashes(pc, x0 + 2, 2, pw - 4, 0x2a2a2a, 3); }); }, true);

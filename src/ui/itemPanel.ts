@@ -28,7 +28,7 @@ import { itemValue } from '../game/debt/values';
 import type { MenuOption } from './ui';
 import { mxFrame, mxSkinKey, type MxFrame } from './machine/kit';
 import { mxOk } from './machine/core';
-import { mxMount } from './machine/decor';
+import { mxMount, mxIcon, type IconKind } from './machine/decor';
 import type { LampCol } from './machine/parts';
 
 /** round 16: the card is a 3D machine housing (src/ui/machine): olive enamel, a raised rail, corner guards, bolts, the render well set in a dark steel lip, a seam over the keys, hazard paint down a dangerous thing's edge */
@@ -594,6 +594,13 @@ export function plateBg(el: HTMLElement) {
 }
 
 export interface HiKeyOpts { sub?: string; lamp?: Lamp; off?: boolean | string; wide?: boolean; danger?: boolean }
+/** round 16: which little model a verb wears */
+function keyIcon(label: string): IconKind | null {
+  const l = label.toLowerCase();
+  return /inspect|look|examine|study/.test(l) ? 'eye' : /equip|wield|hold|holster/.test(l) ? 'wrench' : /grab|take|pick|carry|stow|pack/.test(l) ? 'crate'
+    : /eat|drink|taste|swallow/.test(l) ? 'jar' : /read|note|file/.test(l) ? 'clipboard' : /sell|pay|remit|value/.test(l) ? 'coin'
+      : /drop|dump|discard|destroy|smash/.test(l) ? 'door' : /use|apply|switch|turn|light|charge/.test(l) ? 'bolt' : /repair|fix|craft|build/.test(l) ? 'gear' : null;
+}
 /** a chamfered bone-enamel keycap button (hover glow, pressed state, a recorded clack); call paintKey once it is in the page */
 export function hiKey(label: string, run: () => void, o: HiKeyOpts = {}): HTMLButtonElement {
   style();
@@ -606,7 +613,14 @@ export function hiKey(label: string, run: () => void, o: HiKeyOpts = {}): HTMLBu
   (b as any)._art = art;
   (b as any)._off = off;
   // round 16: a 3D push key (olive cap in a steel bezel, its status lamp in glass) when the machine renderer is up
-  if (mxOk()) { (b as any)._art = () => 'none'; mxSkinKey(b, { tone: o.danger ? 'red' : 'olive', lamp: LAMP_OF[lamp], dim: off, screws: false, sound: '' }); }
+  if (mxOk()) {
+    (b as any)._art = () => 'none';
+    // the verb's little 3D model rides on the cap
+    const ik = o.wide || label.length <= 12 ? keyIcon(label) : null;
+    const ic = ik ? mxIcon(ik, 18) : null;
+    if (ic) { b.append(ic); b.classList.add('has-i'); }
+    mxSkinKey(b, { tone: o.danger ? 'red' : 'olive', lamp: LAMP_OF[lamp], dim: off, screws: false, sound: '' });
+  }
   b.addEventListener('pointerenter', () => { if (off) return; b.classList.add('hov'); b.style.backgroundImage = art('hover'); G.audio?.ui?.('mn_hover', 0.12); });
   b.addEventListener('pointerleave', () => { b.classList.remove('hov', 'dn'); b.style.backgroundImage = art(b.classList.contains('foc') ? 'hover' : 'up'); });
   b.addEventListener('pointerdown', (e) => { e.preventDefault(); e.stopPropagation(); if (e.button !== 0) return; if (off) { G.audio?.ui?.('mn_error', 0.3); return; } b.classList.add('dn'); b.style.backgroundImage = art('down'); G.audio?.ui?.('tc_clack', 0.5); });

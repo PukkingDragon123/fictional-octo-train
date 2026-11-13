@@ -53,7 +53,9 @@ PG.paint((P, v) => {
 // =====================================================================================
 // shared board brain
 // =====================================================================================
-const PERIOD = 2.8;
+export const PERIOD = 2.8;
+/** the board is holding its move (someone struck the clock's button): no piece moves until then */
+export const boardHeld = (z: { meta: any }) => ((z.meta as any)?.boardHold ?? 0) > G.time;
 type Move = { i: number; j: number; cap: boolean };
 function target(c: Creature): Player | null {
   let best: Player | null = null, bd = 26;
@@ -137,6 +139,8 @@ function thinkPiece(c: Creature, dt: number, knight: boolean, bishop = false): b
       const tick = Math.floor((G.time + (knight ? PERIOD / 2 : bishop ? PERIOD / 4 : 0)) / PERIOD);
       if (tick === m.tick) break;
       m.tick = tick;
+      // Flagfall's button was struck (src/creatures/species/chess_toys.ts): the board waits a move
+      if (boardHeld(z)) break;
       const mv = knight ? knightMove(z, b, i, j, p) : bishop ? bishopMove(z, b, i, j, p) : rookMove(z, b, i, j, p);
       if (!mv) break;
       const [tx, tz] = sqCenter(b, mv.i, mv.j);
@@ -278,7 +282,7 @@ function buildBishop(): Rig {
 // =====================================================================================
 // animation
 // =====================================================================================
-function boardFx(rig: Rig, c: Creature, t: number, dt: number) {
+export function boardFx(rig: Rig, c: Creature, t: number, dt: number) {
   const n = netOf(c);
   const ud = rig.root.userData as Record<string, any>;
   const ev = fxPoll(rig, c);

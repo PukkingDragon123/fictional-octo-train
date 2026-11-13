@@ -593,7 +593,7 @@ function cassette(t: PkTheme): PixelCanvas {
   pc.hline(7, 16, 13, 0x1d1e20); pc.set(5, 13, KEY[4]); pc.set(18, 13, KEY[4]);
   return pc;
 }
-/** ID photo 22x26: white print with a paperclip, a dim phosphor silhouette until a real snapshot replaces it */
+/** ID photo 22x26: white print with a paperclip, blank until a real snapshot (a HumanRig render) fills it */
 export function idPhoto(t: PkTheme, img?: ImageData): PixelCanvas {
   const W = 22, H = 26, pc = canvasOf(W, H);
   for (let y = 2; y < H; y++) for (let x = 0; x < W; x++) {
@@ -611,10 +611,8 @@ export function idPhoto(t: PkTheme, img?: ImageData): PixelCanvas {
     }
     pc.set(ox + x, oy + y, c);
   }
-  if (!img) {
-    art(pc, ox + 5, oy + 3, ['..aaaa..', '.abbbba.', '.abbbba.', '.abbbba.', '..abba..', '...bb...', '.aabbaa.', 'abbbbbba', 'bbbbbbbb', 'bbbbbbbb'], { a: t.dim, b: t.dark });
-    for (let x = ox; x < ox + pw; x++) pc.set(x, oy + ph2 - 1, mixHex(t.scr, t.dim, 0.4));
-  }
+  // (no snapshot yet: a blank print; a person on it is only ever a HumanRig render, entities/portrait.ts)
+  if (!img) for (let x = ox; x < ox + pw; x++) pc.set(x, oy + ph2 - 1, mixHex(t.scr, t.dim, 0.4));
   // date stamp in the corner and a paperclip over the top edge
   pc.set(ox + pw - 2, oy + ph2 - 2, 0xff8a3a); pc.set(ox + pw - 4, oy + ph2 - 2, 0xff8a3a);
   art(pc, 4, 0, ['.aaaa.', 'a....a', 'a.aa.a', 'a.a..a', 'a.a..a', 'b.b..b', '..b..b', '..bbbb'], { a: MET[9], b: MET[6] });

@@ -298,6 +298,7 @@ addTextureModule(() => {
 
 // ============================================================ walls
 defWall({ key: 'su_trackside', name: 'Tunnel Wall', tex: 'su_wall_tunnel', top: 'wall_top_concrete', height: 3.8, hp: 3000, sound: 'concrete' });
+defWall({ key: 'su_trackside_low', name: 'Track Wall', tex: 'su_wall_tunnel', top: 'wall_top_concrete', height: 1.45, thick: 0.2, hp: 3000, sound: 'concrete' });
 defWall({ key: 'su_car', name: 'Train Car Side', tex: 'su_wall_car_ext', top: 'metal_grey', height: 2.5, thick: 0.1, hp: 900, sound: 'metal' });
 
 // ============================================================ track, signals, tunnel
@@ -481,7 +482,9 @@ defObj({
       mb.cylinderZ(x, h0 + 1.45, D / 2 - 0.02, 0.07, 0.02, 10, 'metal_grey', { caps: true });
     }
     // the roof, the sign
-    mb.box(0, 2.3, 0, W + 0.08, 0.1, D + 0.08, 'metal_dark');
+    // (an open grille for a roof, so you can see what lives in it)
+    for (const sx of [-1, 1]) { mb.box(sx * (W / 2), 2.3, 0, 0.1, 0.1, D + 0.08, 'metal_dark'); mb.box(0, 2.3, sx * (D / 2), W + 0.08, 0.1, 0.1, 'metal_dark'); }
+    for (let k = -2; k <= 2; k++) mb.box(k * 0.55, 2.32, 0, 0.03, 0.04, D, 'metal_grey', { bevel: false });
     mb.box(0, 2.4, D / 2 - 0.1, 2.0, 0.34, 0.12, { south: 'su_booth_sign', all: 'metal_dark' }, { fit: { south: true }, emissive: 0.7 });
     mb.box(1.45, 2.4, 0.2, 0.12, 0.34, 1.6, { east: 'su_booth_sign', all: 'metal_dark' }, { fit: { east: true }, emissive: 0.7 });
     // inside: token racks, the stool, a calendar from 1989, slime on the glass

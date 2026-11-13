@@ -115,8 +115,8 @@ PG.paint((P, v) => {
   // leg chitin: black-green with a teal sheen, pale at the joints (top rows)
   {
     const r = P.R('LEG');
-    const R = ramp(0x2a3430, 6, 0x0a0c0c, 0.35);
-    P.fill(r, R, (u, vv, x, y) => 1.8 + Math.cos(u * Math.PI * 2) * 1.2 + (y % 8 === 0 ? 1.6 : 0) + (P.n(r, x, y, 2, 2, 51) - 0.5), 0.4);
+    const R = ramp(0x4a5a52, 6, 0x101414, 0.45);
+    P.fill(r, R, (u, vv, x, y) => 2.2 + Math.cos(u * Math.PI * 2) * 1.3 + (y % 8 === 0 ? 1.6 : 0) + (P.n(r, x, y, 2, 2, 51) - 0.5), 0.4);
     for (let y = 3; y < r.h; y += 8) P.glint(r, 3, y, 4, 0x6ad0c0, 0.35);
   }
   {
@@ -235,7 +235,7 @@ function femur(ob: OB) {
 function tibia(ob: OB) {
   const L = PG.reg('LEG'), C = PG.reg('CLAW');
   const path: V3[] = []; for (let i = 0; i <= 7; i++) path.push([0, -Math.sin((i / 7) * Math.PI) * 0.05, (i / 7) * (LEG_L2 - 0.12)]);
-  ob.tube(path, path.map((_, i) => Math.max(0.026, 0.092 - i * 0.009)), 7, L, { start: 'pole', up: [0, 1, 0], bump: (i, th) => (i === 2 || i === 5 ? 0.16 : 0) * (0.5 + 0.5 * Math.cos(th)) });
+  ob.tube(path, path.map((_, i) => Math.max(0.018, 0.085 - i * 0.01)), 7, L, { start: 'pole', up: [0, 1, 0], bump: (i, th) => (i === 2 || i === 5 ? 0.16 : 0) * (0.5 + 0.5 * Math.cos(th)) });
   // the hooked tarsus
   ob.cone([0, 0, LEG_L2 - 0.14], [0, -0.35, 1], 0.03, 0.2, 5, C);
   ob.cone([0, 0, LEG_L2 - 0.2], [0, 0.6, 1], 0.015, 0.1, 4, C);
@@ -382,11 +382,15 @@ function trainUD(rig: Rig): TrainUD {
 function initTrail(T: TrainUD, c: Creature, z: Zone | null, gy: number) {
   const sw = subwayOf(z), n = netOf(c);
   const k = T.spec.scale;
+  // on the roof already (a lurker seen for the first time): lay it out up there
+  const roof = n.sf === 'c' && !c.dead;
+  const up: [number, number, number] = roof ? [0, -1, 0] : [0, 1, 0];
   if (sw && n.li && !T.spec.larva) {
     const s0 = lineNearest(sw.line, c.x, c.z), pts: [number, number, number][] = [];
-    for (let d = 0; d <= T.trail.maxLen + 2; d += 0.5) { lineAt(sw.line, s0 - d, _lp); pts.push([_lp.x, groundY(z, _lp.x, _lp.z, 1) ?? gy, _lp.z]); }
-    T.trail.resetAlong(pts);
-  } else T.trail.reset(c.x, gy, c.z, Math.cos(c.facing), Math.sin(c.facing));
+    for (let d = 0; d <= T.trail.maxLen + 2; d += 0.5) { lineAt(sw.line, s0 - d, _lp); pts.push([_lp.x, roof ? CEIL_Y : groundY(z, _lp.x, _lp.z, 1) ?? gy, _lp.z]); }
+    T.trail.resetAlong(pts, up);
+  } else T.trail.reset(c.x, roof ? CEIL_Y : gy, c.z, Math.cos(c.facing), Math.sin(c.facing), up);
+  T.ceilK = roof ? 1 : 0; T.wallK = 0;
   void k;
   T.lpx = c.x; T.lpz = c.z; T.init = true;
   for (const s of T.st) s.init = false;
@@ -398,7 +402,8 @@ function poseTrain(rig: Rig, c: Creature, z: Zone | null, D: Drive) {
   const T = trainUD(rig);
   const k = T.spec.scale;
   const gy = groundY(z, c.x, c.z, 1) ?? c.y;
-  if (!T.init || T.seen !== c.id) { T.seen = c.id; initTrail(T, c, z, gy); }
+  // first sight, or it jumped (a teleport, a snapshot after a long gap): lay the body out again
+  if (!T.init || T.seen !== c.id || Math.hypot(c.x - T.lpx, c.z - T.lpz) > 6) { T.seen = c.id; initTrail(T, c, z, gy); }
   // velocity (world) for the step lead
   const dt = Math.max(1e-3, D.dt);
   const vx = (c.x - T.lpx) / dt, vz = (c.z - T.lpz) / dt;
@@ -555,7 +560,8 @@ function thinkTrain(c: Creature, dt: number): boolean {
   for (const p of players) {
     const d = dist(p, head);
     if (!inHunt(z, p.x, p.z)) continue;
-    const reach = md === 'lurk' ? 7 : md === 'dwell' ? 4.2 : exposed(z, p) ? 14 : 3.2;
+    const ex = exposed(z, p);
+    const reach = md === 'lurk' ? 7 : md === 'dwell' ? (ex ? 7.5 : 4.2) : ex ? 14 : 3.2;
     if (d < reach && d < pd) { pd = d; prey = p; }
   }
   // something rang (a Ringer, src/creatures/species/su_natives.ts): it goes to look
@@ -827,6 +833,7 @@ function thinkEgg(c: Creature, dt: number): boolean {
       const free = sw.pits.filter(([x, y]) => !taken.has(x + ',' + y));
       const pick = free.length ? free[Math.floor(rng.next() * free.length)] : null;
       if (pick && !playersIn(c.zoneKey).some((p) => Math.hypot(p.x - pick[0], p.z - pick[1]) < 14)) { c.x = pick[0] + 0.5; c.z = pick[1] + 0.5; c.home = { x: c.x, z: c.z }; }
+      else { CS().remove(c); return true; } // no pit free and unwatched: it was never laid
     }
     c.facing = c.targetFacing = rng.float(0, Math.PI * 2);
   }

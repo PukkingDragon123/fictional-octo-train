@@ -30,6 +30,8 @@ type Pose = { pos: THREE.Vector3; look: THREE.Vector3; fov: number };
 type Mode = 'off' | 'room' | 'can' | 'pan' | 'card';
 const RC = 0.058, HC = 0.13, MR = 0.0155;
 const PAN_R = 0.07, BEAM = 0.18, HANG = 0.165;
+/** how far the open can tips toward the operator (rad) */
+const TILT = 1.02;
 
 interface Can { i: number; key: string; group: THREE.Group; body: THREE.Group; tilt: number; jig: number; marbles: string[]; x: number; z: number }
 interface MState { m: Marble; v: Marble3D; pos: THREE.Vector3; fly: { from: THREE.Vector3; t: number; dur: number; arc: number } | null; last: THREE.Vector3 }
@@ -167,7 +169,8 @@ export class TalentBench {
     const sx = BX + 0.04, PIV = TOP + 0.33;
     // the base: black cast iron on four levelling feet, brass rails, a spirit level
     b.add('metal', cbox(0.15, 0.045, 0.5, 0.012), 0x18191a, at(sx, TOP + 0.0275, ZC));
-    b.add('brass', cbox(0.155, 0.008, 0.505, 0.003), 0xc89a48, at(sx, TOP + 0.05, ZC));
+    b.add('metal', cbox(0.155, 0.008, 0.505, 0.003), 0x2a2622, at(sx, TOP + 0.05, ZC));
+    b.add('brass', cbox(0.004, 0.01, 0.505, 0.002), 0xb88a3a, at(sx + 0.077, TOP + 0.05, ZC));
     for (const [dx, dz] of [[-0.06, -0.22], [0.06, -0.22], [-0.06, 0.22], [0.06, 0.22]]) b.add('brass', prism(0.012, 0.012, 8), 0xb88a3a, at(sx + dx, TOP + 0.006, ZC + dz));
     b.add('chrome', cbox(0.03, 0.012, 0.08, 0.004), 0xc8d0d0, at(sx + 0.05, TOP + 0.058, ZC + 0.16));
     // the pillar and the knife-edge block
@@ -180,7 +183,7 @@ export class TalentBench {
     const dial = this.dialFace();
     dial.position.set(sx - 0.0055, PIV - 0.13, ZC); dial.rotation.y = Math.PI / 2; g.add(dial);
     // the readout window on the base's front: grams on each pan
-    const rd = document.createElement('canvas'); rd.width = 160; rd.height = 20;
+    const rd = document.createElement('canvas'); rd.width = 208; rd.height = 20;
     const rt = new THREE.CanvasTexture(rd); rt.colorSpace = THREE.SRGBColorSpace; rt.magFilter = rt.minFilter = THREE.NearestFilter; rt.generateMipmaps = false;
     const rm = new THREE.Mesh(new THREE.PlaneGeometry(0.4, 0.05), new THREE.MeshBasicMaterial({ map: rt, toneMapped: false }));
     rm.position.set(sx + 0.0755, TOP + 0.028, ZC); rm.rotation.y = Math.PI / 2; rm.userData.noGlow = true; g.add(rm);
@@ -207,7 +210,7 @@ export class TalentBench {
       pb.add('brass', prism(0.008, 0.012, 8), 0xc89a48, at(0, HANG, 0));
       p.add(pb.build(this.mats, { cast: true }));
       // the pan's plate: BUFF / DEBUFF, stamped on a tag hanging off the rim
-      const tag = plate(this.mats, [side > 0 ? 'BUFF' : 'DEBUFF'], 0.06, 0.022, { bg: side > 0 ? 0xd8b848 : 0xb83a2a, ink: side > 0 ? 0x1a1408 : 0xf4ecd8 });
+      const tag = plate(this.mats, [side > 0 ? 'BUFF' : 'DEBUFF'], 0.075, 0.03, { bg: side > 0 ? 0xd8b848 : 0xb83a2a, ink: side > 0 ? 0x1a1408 : 0xf4ecd8, px: 560 });
       tag.position.set(PAN_R + 0.004, 0.0, 0); tag.rotation.y = Math.PI / 2; p.add(tag);
       p.userData.side = side;
       this.pans.push(p);
@@ -245,9 +248,9 @@ export class TalentBench {
     const { cv, tex } = this.readout, c = cv.getContext('2d')!;
     const w = weigh(this.onScale), ok = w.debuff >= w.buff;
     c.fillStyle = '#0c120c'; c.fillRect(0, 0, cv.width, cv.height);
-    bitText(c, `BUFF ${w.buff}g`, 6, 1, { color: '#e8c040', outline: null, shadow: null });
-    bitText(c, ok ? (w.debuff === w.buff ? 'LEVEL' : 'SEALABLE') : 'HEAVY', 80, 1, { color: ok ? '#6af07a' : '#ff5a3a', outline: null, shadow: null, align: 'center' });
-    bitText(c, `DEBUFF ${w.debuff}g`, 154, 1, { color: '#ff8a6a', outline: null, shadow: null, align: 'right' });
+    bitText(c, `BUFF ${w.buff}g`, 4, 1, { color: '#e8c040', outline: null, shadow: null });
+    c.fillStyle = ok ? '#3af05a' : '#ff3a2a'; c.fillRect(100, 6, 8, 8); c.fillStyle = 'rgba(255,255,255,0.6)'; c.fillRect(101, 7, 2, 2);
+    bitText(c, `DEBUFF ${w.debuff}g`, 204, 1, { color: '#ff8a6a', outline: null, shadow: null, align: 'right' });
     tex.needsUpdate = true;
   }
   private sealButton(): THREE.Group {
@@ -296,8 +299,6 @@ export class TalentBench {
       const rib = (y: number) => [[RC, y - 0.006], [RC - 0.002, y - 0.003], [RC - 0.002, y + 0.003], [RC, y + 0.006]] as [number, number][];
       const prof: [number, number][] = [[0, 0.002], [RC - 0.006, 0], [RC + 0.001, 0.004], [RC, 0.01], ...rib(0.03), ...rib(HC - 0.03), [RC, HC - 0.006], [RC + 0.002, HC - 0.002], [RC - 0.0015, HC], [RC - 0.003, HC - 0.004], [RC - 0.003, 0.008], [0, 0.008]];
       b.add('chrome', lathe(prof, 26), i === 2 || i === 5 ? 0x9a9488 : 0xa8acae, at(0, 0, 0), { rep: 0.08 });
-      // the lid, cut most of the way round and bent back up
-      g2(b, i);
       body.add(b.build(this.mats));
       // the paper label round the front
       const len = Math.PI * 2 * 0.86;
@@ -313,14 +314,6 @@ export class TalentBench {
       this.cans.push(can);
       this.hots.push({ key: 'tb:can:' + i, objs: [body], glow: [lab], label: `Tin can · ${C0.label}`, sub: `${C0.sub} · press to look inside`, press: () => this.openCan(i) });
     });
-    function g2(b: FacetBuilder, i: number) {
-      // hinged at the back (away from the operator), swung up past upright, a little askew per can
-      const m = new THREE.Matrix4().makeRotationY((i % 3 - 1) * 0.35)
-        .multiply(new THREE.Matrix4().makeTranslation(-RC * 0.95, HC, 0))
-        .multiply(new THREE.Matrix4().makeRotationZ(2.35 + (i % 2) * 0.25))
-        .multiply(new THREE.Matrix4().makeTranslation(RC * 0.95, 0, 0));
-      b.add('chrome', lathe([[0, 0], [RC - 0.004, 0], [RC - 0.002, 0.0015], [RC - 0.004, 0.003], [0, 0.0015]], 22), 0x7a7e80, m, { rep: 0.08 });
-    }
   }
   private buildMarbles() {
     for (const m of MARBLES) {
@@ -355,11 +348,17 @@ export class TalentBench {
   // ================================================================== where things are
   /** a can's marble slot in the can's own space: a ring on the floor that rolls to the lip as it tips */
   private canSlot(can: Can, j: number, out: THREE.Vector3): THREE.Vector3 {
-    const n = can.marbles.length, k = THREE.MathUtils.clamp(can.tilt / 0.55, 0, 1);
+    const n = Math.max(1, can.marbles.length), k = THREE.MathUtils.clamp(can.tilt / TILT, 0, 1);
+    // standing: a ring on the floor of the can
     const rr = n <= 1 ? 0 : Math.min(RC - MR - 0.004, (MR * 1.04) / Math.sin(Math.PI / n));
-    const a = (j / Math.max(1, n)) * Math.PI * 2 + 0.4 + can.i;
-    const shift = k * (RC - MR - 0.006 - rr * 0.55);
-    out.set(Math.cos(a) * rr * (1 - 0.3 * k) + shift + Math.sin(this.t * 31 + j) * can.jig * 0.004, 0.008 + MR + k * 0.004, Math.sin(a) * rr * (1 - 0.15 * k) + Math.cos(this.t * 27 + j * 2) * can.jig * 0.004);
+    const a = (j / n) * Math.PI * 2 + 0.4 + can.i;
+    const x0 = Math.cos(a) * rr, y0 = 0.008 + MR, z0 = Math.sin(a) * rr;
+    // tipped toward the operator: heaped against the near wall in the bottom corner, rows of three
+    const row = Math.floor(j / 3), inRow = Math.min(3, n - row * 3), col = j % 3;
+    const z1 = (col - (inRow - 1) / 2) * MR * 2.06, wall = RC - 0.004 - MR;
+    const x1 = Math.sqrt(Math.max(0, wall * wall - z1 * z1)) - row * MR * 0.2, y1 = 0.008 + MR + row * MR * 1.95;
+    const jg = can.jig * 0.004;
+    out.set(x0 + (x1 - x0) * k + Math.sin(this.t * 31 + j) * jg, y0 + (y1 - y0) * k, z0 + (z1 - z0) * k + Math.cos(this.t * 27 + j * 2) * jg);
     return can.body.localToWorld(out);
   }
   /** a pan's slot: a little hex heap */
@@ -449,7 +448,6 @@ export class TalentBench {
     return true;
   }
   private toRoom() {
-    for (const c of this.cans) c.tilt = c.tilt; // (the cans settle back in update)
     if (this.mode === 'can') { gameSound('metal_clank', 0.25, 1.1); }
     this.mode = 'room';
     this.sel = this.canI;
@@ -647,7 +645,7 @@ export class TalentBench {
         const own = c.marbles.filter((k) => marbleOwned(MARBLE.get(k)!)).length;
         const nw = c.marbles.some((k) => this.fresh.has(k));
         const p = this.v.set(c.x, this.TOP + HC + 0.05, c.z);
-        tag(p, `${this.sel === i ? '<kbd>Enter</kbd>' : `<kbd>${i + 1}</kbd>`}${esc(CANS[i].label)} <small>${own}/${c.marbles.length}</small>${nw ? ' <em>NEW</em>' : ''}`, this.sel === i ? 'sel' : '');
+        tag(p, this.sel === i ? `<kbd>Enter</kbd>${esc(CANS[i].label)} <small>${own}/${c.marbles.length}</small>${nw ? ' <em>NEW</em>' : ''}` : `<kbd>${i + 1}</kbd>${nw ? '<em>NEW</em>' : ''}`, this.sel === i ? 'sel' : '');
       });
       if (this.sel === 6) tag(this.v.set(this.BX + 0.04, this.TOP + 0.42, this.ZC), '<kbd>Enter</kbd>The balance', 'sel');
       if (this.sel === 7) tag(this.v.set(this.BX + 0.2, this.TOP + 0.12, this.ZC), '<kbd>S</kbd>Seal', 'sel');
@@ -670,7 +668,7 @@ export class TalentBench {
     const { BX, ZC, TOP } = this;
     const can = this.cans[this.canI];
     const mode = this.mode === 'card' ? this.heldFrom : this.mode;
-    if (mode === 'can') return { pos: new THREE.Vector3(can.x + (port ? 0.5 : 0.4), TOP + (port ? 0.3 : 0.22), can.z), look: new THREE.Vector3(can.x + 0.02, TOP + 0.06, can.z), fov: port ? 56 : 46 };
+    if (mode === 'can') return { pos: new THREE.Vector3(can.x + (port ? 0.5 : 0.4), TOP + (port ? 0.32 : 0.26), can.z), look: new THREE.Vector3(can.x + 0.04, TOP + 0.06, can.z), fov: port ? 56 : 44 };
     if (mode === 'pan') return { pos: new THREE.Vector3(BX + (port ? 0.95 : 0.64), TOP + (port ? 0.5 : 0.4), ZC), look: new THREE.Vector3(BX + 0.04, TOP + 0.17, ZC), fov: 46 };
     return { pos: new THREE.Vector3(BX + (port ? 2.1 : 1.42), TOP + (port ? 0.85 : 0.58), ZC), look: new THREE.Vector3(BX - 0.03, TOP + 0.12, ZC), fov: 50 };
   }
@@ -696,21 +694,22 @@ export class TalentBench {
     const sh = this.hots.find((h) => h.key === 'tb:scale'); if (sh) { const w = weigh(this.onScale); sh.sub = `buff ${w.buff} g · debuff ${w.debuff} g · press to look at the pans`; }
     if (!full && !on) return;
     // ---- light: the clamp lamp is on while the bench is in use (and dimly otherwise)
-    this.lamp.intensity = damp(this.lamp.intensity, on ? 3.4 : 1.6, 4, dt);
-    this.fill.intensity = damp(this.fill.intensity, on ? 0.9 : 0.3, 4, dt);
-    this.strip.intensity = damp(this.strip.intensity, on ? 7 : 5, 4, dt);
+    // (physical units: a lamp a hand's breadth away needs very little)
+    this.lamp.intensity = damp(this.lamp.intensity, on ? 1.7 : 0.8, 4, dt);
+    this.fill.intensity = damp(this.fill.intensity, on ? 0.55 : 0.2, 4, dt);
+    this.strip.intensity = damp(this.strip.intensity, on ? 4.2 : 3.4, 4, dt);
     const open = this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can');
     const can = this.cans[this.canI];
-    this.pen.intensity = damp(this.pen.intensity, open ? 0.45 : 0, 6, dt);
-    if (open) this.pen.position.set(can.x + 0.16, this.TOP + 0.2, can.z);
+    this.pen.intensity = damp(this.pen.intensity, open ? 0.1 : 0, 6, dt);
+    if (open) this.pen.position.set(can.x + 0.26, this.TOP + 0.16, can.z);
     // ---- the cans: the open one tips toward you, the rest settle; the rattle dies down
     for (const c of this.cans) {
-      const goal = open && c === can ? 0.55 : 0;
+      const goal = open && c === can ? TILT : 0;
       const prev = c.tilt;
       c.tilt = damp(c.tilt, goal, goal > c.tilt ? 7 : 9, dt);
       c.jig = Math.max(0, c.jig - dt * 1.6);
       c.group.rotation.z = -c.tilt + Math.sin(t * 40 + c.i) * c.jig * 0.012;
-      if (prev > 0.3 && c.tilt <= 0.3 && goal === 0) gameSound('metal_clank', 0.18, 1.2);
+      if (prev > 0.5 && c.tilt <= 0.5 && goal === 0) gameSound('metal_clank', 0.18, 1.2);
     }
     // ---- the beam: a damped spring toward the weight difference, a shiver when it jams
     const w = weigh(this.onScale);
@@ -749,7 +748,7 @@ export class TalentBench {
       st.v.group.position.copy(st.pos);
       st.v.update(t, dt, this.held === k ? 0.7 : 0);
       if (this.held === k) { st.v.group.rotation.x = Math.sin(t * 0.7) * 0.25; st.v.group.rotation.z = Math.cos(t * 0.5) * 0.2; }
-      st.v.setLocked(!marbleOwned(st.m));
+      st.v.setLocked(!marbleOwned(st.m) && this.held !== k);
     }
     if (this.snap > 0) this.snap--;
     // ---- DOM
@@ -760,7 +759,7 @@ export class TalentBench {
   }
   /** dev / screenshots: everything to its spot now */
   settle() {
-    for (const c of this.cans) { const open = (this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can')) && c === this.cans[this.canI]; c.tilt = open ? 0.55 : 0; c.jig = 0; }
+    for (const c of this.cans) { const open = (this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can')) && c === this.cans[this.canI]; c.tilt = open ? TILT : 0; c.jig = 0; }
     const w = weigh(this.onScale); this.ang = THREE.MathUtils.clamp((w.buff - w.debuff) * 0.035, -0.26, 0.26); this.angV = 0;
     for (const st of this.ms.values()) st.fly = null;
     this.snap = 3;

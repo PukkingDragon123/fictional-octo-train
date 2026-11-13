@@ -6,6 +6,7 @@ import {
   crtMonitor, keyboard, papers, mug, flipV, leafCard,
 } from './a_lib';
 import type { ModelBuilder } from './a_lib';
+import { blitPortrait, atlasRepaint } from '../../entities/portrait';
 
 const T = (...t: string[]) => ['setA', ...t];
 const scrOn = (s: any) => !(s.on === false || s.broken || s.unpowered);
@@ -219,8 +220,9 @@ addTextureModule(() => {
     pc.rect(3, 10, 7, 8, 0xe8b4c4); pc.rect(4, 11, 5, 3, 0xf8f0f2); pc.set(6, 12, 0x6a5a6a);
     for (let x = 3; x < 10; x += 2) pc.vline(x, 15, 17, 0xf4dce4);
     pin(6, 10, 0xe0c020);
-    // polaroid with a figure where no-one should be
-    pc.rect(11, 9, 5, 6, 0xf4f4f0); pc.rect(12, 10, 3, 3, 0x7a8a7a); pc.set(13, 11, 0x1a1a1a); pc.set(13, 12, 0x2a2a2a);
+    // polaroid with a figure where no-one should be (a HumanRig render, entities/portrait.ts)
+    pc.rect(11, 9, 5, 6, 0xf4f4f0); pc.rect(12, 10, 3, 3, 0x7a8a7a);
+    blitPortrait(pc, 12, 10, 3, 3, { seed: 381, light: 'studio', frame: 'chest', tone: 'faded', bg: 0x7a8a7a }, 0x7a8a7a, atlasRepaint('p_corkboard'));
     pin(13, 9, 0xd03030);
     // business card
     pc.rect(11, 16, 5, 2, 0xffffff); pc.set(12, 16, 0x2a5aa0);
@@ -328,11 +330,10 @@ addTextureModule(() => {
     // MISSING (narrow I's)
     let x = 1;
     for (const ch of 'MISSING') { if (ch === 'I') { for (let j = 0; j < 5; j++) pc.set(x, 2 + j, 0x1a1414); x += 2; } else { x += txt(pc, ch, x, 2, 0x1a1414) + 1; } }
-    // photo with a smeared face
+    // photo with a smeared face (the photo is a HumanRig render, entities/portrait.ts; the smear is on top)
     pc.rect(6, 9, 10, 11, 0x7a7a7a); pc.rect(7, 10, 8, 9, 0xa8a8a0);
-    pc.ellipse(11, 14, 2.6, 3.2, 0xc8a890); pc.rect(8, 10, 6, 2, 0x3a2a20);
+    blitPortrait(pc, 7, 10, 8, 9, { seed: 382, light: 'studio', tone: 'faded', bg: 0xa8a8a0 }, 0xa8a8a0, atlasRepaint('p_poster_missing'));
     for (let yy = 12; yy < 18; yy++) for (let xx = 8; xx < 14; xx++) if (ph(xx, yy, 3) < 0.5) pc.set(xx, yy, mixHex(pc.get(xx, yy), pc.get(xx + 1, yy - 1), 0.6));
-    pc.rect(9, 17, 5, 2, 0x4a4a6a);
     scribble(pc, 3, 22, 16, 2, 0x3a3a3a, 21, 2);
     for (let i = 0; i < 6; i++) { const tx = 2 + i * 3; pc.vline(tx + 2, 26, 29, 0xb8b298); pc.hline(tx, tx + 1, 27, 0x6a6a6a); }
     pc.grime(0x8a7a50, 0.5, 3, 5, 0.6);

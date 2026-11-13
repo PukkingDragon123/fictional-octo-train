@@ -53,7 +53,7 @@ import { installDecoAndGuide, onBuildMode } from './deco';
 import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePanel, type PanelHost } from './research/panel';
 import * as THREE from 'three';
 import { mxOk } from '../machine/core';
-import { mxFrame, mxSkinKey, panelSpec } from '../machine/kit';
+import { mxFrame, mxSkinKey, panelSpec, type MxFrame } from '../machine/kit';
 import { mxIcon, mxMount, type IconKind, type MxDecor } from '../machine/decor';
 
 const TITLE_ICON: Record<string, IconKind> = { continue: 'play', new: 'bolt', free: 'door', coop: 'radio', load: 'tape', controls: 'key', about: 'clipboard' };
@@ -280,12 +280,13 @@ class TitleRoom {
     if (this.live) { this.menu.classList.add('in'); if (this.view === 'monitor') this.focusKey(this.btns.has(this.lastKey) ? this.lastKey : 'new'); }
   }
   private beacon: MxDecor | null = null;
+  private mxf: MxFrame | null = null;
   /** round 16: the menu as a console on the desk: an enamel housing, a beacon on its hood that turns while the
    * way in is lit, a spanner on a peg and the specimen jar beside it, watching the pointer */
   private machine(pt: boolean) {
     this.menu.classList.add('mx');
-    this.menu.querySelector(':scope > .mxf-cv')?.remove();
-    mxFrame(this.menu, (w, hh) => panelSpec(w, hh, { title: 'OBSERVATION DESK', serial: 'MI-OB4', seed: 71, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 44, bot: 26, toggles: 2, knobs: 1 }), { pad: 16, grow: pt ? { l: 14, t: 48, r: 14, b: 28 } : { l: 20, t: 50, r: 22, b: 30 } });
+    this.mxf?.dispose();
+    this.mxf = mxFrame(this.menu, (w, hh) => panelSpec(w, hh, { title: 'OBSERVATION DESK', serial: 'MI-OB4', seed: 71, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 44, bot: 26, toggles: 2, knobs: 1 }), { pad: 16, grow: pt ? { l: 14, t: 48, r: 14, b: 28 } : { l: 20, t: 50, r: 22, b: 30 } });
     this.beacon = mxMount(this.menu, 'beacon', { right: pt ? 18 : 30, top: pt ? -84 : -92, z: 3 }, { col: 'amber', s: 1.3, alert: this.lastKey === 'new' || this.lastKey === 'continue' });
     if (!pt) {
       mxMount(this.menu, 'jar', { right: -132, bottom: -44, z: 3 }, { title: 'Specimen 07', s: 1.35 });

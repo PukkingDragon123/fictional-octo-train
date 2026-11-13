@@ -9,11 +9,13 @@
 import { defObj } from '../../world/objects';
 import { atlas, addTextureModule, makeRamp, mixHex, scaleHex, ph, txt, txtC, txtW, WZ, crtGlass, plate, screw, border } from './a_lib';
 import type { PixelCanvas } from './a_lib';
+import type { Appearance } from '../../entities/humanRig';
+import { blitPortrait, stockLook, atlasRepaint } from '../../entities/portrait';
 
 const T = (...t: string[]) => ['processing', 'zp', ...t];
 
 // ------------------------------------------------------------------ the mugshot (repainted per survivor)
-export interface MugshotLook { skin: number; hair: number; hairStyle: string; number: string; frame?: number }
+export interface MugshotLook { skin: number; hair: number; hairStyle: string; number: string; frame?: number; /** the unit's look (the portrait is a render of it) */ app?: Appearance }
 const MUG: MugshotLook = { skin: 0xe8b98f, hair: 0x3b2a1e, hairStyle: 'short', number: 'D-4471' };
 
 function drawMugshot(pc: PixelCanvas, m: MugshotLook) {
@@ -23,27 +25,10 @@ function drawMugshot(pc: PixelCanvas, m: MugshotLook) {
   const BG = makeRamp(0x2c3a46, 5, { spread: 0.35 });
   pc.fillRamp(BG, (x, y) => 0.45 + (ph(x >> 2, y >> 2, 901) - 0.5) * 0.15 - y / H * 0.15, 0.6);
   for (let y = 6; y < H - 6; y += 3) pc.hline(14, W - 15, y, y % 6 === 0 ? 0x6a7c88 : 0x4a5a66);
-  // head and shoulders, front view: jumpsuit collar, neck, face, hair
-  const cx = Math.floor(W / 2), sk = makeRamp(m.skin, 5, { spread: 0.45 }), hr = makeRamp(m.hair, 4, { spread: 0.4 });
-  const Y = makeRamp(0xd9a826, 5, { spread: 0.45 });
-  for (let y = H - 9; y < H - 3; y++) for (let x = cx - 12 + (H - 3 - y); x <= cx + 12 - (H - 3 - y); x++) pc.set(x, y, Y[y > H - 7 ? 2 : 3]);
-  pc.rect(cx - 2, H - 12, 5, 4, sk[1]);
-  for (let y = 8; y < H - 11; y++) {
-    const t = (y - 8) / (H - 19);
-    const hw = Math.round(5.5 - Math.max(0, t - 0.65) * 7);
-    for (let x = cx - hw; x <= cx + hw; x++) pc.set(x, y, sk[x < cx - hw + 2 ? 2 : x > cx + hw - 2 ? 1 : 3]);
-  }
-  // hair
-  const bald = m.hairStyle === 'bald', long = m.hairStyle === 'long' || m.hairStyle === 'ponytail' || m.hairStyle === 'bob' || m.hairStyle === 'curly';
-  if (!bald) {
-    for (let y = 6; y < 11; y++) for (let x = cx - 6; x <= cx + 6; x++) if (y > 6 || Math.abs(x - cx) < 5) pc.set(x, y, hr[y < 8 ? 2 : 1]);
-    if (long) for (let y = 10; y < H - 12; y++) { pc.set(cx - 7, y, hr[1]); pc.set(cx - 6, y, hr[2]); pc.set(cx + 6, y, hr[1]); pc.set(cx + 7, y, hr[0]); }
-  }
-  // eyes (dead tired), bruise, mouth, the number board held at the chest
-  pc.set(cx - 3, 13, 0x1a1412); pc.set(cx + 3, 13, 0x1a1412);
-  pc.blend(cx - 3, 14, 0x4a2a3a, 0.5); pc.blend(cx + 3, 14, 0x4a2a3a, 0.5);
-  pc.blend(cx + 3, 12, 0x5a3a5a, 0.45); pc.blend(cx + 4, 13, 0x5a3a5a, 0.4);
-  pc.hline(cx - 1, cx + 1, 18, sk[0]);
+  // head and shoulders, front view, in the jumpsuit: a render of the unit's own HumanRig (entities/portrait.ts), never a drawing
+  const cx = Math.floor(W / 2);
+  blitPortrait(pc, cx - 14, 5, 28, H - 6, { app: m.app ?? stockLook(4471), outfit: 'jumpsuit', light: 'mugshot', frame: 'bust', bg: null }, 0x3a4a56, atlasRepaint('zp_crt_mugshot'));
+  // the number board held at the chest
   pc.rect(cx - 13, H - 9, 27, 7, 0x141414);
   pc.strokeRect(cx - 13, H - 9, 27, 7, 0x9a9a92);
   txtC(pc, m.number, cx, H - 8, 0xe8e8e0);

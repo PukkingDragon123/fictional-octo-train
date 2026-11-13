@@ -11,7 +11,7 @@
 //            (in the lab: down the chute at the start of the next run)
 //   LEDGER   the crew ledger (in a run)
 import { mxArrive } from '../../ui/machine/kit';
-import { mxMount } from '../../ui/machine/decor';
+import { mxMount, mxIcon, type IconKind } from '../../ui/machine/decor';
 import { G } from '../G';
 import { bus } from '../../core/events';
 import { op } from '../ops';
@@ -43,6 +43,7 @@ export interface TermOpen {
   onClose?: () => void;
 }
 type Page = 'account' | 'dial' | 'create' | 'ledger';
+const PAGE_ICON: Record<Page, IconKind> = { account: 'coin', dial: 'gear', create: 'wrench', ledger: 'tape' };
 /** the plate's calibration: 0 none, 1 close, 2 true (the next make prints a spare) */
 let calib = 0;
 const PAGES: [Page, string][] = [['account', 'Account'], ['dial', 'Dial'], ['create', 'Create'], ['ledger', 'Ledger']];
@@ -76,6 +77,9 @@ export function openPressTerminal(o: TermOpen) {
   const visible = PAGES.filter(([k]) => k !== 'ledger' || inRun);
   for (const [k, label] of visible) {
     const b = plateBtn(label, () => show(k), { finish: 'olive', size: 'sm', shape: 'key', tight: true, sound: 'plate' });
+    // round 16: each page's little 3D model on its key
+    const ic = mxIcon(PAGE_ICON[k], 16);
+    if (ic) { b.append(ic); b.classList.add('has-i'); }
     keys.set(k, b); t.keys.append(b);
   }
   t.keys.append(plateBtn('Off', () => close(), { finish: 'oxblood', size: 'sm', shape: 'key', tight: true, sound: 'relay' }));

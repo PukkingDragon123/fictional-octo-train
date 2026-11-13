@@ -109,7 +109,7 @@ for (const k in SUBWAY) ADD[k] = (ADD[k] || []).concat(SUBWAY[k]);
  * them, they are added here.
  */
 const DIMS: [RegExp, [string, number][]][] = [
-  [/chess|board/i, [['chess_rook', 2], ['chess_knight', 2]]],
+  [/chess|board/i, [['chess_rook', 2], ['chess_knight', 2], ['chess_pawn', 2.2], ['chess_clock', 1.2], ['chess_case', 1.4]]],
   [/moon|lunar/i, [['moon_wisp', 3], ['moon_strider', 1.5]]],
   [/grass|meadow|future|field_?2|bubble/i, [['bubble_mite', 3], ['bubble_rabbit', 4]]],
 ];

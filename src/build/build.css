@@ -8,5 +8,5 @@
 #wprompt .bld-tag .bld-keys .wp-sub { color: #cfc4a4; }
 body.bld-on #wprompt .wp-tag:not(.bld-tag) { visibility: hidden; }
 /* the ghost's words are a working label, not a headline: the world prompt's small size */
-#wprompt .bld-tag .wp-head { font-size: 16px; line-height: 18px; letter-spacing: 1px; text-shadow: var(--ink1); }
-#wprompt .bld-tag .wp-head .wp-key { margin-right: 6px; }
+#wprompt .wp-tag.prim.bld-tag .wp-head { font-size: 16px; line-height: 18px; letter-spacing: 1px; text-shadow: var(--ink1); }
+#wprompt .wp-tag.prim.bld-tag .wp-head .wp-key { margin-right: 6px; }

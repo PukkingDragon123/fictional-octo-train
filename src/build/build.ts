@@ -595,7 +595,7 @@ export class BuildSystem implements GameSystem {
     const why = !unlocked ? 'no blueprint: research it in the lab' : !s.ok ? s.why : !this.canAfford(p, pc) ? 'not enough salvage' : !welderFor(p, pc) ? (pc.join === 'nail' ? 'needs a hammer to finish' : 'needs a welding torch to finish') : undefined;
     const w = pc.w ?? 1, d = pc.d ?? 1, rw = s.rot % 2 === 0 ? w : d, rd = s.rot % 2 === 0 ? d : w;
     const at = pc.kind === 'obj' ? { x: s.x + rw / 2, y: z.heightAt(s.x, s.y), z: s.y + rd / 2 } : { x: s.side === 0 ? s.x + 0.5 : s.x, y: z.heightAt(s.x, s.y), z: s.side === 0 ? s.y : s.y + 0.5 };
-    const keys: [string, string][] = [['R', 'Rotate'], ['[ ]', 'Piece'], ['Tab', 'Shelf'], ['X', 'Take down'], ['B', 'Done']];
+    const keys: [string, string][] = [['R', 'Rotate'], [', .', 'Piece'], ['Tab', 'Shelf'], ['X', 'Take down'], ['B', 'Done']];
     return { key: 'place:' + pc.key, head: 'Build', name: pc.name, why: why && why !== 'not enough salvage' ? why : undefined, cost: this.costLine(p, pc.cost), keys, at };
   }
   private refundLine(pc: Piece, frac: number) {

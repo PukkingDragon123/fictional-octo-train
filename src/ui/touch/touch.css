@@ -64,7 +64,7 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 /* clusters anchored to the corners (children use --x/--y/--s in button units) */
 .nc-group { position: absolute; pointer-events: none; transition: opacity 0.25s; }
 .nc-group.nc-faded { opacity: 0.32; }
-.nc-br { right: calc(var(--sr) + var(--gap)); bottom: calc(var(--sb) + var(--gap)); width: calc(var(--u) * 4.7); height: calc(var(--u) * 4.5); }
+.nc-br { right: calc(var(--sr) + var(--gap)); bottom: calc(var(--sb) + var(--gap)); width: calc(var(--u) * 4.7); height: calc(var(--u) * 4.9); }
 .nc-row { display: flex; gap: 6px; }
 .nc-row > .nc-btn { position: relative; right: auto; bottom: auto; }
 .nc-tl { left: calc(var(--sl) + var(--gap)); top: calc(var(--st) + var(--gap)); }
@@ -77,7 +77,7 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 @media (min-resolution: 2dppx) and (min-width: 700px), (min-width: 1000px) { .nc-ctx > .nc-btn > b { font-size: 17px; line-height: 17px; } }
 @media (orientation: portrait) {
   /* stacked above the action cluster, clear of the survivor in the middle of the screen */
-  .nc-ctx { left: auto; transform: none; right: calc(var(--sr) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--u) * 4.6); flex-wrap: wrap-reverse; justify-content: flex-end; max-width: calc(100vw - var(--sl) - var(--sr) - 2 * var(--gap)); }
+  .nc-ctx { left: auto; transform: none; right: calc(var(--sr) + var(--gap)); bottom: calc(var(--sb) + var(--gap) + var(--u) * 5); flex-wrap: wrap-reverse; justify-content: flex-end; max-width: calc(100vw - var(--sl) - var(--sr) - 2 * var(--gap)); }
 }
 
 /* scanner controls (positioned around the raised device by script):
@@ -155,4 +155,17 @@ html.nc-touch #nc-touch.nc-suppressed { display: none; }
 @media (max-height: 500px) {
   .nc-runbtn { left: calc(var(--sl) + var(--gap) + var(--R) * 2 + 30px); bottom: calc(var(--sb) + var(--gap)); }
   .nc-powbtn { left: calc(var(--sl) + var(--gap) + var(--R) * 2 + 30px); bottom: calc(var(--sb) + var(--gap) + var(--u) * 1.6); }
+}
+
+/* round 16: the found-object cluster is back (SCAN / ROLL / CRAWL on its top row) and the top bars carry
+   TASKS, SELF and MAP as well: on a phone the top keys come down a size so both bars fit across */
+@media (max-width: 520px) {
+  .nc-tl > .nc-btn, .nc-tr > .nc-btn { --s: 0.72 !important; }
+  .nc-row { gap: 3px; }
+}
+/* a phone held upright: the top keys hang in two columns down the screen's edges, under the body console
+   and the hotbar, clear of the stick and the cluster */
+@media (max-width: 520px) and (orientation: portrait) {
+  .nc-tl.nc-row, .nc-tr.nc-row { flex-direction: column; top: calc(var(--hb-bottom, 236px) + 14px); gap: 12px; }
+  .nc-tl > .nc-btn, .nc-tr > .nc-btn { --s: 0.8 !important; }
 }

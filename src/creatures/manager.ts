@@ -492,6 +492,7 @@ export class CreatureSystem implements GameSystem {
       const want = clamp(err * turn, -wMax, wMax);
       let w = (c.mem._fw as number | undefined) ?? 0;
       w += clamp(want - w, -acc * dt, acc * dt);
+      if (!Number.isFinite(w)) w = 0;
       // never overshoot the heading it wants
       if (Math.abs(w * dt) > Math.abs(err) && Math.sign(w) === Math.sign(err)) { c.facing = c.targetFacing; w *= 0.5; }
       else c.facing = wrapAngle(c.facing + w * dt);

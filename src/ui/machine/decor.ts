@@ -331,8 +331,8 @@ function jarBack(s: number): THREE.Group {
   m.add(frod([r * 1.25, y1 + 12 * s, r * 0.1], [r * 1.5, y1 + 4 * s, 0], 1.1 * s, 5), null, 0x1a1a18, RUBBER);
   meshOf(m, mxMat({ wear: 0.5, seed: 27 }), g);
   // the specimen plate on the plinth's face
-  const lab = labelCanvas(Math.round(28 * s), Math.round(8 * s), 'SPEC 07', { ground: 'brass', px: Math.max(7, Math.round(7 * s)), border: false, seed: 4 });
-  meshOf(new Mold().add(plate(clipRect(28 * s, 8 * s, 1.2 * s), 1.2 * s, 0.3), M(0, 4.6 * s, 26.2 * s), 0xb08a3a, PAINT), mxMat({ map: canvasTex(lab), wear: 0.2 }), g);
+  const lab = labelCanvas(Math.round(24 * s), Math.round(10 * s), '07', { ground: 'brass', px: Math.max(8, Math.round(9 * s)), border: false, seed: 4 });
+  meshOf(new Mold().add(plate(clipRect(24 * s, 10 * s, 1.2 * s), 1.2 * s, 0.3), M(0, 4.4 * s, 26.2 * s), 0xb08a3a, PAINT), mxMat({ map: canvasTex(lab), wear: 0.2 }), g);
   return root;
 }
 /** the clamp straps in front of the glass (drawn over the creature) */
@@ -360,7 +360,7 @@ function jarSheets(s: number) {
 
 // ---- the eye creature
 const EYE_NX = 7, EYE_NY = 5;
-const EB = 30; // the creature's frame box
+const EB = 34; // the creature's frame box
 let eyeTexCv: HTMLCanvasElement | null = null;
 function eyeTex(): THREE.CanvasTexture {
   if (!eyeTexCv) {
@@ -412,7 +412,7 @@ function eyeModel(f: number, s: number): THREE.Group {
   g.position.set(EB * s / 2, -EB * s / 2, 0);
   g.rotation.set(0.2 + pitch, yaw, 0, 'YXZ');
   root.add(g);
-  const r = 8.2 * s;
+  const r = 9.4 * s;
   // the eyeball (smooth, wet)
   // the texture's iris sits at u = 0.25, which a sphere puts on +z
   const ball = new THREE.SphereGeometry(r, 18, 12);
@@ -552,7 +552,7 @@ export function mxDecor(kind: DecorKind, o: DecorOpts = {}): MxDecor | null {
       if (alertOn && !still()) th = (th + dt * TAU * 1.25) % TAU;
       draw();
     } });
-    api.alert = (v) => { wake(el); if (v === alertOn) return; alertOn = v; if (!v) glow = 1; cur = ''; draw(); if (v) sfx('relay', 0.35); };
+    api.alert = (v) => { wake(el); if (v === alertOn) return; alertOn = v; if (!v) glow = 1; cur = ''; draw(); };
     api.poke = () => api.alert(!alertOn);
     return api;
   }

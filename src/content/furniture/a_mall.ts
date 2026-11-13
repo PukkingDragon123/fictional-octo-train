@@ -5,6 +5,7 @@ import {
   txt, txtC, scribble, fillR, border, crtGlass, caster, leafCard, flipH,
 } from './a_lib';
 import type { ModelBuilder } from './a_lib';
+import { blitPortrait, atlasRepaint } from '../../entities/portrait';
 
 const T = (...t: string[]) => ['setA', ...t];
 const on = (s: any) => !(s.on === false || s.broken || s.unpowered);
@@ -127,9 +128,10 @@ addTextureModule(() => {
     pc.fill(0xf4f4f0);
     for (let i = 0; i < 4; i++) {
       const y = 1 + i * 5;
-      pc.rect(1, y, 4, 4, 0x8a8a90); pc.rect(2, y + 1, 2, 2, 0xc8a890);
-      if (i === 3) { pc.rect(2, y + 1, 2, 2, 0x8a8a90); pc.set(3, y + 1, 0x1a1a1a); } // the last frame came out empty, almost
-      else if (i === 2) pc.set(2, y + 1, 0xa88a78);
+      pc.rect(1, y, 4, 4, 0x8a8a90);
+      // three frames of somebody (HumanRig renders, entities/portrait.ts); the last frame came out empty, almost
+      if (i === 3) pc.set(3, y + 1, 0x1a1a1a);
+      else blitPortrait(pc, 1, y, 4, 4, { seed: 391, light: 'studio', frame: i === 1 ? 'head' : 'bust', yaw: i === 2 ? 0.5 : 0, bg: 0x8a8a90 }, 0x8a8a90, atlasRepaint('p_photo_strips'));
     }
   });
   A.add('p_booth_sign', 24, 6, (pc) => {

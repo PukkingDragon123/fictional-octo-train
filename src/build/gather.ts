@@ -27,7 +27,7 @@ import { floorDef } from '../world/defs';
 import { TF, type Zone, type TileObject } from '../world/zone';
 import { createItem, serializeItem } from '../items/factory';
 import { itemDef, hasItemDef, type Item } from '../items/item';
-import { queueAt } from '../actions/basic';
+import { queueAt, FillAction } from '../actions/basic';
 import { TimedAction } from '../actions/action';
 import { hasUnlock } from '../game/research';
 import { treeOffers } from '../game/treeData';
@@ -258,7 +258,12 @@ export class Gathering {
     const h = (objDef(o.key)?.height ?? 1);
     const at = { x: o.x + 0.5, y: (p.y ?? 0) + Math.min(1.9, h) + 0.25, z: o.y + 0.5 };
     const left = leftOf(o);
-    return [{ id: 'gather', label: d.verb, icon: 'open', key: 'E', run: () => this.work(p, o), why: this.why(p, o, d), head: d.verb, name: `${d.name} (${tool?.name ?? d.tools[0][2]})${left < d.charges && left > 0 ? ` ${left}/${d.charges}` : ''}`, tgt: 'o:' + o.uid, anchor: () => at }];
+    const out: unknown[] = [{ id: 'gather', label: d.verb, icon: 'open', key: 'E', run: () => this.work(p, o), why: this.why(p, o, d), head: d.verb, name: `${d.name} (${tool?.name ?? d.tools[0][2]})${left < d.charges && left > 0 ? ` ${left}/${d.charges}` : ''}`, tgt: 'o:' + o.uid, anchor: () => at }];
+    // a leak is a tap: fill a bottle from the can under it
+    const water = o.key === 'gn_pipes' ? (o.state.water ?? 2) : 0;
+    const v = water > 0.2 ? p.allItems().find((i) => (itemDef(i.key).fluidCap ?? 0) - (i.fluid?.amount ?? 0) > 0.1 && (!i.fluid || i.fluid.type === 'tainted')) : null;
+    if (v) out.push({ id: 'gather_fill', label: 'Fill from the leak', icon: 'open', key: 'U', run: () => queueAt(p, o.x + 0.5, o.y + 0.5, new FillAction(p, v, 'tainted', water, (l) => op('objState', { z: p.zoneKey, uid: o.uid, patch: { water: Math.max(0, water - l) } })), 1.3), tgt: 'o:' + o.uid, anchor: () => at });
+    return out;
   }
   /** nodes grow back over game hours (host; the zone the unit is in) */
   update(dt: number) {
@@ -302,10 +307,11 @@ export function placeNodes(z: Zone, seed: number) {
     const n = !!z.wallN[z.idx(x, y)], w = !!z.wallW[z.idx(x, y)], e = z.inb(x + 1, y) && !!z.wallW[z.idx(x + 1, y)], so = z.inb(x, y + 1) && !!z.wallN[z.idx(x, y + 1)];
     const k = key ?? rng.weighted(kinds);
     const d = nodeDef(k)!;
-    if (d.wall && !(n || w || e || so)) return false;
+    // wall pieces go on the faces the camera looks at (north and west walls): the near walls are cut away
+    if (d.wall && !(n || w)) return false;
     // never in a doorway's swing
     for (const s of [0, 1] as const) if (z.edge(x, y, s) || (s === 0 && z.inb(x, y + 1) && z.edge(x, y + 1, 0)) || (s === 1 && z.inb(x + 1, y) && z.edge(x + 1, y, 1))) return false;
-    const rot = (n ? 0 : e ? 1 : so ? 2 : w ? 3 : rng.int(0, 3)) as 0 | 1 | 2 | 3;
+    const rot = (d.wall ? (n ? 0 : 3) : n ? 0 : e ? 1 : so ? 2 : w ? 3 : rng.int(0, 3)) as 0 | 1 | 2 | 3;
     const o = b.obj(k, x, y, rot, { left: d.charges });
     if (o) placed.push(o);
     return !!o;

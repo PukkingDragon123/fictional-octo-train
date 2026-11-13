@@ -47,6 +47,8 @@ export interface PortraitOpts {
 
 // ------------------------------------------------------------------ people
 function mulberry(seed: number) { let a = seed >>> 0; return () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+/** background people come from a cast of twelve (each render is a whole rig; the cast keeps them few); 4471 and up are kept as they are */
+const castSeed = (seed: number) => (seed >= 4000 ? seed : seed % 12);
 /** a seeded random person: the same seed is always the same face */
 export function stockLook(seed: number): Appearance {
   const r = mulberry(seed * 7919 + 13);
@@ -70,10 +72,11 @@ function uniformOutfit(u: Uniform, seed: number): Outfit {
 // ------------------------------------------------------------------ the renderer
 let R: THREE.WebGLRenderer | null = null;
 let failed = false;
-let idle = 0;
+let idle: ReturnType<typeof setTimeout> | 0 = 0;
 function renderer(): THREE.WebGLRenderer | null {
   if (R) return R;
-  if (failed || typeof document === 'undefined') return null;
+  if (typeof document === 'undefined') failed = true;
+  if (failed) return null;
   try {
     const cv = document.createElement('canvas');
     R = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true, preserveDrawingBuffer: true, powerPreference: 'low-power' });
@@ -87,7 +90,7 @@ function renderer(): THREE.WebGLRenderer | null {
 /** drop the context a few seconds after the last portrait (browsers cap live WebGL contexts) */
 function scheduleRelease() {
   if (idle) clearTimeout(idle);
-  idle = window.setTimeout(() => { idle = 0; if (!R) return; try { R.dispose(); R.forceContextLoss(); } catch { /* gone */ } R = null; }, 6000);
+  idle = setTimeout(() => { idle = 0; if (!R) return; try { R.dispose(); R.forceContextLoss(); } catch { /* gone */ } R = null; }, 6000);
 }
 
 const LIGHTS: Record<NonNullable<PortraitOpts['light']>, { hemi: [number, number, number]; key: [number, number, THREE.Vector3]; fill: [number, number, THREE.Vector3]; rim: [number, number, THREE.Vector3] }> = {
@@ -99,18 +102,26 @@ const LIGHTS: Record<NonNullable<PortraitOpts['light']>, { hemi: [number, number
   dim: { hemi: [0xa8b0b8, 0x282420, 0.7], key: [0xe8e0d0, 1.5, new THREE.Vector3(-1.0, 1.6, 1.8)], fill: [0x8090a0, 0.3, new THREE.Vector3(1.6, 0.2, 1.6)], rim: [0xffffff, 0.5, new THREE.Vector3(0.6, 1.6, -2.2)] },
 };
 
-function keyOf(o: PortraitOpts, w: number, h: number): string {
-  const a = o.key ?? (o.who ?? (o.app ? JSON.stringify(o.app) : 's' + (o.seed ?? 0)));
+/** what makes a different render (person, clothes, light, framing); size, tone and ground are 2D work on top */
+function baseKey(o: PortraitOpts): string {
+  const a = o.key ?? (o.who ?? (o.app ? JSON.stringify(o.app) : 's' + castSeed(o.seed ?? 0)));
   const out = typeof o.outfit === 'object' ? JSON.stringify(o.outfit) : (o.outfit ?? '');
-  return [a, out, w, h, o.frame ?? 'bust', o.light ?? 'studio', o.bg === null ? 'none' : (o.bg ?? -1), o.tone ?? 'color', (o.yaw ?? 0).toFixed(2), o.expr ?? '', o.ink ? 1 : 0].join('|');
+  return [a, out, o.frame ?? 'bust', o.light ?? 'studio', (o.yaw ?? 0).toFixed(2), o.expr ?? ''].join('|');
 }
+function keyOf(o: PortraitOpts, w: number, h: number): string {
+  return [baseKey(o), w, h, o.bg === null ? 'none' : (o.bg ?? -1), o.tone ?? 'color', o.ink ? 1 : 0].join('|');
+}
+/** the renders: BASE x BASE, transparent ground (null = this machine cannot render) */
+const BASE = 128;
+const bases = new Map<string, HTMLCanvasElement | null>();
+/** the derived pictures, per size / tone / ground */
 const cache = new Map<string, HTMLCanvasElement | null>();
 
 /** build the rig the options name */
 function makeRig(o: PortraitOpts, hd: boolean): HumanRig {
   // Dr. Calder: her own rig (make-up, glasses, the coat, the badge)
   if (o.who === 'calder') return createResearcher({ glasses: true, name: 'Dr. Iris Calder' });
-  const seed = o.seed ?? 0;
+  const seed = castSeed(o.seed ?? 0);
   const app = o.app ? normalizeAppearance(o.app) : stockLook(seed);
   const rig = new HumanRig(app, worldMaterial({ noVis: true, noFog: true, noGrid: true }), { secondary: true, hd });
   const outfit = typeof o.outfit === 'object' ? o.outfit : uniformOutfit(o.outfit ?? 'civilian', seed);
@@ -118,12 +129,11 @@ function makeRig(o: PortraitOpts, hd: boolean): HumanRig {
   return rig;
 }
 
-/** render at a supersampled size, then box-filter down to w x h */
-function render(o: PortraitOpts, w: number, h: number): HTMLCanvasElement | null {
+/** the 3D render: the rig lit and framed, supersampled 2x, box-filtered to BASE x BASE (alpha kept) */
+function renderBase(o: PortraitOpts): HTMLCanvasElement | null {
   const r = renderer();
   if (!r) return null;
-  const ss = Math.max(2, Math.min(6, Math.round(160 / Math.max(w, h))));
-  const W = w * ss, H = h * ss;
+  const ss = 2, W = BASE * ss, H = BASE * ss;
   const scene = new THREE.Scene();
   const L = LIGHTS[o.light ?? 'studio'];
   scene.add(new THREE.HemisphereLight(L.hemi[0], L.hemi[1], L.hemi[2]));
@@ -132,57 +142,73 @@ function render(o: PortraitOpts, w: number, h: number): HTMLCanvasElement | null
   let rig: HumanRig | null = null;
   const glowN = GLOWU.uGlowN.value;
   try {
-    rig = makeRig(o, Math.max(w, h) > 72);
+    rig = makeRig(o, false);
     scene.add(rig.root);
     if (o.expr) rig.setExpression(o.expr, 99);
     for (let i = 0; i < 3; i++) rig.update(1 / 30);
     if (o.yaw) rig.root.rotation.y = o.yaw;
     rig.root.updateMatrixWorld(true);
-    const head = rig.jointWorld('head'), neck = rig.jointWorld('neck'), chest = rig.jointWorld('chest');
+    const head = rig.jointWorld('head'), chest = rig.jointWorld('chest');
     const s = Math.max(0.2, head.y - chest.y);
     const fr = o.frame ?? 'bust';
-    // the picture's vertical span (m) and where its middle sits
-    // (the head bone sits at the jaw: the hair's crown is ~0.75 s above it, the chin ~0.2 s below)
+    // the picture's vertical span (m): the head bone sits at the jaw, the hair's crown ~0.8 s above it
     const top = head.y + s * 0.86, bot = head.y - (fr === 'head' ? s * 0.42 : fr === 'chest' ? s * 1.65 : s * 1.0);
     const span = top - bot, midY = (top + bot) / 2;
-    void neck;
-    const cam = new THREE.PerspectiveCamera(18, W / H, 0.05, 20);
+    const cam = new THREE.PerspectiveCamera(18, 1, 0.05, 20);
     const dist = (span / 2) / Math.tan(THREE.MathUtils.degToRad(9));
     cam.position.set(head.x, midY + s * 0.04, head.z + dist);
     cam.lookAt(head.x, midY, head.z);
     GLOWU.uGlowN.value = 0;
     r.setSize(W, H, false);
-    if (o.bg === null) r.setClearColor(0x000000, 0); else r.setClearColor(o.bg ?? 0x5a5e5a, 1);
+    r.setClearColor(0x000000, 0);
     r.clear(true, true, true);
     r.render(scene, cam);
   } catch (e) {
     console.warn('portrait', e);
-    GLOWU.uGlowN.value = glowN;
     return null;
   } finally {
     GLOWU.uGlowN.value = glowN;
     if (rig) { scene.remove(rig.root); try { rig.dispose(); } catch { /* ok */ } }
     scheduleRelease();
   }
-  // read back and box-filter
   const big = document.createElement('canvas'); big.width = W; big.height = H;
   const bc = big.getContext('2d', { willReadFrequently: true })!;
   bc.drawImage(r.domElement, 0, 0);
-  const src = bc.getImageData(0, 0, W, H).data;
+  return boxDown(bc.getImageData(0, 0, W, H).data, W, H, 0, 0, W, H, BASE, BASE);
+}
+/** alpha-weighted box filter of a crop of src into a w x h canvas */
+function boxDown(src: Uint8ClampedArray, SW: number, _SH: number, cx: number, cy: number, cw: number, ch: number, w: number, h: number): HTMLCanvasElement {
   const out = document.createElement('canvas'); out.width = w; out.height = h;
   const oc = out.getContext('2d', { willReadFrequently: true })!;
-  const img = oc.createImageData(w, h);
-  const d = img.data;
-  const tone = o.tone ?? 'color';
+  const img = oc.createImageData(w, h), d = img.data;
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-    let rr = 0, gg = 0, bb = 0, aa = 0;
-    for (let j = 0; j < ss; j++) for (let i = 0; i < ss; i++) {
-      const k = ((y * ss + j) * W + (x * ss + i)) * 4, a = src[k + 3];
-      rr += src[k] * a; gg += src[k + 1] * a; bb += src[k + 2] * a; aa += a;
+    const x0 = cx + (x / w) * cw, x1 = cx + ((x + 1) / w) * cw, y0 = cy + (y / h) * ch, y1 = cy + ((y + 1) / h) * ch;
+    let rr = 0, gg = 0, bb = 0, aa = 0, n = 0;
+    for (let j = Math.floor(y0); j < Math.max(Math.floor(y0) + 1, Math.ceil(y1)); j++) for (let i = Math.floor(x0); i < Math.max(Math.floor(x0) + 1, Math.ceil(x1)); i++) {
+      const k = (j * SW + i) * 4, a = src[k + 3];
+      rr += src[k] * a; gg += src[k + 1] * a; bb += src[k + 2] * a; aa += a; n++;
     }
-    const n = ss * ss, k = (y * w + x) * 4;
-    if (aa <= 0) { d[k + 3] = 0; continue; }
-    let R0 = rr / aa, G0 = gg / aa, B0 = bb / aa;
+    const k = (y * w + x) * 4;
+    if (aa > 0) { d[k] = rr / aa; d[k + 1] = gg / aa; d[k + 2] = bb / aa; }
+    d[k + 3] = n ? aa / n : 0;
+  }
+  oc.putImageData(img, 0, 0);
+  return out;
+}
+/** the picture at w x h from its render: cropped to the aspect (the head kept in), tone, ground, ink */
+function derive(base: HTMLCanvasElement, o: PortraitOpts, w: number, h: number): HTMLCanvasElement {
+  const src = base.getContext('2d', { willReadFrequently: true })!.getImageData(0, 0, BASE, BASE).data;
+  const a = w / h;
+  const cw = a <= 1 ? BASE * a : BASE, ch = a <= 1 ? BASE : BASE / a;
+  const out = boxDown(src, BASE, BASE, (BASE - cw) / 2, a <= 1 ? 0 : (BASE - ch) * 0.3, cw, ch, w, h);
+  const oc = out.getContext('2d', { willReadFrequently: true })!;
+  const img = oc.getImageData(0, 0, w, h), d = img.data;
+  const tone = o.tone ?? 'color', bg = o.bg === undefined ? 0x5a5e5a : o.bg;
+  const br = bg === null ? 0 : (bg >> 16) & 255, bgc = bg === null ? 0 : (bg >> 8) & 255, bb = bg === null ? 0 : bg & 255;
+  for (let k = 0; k < d.length; k += 4) {
+    let R0 = d[k], G0 = d[k + 1], B0 = d[k + 2];
+    const A = d[k + 3] / 255;
+    if (bg !== null) { R0 = R0 * A + br * (1 - A); G0 = G0 * A + bgc * (1 - A); B0 = B0 * A + bb * (1 - A); }
     if (tone !== 'color') {
       const lum = R0 * 0.3 + G0 * 0.59 + B0 * 0.11;
       if (tone === 'grey') { R0 = G0 = B0 = lum; }
@@ -190,17 +216,53 @@ function render(o: PortraitOpts, w: number, h: number): HTMLCanvasElement | null
       else { R0 = R0 * 0.55 + lum * 0.45 + 22; G0 = G0 * 0.55 + lum * 0.45 + 14; B0 = B0 * 0.5 + lum * 0.4 + 4; }
     }
     d[k] = R0; d[k + 1] = G0; d[k + 2] = B0;
-    const A = aa / n;
-    d[k + 3] = o.bg === null ? (A > 110 ? 255 : 0) : 255;
+    d[k + 3] = bg !== null ? 255 : (A > 0.45 ? 255 : 0);
   }
-  if (o.ink && o.bg === null) {
-    const a = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 0;
+  if (o.ink && bg === null) {
+    const on = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && d[(y * w + x) * 4 + 3] > 0;
     const edge: number[] = [];
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!a(x, y) && (a(x - 1, y) || a(x + 1, y) || a(x, y - 1) || a(x, y + 1))) edge.push((y * w + x) * 4);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!on(x, y) && (on(x - 1, y) || on(x + 1, y) || on(x, y - 1) || on(x, y + 1))) edge.push((y * w + x) * 4);
     for (const k of edge) { d[k] = 12; d[k + 1] = 10; d[k + 2] = 9; d[k + 3] = 255; }
   }
   oc.putImageData(img, 0, 0);
   return out;
+}
+function baseOf(o: PortraitOpts): HTMLCanvasElement | null {
+  const bk = baseKey(o);
+  if (bases.has(bk)) return bases.get(bk)!;
+  const b = renderBase(o);
+  if (b || failed) bases.set(bk, b);
+  return b;
+}
+
+// ------------------------------------------------------------------ later: renders queued off the frame
+const queue = new Map<string, { o: PortraitOpts; cbs: (() => void)[] }>();
+let pumping = false;
+function pump() {
+  if (pumping) return;
+  pumping = true;
+  const step = () => {
+    const first = queue.entries().next();
+    if (first.done) { pumping = false; return; }
+    const [bk, job] = first.value;
+    queue.delete(bk);
+    if (!bases.has(bk)) { const b = renderBase(job.o); bases.set(bk, b); }
+    for (const cb of job.cbs) { try { cb(); } catch (e) { console.warn('portrait ready', e); } }
+    const ric = (globalThis as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+    if (ric) ric(step, { timeout: 400 }); else setTimeout(step, 40);
+  };
+  // (a breath first: whatever queued them is usually still building its scene)
+  setTimeout(step, 1200);
+}
+/** is the render for these options already made (drawing is then instant) */
+export function portraitReady(o: PortraitOpts): boolean { return bases.has(baseKey(o)); }
+/** have the render made off the frame; cb runs once it exists (at once if it does) */
+export function portraitLater(o: PortraitOpts, cb: () => void) {
+  if (portraitReady(o) || failed) { cb(); return; }
+  const bk = baseKey(o);
+  const j = queue.get(bk);
+  if (j) j.cbs.push(cb); else queue.set(bk, { o, cbs: [cb] });
+  pump();
 }
 
 /** the portrait as a canvas of exactly w x h pixels (cached); null where WebGL is unavailable */
@@ -208,9 +270,10 @@ export function portraitCanvas(o: PortraitOpts = {}): HTMLCanvasElement | null {
   const w = Math.max(2, Math.round(o.w ?? 48)), h = Math.max(2, Math.round(o.h ?? 56));
   const k = keyOf(o, w, h);
   if (cache.has(k)) return cache.get(k)!;
-  const c = render(o, w, h);
+  const b = baseOf(o);
+  const c = b ? derive(b, o, w, h) : null;
   if (c || failed) cache.set(k, c);
-  if (cache.size > 400) { const first = cache.keys().next().value; if (first !== undefined) cache.delete(first); }
+  if (cache.size > 600) { const first = cache.keys().next().value; if (first !== undefined) cache.delete(first); }
   return c;
 }
 /** a data URL of the portrait ('' without WebGL) */
@@ -224,8 +287,13 @@ export function portraitURL(o: PortraitOpts = {}): string {
   urls.set(k, u);
   return u;
 }
-/** draw the portrait into a 2D canvas, pixel for pixel (false: nothing drawn) */
-export function drawPortrait(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, o: PortraitOpts = {}): boolean {
+/**
+ * draw the portrait into a 2D canvas, pixel for pixel. With `later`, a render that is not made yet is
+ * queued instead (nothing is drawn now) and later() runs when it is ready, to repaint. false: nothing drawn.
+ */
+export function drawPortrait(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, o: PortraitOpts = {}, later?: () => void): boolean {
+  w = Math.round(w); h = Math.round(h);
+  if (later && !portraitReady(o)) { portraitLater(o, later); return false; }
   const c = portraitCanvas({ ...o, w, h });
   if (!c) return false;
   const sm = ctx.imageSmoothingEnabled;
@@ -236,14 +304,19 @@ export function drawPortrait(ctx: CanvasRenderingContext2D, x: number, y: number
 }
 /** anything with a w x h RGBA pixel store (the texture atlases' PixelCanvas) */
 export interface PixelTarget { w: number; h: number; data: Uint8ClampedArray }
-/** copy the portrait into a pixel canvas; without WebGL it leaves a plain fill (fallback colour) so no face is ever drawn by hand */
-export function blitPortrait(pc: PixelTarget, x: number, y: number, w: number, h: number, o: PortraitOpts = {}, fallback = 0x4a4c48): boolean {
+/**
+ * copy the portrait into a pixel canvas. Until its render exists the box gets a plain photo-grey fill
+ * (never a drawn face); with `later` the render is queued and later() repaints, without it it is made now.
+ */
+export function blitPortrait(pc: PixelTarget, x: number, y: number, w: number, h: number, o: PortraitOpts = {}, fallback = 0x4a4c48, later?: () => void): boolean {
   x = Math.round(x); y = Math.round(y); w = Math.round(w); h = Math.round(h);
-  const c = w > 1 && h > 1 ? portraitCanvas({ ...o, w, h }) : null;
   const put = (px: number, py: number, r: number, g: number, b: number) => {
     if (px < 0 || py < 0 || px >= pc.w || py >= pc.h) return;
     const k = (py * pc.w + px) * 4; pc.data[k] = r; pc.data[k + 1] = g; pc.data[k + 2] = b; pc.data[k + 3] = 255;
   };
+  const wait = !!later && !portraitReady(o);
+  if (wait) portraitLater(o, later!);
+  const c = !wait && w > 1 && h > 1 ? portraitCanvas({ ...o, w, h }) : null;
   if (!c) {
     if (o.bg !== null) for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, (fallback >> 16) & 255, (fallback >> 8) & 255, fallback & 255);
     return false;
@@ -256,5 +329,19 @@ export function blitPortrait(pc: PixelTarget, x: number, y: number, w: number, h
   }
   return true;
 }
-/** dev: how many portraits are cached */
-export function portraitCacheSize() { return cache.size; }
+/** a repaint for an atlas texture once its portraits are made (several portraits on one texture repaint it once) */
+const atlasDue = new Set<string>();
+let atlasT: ReturnType<typeof setTimeout> | 0 = 0;
+export function atlasRepaint(name: string): () => void {
+  return () => {
+    atlasDue.add(name);
+    if (atlasT) return;
+    atlasT = setTimeout(() => {
+      atlasT = 0;
+      const names = [...atlasDue]; atlasDue.clear();
+      void import('../gfx/atlas').then(({ atlas }) => { for (const n of names) try { atlas().repaint(n); } catch (e) { console.warn('portrait repaint', e); } });
+    }, 120);
+  };
+}
+/** dev: how many renders are made */
+export function portraitCacheSize() { return bases.size; }

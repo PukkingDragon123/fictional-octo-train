@@ -171,21 +171,21 @@ export class Camp {
       else if (o.state.on && (o.state.fuel ?? 0) > 0 && objDef(o.key)?.tags?.includes('generator')) { const c = centreOf(o); gens.push({ x: c.x, z: c.z, uid: o.uid }); }
     }
     const pts: { x: number; z: number; r: number }[] = gens.map((g) => ({ x: g.x, z: g.z, r: GEN_R }));
-    const links: [number, number, number, number][] = [];
+    const links: [number, number, number, number, number][] = [];
     if (gens.length && poles.length) {
       const live = new Set<number>();
       // breadth-first: a pole in reach of a generator (or a live pole) goes live
-      let frontier: { x: number; z: number; r: number }[] = gens.map((g) => ({ x: g.x, z: g.z, r: GEN_R }));
+      let frontier: { x: number; z: number; r: number; y: number }[] = gens.map((g) => ({ x: g.x, z: g.z, r: GEN_R, y: 1.1 }));
       while (frontier.length) {
-        const next: { x: number; z: number; r: number }[] = [];
+        const next: { x: number; z: number; r: number; y: number }[] = [];
         for (const pl of poles) {
           if (live.has(pl.uid)) continue;
-          let best: { x: number; z: number; r: number } | null = null, bd = 1e9;
+          let best: { x: number; z: number; r: number; y: number } | null = null, bd = 1e9;
           for (const f of frontier) { const d = Math.hypot(f.x - pl.x, f.z - pl.z); if (d < f.r && d < bd) { bd = d; best = f; } }
           if (!best) continue;
           live.add(pl.uid);
-          links.push([best.x, best.z, pl.x, pl.z]);
-          const q = { x: pl.x, z: pl.z, r: POLE_R };
+          links.push([best.x, best.z, pl.x, pl.z, best.y]);
+          const q = { x: pl.x, z: pl.z, r: POLE_R, y: 2.42 };
           pts.push(q); next.push(q);
         }
         frontier = next;
@@ -197,15 +197,15 @@ export class Camp {
     if (prev?.sig !== sig) { try { refreshUnpowered(z); } catch { /* no zone view */ } z.lightDirty = true; }
     if (z.key === G.local?.zoneKey) this.drawCables(z, links);
   }
-  private drawCables(z: Zone, links: [number, number, number, number][]) {
+  private drawCables(z: Zone, links: [number, number, number, number, number][]) {
     const sig = links.map((l) => l.join(',')).join('|');
     if (sig === this.cableSig) return;
     this.cableSig = sig;
     if (this.cables) { G.pr.scene.remove(this.cables); this.cables.geometry.dispose(); this.cables = null; }
     if (!links.length) return;
     const mb = new ModelBuilder();
-    for (const [ax, az, bx, bz] of links) {
-      const ya = z.heightAt(Math.floor(ax), Math.floor(az)) + 2.42, yb = z.heightAt(Math.floor(bx), Math.floor(bz)) + 2.42;
+    for (const [ax, az, bx, bz, h0] of links) {
+      const ya = z.heightAt(Math.floor(ax), Math.floor(az)) + h0, yb = z.heightAt(Math.floor(bx), Math.floor(bz)) + 2.42;
       const L = Math.hypot(bx - ax, bz - az), sag = Math.min(0.6, 0.05 + L * 0.04);
       const N = Math.max(6, Math.round(L * 1.5));
       // two conductors, one either side of the cross-arm, hanging in a catenary
@@ -258,7 +258,7 @@ export class Camp {
         m.rotation.y += dt * (o.state.hit && G.time - o.state.hit < 1 ? 16 : 9);
       } else if (o.key === 'bld_siren' && (this.wail.get(o.uid) ?? 0) > G.time) {
         const k = 0.5 + 0.5 * Math.sin(G.time * 9);
-        G.pointLight(o.x + 0.5 + Math.cos(G.time * 6) * 0.6, z.heightAt(o.x, o.y) + 1.8, o.y + 0.5 + Math.sin(G.time * 6) * 0.6, 0xff2a1a, 1.2 + k * 2.4, 8);
+        G.pointLight(o.x + 0.5 + Math.cos(G.time * 6) * 0.6, z.heightAt(o.x, o.y) + 1.8, o.y + 0.5 + Math.sin(G.time * 6) * 0.6, 0xff2a1a, 0.7 + k * 1.5, 7);
       }
     }
     for (const [u, m] of this.flails) if (!seen.has(u)) { G.pr.scene.remove(m); this.flails.delete(u); }
@@ -292,6 +292,7 @@ export class Camp {
     for (const o of z.objects.values()) {
       let rate = 0, cap = 0, clean = false;
       if (o.key === 'bld_rain_barrel' || o.key === 'bld_rain') { cap = objDef(o.key)?.water?.capacity ?? 30; rate = rain && z.isOutdoor(o.x, o.y) ? 8 : 0.35; }
+      else if (o.key === 'gn_pipes') { cap = 4; rate = 0.6; } // a leaking pipe run drips into its can (src/build/gather.ts)
       else if (o.key === 'bld_condenser') { cap = 16; clean = true; rate = this.powered(z, o) ? 0.9 : 0.35; }
       else if (o.key === 'bld_still') {
         cap = 12; clean = true;

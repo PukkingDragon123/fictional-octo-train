@@ -93,8 +93,9 @@ export function generateChess(z: Zone, seed: number) {
     sky: true, sun: 0xf4eeff, sunI: 1.05, skyColor: 0xb8a8ff, outdoorAmbient: 0x9890c0,
     grade: 'chess', reverb: 'void', ambience: 'void', music: '', weather: 'none',
   };
-  z.spawnTable = [['chess_rook', 2], ['chess_knight', 2]];
-  z.creatureCap = 3;
+  // the marble pieces, and the toy-box natives (src/creatures/species/chess_toys.ts): the clock, the pawns, the case
+  z.spawnTable = [['chess_rook', 2], ['chess_knight', 2], ['chess_pawn', 2.2], ['chess_clock', 1.2], ['chess_case', 1.4]];
+  z.creatureCap = 5;
   z.meta.dimension = 'chess';
 }
 

@@ -5,6 +5,7 @@ import {
   txt, scribble, fillR, border, legs4, rlegs4, knob, hbar, vbar,
 } from './a_lib';
 import type { ModelBuilder } from './a_lib';
+import { blitPortrait, atlasRepaint } from '../../entities/portrait';
 
 const T = (...t: string[]) => ['setA', ...t];
 const on = (s: any) => !(s.on === false || s.broken || s.unpowered);
@@ -91,11 +92,10 @@ addTextureModule(() => {
     pc.set(9, 8, 0x303030); pc.set(10, 9, 0x303030);
     for (let k = 0; k < 4; k++) pc.set(8 + (k & 1), 8 + k, 0x101010); // scribbled-out third figure
     pc.set(7, 4, 0xe04060); // magnet
-    // polaroid with a blurred face
+    // polaroid with a blurred face (a HumanRig render, entities/portrait.ts, blurred on top)
     pc.rect(13, 5, 7, 8, 0xf6f6f2); pc.rect(14, 6, 5, 5, 0x8aa0b0);
-    pc.ellipse(16.5, 8.5, 1.6, 2, 0xc8a890);
+    blitPortrait(pc, 14, 6, 5, 5, { seed: 383, light: 'studio', bg: 0x8aa0b0 }, 0x8aa0b0, atlasRepaint('p_fridge_door'));
     for (let y = 7; y < 11; y++) for (let x = 15; x < 19; x++) if (ph(x, y, 9) < 0.55) pc.set(x, y, mixHex(pc.get(x, y), 0xb0a8a0, 0.6));
-    pc.rect(14, 10, 5, 1, 0x4a5a7a);
     pc.set(16, 5, 0x30a0e0);
     // letter magnets
     txt(pc, 'HI', 3, 16, 0xe03030, 1); pc.set(5, 18, 0x30a040);

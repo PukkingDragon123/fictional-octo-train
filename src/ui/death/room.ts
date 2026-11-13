@@ -16,6 +16,7 @@ import { hasItemDef } from '../../items/item';
 import { U } from '../../gfx/materials';
 import { SPOTU } from '../../gfx/postfx';
 import { bitText } from '../../gfx/bitfont';
+import { drawPortrait } from '../../entities/portrait';
 import { facetMats, disposeFacetMats, plateTex, type FMats, type FKey } from '../menus/scene/pixtex';
 import { FacetBuilder, at, cbox, prism, lathe, extrude, tube, band, gem, bolt, hull, jitter } from '../menus/scene/facet';
 import { makePost } from '../menus/scene/post';
@@ -314,16 +315,18 @@ export class ObsRoom {
     bitText(c, 'WALL OF SHAME', 80, 6, { font: 'body', color: '#7a1a10', outline: null, shadow: null, align: 'center' });
     const photos: [number, number][] = [];
     for (let row = 0; row < 2; row++) for (let col = 0; col < 6; col++) photos.push([10 + col * 24 + Math.floor(r() * 4), 26 + row * 34 + Math.floor(r() * 4)]);
+    let texRef: THREE.CanvasTexture | null = null;
     photos.forEach(([px, py], i) => {
       c.fillStyle = '#1a140c'; c.fillRect(px + 1, py + 1, 19, 25);
       c.fillStyle = '#e8e2d0'; c.fillRect(px, py, 19, 25);
       c.fillStyle = ['#3a4a3a', '#4a3a2a', '#2a3a4a', '#4a4a3a'][i % 4]; c.fillRect(px + 2, py + 2, 15, 15);
-      // a head and shoulders
-      c.fillStyle = ['#c8a080', '#a07050', '#e0b898', '#7a5038'][Math.floor(r() * 4)];
-      c.fillRect(px + 7, py + 5, 5, 6); c.fillRect(px + 4, py + 12, 11, 5);
-      c.fillStyle = '#2a2018'; c.fillRect(px + 7, py + 4, 5, 2);
+      // the dead unit, flash-lit: a render of a HumanRig (entities/portrait.ts), the red cross over it
+      const crossed = (r(), r() < 0.75);
+      const cross = () => { if (!crossed) return; c.fillStyle = '#c01a10'; for (let k = 0; k < 13; k++) { c.fillRect(px + 3 + k, py + 3 + k, 2, 1); c.fillRect(px + 15 - k, py + 3 + k, 2, 1); } };
+      const po = { seed: 340 + (i % 8), outfit: 'jumpsuit' as const, light: 'flash' as const, bg: null };
+      drawPortrait(c, px + 2, py + 2, 15, 15, po, () => { drawPortrait(c, px + 2, py + 2, 15, 15, po); cross(); if (texRef) texRef.needsUpdate = true; });
       c.fillStyle = '#6a6458'; c.fillRect(px + 3, py + 20, 12, 1); c.fillRect(px + 3, py + 22, 8, 1);
-      if (r() < 0.75) { c.fillStyle = '#c01a10'; for (let k = 0; k < 13; k++) { c.fillRect(px + 3 + k, py + 3 + k, 2, 1); c.fillRect(px + 15 - k, py + 3 + k, 2, 1); } }
+      cross();
       c.fillStyle = ['#d02a20', '#2a8a30', '#d8c020'][i % 3]; c.fillRect(px + 8, py - 1, 3, 3); c.fillStyle = '#ffffff'; c.fillRect(px + 8, py - 1, 1, 1);
     });
     // red string between a few of them
@@ -333,6 +336,7 @@ export class ObsRoom {
     const tex = new THREE.CanvasTexture(cv);
     tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;
     this.texs.push(tex);
+    texRef = tex;
     const g = new THREE.Group();
     const bw = 1.5, bh = bw * H / W;
     const face = new THREE.Mesh(new THREE.PlaneGeometry(bw, bh), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.9, metalness: 0, flatShading: true }));

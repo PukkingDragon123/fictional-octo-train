@@ -571,6 +571,7 @@ const STALKER = def({
   hp: 150, walk: 0.9, run: 3.5, turn: 5, radius: 0.36, height: 2.35, sight: 24, fov: 2.4, hearing: 1.2,
   attack: { dmg: [14, 24], range: 1.25, cooldown: 2.4, kinds: ['laceration', 'bruise', 'deep'], corrupt: 0.03, knock: 0.6, grab: true, parts: ['neck', 'head', 'torso_u', 'uarm_l', 'uarm_r'] },
   zones: ['lobby'], weight: 0.3, group: [1, 1], maxPerZone: 1, diet: 'meat',
+  meat: [['strider_skin', 1], ['long_bone', 1]],
   disposition: { mood: 'predator', self: true },
   sounds: { idle: 'whisper', alert: 'still_neck', attack: 'dmg_grab', hurt: 'debtor_grunt', death: 'still_fall', step: 'carpet_rustle' },
   scan: {

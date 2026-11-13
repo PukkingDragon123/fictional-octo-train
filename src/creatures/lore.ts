@@ -172,6 +172,19 @@ export const INHABITANTS: InhabitantLore[] = [
     ],
   }),
 
+  L({
+    id: 'stalker', name: 'Stalker', rank: 'envy', class: 'Mimic', danger: 7,
+    summary: 'You, made again from the outside: your face, your suit (nearly; it has no hood), your lamp on its temple, two and a half metres tall. Its legs are too long and the left one longer still; it will not bend, so it drags it, toes down, behind the good one. Its arms hang past its knees. Its head is the wrong size for it, its eyes are too round and too pale, and its face will not hold still: it flickers between smiles.',
+    biology: 'Nobody has dissected one that looked like anyone but the unit who killed it. The body is human, stretched: long bones lengthened at the growth plates, a neck half again too long, the dragged leg\'s knee fused straight. The skin is a few shades paler than the original and older by a decade. The suit is not cloth; it is skin, coloured and creased like the suit, with the number almost right. Its lamp works. Calder\'s view is that it is not a predator of units so much as of the link: it learns the operator, not the body.',
+    behaviour: 'It walks where you walked and does what you did, a few seconds late: crouches where you crouched, picks up what you picked up, switches its lamp when you switched yours. Every action it copies, and every second it can see you, the gap closes. Look straight at it and it stops and copies you face to face, now. Now and then it does something you did not do (it crouches, works its lamp, stops dead with its hands out) and waits: do it back quickly and it smiles and drops back. Fail to, hit it, or let it catch all the way up, and it comes for you in a dragging, lurching run, takes you by the throat, then backs off and starts again. It needs to see you to copy you: put a shut door between you and wait, and it walks to the end of the trail it saw and loses you.',
+    habitat: 'Level 0, rarely, and the beige levels that look like it (Annex B, the Cubicles). Never more than one.',
+    lore: 'The first report came from an operator who thought, for most of a shift, that the unit on her screen was being followed by another unit from the same intake. Then it turned round and she saw its face. Calder\'s note on the file: "It is copying the operator, not the debtor. It has learned what the link looks like from the outside. Do not play its game longer than you must. Every time you copy it back, it is a little more you."',
+    harvest: [
+      { item: 'strider_skin', how: 'Peel a strip of the stretched skin (it is your colour).' },
+      { item: 'long_bone', how: 'Take one of the lengthened finger bones.' },
+    ],
+  }),
+
   // ============================================================== round 15: the cull's replacements
   L({
     id: 'driller', name: 'Driller', rank: 'wrath', class: 'Remnant', danger: 7,
@@ -370,6 +383,44 @@ export const INHABITANTS: InhabitantLore[] = [
     habitat: 'The Board.',
     lore: 'There are always two of them, one on each colour, and they never look at each other. Calder\'s survival card for the Board has one line for the Bishops: "Know your colour."',
     harvest: [{ item: 'marble_chip', how: 'Chips of the body.' }],
+  }),
+  L({
+    id: 'chess_clock', name: 'Flagfall', rank: 'wrath', class: 'Statute', danger: 5,
+    summary: 'A twin-dial tournament chess clock the size of a sideboard: a walnut-veneered case, two cream dials behind chrome bezels, a little red flag hanging at twelve on each, two chrome plunger buttons on top, a brass carrying handle. It walks on four turned spindle legs with green felt pads under the feet.',
+    biology: 'Wood, brass and clockwork all the way through, and alive: the mainsprings flex like muscle and the escapement ticks like a pulse, faster when it is excited. The lower front panel is a jaw hinged at the bottom, its top edge filed into teeth, and behind it the brass wheels turn in a wet red throat. Cut it and it bleeds clock oil. One dial keeps the Board\'s time and creeps. The other is for whoever it is standing next to.',
+    behaviour: 'It moves like a king: one square in any direction on its tick, always toward the nearest unit, until it is standing on a square that touches yours. Then it presses its button and your dial starts. The hand climbs toward twelve while you stay within one square of it, and stops (but does not go back) when you step two squares off. As the hand reaches the top it lifts the little red flag; when the flag falls the clock rears up on its spindle legs and comes down on every square around it. Strike its button (hit it at all) and it stops your clock, knocks your hand back, and the whole Board waits a move: no piece moves until the next knock.',
+    habitat: 'The Board. Never more than one; it is always found near the Gallery end, as if it had been put down beside the set.',
+    lore: 'Every Institute operator who has played a tournament game recognises the model: the twin-faced wind-up kind, with the flags, that used to be in every school chess club cupboard. Calder\'s note: "It does not want to kill you. It wants you to make your move. Do not stand next to it thinking." Units who have struck its button report the same thing: the Board goes absolutely silent, and for a moment every piece on it turns to look at them.',
+    harvest: [
+      { item: 'spring', how: 'Pry the mainsprings out of a dead one (they are still wound).' },
+      { item: 'gear', how: 'Take the brass wheels from behind the jaw.' },
+    ],
+  }),
+  L({
+    id: 'chess_pawn', name: 'Boxwood Pawn', rank: 'gluttony', class: 'Statute', danger: 3,
+    summary: 'A wooden pawn as tall as your hip, turned from honey-coloured boxwood (or ebonised black, the pale wood showing at the knocks), worn smooth by hands that are not there, with a peeling disc of green baize glued under its foot. Someone has cut a face into the knob with a penknife. The knob splits round the middle into a mouth full of teeth.',
+    biology: 'Living turned wood with a slug of lead poured into the foot, which is how it stands back up whenever it is knocked over. It hops, the lead thumping on the squares, and wobbles when it lands the way a wooden piece does. It has no stomach: what it takes, the square keeps. The faces are all different and all crude, and the Institute has found the same initials scratched under the felt of every one it has opened.',
+    behaviour: 'They come in a rank, from the far side of the Board, and they keep the rules of pawns exactly: one square forward (toward the Gallery) when they move, or two on a pawn\'s first move; never backward; and they can only take on the two squares diagonally in front of them. A unit standing directly in front of one is perfectly safe, and the pawn cannot get past: it rocks on its foot at you, furious. Beside it or behind it you cannot be touched at all. They are slow (not every knock), except when a unit is close ahead. A pawn that reaches the last rank grows a crown and from then on moves like a queen, any distance along any line, and it is a different animal.',
+    habitat: 'The Board, in ranks of two to four.',
+    lore: 'The Board will not let them stay pawns. Observers who watched a pawn crowned say the crown comes up out of the knob like a tooth, and the pawn stands up straighter and turns, for the first time, to look at whoever is nearest. Calder\'s survival card: "Stand in front of the pawns. Never let one through."',
+    harvest: [
+      { item: 'boxwood_chunk', how: 'Split the dead pawn: dense turned boxwood, good fuel, good for carving.' },
+      { item: 'lead_weight', how: 'Knock the lead slug out of its foot.' },
+      { item: 'baize_felt', how: 'Peel the green felt off the bottom.' },
+    ],
+  }),
+  L({
+    id: 'chess_case', name: 'Folding Board', rank: 'greed', class: 'Statute', danger: 5,
+    summary: 'The box the set came in: a hinged walnut folding chessboard closed like a clam, inlaid squares on both outside faces, brass corners and a brass clasp. Inside it is lined with green baize and pressed with piece-shaped hollows, and its rim, both halves, is set all round with teeth. Something with yellow eyes looks out from the places where the king and queen are kept.',
+    biology: 'A box that has become a mouth. The lid and the base are one animal joined at the brass hinges, which flex like a jaw joint and creak when it breathes, lifting the lid a crack. Loose pieces rattle around in the hollows; some of them are not from this set. Overturned, it cannot right itself quickly: the hinge only works one way.',
+    behaviour: 'On its knock it moves exactly two squares along a rank or file, never one, never diagonally, like a king castling: it opens onto the first square and bites down on it, then hauls itself over onto the second and bites that. Both squares light up red first. The squares right beside it and every diagonal are safe. Between moves it keeps its hinge turned away from you and watches you through the gap. A heavy enough blow turns it over on its back, rocking, for a few seconds.',
+    habitat: 'The Board. One or two, usually near the edges.',
+    lore: 'Calder: "It is the most dangerous thing on the Board that is not a piece, because it is the only thing there that keeps what it takes. Every unit we have lost on the Board was later seen in a scan of its hollows. Small. Turned. Lacquered. Standing in a row with the spare pawns." The Institute has asked units to stop putting things into it.',
+    harvest: [
+      { item: 'baize_felt', how: 'Strip the green baize lining.' },
+      { item: 'plank', how: 'Break up the walnut boards.' },
+      { item: 'boxwood_chunk', how: 'Collect the loose pieces from its hollows.' },
+    ],
   }),
   L({
     id: 'lamplighter', name: 'Lamplighter', rank: 'sloth', class: 'Familiar', danger: 1,

@@ -9,6 +9,7 @@ import { makeRamp, mixHex, scaleHex, ph, bayer } from '../../gfx/pixel';
 import type { PixelCanvas } from '../../gfx/pixel';
 import type { ModelBuilder } from '../../gfx/modelBuilder';
 import { WZ, crtGlass } from './a_lib';
+import { blitPortrait, atlasRepaint } from '../../entities/portrait';
 
 const T = ['homestead', 'zw', 'home'];
 
@@ -19,26 +20,23 @@ function portrait(pc: PixelCanvas, v: number) {
   const bg = [0x7a8aa0, 0x9a8a6a, 0x6a7a6a, 0x8a7a8a][v % 4];
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) pc.set(x, y, mixHex(bg, 0x2a2a30, (y / H) * 0.35 + (bayer(x, y) < 0.15 ? 0.05 : 0)));
   const n = [4, 3, 5, 2][v % 4];
-  const cols = [0x3a4a6a, 0x8a3a3a, 0xd0a820, 0x4a6a4a, 0x6a4a6a];
+  // the family: renders of HumanRigs (entities/portrait.ts), never drawn; then each face smeared sideways like a thumb dragged through wet paint
+  const later = atlasRepaint('zw_portrait_' + v);
+  const people: { cx: number; top: number; hw: number; seed: number; jump?: boolean }[] = [];
   for (let i = 0; i < n; i++) {
     const cx = Math.round(((i + 0.5) / n) * W), small = i >= n - 1 && n > 2;
-    const top = small ? H * 0.5 : H * 0.28;
-    // body
-    for (let y = Math.round(top + 6); y < H; y++) for (let x = cx - 4; x <= cx + 4; x++) pc.set(x, y, cols[(i + v) % cols.length]);
-    // face: smeared sideways like a thumb dragged through wet paint
-    for (let y = Math.round(top); y < top + 6; y++) for (let x = cx - 3; x <= cx + 3; x++) pc.set(x, y, 0xd8b898);
-    for (let y = Math.round(top) - 1; y < top + 7; y++) for (let x = cx - 4; x <= cx + 6; x++) {
-      if (ph(x, y, 8501 + i) < 0.75) pc.blend(x, y, mixHex(0xd8b898, bg, 0.4), 0.85);
-    }
-    // hair above the smear stays perfectly sharp
-    for (let x = cx - 3; x <= cx + 3; x++) pc.set(x, Math.round(top) - 2, i % 2 ? 0x2a1a10 : 0x6a4a2a);
+    people.push({ cx, top: Math.round(small ? H * 0.42 : H * 0.14), hw: Math.max(3, Math.floor(W / n / 2) + 1), seed: 360 + ((v * 5 + i) % 9) });
   }
   // the one in the jumpsuit (the newest copy of the family has an extra member)
-  if (v === 3) {
-    const cx = W - 5;
-    for (let y = Math.round(H * 0.3 + 6); y < H; y++) for (let x = cx - 3; x <= cx + 3; x++) pc.set(x, y, 0xe0b828);
-    for (let y = Math.round(H * 0.3); y < H * 0.3 + 6; y++) for (let x = cx - 2; x <= cx + 2; x++) pc.set(x, y, 0xe8d8c8);
-  }
+  if (v === 3) people.push({ cx: W - 5, top: Math.round(H * 0.18), hw: 4, seed: 4471, jump: true });
+  for (const q of people) blitPortrait(pc, q.cx - q.hw, q.top, q.hw * 2 + 1, H - q.top, { seed: q.seed, outfit: q.jump ? 'jumpsuit' : 'civilian', light: 'studio', frame: 'chest', bg: null }, bg, later);
+  people.forEach((q, i) => {
+    if (q.jump) return;
+    const fy = q.top + Math.round((H - q.top) * 0.16), fh = Math.max(3, Math.round((H - q.top) * 0.2));
+    for (let y = fy; y < fy + fh; y++) for (let x = q.cx - q.hw + 1; x <= q.cx + q.hw + 2; x++) {
+      if (ph(x, y, 8501 + i) < 0.75) pc.blend(x, y, mixHex(pc.get(x - 2, y), bg, 0.35), 0.85);
+    }
+  });
 }
 
 addTextureModule(() => {

@@ -102,3 +102,13 @@ html .ft-menu.mx .ft-item:is(:hover, :focus, :focus-visible, :active, .px-down) 
 html .ft-menu.mx .ft-lg .ft-lab { font-size: 32px; }
 html .ft-menu.mx :is(.ft-md, .ft-sm) .ft-lab { font-size: 24px; color: inherit; }
 .ft-menu.mx > .tt4-gear { margin-top: 8px; }
+.ipnl .ip-key.mxk.has-i { padding-right: 32px; }
+@media (max-aspect-ratio: 1/1.05) {
+  /* portrait: the console stands centred at the bottom instead of spanning the screen */
+  /* (no transform here: it would capture the settings gear's fixed position) */
+  .tt3-menu.ft-menu.mx { left: 0; right: 0; width: fit-content; margin: 0 auto; transform: none; align-items: stretch; bottom: calc(10vh + 30px); }
+  .tt3-menu.ft-menu.mx > .tt3-cap { top: -126px !important; transform: none; }
+  .ft-menu.mx .ft-item { width: 236px !important; }
+}
+.pb.pb-mx.has-i { padding-right: 28px !important; }
+.pb.pb-mx.has-i > .mxi-cv { right: 7px; }

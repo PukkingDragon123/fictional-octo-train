@@ -161,6 +161,18 @@ export class HotbarStrip {
     (G as any).hotbar = this;
   }
 
+  /** a phone held upright: the rail hangs just under the body console (never over its machines); the touch
+   * keys' side columns start under the rail (--hb-bottom) */
+  private placePhone() {
+    const phone = isTouchMode() && window.innerWidth <= 520 && window.innerHeight > window.innerWidth;
+    if (!phone) { if (this.el.style.top) { this.el.style.top = ''; document.documentElement.style.removeProperty('--hb-bottom'); } return; }
+    const css = (G as any).hudBody?.st?.css as { y: number; h: number } | undefined;
+    const top = Math.round(css && css.h > 10 ? css.y + css.h + 4 : 64);
+    if (this.el.style.top !== top + 'px') this.el.style.top = top + 'px';
+    const bot = Math.round(top + this.el.offsetHeight);
+    document.documentElement.style.setProperty('--hb-bottom', bot + 'px');
+  }
+
   update(dt: number) {
     const p = G.local;
     const on = !this.hidden && !!p && ctxAllowed();
@@ -171,6 +183,7 @@ export class HotbarStrip {
     if (this.t > 0) return;
     this.t = 0.3;
     this.bcn?.alert(((G as any).survival?.threat ?? 0) > 0.45);
+    this.placePhone();
     const s = hotSlots(p);
     const sig = s.map((it) => (it ? it.uid + ':' + it.key + (p.handR === it || p.handL === it ? '*' : '') : '-')).join('|');
     if (sig === this.sig) return;

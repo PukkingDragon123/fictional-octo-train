@@ -9,6 +9,8 @@
 import * as THREE from 'three';
 import { PixelCanvas, makeRamp, mixHex, scaleHex } from '../../gfx/pixel';
 import { cssFont, fontsReady } from '../../gfx/crt';
+import { blitPortrait, stockLook } from '../../entities/portrait';
+import { G } from '../../game/G';
 
 let seed = 1;
 const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -408,9 +410,9 @@ export function idCard(no: string): THREE.Texture {
     const pc = new PixelCanvas(64, 40);
     pc.each((x, y) => pc.set(x, y, y < 9 ? 0xc8a032 : mixHex(0xece6d2, 0xd8d0b8, hash(x >> 2, y >> 2, 3) * 0.6)));
     pc.strokeRect(0, 0, 64, 40, 0x6a6250);
-    // photo
+    // photo: the unit itself, a HumanRig render in the jumpsuit (entities/portrait.ts)
     pc.rect(3, 12, 14, 17, 0x2c3329);
-    for (let y = 15; y < 29; y++) for (let x = 6; x < 14; x++) if (Math.hypot(x - 9.5, y - 18) < 3.2 || (y > 23 && Math.abs(x - 9.5) < 4 + (y - 23) * 0.4)) pc.set(x, y, 0x54604e);
+    blitPortrait(pc, 3, 12, 14, 17, { app: G?.local?.app ?? stockLook(4471), outfit: 'jumpsuit', light: 'mugshot', bg: 0x2c3329 }, 0x2c3329);
     // barcode
     for (let x = 20; x < 60; x++) if (hash(x, 1, 5) > 0.45) pc.vline(x, 31, 37, 0x1a1a1a);
     put(ctx, pc);

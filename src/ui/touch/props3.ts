@@ -116,7 +116,7 @@ export class ScanWand extends Thing {
   private lampM: THREE.ShaderMaterial;
   private a = 0; private glow = 0;
   constructor() {
-    super('scan');
+    super('qscan');
     this.elev = 52 * DEG; this.fit = 1.05; this.k = 1500;
     const m = new Mold();
     m.add(box(0.42, 0.14, 0.62, 0.2), M(0, 0.07, 0.06), (_x, y) => (y > 0.12 ? 0x6e7a4c : 0x56603c), SURF(PAINT, 0.8));

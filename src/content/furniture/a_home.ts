@@ -5,6 +5,7 @@ import {
   txt, txtC, scribble, fillR, crtGlass, legs4, rlegs4, knob, frontGrid, flipH,
 } from './a_lib';
 import type { ModelBuilder } from './a_lib';
+import { blitPortrait, atlasRepaint } from '../../entities/portrait';
 
 const T = (...t: string[]) => ['setA', ...t];
 const on = (s: any) => !(s.on === false || s.broken || s.unpowered);
@@ -186,14 +187,17 @@ addTextureModule(() => {
   });
   A.add('p_photo_frame', 5, 6, (pc) => {
     pc.wrap = false;
-    pc.fill(0xc8a050); pc.rect(1, 1, 3, 4, 0x8ab0c8); pc.set(2, 2, 0xd8b090); pc.set(2, 3, 0x6a5a8a); pc.set(1, 4, 0x6a8a5a); pc.set(3, 4, 0x6a8a5a);
+    pc.fill(0xc8a050); pc.rect(1, 1, 3, 4, 0x8ab0c8);
+    // the snapshot is a HumanRig render (entities/portrait.ts)
+    blitPortrait(pc, 1, 1, 3, 4, { seed: 384, light: 'studio', frame: 'chest', bg: 0x8ab0c8 }, 0x8ab0c8, atlasRepaint('p_photo_frame'));
   });
   A.add('p_wall_photo', 9, 7, (pc) => {
     pc.wrap = false;
     pc.fill(0x9ab4c8); pc.rect(0, 4, 9, 3, 0x7a9a6a);
-    // a family of four; the last face never came out right
-    for (const [x, c] of [[1, 0xd8b090], [3, 0xd8b090], [5, 0xe0c0a0], [7, 0x9aa4ac]] as const) { pc.set(x, 2, c); pc.set(x, 3, 0x5a4a6a); pc.set(x, 4, 0x3a3a5a); }
-    pc.set(7, 1, 0xb8c0c8); pc.set(8, 2, 0xb8c0c8);
+    // a family of four (HumanRig renders, entities/portrait.ts); the last face never came out right
+    const later = atlasRepaint('p_wall_photo');
+    for (let k = 0; k < 4; k++) blitPortrait(pc, k * 2 + 1, 1, 2, 6, { seed: 385 + k, light: 'studio', frame: 'chest', bg: null }, 0, later);
+    for (let y = 1; y < 4; y++) for (let x = 7; x < 9; x++) pc.blend(x, y, 0xb8c0c8, 0.7);
   });
 });
 
