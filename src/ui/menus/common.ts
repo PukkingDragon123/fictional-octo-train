@@ -362,6 +362,8 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
       f.append(seg<number>('UI size', [[0, 'Auto'], [2, '2×'], [3, '3×'], [4, '4×']], us.px ?? 0, (v) => { us.px = v; us.scale = 1; saveUiSettings(us); },
         { tip: (v) => v === 0 ? `Pick for this screen (now ${Math.round(currentPx({ ...us, px: 0 }) * 10) / 10}×)` : `Every interface pixel is ${v} screen pixels` }));
       f.append(toggle('Reduce flashing', us.reduceFlash, (v) => { us.reduceFlash = v; saveUiSettings(us); }, 'no flicker, glitches or blinking'));
+      f.append(toggle('Hold, don\'t mash', !!us.qteHold, (v) => { us.qteHold = v; saveUiSettings(us); }, 'struggles: hold the key instead of hammering it'));
+      f.append(toggle('Slower timing', !!us.qteSlow, (v) => { us.qteSlow = v; saveUiSettings(us); }, 'quick-time needles, scanner locks and struggles go easier'));
       f.append(seg<TouchSetting>('Touch controls', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], getTouchSetting(), (v) => setTouchSetting(v),
         { tip: (v) => v === 'auto' ? 'Show on-screen controls on touch screens' : v === 'on' ? 'Always show on-screen controls' : 'Never show on-screen controls' }));
     } else if (name === 'GAME' && G?.sandbox) {

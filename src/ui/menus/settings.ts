@@ -9,7 +9,9 @@ import { bus } from '../../core/events';
 import { installPixelKit } from '../pixelkit';
 
 export type UiTheme = 'green' | 'amber';
-export interface UiSettings { theme: UiTheme; scale: number; reduceFlash: boolean; /** 0 = auto, else art-pixel scale 2..4 */ px?: number }
+export interface UiSettings { theme: UiTheme; scale: number; reduceFlash: boolean; /** 0 = auto, else art-pixel scale 2..4 */ px?: number;
+  /** quick-time assists (round 17): hold a key instead of hammering it; slower needles, wider bands, longer struggles */
+  qteHold?: boolean; qteSlow?: boolean }
 
 const KEY = 'noclip.ui';
 const DEF: UiSettings = { theme: 'green', scale: 1, reduceFlash: false, px: 0 };
@@ -76,6 +78,13 @@ export function reducedMotion(): boolean {
 }
 export function coarsePointer(): boolean {
   try { return matchMedia('(pointer: coarse)').matches; } catch { return false; }
+}
+/** the quick-time assists (src/actions/skillCheck.ts, src/combat/qte.ts, the scanner's lock): read every frame, cached */
+let assist: { hold: boolean; slow: boolean } | null = null;
+bus.on('uiSettings', () => { assist = null; });
+export function qteAssist(): { hold: boolean; slow: boolean } {
+  if (!assist) { const s = uiSettings(); assist = { hold: !!s.qteHold, slow: !!s.qteSlow }; }
+  return assist;
 }
 /** true when flicker / glitch / blinking effects should stay still */
 export function calm(): boolean { return document.documentElement.classList.contains('reduce-flash'); }

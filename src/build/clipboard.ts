@@ -176,6 +176,8 @@ export class Clipboard {
     this.mini.rotation.y = G.time * 0.6;
     this.miniMesh.position.copy(this.miniPivot);
     (this.miniMesh.material as THREE.MeshLambertMaterial).color.setHex(st.unlocked ? 0xcfe2ff : 0x8a9ab8);
+    // round 17: no drawing for a blueprint the kit does not have (the stamp and where to find it take its place)
+    this.mini.visible = st.unlocked;
     // gauges
     const s = st.stats;
     const vals = [s ? s.def / 40 : 0, s ? s.comfort / 30 : 0, s ? s.food / 25 : 0, s ? (s.power + 4) / 14 : 0, st.gas ?? 0];

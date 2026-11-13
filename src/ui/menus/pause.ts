@@ -72,7 +72,7 @@ export class PauseMenu {
     col.append(h('i', 'ps2-gap'));
     const PAGE_ICON: Record<Page, IconKind> = { main: 'clipboard', options: 'gear', controls: 'key', coop: 'radio' };
     for (const pg of pages) pageBtns.set(pg, plate(NAMES[pg][0], () => select(pages.indexOf(pg)), { icon: PAGE_ICON[pg] }));
-    // round 17: the emote jukebox (buy emotes for research points, fill the wheel)
+    // round 17: the emote jukebox (buy emotes for dollars, fill the wheel)
     plate(pt ? 'Emotes' : 'Emote jukebox', () => { void import('../../social/emotes/shop').then((m) => m.openEmoteShop()); }, { icon: 'coin' });
     col.append(h('i', 'ps2-gap'));
     plate(pt ? 'Quit' : 'Quit to title', async () => {

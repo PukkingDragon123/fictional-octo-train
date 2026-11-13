@@ -93,7 +93,7 @@ export function setSlot(i: number, id: string) {
   save();
 }
 export const slotOf = (id: string) => load().slots.indexOf(id);
-/** buy a record: research points change hands, it is owned, and it takes the first free slot */
+/** buy a record: the money changes hands, it is owned, and it takes the first free slot */
 export function buyEmote(id: string): 'ok' | 'poor' | 'owned' | 'none' {
   const e = BY.get(id);
   if (!e) return 'none';
