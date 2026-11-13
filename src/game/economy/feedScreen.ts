@@ -346,7 +346,6 @@ export class FeedScreen {
       if (sp) { w.append(sp.cv); sp.hot(k === this.selKey); } else w.append(still(it.key, size));
       t.append(w, h('span', 'crt-ic-l', `${g.length > 1 ? `<i>×${g.length}</i>` : ''}<em>${CR}${v > 0 ? fmt(v) : '0'}</em>`));
       t.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this.select(it, pack); });
-      t.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse' && this.sel === it && !this.drag) { /* stays picked: the readout keeps it */ } });
       t.addEventListener('focus', () => this.select(it, pack));
       t.addEventListener('pointerdown', (e) => {
         this.lastPtr = e.pointerType;
@@ -522,6 +521,8 @@ export class FeedScreen {
     const d = this.drag;
     this.drag = null;
     if (!d?.ghost) return;
+    // the click that ends a drag is swallowed once (by the tile it started on); after that taps count again
+    setTimeout(() => { this.dragged = false; }, 0);
     const hb = this.hbox?.getBoundingClientRect();
     this.hbox?.classList.remove('over');
     const inside = !!hb && e.clientX >= hb.left && e.clientX <= hb.right && e.clientY >= hb.top - 20 && e.clientY <= hb.bottom;

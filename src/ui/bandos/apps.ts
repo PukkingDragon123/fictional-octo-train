@@ -9,7 +9,7 @@ import type { WinApi } from './bandos';
 import { statusPage, crewPage } from '../menus/pause';
 import { optionsPanel, controlsPanel } from '../menus/common';
 import { setPanelEmbed, openCodex, openReq, closePanel, type PanelHost } from '../menus/research/panel';
-import { itemIconFor, iconResCss } from '../icons';
+import { itemIconFor, iconResCss, itemIconTurn } from '../icons';
 import { itemName } from '../../items/item';
 import { openItemPanel } from '../itemPanel';
 import { trackQuest } from '../broadcast/notices';
@@ -134,7 +134,14 @@ export const APPS: AppDef[] = [
           for (const it of c.items) {
             const b = el('button', 'bos-tile') as HTMLButtonElement;
             b.type = 'button'; b.title = itemName(it);
-            b.innerHTML = `<img src="${itemIconFor(it, iconResCss(36))}" alt=""><span>${esc(itemName(it))}</span>`;
+            const still = itemIconFor(it, iconResCss(40));
+            b.innerHTML = `<img src="${still}" alt=""><span>${esc(itemName(it))}</span>`;
+            // hovered, the item turns on its turntable (frames rendered as it goes, then cached)
+            const img = b.querySelector('img') as HTMLImageElement;
+            let spin = 0, f = 0;
+            const stop = () => { clearInterval(spin); spin = 0; img.src = still; };
+            b.addEventListener('pointerenter', () => { if (spin) return; spin = window.setInterval(() => { if (!b.isConnected) { stop(); return; } img.src = itemIconTurn(it.key, iconResCss(40), ++f); }, 90); });
+            b.addEventListener('pointerleave', stop);
             b.addEventListener('click', () => { const r = b.getBoundingClientRect(); openItemPanel(it, c, { x: r.left, y: r.top, w: r.width, h: r.height }); });
             grid.append(b);
           }
