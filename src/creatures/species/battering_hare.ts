@@ -7,7 +7,7 @@ import type { Player } from '../../entities/player';
 import { CS, zoneOf, pulse, stop, faceTo, onPlayerHit } from '../behaviors_a';
 import { net, netOf, playAt, rng, localIn, thinkOnce, dist, playersIn, fx, fxPoll, live, lineOfSightB } from '../behaviors_b';
 import { flinchOf } from '../kit/humanoids';
-import { hitPlayer } from '../kit/oddkit';
+import { applyHitToPlayer, type HitInfo } from '../manager';
 import { lifeModel, lifeRig, lifeAnimate, type LifeGameRig } from '../life/lifeMesh';
 import type { Design } from '../life/design';
 import type { Ctx } from '../life/sculpt';
@@ -326,7 +326,11 @@ function ramStep(c: Creature, dt: number): 'go' | 'stop' | 'wall' {
   // units and animals in the way are run down
   const hit = (m.ramHit ??= {}) as Record<string, number>;
   for (const p of playersIn(c.zoneKey)) if (!p.body.dead && !hit[p.id] && Math.hypot(p.x - hx, p.z - hz) < c.radius * 0.9 + 0.5) {
-    hit[p.id] = 1; hitPlayer(c, p, rng.float(RC.dmg[0], RC.dmg[1]), ['fracture', 'bruise'], 2.6, ['torso_u', 'torso_l', 'thigh_l', 'thigh_r', 'uarm_l', 'uarm_r']); fx(c, 'hit');
+    hit[p.id] = 1; fx(c, 'hit');
+    // run down, not held: the blow comes from back along the line (it throws you forward and out of the way, and it does
+    // not stop to sit on you)
+    const h: HitInfo = { dmg: rng.float(RC.dmg[0], RC.dmg[1]), kinds: ['fracture', 'bruise'], corrupt: 0, height: c.height, knock: 2.6, from: [c.x - dx * 4.5 - pz * 0.6, c.z - dz * 4.5 + px * 0.6], grab: false, parts: ['torso_u', 'torso_l', 'thigh_l', 'thigh_r', 'uarm_l', 'uarm_r'], by: c.sp.key };
+    if (p.isLocal) applyHitToPlayer(p, h); else G.net?.sendHurt?.(p.id, h);
   }
   for (const o of CS().creatures.values()) if (o !== c && !o.dead && o.zoneKey === c.zoneKey && !hit[o.id] && Math.hypot(o.x - hx, o.z - hz) < c.radius * 0.9 + o.radius) {
     hit[o.id] = 1; CS().damage(c.id, o.id, RC.cdmg, c.x, c.z, 1.6, 'blunt'); fx(c, 'hit');

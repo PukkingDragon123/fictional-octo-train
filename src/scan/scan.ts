@@ -345,14 +345,14 @@ export class ScanSystem implements GameSystem {
 
   // ---------------------------------------------------------------- results
   /** a finished scan: DATA, research for firsts and milestones, a knowledge entry */
-  complete(t: ScanTarget, viaSeer = false, q = 1) {
+  complete(t: ScanTarget, viaSeer = false, q?: number) {
     const kind = t.kind, key = t.key;
     const n = this.count(kind, key);
     const first = n === 0;
     let base = kind === 'creature' ? 8 + (t.threat ?? 1) * 6 : kind === 'tribe' ? 10 : kind === 'artefact' ? 15 : kind === 'anomaly' ? 6 : kind === 'object' ? 2 : kind === 'survivor' ? 3 : 1;
     if (hasUnlock('scan_deep')) base *= 1.5;
     // the lock: a clean one reads more, a sloppy one only part of it
-    base *= q >= 0.999 ? 1.3 : 0.35 + 0.65 * q;
+    if (q !== undefined) base *= q >= 0.999 ? 1.3 : 0.35 + 0.65 * q;
     const data = Math.max(first ? 1 : 0, Math.round(base * (first ? 1 : Math.max(0.1, 0.5 ** n))));
     addStat(`scan_n:${kind}:${key}`, 1);
     let rp = 0;
@@ -367,7 +367,7 @@ export class ScanSystem implements GameSystem {
     // milestones
     let ms = stat('scan_ms');
     while (ms < MILESTONES.length && this.data >= MILESTONES[ms][0]) { rp += MILESTONES[ms][1]; ms++; addStat('scan_ms', 1); bus.emit('scanMilestone', MILESTONES[ms - 1][0]); }
-    if (q < 0.5) rp = Math.floor(rp / 2);
+    if (q !== undefined && q < 0.5) rp = Math.floor(rp / 2);
     if (rp > 0) grantResearch(rp, `scan:${kind}:${key}`);
     // creatures: the old flags (codex, mission 'scan:<key>', creature rules)
     const c = t.ref;
@@ -381,7 +381,7 @@ export class ScanSystem implements GameSystem {
       if (!G.missions?.flags?.has?.('anom:' + id)) { G.missions?.set?.('anom:' + id); bus.emit('anomalyLogged', id); }
     }
     G.audio?.ui?.(first ? 'scan_new' : 'scanDone', 0.5);
-    bus.emit('scanEntry', { kind, key, title: t.title, first, data, rp, q, ref: t.ref });
+    bus.emit('scanEntry', { kind, key, title: t.title, first, data, rp, q: q ?? 1, ref: t.ref });
     bus.emit('scanData', { data, total: before + data });
     this.report(t, first, data, rp);
   }
