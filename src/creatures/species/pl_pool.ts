@@ -324,7 +324,12 @@ function gPaint(p: KPage, x: BuildCtx) {
   }
   for (let i = 0; i < 26; i++) B.crack(hash(i, 1) * B.w, hash(i, 2) * B.h, 10 + hash(i, 3) * 16, hash(i, 4) * 360, 0x5a6a90, 20 + i, 0.45, 0.3);
   // lesions: raw pink with crusted rims, and pale old scars
-  for (let i = 0; i < 7; i++) { const cx = hash(i, 11) * B.w, cy = hash(i, 12) * B.h, r = 1.5 + hash(i, 13) * 2.5; B.ellipse(cx, cy, r + 1, r * 0.8 + 1, 0x4a2422, 0.8); B.ellipse(cx, cy, r, r * 0.8, 0xc04a4a, 0.9); B.blend(cx, cy - 1, 0xffd0d0, 0.6); }
+  for (let i = 0; i < 9; i++) {
+    // ragged lesions: a crusted dark rim, raw flesh in it, irregular
+    const cx = hash(i, 11) * B.w, cy = hash(i, 12) * B.h, r = 0.8 + hash(i, 13) * 1.6;
+    for (let k = 0; k < 5; k++) { const ox = (hash(i * 7 + k, 14) - 0.5) * r * 1.6, oy = (hash(i * 7 + k, 15) - 0.5) * r; B.ellipse(cx + ox, cy + oy, r * 0.7 + 0.6, r * 0.5 + 0.5, 0x3a2420, 0.55); B.ellipse(cx + ox, cy + oy, r * 0.55, r * 0.4, 0xb04848, 0.75); }
+    B.blend(cx, cy, 0xf0c8c0, 0.5);
+  }
   for (let i = 0; i < 5; i++) B.line(hash(i, 21) * B.w, hash(i, 22) * B.h, hash(i, 21) * B.w + 8 + hash(i, 23) * 8, hash(i, 22) * B.h + (hash(i, 24) - 0.5) * 6, 0xf0ece4, 0.8);
   // tubercles: pale warts with darker rims, thick over the back
   for (let i = 0; i < 160; i++) { const xx = hash(i, 31) * B.w, yy = hash(i, 32) * B.h, a = (B.deg(xx) * Math.PI) / 180; if (Math.cos(a) < -0.3 && hash(i, 33) < 0.7) continue; B.ellipse(xx, yy, 1.3, 1.1, 0x6a6a5c, 0.5); B.set(xx, yy, 0xf4f4ea); }

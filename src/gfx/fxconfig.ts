@@ -35,13 +35,16 @@ export interface FxQuality {
   ss: number;
   /** fixtures glowing in the haze: how many of the nearest lights (0 = off; needs the volumetric pass) */
   glow: number;
+  /** the grass field (src/gfx/grass.ts): share of the tufts drawn, and the size of its interaction texture */
+  grass: number;
+  grassSim: number;
 }
 
 export const QUALITY: Record<QualityLevel, FxQuality> = {
   // phones: no screen-space passes at all, smaller shadow maps
-  low: { ao: 0, aoHalf: true, blobs: 6, bloom: 0, vol: 0, volShadows: false, motes: false, ssr: 0, mist: true, dirt: false, split: false, sunShadow: 1024, spotShadow: 512, ss: 4, glow: 0 },
-  medium: { ao: 6, aoHalf: true, blobs: 10, bloom: 2, vol: 6, volShadows: false, motes: true, ssr: 8, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024, ss: 7, glow: 6 },
-  high: { ao: 12, aoHalf: true, blobs: 16, bloom: 3, vol: 11, volShadows: true, motes: true, ssr: 14, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024, ss: 10, glow: 12 },
+  low: { ao: 0, aoHalf: true, blobs: 6, bloom: 0, vol: 0, volShadows: false, motes: false, ssr: 0, mist: true, dirt: false, split: false, sunShadow: 1024, spotShadow: 512, ss: 4, glow: 0, grass: 0.4, grassSim: 128 },
+  medium: { ao: 6, aoHalf: true, blobs: 10, bloom: 2, vol: 6, volShadows: false, motes: true, ssr: 8, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024, ss: 7, glow: 6, grass: 0.7, grassSim: 256 },
+  high: { ao: 12, aoHalf: true, blobs: 16, bloom: 3, vol: 11, volShadows: true, motes: true, ssr: 14, mist: true, dirt: true, split: true, sunShadow: 2048, spotShadow: 1024, ss: 10, glow: 12, grass: 1, grassSim: 320 },
 };
 
 /** best first guess for this device: phones start low, tablets medium, desktops high */
