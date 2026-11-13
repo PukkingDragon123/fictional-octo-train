@@ -1,0 +1,250 @@
+{
+ "id": "stalker",
+ "file": "limbo_phobia_reel_stalker.mp4",
+ "creature": "stalker",
+ "accent": [
+  "Stalker",
+  "copy",
+  "a little wrong"
+ ],
+ "intro": {
+  "line": "Hi! I'm Dr. Iris Calder, from the Meridian Institute of Liminality. Today: the Stalker."
+ },
+ "beats": [
+  {
+   "line": "Level Zero. That figure at the end of the room is not another unit. It's the Stalker.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "stalker",
+      "at": [
+       0.5,
+       10
+      ],
+      "pose": "watch",
+      "face": "camera"
+     }
+    ],
+    "calder": {
+     "at": [
+      1.1,
+      1.6
+     ],
+     "do": "point"
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.7
+    }
+   }
+  },
+  {
+   "line": "It is the place's copy of you. Your face, your suit, your lamp. All of it, a little wrong.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "stalker",
+      "from": [
+       -0.8,
+       9
+      ],
+      "to": [
+       0.4,
+       5.2
+      ],
+      "pose": "walk"
+     }
+    ],
+    "camera": {
+     "move": "wide",
+     "dist": 5.5,
+     "fov": 46,
+     "lookY": 1.4,
+     "height": 1.5
+    }
+   }
+  },
+  {
+   "line": "A head and a half too tall. The left leg is longer still, and it won't bend, so it drags it behind.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "stalker",
+      "from": [
+       -2.5,
+       5
+      ],
+      "to": [
+       1.5,
+       5
+      ],
+      "pose": "walk"
+     }
+    ],
+    "camera": {
+     "move": "low",
+     "on": "feet",
+     "size": 2.6
+    }
+   }
+  },
+  {
+   "line": "Its eyes are too round, and too pale. And its face won't hold still. It flickers between smiles.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "stalker",
+      "at": [
+       0,
+       4
+      ],
+      "pose": "watch",
+      "face": "camera"
+     }
+    ],
+    "camera": {
+     "move": "close",
+     "on": "head",
+     "size": 0.9
+    }
+   }
+  },
+  {
+   "line": "It walks where you walked, and does what you did, a few seconds late.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "stalker",
+      "from": [
+       -3.5,
+       6.5
+      ],
+      "to": [
+       -0.6,
+       4.6
+      ],
+      "pose": "walk"
+     }
+    ],
+    "unit": {
+     "at": [
+      -1.5,
+      4
+     ],
+     "to": [
+      1.6,
+      2.2
+     ]
+    },
+    "camera": {
+     "move": "wide",
+     "on": "mid",
+     "size": 5,
+     "angle": 30
+    }
+   }
+  },
+  {
+   "line": "Look straight at it, and it stops, and copies you, face to face.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "stalker",
+      "at": [
+       0,
+       5
+      ],
+      "pose": "copy",
+      "face": "unit"
+     }
+    ],
+    "unit": {
+     "at": [
+      0.2,
+      2
+     ],
+     "face": "creature"
+    },
+    "camera": {
+     "move": "over",
+     "dist": 1.5
+    }
+   }
+  },
+  {
+   "line": "Now and then, it does something you did not do, and waits. Copy it, or it runs at you.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "stalker",
+      "from": [
+       0,
+       6
+      ],
+      "to": [
+       0,
+       2.6
+      ],
+      "poses": [
+       [
+        0,
+        "crouch"
+       ],
+       [
+        1.8,
+        "lunge"
+       ]
+      ]
+     }
+    ],
+    "unit": {
+     "at": [
+      0.3,
+      2
+     ],
+     "face": "creature"
+    },
+    "caught": {
+     "t": 3.2,
+     "pose": "lunge",
+     "then": "crouch"
+    },
+    "camera": {
+     "move": "wide",
+     "on": "unit",
+     "size": 4,
+     "angle": 60
+    }
+   }
+  },
+  {
+   "line": "So when it crouches, you crouch. When it waves, you wave. Play along.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "stalker",
+      "at": [
+       0.6,
+       7
+      ],
+      "pose": "crouch",
+      "face": "camera"
+     }
+    ],
+    "calder": {
+     "at": [
+      -1,
+      1.5
+     ],
+     "do": "present",
+     "doAt": 1.0
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.7,
+     "angle": -1
+    }
+   }
+  }
+ ]
+}

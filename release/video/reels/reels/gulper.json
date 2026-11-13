@@ -1,0 +1,210 @@
+{
+ "id": "gulper",
+ "file": "limbo_phobia_reel_gulper.mp4",
+ "creature": "gulper",
+ "accent": [
+  "Gulper",
+  "whole",
+  "spits"
+ ],
+ "intro": {
+  "line": "Hi! I'm Dr. Iris Calder, from the Meridian Institute of Liminality. Today: the Gulper."
+ },
+ "beats": [
+  {
+   "line": "See the deep end of the pool? Look closely at the surface. Those are nostrils.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gulper",
+      "at": [
+       0,
+       5
+      ],
+      "pose": "lurk",
+      "y": -0.25
+     }
+    ],
+    "calder": {
+     "at": [
+      1.1,
+      -0.8
+     ],
+     "do": "point"
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.7
+    }
+   }
+  },
+  {
+   "line": "This is the Gulper. A giant salamander, four metres long, and white as wet plaster.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gulper",
+      "from": [
+       -4,
+       6
+      ],
+      "to": [
+       3,
+       5
+      ],
+      "pose": "swim"
+     }
+    ],
+    "camera": {
+     "move": "wide",
+     "angle": 0,
+     "height": 2.4
+    }
+   }
+  },
+  {
+   "line": "Loose, wrinkled skin hangs in folds down both flanks. Stubby legs. And tiny pink eyes.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gulper",
+      "at": [
+       0,
+       3.5
+      ],
+      "pose": "lurk",
+      "face": 90
+     }
+    ],
+    "camera": {
+     "move": "orbit",
+     "size": 2.6,
+     "orbit": 35,
+     "height": 1.4
+    }
+   }
+  },
+  {
+   "line": "And a head that is nearly all mouth. The jaws open almost flat, back on themselves.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gulper",
+      "at": [
+       0,
+       3
+      ],
+      "pose": "gape",
+      "face": "camera"
+     }
+    ],
+    "camera": {
+     "move": "close",
+     "on": "head",
+     "size": 1.8,
+     "height": 1.0
+    }
+   }
+  },
+  {
+   "line": "A unit at the edge, and it explodes up out of the pool, and gulps them whole.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gulper",
+      "from": [
+       0,
+       5
+      ],
+      "to": [
+       0,
+       1.5
+      ],
+      "poses": [
+       [
+        0,
+        "lurk"
+       ],
+       [
+        1.2,
+        "suck"
+       ]
+      ]
+     }
+    ],
+    "unit": {
+     "at": [
+      0.2,
+      -0.3
+     ],
+     "face": "creature"
+    },
+    "caught": {
+     "t": 2.0,
+     "pose": "gulp",
+     "hide": 0.35
+    },
+    "camera": {
+     "move": "over",
+     "dist": 2.2,
+     "height": 1.7
+    }
+   }
+  },
+  {
+   "line": "You can see them in there. A bulge that kicks, while it sinks back down with them.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gulper",
+      "from": [
+       0,
+       2
+      ],
+      "to": [
+       0.5,
+       5
+      ],
+      "pose": "gulp",
+      "face": 90
+     }
+    ],
+    "camera": {
+     "move": "orbit",
+     "size": 3.6,
+     "orbit": 30,
+     "height": 1.6
+    }
+   }
+  },
+  {
+   "line": "Hurt it, and it spits you out. On land, it is slow. So, stay back from the edge.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gulper",
+      "at": [
+       1.5,
+       5
+      ],
+      "pose": "lurk",
+      "y": -0.25
+     }
+    ],
+    "calder": {
+     "at": [
+      -1.2,
+      -1
+     ],
+     "do": "present",
+     "doAt": 1.4
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.7,
+     "angle": -1
+    }
+   }
+  }
+ ]
+}

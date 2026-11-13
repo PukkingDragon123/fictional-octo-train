@@ -1,0 +1,239 @@
+{
+"_": "tag -> recorded CC0 sounds: names in src/assets/sfx (.mp3), extra/ = release/video/reels/build/sfx_extra. Sources: /CREDITS-AUDIO.md and CREDITS.md",
+"growl": [
+"growl_1",
+"growl_2",
+"growl_3",
+"growl_4",
+"growl_5"
+],
+"beast": [
+"beast_1",
+"beast_2",
+"beast_3",
+"beast_4",
+"beast_5"
+],
+"breath": [
+"breath_1",
+"breath_2",
+"breath_3"
+],
+"bug": [
+"bug_1",
+"bug_2",
+"bug_3",
+"bug_4",
+"bug_5",
+"bug_6"
+],
+"cmisc": [
+"cmisc_1",
+"cmisc_2",
+"cmisc_3",
+"cmisc_4",
+"cmisc_5",
+"cmisc_6"
+],
+"burp": [
+"burp_1",
+"burp_2"
+],
+"cweird": [
+"cweird_1",
+"cweird_2",
+"cweird_3",
+"cweird_4",
+"cweird_5"
+],
+"attack": [
+"attack_1",
+"attack_2",
+"attack_3"
+],
+"die": [
+"die_1",
+"die_2",
+"die_3",
+"die_4"
+],
+"zombie": [
+"zombie_1",
+"zombie_2",
+"zombie_3",
+"zombie_4"
+],
+"squish": [
+"squish_1",
+"squish_2",
+"squish_3"
+],
+"slime": [
+"slime_1",
+"slime_2",
+"slime_3",
+"slime_4"
+],
+"splash": [
+"splash_1",
+"splash_2",
+"splash_3"
+],
+"bubble": [
+"bubble_1",
+"bubble_2",
+"bubble_3"
+],
+"mud": [
+"mud_1",
+"mud_2",
+"mud_3"
+],
+"wetbreak": [
+"wetbreak_1",
+"wetbreak_2",
+"wetbreak_3"
+],
+"deepbreak": [
+"deepbreak_1",
+"deepbreak_2",
+"deepbreak_3"
+],
+"hit": [
+"hit_1",
+"hit_2",
+"hit_3",
+"hit_4"
+],
+"fall": [
+"fall_1",
+"fall_2",
+"fall_3"
+],
+"cloth": [
+"cloth_1",
+"cloth_2",
+"cloth_3",
+"cloth_4"
+],
+"book": [
+"book_1",
+"book_2",
+"book_3",
+"book_4"
+],
+"metalhit": [
+"metalhit_1",
+"metalhit_2",
+"metalhit_3",
+"metalhit_4"
+],
+"metalslam": [
+"metalslam_1",
+"metalslam_2"
+],
+"metalfall": [
+"metalfall_1",
+"metalfall_2"
+],
+"steps_grass": [
+"fs_grass_1",
+"fs_grass_2",
+"fs_grass_3"
+],
+"steps_dirt": [
+"fs_dirt_1",
+"fs_dirt_2",
+"fs_dirt_3"
+],
+"steps_gravel": [
+"fs_gravel_1",
+"fs_gravel_2",
+"fs_gravel_3"
+],
+"steps_tile": [
+"fs_tile_1",
+"fs_tile_2",
+"fs_tile_3",
+"fs_tile_4"
+],
+"steps_wet": [
+"fs_wet_1",
+"fs_wet_2",
+"fs_wet_3"
+],
+"steps_water": [
+"fs_water_1",
+"fs_water_2",
+"fs_water_3"
+],
+"steps_wood": [
+"fs_wood_1",
+"fs_wood_2",
+"fs_wood_3",
+"fs_wood_4"
+],
+"steps_lino": [
+"fs_lino_1",
+"fs_lino_2",
+"fs_lino_3",
+"fs_lino_4"
+],
+"breaker": [
+"breaker_1",
+"breaker_2"
+],
+"static": [
+"static_burst_1",
+"static_burst_2",
+"static_burst_3"
+],
+"typing": [
+"typing_1"
+],
+"bed_wind": [
+"bed_wind"
+],
+"bed_gust": [
+"bed_gust"
+],
+"bed_water": [
+"bed_water"
+],
+"bed_machine": [
+"bed_machine"
+],
+"bed_tunnel": [
+"bed_tunnel"
+],
+"bed_drips": [
+"bed_drips"
+],
+"bed_hum": [
+"bed_hum"
+],
+"bed_air": [
+"bed_air"
+],
+"bed_static": [
+"bed_static"
+],
+"bed_dark": [
+"dark_1",
+"dark_2",
+"dark_3",
+"dark_4",
+"dark_5"
+],
+"music": [
+"mus_musicbox"
+],
+"whoosh": [
+"extra/whoosh2.wav"
+],
+"insect": [
+"extra/insect0.ogg",
+"extra/insect1.ogg",
+"extra/insect2.ogg"
+]
+}

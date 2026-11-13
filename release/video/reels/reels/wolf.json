@@ -1,0 +1,252 @@
+{
+ "id": "wolf",
+ "file": "limbo_phobia_reel_gaunt_wolf.mp4",
+ "creature": "gaunt_wolf",
+ "accent": [
+  "Gaunt Wolf",
+  "three rows",
+  "vertebrae"
+ ],
+ "intro": {
+  "line": "Hi! I'm Dr. Iris Calder, from the Meridian Institute of Liminality. Today: the Gaunt Wolf."
+ },
+ "beats": [
+  {
+   "line": "Out on the open levels, this is the inhabitant at the very top.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gaunt_wolf",
+      "from": [
+       -6,
+       14
+      ],
+      "to": [
+       3,
+       12
+      ],
+      "pose": "walk"
+     }
+    ],
+    "calder": {
+     "at": [
+      1.2,
+      2
+     ],
+     "do": "point"
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.8
+    }
+   }
+  },
+  {
+   "line": "It stands three times a unit's height at the shoulder, and it is starving.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gaunt_wolf",
+      "at": [
+       0,
+       8
+      ],
+      "pose": "idle",
+      "face": 150
+     }
+    ],
+    "unit": {
+     "at": [
+      2.2,
+      5.5
+     ],
+     "face": "creature"
+    },
+    "camera": {
+     "move": "wide",
+     "angle": 10
+    }
+   }
+  },
+  {
+   "line": "Look at its flank. The hide has torn open, and the ribs stand out like the staves of a boat.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gaunt_wolf",
+      "at": [
+       0,
+       7
+      ],
+      "pose": "idle",
+      "face": 90
+     }
+    ],
+    "camera": {
+     "move": "orbit",
+     "angle": -20,
+     "orbit": 30,
+     "size": 4.5,
+     "on": [
+      0,
+      0.05,
+      0
+     ]
+    }
+   }
+  },
+  {
+   "line": "That ridge down its back? Those are its own vertebrae, pushing up through the skin.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gaunt_wolf",
+      "from": [
+       -6,
+       7
+      ],
+      "to": [
+       5,
+       7
+      ],
+      "pose": "walk"
+     }
+    ],
+    "camera": {
+     "move": "low",
+     "angle": 0,
+     "size": 6
+    }
+   }
+  },
+  {
+   "line": "And the jaw never stopped growing. Three rows of teeth, yellow and brown.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gaunt_wolf",
+      "at": [
+       0,
+       7
+      ],
+      "pose": "howl",
+      "face": "camera"
+     }
+    ],
+    "camera": {
+     "move": "close",
+     "on": "head",
+     "size": 2.6,
+     "angle": 0
+    }
+   }
+  },
+  {
+   "line": "It hunts alone, by sound and by the smell of blood. First, it howls.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gaunt_wolf",
+      "at": [
+       2,
+       12
+      ],
+      "pose": "howl",
+      "face": 60
+     }
+    ],
+    "calder": {
+     "at": [
+      -1.4,
+      1.5
+     ],
+     "do": "present",
+     "doAt": 2.5
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.7,
+     "angle": -1
+    }
+   }
+  },
+  {
+   "line": "Then it comes at a lope, then a charge. It knocks the unit down, and stands on it.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gaunt_wolf",
+      "from": [
+       0,
+       16
+      ],
+      "to": [
+       0,
+       6
+      ],
+      "poses": [
+       [
+        0,
+        "lope"
+       ],
+       [
+        2.2,
+        "charge"
+       ]
+      ]
+     }
+    ],
+    "unit": {
+     "at": [
+      0.5,
+      3
+     ],
+     "face": "creature"
+    },
+    "caught": {
+     "t": 3.4,
+     "pose": "maul"
+    },
+    "camera": {
+     "move": "over",
+     "dist": 2.2
+    }
+   }
+  },
+  {
+   "line": "And whatever it kills, it carries away in its mouth.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gaunt_wolf",
+      "at": [
+       0,
+       5
+      ],
+      "pose": "maul"
+     }
+    ],
+    "unit": {
+     "at": [
+      0.3,
+      6.5
+     ],
+     "do": "downed"
+    },
+    "caught": {
+     "t": 0.2,
+     "pose": "maul",
+     "then": "drag",
+     "drag": [
+      -10,
+      10
+     ]
+    },
+    "camera": {
+     "move": "wide",
+     "angle": 30
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,257 @@
+{
+ "id": "puffer",
+ "file": "limbo_phobia_reel_balloon_puffer.mp4",
+ "creature": "balloon_puffer",
+ "accent": [
+  "Balloon Puffer",
+  "pops",
+  "eyeballs"
+ ],
+ "intro": {
+  "line": "Hi! I'm Dr. Iris Calder, from the Meridian Institute of Liminality. Today: the Balloon Puffer."
+ },
+ "beats": [
+  {
+   "line": "Look up, over the pools. That is not a decoration. It is the Balloon Puffer.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "balloon_puffer",
+      "from": [
+       -1,
+       4
+      ],
+      "to": [
+       0.5,
+       4.2
+      ],
+      "pose": "drift"
+     }
+    ],
+    "calder": {
+     "at": [
+      1.1,
+      -0.8
+     ],
+     "do": "point"
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.7
+    }
+   }
+  },
+  {
+   "line": "A pufferfish made out of a party balloon. A latex sheen, the knot at its tail, and the string trailing.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "balloon_puffer",
+      "at": [
+       0,
+       3
+      ],
+      "pose": "drift",
+      "face": 90
+     }
+    ],
+    "camera": {
+     "move": "orbit",
+     "size": 1.6,
+     "orbit": 40,
+     "lookY": 1.9,
+     "height": 1.9
+    }
+   }
+  },
+  {
+   "line": "And two human eyeballs, that dart about. They are looking at you.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "balloon_puffer",
+      "at": [
+       0,
+       3
+      ],
+      "pose": "drift",
+      "face": "camera"
+     }
+    ],
+    "camera": {
+     "move": "close",
+     "size": 0.9,
+     "lookY": 1.95,
+     "height": 1.95
+    }
+   }
+  },
+  {
+   "line": "It drifts in the air, over the water. It means no harm. Probably.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "balloon_puffer",
+      "from": [
+       1.5,
+       4
+      ],
+      "to": [
+       -1,
+       3.2
+      ],
+      "pose": "drift"
+     }
+    ],
+    "unit": {
+     "at": [
+      1.6,
+      -1.2
+     ],
+     "to": [
+      -0.8,
+      -0.9
+     ]
+    },
+    "camera": {
+     "move": "wide",
+     "size": 5,
+     "lookY": 1.4,
+     "angle": 20
+    }
+   }
+  },
+  {
+   "line": "But startle it, and it puffs right up, with a rubber squeak.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "balloon_puffer",
+      "at": [
+       0,
+       1.6
+      ],
+      "pose": "puff",
+      "face": "unit"
+     }
+    ],
+    "unit": {
+     "at": [
+      0.3,
+      -0.6
+     ],
+     "face": "creature"
+    },
+    "camera": {
+     "move": "over",
+     "dist": 1.6,
+     "height": 1.5
+    },
+    "sfx": [
+     {
+      "tag": "cweird",
+      "at": 0.6,
+      "gain": -10
+     }
+    ]
+   }
+  },
+  {
+   "line": "Then it either pops, with a bang that brings everything in the water, or lets its air out, and darts away.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "gulper",
+      "from": [
+       0.5,
+       5
+      ],
+      "to": [
+       0.2,
+       1.4
+      ],
+      "poses": [
+       [
+        0,
+        "lurk"
+       ],
+       [
+        1.6,
+        "suck"
+       ]
+      ]
+     },
+     {
+      "key": "balloon_puffer",
+      "at": [
+       1.4,
+       2.6
+      ],
+      "pose": "puff"
+     }
+    ],
+    "unit": {
+     "at": [
+      0.2,
+      -0.3
+     ],
+     "face": "creature"
+    },
+    "caught": {
+     "t": 2.6,
+     "pose": "gulp",
+     "hide": 0.35
+    },
+    "camera": {
+     "move": "wide",
+     "angle": 60,
+     "size": 6
+    },
+    "sfx": [
+     {
+      "tag": "hit",
+      "at": 0.4,
+      "gain": -6
+     },
+     {
+      "tag": "splash",
+      "at": 2.4,
+      "gain": -8
+     }
+    ]
+   }
+  },
+  {
+   "line": "So, walk quietly in the Poolrooms. And please, don't touch the balloons.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "balloon_puffer",
+      "from": [
+       0.5,
+       3.5
+      ],
+      "to": [
+       -0.5,
+       3.8
+      ],
+      "pose": "drift"
+     }
+    ],
+    "calder": {
+     "at": [
+      -1.1,
+      -0.9
+     ],
+     "do": "present",
+     "doAt": 1.0
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.7,
+     "angle": -1
+    }
+   }
+  }
+ ]
+}

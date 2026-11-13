@@ -1,0 +1,12 @@
+{
+ "id": "bee",
+ "file": "limbo_phobia_reel_bumble_bee.mp4",
+ "legacy": {
+  "reel": "bee",
+  "frames": "release/video/reels/build/cache/legacy/bee"
+ },
+ "accent": [
+  "bumble bee",
+  "the queen"
+ ]
+}

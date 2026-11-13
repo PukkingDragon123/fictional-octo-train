@@ -1,0 +1,11 @@
+{
+ "id": "keeper",
+ "file": "limbo_phobia_reel_bee_keeper.mp4",
+ "legacy": {
+  "reel": "keeper",
+  "frames": "release/video/reels/build/cache/legacy/keeper"
+ },
+ "accent": [
+  "bee keeper"
+ ]
+}

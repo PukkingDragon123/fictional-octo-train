@@ -1,0 +1,247 @@
+{
+ "id": "salamander",
+ "file": "limbo_phobia_reel_parasite_salamander.mp4",
+ "creature": "parasite_salamander",
+ "accent": [
+  "Parasite Salamander",
+  "hosts",
+  "organs"
+ ],
+ "intro": {
+  "line": "Hi! I'm Dr. Iris Calder, from the Meridian Institute of Liminality. Today: the Parasite Salamander."
+ },
+ "beats": [
+  {
+   "line": "Down here in the damp, keep an eye on the floor. That pale thing is the Parasite Salamander.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "parasite_salamander",
+      "from": [
+       -0.8,
+       3
+      ],
+      "to": [
+       0.6,
+       3.2
+      ],
+      "pose": "crawl"
+     }
+    ],
+    "calder": {
+     "at": [
+      1,
+      1.6
+     ],
+     "do": "point"
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.6
+    },
+    "light": 1.5
+   }
+  },
+  {
+   "line": "Pale and wet, and about a forearm long. You can see right through it: the organs, the blue veins.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "parasite_salamander",
+      "from": [
+       -0.4,
+       3
+      ],
+      "to": [
+       0.4,
+       3
+      ],
+      "pose": "crawl"
+     }
+    ],
+    "camera": {
+     "move": "low",
+     "size": 0.7,
+     "height": 0.18
+    },
+    "light": 1.6
+   }
+  },
+  {
+   "line": "A flat shovel of a snout, for pushing into flesh. And under it, a round, rasping mouth, ringed with teeth.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "parasite_salamander",
+      "at": [
+       0,
+       3
+      ],
+      "pose": "idle",
+      "face": "camera"
+     }
+    ],
+    "camera": {
+     "move": "close",
+     "on": "head",
+     "size": 0.32,
+     "height": 0.12
+    },
+    "light": 1.6
+   }
+  },
+  {
+   "line": "Red frilled gills that flush as it breathes. And too many fingers. Eight or nine to a foot.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "parasite_salamander",
+      "at": [
+       0,
+       3
+      ],
+      "pose": "idle",
+      "face": 100
+     }
+    ],
+    "camera": {
+     "move": "orbit",
+     "size": 0.45,
+     "height": 0.2,
+     "orbit": 40
+    },
+    "light": 1.6
+   }
+  },
+  {
+   "line": "It hunts for hosts: the sleeping, the hurt, the dead. Anything that keeps still.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "parasite_salamander",
+      "from": [
+       -1.6,
+       4.4
+      ],
+      "to": [
+       -0.2,
+       3.4
+      ],
+      "pose": "crawl"
+     }
+    ],
+    "unit": {
+     "at": [
+      0.4,
+      3.2
+     ],
+     "do": "downed"
+    },
+    "camera": {
+     "move": "wide",
+     "on": "unit",
+     "size": 3.4,
+     "angle": 20
+    },
+    "light": 1.5
+   }
+  },
+  {
+   "line": "It creeps up, it latches on, and it burrows in, through the skin.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "parasite_salamander",
+      "from": [
+       -0.6,
+       3.6
+      ],
+      "to": [
+       0.2,
+       3.3
+      ],
+      "pose": "crawl"
+     }
+    ],
+    "unit": {
+     "at": [
+      0.4,
+      3.2
+     ],
+     "do": "downed"
+    },
+    "caught": {
+     "t": 1.4,
+     "pose": "latch",
+     "then": "burrow"
+    },
+    "camera": {
+     "move": "close",
+     "size": 0.9,
+     "height": 0.45
+    },
+    "light": 1.6
+   }
+  },
+  {
+   "line": "Once it is inside, it eats its host's organs, one at a time, and grows. And then, it lays.",
+   "shot": {
+    "calder": {
+     "at": [
+      0,
+      1.4
+     ],
+     "do": "think",
+     "doAt": 0.8,
+     "look": "camera"
+    },
+    "unit": {
+     "at": [
+      1.2,
+      3.4
+     ],
+     "do": "downed"
+    },
+    "camera": {
+     "move": "medium",
+     "on": "calder",
+     "size": 1.5,
+     "angle": 0
+    },
+    "light": 1.4
+   }
+  },
+  {
+   "line": "So, if a unit gets hurt down here, keep it moving, and keep it awake.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "parasite_salamander",
+      "from": [
+       0.6,
+       3.6
+      ],
+      "to": [
+       -0.6,
+       3.1
+      ],
+      "pose": "crawl"
+     }
+    ],
+    "calder": {
+     "at": [
+      -1,
+      1.4
+     ],
+     "do": "point",
+     "doAt": 0.8
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.5
+    },
+    "light": 1.5
+   }
+  }
+ ]
+}

@@ -1,0 +1,227 @@
+{
+ "id": "hare",
+ "file": "limbo_phobia_reel_battering_hare.mp4",
+ "creature": "battering_hare",
+ "accent": [
+  "Battering Hare",
+  "dead straight line",
+  "dazed"
+ ],
+ "intro": {
+  "line": "Hi! I'm Dr. Iris Calder, from the Meridian Institute of Liminality. Today: the Battering Hare."
+ },
+ "beats": [
+  {
+   "line": "Out in the meadow, that hill is moving. That is the Battering Hare.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "battering_hare",
+      "from": [
+       -5,
+       13
+      ],
+      "to": [
+       2,
+       12
+      ],
+      "pose": "bound"
+     }
+    ],
+    "calder": {
+     "at": [
+      1.2,
+      2
+     ],
+     "do": "point"
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.8
+    }
+   }
+  },
+  {
+   "line": "A rabbit the size of an elephant. Grotesquely fat, on three legs.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "battering_hare",
+      "at": [
+       0,
+       8
+      ],
+      "pose": "idle",
+      "face": 150
+     }
+    ],
+    "unit": {
+     "at": [
+      2.4,
+      5.2
+     ],
+     "face": "creature"
+    },
+    "camera": {
+     "move": "wide",
+     "angle": 10
+    }
+   }
+  },
+  {
+   "line": "It doesn't hop, and it doesn't walk. It crawls, its belly an inch off the floor.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "battering_hare",
+      "from": [
+       -6,
+       7
+      ],
+      "to": [
+       5,
+       7
+      ],
+      "pose": "bound"
+     }
+    ],
+    "camera": {
+     "move": "low",
+     "size": 6
+    }
+   }
+  },
+  {
+   "line": "One hind leg is gone. What is left of it has fused into a knot of scar and bone.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "battering_hare",
+      "at": [
+       0,
+       6
+      ],
+      "pose": "idle",
+      "face": 200
+     }
+    ],
+    "camera": {
+     "move": "orbit",
+     "on": "tail",
+     "size": 3.2,
+     "orbit": 30
+    }
+   }
+  },
+  {
+   "line": "Long ears, one of them torn. Big, wet, dark eyes. And yellow chisel teeth, under a split lip.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "battering_hare",
+      "at": [
+       0,
+       6
+      ],
+      "pose": "idle",
+      "face": "camera"
+     }
+    ],
+    "camera": {
+     "move": "close",
+     "on": "head",
+     "size": 2.2
+    }
+   }
+  },
+  {
+   "line": "When something is in its way, it lowers its head, and scrapes the floor with a forefoot.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "battering_hare",
+      "at": [
+       0,
+       11
+      ],
+      "pose": "scrape",
+      "face": "unit"
+     }
+    ],
+    "unit": {
+     "at": [
+      0.4,
+      2.5
+     ],
+     "face": "creature"
+    },
+    "camera": {
+     "move": "over",
+     "dist": 2
+    }
+   }
+  },
+  {
+   "line": "Then it comes, in a dead straight line, through anything. Units, furniture, the walls of a camp.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "battering_hare",
+      "from": [
+       0,
+       14
+      ],
+      "to": [
+       0,
+       4
+      ],
+      "pose": "charge"
+     }
+    ],
+    "unit": {
+     "at": [
+      0.3,
+      3
+     ]
+    },
+    "caught": {
+     "t": 2.6,
+     "pose": "charge",
+     "then": "dazed"
+    },
+    "camera": {
+     "move": "wide",
+     "angle": 70,
+     "size": 8
+    }
+   }
+  },
+  {
+   "line": "It cannot turn once it has started. When it hits something it can't break, it lies there, dazed.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "battering_hare",
+      "at": [
+       0,
+       6
+      ],
+      "pose": "dazed",
+      "face": 120
+     }
+    ],
+    "unit": {
+     "at": [
+      1.6,
+      3.6
+     ],
+     "do": "downed"
+    },
+    "camera": {
+     "move": "wide",
+     "angle": -25
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,207 @@
+{
+ "id": "piranha",
+ "file": "limbo_phobia_reel_frog_piranha.mp4",
+ "creature": "frog_piranha",
+ "accent": [
+  "Frog-legged Piranha",
+  "frog legs",
+  "teeth"
+ ],
+ "intro": {
+  "line": "Hi! I'm Dr. Iris Calder, from the Meridian Institute of Liminality. Today: the Frog-legged Piranha."
+ },
+ "beats": [
+  {
+   "line": "In the Poolrooms, the water has teeth. This is the Frog-legged Piranha.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "frog_piranha",
+      "from": [
+       -1,
+       3
+      ],
+      "to": [
+       1,
+       3.4
+      ],
+      "pose": "swim"
+     }
+    ],
+    "calder": {
+     "at": [
+      1,
+      -0.8
+     ],
+     "do": "point"
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.6
+    }
+   }
+  },
+  {
+   "line": "A piranha, dark silver on the back, with a red-orange belly, and a jutting underbite of triangle teeth.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "frog_piranha",
+      "at": [
+       0,
+       1.6
+      ],
+      "pose": "bite",
+      "face": "camera"
+     }
+    ],
+    "camera": {
+     "move": "close",
+     "on": "head",
+     "size": 0.55,
+     "height": 0.4
+    }
+   }
+  },
+  {
+   "line": "And on the back of it, a pair of long, muscular frog legs.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "frog_piranha",
+      "at": [
+       0,
+       1.6
+      ],
+      "pose": "leap",
+      "face": 90
+     }
+    ],
+    "camera": {
+     "move": "orbit",
+     "size": 1.4,
+     "orbit": 40,
+     "height": 0.6
+    }
+   }
+  },
+  {
+   "line": "It leaps out of the water in long arcs, and hops across the wet tile, after anything that moves.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "frog_piranha",
+      "from": [
+       -1.5,
+       3.5
+      ],
+      "to": [
+       1.5,
+       -1.2
+      ],
+      "pose": "leap"
+     }
+    ],
+    "camera": {
+     "move": "wide",
+     "size": 5,
+     "angle": 10,
+     "height": 1.2
+    }
+   }
+  },
+  {
+   "line": "It bites, hard, and then it hops right back into the pool.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "frog_piranha",
+      "from": [
+       0,
+       2.5
+      ],
+      "to": [
+       0,
+       -0.6
+      ],
+      "pose": "leap"
+     }
+    ],
+    "unit": {
+     "at": [
+      0.2,
+      -1.4
+     ],
+     "face": "creature"
+    },
+    "caught": {
+     "t": 1.6,
+     "pose": "bite",
+     "then": "leap"
+    },
+    "camera": {
+     "move": "wide",
+     "on": "unit",
+     "size": 3,
+     "angle": -20
+    }
+   }
+  },
+  {
+   "line": "One of them is a nuisance. Ten of them is a problem. So, keep your boots out of the water.",
+   "shot": {
+    "creatures": [
+     {
+      "key": "frog_piranha",
+      "from": [
+       -1,
+       2.5
+      ],
+      "to": [
+       1,
+       3
+      ],
+      "pose": "swim"
+     },
+     {
+      "key": "frog_piranha",
+      "from": [
+       1.2,
+       4
+      ],
+      "to": [
+       -0.6,
+       3.6
+      ],
+      "pose": "swim"
+     },
+     {
+      "key": "frog_piranha",
+      "from": [
+       0,
+       5
+      ],
+      "to": [
+       1.4,
+       4.6
+      ],
+      "pose": "leap"
+     }
+    ],
+    "calder": {
+     "at": [
+      -1,
+      -0.9
+     ],
+     "do": "present",
+     "doAt": 1.5
+    },
+    "camera": {
+     "move": "two",
+     "dist": 1.6,
+     "angle": -1
+    }
+   }
+  }
+ ]
+}

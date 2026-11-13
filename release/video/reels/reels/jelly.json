@@ -1,0 +1,11 @@
+{
+ "id": "jelly",
+ "file": "limbo_phobia_reel_jelly_bear.mp4",
+ "legacy": {
+  "reel": "jelly",
+  "frames": "release/video/reels/build/cache/legacy/jelly"
+ },
+ "accent": [
+  "jelly bear"
+ ]
+}
