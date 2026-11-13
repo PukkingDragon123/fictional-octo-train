@@ -221,7 +221,7 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
   ud.crV = (ud.crV ?? 0) + (((crouchW - (ud.crK ?? 0)) * 90 - (ud.crV ?? 0) * 7) * dt) * (t - (ud.stT ?? -9) > 0.22 ? 1 : 0);
   if (ud.stLast !== d.stance) { ud.stLast = d.stance; ud.stT = t; }
   ud.crK = (ud.crK ?? 0) + ud.crV * dt;
-  const crouch = Math.max(-0.2, Math.min(1.35, ud.crK)) * alive;
+  const crouch = Math.max(-0.2, Math.min(1.2, ud.crK)) * alive;
   const actT = d.actionT * 1.25 + Math.max(0, Math.sin(t * 13)) * 0.06;
   const beat = 1 + 0.18 * Math.sin(t * 0.9 + d.seed * 7) + 0.12 * Math.sin(t * 2.3);
   // ---- the human animator (it limps on the left; the gait is slowed to the long legs' stride)
@@ -233,8 +233,9 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
   const P = hr.anim.update(dt, inp) as HPose;
   // ---- its own wrongness, over the copied movement
   // stooped under its own height; folded right over when it crouches (your crouch, done too low)
-  add(P, 'spine', 0.12 + 0.14 * lunge + 0.5 * crouch, 0, 0);
-  add(P, 'chest', 0.05 + 0.06 * lunge + 0.3 * crouch, 0, 0);
+  add(P, 'spine', 0.12 + 0.14 * lunge + 0.38 * crouch, 0, 0);
+  add(P, 'chest', 0.05 + 0.06 * lunge + 0.2 * crouch, 0, 0);
+  add(P, 'neck', -0.3 * crouch, 0, 0);
   for (const s of ['L', 'R']) add(P, 'uarm' + s, 0.25 * crouch, 0, 0);
   const tiltSide = hash(d.seed, 7) < 0.5 ? 1 : -1;
   const tilt = sm(ud, 'tilt', (0.22 + 0.2 * watch) * tiltSide + Math.sin(t * 0.37 + d.seed * 9) * 0.06, 2.2, dt);
