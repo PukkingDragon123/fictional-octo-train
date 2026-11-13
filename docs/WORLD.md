@@ -146,6 +146,8 @@ b.portal({ id: 'p_fields', x, y, kind: 'door', to: 'fields', tx: 40, ty: 40, lab
 | p_showroom_home / r_showroom_home | showroom "Living Room 14 / YOU ARE HOME" set front door ↔ homestead house 12 front door | door | — |
 | p_suburbs_home / r_suburbs_home | suburbs Maple Court 5 red front door ↔ homestead house 14 front door | door | — |
 | p_parking_depot / r_parking_depot | parking elevator core (P4) east door ↔ depot bus deck back wall | door | — |
+| p_depot_subway / r_depot_subway | depot Platform 0 (module 2) Metro stairs ↔ subway ticket hall stairs up | stairs_down / stairs_up | — |
+| p_tunnels_subway / r_tunnels_subway | tunnels J7 east-wall METRO door ↔ subway signal room steel door | door | — |
 | lg_under_hole / lg_rope_up | undercroft hole (anchor `fall`) → ledge · ledge rope → undercroft (anchor `r_ledge`) | hole / ladder | — |
 | lg_floor_hole | some deep generated floors (`floor~n`, n ≥ 120) → ledge (`fall`) | hole | — |
 

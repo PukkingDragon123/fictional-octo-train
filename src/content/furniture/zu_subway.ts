@@ -366,9 +366,9 @@ defObj({
   variant: (s) => String(s.r ? 1 : 0),
   model: (mb, s) => {
     mb.push(); if (s.r) mb.rotateY(Math.PI / 2);
-    mb.box(0, 2.58, 0, 1.24, 0.06, 0.14, 'metal_painted_green', { color: 0xd8dccc });
-    for (const z of [-0.035, 0.035]) mb.cylinderX(0, 2.555, z, 0.018, 1.18, 6, 'plastic_white', { emissive: 1.2, color: 0xfffff4 });
-    for (const x of [-0.5, 0.5]) mb.box(x, 2.64, 0, 0.01, 0.12, 0.01, 'metal_dark');
+    mb.box(0, 2.63, 0, 1.22, 0.035, 0.09, 'plastic_white', { color: 0xe8e8e0, bevel: false });
+    for (const z of [-0.025, 0.025]) mb.cylinderX(0, 2.6, z, 0.016, 1.16, 6, 'plastic_white', { emissive: 1.6, color: 0xffffff });
+    for (const x of [-0.45, 0.45]) mb.box(x, 2.66, 0, 0.008, 0.06, 0.008, 'metal_dark');
     mb.pop();
   },
 });

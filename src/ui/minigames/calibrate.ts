@@ -13,6 +13,7 @@
 // host: an element to sit in (e.g. a terminal page); else it opens over the screen.
 import { gaugeIn, crispCanvas, GRN, RED, AMB } from '../hiPixel';
 import { pxFrame, pxLamp } from '../pxKit';
+import { mxMount } from '../machine/decor';
 import { FocusNav } from '../menus/nav';
 import { sfx } from '../menus/sfx';
 import './minigames.css';
@@ -48,6 +49,8 @@ export function calibrate(o: CalibrateOpts = {}): Promise<CalibrateResult> {
     if (overlay) { overlay.append(panel); document.body.append(overlay); } else o.host!.append(panel);
     let frame: { dispose: () => void } | null = null;
     try { frame = pxFrame(panel, { tone: 'steel', well: 14, wellTint: 0x0e0d0b, chamfer: 10, hazard: true, seed: 77, crest: true, serial: 'CAL RIG C-7', lamps: ['a', 0], welds: true }); } catch { /* no canvas */ }
+    mxMount(panel, 'beacon', { right: 44, top: -30, z: 3 }, { col: 'amber', alert: true, s: 0.9 });
+    if (!o.host && window.innerWidth > 700) mxMount(panel, 'gauge', { right: -44, top: 40, z: 3 }, { label: 'SYNC' });
     let cur = 0, raf = 0, last = 0, done = false;
     // on top of any menu's focus stack: Esc walks away from this, not from the menu under it
     const nav = new FocusNav(panel, { onBack: () => finish(true) });

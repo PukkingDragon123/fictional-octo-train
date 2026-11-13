@@ -50,6 +50,8 @@ export interface PlateOpts {
   frame?: number; title?: string; seed?: number;
   /** a deeper hood on top (texels) for the nameplate and lamps */
   hood?: number;
+  /** round 16: little 3D things painted on the housing at every clear (texel units over the whole plate) */
+  deco?: (c: CanvasRenderingContext2D, W: number, H: number) => void;
 }
 
 export class Plate {
@@ -116,6 +118,7 @@ export class Plate {
     this.ctx.setTransform(1, 0, 0, 1, 0, 0); this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height); this.fx.setTransform(1, 0, 0, 1, 0, 0); this.fx.clearRect(0, 0, this.fg.width, this.fg.height);
     const bg = this.housingBg();
     if (bg) this.ctx.drawImage(bg, 0, 0);
+    if (bg && this.o.deco) { this.ctx.setTransform(K, 0, 0, K, 0, 0); try { this.o.deco(this.ctx, this.w + this.m * 2, this.h + this.m + this.mt); } catch { /* decor is optional */ } }
     const o = this.m * K, ot = this.mt * K;
     this.ctx.setTransform(K, 0, 0, K, o, ot); this.fx.setTransform(K, 0, 0, K, o, ot);
   }

@@ -11,6 +11,7 @@
 
 import { PLAYGROUND_INHABITANTS } from './lore_playground';
 import { FUNGUS_SEA_INHABITANTS } from './lore_fungus_sea';
+import { SUBWAY_INHABITANTS } from './lore_subway';
 
 export type SinRank = 'sloth' | 'gluttony' | 'lust' | 'greed' | 'envy' | 'wrath' | 'pride';
 
@@ -391,6 +392,7 @@ export const INHABITANTS: InhabitantLore[] = [
   // ============================================================== the Nostalgic Playground (src/creatures/lore_playground.ts)
   ...PLAYGROUND_INHABITANTS,
   ...FUNGUS_SEA_INHABITANTS,
+  ...SUBWAY_INHABITANTS,
   // ============================================================== the Ball House (src/world/gen/z_ballhouse.ts)
   L({
     id: 'timmy', name: 'Timmy', rank: 'lust', class: 'Remnant', danger: 6,

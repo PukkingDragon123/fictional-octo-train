@@ -186,6 +186,10 @@ export interface GaitOpts {
   curl?: number;
   /** frozen: no stepping */
   freeze?: boolean;
+  /** how far the knees lean out past straight up (0 = straight up over the hip) */
+  splay?: number;
+  /** pole: how much of the frame's up, and of its forward (negative: knees bend back, like a bird's) */
+  poleU?: number; poleF?: number;
 }
 
 const _p2 = new THREE.Vector3(), _rest = new THREE.Vector3(), _hip = new THREE.Vector3(), _knee = new THREE.Vector3(), _foot = new THREE.Vector3(), _pole = new THREE.Vector3(), _d = new THREE.Vector3(), _x = new THREE.Vector3(), _y = new THREE.Vector3(), _z = new THREE.Vector3();
@@ -252,7 +256,7 @@ export function updateLegs(root: THREE.Object3D, parts: Record<string, THREE.Obj
       _foot.set(s.sx + (_rest.x - s.sx) * t, s.sy + (_rest.y - s.sy) * t, s.sz + (_rest.z - s.sz) * t).addScaledVector(F.u, h);
     } else _foot.set(s.fx, s.fy, s.fz);
     // pole: up and out (knees high)
-    _pole.copy(F.u).multiplyScalar(1).addScaledVector(F.r, d.side * 0.55);
+    _pole.copy(F.u).multiplyScalar(o.poleU ?? 1).addScaledVector(F.r, d.side * (o.splay ?? 0.4)).addScaledVector(F.f, o.poleF ?? 0);
     solveLeg(root, parts[d.femur], parts[d.tibia], _hip, _foot, _pole, d.L1, d.L2);
   }
 }

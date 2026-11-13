@@ -15,6 +15,7 @@ import {
   PianoKey, Camera, FoldMap, Handset, Pedal, Horn, PullKnob, Ignition, DoorHandle, bindParticles,
 } from './props';
 import { Glove, Throttle, Bulb, WristWatch, IronCube, Level, Teeth } from './props2';
+import { Die, KneePad, ScanWand, Clipboard, Stethoscope } from './props3';
 import { sfx, haptic } from './sfx';
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
@@ -54,6 +55,8 @@ export class Touch3D {
     // the physical overhaul: the watch replaces the SEER-9, the iron cube the rucksack; grab, power, the lung pump, build, emote
     add(new WristWatch()); add(new IronCube());
     add(new Glove()); add(new Throttle()); add(new Bulb()); add(new Level()); add(new Teeth());
+    // round 16: the newer moves and boards get their own found objects
+    add(new Die()); add(new KneePad()); add(new ScanWand()); add(new Clipboard()); add(new Stethoscope());
     add(new Pedal('gas', false)); add(new Pedal('brake', true)); add(new Horn()); add(new PullKnob()); add(new Ignition()); add(new DoorHandle('dexit')); add(new DoorHandle('rexit'));
     host.classList.add('nc-3d');
     bus.on('bandShock', (e: any) => { if (e?.id && e.id === G.local?.id) this.shock(clamp01(e.strength ?? 0.6)); });
@@ -73,6 +76,8 @@ export class Touch3D {
     else if (key === 'ign') (this.props.ign as Ignition)?.setText(text);
   }
   invalidate() { this.rectT = 0; this.stage.dirty = true; }
+  /** the clipboard's lamp: fresh work on the board */
+  setFresh(v: boolean) { const c = this.props.quest as Clipboard | undefined; if (c && c.fresh !== v) { c.fresh = v; c.busy = true; this.stage.dirty = true; } }
 
   /** the stick (valve while walking, steering wheel while driving) */
   stick(sx: number, sy: number, R: number, kx: number, ky: number, live: boolean, running: boolean, drive: boolean) {

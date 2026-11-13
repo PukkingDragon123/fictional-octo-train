@@ -73,7 +73,7 @@ URL flags: `?quick` skips the title and the intro and starts a fresh run (band a
 | R | reload; rotate while placing furniture |
 | Q | tap: whistle (keys under the emote dial pick the call); hold: shout |
 | G | the emote dial (a painted rotary phone): wave, point, dance, sit, salute, mock... |
-| B | build mode: the blueprint clipboard (R rotates, [ ] or wheel change piece, click places a frame, hold welds, X demolishes) |
+| B | build mode: the blueprint clipboard (R rotates, [ ] or wheel change piece, Tab the next shelf, click places a frame, hold nails / welds it, X takes it down for part of its salvage, U upgrades the piece under the cursor: plank to scrap plate to riveted steel). The cost floats under the ghost; crates in your camp count as your hands |
 | H | pump the lungs: press as the bead hits OUT / IN (recovers stamina, calms a panic attack) |
 | Z / X, wheel | rotate camera, zoom |
 | Middle mouse or Alt+drag | orbit the camera freely (snaps back on release) |

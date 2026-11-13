@@ -741,7 +741,7 @@ export class PullChain extends Thing {
     for (let i = 0; i < 16; i++) ch.add(gem(0.032, 0, 0), M(0, -0.04 - i * 0.08, 0, i * 0.7, i * 0.3), 0xa08d58, BRASS);
     ch.add(lathe([[0, 0], [0.06, 0.015], [0.078, 0.09], [0.055, 0.17], [0.016, 0.2]], 10), M(0, -1.5, 0), 0xb0974f, SURF(BRASS, 1));
     this.mesh(ch, this.mat({ wear: 0.5 }), this.chain);
-    this.tape('LIGHT', -0.18, -0.98, 0.15, 'front');
+    this.tape('LAMP', -0.18, -0.98, 0.15, 'front');
   }
   protected onDown() { sfx('tc_chain', 0.5); haptic(12); this.swv += (Math.random() - 0.5) * 2; this.lswv += 0.6; }
   protected onUp() { this.swv += (Math.random() - 0.5) * 3; }

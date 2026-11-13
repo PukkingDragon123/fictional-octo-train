@@ -33,6 +33,7 @@ import { Farm, isPlanter } from './farm';
 import { Settlement } from './settlement';
 import { bump, mark } from './progress';
 import { Camp } from './camp';
+import { Gathering } from './gather';
 import { GhostTag, type TagState } from './ghostTag';
 import { upgradeOf, upgradeCost, CLAIM_OBJS } from './kit2';
 import { storeItems, takeFromStore } from '../craft/stores';
@@ -65,6 +66,8 @@ export class BuildSystem implements GameSystem {
   settle = new Settlement();
   /** round 16: the camp pieces at run time (power grid, water, traps, probes, upkeep, beds, radio, upgrades) */
   camp = new Camp();
+  /** round 16: salvage nodes in the levels (src/build/gather.ts) */
+  gather = new Gathering();
   private tag = new GhostTag();
   spot: Spot | null = null;
   hover: Hover = null;
@@ -123,6 +126,8 @@ export class BuildSystem implements GameSystem {
     }
     this.active = on;
     this.demolish = false;
+    // the ghost's own words take over the world prompt while building (src/build/build.css)
+    document.body.classList.toggle('bld-on', on);
     if (!on) { this.ghost.visible = false; this.ring.visible = false; this.claimRing.visible = false; setVisor(0); this.tag.hide(); }
     this.board.show(on);
     if (!on && this.boardOver) { G.input.pointerOverUI = false; this.boardOver = false; }
@@ -334,6 +339,12 @@ export class BuildSystem implements GameSystem {
     if (this.demolish) { this.demolishAt(p, this.hoverOf(t)); return true; }
     if (t.kind === 'object' && objDef(t.obj.key)?.tags?.includes('bld_frame')) { this.weld(p, t.obj, () => true); return true; }
     const s = this.spotAt(p, this.current());
+    // touch: a tap on a built piece that has a next tier (and nowhere to put the new one) upgrades it
+    const h = this.hoverOf(t);
+    if (h && h.kind !== 'frame' && !s?.ok) {
+      const from = h.kind === 'wall' ? piece(h.key) : pieceForObj(h.o.key);
+      if (from && upgradeOf(from.key)) { this.upgradeAt(p, h); return true; }
+    }
     if (s) this.place(p, this.current(), s);
     return true;
   }
@@ -444,6 +455,7 @@ export class BuildSystem implements GameSystem {
     this.farm.update(dh);
     this.settle.update(dt, this.active);
     try { this.camp.update(dt, dh); } catch (e) { console.warn('camp', e); }
+    try { this.gather.update(dt); } catch (e) { console.warn('gather', e); }
     this.defT -= dt; if (this.defT <= 0) { this.defT = 0.5; this.defences(); }
     this.stoveT -= dt; this.stoves();
     if (this.active && p) this.board.update(dt, this.boardState(p));
@@ -582,7 +594,7 @@ export class BuildSystem implements GameSystem {
     const unlocked = this.unlocked(pc);
     const why = !unlocked ? 'no blueprint: research it in the lab' : !s.ok ? s.why : !this.canAfford(p, pc) ? 'not enough salvage' : !welderFor(p, pc) ? (pc.join === 'nail' ? 'needs a hammer to finish' : 'needs a welding torch to finish') : undefined;
     const w = pc.w ?? 1, d = pc.d ?? 1, rw = s.rot % 2 === 0 ? w : d, rd = s.rot % 2 === 0 ? d : w;
-    const at = pc.kind === 'obj' ? { x: s.x + rw / 2, y: z.heightAt(s.x, s.y) + Math.min(2.2, pc.h) + 0.35, z: s.y + rd / 2 } : { x: s.side === 0 ? s.x + 0.5 : s.x, y: z.heightAt(s.x, s.y) + 2.5, z: s.side === 0 ? s.y : s.y + 0.5 };
+    const at = pc.kind === 'obj' ? { x: s.x + rw / 2, y: z.heightAt(s.x, s.y), z: s.y + rd / 2 } : { x: s.side === 0 ? s.x + 0.5 : s.x, y: z.heightAt(s.x, s.y), z: s.side === 0 ? s.y : s.y + 0.5 };
     const keys: [string, string][] = [['R', 'Rotate'], ['[ ]', 'Piece'], ['Tab', 'Shelf'], ['X', 'Take down'], ['B', 'Done']];
     return { key: 'place:' + pc.key, head: 'Build', name: pc.name, why: why && why !== 'not enough salvage' ? why : undefined, cost: this.costLine(p, pc.cost), keys, at };
   }
@@ -590,9 +602,9 @@ export class BuildSystem implements GameSystem {
     return pc.cost.map(([k, n]) => ({ text: `+${frac >= 1 ? n : Math.max(k === pc.cost[0][0] ? 1 : 0, Math.floor(n * frac))} ${itemDef(k).name}`, ok: true })).filter((c) => !c.text.startsWith('+0 '));
   }
   private hoverTop(z: Zone, h: NonNullable<Hover>) {
-    if (h.kind === 'wall') return { x: h.side === 0 ? h.x + 0.5 : h.x, y: z.heightAt(h.x, h.y) + 2.6, z: h.side === 0 ? h.y : h.y + 0.5 };
+    if (h.kind === 'wall') return { x: h.side === 0 ? h.x + 0.5 : h.x, y: z.heightAt(h.x, h.y), z: h.side === 0 ? h.y : h.y + 0.5 };
     const d = objDef(h.o.key); const w = d?.w ?? 1, dd = d?.d ?? 1, rw = h.o.rot % 2 === 0 ? w : dd, rd = h.o.rot % 2 === 0 ? dd : w;
-    return { x: h.o.x + rw / 2, y: z.heightAt(h.o.x, h.o.y) + Math.min(2.4, (d?.height ?? 1)) + 0.3, z: h.o.y + rd / 2 };
+    return { x: h.o.x + rw / 2, y: z.heightAt(h.o.x, h.o.y), z: h.o.y + rd / 2 };
   }
 
   // ================================================================= settlement machines

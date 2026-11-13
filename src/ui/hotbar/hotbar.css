@@ -18,3 +18,4 @@
 #hot12.mx .hb-cv { image-rendering: pixelated; }
 #hot12.mx .hb-slot i { left: 12px; top: 10px; }
 #hot12.mx .hb-slot.held { transform: none; }
+#hot12.touch .hb-bcn { display: none; }

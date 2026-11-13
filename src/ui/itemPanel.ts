@@ -28,6 +28,7 @@ import { itemValue } from '../game/debt/values';
 import type { MenuOption } from './ui';
 import { mxFrame, mxSkinKey, type MxFrame } from './machine/kit';
 import { mxOk } from './machine/core';
+import { mxMount } from './machine/decor';
 import type { LampCol } from './machine/parts';
 
 /** round 16: the card is a 3D machine housing (src/ui/machine): olive enamel, a raised rail, corner guards, bolts, the render well set in a dark steel lip, a seam over the keys, hazard paint down a dangerous thing's edge */
@@ -285,6 +286,7 @@ class ItemPanel {
     if (ck === 'haz' || ck === 'ord' || ck === 'anom') el.dataset.haz = '1';
     document.body.appendChild(el);
     this.el = el;
+    if (mxOk() && el.dataset.haz) mxMount(el, 'beacon', { right: 46, top: -26, z: 6 }, { col: ck === 'anom' ? 'green' : 'red', alert: true, s: 0.8 });
     this.bars(it);
     this.keys(it, cont, group);
     // beside the slot: to its right if it fits, else to its left; kept on screen

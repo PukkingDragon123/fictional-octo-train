@@ -286,10 +286,10 @@ class TitleRoom {
     this.menu.classList.add('mx');
     this.menu.querySelector(':scope > .mxf-cv')?.remove();
     mxFrame(this.menu, (w, hh) => panelSpec(w, hh, { title: 'OBSERVATION DESK', serial: 'MI-OB4', seed: 71, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 44, bot: 26, toggles: 2, knobs: 1 }), { pad: 16, grow: pt ? { l: 14, t: 48, r: 14, b: 28 } : { l: 20, t: 50, r: 22, b: 30 } });
-    this.beacon = mxMount(this.menu, 'beacon', { right: pt ? 18 : 26, top: pt ? -78 : -80, z: 3 }, { col: 'amber', alert: this.lastKey === 'new' || this.lastKey === 'continue' });
+    this.beacon = mxMount(this.menu, 'beacon', { right: pt ? 18 : 30, top: pt ? -84 : -92, z: 3 }, { col: 'amber', s: 1.3, alert: this.lastKey === 'new' || this.lastKey === 'continue' });
     if (!pt) {
-      mxMount(this.menu, 'jar', { right: -110, bottom: -30, z: 3 }, { title: 'Specimen 07' });
-      mxMount(this.menu, 'wrench', { right: -48, top: -26, z: 3 });
+      mxMount(this.menu, 'jar', { right: -132, bottom: -44, z: 3 }, { title: 'Specimen 07', s: 1.35 });
+      mxMount(this.menu, 'gauge', { right: 10, bottom: 92, z: 3 }, { label: 'LINK' });
     }
   }
   private focusKey(k: string) { requestAnimationFrame(() => (this.btns.get(k) ?? this.feedBtns.get(k as FeedKey))?.focus({ preventScroll: true })); }

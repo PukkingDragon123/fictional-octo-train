@@ -19,3 +19,7 @@
 .obj15.t-ok .obj15-k { color: #9ef0b4; }
 .obj15.t-filed .obj15-k { color: #c8bfa8; }
 .reduce-flash .obj15, .reduce-flash .obj15 * { transition: none !important; }
+
+/* round 16: the beacon (src/ui/machine/decor.ts) takes the diamond's place */
+.obj15.has-b .obj15-k span::before { display: none; }
+.obj15-k .obj15-b { display: inline-block; vertical-align: middle; margin: -12px 2px -6px 0; }

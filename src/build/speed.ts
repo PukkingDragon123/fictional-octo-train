@@ -9,13 +9,14 @@
 //
 //   buildSpeed(p)  every 'build' modifier multiplied (clamped 0.25 .. 4)
 //   craftSpeed(p)  every 'craft' modifier multiplied (clamped 0.25 .. 4)
+//   gatherSpeed(p) every 'gather' modifier multiplied (salvage nodes, src/build/gather.ts)
 //
 // Modifiers are plain functions read every time an action starts, so a talent,
 // a trait, a chip or a moodle can come and go without telling anyone.
 import type { Player } from '../entities/player';
 import { G } from '../game/G';
 
-export type SpeedKind = 'build' | 'craft';
+export type SpeedKind = 'build' | 'craft' | 'gather';
 export type SpeedMod = (p: Player, kind: SpeedKind) => number;
 
 const MODS = new Map<string, SpeedMod>();
@@ -35,7 +36,9 @@ function mul(p: Player, kind: SpeedKind): number {
 export const buildSpeed = (p: Player) => mul(p, 'build');
 /** how fast this unit crafts (1 = normal) */
 export const craftSpeed = (p: Player) => mul(p, 'craft');
+/** how fast this unit strips, pries and salvages gathering nodes (1 = normal; src/build/gather.ts) */
+export const gatherSpeed = (p: Player) => mul(p, 'gather');
 
 // the built-in ones: carpentry / mechanics are already in the actions; a lit
 // camp (a claim with a workbench and light) is a little quicker to work in
-addSpeedMod('camp:lit', (p, kind) => (G as unknown as { build?: { campBonus?: (p: Player, k: SpeedKind) => number } })?.build?.campBonus?.(p, kind) ?? 1);
+addSpeedMod('camp:lit', (p, kind) => kind === 'gather' ? 1 : (G as unknown as { build?: { campBonus?: (p: Player, k: 'build' | 'craft') => number } })?.build?.campBonus?.(p, kind) ?? 1);

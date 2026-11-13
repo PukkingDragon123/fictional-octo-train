@@ -90,6 +90,9 @@ interface PS {
 }
 interface SM { parts: PS[]; key: string; init: boolean; n: number }
 
+/** dev: how often the layer stepped in (window.__smooth) */
+const STATS = { frames: 0, blends: 0, pops: 0 };
+try { (globalThis as any).__smooth = STATS; } catch { /* no window */ }
 const SEC_TRAIL = /tail|antenn|feeler|whisk|tendril|tentac|mane|frond|streamer|ribbon|tassel|^ear|ear[LR0-9]?$|wattle|dewlap|pennant|flag/i;
 const SEC_HEAD = /^(head|neck)$/i;
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _qi = new THREE.Quaternion(), _pq = new THREE.Quaternion();
@@ -155,6 +158,7 @@ export function smoothEnd(c: Creature, rig: Rig, dt: number, held: boolean, M: V
   const key = keyOf(c);
   const first = !S.init;
   const T = !first && key !== S.key ? blendFor(S.key, key) : 0;
+  STATS.frames++; if (T > 0) STATS.blends++;
   S.key = key;
   S.init = true;
   const h = Math.min(Math.max(dt, 0), 0.1);
@@ -177,6 +181,7 @@ export function smoothEnd(c: Creature, rig: Rig, dt: number, held: boolean, M: V
     const d = P.qr.angleTo(_q), dp = P.pr.distanceTo(_p);
     const pop = (d > thr && d > P.d * 3 + 0.05) || (dp > pthr && dp > P.dp * 3 + 0.02);
     if (T > 0 || pop) {
+      if (pop && T <= 0) STATS.pops++;
       // blend from what is on screen now into the new pose
       P.off.copy(P.qd).multiply(_qi.copy(_q).invert());
       P.poff.copy(P.pd).sub(_p);

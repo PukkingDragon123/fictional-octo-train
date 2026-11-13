@@ -12,6 +12,7 @@ import { bus } from '../../core/events';
 import { saveGame } from '../../game/save';
 import { zoneSpec } from '../../world/worldGraph';
 import { occupationByKey } from '../../survival/traits';
+import { talentLine } from '../../survival/talents';
 import { suitNumber } from '../../entities/humanLooks';
 import { h, optionsPanel, controlsPanel, esc, swapPage, confirmDialog, FocusNav, sfx, type OptionsApi } from './common';
 import { bodyCanvas, moodleIcon, BODY_W, BODY_H } from '../moodles';
@@ -132,11 +133,11 @@ export class PauseMenu {
       // pointer), a beacon on the terminal's hood that turns when something is wrong (debt overdue, the unit down)
       if (!pt) {
         mxMount(col, 'wrench', { right: -24, top: 64, z: 3 });
-        const jar = mxMount(right, 'jar', { left: -150, bottom: 6, z: 3 }, { title: 'Specimen 07' });
+        const jar = mxMount(right, 'jar', { left: -142, bottom: 4, z: 3 }, { title: 'Specimen 07', s: 1.4 });
         jar?.el.classList.add('ps2-jar');
         const d = G.debt as any, p = G.local;
         const bad = !!p && (p.body.downed || p.body.dead || (!!d?.on && !d.cleared && (d.hoursLeft ?? 99) < 12));
-        mxMount(t.el, 'beacon', { right: 74, top: -31, z: 6 }, { col: bad ? 'red' : 'amber', alert: bad });
+        mxMount(t.el, 'beacon', { right: 66, top: 3, z: 6 }, { col: bad ? 'red' : 'amber', alert: bad });
       }
     }
     el.append(right, col, top, bot);
@@ -168,6 +169,8 @@ export class PauseMenu {
       const rows: [string, string, boolean?][] = [
         ['Debtor', p.name],
         ['Programme', occupationByKey(p.occupation).name],
+        // the talent marbles weighed on the bench (survival/talents.ts)
+        ['Talent', talentLine(p.body)],
         ['Location', z?.name || p.zoneKey],
         ['Condition', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE', p.body.downed],
       ];

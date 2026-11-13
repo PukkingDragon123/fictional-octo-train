@@ -12,6 +12,7 @@
 import { crispCanvas, rect, glass, rivet, GUN, AMB, GRN } from '../hiPixel';
 import { pxPlate, pxLamp } from '../pxKit';
 import { mxFrame, type MxFrame } from '../machine/kit';
+import { mxMount, type MxDecor } from '../machine/decor';
 import { mxOk } from '../machine/core';
 import './minigames.css';
 
@@ -26,6 +27,7 @@ class ScanTuner {
   private onIt = false; private drawT = 0;
   /** round 16: the 3D housing (src/ui/machine) the scope sits in; its lamp lights on the carrier */
   private fr: MxFrame | null = null; private lampOn = false;
+  private bcn: MxDecor | null = null;
   private wheel = (e: WheelEvent) => { if (!this.active) return; e.preventDefault(); e.stopPropagation(); this.n = clamp(this.n + Math.sign(e.deltaY) * 0.035); };
   private move = (e: PointerEvent) => { if (!this.active) return; const k = e.pointerType === 'touch' ? 0.006 : 0.0032; this.n = clamp(this.n + (e.movementX || 0) * k); };
   private key = (e: KeyboardEvent) => { if (!this.active) return; if (e.code === 'ArrowLeft') { this.n = clamp(this.n - 0.04); e.preventDefault(); } else if (e.code === 'ArrowRight') { this.n = clamp(this.n + 0.04); e.preventDefault(); } };
@@ -43,6 +45,7 @@ class ScanTuner {
         wells: [{ x: gx - 2, y: 6, w: gw + 4, h: 46 }], lamps: [{ x: 18, y: 22, r: 4, col: 'amber', on: false }],
         glands: [{ x: Math.round(w * 0.78), y: h - 5, col: 0x1a1a18, drop: 14 }], hazPaint: [{ x: 8, y: h - 12, w: 18, h: 6 }],
         stencils: [{ text: 'TUNE', x: 18, y: 46, px: 9, align: 'center' }] }), { pad: 12 });
+      this.bcn = mxMount(box, 'beacon', { right: 18, top: -28, z: 3 }, { col: 'green', s: 0.8 });
     } else el.append(k.cv);
     let seen = 0;
     try { seen = Number(localStorage.getItem('lp.tunerHint') || 0); } catch { /* storage blocked */ }
@@ -73,6 +76,7 @@ class ScanTuner {
     this.f += (tgt - this.f) * Math.min(1, dt * 2.2);
     const band = 0.085 - this.hard * 0.012;
     this.onIt = Math.abs(this.n - this.f) < band;
+    this.bcn?.alert(this.onIt);
     this.lock = clamp(this.lock + (this.onIt ? dt * 0.55 : -dt * 0.35));
     this.drawT -= dt;
     if (this.drawT <= 0) { this.drawT = 1 / 30; this.draw(band); }

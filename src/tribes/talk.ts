@@ -16,6 +16,7 @@
 import './talk.css';
 import { G } from '../game/G';
 import { mxSkinAll, mxFrame, panelSpec } from '../ui/machine/kit';
+import { mxMount, type MxDecor } from '../ui/machine/decor';
 import { mxOk } from '../ui/machine/core';
 import { bus } from '../core/events';
 import { op } from '../game/ops';
@@ -90,6 +91,8 @@ export class Talk {
   private suspended = false;
   private node = '';
 
+  private gauge: MxDecor | null = null;
+  private bcn: MxDecor | null = null;
   constructor(private S: TribeSystem) {
     fpGroup('talk');
     const el = this.el = document.createElement('div');
@@ -99,7 +102,12 @@ export class Talk {
     this.opts = el.querySelector('.hm-opts') as HTMLDivElement;
     document.body.appendChild(el);
     // round 16: the replies are 3D push keys on an olive console (src/ui/machine)
-    if (mxOk()) { el.classList.add('mx'); mxFrame(el, (w, h) => { const s = panelSpec(w, h, { seed: 17, lamps: ['green', 'amber'], glands: 2, vents: false, hazard: true }); s.depth = 8; return s; }, { pad: 14 }); }
+    if (mxOk()) {
+      el.classList.add('mx'); mxFrame(el, (w, h) => { const s = panelSpec(w, h, { seed: 17, lamps: ['green', 'amber'], glands: 2, vents: false, hazard: true }); s.depth = 8; return s; }, { pad: 14 });
+      // round 16: the console's own instruments: a MOOD gauge whose needle follows how they take you, a beacon that turns when it sours
+      this.gauge = mxMount(el, 'gauge', { right: 22, top: -30, z: 4 }, { label: 'MOOD', wander: false, s: 0.9 });
+      this.bcn = mxMount(el, 'beacon', { right: 72, top: -28, z: 4 }, { col: 'red', s: 0.8 });
+    }
     el.addEventListener('pointerdown', (e) => {
       const b = (e.target as HTMLElement).closest('.hm-opt') as HTMLElement | null;
       if (!b) return;
@@ -217,6 +225,7 @@ export class Talk {
     const html = this.replies.map((r, i) => `<button class="hm-opt${r.why ? ' no' : ''}" data-i="${i}" style="--d:${i * 50}ms"><span class="hm-in"><i class="hm-k">${keys[i]}</i><span class="hm-t">${esc(r.text)}${r.why ? `<em>${esc(r.why)}</em>` : ''}</span></span></button>`).join('');
     const e = this.escReply ? `<button class="hm-opt hm-esc" data-i="esc" style="--d:${this.replies.length * 50}ms"><span class="hm-in"><i class="hm-k">Esc</i><span class="hm-t">${esc(this.escReply.text)}</span></span></button>` : '';
     this.opts.innerHTML = html + e;
+    if (this.c && (this.gauge || this.bcn)) { try { const at = attitude(this.c); this.gauge?.set((at + 100) / 200); this.bcn?.alert(at < -10); } catch { /* not a tribe member */ } }
     mxSkinAll(this.opts, '.hm-opt', (b) => (b.classList.contains('hm-esc') ? { tone: 'dark', lamp: false, screws: false, sound: 'plate' } : b.classList.contains('no') ? { tone: 'olive', lamp: 'red', dim: true, screws: false, sound: '' } : { tone: 'olive', lamp: 'amber', screws: false, sound: 'plate' }));
     void this.opts.offsetWidth;
     this.opts.classList.add('vis');

@@ -12,6 +12,7 @@ import { terminal } from './terminal';
 
 export { sfx } from './sfx';
 import { mxKnob, mxToggleCanvas, mxSkinKey, mxSwing } from '../machine/kit';
+import { mxMount } from '../machine/decor';
 import { mxOk } from '../machine/core';
 export { FocusNav } from './nav';
 
@@ -230,7 +231,7 @@ export function confirmDialog(o: ConfirmOpts): Promise<boolean> {
     const ok = plateBtn(o.ok || 'OK', () => done(true), { finish: o.danger ? 'oxblood' : 'brass', size: 'md', lamp: o.danger ? 'red' : 'green', sound: o.danger ? 'plate' : 'confirm' });
     t.keys.append(cancel, ok);
     veil.append(t.el);
-    if (mxOk()) mxSwing(t.el);
+    if (mxOk()) { mxSwing(t.el); mxMount(t.el, 'beacon', { right: 58, top: -26, z: 6 }, { col: o.danger ? 'red' : 'amber', alert: !!o.danger }); }
     veil.addEventListener('pointerdown', (e) => { if (e.target === veil) done(false); });
     document.body.append(veil);
     sfx(o.danger ? 'error' : 'open', 0.6);

@@ -96,6 +96,13 @@ const DAMP: Record<string, [string, number][]> = {
   server: [['spore_rat', 0.3]],
 };
 for (const k in DAMP) ADD[k] = (ADD[k] || []).concat(DAMP[k]);
+// Westgate Station (round 16, src/world/gen/z_subway.ts lists its own; the Worm Train, the Token Whelk and
+// the Stile Mantis are set pieces their files place): larvae stray into the Service Tunnels, a Ringer up to the Depot
+const SUBWAY: Record<string, [string, number][]> = {
+  tunnels: [['worm_larva', 0.35]],
+  depot: [['ringer', 0.5]],
+};
+for (const k in SUBWAY) ADD[k] = (ADD[k] || []).concat(SUBWAY[k]);
 /**
  * The new dimensions (src/world: shared floors) list these themselves; when a
  * dimension zone's key or name says which one it is and its table is missing

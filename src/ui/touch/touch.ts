@@ -161,8 +161,10 @@ export class TouchControls implements GameSystem {
     const tr = this.group('tr', 'nc-group nc-row nc-tr');
     this.btn(tr, 'chat', 'chat', { label: 'CHAT', s: 0.95, on: 'up', tap: () => this.openChat() });
     // (round 14: the WATCH and MAP buttons went with the wrist watch; quests are QUESTS, scanning is hold Q)
-    this.btn(tr, 'quest', 'quest', { label: 'QUESTS', s: 0.95, tap: () => (this.g as any).broadcast?.toggle?.() });
+    this.btn(tr, 'quest', 'quest', { label: 'TASKS', s: 0.95, tap: () => (this.g as any).broadcast?.toggle?.() });
     this.btn(tr, 'self', 'self', { label: 'SELF', s: 0.95, tap: () => (this.g as any).selfInspect?.toggle?.() });
+    // round 16: the survey map (M) is the folded map again
+    this.btn(tr, 'map', 'map', { label: 'MAP', s: 0.95, tap: () => (this.g as any).surveyMap?.toggle?.() });
     this.btn(tr, 'inv', 'inventory', { label: 'PACK', s: 0.95, tap: () => { const pk = (this.g as any).pack; if (pk?.toggle) pk.toggle(); else this.g.ui?.inventory?.toggle?.(); } });
 
     // ---- on foot
@@ -179,6 +181,10 @@ export class TouchControls implements GameSystem {
     // the lung pump (H)
     this.btn(act, 'pump', 'pump', { label: 'PUMP', x: 3.35, y: 3.5, s: 0.95, hold: 'breathe', tap: () => { if (!this.g.hudBody && this.g.local) startBreathing(this.g.local); } });
     this.btn(act, 'talk', 'talk', { label: 'TALK', x: 1.75, y: 2.6, s: 1.0, cls: 'rec', hold: 'talk' });
+    // round 16: the newer moves on the cluster's top row: SCAN (hold, Q), ROLL (C), CRAWL (hold Ctrl: down flat, again to get up)
+    this.btn(act, 'scan', 'scan', { label: 'SCAN', x: 0.2, y: 3.85, s: 1.0, hold: 'scan' });
+    this.btn(act, 'roll', 'roll', { label: 'ROLL', x: 1.3, y: 3.8, s: 0.95, tap: () => this.g.input.tap('roll') });
+    this.btn(act, 'crawl', 'crawl', { label: 'CRAWL', x: 2.3, y: 3.75, s: 0.95, tap: () => this.crawl() });
 
     // ---- driver's seat (the stick steers)
     const drive = this.group('drive', 'nc-group nc-br');
@@ -360,8 +366,9 @@ export class TouchControls implements GameSystem {
     this.show('power', free && mode === 'walk' && !scanCovers && !ad);
     this.show('act', free && mode === 'walk' && !scanCovers && !ad);
     for (const k of ['photo', 'build', 'emote']) this.show(k, !ad);
-    this.show('quest', ad);
-    this.show('self', ad);
+    this.show('quest', !dead);
+    this.show('self', !dead);
+    this.show('map', !dead);
     this.show('drive', free && mode === 'drive');
     this.show('ride', free && mode === 'ride');
     // the inventory has its own close buttons and needs the whole screen
@@ -382,6 +389,12 @@ export class TouchControls implements GameSystem {
     this.setOn('power', inp.heldVirtual('power') || inp.down('power'));
     this.setOn('build', !!(g as any).build?.active);
     this.setOn('inv', inv || !!(g as any).pack?.open);
+    this.setOn('quest', !!(g as any).broadcast?.open);
+    this.setOn('map', !!(g as any).surveyMap?.open);
+    this.setOn('self', !!(g as any).selfInspect?.open);
+    this.setOn('crawl', !!(p as any).motion?.prone);
+    this.setOn('scan', inp.heldVirtual('scan'));
+    this.t3.setFresh(!!(g as any).missions?.quests?.fresh?.size);
     if (seat) {
       this.setOn('hlights', !!seat.v.lights);
       this.setOn('ign', !!seat.v.running);
@@ -760,6 +773,14 @@ export class TouchControls implements GameSystem {
   strikeDown(e: PointerEvent) { this.atkDown(e); }
   strikeMove(e: PointerEvent) { this.atkMove(e); }
   strikeUp(cancelled: boolean) { this.atkUp(cancelled); }
+  /** CRAWL: down flat (the sneak key held past the drop), or up again when already down */
+  private crawl() {
+    const p = this.g.local, inp = this.g.input;
+    if (!p) return;
+    if ((p as any).motion?.prone) { inp.tap('sneak'); return; }
+    inp.press('sneak');
+    setTimeout(() => inp.release('sneak'), 560);
+  }
   /** the adaptive layout replaced the on-foot cluster (round 12-15); round 16 brings the found-object cluster back */
   adaptive = false;
 

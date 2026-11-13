@@ -18,6 +18,7 @@ import { crispCanvas, rect, rivet, GUN, AMB } from '../hiPixel';
 import { pxPlate, pxFrame } from '../pxKit';
 import { mixHex } from '../../gfx/pixel';
 import { mxSocketSheet, mxFrame, panelSpec, SOCK_PAD } from '../machine/kit';
+import { mxMount, type MxDecor } from '../machine/decor';
 import { mxOk } from '../machine/core';
 
 /** round 16: a 3D socket (src/ui/machine): a deep olive cup with a felt bed, a bolt, a stamped yellow number tag, an amber lamp that lights in the hand */
@@ -108,6 +109,7 @@ export class HotbarStrip {
   private sig = '';
   private t = 0;
   hidden = false;
+  private bcn: MxDecor | null = null;
 
   constructor() {
     const el = this.el = document.createElement('div');
@@ -142,7 +144,10 @@ export class HotbarStrip {
     document.body.appendChild(el);
     // the rail the six sockets sit in
     try {
-      if (mxOk()) { el.classList.add('mx'); mxFrame(el, (w, h) => { const s = panelSpec(w, h, { seed: 66, hazard: false, vents: false, glands: 2, lamps: [] }); s.depth = 7; s.rivets = false; return s; }, { pad: 10 }); }
+      if (mxOk()) {
+        el.classList.add('mx'); mxFrame(el, (w, h) => { const s = panelSpec(w, h, { seed: 66, hazard: false, vents: false, glands: 2, lamps: [] }); s.depth = 7; s.rivets = false; return s; }, { pad: 10 });
+        this.bcn = mxMount(el, 'beacon', { right: -36, bottom: 6, z: 3 }, { col: 'red', s: 0.85, cls: 'hb-bcn' });
+      }
       else pxFrame(el, { tone: 'dark', chamfer: 8, screws: false, seed: 66 });
     } catch { /* no canvas */ }
     window.addEventListener('keydown', (e) => {
@@ -165,6 +170,7 @@ export class HotbarStrip {
     this.t -= dt;
     if (this.t > 0) return;
     this.t = 0.3;
+    this.bcn?.alert(((G as any).survival?.threat ?? 0) > 0.45);
     const s = hotSlots(p);
     const sig = s.map((it) => (it ? it.uid + ':' + it.key + (p.handR === it || p.handL === it ? '*' : '') : '-')).join('|');
     if (sig === this.sig) return;

@@ -11,6 +11,7 @@ import { bus } from '../../core/events';
 import { mapRank, MAP_ECHO_R, MAP_PING_R } from '../../game/mapUpgrades';
 import { pxFrame } from '../pxKit';
 import { mxFrame, panelSpec } from '../machine/kit';
+import { mxMount, type MxDecor } from '../machine/decor';
 import { mxOk } from '../machine/core';
 import { rect, dprK } from '../hiPixel';
 import type { Zone } from '../../world/zone';
@@ -40,6 +41,7 @@ export class SurveyMap {
   private head: HTMLDivElement;
   private foot: HTMLDivElement;
   open = false;
+  private bcn: MxDecor | null = null;
   private t = 0; private drawT = 0; private echoT = 0; private openT = 0;
   private view = { x0: 0, y0: 0, s: 2, ox: 0, oy: 0 };
 
@@ -65,6 +67,10 @@ export class SurveyMap {
           s.win!.back = true;
           return s;
         }, { pad: 16, grow: { l: 12, t: 30, r: 12, b: 20 } });
+        this.bcn = mxMount(plot, 'beacon', { right: 150, top: -62, z: 4 }, { col: 'red' });
+        mxMount(plot, 'gears', { left: -86, top: 70, z: 4 }, { speed: 0.6 });
+        mxMount(plot, 'wrench', { right: -46, top: 40, z: 4 });
+        mxMount(plot, 'buttons', { left: 300, bottom: -46, z: 4 });
       } else pxFrame(plot, { tone: 'steel', well: 16, wellTint: 0x0b0906, scan: true, hazard: true, chamfer: 12, seed: 41, crest: true, serial: 'SURVEY PLOTTER SP-4', vents: true, lamps: ['g', 'a', 0], welds: true, gland: true });
     } catch { /* no canvas */ }
     window.addEventListener('keydown', (e) => {
@@ -101,6 +107,8 @@ export class SurveyMap {
 
   private update(dt: number) {
     this.t += dt;
+    // the hood's beacon turns while something hunts close by
+    if (this.open && this.bcn) this.bcn.alert(((G as any).survival?.threat ?? 0) > 0.45);
     // the survey echo: map a ring round the unit, through walls
     this.echoT -= dt;
     if (this.echoT <= 0) {

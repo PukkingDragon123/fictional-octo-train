@@ -29,6 +29,8 @@ import { queueAt } from '../actions/basic';
 import { UseObjectAction } from '../actions/world';
 import { TimedAction } from '../actions/action';
 import { lineOfSight } from '../world/collision';
+import { findPath } from '../world/path';
+import { steer, heading, brake } from '../creatures/kit/physics';
 import { voss } from '../game/debt/voice';
 import { holdCheckpoint } from '../game/checkpoint';
 import { shake, punch } from '../gfx/juice';
@@ -44,7 +46,8 @@ import type { Player } from '../entities/player';
 import type { MenuOption } from '../ui/ui';
 
 const POLE_R = 10, GEN_R = 14;
-const isHostile = (c: any) => !c.dead && c.sp?.attack && !c.tamedBy && !c.mem?.thrall && !c.mem?.pen && !c.mem?.dom && !c.sp?.flags?.companion && !c.sp?.flags?.immortal;
+const CALM = new Set(['neutral', 'docile', 'passive', 'shy', 'timid', 'skittish']);
+const isHostile = (c: any) => !c.dead && c.sp?.attack && !c.tamedBy && !c.mem?.thrall && !c.mem?.pen && !c.mem?.dom && !c.mem?.tribe && !String(c.sp?.key ?? '').startsWith('tribe_') && !c.sp?.flags?.companion && !c.sp?.flags?.immortal && !CALM.has(c.sp?.temperament);
 const centreOf = (o: TileObject) => { const d = objDef(o.key); const w = d?.w ?? 1, dd = d?.d ?? 1, rw = o.rot % 2 === 0 ? w : dd, rd = o.rot % 2 === 0 ? dd : w; return { x: o.x + rw / 2, z: o.y + rd / 2, h: d?.height ?? 1 }; };
 const day = () => Math.floor((G.clock?.hours ?? 0) / 24);
 
@@ -118,7 +121,7 @@ class UpgradeAction extends TimedAction {
 }
 
 // ================================================================ probes
-interface Probe { b: number; x: number; z: number; t: number; lx: number; lz: number; chk: number; stuck: number; inside: number; hits: number; tgt?: Obst | null }
+interface Probe { b: number; x: number; z: number; t: number; lx: number; lz: number; chk: number; stuck: number; inside: number; hits: number; tgt?: Obst | null; route?: [number, number][] | null; ri: number; goal?: Obst | null }
 type Obst = { kind: 'obj'; o: TileObject; x: number; z: number } | { kind: 'wall' | 'door'; x: number; y: number; side: 0 | 1; mx: number; mz: number };
 
 export class Camp {
@@ -156,11 +159,11 @@ export class Camp {
 
   // ================================================================ grid
   /** is this point (world metres) on the camp grid: in reach of a running generator, or of a pole chained to one */
-  gridPowers(z: Zone, x: number, y: number): boolean {
+  gridPowers = (z: Zone, x: number, y: number): boolean => {
     const L = this.live.get(z.key); if (!L) return false;
     for (const q of L.pts) if (Math.hypot(q.x - x, q.z - y) < q.r) return true;
     return false;
-  }
+  };
   private computeGrid(z: Zone) {
     const gens: { x: number; z: number; uid: number }[] = [], poles: { x: number; z: number; uid: number; o: TileObject }[] = [];
     for (const o of z.objects.values()) {
@@ -413,17 +416,27 @@ export class Camp {
   /** send one inhabitant at the camp: one already in the level, or (if there is none) one that wanders in from the dark */
   startProbe(z: Zone, b: TileObject, p: Player | null = G.local): any {
     const bx = b.x + 0.5, bz = b.y + 0.5, R = this.claimR(b);
-    let c: any = null, cd = 1e9;
+    const cands: { q: any; d: number }[] = [];
     for (const q of (G.creatures?.creatures?.values?.() || []) as Iterable<any>) {
       if (q.zoneKey !== z.key || !isHostile(q) || q.mem?.probe || (q.sp?.threat ?? 1) > 3.5) continue;
       const d = Math.hypot(q.x - bx, q.z - bz);
       if (d < R + 4 || d > 60) continue;
       if (q.targetId && (q.awareness?.get?.(q.targetId) ?? 0) >= 1) continue;
-      if (d < cd) { cd = d; c = q; }
+      cands.push({ q, d });
     }
-    if (!c) c = this.spawnProber(z, bx, bz, R, p);
+    cands.sort((a, b2) => a.d - b2.d);
+    let c: any = null;
+    const m: Probe = { b: b.uid, x: bx, z: bz, t: 0, lx: 0, lz: 0, chk: 0, stuck: 0, inside: 0, hits: 0, ri: 0 };
+    for (const { q } of cands.slice(0, 5)) { this.plan(z, q, m); if (m.route) { c = q; break; } }
+    for (let t = 0; !c && t < 3; t++) {
+      const q = this.spawnProber(z, bx, bz, R, p);
+      if (!q) break;
+      this.plan(z, q, m);
+      if (m.route) c = q; else G.creatures.remove(q);
+    }
     if (!c) return null;
-    c.mem.probe = { b: b.uid, x: bx, z: bz, t: 0, lx: c.x, lz: c.z, chk: 0, stuck: 0, inside: 0, hits: 0 } as Probe;
+    m.lx = c.x; m.lz = c.z;
+    c.mem.probe = m;
     this.probing = c.id;
     mark('camp:probed');
     // a radio in the camp hears it coming
@@ -454,7 +467,7 @@ export class Camp {
       for (const [k, w] of opts) { r -= w; if (r <= 0) { key = k; break; } }
       const c = G.creatures.spawn(key, z.key, x + 0.5, y + 0.5);
       if (c && isHostile(c) && (c.sp?.threat ?? 1) <= 3.5) return c;
-      if (c) { c.dead = true; G.creatures.creatures.delete(c.id); }
+      if (c) G.creatures.remove(c);
     }
     return null;
   }
@@ -482,13 +495,28 @@ export class Camp {
       if (c.attackPhase <= 0 && m.tgt) this.bashLand(c, z, m);
       return true;
     }
-    const arrived = G.creatures.moveTo(c, z, m.x, m.z, (c.sp.walk ?? 1) * 1.15, dt, 2.2);
-    if (arrived) {
-      m.inside += dt;
+    // inside the camp: it noses about, then loses interest
+    if (Math.hypot(m.x - c.x, m.z - c.z) < 2.4) {
+      m.inside += dt; c.speed = 0; brake(c, dt);
       if (Math.random() < dt * 0.6) c.targetFacing = Math.random() * Math.PI * 2;
       if (m.inside > 14) this.endProbe(c);
       return true;
     }
+    if (!m.route) { this.plan(z, c, m); if (!m.route) { this.endProbe(c); return false; } }
+    // follow the route (doors count as open: it means to go through them)
+    const r = m.route;
+    while (m.ri < r.length && Math.hypot(r[m.ri][0] + 0.5 - c.x, r[m.ri][1] + 0.5 - c.z) < 0.5) m.ri++;
+    if (m.ri >= r.length) {
+      // the end of the route: the camp, or the piece of it it chose to go through
+      if (m.goal && this.standing(z, m.goal)) { this.swing(c, m, m.goal); return true; }
+      m.route = null; m.goal = null;
+      return true;
+    }
+    const tx = r[m.ri][0] + 0.5, tz = r[m.ri][1] + 0.5, ddx = tx - c.x, ddz = tz - c.z, dd = Math.hypot(ddx, ddz) || 1;
+    const sp = (c.sp.walk ?? 1) * 1.15;
+    steer(c, (ddx / dd) * sp, (ddz / dd) * sp, dt);
+    c.targetFacing = heading(c, ddx, ddz);
+    c.speed = sp;
     m.chk -= dt;
     if (m.chk <= 0) {
       m.chk = 0.8;
@@ -496,20 +524,68 @@ export class Camp {
       m.lx = c.x; m.lz = c.z;
       m.stuck = moved < 0.35 ? m.stuck + 1 : 0;
     }
-    if (m.stuck >= 2 || (!c.path && c.speed === 0)) {
+    if (m.stuck >= 2) {
       const ob = this.obstacle(z, c, m);
-      if (ob) {
-        m.tgt = ob;
-        const ox = ob.kind === 'obj' ? ob.x : ob.mx, oz = ob.kind === 'obj' ? ob.z : ob.mz;
-        c.targetFacing = Math.atan2(oz - c.z, ox - c.x);
-        c.speed = 0;
-        c.attackPhase = 0.55;
-        if (c.sp.sounds?.attack && Math.random() < 0.5) G.audio?.at?.(c.sp.sounds.attack, c.x, c.z, 0.7);
-        return true;
-      }
-      if (m.stuck > 8) { this.endProbe(c); return false; }
+      if (ob) { this.swing(c, m, ob); return true; }
+      if (m.stuck === 5) { m.route = null; }
+      if (m.stuck > 10) { this.endProbe(c); return false; }
     }
     return true;
+  }
+  /** wind up a blow at a piece of the camp */
+  private swing(c: any, m: Probe, ob: Obst) {
+    m.tgt = ob;
+    const ox = ob.kind === 'obj' ? ob.x : ob.mx, oz = ob.kind === 'obj' ? ob.z : ob.mz;
+    c.targetFacing = Math.atan2(oz - c.z, ox - c.x);
+    c.speed = 0; c.vx *= 0.3; c.vz *= 0.3;
+    c.attackPhase = 0.6;
+    if (c.sp.sounds?.attack && Math.random() < 0.5) G.audio?.at?.(c.sp.sounds.attack, c.x, c.z, 0.7);
+  }
+  /** is this piece of the camp still in the way */
+  private standing(z: Zone, ob: Obst): boolean {
+    if (ob.kind === 'obj') return z.objects.get(ob.o.uid) === ob.o;
+    const e = z.edge(ob.x, ob.y, ob.side);
+    if (ob.kind === 'door') return !!e && e.kind === 'door' && !e.open;
+    const wid = ob.side === 0 ? z.wallN[z.idx(ob.x, ob.y)] : z.wallW[z.idx(ob.x, ob.y)];
+    return !!wid && !(e && e.open);
+  }
+  /** the way in: straight to the claim (doors count as open), or else to the outside of the nearest built piece of it */
+  private plan(z: Zone, c: any, m: Probe) {
+    const sx = Math.floor(c.x), sy = Math.floor(c.z), bx = Math.floor(m.x), by = Math.floor(m.z);
+    m.ri = 0; m.goal = null; m.stuck = 0;
+    m.route = findPath(z, sx, sy, bx, by, { creature: true, doors: true, maxNodes: 6000 });
+    if (m.route) return;
+    const b = z.objects.get(m.b);
+    const R = (b ? this.claimR(b) : 12) + 2;
+    const obs: Obst[] = [];
+    for (const [k] of Object.entries(builtWalls(z))) {
+      const [x, y, side] = k.split(',').map(Number) as [number, number, 0 | 1];
+      if (Math.hypot(x - m.x, y - m.z) > R) continue;
+      const e = z.edge(x, y, side);
+      const ob: Obst = { kind: e && e.kind === 'door' ? 'door' : 'wall', x, y, side, mx: side === 0 ? x + 0.5 : x, mz: side === 0 ? y : y + 0.5 };
+      if (this.standing(z, ob)) obs.push(ob);
+    }
+    for (const o of z.objects.values()) {
+      if (Math.hypot(o.x - m.x, o.y - m.z) > R) continue;
+      const d = objDef(o.key);
+      if (!d || !o.state.built || (d.block !== 'solid' && !d.tags?.includes('barricade'))) continue;
+      const cc = centreOf(o);
+      obs.push({ kind: 'obj', o, x: cc.x, z: cc.z });
+    }
+    const pos = (ob: Obst) => (ob.kind === 'obj' ? [ob.x, ob.z] : [ob.mx, ob.mz]);
+    obs.sort((a, b2) => { const [ax, az] = pos(a), [bx2, bz2] = pos(b2); return Math.hypot(ax - c.x, az - c.z) - Math.hypot(bx2 - c.x, bz2 - c.z); });
+    for (const ob of obs.slice(0, 8)) {
+      // the tile on its far side from the camp
+      const cands: [number, number][] = ob.kind === 'obj'
+        ? [[ob.o.x - 1, ob.o.y], [ob.o.x + 1, ob.o.y], [ob.o.x, ob.o.y - 1], [ob.o.x, ob.o.y + 1]]
+        : ob.side === 0 ? [[ob.x, ob.y], [ob.x, ob.y - 1]] : [[ob.x, ob.y], [ob.x - 1, ob.y]];
+      cands.sort((a, b2) => Math.hypot(b2[0] + 0.5 - m.x, b2[1] + 0.5 - m.z) - Math.hypot(a[0] + 0.5 - m.x, a[1] + 0.5 - m.z));
+      for (const [ox, oy] of cands.slice(0, ob.kind === 'obj' ? 2 : 1)) {
+        if (!z.inb(ox, oy) || !z.floor[z.idx(ox, oy)]) continue;
+        const r = findPath(z, sx, sy, ox, oy, { creature: true, doors: true, maxNodes: 6000 });
+        if (r) { m.route = r; m.goal = ob; return; }
+      }
+    }
   }
   /** what is between a probing creature and the camp, within a lunge */
   private obstacle(z: Zone, c: any, m: Probe): Obst | null {

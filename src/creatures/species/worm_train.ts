@@ -86,18 +86,22 @@ PG.paint((P, v) => {
     for (let i = 0; i < 6; i++) P.walk(r, P.rng.int(0, r.w - 1), P.rng.int(0, r.h - 1), 14, 0, 1, 0x6a2a3a, 0.6, 0.5, 0.2);
     for (let y = 2; y < r.h; y += 7) P.glint(r, (y * 5) % r.w, y, 3, 0xffe8e0, 0.5);
   }
-  // a dead window-eye: smoked glass over a clouded iris, carriage-light warm behind
+  // a dead window-eye: a carriage window lit warm from inside, and in it a clouded eye that does not move
   {
     const r = P.R('WIN');
     for (let y = 0; y < r.h; y++) for (let x = 0; x < r.w; x++) {
-      const dx = (x + 0.5 - r.w / 2) / (r.w / 2), dy = (y + 0.5 - r.h / 2) / (r.h / 2), d = Math.hypot(dx, dy);
-      let c = mixHex(0xe8c880, 0x8a6a40, Math.min(1, d));
-      if (d < 0.55) c = mixHex(0xd8d8c8, 0x8a9a94, d * 1.4);
-      if (d < 0.2) c = 0x9aa8a0;
-      if (d > 0.9) c = 0x2a2a26;
+      const dx = (x + 0.5 - r.w / 2) / (r.w / 2), dy = (y + 0.5 - r.h / 2) / (r.h / 2);
+      const box = Math.max(Math.abs(dx), Math.abs(dy) * 1.1);
+      let c = mixHex(0xfff0c0, 0xd8a050, Math.min(1, box * 0.9));
+      const e = Math.hypot(dx * 1.25, dy * 1.6);
+      if (e < 0.78) c = mixHex(0xe8e4d4, 0xb8b0a0, e);
+      if (e < 0.4) c = mixHex(0xc8d4cc, 0x8a9a94, e * 2);
+      if (e < 0.14) c = 0x5a6660;
+      if (box > 0.86) c = 0x1a1a18;
       P.set(r, x, y, c);
     }
-    P.spot(r, 4, 4, 1.5, 1, 0xffffff, 0.8);
+    for (let i = 0; i < 4; i++) P.walk(r, P.rng.int(3, 12), P.rng.int(5, 10), 4, P.rng.float(-1, 1), P.rng.float(-1, 1), 0xb04040, 0.5, 0.8);
+    P.spot(r, 5, 5, 1.2, 0.8, 0xffffff, 0.85);
   }
   // the headlamp eye
   {
@@ -146,7 +150,7 @@ PG.paint((P, v) => {
 /** car-segment body: length, half width, height above / below the axis */
 const SEG_L = 2.5, SP = 2.62, RX = 0.84, UP = 0.78, DN = 0.66;
 const NSEG = 6, RIDE = 1.2;
-const LEG_L1 = 1.35, LEG_L2 = 1.78;
+const LEG_L1 = 1.7, LEG_L2 = 2.0;
 const CEIL_Y = 2.7;
 
 /** a car-segment cross-section ring at z (taper 0..1 toward the ends) */
@@ -162,9 +166,9 @@ function carShell(ob: OB, head: boolean, tail: boolean) {
   if (!tail) ob.tube([[0, 0, -SEG_L / 2 + 0.05], [0, 0, -SEG_L / 2 - 0.22], [0, 0, -SEG_L / 2 - 0.42]], [[RX * 0.78, UP * 0.82], [RX * 0.7, UP * 0.74], [RX * 0.66, UP * 0.7]], 13, F, { bump: (i, th) => (i === 1 ? 0.06 : 0) + 0.03 * Math.cos(th * 6), end: 'pole', endBulge: 0.05 });
   if (!head) ob.tube([[0, 0, SEG_L / 2 - 0.05], [0, 0, SEG_L / 2 + 0.2]], [[RX * 0.8, UP * 0.84], [RX * 0.72, UP * 0.76]], 13, F, { end: 'pole', endBulge: 0.08 });
   // dead window-eyes down both flanks, each in a lid of flesh
-  for (const sx of [-1, 1]) for (const z of [-0.78, -0.26, 0.26, 0.78]) {
-    ob.blob([sx * RX * 0.985, 0.2, z], [0.06, 0.26, 0.21], 8, 6, F, {});
-    ob.blob([sx * RX * 1.02, 0.2, z], [0.04, 0.22, 0.17], 8, 6, Wn, { emis: 0.85 });
+  for (const sx of [-1, 1]) for (const z of [-0.74, 0, 0.74]) {
+    ob.blob([sx * RX * 0.985, 0.22, z], [0.06, 0.3, 0.34], 10, 6, F, {});
+    ob.blob([sx * RX * 1.02, 0.22, z], [0.04, 0.26, 0.3], 10, 6, Wn, { emis: 0.9 });
   }
   // the bogie bosses: knuckled hip sockets low on each side
   for (const sx of [-1, 1]) for (const z of [-0.7, 0.7]) ob.blob([sx * RX * 0.88, -0.36, z], [0.2, 0.2, 0.24], 8, 6, F, {});
@@ -179,7 +183,7 @@ function headCap(ob: OB) {
   const ks = [0.9, 0.86, 0.74, 0.5];
   ob.loft(zs.map((z, i) => ({ pts: carRing(z, ks[i]), v: 1 - i / 3 })), S, { end: 'pole', endBulge: 0.06 });
   // the cab windows: two big dead eyes either side of the lamp
-  for (const sx of [-1, 1]) ob.blob([sx * 0.36, 0.3, SEG_L / 2 + 0.56], [0.24, 0.2, 0.08], 8, 6, Wn, { emis: 0.9 });
+  for (const sx of [-1, 1]) ob.blob([sx * 0.38, 0.28, SEG_L / 2 + 0.55], [0.26, 0.22, 0.09], 10, 6, Wn, { emis: 1 });
   // destination blind
   ob.quad([[-0.32, 0.6, SEG_L / 2 + 0.52], [0.32, 0.6, SEG_L / 2 + 0.52], [0.3, 0.72, SEG_L / 2 + 0.44], [-0.3, 0.72, SEG_L / 2 + 0.44]], B, [[0, 0], [1, 0], [1, 1], [0, 1]], { emis: 0.95 });
   // marker lamps low: red eyes
@@ -223,14 +227,15 @@ function pantograph(ob: OB) {
 function femur(ob: OB) {
   const L = PG.reg('LEG'), T = PG.reg('TOOTH'), F = PG.reg('FLESH');
   const path: V3[] = []; for (let i = 0; i <= 6; i++) path.push([0, Math.sin((i / 6) * Math.PI) * 0.06, (i / 6) * LEG_L1]);
-  ob.tube(path, path.map((_, i) => 0.1 - i * 0.008), 7, L, { start: 'pole', end: 'pole', up: [0, 1, 0], bump: (i, th) => (i % 2 ? 0.08 : 0) * Math.max(0, Math.cos(th)) });
-  ob.blob([0, 0, LEG_L1], [0.1, 0.1, 0.1], 7, 5, F, {});
+  ob.tube(path, path.map((_, i) => 0.125 - i * 0.009), 8, L, { start: 'pole', end: 'pole', up: [0, 1, 0], bump: (i, th) => (i % 2 ? 0.08 : 0) * Math.max(0, Math.cos(th)) });
+  ob.blob([0, 0, LEG_L1], [0.11, 0.11, 0.11], 8, 6, L, {});
+  ob.blob([0, 0, 0.04], [0.15, 0.15, 0.12], 8, 6, F, {});
   for (let i = 1; i < 5; i++) ob.cone([0, 0.07, (i / 5) * LEG_L1], [0, 1, 0.4], 0.02, 0.09, 4, T);
 }
 function tibia(ob: OB) {
   const L = PG.reg('LEG'), C = PG.reg('CLAW');
   const path: V3[] = []; for (let i = 0; i <= 7; i++) path.push([0, -Math.sin((i / 7) * Math.PI) * 0.05, (i / 7) * (LEG_L2 - 0.12)]);
-  ob.tube(path, path.map((_, i) => Math.max(0.022, 0.075 - i * 0.008)), 6, L, { start: 'pole', up: [0, 1, 0], bump: (i, th) => (i === 3 ? 0.18 : 0) * (0.5 + 0.5 * Math.cos(th)) });
+  ob.tube(path, path.map((_, i) => Math.max(0.026, 0.092 - i * 0.009)), 7, L, { start: 'pole', up: [0, 1, 0], bump: (i, th) => (i === 2 || i === 5 ? 0.16 : 0) * (0.5 + 0.5 * Math.cos(th)) });
   // the hooked tarsus
   ob.cone([0, 0, LEG_L2 - 0.14], [0, -0.35, 1], 0.03, 0.2, 5, C);
   ob.cone([0, 0, LEG_L2 - 0.2], [0, 0.6, 1], 0.015, 0.1, 4, C);
@@ -248,7 +253,7 @@ function legDefs(spec: TrainSpec): LegDef[] {
   const k = spec.scale;
   for (let s = 0; s < spec.segs; s++) for (const along of [0.7, -0.7]) for (const side of [1, -1] as const) {
     const n = `L${s}${along > 0 ? 'a' : 'b'}${side > 0 ? 'R' : 'L'}`;
-    out.push({ seg: s, side, along: along * k, out: RX * 0.85 * k, up: -0.36 * k, reach: 1.5 * k, fwd: 0.1 * k, L1: LEG_L1 * k, L2: LEG_L2 * k, femur: n + 'u', tibia: n + 'd' });
+    out.push({ seg: s, side, along: along * k, out: RX * 0.9 * k, up: -0.24 * k, reach: 1.45 * k, fwd: 0.1 * k, L1: LEG_L1 * k, L2: LEG_L2 * k, femur: n + 'u', tibia: n + 'd' });
   }
   return out;
 }
@@ -277,7 +282,7 @@ function buildTrain(spec: TrainSpec): Rig {
     if (!spec.larva || s === 1) bpart(rig, 'pan' + s, g, [0, UP * 0.92, 0], PG, 'pan', pantograph);
     if (head) {
       for (const side of [-1, 1]) bpart(rig, side > 0 ? 'jawR' : 'jawL', g, [side * 0.02, 0.05, SEG_L / 2 + 0.5], PG, side > 0 ? 'jawR' : 'jawL', (ob) => jaw(ob, side));
-      const lamp = bpart(rig, 'lamp', g, [0, 0.45, SEG_L / 2 + 0.6], PG, 'lamp', (ob) => { ob.blob([0, 0, 0], [0.2, 0.2, 0.1], 10, 7, PG.reg('LAMP'), { emis: 1 }); });
+      const lamp = bpart(rig, 'lamp', g, [0, 0.5, SEG_L / 2 + 0.58], PG, 'lamp', (ob) => { ob.blob([0, 0, 0], [0.27, 0.27, 0.13], 12, 8, PG.reg('LAMP'), { emis: 1 }); ob.blob([0, 0, -0.04], [0.33, 0.33, 0.1], 12, 6, PG.reg('FLESH'), {}); });
       void lamp;
     }
   }
@@ -776,31 +781,32 @@ const LARVA_DEF = def({
 // =====================================================================================
 function buildEgg(): Rig {
   const rig = newRig(1.0);
-  const base = bpart(rig, 'base', rig.body, [0, 0, 0], PG, 'eggbase', (ob) => {
+  bpart(rig, 'base', rig.body, [0, 0, 0], PG, 'eggbase', (ob) => {
     const F = PG.reg('FLESH'), Y = PG.reg('YOLK');
-    // the mucus collar it is glued down with, and tethers to the floor
-    ob.blob([0, 0.02, 0], [0.78, 0.08, 0.62], 12, 4, F, {});
-    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2 + 0.3; ob.tube([[Math.cos(a) * 0.4, 0.3, Math.sin(a) * 0.32], [Math.cos(a) * 0.75, 0.05, Math.sin(a) * 0.62]], [0.05, 0.025], 5, F, { start: 'pole', end: 'pole' }); }
-    ob.blob([0, 0.45, 0], [0.5, 0.38, 0.4], 10, 7, Y, { emis: 0.55 });
+    // the mucus it is glued down with, and the tethers it hangs from
+    ob.blob([0, 0.02, 0], [0.62, 0.06, 0.95], 12, 4, F, {});
+    for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2 + 0.3; ob.tube([[Math.cos(a) * 0.3, 0.42, Math.sin(a) * 0.55], [Math.cos(a) * 0.62, 0.04, Math.sin(a) * 0.98]], [0.04, 0.02], 5, F, { start: 'pole', end: 'pole' }); }
+    // the warm yolk the larva lies in
+    ob.blob([0, 0.2, 0], [0.32, 0.14, 0.55], 10, 6, Y, { emis: 0.7 });
   });
-  void base;
   // the larva curled inside (its own part, it turns over)
-  bpart(rig, 'larva', rig.body, [0, 0.5, 0], PG, 'egglarva', (ob) => {
-    const S = PG.reg('SHELL'), L = PG.reg('LEG'), Lm = PG.reg('LAMP');
+  bpart(rig, 'larva', rig.body, [0, 0.42, 0], PG, 'egglarva', (ob) => {
+    const S = PG.reg('SHELL'), L = PG.reg('LEG'), Lm = PG.reg('LAMP'), Wn = PG.reg('WIN');
     const pts: V3[] = [];
-    for (let i = 0; i <= 12; i++) { const a = (i / 12) * Math.PI * 1.55 - 0.4; pts.push([Math.cos(a) * 0.26, Math.sin(i * 0.6) * 0.03, Math.sin(a) * 0.22]); }
-    ob.tube(pts, pts.map((_, i) => [0.12 - i * 0.004, 0.1 - i * 0.003] as [number, number]), 9, S, { start: 'pole', end: 'pole', bump: (i, th) => (i % 4 === 0 ? -0.12 : 0) + 0.02 * Math.cos(th * 3) });
-    ob.blob([pts[12][0] + 0.02, 0.02, pts[12][2] + 0.04], [0.05, 0.05, 0.05], 7, 5, Lm, { emis: 0.9 });
-    for (let i = 1; i < 12; i += 2) for (const s of [-1, 1]) {
+    for (let i = 0; i <= 14; i++) { const a = (i / 14) * Math.PI * 1.6 - 0.5; pts.push([Math.cos(a) * 0.22, Math.sin(i * 0.5) * 0.03, Math.sin(a) * 0.4]); }
+    ob.tube(pts, pts.map((_, i) => [0.13 - i * 0.004, 0.11 - i * 0.003] as [number, number]), 10, S, { start: 'pole', end: 'pole', bump: (i, th) => (i % 5 === 0 ? -0.14 : 0) + 0.02 * Math.cos(th * 3) });
+    ob.blob([pts[14][0] + 0.02, 0.03, pts[14][2] + 0.05], [0.06, 0.06, 0.05], 7, 5, Lm, { emis: 1 });
+    for (const i of [3, 6, 9, 12]) ob.blob([pts[i][0] * 1.3, 0.04, pts[i][2] * 1.12], [0.04, 0.05, 0.05], 6, 4, Wn, { emis: 0.8 });
+    for (let i = 1; i < 14; i += 2) for (const s of [-1, 1]) {
       const p = pts[i];
-      ob.tube([[p[0], p[1] - 0.05, p[2]], [p[0] * 0.75, p[1] - 0.12 - s * 0.03, p[2] * 0.75], [p[0] * 0.55, p[1] - 0.04, p[2] * 0.55]], [0.018, 0.014, 0.008], 4, L, { start: 'pole', end: 'pole' });
+      ob.tube([[p[0], p[1] - 0.05, p[2]], [p[0] * 0.7, p[1] - 0.13 - s * 0.03, p[2] * 0.7], [p[0] * 0.5, p[1] - 0.04, p[2] * 0.5]], [0.02, 0.015, 0.008], 4, L, { start: 'pole', end: 'pole' });
     }
   });
-  // the sac: see-through amber film over all of it
-  tpart(rig, 'sac', rig.body, [0, 0, 0], PG, 'eggsac', filmMat(0.55), (ob) => {
+  // the sac: see-through amber film, a bean lying in the pit, veined
+  tpart(rig, 'sac', rig.body, [0, 0, 0], PG, 'eggsac', filmMat(0.4), (ob) => {
     const pts: V3[] = [];
-    for (let i = 0; i <= 8; i++) { const t = i / 8; pts.push([0, 0.05 + t * 1.05, Math.sin(t * Math.PI) * 0.04]); }
-    ob.tube(pts, pts.map((_, i) => { const t = i / 8; const r = Math.sin(Math.min(1, t * 1.1) * Math.PI) * 0.62 + 0.06; return [r * 1.15, r] as [number, number]; }), 16, PG.reg('SAC'), { up: [0, 0, 1], start: 'pole', end: 'pole', emis: 0.35, bump: (i, th) => 0.04 * Math.sin(th * 5 + i) });
+    for (let i = 0; i <= 10; i++) { const t = i / 10; pts.push([Math.sin(t * Math.PI) * 0.08, 0.48 + Math.sin(t * Math.PI) * 0.05, -0.95 + t * 1.9]); }
+    ob.tube(pts, pts.map((_, i) => { const t = i / 10; const r = Math.pow(Math.sin(t * Math.PI), 0.7) * 0.5 + 0.02; return [r * 1.1, r] as [number, number]; }), 16, PG.reg('SAC'), { up: [0, 1, 0], start: 'pole', end: 'pole', emis: 0.45, bump: (i, th) => 0.035 * Math.sin(th * 5 + i * 1.3) });
   });
   rig.eyes = [];
   return rig;
@@ -864,9 +870,9 @@ function animateEgg(rig: Rig, c: Creature, t: number, dt: number) {
   const beat = Math.max(0, Math.sin(t * 2.2 + seed * 6)) ** 6 + Math.max(0, Math.sin(t * 2.2 + seed * 6 - 0.6)) ** 8 * 0.6;
   const h = ud.h;
   const k = 1 + beat * 0.05 + h * Math.sin(t * 22) * 0.06;
-  sac.scale.set(k, 1 + beat * 0.07 + h * 0.15, k);
-  lv.rotation.set(Math.sin(t * 0.7 + seed) * 0.1 + h * Math.sin(t * 17) * 0.4, t * 0.15 + seed * 6 + h * t * 2, Math.sin(t * 0.5) * 0.08);
-  lv.position.y = 0.5 + Math.sin(t * 1.3 + seed) * 0.02 + h * 0.15;
+  sac.scale.set(k, 1 + beat * 0.08 + h * 0.18, k + beat * 0.02);
+  lv.rotation.set(Math.sin(t * 0.7 + seed) * 0.08 + h * Math.sin(t * 17) * 0.3, Math.sin(t * 0.21 + seed * 6) * 0.35 + h * Math.sin(t * 9) * 0.6, Math.sin(t * 0.5) * 0.06);
+  lv.position.y = 0.42 + Math.sin(t * 1.3 + seed) * 0.02 + h * 0.12;
   if (live() && G.local && c.visibleToLocal !== undefined && Math.hypot(c.x - G.local.x, c.z - G.local.z) < 30) G.pointLight(c.x, c.y + 0.6, c.z, 0xffc870, 0.55 + beat * 0.35 + h * 0.6, 4.5);
   const p = localIn(c);
   if (p && c.visibleToLocal && Math.hypot(c.x - p.x, c.z - p.z) < 6) thinkOnce(p, 'wt_egg', ['An egg sac. Lit up inside like a carriage at night. Something is curled up in it.', 'It is pulsing. Do not touch it. Do not touch it.'][Math.floor(t * 0.2) % 2], 90);

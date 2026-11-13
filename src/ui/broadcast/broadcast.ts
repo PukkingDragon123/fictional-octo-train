@@ -27,6 +27,7 @@ import type { QuestRuntime, QView } from '../../missions/questRuntime';
 import { Plate, PLATE_T, backdrop, lightBlend } from './plate';
 import { trackQuest } from './notices';
 import { isTouchMode } from '../touch/mode';
+import { paintDecor } from '../machine/decor';
 
 type Tab = 'active' | 'offers' | 'done';
 const TABS: Tab[] = ['active', 'offers', 'done'];
@@ -158,6 +159,8 @@ export class QuestBroadcast {
   private views: QView[] = [];
   private sig = '';
   private refreshT = 0;
+  private spinT = 0;
+  private lastCounts: number[] | null = null;
   private hitsL: Hit[] = []; private hitsD: Hit[] = []; private hitsH: Hit[] = [];
   private hover = -1;
   private line = ''; private lineShown = ''; private lineT = 0;
@@ -245,7 +248,9 @@ export class QuestBroadcast {
       r.root.traverse((o) => { o.castShadow = false; o.receiveShadow = false; (o as THREE.Mesh).renderOrder = 20; o.frustumCulled = false; });
       this.root.add(r.root);
     } catch (e) { console.warn('broadcast: Calder', e); this.rig = null; }
-    this.list = new Plate(168, 176, { frame: 9, hood: 22, title: 'TASK BOARD', seed: 53 }); this.detail = new Plate(184, 196, { frame: 9, hood: 22, title: 'CASE FILE', seed: 57 }); this.head = new Plate(320, 16, { scan: 0.15, frame: 4, seed: 59 }); this.cap = new Plate(220, 34, { frame: 5, seed: 61 });
+    // round 16: a beacon on the board's hood that turns while fresh work is waiting; a gear train and a spanner on the case file's
+    this.list = new Plate(168, 176, { frame: 9, hood: 22, title: 'TASK BOARD', seed: 53, deco: (c, W) => { const f = !!this.quests?.fresh.size; paintDecor(c, 'beacon', W - 66, 1, { s: 0.6, col: 'amber', on: f, frame: Math.floor(performance.now() / 70) }); } });
+    this.detail = new Plate(184, 196, { frame: 9, hood: 22, title: 'CASE FILE', seed: 57, deco: (c, W, H) => { paintDecor(c, 'gears', W - 86, 1, { s: 0.38, frame: Math.floor(performance.now() / 110) }); paintDecor(c, 'wrench', W - 9, H * 0.3, { s: 0.42 }); } }); this.head = new Plate(320, 16, { scan: 0.15, frame: 4, seed: 59 }); this.cap = new Plate(220, 34, { frame: 5, seed: 61 });
     for (const pl of [this.list, this.detail, this.head, this.cap]) this.root.add(pl.mesh);
     // dust in the beam
     const n = 26, pos = new Float32Array(n * 3);
@@ -310,7 +315,8 @@ export class QuestBroadcast {
     if (!force && sig === this.sig) return;
     const selChanged = this.sig.split('|').slice(0, 2).join('|') !== sig.split('|').slice(0, 2).join('|');
     this.sig = sig;
-    this.drawList(counts.split(',').map(Number));
+    this.lastCounts = counts.split(',').map(Number);
+    this.drawList(this.lastCounts);
     this.drawDetail();
     if (selChanged) { this.detailIn = 0.25; this.glitchT = 0.12; }
   }
@@ -590,6 +596,8 @@ export class QuestBroadcast {
     // the data
     this.refreshT -= dt;
     if (this.refreshT <= 0) { this.refreshT = 0.3; this.refresh(); }
+    // the hood's beacon sweeps while fresh offers wait, the case file's gears turn (a redraw at ~11 fps, only while open)
+    if (this.open && this.lastCounts) { this.spinT -= dt; if (this.spinT <= 0) { this.spinT = 0.09; if (this.quests?.fresh.size) this.drawList(this.lastCounts); } }
     if (this.declT > 0) { this.declT -= dt; if (this.declT <= 0 && this.declArm) { this.declArm = ''; this.refresh(true); } }
     // she reads the quest you rest on
     const c = this.cur();

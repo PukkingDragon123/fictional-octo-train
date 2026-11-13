@@ -41,6 +41,7 @@ function loop(now: number) {
   const dt = Math.max(0, Math.min(0.1, (now - lastT) / 1000)); lastT = Math.max(lastT, now);
   for (const t of [...tickers]) {
     if (!t.el.isConnected) { if (now - t.seen > 8000) tickers.delete(t); continue; }
+    tickOf.set(t.el, t);
     t.seen = now;
     // off screen (display none, a hidden page): no frames
     if (!t.el.getClientRects().length) continue;
@@ -49,6 +50,9 @@ function loop(now: number) {
   if (tickers.size) raf = requestAnimationFrame(loop);
 }
 function clock(t: Ticker) { tickers.add(t); if (!raf) { lastT = performance.now(); raf = requestAnimationFrame(loop); } }
+const tickOf = new WeakMap<HTMLElement, Ticker>();
+/** start (or restart, after its element was away a while) the decor's ticker */
+function wake(el: HTMLElement) { const t = tickOf.get(el); if (t && !tickers.has(t)) { t.seen = performance.now(); clock(t); } }
 
 // the pointer, for the eye
 let mx = -1, my = -1, mT = 0;
@@ -474,10 +478,12 @@ export interface DecorOpts {
   speed?: number;
   /** gauge: label */
   label?: string;
+  /** gauge: the needle wanders on its own (default); false holds it where set() puts it */
+  wander?: boolean;
   cls?: string;
   title?: string;
 }
-export interface MxDecor { el: HTMLElement; alert(on: boolean): void; poke(): void; dispose(): void }
+export interface MxDecor { el: HTMLElement; alert(on: boolean): void; poke(): void; dispose(): void; /** gauge: needle 0..1 */ set(v: number): void }
 
 /** a 3D object on its own little element (sized to the model; its canvas spills over for shadows and beams) */
 export function mxDecor(kind: DecorKind, o: DecorOpts = {}): MxDecor | null {
@@ -487,7 +493,7 @@ export function mxDecor(kind: DecorKind, o: DecorOpts = {}): MxDecor | null {
   el.className = 'mxd mxd-' + kind + (o.cls ? ' ' + o.cls : '');
   if (o.title) el.title = o.title;
   let alertOn = !!o.alert;
-  const api: MxDecor = { el, alert: (v) => { alertOn = v; }, poke: () => { /* per kind */ }, dispose: () => { tickers.forEach((t) => { if (t.el === el) tickers.delete(t); }); el.remove(); } };
+  const api: MxDecor = { el, alert: (v) => { alertOn = v; }, poke: () => { /* per kind */ }, set: () => { /* gauges */ }, dispose: () => { tickers.forEach((t) => { if (t.el === el) tickers.delete(t); }); el.remove(); } };
   const box = (w: number, h: number) => { el.style.width = Math.round(w) + 'px'; el.style.height = Math.round(h) + 'px'; };
   const still = () => reduce();
 
@@ -546,7 +552,7 @@ export function mxDecor(kind: DecorKind, o: DecorOpts = {}): MxDecor | null {
       if (alertOn && !still()) th = (th + dt * TAU * 1.25) % TAU;
       draw();
     } });
-    api.alert = (v) => { if (v === alertOn) return; alertOn = v; if (!v) glow = 1; cur = ''; draw(); if (v) sfx('relay', 0.35); };
+    api.alert = (v) => { wake(el); if (v === alertOn) return; alertOn = v; if (!v) glow = 1; cur = ''; draw(); if (v) sfx('relay', 0.35); };
     api.poke = () => api.alert(!alertOn);
     return api;
   }
@@ -613,7 +619,8 @@ export function mxDecor(kind: DecorKind, o: DecorOpts = {}): MxDecor | null {
     box(40 * s, 40 * s);
     (g as HTMLElement).style.position = 'absolute'; (g as HTMLElement).style.left = (g as HTMLElement).style.top = '-4px';
     let t = 0, next = 1;
-    clock({ el, seen: 0, tick: (_n, dt) => { t += dt; if (t < next) return; t = 0; next = 1.5 + Math.random() * 3; g.set(alertOn ? 0.82 + Math.random() * 0.16 : 0.25 + Math.random() * 0.4); } });
+    api.set = (v) => g.set(v);
+    if (o.wander !== false) clock({ el, seen: 0, tick: (_n, dt) => { t += dt; if (t < next) return; t = 0; next = 1.5 + Math.random() * 3; g.set(alertOn ? 0.82 + Math.random() * 0.16 : 0.25 + Math.random() * 0.4); } });
     return api;
   }
 
@@ -838,4 +845,25 @@ export function mxIcon(kind: IconKind, size = 22): HTMLCanvasElement | null {
   const cv = frameCanvas(sh.width, sh.height, 'mxi-cv');
   cv.getContext('2d')!.drawImage(sh, 0, 0);
   return cv;
+}
+
+/**
+ * paint one still frame of a decor object into any 2D context (the task board's baked housings):
+ * (x, y) is the model box's top-left in that context's units; frame picks the pose (a beacon's sweep)
+ */
+export function paintDecor(c: CanvasRenderingContext2D, kind: 'gears' | 'beacon' | 'wrench' | 'buttons' | 'valve', x: number, y: number, o: { s?: number; col?: BeaconCol; on?: boolean; frame?: number; w?: number } = {}) {
+  if (!mxOk()) return;
+  const s = o.s ?? 1;
+  const at = (sh: HTMLCanvasElement | null, pad: number, w: number, h: number, f: number) => {
+    if (!sh) return;
+    const fw = Math.round(w + pad * 2), fh = Math.round(h + pad * 2);
+    const sm = c.imageSmoothingEnabled; c.imageSmoothingEnabled = false;
+    c.drawImage(sh, 0, f * fh, fw, fh, x - pad, y - pad, fw, fh);
+    c.imageSmoothingEnabled = sm;
+  };
+  if (kind === 'gears') at(gearsSheet(s), 6, 64 * s, 50 * s, (o.frame ?? 0) % GEAR_F);
+  else if (kind === 'beacon') at(beaconSheet(!!o.on, o.col ?? 'amber', s), 5, 34 * s, 34 * s, o.on ? (o.frame ?? 3) % BEACON_F : 0);
+  else if (kind === 'wrench') at(wrenchSheet(s), 6, 26 * s, 70 * s, Math.floor(WR_F / 2));
+  else if (kind === 'buttons') at(buttonsSheet(s), 5, 70 * s, 32 * s, (o.frame ?? 1) & 15);
+  else at(valveSheet(s, Math.round(o.w ?? 90)), 6, Math.round(o.w ?? 90), 40 * s, (o.frame ?? 0) % VALVE_F);
 }

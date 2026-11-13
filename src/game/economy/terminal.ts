@@ -11,6 +11,7 @@
 //            (in the lab: down the chute at the start of the next run)
 //   LEDGER   the crew ledger (in a run)
 import { mxArrive } from '../../ui/machine/kit';
+import { mxMount } from '../../ui/machine/decor';
 import { G } from '../G';
 import { bus } from '../../core/events';
 import { op } from '../ops';
@@ -65,6 +66,11 @@ export function openPressTerminal(o: TermOpen) {
   wrap.append(t.el);
   document.body.append(wrap);
   mxArrive(t.el, 'bottom', { delay: 40 });
+  if (window.innerWidth > 820) {
+    mxMount(t.el, 'gauge', { right: -44, top: 86, z: 4 }, { label: 'BAR' });
+    mxMount(t.el, 'gears', { right: -74, top: 150, z: 4 }, { speed: 0.7 });
+    mxMount(t.el, 'valve', { left: 70, bottom: -34, z: 4 }, { w: 150 });
+  }
   let page: Page = o.page ?? 'account';
   const keys = new Map<Page, PlateButton>();
   const visible = PAGES.filter(([k]) => k !== 'ledger' || inRun);

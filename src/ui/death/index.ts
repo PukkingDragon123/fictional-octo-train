@@ -24,6 +24,7 @@ import { grantResearch, researchPoints } from '../../game/research';
 import { flushStats } from '../../game/profile';
 import { sfx } from '../menus/sfx';
 import { mxFrame, mxSkinKey, panelSpec } from '../machine/kit';
+import { mxMount } from '../machine/decor';
 import { mxOk } from '../machine/core';
 import { letterTimes } from '../../social/chipVoice';
 import { RunTracker, type RunReport } from './stats';
@@ -514,6 +515,8 @@ class DeathCinematic {
       this.keys.forEach((b, i) => mxSkinKey(b, { tone: i === 0 ? 'yellow' : 'olive', lamp: i === 0 ? 'green' : 'amber', screws: false, sound: 'plate' }));
       this.keys[0]?.classList.add('ink-d');
       mxFrame(k, (w, h) => panelSpec(w, h, { title: 'INCIDENT CONTROL', seed: 71, lamps: ['red', 'amber'], glands: 2, hazard: true, vents: false, top: 40, bot: 20 }), { pad: 16 });
+      mxMount(k, 'beacon', { right: 64, top: -30, z: 4 }, { col: 'red', alert: true, s: 1.1 });
+      if (window.innerWidth > 760) mxMount(k, 'jar', { left: -104, bottom: -6, z: 4 }, { title: 'Specimen 07', s: 1.2 });
       setTimeout(() => sfx('clamp', 0.45), 320);
     }
     this.placeCase();

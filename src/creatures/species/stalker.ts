@@ -233,8 +233,9 @@ function poseK(R: StalkerRig, d: StalkerDrive) {
   // it looks at you
   const ly = clamp(d.lyaw, -1.2, 1.2) * d.look * alive, lp = clamp(d.lpitch, -0.8, 0.6) * d.look * alive;
   // (in the lunge the head comes up to keep you in sight over the stoop)
-  add(P, 'neck', 0.25 - 0.55 * lunge - lp * 0.4 + J[0] * jk * 0.4, ly * 0.5 + J[1] * jk * 0.3, tilt * 0.5 + J[2] * jk * 0.4);
-  add(P, 'head', -0.08 - 0.35 * lunge - lp * 0.5 + J[0] * jk * 0.6, ly * 0.45 + J[1] * jk * 0.7, tilt * 0.7 + J[2] * jk);
+  // (chin up, looking down its nose at you: the face stays turned up to the light)
+  add(P, 'neck', 0.12 - 0.45 * lunge - lp * 0.2 + J[0] * jk * 0.4, ly * 0.5 + J[1] * jk * 0.3, tilt * 0.5 + J[2] * jk * 0.4);
+  add(P, 'head', -0.3 - 0.3 * lunge - lp * 0.15 + J[0] * jk * 0.6, ly * 0.45 + J[1] * jk * 0.7, tilt * 0.7 + J[2] * jk);
   // arms: too long and too slack; reaching out in the lunge; palms up and out while it waits for you to stop
   if (lunge > 0.01) {
     for (const [s, k] of [['L', 1], ['R', -1]] as const) {

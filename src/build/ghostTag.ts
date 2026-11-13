@@ -65,7 +65,8 @@ export class GhostTag {
     const sc = pr.worldToScreen(_v.set(this.at.x, this.at.y, this.at.z));
     const W = window.innerWidth, H = window.innerHeight, M = 8;
     const ok = sc.z < 1;
-    let tx = sc.x - this.w / 2, ty = sc.y - this.h - 6;
+    // under the ghost's foot, beside the cursor: clear of the task banner and the HUD up top
+    let tx = sc.x - this.w / 2, ty = sc.y + 22;
     tx = Math.max(M, Math.min(W - this.w - M, tx)); ty = Math.max(M, Math.min(H - this.h - M, ty));
     const k = 1 - Math.exp(-dt * 22);
     if (!this.placed) { this.x = tx; this.y = ty; this.placed = true; } else { this.x += (tx - this.x) * k; this.y += (ty - this.y) * k; }

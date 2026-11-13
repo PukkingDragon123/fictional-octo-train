@@ -17,6 +17,7 @@ import { flushStats } from '../../game/profile';
 import { outlook } from '../../game/loop/unlocks';
 import { drawPlate, drawRecess, screw, hiCanvas } from '../../game/loop/plate';
 import { mxFrame, mxSkinKey, panelSpec } from '../machine/kit';
+import { mxMount } from '../machine/decor';
 import { mxOk } from '../machine/core';
 import { sfx } from '../menus/sfx';
 import type { RunTracker, RunReport } from './stats';
@@ -155,6 +156,7 @@ function showSummary(g: Game, p: Player, r: RunReport) {
     root.classList.add('mx');
     btns.forEach((b, i) => { mxSkinKey(b, { tone: i === 0 ? 'yellow' : 'olive', lamp: i === 0 ? 'green' : 'amber', screws: false, sound: 'plate' }); if (i === 0) b.classList.add('ink-d'); });
     mxFrame(root, (w, h) => { const s = panelSpec(w, h, { seed: 909, lamps: ['green', 'amber'], glands: 2, hazard: true, win: { l: 12, t: 12, r: 12, b: 12, cut: 6, lip: 4 } }); s.win!.back = true; return s; }, { pad: 16 });
+    if (window.innerWidth > 760) { mxMount(root, 'gears', { right: -58, top: 26, z: 4 }, { speed: 0.5 }); mxMount(root, 'wrench', { left: -30, top: 40, z: 4 }); }
   }
   requestAnimationFrame(() => {
     const W = Math.round(root.offsetWidth), H = Math.round(root.offsetHeight);

@@ -14,6 +14,8 @@ import type { QuestRuntime, QView } from '../../missions/questRuntime';
 import { isLoading } from '../loading';
 import { isTouchMode } from '../touch/mode';
 import './objective.css';
+import { mxOk } from '../machine/core';
+import { mxDecor, type MxDecor } from '../machine/decor';
 
 type Card = { kind: string; title: string; step?: string; done?: string; tone?: 'new' | 'up' | 'ok' | 'filed' };
 const Q = () => G.missions?.quests as QuestRuntime | undefined;
@@ -36,6 +38,8 @@ export class ObjectiveLine {
   private lastSig = '';
   private zoneSaid = '';
   private cur: Card | null = null;
+  private beacons: Partial<Record<'amber' | 'green', MxDecor | null>> = {};
+  private beacon: MxDecor | null = null;
 
   constructor() {
     const el = this.el = document.createElement('div');
@@ -95,7 +99,7 @@ export class ObjectiveLine {
     }
     if (this.showing) {
       this.hold -= dt;
-      if (this.hold <= 0) { this.el.classList.remove('on'); this.el.classList.add('out'); this.showing = 0; this.hold = 0.7; this.cur = null; }
+      if (this.hold <= 0) { this.el.classList.remove('on'); this.el.classList.add('out'); this.showing = 0; this.hold = 0.7; this.cur = null; this.beacon?.alert(false); }
       return;
     }
     if (this.hold > 0) { this.hold -= dt; return; }
@@ -108,6 +112,13 @@ export class ObjectiveLine {
       + `<div class="obj15-t">${esc(c.title)}</div>`
       + (c.done ? `<div class="obj15-d"><s>${esc(c.done)}</s></div>` : '')
       + (c.step ? `<div class="obj15-s"><b></b>${esc(c.step)}</div>` : '');
+    // round 16: a little 3D beacon instead of the diamond, turning while the caption is up (green for done work)
+    const col = c.tone === 'ok' ? 'green' : 'amber';
+    if (c.tone !== 'filed' && mxOk()) {
+      const b = this.beacons[col] ??= mxDecor('beacon', { col, s: 0.7, cls: 'obj15-b' });
+      const k = el.querySelector('.obj15-k span');
+      if (b && k) { k.prepend(b.el); el.classList.add('has-b'); b.alert(true); this.beacon = b; }
+    }
     void el.offsetWidth;
     el.classList.add('on');
     this.showing = 1;
