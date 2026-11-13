@@ -24,7 +24,6 @@ import type { Player } from '../entities/player';
 import type { Creature } from '../creatures/creature';
 import { TimedAction } from '../actions/action';
 import { createItem } from '../items/factory';
-import { TREAT_HOOKS } from '../ui/body/treat';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import { mixHex } from '../gfx/pixel';
@@ -325,13 +324,17 @@ class CutOutParasiteAction extends TimedAction {
     bus.emit('inventoryChanged', p);
   }
 }
-TREAT_HOOKS.push((p, inj, o, run) => {
+// (loaded lazily: the Status screen pulls in the medical actions and their UI, which the creature
+// system, and headless tools like the zone checker, should not have to load)
+type TreatHook = (typeof import('../ui/body/treat'))['TREAT_HOOKS'][number];
+const treatHook: TreatHook = (p, inj, o, run) => {
   const inf = p.body.parasite;
   if (!inf || inj.id !== inf.injId) return;
   if (inf.stage === 'burrow') { o.unshift({ key: 'pull', label: 'Pull it out by the tail', using: 'bare fingers', run: run(new CutOutParasiteAction(p, inj, null, true)) }); return; }
   const knife = p.findTool('scalpel') || p.findTool('#knife') || p.findTool('#sharp') || null;
   o.unshift({ key: 'pull', label: inf.stage === 'eggs' ? 'Cut out the eggs' : 'Cut it out', using: knife ? undefined : undefined, missing: knife ? undefined : 'a knife or a scalpel', run: knife ? run(new CutOutParasiteAction(p, inj, knife as any, false)) : undefined });
-});
+};
+import('../ui/body/treat').then((m) => { if (!m.TREAT_HOOKS.includes(treatHook)) m.TREAT_HOOKS.push(treatHook); }).catch(() => { /* headless */ });
 
 /** dev / tests: window.__para */
 try { (globalThis as any).__para = { infestPlayer, infestCreature, ORGANS }; } catch { /* no window */ }
