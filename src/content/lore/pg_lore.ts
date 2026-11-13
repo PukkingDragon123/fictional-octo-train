@@ -45,7 +45,7 @@ light changes. — M. Dray, Head of Children's`,
 });
 defLore({
   id: 'pg_calder', title: 'Field note (Dr. Calder)',
-  text: `MERIDIAN INSTITUTE — FIELD NOTE
+  text: `MERIDIAN INSTITUTE OF LIMINALITY — FIELD NOTE
 SITE: "THE PLAYGROUND"   WEATHER: GOLDEN HOUR
 
 The light here never moves. The shadows are

@@ -45,7 +45,7 @@ interface Layout {
 
 export const LAYOUTS: Record<FacKind, Layout> = {
   outpost: {
-    W: 5, D: 3, wall: true, sign: 'meridian_outpost', signLx: 2, name: 'Field Outpost', company: 'Meridian Institute', lamp: true,
+    W: 5, D: 3, wall: true, sign: 'meridian_outpost', signLx: 2, name: 'Field Outpost', company: 'Meridian Institute of Liminality', lamp: true,
     pieces: [
       { key: 'lab_bench', lx: 0, ly: 0, note: 'zf_outpost_memo' },
       { key: 'terminal_lab', lx: 2, ly: 0, state: { lore: 'zf_outpost_log' } },
@@ -123,7 +123,7 @@ export const LAYOUTS: Record<FacKind, Layout> = {
     floorNote: [1, 1, 'zf_server_note'],
   },
   relay: {
-    W: 2, D: 2, wall: true, sign: 'meridian_relay', signLx: 1, name: 'Relay Booth', company: 'Meridian Institute',
+    W: 2, D: 2, wall: true, sign: 'meridian_relay', signLx: 1, name: 'Relay Booth', company: 'Meridian Institute of Liminality',
     pieces: [{ key: 'cp_relay', lx: 0, ly: 0 }],
   },
 };

@@ -20,6 +20,7 @@ import { defLoot } from '../../items/loot';
 import { defLore } from '../loreRegistry';
 import { installFacilities } from '../../world/gen/facilities';
 import '../../game/introKit/tex';
+import { emblemPixels } from '../../ui/brand/logo';
 
 const T = ['facility', 'zf'];
 
@@ -39,14 +40,14 @@ export interface SignSpec {
   defaced?: string;
 }
 export const SIGNS: Record<string, SignSpec> = {
-  meridian_outpost: { co: 'MERIDIAN INSTITUTE', title: 'FIELD OUTPOST', sub: 'RESEARCH  SAMPLE INTAKE', base: 0xe6dfc8, band: 0x2f6f6a, ink: 0x1c2a28, bandInk: 0xf0ead6, logo: 'meridian' },
+  meridian_outpost: { co: 'M.I. OF LIMINALITY', title: 'FIELD OUTPOST', sub: 'RESEARCH  SAMPLE INTAKE', base: 0xe6dfc8, band: 0x2f6f6a, ink: 0x1c2a28, bandInk: 0xf0ead6, logo: 'meridian' },
   argent_depot: { co: 'ARGENT-VALE BIOSECURE', title: 'CONTAINMENT', sub: 'CLASS II  DO NOT OPEN', base: 0x24221f, band: 0xa8261e, ink: 0xe8e0cc, bandInk: 0xf4ece0, logo: 'argent', hazard: true },
   meridian_maint: { co: 'MERIDIAN FACILITIES', title: 'MAINTENANCE 7', sub: 'HARD HATS  NO NAKED FLAME', base: 0xe2b23a, band: 0x1d1b17, ink: 0x1d1b17, bandInk: 0xe2b23a, logo: 'meridian', hazard: true },
   halcyon_camp: { co: 'HALCYON SURVEY CO', title: 'CAMP ELEVEN', sub: 'EST 1979  ALL CREWS SIGN IN', base: 0x6d7f58, band: 0x3c4a30, ink: 0xe8e2c4, bandInk: 0xd8d0a8, logo: 'halcyon', rust: 0.5, defaced: 'CLOSED' },
   meridian_checkpoint: { co: 'MERIDIAN CUSTODY', title: 'CHECKPOINT', sub: 'HALT  PRESENT YOUR BAND', base: 0xece8e0, band: 0xb5281f, ink: 0x1c1a18, bandInk: 0xf6f0e6, logo: 'meridian' },
   ostrander_lift: { co: 'OSTRANDER LIFT AND FREIGHT', title: 'CARGO LIFT 2', sub: 'MAX 2000 KG  NO RIDERS', base: 0x2c4f86, band: 0x13203a, ink: 0xeef0f2, bandInk: 0xc9d4e6, logo: 'ostrander', rust: 0.8, defaced: 'DEAD' },
   meridian_server: { co: 'MERIDIAN I.T.', title: 'SERVER ROOM 4C', sub: 'AUTHORISED STAFF ONLY', base: 0x8c9196, band: 0x2a2e33, ink: 0x15181b, bandInk: 0xd6dade, logo: 'meridian' },
-  meridian_relay: { co: 'MERIDIAN INSTITUTE', title: 'RELAY BOOTH', sub: 'CHECKPOINT  HOLD THE LINK', base: 0x1e3b3a, band: 0x52c4a8, ink: 0xd8f4e8, bandInk: 0x0e1c1b, logo: 'meridian' },
+  meridian_relay: { co: 'M.I. OF LIMINALITY', title: 'RELAY BOOTH', sub: 'CHECKPOINT  HOLD THE LINK', base: 0x1e3b3a, band: 0x52c4a8, ink: 0xd8f4e8, bandInk: 0x0e1c1b, logo: 'meridian' },
 };
 export const SIGN_KEYS = Object.keys(SIGNS);
 
@@ -54,10 +55,9 @@ const SW = 128, SH = 40;
 
 function logo(pc: PixelCanvas, kind: SignSpec['logo'], x: number, y: number, c: number, bg: number) {
   if (kind === 'meridian') {
-    // a globe: ring, meridian and equator, a small notch where the meridian meets the pole
-    pc.ellipse(x + 5, y + 5, 5, 5, c); pc.ellipse(x + 5, y + 5, 3.6, 3.6, bg);
-    pc.vline(x + 5, y, y + 10, c); pc.hline(x + 1, x + 9, y + 5, c);
-    pc.set(x + 3, y + 3, c); pc.set(x + 7, y + 7, c);
+    // the Institute's bishop (src/ui/brand/logo.ts), in the band's ink
+    const N = 11, p = emblemPixels(N, { roundel: false });
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) { const col = p[j * N + i]; if (col >= 0) pc.set(x + i, y + j, col === 0x0d0a07 ? bg : c); }
   } else if (kind === 'argent') {
     // a shield with the three-lobed seal
     for (let j = 0; j < 11; j++) { const w = j < 6 ? 5 : Math.max(0, 5 - (j - 5)); pc.hline(x + 5 - w, x + 5 + w, y + j, c); }
@@ -282,7 +282,7 @@ defLoot('fac_cargo', [2, 5], [['rope', 2], ['scrap_metal', 3], ['sheet_metal', 2
 defLoot('fac_server', [1, 3], [['circuit_board', 3], ['electronics_scrap', 3], ['wire', 3], ['floppy_disk', 2], ['battery', 2], ['screwdriver', 1]], 0.15);
 
 // ------------------------------------------------------------------ lore left on the desks
-defLore({ id: 'zf_outpost_log', title: 'FIELD OUTPOST: DUTY LOG', style: 'terminal', text: `> MERIDIAN INSTITUTE / FIELD OUTPOST / LOCAL LOG
+defLore({ id: 'zf_outpost_log', title: 'FIELD OUTPOST: DUTY LOG', style: 'terminal', text: `> MERIDIAN INSTITUTE OF LIMINALITY / FIELD OUTPOST / LOCAL LOG
 
 0614  Outpost powered from its own cell. Relay to Processing: GOOD.
 0640  Two samples banked (wall tissue, carpet mycelium). Labels in the cabinet.
@@ -300,7 +300,7 @@ Samples go in the cabinet, labelled with the level and the hour. If the hour on 
 
 If an Argent-Vale crew asks to share the outpost, the answer is no. If they insist, the answer is still no, and you will log their badge numbers.
 
-— Facilities & Field Operations, Meridian Institute` });
+— Facilities & Field Operations, Meridian Institute of Liminality` });
 defLore({ id: 'zf_argent_manifest', title: 'ARGENT-VALE: CONTAINMENT MANIFEST', style: 'paper', text: `ARGENT-VALE BIOSECURE · DEPOT MANIFEST · CLASS II
 
 POD 1   carpet mycelium, living, 40 kg      SEALED

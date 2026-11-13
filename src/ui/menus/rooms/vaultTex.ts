@@ -3,7 +3,7 @@
 // hard pixels (no smoothing, no gradients: ramps, bevels, specks, dither) and
 // sampled nearest. Headings are Alagard (bitfont); the fine print is a 3x5
 // stencil face that reads as text up close and as texture from the door.
-//   crest        the Meridian Institute's seal: a ringed eye split by the meridian
+//   crest        the Meridian Institute of Liminality's seal: the bishop in a riveted roundel
 //   placard      a containment placard: crest, sin-rank block, class, cell, protocol (redacted), pictograms, barcode, hazard band
 //   sign         warning signs: voltage, biohazard, do-not-look, cryogenic, decontaminate, no-contact, breathing
 //   page / folder  dossier pages with black redaction bars, a mugshot, stamps; manila covers with the rank tab
@@ -17,6 +17,7 @@ import { bitText, bitMeasure, bitIsReady, bitReady } from '../../../gfx/bitfont'
 import type { SinRank } from '../../../creatures/lore';
 import { RANK_INFO } from '../../../creatures/lore';
 import { drawPortrait } from '../../../entities/portrait';
+import { drawEmblemMono } from '../../brand/logo';
 
 export const RANK_COL: Record<SinRank, number> = { sloth: 0x7a9a86, gluttony: 0xb08a3a, lust: 0xc85a86, greed: 0xd8b02a, envy: 0x3aa860, wrath: 0xc8321e, pride: 0x7a4ab8 };
 /** the Institute's working class names per rank (placards fall back on these) */
@@ -108,37 +109,11 @@ function redLine(c: CanvasRenderingContext2D, R: () => number, x: number, y: num
 
 // ------------------------------------------------------------------ the crest
 /**
- * The Meridian Institute's seal: a double ring with the 24 hour ticks and a
- * star at noon, an elliptical meridian round an open eye whose pupil is the
- * meridian itself (a vertical slit, the line the Institute holds).
+ * The Meridian Institute of Liminality's seal: the bishop in its riveted roundel over the meridians
+ * (src/ui/brand/logo.ts), engraved in one ink; `mid` fills the piece and the band
  */
 export function drawCrest(c: CanvasRenderingContext2D, cx: number, cy: number, R: number, ink: string, mid?: string) {
-  const p = (x: number, y: number, col = ink) => { c.fillStyle = col; c.fillRect(Math.round(cx + x), Math.round(cy + y), 1, 1); };
-  const ri = R * 0.74;
-  for (let y = -R; y <= R; y++) for (let x = -R; x <= R; x++) {
-    const d = Math.hypot(x, y);
-    if (d <= R + 0.2 && d >= R - (R > 20 ? 2.2 : 1.2)) p(x, y);
-    else if (d <= ri + 0.5 && d >= ri - 0.6) p(x, y);
-    else if (mid && d < R - 1.5 && d > ri + 0.6) p(x, y, mid);
-  }
-  // the hour ticks in the band, longer every six; a star at noon
-  for (let i = 0; i < 24; i++) {
-    if (i === 0) continue;
-    const a = (i / 24) * Math.PI * 2 - Math.PI / 2, long = i % 6 === 0;
-    for (let r = R - (long ? (R > 20 ? 5 : 3.5) : (R > 20 ? 3.5 : 2.5)); r <= R - 1.6; r += 0.5) p(Math.cos(a) * r, Math.sin(a) * r);
-  }
-  const sy = -(R + ri) / 2, sr = Math.max(2, Math.round((R - ri) * 0.42));
-  for (let k = -sr; k <= sr; k++) { p(k, sy); p(0, sy + k); }
-  if (sr > 2) { p(1, sy - 1); p(-1, sy - 1); p(1, sy + 1); p(-1, sy + 1); }
-  // the meridian ellipse, the eye's lids, the iris and the slit
-  const ex = ri * 0.46;
-  for (let a = 0; a < Math.PI * 2; a += 0.02) p(Math.cos(a) * ex, Math.sin(a) * (ri - 1.2));
-  const ew = ri * 0.86, eh = ri * 0.42;
-  for (let x = -ew; x <= ew; x += 0.35) { const y = eh * (1 - (x / ew) * (x / ew)); p(x, -y); p(x, y); }
-  const ir = Math.max(2, ri * 0.3);
-  for (let y = -ir; y <= ir; y++) for (let x = -ir; x <= ir; x++) { const d = Math.hypot(x, y); if (d <= ir && d >= ir - 1.1) p(x, y); }
-  for (let y = -ri + 1.5; y <= ri - 1.5; y++) { p(0, y); if (Math.abs(y) < ir) { p(-1, y); p(1, y); } }
-  if (mid) p(ir * 0.45, -ir * 0.45, mid);
+  drawEmblemMono(c, cx, cy, R, ink, mid);
 }
 /** the crest alone on a transparent square (medallion faces, stamps) */
 export function crestTex(S = 64, ink = '#d8c890', mid?: string): THREE.CanvasTexture {
@@ -248,7 +223,7 @@ export function signTex(kind: SignKind): THREE.CanvasTexture {
     R_(c, 4, 80, W - 8, H - 84, red ? '#c8261a' : ink);
     bitText(c, head, W / 2, 81, { color: red ? '#fff4e8' : '#e8b828', outline: null, align: 'center' });
     micro(c, sub, Math.round((W - microW(sub)) / 2), 99, red ? '#fff4e8' : '#ece6d4');
-    micro(c, 'MERIDIAN INSTITUTE', Math.round((W - microW('MERIDIAN INSTITUTE')) / 2), 108, red ? '#ffb8a8' : '#8a8478');
+    micro(c, 'M.I. OF LIMINALITY', Math.round((W - microW('M.I. OF LIMINALITY')) / 2), 108, red ? '#ffb8a8' : '#8a8478');
   }, { seed: kind.length * 31 });
   signCache.set(kind, t);
   return t;
@@ -264,7 +239,7 @@ export function pageTex(seed: number, o: { photo?: boolean; stamp?: string; rank
     // a coffee ring
     if (R() < 0.4) { const x = 20 + R() * 70, y = 60 + R() * 70; for (let a = 0; a < 6.3; a += 0.06) R_(c, x + Math.cos(a) * 11, y + Math.sin(a) * 11, 1, 1, 'rgba(140,100,60,0.5)'); }
     drawCrest(c, 12, 12, 8, '#3a3a44');
-    micro(c, 'MERIDIAN INSTITUTE', 24, 6, '#2a2a36');
+    micro(c, 'M.I. OF LIMINALITY', 24, 6, '#2a2a36');
     micro(c, 'INTERNAL · EYES ONLY', 24, 13, '#a8261e');
     R_(c, 4, 23, W - 8, 1, '#2a2a36');
     micro(c, 'FILE M-' + String(Math.floor(R() * 900 + 100)), 6, 27, '#2a2a36');

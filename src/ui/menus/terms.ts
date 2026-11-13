@@ -53,7 +53,7 @@ export function termsStation(ctx: TermsCtx) {
     const focusKey = (document.activeElement as HTMLElement | null)?.closest?.('[data-k]')?.getAttribute('data-k');
     const focusIdx = focusKey ? [...(el.querySelector(`[data-k="${CSS.escape(focusKey)}"]`)?.querySelectorAll('button') || [])].indexOf(document.activeElement as HTMLButtonElement) : -1;
     el.innerHTML = '';
-    el.append(h('p', 'tm3-who', `Debtor <b>${esc((ctx.name || '________').toUpperCase())}</b> · Meridian Institute · Remittance Programme`));
+    el.append(h('p', 'tm3-who', `Debtor <b>${esc((ctx.name || '________').toUpperCase())}</b> · Meridian Institute of Liminality · Remittance Programme`));
     // §1 terms of confinement
     el.append(h('div', 't-ctl-h', '§1 Terms of confinement'));
     const pre = seg<string>('Preset', [...Object.entries(PRESETS).map(([k, p]) => [k, p.label] as [string, string]), ['custom', 'Custom']], ctx.preset, (k) => {

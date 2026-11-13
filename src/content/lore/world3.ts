@@ -132,7 +132,7 @@ THE HOUSE IS THE ONE WITH THE RED DOOR`,
 
 defLore({
   id: 'zw_home_survey', title: 'Domestic Replication Survey (clipboard)',
-  text: `MERIDIAN INSTITUTE — DOMESTIC REPLICATION SURVEY
+  text: `MERIDIAN INSTITUTE OF LIMINALITY — DOMESTIC REPLICATION SURVEY
 Unit dwelling: "14"   Iteration: 212
 
 Rooms present: hall, living, kitchen, dining, bedrooms (3), bathroom. ✓
@@ -148,7 +148,7 @@ Observer note: the Still Lifes do not move while observed. I am confident of thi
 // ---------------------------------------------------------------- annex B
 defLore({
   id: 'zw_annex_memo', title: 'Memo — Remittance survey crews',
-  text: `MERIDIAN INSTITUTE — ANNEX B — INTERNAL
+  text: `MERIDIAN INSTITUTE OF LIMINALITY — ANNEX B — INTERNAL
 
 Survey teams cost money. Remittance clients cost nothing; they already owe.
 
@@ -241,7 +241,7 @@ Somebody is coming to find you.`,
 
 defLore({
   id: 'zw_wrong_tvs', title: 'Sticker on a television',
-  text: `PROPERTY OF MERIDIAN INSTITUTE — OBSERVATION
+  text: `PROPERTY OF MERIDIAN INSTITUTE OF LIMINALITY — OBSERVATION
 CHANNEL: UNIT (REAR)
 DO NOT TURN AROUND TO CHECK. THE FEED IS LIVE. IT IS ALWAYS LIVE.`,
 });

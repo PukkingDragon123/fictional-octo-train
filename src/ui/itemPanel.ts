@@ -334,7 +334,7 @@ class ItemPanel {
     const loreText = lore ? (typeof lore.note === 'function' ? lore.note(it) : lore.note) : '';
     const red = (n: number) => `<span class="ip-red" style="width:${n}px"></span>`;
     const anom = cl.k === 'anom';
-    return `<canvas class="ip-bg"></canvas><i class="ip-lamp${anom ? ' r' : ''}"></i><div class="ip-hd" style="left:42px">Meridian Institute · Evidence card</div><button class="ip-x" data-x title="Close (Esc)">X</button>
+    return `<canvas class="ip-bg"></canvas><i class="ip-lamp${anom ? ' r' : ''}"></i><div class="ip-hd" style="left:42px">Meridian Institute of Liminality · Evidence card</div><button class="ip-x" data-x title="Close (Esc)">X</button>
 <div class="ip-in"><div class="ip-ban k-${cl.k}"><b>${cl.lvl}</b><em>${cl.label}</em><canvas class="ip-bc" data-case="${caseNo(it)}"></canvas></div>
 <div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}<div class="ip-stamp k-${cl.k}">${cl.stamp}</div></div>
 <div class="ip-id"><div class="ip-name">${esc(itemName(it))}</div><div class="ip-kind">${esc(cat)}</div>

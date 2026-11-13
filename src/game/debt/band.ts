@@ -449,7 +449,7 @@ function debtorNo(p: Player): string {
 
 function bandText(p: Player) {
   const d = G.debt;
-  const lines = [`UNIT ${debtorNo(p)} :: ${p.name.toUpperCase()}`, 'REMITTANCE PROGRAMME — MERIDIAN INSTITUTE', ''];
+  const lines = [`UNIT ${debtorNo(p)} :: ${p.name.toUpperCase()}`, 'REMITTANCE PROGRAMME — MERIDIAN INSTITUTE OF LIMINALITY', ''];
   if (d?.on) {
     lines.push(`BALANCE OWED   ${Math.round(d.remaining).toLocaleString('en-GB')} SCRIP`);
     lines.push(`PAID TO DATE   ${Math.round(d.paid).toLocaleString('en-GB')} SCRIP`);

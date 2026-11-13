@@ -519,7 +519,7 @@ const RING_LINES = [
   '...this is a recorded message. The Inner Loop is running a normal service. Please stand behind the yellow line...',
   '...don\'t get on it. Whatever you do. If the doors open, they\'re not doors...',
   '...I paid. I PAID. It still... (the line goes quiet, then a clicking, like a turnstile)...',
-  '...Meridian Institute, fares and recoveries, how may I direct your call...',
+  '...Meridian Institute of Liminality, fares and recoveries, how may I direct your call...',
 ];
 function animateRinger(rig: Rig, c: Creature, t: number, dt: number) {
   applyLook(rig, c, PG, 0.08);

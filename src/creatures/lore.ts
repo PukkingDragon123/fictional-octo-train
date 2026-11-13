@@ -173,6 +173,40 @@ export const INHABITANTS: InhabitantLore[] = [
   }),
 
   L({
+    id: 'parasite_salamander', name: 'Parasite Salamander', rank: 'lust', class: 'Parasite', danger: 6,
+    summary: 'A pale amphibian a forearm long that you can see into: the organs are dark shapes under skin the colour of a peeled grape, the veins blue. A flat shovel of a snout, a round rasping mouth ringed with hooked teeth underneath it, frilled red gills, and eight or nine soft little fingers on every foot.',
+    biology: 'An endoparasite with a free-living adult stage. The shovel snout parts skin and muscle; the rasp files a way through; the fingers hold the wound open while it pulls itself in. Inside, it moves through the body cavity eating one organ at a time (gut, liver, stomach, a kidney, a lung), growing with each, and the host goes on living without them, badly. When it has eaten four it stops and lays a clutch of yolky eggs in a skin against the spine; about two game hours later the larvae hatch and chew their way out through the original wound, and the adult, spent, crawls out after them.',
+    behaviour: 'It hunts for hosts by creeping up on whatever keeps still: the sleeping, the downed, units standing in the dark, animals, and above all the dead. Light and movement put it off; it freezes and waits. The last metre is a rush and a grab, and then it is in. While it is burrowing (a few seconds) it can be pulled out by the tail; after that it must be cut out of the wound with a knife or a scalpel, a deep cut and a bad one, before it lays. Animals it gets into sicken, swell and burst; corpses burst sooner.',
+    habitat: 'The damp dark levels: the Undercroft, the Tunnels, the Pools, and the wards of the hospital, wherever the dead are left lying.',
+    lore: 'Calder\'s field note: "If you wake up with a wound you do not remember and a lump that moves, do not wait to see what it does. Cut. The place grows organs back, slowly. It does not grow you back." The lab buys them whole and alive. Nobody will say what for.',
+    harvest: [
+      { item: 'parasite_salamander', how: 'Kill one, or cut it out of a host whole.' },
+      { item: 'salamander_eggs', how: 'Cut the clutch out of a host who has been laid in.' },
+    ],
+  }),
+  L({
+    id: 'salamander_larva', name: 'Salamander Larva', rank: 'gluttony', class: 'Parasite', danger: 2,
+    summary: 'A finger-length, see-through hatchling of the Parasite Salamander, all mouth and fingers.',
+    biology: 'Born inside a host and eating its way out. The gills come in first, then the shovel.',
+    behaviour: 'They scatter from whatever they came out of and look for a carcass to get into. Left in the dark for a few minutes they grow into adults. They die under a boot.',
+    habitat: 'Wherever a host burst.',
+    lore: 'A clutch is twelve to forty. Most do not live to find a host. Enough do.',
+    harvest: [{ item: 'salamander_eggs', how: 'Sometimes there is an unhatched egg still clinging to one.' }],
+  }),
+  L({
+    id: 'gaunt_wolf', name: 'Gaunt Wolf', rank: 'wrath', class: 'Fauna', danger: 9,
+    summary: 'A wolf three times a unit\'s height at the shoulder and starved down to the frame: mange and scab over a matted coat, a flank torn open on bare ribs, a ridge of vertebrae through the back, a long jaw with three rows of teeth, forelegs too long for its hind legs, one of which it holds up off the ground. Its breath steams.',
+    biology: 'A canid that has grown and grown on the open levels with never enough to eat. Its body has kept the frame and spent everything else: there is almost no fat on it, the muscles are cords, the skin has split where the bones press through and never healed. The teeth keep coming in behind the old ones. It is hot to stand near; it is burning itself to keep going.',
+    behaviour: 'It hunts alone, by sound and above all by the smell of blood: a bleeding unit is smelled from a long way off. It howls first, then lopes in, then charges; it knocks you down and stands on you and bites, again and again, and if it kills it carries the body away in its mouth to eat. It hunts the other animals too. It is too big for doorways and corridors: indoors, under cover, in a narrow place, it can only circle and wait.',
+    habitat: 'The big open levels: the Fields, the Meadow, the parking structure, the suburbs at night. Never more than one.',
+    lore: 'Units call it the Landlord. The Institute has lost three survey teams in the Fields to it and one operator who would not unlink while it ate her unit, and has not been the same since. Calder: "Bandage before you cross open ground. Walk. If you hear it, find a door."',
+    harvest: [
+      { item: 'wolf_meat', how: 'Butcher it for dark, stringy meat.' },
+      { item: 'matted_hide', how: 'Skin a sheet of the coat.' },
+      { item: 'wolf_fang', how: 'Pull the long teeth from the third row.' },
+    ],
+  }),
+  L({
     id: 'stalker', name: 'Stalker', rank: 'envy', class: 'Mimic', danger: 7,
     summary: 'You, made again from the outside: your face, your suit (nearly; it has no hood), your lamp on its temple, two and a half metres tall. Its legs are too long and the left one longer still; it will not bend, so it drags it, toes down, behind the good one. Its arms hang past its knees. Its head is the wrong size for it, its eyes are too round and too pale, and its face will not hold still: it flickers between smiles.',
     biology: 'Nobody has dissected one that looked like anyone but the unit who killed it. The body is human, stretched: long bones lengthened at the growth plates, a neck half again too long, the dragged leg\'s knee fused straight. The skin is a few shades paler than the original and older by a decade. The suit is not cloth; it is skin, coloured and creased like the suit, with the number almost right. Its lamp works. Calder\'s view is that it is not a predator of units so much as of the link: it learns the operator, not the body.',

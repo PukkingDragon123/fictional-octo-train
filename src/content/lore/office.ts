@@ -60,7 +60,7 @@ Leave them be.`,
 
 defLore({
   id: 'org_chart', title: 'Organisation chart (framed)',
-  text: `MERIDIAN INSTITUTE — PROGRAM DIVISION
+  text: `MERIDIAN INSTITUTE OF LIMINALITY — PROGRAM DIVISION
 
 DIRECTOR ............ Dr. Daniel Hale
   CONTINUITY ........ Facility 4 (sub-level)

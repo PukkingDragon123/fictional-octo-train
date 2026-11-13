@@ -215,7 +215,7 @@ export class CodexArchive implements StageRoom {
       const wet = new THREE.Mesh(new THREE.CircleGeometry(0.5, 9), new THREE.MeshStandardMaterial({ color: 0x0a0c0c, roughness: 0.04, metalness: 0.6, transparent: true, opacity: 0.55, depthWrite: false }));
       wet.rotation.x = -Math.PI / 2; wet.scale.set(w, d, 1); wet.position.set(x, 0.006, z); wet.renderOrder = 2; wet.userData.noGlow = true; g.add(wet);
     }
-    const sign = plate(this.mats, ['CODEX ARCHIVE A-1', 'MERIDIAN INSTITUTE · RECORDS'], 1.0, 0.22, { bg: 0xc8c0a0 });
+    const sign = plate(this.mats, ['CODEX ARCHIVE A-1', 'M.I. OF LIMINALITY · RECORDS'], 1.0, 0.22, { bg: 0xc8c0a0 });
     sign.position.set(-1.6, 2.5, FRONT - 0.01); sign.rotation.y = Math.PI; g.add(sign);
     const hush = plate(this.mats, ['SILENCE', 'IN THE STACKS'], 0.42, 0.14, { bg: 0x2a3a34, ink: 0xd8ffe8 });
     hush.position.set(-W + 0.012, 2.45, -0.3); hush.rotation.y = Math.PI / 2; g.add(hush);

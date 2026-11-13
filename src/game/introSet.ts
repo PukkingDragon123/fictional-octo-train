@@ -76,7 +76,7 @@ addTextureModule(() => {
     pc.hline(2, 125, 2, 0x4a5c52); pc.vline(2, 2, 29, 0x4a5c52);
     for (const [x, y] of [[4, 4], [122, 4], [4, 26], [122, 26]] as const) screw(pc, x, y, 0x8a9a90, 0x141a16, true);
     const cream = 0xe8e0c4, amber = 0xd8a830;
-    txtC(pc, 'MERIDIAN INSTITUTE', 64, 4, cream);
+    txtC(pc, 'M.I. OF LIMINALITY', 64, 4, cream);
     txtC(pc, 'PROCESSING WING', 64, 11, amber, 1, 2);
     txtC(pc, 'REMITTANCE PROGRAMME - INTAKE', 64, 23, scale(cream, 0.8));
     for (let i = 0; i < 110; i++) { const x = rng.int(0, 127), y = rng.int(0, 31); if (pc.get(x, y) === cream || pc.get(x, y) === amber) { if (rng.chance(0.2)) pc.set(x, y, 0x6a7268); } else if (rng.chance(0.08)) pc.blend(x, y, 0x8a8a7a, 0.4); }

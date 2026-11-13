@@ -319,7 +319,7 @@ defObj({
 defObj({
   key: 'vx_flag', name: 'Institute Flag', height: 2.4, block: 'low', movable: 0, hp: 200, sound: 'metal',
   tags: [...T, 'moon', 'fixed'],
-  desc: 'The Meridian Institute planted its flag here. There is no wind, so a wire holds it out. The wire is the only thing that moves.',
+  desc: 'The Meridian Institute of Liminality planted its flag here. There is no wind, so a wire holds it out. The wire is the only thing that moves.',
   model: (mb) => {
     post(mb, 0, 0, 0.025, 2.35, 'metal_grey', 0xd8d8d8);
     tube(mb, [[0, 2.25, 0], [0.92, 2.25, 0]], 0.012, 5, 'metal_grey', { color: 0xb8b8b8 });

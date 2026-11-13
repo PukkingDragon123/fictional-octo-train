@@ -151,7 +151,7 @@ defItem({
 // ---------------------------------------------------------------- mission items (placed by story code only)
 defItem({
   key: 'keycard_admin', name: 'Admin Keycard', cat: 'key', weight: 0.01, rare: true, tags: ['key', 'keycard', 'mission'],
-  desc: 'MERIDIAN INSTITUTE — ADMINISTRATOR — LEVEL 5. Opens the doors that are not supposed to exist.',
+  desc: 'MERIDIAN INSTITUTE OF LIMINALITY — ADMINISTRATOR — LEVEL 5. Opens the doors that are not supposed to exist.',
   model: (mb) => {
     slab(mb, 0.085, 0.002, 0.055, D_KEYCARD, T.white, 0xf2f2ee, { rot: 0.3 });
     mb.push().rotateY(0.3); mb.box(-0.05, 0, 0, 0.02, 0.002, 0.01, T.plastic, { color: 0x2a2a2a }); mb.pop();

@@ -83,6 +83,13 @@ const STALKER: Record<string, [string, number][]> = {
   office: [['stalker', 0.12]],
 };
 for (const k in STALKER) ADD[k] = (ADD[k] || []).concat(STALKER[k]);
+// round 17: the Gaunt Wolf (rare, the big open levels: src/creatures/species/gaunt_wolf.ts) and the Parasite
+// Salamander (the damp dark levels, where the dead lie: salamander.ts)
+const GROTESQUE: Record<string, [string, number][]> = {
+  fields: [['gaunt_wolf', 0.12]], parking: [['gaunt_wolf', 0.08]], meadow: [['gaunt_wolf', 0.14]], suburbs: [['gaunt_wolf', 0.05]],
+  undercroft: [['parasite_salamander', 0.6]], tunnels: [['parasite_salamander', 0.5]], pools: [['parasite_salamander', 0.55]], hospital: [['parasite_salamander', 0.25]],
+};
+for (const k in GROTESQUE) ADD[k] = (ADD[k] || []).concat(GROTESQUE[k]);
 // the damp levels (round 15): Spore Rat packs (most hatch from a Fungus Mind's nodes), Land Jellyfish
 // on the ceilings, Bacteria Masses where the dead lie, Sea Worms scavenging round the pools. The
 // Fungus Mind and the Whale Corpse are set pieces their own files place (fungus_mind.ts, whale_corpse.ts).

@@ -377,7 +377,7 @@ export class QuestBroadcast {
     P.clear();
     if (P.framed) P.grad(0, 0, W, H, GLASS_A, GLASS_B);
     else { P.grad(0, 0, W, H, 'rgba(16,44,64,0.78)', 'rgba(6,18,30,0.66)'); P.frame(0, 0, W, H, 'rgba(110,230,140,0.4)'); P.corners(1, 1, W - 2, H - 2, AMB_D, 8); }
-    P.text('MERIDIAN INSTITUTE · CASE ' + 'MI/C-' + String(Math.abs(hashStr(this.cur()?.key ?? '')) % 10000).padStart(4, '0') + ' · CLEARANCE L2', W - 6, H - 9, ICE_DD, 6, 'right');
+    P.text('M.I. OF LIMINALITY · CASE ' + 'MI/C-' + String(Math.abs(hashStr(this.cur()?.key ?? '')) % 10000).padStart(4, '0') + ' · CLEARANCE L2', W - 6, H - 9, ICE_DD, 6, 'right');
     const v = this.cur();
     if (!v) {
       P.text('NO SIGNAL', W / 2, H / 2 - 12, ICE_DD, 16, 'center');

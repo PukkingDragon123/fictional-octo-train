@@ -24,6 +24,7 @@ import { mxOk } from './machine/core';
 import { mxFrame, mxButton, mxToggle, mxGauge, panelSpec } from './machine/kit';
 import type { Tone } from './machine/paint';
 import { mxIcon, type IconKind } from './machine/decor';
+import { drawEmblem } from './brand/logo';
 
 /** round 16: the kit's plates and keys are 3D machine parts now (src/ui/machine); the 2D painters stay as the fallback */
 const mxTone = (t?: PxTone): Tone => (t === 'red' ? 'red' : t === 'brass' ? 'yellow' : 'olive');
@@ -408,16 +409,8 @@ export function pxBarcode(c: C2, x: number, y: number, w: number, h: number, see
 }
 /** the Institute crest: a chamfered octagon of dark enamel, a brass rim, the meridian line through seven rungs (the sin ranks) */
 export function pxCrest(c: C2, x: number, y: number, s: number) {
-  const k = Math.max(2, Math.round(s * 0.28));
-  const inside = (i: number, j: number, m: number) => i >= m && j >= m && i < s - m && j < s - m && i + j >= k + m && (s - 1 - i) + j >= k + m && i + (s - 1 - j) >= k + m && (s - 1 - i) + (s - 1 - j) >= k + m;
-  for (let j = 0; j < s; j++) for (let i = 0; i < s; i++) {
-    if (!inside(i, j, 0)) continue;
-    const rim = !inside(i, j, 2), edge = !inside(i, j, 1);
-    rect(c, x + i, y + j, 1, 1, edge ? 0x241808 : rim ? (i + j < s ? 0xd4b45e : 0x80601e) : (j < s / 2 ? 0x1e2a2a : 0x141e1e));
-  }
-  const mx = x + Math.floor(s / 2);
-  rect(c, mx, y + 3, 1, s - 6, 0xead08a);
-  for (let r = 0; r < 7; r++) { const ry = y + 4 + Math.round(r * (s - 9) / 6), half = Math.max(1, Math.round((s / 2 - 4) * (1 - Math.abs(r - 3) / 4.5))); rect(c, mx - half, ry, half * 2 + 1, 1, r === 3 ? 0xead08a : 0x9c7a2c); }
+  // round 17: the Institute's emblem, the bishop in its riveted roundel, drawn on its own s x s grid
+  drawEmblem(c as unknown as CanvasRenderingContext2D, x, y, Math.max(12, Math.round(s)), 1);
 }
 /** a black redaction bar */
 export function pxRedact(c: C2, x: number, y: number, w: number, h: number) {
@@ -441,7 +434,7 @@ export function pxRedactEl(n = 8) { const s = document.createElement('span'); s.
 export function pxBanner(right = CLEARANCE, cls = 'CLASSIFIED') {
   const d = document.createElement('div'); d.className = 'px-banner';
   d.append(pxCrestEl(14));
-  const l = document.createElement('span'); l.textContent = `MERIDIAN INSTITUTE · ${cls}`;
+  const l = document.createElement('span'); l.textContent = `MERIDIAN INSTITUTE OF LIMINALITY · ${cls}`;
   const r = document.createElement('span'); r.textContent = right;
   d.append(l, r);
   return d;

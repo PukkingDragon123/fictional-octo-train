@@ -275,7 +275,7 @@ cloth({ key: 'vest_hiviz', name: 'Hi-Vis Vest', weight: 0.2, slot: 'jacket', cov
   desc: 'Easy for your friends to spot in the dark. Easy for everything else, too.', model: fold(F_HIVIZ, 0xffffff, 0.25, 0.2, 0.02) });
 cloth({ key: 'lab_coat', name: 'Lab Coat', weight: 0.6, slot: 'jacket', covers: [...TORSO, ...ARMS, ...UPPER_LEGS], ins: 0.15, wind: 0.15, bite: 2, scratch: 10, water: 0.05,
   look: { part: 'torso', tex: 'c_labcoat', color: 0xf2f2ee, sleeve: 'long' }, rip: 'rag', ripCount: 6,
-  desc: 'A Meridian Institute name tag is still clipped to the pocket. The name has been scratched out.', model: fold(F_LABCOAT, 0xf6f6f2, 0.26, 0.26, 0.035) });
+  desc: 'A Meridian Institute of Liminality name tag is still clipped to the pocket. The name has been scratched out.', model: fold(F_LABCOAT, 0xf6f6f2, 0.26, 0.26, 0.035) });
 cloth({ key: 'raincoat', name: 'Raincoat', weight: 0.6, slot: 'jacket', covers: [...TORSO, ...ARMS, ...UPPER_LEGS, 'neck'], ins: 0.15, wind: 0.7, bite: 2, scratch: 10, water: 0.95,
   look: { part: 'torso', tex: 'c_coat', color: 0xf0c419, sleeve: 'long' }, noPatch: true,
   desc: 'Waterproof. For the flooded levels and the ceilings that drip.', model: fold(F_RAINCOAT, 0xf8d02a, 0.27, 0.24, 0.04) });

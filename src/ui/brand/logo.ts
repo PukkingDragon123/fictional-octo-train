@@ -15,8 +15,29 @@
 //   drawEmblem(c, x, y, N, k)   draw it at a whole-number scale k
 //   drawEmblemMono(c, cx, cy, R, ink, mid?)   one ink (engraved signs, stamps, medallions)
 //   logoCanvas(kind, k)         'emblem' | 'horizontal' | 'stacked' lockups at a whole-number scale
-import { inkText } from '../body/stage';
-import { cssFont } from '../../gfx/crt';
+// (no imports: the pixel kits low in the tree draw the emblem too)
+const cssFont = (token: string, fallback = 'Alagard, monospace') => { try { return getComputedStyle(document.documentElement).getPropertyValue(token).trim() || fallback; } catch { return fallback; } };
+let scratch: HTMLCanvasElement | null = null;
+/** a line of type with its alpha thresholded (hard pixel edges, no anti-aliasing) */
+function inkText(c: CanvasRenderingContext2D, text: string, x: number, y: number, px: number, font: string, color: string, _align: 'left') {
+  const size = Math.max(5, Math.round(px));
+  scratch ??= document.createElement('canvas');
+  const g = scratch.getContext('2d', { willReadFrequently: true })!;
+  const f = `${size}px ${font}`;
+  g.font = f;
+  const w = Math.ceil(g.measureText(text).width) + 4, h = Math.ceil(size * 1.5) + 4;
+  if (scratch.width < w || scratch.height < h) { scratch.width = Math.max(scratch.width, w); scratch.height = Math.max(scratch.height, h); }
+  g.clearRect(0, 0, scratch.width, scratch.height);
+  g.font = f; g.textAlign = 'left'; g.textBaseline = 'alphabetic'; g.fillStyle = color;
+  const base = Math.ceil(size * 1.1) + 1;
+  g.fillText(text, 2, base);
+  const img = g.getImageData(0, 0, w, h), d = img.data;
+  for (let i = 3; i < d.length; i += 4) d[i] = d[i] > 110 ? 255 : 0;
+  g.putImageData(img, 0, 0);
+  const prev = c.imageSmoothingEnabled; c.imageSmoothingEnabled = false;
+  c.drawImage(scratch, 0, 0, w, h, Math.round(x) - 2, Math.round(y) - base, w, h);
+  c.imageSmoothingEnabled = prev;
+}
 
 export const BRAND_NAME = 'Meridian Institute of Liminality';
 export const BRAND_CAPS = 'MERIDIAN INSTITUTE OF LIMINALITY';

@@ -527,7 +527,7 @@ V({
 });
 V({
   key: 'gold_award', name: 'Gold-Plated Award', value: 270, weight: 1.8, grid: [1, 2], tags: ['gold', 'office'],
-  desc: 'MERIDIAN INSTITUTE — EMPLOYEE OF THE DECADE. Gold plate over pot metal on a marble plinth. The engraved name has been ground off and re-engraved, three times.',
+  desc: 'MERIDIAN INSTITUTE OF LIMINALITY — EMPLOYEE OF THE DECADE. Gold plate over pot metal on a marble plinth. The engraved name has been ground off and re-engraved, three times.',
   model: (mb) => {
     mb.box(0, 0, 0, 0.11, 0.04, 0.09, 'marble', { color: 0x2a2a30 });
     mb.box(0, 0.04, 0, 0.09, 0.018, 0.07, 'marble', { color: 0x3a3a42 });

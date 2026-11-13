@@ -151,8 +151,8 @@ defItem({
 });
 defItem({
   key: 'laptop', name: 'Laptop', cat: 'electronics', weight: 2.2, battery: true, uses: 100, tags: ['computer', 'lore'], lore: 'laptop_meridian',
-  desc: 'A Meridian Institute workstation, still logged in. The terminal shows a session that never closed.',
-  literature: { text: 'MERIDIAN INSTITUTE // UNIT LOG\n> instance count: 7\n> instance 4 desync: noclip event logged at sector Y-0\n> recommendation: let them find the exits. observe.\n> exits verified: 0' },
+  desc: 'A Meridian Institute of Liminality workstation, still logged in. The terminal shows a session that never closed.',
+  literature: { text: 'MERIDIAN INSTITUTE OF LIMINALITY // UNIT LOG\n> instance count: 7\n> instance 4 desync: noclip event logged at sector Y-0\n> recommendation: let them find the exits. observe.\n> exits verified: 0' },
   model: (mb) => {
     mb.box(0, 0, 0, 0.33, 0.02, 0.23, { all: T.plastic, top: D_KEYS }, { color: 0x3a3a40, fit: { top: true } });
     mb.push().translate(0, 0.02, -0.115).rotateX(-0.35);

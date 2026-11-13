@@ -43,7 +43,7 @@ export const NOTES = {
     memo('Shift handover', 'Coffee is fresh. The intercom is not.', 'Unit 4 asked for its mother again. Logged it.'),
   ],
   crest: [
-    lore('The Meridian Institute', 'NOS INTRAMUS UT VOS NON INTRETIS.', 'We go in so that you do not have to.'),
+    lore('The Meridian Institute of Liminality', 'NOS INTRAMUS UT VOS NON INTRETIS.', 'We go in so that you do not have to.'),
     lore('Founding charter, 1961', 'A survey of the space between the walls, for the benefit of all who owe.'),
   ],
   keypad: [

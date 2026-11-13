@@ -18,6 +18,7 @@ import { outlook } from '../../game/loop/unlocks';
 import { drawPlate, drawRecess, screw, hiCanvas } from '../../game/loop/plate';
 import { mxFrame, mxSkinKey, panelSpec } from '../machine/kit';
 import { mxMount } from '../machine/decor';
+import { emblemUrl } from '../brand/logo';
 import { mxOk } from '../machine/core';
 import { sfx } from '../menus/sfx';
 import type { RunTracker, RunReport } from './stats';
@@ -115,7 +116,7 @@ function showSummary(g: Game, p: Player, r: RunReport) {
   root.className = 'rs-root';
   const rows = r.lines.map((l) => `<div class="rs-row"><span>${esc(l.label)}</span><span>${esc(l.value)}</span><span>${l.rp ? '+' + l.rp : ''}</span></div>`).join('');
   root.innerHTML = `<div class="rs-in">
-    <div class="rs-h"><span>MERIDIAN INSTITUTE · RUN REPORT · CLASSIFIED</span><span>RUN FILED</span></div>
+    <div class="rs-h"><span class="dz-lh"><img class="dz-logo" src="${emblemUrl(32)}" alt="">MERIDIAN INSTITUTE OF LIMINALITY · RUN REPORT</span><span>RUN FILED</span></div>
     <span class="px-stamp green rs-stamp" style="--tilt:-9deg">Filed</span>
     <div class="rs-sub">UNIT <b>${esc(r.name.toUpperCase())}</b> · ${esc(r.cause.text.toUpperCase())}</div>
     <div class="rs-rows">${rows}</div>

@@ -149,7 +149,7 @@ const C_HANDBOOK = decal('i_cover_handbook', 16, 22, (pc) => {
 });
 defItem({
   key: 'employee_handbook', name: 'Meridian Employee Handbook', cat: 'lore', weight: 0.4, tags: ['lore', 'paper'], lore: 'handbook_meridian', noStack: true,
-  desc: 'MERIDIAN INSTITUTE — Continuity Program — Onboarding Handbook (rev. 7). Teaches: the Bluecap formula.',
+  desc: 'MERIDIAN INSTITUTE OF LIMINALITY — Continuity Program — Onboarding Handbook (rev. 7). Teaches: the Bluecap formula.',
   literature: {
     boredom: 5, pages: 60, recipes: ['make_almond_water'],
     text: 'Welcome to the Meridian Continuity Program!\n\n§1 You are a valued instance. Your comfort is monitored.\n§2 If you find yourself in an unfamiliar corridor, remain calm. All corridors are familiar to someone.\n§3 HYDRATION PROTOCOL: Combine one measure of vanilla extract with clean water ("Bluecap"). Drink regularly. Bluecap stabilises perception (see Appendix C: "Lucidity").\n§4 Do not attempt to leave the program before your exit code is fully assembled. Partial exits are not supported.\n§5 Fluorescent fixtures are maintained for your benefit. Do not remove the tubes.\n§6 Report any entity that resembles a co-worker. It is not your co-worker.\n\nAppendix C has been torn out.',

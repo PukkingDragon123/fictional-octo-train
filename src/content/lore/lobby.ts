@@ -101,7 +101,7 @@ Facilities
 
 defLore({
   id: 'terminal', title: 'TERMINAL', style: 'terminal',
-  text: `MERIDIAN INSTITUTE // BUFFER SPACE 0
+  text: `MERIDIAN INSTITUTE OF LIMINALITY // BUFFER SPACE 0
 LOGIN: ********
 LAST LOGIN: 14,609 DAYS AGO
 

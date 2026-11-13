@@ -242,7 +242,7 @@ export class ResearchLab implements StageRoom {
     const lw = grime(4.5, 1.0, 37, 0.4); lw.rotation.y = Math.PI / 2; lw.position.set(-W + 0.012, 0.6, 0.0); g.add(lw);
     // labels
     const sign = (lines: string[], w: number, h: number, x: number, y: number, z: number, ry = 0, bg = 0xc8c0a0, ink?: number) => { const s = plate(this.mats, lines, w, h, { bg, ink }); s.position.set(x, y, z); s.rotation.y = ry; g.add(s); return s; };
-    sign(['CONTROL ROOM C-1', 'MERIDIAN INSTITUTE'], 0.86, 0.2, -1.9, 2.4, FRONT - 0.01, Math.PI);
+    sign(['CONTROL ROOM C-1', 'M.I. OF LIMINALITY'], 0.86, 0.2, -1.9, 2.4, FRONT - 0.01, Math.PI);
     sign(['BIOHAZARD', 'LEVEL 2'], 0.4, 0.15, -2.05, 1.78, BACK + 0.012, 0, 0xd8a030, 0x1a1208);
     sign(['NO FOOD', 'IN THE STORE'], 0.3, 0.11, FRIDGE.x + 0.28, 1.8, FRIDGE.z + 0.36, 0, 0xe8e2d0);
     sign(['WASH HANDS'], 0.32, 0.08, W - 0.012, 1.55, 2.7, -Math.PI / 2, 0x7ab8a0, 0x0a1a12);

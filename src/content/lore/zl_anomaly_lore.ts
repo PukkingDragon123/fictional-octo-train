@@ -6,7 +6,7 @@ import { defLore } from '../loreRegistry';
 // ---------------------------------------------------------------- the Ledge
 defLore({
   id: 'lg_survey_log', title: 'Survey log, Ledge post 2', style: 'terminal', codex: ['gummy_bear', 'bumble_bee'],
-  text: `MERIDIAN INSTITUTE // FIELD SURVEY // AN-07
+  text: `MERIDIAN INSTITUTE OF LIMINALITY // FIELD SURVEY // AN-07
 DESIGNATION: THE LEDGE (THERMOPLASTIC DRIFT)
 
 AIR 31 C. CARPET 31 C. WALLS 31 C. PROBE 31 C.

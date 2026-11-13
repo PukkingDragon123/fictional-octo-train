@@ -89,7 +89,7 @@ addTextureModule(() => {
     pc.fillRamp(R, (x, y) => 0.5 + (ph(x >> 2, y, 9341) - 0.5) * 0.2, 0.5);
     pc.strokeRect(0, 0, 64, 16, 0x161718);
     textC(pc, 'FACILITY 4', 32, 2, 0xd8b030, 1);
-    textC(pc, 'MERIDIAN INSTITUTE', 32, 9, 0xb8bcc0, 1);
+    textC(pc, 'M.I. OF LIMINALITY', 32, 9, 0xb8bcc0, 1);
   });
 
   // "unloaded" surfaces: neutral grey with a fine dev grid

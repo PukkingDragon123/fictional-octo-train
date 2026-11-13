@@ -27,6 +27,7 @@
 //   paper           24x24   0 10 0 10         tractor-feed printout
 //   toast           20x20   6                 toast plate
 import { PixelCanvas, mixHex, scaleHex, bayer, bayer8, ph } from '../gfx/pixel';
+import { emblemPixels } from './brand/logo';
 import { tileFbm, Rng } from '../core/rng';
 
 // ------------------------------------------------------------------ palettes
@@ -553,25 +554,10 @@ function gridTile(t: PkTheme): PixelCanvas {
   pc.set(0, 0, t.dark); pc.set(8, 8, mixHex(t.scr, t.dark, 0.5));
   return pc;
 }
-/** Meridian Institute seal, 22x22: a globe of meridians under a lintel, embossed on the plate */
-function seal(t: PkTheme): PixelCanvas {
-  const S = 22, pc = canvasOf(S, S);
-  const c = 10.5;
-  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
-    const d = Math.hypot(x - c, y - c);
-    if (d > 10.6) continue;
-    if (d > 9.6) pc.set(x, y, K);
-    else if (d > 8.6) pc.set(x, y, x + y < S - 1 ? MET[9] : MET[5]);
-    else if (d > 7.8) pc.set(x, y, MET[3]);
-    else pc.set(x, y, x + y < S ? MET[6] : MET[5]);
-  }
-  // meridians and equator, engraved (dark with a light lip)
-  const eng = (x: number, y: number) => { pc.set(x, y, MET[2]); if (pc.get(x + 1, y + 1) !== MET[2]) pc.set(x + 1, y + 1, MET[8]); };
-  for (let y = 4; y <= 17; y++) eng(10, y);
-  for (const rx of [3.6, 6.4]) for (let a = 0; a < 64; a++) { const th = (a / 64) * Math.PI * 2; const x = Math.round(c + Math.cos(th) * rx - 0.5), y = Math.round(c + Math.sin(th) * 6.6 - 0.5); if (y >= 4 && y <= 17) eng(x, y); }
-  for (let x = 4; x <= 17; x++) eng(x, 10);
-  // phosphor dot: the institute's "eye"
-  pc.set(10, 10, t.ph); pc.set(11, 10, t.mid);
+/** the Meridian Institute of Liminality's seal, 22x22: the bishop in its riveted roundel (src/ui/brand/logo.ts) */
+function seal(_t: PkTheme): PixelCanvas {
+  const S = 22, pc = canvasOf(S, S), p = emblemPixels(S);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) { const col = p[y * S + x]; if (col >= 0) pc.set(x, y, col); }
   return pc;
 }
 /** cassette tape, 24x16 (save slots) */

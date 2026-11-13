@@ -74,7 +74,7 @@ export function bookingBoard(name: string, num: string, date: string): PixelCanv
   for (let y = 0; y < H; y++) { pc.set(0, y, 0x5a4a30); pc.set(W - 1, y, 0x3a2e1e); }
   const white = 0xe8e6de;
   const line = (s: string, y: number, c = white) => text3(pc, s, Math.round(W / 2 - textW(s) / 2), y, c);
-  line('MERIDIAN INSTITUTE', 4, 0xb8b6ae);
+  line('M.I. OF LIMINALITY', 4, 0xb8b6ae);
   line('REMITTANCE', 11, 0xe8b52a);
   const nm = (name || 'UNNAMED').toUpperCase().slice(0, 17);
   line(nm, 19);

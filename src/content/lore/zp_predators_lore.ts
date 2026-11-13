@@ -37,7 +37,7 @@ keep the beam on it and walk backwards.
 });
 defLore({
   id: 'wr_calder_memo', title: 'Memo: re: "whip rats"', style: 'terminal', codex: ['whip_rat'],
-  text: `MERIDIAN INSTITUTE // FAUNA DESK
+  text: `MERIDIAN INSTITUTE OF LIMINALITY // FAUNA DESK
 FROM: Dr. I. Calder
 RE: WR-04 ("whip rat"), interim guidance
 

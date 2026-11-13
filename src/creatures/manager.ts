@@ -32,6 +32,7 @@ import './spawnTables';
 import { temperBefore, temperAfter, temperPose } from './temper';
 import { steer, brake, heading, shoveBy, corpseFall, hasWeight } from './kit/physics';
 import { visualMotion, smoothBegin, smoothEnd, leanOf, type VisMotion } from './kit/smooth';
+import { parasiteFrame } from '../survival/parasite';
 import { talentMul } from '../survival/talents';
 
 /** what a creature was hit with (passed to the gore system) */
@@ -108,6 +109,8 @@ export class CreatureSystem implements GameSystem {
       for (const c of this.creatures.values()) this.interpolate(c, dt);
     }
     this.updateVisuals(dt);
+    // the Parasite Salamander inside its hosts (src/survival/parasite.ts)
+    try { parasiteFrame(dt); } catch (e) { console.error('parasite', e); }
     try { dreadFrame(dt); } catch (e) { console.error('dread', e); }
     this.updateThreat(dt);
   }

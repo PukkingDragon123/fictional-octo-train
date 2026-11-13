@@ -47,7 +47,7 @@ export const TRANSPORTS: TransportDef[] = [
   {
     key: 'carriage', name: 'The Quiet Car', price: 8000, len: 6, door: 0, side: 1.35,
     blurb: 'A single railway carriage with no engine and no rails, lit warm inside. Every window seat is taken. One seat by the door is kept for you.',
-    ending: ['The carriage moves without a sound. The passengers look straight ahead. They look a little like people you have met.', 'The window shows a field at dusk, a house with a red door, a girl on a swing who waves. You wave back. You remember her name.', 'REMITTANCE COMPLETE. WITH THANKS FROM THE MERIDIAN INSTITUTE.', 'When the carriage stops you are the only one left in it. Your seat is warm. The door opens onto morning.', 'HOME'],
+    ending: ['The carriage moves without a sound. The passengers look straight ahead. They look a little like people you have met.', 'The window shows a field at dusk, a house with a red door, a girl on a swing who waves. You wave back. You remember her name.', 'REMITTANCE COMPLETE. WITH THANKS FROM THE MERIDIAN INSTITUTE OF LIMINALITY.', 'When the carriage stops you are the only one left in it. Your seat is warm. The door opens onto morning.', 'HOME'],
   },
 ];
 export const transportDef = (k: string) => TRANSPORTS.find((t) => t.key === k);

@@ -415,7 +415,7 @@ export const DETAIL: Record<string, Detail> = {
     },
     poi: [
       { at: [0.02, 0.003, 0.01], label: 'CHIP', note: 'Contact chip. Opens what the level-4 readers guard.' },
-      { at: [-0.02, 0.003, -0.015], label: 'HOLOGRAM', note: 'Meridian Institute seal. Hard to fake, harder to find.' },
+      { at: [-0.02, 0.003, -0.015], label: 'HOLOGRAM', note: 'Meridian Institute of Liminality seal. Hard to fake, harder to find.' },
     ],
   },
   id_badge: {

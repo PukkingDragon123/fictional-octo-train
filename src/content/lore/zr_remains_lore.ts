@@ -56,7 +56,7 @@ Battery says 2%. That is fine. That is long enough.`,
 });
 defLore({
   id: 'rm_recovery_order', title: 'Standing order 14: recovery of units', style: 'terminal', codex: ['queen_bee'],
-  text: `MERIDIAN INSTITUTE // OPERATIONS // STANDING ORDER 14
+  text: `MERIDIAN INSTITUTE OF LIMINALITY // OPERATIONS // STANDING ORDER 14
 
 UNITS LOST IN THE FIELD ARE NOT RECOVERED.
 ID STRIPS ARE RECOVERED. BOUNTY: 6 SCRIP PER STRIP.

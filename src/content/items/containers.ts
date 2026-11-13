@@ -150,7 +150,7 @@ defItem({
 });
 defItem({
   key: 'mug', name: 'Mug', cat: 'container', weight: 0.3, fluidCap: 0.3,
-  tags: ['mug', 'fluidcontainer'], desc: 'Meridian Institute logo on the side. Faded from the dishwasher.',
+  tags: ['mug', 'fluidcontainer'], desc: 'Meridian Institute of Liminality logo on the side. Faded from the dishwasher.',
   model: (mb) => mug(mb, IN.mugEmpty, 0xf0ece4, { decal: D_MUG }),
 });
 defItem({

@@ -25,6 +25,7 @@ import { flushStats } from '../../game/profile';
 import { sfx } from '../menus/sfx';
 import { mxFrame, mxSkinKey, panelSpec } from '../machine/kit';
 import { mxMount } from '../machine/decor';
+import { emblemUrl } from '../brand/logo';
 import { mxOk } from '../machine/core';
 import { letterTimes } from '../../social/chipVoice';
 import { RunTracker, type RunReport } from './stats';
@@ -397,7 +398,7 @@ class DeathCinematic {
     el.className = 'dz-case';
     const rows = r.lines.map((l) => `<div class="dz-row" data-k="${l.key}"><span class="dz-l"><b class="lg">${l.label}</b><b class="sh">${l.short}</b></span><span class="dz-v">${l.key === 'novel' ? '' : '0'}</span><span class="dz-p">${l.rp ? '+' + l.rp : ''}</span></div>`).join('');
     el.innerHTML = `<div class="dz-in">
-      <div class="dz-h"><span>MERIDIAN INSTITUTE</span><span>INCIDENT ${esc(r.file)}</span></div>
+      <div class="dz-h"><span class="dz-lh"><img class="dz-logo" src="${emblemUrl(32)}" alt="">MERIDIAN INSTITUTE OF LIMINALITY</span><span>INCIDENT ${esc(r.file)}</span></div>
       <div class="dz-sub">UNIT <b>${esc(r.name.toUpperCase())}</b> · DELETED</div>
       <div class="dz-cause"><span>CAUSE</span> ${esc(r.cause.text)}</div>
       <div class="dz-rows">${rows}</div>${specLine(r)}

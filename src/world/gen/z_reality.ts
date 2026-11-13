@@ -217,6 +217,6 @@ function generateReality(z: Zone, seed: number) {
 }
 
 defZone({
-  key: INTRO_ZONE, name: 'Meridian Institute — Processing Wing', W: 70, H: 48, depth: 0, gen: (z, s) => generateReality(z, s),
+  key: INTRO_ZONE, name: 'Meridian Institute of Liminality — Processing Wing', W: 70, H: 48, depth: 0, gen: (z, s) => generateReality(z, s),
   blurb: 'Remittance Programme. Intake.',
 });

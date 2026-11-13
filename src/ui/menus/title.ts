@@ -99,7 +99,7 @@ class TitleRoom {
   feedNav = h('div', 'mr-feeds');
   // the Institute banner across the top of the booth (the UI kit, round 15c)
   hud = (() => { const d = h('div', 'mr-hud'); const bn = pxBanner(CLEARANCE, 'OBSERVATION BOOTH 4'); bn.classList.add('mr-banner'); d.append(bn); return d; })();
-  foot = h('div', 'tt3-foot kf', '<span>arrows · enter · esc · 1 2 3 feeds</span><span>Observation · Meridian Institute</span>');
+  foot = h('div', 'tt3-foot kf', '<span>arrows · enter · esc · 1 2 3 feeds</span><span>Observation · Meridian Institute of Liminality</span>');
   over = h('div', 'nx-over');
   room: SubjectRoom;
   stage: MenuStage;
@@ -634,7 +634,7 @@ class TitleRoom {
   controls() { this.openOver(controlsPanel(), 'Controls', 'keys · touch · menus'); }
   about() {
     const note = h('div', 'tt3-about', `
-<p>A survival sandbox. You are an operator at the Meridian Institute. In the chair beside the link rig sits a unit: a debtor whose body you take over, with a shock, and walk through a wall that turns to liquid, into rooms that never end.</p>
+<p>A survival sandbox. You are an operator at the Meridian Institute of Liminality. In the chair beside the link rig sits a unit: a debtor whose body you take over, with a shock, and walk through a wall that turns to liquid, into rooms that never end.</p>
 <p>A band on the unit's wrist counts what it owes. Dr. Iris Calder talks you through the job: carry the furniture to the presses, find the data, scan the inhabitants. Pay the debt, buy a way out. Or don't.</p>
 <p>This booth watches three rooms. The codex archive, where every file is pulled and projected. The control room, where the main computer holds the research tree and the benches process the samples you bring back. Unit room 4, where the next unit is shaped, dressed and fitted with chips and limbs. Click a monitor, or press 1, 2 or 3.</p>
 <p class="ct-dim">Inspired by the systemic survival of <i>Project Zomboid</i>, the 2019 "noclip" creepypasta, liminal-space photography and VHS-era found footage. All names, places, creatures and story here are original. Built with three.js. Type: Alagard (SIL Open Font License). Every texture, model, sound and pixel is generated in code.</p>`);
