@@ -63,18 +63,14 @@ export class Sheet {
     g.restore();
     return w;
   }
-  /** a rubber stamp: a double box and capitals, crooked, with ink gaps */
-  stamp(word: string, cx: number, cy: number, c: number, size = 26, rot = -0.12) {
+  /** a status word on a flat coloured strip, straight (the fixed rule: no angled rubber stamps); rot is ignored */
+  stamp(word: string, cx: number, cy: number, c: number, size = 26, _rot = 0) {
     const g = this.ctx;
-    g.save(); g.translate(cx, cy); g.rotate(rot);
+    g.save(); g.translate(cx, cy);
     g.font = `700 ${size}px ${FONT.sign}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    const w = g.measureText(word).width + size * 0.8, h = size * 1.35;
-    g.strokeStyle = css(c); g.fillStyle = css(c); g.globalAlpha = 0.85;
-    g.lineWidth = 3; g.strokeRect(-w / 2, -h / 2, w, h); g.lineWidth = 1.2; g.strokeRect(-w / 2 + 5, -h / 2 + 5, w - 10, h - 10);
-    g.fillText(word, 0, 2);
-    // the ink skips
-    g.globalCompositeOperation = 'destination-out';
-    for (let i = 0; i < 40; i++) { g.globalAlpha = 0.5; g.fillRect((hash(i, 1, 5) - 0.5) * w, (hash(i, 2, 5) - 0.5) * h, 2 + hash(i, 3, 5) * 5, 1 + hash(i, 4, 5) * 2); }
+    const w = g.measureText(word).width + size * 0.8, h = size * 1.3;
+    g.globalAlpha = 0.9; g.fillStyle = css(c); g.fillRect(-w / 2, -h / 2, w, h);
+    g.globalAlpha = 1; g.fillStyle = 'rgba(255,248,232,0.95)'; g.fillText(word, 0, 2);
     g.restore();
   }
   /** grain and mottling over everything drawn so far */

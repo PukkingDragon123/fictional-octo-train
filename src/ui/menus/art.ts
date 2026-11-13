@@ -183,20 +183,14 @@ export function xrayFilm(kind: XrayKind, seed: number, bad: boolean): PixelCanva
 }
 
 // ------------------------------------------------------------------ rubber stamp
-/** a rotated inky rubber-stamp word in a box */
+/** a word on a flat coloured strip (round 17: no rubber stamps) */
 export function stampWord(word: string, color: number, k = 2): PixelCanvas {
   const tw = textW(word, k), th = 5 * k;
   const W = tw + 8 * k / 2 + 6, H = th + 8;
   const pc = new PixelCanvas(W, H);
   pc.wrap = false;
-  const ink = (x: number, y: number) => { if (ph(x, y, 7) > 0.18) pc.set(x, y, color); else pc.blend(x, y, color, 0.4); };
-  for (let x = 0; x < W; x++) { ink(x, 0); ink(x, 1); ink(x, H - 1); ink(x, H - 2); }
-  for (let y = 0; y < H; y++) { ink(0, y); ink(1, y); ink(W - 1, y); ink(W - 2, y); }
-  const tmp = new PixelCanvas(W, H);
-  tmp.wrap = false;
-  text3(tmp, word, Math.round((W - tw) / 2), Math.round((H - th) / 2), 0xffffff, k);
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const i = (y * W + x) * 4; if (tmp.data[i + 3] > 0) ink(x, y); }
-  void mixHex;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) pc.set(x, y, x < 2 ? color : mixHex(color, 0x000000, 0.35));
+  text3(pc, word, Math.round((W - tw) / 2), Math.round((H - th) / 2), 0xf4ecd8, k);
   return pc;
 }
 

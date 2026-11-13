@@ -417,6 +417,7 @@ img { image-rendering: pixelated; }
 .pf-id-name { font-family: var(--font-body); font-size: var(--t-big); line-height: var(--lh-big); color: var(--plate-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: var(--drop); }
 .pf-id-job { font-family: var(--font-readout); font-size: var(--t-label); line-height: var(--t-label); text-transform: uppercase; color: #a8ad9c; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: var(--drop); margin-top: calc(var(--px) * 2); }
 .pf-tools { display: flex; gap: calc(var(--px) * 2); flex: none; }
+.pf-stamp { display: none !important; }
 .pf-stamp { position: absolute; z-index: 4; left: 50%; top: 42%; transform: translate(-50%, -50%) scale(2); opacity: 0; pointer-events: none; }
 .pf-stamp img { display: block; image-rendering: pixelated; }
 .pf-stamp.on { animation: stamp 0.42s steps(6) forwards; }

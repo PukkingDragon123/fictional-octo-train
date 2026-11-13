@@ -12,8 +12,8 @@
   font-family: var(--font-body); font-size: var(--t-big); line-height: calc(var(--px) * 16); color: #ffb070; text-shadow: 0 0 calc(var(--px) * 2) #ff6a10; }
 .rk-nixie i.off { color: rgba(255, 138, 42, 0.12); text-shadow: none; background-image: var(--rk-nixie); }
 .rk-tape { display: inline-block; padding: 0 calc(var(--px) * 3); font-family: var(--font-new); color: #f4f0e6; text-transform: uppercase; letter-spacing: var(--px); text-shadow: var(--text-halo); white-space: nowrap; }
-.nx-stamp { display: inline-block; font-family: var(--font-new); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; transform: rotate(-9deg); opacity: 0.82; }
-.nx-stamp.red { color: #b8261e; } .nx-stamp.green { color: #2a6a34; } .nx-stamp.blue { color: #2a3a8a; }
+.nx-stamp { display: inline-block; font-family: var(--font-new); font-weight: 400; letter-spacing: 0.14em; text-transform: uppercase; transform: none; padding: 0 6px; color: #f4ecd8; background: #3a3f38; box-shadow: inset 2px 0 0 #8a928e; }
+.nx-stamp.red { background: #6e2016; box-shadow: inset 2px 0 0 #e0403a; } .nx-stamp.green { background: #1e4a2a; box-shadow: inset 2px 0 0 #7affa0; } .nx-stamp.blue { background: #1e2a5a; box-shadow: inset 2px 0 0 #8aa8ff; }
 
 /* ---------------------------------------------------------------- the room canvas */
 .nx-stage { position: absolute; inset: 0; background: #000; }
@@ -159,6 +159,7 @@
 .ik3-sheet { position: absolute; inset: 0; z-index: 3; display: none; align-items: center; justify-content: center; padding: 10px; background: rgba(0, 0, 0, 0.58); }
 .ik3-sheet.on { display: flex; }
 .ik3-sheet-t { width: min(calc(var(--ks) * 250), calc(100vw - 20px)); height: min(calc(var(--ks) * 214), calc(100vh - 20px)); animation: tt3-drop 0.42s steps(7) both; }
+.ik3-stamp { display: none !important; }
 .ik3-stamp { position: absolute; left: 50%; top: 40%; z-index: 4; display: flex; flex-direction: column; align-items: center; gap: 0.1em; padding: 0.15em 0.5em;
   border-top: calc(var(--ks) * 1.5) solid currentColor; border-bottom: calc(var(--ks) * 1.5) solid currentColor;
   color: #c8301e; transform: translate(-50%, -50%) rotate(-8deg) scale(2.2); opacity: 0; text-shadow: 0 0 1px rgba(0, 0, 0, 0.4); }
@@ -284,7 +285,8 @@
 /* ---------------------------------------------------------------- the creator, round 7: eight sections, no panels */
 .ik4 { position: fixed; inset: 0; z-index: 60; pointer-events: none; font-family: var(--font-new); color: #efe6d2; }
 .ik4 > * { pointer-events: auto; }
-.ik4 > .ik4-head, .ik4 > .ik4-toast, .ik4 > .ik3-stamp { pointer-events: none; }
+.ik4 > .ik4-head, .ik4 > .ik4-toast, .ik4 > .ik3-stamp { display: none !important; }
+.ik3-stamp { pointer-events: none; }
 .ik4::before { content: ''; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse 44% 52% at 0% 0%, rgba(0, 0, 0, 0.72), transparent 100%), linear-gradient(0deg, rgba(0, 0, 0, 0.55), transparent 22%); }
 .ik4[data-phase="intro"] > *, .ik4[data-phase="out"] > *:not(.ik3-stamp) { opacity: 0; pointer-events: none; transition: opacity 0.3s steps(4); }
 .ik4[data-phase="intro"]::before { opacity: 0; }

@@ -170,7 +170,7 @@ export function openPressTerminal(o: TermOpen) {
       const it = g[0];
       const v = itemValue(it), y = slagWords([it], iname);
       const icon = canIcon() ? `<img src="${itemIcon(it.key, '', 24)}" alt="">` : `<span class="ptm-noicon"></span>`;
-      const r = h('button', 'ptm-fitem', `${icon}<b>${esc(itemDisplay(it))}${g.length > 1 ? ` <i>×${g.length}</i>` : ''}</b><span class="ptm-v">${v > 0 ? fmt(v) + ' cr' : '—'}</span><small>${y ? '→ ' + esc(y) : 'nothing back'}</small>`) as HTMLButtonElement;
+      const r = h('button', 'ptm-fitem', `${icon}<b>${esc(itemDisplay(it))}${g.length > 1 ? ` <i>×${g.length}</i>` : ''}</b><span class="ptm-v">${v > 0 ? fmt(v) + ' cr' : '—'}</span><small>${y ? '→ ' + esc(y) : ''}</small>`) as HTMLButtonElement;
       r.type = 'button';
       r.disabled = queue.length >= SLOTS || !!pay && !pay.done || waiting;
       r.addEventListener('click', () => { if (queue.length < SLOTS) { queue.push(it); sfx('plate', 0.5); G.audio?.ui?.('click', 0.3); render(); } });
@@ -190,7 +190,7 @@ export function openPressTerminal(o: TermOpen) {
     }
     right.append(slots);
     const val = queue.reduce((a, it) => a + itemValue(it), 0);
-    const y = slagWords(queue, iname);
+    const y = slagWords(queue, iname, 4);
     right.append(h('p', 'ptm-ftot', queue.length ? `≈ <b>${fmt(val)}</b> cr · <b>${fmt(val * share)}</b> to the debt${share < 1 ? ` · ${fmtKg(matterKg(queue.reduce((m, it) => itemMatter(it, m), {} as Matter)) * (1 - share))} kept` : ''}<br><small>back out of the lip: ${y ? esc(y) : 'nothing'} · and sometimes the seam pays more</small>` : '<small>Tap things in your pack to load the slots. Tap a slot to take it back.</small>'));
     const crush = h('button', 'ptm-act ptm-crush', waiting ? '&gt; THE RAM IS COMING DOWN' : '&gt; CRUSH') as HTMLButtonElement;
     crush.type = 'button';

@@ -296,10 +296,12 @@ export function stamp(t: PixTag, s: string, x: number, y: number, col: string | 
     ctx.save();
     ctx.font = `700 ${7 * S}px ${f.sign}`;
     const w = ctx.measureText(s.toUpperCase()).width;
-    ctx.translate(x * S, y * S); ctx.rotate(-0.06);
-    ctx.globalAlpha = 0.85;
-    ctx.strokeStyle = ink; ctx.lineWidth = S * 0.7;
-    ctx.strokeRect(-S * 1.5, -S * 1.2, w + S * 3, 9.4 * S);
+    // round 17: a flat status strip, straight, the word on it (no crooked rubber stamp)
+    ctx.translate(x * S, y * S);
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = ink; ctx.globalAlpha = 0.22; ctx.fillRect(-S * 1.5, -S * 1.2, w + S * 3, 9.4 * S);
+    ctx.globalAlpha = 1; ctx.fillRect(-S * 1.5, -S * 1.2, S, 9.4 * S);
+    ctx.globalAlpha = 0.95;
     ctx.fillStyle = ink; ctx.textBaseline = 'top';
     ctx.fillText(s.toUpperCase(), 0, 0);
     // patchy ink

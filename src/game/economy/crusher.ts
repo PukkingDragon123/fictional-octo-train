@@ -40,11 +40,10 @@ export function rollSlag(items: Item[], objs: TileObject[], rnd: () => number = 
   }
   return out;
 }
-/** the words for an expected yield ("2 Scrap Metal · a Rag") */
-export function slagWords(items: Item[], name: (k: string) => string): string {
-  const parts: string[] = [];
-  for (const [key, n] of slagOf(items)) parts.push(n >= 0.95 ? `${Math.round(n)} ${name(key)}` : `maybe ${name(key)}`);
-  return parts.slice(0, 3).join(' · ');
+/** the short words for an expected yield ("2 Scrap Metal · ~Rag": ~ is a chance) */
+export function slagWords(items: Item[], name: (k: string) => string, max = 2): string {
+  const parts = [...slagOf(items)].sort((a, b) => b[1] - a[1]).map(([key, n]) => (n >= 0.95 ? `${Math.round(n)} ${name(key)}` : `~${name(key)}`));
+  return parts.slice(0, max).join(' · ');
 }
 
 /** what the seam sometimes gives back that nobody put in */

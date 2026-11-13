@@ -129,6 +129,7 @@ html.nc-touch .sub-radio { top: calc(env(safe-area-inset-top, 0px) + 64px); }
 .k-toast.unlock.tape .tp-row img { width: calc(var(--px) * 18); height: calc(var(--px) * 18); image-rendering: pixelated; filter: grayscale(1) contrast(1.4) brightness(0.55); }
 .k-toast.unlock.tape .tp-name { font-family: var(--font-stamp); font-weight: 700; font-size: calc(var(--px) * 12 + 4px); line-height: 1; text-transform: uppercase; color: #1d1a14; }
 .k-toast.unlock.tape .tp-sub { color: #4a4a40; }
+.tp-stamp { display: none !important; }
 .k-toast.unlock.tape .tp-stamp { position: absolute; right: calc(var(--px) * 16); bottom: calc(var(--px) * 6); transform: rotate(-9deg); padding: 0 calc(var(--px) * 2); border: 2px solid rgba(160, 30, 20, 0.75); color: rgba(160, 30, 20, 0.8); font-family: var(--font-stamp); font-weight: 700; font-size: calc(var(--px) * 7 + 2px); letter-spacing: 0.1em; text-transform: uppercase; }
 .k-toast.unlock.tape.out { transform: translateY(-120%); opacity: 1; transition: transform 0.7s steps(7); }
 @keyframes nc-feed { from { clip-path: inset(0 0 100% 0); transform: translateY(-30%); } to { clip-path: inset(0 0 0 0); transform: none; } }

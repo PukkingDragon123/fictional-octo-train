@@ -270,11 +270,11 @@ class NotePlate {
     // the cursor, the stamp
     if (n < N.head.length + N.lines.reduce((s, l) => s + l.length, 0) || Math.floor(t * 3) % 2) { c.fillStyle = ink; c.fillRect(10, Math.min(CH - 14, y), 8, 3); }
     if (N.stamp && left >= 0) {
+      // a flat red strip along the foot of the note with its word (no rubber stamp)
       const sw = bitMeasure(N.stamp) * 2 + 16;
-      c.save(); c.translate(CW - sw / 2 - 14, CH - 26); c.rotate(-0.08);
-      c.strokeStyle = '#d8261e'; c.lineWidth = 3; c.strokeRect(-sw / 2, -16, sw, 32);
-      bitText(c, N.stamp, 0, -14, { color: '#ff3a2a', outline: null, scale: 2, align: 'center' });
-      c.restore();
+      c.fillStyle = '#7a1a12'; c.fillRect(CW - sw - 14, CH - 34, sw, 22);
+      c.fillStyle = '#ff5a3a'; c.fillRect(CW - sw - 14, CH - 34, 3, 22);
+      bitText(c, N.stamp, CW - sw / 2 - 12, CH - 31, { color: '#ffe8d8', outline: null, scale: 2, align: 'center' });
     }
     c.fillStyle = 'rgba(0,0,0,0.22)';
     for (let yy = 0; yy < CH; yy += 2) c.fillRect(0, yy, CW, 1);

@@ -202,35 +202,21 @@ export class Diorama {
   }
 }
 
-// ------------------------------------------------------------------ rubber stamps
-/** A worn rubber stamp in the 5x7 font, double border, rotated in pixel space (nearest) so no edge ever blurs. */
-export function stampCanvas(text: string, color: number, angleDeg = -9): PixelCanvas {
+// ------------------------------------------------------------------ status plates
+/**
+ * A status word on a flat coloured plate in the 5x7 font, straight (the fixed rule: no angled rubber stamps; the
+ * old callers' angle is ignored).
+ */
+export function stampCanvas(text: string, color: number, _angleDeg = 0): PixelCanvas {
   const sc = 2;
   const tw = [...text].length * 6 * sc - sc, th = 7 * sc;
-  const W = tw + 16, H = th + 14;
+  const W = tw + 16, H = th + 10;
   const src = new Screen(W, H);
   src.clear(0x000000); src.data.fill(0);
-  const C = Screen.c(color);
-  src.frame(0, 0, W, H, C); src.frame(1, 1, W - 2, H - 2, C);
-  src.frame(4, 4, W - 8, H - 8, C);
-  src.text(text, 8, 7, C, sc);
-  // ink wear: knock out clustered pixels
-  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const i = y * W + x;
-    if (!src.data[i]) continue;
-    const n = ph(Math.floor(x / 3), Math.floor(y / 2), 17) * 0.6 + ph(x, y, 5) * 0.4;
-    if (n > 0.8 || (n > 0.66 && bayer(x, y) > 0.5)) src.data[i] = 0;
-  }
-  // rotate (inverse map, nearest)
-  const a = (angleDeg * Math.PI) / 180, ca = Math.cos(a), sa = Math.sin(a);
-  const RW = Math.ceil(Math.abs(W * ca) + Math.abs(H * sa)) + 2, RH = Math.ceil(Math.abs(W * sa) + Math.abs(H * ca)) + 2;
-  const out = new PixelCanvas(RW, RH); out.wrap = false;
-  for (let y = 0; y < RH; y++) for (let x = 0; x < RW; x++) {
-    const dx = x + 0.5 - RW / 2, dy = y + 0.5 - RH / 2;
-    const sx = Math.floor(dx * ca + dy * sa + W / 2), sy = Math.floor(-dx * sa + dy * ca + H / 2);
-    if (sx < 0 || sy < 0 || sx >= W || sy >= H) continue;
-    if (src.data[sy * W + sx]) out.set(x, y, color, ph(x, y, 9) > 0.85 ? 170 : 235);
-  }
+  const out = new PixelCanvas(W, H); out.wrap = false;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) out.set(x, y, x < 3 ? color : mixHex(color, 0x000000, 0.45), 235);
+  src.text(text, 8, 5, Screen.c(0xf4ecd8), sc);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (src.data[y * W + x]) out.set(x, y, 0xf4ecd8, 255);
   return out;
 }
 

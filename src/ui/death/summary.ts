@@ -117,7 +117,6 @@ function showSummary(g: Game, p: Player, r: RunReport) {
   const rows = r.lines.map((l) => `<div class="rs-row"><span>${esc(l.label)}</span><span>${esc(l.value)}</span><span>${l.rp ? '+' + l.rp : ''}</span></div>`).join('');
   root.innerHTML = `<div class="rs-in">
     <div class="rs-h"><span class="dz-lh"><img class="dz-logo" src="${emblemUrl(32)}" alt="">MERIDIAN INSTITUTE OF LIMINALITY · RUN REPORT</span><span>RUN FILED</span></div>
-    <span class="px-stamp green rs-stamp" style="--tilt:-9deg">Filed</span>
     <div class="rs-sub">UNIT <b>${esc(r.name.toUpperCase())}</b> · ${esc(r.cause.text.toUpperCase())}</div>
     <div class="rs-rows">${rows}</div>
     <div class="rs-tot"><span>RESEARCH POINTS</span><b>+${r.rp}</b></div>

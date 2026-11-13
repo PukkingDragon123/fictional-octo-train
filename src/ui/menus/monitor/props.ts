@@ -170,7 +170,8 @@ export function paper(lines: string[], w: number, h: number, o: { bg?: string; i
   const id = c.getImageData(0, 0, W, H); const D = id.data;
   for (let i = 0; i < D.length; i += 4) { const lum = D[i] + D[i + 1] + D[i + 2]; if (lum < 330) { D[i] = 30; D[i + 1] = 30; D[i + 2] = 46; } }
   c.putImageData(id, 0, 0);
-  if (o.stamp) { const sw = bitMeasure(o.stamp) + 6; c.strokeStyle = '#a8261e'; c.lineWidth = 1; c.strokeRect(W - sw - 4.5, H - 21.5, sw, 18); bitText(c, o.stamp, W - sw - 1, H - 21, { color: '#a8261e', outline: null }); }
+  // a flat printed tab at the foot of the sheet (no rubber stamp)
+  if (o.stamp) { const sw = bitMeasure(o.stamp) + 8; c.fillStyle = '#8a2a1e'; c.fillRect(W - sw - 4, H - 22, sw, 18); bitText(c, o.stamp, W - sw, H - 21, { color: '#f4e6d8', outline: null }); }
   c.fillStyle = 'rgba(0,0,0,0.5)'; c.fillRect(0, H - 1, W, 1); c.fillRect(W - 1, 0, 1, H);
   const tex = new THREE.CanvasTexture(cv);
   tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace;

@@ -185,8 +185,6 @@ function style() {
 .ipnl .ip-ban.k-ord b { background: #f05a3a; } .ipnl .ip-ban.k-ord em { color: #ff9a7a; }
 .ipnl .ip-ban.k-anom b { background: #d88aff; } .ipnl .ip-ban.k-anom em { color: #e8c4ff; }
 .ipnl .ip-ban.k-haz, .ipnl .ip-ban.k-ord { background: repeating-linear-gradient(135deg, #17150f 0 6px, #2a2414 6px 12px); }
-.ipnl .ip-stamp { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%) rotate(-9deg); padding: 2px 6px 1px; font-size: 13px; letter-spacing: 0.22em; color: #e8442e; border: 2px solid currentColor; box-shadow: 0 0 0 1px rgba(232,68,46,0.25), inset 0 0 0 1px rgba(232,68,46,0.35); opacity: 0.86; white-space: nowrap; pointer-events: none; -webkit-mask-image: var(--ip-ink); mask-image: var(--ip-ink); -webkit-mask-size: 48px 48px; mask-size: 48px 48px; }
-.ipnl .ip-stamp.k-bio { color: #6ad88a; } .ipnl .ip-stamp.k-anom { color: #d88aff; } .ipnl .ip-stamp.k-inert { color: #8db4d8; }
 .ipnl .ip-gauge { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #b4bec4; }
 .ipnl .ip-gauge b { font-weight: normal; color: #f2ad32; font-size: 10px; letter-spacing: 0.1em; min-width: 40px; }
 .ipnl .ip-gauge canvas { flex: 1; min-width: 0; }
@@ -336,7 +334,7 @@ class ItemPanel {
     const anom = cl.k === 'anom';
     return `<canvas class="ip-bg"></canvas><i class="ip-lamp${anom ? ' r' : ''}"></i><div class="ip-hd" style="left:42px">Meridian Institute of Liminality</div><button class="ip-x" data-x title="Close (Esc)">X</button>
 <div class="ip-in"><div class="ip-ban k-${cl.k}"><b>${cl.lvl}</b><em>${cl.label}</em><canvas class="ip-bc" data-case="${caseNo(it)}"></canvas></div>
-<div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}<div class="ip-stamp k-${cl.k}">${cl.stamp}</div></div>
+<div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}</div>
 <div class="ip-id"><div class="ip-name">${esc(itemName(it))}</div><div class="ip-kind">${esc(cat)}</div>
 <div class="ip-row"><b>CASE</b>${caseNo(it)}</div>
 <div class="ip-row"><b>MASS</b>${itemWeight(it).toFixed(2)} kg · ${sz[0]}x${sz[1]}x${sz[2]}</div>

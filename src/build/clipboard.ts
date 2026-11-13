@@ -263,10 +263,10 @@ export class Clipboard {
     // stamps over the drawing
     if (!st.unlocked) {
       // round 17: blueprints are learned; the sheet says where this one is found
-      sh.stamp('BLUEPRINT NEEDED', SW / 2, y0 + 34, RED, 20, -0.12);
+      sh.stamp('BLUEPRINT NEEDED', SW / 2, y0 + 34, RED, 18);
       const parts = st.lockHint.split(' · ');
       parts.slice(0, 3).forEach((t, i) => sh.text(t, SW / 2, y0 + 60 + i * 17, { font: FONT.pen, size: 15, color: 0xff9a80, align: 'center', weight: '700', maxW: SW - 36 }));
-    } else if (st.demolish) sh.stamp('CUTTER ARMED', SW / 2, y0 + 50, 0xe8b52a, 22, -0.1);
+    } else if (st.demolish) sh.stamp('CUTTER ARMED', SW / 2, y0 + 50, 0xe8b52a, 20);
     sh.commit();
   }
 }

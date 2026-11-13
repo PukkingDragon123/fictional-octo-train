@@ -260,11 +260,10 @@ export function pageTex(seed: number, o: { photo?: boolean; stamp?: string; rank
     // a signature and a stamp
     for (let x = 0; x < 30; x++) R_(c, 8 + x, H - 14 + Math.round(Math.sin(x * 0.7) * 2 + Math.sin(x * 0.23) * 2), 1, 1, '#1a2a6a');
     const st = o.stamp ?? ['CLASSIFIED', 'REDACTED', 'EXPUNGED', 'SEALED'][Math.floor(R() * 4)];
-    const sw = microW(st, 2) + 8, sx = W - sw - 6, sy = H - 22;
-    for (let k = 0; k < 2; k++) frame(c, sx + k, sy + k, sw - k * 2, 16 - k * 2, '#b82a1e');
-    micro(c, st, sx + 4, sy + 3, '#b82a1e', 2);
-    // the stamp's ink is patchy
-    for (let i = 0; i < 70; i++) R_(c, sx + R() * sw, sy + R() * 16, 1, 1, '#ece6d2');
+    // the file's status as a flat printed strip along the foot (no rubber stamp)
+    const sw = microW(st, 2) + 10, sx = W - sw - 6, sy = H - 20;
+    R_(c, sx, sy, sw, 13, '#8a2a1e'); R_(c, sx, sy, 2, 13, '#d8503a');
+    micro(c, st, sx + 6, sy + 3, '#f4e6d8', 2);
   }, { seed });
   return t;
 }

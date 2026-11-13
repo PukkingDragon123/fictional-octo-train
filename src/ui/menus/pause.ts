@@ -20,7 +20,7 @@ import { bodyCanvas, moodleIcon, BODY_W, BODY_H } from '../moodles';
 import { lossSummary } from '../../survival/limbs';
 import { gearCluster, type GearCluster } from './gears3d';
 import { terminal, type Terminal } from './terminal';
-import { pxButton, pxBanner, pxAccessLog, pxSerialEl, pxStamp, nodeId, type PxButton } from '../pxKit';
+import { pxButton, pxBanner, pxAccessLog, pxSerialEl, nodeId, type PxButton } from '../pxKit';
 import { mxFrame, panelSpec, mxGauge, mxArrive } from '../machine/kit';
 import { mxOk } from '../machine/core';
 import { mxMount, type IconKind } from '../machine/decor';
@@ -221,7 +221,6 @@ export function statusPage(solo: boolean): HTMLElement[] {
     cond.append(moods);
     out.push(cond);
   }
-  { const st = pxStamp('Eyes only'); st.classList.add('ps2-stamp'); out.push(st); }
   out.push(h('p', 't-note', solo ? 'The band holds time while it projects. It is the only kind thing it does.' : 'The simulation does not pause for anyone.'));
   return out;
 }

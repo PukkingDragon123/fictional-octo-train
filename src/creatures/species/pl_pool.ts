@@ -29,7 +29,10 @@ import { tpart, surfaceMat, eye, flat, hitPlayer, filmMat } from '../kit/oddkit'
 import { net, netOf, playersIn, dist, hashId, rng, fx, fxPoll, playAt, localIn, thinkOnce, fakeCreature } from '../behaviors_b';
 import { CS, pulse, attack, onPlayerHit } from '../behaviors_a';
 import { ruleShown } from '../rules';
-import { mixHex } from '../../gfx/pixel';
+import { mixHex, makeRamp } from '../../gfx/pixel';
+import { KitDef, KitRig, SkinB, BuildCtx, Page as KPage, V3 as KV3, Wt as KWt, buildKitRig, kitSync, kitPersonalize, hash, norm } from '../kit/humanoids';
+import { chain, sac, blade, paintCap } from '../kit/organic';
+import { mkBones, skBlob } from '../kit/fungal';
 
 const live = () => !!G && !!(G as any).players;
 const plungeOf = (z: Zone | null | undefined) => (z?.meta?.plunge ?? null) as null | { deep: [number, number, number, number][]; shallow: [number, number, number, number][]; lair: [number, number] };
@@ -166,179 +169,306 @@ PG.paint((P, v) => {
 // =====================================================================================
 // GULPER
 // =====================================================================================
-const G_LEGS = [['FL', 1, 0.55], ['FR', -1, 0.55], ['BL', 1, -0.6], ['BR', -1, -0.6]] as const;
-const SUCK_N = 14;
+// ------------------------------------------------------------------ the Gulper: one skinned, sculpted body (kit/humanoids)
+// Bones run the spine from the tail tip to the neck, the skull and the jaw hinge at the neck, the
+// dewlap hangs off the throat, the belly bone swells round what it has swallowed, the lip lobes pucker.
+const GV = 3;
+const SP_Z: [string, number][] = [['t4', -2.85], ['t3', -2.42], ['t2', -1.98], ['t1', -1.5], ['t0', -1.0], ['pelvis', -0.45], ['chest', 0.45], ['neck', 0.95]];
+function gBones() {
+  const A: [string, string, KV3, boolean?][] = [['base', '', [0, 0, 0]]];
+  A.push(['pelvis', 'base', [0, 0.34, -0.45]], ['belly', 'pelvis', [0, 0.27, 0.05]], ['chest', 'pelvis', [0, 0.36, 0.45]], ['neck', 'chest', [0, 0.37, 0.95], true]);
+  A.push(['skull', 'neck', [0, 0.4, 1.16], true], ['jaw', 'neck', [0, 0.33, 1.16]], ['dew', 'neck', [0, 0.22, 1.02]]);
+  A.push(['lobeL', 'skull', [0.6, 0.34, 1.42]], ['lobeR', 'skull', [-0.6, 0.34, 1.42]]);
+  A.push(['t0', 'pelvis', [0, 0.34, -1.0], true], ['t1', 't0', [0, 0.33, -1.5]], ['t2', 't1', [0, 0.32, -1.98], true], ['t3', 't2', [0, 0.31, -2.42]], ['t4', 't3', [0, 0.3, -2.85]]);
+  for (const [s, k] of [['L', 1], ['R', -1]] as const) {
+    A.push(['uF' + s, 'chest', [k * 0.5, 0.3, 0.55]], ['lF' + s, 'uF' + s, [k * 0.82, 0.2, 0.62], true], ['hF' + s, 'lF' + s, [k * 0.96, 0.05, 0.7]]);
+    A.push(['uB' + s, 'pelvis', [k * 0.48, 0.3, -0.52]], ['lB' + s, 'uB' + s, [k * 0.8, 0.2, -0.58], true], ['hB' + s, 'lB' + s, [k * 0.94, 0.05, -0.64]]);
+  }
+  return mkBones(A);
+}
+function gLayout(p: KPage) {
+  p.reg('BODY', 128, 64); p.reg('HEAD', 64, 48); p.reg('JAW', 64, 32); p.reg('FOLD', 64, 32); p.reg('MOUTH', 32, 32); p.reg('DEW', 32, 32);
+  p.reg('LIMB', 32, 32); p.reg('FIN', 64, 16); p.reg('TOOTH', 8, 8); p.reg('EYEM', 8, 8); p.reg('EYEW', 8, 8); p.reg('LEECH', 16, 16); p.reg('LUMP', 16, 16); p.reg('CAP', 8, 8);
+}
+/** spine weights at z: the two nearest spine bones, blended; the belly joins in round the middle */
+function gW(bi: (n: string) => number, z: number, belly = 0): KWt {
+  let a = 0;
+  while (a + 1 < SP_Z.length && SP_Z[a + 1][1] <= z) a++;
+  const b = Math.min(SP_Z.length - 1, a + 1);
+  const t = b === a ? 0 : Math.max(0, Math.min(1, (z - SP_Z[a][1]) / (SP_Z[b][1] - SP_Z[a][1])));
+  const kb = belly * Math.exp(-(z * z) / 0.35);
+  const w: KWt = [bi(SP_Z[a][0]), (1 - t) * (1 - kb)];
+  if (b !== a) w.push(bi(SP_Z[b][0]), t * (1 - kb));
+  if (kb > 0.01) w.push(bi('belly'), kb);
+  return w;
+}
+function gBuild(B: SkinB, x: BuildCtx) {
+  const bi = x.bi, R = x.R;
+  // ---- the body, tail tip to the throat, one loft: a bloated, sagging trunk, a fat tapering paddle of a tail
+  const rows: [number, number, number, number][] = [ // z, y, half width, half height
+    [-2.88, 0.3, 0.02, 0.06], [-2.65, 0.3, 0.05, 0.15], [-2.35, 0.31, 0.08, 0.2], [-2.05, 0.31, 0.11, 0.23], [-1.75, 0.32, 0.15, 0.24], [-1.45, 0.33, 0.21, 0.24],
+    [-1.18, 0.33, 0.31, 0.23], [-0.92, 0.34, 0.45, 0.24], [-0.62, 0.34, 0.56, 0.25], [-0.3, 0.34, 0.62, 0.27], [0, 0.34, 0.65, 0.27], [0.3, 0.35, 0.62, 0.26],
+    [0.58, 0.36, 0.57, 0.24], [0.82, 0.36, 0.55, 0.21], [1.0, 0.37, 0.57, 0.19], [1.16, 0.38, 0.6, 0.17],
+  ];
+  const lump = (a: number, z: number, a0: number, z0: number, r: number, h: number) => h * Math.exp(-(((a - a0) ** 2) / (r * 1.2) + ((z - z0) ** 2) / (r * 0.4)) * 4);
+  sac(B, R('BODY'), 1, rows.map((r) => [0, r[1], r[0]]), rows.map((r) => [r[2], r[3]]), rows.map((r) => gW(bi, r[0], 0.55)), {
+    n: 22, start: true, end: false,
+    bump: (a, t) => {
+      const z = rows[0][0] + t * (rows[rows.length - 1][0] - rows[0][0]);
+      const side = Math.exp(-((Math.abs(a) - Math.PI / 2) ** 2) / 0.12);
+      // the loose skin folds bunching along both flanks, the belly sagging, wrinkles over the back
+      let k = side * (0.09 * Math.sin(z * 17 + Math.sin(z * 5) * 2) + 0.05 * Math.sin(z * 41)) + Math.max(0, -Math.cos(a)) * 0.12 * Math.exp(-(z * z) / 0.6);
+      k += Math.max(0, Math.cos(a)) * 0.025 * Math.sin(a * 13 + z * 23);
+      // tumour-like lumps
+      k += lump(a, z, 1.1, 0.25, 0.25, 0.22) + lump(a, z, -1.5, -0.55, 0.2, 0.18) + lump(a, z, 0.4, -1.2, 0.15, 0.16) + lump(a, z, -0.9, 0.7, 0.18, 0.14);
+      return k;
+    },
+  });
+  // ---- the head: the skull melts back into the neck; a broad spade, flat-bottomed at the mouth line
+  const hz = [1.0, 1.2, 1.42, 1.66, 1.88, 2.06, 2.2, 2.27], hy = [0.4, 0.43, 0.44, 0.43, 0.42, 0.4, 0.38, 0.37];
+  const hrx = [0.58, 0.68, 0.76, 0.78, 0.72, 0.58, 0.38, 0.12], hry = [0.17, 0.17, 0.16, 0.14, 0.12, 0.1, 0.08, 0.04];
+  const skW = (z: number): KWt => (z < 1.1 ? [bi('neck'), 0.6, bi('skull'), 0.4] : [bi('skull'), 1]);
+  sac(B, R('HEAD'), 2, hz.map((z, i) => [0, hy[i], z]), hz.map((_, i) => [hrx[i], hry[i]]), hz.map(skW), {
+    n: 22, start: false, end: true,
+    bump: (a, t) => (Math.cos(a) < 0 ? -0.72 * (-Math.cos(a)) ** 0.7 : 0) + Math.max(0, Math.cos(a)) * (0.03 * Math.sin(a * 17 + t * 30) + 0.06 * Math.exp(-((a - 0.9) ** 2) / 0.05) * Math.exp(-((t - 0.45) ** 2) / 0.02)),
+  });
+  // ---- the lower jaw: a plate rounded underneath, flat on top, hinged at the neck
+  const jz = [1.0, 1.24, 1.5, 1.76, 1.98, 2.14, 2.2], jy = [0.33, 0.31, 0.3, 0.3, 0.3, 0.3, 0.3];
+  const jrx = [0.56, 0.66, 0.72, 0.7, 0.58, 0.36, 0.1], jry = [0.12, 0.11, 0.1, 0.09, 0.08, 0.06, 0.03];
+  const jaW = (z: number): KWt => (z < 1.1 ? [bi('neck'), 0.55, bi('jaw'), 0.45] : [bi('jaw'), 1]);
+  sac(B, R('JAW'), 3, jz.map((z, i) => [0, jy[i], z]), jz.map((_, i) => [jrx[i], jry[i]]), jz.map(jaW), {
+    n: 20, start: false, end: true, bump: (a) => (Math.cos(a) > 0 ? -0.75 * Math.cos(a) ** 0.7 : 0.05 * Math.sin(a * 11)),
+  });
+  // the mouth inside: the palate, the floor of the mouth and a fat pale tongue
+  skBlob(B, R('MOUTH'), 4, [0, 0.4, 1.68], [0.62, 0.035, 0.5], { n: 16, rings: 6, w: [bi('skull'), 1] });
+  skBlob(B, R('MOUTH'), 5, [0, 0.335, 1.66], [0.6, 0.03, 0.48], { n: 16, rings: 6, w: [bi('jaw'), 1] });
+  skBlob(B, R('MOUTH'), 6, [0, 0.36, 1.58], [0.28, 0.06, 0.34], { n: 12, rings: 7, w: [bi('jaw'), 1], bump: (d) => 0.08 * Math.sin(d[2] * 9) });
+  // ragged fleshy lips over pale gums, rows of needle teeth
+  const lipPath = (y: number, rx: number, rz: number, z0: number, n: number, span: number): KV3[] => Array.from({ length: n }, (_, i) => { const a = (i / (n - 1) - 0.5) * span; return [Math.sin(a) * rx, y, z0 + Math.cos(a) * rz]; });
+  const up = lipPath(0.38, 0.74, 0.86, 1.36, 21, Math.PI * 1.08), lo = lipPath(0.325, 0.68, 0.8, 1.36, 19, Math.PI * 1.02);
+  sac(B, R('FOLD'), 7, up, up.map((_, i) => [0.05 + 0.02 * hash(i, 3), 0.04 + 0.02 * hash(i, 4)] as [number, number]), up.map((p) => skW(p[2])), { n: 7, bump: (a, t) => 0.25 * Math.sin(t * 61) * Math.max(0, -Math.cos(a)) });
+  sac(B, R('FOLD'), 8, lo, lo.map((_, i) => [0.045 + 0.02 * hash(i, 5), 0.035] as [number, number]), lo.map((p) => jaW(p[2])), { n: 7, bump: (a, t) => 0.25 * Math.sin(t * 53 + 1) * Math.max(0, Math.cos(a)) });
+  for (let i = 0; i < 44; i++) {
+    const a = (i / 43 - 0.5) * Math.PI * 1.02, r = 0.66, rz = 0.78;
+    const b0: KV3 = [Math.sin(a) * r, 0.37, 1.36 + Math.cos(a) * rz];
+    sac(B, R('TOOTH'), 9, [b0, [b0[0] * 0.98, 0.31 - (i % 3) * 0.008, b0[2] - 0.01]], [[0.011, 0.011], [0.0015, 0.0015]], [[bi('skull'), 1], [bi('skull'), 1]], { n: 4, start: false, end: false });
+  }
+  for (let i = 0; i < 40; i++) {
+    const a = (i / 39 - 0.5) * Math.PI, r = 0.6, rz = 0.72;
+    const b0: KV3 = [Math.sin(a) * r, 0.33, 1.38 + Math.cos(a) * rz];
+    sac(B, R('TOOTH'), 10, [b0, [b0[0] * 0.98, 0.39 + (i % 2) * 0.008, b0[2] - 0.01]], [[0.01, 0.01], [0.0015, 0.0015]], [[bi('jaw'), 1], [bi('jaw'), 1]], { n: 4, start: false, end: false });
+  }
+  // the lip lobes at the corners of the mouth: they close in to make the mouth a tube when it sucks
+  for (const [s, k] of [['L', 1], ['R', -1]] as const) skBlob(B, R('FOLD'), 11, [k * 0.64, 0.355, 1.45], [0.08, 0.075, 0.22], { n: 10, rings: 6, w: [bi('lobe' + s), 1], bump: (d) => 0.12 * Math.sin(d[2] * 12) });
+  // the eyes: far apart on top, one milky and blind, the other tiny and wet in a pink socket
+  skBlob(B, R('HEAD'), 12, [0.42, 0.535, 1.62], [0.075, 0.035, 0.07], { n: 10, rings: 5, w: [bi('skull'), 1] });
+  skBlob(B, R('EYEM'), 13, [0.42, 0.56, 1.63], [0.05, 0.032, 0.05], { n: 10, rings: 6, w: [bi('skull'), 1], emis: 0.2 });
+  skBlob(B, R('FOLD'), 14, [-0.42, 0.53, 1.62], [0.05, 0.03, 0.05], { n: 10, rings: 5, w: [bi('skull'), 1] });
+  skBlob(B, R('EYEW'), 15, [-0.42, 0.55, 1.63], [0.024, 0.022, 0.024], { n: 8, rings: 5, w: [bi('skull'), 1], emis: 0.35 });
+  for (const k of [-1, 1]) skBlob(B, R('LEECH'), 16, [k * 0.09, 0.46, 2.18], [0.025, 0.016, 0.02], { n: 7, rings: 4, w: [bi('skull'), 1] });
+  // the dewlap: a heavy bag of throat skin that swings and drops when it sucks
+  skBlob(B, R('DEW'), 17, [0, 0.12, 1.02], [0.46, 0.17, 0.44], { n: 16, rings: 9, w: (p) => (p[1] > 0.2 ? [bi('neck'), 0.6, bi('dew'), 0.4] : [bi('dew'), 1]), bump: (d) => 0.1 * Math.sin(d[0] * 13 + d[2] * 5) * Math.max(0, -d[1]) });
+  // thick loose folds draping and overlapping down both flanks like melted wax
+  for (const [s, k] of [['L', 1], ['R', -1]] as const) for (let layer = 0; layer < 3; layer++) {
+    const pts: KV3[] = [], wd: number[] = [], sd: KV3[] = [], ws: KWt[] = [];
+    for (let i = 0; i <= 18; i++) {
+      const z = -1.05 + i * (2.05 / 18) + layer * 0.05;
+      const row = rows.reduce((b, r) => (Math.abs(r[0] - z) < Math.abs(b[0] - z) ? r : b), rows[0]);
+      const sag = Math.sin((i / 18) * Math.PI);
+      pts.push([k * row[2] * (0.9 - layer * 0.06), row[1] + 0.04 - layer * 0.07, z]);
+      wd.push(0.16 + sag * 0.14 + 0.05 * Math.sin(i * 1.7 + layer * 2));
+      sd.push(norm([k * (0.55 - layer * 0.1), -1, 0.08 * Math.sin(i * 2.1 + layer)]));
+      ws.push(gW(bi, z, 0.4));
+    }
+    blade(B, R('FOLD'), pts, wd, sd, ws, { edge: 0.55, seed: 11 + layer * 7 + (k > 0 ? 0 : 50) });
+    void s;
+  }
+  // a fleshy crest along the back of the tail
+  {
+    const pts: KV3[] = [], wd: number[] = [], ws: KWt[] = [];
+    for (let i = 0; i <= 14; i++) { const z = -2.8 + i * (1.8 / 14), row = rows.reduce((b, r) => (Math.abs(r[0] - z) < Math.abs(b[0] - z) ? r : b), rows[0]); pts.push([0, row[1] + row[3] * 0.85, z]); wd.push(0.05 + Math.sin((i / 14) * Math.PI) * 0.12); ws.push(gW(bi, z)); }
+    blade(B, R('FIN'), pts, wd, [0, 1, 0], ws, { edge: 0.6, seed: 91 });
+  }
+  // stubby splayed limbs with swollen, webbed fingers
+  for (const [s, k] of [['L', 1], ['R', -1]] as const) for (const fb of ['F', 'B']) {
+    const h = x.rest('h' + fb + s);
+    chain(B, x, R('LIMB'), 20, { bones: ['u' + fb + s, 'l' + fb + s, 'h' + fb + s], tip: [h[0] + k * 0.06, 0.04, h[2] + 0.02], r: [0.13, 0.075], n: 9, knuckle: 0.35, bump: (a, t) => 0.06 * Math.sin(a * 5 + t * 20) });
+    for (let f = 0; f < 4; f++) {
+      const a = -0.65 + f * 0.43 + (fb === 'B' ? -0.3 : 0.2), dir: KV3 = [k * Math.cos(a) * 0.9, -0.15, Math.sin(a) * 0.9 + 0.3];
+      const L = 0.16 + (f === 1 || f === 2 ? 0.04 : 0);
+      const p0: KV3 = [h[0] + k * 0.03, 0.05, h[2]], p1: KV3 = [p0[0] + dir[0] * L * 0.5, 0.035, p0[2] + dir[2] * L * 0.5], p2: KV3 = [p0[0] + dir[0] * L, 0.03, p0[2] + dir[2] * L];
+      sac(B, R('LIMB'), 21, [p0, p1, p2], [[0.035, 0.03], [0.03, 0.025], [0.045, 0.038]], [[bi('h' + fb + s), 1], [bi('h' + fb + s), 1], [bi('h' + fb + s), 1]], { n: 6 });
+    }
+    blade(B, R('FOLD'), [[h[0] + k * 0.06, 0.04, h[2] - 0.05], [h[0] + k * 0.08, 0.04, h[2] + 0.1]], [0.12, 0.12], [k, -0.15, 0.3], [[bi('h' + fb + s), 1], [bi('h' + fb + s), 1]], { edge: 0.3, seed: 31 });
+  }
+  // the torn stub of a gill behind the jaw, old and ragged
+  sac(B, R('FOLD'), 22, [[0.5, 0.36, 0.98], [0.62, 0.4, 0.94], [0.7, 0.42, 0.9]], [[0.06, 0.05], [0.045, 0.035], [0.05, 0.03]], [[bi('neck'), 1], [bi('neck'), 1], [bi('neck'), 1]], { n: 7, bump: (a) => 0.3 * Math.sin(a * 7) });
+  // leeches clinging to it: black, glossy, ringed
+  const leech = (p: KV3, d: KV3, bone: string) => sac(B, R('LEECH'), 23, [p, [p[0] + d[0] * 0.5, p[1] + d[1] * 0.5, p[2] + d[2] * 0.5], [p[0] + d[0], p[1] + d[1], p[2] + d[2]]], [[0.022, 0.016], [0.034, 0.024], [0.018, 0.014]], [[bi(bone), 1], [bi(bone), 1], [bi(bone), 1]], { n: 7 });
+  leech([0.6, 0.36, 0.2], [0.02, -0.06, 0.14], 'chest'); leech([-0.62, 0.33, -0.35], [-0.02, -0.07, -0.12], 'pelvis'); leech([0.16, 0.48, -1.6], [0.05, 0.02, -0.15], 't1'); leech([-0.3, 0.56, 1.3], [-0.08, 0, 0.1], 'skull');
+}
+function gPaint(p: KPage, x: BuildCtx) {
+  const v = x.variant;
+  const B = p.R('BODY');
+  // cold off-white, grey-green mottling under it, blue-grey veins, pink where the skin is thin
+  const RB = makeRamp(mixHex(0xd2d6c8, 0xd8d0c8, v * 0.3), 9, { hueShift: 0.02, spread: 0.55 });
+  B.fill(RB, (xx, yy) => {
+    const a = (B.deg(xx) * Math.PI) / 180, top = Math.cos(a);
+    const m = B.fbm(xx, yy, 5, 3, 3 + v);
+    return 4.6 + top * 1.2 + (m - 0.5) * 2.4 - (m < 0.4 ? 1.4 : 0) - (yy % 9 === 0 ? 0.6 : 0);
+  }, undefined, 0.45);
+  for (let yy = 0; yy < B.h; yy++) for (let xx = 0; xx < B.w; xx++) {
+    const a = (B.deg(xx) * Math.PI) / 180, m = B.fbm(xx + 40, yy, 4, 3, 7 + v);
+    if (m < 0.38) B.blend(xx, yy, 0x7e8c74, 0.45 * (0.38 - m) / 0.38 + 0.18);
+    if (Math.cos(a) < -0.4) B.blend(xx, yy, 0xd89290, 0.35 * (-Math.cos(a) - 0.4));
+  }
+  for (let i = 0; i < 26; i++) B.crack(hash(i, 1) * B.w, hash(i, 2) * B.h, 10 + hash(i, 3) * 16, hash(i, 4) * 360, 0x5a6a90, 20 + i, 0.45, 0.3);
+  // lesions: raw pink with crusted rims, and pale old scars
+  for (let i = 0; i < 7; i++) { const cx = hash(i, 11) * B.w, cy = hash(i, 12) * B.h, r = 1.5 + hash(i, 13) * 2.5; B.ellipse(cx, cy, r + 1, r * 0.8 + 1, 0x4a2422, 0.8); B.ellipse(cx, cy, r, r * 0.8, 0xc04a4a, 0.9); B.blend(cx, cy - 1, 0xffd0d0, 0.6); }
+  for (let i = 0; i < 5; i++) B.line(hash(i, 21) * B.w, hash(i, 22) * B.h, hash(i, 21) * B.w + 8 + hash(i, 23) * 8, hash(i, 22) * B.h + (hash(i, 24) - 0.5) * 6, 0xf0ece4, 0.8);
+  // tubercles: pale warts with darker rims, thick over the back
+  for (let i = 0; i < 160; i++) { const xx = hash(i, 31) * B.w, yy = hash(i, 32) * B.h, a = (B.deg(xx) * Math.PI) / 180; if (Math.cos(a) < -0.3 && hash(i, 33) < 0.7) continue; B.ellipse(xx, yy, 1.3, 1.1, 0x6a6a5c, 0.5); B.set(xx, yy, 0xf4f4ea); }
+  // the lateral line: a dotted row of dark pores each side
+  for (const deg of [-88, 88]) for (let yy = 1; yy < B.h; yy += 3) B.set(B.X(deg) + Math.sin(yy * 0.5), yy, 0x2a2a2a);
+  for (let i = 0; i < 40; i++) B.blend(hash(i, 41) * B.w, hash(i, 42) * B.h, 0xffffff, 0.7); // wet glints
+  // the head: same skin, more warts, pink round the lips
+  const H = p.R('HEAD');
+  H.fill(RB, (xx, yy) => 4.4 + Math.cos((H.deg(xx) * Math.PI) / 180) * 1.1 + (H.fbm(xx, yy, 4, 3, 13) - 0.5) * 2.4, undefined, 0.45);
+  for (let yy = 0; yy < H.h; yy++) for (let xx = 0; xx < H.w; xx++) { const m = H.fbm(xx, yy, 4, 3, 17); if (m < 0.36) H.blend(xx, yy, 0x7e8c74, 0.4); if (Math.cos((H.deg(xx) * Math.PI) / 180) < -0.2) H.blend(xx, yy, 0xe0a0a0, 0.4); }
+  for (let i = 0; i < 90; i++) { const xx = hash(i, 51) * H.w, yy = hash(i, 52) * H.h; H.ellipse(xx, yy, 1.2, 1, 0x6a6a5c, 0.5); H.set(xx, yy, 0xf4f4ea); }
+  for (let i = 0; i < 10; i++) H.crack(hash(i, 61) * H.w, hash(i, 62) * H.h, 8 + hash(i, 63) * 10, hash(i, 64) * 360, 0x5a6a90, 70 + i, 0.4, 0.3);
+  for (let i = 0; i < 24; i++) H.blend(hash(i, 65) * H.w, hash(i, 66) * H.h, 0xffffff, 0.7);
+  const J = p.R('JAW');
+  J.fill(RB, (xx, yy) => 4 + Math.cos((J.deg(xx) * Math.PI) / 180) * 0.8 + (J.fbm(xx, yy, 4, 2, 23) - 0.5) * 2, undefined, 0.45);
+  for (let yy = 0; yy < J.h; yy++) for (let xx = 0; xx < J.w; xx++) if (Math.cos((J.deg(xx) * Math.PI) / 180) > 0.2) J.blend(xx, yy, 0xe8b8b0, 0.5);
+  for (let i = 0; i < 60; i++) { const xx = hash(i, 71) * J.w, yy = hash(i, 72) * J.h; J.ellipse(xx, yy, 1, 1, 0x6a6a5c, 0.4); J.set(xx, yy, 0xf0f0e6); }
+  // the folds: waxy, with blue veins and pink flesh showing at the thin edges
+  const F = p.R('FOLD');
+  F.fill(makeRamp(0xd8d8cc, 8, { spread: 0.5 }), (xx, yy) => 4 + Math.sin(xx * 0.9) * 1.6 + (F.fbm(xx, yy, 4, 2, 31) - 0.5) * 1.6 - (yy / F.h) * 1.2, undefined, 0.4);
+  for (let yy = 0; yy < F.h; yy++) for (let xx = 0; xx < F.w; xx++) if (yy > F.h * 0.6) F.blend(xx, yy, 0xd88888, 0.45 * (yy / F.h - 0.6) / 0.4);
+  for (let i = 0; i < 12; i++) F.crack(hash(i, 81) * F.w, hash(i, 82) * F.h, 10, 90 + (hash(i, 83) - 0.5) * 60, 0x5a6a94, 90 + i, 0.5, 0.25);
+  for (let i = 0; i < 20; i++) F.blend(hash(i, 84) * F.w, hash(i, 85) * F.h, 0xffffff, 0.75);
+  // the mouth: pink-red and wet, pale gums at the rims
+  const M = p.R('MOUTH');
+  M.fill(makeRamp(0xc84858, 8, { spread: 0.6 }), (xx, yy) => 3.6 + Math.sin(yy * 0.9) * 0.9 + (M.fbm(xx, yy, 3, 2, 41) - 0.5) * 1.8 - Math.abs(xx / M.w - 0.5) * 3, undefined, 0.45);
+  for (let i = 0; i < 6; i++) M.crack(hash(i, 91) * M.w, hash(i, 92) * M.h, 8, hash(i, 93) * 360, 0x7a1424, 100 + i, 0.6, 0.3);
+  for (let yy = 0; yy < 4; yy++) for (let xx = 0; xx < M.w; xx++) M.blend(xx, yy, 0xf0d0d0, 0.6);
+  for (let i = 0; i < 18; i++) M.blend(hash(i, 94) * M.w, hash(i, 95) * M.h, 0xffffff, 0.8);
+  const D = p.R('DEW');
+  D.fill(makeRamp(0xd8d4c8, 8, { spread: 0.5 }), (xx, yy) => 4 + Math.sin(xx * 1.3 + yy * 0.2) * 1.1 + (D.fbm(xx, yy, 4, 2, 51) - 0.5) * 2, undefined, 0.45);
+  for (let yy = 0; yy < D.h; yy++) for (let xx = 0; xx < D.w; xx++) if (yy > D.h * 0.45) D.blend(xx, yy, 0xd89a9a, 0.4 * (yy / D.h - 0.45));
+  for (let i = 0; i < 8; i++) D.crack(hash(i, 101) * D.w, hash(i, 102) * D.h, 10, hash(i, 103) * 360, 0x5a6a94, 110 + i, 0.5, 0.3);
+  const L = p.R('LIMB');
+  L.fill(RB, (xx, yy) => 4 + Math.cos((L.deg(xx) * Math.PI) / 180) * 1 + (L.fbm(xx, yy, 3, 2, 61) - 0.5) * 2 - (yy % 6 === 0 ? 0.8 : 0), undefined, 0.45);
+  for (let yy = 0; yy < L.h; yy++) for (let xx = 0; xx < L.w; xx++) { if (L.fbm(xx, yy, 3, 2, 62) < 0.38) L.blend(xx, yy, 0x7e8c74, 0.4); if (yy > L.h * 0.75) L.blend(xx, yy, 0xd89090, 0.4); }
+  const Fi = p.R('FIN');
+  Fi.fill(makeRamp(0xdcdcd0, 7, { spread: 0.5 }), (xx, yy) => 3.6 + (Fi.fbm(xx, yy, 4, 2, 71) - 0.5) * 2 - (yy / Fi.h) * 1.4, undefined, 0.4);
+  for (let yy = 0; yy < Fi.h; yy++) for (let xx = 0; xx < Fi.w; xx++) if (yy > Fi.h * 0.5) Fi.blend(xx, yy, 0xd88a8a, 0.4);
+  p.R('TOOTH').fill(makeRamp(0xf0ece0, 5, { spread: 0.4 }), (xx, yy) => 3 - yy * 0.2, undefined, 0.3);
+  // the blind eye: milky blue-white with a cloud where the pupil was; the good one tiny, pink and wet
+  const EM = p.R('EYEM');
+  for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 8; xx++) { const d = Math.hypot(xx - 3.5, yy - 3.5); EM.set(xx, yy, d < 1.8 ? 0xd8e0e8 : d < 3 ? 0xb8c4d0 : 0xa8a8b0); }
+  EM.set(2, 2, 0xffffff);
+  const EW = p.R('EYEW');
+  for (let yy = 0; yy < 8; yy++) for (let xx = 0; xx < 8; xx++) { const d = Math.hypot(xx - 3.5, yy - 3.5); EW.set(xx, yy, d < 1.4 ? 0x1a0408 : d < 2.8 ? 0xc84858 : 0xe08890); }
+  EW.set(2, 2, 0xffffff); EW.set(3, 2, 0xffe0e0);
+  // leeches: black-green, glossy, ringed
+  const LE = p.R('LEECH');
+  LE.fill([0x060806, 0x101810, 0x1a2a1a, 0x2a3a26, 0x4a5a40], (xx, yy) => 1.4 + Math.cos((LE.deg(xx) * Math.PI) / 180) * 1.3 + (yy % 3 === 0 ? -0.8 : 0), undefined, 0.4);
+  for (let yy = 1; yy < LE.h; yy += 4) LE.set(LE.X(0), yy, 0xb0c0a0);
+  const LU = p.R('LUMP');
+  LU.fill(RB, (xx, yy) => 4.6 + (LU.fbm(xx, yy, 2, 2, 81) - 0.5) * 3, undefined, 0.45);
+  paintCap(p.R('CAP'), 0xd8d8cc, 0xd88a8a, 0x8a2a2a);
+}
+const GULPER_KIT: KitDef = { key: 'gulper', variants: GV, W: 256, H: 256, bones: gBones, layout: gLayout, build: gBuild, paint: gPaint, sphere: [0, 0.4, 0, 3.2] };
+
+const SUCK_N = 14, STRANDS = 5;
 function buildGulper(): Rig {
-  const rig = newRig(0.5);
-  const S = PG.reg('GSKIN'), F = PG.reg('GFOLD'), M = PG.reg('GMOUTH'), Tt = PG.reg('GTOOTH'), E = PG.reg('GEYE'), N = PG.reg('GNOSE'), TL = PG.reg('GTAIL');
-  const wet = surfaceMat('lacquer', { alphaTest: 0.5 });
-  // the trunk: broad and flat, a wet clear-coat on it; loose skin hanging in folds and flaps down both flanks
-  const trunk = tpart(rig, 'trunk', rig.body, [0, 0.36, 0], PG, 'gtrunk', wet, (ob) => {
-    const zs = [-0.95, -0.75, -0.45, -0.15, 0.15, 0.45, 0.75, 0.95];
-    const ks = [0.7, 0.86, 0.96, 1, 1, 0.97, 0.9, 0.82];
-    ob.loft(zs.map((z, i) => ({ pts: bodyRing(z, 0, 0.56 * ks[i], 0.21 * ks[i], 0.19 * ks[i], 21, 2.6, (th) => 0.035 * Math.sin(th * 9 + i * 1.7) + 0.02 * Math.sin(th * 23 + i)), v: 1 - i / 7 })), S, { start: 'pole', end: 'pole', startBulge: 0.08, endBulge: 0.05 });
-    // the flank folds: four wavy layers of loose skin each side, sagging between the legs
-    for (const sx of [-1, 1]) for (let k = 0; k < 4; k++) {
-      const a: V3[] = [], b2: V3[] = [];
-      for (let i = 0; i <= 20; i++) {
-        const z = -0.9 + i * (1.8 / 20), w = Math.sin(i * 1.9 + k * 2.3) * 0.05 + Math.sin(i * 0.7 + k) * 0.03, sag = Math.sin((i / 20) * Math.PI);
-        a.push([sx * (0.5 - k * 0.04), 0.03 - k * 0.07, z]);
-        b2.push([sx * (0.72 + sag * 0.1 - k * 0.04 + w), -0.14 - k * 0.07 - sag * 0.07 + w * 0.6, z + w * 0.4]);
-      }
-      ob.strip(a, b2, F, { double: true });
-    }
-    // wrinkle ridges across the back, and the lateral-line pores along each flank
-    for (let i = 0; i < 11; i++) ob.tube([[-0.46, 0.1, -0.82 + i * 0.165], [-0.2, 0.19, -0.8 + i * 0.165], [0.2, 0.19 + Math.sin(i) * 0.01, -0.81 + i * 0.165], [0.46, 0.1, -0.82 + i * 0.165]], [0.016, 0.022, 0.022, 0.016], 5, F, { start: 'pole', end: 'pole' });
-    for (const sx of [-1, 1]) for (let i = 0; i < 16; i++) ob.blob([sx * 0.535, 0.02 + Math.sin(i * 0.8) * 0.01, -0.8 + i * 0.105], [0.012, 0.012, 0.012], 4, 3, N, {});
-    // tubercles all over the back
-    for (let i = 0; i < 46; i++) { const a = (i * 2.399) % 1, z = -0.85 + (i / 46) * 1.7; ob.blob([(a - 0.5) * 0.8, 0.18 + Math.cos((a - 0.5) * 2.5) * 0.02, z], [0.03, 0.018, 0.03], 5, 3, S, {}); }
-    // the gular folds: loose skin hanging in pleats under the throat
-    for (let k = 0; k < 3; k++) ob.strip([[-0.42, -0.16, 0.74 + k * 0.08], [0, -0.18, 0.76 + k * 0.08], [0.42, -0.16, 0.74 + k * 0.08]], [[-0.4, -0.26 - k * 0.02, 0.7 + k * 0.08], [0, -0.3 - k * 0.02, 0.72 + k * 0.08], [0.4, -0.26 - k * 0.02, 0.7 + k * 0.08]], F, { double: true });
-  });
-  // the belly bulge (what it has swallowed)
-  bpart(rig, 'bulge', trunk, [0, -0.06, 0.05], PG, 'gbulge', (ob) => {
-    ob.blob([0, 0, 0], [0.42, 0.2, 0.62], 12, 7, S, {});
-    // a knee and an elbow pressing out from inside
-    ob.blob([0.22, 0.08, 0.3], [0.12, 0.1, 0.12], 7, 5, S, {}); ob.blob([-0.18, 0.06, -0.3], [0.13, 0.1, 0.14], 7, 5, S, {});
-  });
-  // the head: flat and wide as the body, a rounded spade of a snout; it tips back to open the mouth
-  const head = tpart(rig, 'head', trunk, [0, 0.02, 0.88], PG, 'ghead', wet, (ob) => {
-    const zs = [0, 0.2, 0.42, 0.65, 0.86, 1.02, 1.12];
-    const rx = [0.5, 0.64, 0.73, 0.76, 0.7, 0.55, 0.32], up = [0.2, 0.18, 0.155, 0.13, 0.1, 0.075, 0.045];
-    ob.loft(zs.map((z, i) => ({ pts: bodyRing(z, 0, rx[i], up[i], 0.02, 21, 2.8, (th) => 0.03 * Math.sin(th * 11 + i * 2)), v: 1 - i / 6 })), S, { end: 'pole', endBulge: 0.035 });
-    // the palate under it
-    ob.loft(zs.slice(0, 6).map((z, i) => ({ pts: bodyRing(z, -0.015, rx[i] * 0.9, 0.01, 0.01, 15, 2.4), v: 1 - i / 5 })), M, { end: 'flat' });
-    // a row of tiny teeth all round the upper jaw rim, inside the lip
-    for (let i = 0; i < 56; i++) {
-      const t = i / 55, a = (t - 0.5) * Math.PI * 1.05;
-      ob.cone([Math.sin(a) * 0.66, -0.025, 0.4 + Math.cos(a) * 0.68], [0, -1, -0.1], 0.01, 0.04, 4, Tt);
-    }
-    // the upper lip: a fleshy rim all round the jaw edge
-    const lip: V3[] = [];
-    for (let i = 0; i <= 18; i++) { const a = (i / 18 - 0.5) * Math.PI * 1.1; lip.push([Math.sin(a) * 0.72, -0.015, 0.38 + Math.cos(a) * 0.74]); }
-    ob.tube(lip, lip.map(() => [0.04, 0.03] as [number, number]), 6, F, { start: 'pole', end: 'pole' });
-    // tiny lidless eyes far apart on top, the nostrils close together right at the tip
-    for (const sx of [-1, 1]) {
-      ob.blob([sx * 0.38, 0.13, 0.72], [0.045, 0.03, 0.04], 6, 4, S, {});
-      ob.blob([sx * 0.38, 0.155, 0.73], [0.026, 0.022, 0.026], 7, 5, E, { emis: 0.3 });
-      ob.blob([sx * 0.08, 0.075, 1.08], [0.028, 0.02, 0.024], 6, 4, N, {});
-    }
-    // tubercles over the skull and down the snout
-    for (let i = 0; i < 34; i++) { const a = ((i * 2.399) % 1 - 0.5) * 1.2, z = 0.08 + (i / 34) * 0.95; ob.blob([a * (0.7 - z * 0.25), 0.13 - z * 0.06 + 0.02, z], [0.026, 0.014, 0.026], 5, 3, S, {}); }
-  });
-  void head;
-  // the lower jaw: it drops away, a plate rimmed with lip and teeth, a pink floor and a fat tongue
-  bpart(rig, 'jaw', rig.parts.head, [0, -0.03, 0.04], PG, 'gjaw', (ob) => {
-    const zs = [0, 0.3, 0.6, 0.88, 1.08];
-    const rx = [0.5, 0.68, 0.74, 0.66, 0.4];
-    ob.loft(zs.map((z, i) => ({ pts: bodyRing(z, -0.06, rx[i], 0.04, 0.09, 17, 2.6, (th) => 0.03 * Math.sin(th * 9 + i)), v: 1 - i / 4 })), S, { end: 'pole', endBulge: 0.03 });
-    ob.loft(zs.slice(0, 4).map((z, i) => ({ pts: bodyRing(z, -0.02, rx[i] * 0.9, 0.02, 0.01, 13, 2.4), v: 1 - i / 3 })), M, { end: 'flat' });
-    for (let i = 0; i < 48; i++) { const t = i / 47, a = (t - 0.5) * Math.PI; ob.cone([Math.sin(a) * 0.62, -0.01, 0.42 + Math.cos(a) * 0.62], [0, 1, -0.1], 0.01, 0.036, 4, Tt); }
-    const lip: V3[] = [];
-    for (let i = 0; i <= 16; i++) { const a = (i / 16 - 0.5) * Math.PI; lip.push([Math.sin(a) * 0.68, 0.0, 0.42 + Math.cos(a) * 0.68]); }
-    ob.tube(lip, lip.map(() => [0.035, 0.03] as [number, number]), 6, F, { start: 'pole', end: 'pole' });
-    ob.blob([0, 0.01, 0.45], [0.3, 0.045, 0.32], 9, 5, M, {});
-  });
-  // the labial lobes: fleshy flaps at the corners of the mouth; they close in to make the mouth a tube when it sucks
-  for (const sx of [-1, 1]) bpart(rig, sx > 0 ? 'lobeL' : 'lobeR', rig.parts.head, [sx * 0.68, -0.04, 0.24], PG, 'globe', (ob) => {
-    ob.blob([0, 0, 0.08], [0.07, 0.09, 0.2], 9, 6, F, {});
-    ob.blob([0, -0.02, 0.2], [0.05, 0.06, 0.1], 7, 5, M, {});
-  });
-  // the throat pouch: it drops and swells as it sucks, and pumps as it swallows
-  bpart(rig, 'throat', trunk, [0, -0.12, 0.8], PG, 'gthroat', (ob) => { ob.blob([0, 0, 0.06], [0.44, 0.15, 0.36], 12, 7, F, {}); });
-  // stubby limbs, four fat toes webbed with skin
-  for (const [n, sx, z] of G_LEGS) {
-    const up = bpart(rig, 'leg' + n + 'u', trunk, [sx * 0.46, -0.08, z], PG, 'glegu', (ob) => {
-      ob.tube([[0, 0, 0], [0.18, -0.06, 0.02], [0.32, -0.1, 0.02]], [0.12, 0.1, 0.085], 9, S, { start: 'pole', end: 'pole', bump: (i, th) => 0.06 * Math.sin(th * 5 + i) });
-      // a skin flap trailing behind the limb
-      ob.strip([[0.05, -0.02, -0.06], [0.28, -0.08, -0.06]], [[0.04, -0.1, -0.16], [0.26, -0.14, -0.12]], F, { double: true });
-    });
-    if (sx < 0) up.scale.x = -1;
-    bpart(rig, 'leg' + n + 'd', up, [0.32, -0.1, 0.02], PG, 'glegd', (ob) => {
-      ob.tube([[0, 0, 0], [0.04, -0.14, 0.02], [0.06, -0.24, 0.03]], [0.085, 0.075, 0.065], 8, S, { start: 'pole' });
-      const tips: V3[] = [];
-      for (let k = 0; k < 4; k++) {
-        const a = -0.55 + k * 0.37, tip: V3 = [0.06 + Math.sin(a) * 0.14, -0.27, 0.03 + Math.cos(a) * 0.14];
-        tips.push(tip);
-        ob.tube([[0.06, -0.24, 0.03], [(0.06 + tip[0]) / 2, -0.265, (0.03 + tip[2]) / 2], tip], [0.035, 0.026, 0.02], 6, S, { end: 'pole', endBulge: 0.01 });
-      }
-      // the webbing between the toes
-      for (let k = 0; k < 3; k++) ob.strip([[0.06, -0.255, 0.03], [0.06, -0.255, 0.03]], [[tips[k][0] * 0.75 + 0.015, -0.265, tips[k][2] * 0.75], [tips[k + 1][0] * 0.75 + 0.015, -0.265, tips[k + 1][2] * 0.75]], F, { double: true });
-    });
-  }
-  // the long paddle tail: four segments, each a tall thin blade, a fin of skin along the top
-  let par: THREE.Object3D = trunk, at: V3 = [0, 0, -0.92];
-  for (let i = 0; i < 4; i++) {
-    const L = 0.4, h = 0.24 - i * 0.03, w = 0.17 - i * 0.035;
-    par = tpart(rig, 'tail' + i, par, at, PG, 'gtail' + i, wet, (ob) => {
-      const zs = [0, -L * 0.5, -L];
-      ob.loft(zs.map((z, j) => ({ pts: bodyRing(z, 0.02, (w - j * 0.015) * 0.55, h - j * 0.015 + 0.04, h * 0.8 - j * 0.01, 15, 2.2, (th) => 0.03 * Math.sin(th * 7 + j)), v: 1 - j / 2 })), TL, { end: i === 3 ? 'pole' : null, endBulge: 0.1 });
-      ob.strip([[0, h + 0.05, 0], [0, h + 0.04, -L]], [[0, h + 0.13 - i * 0.015, -0.02], [0, h + 0.11 - i * 0.015, -L]], F, { double: true });
-    });
-    at = [0, 0, -0.4];
-  }
-  // the suction: water and grit rushing into the mouth, and the pull ring in the water ahead of it
+  const rig = buildKitRig(GULPER_KIT, 0, 0.6) as KitRig;
+  // the suction: grit and water rushing into the mouth, and the pull ring in the water ahead of it
   const suck = new THREE.Group(); suck.name = 'suck'; rig.root.add(suck); rig.parts.suck = suck; suck.visible = false;
   for (let i = 0; i < SUCK_N; i++) bpart(rig, 'sb' + i, suck, [0, 0, 0], PG, 'gsuckbit', (ob) => { ob.blob([0, 0, 0], [0.035, 0.03, 0.05], 5, 4, PG.reg('GTOOTH'), { emis: 0.4 }); });
   tpart(rig, 'sring', suck, [0, 0, 0], PG, 'gsring', filmMat(0.45), (ob) => {
     const path: V3[] = []; for (let i = 0; i <= 24; i++) { const a = (i / 24) * Math.PI * 2; path.push([Math.cos(a), Math.sin(a) * 0.55, 0]); }
     ob.tube(path, path.map(() => 0.035), 6, PG.reg('TFIN'), { emis: 0.5 });
   });
-  rig.eyes = [];
+  // slime strands that stretch between the jaws when it opens
+  const strands = new THREE.Group(); strands.name = 'strands'; rig.root.add(strands); rig.parts.strands = strands;
+  for (let i = 0; i < STRANDS; i++) tpart(rig, 'st' + i, strands, [0, 0, 0], PG, 'gstrand', filmMat(0.6), (ob) => { ob.tube([[0, 0, 0], [0.01, 0.5, 0.02], [0, 1, 0]], [0.012, 0.005, 0.012], 5, PG.reg('TFIN'), { emis: 0.35 }); });
   return rig;
 }
 
 interface GulpDrive { t: number; dt: number; speed: number; gape: number; sub: number; gulp: number; struggle: number; swim: number; dead: number; flinch: number; suck: number; pump: number; pucker: number }
+const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sq = new THREE.Quaternion(), _sY = new THREE.Vector3(0, 1, 0);
 function poseGulper(rig: Rig, d: GulpDrive) {
-  const P = rig.parts, t = d.t, ud = rig.root.userData as Record<string, any>;
+  const K = rig as KitRig, P = rig.parts, t = d.t, ud = rig.root.userData as Record<string, any>;
+  if (K.kit) kitSync(K);
   ud.ph = (ud.ph ?? 0) + d.dt * (1.2 + d.speed * 2.5);
   const ph = ud.ph;
-  const swim = d.swim, walk = clamp01(d.speed / 0.6) * (1 - swim);
-  // breathing; the throat pumps (buccal pumping, the way they breathe) and drops wide to suck
-  const br = Math.sin(t * 1.4) * 0.03;
-  P.trunk.position.y = 0.36 + br * 0.3 - d.dead * 0.2;
-  P.trunk.rotation.set(0, Math.sin(ph) * 0.12 * (walk + swim * 0.6), Math.sin(ph * 0.5) * 0.04 * walk + (d.dead ? 2.9 : 0));
-  const pumpK = Math.max(0, Math.sin(t * 6)) * 0.12 * (1 - d.gape) + d.pump * Math.max(0, Math.sin(t * 9)) * 0.5;
-  P.throat.scale.set(1 + d.gulp * 0.4 + d.suck * 0.35, 1 + pumpK + d.gulp * 0.7 + d.suck * 1.6, 1 + d.gulp * 0.25 + d.suck * 0.25);
-  P.throat.position.y = -0.12 - d.suck * 0.12;
-  // the mouth: skull back, jaw down. Sucking it opens fast and only part way, lobes closed in to a tube
-  const g = Math.max(d.gape, d.suck * 0.42);
-  P.head.rotation.set(-g * 1.25 + d.flinch * 0.1 - clamp01(d.sub) * 0.2 * swim, Math.sin(ph) * -0.08 * walk, 0);
-  P.jaw.rotation.set(g * 1.45 + Math.sin(t * 3) * 0.02, 0, 0);
-  const pk = d.pucker;
-  P.lobeL.rotation.set(0, -0.15 + pk * 0.95, 0); P.lobeR.rotation.set(0, 0.15 - pk * 0.95, 0);
-  P.lobeL.scale.set(1, 1 + pk * 0.8, 1 + pk * 0.3); P.lobeR.scale.set(1, 1 + pk * 0.8, 1 + pk * 0.3);
-  // the bulge: something whole inside it, kicking
+  const swim = d.swim, walk = clamp01(d.speed / 0.6) * (1 - swim), go = Math.max(walk, swim);
+  const p0 = (n: string) => P[n].userData.p0 as THREE.Vector3;
+  // the body: a slow S down its length; breathing; a corpse rolls over
+  const br = Math.sin(t * 1.3) * 0.02;
+  P.pelvis.position.copy(p0('pelvis')).add(_sa.set(0, br - d.dead * 0.12, 0));
+  P.pelvis.rotation.set(0, Math.sin(ph) * 0.1 * go, (d.dead ? 2.7 : 0) + Math.sin(ph * 0.5) * 0.04 * walk);
+  P.chest.rotation.set(0, -Math.sin(ph) * 0.14 * go, 0);
+  P.neck.rotation.set(0, -Math.sin(ph - 0.6) * 0.1 * go - d.flinch * 0.1, 0);
+  // the belly swells round what it has swallowed, and kicks
   const bg = d.gulp;
-  P.bulge.visible = bg > 0.02;
-  P.bulge.scale.set(0.4 + bg * 0.8 + Math.sin(t * 9) * 0.05 * d.struggle, 0.4 + bg * 0.9 + Math.sin(t * 11 + 1) * 0.08 * d.struggle, 0.5 + bg * 0.6);
-  P.bulge.position.y = -0.06 - bg * 0.12;
-  // legs: a slow sprawling walk on land; tucked against the body swimming
-  G_LEGS.forEach(([n, sx], i) => {
-    const off = i === 0 || i === 3 ? 0 : Math.PI;
-    const s = Math.sin(ph + off);
-    const tuck = swim;
-    P['leg' + n + 'u'].rotation.set(0, (s * 0.5 * walk) * (n.startsWith('F') ? 1 : -1) * sx + tuck * 0.9 * sx * (n.startsWith('F') ? -1 : 1), -0.35 + Math.max(0, Math.cos(ph + off)) * 0.4 * walk + tuck * 0.3 - d.dead * 0.6);
-    P['leg' + n + 'd'].rotation.set(0, 0, 0.5 - s * 0.2 * walk);
-  });
+  P.belly.scale.set(1 + bg * 0.55 + Math.sin(t * 9) * 0.06 * d.struggle, 1 + bg * 0.9 + Math.sin(t * 11 + 1) * 0.1 * d.struggle, 1 + bg * 0.4);
+  // the mouth: the skull tips back and the jaw drops; sucking it opens fast and only part way, lips closed to a tube
+  const g = Math.max(d.gape, d.suck * 0.45);
+  P.skull.rotation.set(-g * 0.95 + d.flinch * 0.08 - clamp01(d.sub) * 0.18 * swim, 0, 0);
+  P.jaw.rotation.set(g * 1.15 + Math.sin(t * 3) * 0.015, 0, 0);
+  const pk = d.pucker;
+  P.lobeL.rotation.set(0, -pk * 0.9, 0); P.lobeR.rotation.set(0, pk * 0.9, 0);
+  P.lobeL.scale.set(1 + pk * 0.4, 1 + pk * 0.9, 1 + pk * 0.4); P.lobeR.scale.set(1 + pk * 0.4, 1 + pk * 0.9, 1 + pk * 0.4);
+  // the dewlap: it swings, drops and swells as it sucks, pumps as it swallows, flutters as it breathes
+  const pumpK = Math.max(0, Math.sin(t * 6)) * 0.06 * (1 - d.gape) + d.pump * Math.max(0, Math.sin(t * 8)) * 0.35;
+  P.dew.position.copy(p0('dew')).add(_sa.set(0, -d.suck * 0.16 - pumpK * 0.1, d.suck * 0.04));
+  P.dew.rotation.set(Math.sin(ph * 0.5 + 1) * 0.12 * go + Math.sin(t * 1.1) * 0.04, 0, Math.sin(ph * 0.5) * 0.1 * go);
+  P.dew.scale.set(1 + d.suck * 0.45 + d.gulp * 0.3, 1 + d.suck * 1.1 + pumpK + d.gulp * 0.5, 1 + d.suck * 0.3);
   // the tail: a wave down it; strong strokes swimming, a drag on land
-  for (let i = 0; i < 4; i++) P['tail' + i].rotation.set(0, Math.sin(ph * (swim ? 1.6 : 1) - i * 0.8) * (0.18 + swim * 0.3 + i * 0.05) * (1 - d.dead * 0.8) + (d.dead ? 0.2 : 0), 0);
+  ['t0', 't1', 't2', 't3', 't4'].forEach((n, i) => P[n].rotation.set(0, Math.sin(ph * (swim ? 1.7 : 1) - i * 0.85) * (0.12 + swim * 0.22 + i * 0.04) * (1 - d.dead * 0.7) + (d.dead ? 0.15 : 0), 0));
+  // stubby legs: a sprawling walk; swimming, pressed back along the flanks
+  for (const [s, k] of [['L', 1], ['R', -1]] as const) for (const [fb, off] of [['F', s === 'L' ? 0 : Math.PI], ['B', s === 'L' ? Math.PI : 0]] as const) {
+    const sw = Math.sin(ph + off), lift = Math.max(0, Math.cos(ph + off));
+    P['u' + fb + s].rotation.set(0, k * (sw * 0.45 * walk - swim * (fb === 'F' ? 0.9 : -0.9)), k * (-0.15 + lift * 0.35 * walk + swim * 0.25) - d.dead * k * 0.5);
+    P['l' + fb + s].rotation.set(0, 0, k * (0.25 - lift * 0.2 * walk));
+    P['h' + fb + s].rotation.set(0, 0, k * (-0.1 + lift * 0.1 * walk));
+  }
   // the suction: grit and water streaming in from a cone ahead of the mouth, the pull ring closing on it
   const sk = d.suck;
   P.suck.visible = sk > 0.02;
   if (P.suck.visible) {
-    const mouthZ = 2.2, mouthY = 0.38;
+    const mouthZ = 2.3, mouthY = 0.38;
     for (let i = 0; i < SUCK_N; i++) {
-      const ph2 = ((t * 2.6 + i / SUCK_N) % 1);
-      const a = i * 2.399, r0 = 1.4 * (1 - ph2);
+      const ph2 = ((t * 2.6 + i / SUCK_N) % 1), a = i * 2.399, r0 = 1.3 * (1 - ph2);
       const b = P['sb' + i];
       b.position.set(Math.cos(a) * r0 * 0.9, mouthY + Math.sin(a) * r0 * 0.4 + 0.05, mouthZ + (1 - ph2) * 2.6);
-      b.scale.setScalar((0.6 + (1 - ph2) * 0.8) * sk);
-      b.rotation.set(0, 0, a);
+      b.scale.setScalar((0.6 + (1 - ph2) * 0.8) * sk); b.rotation.set(0, 0, a);
     }
-    const ring = P.sring, rk = (t * 2.2) % 1;
-    ring.position.set(0, mouthY + 0.05, mouthZ + 0.4 + (1 - rk) * 1.8);
-    ring.scale.setScalar((0.25 + (1 - rk) * 1.4) * sk);
+    const rk = (t * 2.2) % 1;
+    P.sring.position.set(0, mouthY + 0.05, mouthZ + 0.4 + (1 - rk) * 1.8);
+    P.sring.scale.setScalar((0.25 + (1 - rk) * 1.4) * sk);
+  }
+  // slime strands from the upper to the lower jaw while the mouth is open
+  const open = g > 0.12;
+  P.strands.visible = open;
+  if (open && K.kit) {
+    rig.root.updateMatrixWorld(true);
+    for (let i = 0; i < STRANDS; i++) {
+      const a = (i / (STRANDS - 1) - 0.5) * 2.2;
+      P.skull.localToWorld(_sa.set(Math.sin(a) * 0.55 - (P.skull.userData.p0 as THREE.Vector3).x, 0.37 - (P.skull.userData.p0 as THREE.Vector3).y, 1.36 + Math.cos(a) * 0.62 - (P.skull.userData.p0 as THREE.Vector3).z));
+      P.jaw.localToWorld(_sb.set(Math.sin(a) * 0.5 - (P.jaw.userData.p0 as THREE.Vector3).x, 0.33 - (P.jaw.userData.p0 as THREE.Vector3).y, 1.36 + Math.cos(a) * 0.58 - (P.jaw.userData.p0 as THREE.Vector3).z));
+      rig.root.worldToLocal(_sa); rig.root.worldToLocal(_sb);
+      const s = P['st' + i];
+      s.position.copy(_sb);
+      const dv = _sa.sub(_sb); const L = dv.length() || 0.001; dv.divideScalar(L);
+      s.quaternion.copy(_sq.setFromUnitVectors(_sY, dv));
+      s.scale.set(1 - Math.min(0.7, L * 0.6), L, 1 - Math.min(0.7, L * 0.6));
+      s.visible = L < 1.6 && (i + Math.floor(t * 0.5)) % 3 !== 0;
+    }
   }
 }
 
@@ -429,7 +559,9 @@ function thinkGulper(c: Creature, dt: number): boolean {
 }
 
 function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
-  applyLook(rig, c, PG, 0.05);
+  const K = rig as KitRig;
+  if (K.kit.who !== c.id) { K.kit.who = c.id; kitPersonalize(K, Math.floor(hashId(c.id) * GV)); }
+  K.kit.F.fx.value.y += dt; K.kit.F.fx.value.z = Math.min(1, c.hitFlash / 0.15) * 0.4;
   const n = netOf(c), ud = rig.root.userData as Record<string, any>;
   const md = (n.md ?? 'lurk') as GMd;
   const z = live() ? G.zones.get(c.zoneKey) as Zone ?? null : null;
@@ -528,7 +660,7 @@ const GULPER = def({
   meat: [['gulper_meat', 4]],
   sounds: { idle: 'lifeguard_bubbles', alert: 'davenport_roar', attack: 'bh_gulp', hurt: 'hollow_moan', death: 'lifeguard_sink' },
   scan: { cls: 'Fauna / giant salamander (leucistic)', notes: ['Four metres of white salamander. The head is nearly all mouth.', 'It lies in the deep end with only its nostrils up.', 'It gulps a unit whole and holds them. Hurt it and it spits them out.', 'Slow on land; it does not like to leave the water.'] },
-  gore: { blood: 'pale', tint: 0xf0c8c8, flesh: 0xf0e4dc, gib: false, sever: ['tail2', 'legFLd', 'legBRd'], head: 'head' },
+  gore: { blood: 'pale', tint: 0xf0c8c8, flesh: 0xf0e4dc, gib: false, sever: ['t2', 'lFL', 'lBR'], head: 'skull' },
   disposition: { mood: 'territorial', self: true },
   build: buildGulper, animate: animateGulper, think: thinkGulper,
 });

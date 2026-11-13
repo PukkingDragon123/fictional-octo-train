@@ -91,7 +91,7 @@
 .ptm-fitem img, .ptm-fitem .ptm-noicon { grid-row: span 2; width: 24px; height: 24px; image-rendering: pixelated; }
 .ptm-fitem b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.06em; }
 .ptm-fitem b i { color: var(--ct-dim); font-style: normal; }
-.ptm-fitem small { grid-column: 2 / 4; color: var(--ct-dim); font-size: var(--t-xs, 0.85em); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ptm-fitem small { grid-column: 2 / 4; color: var(--ct-dim); opacity: 0.6; font-size: var(--t-xs, 0.85em); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ptm-fitem:hover:not(:disabled), .ptm-fitem:focus-visible { box-shadow: inset 0 0 0 1px var(--ct-hi); background: rgba(var(--ct-rgb), 0.1); }
 .ptm-fitem:disabled { opacity: 0.45; cursor: default; }
 .ptm-slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: calc(var(--ks) * 1.5); }
