@@ -145,3 +145,8 @@ body:has(.wt.on) :is(.wp-tag, .obj15, .ft-subs .w-bubble) { visibility: hidden !
 /* the phone's on-screen keys step aside while the unit is up */
 body:has(.wt.fp.on) #nc-touch { visibility: hidden; }
 .wt-msg.pnc { background: radial-gradient(circle, #fff0e8 0 16%, #ff3a22 40%, rgba(255, 58, 34, 0.4) 56%, rgba(255, 58, 34, 0) 74%); animation: wt-blink 0.22s steps(1) infinite; }
+/* near-field depth of field: the sleeve and the cuff, nearer than the screen the eyes are on, go soft */
+.wt-near { position: absolute; inset: 0; pointer-events: none; display: none; -webkit-backdrop-filter: blur(9px); backdrop-filter: blur(9px);
+  -webkit-mask-image: radial-gradient(circle var(--nr, 200px) at var(--nx, 0px) var(--ny, 100%), #000 55%, rgba(0, 0, 0, 0) 100%); mask-image: radial-gradient(circle var(--nr, 200px) at var(--nx, 0px) var(--ny, 100%), #000 55%, rgba(0, 0, 0, 0) 100%); }
+.wt.fp .wt-near { display: block; }
+.reduce-flash .wt-near { -webkit-backdrop-filter: none; backdrop-filter: none; }

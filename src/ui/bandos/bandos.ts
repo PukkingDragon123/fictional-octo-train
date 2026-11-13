@@ -73,7 +73,7 @@ export class BandOS {
   private g3: THREE.Group | null = null; private body3: THREE.Group | null = null; private arm: Arm | null = null; private armKind = '';
   private raise = 0; private raiseGoal = 0; private fumble = -1; private t = 0; private huntT = 0;
   private powered = false;
-  private dof!: HTMLElement;
+  private dof!: HTMLElement; private near!: HTMLElement;
 
   constructor() {
     (G as any).bandos = this;
@@ -250,6 +250,13 @@ export class BandOS {
       const tl = this.v1.copy(arm.target).applyQuaternion(this.q1);
       poseArm(arm, Math.atan2(tl.x, tl.z) * arm.side, dt);
     }
+    // near-field blur: round the elbow end of the forearm, fading out before the hand (the fingers stay sharp)
+    if (arm) {
+      const e = this.v1.copy(arm.elbow).project(cam), m = this.v2.copy(arm.elbow).lerp(arm.target, 0.62).project(cam);
+      const ex = (e.x + 1) / 2 * window.innerWidth, ey = (1 - e.y) / 2 * window.innerHeight, mx = (m.x + 1) / 2 * window.innerWidth, my = (1 - m.y) / 2 * window.innerHeight;
+      this.root.style.setProperty('--nx', Math.round(ex) + 'px'); this.root.style.setProperty('--ny', Math.round(ey) + 'px');
+      this.root.style.setProperty('--nr', Math.round(Math.hypot(mx - ex, my - ey)) + 'px');
+    }
     // the face: its four corners on screen, the DOM picture laid onto them
     const vw = window.innerWidth, vh = window.innerHeight;
     const pts = [[-Wm / 2, Hm / 2], [Wm / 2, Hm / 2], [Wm / 2, -Hm / 2], [-Wm / 2, -Hm / 2]].map(([x, y]) => {
@@ -309,7 +316,9 @@ export class BandOS {
     r.className = 'wt ' + L.kind + (this.amber ? ' amb' : '');
     // the world behind, a little out of focus round the unit (the unit sharp)
     this.dof = el('div', 'wt-dof');
-    r.append(this.dof);
+    // the eyes focus on the screen: what is nearer (the sleeve, the cuff) goes soft
+    this.near = el('div', 'wt-near');
+    r.append(this.dof, this.near);
     this.rig = el('div', 'wt-rig');
     this.lift = el('div', 'wt-lift');
     this.rig.append(this.lift);

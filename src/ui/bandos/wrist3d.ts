@@ -167,7 +167,8 @@ export function watchArm(L: WristLayout, k: number): { elbow: THREE.Vector3; wri
   const W = L.W * k, H = L.H * k;
   // (a real forearm's length, so the arm is the unit's own size beside the case)
   const wrist = new THREE.Vector3(W / 2 + 0.018, -H / 2 + 0.012, -0.03);
-  const dir = new THREE.Vector3(0.894, 0.447, -0.02).normalize();
+  // (steep, up from the bottom edge: the glove and the cuff show, little of the sleeve)
+  const dir = new THREE.Vector3(0.6, 0.8, -0.06).normalize();
   return { elbow: wrist.clone().addScaledVector(dir, -0.26), wrist };
 }
 
