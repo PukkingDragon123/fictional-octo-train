@@ -161,30 +161,34 @@ function furIsland(B: SkinB, x: BuildCtx, reg: Region, g: number, t0: number, t1
 }
 
 /**
- * Fur growing through the jelly: hundreds of wet, matted clumps rooted under the gel surface and pushing out
- * through it, lying back toward the tail and drooping with the wet. Where it is thin or torn away (a slow noise
- * over the body, different for every individual) the bare candy shows through.
+ * Fur growing back through the jelly: wet, matted clumps rooted just under the gel surface, combed flat along the
+ * body (nose to tail, and down the flanks), hugging its contours, with a longer shaggy fringe hanging from the belly
+ * and the nape. Where it is thin or torn away (a slow noise over the body, different for every individual) the
+ * bare red candy shows through, and the head is left clear so the face, the ear and the muzzle still read.
  */
 function furClumps(B: SkinB, x: BuildCtx, reg: Region, g: number, seed: number) {
-  const v = x.variant, NT = 26, NA = 22;
+  const v = x.variant, NT = 28, NA = 24;
   for (let i = 0; i < NT; i++) for (let j = 0; j < NA; j++) {
     const h1 = hash(i * 31 + j, seed), h2 = hash(j * 17 + i, seed + 3), h3 = hash(i + j * 7, seed + 9);
-    const t = 0.06 + (i + 0.2 + h1 * 0.6) / NT * 0.86, a = -2.35 + (j + h2) / NA * 4.7;
-    // torn and thin patches: the gummy shows through
-    const cover = 0.55 + 0.3 * Math.sin(3 * a + 5 * t + v * 1.7) + 0.22 * Math.sin(7 * a - 9 * t + v * 2.3) + 0.18 * Math.sin(2 * a + 13 * t + v) + (h3 - 0.5) * 0.3;
-    if (cover < 0.32 || (t > 0.86 && Math.abs(a) < 1.2)) continue;
-    const base = blobAt(t, a, v, 0.95), o = blobAt(t, a, v, 1.12);
+    const t = 0.05 + (i + 0.2 + h1 * 0.6) / NT * 0.78, a = -2.5 + (j + h2) / NA * 5.0;
+    // torn and thin patches: the gummy shows through (about half the body)
+    const cover = 0.5 + 0.3 * Math.sin(3 * a + 5 * t + v * 1.7) + 0.22 * Math.sin(7 * a - 9 * t + v * 2.3) + 0.18 * Math.sin(2 * a + 13 * t + v) + (h3 - 0.5) * 0.3;
+    if (cover < 0.5) continue;
+    const belly = Math.abs(a) > 1.85, nape = t > 0.64 && Math.abs(a) < 0.9;
+    const base = blobAt(t, a, v, 0.985), o = blobAt(t, a, v, 1.1);
     const n: V3 = [o[0] - base[0], o[1] - base[1], o[2] - base[2]], nl = Math.hypot(n[0], n[1], n[2]) || 1;
     n[0] /= nl; n[1] /= nl; n[2] /= nl;
-    // wet fur does not stand up: each clump lies back along the body and hangs, plastered to the jelly
-    const L = (0.07 + 0.08 * h3) * (0.7 + Math.min(1, cover) * 0.5), th = 0.8 + h1 * 0.6;
-    const hang: V3 = [(h2 - 0.5) * 0.3, -0.55, -0.8];
-    const dn = hang[0] * n[0] + hang[1] * n[1] + hang[2] * n[2];
-    const tg: V3 = [hang[0] - n[0] * dn, hang[1] - n[1] * dn, hang[2] - n[2] * dn], tl = Math.hypot(tg[0], tg[1], tg[2]) || 1;
+    // combed: back toward the tail, more downward the further round the flank; the fringe hangs
+    const side = Math.abs(Math.sin(a));
+    const comb: V3 = belly ? [Math.sign(a) * 0.15, -1, -0.35] : [(h2 - 0.5) * 0.2, -0.2 - 0.55 * side, -1];
+    const dn = comb[0] * n[0] + comb[1] * n[1] + comb[2] * n[2];
+    const tg: V3 = [comb[0] - n[0] * dn, comb[1] - n[1] * dn, comb[2] - n[2] * dn], tl = Math.hypot(tg[0], tg[1], tg[2]) || 1;
     tg[0] /= tl; tg[1] /= tl; tg[2] /= tl;
-    const at = (k: number, o: number): V3 => [base[0] + tg[0] * L * k + n[0] * L * o, base[1] + tg[1] * L * k + n[1] * L * o, base[2] + tg[2] * L * k + n[2] * L * o];
+    const L = (0.045 + 0.04 * h3) * (belly ? 2.3 : nape ? 1.8 : 1), wd = (0.75 + h1 * 0.5) * (belly ? 0.8 : 1);
+    const lift = belly ? 0.35 : 0.1; // the fringe stands off and hangs; the coat lies flat
+    const at = (k: number, oo: number): V3 => [base[0] + tg[0] * L * k + n[0] * L * oo, base[1] + tg[1] * L * k + n[1] * L * oo, base[2] + tg[2] * L * k + n[2] * L * oo];
     const w = gelW(x, base);
-    sac(B, reg, g, [base, at(0.4, 0.3), at(0.75, 0.3), at(1, 0.2)], [[0.03 * th, 0.024 * th], [0.026 * th, 0.019 * th], [0.014 * th, 0.011 * th], [0.003, 0.003]], [w, w, w, w], { n: 5 });
+    sac(B, reg, g, [base, at(0.35, lift), at(0.7, lift * 0.9), at(1, lift * 0.5)], [[0.032 * wd, 0.011], [0.027 * wd, 0.01], [0.015 * wd, 0.007], [0.003, 0.002]], [w, w, w, w], { n: 5, up: n });
   }
 }
 
