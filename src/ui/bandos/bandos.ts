@@ -58,7 +58,7 @@ export class BandOS {
   private cur: Run | null = null;
   private busy = 0;
   private raf = 0; private last = 0; private clockT = 0;
-  private fxT = 0; private fxK = 0;
+  private fxEnd = 0; private fxDur = 1; private fxK = 0;
   private amber = store.get('band.phos') === 'amber';
   private bright = Number(store.get('band.bright') ?? 2) || 2;
   private lineT = 0;
@@ -156,22 +156,23 @@ export class BandOS {
     this.clockT -= dt;
     if (this.clockT <= 0) { this.clockT = 1; this.refreshTop(); this.syncMsg(); }
     if (this.lineT > 0) { this.lineT -= dt; if (this.lineT <= 0) this.footLine(); }
-    this.drawFx(dt);
+    this.drawFx(now);
     this.raf = requestAnimationFrame(this.frame);
   };
   /** static on the tube: k strength, for t seconds (fading) */
-  private staticBurst(k: number, t: number) { if (reduce()) return; this.fxK = k; this.fxT = t; }
-  private drawFx(dt: number) {
+  private staticBurst(k: number, t: number) { if (reduce()) return; this.fxK = k; this.fxDur = t; this.fxEnd = performance.now() + t * 1000; }
+  /** (on the clock, not the frame count: a slow frame never leaves the static stuck on the glass) */
+  private drawFx(now: number) {
     const cv = this.fx, c = cv.getContext('2d')!;
-    if (this.fxT <= 0) { if (cv.dataset.on) { c.clearRect(0, 0, cv.width, cv.height); delete cv.dataset.on; } return; }
-    this.fxT = Math.max(0, this.fxT - dt);
+    const left = (this.fxEnd - Math.max(now, performance.now())) / 1000;
+    if (left <= 0) { if (cv.dataset.on) { c.clearRect(0, 0, cv.width, cv.height); delete cv.dataset.on; } return; }
     cv.dataset.on = '1';
     const w = cv.width, h = cv.height, im = c.createImageData(w, h), d = im.data;
-    const a = Math.min(1, this.fxK * Math.min(1, this.fxT * 3)) * 255;
+    const a = Math.min(1, this.fxK * Math.min(1, (left / this.fxDur) * 2.2)) * 255;
     for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 255; d[i] = v; d[i + 1] = v; d[i + 2] = v; d[i + 3] = Math.random() < 0.85 ? a : 0; }
     // a few torn bright lines
     c.putImageData(im, 0, 0);
-    c.fillStyle = 'rgba(255,255,255,0.5)';
+    c.fillStyle = `rgba(255,255,255,${(0.5 * a / 255).toFixed(2)})`;
     for (let k = 0; k < 3; k++) c.fillRect(0, Math.floor(Math.random() * h), w, 1);
   }
 
@@ -289,7 +290,8 @@ export class BandOS {
     const L = this.phone ? TALL : WIDE;
     if (L !== this.L) { this.L = L; this.build(); this.toHome(true); }
     const vw = window.innerWidth, vh = window.innerHeight;
-    const s = L.kind === 'tall' ? Math.min(vw / L.W, vh / L.H) : Math.min((vw * 0.94) / L.W, (vh * 0.95) / L.H);
+    // (a desktop leaves the forearm showing either side of the case: the sleeve left, the wrist and hand right)
+    const s = L.kind === 'tall' ? Math.min(vw / L.W, vh / L.H) : Math.min((vw * 0.8) / L.W, (vh * 0.9) / L.H);
     this.rig.style.transform = `translate(${Math.round((vw - L.W * s) / 2)}px, ${Math.round((vh - L.H * s) / 2 + (L.kind === 'wide' ? vh * 0.01 : 0))}px) scale(${s})`;
   }
 
