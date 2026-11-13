@@ -4,6 +4,7 @@ import { atlas } from './atlas';
 import { clamp, damp, lerp } from '../core/math';
 import { PostFX, POST_FRAG, FS_VERT, CAMU, SPOTU, ADAPTU } from './postfx';
 import { QUALITY, QualityLevel, QualitySetting, ZoneFx, zoneFx, detectQuality } from './fxconfig';
+import { MotionFx, type BlurLevel } from './motionFx';
 
 /** Per-zone colour grading and atmosphere */
 export interface Grade {
@@ -187,6 +188,8 @@ export class PixelRenderer {
 
   // ---- realism layer
   readonly postfx = new PostFX();
+  /** motion blur and the mind's eye (src/gfx/motionFx.ts): after the composite, before the upscale */
+  readonly motion = new MotionFx();
   /** quality setting ('auto' picks by device and steps down when frames run long) and the level in use */
   qualitySetting: QualitySetting = 'auto';
   quality: QualityLevel = 'high';
@@ -309,6 +312,7 @@ export class PixelRenderer {
     this.overlayCamera.updateProjectionMatrix();
     U.uSnapRes.value.set(RW, RH);
     this.postfx.setSize(RW, RH);
+    this.motion.setSize(RW, RH, this.smooth);
     if (this.zoomLevel >= 0) this.setZoomLevel(this.zoomLevel);
   }
 
@@ -329,7 +333,8 @@ export class PixelRenderer {
     return sc < 1.12 ? 1 : sc;
   }
 
-  applySettings(s: { quality?: QualitySetting; grain?: number; pixelFilter?: number }) {
+  applySettings(s: { quality?: QualitySetting; grain?: number; pixelFilter?: number; motionBlur?: BlurLevel }) {
+    if (s.motionBlur) this.motion.level = s.motionBlur;
     if (s.quality) this.qualitySetting = s.quality;
     if (typeof s.grain === 'number') this.film = clamp(s.grain, 0, 2);
     if (typeof s.pixelFilter === 'number' && Math.abs(s.pixelFilter - this.pixelFilter) > 1e-3) { this.pixelFilter = clamp(s.pixelFilter, 0, 1); this.resize(); }
@@ -630,6 +635,12 @@ export class PixelRenderer {
     pu.tAO.value = fxo.ao; pu.tVol.value = fxo.vol; pu.tBloom.value = fxo.bloom; pu.tBloomWide.value = fxo.wide;
     pu.uRes.value.set(RW, RH);
     this.pass(this.postMat, this.rtPost);
+    // 3b. motion blur and the mind's eye (skipped when off and the mind is calm)
+    let shown: THREE.Texture = this.rtPost.texture;
+    if (!this.postfx.bypass && this.motion.active()) {
+      this.motion.quality = this.qualityOverride ?? this.quality;
+      shown = this.motion.run(this.pass, this.rtPost.texture, this.rtScene.depthTexture!, eye ?? this.camera, dt);
+    }
     // 4. overlay scene (held devices) into its own low-res target, then its film (grade, outline, grain)
     // once per low-res pixel into rtOverlayPost
     const overlay = this.overlayEnabled && !this.hideOverlay;
@@ -652,7 +663,7 @@ export class PixelRenderer {
     // 5. upscale to screen with sub-pixel camera offset, the close-up layer over it (one full-res pass)
     r.setRenderTarget(null);
     const bu = this.blitMat.uniforms;
-    bu.tSrc.value = this.rtPost.texture;
+    bu.tSrc.value = shown;
     bu.tOv.value = this.rtOverlayPost.texture;
     bu.uOvOn.value = overlay ? 1 : 0;
     bu.uLowRes.value.set(RW, RH);

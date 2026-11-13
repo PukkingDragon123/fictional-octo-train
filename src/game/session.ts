@@ -46,6 +46,7 @@ import { installFactions } from '../tribes/install';
 import { installCheckpoints } from './checkpoint';
 import { installCine } from './cine';
 import { installGrass } from '../gfx/grass';
+import { installMindFx } from '../gfx/mindFx';
 import '../game/worldOps';
 import '../world/zones';
 
@@ -136,6 +137,8 @@ export function startSession(o: SessionOpts): Game {
   g.addSystem(new WorldExtras(g));
   // round 17: the instanced, wind-blown, trampled grass on the open levels (src/gfx/grass.ts)
   try { installGrass(g); } catch (e) { console.warn('grass', e); }
+  // round 17: panic and the mind on screen (src/gfx/mindFx.ts, src/gfx/motionFx.ts)
+  try { installMindFx(g); } catch (e) { console.warn('mind fx', e); }
   g.addSystem(new CreatureSystem());
   g.addSystem(new CombatSystem());
   g.addSystem(new GoreSystem());

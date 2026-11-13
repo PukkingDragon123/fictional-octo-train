@@ -222,6 +222,8 @@ export class AudioEngine {
   ctx: AudioContext | null = null;
   private master!: GainNode;
   private muffle!: BiquadFilterNode;
+  /** the mind going dull (src/gfx/mindFx.ts): 0 clear .. 1 the world heard through cotton */
+  dull = 0;
   private comp!: DynamicsCompressorNode;
   private buses = {} as Record<BusName, GainNode>;
   private reverb!: ConvolverNode;
@@ -881,7 +883,7 @@ export class AudioEngine {
       this.play('whisper', p.x + Math.cos(a) * 2.5, p.z + Math.sin(a) * 2.5, { flat: false, vol: 0.4 + (45 - b.lucidity) / 90, range: 9 });
     }
     // muffled world while asleep or unconscious
-    const target = this.sleepDuck ? 900 : 20000 - this.deaf * 18500;
+    const target = this.sleepDuck ? 900 : (20000 - this.deaf * 18500) * (1 - 0.82 * this.dull);
     this.muffle.frequency.setTargetAtTime(Math.max(300, target), now, 0.3);
     void dt;
   }

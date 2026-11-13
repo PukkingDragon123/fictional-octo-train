@@ -283,11 +283,13 @@ export interface GfxSettings {
   comfort: boolean;
   /** after a free orbit (middle mouse / Alt+drag) keep the angle instead of easing back to the nearest quarter turn */
   keepOrbit: boolean;
+  /** motion blur on camera moves, rolls, sprints, fast inhabitants and hits (src/gfx/motionFx.ts) */
+  motionBlur: 'off' | 'low' | 'normal' | 'heavy';
 }
 export function gfxSettings(): GfxSettings {
   let rm = false;
   try { rm = matchMedia('(prefers-reduced-motion: reduce)').matches; } catch { /* ignore */ }
-  const d: GfxSettings = { pixelHeight: 450, pixelFilter: 0.2, shake: true, grain: 1, quality: 'auto', shakeAmt: 1, peek: true, comfort: rm, keepOrbit: false };
+  const d: GfxSettings = { pixelHeight: 450, pixelFilter: 0.2, shake: true, grain: 1, quality: 'auto', shakeAmt: 1, peek: true, comfort: rm, keepOrbit: false, motionBlur: 'normal' };
   try { return { ...d, ...JSON.parse(localStorage.getItem('noclip.gfx') || '{}') }; } catch { return d; }
 }
 export function saveGfx(s: GfxSettings) { try { localStorage.setItem('noclip.gfx', JSON.stringify(s)); } catch { /* ignore */ } applyGfx(s); }
@@ -305,7 +307,7 @@ const GFX_LABELS: Record<string, [string, string]> = {
   comfort: ['Motion comfort', 'almost no shake or sway, gentler camera moves'],
   keepOrbit: ['Keep camera angle', 'after a free orbit, stay there instead of snapping back'],
 };
-const GFX_HANDLED = new Set(['pixelHeight', 'pixelFilter', 'shake', 'shakeAmt', 'grain', 'quality', 'peek', 'comfort', 'keepOrbit']);
+const GFX_HANDLED = new Set(['pixelHeight', 'pixelFilter', 'shake', 'shakeAmt', 'grain', 'quality', 'peek', 'comfort', 'keepOrbit', 'motionBlur']);
 const humanizeKey = (k: string) => k.replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
 /** PICTURE: every field of GfxSettings gets a control (fields added later show up as generic switches / sliders) */
@@ -319,6 +321,8 @@ function picturePage(f: DocumentFragment) {
   const shakeNow = gs.shake === false ? 0 : (gs.shakeAmt ?? 1);
   f.append(seg<number>('Camera shake', [[0, 'Off'], [0.5, 'Low'], [1, 'Normal'], [1.5, 'Strong']], [0, 0.5, 1, 1.5].reduce((a, b) => Math.abs(b - shakeNow) < Math.abs(a - shakeNow) ? b : a, 1),
     (v) => { gs.shake = v > 0; if (v > 0) gs.shakeAmt = v; save(); }));
+  f.append(seg<string>('Motion blur', [['off', 'Off'], ['low', 'Low'], ['normal', 'Normal'], ['heavy', 'Heavy']], gs.motionBlur ?? 'normal', (v) => { gs.motionBlur = v as GfxSettings['motionBlur']; save(); },
+    { tip: (v) => ({ off: 'A crisp picture at all times', low: 'A light streak on fast moves', normal: 'Pans, rolls, sprints and hits streak', heavy: 'Long streaks and trails' } as Record<string, string>)[v] || '' }));
   if ('grain' in gs && typeof gs.grain === 'number') f.append(seg<number>('Grain & lens', [[0, 'Off'], [0.5, 'Low'], [1, 'Normal']], gs.grain <= 0.25 ? 0 : gs.grain <= 0.75 ? 0.5 : 1, (v) => { gs.grain = v; save(); }, { tip: () => 'Film grain and dirt on the lens' }));
   for (const k of ['peek', 'comfort', 'keepOrbit']) if (typeof gs[k] === 'boolean') {
     const [l, sub] = GFX_LABELS[k];
