@@ -161,11 +161,14 @@ export function watchBody(L: WristLayout, k: number): THREE.Group {
   g.add(fpLightRig());
   return g;
 }
-/** the forearm under the case (case-local metres): the wrist under its right end, and where the elbow should aim
- *  (out to the left, level with the case's foot): the arm held across the bottom of the view, the case on top */
+/** the forearm under the case (case-local metres): in from below the case's left end (the elbow off the picture),
+ *  the wrist under its right end, so the sleeve, its cuff and the gloved hand show round the case */
 export function watchArm(L: WristLayout, k: number): { elbow: THREE.Vector3; wrist: THREE.Vector3 } {
   const W = L.W * k, H = L.H * k;
-  return { elbow: new THREE.Vector3(-W / 2 - 0.2, -H / 2 - 0.01, 0.02), wrist: new THREE.Vector3(W / 2 + 0.02, -H / 2 + 0.006, -0.05) };
+  // (a real forearm's length, so the arm is the unit's own size beside the case)
+  const wrist = new THREE.Vector3(W / 2 + 0.018, -H / 2 + 0.012, -0.03);
+  const dir = new THREE.Vector3(0.894, 0.447, -0.02).normalize();
+  return { elbow: wrist.clone().addScaledVector(dir, -0.26), wrist };
 }
 
 // ---------------------------------------------------------------- the SELECT dial

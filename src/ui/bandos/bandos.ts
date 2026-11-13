@@ -35,8 +35,7 @@ import { WIDE, TALL, wristArt, wristDial, watchBody, watchArm, type WristLayout 
 import * as THREE from 'three';
 import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera, fpBlend } from '../../fp/fp';
 import { eyeActive } from '../../fp/eye';
-import { createPreviewRig, type HumanRig } from '../../entities/humanRig';
-import { reachArm } from '../../game/cutPose';
+import { makeArm, poseArm, type Arm } from '../../craft/fpKit';
 import { panicLocks, panicFumble, huntedBy } from '../../game/panic';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
@@ -71,7 +70,7 @@ export class BandOS {
   private timers: number[] = [];
   // first person: the 3D body and the arm in the overlay scene, the raise (0 down .. 1 up), the fumble
   private fp = false;
-  private g3: THREE.Group | null = null; private body3: THREE.Group | null = null; private body: HumanRig | null = null; private armKind = ''; private rigSig = '';
+  private g3: THREE.Group | null = null; private body3: THREE.Group | null = null; private arm: Arm | null = null; private armKind = '';
   private raise = 0; private raiseGoal = 0; private fumble = -1; private t = 0; private huntT = 0;
   private powered = false;
   private dof!: HTMLElement;
@@ -238,17 +237,18 @@ export class BandOS {
     b3.position.applyQuaternion(cam.quaternion);
     b3.quaternion.premultiply(cam.quaternion);
     b3.updateMatrixWorld(true);
-    // the unit's own left arm (its HumanRig) bent so the wrist sits under the case's right end, the elbow up and
-    // out to the left: a forearm held level across the bottom of the view, the case riding on it
-    const rig = this.body;
-    if (rig) {
+    // the unit's own left arm (the close-ups' arm: its HumanRig, src/fp/hands.ts) comes in from the lower left,
+    // the case strapped on the forearm, the gloved hand closed round the case's right side
+    const arm = this.arm;
+    if (arm) {
       const A = watchArm(L, k);
-      rig.root.updateMatrixWorld(true);
-      const wrist = b3.localToWorld(this.v1.copy(A.wrist));
-      const elbowAim = b3.localToWorld(this.v2.copy(A.elbow));
-      rig.j.uarmL.getWorldPosition(this.v3);
-      reachArm(rig, 'L', wrist, 1, elbowAim.sub(this.v3).normalize());
-      rig.root.updateMatrixWorld(true);
+      arm.elbow.copy(b3.localToWorld(this.v1.copy(A.elbow)));
+      arm.target.copy(b3.localToWorld(this.v2.copy(A.wrist)));
+      // the back of the forearm to the eyes (palm away)
+      const dir = this.v3.subVectors(arm.target, arm.elbow).normalize();
+      this.q1.setFromUnitVectors(this.up, dir).invert();
+      const tl = this.v1.copy(arm.target).applyQuaternion(this.q1);
+      poseArm(arm, Math.atan2(tl.x, tl.z) * arm.side, dt);
     }
     // the face: its four corners on screen, the DOM picture laid onto them
     const vw = window.innerWidth, vh = window.innerHeight;
@@ -264,50 +264,30 @@ export class BandOS {
     this.root.style.setProperty('--fr', Math.round(Math.hypot(pts[2][0] - pts[0][0], pts[2][1] - pts[0][1]) * 0.62) + 'px');
   }
   private v1 = new THREE.Vector3(); private v2 = new THREE.Vector3(); private v3 = new THREE.Vector3(); private q1 = new THREE.Quaternion(); private up = new THREE.Vector3(0, 1, 0);
-  /** the unit's own body (its HumanRig, dressed as it is, a work glove on): the eyes at the camera, the head
-   *  folded away so it never shows; only the raised left arm comes into view */
-  private ensureRig() {
-    const p = G.local as any;
-    if (!p) return;
-    let out: any = {};
-    try { out = p.computeOutfit?.() ?? {}; } catch { out = {}; }
-    out = { ...out, hands: out.hands ?? { tex: 'c_gloves', color: 0x3a3127 } };
-    const sig = JSON.stringify(p.app) + JSON.stringify(out);
-    if (this.body && sig === this.rigSig) return;
-    this.rigSig = sig;
-    if (!this.body) {
-      try { this.body = createPreviewRig(p.app, out, { outline: false }); } catch (e) { console.warn('band rig', e); this.body = null; return; }
-      const rig = this.body;
-      rig.root.traverse((o) => { o.castShadow = false; o.frustumCulled = false; });
-      // facing away from the camera (the eyes look down -z), the eyes on the camera
-      rig.root.rotation.y = Math.PI;
-      rig.root.updateMatrixWorld(true);
-      const head = rig.j.head.getWorldPosition(new THREE.Vector3());
-      rig.root.position.set(-head.x, -(head.y + 0.075 * rig.s), -head.z + 0.06 * rig.s);
-      rig.j.head.scale.setScalar(0.001);
-      // two webbing straps on the forearm, a steel buckle each, either side of the case
-      const web = new THREE.MeshStandardMaterial({ color: 0x5e5a38, roughness: 0.95 }), steel = new THREE.MeshStandardMaterial({ color: 0xb8c0bc, roughness: 0.3, metalness: 0.85 });
-      const fl = rig.j.handL.position.length() || 0.25;
-      for (const t of [0.45, 0.86]) {
-        const st = new THREE.Mesh(new THREE.BoxGeometry(0.084 * rig.s, 0.016 * rig.s, 0.084 * rig.s), web);
-        st.position.set(0, -t * fl, 0);
-        const bk = new THREE.Mesh(new THREE.BoxGeometry(0.026 * rig.s, 0.024 * rig.s, 0.008 * rig.s), steel);
-        bk.position.set(0, 0, 0.043 * rig.s); st.add(bk);
-        rig.j.farmL.add(st);
-      }
-    } else this.body.setOutfit(out);
-  }
   /** the case's body and the unit's raised left arm in the overlay scene (rebuilt when the layout changes) */
   private build3d() {
     const L = this.L;
     if (!this.g3) this.g3 = fpGroup('watch');
-    if (this.armKind === L.kind && this.body3 && this.body) { this.ensureRig(); return; }
+    if (this.armKind === L.kind && this.body3 && this.arm) return;
     this.g3.clear();
     const k = (L.kind === 'wide' ? 0.18 : 0.092) / L.W;
     this.body3 = watchBody(L, k);
     this.g3.add(this.body3);
-    this.ensureRig();
-    if (this.body) this.g3.add(this.body.root);
+    if (this.arm) { this.arm.fp.dispose(); this.arm = null; }
+    const A = watchArm(L, k);
+    const arm = makeArm(-1, A.wrist.distanceTo(A.elbow) / 0.26);
+    arm.want = 'grip';
+    // two webbing straps round the forearm either side of the case, a steel buckle each
+    const web = new THREE.MeshStandardMaterial({ color: 0x5e5a38, roughness: 0.95 }), steel = new THREE.MeshStandardMaterial({ color: 0xb8c0bc, roughness: 0.3, metalness: 0.85 });
+    for (const t of [0.42, 0.84]) {
+      const st = new THREE.Mesh(new THREE.BoxGeometry(0.074, 0.014, 0.074), web);
+      st.position.set(0, 0.26 * t, 0);
+      const bk = new THREE.Mesh(new THREE.BoxGeometry(0.026, 0.024, 0.008), steel);
+      bk.position.set(0, 0, -0.038); st.add(bk);
+      arm.root.add(st);
+    }
+    this.g3.add(arm.root);
+    this.arm = arm;
     // a lamp-lit close-up: warm key from over the left shoulder onto the forearm and the case, a cool fill, a rim
     const hemi = new THREE.HemisphereLight(0xfff0dc, 0x3a3028, 1.1);
     const key = new THREE.DirectionalLight(0xffe6c4, 2.4); key.position.set(-0.4, 0.6, 0.4); key.target.position.set(0, -0.15, -0.3);

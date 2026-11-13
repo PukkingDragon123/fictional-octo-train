@@ -1,8 +1,9 @@
-// First-person arms and hands, shared by every close-up (backpack,
-// eating, inspection, bench, cooking, surgery, the intro). Low-poly but never
-// blocky: capsule phalanges with round knuckles, a cupped rounded palm, a
-// tapered forearm under a wrinkled jumpsuit sleeve, nails, crease shading in
-// vertex colour, smooth normals. The pixel pipeline does the rest.
+// First-person arms and hands, shared by every close-up (backpack, eating, inspection, bench, cooking,
+// surgery, the intro, the wrist terminal). They are the unit's OWN arm: a HumanRig
+// (src/entities/humanRig.ts) dressed in the unit's outfit and painted by its paint pipeline at the
+// finest level (the hd page: the sleeve and its cuff, the glove's seams, skin, fingers), of which
+// only the forearm, the hand and the upper arm are kept: every other bone folds to a point at the
+// shoulder, out of the frame. The rig's own bones are posed by the same API the close-ups call.
 //
 // Space: the elbow is the root's origin and the forearm runs up local +Y to the
 // wrist (0.26 m); fingers continue along +Y; the palm faces +Z. A left arm is a
@@ -11,6 +12,8 @@
 // camera, so an arm always leaves the frame at the bottom edge: no hand floats.
 import * as THREE from 'three';
 import { G } from '../game/G';
+import { HumanRig, normalizeAppearance, type Appearance, type Outfit } from '../entities/humanRig';
+import { worldMaterial } from '../gfx/materials';
 
 export type HandPose = 'relaxed' | 'open' | 'fist' | 'grip' | 'point' | 'pinch' | 'cup' | 'press' | 'claw' | 'flat';
 type F3 = [number, number, number];
@@ -31,221 +34,11 @@ export const HAND_POSES: Record<HandPose, PoseDef> = {
 };
 
 const FOREARM = 0.26;
-// index, middle, ring, little: knuckle x, knuckle height, splay, phalanx lengths, base and tip radius
-const FINGERS: { x: number; y: number; splay: number; len: F3; r0: number; r1: number }[] = [
-  { x: -0.026, y: 0.084, splay: -0.07, len: [0.039, 0.024, 0.019], r0: 0.0094, r1: 0.0074 },
-  { x: -0.0085, y: 0.087, splay: 0, len: [0.043, 0.027, 0.02], r0: 0.0097, r1: 0.0076 },
-  { x: 0.0095, y: 0.084, splay: 0.06, len: [0.04, 0.025, 0.019], r0: 0.0092, r1: 0.0072 },
-  { x: 0.0265, y: 0.077, splay: 0.13, len: [0.031, 0.019, 0.016], r0: 0.0081, r1: 0.0063 },
-];
-
-// ---------------------------------------------------------------- geometry (shared)
-const geoCache = new Map<string, THREE.BufferGeometry>();
-function cached(key: string, make: () => THREE.BufferGeometry) {
-  let g = geoCache.get(key);
-  if (!g) { g = make(); geoCache.set(key, g); }
-  return g;
-}
-
-/** vertex colours: a multiplier on the skin colour (creases darker and redder, tips pinker) */
-// ---------------------------------------------------------------- detail textures
-// Tiling pixel-art detail (nearest filtered) multiplied over the skin and the jumpsuit:
-// pores, creases, fine hairs and grime on the skin; twill weave, a stitched seam, stains
-// and wear on the cloth. UVs are scaled to real size, so every part shares one density.
-const TILE = 0.035; // metres per texture repeat
-function texUV(g: THREE.BufferGeometry, su: number, sv: number) {
-  const uv = g.attributes.uv as THREE.BufferAttribute | undefined;
-  if (!uv) return;
-  for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * su, uv.getY(i) * sv);
-}
-function detailTex(paint: (put: (x: number, y: number, v: number) => void, rnd: () => number, N: number) => void, N = 64): THREE.Texture | null {
-  if (typeof document === 'undefined') return null;
-  const cv = document.createElement('canvas'); cv.width = cv.height = N;
-  const ctx = cv.getContext('2d')!;
-  const img = ctx.createImageData(N, N);
-  const val = new Float32Array(N * N).fill(1);
-  let seed = 1234567;
-  const rnd = () => ((seed = (Math.imul(seed, 1103515245) + 12345) >>> 0) / 4294967296);
-  const put = (x: number, y: number, v: number) => { const i = (((y % N) + N) % N) * N + (((x % N) + N) % N); val[i] *= v; };
-  paint(put, rnd, N);
-  for (let i = 0; i < N * N; i++) { const v = Math.max(0, Math.min(255, Math.round(val[i] * 255))); img.data[i * 4] = v; img.data[i * 4 + 1] = Math.round(v * 0.985); img.data[i * 4 + 2] = Math.round(v * 0.97); img.data[i * 4 + 3] = 255; }
-  ctx.putImageData(img, 0, 0);
-  const t = new THREE.CanvasTexture(cv);
-  t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-let skinT: THREE.Texture | null | undefined, clothT: THREE.Texture | null | undefined;
-/** skin: soft mottling, pores, short creases, fine hairs, a little grime */
-function skinTex() {
-  if (skinT !== undefined) return skinT;
-  return (skinT = detailTex((put, rnd, N) => {
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      const m = 0.5 + 0.5 * Math.sin(x * 0.29 + Math.sin(y * 0.17) * 2) * Math.sin(y * 0.23 + x * 0.05);
-      put(x, y, 0.95 + m * 0.05);
-    }
-    for (let i = 0; i < N * N * 0.07; i++) put((rnd() * N) | 0, (rnd() * N) | 0, 0.86 + rnd() * 0.06);
-    for (let i = 0; i < 14; i++) { const x = (rnd() * N) | 0, y = (rnd() * N) | 0, l = 3 + ((rnd() * 4) | 0); for (let k = 0; k < l; k++) put(x + k, y + (k > l / 2 ? 1 : 0), 0.84); }
-    for (let i = 0; i < 26; i++) { const x = (rnd() * N) | 0, y = (rnd() * N) | 0; put(x, y, 0.8); put(x + 1, y - 1, 0.86); }
-    for (let i = 0; i < 4; i++) { const cx = rnd() * N, cy = rnd() * N, r = 3 + rnd() * 4; for (let y = -8; y <= 8; y++) for (let x = -8; x <= 8; x++) { const d = Math.hypot(x, y) / r; if (d < 1 && rnd() < 0.7 * (1 - d)) put((cx + x) | 0, (cy + y) | 0, 0.88); } }
-  }));
-}
-/** jumpsuit canvas: twill, slub, a stitched seam, stains and worn patches */
-function clothTex() {
-  if (clothT !== undefined) return clothT;
-  return (clothT = detailTex((put, rnd, N) => {
-    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
-      put(x, y, ((x + y) & 3) < 2 ? 1 : 0.9);
-      if (((x - y) & 7) === 0) put(x, y, 0.95);
-    }
-    for (let i = 0; i < N * 0.6; i++) { const y = (rnd() * N) | 0, x = (rnd() * N) | 0, l = 4 + ((rnd() * 8) | 0); for (let k = 0; k < l; k++) put(x + k, y, rnd() < 0.5 ? 1.05 : 0.93); }
-    const sx = (N * 0.7) | 0;
-    for (let y = 0; y < N; y++) { put(sx, y, 0.78); put(sx + 1, y, 1.06); if ((y & 3) < 2) put(sx - 2, y, 0.85); }
-    for (let i = 0; i < 5; i++) { const cx = rnd() * N, cy = rnd() * N, r = 2 + rnd() * 6, v = rnd() < 0.6 ? 0.8 : 1.08; for (let y = -9; y <= 9; y++) for (let x = -9; x <= 9; x++) { const d = Math.hypot(x * 1.3, y) / r; if (d < 1 && rnd() < 0.85 - d * 0.5) put((cx + x) | 0, (cy + y) | 0, v); } }
-  }));
-}
-
-function shade(g: THREE.BufferGeometry, fn: (x: number, y: number, z: number) => [number, number, number]) {
-  const pos = g.attributes.position as THREE.BufferAttribute;
-  const col = new Float32Array(pos.count * 3);
-  for (let i = 0; i < pos.count; i++) {
-    const c = fn(pos.getX(i), pos.getY(i), pos.getZ(i));
-    col[i * 3] = c[0]; col[i * 3 + 1] = c[1]; col[i * 3 + 2] = c[2];
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-}
-
-/** a tapered capsule with its base joint centre at the origin, running up +Y */
-function phalanx(len: number, r0: number, r1: number, tip: boolean) {
-  return cached(`ph:${len}:${r0}:${r1}:${tip}`, () => {
-    const g = new THREE.CapsuleGeometry(r0, len, 3, 8);
-    g.translate(0, len / 2, 0);
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const y = pos.getY(i), t = THREE.MathUtils.clamp(y / len, 0, 1);
-      const k = THREE.MathUtils.lerp(1, r1 / r0, t);
-      // fingers are a little flatter than round, padded on the palm side
-      const z = pos.getZ(i);
-      pos.setXYZ(i, pos.getX(i) * k, y, z * k * (z > 0 ? 0.95 : 0.82));
-    }
-    g.computeVertexNormals();
-    shade(g, (_x, y, z) => {
-      const crease = Math.exp(-((y / (r0 * 1.3)) ** 2)) * (z > 0 ? 0.16 : 0.07);
-      const pink = tip ? THREE.MathUtils.smoothstep(y, len * 0.55, len + r1) * 0.06 : 0;
-      return [1 - crease * 0.6 + pink * 0.4, 1 - crease - pink * 0.2, 1 - crease * 0.9 - pink * 0.1];
-    });
-    texUV(g, (2 * Math.PI * r0) / TILE, (len + 2 * r0) / TILE);
-    return g;
-  });
-}
-
-function palmGeo() {
-  return cached('palm', () => {
-    const w = 0.079, h = 0.088, d = 0.027;
-    const g = new THREE.BoxGeometry(w, h, d, 4, 4, 2);
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    const v = new THREE.Vector3();
-    for (let i = 0; i < pos.count; i++) {
-      v.fromBufferAttribute(pos, i);
-      // round the box toward an ellipsoid
-      const n = v.clone().divide(new THREE.Vector3(w / 2, h / 2, d / 2));
-      const len = Math.max(1e-4, n.length());
-      const s = THREE.MathUtils.lerp(1, 1 / len * Math.max(Math.abs(n.x), Math.abs(n.y), Math.abs(n.z)), 0.55);
-      v.multiplyScalar(s);
-      // cup the palm and thin it toward the fingers; heel of the hand thicker
-      const ty = (v.y + h / 2) / h;
-      v.z += (v.x * v.x) * 4.5 * (v.z > 0 ? 1 : 0.3);
-      v.z *= THREE.MathUtils.lerp(1.12, 0.86, ty);
-      // narrower at the wrist
-      v.x *= THREE.MathUtils.lerp(0.84, 1, Math.min(1, ty * 1.6));
-      pos.setXYZ(i, v.x, v.y + h / 2, v.z);
-    }
-    g.computeVertexNormals();
-    shade(g, (x, y, z) => {
-      const lines = z > 0 ? (Math.exp(-(((y - 0.06) / 0.004) ** 2)) + Math.exp(-(((y - 0.045 + x * 0.3) / 0.004) ** 2))) * 0.08 : 0;
-      const knuckles = z < 0 ? Math.max(0, Math.cos(x * 230)) * THREE.MathUtils.smoothstep(y, 0.07, 0.088) * 0.06 : 0;
-      return [1 - lines * 0.5 + knuckles * 0.3, 1 - lines - knuckles * 0.4, 1 - lines * 0.8 - knuckles * 0.3];
-    });
-    texUV(g, 0.08 / TILE, 0.09 / TILE);
-    return g;
-  });
-}
-
-function forearmGeo() {
-  return cached('forearm', () => {
-    const g = new THREE.CylinderGeometry(0.029, 0.043, FOREARM, 10, 6, false);
-    g.translate(0, FOREARM / 2, 0);
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), t = y / FOREARM;
-      // muscle belly near the elbow, flatter toward the wrist
-      const bulge = 1 + 0.12 * Math.sin(Math.PI * Math.min(1, (1 - t) * 1.25)) * (x > 0 ? 1.1 : 0.9);
-      pos.setXYZ(i, x * bulge, y, z * bulge * THREE.MathUtils.lerp(0.86, 0.72, t));
-    }
-    g.computeVertexNormals();
-    shade(g, (_x, y, z) => { const t = y / FOREARM; const vein = z > 0 ? 0.04 * Math.max(0, Math.sin(t * 9)) * t : 0; return [1 - vein, 1 - vein * 0.6, 1 + vein * 0.3]; });
-    texUV(g, (2 * Math.PI * 0.036) / TILE, FOREARM / TILE);
-    return g;
-  });
-}
-
-function sleeveGeo(style: 'long' | 'rolled') {
-  return cached('sleeve:' + style, () => {
-    const top = style === 'long' ? FOREARM * 0.86 : FOREARM * 0.42;
-    const g = new THREE.CylinderGeometry(0.039, 0.053, top + 0.04, 12, 8, true);
-    g.translate(0, (top + 0.04) / 2 - 0.04, 0);
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
-      const a = Math.atan2(z, x);
-      // fabric folds: bunching rings plus a few long creases
-      const fold = 1 + 0.06 * Math.sin(y * 70 + a * 2) * Math.sin(a * 3 + 1) + 0.035 * Math.sin(a * 5 + y * 20);
-      pos.setXYZ(i, x * fold, y, z * fold * 0.82);
-    }
-    g.computeVertexNormals();
-    shade(g, (x, y, z) => { const a = Math.atan2(z, x); const s = 0.86 + 0.14 * (0.5 + 0.5 * Math.sin(y * 70 + a * 2)); return [s, s, s * 0.97]; });
-    texUV(g, (2 * Math.PI * 0.046) / TILE, (top + 0.04) / TILE);
-    return g;
-  });
-}
-
-function cuffGeo(style: 'long' | 'rolled') {
-  return cached('cuff:' + style, () => {
-    const r = style === 'long' ? 0.034 : 0.044, h = style === 'long' ? 0.016 : 0.032;
-    const g = new THREE.CylinderGeometry(r + 0.004, r + 0.006, h, 12, 2, true);
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), z = pos.getZ(i), a = Math.atan2(z, x); const f = 1 + 0.05 * Math.sin(a * 4); pos.setXYZ(i, x * f, pos.getY(i), z * f * 0.82); }
-    g.computeVertexNormals();
-    shade(g, () => [0.9, 0.9, 0.88]);
-    texUV(g, (2 * Math.PI * r) / TILE, h / TILE);
-    return g;
-  });
-}
-
-/** the upper arm: unit length along +Y (scaled to reach the shoulder each frame), thicker toward the shoulder */
-function upperArmGeo(cloth: boolean) {
-  return cached('upper:' + (cloth ? 'cloth' : 'skin'), () => {
-    const g = new THREE.CylinderGeometry(0.064, 0.047, 1, 9, 10, true);
-    g.translate(0, 0.5, 0);
-    const pos = g.attributes.position as THREE.BufferAttribute;
-    for (let i = 0; i < pos.count; i++) {
-      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), a = Math.atan2(z, x);
-      const fold = cloth ? 1 + 0.07 * Math.sin(y * 26 + a * 2) * Math.sin(a * 3 + 0.6) + 0.03 * Math.sin(a * 5 + y * 9) : 1 + 0.05 * Math.sin(Math.PI * Math.min(1, y * 3)) * (x > 0 ? 1 : 0.6);
-      pos.setXYZ(i, x * fold, y, z * fold * 0.86);
-    }
-    g.computeVertexNormals();
-    shade(g, (x, y, z) => { const a = Math.atan2(z, x); const s = cloth ? 0.84 + 0.16 * (0.5 + 0.5 * Math.sin(y * 26 + a * 2)) : 1 - 0.1 * y; return [s, s, s * 0.97]; });
-    texUV(g, (2 * Math.PI * 0.055) / TILE, 0.3 / TILE);
-    return g;
-  });
-}
-/** a faceted knob that hides the bend at the elbow */
-const elbowGeo = () => cached('elbow', () => { const g = new THREE.IcosahedronGeometry(0.052, 1); g.scale(1, 0.9, 0.82); shade(g, () => [0.9, 0.9, 0.88]); texUV(g, 0.3 / TILE, 0.15 / TILE); return g; });
 /** where the shoulder sits in the camera's own space (x is mirrored for the left arm): well outside the frame */
 const SHOULDER = new THREE.Vector3(0.17, -0.25, -0.2);
-
-const nailGeo = () => cached('nail', () => { const g = new THREE.SphereGeometry(1, 8, 4, 0, Math.PI * 2, 0, Math.PI / 2); g.scale(0.0048, 0.0013, 0.006); g.rotateX(-Math.PI / 2); return g; });
+/** the rig's hanging left arm turned into this space: forearm up +Y, palm (the rig's -X) to +Z, thumb (+Z) to -X */
+const ALIGN = new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, -1, 0), new THREE.Vector3(-1, 0, 0)));
+const TINY = 1e-4;
 
 // ---------------------------------------------------------------- the arm
 export interface FpArm {
@@ -274,91 +67,59 @@ export interface FpArm {
 export interface FpArmOpts { skin?: number; sleeve?: number | null; sleeveStyle?: 'long' | 'rolled' | 'none'; scale?: number }
 
 export function fpArm(side: 'right' | 'left' = 'right', o: FpArmOpts = {}): FpArm {
-  const skinMat = new THREE.MeshStandardMaterial({ color: o.skin ?? 0xe8b98f, roughness: 0.62, metalness: 0, vertexColors: true, flatShading: true, map: skinTex() });
-  skinMat.emissive = new THREE.Color(o.skin ?? 0xe8b98f).multiplyScalar(0.05);
-  const nailTint = (skin: number) => new THREE.Color(skin).lerp(new THREE.Color(0xf0d4cc), 0.4).multiplyScalar(0.95);
-  const nailMat = new THREE.MeshStandardMaterial({ color: nailTint(o.skin ?? 0xe8b98f), roughness: 0.3, metalness: 0, flatShading: true });
-  const clothMat = new THREE.MeshStandardMaterial({ color: o.sleeve ?? 0xeeb415, roughness: 0.92, metalness: 0, vertexColors: true, side: THREE.DoubleSide, flatShading: true, map: clothTex() });
+  const p = G?.local as unknown as { app?: Partial<Appearance>; computeOutfit?: () => Outfit; worn?: Map<string, { key: string }> } | null;
+  let app = normalizeAppearance({ ...(p?.app ?? {}), ...(o.skin != null ? { skin: o.skin } : {}) });
+  let sleeve = o.sleeve === undefined ? 0xeeb415 : o.sleeve;
+  let sleeveStyle: 'long' | 'rolled' | 'none' = o.sleeveStyle ?? (sleeve === null ? 'none' : 'long');
+  /** the unit's clothes as they are (its suit, its gloves); a plain jumpsuit sleeve when there is no unit */
+  const outfit = (): Outfit => {
+    let out: Outfit = {};
+    try { out = p?.computeOutfit?.() ?? {}; } catch { out = {}; }
+    out = { ...out };
+    if (sleeveStyle === 'none') { out.torso = { tex: 'c_bare', color: app.skin, sleeve: 'none' } as Outfit['torso']; out.torsoOuter = undefined; }
+    else if (!out.torso) out.torso = { tex: 'c_uniform', color: sleeve ?? 0xeeb415, sleeve: sleeveStyle === 'rolled' ? 'short' : 'long' } as Outfit['torso'];
+    // the debt band on the left wrist (the rig draws it when the hand is bare)
+    if (side === 'left' && p?.worn && [...p.worn.values()].some((it) => /band/.test(it.key))) out.wrist = { tex: 'c_gloves', color: 0x8a8e94 } as Outfit['wrist'];
+    return out;
+  };
+  const rig = new HumanRig(app, worldMaterial({ noVis: true, noFog: true, noGrid: true }), { hd: true });
+  rig.setOutfit(outfit());
+  rig.root.traverse((ob) => { ob.castShadow = false; ob.frustumCulled = false; });
 
   const root = new THREE.Group(); root.name = 'fpArm:' + side;
   if (side === 'left') root.scale.x = -1;
   if (o.scale) root.scale.multiplyScalar(o.scale);
-  const forearm = new THREE.Mesh(forearmGeo(), skinMat); root.add(forearm);
-  const sleeveHolder = new THREE.Group(); root.add(sleeveHolder);
-  // the upper arm and the elbow knob, aimed at the shoulder every frame
-  const upper = new THREE.Mesh(upperArmGeo(true), clothMat); upper.visible = false; root.add(upper);
-  const elbow = new THREE.Mesh(elbowGeo(), clothMat); elbow.visible = false; root.add(elbow);
-
+  // the rig's left arm (a mirrored root makes it the left hand again): its bones lifted out of the body
+  const ua = rig.j.uarmL, fa = rig.j.farmL, ha = rig.j.handL;
+  const handLen = ha.position.length() || 0.25, uaLen = fa.position.length() || 0.285;
+  root.add(rig.root);
+  root.add(fa); fa.position.set(0, 0, 0); fa.quaternion.copy(ALIGN);
   const wrist = new THREE.Group(); wrist.position.y = FOREARM; root.add(wrist);
+  wrist.add(ha); ha.position.set(0, 0, 0); ha.quaternion.copy(ALIGN);
+  // (the forearm is stretched a touch to the close-ups' 0.26 m)
+  fa.scale.set(1, FOREARM / handLen, 1);
+  root.add(ua);
+  // the rest of the body folds to nothing where the rig's root is (kept at the shoulder, off the frame)
+  rig.j.hips.scale.setScalar(TINY); rig.j.hips.position.set(0, 0, 0);
   const palm = new THREE.Group(); wrist.add(palm);
-  palm.add(new THREE.Mesh(palmGeo(), skinMat));
-
-  type Joint = { g: THREE.Group };
-  const fingers: Joint[][] = [];
-  FINGERS.forEach((f) => {
-    const chain: Joint[] = [];
-    let parent: THREE.Object3D = palm;
-    f.len.forEach((len, i) => {
-      const j = new THREE.Group();
-      if (i === 0) { j.position.set(f.x, f.y, 0.002); j.rotation.z = f.splay; } else j.position.y = f.len[i - 1];
-      const r0 = THREE.MathUtils.lerp(f.r0, f.r1, i / 3), r1 = THREE.MathUtils.lerp(f.r0, f.r1, (i + 1) / 3);
-      j.add(new THREE.Mesh(phalanx(len, r0, r1, i === 2), skinMat));
-      if (i === 2) { const n = new THREE.Mesh(nailGeo(), nailMat); n.position.set(0, len * 0.62, -r1 * 0.86); n.rotation.x = 0.12; j.add(n); }
-      parent.add(j); parent = j; chain.push({ g: j });
-    });
-    fingers.push(chain);
-  });
-  const tip = new THREE.Object3D(); tip.position.y = FINGERS[0].len[2] + FINGERS[0].r1; fingers[0][2].g.add(tip);
-
-  // the thumb leaves the heel of the palm and swings across it (opposition)
-  const thumbBase = new THREE.Group(); thumbBase.position.set(-0.033, 0.024, 0.008); thumbBase.rotation.set(0.25, 0.35, 0.78); palm.add(thumbBase);
-  const thumbOpp = new THREE.Group(); thumbBase.add(thumbOpp);
-  const thumbLens: F3 = [0.036, 0.029, 0.025];
-  const thumb: Joint[] = [];
-  let tp: THREE.Object3D = thumbOpp;
-  thumbLens.forEach((len, i) => {
-    const j = new THREE.Group(); if (i > 0) j.position.y = thumbLens[i - 1];
-    const r0 = [0.0128, 0.0112, 0.0102][i], r1 = [0.0114, 0.0104, 0.0084][i];
-    j.add(new THREE.Mesh(phalanx(len, r0, r1, i === 2), skinMat));
-    if (i === 2) { const n = new THREE.Mesh(nailGeo(), nailMat); n.position.set(0, len * 0.6, -r1 * 0.85); n.scale.setScalar(1.15); j.add(n); }
-    tp.add(j); tp = j; thumb.push({ g: j });
-  });
-  const thumbTip = new THREE.Object3D(); thumbTip.position.y = thumbLens[2] + 0.008; thumb[2].g.add(thumbTip);
-
   const grip = new THREE.Object3D(); grip.position.set(0.002, 0.075, 0.032); palm.add(grip);
+  const tip = new THREE.Object3D(); tip.position.set(-0.02, 0.165, 0.012); palm.add(tip);
+  const thumbTip = new THREE.Object3D(); thumbTip.position.set(-0.048, 0.085, 0.03); palm.add(thumbTip);
 
-  // pose state: current and target curls
-  const cur = { f: FINGERS.map(() => [0, 0, 0] as F3), spread: 0, thumb: [0, 0, 0] as [number, number, number] };
+  // the fingers: the rig's two finger joints and its thumb, eased toward the pose
+  const f1 = rig.bones.fing1L, f2 = rig.bones.fing2L, th = rig.bones.thumbL;
+  const cur = { c1: 0.2, c2: 0.3, t: 0.2, spread: 0.2 };
   let target: PoseDef = HAND_POSES.relaxed;
   let tremT = Math.random() * 10;
-
+  const goal = (d: PoseDef) => ({ c1: d.f.reduce((a, f) => a + f[0], 0) / 4, c2: d.f.reduce((a, f) => a + (f[1] + f[2]) * 0.5, 0) / 4 * 1.1, t: Math.min(1, d.thumb[0] / 0.95), spread: d.spread });
   function apply() {
-    fingers.forEach((chain, fi) => {
-      chain.forEach((j, i) => { j.g.rotation.x = cur.f[fi][i]; });
-      chain[0].g.rotation.z = FINGERS[fi].splay * (0.6 + cur.spread * 0.9);
-    });
-    thumbOpp.rotation.z = -cur.thumb[0] * 0.75;
-    thumbOpp.rotation.x = cur.thumb[0] * 0.55;
-    thumb[1].g.rotation.x = cur.thumb[1];
-    thumb[2].g.rotation.x = cur.thumb[2];
+    f1.rotation.set(0, 0, -cur.c1);
+    f2.rotation.set(0, 0, -cur.c2);
+    th.rotation.set(cur.t * 0.5, cur.t * 0.6, -cur.t * 0.55);
   }
 
-  let sleeveStyle: 'long' | 'rolled' | 'none' = o.sleeveStyle ?? (o.sleeve === null ? 'none' : 'long');
-  function buildSleeve() {
-    sleeveHolder.clear();
-    const bare = sleeveStyle === 'none';
-    upper.geometry = upperArmGeo(!bare); upper.material = bare ? skinMat : clothMat;
-    elbow.material = bare ? skinMat : clothMat;
-    if (sleeveStyle === 'none') return;
-    sleeveHolder.add(new THREE.Mesh(sleeveGeo(sleeveStyle), clothMat));
-    const cuff = new THREE.Mesh(cuffGeo(sleeveStyle), clothMat);
-    cuff.position.y = sleeveStyle === 'long' ? FOREARM * 0.86 : FOREARM * 0.42;
-    sleeveHolder.add(cuff);
-  }
-  buildSleeve();
-
-  const shoulder = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), dir = new THREE.Vector3();
-  /** point the upper arm from the elbow at a shoulder just outside the camera's frame */
+  const shoulder = new THREE.Vector3(), dir = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0), q = new THREE.Quaternion();
+  /** the upper arm from the elbow back to a shoulder just outside the camera's frame; the folded body sits there */
   function reachBack() {
     let cam = arm.reach;
     if (cam === undefined) {
@@ -366,51 +127,55 @@ export function fpArm(side: 'right' | 'left' = 'right', o: FpArmOpts = {}): FpAr
       while (top.parent) top = top.parent;
       cam = G.pr && top === G.pr.overlayScene ? G.pr.overlayCamera : null;
     }
-    upper.visible = elbow.visible = !!cam;
-    if (!cam) return;
+    if (!cam) {
+      // no upper arm: it folds into the elbow, the body with it
+      ua.position.set(0, 0, 0); ua.scale.setScalar(TINY); rig.root.position.set(0, 0, 0);
+      return;
+    }
     cam.updateMatrixWorld();
     root.updateWorldMatrix(true, false);
     shoulder.copy(SHOULDER);
     if (side === 'left') shoulder.x = -shoulder.x;
     root.worldToLocal(cam.localToWorld(shoulder));
     const len = shoulder.length();
-    if (len < 1e-4) { upper.visible = false; return; }
+    if (len < 1e-4) return;
     dir.copy(shoulder).divideScalar(len);
-    upper.quaternion.setFromUnitVectors(up, dir);
-    upper.scale.set(1, len, 1);
+    // the upper arm bone runs down its -Y from the shoulder to the elbow (ALIGN turns that to +Y, q to the elbow)
+    q.setFromUnitVectors(up, dir.negate());
+    ua.quaternion.copy(q).multiply(ALIGN);
+    ua.scale.setScalar(1);
+    ua.scale.y = len / uaLen;
+    ua.position.copy(shoulder);
+    rig.root.position.copy(shoulder);
   }
 
   const arm: FpArm = {
     root, wrist, palm, grip, tip, thumbTip, tremor: 0, reach: undefined,
-    pose(p, instant) {
-      target = typeof p === 'string' ? HAND_POSES[p] : p;
-      if (instant) { target.f.forEach((f, i) => { cur.f[i] = [...f] as F3; }); cur.spread = target.spread; cur.thumb = [...target.thumb] as [number, number, number]; apply(); }
+    pose(pd, instant) {
+      target = typeof pd === 'string' ? HAND_POSES[pd] : pd;
+      if (instant) { Object.assign(cur, goal(target)); apply(); }
     },
     update(dt) {
-      const k = 1 - Math.exp(-dt * 16);
-      // fingers close a beat after each other, like a real hand
-      target.f.forEach((f, fi) => {
-        const kk = 1 - Math.exp(-dt * (16 - fi * 2));
-        for (let i = 0; i < 3; i++) cur.f[fi][i] += (f[i] - cur.f[fi][i]) * kk;
-      });
-      cur.spread += (target.spread - cur.spread) * k;
-      for (let i = 0; i < 3; i++) cur.thumb[i] += (target.thumb[i] - cur.thumb[i]) * k;
+      const g = goal(target);
+      const k = 1 - Math.exp(-dt * 14);
+      cur.c1 += (g.c1 - cur.c1) * k; cur.c2 += (g.c2 - cur.c2) * k; cur.t += (g.t - cur.t) * k; cur.spread += (g.spread - cur.spread) * k;
       tremT += dt;
       if (arm.tremor > 0.01) {
         const t = arm.tremor * 0.035;
-        for (let fi = 0; fi < 4; fi++) cur.f[fi][1] += Math.sin(tremT * (31 + fi * 7)) * t * 0.3;
+        cur.c2 += Math.sin(tremT * 31) * t * 0.3;
         wrist.rotation.z = Math.sin(tremT * 23) * t * 0.4;
       }
       apply();
       reachBack();
     },
     setLook(l) {
-      if (l.skin != null) { skinMat.color.setHex(l.skin); skinMat.emissive.setHex(l.skin).multiplyScalar(0.05); nailMat.color.copy(nailTint(l.skin)); }
-      if (l.sleeve !== undefined) { if (l.sleeve === null) sleeveStyle = 'none'; else clothMat.color.setHex(l.sleeve); }
+      if (l.skin != null) app = normalizeAppearance({ ...app, skin: l.skin });
+      if (l.sleeve !== undefined) { sleeve = l.sleeve; if (l.sleeve === null) sleeveStyle = 'none'; }
       if (l.sleeveStyle) sleeveStyle = l.sleeveStyle;
-      buildSleeve();
+      if (l.skin != null) rig.setAppearance(app);
+      rig.setOutfit(outfit());
     },
-    dispose() { skinMat.dispose(); nailMat.dispose(); clothMat.dispose(); root.removeFromParent(); },
+    dispose() { rig.dispose(); root.removeFromParent(); },
   };
   arm.pose('relaxed', true);
   return arm;
