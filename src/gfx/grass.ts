@@ -135,12 +135,13 @@ vec3 objectNormal;
     vec3 uAx = normalize(mix(vec3(0.0, 1.0, 0.0), vec3(lay.x, 0.16, lay.y), trE));
     vec2 off = (bend * 0.85 * (1.0 - trE) + lay * tr * 0.35 * (1.0 - trE)) * H * k;
     float squash = 1.0 - 0.42 * min(1.0, dot(bend, bend)) * (1.0 - trE);
-    gWPos = root + wAx * gx + uAx * (hy * H * squash) + vec3(off.x, 0.012 * trE * hy, off.y);
+    // a card lying with its back to the camera is drawn mirrored instead (the winding turns, the light stays up)
+    float fs = dot(cross(wAx, uAx), cB) < 0.0 ? -1.0 : 1.0;
+    float gxp = mix(vd.x, vd.y, px * fs + 0.5);
+    gWPos = root + wAx * gxp + uAx * (hy * H * squash) + vec3(off.x, 0.012 * trE * hy, off.y);
     vGUv = (cell + vec2(uGCell.x * 0.5 + gx * uGInfo.x, uGCell.y - hy * H * uGInfo.y)) * uGCell.zw;
     // lit like the ground it grows from, turned a little toward the camera and the way it leans
     objectNormal = normalize(vec3(0.0, 1.0, 0.0) - gF * 0.3 * (1.0 - trE) + vec3(bend.x, 0.0, bend.y) * 0.25);
-    // both faces draw (a lying card may show its back): keep the light normal on the side we see
-    if (dot(cross(wAx, uAx), cB) < 0.0) objectNormal = -objectNormal;
     // palette steps: lush patches, gust crests (the blades show their pale side), trampled grass
     float lush = sin(root.x * 0.19 + sin(root.z * 0.15) * 1.7) * 0.5 + sin(root.z * 0.12 - root.x * 0.07 + 2.0) * 0.5;
     // (and a step darker down in the turf, so every tuft stands out of the ground it grows from;
@@ -309,7 +310,7 @@ export class GrassSystem {
     // the world pipeline's own hook (lighting, light grid, fog, vision, normal buffer), then the grass on top
     const base = worldMaterial({ outline: 0 }) as THREE.MeshLambertMaterial;
     const baseHook = base.onBeforeCompile;
-    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+    const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.FrontSide });
     mat.onBeforeCompile = (sh, r) => {
       sh.vertexShader = sh.vertexShader
         .replace('#include <common>', '#include <common>\n' + VDECL)

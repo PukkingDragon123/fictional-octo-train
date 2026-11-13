@@ -502,12 +502,12 @@ class DeathCinematic {
       k.append(b); this.keys.push(b);
     };
     // the loop's next step first: the lab, where the research is spent
-    if (coop) mk('Continue', 'watch the crew', () => this.close());
-    mk('To the lab', `spend ${researchPoints()} RP on upgrades`, () => this.toLab());
+    if (coop) mk('Continue', '', () => this.close());
+    mk('To the lab', `${researchPoints()} RP`, () => this.toLab());
     // round 15: a checkpoint held on this world -> a new file on the OLD world, put back at the relay (src/game/checkpoint.ts)
     const cp = !coop ? heldCheckpoint() : null;
-    if (cp) mk('Re-enter at the checkpoint', `${cp.label} · the same world, a new file`, () => this.fadeOut(() => reenterCheckpoint(cp)));
-    if (!coop) mk('New unit now', 'same file · straight back in', () => this.nextSubject());
+    if (cp) mk('Checkpoint', cp.label, () => this.fadeOut(() => reenterCheckpoint(cp)));
+    if (!coop) mk('New unit', '', () => this.nextSubject());
     this.root.append(k);
     this.keysEl = k;
     // round 16: the keys are 3D push keys on an olive console (src/ui/machine), the first one safety yellow

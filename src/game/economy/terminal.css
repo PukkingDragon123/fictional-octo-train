@@ -85,7 +85,7 @@
 /* FEED (round 17, src/game/economy/feedScreen.ts): the wrist terminal's tube (src/ui/crt) in the body, amber.
    The pack as big turning models, the readout, the hopper with its gauge, tray and flip counter, the lever.
    Colours come from the tube's custom properties (--ph, --ph-hi, --ph-dim, --ph-dark, --acc, --glow, --mono). */
-.pf-host { position: relative; height: 100%; min-height: 270px; }
+.pf-host { position: relative; height: 100%; min-height: 270px; container: pfeed / size; }
 .pf { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 262px 58px; grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas: 'pack hop lev' 'read hop lev'; gap: 4px 12px; padding: 8px 10px 6px 12px; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
 .pf-pack { grid-area: pack; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); align-content: start; gap: 0 2px;
@@ -148,10 +148,12 @@
 /* a model on its way into the hopper (it lives over everything, so it carries the amber tone itself) */
 .pf-ghost { position: fixed; z-index: 9999; pointer-events: none; line-height: 0; }
 .pf-ghost canvas { image-rendering: pixelated; filter: grayscale(1) brightness(1.2) sepia(1) saturate(3.4) hue-rotate(-14deg) drop-shadow(0 0 6px rgba(255, 168, 60, 0.7)); }
-/* a phone held upright: the pack on top, the readout, then the hopper beside the lever */
-.pf.tall { grid-template-columns: minmax(0, 1fr) 56px; grid-template-rows: minmax(0, 1fr) auto auto; grid-template-areas: 'pack pack' 'read read' 'hop lev'; padding: 6px 8px; }
-.pf.tall .pf-pack { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
-.pf.tall .pf-t .crt-ic-m canvas, .pf.tall .pf-t .crt-ic-m img { width: 64px; height: 64px; }
-.pf.tall .pf-read { font-size: 15px; }
-.pf.tall .pf-slot { height: 46px; }
-.pf.tall .pf-slot canvas, .pf.tall .pf-slot img { width: 42px; height: 42px; }
+/* a narrow screen (a phone held upright): the pack on top, the readout, then the hopper beside the lever */
+@container pfeed (max-width: 560px) {
+  .pf { grid-template-columns: minmax(0, 1fr) 56px; grid-template-rows: minmax(0, 1fr) auto auto; grid-template-areas: 'pack pack' 'read read' 'hop lev'; padding: 6px 8px; }
+  .pf-pack { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
+  .pf-t .crt-ic-m canvas, .pf-t .crt-ic-m img { width: 64px; height: 64px; }
+  .pf-read { font-size: 15px; }
+  .pf-slot { height: 46px; }
+  .pf-slot canvas, .pf-slot img { width: 42px; height: 42px; }
+}

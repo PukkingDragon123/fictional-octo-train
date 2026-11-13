@@ -287,7 +287,6 @@ export class FeedScreen {
   private dead = false;
   private lastPtr = 'mouse';
   private drag: { it: Item; x0: number; y0: number; ghost: HTMLElement | null; from: HTMLElement } | null = null;
-  private tall = false;
 
   constructor(private host: FeedHost) {
     this.lever = new Lever(() => this.host.crush(), () => this.host.canCrush());
@@ -328,14 +327,13 @@ export class FeedScreen {
       this.sel = same?.[0] ?? null;
     }
     this.selKey = this.sel ? this.key(this.sel) : '';
-    this.tall = el.clientWidth > 0 && el.clientWidth < 560;
-    const root = this.root = h('div', 'pf' + (this.tall ? ' tall' : '') + (this.jackT > 0 ? ' jack' : ''));
+    const root = this.root = h('div', 'pf' + (this.jackT > 0 ? ' jack' : ''));
     this.crt.glass.innerHTML = '';
     this.crt.glass.append(root);
     const full = H.queue.length >= H.slots || H.busy();
     // ---- the pack: big turning models
     const pack = h('div', 'pf-pack');
-    const size = this.tall ? 56 : 60;
+    const size = 60;
     const keep = new Set<string>();
     for (const g of rows.slice(0, 40)) {
       const it = g[0], k = this.key(it), v = itemValue(it);

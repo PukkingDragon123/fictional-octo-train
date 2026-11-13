@@ -136,8 +136,8 @@ function showSummary(g: Game, p: Player, r: RunReport) {
     b.addEventListener('click', (e) => { e.stopPropagation(); sfx('confirm'); act(); });
     keys.appendChild(b); btns.push(b);
   };
-  mk('To the lab', `spend ${researchPoints()} RP on upgrades`, () => goToLab());
-  mk('New unit now', 'same file · straight back in', () => {
+  mk('To the lab', `${researchPoints()} RP`, () => goToLab());
+  mk('New unit', '', () => {
     const cfg = { mode: 'new' as const, name: p.name, app: p.app, occupation: p.occupation, traits: [...((p.body as unknown as { traits?: Set<string> }).traits ?? [])], sandbox: { ...(g.sandbox as Record<string, number>) }, seed: Math.floor(Math.random() * 1e9), directives: !!g.missions?.enabled };
     import('../../game/launch').then((m) => m.setLaunch(cfg)).catch(() => location.reload());
   });

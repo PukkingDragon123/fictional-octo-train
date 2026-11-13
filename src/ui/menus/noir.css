@@ -165,7 +165,7 @@
   color: #c8301e; transform: translate(-50%, -50%) rotate(-8deg) scale(2.2); opacity: 0; text-shadow: 0 0 1px rgba(0, 0, 0, 0.4); }
 .ik3-stamp b { font-size: calc(var(--t-xl) * 2); font-weight: 700; letter-spacing: 0.16em; line-height: 1; }
 .ik3-stamp span { font-size: var(--t-s); font-weight: 600; letter-spacing: 0.24em; }
-.ik3-stamp.on { opacity: 0.94; transform: translate(-50%, -50%) rotate(-8deg) scale(1); transition: transform 0.12s cubic-bezier(.5, 0, .9, .3), opacity 0.05s; }
+.ik3-stamp.on { opacity: 0.94; transform: translate(-50%, -50%) scale(1); transition: transform 0.12s cubic-bezier(.5, 0, .9, .3), opacity 0.05s; }
 /* portrait: the subject on top, the page and the store underneath */
 .ik3.portrait { --ik-m: 8px; }
 .ik3.portrait::before { background: linear-gradient(0deg, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.78) 44%, rgba(0, 0, 0, 0.2) 56%, transparent 64%), linear-gradient(180deg, rgba(0, 0, 0, 0.5), transparent 12%); }

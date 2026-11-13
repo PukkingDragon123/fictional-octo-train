@@ -110,10 +110,10 @@
 @keyframes ik-flash { 0% { opacity: 1; } 15% { opacity: 0.85; } 100% { opacity: 0; } }
 :root.reduce-flash .ik-flash.on { animation-duration: 0.01s; }
 .ik-stamp { display: none !important; }
-.ik-stamp { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) rotate(-10deg) scale(2.2); opacity: 0; pointer-events: none; }
+.ik-stamp { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%) scale(2.2); opacity: 0; pointer-events: none; }
 .ik-stamp img { display: block; width: calc(var(--px) * 120); height: auto; image-rendering: pixelated; }
 .ik-stamp.on { animation: ik-stamp 0.28s steps(4) forwards; }
-@keyframes ik-stamp { 0% { opacity: 0; transform: translate(-50%, -50%) rotate(-10deg) scale(2.2); } 100% { opacity: 0.92; transform: translate(-50%, -50%) rotate(-10deg) scale(1); } }
+@keyframes ik-stamp { 0% { opacity: 0; transform: translate(-50%, -50%) scale(2.2); } 100% { opacity: 0.92; transform: translate(-50%, -50%) scale(1); } }
 .ik.processing .ik-tags, .ik.processing .ik-go, .ik.processing .ik-credits, .ik.processing .ik-exit, .ik.processing .ik-signs, .ik.processing .ik-hint { opacity: 0; pointer-events: none; transition: opacity 0.3s steps(3); }
 
 /* ---------------------------------------------------------------- examination props (objects, not panels) */
@@ -340,11 +340,11 @@ section.ob-card { display: block; align-items: stretch; background: #f8f6ee; bor
 .rh-sealed b { font-family: var(--font-stencil); font-size: var(--t-label); color: var(--dg-red); }
 .rh-sealed i { height: calc(var(--px) * 3); background: linear-gradient(90deg, var(--dg-green) var(--p), rgba(0, 0, 0, 0.15) var(--p)); }
 .rh-file-stamp { display: none !important; }
-.rh-file-stamp { position: absolute; right: calc(var(--px) * 4); top: calc(var(--px) * 46); pointer-events: none; opacity: 0; transform: rotate(-12deg) scale(1.8); }
+.rh-file-stamp { position: absolute; right: calc(var(--px) * 4); top: calc(var(--px) * 46); pointer-events: none; opacity: 0; transform: scale(1.8); }
 .rh-file-stamp img { width: calc(var(--px) * 76); height: auto; image-rendering: pixelated; display: block; }
 .rh-file-stamp.on { animation: ik-stamp2 0.25s steps(4) forwards; }
-.rh-file-stamp.on.still { animation: none; opacity: 0.85; transform: rotate(-12deg); }
-@keyframes ik-stamp2 { from { opacity: 0; transform: rotate(-12deg) scale(1.8); } to { opacity: 0.9; transform: rotate(-12deg) scale(1); } }
+.rh-file-stamp.on.still { animation: none; opacity: 0.85; transform:; }
+@keyframes ik-stamp2 { from { opacity: 0; transform: scale(1.8); } to { opacity: 0.9; transform: scale(1); } }
 
 .rh-right { min-height: 0; display: flex; flex-direction: column; }
 .rh-lightbox { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: calc(var(--px) * 3); background: #1a1c1e; border: calc(var(--px) * 2) solid #050606; box-shadow: inset 0 var(--px) 0 #3a3e42, var(--dg-shadow-lg); }
