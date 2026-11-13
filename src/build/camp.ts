@@ -28,6 +28,7 @@ import { itemDef } from '../items/item';
 import { queueAt } from '../actions/basic';
 import { UseObjectAction } from '../actions/world';
 import { TimedAction } from '../actions/action';
+import { talentMul } from '../survival/talents';
 import { lineOfSight } from '../world/collision';
 import { findPath } from '../world/path';
 import { steer, heading, brake } from '../creatures/kit/physics';
@@ -90,7 +91,7 @@ class UpgradeAction extends TimedAction {
   constructor(p: Player, private at: { x: number; z: number; h: number }, private to: Piece, private tool: Welder, private done_: () => void) {
     super(p);
     const skill = p.body.skill(tool.kind === 'hammer' ? 'carpentry' : 'mechanics');
-    this.duration = Math.max(1, to.weld * 0.85 * (1 - Math.min(0.35, skill * 0.05)) / buildSpeed(p));
+    this.duration = Math.max(1, to.weld * 0.85 * (1 - Math.min(0.35, skill * 0.05)) / buildSpeed(p) * talentMul(p.body, 'build'));
     this.fixedTime = true;
     this.name = 'Upgrade to ' + to.name;
     this.anim = tool.kind === 'hammer' ? 'hammer' : 'craft';
