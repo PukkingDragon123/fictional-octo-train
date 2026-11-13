@@ -150,3 +150,11 @@ body:has(.wt.fp.on) #nc-touch { visibility: hidden; }
   -webkit-mask-image: radial-gradient(circle var(--nr, 200px) at var(--nx, 0px) var(--ny, 100%), #000 55%, rgba(0, 0, 0, 0) 100%); mask-image: radial-gradient(circle var(--nr, 200px) at var(--nx, 0px) var(--ny, 100%), #000 55%, rgba(0, 0, 0, 0) 100%); }
 .wt.fp .wt-near { display: block; }
 .reduce-flash .wt-near { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* round 17: less text on the glass: a task's row is its name and a bar of its steps; a setting's line of explanation
+   shows only on the one under the pointer or the keys (the rest read as name + switch) */
+.wt .bos-li .bos-pg { display: block; height: 3px; margin-top: 3px; text-decoration: none; background: linear-gradient(90deg, var(--ph) var(--p), var(--ph-dark) var(--p)); }
+.wt .bos-li.on .bos-pg { background: linear-gradient(90deg, #021006 var(--p), rgba(2, 16, 6, 0.3) var(--p)); }
+.wt .t-toggle .t-toggle-l small { display: none; }
+.wt .t-toggle:hover .t-toggle-l small, .wt .t-toggle:focus-visible .t-toggle-l small, .wt .t-toggle.hot .t-toggle-l small { display: block; }
+.wt .bos-crt .t-note { display: none; }

@@ -24,7 +24,8 @@ const KEEP_OUT = ['canvas.bh-ov', '.bh-lab', '.obj15.on', '.lp-track', '#hot12',
 const MOUSE_HINT = 'gx-hint';
 /** targets the unit is already holding: a quieter label (the grab hint shows the mouse) */
 const HELD = new Set(['carry', 'held']);
-const MAX_DIM = 2;
+/** round 17: never stacked: one label (the best target) on a desktop; on touch one other thing in reach stays tappable */
+const MAX_DIM = 0, MAX_DIM_TOUCH = 1;
 
 interface Group { tgt: string; acts: CtxAction[]; anchor: () => V3 | null }
 interface Tag {
@@ -75,7 +76,7 @@ export class WorldPrompt {
         g.acts.push(a);
       }
     }
-    const shown = groups.slice(0, 1 + MAX_DIM);
+    const shown = groups.slice(0, 1 + (touch ? MAX_DIM_TOUCH : MAX_DIM));
     for (const t of this.tags.values()) t.seen = false;
     shown.forEach((g, i) => {
       const prim = i === 0;

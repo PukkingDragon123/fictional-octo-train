@@ -11,6 +11,7 @@
 // written to the Meridian file at once and host.onChange() lets the room re-read it.
 import './panel.css';
 import { FocusNav } from '../nav';
+import { mxIcon } from '../../machine/decor';
 import { sfx } from '../sfx';
 import { researchPoints } from '../../../game/research';
 import { stat, isUnlocked } from '../../../game/profile';
@@ -76,15 +77,19 @@ function statsRow(): HTMLElement {
 // ================================================================== the codex
 export function openCodex(host: PanelHost) {
   const st = codexStats();
-  const body = frame(host, 'The codex', `${st.pct}% researched · ${st.complete} of ${st.total} entries complete`, 'mx-wide');
+  // round 17: less text: the numbers, then the entries as a small model (specimen or anomaly), a state lamp, the
+  // name and a bar; the code, the state's word and the how-to live in the opened entry (and the card's tooltip)
+  const body = frame(host, 'The codex', `${st.pct}% · ${st.complete}/${st.total}`, 'mx-wide');
   body.append(statsRow(), bar('CODEX', st.pct, 'cx-big'));
-  body.append(el('p', 'mx-p mx-dim', 'Collect samples in a run (Take sample on a body that is dead, down or stunned, or on an anomaly), bank them at a Remittance Press or carry them out, then work them at the benches here. A complete entry issues a research tool for your next run.'));
   const grid = el('div', 'cx-grid');
   for (const e of entries()) {
     const s = entryState(e.key), pct = researchPct(e.key), known = s !== 'unknown';
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'cx-card ' + s;
-    b.innerHTML = `<i class="cx-st"></i><b>${esc(known ? e.name : '???')}</b><small>${esc(known ? (e.code.split('//')[0] || e.cls).trim() : e.kind === 'anomaly' ? 'an anomaly' : 'a specimen')}</small><span class="cx-pb" style="--p:${pct}%"></span><em>${STATE_NAME[s]}${pct ? ' · ' + pct + '%' : ''}</em>`;
+    b.title = known ? `${(e.code.split('//')[0] || e.cls).trim()} · ${STATE_NAME[s]}${pct ? ' · ' + pct + '%' : ''}` : (e.kind === 'anomaly' ? 'an anomaly nobody has sampled' : 'a specimen nobody has filed');
+    b.innerHTML = `<i class="cx-st"></i><b>${esc(known ? e.name : '???')}</b><span class="cx-pb" style="--p:${pct}%"></span>`;
+    const ic = mxIcon(e.kind === 'anomaly' ? 'jar' : 'skull', 18);
+    if (ic) { ic.classList.add('cx-ic'); b.prepend(ic); b.classList.add('has-ic'); }
     b.addEventListener('click', () => { sfx('tick'); openEntry(host, e.key); });
     grid.append(b);
   }

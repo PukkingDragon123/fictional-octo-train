@@ -81,7 +81,9 @@ export const APPS: AppDef[] = [
         list.replaceChildren(...views.map((v) => {
           const b = el('button', 'bos-li' + (v.key === sel ? ' on' : '') + (v.status === 'ready' ? ' ready' : '') + (q.fresh?.has?.(v.key) ? ' fresh' : '')) as HTMLButtonElement;
           b.type = 'button';
-          b.innerHTML = `<b>${esc(v.title)}</b>${v.status === 'ready' ? '<small>READY</small>' : ''}`;
+          // round 17: the name and a bar of the steps done (a lit edge when it is ready); the steps in the pane
+          const req = v.objectives.filter((o) => !o.optional), done = req.length ? req.reduce((a, o) => a + (o.done ? 1 : Math.min(1, o.prog)), 0) / req.length : 0;
+          b.innerHTML = `<b>${esc(v.title)}</b><s class="bos-pg" style="--p:${Math.round(done * 100)}%"></s>`;
           b.addEventListener('click', () => { sel = v.key; sig = ''; render(); });
           return b;
         }));
@@ -93,7 +95,7 @@ export const APPS: AppDef[] = [
         // the job in numbers and boxes: its name, who set it, the objectives, the pay (no paragraphs on the glass)
         const out: HTMLElement[] = [el('h3', 'bos-h', esc(v.title)), el('p', 'bos-dim', esc(v.giver).toUpperCase())];
         const ol = el('div', 'bos-objs');
-        for (const o of v.objectives) ol.append(el('div', 'bos-obj' + (o.done ? ' done' : ''), `<i></i><span>${esc(o.text.replace(/\s*\(optional\)/i, ''))}${o.optional ? ' <em>OPT</em>' : ''}</span>${o.prog > 0 && !o.done ? `<s style="--p:${Math.round(o.prog * 100)}%"></s>` : ''}`));
+        for (const o of v.objectives) ol.append(el('div', 'bos-obj' + (o.done ? ' done' : ''), `<i></i><span>${esc(o.text.replace(/\s*\([^)]*\)/g, ''))}${o.optional ? ' <em>OPT</em>' : ''}</span>${o.prog > 0 && !o.done ? `<s style="--p:${Math.round(o.prog * 100)}%"></s>` : ''}`));
         out.push(ol);
         if (v.rewardText) out.push(el('p', 'bos-rew', `+ ${esc(v.rewardText)}`));
         if (v.costText) out.push(el('p', 'bos-dim', `- ${esc(v.costText)}`));
@@ -139,13 +141,13 @@ export const APPS: AppDef[] = [
         if (s === sig) return; sig = s;
         tabs.replaceChildren(btn(`Dr. Calder ${LINES.length || ''}`, () => { folder = 'calder'; sel = -1; sig = ''; render(); }, folder === 'calder' ? 'on' : ''), btn(`Documents ${DOCS.length || ''}`, () => { folder = 'docs'; sel = -1; sig = ''; render(); }, folder === 'docs' ? 'on' : ''));
         if (folder === 'calder') {
-          list.replaceChildren(...LINES.map((m, i) => { const b = el('button', 'bos-li' + (i === sel ? ' on' : '')) as HTMLButtonElement; b.type = 'button'; b.innerHTML = `<b>${esc(m.text.slice(0, 48))}${m.text.length > 48 ? '…' : ''}</b><small>${esc(m.t)}</small>`; b.addEventListener('click', () => { sel = i; sig = ''; render(); }); return b; }));
+          list.replaceChildren(...LINES.map((m, i) => { const b = el('button', 'bos-li' + (i === sel ? ' on' : '')) as HTMLButtonElement; b.type = 'button'; const w4 = m.text.split(/\s+/).slice(0, 4).join(' '); b.innerHTML = `<b>${esc(m.t)}</b><small>${esc(w4)}${m.text.length > w4.length ? '…' : ''}</small>`; b.addEventListener('click', () => { sel = i; sig = ''; render(); }); return b; }));
           if (!LINES.length) list.append(el('p', 'bos-dim', 'Nothing from Dr. Calder yet this shift.'));
           const m = LINES[sel] ?? LINES[0];
           pane.replaceChildren(...(m ? [el('h3', 'bos-h', 'Dr. Iris Calder'), el('p', 'bos-dim', esc(m.t)), el('p', 'bos-p', esc(m.text))] : []));
         } else {
           const docs = DOCS;
-          list.replaceChildren(...docs.map((id, i) => { const L = lore(id); const b = el('button', 'bos-li' + (i === sel ? ' on' : '')) as HTMLButtonElement; b.type = 'button'; b.innerHTML = `<b>${esc(L?.title ?? id)}</b><small>${esc(L?.style ?? 'paper')}</small>`; b.addEventListener('click', () => { sel = i; sig = ''; render(); }); return b; }));
+          list.replaceChildren(...docs.map((id, i) => { const L = lore(id); const b = el('button', 'bos-li' + (i === sel ? ' on' : '')) as HTMLButtonElement; b.type = 'button'; b.innerHTML = `<b>${esc(L?.title ?? id)}</b>`; b.addEventListener('click', () => { sel = i; sig = ''; render(); }); return b; }));
           if (!docs.length) list.append(el('p', 'bos-dim', 'Papers the unit reads are filed here.'));
           const L = lore(docs[sel] ?? docs[0]);
           pane.replaceChildren(...(L ? [el('h3', 'bos-h', esc(L.title)), el('pre', 'bos-doc', esc(L.text))] : []));

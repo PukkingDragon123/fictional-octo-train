@@ -24,3 +24,8 @@
 .obj15.has-b .obj15-k span::before { display: none; }
 .obj15-k .obj15-b { display: inline-block; vertical-align: middle; margin: -12px 2px -6px 0; }
 @media (max-width: 520px) and (orientation: portrait) { body:has(#hot12.touch.on) .obj15 { top: calc(var(--hb-bottom, 236px) + 10px); width: calc(100vw - 132px); } body:has(#hot12.touch.on) .obj15-k i { display: none; } }
+/* round 17: one line, short: the beacon, the task in the bright type, the next step dimmer after an arrow; it fades fast */
+.obj15-1 { gap: 10px; letter-spacing: .04em; text-transform: none; font-size: 20px; white-space: nowrap; max-width: 100%; }
+.obj15-1 .obj15-t1 { font-weight: 400; color: #f4ead2; overflow: hidden; text-overflow: ellipsis; }
+.obj15-1 .obj15-s1 { font-style: normal; font-size: 16px; color: rgba(236,226,204,.78); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.obj15.out { transition: opacity .5s ease; }

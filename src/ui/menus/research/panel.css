@@ -106,6 +106,11 @@
 .cx-card.complete { background: linear-gradient(180deg, #5a4210, #33250a); box-shadow: 0 0 0 2px #0a0b10, inset 0 0 0 2px #e8b030; }
 .cx-card.complete .cx-st { background: #ffd23a; }
 .cx-card.complete .cx-pb { background: #ffd23a; }
+/* round 17: a small model before the lamp and the name (src/ui/machine/decor.ts mxIcon) */
+.cx-card.has-ic { grid-template-columns: 26px 12px 1fr; }
+.cx-card .cx-ic { grid-row: span 2; image-rendering: pixelated; }
+.cx-card.has-ic .cx-pb { grid-column: 2 / -1; }
+.cx-card.unknown .cx-ic { opacity: 0.35; filter: grayscale(1); }
 .cx-card:hover, .cx-card:focus-visible { outline: 2px solid #ffd25a; outline-offset: 2px; }
 .mx-notes li.cx-locked { color: #5a6e66; }
 .cx-s.complete { background: #a87a1a !important; color: #fff4c8 !important; }

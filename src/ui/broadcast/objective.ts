@@ -20,7 +20,8 @@ import { mxDecor, type MxDecor } from '../machine/decor';
 type Card = { kind: string; title: string; step?: string; done?: string; tone?: 'new' | 'up' | 'ok' | 'filed' };
 const Q = () => G.missions?.quests as QuestRuntime | undefined;
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
-const clean = (s: string) => s.replace(/\s*\([^)]*\)\s*$/, '').trim();
+// round 17: a step in a few words: no parenthesised hints, only the part before a colon or a semicolon
+const clean = (s: string) => s.replace(/\s*\([^)]*\)/g, '').split(/\s*[:;]\s*/)[0].trim();
 
 function nextStep(v: QView | null): string | undefined {
   if (!v) return undefined;
@@ -80,9 +81,8 @@ export class ObjectiveLine {
     if (sig === this.lastSig) return;
     this.lastSig = sig;
     // a newer word about the same task replaces the waiting one
-    this.queue = this.queue.filter((q) => q.title !== c.title);
-    this.queue.push(c);
-    if (this.queue.length > 3) this.queue.shift();
+    // round 17: never stacked: only the newest word waits its turn
+    this.queue = [c];
   }
 
   private blocked() {
@@ -101,7 +101,7 @@ export class ObjectiveLine {
       // round 17: the unit is busy (html.lp-busy): the caption is faded out and keeps its time for after
       if (document.documentElement.classList.contains('lp-busy')) return;
       this.hold -= dt;
-      if (this.hold <= 0) { this.el.classList.remove('on'); this.el.classList.add('out'); this.showing = 0; this.hold = 0.7; this.cur = null; this.beacon?.alert(false); }
+      if (this.hold <= 0) { this.el.classList.remove('on'); this.el.classList.add('out'); this.showing = 0; this.hold = 0.4; this.cur = null; this.beacon?.alert(false); }
       return;
     }
     if (this.hold > 0) { this.hold -= dt; return; }
@@ -110,10 +110,10 @@ export class ObjectiveLine {
     this.cur = c;
     const el = this.el;
     el.className = 'obj15 t-' + (c.tone || 'up');
-    el.innerHTML = `<div class="obj15-k"><i></i><span>${esc(c.kind)}</span><i></i></div>`
-      + `<div class="obj15-t">${esc(c.title)}</div>`
-      + (c.done ? `<div class="obj15-d"><s>${esc(c.done)}</s></div>` : '')
-      + (c.step ? `<div class="obj15-s"><b></b>${esc(c.step)}</div>` : '');
+    // round 17: one line: the beacon, the task, the next step after an arrow; the kind of news is the beacon's
+    // colour (and read out to assistive tech), the struck-out step and the full board stay on J
+    el.setAttribute('aria-label', `${c.kind}: ${c.title}${c.step ? '. ' + c.step : ''}`);
+    el.innerHTML = `<div class="obj15-k obj15-1"><span></span><b class="obj15-t1">${esc(c.title)}</b>${c.step ? `<em class="obj15-s1">▸ ${esc(c.step)}</em>` : ''}</div>`;
     // round 16: a little 3D beacon instead of the diamond, turning while the caption is up (green for done work)
     const col = c.tone === 'ok' ? 'green' : 'amber';
     if (c.tone !== 'filed' && mxOk()) {
@@ -124,7 +124,7 @@ export class ObjectiveLine {
     void el.offsetWidth;
     el.classList.add('on');
     this.showing = 1;
-    this.hold = 4.2 + (c.step ? 0.8 : 0) + (c.done ? 0.6 : 0);
+    this.hold = 2.6 + (c.step ? 0.6 : 0);
     G.audio?.ui?.('bag_place', 0.18);
   }
 }
