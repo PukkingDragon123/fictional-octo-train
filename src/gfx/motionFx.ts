@@ -18,12 +18,13 @@ import { FS_VERT } from './postfx';
 import type { QualityLevel } from './fxconfig';
 
 export type BlurLevel = 'off' | 'low' | 'normal' | 'heavy';
-/** shutter (s of motion smeared), the history kept for moving bodies, taps along the motion, the longest streak (px) */
-const LEVELS: Record<BlurLevel, { shutter: number; keep: number; taps: number; max: number }> = {
-  off: { shutter: 0, keep: 0, taps: 0, max: 0 },
-  low: { shutter: 0.025, keep: 0.2, taps: 6, max: 16 },
-  normal: { shutter: 0.045, keep: 0.33, taps: 10, max: 32 },
-  heavy: { shutter: 0.08, keep: 0.5, taps: 14, max: 56 },
+/** shutter (s of motion smeared), the history kept for moving bodies, taps along the motion, the longest streak (px),
+ * and the longest streak a camera TURN may leave (share of the picture width: a quarter turn is a short sweep, not a whirlpool) */
+const LEVELS: Record<BlurLevel, { shutter: number; keep: number; taps: number; max: number; rot: number }> = {
+  off: { shutter: 0, keep: 0, taps: 0, max: 0, rot: 0 },
+  low: { shutter: 0.025, keep: 0.2, taps: 6, max: 16, rot: 0.015 },
+  normal: { shutter: 0.045, keep: 0.33, taps: 10, max: 32, rot: 0.03 },
+  heavy: { shutter: 0.08, keep: 0.5, taps: 14, max: 56, rot: 0.06 },
 };
 /** quality caps: phones get the history trail and a short smear only */
 const TAPS_CAP: Record<QualityLevel, number> = { low: 4, medium: 8, high: 14 };
@@ -68,6 +69,10 @@ uniform int uBodyN;
 uniform float uDt;
 uniform float uMaxBlur;
 uniform float uSway;
+uniform mat4 uCurVP;
+uniform vec3 uTrans;
+uniform float uRotK;
+uniform float uRotMax;
 
 float hh(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 float capsule(vec2 p, vec2 a, vec2 b, float r) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h) - r; }
@@ -105,10 +110,20 @@ void main() {
   vec4 pc = uPrevVP * vec4(W, 1.0);
   vec2 puv = pc.xy / pc.w * 0.5 + 0.5;
   vec2 mv = (uv - puv) * uRes;                     // pixels this frame
-  vec2 blur = mv * uShutterK * (1.0 + P * 0.8);
+  // the camera's slide alone (this frame's view, last frame's position): pans and tracking keep their full
+  // streak; what is left is the turn, which is kept short, capped flat (it eases in and out instead of
+  // peaking across the turn) and no longer grows away from the middle of the picture
+  vec4 tc = uCurVP * vec4(W + uTrans, 1.0);
+  vec2 mvT = (uv - (tc.xy / tc.w * 0.5 + 0.5)) * uRes;
+  vec2 mvR = mv - mvT;
+  vec2 blur = mvT * uShutterK * (1.0 + P * 0.8);
   float bl = length(blur);
   float bmax = uMaxBlur * (1.0 + P * 0.5);
   if (bl > bmax) blur *= bmax / max(bl, 1e-4);
+  vec2 rb = mvR * uShutterK * uRotK;
+  float rl = length(rb);
+  if (rl > uRotMax) rb *= uRotMax / max(rl, 1e-4);
+  blur += rb;
   // panic adds an outward smear (tunnel vision): stronger toward the rim, swelling on the beat
   blur += c0 * uRes * P * (0.02 + 0.014 * uBeat) * smoothstep(0.08, 0.5, length(c0));
   bl = length(blur);
@@ -196,6 +211,7 @@ export class MotionFx {
         uShutterK: { value: 0 }, uKeep: { value: 0 }, uHistOn: { value: 0 }, uTaps: { value: 0 }, uTime: { value: 0 },
         uPanic: { value: 0 }, uBeat: { value: 0 }, uMind: { value: 0 }, uHal: { value: new THREE.Vector4() }, uShake: { value: 1 }, uPersp: { value: 0 },
         uBodyA: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, uBodyB: { value: Array.from({ length: 16 }, () => new THREE.Vector4()) }, uBodyN: { value: 0 }, uDt: { value: 1 / 60 }, uMaxBlur: { value: 32 }, uSway: { value: 1 },
+        uCurVP: { value: new THREE.Matrix4() }, uTrans: { value: new THREE.Vector3() }, uRotK: { value: 0.22 }, uRotMax: { value: 20 },
       },
     });
   }
@@ -250,6 +266,8 @@ export class MotionFx {
     this.vp.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse);
     // a jump of the camera (a level change, a teleport, a loop in the suburbs) is a cut, not a smear
     if (this.hasPrev && focus.distanceTo(this.prevPos) > 6) this.hasPrev = false;
+    (this.mat.uniforms.uTrans.value as THREE.Vector3).copy(focus).sub(this.prevPos);
+    if (!this.hasPrev) (this.mat.uniforms.uTrans.value as THREE.Vector3).set(0, 0, 0);
     this.prevPos.copy(focus);
     const u = this.mat.uniforms;
     u.tCur.value = color; u.tDepth.value = depth;
@@ -261,6 +279,8 @@ export class MotionFx {
     this.bodies(bodies, fdt);
     u.uDt.value = fdt;
     u.uMaxBlur.value = Math.max(L.max, 12);
+    u.uCurVP.value.copy(this.vp);
+    u.uRotMax.value = Math.max(L.rot, 0.01) * this.W;
     u.uShutterK.value = L.shutter > 0 ? Math.min(4, L.shutter / fdt) : 0;
     u.uTaps.value = Math.min(L.taps, TAPS_CAP[this.quality] ?? 8, 16) || (MINDFX.panic > 0.05 ? Math.min(6, TAPS_CAP[this.quality] ?? 6) : 0);
     // the trail lasts the same time at any frame rate
