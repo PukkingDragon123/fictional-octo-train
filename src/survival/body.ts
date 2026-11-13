@@ -89,6 +89,8 @@ export interface Env {
 }
 
 export interface Moodle { key: string; name: string; level: number; good?: boolean; desc: string; }
+/** extra status lines other systems add (the parasite and the organs it has eaten: src/survival/parasite.ts) */
+export const MOODLE_HOOKS: ((b: Body, out: Moodle[]) => void)[] = [];
 
 const LEVEL_NAMES: Record<string, string[]> = {
   hunger: ['', 'Peckish', 'Hungry', 'Very Hungry', 'Starving'],
@@ -674,6 +676,7 @@ export class Body {
     add('stuffed', moodleLevel(this.stuffed, [20, 40, 60, 80]), true);
     add('lonely', moodleLevel(this.mind.loneliness, [35, 55, 75, 90]));
     add('attack', this.mind.attack > 0 ? 4 : 0);
+    for (const h of MOODLE_HOOKS) { try { h(this, out); } catch { /* a hook must never break the status */ } }
     return out;
   }
 

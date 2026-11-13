@@ -35,10 +35,7 @@ if (import.meta.env.DEV && params.has('loader')) {
     // New unit plays the prologue the first time (src/ui/menus/title.ts newGame)
     const P = await import('./game/prologue');
     if (new URLSearchParams(location.search).get('prologue') === '1' && P.prologueWanted()) { await P.runPrologue(); return; }
+    // (round 16: the title is only its menu; the prologue is the cassette on the console, src/ui/menus/title.ts)
     await import('./ui/menus/title').then((m) => m.showTitle());
-    // the way back into it, while the title's menu is up
-    try { P.prologueEntry(); } catch (e) { console.warn('prologue entry', e); }
-    // the loop's next step (the lab, or a new unit), in the corner of the booth
-    import('./game/loop/nextStep').then((m) => m.nextStepHint()).catch((e) => console.warn('next step', e));
   });
 }

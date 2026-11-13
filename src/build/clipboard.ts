@@ -13,7 +13,6 @@ import { worldMaterial } from '../gfx/materials';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { objDef, objectGeometry } from '../world/objects';
 import { itemDef } from '../items/item';
-import { researchNode } from '../game/research';
 import { lerp, clamp } from '../core/math';
 import { Sheet, sheetMesh, overlayRay, whenFonts, FONT } from './paper';
 import { std, capsule } from './shapes';
@@ -32,7 +31,7 @@ const CATS = Object.keys(CAT_NAMES) as PieceCat[];
 const TAB: Record<PieceCat, string> = { struct: 'STRUCT', machine: 'MACH', defense: 'DEF', living: 'LIVING', farm: 'FARM' };
 const PALE = 0x9fc0ea, RED = 0xff6a4a;
 
-export interface BoardState { pc: Piece; idx: number; total: number; cat: PieceCat; unlocked: boolean; have: (k: string) => number; demolish: boolean; gas: number | null; tool: string; stats: SettleStats | null; claimName: string }
+export interface BoardState { pc: Piece; idx: number; total: number; cat: PieceCat; unlocked: boolean; /** round 17: where its blueprint is found ('' = known) */ lockHint: string; /** blueprints known on this shelf */ known: number; have: (k: string) => number; demolish: boolean; gas: number | null; tool: string; stats: SettleStats | null; claimName: string }
 export type BoardHit = { kind: 'tab'; cat: PieceCat } | { kind: 'prev' } | { kind: 'next' } | { kind: 'demo' } | { kind: 'board' };
 
 interface Gauge { needle: THREE.Object3D; v: number; target: number }
@@ -189,7 +188,7 @@ export class Clipboard {
     this.arm?.update(dt);
     // the paper (redrawn only when something on it changes)
     const cost = st.pc.cost.map(([k, n]) => `${k}:${n}:${Math.min(n, st.have(k))}`).join(',');
-    const sig = [mk, st.cat, st.idx, st.unlocked, cost, st.demolish, st.tool, s?.rank ?? '-', st.claimName].join('|');
+    const sig = [mk, st.cat, st.idx, st.unlocked, st.lockHint, st.known, cost, st.demolish, st.tool, s?.rank ?? '-', st.claimName].join('|');
     if (sig !== this.sig) { this.sig = sig; whenFonts(() => this.draw(st)); }
     const rk = s ? `${s.rank}  ${String(s.score).padStart(3, '0')}` : 'NO CLAIM';
     if (rk !== this.rankSig) {
@@ -233,7 +232,7 @@ export class Clipboard {
       sh.text(TAB[cat], x + 22, 15, { font: FONT.sign, size: 13, color: on ? BLUE : PALE, align: 'center', weight: '600' });
     });
     // drawing number, category, the piece's name in typewriter
-    sh.text(`DWG. No. ${String(st.idx + 1).padStart(2, '0')} / ${st.total}`, 16, 40, { font: FONT.type, size: 12, color: PALE });
+    sh.text(`DWG. No. ${String(st.idx + 1).padStart(2, '0')} / ${st.total} · ${st.known} KNOWN`, 16, 40, { font: FONT.type, size: 12, color: PALE });
     sh.text(CAT_NAMES[st.cat], SW - 16, 40, { font: FONT.sign, size: 12, color: PALE, align: 'right' });
     sh.text(st.pc.name.toUpperCase(), 16, 56, { font: FONT.type, size: 21, color: INK, maxW: SW - 32 });
     // the scale model stands here: dimension arrows and a scale note
@@ -261,9 +260,10 @@ export class Clipboard {
     sh.text(st.tool, SW / 2, SH - 27, { font: FONT.sign, size: 13, color: st.tool.startsWith('NO ') ? RED : PALE, align: 'center', weight: '600' });
     // stamps over the drawing
     if (!st.unlocked) {
-      const nd = researchNode(st.pc.node!);
-      sh.stamp('LOCKED', SW / 2, y0 + 44, RED, 30, -0.14);
-      sh.text(`research · ${nd?.cost ?? '?'} RP`, SW / 2, y0 + 74, { font: FONT.pen, size: 20, color: 0xff9a80, align: 'center', weight: '700' });
+      // round 17: blueprints are learned; the sheet says where this one is found
+      sh.stamp('BLUEPRINT NEEDED', SW / 2, y0 + 34, RED, 20, -0.12);
+      const parts = st.lockHint.split(' · ');
+      parts.slice(0, 3).forEach((t, i) => sh.text(t, SW / 2, y0 + 60 + i * 17, { font: FONT.pen, size: 15, color: 0xff9a80, align: 'center', weight: '700', maxW: SW - 36 }));
     } else if (st.demolish) sh.stamp('CUTTER ARMED', SW / 2, y0 + 50, 0xe8b52a, 22, -0.1);
     sh.commit();
   }

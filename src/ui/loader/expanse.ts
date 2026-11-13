@@ -39,8 +39,9 @@ function nearLetter(c: number, r: number, m: number) {
 
 // ------------------------------------------------------------------ textures (painted per pixel, crisp)
 function tex(w: number, h: number, paint: (c: CanvasRenderingContext2D, r: () => number) => void, seed: number, rep: [number, number] = [1, 1]) {
-  const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-  const c = cv.getContext('2d')!; paint(c, rng(seed));
+  // a worker has no document: paint on an OffscreenCanvas there (src/ui/loader/worker.ts)
+  const cv: HTMLCanvasElement | OffscreenCanvas = typeof document !== 'undefined' ? Object.assign(document.createElement('canvas'), { width: w, height: h }) : new OffscreenCanvas(w, h);
+  const c = cv.getContext('2d') as unknown as CanvasRenderingContext2D; paint(c, rng(seed));
   const t = new THREE.CanvasTexture(cv);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.LinearMipmapLinearFilter; t.anisotropy = 4;
   t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rep[0], rep[1]); t.colorSpace = THREE.SRGBColorSpace;
@@ -49,16 +50,14 @@ function tex(w: number, h: number, paint: (c: CanvasRenderingContext2D, r: () =>
 const dots = (c: CanvasRenderingContext2D, r: () => number, w: number, h: number, n: number, cols: string[]) => {
   for (let i = 0; i < n; i++) { c.fillStyle = cols[Math.floor(r() * cols.length)]; c.fillRect(Math.floor(r() * w), Math.floor(r() * h), 1, 1); }
 };
-/** mono-yellow wallpaper for one 1.25 x 2.8 m face: paired stripes, a faint damask, damp blooms, a tide line, the baseboard */
+/** mono-yellow wallpaper for one 1.25 x 2.8 m face: paired stripes, a faint damask, the baseboard (clean: no damp, no stains) */
 const paintPaper = (c: CanvasRenderingContext2D, r: () => number) => {
   const W = 48, H = 108;
   c.fillStyle = '#cfb75e'; c.fillRect(0, 0, W, H);
   for (let x = 0; x < W; x += 12) { c.fillStyle = '#bca34e'; c.fillRect(x, 0, 2, H); c.fillStyle = '#d9c36c'; c.fillRect(x + 2, 0, 1, H); c.fillStyle = '#c4ac55'; c.fillRect(x + 7, 0, 1, H); }
   for (let y = 6; y < H - 14; y += 14) for (let x = 6; x < W; x += 12) { c.fillStyle = 'rgba(150,120,50,0.28)'; c.fillRect(x - 1, y, 3, 1); c.fillRect(x, y - 1, 1, 3); c.fillRect(x - 2, y + 4, 1, 1); c.fillRect(x + 2, y + 4, 1, 1); }
-  for (let i = 0; i < 4; i++) { const ex = r() * W, ey = 50 + r() * 44, rx = 3 + r() * 8, ry = 5 + r() * 12; c.fillStyle = 'rgba(112,86,30,0.20)'; c.beginPath(); c.ellipse(ex, ey, rx, ry, 0, 0, 7); c.fill(); c.strokeStyle = 'rgba(96,70,22,0.32)'; c.lineWidth = 1; c.stroke(); }
-  c.fillStyle = 'rgba(96,72,26,0.30)'; c.fillRect(0, H - 22, W, 6);
   c.fillStyle = 'rgba(255,240,190,0.25)'; c.fillRect(0, 0, W, 2);
-  dots(c, r, W, H, 160, ['rgba(80,58,20,0.35)', 'rgba(240,220,150,0.35)', 'rgba(70,50,18,0.2)']);
+  dots(c, r, W, H, 90, ['rgba(240,220,150,0.30)', 'rgba(180,152,70,0.18)']); // a faint paper grain only
   // the baseboard: brown, a lit top edge, scuffs
   c.fillStyle = '#5a3f1f'; c.fillRect(0, H - 8, W, 8); c.fillStyle = '#7d5a2e'; c.fillRect(0, H - 8, W, 1); c.fillStyle = '#3a2812'; c.fillRect(0, H - 1, W, 1);
   dots(c, r, W, 6, 14, ['#2f2010', '#86643a']);
@@ -73,7 +72,6 @@ const paintTile = (c: CanvasRenderingContext2D, r: () => number) => {
   c.fillStyle = '#ddd5b5'; c.fillRect(0, 0, 32, 32);
   dots(c, r, 32, 32, 160, ['#cfc6a4', '#e8e1c4', '#c6bc98']);
   c.fillStyle = '#9b9175'; c.fillRect(0, 0, 32, 1); c.fillRect(0, 0, 1, 32); c.fillStyle = '#f0ead2'; c.fillRect(1, 1, 31, 1); c.fillRect(1, 1, 1, 31);
-  if (r() < 0.9) { c.fillStyle = 'rgba(150,118,52,0.32)'; c.beginPath(); c.ellipse(8 + r() * 16, 8 + r() * 16, 4 + r() * 5, 3 + r() * 4, r() * 3, 0, 7); c.fill(); }
 };
 /** the cut tops of the walls: plaster; the letters' run on seamlessly from cell to cell so each letter reads as one shape */
 const paintTop = (base: string, dark: string, edged: boolean) => (c: CanvasRenderingContext2D, r: () => number) => {
@@ -127,7 +125,7 @@ float lpH(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); 
 interface Pose { pos: THREE.Vector3; look: THREE.Vector3; fov: number; h: number }
 
 export class Expanse {
-  readonly canvas: HTMLCanvasElement;
+  readonly canvas: HTMLCanvasElement | OffscreenCanvas;
   private r: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
   private cam = new THREE.PerspectiveCamera(60, 16 / 9, 0.05, 900);
@@ -152,10 +150,11 @@ export class Expanse {
   private origin = new THREE.Vector2(); private originCyc = -1;
   private maxD = 120;
 
-  constructor(aspect = 16 / 9) {
+  /** canvas: an OffscreenCanvas when it runs in the loader worker; otherwise it makes its own */
+  constructor(aspect = 16 / 9, canvas?: HTMLCanvasElement | OffscreenCanvas) {
     this.aspect = aspect;
-    this.canvas = document.createElement('canvas');
-    this.canvas.className = 'lp-gl';
+    if (canvas) this.canvas = canvas;
+    else { const cv = document.createElement('canvas'); cv.className = 'lp-gl'; this.canvas = cv; }
     const r = this.r = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: false, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     r.setPixelRatio(1);
     r.toneMapping = THREE.ACESFilmicToneMapping; r.toneMappingExposure = 1.3;

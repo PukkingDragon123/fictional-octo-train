@@ -160,14 +160,16 @@ export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unkno
   const bpKey = icon(blueprintSheet(), 'Blueprint', 'Blueprint: decorate this room', () => { sfx('plate'); enterBuild(); });
   const shopKey = icon(shopSheet(), 'Commissary', 'Commissary: buy collectibles with research points', () => { sfx('plate'); openShop(); });
   const guideKey = icon(guideSheet(guide.muted), 'Guide', 'Guide: mute or call Dr. Calder', () => { sfx('toggle'); guide.setMuted(!guide.muted); });
+  // round 17: the emote jukebox (buy emotes with research points, fill the wheel)
+  const emoteKey = icon(shopSheet(), 'Emotes', 'Emote jukebox: buy emotes with research points', () => { sfx('plate'); if (!hidden()) void import('../../../social/emotes/shop').then((m) => m.openEmoteShop()); });
   guide.onMute = (m) => { guideKey.dataset.sheet = guideSheet(m); paintKeys(); guideKey.classList.toggle('muted', m); };
   guideKey.classList.toggle('muted', guide.muted);
   // round 16: the keys are little 3D props from the machine kit (src/ui/machine/decor.ts), drawn at half size and
   // shown twice as big so they keep the hub's chunky pixels; the flat sheets stay as the no-WebGL fallback
-  const MODEL: Record<string, () => IconKind> = { Blueprint: () => 'blueprint', Commissary: () => 'ledger', Guide: () => (guide.muted ? 'phoneOff' : 'phone') };
+  const MODEL: Record<string, () => IconKind> = { Blueprint: () => 'blueprint', Commissary: () => 'ledger', Guide: () => (guide.muted ? 'phoneOff' : 'phone'), Emotes: () => 'coin' };
   const paintKeys = () => {
     const S = Math.max(2, Math.round(kitScale() * (devicePixelRatio || 1) * 0.75) / (devicePixelRatio || 1));
-    for (const b of [bpKey, shopKey, guideKey]) {
+    for (const b of [bpKey, shopKey, emoteKey, guideKey]) {
       const u = Math.round(12 * S);
       const ic = mxOk() ? mxIcon(MODEL[b.dataset.k ?? '']?.() ?? 'gear', u) : null;
       b.querySelector(':scope > .mxi-cv')?.remove();

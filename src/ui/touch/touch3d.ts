@@ -14,7 +14,7 @@ import {
   Thing, Valve, Steer, Arcade, Toggle, BottleCap, CrashBar, Slipper, PullChain, Whistle, Mic,
   PianoKey, Camera, FoldMap, Handset, Pedal, Horn, PullKnob, Ignition, DoorHandle, bindParticles,
 } from './props';
-import { Glove, Throttle, Bulb, WristWatch, IronCube, Level, Teeth } from './props2';
+import { Glove, Throttle, Bulb, WristWatch, IronCube, Teeth } from './props2';
 import { Die, KneePad, ScanWand, Clipboard, Stethoscope } from './props3';
 import { sfx, haptic } from './sfx';
 
@@ -54,7 +54,7 @@ export class Touch3D {
     add(new PianoKey('menu', 'pause')); add(new PianoKey('fs', 'full')); add(new Camera()); add(new Handset()); add(new FoldMap());
     // the physical overhaul: the watch replaces the SEER-9, the iron cube the rucksack; grab, power, the lung pump, build, emote
     add(new WristWatch()); add(new IronCube());
-    add(new Glove()); add(new Throttle()); add(new Bulb()); add(new Level()); add(new Teeth());
+    add(new Glove()); add(new Throttle()); add(new Bulb()); add(new Teeth());
     // round 16: the newer moves and boards get their own found objects
     add(new Die()); add(new KneePad()); add(new ScanWand()); add(new Clipboard()); add(new Stethoscope());
     add(new Pedal('gas', false)); add(new Pedal('brake', true)); add(new Horn()); add(new PullKnob()); add(new Ignition()); add(new DoorHandle('dexit')); add(new DoorHandle('rexit'));

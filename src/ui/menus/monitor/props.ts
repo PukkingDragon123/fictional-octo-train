@@ -151,7 +151,7 @@ export function paper(lines: string[], w: number, h: number, o: { bg?: string; i
   const ppm = o.ppm ?? 300;
   const W = Math.max(8, Math.round(w * ppm)), H = Math.max(8, Math.round(h * ppm));
   const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-  const c = cv.getContext('2d')!;
+  const c = cv.getContext('2d', { willReadFrequently: true })!;
   let s = o.seed ?? 7;
   const rnd = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
   c.fillStyle = o.bg ?? '#e6dfca'; c.fillRect(0, 0, W, H);

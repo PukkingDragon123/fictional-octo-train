@@ -1,5 +1,5 @@
 // Build mode, welding, settlements and farming: G.build.
-//   G.build.toggle(on?)            enter / leave build mode (B)
+//   G.build.toggle(on?)            enter / leave build mode (round 17: it follows the Surveyor's Build Kit in hand, blueprints.ts)
 //   G.build.captures()             true while build mode owns the mouse
 //   G.build.useObject(p, o)        E on planters, frames, the compactor, the beacon
 //   G.build.settle.stations(zk?)   staffable stations;  .assignWorker(zk, uid, id|null);  .stationWork(zk, uid, dt)
@@ -15,6 +15,7 @@ import './content';
 import './kit2';
 import { wireFirstCamp } from './firstCamp';
 import { wireDiscovery } from '../craft/stores';
+import { wireBlueprints } from './blueprints';
 
 /** salvage and the torch show up where tools and machines are kept */
 function seedLoot() {
@@ -37,6 +38,7 @@ export function installBuild(g: Game): BuildSystem {
   seedLoot();
   wireFirstCamp();
   wireDiscovery();
+  wireBlueprints();
   const b = new BuildSystem();
   g.build = b;
   g.addSystem(b);

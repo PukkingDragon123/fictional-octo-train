@@ -29,7 +29,7 @@ fontsReady().then(() => { for (const f of REDRAW) f(); });
 
 function toTex(key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void, repeat = true, printed = false): THREE.CanvasTexture {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-  const ctx = cv.getContext('2d')!;
+  const ctx = cv.getContext('2d', { willReadFrequently: true })!;
   ctx.imageSmoothingEnabled = false;
   draw(ctx);
   const t = new THREE.CanvasTexture(cv);

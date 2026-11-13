@@ -260,7 +260,7 @@ export function plateTex(lines: string[], o: { w?: number; h?: number; bg?: numb
   for (let i = 0; i < W * H * 0.04; i++) pc.set(rng.int(1, W - 2), rng.int(1, H - 2), ramp[1]);
   // the text: rendered at 1x, alpha thresholded so every pixel is solid
   const tc = document.createElement('canvas'); tc.width = W; tc.height = H;
-  const ctx = tc.getContext('2d')!;
+  const ctx = tc.getContext('2d', { willReadFrequently: true })!;
   const size = o.size ?? Math.floor((H - 4) / lines.length * 0.95);
   ctx.font = `${o.italic ? 'italic ' : ''}600 ${size}px 'Alagard', monospace`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff';

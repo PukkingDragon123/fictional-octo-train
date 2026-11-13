@@ -7,6 +7,7 @@ import { SocialSystem } from './social';
 import { FloorSystem } from './floors';
 import { DimensionSystem } from './dims';
 import { SignSystem } from './signs';
+import { EmoteFxSystem } from './emotes/system';
 import { bus } from '../core/events';
 
 export function installSocial(g: Game) {
@@ -20,5 +21,7 @@ export function installSocial(g: Game) {
   floors.dims = dims;
   g.addSystem(dims);
   g.addSystem(new SignSystem());
+  // the emotes' props, sparks and sounds (src/social/emotes)
+  g.addSystem(new EmoteFxSystem());
   if (import.meta.env.DEV) (window as any).__vxBus = bus;
 }

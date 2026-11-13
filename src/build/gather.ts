@@ -37,6 +37,8 @@ import { PK } from '../gore/particles';
 import { gatherSpeed } from './speed';
 import { bump, mark } from './progress';
 import { shake } from '../gfx/juice';
+import { piece } from './pieces';
+import { DERELICT } from './blueprints';
 import type { ActionAnim } from '../entities/humanAnim';
 import type { Player } from '../entities/player';
 import type { MenuOption } from '../ui/ui';
@@ -332,6 +334,24 @@ export function placeNodes(z: Zone, seed: number) {
     if (!freeFloor(z, cx, cy)) continue;
     let n = 0;
     for (let t = 0; t < 24 && n < 3; t++) if (tryAt(cx + rng.int(-4, 4), cy + rng.int(-4, 4))) n++;
+  }
+  // round 17: what an earlier unit built and left: derelict pieces beside the salvage. Scan one
+  // and the build kit has its blueprint (src/build/blueprints.ts); the lockers sometimes hold a drawing.
+  const dWant = Math.max(1, Math.min(4, Math.round(want / 4)));
+  let dn = 0;
+  for (let t = 0; t < 200 && dn < dWant && placed.length; t++) {
+    const near = placed[rng.int(0, placed.length - 1)];
+    const k = DERELICT[rng.int(0, DERELICT.length - 1)];
+    const pc = piece(k); if (!pc?.obj || !objDef(pc.obj)) continue;
+    const w = pc.w ?? 1, d = pc.d ?? 1;
+    const x = near.x + rng.int(-3, 3), y = near.y + rng.int(-3, 3);
+    let ok = true;
+    for (let j = 0; j < d && ok; j++) for (let i = 0; i < w && ok; i++) if (!freeFloor(z, x + i, y + j) || (i > 0 && z.wallW[z.idx(x + i, y + j)]) || (j > 0 && z.wallN[z.idx(x + i, y + j)])) ok = false;
+    if (!ok || (sp && Math.abs(sp[0] - x) + Math.abs(sp[1] - y) < 4)) continue;
+    const o = b.obj(pc.obj, x, y, 0, { derelict: 1, dmg: 1 }, { tint: 0xc8bca8 });
+    if (!o) continue;
+    dn++;
+    if (o.inv && rng.next() < 0.5) o.inv.add(createItem('blueprint_sheet', rng));
   }
 }
 onZoneGeneratedLate(placeNodes);

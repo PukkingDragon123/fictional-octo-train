@@ -406,7 +406,7 @@ export const CONTROLS: [string, string][] = [
   ['Space', 'shove · kick · throw what you carry'], ['U', 'the second thing in reach'], ['F', 'suit lamp (no button: the key only)'], ['Q (hold)', 'scan · "[Q] Scan" floats over anything new'],
   ['1 - 6', 'hotbar: take the bound thing in hand'], ['Left mouse', 'use the tool in hand · attack (hold to charge)'], ['Right mouse', 'grab · push · pull · guard in a fight (raise it on the blow to parry)'],
   ['J', 'Dr. Calder\'s task board'], ['I', 'backpack'], ['O', 'inspect yourself'], ['H', 'lung pump · breathing'],
-  ['B', 'build mode'], ['M', 'map'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'],
+  ['Build kit in hand', 'build mode (hotbar 1 · R turn · Tab shelf · U upgrade · X take down)'], ['M', 'map'], ['Z / X', 'rotate camera'], ['Mouse wheel', 'zoom'],
   ['Middle mouse / Alt+drag', 'orbit the camera'], ['PageUp / PageDown · Alt+wheel', 'camera pitch'], ['P', 'photo mode'], ['V (hold)', 'talk (co-op voice, walkie when switched on)'],
   ['Enter / T', 'chat (co-op)'], ['Esc', 'close · pause'],
 ];

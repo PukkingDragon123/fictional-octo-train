@@ -36,3 +36,15 @@
   #wpad .wpad-light { right: calc(108px + env(safe-area-inset-right)); --sz: 56px; }
   #wpad .wpad-swim { bottom: calc(112px + env(safe-area-inset-bottom)); }
 }
+
+/* round 17: the build kit in hand: TURN / PIECE / SHELF / REMOVE / STOW stand where STRIKE and LAMP were */
+#wpad .wpad-b_rot, #wpad .wpad-b_next, #wpad .wpad-b_shelf, #wpad .wpad-b_down, #wpad .wpad-b_away { display: none; }
+#wpad.building .wpad-strike, #wpad.building .wpad-light { display: none; }
+#wpad.building .wpad-b_rot, #wpad.building .wpad-b_next, #wpad.building .wpad-b_shelf, #wpad.building .wpad-b_down, #wpad.building .wpad-b_away { display: block; }
+#wpad .wpad-b_rot { --sz: 80px; --c: 12px; right: calc(18px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
+#wpad .wpad-b_next { right: calc(108px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); }
+#wpad .wpad-b_shelf { right: calc(108px + env(safe-area-inset-right)); bottom: calc(96px + env(safe-area-inset-bottom)); }
+#wpad .wpad-b_down { right: calc(26px + env(safe-area-inset-right)); bottom: calc(112px + env(safe-area-inset-bottom)); }
+#wpad .wpad-b_away { right: calc(26px + env(safe-area-inset-right)); bottom: calc(186px + env(safe-area-inset-bottom)); }
+#wpad .wpad-b_down.lit .wpad-face { background: linear-gradient(#a2563a 0, #a2563a 3px, #7b3a24 3px, #5a2716 70%, #3b190d calc(100% - 3px), #240e07 calc(100% - 3px)); }
+#wpad .wpad-b_rot .wpad-face { background: linear-gradient(#6a86a8 0, #6a86a8 3px, #3f5a7a 3px, #2c4260 70%, #1c2c42 calc(100% - 3px), #101a28 calc(100% - 3px)); }

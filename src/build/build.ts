@@ -18,7 +18,7 @@ import { worldMaterial } from '../gfx/materials';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { wallDef, wallId } from '../world/defs';
 import { TF, type Zone, type TileObject } from '../world/zone';
-import { itemDef } from '../items/item';
+import { itemDef, type Item } from '../items/item';
 import { createItem, serializeItem } from '../items/factory';
 import { hasUnlock } from '../game/research';
 import { pick, type PickTarget } from '../game/picking';
@@ -37,6 +37,7 @@ import { Gathering } from './gather';
 import { GhostTag, type TagState } from './ghostTag';
 import { upgradeOf, upgradeCost, CLAIM_OBJS } from './kit2';
 import { storeItems, takeFromStore } from '../craft/stores';
+import { knowsBlueprint, whereToFind } from './blueprints';
 import type { GameSystem } from '../game/game';
 import type { Player } from '../entities/player';
 import type { MenuOption } from '../ui/ui';
@@ -143,7 +144,20 @@ export class BuildSystem implements GameSystem {
   /** the creature manager's hook: a creature probing the camp (src/build/camp.ts) */
   probeStep(c: any, z: Zone, dt: number) { return this.camp.probeStep(c, z, dt); }
   current(): Piece { return PIECES[this.sel] ?? PIECES[0]; }
-  unlocked(pc: Piece) { return !pc.node || hasUnlock(pc.node); }
+  /** round 17: blueprints are learned (src/build/blueprints.ts) */
+  unlocked(pc: Piece) { return knowsBlueprint(G.local, pc); }
+  /** round 17: build mode is the Surveyor's Build Kit in hand (no key, no button) */
+  kitInHand(p: Player | null | undefined): Item | null {
+    if (!p) return null;
+    for (const it of [p.handR, p.handL]) if (it && (it.key === 'build_kit' || itemDef(it.key).tags?.includes('buildkit'))) return it;
+    return null;
+  }
+  /** put the kit away (Esc, the touch pad) */
+  putAway(p: Player) { if (p.handR && this.kitInHand(p) === p.handR) p.equip(null, 'R'); else if (p.handL && this.kitInHand(p) === p.handL) p.equip(null, 'L'); this.toggle(false); }
+  /** the touch pad's build plates */
+  rotateGhost() { this.rot = ((this.rot + 1) % 4) as 0 | 1 | 2 | 3; G.audio?.ui?.('tab', 0.4); }
+  nextPiece(dir = 1) { this.cycle(dir); }
+  toggleDemolish() { this.demolish = !this.demolish; G.audio?.ui?.('switch', 0.6); }
   select(key: string) { const i = PIECES.findIndex((p) => p.key === key); if (i >= 0) { this.sel = i; this.cat = PIECES[i].cat; this.ghostKey = ''; this.demolish = false; } }
   private cycle(dir: number) {
     const list = PIECES.filter((p) => p.cat === this.cat);
@@ -250,7 +264,7 @@ export class BuildSystem implements GameSystem {
 
   /** tack a frame together where the ghost is: materials go in now */
   place(p: Player, pc: Piece, s: Spot): boolean {
-    if (!this.unlocked(pc)) { bus.emit('think', p, `I don't know how to build that yet. (Blueprint: research it in the lab, between runs.)`); return false; }
+    if (!this.unlocked(pc)) { bus.emit('think', p, `I don't have the blueprint for that. ${whereToFind(pc)}.`); G.audio?.ui?.('dryfire'); return false; }
     if (!s.ok) { G.audio?.ui?.('dryfire'); bus.emit('think', p, s.why ? `Can't build: ${s.why}.` : 'Not there.'); return false; }
     if (!this.canAfford(p, pc)) {
       const miss = pc.cost.filter(([k, n]) => this.countOf(p, k) < n).map(([k, n]) => `${n - this.countOf(p, k)} ${itemDef(k).name}`);
@@ -450,7 +464,8 @@ export class BuildSystem implements GameSystem {
   // ================================================================= update
   update(dt: number, dh: number) {
     const inp = G.input, p = G.local;
-    if (p && !inp.textFocus && inp.hit('build') && !G.cook?.captures?.()) this.toggle();
+    // the kit in hand is build mode: take it out and the ghost comes up, put it away and it goes
+    if (p) { const kit = !!this.kitInHand(p) && !G.cook?.captures?.(); if (kit !== this.active) this.toggle(kit); }
     if (this.active && p) this.updateMode(dt, p);
     this.farm.update(dh);
     this.settle.update(dt, this.active);
@@ -465,7 +480,7 @@ export class BuildSystem implements GameSystem {
     const inp = G.input;
     if (p.body.dead || p.inVehicle) { this.toggle(false); return; }
     // keys
-    if (inp.hit('pause')) { consume('pause'); this.toggle(false); return; }
+    if (inp.hit('pause')) { consume('pause'); this.putAway(p); return; }
     if (inp.hit('rotate')) { this.rot = ((this.rot + 1) % 4) as 0 | 1 | 2 | 3; G.audio?.ui?.('tab', 0.4); }
     if (inp.keyHit('BracketRight') || inp.keyHit('Period')) this.cycle(1);
     if (inp.keyHit('BracketLeft') || inp.keyHit('Comma')) this.cycle(-1);
@@ -551,7 +566,7 @@ export class BuildSystem implements GameSystem {
       unlocked: (pc) => this.unlocked(pc),
     });
   }
-  private nextCat() {
+  nextCat() {
     const cats = [...new Set(PIECES.map((q) => q.cat))];
     const i = cats.indexOf(this.cat);
     this.cat = cats[(i + 1) % cats.length];
@@ -585,14 +600,14 @@ export class BuildSystem implements GameSystem {
       if (to) keys.unshift(['U', 'Upgrade']);
       return {
         key: 'piece', head: to ? 'Upgrade' : '', name: to ? `${from!.name} to ${to.name}` : from?.name ?? '', at: this.hoverTop(z, h),
-        why: to && !this.unlocked(to) ? 'blueprint in the lab' : undefined,
+        why: to && !this.unlocked(to) ? 'blueprint needed: ' + whereToFind(to) : undefined,
         cost: to ? this.costLine(p, upgradeCost(to)) : from ? this.refundLine(from, 0.5) : [], keys,
       };
     }
     const s = this.spot;
     if (!s) return null;
     const unlocked = this.unlocked(pc);
-    const why = !unlocked ? 'no blueprint: research it in the lab' : !s.ok ? s.why : !this.canAfford(p, pc) ? 'not enough salvage' : !welderFor(p, pc) ? (pc.join === 'nail' ? 'needs a hammer to finish' : 'needs a welding torch to finish') : undefined;
+    const why = !unlocked ? 'blueprint needed: ' + whereToFind(pc) : !s.ok ? s.why : !this.canAfford(p, pc) ? 'not enough salvage' : !welderFor(p, pc) ? (pc.join === 'nail' ? 'needs a hammer to finish' : 'needs a welding torch to finish') : undefined;
     const w = pc.w ?? 1, d = pc.d ?? 1, rw = s.rot % 2 === 0 ? w : d, rd = s.rot % 2 === 0 ? d : w;
     const at = pc.kind === 'obj' ? { x: s.x + rw / 2, y: z.heightAt(s.x, s.y), z: s.y + rd / 2 } : { x: s.side === 0 ? s.x + 0.5 : s.x, y: z.heightAt(s.x, s.y), z: s.side === 0 ? s.y : s.y + 0.5 };
     const keys: [string, string][] = [['R', 'Rotate'], [', .', 'Piece'], ['Tab', 'Shelf'], ['X', 'Take down'], ['B', 'Done']];
@@ -659,7 +674,7 @@ export class BuildSystem implements GameSystem {
     else if (h.kind === 'prev' || h.kind === 'next') { this.cycle(h.kind === 'next' ? 1 : -1); G.audio?.ui?.('paper', 0.4); }
     else if (h.kind === 'demo') { this.demolish = !this.demolish; G.audio?.ui?.('switch', 0.6); }
     const pc = this.current();
-    if (p && h.kind !== 'demo' && !this.unlocked(pc)) bus.emit('think', p, `No blueprint for that. The lab's research tree has it, between runs.`);
+    if (p && h.kind !== 'demo' && !this.unlocked(pc)) bus.emit('think', p, `No blueprint for that yet: ${whereToFind(pc)}.`);
   }
   private boardState(p: Player): BoardState {
     const pc = this.current();
@@ -667,7 +682,7 @@ export class BuildSystem implements GameSystem {
     const w = welderFor(p, pc);
     const L = this.settle.local();
     return {
-      pc, idx: list.indexOf(pc), total: list.length, cat: this.cat, unlocked: this.unlocked(pc), have: (k) => this.countOf(p, k), demolish: this.demolish,
+      pc, idx: list.indexOf(pc), total: list.length, cat: this.cat, unlocked: this.unlocked(pc), lockHint: this.unlocked(pc) ? '' : whereToFind(pc), known: list.filter((q) => this.unlocked(q)).length, have: (k) => this.countOf(p, k), demolish: this.demolish,
       gas: w?.kind === 'torch' ? (w.it.uses ?? 1) : w?.kind === 'laser' ? 1 : null,
       tool: w ? (w.kind === 'torch' ? 'TORCH' : w.kind === 'laser' ? 'LASER' : 'HAMMER') : pc.join === 'nail' ? 'NO HAMMER' : 'NO WELDER',
       stats: L?.s ?? null, claimName: (L?.b.state.name as string) ?? '',

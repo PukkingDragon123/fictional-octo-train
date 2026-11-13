@@ -155,7 +155,7 @@ export function canvasTex(c: HTMLCanvasElement): THREE.CanvasTexture {
 export function bloodCanvas(seed: number, size = 64, drip = false): HTMLCanvasElement {
   const cv = document.createElement('canvas');
   cv.width = size; cv.height = size;
-  const ctx = cv.getContext('2d')!;
+  const ctx = cv.getContext('2d', { willReadFrequently: true })!;
   let s = seed * 9301 + 49297;
   const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
   const cols = ['#4a0606', '#6a0a0a', '#7e1010', '#3a0404'];

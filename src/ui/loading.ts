@@ -24,6 +24,9 @@ export type LoadKind = 'boot' | 'travel' | 'run' | 'lab';
 
 let root: HTMLElement | null = null;
 let ex: Expanse | null = null;
+// the Expanse drawn in a worker (src/ui/loader/worker.ts) so it never stalls while the page works;
+// ex (drawn on the page) is the fallback where a worker cannot draw
+let wk: Worker | null = null, wkCanvas: HTMLCanvasElement | null = null, wkDone = false;
 let failed = false;
 let raf = 0, last = 0, fadeIn = 0;
 let kindNow: LoadKind = 'boot';
@@ -41,12 +44,54 @@ function ensure(): HTMLElement {
   root.className = 'lp-load';
   root.setAttribute('aria-hidden', 'true');
   document.body.appendChild(root);
-  if (!ex && !failed) {
-    try { ex = new Expanse((window.innerWidth || 16) / (window.innerHeight || 9)); } catch (e) { failed = true; ex = null; console.warn('loader 3d', e); }
+  if (wkCanvas) root.appendChild(wkCanvas);
+  else if (!ex && !failed && !startWorker(root)) onPage(root);
+  else if (ex) root.appendChild(ex.canvas as HTMLCanvasElement);
+  if (!resizeBound) {
+    resizeBound = true;
+    window.addEventListener('resize', () => {
+      if (state === 'off') return;
+      ex?.resize(window.innerWidth, window.innerHeight);
+      wk?.postMessage({ t: 'resize', w: window.innerWidth, h: window.innerHeight });
+    });
   }
-  if (ex) root.appendChild(ex.canvas);
-  if (!resizeBound) { resizeBound = true; window.addEventListener('resize', () => { if (state !== 'off') ex?.resize(window.innerWidth, window.innerHeight); }); }
   return root;
+}
+
+/** the Expanse on the main thread (no worker, or the worker failed) */
+function onPage(el: HTMLElement) {
+  try { ex = new Expanse((window.innerWidth || 16) / (window.innerHeight || 9)); } catch (e) { failed = true; ex = null; console.warn('loader 3d', e); return; }
+  el.prepend(ex.canvas as HTMLCanvasElement);
+  ex.resize(window.innerWidth, window.innerHeight);
+}
+
+/** the Expanse in a worker on an OffscreenCanvas: false where that cannot run */
+function startWorker(el: HTMLElement): boolean {
+  if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined' || !('transferControlToOffscreen' in HTMLCanvasElement.prototype)) return false;
+  if (/[?&]loader-main\b/.test(location.search)) return false;
+  try {
+    const cv = document.createElement('canvas');
+    cv.className = 'lp-gl';
+    const off = cv.transferControlToOffscreen();
+    const w = new Worker(new URL('./loader/worker.ts', import.meta.url), { type: 'module' });
+    w.onmessage = (e: MessageEvent<{ t: string; err?: string }>) => {
+      if (e.data.t === 'done') wkDone = true;
+      else if (e.data.t === 'fail') workerFailed(e.data.err);
+    };
+    w.onerror = (e) => { e.preventDefault(); workerFailed(e.message); };
+    w.postMessage({ t: 'init', canvas: off, aspect: (window.innerWidth || 16) / (window.innerHeight || 9), w: window.innerWidth, h: window.innerHeight }, [off]);
+    el.appendChild(cv);
+    wk = w; wkCanvas = cv;
+    return true;
+  } catch (e) { console.warn('loader worker', e); return false; }
+}
+function workerFailed(err?: string) {
+  if (!wk) return;
+  console.warn('loader worker failed, drawing on the page', err);
+  wk.terminate(); wk = null; wkCanvas?.remove(); wkCanvas = null;
+  if (!root || failed) return;
+  onPage(root);
+  if (ex && state !== 'off') { ex.restart(); if (state === 'finishing') ex.finish(); }
 }
 
 function loop(now: number) {
@@ -61,7 +106,8 @@ function loop(now: number) {
   if (ex) {
     try { ex.frame(dt, fadeIn * fadeIn); } catch (e) { console.warn('loader frame', e); failed = true; ex = null; }
   }
-  if (state === 'finishing' && (!ex || ex.done || performance.now() - hideAt > FINISH_CAP_MS)) fadeOut();
+  const done = wk ? wkDone : !ex || ex.done;
+  if (state === 'finishing' && (done || performance.now() - hideAt > FINISH_CAP_MS)) fadeOut();
 }
 
 function fadeOut() {
@@ -71,6 +117,7 @@ function fadeOut() {
   setTimeout(() => {
     if (state !== 'fading') return; // shown again meanwhile
     state = 'off';
+    wk?.postMessage({ t: 'stop' });
     root?.classList.remove('on', 'out');
     const w = waiters; waiters = [];
     w.forEach((f) => f());
@@ -81,13 +128,15 @@ function fadeOut() {
 export function showLoading(kind: LoadKind = 'boot') {
   const el = ensure();
   kindNow = kind;
-  if (state === 'on' || state === 'finishing') { state = 'on'; ex?.resume(); el.classList.add('on'); return; }
+  if (state === 'on' || state === 'finishing') { state = 'on'; ex?.resume(); wkDone = false; wk?.postMessage({ t: 'resume' }); el.classList.add('on'); return; }
   const wasFading = state === 'fading';
   state = 'on';
   el.classList.remove('out');
   el.classList.add('on');
   ex?.resize(window.innerWidth, window.innerHeight);
   if (!wasFading) { ex?.restart(); fadeIn = 0; } else ex?.resume();
+  wkDone = false;
+  wk?.postMessage({ t: 'show', fresh: !wasFading, w: window.innerWidth, h: window.innerHeight });
   if (!raf) { last = 0; raf = requestAnimationFrame(loop); }
 }
 
@@ -95,8 +144,8 @@ export function showLoading(kind: LoadKind = 'boot') {
 export function hideLoading(o: { now?: boolean } = {}): Promise<void> {
   if (state === 'off') return Promise.resolve();
   const p = new Promise<void>((res) => waiters.push(res));
-  if (o.now || !ex) fadeOut();
-  else if (state === 'on') { state = 'finishing'; hideAt = performance.now(); ex.finish(); }
+  if (o.now || (!ex && !wk)) fadeOut();
+  else if (state === 'on') { state = 'finishing'; hideAt = performance.now(); ex?.finish(); wk?.postMessage({ t: 'finish' }); }
   return p;
 }
 

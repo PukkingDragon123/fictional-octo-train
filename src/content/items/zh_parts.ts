@@ -67,3 +67,68 @@ defItem({
     mb.cylinder(0.035, 0.006, -0.025, 0.007, 0.02, 8, 'metal_grey');
   },
 });
+
+// ---------------------------------------------------------------- round 17: the build kit (build mode while it is in hand) and blueprints
+const D_TUBE_LABEL = tex('i_zh_tube_label', 16, 8, (pc) => {
+  pc.fill(0xe8dcb4); pc.strokeRect(0, 0, 16, 8, 0x6a5a38);
+  pc.rect(1, 1, 4, 6, 0x2f62a8); pc.set(2, 3, 0xe8dcb4); pc.set(3, 4, 0xe8dcb4);
+  for (let x = 7; x < 15; x += 2) pc.set(x, 3, 0x3a2e1e);
+  for (let x = 7; x < 13; x += 2) pc.set(x, 5, 0x6a5a38);
+});
+const D_PLAN = tex('i_zh_plan', 16, 16, (pc) => {
+  pc.fill(0x2f62a8);
+  pc.each((x, y) => { if (x % 4 === 0 || y % 4 === 0) pc.set(x, y, 0x3a72b8); });
+  pc.strokeRect(2, 3, 10, 8, 0xdce8f8); pc.hline(2, 11, 7, 0xdce8f8); pc.vline(7, 3, 10, 0xdce8f8);
+  pc.set(13, 13, 0xdce8f8); pc.set(14, 13, 0xdce8f8);
+});
+const D_RULE = tex('i_zh_rule', 16, 4, (pc) => {
+  pc.fill(0xe8c020);
+  for (let x = 0; x < 16; x += 2) pc.vline(x, 0, x % 4 === 0 ? 2 : 1, 0x2a2410);
+});
+
+defItem({
+  key: 'build_kit', name: 'Surveyor\'s Build Kit', cat: 'tool', weight: 1.6, durability: 600, tags: ['hammer', 'buildkit', 'tool'], value: 30, grid: [3, 1],
+  desc: 'A claw hammer, a yellow folding rule and a tube of blueprint sheets strapped together with a belt. Take it in hand to build: the ghost, the shelves, the salvage. Put it away to stop.',
+  model: (mb) => {
+    // the blueprint tube under the strap
+    rodX(mb, -0.2, 0.2, 0.04, 0.035, 0.035, 10, { sides: 'cardboard', top: D_PLAN, bottom: D_PLAN }, { color: 0xd8c8a0 });
+    mb.push().translate(0.02, 0.04, 0).rotateZ(Math.PI / 2); mb.cylinder(0, -0.04, 0, 0.0365, 0.08, 10, D_TUBE_LABEL, { caps: false }); mb.pop();
+    for (const x of [-0.205, 0.205]) rodX(mb, x - 0.012, x + 0.012, 0.04, 0.039, 0.039, 10, 'metal_dark');
+    // the folding rule along its side, half open
+    mb.push().translate(-0.05, 0.08, 0.03).rotateY(0.08);
+    mb.box(0, 0, 0, 0.26, 0.006, 0.022, D_RULE, { fit: true });
+    mb.push().translate(0.12, 0.004, 0).rotateY(-0.5); mb.box(0.06, 0, 0, 0.13, 0.006, 0.022, D_RULE, { fit: true }); mb.pop();
+    mb.cylinder(0.12, 0.004, 0, 0.006, 0.008, 6, 'metal_brass');
+    mb.pop();
+    // the hammer tucked under the belt
+    mb.push().translate(0.0, 0.06, -0.035).rotateY(0.25);
+    rodX(mb, -0.16, 0.06, 0.0, 0.012, 0.011, 6, 'wood_dark', { color: 0xa8784a });
+    mb.box(0.075, -0.012, -0.03, 0.03, 0.026, 0.085, 'metal_grey', { color: 0x9aa0a6 });
+    mb.pop();
+    // two belt straps with buckles
+    for (const x of [-0.11, 0.11]) {
+      mb.push().translate(x, 0.04, 0).rotateX(Math.PI / 2); mb.cylinder(0, -0.006, 0, 0.042, 0.012, 12, 'q_jersey', { caps: false, color: 0x5a3a22 }); mb.pop();
+      mb.box(x, 0.078, 0.005, 0.018, 0.006, 0.02, 'metal_brass');
+    }
+  },
+});
+defItem({
+  key: 'blueprint_sheet', name: 'Rolled Blueprint', cat: 'literature', weight: 0.08, tags: ['paper', 'blueprint', 'tinder'], value: 12, grid: [2, 1], burn: 0.05,
+  literature: { pages: 18, boredom: -4 },
+  desc: 'A cyan-print sheet rolled tight with a rubber band: somebody\'s drawing of something they built down here. Read it and the build kit has the plan.',
+  model: (mb) => {
+    rodX(mb, -0.15, 0.15, 0.022, 0.02, 0.02, 10, { sides: D_PLAN, top: 'paper', bottom: 'paper' }, { color: 0xffffff });
+    mb.push().translate(0.155, 0.022, 0).rotateZ(-0.3); mb.box(0.03, -0.001, -0.02, 0.06, 0.002, 0.04, D_PLAN, { fit: true }); mb.pop();
+    mb.push().translate(-0.04, 0.022, 0).rotateZ(Math.PI / 2); mb.cylinder(0, -0.004, 0, 0.0215, 0.008, 10, 'rubber_black', { caps: false, color: 0xb83a2a }); mb.pop();
+  },
+});
+defItem({
+  key: 'blueprint_tube', name: 'Sealed Plan Tube', cat: 'literature', weight: 0.3, tags: ['paper', 'blueprint'], value: 28, grid: [3, 1],
+  literature: { pages: 30, boredom: -6 },
+  desc: 'A cardboard tube with a Meridian works stamp and wax on both caps. Inside: machine drawings, two or three sheets. Read it.',
+  model: (mb) => {
+    rodX(mb, -0.22, 0.22, 0.035, 0.032, 0.032, 12, { sides: 'cardboard', top: 'metal_dark', bottom: 'metal_dark' }, { color: 0xc8b088 });
+    mb.push().translate(0.0, 0.035, 0).rotateZ(Math.PI / 2); mb.cylinder(0, -0.05, 0, 0.0335, 0.1, 12, D_TUBE_LABEL, { caps: false }); mb.pop();
+    for (const x of [-0.225, 0.225]) { rodX(mb, x - 0.015, x + 0.015, 0.035, 0.036, 0.036, 12, 'metal_dark'); mb.sphere(x + (x < 0 ? -0.016 : 0.016), 0.035, 0, 0.012, 6, 4, 'plastic_red', { color: 0xa8281e, sy: 0.6 }); }
+  },
+});

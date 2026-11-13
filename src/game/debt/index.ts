@@ -77,8 +77,10 @@ export function issueKit(p: Player, add: (key: string, wear?: boolean) => Item |
   add('tool_roll', true);
   add('ration_bar');
   add('water_pouch');
-  // round 16 (src/build): building starts on the first day: a claw hammer and a box of nails for the first camp
-  add('hammer');
+  // round 17 (src/build): building is a tool: the Surveyor's Build Kit (hammer, folding rule, the basic
+  // blueprints) on hotbar 1, and a box of nails for the first camp. Take the kit in hand to build.
+  const kit = add('build_kit');
+  if (kit) kit.data = { ...(kit.data || {}), hot: 1 };
   add('nails');
 }
 

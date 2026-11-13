@@ -54,9 +54,9 @@ import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePa
 import * as THREE from 'three';
 import { mxOk } from '../machine/core';
 import { mxFrame, mxSkinKey, panelSpec, type MxFrame } from '../machine/kit';
-import { mxIcon, mxMount, type IconKind, type MxDecor } from '../machine/decor';
+import { mxIconAnim, mxMount, type IconKind, type MxDecor } from '../machine/decor';
 
-const TITLE_ICON: Record<string, IconKind> = { continue: 'play', new: 'bolt', free: 'door', coop: 'radio', load: 'tape', controls: 'key', about: 'clipboard' };
+const TITLE_ICON: Record<string, IconKind> = { continue: 'play', new: 'plug', free: 'reel', coop: 'walkie', load: 'clipboard', controls: 'joystick', about: 'dossier' };
 
 export function showTitle() {
   const canvas = document.getElementById('view') as HTMLCanvasElement;
@@ -72,8 +72,14 @@ export function showTitle() {
   setRoomAudio(audio);
   const t = new TitleRoom(g);
   t.show();
-  document.getElementById('boot')?.classList.add('gone');
+  // the loading screen stays up (and keeps moving) until the rooms are built and their shaders
+  // compiled, so the title never comes up frozen; a cap in case something stalls
+  const gone = () => document.getElementById('boot')?.classList.add('gone');
+  Promise.race([t.ready, new Promise((r) => setTimeout(r, 15000))]).then(gone, gone);
 }
+
+/** one breath for the page: the next frame and a task after it (or a short timer when hidden) */
+const breath = () => new Promise<void>((res) => { let d = false; const go = () => { if (!d) { d = true; res(); } }; requestAnimationFrame(() => setTimeout(go, 0)); setTimeout(go, 80); });
 
 interface Item { key: string; label: string; sub: string; act: () => void; size?: 'lg' | 'md' | 'sm' }
 type View = 'monitor' | FeedKey;
@@ -122,7 +128,8 @@ class TitleRoom {
 
   constructor(g: Game) {
     this.g = g;
-    this.root.append(this.stageHost, this.subjHost, this.menu, this.feedNav, this.hud, this.hotcap, this.foot, this.over);
+    // (round 16: the title is only its menu: no key line or footer under it)
+    this.root.append(this.stageHost, this.subjHost, this.menu, this.feedNav, this.hud, this.hotcap, this.over);
     document.body.append(this.root);
     // what the decorator hides while building / shopping
     for (const e of [this.menu, this.feedNav, this.hud, this.hotcap, this.foot]) e.setAttribute('data-deco-hide', '');
@@ -153,16 +160,34 @@ class TitleRoom {
   }
 
   /** the three stage rooms (after the pixel font is ready: their labels are drawn with it) */
-  private buildRooms() {
-    if (this.monitor) return;
-    const mats = facetMats(this.stage.low);
-    const mon = this.monitor = new MonitorRoom(mats);
-    const lab = this.research = new ResearchLab(mats);
-    const arc = this.archive = new CodexArchive(mats);
+  /** resolves once the rooms are built and warmed (showTitle holds the loading screen until then) */
+  private readyRes: () => void = () => {};
+  readonly ready = new Promise<void>((r) => { this.readyRes = r; });
+  private building = false;
+  private async buildRooms() {
+    if (this.monitor || this.building) return;
+    this.building = true;
+    try {
+      // one room per task, so the loading screen gets frames in between
+      const mats = facetMats(this.stage.low);
+      const mon0 = new MonitorRoom(mats); await breath();
+      const lab0 = new ResearchLab(mats); await breath();
+      const arc0 = new CodexArchive(mats); await breath();
+      this.buildRoomsNow(mon0, lab0, arc0);
+      // shaders: the rooms off screen are compiled before their feeds first draw them
+      await this.stage.warm(breath);
+      const mon = this.monitor!;
+      mon.setFeedTexture('archive', this.stage.feed('archive', 160, 120, 8), true);
+      mon.setFeedTexture('research', this.stage.feed('research', 160, 120, 10), true);
+      await breath();
+    } catch (e) { console.warn('title rooms', e); }
+    this.building = false;
+    this.readyRes();
+  }
+  private buildRoomsNow(mon: MonitorRoom, lab: ResearchLab, arc: CodexArchive) {
+    this.monitor = mon; this.research = lab; this.archive = arc;
     this.stage.add(mon); this.stage.add(lab); this.stage.add(arc);
     this.stage.show('monitor');
-    mon.setFeedTexture('archive', this.stage.feed('archive', 160, 120, 8), true);
-    mon.setFeedTexture('research', this.stage.feed('research', 160, 120, 10), true);
     mon.setFeedTexture('subject', this.subject.tex, false);
     mon.onFeed = (k) => { void this.go(k); };
     // the lab's paperwork (research/panel.ts): the codex, an entry, the fridge, the requisition, the Meridian file
@@ -190,7 +215,6 @@ class TitleRoom {
     const reg = (id: MenuRoomId, r: { scene: THREE.Scene; cam: THREE.Camera; deco: THREE.Group; floor: any; surfaces: any; guideSpot: any }) =>
       registerMenuRoom({ id, scene: r.scene, camera: r.cam, deco: r.deco, floor: r.floor, surfaces: r.surfaces, guideSpot: r.guideSpot, host: this.stageHost, pick: (x, y) => this.pickFloor(x, y, r.floor.y, r.surfaces) });
     reg('monitor', mon); reg('research', lab); reg('archive', arc);
-    void this.stage.warm();
     setActiveMenuRoom('monitor');
     this.buildFeedButtons();
     // the decorator (blueprint mode, collectibles) and the researcher guide; build mode gets a shot of the floor
@@ -240,9 +264,10 @@ class TitleRoom {
     if (this.saves.length) items.push({ key: 'load', label: 'Case files', sub: `${this.saves.length} unit${this.saves.length === 1 ? '' : 's'} on file`, act: () => this.loads(), size: pt ? 'sm' : 'md' });
     items.push({ key: 'controls', label: 'Controls', sub: 'keys · touch · gamepad', act: () => this.controls(), size: pt ? 'sm' : 'md' });
     items.push({ key: 'about', label: 'About', sub: 'what this place is', act: () => this.about(), size: pt ? 'sm' : 'md' });
-    this.menu.innerHTML = '';
+    // a rebuild (the saves came in) keeps the console's housing and its little things: only the keys are replaced
+    for (const c of [...this.menu.children]) if (!c.matches('.mxf-cv, .mxd, .tt-pro')) c.remove();
     this.menu.classList.add('ft-menu');
-    this.menu.append(this.cap);
+    if (!mxOk()) this.menu.append(this.cap);
     this.btns.clear();
     items.forEach((it, i) => {
       const b = h('button', `ft-item ft-${it.size ?? 'md'}`, `<span class="ft-ptr" aria-hidden="true"></span><span class="ft-lab">${esc(it.label)}</span>`) as HTMLButtonElement;
@@ -250,21 +275,28 @@ class TitleRoom {
       b.dataset.k = it.key;
       b.style.setProperty('--ft-i', String(i));
       b.setAttribute('aria-label', `${it.label} — ${it.sub}`);
-      b.addEventListener('focus', () => { this.lastKey = it.key; this.caption(it, b); });
+      b.addEventListener('focus', () => { this.lastKey = it.key; if (!mxOk()) this.caption(it, b); });
       b.addEventListener('pointerenter', () => { if (document.activeElement !== b) { b.focus({ preventScroll: true }); sfx('tick', 0.4); } });
       b.addEventListener('click', () => this.activate(it));
       this.menu.append(b);
       this.btns.set(it.key, b);
       // round 16: the words are keys on the observation desk's console, each with its little model
       if (mxOk()) {
-        const big = it.size === 'lg', go = it.key === 'new' || it.key === 'continue';
-        b.style.width = (pt ? (big ? 236 : 204) : (big ? 268 : 226)) + 'px';
-        b.style.height = (big ? (pt ? 44 : 50) : (pt ? 38 : 40)) + 'px';
-        const ic = mxIcon(TITLE_ICON[it.key] ?? 'gear', big && !pt ? 26 : 22);
-        if (ic) b.append(ic);
-        mxSkinKey(b, { tone: go ? 'yellow' : 'olive', lamp: go ? 'green' : 'amber', sound: '', seed: 40 + i });
+        // one size of key (the way in a little bigger), its own little 3D model that sways while the key is hot,
+        // the cap sinks with a clunk and the lamp lights (src/ui/machine/kit.ts mxSkinKey)
+        const go = it.key === 'new' || it.key === 'continue';
+        b.classList.toggle('ft-lg', go); b.classList.toggle('ft-md', !go); b.classList.remove('ft-sm');
+        b.style.width = (pt ? (go ? 244 : 228) : (go ? 276 : 248)) + 'px';
+        b.style.height = (pt ? (go ? 48 : 44) : (go ? 54 : 48)) + 'px';
+        const ic = mxIconAnim(TITLE_ICON[it.key] ?? 'gear', pt ? 32 : 36);
+        if (ic) {
+          b.append(ic.cv);
+          const hot = () => ic.hot(document.activeElement === b || b.matches(':hover'));
+          for (const ev of ['focus', 'blur', 'pointerenter', 'pointerleave']) b.addEventListener(ev, () => requestAnimationFrame(hot));
+        }
+        mxSkinKey(b, { tone: go ? 'yellow' : 'olive', lamp: go ? 'green' : 'amber', sound: 'key', seed: 40 + i });
         if (go) b.classList.add('ink-d');
-        b.addEventListener('focus', () => this.beacon?.alert(it.key === 'new' || it.key === 'continue'));
+        b.addEventListener('focus', () => this.beacon?.alert(go));
       }
     });
     this.gear?.dispose();
@@ -272,7 +304,7 @@ class TitleRoom {
     const gb = gearButton('Settings', () => this.activate(gi), { aria: 'Settings — sound · picture · interface' });
     gb.dataset.k = 'options';
     gb.classList.add('tt4-gear');
-    gb.addEventListener('focus', () => { this.lastKey = 'options'; this.caption(gi, gb); });
+    gb.addEventListener('focus', () => { this.lastKey = 'options'; if (!mxOk()) this.caption(gi, gb); });
     this.menu.append(gb);
     this.btns.set('options', gb);
     this.gear = gb;
@@ -285,9 +317,29 @@ class TitleRoom {
    * way in is lit, a spanner on a peg and the specimen jar beside it, watching the pointer */
   private machine(pt: boolean) {
     this.menu.classList.add('mx');
-    this.mxf?.dispose();
-    this.mxf = mxFrame(this.menu, (w, hh) => panelSpec(w, hh, { title: 'OBSERVATION DESK', serial: 'MI-OB4', seed: 71, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 44, bot: 26, toggles: 2, knobs: 1 }), { pad: 16, grow: pt ? { l: 14, t: 48, r: 14, b: 28 } : { l: 20, t: 50, r: 22, b: 30 } });
+    if (this.mxf) return; // built once: a rebuild of the keys must not flash the housing
+    // no nameplate (the keys say enough): lamps, a vent, the hazard foot, glands and cables
+    this.mxf = mxFrame(this.menu, (w, hh) => panelSpec(w, hh, { seed: 71, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 44, bot: 26, toggles: 2, knobs: 1 }), { pad: 16, grow: pt ? { l: 14, t: 48, r: 14, b: 28 } : { l: 20, t: 50, r: 22, b: 30 } });
     this.beacon = mxMount(this.menu, 'beacon', { right: pt ? 18 : 30, top: pt ? -84 : -92, z: 3 }, { col: 'amber', s: 1.3, alert: this.lastKey === 'new' || this.lastKey === 'continue' });
+    // the prologue is the cassette on the console's hood: press it to play the first link again
+    const tape = mxIconAnim('tape', 30);
+    if (tape) {
+      const pb = h('button', 'tt-pro') as HTMLButtonElement;
+      pb.type = 'button';
+      pb.setAttribute('aria-label', 'Prologue — the first link, again');
+      pb.title = 'Prologue';
+      pb.append(tape.cv);
+      for (const ev of ['focus', 'pointerenter']) pb.addEventListener(ev, () => { tape.hot(true); if (ev === 'pointerenter') sfx('tick', 0.35); });
+      for (const ev of ['blur', 'pointerleave']) pb.addEventListener(ev, () => tape.hot(false));
+      pb.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        if (this.busy || this.room.busy || this.moving) return;
+        sfx('key', 0.7);
+        import('../../game/prologue').then((m) => m.replayPrologue()).catch((err) => console.warn('prologue', err));
+      });
+      pb.style.left = (pt ? 4 : 2) + 'px'; pb.style.top = (pt ? -44 : -46) + 'px';
+      this.menu.append(pb);
+    }
     if (!pt) {
       mxMount(this.menu, 'jar', { right: -132, bottom: -44, z: 3 }, { title: 'Specimen 07', s: 1.35 });
       mxMount(this.menu, 'gauge', { right: 10, bottom: 92, z: 3 }, { label: 'LINK' });
@@ -306,7 +358,8 @@ class TitleRoom {
   private activate(it: Item) {
     if (this.busy || this.room.busy || this.moving) return;
     this.busy = true;
-    sfx(it.key === 'new' || it.key === 'continue' ? 'confirm' : 'plate');
+    // (the machine's keys already clunked on the press: only the way in confirms)
+    if (!mxOk() || it.key === 'new' || it.key === 'continue') sfx(it.key === 'new' || it.key === 'continue' ? 'confirm' : 'plate');
     setTimeout(() => { this.busy = false; it.act(); }, 260);
   }
 

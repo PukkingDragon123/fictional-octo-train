@@ -4,7 +4,8 @@
 // Each one pays in research and a little of what the next one needs.
 import { G } from '../game/G';
 import { bus } from '../core/events';
-import { defQuest } from '../game/quests';
+import { defQuest, questDef } from '../game/quests';
+import { TASK_TEACH, learnBlueprint } from './blueprints';
 import { defNode, researchNode } from '../game/research';
 import { countIn, marked, mark, bump } from './progress';
 import { storeItems } from '../craft/stores';
@@ -24,7 +25,7 @@ const any = (m: unknown, ...keys: string[]) => keys.some((k) => marked(m, 'piece
 
 defQuest({
   key: 'fc_salvage', title: 'Salvage', giver: CALDER, category: 'build', auto: true, requires: ['cq_cube'],
-  desc: 'The Institute sent you down with a hammer and a box of nails, which is more than the last unit got. Furniture is lumber. Break some, keep the planks, tear a rag or two off whatever is soft.',
+  desc: 'The Institute sent you down with a build kit and a box of nails, which is more than the last unit got. The kit only knows a few drawings; the rest you learn: rolled blueprints in tool rooms, derelict pieces you can scan, and what I send you. Furniture is lumber. Break some, keep the planks, tear a rag or two off whatever is soft.',
   objectives: [
     { id: 'planks', text: 'Carry 3 Planks (smash wooden furniture)', check: have('plank', 3) },
     { id: 'rags', text: 'Carry 2 Rags (tear up cloth)', check: have('rag', 2) },
@@ -33,19 +34,19 @@ defQuest({
 });
 defQuest({
   key: 'fc_flag', title: 'Plant a Flag', giver: CALDER, category: 'build', auto: true, requires: ['fc_salvage'],
-  desc: 'Pick a room with one way in. Press B: the ghost shows where things go, the words over it show what they cost. Tab turns the shelf to LIVING. Click to tack the Camp Flag up, then hold the button on it until the nails are in.',
+  desc: 'Pick a room with one way in. Take the build kit in hand (it sits on hotbar 1): the ghost shows where things go, the words under it show what they cost. Tab turns the shelf to LIVING. Click to tack the Camp Flag up, then hold the button on it until the nails are in. Do this and I will send you the plank wall drawings.',
   objectives: [{ id: 'flag', text: 'Build a Camp Flag (B, LIVING shelf)', check: (m) => any(m, 'camp_flag', 'beacon') }],
   reward: { rp: 2, items: [['plank', 2]] },
 });
 defQuest({
   key: 'fc_store', title: 'Somewhere to Put Things', giver: CALDER, category: 'build', auto: true, requires: ['fc_flag'],
-  desc: 'A crate inside the flag\'s ring is part of your hands: what is in it counts when you build or craft anywhere in the camp. Nail one together.',
+  desc: 'A crate inside the flag\'s ring is part of your hands: what is in it counts when you build or craft anywhere in the camp. Nail one together and the door drawings are yours.',
   objectives: [{ id: 'crate', text: 'Build a Storage Crate', check: (m) => any(m, 'crate', 'locker') }],
   reward: { rp: 2, items: [['nails', 1]] },
 });
 defQuest({
   key: 'fc_walls', title: 'Four Walls', giver: CALDER, category: 'build', auto: true, requires: ['fc_store'],
-  desc: 'Things live down here, unit, and some of them will come and look at what you built. Close the gaps: plank walls, a door, a barricade across the corridor. Whatever is in the way, they have to break.',
+  desc: 'Things live down here, unit, and some of them will come and look at what you built. Close the gaps: plank walls, a door, a barricade across the corridor. Whatever is in the way, they have to break. Blueprints on completion: tin-can tripwire, rain barrel.',
   objectives: [{ id: 'walls', text: 'Put up 3 walls, doors or barricades', check: (m) => Math.min(1, countIn(m, 'camp_wall') / 3) }],
   reward: { rp: 3, items: [['nails', 1], ['plank', 2]] },
 });
@@ -78,7 +79,7 @@ defQuest({
 });
 defQuest({
   key: 'fc_upgrade', title: 'Scrap to Steel', giver: 'MERIDIAN R&D', category: 'build', requires: ['fc_walls', 'q_bld_scrap'],
-  desc: 'R&D wants to see a wooden camp turn into a metal one. In build mode, point at a plank wall or a crate and press U: the next tier goes on over it, in place.',
+  desc: 'R&D wants to see a wooden camp turn into a metal one. With the build kit in hand, point at a plank wall or a crate and press U: the next tier goes on over it, in place (you will need its blueprint; R&D sends the scrap-plate wall and the locker when you are done).',
   objectives: [{ id: 'up', text: 'Upgrade 2 pieces (U in build mode)', check: (m) => Math.min(1, countIn(m, 'bld_upgrade') / 2) }],
   reward: { rp: 5, items: [['sheet_metal', 2]] },
 });
@@ -88,6 +89,14 @@ let wired = false;
 export function wireFirstCamp() {
   if (wired) return;
   wired = true;
+  // round 17: the tasks teach blueprints when they are done (src/build/blueprints.ts TASK_TEACH)
+  for (const [k, keys] of Object.entries(TASK_TEACH)) {
+    const q = questDef(k);
+    if (!q || (q as { __bp?: boolean }).__bp) continue;
+    (q as { __bp?: boolean }).__bp = true;
+    const prev = q.onComplete;
+    q.onComplete = () => { try { prev?.(); } catch (e) { console.warn(e); } keys.forEach((key, i) => setTimeout(() => learnBlueprint(G.local, key, 'DR. CALDER'), 1200 + i * 1500)); };
+  }
   bus.on('bldWelded', (_z: unknown, pc: Piece, _o: unknown, by: string | null) => {
     if (by !== G.local?.id) return;
     if (pc.kind === 'wall' || pc.kind === 'door' || pc.key === 'barricade' || pc.key === 'metal_barricade') bump('camp_wall');
@@ -100,7 +109,7 @@ export function wireFirstCamp() {
 }
 
 // ---------------------------------------------------------------- building starts early: the first blueprints are cheap
-for (const [k, cost] of [['bp_spikes', 0], ['bp_hatch', 2], ['bp_mech_bench', 3], ['bp_compactor', 4], ['bp_gen_rig', 4]] as [string, number][]) {
+for (const [k, cost] of [['bp_spikes', 1], ['bp_hatch', 2], ['bp_mech_bench', 3], ['bp_compactor', 4], ['bp_gen_rig', 4]] as [string, number][]) {
   const n = researchNode(k);
   if (n) defNode({ ...n, cost });
 }

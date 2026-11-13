@@ -31,6 +31,10 @@ export type Stance = 'stand' | 'sneak' | 'swim' | 'crawl';
 export type FullBody = '' | 'sit' | 'lie' | 'dead' | 'downed' | 'carried' | 'vault' | 'kneel' | 'drive' | 'fall' | 'lie_side';
 export const EMOTES = ['wave', 'flex', 'dance', 'jumping_jacks', 'shrug', 'salute', 'point', 'facepalm', 'sit_wait', 'cheer', 'clap', 'bow', 'mock'] as const;
 export type EmoteName = typeof EMOTES[number];
+/** emotes registered from outside (the emote shop, src/social/emotes/moves.ts): played, blended and mirrored like the built-in ones */
+export interface ExtEmote { dur: number; loop?: boolean; /** moves the legs itself (no foot planting) */ legs?: boolean; pose(et: number, time: number, dur: number): { pose: Pose; mask: JointName[] } }
+export const EXT_EMOTES = new Map<string, ExtEmote>();
+export function registerEmote(name: string, def: ExtEmote) { EXT_EMOTES.set(name, def); }
 export type ActionAnim =
   | '' | 'aim_melee' | 'aim_gun' | 'aim_throw' | 'swing' | 'swing2h' | 'stab' | 'shoot' | 'throw' | 'shove' | 'eat' | 'drink'
   | 'loot' | 'pickup' | 'craft' | 'hammer' | 'saw' | 'read' | 'scanner' | 'carry' | 'push' | 'bandage' | 'dig' | 'pour'
@@ -267,9 +271,10 @@ export class HumanAnimator {
   get panicking() { return this.attackT > 0.3; }
 
   playEmote(name: string, loop?: boolean) {
-    if (!(EMOTES as readonly string[]).includes(name)) return false;
+    const ext = EXT_EMOTES.get(name);
+    if (!ext && !(EMOTES as readonly string[]).includes(name)) return false;
     const n = name as EmoteName;
-    this.emote = { name: n, t: 0, loop: loop ?? (n === 'dance' || n === 'jumping_jacks' || n === 'sit_wait' || n === 'clap') };
+    this.emote = { name: n, t: 0, loop: loop ?? (ext ? !!ext.loop : n === 'dance' || n === 'jumping_jacks' || n === 'sit_wait' || n === 'clap') };
     return true;
   }
   stopEmote() { this.emote = null; }
@@ -802,7 +807,7 @@ export class HumanAnimator {
     if (this.emote && (moving || inp.action || inp.full || inp.stance !== 'stand')) this.emote = null;
     if (this.emote) {
       this.emote.t += dt;
-      const D = EMOTE_DUR[this.emote.name];
+      const D = EMOTE_DUR[this.emote.name] ?? EXT_EMOTES.get(this.emote.name)?.dur ?? 2;
       if (!this.emote.loop && this.emote.t >= D) this.emote = null;
     }
     const em = this.emote ? this.emote.name : emoteName;
@@ -813,7 +818,7 @@ export class HumanAnimator {
       const e = emotePose(this.lastEmote, this.emoteT, t);
       blend(p, e.pose, this.emoteW, e.mask);
       for (const s of SCALARS) if (e.pose[s] !== undefined) (p as any)[s] = lerp((p as any)[s] ?? 0, e.pose[s] as number, this.emoteW);
-      if (LEG_EMOTES.has(this.lastEmote) && this.emoteW > 0.3) ikT = 0;
+      if ((LEG_EMOTES.has(this.lastEmote) || EXT_EMOTES.get(this.lastEmote)?.legs) && this.emoteW > 0.3) ikT = 0;
     }
 
     // ---------------- full-body states
@@ -1519,6 +1524,8 @@ function actionPose(a: ActionAnim, t: number, dur: number, inp: AnimInput, time:
 const EMOTE_DUR: Record<EmoteName, number> = { wave: 2.4, flex: 2.6, dance: 6, jumping_jacks: 5, shrug: 1.8, salute: 2.2, point: 2.2, facepalm: 2.2, sit_wait: 10, cheer: 2.2, clap: 3, bow: 2, mock: 2.6 };
 
 function emotePose(name: EmoteName, et: number, time: number): { pose: Pose; mask: JointName[] } {
+  const X = EXT_EMOTES.get(name);
+  if (X) return X.pose(et, time, X.dur);
   const P: Pose = {};
   const D = EMOTE_DUR[name] || 2;
   const u = clamp(et / D, 0, 1);

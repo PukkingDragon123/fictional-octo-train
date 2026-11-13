@@ -31,7 +31,7 @@ defQuest({
 });
 defQuest({
   key: 'q_bld_sparks', title: 'Sparks', giver: 'MERIDIAN R&D', category: 'build', requires: ['q_bld_scrap'],
-  desc: 'Press B. Tack a frame together, then hold the torch to it until the seams glow. Don\'t look directly at the arc.',
+  desc: 'Take the build kit in hand. Tack a frame together, then hold the torch to it until the seams glow. Don\'t look directly at the arc.',
   objectives: [{ id: 'weld', text: 'Weld any piece in build mode', check: (m) => countIn(m, 'bld_weld') >= 1 }],
   reward: { rp: 3 },
 });

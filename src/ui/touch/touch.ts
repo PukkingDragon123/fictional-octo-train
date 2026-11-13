@@ -23,7 +23,7 @@
 //  - the physical overhaul (src/interact/grab.ts, no popups): a work glove to GRAB
 //    what is in reach (hold it and the stick pushes / pulls), a throttle for POWER
 //    (Shift), a squeeze bulb for the lung PUMP (H), the watch (Tab), the iron-cube
-//    backpack (I), a spirit level for BUILD (B), chattering teeth for EMOTE (G);
+//    backpack (I), chattering teeth for EMOTE (G) (round 17: no BUILD button; the build kit in hand is build mode);
 //    the whistle is the whistle (Q, hold = shout)
 //  - USE (bottle cap): tap = the primary verb of what is in reach, hold = grab it,
 //    swipe sideways across it = step through its other verbs (the cap shows the word)
@@ -156,7 +156,7 @@ export class TouchControls implements GameSystem {
     const fsOk = !!(document.fullscreenEnabled || (document as any).webkitFullscreenEnabled);
     if (fsOk) this.btn(tl, 'fs', 'fullscreen', { label: 'FULL', s: 0.85, on: 'up', tap: () => toggleFullscreen() });
     this.btn(tl, 'photo', 'photo', { label: 'PHOTO', s: 0.85, tap: () => (this.g as any).camera?.photo?.toggle?.() });
-    this.btn(tl, 'build', 'build', { label: 'BUILD', s: 0.85, tap: () => this.sys('build', 'toggle') });
+    // round 17: no BUILD button: build mode is the Surveyor's Build Kit in hand (src/build/build.ts); its plates replace STRIKE (./actpad.ts)
     this.btn(tl, 'emote', 'emote', { label: 'EMOTE', s: 0.85, tap: () => this.sys('social', 'toggleWheel', 'emote') });
     const tr = this.group('tr', 'nc-group nc-row nc-tr');
     this.btn(tr, 'chat', 'chat', { label: 'CHAT', s: 0.95, on: 'up', tap: () => this.openChat() });
@@ -365,7 +365,7 @@ export class TouchControls implements GameSystem {
     this.show('run', free && mode === 'walk' && !scanCovers && !ad);
     this.show('power', free && mode === 'walk' && !scanCovers && !ad);
     this.show('act', free && mode === 'walk' && !scanCovers && !ad);
-    for (const k of ['photo', 'build', 'emote']) this.show(k, !ad);
+    for (const k of ['photo', 'emote']) this.show(k, !ad);
     this.show('quest', !dead);
     this.show('self', !dead);
     this.show('map', !dead);
@@ -387,7 +387,6 @@ export class TouchControls implements GameSystem {
     const gr = (g as any).grab;
     this.setOn('grab', !!gr?.holding);
     this.setOn('power', inp.heldVirtual('power') || inp.down('power'));
-    this.setOn('build', !!(g as any).build?.active);
     this.setOn('inv', inv || !!(g as any).pack?.open);
     this.setOn('quest', !!(g as any).broadcast?.open);
     this.setOn('map', !!(g as any).surveyMap?.open);

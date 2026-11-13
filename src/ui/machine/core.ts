@@ -324,6 +324,28 @@ export function disposeTree(root: THREE.Object3D) {
 // ---------------------------------------------------------------- sprite sheets (render once, show many)
 const sheets = new Map<string, HTMLCanvasElement>();
 let sheetBytes = 0;
+// ---------------------------------------------------------------- the idle baker: the rest of a sheet's frames, ~6 ms at a time
+interface Bake { cv: HTMLCanvasElement; c: CanvasRenderingContext2D; f: number; frames: number; fh: number; w: number; h: number; pad: number; o: ShotOpts; build: (f: number) => THREE.Object3D }
+const bakes: Bake[] = [];
+let bakeArmed = false;
+function bakeLater(b: Bake) { bakes.push(b); armBake(); }
+function armBake() {
+  if (bakeArmed || !bakes.length) return;
+  bakeArmed = true;
+  const ric = (window as unknown as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+  if (ric) ric(pumpBake, { timeout: 150 }); else setTimeout(pumpBake, 20);
+}
+function pumpBake() {
+  bakeArmed = false;
+  const t0 = performance.now();
+  while (bakes.length && performance.now() - t0 < 6) {
+    const b = bakes[0];
+    try { const root = b.build(b.f); shoot(root, b.w, b.h, b.pad, b.c, 0, b.f * b.fh, b.o); disposeTree(root); } catch (e) { console.warn('sheet bake', e); b.f = b.frames; }
+    if (++b.f >= b.frames) bakes.shift();
+  }
+  armBake();
+}
+
 /**
  * a vertical strip of `frames` renders of one part (each (w + 2 pad) x (h + 2 pad)),
  * built by `build(frame)`; cached by key. Returns null without WebGL.
@@ -337,10 +359,14 @@ export function sheet(key: string, w: number, h: number, pad: number, frames: nu
   const cv = document.createElement('canvas');
   cv.width = fw; cv.height = fh * frames;
   const c = cv.getContext('2d')!;
-  for (let f = 0; f < frames; f++) {
-    const root = build(f);
-    shoot(root, w, h, pad, c, 0, f * fh, o);
-    disposeTree(root);
+  // frame 0 now (so the part shows at once); the rest are baked a few at a time in idle slices,
+  // each slot holding a copy of frame 0 until its own render lands (no long block at boot)
+  const root = build(0);
+  shoot(root, w, h, pad, c, 0, 0, o);
+  disposeTree(root);
+  if (frames > 1) {
+    for (let f = 1; f < frames; f++) c.drawImage(cv, 0, 0, fw, fh, 0, f * fh, fw, fh);
+    bakeLater({ cv, c, f: 1, frames, fh, w, h, pad, o, build });
   }
   // a small LRU: sheets are cheap to rebuild, memory is not free
   sheetBytes += cv.width * cv.height * 4;

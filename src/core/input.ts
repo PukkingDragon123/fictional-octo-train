@@ -25,7 +25,7 @@ export const DEFAULT_BINDINGS: Record<Action, string[]> = {
   camLeft: ['KeyZ'], camRight: ['KeyX'], talk: ['KeyV'], chat: ['Enter', 'KeyT'], pause: ['Escape'],
   hot1: ['Digit1'], hot2: ['Digit2'], hot3: ['Digit3'], hot4: ['Digit4'], hot5: ['Digit5'],
   rotate: ['KeyR'], grab: ['KeyG'], walkToggle: ['CapsLock'], craft: [], sleep: ['KeyZ'],
-  power: ['ShiftLeft', 'ShiftRight'], breathe: ['KeyH'], whistle: ['KeyQ'], build: ['KeyB'], emote: ['KeyG'], watch: [],
+  power: ['ShiftLeft', 'ShiftRight'], breathe: ['KeyH'], whistle: ['KeyQ'], build: [], emote: ['KeyG'], watch: [],
   hold: [], primary: [],
   toolDraw: ['Backquote', 'KeyY'],
   scan: ['KeyQ', 'KeyN'], command: ['KeyK'],

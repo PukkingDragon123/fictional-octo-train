@@ -57,7 +57,7 @@ type Draw = (c: CanvasRenderingContext2D, R: () => number) => void;
 /** a nearest-filtered pixel texture; drawn now and again once the bitmap font is in (Alagard headings) */
 export function pixTex(w: number, h: number, draw: Draw, o: { seed?: number; alpha?: boolean; repeat?: boolean } = {}): THREE.CanvasTexture {
   const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-  const c = cv.getContext('2d')!;
+  const c = cv.getContext('2d', { willReadFrequently: true })!;
   const paint = () => { c.clearRect(0, 0, w, h); c.imageSmoothingEnabled = false; draw(c, rng(o.seed ?? 7)); };
   paint();
   const t = new THREE.CanvasTexture(cv);

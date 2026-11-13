@@ -144,14 +144,20 @@ export class MenuStage {
     r?.enter?.();
   }
   /** compile every room's shaders ahead of time (in parallel where the driver can), so the first look at a room does not hitch */
-  warm(): Promise<void> {
+  async warm(between?: () => Promise<void>): Promise<void> {
     const r = this.renderer;
-    if (!r) return Promise.resolve();
+    if (!r) return;
+    // with KHR_parallel_shader_compile the driver builds them off the main thread; without it each
+    // room is compiled in its own task (a breath between) so the loading screen keeps moving
+    const par = !!(r as any).compileAsync && r.extensions.has('KHR_parallel_shader_compile');
     const jobs: Promise<unknown>[] = [];
     for (const room of this.rooms.values()) {
-      try { jobs.push((r as any).compileAsync ? (r as any).compileAsync(room.scene, room.cam) : Promise.resolve(r.compile(room.scene, room.cam))); } catch { /* compiled on first use instead */ }
+      try {
+        if (par) jobs.push((r as any).compileAsync(room.scene, room.cam));
+        else { r.compile(room.scene, room.cam); if (between) await between(); }
+      } catch { /* compiled on first use instead */ }
     }
-    return Promise.all(jobs).then(() => undefined, () => undefined);
+    await Promise.all(jobs).catch(() => undefined);
   }
   /** a low-rate feed of a room (its feedCam) into a small target; returns the texture */
   feed(id: string, w: number, h: number, fps: number): THREE.Texture | null {

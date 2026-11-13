@@ -25,6 +25,8 @@ export interface TreatOpt {
 }
 
 const has = (p: Player, f: (it: Item, d: ItemDef) => boolean) => p.findItem(f) || null;
+/** treatments other systems offer on a wound (cutting out a burrowed parasite: src/survival/parasite.ts) */
+export const TREAT_HOOKS: ((p: Player, inj: Injury, o: TreatOpt[], run: (a: TimedAction) => () => void) => void)[] = [];
 /** best bandage first: sterile and strong, dirty last */
 function bestBandage(p: Player): Item | null {
   let best: Item | null = null, score = -1;
@@ -64,6 +66,7 @@ export function treatOptions(p: Player, inj: Injury): TreatOpt[] {
   const tq = has(p, (it) => isTourniquet(it));
   const stump = isStump(inj);
   const bleedsHard = inj.bleed >= 0.5 && !inj.stitched && !inj.caut;
+  for (const h of TREAT_HOOKS) { try { h(p, inj, o, run); } catch (e) { console.error('treat hook', e); } }
 
   if (inj.tq != null) o.push({ key: 'untq', label: 'Loosen tourniquet', run: run(new RemoveTourniquetAction(p, p, inj)) });
   else if (tourniquetable(inj) && (stump || bleedsHard)) o.push({ key: 'tq', label: 'Tourniquet', using: nm(tq), missing: tq ? undefined : 'a tourniquet or belt', run: tq ? run(new BandageAction(p, p, inj, tq)) : undefined });

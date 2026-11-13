@@ -30,6 +30,13 @@ export class ActPad {
       down: () => { G.input.press('run'); G.input.press('power'); },
       up: () => { G.input.release('run'); G.input.release('power'); },
     });
+    // round 17: the build kit in hand turns the pad into the build controls (src/build/build.ts)
+    const bld = () => (G as any).build;
+    this.plate('b_rot', 'Turn', 'turn', 2, { down: () => bld()?.rotateGhost?.() });
+    this.plate('b_next', 'Piece', 'place', 2, { down: () => bld()?.nextPiece?.(1) });
+    this.plate('b_shelf', 'Shelf', 'pack', 2, { down: () => bld()?.nextCat?.() });
+    this.plate('b_down', 'Remove', 'drop', 2, { down: () => bld()?.toggleDemolish?.() });
+    this.plate('b_away', 'Stow', 'letgo', 2, { down: () => { const p = G.local; if (p) bld()?.putAway?.(p); } });
     (G as any).actPad = this;
   }
 
@@ -69,11 +76,16 @@ export class ActPad {
   update(list: CtxAction[], allowed: boolean, touch: boolean) {
     const g: any = G, p = G.local;
     const tc = document.getElementById('nc-touch');
-    const on = touch && allowed && !!p && !p.inVehicle && !p.body.dead && g.touch?.adaptive !== false
+    // (build mode holds the first-person clipboard, which hides the labels: the pad stays, with the build plates)
+    const on = touch && (allowed || !!g.build?.active) && !!p && !p.inVehicle && !p.body.dead && g.touch?.adaptive !== false
       && !tc?.classList.contains('nc-suppressed') && !G.ui?.inventory?.open && !g.pack?.open;
     if (on !== this.on) { this.on = on; this.el.classList.toggle('on', on); if (!on) this.release(); }
     if (!on || !p) return;
     this.plates.light.el.classList.toggle('lit', !!p.flashlightOn);
+    const b = (G as any).build;
+    const building = !!b?.active;
+    if (this.el.classList.contains('building') !== building) { this.el.classList.toggle('building', building); if (building) (this.plates.strike.el as any)._release?.(); }
+    if (building) this.plates.b_down.el.classList.toggle('lit', !!b.demolish);
     const swim = list.some((a) => a.id === 'swim');
     const sw = this.plates.swim.el;
     if (sw.classList.contains('show') !== swim) { sw.classList.toggle('show', swim); if (!swim) (sw as any)._release?.(); }

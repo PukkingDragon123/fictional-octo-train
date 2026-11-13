@@ -708,12 +708,18 @@ export function mxMount(host: HTMLElement, kind: DecorKind, at: { left?: number;
 // ================================================================ ICONS: the same little models, small, for keys
 export type IconKind = 'gear' | 'wrench' | 'play' | 'tape' | 'clipboard' | 'door' | 'eye' | 'radio' | 'key' | 'lamp' | 'map' | 'skull' | 'jar' | 'bolt' | 'coin' | 'crate' | 'siren'
   // the lab menus' hub: a rolled blueprint, the commissary's ledger and coin tin, Dr. Calder's desk telephone (and off the hook)
-  | 'blueprint' | 'ledger' | 'phone' | 'phoneOff';
-function iconModel(kind: IconKind, S: number): THREE.Group {
+  | 'blueprint' | 'ledger' | 'phone' | 'phoneOff'
+  // the title's keys: the link rig's shock plug, a tape reel, a walkie-talkie, a joystick, a dossier
+  | 'plug' | 'reel' | 'walkie' | 'joystick' | 'dossier';
+function iconModel(kind: IconKind, S: number, yaw = 0): THREE.Group {
   const root = new THREE.Group();
+  // the turntable an animated icon sways on (the model's own tilt stays inside it)
+  const tt = new THREE.Group();
+  tt.position.set(S / 2, -S / 2, 0);
+  tt.rotation.y = yaw;
+  root.add(tt);
   const g = new THREE.Group();
-  g.position.set(S / 2, -S / 2, 0);
-  root.add(g);
+  tt.add(g);
   const u = S / 22; // design at 22
   const m = new Mold();
   switch (kind) {
@@ -877,6 +883,64 @@ function iconModel(kind: IconKind, S: number): THREE.Group {
       g.rotation.x = 0.22;
       break;
     }
+    case 'plug': {
+      // the link rig's shock plug: a rubber body with a hazard collar, two brass pins, a spark between them, its cable
+      const pg = new THREE.Group(); pg.rotation.z = -0.62; g.add(pg);
+      const p = new Mold();
+      p.add(fcyl(4.2 * u, 9 * u, 8, 3.6 * u, 0.2), M(0, -2.5 * u, 0), 0x34342c, RUBBER);
+      for (let i = 0; i < 3; i++) p.add(fring(4.0 * u - i * 0.15 * u, 0.4 * u, 8, 4), M(0, (-5.5 + i * 2.2) * u, 0, R90), 0x4a4a40, RUBBER);
+      p.add(fcyl(4.5 * u, 2.2 * u, 8, 4.5 * u, 0.2), M(0, 2.6 * u, 0), (x, _y, z) => (Math.floor((Math.atan2(z, x) + PI) / (PI / 4)) % 2 ? 0xe0ac22 : 0x17150e), PAINT);
+      p.add(fcyl(3.6 * u, 1.4 * u, 8, 3.8 * u, 0.2), M(0, 4.2 * u, 0), 0x3a3f38, STEEL);
+      for (const x of [-1.6, 1.6]) p.add(fcyl(0.7 * u, 4.6 * u, 6, 0.7 * u, 0.2), M(x * u, 7 * u, 0), 0xd8b050, BRASS);
+      p.add(gem(1.1 * u, 0, 0.35, 4), M(0, 8.6 * u, 0.6 * u), 0xc8f4ff, GLASS, 1);
+      p.add(frod([0, -7 * u, 0], [1.4 * u, -10 * u, -1 * u], 1.3 * u, 6), null, 0x1a1a18, RUBBER);
+      const pm = mxMat({ wear: 0.4, seed: 11 }); pm.uniforms.uGlow.value.set(0.6, 0.95, 1.2);
+      meshOf(p, pm, pg);
+      g.rotation.x = 0.25;
+      break;
+    }
+    case 'reel': {
+      // a steel tape reel, three windows in its flange, brown tape wound on the hub, a loose end trailing
+      const holes = [0, 1, 2].map((i) => { const a = i * TAU / 3 + 0.4; return ngon(8, 2.2 * u, a).map((q) => new THREE.Vector2(q.x + Math.cos(a) * 5.4 * u, q.y + Math.sin(a) * 5.4 * u)); });
+      m.add(fcyl(5.9 * u, 1.6 * u, 14, 5.9 * u, 0.2), M(0, 0, -1.2 * u, R90), 0x5a3a20, PLASTIC);
+      m.add(plate(ngon(14, 9 * u, 0), 1.2 * u, 0.3, holes), M(0, 0, 0.4 * u), 0xa8b0aa, STEEL);
+      m.add(fcyl(2.2 * u, 2.4 * u, 6, 2.2 * u, 0.2), M(0, 0, 1 * u, R90), 0x3a3f38, STEEL);
+      m.add(fcyl(0.9 * u, 2.6 * u, 6, 0.9 * u, 0), M(0, 0, 1.2 * u, R90), 0x101010, STEEL);
+      m.add(fbox(1.2 * u, 7 * u, 0.4 * u, 0), M(6.6 * u, -6.2 * u, -0.8 * u, 0, 0, 0.5), 0x5a3a20, PLASTIC);
+      break;
+    }
+    case 'walkie': {
+      // an olive walkie-talkie: a grille, a red talk key on the side, an amber lamp, a knob and its antenna
+      m.add(plate(clipRect(10 * u, 16 * u, 1.6 * u), 5 * u, 0.8), M(0, -1.5 * u, -2.5 * u), (_x, _y, z) => (z > 2 * u ? 0x6e7a4c : 0x48522e), PAINT);
+      for (let y = 0; y < 4; y++) m.add(fbox(7 * u, 0.7 * u, 0.4 * u, 0), M(0, (1.6 - y * 1.6) * u, 2.6 * u), 0x14160c, STEEL);
+      m.add(plate(clipRect(6 * u, 3 * u, 0.4 * u), 0.5 * u, 0), M(0, -6.2 * u, 2.4 * u), 0x0c1a10, GLASS, 0.6);
+      m.add(fbox(1.4 * u, 4 * u, 2 * u, 0.25), M(-5.6 * u, 0, 0), 0xc8281c, PLASTIC);
+      m.add(fcyl(1.4 * u, 1.6 * u, 8, 1.4 * u, 0.25), M(2.6 * u, 7.2 * u, 0), 0x1a1a16, PLASTIC);
+      m.add(fcyl(0.6 * u, 8 * u, 6, 0.4 * u, 0.1), M(-2.4 * u, 10 * u, 0), 0x2a2a26, RUBBER);
+      m.add(gem(0.9 * u, 0, 0.1, 2), M(-2.4 * u, 14.2 * u, 0), 0x2a2a26, RUBBER);
+      m.add(gem(0.8 * u, 0, 0.05, 3), M(3.4 * u, 4.6 * u, 2.6 * u), 0xffb02a, GLASS, 1);
+      g.scale.setScalar(0.92); g.position.y -= 1.6 * u;
+      break;
+    }
+    case 'joystick': {
+      // an arcade-cabinet joystick on a steel plate: a rubber boot, the shaft, a red ball top, a yellow fire key
+      m.add(plate(clipRect(16 * u, 9 * u, 1.4 * u), 2.4 * u, 0.6), M(0, -6.5 * u, -1.2 * u, -1.15, 0, 0), 0x2a2e24, STEEL);
+      m.add(flathe([[3.4 * u, 0], [2.6 * u, 1.6 * u], [1.2 * u, 3 * u], [0.8 * u, 3.4 * u]], 8), M(-1.5 * u, -6 * u, 1 * u), 0x1a1a16, RUBBER);
+      m.add(fcyl(0.7 * u, 7 * u, 6, 0.7 * u, 0), M(-1.5 * u, -1.6 * u, 1 * u, 0, 0, -0.18), 0xb8c0bc, CHROME);
+      m.add(gem(2.8 * u, 1, 0.04, 7), M(-0.9 * u, 2.4 * u, 1 * u), 0xc8281c, PLASTIC);
+      m.add(fcyl(1.7 * u, 1.4 * u, 8, 1.9 * u, 0.25), M(5 * u, -5.4 * u, 2.4 * u), 0xe0ac22, PLASTIC);
+      break;
+    }
+    case 'dossier': {
+      // a manila dossier: papers peeking out, a red CLASSIFIED band, a paper clip, the tie button
+      m.add(plate(clipRect(16 * u, 13 * u, 0.5 * u), 0.6 * u, 0), M(0.8 * u, 1.4 * u, -1.6 * u, 0, 0, 0.06), 0xe8e0c8, PAPER);
+      m.add(plate(clipRect(16 * u, 13 * u, 0.5 * u), 0.6 * u, 0), M(1.4 * u, 2 * u, -2.4 * u, 0, 0, 0.12), 0xd8d0b4, PAPER);
+      m.add(plate([[-8, -6.5], [8, -6.5], [8, 6.5], [1, 6.5], [0, 7.8], [-6, 7.8], [-7, 6.5], [-8, 6.5]].map(([x, y]) => new THREE.Vector2(x * u, y * u)), 1 * u, 0.3), M(0, 0, 0), 0xc8a86a, PAPER);
+      m.add(fbox(16.2 * u, 2.6 * u, 0.4 * u, 0), M(0, -1 * u, 1.1 * u, 0, 0, -0.12), 0xb3261c, PAINT);
+      m.add(fbox(1.2 * u, 5 * u, 0.6 * u, 0.2), M(5.5 * u, 5.8 * u, 1.3 * u), 0xc8ccc4, CHROME);
+      m.add(fcyl(1.1 * u, 0.6 * u, 8, 1.1 * u, 0.2), M(0, -5 * u, 1.4 * u, R90), 0x8a6a3a, PAINT);
+      break;
+    }
     case 'siren': {
       m.add(fcyl(6 * u, 3 * u, 8, 6.6 * u, 0.25), M(0, -6 * u, 0), 0x3b4428, PAINT);
       m.add(flathe([[5.4 * u, 0], [5.4 * u, 6 * u], [4 * u, 9 * u], [0, 10 * u]], 10), M(0, -4.5 * u, 0), (x, _y, z) => (Math.cos(Math.atan2(z, x) - 1.2) > 0.6 ? 0xfff0d0 : 0xff3a22), GLASS, 1);
@@ -886,16 +950,44 @@ function iconModel(kind: IconKind, S: number): THREE.Group {
   }
   if (!m.empty) {
     const mat = mxMat({ wear: 0.4, seed: 7 });
-    if (kind === 'lamp' || kind === 'bolt' || kind === 'siren') mat.uniforms.uGlow.value.set(1, 0.8, 0.4);
+    if (kind === 'lamp' || kind === 'bolt' || kind === 'siren' || kind === 'walkie') mat.uniforms.uGlow.value.set(1, 0.8, 0.4);
     meshOf(m, mat, g);
   }
   return root;
 }
+const ICON_F = 10;
+const iconFree = (kind: IconKind) => kind === 'eye' || kind === 'jar' || kind === 'siren' || kind === 'phone' || kind === 'phoneOff' || kind === 'ledger';
+/**
+ * a little 3D icon that sways on its turntable while its key is hot (hover / focus) and eases back to rest:
+ * a sheet of ICON_F poses rendered once, frames flipped by the shared clock only while it moves
+ */
+export function mxIconAnim(kind: IconKind, size = 36): { cv: HTMLCanvasElement; hot(on: boolean): void } | null {
+  if (!mxOk()) return null;
+  const sh = sheet(`icoA|${kind}|${size}`, size, size, 3, ICON_F, (f) => iconModel(kind, size, Math.sin((f / ICON_F) * TAU) * 0.42), iconFree(kind) ? FREE : WALL);
+  if (!sh) return null;
+  const fw = size + 6, fh = size + 6;
+  const cv = frameCanvas(fw, fh, 'mxi-cv');
+  let ph = 0, on = false, cur = -1, moving = false;
+  const draw = () => { const f = ((Math.round(ph) % ICON_F) + ICON_F) % ICON_F; if (f === cur) return; cur = f; blit(cv, sh, f, fw, fh); };
+  draw();
+  const t: Ticker = { el: cv, seen: 0, tick: (_n, dt) => {
+    if (!moving) return;
+    if (on && !reduce()) ph += dt * 9;
+    else {
+      // back to rest the short way round
+      const r = ((ph % ICON_F) + ICON_F) % ICON_F, goal = r > ICON_F / 2 ? ICON_F : 0;
+      const nr = r + Math.sign(goal - r) * Math.min(Math.abs(goal - r), dt * 14);
+      ph = ph - r + nr;
+      if (Math.abs(goal - nr) < 0.01) { ph = 0; moving = false; }
+    }
+    draw();
+  } };
+  return { cv, hot: (v: boolean) => { on = v; if (v || cur !== 0) { moving = true; tickOf.set(cv, t); clock(t); } } };
+}
 /** a little 3D icon (cached): a canvas of size + 2 x 3 px */
 export function mxIcon(kind: IconKind, size = 22): HTMLCanvasElement | null {
   if (!mxOk()) return null;
-  const free = kind === 'eye' || kind === 'jar' || kind === 'siren' || kind === 'phone' || kind === 'phoneOff' || kind === 'ledger';
-  const sh = sheet(`ico|${kind}|${size}`, size, size, 3, 1, () => iconModel(kind, size), free ? FREE : WALL);
+  const sh = sheet(`ico|${kind}|${size}`, size, size, 3, 1, () => iconModel(kind, size), iconFree(kind) ? FREE : WALL);
   if (!sh) return null;
   const cv = frameCanvas(sh.width, sh.height, 'mxi-cv');
   cv.getContext('2d')!.drawImage(sh, 0, 0);

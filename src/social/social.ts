@@ -1,6 +1,7 @@
 // G.social: emotes, whistling, shouting, barks and the 8-bit voice of every
-// survivor. G brings up the emote dial, a rotary telephone dial (hold G, aim,
-// let go to dial; or tap G and click a hole; the keys under it pick the call);
+// survivor. G brings up the emote wheel (round 17, src/social/emotes/wheel.ts:
+// eight windows with the unit's own emotes, bought at the jukebox; hold G, aim,
+// let go; or tap G and click a window; the hub's keys pick the whistle call);
 // Q taps whistle your chosen call, holding Q shouts. Emote poses travel to
 // co-op peers in the player snapshot; whistles and barks travel as 'sx'
 // messages. Every 'say' and 'shout' speech line (chat included) gets the
@@ -12,7 +13,9 @@ import type { GameSystem } from '../game/game';
 import type { Player } from '../entities/player';
 import { playLine, voiceFromApp } from './chipVoice';
 import { floatText } from './floatText';
-import { EmoteDial, type DialHit } from './dial';
+import { EmoteWheel, type WheelHit as DialHit } from './emotes/wheel';
+import { emoteInfo, wheelSlots } from './emotes/catalog';
+import { openEmoteShop, emoteShopOpen } from './emotes/shop';
 import './sounds';
 import './social.css';
 
@@ -35,7 +38,7 @@ const tmpV = new THREE.Vector3();
 export class SocialSystem implements GameSystem {
   name = 'social';
   tune = 0;
-  private dialObj: EmoteDial | null = null;
+  private dialObj: EmoteWheel | null = null;
   private wheelOpen = false;
   private wheelHeldT = 0;
   private wheelMoved = false;
@@ -97,11 +100,13 @@ export class SocialSystem implements GameSystem {
       const d = this.dialObj;
       if (busy) { this.closeWheel(); return; }
       this.wheelHeldT += dt;
-      // holding G: aim at a hole with the mouse direction from the dial's centre
+      // holding G: aim at a window with the mouse direction from the wheel's centre
       if (inp.down('emote') && !d.busy) {
         const i = d.holeToward(inp.mouseX, inp.mouseY);
         if (i >= 0) { this.wheelMoved = true; this.setHot(i); }
       }
+      // 1-8 pick a window while it is open
+      for (let i = 0; i < 8; i++) if (inp.hit(('hot' + (i + 1)) as never) || (inp as unknown as { pressed?: Set<string> }).pressed?.has('Digit' + (i + 1))) { this.pick({ kind: 'hole', i }); break; }
       // hold-and-release: letting go of G on a hole dials it
       if (!inp.down('emote') && this.wheelHeldT > 0.22 && this.wheelMoved && !d.busy) {
         this.wheelMoved = false;
@@ -112,11 +117,12 @@ export class SocialSystem implements GameSystem {
   }
 
   // ---------------------------------------------------------------- actions
-  /** play an emote (slot key or raw emote name) with a bark */
+  /** play an emote (a jukebox record id, slot key or raw emote name) with a bark */
   emote(key: string) {
     const p = G.local; if (!p || p.body.dead) return;
+    const rec = emoteInfo(key);
     const slot = EMOTE_SLOTS.find((s) => s.key === key || s.emote === key);
-    const name = slot?.emote || key;
+    const name = rec?.anim || slot?.emote || key;
     p.emote?.(name, name === 'sit_wait' || name === 'dance' ? true : undefined);
     if (slot && slot.bark.length && this.barkCd <= 0) {
       this.barkCd = 2.5;
@@ -208,8 +214,9 @@ export class SocialSystem implements GameSystem {
   get isWheelOpen() { return this.wheelOpen; }
   openWheel() {
     const p = G.local; if (!p) return;
+    if (emoteShopOpen()) return;
     if (!this.dialObj) {
-      this.dialObj = new EmoteDial((h) => this.pick(h));
+      this.dialObj = new EmoteWheel((h) => this.pick(h));
       this.dialObj.el.addEventListener('pointerenter', () => { G.input.pointerOverUI = true; });
       this.dialObj.el.addEventListener('pointerleave', () => { G.input.pointerOverUI = false; });
     }
@@ -218,7 +225,8 @@ export class SocialSystem implements GameSystem {
     d.place(s.x, s.y);
     d.tune = this.tune;
     this.wheelOpen = true;
-    this.hot = -1; d.hover = null;
+    this.hot = -1; d.setHover(-1);
+    d.fill();
     this.renderCard();
     d.el.classList.add('open');
     G.audio?.ui?.('tab', 0.3);
@@ -231,8 +239,7 @@ export class SocialSystem implements GameSystem {
   private setHot(i: number) {
     if (i === this.hot || !this.dialObj) return;
     this.hot = i;
-    this.dialObj.hover = i >= 0 ? { kind: 'hole', i } : null;
-    this.dialObj.dirty = true;
+    this.dialObj.setHover(i);
     if (i >= 0) G.audio?.ui?.('tick', 0.15);
   }
   /** a hole dialled, a whistle key pressed, the card (the line switch) */
@@ -240,9 +247,13 @@ export class SocialSystem implements GameSystem {
     const d = this.dialObj; if (!d || !h) return;
     if (h.kind === 'hole') {
       if (d.busy) return;
-      const slot = EMOTE_SLOTS[h.i];
-      d.dial(h.i, () => { this.emote(slot.key); setTimeout(() => { if (!d.busy) this.closeWheel(); }, 120); });
-      setTimeout(() => this.closeWheel(), 1100);
+      const id = wheelSlots()[h.i];
+      // an empty window: off to the jukebox to fill it
+      if (!id) { this.closeWheel(); openEmoteShop(); return; }
+      d.dial(h.i, () => { this.emote(id); setTimeout(() => { if (!d.busy) this.closeWheel(); }, 120); });
+      setTimeout(() => this.closeWheel(), 900);
+    } else if (h.kind === 'shop') {
+      this.closeWheel(); openEmoteShop();
     } else if (h.kind === 'key') {
       this.setTune(h.i); this.whistle(h.i);
     } else if (h.kind === 'card') {
