@@ -166,7 +166,7 @@ function style() {
 .ipnl .ip-lamp.g { background: #48dc70; box-shadow: 0 0 7px rgba(72,220,112,0.8), inset 0 -3px 0 #24b04c, inset 1px 1px 0 #e0ffe8; }
 @keyframes ip-flick { 0% { opacity: 1; } 37% { opacity: 0.55; } 38% { opacity: 1; } 71% { opacity: 0.85; } 72% { opacity: 0.25; } 73% { opacity: 1; } 91% { opacity: 0.7; } 92% { opacity: 1; } }
 .ipnl .ip-crest { position: absolute; left: 22px; top: 9px; width: 14px; height: 14px; image-rendering: pixelated; pointer-events: none; }
-.ipnl .ip-hd { position: absolute; left: 22px; top: 9px; right: 96px; font-size: 11px; letter-spacing: 0.16em; color: #f2ad32; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
+.ipnl .ip-hd { position: absolute; left: 22px; top: 9px; right: 96px; font-size: 11px; letter-spacing: 0.05em; color: #f2ad32; text-transform: uppercase; white-space: nowrap; overflow: hidden; }
 .ipnl .ip-x { position: absolute; right: 12px; top: 6px; width: 24px; height: 20px; border: 0; padding: 0; background: transparent center/100% 100% no-repeat; color: #25201b; font: inherit; font-size: 12px; cursor: pointer; }
 .ipnl .ip-top { display: flex; gap: 12px; }
 .ipnl .ip-well { position: relative; flex: 0 0 132px; height: 132px; display: flex; align-items: center; justify-content: center; }
@@ -334,7 +334,7 @@ class ItemPanel {
     const loreText = lore ? (typeof lore.note === 'function' ? lore.note(it) : lore.note) : '';
     const red = (n: number) => `<span class="ip-red" style="width:${n}px"></span>`;
     const anom = cl.k === 'anom';
-    return `<canvas class="ip-bg"></canvas><i class="ip-lamp${anom ? ' r' : ''}"></i><div class="ip-hd" style="left:42px">Meridian Institute of Liminality · Evidence card</div><button class="ip-x" data-x title="Close (Esc)">X</button>
+    return `<canvas class="ip-bg"></canvas><i class="ip-lamp${anom ? ' r' : ''}"></i><div class="ip-hd" style="left:42px">Meridian Institute of Liminality</div><button class="ip-x" data-x title="Close (Esc)">X</button>
 <div class="ip-in"><div class="ip-ban k-${cl.k}"><b>${cl.lvl}</b><em>${cl.label}</em><canvas class="ip-bc" data-case="${caseNo(it)}"></canvas></div>
 <div class="ip-top"><div class="ip-well"><img src="${icon}" alt="">${group.length > 1 ? `<div class="ip-n">x${group.length}</div>` : ''}<div class="ip-stamp k-${cl.k}">${cl.stamp}</div></div>
 <div class="ip-id"><div class="ip-name">${esc(itemName(it))}</div><div class="ip-kind">${esc(cat)}</div>
