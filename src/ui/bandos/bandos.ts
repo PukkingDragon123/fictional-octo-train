@@ -1,22 +1,23 @@
-// THE BAND (round 17): the operator's wrist terminal. Esc (the pause), Tab or the phone's MENU key
-// raise the left forearm into view with the unit strapped on it; time holds while it is up (solo).
+// THE BAND (round 17): the operator's wrist terminal, in first person and in real time. Tab, or the phone's
+// MENU key, and the unit raises its left forearm into view: the camera goes into the unit's own eyes (src/fp:
+// the world stays alive behind it, a little blurred at the edges, the head breathing and the hand swaying), the
+// unit strapped on the forearm, its tube lit on the device. The world does not stop: while you read it you are
+// exposed, and if something starts hunting you it snaps shut. Esc is still the pause (src/ui/menus/pause.ts).
+// Panicking (src/game/panic.ts), the unit fumbles: a shaky half raise that drops, the screen will not wake.
 //
 //   the unit      a heavy olive field instrument (./wrist3d.ts): a CRT in a deep bezel under a sun
 //                 visor, the SELECT dial on the left, the brightness knob and the phosphor toggle on
-//                 the right, RESUME / SAVE / QUIT keys under the tube, a message lamp
-//   the tube      an old monochrome CRT: phosphor green (or amber, on the toggle) with amber accents,
-//                 scanlines, a slight barrel bulge, bloom, a colour fringe, film grain, a vignette,
-//                 a rolling bar and a flicker. Alagard, big.
-//   home          the apps as big 3D models turning slowly on their turntables (src/ui/machine/decor.ts),
-//                 three by three, a chunky label under each. Pick with the pointer, a tap, the arrows
-//                 and Enter, the number keys, or the dial (scroll it, or click its left / right / middle)
-//   transitions   raise: the arm comes up, then the tube powers on (a bright line opens, the static
-//                 settles); an app: a static burst and the picture rolls in; back: it collapses to a dot;
-//                 the dial turns to the app, a recorded ratchet click at every detent
-//   the apps      full screen in the tube (./apps.ts), reusing the game's own pages and systems, toned
-//                 to the phosphor
+//                 the right, RESUME / SAVE / QUIT keys under the tube, a message lamp. Its face is a DOM
+//                 picture laid onto the 3D case with a perspective transform, so the keys stay keys
+//   the tube      the shared CRT skin (src/ui/crt): phosphor green or amber, scanlines, bulge, bloom,
+//                 fringe, grain, flicker; power on, static and roll, collapse to a dot
+//   home          the apps as big 3D models turning slowly, a number each, the name only on the picked one.
+//                 Pick with the pointer, a tap, the arrows and Enter, the number keys, or the dial
+//   the apps      full screen in the tube (./apps.ts), reusing the game's own pages and systems
+//   sound         recorded samples: the relay, the dial's ratchet, the tube's power-on and static; the
+//                 world plays on (the ambience a little lower, threats and the heartbeat clear)
 //
-// On a phone held upright the unit fills the screen (no arm) and the icons are thumb sized.
+// On a phone held upright the unit stands tall in the view and the icons are thumb sized.
 import './bandos.css';
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
@@ -30,7 +31,12 @@ import { isLoading } from '../loading';
 import { purseLine } from '../../game/economy/money';
 import { researchPoints } from '../../game/research';
 import { APPS, hookMail, mailCount, type AppDef } from './apps';
-import { WIDE, TALL, wristArt, wristDial, type WristLayout } from './wrist3d';
+import { WIDE, TALL, wristArt, wristDial, watchBody, watchArm, type WristLayout } from './wrist3d';
+import * as THREE from 'three';
+import { fpGroup, fpClaim, fpRelease, fpOwner, fpCamera, fpBlend } from '../../fp/fp';
+import { eyeActive } from '../../fp/eye';
+import { makeArm, poseArm, type Arm } from '../../craft/fpKit';
+import { panicLocks, panicFumble, huntedBy } from '../../game/panic';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
@@ -62,10 +68,17 @@ export class BandOS {
   private lineT = 0;
   private mailSeen = 0;
   private timers: number[] = [];
+  // first person: the 3D body and the arm in the overlay scene, the raise (0 down .. 1 up), the fumble
+  private fp = false;
+  private g3: THREE.Group | null = null; private body3: THREE.Group | null = null; private arm: Arm | null = null; private armKind = '';
+  private raise = 0; private raiseGoal = 0; private fumble = -1; private t = 0; private huntT = 0;
+  private powered = false;
+  private dof!: HTMLElement;
 
   constructor() {
     (G as any).bandos = this;
-    bus.on('pauseMenu', () => this.toggle());
+    // another close-up takes the eyes (the pack, an inspection): the band goes down
+    bus.on('fpLost', (name: string) => { if (name === 'watch' && this.open) this.hide(true); });
     window.addEventListener('keydown', (e) => this.onKey(e), true);
     window.addEventListener('resize', () => { if (this.open) this.layout(); });
     // bake the home screen's turntables while the game idles, so the band turns at once
@@ -80,33 +93,41 @@ export class BandOS {
   // ---------------------------------------------------------------- raise / lower
   toggle(v = !this.open) { if (v) this.show(); else this.hide(); }
   show() {
-    if (this.open) return;
-    if (!G.local || isLoading() || document.body.classList.contains('noclip-cine')) return;
+    if (this.open || this.fumble >= 0) return;
+    const p = G.local;
+    if (!p || p.body?.dead || isLoading() || document.body.classList.contains('noclip-cine')) return;
     hookMail();
-    this.open = true;
     this.L = this.phone ? TALL : WIDE;
     this.build();
-    const solo = G.role === 'solo';
-    if (solo) G.paused = true;
-    if (G.input) G.input.pointerOverUI = true;
-    G.hudBody?.setHidden?.('bandos', true);
-    this.root.classList.toggle('live', !solo);
-    this.root.classList.remove('on', 'up');
-    this.crt.el.querySelector('.crt-tube')?.classList.remove('lit', 'dot');
-    document.body.append(this.root);
-    this.layout();
+    // too frightened: a shaky half raise that drops, the screen will not wake
+    if (panicLocks('watch')) { this.startFumble(); return; }
+    this.open = true;
+    this.raiseUp();
     this.toHome(true);
     this.refreshTop();
     for (const x of this.icons) x.ic.wake();
     this.dial?.to(0, true);
-    // the arm comes up, then the tube powers on
+    sfx('servo', 0.4);
+    G.audio?.ui?.('cloth', 0.35);
+    this.busy = 1;
+  }
+  /** into the eyes (or, without the overlay, the flat fallback), the root up, the frame running */
+  private raiseUp() {
+    if (G.input) G.input.pointerOverUI = true;
+    G.hudBody?.setHidden?.('bandos', true);
+    this.root.classList.remove('on', 'up', 'fp', 'flat2d');
+    this.crt.el.querySelector('.crt-tube')?.classList.remove('lit', 'dot');
+    this.powered = false;
+    this.raise = 0; this.raiseGoal = 1;
+    this.fp = !!G.pr?.overlayScene && fpClaim('watch', 1.4, { cinematic: 'full', eyePitch: this.L.kind === 'tall' ? 8 : 12 });
+    this.root.classList.add(this.fp ? 'fp' : 'flat2d');
+    if (this.fp) this.build3d();
+    document.body.append(this.root);
+    this.layout();
     void this.root.offsetWidth;
     this.root.classList.add('on');
-    requestAnimationFrame(() => this.root.classList.add('up'));
-    sfx(solo ? 'freeze' : 'open', 0.5);
-    sfx('servo', 0.4);
-    this.busy = 1;
-    this.later(reduce() ? 60 : 420, () => this.powerOn());
+    if (!this.fp) requestAnimationFrame(() => this.root.classList.add('up'));
+    this.duck(true);
     this.last = performance.now();
     cancelAnimationFrame(this.raf);
     this.raf = requestAnimationFrame(this.frame);
@@ -118,38 +139,136 @@ export class BandOS {
     this.timers = [];
     // apps that borrowed something give it back (the plotter's canvas, a lab panel)
     this.endApp();
-    if (G.role === 'solo') G.paused = false;
-    if (G.input) G.input.pointerOverUI = false;
-    G.hudBody?.setHidden?.('bandos', false);
     if (!quiet) sfx('back', 0.5);
-    // the tube collapses to a dot, then the arm goes down
+    // the tube collapses to a dot, then the arm goes down and the eyes go back to the room
     void this.crt.powerOff();
     this.dial?.to(0);
-    const root = this.root;
-    setTimeout(() => { if (!this.open) root.classList.remove('up'); }, reduce() ? 0 : 220);
-    setTimeout(() => { if (!this.open) { root.classList.remove('on'); cancelAnimationFrame(this.raf); } }, reduce() ? 60 : 520);
-    setTimeout(() => { if (!this.open) root.remove(); }, reduce() ? 80 : 640);
+    this.powered = false;
+    setTimeout(() => { if (!this.open) { this.raiseGoal = 0; this.root.classList.remove('up'); G.audio?.ui?.('cloth', 0.3); } }, reduce() ? 0 : 200);
+    setTimeout(() => { if (!this.open && this.fumble < 0) this.leave(); }, reduce() ? 60 : 560);
+  }
+  /** out of the eyes, the root down, the frame stopped */
+  private leave() {
+    if (this.fp) fpRelease('watch');
+    this.fp = false;
+    this.duck(false);
+    if (G.input) G.input.pointerOverUI = false;
+    G.hudBody?.setHidden?.('bandos', false);
+    this.root.classList.remove('on');
+    setTimeout(() => { if (!this.open && this.fumble < 0) { cancelAnimationFrame(this.raf); this.root.remove(); } }, 260);
+  }
+  /** the panic fumble: the arm comes up shaking, half way, and drops; a denial; the tube stays dark */
+  private startFumble() {
+    this.fumble = 0;
+    panicFumble('watch');
+    this.raiseUp();
+    this.raiseGoal = 0.45;
   }
   private later(ms: number, fn: () => void) { const id = window.setTimeout(() => { this.timers = this.timers.filter((x) => x !== id); if (this.open) fn(); }, ms); this.timers.push(id); }
 
   /** the tube powers on: a bright line opens to the picture, the static settles */
   private powerOn(short = false) {
     void this.crt.powerOn(short);
-    if (!short) this.later(160, () => this.dial?.to(this.sel + 1));
+    if (!short) { this.later(160, () => this.dial?.to(this.sel + 1)); G.audio?.ui?.('radio_on', 0.35); }
     this.later(short ? 220 : 520, () => { this.busy = 0; });
+  }
+  /** the world plays on under the band: the ambience and music a little lower (threats, steps and the heartbeat stay) */
+  private duck(on: boolean) {
+    const a = G.audio as any;
+    const ctx = a?.ctx as AudioContext | undefined, buses = a?.buses, vol = a?.vol;
+    if (!ctx || !buses || !vol) return;
+    for (const k of ['amb', 'music']) buses[k]?.gain?.setTargetAtTime((vol[k] ?? 1) * (on ? 0.55 : 1), ctx.currentTime, 0.15);
   }
 
   // ---------------------------------------------------------------- the frame
   private frame = (now: number) => {
-    if (!this.open) return;
+    if (!this.open && this.fumble < 0 && this.raise <= 0.001 && !this.root.isConnected) return;
     const dt = Math.min(0.1, Math.max(0, (now - this.last) / 1000)); this.last = now;
+    this.t += dt;
     const c = this.cur;
-    if (c?.tick) { try { c.tick(dt); } catch (e) { console.warn('band app', c.app.key, e); c.tick = undefined; } }
+    if (this.open && c?.tick) { try { c.tick(dt); } catch (e) { console.warn('band app', c.app.key, e); c.tick = undefined; } }
     this.clockT -= dt;
     if (this.clockT <= 0) { this.clockT = 1; this.refreshTop(); this.syncMsg(); }
     if (this.lineT > 0) { this.lineT -= dt; if (this.lineT <= 0) this.footLine(); }
+    // exposed: something starts hunting the unit, the band snaps shut
+    this.huntT -= dt;
+    if (this.open && this.huntT <= 0) { this.huntT = 0.25; if (!(navigator as any).webdriver && huntedBy()) { sfx('relay', 0.6); this.hide(true); } }
+    this.step(dt);
     this.raf = requestAnimationFrame(this.frame);
   };
+  /** the raise and the first-person placement: the arm, the case, the face laid onto it */
+  private step(dt: number) {
+    const L = this.L;
+    // the raise follows the camera's cut in (the arm only shows through the eyes)
+    const cut = this.fp ? (eyeActive() ? Math.min(1, Math.max(0, (fpBlend() - 0.5) / 0.5)) : 0) : 1;
+    const goal = Math.min(this.raiseGoal, cut);
+    const sp = this.fumble >= 0 ? 5 : 3.6;
+    this.raise += Math.max(-dt * sp, Math.min(dt * sp, goal - this.raise));
+    if (this.fumble >= 0) {
+      this.fumble += dt;
+      if (this.raise >= this.raiseGoal - 0.02 && this.raiseGoal > 0) { this.raiseGoal = 0; sfx('clamp', 0.4); }
+      if (this.raiseGoal === 0 && this.raise <= 0.01 && this.fumble > 0.4) { this.fumble = -1; this.leave(); }
+    } else if (this.open && !this.powered && this.raise >= 0.97) { this.powered = true; this.powerOn(); }
+    if (!this.fp) return;
+    const cam = fpCamera();
+    cam.position.set(0, 0, 0); cam.rotation.set(0, 0, 0);
+    const fov = 30, half = Math.tan((fov * Math.PI) / 360), asp = cam.aspect || window.innerWidth / Math.max(1, window.innerHeight);
+    if (cam.fov !== fov) { cam.fov = fov; cam.updateProjectionMatrix(); }
+    const k = (L.kind === 'wide' ? 0.18 : 0.092) / L.W, Wm = L.W * k, Hm = L.H * k;
+    const fill = L.kind === 'wide' ? 0.8 : 0.9;
+    const d = Math.max(Hm / (fill * 2 * half), Wm / (fill * 2 * half * asp));
+    // breathing, a little sway; the panic shakes it (and the fumble shakes it hard)
+    const panic = Math.min(1, ((G.local?.body as any)?.panic ?? 0) / 100);
+    const shake = this.fumble >= 0 ? 1 : panic * 0.4;
+    const r = this.raise, e = r * r * (3 - 2 * r), lo = 1 - e;
+    const t = this.t;
+    const jx = (Math.sin(t * 31) + Math.sin(t * 47)) * 0.0012 * shake, jy = (Math.sin(t * 37) + Math.sin(t * 53)) * 0.0012 * shake;
+    const b3 = this.body3!;
+    b3.position.set(d * 0.03 + Math.sin(t * 0.9) * 0.0016 + jx, -d * 0.025 + Math.sin(t * 1.55) * 0.0022 - lo * d * 0.95 + jy, -d - lo * d * 0.25);
+    b3.rotation.set(-0.06 + lo * 1.0 + Math.sin(t * 1.1) * 0.006, 0.12 + Math.sin(t * 0.8) * 0.008, -0.035 + Math.sin(t * 0.7) * 0.01 + lo * 0.25);
+    b3.updateMatrixWorld(true);
+    // the forearm under the case, its back to the eyes (palm away)
+    const arm = this.arm!;
+    const A = watchArm(L, k);
+    arm.elbow.copy(b3.localToWorld(A.elbow.clone()));
+    arm.target.copy(b3.localToWorld(A.wrist.clone()));
+    const dir = this.v1.subVectors(arm.target, arm.elbow).normalize();
+    this.q1.setFromUnitVectors(this.up, dir).invert();
+    const tl = this.v2.copy(arm.target).applyQuaternion(this.q1);
+    poseArm(arm, Math.atan2(tl.x, tl.z) * arm.side, dt);
+    // the face: its four corners on screen, the DOM picture laid onto them
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const pts = [[-Wm / 2, Hm / 2], [Wm / 2, Hm / 2], [Wm / 2, -Hm / 2], [-Wm / 2, -Hm / 2]].map(([x, y]) => {
+      const v = b3.localToWorld(this.v3.set(x, y, 0.0005)).project(cam);
+      return [(v.x + 1) / 2 * vw, (1 - v.y) / 2 * vh] as [number, number];
+    });
+    this.lift.style.transform = quadMatrix(L.W, L.H, pts);
+    this.lift.style.visibility = r > 0.02 ? 'visible' : 'hidden';
+    const cx = (pts[0][0] + pts[2][0]) / 2, cy = (pts[0][1] + pts[2][1]) / 2;
+    this.root.style.setProperty('--fx', Math.round(cx) + 'px');
+    this.root.style.setProperty('--fy', Math.round(cy) + 'px');
+    this.root.style.setProperty('--fr', Math.round(Math.hypot(pts[2][0] - pts[0][0], pts[2][1] - pts[0][1]) * 0.62) + 'px');
+  }
+  private v1 = new THREE.Vector3(); private v2 = new THREE.Vector3(); private v3 = new THREE.Vector3(); private q1 = new THREE.Quaternion(); private up = new THREE.Vector3(0, 1, 0);
+  /** the case's body and the gloved left forearm in the overlay scene (rebuilt when the layout changes) */
+  private build3d() {
+    const L = this.L;
+    if (!this.g3) this.g3 = fpGroup('watch');
+    if (this.armKind === L.kind && this.body3 && this.arm) return;
+    this.g3.clear();
+    const k = (L.kind === 'wide' ? 0.18 : 0.092) / L.W;
+    this.body3 = watchBody(L, k);
+    this.g3.add(this.body3);
+    const A = watchArm(L, k);
+    const arm = makeArm(-1, A.wrist.distanceTo(A.elbow) / 0.26);
+    arm.want = 'relaxed';
+    // a work glove on the hand (the sleeve covers the forearm)
+    arm.fp.setLook({ skin: 0x3a3127 });
+    this.g3.add(arm.root);
+    this.arm = arm;
+    this.armKind = L.kind;
+  }
+
   // ---------------------------------------------------------------- building
   private build() {
     const L = this.L, key = L.kind + (mxOk() ? 'm' : '');
@@ -159,13 +278,15 @@ export class BandOS {
     const r = this.root;
     r.replaceChildren();
     r.className = 'wt ' + L.kind + (this.amber ? ' amb' : '');
+    // the world behind, a little out of focus round the unit (the unit sharp)
+    this.dof = el('div', 'wt-dof');
+    r.append(this.dof);
     this.rig = el('div', 'wt-rig');
     this.lift = el('div', 'wt-lift');
     this.rig.append(this.lift);
     this.lift.style.width = L.W + 'px'; this.lift.style.height = L.H + 'px';
     // the unit (and the arm) as one picture, or a plain case without WebGL
-    const skin = (G.local as any)?.app?.skin ?? 0xe8b98f;
-    const art = wristArt(L, skin);
+    const art = wristArt(L);
     if (art) { art.className = 'wt-art'; art.style.left = L.ox + 'px'; art.style.top = L.oy + 'px'; art.style.width = L.cw + 'px'; art.style.height = L.ch + 'px'; this.lift.append(art); }
     else this.lift.classList.add('flat');
     // the tube (the shared CRT skin, src/ui/crt)
@@ -254,10 +375,11 @@ export class BandOS {
     this.crt?.setPhos(this.amber ? 'amber' : 'green');
     this.crt?.setBright([0.72, 0.88, 1, 1.16][this.bright] ?? 1);
   }
-  /** fit the unit to the window (the arm may run past the edges) */
+  /** fit the unit to the window: in first person the frame lays the face onto the case; flat, it is centred */
   private layout() {
     const L = this.phone ? TALL : WIDE;
-    if (L !== this.L) { this.L = L; this.build(); this.toHome(true); }
+    if (L !== this.L) { this.L = L; this.build(); this.toHome(true); if (this.fp) this.build3d(); }
+    if (this.fp) { this.rig.style.transform = 'none'; return; }
     const vw = window.innerWidth, vh = window.innerHeight;
     // (a desktop leaves the forearm showing either side of the case: the sleeve left, the wrist and hand right)
     const s = L.kind === 'tall' ? Math.min(vw / L.W, vh / L.H) : Math.min((vw * 0.8) / L.W, (vh * 0.9) / L.H);
@@ -306,6 +428,7 @@ export class BandOS {
     this.sel = i;
     this.dial?.to(i + 1);
     this.busy = 1;
+    G.audio?.ui?.('static_burst', 0.22);
     void this.crt.swap(() => {
       if (!this.open) return;
       this.endApp();
@@ -393,7 +516,7 @@ export class BandOS {
     if (e.code === 'Tab') { e.preventDefault(); e.stopImmediatePropagation(); this.hide(); return; }
     if (typing) return;
     if (!this.cur) {
-      const cols = 3;
+      const cols = this.L.kind === 'wide' ? 4 : 2;
       const mv = e.code === 'ArrowLeft' ? -1 : e.code === 'ArrowRight' ? 1 : e.code === 'ArrowUp' ? -cols : e.code === 'ArrowDown' ? cols : 0;
       if (mv) { e.preventDefault(); e.stopImmediatePropagation(); this.select(this.sel + mv); return; }
       if (e.code === 'Enter' || e.code === 'Space' || e.code === 'NumpadEnter') { e.preventDefault(); e.stopImmediatePropagation(); this.launch(APPS[this.sel].key); return; }
@@ -402,6 +525,17 @@ export class BandOS {
     const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
     if (m && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); e.stopImmediatePropagation(); const i = Number(m[1]) - 1; if (APPS[i]) { this.select(i, true); this.launch(APPS[i].key); } }
   }
+}
+
+/** the CSS transform that lays a w x h element onto a screen quad (top-left, top-right, bottom-right, bottom-left) */
+function quadMatrix(w: number, h: number, q: [number, number][]): string {
+  const [[x0, y0], [x1, y1], [x2, y2], [x3, y3]] = q;
+  const dx1 = x1 - x2, dx2 = x3 - x2, dx3 = x0 - x1 + x2 - x3, dy1 = y1 - y2, dy2 = y3 - y2, dy3 = y0 - y1 + y2 - y3;
+  const den = dx1 * dy2 - dx2 * dy1 || 1e-9;
+  const g = (dx3 * dy2 - dx2 * dy3) / den, hh = (dx1 * dy3 - dx3 * dy1) / den;
+  const a = x1 - x0 + g * x1, b = x3 - x0 + hh * x3, c = x0, d = y1 - y0 + g * y1, e = y3 - y0 + hh * y3, f = y0;
+  const m = [a / w, d / w, 0, g / w, b / h, e / h, 0, hh / h, 0, 0, 1, 0, c, f, 0, 1];
+  return `matrix3d(${m.map((v) => +v.toFixed(8)).join(',')})`;
 }
 
 let os: BandOS | null = null;

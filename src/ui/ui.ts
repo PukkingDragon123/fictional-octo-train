@@ -21,6 +21,7 @@ import { debtorNo } from './holo/holo';
 import { openVerbTag } from '../interact/verbTag';
 import { ActionPlate } from './actionBar';
 import { installTravelPlate } from './travelPlate';
+import { panicLocks, panicFumble } from '../game/panic';
 
 export interface MenuOption {
   label: string;
@@ -285,6 +286,8 @@ export class UI {
 
   // ---------------- reader ----------------
   read(title: string, text: string, style: 'paper' | 'terminal' = 'paper') {
+    // round 17: too frightened to read (src/game/panic.ts)
+    if (G.local && panicLocks('read')) { panicFumble('read'); return; }
     this.closeReader();
     const el = document.createElement('div');
     el.className = 'k-reader ' + (style === 'terminal' ? 'terminal' : 'paper');

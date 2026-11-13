@@ -27,6 +27,7 @@ import { Dymo, Slate, HoverTag, clickTag } from './props';
 import { recipeHint } from './knowledge';
 import { craftSpeed } from '../build/speed';
 import { talentMul } from '../survival/talents';
+import { panicLocks, panicFumble } from '../game/panic';
 
 interface Staged { it: Item; obj: ItemObj; spot: number; sh: THREE.Mesh }
 interface Sheet { t: PixTag; run: () => void }
@@ -248,6 +249,8 @@ export class Bench {
   show(o: TileObject | null) {
     const p = G.local;
     if (!p) return;
+    // round 17: hands too shaky to craft (src/game/panic.ts)
+    if (panicLocks('craft')) { panicFumble('craft'); return; }
     this.build();
     if (!fpClaim('bench', 3, { cinematic: 'full', eyePitch: BENCH_PITCH })) return;
     if (G.ui?.inventory?.open) G.ui.inventory.toggle(false);

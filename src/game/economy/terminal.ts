@@ -36,6 +36,7 @@ import { INSTALLMENT_DOLLARS } from './money';
 import { itemValue } from '../debt/values';
 import './terminal.css';
 import { calibrate } from '../../ui/minigames/calibrate';
+import { panicLocks, panicFumble } from '../panic';
 
 export interface TermOpen {
   /** where it is used: at the press in a run, at a claim beacon (Seam Relay), or the lab between runs */
@@ -66,6 +67,8 @@ const canIcon = () => !!(G as any)?.pr?.renderer;
 export const pressTerminalOpen = () => !!open;
 
 export function openPressTerminal(o: TermOpen) {
+  // round 17: too frightened to work the press mid-run (src/game/panic.ts)
+  if (o.from !== 'lab' && G?.local && panicLocks('press')) { panicFumble('press'); return; }
   open?.close();
   const inRun = o.from !== 'lab' && !!G?.local;
   const wrap = h('div', 'ptm');

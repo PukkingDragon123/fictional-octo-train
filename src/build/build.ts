@@ -42,6 +42,7 @@ import type { GameSystem } from '../game/game';
 import type { Player } from '../entities/player';
 import type { MenuOption } from '../ui/ui';
 import './build.css';
+import { panicLocks, panicFumble } from '../game/panic';
 
 const REACH = 7;
 const FRAME_FOR = (pc: Piece, rot: number) => {
@@ -122,6 +123,8 @@ export class BuildSystem implements GameSystem {
     const p = G.local;
     if (on) {
       if (!p || p.body.dead || p.inVehicle || G.transitioning) return;
+      // round 17: too frightened to build (src/game/panic.ts)
+      if (panicLocks('build')) { panicFumble('build'); return; }
       const intro = G.systems.find((s) => s.name === 'intro') as any;
       if (intro && intro.phase !== 'done') return;
     }

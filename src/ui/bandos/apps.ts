@@ -9,9 +9,6 @@ import type { WinApi } from './bandos';
 import { statusPage, crewPage } from '../menus/pause';
 import { optionsPanel, controlsPanel } from '../menus/common';
 import { setPanelEmbed, openCodex, openReq, closePanel, type PanelHost } from '../menus/research/panel';
-import { itemIconFor, iconResCss, itemIconTurn } from '../icons';
-import { itemName } from '../../items/item';
-import { openItemPanel } from '../itemPanel';
 import { trackQuest } from '../broadcast/notices';
 import { lore } from '../../content/loreRegistry';
 import type { QuestRuntime, QView } from '../../missions/questRuntime';
@@ -113,46 +110,6 @@ export const APPS: AppDef[] = [
       render();
       let t = 0;
       return { tick: (dt) => { t += dt; if (t > 0.6) { t = 0; render(); } } };
-    },
-  },
-  {
-    key: 'pack', title: 'Pack', sub: 'what the unit carries', icon: 'crate', w: 520, h: 440,
-    build(w) {
-      let sig = '';
-      const render = () => {
-        const p = G.local;
-        if (!p) return;
-        const cs = p.containers();
-        const s = cs.map((c) => c.uid + ':' + c.items.map((i) => i.uid).join(',')).join('|');
-        if (s === sig) return;
-        sig = s;
-        w.body.replaceChildren();
-        for (const c of cs) {
-          const sec = el('section', 'bos-sec');
-          sec.append(el('h4', 'bos-h4', `${esc(c.name)} <small>${c.items.length}</small>`));
-          const grid = el('div', 'bos-grid');
-          for (const it of c.items) {
-            const b = el('button', 'bos-tile') as HTMLButtonElement;
-            b.type = 'button'; b.title = itemName(it);
-            const still = itemIconFor(it, iconResCss(40));
-            b.innerHTML = `<img src="${still}" alt=""><span>${esc(itemName(it))}</span>`;
-            // hovered, the item turns on its turntable (frames rendered as it goes, then cached)
-            const img = b.querySelector('img') as HTMLImageElement;
-            let spin = 0, f = 0;
-            const stop = () => { clearInterval(spin); spin = 0; img.src = still; };
-            b.addEventListener('pointerenter', () => { if (spin) return; spin = window.setInterval(() => { if (!b.isConnected) { stop(); return; } img.src = itemIconTurn(it.key, iconResCss(40), ++f); }, 90); });
-            b.addEventListener('pointerleave', stop);
-            b.addEventListener('click', () => { const r = b.getBoundingClientRect(); openItemPanel(it, c, { x: r.left, y: r.top, w: r.width, h: r.height }); });
-            grid.append(b);
-          }
-          if (!c.items.length) grid.append(el('p', 'bos-dim', 'empty'));
-          sec.append(grid);
-          w.body.append(sec);
-        }
-      };
-      render();
-      let t = 0;
-      return { tick: (dt) => { t += dt; if (t > 0.5) { t = 0; render(); } } };
     },
   },
   {

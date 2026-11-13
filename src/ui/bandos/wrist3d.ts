@@ -1,5 +1,5 @@
-// THE WRIST UNIT'S BODY (./bandos.ts): the operator band as a heavy field instrument strapped on the
-// left forearm, drawn once by the machine renderer (src/ui/machine/core.ts) like every housing:
+// THE WRIST UNIT'S BODY (./bandos.ts): the operator band as a heavy field instrument strapped on the left
+// forearm. Its face is drawn once by the machine renderer (src/ui/machine/core.ts) like every housing:
 //
 //   the case      an olive enamel slab, chamfered, riveted, worn through at the edges, a hazard
 //                 strip along its foot, a brass maker's plate over the tube
@@ -8,21 +8,20 @@
 //   the left      a punched speaker grille, the status lamps, and the SELECT dial's plate
 //   the right     the brightness knob, the phosphor toggle, a vent
 //   the foot      three push keys (RESUME, SAVE, QUIT) sit in the strip under the tube
-//   the arm       the forearm in its jumpsuit sleeve (src/fp/hands.ts, the same 3D arm every
-//                 close-up uses), the case on two webbing straps with steel buckles
 //
-// The moving parts (the dial, the knob, the toggle, the keys, a lamp that blinks) are separate
-// sprites from the machine kit laid over this picture; their places are in the layout.
-// Two layouts: 'wide' (a desktop: the arm across the picture, the case big in the middle) and
-// 'tall' (a phone held upright: the case fills the screen, no arm).
+// In first person (./bandos.ts) that face is laid onto the front of watchBody(): the case's 3D body, webbing
+// straps round the forearm, the light; the forearm itself is the close-ups' arm (src/craft/fpKit.ts makeArm).
+// The moving parts (the dial, the knob, the toggle, the keys, a lamp that blinks) are separate sprites from the
+// machine kit laid over the face; their places are in the layout.
+// Two layouts: 'wide' (a desktop: the unit across the forearm) and 'tall' (a phone held upright).
 import * as THREE from 'three';
 import { mxOk, shoot, sheet, animate, disposeTree, mxMat, type ShotOpts } from '../machine/core';
 import { housing, meshOf, bolt, rivet, knobPart, R90 } from '../machine/parts';
-import { Mold, M, STEEL, CHROME, PAINT, CLOTH, RUBBER } from '../touch/stage3d';
+import { Mold, M, STEEL, PAINT } from '../touch/stage3d';
 import { fbox, fcyl, plate, clipRect } from '../touch/facet';
 import { TONES, paintFace, canvasTex, type Rect } from '../machine/paint';
 import { sfx } from '../menus/sfx';
-import { fpArm } from '../../fp/hands';
+import { fpLightRig } from '../../fp/hands';
 
 export interface WristLayout {
   kind: 'wide' | 'tall';
@@ -50,7 +49,7 @@ export const WIDE: WristLayout = {
   tog: { x: 764, y: 168 },
   keys: [{ x: 214, y: 450, w: 124, h: 50 }, { x: 368, y: 450, w: 124, h: 50 }, { x: 522, y: 450, w: 124, h: 50 }],
   msg: { x: 112, y: 34 },
-  ox: -300, oy: -40, cw: 1500, ch: 640,
+  ox: -24, oy: -24, cw: 908, ch: 568,
 };
 export const TALL: WristLayout = {
   kind: 'tall', W: 390, H: 844,
@@ -67,9 +66,9 @@ const SHOT: ShotOpts = { shear: [-0.14, -0.24], shadow: [3, 4], shadowA: 0.5, ed
 const cache = new Map<string, HTMLCanvasElement>();
 
 /** the case (and on 'wide' the arm) as one picture; null without WebGL */
-export function wristArt(L: WristLayout, skin = 0xe8b98f, sleeve = 0xeeb415): HTMLCanvasElement | null {
+export function wristArt(L: WristLayout): HTMLCanvasElement | null {
   if (!mxOk()) return null;
-  const key = `${L.kind}|${skin}|${sleeve}`;
+  const key = L.kind;
   const hit = cache.get(key);
   if (hit) return hit;
   const cv = document.createElement('canvas');
@@ -80,12 +79,9 @@ export function wristArt(L: WristLayout, skin = 0xe8b98f, sleeve = 0xeeb415): HT
   const caseG = buildCase(L);
   caseG.position.set(-L.ox, L.oy, 0);
   root.add(caseG);
-  const arm = L.kind === 'wide' ? buildArm(L, skin, sleeve) : null;
-  if (arm) { arm.g.position.x -= L.ox; arm.g.position.y += L.oy; root.add(arm.g); }
   try { shoot(root, L.cw, L.ch, 0, c, 0, 0, SHOT); } catch (e) { console.warn('wrist art', e); }
   root.remove(caseG);
   disposeTree(caseG);
-  arm?.dispose();
   cache.set(key, cv);
   return cv;
 }
@@ -148,61 +144,45 @@ function buildCase(L: WristLayout): THREE.Group {
   return g;
 }
 
-/** the left forearm under the case (the hand out to the right), and two webbing straps round it.
- *  The arm is the close-ups' 3D arm (src/fp/hands.ts), posed, then baked into one machine-shaded mesh so it is
- *  lit, inked and dithered like the case. */
-function buildArm(L: WristLayout, skin: number, sleeve: number): { g: THREE.Group; dispose(): void } {
+// ---------------------------------------------------------------- the unit in first person
+/** the unit's body as a 3D object (metres) for the first-person view: the case behind its painted face (the face
+ *  itself is the DOM picture laid onto the plane z = 0), a back plate, webbing straps with steel buckles round the
+ *  forearm, a light rig. `k` is metres per design pixel. */
+export function watchBody(L: WristLayout, k: number): THREE.Group {
   const g = new THREE.Group();
-  const SC = 4300;
-  const arm = fpArm('left', { skin, sleeve, sleeveStyle: 'long' });
-  arm.reach = null;
-  arm.pose('relaxed', true);
-  arm.update(0);
-  // the forearm runs along +x (elbow left, hand right), the back of the hand toward the camera
-  const holder = new THREE.Group();
-  holder.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3(0, 1, 0), new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, -1)));
-  holder.scale.setScalar(SC);
-  const ay = -L.H * 0.5 + 56, az = -235, elbowX = -220;
-  holder.position.set(elbowX, ay, az);
-  holder.add(arm.root);
-  holder.updateMatrixWorld(true);
-  const body = new Mold(true);
-  arm.root.traverse((o) => {
-    const me = o as THREE.Mesh;
-    if (!me.isMesh || !me.visible) return;
-    let vis = true; for (let q: THREE.Object3D | null = me; q; q = q.parent) if (!q.visible) vis = false;
-    if (!vis) return;
-    const mt = me.material as THREE.MeshStandardMaterial;
-    const hex = mt.color ? mt.color.getHex() : 0xc0a080;
-    const cloth = hex === new THREE.Color(sleeve).getHex();
-    body.add(me.geometry.clone(), me.matrixWorld.clone(), hex, cloth ? CLOTH : SKIN);
-  });
-  holder.remove(arm.root);
-  arm.dispose();
-  // the sleeve carries on past the elbow, out of the picture
-  body.add(fcyl(226, 560, 14, 236, 0.2), M(elbowX - 270, ay, az, 0, 0, R90), sleeve, CLOTH);
-  // the straps: khaki webbing round the arm either side of the case, a steel buckle on each
-  const st = new Mold();
-  for (const [x, d] of [[-34, 468], [L.W + 30, 388]]) {
-    st.add(fbox(22, d, d, 0.1), M(x, ay, az), 0x6a6440, CLOTH);
-    st.add(fbox(30, 46, 10, 0.3), M(x, ay + 20, az + d / 2 + 3), 0xb0b8b4, CHROME);
-    st.add(fbox(18, 30, 5, 0.2), M(x, ay + 20, az + d / 2 + 7), 0x2a2e2c, RUBBER);
-    st.add(fbox(6, 36, 6, 0.2), M(x, ay + 20, az + d / 2 + 10), 0xd0d8d4, CHROME);
+  const W = L.W * k, H = L.H * k;
+  const olive = new THREE.MeshStandardMaterial({ color: 0x4e5836, roughness: 0.72, metalness: 0.12 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x23271a, roughness: 0.8, metalness: 0.2 });
+  const web = new THREE.MeshStandardMaterial({ color: 0x5e5a38, roughness: 0.95 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xb8c0bc, roughness: 0.3, metalness: 0.85 });
+  const box = (w: number, h: number, d: number, m: THREE.Material, x: number, y: number, z: number) => { const me = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); me.position.set(x, y, z); g.add(me); return me; };
+  box(W * 0.985, H * 0.985, 0.022, olive, 0, 0, -0.0115);
+  box(W * 0.9, H * 0.9, 0.012, dark, 0, 0, -0.028);
+  const A = watchArm(L, k);
+  const ax = A.wrist.clone().sub(A.elbow).normalize();
+  const wide = L.kind === 'wide';
+  for (const t of wide ? [-(W / 2 + 0.012), W / 2 + 0.01] : [-(H / 2 + 0.012), H / 2 + 0.01]) {
+    // a strap round the forearm where it leaves the case, its buckle on the camera side
+    const c = wide ? new THREE.Vector3(t, A.elbow.y + (A.wrist.y - A.elbow.y) * ((t - A.elbow.x) / (A.wrist.x - A.elbow.x)), A.wrist.z) : new THREE.Vector3(A.elbow.x + (A.wrist.x - A.elbow.x) * ((t - A.elbow.y) / (A.wrist.y - A.elbow.y)), t, A.wrist.z);
+    const s = box(0.022, 0.1, 0.1, web, c.x, c.y, c.z);
+    s.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), ax);
+    const b = box(0.026, 0.034, 0.008, steel, c.x, c.y, c.z + 0.051);
+    b.quaternion.copy(s.quaternion);
   }
-  const mats = [mxMat({ wear: 0.12, seed: 41 }), mxMat({ wear: 0.4, seed: 43 })];
-  meshOf(body, mats[0], g);
-  meshOf(st, mats[1], g);
-  return {
-    g,
-    dispose: () => { for (const o of [...g.children]) if ((o as THREE.Mesh).isMesh) (o as THREE.Mesh).geometry.dispose(); for (const mt of mats) mt.dispose(); },
-  };
+  g.add(fpLightRig());
+  return g;
 }
-/** skin: a little sheen, no rust, takes grime */
-const SKIN: [number, number, number, number] = [0.14, 0, 0.8, 0];
+/** where the forearm runs under the case (case-local metres): from the elbow (off the picture) to the wrist */
+export function watchArm(L: WristLayout, k: number): { elbow: THREE.Vector3; wrist: THREE.Vector3 } {
+  const W = L.W * k, H = L.H * k;
+  return L.kind === 'wide'
+    ? { elbow: new THREE.Vector3(-W / 2 - 0.2, -H * 0.42, -0.05), wrist: new THREE.Vector3(W / 2 + 0.035, -H * 0.04, -0.045) }
+    : { elbow: new THREE.Vector3(W * 0.05, -H / 2 - 0.2, -0.05), wrist: new THREE.Vector3(-W * 0.02, H / 2 + 0.03, -0.045) };
+}
 
 // ---------------------------------------------------------------- the SELECT dial
 /** H (home) and the nine apps round 270 degrees of a dark plate */
-export const DIAL_POS = 10;
+export const DIAL_POS = 9;
 const DIAL_F = (DIAL_POS - 1) * 3 + 1;
 function dialScale(s: number): HTMLCanvasElement {
   const cv = paintFace({ w: s, h: s, tone: 'dark', seed: 12, cut: 6, wear: 0.45 });

@@ -287,7 +287,7 @@ export class GrassSystem {
   private track = new Map<string, { x: number; z: number; vx: number; vz: number; seen: number }>();
   private pulses: { x: number; z: number; r: number; s: number; kind: number; dx: number; dz: number; zone: string; at: number }[] = [];
   private cutAt = new Map<number, number>();
-  private lastCutDrop = 0;
+  private lastCutDrop = -1e9;
   private windAng = 0.6;
   private time = 0;
   /** dev / probes */
@@ -412,7 +412,7 @@ export class GrassSystem {
   private updateChunks(z: Zone, fx: number, fz: number, R: number, qd: number, ppm: number, eye: boolean) {
     const ccx = Math.floor(fx / CHUNK), ccz = Math.floor(fz / CHUNK);
     const r = Math.ceil((R + 6) / CHUNK);
-    let builds = this.chunks.size === 0 ? 99 : 2;
+    let builds = this.chunks.size === 0 ? 99 : 1;
     const t0 = performance.now();
     for (let cy = ccz - r; cy <= ccz + r; cy++) for (let cx = ccx - r; cx <= ccx + r; cx++) {
       if (cx < 0 || cy < 0 || cx >= z.chunksX || cy >= z.chunksY) continue;
@@ -596,8 +596,8 @@ export class GrassSystem {
   }
 
   private onNoise(n: { x: number; z: number; radius: number; kind: string; zone: string; by?: string }) {
-    if (!this.active || !this.zone || n.zone !== this.zone.key) return;
     const g: any = G;
+    if (g?.grass !== this || !this.active || !this.zone || n.zone !== this.zone.key) return;
     const p = n.by ? g.players?.get?.(n.by) : null;
     if (n.kind === 'gun') {
       // the muzzle blast, and the round's path combing the grass flat for a moment
@@ -782,11 +782,11 @@ function growChunk(z: Zone, cx: number, cy: number) {
 }
 
 // ---------------------------------------------------------------- install
-let sys: GrassSystem | null = null;
-export function installGrass(g: any) {
-  if (sys || !g?.pr) return sys;
-  sys = new GrassSystem();
-  const s = sys;
+/** one grass field per running game (a new session builds a new renderer) */
+export function installGrass(g: any): GrassSystem | null {
+  if (!g?.pr) return null;
+  if (g.grass instanceof GrassSystem) return g.grass;
+  const s = new GrassSystem();
   g.grass = s;
   g.pr.beforeRender.push((dt: number) => { try { s.frame(dt); } catch (e) { console.warn('grass', e); } });
   if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('nograss')) s.enabled = false;

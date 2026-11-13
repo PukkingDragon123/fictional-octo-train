@@ -36,8 +36,10 @@ export class PauseMenu {
   private nav: FocusNav | null = null;
   private cluster: GearCluster | null = null;
   constructor() {
-    // round 17: Esc / MENU raise the wrist terminal (src/ui/bandos); this console answers to 'pauseMenuClassic'
-    bus.on('pauseMenuClassic', () => (this.el ? this.close() : this.open()));
+    // Esc: this console, time held. The wrist terminal (src/ui/bandos) is Tab and the phone's MENU key, in real time.
+    const flip = () => (this.el ? this.close() : this.open());
+    bus.on('pauseMenu', flip);
+    bus.on('pauseMenuClassic', flip);
   }
   open(page: Page = 'main') {
     this.close(true);

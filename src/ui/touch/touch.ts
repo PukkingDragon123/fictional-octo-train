@@ -152,7 +152,8 @@ export class TouchControls implements GameSystem {
 
     // ---- top bars
     const tl = this.group('tl', 'nc-group nc-row nc-tl');
-    this.btn(tl, 'menu', 'menu', { label: 'MENU', s: 0.85, tap: () => this.g.input.tap('pause') });
+    // round 17: the MENU key raises the wrist terminal (src/ui/bandos); without one, the pause
+    this.btn(tl, 'menu', 'menu', { label: 'MENU', s: 0.85, tap: () => { const band = (this.g as any).bandos as { toggle?: () => void } | undefined; if (band?.toggle) band.toggle(); else this.g.input.tap('pause'); } });
     const fsOk = !!(document.fullscreenEnabled || (document as any).webkitFullscreenEnabled);
     if (fsOk) this.btn(tl, 'fs', 'fullscreen', { label: 'FULL', s: 0.85, on: 'up', tap: () => toggleFullscreen() });
     this.btn(tl, 'photo', 'photo', { label: 'PHOTO', s: 0.85, tap: () => (this.g as any).camera?.photo?.toggle?.() });

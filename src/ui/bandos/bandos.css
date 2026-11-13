@@ -129,3 +129,16 @@ body:has(.wt.on) :is(.wp-tag, .obj15, .ft-subs .w-bubble) { visibility: hidden !
 /* names only on the one picked */
 .wt .bos-tile span { visibility: hidden; }
 .wt .bos-tile:hover span, .wt .bos-tile:focus-visible span { visibility: visible; }
+
+/* ---- first person (./bandos.ts): the world alive behind, the face laid onto the case by a perspective transform */
+.wt.fp { background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0) 58%, rgba(0, 0, 0, 0.42) 100%); pointer-events: none; transition: opacity 0.18s ease; }
+.wt.fp .wt-rig { transform: none !important; }
+.wt.fp .wt-lift { position: absolute; left: 0; top: 0; transform-origin: 0 0; transition: none; pointer-events: auto; will-change: transform; }
+/* depth of field: the world softens away from the unit, the unit and the hand stay sharp */
+.wt-dof { position: absolute; inset: 0; pointer-events: none; display: none; -webkit-backdrop-filter: blur(2.6px) saturate(0.85); backdrop-filter: blur(2.6px) saturate(0.85);
+  -webkit-mask-image: radial-gradient(circle var(--fr, 420px) at var(--fx, 50%) var(--fy, 50%), rgba(0, 0, 0, 0) 62%, #000 100%); mask-image: radial-gradient(circle var(--fr, 420px) at var(--fx, 50%) var(--fy, 50%), rgba(0, 0, 0, 0) 62%, #000 100%); }
+.wt.fp .wt-dof { display: block; }
+.reduce-flash .wt-dof { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* eight apps: four by two across, two by four upright */
+.wt.wide .wt-home { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); }
+.wt.tall .wt-home { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(4, 1fr); }
