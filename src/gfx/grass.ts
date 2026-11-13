@@ -73,6 +73,7 @@ varying vec2 vGUv;
 varying float vGShift;
 varying float vGRow;
 varying float vGTr;
+varying float vGDry;
 `;
 
 // computed where three starts the normal, so position and normal come from one place
@@ -146,10 +147,13 @@ vec3 objectNormal;
     float lush = sin(root.x * 0.19 + sin(root.z * 0.15) * 1.7) * 0.5 + sin(root.z * 0.12 - root.x * 0.07 + 2.0) * 0.5;
     // (and a step darker down in the turf, so every tuft stands out of the ground it grows from;
     // flattened grass shows its pale side: a trampled lane reads as a lighter streak)
-    vGShift = lush * 0.55 + (seed - 0.5) * 0.9 + crest * uGWind.z * 1.5 * (1.0 - tr) + tr * 0.6 - cut * 0.4 + mix(-1.1, 0.3, hy) * (1.0 - tr);
+    vGShift = lush * 0.95 + (seed - 0.5) * 0.9 + crest * uGWind.z * 1.5 * (1.0 - tr) + tr * 0.6 - cut * 0.4 + mix(-1.1, 0.3, hy) * (1.0 - tr);
   }
   vGRow = aVar.y;
   vGTr = vd.w < -0.5 ? 0.0 : tr;
+  // drier, yellowed stretches across the field (blades turn to straw in a dithered spread)
+  float dryN = sin(root.x * 0.071 + 1.3 + sin(root.z * 0.05) * 2.0) * 0.5 + sin(root.z * 0.083 - root.x * 0.031) * 0.5;
+  vGDry = smoothstep(0.2, 0.95, dryN) * 0.8;
 }
 `;
 
@@ -160,6 +164,7 @@ varying vec2 vGUv;
 varying float vGShift;
 varying float vGRow;
 varying float vGTr;
+varying float vGDry;
 `;
 
 const FMAP = /* glsl */`
@@ -173,6 +178,7 @@ const FMAP = /* glsl */`
     gi = clamp(gi + s, 0.0, 5.0);
     // trodden flat: the blades lie on their backs, a paler and greyer green (dithered in with the trample)
     if (bayer4(gl_FragCoord.xy + vec2(2.0, 1.0)) < vGTr * 1.3 - 0.15) gi = 24.0 + clamp(floor(gi * 0.5), 0.0, 2.0);
+    else if (bayer4(gl_FragCoord.xy + vec2(1.0, 3.0)) < vGDry && gi > 1.5) gi = 6.0 + clamp(floor((gi - 2.0) * 0.75), 0.0, 2.0);
   }
   else if (gi < 8.5) gi = clamp(gi + s, 6.0, 8.0);
   else if (gi < 11.5) gi = clamp(gi + s, 9.0, 11.0);

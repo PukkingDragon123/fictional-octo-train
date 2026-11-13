@@ -47,9 +47,9 @@ addTextureModule(() => {
     const R = makeRamp(0x3a3640, 4, { spread: 0.2 });
     pc.each((x, y) => pc.set(x, y, R[1 + (ph(x, y >> 2, 9121) < 0.2 ? 1 : 0) + (y < 2 ? 2 : 0)]));
   });
-  // too-green grass: flat, saturated, with soft pastel sparkles
+  // the turf under the meadow's grass (src/gfx/grass.ts draws the blades): deep green, soft pastel sparkles
   const grass = (seed: number) => (pc: PixelCanvas) => {
-    const R = makeRamp(0x5ce07a, 5, { spread: 0.18, hueShift: 6 });
+    const R = makeRamp(0x4a7434, 5, { spread: 0.2, hueShift: 6 });
     pc.each((x, y) => {
       const n = ph(x >> 1, y >> 2, seed) * 0.6 + ph(x, y, seed + 1) * 0.4;
       pc.set(x, y, R[n < 0.2 ? 1 : n > 0.85 ? 3 : 2]);
@@ -63,7 +63,7 @@ addTextureModule(() => {
   A.add('vx_grass', 32, 32, grass(9131));
   A.add('vx_grass_b', 32, 32, grass(9141));
   A.add('vx_meadow_side', 16, 32, (pc) => {
-    pc.each((x, y) => pc.set(x, y, y < 3 ? 0x4cc86a : mixHex(0xd8b4d0, 0xa8c4e0, y / 32 + (ph(x, y >> 1, 9151) - 0.5) * 0.1)));
+    pc.each((x, y) => pc.set(x, y, y < 3 ? 0x4a7434 : mixHex(0xd8b4d0, 0xa8c4e0, y / 32 + (ph(x, y >> 1, 9151) - 0.5) * 0.1)));
   });
   A.add('vx_path', 32, 32, (pc) => {
     pc.each((x, y) => {

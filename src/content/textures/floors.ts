@@ -475,7 +475,7 @@ function grassC(pc: PixelCanvas, rng: Rng) {
 }
 
 function grassDream(pc: PixelCanvas, rng: Rng, flowers: number) {
-  const R = grassBase(pc, rng, 0x66c48a, 42, 0.72, 0.18);
+  const R = grassBase(pc, rng, 0x55834a, 42, 0.72, 0.18);
   const cols: [number, number][] = [[0xfbfaf2, 0xf2d060], [0xf6b3cf, 0xfbe7ef], [0xc9b4f2, 0xf4eefe], [0xfbe9a0, 0xfffbe6]];
   for (let i = 0; i < flowers; i++) {
     const x = rng.int(1, 30), y = rng.int(1, 30), [p, c] = cols[i % cols.length];

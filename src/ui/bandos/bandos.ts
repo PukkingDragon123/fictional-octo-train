@@ -262,6 +262,8 @@ export class BandOS {
     const A = watchArm(L, k);
     const arm = makeArm(-1, A.wrist.distanceTo(A.elbow) / 0.26);
     arm.want = 'relaxed';
+    // no upper arm: the elbow is off the picture
+    arm.fp.reach = null;
     // a work glove on the hand (the sleeve covers the forearm)
     arm.fp.setLook({ skin: 0x3a3127 });
     this.g3.add(arm.root);
