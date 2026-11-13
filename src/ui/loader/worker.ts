@@ -20,9 +20,12 @@ let ex: Expanse | null = null;
 let state: 'off' | 'on' | 'finishing' = 'off';
 let running = false, last = 0, fadeIn = 0, toldDone = false;
 
+// about 30 frames a second: the motion blur hides it, and the GPU is left free for the load itself
+const MIN_MS = 31;
 function loop(now: number) {
   if (state === 'off' || !ex) { running = false; return; }
   nextFrame(loop);
+  if (last && now - last < MIN_MS) return;
   const dt = Math.min(state === 'finishing' ? 0.3 : 0.1, (now - (last || now)) / 1000); last = now;
   fadeIn = Math.min(1, fadeIn + dt / 0.55);
   try { ex.frame(dt, fadeIn * fadeIn); } catch (e) { state = 'off'; ex = null; post({ t: 'fail', err: String(e) }); return; }

@@ -38,6 +38,10 @@ export function lifeModel(key: string, d: Design, post?: (S: Ctx, page: Page) =>
   geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
   geo.setAttribute('aAtlas', new THREE.BufferAttribute(atl, 4));
   geo.setAttribute('aFx', new THREE.BufferAttribute(fx, 2));
+  // the world shader reads v flipped (this game's kit pages put row 0 at v = 1)
+  const uv = geo.getAttribute('uv') as THREE.BufferAttribute;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, 1 - uv.getY(i));
+  uv.needsUpdate = true;
   geo.computeBoundingSphere();
   tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
   const inverses = restWorld.map((p) => new THREE.Matrix4().makeTranslation(-p[0], -p[1], -p[2]));
