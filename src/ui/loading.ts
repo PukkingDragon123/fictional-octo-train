@@ -68,7 +68,9 @@ function onPage(el: HTMLElement) {
 /** the Expanse in a worker on an OffscreenCanvas: false where that cannot run */
 function startWorker(el: HTMLElement): boolean {
   if (typeof Worker === 'undefined' || typeof OffscreenCanvas === 'undefined' || !('transferControlToOffscreen' in HTMLCanvasElement.prototype)) return false;
-  if (/[?&]loader-main\b/.test(location.search)) return false;
+  // opt-in only (?loader-worker): on a software or weak GPU a second context drawing flat out starves the
+  // load itself of the GPU (measured: the title never came up), so the default stays on the page
+  if (!/[?&]loader-worker\b/.test(location.search)) return false;
   try {
     const cv = document.createElement('canvas');
     cv.className = 'lp-gl';
