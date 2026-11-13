@@ -158,3 +158,6 @@ body:has(.wt.fp.on) #nc-touch { visibility: hidden; }
 .wt .t-toggle .t-toggle-l small { display: none; }
 .wt .t-toggle:hover .t-toggle-l small, .wt .t-toggle:focus-visible .t-toggle-l small, .wt .t-toggle.hot .t-toggle-l small { display: block; }
 .wt .bos-crt .t-note { display: none; }
+/* the Settings app's pages come up with the tube (its own roll and static): no second slide-in that can hold a page
+   at opacity 0 while the band is still settling, so every tab lists its controls at once */
+.wt .t-opt-page.t-page-in, .wt .t-opt-page.t-page-in-l { animation: none; }
