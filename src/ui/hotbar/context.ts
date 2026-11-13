@@ -160,7 +160,10 @@ export function contextActions(p: Player, touch: boolean): CtxAction[] {
     const dep = opts.find((o) => /^Deposit all valuables/.test(o.label) && o.action && !o.disabled);
     const lever = opts.find((o) => /^Pull the lever/.test(o.label));
     const pr = { tgt: 'press', head: 'Feed the press', anchor: pressAt(hop) };
-    if (dep) out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: dep.action, ...pr });
+    // round 17: E opens the press's own screen (load it item by item, watch it count the payout)
+    const scr = opts.find((o) => /^Press screen/.test(o.label) && o.action && !o.disabled);
+    if (scr) out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: scr.action, ...pr });
+    else if (dep) out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: dep.action, ...pr });
     else if (lever) out.push({ id: 'feed', label: 'Feed', icon: 'feed', key: 'E', run: lever.disabled ? undefined : lever.action, why: lever.disabled ? String(lever.disabled) : undefined, ...pr });
   }
   // ---- inhabitants

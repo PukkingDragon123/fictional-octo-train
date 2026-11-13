@@ -153,7 +153,7 @@ function pump() {
 function buildSheet(anim: string, w: number, h: number): Sheet | null {
   if (!gl()) return null;
   const st = (thumbStage ??= new EmoteStage());
-  st.frame(1.0, 5.4, 30, 0.2);
+  st.frame(1.0, 4.3, 30, 0.25);
   st.parts.clear();
   st.fx.update(null, 0, 0);
   // settle into the idle, then run the emote and grab frames spread over it

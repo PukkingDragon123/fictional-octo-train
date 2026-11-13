@@ -1,5 +1,6 @@
 import type { Player } from '../entities/player';
 import type { ActionAnim, FullBody } from '../entities/humanAnim';
+import type { SkillCheck } from './skillCheck';
 
 /**
  * Project Zomboid style timed action. Everything a survivor does — moving an
@@ -28,6 +29,8 @@ export abstract class TimedAction {
   fixedTime = false;
   /** blocks other input (e.g. vaulting) */
   locks = false;
+  /** round 17: quick-time windows that pause the work for a steady hand (src/actions/skillCheck.ts) */
+  check: SkillCheck | null = null;
   constructor(public p: Player) {}
 
   get progress() { return Math.min(1, this.t / this.effDuration); }
@@ -59,7 +62,7 @@ export class ActionQueue {
   set(a: TimedAction) { this.clear(); this.list.push(a); return a; }
   clear() {
     const c = this.list[0];
-    if (c && c.started && !c.done) { c.cancelled = true; try { c.stop(); } catch (e) { console.error(e); } }
+    if (c && c.started && !c.done) { c.cancelled = true; c.check?.end(c); try { c.stop(); } catch (e) { console.error(e); } }
     this.list.length = 0;
   }
   update(dt: number) {
@@ -70,12 +73,19 @@ export class ActionQueue {
       a.started = true;
       try { a.start(); } catch (e) { console.error('action start', a.name, e); this.list.shift(); return; }
     }
-    if (!a.isValid()) { a.cancelled = true; a.stop(); this.list.shift(); return; }
+    if (!a.isValid()) { a.cancelled = true; a.check?.end(a); a.stop(); this.list.shift(); return; }
+    // a skill check's window holds the work until the hand has answered it
+    if (a.check && a.t < a.effDuration) {
+      let wait = false;
+      try { wait = a.check.step(a, dt); } catch (e) { console.error('skill check', a.name, e); }
+      if (wait) return;
+    }
     a.t += dt;
     try { a.update(dt); } catch (e) { console.error('action update', a.name, e); }
-    if (a.done) { this.list.shift(); return; }
+    if (a.done) { a.check?.end(a); this.list.shift(); return; }
     if (a.t >= a.effDuration) {
       a.done = true;
+      a.check?.end(a);
       this.list.shift();
       try { a.perform(); } catch (e) { console.error('action perform', a.name, e); }
     }

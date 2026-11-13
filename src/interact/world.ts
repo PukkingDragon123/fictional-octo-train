@@ -1,5 +1,4 @@
 import { G } from '../game/G';
-import { calibrate } from '../ui/minigames/calibrate';
 import type { MenuOption } from '../ui/ui';
 import type { Player } from '../entities/player';
 import { PickTarget, targetPos, targetName } from '../game/picking';
@@ -7,6 +6,8 @@ import { objDef } from '../world/objects';
 import { TileObject, Zone, TF } from '../world/zone';
 import { Item, itemDef, itemName, FluidType } from '../items/item';
 import { queueAt, DrinkFromSourceAction, FillAction, WalkToAction } from '../actions/basic';
+import { PickLockAction } from '../actions/world';
+import { SkillCheck } from '../actions/skillCheck';
 import { DoorAction, BarricadeAction, UnbarricadeAction, WindowAction, ClimbAction, SearchAction, SitAction, SleepAction, DisassembleAction, SwitchAction, UseObjectAction, DigAction, ForageAction, MarkAction, ButcherAction, VendAction, noise } from '../actions/world';
 import { queueTransfers } from '../actions/transfer';
 import { floorContainer } from '../items/worldItems';
@@ -249,14 +250,9 @@ export class Interact {
           op('objState', { z: z.key, uid: o.uid, patch: { pried: true } });
           unlock('The lock gives.');
         })) });
-        // work the pins with a knife tip or a needle: a quiet timing game, one dial per pin (UI round 15, src/ui/minigames/calibrate.ts)
-        const pick = p.findTool('#needle') || p.findTool('#knife');
-        if (p.isLocal) out.push({ label: 'Work the pins', disabled: !pick ? 'needs a needle or a knife' : false, action: at(new UseObjectAction(p, 'Work the pins', 1.2, 'craft', () => {
-          void calibrate({ title: 'The pins', sub: 'set each pin at the shear line: stop the needle in the green', dials: 3, difficulty: 2 }).then((r) => {
-            if (!r.cancelled && r.hits === r.of) { G.audio?.at?.('lock', cx, cz, 0.5); unlock('The pins set. It turns.'); }
-            else { noise(p, cx, cz, 4, 'pick'); if (!r.cancelled) bus.emit('think', p, r.hits ? 'A pin dropped. Again.' : 'Nothing caught.'); }
-          });
-        })) });
+        // work the pins with a needle, a screwdriver or a knife tip: a tap window per pin over the unit's head (round 17, src/actions/skillCheck.ts)
+        const pick = pickTool(p);
+        if (p.isLocal) out.push({ label: 'Work the pins', disabled: !pick ? 'needs a needle, a screwdriver or a knife' : false, action: () => { if (pick) at(new PickLockAction(p, { kind: 'obj', o }, pick))(); } });
         const hw = p.handR ? itemDef(p.handR.key).weapon : undefined;
         const heavy = p.handR && hw && (hw.kind === 'blunt' || hw.kind === 'axe') && itemDef(p.handR.key).weight >= 1.2 ? p.handR : null;
         if (heavy) out.push({ label: 'Smash the lock', danger: true, action: at(new UseObjectAction(p, 'Smash lock', 4, 'hammer', () => {
@@ -353,6 +349,11 @@ export class Interact {
       if (e.locked && !key) out.push({ label: 'Unlock', disabled: 'no key', action: at(new DoorAction(p, x, y, side, 'unlock')) });
       else if (!e.open) out.push({ label: 'Lock', disabled: !key && e.keyId ? 'no key' : false, action: at(new DoorAction(p, x, y, side, 'lock')) });
       out.push({ label: 'Knock', action: at(new DoorAction(p, x, y, side, 'knock')) });
+      // round 17: pick an ordinary key lock (not one a card reader or a keypad drives)
+      if (e.locked && !e.open && !key && !readerDoor(z, x, y, side)) {
+        const pick = pickTool(p);
+        out.push({ label: 'Pick the lock', disabled: !pick ? 'needs a needle, a screwdriver or a knife' : false, action: () => { if (pick) at(new PickLockAction(p, { kind: 'edge', x, y, side }, pick))(); } });
+      }
       if (e.locked && !e.open) out.push({ label: 'Kick down', danger: true, action: at(new DoorAction(p, x, y, side, 'kick')) });
     }
     if (e.kind === 'window') {
@@ -503,7 +504,7 @@ export class Interact {
   reload(p: Player, it: Item) {
     const d = itemDef(it.key); const w = d.weapon!;
     const ammo = p.findItem((x) => x.key === w.ammo); if (!ammo) return;
-    p.actions.add(new UseObjectAction(p, 'Reload', w.reload ?? 2.5, 'reload', () => {
+    const act = p.actions.add(new UseObjectAction(p, 'Reload', w.reload ?? 2.5, 'reload', () => {
       const need = (w.mag ?? 0) - (it.ammo ?? 0);
       const have = ammo.data?.count ?? itemDef(ammo.key).ammoCount ?? 1;
       const take = Math.min(need, have);
@@ -513,6 +514,10 @@ export class Interact {
       G.audio?.at?.('reload', p.x, p.z);
       bus.emit('inventoryChanged', p);
     }));
+    // round 17: seat the magazine on the beat and it is done at once; fumble it and it takes longer
+    act.check = new SkillCheck({ kind: 'tap', at: [0.3], band: 0.15, speed: 1.6, ease: 1 + p.body.skill('firearm') * 0.06, glyph: 'MAG',
+      sounds: { hit: 'cuff_click', perfect: 'cuff_click', miss: 'dryfire' },
+      onMark: (m) => { if (m === 'miss') act.duration += 0.9; else act.t = act.effDuration; } });
   }
   radioMenu(p: Player, it: Item) { G.net?.radioMenu?.(p, it); }
 }
@@ -569,3 +574,13 @@ export class PickupAction extends TimedAction {
 }
 
 export { createItem, lineOfSight };
+
+/** what the unit could pick a lock with: a proper pick, a suture needle, a screwdriver, a knife tip */
+function pickTool(p: Player): Item | null {
+  return p.findTool('lockpick') || p.findTool('#needle') || p.findTool('#screwdriver') || p.findTool('#knife') || null;
+}
+/** a door some card reader or keypad drives: no pins to pick */
+function readerDoor(z: Zone, x: number, y: number, side: 0 | 1): boolean {
+  for (const o of z.objects.values()) { const d = o.state?.door; if (Array.isArray(d) && d[0] === x && d[1] === y && d[2] === side) return true; }
+  return false;
+}

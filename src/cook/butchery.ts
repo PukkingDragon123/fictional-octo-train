@@ -26,6 +26,7 @@ import { ModelBuilder } from '../gfx/modelBuilder';
 import { worldMaterial } from '../gfx/materials';
 import type { Player } from '../entities/player';
 import { talentMul } from '../survival/talents';
+import { SkillCheck } from '../actions/skillCheck';
 
 type Tool = 'knife' | 'saw' | 'axe' | 'hands';
 /** [item, count, chance (default 1)] */
@@ -123,6 +124,13 @@ class HarvestAction extends TimedAction {
     this.duration = Math.max(3, (h.time ?? 12) * mul * (this.st.length / Math.max(1, stagesOf(h, tool).length)));
     this.name = 'Butcher ' + (c.scanned ? String(c.sp.name) : 'the body').toLowerCase();
     this.anim = 'loot';
+    // round 17: each stage ends on a cut: stop the needle in the green (a blade only; bare hands just tear)
+    if (tool !== 'hands' && this.st.length) {
+      const n = this.st.length;
+      this.check = new SkillCheck({ kind: 'tap', at: this.st.map((_, i) => (i + 0.72) / n), band: 0.2, speed: 1.25,
+        ease: (1 + p.body.skill('trapping') * 0.06) / Math.sqrt(talentMul(p.body, 'butcher')), glyph: 'CUT',
+        sounds: { hit: 'flesh_cut', perfect: 'flesh_cut', miss: 'gore_squelch' } });
+    }
     this.face = { x: c.x, z: c.z };
     this.sound = undefined;
   }
@@ -161,14 +169,18 @@ class HarvestAction extends TimedAction {
   private finishStage(s: Stage) {
     const c = this.c, p = this.p, z = G.getZone(c.zoneKey);
     this.workFx(s, true);
+    // the cut that ended this stage: clean ones save more, a botched one wastes some
+    const cut = this.check?.marks[this.st.indexOf(s)] ?? '';
     if (p.isLocal) { shake(this.tool === 'axe' ? 0.22 : 0.1); punch(0.04, 0.2); }
     // jointing takes the limbs off for real
     if (s.id === 'joint') {
       const gd = goreOf(c.sp), limbs = (gd.sever || []).filter((n: string) => { const r = partRole(n, gd.head); return r === 'leg' || r === 'arm' || r === 'tail'; }).slice(0, 4);
       if (limbs.length) try { G.gore?.creatureSevered?.(c, limbs, { kind: this.tool === 'axe' ? 'axe' : 'blade', fx: p.x, fz: p.z, dmg: 30, crit: false } as any); } catch { /* the body has no such parts */ }
     }
-    for (const [key, n, ch] of s.give) {
-      if (!hasItemDef(key)) continue;
+    s.give.forEach(([key, n0, ch0], gi) => {
+      if (!hasItemDef(key)) return;
+      const n = n0 + (cut === 'perfect' && gi === 0 && ch0 === undefined ? 1 : 0) - (cut === 'miss' && gi === 0 && (n0 > 1 || Math.random() < 0.5) ? 1 : 0);
+      const ch = ch0 === undefined ? undefined : cut === 'hit' || cut === 'perfect' ? Math.min(1, ch0 + 0.2) : cut === 'miss' ? ch0 * 0.6 : ch0;
       for (let i = 0; i < n; i++) {
         if (ch !== undefined && Math.random() > ch) continue;
         const it = createItem(key);
@@ -176,10 +188,10 @@ class HarvestAction extends TimedAction {
         op('dropFloor', { z: z.key, item: serializeItem(it), x: c.x, zz: c.z, y: 0.35, v: [Math.cos(ang) * sp, 1.2 + Math.random() * 1.0, Math.sin(ang) * sp] });
         if (itemDef(key).tags?.includes('weirdpart')) bump('butcher_part');
       }
-    }
+    });
     const last = s.id === 'strip';
     op('harvestStage', { id: c.id, st: s.id, done: last, kind: this.h.carcass ?? 'flesh' });
-    if (this.it) this.it.cond = Math.max(0, this.it.cond - (this.tool === 'knife' ? 0.012 : 0.006));
+    if (this.it) this.it.cond = Math.max(0, this.it.cond - (this.tool === 'knife' ? 0.012 : 0.006) * (cut === 'miss' ? 2 : 1));
     p.body.addXp('trapping', last ? 6 : 2);
     if (this.h.human) { p.body.stress = Math.min(100, (p.body.stress ?? 0) + 4); p.body.unhappy = Math.min(100, (p.body.unhappy ?? 0) + 3); }
     if ([...p.worn.values()].length) for (const w of p.worn.values()) w.bloody = Math.min(1, (w.bloody ?? 0) + (this.h.carcass === 'sponge' ? 0 : 0.08));

@@ -34,7 +34,22 @@ export interface ResearchNode {
 }
 
 const NODES = new Map<string, ResearchNode>();
-export function defNode(n: ResearchNode) { NODES.set(n.key, n); return n; }
+/** round 17: gates registered by key before or after the node exists (requirement quests, src/game/reqQuests.ts) */
+const GATES = new Map<string, { ok: () => boolean; hint: () => string }>();
+function applyGate(n: ResearchNode, g: { ok: () => boolean; hint: () => string }) {
+  if (n.gate) return;
+  n.gate = g.ok;
+  // a live hint (a quest's progress reads fresh every time a tree paints it)
+  Object.defineProperty(n, 'gateHint', { get: g.hint, configurable: true, enumerable: true });
+}
+export function defNode(n: ResearchNode) { const g = GATES.get(n.key); if (g) applyGate(n, g); NODES.set(n.key, n); return n; }
+/** lock a node (shown, not buyable) until ok() holds; hint() says what it wants (read each time it is shown) */
+export function gateNode(key: string, ok: () => boolean, hint: () => string) {
+  const g = { ok, hint };
+  GATES.set(key, g);
+  const n = NODES.get(key);
+  if (n) applyGate(n, g);
+}
 export function researchNodes(branch?: string): ResearchNode[] { return [...NODES.values()].filter((n) => !branch || n.branch === branch); }
 export function researchNode(key: string) { return NODES.get(key); }
 

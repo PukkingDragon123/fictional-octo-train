@@ -92,10 +92,16 @@ export class SurveyMap {
     bus.on('travelStart', () => this.toggle(false));
     // on the real clock (the plot and the echo carry on while a cinematic holds the world's time); the pause stops it
     let last = performance.now();
-    G.addSystem({ name: 'surveyMap', update: () => { const now = performance.now(), dt = Math.min(0.25, (now - last) / 1000); last = now; if (!G.paused) this.update(dt); } });
+    G.addSystem({ name: 'surveyMap', update: () => { const now = performance.now(), dt = Math.min(0.25, (now - last) / 1000); last = now; if (!G.paused || this.embedded) this.update(dt); } });
     (G as any).surveyMap = this;
   }
 
+  /** round 17: the band desktop's Map app shows the plot in its window: the canvas moves there while it is open */
+  private embedded = false;
+  embed(host: HTMLElement) { if (this.open) this.toggle(false); this.embedded = true; host.append(this.cv); this.openT = 1; this.drawT = 0; }
+  unembed() { if (!this.embedded) return; this.embedded = false; this.head.after(this.cv); }
+  /** the desktop drives the embedded plot (the game's systems sleep while time is held) */
+  embedTick(dt: number) { if (this.embedded) this.update(dt); }
   toggle(on = !this.open) {
     if (on === this.open) return;
     this.open = on;
@@ -124,8 +130,8 @@ export class SurveyMap {
         }
       }
     }
-    if (!this.open) return;
-    if (!G.local || G.local.body?.dead || document.body.classList.contains('noclip-cine')) { this.toggle(false); return; }
+    if (!this.open && !this.embedded) return;
+    if (this.open && (!G.local || G.local.body?.dead || document.body.classList.contains('noclip-cine'))) { this.toggle(false); return; }
     this.openT += dt;
     this.drawT -= dt;
     if (this.drawT <= 0) { this.drawT = 1 / 8; this.draw(); }

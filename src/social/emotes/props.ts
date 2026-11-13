@@ -204,7 +204,7 @@ export class EmoteRigFx {
           const cols = FIRE_COLS[Math.floor(Math.random() * FIRE_COLS.length)];
           P.burst(w.x, w.y, w.z, 110, 3.4, cols, fl);
           P.burst(w.x, w.y, w.z, 40, 1.6, [0xffffff, cols[0]], fl);
-          this.host.flash(w, cols[0], 9, 0.7);
+          this.host.flash(w, cols[0], 3.2, 0.5);
           this.snd('band_boom', 0.55, w); this.snd('dmg_light_pop', 0.6, w);
         }
         if (this.once(L, 'crackle', F.burst + 0.7)) { const w = this.toWorld(0.06, 2.1, 0.62); this.snd('weld_crackle', 0.5, w); for (let i = 0; i < 40; i++) P.add(FX.Glitter, w.x + (Math.random() - 0.5) * 2.2, w.y + (Math.random() - 0.5) * 1.2, w.z + (Math.random() - 0.5) * 2.2, 0, -0.3, 0, 0xfff4c0, 1.4, 0.03, fl); }

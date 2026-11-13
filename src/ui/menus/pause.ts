@@ -35,7 +35,8 @@ export class PauseMenu {
   private nav: FocusNav | null = null;
   private cluster: GearCluster | null = null;
   constructor() {
-    bus.on('pauseMenu', () => (this.el ? this.close() : this.open()));
+    // round 17: Esc / MENU put up the band desktop (src/ui/bandos); this console answers to 'pauseMenuClassic'
+    bus.on('pauseMenuClassic', () => (this.el ? this.close() : this.open()));
   }
   open(page: Page = 'main') {
     this.close(true);
@@ -159,65 +160,9 @@ export class PauseMenu {
     el.addEventListener('pointerdown', (e) => { if (e.target === el) this.close(); });
   }
 
-  private mainPage(solo: boolean): HTMLElement[] {
-    const out: HTMLElement[] = [];
-    const p = G.local;
-    const z = p ? zoneSpec(p.zoneKey) : null;
-    const ekg = h('div', 'ps-ekg', `<svg viewBox="0 0 120 14" preserveAspectRatio="none" aria-hidden="true"><polyline points="${solo ? '0,7 120,7' : '0,7 30,7 34,2 38,12 41,4 44,7 80,7 84,2 88,12 91,4 94,7 120,7'}" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" shape-rendering="crispEdges"/></svg><span>${solo ? 'held' : Math.round(70 + (p?.body.panic ?? 0) * 0.8) + ' bpm'}</span>`);
-    out.push(ekg);
-    if (p) {
-      const st = h('div', 'ps-grid');
-      const d = G.debt as any;
-      const rows: [string, string, boolean?][] = [
-        ['Debtor', p.name],
-        ['Programme', occupationByKey(p.occupation).name],
-        // the talent marbles weighed on the bench (survival/talents.ts)
-        ['Talent', talentLine(p.body)],
-        ['Location', z?.name || p.zoneKey],
-        ['Condition', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE', p.body.downed],
-      ];
-      if (d?.on) {
-        rows.push(['Debt', `${(d.remaining ?? 0).toLocaleString('en')} scrip owed · ${(d.paid ?? 0).toLocaleString('en')} paid`]);
-        if (!d.cleared) rows.push(['Installment', `${d.installment ?? '?'}/${d.count ?? '?'} · ${(d.due ?? 0).toLocaleString('en')} due in ${Math.floor(d.hoursLeft ?? 0)} h`, (d.hoursLeft ?? 99) < 12]);
-        else rows.push(['Debt', 'CLEARED']);
-      }
-      const lost = (p.body as any).severed?.length ? lossSummary((p.body as any).severed) : '';
-      if (lost) rows.push(['Lost', lost, true]);
-      for (const [k, v, warn] of rows) st.append(h('span', '', esc(k)), h('b', warn ? 'ct-warn' : '', esc(v)));
-      out.push(st);
-      // the body map and every status that is up, worst first
-      const cond = h('div', 'ps-cond');
-      try {
-        const pc = bodyCanvas(p.body, 0.2);
-        const cv = document.createElement('canvas'); cv.width = BODY_W; cv.height = BODY_H;
-        cv.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
-        cond.append(cv);
-      } catch { /* body map unavailable */ }
-      const moods = h('div', 'ps-moods');
-      let list: { key: string; name: string; level: number; good?: boolean }[] = [];
-      try { list = p.body.moodles(p.heavyLoad()).sort((a, b) => b.level - a.level); } catch { /* ignore */ }
-      if (!list.length) moods.append(h('div', 'ps-mood ct-dim', 'Nothing troubling you.'));
-      for (const m of list.slice(0, 8)) moods.append(h('div', 'ps-mood' + (m.level >= 3 && !m.good ? ' ct-warn' : ''), `<img src="${moodleIcon(m.key, m.level, !!m.good)}" alt=""><span>${esc(m.name)}</span>`));
-      cond.append(moods);
-      out.push(cond);
-    }
-    { const st = pxStamp('Eyes only'); st.classList.add('ps2-stamp'); out.push(st); }
-    out.push(h('p', 't-note', solo ? 'The band holds time while it projects. It is the only kind thing it does.' : 'The simulation does not pause for anyone.'));
-    return out;
-  }
+  private mainPage(solo: boolean): HTMLElement[] { return statusPage(solo); }
+  private coopPage(): HTMLElement[] { return crewPage(); }
 
-  private coopPage(): HTMLElement[] {
-    const out: HTMLElement[] = [];
-    const n = G.net;
-    if (!n) return out;
-    out.push(h('p', 'ps-room', `Room <b>${esc(n.room)}</b>`));
-    out.push(h('p', 't-note', n.isHost ? 'Give this code to friends. They join from the title screen with the same exchange address.' : 'Connected to the host.'));
-    const list = h('div', 'ps-grid');
-    for (const p of G.players.values()) list.append(h('span', '', esc(p.name)), h('b', p.body.downed || p.remote?.state?.down ? 'ct-warn' : '', `${p.isLocal ? 'you' : esc(p.zoneKey)}${p.body.downed || p.remote?.state?.down ? ' — DOWN' : ''}`));
-    out.push(list);
-    out.push(h('p', 't-note', `ping ${Math.round(n.ping)} ms · hold V to talk${n.voice.micError ? ' · mic: ' + esc(n.voice.micError) : ''}`));
-    return out;
-  }
 
   close(quiet = false) {
     if (!this.el) return;
@@ -229,4 +174,65 @@ export class PauseMenu {
     G.input.pointerOverUI = false;
     if (!quiet) sfx('back', 0.7);
   }
+}
+
+/** the debtor's file: the status page (the pause's first page, and the band desktop's Status app) */
+export function statusPage(solo: boolean): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  const p = G.local;
+  const z = p ? zoneSpec(p.zoneKey) : null;
+  const ekg = h('div', 'ps-ekg', `<svg viewBox="0 0 120 14" preserveAspectRatio="none" aria-hidden="true"><polyline points="${solo ? '0,7 120,7' : '0,7 30,7 34,2 38,12 41,4 44,7 80,7 84,2 88,12 91,4 94,7 120,7'}" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" shape-rendering="crispEdges"/></svg><span>${solo ? 'held' : Math.round(70 + (p?.body.panic ?? 0) * 0.8) + ' bpm'}</span>`);
+  out.push(ekg);
+  if (p) {
+    const st = h('div', 'ps-grid');
+    const d = G.debt as any;
+    const rows: [string, string, boolean?][] = [
+      ['Debtor', p.name],
+      ['Programme', occupationByKey(p.occupation).name],
+      // the talent marbles weighed on the bench (survival/talents.ts)
+      ['Talent', talentLine(p.body)],
+      ['Location', z?.name || p.zoneKey],
+      ['Condition', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE', p.body.downed],
+    ];
+    if (d?.on) {
+      rows.push(['Debt', `${(d.remaining ?? 0).toLocaleString('en')} scrip owed · ${(d.paid ?? 0).toLocaleString('en')} paid`]);
+      if (!d.cleared) rows.push(['Installment', `${d.installment ?? '?'}/${d.count ?? '?'} · ${(d.due ?? 0).toLocaleString('en')} due in ${Math.floor(d.hoursLeft ?? 0)} h`, (d.hoursLeft ?? 99) < 12]);
+      else rows.push(['Debt', 'CLEARED']);
+    }
+    const lost = (p.body as any).severed?.length ? lossSummary((p.body as any).severed) : '';
+    if (lost) rows.push(['Lost', lost, true]);
+    for (const [k, v, warn] of rows) st.append(h('span', '', esc(k)), h('b', warn ? 'ct-warn' : '', esc(v)));
+    out.push(st);
+    // the body map and every status that is up, worst first
+    const cond = h('div', 'ps-cond');
+    try {
+      const pc = bodyCanvas(p.body, 0.2);
+      const cv = document.createElement('canvas'); cv.width = BODY_W; cv.height = BODY_H;
+      cv.getContext('2d')!.putImageData(pc.toImageData(), 0, 0);
+      cond.append(cv);
+    } catch { /* body map unavailable */ }
+    const moods = h('div', 'ps-moods');
+    let list: { key: string; name: string; level: number; good?: boolean }[] = [];
+    try { list = p.body.moodles(p.heavyLoad()).sort((a, b) => b.level - a.level); } catch { /* ignore */ }
+    if (!list.length) moods.append(h('div', 'ps-mood ct-dim', 'Nothing troubling you.'));
+    for (const m of list.slice(0, 8)) moods.append(h('div', 'ps-mood' + (m.level >= 3 && !m.good ? ' ct-warn' : ''), `<img src="${moodleIcon(m.key, m.level, !!m.good)}" alt=""><span>${esc(m.name)}</span>`));
+    cond.append(moods);
+    out.push(cond);
+  }
+  { const st = pxStamp('Eyes only'); st.classList.add('ps2-stamp'); out.push(st); }
+  out.push(h('p', 't-note', solo ? 'The band holds time while it projects. It is the only kind thing it does.' : 'The simulation does not pause for anyone.'));
+  return out;
+}
+/** who else is in here (co-op) */
+export function crewPage(): HTMLElement[] {
+  const out: HTMLElement[] = [];
+  const n = G.net;
+  if (!n) return out;
+  out.push(h('p', 'ps-room', `Room <b>${esc(n.room)}</b>`));
+  out.push(h('p', 't-note', n.isHost ? 'Give this code to friends. They join from the title screen with the same exchange address.' : 'Connected to the host.'));
+  const list = h('div', 'ps-grid');
+  for (const p of G.players.values()) list.append(h('span', '', esc(p.name)), h('b', p.body.downed || p.remote?.state?.down ? 'ct-warn' : '', `${p.isLocal ? 'you' : esc(p.zoneKey)}${p.body.downed || p.remote?.state?.down ? ' — DOWN' : ''}`));
+  out.push(list);
+  out.push(h('p', 't-note', `ping ${Math.round(n.ping)} ms · hold V to talk${n.voice.micError ? ' · mic: ' + esc(n.voice.micError) : ''}`));
+  return out;
 }

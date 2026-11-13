@@ -17,6 +17,20 @@
 .mg-cal-g { position: relative; height: 42px; }
 .mg-cal-foot { font-size: 13px; color: rgba(236,226,204,.45); text-align: right; padding: 0 6px; }
 /* round 16: the tuner's scope sits in a 3D olive housing (src/ui/machine) */
-.mg-tuner-box { position: relative; width: 292px; height: 66px; }
+.mg-tuner-box { position: relative; width: 300px; height: 78px; }
 .mg-tuner-box > canvas:not(.mxf-cv) { position: relative; z-index: 1; }
 .mg-tuner:has(.mg-tuner-box) { filter: none; }
+/* round 17: the scanner's signature lock (two dials, src/ui/minigames/tuner.ts); touch drags on the scope */
+.mg-lock .mg-tuner-box { pointer-events: auto; touch-action: none; }
+.mg-lock.fail { animation: mg-jolt .32s steps(6) both; }
+.mg-lock.clean .mg-tuner-box { filter: drop-shadow(0 0 6px rgba(72,220,112,.55)); }
+@keyframes mg-jolt { 0% { transform: translateX(-50%); } 20% { transform: translate(calc(-50% - 5px), 2px); } 40% { transform: translate(calc(-50% + 4px), -2px); } 60% { transform: translate(calc(-50% - 3px), 1px); } 80% { transform: translate(calc(-50% + 2px), 0); } 100% { transform: translateX(-50%); } }
+.mg-lock.out.fail { opacity: 0; visibility: visible; transition: opacity .7s ease .25s; }
+/* round 17: the skill-check gauge over the unit's head (src/ui/minigames/check.ts) */
+.mg-check { position: fixed; left: 0; top: 0; z-index: 59; pointer-events: none; image-rendering: pixelated; filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); opacity: 0; transition: opacity .12s linear; }
+.mg-check.on { opacity: 1; }
+.mg-check canvas { display: block; }
+.mg-check.hit { animation: mg-pop .2s ease-out; }
+.mg-check.miss { animation: mg-shake .24s steps(5); }
+@keyframes mg-pop { 0% { filter: drop-shadow(0 0 8px rgba(150,255,176,.9)) brightness(1.5); } 100% { filter: drop-shadow(0 2px 3px rgba(0,0,0,.45)); } }
+@keyframes mg-shake { 0%, 100% { margin-left: 0; } 25% { margin-left: -3px; } 50% { margin-left: 3px; } 75% { margin-left: -2px; } }

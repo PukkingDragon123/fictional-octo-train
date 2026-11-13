@@ -35,7 +35,7 @@ import { objDef, buildObjGeometry } from '../../world/objects';
 import { objectMatrix } from '../../world/chunkMesher';
 import { floorItems, removeFloorItem, dropItem, WorldItem } from '../../items/worldItems';
 import { itemGeometry } from '../../items/itemMeshes';
-import { serializeItem } from '../../items/factory';
+import { serializeItem, createItem } from '../../items/factory';
 import { itemDef, itemName, type Item } from '../../items/item';
 import { queueAt } from '../../actions/basic';
 import { UseObjectAction } from '../../actions/world';
@@ -53,6 +53,7 @@ import '../../audio/sounds_press';
 import { crtScreen, phosphorText, fontsReady, cssFont, type CrtScreen } from '../../gfx/crt';
 import './debt.css';
 import { settleLoad, pressCold, fmtKg, matterKg, itemMatter } from '../economy';
+import { rollSlag, rollJackpot } from '../economy/crusher';
 
 /** the cycle, seconds after the lever: horn, slam, hold, back up */
 export const CYCLE = { horn: 0.3, drop: 0.95, impact: 1.13, rise: 1.75, done: 3.3 };
@@ -61,7 +62,7 @@ const DIAL = new THREE.Vector3(...PRESS.gauge);
 const SEAM = 0xd8d0bc;
 
 interface SinkPiece { key?: string; obj?: string; state?: any; x: number; y: number; z: number; rot: number; objRot?: number }
-interface EatArgs { z: string; h: number; items: number[]; objs: number[]; value: number; keys: string[]; by: string; rej?: number[]; kg?: number }
+interface EatArgs { z: string; h: number; items: number[]; objs: number[]; value: number; keys: string[]; by: string; rej?: number[]; kg?: number; /** round 17: slag and finds out of the lip, the jackpot (1 rare find, 2 doubled), its bonus */ out?: string[]; jack?: number; bonus?: number }
 interface CycleArgs { z: string; h: number; by: string }
 
 defOp('hopperEat', (a: EatArgs) => {
@@ -94,10 +95,11 @@ defOp('hopperEat', (a: EatArgs) => {
   z.meta.floorVersion = (z.meta.floorVersion || 0) + 1;
   bus.emit('floorChanged', z);
   if (isReplaying()) return;
-  if (a.items.length || a.objs.length) bus.emit('deposited', { by: a.by, keys: a.keys, value: a.value, hopper: a.h });
+  if (a.items.length || a.objs.length) bus.emit('deposited', { by: a.by, keys: a.keys, value: a.value, hopper: a.h, out: a.out ?? [], jack: a.jack ?? 0, bonus: a.bonus ?? 0 });
   // research samples are tubed to the lab (src/research/bank.ts)
   if (samples.length) bus.emit('samplesPressed', { by: a.by, items: samples });
   (G.debt?.hoppers as HopperSystem | undefined)?.play(z, a.h, a.value, sink, (a.rej || []).length, a.by, a.kg ?? 0);
+  if (a.jack) (G.debt?.hoppers as HopperSystem | undefined)?.jackpot(z, a.h, a.jack, a.bonus ?? 0, a.out ?? [], a.by);
 });
 
 /** somebody threw the lever: every peer runs the show, the host weighs at the impact */
@@ -483,7 +485,50 @@ export class HopperSystem implements GameSystem {
     if (!by) for (const p of G.players.values()) if (p.zoneKey === z.key) { const d = Math.hypot(p.x - (o.x + 1), p.z - (o.y + 1)); if (d < bd) { bd = d; by = p.id; } }
     // the dial: the remitted share of the value goes to the debt (tokens with it), the kept share of the mass to the seam
     const { credit, kg } = settleLoad(value, taken, objs, by);
-    op('hopperEat', { z: z.key, h: o.uid, items: take, objs: objTake, value: credit, keys, by, rej, kg: Math.round(kg * 100) / 100 } as EatArgs);
+    // round 17 (src/game/economy/crusher.ts): the slag comes back out of the lip by what the load was made of,
+    // and about one pull in ten the seam pays more: the credit doubled, or a part nobody put in
+    const out = rollSlag(taken.map((w) => w.item), objs);
+    const jack = rollJackpot(credit, take.length + objTake.length);
+    let bonus = 0;
+    if (jack?.kind === 'double' && G.debt?.on) bonus = G.debt.credit(jack.bonus, 'jackpot', by) || jack.bonus;
+    if (jack?.drop) out.push(jack.drop);
+    op('hopperEat', { z: z.key, h: o.uid, items: take, objs: objTake, value: credit + bonus, keys, by, rej, kg: Math.round(kg * 100) / 100, out, jack: jack ? (jack.kind === 'double' ? 2 : 1) : 0, bonus } as EatArgs);
+    // the slag is pushed out of the front lip once the ram is back up
+    if (out.length) setTimeout(() => this.eject(z, o, out), (CYCLE.rise - CYCLE.impact) * 1000 + 350);
+  }
+
+  /** host: the crusher's outputs tumble out of the front lip */
+  private eject(z: Zone, o: TileObject, keys: string[]) {
+    if (!G.zones.get(z.key)?.objects.has(o.uid)) return;
+    const [fx, fz] = frontLip(o);
+    const cx = o.x + 1, cz = o.y + 1, dx = fx - cx, dz = fz - cz, dl = Math.hypot(dx, dz) || 1;
+    keys.forEach((k, i) => {
+      const it = createItem(k);
+      const a = Math.atan2(dz / dl, dx / dl) + (i - (keys.length - 1) / 2) * 0.35, sp = 1.1 + Math.random() * 0.8;
+      setTimeout(() => op('dropFloor', { z: z.key, item: serializeItem(it), x: fx, zz: fz, y: 0.35, v: [Math.cos(a) * sp, 1.2 + Math.random() * 0.9, Math.sin(a) * sp] }), i * 110);
+    });
+    if (z.key === G.local?.zoneKey) G.audio?.play?.('hopper_reject', cx, cz, { vol: 0.6, range: 16 });
+  }
+
+  /** every peer: the jackpot moment (the beacon strobes gold, the horn, a fountain of sparks, the subtitle strip) */
+  jackpot(z: Zone, uid: number, kind: number, bonus: number, out: string[], by: string) {
+    const o = z.objects.get(uid);
+    if (!o || z.key !== G.local?.zoneKey) return;
+    const cx = o.x + 1, cz = o.y + 1;
+    const f = this.fx.get(uid);
+    setTimeout(() => {
+      G.audio?.play?.('press_klaxon', cx, cz, { vol: 1, range: 34 });
+      G.audio?.at?.('coins', cx, cz, 1);
+      if (f) { f.flash = 1; f.big = true; }
+      const r = Math.random;
+      for (let i = 0; i < 46; i++) { const a = r() * Math.PI * 2, sp = 1 + r() * 3.2; this.sparks.add(PK.Spark, cx + Math.cos(a) * 0.4, 1.4 + r() * 0.6, cz + Math.sin(a) * 0.4, Math.cos(a) * sp, 2 + r() * 3, Math.sin(a) * sp, 0.014 + r() * 0.012, 0.7 + r() * 0.6, [0xffe08a, 0xffc040, 0xfff6c8, 0xffffff][(r() * 4) | 0], 0.3); }
+      for (let i = 0; i < 6; i++) setTimeout(() => G.pointLight(cx, 2.4, cz, 0xffc040, 3.5, 9), i * 120);
+      shake(0.18, 0.3);
+      const rare = out.length ? out[out.length - 1] : '';
+      const text = kind === 2 ? `JACKPOT · THE SEAM PAID DOUBLE · +${fmt(bonus)}` : `RARE FIND · ${itemName({ key: rare } as Item).toUpperCase()} OUT OF THE SEAM`;
+      bus.emit('subtitle', { who: 'PRESS', text, dur: 3.4, style: 'radio' });
+      bus.emit('pressJackpot', { hopper: uid, kind, bonus, drop: kind === 1 ? rare : '', by });
+    }, (CYCLE.rise - CYCLE.impact) * 1000);
   }
 
   // ---------------------------------------------------------------- the show (every peer)
@@ -694,6 +739,8 @@ export class HopperSystem implements GameSystem {
       action: () => this.pullAction(p, o),
     });
     out.push(terminal);
+    // round 17: the press's own screen for a deposit (src/game/economy/terminal.ts FEED): item by item, values, what comes back
+    out.splice(1, 0, { label: 'Press screen: feed it item by item', action: at('Press screen', 0.5, 'read', () => { void import('../economy/terminal').then((m) => m.openPressTerminal({ from: 'press', o, p, page: 'feed' })); }) });
     if (!debt?.on) return out;
     const carried = p.allItems().filter((it) => !p.isWorn(it) && it.key !== 'bailiff_band');
     const valued = carried.map((it) => ({ it, v: itemValue(it) })).filter((x) => x.v > 0).sort((a, b) => b.v - a.v);

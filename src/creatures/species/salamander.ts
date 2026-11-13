@@ -101,7 +101,7 @@ function grotesque(S: Ctx, page: Page) {
 export interface SalaRig extends LifeGameRig { }
 export function buildSalamander(): SalaRig {
   const model = lifeModel('parasite_salamander', DESIGN, grotesque);
-  return lifeRig(model, 0.82, 0.2) as SalaRig;
+  return lifeRig(model, 1.0, 0.24) as SalaRig;
 }
 
 // ------------------------------------------------------------------ animation
@@ -125,7 +125,7 @@ function animateSala(rig: Rig, c: Creature, t: number, dt: number) {
   const R = rig as SalaRig, n = netOf(c);
   const larva = c.sp.key === 'salamander_larva';
   const size = larva ? 0.35 : 1;
-  if (R.life.m.sz !== size) { R.life.m.sz = size; R.body.scale.setScalar(0.82 * size); }
+  if (R.life.m.sz !== size) { R.life.m.sz = size; R.body.scale.setScalar(1.0 * size); }
   const p = live() ? G.local : null;
   const d = p && p.zoneKey === c.zoneKey ? dist(p, c) : 99;
   const md: SalaPose = c.dead ? 'dead' : (n.md as SalaPose) || (c.speed > 1.2 ? 'dash' : c.speed > 0.05 ? 'crawl' : 'idle');
@@ -257,7 +257,7 @@ const SALA = def({
     text: 'It creeps up on anything that keeps still (the sleeping, the hurt, the dead) and burrows in through the skin. Inside, it eats your organs one by one, then lays; the clutch hatches out of you two hours later. Light and movement put it off. If it gets in: pull it out by the tail at once, or cut it out of the wound with a knife (Status: the wound) before it lays.',
     tell: 'Something pale crawling toward me, flat to the floor.',
   },
-  hp: 14, walk: 0.35, run: 2.6, turn: 6, radius: 0.12, height: 0.12, sight: 10, fov: 2.6, hearing: 1.6,
+  hp: 14, walk: 0.35, run: 2.6, turn: 6, radius: 0.15, height: 0.15, sight: 10, fov: 2.6, hearing: 1.6,
   attack: { dmg: [2, 4], range: 0.3, cooldown: 3, kinds: ['bite'], corrupt: 0, knock: 0 },
   zones: ['undercroft', 'tunnels', 'pools', 'hospital'], weight: 0.6, group: [1, 1], maxPerZone: 3, diet: 'meat',
   meat: [['parasite_salamander', 1]],
@@ -293,5 +293,5 @@ SALA.animateGallery = (rig: Rig, t: number) => {
   const q = (new URLSearchParams(location.search).get('pose') || GAL[Math.floor(t / 3) % GAL.length]) as SalaPose;
   poseS(rig as SalaRig, t, 1 / 60, q, q === 'crawl' ? 0.35 : q === 'dash' ? 2.4 : 0, 1, false, 0);
 };
-LARVA.animateGallery = (rig: Rig, t: number) => { rig.body.scale.setScalar(0.82 * 0.35); poseS(rig as SalaRig, t, 1 / 60, 'crawl', 0.4, 0.35, false, 0); };
+LARVA.animateGallery = (rig: Rig, t: number) => { rig.body.scale.setScalar(0.35); poseS(rig as SalaRig, t, 1 / 60, 'crawl', 0.4, 0.35, false, 0); };
 void hashId; void playersIn;

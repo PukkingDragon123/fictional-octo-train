@@ -12,6 +12,8 @@ import { TornAction } from '../survival/limbSystem';
 import { shake, punch, hitstop, slowmo } from '../gfx/juice';
 import { gaugeName, type Marks } from './glyphs';
 import type { Words } from './words';
+import { bus } from '../core/events';
+import { qteAssist } from '../ui/menus/settings';
 
 export type QteKind = 'mash' | 'alt' | 'timed';
 export interface Stage { kind: QteKind; need: number }
@@ -57,7 +59,10 @@ interface Cur extends StruggleOpts {
 export class Struggles {
   cur: Cur | null = null;
   private taps: { x: number; y: number }[] = [];
-  private onTap = (e: PointerEvent) => { if (this.cur && e.pointerType !== 'mouse') this.taps.push({ x: e.clientX, y: e.clientY }); };
+  private onTap = (e: PointerEvent) => { if (this.cur && e.pointerType !== 'mouse') { this.taps.push({ x: e.clientX, y: e.clientY }); this.touchDown = true; } };
+  private onLift = (e: PointerEvent) => { if (e.pointerType !== 'mouse') this.touchDown = false; };
+  private touchDown = false;
+  private holdAcc = 0;
   private listening = false;
   /** results for tests / other systems */
   last: { reason: string; win: boolean; perfect: boolean; t: number } | null = null;
@@ -68,8 +73,11 @@ export class Struggles {
 
   start(o: StruggleOpts) {
     if (this.active) return false;
+    // round 17 assists (Settings, Interface): slower timing gives the struggle more time and a looser grip
+    if (qteAssist().slow) o = { ...o, dur: o.dur * 1.4, grip: o.grip * 0.8 };
     this.cur = { ...o, t: 0, si: 0, prog: 0, misses: 0, hits: 0, want: 'L', ring: 1, pop: 0, beat: 0, done: false };
-    if (!this.listening) { window.addEventListener('pointerdown', this.onTap, { capture: true, passive: true }); this.listening = true; }
+    if (!this.listening) { window.addEventListener('pointerdown', this.onTap, { capture: true, passive: true }); window.addEventListener('pointerup', this.onLift, true); this.listening = true; }
+    this.holdAcc = 0; this.touchDown = false;
     this.taps.length = 0;
     slowmo(0.45, 280); punch(0.07, 0.3); shake(0.35, 0.3);
     G.camera?.pushIn?.(0.2, 0.35, -6);
@@ -84,8 +92,9 @@ export class Struggles {
     c.done = true;
     const perfect = win && c.misses === 0 && c.t < c.dur * 0.62;
     this.last = { reason: c.reason, win, perfect, t: c.t };
+    bus.emit('struggle', { reason: c.reason, win, perfect, cid: c.cid });
     G.camera?.pushIn?.(0, 0.4);
-    if (this.listening) { window.removeEventListener('pointerdown', this.onTap, { capture: true }); this.listening = false; }
+    if (this.listening) { window.removeEventListener('pointerdown', this.onTap, { capture: true }); window.removeEventListener('pointerup', this.onLift, true); this.listening = false; }
     this.cur = null;
     try { if (win) c.onWin(perfect); else c.onLose(); } catch (e) { console.error('struggle', e); }
   }
@@ -127,6 +136,11 @@ export class Struggles {
     c.pop = Math.max(0, c.pop - dt * 6);
     if (stage.kind === 'mash') {
       c.prog = Math.max(0, c.prog - dt * 0.3 * c.grip);
+      // round 17 assist: hold instead of hammering (a steady strain, about six presses' worth a second)
+      if (qteAssist().hold && (inp.down('shove') || inp.mouseDown[0] || this.touchDown)) {
+        this.holdAcc += dt * 6.2;
+        if (this.holdAcc >= 1) { this.holdAcc -= 1; press++; }
+      }
       if (press) { c.prog += press * 0.095 * m; c.pop = 1; this.feel(p, 0.12); }
     } else if (stage.kind === 'alt') {
       c.prog = Math.max(0, c.prog - dt * 0.22 * c.grip);
@@ -138,9 +152,10 @@ export class Struggles {
       for (let i = 0; i < right; i++) hit('R');
     } else {
       // timed: the ring closes on the mark; hit it inside the band
-      const period = Math.max(0.55, 0.95 - c.si * 0.12) * c.grip ** 0.3;
+      const slow = qteAssist().slow;
+      const period = Math.max(0.55, 0.95 - c.si * 0.12) * c.grip ** 0.3 * (slow ? 1.5 : 1);
       c.ring -= dt / period;
-      const inBand = c.ring > 0.24 && c.ring < 0.46;
+      const inBand = slow ? c.ring > 0.2 && c.ring < 0.5 : c.ring > 0.24 && c.ring < 0.46;
       if (press) {
         if (inBand) { c.hits++; c.prog = c.hits / stage.need; c.pop = 1; this.feel(p, 0.3); G.audio?.ui?.('cb_good', 0.6); hitstop(40); }
         else { c.misses++; c.prog = Math.max(0, c.prog - 0.2); G.audio?.ui?.('cb_miss', 0.5); shake(0.25, 0.2); }
@@ -180,7 +195,8 @@ export class Struggles {
     const tremble = Math.sin(now * 47) * 0.012 * c.grip;
     marks.mark(gaugeName(fill, fill > 0.78), hx + rt.x * tremble, hy + 0.55, hz + rt.z * tremble);
     if (stage.kind === 'mash') {
-      words.prompt(touch ? 'Tap' : kn('shove'), touch ? 'hammer it' : 'hammer it', hx, hy - 0.04 * c.pop, hz, hurry, pulse);
+      const held = qteAssist().hold;
+      words.prompt(touch ? (held ? 'Hold' : 'Tap') : kn('shove'), held ? 'hold it' : 'hammer it', hx, hy - 0.04 * c.pop, hz, hurry, pulse);
     } else if (stage.kind === 'alt') {
       for (const side of ['L', 'R'] as const) {
         const s = side === 'L' ? -1 : 1, on = c.want === side;

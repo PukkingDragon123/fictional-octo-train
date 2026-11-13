@@ -81,3 +81,32 @@
   background: repeating-linear-gradient(90deg, var(--ct-dark) 0 calc(var(--ks) * 2), transparent calc(var(--ks) * 2) calc(var(--ks) * 3)) 0 100% / 100% 1px no-repeat; }
 .ptm-cal span { color: var(--ct-dim); letter-spacing: 0.08em; }
 .ptm-make { clip-path: polygon(calc(var(--ks) * 1.5) 0, calc(100% - var(--ks) * 1.5) 0, 100% calc(var(--ks) * 1.5), 100% calc(100% - var(--ks) * 1.5), calc(100% - var(--ks) * 1.5) 100%, calc(var(--ks) * 1.5) 100%, 0 calc(100% - var(--ks) * 1.5), 0 calc(var(--ks) * 1.5)); }
+
+/* FEED (round 17): the pack on the left, the hopper's slots and the payout counter on the right */
+.ptm-feed { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: calc(var(--ks) * 6); height: 100%; }
+.ptm-fcol { display: flex; flex-direction: column; min-height: 0; }
+.ptm-flist { display: grid; gap: calc(var(--ks) * 1); overflow-y: auto; min-height: 0; padding-right: calc(var(--ks) * 2); }
+.ptm-fitem { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; grid-template-rows: auto auto; align-items: center; gap: 0 0.7em; padding: calc(var(--ks) * 1.5) calc(var(--ks) * 2);
+  text-align: left; background: rgba(var(--ct-rgb), 0.04); border: 0; box-shadow: inset 0 0 0 1px var(--ct-dark); color: var(--ct-ph); font: inherit; cursor: pointer; }
+.ptm-fitem img, .ptm-fitem .ptm-noicon { grid-row: span 2; width: 24px; height: 24px; image-rendering: pixelated; }
+.ptm-fitem b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0.06em; }
+.ptm-fitem b i { color: var(--ct-dim); font-style: normal; }
+.ptm-fitem small { grid-column: 2 / 4; color: var(--ct-dim); font-size: var(--t-xs, 0.85em); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ptm-fitem:hover:not(:disabled), .ptm-fitem:focus-visible { box-shadow: inset 0 0 0 1px var(--ct-hi); background: rgba(var(--ct-rgb), 0.1); }
+.ptm-fitem:disabled { opacity: 0.45; cursor: default; }
+.ptm-slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: calc(var(--ks) * 1.5); }
+.ptm-slot { height: 2.7em; border: 0; background: rgba(0, 0, 0, 0.35); box-shadow: inset 0 0 0 1px var(--ct-dark), inset 0 3px 0 rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; color: var(--ct-dim); font: inherit; }
+.ptm-slot.full { box-shadow: inset 0 0 0 1px var(--ct-hi), 0 0 6px var(--ct-glow); cursor: pointer; }
+.ptm-slot img { height: 80%; image-rendering: pixelated; }
+.ptm-ftot { margin: 0.8em 0 0.6em; line-height: 1.35; }
+.ptm-ftot small { color: var(--ct-dim); }
+.ptm-crush { margin-top: 0.2em; }
+.ptm-count { margin-top: auto; padding: calc(var(--ks) * 3); text-align: center; box-shadow: inset 0 0 0 1px var(--ct-dark); background: rgba(0, 0, 0, 0.3); }
+.ptm-nix { display: block; font-size: calc(var(--t-m, 1.2em) * 1.9); letter-spacing: 0.22em; color: var(--ct-hi); font-variant-numeric: tabular-nums; text-shadow: 0 0 8px var(--ct-glow); }
+.ptm-count small { color: var(--ct-dim); letter-spacing: 0.2em; }
+.ptm-outs { margin-top: 0.4em; color: var(--ct-ph); min-height: 1.2em; }
+.ptm-jack { min-height: 1.2em; letter-spacing: 0.18em; color: #ffe08a; }
+.ptm-count.jack { animation: ptm-jack 0.24s steps(2) 8; box-shadow: inset 0 0 0 2px #ffc040, 0 0 14px rgba(255, 192, 64, 0.5); }
+.ptm-count.jack .ptm-nix { color: #fff0b0; text-shadow: 0 0 12px #ffc040; }
+@keyframes ptm-jack { 50% { background: rgba(255, 192, 64, 0.22); } }
+@media (max-width: 640px) { .ptm-feed { grid-template-columns: 1fr; } }

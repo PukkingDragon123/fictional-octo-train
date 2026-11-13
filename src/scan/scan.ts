@@ -15,8 +15,14 @@
 // (src/social/social.ts): on Q the scanner only takes an inhabitant, an
 // anomaly, an artefact or a stranger in front of the unit, else Q whistles;
 // N (scan only) takes anything.
-// Bus: 'scanEntry' {kind, key, title, first, data, rp}, 'scanned' (creature,
-// as before), 'scanData' {data, total}, 'anomalyLogged' (anomaly id).
+// Round 17: anything worth a scan fights the visor: after the cone finds it the
+// SIGNATURE LOCK comes up (two dials, src/ui/minigames/tuner.ts; lockDiff /
+// lockEase below). A clean lock finishes early and reads more DATA, a sloppy
+// one reads part of it, feedback loses the scan, makes noise and turns the
+// inhabitant toward the unit (botch).
+// Bus: 'scanEntry' {kind, key, title, first, data, rp, q, ref}, 'scanned' (creature,
+// as before), 'scanData' {data, total}, 'anomalyLogged' (anomaly id),
+// 'scanLock' {kind, key, q, end: 'clean' | 'time' | 'fail', ref}.
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import type { GameSystem } from '../game/game';
@@ -30,8 +36,14 @@ import { loreNotes } from './lorebook';
 import { ScanSweep } from './sweep';
 import { voss } from '../game/debt/voice';
 import * as THREE from 'three';
-import { scanTuner } from '../ui/minigames/tuner';
+import { scanTuner, type LockStep } from '../ui/minigames/tuner';
 import { talentMul } from '../survival/talents';
+import { reqTick } from '../game/reqQuests';
+
+/** round 17: scripted browsers skip the signature lock (the sweep then reads as a clean lock) unless the URL says ?qte */
+const AUTO_LOCK = typeof navigator !== 'undefined' && !!navigator.webdriver && !/[?&]qte/.test(location.search);
+/** the part of a locking sweep the cone spends finding the target before the scope comes up */
+const ACQ = 0.15;
 
 export type ScanKind = 'creature' | 'tribe' | 'anomaly' | 'artefact' | 'object' | 'item' | 'survivor';
 
@@ -70,14 +82,18 @@ export function defScanInfo(kind: ScanKind, key: string, info: { title: string; 
 
 export class ScanSystem implements GameSystem {
   name = 'scan';
-  /** the sweep in progress */
-  active: { t: ScanTarget; prog: number; dur: number; lost: number; hold: boolean; hard: number } | null = null;
+  /** the sweep in progress (diff >= 0: it fights the visor and needs the signature lock, src/ui/minigames/tuner.ts) */
+  active: { t: ScanTarget; prog: number; dur: number; lost: number; hold: boolean; diff: number; ease: number; latch: boolean } | null = null;
+  /** the last lock's result, for tests and other systems */
+  lastLock: { kind: ScanKind; key: string; q: number; end: string } | null = null;
   /** the sweep in the world: the cone from the visor, the band over the target, the ring on the floor */
   sweep: ScanSweep;
   private emitting = false;
   private eye = new THREE.Vector3();
   private humT = 0;
   private hintT = 0;
+  private failT = 0;
+  private knobV = 0;
 
   constructor() {
     G.scan = this;
@@ -173,11 +189,10 @@ export class ScanSystem implements GameSystem {
       if (hint && G.time > this.hintT) { this.hintT = G.time + 4; bus.emit('think', G.local, 'Nothing in front of the visor to scan.'); }
       return false;
     }
-    const base = t.kind === 'creature' ? 1.5 + (t.threat ?? 1) * 0.25 : t.kind === 'tribe' || t.kind === 'artefact' ? 1.4 : t.kind === 'anomaly' ? 1.2 : t.kind === 'item' ? 0.5 : 0.8;
+    const diff = this.lockDiff(t);
+    const base = diff >= 0 ? 0.4 / ACQ : t.kind === 'item' ? 0.5 : 0.8;
     const dur = base * (hasUnlock('scan_deep') ? 0.7 : 1) * (hasUnlock('tool_beam') ? 0.75 : 1) * (this.probe() ? 0.85 : 1);
-    // hard targets fight the visor: the lock-on tuner (src/ui/minigames/tuner.ts) comes up a third of the way in
-    const hard = t.kind === 'anomaly' || t.kind === 'artefact' ? 2 : t.kind === 'creature' && (t.threat ?? 0) >= 3 ? Math.min(3, (t.threat ?? 3) - 1) : 0;
-    this.active = { t, prog: 0, dur, lost: 0, hold, hard };
+    this.active = { t, prog: 0, dur, lost: 0, hold, diff, ease: this.lockEase(), latch: false };
     G.audio?.ui?.('scan_start', 0.45);
     G.missions?.set?.('tut:scanner');
     return true;
@@ -196,10 +211,58 @@ export class ScanSystem implements GameSystem {
 
   cancel() { this.active = null; }
 
+  /**
+   * how hard a thing fights the visor's lock (0 easy .. 4 brutal), or -1 for a plain sweep (furniture, ordinary
+   * objects): deadlier inhabitants, anomalies and artefacts fight harder, and something never scanned before a little more
+   */
+  lockDiff(t: ScanTarget): number {
+    const fresh = this.count(t.kind, t.key) === 0 ? 0.5 : 0;
+    let d: number;
+    if (t.kind === 'creature') d = Math.max(0, (t.threat ?? 1) - 1) + fresh - (t.ref?.dead ? 1 : 0);
+    else if (t.kind === 'tribe' || t.kind === 'survivor') d = 0.8 + fresh;
+    else if (t.kind === 'anomaly') d = (t.held ? 1.2 : 2) + fresh;
+    else if (t.kind === 'artefact') d = 2.4 + fresh;
+    else return -1;
+    return Math.max(0, Math.min(4, d));
+  }
+  /** how well this unit locks on (> 1 easier): the 'scan' talent, the lab's scanner research, a Phosphor Scope, a little electrical skill */
+  lockEase(): number {
+    const b = G.local?.body;
+    const sk = Math.min(10, Number(b?.skill?.('electrical')) || 0);
+    return Math.pow(talentMul(b, 'scan'), 0.8) * (hasUnlock('tool_beam') ? 1.08 : 1) * (hasUnlock('scan_deep') ? 1.12 : 1) * (this.probe() ? 1.08 : 1) * (1 + sk * 0.03);
+  }
+
+  /** a lock lost to feedback (or a hopeless one): the scanner screams, things nearby hear it, the target turns */
+  private botch(t: ScanTarget, loud: boolean) {
+    const p = G.local; if (!p) return;
+    G.audio?.ui?.('static_burst', loud ? 0.75 : 0.45);
+    if (loud) G.audio?.at?.('band_glitch', p.x, p.z, 0.7);
+    bus.emit('noise', { x: p.x, z: p.z, radius: loud ? 12 : 6, kind: 'scan', zone: p.zoneKey, by: p.id });
+    const c = t.ref;
+    if ((t.kind === 'creature' || t.kind === 'tribe') && c && !c.dead && c.awareness) {
+      c.awareness.set(p.id, Math.max(c.awareness.get(p.id) ?? 0, loud ? 1.2 : 0.7));
+      c.lastSeen = { x: p.x, z: p.z, t: G.time };
+      c.alert = Math.min(1, (c.alert ?? 0) + (loud ? 1 : 0.4));
+      if (loud) c.targetId = p.id;
+    }
+    if (loud && G.time > this.failT) { this.failT = G.time + 90; voss('Feedback. It heard that.'); }
+    bus.emit('scanLock', { kind: t.kind, key: t.key, q: 0, end: 'fail', ref: t.ref });
+  }
+  /** the lock's sounds: the carrier whine climbs as the traces close, ticks while it holds, the dials click */
+  private lockSound(p: any, s: LockStep, dt: number) {
+    G.audio?.positionalLoop?.('scanlock', 'mn_loop_scan', p.x, p.z, 0.22 + s.close * 0.25, 0.75 + s.close * 0.55 + (s.on ? 0.1 : 0), 20);
+    G.audio?.positionalLoop?.('scanstatic', s.heat > 0.08 ? 'static' : null, p.x, p.z, Math.min(0.6, s.heat * 0.7), 1, 20);
+    if (s.on) { this.humT -= dt; if (this.humT <= 0) { this.humT = 0.16; G.audio?.flat?.('scan_tick', 'ui', 0.18, 1 + s.lock * 0.5); } }
+    if (s.turned - this.knobV > 0.06) { this.knobV = s.turned; G.audio?.ui?.('tc_knob', 0.12); }
+  }
+  private lockQuiet() { G.audio?.positionalLoop?.('scanlock', null); G.audio?.positionalLoop?.('scanstatic', null); }
+
   // ---------------------------------------------------------------- frame
   update(dt: number) {
     const p = G.local;
     const inp = G.input;
+    // the lab's requirement quests watch the field from here (src/game/reqQuests.ts)
+    try { reqTick(dt); } catch (e) { console.warn('reqQuests', e); }
     if (!p || p.body?.dead) { this.active = null; this.sweep.drop(); this.sweep.update(dt); return; }
     const held = !inp.textFocus && inp.down('scan');
     if (held && !this.active && inp.hit('scan')) {
@@ -216,10 +279,35 @@ export class ScanSystem implements GameSystem {
       else if (r && typeof r.x === 'number' && (a.t.kind === 'creature' || a.t.kind === 'tribe' || a.t.kind === 'survivor')) { a.t.x = r.x; a.t.z = r.z; }
       const d = Math.hypot(a.t.x - p.x, a.t.z - p.z);
       const ok = d <= this.range() && (!r?.zoneKey || r.zoneKey === p.zoneKey) && !(r?.dead && a.t.kind !== 'creature');
-      if (a.hold && !held) { this.active = null; }
-      else if (ok) {
-        const tune = a.hard && a.prog > 0.3 && !a.t.held ? scanTuner.step(dt, a.hard) : 1;
-        a.prog += (dt / a.dur) * tune; a.lost = 0;
+      // on touch the lock latches once the scope is up (one thumb drags the dials); keys must keep holding
+      if (a.hold && !held && !a.latch) { this.active = null; }
+      else if (ok && a.diff >= 0 && a.prog >= ACQ && !AUTO_LOCK) {
+        // the signature lock (src/ui/minigames/tuner.ts)
+        a.lost = 0;
+        if (!scanTuner.active) {
+          scanTuner.start({ diff: a.diff, ease: a.ease });
+          this.knobV = 0;
+          a.latch = !!(G.systems.find((q: any) => q.name === 'touch') as any)?.active;
+          G.audio?.ui?.('mn_scan', 0.35);
+        }
+        const s = scanTuner.step(dt);
+        a.prog = ACQ + (1 - ACQ) * s.lock;
+        this.lockSound(p, s, dt);
+        if (s.end) {
+          this.active = null; this.lockQuiet();
+          const q = s.end === 'clean' ? 1 : s.lock;
+          if (s.end === 'fail' || q < 0.2) { scanTuner.stop('fail'); this.botch(a.t, s.end === 'fail'); this.lastLock = { kind: a.t.kind, key: a.t.key, q: 0, end: 'fail' }; }
+          else {
+            scanTuner.stop(s.end);
+            G.audio?.ui?.(s.end === 'clean' ? 'mn_perfect' : 'mn_flub', s.end === 'clean' ? 0.5 : 0.3);
+            this.lastLock = { kind: a.t.kind, key: a.t.key, q, end: s.end };
+            this.complete(a.t, false, q);
+            bus.emit('scanLock', { kind: a.t.kind, key: a.t.key, q, end: s.end, ref: a.t.ref });
+            p.playAnim?.('scanner', 0.6);
+          }
+        }
+      } else if (ok) {
+        a.prog += dt / a.dur; a.lost = 0;
         this.humT -= dt;
         if (this.humT <= 0) { this.humT = 0.32; G.audio?.ui?.('scan_tick', 0.22); }
         if (a.prog >= 1) { this.active = null; this.complete(a.t); p.playAnim?.('scanner', 0.6); }
@@ -232,7 +320,7 @@ export class ScanSystem implements GameSystem {
       if (!a.t.held && !p.aiming && p.speed < 0.2) p.targetFacing = Math.atan2(a.t.z - p.z, a.t.x - p.x);
     }
     const cur = this.active;
-    if (scanTuner.active && (!cur || !cur.hard || lost)) scanTuner.stop();
+    if (scanTuner.active && (!cur || cur.diff < 0 || lost)) { scanTuner.stop(); this.lockQuiet(); }
     if (cur) {
       const r = cur.t.ref;
       const tall = r?.height ? Math.max(0.3, r.height) : cur.t.kind === 'item' || cur.t.held ? 0.3 : Math.max(0.4, cur.t.y * 1.4);
@@ -257,12 +345,14 @@ export class ScanSystem implements GameSystem {
 
   // ---------------------------------------------------------------- results
   /** a finished scan: DATA, research for firsts and milestones, a knowledge entry */
-  complete(t: ScanTarget, viaSeer = false) {
+  complete(t: ScanTarget, viaSeer = false, q = 1) {
     const kind = t.kind, key = t.key;
     const n = this.count(kind, key);
     const first = n === 0;
     let base = kind === 'creature' ? 8 + (t.threat ?? 1) * 6 : kind === 'tribe' ? 10 : kind === 'artefact' ? 15 : kind === 'anomaly' ? 6 : kind === 'object' ? 2 : kind === 'survivor' ? 3 : 1;
     if (hasUnlock('scan_deep')) base *= 1.5;
+    // the lock: a clean one reads more, a sloppy one only part of it
+    base *= q >= 0.999 ? 1.3 : 0.35 + 0.65 * q;
     const data = Math.max(first ? 1 : 0, Math.round(base * (first ? 1 : Math.max(0.1, 0.5 ** n))));
     addStat(`scan_n:${kind}:${key}`, 1);
     let rp = 0;
@@ -277,6 +367,7 @@ export class ScanSystem implements GameSystem {
     // milestones
     let ms = stat('scan_ms');
     while (ms < MILESTONES.length && this.data >= MILESTONES[ms][0]) { rp += MILESTONES[ms][1]; ms++; addStat('scan_ms', 1); bus.emit('scanMilestone', MILESTONES[ms - 1][0]); }
+    if (q < 0.5) rp = Math.floor(rp / 2);
     if (rp > 0) grantResearch(rp, `scan:${kind}:${key}`);
     // creatures: the old flags (codex, mission 'scan:<key>', creature rules)
     const c = t.ref;
@@ -290,7 +381,7 @@ export class ScanSystem implements GameSystem {
       if (!G.missions?.flags?.has?.('anom:' + id)) { G.missions?.set?.('anom:' + id); bus.emit('anomalyLogged', id); }
     }
     G.audio?.ui?.(first ? 'scan_new' : 'scanDone', 0.5);
-    bus.emit('scanEntry', { kind, key, title: t.title, first, data, rp });
+    bus.emit('scanEntry', { kind, key, title: t.title, first, data, rp, q, ref: t.ref });
     bus.emit('scanData', { data, total: before + data });
     this.report(t, first, data, rp);
   }

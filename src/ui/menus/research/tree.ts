@@ -7,12 +7,22 @@
 import './tree.css';
 import type { Branch } from '../../../game/unitTree';
 import type { TreeLattice } from './lattice';
+import { mxOk } from '../../machine/core';
+import { openSkillTree } from '../../bandos/skilltree';
 
 let host: TreeLattice | null = null;
 export function setTreeHost(l: TreeLattice | null) { host = l; }
-export const treeOpen = () => !!host?.active;
-export function closeTree() { host?.close(); }
+export const treeOpen = () => !!board || !!host?.active;
+export function closeTree() { if (board) board.close(); else host?.close(); }
+// round 17: the main computer opens the skill tree board (src/ui/bandos/skilltree.ts): big 3D models on
+// sockets, lit conduits, quest requirements on the plates, the install sequence on every purchase.
+// The 3D lattice stays the room's dressing; it is the fallback without WebGL.
+let board: { close(): void } | null = null;
 export function openTree(o: { onClose?: () => void; branch?: Branch } = {}) {
+  if (mxOk()) {
+    board = openSkillTree({ onClose: () => { board = null; o.onClose?.(); } });
+    return;
+  }
   if (!host) { o.onClose?.(); return; }
   host.open(o);
   if (import.meta.env.DEV) (window as any).__tree = host;

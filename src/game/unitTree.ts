@@ -33,6 +33,7 @@ import { file, saveFile } from './meridian';
 // the economy's offers (press patterns, press upgrades, homestead pieces, farming) register themselves as data
 import './economy/registry';
 import './mapUpgrades'; // the survey map's upgrades (UI worker, round 15)
+import './reqQuests'; // round 17: requirement quests gate the important nodes (nodeQuest(key) for progress)
 
 /** a branch of the tree: one per category of src/game/treeData.ts (design, recipe, build, device, chip, limb, and any registered) */
 export type Branch = string;

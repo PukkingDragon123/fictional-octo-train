@@ -40,14 +40,17 @@ export function closePanel(quiet = false) {
   if (!quiet) sfx('back');
   c.host.onClose?.();
 }
+/** round 17: the band desktop hosts these panels inside its windows: the panel goes into this element instead of a veil */
+let embedIn: HTMLElement | null = null;
+export function setPanelEmbed(el: HTMLElement | null) { embedIn = el; }
 function frame(host: PanelHost, title: string, sub: string, cls = ''): HTMLElement {
   if (cur) { const c = cur; cur = null; c.nav.destroy(); c.over.remove(); }
   const over = document.createElement('div');
-  over.className = 'mx-over ' + cls;
+  over.className = 'mx-over ' + cls + (embedIn ? ' mx-embed' : '');
   over.innerHTML = `<div class="mx-pan" role="dialog" aria-label="${esc(title)}"><div class="mx-head"><b>${esc(title)}</b><small>${esc(sub)}</small><button type="button" class="mx-x" aria-label="Close (Esc)">✕</button></div><div class="mx-body"></div></div>`;
   over.addEventListener('pointerdown', (e) => { if (e.target === over) closePanel(); });
   over.querySelector('.mx-x')!.addEventListener('click', () => closePanel());
-  document.body.append(over);
+  (embedIn && embedIn.isConnected ? embedIn : document.body).append(over);
   requestAnimationFrame(() => over.classList.add('on'));
   const nav = new FocusNav(over, { onBack: () => closePanel(), autofocus: true });
   cur = { over, nav, host };

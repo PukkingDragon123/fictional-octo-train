@@ -55,6 +55,8 @@ export class Touch3D {
     // the physical overhaul: the watch replaces the SEER-9, the iron cube the rucksack; grab, power, the lung pump, build, emote
     add(new WristWatch()); add(new IronCube());
     add(new Glove()); add(new Throttle()); add(new Bulb()); add(new Teeth());
+    // round 17: the build kit in hand: five keys stand where the strike button was
+    add(new PianoKey('b_rot', 'turn')); add(new PianoKey('b_next', 'next')); add(new PianoKey('b_shelf', 'shelf')); add(new PianoKey('b_down', 'remove')); add(new PianoKey('b_away', 'stow'));
     // round 16: the newer moves and boards get their own found objects
     add(new Die()); add(new KneePad()); add(new ScanWand()); add(new Clipboard()); add(new Stethoscope());
     add(new Pedal('gas', false)); add(new Pedal('brake', true)); add(new Horn()); add(new PullKnob()); add(new Ignition()); add(new DoorHandle('dexit')); add(new DoorHandle('rexit'));

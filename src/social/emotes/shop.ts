@@ -73,7 +73,7 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
   let filter: 'all' | 'owned' | 'new' = 'all';
   const tabKeys: MxButton[] = [];
   (['all', 'new', 'owned'] as const).forEach((f) => {
-    const k = mxButton(f === 'all' ? 'ALL RECORDS' : f === 'new' ? 'NOT OWNED' : 'OWNED', () => { filter = f; tabKeys.forEach((t, i) => t.setOn(i === ['all', 'new', 'owned'].indexOf(f))); build(); }, { w: f === 'all' ? 128 : 112, h: 30, tone: 'dark', lamp: 'green', sound: 'key' });
+    const k = mxButton(f === 'all' ? 'ALL' : f === 'new' ? 'FOR SALE' : 'OWNED', () => { filter = f; tabKeys.forEach((t, i) => t.setOn(i === ['all', 'new', 'owned'].indexOf(f))); build(); }, { w: f === 'new' ? 120 : 96, h: 30, tone: 'dark', lamp: 'green', sound: 'key' });
     tabs.append(k); tabKeys.push(k);
   });
   tabKeys[0].setOn(true);
@@ -83,20 +83,20 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
   const socks: { b: HTMLButtonElement; cv: HTMLCanvasElement; ctx: CanvasRenderingContext2D; label: HTMLElement }[] = [];
   for (let i = 0; i < 8; i++) {
     const b = h('button', 'ej-sock'); b.type = 'button';
-    const c = h('canvas'); c.width = 80; c.height = 88;
+    const c = h('canvas'); c.width = 96; c.height = 132; // the selector's strips, drawn small
     const lab = h('span'); const num = h('i', '', String(i + 1));
     b.append(c, num, lab);
     b.addEventListener('click', () => onSock(i));
     slots.append(b);
     socks.push({ b, cv: c, ctx: c.getContext('2d')!, label: lab });
   }
-  const close = mxButton('CLOSE', () => shut(), { w: 96, h: 30, tone: 'red', lamp: 'red', sound: 'back', cls: 'ej-close' });
+  const close = mxButton('CLOSE', () => shut(), { w: 118, h: 30, tone: 'red', lamp: 'red', sound: 'back', cls: 'ej-close' });
   cab.append(marq, stageCol, list, slots, close);
   document.body.append(root);
   if (mxOk()) {
-    mxFrame(cab, (w, hh) => panelSpec(w, hh, { title: 'MERIDIAN · STAFF AMENITIES', seed: 87, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 40, bot: 20, vents: true, handles: true }), { pad: 18 });
-    mxFrame(view, (w, hh) => { const s = panelSpec(w, hh, { seed: 88, lamps: [], glands: 0, hazard: false, vents: false, handles: false, win: { l: 8, t: 8, r: 8, b: 8, cut: 6, lip: 3 } }); s.win!.back = true; return s; }, { pad: 10, over: true });
-    if (innerWidth > 760) { mxMount(cab, 'gears', { left: -30, bottom: 70, z: 3 }); mxMount(cab, 'beacon', { right: 120, top: -6, z: 7 }, { col: 'amber', alert: true }); }
+    mxFrame(cab, (w, hh) => panelSpec(w, hh, { title: w < 560 ? 'AMENITIES' : 'MERIDIAN · STAFF AMENITIES', seed: 87, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 40, bot: 20, vents: true, handles: true }), { pad: 18 });
+    mxFrame(view, (w, hh) => panelSpec(w, hh, { seed: 88, lamps: [], glands: 0, hazard: false, vents: false, handles: false, win: { l: 8, t: 8, r: 8, b: 8, cut: 6, lip: 3 } }), { pad: 10, over: true });
+    if (innerWidth > 760) mxMount(cab, 'beacon', { right: 132, top: -6, z: 7 }, { col: 'amber', alert: true });
   }
   requestAnimationFrame(() => root.classList.add('on'));
   sfx('open', 0.8);
@@ -104,7 +104,7 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
 
   // ---- the live turntable
   const stage = stageOk() ? new EmoteStage({ turntable: true }) : null;
-  if (stage) { stage.audible = true; stage.frame(1.05, 6.4, 30, 0.75); }
+  if (stage) { stage.audible = true; stage.frame(1.12, 5.0, 30, 0.55); }
   let sel = o.select && emoteInfo(o.select) ? o.select : (EMOTES_ALL.find((e) => !owns(e.id)) ?? EMOTES_ALL[0]).id;
   let arm = false;
 
@@ -117,7 +117,7 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
       b.style.setProperty('--rar', RARITY[e.rarity].col);
       const c = h('canvas'); c.width = 96; c.height = 132;
       const t = h('span', 'ej-r-t');
-      t.append(h('span', 'ej-code', `${e.code} · ${RARITY[e.rarity].label}`), h('span', 'ej-nm', e.name), h('span', 'ej-pr' + (owns(e.id) ? ' own' : ''), owns(e.id) ? 'OWNED' : e.price ? CURRENCY.fmt(e.price) : 'FREE'));
+      t.append(h('span', 'ej-code', `${e.code}<em> · ${RARITY[e.rarity].label}</em>`), h('span', 'ej-nm', e.name), h('span', 'ej-pr' + (owns(e.id) ? ' own' : ''), owns(e.id) ? 'OWNED' : e.price ? CURRENCY.fmt(e.price) : 'FREE'));
       b.append(h('span', 'ej-strip'), c, t);
       if (slotOf(e.id) >= 0) b.append(h('span', 'ej-eq', 'WHEEL ' + (slotOf(e.id) + 1)));
       b.setAttribute('aria-label', `${e.code} ${e.name}, ${RARITY[e.rarity].label}, ${owns(e.id) ? 'owned' : e.price + ' dollars'}`);

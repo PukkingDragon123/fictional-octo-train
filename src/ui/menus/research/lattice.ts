@@ -30,6 +30,7 @@ import { sfx } from '../sfx';
 import { bitText, bitMeasure } from '../../../gfx/bitfont';
 import { researchPoints } from '../../../game/research';
 import { codexStats } from '../../../game/codex';
+import { nodeQuest } from '../../../game/reqQuests';
 import {
   BRANCHES, treeNodes, treeNode, treeLanes, rankOf, rankPlanned, nodeState, stage, clearPlan, confirmPlan, researchFor, pointsLeft, syncTree,
   type Branch, type TreeNode,
@@ -487,6 +488,17 @@ export class TreeLattice {
       c.fillStyle = scol; c.fillRect(10, y + 2, 6, 12);
       bitText(c, status, 22, y, { color: scol, outline: null, maxW: W - 32 });
       y += 15 * Math.max(1, Math.ceil(bitMeasure(status) / (W - 40))) + 6;
+      // round 17: a requirement quest (src/game/reqQuests.ts): what the field must see first, and how far along
+      const rq = rp < 1 ? nodeQuest(n.rn[0]) : null;
+      if (rq) {
+        const qc = rq.done ? '#7aff9a' : '#ffd040', qt = `${rq.done ? 'FIELD DONE' : 'FIELD QUEST'} · ${rq.text.toUpperCase()}`;
+        bitText(c, qt, 10, y, { color: qc, outline: null, maxW: W - 20 });
+        y += 15 * Math.max(1, Math.ceil(bitMeasure(qt) / (W - 20))) + 2;
+        const cells = Math.min(20, rq.goal), cw = Math.max(3, Math.floor((W - 70) / cells)), lit = Math.round((rq.progress / rq.goal) * cells);
+        for (let i = 0; i < cells; i++) { c.fillStyle = i < lit ? (rq.done ? '#48dc70' : '#f2ad32') : '#1a2a1e'; c.fillRect(10 + i * cw, y + 2, cw - 1, 8); }
+        bitText(c, `${rq.progress}/${rq.goal}`, W - 12, y - 1, { color: qc, outline: null, align: 'right' });
+        y += 16;
+      }
       c.fillStyle = 'rgba(255,184,72,0.4)'; c.fillRect(10, y - 2, W - 20, 1); y += 4;
       n.gives.forEach((gv, i) => {
         if (y > H - 70) return;
@@ -832,7 +844,8 @@ function missing(n: TreeNode): string {
   const need = n.req.map((k) => treeNode(k)).filter((m) => m && rankPlanned(m) < 1).map((m) => m!.title);
   const rn = researchFor(n, rankPlanned(n) + 1);
   for (const q of rn?.requires ?? []) { const m = treeNodes().find((t) => t.rn.includes(q)); if (m && rankPlanned(m) < 1 && !need.includes(m.title)) need.push(m.title); }
-  return need.length ? need.join(', ') : 'an earlier node';
+  const q = nodeQuest(n.rn[0]);
+  return need.length ? need.join(', ') : q && !q.done ? 'a field quest' : 'an earlier node';
 }
 /** cut a text to at most `lines` wrapped lines of maxW font px (an ellipsis on the last) */
 function clip(s: string, maxW: number, lines: number): string {

@@ -16,10 +16,12 @@ import './emotes.css';
 
 export type WheelHit = { kind: 'hole'; i: number } | { kind: 'card' } | { kind: 'key'; i: number } | { kind: 'shop' } | null;
 const TUNE_LABELS = ['HEY-O', 'COME', 'ALARM', 'TUNE'];
+/** the ring is an ellipse: wide, and short enough for a 540 px high screen */
+const RX = 236, RY = 182;
 const N = 8;
 /** the windows sit round the ring starting at the top, clockwise */
 const ANG = Array.from({ length: N }, (_, i) => -Math.PI / 2 + (i / N) * Math.PI * 2);
-const PW = 84, PH = 92; // preview px (CSS)
+const PW = 88, PH = 88; // preview px (CSS)
 
 interface Win { el: HTMLButtonElement; cv: HTMLCanvasElement; ctx: CanvasRenderingContext2D; name: HTMLElement; id: string }
 
@@ -71,11 +73,11 @@ export class EmoteWheel {
     head.append(this.hubName, this.hubSub);
     const tunes = document.createElement('div'); tunes.className = 'ew-tunes';
     TUNE_LABELS.forEach((l, i) => {
-      const k = mxButton(l, () => this.onPick({ kind: 'key', i }), { w: 58, h: 26, cls: 'ew-tk', tone: 'olive', lamp: 'green', sound: 'key' });
+      const k = mxButton(l, () => this.onPick({ kind: 'key', i }), { w: 70, h: 24, cls: 'ew-tk', tone: 'olive', lamp: 'green', sound: 'key' });
       tunes.append(k); this.tuneKeys.push(k);
     });
-    this.lineKey = mxButton('LINE', () => this.onPick({ kind: 'card' }), { w: 118, h: 28, cls: 'ew-line', tone: 'dark', lamp: 'amber', sound: 'relay' });
-    const shop = mxButton('JUKEBOX', () => this.onPick({ kind: 'shop' }), { w: 132, h: 34, cls: 'ew-shop', tone: 'yellow', lamp: 'red', sound: 'plate', icon: mxOk() ? mxIcon('coin', 22) : null });
+    this.lineKey = mxButton('LINE', () => this.onPick({ kind: 'card' }), { w: 140, h: 26, cls: 'ew-line', tone: 'dark', lamp: 'amber', sound: 'relay' });
+    const shop = mxButton('JUKEBOX', () => this.onPick({ kind: 'shop' }), { w: 140, h: 32, cls: 'ew-shop', tone: 'yellow', lamp: 'red', sound: 'plate', icon: mxOk() ? mxIcon('coin', 22) : null });
     const tl = document.createElement('small'); tl.className = 'ew-tl'; tl.textContent = 'WHISTLE · Q';
     this.hub.append(head, tl, tunes, this.lineKey, shop);
     if (mxOk()) {
@@ -107,17 +109,20 @@ export class EmoteWheel {
   }
 
   private layout() {
-    const small = innerWidth < 560 || innerHeight < 620;
-    this.R = small ? 150 : 182;
-    const k = Math.min(1, (Math.min(innerWidth, innerHeight) - 16) / (this.R * 2 + 130));
+    // phones in portrait: a tall ellipse instead
+    const tall = innerHeight > innerWidth * 1.2;
+    const rx = tall ? RY - 40 : RX, ry = tall ? RX - 10 : RY;
+    this.R = Math.max(rx, ry);
+    const k = Math.min(1, (innerWidth - 12) / (rx * 2 + 112), (innerHeight - 12) / (ry * 2 + 132));
     this.el.style.setProperty('--ews', String(k));
-    this.wins.forEach((w, i) => { w.el.style.left = Math.cos(ANG[i]) * this.R + 'px'; w.el.style.top = Math.sin(ANG[i]) * this.R + 'px'; });
+    this.wins.forEach((w, i) => { w.el.style.left = Math.cos(ANG[i]) * rx + 'px'; w.el.style.top = Math.sin(ANG[i]) * ry + 'px'; });
   }
   place(x: number, y: number) {
     const k = Number(this.el.style.getPropertyValue('--ews') || 1);
-    const m = (this.R + 70) * k;
-    this.el.style.left = Math.max(m, Math.min(innerWidth - m, x)) + 'px';
-    this.el.style.top = Math.max(m, Math.min(innerHeight - m, y)) + 'px';
+    // centred on the unit when there is room, else as close as fits
+    const mx = (RX + 56) * k, my = (RY + 66) * k;
+    this.el.style.left = (mx * 2 > innerWidth ? innerWidth / 2 : Math.max(mx, Math.min(innerWidth - mx, x))) + 'px';
+    this.el.style.top = (my * 2 > innerHeight ? innerHeight / 2 : Math.max(my, Math.min(innerHeight - my, y))) + 'px';
   }
   /** the window in the direction of a screen point from the centre (-1 near the middle) */
   holeToward(mx: number, my: number): number {

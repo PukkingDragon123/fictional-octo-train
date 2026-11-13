@@ -207,6 +207,19 @@ export const INHABITANTS: InhabitantLore[] = [
     ],
   }),
   L({
+    id: 'battering_hare', name: 'Battering Hare', rank: 'wrath', class: 'Fauna', danger: 8,
+    summary: 'A hare the size of an elephant on three legs: the right hind leg is gone, healed over into a knot of scar and bone against the haunch, and it bounds lopsided on the other one, dropping toward the stump on every landing and still covering ground faster than you can run. Matted, scabbed coat; long torn ears veined like leaves; pink wet eyes; yellow chisel teeth as long as a forearm; a boss of horn grown out of its forehead from everything it has hit.',
+    biology: 'A leporid grown far past anything its skeleton was drawn for. The good hind leg is enormous, half the animal\'s muscle, and the spine has twisted to put the weight over it. The forehead boss is callus on callus: the skull underneath is cracked through in old breaks that have knitted. It eats grass, hedges, insulation and anything green, and it is not a hunter. It is defending a space it carries around with it.',
+    behaviour: 'It does not chase. It lowers its head, scrapes the floor with one forefoot, lined up on you, and then comes in a dead straight line through whatever is in the way: furniture, cars, barricades, the plank and drywall walls of a camp. It cannot turn once it has started. If it hits something it cannot break, the place\'s own concrete, a pillar, a steel barricade, it stands there dazed and swaying for a few seconds, which is the only time to hurt it. It hears you behind a wall and will come through the wall.',
+    habitat: 'The big open levels: the Fields, the Meadow, the Homestead\'s paddocks, the parking structure, the gardens of the estates. One to a level.',
+    lore: 'Survey teams call it the Lorry. A camp in the Fields built a double plank wall against the Gaunt Wolf and woke up with a hare-shaped hole through both. Calder: "Do not stand between it and anything. Put something solid behind you and step aside at the last moment. It will knock itself silly on your wall, and then it is yours."',
+    harvest: [
+      { item: 'hare_haunch', how: 'Butcher the good hind leg: there is enough meat on it for a camp.' },
+      { item: 'hare_incisor', how: 'Lever a front tooth out of the jaw with something long. It is a blade already.' },
+      { item: 'horn_boss', how: 'Saw the horn off its forehead. Heavy; the workshop can make a ram of it.' },
+    ],
+  }),
+  L({
     id: 'stalker', name: 'Stalker', rank: 'envy', class: 'Mimic', danger: 7,
     summary: 'You, made again from the outside: your face, your suit (nearly; it has no hood), your lamp on its temple, two and a half metres tall. Its legs are too long and the left one longer still; it will not bend, so it drags it, toes down, behind the good one. Its arms hang past its knees. Its head is the wrong size for it, its eyes are too round and too pale, and its face will not hold still: it flickers between smiles.',
     biology: 'Nobody has dissected one that looked like anyone but the unit who killed it. The body is human, stretched: long bones lengthened at the growth plates, a neck half again too long, the dragged leg\'s knee fused straight. The skin is a few shades paler than the original and older by a decade. The suit is not cloth; it is skin, coloured and creased like the suit, with the number almost right. Its lamp works. Calder\'s view is that it is not a predator of units so much as of the link: it learns the operator, not the body.',
@@ -495,6 +508,8 @@ export const INHABITANTS: InhabitantLore[] = [
 
 const BY_ID = new Map(INHABITANTS.map((e) => [e.id, e] as const));
 export function inhabitant(id: string): InhabitantLore | undefined { return BY_ID.get(id); }
+/** species generated at run time (src/creatures/species/wildlife.ts) file their own entries */
+export function addInhabitant(e: InhabitantLore) { if (BY_ID.has(e.id)) return; INHABITANTS.push(e); BY_ID.set(e.id, e); }
 
 /** the reveal order the scanner follows (one more section per scan) */
 export const LORE_SECTIONS = ['summary', 'biology', 'behaviour', 'habitat', 'lore'] as const;

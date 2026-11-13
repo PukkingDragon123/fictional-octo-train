@@ -30,6 +30,8 @@ import {
   matterKg, scaleMatter, fmtKg, SCRIP_PER_TOKEN, type Matter, type PressMode,
 } from './matter';
 import { PATTERNS, PRESS_UPGRADES, type Pattern } from './registry';
+import { slagWords } from './crusher';
+import { itemValue } from '../debt/values';
 import './terminal.css';
 import { calibrate } from '../../ui/minigames/calibrate';
 
@@ -42,16 +44,19 @@ export interface TermOpen {
   page?: Page;
   onClose?: () => void;
 }
-type Page = 'account' | 'dial' | 'create' | 'ledger';
-const PAGE_ICON: Record<Page, IconKind> = { account: 'coin', dial: 'gear', create: 'wrench', ledger: 'tape' };
+type Page = 'feed' | 'account' | 'dial' | 'create' | 'ledger';
+const PAGE_ICON: Record<Page, IconKind> = { feed: 'crate', account: 'coin', dial: 'gear', create: 'wrench', ledger: 'tape' };
 /** the plate's calibration: 0 none, 1 close, 2 true (the next make prints a spare) */
 let calib = 0;
-const PAGES: [Page, string][] = [['account', 'Account'], ['dial', 'Dial'], ['create', 'Create'], ['ledger', 'Ledger']];
+const PAGES: [Page, string][] = [['feed', 'Feed'], ['account', 'Account'], ['dial', 'Dial'], ['create', 'Create'], ['ledger', 'Ledger']];
+/** round 17: the hopper's slots on the FEED page */
+const SLOTS = 10;
 
 let open: { close: () => void } | null = null;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 const iname = (k: string) => (hasItemDef(k) ? itemDef(k).name : k.replace(/_/g, ' '));
+const itemDisplay = (it: Item) => it.name || iname(it.key);
 const h = (tag: string, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
 const costLine = (m: Matter) => MATS.filter((q) => (m[q.key] ?? 0) > 0).map((q) => `<i style="color:${q.color}">${q.code}</i> ${fmtKg(m[q.key]!)}`).join(' · ');
 const canIcon = () => !!(G as any)?.pr?.renderer;
@@ -72,9 +77,10 @@ export function openPressTerminal(o: TermOpen) {
     mxMount(t.el, 'gears', { right: -74, top: 150, z: 4 }, { speed: 0.7 });
     mxMount(t.el, 'valve', { left: 70, bottom: -34, z: 4 }, { w: 150 });
   }
-  let page: Page = o.page ?? 'account';
+  const atPress = inRun && o.from === 'press' && !!o.o;
+  let page: Page = o.page ?? (atPress ? 'feed' : 'account');
   const keys = new Map<Page, PlateButton>();
-  const visible = PAGES.filter(([k]) => k !== 'ledger' || inRun);
+  const visible = PAGES.filter(([k]) => (k !== 'ledger' || inRun) && (k !== 'feed' || atPress));
   for (const [k, label] of visible) {
     const b = plateBtn(label, () => show(k), { finish: 'olive', size: 'sm', shape: 'key', tight: true, sound: 'plate' });
     // round 16: each page's little 3D model on its key
@@ -90,8 +96,20 @@ export function openPressTerminal(o: TermOpen) {
     onBack: () => close(),
     onTab: (d) => { const i = visible.findIndex(([k]) => k === page); show(visible[(i + d + visible.length) % visible.length][0]); },
   });
-  const off = () => { if (wrap.isConnected) render(); };
-  const unsub = [bus.on('matterChanged', off), bus.on('debtChanged', off)];
+  const off = () => { if (wrap.isConnected && !(page === 'feed' && pay)) render(); };
+  // ---- the FEED page's state: what is in the hopper slots, and the payout the screen is counting
+  const queue: Item[] = [];
+  let pay: { value: number; t0: number; out: string[]; jack: number; bonus: number; drop: string; done: boolean } | null = null;
+  let waiting = false;
+  const onDeposit = (e: { hopper?: number; value?: number; out?: string[]; jack?: number; bonus?: number }) => {
+    if (!wrap.isConnected || !o.o || e.hopper !== o.o.uid || !waiting) return;
+    waiting = false;
+    pay = { value: e.value ?? 0, t0: performance.now(), out: e.out ?? [], jack: e.jack ?? 0, bonus: e.bonus ?? 0, drop: '', done: false };
+    if (page === 'feed') render();
+    countUp();
+  };
+  const onJack = (e: { hopper?: number; drop?: string }) => { if (pay && o.o && e.hopper === o.o.uid) { pay.drop = e.drop ?? ''; const el = wrap.querySelector('.ptm-count'); el?.classList.add('jack'); const j = wrap.querySelector('.ptm-jack'); if (j) j.innerHTML = jackText(); sfx('stamp', 0.9); } };
+  const unsub = [bus.on('matterChanged', off), bus.on('debtChanged', off), bus.on('deposited', onDeposit), bus.on('pressJackpot', onJack)];
   let tick = 0;
   // the plate reading follows what lands on it
   const iv = window.setInterval(() => { if (page === 'dial' && inRun) render(); if (++tick % 4 === 0) t.paint(); }, 900);
@@ -114,16 +132,101 @@ export function openPressTerminal(o: TermOpen) {
   function show(k: Page) { page = k; for (const [q, b] of keys) b.classList.toggle('on', q === k); render(); }
 
   function render() {
-    const sub: Record<Page, string> = { account: 'account · scrip · tokens · matter · research', dial: 'the dial · what the plate holds', create: 'creation patterns', ledger: 'crew ledger' };
+    const sub: Record<Page, string> = { feed: 'feed the press · item by item', account: 'account · scrip · tokens · matter · research', dial: 'the dial · what the plate holds', create: 'creation patterns', ledger: 'crew ledger' };
     t.setHead('Remittance Press', sub[page]);
     const body = t.body;
     const keep = body.scrollTop;
     body.innerHTML = '';
-    if (page === 'account') account(body);
+    if (page === 'feed') feed(body);
+    else if (page === 'account') account(body);
     else if (page === 'dial') dial(body);
     else if (page === 'create') create(body);
     else ledger(body);
     body.scrollTop = keep;
+  }
+
+  // ---------------------------------------------------------------- FEED (round 17)
+  // The press's own screen for a deposit: the unit's pack on the left, the hopper's ten slots on the
+  // right, each thing's value and what the crusher will give back; CRUSH puts the load on the plate and
+  // throws the lever, then the screen counts the payout up, lists the slag and calls a jackpot.
+  function feed(el: HTMLElement) {
+    const pl = o.p ?? G.local;
+    const P = G.debt?.hoppers as { depositItems?: (p: Player, o: TileObject, items: Item[], press?: boolean) => void; busy?: (o: TileObject) => boolean } | undefined;
+    const contract = !!G?.debt?.on;
+    const share = contract ? MODES.find((q) => q.key === pressMode())!.share : 0;
+    for (let i = queue.length - 1; i >= 0; i--) if (!pl?.containerOf(queue[i])) queue.splice(i, 1);
+    const grid = h('div', 'ptm-feed');
+    // the pack: everything the press takes, grouped
+    const left = h('div', 'ptm-fcol');
+    left.append(h('p', 'ptm-sub', 'YOUR PACK · tap to load'));
+    const list = h('div', 'ptm-flist');
+    const carried = pl ? pl.allItems().filter((it) => !pl.isWorn(it) && it.key !== 'bailiff_band' && it.key !== 'build_kit' && !queue.includes(it) && (itemValue(it) > 0 || matterKg(itemMatter(it)) > 0.02)) : [];
+    const groups = new Map<string, Item[]>();
+    for (const it of carried) { const k = it.key + ':' + (it.name ?? ''); (groups.get(k) ?? groups.set(k, []).get(k)!).push(it); }
+    const rows = [...groups.values()].sort((a, b) => itemValue(b[0]) - itemValue(a[0]));
+    if (!rows.length) list.append(h('p', 'dim', 'Nothing on you the press would take.'));
+    for (const g of rows.slice(0, 40)) {
+      const it = g[0];
+      const v = itemValue(it), y = slagWords([it], iname);
+      const icon = canIcon() ? `<img src="${itemIcon(it.key, '', 24)}" alt="">` : `<span class="ptm-noicon"></span>`;
+      const r = h('button', 'ptm-fitem', `${icon}<b>${esc(itemDisplay(it))}${g.length > 1 ? ` <i>×${g.length}</i>` : ''}</b><span class="ptm-v">${v > 0 ? fmt(v) + ' cr' : '—'}</span><small>${y ? '→ ' + esc(y) : 'nothing back'}</small>`) as HTMLButtonElement;
+      r.type = 'button';
+      r.disabled = queue.length >= SLOTS || !!pay && !pay.done || waiting;
+      r.addEventListener('click', () => { if (queue.length < SLOTS) { queue.push(it); sfx('plate', 0.5); G.audio?.ui?.('click', 0.3); render(); } });
+      list.append(r);
+    }
+    left.append(list);
+    // the hopper
+    const right = h('div', 'ptm-fcol');
+    right.append(h('p', 'ptm-sub', `HOPPER · ${queue.length} / ${SLOTS}`));
+    const slots = h('div', 'ptm-slots');
+    for (let i = 0; i < SLOTS; i++) {
+      const it = queue[i];
+      const b = h('button', 'ptm-slot' + (it ? ' full' : ''), it ? (canIcon() ? `<img src="${itemIcon(it.key, '', 24)}" alt="">` : esc(iname(it.key).slice(0, 3))) : '') as HTMLButtonElement;
+      b.type = 'button';
+      if (it) { b.title = itemDisplay(it); b.addEventListener('click', () => { queue.splice(i, 1); sfx('back', 0.4); render(); }); } else b.disabled = true;
+      slots.append(b);
+    }
+    right.append(slots);
+    const val = queue.reduce((a, it) => a + itemValue(it), 0);
+    const y = slagWords(queue, iname);
+    right.append(h('p', 'ptm-ftot', queue.length ? `≈ <b>${fmt(val)}</b> cr · <b>${fmt(val * share)}</b> to the debt${share < 1 ? ` · ${fmtKg(matterKg(queue.reduce((m, it) => itemMatter(it, m), {} as Matter)) * (1 - share))} kept` : ''}<br><small>back out of the lip: ${y ? esc(y) : 'nothing'} · and sometimes the seam pays more</small>` : '<small>Tap things in your pack to load the slots. Tap a slot to take it back.</small>'));
+    const crush = h('button', 'ptm-act ptm-crush', waiting ? '&gt; THE RAM IS COMING DOWN' : '&gt; CRUSH') as HTMLButtonElement;
+    crush.type = 'button';
+    crush.disabled = !queue.length || waiting || !!P?.busy?.(o.o!) || (!contract && !hasUnlock('pr_cold'));
+    crush.addEventListener('click', () => {
+      if (!pl || !o.o || !queue.length) return;
+      waiting = true; pay = null;
+      sfx('lever', 0.9);
+      P?.depositItems?.(pl, o.o, queue.splice(0), true);
+      render();
+    });
+    right.append(crush);
+    // the counter: nixie digits counting the payout up, the slag, the jackpot
+    const cnt = h('div', 'ptm-count' + (pay?.jack ? ' jack' : ''));
+    cnt.innerHTML = `<span class="ptm-nix">${pay ? digits(pay.done ? pay.value : 0) : waiting ? '------' : '000000'}</span><small>${pay ? 'PAID · CREDITS' : 'PAYOUT'}</small><div class="ptm-jack">${pay?.jack ? jackText() : ''}</div><div class="ptm-outs">${pay ? esc(outText(pay.out)) : ''}</div>`;
+    right.append(cnt);
+    grid.append(left, right);
+    el.append(grid);
+  }
+  function digits(n: number) { return String(Math.max(0, Math.round(n))).padStart(6, '0').slice(-7); }
+  function outText(out: string[]) {
+    if (!out.length) return '';
+    const n = new Map<string, number>(); for (const k of out) n.set(k, (n.get(k) ?? 0) + 1);
+    return 'OUT OF THE LIP: ' + [...n].map(([k, c]) => `${c} ${iname(k)}`).join(' · ');
+  }
+  function jackText() { return !pay ? '' : pay.jack === 2 ? `JACKPOT · PAID DOUBLE · +${fmt(pay.bonus)}` : `RARE FIND · ${esc(iname(pay.drop || pay.out[pay.out.length - 1] || ''))}`; }
+  function countUp() {
+    const step = () => {
+      if (!pay || !wrap.isConnected) return;
+      const k = Math.min(1, (performance.now() - pay.t0) / 1700);
+      const e = 1 - Math.pow(1 - k, 3);
+      const nx = wrap.querySelector('.ptm-nix');
+      if (nx) nx.textContent = digits(pay.value * e);
+      if (k < 1) { if (Math.random() < 0.3) sfx('tick', 0.25); requestAnimationFrame(step); }
+      else { pay.done = true; sfx(pay.jack ? 'stamp' : 'relay', 0.7); if (page === 'feed') render(); }
+    };
+    requestAnimationFrame(step);
   }
 
   // ---------------------------------------------------------------- ACCOUNT

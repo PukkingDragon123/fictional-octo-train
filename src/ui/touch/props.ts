@@ -838,6 +838,12 @@ type Glyph = (s: Screen, c: number) => void;
 const GLYPHS: Record<string, Glyph> = {
   pause: (s, c) => { const h = s.h - 2; s.rect(2, 1, 3, h, c); s.rect(s.w - 5, 1, 3, h, c); },
   full: (s, c) => { const w = s.w, h = s.h; for (const [x, y, dx, dy] of [[0, 0, 1, 1], [w - 1, 0, -1, 1], [0, h - 1, 1, -1], [w - 1, h - 1, -1, -1]]) { for (let i = 0; i < 4; i++) for (let j = 0; j < 2; j++) { s.px(x + dx * i, y + dy * j, c); s.px(x + dx * j, y + dy * i, c); } } },
+  // round 17: the build kit's keys (src/build: turn the ghost, next piece, next shelf, take down, put the kit away)
+  turn: (s, c) => { for (let a = 0.4; a < 5.2; a += 0.22) s.px(Math.round(6 + Math.cos(a) * 4), Math.round(5 + Math.sin(a) * 4), c); s.rect(9, 0, 3, 1, c); s.rect(11, 0, 1, 3, c); },
+  next: (s, c) => { s.rect(1, 4, 8, 2, c); for (let i = 0; i < 4; i++) { s.rect(8 + i, 1 + i, 1, 8 - i * 2, c); } },
+  shelf: (s, c) => { for (const y of [1, 4, 7]) s.rect(1, y, 11, 2, c); },
+  remove: (s, c) => { for (let i = 0; i < 9; i++) { s.rect(2 + i, i, 2, 1, c); s.rect(10 - i, i, 2, 1, c); } },
+  stow: (s, c) => { s.rect(5, 0, 3, 5, c); for (let i = 0; i < 4; i++) s.rect(3 + i, 4 + i, 7 - i * 2, 1, c); s.rect(1, 9, 11, 1, c); },
 };
 export class PianoKey extends Thing {
   private keyG = new THREE.Group();

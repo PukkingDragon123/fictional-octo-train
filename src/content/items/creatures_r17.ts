@@ -47,6 +47,25 @@ defItem({
   model: (mb) => { mb.cylinder(0, 0, 0, 0.012, 0.09, 6, { sides: T.white, top: T.white, bottom: T.white }, { color: 0xd8c898, rTop: 0.002 } as any); },
 });
 
+const FUR = tex('i_hare_fur', 8, 8, (pc) => pc.each((x, y) => pc.set(x, y, ph(x, y, 7) < 0.16 ? 0x5a1a14 : ph(x, y, 3) < 0.2 ? 0x4e4236 : (x + 2 * y) % 4 === 0 ? 0xa89880 : 0x8a7a66)), true);
+defItem({
+  key: 'hare_haunch', name: 'Battering Hare Haunch', cat: 'food', weight: 2.5, value: 12, tags: ['rawmeat', 'stewmeat'],
+  desc: 'A slab off the good hind leg of the giant hare, the one that did all the work: dark, dense, ropy with muscle. It feeds a camp. Cook it for a long time.',
+  food: { hunger: 46, calories: 1400, raw: true, cookable: true, cookMins: 40, poison: 0.4, fresh: 2, rot: 4, ingredient: 'meat', cookedName: 'Roast Haunch' },
+  model: (mb) => { mb.box(0, 0.035, 0, 0.22, 0.07, 0.13, 'i_meat_raw', { uvScale: 3 }); mb.box(-0.1, 0.04, 0, 0.06, 0.05, 0.08, FUR, { uvScale: 2 }); mb.box(0.12, 0.03, 0, 0.05, 0.025, 0.025, T.white, { color: 0xe8dcc0 }); },
+});
+defItem({
+  key: 'hare_incisor', name: 'Hare Incisor', cat: 'material', weight: 0.6, value: 18, tags: ['bone', 'sharp', 'weird'],
+  desc: 'One of the giant hare\'s front teeth: a yellow chisel as long as your forearm, worn to a bevel you could shave with. It still grows, a little, for a day or two after.',
+  model: (mb) => { mb.box(0, 0.012, 0, 0.2, 0.022, 0.045, T.white, { color: 0xd8c070 }); mb.box(0.1, 0.012, 0, 0.02, 0.018, 0.045, T.white, { color: 0xf0e0a0 }); },
+});
+defItem({
+  key: 'horn_boss', name: 'Horn Boss', cat: 'material', weight: 3.5, value: 22, tags: ['bone', 'heavy', 'weird'],
+  desc: 'The knot of horn that grew on the giant hare\'s forehead from all the things it hit, sawn off: ridged, grey-brown, heavy as a brick. Bolted to a pole it makes a ram of your own.',
+  model: (mb) => { mb.sphere(0, 0.05, 0, 0.07, 7, 5, T.white, { color: 0x8a7a60 }); mb.sphere(0.03, 0.08, 0.02, 0.035, 6, 4, T.white, { color: 0x9a8a70 }); },
+});
+
 defLoot('creature_parasite_salamander', [1, 1], [['parasite_salamander', 5]], 0);
 defLoot('creature_salamander_larva', [0, 1], [['salamander_eggs', 1]], 0.7);
 defLoot('creature_gaunt_wolf', [3, 6], [['wolf_meat', 6], ['matted_hide', 3], ['wolf_fang', 4], ['bone', 4]], 0);
+defLoot('creature_battering_hare', [3, 5], [['hare_haunch', 6], ['hare_incisor', 3], ['horn_boss', 2], ['bone', 3]], 0);

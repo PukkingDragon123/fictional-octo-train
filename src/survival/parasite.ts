@@ -217,14 +217,15 @@ function lumpVisuals(dt: number) {
   // the local unit (and any unit whose body this machine runs)
   for (const p of (G.players?.values?.() ?? []) as Iterable<Player>) {
     const inf = p.body?.parasite;
-    const ud = (p as any)._lump as { a?: THREE.Mesh; b?: THREE.Mesh; s: number } | undefined;
-    if (!inf || p.body.dead) { if (ud) { ud.a?.removeFromParent(); ud.b?.removeFromParent(); (p as any)._lump = undefined; } continue; }
+    const ud = (p as any)._lump as { a?: THREE.Mesh; b?: THREE.Mesh; w?: THREE.Mesh; s: number } | undefined;
+    if (!inf || p.body.dead) { if (ud) { ud.a?.removeFromParent(); ud.b?.removeFromParent(); ud.w?.removeFromParent(); (p as any)._lump = undefined; } continue; }
     const rig: any = p.rig;
     const travel = inf.stage === 'burrow' ? BONE_OF[inf.part] ?? 'spine' : 'spine';
     const bone = rig?.j?.[travel] as THREE.Object3D | undefined;
     if (!bone) continue;
     let L = ud;
-    const col = mixHex(rig.outfit?.torso?.color ?? 0xe8c428, 0x6a5a3a, 0.15);
+    // the suit over it is stained where it went in: the lump reads darker and bloodier than the cloth round it
+    const col = mixHex(rig.outfit?.torso?.color ?? 0xe8c428, 0x7a2a22, 0.42);
     if (!L) { L = (p as any)._lump = { s: 0 }; }
     if (!L.a || L.a.parent !== bone) { L.a?.removeFromParent(); L.a = lumpMesh(col); bone.add(L.a); }
     // it crawls about under the skin: a slow circuit with sudden lurches
@@ -234,8 +235,15 @@ function lumpVisuals(dt: number) {
     const a = t * 0.9 + lurch * 1.5;
     const front = travel === 'spine' || travel === 'chest' || travel === 'hips';
     L.a.position.set(Math.sin(a) * 0.07 * s, (0.05 + Math.sin(a * 0.7) * 0.06) * s, front ? 0.11 * s + k * 0.03 : 0.05 * s);
-    const sc = (0.05 + 0.07 * k) * s * (1 + Math.sin(t * 6) * 0.06);
-    L.a.scale.set(sc, sc * 0.8, sc * 0.6);
+    const sc = (0.075 + 0.085 * k) * s * (1 + Math.sin(t * 6) * 0.08 + lurch * 0.25);
+    L.a.scale.set(sc, sc * 0.85, sc * 0.7);
+    // the wound it went in by: a wet black-red hole in the suit, where it went in, for as long as it is inside
+    const entry = rig?.j?.[BONE_OF[inf.part] ?? 'spine'] as THREE.Object3D | undefined;
+    if (entry) {
+      if (!L.w || L.w.parent !== entry) { L.w?.removeFromParent(); L.w = lumpMesh(0x3a0c0a); entry.add(L.w); }
+      L.w.position.set(0.04 * s, 0.02 * s, (front ? 0.13 : 0.06) * s);
+      L.w.scale.set(0.07 * s, 0.05 * s, 0.025 * s);
+    }
     // full of eggs: the belly swells out
     if (inf.stage === 'eggs') {
       const belly = rig?.j?.spine as THREE.Object3D | undefined;

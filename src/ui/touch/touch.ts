@@ -185,6 +185,13 @@ export class TouchControls implements GameSystem {
     this.btn(act, 'qscan', 'scan', { label: 'SCAN', x: 0.42, y: 3.85, s: 0.95, hold: 'scan' });
     this.btn(act, 'roll', 'roll', { label: 'ROLL', x: 1.42, y: 3.8, s: 0.95, tap: () => this.g.input.tap('roll') });
     this.btn(act, 'crawl', 'crawl', { label: 'CRAWL', x: 2.38, y: 3.75, s: 0.95, tap: () => this.crawl() });
+    // round 17: the build kit in hand (src/build/build.ts): these keys take the strike button's and the shove bar's place
+    const bld = () => (this.g as any).build;
+    this.btn(act, 'b_rot', 'reload', { label: 'TURN', x: 0.05, y: 0.05, s: 0.8, tap: () => bld()?.rotateGhost?.() });
+    this.btn(act, 'b_next', 'right', { label: 'PIECE', x: 0.88, y: 0.05, s: 0.8, tap: () => bld()?.nextPiece?.(1) });
+    this.btn(act, 'b_shelf', 'build', { label: 'SHELF', x: 0.05, y: 0.9, s: 0.8, tap: () => bld()?.nextCat?.() });
+    this.btn(act, 'b_down', 'cross', { label: 'REMOVE', x: 0.88, y: 0.9, s: 0.8, tap: () => bld()?.toggleDemolish?.() });
+    this.btn(act, 'b_away', 'down', { label: 'STOW', x: 0.0, y: 1.78, w: 1.8, h: 0.82, tap: () => { const p = this.g.local; if (p) bld()?.putAway?.(p); } });
 
     // ---- driver's seat (the stick steers)
     const drive = this.group('drive', 'nc-group nc-br');
@@ -366,6 +373,10 @@ export class TouchControls implements GameSystem {
     this.show('power', free && mode === 'walk' && !scanCovers && !ad);
     this.show('act', free && mode === 'walk' && !scanCovers && !ad);
     for (const k of ['photo', 'emote']) this.show(k, !ad);
+    const building = !!(g as any).build?.active;
+    this.show('attack', !building); this.show('shove', !building);
+    for (const k of ['b_rot', 'b_next', 'b_shelf', 'b_down', 'b_away']) this.show(k, building);
+    this.setOn('b_down', building && !!(g as any).build?.demolish);
     this.show('quest', !dead);
     this.show('self', !dead);
     this.show('map', !dead);

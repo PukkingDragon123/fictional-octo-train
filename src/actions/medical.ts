@@ -7,12 +7,15 @@ import { G } from '../game/G';
 import { createItem } from '../items/factory';
 import { isLimbPart, chainOf } from '../survival/limbs';
 import { talentMul } from '../survival/talents';
+import { SkillCheck, tremorOf } from './skillCheck';
 
 /** Medical treatment on yourself or a teammate (target may be another player). */
 abstract class MedAction extends TimedAction {
   constructor(p: Player, public target: Player, public inj: Injury) { super(p); this.anim = 'bandage'; }
   get skill() { return this.p.body.skill('firstaid'); }
   scale(base: number) { return base * (1 - this.skill * 0.06) * (this.p.occupation === 'nurse' ? 0.7 : 1) * (this.target === this.p ? 1 : 0.85) * talentMul(this.p.body, 'medic'); }
+  /** round 17: how sure the hands are for a steady-hand window (first aid, a nurse's training, the 'medic' talent) */
+  get handEase() { return (1 + this.skill * 0.07) * (this.p.occupation === 'nurse' ? 1.2 : 1) / Math.sqrt(talentMul(this.p.body, 'medic')); }
   isValid() {
     if (!this.target.body.allInjuries().includes(this.inj)) return false;
     return this.target === this.p || Math.hypot(this.target.x - this.p.x, this.target.z - this.p.z) < 1.8;
@@ -99,17 +102,25 @@ export class DisinfectAction extends MedAction {
 export class StitchAction extends MedAction {
   constructor(p: Player, target: Player, inj: Injury, public needle: Item, public thread: Item | null) {
     super(p, target, inj); this.name = 'Stitch wound'; this.duration = this.scale(9);
+    // round 17: three passes of the needle, each a steady push let go at the right depth (pain and nerves shake it)
+    this.check = new SkillCheck({ kind: 'hold', at: [0.18, 0.48, 0.78], band: 0.2, speed: 0.55, tremor: tremorOf(p) * 0.9, ease: this.handEase, glyph: 'PASS',
+      sounds: { hit: 'mn_squeeze', perfect: 'mn_squeeze', miss: 'gore_squelch' },
+      onMark: (m) => { if (m === 'miss') { this.target.body.panic = Math.min(100, this.target.body.panic + 6); G.audio?.at?.('flesh_cut', this.target.x, this.target.z, 0.4); } } });
   }
   isValid() { return super.isValid() && !!this.p.containerOf(this.needle); }
   perform() {
+    const ck = this.check;
+    const slips = ck?.misses ?? 0, clean = !!ck?.clean;
     this.inj.stitched = true;
-    this.inj.bleed *= 0.15;
-    const pain = 22 - this.skill * 2;
+    // a clean suture closes tighter; every slip leaves it looser and dirtier
+    this.inj.bleed *= clean ? 0.08 : 0.15 + slips * 0.1;
+    const pain = 22 - this.skill * 2 + slips * 4 - (clean ? 6 : 0);
     this.target.body.panic = Math.min(100, this.target.body.panic + pain);
+    bus.emit('stitched', { by: this.p.id, clean, slips });
     if (this.thread) { this.thread.uses = (this.thread.uses ?? 1) - 0.1; if (this.thread.uses <= 0.01) this.p.removeItem(this.thread); }
     else { this.needle.uses = (this.needle.uses ?? 1) - 0.25; if ((this.needle.uses ?? 0) <= 0.01) this.p.removeItem(this.needle); }
-    if (Math.random() < 0.25 - this.skill * 0.03) this.inj.infection = Math.max(this.inj.infection, 0.05);
-    this.p.body.addXp('firstaid', 12);
+    if (Math.random() < (clean ? 0.05 : 0.25 + slips * 0.1) - this.skill * 0.03) this.inj.infection = Math.max(this.inj.infection, 0.05);
+    this.p.body.addXp('firstaid', 12 + (ck?.perfects ?? 0) * 3);
     this.sync();
     bus.emit('inventoryChanged', this.p);
   }
@@ -132,12 +143,17 @@ export class SplintAction extends MedAction {
 export class RemoveForeignAction extends MedAction {
   constructor(p: Player, target: Player, inj: Injury, public tool: Item | null) {
     super(p, target, inj); this.name = inj.type === 'bullet' ? 'Remove bullet' : 'Remove glass'; this.duration = this.scale(tool ? 6 : 10);
+    // round 17: ease it out: hold steady, let go when it comes free (fingers alone have a narrow band)
+    this.check = new SkillCheck({ kind: 'hold', at: [0.5], band: tool ? 0.2 : 0.12, speed: 0.5, tremor: tremorOf(p), ease: this.handEase, glyph: 'EASE',
+      sounds: { hit: 'mn_clip', perfect: 'mn_clip', miss: 'gore_squelch' } });
   }
   perform() {
-    const chance = (this.tool ? 0.85 : 0.45) + this.skill * 0.04;
+    const m = this.check?.marks[0] ?? '';
+    const chance = m === 'perfect' || m === 'hit' ? 1 : m === 'miss' ? 0.15 + this.skill * 0.03 : (this.tool ? 0.85 : 0.45) + this.skill * 0.04;
     if (Math.random() < chance) {
       this.inj.foreign = false;
-      bus.emit('halo', this.p, 'Removed!', 'good');
+      G.audio?.at?.('glass_clink', this.target.x, this.target.z, 0.5);
+      if (m === 'perfect') this.target.body.panic = Math.max(0, this.target.body.panic - 10);
     } else {
       this.inj.sev = Math.min(1, this.inj.sev + 0.15);
       this.inj.bleed += 0.15;

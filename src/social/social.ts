@@ -106,7 +106,8 @@ export class SocialSystem implements GameSystem {
         if (i >= 0) { this.wheelMoved = true; this.setHot(i); }
       }
       // 1-8 pick a window while it is open
-      for (let i = 0; i < 8; i++) if (inp.hit(('hot' + (i + 1)) as never) || (inp as unknown as { pressed?: Set<string> }).pressed?.has('Digit' + (i + 1))) { this.pick({ kind: 'hole', i }); break; }
+      const pressed = (inp as unknown as { pressed?: Set<string> }).pressed;
+      if (pressed) for (let i = 0; i < 8; i++) if (pressed.has('Digit' + (i + 1)) || pressed.has('Numpad' + (i + 1))) { this.pick({ kind: 'hole', i }); break; }
       // hold-and-release: letting go of G on a hole dials it
       if (!inp.down('emote') && this.wheelHeldT > 0.22 && this.wheelMoved && !d.busy) {
         this.wheelMoved = false;

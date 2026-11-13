@@ -168,6 +168,8 @@ export function startSession(o: SessionOpts): Game {
   installCook(g);
   g.addSystem(new GrabSystem());
   new PauseMenu();
+  // round 17: Esc / Tab / MENU put up the band desktop (src/ui/bandos)
+  import('../ui/bandos/bandos').then((m) => m.installBandOS()).catch((e) => console.warn('band os', e));
 
   // ---- the survivor
   const id = o.net?.id ?? 'p1';
