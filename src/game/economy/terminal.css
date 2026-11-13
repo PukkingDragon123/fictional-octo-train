@@ -191,7 +191,8 @@
 .pc .pc-t.hot .crt-ic-m canvas, .pc .pc-t.hot .crt-ic-m img { transform: translateY(-5px) scale(1.16); filter: var(--mono) brightness(1.75) contrast(1.1) drop-shadow(0 0 9px var(--glow)); }
 .pc-plinth { position: absolute; left: 12px; right: 12px; bottom: 2px; height: 10px; background: linear-gradient(var(--ph-dim), var(--ph-dark)); clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%); }
 .pc-price { display: flex; gap: 8px; align-items: baseline; font-size: 18px; color: var(--ph-hi); line-height: 1; }
-.pc-price s { text-decoration: none; font-size: 13px; color: var(--ph-dim); }
+.pc-t .crt-ic-l s { text-decoration: none; }
+.pc-t .crt-ic-l s.no { color: #c8281c; }
 .pc-price .no { color: #ff6a4a; }
 .pc-rp small { font-size: 11px; margin-left: 2px; }
 .pc-t .crt-ic-l { min-height: 16px; font-size: 13px; letter-spacing: 0.06em; padding: 1px 4px 0; }

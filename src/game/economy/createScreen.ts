@@ -107,9 +107,12 @@ export class CreateScreen {
     t.setAttribute('aria-label', `${iname(q.item)}${n > 1 ? ' ×' + n : ''}, $${q.tok}`);
     const m = h('span', 'crt-ic-m');
     const k = q.item;
-    keep.add(k);
-    let sp = this.spins.get(k);
-    if (sp === undefined) { sp = mxItemSpin(k, 64); this.spins.set(k, sp); }
+    // one turning model per plinth: two patterns can make the same thing (a known one and a locked one), and one
+    // canvas can only stand on one plinth, so they are kept by pattern, not by item
+    const sk = q.key + (locked ? '|L' : '');
+    keep.add(sk);
+    let sp = this.spins.get(sk);
+    if (sp === undefined) { sp = mxItemSpin(k, 64); this.spins.set(sk, sp); }
     if (sp) { m.append(sp.cv); sp.hot(false); }
     else {
       // no model to turn: its still (the game's own icon), the same size
@@ -121,13 +124,14 @@ export class CreateScreen {
     m.append(h('i', 'pc-plinth'));
     if (locked) m.append(h('span', 'pc-lk', LOCK));
     t.append(m);
-    // the price: dollars, then the kilos it draws (red where the bank is short); a locked one, its research price
+    // the price alone (red when it cannot be paid); a locked one, its research price. The kilos of matter it
+    // draws show with its name under the pointer (red where the bank is short)
     const cost = H.cost(q);
     const kg = MATS.reduce((a, mm) => a + (cost[mm.key] ?? 0), 0);
     const shortMat = MATS.some((mm) => (cost[mm.key] ?? 0) > H.banked(mm.key) + 1e-6);
-    const price = locked ? `<b class="pc-rp">${q.rp}<small>RP</small></b>` : `<b class="${why === 'dollars' ? 'no' : ''}">$${q.tok}</b><s class="${shortMat ? 'no' : ''}">${esc(fmtKg(kg).toUpperCase())}</s>`;
+    const price = locked ? `<b class="pc-rp">${q.rp}<small>RP</small></b>` : `<b class="${why === 'dollars' || why === 'matter' ? 'no' : ''}">$${q.tok}</b>`;
     t.append(h('span', 'pc-price', price));
-    t.append(h('span', 'crt-ic-l', `${n > 1 ? `<i>×${n}</i>` : ''}<em>${esc(iname(q.item))}</em>`));
+    t.append(h('span', 'crt-ic-l', `${n > 1 ? `<i>×${n}</i>` : ''}<em>${esc(iname(q.item))}${locked ? '' : ` · <s class="${shortMat ? 'no' : ''}">${esc(fmtKg(kg).toUpperCase())}</s>`}</em>`));
     const gauge = h('span', 'pc-hold', '<i></i>');
     t.append(gauge);
     const hot = (on: boolean) => { t.classList.toggle('hot', on); sp?.hot(on); };

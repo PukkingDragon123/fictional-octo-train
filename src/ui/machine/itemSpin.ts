@@ -80,7 +80,15 @@ function itemModel(key: string, S: number, yaw: number): THREE.Object3D {
 
 const PAD = 4;
 const SHOT = { shear: [0, 0] as [number, number], shadow: [2, 3] as [number, number], shadowA: 0.45 };
-const sheetOf = (key: string, size: number, frames: number) => sheet(`item|${key}|${size}|${frames}`, size, size, PAD, frames, (f) => itemModel(key, size, -0.6 + (f / frames) * TAU), SHOT);
+const sheetOf = (key: string, size: number, frames: number, retry = 0) => sheet(`item|${key}|${size}|${frames}${retry ? '|r' + retry : ''}`, size, size, PAD, frames, (f) => itemModel(key, size, -0.6 + (f / frames) * TAU), SHOT);
+/** did a sheet's first frame come out with nothing on it */
+function blank(sh: HTMLCanvasElement, fw: number, fh: number): boolean {
+  try {
+    const d = sh.getContext('2d')!.getImageData(0, 0, fw, fh).data;
+    for (let i = 3; i < d.length; i += 4 * 3) if (d[i] > 8) return false;
+    return true;
+  } catch { return false; }
+}
 
 export interface ItemSpin { cv: HTMLCanvasElement; hot(on: boolean): void; /** turns per second at rest */ speed: number }
 
@@ -98,18 +106,24 @@ const run = () => { if (!raf) { last = performance.now(); raf = requestAnimation
 /** a turning item icon: a canvas of (size + 8) CSS px; null without WebGL or a model */
 export function mxItemSpin(key: string, size = 64, phase = Math.random()): ItemSpin | null {
   if (!mxOk() || !itemGeometry(key)) return null;
-  const sh = sheetOf(key, size, FRAMES);
+  let sh = sheetOf(key, size, FRAMES);
   if (!sh) return null;
   const fw = size + PAD * 2, fh = fw;
+  // a first frame that came out empty (the shared context was busy or briefly lost) is drawn again, a few times
+  let tries = 0, retryT = 0;
+  if (blank(sh, fw, fh)) { tries = 1; sh = sheetOf(key, size, FRAMES, tries) ?? sh; }
   const cv = document.createElement('canvas');
   cv.width = fw; cv.height = fh; cv.className = 'mxi-cv';
   const c = cv.getContext('2d')!;
   let ph = phase * FRAMES, cur = -1, hot = false;
-  const draw = () => { const f = Math.floor(ph) % FRAMES; if (f === cur) return; cur = f; c.clearRect(0, 0, fw, fh); c.drawImage(sh, 0, f * fh, fw, fh, 0, 0, fw, fh); };
+  const draw = () => { const f = Math.floor(ph) % FRAMES; if (f === cur) return; cur = f; c.clearRect(0, 0, fw, fh); c.drawImage(sh!, 0, f * fh, fw, fh, 0, 0, fw, fh); };
   const s: ItemSpin & { tick(dt: number): void } = {
     cv, speed: 0.12,
     hot(on: boolean) { hot = on; },
-    tick(dt: number) { ph = (ph + dt * FRAMES * (hot ? 0.75 : s.speed)) % FRAMES; cur = cur === Math.floor(ph) % FRAMES ? cur : -1; draw(); },
+    tick(dt: number) {
+      if (tries > 0 && tries < 4 && (retryT += dt) > 0.4) { retryT = 0; if (blank(sh!, fw, fh)) { tries++; sh = sheetOf(key, size, FRAMES, tries) ?? sh; cur = -1; } else tries = 4; }
+      ph = (ph + dt * FRAMES * (hot ? 0.75 : s.speed)) % FRAMES; cur = cur === Math.floor(ph) % FRAMES ? cur : -1; draw();
+    },
   };
   draw();
   live.add(s); run();

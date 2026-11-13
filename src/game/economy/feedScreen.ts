@@ -338,12 +338,12 @@ export class FeedScreen {
     const keep = new Set<string>();
     for (const g of rows.slice(0, 40)) {
       const it = g[0], k = this.key(it), v = itemValue(it);
-      keep.add(it.key + '|' + size);
+      keep.add(k + '|' + size);
       const t = h('button', 'pf-t crt-ic' + (k === this.selKey ? ' sel hot' : '') + (full ? ' off' : '')) as HTMLButtonElement;
       t.type = 'button'; t.dataset.k = k;
       t.setAttribute('aria-label', `${nameOf(it)}, ${fmt(v)} credits`);
       const w = h('span', 'crt-ic-m');
-      const sp = this.spin(it.key, size);
+      const sp = this.spin(it.key, size, k);
       if (sp) { w.append(sp.cv); sp.hot(k === this.selKey); } else w.append(still(it.key, size));
       t.append(w, h('span', 'crt-ic-l', `${g.length > 1 ? `<i>×${g.length}</i>` : ''}<em>${CR}${v > 0 ? fmt(v) : '0'}</em>`));
       t.addEventListener('pointerenter', (e) => { if (e.pointerType === 'mouse') this.select(it, pack); });
@@ -419,8 +419,8 @@ export class FeedScreen {
 
   private dragged = false;
   private key(it: Item) { return it.key + ':' + (it.name ?? ''); }
-  private spin(key: string, size: number): ItemSpin | null {
-    const k = key + '|' + size;
+  private spin(key: string, size: number, group = key): ItemSpin | null {
+    const k = group + '|' + size; // one canvas per pack line (by its group): a canvas stands in one tile only
     let s = this.spins.get(k);
     if (s === undefined) { s = mxItemSpin(key, size); this.spins.set(k, s); }
     return s;
@@ -437,7 +437,7 @@ export class FeedScreen {
         const on = t.dataset.k === this.selKey;
         t.classList.toggle('sel', on); t.classList.toggle('hot', on);
       }
-      for (const [k, s] of this.spins) s?.hot(k.startsWith(it.key + '|'));
+      for (const [k, s] of this.spins) s?.hot(k.startsWith(this.selKey + '|'));
     }
     if (old?.key !== it.key) sfx('hover', 0.25);
     this.paintRead();
