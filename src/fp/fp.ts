@@ -180,7 +180,8 @@ function cut(m: FpCinematic, entering: boolean, handover: boolean) {
 function kick() { if (!raf) { last = performance.now(); raf = requestAnimationFrame(step); } }
 
 function step(now: number) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  // (a frame time can come in before the kick's clock: never step backwards)
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); last = Math.max(last, now);
   const secs = goal > blend ? FP_CUT.inSecs : FP_CUT.outSecs;
   blend = goal > blend ? Math.min(goal, blend + dt / secs) : Math.max(goal, blend - dt / secs);
   // the dive ends in a blink into the eyes

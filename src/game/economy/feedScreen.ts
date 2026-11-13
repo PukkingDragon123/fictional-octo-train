@@ -273,7 +273,8 @@ export class FeedScreen {
   private slotSpins = new Map<number, ItemSpin | null>();
   private counter = new Counter();
   private crunch = new Crunch();
-  private crt: Crt = crtScreen({ phos: 'amber', sound: false });
+  // no bulge filter: its colour split blurred every model; a faint fringe at the glass edge stands in (terminal.css)
+  private crt: Crt = crtScreen({ phos: 'amber', sound: false, bulge: false, bright: 1.12 });
   private lit = false;
   private lever: Lever;
   private tray = h('div', 'pf-tray');
@@ -324,7 +325,7 @@ export class FeedScreen {
     const rows = H.rows();
     if (!this.sel || (!H.queue.includes(this.sel) && !rows.some((g) => g.includes(this.sel!)))) {
       const same = rows.find((g) => this.key(g[0]) === this.selKey);
-      this.sel = same?.[0] ?? null;
+      this.sel = same?.[0] ?? rows[0]?.[0] ?? null;
     }
     this.selKey = this.sel ? this.key(this.sel) : '';
     const root = this.root = h('div', 'pf' + (this.jackT > 0 ? ' jack' : ''));
@@ -333,7 +334,7 @@ export class FeedScreen {
     const full = H.queue.length >= H.slots || H.busy();
     // ---- the pack: big turning models
     const pack = h('div', 'pf-pack');
-    const size = 60;
+    const size = 90;
     const keep = new Set<string>();
     for (const g of rows.slice(0, 40)) {
       const it = g[0], k = this.key(it), v = itemValue(it);
@@ -394,11 +395,12 @@ export class FeedScreen {
     const segs = h('span', 'pf-segs');
     for (let i = 0; i < H.slots; i++) segs.append(h('i', i < H.queue.length ? 'on' : ''));
     gauge.append(segs, h('span', 'pf-kg', H.queue.length ? fmtKg(kg).toUpperCase() : ''));
-    hop.append(gauge, this.tray);
+    hop.append(gauge);
     const ctr = h('div', 'pf-ctr');
     ctr.append(h('span', 'pf-crbig', CR), this.counter.cv);
     ctr.addEventListener('pointerdown', () => { if (this.busyShow()) this.skip(); });
-    hop.append(ctr);
+    // the counter under the gauge, the output bin below it (what the crusher gives back lands there)
+    hop.append(ctr, this.tray);
     // ---- the lever
     const lev = h('div', 'pf-lev' + (H.canCrush() ? ' ok' : ''));
     lev.append(this.lever.cv);
@@ -442,20 +444,28 @@ export class FeedScreen {
   }
 
   /** the picked thing: its name, one value, what the crusher gives back (models; dim = only a chance) */
+  private readSpin: { key: string; s: ItemSpin | null } | null = null;
+  /** the picked thing: its model turning, its name and one value, what the crusher gives back (models; dim = only a chance) */
   private paintRead() {
     const it = this.sel, r = this.read;
     r.innerHTML = '';
     if (!it) return;
     const v = itemValue(it);
-    r.append(h('b', 'pf-rn', esc(nameOf(it))), h('span', 'pf-rv', `${CR}${fmt(v)}`));
+    if (this.readSpin?.key !== it.key) { this.readSpin = { key: it.key, s: mxItemSpin(it.key, 44) }; this.readSpin.s?.hot(true); }
+    const m = h('span', 'pf-rm');
+    m.append(this.readSpin.s?.cv ?? still(it.key, 44));
+    const t = h('span', 'pf-rt');
+    t.append(h('b', 'pf-rn', esc(nameOf(it))), h('span', 'pf-rv', `${CR}${fmt(v)}`));
+    r.append(m, t);
     const ys = [...slagOf([it])].sort((a, b) => b[1] - a[1]).slice(0, 4);
     if (ys.length) {
       const y = h('span', 'pf-ry');
       y.append(h('i', 'pf-arrow', '→'));
-      for (const [k, n] of ys) { const s = h('span', 'pf-yi' + (n < 0.95 ? ' maybe' : '')); s.title = iname(k); s.append(still(k, 16)); if (n >= 1.5) s.append(h('small', '', '×' + Math.round(n))); y.append(s); }
+      for (const [k, n] of ys) { const sp = h('span', 'pf-yi' + (n < 0.95 ? ' maybe' : '')); sp.title = iname(k); sp.append(still(k, 26)); if (n >= 1.5) sp.append(h('small', '', '×' + Math.round(n))); y.append(sp); }
       r.append(y);
     }
   }
+
 
   // ---------------------------------------------------------------- moving things in
   /** a model flies from its turntable into the next slot, and snaps */

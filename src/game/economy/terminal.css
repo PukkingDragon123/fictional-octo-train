@@ -86,12 +86,21 @@
    The pack as big turning models, the readout, the hopper with its gauge, tray and flip counter, the lever.
    Colours come from the tube's custom properties (--ph, --ph-hi, --ph-dim, --ph-dark, --acc, --glow, --mono). */
 .pf-host { position: relative; height: 100%; min-height: 270px; container: pfeed / size; }
+/* the tube lit up: a warm phosphor glow across the glass instead of near-black, a lighter vignette and scanlines,
+   and only a faint colour fringe at the glass's edges (the bulge filter is off: it blurred every model) */
+.pf-host .crt-glass { background: radial-gradient(ellipse at 50% 45%, rgba(var(--ph-rgb), 0.2), rgba(var(--ph-rgb), 0.1) 62%, rgba(var(--ph-rgb), 0.05) 100%), #1a1107;
+  box-shadow: inset 2px 0 0 rgba(255, 70, 40, 0.18), inset -2px 0 0 rgba(70, 220, 255, 0.15); }
+.pf-host .crt-vig { opacity: 0.45; }
+.pf-host .crt-scan { opacity: 0.6; }
 .pf { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 1fr) 262px 58px; grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas: 'pack hop lev' 'read hop lev'; gap: 4px 12px; padding: 8px 10px 6px 12px; box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-.pf-pack { grid-area: pack; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); align-content: start; gap: 0 2px;
+.pf-pack { grid-area: pack; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(106px, 1fr)); align-content: safe center; gap: 4px 6px;
   scrollbar-width: thin; scrollbar-color: var(--ph-dim) transparent; }
 .pf-t { padding: 2px 0 0; border: 0; background: none; cursor: pointer; font: inherit; color: var(--ph); text-shadow: inherit; touch-action: none; }
-.pf-t .crt-ic-m canvas, .pf-t .crt-ic-m img { width: 68px; height: 68px; }
+.pf-t .crt-ic-m canvas, .pf-t .crt-ic-m img { width: 98px; height: 98px; }
+/* bright, never murky: the models lit up off the glass; the picked one lifts and grows */
+.pf .pf-t .crt-ic-m canvas { opacity: 1; filter: var(--mono) brightness(1.45) contrast(1.08) drop-shadow(0 0 6px var(--glow)); }
+.pf .pf-t.hot .crt-ic-m canvas { transform: translateY(-4px) scale(1.18); filter: var(--mono) brightness(1.75) contrast(1.1) drop-shadow(0 0 9px var(--glow)); }
 .pf-t .crt-ic-l { min-height: 18px; font-size: 15px; letter-spacing: 0.06em; padding: 1px 5px 0; }
 .pf-t .crt-ic-l i { font-size: 14px; color: var(--ph); }
 .pf-t:focus-visible { outline: none; }
@@ -100,13 +109,16 @@
 .pf-cr { display: inline-block; width: 0.5em; height: 0.66em; margin-right: 0.12em; vertical-align: -0.02em; }
 .pf-empty { grid-column: 1 / -1; padding: 30px; text-align: center; color: var(--ph-dim); font-size: 28px; }
 /* the readout: the picked thing's name, one value, what comes back */
-.pf-read { grid-area: read; display: flex; align-items: center; gap: 12px; min-height: 30px; overflow: hidden; white-space: nowrap; font-size: 17px; box-shadow: 0 -2px 0 var(--ph-dark); padding-top: 2px; }
-.pf-rn { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: normal; color: var(--ph-hi); letter-spacing: 0.08em; text-transform: uppercase; }
+.pf-read { grid-area: read; display: flex; align-items: center; gap: 10px; min-height: 58px; overflow: hidden; white-space: nowrap; font-size: 17px; box-shadow: 0 -2px 0 var(--ph-dark); padding-top: 2px; }
+.pf-rm { flex: none; line-height: 0; }
+.pf-rm canvas, .pf-rm img { width: 52px; height: 52px; image-rendering: pixelated; filter: var(--mono) brightness(1.6) drop-shadow(0 0 7px var(--glow)); }
+.pf-rt { min-width: 0; display: flex; flex-direction: column; gap: 2px; line-height: 1; }
+.pf-rn { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-weight: normal; font-size: 20px; color: var(--ph-hi); letter-spacing: 0.08em; text-transform: uppercase; }
 .pf-rv { flex: none; color: var(--ph-hi); }
 .pf-ry { flex: none; display: flex; align-items: center; gap: 2px; margin-left: auto; color: var(--ph-dim); }
 .pf-arrow { font-style: normal; margin-right: 4px; }
 .pf-yi { position: relative; display: inline-flex; align-items: center; }
-.pf-yi canvas, .pf-yi img { width: 24px; height: 24px; image-rendering: pixelated; filter: var(--mono) drop-shadow(0 0 3px var(--glow)); }
+.pf-yi canvas, .pf-yi img { width: 34px; height: 34px; image-rendering: pixelated; filter: var(--mono) brightness(1.4) drop-shadow(0 0 3px var(--glow)); }
 .pf-yi.maybe canvas, .pf-yi.maybe img { opacity: 0.45; }
 .pf-yi small { position: absolute; right: -2px; bottom: -3px; font-size: 12px; color: var(--ph-hi); }
 /* the hopper: ten slots in a chamfered frame, the gauge, the tray, the counter */
@@ -120,7 +132,7 @@
 .pf-slot:disabled { cursor: default; }
 .pf-slot.full { box-shadow: inset 0 0 0 1px var(--ph-dim); }
 .pf-slot.full:hover { box-shadow: inset 0 0 0 2px var(--ph); }
-.pf-slot canvas, .pf-slot img { width: 46px; height: 46px; image-rendering: pixelated; filter: var(--mono) drop-shadow(0 0 4px var(--glow)); }
+.pf-slot canvas, .pf-slot img { width: 46px; height: 46px; image-rendering: pixelated; filter: var(--mono) brightness(1.4) drop-shadow(0 0 4px var(--glow)); }
 .pf-slot.snap { animation: pf-snap 0.24s steps(3) both; }
 @keyframes pf-snap { 0% { background: rgba(var(--ph-rgb), 0.9); transform: scale(1.12); } 100% { background: rgba(0, 0, 0, 0.4); transform: none; } }
 .pf-fx { position: absolute; left: 0; top: 0; pointer-events: none; image-rendering: pixelated; filter: drop-shadow(0 0 4px var(--glow)); }
@@ -129,11 +141,12 @@
 .pf-segs i { background: var(--ph-dark); }
 .pf-segs i.on { background: var(--ph); box-shadow: 0 0 4px var(--glow); }
 .pf-kg { min-width: 58px; text-align: right; font-size: 14px; color: var(--ph-dim); }
-.pf-tray { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: center; align-content: center; gap: 0; min-height: 40px; box-shadow: inset 0 -2px 0 var(--ph-dark); }
+.pf-tray { flex: 1 1 auto; display: flex; flex-wrap: wrap; align-items: flex-end; align-content: flex-end; justify-content: center; gap: 0; min-height: 44px; padding: 0 6px 4px;
+  background: linear-gradient(rgba(var(--ph-rgb), 0), rgba(var(--ph-rgb), 0.07)); box-shadow: inset 2px 0 0 var(--ph-dim), inset -2px 0 0 var(--ph-dim), inset 0 -2px 0 var(--ph-dim); }
 .pf-pop { display: inline-flex; }
-.pf-pop canvas, .pf-pop img { width: 36px; height: 36px; image-rendering: pixelated; filter: var(--mono) drop-shadow(0 0 4px var(--glow)); }
+.pf-pop canvas, .pf-pop img { width: 36px; height: 36px; image-rendering: pixelated; filter: var(--mono) brightness(1.4) drop-shadow(0 0 4px var(--glow)); }
 .pf-pop.gold canvas, .pf-pop.gold img { filter: var(--mono) brightness(1.5) drop-shadow(0 0 6px #fff0a0); }
-.pf-ctr { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: auto; padding-top: 2px; }
+.pf-ctr { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 2px 0; }
 .pf-cnt { display: block; image-rendering: pixelated; filter: drop-shadow(0 0 5px var(--glow)); }
 .pf-crbig { line-height: 0; color: var(--ph); }
 .pf-crbig .pf-cr { width: 14px; height: 18px; margin: 0; }
@@ -151,8 +164,7 @@
 /* a narrow screen (a phone held upright): the pack on top, the readout, then the hopper beside the lever */
 @container pfeed (max-width: 560px) {
   .pf { grid-template-columns: minmax(0, 1fr) 56px; grid-template-rows: minmax(0, 1fr) auto auto; grid-template-areas: 'pack pack' 'read read' 'hop lev'; padding: 6px 8px; }
-  .pf-pack { grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); }
-  .pf-t .crt-ic-m canvas, .pf-t .crt-ic-m img { width: 64px; height: 64px; }
+  .pf-pack { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); }
   .pf-read { font-size: 15px; }
   .pf-slot { height: 46px; }
   .pf-slot canvas, .pf-slot img { width: 42px; height: 42px; }
