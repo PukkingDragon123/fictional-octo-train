@@ -306,7 +306,6 @@ class CutOutParasiteAction extends TimedAction {
       else this.inj.bleed += 0.2;
       p.inv.add(createItem('parasite_salamander', undefined, { pristine: true }));
       if (inf.stage === 'eggs') p.inv.add(createItem('salamander_eggs', undefined, { pristine: true }));
-      bus.emit('halo', p, 'Got it out!', 'good');
       bus.emit('think', p, inf.stage === 'eggs' ? 'It is out. And the eggs. A whole clutch, in a skin. Still moving.' : 'It is OUT. It is still wriggling in my hand. Pale. Wet. Too many fingers.');
       G.audio?.at?.('gore_tear', p.x, p.z, 0.8);
       b.addXp('firstaid', 20);

@@ -161,7 +161,7 @@ export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unkno
   const shopKey = icon(shopSheet(), 'Commissary', 'Commissary: buy collectibles with research points', () => { sfx('plate'); openShop(); });
   const guideKey = icon(guideSheet(guide.muted), 'Guide', 'Guide: mute or call Dr. Calder', () => { sfx('toggle'); guide.setMuted(!guide.muted); });
   // round 17: the emote jukebox (buy emotes with research points, fill the wheel)
-  const emoteKey = icon(shopSheet(), 'Emotes', 'Emote jukebox: buy emotes with research points', () => { sfx('plate'); if (!hidden()) void import('../../../social/emotes/shop').then((m) => m.openEmoteShop()); });
+  const emoteKey = icon(shopSheet(), 'Emotes', 'Emote jukebox: buy emotes with dollars', () => { sfx('plate'); if (!hidden()) void import('../../../social/emotes/shop').then((m) => m.openEmoteShop()); });
   guide.onMute = (m) => { guideKey.dataset.sheet = guideSheet(m); paintKeys(); guideKey.classList.toggle('muted', m); };
   guideKey.classList.toggle('muted', guide.muted);
   // round 16: the keys are little 3D props from the machine kit (src/ui/machine/decor.ts), drawn at half size and

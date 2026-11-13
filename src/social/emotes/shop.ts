@@ -6,8 +6,8 @@
 // and the BUY / WHEEL keys; the selector (every record with a little live film,
 // its code, price, owned and on-the-wheel marks); and the wheel's eight sockets
 // along the foot. Buying drops a coin through the cabinet, chases the bulbs,
-// takes the points and puts the record on the wheel (the first free socket).
-// Pay: research points (src/game/research.ts, the lab commissary's currency).
+// takes the money and puts the record on the wheel (the first free socket).
+// Pay: dollars, from the lab commissary's purse (src/social/emotes/catalog.ts balance / buyEmote).
 //
 //   openEmoteShop({ onClose? })   from the emote wheel, the pause menu and the lab menu
 import { G } from '../../game/G';
@@ -16,7 +16,7 @@ import { mxOk } from '../../ui/machine/core';
 import { mxIcon, mxMount } from '../../ui/machine/decor';
 import { sfx } from '../../ui/menus/sfx';
 import { FocusNav } from '../../ui/menus/nav';
-import { EMOTES_ALL, emoteInfo, owns, buyEmote, wheelSlots, setSlot, slotOf, balance, RARITY, onEmotes, type EmoteInfo } from './catalog';
+import { EMOTES_ALL, emoteInfo, owns, buyEmote, wheelSlots, setSlot, slotOf, balance, RARITY, CURRENCY, onEmotes, type EmoteInfo } from './catalog';
 import { EmoteStage, emoteSheet, sheetNow, sheetFrame, stageOk } from './stage';
 import { playSample } from './sound';
 import './emotes.css';
@@ -34,15 +34,15 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
   if (g?.input) g.input.pointerOverUI = true;
 
   const root = h('div', 'ej');
-  root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'The Jukebox: emotes for research points');
+  root.setAttribute('role', 'dialog'); root.setAttribute('aria-label', 'The Jukebox: emotes for dollars');
   const cab = h('div', 'ej-cab');
   root.append(cab);
   // ---- marquee
   const marq = h('div', 'ej-marq');
-  const title = h('h2', '', 'THE JUKEBOX<small>STAFF EMOTE DISPENSER · PAY IN RESEARCH</small>');
+  const title = h('h2', '', `THE JUKEBOX<small>STAFF EMOTE DISPENSER · PAY IN ${CURRENCY.name}</small>`);
   const bulbs = h('div', 'ej-bulbs');
   for (let i = 0; i < 12; i++) bulbs.append(h('i'));
-  const rp = h('div', 'ej-rp', `<b>${balance()}</b><small>RESEARCH PTS</small>`);
+  const rp = h('div', 'ej-rp', `<b>${CURRENCY.fmt(balance())}</b><small>${CURRENCY.name}</small>`);
   marq.append(title, bulbs, rp);
   // ---- stage
   const stageCol = h('div', 'ej-stage');
@@ -117,10 +117,10 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
       b.style.setProperty('--rar', RARITY[e.rarity].col);
       const c = h('canvas'); c.width = 96; c.height = 132;
       const t = h('span', 'ej-r-t');
-      t.append(h('span', 'ej-code', `${e.code} · ${RARITY[e.rarity].label}`), h('span', 'ej-nm', e.name), h('span', 'ej-pr' + (owns(e.id) ? ' own' : ''), owns(e.id) ? 'OWNED' : e.price ? `${e.price} RP` : 'FREE'));
+      t.append(h('span', 'ej-code', `${e.code} · ${RARITY[e.rarity].label}`), h('span', 'ej-nm', e.name), h('span', 'ej-pr' + (owns(e.id) ? ' own' : ''), owns(e.id) ? 'OWNED' : e.price ? CURRENCY.fmt(e.price) : 'FREE'));
       b.append(h('span', 'ej-strip'), c, t);
       if (slotOf(e.id) >= 0) b.append(h('span', 'ej-eq', 'WHEEL ' + (slotOf(e.id) + 1)));
-      b.setAttribute('aria-label', `${e.code} ${e.name}, ${RARITY[e.rarity].label}, ${owns(e.id) ? 'owned' : e.price + ' research points'}`);
+      b.setAttribute('aria-label', `${e.code} ${e.name}, ${RARITY[e.rarity].label}, ${owns(e.id) ? 'owned' : e.price + ' dollars'}`);
       b.addEventListener('click', () => { select(e.id); });
       b.addEventListener('pointerenter', (ev) => { if (ev.pointerType === 'mouse') sfx('tick', 0.3); });
       grid.append(b);
@@ -137,9 +137,9 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
     rar.textContent = RARITY[e.rarity].label; rar.style.setProperty('--rar', RARITY[e.rarity].col);
     blurb.textContent = e.blurb;
     const own = owns(id);
-    tag.innerHTML = own ? 'OWNED<small>ON THE SHELF</small>' : `${e.price} RP<small>${e.code} · ${RARITY[e.rarity].label}</small>`;
+    tag.innerHTML = own ? 'OWNED<small>ON THE SHELF</small>' : `${CURRENCY.fmt(e.price)}<small>${e.code} · ${RARITY[e.rarity].label}</small>`;
     tag.classList.toggle('owned', own);
-    buy.querySelector('.mxb-t')!.textContent = own ? 'OWNED' : `BUY ${e.price}`;
+    buy.querySelector('.mxb-t')!.textContent = own ? 'OWNED' : `BUY ${CURRENCY.fmt(e.price)}`;
     buy.disabled = own;
     const s = slotOf(id);
     equip.querySelector('.mxb-t')!.textContent = !own ? 'PREVIEW' : s >= 0 ? `WHEEL ${s + 1}` : 'ON WHEEL';
@@ -154,7 +154,7 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
   function doBuy() {
     const e = emoteInfo(sel); if (!e) return;
     const r = buyEmote(e.id);
-    if (r === 'poor') { sfx('error', 0.8); say(`NOT ENOUGH RESEARCH · NEED ${e.price - balance()} MORE`); return; }
+    if (r === 'poor') { sfx('error', 0.8); say(`NOT ENOUGH ${CURRENCY.name} · NEED ${CURRENCY.fmt(e.price - balance())} MORE`); return; }
     if (r !== 'ok') return;
     // the coin goes in, the bulbs chase, the record drops
     coin.classList.remove('drop'); void coin.offsetWidth; coin.classList.add('drop');
@@ -178,7 +178,7 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
     if (arm && owns(sel)) { setSlot(i, sel); sfx('clamp', 0.7); disarm(); say(`SOCKET ${i + 1} · ${emoteInfo(sel)!.name}`); build(); select(sel, true); return; }
     if (cur) select(cur); else say('EMPTY SOCKET · SELECT A RECORD, THEN ON WHEEL');
   }
-  const unsub = onEmotes(() => { rp.querySelector('b')!.textContent = String(balance()); });
+  const unsub = onEmotes(() => { rp.querySelector('b')!.textContent = CURRENCY.fmt(balance()); });
   build(); select(sel, true);
   const nav = new FocusNav(root, { onBack: () => shut(), autofocus: buy });
 

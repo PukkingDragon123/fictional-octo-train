@@ -1,7 +1,10 @@
 // The emote catalogue (the shop's records) and what this operator owns and has
-// on the wheel. Prices are research points (the lab commissary's currency,
-// src/game/research.ts). Four basics come with every operator. Owned emotes and
+// on the wheel. Prices are in dollars, spent from the lab commissary's
+// purse (src/game/research.ts). Four basics come with every operator. Owned emotes and
 // the eight wheel slots are kept in this browser (localStorage 'noclip.emotes').
+// Round 17: the shop is paid in DOLLARS (the researcher's currency); it spends
+// through the same purse the lab commissary uses (balance / spend below, the one
+// place to re-point when the currencies are consolidated).
 //
 //   EMOTES_ALL, emoteInfo(id), owns(id), ownedList(), buyEmote(id) -> 'ok' | 'poor' | 'owned'
 //   wheelSlots() -> (id | '')[8], setSlot(i, id), onEmotes(cb)
@@ -95,7 +98,7 @@ export function buyEmote(id: string): 'ok' | 'poor' | 'owned' | 'none' {
   const e = BY.get(id);
   if (!e) return 'none';
   if (owns(id)) return 'owned';
-  if (e.price > 0 && !spendResearch(e.price, 'emote:' + id)) return 'poor';
+  if (e.price > 0 && !spendResearch(e.price, 'emote:' + id)) return 'poor'; // the commissary's purse (see the header)
   const s = load();
   s.owned.push(id);
   const free = s.slots.indexOf('');
@@ -103,5 +106,7 @@ export function buyEmote(id: string): 'ok' | 'poor' | 'owned' | 'none' {
   save();
   return 'ok';
 }
-export const balance = () => researchPoints();
+export const balance = () => Math.floor(researchPoints());
+/** how prices read in the jukebox */
+export const CURRENCY = { name: 'DOLLARS', fmt: (n: number) => '$' + n };
 if (import.meta.env?.DEV && typeof window !== 'undefined') (window as unknown as { __emotes: unknown }).__emotes = { EMOTES_ALL, owns, buyEmote, wheelSlots, setSlot, reset: () => { state = null; try { localStorage.removeItem(KEY); } catch { /* */ } } };
