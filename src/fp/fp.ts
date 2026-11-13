@@ -63,6 +63,42 @@ function guardArms() {
   });
 }
 
+// near-field focus: the eyes are on what the hands hold, not on the arm right under the nose. The near end of every
+// arm (the elbow, the sleeve) is drawn soft through a masked backdrop blur; the hands stay sharp. (The wrist
+// terminal, src/ui/bandos, keeps its own.)
+let nearEl: HTMLDivElement | null = null;
+let nearHooked = false;
+const _ne = new THREE.Vector3(), _nm = new THREE.Vector3();
+function nearBlur() {
+  if (nearHooked || !G.pr || typeof document === 'undefined') return;
+  nearHooked = true;
+  G.pr.beforeRender.push(() => {
+    const g = owner && owner !== 'watch' ? groups.get(owner) : null;
+    if (!g || !G.pr.overlayEnabled || !eyeActive()) { if (nearEl) nearEl.style.display = 'none'; return; }
+    if (!nearEl) {
+      nearEl = document.createElement('div');
+      nearEl.style.cssText = 'position:fixed;inset:0;z-index:1;pointer-events:none;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)';
+      document.body.append(nearEl);
+    }
+    const cam = G.pr.overlayCamera, vw = window.innerWidth, vh = window.innerHeight;
+    const masks: string[] = [];
+    g.traverse((o) => {
+      if (!o.name.startsWith('fpArm:') || !o.visible) return;
+      o.updateWorldMatrix(true, false);
+      o.getWorldPosition(_ne);
+      _nm.set(0, 0.26 * 0.55, 0); o.localToWorld(_nm);
+      _ne.project(cam); _nm.project(cam);
+      if (_ne.z > 1 || _nm.z > 1) return;
+      const ex = (_ne.x + 1) / 2 * vw, ey = (1 - _ne.y) / 2 * vh, mx = (_nm.x + 1) / 2 * vw, my = (1 - _nm.y) / 2 * vh;
+      const r = Math.max(40, Math.hypot(mx - ex, my - ey));
+      masks.push(`radial-gradient(circle ${Math.round(r)}px at ${Math.round(ex)}px ${Math.round(ey)}px, #000 55%, rgba(0,0,0,0) 100%)`);
+    });
+    nearEl.style.display = masks.length && !document.documentElement.classList.contains('reduce-flash') ? 'block' : 'none';
+    const m = masks.join(', ');
+    nearEl.style.maskImage = m; (nearEl.style as unknown as Record<string, string>).webkitMaskImage = m;
+  });
+}
+
 /** your group in the overlay scene; it is only visible while you own the stage */
 export function fpGroup(name: string): THREE.Group {
   let g = groups.get(name);
@@ -84,7 +120,7 @@ export function fpClaim(name: string, prio = 0, opts: FpClaimOpts = {}): boolean
   if (owner && owner !== name && prio <= ownerPrio && !(full && mode !== 'full' && prio === ownerPrio)) return false;
   const prev = owner;
   owner = name; ownerPrio = prio; stage = !!opts.stage;
-  guardArms();
+  guardArms(); nearBlur();
   for (const [k, g] of groups) g.visible = k === name;
   fpGroup(name).visible = true;
   G.pr.overlayEnabled = true;

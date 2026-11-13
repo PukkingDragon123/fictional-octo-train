@@ -128,7 +128,8 @@ export interface FieldPack {
   /** the zip pulls run round (0 shut .. 1 open) */
   setZip(k: number): void;
   /** the luggage tag's text */
-  setTag(lines: string[]): void;
+  /** the luggage tag: its lines, and (round 17) the load as a gauge, 0..1 of the rating */
+  setTag(lines: string[], gauge?: number): void;
   /** the parts a hand reaches for (pack-local) */
   pull: THREE.Object3D; lidEdge: THREE.Object3D; handle: THREE.Object3D;
   /** pointer targets: the lid (tap to close), the haul handle */
@@ -211,13 +212,26 @@ export function buildFieldPack(): FieldPack {
   tag.position.set(0.1, 0.012, -L / 2 - 0.1);
   root.add(tag);
   const tagCord = box(0.004, 0.003, 0.08, mat('amber'), 0.05, 0.02, -L / 2 - 0.05); tagCord.rotation.y = -0.6; root.add(tagCord);
-  const setTag = (lines: string[]) => {
+  const setTag = (lines: string[], gauge?: number) => {
     const x = tagC.getContext('2d')!;
     x.fillStyle = '#d8c89a'; x.fillRect(0, 0, 96, 64);
     x.fillStyle = '#b8281c'; x.fillRect(0, 0, 96, 9);
     x.fillStyle = '#fff3d8'; x.font = 'bold 8px monospace'; x.fillText('MERIDIAN · FIELD PACK', 4, 7);
     x.fillStyle = '#3a2a14';
-    lines.slice(0, 5).forEach((l, i) => { x.font = (i === 1 ? 'bold 11px' : '8px') + ' monospace'; x.fillText(l, 5, 21 + i * 10 + (i > 1 ? 2 : 0)); });
+    if (gauge === undefined) lines.slice(0, 5).forEach((l, i) => { x.font = (i === 1 ? 'bold 11px' : '8px') + ' monospace'; x.fillText(l, 5, 21 + i * 10 + (i > 1 ? 2 : 0)); });
+    else {
+      // round 17: the unit's number, then the load as a gauge (ten cells, amber then red as it nears the rating), the kilos under it
+      x.font = '8px monospace'; x.fillText(lines[0] ?? '', 5, 19);
+      const k = Math.max(0, Math.min(1.2, gauge));
+      x.fillStyle = '#3a2a14'; x.fillRect(4, 24, 80, 12);
+      for (let i = 0; i < 10; i++) {
+        const on = k * 10 > i + 0.15;
+        x.fillStyle = on ? (i >= 9 || k > 1 ? '#c8281c' : i >= 7 ? '#d88a1c' : '#4a8a3a') : '#6a5a3a';
+        x.fillRect(6 + i * 8, 26, 6, 8);
+      }
+      x.fillStyle = '#3a2a14'; x.font = 'bold 11px monospace'; x.fillText(lines[1] ?? '', 5, 49);
+      x.font = '8px monospace'; x.fillText(lines[2] ?? '', 5, 59);
+    }
     x.fillStyle = '#5a4a2a'; x.beginPath(); x.arc(88, 34, 3, 0, Math.PI * 2); x.fill();
     tagT.needsUpdate = true;
   };
@@ -331,6 +345,8 @@ export interface Body {
   pendT: number;
   /** a highlight 0..1 (hover) */
   glow: number;
+  /** round 17: how far it has turned on the spot under the pointer (visual only) */
+  spin?: number;
 }
 
 const GRAV = 9.8;
@@ -510,8 +526,10 @@ export class Phys {
   }
   sync(b: Body) {
     b.holder.position.copy(b.pos);
-    b.holder.rotation.set(b.tx, b.yaw, b.tz, 'YXZ');
-    const s = 1 + b.glow * 0.06;
+    // round 17: the thing under the pointer lifts a little and turns on the spot (b.spin, src/ui/inventory.ts)
+    b.holder.position.y += b.glow * Math.max(0.012, b.hy * 0.6);
+    b.holder.rotation.set(b.tx, b.yaw + (b.spin ?? 0), b.tz, 'YXZ');
+    const s = 1 + b.glow * 0.1;
     b.holder.scale.setScalar(s);
   }
   /** the bin whose footprint (with its catch margin) a world point is over, if any */

@@ -10,7 +10,7 @@ import * as THREE from 'three';
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import type { TileObject } from '../world/zone';
-import { type Item, itemDef, itemName } from '../items/item';
+import { type Item, itemDef, itemName, allItemDefs } from '../items/item';
 import { allRecipes, type Recipe } from '../items/recipes';
 import { checkRecipe, CraftAction } from '../interact/crafting';
 import { hasUnlock, researchNode } from '../game/research';
@@ -21,16 +21,18 @@ import { Tweens, easeOut, easeBack, makeArm, poseArm, type Arm, makeItemObj, fit
 import { pixMat } from './fpTex';
 import { ink, inkMesh, shade, shadowBlob, WorkLamp } from './fpScene';
 import { gem } from '../ui/touch/facet';
-import { pixTag, stamp, disposeTag, type PixTag } from './tags';
+import { pixTag, disposeTag, type PixTag } from './tags';
 import { Shape } from './shapes';
 import { Dymo, Slate, HoverTag, clickTag } from './props';
 import { recipeHint } from './knowledge';
+import { storeItems } from './stores';
+import { mxItemStill } from '../ui/machine/itemSpin';
 import { craftSpeed } from '../build/speed';
 import { talentMul } from '../survival/talents';
 import { panicLocks, panicFumble } from '../game/panic';
 
 interface Staged { it: Item; obj: ItemObj; spot: number; sh: THREE.Mesh }
-interface Sheet { t: PixTag; run: () => void }
+interface Sheet { t: PixTag; run: () => void; /** round 17: the thing it makes, turning in front of the sheet */ spin?: THREE.Group }
 const SPOTS_X = 5, SPOTS_Z = 3, SPOT = 0.13;
 /** how far down the eyes look at the bench (the room shows over the pegboard) */
 const BENCH_PITCH = 26;
@@ -354,12 +356,20 @@ export class Bench {
   }
 
   // ---------------------------------------------------------------- blueprint sheets: what can be made from what is on the bench
+  // Round 17: less text. A sheet names the thing (one line), a lamp in its corner says where it stands (green
+  // ready, amber pull the parts / by hand, red missing, blue research, grey unknown), the thing itself turns in
+  // front of the sheet as its real model (quicker under the pointer), and its parts are small models with
+  // have / need counts (pale when there, red when short). Clicking a sheet does what it did before.
   private renderSheets() {
     const p = G.local;
     const onBench = this.staged.map((s) => s.it);
     const known: Set<string> = (p as any).knownRecipes || new Set();
-    const rows: { title: string; lines: string; mark: string; ok: boolean; score: number; run: () => void }[] = [];
-    const nm = (m: string) => (m.startsWith('#') ? m.slice(1) : itemDef(m).name);
+    type Part = { key: string; have: number; need: number };
+    type State = 'ready' | 'pull' | 'hand' | 'missing' | 'research' | 'unknown';
+    const rows: { title: string; out: string; parts: Part[]; state: State; score: number; run: () => void }[] = [];
+    const pool = [...p.allItems().filter((i) => !p.isWorn(i)), ...storeItems(p)];
+    const iconKey = (m: string) => (m.startsWith('#') ? (pool.find((it) => matches(it, m))?.key ?? allItemDefs().find((d) => (d.tags || []).includes(m.slice(1)))?.key ?? '') : m);
+    const haveOf = (m: string) => pool.filter((it) => matches(it, m)).length;
     for (const h of HAND_OPS) {
       if (!h.item) continue;
       const tgt = onBench.find((it) => h.item!(it, itemDef(it.key)));
@@ -369,44 +379,92 @@ export class Bench {
       const lock = h.requires && !hasUnlock(h.requires) ? researchNode(h.requires)?.title || h.requires : '';
       const miss = parts.filter((q) => q.missing).map((q) => partLabel(q.req));
       const ok = !lock && !!tool && !miss.length;
-      rows.push({ ok, score: ok ? 3 : 1, run: () => { if (ok) this.handStep(tgt, h); else this.dymo.show(lock ? 'research: ' + lock : 'need ' + (tool ? miss.join(', ') : toolLabel(h)), true); },
-        title: h.name, lines: itemName(tgt) + ' + ' + (tool?.it ? itemName(tool.it) : tool ? 'hands' : toolLabel(h)) + (miss.length ? '. need ' + miss.join(', ') : ''), mark: lock ? 'RESEARCH' : ok ? 'BY HAND' : 'MISSING' });
+      const ps: Part[] = [];
+      if (tool?.it) ps.push({ key: tool.it.key, have: 1, need: 1 });
+      else if (!tool && h.tools?.length) ps.push({ key: iconKey(h.tools[0].m), have: 0, need: 1 });
+      for (const q of parts) { const [k, n] = q.req.any[0]; ps.push({ key: iconKey(k), have: Math.min(n, q.items.length || (q.missing ? haveOf(k) : n)), need: n }); }
+      rows.push({ score: ok ? 3 : 1, run: () => { if (ok) this.handStep(tgt, h); else this.dymo.show(lock ? 'research: ' + lock : 'need ' + (tool ? miss.join(', ') : toolLabel(h)), true); },
+        title: h.name, out: tgt.key, parts: ps, state: lock ? 'research' : ok ? 'hand' : 'missing' });
     }
     for (const r of allRecipes()) {
       const uses = r.inputs.filter((i) => !i.keep).some((inp) => onBench.some((it) => matches(it, inp.item)));
       const benchOnly = (r.needs || []).includes('workbench');
       if (!uses && !(benchOnly && onBench.length === 0)) continue;
       if (r.learned && !known.has(r.key)) {
-        if (uses) rows.push({ ok: false, score: 0, run: () => this.dymo.show('schematic unknown', true), title: r.name, lines: recipeHint(r) || 'schematic unknown', mark: 'UNKNOWN' });
+        if (uses) rows.push({ score: 0, run: () => this.dymo.show(recipeHint(r) || 'schematic unknown', true), title: r.name, out: '', parts: [], state: 'unknown' });
         continue;
       }
       const chk = checkRecipe(p, r, onBench);
       const need = this.notOnBench(r, onBench);
       const ok = chk.ok && !need.length;
       rows.push({
-        ok, score: ok ? 2.5 : chk.ok ? 2 : uses ? 1 : 0.5,
+        score: ok ? 2.5 : chk.ok ? 2 : uses ? 1 : 0.5,
         run: () => { if (ok) this.assemble(r); else if (chk.ok && need.length) this.pull(r); else this.dymo.show('need ' + chk.missing.slice(0, 2).join(', '), true); },
-        title: r.name,
-        lines: r.inputs.map((i) => (i.count && i.count > 1 ? i.count + 'x ' : '') + nm(i.item) + (i.keep ? ' (tool)' : '')).join(', ') + (!chk.ok ? '. need ' + chk.missing.slice(0, 2).join(', ') : ''),
-        mark: ok ? 'READY' : chk.ok ? 'PULL PARTS' : 'MISSING',
+        title: r.name, out: r.outputs[0]?.item ?? '',
+        parts: r.inputs.filter((i) => !i.fluid).map((i) => ({ key: iconKey(i.item), have: Math.min(i.count ?? 1, haveOf(i.item)), need: i.count ?? 1 })),
+        state: ok ? 'ready' : chk.ok ? 'pull' : 'missing',
       });
     }
     rows.sort((a, b) => b.score - a.score);
     for (const s of this.sheets) disposeTag(s.t);
     this.sheets = [];
-    const list = rows.length ? rows.slice(0, 6) : [{ title: 'Empty bench', lines: 'drag things out of the cube onto the boards', mark: '', ok: false, score: 0, run: () => {} }];
-    list.forEach((row, i) => {
+    const LAMP: Record<State, string> = { ready: '#7aff8a', pull: '#ffd040', hand: '#ffd040', missing: '#ff5a48', research: '#7ab8ff', unknown: '#8a96aa' };
+    if (!rows.length) {
+      // an empty bench: one sheet, an arrow from the cube to the boards
       const t = pixTag('blueprint', 84, 56, 0.28);
       t.clear();
-      t.type(row.title, 5, 7, undefined, 8.5, 'sign');
-      t.para(row.lines, 5, 18, 76, '#c8d8f0', 7.5, 3, 6.5);
-      if (row.mark) stamp(t, row.mark, 7, 45, row.ok ? '#8ae88a' : row.mark === 'PULL PARTS' || row.mark === 'BY HAND' ? '#ffd860' : '#ff7a6a');
+      t.type('Empty bench', 5, 6, undefined, 8.5, 'sign');
+      t.art((c) => { c.fillStyle = '#c8d8f0'; for (let i = 0; i < 5; i++) c.fillRect(30 + i * 14, 60, 8, 4); c.fillRect(100, 52, 4, 20); c.fillRect(104, 56, 4, 12); c.fillRect(108, 60, 4, 4); });
+      t.flush();
+      t.mesh.position.set(-0.3, 0.098, 0.012);
+      this.peg.add(t.mesh);
+      this.sheets.push({ t, run: () => {} });
+      return;
+    }
+    rows.slice(0, 6).forEach((row, i) => {
+      const t = pixTag('blueprint', 84, 56, 0.28);
+      t.clear();
+      t.type(row.title.length > 19 ? row.title.slice(0, 18) + '.' : row.title, 4, 4, undefined, 8, 'sign');
+      const lamp = LAMP[row.state];
+      t.art((c) => {
+        // the lamp
+        c.fillStyle = '#0c1a34'; c.fillRect(150, 6, 12, 12);
+        c.fillStyle = lamp; c.fillRect(152, 8, 8, 8);
+        c.fillStyle = 'rgba(255,255,255,0.7)'; c.fillRect(153, 9, 3, 2);
+        // the stand the model turns on: corner marks
+        c.fillStyle = 'rgba(200,220,255,0.55)';
+        for (const [x, y, dx, dy] of [[6, 28, 1, 1], [70, 28, -1, 1], [6, 104, 1, -1], [70, 104, -1, -1]] as const) { c.fillRect(dx > 0 ? x : x - 7, y, 8, 2); c.fillRect(dx > 0 ? x : x - 1, dy > 0 ? y : y - 6, 2, 8); }
+        if (row.state === 'unknown') { c.fillStyle = '#c8d8f0'; c.font = '700 40px monospace'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('?', 38, 68); }
+        // the parts: small models, have / need
+        row.parts.slice(0, 4).forEach((q, j) => {
+          const x = 80 + (j % 2) * 44, y = 26 + Math.floor(j / 2) * 42;
+          const cv = q.key ? mxItemStill(q.key, 22) : null;
+          const okq = q.have >= q.need;
+          // a pale card behind each part so the model reads on the blue
+          c.fillStyle = okq ? 'rgba(220,232,255,0.34)' : 'rgba(255,140,120,0.3)'; c.fillRect(x - 2, y - 2, 34, 34);
+          if (cv) c.drawImage(cv, x, y, 30, 30);
+          c.font = '700 13px monospace'; c.textAlign = 'left'; c.textBaseline = 'top';
+          c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillText(`${q.have}/${q.need}`, x + 1, y + 34);
+          c.fillStyle = okq ? '#f0f6ff' : '#ff8a78'; c.fillText(`${q.have}/${q.need}`, x, y + 33);
+        });
+      });
       t.flush();
       const col = i % 3, ln = Math.floor(i / 3);
       t.mesh.position.set(-0.3 + col * 0.3, 0.098 - ln * 0.198, 0.012);
       t.mesh.rotation.z = (i % 2 ? 0.03 : -0.025);
       this.peg.add(t.mesh);
-      this.sheets.push({ t, run: row.run });
+      let spin: THREE.Group | undefined;
+      if (row.out && row.state !== 'unknown') {
+        // the thing it makes, as itself, turning on the sheet's stand
+        const o = makeItemObj(row.out);
+        fitItemObj(o, 0, 0.085, 0.085, 0.07, 3);
+        spin = new THREE.Group();
+        spin.position.set(-0.067, -0.016, 0.04);
+        spin.rotation.set(0.35, i * 0.9, 0);
+        spin.add(o.outer);
+        t.mesh.add(spin);
+      }
+      this.sheets.push({ t, run: row.run, spin });
     });
   }
 
@@ -461,17 +519,43 @@ export class Bench {
     this.slate.hide();
     const p = G.local;
     const before = new Set(p.allItems());
+    const was = [...this.staged];
     const a = new CraftAction(p, h.r);
     a.prefer = this.staged.map((s) => s.it);
     try { a.perform(); } catch (e) { console.warn('bench craft', e); }
     G.missions?.set?.('craft:bench');
+    const now = new Set(p.allItems());
     const fresh = p.allItems().filter((i) => !before.has(i));
+    // round 17: the parts that went into it fly together over the middle of the boards and shrink away...
+    const mid = new THREE.Vector3(0.15, 0.06, -0.05);
+    for (const s of was) {
+      if (now.has(s.it)) continue;
+      this.staged.splice(this.staged.indexOf(s), 1);
+      this.cube.hidden.delete(s.it);
+      this.stageG.remove(s.sh);
+      const from = s.obj.outer.position.clone(), s0 = s.obj.outer.scale.x;
+      this.tw.add(0.26, (k) => {
+        s.obj.outer.position.lerpVectors(from, mid, k).y += Math.sin(k * Math.PI) * 0.08;
+        s.obj.outer.scale.setScalar(s0 * (1 - k * 0.8));
+        s.obj.outer.rotation.y += 0.25;
+      }, easeOut, () => this.stageG.remove(s.obj.outer));
+    }
     this.prune();
-    for (const it of fresh) this.stage(it);
-    G.audio?.ui?.('craft_done', 0.5);
-    this.top.localToWorld(_v.set(0.15, 0.05, 0));
-    this.sparks.emit(_v.x, _v.y, _v.z, 20, 0xfff0b0, 0.6, 0.6);
-    this.dymo.show('+ ' + (fresh.length ? itemName(fresh[0]) : h.r.name));
+    // ...then a burst of sparks, and what they made pops up where they met
+    this.tw.add(0.26, () => {}, easeOut, () => {
+      this.top.localToWorld(_v.copy(mid));
+      this.sparks.emit(_v.x, _v.y, _v.z, 46, 0xfff0b0, 0.9, 0.9);
+      this.dust.emit(_v.x, _v.y, _v.z, 14, 0xd8c8a0, 0.5, 0.5);
+      G.audio?.ui?.('craft_done', 0.5);
+      for (const it of fresh) {
+        if (!this.stage(it, mid)) continue;
+        const st = this.staged[this.staged.length - 1], o = st.obj.outer, s1 = o.scale.x;
+        o.scale.setScalar(s1 * 0.05);
+        this.tw.add(0.34, (k) => { o.scale.setScalar(s1 * Math.max(0.05, k)); o.rotation.y = (1 - k) * Math.PI * 2; }, easeBack);
+      }
+      this.dymo.show('+ ' + (fresh.length ? itemName(fresh[0]) : h.r.name));
+      this.dirty = true;
+    });
     this.dirty = true;
   }
 
@@ -622,6 +706,9 @@ export class Bench {
     this.dust.update(dt, 1.6); this.sparks.update(dt, 2.4);
     this.dymo.update(dt);
     this.lampL?.update(dt);
+    // the sheets' models turn; the one under the pointer quicker
+    const hs = this.drag?.live ? null : this.sheetAt(this.px, this.py);
+    for (const sh of this.sheets) if (sh.spin) { const hot = sh === hs; sh.spin.rotation.y += dt * (hot ? 3.2 : 0.7); const k = hot ? 1.18 : 1; sh.spin.scale.setScalar(sh.spin.scale.x + (k - sh.spin.scale.x) * Math.min(1, dt * 12)); }
     const d = this.drag;
     if (d?.live) { pointerRay(this.rc, fpCamera(), this.px, this.py).at(1.3, _v); d.ghost.outer.position.lerp(_v, 1 - Math.exp(-30 * dt)); }
     const h = this.hold;

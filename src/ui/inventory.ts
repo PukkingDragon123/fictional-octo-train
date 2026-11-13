@@ -742,7 +742,8 @@ export class InventoryUI {
     const p = G.local; if (!p || !this.pack) return;
     const c = this.cubeC();
     const w = c ? c.carriedWeight() : 0;
-    this.pack.setTag([debtorNo(p) || 'UNIT', `LOAD ${w.toFixed(1)} KG`, `RATED ${c ? c.capacity : 0} KG`, `${c ? c.items.length : 0} ITEMS`]);
+    // round 17: the load as a gauge against the rating, the kilos and the count as numbers
+    this.pack.setTag([debtorNo(p) || 'UNIT', `${w.toFixed(1)} / ${c ? c.capacity : 0} KG`, `${c ? c.items.length : 0} ×`], c && c.capacity ? w / c.capacity : 0);
   }
 
   // ================================================================ frame
@@ -778,7 +779,15 @@ export class InventoryUI {
     }
     this.impactT -= dt;
     this.phys.step(dt);
-    for (const bin of this.phys.bins) for (const b of bin.bodies) { const want = b === this.hover ? 1 : 0; if (b.glow !== want) { b.glow += (want - b.glow) * Math.min(1, dt * 14); if (Math.abs(b.glow - want) < 0.01) b.glow = want; this.phys.sync(b); } }
+    for (const bin of this.phys.bins) for (const b of bin.bodies) {
+      const want = b === this.hover ? 1 : 0;
+      let moved = false;
+      if (b.glow !== want) { b.glow += (want - b.glow) * Math.min(1, dt * 14); if (Math.abs(b.glow - want) < 0.01) b.glow = want; moved = true; }
+      // round 17: the thing under the pointer turns on the spot; let go, it turns back to how it lay
+      if (want) { b.spin = ((b.spin ?? 0) + dt * 2.2) % (Math.PI * 2); moved = true; }
+      else if (b.spin) { const r = Math.atan2(Math.sin(b.spin), Math.cos(b.spin)); b.spin = Math.abs(r) < 0.02 ? 0 : r * (1 - Math.min(1, dt * 8)); moved = true; }
+      if (moved) this.phys.sync(b);
+    }
     if (this.shakeT > 0) this.shakeT -= dt;
     this.dust.update(dt);
     this.noteT -= dt;
@@ -861,7 +870,7 @@ export class InventoryUI {
     const idx = this.side.map((_, i) => i);
     const show = idx.length <= 5 ? idx : [...idx.slice(0, 4), idx.length - 1];
     if (!show.includes(this.sideSel)) show[show.length - 2] = this.sideSel;
-    const names = show.map((i) => ({ name: this.side[i].name, i, n: this.side[i].c.items.length }));
+    const names = show.map((i) => ({ name: this.side[i].name, i, n: this.side[i].c.items.length, fill: this.side[i].c.capacity ? Math.min(1, this.side[i].c.contentWeight() / this.side[i].c.capacity) : 0 }));
     const wide = fpCamera().aspect >= 1.2;
     const base = this.srcShown() ? this.srcHold.position : this.floorG.position;
     const [sw, sd] = this.srcShown() ? this.srcSize() : [0.5, 0.6];
@@ -1038,7 +1047,7 @@ export class InventoryUI {
     const b = h?.kind === 'body' ? h.b : null;
     if (b !== this.hover) { this.hover = b; if (b) G.audio?.ui?.('hover', 0.15); }
     if (b) this.showTag(b);
-    else if (h?.kind === 'lid') { this.pack.lidEdge.getWorldPosition(_v); this.world.worldToLocal(_v); this.gtag.text(['THE FRONT PANEL', 'TAP: ZIP IT SHUT'], _v.clone(), _v.clone().add(_v2.set(-0.05, -_v.y + 0.004, 0.14))); }
+    else if (h?.kind === 'lid') { this.pack.lidEdge.getWorldPosition(_v); this.world.worldToLocal(_v); this.gtag.text(['ZIP SHUT'], _v.clone(), _v.clone().add(_v2.set(-0.05, -_v.y + 0.004, 0.14))); }
     else if (h?.kind === 'held') { const o = this.heldObjs[h.hand]; if (o) { o.outer.getWorldPosition(_v); this.world.worldToLocal(_v); this.gtag.item(h.it, 1, _v.clone(), _v.clone().add(_v2.set(0.02, 0.004 - _v.y, 0.12))); } }
     else this.gtag.hide();
   }

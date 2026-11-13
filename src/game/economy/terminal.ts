@@ -32,6 +32,7 @@ import {
 import { PATTERNS, PRESS_UPGRADES, type Pattern } from './registry';
 import { slagWords } from './crusher';
 import { FeedScreen } from './feedScreen';
+import { CreateScreen, type CreateHost } from './createScreen';
 import { INSTALLMENT_DOLLARS } from './money';
 import { itemValue } from '../debt/values';
 import './terminal.css';
@@ -108,6 +109,7 @@ export function openPressTerminal(o: TermOpen) {
   let waiting = false;
   // the polished 2D screen (src/game/economy/feedScreen.ts): it keeps its counter, ram and log alive across renders
   let fs: FeedScreen | null = null;
+  let cs: CreateScreen | null = null;
   const onDeposit = (e: { hopper?: number; value?: number; out?: string[]; jack?: number; bonus?: number }) => {
     if (!wrap.isConnected || !o.o || e.hopper !== o.o.uid || !waiting) return;
     waiting = false;
@@ -136,6 +138,7 @@ export function openPressTerminal(o: TermOpen) {
     for (const u of unsub) u();
     window.removeEventListener('keydown', onKey, true);
     fs?.destroy(); fs = null;
+    cs?.destroy(); cs = null;
     t.screen.style.transform = '';
     wrap.classList.add('off');
     setTimeout(() => wrap.remove(), 160);
@@ -155,7 +158,7 @@ export function openPressTerminal(o: TermOpen) {
     const body = t.body;
     const keep = body.scrollTop;
     // the FEED page keeps its tube attached (re-attaching would replay the power-on): it clears its own leftovers
-    if (page !== 'feed') body.innerHTML = '';
+    if (page !== 'feed' && page !== 'create') body.innerHTML = '';
     if (page === 'feed') feed(body);
     else if (page === 'account') account(body);
     else if (page === 'dial') dial(body);
@@ -271,50 +274,29 @@ export function openPressTerminal(o: TermOpen) {
   }
 
   // ---------------------------------------------------------------- CREATE
+  // the press's shop (createScreen.ts): every pattern a ware on a plinth, its model turning, its price in numbers;
+  // hold a plinth down to buy. Calibration, the purse, the bank and the upgrades ride along the top.
   function create(el: HTMLElement) {
     const batch = hasUnlock('pr_batch') ? 3 : 1;
-    const where = o.from === 'lab' ? 'made here goes down the chute at the start of your next run' : o.from === 'relay' ? 'prints arrive at the beacon' : 'prints rise out of the seam onto the plate';
-    el.append(h('p', 'ptm-note', `${esc(where)} · $${fmt(tokens())} in the purse · ${fmtKg(bankTotal())} banked${batch > 1 ? ' · BATCH FORMER: ×3 per fee' : ''}`));
-    // the plate's calibration (UI round 15, src/ui/minigames/calibrate.ts): a clean run prints a spare on the next make
-    const cal = h('div', 'ptm-cal');
-    cal.innerHTML = `<span>${calib === 2 ? 'PLATE TRUE · the next make prints one spare' : calib === 1 ? 'plate close · calibrate clean for a spare' : 'plate uncalibrated · a clean calibration prints one spare'}</span>`;
-    const cb = h('button', 'ptm-make', calib === 2 ? 'true' : 'calibrate') as HTMLButtonElement;
-    cb.type = 'button'; cb.disabled = calib === 2;
-    cb.addEventListener('click', async () => {
-      const r = await calibrate({ title: 'Plate calibration', sub: 'stop each needle in the green · Space / E / click', dials: 3, difficulty: hasUnlock('pr_batch') ? 3 : 2 });
-      if (!r.cancelled) { calib = r.perfect ? 2 : r.hits >= 2 ? 1 : 0; sfx(r.perfect ? 'stamp' : 'error', 0.6); }
-      render();
-    });
-    cal.append(cb);
-    el.append(cal);
-    const list = h('div', 'ptm-pats');
-    const known = PATTERNS.filter((q) => hasUnlock(q.key) && hasItemDef(q.item));
-    const locked = PATTERNS.filter((q) => !hasUnlock(q.key) && hasItemDef(q.item));
-    if (!known.length) list.append(h('p', 'dim', 'No patterns on file. Research them in the lab: THE PRESS branch of the lattice.'));
-    for (const q of known) list.append(patRow(q, batch));
-    el.append(list);
-    if (locked.length) {
-      el.append(h('p', 'ptm-sub', `LOCKED PATTERNS (${locked.length}) · research in the lab`));
-      const l2 = h('div', 'ptm-locked');
-      for (const q of locked.slice(0, 40)) l2.append(h('span', '', `${esc(iname(q.item))} <i>${q.rp} RP</i>`));
-      el.append(l2);
-    }
-    const ups = PRESS_UPGRADES.map((u) => `<span class="${hasUnlock(u.key) ? 'own' : ''}">${hasUnlock(u.key) ? '■' : '□'} ${esc(u.title)}</span>`).join('');
-    el.append(h('p', 'ptm-sub', 'PRESS UPGRADES'), h('div', 'ptm-ups', ups));
-  }
-  function patRow(q: Pattern, batch: number) {
-    const cost = scaleMatter(q.cost, batch);
-    const short = !canAfford(cost), poor = tokens() < q.tok;
-    const busy = o.from === 'press' && !!o.o && !!(G.press ?? G.debt?.hoppers)?.busy?.(o.o);
-    const r = h('div', 'ptm-pat' + (short || poor ? ' cant' : ''));
-    const icon = canIcon() ? `<img src="${itemIcon(q.item, '', 24)}" alt="">` : `<span class="ptm-noicon"></span>`;
-    r.innerHTML = `${icon}<b>${esc(iname(q.item))}${q.n * batch > 1 ? ` ×${q.n * batch}` : ''}</b><span class="ptm-cost">${costLine(cost)} · <i class="tok">$${q.tok}</i></span>`;
-    const b = h('button', 'ptm-make', short ? 'short' : poor ? 'dollars' : busy ? 'busy' : 'make') as HTMLButtonElement;
-    b.type = 'button';
-    b.disabled = short || poor || busy;
-    b.addEventListener('click', () => make(q, batch));
-    r.append(b);
-    return r;
+    const busy = () => o.from === 'press' && !!o.o && !!(G.press ?? G.debt?.hoppers)?.busy?.(o.o);
+    const hostC: CreateHost = {
+      known: PATTERNS.filter((q) => hasUnlock(q.key) && hasItemDef(q.item)),
+      locked: PATTERNS.filter((q) => !hasUnlock(q.key) && hasItemDef(q.item)),
+      batch, dollars: tokens(), bankKg: bankTotal(),
+      why: (q) => (!canAfford(scaleMatter(q.cost, batch)) ? 'matter' : tokens() < q.tok ? 'dollars' : busy() ? 'busy' : ''),
+      cost: (q) => scaleMatter(q.cost, batch),
+      banked: (m) => banked(m as never),
+      make: (q) => make(q, batch),
+      calib,
+      calibrate: async () => {
+        const r = await calibrate({ title: 'Plate calibration', sub: 'stop each needle in the green · Space / E / click', dials: 3, difficulty: hasUnlock('pr_batch') ? 3 : 2 });
+        if (!r.cancelled) { calib = r.perfect ? 2 : r.hits >= 2 ? 1 : 0; sfx(r.perfect ? 'unlock' : 'error', 0.6); }
+        render();
+      },
+      upgrades: PRESS_UPGRADES.map((u) => ({ title: u.title, on: hasUnlock(u.key) })),
+    };
+    if (!cs) cs = new CreateScreen(hostC); else cs.setHost(hostC);
+    cs.render(el);
   }
   function make(q: Pattern, batch: number) {
     const cost = scaleMatter(q.cost, batch);

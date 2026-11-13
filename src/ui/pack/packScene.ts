@@ -8,10 +8,9 @@
 import * as THREE from 'three';
 import { ModelBuilder } from '../../gfx/modelBuilder';
 import { fpMat } from '../../craft/fpKit';
-import { pixTag, tagString, setString, stamp, disposeTag, type PixTag } from '../../craft/tags';
+import { pixTag, tagString, setString, disposeTag, type PixTag } from '../../craft/tags';
 import type { Item } from '../../items/item';
 import { itemDef, itemName, itemWeight } from '../../items/item';
-import { size3 } from '../../items/grid';
 import { PixelCanvas, makeRamp } from '../../gfx/pixel';
 import { cssFont } from '../../gfx/crt';
 
@@ -128,12 +127,26 @@ export class GroundTag {
       const d = itemDef(it.key);
       const t = this.tag;
       t.clear();
-      const lines = t.para(itemName(it) + (n > 1 ? ' x' + n : ''), 6, 11, 74, undefined, 8.5, 2, 8);
-      const s = size3(it.key);
-      const y = 13 + lines * 8.5;
-      t.type(itemWeight(it).toFixed(1) + ' kg  ' + s[0] + 'x' + s[1] + 'x' + s[2], 6, y, '#5a3418', 6.5);
-      const extra = d.durability || d.weapon ? 'condition ' + Math.round(it.cond * 100) + '%' : d.value ? d.value + ' credits' : (d.cat || '');
-      t.type(extra, 6, y + 8, '#5a3418', 6.5);
+      // round 17: the name (one line), then gauges instead of sentences: its weight (a bar against 5 kg), its
+      // condition when that matters (a bar), its worth as a number after a credit mark
+      const nm = itemName(it) + (n > 1 ? ' ×' + n : '');
+      t.type(nm.length > 17 ? nm.slice(0, 16) + '.' : nm, 6, 10, undefined, 8);
+      const kg = itemWeight(it), cond = d.durability || d.weapon ? it.cond : -1, val = d.value ?? 0;
+      t.art((c) => {
+        const bar = (y: number, k: number, col: string) => {
+          c.fillStyle = 'rgba(58,40,20,0.85)'; c.fillRect(12, y, 104, 10);
+          for (let i = 0; i < 10; i++) { c.fillStyle = k * 10 > i + 0.1 ? col : 'rgba(120,96,60,0.5)'; c.fillRect(14 + i * 10, y + 2, 8, 6); }
+        };
+        const glyph = (x: number, y: number, kind: 'kg' | 'cond') => {
+          c.fillStyle = '#5a3418';
+          if (kind === 'kg') { c.fillRect(x + 2, y, 6, 2); c.fillRect(x, y + 2, 10, 8); c.fillStyle = '#d8c8a0'; c.fillRect(x + 3, y + 4, 4, 4); }
+          else { c.fillRect(x, y + 4, 10, 3); c.fillRect(x + 7, y + 1, 3, 9); c.fillRect(x + 1, y + 1, 2, 2); }
+        };
+        glyph(122, 36, 'kg'); bar(36, Math.min(1, kg / 5), kg > 5 ? '#c8281c' : '#5a3418');
+        if (cond >= 0) { glyph(122, 52, 'cond'); bar(52, cond, cond < 0.3 ? '#c8281c' : cond < 0.6 ? '#c8781c' : '#3a7a2a'); }
+      });
+      t.type(kg.toFixed(1) + ' kg', 6, cond >= 0 ? 41 : 30, '#5a3418', 6.5);
+      if (val) t.type('¢' + val, 58, cond >= 0 ? 41 : 30, '#5a3418', 6.5);
       t.flush();
     }
     this.place(at, rest);
@@ -167,8 +180,8 @@ export class TagRow {
   private sig = '';
   constructor(readonly parent: THREE.Object3D) { parent.add(this.g); }
   /** names: what each tag says; sel: the one showing; spots: where each lies (parent space); knot: the container */
-  set(names: { name: string; i: number; n: number }[], sel: number, spots: THREE.Vector3[], knot: THREE.Vector3) {
-    const sig = names.map((e) => e.name + e.i).join('|') + '#' + sel;
+  set(names: { name: string; i: number; n: number; fill?: number }[], sel: number, spots: THREE.Vector3[], knot: THREE.Vector3) {
+    const sig = names.map((e) => e.name + e.i + ':' + Math.round((e.fill ?? 0) * 10)).join('|') + '#' + sel;
     if (sig !== this.sig) {
       this.sig = sig;
       for (const s of this.tags) { disposeTag(s.t); this.g.remove(s.t.mesh, s.line); }
@@ -177,7 +190,13 @@ export class TagRow {
         const t = pixTag('tag', 62, 30, 0.135);
         t.clear();
         t.para(e.name, 6, 11, 52, undefined, 7.5, 2, 7.5);
-        if (e.i === sel) stamp(t, 'OPEN', 34, 2, '#b8281c');
+        // round 17: a lamp for the one showing (no word), and how full it is as a thin gauge along the foot
+        const fill = e.fill ?? 0;
+        t.art((c) => {
+          if (e.i === sel) { c.fillStyle = '#2a1a0a'; c.fillRect(104, 4, 12, 10); c.fillStyle = '#ffb030'; c.fillRect(106, 6, 8, 6); c.fillStyle = '#fff0c0'; c.fillRect(107, 7, 3, 2); }
+          c.fillStyle = 'rgba(58,40,20,0.7)'; c.fillRect(10, 50, 100, 5);
+          c.fillStyle = fill > 0.9 ? '#c8281c' : '#5a3418'; c.fillRect(11, 51, Math.round(98 * fill), 3);
+        });
         t.flush();
         t.mesh.userData.side = e.i;
         t.mesh.renderOrder = 5;

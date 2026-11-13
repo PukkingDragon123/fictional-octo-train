@@ -52,7 +52,7 @@ export class PauseMenu {
     const num = p ? suitNumber((p.rig as any)?.seed ?? 0) : 'D-____';
     const z0 = p ? zoneSpec(p.zoneKey) : null;
     const top = h('div', 'ps2-bar top', `<div class="ps2-title"><b>${solo ? 'Time held' : 'Time does not stop'}</b><small>${esc(time)}${z0?.name ? ' · ' + esc(z0.name) : ''}</small></div><div class="ps2-id">${esc(num)}</div>`);
-    const bot = h('div', 'ps2-bar bot', `<span class="ps2-hint">${solo ? 'nothing moves while the band projects' : 'the others are still out there'}</span><span class="ps2-hint">Esc resume · Q E pages</span>`);
+    const bot = h('div', 'ps2-bar bot', `<span class="ps2-hint"></span><span class="ps2-hint">Esc resume · Q E pages</span>`);
     top.querySelector('.ps2-id')?.replaceChildren(pxSerialEl('UNIT ' + num));
     top.prepend(pxBanner());
     bot.replaceChildren(pxAccessLog(nodeId(3)), h('span', 'ps2-hint', 'Esc resume · Q E pages'));
@@ -132,7 +132,7 @@ export class PauseMenu {
       const foot = h('div', 'ps2-foot');
       const g = mxGauge(50, solo ? 0 : 0.55, 'TIME');
       if (g) foot.append(g);
-      foot.append(h('span', 'ps2-foot-l', solo ? 'Time held<small>band projecting</small>' : 'Time running<small>co-op link</small>'));
+      foot.append(h('span', 'ps2-foot-l', solo ? 'Time held' : 'Time running'));
       col.append(foot);
       mxFrame(col, (w, hh) => { const s = panelSpec(w, hh, { title: 'OPERATOR CONTROL', seed: 23, lamps: ['green', 'amber'], glands: 2, hazard: true, top: 40, bot: 18 }); return s; }, { pad: 16 });
       // the little things round the console: a spanner on its peg, the specimen jar in the gap (it watches the
@@ -198,9 +198,10 @@ export function statusPage(solo: boolean): HTMLElement[] {
       ['Condition', p.body.dead ? 'DELETED' : p.body.downed ? 'DOWN' : 'ALIVE', p.body.downed],
     ];
     if (d?.on) {
-      rows.push(['Debt', `${(d.remaining ?? 0).toLocaleString('en')} credits owed · ${(d.paid ?? 0).toLocaleString('en')} paid`]);
+      // numbers, not sentences
+      rows.push(['Debt', `-${(d.remaining ?? 0).toLocaleString('en')} CR · ${(d.paid ?? 0).toLocaleString('en')} paid`]);
       rows.push(['Purse', purseLine(d.cleared ? (d.surplus ?? 0) : null)]);
-      if (!d.cleared) rows.push(['Installment', `${d.installment ?? '?'}/${d.count ?? '?'} · ${(d.due ?? 0).toLocaleString('en')} due in ${Math.floor(d.hoursLeft ?? 0)} h`, (d.hoursLeft ?? 99) < 12]);
+      if (!d.cleared) rows.push(['Installment', `${d.installment ?? '?'}/${d.count ?? '?'} · ${(d.due ?? 0).toLocaleString('en')} CR · ${Math.floor(d.hoursLeft ?? 0)} h`, (d.hoursLeft ?? 99) < 12]);
       else rows.push(['Debt', 'CLEARED']);
     }
     const lost = (p.body as any).severed?.length ? lossSummary((p.body as any).severed) : '';
@@ -218,7 +219,7 @@ export function statusPage(solo: boolean): HTMLElement[] {
     const moods = h('div', 'ps-moods');
     let list: { key: string; name: string; level: number; good?: boolean }[] = [];
     try { list = p.body.moodles(p.heavyLoad()).sort((a, b) => b.level - a.level); } catch { /* ignore */ }
-    if (!list.length) moods.append(h('div', 'ps-mood ct-dim', 'Nothing troubling you.'));
+    if (!list.length) moods.append(h('div', 'ps-mood ct-dim', '-'));
     for (const m of list.slice(0, 8)) moods.append(h('div', 'ps-mood' + (m.level >= 3 && !m.good ? ' ct-warn' : ''), `<img src="${moodleIcon(m.key, m.level, !!m.good)}" alt=""><span>${esc(m.name)}</span>`));
     cond.append(moods);
     out.push(cond);
