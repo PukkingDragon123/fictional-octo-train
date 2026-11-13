@@ -19,6 +19,9 @@ import { itemGeometry } from '../../items/itemMeshes';
 import { G } from '../G';
 import type { Item } from '../../items/item';
 
+/** a recorded sample through the game's UI bus (silent when there is no game) */
+const snd = (key: string, vol: number) => { try { G?.audio?.ui?.(key, vol); } catch { /* no audio */ } };
+
 export interface ShelfEntry { it: Item; value: number; count: number }
 export interface PressViewOpts {
   onLoad: (it: Item) => void;
@@ -338,7 +341,7 @@ export class PressView {
       g.position.copy(from);
       this.press.add(g);
       this.bodies.push({ it, g, p, v: new THREE.Vector3(), r: 0.2, spin: new THREE.Vector3((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8), fly: 0, from, flatten: 0 });
-      G.audio?.ui?.('cube_place', 0.45);
+      snd('cube_place', 0.45);
     }
     if (this.phase === 'idle') this.gaugeTo(items.length / 10);
   }
@@ -353,7 +356,7 @@ export class PressView {
     if (this.phase !== 'idle') return;
     this.phase = 'pull'; this.pt = 0;
     this.pending = null;
-    G.audio?.ui?.('press_lever', 0.8);
+    snd('press_lever', 0.8);
   }
   /** the press reported back: the payout, the slag, the jackpot */
   payout(value: number, out: string[], jack: number) {
@@ -374,7 +377,7 @@ export class PressView {
     const pd = this.pending!; this.pending = null;
     this.phase = 'pour'; this.pt = 0;
     this.pour = [...pd.out];
-    if (pd.jack) { this.jackT = 3; for (let i = 0; i < 6; i++) this.pour.push('#gold'); G.audio?.ui?.('press_klaxon', 0.8); G.audio?.ui?.('coins', 0.8); }
+    if (pd.jack) { this.jackT = 3; for (let i = 0; i < 6; i++) this.pour.push('#gold'); snd('press_klaxon', 0.8); snd('coins', 0.8); }
     this.counterTo(pd.value, true, pd.jack ? 1 : 0);
   }
   private counterTo(v: number, roll: boolean, over = 0) {
@@ -469,7 +472,7 @@ export class PressView {
       this.ram.position.y = 2.45 - (k * k) * 1.85;
       if (k >= 1 && this.shake <= 0 && this.bodies.every((b) => b.flatten === 0)) {
         this.shake = 0.35; this.burst(90);
-        G.audio?.ui?.('press_slam', 1);
+        snd('press_slam', 1);
         for (const b of this.bodies) b.flatten = 1;
         this.gaugeTo(0);
       }
@@ -480,7 +483,7 @@ export class PressView {
       if (this.pt > 0.95) {
         for (const b of this.bodies) this.press.remove(b.g);
         this.bodies = [];
-        G.audio?.ui?.('press_hiss', 0.6);
+        snd('press_hiss', 0.6);
         this.phase = 'wait'; this.pt = 0;
         if (this.pending) this.startPour();
       }
@@ -490,7 +493,7 @@ export class PressView {
     } else if (this.phase === 'pour') {
       this.ram.position.y += (2.45 - this.ram.position.y) * Math.min(1, dt * 6);
       this.pourT -= dt;
-      if (this.pour.length && this.pourT <= 0) { this.pourT = 0.11; this.spawnChunk(this.pour.shift()!); G.audio?.ui?.(Math.random() < 0.5 ? 'dmg_debris_metal' : 'cube_place', 0.35); }
+      if (this.pour.length && this.pourT <= 0) { this.pourT = 0.11; this.spawnChunk(this.pour.shift()!); snd(Math.random() < 0.5 ? 'dmg_debris_metal' : 'cube_place', 0.35); }
       if (!this.pour.length && this.rollT >= 1 && this.pt > 1.2) this.phase = 'idle';
     }
     if (this.phase !== 'pull' && this.phase !== 'slam') this.lever.rotation.z += (-0.5 - this.lever.rotation.z) * Math.min(1, dt * 5);
@@ -499,7 +502,7 @@ export class PressView {
       this.rollT = Math.min(1, this.rollT + dt / 1.3);
       const e = 1 - Math.pow(1 - this.rollT, 3);
       const v = this.over ? this.target * (e < 0.8 ? e / 0.8 * 1.35 : 1.35 - (e - 0.8) / 0.2 * 0.35) : this.target * e;
-      if (Math.floor(v) !== Math.floor(this.shown)) { this.shown = v; this.paintDigits(v, this.jackT > 0 ? '#ffe070' : '#7aff9a'); if (Math.random() < 0.4) G.audio?.ui?.('cb_tick', 0.2); }
+      if (Math.floor(v) !== Math.floor(this.shown)) { this.shown = v; this.paintDigits(v, this.jackT > 0 ? '#ffe070' : '#7aff9a'); if (Math.random() < 0.4) snd('cb_tick', 0.2); }
       if (this.rollT >= 1) { this.shown = this.target; this.paintDigits(this.target, this.jackT > 0 ? '#ffe070' : '#7aff9a'); }
     }
     for (const d of this.digits) d.step(dt);
@@ -599,7 +602,7 @@ export class PressView {
   private hoverPick() {
     const h = this.phase === 'idle' ? this.hit() : null;
     let any = false;
-    for (const t of this.tables) { const on = h?.kind === 'table' && h.t === t; if (on && !t.hover) G.audio?.ui?.('tab', 0.25); t.hover = on; any ||= on; }
+    for (const t of this.tables) { const on = h?.kind === 'table' && h.t === t; if (on && !t.hover) snd('tab', 0.25); t.hover = on; any ||= on; }
     const lever = h?.kind === 'lever' && this.o.canCrush();
     (this.lever.getObjectByName('knob') as THREE.Mesh).scale.setScalar(lever ? 1.25 : 1);
     this.cv.style.cursor = any || lever || h?.kind === 'body' ? 'pointer' : 'default';

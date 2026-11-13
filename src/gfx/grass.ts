@@ -127,14 +127,18 @@ vec3 objectNormal;
     float H = vd.z * cutK;
     float k = pow(hy, 1.5);
     vec2 off = (bend * 0.85 + lay * tr * 0.95) * H * k;
-    float squash = (1.0 - 0.42 * min(1.0, dot(bend, bend))) * (1.0 - 0.7 * tr);
+    float squash = (1.0 - 0.42 * min(1.0, dot(bend, bend))) * (1.0 - 0.78 * tr);
+    // a flattened lane: half the tufts are pressed right into the ground
+    if (tr > 0.45 && fract(seed * 7.13) < 0.5) squash *= 1.0 - smoothstep(0.45, 0.9, tr) * 0.85;
     gWPos = root + gR * gx + vec3(off.x, hy * H * squash, off.y);
     vGUv = (cell + vec2(uGCell.x * 0.5 + gx * uGInfo.x, uGCell.y - hy * H * uGInfo.y)) * uGCell.zw;
     // lit like the ground it grows from, turned a little toward the camera and the way it leans
     objectNormal = normalize(vec3(0.0, 1.0, 0.0) - gF * 0.3 + vec3(bend.x, 0.0, bend.y) * 0.25);
     // palette steps: lush patches, gust crests (the blades show their pale side), trampled grass
     float lush = sin(root.x * 0.19 + sin(root.z * 0.15) * 1.7) * 0.5 + sin(root.z * 0.12 - root.x * 0.07 + 2.0) * 0.5;
-    vGShift = lush * 0.55 + (seed - 0.5) * 0.9 + crest * uGWind.z * 1.5 * (1.0 - tr) + tr * 0.8 - cut * 0.4;
+    // (and a step darker down in the turf, so every tuft stands out of the ground it grows from;
+    // flattened grass shows its pale side: a trampled lane reads as a lighter streak)
+    vGShift = lush * 0.55 + (seed - 0.5) * 0.9 + crest * uGWind.z * 1.5 * (1.0 - tr) + tr * 2.2 - cut * 0.4 + mix(-1.1, 0.3, hy) * (1.0 - tr);
   }
   vGRow = aVar.y;
 }
