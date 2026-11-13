@@ -28,10 +28,10 @@ function glassMat(look: MarbleLook): THREE.MeshPhongMaterial {
         float fr = pow(1.0 - clamp(abs(dot(nn, vd)), 0.0, 1.0), 2.4);
         vec3 rf = reflect(-vd, nn);
         // a bright sky above, a window glint up and to the left, a floor bounce below
-        float sky = smoothstep(0.15, 0.95, rf.y) * 0.32;
-        float win = pow(max(dot(rf, normalize(vec3(-0.45, 0.62, 0.64))), 0.0), 42.0) * 2.2;
+        float sky = smoothstep(0.15, 0.95, rf.y) * 0.1;
+        float win = pow(max(dot(rf, normalize(vec3(-0.45, 0.62, 0.64))), 0.0), 60.0) * 2.4;
         float flo = smoothstep(-0.2, -0.9, rf.y) * 0.08;
-        outgoingLight += (sky + flo) * mix(vec3(1.0), diffuseColor.rgb, 0.35) + win * vec3(1.0, 0.98, 0.94) + fr * mix(diffuseColor.rgb, vec3(1.0), 0.45) * 0.55;
+        outgoingLight += (sky + flo) * mix(vec3(1.0), diffuseColor.rgb, 0.35) + win * vec3(1.0, 0.98, 0.94) + fr * mix(diffuseColor.rgb, vec3(1.0), 0.45) * 0.4;
         diffuseColor.a = clamp(diffuseColor.a + fr * ${(0.55 - cloud * 0.3).toFixed(2)} + win * 0.6 + sky * 0.35, 0.0, 1.0);
       }
       #include <opaque_fragment>`);
@@ -112,7 +112,7 @@ function vanes(R: number, colors: number[], r: () => number): THREE.Mesh {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); g.setIndex(idx); g.computeVertexNormals();
-  return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.35, metalness: 0.05, emissive: col(colors[0]).multiplyScalar(0.12) }));
+  return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.35, metalness: 0.05, emissive: col(colors[0]).multiplyScalar(0.05) }));
 }
 /** helix ribbons wound round inside the glass */
 function ribbons(R: number, colors: number[], r: () => number): THREE.Mesh {
@@ -131,7 +131,7 @@ function ribbons(R: number, colors: number[], r: () => number): THREE.Mesh {
   }
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3)); g.setIndex(idx); g.computeVertexNormals();
-  return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.25, metalness: colors[0] === 0xd8dce0 ? 0.85 : 0.1, emissive: col(colors[0]).multiplyScalar(0.1) }));
+  return new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, side: THREE.DoubleSide, roughness: 0.25, metalness: colors[0] === 0xd8dce0 ? 0.85 : 0.1, emissive: col(colors[0]).multiplyScalar(0.04) }));
 }
 /** frost cracks: thin shards at every angle */
 function cracks(R: number, colors: number[], r: () => number): THREE.Mesh {
@@ -259,7 +259,7 @@ export function buildMarble(m: Marble, R = 0.016): Marble3D {
       break;
     }
     case 'fleck': {
-      const halo = new THREE.Mesh(new THREE.SphereGeometry(R * 0.5, 16, 12), new THREE.MeshStandardMaterial({ color: L.colors[0], transparent: true, opacity: 0.35, depthWrite: false, emissive: col(L.colors[0]).multiplyScalar(0.3) }));
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(R * 0.5, 16, 12), new THREE.MeshStandardMaterial({ color: L.colors[0], transparent: true, opacity: 0.35, depthWrite: false, emissive: col(L.colors[0]).multiplyScalar(0.1) }));
       core.add(halo);
       break;
     }

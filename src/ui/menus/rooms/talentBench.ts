@@ -65,6 +65,8 @@ export class TalentBench {
   private sealBtn = new THREE.Group(); private sealCap!: THREE.Mesh; private sealT = 0;
   // light
   private lamp = new THREE.SpotLight(0xffe2b8, 0, 2.6, 0.82, 0.55, 1.4);
+  /** a fluorescent fitting on the wall over the bench: the work light */
+  private strip = new THREE.SpotLight(0xe8f0ff, 0, 3.4, 1.05, 0.8, 1.3);
   private fill = new THREE.PointLight(0xdfe8ff, 0, 2.4, 1.6);
   private pen = new THREE.PointLight(0xfff4e0, 0, 0.6, 1.8);
   private glint = new THREE.Group();
@@ -293,7 +295,7 @@ export class TalentBench {
       // tinplate: a rolled foot, three ribs, a bead at the cut lip, the inside dull
       const rib = (y: number) => [[RC, y - 0.006], [RC - 0.002, y - 0.003], [RC - 0.002, y + 0.003], [RC, y + 0.006]] as [number, number][];
       const prof: [number, number][] = [[0, 0.002], [RC - 0.006, 0], [RC + 0.001, 0.004], [RC, 0.01], ...rib(0.03), ...rib(HC - 0.03), [RC, HC - 0.006], [RC + 0.002, HC - 0.002], [RC - 0.0015, HC], [RC - 0.003, HC - 0.004], [RC - 0.003, 0.008], [0, 0.008]];
-      b.add('chrome', lathe(prof, 26), i === 2 || i === 5 ? 0xb8b0a0 : 0xd0d4d6, at(0, 0, 0), { rep: 0.08 });
+      b.add('chrome', lathe(prof, 26), i === 2 || i === 5 ? 0x9a9488 : 0xa8acae, at(0, 0, 0), { rep: 0.08 });
       // the lid, cut most of the way round and bent back up
       g2(b, i);
       body.add(b.build(this.mats));
@@ -315,9 +317,9 @@ export class TalentBench {
       // hinged at the back (away from the operator), swung up past upright, a little askew per can
       const m = new THREE.Matrix4().makeRotationY((i % 3 - 1) * 0.35)
         .multiply(new THREE.Matrix4().makeTranslation(-RC * 0.95, HC, 0))
-        .multiply(new THREE.Matrix4().makeRotationZ(1.75 + (i % 2) * 0.25))
+        .multiply(new THREE.Matrix4().makeRotationZ(2.35 + (i % 2) * 0.25))
         .multiply(new THREE.Matrix4().makeTranslation(RC * 0.95, 0, 0));
-      b.add('chrome', lathe([[0, 0], [RC - 0.004, 0], [RC - 0.002, 0.0015], [RC - 0.004, 0.003], [0, 0.0015]], 22), 0xc8ccce, m, { rep: 0.08 });
+      b.add('chrome', lathe([[0, 0], [RC - 0.004, 0], [RC - 0.002, 0.0015], [RC - 0.004, 0.003], [0, 0.0015]], 22), 0x7a7e80, m, { rep: 0.08 });
     }
   }
   private buildMarbles() {
@@ -335,6 +337,17 @@ export class TalentBench {
     this.lamp.castShadow = false;
     this.fill.position.set(this.BX + 0.7, this.TOP + 0.9, this.ZC);
     this.group.add(this.lamp, this.lamp.target, this.fill, this.pen);
+    // the wall fitting: an enamel hood, a tube, the light it throws on the bench
+    const fb = new FacetBuilder(), fy = this.TOP + 1.12, fx = this.S.wallX + 0.16;
+    fb.add('enamel', cbox(0.16, 0.06, 1.2, 0.012), 0xd8d4c4, at(fx, fy + 0.03, this.ZC));
+    fb.add('metal', cbox(0.12, 0.02, 0.04, 0.004), C.dark, at(fx - 0.06, fy + 0.03, this.ZC - 0.5));
+    fb.add('metal', cbox(0.12, 0.02, 0.04, 0.004), C.dark, at(fx - 0.06, fy + 0.03, this.ZC + 0.5));
+    this.group.add(fb.build(this.mats, { cast: false }));
+    const tg = new THREE.CylinderGeometry(0.011, 0.011, 1.08, 8); tg.rotateX(Math.PI / 2);
+    const tube = new THREE.Mesh(tg, new THREE.MeshBasicMaterial({ color: 0xf2f6ff, toneMapped: false })); tube.position.set(fx + 0.02, fy - 0.006, this.ZC); tube.userData.noGlow = true;
+    this.group.add(tube);
+    this.strip.position.set(fx + 0.04, fy - 0.03, this.ZC); this.strip.target.position.set(this.BX + 0.12, this.TOP, this.ZC);
+    this.group.add(this.strip, this.strip.target);
     const pool = glowCard(0.9, 1.2, 0xffd8a0, 0.06); pool.rotation.x = -Math.PI / 2; pool.position.set(this.BX + 0.02, this.TOP + 0.003, this.ZC - 0.1);
     this.group.add(pool, this.glint);
   }
@@ -657,9 +670,9 @@ export class TalentBench {
     const { BX, ZC, TOP } = this;
     const can = this.cans[this.canI];
     const mode = this.mode === 'card' ? this.heldFrom : this.mode;
-    if (mode === 'can') return { pos: new THREE.Vector3(can.x + (port ? 0.42 : 0.34), TOP + (port ? 0.42 : 0.34), can.z), look: new THREE.Vector3(can.x + 0.03, TOP + 0.05, can.z), fov: port ? 52 : 44 };
+    if (mode === 'can') return { pos: new THREE.Vector3(can.x + (port ? 0.5 : 0.4), TOP + (port ? 0.3 : 0.22), can.z), look: new THREE.Vector3(can.x + 0.02, TOP + 0.06, can.z), fov: port ? 56 : 46 };
     if (mode === 'pan') return { pos: new THREE.Vector3(BX + (port ? 0.95 : 0.64), TOP + (port ? 0.5 : 0.4), ZC), look: new THREE.Vector3(BX + 0.04, TOP + 0.17, ZC), fov: 46 };
-    return { pos: new THREE.Vector3(BX + (port ? 2.1 : 1.32), TOP + (port ? 0.85 : 0.6), ZC), look: new THREE.Vector3(BX - 0.03, TOP + 0.1, ZC), fov: 50 };
+    return { pos: new THREE.Vector3(BX + (port ? 2.1 : 1.42), TOP + (port ? 0.85 : 0.58), ZC), look: new THREE.Vector3(BX - 0.03, TOP + 0.12, ZC), fov: 50 };
   }
 
   // ================================================================== frame
@@ -683,11 +696,12 @@ export class TalentBench {
     const sh = this.hots.find((h) => h.key === 'tb:scale'); if (sh) { const w = weigh(this.onScale); sh.sub = `buff ${w.buff} g · debuff ${w.debuff} g · press to look at the pans`; }
     if (!full && !on) return;
     // ---- light: the clamp lamp is on while the bench is in use (and dimly otherwise)
-    this.lamp.intensity = damp(this.lamp.intensity, on ? 9 : 2.2, 4, dt);
-    this.fill.intensity = damp(this.fill.intensity, on ? 1.4 : 0, 4, dt);
+    this.lamp.intensity = damp(this.lamp.intensity, on ? 3.4 : 1.6, 4, dt);
+    this.fill.intensity = damp(this.fill.intensity, on ? 0.9 : 0.3, 4, dt);
+    this.strip.intensity = damp(this.strip.intensity, on ? 7 : 5, 4, dt);
     const open = this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can');
     const can = this.cans[this.canI];
-    this.pen.intensity = damp(this.pen.intensity, open ? 0.9 : 0, 6, dt);
+    this.pen.intensity = damp(this.pen.intensity, open ? 0.45 : 0, 6, dt);
     if (open) this.pen.position.set(can.x + 0.16, this.TOP + 0.2, can.z);
     // ---- the cans: the open one tips toward you, the rest settle; the rattle dies down
     for (const c of this.cans) {

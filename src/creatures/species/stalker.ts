@@ -513,8 +513,9 @@ function thinkStalker(c: Creature, dt: number): boolean {
     if (md === 'watch') setMd(c, 'copy');
     m.stare = Math.max(0, (m.stare ?? 0) - dt * 0.5);
     c.setState('stalk');
-    const s = sampleAt(buf, G.time - m.D) ?? buf[0];
-    if (!s) { stop(c); faceTo(c, p.x, p.z); return true; }
+    // nothing that far back yet: it stands and learns you
+    const s = sampleAt(buf, G.time - m.D);
+    if (!s) { stop(c); faceTo(c, p.x, p.z); n.st = 'stand'; n.ac = ''; return true; }
     // walk where you walked: your pace, and faster while it is behind
     const gx = s.x, gz = s.z, gd = Math.hypot(gx - c.x, gz - c.z);
     const pace = Math.min(c.sp.run * 0.72, Math.max(s.sp * 1.05, gd > 0.6 ? Math.min(2.4, 0.6 + gd * 0.5) : 0));

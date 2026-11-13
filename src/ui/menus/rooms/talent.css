@@ -20,8 +20,8 @@
 
 /* ---------------------------------------------------------------- the card */
 .tb-card {
-  position: absolute; right: max(3vw, 16px); top: 50%; width: min(400px, 38vw); transform: translate(24px, -50%); opacity: 0;
-  pointer-events: none; transition: opacity 0.16s steps(3), transform 0.2s steps(4);
+  position: absolute; right: max(3vw, 16px); top: 50%; width: min(400px, 38vw); transform: translate(0, -50%); opacity: 0;
+  pointer-events: none;
   background: #ece4cc; color: #1e1a12; text-shadow: none; padding: 0 0 10px;
   box-shadow: 0 0 0 2px #0a0b10, 6px 8px 0 rgba(0, 0, 0, 0.45);
   background-image: repeating-linear-gradient(0deg, transparent 0 21px, rgba(70, 110, 160, 0.16) 21px 22px), radial-gradient(ellipse at 80% 90%, rgba(150, 110, 60, 0.18), transparent 60%);
@@ -87,13 +87,13 @@
 .tb-keys { display: flex; gap: 8px; justify-content: flex-end; }
 .tb-sub {
   position: absolute; left: 50%; bottom: calc(max(2.4vh, 12px) + 70px); transform: translateX(-50%); max-width: min(900px, calc(100vw - 32px));
-  font-size: 16px; line-height: 20px; text-align: center; color: #f4ecd2; text-shadow: var(--text-ink-2); opacity: 0; transition: opacity 0.2s steps(3);
+  font-size: 16px; line-height: 20px; text-align: center; color: #f4ecd2; text-shadow: var(--text-ink-2); opacity: 0;
 }
 .tb-sub.on { opacity: 1; }
 
 /* ---------------------------------------------------------------- phones */
 @media (max-aspect-ratio: 1/1), (max-width: 760px) {
-  .tb-card { right: auto; left: 50%; top: auto; bottom: 150px; width: calc(100vw - 32px); max-height: 52vh; overflow: auto; transform: translate(-50%, 24px); }
+  .tb-card { right: auto; left: 50%; top: auto; bottom: 150px; width: calc(100vw - 32px); max-height: 52vh; overflow: auto; transform: translate(-50%, 0); }
   .tb-card.on { transform: translate(-50%, 0); }
   .tb-c-name { font-size: 16px; line-height: 20px; }
   .tb-bar { grid-template-columns: 1fr; justify-items: center; bottom: 8px; }
