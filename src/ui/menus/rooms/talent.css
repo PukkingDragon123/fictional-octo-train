@@ -1,15 +1,9 @@
-/* The talent desk (rooms/talentDesk.ts): its full-screen canvas, the name that follows the pointer on hover,
-   and a small brass back key for touch screens. Everything else lives in the 3D scene. */
-.td-canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 53; display: block; touch-action: none; background: #101210; }
-.td-tag {
-  position: fixed; z-index: 54; pointer-events: none; transform: translate(-50%, -100%); white-space: nowrap; opacity: 0;
-  font-family: var(--font-new); font-size: 16px; line-height: 16px; color: #f6eed4; text-shadow: var(--text-ink-2);
+/* The talent bench (rooms/talentBench.ts): everything lives in the 3D scene. The DOM keeps only the subtitle
+   line (a refusal said aloud) and, on touch screens, a machine-kit Back key in the corner. */
+.tb-layer { position: fixed; inset: 0; z-index: 52; pointer-events: none; font-family: var(--font-new); color: #f2ead2; }
+.tb-sub {
+  position: absolute; left: 50%; bottom: max(4vh, 20px); transform: translateX(-50%); max-width: min(900px, calc(100vw - 32px));
+  font-size: 16px; line-height: 20px; text-align: center; color: #f4ecd2; text-shadow: var(--text-ink-2); opacity: 0;
 }
-.td-back { display: none; }
-@media (pointer: coarse) {
-  .td-back {
-    display: block; position: fixed; z-index: 54; left: 12px; top: 12px; width: 44px; height: 44px; border: none; border-radius: 0; cursor: pointer;
-    font-family: var(--font-new); font-size: 32px; line-height: 40px; color: #2a1e0a; text-shadow: 0 1px 0 #f0d890;
-    background: linear-gradient(#e2bf6a, #a8803a); box-shadow: inset 0 2px 0 #f6dc94, inset 0 -3px 0 #6a4a1a, 0 0 0 2px #1a1208, 0 4px 0 rgba(0, 0, 0, 0.4);
-  }
-}
+.tb-sub.on { opacity: 1; }
+.tb-back { position: absolute; left: 12px; top: 12px; pointer-events: auto; }

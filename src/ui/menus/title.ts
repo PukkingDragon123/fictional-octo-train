@@ -213,7 +213,7 @@ class TitleRoom {
     lab.rayAt = (x, y) => this.stage.rayAt(x, y);
     // the talent bench by the door (rooms/talentBench.ts): its floating tags ride the stage's projection
     lab.talent.project = (p) => this.stage.project(p);
-    lab.talent.onFocus = (on) => { this.stage.paused = on; this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
+    lab.talent.onFocus = (on) => { this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
     lab.onBench = (on) => { this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
     const reg = (id: MenuRoomId, r: { scene: THREE.Scene; cam: THREE.Camera; deco: THREE.Group; floor: any; surfaces: any; guideSpot: any }) =>
       registerMenuRoom({ id, scene: r.scene, camera: r.cam, deco: r.deco, floor: r.floor, surfaces: r.surfaces, guideSpot: r.guideSpot, host: this.stageHost, pick: (x, y) => this.pickFloor(x, y, r.floor.y, r.surfaces) });
@@ -267,6 +267,9 @@ class TitleRoom {
           boxes.set(ck, box.clone());
         }
         box.getCenter(c);
+        // a posed stop: the camera is looking at the station, so its middle is the look point
+        const lab = this.research as unknown as { pose?: string; camL?: THREE.Vector3 } | null;
+        if (r === 'research' && lab?.pose && lab.pose !== 'room' && lab.camL) c.copy(lab.camL);
         const m = this.stage.project(c);
         if (!m) return null;
         const mid = { x: m.x, y: m.y };

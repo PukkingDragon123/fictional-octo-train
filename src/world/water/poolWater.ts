@@ -93,41 +93,48 @@ void main() {
   float slope = length(sl);
   vec3 spec = st * st * st * uGridScale;
   float fres = 0.1 + clamp(slope * 2.2, 0.0, 0.5);
-  // the water dims and cools what is under it a little and adds its own light on top (premultiplied:
-  // the colour is added, the alpha is how much of the picture underneath it takes away)
+  // two passes over the same surface: MUL tints and dims what is under it (cool blue-green, more through a
+  // steep crest or foam), ADD lays the light it reflects and the foam on top. The normal buffer is left as it
+  // was (MUL multiplies it by one, ADD adds zero).
   float crest = clamp(slope * 5.0, 0.0, 1.0);
-  float a = clamp(0.1 + fres * 0.4 + crest * 0.22, 0.0, 0.7);
-  vec3 col = uTint * grid * 0.4 * a + spec * (0.22 + slope * 5.0) + grid * crest * 0.12;
-  // foam: broken white, in clumps
   float fn = hsh(floor(vW.xz * 12.0)) * 0.6 + hsh(floor(vW.xz * 5.0 + 3.1)) * 0.4;
   float foam = smoothstep(0.3, 1.0, w.a * (0.5 + fn * 0.8)) * 0.85;
-  col = mix(col, grid * 0.95 + vec3(0.04), foam);
-  a = max(a, foam * 0.92);
+  float vk = 1.0;
   if (uVisOn > 0.5) {
     vec2 vis = texture2D(uVisTex, (vW.xz - uVisInfo.xy) * uVisInfo.zw).rg;
-    float vk = mix(vis.g * 0.35, 1.0, smoothstep(0.08, 0.92, vis.r));
-    a *= vk; col *= vk;
+    vk = mix(vis.g * 0.35, 1.0, smoothstep(0.08, 0.92, vis.r));
   }
-  gl_FragColor = vec4(col, a);
+#ifdef WATER_MUL
+  vec3 T = mix(vec3(1.0), uTint, 0.55 + crest * 0.35 + fres * 0.3);
+  T *= 1.0 - foam * 0.55;
+  gl_FragColor = vec4(mix(vec3(1.0), T, vk), 1.0);
+  gNormal = vec4(1.0);
+#else
+  vec3 col = spec * (0.05 + slope * 2.6) + grid * (crest * 0.05 + fres * 0.02) + (grid * 0.9 + vec3(0.03)) * foam;
+  gl_FragColor = vec4(col * vk, 1.0);
   gNormal = vec4(0.0);
+#endif
 }`;
 
-let mat: THREE.ShaderMaterial | null = null;
-function surfaceMat(): THREE.ShaderMaterial {
-  if (mat) return mat;
-  mat = new THREE.ShaderMaterial({
+const mats: Record<string, THREE.ShaderMaterial> = {};
+function surfaceMat(kind: 'mul' | 'add'): THREE.ShaderMaterial {
+  if (mats[kind]) return mats[kind];
+  const m = new THREE.ShaderMaterial({
     vertexShader: VERT, fragmentShader: FRAG,
+    defines: kind === 'mul' ? { WATER_MUL: 1 } : {},
     uniforms: {
       uWaveTex: U.uWaveTex, uWaveInfo: U.uWaveInfo, uWaveTexel: U.uWaveTexel,
       uLightTex: U.uLightTex, uLightInfo: U.uLightInfo, uVisTex: U.uVisTex, uVisInfo: U.uVisInfo, uVisOn: U.uVisOn,
       uCamFwd: U.uCamFwd, uGridScale: U.uGridScale, uSpecOff: U.uSpecOff, uTime: U.uTime,
-      uTint: { value: new THREE.Color(0xbfe6f0) },
+      uTint: { value: new THREE.Color(0.8, 0.92, 0.96) },
     },
     transparent: true, depthWrite: false, depthTest: true, fog: false,
-    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
-    blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+    blending: THREE.CustomBlending,
+    blendSrc: kind === 'mul' ? THREE.ZeroFactor : THREE.OneFactor, blendDst: kind === 'mul' ? THREE.SrcColorFactor : THREE.OneFactor,
+    blendSrcAlpha: kind === 'mul' ? THREE.ZeroFactor : THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
   });
-  return mat;
+  mats[kind] = m;
+  return m;
 }
 
 // ---------------------------------------------------------------- droplets and foam rings
@@ -253,8 +260,11 @@ class PoolWater {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setIndex(idx);
     geo.computeBoundingSphere();
-    const mesh = new THREE.Mesh(geo, surfaceMat());
+    const mesh = new THREE.Mesh(geo, surfaceMat('mul'));
     mesh.name = 'poolSurface'; mesh.renderOrder = 2; mesh.frustumCulled = false;
+    const glint = new THREE.Mesh(geo, surfaceMat('add'));
+    glint.name = 'poolGlint'; glint.renderOrder = 3; glint.frustumCulled = false;
+    mesh.add(glint);
     this.root.add(mesh);
     const fountains: [number, number, number][] = [];
     for (const o of z.objects.values()) if (o.key === 'pl_mushroom') fountains.push([o.x + 1, o.y + 1, 1.05]);

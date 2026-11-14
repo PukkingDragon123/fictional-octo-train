@@ -467,7 +467,8 @@ export class MonitorRoom implements StageRoom {
     g.add(this.mug);
     // round 18: Specimen 07, a human eye in a jar, on the desk (no longer a panel ornament)
     this.jar = eyeJar();
-    this.jar.group.position.set(1.22, top, -0.7); this.jar.group.scale.setScalar(1.6);
+    // round 18b: bigger and at the desk's front edge, so it reads at the room's resolution
+    this.jar.group.position.set(1.12, top, -0.66); this.jar.group.rotation.y = -0.35; this.jar.group.scale.setScalar(2.35);
     g.add(this.jar.group);
     this.hots.push({ key: 'jar', objs: [this.jar.hit], label: 'Specimen 07', sub: 'it watches the desk', press: () => { this.jar?.poke(); uiSound('tink', 0.6); gameSound('glass_clink', 0.35); } });
     this.hots.push({ key: 'mug', objs: [this.mug], label: 'Coffee', sub: 'still warm', press: () => { this.mugW.kick(5); this.mugSteam = 1.2; uiSound('tink', 0.8); gameSound('glass_clink', 0.3); this.note('mug', this.mug); } });
@@ -721,7 +722,7 @@ export class MonitorRoom implements StageRoom {
 
   // ================================================================== frame
   update(dt: number, t: number, full: boolean) {
-    this.jar?.update(dt, t, this.cam);
+    this.jar?.update(dt, t, this.cam, this.ptr);
     if (full) this.lamp.getWorldPosition(this.grade.shafts![1]);
     if (full) { this.dress?.update(t); this.pokes.update(dt, t, this.cam); }
     // ---- lights: the lamp, the stuttering tube, the alarm, the phosphor spill

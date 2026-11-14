@@ -11,62 +11,10 @@ import type { Item } from '../../items/item';
 import { itemName } from '../../items/item';
 import type { Player } from '../../entities/player';
 import { EquipAction } from '../../actions/basic';
-import { itemIconFor, iconResCss } from '../icons';
 import { isTouchMode } from '../touch/mode';
 import { ctxAllowed } from './context';
-import { crispCanvas, rect, rivet, GUN, AMB } from '../hiPixel';
-import { pxPlate, pxFrame } from '../pxKit';
-import { mixHex } from '../../gfx/pixel';
-import { mxSocketSheet, mxFrame, panelSpec, SOCK_PAD } from '../machine/kit';
-import { mxMount, type MxDecor } from '../machine/decor';
-import { mxOk } from '../machine/core';
-
-/** round 16: a 3D socket (src/ui/machine): a deep olive cup with a felt bed, a bolt, a stamped yellow number tag, an amber lamp that lights in the hand */
-function drawSock(cv: HTMLCanvasElement, n: number, held: boolean): boolean {
-  const sh = mxSocketSheet(n); if (!sh) return false;
-  const fw = SW + SOCK_PAD * 2;
-  if (cv.width !== fw) { cv.width = fw; cv.height = fw; cv.style.width = fw + 'px'; cv.style.height = fw + 'px'; cv.style.left = -SOCK_PAD + 'px'; cv.style.top = -SOCK_PAD + 'px'; }
-  const c = cv.getContext('2d')!;
-  c.setTransform(1, 0, 0, 1, 0, 0);
-  c.clearRect(0, 0, fw, fw);
-  c.drawImage(sh, 0, held ? fw : 0, fw, fw, 0, 0, fw, fw);
-  return true;
-}
-
-// ---- the slots (round 15): just the six slots, each a physical socket in hi-res pixel art.
-// A chamfered gunmetal bezel with two screws, a recessed felt bed, a brass tag stamped with the
-// key's number; the item sits on the felt with a hard shadow. The slot in the hand rises a
-// little and an amber strip lights along the bottom of its bed. Nothing else on the strip.
-const SW = 54;
-const FONT_DIGITS: Record<string, string[]> = {
-  '1': ['.#.', '##.', '.#.', '.#.', '###'], '2': ['##.', '..#', '.#.', '#..', '###'], '3': ['##.', '..#', '.#.', '..#', '##.'],
-  '4': ['#.#', '#.#', '###', '..#', '..#'], '5': ['###', '#..', '##.', '..#', '##.'], '6': ['.##', '#..', '##.', '#.#', '.#.'],
-};
-function drawSlot(c: CanvasRenderingContext2D, n: number, full: boolean, held: boolean) {
-  const W = SW, H = SW;
-  c.clearRect(0, 0, W, H);
-  pxPlate(c, 1, 1, W - 4, H - 4, { tone: 'steel', chamfer: 7, well: 0, screws: false, seed: n * 31 });
-  // the bed: recessed felt, a soft inner shadow, the weave
-  const bx = 6, by = 6, bw = W - 4 - 11, bh = H - 4 - 11, felt = held ? 0x2a1d0e : 0x15140f;
-  rect(c, bx - 1, by - 1, bw + 2, bh + 2, 0x050404);
-  rect(c, bx + 2, by, bw - 4, bh, felt); rect(c, bx, by + 2, bw, bh - 4, felt); rect(c, bx + 1, by + 1, bw - 2, bh - 2, felt);
-  for (let j = 0; j < bh; j += 2) for (let i = (j / 2) % 2; i < bw; i += 2) rect(c, bx + i, by + j, 1, 1, mixHex(felt, 0xffffff, 0.05));
-  rect(c, bx + 2, by, bw - 4, 2, 0x000000, 0.55); rect(c, bx, by + 2, 2, bh - 4, 0x000000, 0.45);
-  rect(c, bx + 2, by + bh - 1, bw - 4, 1, GUN[6], 0.5);
-  if (held) {
-    // the strip of light along the bed's foot, and a warm glow up the felt
-    for (let j = 0; j < 8; j++) rect(c, bx + 2, by + bh - 3 - j, bw - 4, 1, AMB[4], 0.16 * (1 - j / 8));
-    rect(c, bx + 3, by + bh - 3, bw - 6, 2, AMB[5]); rect(c, bx + 3, by + bh - 3, bw - 6, 1, AMB[6]);
-  }
-  // the brass tag with the number, top-left on the bezel
-  const tx = 2, ty = 2;
-  rect(c, tx, ty, 9, 9, 0x241808); rect(c, tx + 1, ty + 1, 7, 7, held ? 0xd4b45e : 0x9c7a2c); rect(c, tx + 1, ty + 1, 7, 1, held ? 0xfaecc0 : 0xd4b45e);
-  const g = FONT_DIGITS[String(n)] || [];
-  g.forEach((row, y) => { for (let x = 0; x < 3; x++) if (row[x] === '#') rect(c, tx + 3 + x, ty + 2 + y, 1, 1, 0x241808); });
-  // a screw bottom-right
-  rivet(c, W - 9, H - 9, 1, true);
-  if (!full) { rect(c, bx + bw / 2 - 4, by + bh / 2, 9, 1, 0xffffff, 0.06); }
-}
+import { fpOwner } from '../../fp/fp';
+import { Belt, BELT_N } from './belt';
 
 export const HOT_N = 6;
 
@@ -106,30 +54,32 @@ export function useHot(p: Player, n: number) {
 export class HotbarStrip {
   readonly el: HTMLDivElement;
   private slots: HTMLDivElement[] = [];
+  private belt = new Belt();
   private sig = '';
   private t = 0;
+  private last = performance.now();
+  private hoverI = -1;
   hidden = false;
-  private bcn: MxDecor | null = null;
 
   constructor() {
     const el = this.el = document.createElement('div');
     el.id = 'hot12';
+    el.className = 'belt';
+    el.append(this.belt.cv);
     for (let i = 0; i < HOT_N; i++) {
+      // a transparent hit area over each holder of the belt
       const s = document.createElement('div');
       s.className = 'hb-slot';
-      const sc = crispCanvas(SW, SW);
-      sc.cv.className = 'hb-cv';
-      if (!(mxOk() && drawSock(sc.cv, i + 1, false))) drawSlot(sc.c, i + 1, false, false);
-      (s as any)._c = sc.c; (s as any)._cv = sc.cv;
-      s.append(sc.cv, document.createElement('i'), Object.assign(document.createElement('b'), { className: 'hb-n' }));
       s.addEventListener('contextmenu', (e) => e.preventDefault());
+      s.addEventListener('pointerenter', () => { this.hoverI = i; this.sig = ''; this.t = 0; });
+      s.addEventListener('pointerleave', () => { if (this.hoverI === i) this.hoverI = -1; this.sig = ''; this.t = 0; });
       s.addEventListener('pointerdown', (e) => {
         e.preventDefault(); e.stopPropagation();
-        const p = G.local; if (!p || !ctxAllowed()) return;
-        // right-click (or a long press on a filled socket): the item card beside the socket (src/ui/itemPanel.ts)
+        const p = G.local; if (!p || !this.usable()) return;
+        // right-click (or a long press on a filled holder): the item card above the belt (src/ui/itemPanel.ts)
         const card = () => { const it = hotSlots(p)[i]; if (!it) return false; const r = s.getBoundingClientRect(); openItemPanel(it, p.containerOf(it) || p.inv, { x: r.left, y: r.top - 260, w: r.width, h: r.height }); return true; };
         if (e.button === 2) { card(); return; }
-        // a click (desktop) or a tap: use it; a long press opens the card (an empty socket: Inspect Yourself to rearrange)
+        // a click (desktop) or a tap: use it; a long press opens the card (an empty holder: Inspect Yourself to rearrange)
         const t0 = performance.now();
         const up = () => {
           window.removeEventListener('pointerup', up);
@@ -142,14 +92,7 @@ export class HotbarStrip {
       this.slots.push(s);
     }
     document.body.appendChild(el);
-    // the rail the six sockets sit in
-    try {
-      if (mxOk()) {
-        el.classList.add('mx'); mxFrame(el, (w, h) => { const s = panelSpec(w, h, { seed: 66, hazard: false, vents: false, glands: 2, lamps: [] }); s.depth = 7; s.rivets = false; return s; }, { pad: 10 });
-        this.bcn = mxMount(el, 'beacon', { right: -36, bottom: 6, z: 3 }, { col: 'red', s: 0.85, cls: 'hb-bcn' });
-      }
-      else pxFrame(el, { tone: 'dark', chamfer: 8, screws: false, seed: 66 });
-    } catch { /* no canvas */ }
+    this.layoutSlots();
     window.addEventListener('keydown', (e) => {
       if (e.repeat || G.input?.textFocus || !/^Digit[1-6]$/.test(e.code) || !ctxAllowed()) return;
       const p = G.local; if (!p) return;
@@ -161,10 +104,44 @@ export class HotbarStrip {
     (G as any).hotbar = this;
   }
 
-  /** a phone held upright: the rail hangs just under the body console (never over its machines); the touch
-   * keys' side columns start under the rail (--hb-bottom) */
+  /** usable now: the HUD's usual rule, and also under the pack close-up and the pickup grab (things go into it) */
+  private usable(): boolean {
+    const o = fpOwner();
+    return ctxAllowed() || ((o === 'pack' || o === 'grab') && !!G.local && !G.local.body.dead);
+  }
+  private layoutSlots() {
+    const b = this.belt;
+    this.slots.forEach((s, i) => { s.style.left = (b.L + i * b.HS) + 'px'; s.style.width = b.HS + 'px'; s.style.top = '10px'; s.style.height = (b.H - 10) + 'px'; });
+  }
+  /** the slot (1..6) under a client point, 0 for none */
+  slotAt(x: number, y: number): number {
+    if (!this.el.classList.contains('on')) return 0;
+    for (let i = 0; i < this.slots.length; i++) { const r = this.slots[i].getBoundingClientRect(); if (x >= r.left && x <= r.right && y >= r.top - 10 && y <= r.bottom) return i + 1; }
+    return 0;
+  }
+  /** where a thing flying into the belt lands (its own holder when it has one, else the free holder nearest the middle) */
+  pocketPoint(it: Item): { x: number; y: number } | null {
+    if (!this.el.classList.contains('on')) return null;
+    const p = G.local;
+    let n = hotOf(it);
+    if (!n && p) { const s = hotSlots(p); const free = [2, 3, 1, 4, 0, 5].find((k) => !s[k]); n = (free ?? 2) + 1; }
+    const r = this.belt.cv.getBoundingClientRect();
+    const q = this.belt.slotPoint(n - 1);
+    return { x: r.left + q.x * (r.width / this.belt.W), y: r.top + (q.y + 14) * (r.height / this.belt.H) };
+  }
+  /** a thing has landed in the belt: its holder (or the middle) gives a bounce */
+  landed(it: Item) {
+    const n = hotOf(it);
+    this.belt.kick(n ? n - 1 : 2);
+    G.audio?.ui?.('bag_place', 0.25);
+  }
+
+  /** a phone held upright: the belt hangs just under the body console (never over its machines); the touch
+   * keys' side columns start under it (--hb-bottom) */
   private placePhone() {
     const phone = isTouchMode() && window.innerWidth <= 520 && window.innerHeight > window.innerWidth;
+    this.belt.size(window.innerWidth < 430);
+    this.layoutSlots();
     if (!phone) { if (this.el.style.top) { this.el.style.top = ''; document.documentElement.style.removeProperty('--hb-bottom'); } return; }
     const css = (G as any).hudBody?.st?.css as { y: number; h: number } | undefined;
     const top = Math.round(css && css.h > 10 ? css.y + css.h + 4 : 64);
@@ -175,34 +152,26 @@ export class HotbarStrip {
 
   update(dt: number) {
     const p = G.local;
-    const on = !this.hidden && !!p && ctxAllowed();
+    const on = !this.hidden && !!p && this.usable();
     this.el.classList.toggle('on', on);
     this.el.classList.toggle('touch', isTouchMode());
     if (!on || !p) return;
+    const now = performance.now();
+    this.belt.update(Math.min(0.05, (now - this.last) / 1000));
+    this.last = now;
     this.t -= dt;
     if (this.t > 0) return;
-    this.t = 0.3;
-    this.bcn?.alert(((G as any).survival?.threat ?? 0) > 0.45);
+    this.t = 0.2;
     this.placePhone();
     const s = hotSlots(p);
-    // round 18: how many of each you carry (a count on the slot when more than one)
+    // how many of each you carry (a count on the holder's tag when more than one)
     const all = p.allItems();
     const count = (it: Item) => all.reduce((n, o) => n + (o.key === it.key ? 1 : 0), 0);
-    const sig = s.map((it) => (it ? it.uid + ':' + it.key + ':' + count(it) + (p.handR === it || p.handL === it ? '*' : '') : '-')).join('|');
+    const sig = s.map((it, i) => (it ? it.uid + ':' + it.key + ':' + count(it) + (p.handR === it || p.handL === it ? '*' : '') : '-') + (this.hoverI === i ? 'h' : '')).join('|');
     if (sig === this.sig) return;
     this.sig = sig;
-    s.forEach((it, i) => {
-      const el = this.slots[i];
-      const icon = el.querySelector('i') as HTMLElement;
-      icon.style.backgroundImage = it ? `url(${itemIconFor(it, iconResCss(40))})` : '';
-      const nEl = el.querySelector('.hb-n') as HTMLElement | null;
-      if (nEl) { const n = it ? count(it) : 0; nEl.textContent = n > 1 ? String(n) : ''; }
-      const held = !!it && (p.handR === it || p.handL === it);
-      el.classList.toggle('full', !!it);
-      el.classList.toggle('held', held);
-      const c = (el as any)._c as CanvasRenderingContext2D | undefined;
-      if (!(mxOk() && drawSock((el as any)._cv, i + 1, held)) && c) drawSlot(c, i + 1, !!it, held);
-      el.title = it ? itemName(it) : 'empty';
-    });
+    this.belt.set(s.map((it, i) => ({ it, n: it ? count(it) : 0, held: !!it && (p.handR === it || p.handL === it), hover: this.hoverI === i })));
+    s.forEach((it, i) => { this.slots[i].classList.toggle('full', !!it); this.slots[i].classList.toggle('held', !!it && (p.handR === it || p.handL === it)); this.slots[i].title = ''; });
   }
 }
+void BELT_N;

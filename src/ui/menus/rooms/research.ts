@@ -82,7 +82,7 @@ const POSES: Record<string, Pose> = {
   // up at the observation window, looking through it at what is held in HOLDING 2
   obs: P([2.35, 1.72, -0.35], [W + 1.35, 1.25, -2.95], 50),
   build: P([1.2, 2.8, 3.1], [-0.1, 0.3, 0.2], 54),
-  // round 18: the guided tour looks at the talent bench by the door (guide/tour.ts)
+  // round 18: the guided tour looks at the talent bench by the door (guide/tour.ts); set from the bench once it is built
   talent: P([-1.3, 1.6, 0.5], [-W + 0.3, 0.95, 2.3], 52),
 };
 
@@ -173,7 +173,11 @@ export class ResearchLab implements StageRoom {
     S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter(), this.chamber(), this.dressing());
     S.add(this.chamL, this.chamL.target, this.chamRed, this.redL);
     this.talent = new TalentBench(this.mats, this.hots, { wallX: -W, z0: 1.53, z1: 3.15, top: 0.9 });
+    this.talent.rayAt = (x, y) => this.rayAt?.(x, y) ?? null;
     S.add(this.talent.group);
+    // round 18: the guided tour's look at the bench, from wherever it stands (into the room from it, a little above)
+    { const tb = new THREE.Box3().setFromObject(this.talent.group), c = tb.getCenter(new THREE.Vector3());
+      if (!tb.isEmpty()) POSES.talent = P([c.x + 2.1, c.y + 0.75, c.z - 0.7], [c.x, c.y - 0.05, c.z], 52); }
     S.add(this.leds.mesh, this.puffs.mesh, this.deco, this.hemi, this.dust.points);
     // wet floor: dark specular puddles that pick up the troughs and the screen
     for (const [x, z, w, d] of [[TABLE.x + 0.9, TABLE.z + 0.75, 1.1, 0.7], [-1.6, 1.4, 0.8, 1.2], [1.9, 1.8, 0.6, 0.5]] as [number, number, number, number][]) {
@@ -959,7 +963,7 @@ export class ResearchLab implements StageRoom {
     if (full) this.pokes.update(dt, t, this.cam);
     if (!full) return;
     // ---- camera: the benches drive it while a sample is worked (the close-ups get a gentler exposure)
-    this.grade.exposure = damp(this.grade.exposure ?? 1.75, this.bench && !this.bench.done ? 1.3 : 1.75, 4, dt);
+    this.grade.exposure = damp(this.grade.exposure ?? 1.75, (this.bench && !this.bench.done) || this.talent.inspecting ? 1.3 : 1.75, 4, dt);
     if (this.bench) { this.bench.update(dt, t); return; }
     this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 3, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 3, dt);
     this.build = damp(this.build, this.buildT, 3, dt);

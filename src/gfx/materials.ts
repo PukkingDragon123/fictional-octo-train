@@ -419,13 +419,13 @@ if (uWFlags.w < 0.5) {
       // over a simulated pool the web is the real waves' light: shifted by their slope (refraction down to the
       // bottom) and focused where the surface curves into a lens (bright), spread where it curves away (dim)
       vec2 wuv = (vWPos.xz - uWaveInfo.xy) * uWaveInfo.zw;
-      if (uWaveOn > 0.5 && wuv.x > 0.0 && wuv.y > 0.0 && wuv.x < 1.0 && wuv.y < 1.0) {
+      if (uWaveOn > 0.5 && vWPos.y < -0.02 && wuv.x > 0.0 && wuv.y > 0.0 && wuv.x < 1.0 && wuv.y < 1.0) {
         vec4 w0 = texture2D(uWaveTex, wuv);
         float hl = texture2D(uWaveTex, wuv - vec2(uWaveTexel.x, 0.0)).r, hr = texture2D(uWaveTex, wuv + vec2(uWaveTexel.x, 0.0)).r;
         float hu = texture2D(uWaveTex, wuv - vec2(0.0, uWaveTexel.y)).r, hd = texture2D(uWaveTex, wuv + vec2(0.0, uWaveTexel.y)).r;
         float lap = (hl + hr + hu + hd - 4.0 * w0.r) * 255.0;
         vec2 sl = (w0.gb - 0.502) * 2.3;
-        cst = causticAt(cp + sl * 1.6, uTime * 0.6) * clamp(1.0 - lap * 0.45, 0.15, 3.5) + clamp(-lap * 0.12, 0.0, 0.8);
+        cst = causticAt(cp + sl * 1.6, uTime * 0.6) * clamp(1.0 - lap * 0.035, 0.35, 2.0) + clamp(-lap * 0.006, 0.0, 0.3);
       } else cst = causticAt(cp, uTime);
       // light that reaches the water is what gets focused into the web
       irradiance += uCausticCol * (cst * near * uCaustics) * (0.35 + dot(grid, vec3(0.33)) * 0.9) * PI;

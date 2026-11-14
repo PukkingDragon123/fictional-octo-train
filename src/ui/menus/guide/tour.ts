@@ -28,7 +28,7 @@ interface Stop { room: TourRoom; hot?: string; pose?: string; el?: string; act?:
 
 const STOPS: Stop[] = [
   { room: 'monitor', line: 'Three rooms on these monitors. Click one, or press 1, 2, 3.' },
-  { room: 'archive', hot: 'term', line: 'The codex. Everything you scan or sample is filed here.' },
+  { room: 'archive', hot: 'table', line: 'The codex. Everything you scan or sample is filed here.' },
   { room: 'research', hot: 'codex', pose: 'codex', act: 'lattice', line: 'The research lattice: spend research points on new kit.' },
   { room: 'research', hot: 'fridge', pose: 'fridge', act: 'fridge', line: 'Samples you bring back. Process them for research points.' },
   { room: 'research', hot: 'tb:bench', pose: 'talent', act: 'bench', line: 'The talent bench: gifts against flaws for the next unit.' },
