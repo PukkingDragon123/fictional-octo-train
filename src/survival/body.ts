@@ -220,7 +220,7 @@ export class Body {
     if (inj.stitched) b *= 0.05;
     if (inj.bandage) b *= inj.bandage.soak > 0.95 ? 0.6 : 0.08;
     if (inj.tq != null) b *= 0.03;
-    return b;
+    return b * talentMul(this, 'bleed');
   }
   pain(): number {
     let p = 0;
@@ -279,6 +279,7 @@ export class Body {
     if (this.perks.has('learner')) mul *= 1.2;
     if (this.has('gym_rat') && (k === 'fitness' || k === 'sprinting')) mul *= 2;
     if (this.has('couch_potato') && k === 'fitness') mul *= 0.5;
+    mul *= talentMul(this, 'xp');
     // a low mood makes everything harder to take in
     mul *= 1 - clamp01(this.mind.depression) * 0.45;
     if (SKILLS.find((x) => x.key === k)?.passive) mul *= 0.25;
@@ -584,12 +585,12 @@ export class Body {
     const lonely = mind.loneliness / 100;
     const stressUp = this.panic / 22 + this.pain() / 25 + (this.hunger > 45 ? 1 : 0) + (this.corruption > 25 ? 2 : 0) + mind.anxiety * 1.2 + (lonely > 0.7 ? 0.5 : 0) + (mind.hangover > 0 ? 0.6 : 0) + (mind.caffeine > 0 && !this.perks.has('barista') ? 0.4 : 0);
     let stressDown = 3.2 * (T('worrier') ? 0.7 : 1) * (this.perks.has('therapist') ? 1.25 : 1) + calm * 2 + (env.resting && T('couch_potato') ? 6 : 0);
-    this.stress = clamp(this.stress + (stressUp * (T('unbothered') ? 0.7 : 1) - stressDown) * dh, 0, 100);
+    this.stress = clamp(this.stress + (stressUp * (T('unbothered') ? 0.7 : 1) * talentMul(this, 'stress') - stressDown) * dh, 0, 100);
     const enjoy = 1 - mind.depression * 0.5;
     if (env.entertained) this.boredom = clamp(this.boredom - 12 * enjoy * dh, 0, 100);
     else if (env.resting && T('couch_potato')) this.boredom = clamp(this.boredom - 6 * dh, 0, 100);
     else if ((env.zone === 'mall' || env.zone === 'market') && T('mall_rat')) this.boredom = clamp(this.boredom - 4 * dh, 0, 100);
-    else this.boredom = clamp(this.boredom + (env.moving ? 1.5 * (this.perks.has('explorer') ? 0.4 : 1) : 3.5) * dh * (env.nearTeam > 0 ? 0.5 : 1), 0, 100);
+    else this.boredom = clamp(this.boredom + (env.moving ? 1.5 * (this.perks.has('explorer') ? 0.4 : 1) : 3.5) * dh * (env.nearTeam > 0 ? 0.5 : 1) * talentMul(this, 'boredom'), 0, 100);
     let sad = (this.boredom > 50 ? (this.boredom - 50) / 25 : 0) + (this.stress > 60 ? 0.6 : 0)
       + (env.nearTeam > 0 ? -1.4 : 0.1) + lonely * 1.3 + mind.depression * 0.9 + (mind.hangover > 0 ? 0.5 : 0) - ssri * 2.5;
     if (sad > 0) sad *= (T('unbothered') ? 0.7 : 1) * (T('melancholic') ? 1.3 : 1);
@@ -606,7 +607,7 @@ export class Body {
     if (env.nearTeam > 0) luc += 2.5 + env.nearTeam * 0.5;
     else if (lonely > 0.5) luc -= (lonely - 0.5) * (T('lonely') ? 3 : 1.6);
     if (mind.trauma > 0.4 && this.stress > 70) luc -= (mind.trauma - 0.3) * 2;   // dissociating under pressure
-    if (luc < 0) luc *= (this.perks.has('seams') ? 0.7 : 1) * (this.perks.has('deja_vu') ? 0.55 : 1) * (T('been_here_before') ? 0.75 : 1);
+    if (luc < 0) luc *= (this.perks.has('seams') ? 0.7 : 1) * (this.perks.has('deja_vu') ? 0.55 : 1) * (T('been_here_before') ? 0.75 : 1) * talentMul(this, 'lucid');
     if (env.asleep) luc = Math.max(luc, 1);
     this.lucidity = clamp(this.lucidity + luc * dh, 0, 100);
 
