@@ -46,3 +46,5 @@ export function statIcon(stat: TalentStat, color: string): string {
   cache.set(key, u);
   return u;
 }
+/** the raw 11 x 11 mask (for painting the icon at any size) */
+export function statMask(stat: TalentStat): string[] { return I[stat]; }

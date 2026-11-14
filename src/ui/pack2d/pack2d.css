@@ -48,3 +48,33 @@
 @keyframes pk2-shake { 33% { transform: translateX(-3px); } 66% { transform: translateX(3px); } }
 .pk2-fly { position: fixed; left: 0; top: 0; z-index: 70; width: 36px; height: 36px; image-rendering: pixelated; pointer-events: none; filter: drop-shadow(2px 2px 0 rgba(0, 0, 0, 0.5)); }
 @media (max-width: 700px) { .pk2 { flex-direction: column-reverse; top: 48%; } .pk2-col { width: min(94vw, 300px); max-height: 40vh; } }
+
+/* ---- round 18 (the quality bar): designed objects, not blocks.
+   The columns are machine housings (the institute's olive kit, ./pack2d.ts mxFrame); every slot is a crafted pixel
+   socket (a bevelled steel rim, a felt bed with its weave, four screws; brass while hot); the weight is a gauge;
+   names float as slightly raised text, no box. */
+.pk2-col.mx { background: none; box-shadow: none; padding: 12px 14px 12px; }
+.pk2-col.mx .pk2-head { box-shadow: none; height: 38px; padding: 0 2px; margin-bottom: 6px; }
+.pk2-col.mx .pk2-eq, .pk2-col.mx .pk2-body { position: relative; }
+.pk2-col.mx .pk2-eq { box-shadow: none; }
+.pk2-head .mxg-cv { flex: none; image-rendering: pixelated; }
+.pk2-w { font-style: normal; font-size: 20px; color: #f2d65a; text-shadow: 1px 1px 0 #14160c, -1px 0 0 #14160c, 0 -1px 0 #14160c, 0 2px 0 #0b0c0a; white-space: nowrap; }
+.pk2-w small { font-size: 14px; color: #c8c08a; }
+.pk2-w.over { color: #ff8a5a; }
+.pk2-hico { display: flex; align-items: center; }
+.pk2-hico canvas, .pk2-cap canvas { image-rendering: pixelated; }
+.pk2-name { color: #f2d65a; font-size: 18px; text-shadow: 1px 1px 0 #14160c, -1px 0 0 #14160c, 0 2px 0 #0b0c0a; }
+.pk2-all.mxb { margin-left: auto; }
+.pk2-cell, .pk2-cell.empty { background: var(--pk2-sock) center / 100% 100% no-repeat; box-shadow: none; image-rendering: pixelated; }
+.pk2-cell.empty { opacity: .78; }
+.pk2-cell:not(.empty):hover, .pk2-cell:not(.empty):focus-visible { background: var(--pk2-sock-hot) center / 100% 100% no-repeat; box-shadow: none; }
+.pk2-cell.eq, .pk2-cell.eq.empty { background-image: var(--pk2-sock-s); }
+.pk2-cell.eq:not(.empty):hover { background-image: var(--pk2-sock-s-hot); }
+.pk2-cell img { filter: drop-shadow(1px 2px 0 rgba(0, 0, 0, .55)); }
+.pk2-n { color: #f2d65a; text-shadow: 1px 1px 0 #0b0c0a, -1px 0 0 #0b0c0a; }
+.pk2-cap { color: #c8c08a; text-shadow: 1px 1px 0 #0b0c0a; }
+/* names on hover: raised floating text, no box */
+.pk2-tip { background: none; box-shadow: none; padding: 0; font-size: 16px; color: #f6e6b0; text-shadow: 1px 1px 0 #14160c, -1px 0 0 #14160c, 0 -1px 0 #14160c, 1px -1px 0 #14160c, 0 3px 0 rgba(0, 0, 0, .55); }
+.pk2-tip small { color: #c8c08a; text-shadow: inherit; }
+/* six sockets a row fit inside the housing's rails */
+.pk2-col.mx { width: 318px; }

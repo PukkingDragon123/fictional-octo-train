@@ -789,7 +789,7 @@ function thinkGulper(c: Creature, dt: number): boolean {
       const k = (now - H.hT) / 1.05;
       if (k >= 1) {
         H.heaves++; H.hT = now; m.hu0 = H.hu;
-        const won = rng.chance(0.58 - H.heaves * 0.03);
+        const won = rng.chance(0.64 - H.heaves * 0.03);
         m.gain = won ? rng.float(0.16, 0.24) : -rng.float(0.04, 0.09);
         fx(c, won ? 'heave' : 'strain');
       }
@@ -990,7 +990,7 @@ function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
   });
   // ---------------- the water round it
   if (W && !c.dead && z) {
-    const k60 = Math.min(3, dt * 60);
+    const k60 = Math.min(1.5, dt * 60);
     if (swim && lv !== null) {
       const sp = c.speed;
       const top = ud.ry + 0.72;
@@ -999,7 +999,7 @@ function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
       if (sp > 0.15) {
         const [hx, hz] = at(1.6);
         W.disturb(hx, hz, sp * 0.05 * nearS * k60, 0.8);
-        W.disturb(c.x - cf * 0.6, c.z - sf * 0.6, -sp * 0.05 * nearS * k60, 0.9, sp * 0.02 * nearS * k60);
+        W.disturb(c.x - cf * 0.6, c.z - sf * 0.6, -sp * 0.05 * nearS * k60, 0.9, sp * 0.003 * nearS * k60);
       }
       // each beat of the tail shoves water sideways
       const ph = (ud.spine?.ph ?? 0), tail = Math.sin(ph - 5);
@@ -1008,7 +1008,7 @@ function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
       // the surge: a bow wave thrown off the head, spray along it
       if (md === 'burst' && bt < 0.6) {
         const [hx, hz] = at(2.0);
-        W.disturb(hx, hz, 0.5 * k60, 1.1, 0.3 * k60);
+        W.disturb(hx, hz, 0.5 * k60, 1.1, 0.06 * k60);
         W.disturb(hx - sf * 1.0, hz + cf * 1.0, 0.25 * k60, 0.8); W.disturb(hx + sf * 1.0, hz - cf * 1.0, 0.25 * k60, 0.8);
         for (let i = 0; i < 2; i++) { const s = Math.random() < 0.5 ? -1 : 1; W.drop(hx + -sf * s * 0.7, lv + 0.1, hz + cf * s * 0.7, -sf * s * 2.5 + cf * 2, 2 + Math.random() * 2, cf * s * 2.5 + sf * 2, 0.03); }
       }
@@ -1020,7 +1020,7 @@ function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
       if (Math.random() < dt * 30 * Math.min(1, hu * 3)) { const zz = -0.8 + Math.random() * 2.2, [px, pz] = at(zz); W.pour(px, ud.ry + 0.55 + zz * 0.15, pz, 0.45, 1); }
       const ph = (ud.spine?.ph ?? 0);
       const [tx, tz] = at(-2.5);
-      W.disturb(tx - sf * Math.sin(ph - 5) * 0.6, tz + cf * Math.sin(ph - 5) * 0.6, -0.12 * thrash * k60, 0.7, 0.05 * k60);
+      W.disturb(tx - sf * Math.sin(ph - 5) * 0.6, tz + cf * Math.sin(ph - 5) * 0.6, -0.12 * thrash * k60, 0.7, 0.012 * k60);
       if (Math.random() < dt * 4 * thrash) W.splash(tx - sf * Math.sin(ph - 5) * 0.6, tz + cf * Math.sin(ph - 5) * 0.6, 0.5 + thrash * 0.3, false);
     } else if (ud.ld > 0.5 && Math.random() < dt * 6 && (t - (ud.wetT ?? (ud.wetT = t))) < 6) { const zz = -1 + Math.random() * 2.4, [px, pz] = at(zz); W.pour(px, ud.ry + 0.45, pz, 0.4, 1); }
     if (swim) ud.wetT = t;

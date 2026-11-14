@@ -256,7 +256,9 @@ export interface Marble3D {
   update(t: number, dt: number, spin?: number): void;
   setLocked(on: boolean): void;
 }
-export function buildMarble(m: Marble, R = 0.016): Marble3D {
+/** hq: real glass for the talent desk's own renderer (transmission, refraction of what is behind it, clear-coat
+ *  highlights off the environment); everything inside it is made opaque so the refraction pass carries it */
+export function buildMarble(m: Marble, R = 0.016, hq = false): Marble3D {
   const r = rngOf(m.key);
   const L = m.look;
   const group = new THREE.Group(); group.name = 'marble:' + m.key;
@@ -324,14 +326,34 @@ export function buildMarble(m: Marble, R = 0.016): Marble3D {
     core.add(fm);
   }
   // the glass itself, drawn after what is inside it
-  const shell = new THREE.Mesh(new THREE.SphereGeometry(R, 36, 26), glassMat(L));
+  let hqMat: THREE.MeshPhysicalMaterial | null = null;
+  if (hq) {
+    const tint = new THREE.Color(L.glass);
+    hqMat = new THREE.MeshPhysicalMaterial({
+      color: new THREE.Color(1, 1, 1).lerp(tint, 0.55), transmission: 1 - L.cloud * 0.5, roughness: 0.015 + L.cloud * 0.25, thickness: R * 1.6, ior: 1.52,
+      attenuationColor: tint, attenuationDistance: 0.008 + (1 - L.cloud) * 0.03, specularIntensity: 1, clearcoat: 1, clearcoatRoughness: 0.02, envMapIntensity: 0.75,
+    });
+    core.traverse((o) => {
+      const mm = (o as THREE.Mesh).material as THREE.Material & { map?: THREE.Texture | null; opacity: number };
+      if (!mm) return;
+      // a little of its own colour so the swirl reads through the glass
+      const sm = mm as unknown as THREE.MeshStandardMaterial;
+      if (sm.isMeshStandardMaterial && sm.color && !sm.map && !sm.vertexColors) sm.emissive = sm.color.clone().multiplyScalar(0.12);
+      if (!mm.transparent) return;
+      mm.transparent = false; mm.depthWrite = true; mm.opacity = 1;
+      if (mm.map) mm.alphaTest = 0.3;
+      if ((mm as THREE.MeshPhongMaterial).isMeshPhongMaterial) (mm as THREE.MeshPhongMaterial).emissive = new THREE.Color(0x404040);
+      mm.needsUpdate = true;
+    });
+  }
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(R, hq ? 64 : 36, hq ? 48 : 26), hqMat ?? glassMat(L));
   shell.renderOrder = 6; shell.name = 'shell';
   shell.userData.noGlow = true;
   group.add(shell);
   // the far wall of the glass, seen through the near one (a thick, tinted lens)
   const back = new THREE.Mesh(shell.geometry, new THREE.MeshPhongMaterial({ color: L.glass, specular: 0xffffff, shininess: 90, side: THREE.BackSide, transparent: true, opacity: 0.12 + L.cloud * 0.3, depthWrite: false }));
   back.renderOrder = 4; back.userData.noGlow = true;
-  group.add(back);
+  if (!hq) group.add(back);
   // what it is inside reads a little bigger through the glass
   core.scale.setScalar(1.08);
   // the caustic: the light it focuses onto whatever it rests on (the bench places it)
@@ -349,6 +371,9 @@ export function buildMarble(m: Marble, R = 0.016): Marble3D {
       if (spin) core.rotation.y += dt * spin;
       if (jelly) { const k = 1 + Math.sin(t * 7 + w0) * 0.05; jelly.scale.set(k, 2 - k, k); }
     },
-    setLocked(on) { dust.visible = on; },
+    setLocked(on) {
+      if (hqMat) { const r0 = on ? 0.5 : 0.02 + L.cloud * 0.3; if (hqMat.roughness !== r0) { hqMat.roughness = r0; hqMat.clearcoat = on ? 0 : 1; } return; }
+      dust.visible = on;
+    },
   };
 }

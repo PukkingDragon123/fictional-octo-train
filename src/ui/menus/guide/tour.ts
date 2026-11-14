@@ -1,12 +1,15 @@
-// THE GUIDED TOUR (round 18): the lab menus explained, once on the first visit and again from the Guide key.
-// The camera visits each station in turn (the monitors, the codex archive, the research lattice, the sample fridge,
-// the talent bench, the commissary and jukebox keys, unit room 4 and its New unit key); Dr. Calder says what it is
-// for in one subtitle line, and square amber brackets close on the thing. A click or Space moves on, Esc skips.
-// It ends on a compact card: the loop in five pictures (go in, loot, the press for Credits, pay the debt, research).
-// No text walls, no stamps. The title room (title.ts) provides the moves; this only runs them.
+// THE GUIDED TOUR (round 18): the lab menus explained, once on the first visit and again from Dr. Calder herself
+// (click her) or Settings. The camera visits each station in turn and the station does its thing while she says
+// what it is for in one short subtitle line: the archive, the research lattice (a branch swings onto the rig), the
+// sample fridge (its door opens), the talent bench (the balance tips), the commissary and the jukebox up in the
+// corner, unit room 4. Brass pixel corner pieces close on the thing, a glint running round them; little lamps
+// count the stops; a pixel key cap skips. It ends on the loop as a pixel diagram (go in, loot, the press, pay the
+// debt, research), joined by brass arrows, and a key cap to close it. No plain boxes, no text walls, no stamps.
+// The title room (title.ts) provides the moves; this only runs them.
 import { SubLine } from './subline';
 import { sfx } from '../sfx';
 import { pixIconEl, type PixKind } from '../deco/pixIcons';
+import { cornerSheet, CORNER, CORNER_F, capEl, pipSheet, arrowSheet } from './tourArt';
 
 export type TourRoom = 'monitor' | 'archive' | 'research' | 'subject';
 export interface TourHost {
@@ -16,19 +19,21 @@ export interface TourHost {
   aim(room: TourRoom, pose: string): void;
   /** where a station is on screen (a hotspot's middle and a half size), or null */
   spot(room: TourRoom, hot: string): { x: number; y: number; r: number } | null;
+  /** make a station do its thing (the lattice swings a branch on, the fridge opens, the balance tips) */
+  act(room: TourRoom, what: string): void;
   /** the room is ready for the tour (no panel, no creator, not moving) */
   ready(): boolean;
 }
-interface Stop { room: TourRoom; hot?: string; pose?: string; el?: string; line: string }
+interface Stop { room: TourRoom; hot?: string; pose?: string; el?: string; act?: string; line: string }
 
 const STOPS: Stop[] = [
-  { room: 'monitor', line: 'This booth watches three rooms. Click a monitor, or press 1, 2 or 3.' },
-  { room: 'archive', hot: 'term', line: 'The codex archive. Every inhabitant you scan and every sample you bank is filed here.' },
-  { room: 'research', hot: 'codex', pose: 'codex', line: 'The research lattice: your skill tree. Research points buy new kit, recipes and press patterns.' },
-  { room: 'research', hot: 'fridge', pose: 'fridge', line: 'The sample fridge. Process what you bring back: that is where research points come from.' },
-  { room: 'research', hot: 'tb:bench', pose: 'room', line: 'The talent bench. Weigh gifts against flaws for the next unit.' },
-  { room: 'research', el: '.dk-icon[aria-label^="Commissary"], .dk-icon[aria-label^="Emote"]', line: 'Up here: the commissary and the jukebox. Your dollars buy things for this room and emotes.' },
-  { room: 'subject', line: 'Unit room 4. Shape the next unit, then New unit sends them through the link.' },
+  { room: 'monitor', line: 'Three rooms on these monitors. Click one, or press 1, 2, 3.' },
+  { room: 'archive', hot: 'term', line: 'The codex. Everything you scan or sample is filed here.' },
+  { room: 'research', hot: 'codex', pose: 'codex', act: 'lattice', line: 'The research lattice: spend research points on new kit.' },
+  { room: 'research', hot: 'fridge', pose: 'fridge', act: 'fridge', line: 'Samples you bring back. Process them for research points.' },
+  { room: 'research', hot: 'tb:bench', pose: 'talent', act: 'bench', line: 'The talent bench: gifts against flaws for the next unit.' },
+  { room: 'research', el: '.dk-icon[aria-label^="Commissary"], .dk-icon[aria-label^="Emote"]', line: 'Up there: spend your dollars on this room and emotes.' },
+  { room: 'subject', line: 'Shape the next unit here. New unit sends them in.' },
 ];
 const LOOP: [PixKind, string][] = [['plug', 'Go in'], ['crate', 'Loot'], ['press', 'Press'], ['coin', 'Pay the debt'], ['tree', 'Research']];
 const KEY = 'noclip.tour.v1';
@@ -48,19 +53,35 @@ export function labGuideHere(): boolean { return !!hooks; }
 let running = false;
 export function tourRunning() { return running; }
 
+/** the brass corner pieces (one sprite, mirrored for the other three corners), glinting */
+function bracket(): HTMLElement {
+  const ring = document.createElement('div');
+  ring.className = 'tour-ring';
+  const S = 2, u = cornerSheet();
+  for (let i = 0; i < 4; i++) {
+    const c = document.createElement('i');
+    Object.assign(c.style, { width: CORNER * S + 'px', height: CORNER * S + 'px', backgroundImage: `url(${u})`, backgroundSize: `${CORNER * S}px ${CORNER * S * CORNER_F}px` });
+    c.style.setProperty('--cs', CORNER * S + 'px');
+    c.style.setProperty('--cf', String(CORNER_F));
+    ring.append(c);
+  }
+  return ring;
+}
+
 export async function runTour(h: TourHost): Promise<void> {
   if (running) return;
   running = true;
   markSeen();
   const layer = document.createElement('div');
   layer.className = 'tour';
-  const ring = document.createElement('div');
-  ring.className = 'tour-ring';
-  ring.innerHTML = '<i></i><i></i><i></i><i></i>';
+  const ring = bracket();
   const dots = document.createElement('div');
   dots.className = 'tour-dots';
+  const pipU = pipSheet();
+  const pips = STOPS.map(() => { const p = document.createElement('i'); Object.assign(p.style, { backgroundImage: `url(${pipU})` }); dots.append(p); return p; });
   const skip = document.createElement('button');
-  skip.type = 'button'; skip.className = 'tour-skip'; skip.textContent = 'Skip ›';
+  skip.type = 'button'; skip.className = 'tour-skip'; skip.setAttribute('aria-label', 'Skip the tour (Esc)');
+  skip.append(capEl('skip', 3));
   layer.append(ring, dots, skip);
   document.body.append(layer);
   const sub = new SubLine(layer);
@@ -73,7 +94,7 @@ export async function runTour(h: TourHost): Promise<void> {
     if (e.code === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); stop(); }
     else if (e.code === 'Space' || e.code === 'Enter' || e.code === 'ArrowRight') { e.preventDefault(); e.stopImmediatePropagation(); if (sub.talking) sub.skip(); else next = true; }
   };
-  const onDown = (e: PointerEvent) => { if (e.target === skip) return; e.preventDefault(); e.stopPropagation(); if (sub.talking) sub.skip(); else next = true; };
+  const onDown = (e: PointerEvent) => { if ((e.target as HTMLElement).closest?.('.tour-skip, .tour-ok')) return; e.preventDefault(); e.stopPropagation(); if (sub.talking) sub.skip(); else next = true; };
   window.addEventListener('keydown', onKey, true);
   layer.addEventListener('pointerdown', onDown);
   // the subtitle ticks and the brackets follow their thing on the clock
@@ -82,33 +103,37 @@ export async function runTour(h: TourHost): Promise<void> {
     raf = requestAnimationFrame(tick);
     sub.update(Math.min(0.1, (now - last) / 1000)); last = now;
     let at: { x: number; y: number; r: number } | null = null;
-    if (cur?.el) { const e = document.querySelector(cur.el) as HTMLElement | null; const b = e?.getBoundingClientRect(); if (b && b.width) at = { x: b.left + b.width / 2, y: b.top + b.height / 2, r: Math.max(b.width, b.height) / 2 + 8 }; }
+    if (cur?.el) { const e = document.querySelector(cur.el) as HTMLElement | null; const b = e?.getBoundingClientRect(); if (b && b.width) at = { x: b.left + b.width / 2, y: b.top + b.height / 2, r: Math.max(b.width, b.height) / 2 + 6 }; }
     else if (cur?.hot) at = h.spot(cur.room, cur.hot);
     ring.classList.toggle('on', !!at);
-    if (at) { const s = Math.round(Math.max(28, Math.min(220, at.r * 2))); Object.assign(ring.style, { left: Math.round(at.x - s / 2) + 'px', top: Math.round(at.y - s / 2) + 'px', width: s + 'px', height: s + 'px' }); }
+    if (at) { const s = Math.round(Math.max(56, Math.min(240, at.r * 2)) / 2) * 2; Object.assign(ring.style, { left: Math.round(at.x - s / 2) + 'px', top: Math.round(at.y - s / 2) + 'px', width: s + 'px', height: s + 'px' }); }
   };
   raf = requestAnimationFrame(tick);
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
   try {
     for (let i = 0; i < STOPS.length && !quit; i++) {
       const s = STOPS[i];
-      dots.innerHTML = STOPS.map((_, k) => `<b class="${k === i ? 'on' : k < i ? 'past' : ''}"></b>`).join('');
+      pips.forEach((p, k) => { p.className = k === i ? 'on' : k < i ? 'past' : ''; });
       cur = null;
+      sub.clear();
       for (let k = 0; k < 400 && !h.ready() && !quit; k++) await wait(150);
       if (quit) break;
       await h.go(s.room);
       if (s.pose) h.aim(s.room, s.pose);
-      // let the channel change and the camera's flight finish before she speaks
+      // let the channel change and the camera's flight finish, then the station moves and she speaks
       await wait(s.pose ? 1400 : 700);
       cur = s;
+      if (s.act) { try { h.act(s.room, s.act); } catch (e) { console.warn('tour act', e); } }
       sfx('tick', 0.5);
       sub.say(s.line, { dur: 60 });
       next = false;
       const t0 = performance.now();
       // on until a click (or long enough to have read it twice)
-      while (!next && !quit && performance.now() - t0 < 9000 + s.line.length * 40) await wait(80);
+      while (!next && !quit && performance.now() - t0 < 7000 + s.line.length * 40) await wait(80);
     }
     cur = null;
+    ring.classList.remove('on');
+    sub.clear();
     if (!quit) await loopCard(layer, (f) => { endCard = f; });
   } finally {
     cancelAnimationFrame(raf);
@@ -120,23 +145,25 @@ export async function runTour(h: TourHost): Promise<void> {
   }
 }
 
-/** the loop in five pictures, then out */
+/** the loop as a pixel diagram: five drawn things joined by brass arrows, a word under each, a key cap to close */
 function loopCard(layer: HTMLElement, onEnd: (f: () => void) => void): Promise<void> {
   return new Promise((done) => {
     const card = document.createElement('div');
     card.className = 'tour-card';
     const row = document.createElement('div');
     row.className = 'tour-loop';
+    const arrowU = arrowSheet();
     LOOP.forEach(([k, w], i) => {
       const step = document.createElement('div');
       step.className = 'tour-step';
-      step.style.animationDelay = i * 0.12 + 's';
+      step.style.animationDelay = i * 0.14 + 's';
       step.append(pixIconEl(k, 2), Object.assign(document.createElement('b'), { textContent: w }));
       row.append(step);
-      if (i < LOOP.length - 1) row.append(Object.assign(document.createElement('i'), { className: 'tour-arrow', textContent: '›' }));
+      if (i < LOOP.length - 1) { const a = document.createElement('i'); a.className = 'tour-arrow'; a.style.backgroundImage = `url(${arrowU})`; a.style.animationDelay = i * 0.14 + 0.07 + 's'; row.append(a); }
     });
     const ok = document.createElement('button');
-    ok.type = 'button'; ok.className = 'tour-ok'; ok.textContent = 'Got it';
+    ok.type = 'button'; ok.className = 'tour-ok'; ok.setAttribute('aria-label', 'Got it');
+    ok.append(capEl('ok', 3));
     card.append(row, ok);
     layer.append(card);
     sfx('open', 0.6);

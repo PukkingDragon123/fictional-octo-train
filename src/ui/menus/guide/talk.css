@@ -1,12 +1,37 @@
-/* the conversation with Dr. Calder (talk.ts): cinema bars, a column of questions on the machine keys */
-.tk-bar { position: fixed; left: 0; right: 0; height: 0; background: #050605; z-index: 900; transition: height 0.45s cubic-bezier(.3, .8, .3, 1); pointer-events: none; }
-.tk-bar.tk-top { top: 0; }
-.tk-bar.tk-bot { bottom: 0; }
-.tk-bar.on { height: 9vh; }
-.tk-panel { position: fixed; right: 2.5vw; top: 50%; z-index: 901; display: flex; flex-direction: column; gap: 6px; align-items: stretch;
-  transform: translate(24px, -50%); opacity: 0; transition: opacity 0.25s, transform 0.3s cubic-bezier(.2, .9, .3, 1.1); pointer-events: none; }
-.tk-panel.on { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
-.tk-head { font-family: 'Alagard', monospace; font-size: calc(var(--px, 2px) * 8); letter-spacing: 0.2em; color: #9dffb8; text-shadow: 0 0 8px rgba(120, 255, 170, .5), 2px 2px 0 #000; margin-bottom: 2px; }
-.tk-panel .tk-q { text-align: left; }
-.tk-panel .tk-q .mxb-t { font-size: calc(var(--px, 2px) * 7); }
-@media (max-width: 700px) { .tk-panel { right: 8px; left: 8px; top: auto; bottom: 10vh; transform: translateY(16px); } .tk-panel.on { transform: none; } .tk-panel .tk-q { width: auto !important; } }
+/* the questions for Dr. Calder (talk.ts): floating type with depth in front of the room, the same letters as the
+   world text (../../holo/cineText.css .ct-g); no panel, no boxes */
+.tk-layer { position: fixed; inset: 0; z-index: 900; pointer-events: none; perspective: 900px; perspective-origin: 70% 45%; }
+.tk-c {
+  position: absolute; pointer-events: auto; cursor: pointer; white-space: nowrap; transform-style: preserve-3d;
+  font-family: 'Alagard', monospace; font-size: calc(var(--px, 2px) * 8 + 14px); line-height: 1; color: #eefbef;
+  --glow: #7dffa8; --ctc: #eefbef;
+  transform: translate3d(0, 0, var(--z, 0)) rotateY(var(--ry, -10deg));
+  transition: transform 0.35s cubic-bezier(.2, .9, .3, 1.15), filter 0.25s, color 0.2s;
+  animation: tk-float 5.5s ease-in-out var(--ph, 0s) infinite alternate;
+  filter: brightness(0.86);
+  outline: none;
+}
+.tk-c .tk-t { display: inline-block; transform-style: preserve-3d; filter: drop-shadow(0 0 7px rgba(0, 0, 0, .8)); }
+.tk-c .tk-n { display: inline-block; margin-right: 0.45em; font-size: 0.62em; color: var(--glow); opacity: 0.85; vertical-align: 0.2em;
+  text-shadow: 0 0 6px var(--glow), 1px 1px 0 #10160f, 2px 2px 0 #0a0e0a; }
+.tk-c.tk-bye { --glow: #ffd27a; --ctc: #fbf2de; font-size: calc(var(--px, 2px) * 7 + 8px); }
+/* drifting at its own depth, a slow sway */
+@keyframes tk-float {
+  from { translate: 0 -5px; rotate: 0 1 0 -2deg; }
+  to { translate: 0 6px; rotate: 0 1 0 3deg; }
+}
+/* under the pointer: it comes forward and brightens */
+.tk-c.hot { transform: translate3d(-14px, 0, calc(var(--z, 0px) + 90px)) rotateY(calc(var(--ry, -10deg) * 0.4)); filter: brightness(1.25); }
+.tk-c.hot .ct-g { text-shadow: 1px 1px 0 #26302a, 2px 2px 0 #1a221d, 3px 3px 0 #10160f, 0 0 2px #000, 0 0 14px var(--glow), 0 0 26px color-mix(in srgb, var(--glow) 55%, transparent); }
+/* the thread of light from the hovered question to her */
+.tk-thread { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; opacity: 0; transition: opacity 0.2s; }
+.tk-thread.on { opacity: 1; }
+.tk-thread polyline { fill: none; stroke: #c8ffd8; stroke-width: 2.2; stroke-dasharray: 3 5; filter: drop-shadow(0 0 5px #7dffa8) drop-shadow(0 0 2px #000); animation: tk-spark 0.6s linear infinite; }
+@keyframes tk-spark { to { stroke-dashoffset: -14; } }
+/* the others dissolve; the picked one flies to her */
+.tk-c.out .ct-g { animation: ct-out 0.5s ease-in var(--o, 0ms) forwards; opacity: 1; }
+.tk-c.out .tk-n { transition: opacity 0.3s; opacity: 0; }
+.tk-c.fly { animation: none; transition: transform 0.65s cubic-bezier(.5, 0, .8, .4), opacity 0.65s, filter 0.65s;
+  transform: translate3d(var(--fx, -200px), var(--fy, 0), -140px) rotateY(30deg) scale(0.4); opacity: 0; filter: brightness(1.6) blur(1px); }
+@media (max-width: 700px) { .tk-c { font-size: calc(var(--px, 2px) * 7 + 8px); } }
+.reduce-flash .tk-c { animation: none; }

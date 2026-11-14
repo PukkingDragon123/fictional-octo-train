@@ -79,11 +79,11 @@ function model(kind: HubKind, S: number, sway: number, hot: boolean): THREE.Obje
     case 'shop': {
       // the commissary's vending machine: red enamel, the lit marquee, goods on spiral rows behind glass, keypad lamps
       m.add(fbox(15 * u, 22 * u, 9 * u, 0.06), M(0, 0, -1 * u), (_x, _y, z) => (z > 3 * u ? 0xb8301e : 0x8a2416), PAINT);
-      m.add(fbox(10 * u, 15 * u, 0.4 * u, 0), M(-2 * u, 0.5 * u, 3.7 * u), 0x10161c, GLASS);
+      m.add(fbox(10 * u, 15 * u, 0.4 * u, 0), M(-2 * u, 0.5 * u, 3.1 * u), 0x24384a, GLASS);
       const goods = [0xe2b21e, 0x6ad0c0, 0xd8402a, 0xe8e0d0, 0x8a5a30, 0x6a8ad0, 0x9ae070, 0xd870c0, 0xf0a040];
       for (let r = 0; r < 4; r++) {
-        m.add(fbox(9.6 * u, 0.4 * u, 3 * u, 0), M(-2 * u, (5.5 - r * 3.8) * u, 2.5 * u), 0x8a9290, STEEL);
-        for (let c = 0; c < 3; c++) m.add(fbox(2 * u, 2.6 * u, 1.6 * u, 0.2), M((-5 + c * 3) * u, (7 - r * 3.8) * u, 2.4 * u), goods[(r * 3 + c) % goods.length], PLASTIC);
+        m.add(fbox(9.6 * u, 0.4 * u, 1.6 * u, 0), M(-2 * u, (5.5 - r * 3.8) * u, 3.8 * u), 0x8a9290, STEEL);
+        for (let c = 0; c < 3; c++) m.add(fbox(2 * u, 2.6 * u, 1.6 * u, 0.2), M((-5 + c * 3) * u, (7 - r * 3.8) * u, 3.9 * u), goods[(r * 3 + c) % goods.length], PLASTIC);
       }
       m.add(fbox(3 * u, 10 * u, 0.6 * u, 0.1), M(5.2 * u, 2 * u, 3.6 * u), 0x9aa29e, CHROME);
       m.add(fbox(11 * u, 3 * u, 0.8 * u, 0.1), M(0, -8.5 * u, 3.6 * u), 0x1a1612, RUBBER);

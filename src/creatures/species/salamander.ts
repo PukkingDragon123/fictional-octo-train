@@ -45,8 +45,8 @@ const DESIGN: Design = {
 };
 
 /** the mouth (head space) and its axis (forward and down), and the bones added for its layers */
-const MOUTH_AT = (D: Record<string, number>): V3 => [0, -D.hh * 0.3, D.hl * 0.62];
-const MOUTH_AX: V3 = (() => { const l = Math.hypot(0.55, 1); return [0, -0.55 / l, 1 / l]; })();
+const MOUTH_AT = (D: Record<string, number>): V3 => [0, -D.hh * 0.22, D.hl * 0.98];
+const MOUTH_AX: V3 = (() => { const l = Math.hypot(0.3, 1); return [0, -0.3 / l, 1 / l]; })();
 const XM = { lips: -1, r1: -1, r2: -1, r3: -1 };
 function tweakS(rig: any) {
   const m = MOUTH_AT(rig.dims);
@@ -59,12 +59,12 @@ function grotesque(S: Ctx, page: Page) {
   const { hl, hw, hh } = D;
   const SKIN = S.fixed('PS_SHOVEL', 16, 16), RASP = S.fixed('PS_RASP', 8, 8), TOOTH = S.fixed('PS_TOOTH', 4, 6), FING = S.fixed('PS_FING', 6, 8);
   // the shovel: a flat, broad blade of snout pushed out past the face, its edge thin and hard
-  const tipZ = H0[2] + hl * 0.95;
+  const tipZ = H0[2] + hl * 0.85;
   sac(S.B, SKIN, S.gid(), [[H0[0], H0[1] - hh * 0.05, H0[2] + hl * 0.35], [H0[0], H0[1] - hh * 0.12, H0[2] + hl * 0.7], [H0[0], H0[1] - hh * 0.2, tipZ]],
     [[hw * 0.62, hh * 0.32], [hw * 0.72, hh * 0.18], [hw * 0.6, hh * 0.05]], [[iH, 1], [iH, 1], [iH, 1]], { n: 12, sq: 3.5 });
   // ---- the face (round 18). The mouth: a lamprey's round rasp at the front of the underside, opening in layers
   // (puckered lips, then three rings of backward hooked teeth, each on its own bone), a black throat behind
-  const M: V3 = addV(H0, MOUTH_AT(D)), MR = hw * 0.34, ax: V3 = MOUTH_AX;
+  const M: V3 = addV(H0, MOUTH_AT(D)), MR = hw * 0.4, ax: V3 = MOUTH_AX;
   const LIPS = S.fixed('PS_LIPS', 12, 8), THROAT = S.fixed('PS_THROAT', 6, 6), EYE = S.fixed('PS_EYE', 6, 6), MILK = S.fixed('PS_MILK', 6, 6);
   const GRIT = S.fixed('PS_GRIT', 4, 4), SLIME = S.fixed('PS_SLIME', 4, 8), LEECH = S.fixed('PS_LEECH', 8, 12);
   // a frame across the mouth's face
@@ -121,7 +121,7 @@ function grotesque(S: Ctx, page: Page) {
   for (let y = 0; y < RASP.h; y++) for (let x = 0; x < RASP.w; x++) RASP.set(x, y, Math.hypot(x - RASP.w / 2, y - RASP.h / 2) < RASP.w * 0.3 ? 0x2a0408 : mixHex(0x9a2a34, 0xd86a70, hash(x, y)));
   for (let y = 0; y < TOOTH.h; y++) for (let x = 0; x < TOOTH.w; x++) TOOTH.set(x, y, mixHex(0xf0e8d8, 0xb8a080, y / TOOTH.h));
   FING.fill(makeRamp(0xe8c0b8, 6, { spread: 0.45 }), (x, y) => 3 + Math.cos(FING.th(x)) - (y / FING.h) * 1.4);
-  LIPS.fill(makeRamp(0xc87a80, 6, { spread: 0.5 }), (x, y) => 2.8 + Math.cos(LIPS.th(x)) * 1.1 + (hash(x, y) - 0.5) * 0.6);
+  LIPS.fill(makeRamp(0xb04a58, 6, { spread: 0.5 }), (x, y) => 2.8 + Math.cos(LIPS.th(x)) * 1.1 + (hash(x, y) - 0.5) * 0.6);
   for (let i = 0; i < 10; i++) LIPS.set(hash(i, 31) * LIPS.w, hash(i, 32) * LIPS.h, 0xffeef0); // wet
   for (let y = 0; y < THROAT.h; y++) for (let x = 0; x < THROAT.w; x++) THROAT.set(x, y, mixHex(0x14040a, 0x5a1420, hash(x, y) * 0.5));
   for (let y = 0; y < EYE.h; y++) for (let x = 0; x < EYE.w; x++) EYE.set(x, y, 0x0a0608);

@@ -213,7 +213,7 @@ class TitleRoom {
     lab.rayAt = (x, y) => this.stage.rayAt(x, y);
     // the talent bench by the door (rooms/talentBench.ts): its floating tags ride the stage's projection
     lab.talent.project = (p) => this.stage.project(p);
-    lab.talent.onFocus = (on) => { this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
+    lab.talent.onFocus = (on) => { this.stage.paused = on; this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
     lab.onBench = (on) => { this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
     const reg = (id: MenuRoomId, r: { scene: THREE.Scene; cam: THREE.Camera; deco: THREE.Group; floor: any; surfaces: any; guideSpot: any }) =>
       registerMenuRoom({ id, scene: r.scene, camera: r.cam, deco: r.deco, floor: r.floor, surfaces: r.surfaces, guideSpot: r.guideSpot, host: this.stageHost, pick: (x, y) => this.pickFloor(x, y, r.floor.y, r.surfaces) });
@@ -241,19 +241,31 @@ class TitleRoom {
   private tourReady() { return !this.moving && !this.root.classList.contains('lit') && !this.root.classList.contains('playing') && !this.over.classList.contains('on') && !panelOpen() && !treeOpen() && !this.research?.bench && !this.research?.talent.active; }
   async startTour() {
     if (tourRunning()) return;
-    const box = new THREE.Box3(), c = new THREE.Vector3(), q = new THREE.Vector3();
+    const box = new THREE.Box3(), c = new THREE.Vector3(), q = new THREE.Vector3(), boxes = new Map<string, THREE.Box3>();
     // the room's own words step back while she talks (her line sits where they do)
     this.root.classList.add('touring'); document.body.classList.add('touring');
     await runTour({
-      go: async (r) => { if (r === 'monitor') await this.back(); else await this.go(r); },
+      go: async (r) => {
+        if (r === 'monitor') await this.back(); else await this.go(r);
+        // the tube's warm-up (crtfx) runs past the cut: wait for the picture to settle before she speaks
+        const fx = this.fx as unknown as { runs?: unknown[] };
+        for (let k = 0; k < 40 && (fx.runs?.length ?? 0) > 0; k++) await new Promise((res) => setTimeout(res, 100));
+      },
       aim: (r, pose) => { if (r === 'research' && this.research) (this.research as unknown as { pose: string }).pose = pose; },
       spot: (r, key) => {
         const room = r === 'research' ? this.research : r === 'archive' ? this.archive : null;
         const hot = (room as unknown as { hots?: { key: string; objs: THREE.Object3D[] }[] } | null)?.hots?.find((x) => x.key === key);
         if (!hot || this.view !== r) return null;
-        box.makeEmpty();
-        for (const o of hot.objs) box.expandByObject(o);
-        if (box.isEmpty()) return null;
+        // measured once per stop, before the station moves (a door swinging open must not drag the brackets off)
+        const ck = r + ':' + key;
+        const kept = boxes.get(ck);
+        if (kept) box.copy(kept);
+        else {
+          box.makeEmpty();
+          for (const o of hot.objs) if (!(o as THREE.InstancedMesh).isInstancedMesh) box.expandByObject(o);
+          if (box.isEmpty()) return null;
+          boxes.set(ck, box.clone());
+        }
         box.getCenter(c);
         const m = this.stage.project(c);
         if (!m) return null;
@@ -262,6 +274,14 @@ class TitleRoom {
         const f = this.stage.project(q.copy(box.min));
         const rad = e && f ? Math.hypot(e.x - f.x, e.y - f.y) / 2 : 60;
         return { x: mid.x, y: mid.y, r: Math.min(140, Math.max(24, rad * 0.6)) };
+      },
+      act: (r, what) => {
+        // the station does its thing while she names it
+        const lab = this.research as unknown as { lattice?: { setBranch(i: number): void; bi?: number }; doorT?: number; hots?: { key: string; press(): void }[] } | null;
+        if (r !== 'research' || !lab) return;
+        if (what === 'lattice') lab.lattice?.setBranch(((lab.lattice as { bi?: number }).bi ?? 0) === 0 ? 1 : 0);
+        else if (what === 'fridge') { lab.doorT = 1; sfx('creak', 0.5); }
+        else if (what === 'bench') lab.hots?.find((q) => q.key === 'tb:scale')?.press();
       },
       ready: () => this.tourReady(),
     }).finally(() => { this.root.classList.remove('touring'); document.body.classList.remove('touring'); });

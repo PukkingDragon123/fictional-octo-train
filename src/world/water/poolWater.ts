@@ -92,18 +92,20 @@ void main() {
   float slope = length(sl);
   vec3 spec = st * st * st * uGridScale;
   float fres = 0.1 + clamp(slope * 2.2, 0.0, 0.5);
-  // the crests catch the light: brighter and more opaque where the water is steep
+  // the water dims and cools what is under it a little and adds its own light on top (premultiplied:
+  // the colour is added, the alpha is how much of the picture underneath it takes away)
   float crest = clamp(slope * 5.0, 0.0, 1.0);
-  vec3 col = uTint * grid * (0.55 + crest * 0.6) + spec * (0.4 + slope * 6.0);
-  float a = clamp(0.16 + fres * 0.6 + crest * 0.3 + dot(spec, vec3(0.3)) * 0.15, 0.0, 0.85);
+  float a = clamp(0.1 + fres * 0.4 + crest * 0.22, 0.0, 0.7);
+  vec3 col = uTint * grid * 0.4 * a + spec * (0.22 + slope * 5.0) + grid * crest * 0.12;
   // foam: broken white, in clumps
   float fn = hsh(floor(vW.xz * 12.0)) * 0.6 + hsh(floor(vW.xz * 5.0 + 3.1)) * 0.4;
-  float foam = smoothstep(0.15, 0.9, w.a * (0.6 + fn * 0.8));
+  float foam = smoothstep(0.3, 1.0, w.a * (0.5 + fn * 0.8)) * 0.85;
   col = mix(col, grid * 0.95 + vec3(0.04), foam);
   a = max(a, foam * 0.92);
   if (uVisOn > 0.5) {
     vec2 vis = texture2D(uVisTex, (vW.xz - uVisInfo.xy) * uVisInfo.zw).rg;
-    a *= mix(vis.g * 0.35, 1.0, smoothstep(0.08, 0.92, vis.r));
+    float vk = mix(vis.g * 0.35, 1.0, smoothstep(0.08, 0.92, vis.r));
+    a *= vk; col *= vk;
   }
   gl_FragColor = vec4(col, a);
   gNormal = vec4(0.0);
@@ -121,6 +123,8 @@ function surfaceMat(): THREE.ShaderMaterial {
       uTint: { value: new THREE.Color(0xbfe6f0) },
     },
     transparent: true, depthWrite: false, depthTest: true, fog: false,
+    blending: THREE.CustomBlending, blendSrc: THREE.OneFactor, blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.OneFactor, blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
   });
   return mat;
 }
@@ -314,7 +318,7 @@ class PoolWater {
     const lv = this.levelAt(x, z);
     if (lv === null) return;
     const p = Math.max(0.1, Math.min(3, power));
-    this.disturb(x, z, -0.9 * p, 0.3 + p * 0.25, 0.5 + p * 0.4);
+    this.disturb(x, z, -0.9 * p, 0.3 + p * 0.25, 0.25 + p * 0.2);
     const n = Math.round(5 + p * 16);
     for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2, out = (0.6 + Math.random() * 1.6) * Math.sqrt(p);
@@ -386,8 +390,8 @@ class PoolWater {
         h[i] = nh > 0.3 ? 0.3 : nh < -0.3 ? -0.3 : nh;
         energy += Math.abs(v[i]) + Math.abs(nh) * 4;
         // foam fades; steep breaking crests whip some up
-        if (foam[i] > 0) foam[i] = Math.max(0, foam[i] - dt * (0.35 + foam[i] * 0.3));
-        if (v[i] > 0.55) foam[i] = Math.min(1, foam[i] + (v[i] - 0.55) * dt * 4);
+        if (foam[i] > 0) foam[i] = Math.max(0, foam[i] - dt * (0.6 + foam[i] * 0.6));
+        if (v[i] > 1.1) foam[i] = Math.min(1, foam[i] + (v[i] - 1.1) * dt * 2);
       }
     }
     s.idle = energy < 0.02 ? s.idle + 1 : 0;
@@ -431,7 +435,7 @@ class PoolWater {
       const sp = Math.min(5, speed);
       if (sp > 0.15) {
         // the bow pushes the water up ahead, the hollow behind it sinks: a wake that runs off in a V
-        this.disturb(x, z, -sp * 0.9 * size * dt * 6, 0.35 + size * 0.4, sp * 0.25 * dt * 6);
+        this.disturb(x, z, -sp * 0.9 * size * dt * 6, 0.35 + size * 0.4, sp * 0.03 * dt * 6);
         if (Math.random() < dt * sp * 1.2) this.ring(x, z, lv, size * 0.6, 0.8, 1.0);
       } else if (Math.random() < dt * 0.4) this.disturb(x, z, -0.08 * size, 0.4);
     };
@@ -501,7 +505,7 @@ class PoolWater {
       if (Math.abs(fx - me.x) > WIN || Math.abs(fz - me.z) > WIN) continue;
       for (let i = 0; i < 3; i++) {
         const a = Math.random() * Math.PI * 2, rr = r + (Math.random() - 0.5) * 0.15;
-        this.disturb(fx + Math.cos(a) * rr, fz + Math.sin(a) * rr, -0.35 * dt * 30 * (0.5 + Math.random()), 0.18, dt * 2);
+        this.disturb(fx + Math.cos(a) * rr, fz + Math.sin(a) * rr, -0.35 * dt * 30 * (0.5 + Math.random()), 0.18, dt * 0.5);
       }
       if (Math.random() < dt * 6) { const a = Math.random() * Math.PI * 2; const lv = this.levelAt(fx + Math.cos(a) * r, fz + Math.sin(a) * r); if (lv !== null) this.drop(fx + Math.cos(a) * r, lv + 0.03, fz + Math.sin(a) * r, Math.cos(a) * 0.6, 1 + Math.random(), Math.sin(a) * 0.6, 0.02); }
     }

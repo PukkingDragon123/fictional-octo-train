@@ -82,6 +82,8 @@ const POSES: Record<string, Pose> = {
   // up at the observation window, looking through it at what is held in HOLDING 2
   obs: P([2.35, 1.72, -0.35], [W + 1.35, 1.25, -2.95], 50),
   build: P([1.2, 2.8, 3.1], [-0.1, 0.3, 0.2], 54),
+  // round 18: the guided tour looks at the talent bench by the door (guide/tour.ts)
+  talent: P([-1.3, 1.6, 0.5], [-W + 0.3, 0.95, 2.3], 52),
 };
 
 interface Readout { cv: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; draw: (c: CanvasRenderingContext2D, t: number) => void; every: number; acc: number }
@@ -957,7 +959,7 @@ export class ResearchLab implements StageRoom {
     if (full) this.pokes.update(dt, t, this.cam);
     if (!full) return;
     // ---- camera: the benches drive it while a sample is worked (the close-ups get a gentler exposure)
-    this.grade.exposure = damp(this.grade.exposure ?? 1.75, (this.bench && !this.bench.done) || this.talent.inspecting ? 1.3 : 1.75, 4, dt);
+    this.grade.exposure = damp(this.grade.exposure ?? 1.75, this.bench && !this.bench.done ? 1.3 : 1.75, 4, dt);
     if (this.bench) { this.bench.update(dt, t); return; }
     this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 3, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 3, dt);
     this.build = damp(this.build, this.buildT, 3, dt);

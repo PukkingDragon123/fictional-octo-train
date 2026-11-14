@@ -21,11 +21,38 @@ import { openItemPanel } from '../itemPanel';
 import { transferItem, ensureLoot, isWorldContainer } from '../../game/worldOps';
 import { floorContainer } from '../../items/worldItems';
 import { sfx } from '../menus/sfx';
+import { mxOk } from '../machine/core';
+import { mxFrame, panelSpec, mxGauge, mxButton, type MxGauge } from '../machine/kit';
+import { mxIcon } from '../machine/decor';
 
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 const reduce = () => document.documentElement.classList.contains('reduce-flash');
 const ICON = 36;
+
+/** a crafted pixel socket for an item: a bevelled steel rim (brass while hot), a felt bed with its weave, four screws */
+function socketUrl(S: number, hot: boolean): string {
+  const cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const c = cv.getContext('2d')!;
+  const px = (x: number, y: number, col: string) => { c.fillStyle = col; c.fillRect(x, y, 1, 1); };
+  const rim = hot ? ['#f0d080', '#c8a050', '#8a6a2a', '#4a3410'] : ['#9aa098', '#6e746c', '#454a44', '#22251f'];
+  c.fillStyle = '#0b0c0a'; c.fillRect(0, 0, S, S);
+  c.fillStyle = rim[1]; c.fillRect(1, 1, S - 2, S - 2);
+  c.fillStyle = rim[0]; c.fillRect(1, 1, S - 2, 1); c.fillRect(1, 1, 1, S - 2);
+  c.fillStyle = rim[2]; c.fillRect(1, S - 2, S - 2, 1); c.fillRect(S - 2, 1, 1, S - 2);
+  c.fillStyle = rim[3]; c.fillRect(3, 3, S - 6, S - 6);
+  // the felt bed, sunk: dark green-grey, a weave, the shadow of the rim along its top and left
+  let seed = S * 31 + (hot ? 7 : 0);
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+  for (let y = 4; y < S - 4; y++) for (let x = 4; x < S - 4; x++) {
+    const w = ((x + y) % 4 === 0 ? 0.1 : 0) + ((x - y + 64) % 4 === 0 ? 0.06 : 0) + rnd() * 0.08;
+    const sh = (x < 7 || y < 7) ? -0.35 : (x > S - 7 || y > S - 7) ? 0.08 : 0;
+    const v = Math.max(0, Math.min(1, 0.22 + w + sh));
+    c.fillStyle = `rgb(${Math.round(30 + v * 40)},${Math.round(36 + v * 46)},${Math.round(30 + v * 36)})`; c.fillRect(x, y, 1, 1);
+  }
+  for (const [x, y] of [[3, 3], [S - 5, 3], [3, S - 5], [S - 5, S - 5]]) { px(x, y, rim[0]); px(x + 1, y, rim[1]); px(x, y + 1, rim[2]); px(x + 1, y + 1, '#0b0c0a'); }
+  return cv.toDataURL();
+}
 
 export class Pack2D {
   open = false;
@@ -42,6 +69,17 @@ export class Pack2D {
   private dirty = true;
   private raf = 0;
   private fresh = false;
+  // the persistent parts: the housings, the weight gauge, the heads
+  private youHead = el('header', 'pk2-head');
+  private youEq = el('div', 'pk2-eq');
+  private youBody = el('div', 'pk2-body');
+  private lootHead = el('header', 'pk2-head');
+  private lootBody = el('div', 'pk2-lbody');
+  private gauge: MxGauge | null = null;
+  private wNum = el('em', 'pk2-w');
+  private lootIco = el('span', 'pk2-hico');
+  private lootName = el('span', 'pk2-name');
+  private framed = false;
 
   constructor(ui?: unknown) {
     (G as any).pack = this;
@@ -50,6 +88,18 @@ export class Pack2D {
     const orig = u?.blocksMovement?.bind(u);
     if (u && orig) u.blocksMovement = () => orig() || this.open;
     this.root.append(this.you, this.lootCol, this.tip);
+    for (const [k, S, hot] of [['--pk2-sock', 44, false], ['--pk2-sock-hot', 44, true], ['--pk2-sock-s', 34, false], ['--pk2-sock-s-hot', 34, true]] as [string, number, boolean][]) {
+      try { this.root.style.setProperty(k, `url(${socketUrl(S, hot)})`); } catch { /* no canvas */ }
+    }
+    this.you.append(this.youHead, this.youEq, this.youBody);
+    this.lootCol.append(this.lootHead, this.lootBody);
+    // the weight: a gauge on the pack's housing (its needle swings as things go in), the kilos beside it
+    this.gauge = mxGauge(40, 0, 'KG');
+    if (this.gauge) this.youHead.append(this.gauge);
+    this.youHead.append(this.wNum);
+    const take = mxButton('', () => this.takeAll(), { w: 54, h: 32, tone: 'olive', lamp: false, cls: 'pk2-all', icon: mxIcon('crate', 18) });
+    take.title = 'Take everything (F)';
+    this.lootHead.append(this.lootIco, this.lootName, take);
     this.root.addEventListener('pointerenter', () => { if (G.input) G.input.pointerOverUI = true; });
     this.root.addEventListener('pointerleave', () => { if (G.input) G.input.pointerOverUI = false; this.tip.classList.remove('on'); });
     this.root.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -97,6 +147,14 @@ export class Pack2D {
     // looting: the unit kneels and rummages while the column is up
     if (this.loot && !p.full && !(p as any).sittingOn && !(p as any).inVehicle) { p.full = 'kneel'; this.knelt = true; }
     requestAnimationFrame(() => this.root.classList.add('on'));
+    if (!this.framed && mxOk()) {
+      this.framed = true;
+      // the two columns are machine housings (the institute's olive kit): riveted, worn, a window for the sockets
+      for (const [col, seed] of [[this.you, 81], [this.lootCol, 83]] as [HTMLElement, number][]) {
+        col.classList.add('mx');
+        try { mxFrame(col, (w, h) => { const sp = panelSpec(w, h, { seed, hazard: false, vents: false, glands: 0, lamps: [], top: 46, bot: 10 }); sp.depth = 8; return sp; }, { pad: 10 }); } catch (e) { console.warn('pack frame', e); }
+      }
+    }
     sfx('open', 0.4); G.audio?.ui?.('bag_zip', 0.3);
     this.dirty = true; this.sig = '';
     cancelAnimationFrame(this.raf);
@@ -134,29 +192,26 @@ export class Pack2D {
   private drawYou() {
     const p = G.local!;
     const w = p.carriedWeight(), cap = p.capacity();
-    const k = Math.min(1.25, w / Math.max(0.1, cap));
-    const head = el('header', 'pk2-head');
-    head.innerHTML = `<i class="pk2-ico you"></i><span class="pk2-wb${k > 1 ? ' over' : ''}"><b style="width:${Math.round(Math.min(1, k) * 100)}%"></b></span><em>${w.toFixed(1)}<small>/${cap.toFixed(0)} kg</small></em>`;
-    // the hands and what is worn
-    const eq = el('div', 'pk2-eq');
+    const k = w / Math.max(0.1, cap);
+    this.gauge?.set(Math.min(1, k * 0.8));
+    this.wNum.innerHTML = `${w.toFixed(1)}<small>/${cap.toFixed(0)}</small>`;
+    this.wNum.classList.toggle('over', k > 1);
+    // the hands and what is worn, in small sockets along the top
+    const eq: HTMLElement[] = [];
     const hands: [string, Item | null][] = [['R', p.handR ?? null], ['L', p.handL && p.handL !== p.handR ? p.handL : null]];
-    for (const [h, it] of hands) eq.append(this.cell(it, null, `hand ${h}`, true));
-    for (const [slot, it] of p.worn) eq.append(this.cell(it, p.containerOf(it) ?? p.inv, String(slot), true));
-    const body = el('div', 'pk2-body');
-    for (const c of p.containers()) body.append(this.grid(c, false));
-    this.you.replaceChildren(head, eq, body);
+    for (const [h, it] of hands) eq.push(this.cell(it, null, `hand ${h}`, true));
+    for (const [slot, it] of p.worn) eq.push(this.cell(it, p.containerOf(it) ?? p.inv, String(slot), true));
+    this.youEq.replaceChildren(...eq);
+    this.youBody.replaceChildren(...p.containers().map((c) => this.grid(c, false)));
   }
   private drawLoot() {
     const c = this.loot;
-    if (!c) { this.lootCol.replaceChildren(); return; }
-    const head = el('header', 'pk2-head');
-    head.innerHTML = `<i class="pk2-ico ${c.kind === 'floor' ? 'floor' : 'box'}"></i><span class="pk2-name">${esc(c.kind === 'floor' ? 'Floor' : c.name)}</span>`;
-    const all = el('button', 'pk2-key', '<kbd>F</kbd><i class="pk2-ico all"></i>') as HTMLButtonElement;
-    all.type = 'button'; all.title = 'Take everything';
-    all.addEventListener('click', () => this.takeAll());
-    head.append(all);
+    if (!c) { this.lootBody.replaceChildren(); return; }
+    const ic = mxOk() ? mxIcon(c.kind === 'floor' ? 'map' : 'crate', 20) : null;
+    this.lootIco.replaceChildren(...(ic ? [ic] : []));
+    this.lootName.textContent = c.kind === 'floor' ? '' : c.name;
     const g = this.grid(c, true);
-    this.lootCol.replaceChildren(head, g);
+    this.lootBody.replaceChildren(g);
     // the rummage: on a fresh search the things come flying out of the container into their cells
     if (this.fresh) {
       this.fresh = false;
@@ -177,7 +232,7 @@ export class Pack2D {
       const own = c === p.inv ? null : p.allItems().find((i) => i.inv === c) ?? null;
       const cap = el('div', 'pk2-cap');
       if (own) { const im = new Image(); im.src = itemIconFor(own, iconResCss(20)); cap.append(im); this.hover(cap, itemName(own)); }
-      else cap.append(el('i', 'pk2-ico pockets'));
+      else { const ic = mxOk() ? mxIcon('crate', 16) : null; if (ic) cap.append(ic); }
       cap.append(el('small', '', `${c.items.length}`));
       sec.append(cap);
     }
@@ -194,7 +249,7 @@ export class Pack2D {
   private cell(it: Item | null, c: Container | null, slot: string, eq: boolean, n = 1, isLoot = false): HTMLElement {
     const b = el('button', 'pk2-cell' + (eq ? ' eq' : '') + (it ? '' : ' empty')) as HTMLButtonElement;
     b.type = 'button';
-    if (eq && !it) { b.append(el('i', 'pk2-ico ' + (slot.startsWith('hand') ? 'hand' : 'slot'))); this.hover(b, slot.toUpperCase()); return b; }
+    if (eq && !it) { this.hover(b, slot.toUpperCase()); return b; }
     if (!it) return b;
     const im = new Image(); im.src = itemIconFor(it, iconResCss(ICON)); im.alt = ''; im.draggable = false;
     b.append(im);
@@ -235,7 +290,7 @@ export class Pack2D {
     if (!to) { sfx('error', 0.4); this.root.classList.remove('full'); void this.root.offsetWidth; this.root.classList.add('full'); return; }
     transferItem(p, it, c, to);
     G.audio?.ui?.('bag_place', 0.35);
-    this.fly(itemIconFor(it, iconResCss(ICON)), from, this.you.querySelector('.pk2-body')?.getBoundingClientRect() ?? null);
+    this.fly(itemIconFor(it, iconResCss(ICON)), from, this.youBody.getBoundingClientRect());
     this.dirty = true;
   }
   private put(it: Item, from: Container, at: DOMRect) {
