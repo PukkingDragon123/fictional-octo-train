@@ -63,13 +63,13 @@ export interface FieldPack {
 export function buildPack(bodyTex: THREE.Texture, lidTex: THREE.Texture, W: number, L: number, lidL: number): FieldPack {
   const root = new THREE.Group();
   const h = 0.085, t = 0.02;
-  const olive = mix(PAL.olive, PAL.oliveD, 0.2);
+  const olive = hex(0x767a4c);
   // the floor (the painted interior)
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, L).rotateX(-Math.PI / 2), std(bodyTex, 0.96));
   floor.position.y = 0.012; floor.name = 'packFloor';
   root.add(floor);
   // the walls: canvas outside and in, a webbing binding rolled over their tops
-  const wall = S.canvas(olive), wallIn = S.canvas(mul(PAL.lining, 0.9));
+  const wall = S.canvas(olive), wallIn = S.canvas(mix(PAL.lining, PAL.khaki, 0.3));
   const front = (p: Px, Wd: number, Hd: number) => {
     wall(p, Wd, Hd);
     // two compression straps with brass buckles down the front

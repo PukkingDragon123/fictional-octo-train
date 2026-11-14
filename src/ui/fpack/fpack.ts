@@ -175,8 +175,8 @@ export class FieldPackUI {
     this.g.add(this.set);
     const S = this.set;
     // lit like a room: a warm overhead key, a cool bounce, a rim from beyond
-    S.add(new THREE.HemisphereLight(0xe8e0cc, 0x3a3226, 1.0));
-    const key = new THREE.DirectionalLight(0xfff0dc, 2.1); key.position.set(-0.5, 3, 0.6); key.target.position.set(0, 0, -0.7); S.add(key, key.target);
+    S.add(new THREE.HemisphereLight(0xf0e8d4, 0x4a4234, 1.4));
+    const key = new THREE.DirectionalLight(0xfff0dc, 2.5); key.position.set(-0.5, 3, 0.6); key.target.position.set(0, 0, -0.7); S.add(key, key.target);
     const fill = new THREE.DirectionalLight(0x90a0b8, 0.35); fill.position.set(1.4, 0.8, 0.4); fill.target.position.set(0, 0, -0.7); S.add(fill, fill.target);
     const rim = new THREE.DirectionalLight(0xfff4e0, 0.6); rim.position.set(0.3, 1.2, -3); rim.target.position.set(0, 0, -0.7); S.add(rim, rim.target);
     this.shadowP = contactShadow(0.6, 0.5, 0.5); S.add(this.shadowP);

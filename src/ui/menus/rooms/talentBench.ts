@@ -88,7 +88,7 @@ export class TalentBench {
   private layer: HTMLElement;
   private backKey: HTMLElement | null = null;
   /** the inspection readout: a small CRT on a lift beside the stand */
-  private crt!: CrtScreen; private crtLift = new THREE.Group(); private crtUp = 0;
+  private crt!: CrtScreen; private crtLift = new THREE.Group(); private crtUp = 0; private crtOn = false;
   /** a marble being dragged by the pointer */
   private drag: { key: string; sx: number; sy: number; moved: boolean; vel: THREE.Vector3; pos: THREE.Vector3 } | null = null;
   /** a world ray through a client point (research.ts hands over the stage's) */
@@ -322,9 +322,10 @@ export class TalentBench {
     cb.add('metal', cbox(0.03, 0.05, 0.03, 0.004), 0x2a2c2a, at(0, 0.0, -0.01));
     this.crtLift.add(cb.build(this.mats));
     this.crt = crtScreen(spot.sw, spot.sh, { res: [256, 192], tint: 0xffffff, curvature: 0.25, glow: 1.0, noise: 0.03, scan: 0.6, mask: 0.2, reflect: 0.6 });
+    this.crt.mesh.material = new THREE.MeshBasicMaterial({ map: this.crt.tex, toneMapped: false });
     this.crt.mesh.applyMatrix4(spot.m); this.crt.mesh.userData.noGlow = true;
     this.crtLift.add(this.crt.mesh);
-    this.crtLift.position.set(x - 0.02, y, z - 0.17); this.crtLift.rotation.y = -Math.PI / 2 - 0.3;
+    this.crtLift.position.set(x - 0.02, y, z - 0.17); this.crtLift.rotation.y = Math.PI / 2 - 0.3;
     this.crtLift.scale.setScalar(0.001); this.crt.power(false, true);
     g.add(this.crtLift);
     this.hots.push({ key: 'tb:stand', objs: [g], glow: [], label: 'Inspection stand', sub: 'a marble set here turns under the loupe', press: () => { if (this.held) this.toggle(this.held); } });
@@ -670,6 +671,10 @@ export class TalentBench {
       ly = H - 14 - lines.length * 14;
       for (const l of lines.slice(-3)) { phosphorText(c, l.trim(), 36, ly, { size: 12, color: A, font: 'Alagard' }); ly += 14; }
     }
+    // the tube: scanlines, a soft vignette, a faint green cast
+    for (let yy = 0; yy < H; yy += 2) { c.fillStyle = 'rgba(0,0,0,0.28)'; c.fillRect(0, yy, W, 1); }
+    const vg = c.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, W * 0.62); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+    c.fillStyle = vg; c.fillRect(0, 0, W, H);
     this.crt.flush();
   }
   // ================================================================== dragging marbles
@@ -777,7 +782,9 @@ export class TalentBench {
     // the CRT rises on its lift while a marble is up, and powers on once it is up
     this.crtUp = damp(this.crtUp, insp ? 1 : 0, 6, dt);
     this.crtLift.scale.setScalar(Math.max(0.001, this.crtUp)); this.crtLift.visible = this.crtUp > 0.01;
-    if (insp && this.crtUp > 0.7 && this.crt.mat.crt.target === 0) { this.crt.power(true); gameSound('metal_clank', 0.12, 1.6); }
+    if (insp && this.crtUp > 0.7 && !this.crtOn) { this.crtOn = true; gameSound('metal_clank', 0.12, 1.6); }
+    if (!insp) this.crtOn = false;
+    (this.crt.mesh.material as THREE.MeshBasicMaterial).color.setScalar(this.crtOn ? 0.9 + Math.sin(t * 50) * 0.03 : 0.02);
     // a dragged marble follows the pointer on a plane over the pans: a spring, heavier marbles lag more
     if (this.drag?.moved && this.dragRay) {
       const hit = this.dragRay.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 1, 0), -(this.TOP + 0.24)), new THREE.Vector3());

@@ -29,3 +29,4 @@
 - Never replace a system the user likes with a new design unless asked (the 3D research lattice is the skill tree;
   the HUD body console and the green/yellow machine UI stay).
 - Say "unit", never "subject". Monsters are "inhabitants". The facility is the Meridian Institute of Liminality.
+- The hotbar and the first-person backpack scene (src/ui/fpack) are the user's: polish them, never redesign or replace them.

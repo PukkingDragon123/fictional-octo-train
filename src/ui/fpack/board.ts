@@ -246,7 +246,7 @@ const fronts = new WeakMap<Comp, HTMLCanvasElement>();
 
 /** the pack's floor: an amber-khaki liner, diamond quilting, AO along the walls, seams, a hydration sleeve, a label */
 function paintBody(p: Px, W: number, H: number) {
-  weave(p, 0, 0, W, H, PAL.lining, { seed: 17, dirt: 0.6, wear: 0.5 });
+  weave(p, 0, 0, W, H, mix(PAL.lining, PAL.khaki, 0.45), { seed: 17, dirt: 0.6, wear: 0.5 });
   // quilting: stitched diamonds with the padding puffing between them
   const q = 18;
   p.fill(0, 0, W, H, (x, y) => {
@@ -277,7 +277,7 @@ function paintBody(p: Px, W: number, H: number) {
 
 /** the inside of the lid: the darker shell canvas, a webbing binding round it, a mesh pocket behind everything */
 function paintLid(p: Px, W: number, H: number) {
-  weave(p, 0, 0, W, H, mix(PAL.olive, PAL.oliveD, 0.35), { seed: 29, dirt: 0.55, wear: 0.6 });
+  weave(p, 0, 0, W, H, mul(PAL.olive, 1.12), { seed: 29, dirt: 0.55, wear: 0.6 });
   // the mesh pocket across the middle (diamond mesh over a dark void), zipped along its top
   const my = Math.round(H * 0.08), mh = Math.round(H * 0.84);
   p.fill(6, my, W - 12, mh, (x, y) => {
