@@ -357,7 +357,7 @@ export function buildMarble(m: Marble, R = 0.016, hq = false): Marble3D {
   // what it is inside reads a little bigger through the glass
   core.scale.setScalar(1.08);
   // the caustic: the light it focuses onto whatever it rests on (the bench places it)
-  const caustic = new THREE.Mesh(new THREE.PlaneGeometry(R * 5, R * 5), new THREE.MeshBasicMaterial({ map: causticTex(L, r), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  const caustic = new THREE.Mesh(new THREE.PlaneGeometry(R * 5, R * 5), new THREE.MeshBasicMaterial({ map: causticTex(L, r), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: hq, opacity: hq ? 0.6 : 1 }));
   caustic.rotation.x = -Math.PI / 2; caustic.renderOrder = 3; caustic.userData.noGlow = true; caustic.visible = false;
   core.traverse((o) => { (o as THREE.Mesh).renderOrder = 5; o.userData.noGlow = true; });
   core.rotation.set(r() * 6, r() * 6, r() * 6);
@@ -372,7 +372,7 @@ export function buildMarble(m: Marble, R = 0.016, hq = false): Marble3D {
       if (jelly) { const k = 1 + Math.sin(t * 7 + w0) * 0.05; jelly.scale.set(k, 2 - k, k); }
     },
     setLocked(on) {
-      if (hqMat) { const r0 = on ? 0.5 : 0.02 + L.cloud * 0.3; if (hqMat.roughness !== r0) { hqMat.roughness = r0; hqMat.clearcoat = on ? 0 : 1; } return; }
+      if (hqMat) { const r0 = on ? 0.22 : 0.015 + L.cloud * 0.25; if (hqMat.roughness !== r0) { hqMat.roughness = r0; hqMat.clearcoat = on ? 0 : 1; } return; }
       dust.visible = on;
     },
   };

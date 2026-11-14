@@ -204,7 +204,7 @@ export class TalentDesk {
   private grams: { c: HTMLCanvasElement; t: THREE.CanvasTexture }[] = [];
   private seal = new THREE.Group(); private sealCap!: THREE.Mesh; private sealLamp!: THREE.MeshStandardMaterial; private sealT = 0;
   private card!: THREE.Mesh; private cardMat!: THREE.MeshStandardMaterial; private cardShown = 0;
-  private standP = new THREE.Vector3(0.4, 0.06 + R, 0.2);
+  private standP = new THREE.Vector3(0.36, 0.06 + R, 0.2);
   private poured = -1;
   private tray: string[] = [];
   private inspect: string | null = null;
@@ -268,7 +268,8 @@ export class TalentDesk {
     const wall = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 1.3), new THREE.MeshStandardMaterial({ map: paintWall(), roughness: 0.55 }));
     wall.position.set(0, 0.6, -0.58); wall.receiveShadow = true; S.add(wall);
     // the balance: a dark iron base, brass pillar and beam on a knife edge, two pans on rods, the dial
-    const brassM = new THREE.MeshStandardMaterial({ map: brass.map, roughnessMap: brass.rough, roughness: 0.28, metalness: 1, color: 0xffffff, envMapIntensity: 1.8 });
+    // polished brass: the colour is the metal's own; fingerprints and wear live in the roughness
+    const brassM = new THREE.MeshStandardMaterial({ roughnessMap: brass.rough, roughness: 0.26, metalness: 1, color: 0xd8a650, envMapIntensity: 1.8 });
     const iron = new THREE.MeshStandardMaterial({ color: 0x232426, metalness: 0.55, roughness: 0.5 });
     const base = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.04, 0.16), iron); base.position.set(0, 0.02, -0.2); base.castShadow = base.receiveShadow = true; S.add(base);
     const rail = new THREE.Mesh(new THREE.BoxGeometry(0.565, 0.008, 0.008), brassM); rail.position.set(0, 0.041, -0.118); S.add(rail);
@@ -318,8 +319,8 @@ export class TalentDesk {
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.012, 0.0025, 10, 32), brassM); ring.rotation.x = Math.PI / 2; ring.position.set(this.standP.x, 0.051, this.standP.z); S.add(ring);
     this.cardMat = new THREE.MeshStandardMaterial({ roughness: 0.85, transparent: true, opacity: 0 });
     this.card = new THREE.Mesh(new THREE.PlaneGeometry(0.21, 0.14), this.cardMat);
-    this.card.position.set(0.585, 0.085, 0.2); this.card.rotation.set(-0.5, -0.12, 0); this.card.castShadow = true; S.add(this.card);
-    const clip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.014, 0.03), brassM); clip.position.set(0.585, 0.012, 0.235); S.add(clip);
+    this.card.position.set(0.535, 0.085, 0.21); this.card.rotation.set(-0.55, -0.1, 0); this.card.castShadow = true; S.add(this.card);
+    const clip = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.014, 0.03), brassM); clip.position.set(0.535, 0.012, 0.25); S.add(clip);
     // the marbles: real glass on this renderer
     for (const m of MARBLES) {
       const v = buildMarble(m, R, true);
@@ -565,8 +566,8 @@ export class TalentDesk {
     const port = innerHeight > innerWidth * 1.05;
     // the camera: the whole bench, or close on the stand and its card
     const insp = !!this.inspect && !this.drag;
-    const gp = insp ? (port ? [0.5, 0.4, 0.66] : [0.49, 0.24, 0.52]) : (port ? [0, 1.25, 1.35] : [0, 0.7, 0.92]);
-    const gl = insp ? [0.49, 0.075, 0.2] : [0, 0.07, -0.06];
+    const gp = insp ? (port ? [0.45, 0.4, 0.66] : [0.45, 0.22, 0.5]) : (port ? [0, 1.25, 1.35] : [0, 0.7, 0.92]);
+    const gl = insp ? [0.45, 0.075, 0.2] : [0, 0.07, -0.06];
     const k = 1 - Math.exp(-dt * 4);
     this.camP.lerp(this.v.set(gp[0], gp[1], gp[2]), k); this.camL.lerp(new THREE.Vector3(gl[0], gl[1], gl[2]), k);
     this.camF += ((insp ? 34 : port ? 56 : 44) - this.camF) * k;
