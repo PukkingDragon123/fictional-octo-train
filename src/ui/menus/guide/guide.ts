@@ -334,7 +334,7 @@ export class Guide {
       this.cur.t += dt;
       if (this.cur.h.done) { const c = this.cur; this.cur = null; c.then?.(); }
     }
-    if (!this.cur && this.queue.length && !this.walking && !hide) this.start(this.queue.shift()!);
+    if (!this.cur && this.queue.length && (!this.walking || this.talk) && !hide) this.start(this.queue.shift()!);
     // idle chatter, rarely
     this.idleT += dt;
     if (!this.cur && !this.queue.length && !this.gone && !this.talk && this.idleT > 45 && !hide) { this.idleT = 0; this.say([{ text: TIPS[Math.floor(Math.random() * TIPS.length)] }]); }
