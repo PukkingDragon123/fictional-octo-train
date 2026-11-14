@@ -146,7 +146,7 @@ body.deco-build [data-deco-hide], body.deco-shop [data-deco-hide] { visibility: 
 @media (max-width: 560px) { .tour-loop { flex-wrap: wrap; justify-content: center; max-width: 340px; } .tour-arrow { display: none; } .tour-step b { font-size: 15px; } }
 /* while she shows the unit round, the rooms' own words, captions, feed keys and the title menu step out: only the brackets,
    her one line (in its own lane at the foot, on a dark band) and Skip stay */
-body.touring :is(.mr-hud, .mr-hotcap, .mr-feeds, .tt3-menu, .tt3-cap, .obj15, #wprompt) { visibility: hidden !important; }
+body.touring :is(.mr-hud, .mr-hotcap, .mr-feeds, .tt3-menu, .tt3-cap, .obj15, #wprompt, .gd-sub:not(.tour .gd-sub)) { visibility: hidden !important; }
 .tour .gd-sub { top: auto; bottom: 64px; }
 /* round 18: the corner keys as 3D models (./hubModels.ts): the object and its shadow only; it lifts and lights under
    the pointer, sinks when pressed; the name in small type below it */

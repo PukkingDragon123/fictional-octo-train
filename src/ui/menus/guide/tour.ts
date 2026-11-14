@@ -32,7 +32,7 @@ const STOPS: Stop[] = [
   { room: 'research', hot: 'codex', pose: 'codex', act: 'lattice', line: 'The research lattice: spend research points on new kit.' },
   { room: 'research', hot: 'fridge', pose: 'fridge', act: 'fridge', line: 'Samples you bring back. Process them for research points.' },
   { room: 'research', hot: 'tb:bench', pose: 'talent', act: 'bench', line: 'The talent bench: gifts against flaws for the next unit.' },
-  { room: 'research', el: '.dk-icon[aria-label^="Commissary"], .dk-icon[aria-label^="Emote"]', line: 'Up there: spend your dollars on this room and emotes.' },
+  { room: 'research', pose: 'room', el: '.dk-icon[aria-label^="Commissary"], .dk-icon[aria-label^="Emote"]', line: 'Up there: spend your dollars on this room and emotes.' },
   { room: 'subject', line: 'Shape the next unit here. New unit sends them in.' },
 ];
 const LOOP: [PixKind, string][] = [['plug', 'Go in'], ['crate', 'Loot'], ['press', 'Press'], ['coin', 'Pay the debt'], ['tree', 'Research']];
@@ -72,6 +72,7 @@ export async function runTour(h: TourHost): Promise<void> {
   if (running) return;
   running = true;
   markSeen();
+  // (the lab guide's own lines are hidden while she tours: body.touring, deco.css)
   const layer = document.createElement('div');
   layer.className = 'tour';
   const ring = bracket();

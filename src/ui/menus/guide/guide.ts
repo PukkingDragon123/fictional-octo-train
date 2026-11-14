@@ -226,7 +226,7 @@ export class Guide {
     if (m) {
       this.queue = []; this.subs.clear(); this.cur = null;
       this.gone = false;
-      this.say([{ text: 'I will be quiet. Pick up the telephone if you need me.', emote: 'bow', then: () => { this.gone = true; } }], true);
+      this.say([{ text: 'I will be quiet. Settings will call me back.', emote: 'bow', then: () => { this.gone = true; } }], true);
     } else {
       this.gone = false;
       if (this.rig) this.rig.root.visible = true;

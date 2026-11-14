@@ -12,31 +12,53 @@ import { eyeActive, eyeCamera, eyeEnter } from '../../fp/eye';
 import { makeArm, poseArm, makeItemObj, itemAlign, damp, type Arm, type ItemObj } from '../../craft/fpKit';
 import { texturizeSleeves } from '../pack/packTex';
 import { itemIconFor, iconResCss } from '../icons';
-import { SCRIPTED } from './fpack';
 
 const DEG = Math.PI / 180;
+/** scripted browsers (navigator.webdriver without ?fpcut) skip the cut */
+export const SCRIPTED = typeof navigator !== 'undefined' && !!navigator.webdriver && typeof location !== 'undefined' && !/[?&]fpcut/.test(location.search);
 const GRAB_FOV = 56;
 interface Job { it: Item; x: number; y: number; z: number }
 
-/** the icon of a thing flying across the screen into the tool belt (to its slot when it has one) */
+/** where a thing flying into the hotbar lands: its own slot when it has one, else the middle of the bar */
+function hotbarPoint(it: Item): { x: number; y: number } | null {
+  const bar = document.getElementById('hot12');
+  if (!bar || !bar.classList.contains('on')) return null;
+  const n = ((it.data as any)?.hot as number) || 0;
+  const slot = n ? bar.querySelectorAll<HTMLElement>('.hb-slot')[n - 1] : null;
+  const r = (slot ?? bar).getBoundingClientRect();
+  return r.width ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null;
+}
+
+/** the icon of a thing flying across the screen into the hotbar (it hangs where it was lifted until the bar is back) */
 export function flyToBelt(it: Item, sx: number, sy: number) {
   if (document.documentElement.classList.contains('reduce-flash')) return;
-  const hb = (G as any).hotbar;
-  const to: { x: number; y: number } | null = hb?.pocketPoint?.(it) ?? null;
-  if (!to) return;
   const S = 40;
-  const im = new Image(); im.src = itemIconFor(it, iconResCss(S)); im.className = 'fpk-fly';
-  Object.assign(im.style, { position: 'fixed', left: '0', top: '0', width: S + 'px', height: S + 'px', zIndex: '71', pointerEvents: 'none', imageRendering: 'pixelated', filter: 'drop-shadow(2px 3px 0 rgba(0,0,0,.5))' });
+  const im = new Image(); im.src = itemIconFor(it, iconResCss(S)); im.className = 'grab-fly';
+  Object.assign(im.style, { position: 'fixed', left: '0', top: '0', width: S + 'px', height: S + 'px', zIndex: '71', pointerEvents: 'none', imageRendering: 'pixelated', filter: 'drop-shadow(2px 3px 0 rgba(0,0,0,.5))', transform: `translate(${sx - S / 2}px, ${sy - S / 2}px) scale(1.3)` });
   document.body.append(im);
-  const x0 = sx - S / 2, y0 = sy - S / 2, x1 = to.x - S / 2, y1 = to.y - S / 2;
-  const mx = (x0 + x1) / 2 + (x1 > x0 ? -40 : 40), my = Math.min(y0, y1) - 90;
-  const a = im.animate([
-    { transform: `translate(${x0}px, ${y0}px) scale(1.3) rotate(-8deg)`, opacity: 1 },
-    { transform: `translate(${mx}px, ${my}px) scale(1.1) rotate(6deg)`, opacity: 1, offset: 0.45 },
-    { transform: `translate(${x1}px, ${y1 - 14}px) scale(0.92) rotate(0deg)`, opacity: 1, offset: 0.82 },
-    { transform: `translate(${x1}px, ${y1}px) scale(0.8)`, opacity: 0.0 },
-  ], { duration: 640, easing: 'cubic-bezier(.35,.1,.3,1)' });
-  a.onfinish = () => { im.remove(); hb?.landed?.(it); };
+  const t0 = performance.now();
+  const go = () => {
+    const to = hotbarPoint(it);
+    if (!to) { if (performance.now() - t0 < 1500) { requestAnimationFrame(go); return; } im.remove(); return; }
+    const x0 = sx - S / 2, y0 = sy - S / 2, x1 = to.x - S / 2, y1 = to.y - S / 2;
+    const mx = (x0 + x1) / 2 + (x1 > x0 ? -40 : 40), my = Math.min(y0, y1) - 90;
+    const a = im.animate([
+      { transform: `translate(${x0}px, ${y0}px) scale(1.3) rotate(-8deg)`, opacity: 1 },
+      { transform: `translate(${mx}px, ${my}px) scale(1.1) rotate(6deg)`, opacity: 1, offset: 0.45 },
+      { transform: `translate(${x1}px, ${y1 - 12}px) scale(0.92) rotate(0deg)`, opacity: 1, offset: 0.82 },
+      { transform: `translate(${x1}px, ${y1}px) scale(0.8)`, opacity: 0.0 },
+    ], { duration: 640, easing: 'cubic-bezier(.35,.1,.3,1)' });
+    a.onfinish = () => {
+      im.remove();
+      // the slot it went to gives a little bounce
+      const bar = document.getElementById('hot12');
+      const n = ((it.data as any)?.hot as number) || 0;
+      const el = (n ? bar?.querySelectorAll<HTMLElement>('.hb-slot')[n - 1] : bar) ?? null;
+      el?.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(4px)' }, { transform: 'translateY(-2px)' }, { transform: 'translateY(0)' }], { duration: 300, easing: 'ease-out', composite: 'add' });
+      G.audio?.ui?.('bag_place', 0.25);
+    };
+  };
+  requestAnimationFrame(go);
 }
 
 export class GrabCut {

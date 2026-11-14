@@ -318,14 +318,15 @@ export class TalentBench {
     g.add(this.standLight, this.standLight.target);
     // the readout: a little enamel CRT on a scissor lift behind the stand; it rises while a marble is up
     const cb = new FacetBuilder();
-    const spot = crtSet(cb, 0, 0.075, 0, 0.13, 0.098, { color: 0xc4bc9e, bezel: 0x2a2c2a, depth: 0.09, knobs: true, ry: 0 });
-    cb.add('metal', cbox(0.03, 0.05, 0.03, 0.004), 0x2a2c2a, at(0, 0.0, -0.01));
+    const spot = crtSet(cb, 0, 0.1, 0, 0.13, 0.098, { color: 0xc4bc9e, bezel: 0x2a2c2a, depth: 0.07, knobs: true, ry: 0 });
+    cb.add('metal', cbox(0.03, 0.05, 0.03, 0.004), 0x2a2c2a, at(0, 0.025, -0.02));
+    for (const sx of [-1, 1]) cb.add('metal', cbox(0.006, 0.06, 0.006, 0.001), 0x8a9094, at(sx * 0.03, 0.025, -0.02, 0, 0, sx * 0.5));
     this.crtLift.add(cb.build(this.mats));
     this.crt = crtScreen(spot.sw, spot.sh, { res: [256, 192], tint: 0xffffff, curvature: 0.25, glow: 1.0, noise: 0.03, scan: 0.6, mask: 0.2, reflect: 0.6 });
     this.crt.mesh.material = new THREE.MeshBasicMaterial({ map: this.crt.tex, toneMapped: false });
-    this.crt.mesh.applyMatrix4(spot.m); this.crt.mesh.userData.noGlow = true;
+    this.crt.mesh.applyMatrix4(spot.m); this.crt.mesh.translateZ(0.011); this.crt.mesh.userData.noGlow = true;
     this.crtLift.add(this.crt.mesh);
-    this.crtLift.position.set(x - 0.02, y, z - 0.17); this.crtLift.rotation.y = Math.PI / 2 - 0.3;
+    this.crtLift.position.set(x - 0.085, y, z - 0.09); this.crtLift.rotation.y = Math.PI / 2 - 0.12;
     this.crtLift.scale.setScalar(0.001); this.crt.power(false, true);
     g.add(this.crtLift);
     this.hots.push({ key: 'tb:stand', objs: [g], glow: [], label: 'Inspection stand', sub: 'a marble set here turns under the loupe', press: () => { if (this.held) this.toggle(this.held); } });
@@ -737,8 +738,9 @@ export class TalentBench {
     const can = this.cans[this.canI];
     if (this.mode === 'card') {
       const P = this.standP;
-      return port ? { pos: new THREE.Vector3(P.x + 0.3, P.y + 0.12, P.z - 0.02), look: new THREE.Vector3(P.x, P.y + 0.035, P.z - 0.02), fov: 40 }
-        : { pos: new THREE.Vector3(P.x + 0.24, P.y + 0.09, P.z - 0.075), look: new THREE.Vector3(P.x, P.y + 0.005, P.z - 0.075), fov: 34 };
+      // the marble on its stand in front, the readout behind it and to the right
+      return port ? { pos: new THREE.Vector3(P.x + 0.36, P.y + 0.16, P.z - 0.05), look: new THREE.Vector3(P.x - 0.06, P.y + 0.04, P.z - 0.05), fov: 46 }
+        : { pos: new THREE.Vector3(P.x + 0.27, P.y + 0.1, P.z - 0.05), look: new THREE.Vector3(P.x - 0.06, P.y + 0.035, P.z - 0.05), fov: 36 };
     }
     const mode = this.mode;
     if (mode === 'can') return { pos: new THREE.Vector3(can.x + (port ? 0.5 : 0.4), TOP + (port ? 0.32 : 0.26), can.z), look: new THREE.Vector3(can.x + 0.04, TOP + 0.06, can.z), fov: port ? 56 : 44 };
@@ -905,5 +907,8 @@ export class TalentBench {
     const w = weigh(this.onScale); this.ang = THREE.MathUtils.clamp(Math.atan((w.buff - w.debuff) / 29), -0.26, 0.26); this.angV = 0;
     for (const st of this.ms.values()) { st.fly = null; st.hop = -1; st.scale = this.held === st.m.key ? LOUPE : 1; }
     this.snap = 3;
+    this.crtUp = this.mode === 'card' ? 1 : 0; this.crtOn = this.mode === 'card';
+    this.crtLift.scale.setScalar(Math.max(0.001, this.crtUp)); this.crtLift.visible = this.crtUp > 0.01;
+    (this.crt.mesh.material as THREE.MeshBasicMaterial).color.setScalar(this.crtOn ? 0.9 : 0.02);
   }
 }

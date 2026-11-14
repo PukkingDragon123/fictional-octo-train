@@ -8,7 +8,6 @@ import { Rng, setUidSlot } from '../core/rng';
 import { createItem } from '../items/factory';
 import { UI } from '../ui/ui';
 import { InventoryUI } from '../ui/inventory';
-import { FieldPackUI } from '../ui/fpack/fpack';
 import { GrabCut } from '../ui/fpack/grab';
 import { Interact } from '../interact/world';
 import { FloorItemRenderer } from '../items/worldItems';
@@ -163,11 +162,9 @@ export function startSession(o: SessionOpts): Game {
   if (o.net) g.addSystem(o.net);
   const ui = new UI();
   g.ui = ui;
-  // round 18b: the pack is the first-person field pack with painted pixel-art interiors (src/ui/fpack). The old
-  // close-up is still built for what it installs (the HUD strip, the craft system, the bag sounds); floor pickups
-  // get a quick grab through the eyes (src/ui/fpack/grab.ts)
-  new InventoryUI(ui);
-  ui.inventory = new FieldPackUI(ui) as any;
+  // the pack is the first-person backpack scene (src/ui/inventory.ts); floor pickups get a quick grab through the
+  // eyes (src/ui/fpack/grab.ts)
+  ui.inventory = new InventoryUI(ui);
   new GrabCut(ui);
   // round 14: no wrist watch. Calder says what it used to show (src/ui/broadcast/notices.ts); F is the suit lamp
   installNotices();

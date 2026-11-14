@@ -276,7 +276,8 @@ class TitleRoom {
         const e = this.stage.project(q.copy(box.max));
         const f = this.stage.project(q.copy(box.min));
         const rad = e && f ? Math.hypot(e.x - f.x, e.y - f.y) / 2 : 60;
-        return { x: mid.x, y: mid.y, r: Math.min(140, Math.max(24, rad * 0.6)) };
+        const posed = r === 'research' && !!lab?.pose && lab.pose !== 'room';
+        return { x: mid.x, y: mid.y, r: Math.min(150, Math.max(posed ? 110 : 64, rad * 0.6)) };
       },
       act: (r, what) => {
         // the station does its thing while she names it

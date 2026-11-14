@@ -31,6 +31,11 @@ import { ensurePack } from '../game/arrivalKit/pack';
 import { texturizeSleeves } from './pack/packTex';
 import { installHud12 } from './hotbar';
 import { hotOf } from './hotbar/hotbar';
+import { PackHud } from './pack/packHud';
+import { buildCover, type Cover } from './pack/packCover';
+
+/** scripted browsers (navigator.webdriver without ?fpcut) open containers at once */
+const SCRIPTED = typeof navigator !== 'undefined' && !!navigator.webdriver && typeof location !== 'undefined' && !/[?&]fpcut/.test(location.search);
 
 /**
  * THE MERIDIAN FIELD PACK, round 12: physical looting. Opening it (I, the pack on
@@ -157,6 +162,11 @@ export class InventoryUI {
   private sideSig = '';
   private impactT = 0;
   private pad = { on: false, x: 0, y: 0, a: false, b: false, x2: false, y2: false, id: -77 };
+  // round 18b: the 2D readout at the screen's edge, the container opened by the hands
+  private hud = new PackHud();
+  private cover: Cover | null = null;
+  private coverK = 0; private coverRun = 0; private coverPending = false; private coverSlideZ = 0;
+  private emptyT = -1; private looted = false; private opensOf = new Set<string>();
 
   constructor(ui: UI) {
     this.ui = ui;
@@ -221,9 +231,9 @@ export class InventoryUI {
     g.add(this.world, this.packG);
     // light like the room: a soft overhead key, a cool bounce off the floor, a warm kicker from the side
     const W = this.world;
-    W.add(new THREE.HemisphereLight(0xcfc8b4, 0x2e2a22, 0.55));
-    const key = new THREE.DirectionalLight(0xffe6c4, 1.8); key.position.set(-0.6, 3.2, 0.4); key.target.position.set(0, 0, -0.7); W.add(key, key.target);
-    const fill = new THREE.DirectionalLight(0x8090a8, 0.28); fill.position.set(1.4, 0.6, 0.6); fill.target.position.set(0, 0, -0.7); W.add(fill, fill.target);
+    W.add(new THREE.HemisphereLight(0xd8d0bc, 0x3a3428, 0.85));
+    const key = new THREE.DirectionalLight(0xffe6c4, 2.15); key.position.set(-0.6, 3.2, 0.4); key.target.position.set(0, 0, -0.7); W.add(key, key.target);
+    const fill = new THREE.DirectionalLight(0x8090a8, 0.42); fill.position.set(1.4, 0.6, 0.6); fill.target.position.set(0, 0, -0.7); W.add(fill, fill.target);
     const rim = new THREE.DirectionalLight(0xfff0d8, 0.5); rim.position.set(0.4, 1.2, -3); rim.target.position.set(0, 0, -0.7); W.add(rim, rim.target);
     // the carpet (fallback only: in the eye the real floor is there)
     const cg = new THREE.PlaneGeometry(3.4, 2.4, 1, 1); cg.rotateX(-Math.PI / 2);
@@ -232,6 +242,8 @@ export class InventoryUI {
     W.add(this.carpet);
     // the pack
     this.pack = buildFieldPack();
+    // crisp texels on the pack's fabrics, webbing and tags (no mip mush at the grazing angles)
+    this.pack.root.traverse((o) => { const mm = (o as THREE.Mesh).material as THREE.Material | THREE.Material[] | undefined; if (!mm) return; for (const m of Array.isArray(mm) ? mm : [mm]) { const t = (m as THREE.MeshStandardMaterial).map; if (t) { t.anisotropy = 8; t.magFilter = THREE.NearestFilter; t.needsUpdate = true; } } });
     this.packG.add(this.pack.root);
     this.packShadow = contactShadow(0.62, 0.8, 0.55); W.add(this.packShadow);
     this.srcShadow = contactShadow(0.6, 0.52, 0.45); this.srcHold.add(this.srcShadow);
@@ -402,6 +414,7 @@ export class InventoryUI {
   /** open and show a specific world container beside the pack */
   focus(c: Container) {
     this.focusRef = c.owner;
+    this.looted = true;
     // (also brings it back while it is still closing, or suspended under a close-up)
     this.toggle(true);
     this.scanT = 0;
@@ -490,11 +503,14 @@ export class InventoryUI {
     if (p && this.kneeling && p.full === 'kneel') p.full = '';
     this.kneeling = false;
     G.hudBody?.setHidden?.('pack', false);
+    this.hud.show(false); this.hud.hover(null);
+    this.endCover(); this.looted = false; this.emptyT = -1;
     this.ui.closeMenu?.();
   }
 
   private suspend() {
     this.suspended = true;
+    this.hud.show(false);
     this.endDrag(true); this.cancelPress(); this.gtag?.hide();
     this.root.classList.remove('on');
     const cam = fpCamera();
@@ -508,6 +524,7 @@ export class InventoryUI {
     this.root.classList.add('on');
     G.input.pointerOverUI = true;
     this.dirty = true;
+    this.hud.show(this.phase === 'open');
     this.hook();
   }
 
@@ -582,7 +599,78 @@ export class InventoryUI {
     this.grab('L', null, 'relaxed'); this.grab('R', null, 'relaxed');
     this.reach.L.w = this.reach.R.w = 0;
     this.dirty = true;
+    this.hud.show(true); this.updateTag();
     G.missions?.set?.('pack:opened');
+  }
+
+
+  // ================================================================ opening what is searched (round 18b)
+  /** a container just set down beside the pack comes shut; the hands open it once the pack is open */
+  private makeCover(style: string) {
+    this.endCover();
+    if (SCRIPTED || !this.srcShell) return;
+    const sh = this.srcShell as THREE.Mesh;
+    const geo = sh.geometry;
+    if (geo && !geo.boundingBox) geo.computeBoundingBox();
+    const top = (geo?.boundingBox?.max.y ?? 0.05) + sh.position.y;
+    const [w, d] = this.srcSize();
+    const cv = buildCover(style, w + 0.042, d + 0.042, Math.min(0.11, top));
+    if (!cv) return;
+    cv.set(0);
+    this.srcHold.add(cv.g);
+    this.cover = cv; this.coverK = 0; this.coverRun = 0; this.coverPending = true;
+  }
+  private endCover() {
+    const cv = this.cover;
+    if (cv) {
+      cv.g.removeFromParent();
+      cv.g.traverse((o) => { const m = o as THREE.Mesh; m.geometry?.dispose(); const mm = m.material as THREE.MeshStandardMaterial | undefined; if (mm) { mm.map?.dispose(); mm.dispose(); } });
+      if (cv.slide) this.dirty = true;
+      for (const h of ['L', 'R'] as const) if (this.reach[h].o === cv.L || this.reach[h].o === cv.R) { this.reach[h].o = null; this.reach[h].w = 0; }
+    }
+    this.cover = null; this.coverRun = 0; this.coverPending = false;
+  }
+  private coverTick(dt: number) {
+    const cv = this.cover;
+    if (cv && this.coverPending && this.phase === 'open' && this.srcShown() && this.setOut > 0.99 && !this.drag) {
+      // the first look into a container is the whole move; a second one is quicker
+      this.coverPending = false; this.coverRun = 1; this.coverK = 0;
+      const e = this.side[this.sideSel], ref = e ? this.refOf(e) : '';
+      if (this.opensOf.has(ref)) cv.dur *= 0.55;
+      this.opensOf.add(ref);
+      if (cv.slide) this.coverSlideZ = this.srcHold.position.z;
+      G.audio?.ui?.(cv.sound, 0.5);
+    }
+    if (!cv || !this.coverRun) {
+      // an empty container: shown open a moment, then shut again and the close-up ends
+      if (cv && this.emptyT >= 0 && !this.drag) {
+        this.emptyT += dt;
+        if (this.emptyT > 1.1) { this.emptyT = -1; this.coverRun = -1; G.audio?.ui?.(cv.sound, 0.35); }
+      }
+      return;
+    }
+    this.coverK = Math.max(0, Math.min(1, this.coverK + this.coverRun * dt / cv.dur));
+    const k = this.coverK;
+    cv.set(k);
+    if (cv.slide) { const e = k * k * (3 - 2 * k); this.srcHold.position.z = this.coverSlideZ - (1 - e) * cv.slide; }
+    // the hands hold the moving parts while they move
+    const grip = this.coverRun > 0 ? (k < 0.8 ? Math.min(1, k * 7) : (1 - k) / 0.2) : (k > 0.2 ? Math.min(1, (1 - k) * 7) : k / 0.2);
+    for (const h of ['L', 'R'] as const) {
+      const o = h === 'L' ? cv.L : cv.R, r = this.reach[h];
+      if (!o) continue;
+      r.o = o; r.at.set(0, 0, 0); r.pose = cv.slide ? 'grip' : 'pinch'; r.roll = -0.4; r.w = Math.max(0, Math.min(1, grip));
+    }
+    if (this.coverRun > 0 && k >= 1) {
+      this.coverRun = 0;
+      for (const h of ['L', 'R'] as const) if (this.reach[h].o === cv.L || this.reach[h].o === cv.R) { this.reach[h].o = null; this.reach[h].w = 0; }
+      if (cv.slide) { this.srcHold.position.z = this.coverSlideZ; }
+      G.audio?.ui?.('rummage', 0.35);
+      const e = this.side[this.sideSel];
+      if (this.looted && e && e.kind === 'loot' && e.c.items.length === 0) this.emptyT = 0;
+    } else if (this.coverRun < 0 && k <= 0) {
+      this.coverRun = 0;
+      this.toggle(false);
+    }
   }
 
   // ================================================================ data
@@ -662,6 +750,7 @@ export class InventoryUI {
     if (this.srcShell) { this.srcShell.parent?.remove(this.srcShell); this.srcShell = null; }
     const sh = containerShell(style === 'floor' || style === 'pile' ? 'cardboard' : style, w, d) ?? containerShell('cardboard', w, d);
     if (sh) { sh.position.y = 0.014; this.srcHold.add(sh); this.srcShell = sh; }
+    this.makeCover(style);
     this.binSrc.min.y = 0.004;
   }
 
@@ -744,6 +833,7 @@ export class InventoryUI {
     const w = c ? c.carriedWeight() : 0;
     // round 17: the load as a gauge against the rating, the kilos and the count as numbers
     this.pack.setTag([debtorNo(p) || 'UNIT', `${w.toFixed(1)} / ${c ? c.capacity : 0} KG`, `${c ? c.items.length : 0} ×`], c && c.capacity ? w / c.capacity : 0);
+    this.hud.load(p.carriedWeight(), p.capacity());
   }
 
   // ================================================================ frame
@@ -795,6 +885,7 @@ export class InventoryUI {
     this.loadT -= dt;
     if (this.loadT <= 0) { this.loadT = 0.5; this.updateTag(); }
     this.placeSide();
+    this.coverTick(dt);
   }
 
   // ================================================================ arms and hands
@@ -1046,6 +1137,7 @@ export class InventoryUI {
     const h = this.hitAt(x, y);
     const b = h?.kind === 'body' ? h.b : null;
     if (b !== this.hover) { this.hover = b; if (b) G.audio?.ui?.('hover', 0.15); }
+    this.hud.hover(b ? b.items[0] : h?.kind === 'held' ? h.it : null, b ? b.items.length : 1);
     if (b) this.showTag(b);
     else if (h?.kind === 'lid') { this.pack.lidEdge.getWorldPosition(_v); this.world.worldToLocal(_v); this.gtag.text(['ZIP SHUT'], _v.clone(), _v.clone().add(_v2.set(-0.05, -_v.y + 0.004, 0.14))); }
     else if (h?.kind === 'held') { const o = this.heldObjs[h.hand]; if (o) { o.outer.getWorldPosition(_v); this.world.worldToLocal(_v); this.gtag.item(h.it, 1, _v.clone(), _v.clone().add(_v2.set(0.02, 0.004 - _v.y, 0.12))); } }
@@ -1092,7 +1184,8 @@ export class InventoryUI {
     _plane.set(_v.set(0, 1, 0), -lift);
     if (_ray.intersectPlane(_plane, _hit)) {
       _hit.x = Math.max(-1.1, Math.min(1.1, _hit.x)); _hit.z = Math.max(-1.4, Math.min(-0.05, _hit.z));
-      d.target.copy(_hit);
+      // eased toward the pointer: the hand carries it, it does not teleport
+      d.target.lerp(_hit, 1 - Math.exp(-18 * dt));
     }
     this.phys.drive(d.b, d.target, dt);
     // where would it go

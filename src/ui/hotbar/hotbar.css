@@ -1,12 +1,21 @@
-/* THE TOOL BELT (src/ui/hotbar/belt.ts, round 18b): a painted leather belt with pouches and loops along the bottom
-   of the screen; transparent hit areas (.hb-slot) over each holder. Hard pixels, no boxes. */
+/* the hotbar (src/ui/hotbar, round 15): just the six slots, physical sockets in hi-res pixel art on a dark rail.
+   The context buttons are gone (src/ui/worldPrompt.css floats them over the world; src/ui/touch/actpad.css is the touch pad). */
 #hot12 { position: fixed; z-index: 24; pointer-events: none; font-family: var(--font-new); display: none; image-rendering: pixelated; }
-#hot12 { left: 50%; bottom: 0; transform: translateX(-50%); }
-#hot12.on { display: block; }
-#hot12.touch { bottom: env(safe-area-inset-bottom); }
-#hot12 .hb-belt { display: block; image-rendering: pixelated; filter: drop-shadow(0 3px 0 rgba(0, 0, 0, .35)); }
-.hb-slot { position: absolute; pointer-events: auto; touch-action: none; cursor: var(--cur-hand, pointer); }
-@media (max-width: 520px) { #hot12.touch { left: 50%; bottom: auto; top: calc(64px + env(safe-area-inset-top)); } }
-/* a pickup lands: the belt gives a short warm pulse */
-#hot12.got { animation: hb-got .45s ease-out; }
-@keyframes hb-got { 0% { filter: none; } 30% { filter: brightness(1.2); } 100% { filter: none; } }
+#hot12 { left: 50%; bottom: 10px; transform: translateX(-50%); padding: 5px 6px 4px; }
+#hot12.on { display: flex; gap: 3px; }
+#hot12.touch { bottom: calc(8px + env(safe-area-inset-bottom)); }
+.hb-slot { position: relative; width: 54px; height: 54px; pointer-events: auto; touch-action: none; cursor: var(--cur-hand, pointer); transition: transform .14s cubic-bezier(.2,.9,.3,1.4); }
+.hb-cv { position: absolute; left: 0; top: 0; pointer-events: none; }
+.hb-slot i { position: absolute; left: 10px; top: 9px; width: 32px; height: 32px; background-size: 32px 32px; image-rendering: pixelated; filter: drop-shadow(2px 2px 0 rgba(0,0,0,.55)); opacity: .92; }
+.hb-slot.held { transform: translateY(-3px); }
+.hb-slot.held i { opacity: 1; filter: drop-shadow(2px 3px 0 rgba(0,0,0,.6)) brightness(1.08); }
+.hb-slot:hover i { opacity: 1; }
+#hot12.touch .hb-slot { width: 54px; height: 54px; }
+@media (max-width: 520px) { #hot12.touch { left: 50%; bottom: auto; top: calc(64px + env(safe-area-inset-top)); } #hot12.on { gap: 1px; } }
+/* round 16: 3D sockets on an olive rail (src/ui/machine); the item sits down in the cup */
+#hot12.mx { padding: 9px 12px 8px; }
+#hot12.mx.on { gap: 6px; }
+#hot12.mx .hb-cv { image-rendering: pixelated; }
+#hot12.mx .hb-slot i { left: 12px; top: 10px; }
+#hot12.mx .hb-slot.held { transform: none; }
+#hot12.touch .hb-bcn { display: none; }
