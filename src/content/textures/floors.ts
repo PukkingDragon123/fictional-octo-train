@@ -7,7 +7,6 @@ import { addTextureModule } from '../../gfx/textures/index';
 import { PixelCanvas, makeRamp, mixHex, ph } from '../../gfx/pixel';
 import { Rng } from '../../core/rng';
 import { nz, q, field, blob, flecks, scuff, stamp, wd } from './kit';
-import { turf } from './groundHd';
 
 const clampI = (i: number, n: number) => (i < 0 ? 0 : i >= n ? n - 1 : i);
 
@@ -727,14 +726,15 @@ addTextureModule(() => {
   A.add('concrete_wet', 32, 32, concreteWet);
   A.add('concrete_garage', 32, 32, concreteGarage);
   A.add('asphalt', 32, 32, asphalt);
-  // round 18: the open ground is hand-painted at 64 px a metre (src/content/textures/groundHd.ts)
-  A.add('grass', 64, 64, turf('lawn'));
-  A.add('grass_b', 64, 64, turf('lawnB'));
-  A.add('grass_c', 64, 64, turf('lawnC'));
-  A.add('grass_dream', 64, 64, turf('fields'));
-  A.add('grass_dream_b', 64, 64, turf('fieldsB'));
-  A.add('dirt', 64, 64, turf('dirt'));
-  void grass; void grassB; void grassC; void grassDream; void dirt;
+  A.add('grass', 32, 32, grass);
+  A.add('grass_b', 32, 32, grassB);
+  A.add('grass_c', 32, 32, grassC);
+  A.add('grass_dream', 32, 32, (pc, r) => { grassDream(pc, r, 9); });
+  A.add('grass_dream_b', 32, 32, (pc, r) => {
+    const R = grassDream(pc, r, 16);
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) if (blob(x, y, 9, 21, 5, 4, 3) > 0.2 && (x + y * 2) % 5 === 0) pc.set(x, y, R[4]);
+  });
+  A.add('dirt', 32, 32, dirt);
   A.add('soil', 32, 32, soil);
   A.add('sand', 32, 32, sand);
   A.add('gravel', 32, 32, gravel);

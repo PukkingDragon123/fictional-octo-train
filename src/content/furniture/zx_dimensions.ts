@@ -13,7 +13,6 @@ import { makeRamp, mixHex, scaleHex, ph, text, textC, glow, rockBlob, discY, rod
 import type { PixelCanvas } from '../../gfx/pixel';
 import type { ModelBuilder } from '../../gfx/modelBuilder';
 import { lathe, blob, tube, surf, type V3 } from '../../creatures/kit/anomalies';
-import { turf } from '../textures/groundHd';
 
 const T = ['vx', 'dimension'];
 
@@ -61,9 +60,8 @@ addTextureModule(() => {
       pc.set(x, y, c); pc.blend(x + 1, y, c, 0.4); pc.blend(x, y + 1, c, 0.4);
     }
   };
-  A.add('vx_grass', 64, 64, turf('meadow'));
-  A.add('vx_grass_b', 64, 64, turf('meadowB'));
-  void grass;
+  A.add('vx_grass', 32, 32, grass(9131));
+  A.add('vx_grass_b', 32, 32, grass(9141));
   A.add('vx_meadow_side', 16, 32, (pc) => {
     pc.each((x, y) => pc.set(x, y, y < 3 ? 0x4a7434 : mixHex(0xd8b4d0, 0xa8c4e0, y / 32 + (ph(x, y >> 1, 9151) - 0.5) * 0.1)));
   });
