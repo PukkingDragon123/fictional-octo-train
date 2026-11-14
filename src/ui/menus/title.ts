@@ -242,6 +242,8 @@ class TitleRoom {
   async startTour() {
     if (tourRunning()) return;
     const box = new THREE.Box3(), c = new THREE.Vector3(), q = new THREE.Vector3();
+    // the room's own words step back while she talks (her line sits where they do)
+    this.root.classList.add('touring');
     await runTour({
       go: async (r) => { if (r === 'monitor') await this.back(); else await this.go(r); },
       aim: (r, pose) => { if (r === 'research' && this.research) (this.research as unknown as { pose: string }).pose = pose; },
@@ -262,7 +264,7 @@ class TitleRoom {
         return { x: mid.x, y: mid.y, r: Math.min(140, Math.max(24, rad * 0.6)) };
       },
       ready: () => this.tourReady(),
-    });
+    }).finally(() => this.root.classList.remove('touring'));
     if (this.view !== 'monitor') void this.back();
   }
   /** a pointer ray onto the room's floor or the highest surface it crosses */

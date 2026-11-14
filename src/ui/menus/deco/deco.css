@@ -140,3 +140,4 @@ body.deco-build [data-deco-hide], body.deco-shop [data-deco-hide] { visibility: 
 .tour-ok { padding: 6px 22px; border: 0; font: inherit; font-size: 18px; color: #1a1408; background: #ffc040; box-shadow: 0 3px 0 #8a5a14; cursor: pointer; }
 .tour-ok:hover, .tour-ok:focus-visible { background: #ffe080; outline: none; }
 @media (max-width: 560px) { .tour-loop { flex-wrap: wrap; justify-content: center; max-width: 330px; } .tour-arrow { display: none; } .tour-step b { font-size: 14px; } }
+.mr.touring .mr-bar, .mr.touring .mr-tip, .mr.touring:not([data-view="subject"]) .mr-acts, .mr.touring[data-view="subject"] .mr-acts .mr-word:not(:first-child) { visibility: hidden; }
