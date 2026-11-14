@@ -467,7 +467,7 @@ export class MonitorRoom implements StageRoom {
     g.add(this.mug);
     // round 18: Specimen 07, a human eye in a jar, on the desk (no longer a panel ornament)
     this.jar = eyeJar();
-    this.jar.group.position.set(1.42, top, -0.8);
+    this.jar.group.position.set(1.36, top, -0.8); this.jar.group.scale.setScalar(1.7);
     g.add(this.jar.group);
     this.hots.push({ key: 'jar', objs: [this.jar.hit], label: 'Specimen 07', sub: 'it watches the desk', press: () => { this.jar?.poke(); uiSound('tink', 0.6); gameSound('glass_clink', 0.35); } });
     this.hots.push({ key: 'mug', objs: [this.mug], label: 'Coffee', sub: 'still warm', press: () => { this.mugW.kick(5); this.mugSteam = 1.2; uiSound('tink', 0.8); gameSound('glass_clink', 0.3); this.note('mug', this.mug); } });

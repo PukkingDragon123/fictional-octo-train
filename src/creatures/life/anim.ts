@@ -32,6 +32,14 @@ export class Animator {
   private lean = 0; private roll = 0; private look = [0, 0];
   /** current bound height (frog gait) */
   private hop = 0;
+  /** round 18: real ground contact. Each foot is pinned to the spot in the world where it landed for as long
+   *  as it bears weight, and swings from where it lifted off to where it lands next (no sliding, also in turns
+   *  and when the body is shoved); a foot dragged too far from under the body is snatched up in a stumble step */
+  private plant = new Map<LegDef, { x: number; y: number; z: number; on: boolean; lx: number; ly: number; lz: number }>();
+  /** the body's weight shifted over the feet that are down (creature space x), and a stumble's dip */
+  private wx = 0; private stumbleT = 0;
+  /** dev / physics layer: stumble steps taken */
+  stumbles = 0;
   deathT = 0;
   private blend = 0;
   constructor(readonly rig: Rig, readonly bones: THREE.Bone[], readonly obj: THREE.Object3D) {
@@ -48,7 +56,7 @@ export class Animator {
     const spd = dead ? 0 : inp.speed;
     // gait phase: stride scales with speed
     const stride = Math.max(0.05, rig.stride * (0.55 + 0.45 * clamp(spd / (rig.stride * 3 + 0.1), 0, 1.4)));
-    this.phase = (this.phase + (spd / stride) * dt * 0.5) % 1;
+    this.phase = (this.phase + (spd / stride) * dt * Math.max(0.45, rig.duty)) % 1;
     this.blend = damp(this.blend, spd > 0.05 ? 1 : 0, 8, dt);
     this.lean = damp(this.lean, clamp(inp.turn * 0.12, -0.25, 0.25), 6, dt);
     this.look[0] = damp(this.look[0], clamp(inp.lookYaw, -1, 1), 5, dt);
@@ -68,14 +76,18 @@ export class Animator {
     }
     if (rig.gait === 'amble') bob *= 1.4;
     const breathe = Math.sin(this.t * 1.7) * rig.rideH * 0.012;
-    root.position.y += bob + breathe + this.hop;
+    // the weight over the planted feet, and the dip of a stumble
+    this.stumbleT = Math.max(0, this.stumbleT - dt);
+    const stum = this.stumbleT > 0 ? Math.sin((this.stumbleT / 0.28) * Math.PI) : 0;
+    root.position.x += this.wx * 0.14 * this.blend;
+    root.position.y += bob + breathe + this.hop - stum * rig.rideH * 0.09;
     if (inp.state === 'fly') root.position.y += inp.air;
     // attacks: lunge forward and dip
     let lunge = 0;
     if (inp.state === 'attack') { const a = inp.act; lunge = a < 0.35 ? -smooth(0, 0.35, a) * 0.4 : a < 0.55 ? 1 : 1 - smooth(0.55, 1, a); }
     root.position.z += lunge * rig.length * 0.12;
     // heavy bodies roll over the planted legs; sprawlers swing the hips against the shoulders
-    const roll = rig.gait === 'amble' ? Math.sin(ph) * 0.06 * this.blend : 0;
+    const roll = (rig.gait === 'amble' ? Math.sin(ph) * 0.06 * this.blend : 0) - this.wx / Math.max(0.05, rig.width) * 0.05 * this.blend + stum * 0.06;
     const swing = rig.gait === 'sprawl' ? Math.sin(ph) * 0.14 * this.blend + Math.sin(this.t * 0.9) * 0.03 : 0;
     _e.set(lunge * 0.12 + (inp.state === 'eat' ? 0.18 : 0) + hopPitch, -swing * 0.5, this.lean + roll, 'YXZ');
     root.quaternion.setFromEuler(_e);
@@ -155,7 +167,9 @@ export class Animator {
     }
     // legs
     this.obj.updateMatrixWorld(true);
-    for (const lg of rig.legs) this.leg(lg, inp, stride);
+    let wsum = 0, wn = 0;
+    for (const lg of rig.legs) { if (this.leg(lg, inp, stride)) { wsum += lg.foot[0]; wn++; } }
+    this.wx = damp(this.wx, wn ? wsum / wn : 0, 10, dt);
   }
 
   private serpent(_dt: number, spd: number, inp: AnimIn) {
@@ -171,7 +185,7 @@ export class Animator {
   }
 
   /** 2-bone IK in world space with a pole; feet planted on the terrain */
-  private leg(lg: LegDef, inp: AnimIn, stride: number) {
+  private leg(lg: LegDef, inp: AnimIn, stride: number): boolean {
     const B = this.bones, rig = this.rig, obj = this.obj;
     const duty = rig.duty;
     const p = (this.phase + lg.phase) % 1;
@@ -187,6 +201,27 @@ export class Animator {
     if (dead) fx *= 1 + this.deathT * 0.3;
     _T.set(fx, 0, fz).applyMatrix4(obj.matrixWorld);
     _T.y = (inp.state === 'fly' ? obj.matrixWorld.elements[13] + rig.rideH * 0.4 : inp.ground(_T.x, _T.z)) + lift;
+    // ground contact: a foot that is down stays where it landed; a lifted one swings from where it left to where it lands
+    let down = false;
+    if (!dead && inp.state !== 'fly' && rig.gait !== 'hop') {
+      let P = this.plant.get(lg);
+      if (!P) { P = { x: _T.x, y: _T.y, z: _T.z, on: true, lx: _T.x, ly: _T.y, lz: _T.z }; this.plant.set(lg, P); }
+      const sc = obj.matrixWorld.elements[0] * obj.matrixWorld.elements[0] + obj.matrixWorld.elements[1] * obj.matrixWorld.elements[1] + obj.matrixWorld.elements[2] * obj.matrixWorld.elements[2];
+      const reach = Math.max(stride * 0.75, rig.rideH * 0.6) * Math.sqrt(sc);
+      if (p < duty) {
+        if (!P.on) { P.on = true; P.x = _T.x; P.y = _T.y; P.z = _T.z; }
+        else if (Math.hypot(P.x - _T.x, P.z - _T.z) > reach) {
+          // dragged out from under it (a shove, a turn too fast): it snatches the foot up and puts it down again
+          P.x = _T.x; P.y = _T.y; P.z = _T.z; this.stumbleT = 0.28; this.stumbles++;
+        }
+        _T.set(P.x, P.y, P.z);
+        down = true;
+      } else {
+        if (P.on) { P.on = false; P.lx = P.x; P.ly = P.y; P.lz = P.z; }
+        const s = smooth(0, 1, (p - duty) / (1 - duty));
+        _T.x = P.lx + (_T.x - P.lx) * s; _T.z = P.lz + (_T.z - P.lz) * s; _T.y = P.ly + (_T.y - lift - P.ly) * s + lift;
+      }
+    } else this.plant.delete(lg);
     const up = B[lg.bones[0]];
     up.getWorldPosition(_A);
     const objQ = obj.getWorldQuaternion(_qi);
@@ -229,6 +264,7 @@ export class Animator {
     const foot = B[lg.bones[lg.bones.length - 1]];
     (foot.parent as THREE.Object3D).getWorldQuaternion(_q2).invert();
     foot.quaternion.copy(_q2).multiply(objQ);
+    return down;
   }
 
   /** world direction of the last segment of a three-bone leg */
