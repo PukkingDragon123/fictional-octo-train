@@ -699,7 +699,8 @@ export class TalentBench {
         const own = c.marbles.filter((k) => marbleOwned(MARBLE.get(k)!)).length;
         const nw = c.marbles.some((k) => this.fresh.has(k));
         const p = this.v.set(c.x, this.TOP + HC + 0.05, c.z);
-        tag(p, this.sel === i ? `<kbd>Enter</kbd>${esc(CANS[i].label)} <small>${own}/${c.marbles.length}</small>${nw ? ' <em>NEW</em>' : ''}` : `<kbd>${i + 1}</kbd>${nw ? '<em>NEW</em>' : ''}`, this.sel === i ? 'sel' : '');
+        if (this.sel === i) tag(p, `<kbd>Enter</kbd>${esc(CANS[i].label)} <small>${own}/${c.marbles.length}</small>${nw ? ' <em>NEW</em>' : ''}`, 'sel');
+        else if (nw) tag(p, '<em>NEW</em>', 'dot');
       });
       if (this.sel === this.cans.length) tag(this.v.set(this.BX + 0.04, this.TOP + 0.42, this.ZC), '<kbd>Enter</kbd>The balance', 'sel');
       if (this.sel === this.cans.length + 1) tag(this.v.set(this.BX + 0.2, this.TOP + 0.12, this.ZC), '<kbd>S</kbd>Seal', 'sel');
@@ -709,6 +710,7 @@ export class TalentBench {
         const st = this.ms.get(k)!, own = marbleOwned(st.m);
         const p = this.v.copy(st.pos); p.y += MR * 1.9;
         const sel = j === Math.min(this.sel, r.length - 1);
+        if (!sel) return;
         tag(p, `${sel ? '<kbd>Enter</kbd>' : ''}${own ? esc(st.m.name) : '???'}`, (sel ? 'sel ' : '') + (st.m.kind === 'buff' ? 'buff' : 'debuff'));
       });
     }
@@ -755,15 +757,15 @@ export class TalentBench {
     if (!full && !on) return;
     // ---- light: the clamp lamp is on while the bench is in use (and dimly otherwise)
     // (physical units: a lamp a hand's breadth away needs very little)
-    this.lamp.intensity = damp(this.lamp.intensity, on ? 2.1 : 0.8, 4, dt);
+    this.lamp.intensity = damp(this.lamp.intensity, on && this.mode !== 'card' ? 1.8 : 0.8, 4, dt);
     this.fill.intensity = damp(this.fill.intensity, on ? 0.75 : 0.2, 4, dt);
     this.strip.intensity = damp(this.strip.intensity, on ? 4.2 : 3.4, 4, dt);
     const open = this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can');
     const can = this.cans[this.canI];
     const insp = this.mode === 'card';
     this.pen.intensity = damp(this.pen.intensity, open ? 0.1 : 0, 6, dt);
-    this.standLight.intensity = damp(this.standLight.intensity, insp ? 0.7 : 0.05, 6, dt);
-    this.standGlow.color.setScalar(damp(this.standGlow.color.r, insp ? 1.25 : 0.45, 5, dt));
+    this.standLight.intensity = damp(this.standLight.intensity, insp ? 0.32 : 0.04, 6, dt);
+    this.standGlow.color.setScalar(damp(this.standGlow.color.r, insp ? 0.62 : 0.3, 5, dt));
     this.standTop.rotation.y += dt * (insp ? 0.5 : 0.08);
     this.sealFlash = Math.max(0, this.sealFlash - dt);
     if (open) this.pen.position.set(can.x + 0.26, this.TOP + 0.16, can.z);
@@ -771,7 +773,7 @@ export class TalentBench {
     for (const c of this.cans) {
       const want = open && c === can;
       // the lid: a sprung pop, then it swings back on its hinge (and shuts again when the can settles)
-      const lidGoal = want ? 1.95 : c.tilt > 0.15 ? c.lidA : 0;
+      const lidGoal = want ? 2.55 : c.tilt > 0.15 ? c.lidA : 0;
       c.lidV += ((lidGoal - c.lidA) * 60 - c.lidV * 9) * Math.min(dt, 0.04);
       c.lidA = Math.max(-0.02, c.lidA + c.lidV * Math.min(dt, 0.04));
       if (c.lidA <= -0.02 && c.lidV < -0.5) { c.lidV *= -0.25; gameSound('metal_clank', 0.12, 1.7); }
@@ -861,7 +863,7 @@ export class TalentBench {
   }
   /** dev / screenshots: everything to its spot now */
   settle() {
-    for (const c of this.cans) { const open = (this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can')) && c === this.cans[this.canI]; c.tilt = open ? TILT : 0; c.lidA = open ? 1.95 : 0; c.lidV = 0; c.jig = 0; }
+    for (const c of this.cans) { const open = (this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can')) && c === this.cans[this.canI]; c.tilt = open ? TILT : 0; c.lidA = open ? 2.55 : 0; c.lidV = 0; c.jig = 0; }
     const w = weigh(this.onScale); this.ang = THREE.MathUtils.clamp(Math.atan((w.buff - w.debuff) / 29), -0.26, 0.26); this.angV = 0;
     for (const st of this.ms.values()) { st.fly = null; st.hop = -1; st.scale = this.held === st.m.key ? LOUPE : 1; }
     this.snap = 3;

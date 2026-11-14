@@ -11,6 +11,7 @@ import { createGuideRig, type GuideRig } from './researcher';
 import { flag, setFlag } from '../deco/store';
 import { sfx } from '../sfx';
 import { Talk } from './talk';
+import { tourRunning } from './tour';
 import { calderHas, calderSay, calderStop, loadCalderVoice } from '../../../audio/calderVoice';
 
 export type Aim = { el: () => HTMLElement | null } | { at: THREE.Vector3 } | null;
@@ -267,7 +268,7 @@ export class Guide {
 
   /** open a conversation with her (also the lab menu's "Talk" key) */
   openTalk() {
-    if (this.talk || !this.rig || !this.room || this.gone) return;
+    if (this.talk || !this.rig || !this.room || this.gone || tourRunning()) return;
     this.queue = []; if (this.cur) { this.cur.h.close(); this.cur = null; }
     this.talk = new Talk({
       layer: this.host.layer,
