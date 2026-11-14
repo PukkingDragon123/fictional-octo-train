@@ -384,7 +384,7 @@ class TitleRoom {
       this.menu.append(pb);
     }
     if (!pt) {
-      mxMount(this.menu, 'jar', { right: -132, bottom: -44, z: 3 }, { title: 'Specimen 07', s: 1.35 });
+      // (Specimen 07 sits on the booth's desk now: monitor/eyeJar.ts)
       mxMount(this.menu, 'gauge', { right: 10, bottom: 92, z: 3 }, { label: 'LINK' });
     }
   }

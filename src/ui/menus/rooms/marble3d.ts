@@ -25,14 +25,22 @@ function glassMat(look: MarbleLook): THREE.MeshPhongMaterial {
       {
         vec3 vd = normalize(vViewPosition);
         vec3 nn = normalize(normal);
-        float fr = pow(1.0 - clamp(abs(dot(nn, vd)), 0.0, 1.0), 2.4);
+        float nv = clamp(abs(dot(nn, vd)), 0.0, 1.0);
+        float fr = pow(1.0 - nv, 2.2);
         vec3 rf = reflect(-vd, nn);
-        // a bright sky above, a window glint up and to the left, a floor bounce below
-        float sky = smoothstep(0.15, 0.95, rf.y) * 0.1;
-        float win = pow(max(dot(rf, normalize(vec3(-0.45, 0.62, 0.64))), 0.0), 60.0) * 2.4;
-        float flo = smoothstep(-0.2, -0.9, rf.y) * 0.08;
-        outgoingLight += (sky + flo) * mix(vec3(1.0), diffuseColor.rgb, 0.35) + win * vec3(1.0, 0.98, 0.94) + fr * mix(diffuseColor.rgb, vec3(1.0), 0.45) * 0.4;
-        diffuseColor.a = clamp(diffuseColor.a + fr * ${(0.55 - cloud * 0.3).toFixed(2)} + win * 0.6 + sky * 0.35, 0.0, 1.0);
+        // a studio caught in the curve: two soft boxes, a lamp, a pale sky, the dark bench below
+        float box1 = smoothstep(0.08, 0.0, abs(rf.x + 0.38) - 0.16) * smoothstep(0.08, 0.0, abs(rf.y - 0.52) - 0.12) * step(0.0, rf.z);
+        float box2 = smoothstep(0.1, 0.0, abs(rf.x - 0.55) - 0.08) * smoothstep(0.1, 0.0, abs(rf.y - 0.2) - 0.22) * step(0.0, rf.z) * 0.45;
+        float lamp = pow(max(dot(rf, normalize(vec3(-0.3, 0.8, 0.5))), 0.0), 220.0) * 6.0;
+        float sky = smoothstep(0.1, 0.9, rf.y) * 0.08;
+        float env = box1 * 1.25 + box2 + lamp + sky;
+        // thick glass: the edge darkens where the light bends away, then a thin bright rim of internal reflection
+        float band = smoothstep(0.25, 0.55, 1.0 - nv) * (1.0 - smoothstep(0.82, 0.97, 1.0 - nv));
+        float rim = smoothstep(0.9, 1.0, 1.0 - nv);
+        vec3 tint = diffuseColor.rgb;
+        outgoingLight = outgoingLight * (1.0 - band * 0.35) + env * mix(vec3(1.0), tint, 0.15) + rim * mix(tint, vec3(1.0), 0.6) * 0.55
+          + vec3(0.05, -0.01, -0.03) * rim + band * tint * 0.06;
+        diffuseColor.a = clamp(diffuseColor.a + band * ${(0.35 - cloud * 0.2).toFixed(2)} + rim * 0.5 + env * 0.55 + fr * 0.12, 0.0, 1.0);
       }
       #include <opaque_fragment>`);
   };
@@ -88,6 +96,24 @@ function smokeTex(color: number, r: () => number) {
       c.fillRect(x - rr - 128, y - rr, rr * 2, rr * 2); c.fillRect(x - rr + 128, y - rr, rr * 2, rr * 2);
     }
   }, r);
+}
+
+/** a caustic: a hot focused point, a ring tinted by the glass and the swirl, faint streaks */
+function causticTex(L: MarbleLook, r: () => number): THREE.CanvasTexture {
+  const S = 64, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const c = cv.getContext('2d')!;
+  const g0 = col(L.glass), g1 = col(L.colors[0]);
+  const rgb = (q: THREE.Color, a: number) => `rgba(${(q.r * 255) | 0},${(q.g * 255) | 0},${(q.b * 255) | 0},${a})`;
+  const k = 1 - L.cloud * 0.7;
+  let g = c.createRadialGradient(S * 0.5, S * 0.5, 0, S * 0.5, S * 0.5, S * 0.5);
+  g.addColorStop(0, rgb(g0.clone().lerp(new THREE.Color(1, 1, 1), 0.5), 0.5 * k)); g.addColorStop(0.35, rgb(g1, 0.28 * k)); g.addColorStop(0.62, rgb(g0, 0.14 * k)); g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g; c.fillRect(0, 0, S, S);
+  for (let i = 0; i < 9; i++) { const a = r() * Math.PI * 2, l = S * (0.15 + r() * 0.25); c.strokeStyle = rgb(i % 2 ? g1 : g0, 0.14 * k); c.lineWidth = 1 + r() * 2; c.beginPath(); c.moveTo(S / 2, S / 2); c.quadraticCurveTo(S / 2 + Math.cos(a + 0.6) * l * 0.6, S / 2 + Math.sin(a + 0.6) * l * 0.6, S / 2 + Math.cos(a) * l, S / 2 + Math.sin(a) * l); c.stroke(); }
+  g = c.createRadialGradient(S * 0.5, S * 0.5, 0, S * 0.5, S * 0.5, S * 0.09);
+  g.addColorStop(0, `rgba(255,252,240,${0.95 * k})`); g.addColorStop(1, 'rgba(255,250,230,0)');
+  c.fillStyle = g; c.fillRect(0, 0, S, S);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 // ------------------------------------------------------------------ swirl geometry
@@ -225,6 +251,8 @@ export interface Marble3D {
   /** what turns inside */
   core: THREE.Group;
   R: number;
+  /** the focused light it throws on the surface under it (add it to the scene; the bench places it) */
+  caustic: THREE.Mesh;
   update(t: number, dt: number, spin?: number): void;
   setLocked(on: boolean): void;
 }
@@ -296,18 +324,27 @@ export function buildMarble(m: Marble, R = 0.016): Marble3D {
     core.add(fm);
   }
   // the glass itself, drawn after what is inside it
-  const shell = new THREE.Mesh(new THREE.SphereGeometry(R, 30, 22), glassMat(L));
+  const shell = new THREE.Mesh(new THREE.SphereGeometry(R, 36, 26), glassMat(L));
   shell.renderOrder = 6; shell.name = 'shell';
   shell.userData.noGlow = true;
   group.add(shell);
+  // the far wall of the glass, seen through the near one (a thick, tinted lens)
+  const back = new THREE.Mesh(shell.geometry, new THREE.MeshPhongMaterial({ color: L.glass, specular: 0xffffff, shininess: 90, side: THREE.BackSide, transparent: true, opacity: 0.12 + L.cloud * 0.3, depthWrite: false }));
+  back.renderOrder = 4; back.userData.noGlow = true;
+  group.add(back);
+  // what it is inside reads a little bigger through the glass
+  core.scale.setScalar(1.08);
+  // the caustic: the light it focuses onto whatever it rests on (the bench places it)
+  const caustic = new THREE.Mesh(new THREE.PlaneGeometry(R * 5, R * 5), new THREE.MeshBasicMaterial({ map: causticTex(L, r), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }));
+  caustic.rotation.x = -Math.PI / 2; caustic.renderOrder = 3; caustic.userData.noGlow = true; caustic.visible = false;
   core.traverse((o) => { (o as THREE.Mesh).renderOrder = 5; o.userData.noGlow = true; });
   core.rotation.set(r() * 6, r() * 6, r() * 6);
   // a locked marble sits dull under a film of dust
-  const dust = new THREE.Mesh(new THREE.SphereGeometry(R * 1.02, 16, 12), new THREE.MeshStandardMaterial({ color: 0x5a5448, roughness: 1, transparent: true, opacity: 0.86, depthWrite: true }));
-  dust.visible = false; dust.renderOrder = 7; group.add(dust);
+  const dust = new THREE.Mesh(new THREE.SphereGeometry(R * 1.02, 16, 12), new THREE.MeshStandardMaterial({ color: 0x6a6458, roughness: 1, transparent: true, opacity: 0.7, depthWrite: false }));
+  dust.visible = false; dust.renderOrder = 8; dust.userData.noGlow = true; group.add(dust);
   const w0 = r() * 6;
   return {
-    key: m.key, group, shell, core, R,
+    key: m.key, group, shell, core, R, caustic,
     update(t, dt, spin = 0) {
       if (spin) core.rotation.y += dt * spin;
       if (jelly) { const k = 1 + Math.sin(t * 7 + w0) * 0.05; jelly.scale.set(k, 2 - k, k); }

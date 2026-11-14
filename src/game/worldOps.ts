@@ -131,7 +131,7 @@ defOp('takeFloor', (a: { z: string; uid: number; to: string; dest?: number } & A
   bus.emit('floorChanged', z);
   const p = playerById(a.to);
   if (isReplaying()) return;
-  if (p && p.isLocal) { if (!carries(p, wi.item.uid)) { setPlace(wi.item, atOf(a)); playerContainer(p, a.dest).add(wi.item); bus.emit('inventoryChanged', p); } }
+  if (p && p.isLocal) { if (!carries(p, wi.item.uid)) { setPlace(wi.item, atOf(a)); playerContainer(p, a.dest).add(wi.item); bus.emit('inventoryChanged', p); bus.emit('itemPickedUp', p, wi.item, wi.x, wi.z); } }
   else if (ctx.host && G.role === 'host') G.net?.sendTo(a.to, 'give', { item: serializeItem(wi.item), dest: a.dest, ...atArgs(atOf(a)) });
 });
 /** host -> requesting client: receive an item into a container */

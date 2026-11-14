@@ -26,6 +26,7 @@ import { bitText } from '../../../gfx/bitfont';
 import { crestTex, pageTex } from '../rooms/vaultTex';
 import { Pokes, type PokeNote } from '../rooms/pokes';
 import { Dresser } from '../rooms/dress';
+import { eyeJar, type EyeJar } from './eyeJar';
 
 // internal keys: 'research' is the control room (it grew out of the research lab), 'subject' the unit room
 // (saved decorations are filed under these keys, so they stay)
@@ -113,6 +114,7 @@ export class MonitorRoom implements StageRoom {
   private winLight = new THREE.SpotLight(0x5a74b0, 1.6, 6, 0.5, 0.8, 1.6);
   private winShape: THREE.Mesh; private winT = -1; private winNext = 25;
   private micLed!: ReturnType<LedBank['add']>; private micT = 0;
+  private jar: EyeJar | null = null;
   private mug = new THREE.Group(); private mugW = new Wobble(260, 7); private mugSteam = 0;
   private chair = new THREE.Group(); private chairV = 0; private chairA = 0.34;
   private board = new THREE.Group(); private boardW = new Wobble(140, 4);
@@ -463,6 +465,11 @@ export class MonitorRoom implements StageRoom {
     this.mug.add(mb2.build(this.mats));
     this.mug.position.set(0.82, top, -0.76);
     g.add(this.mug);
+    // round 18: Specimen 07, a human eye in a jar, on the desk (no longer a panel ornament)
+    this.jar = eyeJar();
+    this.jar.group.position.set(1.42, top, -0.8);
+    g.add(this.jar.group);
+    this.hots.push({ key: 'jar', objs: [this.jar.hit], label: 'Specimen 07', sub: 'it watches the desk', press: () => { this.jar?.poke(); uiSound('tink', 0.6); gameSound('glass_clink', 0.35); } });
     this.hots.push({ key: 'mug', objs: [this.mug], label: 'Coffee', sub: 'still warm', press: () => { this.mugW.kick(5); this.mugSteam = 1.2; uiSound('tink', 0.8); gameSound('glass_clink', 0.3); this.note('mug', this.mug); } });
     // the clipboard with the subject's sheet, loose pages
     const cbb = new FacetBuilder();
@@ -714,6 +721,7 @@ export class MonitorRoom implements StageRoom {
 
   // ================================================================== frame
   update(dt: number, t: number, full: boolean) {
+    this.jar?.update(dt, t, this.cam);
     if (full) this.lamp.getWorldPosition(this.grade.shafts![1]);
     if (full) { this.dress?.update(t); this.pokes.update(dt, t, this.cam); }
     // ---- lights: the lamp, the stuttering tube, the alarm, the phosphor spill

@@ -19,3 +19,14 @@
 #hot12.mx .hb-slot i { left: 12px; top: 10px; }
 #hot12.mx .hb-slot.held { transform: none; }
 #hot12.touch .hb-bcn { display: none; }
+/* round 18: calmer and clearer: the rail and sockets toned down (no glare), bigger icons, the held slot framed, counts */
+#hot12.mx > canvas, #hot12 .hb-cv { filter: saturate(.7) brightness(.82); }
+#hot12 .hb-slot { width: 58px; height: 58px; }
+#hot12.mx .hb-slot i, #hot12 .hb-slot i { left: 9px; top: 8px; width: 40px; height: 40px; background-size: 40px 40px; opacity: .95; filter: drop-shadow(1px 2px 0 rgba(0,0,0,.6)); }
+#hot12 .hb-slot.held::after { content: ''; position: absolute; inset: 2px; pointer-events: none; box-shadow: inset 0 0 0 2px #e8c860, inset 0 0 0 3px rgba(0,0,0,.6); }
+#hot12 .hb-slot.held i { filter: drop-shadow(1px 2px 0 rgba(0,0,0,.6)) brightness(1.06); }
+.hb-n { position: absolute; right: 6px; bottom: 4px; font-weight: normal; font-size: 13px; line-height: 1; color: #f0e8c8; text-shadow: 1px 1px 0 #000, -1px 0 0 #000; pointer-events: none; }
+#hot12 .hb-bcn { filter: saturate(.6) brightness(.8); }
+/* a pickup lands: the rail gives a short soft pulse */
+#hot12.got { animation: hb-got .45s ease-out; }
+@keyframes hb-got { 0% { filter: none; } 30% { filter: brightness(1.25); } 100% { filter: none; } }

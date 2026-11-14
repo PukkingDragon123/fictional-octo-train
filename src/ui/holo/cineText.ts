@@ -103,13 +103,15 @@ function place() {
     }
     const w = L.el.offsetWidth || 200, h = L.el.offsetHeight || 40;
     sx = Math.max(w / 2 + 12, Math.min(W - w / 2 - 12, sx));
-    let top = Math.max(12, Math.min(H - h - 90, sy - h));
-    // never on top of an earlier line: step up above it
-    for (let k = 0; k < 6; k++) {
-      const hit = boxes.find((b) => sx + w / 2 > b.x0 && sx - w / 2 < b.x1 && top + h > b.y0 && top < b.y1);
+    const TOP = 64, BOT = H - h - 96;   // clear of the objective line and the hotbar
+    let top = Math.max(TOP, Math.min(BOT, sy - h));
+    // never on top of an earlier line: step above it, or below it when there is no room above
+    for (let k = 0; k < 8; k++) {
+      const hit = boxes.find((b) => sx + w / 2 > b.x0 && sx - w / 2 < b.x1 && top + h > b.y0 - 4 && top < b.y1 + 4);
       if (!hit) break;
-      top = hit.y0 - h - 6;
+      top = hit.y0 - h - 8 >= TOP ? hit.y0 - h - 8 : hit.y1 + 8;
     }
+    top = Math.min(top, Math.max(TOP, BOT));
     L.y += (top - L.y) * (L.y === 0 ? 1 : 0.25);
     boxes.push({ x0: sx - w / 2, x1: sx + w / 2, y0: L.y, y1: L.y + h });
     L.el.style.transform = `translate3d(${Math.round(sx - w / 2)}px, ${Math.round(L.y)}px, 0)`;

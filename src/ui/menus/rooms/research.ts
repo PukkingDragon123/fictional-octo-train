@@ -170,7 +170,7 @@ export class ResearchLab implements StageRoom {
     S.add(this.pokes.group);
     S.add(this.shell(), this.fixtures(), this.codexWall(), this.fridge(), this.hood(), this.scopeBench(), this.table(), this.centrifuge(), this.sequencer(), this.pegboard(), this.clutter(), this.chamber(), this.dressing());
     S.add(this.chamL, this.chamL.target, this.chamRed, this.redL);
-    this.talent = new TalentBench(this.mats, this.hots, { wallX: -W, z0: 1.56, z1: 3.06, top: 0.9 });
+    this.talent = new TalentBench(this.mats, this.hots, { wallX: -W, z0: 1.53, z1: 3.15, top: 0.9 });
     S.add(this.talent.group);
     S.add(this.leds.mesh, this.puffs.mesh, this.deco, this.hemi, this.dust.points);
     // wet floor: dark specular puddles that pick up the troughs and the screen

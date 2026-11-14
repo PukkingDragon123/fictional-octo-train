@@ -59,7 +59,8 @@ export function installKeyHints() {
     if (gap > 0) { gap -= dt; return; }
     if (blocked()) return;
     const s = seen();
-    const h = HINTS.find((q) => !s.has(q.id) && q.when(runT));
+    // move comes first; the rest wait for it (or a while)
+    const h = HINTS.find((q) => !s.has(q.id) && (q.id === 'move' || s.has('move') || runT > 14) && q.when(runT));
     if (!h) return;
     cur = h; shownT = 0;
     el.innerHTML = h.keys.map((k) => `<kbd>${k}</kbd>`).join('') + `<span>${h.word}</span>`;

@@ -18,43 +18,47 @@
   background: #d8b848; color: #1a1408; text-shadow: none; box-shadow: inset 0 -2px 0 #8a6a1a, 0 0 0 1px #0a0b10;
 }
 
-/* ---------------------------------------------------------------- the card */
+/* ---------------------------------------------------------------- the card: an olive machine plate beside the inspection stand */
 .tb-card {
-  position: absolute; right: max(3vw, 16px); top: 50%; width: min(400px, 38vw); transform: translate(0, -50%); opacity: 0;
-  pointer-events: none;
-  background: #ece4cc; color: #1e1a12; text-shadow: none; padding: 0 0 10px;
-  box-shadow: 0 0 0 2px #0a0b10, 6px 8px 0 rgba(0, 0, 0, 0.45);
-  background-image: repeating-linear-gradient(0deg, transparent 0 21px, rgba(70, 110, 160, 0.16) 21px 22px), radial-gradient(ellipse at 80% 90%, rgba(150, 110, 60, 0.18), transparent 60%);
+  position: absolute; right: max(3vw, 16px); top: 50%; width: min(420px, 40vw); transform: translate(0, -50%); opacity: 0; pointer-events: none;
+  background: #2c3324; color: #f0e8cc; padding: 0 0 12px;
+  box-shadow: 0 0 0 2px #0a0b08, inset 0 0 0 2px #4e5a3a, inset 0 3px 0 #66744c, 8px 10px 0 rgba(0, 0, 0, 0.4);
+  background-image: radial-gradient(circle at 10px 10px, #6a7650 2px, transparent 3px), radial-gradient(circle at calc(100% - 10px) 10px, #6a7650 2px, transparent 3px),
+    radial-gradient(circle at 10px calc(100% - 10px), #6a7650 2px, transparent 3px), radial-gradient(circle at calc(100% - 10px) calc(100% - 10px), #6a7650 2px, transparent 3px);
 }
-.tb-card.on { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
-.tb-card::before { /* a paperclip over the top edge */
-  content: ''; position: absolute; left: 22px; top: -10px; width: 10px; height: 30px; border: 2px solid #8a929a; border-bottom: none; background: transparent;
-}
-.tb-c-head { display: flex; align-items: center; gap: 10px; padding: 8px 12px 6px; background: #c8a030; color: #1a1408; border-bottom: 2px solid #0a0b10; }
-.tb-card.debuff .tb-c-head { background: #8a2a1e; color: #f4ecd8; }
-.tb-c-kind { font-size: 16px; letter-spacing: 1px; padding: 0 6px; box-shadow: 0 0 0 2px currentColor; }
-.tb-c-lot { font-size: 16px; opacity: 0.85; flex: 1; }
-.tb-c-wt { font-size: 32px; line-height: 28px; }
-.tb-c-wt small { font-size: 16px; margin-left: 2px; }
-.tb-c-name { font-size: 32px; line-height: 34px; padding: 10px 12px 0; color: #1a1408; }
-.tb-c-name em { font-style: normal; font-size: 16px; color: #a8261e; box-shadow: 0 0 0 2px #a8261e; padding: 0 4px; vertical-align: middle; }
-.tb-c-line { font-size: 16px; padding: 2px 12px 6px; color: #4a4030; }
-.tb-c-fx { list-style: none; margin: 0; padding: 4px 12px; display: flex; flex-direction: column; gap: 4px; }
-.tb-c-fx li { font-size: 16px; line-height: 18px; display: flex; gap: 8px; }
-.tb-c-fx li i { font-style: normal; width: 16px; flex: none; text-align: center; color: #fff; }
-.tb-c-fx li.g i { background: #2e7a3a; }
-.tb-c-fx li.b i { background: #a8261e; }
-.tb-c-fx li.g { color: #1e4a24; }
-.tb-c-fx li.b { color: #6a1a14; }
-.tb-c-lock { margin: 6px 12px; padding: 6px 8px; font-size: 16px; line-height: 18px; color: #6a1a14; box-shadow: inset 0 0 0 2px #a8261e; background: rgba(168, 38, 30, 0.08); }
-.tb-c-note { margin: 6px 12px 0; font-size: 16px; line-height: 18px; color: #2a3a6a; padding-left: 8px; box-shadow: inset 2px 0 0 #6a7ab0; }
-.tb-c-note span { display: block; text-align: right; color: #4a5a8a; }
-.tb-c-scale { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 8px 12px 0; padding-top: 6px; border-top: 2px dashed #8a7a5a; font-size: 16px; color: #4a4030; }
-.tb-c-scale b { font-weight: normal; padding: 0 6px; }
-.tb-c-scale b.ok { color: #f2ecd8; background: #2e7a3a; }
-.tb-c-scale b.no { color: #f2ecd8; background: #a8261e; }
-.tb-c-keys { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 12px 0; }
-.tb-card.locked .tb-c-name { color: #6a6050; }
+.tb-card.on { opacity: 1; pointer-events: auto; }
+.tb-c-head { display: flex; align-items: center; gap: 10px; margin: 14px 14px 0; padding: 6px 10px; background: #d8b848; color: #1a1408; box-shadow: inset 0 -3px 0 #8a6a1a, 0 0 0 2px #0a0b08; }
+.tb-card.debuff .tb-c-head { background: #c8442e; color: #fff2e4; box-shadow: inset 0 -3px 0 #6a1a0e, 0 0 0 2px #0a0b08; }
+.tb-c-name { flex: 1; font-size: 32px; line-height: 32px; text-shadow: none; }
+.tb-c-wt { font-size: 32px; line-height: 30px; padding: 2px 6px; background: #1a1c14; color: #ffd84a; box-shadow: inset 0 0 0 2px #0a0b08; }
+.tb-c-wt small { font-size: 16px; margin-left: 2px; color: #c8b060; }
+.tb-lamp { width: 14px; height: 14px; flex: none; background: #3a2a1a; box-shadow: 0 0 0 2px #0a0b08, inset 2px 2px 0 rgba(255, 255, 255, 0.15); }
+.tb-lamp.on { background: #7af08a; box-shadow: 0 0 0 2px #0a0b08, 0 0 10px #7af08a, inset 2px 2px 0 #d8ffd8; }
+.tb-c-sub { display: flex; gap: 10px; align-items: baseline; padding: 8px 16px 2px; font-size: 16px; color: #b8b498; text-shadow: var(--text-ink); flex-wrap: wrap; }
+.tb-c-sub .k { padding: 0 6px; color: #1a1408; text-shadow: none; background: #d8b848; }
+.tb-c-sub .k.debuff { background: #c8442e; color: #fff2e4; }
+.tb-c-sub .ln { flex-basis: 100%; color: #e8e0c4; }
+.tb-c-fx { display: flex; flex-direction: column; gap: 6px; margin: 8px 14px 0; }
+.tb-fx { display: grid; grid-template-columns: 39px 1fr auto; align-items: center; gap: 10px; padding: 4px 8px 4px 4px; background: #1c2016; box-shadow: inset 0 0 0 2px #3a4430; }
+.tb-fx img { width: 39px; height: 39px; image-rendering: pixelated; background: #0e100a; box-shadow: inset 0 0 0 2px #2a3020; }
+.tb-fx .l { font-size: 16px; color: #d8d4bc; text-shadow: var(--text-ink); }
+.tb-fx b { font-weight: normal; font-size: 32px; line-height: 32px; text-shadow: var(--text-ink); }
+.tb-fx.g b { color: #8af59a; }
+.tb-fx.b { box-shadow: inset 0 0 0 2px #7a2a1a; background: repeating-linear-gradient(-45deg, #2a1610 0 8px, #24120c 8px 16px); }
+.tb-fx.b b { color: #ff7a5a; }
+.tb-fx i { grid-column: 2 / 4; justify-self: start; font-style: normal; font-size: 16px; line-height: 16px; padding: 1px 6px; color: #1a0a06; background: #ff7a5a; margin-top: -2px; }
+.tb-c-lock { display: flex; gap: 10px; align-items: center; margin: 10px 14px 0; padding: 6px 10px; font-size: 16px; line-height: 18px; color: #ffd8a0; text-shadow: var(--text-ink); background: #1c2016; box-shadow: inset 0 0 0 2px #8a6a1a; }
+.tb-c-pans { display: grid; grid-template-columns: 1fr 18px 1fr; gap: 8px; align-items: center; margin: 12px 14px 0; font-size: 16px; text-shadow: var(--text-ink); }
+.tb-c-pans .pb, .tb-c-pans .pd { position: relative; display: block; height: 22px; line-height: 22px; padding: 0 6px; background: #14170f; box-shadow: inset 0 0 0 2px #3a4430; overflow: hidden; }
+.tb-c-pans .pb { text-align: right; } .tb-c-pans .pd { text-align: left; }
+.tb-c-pans i { position: absolute; top: 2px; bottom: 2px; width: calc(var(--w) - 4px); }
+.tb-c-pans .pb i { right: 2px; background: #b8962a; } .tb-c-pans .pd i { left: 2px; background: #a83a24; }
+.tb-c-pans .pb, .tb-c-pans .pd { color: #fff4d8; z-index: 0; } .tb-c-pans i { z-index: -1; }
+.tb-c-pans .pl { width: 18px; height: 18px; box-shadow: 0 0 0 2px #0a0b08; }
+.tb-c-pans .pl.ok { background: #7af08a; box-shadow: 0 0 0 2px #0a0b08, 0 0 10px #7af08a; } .tb-c-pans .pl.no { background: #ff4a2a; box-shadow: 0 0 0 2px #0a0b08, 0 0 10px #ff4a2a; }
+.tb-c-keys { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 14px 0; }
+.tb-card.locked .tb-c-name { opacity: 0.75; }
+.tb-card.locked .tb-fx { opacity: 0.8; }
 
 /* ---------------------------------------------------------------- keys */
 .tb-key {
@@ -93,9 +97,11 @@
 
 /* ---------------------------------------------------------------- phones */
 @media (max-aspect-ratio: 1/1), (max-width: 760px) {
-  .tb-card { right: auto; left: 50%; top: auto; bottom: 150px; width: calc(100vw - 32px); max-height: 52vh; overflow: auto; transform: translate(-50%, 0); }
+  .tb-card { right: auto; left: 50%; top: auto; bottom: 120px; width: calc(100vw - 32px); max-height: 50vh; overflow: auto; transform: translate(-50%, 0); }
+  .tb-fx b, .tb-c-wt { font-size: 16px; line-height: 18px; }
   .tb-card.on { transform: translate(-50%, 0); }
   .tb-c-name { font-size: 16px; line-height: 20px; }
+  .tb-c-sub .ln { display: none; }
   .tb-bar { grid-template-columns: 1fr; justify-items: center; bottom: 8px; }
   .tb-hint { display: none; }
   .tb-keys { justify-content: center; flex-wrap: wrap; }

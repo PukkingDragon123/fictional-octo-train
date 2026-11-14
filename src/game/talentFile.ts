@@ -6,7 +6,7 @@
 //   loadout() / setLoadout(keys)    the marbles on the scale (only owned ones count)
 //   freshMarbles() / markSeen(keys)  marbles unlocked since the bench was last opened (they glint)
 // The research-lattice marbles are registered as offers on their own branch (MRB).
-import { MARBLES, MARBLE, balanced, type Marble } from '../survival/talents';
+import { MARBLES, MARBLE, balanced, effectsOf, type Marble } from '../survival/talents';
 import { treeCategory, treeOffers } from './treeData';
 import { hasUnlock } from './research';
 import { earned, ACH } from './achievements';
@@ -17,7 +17,7 @@ const nodeKey = (m: Marble) => 'mrb_' + m.key;
 treeCategory({ key: 'talent', name: 'Marbles', sub: 'talents for the bench · buffs to weigh', code: 'MRB', order: 45 });
 treeOffers(MARBLES.filter((m) => m.unlock.kind === 'tree').map((m) => ({
   key: nodeKey(m), category: 'talent', lane: m.kind === 'buff' ? 'Buffs' : 'Debuffs', title: m.name + ' marble',
-  desc: `${m.line} ${m.good.join('. ')}. Weighs ${m.weight} g on the talent bench.`,
+  desc: `${m.line} ${effectsOf(m).map((e) => `${e.label} ${e.value}`).join(', ')}. Weighs ${m.weight} g on the talent bench.`,
   cost: (m.unlock as { cost: number }).cost, requires: (m.unlock as { requires?: string[] }).requires,
   item: 'marbles', alt: ['dice', 'gumball'], gives: `marble: ${m.name} (talent bench)`,
 })));

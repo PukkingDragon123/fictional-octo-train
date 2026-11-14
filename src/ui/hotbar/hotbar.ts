@@ -121,7 +121,7 @@ export class HotbarStrip {
       sc.cv.className = 'hb-cv';
       if (!(mxOk() && drawSock(sc.cv, i + 1, false))) drawSlot(sc.c, i + 1, false, false);
       (s as any)._c = sc.c; (s as any)._cv = sc.cv;
-      s.append(sc.cv, document.createElement('i'));
+      s.append(sc.cv, document.createElement('i'), Object.assign(document.createElement('b'), { className: 'hb-n' }));
       s.addEventListener('contextmenu', (e) => e.preventDefault());
       s.addEventListener('pointerdown', (e) => {
         e.preventDefault(); e.stopPropagation();
@@ -185,13 +185,18 @@ export class HotbarStrip {
     this.bcn?.alert(((G as any).survival?.threat ?? 0) > 0.45);
     this.placePhone();
     const s = hotSlots(p);
-    const sig = s.map((it) => (it ? it.uid + ':' + it.key + (p.handR === it || p.handL === it ? '*' : '') : '-')).join('|');
+    // round 18: how many of each you carry (a count on the slot when more than one)
+    const all = p.allItems();
+    const count = (it: Item) => all.reduce((n, o) => n + (o.key === it.key ? 1 : 0), 0);
+    const sig = s.map((it) => (it ? it.uid + ':' + it.key + ':' + count(it) + (p.handR === it || p.handL === it ? '*' : '') : '-')).join('|');
     if (sig === this.sig) return;
     this.sig = sig;
     s.forEach((it, i) => {
       const el = this.slots[i];
       const icon = el.querySelector('i') as HTMLElement;
-      icon.style.backgroundImage = it ? `url(${itemIconFor(it, iconResCss(32))})` : '';
+      icon.style.backgroundImage = it ? `url(${itemIconFor(it, iconResCss(40))})` : '';
+      const nEl = el.querySelector('.hb-n') as HTMLElement | null;
+      if (nEl) { const n = it ? count(it) : 0; nEl.textContent = n > 1 ? String(n) : ''; }
       const held = !!it && (p.handR === it || p.handL === it);
       el.classList.toggle('full', !!it);
       el.classList.toggle('held', held);
