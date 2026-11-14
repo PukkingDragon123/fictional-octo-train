@@ -151,8 +151,10 @@ export function paperCard(link: string): PaperCard {
   fixUV(geoB, 0, 1 - CREASE);
   const bot = new THREE.Mesh(attrs(geoB), mat);
   const hinge = new THREE.Group(); hinge.position.set(0, H / 2 - hTop, T / 2); hinge.rotation.x = -bend; root.add(hinge);
-  top.position.y = hTop / 2; hinge.add(top);
-  bot.position.set(0, H / 2 - hTop - hBot / 2, T / 2); root.add(bot);
+  // the printed faces sit a hair in front of the stock (coplanar faces z-fight: the card flickered)
+  const LIFT = 0.00035;
+  top.position.set(0, hTop / 2, LIFT); hinge.add(top);
+  bot.position.set(0, H / 2 - hTop - hBot / 2, T / 2 + LIFT); root.add(bot);
   // the stock's thickness and back, plain off-white
   const back = new THREE.Mesh(attrs(new THREE.BoxGeometry(W, hBot, T), [0.86, 0.84, 0.78], true), worldMaterial({ noVis: true, noFog: true, noGrid: true } as never));
   back.position.set(0, H / 2 - hTop - hBot / 2, 0); root.add(back);

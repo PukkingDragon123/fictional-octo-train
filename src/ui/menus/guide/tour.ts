@@ -37,6 +37,14 @@ const KEY = 'noclip.tour.v1';
 export function tourSeen(): boolean { if (/[?&]notour\b/.test(location.search)) return true; try { return localStorage.getItem(KEY) === '1'; } catch { return true; } }
 function markSeen() { try { localStorage.setItem(KEY, '1'); } catch { /* storage blocked */ } }
 
+// Settings reaches the lab guide through these (the lab hub registers them): mute her, replay the tour
+let hooks: { tour: (() => void) | null; mute: (v: boolean) => void; muted: () => boolean } | null = null;
+export function guideHooks(h: typeof hooks) { hooks = h; }
+export function replayLabTour(): boolean { if (!hooks?.tour) return false; hooks.tour(); return true; }
+export function setGuideMuted(v: boolean) { hooks?.mute(v); }
+export function guideMuted(): boolean { return hooks?.muted() ?? false; }
+export function labGuideHere(): boolean { return !!hooks; }
+
 let running = false;
 export function tourRunning() { return running; }
 
@@ -86,7 +94,7 @@ export async function runTour(h: TourHost): Promise<void> {
       const s = STOPS[i];
       dots.innerHTML = STOPS.map((_, k) => `<b class="${k === i ? 'on' : k < i ? 'past' : ''}"></b>`).join('');
       cur = null;
-      for (let k = 0; k < 40 && !h.ready() && !quit; k++) await wait(150);
+      for (let k = 0; k < 400 && !h.ready() && !quit; k++) await wait(150);
       if (quit) break;
       await h.go(s.room);
       if (s.pose) h.aim(s.room, s.pose);

@@ -1,9 +1,9 @@
 /* the conversation with Dr. Calder (talk.ts): cinema bars, a column of questions on the machine keys */
-.tk-bar { position: fixed; left: 0; right: 0; height: 0; background: #050605; z-index: 60; transition: height 0.45s cubic-bezier(.3, .8, .3, 1); pointer-events: none; }
+.tk-bar { position: fixed; left: 0; right: 0; height: 0; background: #050605; z-index: 900; transition: height 0.45s cubic-bezier(.3, .8, .3, 1); pointer-events: none; }
 .tk-bar.tk-top { top: 0; }
 .tk-bar.tk-bot { bottom: 0; }
 .tk-bar.on { height: 9vh; }
-.tk-panel { position: fixed; right: 2.5vw; top: 50%; z-index: 61; display: flex; flex-direction: column; gap: 6px; align-items: stretch;
+.tk-panel { position: fixed; right: 2.5vw; top: 50%; z-index: 901; display: flex; flex-direction: column; gap: 6px; align-items: stretch;
   transform: translate(24px, -50%); opacity: 0; transition: opacity 0.25s, transform 0.3s cubic-bezier(.2, .9, .3, 1.1); pointer-events: none; }
 .tk-panel.on { opacity: 1; transform: translate(0, -50%); pointer-events: auto; }
 .tk-head { font-family: 'Alagard', monospace; font-size: calc(var(--px, 2px) * 8); letter-spacing: 0.2em; color: #9dffb8; text-shadow: 0 0 8px rgba(120, 255, 170, .5), 2px 2px 0 #000; margin-bottom: 2px; }

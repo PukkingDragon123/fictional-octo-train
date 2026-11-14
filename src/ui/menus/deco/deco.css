@@ -144,3 +144,10 @@ body.deco-build [data-deco-hide], body.deco-shop [data-deco-hide] { visibility: 
    her one line (in its own lane at the foot, on a dark band) and Skip stay */
 body.touring :is(.mr-hud, .mr-hotcap, .mr-feeds, .tt3-menu, .tt3-cap, .obj15, #wprompt) { visibility: hidden !important; }
 .tour .gd-sub { top: auto; bottom: 64px; padding: 8px 18px 10px; background: rgba(8, 6, 4, 0.72); box-shadow: 0 0 0 2px rgba(106, 90, 48, 0.6); }
+/* round 18: the corner keys as 3D models (./hubModels.ts): the object and its shadow only; it lifts and lights under
+   the pointer, sinks when pressed; the name in small type below it */
+.dk-icon.dk-3d { background: none !important; min-width: 0; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.dk-icon .dk-3dm { display: block; pointer-events: none; transition: transform 0.14s cubic-bezier(.2,.9,.3,1.3), filter 0.14s; }
+.dk-icon.dk-3d:is(:hover, :focus-visible) .dk-3dm { transform: translateY(-5px) scale(1.08); filter: brightness(1.12) drop-shadow(0 0 6px rgba(255, 220, 150, 0.35)); }
+.dk-icon.dk-3d.down .dk-3dm { transform: translateY(2px) scale(0.95); filter: brightness(0.9); transition-duration: 0.05s; }
+.dk-icon.dk-3d .dk-icap { font-size: 13px; letter-spacing: 0.04em; }

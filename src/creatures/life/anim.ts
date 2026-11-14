@@ -207,7 +207,7 @@ export class Animator {
       let P = this.plant.get(lg);
       if (!P) { P = { x: _T.x, y: _T.y, z: _T.z, on: true, lx: _T.x, ly: _T.y, lz: _T.z }; this.plant.set(lg, P); }
       const sc = obj.matrixWorld.elements[0] * obj.matrixWorld.elements[0] + obj.matrixWorld.elements[1] * obj.matrixWorld.elements[1] + obj.matrixWorld.elements[2] * obj.matrixWorld.elements[2];
-      const reach = Math.max(stride * 0.75, rig.rideH * 0.6) * Math.sqrt(sc);
+      const reach = Math.max(stride * 1.1, rig.rideH * 0.9, rig.length * 0.3) * Math.sqrt(sc);
       if (p < duty) {
         if (!P.on) { P.on = true; P.x = _T.x; P.y = _T.y; P.z = _T.z; }
         else if (Math.hypot(P.x - _T.x, P.z - _T.z) > reach) {

@@ -14,7 +14,7 @@ function eyeCanvas(): HTMLCanvasElement {
   g.addColorStop(0, '#d8b8b0'); g.addColorStop(0.25, '#f2ece2'); g.addColorStop(0.5, '#d8b8b0'); g.addColorStop(0.75, '#b07a72'); g.addColorStop(1, '#d8b8b0');
   c.fillStyle = g; c.fillRect(0, 0, W, H);
   // the front (u 0.25): the iris at the centre of the front
-  const cx = W * 0.25, cy = H / 2, R = 40;
+  const cx = W * 0.25, cy = H / 2, R = 52;
   // veins: from the back toward the iris, thinning and forking
   let seed = 7;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
@@ -42,7 +42,7 @@ function eyeCanvas(): HTMLCanvasElement {
   c.strokeStyle = 'rgba(220,180,90,0.6)'; c.lineWidth = 2; c.beginPath(); c.arc(cx, cy, 18, 0, Math.PI * 2); c.stroke();
   c.strokeStyle = '#0c0e0c'; c.lineWidth = 3; c.beginPath(); c.arc(cx, cy, R - 1, 0, Math.PI * 2); c.stroke();
   // the pupil
-  c.fillStyle = '#050505'; c.beginPath(); c.arc(cx, cy, 13, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#050505'; c.beginPath(); c.arc(cx, cy, 18, 0, Math.PI * 2); c.fill();
   return cv;
 }
 

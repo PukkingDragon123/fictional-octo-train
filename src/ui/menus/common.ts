@@ -2,6 +2,7 @@
 // sliders, tabs with a sliding cursor, in-page confirm dialogs (a small
 // phosphor terminal with plate keys), tooltips and teletype text. On a
 // terminal.ts screen the widgets restyle as phosphor (kit.css).
+import { labGuideHere, guideMuted, setGuideMuted, replayLabTour } from './guide/tour';
 import { G } from '../../game/G';
 import { sfx, Sfx } from './sfx';
 import { FocusNav } from './nav';
@@ -370,6 +371,14 @@ export function optionsPanel(opts: { inGame?: boolean; onTab?: (fn: (d: -1 | 1) 
       f.append(toggle('Hold, don\'t mash', !!us.qteHold, (v) => { us.qteHold = v; saveUiSettings(us); }, 'struggles: hold the key instead of hammering it'));
       f.append(toggle('Slower timing', !!us.qteSlow, (v) => { us.qteSlow = v; saveUiSettings(us); }, 'quick-time needles, scanner locks and struggles go easier'));
       f.append(toggle('Build key hints', !!us.buildHints, (v) => { us.buildHints = v; saveUiSettings(us); }, 'keep the key caps under the build ghost'));
+      // round 18: the lab guide (only in the lab menus): Dr. Calder's voice on or off, and her tour again
+      if (labGuideHere()) {
+        f.append(toggle('Dr. Calder in the lab', !guideMuted(), (v) => setGuideMuted(!v), 'her lines and the tour in the lab menus'));
+        const rt = h('button', 't-toggle', '<span class="t-toggle-l">Replay the lab tour<small>she shows you round again (close this to start)</small></span>') as HTMLButtonElement;
+        rt.type = 'button';
+        rt.addEventListener('click', () => { sfx('confirm'); setGuideMuted(false); replayLabTour(); });
+        f.append(rt);
+      }
       f.append(seg<TouchSetting>('Touch controls', [['auto', 'Auto'], ['on', 'On'], ['off', 'Off']], getTouchSetting(), (v) => setTouchSetting(v),
         { tip: (v) => v === 'auto' ? 'Show on-screen controls on touch screens' : v === 'on' ? 'Always show on-screen controls' : 'Never show on-screen controls' }));
     } else if (name === 'GAME' && G?.sandbox) {

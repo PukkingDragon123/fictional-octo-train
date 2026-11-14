@@ -92,8 +92,10 @@ void main() {
   float slope = length(sl);
   vec3 spec = st * st * st * uGridScale;
   float fres = 0.1 + clamp(slope * 2.2, 0.0, 0.5);
-  vec3 col = uTint * grid * 0.55 + spec * (0.35 + slope * 5.0);
-  float a = clamp(0.1 + fres * 0.6 + dot(spec, vec3(0.3)) * 0.12, 0.0, 0.8);
+  // the crests catch the light: brighter and more opaque where the water is steep
+  float crest = clamp(slope * 5.0, 0.0, 1.0);
+  vec3 col = uTint * grid * (0.55 + crest * 0.6) + spec * (0.4 + slope * 6.0);
+  float a = clamp(0.16 + fres * 0.6 + crest * 0.3 + dot(spec, vec3(0.3)) * 0.15, 0.0, 0.85);
   // foam: broken white, in clumps
   float fn = hsh(floor(vW.xz * 12.0)) * 0.6 + hsh(floor(vW.xz * 5.0 + 3.1)) * 0.4;
   float foam = smoothstep(0.15, 0.9, w.a * (0.6 + fn * 0.8));

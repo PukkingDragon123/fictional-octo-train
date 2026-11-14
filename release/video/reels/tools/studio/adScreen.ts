@@ -89,7 +89,7 @@ export function adScreen(link: string, qr: QR | null): AdScreen {
     fx.strokeStyle = '#3a423e'; fx.lineWidth = 2; fx.beginPath(); fx.moveTo(sx - 4, sy); fx.lineTo(sx + 4, sy); fx.stroke();
   }
   const face = new THREE.Mesh(attrs(new THREE.PlaneGeometry(W, H)), texMat(canvasTex(fc)));
-  face.position.set(0, -cy, DEPTH / 2 + 0.0004);
+  face.position.set(0, -cy, DEPTH / 2 + 0.003);
   root.add(face);
   const steel = worldMaterial({ noVis: true, noFog: true, noGrid: true } as never);
   const box = new THREE.Mesh(attrs(new THREE.BoxGeometry(W, H, DEPTH), [0.13, 0.15, 0.14], true), steel);
@@ -105,7 +105,7 @@ export function adScreen(link: string, qr: QR | null): AdScreen {
   const x = gc.getContext('2d')!;
   const gtex = canvasTex(gc);
   const glass = new THREE.Mesh(attrs(new THREE.PlaneGeometry(GW, GH)), texMat(gtex, { unlit: true }));
-  glass.position.z = DEPTH / 2 + 0.0012;
+  glass.position.z = DEPTH / 2 + 0.006;
   root.add(glass);
 
   // the lockup made into the screen's green light, once
