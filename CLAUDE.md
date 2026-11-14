@@ -12,7 +12,8 @@
 - Builds: `node scripts/itch.mjs` (itch.io zip), `VITE_SANDBOXED=1 npx vite build && node scripts/artifact.mjs` (artifact page).
 
 ## The user's UI quality bar (apply to every screen, no reminders needed)
-- Highly textured, polished, high-resolution, detailed. Never low-res, chunky, blurry or placeholder-flat.
+- Highly textured, polished, detailed, and always in the game's own look (its pixel pipeline, lab lighting, the green/yellow
+  machine kit, the CRT skin). Never a generic smooth 3D render, never low-res mush or placeholder-flat.
 - Real 3D objects with rich materials (worn metal, glass, enamel, paper, brass), well lit, bright, never murky.
 - Interactive and physical: grab, drag, drop, press, pull; things react with motion, sound and physics.
 - Minimal text: icons and numbers, names on hover; no hint lines, sign plates or label spam.

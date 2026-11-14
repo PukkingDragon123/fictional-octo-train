@@ -1405,7 +1405,7 @@ function buildPuffer(): Rig {
     ob.blob([0.008, -0.036, -0.058], [0.02, 0.016, 0.018], 7, 5, K, {});
   });
   // the spines: lying flat in the skin, they stand straight up when it inflates
-  for (let i = 0; i < PUF_SP; i++) bpart(rig, 'sp' + i, float, [0, 0, 0], PG, 'pfspine', (ob) => { ob.cone([0, 0, 0], [0, 1, 0], 0.011, 0.075, 5, Sp, {}); });
+  for (let i = 0; i < PUF_SP; i++) bpart(rig, 'sp' + i, float, [0, 0, 0], PG, 'pfspine', (ob) => { ob.cone([0, 0, 0], [0, 1, 0], 0.016, 0.085, 5, Sp, {}); });
   // the string: a chain of short links, simulated
   for (let i = 0; i < ROPE_N; i++) bpart(rig, 'str' + i, rig.root, [0, 0, 0], PG, 'pstr', (ob) => { ob.tube([[0, 0, 0], [0, 0, 0.16]], [0.004, 0.004], 4, PG.reg('STRING'), {}); });
   rig.eyes = [];

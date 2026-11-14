@@ -28,6 +28,7 @@ const STEP = 1 / 30;           // fixed sim step
 const WIN = 30;                // simulated window round the local unit (metres)
 const HS = 400, SS = 110;      // texture encodings: height (byte per metre), slope
 const FLOATERS = new Set(['pl_noodle', 'float_ring']);
+const POOL_ZONES = new Set(['plunge', 'pools']);
 
 interface Sim {
   zone: Zone;
@@ -180,7 +181,8 @@ class PoolWater {
     for (const r of this.rings) r.on = false;
     this.prevIn.clear(); this.floatV.clear();
     U.uWaveOn.value = 0;
-    if (!z) return;
+    // the pool levels (and anything graded as a pool hall); other zones keep their still water
+    if (!z || !(POOL_ZONES.has(z.key) || z.env?.grade === 'pool')) return;
     const wet = (x: number, y: number) => !!z.floorAt(x, y)?.water;
     let x0 = 1e9, y0 = 1e9, x1 = -1, y1 = -1;
     for (let y = 0; y < z.H; y++) for (let x = 0; x < z.W; x++) if (wet(x, y)) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }

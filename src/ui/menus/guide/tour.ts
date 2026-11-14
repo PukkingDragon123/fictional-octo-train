@@ -129,7 +129,9 @@ export async function runTour(h: TourHost): Promise<void> {
       next = false;
       const t0 = performance.now();
       // on until a click (or long enough to have read it twice)
-      while (!next && !quit && performance.now() - t0 < 7000 + s.line.length * 40) await wait(80);
+      // (?tourmanual: only a click moves on, for scripted shots on a slow machine)
+      const hold = /[?&]tourmanual\b/.test(location.search) ? 1e9 : 7000 + s.line.length * 40;
+      while (!next && !quit && performance.now() - t0 < hold) await wait(80);
     }
     cur = null;
     ring.classList.remove('on');
