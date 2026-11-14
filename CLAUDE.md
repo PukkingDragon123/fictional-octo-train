@@ -16,6 +16,8 @@
 - Real 3D objects with rich materials (worn metal, glass, enamel, paper, brass), well lit, bright, never murky.
 - Interactive and physical: grab, drag, drop, press, pull; things react with motion, sound and physics.
 - Minimal text: icons and numbers, names on hover; no hint lines, sign plates or label spam.
+- No plain "UI blocks": no flat rectangles of colour holding text or buttons. Every element is a designed object
+  (detailed pixel art, a 3D prop, or something in the scene). Choices and prompts float as styled, slightly 3D text.
 - Before showing the user anything, compare its screenshot against this list; if it fails any point, it is not done.
 
 ## Fixed rules from the user
