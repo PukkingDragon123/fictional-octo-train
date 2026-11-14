@@ -43,8 +43,12 @@ export class Pack2D {
   private raf = 0;
   private fresh = false;
 
-  constructor(_ui?: unknown) {
+  constructor(ui?: unknown) {
     (G as any).pack = this;
+    // the unit stays put while it has the pack open
+    const u = ui as { blocksMovement?: () => boolean } | undefined;
+    const orig = u?.blocksMovement?.bind(u);
+    if (u && orig) u.blocksMovement = () => orig() || this.open;
     this.root.append(this.you, this.lootCol, this.tip);
     this.root.addEventListener('pointerenter', () => { if (G.input) G.input.pointerOverUI = true; });
     this.root.addEventListener('pointerleave', () => { if (G.input) G.input.pointerOverUI = false; this.tip.classList.remove('on'); });

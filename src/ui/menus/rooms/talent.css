@@ -94,6 +94,8 @@
   font-size: 16px; line-height: 20px; text-align: center; color: #f4ecd2; text-shadow: var(--text-ink-2); opacity: 0;
 }
 .tb-sub.on { opacity: 1; }
+.tb-layer:has(.tb-card.on) .tb-sub { display: none; }
+.tb-tag.dot { padding: 0; }
 
 /* ---------------------------------------------------------------- phones */
 @media (max-aspect-ratio: 1/1), (max-width: 760px) {

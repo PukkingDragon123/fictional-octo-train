@@ -7,6 +7,7 @@ import { Item, hasItemDef, itemDef } from '../items/item';
 import { Rng, setUidSlot } from '../core/rng';
 import { createItem } from '../items/factory';
 import { UI } from '../ui/ui';
+import { InventoryUI } from '../ui/inventory';
 import { Pack2D } from '../ui/pack2d/pack2d';
 import { Interact } from '../interact/world';
 import { FloorItemRenderer } from '../items/worldItems';
@@ -161,7 +162,9 @@ export function startSession(o: SessionOpts): Game {
   if (o.net) g.addSystem(o.net);
   const ui = new UI();
   g.ui = ui;
-  // round 18: the pack is a clear 2D panel (src/ui/pack2d); the first-person close-up (InventoryUI) is retired
+  // round 18: the pack is a clear 2D panel (src/ui/pack2d). The old first-person close-up is still built for what
+  // it installs (the HUD strip, the craft system, the bag sounds), but the panel takes over as the pack
+  new InventoryUI(ui);
   ui.inventory = new Pack2D(ui);
   // round 14: no wrist watch. Calder says what it used to show (src/ui/broadcast/notices.ts); F is the suit lamp
   installNotices();

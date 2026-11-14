@@ -957,7 +957,7 @@ export class ResearchLab implements StageRoom {
     if (full) this.pokes.update(dt, t, this.cam);
     if (!full) return;
     // ---- camera: the benches drive it while a sample is worked (the close-ups get a gentler exposure)
-    this.grade.exposure = damp(this.grade.exposure ?? 1.75, this.bench && !this.bench.done ? 1.3 : 1.75, 4, dt);
+    this.grade.exposure = damp(this.grade.exposure ?? 1.75, (this.bench && !this.bench.done) || this.talent.inspecting ? 1.3 : 1.75, 4, dt);
     if (this.bench) { this.bench.update(dt, t); return; }
     this.ptrS.x = damp(this.ptrS.x, this.ptr.x, 3, dt); this.ptrS.y = damp(this.ptrS.y, this.ptr.y, 3, dt);
     this.build = damp(this.build, this.buildT, 3, dt);

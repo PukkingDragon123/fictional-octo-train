@@ -114,6 +114,8 @@ export class TalentBench {
     if (import.meta.env.DEV) (window as any).__talent = this;
   }
   get active() { return this.mode !== 'off'; }
+  /** a marble is up on the inspection stand (the room eases its exposure for the close-up) */
+  get inspecting() { return this.mode === 'card'; }
 
   // ================================================================== building it
   private benchBody(): THREE.Group {
@@ -158,7 +160,7 @@ export class TalentBench {
     rule.position.set(BX + D / 2 + 0.016, TOP - 0.06, ZC - 0.4); rule.rotation.y = Math.PI / 2; g.add(rule);
     // the weigh-in log by the balance, a loupe
     const log = paper(['WEIGH-IN LOG', '~', '~', '~', '~'], 0.12, 0.16, { seed: 61, rule: true });
-    log.rotation.set(-Math.PI / 2, 0, 0.4); log.position.set(BX + 0.22, TOP + 0.006, ZC + 0.62); g.add(log);
+    log.rotation.set(-Math.PI / 2, 0, 0.4); log.position.set(BX + 0.2, TOP + 0.006, ZC - 0.3); g.add(log);
     const lb2 = new FacetBuilder();
     lb2.add('brass', lathe([[0.02, 0], [0.024, 0], [0.024, 0.012], [0.02, 0.012]], 14), 0xd8b060, at(BX + 0.24, TOP + 0.003, ZC - 0.62, 0, 0, 0));
     lb2.add('rubber', cbox(0.012, 0.012, 0.07, 0.003), 0x1a1a1a, at(BX + 0.24, TOP + 0.008, ZC - 0.57));
@@ -308,7 +310,7 @@ export class TalentBench {
   /** the inspection stand: a brass turntable on a frosted light box; a marble set on it turns slowly under a loupe light */
   private inspectStand(): THREE.Group {
     const g = this.stand, b = new FacetBuilder();
-    const x = this.BX + 0.2, z = this.ZC + 0.2, y = this.TOP;
+    const x = this.BX + 0.2, z = this.ZC + 0.45, y = this.TOP;
     b.add('metal', prism(0.052, 0.034, 20), 0x2a2c2a, at(x, y + 0.017, z));
     b.add('brass', prism(0.056, 0.006, 20), 0xd8aa58, at(x, y + 0.036, z));
     b.add('chrome', prism(0.006, 0.012, 8), 0xe0e4e4, at(x + 0.05, y + 0.02, z));
@@ -764,8 +766,8 @@ export class TalentBench {
     const can = this.cans[this.canI];
     const insp = this.mode === 'card';
     this.pen.intensity = damp(this.pen.intensity, open ? 0.1 : 0, 6, dt);
-    this.standLight.intensity = damp(this.standLight.intensity, insp ? 0.32 : 0.04, 6, dt);
-    this.standGlow.color.setScalar(damp(this.standGlow.color.r, insp ? 0.62 : 0.3, 5, dt));
+    this.standLight.intensity = damp(this.standLight.intensity, insp ? 0.16 : 0.02, 6, dt);
+    this.standGlow.color.setScalar(damp(this.standGlow.color.r, insp ? 0.42 : 0.22, 5, dt));
     this.standTop.rotation.y += dt * (insp ? 0.5 : 0.08);
     this.sealFlash = Math.max(0, this.sealFlash - dt);
     if (open) this.pen.position.set(can.x + 0.26, this.TOP + 0.16, can.z);
