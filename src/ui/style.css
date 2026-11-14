@@ -98,7 +98,7 @@ img { image-rendering: pixelated; }
 /* the loading screen of everything (src/ui/loading.ts, src/ui/loader/expanse.ts): nothing on it but the 3D scene */
 .lp-load { position: fixed; inset: 0; z-index: 3000; background: #0b0805; display: none; pointer-events: auto; cursor: none; }
 .lp-load.on { display: block; opacity: 1; }
-.lp-load.out { opacity: 0; transition: opacity .6s ease-in; pointer-events: none; }
+.lp-load.out { opacity: 0; transition: opacity .35s ease-in; pointer-events: none; }
 .lp-load .lp-gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: pixelated; }
 .lp-load .lp-note { position: absolute; left: 50%; bottom: max(28px, 7vh); transform: translateX(-50%); max-width: min(560px, 90vw); display: none; text-align: center; cursor: auto;
   font: normal 18px/1.45 var(--font-new); color: #fff2cc; padding: 12px 20px; background: rgba(12,10,6,.86); border: 2px solid #07060a;

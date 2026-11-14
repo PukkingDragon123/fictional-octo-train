@@ -13,7 +13,9 @@ export interface UiSettings { theme: UiTheme; scale: number; reduceFlash: boolea
   /** quick-time assists (round 17): hold a key instead of hammering it; slower needles, wider bands, longer struggles */
   qteHold?: boolean; qteSlow?: boolean;
   /** round 17: keep the build ghost's key caps (they retire after the first few times the kit comes out) */
-  buildHints?: boolean }
+  buildHints?: boolean;
+  /** round 18: spoken lines in the subtitle strip at the bottom instead of as world text beside the speaker */
+  subStrip?: boolean }
 
 const KEY = 'noclip.ui';
 const DEF: UiSettings = { theme: 'green', scale: 1, reduceFlash: false, px: 0 };
@@ -84,6 +86,8 @@ export function coarsePointer(): boolean {
 /** the quick-time assists live in src/core/assist.ts (game logic reads them without importing UI) */
 export { qteAssist } from '../../core/assist';
 /** true when flicker / glitch / blinking effects should stay still */
+/** spoken lines go to the subtitle strip (accessibility) instead of floating beside the speaker */
+export function subStrip(): boolean { return !!uiSettings().subStrip; }
 export function calm(): boolean { return document.documentElement.classList.contains('reduce-flash'); }
 
 applyUiSettings();

@@ -10,6 +10,8 @@ import { SubLine, type Style } from './subline';
 import { createGuideRig, type GuideRig } from './researcher';
 import { flag, setFlag } from '../deco/store';
 import { sfx } from '../sfx';
+import { Talk } from './talk';
+import { calderHas, calderSay, calderStop, loadCalderVoice } from '../../../audio/calderVoice';
 
 export type Aim = { el: () => HTMLElement | null } | { at: THREE.Vector3 } | null;
 export interface Line { text: string; point?: Aim; look?: Aim; emote?: string; style?: Style; dur?: number; then?: () => void }
@@ -68,6 +70,9 @@ export class Guide {
   private chars = 0;
   private v = new THREE.Vector3(); private w = new THREE.Vector3();
   onMute?: (m: boolean) => void;
+  /** a conversation with her (clicked): ./talk.ts */
+  talk: Talk | null = null;
+  private close = false;
 
   constructor(host: GuideHost) {
     this.host = host;
@@ -75,6 +80,7 @@ export class Guide {
     this.gone = this.muted;
     this.fill.position.set(0.25, 1.75, 0.75);
     this.fill.castShadow = false;
+    void loadCalderVoice();
   }
 
   // ---------------------------------------------------------------- rooms
@@ -82,6 +88,7 @@ export class Guide {
   follow(room: MenuRoom | null) {
     if (!room || room.id === this.roomId) return;
     const first = this.roomId === null;
+    this.talk?.close();
     this.roomId = room.id; this.room = room;
     this.subs.clear(); this.cur = null;
     this.queue = this.queue.filter((l) => !l.look && !l.point);
@@ -236,12 +243,13 @@ export class Guide {
     const ray = new THREE.Raycaster();
     ray.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), room.camera);
     if (!ray.intersectObject(rig.hitProxy, false).length) return false;
+    if (this.talk) { if (this.cur && !this.cur.h.typed) this.subs.skip(); return true; }
     rig.flinch();
     if (this.cur && !this.cur.h.typed) { this.subs.skip(); return true; }
     if (this.cur || this.queue.length) { this.next(); return true; }
-    const [text, emote] = POKES[this.pokeN++ % POKES.length];
-    this.now(text, { emote });
-    sfx('tick', 0.5);
+    // a click when she is free: a conversation (the odd poke still gets a word first)
+    if (this.pokeN++ % 5 === 4) { const [text, emote] = POKES[(this.pokeN / 5 | 0) % POKES.length]; this.now(text, { emote }); sfx('tick', 0.5); return true; }
+    this.openTalk();
     return true;
   }
   /** over her (for the cursor) */
@@ -255,6 +263,31 @@ export class Guide {
   }
   private next() {
     if (this.cur) { this.cur.h.close(); this.cur.then?.(); this.cur = null; }
+  }
+
+  /** open a conversation with her (also the lab menu's "Talk" key) */
+  openTalk() {
+    if (this.talk || !this.rig || !this.room || this.gone) return;
+    this.queue = []; if (this.cur) { this.cur.h.close(); this.cur = null; }
+    this.talk = new Talk({
+      layer: this.host.layer,
+      speak: (lines, done) => this.say(lines.map((l, i) => ({ text: l.text, emote: l.emote, then: i === lines.length - 1 ? done : undefined })), true),
+      twoShot: (on) => { this.close = on; this.checkT = 99; if (this.room) { const s = on ? this.closeSpot(this.room) : this.spot(this.room); if (s) { this.goal.copy(s); this.walking = true; } } },
+      closed: () => { this.talk = null; },
+    });
+  }
+  /** the two-shot: close to the lens, off centre, chest and head in the picture */
+  private closeSpot(room: MenuRoom): THREE.Vector3 | null {
+    const cam = room.camera, F = room.floor;
+    const o = cam.getWorldPosition(new THREE.Vector3());
+    for (const D of [1.3, 1.5, 1.15, 1.75, 2.0]) for (const nx of [-0.42, -0.5, -0.34, 0.42]) {
+      const dir = new THREE.Vector3(nx, 0.05, 0.5).unproject(cam).sub(o).normalize();
+      const pt = room.deco.worldToLocal(o.clone().addScaledVector(dir, D));
+      const feet = new THREE.Vector3(pt.x, F.y, pt.z);
+      if (feet.x < F.minX - 0.3 || feet.x > F.maxX + 0.3 || feet.z < F.minZ - 0.3 || feet.z > F.maxZ + 0.3) continue;
+      if (this.seen(room, feet)) return feet;
+    }
+    return this.viewSpot(room);
   }
 
   // ---------------------------------------------------------------- frame
@@ -291,7 +324,7 @@ export class Guide {
     rig.root.rotation.y = this.yaw;
     // the camera moved (a dive, a reframe): step back into the picture
     this.checkT += dt;
-    if (this.checkT > 1.2 && !this.walking && !this.gone) {
+    if (this.checkT > 1.2 && !this.walking && !this.gone && !this.close) {
       this.checkT = 0;
       if (!this.seen(room, this.pos)) { const s = this.viewSpot(room); if (s && s.distanceTo(this.pos) > 0.2) { this.goal.copy(s); this.walking = true; } }
     }
@@ -303,7 +336,7 @@ export class Guide {
     if (!this.cur && this.queue.length && !this.walking && !hide) this.start(this.queue.shift()!);
     // idle chatter, rarely
     this.idleT += dt;
-    if (!this.cur && !this.queue.length && !this.gone && this.idleT > 45 && !hide) { this.idleT = 0; this.say([{ text: TIPS[Math.floor(Math.random() * TIPS.length)] }]); }
+    if (!this.cur && !this.queue.length && !this.gone && !this.talk && this.idleT > 45 && !hide) { this.idleT = 0; this.say([{ text: TIPS[Math.floor(Math.random() * TIPS.length)] }]); }
     // where she looks / points
     const ln = this.cur;
     const point = ln?.point && ln.t > 0.25 && ln.t < ln.hold ? this.aim(ln.point, room) : null;
@@ -320,9 +353,12 @@ export class Guide {
     const rig = this.rig!;
     this.chars = 0;
     // the one place a line starts (a recorded voice for the line hooks in here)
+    // her recorded voice where the line has one (public/voice/calder), the typewriter otherwise
+    calderStop();
+    const voiced = calderHas(l.text) && calderSay(l.text, { vol: 0.9 }) !== null;
     const h = this.subs.say(l.text, {
       style: l.style, dur: l.dur,
-      onChar: (ch) => { if (ch !== ' ' && (this.chars++ & 1) === 0) sfx('type', 0.12); },
+      onChar: (ch) => { if (!voiced && ch !== ' ' && (this.chars++ & 1) === 0) sfx('type', 0.12); },
     });
     if (l.emote) rig.emote(l.emote);
     this.cur = { ...l, h, t: 0, hold: 1.6 + l.text.length * 0.06 };
@@ -344,5 +380,5 @@ export class Guide {
     return new THREE.Vector3(Math.max(-1.2, Math.min(1.2, nx)), Math.max(-1.2, Math.min(1.2, ny)), this.v.z).unproject(room.camera);
   }
 
-  dispose() { this.rig?.dispose(); this.rig = null; this.subs.dispose(); }
+  dispose() { this.talk?.close(); this.rig?.dispose(); this.rig = null; this.subs.dispose(); }
 }

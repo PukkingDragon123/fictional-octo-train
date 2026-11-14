@@ -34,7 +34,7 @@ let state: 'off' | 'on' | 'finishing' | 'fading' = 'off';
 let waiters: (() => void)[] = [];
 let hideAt = 0;
 /** the most the screen plays on after the load is done (real time, whatever the frame rate) */
-const FINISH_CAP_MS = 2600;
+const FINISH_CAP_MS = 1100;
 let bootObs: MutationObserver | null = null;
 let resizeBound = false;
 
@@ -123,7 +123,7 @@ function fadeOut() {
     root?.classList.remove('on', 'out');
     const w = waiters; waiters = [];
     w.forEach((f) => f());
-  }, 620);
+  }, 380);
 }
 
 /** put the loading screen up (idempotent) */

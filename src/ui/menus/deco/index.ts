@@ -18,15 +18,12 @@
 // opts.fallback (a SubjectRoom) stands in, so it works on the current menu too.
 import * as THREE from 'three';
 import { onMenuRoom, menuRooms, activeMenuRoom, onActiveMenuRoom, type MenuRoom, type MenuRoomId } from '../menuRooms';
-import { kitScale } from '../btnKit';
 import { sfx } from '../sfx';
 import { Furnisher } from './furnish';
 import { BuildMode } from './blueprint';
 import { Shop } from './shop';
 import { Preview } from './preview';
-import { blueprintSheet, shopSheet, guideSheet } from './icons';
-import { mxOk } from '../../machine/core';
-import { mxIcon, type IconKind } from '../../machine/decor';
+import { pixSheet, PIX_N } from './pixIcons';
 import { GIFTS } from './catalog';
 import { owned, addOwned, flag, setFlag } from './store';
 import { Guide } from '../guide/guide';
@@ -40,7 +37,9 @@ export function onBuildMode(cb: (id: MenuRoomId | null) => void): () => void { b
 
 let installed: DecoApi | null = null;
 
-export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unknown } = {}): DecoApi {
+/** round 18: the corner keys jump straight to these (the title room passes them in) */
+export interface HubJumps { codex?: () => void; tree?: () => void; tour?: () => void }
+export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unknown; jump?: HubJumps } = {}): DecoApi {
   if (installed) return installed;
   const root = opts.root ?? document.body;
   void bitReady();
@@ -157,30 +156,28 @@ export function installDecoAndGuide(opts: { root?: HTMLElement; fallback?: unkno
     for (const cb of buildSubs) cb(r.id);
   };
   const openShop = () => { if (!hidden()) { shop.open(); syncKeys(); } };
-  const bpKey = icon(blueprintSheet(), 'Blueprint', 'Blueprint: decorate this room', () => { sfx('plate'); enterBuild(); });
-  const shopKey = icon(shopSheet(), 'Commissary', 'Commissary: buy collectibles with research points', () => { sfx('plate'); openShop(); });
-  const guideKey = icon(guideSheet(guide.muted), 'Guide', 'Guide: mute or call Dr. Calder', () => { sfx('toggle'); guide.setMuted(!guide.muted); });
-  // round 17: the emote jukebox (buy emotes with research points, fill the wheel)
-  const emoteKey = icon(shopSheet(), 'Emotes', 'Emote jukebox: buy emotes with dollars', () => { sfx('plate'); if (!hidden()) void import('../../../social/emotes/shop').then((m) => m.openEmoteShop()); });
-  guide.onMute = (m) => { guideKey.dataset.sheet = guideSheet(m); paintKeys(); guideKey.classList.toggle('muted', m); };
+  // round 18: the corner keys are detailed 2D pixel art again (./pixIcons.ts), each a door straight to one thing:
+  // the codex, the research lattice, the commissary, the emote jukebox, the blueprint (decorate) and Dr. Calder
+  // (the guided tour; right click mutes her). The name shows only under the pointer.
+  const J = opts.jump ?? {};
+  const codexKey = icon(pixSheet('codex'), 'Codex', 'Codex: the files on every inhabitant and anomaly', () => { sfx('plate'); if (!hidden() && J.codex) J.codex(); });
+  const treeKey = icon(pixSheet('tree'), 'Skill tree', 'Skill tree: the research lattice', () => { sfx('plate'); if (!hidden() && J.tree) J.tree(); });
+  const shopKey = icon(pixSheet('shop'), 'Commissary', 'Commissary: collectibles for this room', () => { sfx('plate'); openShop(); });
+  const emoteKey = icon(pixSheet('jukebox'), 'Emotes', 'Emote jukebox: emotes for the wheel', () => { sfx('plate'); if (!hidden()) void import('../../../social/emotes/shop').then((m) => m.openEmoteShop()); });
+  const bpKey = icon(pixSheet('blueprint'), 'Decorate', 'Blueprint: decorate this room', () => { sfx('plate'); enterBuild(); });
+  const guideKey = icon(pixSheet(guide.muted ? 'guideOff' : 'guide'), 'Guide', 'Guide: Dr. Calder shows you round (right click: mute her)', () => { sfx('toggle'); if (guide.muted) guide.setMuted(false); if (!hidden() && J.tour) J.tour(); });
+  guideKey.addEventListener('contextmenu', (e) => { e.preventDefault(); sfx('toggle'); guide.setMuted(!guide.muted); });
+  if (!J.codex) codexKey.remove();
+  if (!J.tree) treeKey.remove();
+  guide.onMute = (m) => { guideKey.dataset.sheet = pixSheet(m ? 'guideOff' : 'guide'); paintKeys(); guideKey.classList.toggle('muted', m); };
   guideKey.classList.toggle('muted', guide.muted);
-  // round 16: the keys are little 3D props from the machine kit (src/ui/machine/decor.ts), drawn at half size and
-  // shown twice as big so they keep the hub's chunky pixels; the flat sheets stay as the no-WebGL fallback
-  const MODEL: Record<string, () => IconKind> = { Blueprint: () => 'blueprint', Commissary: () => 'ledger', Guide: () => (guide.muted ? 'phoneOff' : 'phone'), Emotes: () => 'coin' };
   const paintKeys = () => {
-    const S = Math.max(2, Math.round(kitScale() * (devicePixelRatio || 1) * 0.75) / (devicePixelRatio || 1));
-    for (const b of [bpKey, shopKey, emoteKey, guideKey]) {
-      const u = Math.round(12 * S);
-      const ic = mxOk() ? mxIcon(MODEL[b.dataset.k ?? '']?.() ?? 'gear', u) : null;
-      b.querySelector(':scope > .mxi-cv')?.remove();
-      if (ic) {
-        ic.style.width = ic.width * 2 + 'px'; ic.style.height = ic.height * 2 + 'px';
-        b.prepend(ic); b.classList.add('dk-3d');
-        Object.assign(b.style, { width: u * 2 + 'px', height: u * 2 + 'px', backgroundImage: 'none' });
-        continue;
-      }
-      Object.assign(b.style, { width: 24 * S + 'px', height: 24 * S + 'px', backgroundImage: `url(${b.dataset.sheet})`, backgroundSize: `${24 * S}px ${72 * S}px` });
-      b.style.setProperty('--h', 24 * S + 'px');
+    // whole CSS pixels per art pixel: 2 on a wide screen, 1.5 on a narrow one (a phone's keys sit along the foot)
+    const S = innerWidth >= 760 ? 2 : 1.5;
+    for (const b of [codexKey, treeKey, shopKey, emoteKey, bpKey, guideKey]) {
+      const u = PIX_N * S;
+      Object.assign(b.style, { width: u + 'px', height: u + 'px', backgroundImage: `url(${b.dataset.sheet})`, backgroundSize: `${u}px ${u * 3}px`, imageRendering: 'pixelated' });
+      b.style.setProperty('--h', u + 'px');
     }
   };
   const syncKeys = () => { layer.classList.toggle('busy', build.active || shop.active); };

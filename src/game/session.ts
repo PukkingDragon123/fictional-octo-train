@@ -174,6 +174,8 @@ export function startSession(o: SessionOpts): Game {
   installCook(g);
   g.addSystem(new GrabSystem());
   new PauseMenu();
+  // round 18: the core keys, each shown once on a first run (src/ui/keyHints.ts)
+  import('../ui/keyHints').then((m) => m.installKeyHints()).catch((e) => console.warn('key hints', e));
   // round 17: Tab and the phone's MENU key raise the wrist terminal (src/ui/bandos); Esc is the pause
   import('../ui/bandos/bandos').then((m) => m.installBandOS()).catch((e) => console.warn('band os', e));
 

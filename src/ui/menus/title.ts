@@ -50,13 +50,16 @@ import { openTree, treeOpen, closeTree } from './research/tree';
 import { SubjectView } from './rooms/subject';
 import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRooms';
 import { installDecoAndGuide, onBuildMode } from './deco';
+import { pixIconEl, type PixKind } from './deco/pixIcons';
+import { runTour, tourSeen, tourRunning } from './guide/tour';
 import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePanel, type PanelHost } from './research/panel';
 import * as THREE from 'three';
 import { mxOk } from '../machine/core';
 import { mxFrame, mxSkinKey, panelSpec, type MxFrame } from '../machine/kit';
-import { mxIconAnim, mxMount, type IconKind, type MxDecor } from '../machine/decor';
+import { mxIconAnim, mxMount, type MxDecor } from '../machine/decor';
 
-const TITLE_ICON: Record<string, IconKind> = { continue: 'play', new: 'plug', free: 'reel', coop: 'walkie', load: 'clipboard', controls: 'joystick', about: 'dossier' };
+// round 18: the keys' icons are detailed 2D pixel art (deco/pixIcons.ts), bigger, the hot frame lit under the pointer
+const TITLE_ICON: Record<string, PixKind> = { continue: 'play', new: 'plug', free: 'reel', coop: 'radio', load: 'clipboard', controls: 'joystick', about: 'dossier' };
 
 export function showTitle() {
   const canvas = document.getElementById('view') as HTMLCanvasElement;
@@ -218,8 +221,49 @@ class TitleRoom {
     setActiveMenuRoom('monitor');
     this.buildFeedButtons();
     // the decorator (blueprint mode, collectibles) and the researcher guide; build mode gets a shot of the floor
-    installDecoAndGuide({ root: this.root });
+    // round 18: the corner keys jump straight to the codex, the lattice and the guided tour
+    installDecoAndGuide({
+      root: this.root,
+      jump: {
+        codex: () => void this.go('archive'),
+        tree: async () => { await this.go('research'); if (this.view === 'research' && !treeOpen()) (lab as unknown as { focus(k: string, cb?: () => void): void }).focus('codex', () => lab.onPanel?.('tree')); },
+        tour: () => void this.startTour(),
+      },
+    });
+    // the first visit: Dr. Calder shows the unit round once the booth is up
+    const first = setInterval(() => {
+      if (tourSeen()) { clearInterval(first); return; }
+      if (this.live && this.view === 'monitor' && this.tourReady()) { clearInterval(first); void this.startTour(); }
+    }, 1500);
     onBuildMode((id) => { mon.setBuild(id === 'monitor'); lab.setBuild(id === 'research'); arc.setBuild(id === 'archive'); });
+  }
+  // ================================================================== the guided tour (guide/tour.ts)
+  private tourReady() { return !this.moving && !this.root.classList.contains('lit') && !this.root.classList.contains('playing') && !this.over.classList.contains('on') && !panelOpen() && !treeOpen() && !this.research?.bench && !this.research?.talent.active; }
+  async startTour() {
+    if (tourRunning()) return;
+    const box = new THREE.Box3(), c = new THREE.Vector3(), q = new THREE.Vector3();
+    await runTour({
+      go: async (r) => { if (r === 'monitor') await this.back(); else await this.go(r); },
+      aim: (r, pose) => { if (r === 'research' && this.research) (this.research as unknown as { pose: string }).pose = pose; },
+      spot: (r, key) => {
+        const room = r === 'research' ? this.research : r === 'archive' ? this.archive : null;
+        const hot = (room as unknown as { hots?: { key: string; objs: THREE.Object3D[] }[] } | null)?.hots?.find((x) => x.key === key);
+        if (!hot || this.view !== r) return null;
+        box.makeEmpty();
+        for (const o of hot.objs) box.expandByObject(o);
+        if (box.isEmpty()) return null;
+        box.getCenter(c);
+        const m = this.stage.project(c);
+        if (!m) return null;
+        const mid = { x: m.x, y: m.y };
+        const e = this.stage.project(q.copy(box.max));
+        const f = this.stage.project(q.copy(box.min));
+        const rad = e && f ? Math.hypot(e.x - f.x, e.y - f.y) / 2 : 60;
+        return { x: mid.x, y: mid.y, r: Math.min(140, Math.max(24, rad * 0.6)) };
+      },
+      ready: () => this.tourReady(),
+    });
+    if (this.view !== 'monitor') void this.back();
   }
   /** a pointer ray onto the room's floor or the highest surface it crosses */
   private pickFloor(x: number, y: number, floorY: number, surfaces: { minX: number; maxX: number; minZ: number; maxZ: number; y: number }[] = []): THREE.Vector3 | null {
@@ -288,12 +332,9 @@ class TitleRoom {
         b.classList.toggle('ft-lg', go); b.classList.toggle('ft-md', !go); b.classList.remove('ft-sm');
         b.style.width = (pt ? (go ? 244 : 228) : (go ? 276 : 248)) + 'px';
         b.style.height = (pt ? (go ? 48 : 44) : (go ? 54 : 48)) + 'px';
-        const ic = mxIconAnim(TITLE_ICON[it.key] ?? 'gear', pt ? 32 : 36);
-        if (ic) {
-          b.append(ic.cv);
-          const hot = () => ic.hot(document.activeElement === b || b.matches(':hover'));
-          for (const ev of ['focus', 'blur', 'pointerenter', 'pointerleave']) b.addEventListener(ev, () => requestAnimationFrame(hot));
-        }
+        const ic = pixIconEl(TITLE_ICON[it.key] ?? 'gear', pt ? 1.25 : 1.5, b);
+        ic.classList.add('ft-pxi', 'mxi-cv');
+        b.append(ic);
         mxSkinKey(b, { tone: go ? 'yellow' : 'olive', lamp: go ? 'green' : 'amber', sound: 'key', seed: 40 + i });
         if (go) b.classList.add('ink-d');
         b.addEventListener('focus', () => this.beacon?.alert(go));

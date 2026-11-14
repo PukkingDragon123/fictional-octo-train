@@ -17,6 +17,9 @@ import { bus } from '../../core/events';
 import { floatText } from '../../social/floatText';
 import { playLine, voiceForStyle, voiceFromApp } from '../../social/chipVoice';
 import { calderHas, calderSay, calderSpeaking } from '../../audio/calderVoice';
+import { letterTimes } from '../../social/chipVoice';
+import { subStrip } from '../menus/settings';
+import { cineSay, type CineTone } from './cineText';
 
 interface UiLike { bubbles: any[]; root: HTMLElement }
 let uiRef: UiLike | null = null;
@@ -47,11 +50,15 @@ export function shout(text: string): HTMLDivElement { return floatText(text, { k
 /** a line from the radio: typed letters over the survivor, in a crackly voice */
 export function radioLine(who: string, text: string, secs = 5) {
   // a voice with no body in the scene: low in the picture, like a film subtitle
-  const el = floatText(text, { kind: 'radio', name: who || 'RADIO', life: secs });
   playLine(text, voiceForStyle('radio', who), null, { vol: 0.75 });
   G.audio?.ui?.('static_burst', 0.12);
-  offscreen(el, secs);
+  const p = G.local;
+  if (!subStrip() && p) { cineSay('radio', text, overHead(p, 2.45), { secs, name: who || 'RADIO', tone: 'radio', times: letterTimes(text).t }); return; }
+  offscreen(floatText(text, { kind: 'radio', name: who || 'RADIO', life: secs }), secs);
 }
+
+/** a point that follows someone, h metres over their feet */
+function overHead(p: { x: number; y: number; z: number }, h: number) { return { get x() { return p.x; }, get y() { return (p.y || 0) + h; }, get z() { return p.z; } }; }
 
 /** positionless lines stack low and centred, newest at the bottom; the name fades with its line */
 let subHost: HTMLDivElement | null = null;
@@ -85,7 +92,18 @@ export function initSubtitles(ui: UiLike) {
       at = { x: s.x, y: y - ground > 1.2 ? y + 0.15 : y + 2.15, z: s.z };
     }
     // nothing floats in the world: every spoken line goes to the subtitle strip at the bottom (who it came from is in its name tag)
-    const push = (el: HTMLDivElement, _target: any, _kind: string) => { offscreen(el, secs); };
+    // spoken lines hang in the world beside whoever says them (cineText.ts), one line per speaker; with
+    // "Subtitle strip" on (or no one to hang it on) they go to the strip at the bottom of the picture
+    const tones: Record<string, CineTone> = { bailiff: 'band', voss: 'calder', guard: 'npc', say: 'npc', self: 'self', creature: 'creature' };
+    const push = (el: HTMLDivElement, target: any, kind: string) => {
+      if (subStrip() || !target || typeof target.x !== 'number') { offscreen(el, secs); return; }
+      const key = String(s.pid || s.vid || who || style || kind);
+      const tone = s.creature || style === 'creature' ? 'creature' : kind === 'say' && style === 'self' ? 'self' : tones[kind] ?? 'npc';
+      const name = el.querySelector('.ft-name')?.textContent || undefined;
+      if (el.classList.contains('ft-mute')) return;   // the display rules (floatText.ts) said not now
+      const entity = 'facing' in target || 'id' in target;    // a body (feet): the words hang over its head
+      cineSay(key, text, entity ? overHead(target, 2.25) : target, { secs, name, tone: tone as CineTone, times: letterTimes(text).t });
+    };
     switch (style) {
       case 'bailiff': {
         // the band on the wrist: a cold, clipped synthetic voice (glitching when it leaks), the words rising off the cuff
@@ -130,6 +148,7 @@ export function initSubtitles(ui: UiLike) {
         else if (calder && calderHas(text)) calderSay(text, { vol: 0.95 });
         else playLine(text, voiceForStyle(isGuard ? 'guard' : 'voss', who), target ? { x: target.x, z: target.z } : null, { vol: isGuard ? 1 : 0.28 });
         if (!target && !isGuard && G.holo?.visible && G.holo.showLine) { G.holo.showLine(text, secs, 'voss', who || 'CALDER'); return; }
+        if (!target && !isGuard && G.local) target = overHead(G.local, 2.5);
         if (!target) { offscreen(el, secs); return; }
         push(el, target, isGuard ? 'guard' : 'voss');
       }

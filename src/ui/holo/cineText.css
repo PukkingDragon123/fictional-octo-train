@@ -1,0 +1,50 @@
+/* Cinematic world text (cineText.ts): type with depth beside the speaker, letters assembling in from the lens */
+.ct-layer { position: fixed; inset: 0; pointer-events: none; z-index: 40; perspective: 820px; perspective-origin: 50% 40%; overflow: hidden; }
+.ct-line {
+  position: absolute; left: 0; top: 0; max-width: min(46vw, 560px); text-align: center; transform-style: preserve-3d;
+  font-family: 'Alagard', monospace; font-size: calc(var(--px, 2px) * 8 + 10px); line-height: 1.12; color: var(--ctc, #f1f6ec);
+  --glow: #8affb4; --ctc: #f1f6ec;
+}
+.ct-body { display: inline-block; transform-style: preserve-3d; animation: ct-drift var(--life, 4s) ease-in-out both; }
+.ct-w { display: inline-block; white-space: nowrap; transform-style: preserve-3d; }
+.ct-g {
+  display: inline-block; transform-style: preserve-3d; opacity: 0; white-space: pre;
+  /* the depth: a stepped dark extrusion under and right of every letter, a soft cast shadow, a thin ink edge */
+  text-shadow: 1px 1px 0 #26302a, 2px 2px 0 #1a221d, 3px 3px 0 #10160f, 0 0 2px #000, 4px 8px 10px rgba(0, 0, 0, .55);
+  animation: ct-in 0.62s cubic-bezier(.2, .9, .3, 1.15) var(--d, 0ms) forwards;
+}
+.ct-name { font-size: 0.56em; letter-spacing: 0.22em; text-transform: uppercase; color: var(--glow); opacity: 0; margin-bottom: 2px;
+  text-shadow: 0 0 6px var(--glow), 1px 1px 0 #000; animation: ct-name 0.4s ease-out forwards; }
+/* each letter drops and turns in from in front of the lens, trailing light, and lands with a small overshoot */
+@keyframes ct-in {
+  0% { opacity: 0; transform: translate3d(0, -1.1em, 2.4em) rotateX(-78deg) rotateZ(var(--r, 0deg)) scale(1.5); filter: blur(3px);
+       text-shadow: 0 0.5em 10px var(--glow), 0 0.9em 16px var(--glow), 0 0 12px var(--glow); }
+  45% { opacity: 1; filter: blur(0); }
+  70% { transform: translate3d(0, 0.08em, 0) rotateX(10deg) rotateZ(0deg) scale(1); text-shadow: 0 0.2em 8px var(--glow), 0 0 10px var(--glow), 1px 1px 0 #26302a, 2px 2px 0 #1a221d; }
+  100% { opacity: 1; transform: none; filter: none;
+         text-shadow: 1px 1px 0 #26302a, 2px 2px 0 #1a221d, 3px 3px 0 #10160f, 0 0 2px #000, 0 0 9px color-mix(in srgb, var(--glow) 45%, transparent), 4px 8px 10px rgba(0, 0, 0, .55); }
+}
+@keyframes ct-name { to { opacity: 0.92; } }
+/* while it is said the line floats: a slow rise and a slight turn, as if it hangs in the air */
+@keyframes ct-drift {
+  0% { transform: translate3d(0, 4px, 0) rotateY(-5deg) rotateX(6deg); }
+  100% { transform: translate3d(0, -10px, 18px) rotateY(4deg) rotateX(2deg); }
+}
+/* and it dissolves up and away, letter by letter */
+.ct-line.out .ct-g { animation: ct-out 0.5s ease-in var(--o, 0ms) forwards; opacity: 1; }
+.ct-line.out-fast .ct-g { animation: ct-out 0.26s ease-in forwards; opacity: 1; }
+.ct-line.out .ct-name, .ct-line.out-fast .ct-name { transition: opacity 0.3s; opacity: 0 !important; animation: none; }
+@keyframes ct-out {
+  from { opacity: 1; transform: none; filter: none; }
+  to { opacity: 0; transform: translate3d(0, -0.7em, 1.2em) rotateX(40deg) scale(1.15); filter: blur(4px); text-shadow: 0 0 14px var(--glow); }
+}
+.ct-calder { --glow: #7dffa8; --ctc: #eefbef; }
+.ct-radio { --glow: #ffcf6a; --ctc: #f8f0d8; }
+.ct-npc { --glow: #ffe6b0; --ctc: #fbf4e6; }
+.ct-creature { --glow: #c8a8ff; --ctc: #efe6ff; }
+.ct-band { --glow: #7fe8ff; --ctc: #e8faff; }
+.ct-self { --glow: #d8e8ff; --ctc: #f4f8ff; }
+/* reduced motion / flashing: letters fade in place */
+.ct-calm .ct-g { animation: ct-fade 0.3s ease-out var(--d, 0ms) forwards; }
+.ct-calm .ct-body { animation: none; }
+@keyframes ct-fade { to { opacity: 1; } }

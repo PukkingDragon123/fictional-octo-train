@@ -410,17 +410,17 @@ export class Expanse {
     // ---- the timeline
     let e = 0, cyc = this.cyc;
     if (this.phase === 'grow') {
-      const rate = this.finishing ? Math.max(2.6, ((GROW - this.pt) / 1.5)) : 1;
+      const rate = this.finishing ? Math.max(5, ((GROW - this.pt) / 0.6)) : 1;
       this.pt += dt * rate;
       if (this.pt >= GROW) { this.phase = 'hold'; this.pt = 0; }
       e = this.phase === 'grow' ? this.pt / GROW : 1;
     } else if (this.phase === 'hold') {
       this.pt += dt; e = 1;
-      if (this.finishing && this.pt > 0.55) this.finished = true;
+      if (this.finishing && this.pt > 0.25) this.finished = true;
       else if (!this.finishing && this.pt >= HOLD) { this.phase = 'dive'; this.pt = 0; }
     }
     if (this.phase === 'dive') {
-      if (this.finishing) { this.pt -= dt * 2.8; if (this.pt <= 0) { this.pt = 0; this.phase = 'hold'; } }
+      if (this.finishing) { this.pt -= dt * 6; if (this.pt <= 0) { this.pt = 0; this.phase = 'hold'; } }
       else { this.pt += dt; if (this.pt >= DIVE) { this.cyc++; this.phase = 'grow'; this.pt = 0; } }
       if (this.phase === 'dive') { cyc = this.cyc + 1; e = 1 - smoother(this.pt / DIVE); }
       else { cyc = this.cyc; e = this.phase === 'hold' ? 1 : 0; }
