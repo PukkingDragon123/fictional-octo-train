@@ -91,6 +91,8 @@ export class TalentBench {
   private v = new THREE.Vector3(); private q = new THREE.Quaternion();
   private cam: THREE.PerspectiveCamera | null = null;
   private snap = 0;
+  /** how many times the bench was opened (the key-cap hints go after a few) */
+  private opens = (() => { try { return Number(localStorage.getItem('lp.talent.opens')) || 0; } catch { return 0; } })();
 
   constructor(mats: FMats, hots: Hot[], spot: BenchSpot) {
     this.mats = mats; this.hots = hots; this.S = spot;
@@ -154,10 +156,6 @@ export class TalentBench {
     const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.022, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfff0c8, toneMapped: false }));
     bulb.position.set(j2[0] - 0.012, j2[1] - 0.085, j2[2]); bulb.userData.noGlow = true; g.add(bulb);
     this.lamp.position.copy(bulb.position); this.lamp.target.position.set(BX + 0.02, TOP, ZC);
-    const sign = plate(this.mats, ['TALENT BENCH T-1', 'BUFFS LEFT · DEBUFFS RIGHT'], 0.42, 0.075, { bg: 0xd8b848, ink: 0x1a1408 });
-    sign.position.set(BX + D / 2 + 0.016, TOP - 0.06, ZC + 0.36); sign.rotation.y = Math.PI / 2; g.add(sign);
-    const rule = plate(this.mats, ['SEAL ONLY WHEN LEVEL', 'OR LEANING TO THE DEBUFFS'], 0.34, 0.075, { bg: 0xe8e2d0, ink: 0x6a1a14 });
-    rule.position.set(BX + D / 2 + 0.016, TOP - 0.06, ZC - 0.4); rule.rotation.y = Math.PI / 2; g.add(rule);
     // the weigh-in log by the balance, a loupe
     const log = paper(['WEIGH-IN LOG', '~', '~', '~', '~'], 0.12, 0.16, { seed: 61, rule: true });
     log.rotation.set(-Math.PI / 2, 0, 0.4); log.position.set(BX + 0.2, TOP + 0.006, ZC - 0.3); g.add(log);
@@ -198,7 +196,7 @@ export class TalentBench {
     this.readout = { cv: rd, tex: rt };
     // the beam: a brass bar on the knife edge, end hooks; the needle hangs from the pivot
     const bb = new FacetBuilder();
-    bb.add('brass', cbox(0.016, 0.022, BEAM * 2 + 0.03, 0.006), 0xa8803a, at(0, 0, 0));
+    bb.add('brass', cbox(0.016, 0.022, BEAM * 2 + 0.03, 0.006), 0x7e6430, at(0, 0, 0));
     bb.add('brass', lathe([[0, -0.012], [0.02, -0.012], [0.02, 0.012], [0, 0.012]], 12), 0xc89a48, at(0, 0, 0, 0, 0, Math.PI / 2));
     for (const s of [-1, 1]) { bb.add('brass', prism(0.008, 0.02, 8), 0xd8aa58, at(0, 0.008, s * BEAM)); bb.add('chrome', bolt(0.006, 0.004), 0xffffff, at(0.009, 0, s * BEAM * 0.55, 0, Math.PI / 2, 0)); }
     this.beam.add(bb.build(this.mats));
@@ -213,7 +211,7 @@ export class TalentBench {
     for (const side of [1, -1]) {
       const p = new THREE.Group();
       const pb = new FacetBuilder();
-      pb.add('brass', lathe([[0, 0], [PAN_R * 0.7, 0], [PAN_R, 0.014], [PAN_R + 0.004, 0.018], [PAN_R - 0.002, 0.018], [PAN_R * 0.66, 0.004], [0, 0.004]], 22), side > 0 ? 0xa88440 : 0x8a6c3a);
+      pb.add('brass', lathe([[0, 0], [PAN_R * 0.7, 0], [PAN_R, 0.014], [PAN_R + 0.004, 0.018], [PAN_R - 0.002, 0.018], [PAN_R * 0.66, 0.004], [0, 0.004]], 22), side > 0 ? 0x7a6232 : 0x6a5230);
       for (let k = 0; k < 3; k++) { const a = k * (Math.PI * 2 / 3) + 0.5; pb.add('chrome', tube([[Math.cos(a) * PAN_R * 0.92, 0.016, Math.sin(a) * PAN_R * 0.92], [0, HANG, 0]], 0.0016, 2, 3, false), 0x9a9a92); }
       pb.add('brass', prism(0.008, 0.012, 8), 0xc89a48, at(0, HANG, 0));
       p.add(pb.build(this.mats, { cast: true }));
@@ -284,11 +282,9 @@ export class TalentBench {
     c.fillStyle = hx(C0.paper); c.fillRect(0, 0, W, H);
     // a printed band, the name big, the contents line, a barcode; foxing and a rust stain
     c.fillStyle = hx(C0.ink); c.fillRect(0, 3, W, 2); c.fillRect(0, H - 5, W, 2);
-    bitText(c, C0.label, 64, 9, { color: hx(C0.ink), outline: null, shadow: null, align: 'center', scale: 2 });
-    bitText(c, 'MARBLES · ISSUE', 128, 8, { color: hx(C0.ink), outline: null, shadow: null });
-    bitText(c, 'TALENT STOCK', 128, 22, { color: hx(C0.ink), outline: null, shadow: null });
-    for (let x = 6; x < 30; x += 2) { c.fillStyle = hx(C0.ink); c.fillRect(150 + x, 36 - 0, (x * 7) % 3 === 0 ? 2 : 1, 6); }
-    bitText(c, 'No. ' + String(i + 1).padStart(2, '0'), 166, 34, { color: hx(C0.ink), outline: null, shadow: null });
+    // the name centred on the part that faces the operator (the label's middle), sized to fit
+    const sc = C0.label.length > 4 ? 1 : 2;
+    bitText(c, C0.label, W / 2, sc === 2 ? 9 : 16, { color: hx(C0.ink), outline: null, shadow: null, align: 'center', scale: sc });
     let s = i * 97 + 3; const R = () => ((s = (Math.imul(s, 1103515245) + 12345) >>> 0) / 4294967296);
     for (let k = 0; k < 260; k++) { c.fillStyle = R() < 0.5 ? 'rgba(90,60,30,0.16)' : 'rgba(255,250,230,0.14)'; c.fillRect(R() * W, R() * H, 1 + R() * 2, 1); }
     const rx = R() * W, ry = H * 0.6;
@@ -358,6 +354,8 @@ export class TalentBench {
       lid.add(lb.build(this.mats));
       const top = new THREE.Mesh(new THREE.CircleGeometry(RC * 0.5, 24), new THREE.MeshStandardMaterial({ map: this.lidLabel(i), roughness: 0.7 }));
       top.rotation.x = -Math.PI / 2; top.position.set(RC, 0.0052, 0); lid.add(top);
+      const dot = new THREE.Mesh(new THREE.SphereGeometry(0.0045, 10, 8), new THREE.MeshBasicMaterial({ color: 0x7af08a, toneMapped: false }));
+      dot.position.set(RC + RC * 0.62, 0.006, 0); dot.name = 'fresh'; dot.visible = false; dot.userData.noGlow = true; lid.add(dot);
       lid.position.set(-RC, HC + 0.001, 0);
       body.add(lid);
       // pivot on the front edge of the foot (it tips toward the operator, +x)
@@ -460,7 +458,7 @@ export class TalentBench {
       this.onFocus?.(true);
       this.sel = Math.max(0, this.canI);
       uiSound('servo', 0.4);
-      this.say(o.intake ? 'Weigh the unit before it is linked. Buffs on the left pan, debuffs on the right.' : 'The talent bench. What goes on the scale goes into the next unit.', 5);
+      this.opens++; try { localStorage.setItem('lp.talent.opens', String(this.opens)); } catch { /* blocked */ }
       this.drawReadout();
     }
     this.renderBar();
@@ -518,7 +516,7 @@ export class TalentBench {
     markSeen(can.marbles.filter((k) => marbleOwned(MARBLE.get(k)!)));
     for (const k of can.marbles) this.fresh.delete(k);
     const n = can.marbles.filter((k) => marbleOwned(MARBLE.get(k)!)).length;
-    this.say(`${CANS[i].label}: ${n} of ${can.marbles.length} marbles unlocked. Press one to look at it.`, 3.5);
+    void n;
     this.renderBar();
   }
   private stepCan(d: number) {
@@ -575,7 +573,7 @@ export class TalentBench {
     this.mode = 'pan'; this.sel = 0;
     uiSound('tick', 0.5);
     const w = weigh(this.onScale);
-    this.say(this.onScale.size ? `Buffs ${w.buff} g, debuffs ${w.debuff} g. Press a marble on a pan to take it off.` : 'Both pans are empty. Pick marbles out of the cans.', 3.5);
+    void w;
     this.renderBar();
   }
   private pressMarble(key: string) {
@@ -626,7 +624,7 @@ export class TalentBench {
     this.drawReadout();
     const w = weigh(this.onScale);
     const st = w.debuff > w.buff ? 'The beam leans to the debuffs: sealable.' : w.debuff === w.buff ? (w.buff ? 'Level. Sealable.' : 'Both pans empty.') : `Too heavy on the buffs by ${w.buff - w.debuff} g. Add a debuff or take a buff off.`;
-    this.say(`${was ? 'Off the scale' : 'On the scale'}: ${m.name} (${m.weight} g). ${st}`, 4);
+    void st;
     if (balanced(this.onScale)) setLoadout([...this.onScale]);
     this.renderBar();
   }
@@ -680,15 +678,15 @@ export class TalentBench {
   private renderBar() {
     const w = weigh(this.onScale), ok = w.debuff >= w.buff;
     const intake = this.layer.classList.contains('intake');
-    const hint = this.mode === 'room' ? '← → pick a can · Enter open it · 1-8 a can' : this.mode === 'can' ? '← → pick a marble · Enter inspect · Q E next can' : this.mode === 'pan' ? '← → pick a marble on the pans · Enter inspect' : 'Enter put on / take off · ← → next marble · Esc back';
+    const K = (k: string) => `<kbd>${k}</kbd>`;
+    const hint = this.opens > 3 ? '' : this.mode === 'room' ? K('←') + K('→') + K('Enter') : this.mode === 'card' ? K('Enter') + K('←') + K('→') : K('←') + K('→') + K('Enter') + K('Q') + K('E');
     this.bar.innerHTML = `
       <div class="tb-read"><span class="b">BUFF <b>${w.buff}</b> g</span><span class="st ${ok ? 'ok' : 'no'}">${ok ? (w.buff === w.debuff ? 'LEVEL' : 'LEANS DEBUFF') : 'LEANS BUFF'}</span><span class="d">DEBUFF <b>${w.debuff}</b> g</span></div>
-      <div class="tb-hint">${esc(hint)}</div>
+      <div class="tb-hint">${hint}</div>
       <div class="tb-keys"></div>`;
     const keys = this.bar.querySelector('.tb-keys')!;
     const btn = (label: string, key: string, fn: () => void, cls = '') => { const b = document.createElement('button'); b.type = 'button'; b.className = 'tb-key ' + cls; b.innerHTML = `<kbd>${esc(key)}</kbd>${esc(label)}`; b.addEventListener('click', () => fn()); keys.append(b); };
     btn(this.mode === 'room' ? (intake ? 'Back to the unit' : 'Leave the bench') : 'Back', 'Esc', () => { uiSound('back', 0.4); this.back(); });
-    if (this.mode !== 'room') btn('Next can', 'E', () => this.stepCan(1));
     btn(intake ? 'Seal & link' : 'Seal', 'S', () => this.seal(), 'seal' + (ok ? '' : ' no'));
   }
   /** floating tags over the cans (and the marbles of the open can) */
@@ -701,8 +699,8 @@ export class TalentBench {
         const own = c.marbles.filter((k) => marbleOwned(MARBLE.get(k)!)).length;
         const nw = c.marbles.some((k) => this.fresh.has(k));
         const p = this.v.set(c.x, this.TOP + HC + 0.05, c.z);
-        if (this.sel === i) tag(p, `<kbd>Enter</kbd>${esc(CANS[i].label)} <small>${own}/${c.marbles.length}</small>${nw ? ' <em>NEW</em>' : ''}`, 'sel');
-        else if (nw) tag(p, '<em>NEW</em>', 'dot');
+        if (this.sel === i) tag(p, `<kbd>Enter</kbd>${esc(CANS[i].label)} <small>${own}/${c.marbles.length}</small>`, 'sel');
+        const dt0 = c.lid.getObjectByName('fresh'); if (dt0) dt0.visible = nw;
       });
       if (this.sel === this.cans.length) tag(this.v.set(this.BX + 0.04, this.TOP + 0.42, this.ZC), '<kbd>Enter</kbd>The balance', 'sel');
       if (this.sel === this.cans.length + 1) tag(this.v.set(this.BX + 0.2, this.TOP + 0.12, this.ZC), '<kbd>S</kbd>Seal', 'sel');
@@ -759,7 +757,7 @@ export class TalentBench {
     if (!full && !on) return;
     // ---- light: the clamp lamp is on while the bench is in use (and dimly otherwise)
     // (physical units: a lamp a hand's breadth away needs very little)
-    this.lamp.intensity = damp(this.lamp.intensity, on && this.mode !== 'card' ? 1.8 : 0.8, 4, dt);
+    this.lamp.intensity = damp(this.lamp.intensity, on && this.mode !== 'card' ? 1.3 : 0.7, 4, dt);
     this.fill.intensity = damp(this.fill.intensity, on ? 0.75 : 0.2, 4, dt);
     this.strip.intensity = damp(this.strip.intensity, on ? 4.2 : 3.4, 4, dt);
     const open = this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can');

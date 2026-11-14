@@ -11,6 +11,13 @@
   (dev server: `NOHMR=1 npx vite --host 127.0.0.1 --port 5199`).
 - Builds: `node scripts/itch.mjs` (itch.io zip), `VITE_SANDBOXED=1 npx vite build && node scripts/artifact.mjs` (artifact page).
 
+## The user's UI quality bar (apply to every screen, no reminders needed)
+- Highly textured, polished, high-resolution, detailed. Never low-res, chunky, blurry or placeholder-flat.
+- Real 3D objects with rich materials (worn metal, glass, enamel, paper, brass), well lit, bright, never murky.
+- Interactive and physical: grab, drag, drop, press, pull; things react with motion, sound and physics.
+- Minimal text: icons and numbers, names on hover; no hint lines, sign plates or label spam.
+- Before showing the user anything, compare its screenshot against this list; if it fails any point, it is not done.
+
 ## Fixed rules from the user
 - Never use an angled or rotated red "stamp" effect anywhere.
 - No rounded UI, no speech bubbles (lines go to the subtitle strip), minimal on-screen text, Alagard font.
