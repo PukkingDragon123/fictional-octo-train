@@ -33,6 +33,7 @@ import { mixHex, makeRamp } from '../../gfx/pixel';
 import { KitDef, KitRig, SkinB, BuildCtx, Page as KPage, V3 as KV3, Wt as KWt, buildKitRig, kitSync, kitPersonalize, hash, norm } from '../kit/humanoids';
 import { chain, sac, blade, paintCap } from '../kit/organic';
 import { mkBones, skBlob } from '../kit/fungal';
+import '../../world/water/poolWater';
 
 const live = () => !!G && !!(G as any).players;
 const plungeOf = (z: Zone | null | undefined) => (z?.meta?.plunge ?? null) as null | { deep: [number, number, number, number][]; shallow: [number, number, number, number][]; lair: [number, number] };
@@ -403,44 +404,112 @@ function buildGulper(): Rig {
   return rig;
 }
 
-interface GulpDrive { t: number; dt: number; speed: number; gape: number; sub: number; gulp: number; struggle: number; swim: number; dead: number; flinch: number; suck: number; pump: number; pucker: number }
+interface GulpDrive {
+  t: number; dt: number; speed: number; gape: number; sub: number; gulp: number; struggle: number; swim: number; dead: number; flinch: number; suck: number; pump: number; pucker: number;
+  /** the spring-damped spine (spineStep): yaw of chest, pelvis, t0..t4 */
+  yaw: number[];
+  /** the whole body tipped nose-up (hauling up a pool edge), the chest draped forward over the lip, the head raised */
+  bodyPitch: number; sag: number; headUp: number;
+  /** how much the head holds its line while the body undulates (1 swimming) */
+  steady: number;
+  /** land: the lurch phase (0..1, heave at 0..0.45) and how much it is lurching */
+  lph: number; land: number;
+  /** hauling out: forelimbs reaching up onto the tile, the heave of effort, the hind legs and tail thrashing */
+  reach: number; heave: number; thrash: number;
+}
+// ------------------------------------------------------------------ the spine: a chain of damped springs
+// Each joint (chest, pelvis, tail t0..t4) is a torsion spring pulled toward a travelling undulation wave (the
+// swimming stroke: small at the shoulders, growing to the tail tip, each joint lagging the one before) plus a
+// bend that trails the body round a turn. Stiffness falls off down the tail, so a hard turn or a stop whips
+// it: the tail overshoots and swings back. Turning the root kicks every joint the other way (inertia).
+const SPN = 7;
+const SPK = [70, 52, 40, 31, 24, 18, 13];
+const SPA = [0.03, 0.06, 0.11, 0.16, 0.22, 0.29, 0.37];
+interface SpineIn { speed: number; swim: number; thrash: number; turn: number; land: number; lph: number; sph?: number; dead: number }
+function spineStep(ud: Record<string, any>, dt: number, o: SpineIn): number[] {
+  const S = (ud.spine ||= { a: new Array(SPN).fill(0), v: new Array(SPN).fill(0), ph: 0, lt: 0 });
+  const thr = Math.min(1.6, o.thrash);
+  // the stroke: tail beats get faster and wider with speed; thrashing is fast and wild
+  const freq = 0.35 + Math.min(2.5, o.speed) * 0.42 + thr * 1.5;
+  S.ph = o.sph ?? S.ph + dt * freq * Math.PI * 2;
+  const stroke = o.dead ? 0 : o.swim * Math.min(1.5, 0.22 + o.speed * 0.5 + thr * 0.9) + (1 - o.swim) * (0.08 + thr * 0.9);
+  const dTurn = o.turn - S.lt; S.lt = o.turn;
+  const sub = dt > 1 / 45 ? 2 : 1, h = dt / sub;
+  for (let i = 0; i < SPN; i++) {
+    // undulation: a wave running from the shoulders to the tail
+    let tgt = SPA[i] * stroke * Math.sin(S.ph - i * 0.85);
+    // on land: a standing S, the shoulders and hips swinging opposite with each lurch, the tail dragging after
+    if (o.land > 0) tgt += o.land * (i === 0 ? 0.22 : i === 1 ? -0.16 : -0.06 - i * 0.03) * Math.sin(o.lph * Math.PI * 2 + (i > 1 ? -(i - 1) * 0.7 : 0));
+    // the body trails round a turn: the front bends into it, the tail lags out of it
+    tgt += (i === 0 ? 0.1 : i === 1 ? 0 : -0.07 - i * 0.012) * o.turn;
+    if (o.dead) tgt = i > 1 ? 0.12 : 0;
+    S.v[i] -= dTurn * (i === 0 ? -0.1 : 0.12 + i * 0.07);
+    const k = SPK[i], c = 2 * 0.38 * Math.sqrt(k);
+    for (let s = 0; s < sub; s++) { S.v[i] += (k * (tgt - S.a[i]) - c * S.v[i]) * h; S.a[i] += S.v[i] * h; }
+    S.a[i] = Math.max(-0.9, Math.min(0.9, S.a[i]));
+  }
+  return S.a;
+}
+
 const _sa = new THREE.Vector3(), _sb = new THREE.Vector3(), _sq = new THREE.Quaternion(), _sY = new THREE.Vector3(0, 1, 0);
 function poseGulper(rig: Rig, d: GulpDrive) {
   const K = rig as KitRig, P = rig.parts, t = d.t, ud = rig.root.userData as Record<string, any>;
   if (K.kit) kitSync(K);
   ud.ph = (ud.ph ?? 0) + d.dt * (1.2 + d.speed * 2.5);
   const ph = ud.ph;
-  const swim = d.swim, walk = clamp01(d.speed / 0.6) * (1 - swim), go = Math.max(walk, swim);
+  const swim = d.swim, walk = clamp01(d.speed / 0.6) * (1 - swim) * (1 - d.land) * (1 - d.reach);
   const p0 = (n: string) => P[n].userData.p0 as THREE.Vector3;
-  // the body: a slow S down its length; breathing; a corpse rolls over
+  const y = d.yaw;
+  // the body: the spine springs, the slow breath, the heave of effort, the slope up a pool edge; a corpse rolls over
   const br = Math.sin(t * 1.3) * 0.02;
-  P.pelvis.position.copy(p0('pelvis')).add(_sa.set(0, br - d.dead * 0.12, 0));
-  P.pelvis.rotation.set(0, Math.sin(ph) * 0.1 * go, (d.dead ? 2.7 : 0) + Math.sin(ph * 0.5) * 0.04 * walk);
-  P.chest.rotation.set(0, -Math.sin(ph) * 0.14 * go, 0);
-  P.neck.rotation.set(0, -Math.sin(ph - 0.6) * 0.1 * go - d.flinch * 0.1, 0);
+  const lurchP = d.land * Math.max(0, Math.sin(Math.min(1, d.lph / 0.45) * Math.PI)) * (d.lph < 0.45 ? 1 : 0);
+  P.pelvis.position.copy(p0('pelvis')).add(_sa.set(0, br - d.dead * 0.12 + d.heave * 0.07 + lurchP * 0.05, 0));
+  P.pelvis.rotation.set(-d.bodyPitch, y[1], (d.dead ? 2.7 : 0) + y[1] * 0.25 + Math.sin(t * 7) * 0.05 * d.thrash);
+  P.chest.rotation.set(d.sag - lurchP * 0.12 - d.heave * 0.1, y[0], -y[0] * 0.2);
+  // the head keeps its line while the body swings under it
+  P.neck.rotation.set(-d.headUp * 0.55 + d.sag * 0.4 + lurchP * 0.1, -(y[0] + y[1]) * d.steady - d.flinch * 0.1, 0);
   // the belly swells round what it has swallowed, and kicks
   const bg = d.gulp;
   P.belly.scale.set(1 + bg * 0.55 + Math.sin(t * 9) * 0.06 * d.struggle, 1 + bg * 0.9 + Math.sin(t * 11 + 1) * 0.1 * d.struggle, 1 + bg * 0.4);
   // the mouth: the skull tips back and the jaw drops; sucking it opens fast and only part way, lips closed to a tube
-  const g = Math.max(d.gape, d.suck * 0.45);
-  P.skull.rotation.set(-g * 0.95 + d.flinch * 0.08 - clamp01(d.sub) * 0.18 * swim, 0, 0);
+  const g = Math.max(d.gape, d.suck * 0.45, d.heave * 0.25);
+  P.skull.rotation.set(-g * 0.95 + d.flinch * 0.08 - d.headUp * 0.2, 0, 0);
   P.jaw.rotation.set(g * 1.15 + Math.sin(t * 3) * 0.015, 0, 0);
   const pk = d.pucker;
   P.lobeL.rotation.set(0, -pk * 0.9, 0); P.lobeR.rotation.set(0, pk * 0.9, 0);
   P.lobeL.scale.set(1 + pk * 0.4, 1 + pk * 0.9, 1 + pk * 0.4); P.lobeR.scale.set(1 + pk * 0.4, 1 + pk * 0.9, 1 + pk * 0.4);
-  // the dewlap: it swings, drops and swells as it sucks, pumps as it swallows, flutters as it breathes
+  // the dewlap: it swings with the body, drops and swells as it sucks, pumps as it swallows, flutters as it breathes
   const pumpK = Math.max(0, Math.sin(t * 6)) * 0.06 * (1 - d.gape) + d.pump * Math.max(0, Math.sin(t * 8)) * 0.35;
-  P.dew.position.copy(p0('dew')).add(_sa.set(0, -d.suck * 0.16 - pumpK * 0.1, d.suck * 0.04));
-  P.dew.rotation.set(Math.sin(ph * 0.5 + 1) * 0.12 * go + Math.sin(t * 1.1) * 0.04, 0, Math.sin(ph * 0.5) * 0.1 * go);
+  P.dew.position.copy(p0('dew')).add(_sa.set(0, -d.suck * 0.16 - pumpK * 0.1 - d.sag * 0.1, d.suck * 0.04));
+  P.dew.rotation.set(Math.sin(ph * 0.5 + 1) * 0.06 + Math.sin(t * 1.1) * 0.04 + d.bodyPitch * 0.8 + d.heave * 0.2, 0, -(y[0] + y[1]) * 0.6 + Math.sin(t * 9) * 0.08 * d.thrash);
   P.dew.scale.set(1 + d.suck * 0.45 + d.gulp * 0.3, 1 + d.suck * 1.1 + pumpK + d.gulp * 0.5, 1 + d.suck * 0.3);
-  // the tail: a wave down it; strong strokes swimming, a drag on land
-  ['t0', 't1', 't2', 't3', 't4'].forEach((n, i) => P[n].rotation.set(0, Math.sin(ph * (swim ? 1.7 : 1) - i * 0.85) * (0.12 + swim * 0.22 + i * 0.04) * (1 - d.dead * 0.7) + (d.dead ? 0.15 : 0), 0));
-  // stubby legs: a sprawling walk; swimming, pressed back along the flanks
+  // the tail: the spring chain; dragged flat on the tile, hanging down into the water off an edge
+  for (let i = 0; i < 5; i++) P['t' + i].rotation.set(d.bodyPitch * (i === 0 ? 0.35 : 0.12) - d.land * 0.03, y[2 + i], 0);
+  // the legs. Swimming: pressed back along the flanks. Walking the bottom: a sprawl. Lurching on land: both
+  // forelimbs reach forward together and haul the body after them while the hind legs shove. Hauling out:
+  // the forelimbs up on the tile, pulling with each heave, the hind legs kicking at the water.
+  const reachCycle = d.lph < 0.45 ? 1 - d.lph / 0.45 : (d.lph - 0.45) / 0.55;
   for (const [s, k] of [['L', 1], ['R', -1]] as const) for (const [fb, off] of [['F', s === 'L' ? 0 : Math.PI], ['B', s === 'L' ? Math.PI : 0]] as const) {
+    const front = fb === 'F';
     const sw = Math.sin(ph + off), lift = Math.max(0, Math.cos(ph + off));
-    P['u' + fb + s].rotation.set(0, k * (sw * 0.45 * walk - swim * (fb === 'F' ? 0.9 : -0.9)), k * (-0.15 + lift * 0.35 * walk + swim * 0.25) - d.dead * k * 0.5);
-    P['l' + fb + s].rotation.set(0, 0, k * (0.25 - lift * 0.2 * walk));
-    P['h' + fb + s].rotation.set(0, 0, k * (-0.1 + lift * 0.1 * walk));
+    let fwd = sw * 0.45 * walk, raise = (-0.15 + lift * 0.35) * walk, elbow = (0.25 - lift * 0.2 * walk) * walk;
+    const tuck = swim * (1 - d.reach) * (1 - d.land);
+    fwd += tuck * (front ? -1.0 : -0.85) + tuck * (front ? 0 : Math.sin(t * 2 + off) * 0.15 * (1 - clamp01(d.speed)));
+    raise += tuck * 0.12; elbow += tuck * 0.35;
+    if (d.land > 0) {
+      const lw = d.land * (1 - d.reach);
+      fwd += lw * (front ? -0.45 + reachCycle * 1.15 : 0.35 - reachCycle * 0.8);
+      raise += lw * (front ? (d.lph < 0.45 ? -0.12 : 0.3) : (d.lph < 0.45 ? 0.05 : -0.1));
+      elbow += lw * (front ? 0.35 : 0.2);
+    }
+    if (d.reach > 0) {
+      const rw = d.reach;
+      if (front) { fwd += rw * (0.95 - d.heave * 0.55); raise += rw * (0.55 - d.heave * 0.35); elbow += rw * (0.55 + d.heave * 0.3); }
+      else { fwd += rw * Math.sin(t * 9 + off) * 0.55 * d.thrash; raise += rw * (0.15 + Math.cos(t * 9 + off) * 0.25 * d.thrash); }
+    }
+    P['u' + fb + s].rotation.set(0, -k * fwd, k * raise - d.dead * k * 0.5);
+    P['l' + fb + s].rotation.set(0, 0, k * (elbow || 0.05));
+    P['h' + fb + s].rotation.set(0, 0, k * (-0.1 + lift * 0.1 * walk + d.reach * (front ? -0.25 : 0)));
   }
   // the suction: grit and water streaming in from a cone ahead of the mouth, the pull ring closing on it
   const sk = d.suck;
@@ -477,20 +546,96 @@ function poseGulper(rig: Rig, d: GulpDrive) {
   }
 }
 
-type GMd = 'lurk' | 'stalk' | 'burst' | 'gulp' | 'return' | 'haul';
+type GMd = 'lurk' | 'stalk' | 'burst' | 'gulp' | 'return' | 'haul' | 'land';
 function gSet(c: Creature, md: GMd) { const n = net(c); if (n.md !== md) { n.md = md; c.mem.mdT = 0; } }
+const wrapA = (a: number) => Math.atan2(Math.sin(a), Math.cos(a));
+const clampN = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
+/** a tile the Gulper can lie on out of the water: floor, nothing solid, not water */
+function dryAt(z: Zone, x: number, y: number): boolean {
+  const tx = Math.floor(x), ty = Math.floor(y);
+  if (!z.inb(tx, ty)) return false;
+  const i = z.idx(tx, ty);
+  return !!z.floor[i] && !z.solid[i] && !z.floorAt(tx, ty)?.water;
+}
+function passAt(z: Zone, x: number, y: number): boolean {
+  const tx = Math.floor(x), ty = Math.floor(y);
+  if (!z.inb(tx, ty)) return false;
+  const i = z.idx(tx, ty);
+  return !!z.floor[i] && !z.solid[i];
+}
+/**
+ * The Gulper's body as a body: velocity, drag and turning inertia instead of steering straight to a point.
+ * In water the tail drives it in pulses (one per stroke), it coasts, it can barely slide sideways, and it
+ * turns slowly; its head stays in the deep water (it noses into the wall and stops). On land it moves in
+ * heavy lurches: the forelimbs haul, then its belly drags it to a stop. Returns the distance left.
+ */
+function gPhys(c: Creature, z: Zone, tx: number, tz: number, throttle: number, dt: number, medium: 'water' | 'land'): { d: number; wall: boolean } {
+  const m = c.mem;
+  m.vx ??= 0; m.vz ??= 0; m.yw ??= 0;
+  const d = Math.hypot(tx - c.x, tz - c.z);
+  const e = d < 0.25 ? 0 : wrapA(Math.atan2(tz - c.z, tx - c.x) - c.facing);
+  const tMax = medium === 'water' ? 1.3 + throttle * 0.4 : 0.75;
+  m.yw = clampN(m.yw + clampN(e * 4.5 - m.yw * 3, -3.5, 3.5) * dt, -tMax, tMax);
+  c.facing = wrapA(c.facing + m.yw * dt); c.targetFacing = c.facing;
+  const fx = Math.cos(c.facing), fz = Math.sin(c.facing);
+  let fwd = m.vx * fx + m.vz * fz, lat = -m.vx * fz + m.vz * fx;
+  const thr = throttle * clamp01(d / 1.4) * Math.max(0, Math.cos(e));
+  if (medium === 'water') {
+    // a stroke every beat of the tail: the thrust comes in pulses
+    m.sph = (m.sph ?? 0) + dt * (0.35 + Math.abs(fwd) * 0.42 + thr * 0.6) * Math.PI * 2;
+    const pulse = 0.35 + 1.3 * Math.pow(Math.max(0, Math.sin(m.sph)), 2);
+    fwd += thr * 2.6 * pulse * dt;
+    fwd -= (fwd * Math.abs(fwd) * 0.7 + fwd * 0.22) * dt;
+    lat *= Math.exp(-dt * 5);
+  } else {
+    m.lph = ((m.lph ?? 0) + dt / 1.3) % 1;
+    const power = m.lph < 0.45 ? Math.sin((m.lph / 0.45) * Math.PI) : 0;
+    fwd += thr * power * 3.6 * dt;
+    fwd *= Math.exp(-dt * (power > 0.05 ? 1.2 : 7));
+    lat *= Math.exp(-dt * 12);
+  }
+  m.vx = fx * fwd - fz * lat; m.vz = fz * fwd + fx * lat;
+  const ok = (x: number, y: number) => (medium === 'water' ? waterAt(z, x, y) === 'deep' : passAt(z, x, y));
+  let wall = false;
+  const nx = c.x + m.vx * dt, nz = c.z + m.vz * dt;
+  // the snout is what meets the wall
+  const hx = nx + fx * 1.1, hz = nz + fz * 1.1;
+  if (medium === 'water' && !ok(hx, hz) && fwd > 0) { wall = true; fwd *= -0.25; m.vx = fx * fwd - fz * lat; m.vz = fz * fwd + fx * lat; }
+  else {
+    if (ok(nx, c.z)) c.x = nx; else { m.vx *= -0.2; wall = true; }
+    if (ok(c.x, nz)) c.z = nz; else { m.vz *= -0.2; wall = true; }
+  }
+  c.speed = Math.hypot(m.vx, m.vz); c.vx = c.vz = 0;
+  return { d, wall };
+}
+/** the pool edge between the Gulper and a point on the deck: the last deep water, the outward normal, the deck */
+function edgeToward(z: Zone, c: Creature, x: number, zz: number): { ex: number; ez: number; nx: number; nz: number; deckY: number } | null {
+  const a = angTo(c, x, zz), L = Math.hypot(x - c.x, zz - c.z);
+  let px = c.x, pz = c.z;
+  for (let s = 0.25; s < L + 0.5; s += 0.25) {
+    const qx = c.x + Math.cos(a) * s, qz = c.z + Math.sin(a) * s;
+    if (waterAt(z, qx, qz) === 'deep') { px = qx; pz = qz; continue; }
+    if (!dryAt(z, qx, qz) || !dryAt(z, qx + Math.cos(a) * 1.2, qz + Math.sin(a) * 1.2)) return null;
+    // which tile face it crossed: the outward normal is along that axis
+    const cx = Math.floor(qx) !== Math.floor(px), nx = cx ? Math.sign(qx - px) : 0, nz = cx ? 0 : Math.sign(qz - pz);
+    const ex = cx ? (nx > 0 ? Math.floor(qx) : Math.floor(px)) : qx, ez = cx ? qz : (nz > 0 ? Math.floor(qz) : Math.floor(pz));
+    return { ex, ez, nx, nz, deckY: z.heightAt(Math.floor(qx), Math.floor(qz)) };
+  }
+  return null;
+}
 function thinkGulper(c: Creature, dt: number): boolean {
-  const z = G.getZone(c.zoneKey) as Zone, m = c.mem, n = net(c), cs = CS(), now = G.time;
+  const z = G.getZone(c.zoneKey) as Zone, m = c.mem, n = net(c), now = G.time;
   const ev = pulse(c);
   m.mdT = (m.mdT ?? 0) + dt;
   const pl = plungeOf(z);
-  if (!m.init) { m.init = 1; gSet(c, 'lurk'); m.home = { x: c.x, z: c.z }; }
+  if (!m.init) { m.init = 1; gSet(c, 'lurk'); m.home = { x: c.x, z: c.z }; m.brT = now + rng.float(8, 20); }
   const md = (n.md ?? 'lurk') as GMd;
   const inWater = waterAt(z, c.x, c.z) === 'deep';
+  n.lv = Math.round(((G as any).water?.levelAt?.(c.x, c.z) ?? -0.06) * 100) / 100;
   // ---------------- something in it
   if (md === 'gulp') {
     const p = G.players.get(n.gp);
-    c.speed = 0; c.vx = c.vz = 0; c.setState('eat');
+    c.speed = 0; m.vx = m.vz = 0; c.vx = c.vz = 0; c.setState('eat');
     m.gulpHurt = (m.gulpHurt ?? 0) + ev.hurt;
     if (p && !p.body.dead) {
       if (now > (m.chewT ?? 0)) { m.chewT = now + 1.1; hitPlayer(c, p, rng.float(5, 9), ['bite', 'bruise'], 0, ['torso_u', 'torso_l'], 0.01); fx(c, 'chew'); }
@@ -504,7 +649,7 @@ function thinkGulper(c: Creature, dt: number): boolean {
   }
   if (ev.hurt > 0 && md === 'lurk') { gSet(c, 'stalk'); m.prey = c.targetId; }
   // ---------------- who is near the water
-  let prey: { p: Player; d: number } | null = null;
+  let prey: { p: Player; d: number } | null = null, deckPrey: { p: Player; d: number } | null = null;
   for (const p of playersIn(c.zoneKey)) {
     if (p.body.dead) continue;
     const d = dist(p, c);
@@ -512,43 +657,118 @@ function thinkGulper(c: Creature, dt: number): boolean {
     const edge = !pw && [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => waterAt(z, p.x + dx, p.z + dy) === 'deep');
     const reach = pw === 'deep' ? 12 : edge ? 4.2 : pw === 'shallow' ? 3.2 : 0;
     if (d < reach && (!prey || d < prey.d)) prey = { p, d };
+    if (!pw && d < 7.5 && (!deckPrey || d < deckPrey.d)) deckPrey = { p, d };
+  }
+  // ---------------- hauling itself out over the edge
+  if (md === 'haul') {
+    const H = m.haul as { ex: number; ez: number; nx: number; nz: number; deckY: number; heaves: number; hu: number; hT: number };
+    const a = Math.atan2(H.nz, H.nx);
+    c.facing = c.targetFacing = a; c.setState('attack');
+    const place = () => { c.x = H.ex + H.nx * (-1.3 + H.hu * 2.6); c.z = H.ez + H.nz * (-1.3 + H.hu * 2.6); };
+    const hp = n.hp ?? 0;
+    if (ev.hurt > 10 && hp === 2 && rng.chance(0.5)) { n.hp = 3; m.hpT = now; }
+    if (hp === 0) {
+      // the lunge: up out of the water at the lip
+      H.hu = Math.min(0.25, H.hu + dt * 0.5); place(); c.speed = 2;
+      if (H.hu >= 0.25) { n.hp = 1; m.hpT = now; fx(c, 'slap'); }
+    } else if (hp === 1) {
+      c.speed = 0.2;
+      if (now - m.hpT > 0.45) { n.hp = 2; m.hpT = now; H.heaves = 0; H.hT = now; m.hu0 = H.hu; m.gain = 0; }
+    } else if (hp === 2) {
+      // heave after heave: each one drags it a little further up, or it loses some ground
+      const k = (now - H.hT) / 1.05;
+      if (k >= 1) {
+        H.heaves++; H.hT = now; m.hu0 = H.hu;
+        const won = rng.chance(0.58 - H.heaves * 0.03);
+        m.gain = won ? rng.float(0.16, 0.24) : -rng.float(0.04, 0.09);
+        fx(c, won ? 'heave' : 'strain');
+      }
+      const k2 = Math.min(1, (now - H.hT) / 1.05), pullK = k2 < 0.45 ? Math.sin((k2 / 0.45) * Math.PI * 0.5) : 1;
+      H.hu = clampN((m.hu0 ?? H.hu) + (m.gain ?? 0) * pullK, 0.05, 1.05);
+      place(); c.speed = 0.15 + pullK * 0.3;
+      if (H.hu >= 1) { gSet(c, 'land'); n.hu = 0; m.vx = H.nx * 0.4; m.vz = H.nz * 0.4; m.lph = 0.45; fx(c, 'out'); return true; }
+      if (H.heaves >= 7 || (H.heaves >= 3 && H.hu < 0.2) || !deckPrey) { n.hp = 3; m.hpT = now; }
+    } else {
+      // it loses its grip and slides back in
+      H.hu = Math.max(0, H.hu - dt * 1.4); place(); c.speed = 1;
+      if (H.hu <= 0) { fx(c, 'slip'); gSet(c, 'return'); m.restT = now + 5; m.haulCD = now + rng.float(10, 18); n.hu = 0; m.vx = -H.nx * 1.2; m.vz = -H.nz * 1.2; return true; }
+    }
+    n.hu = Math.round(H.hu * 100) / 100; n.dy = H.deckY;
+    return true;
+  }
+  // ---------------- out on the tile: heavy lurches after them, back to the water when it gives up
+  if (md === 'land') {
+    c.setState('chase');
+    const p = deckPrey?.p;
+    if (p && deckPrey!.d < 2.6 && Math.abs(wrapA(angTo(c, p.x, p.z) - c.facing)) < 0.6) {
+      gSet(c, 'burst'); fx(c, 'burst'); m.from = { x: c.x, z: c.z }; m.target = { x: p.x, z: p.z }; m.prey = p.id; c.targetId = p.id; ruleShown(c);
+      return true;
+    }
+    if (!p || m.mdT > 9) { gSet(c, 'return'); m.restT = now + 6; m.haulCD = now + 15; return true; }
+    gPhys(c, z, p.x, p.z, 1, dt, 'land');
+    return true;
   }
   if (md === 'lurk' || md === 'stalk' || md === 'return') {
     n.sub = md === 'lurk' ? 1 : 0.5;
-    if (now < (m.restT ?? 0)) prey = null;
+    if (now < (m.restT ?? 0)) { prey = null; deckPrey = null; }
+    // out of the water: lurch back to the nearest deep water and slide in
+    if (!inWater) {
+      c.setState('flee');
+      const home = pl ? { x: pl.lair[0] + 0.5, z: pl.lair[1] + 0.5 } : m.home;
+      const w = (m.backTo && waterAt(z, m.backTo.x, m.backTo.z) === 'deep' ? m.backTo : null) ?? waterSpot(z, c.x, c.z, 6, 'deep') ?? home;
+      m.backTo = w;
+      gPhys(c, z, w.x, w.z, 1, dt, 'land');
+      if (waterAt(z, c.x + Math.cos(c.facing) * 0.8, c.z + Math.sin(c.facing) * 0.8) === 'deep' || waterAt(z, c.x, c.z) === 'deep') { m.backTo = null; fx(c, 'plunge'); c.x += Math.cos(c.facing) * 0.6; c.z += Math.sin(c.facing) * 0.6; m.vx = Math.cos(c.facing) * 1.8; m.vz = Math.sin(c.facing) * 1.8; }
+      return true;
+    }
     if (prey && prey.d < 3.4) {
-      // up out of the water at them
+      // up out of the water at them: the surge
       gSet(c, 'burst'); fx(c, 'burst'); m.from = { x: c.x, z: c.z }; m.target = { x: prey.p.x, z: prey.p.z }; m.prey = prey.p.id; c.targetId = prey.p.id; ruleShown(c);
       return true;
     }
+    // someone on the deck out of reach: swim at the edge and try to drag itself out after them
+    if (!prey && deckPrey && deckPrey.d > 3.4 && now > (m.haulCD ?? 0) && (md === 'stalk' || deckPrey.d < 6)) {
+      const E = edgeToward(z, c, deckPrey.p.x, deckPrey.p.z);
+      if (E) {
+        const ax = E.ex - E.nx * 1.3, az = E.ez - E.nz * 1.3;
+        const r = gPhys(c, z, ax, az, 1, dt, 'water');
+        if (md !== 'stalk') gSet(c, 'stalk');
+        c.setState('stalk');
+        if (r.d < 0.7 || (r.wall && r.d < 2)) {
+          gSet(c, 'haul'); n.hp = 0; m.hpT = now; m.hu0 = 0; m.gain = 0;
+          m.haul = { ...E, heaves: 0, hu: 0, hT: now }; c.targetId = deckPrey.p.id; ruleShown(c);
+          fx(c, 'lunge');
+        }
+        return true;
+      }
+      m.haulCD = now + 4;
+    }
+    // breathing: every half minute or so it rises, puts its nostrils out, blows, and sinks again
+    if (now > (m.brT ?? 0)) { n.br = 1; if (now > m.brT + 1.6 && !m.blew) { m.blew = 1; fx(c, 'breath'); } if (now > m.brT + 4.5) { n.br = 0; m.blew = 0; m.brT = now + rng.float(18, 38); } }
     if (prey) {
-      // creep toward them along the bottom, staying in the deep water
+      // creep toward them through the deep water
       c.setState('stalk');
       const to = waterAt(z, prey.p.x, prey.p.z) === 'deep' ? { x: prey.p.x, z: prey.p.z } : null;
-      const tgt = to ?? (() => { const a = angTo(c, prey!.p.x, prey!.p.z); const x = c.x + Math.cos(a) * 1.2, zz = c.z + Math.sin(a) * 1.2; return waterAt(z, x, zz) === 'deep' ? { x, z: zz } : null; })();
-      if (tgt) cs.moveTo(c, z, tgt.x, tgt.z, c.sp.walk * 1.6, dt, 0.8);
-      else { c.speed = 0; c.targetFacing = angTo(c, prey.p.x, prey.p.z); }
+      const tgt = to ?? (() => { const a = angTo(c, prey!.p.x, prey!.p.z); const x = c.x + Math.cos(a) * 1.6, zz = c.z + Math.sin(a) * 1.6; return waterAt(z, x, zz) === 'deep' ? { x, z: zz } : null; })();
+      if (tgt) gPhys(c, z, tgt.x, tgt.z, 0.75, dt, 'water');
+      else gPhys(c, z, c.x + Math.cos(c.facing) * 0.1, c.z + Math.sin(c.facing) * 0.1, 0, dt, 'water');
       if (md !== 'stalk') gSet(c, 'stalk');
       return true;
     }
     // nothing: settle on the bottom, drift a little
     c.setState('hide');
-    if (!inWater) {
-      const home = pl ? { x: pl.lair[0] + 0.5, z: pl.lair[1] + 0.5 } : m.home;
-      const w = waterSpot(z, c.x, c.z, 6, 'deep') ?? home;
-      cs.moveTo(c, z, w.x, w.z, c.sp.walk, dt, 0.4);
-      return true;
-    }
-    if (md !== 'lurk') gSet(c, 'lurk');
+    if (md !== 'lurk' && m.mdT > 3) gSet(c, 'lurk');
     if (!m.drift || m.mdT > (m.dT ?? 20)) { m.drift = waterSpot(z, c.x, c.z, 5, 'deep'); m.dT = rng.float(15, 40); m.mdT = 0; }
-    if (m.drift && cs.moveTo(c, z, m.drift.x, m.drift.z, c.sp.walk * 0.4, dt, 0.4)) m.drift = null;
+    if (m.drift) { if (gPhys(c, z, m.drift.x, m.drift.z, md === 'return' ? 0.7 : 0.25, dt, 'water').d < 0.6) m.drift = null; }
+    else gPhys(c, z, c.x, c.z, 0, dt, 'water');
     return true;
   }
   if (md === 'burst') {
-    // a lunge: it comes up and forward a couple of metres, mouth wide
+    // the surge: it comes up and forward a couple of metres, mouth wide
     const k = Math.min(1, m.mdT / 0.55);
     const a = angTo(m.from, m.target.x, m.target.z), L = Math.min(3, Math.hypot(m.target.x - m.from.x, m.target.z - m.from.z));
     c.x = m.from.x + Math.cos(a) * L * k; c.z = m.from.z + Math.sin(a) * L * k; c.vx = c.vz = 0; c.speed = 4;
+    m.vx = Math.cos(a) * 1.5; m.vz = Math.sin(a) * 1.5;
     c.facing = c.targetFacing = a; n.sub = 0; c.setState('attack');
     if (k >= 1) {
       const p = G.players.get(m.prey);
@@ -559,10 +779,11 @@ function thinkGulper(c: Creature, dt: number): boolean {
     }
     return true;
   }
-  if (md === 'haul') gSet(c, 'return');
+  gSet(c, 'return');
   return true;
 }
 
+const W8 = () => (live() ? ((G as any).water ?? null) : null) as null | { levelAt(x: number, z: number): number | null; disturb(x: number, z: number, a: number, r?: number, f?: number): void; splash(x: number, z: number, p?: number, s?: boolean): void; pour(x: number, y: number, z: number, r: number, n: number): void; ring(x: number, z: number, y: number, r0: number, sp: number, life: number): void; drop(x: number, y: number, z: number, vx: number, vy: number, vz: number, s?: number): void };
 function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
   const K = rig as KitRig;
   if (K.kit.who !== c.id) { K.kit.who = c.id; kitPersonalize(K, Math.floor(hashId(c.id) * GV)); }
@@ -570,26 +791,63 @@ function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
   const n = netOf(c), ud = rig.root.userData as Record<string, any>;
   const md = (n.md ?? 'lurk') as GMd;
   const z = live() ? G.zones.get(c.zoneKey) as Zone ?? null : null;
+  const W = W8();
+  const fa = c.facing, cf = Math.cos(fa), sf = Math.sin(fa);
+  const at = (d: number) => [c.x + cf * d, c.z + sf * d] as const;
   const f = fxPoll(rig, c);
   if (f) {
-    if (f.key === 'burst') { playAt('lifeguard_splash', c, 1, 26, 0.7); playAt('arv_gulp', c, 1, 26, 0.5); playAt('davenport_roar', c, 0.6, 30, 0.45); if (G.local && dist(G.local, c) < 10) G.camera?.shake?.(0.35, 0.5); }
-    else if (f.key === 'gulp') { playAt('bh_gulp', c, 1, 18, 0.55); playAt('bh_swallow', c, 0.9, 16, 0.6); ud.gulpT = t; }
+    if (f.key === 'burst') {
+      playAt('lifeguard_splash', c, 1, 26, 0.7); playAt('arv_gulp', c, 1, 26, 0.5); playAt('davenport_roar', c, 0.6, 30, 0.45);
+      if (G.local && dist(G.local, c) < 10) G.camera?.shake?.(0.35, 0.5);
+      if (W) { const [hx, hz] = at(1.4); W.splash(hx, hz, 2.6, false); W.splash(c.x, c.z, 1.6, false); }
+    }
+    else if (f.key === 'gulp') { playAt('bh_gulp', c, 1, 18, 0.55); playAt('bh_swallow', c, 0.9, 16, 0.6); ud.gulpT = t; if (W) W.splash(c.x + cf * 1.6, c.z + sf * 1.6, 1.8, false); }
     else if (f.key === 'chew') playAt(rng.chance(0.5) ? 'bh_squelch' : 'gore_squelch', c, 0.7, 12, 0.6);
-    else if (f.key === 'spit') { playAt('arv_spit', c, 1, 20, 0.6); playAt('lifeguard_splash', c, 0.8, 20, 0.9); spitOut(c, f.a?.pid, f.a?.a ?? c.facing); }
-    else if (f.key === 'miss') playAt('lifeguard_splash', c, 0.6, 16, 1.1);
+    else if (f.key === 'spit') { playAt('arv_spit', c, 1, 20, 0.6); playAt('lifeguard_splash', c, 0.8, 20, 0.9); spitOut(c, f.a?.pid, f.a?.a ?? c.facing); if (W) W.splash(c.x + cf * 1.8, c.z + sf * 1.8, 1.4, false); }
+    else if (f.key === 'miss') { playAt('lifeguard_splash', c, 0.6, 16, 1.1); if (W) W.splash(c.x + cf * 1.8, c.z + sf * 1.8, 1.2, false); }
+    else if (f.key === 'lunge') { playAt('lifeguard_splash', c, 0.9, 22, 0.8); if (W) { W.splash(c.x + cf * 1.2, c.z + sf * 1.2, 2.2, false); W.splash(c.x - cf * 1.5, c.z - sf * 1.5, 1.2, false); } }
+    else if (f.key === 'slap') { playAt('bh_squelch', c, 1, 18, 0.6); playAt('lifeguard_splash', c, 0.7, 18, 1.2); if (W) { W.splash(c.x + cf * 0.6, c.z + sf * 0.6, 1.4, false); for (let i = 0; i < 14; i++) W.drop(c.x + cf * 1.6 + (Math.random() - 0.5) * 1.2, (n.dy ?? 0) + 0.15, c.z + sf * 1.6 + (Math.random() - 0.5) * 1.2, (Math.random() - 0.5) * 2, 1 + Math.random() * 1.5, (Math.random() - 0.5) * 2, 0.025); } if (G.local && dist(G.local, c) < 8) G.camera?.shake?.(0.15, 0.25); }
+    else if (f.key === 'heave') { playAt(rng.chance(0.5) ? 'hollow_moan' : 'bh_squelch', c, 0.55, 16, 0.6); if (W) W.splash(c.x - cf * 1.3, c.z - sf * 1.3, 0.9, false); }
+    else if (f.key === 'strain') { playAt('hollow_moan', c, 0.7, 18, 0.5); if (W) W.splash(c.x - cf * 1.6, c.z - sf * 1.6, 1.3, false); }
+    else if (f.key === 'slip') { playAt('lifeguard_splash', c, 1, 24, 0.65); playAt('lifeguard_sink', c, 0.6, 18, 0.8); if (W) { W.splash(c.x, c.z, 2.8, false); W.splash(c.x + cf, c.z + sf, 1.6, false); } }
+    else if (f.key === 'out') playAt('bh_squelch', c, 0.9, 18, 0.45);
+    else if (f.key === 'plunge') { playAt('lifeguard_splash', c, 1, 24, 0.6); if (W) { W.splash(c.x + cf * 1.2, c.z + sf * 1.2, 2.6, false); } }
+    else if (f.key === 'breath') { playAt('lifeguard_bubbles', c, 0.7, 14, 0.7); if (W) { const [hx, hz] = at(1.9); W.splash(hx, hz, 0.35, false); W.disturb(hx, hz, 0.6, 0.5, 0.4); } }
   }
   const water = waterAt(z, c.x, c.z);
   const swim = water === 'deep' ? 1 : 0;
   ud.sw = (ud.sw ?? swim) + (swim - (ud.sw ?? swim)) * damp(3, dt);
-  // how far under it lies: lurking only the nostrils and eyes break the surface
-  const subT = c.dead ? 0.6 : md === 'lurk' ? 1 : md === 'stalk' ? 0.85 : md === 'burst' ? -0.3 : md === 'gulp' ? 0.2 : 0.6;
-  ud.sub = (ud.sub ?? subT) + (subT * ud.sw - (ud.sub ?? 0)) * damp(md === 'burst' ? 14 : 2.5, dt);
-  rig.root.position.y = c.y - (ud.sub ?? 0) * 0.63 + (md === 'burst' ? Math.sin(Math.min(1, (t - (ud.bT ?? t)) / 0.55) * Math.PI) * 0.4 : 0);
+  // hauling out: how far up over the edge it has dragged itself
+  const huT = md === 'haul' ? (n.hu ?? 0) : 0;
+  ud.hu = (ud.hu ?? 0) + (huT - (ud.hu ?? 0)) * damp(md === 'haul' ? 7 : 3, dt);
+  const hu = ud.hu, hauling = md === 'haul' || hu > 0.03;
+  ud.rch = (ud.rch ?? 0) + ((md === 'haul' && (n.hp ?? 0) < 3 ? 1 : 0) - (ud.rch ?? 0)) * damp(md === 'haul' ? 6 : 3, dt);
+  const onLand = !hauling && !swim && water !== 'shallow';
+  ud.ld = (ud.ld ?? 0) + ((onLand || md === 'land' ? 1 : 0) - (ud.ld ?? 0)) * damp(4, dt);
+  // how far under: 1 lying on the bottom, 0 the back awash at the surface; it rises to breathe
+  const breathing = !!n.br && (md === 'lurk' || md === 'stalk');
+  const dT = c.dead ? 0.6 : breathing ? 0 : md === 'lurk' ? 1 : md === 'stalk' ? 0.55 : md === 'burst' ? -0.45 : md === 'gulp' ? 0.3 : 0.45;
+  ud.sub = (ud.sub ?? dT) + (dT - (ud.sub ?? dT)) * damp(md === 'burst' ? 12 : 1.6, dt);
+  const floorY = z ? z.heightAt(Math.floor(c.x), Math.floor(c.z)) : c.y;
+  const lv = W?.levelAt(c.x, c.z) ?? (swim ? floorY + 0.84 : null);
   if (md === 'burst' && ud.lastMd !== 'burst') ud.bT = t;
   ud.lastMd = md;
+  const bt = md === 'burst' ? t - (ud.bT ?? t) : 9;
+  // the heave of effort (hauling): pulls in time with the host's heaves
+  ud.hph = (ud.hph ?? 0) + dt / 1.05;
+  const heave = md === 'haul' && (n.hp ?? 0) === 2 ? Math.max(0, Math.sin(Math.min(1, (ud.hph % 1) / 0.45) * Math.PI)) * ((ud.hph % 1) < 0.45 ? 1 : 0) : 0;
+  let ry: number;
+  if (hauling) {
+    const deckY = n.dy ?? 0, lvl = n.lv ?? (lv ?? -0.06);
+    const s = hu * hu * (3 - 2 * hu);
+    ry = lvl - 0.6 + (deckY - 0.03 - (lvl - 0.6)) * Math.min(1, s * 1.1);
+  } else if (swim && lv !== null) {
+    ry = Math.max(floorY, lv - 0.58 + (floorY - (lv - 0.58)) * clamp01(ud.sub)) + (md === 'burst' ? Math.sin(Math.min(1, bt / 0.55) * Math.PI) * 0.45 : 0);
+  } else ry = floorY + (md === 'burst' ? Math.sin(Math.min(1, bt / 0.55) * Math.PI) * 0.25 : 0);
+  ud.ry = (ud.ry ?? ry) + (ry - (ud.ry ?? ry)) * damp(md === 'burst' || hauling ? 10 : 3, dt);
+  rig.root.position.y = ud.ry;
   // the strike is a suction strike: the throat drops, the jaws flash open only part way with the lip lobes
   // closed in to a tube, and the water ahead (and whatever is in it) rushes into the mouth; then it snaps shut
-  const bt = md === 'burst' ? t - (ud.bT ?? t) : 9;
   const suckT = md === 'burst' ? (bt < 0.5 ? 1 : 0) : 0;
   // idle gulps: every few seconds it drops its throat and snaps a mouthful of water
   if (!c.dead && (md === 'lurk' || md === 'stalk') && t > (ud.igT ?? 0)) { ud.igT = t + rng.float(4.5, 8); ud.igS = t; if (G.local && dist(G.local, c) < 12) playAt('bh_gulp', c, 0.35, 10, 0.9); }
@@ -597,25 +855,78 @@ function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
   ud.sk = (ud.sk ?? 0) + (Math.max(suckT, ig * 0.35) - (ud.sk ?? 0)) * damp(suckT ? 30 : 9, dt);
   ud.pk = (ud.pk ?? 0) + (Math.max(suckT, ig * 0.7) - (ud.pk ?? 0)) * damp(20, dt);
   // the full, flat-open gape is its threat: struck at, or striking at a unit already in its reach
-  const gT = c.attackPhase > 0 ? 0.85 : md === 'gulp' ? (t - (ud.gulpT ?? -9) < 0.25 ? 0.5 : 0) : md === 'stalk' ? 0.05 : 0.02;
+  const gT = c.attackPhase > 0 ? 0.85 : md === 'gulp' ? (t - (ud.gulpT ?? -9) < 0.25 ? 0.5 : 0) : md === 'land' ? 0.12 : md === 'stalk' ? 0.05 : 0.02;
   ud.g = (ud.g ?? 0) + (gT - (ud.g ?? 0)) * damp(gT > (ud.g ?? 0) ? 16 : 6, dt);
   const gl = md === 'gulp' ? 1 : 0;
   ud.gl = (ud.gl ?? 0) + (gl - (ud.gl ?? 0)) * damp(gl ? 4 : 1.2, dt);
   ud.dk = c.dead ? Math.min(1, (ud.dk ?? 0) + dt) : 0;
   const pump = md === 'gulp' && t - (ud.gulpT ?? -9) < 2.5 ? 1 : 0;
-  poseGulper(rig, { t, dt, speed: c.speed, gape: ud.g, sub: ud.sub, gulp: ud.gl, struggle: gl, swim: ud.sw, dead: ud.dk, flinch: clamp01(c.hitFlash / 0.15), suck: ud.sk, pump, pucker: ud.pk });
+  // turning: the root's yaw rate drives the spine's lag and whip
+  const rootY = rig.root.rotation.y;
+  const dY = wrapA(rootY - (ud.lry ?? rootY)); ud.lry = rootY;
+  ud.turn = (ud.turn ?? 0) + ((dt > 0 ? clampN(dY / dt, -3, 3) : 0) - (ud.turn ?? 0)) * damp(10, dt);
+  const thrash = md === 'haul' ? ((n.hp ?? 0) === 3 ? 1.3 : (n.hp ?? 0) === 2 ? 0.8 + heave * 0.5 : 0.6) : md === 'burst' ? 0.9 : md === 'gulp' ? 0.25 : 0;
+  const host = !!(c.mem && c.mem.sph !== undefined && G.role !== 'client');
+  const lph = (host && c.mem.lph !== undefined ? c.mem.lph : (ud.lph = ((ud.lph ?? 0) + dt / 1.3 * (ud.ld > 0.3 ? 1 : 0)) % 1)) as number;
+  const yaw = spineStep(ud, dt, { speed: c.speed, swim: ud.sw * (1 - Math.min(1, hu * 2)), thrash, turn: ud.turn, land: ud.ld, lph, dead: ud.dk });
+  // the body tipped up the edge, the chest draped over the lip, the head up to breathe or to see
+  const bodyPitch = hauling ? 0.42 * Math.sin(Math.PI * Math.min(1, hu * 1.05)) + heave * 0.06 : md === 'burst' ? 0.25 * Math.sin(Math.min(1, bt / 0.55) * Math.PI) : 0;
+  const sag = hauling ? 0.32 * clamp01((hu - 0.3) / 0.45) * (1 - clamp01((hu - 0.85) / 0.2)) : 0;
+  const headUp = breathing ? 0.55 : md === 'lurk' ? 0.22 : hauling ? 0.3 * (1 - hu) + heave * 0.2 : md === 'land' ? 0.12 : 0;
+  ud.hup = (ud.hup ?? 0) + (headUp - (ud.hup ?? 0)) * damp(2.5, dt);
+  poseGulper(rig, {
+    t, dt, speed: c.speed, gape: ud.g, sub: ud.sub, gulp: ud.gl, struggle: gl, swim: ud.sw, dead: ud.dk, flinch: clamp01(c.hitFlash / 0.15), suck: ud.sk, pump, pucker: ud.pk,
+    yaw, bodyPitch, sag, headUp: ud.hup, steady: 0.4 + 0.5 * ud.sw, lph, land: ud.ld * (1 - ud.rch), reach: ud.rch, heave, thrash,
+  });
+  // ---------------- the water round it
+  if (W && !c.dead && z) {
+    const k60 = Math.min(3, dt * 60);
+    if (swim && lv !== null) {
+      const sp = c.speed;
+      const top = ud.ry + 0.72;
+      // a body moving just under the surface lifts a hump ahead and leaves a trough and a wake; deep down only a swell
+      const nearS = clamp01(1 - (lv - top) / 0.7);
+      if (sp > 0.15) {
+        const [hx, hz] = at(1.6);
+        W.disturb(hx, hz, sp * 0.05 * nearS * k60, 0.8);
+        W.disturb(c.x - cf * 0.6, c.z - sf * 0.6, -sp * 0.05 * nearS * k60, 0.9, sp * 0.02 * nearS * k60);
+      }
+      // each beat of the tail shoves water sideways
+      const ph = (ud.spine?.ph ?? 0), tail = Math.sin(ph - 5);
+      const [tx, tz] = at(-2.6);
+      W.disturb(tx - sf * tail * 0.5, tz + cf * tail * 0.5, Math.abs(Math.cos(ph - 5)) * -0.03 * (0.3 + sp) * nearS * k60, 0.6);
+      // the surge: a bow wave thrown off the head, spray along it
+      if (md === 'burst' && bt < 0.6) {
+        const [hx, hz] = at(2.0);
+        W.disturb(hx, hz, 0.5 * k60, 1.1, 0.3 * k60);
+        W.disturb(hx - sf * 1.0, hz + cf * 1.0, 0.25 * k60, 0.8); W.disturb(hx + sf * 1.0, hz - cf * 1.0, 0.25 * k60, 0.8);
+        for (let i = 0; i < 2; i++) { const s = Math.random() < 0.5 ? -1 : 1; W.drop(hx + -sf * s * 0.7, lv + 0.1, hz + cf * s * 0.7, -sf * s * 2.5 + cf * 2, 2 + Math.random() * 2, cf * s * 2.5 + sf * 2, 0.03); }
+      }
+      // breathing: the snout up through the surface, a ring spreading off it
+      if (breathing && Math.random() < dt * 1.5) { const [hx, hz] = at(1.9); W.ring(hx, hz, lv, 0.15, 0.5, 1.2); }
+    }
+    if (hauling) {
+      // water pours off the body as it comes up out of the pool, the tail beats the water white
+      if (Math.random() < dt * 30 * Math.min(1, hu * 3)) { const zz = -0.8 + Math.random() * 2.2, [px, pz] = at(zz); W.pour(px, ud.ry + 0.55 + zz * 0.15, pz, 0.45, 1); }
+      const ph = (ud.spine?.ph ?? 0);
+      const [tx, tz] = at(-2.5);
+      W.disturb(tx - sf * Math.sin(ph - 5) * 0.6, tz + cf * Math.sin(ph - 5) * 0.6, -0.12 * thrash * k60, 0.7, 0.05 * k60);
+      if (Math.random() < dt * 4 * thrash) W.splash(tx - sf * Math.sin(ph - 5) * 0.6, tz + cf * Math.sin(ph - 5) * 0.6, 0.5 + thrash * 0.3, false);
+    } else if (ud.ld > 0.5 && Math.random() < dt * 6 && (t - (ud.wetT ?? (ud.wetT = t))) < 6) { const zz = -1 + Math.random() * 2.4, [px, pz] = at(zz); W.pour(px, ud.ry + 0.45, pz, 0.4, 1); }
+    if (swim) ud.wetT = t;
+  }
   // the pull: a unit in front of the mouth while it sucks is dragged toward it (on their own machine)
   if (live() && G.local && suckT && !c.dead) {
-    const me = G.local, hx = c.x + Math.cos(c.facing) * 1.9, hz = c.z + Math.sin(c.facing) * 1.9;
+    const me = G.local, hx = c.x + cf * 1.9, hz = c.z + sf * 1.9;
     const dx = hx - me.x, dz = hz - me.z, d = Math.hypot(dx, dz);
-    const ahead = (me.x - c.x) * Math.cos(c.facing) + (me.z - c.z) * Math.sin(c.facing);
+    const ahead = (me.x - c.x) * cf + (me.z - c.z) * sf;
     if (d < 4.2 && d > 0.3 && ahead > 0) { const k = (1 - d / 4.2) * 6 * dt; me.x += (dx / d) * k * 2.2; me.z += (dz / d) * k * 2.2; thinkOnce(me, 'pl_suck', 'It is PULLING me in. The water is going into its mouth and I am going with it.', 20); }
   }
   // the swallowed unit: held inside it (on their own machine)
   if (live() && G.local) {
     const me = G.local;
     if (n.gp === me.id && !c.dead) {
-      me.x = c.x + Math.cos(c.facing) * 0.2; me.z = c.z + Math.sin(c.facing) * 0.2; me.vx = me.vz = 0;
+      me.x = c.x + cf * 0.2; me.z = c.z + sf * 0.2; me.vx = me.vz = 0;
       (me as any).__gulpedUntil = G.time + 0.3;
       thinkOnce(me, 'pl_gulped', ['It is dark and wet and it is squeezing. Hit it. HIT IT.', 'I am inside it. I am INSIDE it.', 'Everything is pink and pressing in.'][Math.floor(t) % 3], 4);
     }
@@ -627,6 +938,7 @@ function animateGulper(rig: Rig, c: Creature, t: number, dt: number) {
   if (p && dist(p, c) < 9) {
     if (md === 'lurk' && dist(p, c) < 6) thinkOnce(p, 'pl_lurk', ['Two little bumps on the water, perfectly still. Nostrils?', 'Something pale on the bottom of the deep end. Something big.'][Math.floor(t * 0.2) % 2], 70);
     else if (md === 'gulp' && n.gp !== p.id) thinkOnce(p, 'pl_gulp_saw', 'It swallowed them WHOLE. They are in there. You can see them kicking.', 30);
+    else if (md === 'haul') thinkOnce(p, 'pl_haul', 'It is coming OUT. It is dragging itself up onto the tile.', 40);
   }
 }
 /** on the victim's machine: thrown out beside it, onto the nearest dry tile */
@@ -1109,7 +1421,7 @@ bus.on('enterZone', (z: Zone) => {
 // galleries
 // =====================================================================================
 GULPER.animateGallery = (rig: Rig, t: number) => {
-  const q = galleryPoseParam() || ['lurk', 'suck', 'walk', 'gape', 'gulp', 'swim'][Math.floor(t / 4) % 6];
+  const q = galleryPoseParam() || ['lurk', 'suck', 'walk', 'gape', 'gulp', 'swim', 'haul', 'land'][Math.floor(t / 4) % 8];
   const ud = rig.root.userData as Record<string, any>;
   const dt = 1 / 60;
   // the suction strike loops every 1.6 s: throat drop, mouth flashes open to a tube, water rushes in, snap shut
@@ -1118,7 +1430,15 @@ GULPER.animateGallery = (rig: Rig, t: number) => {
   ud.pk = (ud.pk ?? 0) + (suckT - (ud.pk ?? 0)) * damp(20, dt);
   ud.g = (ud.g ?? 0) + ((q === 'gape' ? 1 : 0.02) - (ud.g ?? 0)) * damp(q === 'gape' ? 10 : 4, dt);
   ud.gl = (ud.gl ?? 0) + ((q === 'gulp' ? 1 : 0) - (ud.gl ?? 0)) * damp(3, dt);
-  poseGulper(rig, { t, dt, speed: q === 'walk' ? 0.6 : q === 'swim' ? 1 : 0, gape: ud.g, sub: 0, gulp: ud.gl, struggle: q === 'gulp' ? 1 : 0, swim: q === 'swim' ? 1 : 0, dead: 0, flinch: 0, suck: ud.sk, pump: q === 'gulp' ? 1 : 0, pucker: Math.max(ud.pk, q === 'lurk' ? (Math.sin(t * 1.2) > 0.9 ? 0.6 : 0) : 0) });
+  const swim = q === 'swim' ? 1 : 0, haul = q === 'haul' ? 1 : 0, land = q === 'land' ? 1 : 0;
+  ud.glph = ((ud.glph ?? 0) + dt / 1.3) % 1;
+  const yaw = spineStep(ud, dt, { speed: swim ? 1.3 : land ? 0.4 : q === 'walk' ? 0.6 : 0, swim, thrash: haul * 0.9, turn: swim ? Math.sin(t * 0.6) * 0.7 : 0, land, lph: ud.glph, dead: 0 });
+  const hp = (t % 1.05) / 1.05, heave = haul && hp < 0.45 ? Math.sin((hp / 0.45) * Math.PI) : 0;
+  poseGulper(rig, {
+    t, dt, speed: q === 'walk' ? 0.6 : swim ? 1.3 : land ? 0.4 : 0, gape: ud.g, sub: 0, gulp: ud.gl, struggle: q === 'gulp' ? 1 : 0, swim, dead: 0, flinch: 0, suck: ud.sk, pump: q === 'gulp' ? 1 : 0,
+    pucker: Math.max(ud.pk, q === 'lurk' ? (Math.sin(t * 1.2) > 0.9 ? 0.6 : 0) : 0),
+    yaw, bodyPitch: haul * (0.36 + heave * 0.06), sag: haul * 0.2, headUp: q === 'lurk' ? 0.22 : haul * (0.25 + heave * 0.2), steady: 0.4 + 0.5 * swim, lph: ud.glph, land, reach: haul, heave, thrash: haul * (0.8 + heave * 0.5),
+  });
 };
 TADPOLE.animateGallery = (rig: Rig, t: number) => {
   const fc = (rig.root.userData.fake ||= fakeCreature(TADPOLE, { id: 'g-tad', facing: 0, mem: { netMem: { age: 400 } } })) as Creature;

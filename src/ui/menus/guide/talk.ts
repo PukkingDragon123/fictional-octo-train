@@ -32,10 +32,10 @@ export class Talk {
   open = true;
 
   constructor(private host: TalkHost) {
-    for (const k of ['top', 'bot']) { const b = document.createElement('div'); b.className = 'tk-bar tk-' + k; host.layer.appendChild(b); this.bars.push(b); }
+    for (const k of ['top', 'bot']) { const b = document.createElement('div'); b.className = 'tk-bar tk-' + k; document.body.appendChild(b); this.bars.push(b); }
     this.panel = document.createElement('div');
     this.panel.className = 'tk-panel';
-    host.layer.appendChild(this.panel);
+    document.body.appendChild(this.panel);
     requestAnimationFrame(() => { for (const b of this.bars) b.classList.add('on'); });
     host.twoShot(true);
     window.addEventListener('keydown', this.keys, true);
@@ -55,7 +55,7 @@ export class Talk {
     const head = document.createElement('div'); head.className = 'tk-head'; head.textContent = 'ASK DR. CALDER';
     this.panel.appendChild(head);
     shown.forEach((t, i) => {
-      const b = mxButton(`${i + 1}  ${t.label.toUpperCase()}`, () => this.pick(t), { w: 330, h: 40, tone: t.id === 'bye' ? 'dark' : 'olive', lamp: t.id === 'bye' ? 'amber' : 'green', cls: 'tk-q' });
+      const b = mxButton(`${i + 1}  ${t.label.toUpperCase()}`, () => this.pick(t), { w: 300, h: 40, tone: t.id === 'bye' ? 'dark' : 'olive', lamp: t.id === 'bye' ? 'amber' : 'green', cls: 'tk-q' });
       this.panel.appendChild(b);
     });
     this.panel.classList.add('on');

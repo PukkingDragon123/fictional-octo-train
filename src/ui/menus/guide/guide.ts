@@ -281,7 +281,7 @@ export class Guide {
   private closeSpot(room: MenuRoom): THREE.Vector3 | null {
     const cam = room.camera, F = room.floor;
     const o = cam.getWorldPosition(new THREE.Vector3());
-    for (const D of [1.3, 1.5, 1.15, 1.75, 2.0]) for (const nx of [-0.42, -0.5, -0.34, 0.42]) {
+    for (const D of [1.45, 1.3, 1.65, 1.9, 2.2]) for (const nx of [0.06, 0.16, -0.04, 0.26]) {
       const dir = new THREE.Vector3(nx, 0.05, 0.5).unproject(cam).sub(o).normalize();
       const pt = room.deco.worldToLocal(o.clone().addScaledVector(dir, D));
       const feet = new THREE.Vector3(pt.x, F.y, pt.z);

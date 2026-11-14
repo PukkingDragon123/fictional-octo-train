@@ -576,6 +576,9 @@ uniform float uAOStr;
 uniform float uBloomStr;
 uniform float uDirtStr;
 uniform float uReflect;
+uniform sampler2D uWaveTex;
+uniform vec4 uWaveInfo;
+uniform float uWaveOn;
 uniform vec3 uMistCol;
 uniform float uMistDens;
 uniform float uMistFall;
@@ -689,7 +692,15 @@ void main() {
 #if SSR_N > 0
   if (uPersp < 0.5 && fl.y > 0.01 && n.y > 0.7 && !isVoid) {
     vec3 N = vec3(0.0, 1.0, 0.0);
-    if (fl.z > 0.5) N = normalize(vec3(sin(P.x * 3.1 + uTime * 1.7) * 0.05 + sin(P.z * 5.3 - uTime * 2.3) * 0.03, 1.0, cos(P.z * 2.7 + uTime * 1.3) * 0.05 + sin(P.x * 4.7 + uTime * 2.1) * 0.03));
+    if (fl.z > 0.5) {
+      N = normalize(vec3(sin(P.x * 3.1 + uTime * 1.7) * 0.05 + sin(P.z * 5.3 - uTime * 2.3) * 0.03, 1.0, cos(P.z * 2.7 + uTime * 1.3) * 0.05 + sin(P.x * 4.7 + uTime * 2.1) * 0.03));
+      // a simulated pool (src/world/water/poolWater.ts): the reflection rides its real waves
+      vec2 wuv = (P.xz - uWaveInfo.xy) * uWaveInfo.zw;
+      if (uWaveOn > 0.5 && wuv.x > 0.0 && wuv.y > 0.0 && wuv.x < 1.0 && wuv.y < 1.0) {
+        vec2 ws = (texture2D(uWaveTex, wuv).gb - 0.502) * 2.3;
+        N = normalize(N + vec3(-ws.x, 0.0, -ws.y) * 0.8);
+      }
+    }
     vec4 rf = traceReflection(uv, d, N);
     float k = fl.y * uReflect * (fl.z > 0.5 ? 0.55 : 0.4) * rf.a;
     c = c * (1.0 - k * 0.7) + rf.rgb * k * 0.85;

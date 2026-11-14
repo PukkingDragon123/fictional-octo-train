@@ -32,6 +32,7 @@ import './spawnTables';
 import { temperBefore, temperAfter, temperPose } from './temper';
 import { steer, brake, heading, shoveBy, corpseFall, hasWeight } from './kit/physics';
 import { visualMotion, smoothBegin, smoothEnd, leanOf, type VisMotion } from './kit/smooth';
+import { physUndo, physApply } from './kit/bodyphys';
 import { parasiteFrame } from '../survival/parasite';
 import { talentMul } from '../survival/talents';
 
@@ -820,7 +821,7 @@ export class CreatureSystem implements GameSystem {
       c.rig.body.visible = show && !c.mem.gibbed;
       // the smoothing layer (src/creatures/kit/smooth.ts): last frame's raw pose back first, then the drawn
       // facing / the real speed for this frame
-      try { smoothBegin(c.rig); } catch (e) { console.error('smooth', e); }
+      try { physUndo(c.rig); smoothBegin(c.rig); } catch (e) { console.error('smooth', e); }
       const vm: VisMotion | null = (() => { try { return visualMotion(c, c.rig!, dt); } catch { return null; } })();
       // the dread layer may hold this frame (stop-motion, frozen while you look at it)
       let held = false;
@@ -852,6 +853,8 @@ export class CreatureSystem implements GameSystem {
         }
       }
       try { smoothEnd(c, c.rig, dt, held, vm); } catch (e) { console.error('smooth', c.sp.key, e); }
+      // the physics animation layer (src/creatures/kit/bodyphys.ts): impulses, stumbles, skids, a level head, loose limbs in death
+      if (!held) try { physApply(c, c.rig, dt, vm, d); } catch (e) { console.error('phys', c.sp.key, e); }
     }
   }
 

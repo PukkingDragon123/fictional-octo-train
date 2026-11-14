@@ -347,8 +347,8 @@ export function thinkRammer(c: Creature, dt: number): boolean {
   if (md === 'charge') {
     c.setState('chase');
     const r = ramStep(c, dt);
-    if (r === 'wall') { fx(c, 'thud'); setMd(c, 'dazed'); stop(c); c.stagger = 1.2; for (const q of playersIn(c.zoneKey)) if (dist(q, c) < 25) { ruleShown(c); break; } }
-    else if (r === 'stop') { setMd(c, ''); stop(c); m.cd = G.time + rng.float(3, 5); }
+    if (r === 'wall') { fx(c, 'thud'); n.imp = (n.imp ?? 0) + 1; setMd(c, 'dazed'); stop(c); c.stagger = 1.2; for (const q of playersIn(c.zoneKey)) if (dist(q, c) < 25) { ruleShown(c); break; } }
+    else if (r === 'stop') { setMd(c, ''); c.speed = 0; m.cd = G.time + rng.float(3, 5); } // (the velocity is left on: it skids out of the charge on friction)
     return true;
   }
   if (md === 'dazed') { stop(c); c.setState('frozen'); if (m.mdT > 1.8) { setMd(c, ''); m.cd = G.time + 3; } return true; }

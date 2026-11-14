@@ -48,6 +48,11 @@ export const U = {
   /** animated pool caustics strength (0 = off) and colour */
   uCaustics: { value: 0 },
   uCausticCol: { value: new THREE.Color(0xd8f6ff) },
+  /** pool water wave field (src/world/water/poolWater.ts): r height, g/b slope, a foam; xz origin + 1/size (m), one texel, on */
+  uWaveTex: { value: null as THREE.Texture | null },
+  uWaveInfo: { value: new THREE.Vector4(0, 0, 1, 1) },
+  uWaveTexel: { value: new THREE.Vector2(1, 1) },
+  uWaveOn: { value: 0 },
   /** wet-floor sheen: how far (m) toward the camera the lights' reflection appears, and its strength */
   uSpecOff: { value: 3.6 },
   uSheen: { value: 0.0 },
@@ -196,6 +201,10 @@ uniform vec4 uWetInfo;
 uniform float uWetOn;
 uniform float uCaustics;
 uniform vec3 uCausticCol;
+uniform sampler2D uWaveTex;
+uniform vec4 uWaveInfo;
+uniform vec2 uWaveTexel;
+uniform float uWaveOn;
 uniform float uSpecOff;
 uniform float uSheen;
 uniform float uCutScale;
@@ -406,7 +415,18 @@ if (uWFlags.w < 0.5) {
     float near = texture2D(uWetTex, wp * uWetInfo.zw).a;
     if (near > 0.01) {
       vec2 cp = vWPos.xz + vec2(vWPos.y * 0.35, -vWPos.y * 0.2);
-      float cst = causticAt(cp, uTime);
+      float cst;
+      // over a simulated pool the web is the real waves' light: shifted by their slope (refraction down to the
+      // bottom) and focused where the surface curves into a lens (bright), spread where it curves away (dim)
+      vec2 wuv = (vWPos.xz - uWaveInfo.xy) * uWaveInfo.zw;
+      if (uWaveOn > 0.5 && wuv.x > 0.0 && wuv.y > 0.0 && wuv.x < 1.0 && wuv.y < 1.0) {
+        vec4 w0 = texture2D(uWaveTex, wuv);
+        float hl = texture2D(uWaveTex, wuv - vec2(uWaveTexel.x, 0.0)).r, hr = texture2D(uWaveTex, wuv + vec2(uWaveTexel.x, 0.0)).r;
+        float hu = texture2D(uWaveTex, wuv - vec2(0.0, uWaveTexel.y)).r, hd = texture2D(uWaveTex, wuv + vec2(0.0, uWaveTexel.y)).r;
+        float lap = (hl + hr + hu + hd - 4.0 * w0.r) * 255.0;
+        vec2 sl = (w0.gb - 0.502) * 2.3;
+        cst = causticAt(cp + sl * 1.6, uTime * 0.6) * clamp(1.0 - lap * 0.45, 0.15, 3.5) + clamp(-lap * 0.12, 0.0, 0.8);
+      } else cst = causticAt(cp, uTime);
       // light that reaches the water is what gets focused into the web
       irradiance += uCausticCol * (cst * near * uCaustics) * (0.35 + dot(grid, vec3(0.33)) * 0.9) * PI;
     }

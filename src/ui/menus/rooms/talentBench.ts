@@ -198,7 +198,7 @@ export class TalentBench {
     this.readout = { cv: rd, tex: rt };
     // the beam: a brass bar on the knife edge, end hooks; the needle hangs from the pivot
     const bb = new FacetBuilder();
-    bb.add('brass', cbox(0.016, 0.022, BEAM * 2 + 0.03, 0.006), 0xe0b060, at(0, 0, 0));
+    bb.add('brass', cbox(0.016, 0.022, BEAM * 2 + 0.03, 0.006), 0xa8803a, at(0, 0, 0));
     bb.add('brass', lathe([[0, -0.012], [0.02, -0.012], [0.02, 0.012], [0, 0.012]], 12), 0xc89a48, at(0, 0, 0, 0, 0, Math.PI / 2));
     for (const s of [-1, 1]) { bb.add('brass', prism(0.008, 0.02, 8), 0xd8aa58, at(0, 0.008, s * BEAM)); bb.add('chrome', bolt(0.006, 0.004), 0xffffff, at(0.009, 0, s * BEAM * 0.55, 0, Math.PI / 2, 0)); }
     this.beam.add(bb.build(this.mats));
@@ -213,7 +213,7 @@ export class TalentBench {
     for (const side of [1, -1]) {
       const p = new THREE.Group();
       const pb = new FacetBuilder();
-      pb.add('brass', lathe([[0, 0], [PAN_R * 0.7, 0], [PAN_R, 0.014], [PAN_R + 0.004, 0.018], [PAN_R - 0.002, 0.018], [PAN_R * 0.66, 0.004], [0, 0.004]], 22), side > 0 ? 0xe0b868 : 0xb8945a);
+      pb.add('brass', lathe([[0, 0], [PAN_R * 0.7, 0], [PAN_R, 0.014], [PAN_R + 0.004, 0.018], [PAN_R - 0.002, 0.018], [PAN_R * 0.66, 0.004], [0, 0.004]], 22), side > 0 ? 0xa88440 : 0x8a6c3a);
       for (let k = 0; k < 3; k++) { const a = k * (Math.PI * 2 / 3) + 0.5; pb.add('chrome', tube([[Math.cos(a) * PAN_R * 0.92, 0.016, Math.sin(a) * PAN_R * 0.92], [0, HANG, 0]], 0.0016, 2, 3, false), 0x9a9a92); }
       pb.add('brass', prism(0.008, 0.012, 8), 0xc89a48, at(0, HANG, 0));
       p.add(pb.build(this.mats, { cast: true }));
@@ -765,7 +765,7 @@ export class TalentBench {
     const open = this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can');
     const can = this.cans[this.canI];
     const insp = this.mode === 'card';
-    this.pen.intensity = damp(this.pen.intensity, open ? 0.1 : 0, 6, dt);
+    this.pen.intensity = damp(this.pen.intensity, open ? 0.04 : 0, 6, dt);
     this.standLight.intensity = damp(this.standLight.intensity, insp ? 0.16 : 0.02, 6, dt);
     this.standGlow.color.setScalar(damp(this.standGlow.color.r, insp ? 0.42 : 0.22, 5, dt));
     this.standTop.rotation.y += dt * (insp ? 0.5 : 0.08);
@@ -775,7 +775,7 @@ export class TalentBench {
     for (const c of this.cans) {
       const want = open && c === can;
       // the lid: a sprung pop, then it swings back on its hinge (and shuts again when the can settles)
-      const lidGoal = want ? 2.55 : c.tilt > 0.15 ? c.lidA : 0;
+      const lidGoal = want ? 2.85 : c.tilt > 0.15 ? c.lidA : 0;
       c.lidV += ((lidGoal - c.lidA) * 60 - c.lidV * 9) * Math.min(dt, 0.04);
       c.lidA = Math.max(-0.02, c.lidA + c.lidV * Math.min(dt, 0.04));
       if (c.lidA <= -0.02 && c.lidV < -0.5) { c.lidV *= -0.25; gameSound('metal_clank', 0.12, 1.7); }
@@ -865,7 +865,7 @@ export class TalentBench {
   }
   /** dev / screenshots: everything to its spot now */
   settle() {
-    for (const c of this.cans) { const open = (this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can')) && c === this.cans[this.canI]; c.tilt = open ? TILT : 0; c.lidA = open ? 2.55 : 0; c.lidV = 0; c.jig = 0; }
+    for (const c of this.cans) { const open = (this.mode === 'can' || (this.mode === 'card' && this.heldFrom === 'can')) && c === this.cans[this.canI]; c.tilt = open ? TILT : 0; c.lidA = open ? 2.85 : 0; c.lidV = 0; c.jig = 0; }
     const w = weigh(this.onScale); this.ang = THREE.MathUtils.clamp(Math.atan((w.buff - w.debuff) / 29), -0.26, 0.26); this.angV = 0;
     for (const st of this.ms.values()) { st.fly = null; st.hop = -1; st.scale = this.held === st.m.key ? LOUPE : 1; }
     this.snap = 3;

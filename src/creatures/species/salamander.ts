@@ -10,7 +10,7 @@ import { flinchOf } from '../kit/humanoids';
 import { lifeModel, lifeRig, lifeAnimate, type LifeGameRig } from '../life/lifeMesh';
 import type { Design } from '../life/design';
 import type { Ctx } from '../life/sculpt';
-import { sac, ball, hash, addV, type V3, type Page } from '../life/kit';
+import { sac, ball, hash, addV, scl, type V3, type Page } from '../life/kit';
 import { makeRamp, mixHex } from '../../gfx/pixel';
 import { infestPlayer, infestCreature } from '../../survival/parasite';
 import { defDread } from '../dread';
@@ -38,12 +38,21 @@ import '../../audio/sounds_creatures_c';
 
 const DESIGN: Design = {
   name: 'Parasite Salamander', latin: 'Endoproctus vorax', plan: 'quadruped', lineage: 'vertebrate',
-  genes: ['vert_quadruped', 'leg_sprawl', 'eye_camera', 'tongue', 'amphib_skin', 'tail_fin', 'gills', 'spawn'],
+  genes: ['vert_quadruped', 'leg_sprawl', 'tongue', 'amphib_skin', 'tail_fin', 'gills', 'spawn'],
   size: 0.0, len: 0.25, girth: 0.42, legLen: 0.42, legThick: 0.42, neck: 0.05, head: 0.5, tail: 0.85, segs: 3,
   colors: { base: 0xe2c8c0, belly: 0xf2e2da, pattern: 0xb08890, accent: 0xc8303c, eye: 0xd8d6c8 },
   pattern: 'mottled', patScale: 0.7, cover: 'slime', seed: 4471,
 };
 
+/** the mouth (head space) and its axis (forward and down), and the bones added for its layers */
+const MOUTH_AT = (D: Record<string, number>): V3 => [0, -D.hh * 0.3, D.hl * 0.62];
+const MOUTH_AX: V3 = (() => { const l = Math.hypot(0.55, 1); return [0, -0.55 / l, 1 / l]; })();
+const XM = { lips: -1, r1: -1, r2: -1, r3: -1 };
+function tweakS(rig: any) {
+  const m = MOUTH_AT(rig.dims);
+  const add = (name: string) => { rig.bones.push({ name, parent: rig.head, pos: [m[0], m[1], m[2]] }); return rig.bones.length - 1; };
+  XM.lips = add('lips'); XM.r1 = add('teeth1'); XM.r2 = add('teeth2'); XM.r3 = add('teeth3');
+}
 function grotesque(S: Ctx, page: Page) {
   const rig = S.rig, D = rig.dims;
   const iH = S.bi('head'), H0 = S.at(iH);
@@ -53,14 +62,46 @@ function grotesque(S: Ctx, page: Page) {
   const tipZ = H0[2] + hl * 0.95;
   sac(S.B, SKIN, S.gid(), [[H0[0], H0[1] - hh * 0.05, H0[2] + hl * 0.35], [H0[0], H0[1] - hh * 0.12, H0[2] + hl * 0.7], [H0[0], H0[1] - hh * 0.2, tipZ]],
     [[hw * 0.62, hh * 0.32], [hw * 0.72, hh * 0.18], [hw * 0.6, hh * 0.05]], [[iH, 1], [iH, 1], [iH, 1]], { n: 12, sq: 3.5 });
-  // the rasp: a round sucker of a mouth under the shovel, ringed with tiny hooked teeth
-  const M: V3 = [H0[0], H0[1] - hh * 0.36, H0[2] + hl * 0.55];
-  ball(S.B, RASP, S.gid(), M, [0, -1, 0.3], [hw * 0.3, hh * 0.08, hw * 0.3], [iH, 1], { n: 12, rings: 4 });
-  for (let i = 0; i < 14; i++) {
-    const a = (i / 14) * Math.PI * 2, r = hw * 0.26;
-    const b: V3 = [M[0] + Math.cos(a) * r, M[1] - hh * 0.03, M[2] + Math.sin(a) * r];
-    sac(S.B, TOOTH, S.gid(), [b, [b[0] - Math.cos(a) * r * 0.25, b[1] - hh * 0.08, b[2] - Math.sin(a) * r * 0.25]], [[hw * 0.035, hw * 0.035], [0.001, 0.001]], [[iH, 1], [iH, 1]], { n: 4 });
+  // ---- the face (round 18). The mouth: a lamprey's round rasp at the front of the underside, opening in layers
+  // (puckered lips, then three rings of backward hooked teeth, each on its own bone), a black throat behind
+  const M: V3 = addV(H0, MOUTH_AT(D)), MR = hw * 0.34, ax: V3 = MOUTH_AX;
+  const LIPS = S.fixed('PS_LIPS', 12, 8), THROAT = S.fixed('PS_THROAT', 6, 6), EYE = S.fixed('PS_EYE', 6, 6), MILK = S.fixed('PS_MILK', 6, 6);
+  const GRIT = S.fixed('PS_GRIT', 4, 4), SLIME = S.fixed('PS_SLIME', 4, 8), LEECH = S.fixed('PS_LEECH', 8, 12);
+  // a frame across the mouth's face
+  const u0: V3 = [1, 0, 0], v0: V3 = [0, ax[2], -ax[1]];
+  const ring = (k: number, r: number): V3 => addV(M, [u0[0] * Math.cos(k) * r + v0[0] * Math.sin(k) * r, u0[1] * Math.cos(k) * r + v0[1] * Math.sin(k) * r, u0[2] * Math.cos(k) * r + v0[2] * Math.sin(k) * r]);
+  const into = (p: V3, d: number): V3 => [p[0] - ax[0] * d, p[1] - ax[1] * d, p[2] - ax[2] * d];
+  ball(S.B, THROAT, S.gid(), into(M, MR * 0.35), ax, [MR * 0.8, MR * 0.8, MR * 0.5], [XM.r3, 1], { n: 10, rings: 4 });
+  // the lips: a ring of wet fleshy lobes that pucker shut and roll back to open
+  for (let i = 0; i < 11; i++) {
+    const k = (i / 11) * Math.PI * 2;
+    ball(S.B, LIPS, S.gid(), ring(k, MR * 1.02), ax, [MR * 0.34, MR * 0.3, MR * 0.26], [XM.lips, 1], { n: 7, rings: 4, bump: (a, t) => 0.12 * Math.sin(a * 3 + i) * Math.sin(t * Math.PI) });
   }
+  // three rings of teeth, each hooked back into the throat
+  ([[XM.r1, 0.86, 16, 0.3], [XM.r2, 0.62, 13, 0.24], [XM.r3, 0.4, 9, 0.19]] as [number, number, number, number][]).forEach(([bone, rr, nT, L], ri) => {
+    for (let i = 0; i < nT; i++) {
+      const k = ((i + ri * 0.5) / nT) * Math.PI * 2;
+      const b0 = into(ring(k, MR * rr), MR * 0.05 * ri), mid = into(ring(k, MR * rr * 0.82), MR * L * 0.6), tip = into(ring(k, MR * rr * 0.55), MR * L * 1.2);
+      sac(S.B, TOOTH, S.gid(), [b0, mid, tip], [[MR * 0.07, MR * 0.07], [MR * 0.045, MR * 0.045], [0.0008, 0.0008]], [[bone, 1], [bone, 1], [bone, 1]], { n: 4 });
+    }
+  });
+  // slime strings from the lips, sagging down off the chin
+  for (let i = 0; i < 4; i++) {
+    const k = Math.PI * (1.15 + i * 0.23), p0 = ring(k, MR * 1.1), sag = hh * (0.35 + 0.3 * hash(i, 7));
+    sac(S.B, SLIME, S.gid(), [p0, [p0[0] + (hash(i, 8) - 0.5) * MR * 0.4, p0[1] - sag * 0.6, p0[2] - MR * 0.1], [p0[0] + (hash(i, 9) - 0.5) * MR * 0.6, p0[1] - sag, p0[2] - MR * 0.3]],
+      [[MR * 0.05, MR * 0.05], [MR * 0.022, MR * 0.022], [MR * 0.04, MR * 0.04]], [[XM.lips, 1], [iH, 0.5, XM.lips, 0.5], [iH, 1]], { n: 4 });
+  }
+  // tiny wet black eyes high on the skull; the right one gone milky
+  for (const sd of [-1, 1]) ball(S.B, sd < 0 ? EYE : MILK, S.gid(), addV(H0, [sd * hw * 0.44, hh * 0.3, hl * 0.22]), [sd, 0.4, 0.4], [hw * 0.075, hw * 0.07, hw * 0.075], [iH, 1], { n: 8, rings: 5 });
+  // grit stuck in the mucus on the shovel
+  for (let i = 0; i < 9; i++) {
+    const zz = H0[2] + hl * (0.45 + 0.45 * hash(i, 21)), xx = H0[0] + (hash(i, 22) - 0.5) * hw * 1.1;
+    ball(S.B, GRIT, S.gid(), [xx, H0[1] - hh * 0.06 + hh * 0.06 * (1 - (zz - H0[2]) / hl), zz], [0, 1, 0], [hw * 0.035 * (0.6 + hash(i, 23) * 0.9), hw * 0.025 * (0.6 + hash(i, 23) * 0.9), hw * 0.035 * (0.6 + hash(i, 23) * 0.9)], [iH, 1], { n: 5, rings: 3 });
+  }
+  // a parasite or two of its own: fat leeches latched behind the eye and on the nape
+  const leech = (at: V3, dir: V3, len: number, w: number[]) => sac(S.B, LEECH, S.gid(), [at, addV(at, scl(dir, len * 0.5)), addV(at, scl(dir, len))], [[len * 0.16, len * 0.13], [len * 0.22, len * 0.17], [len * 0.12, len * 0.1]], [w, w, w], { n: 7, bump: (a, t) => 0.12 * Math.sin(t * 18) });
+  leech(addV(H0, [-hw * 0.4, hh * 0.25, -hl * 0.05]), [-0.3, 0.2, -1], hl * 0.42, [iH, 1]);
+  if (rig.neck.length && rig.neck[0] >= 0) leech(addV(S.at(rig.neck[0]), [hw * 0.2, hh * 0.35, 0]), [0.4, 0.1, -1], hl * 0.36, [rig.neck[0], 1]);
   // too many fingers: a fan of eight or nine little soft ones on every foot
   for (const lg of rig.legs) {
     const fb = lg.bones[lg.bones.length - 1], F = S.at(fb), w: number[] = [fb, 1];
@@ -80,6 +121,32 @@ function grotesque(S: Ctx, page: Page) {
   for (let y = 0; y < RASP.h; y++) for (let x = 0; x < RASP.w; x++) RASP.set(x, y, Math.hypot(x - RASP.w / 2, y - RASP.h / 2) < RASP.w * 0.3 ? 0x2a0408 : mixHex(0x9a2a34, 0xd86a70, hash(x, y)));
   for (let y = 0; y < TOOTH.h; y++) for (let x = 0; x < TOOTH.w; x++) TOOTH.set(x, y, mixHex(0xf0e8d8, 0xb8a080, y / TOOTH.h));
   FING.fill(makeRamp(0xe8c0b8, 6, { spread: 0.45 }), (x, y) => 3 + Math.cos(FING.th(x)) - (y / FING.h) * 1.4);
+  LIPS.fill(makeRamp(0xc87a80, 6, { spread: 0.5 }), (x, y) => 2.8 + Math.cos(LIPS.th(x)) * 1.1 + (hash(x, y) - 0.5) * 0.6);
+  for (let i = 0; i < 10; i++) LIPS.set(hash(i, 31) * LIPS.w, hash(i, 32) * LIPS.h, 0xffeef0); // wet
+  for (let y = 0; y < THROAT.h; y++) for (let x = 0; x < THROAT.w; x++) THROAT.set(x, y, mixHex(0x14040a, 0x5a1420, hash(x, y) * 0.5));
+  for (let y = 0; y < EYE.h; y++) for (let x = 0; x < EYE.w; x++) EYE.set(x, y, 0x0a0608);
+  EYE.set(2, 1, 0xffffff); EYE.set(3, 1, 0xc8c8d0);
+  for (let y = 0; y < MILK.h; y++) for (let x = 0; x < MILK.w; x++) MILK.set(x, y, mixHex(0xd8dce0, 0x8a909a, hash(x, y) * 0.6));
+  MILK.set(2, 1, 0xffffff);
+  for (let y = 0; y < GRIT.h; y++) for (let x = 0; x < GRIT.w; x++) GRIT.set(x, y, mixHex(0x3a342c, 0x7a6e5a, hash(x * 3, y)));
+  for (let y = 0; y < SLIME.h; y++) for (let x = 0; x < SLIME.w; x++) SLIME.set(x, y, mixHex(0xe8e0d0, 0xc8b8a0, hash(x, y) * 0.5));
+  LEECH.fill(makeRamp(0x4a2420, 6, { spread: 0.5 }), (x, y) => 2.2 + Math.cos(LEECH.th(x)) * 1.1 + ((y % 3) === 0 ? -0.9 : 0));
+  // grit in the mucus on the shovel, a wet sheen over it
+  for (let i = 0; i < 40; i++) SKIN.set(hash(i, 41) * SKIN.w, hash(i, 42) * SKIN.h, hash(i, 43) < 0.5 ? 0x4a4236 : 0x6a5e4c);
+  for (let i = 0; i < 14; i++) SKIN.blend(hash(i, 44) * SKIN.w, hash(i, 45) * SKIN.h, 0xffffff, 0.7);
+  // the head: pale and see-through, the skull showing through it (the dome, the eye sockets, the sutures),
+  // veins over it, and the pale raised scars of burrowing
+  const head = page.regs.get('HEAD');
+  if (head) {
+    for (let y = 0; y < head.h; y++) for (let x = 0; x < head.w; x++) {
+      const th = head.th(x), v = y / head.h, top = Math.cos(th);
+      if (top > 0.3 && v > 0.15 && v < 0.75) head.blend(x, y, 0xf4ece0, 0.35 * (top - 0.3) / 0.7); // the skull's dome under the skin
+      if (Math.abs(Math.abs(th) - 0.9) < 0.18 && Math.abs(v - 0.55) < 0.08) head.blend(x, y, 0x4a2a34, 0.55); // the sockets
+      if (Math.abs(th) < 0.05 && v > 0.2 && v < 0.75) head.blend(x, y, 0x9a7a80, 0.6); // the suture down the middle
+      if (Math.abs(Math.sin(x * 0.9 + head.fbm(x, y, 3, 2, 17) * 10)) < 0.07) head.blend(x, y, 0x5a5ab0, 0.55); // veins
+    }
+    for (let i = 0; i < 4; i++) { const y0 = hash(i, 51) * head.h; head.line(0, y0, head.w, y0 + (hash(i, 52) - 0.5) * head.h * 0.4, 0xf8e0e0, 0.6); }
+  }
   const body = page.regs.get('BODY');
   if (body) {
     for (let y = 0; y < body.h; y++) for (let x = 0; x < body.w; x++) {
@@ -95,18 +162,20 @@ function grotesque(S: Ctx, page: Page) {
       if (Math.abs(Math.sin(x * 0.7 + body.fbm(x, y, 3, 2, 7) * 9)) < 0.06) body.blend(x, y, 0x6a6aa8, 0.5);
     }
     for (let i = 0; i < 30; i++) body.blend(hash(i, 11) * body.w, hash(i, 12) * body.h, 0xffffff, 0.75);
+    // burrow scars: pale ridged lines where it has forced itself through things
+    for (let i = 0; i < 9; i++) { const x0 = hash(i, 61) * body.w, y0 = hash(i, 62) * body.h; body.line(x0, y0, x0 + (hash(i, 63) - 0.5) * body.w * 0.3, y0 + hash(i, 64) * body.h * 0.15, 0xf6dcd8, 0.7); }
   }
 }
 
 export interface SalaRig extends LifeGameRig { }
 export function buildSalamander(): SalaRig {
-  const model = lifeModel('parasite_salamander', DESIGN, grotesque);
+  const model = lifeModel('parasite_salamander', DESIGN, grotesque, tweakS);
   return lifeRig(model, 1.0, 0.24) as SalaRig;
 }
 
 // ------------------------------------------------------------------ animation
 export type SalaPose = 'idle' | 'crawl' | 'dash' | 'latch' | 'burrow' | 'dead';
-const _q = new THREE.Quaternion(), _e = new THREE.Euler();
+const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _ax = new THREE.Vector3();
 function poseS(R: SalaRig, t: number, dt: number, md: SalaPose, speed: number, size: number, far: boolean, flinch: number) {
   const L = R.life, rig = L.model.rig, B = L.bones, ud = L.m as Record<string, number>;
   const st = md === 'dead' ? 'dead' : md === 'latch' || md === 'burrow' ? 'attack' : speed > 0.05 ? 'move' : 'idle';
@@ -119,6 +188,21 @@ function poseS(R: SalaRig, t: number, dt: number, md: SalaPose, speed: number, s
   }
   // the gills flush and flatten as it breathes; it pants after a dash
   if (rig.head >= 0) { _q.setFromEuler(_e.set(Math.sin(t * 2.3) * 0.04, Math.sin(t * 0.7 + 1) * 0.15 * (1 - bur), 0)); B[rig.head].quaternion.multiply(_q); }
+  // the mouth: puckered and working at rest; it opens in layers to latch and rasp (the lips roll back, then each
+  // ring of teeth in turn), and the rings grind against each other while it eats its way in
+  if (XM.lips >= 0) {
+    const want = md === 'latch' || md === 'burrow' ? 1 : md === 'dash' ? 0.45 : md === 'dead' ? 0.3 : 0;
+    ud.mo = (ud.mo ?? 0) + (want - (ud.mo ?? 0)) * (1 - Math.exp(-5 * dt));
+    const o = ud.mo, pk = Math.max(0, Math.sin(t * 2.7)) ** 6 * (1 - o);
+    const lay = (k: number) => Math.min(1, Math.max(0, (o - k * 0.22) / 0.56));
+    B[XM.lips].scale.setScalar(0.78 + 0.55 * lay(0) - 0.12 * pk);
+    const grind = md === 'burrow' || md === 'latch' ? t * 5 : Math.sin(t * 1.3) * 0.15;
+    [XM.r1, XM.r2, XM.r3].forEach((b, i) => {
+      B[b].scale.setScalar(0.62 + 0.55 * lay(i + 1));
+      _q.setFromAxisAngle(_ax.set(MOUTH_AX[0], MOUTH_AX[1], MOUTH_AX[2]), (i % 2 ? -1 : 1) * grind * (0.3 + i * 0.12));
+      B[b].quaternion.copy(_q);
+    });
+  }
   if (flinch > 0) B[rig.root].position.x += Math.sin(t * 70) * 0.01 * flinch;
 }
 function animateSala(rig: Rig, c: Creature, t: number, dt: number) {

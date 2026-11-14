@@ -12,6 +12,7 @@
 // weightless movement.
 import * as THREE from 'three';
 import type { Creature } from '../creature';
+import { G } from '../../game/G';
 
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 
@@ -102,7 +103,22 @@ export function corpseFall(c: Creature, dt: number, settled = false): boolean {
     if (_d.lengthSq() < 0.5) _d.set(1, 0, 0);
     const ax = new THREE.Vector3().crossVectors(_up, _d).normalize();
     // how far over: a side or the face / back for tall bodies, nearly flat for flyers' crumpled wings
-    const goal = Math.PI / 2 * (tall ? 0.97 : 1);
+    let goal = Math.PI / 2 * (tall ? 0.97 : 1);
+    // round 18: a wall or a heavy piece of furniture in the way: it falls against it and slumps there
+    try {
+      const z = G.getZone?.(c.zoneKey);
+      if (z) {
+        const fwx = _d.x * Math.cos(yaw) + _d.z * Math.sin(yaw), fwz = -_d.x * Math.sin(yaw) + _d.z * Math.cos(yaw);
+        const reach = tall ? c.height : c.height * 0.8 + c.radius * 0.5;
+        let px = Math.floor(c.x), pz = Math.floor(c.z);
+        for (let s = 0.25; s <= reach; s += 0.25) {
+          const tx = Math.floor(c.x + fwx * s), tz = Math.floor(c.z + fwz * s);
+          const blocked = !z.inb(tx, tz) || z.solid[z.idx(tx, tz)] === 1 || ((tx !== px || tz !== pz) && Math.abs(tx - px) + Math.abs(tz - pz) === 1 && z.edgeBlocks(px, pz, tx - px, tz - pz, 'walk'));
+          if (blocked) { goal = Math.min(goal, Math.max(0.3, Math.asin(clamp((s - 0.1) / reach, 0, 1)))); break; }
+          px = tx; pz = tz;
+        }
+      }
+    } catch { /* no zone (gallery) */ }
     // its resting height once over (measured in the final pose)
     body.quaternion.setFromAxisAngle(ax, goal); body.position.y = 0;
     rig.root.updateMatrixWorld(true);

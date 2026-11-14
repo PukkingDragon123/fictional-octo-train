@@ -248,6 +248,7 @@ export class PixelRenderer {
         uGrain: { value: 0.03 }, uGlitch: { value: 0 }, uPanic: { value: 0 }, uHurt: { value: 0 }, uDesat: { value: 0 },
         uWobble: { value: 0 }, uBlink: { value: 0 }, uCorruptFlash: { value: 0 }, uDream: { value: 0 }, uHeat: { value: 0 },
         uAOStr: { value: 1 }, uBloomStr: { value: 0.5 }, uDirtStr: { value: 0.5 }, uReflect: { value: 0.5 },
+        uWaveTex: U.uWaveTex, uWaveInfo: U.uWaveInfo, uWaveOn: U.uWaveOn,
         uMistCol: { value: new THREE.Vector3(0.5, 0.5, 0.5) }, uMistDens: { value: 0 }, uMistFall: { value: 1 }, uMistLit: { value: 0.5 }, uMistMax: { value: 0.3 },
         uMotes: { value: 0 }, uSick: { value: 0 }, uFlicker: { value: 1 }, uFilm: { value: 1 }, uVoid: { value: new THREE.Color(0) },
         uBlobs: { value: this.postfx.blobs }, uBlobH: { value: this.postfx.blobH }, uBlobN: { value: 0 }, uRim: { value: 0 }, uRimTint: { value: new THREE.Vector3() },

@@ -28,7 +28,7 @@ const STOPS: Stop[] = [
   { room: 'research', hot: 'fridge', pose: 'fridge', line: 'The sample fridge. Process what you bring back: that is where research points come from.' },
   { room: 'research', hot: 'tb:bench', pose: 'room', line: 'The talent bench. Weigh gifts against flaws for the next unit.' },
   { room: 'research', el: '.dk-icon[aria-label^="Commissary"], .dk-icon[aria-label^="Emote"]', line: 'Up here: the commissary and the jukebox. Your dollars buy things for this room and emotes.' },
-  { room: 'subject', el: '.mr-acts .mr-word.act', line: 'Unit room 4. Shape the next unit, then New unit sends them through the link.' },
+  { room: 'subject', line: 'Unit room 4. Shape the next unit, then New unit sends them through the link.' },
 ];
 const LOOP: [PixKind, string][] = [['plug', 'Go in'], ['crate', 'Loot'], ['press', 'Press'], ['coin', 'Pay the debt'], ['tree', 'Research']];
 const KEY = 'noclip.tour.v1';
@@ -90,7 +90,8 @@ export async function runTour(h: TourHost): Promise<void> {
       if (quit) break;
       await h.go(s.room);
       if (s.pose) h.aim(s.room, s.pose);
-      await wait(s.pose ? 650 : 250);
+      // let the channel change and the camera's flight finish before she speaks
+      await wait(s.pose ? 1400 : 700);
       cur = s;
       sfx('tick', 0.5);
       sub.say(s.line, { dur: 60 });

@@ -140,4 +140,7 @@ body.deco-build [data-deco-hide], body.deco-shop [data-deco-hide] { visibility: 
 .tour-ok { padding: 6px 22px; border: 0; font: inherit; font-size: 18px; color: #1a1408; background: #ffc040; box-shadow: 0 3px 0 #8a5a14; cursor: pointer; }
 .tour-ok:hover, .tour-ok:focus-visible { background: #ffe080; outline: none; }
 @media (max-width: 560px) { .tour-loop { flex-wrap: wrap; justify-content: center; max-width: 330px; } .tour-arrow { display: none; } .tour-step b { font-size: 14px; } }
-.mr.touring .mr-bar, .mr.touring .mr-tip, .mr.touring:not([data-view="subject"]) .mr-acts, .mr.touring[data-view="subject"] .mr-acts .mr-word:not(:first-child) { visibility: hidden; }
+/* while she shows the unit round, the rooms' own words, captions, feed keys and the title menu step out: only the brackets,
+   her one line (in its own lane at the foot, on a dark band) and Skip stay */
+body.touring :is(.mr-hud, .mr-hotcap, .mr-feeds, .tt3-menu, .tt3-cap, .obj15, #wprompt) { visibility: hidden !important; }
+.tour .gd-sub { top: auto; bottom: 64px; padding: 8px 18px 10px; background: rgba(8, 6, 4, 0.72); box-shadow: 0 0 0 2px rgba(106, 90, 48, 0.6); }

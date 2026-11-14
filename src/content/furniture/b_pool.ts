@@ -345,7 +345,7 @@ defObj({
 });
 
 defObj({
-  key: 'float_ring', name: 'Life Ring', w: 1, d: 1, height: 0.16, block: 'none',
+  key: 'float_ring', name: 'Life Ring', w: 1, d: 1, height: 0.16, block: 'none', dynamic: true,
   movable: 2, sound: 'plastic',
   desc: 'A red and white life ring, floating where there is no water.',
   tags: [...T, 'decor'],

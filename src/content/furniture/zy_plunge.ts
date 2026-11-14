@@ -107,7 +107,7 @@ addTextureModule(() => {
 
 // ============================================================ things on the water
 defObj({
-  key: 'pl_noodle', name: 'Pool Noodle', height: 0.12, block: 'none', movable: 0.3, sound: 'plastic', hp: 20,
+  key: 'pl_noodle', name: 'Pool Noodle', height: 0.12, block: 'none', movable: 0.3, dynamic: true, sound: 'plastic', hp: 20,
   desc: 'A foam noodle, sun-faded, bitten at one end. It turns slowly on water that is not moving.',
   tags: [...T, 'toy', 'float'],
   variant: (s) => String((s.v ?? 0) % 4),

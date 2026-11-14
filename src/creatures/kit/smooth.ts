@@ -88,8 +88,10 @@ interface PS {
   d: number; dp: number;
   /** 0 none, 1 trailing appendage (tail, antenna...), 2 head/neck (leads turns) */
   sec: number; sa: number; sv: number; sb: number; sbv: number;
+  /** round 18: the trailing part this one hangs from (a chain: tail segments, tentacles, ear tips) */
+  up: PS | null;
 }
-interface SM { parts: PS[]; key: string; init: boolean; n: number }
+interface SM { parts: PS[]; key: string; init: boolean; n: number; by: number; bvy: number; ay: number }
 
 /** dev: how often the layer stepped in (window.__smooth) */
 const STATS = { frames: 0, blends: 0, pops: 0 };
@@ -109,12 +111,14 @@ function build(rig: Rig): SM {
       o, par: o.parent, rx: o.rotation.x, ry: o.rotation.y, rz: o.rotation.z,
       qr: o.quaternion.clone(), qd: o.quaternion.clone(), pr: o.position.clone(), pd: o.position.clone(),
       off: new THREE.Quaternion(), poff: new THREE.Vector3(), t: 1, T: 0, cubic: false, d: 0, dp: 0,
-      sec: SEC_HEAD.test(name) ? 2 : SEC_TRAIL.test(name) ? 1 : 0, sa: 0, sv: 0, sb: 0, sbv: 0,
+      sec: SEC_HEAD.test(name) ? 2 : SEC_TRAIL.test(name) ? 1 : 0, sa: 0, sv: 0, sb: 0, sbv: 0, up: null,
     });
   };
   add(rig.body, 'body');
   for (const [n, o] of Object.entries(rig.parts)) add(o, n);
-  return { parts, key: '', init: false, n: Object.keys(rig.parts).length };
+  // chains: a trailing part hung from another trailing part takes its swing a beat later (the whip down a tail)
+  for (const P of parts) if (P.sec === 1) P.up = parts.find((q) => q.o === P.par && q.sec === 1) ?? null;
+  return { parts, key: '', init: false, n: Object.keys(rig.parts).length, by: 0, bvy: 0, ay: 0 };
 }
 const stateOf = (rig: Rig): SM => {
   const ud = rig.root.userData;
@@ -169,6 +173,14 @@ export function smoothEnd(c: Creature, rig: Rig, dt: number, held: boolean, M: V
   const live = !c.dead && !held && M && h > 0;
   const fw = live ? -(M!.fw) : 0;           // the rig's yaw rate (three.js: rotation.y = π/2 - facing)
   const acc = live ? M!.acc : 0, spd = live ? M!.v : 0;
+  // the body's vertical acceleration (bobs, landings, a stumble's dip): hanging parts lag it
+  if (h > 0) {
+    rig.body.getWorldPosition(_p);
+    const vy = first ? 0 : (_p.y - S.by) / h;
+    S.ay += (clamp((vy - S.bvy) / h, -60, 60) - S.ay) * (1 - Math.exp(-14 * h));
+    S.by = _p.y; S.bvy = vy;
+  }
+  const ay = live ? S.ay : 0;
   for (const P of S.parts) {
     const o = P.o;
     _q.copy(o.quaternion);
@@ -207,8 +219,10 @@ export function smoothEnd(c: Creature, rig: Rig, dt: number, held: boolean, M: V
       let ta: number, tb: number, K: number, C: number;
       if (P.sec === 1) {
         ta = clamp(-fw * 0.085, -0.42, 0.42);
-        tb = clamp(acc * 0.018 + (spd > 0.3 ? -0.04 : 0), -0.22, 0.22);
-        K = 70; C = 7.5;
+        tb = clamp(acc * 0.018 + ay * 0.006 + (spd > 0.3 ? -0.04 : 0), -0.26, 0.26);
+        // hung from another trailing part: its parent's swing arrives here late and a little bigger (mass down the chain)
+        if (P.up) { ta = clamp(ta * 0.6 + P.up.sa * 0.75, -0.5, 0.5); tb = clamp(tb * 0.6 + P.up.sb * 0.7, -0.3, 0.3); K = 55; C = 5.5; }
+        else { K = 70; C = 7.5; }
       } else {
         ta = clamp(fw * 0.07, -0.26, 0.26);
         tb = clamp(-acc * 0.01, -0.08, 0.08);
