@@ -227,11 +227,15 @@ export class ScanSystem implements GameSystem {
     else return -1;
     return Math.max(0, Math.min(4, d));
   }
-  /** how well this unit locks on (> 1 easier): the 'scan' talent, the lab's scanner research, a Phosphor Scope, a little electrical skill */
+  /**
+   * how well this unit locks on (> 1 easier): the 'scan' talent, the lab's scanner research, a Phosphor Scope, a little
+   * electrical skill. Round 19: the scanner's tools carry it: the beam and a scope each make the lock much easier, and
+   * with DEEP SCAN (or the beam and a scope together) the dials find the signature by themselves (ease >= 1.9).
+   */
   lockEase(): number {
     const b = G.local?.body;
     const sk = Math.min(10, Number(b?.skill?.('electrical')) || 0);
-    return Math.pow(talentMul(b, 'scan'), 0.8) * (hasUnlock('tool_beam') ? 1.08 : 1) * (hasUnlock('scan_deep') ? 1.12 : 1) * (this.probe() ? 1.08 : 1) * (1 + sk * 0.03);
+    return Math.pow(talentMul(b, 'scan'), 0.8) * (hasUnlock('tool_beam') ? 1.4 : 1) * (hasUnlock('scan_deep') ? 1.45 : 1) * (this.probe() ? 1.4 : 1) * (1 + sk * 0.03);
   }
 
   /** a lock lost to feedback (or a hopeless one): the scanner screams, things nearby hear it, the target turns */
@@ -298,7 +302,7 @@ export class ScanSystem implements GameSystem {
         if (s.end) {
           this.active = null; this.lockQuiet();
           const q = s.end === 'clean' ? 1 : s.lock;
-          if (s.end === 'fail' || q < 0.2) { scanTuner.stop('fail'); this.botch(a.t, s.end === 'fail'); this.lastLock = { kind: a.t.kind, key: a.t.key, q: 0, end: 'fail' }; }
+          if (s.end === 'fail' || q < 0.1) { scanTuner.stop('fail'); this.botch(a.t, s.end === 'fail'); this.lastLock = { kind: a.t.kind, key: a.t.key, q: 0, end: 'fail' }; }
           else {
             scanTuner.stop(s.end);
             G.audio?.ui?.(s.end === 'clean' ? 'mn_perfect' : 'mn_flub', s.end === 'clean' ? 0.5 : 0.3);

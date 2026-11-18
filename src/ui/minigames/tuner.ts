@@ -14,7 +14,9 @@
 // runs out the scan reads whatever the cells hold (a sloppy lock: partial
 // DATA). Far off the signature the static builds (snow on the glass, the red
 // heat bar); at the top the scanner screams feedback and the scan is lost
-// (src/scan/scan.ts makes the noise and tips the creature off). No text: the
+// (src/scan/scan.ts makes the noise and tips the creature off). Round 19: gentle by default: wide tolerance,
+// slow drift, the dials are drawn onto the signature once they are near it, a clean lock in one to two seconds
+// on common things, overheating rare; the scanner's upgrades make it all but automatic. No text: the
 // stencils on the housing, the lamps, the traces. Drawn with src/ui/hiPixel.ts.
 //   scanTuner.start({ diff, ease })   diff 0..4 (how hard the target fights), ease > 1 easier
 //   const s = scanTuner.step(dt)      { lock, heat, close, on, t, T, end: '' | 'clean' | 'time' | 'fail' }
