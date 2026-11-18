@@ -9,6 +9,8 @@
 //          let go in the green. Push past the end and it slips.
 // Skills and talents widen the band and slow the needle (opts.ease); the
 // Settings assists (Interface: Slower timing) make every window easier.
+// Round 19 (play test): one window per action at most, wide bands and a slow needle by default, and the
+// right tool skips the window altogether (a lockpick set, a suture kit, tweezers or forceps; a crowbar pries).
 // Scripted browsers (navigator.webdriver) pass every window unless ?qte is in the URL.
 //
 //   a.check = new SkillCheck({ kind: 'tap', at: [0.3, 0.6, 0.9], band: 0.18, ease, glyph: 'PIN', onMark: (m, i) => ... });
@@ -82,7 +84,11 @@ export class SkillCheck {
   private x = 0; private v = 1; private band: [number, number] = [0.4, 0.6]; private core: [number, number] = [0.48, 0.52];
   private wt = 0; private flash: GaugeMark = ''; private flashT = 0; private armed = false; private pushing = false; private seed = Math.random() * 100;
   private ended = false;
-  constructor(public o: CheckOpts) { this.marks = o.at.map(() => ''); }
+  constructor(public o: CheckOpts) {
+    // round 19 (play test: "QTE easier"): never more than one window per action (the middle one if more were asked for)
+    if (o.at.length > 1) o.at = [o.at[Math.floor(o.at.length / 2)]];
+    this.marks = o.at.map(() => '');
+  }
 
   get isOpen() { return this.open; }
   get hits() { return this.marks.filter((m) => m === 'hit' || m === 'perfect').length; }
@@ -99,11 +105,12 @@ export class SkillCheck {
   private openWindow() {
     this.open = true; this.wt = 0; this.x = 0; this.v = 1; this.pushing = false; this.flash = ''; this.flashT = 0;
     const E = this.ease();
-    const bw = Math.max(0.07, Math.min(0.42, (this.o.band ?? 0.2) * Math.sqrt(E)));
+    // round 19: every band half again as wide as asked, a generous perfect core
+    const bw = Math.max(0.16, Math.min(0.55, (this.o.band ?? 0.2) * 1.6 * Math.sqrt(E)));
     const lo = this.o.kind === 'hold' ? 0.45 : 0.3;
     const b0 = lo + Math.random() * Math.max(0, 0.94 - bw - lo);
     this.band = [b0, b0 + bw];
-    const cw = bw * 0.3, cm = b0 + bw / 2;
+    const cw = bw * 0.38, cm = b0 + bw / 2;
     this.core = [cm - cw / 2, cm + cw / 2];
     const G2 = G as unknown as { input?: { down(a: string): boolean; mouseDown: boolean[] } };
     this.armed = !(G2.input?.down('interact') || G2.input?.down('shove') || G2.input?.mouseDown?.[0] || touchHeld);
@@ -164,12 +171,13 @@ export class SkillCheck {
     this.wt += dt;
     const E = this.ease();
     if ((this.o.kind ?? 'tap') === 'tap') {
-      const sp = (this.o.speed ?? 1.2) / Math.sqrt(E);
+      // round 19: a slower needle by default
+      const sp = ((this.o.speed ?? 1.2) * 0.62) / Math.sqrt(E);
       // judge the press against the needle the player was looking at (before this frame moves it)
       if (this.press()) {
         const inB = this.x >= this.band[0] && this.x <= this.band[1];
         this.mark(!inB ? 'miss' : this.x >= this.core[0] && this.x <= this.core[1] ? 'perfect' : 'hit');
-      } else if (this.wt * sp > 2.6) this.mark('miss');
+      } else if (this.wt * sp > 4) this.mark('miss');
       else {
         this.x += this.v * sp * Math.min(dt, 0.05);
         if (this.x > 1) { this.x = 2 - this.x; this.v = -1; }
@@ -182,7 +190,7 @@ export class SkillCheck {
       if (!this.armed) { if (!held) this.armed = true; }
       else if (held) {
         this.pushing = true;
-        const sp = (this.o.speed ?? 0.5) / Math.sqrt(E);
+        const sp = ((this.o.speed ?? 0.5) * 0.7) / Math.sqrt(E);
         const tr = Math.max(0, (this.o.tremor ?? 0) / E);
         this.x += sp * dt * (0.55 + 0.9 * vn(this.wt * 2.2, this.seed)) + (vn(this.wt * 9, this.seed + 4) - 0.5) * tr * dt * 3.2;
         this.x = Math.max(0, this.x);
@@ -191,7 +199,7 @@ export class SkillCheck {
         const inB = this.x >= this.band[0] && this.x <= this.band[1];
         this.mark(!inB ? 'miss' : this.x >= this.core[0] && this.x <= this.core[1] ? 'perfect' : 'hit');
       }
-      if (this.open && !this.pushing && this.wt > 4) this.mark('miss');
+      if (this.open && !this.pushing && this.wt > 7) this.mark('miss');
     }
     this.draw(a, this.open);
     return this.open;
