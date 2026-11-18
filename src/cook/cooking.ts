@@ -387,6 +387,7 @@ export class CookView {
     if (!this.open) return;
     const p = G.local;
     this.open = false;
+    bus.emit('cookClose');
     // whatever is still in the pan or pot comes back with how cooked it got
     for (const b of this.bits) { this.giveBack(p, b.it, Math.min(b.down, b.up), Math.max(b.down, b.up)); this.rig.remove(b.mesh); }
     for (const q of this.pot) this.giveBack(p, q.it, this.potC, this.potC + this.stick);
