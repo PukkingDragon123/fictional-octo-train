@@ -43,7 +43,7 @@ class ScanLock {
   /** the dials (0..1), the signature's position, its jump offsets */
   private df = 0.5; private dg = 0.5; private tf = 0.5; private tg = 0.5; private jf = 0; private jg = 0;
   private lock = 0; private heat = 0; private t = 0; private T = 4; private seed = 1; private diff = 1; private ease = 1;
-  private tol = 0.1; private close = 0; private on = false; private onF = false; private onG = false;
+  private tol = 0.1; private fillT = 1; private close = 0; private on = false; private onF = false; private onG = false;
   private jumpT = 3; private phS = 0; private phT = 0; private turned = 0; private endT = 0; private end: LockEnd = '';
   private keys = { l: false, r: false, u: false, d: false };
   private el: HTMLDivElement | null = null;
@@ -110,12 +110,14 @@ class ScanLock {
     this.active = true; this.end = ''; this.endT = 0;
     this.diff = clamp(o.diff, 0, 4); this.ease = Math.max(0.5, (o.ease ?? 1) * (A.slow ? 1.35 : 1));
     this.seed = Math.random() * 100; this.t = 0; this.lock = 0; this.heat = 0; this.turned = 0; this.jf = this.jg = 0;
-    this.T = clamp((2.2 + this.diff * 0.9) * (A.slow ? 1.3 : 1), 2, 7);
-    this.tol = clamp((0.13 - this.diff * 0.016) * this.ease, 0.05, 0.24);
-    this.jumpT = 1.4 + Math.random() * 1.2;
-    // the signature, and the dials somewhere off it: there is always a little hunting to do
+    // round 19 (play test: "make scanning a lot easier"): wide tolerance, a clean lock in one to two seconds on
+    // common things (fillT), a long window, and the dials start close to the signature
+    this.fillT = (0.9 + this.diff * 0.45) / Math.sqrt(this.ease);
+    this.T = clamp(Math.max(this.fillT * 3, 3.5) * (A.slow ? 1.3 : 1), 3.5, 9);
+    this.tol = clamp((0.2 - this.diff * 0.02) * Math.sqrt(this.ease), 0.1, 0.32);
+    this.jumpT = 2.5 + Math.random() * 1.5;
     this.tf = 0.15 + Math.random() * 0.7; this.tg = 0.2 + Math.random() * 0.6;
-    const off = () => (Math.random() < 0.5 ? -1 : 1) * (0.22 + Math.random() * 0.2);
+    const off = () => (Math.random() < 0.5 ? -1 : 1) * (0.12 + Math.random() * 0.12);
     this.df = clamp(this.tf + off(), 0.04, 0.96); this.dg = clamp(this.tg + off(), 0.04, 0.96);
     this.keys = { l: false, r: false, u: false, d: false };
     if (!this.el) this.build();
@@ -140,14 +142,14 @@ class ScanLock {
     const kr = 0.55 * dt;
     if (this.keys.l || this.keys.r) this.nudge(this.keys.r ? kr : -kr, 0);
     if (this.keys.u || this.keys.d) this.nudge(0, this.keys.u ? kr : -kr);
-    // the signature wanders: slow swells, harder things faster; the worst jump about
-    const sp = (0.1 + D * 0.065) / E;
-    if (D >= 2.4) {
+    // the signature wanders: slow swells, a little faster on dangerous things; only the very worst jump, and gently
+    const sp = (0.05 + D * 0.035) / E;
+    if (D >= 3.4) {
       this.jumpT -= dt;
       if (this.jumpT <= 0) {
-        this.jumpT = (1.5 + Math.random() * 1.6) * E;
-        this.jf = clamp(this.jf + (Math.random() < 0.5 ? -1 : 1) * (0.14 + Math.random() * 0.12), -0.3, 0.3);
-        this.jg = clamp(this.jg + (Math.random() - 0.5) * 0.3, -0.25, 0.25);
+        this.jumpT = (2.6 + Math.random() * 2) * E;
+        this.jf = clamp(this.jf + (Math.random() < 0.5 ? -1 : 1) * (0.08 + Math.random() * 0.06), -0.18, 0.18);
+        this.jg = clamp(this.jg + (Math.random() - 0.5) * 0.16, -0.12, 0.12);
       }
     }
     this.jf *= Math.max(0, 1 - dt * 0.18); this.jg *= Math.max(0, 1 - dt * 0.18);
@@ -155,17 +157,27 @@ class ScanLock {
     const wg = clamp(0.14 + 0.72 * vn(this.t * sp * 0.8, this.seed + 21) + this.jg, 0.08, 0.92);
     this.tf += (wf - this.tf) * Math.min(1, dt * 2.4);
     this.tg += (wg - this.tg) * Math.min(1, dt * 2.4);
+    // the assist: near the signature the dials are drawn onto it (stronger with the scanner's upgrades; with
+    // enough of them it finds the signature by itself from anywhere)
+    {
+      const ef0 = Math.abs(this.df - this.tf) / this.tol, eg0 = Math.abs(this.dg - this.tg) / this.tol;
+      const reach = E >= 1.9 ? 99 : 2.6 + (E - 1) * 3;
+      const k = Math.min(1, dt * (1.6 + (E - 1) * 2.5));
+      if (ef0 < reach) this.df += (this.tf - this.df) * k;
+      if (eg0 < reach) this.dg += (this.tg - this.dg) * k;
+    }
     const ef = Math.abs(this.df - this.tf) / this.tol, eg = Math.abs(this.dg - this.tg) / (this.tol * 1.15);
     const e = Math.max(ef, eg);
     this.onF = ef < 1; this.onG = eg < 1; this.on = e < 1;
     this.close = clamp(1 - e / 3);
     if (this.on) {
-      this.lock = clamp(this.lock + (dt / (this.T * 0.55)) * (0.65 + 0.35 * (1 - e)));
-      this.heat = Math.max(0, this.heat - dt * 0.5);
+      this.lock = clamp(this.lock + (dt / this.fillT) * (0.8 + 0.2 * (1 - e)));
+      this.heat = Math.max(0, this.heat - dt * 0.8);
     } else {
-      this.lock = Math.max(0, this.lock - dt * 0.12);
-      if (e > 2) this.heat = clamp(this.heat + (dt * (0.1 + D * 0.055)) / E);
-      else this.heat = Math.max(0, this.heat - dt * 0.15);
+      this.lock = Math.max(0, this.lock - dt * 0.06);
+      // overheating is rare: only far off the signature, slowly, and only on things that fight hard
+      if (e > 3.5) this.heat = clamp(this.heat + (dt * (0.02 + D * 0.03)) / E);
+      else this.heat = Math.max(0, this.heat - dt * 0.3);
     }
     // phases: the signature rolls along; the scanner's trace slides against it until it is on
     this.phT += dt * (3 + D * 0.6);

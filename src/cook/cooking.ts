@@ -304,6 +304,14 @@ export class CookView {
 
   // ================================================================= open / close
   /** is this object a cooking station (and how) */
+  /** what is on the heat right now (for scripted lessons): each pan piece's underside / top doneness (1 = cooked, 1.6 = burnt) */
+  state() {
+    return {
+      open: this.open, heat: this.open ? this.stationHeat() : 0,
+      pan: this.bits.map((b) => ({ key: b.it.key, down: b.down, up: b.up, cooked: Math.min(b.up, b.down) >= 0.95, burnt: Math.max(b.up, b.down) >= 1.6 })),
+      pot: this.pot.map((q) => q.it.key), potCooked: this.potC, stuck: this.stick,
+    };
+  }
   stationKind(o: TileObject): 'stove' | 'fire' | null {
     const d = objDef(o.key); if (!d?.heat) return null;
     if (d.heat === 'stove') return 'stove';
@@ -478,6 +486,7 @@ export class CookView {
     this.bits.push(b);
     this.spatter(b.px, 0.04, b.pz, 10);
     G.audio?.ui?.('sizzle', 0.5 * this.stationHeat() + 0.1);
+    bus.emit('cookStep', 'pan', it);
     return true;
   }
   private addToPot(it: Item) {
@@ -485,9 +494,10 @@ export class CookView {
     this.pot.push({ it, cls: classOf(it.key) });
     this.splash(POT_X, 0.06, -0.04, 8);
     G.audio?.ui?.('pour', 0.4);
+    bus.emit('cookStep', 'pot', it);
     return true;
   }
-  flip(b: Bit) { if (b.flip > 0) return; b.flip = 0.0001; G.audio?.ui?.('pan_toss', 0.45); this.spatter(b.px, 0.05, b.pz, 6); }
+  flip(b: Bit) { if (b.flip > 0) return; b.flip = 0.0001; G.audio?.ui?.('pan_toss', 0.45); this.spatter(b.px, 0.05, b.pz, 6); bus.emit('cookStep', 'flip', b.it); }
   toss() {
     if (!this.bits.length) return;
     this.panKick = 1;
@@ -551,6 +561,10 @@ export class CookView {
       b.mesh.rotation.set(f * Math.PI, b.spin, 0);
       // colour: what you see is the top; the edges show the underside
       const top = b.up * 0.7 + b.down * 0.3, hi = Math.max(b.up, b.down);
+      // lessons listen: a side done (raw -> cooked), both sides done, burnt
+      const st = (b as Bit & { st?: number }).st ?? 0;
+      const ns = hi >= 1.6 ? 3 : Math.min(b.up, b.down) >= 0.95 ? 2 : hi >= 0.95 ? 1 : 0;
+      if (ns > st) { (b as Bit & { st?: number }).st = ns; bus.emit('cookStep', ns === 3 ? 'burnt' : ns === 2 ? 'cooked' : 'side', b.it); }
       this.tint(b.mat, top, hi, b.meat);
       if (hi > 1.25 && Math.random() < dt * (hi - 1.1) * 8) this.smoke(b.px, 0.05, b.pz, hi > 1.6);
       if (b.down > 1.6 && Math.random() < dt * 2) this.flare(b.px, b.pz);
@@ -625,7 +639,7 @@ export class CookView {
       this.dragFrom.set(e.clientX, e.clientY);
       G.audio?.ui?.('grab', 0.4);
     } else if (h.kind === 'bit' && h.bit) this.flip(h.bit);
-    else if (h.kind === 'pot') { this.stirring = true; this.lastAng = this.potAngle(); }
+    else if (h.kind === 'pot') { this.stirring = true; this.lastAng = this.potAngle(); bus.emit('cookStep', 'stir', null); }
     else if (h.kind === 'plate') this.plateIt();
     else if (h.kind === 'pan') this.toss();
   }
@@ -714,6 +728,7 @@ export class CookView {
     if (keys.some((k) => itemDef(k).tags?.includes('weirdpart'))) mark('cook:weird');
     this.cardSig = '';
     bus.emit('dishPlated', p, out, q);
+    bus.emit('cookStep', 'plated', out);
     bus.emit('inventoryChanged', p);
     setTimeout(() => { this.plateM.position.y = PLATE.y; }, 260);
   }

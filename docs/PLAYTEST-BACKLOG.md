@@ -32,12 +32,23 @@ Grouped into waves. Wave 1 is what made the game confusing; it goes first.
   carried bodies hang/drag naturally instead of stiffly auto-rotating.
 
 ### Inventory, looting, first-person actions
-- Hotbar and the first-person backpack scene restored and polished (user's, never redesigned), with a 2D on-screen readout.
+- Hotbar restored (user's). Backpack scene (user's new design): only the backpack itself is 3D; things on the ground,
+  hotbar interactions and the rest are 2D on screen, in the game's style.
 - Very detailed looting: right-click a corpse → loot / search pockets / etc., first-person search cutscenes per container.
 - Realistic detailed first-person QTEs (opening a box...), easier QTEs.
 - Eating: detailed, e.g. open a bag of chips, pick chips out, eat, put the bag back.
 - Cooking (system + first-person animation).
 - Scanning much easier; tools and QTEs easier.
+
+### The lab from zero (part of the first-run flow)
+- Start from almost zero: the lab is nearly empty; you fund and build its stations (talent bench, research computer,
+  codex archive, fridge, commissary...) over time.
+- The codex and the lab's functions unlock by playing.
+- Move between inside (the lab) and outside (the backrooms) freely, unlocking things as you go.
+- The lab itself far more detailed.
+
+### Feel
+- Animations (legs and everything else) more real and fluid.
 
 ## Wave 2: crafting machines, body and health
 - The press becomes simple (no printing interface). Printing moves to a separate machine you build yourself,
@@ -47,6 +58,7 @@ Grouped into waves. Wave 1 is what made the game confusing; it goes first.
 - The press cutscene (another unit dragged and pressed): much heavier, realistic gore: organs, ribs, bones.
 
 ## Wave 3: art pass
+- The whole game feels like cool sci-fi (in its own retro-institute style).
 - Remake every 3D item as super detailed pixel art with cool models; some interactive and playable, with physics
   (cloth, paper).
 - All text and effects in pixel art (whistle rings, etc.).

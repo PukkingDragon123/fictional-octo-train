@@ -3,6 +3,11 @@
 //   G.cook.useCorpse(p, c)   E on a corpse with a blade starts butchering (false = loot it as usual)
 //   G.cook.captures()        true while cooking or butchering owns the mouse and keys
 //   G.cook.view / G.cook.butchery
+//   G.cook.state()           what is cooking: { open, heat, pan: [{ key, down, up, cooked, burnt }], pot, potCooked, stuck }
+//   G.cook.stations(z?)      the heat sources in a zone (stoves, fires, grills, drum stoves)
+// Lessons listen on the bus: 'cookOpen' (station), 'cookStep' (step, item): 'pan' | 'pot' (put in), 'flip', 'stir',
+// 'side' (one side done), 'cooked' (both sides), 'burnt', 'plated' (the dish); 'dishPlated' (p, dish, quality);
+// 'cookClose'. A piece is raw below 0.95 on a side, cooked from 0.95, burnt from 1.6 (Item.cooked keeps the result).
 import { G } from '../game/G';
 import { bus } from '../core/events';
 import { itemDef } from '../items/item';
@@ -56,6 +61,10 @@ export class CookSystem implements GameSystem {
 
   get active() { return this.view.open || !!this.butchery.active; }
   captures() { return this.active; }
+
+  state() { return this.view.state(); }
+  /** the heat sources in a zone (default: the one the unit is in) */
+  stations(z = G.zone): TileObject[] { const out: TileObject[] = []; if (z) for (const o of z.objects.values()) if (this.view.stationKind(o)) out.push(o); return out; }
 
   useObject(p: Player, o: TileObject): boolean {
     if (!p.isLocal || !this.view.stationKind(o)) return false;
