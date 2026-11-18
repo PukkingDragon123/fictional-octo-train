@@ -780,7 +780,7 @@ export class TalentBench {
     const insp = this.mode === 'card';
     this.pen.intensity = damp(this.pen.intensity, open ? 0.04 : 0, 6, dt);
     this.standLight.intensity = damp(this.standLight.intensity, insp ? 0.16 : 0.02, 6, dt);
-    this.standGlow.color.setScalar(damp(this.standGlow.color.r, insp ? 0.28 : 0.18, 5, dt));
+    this.standGlow.color.setScalar(damp(this.standGlow.color.r, insp ? 0.2 : 0.14, 5, dt));
     this.standTop.rotation.y += dt * (insp ? 0.5 : 0.08);
     // the CRT rises on its lift while a marble is up, and powers on once it is up
     this.crtUp = damp(this.crtUp, insp ? 1 : 0, 6, dt);

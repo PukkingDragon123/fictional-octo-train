@@ -1,0 +1,37 @@
+/* floating choices (floatChoices.ts): type with depth in front of the scene, the same letters as the world text
+   (cineText.css .ct-g); no panel, no boxes */
+.fc-layer { position: fixed; inset: 0; z-index: 900; pointer-events: none; perspective: 900px; perspective-origin: 70% 45%; }
+.fc-c {
+  position: absolute; pointer-events: auto; cursor: pointer; white-space: nowrap; transform-style: preserve-3d;
+  font-family: 'Alagard', monospace; font-size: calc(var(--px, 2px) * 8 + 14px); line-height: 1; color: #eefbef;
+  --glow: #7dffa8; --ctc: #eefbef;
+  transform: translate3d(0, 0, var(--z, 0)) rotateY(var(--ry, -10deg));
+  transition: transform 0.35s cubic-bezier(.2, .9, .3, 1.15), filter 0.25s, color 0.2s;
+  animation: fc-float 5.5s ease-in-out var(--ph, 0s) infinite alternate;
+  filter: brightness(0.86);
+  outline: none;
+}
+.fc-c .fc-t { display: inline-block; transform-style: preserve-3d; filter: drop-shadow(0 0 7px rgba(0, 0, 0, .8)); }
+.fc-c .fc-n { display: inline-block; margin-right: 0.45em; font-size: 0.62em; color: var(--glow); opacity: 0.85; vertical-align: 0.2em;
+  text-shadow: 0 0 6px var(--glow), 1px 1px 0 #10160f, 2px 2px 0 #0a0e0a; }
+.fc-c.fc-warm { --glow: #ffd27a; --ctc: #fbf2de; font-size: calc(var(--px, 2px) * 7 + 8px); }
+/* drifting at its own depth, a slow sway */
+@keyframes fc-float {
+  from { translate: 0 -5px; rotate: 0 1 0 -2deg; }
+  to { translate: 0 6px; rotate: 0 1 0 3deg; }
+}
+/* under the pointer: it comes forward and brightens */
+.fc-c.hot { transform: translate3d(-14px, 0, calc(var(--z, 0px) + 90px)) rotateY(calc(var(--ry, -10deg) * 0.4)); filter: brightness(1.25); }
+.fc-c.hot .ct-g { text-shadow: 1px 1px 0 #26302a, 2px 2px 0 #1a221d, 3px 3px 0 #10160f, 0 0 2px #000, 0 0 14px var(--glow), 0 0 26px color-mix(in srgb, var(--glow) 55%, transparent); }
+/* the thread of light from the hovered question to her */
+.fc-thread { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; opacity: 0; transition: opacity 0.2s; }
+.fc-thread.on { opacity: 1; }
+.fc-thread polyline { fill: none; stroke: #c8ffd8; stroke-width: 2.2; stroke-dasharray: 3 5; filter: drop-shadow(0 0 5px #7dffa8) drop-shadow(0 0 2px #000); animation: fc-spark 0.6s linear infinite; }
+@keyframes fc-spark { to { stroke-dashoffset: -14; } }
+/* the others dissolve; the picked one flies to her */
+.fc-c.out .ct-g { animation: ct-out 0.5s ease-in var(--o, 0ms) forwards; opacity: 1; }
+.fc-c.out .fc-n { transition: opacity 0.3s; opacity: 0; }
+.fc-c.fly { animation: none; transition: transform 0.65s cubic-bezier(.5, 0, .8, .4), opacity 0.65s, filter 0.65s;
+  transform: translate3d(var(--fx, -200px), var(--fy, 0), -140px) rotateY(30deg) scale(0.4); opacity: 0; filter: brightness(1.6) blur(1px); }
+@media (max-width: 700px) { .fc-c { font-size: calc(var(--px, 2px) * 7 + 8px); } }
+.reduce-flash .fc-c { animation: none; }
