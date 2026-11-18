@@ -59,11 +59,13 @@ export function buildCover(style: string, W: number, D: number, top: number): Co
       flaps.push({ h, axis, s, t0, t1 });
       return { h, m };
     };
-    mk(W / 2, D - 0.004, -W / 2, 0, 'z', -1, 0.38, 0.92, 0.0, false);
+    const sl = mk(W / 2, D - 0.004, -W / 2, 0, 'z', -1, 0.38, 0.92, 0.0, false);
     mk(W / 2, D - 0.004, W / 2, 0, 'z', 1, 0.42, 1, 0.0, false);
     const f = mk(W, D / 2, 0, D / 2, 'x', 1, 0, 0.55, 0.005, true);
     const b = mk(W, D / 2, 0, -D / 2, 'x', -1, 0.06, 0.6, 0.005, false);
-    const R = marker(f.h, 0.04, 0.01, -D / 2 + 0.02), L = marker(b.h, -0.04, 0.01, D / 2 - 0.02);
+    // the right hand lifts the front flap by its edge, the left folds the left one out (no reaching across the box)
+    const R = marker(f.h, 0.04, 0.01, -D / 2 + 0.02), L = marker(sl.h, W / 2 - 0.02, 0.01, D * 0.2);
+    void b;
     const OPEN = 2.75;
     return {
       g, L, R, dur: 0.85, sound: 'rummage', slide: 0,

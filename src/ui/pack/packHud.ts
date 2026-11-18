@@ -49,7 +49,7 @@ export class PackHud {
     this.el.append(top, this.item);
     this.item.className = 'phud-item';
     const st = document.createElement('style');
-    st.textContent = `.phud{position:fixed;z-index:31;right:18px;top:calc(7vh + 14px);width:212px;padding:10px 14px 12px;font-family:var(--font-new);pointer-events:none;opacity:0;transform:translateX(24px);transition:opacity .2s ease,transform .3s cubic-bezier(.3,1.4,.5,1);user-select:none}
+    st.textContent = `.phud{position:fixed;z-index:31;right:18px;top:calc(7vh + 58px);width:212px;padding:10px 14px 12px;font-family:var(--font-new);pointer-events:none;opacity:0;transform:translateX(24px);transition:opacity .2s ease,transform .3s cubic-bezier(.3,1.4,.5,1);user-select:none}
 .phud,.phud *{border-radius:0!important}
 .phud.on{opacity:1;transform:none}
 .phud-load{position:relative;display:flex;align-items:center;gap:8px;height:56px}

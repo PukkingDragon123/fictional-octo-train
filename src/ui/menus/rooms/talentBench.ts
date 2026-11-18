@@ -323,7 +323,8 @@ export class TalentBench {
     for (const sx of [-1, 1]) cb.add('metal', cbox(0.006, 0.06, 0.006, 0.001), 0x8a9094, at(sx * 0.03, 0.025, -0.02, 0, 0, sx * 0.5));
     this.crtLift.add(cb.build(this.mats));
     this.crt = crtScreen(spot.sw, spot.sh, { res: [256, 192], tint: 0xffffff, curvature: 0.25, glow: 1.0, noise: 0.03, scan: 0.6, mask: 0.2, reflect: 0.6 });
-    this.crt.mesh.material = new THREE.MeshBasicMaterial({ map: this.crt.tex, toneMapped: false });
+    this.crt.mesh.material = new THREE.MeshBasicMaterial({ map: this.crt.tex, toneMapped: false, depthTest: false });
+    this.crt.mesh.renderOrder = 8;
     this.crt.mesh.applyMatrix4(spot.m); this.crt.mesh.translateZ(0.011); this.crt.mesh.userData.noGlow = true;
     this.crtLift.add(this.crt.mesh);
     this.crtLift.position.set(x - 0.085, y, z - 0.09); this.crtLift.rotation.y = Math.PI / 2 - 0.12;
