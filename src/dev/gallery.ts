@@ -10,6 +10,7 @@ import { allObjDefs } from '../world/objects';
 import { allItemDefs } from '../items/item';
 import { ModelBuilder } from '../gfx/modelBuilder';
 import { Rng } from '../core/rng';
+import { itemGeometry } from '../items/itemMeshes';
 
 /**
  * Developer galleries for visual QA:
@@ -65,14 +66,21 @@ export async function runGallery(kind: string, params: URLSearchParams) {
   U.uCutOn.value = 0;
 
   if (kind === 'items') {
-    const defs = allItemDefs().filter((d) => !filter || d.key.includes(filter) || d.cat === filter);
-    const per = 8 * 6;
+    // &keys=a,b,c: those items as the game draws them (their hand-detailed models included)
+    const keys = (params.get('keys') || '').split(',').filter(Boolean);
+    const defs = keys.length ? allItemDefs().filter((d) => keys.includes(d.key)).sort((a, b) => keys.indexOf(a.key) - keys.indexOf(b.key)) : allItemDefs().filter((d) => !filter || d.key.includes(filter) || d.cat === filter);
+    const per = 8 * 6, sp = Number(params.get('sp') || 1.6);
     defs.slice(page * per, page * per + per).forEach((d, i) => {
-      const x = 4 + (i % 8) * 1.6, y = 4 + Math.floor(i / 8) * 1.6;
-      const mb = new ModelBuilder();
-      if (d.model) d.model(mb); else mb.box(0, 0, 0, 0.2, 0.2, 0.2, 'white', { color: 0xff00ff });
-      if (mb.isEmpty) return;
-      const m = new THREE.Mesh(mb.build(), worldMaterial({}));
+      const x = 4 + (i % 8) * sp, y = 4 + Math.floor(i / 8) * sp;
+      let g: THREE.BufferGeometry | null = null;
+      if (keys.length) g = itemGeometry(d.key);
+      else {
+        const mb = new ModelBuilder();
+        if (d.model) d.model(mb); else mb.box(0, 0, 0, 0.2, 0.2, 0.2, 'white', { color: 0xff00ff });
+        if (!mb.isEmpty) g = mb.build();
+      }
+      if (!g) return;
+      const m = new THREE.Mesh(g, worldMaterial({}));
       m.position.set(x, 0, y);
       m.scale.setScalar(2.5);
       pr.scene.add(m);
@@ -94,8 +102,9 @@ export async function runGallery(kind: string, params: URLSearchParams) {
     }
   }
 
-  const tgt = new THREE.Vector3(kind === 'items' ? 9 : 12, 0, kind === 'items' ? 7 : 9);
+  const tgt = new THREE.Vector3(kind === 'items' ? 4 + Math.min(7, 8) * Number(params.get('sp') || 1.6) / 2 : 12, 0, kind === 'items' ? 7 : 9);
   if (params.get('tx')) tgt.set(Number(params.get('tx')), 0, Number(params.get('tz')));
+  if (params.has('nolabels')) labels.length = 0;
   const labelEls = labels.map((l) => {
     const el = document.createElement('div');
     el.textContent = l.text;
