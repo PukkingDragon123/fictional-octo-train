@@ -596,6 +596,9 @@ export class IntroSet {
     }
   }
 
+  /** where the crushed body lies on the plate (the gore insert frames it), or null before the first slam */
+  goreFocus(out: THREE.Vector3): THREE.Vector3 | null { return this.gore?.focus(out) ?? null; }
+
   /** run the giant press: one slam every `period` seconds once started */
   startPress(firstIn = 0.2) { this.press.on = true; this.press.t = -firstIn; this.lights.beaconOn = true; }
 

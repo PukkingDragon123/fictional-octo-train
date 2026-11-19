@@ -180,10 +180,10 @@ const TRAY_Y = 0.86;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion();
 /** the exam stance: arms a little out from the sides so the hands and the flanks show */
 const EXAM: Pose = { uarmL: [0.05, 0, 0.26], uarmR: [0.05, 0, -0.26], farmL: [-0.12, 0, 0.05], farmR: [-0.12, 0, -0.05] };
-/** a hand picked: the unit holds it up in front of its chest, back of the hand to the eye, half a fist (the knuckles stand out) */
+/** a hand picked: the unit holds the fist up in front of its chest, knuckles to the eye */
 const PRESENT: Record<'l' | 'r', Pose> = {
-  l: { uarmL: [-0.55, 0, 0.22], farmL: [-1.55, Math.PI / 2, 0], gripL: 0.8 },
-  r: { uarmR: [-0.55, 0, -0.22], farmR: [-1.55, -Math.PI / 2, 0], gripR: 0.8 },
+  l: { uarmL: [-0.6, 0, 0.2], farmL: [-0.9, 0, 0], gripL: 0.8 },
+  r: { uarmR: [-0.6, 0, -0.2], farmR: [-0.9, 0, 0], gripR: 0.8 },
 };
 
 export class HealthView {
@@ -730,7 +730,7 @@ export class HealthView {
       const tx0 = wide ? -0.3 * hw : -0.12 * hw;
       const want = THREE.MathUtils.clamp(Math.min((0.95 * hh) / Math.max(0.12, dy * s), (0.94 * hw - tx0) / (across * s)), 1, wide ? 3.0 : 2.4);
       this.zoom += (want - this.zoom) * Math.min(1, dt * 4);
-      const Z = s * this.zoom, fyl = (this.focus.y + TRAY_Y + 0.08) / 2;
+      const Z = s * this.zoom, fyl = THREE.MathUtils.lerp(this.focus.y, TRAY_Y + 0.08, this.present > 0.5 ? 0.25 : 0.5);
       const tx = wide ? -0.3 * hw : -0.12 * hw, ty = -0.04 * hh;
       const k = this.zk * this.zk * (3 - 2 * this.zk);
       px = THREE.MathUtils.lerp(bx, tx - Z * this.focus.x, k);

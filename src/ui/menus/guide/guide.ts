@@ -188,7 +188,12 @@ export class Guide {
     this.idleT = 0;
   }
   /** round 20: step out of a close-up's way (the control room's fab bay) and stay put; null lets her back into the picture */
-  aside(p: THREE.Vector3 | null) { this.close = !!p; this.checkT = 99; if (p) { this.goal.copy(p); this.walking = true; } else if (this.room) { const s = this.spot(this.room); this.goal.copy(s); this.walking = true; } }
+  aside(p: THREE.Vector3 | null) {
+    this.close = !!p; this.checkT = 99;
+    // out of the way at once (the camera is already turning to the bay); she walks back into the picture after
+    if (p) { this.goal.copy(p); this.pos.copy(p); this.walking = false; this.rig?.root.position.copy(p); }
+    else if (this.room) { const s = this.spot(this.room); this.goal.copy(s); this.walking = true; }
+  }
   /** say a line now, dropping the rest of the queue */
   now(text: string, o: Partial<Line> = {}) { this.say([{ text, ...o }], true); }
   get talking() { return !!this.cur; }

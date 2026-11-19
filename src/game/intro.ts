@@ -136,14 +136,15 @@ const STRIKES: Omit<Strike, 'done' | 'swung'>[] = [
 const BEAT_END = 7.6;
 const WARM = ['guard_bark', 'baton_hit', 'body_thud', 'debtor_grunt', 'debtor_scream', 'debtor_gasp', 'remit_pierce', 'remit_chirp', 'bone_crunch', 'seam_ripple', 'seam_through', 'seam_seal',
   'whoosh', 'holo_on', 'press_slam', 'press_crunch', 'press_hiss', 'press_lever', 'press_klaxon', 'ix_heart', 'ix_ring', 'ix_boot', 'ix_liquid', 'intro_land', 'flicker_buzz', 'cy_spark',
-  'gore_bone_crack', 'gore_crunch', 'gore_burst', 'gore_squelch', 'gore_spurt', 'gore_gib_land', 'gore_wet_hit', 'gore_drip'];
+  'gore_bone_crack', 'gore_crunch', 'gore_burst', 'gore_squelch', 'gore_spurt', 'gore_gib_land', 'gore_wet_hit', 'gore_drip', 'gore_tear'];
 
 /** the wide shots cut into the first-person script: [phase] -> [from, to, shot] (phase seconds) */
 const SHOTS: Partial<Record<Phase, [number, number, string][]>> = {
   drag: [[0, 4.4, 'establish']],
   throw: [[0.12, 2.1, 'throwWide']],
   beat: [[2.15, 3.72, 'beatWide'], [4.55, 6.05, 'beatTop']],
-  haul: [[1.6, 3.05, 'haulCrane'], [3.05, 5.55, 'pressClose']],
+  // (the slam lands at 3.73: a close insert low on the plate's edge for the gore, then back to the eyes; gore off: the old close shot)
+  haul: [[1.6, 3.05, 'haulCrane'], [3.05, 3.8, 'pressClose'], [3.8, 6.15, 'pressGore']],
   // the fitting station: first person at the bed, two cutaways (the crosshead coming down, the band on the wrist)
   fit: [[3.1, 4.3, 'stampSide'], [5.32, 6.75, 'stampMacro']],
   tape: [[1.0, 3.6, 'tapeWide']],
@@ -877,6 +878,20 @@ export class Intro implements GameSystem {
         look.set(x + 0.1, 1.08 - Math.min(0.3, t * 0.2), z + 0.45);
         return 52;
       }
+      case 'pressGore': {
+        // the insert: low and tight on the plate's front edge, a work lamp's hard light on it. The ribs crack out from under
+        // the die, the bones splinter, the organs skid toward the lens, the blood jets and pools; the camera creeps in, and
+        // as the die lifts it tilts up and in to what is left under it
+        const { x, z } = IX.press;
+        const k = ease(clamp01(t / 2.35)), up = ease(clamp01((t - 0.6) / 1.5));
+        // framed on the body: where it lies on the plate (the crushed trunk), along the die's front edge
+        const f = this.set.goreFocus(v5);
+        const fz = f ? Math.max(z - 1.0, Math.min(z + 1.5, f.z)) : z + 0.55, fx = f ? f.x : x + 0.2;
+        // (from inside the front columns, angled across to where the body lies, so the near column stays out of frame)
+        pos.set(lerp(x + 2.1, x + 1.55, k), GP.bedH + 0.24 + up * 0.18, fz - 1.05 + k * 0.3);
+        look.set(lerp(x + 1.12, fx + 0.1, up), GP.bedH + 0.06 + up * 0.05, lerp(fz - 0.25, fz, up));
+        return 46 - k * 12;
+      }
       case 'stampSide': {
         // low on the debtor's left, under the bed's edge: the crosshead coming down its rams between the yellow columns,
         // steam off the vents, the beacon going round, the glove on the forearm, his face beyond it
@@ -909,8 +924,11 @@ export class Intro implements GameSystem {
   private pickShot() {
     let want: string | null = null;
     for (const [a, b, name] of SHOTS[this.phase] ?? []) if (this.t >= a && this.t < b) want = name;
+    // gore off: no insert, the old close shot holds to its end
+    if (want === 'pressGore' && (G.sandbox.gore ?? 2) <= 0) want = this.t < 5.55 ? 'pressClose' : null;
     if (want === this.shot) return;
     this.shot = want; this.shotT = 0;
+    if (want === 'pressGore') this.goreInsert();
     this.stage.cut();
     // a cut wipes the lens: an operator's camera is not your eyes
     if (want) G.gore?.lens?.clear?.();
@@ -939,7 +957,7 @@ export class Intro implements GameSystem {
     SU.uRimStr.value = room === 'portal' ? 0.7 + this.glow * 1.1 : room === 'press' ? 0.85 + 0.5 * L.beaconK * Math.max(0, Math.cos(L.beaconSpin * 2)) : 0.85;
     L.hemi.color.setHex(atStation ? 0x1c2a3a : room === 'press' ? 0x3a2418 : room === 'portal' ? 0x1a3440 : 0x34444e);
     L.hemi.groundColor.setHex(room === 'press' ? 0x0a0806 : 0x14100c);
-    L.hemi.intensity = atStation ? 0.3 : room === 'press' ? 0.42 : 0.4;
+    L.hemi.intensity = atStation ? 0.3 : this.shot === 'pressGore' ? 0.62 : room === 'press' ? 0.42 : 0.4;
     // the key light: the lamp over the body
     if (room === 'wing') {
       let tz = 0, bd = 99;
@@ -952,6 +970,8 @@ export class Intro implements GameSystem {
         const st = this.stamp;
         L.setKey(st.world(V6.copy(ST.LAMP)), st.world(V7.set(-0.05, ST.BED, 0)), 0xfff0dc, 2.3 * st.lamp * (1 - 0.55 * this.raise), 0.74, this.t < 0.1);
       }
+      // the gore insert: a work lamp low over the lip, bright and hard, into the gap under the die
+      else if (this.shot === 'pressGore') L.setKey([IX.press.x + 2.9, 2.1, IX.press.z + 1.9], [IX.press.x + 0.9, GP.bedH, IX.press.z + 0.45], 0xfff2e0, 42, 0.8, this.shotT < 0.05);
       else L.setKey([IX.press.x + 2.2, 4.8, IX.press.z + 0.4], [IX.press.x + 1.2, 0.4, IX.press.z - 0.5], 0xffe4b0, 34, 0.95);
     } else {
       // the portal is the key: it throws the officers' shadows back at you
@@ -1014,6 +1034,8 @@ export class Intro implements GameSystem {
       case 'beatTop': focus = d(head); ap = 0.2; break;
       case 'haulCrane': focus = d(head); ap = 0.12; break;
       case 'pressClose': focus = d(v4.set(IX.press.x + 0.1, GP.bedH + 0.2, IX.press.z + 0.4)); ap = 0.22; break;
+      // the insert: on the die's edge where it all comes out, racking back to the mess as the die lifts
+      case 'pressGore': { const f = this.set.goreFocus(v4); focus = this.shotT < 0.9 || !f ? d(v4.set(IX.press.x + 1.2, GP.bedH + 0.08, f ? f.z : IX.press.z + 0.55)) : d(f); ap = 0.16; break; }
       case 'stampSide': focus = d(this.stamp!.dieWorld(v4)); ap = 0.24; break;
       case 'stampMacro': focus = d(this.stamp!.world(v4.set(ST.DIE_X, ST.ARM_Y + 0.05, 0))); ap = 0.28; break;
       case 'tapeWide': focus = d(head); ap = 0.18; break;
@@ -1359,6 +1381,17 @@ export class Intro implements GameSystem {
     this.at(7.8, 3, () => this.say('OFFICER', 'That was Tuesday\'s.'));
     this.lidGoal = 0.12;
     if (done && t > 6) this.startFit();
+  }
+  /** the gore insert starts: the blood that reaches the lens a beat in, a last crack of ribs (gore and reduce-flash respected) */
+  private goreInsert() {
+    if ((G.sandbox.gore ?? 2) <= 0) return;
+    this.trauma = Math.min(1, this.trauma + 0.35);
+    setTimeout(() => {
+      if (this.shot !== 'pressGore') return;
+      this.sfx('gore_bone_crack', 0.55); this.sfx('gore_squelch', 0.45);
+      const calm = document.documentElement.classList.contains('reduce-flash');
+      if ((G.sandbox.gore ?? 2) >= 2 && !calm) G.gore?.lens?.splash?.(0.14, 0.7);
+    }, 260);
   }
   /** the giant press comes down (called by the set) */
   private pressSlam(d: number) {

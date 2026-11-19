@@ -68,7 +68,6 @@ interface Jet { x: number; y: number; z: number; dx: number; dy: number; dz: num
 const _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _u = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0);
 const r = Math.random;
-const reduce = () => document.documentElement.classList.contains('reduce-flash') || document.body.classList.contains('reduce-flash');
 const goreLevel = () => (G.sandbox?.gore ?? 2) as number;
 
 // ---------------------------------------------------------------- the pieces (built once, shared)
@@ -155,6 +154,10 @@ export class PressGore {
   private poolGeo: THREE.BufferGeometry; private smearGeo: THREE.BufferGeometry; private splatGeo: THREE.BufferGeometry;
   /** the press's centre (x, z) */
   private cx = 0; private cz = 0;
+  /** where the camera should look for the mess (the crushed trunk), once there is one */
+  focus(out: THREE.Vector3): THREE.Vector3 | null { return this.mass ? out.copy(this.mass.position) : null; }
+  /** the die peeling off what it crushed (a wet tear and a crack as it lifts) */
+  private lifted = true;
   /** the crushed trunk (it swells up out of the plate as the die lifts off it) */
   private mass: THREE.Mesh | null = null; private massT = 0;
   /** where the camera is (sound fall-off) */
@@ -200,7 +203,7 @@ export class PressGore {
         // squeezed out through the nearest side of the die along the steel: toward the front lip (+x), or out to either side;
         // most of it skids to a stop on the plate, the heavy wet things slide over the lip and drop
         const side = r() < 0.45 ? 0 : r() < 0.5 ? 1 : -1;
-        const ox = side === 0 ? edgeX : at.x + (r() - 0.5) * 0.9, oz = side === 0 ? cz + 0.5 + (r() - 0.5) * spread * 1.4 : cz + side * 1.42;
+        const ox = side === 0 ? edgeX : at.x + (r() - 0.5) * 0.9, oz = side === 0 ? Math.max(cz - 1.3, Math.min(cz + 1.6, at.z + (r() - 0.5) * spread * 1.2)) : cz + side * 1.42;
         m.position.set(ox, bedY + 0.05 + r() * 0.06, oz);
         m.rotation.set(r() * 6, r() * 6, r() * 6);
         m.scale.setScalar(1.25);
@@ -244,8 +247,8 @@ export class PressGore {
       this.addPool(cx + GP.bedD / 2 + 0.55, 0.007, cz + 0.3, 2.4, 3.5, 1.1);
       this.addPool(cx + GP.bedD / 2 + 0.4, 0.0075, cz - 0.6, 1.6, 3.0, 1.6);
       this.drip = 7;
-      // blood on the lens when the camera is right there (not with reduce-flash)
-      if (heavy && !reduce() && Math.hypot(cam.x - cx, cam.z - cz) < 4.6) { try { G.gore?.lens?.splash?.(0.45, 0.4); } catch { /* no lens */ } }
+      // (the blood on the lens is the insert's: src/game/intro.ts goreInsert)
+      this.lifted = false;
     } else {
       // the body is flat already: what is left in it squirts out, a bone or two goes
       this.sfx('gore_crunch', 0.6, 0.04); this.sfx('gore_squelch', 0.55, 0.1);
@@ -344,6 +347,7 @@ export class PressGore {
 
   update(dt: number, ramY: number) {
     this.t += dt;
+    if (!this.lifted && ramY - GP.bedH > 0.16) { this.lifted = true; this.sfx('gore_tear', 0.55); this.sfx('gore_squelch', 0.5, 0.12); this.sfx('gore_bone_crack', 0.35, 0.3); this.sfx('gore_drip', 0.4, 0.45); }
     // the crushed trunk springs back a little as the die lifts off it (the ribs that are left stand up out of it)
     if (this.mass) {
       const room = Math.max(0, Math.min(1, (ramY - GP.bedH - 0.08) / 0.4));
