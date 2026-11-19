@@ -102,15 +102,17 @@ export class DisinfectAction extends MedAction {
 export class StitchAction extends MedAction {
   constructor(p: Player, target: Player, inj: Injury, public needle: Item, public thread: Item | null) {
     super(p, target, inj); this.name = 'Stitch wound'; this.duration = this.scale(9);
-    // round 17: three passes of the needle, each a steady push let go at the right depth (pain and nerves shake it)
-    this.check = new SkillCheck({ kind: 'hold', at: [0.18, 0.48, 0.78], band: 0.2, speed: 0.55, tremor: tremorOf(p) * 0.9, ease: this.handEase, glyph: 'SUTURE',
+    // round 17: a steady push of the needle let go at the right depth (pain and nerves shake it). Round 19: one pass,
+    // and a suture kit (the needle itself, or one carried) needs no steady-hand window at all; a first aid kit steadies it
+    const kit = (itemDef(needle.key).tags || []).includes('suture') || !!p.findTool('#suture');
+    if (!kit) this.check = new SkillCheck({ kind: 'hold', at: [0.5], band: 0.24, speed: 0.55, tremor: tremorOf(p) * 0.6, ease: this.handEase * (p.findTool('#firstaid') ? 1.4 : 1), glyph: 'SUTURE',
       sounds: { hit: 'mn_squeeze', perfect: 'mn_squeeze', miss: 'gore_squelch' },
       onMark: (m) => { if (m === 'miss') { this.target.body.panic = Math.min(100, this.target.body.panic + 6); G.audio?.at?.('flesh_cut', this.target.x, this.target.z, 0.4); } } });
   }
   isValid() { return super.isValid() && !!this.p.containerOf(this.needle); }
   perform() {
     const ck = this.check;
-    const slips = ck?.misses ?? 0, clean = !!ck?.clean;
+    const slips = ck?.misses ?? 0, clean = !ck || ck.clean;
     this.inj.stitched = true;
     // a clean suture closes tighter; every slip leaves it looser and dirtier
     this.inj.bleed *= clean ? 0.08 : 0.15 + slips * 0.1;
@@ -143,13 +145,14 @@ export class SplintAction extends MedAction {
 export class RemoveForeignAction extends MedAction {
   constructor(p: Player, target: Player, inj: Injury, public tool: Item | null) {
     super(p, target, inj); this.name = inj.type === 'bullet' ? 'Remove bullet' : 'Remove glass'; this.duration = this.scale(tool ? 6 : 10);
-    // round 17: ease it out: hold steady, let go when it comes free (fingers alone have a narrow band)
-    this.check = new SkillCheck({ kind: 'hold', at: [0.5], band: tool ? 0.2 : 0.12, speed: 0.5, tremor: tremorOf(p), ease: this.handEase, glyph: 'EASE',
+    // round 17: ease it out: hold steady, let go when it comes free. Round 19: tweezers or forceps just pull it
+    // (no window); bare fingers get one wide window
+    if (!tool) this.check = new SkillCheck({ kind: 'hold', at: [0.5], band: 0.22, speed: 0.5, tremor: tremorOf(p) * 0.7, ease: this.handEase, glyph: 'EASE',
       sounds: { hit: 'mn_clip', perfect: 'mn_clip', miss: 'gore_squelch' } });
   }
   perform() {
     const m = this.check?.marks[0] ?? '';
-    const chance = m === 'perfect' || m === 'hit' ? 1 : m === 'miss' ? 0.15 + this.skill * 0.03 : (this.tool ? 0.85 : 0.45) + this.skill * 0.04;
+    const chance = this.tool || m === 'perfect' || m === 'hit' ? 1 : m === 'miss' ? 0.35 + this.skill * 0.04 : 0.6 + this.skill * 0.04;
     if (Math.random() < chance) {
       this.inj.foreign = false;
       G.audio?.at?.('glass_clink', this.target.x, this.target.z, 0.5);

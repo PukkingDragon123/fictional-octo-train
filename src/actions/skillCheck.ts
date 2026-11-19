@@ -106,7 +106,7 @@ export class SkillCheck {
     this.open = true; this.wt = 0; this.x = 0; this.v = 1; this.pushing = false; this.flash = ''; this.flashT = 0;
     const E = this.ease();
     // round 19: every band half again as wide as asked, a generous perfect core
-    const bw = Math.max(0.16, Math.min(0.55, (this.o.band ?? 0.2) * 1.6 * Math.sqrt(E)));
+    const bw = Math.max(0.16, Math.min(this.o.kind === 'hold' ? 0.42 : 0.55, (this.o.band ?? 0.2) * 1.6 * Math.sqrt(E)));
     const lo = this.o.kind === 'hold' ? 0.45 : 0.3;
     const b0 = lo + Math.random() * Math.max(0, 0.94 - bw - lo);
     this.band = [b0, b0 + bw];

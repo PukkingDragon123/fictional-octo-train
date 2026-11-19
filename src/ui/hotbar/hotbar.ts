@@ -14,6 +14,7 @@ import { EquipAction } from '../../actions/basic';
 import { itemIconFor, iconResCss } from '../icons';
 import { isTouchMode } from '../touch/mode';
 import { ctxAllowed } from './context';
+import { fpOwner } from '../../fp/fp';
 import { crispCanvas, rect, rivet, GUN, AMB } from '../hiPixel';
 import { pxPlate, pxFrame } from '../pxKit';
 import { mixHex } from '../../gfx/pixel';
@@ -175,7 +176,8 @@ export class HotbarStrip {
 
   update(dt: number) {
     const p = G.local;
-    const on = !this.hidden && !!p && ctxAllowed();
+    // round 19: also up under the backpack scene (things are dragged between the pack and the slots there)
+    const on = !this.hidden && !!p && (ctxAllowed() || (!!(G as any).pack?.open && fpOwner() === 'pack'));
     this.el.classList.toggle('on', on);
     this.el.classList.toggle('touch', isTouchMode());
     if (!on || !p) return;

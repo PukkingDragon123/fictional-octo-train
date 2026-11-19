@@ -1,4 +1,4 @@
-// The pack's readout (round 18b): a small housing of the institute's olive machine kit at the top right of the
+// The pack's readout (round 18b): a small housing of the institute's olive machine kit at the top left of the
 // first-person backpack scene (src/ui/inventory.ts), so the load and the thing under the hand read at a glance
 // while the 3D pack stays the main view. A KG gauge whose needle swings with the load (and the kilos beside it),
 // then the hovered thing: its icon, its name in raised yellow letters, its weight, and its condition as a row of
@@ -49,7 +49,7 @@ export class PackHud {
     this.el.append(top, this.item);
     this.item.className = 'phud-item';
     const st = document.createElement('style');
-    st.textContent = `.phud{position:fixed;z-index:31;right:18px;top:calc(7vh + 58px);width:212px;padding:10px 14px 12px;font-family:var(--font-new);pointer-events:none;opacity:0;transform:translateX(24px);transition:opacity .2s ease,transform .3s cubic-bezier(.3,1.4,.5,1);user-select:none}
+    st.textContent = `.phud{position:fixed;z-index:31;left:18px;top:calc(7vh + 58px);width:212px;padding:10px 14px 12px;font-family:var(--font-new);pointer-events:none;opacity:0;transform:translateX(-24px);transition:opacity .2s ease,transform .3s cubic-bezier(.3,1.4,.5,1);user-select:none}
 .phud,.phud *{border-radius:0!important}
 .phud.on{opacity:1;transform:none}
 .phud-load{position:relative;display:flex;align-items:center;gap:8px;height:56px}
@@ -63,7 +63,7 @@ export class PackHud {
 .phud-item b{font-weight:normal;font-size:17px;line-height:18px;color:#f6e6b0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:1px 1px 0 #14160c,-1px 0 0 #14160c,0 -1px 0 #14160c,0 2px 0 #0b0c0a}
 .phud-item i{font-style:normal;font-size:14px;line-height:16px;color:#c8c08a;text-shadow:1px 1px 0 #0b0c0a}
 .phud-lamps{image-rendering:pixelated;margin-top:2px}
-@media (max-width:700px){.phud{right:8px;width:184px;top:calc(7vh + 6px)}.phud-item b{font-size:15px}}`;
+@media (max-width:700px){.phud{left:8px;width:184px;top:calc(7vh + 6px)}.phud-item b{font-size:15px}}`;
     this.el.append(st);
   }
 

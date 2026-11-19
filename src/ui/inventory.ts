@@ -30,11 +30,15 @@ import { arrivalRunning } from '../game/arrival';
 import { ensurePack } from '../game/arrivalKit/pack';
 import { texturizeSleeves } from './pack/packTex';
 import { installHud12 } from './hotbar';
-import { hotOf } from './hotbar/hotbar';
+import { hotOf, bindHot } from './hotbar/hotbar';
+import { PackSide, type SideSection, type SideTab } from './pack/packSide';
+import { itemIconFor, iconResCss, objIcon } from './icons';
 import { PackHud } from './pack/packHud';
 import { buildCover, type Cover } from './pack/packCover';
 
 /** scripted browsers (navigator.webdriver without ?fpcut) open containers at once */
+/** the user's design (round 19): only the backpack is 3D; the ground, the container, pockets, roll and the hotbar are 2D */
+const FLAT = true;
 const SCRIPTED = typeof navigator !== 'undefined' && !!navigator.webdriver && typeof location !== 'undefined' && !/[?&]fpcut/.test(location.search);
 
 /**
@@ -167,6 +171,14 @@ export class InventoryUI {
   private cover: Cover | null = null;
   private coverK = 0; private coverRun = 0; private coverPending = false; private coverSlideZ = 0;
   private emptyT = -1; private looted = false; private opensOf = new Set<string>();
+  private stowed = false; private stowT = -1; private sideT = 0; private freshSrc = '';
+  private side2d = new PackSide({
+    quick: (items, from) => { const c = this.cubeC(); if (c && from !== c) this.move2d(items, from, c); },
+    drop: (items, from, x, y, slot) => this.drop2d(items, from, x, y, slot),
+    hover: (it, n) => this.hud.hover(it, n),
+    card: (it, from, x, y) => this.inspect(it, from, { x, y }),
+    tab: (ref) => { this.focusRef = ''; this.selectSide(ref); },
+  });
 
   constructor(ui: UI) {
     this.ui = ui;
@@ -504,13 +516,14 @@ export class InventoryUI {
     this.kneeling = false;
     G.hudBody?.setHidden?.('pack', false);
     this.hud.show(false); this.hud.hover(null);
+    this.side2d.show(false);
     this.endCover(); this.looted = false; this.emptyT = -1;
     this.ui.closeMenu?.();
   }
 
   private suspend() {
     this.suspended = true;
-    this.hud.show(false);
+    this.hud.show(false); this.side2d.show(false);
     this.endDrag(true); this.cancelPress(); this.gtag?.hide();
     this.root.classList.remove('on');
     const cam = fpCamera();
@@ -524,7 +537,7 @@ export class InventoryUI {
     this.root.classList.add('on');
     G.input.pointerOverUI = true;
     this.dirty = true;
-    this.hud.show(this.phase === 'open');
+    this.hud.show(this.phase === 'open'); if (FLAT) this.side2d.show(this.phase === 'open');
     this.hook();
   }
 
@@ -533,9 +546,9 @@ export class InventoryUI {
     this.setOut = k;
     const e = Math.max(0, Math.min(1, k));
     const on = e > 0.01;
-    this.srcHold.visible = on && this.srcShown();
-    this.pocketG.visible = on; this.rollG.visible = on && !!this.rollC(); this.floorG.visible = on;
-    if (this.tags) this.tags.g.visible = on;
+    this.srcHold.visible = on && this.srcShown() && (!FLAT || !this.stowed);
+    this.pocketG.visible = on && !FLAT; this.rollG.visible = on && !!this.rollC() && !FLAT; this.floorG.visible = on && !FLAT;
+    if (this.tags) this.tags.g.visible = on && !FLAT;
     this.srcHold.position.y = 0.002 + (1 - e) * 0.18;
     this.pocketG.scale.set(Math.max(0.01, e), 1, Math.max(0.01, e));
     this.rollG.scale.set(Math.max(0.01, e), 1, 1);
@@ -600,15 +613,90 @@ export class InventoryUI {
     this.reach.L.w = this.reach.R.w = 0;
     this.dirty = true;
     this.hud.show(true); this.updateTag();
+    if (FLAT) { this.side2d.show(true); this.sideT = 0; }
     G.missions?.set?.('pack:opened');
   }
 
+
+
+  // ================================================================ the 2D side (round 19, the user's design)
+  private flatTick(dt: number) {
+    // the searched container, opened by the hands, is put aside: its things go to the panel
+    if (this.stowT >= 0) {
+      this.stowT += dt / 0.32;
+      const k = Math.min(1, this.stowT);
+      this.srcHold.position.y = 0.002 - k * k * 0.06;
+      this.srcHold.scale.setScalar(Math.max(0.01, 1 - k * 0.35));
+      this.srcHold.position.x += dt * 1.4 * k;
+      if (k >= 1) { this.stowT = -1; this.stowed = true; this.srcHold.scale.setScalar(1); this.srcHold.visible = false; this.dirty = true; this.sideT = 0; }
+    }
+    if (this.phase !== 'open') return;
+    this.sideT -= dt;
+    if (this.sideT > 0) return;
+    this.sideT = 0.25;
+    const p = G.local; if (!p) return;
+    const sections: SideSection[] = [];
+    const e = this.side[this.sideSel];
+    if (e && this.srcShown() && this.stowed) {
+      const uid = Number(String(e.c.owner).split(':')[1]);
+      const o = G.zone?.objects.get(uid);
+      const ref = this.refOf(e);
+      sections.push({ key: 'src:' + ref, c: e.c, icon: o ? objIcon(o.key, 24) : floorGlyph(), items: this.groups(e.c), hot: this.freshSrc === ref });
+      this.freshSrc = '';
+    }
+    if (this.floorC) sections.push({ key: 'floor', c: this.floorC, icon: floorGlyph(), items: this.groups(this.floorC) });
+    const suit = [...p.worn.values()].find((i) => itemDef(i.key).clothing && /fullsuit|torso|jacket|pants|shirt/.test(String(p.wornSlot(i))));
+    sections.push({ key: 'pockets', c: p.inv, icon: suit ? itemIconFor(suit, iconResCss(24)) : floorGlyph(), items: this.groups(p.inv) });
+    const roll = this.rollC();
+    const rollIt = roll ? p.inv.items.find((i) => i.inv === roll) : null;
+    if (roll && rollIt) sections.push({ key: 'roll', c: roll, icon: itemIconFor(rollIt, iconResCss(24)), items: this.groups(roll) });
+    const loots = this.side.filter((s) => s.kind === 'loot');
+    const tabs: SideTab[] = loots.length > 1 ? loots.map((s) => { const uid = Number(String(s.c.owner).split(':')[1]); const o = G.zone?.objects.get(uid); return { ref: this.refOf(s), icon: o ? objIcon(o.key, 24) : floorGlyph(), name: s.name, on: s === e, n: s.c.items.length }; }) : [];
+    this.side2d.set(tabs, sections);
+  }
+  /** the panel's things moved like the 3D drop does it: a transfer that settles where it fits (it jumps back if refused) */
+  private move2d(items: Item[], from: Container, to: Container) {
+    const p = G.local; if (!p || from === to || !items.length) return;
+    const world = (c: Container) => isWorldContainer(c) || c.kind === 'floor';
+    if (!world(from) && !world(to)) {
+      for (const i of items) {
+        if (p.isWorn(i)) continue;
+        const res = resolveTarget(p, i, from, to, null);
+        if (res) transferItem(p, i, from, res.c, res.at); else { this.bad(); break; }
+      }
+    } else queueTransfers(p, items, from, to);
+    G.audio?.ui?.('bag_place', 0.35);
+    this.dirty = true; this.sideT = 0;
+  }
+  /** is a screen point over the 3D pack */
+  private overPack(x: number, y: number): boolean {
+    pointerRay(this.rc, fpCamera(), x, y);
+    return this.rc.intersectObject(this.pack.root, true).length > 0;
+  }
+  private drop2d(items: Item[], from: Container, x: number, y: number, slot: number) {
+    const p = G.local; if (!p) return;
+    const n = hotSlotAt(x, y);
+    const cube = this.cubeC();
+    if (n) {
+      // onto the hotbar: carried things are bound to that slot; things not carried go into the pack first
+      if (!p.containerOf(items[0]) && cube) this.move2d(items, from, cube);
+      bindHot(p, n, items[0]);
+      return;
+    }
+    const toC = this.side2d.sectionAt(x, y);
+    if (toC) { if (toC !== from) this.move2d(items, from, toC); return; }
+    if (this.overPack(x, y) && cube) {
+      if (slot) bindHot(p, slot, null);
+      if (from !== cube) this.move2d(items, from, cube);
+    }
+  }
 
   // ================================================================ opening what is searched (round 18b)
   /** a container just set down beside the pack comes shut; the hands open it once the pack is open */
   private makeCover(style: string) {
     this.endCover();
-    if (SCRIPTED || !this.srcShell) return;
+    this.stowed = SCRIPTED; this.stowT = -1;
+    if (SCRIPTED || !this.srcShell) { this.stowed = true; return; }
     const sh = this.srcShell as THREE.Mesh;
     const geo = sh.geometry;
     if (geo && !geo.boundingBox) geo.computeBoundingBox();
@@ -667,6 +755,7 @@ export class InventoryUI {
       G.audio?.ui?.('rummage', 0.35);
       const e = this.side[this.sideSel];
       if (this.looted && e && e.kind === 'loot' && e.c.items.length === 0) this.emptyT = 0;
+      else if (FLAT) { this.stowT = 0; this.freshSrc = e ? this.refOf(e) : ''; }
     } else if (this.coverRun < 0 && k <= 0) {
       this.coverRun = 0;
       this.toggle(false);
@@ -758,6 +847,7 @@ export class InventoryUI {
   private binContainers(): [PhysBin, Container | null][] {
     const p = G.local;
     const e = this.side[this.sideSel];
+    if (FLAT) return [[this.binPack, this.cubeC()], [this.binPockets, null], [this.binRoll, null], [this.binSrc, this.srcShown() && !this.stowed ? e.c : null], [this.binFloor, null]];
     return [
       [this.binPack, this.cubeC()],
       [this.binPockets, p.inv],
@@ -886,6 +976,7 @@ export class InventoryUI {
     if (this.loadT <= 0) { this.loadT = 0.5; this.updateTag(); }
     this.placeSide();
     this.coverTick(dt);
+    if (FLAT) this.flatTick(dt);
   }
 
   // ================================================================ arms and hands
@@ -1138,7 +1229,7 @@ export class InventoryUI {
     const b = h?.kind === 'body' ? h.b : null;
     if (b !== this.hover) { this.hover = b; if (b) G.audio?.ui?.('hover', 0.15); }
     this.hud.hover(b ? b.items[0] : h?.kind === 'held' ? h.it : null, b ? b.items.length : 1);
-    if (b) this.showTag(b);
+    if (b && !FLAT) this.showTag(b);
     else if (h?.kind === 'lid') { this.pack.lidEdge.getWorldPosition(_v); this.world.worldToLocal(_v); this.gtag.text(['ZIP SHUT'], _v.clone(), _v.clone().add(_v2.set(-0.05, -_v.y + 0.004, 0.14))); }
     else if (h?.kind === 'held') { const o = this.heldObjs[h.hand]; if (o) { o.outer.getWorldPosition(_v); this.world.worldToLocal(_v); this.gtag.item(h.it, 1, _v.clone(), _v.clone().add(_v2.set(0.02, 0.004 - _v.y, 0.12))); } }
     else this.gtag.hide();
@@ -1191,6 +1282,7 @@ export class InventoryUI {
     // where would it go
     const bin = this.phys.binAt(d.b.holder.getWorldPosition(_v), null) ?? (this.inFloorArea(d.b.pos) ? this.binFloor : null);
     d.over = bin;
+    if (FLAT) { const over = this.side2d.overPanel(x, y); this.side2d.ghostAt(over ? d.b.items[0] : null, x, y); this.side2d.over(over ? this.side2d.sectionAt(x, y) : null); }
     d.ok = !!bin && this.accepts(bin, d.from, d.b);
     for (const [bb, m] of this.hilite) { m.visible = bb === bin && bb !== d.from; m.material = d.ok ? hiliteOk : hiliteBad; }
     if (bin !== this.binFloor && this.binFloor.frame.visible) this.hilite.get(this.binFloor)!.visible = false;
@@ -1210,6 +1302,23 @@ export class InventoryUI {
     const d = this.drag;
     if (!d) return;
     this.drag = null;
+    this.side2d.ghostAt(null); this.side2d.over(null);
+    if (FLAT && !cancel) {
+      const x = this.pad.on ? this.pad.x : this.lastPX, y = this.pad.on ? this.pad.y : this.lastPY;
+      const toC = this.side2d.sectionAt(x, y), n = hotSlotAt(x, y);
+      if (toC || n) {
+        for (const m of this.hilite.values()) m.visible = false;
+        const b = d.b, from = this.binC(d.from);
+        b.held = false;
+        // the body drops back where it lay; the move takes it out of the pack on the next refresh
+        const sp = this.phys.spawnSpot(b, d.from, b.items[0].uid);
+        this.phys.place(b, d.from, sp.x, sp.y + 0.1, sp.z);
+        const p = G.local;
+        if (n && p) bindHot(p, n, b.items[0]);
+        else if (toC && from && toC !== from) this.move2d(d.one ? b.items.slice(0, 1) : b.items.slice(), from, toC);
+        return;
+      }
+    }
     for (const m of this.hilite.values()) m.visible = false;
     const b = d.b;
     b.held = false;
@@ -1385,4 +1494,27 @@ export class InventoryUI {
     bus.emit('halo', p, itemName(inHolster).toLowerCase(), 'info');
     G.missions?.set?.('pack:holster');
   }
+}
+
+/** the hotbar slot (1..6) under a screen point, 0 for none */
+function hotSlotAt(x: number, y: number): number {
+  const bar = document.getElementById('hot12');
+  if (!bar || !bar.classList.contains('on')) return 0;
+  const slots = bar.querySelectorAll<HTMLElement>('.hb-slot');
+  for (let i = 0; i < slots.length; i++) { const r = slots[i].getBoundingClientRect(); if (x >= r.left - 3 && x <= r.right + 3 && y >= r.top - 6 && y <= r.bottom + 4) return i + 1; }
+  return 0;
+}
+let floorUrl = '';
+/** a small floor tile with dust (the ground's glyph) */
+function floorGlyph(): string {
+  if (floorUrl) return floorUrl;
+  const cv = document.createElement('canvas'); cv.width = cv.height = 24;
+  const c = cv.getContext('2d')!;
+  let sd = 5; const r = () => { sd = (sd * 16807) % 2147483647; return sd / 2147483647; };
+  for (let y = 4; y < 22; y++) for (let x = 2; x < 22; x++) { const v = 0.75 + r() * 0.25 - (y - 4) * 0.008; c.fillStyle = `rgb(${120 * v | 0},${108 * v | 0},${84 * v | 0})`; c.fillRect(x, y, 1, 1); }
+  c.fillStyle = '#3a3428'; c.fillRect(2, 12, 20, 1); c.fillRect(12, 4, 1, 18);
+  c.fillStyle = '#0b0c0a'; c.fillRect(2, 22, 20, 1); c.fillRect(22, 4, 1, 19);
+  c.fillStyle = '#d8ccaa'; for (let i = 0; i < 9; i++) c.fillRect(3 + r() * 18 | 0, 5 + r() * 16 | 0, 1, 1);
+  floorUrl = cv.toDataURL();
+  return floorUrl;
 }

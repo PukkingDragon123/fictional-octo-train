@@ -124,10 +124,11 @@ class HarvestAction extends TimedAction {
     this.duration = Math.max(3, (h.time ?? 12) * mul * (this.st.length / Math.max(1, stagesOf(h, tool).length)));
     this.name = 'Butcher ' + (c.scanned ? String(c.sp.name) : 'the body').toLowerCase();
     this.anim = 'loot';
-    // round 17: each stage ends on a cut: stop the needle in the green (a blade only; bare hands just tear)
+    // round 17: the first cut is the one that matters: stop the needle in the green (a blade only; bare hands just
+    // tear). Round 19: one window for the whole job; its result carries through every stage
     if (tool !== 'hands' && this.st.length) {
       const n = this.st.length;
-      this.check = new SkillCheck({ kind: 'tap', at: this.st.map((_, i) => (i + 0.72) / n), band: 0.2, speed: 1.25,
+      this.check = new SkillCheck({ kind: 'tap', at: [Math.min(0.5, 0.72 / n)], band: 0.24, speed: 1.1,
         ease: (1 + p.body.skill('trapping') * 0.06) / Math.sqrt(talentMul(p.body, 'butcher')), glyph: 'CUT',
         sounds: { hit: 'flesh_cut', perfect: 'flesh_cut', miss: 'gore_squelch' } });
     }
@@ -170,7 +171,7 @@ class HarvestAction extends TimedAction {
     const c = this.c, p = this.p, z = G.getZone(c.zoneKey);
     this.workFx(s, true);
     // the cut that ended this stage: clean ones save more, a botched one wastes some
-    const cut = this.check?.marks[this.st.indexOf(s)] ?? '';
+    const cut = this.check?.marks[0] ?? '';
     if (p.isLocal) { shake(this.tool === 'axe' ? 0.22 : 0.1); punch(0.04, 0.2); }
     // jointing takes the limbs off for real
     if (s.id === 'joint') {

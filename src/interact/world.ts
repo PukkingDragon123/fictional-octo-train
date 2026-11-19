@@ -354,6 +354,8 @@ export class Interact {
         const pick = pickTool(p);
         out.push({ label: 'Pick the lock', disabled: !pick ? 'needs a needle, a screwdriver or a knife' : false, action: () => { if (pick) at(new PickLockAction(p, { kind: 'edge', x, y, side }, pick))(); } });
       }
+      // round 19: a crowbar pries an ordinary lock open (loud, no timing)
+      if (e.locked && !e.open && !key && !readerDoor(z, x, y, side) && p.findTool('#crowbar')) out.push({ label: 'Pry it open', action: at(new DoorAction(p, x, y, side, 'pry')) });
       if (e.locked && !e.open) out.push({ label: 'Kick down', danger: true, action: at(new DoorAction(p, x, y, side, 'kick')) });
     }
     if (e.kind === 'window') {

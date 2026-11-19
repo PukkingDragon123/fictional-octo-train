@@ -85,6 +85,18 @@ defItem({
     mb.box(0.093, 0.011, 0, 0.008, 0.006, 0.002, T.steel);
   },
 });
+// round 19: the proper tool for a pin lock: quick and quiet, no fumbling (src/actions/world.ts PickLockAction)
+defItem({
+  key: 'lockpick', name: 'Lockpick Set', cat: 'tool', weight: 0.05, durability: 150, tags: ['lockpick'],
+  desc: 'A leather wallet of hook picks and a tension wrench. Opens ordinary pin locks quickly and quietly.',
+  model: (mb) => {
+    mb.box(0, 0.006, 0, 0.1, 0.012, 0.045, T.leather, { color: 0x5a3a22 });
+    mb.box(0, 0.0125, -0.012, 0.098, 0.002, 0.016, T.leather, { color: 0x3e2614 });
+    for (let i = 0; i < 4; i++) mb.box(-0.03 + i * 0.016, 0.014, 0.008, 0.004, 0.002, 0.03, T.steel, { color: 0xc8ccd0 });
+    mb.box(0.045, 0.014, 0.004, 0.012, 0.002, 0.02, T.steel, { color: 0x9aa0a6 });
+    mb.box(0.03, 0.0135, 0.016, 0.03, 0.002, 0.003, T.steel, { color: 0xd8dce0 });
+  },
+});
 defItem({
   key: 'saw', name: 'Hand Saw', cat: 'tool', weight: 0.8, durability: 250, tags: ['saw'],
   desc: 'Cuts planks and dismantles wooden furniture.',

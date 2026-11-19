@@ -26,14 +26,14 @@ export function noise(p: Player | null, x: number, z: number, radius: number, ki
 
 // ---------------------------------------------------------------- doors & windows
 export class DoorAction extends TimedAction {
-  constructor(p: Player, public x: number, public y: number, public side: 0 | 1, public mode: 'toggle' | 'lock' | 'unlock' | 'knock' | 'kick') {
+  constructor(p: Player, public x: number, public y: number, public side: 0 | 1, public mode: 'toggle' | 'lock' | 'unlock' | 'knock' | 'kick' | 'pry') {
     super(p);
-    this.duration = mode === 'toggle' ? 0.35 : mode === 'knock' ? 1.6 : mode === 'kick' ? 1.4 : 1.2;
-    this.anim = mode === 'kick' ? 'shove' : mode === 'knock' ? 'hammer' : 'hold_item';
-    this.name = mode === 'kick' ? 'Kick door' : mode === 'knock' ? 'Knock' : 'Door';
+    this.duration = mode === 'toggle' ? 0.35 : mode === 'knock' ? 1.6 : mode === 'kick' ? 1.4 : mode === 'pry' ? 3.5 : 1.2;
+    this.anim = mode === 'kick' ? 'shove' : mode === 'knock' ? 'hammer' : mode === 'pry' ? 'push' : 'hold_item';
+    this.name = mode === 'kick' ? 'Kick door' : mode === 'knock' ? 'Knock' : mode === 'pry' ? 'Pry the door' : 'Door';
     this.showBar = mode !== 'toggle';
-    // round 17: put the heel in at the right moment, beside the lock (one window)
-    if (mode === 'kick') this.check = new SkillCheck({ kind: 'tap', at: [0.55], band: 0.16, speed: 1.5, ease: 1 + p.body.skill('strength') * 0.04, glyph: 'KICK', sounds: { hit: 'cb_good', perfect: 'cb_good', miss: 'cb_miss' } });
+    // round 17: put the heel in at the right moment, beside the lock (one window; round 19: a crowbar pries with none)
+    if (mode === 'kick') this.check = new SkillCheck({ kind: 'tap', at: [0.55], band: 0.2, speed: 1.3, ease: 1 + p.body.skill('strength') * 0.04, glyph: 'KICK', sounds: { hit: 'cb_good', perfect: 'cb_good', miss: 'cb_miss' } });
   }
   perform() {
     const z = G.getZone(this.p.zoneKey);
@@ -54,6 +54,15 @@ export class DoorAction extends TimedAction {
         G.audio?.at?.('knock', this.x + 0.5, this.y + 0.5);
         noise(this.p, this.x, this.y, 14, 'knock');
         break;
+      case 'pry': {
+        // round 19: a crowbar in the jamb: no timing to it, just loud
+        const bar = this.p.findTool('#crowbar'); if (!bar) return;
+        G.audio?.at?.('break', this.x + 0.5, this.y + 0.5, 0.8);
+        noise(this.p, this.x, this.y, 10, 'pry');
+        bar.cond = Math.max(0, bar.cond - 0.02);
+        op('edge', edgeArgs(this.p, this.x, this.y, this.side, { locked: false }));
+        break;
+      }
       case 'kick': {
         const m = this.check?.marks[0] ?? '';
         const dmg = (18 + this.p.body.skill('strength') * 4) * (m === 'perfect' ? 2.2 : m === 'hit' ? 1.6 : m === 'miss' ? 0.6 : 1);
@@ -70,33 +79,33 @@ export class DoorAction extends TimedAction {
   }
 }
 /**
- * Round 17: work a lock's pins with a needle, a screwdriver or a knife tip: one tap window per pin
- * (src/actions/skillCheck.ts). Every slip rattles (a little noise, a little wear on the tool); two slips
- * and the pins drop. A door (edge) or a locked container (obj).
+ * Round 17: work a lock's pins with a needle, a screwdriver or a knife tip, with one tap window
+ * (src/actions/skillCheck.ts). Round 19 (play test: easier): a slip never fails it, it only rattles (noise,
+ * wear on the tool) and takes longer; a proper lockpick set needs no window at all and is quick and quiet.
+ * A door (edge) or a locked container (obj).
  */
 export type LockTarget = { kind: 'edge'; x: number; y: number; side: 0 | 1 } | { kind: 'obj'; o: TileObject };
 export class PickLockAction extends TimedAction {
-  constructor(p: Player, public tg: LockTarget, public tool: Item, pins = 3) {
+  constructor(p: Player, public tg: LockTarget, public tool: Item) {
     super(p);
-    this.name = 'Pick the lock'; this.duration = 1.4 + pins * 1.1; this.anim = 'craft';
     const tk = itemDef(tool.key).tags || [];
-    const fine = tool.key === 'lockpick' || tk.includes('needle') ? 1.12 : tk.includes('screwdriver') ? 1 : 0.88;
-    const ease = fine * (1 + (p.body.skill('nimble') + p.body.skill('mechanics')) * 0.035);
-    const at = Array.from({ length: pins }, (_, i) => (i + 0.6) / (pins + 0.4));
+    const set = tool.key === 'lockpick' || tk.includes('lockpick');
+    this.name = 'Pick the lock'; this.duration = set ? 2.2 : 3.4; this.anim = 'craft';
     const c = this.where();
     this.face = { x: c.x, z: c.z };
-    this.check = new SkillCheck({ kind: 'tap', at, band: 0.17, speed: 1.1 + pins * 0.05, ease, glyph: 'PIN',
+    if (set) return;
+    const fine = tk.includes('needle') ? 1.12 : tk.includes('screwdriver') ? 1 : 0.9;
+    const ease = fine * (1 + (p.body.skill('nimble') + p.body.skill('mechanics')) * 0.035);
+    this.check = new SkillCheck({ kind: 'tap', at: [0.5], band: 0.2, speed: 1.1, ease, glyph: 'PIN',
       sounds: { hit: 'tc_key', perfect: 'mn_unlock', miss: 'mn_flub' },
       onMark: (m) => {
         if (m !== 'miss') return;
-        noise(p, c.x, c.z, 4, 'pick');
-        G.audio?.at?.('door_locked', c.x, c.z, 0.35);
+        noise(p, c.x, c.z, 6, 'pick');
+        G.audio?.at?.('door_locked', c.x, c.z, 0.4);
         tool.cond = Math.max(0, tool.cond - (tk.includes('knife') ? 0.05 : 0.02));
-        // two slips: the pins drop, the work is over
-        if (this.check && this.check.misses >= 2) { this.failed = true; this.done = true; G.audio?.at?.('door_locked', c.x, c.z, 0.7); }
+        this.duration += 1.5;
       } });
   }
-  failed = false;
   private where() {
     const t = this.tg;
     return t.kind === 'edge' ? { x: t.side === 0 ? t.x + 0.5 : t.x, z: t.side === 0 ? t.y : t.y + 0.5 } : { x: t.o.x + 0.5, z: t.o.y + 0.5 };
@@ -108,13 +117,12 @@ export class PickLockAction extends TimedAction {
     return !!t.o.inv?.locked;
   }
   perform() {
-    if (this.failed) return;
     const t = this.tg, c = this.where();
     G.audio?.at?.('lock', c.x, c.z, 0.7);
     if (t.kind === 'edge') op('edge', edgeArgs(this.p, t.x, t.y, t.side, { locked: false }));
     else op('invLock', { z: zk(this.p), uid: t.o.uid, locked: false });
     this.p.body.addXp('nimble', 6 + (this.check?.perfects ?? 0) * 2);
-    bus.emit('lockPicked', { by: this.p.id, clean: !!this.check?.clean, perfect: (this.check?.perfects ?? 0) === (this.check?.of ?? 1) });
+    bus.emit('lockPicked', { by: this.p.id, clean: !this.check || this.check.clean, perfect: !this.check || this.check.perfects === this.check.of });
   }
 }
 
