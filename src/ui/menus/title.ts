@@ -769,7 +769,7 @@ class TitleRoom {
     const pf = FEEDS.find((q) => q.key === prev)!, nf = FEEDS.find((q) => q.key === next)!;
     const arrow = (b: HTMLElement, d: 'l' | 'r') => { b.append(h('span', 'ikk-arr ' + d)); return b; };
     if (prev !== next) bar.append(arrow(key(ROOM_ICON[prev], ROOM_SHORT[prev], 'prev', () => void this.go(prev), { hint: 'Q', tone: 'dark', at: 'bottom' }), 'l'));
-    bar.append(key('eye', 'Monitors', 'home', () => void this.back(), { hint: 'Esc', tone: 'yellow', at: 'bottom' }));
+    bar.append(key('crt', 'Monitors', 'home', () => void this.back(), { hint: 'Esc', tone: 'yellow', at: 'bottom' }));
     bar.append(arrow(key(ROOM_ICON[next], ROOM_SHORT[next], 'next', () => void this.go(next), { hint: 'E', tone: 'dark', at: 'bottom' }), 'r'));
     hud.append(acts, bar);
     requestAnimationFrame(() => (acts.querySelector('button') as HTMLElement | null ?? bar.querySelector('.home') as HTMLElement | null)?.focus({ preventScroll: true }));

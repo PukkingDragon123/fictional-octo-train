@@ -58,7 +58,7 @@ export function iconBanner(o: { booth?: number } = {}): HTMLElement {
   if (o.booth !== undefined) {
     const b = tag(document.createElement('span'), 'Observation booth ' + o.booth);
     b.className = 'ikb-b';
-    const ic = mxIcon('eye', 14); if (ic) b.append(ic);
+    const ic = mxIcon('crt', 14); if (ic) b.append(ic);
     b.append(Object.assign(document.createElement('b'), { textContent: String(o.booth) }));
     d.append(b);
   }

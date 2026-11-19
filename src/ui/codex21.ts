@@ -64,7 +64,7 @@ export function codexStatIcons(st: { discovered: number; total: number; sampled:
     nameTag(c, name);
     row.append(c);
   };
-  cell('eye', 'Discovered', `${st.discovered}/${st.total}`);
+  cell('lens', 'Discovered', `${st.discovered}/${st.total}`);
   cell('jar', 'Sampled', String(st.sampled));
   cell('blueprint', 'Researched', String(st.researched));
   cell('key', 'Complete', String(st.complete));

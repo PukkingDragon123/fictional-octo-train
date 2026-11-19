@@ -14,7 +14,7 @@ import { creditSlot } from './creditIcon';
 // round 21: the icons lead: a little 3D model of what the step asks for (a crate to carry, a lens to search, the press,
 // a boot to go somewhere...) turns in front of the line, and sways when the step changes
 const STEP_IC: [RegExp, IconKind][] = [
-  [/\bpress|hopper|crush|feed it/i, 'gear'], [/\bcarry|bring|deliver|haul|hand in|drop off/i, 'crate'], [/\bscan/i, 'eye'],
+  [/\bpress|hopper|crush|feed it/i, 'gear'], [/\bcarry|bring|deliver|haul|hand in|drop off/i, 'crate'], [/\bscan/i, 'lens'],
   [/\bsample|specimen|jar|residue/i, 'jar'], [/\bfind|search|look|locate|explore|loot/i, 'lens'], [/\bkill|destroy|survive|escape|flee|hide/i, 'skull'],
   [/\btalk|call|report|radio|speak|phone/i, 'walkie'], [/\brepair|fix|build|craft|make|assemble/i, 'wrench'], [/\bpower|generator|fuse|switch|wire/i, 'bolt'],
   [/\bunlock|key|open|door/i, 'key'], [/\bpay|credit|money|sell|buy|debt/i, 'coin'], [/\bread|note|document|paper|file/i, 'dossier'],

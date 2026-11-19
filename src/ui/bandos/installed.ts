@@ -26,9 +26,9 @@ export function limitApps(keys: string[]) {
   bus.emit('bandApps');
 }
 const META: Record<string, { title: string; icon: IconKind; gives: string }> = {
-  scanner: { title: 'Suit scanner', icon: 'eye', gives: 'hold Q: sweep, scan, find signals' },
+  scanner: { title: 'Suit scanner', icon: 'lens', gives: 'hold Q: sweep, scan, find signals' },
   map: { title: 'Map', icon: 'map', gives: 'the survey plotter on the band' },
-  status: { title: 'Status', icon: 'eye', gives: 'the unit, the debt, the crew' },
+  status: { title: 'Status', icon: 'crt', gives: 'the unit, the debt, the crew' },
   codex: { title: 'Codex', icon: 'clipboard', gives: 'everything you scan, on file' },
   mail: { title: 'Mail', icon: 'radio', gives: 'my lines and the papers you read' },
   settings: { title: 'Settings', icon: 'wrench', gives: 'sound, picture, keys' },

@@ -129,7 +129,7 @@ export const APPS: AppDef[] = [
     },
   },
   {
-    key: 'status', title: 'Status', sub: 'the unit, the debt, the crew', icon: 'eye', w: 600, h: 480,
+    key: 'status', title: 'Status', sub: 'the unit, the debt, the crew', icon: 'crt', w: 600, h: 480,
     build(w) {
       const box = el('div', 'bos-crt');
       w.body.append(box);

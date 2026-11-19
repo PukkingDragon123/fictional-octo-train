@@ -15,7 +15,7 @@ import { mxIconAnim, type IconKind } from './machine/decor';
 
 // round 21: no words: each hint is its key caps and a little 3D model of what the key does (a boot to walk, the lens
 // to scan, the lamp...), or for the moves a pixel pictogram (over a bar, under a bar, down), the model swaying
-const HINT_IC: Record<string, IconKind> = { move: 'boot', use: 'gear', scan: 'eye', lamp: 'lamp', build: 'wrench', watch: 'radio', pack: 'crate' };
+const HINT_IC: Record<string, IconKind> = { move: 'boot', use: 'gear', scan: 'lens', lamp: 'lamp', build: 'wrench', watch: 'radio', pack: 'crate' };
 const PICTO: Record<string, string[]> = {
   vault: ['....kkkk.....', '..kkyyyykk...', '.kyk....kyk..', 'kyk......kyk.', 'kyk.....kyyyk', '.......kkyyyk', 'kkkkkkkkkyk..', 'kbbbbbbbkk...', 'kkkkkkkkk....'],
   crawl: ['kkkkkkkkkkkk.', 'kbbbbbbbbbbk.', 'kkkkkkkkkkkk.', 'k.........k..', '.........kk..', 'kkkkkkkkkyyk.', 'kyyyyyyyyyyyk', 'kkkkkkkkkyyk.', '.........kk..'],

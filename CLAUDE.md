@@ -19,6 +19,7 @@
 - Minimal text: icons and numbers; no hint lines, sign plates or label spam. Menu buttons are floating icons with their
   short name as floating styled text under them (the map menu has no text at all). Never put menu icons in boxed
   keys, tiles or button frames (the green machine-kit icon keys were rejected); the icon and its text float free.
+- Never use the eye icon anywhere (rejected); monitors use the CRT set, scanning uses the lens.
 - No plain "UI blocks": no flat rectangles of colour holding text or buttons. Every element is a designed object
   (detailed pixel art, a 3D prop, or something in the scene). Choices and prompts float as styled, slightly 3D text.
 - Before showing the user anything, compare its screenshot against this list; if it fails any point, it is not done.
