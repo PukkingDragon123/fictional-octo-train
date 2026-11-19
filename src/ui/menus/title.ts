@@ -48,6 +48,7 @@ import { CodexArchive } from './rooms/archive';
 import { openTree, treeOpen, closeTree } from './research/tree';
 import { SubjectView } from './rooms/subject';
 import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRooms';
+import { installLabProps } from './props/labProps';
 import { installDecoAndGuide, onBuildMode } from './deco';
 import { pixIconEl, type PixKind } from './deco/pixIcons';
 import { runTour, tourSeen, tourRunning } from './guide/tour';
@@ -233,6 +234,7 @@ class TitleRoom {
     lab.onBench = (on) => { this.root.classList.toggle('benching', on); this.hud.hidden = on; this.hotcap.classList.remove('on'); if (!on) this.buildHud(); };
     const reg = (id: MenuRoomId, r: { scene: THREE.Scene; cam: THREE.Camera; deco: THREE.Group; floor: any; surfaces: any; guideSpot: any }) =>
       registerMenuRoom({ id, scene: r.scene, camera: r.cam, deco: r.deco, floor: r.floor, surfaces: r.surfaces, guideSpot: r.guideSpot, host: this.stageHost, pick: (x, y) => this.pickFloor(x, y, r.floor.y, r.surfaces) });
+    installLabProps();
     reg('monitor', mon); reg('research', lab); reg('archive', arc);
     setActiveMenuRoom('monitor');
     this.buildFeedButtons();

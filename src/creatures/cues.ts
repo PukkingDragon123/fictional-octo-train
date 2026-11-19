@@ -34,8 +34,9 @@ export function cuesFrame(dt: number) {
         la.x = c.x; la.z = c.z;
         const K = kindOf(c.sp), t = tex(K, K.liquid ? 'drops' : 'spray');
         if (t && !c.sp.flags?.swimmer) {
-          const s = Math.max(0.22, Math.min(0.55, (c.radius ?? 0.4) * 0.7));
-          G.gore?.decals?.show?.(zk, { x: Math.round((c.x + (Math.random() - 0.5) * 0.3) * 100) / 100, z: Math.round((c.z + (Math.random() - 0.5) * 0.3) * 100) / 100, w: s, d: s, rot: Math.random() * 6.28, tex: t, tint: K.tint }, 0, 70);
+          const s = Math.max(0.4, Math.min(0.75, (c.radius ?? 0.4) * 1.1));
+          // two marks a step (drips either side of where it went), readable at the iso camera
+          for (let k = 0; k < 2; k++) G.gore?.decals?.show?.(zk, { x: Math.round((c.x + (Math.random() - 0.5) * 0.5) * 100) / 100, z: Math.round((c.z + (Math.random() - 0.5) * 0.5) * 100) / 100, w: s * (k ? 0.7 : 1), d: s * (k ? 0.7 : 1), rot: Math.random() * 6.28, tex: t, tint: K.tint }, 0, 75);
         }
       }
     }
