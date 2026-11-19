@@ -3,16 +3,16 @@
   padding: 6vh 4vw; box-sizing: border-box; font-family: var(--font-new); color: #e4ead8; background: radial-gradient(ellipse at 60% 45%, rgba(10,24,16,.88), rgba(2,4,3,.94)); opacity: 0; transition: opacity .25s; cursor: pointer; }
 .ins.on { opacity: 1; }
 .ins * { border-radius: 0 !important; }
-.ins-term { align-self: center; padding: 10px 12px; background: linear-gradient(#0b2414, #04110a); color: #72ff98; text-shadow: 0 0 3px rgba(70,255,130,.45);
-  box-shadow: 0 0 0 2px #0a0b08, 0 0 0 5px #3b4428, 0 0 0 7px #0a0b08; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%); transition: opacity .4s, transform .4s; }
-.ins-th { display: flex; flex-direction: column; gap: 2px; color: #43a862; border-bottom: 1px solid #1a4f2a; padding-bottom: 5px; margin-bottom: 6px; }
-.ins-th b { font-weight: normal; color: #dcffe4; letter-spacing: .12em; white-space: nowrap; }
-.ins-th small { font-size: 12px; letter-spacing: .08em; color: #43a862; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ins-file { font-size: 24px; color: #dcffe4; margin-bottom: 8px; }
-.ins-bar { position: relative; height: 16px; box-shadow: inset 0 0 0 2px #1a4f2a; margin-bottom: 8px; }
-.ins-bar i { position: absolute; left: 2px; top: 2px; bottom: 2px; width: 0; background: repeating-linear-gradient(90deg, #72ff98 0 6px, #2e8a4a 6px 8px); }
-.ins-bar span { position: absolute; right: 6px; top: -1px; color: #dcffe4; font-size: 14px; }
-.ins-pk { height: 150px; overflow: hidden; color: #43a862; font-size: 14px; line-height: 16px; white-space: nowrap; -webkit-mask-image: linear-gradient(#000 40%, transparent); mask-image: linear-gradient(#000 40%, transparent); }
+.ins-term { align-self: center; position: relative; width: 380px; height: 262px; transition: opacity .4s, transform .4s; }
+/* the tube sits a little bigger than the housing's window: the bezel's lip hides its edge */
+.ins-scr { position: absolute; left: 14px; top: 26px; right: 14px; bottom: 30px; }
+.ins-term:not(.mx) .ins-scr { left: 0; top: 0; right: 0; bottom: 0; box-shadow: 0 0 0 3px #0a0b08, 0 0 0 7px #3b4428, 0 0 0 9px #0a0b08; }
+.ins-glass { padding: 16px 18px 8px; gap: 0; }
+.ins-file { font-size: 24px; color: var(--ph-hi); margin-bottom: 8px; }
+.ins-bar { position: relative; height: 16px; box-shadow: inset 0 0 0 2px var(--ph-dark); margin-bottom: 8px; }
+.ins-bar i { position: absolute; left: 2px; top: 2px; bottom: 2px; width: 0; max-width: calc(100% - 4px); background: repeating-linear-gradient(90deg, var(--ph) 0 6px, var(--ph-dim) 6px 8px); }
+.ins-bar span { position: absolute; right: 6px; top: -1px; color: var(--ph-hi); font-size: 14px; }
+.ins-pk { flex: 1; min-height: 0; overflow: hidden; color: var(--ph-dim); font-size: 14px; line-height: 16px; white-space: nowrap; -webkit-mask-image: linear-gradient(#000 40%, transparent); mask-image: linear-gradient(#000 40%, transparent); }
 .ins-stage { position: relative; width: 220px; height: 220px; justify-self: center; }
 .ins-fx { position: absolute; left: 0; top: 0; width: 220px; height: 220px; image-rendering: pixelated; z-index: 2; pointer-events: none; }
 .ins-ring { position: absolute; left: 44px; top: 44px; width: 132px; height: 132px; image-rendering: pixelated; }
@@ -33,4 +33,4 @@
 .ins-sub.on { opacity: 1; }
 .ins-sub b { display: block; font-weight: normal; font-size: 14px; letter-spacing: .22em; color: #ffcf6a; text-transform: uppercase; }
 .ins-sub span { font-size: 24px; color: #f4ecd2; text-shadow: var(--text-ink-2, 1px 1px 0 #000); }
-@media (max-width: 700px) { .ins { grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 12px; } .ins-pk { height: 70px; } }
+@media (max-width: 700px) { .ins { grid-template-columns: 1fr; grid-template-rows: auto auto auto; gap: 12px; } .ins-term { width: min(380px, calc(100vw - 48px)); height: 210px; justify-self: center; } }

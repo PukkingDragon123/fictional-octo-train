@@ -1,5 +1,5 @@
 // THE INSTALL SEQUENCE (round 17): unlocking an upgrade is an event, not a line of text.
-//   1. the download   a terminal pane: the file name, a bar, packets streaming past in hex
+//   1. the download   a little monitor (machine-kit housing round a CRT tube): the file name, a bar, hex packets
 //   2. the install    the part itself (a little 3D model from src/ui/machine/decor.ts), big, while bolts fly
 //                     in and seat, sparks spit, and a stepped progress ring closes round it
 //   3. Dr. Calder     her line about it in the subtitle strip (the lab's guide, or the handler mid-run)
@@ -12,6 +12,8 @@ import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { sfx } from '../menus/sfx';
 import { mxOk } from '../machine/core';
+import { mxFrame, panelSpec, type MxFrame } from '../machine/kit';
+import { crtScreen } from '../crt/crt';
 import { mxIconAnim, type IconKind } from '../machine/decor';
 import { researchNode } from '../../game/research';
 
@@ -56,10 +58,21 @@ function next() {
 
 function run(o: InstallOpts) {
   const v = el('div', 'ins');
+  // the download runs on a little monitor: an enamel housing (the machine kit) round a phosphor tube (the CRT skin)
   const term = el('div', 'ins-term');
-  term.innerHTML = `<div class="ins-th"><b>BAND LINK · DOWNLOAD</b><small>MI/RD · ${esc((o.key ?? o.title).toUpperCase().slice(0, 18))}</small></div><div class="ins-file">${esc(o.title)}</div><div class="ins-bar"><i></i><span>0%</span></div>`;
+  const scr = el('div', 'ins-scr');
+  const crt = crtScreen({ phos: 'green', sound: false });
+  scr.append(crt.el);
+  crt.glass.classList.add('ins-glass');
+  crt.glass.innerHTML = `<div class="ins-file">${esc(o.title)}</div><div class="ins-bar"><i></i><span>0%</span></div>`;
   const packets = el('div', 'ins-pk');
-  term.append(packets);
+  crt.glass.append(packets);
+  term.append(scr);
+  let fr: MxFrame | null = null;
+  if (mxOk()) {
+    term.classList.add('mx');
+    fr = mxFrame(term, (w, h) => { const s = panelSpec(w, h, { seed: 47, lamps: ['green', 'amber'], glands: 1, hazard: true, knobs: 2, toggles: 2, win: { l: 18, t: 30, r: 18, b: 34, cut: 7, lip: 5 } }); s.placards = []; s.stickers = []; return s; }, { pad: 14, over: true });
+  }
   const stage = el('div', 'ins-stage');
   const ring = document.createElement('canvas'); ring.className = 'ins-ring'; ring.width = ring.height = 132;
   const fx = document.createElement('canvas'); fx.className = 'ins-fx'; fx.width = fx.height = 220;
@@ -70,10 +83,10 @@ function run(o: InstallOpts) {
   const reveal = el('div', 'ins-rev', `<b>INSTALLED</b><span>${esc(o.title)}</span>${o.gives ? `<small>${esc(o.gives)}</small>` : ''}`);
   v.append(term, stage, reveal);
   document.body.append(v);
-  requestAnimationFrame(() => v.classList.add('on'));
+  requestAnimationFrame(() => { v.classList.add('on'); void crt.powerOn(true); });
   part?.hot(true);
   sfx('relay', 0.5);
-  const bar = term.querySelector('.ins-bar i') as HTMLElement, pct = term.querySelector('.ins-bar span') as HTMLElement;
+  const bar = crt.glass.querySelector('.ins-bar i') as HTMLElement, pct = crt.glass.querySelector('.ins-bar span') as HTMLElement;
   const T_DL = 1.1, T_IN = 2.3, T_END = 4.6;
   let t = reduce() ? T_IN : 0, last = performance.now(), raf = 0, phase = 0, closed = false, said = false;
   const sparks: { x: number; y: number; vx: number; vy: number; l: number }[] = [];
@@ -85,7 +98,7 @@ function run(o: InstallOpts) {
     cancelAnimationFrame(raf);
     v.classList.remove('on');
     window.removeEventListener('keydown', key, true);
-    setTimeout(() => { v.remove(); o.onDone?.(); next(); }, 260);
+    setTimeout(() => { fr?.dispose(); crt.dispose(); v.remove(); o.onDone?.(); next(); }, 260);
   };
   const skip = () => { if (t < T_IN + 0.1) t = T_IN + 0.1; else close(); };
   const key = (e: KeyboardEvent) => { if (['Escape', 'Enter', 'Space'].includes(e.code)) { e.preventDefault(); e.stopImmediatePropagation(); skip(); } };
@@ -98,8 +111,8 @@ function run(o: InstallOpts) {
     const dl = Math.min(1, t / T_DL);
     bar.style.width = Math.round(dl * 100) + '%'; pct.textContent = Math.round(dl * 100) + '%';
     pkT -= dt;
-    if (pkT <= 0 && t < T_DL + 0.3) { pkT = 0.05; const ln = el('div', '', `${(Math.random() * 0xffff | 0).toString(16).padStart(4, '0')}:  ${hex()}`); packets.prepend(ln); if (packets.childElementCount > 9) packets.lastElementChild?.remove(); sfx('type', 0.12); }
-    if (phase === 0 && t >= T_DL) { phase = 1; v.classList.add('installing'); sfx('servo', 0.45); }
+    if (pkT <= 0 && t < T_DL + 0.3) { pkT = 0.05; fr?.lamp(1, !(Math.floor(t * 9) % 2)); const ln = el('div', '', `${(Math.random() * 0xffff | 0).toString(16).padStart(4, '0')}:  ${hex()}`); packets.prepend(ln); if (packets.childElementCount > 9) packets.lastElementChild?.remove(); sfx('type', 0.12); }
+    if (phase === 0 && t >= T_DL) { phase = 1; v.classList.add('installing'); sfx('servo', 0.45); fr?.lamp(1, false); crt.burst(0.4, 0.2); }
     // 2. the install: the ring closes in steps, bolts fly in and seat, sparks
     const ip = Math.max(0, Math.min(1, (t - T_DL) / (T_IN - T_DL)));
     const rc = ring.getContext('2d')!;
