@@ -74,7 +74,7 @@ export class CodexArchive implements StageRoom {
   feedCam = new THREE.PerspectiveCamera(72, 4 / 3, 0.05, 40);
   hots: Hot[] = [];
   // dim and secretive: cold pools under the troughs, a blue-grey haze filling the gaps, red from the vault door
-  grade: Grade = { exposure: 1.62, lift: [0.8, 0.92, 1.14], gain: [1.1, 1.0, 0.88], vig: 0.6, sat: 1.1, contrast: 1.16, side: [1, 0, 0, 0.3], haze: 0.5, hazeColor: 0x4a5a7a, ao: 0.9, scatter: 0.55, bounce: 0.22, shafts: [new THREE.Vector3(0, H - 0.45, -2.0), new THREE.Vector3(0, H - 0.45, 0.6), new THREE.Vector3(-2.4, H - 0.45, 2.0)], shaftK: 0.6, shaftColor: 0xdce8ff };
+  grade: Grade = { exposure: 1.85, lift: [0.86, 0.95, 1.1], gain: [1.12, 1.02, 0.9], vig: 0.45, sat: 1.12, contrast: 1.14, side: [1, 0, 0, 0.3], haze: 0.32, hazeColor: 0x4a5a7a, ao: 0.9, scatter: 0.55, bounce: 0.22, shafts: [new THREE.Vector3(0, H - 0.45, -2.0), new THREE.Vector3(0, H - 0.45, 0.6), new THREE.Vector3(-2.4, H - 0.45, 2.0)], shaftK: 0.6, shaftColor: 0xdce8ff };
   deco = new THREE.Group();
   floor = { minX: -W + 1.0, maxX: W - 1.0, minZ: 1.4, maxZ: 2.6, y: 0 };
   surfaces = [{ minX: -3.05, maxX: -2.15, minZ: 1.35, maxZ: 1.95, y: 0.78 }];
@@ -95,14 +95,16 @@ export class CodexArchive implements StageRoom {
   private dress!: Dresser;
   /** the containment kit (rooms/vault.ts): the cell, the vault door, the cases, the racks */
   private vault!: Vault;
-  private hemi = new THREE.HemisphereLight(0xa8bcd8, 0x3a3230, 0.62);
+  private hemi = new THREE.HemisphereLight(0xb8c8dc, 0x4a4038, 1.0);
   /** the cell's own cold lamp, and the vault door's beacon spilling red */
   private cellL = new THREE.PointLight(0xa8dcff, 2.6, 2.8, 1.7);
   private redL = new THREE.PointLight(0xff2a14, 0, 3.8, 1.7);
   /** a caged downlight over the vault door, and a washer raking the locker wall */
   private doorL = new THREE.SpotLight(0xd0dcff, 16, 4.4, 0.66, 0.7, 1.5);
   private lockL = new THREE.SpotLight(0xc8d8ff, 7, 4.6, 1.0, 0.8, 1.6);
-  private stackFill = [new THREE.PointLight(0x9ab8e8, 1.6, 4.5, 1.6), new THREE.PointLight(0xffc890, 1.3, 4.5, 1.6)];
+  private stackFill = [new THREE.PointLight(0xc8d8f0, 2.6, 5, 1.5), new THREE.PointLight(0xffc890, 2.4, 5, 1.5)];
+  /** round 22: warm lamp pools over the stacks, the carts and the cabinet fronts, so the room reads as bright as the control room */
+  private warmPools = [new THREE.PointLight(0xffd29a, 3.2, 4.2, 1.5), new THREE.PointLight(0xffd29a, 2.4, 3.6, 1.5), new THREE.PointLight(0xffe2b8, 2.6, 4.6, 1.5)];
   private tubes: { light: THREE.SpotLight; mat: THREE.MeshBasicMaterial; base: number; seed: number; flick: number; shaft: ReturnType<typeof shaftMesh> }[] = [];
   private lamp = new THREE.SpotLight(0xffb468, 0, 3.2, 0.75, 0.55, 1.7);
   private lampOn = 1; private lampLvl = 1; private lampMat = new THREE.MeshBasicMaterial({ color: 0xffd8a0, toneMapped: false });
@@ -241,7 +243,7 @@ export class CodexArchive implements StageRoom {
       const sh = shaftMesh(10);
       sh.mesh.position.set(x, y - 0.02, z); sh.mesh.scale.set(1.0, (y - 0.1) * 0.92, 0.7); sh.u.uColor.value.setHex(0xcfe0ff); sh.u.uInt.value = 0.02;
       g.add(sh.mesh);
-      const tb = { light: L, mat, base: shadow ? 40 : 22, seed: i * 3.7, flick: 0, shaft: sh };
+      const tb = { light: L, mat, base: shadow ? 52 : 32, seed: i * 3.7, flick: 0, shaft: sh };
       this.tubes.push(tb);
       this.pokes.add({ key: 'trough' + i, label: 'Fluorescent trough', sub: 'it hums · it stutters', m: at(x, y, z), box: [1.6, 0.18, 0.42], c: [0, 0.05, 0], notes: [{ head: 'Facilities', lines: ['The tubes stutter when a unit crosses over.', 'They also stutter when nobody is crossing. Report both.'], tone: 'memo' }], sounds: [{ g: 'fluoro_tick', v: 0.6 }, { g: 'flicker_buzz', v: 0.5, d: 100 }], act: () => { tb.flick = 1.1; } });
       const pool = glowCard(2.4, 2.8, 0xdfe8ff, 0.05); pool.rotation.x = -Math.PI / 2; pool.position.set(x, 0.005, z); g.add(pool);
@@ -250,6 +252,8 @@ export class CodexArchive implements StageRoom {
     // fills: cold over the left stacks, warm over the right (the desk's and the terminals' spill)
     this.stackFill[0].position.set(-W + 1.0, 2.4, -0.8); this.stackFill[1].position.set(W - 1.0, 2.2, -0.2);
     g.add(...this.stackFill);
+    this.warmPools[0].position.set(-2.5, 2.3, -1.3); this.warmPools[1].position.set(2.7, 2.3, -1.4); this.warmPools[2].position.set(0, 2.5, -2.4);
+    g.add(...this.warmPools);
     return g;
   }
 

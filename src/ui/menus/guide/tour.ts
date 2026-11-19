@@ -220,7 +220,7 @@ function loopCard(layer: HTMLElement, onEnd: (f: () => void) => void): Promise<v
 // fund them). About a minute, the input held (Esc, or hold Space / a click, skips; the pip lamps by the key cap
 // fill while held), once per browser. It ends black, straight into the link and the first run (title.ts newGame),
 // whose greeting knows she has met you (src/game/tutorial/firstRun.ts).
-interface IStop { room: TourRoom; hot?: string; pose?: string; act?: string; lines: string[] }
+interface IStop { room: TourRoom; hot?: string; pose?: string; act?: string; lines: string[]; /** a camera pose for each line after the first */ poses?: (string | undefined)[] }
 
 /** the lab introduction has not played yet (?labintro forces it, ?labintro=0 / ?notour and scripted browsers skip it) */
 export function labIntroWanted(): boolean {
@@ -234,7 +234,7 @@ function markIntro() { try { localStorage.setItem(LAB_INTRO_KEY, '1'); localStor
 
 function introStops(met: boolean): IStop[] {
   const S: IStop[] = [];
-  S.push({ room: 'subject', lines: met
+  S.push({ room: 'subject', pose: 'prisoner', poses: [undefined, 'title'], lines: met
     ? ["There. It's awake. Before it goes down, let me show you the place properly.", 'Unit room four. Your unit sits in that chair, and you ride along from up here.']
     : ["Oh, good, you're awake. Hi! I'm Iris. Dr. Calder.", 'Welcome to the Meridian Institute of Liminality. This is unit room four: your unit sits in that chair, you ride along from up here.'] });
   S.push({ room: 'research', pose: 'room', lines: ['The control room. Where the actual science happens. Eventually.'] });
@@ -335,7 +335,9 @@ export async function runLabIntro(h: IntroHost, o: { met?: boolean } = {}): Prom
   const wait = async (ms: number) => { const t = performance.now() + ms; while (!quit && performance.now() < t) await new Promise((r) => setTimeout(r, 60)); };
   try {
     // the picture comes up out of black on the unit, waking in its chair
-    for (let i = 0; i < STOPS.length && !quit; i++) {
+    // (dev: ?introfrom=N starts at stop N, for shots)
+    const from = import.meta.env.DEV ? Number(new URLSearchParams(location.search).get('introfrom') || 0) : 0;
+    for (let i = from; i < STOPS.length && !quit; i++) {
       const s = STOPS[i];
       pips.forEach((p, k) => { p.className = k === i ? 'on' : k < i ? 'past' : ''; });
       cur = null; sub.clear(); h.point(s.room, null);
@@ -344,11 +346,13 @@ export async function runLabIntro(h: IntroHost, o: { met?: boolean } = {}): Prom
       await h.go(s.room);
       h.aim(s.room, s.pose ?? 'room');
       if (s.act) { try { h.act(s.room, s.act); } catch (e) { console.warn('intro act', e); } }
-      await wait(s.pose && s.pose !== 'room' ? 1300 : i === 0 ? 900 : 600);
+      await wait(s.pose && s.pose !== 'room' && s.room === 'research' ? 1300 : i === 0 ? 900 : 600);
       cur = s;
       if (s.hot) h.point(s.room, s.hot);
-      for (const line of s.lines) {
+      for (let j = 0; j < s.lines.length; j++) {
+        const line = s.lines[j];
         if (quit) break;
+        if (j && s.poses?.[j]) h.aim(s.room, s.poses[j]!);
         sfx('tick', 0.4);
         const voiced = calderHas(line) && calderSay(line, { vol: 0.9 }) !== null;
         let n = 0;
