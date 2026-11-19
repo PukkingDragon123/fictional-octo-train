@@ -23,12 +23,13 @@ import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { sfx } from '../menus/sfx';
 import { mxOk } from '../machine/core';
-import { mxIconSpinWarm } from '../machine/decor';
+import { mxIconSpinWarm, mxIcon, type IconKind } from '../machine/decor';
+import { iconChip, nameTag } from '../iconChip';
 import { crtScreen, crtIcon, type Crt, type CrtIcon } from '../crt/crt';
 import { mxButton, mxKnob, mxToggleCanvas } from '../machine/kit';
 import { isTouchMode } from '../touch/mode';
 import { isLoading } from '../loading';
-import { purseLine } from '../../game/economy/money';
+import { dollars } from '../../game/economy/money';
 import { researchPoints } from '../../game/research';
 import { APPS, hookMail, mailCount, type AppDef } from './apps';
 import { appInstalled, hookAppInstalls } from './installed';
@@ -60,6 +61,8 @@ export class BandOS {
   private knob: ReturnType<typeof mxKnob> = null;
   private tog: ReturnType<typeof mxToggleCanvas> = null;
   private msgLamp!: HTMLElement;
+  private topNums!: { clock: HTMLElement; cr: HTMLElement; usd: HTMLElement; rp: HTMLElement };
+  private topKey = '';
   private sel = 0;
   private cur: Run | null = null;
   private busy = 0;
@@ -337,8 +340,12 @@ export class BandOS {
     this.crt?.dispose();
     this.crt = crtScreen({ phos: this.amber ? 'amber' : 'green' });
     this.crt.glass.classList.add('wt-glass');
+    // round 21: the top line is pictures and numbers: the open app's model, the clock, the debt or credits by a
+    // coin, the dollars by the ledger, the research points by a blueprint
     const top = el('div', 'wt-top');
-    this.topL = el('b'); this.topR = el('span');
+    this.topL = el('b', 'wt-tl'); this.topR = el('span', 'wt-tr');
+    const num = (k: IconKind, name: string) => { const g = el('span', 'wt-tn'); const ic = mxIcon(k, 14); if (ic) g.append(ic); const v = el('em'); g.append(v); nameTag(g, name, true); this.topR.append(g); return v; };
+    this.topNums = { clock: num('lamp', 'Shift clock'), cr: num('coin', 'Credits'), usd: num('ledger', 'Dollars'), rp: num('blueprint', 'Research points') };
     top.append(this.topL, this.topR);
     this.home = el('div', 'wt-home');
     this.appEl = el('div', 'wt-app');
@@ -395,14 +402,16 @@ export class BandOS {
     tw.addEventListener('click', () => { this.amber = !this.amber; store.set('band.phos', this.amber ? 'amber' : 'green'); tg?.flip(!this.amber); sfx('rocker', 0.6); this.applyLook(); this.crt.burst(0.4, 0.25); });
     this.lift.append(tw);
     // RESUME, SAVE, QUIT under the tube
-    const keyDefs: [string, () => void, 'olive' | 'yellow' | 'red', 'green' | 'amber' | 'red'][] = [
-      ['RESUME', () => this.hide(), 'olive', 'green'],
-      ['SAVE', () => void this.save(), 'yellow', 'amber'],
-      ['QUIT', () => void this.quit(), 'red', 'red'],
+    // round 21: the keys carry models on their caps (a play key, a tape, the door), their names only on hover
+    const keyDefs: [string, () => void, 'olive' | 'yellow' | 'red', 'green' | 'amber' | 'red', IconKind, string][] = [
+      ['RESUME', () => this.hide(), 'olive', 'green', 'play', 'Resume'],
+      ['SAVE', () => void this.save(), 'yellow', 'amber', 'tape', 'Save'],
+      ['QUIT', () => void this.quit(), 'red', 'red', 'door', 'Back to the lab'],
     ];
-    keyDefs.forEach(([label, fn, tone, lamp], i) => {
+    keyDefs.forEach(([label, fn, tone, lamp, ik, nm], i) => {
       const R = L.keys[i];
-      const b = mxButton(label, fn, { tone, lamp, w: R.w, h: R.h, cls: 'wt-key', sound: 'key' });
+      const b = mxButton('', fn, { tone, lamp, w: R.w, h: R.h, cls: 'wt-key', sound: 'key', icon: mxIcon(ik, Math.max(14, Math.min(26, R.h - 14))) });
+      nameTag(b, nm);
       Object.assign(b.style, { position: 'absolute', left: R.x + 'px', top: R.y + 'px' });
       if (label === 'SAVE' && G.role === 'client') { b.disabled = true; b.classList.add('off'); }
       this.lift.append(b);
@@ -512,24 +521,43 @@ export class BandOS {
   // ---------------------------------------------------------------- the lines on the tube
   private refreshTop() {
     if (!this.topL) return;
-    this.topL.textContent = this.cur ? this.cur.app.title.toUpperCase() : 'MI-7';
+    const tk = this.cur?.app.key ?? '';
+    if (tk !== this.topKey || !this.topL.firstChild) {
+      this.topKey = tk;
+      const ic = this.cur ? mxIcon(this.cur.app.icon, 16) : mxIcon('radio', 16);
+      this.topL.replaceChildren(...(ic ? [ic] : []));
+    }
     const c = G.clock as any;
     const hrs = c?.hours ?? 0;
     const d = (G as any).debt;
     let rp = 0;
     try { rp = researchPoints(); } catch { /* no profile */ }
     // numbers, not sentences: the debt as a negative, the purse, the clock (it runs: the band holds nothing)
-    const money = (d?.on && !d.cleared ? `-${Math.round(d.remaining ?? 0).toLocaleString('en-GB')} CR · ` : '') + purseLine(d?.on && d.cleared ? (d.surplus ?? 0) : null);
-    const clock = `D${c?.day ?? Math.floor(hrs / 24) + 1} ${String(Math.floor(hrs % 24)).padStart(2, '0')}:${String(Math.floor((hrs % 1) * 60)).padStart(2, '0')}`;
-    this.topR.textContent = this.L.kind === 'tall' ? clock : `${clock} · ${money}${money.includes('RP') ? '' : ` · ${rp} RP`}`;
+    const cr = d?.on ? (d.cleared ? Math.round(d.surplus ?? 0) : -Math.round(d.remaining ?? 0)) : null;
+    let usd = 0; try { usd = dollars(); } catch { /* no profile */ }
+    const clock = `${c?.day ?? Math.floor(hrs / 24) + 1}·${String(Math.floor(hrs % 24)).padStart(2, '0')}:${String(Math.floor((hrs % 1) * 60)).padStart(2, '0')}`;
+    const N = this.topNums, set = (e: HTMLElement, v: string | null) => { const t = v ?? ''; if (e.textContent !== t) e.textContent = t; (e.parentElement as HTMLElement).hidden = v === null; };
+    const tall = this.L.kind === 'tall';
+    set(N.clock, clock);
+    set(N.cr, tall || cr === null ? null : cr.toLocaleString('en-GB'));
+    N.cr.classList.toggle('neg', (cr ?? 0) < 0);
+    set(N.usd, tall ? null : '$' + usd.toLocaleString('en-GB'));
+    set(N.rp, tall ? null : String(rp));
   }
   private footLine() {
     if (!this.foot || this.lineT > 0) return;
     // keys, not sentences; in an app a soft key back to home (a phone has no Esc)
     this.foot.classList.remove('line');
     const touch = isTouchMode();
-    this.foot.innerHTML = this.cur ? `<button type="button" class="wt-back">&lt; HOME</button><span></span>${touch ? '' : '<kbd>ESC</kbd>'}` : `<span></span>${touch ? '' : '<kbd>1-9</kbd><kbd>ENTER</kbd><kbd>ESC</kbd>'}`;
-    this.foot.querySelector('.wt-back')?.addEventListener('click', () => this.back());
+    // round 21: no key legend: in an app a little model of the band's home key (its name on hover), and the app's own
+    // model; on home the foot is the tube's quiet status rule
+    void touch;
+    this.foot.replaceChildren();
+    if (this.cur) {
+      const hm = iconChip('radio', 'Home', () => this.back(), { size: this.L.kind === 'tall' ? 26 : 20, sound: 'back' });
+      hm.el.classList.add('wt-back');
+      this.foot.append(hm.el, el('span'));
+    } else this.foot.append(el('span'));
   }
   /** a line from the band: on the tube's foot line for a while, never a box */
   toast(text: string) {

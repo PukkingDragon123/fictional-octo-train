@@ -11,6 +11,24 @@ import { bus } from '../core/events';
 import { TUT } from '../game/tutorial/state';
 import { isTouchMode } from './touch/mode';
 import { capEl } from './menus/guide/tourArt';
+import { mxIconAnim, type IconKind } from './machine/decor';
+
+// round 21: no words: each hint is its key caps and a little 3D model of what the key does (a boot to walk, the lens
+// to scan, the lamp...), or for the moves a pixel pictogram (over a bar, under a bar, down), the model swaying
+const HINT_IC: Record<string, IconKind> = { move: 'boot', use: 'gear', scan: 'eye', lamp: 'lamp', build: 'wrench', watch: 'radio', pack: 'crate' };
+const PICTO: Record<string, string[]> = {
+  vault: ['....kkkk.....', '..kkyyyykk...', '.kyk....kyk..', 'kyk......kyk.', 'kyk.....kyyyk', '.......kkyyyk', 'kkkkkkkkkyk..', 'kbbbbbbbkk...', 'kkkkkkkkk....'],
+  crawl: ['kkkkkkkkkkkk.', 'kbbbbbbbbbbk.', 'kkkkkkkkkkkk.', 'k.........k..', '.........kk..', 'kkkkkkkkkyyk.', 'kyyyyyyyyyyyk', 'kkkkkkkkkyyk.', '.........kk..'],
+  crouch: ['...kkkkk...', '...kyyyk...', '...kyyyk...', '...kyyyk...', 'kkkkyyykkkk', '.kyyyyyyyk.', '..kyyyyyk..', '...kyyyk...', '....kyk....', '.....k.....', 'kkkkkkkkkkk', 'kbbbbbbbbbk', 'kkkkkkkkkkk'],
+};
+function picto(id: string): HTMLCanvasElement | null {
+  const rows = PICTO[id]; if (!rows) return null;
+  const q = 2, cv = document.createElement('canvas'); cv.width = rows[0].length * q; cv.height = rows.length * q;
+  const g = cv.getContext('2d')!, pal: Record<string, string> = { k: '#0b0a07', y: '#ffd27a', b: '#8a6a3a' };
+  rows.forEach((r, y) => [...r].forEach((ch, x) => { if (pal[ch]) { g.fillStyle = pal[ch]; g.fillRect(x * q, y * q, q, q); } }));
+  cv.className = 'kh-p';
+  return cv;
+}
 
 interface Hint { id: string; keys: string[]; word: string; done: string[]; when: (t: number) => boolean }
 const STORE = 'noclip.keyHints';
@@ -64,7 +82,10 @@ export function installKeyHints() {
 .kh .tcap { background-position: 0 0; filter: drop-shadow(0 3px 0 rgba(11, 10, 7, 0.6)); }
 .kh .tcap.hot { background-position: 0 calc(var(--ch) * -1); }
 .kh .tcap.down { background-position: 0 calc(var(--ch) * -2); }
-.kh span { margin-left: 6px; }`;
+.kh span { margin-left: 6px; }
+.kh .kh-i { display: inline-flex; margin-left: 8px; filter: drop-shadow(0 3px 0 rgba(11, 10, 7, .6)) drop-shadow(0 0 6px rgba(255, 190, 80, .35)); animation: kh-in .5s cubic-bezier(.2, .9, .3, 1.6) both; }
+.kh .kh-i canvas { display: block; image-rendering: pixelated; }
+@keyframes kh-in { from { transform: translateY(-10px) scale(.5) rotate(-20deg); opacity: 0; } to { transform: none; opacity: 1; } }`;
   document.head.append(style);
   let cur: Hint | null = null, shownT = 0, gap = 0, runT = 0, last = performance.now();
   const hide = (id: string) => { if (cur?.id === id) { el.classList.remove('on'); cur = null; gap = 4; } };
@@ -98,7 +119,12 @@ export function installKeyHints() {
     const h = HINTS.find((q) => !s.has(q.id) && (q.id === 'move' || s.has('move') || runT > 14) && q.when(runT));
     if (!h) return;
     cur = h; shownT = 0;
-    el.replaceChildren(...h.keys.map((k) => capEl(k, 2)), Object.assign(document.createElement('span'), { textContent: h.word }));
+    const ib = document.createElement('i'); ib.className = 'kh-i';
+    const k3 = HINT_IC[h.id] ? mxIconAnim(HINT_IC[h.id], 30) : null, pc = k3 ? null : picto(h.id);
+    if (k3) { ib.append(k3.cv); k3.hot(true); } else if (pc) ib.append(pc);
+    ib.setAttribute('aria-label', h.word);
+    // (without WebGL or a pictogram, the word stays)
+    el.replaceChildren(...h.keys.map((k) => capEl(k, 2)), ib.childNodes.length ? ib : Object.assign(document.createElement('span'), { textContent: h.word }));
     void el.offsetWidth;
     el.classList.add('on');
   } });

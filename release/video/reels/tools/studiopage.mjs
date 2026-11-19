@@ -81,3 +81,48 @@ export async function renderEndcard(reel, dur, fps, dir, link) {
     return n;
   } finally { await st.close(); }
 }
+
+// ------------------------------------------------------------------ the game itself (body beats)
+/** a clock the capture owns: performance.now and requestAnimationFrame run on it while it is on, so the
+ *  game's own loop (src/game/game.ts start()) advances exactly one frame per step; Math.random is seeded */
+const VCLOCK = `(() => {
+  const realNow = performance.now.bind(performance), realRaf = window.requestAnimationFrame.bind(window), realCaf = window.cancelAnimationFrame.bind(window);
+  const V = window.__vclock = { on: false, t: 0, q: new Map(), id: 1e6 };
+  performance.now = () => (V.on ? V.t : realNow());
+  window.requestAnimationFrame = (cb) => { if (!V.on) return realRaf(cb); const id = ++V.id; V.q.set(id, cb); return id; };
+  window.cancelAnimationFrame = (id) => { if (V.q.has(id)) V.q.delete(id); else realCaf(id); };
+  V.start = () => { if (V.on) return; V.t = realNow(); V.on = true; };
+  V.stop = () => { if (!V.on) return; V.on = false; const l = [...V.q.values()]; V.q.clear(); for (const cb of l) realRaf(cb); };
+  V.step = (dt) => { V.t += dt * 1000; const l = [...V.q.values()]; V.q.clear(); for (const cb of l) { try { cb(V.t); } catch (e) { console.error(e); } } };
+  let s = 0x9e3779b9;
+  V.seed = (n) => { s = (n >>> 0) || 1; };
+  Math.random = () => { s = (s + 0x6d2b79f5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+})();`;
+
+/** open the game (?quick) at w x h CSS px (dpr device px each) with the body scenes (studio/bodyScenes.ts);
+ *  returns begin(id, spec, dur), step(dt, at) -> jpeg Buffer of the scene's framing, close() */
+export async function openGame({ w = 405, h = 720, dpr = 2, seed = 1337 } = {}) {
+  const own = !shared;
+  const srv = await server();
+  const pw = await import(path.join(ROOT, 'node_modules/playwright-core/index.mjs'));
+  const exe = process.env.CHROME || '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+  const browser = await pw.chromium.launch({ executablePath: exe, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+  const close = async () => { await browser.close(); if (own) stopServer(); };
+  try {
+    const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: dpr });
+    page.setDefaultTimeout(900000);
+    page.on('pageerror', (e) => console.log('[game]', e.message));
+    page.on('console', (m) => { if (m.type() === 'error') console.log('[game]', m.text().slice(0, 300)); });
+    await page.addInitScript(VCLOCK);
+    await page.goto(`${srv.base}/?quick&seed=${seed}`, { waitUntil: 'load', timeout: 600000 });
+    await page.waitForFunction(() => window.__game?.local && window.__game.view, null, { polling: 1000, timeout: 900000 });
+    await page.evaluate(() => import('/release/video/reels/tools/studio/bodyScenes.ts').then((m) => m.install()));
+    const shot = async (clip) => page.screenshot({ type: 'jpeg', quality: 93, clip: clip ?? { x: 0, y: 0, width: w, height: h } });
+    return {
+      page, close,
+      begin: (id, spec, dur) => page.evaluate(([id, sp, d]) => window.__body.begin(id, sp, d), [id, spec, dur]),
+      async step(dt, at) { return shot(await page.evaluate(([dt, at]) => window.__body.step(dt, at ?? undefined), [dt, at ?? null])); },
+      end: () => page.evaluate(() => window.__body.end()),
+    };
+  } catch (e) { await close(); throw e; }
+}

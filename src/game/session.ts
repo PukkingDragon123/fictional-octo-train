@@ -251,6 +251,8 @@ export function startSession(o: SessionOpts): Game {
     const objs = interact.objectsNear(p, 1.6);
     if (objs.length) { interact.defaultAction(p, { kind: 'object', obj: objs[0], point: p.pos }); return; }
   };
+  // round 21: a clone banked in the lab's vat takes the death instead (the revive, src/game/clone)
+  import('./clone/clone').then((m) => m.installClone(g, p)).catch((e) => console.warn('clone', e));
   // the local survivor's death: the observation-room cinematic, the incident report, research points (src/ui/death)
   import('../ui/death').then((m) => m.installDeath(g, p)).catch((e) => {
     console.warn('death cinematic', e);

@@ -162,3 +162,28 @@ body:has(.wt.fp.on) #nc-touch { visibility: hidden; }
    at opacity 0 while the band is still settling, so every tab lists its controls at once */
 .wt .t-opt-page.t-page-in, .wt .t-opt-page.t-page-in-l { animation: none; }
 .wt .wt-ic[hidden] { display: none; }
+
+/* round 21: pictures and numbers instead of words. The top line: the open app's model, then the clock, the credits
+   (or the debt, in the accent), the dollars and the research points, each by its little model, toned to the tube */
+.wt .wt-tl { display: flex; align-items: center; min-width: 18px; }
+.wt .wt-tl canvas, .wt .wt-tn canvas { display: block; filter: var(--mono) brightness(1.2) drop-shadow(0 0 4px var(--glow)); }
+.wt .wt-tr { display: flex; justify-content: flex-end; align-items: center; gap: 12px; overflow: visible; }
+.wt .wt-tn { position: relative; display: inline-flex; align-items: center; gap: 3px; color: var(--ph); }
+.wt .wt-tn[hidden] { display: none; }
+.wt .wt-tn em { font-style: normal; }
+.wt .wt-tn em.neg { color: var(--acc); text-shadow: 0 0 6px var(--acc-dim); }
+.wt .wt-tn:hover canvas { transform: translateY(-2px) rotate(-6deg); }
+.wt .wt-top { overflow: visible; position: relative; z-index: 3; }
+.wt .wt-back.ic21 { padding: 0 4px; box-shadow: none; background: none; }
+.wt .wt-back.ic21:hover { background: none; }
+.wt .wt-back.ic21 .ic21-n { bottom: auto; top: auto; left: calc(100% + 6px); transform: translate(0, 0); }
+.wt .wt-back.ic21:hover .ic21-n { transform: translate(0, 0); }
+/* the case's keys: the model in the middle of the cap, the name over the key in the case's amber */
+.wt .wt-key.has-i > .mxi-cv { right: auto; left: 50%; transform: translate(calc(-50% + var(--mx-dx, 0px)), calc(-50% + var(--mx-dy, 0px))); transition: filter .1s; }
+.wt .wt-key.has-i.mx-hot > .mxi-cv { filter: brightness(1.3) drop-shadow(0 0 5px rgba(255, 210, 110, .6)); }
+.wt .wt-key > .ic21-n { color: #ffd98a; text-shadow: 0 1px 0 #b0701c, 0 2px 0 #7a4a10, 0 3px 0 #4a2c08, 1px 1px 0 #1a1004, -1px -1px 0 #1a1004, 1px -1px 0 #1a1004, -1px 1px 0 #1a1004, 0 5px 6px rgba(0, 0, 0, .65); }
+/* the apps' tab and action keys are models now: a row of them, the picked tab lit */
+.wt .bos-tabs.ic, .wt .bos-keys.ic { gap: 10px; align-items: center; padding-top: 14px; }
+.wt .bos-keys.ic { padding-top: 18px; }
+.wt .bos-empty { display: flex; align-items: center; justify-content: center; padding: 18px 0; opacity: .35; }
+.wt .bos-empty canvas { filter: var(--mono); }

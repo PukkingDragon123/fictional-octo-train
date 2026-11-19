@@ -8,6 +8,20 @@
 //   setTrackerTimer(endTime | null)   a deadline in game seconds (G.time) for the tracked job
 import { G } from '../game/G';
 import type { QuestRuntime } from '../missions/questRuntime';
+import { mxIconAnim, type IconKind } from './machine/decor';
+
+// round 21: the icons lead: a little 3D model of what the step asks for (a crate to carry, a lens to search, the press,
+// a boot to go somewhere...) turns in front of the line, and sways when the step changes
+const STEP_IC: [RegExp, IconKind][] = [
+  [/\bpress|hopper|crush|feed it/i, 'gear'], [/\bcarry|bring|deliver|haul|hand in|drop off/i, 'crate'], [/\bscan/i, 'eye'],
+  [/\bsample|specimen|jar|residue/i, 'jar'], [/\bfind|search|look|locate|explore|loot/i, 'lens'], [/\bkill|destroy|survive|escape|flee|hide/i, 'skull'],
+  [/\btalk|call|report|radio|speak|phone/i, 'walkie'], [/\brepair|fix|build|craft|make|assemble/i, 'wrench'], [/\bpower|generator|fuse|switch|wire/i, 'bolt'],
+  [/\bunlock|key|open|door/i, 'key'], [/\bpay|credit|money|sell|buy|debt/i, 'coin'], [/\bread|note|document|paper|file/i, 'dossier'],
+  [/\bgo |reach|walk|enter|exit|leave|return|head /i, 'boot'],
+];
+const stepIcon = (t: string): IconKind => STEP_IC.find(([rx]) => rx.test(t))?.[1] ?? 'compass';
+const icCache = new Map<IconKind, ReturnType<typeof mxIconAnim>>();
+function leadIcon(k: IconKind) { if (!icCache.has(k)) icCache.set(k, mxIconAnim(k, 22)); return icCache.get(k) ?? null; }
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 const clean = (s: string) => s.replace(/\s*\([^)]*\)/g, '').split(/\s*[:;]\s*/)[0].trim();
@@ -47,6 +61,9 @@ export function installQuestTracker() {
   font-family: var(--font-new); font-size: 17px; line-height: 1; color: #f4ead0; opacity: 0; transition: opacity .3s ease, transform .3s ease;
   text-shadow: 2px 2px 0 #0b0a07, -1px -1px 0 #0b0a07, 1px -1px 0 #0b0a07, -1px 1px 0 #0b0a07, 0 3px 0 rgba(0,0,0,.35); }
 .qtk.on { opacity: 1; transform: translate(-50%, 0); }
+.qtk .qtk-i { display: inline-flex; width: 28px; height: 28px; margin: -6px -2px -6px 0; filter: drop-shadow(1px 1px 0 #0b0a07) drop-shadow(0 0 5px rgba(255, 190, 80, .35)); }
+.qtk .qtk-i canvas { display: block; }
+.qtk.flash .qtk-i { animation: qtk-pop .5s steps(6) both; }
 .qtk img { width: 14px; height: 14px; image-rendering: pixelated; filter: drop-shadow(1px 1px 0 #0b0a07); }
 .qtk .qtk-l { animation: qtk-blink 2.4s steps(1) infinite; }
 @keyframes qtk-blink { 90% { opacity: .45; } }
@@ -78,7 +95,8 @@ export function installQuestTracker() {
       if (s === sig) return;
       sig = s;
       el!.className = 'qtk lp-track flash t-' + (flash.tone ?? 'up') + (busy ? '' : ' on');
-      el!.innerHTML = `<img class="qtk-l" src="${flash.tone === 'ok' ? LAMP_G : LAMP}" alt=""><b>${esc(flash.title)}</b>${flash.step ? `<em>${esc(clean(flash.step))}</em>` : ''}`;
+      el!.innerHTML = `<span class="qtk-i"></span><img class="qtk-l" src="${flash.tone === 'ok' ? LAMP_G : LAMP}" alt=""><b>${esc(flash.title)}</b>${flash.step ? `<em>${esc(clean(flash.step))}</em>` : ''}`;
+      lead(flash.step ? stepIcon(flash.step) : flash.tone === 'ok' ? 'key' : 'clipboard');
       return;
     }
     if (el!.classList.contains('flash')) el!.className = 'qtk lp-track' + (el!.classList.contains('on') ? ' on' : '');
@@ -92,8 +110,18 @@ export function installQuestTracker() {
     const s = [v.title, step?.text ?? '', mm, left !== null && left < 120 ? 1 : 0].join('|');
     if (s === sig) return;
     sig = s;
-    el!.innerHTML = `<img class="qtk-l" src="${LAMP}" alt=""><b>${esc(v.title)}</b>${step ? `<em>${esc(clean(step.text))}</em>` : ''}${mm ? `<span class="qtk-t${left! < 120 ? ' late' : ''}"><img src="${WATCH}" alt="">${mm}</span>` : ''}`;
+    el!.innerHTML = `<span class="qtk-i"></span><b>${esc(v.title)}</b>${step ? `<em>${esc(clean(step.text))}</em>` : ''}${mm ? `<span class="qtk-t${left! < 120 ? ' late' : ''}"><img src="${WATCH}" alt="">${mm}</span>` : ''}`;
+    lead(stepIcon(step?.text ?? v.title));
   } });
+}
+/** put the step's model in front of the line; a new step makes it sway a moment */
+let leadK = '';
+function lead(k: IconKind) {
+  const slot = el?.querySelector('.qtk-i');
+  const ic = leadIcon(k);
+  if (!slot || !ic) return;
+  slot.replaceChildren(ic.cv);
+  if (k !== leadK) { leadK = k; ic.hot(true); setTimeout(() => ic.hot(false), 1400); }
 }
 /** the tracker's element (for a spotlight) */
 export function trackerEl(): HTMLElement | null { return el; }

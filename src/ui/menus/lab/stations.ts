@@ -11,8 +11,9 @@ import { dollars, spendDollars } from '../../../game/economy/money';
 import { file } from '../../../game/meridian';
 import { bankTotal } from '../../../game/economy/matter';
 import type { IconKind } from '../../machine/decor';
+import { hasUnlock } from '../../../game/research';
 
-export type StationKey = 'archive' | 'lattice' | 'fridge' | 'talent' | 'req' | 'commissary' | 'jukebox' | 'decorate' | 'filament' | 'printer';
+export type StationKey = 'archive' | 'lattice' | 'fridge' | 'talent' | 'req' | 'commissary' | 'jukebox' | 'decorate' | 'filament' | 'printer' | 'clone';
 export interface StationDef {
   key: StationKey; name: string; cost: number; icon: IconKind;
   /** what it does, in a few words (the install's line) */
@@ -35,9 +36,11 @@ export const STATIONS: StationDef[] = [
   // round 20: the fab bay in the control room (src/ui/menus/fab): the press only takes now; these two make things
   { key: 'filament', name: 'Filament maker', cost: 45, icon: 'reel', gives: 'banked matter into spools', ready: () => runs() > 0 || bankTotal() > 0, need: 'bank matter at the press' },
   { key: 'printer', name: 'Printer', cost: 70, icon: 'gear', gives: 'spools into researched patterns', ready: () => isUnlocked('lab:filament'), need: 'build the filament maker' },
+  // round 21: the clone vat (src/game/clone): researched on the lattice first; a spare body for the next death
+  { key: 'clone', name: 'Clone vat', cost: 90, icon: 'jar', gives: 'a spare body: the next death walks out of the vat', ready: () => hasUnlock('clone_vat'), need: 'research the clone vat' },
 ];
 /** round 20: stations an old save never had, so the round 19 catch-up does not hand them over (they are built) */
-const NEW_IN_20 = new Set<StationKey>(['filament', 'printer']);
+const NEW_IN_20 = new Set<StationKey>(['filament', 'printer', 'clone']);
 export const station = (k: StationKey) => STATIONS.find((s) => s.key === k)!;
 
 /** saves from before this round keep everything: any progress on file means the lab was already built */

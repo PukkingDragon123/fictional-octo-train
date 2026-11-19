@@ -50,6 +50,7 @@ import { TalentBench } from './talentBench';
 import { built, can, station, onLab, STATIONS, type StationKey } from '../lab/stations';
 import { buildSite, buildDressing, startRise, stepRise, type Rise } from '../lab/site';
 import { FabBay } from '../fab/bay';
+import { CloneStation } from '../../../game/clone/station';
 /** is o inside g (or g itself) */
 const isUnder = (o: THREE.Object3D, g: THREE.Object3D) => { for (let x: THREE.Object3D | null = o; x; x = x.parent) if (x === g) return true; return false; };
 import type { Sample } from '../../../game/codex';
@@ -72,6 +73,8 @@ const TABLE = new THREE.Vector3(0.35, 0.94, -0.55);
 const CENTRI = new THREE.Vector3(W - 0.42, 0.92, -0.95);
 const SEQ = new THREE.Vector3(2.05, 0, BACK + 0.4);
 const PEG = new THREE.Vector3(W - 0.03, 1.45, 1.55);
+/** round 21: the clone vat's spot on the floor */
+const CLONE_AT = { x: W - 0.72, z: 0.42 };
 /** the observation window in the right wall over the centrifuge bench, and the holding chamber behind it */
 const OBS = { z: -1.5, y: 1.78, w: 1.6, h: 1.05 };
 // (it runs back past the room's own back wall: from the room's camera the window looks into its far end)
@@ -145,6 +148,8 @@ export class ResearchLab implements StageRoom {
   talent!: TalentBench;
   /** round 20: the fab bay on the front wall: the filament maker and the printer (../fab/bay.ts) */
   fab!: FabBay;
+  /** round 21: the clone vat against the right wall (src/game/clone) */
+  clone!: CloneStation;
   // the fridge's racks
   private racks: { mesh: THREE.InstancedMesh; kind: string }[] = [];
   private rackSlots: THREE.Vector3[] = [];
@@ -190,7 +195,10 @@ export class ResearchLab implements StageRoom {
     this.fab.project = (p) => this.talent.project?.(p) ?? null;
     this.fab.onFocus = (on) => this.onBench?.(on);
     S.add(this.fab.group);
-    this.stationG = { lattice: [cw], fridge: [fr, hood, scope], talent: [this.talent.group], req: [peg], filament: [this.fab.filamentGroup], printer: [this.fab.printerGroup] };
+    this.clone = new CloneStation(this.mats, this.hots, { x: CLONE_AT.x, z: CLONE_AT.z, ry: -Math.PI / 2, ceiling: H });
+    this.clone.say = (t) => (window as unknown as { __deco?: { guide?: { now?: (t: string) => void } } }).__deco?.guide?.now?.(t);
+    S.add(this.clone.group);
+    this.stationG = { lattice: [cw], fridge: [fr, hood, scope], talent: [this.talent.group], req: [peg], filament: [this.fab.filamentGroup], printer: [this.fab.printerGroup], clone: [this.clone.group] };
     // round 18: the guided tour's look at the bench, from wherever it stands (into the room from it, a little above)
     { const tb = new THREE.Box3().setFromObject(this.talent.group), c = tb.getCenter(new THREE.Vector3());
       if (!tb.isEmpty()) POSES.talent = P([c.x + 2.1, c.y + 0.75, c.z - 0.7], [c.x, c.y - 0.05, c.z], 52); }
@@ -1064,6 +1072,7 @@ export class ResearchLab implements StageRoom {
     if (this.bench?.usesScreen && this.readouts[0]) this.readouts[0].tex.needsUpdate = true;
     this.lattice.update(dt, t, full);
     this.talent.update(dt, t, full, this.cam, !!this.lattice.active);
+    if (built('clone') || this.rises.some((r) => r.k === 'clone')) this.clone.update(dt, t);
     this.fab.aside(this.pose === 'fab' || this.fab.active);
     this.fab.update(dt, t, this.cam, { filament: built('filament') && !this.rises.some((r) => r.k === 'filament'), printer: built('printer') && !this.rises.some((r) => r.k === 'printer') }, !!this.lattice.active || this.talent.active);
     if (full && Math.random() < dt * 0.8) this.puffs.emit(this.v.set(HOOD.x + 0.1, 1.95, HOOD.z + (Math.random() - 0.5) * 0.8), new THREE.Vector3(0, 0.25, 0), { life: 2.2, s0: 0.01, s1: 0.03, color: 0xd8f0e8, rise: 0.3 });

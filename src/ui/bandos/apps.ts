@@ -4,7 +4,8 @@
 // computer (src/ui/menus/research/lattice.ts).
 import { G } from '../../game/G';
 import { bus } from '../../core/events';
-import type { IconKind } from '../machine/decor';
+import { mxIcon, type IconKind } from '../machine/decor';
+import { iconChip } from '../iconChip';
 import type { WinApi } from './bandos';
 import { statusPage, crewPage } from '../menus/pause';
 import { optionsPanel, controlsPanel } from '../menus/common';
@@ -27,6 +28,14 @@ export interface AppDef {
 const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
 const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' } as Record<string, string>)[c]);
 const btn = (label: string, fn: () => void, cls = '') => { const b = el('button', 'bos-btn ' + cls, esc(label)) as HTMLButtonElement; b.type = 'button'; b.addEventListener('click', fn); return b; };
+/** round 21: a key as a little 3D model, its name on hover, a count on its corner, lit while it is the one picked */
+const ibtn = (kind: IconKind, name: string, fn: () => void, o: { on?: boolean; num?: number | string | null; size?: number; sound?: 'click' | 'toggle' | 'tab' | 'confirm' | 'back' } = {}) => {
+  const c = iconChip(kind, name, fn, { size: o.size ?? 26, below: true, num: o.num ?? null, sound: o.sound ?? 'tab' });
+  if (o.on !== undefined) c.set(o.on);
+  return c.el;
+};
+/** an empty list: the tab's own model, faint (no sentence) */
+const empty = (kind: IconKind) => { const d = el('div', 'bos-empty'); const ic = mxIcon(kind, 44); if (ic) d.append(ic); return d; };
 const Q = () => G.missions?.quests as QuestRuntime | undefined;
 
 // ---------------------------------------------------------------- Calder's lines and the papers read, for Mail
@@ -67,7 +76,7 @@ export const APPS: AppDef[] = [
       if (!q) { w.body.append(el('p', 'bos-p', 'No feed from the Institute here.')); return; }
       let tab: 'active' | 'offers' | 'done' = q.list('active').length ? 'active' : 'offers';
       let sel = '', sig = '';
-      const tabs = el('div', 'bos-tabs'), split = el('div', 'bos-split'), list = el('div', 'bos-list'), pane = el('div', 'bos-pane');
+      const tabs = el('div', 'bos-tabs ic'), split = el('div', 'bos-split'), list = el('div', 'bos-list'), pane = el('div', 'bos-pane');
       split.append(list, pane);
       w.body.append(tabs, split);
       const act = (k: string, a: 'accept' | 'decline' | 'pay' | 'abandon') => { const err = q.request(k, a); if (err) w.os.toast(err); sig = ''; };
@@ -76,7 +85,8 @@ export const APPS: AppDef[] = [
         const s = [tab, sel, ...views.map((v) => v.key + v.status + v.objectives.map((o) => Math.round(o.prog * 10)).join('') + v.affordable), q.focus()].join('|');
         if (s === sig) return;
         sig = s;
-        tabs.replaceChildren(...(['active', 'offers', 'done'] as const).map((t) => { const n = q.list(t).length; const b = btn(`${t === 'active' ? 'Work' : t === 'offers' ? 'Offers' : 'Filed'} ${n || ''}`, () => { tab = t; sel = ''; sig = ''; render(); }, t === tab ? 'on' : ''); return b; }));
+        const TAB: Record<string, [IconKind, string]> = { active: ['wrench', 'Work'], offers: ['ledger', 'Offers'], done: ['dossier', 'Filed'] };
+        tabs.replaceChildren(...(['active', 'offers', 'done'] as const).map((t) => ibtn(TAB[t][0], TAB[t][1], () => { tab = t; sel = ''; sig = ''; render(); }, { on: t === tab, num: q.list(t).length || null })));
         if (!views.find((v) => v.key === sel)) sel = views[0]?.key ?? '';
         list.replaceChildren(...views.map((v) => {
           const b = el('button', 'bos-li' + (v.key === sel ? ' on' : '') + (v.status === 'ready' ? ' ready' : '') + (q.fresh?.has?.(v.key) ? ' fresh' : '')) as HTMLButtonElement;
@@ -87,7 +97,7 @@ export const APPS: AppDef[] = [
           b.addEventListener('click', () => { sel = v.key; sig = ''; render(); });
           return b;
         }));
-        if (!views.length) list.append(el('p', 'bos-dim', tab === 'offers' ? 'Nothing on offer.' : tab === 'active' ? 'No work taken.' : 'Nothing filed yet.'));
+        if (!views.length) list.append(empty(tab === 'offers' ? 'ledger' : tab === 'active' ? 'wrench' : 'dossier'));
         const v = views.find((x) => x.key === sel);
         pane.replaceChildren(...(v ? detail(v) : []));
       };
@@ -99,12 +109,14 @@ export const APPS: AppDef[] = [
         out.push(ol);
         if (v.rewardText) out.push(el('p', 'bos-rew', `+ ${esc(v.rewardText)}`));
         if (v.costText) out.push(el('p', 'bos-dim', `- ${esc(v.costText)}`));
-        const keys = el('div', 'bos-keys');
-        if (v.status === 'new') keys.append(btn('Accept', () => act(v.key, 'accept'), 'go'), btn('Decline', () => act(v.key, 'decline')));
-        else if (v.status === 'ready') keys.append(btn('Pay and settle', () => act(v.key, 'pay'), v.affordable ? 'go' : 'off'));
+        // round 21: the job's keys are models: take it (a play key), turn it down (the door), settle (a coin), track it
+        // (the compass, lit while it is the tracked one), drop it (the canister)
+        const keys = el('div', 'bos-keys ic');
+        if (v.status === 'new') keys.append(ibtn('play', 'Accept', () => act(v.key, 'accept'), { size: 32, sound: 'confirm' }), ibtn('door', 'Decline', () => act(v.key, 'decline'), { size: 32, sound: 'back' }));
+        else if (v.status === 'ready') keys.append(ibtn('coin', 'Pay and settle', () => act(v.key, 'pay'), { size: 32, on: !!v.affordable, sound: 'confirm' }));
         if (v.status !== 'new' && v.status !== 'done') {
           const tracked = q.focus() === v.key;
-          keys.append(btn(tracked ? 'Tracking' : 'Track', () => { trackQuest(tracked ? null : v.key); sig = ''; render(); }, tracked ? 'on' : ''), btn('Abandon', () => act(v.key, 'abandon'), 'stop'));
+          keys.append(ibtn('compass', tracked ? 'Tracking' : 'Track', () => { trackQuest(tracked ? null : v.key); sig = ''; render(); }, { size: 32, on: tracked, sound: 'toggle' }), ibtn('skull', 'Abandon', () => act(v.key, 'abandon'), { size: 32, sound: 'back' }));
         }
         out.push(keys);
         return out;
@@ -134,21 +146,21 @@ export const APPS: AppDef[] = [
     build(w) {
       hookMail();
       let folder: 'calder' | 'docs' = 'calder', sel = -1, sig = '';
-      const tabs = el('div', 'bos-tabs'), split = el('div', 'bos-split'), list = el('div', 'bos-list'), pane = el('div', 'bos-pane');
+      const tabs = el('div', 'bos-tabs ic'), split = el('div', 'bos-split'), list = el('div', 'bos-list'), pane = el('div', 'bos-pane');
       split.append(list, pane); w.body.append(tabs, split);
       const render = () => {
         const s = folder + sel + LINES.length + ':' + DOCS.length;
         if (s === sig) return; sig = s;
-        tabs.replaceChildren(btn(`Dr. Calder ${LINES.length || ''}`, () => { folder = 'calder'; sel = -1; sig = ''; render(); }, folder === 'calder' ? 'on' : ''), btn(`Documents ${DOCS.length || ''}`, () => { folder = 'docs'; sel = -1; sig = ''; render(); }, folder === 'docs' ? 'on' : ''));
+        tabs.replaceChildren(ibtn('phone', 'Dr. Calder', () => { folder = 'calder'; sel = -1; sig = ''; render(); }, { on: folder === 'calder', num: LINES.length || null }), ibtn('dossier', 'Documents', () => { folder = 'docs'; sel = -1; sig = ''; render(); }, { on: folder === 'docs', num: DOCS.length || null }));
         if (folder === 'calder') {
           list.replaceChildren(...LINES.map((m, i) => { const b = el('button', 'bos-li' + (i === sel ? ' on' : '')) as HTMLButtonElement; b.type = 'button'; const w4 = m.text.split(/\s+/).slice(0, 4).join(' '); b.innerHTML = `<b>${esc(m.t)}</b><small>${esc(w4)}${m.text.length > w4.length ? '…' : ''}</small>`; b.addEventListener('click', () => { sel = i; sig = ''; render(); }); return b; }));
-          if (!LINES.length) list.append(el('p', 'bos-dim', 'Nothing from Dr. Calder yet this shift.'));
+          if (!LINES.length) list.append(empty('phone'));
           const m = LINES[sel] ?? LINES[0];
           pane.replaceChildren(...(m ? [el('h3', 'bos-h', 'Dr. Iris Calder'), el('p', 'bos-dim', esc(m.t)), el('p', 'bos-p', esc(m.text))] : []));
         } else {
           const docs = DOCS;
           list.replaceChildren(...docs.map((id, i) => { const L = lore(id); const b = el('button', 'bos-li' + (i === sel ? ' on' : '')) as HTMLButtonElement; b.type = 'button'; b.innerHTML = `<b>${esc(L?.title ?? id)}</b>`; b.addEventListener('click', () => { sel = i; sig = ''; render(); }); return b; }));
-          if (!docs.length) list.append(el('p', 'bos-dim', 'Papers the unit reads are filed here.'));
+          if (!docs.length) list.append(empty('dossier'));
           const L = lore(docs[sel] ?? docs[0]);
           pane.replaceChildren(...(L ? [el('h3', 'bos-h', esc(L.title)), el('pre', 'bos-doc', esc(L.text))] : []));
         }
@@ -165,10 +177,10 @@ export const APPS: AppDef[] = [
   {
     key: 'settings', title: 'Settings', sub: 'sound · picture · interface · keys', icon: 'wrench', w: 720, h: 520,
     build(w) {
-      const tabs = el('div', 'bos-tabs'), body = el('div', 'bos-crt bos-set');
+      const tabs = el('div', 'bos-tabs ic'), body = el('div', 'bos-crt bos-set');
       w.body.append(tabs, body);
       const show = (k: 'options' | 'controls') => {
-        tabs.replaceChildren(btn('Options', () => show('options'), k === 'options' ? 'on' : ''), btn('Controls', () => show('controls'), k === 'controls' ? 'on' : ''));
+        tabs.replaceChildren(ibtn('gear', 'Options', () => show('options'), { on: k === 'options' }), ibtn('joystick', 'Controls', () => show('controls'), { on: k === 'controls' }));
         body.replaceChildren(k === 'options' ? optionsPanel({ inGame: true }) : controlsPanel());
       };
       show('options');

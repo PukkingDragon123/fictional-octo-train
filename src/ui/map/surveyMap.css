@@ -5,11 +5,20 @@
 .map15.on { display: flex; animation: map15-in .32s cubic-bezier(.16,.84,.24,1) both; }
 @keyframes map15-in { from { opacity: 0; transform: scale(1.02); } to { opacity: 1; transform: none; } }
 .map15-plot { position: relative; width: min(1080px, 92vw); height: min(700px, 84vh); box-sizing: border-box; padding: 24px 28px 22px; display: flex; flex-direction: column; gap: 6px; }
-.map15-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 6px; color: #ffcf6a; text-shadow: 0 0 8px rgba(255,180,70,.35), 1px 1px 0 #050404; }
-.map15-head b { font-weight: normal; font-size: 24px; letter-spacing: .04em; }
-.map15-head small { font-size: 14px; letter-spacing: .2em; text-transform: uppercase; color: rgba(255,207,106,.6); }
-.map15-cv { flex: 1; min-height: 0; width: 100%; image-rendering: pixelated; cursor: crosshair; }
-.map15-foot { padding: 0 6px 4px; font-size: 14px; letter-spacing: .1em; color: rgba(255,207,106,.55); text-shadow: 1px 1px 0 #050404; text-align: right; }
+.map15-cv { flex: 1; min-height: 0; width: 100%; image-rendering: pixelated; cursor: crosshair; touch-action: none; }
+.map15-cv.grab { cursor: grabbing; }
+/* round 21: the hood's row of little 3D models (layers, the level, the zoom knob), no words */
+.map15-rail { position: absolute; left: 30px; top: -36px; z-index: 5; display: flex; align-items: center; gap: 4px; height: 40px; }
+.map15-rail.in > * { animation: map15-pop .42s cubic-bezier(.2,.9,.3,1.6) both; }
+@keyframes map15-pop { from { opacity: 0; transform: translateY(-14px) scale(.6) rotate(-14deg); } to { opacity: 1; transform: none; } }
+.map15-sep { width: 3px; height: 26px; margin: 0 6px; background: linear-gradient(90deg, #14160c 0 1px, #7a865a 1px 2px, #262c18 2px); box-shadow: 0 2px 0 rgba(0,0,0,.4); }
+.map15-knob { margin-left: 8px; padding: 0; touch-action: none; }
+.map15-knob > canvas { display: block; }
+.map15-knob:hover, .map15-knob:focus-visible { transform: translateY(-2px) scale(1.06); }
+/* without the 3D housing the row sits on the glass */
+.map15-plot:not(.mx) .map15-rail { position: static; height: auto; }
+/* in the band's Map app the row sits over the plot's top left corner */
+.map15-rail.emb { left: 6px; top: 4px; height: auto; }
 /* round 16: the 3D plotter housing grows round the plot (src/ui/machine) */
 .map15-plot.mx { width: min(1040px, calc(92vw - 24px)); height: min(640px, calc(84vh - 50px)); padding: 16px 16px 8px; margin-top: 10px; }
 .map15-plot.mx .map15-cv { background: #070a06; }

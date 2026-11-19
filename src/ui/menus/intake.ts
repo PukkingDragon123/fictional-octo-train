@@ -44,6 +44,7 @@ import { chipUrl, shortView } from './btnKit';
 import { chevron, diamond } from './creator/sprites';
 import { runOp, TOOL_NAME, type OpDef } from './creator/ops';
 import { playGame, autoPlay, type Grade } from './creator/qte';
+import { ARCHETYPES, archetype, archetypesOwned, archetypeStats } from '../../game/archetypes';
 import './noir.css';
 import './creator/creator.css';
 
@@ -99,7 +100,9 @@ interface Fit { limbs: Partial<Record<CyberSlot, string>>; chips: string[] }
 const fitOf = (a: Appearance): Fit => ((a as any).__fit as Fit) ?? { limbs: {}, chips: [] };
 const withFit = (a: Appearance, f: Fit) => { (a as any).__fit = f; };
 /** the look without the fit (what the rig and the save get) */
-const lookOf = (a: Appearance): Appearance => { const { __fit, ...look } = a as any; void __fit; return look as Appearance; };
+const lookOf = (a: Appearance): Appearance => { const { __fit, __arch, ...look } = a as any; void __fit; void __arch; return look as Appearance; };
+/** round 21: the archetype imprinted on the unit (src/game/archetypes.ts), carried on the preview like the fit */
+const archOf = (a: Appearance) => archetype((a as any).__arch);
 /** the unit as the unit room keeps it: the issue suit, the designs, the fitted limbs */
 export function unitOutfit(app: Appearance, inspect = false, limbs?: Partial<Record<CyberSlot, string>>): Outfit {
   const o = prisonerOutfitFor(app, inspect);
@@ -174,6 +177,8 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
     // the designs picked in the Meridian file (researched, or earned) go on at intake; the fitted chips and limbs come with them
     app.cos = wornCos();
     withFit(app, { limbs: fittedLimbs(), chips: fittedChips() });
+    // round 21: the last archetype imprinted stays on the press for the next unit
+    try { const k = localStorage.getItem('noclip.arch'); if (k && archetypesOwned().some((q) => q.key === k)) (app as any).__arch = k; } catch { /* private mode */ }
     /** the look as operated so far (app is the live preview) */
     let done: Appearance = { ...app };
     const name = randomName();
@@ -307,6 +312,13 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
       cos_face: designLine('face', 'Mask', 'mouth', { tool: 'clamp', anchor: 'mouth', game: 'hold', verb: 'Fit', shot: 'mouth', does: 'straps the mask on' }),
       cos_neck: designLine('neck', 'Neck', 'neck', { tool: 'clamp', anchor: 'neck', game: 'hold', verb: 'Fit', shot: 'neck', does: 'fastens it round the neck' }),
       cos_back: designLine('back', 'Back', 'body', { tool: 'welder', anchor: 'chest', game: 'rhythm', beats: 4, tempo: 100, verb: 'Weld', shot: 'body', does: 'bolts the kit to the back' }),
+      // round 21: who the unit was (an occupation and a gift and a flaw), imprinted through the spine port
+      arch: { id: 'arch', label: 'Archetype', shot: 'full',
+        list: () => archetypesOwned().map((q) => ({ name: q.name, chip: q.color })),
+        get: (a) => Math.max(0, archetypesOwned().indexOf(archOf(a))),
+        set: (a, i) => { (a as any).__arch = (archetypesOwned()[i] ?? ARCHETYPES[0]).key; },
+        hint: () => { const q = archOf(app); const n = ARCHETYPES.length - archetypesOwned().length; return archetypeStats(q) + (n ? ` · ${n} more on file` : ''); },
+        op: { tool: 'injector', anchor: 'neck', game: 'hold', verb: 'Imprint', shot: 'neck', does: 'imprints who they were through the spine port' } },
       hw_eyes: limbLine('eyes', 'Optic', 'eyes', 'eyes'),
       hw_jaw: limbLine('jaw', 'Jaw', 'mouth', 'chin'),
       hw_spine: limbLine('spine', 'Spine', 'neck', 'neck'),
@@ -330,7 +342,7 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
       Z('mouth', 'Nose & mouth', 'and what grows round it', 'mouth', 'mouth', ['nose', 'mouth', 'beard', 'cos_face', 'hw_jaw']),
       Z('marks', 'Marks', 'what the years left', 'marks', 'cheek', ['scars', 'freckles']),
       Z('neck', 'Neck & spine', 'the chip sockets in the spine port', 'neck', 'neck', [...chips, 'hw_spine', 'cos_neck', 'cos_back']),
-      Z('body', 'Body', 'the frame, the skin, the suit', 'full', 'chest', ['frame', 'build', 'height', 'tone', 'cos_suit', 'hw_skin']),
+      Z('body', 'Body', 'the frame, the skin, the suit', 'full', 'chest', ['arch', 'frame', 'build', 'height', 'tone', 'cos_suit', 'hw_skin']),
       Z('armL', 'Left arm', 'flesh, or hardware', 'armL', 'armL', ['hw_arm_l', 'hw_hand_l']),
       Z('armR', 'Right arm', 'flesh, or hardware', 'armR', 'armR', ['hw_arm_r', 'hw_hand_r']),
       Z('legL', 'Left leg', 'flesh, or hardware', 'legL', 'thigh', ['hw_leg_l']),
@@ -699,7 +711,9 @@ export function intakeForm(opts0: { title?: string; sandbox?: boolean; directive
       await new Promise((r) => setTimeout(r, 500));
       sfx('shutter'); stage.flashOnce();
       await new Promise((r) => setTimeout(r, 1400));
-      close({ name: name.slice(0, 24), app: { ...lookOf(app), cos: wornCos() }, occupation: 'unemployed', traits: [], sandbox: { ...sb }, seed, directives });
+      const ar = archOf(done);
+      try { localStorage.setItem('noclip.arch', ar.key); } catch { /* private mode */ }
+      close({ name: name.slice(0, 24), app: { ...lookOf(app), cos: wornCos() }, occupation: ar.occupation, traits: [...ar.traits], sandbox: { ...sb }, seed, directives });
     };
     const leave = async () => {
       closing = true; phase = 'out'; root.dataset.phase = 'out';

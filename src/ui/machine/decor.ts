@@ -710,7 +710,15 @@ export type IconKind = 'gear' | 'wrench' | 'play' | 'tape' | 'clipboard' | 'door
   // the lab menus' hub: a rolled blueprint, the commissary's ledger and coin tin, Dr. Calder's desk telephone (and off the hook)
   | 'blueprint' | 'ledger' | 'phone' | 'phoneOff'
   // the title's keys: the link rig's shock plug, a tape reel, a walkie-talkie, a joystick, a dossier
-  | 'plug' | 'reel' | 'walkie' | 'joystick' | 'dossier';
+  | 'plug' | 'reel' | 'walkie' | 'joystick' | 'dossier'
+  // round 21 (the survey map, the band, the hints): a map pin, a brass compass, a magnifier, a work boot
+  | 'pin' | 'compass' | 'lens' | 'boot'
+  // round 21 (the lab's room keys, src/ui/menus/labIcons.ts): a little CRT set, the research lattice, the talent
+  // balance, a sample flask, a filament spool, a filing cabinet
+  | 'crt' | 'lattice' | 'scale' | 'flask' | 'spool' | 'cabinet';
+/** icon models built outside this file (registered before their first sheet is drawn) */
+export interface IconExtra { build(m: Mold, g: THREE.Group, u: number): void; glow?: [number, number, number]; free?: boolean }
+export const ICON_EXTRA = new Map<IconKind, IconExtra>();
 function iconModel(kind: IconKind, S: number, yaw = 0): THREE.Group {
   const root = new THREE.Group();
   // the turntable an animated icon sways on (the model's own tilt stays inside it)
@@ -984,16 +992,61 @@ function iconModel(kind: IconKind, S: number, yaw = 0): THREE.Group {
       m.add(fcyl(1.1 * u, 0.6 * u, 8, 1.1 * u, 0.2), M(0, -5 * u, 1.4 * u, R90), 0x8a6a3a, PAINT);
       break;
     }
+    case 'pin': {
+      // a map pin: a chrome needle, a red enamel head with its shine, leaning into the plot
+      m.add(frod([0, -9.5 * u, 0], [0, 2 * u, 0], 0.55 * u, 5), null, 0xd8dcd8, CHROME);
+      m.add(fcyl(2.2 * u, 1.6 * u, 10, 1.4 * u, 0.2), M(0, 2.4 * u, 0), 0x9a1a12, PLASTIC);
+      m.add(gem(4.4 * u, 1, 0.03, 5), M(0, 6.2 * u, 0), (x, y) => (x < -1.2 * u && y > 7.4 * u ? 0xffd8c8 : 0xd8281c), PLASTIC);
+      g.rotation.z = -0.32; g.position.y -= 0.5 * u;
+      break;
+    }
+    case 'compass': {
+      // a brass field compass: a knurled case and its bow, a cream card under glass, a red and white needle
+      m.add(fcyl(8 * u, 2.8 * u, 16, 8 * u, 0.3), M(0, -1 * u, -1 * u, R90), 0xb08a3a, BRASS);
+      m.add(fring(8 * u, 0.7 * u, 16, 4), M(0, -1 * u, 0.6 * u), 0xead08a, BRASS);
+      m.add(fcyl(6.8 * u, 0.6 * u, 16, 6.8 * u, 0), M(0, -1 * u, 0.5 * u, R90), 0xece2c4, PAPER);
+      for (let i = 0; i < 8; i++) { const a = i * TAU / 8; m.add(fbox(0.5 * u, (i % 2 ? 1 : 1.8) * u, 0.3 * u, 0), M(Math.sin(a) * 5.6 * u, -1 * u + Math.cos(a) * 5.6 * u, 0.9 * u, 0, 0, -a), 0x3a3428, PAINT); }
+      m.add(plate([new THREE.Vector2(-1.1 * u, 0), new THREE.Vector2(1.1 * u, 0), new THREE.Vector2(0, 5.4 * u)], 0.6 * u, 0), M(0, -1 * u, 1.1 * u, 0, 0, 0.5), 0xd8281c, PAINT);
+      m.add(plate([new THREE.Vector2(-1.1 * u, 0), new THREE.Vector2(1.1 * u, 0), new THREE.Vector2(0, -5.4 * u)], 0.6 * u, 0), M(0, -1 * u, 1.1 * u, 0, 0, 0.5), 0xf4f0e4, PAINT);
+      m.add(fcyl(0.8 * u, 0.8 * u, 8, 0.8 * u, 0.2), M(0, -1 * u, 1.6 * u, R90), 0xc8a24a, BRASS);
+      m.add(fcyl(1.4 * u, 2 * u, 8, 1.4 * u, 0.2), M(0, 7.6 * u, -1 * u), 0xc8a24a, BRASS);
+      m.add(fring(2.2 * u, 0.5 * u, 10, 4), M(0, 10.2 * u, -1 * u), 0xead08a, BRASS);
+      m.add(fcyl(6.9 * u, 0.3 * u, 16, 6.9 * u, 0), M(0, -1 * u, 2 * u, R90), 0xdaf0f0, GLASS, 0.15);
+      g.rotation.x = 0.2;
+      break;
+    }
+    case 'lens': {
+      // a magnifier: a chrome rim round a glass with its glint, a turned black handle with a brass ferrule
+      m.add(fring(5.6 * u, 1.1 * u, 16, 5), M(2 * u, 2.4 * u, 0), 0xc8ccc4, CHROME);
+      m.add(fcyl(5 * u, 0.6 * u, 16, 5 * u, 0), M(2 * u, 2.4 * u, 0, R90), (x, y) => (x - 2 * u < -1 * u && y - 2.4 * u > 1.4 * u ? 0xf8fcff : 0x9ad0e0), GLASS, 0.25);
+      m.add(frod([-1.6 * u, -1.6 * u, 0], [-3 * u, -3 * u, 0], 1.2 * u, 8), null, 0xc8a24a, BRASS);
+      m.add(frod([-3 * u, -3 * u, 0], [-8.4 * u, -8.4 * u, 0], 1.5 * u, 8), null, 0x1e1c18, PLASTIC);
+      m.add(gem(1.5 * u, 0, 0.05, 4), M(-8.6 * u, -8.6 * u, 0), 0x2a2620, PLASTIC);
+      break;
+    }
+    case 'boot': {
+      // a worn work boot side on: a cleated rubber sole, oiled leather, a steel toe cap, the laces up the front
+      const up = [[-7, -5], [6, -5], [8.5, -4], [8.8, -1.6], [5, 0], [1.5, 1.4], [0.4, 8.6], [-6.4, 8.6], [-7.4, 3]].map(([x, y]) => new THREE.Vector2(x * u, y * u));
+      m.add(plate(up, 6 * u, 0.9 * u), M(0, 0, -3 * u), (x, y) => (y > 7 * u ? 0x3a2414 : x > 4.5 * u ? 0x7a5634 : 0x6a4428), PAINT);
+      m.add(fbox(17.2 * u, 2.4 * u, 6.4 * u, 0.3), M(0.8 * u, -6 * u, 0), 0x1c1a16, RUBBER);
+      for (let i = 0; i < 6; i++) m.add(fbox(1.2 * u, 1 * u, 6.4 * u, 0), M((-6.4 + i * 2.8) * u, -7.6 * u, 0), 0x121210, RUBBER);
+      m.add(fdome(3.2 * u, 8, 2, 0.8), M(6.6 * u, -3.6 * u, 0, 0, 0, -R90), 0x8a8e88, STEEL);
+      for (let i = 0; i < 4; i++) m.add(fbox(4 * u, 0.5 * u, 0.6 * u, 0), M(1.6 * u - i * 0.3 * u, (1.6 + i * 1.7) * u, 3.2 * u, 0, 0, i % 2 ? 0.3 : -0.3), 0xd8c890, PAPER);
+      g.rotation.y = -0.3;
+      break;
+    }
     case 'siren': {
       m.add(fcyl(6 * u, 3 * u, 8, 6.6 * u, 0.25), M(0, -6 * u, 0), 0x3b4428, PAINT);
       m.add(flathe([[5.4 * u, 0], [5.4 * u, 6 * u], [4 * u, 9 * u], [0, 10 * u]], 10), M(0, -4.5 * u, 0), (x, _y, z) => (Math.cos(Math.atan2(z, x) - 1.2) > 0.6 ? 0xfff0d0 : 0xff3a22), GLASS, 1);
       g.rotation.x = 0.3;
       break;
     }
+    default: ICON_EXTRA.get(kind)?.build(m, g, u);
   }
   if (!m.empty) {
     const mat = mxMat({ wear: 0.4, seed: 7 });
     if (kind === 'lamp' || kind === 'bolt' || kind === 'siren' || kind === 'walkie' || kind === 'radio') mat.uniforms.uGlow.value.set(1, 0.8, 0.4);
+    const xg = ICON_EXTRA.get(kind)?.glow; if (xg) mat.uniforms.uGlow.value.set(xg[0], xg[1], xg[2]);
     meshOf(m, mat, g);
   }
   return root;
@@ -1024,7 +1077,7 @@ function tuneCanvas(w: number, h: number): HTMLCanvasElement {
   return cv;
 }
 const ICON_F = 10;
-const iconFree = (kind: IconKind) => kind === 'eye' || kind === 'jar' || kind === 'siren' || kind === 'phone' || kind === 'phoneOff' || kind === 'ledger';
+const iconFree = (kind: IconKind) => kind === 'eye' || kind === 'jar' || kind === 'siren' || kind === 'phone' || kind === 'phoneOff' || kind === 'ledger' || kind === 'pin' || kind === 'compass' || kind === 'lens' || kind === 'boot' || !!ICON_EXTRA.get(kind)?.free;
 /**
  * a little 3D icon that sways on its turntable while its key is hot (hover / focus) and eases back to rest:
  * a sheet of ICON_F poses rendered once, frames flipped by the shared clock only while it moves

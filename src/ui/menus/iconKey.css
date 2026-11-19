@@ -1,0 +1,32 @@
+/* ICON KEYS (round 21, iconKey.ts): a machine key with a turning model on the cap; the name floats only while hot */
+.ik { position: relative; flex: none; padding: 0; margin: 0; cursor: var(--cur-hand, pointer); overflow: visible; pointer-events: auto; -webkit-tap-highlight-color: transparent; font-family: var(--font-new); }
+.ik.mxk > .ik-m { position: absolute; right: auto; left: calc(var(--mx-cx, 8px) + var(--mx-cw, 48px) / 2); top: 50%; z-index: 2;
+  transform: translate(calc(-50% + var(--mx-dx, 0px)), calc(-50% + var(--mx-dy, 0px)));
+  transition: transform 0.18s cubic-bezier(.2,.9,.3,1.35), filter 0.16s; image-rendering: pixelated; pointer-events: none; }
+.ik.mxk.ik-nolamp > .ik-m { left: 50%; }
+.ik.mxk.hot > .ik-m, .ik.mxk.on > .ik-m { transform: translate(calc(-50% + var(--mx-dx, 0px)), calc(-50% + var(--mx-dy, 0px) - 8px)) scale(1.14);
+  filter: brightness(1.18) drop-shadow(0 6px 0 rgba(8,10,4,.38)); }
+.ik.mxk.mx-down > .ik-m { transform: translate(calc(-50% + var(--mx-dx, 0px)), calc(-50% + var(--mx-dy, 0px) + 1px)) scale(0.96); filter: brightness(0.92); transition-duration: 0.04s; }
+.ik.mxk:disabled > .ik-m, .ik.mxk.dim > .ik-m { filter: grayscale(.75) brightness(.6); }
+.ik-f { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: normal; font-size: 16px; color: #f2d65a; }
+
+/* the name: raised Alagard letters (an extruded edge, an ink outline), no plate behind them */
+.ik-n { position: absolute; left: 50%; bottom: calc(100% + 10px); z-index: 6; white-space: nowrap; pointer-events: none;
+  font-size: 32px; line-height: 1; letter-spacing: 0.02em; color: #fff0b0; opacity: 0;
+  transform: translate(-50%, 8px) perspective(240px) rotateX(18deg); transform-origin: 50% 100%;
+  transition: opacity 0.12s steps(3), transform 0.2s cubic-bezier(.2,.9,.3,1.35);
+  text-shadow: -1px 0 0 #120c04, 0 -1px 0 #120c04, 1px 1px 0 #b08a2a, 2px 2px 0 #7a5a16, 3px 3px 0 #4a360c, 4px 4px 0 #1a1206, 5px 6px 0 rgba(0,0,0,.35); }
+.ik-n i { font-style: normal; font-size: 16px; margin-left: 10px; vertical-align: 6px; color: #c8f0c0;
+  text-shadow: -1px 0 0 #06120a, 0 -1px 0 #06120a, 1px 1px 0 #3a6a3a, 2px 2px 0 #06120a; }
+.ik.hot .ik-n, .ik:focus-visible .ik-n { opacity: 1; transform: translate(-50%, 0) perspective(240px) rotateX(12deg); }
+.ik-bottom .ik-n { bottom: auto; top: calc(100% + 8px); transform-origin: 50% 0; }
+.ik-right .ik-n { left: calc(100% + 14px); bottom: auto; top: 50%; transform: translate(-6px, -50%) perspective(240px) rotateY(-14deg); transform-origin: 0 50%; }
+.ik-right.hot .ik-n, .ik-right:focus-visible .ik-n { transform: translate(0, -50%) perspective(240px) rotateY(-10deg); }
+.ik-left .ik-n { left: auto; right: calc(100% + 14px); bottom: auto; top: 50%; transform: translate(6px, -50%) perspective(240px) rotateY(14deg); transform-origin: 100% 50%; }
+.ik-left.hot .ik-n, .ik-left:focus-visible .ik-n { transform: translate(0, -50%) perspective(240px) rotateY(10deg); }
+.ik.ik-sm .ik-n { font-size: 16px; }
+.ik.ik-sm .ik-n i { font-size: 16px; vertical-align: 0; }
+
+.ik-row { display: flex; align-items: flex-end; justify-content: center; gap: 10px; pointer-events: none; }
+@media (max-aspect-ratio: 20/21) { .ik-n { font-size: 16px; } .ik-n i { vertical-align: 0; } }
+@media (prefers-reduced-motion: reduce) { .ik.mxk > .ik-m, .ik-n { transition: none; } }

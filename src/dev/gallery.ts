@@ -33,11 +33,12 @@ export async function runGallery(kind: string, params: URLSearchParams) {
   pr.pxSize = pr.pxSizeTarget = 1 / zoom;
   if (params.get('yaw')) pr.yaw = pr.yawTarget = THREE.MathUtils.degToRad(Number(params.get('yaw')));
 
+  const lit = Number(params.get('lit') || 1);
   const z = new Zone('gallery', 48, 48, 1);
   const b = new ZoneBuilder(z, new Rng(1));
   b.fillFloor(1, 1, 46, 46, params.get('floor') || 'carpet_yellow');
   b.paper(0, 0, 47, 47, 'wall_yellow');
-  for (let y = 2; y < 46; y += 3) for (let x = 2; x < 46; x += 3) b.light(x + 0.5, y + 0.5, 'fluoro', { intensity: 0.75, radius: 6 });
+  for (let y = 2; y < 46; y += 3) for (let x = 2; x < 46; x += 3) b.light(x + 0.5, y + 0.5, 'fluoro', { intensity: 0.75 * lit, radius: 6 });
   const labels: { text: string; pos: THREE.Vector3 }[] = [];
   const COLS = 6, SP = 3;
   if (kind === 'objects') {
@@ -57,8 +58,8 @@ export async function runGallery(kind: string, params: URLSearchParams) {
   const zr = new ZoneRenderer(z);
   pr.scene.add(zr.root);
   const lg = new LightGrid(z);
-  pr.scene.add(new THREE.AmbientLight(0x8a8a90, 1.2));
-  const sun = new THREE.DirectionalLight(0xfff4e0, 1.4);
+  pr.scene.add(new THREE.AmbientLight(0x8a8a90, 1.2 * lit));
+  const sun = new THREE.DirectionalLight(0xfff4e0, 1.4 * Math.min(1, lit * 1.5));
   sun.position.set(10, 20, 6);
   pr.scene.add(sun);
   U.uVisOn.value = 0;
@@ -102,7 +103,8 @@ export async function runGallery(kind: string, params: URLSearchParams) {
     }
   }
 
-  const tgt = new THREE.Vector3(kind === 'items' ? 4 + Math.min(7, 8) * Number(params.get('sp') || 1.6) / 2 : 12, 0, kind === 'items' ? 7 : 9);
+  const isp = Number(params.get('sp') || 1.6);
+  const tgt = new THREE.Vector3(kind === 'items' ? 4 + 3.5 * isp : 12, 0, kind === 'items' ? 4 + 1.5 * isp : 9);
   if (params.get('tx')) tgt.set(Number(params.get('tx')), 0, Number(params.get('tz')));
   if (params.has('nolabels')) labels.length = 0;
   const labelEls = labels.map((l) => {

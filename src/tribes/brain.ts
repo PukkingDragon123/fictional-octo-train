@@ -33,6 +33,7 @@ import { op } from '../game/ops';
 import { SAY, line } from './speech';
 import { npcSteal, pocketNotice, stealables } from './theft';
 import type { TribeSystem } from './tribes';
+import { lifeTag, lifeJob, lifeDone, chatter, markThreat, LIFE } from './life';
 
 const HOSTILE_T = new Set(['hostile', 'stalker', 'ambush', 'territorial']);
 const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -63,6 +64,12 @@ function pointNear(z: Zone, x: number, y: number, r0: number, r1: number): [numb
 function playersHere(c: Creature): Player[] { const out: Player[] = []; for (const p of G.players.values()) if (p.zoneKey === c.zoneKey && !p.body.dead) out.push(p); return out; }
 
 // ---------------------------------------------------------------- perception
+/** people of the same tribe standing close (for a fighter sizing up a fight) */
+function countAllies(c: Creature, r: number): number {
+  let n = 0;
+  for (const o of (G.creatures?.creatures?.values?.() || []) as Iterable<Creature>) if (o !== c && !o.dead && o.mem.tribe === c.mem.tribe && o.zoneKey === c.zoneKey && dist(o, c) < r) n++;
+  return n;
+}
 interface Seen { foeP: Player | null; fpd: number; foeC: Creature | null; fcd: number; scare: Creature | null }
 function perceive(S: TribeSystem, c: Creature, camp: Camp | null, role: Role): Seen {
   const t = c.mem.tribe as TribeKey, m = c.mem;
@@ -83,10 +90,16 @@ function perceive(S: TribeSystem, c: Creature, camp: Camp | null, role: Role): S
     const d = dist(o, c);
     if (d > 22) continue;
     const dc = Math.hypot(o.x - cx, o.z - cz);
-    if (fighter && (dc < (camp ? camp.r + 9 : 10) || d < 7) && d < out.fcd) { out.foeC = o; out.fcd = d; }
-    else if (!fighter && d < 7 && (!out.scare || d < dist(out.scare, c))) out.scare = o;
+    // round 21: sensible, like a player: a brave, healthy person stands up to something small; a fighter
+    // does not take on something big alone (they fall back to the fire and call the others)
+    const thr = o.sp.threat ?? 2, tr = traitsOf(c), healthy = c.hp > c.sp.hp * 0.6;
+    const allies = countAllies(c, 8);
+    const stands = fighter ? !(thr >= 4 && allies < 1 && !m.raid) : tr.bravery > 0.68 && healthy && thr <= 2 && d < 6;
+    if (camp && dc < camp.r + 12) markThreat(camp, G.getZone(c.zoneKey));
+    if (stands && (dc < (camp ? camp.r + 9 : 10) || d < 7) && d < out.fcd) { out.foeC = o; out.fcd = d; }
+    else if ((!stands || !fighter) && d < (fighter ? 9 : 7) && (!out.scare || d < dist(out.scare, c))) out.scare = o;
     // a person who is cornered fights anyway
-    if (!fighter && d < 1.6 && d < out.fcd) { out.foeC = o; out.fcd = d; }
+    if (d < 1.6 && d < out.fcd) { out.foeC = o; out.fcd = d; }
   }
   return out;
 }
@@ -192,8 +205,14 @@ export function tribeBrain(S: TribeSystem, c: Creature, dt: number): boolean {
     return true;
   }
   // ---- 3. protect the camp / keep clear of inhabitants
-  if (seen.foeC) { fightCreature(c, z, seen.foeC, dt); return true; }
-  if (seen.scare) { fleeFrom(c, z, seen.scare.x, seen.scare.z, camp, dt); return true; }
+  if (seen.foeC) {
+    if ((m._standSaid ?? 0) < G.time && G.local && dist(G.local, c) < 14) { m._standSaid = G.time + 20; sayAs(c, LIFE.stand[Math.floor(Math.random() * LIFE.stand.length)]); }
+    fightCreature(c, z, seen.foeC, dt); return true;
+  }
+  if (seen.scare) {
+    if ((role === 'guard' || role === 'hunter') && (m._bigSaid ?? 0) < G.time && G.local && dist(G.local, c) < 16) { m._bigSaid = G.time + 25; sayAs(c, LIFE.tooBig[Math.floor(Math.random() * LIFE.tooBig.length)]); }
+    fleeFrom(c, z, seen.scare.x, seen.scare.z, camp, dt); return true;
+  }
   if (c.state === 'chase' || c.state === 'attack' || c.state === 'flee') c.setState('idle');
   // ---- 4. a thief with your things walks off
   if (m.loot?.length && m.getaway && G.time < m.getaway.until) {
@@ -299,11 +318,15 @@ function routine(S: TribeSystem, c: Creature, z: Zone, camp: Camp | null, role: 
   const h = G.clock.hourOfDay;
   const night = h >= 22 || h < 6, meal = (h >= 7 && h < 8) || (h >= 12.5 && h < 13.25) || (h >= 19 && h < 21);
   const post = (m.post as [number, number]) || [c.x, c.z];
-  const tag = night ? (role === 'guard' && m.slot === 1 ? 'watch' : 'sleep') : meal && role !== 'guard' && role !== 'scavenger' ? 'meal' : role;
+  const base = night ? (role === 'guard' && m.slot === 1 ? 'watch' : 'sleep') : meal && role !== 'guard' && role !== 'scavenger' ? 'meal' : role;
+  // round 21: their own day on top of the camp's clock (eat, rest, shore up, trade, search; src/tribes/life.ts)
+  const tag = lifeTag(c, z, camp, role, base);
   if (m.jobTag !== tag || !m.job || G.time > m.jobT) {
+    // the job that just ended: what it did for them (a full belly, a rest, a haul for the cloth)
+    if (m.jobTag && m.job && (G.time > m.jobT || m.jobTag !== tag)) lifeDone(c, m.jobTag, camp);
     if (m.jobTag !== tag && m.jobTag === 'scavenger' && tag !== 'scavenger') sayAs(c, line(SAY.scavBack));
     m.jobTag = tag;
-    m.job = pickJob(z, c, camp, tag, post);
+    m.job = lifeJob(z, c, camp, tag, post, pointNear) ?? pickJob(z, c, camp, tag, post);
     m.jobT = G.time + (m.job.secs ?? 10 + Math.random() * 14);
   }
   const j = m.job;
@@ -316,6 +339,8 @@ function routine(S: TribeSystem, c: Creature, z: Zone, camp: Camp | null, role: 
     if (j.next && (m._waitT = (m._waitT ?? 0) + dt) > j.wait) { m._waitT = 0; m.job = pickJob(z, c, camp, tag, post, j.k + 1); }
     // turn to a survivor who walks up (unless asleep)
     if (!j.lie) for (const p of G.players.values()) if (p.zoneKey === c.zoneKey && dist(p, c) < 3.5) { c.targetFacing = Math.atan2(p.z - c.z, p.x - c.x); if (!j.sit) net(c, { act: '' }); }
+    // round 21: people near each other talk
+    if (!j.lie && tag !== 'watch') chatter(c, camp);
     // ambient life at the fire, in earshot of the unit
     if ((tag === 'meal' || (tag === 'cook' && Math.random() < 0.3)) && (m._chatT ?? 0) < G.time) {
       m._chatT = G.time + 25 + Math.random() * 40;
