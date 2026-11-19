@@ -12,6 +12,7 @@
 //   stage.paused               draw nothing (another full-screen view is up)
 //   stage.onHot                hover / press callbacks for the room's hot props
 import * as THREE from 'three';
+import { skipBehindLoader } from '../../loading';
 import { U } from '../../../gfx/materials';
 import { makePost, Bloom } from '../scene/post';
 import { gfxSettings } from '../common';
@@ -287,6 +288,7 @@ export class MenuStage {
     u.tColor.value = this.rt.texture; u.tDepth.value = this.rt.depthTexture; u.uRes.value.set(lw, lh);
   }
 
+  private behind: { at?: number } = {};
   private loop = (now: number) => {
     this.raf = requestAnimationFrame(this.loop);
     const raw = Math.min(0.1, Math.max(0, (now - this.last) / 1000));
@@ -295,6 +297,8 @@ export class MenuStage {
     this.t += raw;
     this.onTick?.(raw, this.t);
     if (this.paused || !this.renderer || !this.rt) return;
+    // round 22: behind the boot screen, a few draws a second (the loading screen keeps its frames)
+    if (skipBehindLoader(now, this.behind)) return;
     const a = this.active;
     // the feeds: at most one per frame, the most overdue
     if (a) {

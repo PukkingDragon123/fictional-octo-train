@@ -152,6 +152,15 @@ export function hideLoading(o: { now?: boolean } = {}): Promise<void> {
 }
 
 export function isLoading() { return state !== 'off'; }
+/** round 22: the boot screen is covering the page: whatever renders behind it can draw a few frames a second
+ *  (enough to compile and upload; the loader keeps the frames) */
+export function behindBootLoader() { return state !== 'off' && kindNow === 'boot'; }
+/** true on the frames a renderer behind the boot screen should skip (about four draws a second get through) */
+export function skipBehindLoader(now: number, key: { at?: number }): boolean {
+  if (!behindBootLoader()) return false;
+  if (now - (key.at ?? 0) < 250) return true;
+  key.at = now; return false;
+}
 export function loadingKind() { return kindNow; }
 
 // ------------------------------------------------------------------ the old boot API

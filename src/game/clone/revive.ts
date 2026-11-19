@@ -13,8 +13,9 @@ import { U } from '../../gfx/materials';
 import { SPOTU } from '../../gfx/postfx';
 import { facetMats, disposeFacetMats, type FMats, type FKey } from '../../ui/menus/scene/pixtex';
 import { FacetBuilder, at, cbox, prism, tube, bolt, gem, extrude } from '../../ui/menus/scene/facet';
-import { makePost } from '../../ui/menus/scene/post';
-import { Puffs } from '../../ui/menus/scene/fx';
+import { makePost, Bloom } from '../../ui/menus/scene/post';
+import { Puffs, shaftMesh } from '../../ui/menus/scene/fx';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { buildVat, cloneRig, VAT, type Vat } from './vat';
 import { G } from '../G';
 import { bus } from '../../core/events';
@@ -44,12 +45,17 @@ class ReviveScene {
   private rt: THREE.WebGLRenderTarget | null = null;
   private noShadow: THREE.WebGLRenderTarget | null = null;
   private post = makePost();
+  // the menu rooms' glow and bounce fill (src/ui/menus/monitor/stage.ts): only real emitters bloom
+  private bloom = Object.assign(new Bloom(), { thr: 2.2, knee: 0.5 });
+  private fillB = Object.assign(new Bloom(), { thr: 0.06, knee: 0.05 });
   private lowW = 0; private lowH = 0;
   private vat: Vat;
   private rig: HumanRig;
   private puffs = new Puffs(90);
   private flash = document.createElement('div');
   private lamps: THREE.SpotLight[] = [];
+  private under: THREE.PointLight | null = null;
+  private env: THREE.Texture | null = null;
   private spill!: THREE.Mesh; private spillMat!: THREE.MeshBasicMaterial; private spillL!: THREE.PointLight;
   t = 0;
   /** the cut: total length */
@@ -92,29 +98,50 @@ class ReviveScene {
     sc.add(this.spill);
     this.spillL = new THREE.PointLight(0x60ff90, 0, 2.6, 1.6);
     sc.add(this.spillL);
-    // ---- light: bright and clean, the vat's green on the near side
-    sc.add(new THREE.HemisphereLight(0xdce8f0, 0x6a6a5e, 3.6));
-    // the fluorescent troughs throw cool light down the bay
-    for (const z of [0.2, 2.0]) { const tl = new THREE.PointLight(0xeef4ff, 7, 6.5, 1.6); tl.position.set(0, H - 0.25, z); sc.add(tl); }
-    const key = new THREE.SpotLight(0xf4f6ff, 34, 9, 0.62, 0.55, 1.6);
-    key.position.set(1.4, H - 0.15, 1.6); key.target.position.set(0, 0.9, 0);
-    key.castShadow = !low; key.shadow.mapSize.set(512, 512); key.shadow.bias = -0.002;
-    const fill = new THREE.SpotLight(0xffe2b8, 16, 8, 0.7, 0.7, 1.6);
-    fill.position.set(-2.2, H - 0.3, 0.6); fill.target.position.set(-0.6, 0.6, 0.4);
-    const rim = new THREE.PointLight(0x9ac8ff, 6, 6, 1.8); rim.position.set(0.4, 2.2, -1.9);
-    sc.add(key, key.target, fill, fill.target, rim);
-    this.lamps.push(key, fill);
-    this.post.u.uExposure.value = 1.55; this.post.u.uVig.value = 0.35;
+    // ---- light: the exam bay's rig (src/ui/body/health3d.ts) scaled to a room: a bright sky/bounce, a warm key and a cool
+    // fill and a green rim off the tiles, then the two pendant lamps throwing warm pools on the floor, the vat's own glow
+    // lighting the body from below and behind, and a reflected room for glints on the tiles, metal and glass
+    sc.add(new THREE.HemisphereLight(0xfff6ea, 0x8a9a84, 0.8));
+    const key = new THREE.DirectionalLight(0xfffaf0, 1.6); key.position.set(-1.4, 2.6, 2.2);
+    const fill = new THREE.DirectionalLight(0xe4f0ff, 0.6); fill.position.set(2.2, 0.8, 2.4);
+    const rimL = new THREE.DirectionalLight(0xc8f0d8, 1.0); rimL.position.set(1.4, 1.8, -2.4);
+    sc.add(key, fill, rimL);
+    // the pendants: warm spots straight down, shadows from the one on the key side, a haze cone under each
+    for (const [i, x] of [-1.25, 1.25].entries()) {
+      const L = new THREE.SpotLight(0xffd9a6, 44, 6.5, 0.78, 0.5, 1.5);
+      L.position.set(x, H - 0.95, 0.75); L.target.position.set(x * 0.55, 0, 0.1);
+      if (i === 1 && !low) { L.castShadow = true; L.shadow.mapSize.set(512, 512); L.shadow.bias = -0.002; L.shadow.camera.near = 0.2; }
+      sc.add(L, L.target); this.lamps.push(L);
+      const sh = shaftMesh(9);
+      sh.mesh.position.set(x, H - 1.0, 0.75); sh.mesh.scale.set(Math.tan(0.78) * 1.9, 1.9, Math.tan(0.78) * 1.9);
+      sh.u.uColor.value.set(0xffd8a0); sh.u.uInt.value = 0.07;
+      sc.add(sh.mesh);
+    }
+    // the tray lamps on the back wall wash the tiles and the gauge board
+    for (const x of [-1.4, 1.4]) { const wl = new THREE.PointLight(0xffe0b0, 5, 3.4, 1.5); wl.position.set(x, H - 0.85, BACK + 0.7); sc.add(wl); }
+    // the vat: glow from the grate up the body, and a cyan-green rim from behind
+    const under = new THREE.PointLight(0x50ffb8, 4, 3.2, 1.4); under.position.set(0, VAT.base + 0.12, 0.25);
+    const back = new THREE.SpotLight(0x7affd8, 16, 5, 0.6, 0.6, 1.4); back.position.set(0, 1.9, -1.4); back.target.position.set(0, 1.1, 0.6);
+    sc.add(under, back, back.target);
+    this.under = under;
+    if (this.renderer) {
+      const pm = new THREE.PMREMGenerator(this.renderer);
+      this.env = pm.fromScene(new RoomEnvironment(), 0.04).texture;
+      pm.dispose();
+      sc.environment = this.env; sc.environmentIntensity = 0.2;
+    }
+    this.post.u.uExposure.value = 1.32; this.post.u.uVig.value = 0.3;
     this.cam.position.set(0, 1.35, 2.2); this.cam.lookAt(0, 1.2, 0);
   }
 
   // ================================================================ the bay
   private shell(): THREE.Group {
     const b = new FacetBuilder();
-    const TILE = 0xd4ded8, CONC = 0xa4a6a0;
-    slab(b, 'floor', -W, W, -0.1, 0, BACK, FRONT, 0x9aa49c, 0.004);
-    slab(b, 'concrete', -W, W, H, H + 0.1, BACK, FRONT, 0x8a8c86);
-    const wall = (x0: number, x1: number, z0: number, z1: number) => { slab(b, 'tile', x0, x1, 0, 1.25, z0, z1, TILE); slab(b, 'concrete', x0, x1, 1.25, H, z0, z1, CONC); slab(b, 'tile', x0, x1, 1.23, 1.29, z0, z1, 0x3a7a62, 0.008); };
+    const TILE = 0xeef2e2, PAINT = 0xcfe0c4;
+    slab(b, 'floor', -W, W, -0.1, 0, BACK, FRONT, 0xc4c8b8, 0.004);
+    slab(b, 'paint', -W, W, H, H + 0.1, BACK, FRONT, 0xd8dccc);
+    // institutional paint over the dado, cream glazed tile below it, the green cap between
+    const wall = (x0: number, x1: number, z0: number, z1: number) => { slab(b, 'tile', x0, x1, 0, 1.25, z0, z1, TILE); slab(b, 'paint', x0, x1, 1.25, H, z0, z1, PAINT); slab(b, 'tile', x0, x1, 1.23, 1.29, z0, z1, 0x3a8a62, 0.008); slab(b, 'tile', x0, x1, 0, 0.1, z0, z1, 0x2e6a4e, 0.006); };
     wall(-W, W, BACK - 0.2, BACK); wall(-W - 0.2, -W, BACK, FRONT); wall(W, W + 0.2, BACK, FRONT);
     // hazard tape round the vat's footprint, drain channels to the back wall
     const r = VAT.r + 0.45;
@@ -147,6 +174,13 @@ class ReviveScene {
       b.add('metal', prism(0.1, 0.15, 8, { rTop: 0.05 }), 0xe8b030, at(x, H - 0.7, BACK + 0.6));
       for (let i = 0; i < 4; i++) b.add('metal', cbox(0.008, 0.13, 0.008, 0.002), 0x2a2a26, at(x + Math.cos(i * 1.57) * 0.08, H - 0.82, BACK + 0.6 + Math.sin(i * 1.57) * 0.08));
       b.add('lamp', prism(0.055, 0.09, 8), 0xfff2c8, at(x, H - 0.8, BACK + 0.6));
+    }
+    // the two pendants over the floor: enamel shades on a drop rod, the bulb hot under them
+    for (const x of [-1.25, 1.25]) {
+      b.add('chrome', cbox(0.014, 0.8, 0.014, 0.003), 0xb0b4ae, at(x, H - 0.45, 0.75));
+      b.add('enamel', prism(0.26, 0.14, 12, { rTop: 0.07 }), 0x3e7048, at(x, H - 0.9, 0.75));
+      b.add('brass', prism(0.075, 0.05, 10), 0xc8a050, at(x, H - 0.82, 0.75));
+      b.add('lamp', prism(0.07, 0.07, 10), 0xfff4d8, at(x, H - 0.97, 0.75));
     }
     // fluorescent troughs
     for (const z of [0.2, 2.0]) { b.add('metal', cbox(1.6, 0.08, 0.3, 0.01), 0xc8ccc4, at(0, H - 0.05, z)); b.add('lamp', cbox(1.4, 0.03, 0.06, 0.006), 0xf0f6ff, at(0, H - 0.1, z - 0.07)); b.add('lamp', cbox(1.4, 0.03, 0.06, 0.006), 0xf0f6ff, at(0, H - 0.1, z + 0.07)); }
@@ -245,7 +279,7 @@ class ReviveScene {
     // steam where the sleeve breaks its seal
     if (t > 5.55 && t < 7.6) for (let n = 0; n < 2; n++) {
       const a = Math.random() * Math.PI * 2;
-      this.puffs.emit(new THREE.Vector3(Math.cos(a) * VAT.r, VAT.base + 0.05 + Math.random() * 0.3, Math.sin(a) * VAT.r), new THREE.Vector3(Math.cos(a) * 0.55, 0.35 + Math.random() * 0.3, Math.sin(a) * 0.55), { life: 1.6, s0: 0.05, s1: 0.28, color: 0xc0dcd0, rise: 0.32 });
+      this.puffs.emit(new THREE.Vector3(Math.cos(a) * VAT.r, VAT.base + 0.05 + Math.random() * 0.3, Math.sin(a) * VAT.r), new THREE.Vector3(Math.cos(a) * 0.55, 0.35 + Math.random() * 0.3, Math.sin(a) * 0.55), { life: 1.2, s0: 0.04, s1: 0.16, color: 0x9ab8ac, rise: 0.32 });
     }
     // the drain: the medium runs out over the grate and down the channel to the back wall
     const drain = clamp01((t - 2.6) / 2.4), dry = clamp01((t - 6.5) / 3);
@@ -286,7 +320,9 @@ class ReviveScene {
     // (the step down off the plinth: the root drops as it clears the glass)
     if (z > VAT.r + 0.1) R.root.position.y = -Math.min(VAT.base, (z - VAT.r - 0.1) * 1.6);
     // ---- the lamps buzz
-    this.lamps[0].intensity = 34 * (Math.sin(t * 0.8) > 0.97 && Math.random() < 0.5 ? 0.6 : 1);
+    this.lamps[0].intensity = 44 * (Math.sin(t * 0.8) > 0.97 && Math.random() < 0.5 ? 0.65 : 1);
+    // the vat's glow on the body stays while it is on the grate, fading as it walks out
+    if (this.under) this.under.intensity = 4 * (0.55 + 0.45 * v.level) * (1 - clamp01((t - 8.4) / 2) * 0.5);
     // ---- the picture
     this.resize();
     const sh = this.shotAt(t, this.lowW / Math.max(1, this.lowH));
@@ -323,9 +359,11 @@ class ReviveScene {
     const r = this.renderer; if (!r || !this.rt) return;
     const u = this.post.u;
     u.uTime.value = this.t;
-    u.uLift.value.set(0.96, 1.02, 1.0); u.uGain.value.set(1.0, 1.04, 0.98);
-    u.uSat.value = 1.06; u.uContrast.value = 1.08; u.uSide.value.set(1, 0, 0, 0.35); u.uFloor.value = 0.05; u.uGrain.value = 0.014;
-    u.uOutline.value = 0.62; u.uSharp.value = 0.16; u.uAA.value = 0; u.uLevels.value = 32; u.uKeepSat.value = 0.5; u.uHalation.value = 0.45;
+    u.uLift.value.set(0.9, 0.95, 1.0); u.uGain.value.set(1.04, 1.03, 0.99);
+    u.uSat.value = 1.16; u.uContrast.value = 1.2; u.uSide.value.set(1, 0, 0, 0.35); u.uFloor.value = 0.05; u.uGrain.value = 0.014;
+    u.uOutline.value = 0.55; u.uSharp.value = 0.16; u.uAA.value = 0; u.uLevels.value = 32; u.uKeepSat.value = 0.6; u.uHalation.value = 0.25;
+    u.uBloom.value = 0.95; u.uAO.value = 0.6; u.uAORad.value = 0.3; u.uBounce.value = 0.1; u.uScatter.value = 0.4;
+    u.uFocal.value = this.lowH / (2 * Math.tan(THREE.MathUtils.degToRad(this.cam.fov) / 2));
     const saved = { cut: U.uCutOn.value, vis: U.uVisOn.value, fn: U.uFogNear.value, ff: U.uFogFar.value, gs: U.uGridScale.value, col: U.uCollapse.value, snap: U.uSnapOn.value };
     const ss = { ts: SPOTU.tSpotShadow.value, tu: SPOTU.tSunShadow.value, so: SPOTU.uSpotOn.value, su: SPOTU.uSunOn.value, sh: SPOTU.uSpotShadowOn.value };
     const nsd = this.noShadow?.depthTexture ?? null;
@@ -336,6 +374,10 @@ class ReviveScene {
       r.setClearColor(0x000000, 1);
       r.clear(true, true, true);
       r.render(this.scene, this.cam);
+      this.bloom.run(r, this.rt.texture, this.rt.width, this.rt.height, u.uExposure.value);
+      this.fillB.run(r, this.rt.texture, this.rt.width, this.rt.height, 1);
+      u.tFill.value = this.fillB.tex[2];
+      u.tB1.value = this.bloom.tex[0]; u.tB2.value = this.bloom.tex[1]; u.tB3.value = this.bloom.tex[2];
       r.setRenderTarget(null);
       r.render(this.post.scene, this.post.cam);
     } finally {
@@ -351,7 +393,7 @@ class ReviveScene {
     this.rig.dispose();
     this.vat.dispose();
     this.scene.traverse((o) => { const m = o as THREE.Mesh; if (m.isMesh && m.geometry) m.geometry.dispose(); });
-    this.rt?.dispose(); this.noShadow?.dispose();
+    this.rt?.dispose(); this.noShadow?.dispose(); this.env?.dispose(); this.bloom.dispose(); this.fillB.dispose();
     disposeFacetMats();
     this.renderer?.dispose(); this.renderer?.forceContextLoss?.();
     this.root.remove();

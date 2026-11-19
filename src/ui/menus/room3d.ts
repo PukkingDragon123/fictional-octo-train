@@ -35,6 +35,7 @@
 //   project(v) anchorScreen(name) pathScreen(name)  screen positions (client px)
 // The old 3D menu calls are kept as no-ops so callers still compile.
 import * as THREE from 'three';
+import { skipBehindLoader } from '../loading';
 import type { Appearance, Outfit, Pose, HumanRig } from '../../entities/humanRig';
 import { createPreviewRig } from '../../entities/humanRig';
 import { REG, PAD, PAGE } from '../../entities/humanModel';
@@ -1271,12 +1272,15 @@ export class SubjectRoom {
     this.surgLevel = lit;
   }
 
+  private behind: { at?: number } = {};
   private frame = (now: number) => {
     this.raf = requestAnimationFrame(this.frame);
     const dt = Math.min(0.05, (now - this.last) / 1000) * this.timeScale;
     if (dt < this.timeScale / 62) return;
     this.last = now;
     if (document.hidden || this.paused || !this.renderer || !this.rt) return;
+    // round 22: behind the boot screen, a few draws a second (the loading screen keeps its frames)
+    if (skipBehindLoader(now, this.behind)) return;
     this.t += dt;
     this.runClock();
     // ---- lights on / off

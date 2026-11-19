@@ -51,7 +51,10 @@ import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRoom
 import { installLabProps } from './props/labProps';
 import { installDecoAndGuide, onBuildMode } from './deco';
 import { pixIconEl, type PixKind } from './deco/pixIcons';
-import { runTour, tourSeen, tourRunning } from './guide/tour';
+import { runTour, runLabIntro, labIntroWanted, tourSeen, tourRunning, type TourHost, type IntroHost } from './guide/tour';
+import { currentGuide } from './guide/guide';
+import { flag } from './deco/store';
+import { isLoading } from '../loading';
 import { built, onLab } from './lab/stations';
 import { fundTag } from './lab/fund';
 import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePanel, type PanelHost } from './research/panel';
@@ -267,19 +270,18 @@ class TitleRoom {
     });
     // the first visit: Dr. Calder shows the unit round once the booth is up
     const first = setInterval(() => {
-      if (tourSeen()) { clearInterval(first); return; }
+      // (round 22: a browser that has not had the lab introduction gets it on its first New unit instead)
+      if (tourSeen() || labIntroWanted()) { clearInterval(first); return; }
       if (this.live && this.view === 'monitor' && this.tourReady()) { clearInterval(first); void this.startTour(); }
     }, 1500);
     onBuildMode((id) => { mon.setBuild(id === 'monitor'); lab.setBuild(id === 'research'); arc.setBuild(id === 'archive'); });
   }
   // ================================================================== the guided tour (guide/tour.ts)
-  private tourReady() { return !this.moving && !this.root.classList.contains('lit') && !this.root.classList.contains('playing') && !this.over.classList.contains('on') && !panelOpen() && !treeOpen() && !this.research?.bench && !this.research?.talent.active; }
-  async startTour() {
-    if (tourRunning()) return;
+  private tourReady() { return !isLoading() && !this.moving && !this.root.classList.contains('lit') && !this.root.classList.contains('playing') && !this.over.classList.contains('on') && !panelOpen() && !treeOpen() && !this.research?.bench && !this.research?.talent.active; }
+  /** what the guided tour and the lab introduction drive: the rooms, the camera poses, the stations */
+  private tourHost(): TourHost {
     const box = new THREE.Box3(), c = new THREE.Vector3(), q = new THREE.Vector3(), boxes = new Map<string, THREE.Box3>();
-    // the room's own words step back while she talks (her line sits where they do)
-    this.root.classList.add('touring'); document.body.classList.add('touring');
-    await runTour({
+    return {
       go: async (r) => {
         if (r === 'monitor') await this.back(); else await this.go(r);
         // the tube's warm-up (crtfx) runs past the cut: wait for the picture to settle before she speaks
@@ -288,6 +290,13 @@ class TitleRoom {
       },
       aim: (r, pose) => { if (r === 'research' && this.research) (this.research as unknown as { pose: string }).pose = pose; },
       spot: (r, key) => {
+        // round 22: a monitor's tube (the lab introduction shows an unbuilt archive on its feed)
+        if (r === 'monitor' && key.startsWith('feed:') && this.monitor && this.view === 'monitor') {
+          const cs = this.monitor.feedCorners(key.slice(5) as FeedKey).map((p) => this.stage.project(p)).filter((p): p is { x: number; y: number } => !!p);
+          if (cs.length < 4) return null;
+          const xs = cs.map((p) => p.x), ys = cs.map((p) => p.y);
+          return { x: (Math.min(...xs) + Math.max(...xs)) / 2, y: (Math.min(...ys) + Math.max(...ys)) / 2, r: Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys)) * 0.55 };
+        }
         const room = r === 'research' ? this.research : r === 'archive' ? this.archive : null;
         const hot = (room as unknown as { hots?: { key: string; objs: THREE.Object3D[] }[] } | null)?.hots?.find((x) => x.key === key);
         if (!hot || this.view !== r) return null;
@@ -316,6 +325,7 @@ class TitleRoom {
       },
       act: (r, what) => {
         // the station does its thing while she names it
+        if (r === 'monitor' && what.startsWith('lean:')) { this.monitor?.leanTo(what.slice(5) as FeedKey); return; }
         const lab = this.research as unknown as { lattice?: { setBranch(i: number): void; bi?: number }; doorT?: number; hots?: { key: string; press(): void }[] } | null;
         if (r !== 'research' || !lab) return;
         if (what === 'lattice') lab.lattice?.setBranch(((lab.lattice as { bi?: number }).bi ?? 0) === 0 ? 1 : 0);
@@ -323,8 +333,47 @@ class TitleRoom {
         else if (what === 'bench') lab.hots?.find((q) => q.key === 'tb:scale')?.press();
       },
       ready: () => this.tourReady(),
-    }).finally(() => { this.root.classList.remove('touring'); document.body.classList.remove('touring'); });
+    };
+  }
+  async startTour() {
+    if (tourRunning()) return;
+    // the room's own words step back while she talks (her line sits where they do)
+    this.root.classList.add('touring'); document.body.classList.add('touring');
+    await runTour(this.tourHost()).finally(() => { this.root.classList.remove('touring'); document.body.classList.remove('touring'); });
     if (this.view !== 'monitor') void this.back();
+  }
+  /** round 22: THE LAB INTRODUCTION (guide/tour.ts runLabIntro): a new game's first unit wakes in unit room 4 and
+   *  Dr. Calder walks the operator round the lab, room by room, before the first link. Resolves with the black lift. */
+  private async labIntro(): Promise<() => void> {
+    if (tourRunning()) return () => {};
+    await this.labReady;
+    if (this.view !== 'monitor' && this.view !== 'subject') await this.back();
+    const g = currentGuide();
+    const met = flag('guide.met', false);
+    const pt = new THREE.Vector3();
+    const base = this.tourHost();
+    const host: IntroHost = {
+      ...base,
+      talk: (on) => { if (g) g.voiceOver = on ? () => true : null; },
+      point: (r, hot) => {
+        if (!g) return;
+        if (!hot || r === 'monitor') { g.pointAt = null; return; }
+        const room = r === 'research' ? this.research : r === 'archive' ? this.archive : null;
+        const hh = (room as unknown as { hots?: { key: string; objs: THREE.Object3D[] }[] } | null)?.hots?.find((x) => x.key === hot);
+        const bx = new THREE.Box3();
+        for (const o of hh?.objs ?? []) if (!(o as THREE.InstancedMesh).isInstancedMesh) bx.expandByObject(o);
+        g.pointAt = bx.isEmpty() ? null : bx.getCenter(pt).clone();
+      },
+      introduced: () => g?.introduced(),
+    };
+    this.root.classList.add('touring'); document.body.classList.add('touring');
+    this.menu.classList.remove('in');
+    let lift: () => void = () => {};
+    try { lift = await runLabIntro(host, { met }); } finally {
+      this.root.classList.remove('touring'); document.body.classList.remove('touring');
+      if (g) { g.voiceOver = null; g.pointAt = null; }
+    }
+    return lift;
   }
   /** a pointer ray onto the room's floor or the highest surface it crosses */
   private pickFloor(x: number, y: number, floorY: number, surfaces: { minX: number; maxX: number; minZ: number; maxZ: number; y: number }[] = []): THREE.Vector3 | null {
@@ -662,7 +711,7 @@ class TitleRoom {
     if (this.view !== 'monitor') void this.back();
   }
   private onKey = (e: KeyboardEvent) => {
-    if (!this.live || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on') || panelOpen() || treeOpen() || this.research?.bench || this.research?.talent.active) return;
+    if (!this.live || tourRunning() || this.root.classList.contains('lit') || this.root.classList.contains('playing') || this.over.classList.contains('on') || panelOpen() || treeOpen() || this.research?.bench || this.research?.talent.active) return;
     const t = e.target as HTMLElement | null;
     if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     if (this.view === 'archive' && this.archive && this.archive.state !== 'room') { if (this.archive.key(e)) { e.preventDefault(); e.stopPropagation(); } return; }
@@ -797,11 +846,16 @@ class TitleRoom {
     return r;
   }
   private async newGame(directives: boolean, part?: string) {
+    // round 22: a new game's first unit wakes in unit room 4 and Dr. Calder walks the operator round the lab first
+    let lift: (() => void) | null = null;
+    if (directives && !part && labIntroWanted()) { sfx('confirm'); lift = await this.labIntro(); }
     // the very first unit: the prologue (the link, the intake drag, the wake and Dr. Calder's lesson)
     if (directives && !part && !navigator.webdriver) {
       const P = await import('../../game/prologue');
       if (!P.prologueSeen()) { sfx('confirm'); P.replayPrologue(); return; }
     }
+    lift?.();
+    this.menu.classList.add('in');
     const r = await this.runIntake({ directives, part: part as any });
     if (!r) return;
     // the talent bench in the control room weighs the unit before it is linked (null: backed out)

@@ -44,7 +44,7 @@ import type { QuestX } from '../../missions/questRuntime';
 import { Spotlight, type SpotAt } from './spotlight';
 import { limitApps, installApp, installBusy } from '../../ui/bandos/installed';
 import { setTrackerTimer, trackerEl } from '../../ui/questTracker';
-import { TUT } from './state';
+import { TUT, labIntroDone } from './state';
 import { sfx } from '../../ui/menus/sfx';
 import { markHints } from '../../ui/keyHints';
 
@@ -344,8 +344,14 @@ export class FirstRun implements GameSystem {
     await this.walk(p().x, p().z, true, 1.8);
     this.spot.on(this.calderSpot(), 0.55);
     this.calder.gesture('wave');
-    await this.say('There you are. Hi! I\'m Iris. Calder. The voice in your band, and today, apparently, also the legs.');
-    await this.say('First time down is a lot. So we do one thing at a time. I\'ll show you, you do it. Deal?', { gesture: 'talk' });
+    // (round 22: after the lab introduction she has already met the operator upstairs: no second hello)
+    if (labIntroDone()) {
+      await this.say('There you are. Told you I\'d come down. Today I\'m the voice in your band and, apparently, also the legs.');
+      await this.say('Same as upstairs: one thing at a time. I\'ll show you, you do it. Deal?', { gesture: 'talk' });
+    } else {
+      await this.say('There you are. Hi! I\'m Iris. Calder. The voice in your band, and today, apparently, also the legs.');
+      await this.say('First time down is a lot. So we do one thing at a time. I\'ll show you, you do it. Deal?', { gesture: 'talk' });
+    }
     // the answer floats beside her (src/ui/holo/floatChoices.ts): a click, or 1 / 2
     if (await this.choose([{ id: 'deal', label: 'Deal', tone: 'calder' }, { id: 'skip', label: 'I know the drill', tone: 'warm' }], 25) === 'skip') { this.skip(); throw SKIP; }
     await this.say(pick(['Good. Easy stuff first.', 'Great. Nothing scary yet, I promise.']));

@@ -1,10 +1,9 @@
 // Launch handoff: the title screen writes a launch config to sessionStorage
 // and reloads; on boot the config is consumed and the right session starts
 // (new world, loaded save, co-op host or co-op client).
-import { startSession } from './session';
-import { readSave, writeSave, reentryFrom } from './save';
-import { Net } from '../net/net';
-import { Appearance, randomAppearance } from '../entities/humanRig';
+// round 22 (load time): the session, the save store and the net are imported when a launch needs them, so the
+// title's boot does not parse the whole game first
+import type { Appearance } from '../entities/humanRig';
 import { loaderText, loaderStage } from '../ui/loading';
 
 interface Char { name: string; app: Appearance; occupation: string; traits: string[] }
@@ -44,6 +43,7 @@ function bootText(html: string, back = false) {
 
 export async function launch(cfg: LaunchConfig) {
   try {
+    const [{ startSession }, { readSave, writeSave, reentryFrom }] = await Promise.all([import('./session'), import('./save')]);
     switch (cfg.mode) {
       case 'new':
         loaderStage(0.7, 'Building the backrooms');
@@ -68,6 +68,7 @@ export async function launch(cfg: LaunchConfig) {
       }
       case 'host': {
         bootText('<span class="boot-text">opening a room…</span>');
+        const { Net } = await import('../net/net');
         const net = await Net.host(cfg.server, cfg.roomName || cfg.name, { public: cfg.public, pass: cfg.pass });
         const s = cfg.saveId ? await readSave(cfg.saveId) : null;
         if (s) startSession({ mode: 'host', name: s.player.name, save: s, net, directives: s.missions?.enabled ?? true });
@@ -77,6 +78,8 @@ export async function launch(cfg: LaunchConfig) {
       }
       case 'join': {
         bootText(`<span class="boot-text">crossing into room ${cfg.room.toUpperCase()}…</span>`);
+        const { Net } = await import('../net/net');
+        const { randomAppearance } = await import('../entities/humanRig');
         const hello = { name: cfg.name, app: cfg.app ?? randomAppearance(Math.random), occupation: cfg.occupation, traits: cfg.traits };
         const { net, welcome } = await Net.join(cfg.server, cfg.room, hello, cfg.pass);
         startSession({ mode: 'client', net, welcome, name: cfg.name, app: hello.app, occupation: cfg.occupation, traits: cfg.traits, directives: welcome.missions?.enabled ?? true });
