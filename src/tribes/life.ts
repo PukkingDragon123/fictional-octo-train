@@ -13,7 +13,7 @@ import type { Zone } from '../world/zone';
 import type { Camp } from './camp';
 import type { Role } from './mind';
 import { traitsOf } from './mind';
-import { sayAs, memberName } from './npc';
+import { sayAs, memberName, idHash } from './npc';
 
 const dist = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
 const pick = <T>(a: T[]) => a[Math.floor(Math.random() * a.length)];
@@ -49,8 +49,8 @@ const TALK: [string, string][] = [
 ];
 
 /** hours since they last ate (seeded so a camp does not all eat at once) */
-const hungry = (c: Creature) => { const m = c.mem; m.ateH ??= G.clock.hours - ((c.id.length * 7) % 9); return G.clock.hours - m.ateH; };
-const tiredH = (c: Creature) => { const m = c.mem; m.restH ??= G.clock.hours - ((c.id.length * 5) % 11); return G.clock.hours - m.restH; };
+const hungry = (c: Creature) => { const m = c.mem; m.ateH ??= G.clock.hours - (idHash(c.id + ':ate') % 70) / 10; return G.clock.hours - m.ateH; };
+const tiredH = (c: Creature) => { const m = c.mem; m.restH ??= G.clock.hours - (idHash(c.id + ':rest') % 100) / 10; return G.clock.hours - m.restH; };
 
 /** something hungry was near the camp lately: the camp shores up */
 export function campThreat(camp: Camp | null, zone: Zone): boolean {
