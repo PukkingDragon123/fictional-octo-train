@@ -167,7 +167,8 @@ export class CreateScreen {
     return t;
   }
 
-  private release = () => { if (this.hold && this.hold.t < HOLD) this.cancel(); };
+  // held time is real time: a slow device that drew no frame during the hold still buys on release
+  private release = () => { const hd = this.hold; if (!hd) return; if ((performance.now() - hd.t0) / 1000 < HOLD) this.cancel(); else if (hd.el.isConnected) this.buy(hd.q, hd.el); };
   private cancel() {
     const hd = this.hold; this.hold = null;
     if (!hd) return;

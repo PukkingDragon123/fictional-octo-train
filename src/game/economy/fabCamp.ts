@@ -5,6 +5,8 @@
 import { bus } from '../../core/events';
 import { defPiece, type Piece } from '../../build/pieces';
 import { treeOffers } from '../treeData';
+import { G } from '../G';
+import { objDef } from '../../world/objects';
 import type { Player } from '../../entities/player';
 import type { TileObject } from '../../world/zone';
 import type { MenuOption } from '../../ui/ui';
@@ -23,11 +25,25 @@ let wired = false;
 export function wireFabCamp() {
   if (wired) return;
   wired = true;
+  const kindOf = (o: TileObject) => (o.key === 'bld_filament' ? 'filament' : o.key === 'bld_printer' ? 'printer' : null);
+  // (too frightened to work a machine mid-run: src/game/panic.ts, loaded when it is used)
+  const go = (kind: 'filament' | 'printer', o: TileObject, p: Player) => { void import('../panic').then((pm) => { if (pm.panicLocks('press')) { pm.panicFumble('press'); return; } return import('../../ui/menus/fab/camp').then((m) => m.openCampFab(kind, o, p)); }); };
   bus.on('objectMenu', (p: Player, o: TileObject, out: MenuOption[]) => {
-    const kind = o.key === 'bld_filament' ? 'filament' : o.key === 'bld_printer' ? 'printer' : null;
+    const kind = kindOf(o);
     if (!kind || o.state?.built === false) return;
-    // (too frightened to work a machine mid-run: src/game/panic.ts, loaded when it is used)
-    const go = () => { void import('../panic').then((pm) => { if (pm.panicLocks('press')) { pm.panicFumble('press'); return; } return import('../../ui/menus/fab/camp').then((m) => m.openCampFab(kind, o, p)); }); };
-    out.unshift({ label: kind === 'filament' ? 'Work the filament maker' : 'Use the printer', action: go });
+    out.unshift({ label: kind === 'filament' ? 'Work the filament maker' : 'Use the printer', action: () => go(kind, o, p) });
+  });
+  // the hands' label over a camp machine: [E] Use (src/ui/hotbar/context.ts reads G.ctxHooks; it heads the label, before Grip)
+  const g = G as unknown as { ctxHooks?: ((p: Player, touch: boolean) => unknown[])[] };
+  (g.ctxHooks ||= []).push((p: Player) => {
+    if (p.body.dead || (G as unknown as { build?: { active?: boolean } }).build?.active) return [];
+    for (const o of ((G as unknown as { interact?: { objectsNear?: (p: Player, r: number) => TileObject[] } }).interact?.objectsNear?.(p, 1.8) || [])) {
+      const kind = kindOf(o);
+      if (!kind || o.state?.built === false) continue;
+      const d = objDef(o.key);
+      const at = { x: o.x + (d?.w ?? 1) / 2, y: (p.y ?? 0) + Math.min(2, d?.height ?? 1) + 0.3, z: o.y + (d?.d ?? 1) / 2 };
+      return [{ id: 'fab_use', label: kind === 'filament' ? 'Work it' : 'Print', icon: 'open', key: 'E', run: () => go(kind, o, p), tgt: 'o:' + o.uid, name: d?.name ?? 'Machine', head: 'Use', anchor: () => at }];
+    }
+    return [];
   });
 }
