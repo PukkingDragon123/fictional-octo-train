@@ -9,6 +9,19 @@
 import * as THREE from 'three';
 import type { FMats } from '../../ui/menus/scene/pixtex';
 import { FacetBuilder, at, cbox, prism, lathe, tube, gem, bolt } from '../../ui/menus/scene/facet';
+import { HumanRig, type Appearance, type Outfit } from '../../entities/humanRig';
+import { worldMaterial } from '../../gfx/materials';
+
+/**
+ * the spare's body: the unit's own HumanRig, bare but for the issue undershirt and shorts. Built without the
+ * secondary bones (hair swing, coat tails): in the medium and on the grate the hair stays on the skull.
+ */
+export function cloneRig(app: Appearance, outline = 1): HumanRig {
+  const rig = new HumanRig(app, worldMaterial({ noVis: true, noFog: true, noGrid: true }), { hd: true });
+  rig.setOutfit({ torso: { tex: (app.bodyShape ?? 0.3) > 0.5 ? 'c_bandeau' : 'c_bare', color: 0xe8e4d8, sleeve: 'none' } } as Outfit);
+  rig.setOutline(outline);
+  return rig;
+}
 
 export const VAT = { r: 0.46, base: 0.34, h: 1.96 };
 
@@ -77,19 +90,19 @@ export function buildVat(mats: FMats, o: { seed?: number; ceiling?: number } = {
   // ---- the sleeve: glass, four chrome ribs, two brass hoops
   const sleeve = new THREE.Group();
   const sb = new FacetBuilder();
-  sb.add('glass', prism(r, h, 18, { c: 0.001 }), 0x6a9a8a, at(0, base + h / 2, 0));
+  sb.add('glass', prism(r, h, 18, { c: 0.001 }), 0xa8e8d0, at(0, base + h / 2, 0));
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
     sb.add('chrome', cbox(0.035, h, 0.035, 0.006), 0xc8ccc8, at(Math.cos(a) * (r + 0.012), base + h / 2, Math.sin(a) * (r + 0.012), 0, -a));
   }
   for (const y of [base + 0.06, base + h * 0.5, base + h - 0.06]) sb.add('brass', prism(r + 0.022, 0.035, 18, { c: 0.002 }), 0xc8a050, at(0, y, 0));
   // glints down the glass: thin bright slivers (sells the cylinder from any side)
-  for (const [a, w] of [[0.5, 0.012], [0.62, 0.006], [-2.4, 0.01]] as [number, number][]) sb.add('lamp', cbox(w, h * 0.86, 0.004, 0.001), 0x7a9a94, at(Math.cos(a) * (r + 0.004), base + h / 2, Math.sin(a) * (r + 0.004), 0, -a + Math.PI / 2));
+  for (const [a, w] of [[0.5, 0.016], [0.64, 0.008], [-2.4, 0.012], [2.2, 0.008]] as [number, number][]) sb.add('lamp', cbox(w, h * 0.86, 0.004, 0.001), 0xc8f0e4, at(Math.cos(a) * (r + 0.004), base + h / 2, Math.sin(a) * (r + 0.004), 0, -a + Math.PI / 2));
   sleeve.add(sb.build(mats));
   group.add(sleeve);
 
   // ---- the medium: a column that drains, its bright surface, bubbles
-  const fluidMat = new THREE.MeshStandardMaterial({ color: 0x48e070, emissive: 0x1c7a34, emissiveIntensity: 0.9, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.42, depthWrite: false, side: THREE.DoubleSide });
+  const fluidMat = new THREE.MeshStandardMaterial({ color: 0x48e070, emissive: 0x2aa04a, emissiveIntensity: 1.3, roughness: 0.15, metalness: 0, transparent: true, opacity: 0.46, depthWrite: false, side: THREE.DoubleSide });
   const fluid = new THREE.Mesh(new THREE.CylinderGeometry(r - 0.02, r - 0.02, 1, 22, 1, true), fluidMat);
   fluid.renderOrder = 3;
   group.add(fluid);
@@ -106,7 +119,7 @@ export function buildVat(mats: FMats, o: { seed?: number; ceiling?: number } = {
   const lampMats = [0, 1, 2, 3].map(() => new THREE.MeshBasicMaterial({ color: 0x40ff60, toneMapped: false }));
   const lampGeo = gem(0.016, 6, 0.014);
   lampMats.forEach((m, i) => { const l = new THREE.Mesh(lampGeo, m); l.position.set(0.02 + i * 0.055, 0.24 - (i % 2) * 0.0, fz + 0.04); l.rotation.x = Math.PI / 2 - 0.12; group.add(l); });
-  const light = new THREE.PointLight(0x60ff90, 2.2, 3.4, 1.8);
+  const light = new THREE.PointLight(0x60ff90, 3.2, 4.2, 1.6);
   light.position.set(0, base + h * 0.55, 0);
   group.add(light);
   const bay = new THREE.Group();
@@ -136,7 +149,7 @@ export function buildVat(mats: FMats, o: { seed?: number; ceiling?: number } = {
         m.compose(p, q, s); bubbles.setMatrixAt(n++, m);
       }
       bubbles.count = n; bubbles.instanceMatrix.needsUpdate = true;
-      light.intensity = (0.6 + 1.8 * lv) * (0.94 + Math.sin(t * 7.1) * 0.03 + Math.random() * 0.03);
+      light.intensity = (1.4 + 2.4 * lv) * (0.94 + Math.sin(t * 7.1) * 0.03 + Math.random() * 0.03);
       // pilot lamps: idle steady green, working an amber chase, alarm a red blink
       lampMats.forEach((mm, i) => {
         if (vat.mode === 2) { const on = Math.floor(t * 4) % 2 === i % 2; mm.color.setRGB(on ? 2.2 : 0.3, on ? 0.25 : 0.04, on ? 0.15 : 0.03); }

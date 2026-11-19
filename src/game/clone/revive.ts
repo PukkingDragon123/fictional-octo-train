@@ -8,18 +8,20 @@
 // number. Esc / Enter / Space / a tap skip to the end. Words: none (the subtitle strip carries the
 // relay's one line).
 import * as THREE from 'three';
-import { createPreviewRig, type HumanRig, type Appearance, type Outfit } from '../../entities/humanRig';
+import type { HumanRig, Appearance } from '../../entities/humanRig';
 import { U } from '../../gfx/materials';
 import { SPOTU } from '../../gfx/postfx';
 import { facetMats, disposeFacetMats, type FMats, type FKey } from '../../ui/menus/scene/pixtex';
-import { FacetBuilder, at, cbox, prism, tube, bolt, gem } from '../../ui/menus/scene/facet';
+import { FacetBuilder, at, cbox, prism, tube, bolt, gem, extrude } from '../../ui/menus/scene/facet';
 import { makePost } from '../../ui/menus/scene/post';
 import { Puffs } from '../../ui/menus/scene/fx';
-import { buildVat, VAT, type Vat } from './vat';
+import { buildVat, cloneRig, VAT, type Vat } from './vat';
 import { G } from '../G';
 import { bus } from '../../core/events';
 
 type V3 = [number, number, number];
+/** a right-triangle shelf bracket (an extruded gusset) */
+const extrudeTri = (w: number, h: number) => extrude([[0, 0], [w, 0], [0, -h]], 0.02);
 const slab = (b: FacetBuilder, k: FKey, x0: number, x1: number, y0: number, y1: number, z0: number, z1: number, col: number, c = 0.006) =>
   b.add(k, cbox(x1 - x0, y1 - y0, z1 - z0, c), col, at((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2));
 const ease = (k: number) => (k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2);
@@ -48,6 +50,7 @@ class ReviveScene {
   private puffs = new Puffs(90);
   private flash = document.createElement('div');
   private lamps: THREE.SpotLight[] = [];
+  private spill!: THREE.Mesh; private spillMat!: THREE.MeshBasicMaterial; private spillL!: THREE.PointLight;
   t = 0;
   /** the cut: total length */
   readonly LEN = 11.2;
@@ -78,13 +81,19 @@ class ReviveScene {
     sc.add(this.vat.group);
     this.vat.mode = 1;
     // the spare: the unit's own body, bare but for the issue undershirt and shorts, hanging in the medium
-    const outfit: Outfit = { torso: { tex: (app.bodyShape ?? 0.3) > 0.5 ? 'c_bandeau' : 'c_bare', color: 0xe8e4d8, sleeve: 'none' } } as Outfit;
-    this.rig = createPreviewRig(app, outfit, { outline: false });
+    this.rig = cloneRig(app, 1);
     this.rig.skin.castShadow = true;
     this.vat.bay.add(this.rig.root);
     sc.add(this.puffs.mesh);
+    // the medium as it leaves: a bright spill spreading over the grate and down the drain channel
+    this.spillMat = new THREE.MeshBasicMaterial({ color: 0x7affa0, transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+    this.spill = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.spillMat);
+    this.spill.rotation.x = -Math.PI / 2; this.spill.renderOrder = 3;
+    sc.add(this.spill);
+    this.spillL = new THREE.PointLight(0x60ff90, 0, 2.6, 1.6);
+    sc.add(this.spillL);
     // ---- light: bright and clean, the vat's green on the near side
-    sc.add(new THREE.HemisphereLight(0xd8e4ee, 0x5a5a50, 3.0));
+    sc.add(new THREE.HemisphereLight(0xdce8f0, 0x6a6a5e, 3.6));
     // the fluorescent troughs throw cool light down the bay
     for (const z of [0.2, 2.0]) { const tl = new THREE.PointLight(0xeef4ff, 7, 6.5, 1.6); tl.position.set(0, H - 0.25, z); sc.add(tl); }
     const key = new THREE.SpotLight(0xf4f6ff, 34, 9, 0.62, 0.55, 1.6);
@@ -95,7 +104,7 @@ class ReviveScene {
     const rim = new THREE.PointLight(0x9ac8ff, 6, 6, 1.8); rim.position.set(0.4, 2.2, -1.9);
     sc.add(key, key.target, fill, fill.target, rim);
     this.lamps.push(key, fill);
-    this.post.u.uExposure.value = 1.35; this.post.u.uVig.value = 0.45;
+    this.post.u.uExposure.value = 1.55; this.post.u.uVig.value = 0.35;
     this.cam.position.set(0, 1.35, 2.2); this.cam.lookAt(0, 1.2, 0);
   }
 
@@ -104,7 +113,7 @@ class ReviveScene {
     const b = new FacetBuilder();
     const TILE = 0xd4ded8, CONC = 0xa4a6a0;
     slab(b, 'floor', -W, W, -0.1, 0, BACK, FRONT, 0x9aa49c, 0.004);
-    slab(b, 'concrete', -W, W, H, H + 0.1, BACK, FRONT, 0x5a5c58);
+    slab(b, 'concrete', -W, W, H, H + 0.1, BACK, FRONT, 0x8a8c86);
     const wall = (x0: number, x1: number, z0: number, z1: number) => { slab(b, 'tile', x0, x1, 0, 1.25, z0, z1, TILE); slab(b, 'concrete', x0, x1, 1.25, H, z0, z1, CONC); slab(b, 'tile', x0, x1, 1.23, 1.29, z0, z1, 0x3a7a62, 0.008); };
     wall(-W, W, BACK - 0.2, BACK); wall(-W - 0.2, -W, BACK, FRONT); wall(W, W + 0.2, BACK, FRONT);
     // hazard tape round the vat's footprint, drain channels to the back wall
@@ -168,9 +177,13 @@ class ReviveScene {
     // a stool and a monitor on a wall arm (the vitals, green phosphor)
     b.add('metal', prism(0.18, 0.04, 10), 0x3a3e3a, at(1.9, 0.62, 1.1));
     for (let i = 0; i < 3; i++) { const a = i * 2.09; b.add('chrome', tube([[1.9, 0.6, 1.1], [1.9 + Math.cos(a) * 0.2, 0.0, 1.1 + Math.sin(a) * 0.2]], 0.014, 2, 5, false), 0xb8bcb8); }
-    b.add('metal', tube([[W - 0.05, 1.7, 0.2], [W - 0.4, 1.72, 0.3], [W - 0.6, 1.7, 0.5]], 0.03, 4, 6), 0x5a5e58);
-    b.add('enamel', cbox(0.5, 0.4, 0.38, 0.03), 0xcfc4a6, at(W - 0.7, 1.72, 0.55, 0, -0.7));
-    b.add('screen', cbox(0.36, 0.27, 0.02, 0.006), 0x2aff7a, at(W - 0.7 - Math.sin(-0.7) * 0.2, 1.74, 0.55 + Math.cos(-0.7) * 0.2, 0, -0.7));
+    // (the vitals set sits on a steel shelf bolted to the right wall, its cable down the wall to the floor duct)
+    b.add('metal', cbox(0.5, 0.03, 0.46, 0.006), 0x6a6e66, at(W - 0.25, 1.5, 0.55));
+    for (const dz of [-0.18, 0.18]) b.add('metal', extrudeTri(0.4, 0.3), 0x5a5e58, at(W - 0.02, 1.36, 0.55 + dz, 0, Math.PI / 2));
+    for (const dz of [-0.18, 0.18]) b.add('chrome', bolt(0.016, 0.012), 0xc8ccc8, at(W - 0.01, 1.47, 0.55 + dz, 0, 0, Math.PI / 2));
+    b.add('enamel', cbox(0.4, 0.36, 0.42, 0.03), 0xcfc4a6, at(W - 0.25, 1.695, 0.55));
+    b.add('screen', cbox(0.02, 0.24, 0.3, 0.006), 0x2aff7a, at(W - 0.46, 1.71, 0.55));
+    b.add('rubber', tube([[W - 0.06, 1.6, 0.8], [W - 0.04, 1.0, 0.85], [W - 0.04, 0.05, 0.9]], 0.014, 6, 5), 0x1a1a1a);
     // a coil of hose from the vat's drain valve
     for (let i = 0; i < 5; i++) b.add('rubber', cbox(0.42 - i * 0.04, 0.03, 0.04, 0.008), 0x2a2a2a, at(1.1, 0.02 + i * 0.016, -0.9, 0, i * 0.6));
     b.add('rubber', tube([[VAT.r + 0.3, 0.04, -0.12], [0.9, 0.02, -0.5], [1.1, 0.04, -0.85]], 0.03, 8, 6), 0x2a2a2a);
@@ -207,6 +220,7 @@ class ReviveScene {
   }
 
   private cues = new Set<string>();
+  private v = new THREE.Vector3();
   private cue(k: string, at: number, fn: () => void) { if (this.t >= at && !this.cues.has(k)) { this.cues.add(k); fn(); } }
 
   frame(dt: number) {
@@ -229,9 +243,20 @@ class ReviveScene {
     if (t > 7.2) v.mode = 0;
     v.update(dt, t);
     // steam where the sleeve breaks its seal
-    if (t > 5.55 && t < 7.4 && Math.random() < 0.8) {
+    if (t > 5.55 && t < 7.6) for (let n = 0; n < 2; n++) {
       const a = Math.random() * Math.PI * 2;
-      this.puffs.emit(new THREE.Vector3(Math.cos(a) * VAT.r, VAT.base + 0.05 + v.lift * 0.4, Math.sin(a) * VAT.r), new THREE.Vector3(Math.cos(a) * 0.45, 0.25, Math.sin(a) * 0.45), { life: 1.1, s0: 0.03, s1: 0.16, color: 0x7a8a84, rise: 0.25 });
+      this.puffs.emit(new THREE.Vector3(Math.cos(a) * VAT.r, VAT.base + 0.05 + Math.random() * 0.3, Math.sin(a) * VAT.r), new THREE.Vector3(Math.cos(a) * 0.55, 0.35 + Math.random() * 0.3, Math.sin(a) * 0.55), { life: 1.6, s0: 0.05, s1: 0.28, color: 0xc0dcd0, rise: 0.32 });
+    }
+    // the drain: the medium runs out over the grate and down the channel to the back wall
+    const drain = clamp01((t - 2.6) / 2.4), dry = clamp01((t - 6.5) / 3);
+    this.spillMat.opacity = 0.55 * Math.min(1, drain * 3) * (1 - dry * 0.7);
+    const len = 0.6 + drain * (VAT.r + 0.45 - BACK - 0.1);
+    this.spill.scale.set(0.22 + drain * 0.1, len, 1);
+    this.spill.position.set(0, 0.012, VAT.r * 0.3 - len / 2);
+    this.spillL.position.set(0, 0.25, -1.2); this.spillL.intensity = 2.6 * this.spillMat.opacity;
+    if (t > 2.6 && t < 5.4 && Math.random() < 0.9) {
+      const zz = -VAT.r - 0.1 - Math.random() * 1.2;
+      this.puffs.emit(new THREE.Vector3((Math.random() - 0.5) * 0.18, 0.03, zz), new THREE.Vector3(0, 0.05, -0.6), { life: 0.6, s0: 0.03, s1: 0.06, color: 0x60e080, rise: 0.02 });
     }
     // drips off the body once the medium is gone
     if (t > 5.2 && t < 9.5 && Math.random() < 0.3) {
@@ -247,18 +272,16 @@ class ReviveScene {
     else if (t < 8.1) { y = 0; }
     else { speed = 0.95; z = Math.min(1.75, (t - 8.1) * 0.62); }
     R.root.position.set(0, y, z);
-    R.update(dt, { speed, stance: 'stand', full, fidget: false, wx: 0, wy: VAT.base, wz: z, wyaw: 0, ground: () => (z > VAT.r ? -VAT.base : 0), lookX: this.cam.position.x, lookY: this.cam.position.y, lookZ: this.cam.position.z, lookW: t > 7.6 ? 0.7 : 0, tired: t > 7.3 ? 0.8 : 0, exhausted: t > 7.3 ? 0.6 : 0 } as never);
+    // the head: bowed (looking at the grate) until it comes up at the gasp, then at the camera
+    const up = clamp01((t - 6.4) / 0.8);
+    const lk = this.v.set(0, VAT.base + 0.1, z + 0.55).lerp(this.cam.position, up);
+    R.update(dt, { speed, stance: 'stand', full, fidget: false, wx: 0, wy: VAT.base, wz: z, wyaw: 0, ground: () => (z > VAT.r ? -VAT.base : 0), lookX: lk.x, lookY: lk.y, lookZ: lk.z, lookW: 0.85, tired: t > 7.3 ? 0.8 : 0, exhausted: t > 7.3 ? 0.6 : 0 } as never);
     if (t < 3.6) {
-      // limp in the medium: head bowed, arms drifting
+      // limp in the medium: arms drifting out, one knee loose
       const f = Math.sin(t * 0.9);
-      j.head.rotation.x += 0.42; j.spine.rotation.x += 0.08;
       j.uarmL.rotation.z += 0.28 + f * 0.06; j.uarmR.rotation.z -= 0.28 + f * 0.06;
       j.farmL.rotation.x -= 0.2; j.farmR.rotation.x -= 0.2;
       j.thighL.rotation.x += 0.06; j.shinL.rotation.x += 0.12;
-    } else if (t < 7.3) {
-      // slumped on the grate, then the head comes up
-      const up = clamp01((t - 6.4) / 0.8);
-      j.head.rotation.x += 0.5 * (1 - up); j.spine.rotation.x += 0.25 * (1 - up) + Math.sin(t * 6) * 0.015 * up;
     }
     // (the step down off the plinth: the root drops as it clears the glass)
     if (z > VAT.r + 0.1) R.root.position.y = -Math.min(VAT.base, (z - VAT.r - 0.1) * 1.6);
@@ -281,7 +304,7 @@ class ReviveScene {
     const w = Math.max(1, window.innerWidth), h = Math.max(1, window.innerHeight);
     const dpr = Math.max(1, window.devicePixelRatio || 1);
     const dw = w * dpr, dh = h * dpr;
-    const s = Math.max(2, Math.round(Math.sqrt((dw * dh) / (600 * 338))));
+    const s = Math.max(2, Math.round(Math.sqrt((dw * dh) / (330 * 186))));
     const lw = Math.max(32, Math.ceil(dw / s)), lh = Math.max(32, Math.ceil(dh / s));
     const cw = (lw * s) / dpr, ch = (lh * s) / dpr;
     Object.assign(this.canvas.style, { width: cw + 'px', height: ch + 'px', left: Math.floor((w - cw) / 2) + 'px', top: Math.floor((h - ch) / 2) + 'px' });
@@ -301,7 +324,8 @@ class ReviveScene {
     const u = this.post.u;
     u.uTime.value = this.t;
     u.uLift.value.set(0.96, 1.02, 1.0); u.uGain.value.set(1.0, 1.04, 0.98);
-    u.uSat.value = 1.04; u.uContrast.value = 1.06; u.uSide.value.set(1, 0, 0, 0.35); u.uFloor.value = 0.05; u.uGrain.value = 0.014;
+    u.uSat.value = 1.06; u.uContrast.value = 1.08; u.uSide.value.set(1, 0, 0, 0.35); u.uFloor.value = 0.05; u.uGrain.value = 0.014;
+    u.uOutline.value = 0.62; u.uSharp.value = 0.16; u.uAA.value = 0; u.uLevels.value = 32; u.uKeepSat.value = 0.5; u.uHalation.value = 0.45;
     const saved = { cut: U.uCutOn.value, vis: U.uVisOn.value, fn: U.uFogNear.value, ff: U.uFogFar.value, gs: U.uGridScale.value, col: U.uCollapse.value, snap: U.uSnapOn.value };
     const ss = { ts: SPOTU.tSpotShadow.value, tu: SPOTU.tSunShadow.value, so: SPOTU.uSpotOn.value, su: SPOTU.uSunOn.value, sh: SPOTU.uSpotShadowOn.value };
     const nsd = this.noShadow?.depthTexture ?? null;

@@ -6,11 +6,11 @@
 import * as THREE from 'three';
 import type { FMats } from '../../ui/menus/scene/pixtex';
 import type { Hot } from '../../ui/menus/monitor/stage';
-import { createPreviewRig, randomAppearance, type HumanRig, type Outfit } from '../../entities/humanRig';
+import { randomAppearance, type HumanRig } from '../../entities/humanRig';
 import { sfx } from '../../ui/menus/sfx';
 import { gameSound } from '../../ui/menus/monitor/props';
 import { bus } from '../../core/events';
-import { buildVat, type Vat } from './vat';
+import { buildVat, cloneRig, type Vat } from './vat';
 import { clonesBanked, canGrow, growClone, cloneLook, bankClone, CLONE_COST } from './clone';
 
 // the first spare comes with the station
@@ -50,8 +50,7 @@ export class CloneStation {
   private body(): HumanRig {
     if (!this.rig) {
       const app = cloneLook() ?? randomAppearance(() => 0.37);
-      const outfit = { torso: { tex: (app.bodyShape ?? 0.3) > 0.5 ? 'c_bandeau' : 'c_bare', color: 0xe8e4d8, sleeve: 'none' } } as Outfit;
-      this.rig = createPreviewRig(app, outfit, { outline: false });
+      this.rig = cloneRig(app, 0);
       this.vat.bay.add(this.rig.root);
     }
     return this.rig;
@@ -73,9 +72,10 @@ export class CloneStation {
         const k = this.form;
         r.root.scale.setScalar(0.35 + 0.65 * k);
         r.root.position.set(0, 0.06 + 0.24 * k + Math.sin(t * 1.3) * 0.02, 0);
-        r.update(dt, { speed: 0, stance: 'stand', full: '', fidget: false } as never);
+        // head bowed by the look (the rig's own neck), arms drifting
+        const wp = this.group.localToWorld(new THREE.Vector3(0, 0.25, 0.7));
+        r.update(dt, { speed: 0, stance: 'stand', full: '', fidget: false, lookX: wp.x, lookY: wp.y, lookZ: wp.z, lookW: 0.8 } as never);
         const j = r.j, f = Math.sin(t * 0.9);
-        j.head.rotation.x += 0.42; j.spine.rotation.x += 0.08;
         j.uarmL.rotation.z += 0.28 + f * 0.06; j.uarmR.rotation.z -= 0.28 + f * 0.06;
         j.farmL.rotation.x -= 0.2; j.farmR.rotation.x -= 0.2;
       }

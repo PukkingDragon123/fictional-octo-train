@@ -89,6 +89,8 @@ async function revive(g: Game, p: Player) {
     await playRevive({ app: p.app, name: p.name });
   } catch (e) { console.warn('revive cutscene', e); }
   freshBody(p);
+  // the new body stands: no ragdoll left over from the death
+  try { (p as unknown as { rig?: { stopRagdoll?: () => void } }).rig?.stopRagdoll?.(); } catch { /* rig optional */ }
   const [zk, x, y] = await landing(p);
   try {
     const nw = (g as unknown as { nearestWalkable?: (z: unknown, x: number, y: number) => [number, number] }).nearestWalkable?.(g.getZone(zk), x, y) ?? [x, y];
