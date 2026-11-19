@@ -19,6 +19,8 @@ import { makeHeldMesh } from '../items/itemMeshes';
 import { moveCircle } from '../world/collision';
 import { dampAngle } from '../core/math';
 import { registerContextActions } from './contextMenu';
+import { queueAt } from '../actions/basic';
+import { InstantAction } from '../actions/action';
 
 declare module '../entities/player' {
   interface Player {
@@ -214,7 +216,7 @@ export function installHaul() {
     if (p.dragging === c) return [{ label: 'Let go', run: () => stopDrag(p) }];
     return [{ label: 'Drag', enabled: canDrag(c) || true, info: 'Take it by an ankle and pull it after you.', run: () => {
       const reach = Math.hypot(c.x - p.x, c.z - p.z);
-      if (reach > 1.6) { G.interact?.walkNear?.(p, c.x, c.z, () => startDrag(p, c)) ?? startDrag(p, c); return; }
+      if (reach > 1.6) { queueAt(p, c.x, c.z, new InstantAction(p, () => startDrag(p, c), 'Drag'), 1.4, false); return; }
       startDrag(p, c);
     } }];
   });

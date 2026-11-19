@@ -146,9 +146,12 @@ export class UnitMotion {
     return this.prone || forced;
   }
   crawlSpeed(p: Player, legs: number): number { return this.prone && legs < 0.85 ? 0.55 : 0.32; }
-  canRun(_p: Player): boolean { return !this.blown && !this.prone && this.st === 'free'; }
+  /** arms full of planks or dragging a body: no sprint (src/interact/haul.ts) */
+  canRun(p: Player): boolean { return !this.blown && !this.prone && this.st === 'free' && !p.armload?.length && !p.dragging; }
   speedMul(p: Player): number {
     if (this.st === 'stagger') return 0.25;
+    if (p.dragging) return 0.58;
+    if (p.armload?.length) { const n = p.armload.length; return Math.max(0.5, 0.82 - n * 0.04); }
     const E = p.body.endurance;
     if (this.blown) return 0.72;
     return p.running ? 0.8 + 0.2 * Math.min(1, E / 0.35) : 1;

@@ -177,6 +177,8 @@ export function startSession(o: SessionOpts): Game {
   installBuild(g);
   installCook(g);
   g.addSystem(new GrabSystem());
+  // round 19: hands full (armloads of planks, dragging bodies) and pickups to the hotbar first (src/interact/haul.ts)
+  import('../interact/haul').then((m) => m.installHaul()).catch((e) => console.warn('haul', e));
   new PauseMenu();
   // round 18: the core keys, each shown once on a first run (src/ui/keyHints.ts)
   import('../ui/keyHints').then((m) => m.installKeyHints()).catch((e) => console.warn('key hints', e));
