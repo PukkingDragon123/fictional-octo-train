@@ -35,6 +35,7 @@ import { findPath } from '../../world/path';
 import { floatText, floatQuiet } from '../../social/floatText';
 import { offscreen } from '../../ui/holo/subs';
 import { cineSay } from '../../ui/holo/cineText';
+import { floatChoices, type FloatChoice } from '../../ui/holo/floatChoices';
 import { subStrip } from '../../ui/menus/settings';
 import { readTime } from '../lines';
 import { RadioVoice } from '../vossVoice';
@@ -220,6 +221,11 @@ export class FirstRun implements GameSystem {
     this.spot.update(dt);
     const p = G.local;
     if (p && !this.over) this.calder.keepUp(p);
+    // what the unit opened, latched every frame: a pack opened and shut again while she was still talking counts
+    const g = G as unknown as { ui?: { inventory?: { open?: boolean } }; craft?: { benchV?: { open?: boolean } }; bandos?: { open?: boolean } };
+    if (g.ui?.inventory?.open) this.seen.add('pack');
+    if (g.craft?.benchV?.open) this.seen.add('bench');
+    if (g.bandos?.open) this.seen.add('band');
     for (const w of [...this.waits]) if (w.cond()) { this.waits.splice(this.waits.indexOf(w), 1); w.res(); }
     // the clock on the mission
     if (FIRST.target && !this.over && has('fr:mission') && !has('fr:radio') && !has('fr:late')) {
@@ -228,6 +234,7 @@ export class FirstRun implements GameSystem {
     }
   }
   private deadline: number | null = null;
+  private seen = new Set<string>();
 
   private sleep(s: number) { const t = this.clock + s; return this.until(() => this.clock >= t); }
   private until(cond: () => boolean): Promise<void> {
@@ -268,6 +275,16 @@ export class FirstRun implements GameSystem {
     const ground = () => { const w = who(); return G.zones.get(w.zoneKey)?.heightAt(Math.floor(w.x), Math.floor(w.z)) ?? 0; };
     return { get x() { return who().x; }, get y() { return ground() + 2.3; }, get z() { return who().z; } };
   })();
+  /** floating answers beside her; the first one if nothing is picked in `secs` */
+  private choose(list: FloatChoice[], secs: number): Promise<string> {
+    return new Promise((res) => {
+      let done = false;
+      const fin = (id: string) => { if (!done) { done = true; res(id); } };
+      const at = this.calderSpot();
+      const h = floatChoices(list, { onPick: fin, speaker: () => { const a = at(); return a ? { x: a.x, y: a.y - a.r * 0.5 } : null; } });
+      this.sleep(secs).then(() => { if (!done) { h.close(); fin(list[0].id); } }, () => { h.close(); fin(list[0].id); });
+    });
+  }
   private interject(text: string) { this.voice.stop(); this.speak(text); }
   private lock(acts: Action[] | null) { this.allow = acts ? new Set(acts) : null; }
 
@@ -326,6 +343,9 @@ export class FirstRun implements GameSystem {
     this.calder.gesture('wave');
     await this.say('There you are. Hi! I\'m Iris. Calder. The voice in your band, and today, apparently, also the legs.');
     await this.say('First time down is a lot. So we do one thing at a time. I\'ll show you, you do it. Deal?', { gesture: 'talk' });
+    // the answer floats beside her (src/ui/holo/floatChoices.ts): a click, or 1 / 2
+    if (await this.choose([{ id: 'deal', label: 'Deal', tone: 'calder' }, { id: 'skip', label: 'I know the drill', tone: 'warm' }], 25) === 'skip') { this.skip(); throw SKIP; }
+    await this.say(pick(['Good. Easy stuff first.', 'Great. Nothing scary yet, I promise.']));
 
     // ---- 1. open the bag
     const bag = this.bag;
@@ -337,7 +357,7 @@ export class FirstRun implements GameSystem {
       await this.say('Your kit came down in that bag. It\'s yours. Open it: walk up to it and press E.');
       this.lock(['interact', 'up', 'down', 'left', 'right']);
       const inv = () => (G.ui as unknown as { inventory?: { open?: boolean } } | undefined)?.inventory;
-      await this.gate(() => !!inv()?.open, ['E, next to the bag.', 'The bag. E. I promise there\'s nothing alive in it.']);
+      await this.gate(() => this.seen.has('pack') || !!inv()?.open, ['E, next to the bag.', 'The bag. E. I promise there\'s nothing alive in it.']);
       this.spot.off();
       await this.say('Drag everything into your pack. All of it. You\'ll want it.');
       await this.gate(() => carries('cloth') && carries('field_radio_dead'), ['All of it. The cloth and the radio too.', 'Drag them over, into the pack.'], 16);
@@ -347,6 +367,7 @@ export class FirstRun implements GameSystem {
 
     // ---- 2. walk with me, to a bench
     this.step = 'walk'; TUT.step = 'walk';
+    this.seen.delete('bench');
     const bench = this.bench = await this.findBench();
     if (bench) {
       const bx = bench.x + 1, bz = bench.y + 0.5;
@@ -365,7 +386,8 @@ export class FirstRun implements GameSystem {
       this.spot.keys(['E']);
       this.lock(['interact', 'up', 'down', 'left', 'right']);
       await this.say('A workbench. Most of what keeps you alive gets made on one of these. Step up to it. E.');
-      await this.gate(() => !!bV()?.open, ['E, at the bench.', 'The bench. E.']);
+      await this.gate(() => this.seen.has('bench') || !!bV()?.open, ['E, at the bench.', 'The bench. E.']);
+      if (!bV()?.open) await this.gate(() => !!bV()?.open, ['Back up to the bench. E.'], 12);
       this.spot.off();
       const cloth = p().allItems().find((i) => i.key === 'cloth');
       if (cloth) bV()?.stage?.(cloth);
@@ -399,12 +421,13 @@ export class FirstRun implements GameSystem {
 
     // ---- 6. the band
     this.step = 'watch'; TUT.step = 'watch';
+    this.seen.delete('band');
     const bandOpen = () => !!(G as unknown as { bandos?: { open?: boolean } }).bandos?.open;
     this.spot.on(this.unitSpot(1.0));
     this.spot.keys(['Tab']);
     this.lock(['watch']);
     await this.say('Your band has a screen. Tab, and look at your wrist.');
-    await this.gate(() => bandOpen(), ['Tab. Your wrist.', 'Tab brings the band up.']);
+    await this.gate(() => this.seen.has('band') || bandOpen(), ['Tab. Your wrist.', 'Tab brings the band up.']);
     this.spot.off();
     await this.say('One app, for now: Tasks. That\'s the job, written down. You get more as you earn them.');
     await this.say('Tab again to put it away.');
@@ -470,9 +493,11 @@ export class FirstRun implements GameSystem {
       const b = this.bench, bx = b.x + 1, bz = b.y + 0.5;
       this.calder.follow(false);
       void this.walk(bx + 1.2, bz + 0.6, false, 0.6);
+      this.seen.delete('bench');
       await this.say('Back to the bench. Same as before.');
       const bV = () => (G.craft as unknown as { benchV?: { open?: boolean; stage?: (it: Item) => boolean } } | undefined)?.benchV;
-      await this.gate(() => !!bV()?.open, ['The bench. E.'], 20);
+      await this.gate(() => this.seen.has('bench') || !!bV()?.open, ['The bench. E.'], 20);
+      if (!bV()?.open) await this.gate(() => !!bV()?.open, ['Back up to the bench. E.'], 12);
       for (const k of ['field_radio_dead', 'transistor']) { const it = p().allItems().find((i) => i.key === k); if (it) bV()?.stage?.(it); }
       await this.say('Radio and transistor on the boards. Green lamp, click, hold.');
       await this.gate(() => carries('radio_portable'), ['The ready sheet. Click it and hold.'], 18);

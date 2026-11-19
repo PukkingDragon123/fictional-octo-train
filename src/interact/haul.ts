@@ -121,6 +121,7 @@ const armload = new Armload();
 /** pick a bulky thing up into the arms (it is already in p.inv) */
 export function takeIntoArms(p: Player, it: Item) {
   const load = (p.armload ??= []);
+  if (load.includes(it)) { it.data = { ...(it.data || {}), arm: true } as Item['data']; return; }
   if (load.length && (load[0].key !== it.key || load.length >= ARM_MAX(it))) {
     // arms full: it goes back down where it was
     say(p, load[0].key !== it.key ? 'My arms are full.' : `I can carry ${ARM_MAX(it)} at most.`);
@@ -227,7 +228,8 @@ export function installHaul() {
       // a bulky thing put in the pack (or a pocket) comes back out into the arms: it does not fit
       for (const c of p.containers()) {
         if (c === p.inv) continue;
-        for (const it of [...c.items]) if (isBulky(it) && !p.isWorn(it)) { c.remove(it); p.inv.add(it); say(p, 'That won\'t fit in there.'); takeIntoArms(p, it); }
+        // (only what came out of the arms: a kit packed before the run, or an old save, is left where it is)
+        for (const it of [...c.items]) if (isBulky(it) && !p.isWorn(it) && (it.data as { arm?: boolean } | undefined)?.arm) { c.remove(it); p.inv.add(it); say(p, 'That won\'t fit in there.'); const d = { ...(it.data || {}) } as Record<string, unknown>; delete d.arm; it.data = d as Item['data']; takeIntoArms(p, it); }
       }
       if (!p.armload?.length) return;
       // a thing taken in the hands (the hotbar, the pack) while the arms are full: the armload goes down first
