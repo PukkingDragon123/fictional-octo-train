@@ -92,6 +92,11 @@ export function showTitle() {
 
 /** one breath for the page: the next frame and a task after it (or a short timer when hidden) */
 const breath = () => new Promise<void>((res) => { let d = false; const go = () => { if (!d) { d = true; res(); } }; requestAnimationFrame(() => setTimeout(go, 0)); setTimeout(go, 80); });
+/** a quiet moment after a frame (requestIdleCallback where there is one), for work that can wait */
+const idleSlice = () => new Promise<void>((res) => {
+  const ric = (window as { requestIdleCallback?: (f: () => void, o?: { timeout: number }) => number }).requestIdleCallback;
+  requestAnimationFrame(() => { if (ric) ric(() => res(), { timeout: 700 }); else setTimeout(res, 50); });
+});
 
 interface Item { key: string; label: string; sub: string; act: () => void; size?: 'lg' | 'md' | 'sm' }
 type View = 'monitor' | FeedKey;
@@ -179,23 +184,35 @@ class TitleRoom {
   private async buildRooms() {
     if (this.monitor || this.building) return;
     this.building = true;
+    let lab0: ResearchLab | null = null, arc0: CodexArchive | null = null;
     try {
-      // one room per task, so the loading screen gets frames in between
+      // round 22 (load time): only the monitor room is built and compiled behind the loading screen; the title
+      // comes up on it, and the control room and the archive follow one idle slice at a time (their tubes show
+      // snow until their feeds are live). A dive into one before it is up waits for it (go()).
       const mats = facetMats(this.stage.low);
       const mon0 = new MonitorRoom(mats); await breath();
-      const lab0 = new ResearchLab(mats); await breath();
-      const arc0 = new CodexArchive(mats); await breath();
-      this.buildRoomsNow(mon0, lab0, arc0);
-      // shaders: the rooms off screen are compiled before their feeds first draw them
+      this.monitor = mon0;
+      this.stage.add(mon0); this.stage.show('monitor');
+      mon0.setFeedTexture('subject', this.subject.tex, false);
+      mon0.onFeed = (k) => { void this.go(k); };
       await this.stage.warm(breath);
-      const mon = this.monitor!;
-      mon.setFeedTexture('archive', this.stage.feed('archive', 160, 120, 8), true);
-      mon.setFeedTexture('research', this.stage.feed('research', 160, 120, 10), true);
       await breath();
+      this.readyRes();
+      lab0 = new ResearchLab(mats); await idleSlice();
+      arc0 = new CodexArchive(mats); await idleSlice();
+      this.buildRoomsNow(mon0, lab0, arc0);
+      // shaders: the rooms off screen are compiled (one per idle slice) before their feeds first draw them
+      await this.stage.warm(idleSlice);
+      mon0.setFeedTexture('archive', this.stage.feed('archive', 160, 120, 8), true);
+      mon0.setFeedTexture('research', this.stage.feed('research', 160, 120, 10), true);
     } catch (e) { console.warn('title rooms', e); }
     this.building = false;
     this.readyRes();
+    this.labRes();
   }
+  /** the control room and the archive are built (they come after the title is up) */
+  private labRes: () => void = () => {};
+  readonly labReady = new Promise<void>((r) => { this.labRes = r; });
   private buildRoomsNow(mon: MonitorRoom, lab: ResearchLab, arc: CodexArchive) {
     this.monitor = mon; this.research = lab; this.archive = arc;
     this.stage.add(mon); this.stage.add(lab); this.stage.add(arc);
@@ -399,12 +416,16 @@ class TitleRoom {
         b.addEventListener('focus', () => this.beacon?.alert(go));
       }
     });
-    this.gear?.dispose();
-    const gi: Item = { key: 'options', label: 'Settings', sub: 'sound · picture · interface', act: () => this.options() };
-    const gb = gearButton('Settings', () => this.activate(gi), { aria: 'Settings — sound · picture · interface' });
-    gb.dataset.k = 'options';
-    gb.classList.add('tt4-gear');
-    gb.addEventListener('focus', () => { this.lastKey = 'options'; if (!mxOk()) this.caption(gi, gb); });
+    // round 22 (load time): a rebuild keeps the same gear (each new one is a WebGL context of its own: seconds on a slow GPU)
+    let gb = this.gear;
+    if (!gb) {
+      const gi: Item = { key: 'options', label: 'Settings', sub: 'sound · picture · interface', act: () => this.options() };
+      const g = gearButton('Settings', () => this.activate(gi), { aria: 'Settings — sound · picture · interface' });
+      g.dataset.k = 'options';
+      g.classList.add('tt4-gear');
+      g.addEventListener('focus', () => { this.lastKey = 'options'; if (!mxOk()) this.caption(gi, g); });
+      gb = g;
+    }
     this.menu.append(gb);
     this.btns.set('options', gb);
     this.gear = gb;
@@ -549,6 +570,8 @@ class TitleRoom {
   /** into a room: dive into its tube from the monitors, or switch channel from another room */
   async go(k: FeedKey) {
     if (this.moving || this.view === k || !this.monitor) return;
+    // round 22: the control room and the archive are built after the title is up; a dive waits for them
+    if (k !== 'subject' && !this.research) { this.moving = true; try { await this.labReady; } finally { this.moving = false; } if (this.view === k) return; }
     // round 19: the codex archive has to be built (funded) first; its monitor shows the tag
     if (k === 'archive' && !built('archive')) {
       const calder = (t: string) => { (window as unknown as { __deco?: { guide?: { now?: (t: string) => void } } }).__deco?.guide?.now?.(t); };

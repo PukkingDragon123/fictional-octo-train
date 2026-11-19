@@ -52,8 +52,15 @@ const TIPS = [
   'The commissary restocks never. Everything is always there.',
 ];
 
+/** round 22: the lab guide in the room now (the lab introduction drives her mouth and her arm through it) */
+let current: Guide | null = null;
+export function currentGuide(): Guide | null { return current; }
+
 export class Guide {
   private host: GuideHost;
+  /** round 22: the lab introduction speaks through its own subtitle strip; her mouth and arm follow it */
+  voiceOver: (() => boolean) | null = null;
+  pointAt: THREE.Vector3 | null = null;
   /** her lines, in the subtitle strip (no speech bubbles) */
   subs: SubLine;
   private rig: GuideRig | null = null;
@@ -82,6 +89,16 @@ export class Guide {
     this.fill.position.set(0.25, 1.75, 0.75);
     this.fill.castShadow = false;
     void loadCalderVoice();
+    current = this;
+  }
+  /** round 22: the lab introduction has introduced her and every room: no first-meeting lines after it, and the
+   *  welcome gifts (her plant and her figure) still land in the tray */
+  introduced() {
+    const first = !flag('guide.met', false);
+    setFlag('guide.met', true);
+    for (const id of ['monitor', 'archive', 'research', 'subject']) setFlag('guide.room.' + id, true);
+    this.queue = []; this.subs.clear(); this.cur = null;
+    if (first) this.onGift?.();
   }
 
   // ---------------------------------------------------------------- rooms
@@ -147,6 +164,8 @@ export class Guide {
     this.walking = true;
     this.rig.root.position.copy(this.pos);
     if (this.gone) return;
+    // (round 22: no room lines while a tour or the lab introduction is speaking for her)
+    if (tourRunning()) return;
     if (!flag('guide.met', false)) { this.intro(); return; }
     const key = 'guide.room.' + room.id;
     if (!flag(key, false)) {
@@ -355,9 +374,9 @@ export class Guide {
     if (!this.cur && !this.queue.length && !this.gone && !this.talk && this.idleT > 45 && !hide) { this.idleT = 0; this.say([{ text: TIPS[Math.floor(Math.random() * TIPS.length)] }]); }
     // where she looks / points
     const ln = this.cur;
-    const point = ln?.point && ln.t > 0.25 && ln.t < ln.hold ? this.aim(ln.point, room) : null;
+    const point = (ln?.point && ln.t > 0.25 && ln.t < ln.hold ? this.aim(ln.point, room) : null) ?? this.pointAt;
     const look = point ?? (ln?.look ? this.aim(ln.look, room) : null) ?? room.camera.getWorldPosition(this.w);
-    rig.update(dt, { speed: this.walking ? speed : 0, look, point, talking: this.subs.talking });
+    rig.update(dt, { speed: this.walking ? speed : 0, look, point, talking: this.subs.talking || !!this.voiceOver?.() });
     this.subs.update(dt);
   }
   private turnTo(a: number, dt: number, k: number) {
@@ -396,5 +415,5 @@ export class Guide {
     return new THREE.Vector3(Math.max(-1.2, Math.min(1.2, nx)), Math.max(-1.2, Math.min(1.2, ny)), this.v.z).unproject(room.camera);
   }
 
-  dispose() { this.talk?.close(); this.rig?.dispose(); this.rig = null; this.subs.dispose(); }
+  dispose() { this.talk?.close(); this.rig?.dispose(); this.rig = null; this.subs.dispose(); if (current === this) current = null; }
 }

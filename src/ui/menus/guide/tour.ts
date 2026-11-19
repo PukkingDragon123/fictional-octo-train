@@ -11,8 +11,18 @@ import { built, type StationKey } from '../lab/stations';
 import { sfx } from '../sfx';
 import { pixIconEl, type PixKind } from '../deco/pixIcons';
 import { cornerSheet, CORNER, CORNER_F, capEl, pipSheet, arrowSheet } from './tourArt';
+import { LAB_INTRO_KEY, labIntroDone } from '../../../game/tutorial/state';
 
 export type TourRoom = 'monitor' | 'archive' | 'research' | 'subject';
+/** round 22: the lab introduction moves her arm and mouth through the host (the lab guide's HumanRig) */
+export interface IntroHost extends TourHost {
+  /** she is speaking (her mouth moves) */
+  talk(on: boolean): void;
+  /** she points at the stop's thing (null: arm down) */
+  point(room: TourRoom, hot: string | null): void;
+  /** she has introduced herself and every room (the guide's first-meeting lines are spent) */
+  introduced(): void;
+}
 export interface TourHost {
   /** go to a room (resolves when the picture is up) */
   go(room: TourRoom): Promise<void>;
