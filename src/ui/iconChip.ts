@@ -4,7 +4,8 @@
 // a number (a count) can sit on its corner. Inside the band's tube (.wt) the model and the name take the phosphor.
 //   iconChip(kind, name, fn, o)   -> { el, set(on), count(n), lock(v), ping(), name(t) }
 //   floatName()                   a free-floating name for things drawn on a canvas (the survey map's markers)
-import { mxIconAnim, type IconKind } from './machine/decor';
+import type { IconKind } from './machine/decor';
+import { pixSprite } from './floatIcon';
 import { sfx } from './menus/sfx';
 
 export interface IconChip { el: HTMLButtonElement; set(on: boolean): void; count(n: number | string | null): void; lock(v: boolean): void; ping(): void; name(t: string): void }
@@ -71,7 +72,8 @@ export function iconChip(kind: IconKind, name: string, fn: (() => void) | null, 
   b.type = 'button';
   b.className = 'ic21' + (o.cls ? ' ' + o.cls : '') + (o.below ? ' below' : '');
   b.setAttribute('aria-label', name);
-  const ic = mxIconAnim(kind, size);
+  // round 22: the floating pixel sprite (./floatIcon.ts), not the old small decor render
+  const ic = pixSprite(kind, size);
   if (ic) b.append(ic.cv);
   else { const f = document.createElement('span'); f.className = 'ic21-fb'; f.style.width = f.style.height = size + 'px'; f.textContent = name.slice(0, 1).toUpperCase(); b.append(f); }
   const nm = document.createElement('span'); nm.className = 'ic21-n'; nm.textContent = name;

@@ -63,6 +63,7 @@ import { mxOk } from '../machine/core';
 import { mxFrame, mxSkinKey, panelSpec, type MxFrame } from '../machine/kit';
 import { mxIconAnim, mxMount, type MxDecor, type IconKind } from '../machine/decor';
 import { iconKey, iconBanner } from './iconKey';
+import { pixSprite } from '../floatIcon';
 
 // round 18: the keys' icons are detailed 2D pixel art (deco/pixIcons.ts), bigger, the hot frame lit under the pointer
 const TITLE_ICON: Record<string, PixKind> = { continue: 'play', new: 'plug', free: 'reel', coop: 'radio', load: 'clipboard', controls: 'joystick', about: 'dossier' };
@@ -72,6 +73,12 @@ const ACT_ICON: Record<string, IconKind> = {
   inhabitants: 'jar', items: 'wrench', places: 'map', anomalies: 'siren', research: 'clipboard', new: 'plug',
 };
 const ROOM_ICON: Record<FeedKey, IconKind> = { archive: 'cabinet', research: 'crt', subject: 'plug' };
+// round 22: the short names floating under the icons
+const SHORT: Record<string, string> = {
+  tree: 'Research', talent: 'Talents', process: 'Samples', req: 'Requisition', press: 'Press', fab: 'Fab bay', file: 'File',
+  inhabitants: 'Inhabitants', items: 'Items', places: 'Places', anomalies: 'Anomalies', research: 'Files', new: 'New unit',
+};
+const ROOM_SHORT: Record<FeedKey, string> = { archive: 'Archive', research: 'Control', subject: 'Unit room' };
 
 export function showTitle() {
   const canvas = document.getElementById('view') as HTMLCanvasElement;
@@ -432,7 +439,7 @@ class TitleRoom {
     const TITLE_3D: Record<string, IconKind> = { free: 'reel', coop: 'walkie', load: 'clipboard', controls: 'joystick', about: 'dossier' };
     items.forEach((it, i) => {
       if (mxOk() && TITLE_3D[it.key]) {
-        const k = iconKey(TITLE_3D[it.key], it.label, () => this.activate(it), { w: pt ? 72 : 76, h: pt ? 56 : 60, tone: 'olive', lamp: 'amber', sound: 'key', seed: 40 + i, nameAt: pt ? 'top' : 'right', cls: 'ft-item tt-ik' + (pt ? ' ikk-sm' : ''), aria: `${it.label} — ${it.sub}` });
+        const k = iconKey(TITLE_3D[it.key], it.label, () => this.activate(it), { model: pt ? 40 : 46, sound: 'key', cls: 'ft-item tt-ik', aria: `${it.label} — ${it.sub}` });
         k.dataset.k = it.key;
         k.style.setProperty('--ft-i', String(i));
         k.addEventListener('focus', () => { this.lastKey = it.key; this.beacon?.alert(false); });
@@ -495,7 +502,7 @@ class TitleRoom {
     this.mxf = mxFrame(this.menu, (w, hh) => panelSpec(w, hh, { seed: 71, lamps: ['green', 'amber', 'red'], glands: 2, hazard: true, top: 44, bot: 26, toggles: 2, knobs: 1 }), { pad: 16, grow: pt ? { l: 14, t: 48, r: 14, b: 28 } : { l: 20, t: 50, r: 22, b: 30 } });
     this.beacon = mxMount(this.menu, 'beacon', { right: pt ? 18 : 30, top: pt ? -84 : -92, z: 3 }, { col: 'amber', s: 1.3, alert: this.lastKey === 'new' || this.lastKey === 'continue' });
     // the prologue is the cassette on the console's hood: press it to play the first link again
-    const tape = mxIconAnim('tape', 30);
+    const tape = pixSprite('tape', 30);
     if (tape) {
       const pb = h('button', 'tt-pro') as HTMLButtonElement;
       pb.type = 'button';
@@ -738,13 +745,13 @@ class TitleRoom {
     hud.append(cam);
     this.hudCam = cam;
     this.tcT = 0;
-    // round 21: the room's words are keys now, each with its little model; the name floats only while hot
+    // round 22: the room's words are floating icons, each with its short name under it
     const acts = h('div', 'mr-acts ikk-row');
     const bar = h('div', 'mr-bar ikk-row');
     const pt = this.portrait();
-    const KW = pt ? 58 : 76, KH = pt ? 48 : 60;
+    const KW = pt ? 40 : 50;
     const key = (kind: IconKind, label: string, cls: string, fn: () => void, o: { hint?: string; tone?: 'olive' | 'yellow' | 'dark'; at?: 'top' | 'bottom' } = {}) => {
-      const b = iconKey(kind, label, () => { if (!this.moving) fn(); }, { w: KW, h: KH, cls: 'mr-ik ' + cls + (pt ? ' ikk-sm' : ''), hint: o.hint, tone: o.tone, nameAt: o.at, lamp: o.tone === 'yellow' ? 'green' : 'amber', seed: 60 + bar.childElementCount + acts.childElementCount });
+      const b = iconKey(kind, label, () => { if (!this.moving) fn(); }, { model: KW, cls: 'mr-ik ' + cls + (o.tone === 'yellow' ? ' warm' : ''), hint: o.hint });
       b.style.setProperty('--ik-i', String(acts.childElementCount + bar.childElementCount));
       return b;
     };
@@ -756,14 +763,14 @@ class TitleRoom {
       : ((this.roomOf(k) as Acting | null)?.actions ?? []);
     for (const a of roomActs) {
       const kind = a.key === 'face' ? (this.subject.face ? 'door' : 'lens') : ACT_ICON[a.key] ?? 'gear';
-      acts.append(key(kind, a.label, 'act', () => { sfx('click', 0.8); a.run(); }, { tone: a.key === 'new' ? 'yellow' : 'olive' }));
+      acts.append(key(kind, a.key === 'face' ? (this.subject.face ? 'Room' : 'Face') : SHORT[a.key] ?? a.label, 'act', () => { sfx('click', 0.8); a.run(); }, { tone: a.key === 'new' ? 'yellow' : 'olive' }));
     }
     const prev = ORDER[(i + ORDER.length - 1) % ORDER.length], next = ORDER[(i + 1) % ORDER.length];
     const pf = FEEDS.find((q) => q.key === prev)!, nf = FEEDS.find((q) => q.key === next)!;
     const arrow = (b: HTMLElement, d: 'l' | 'r') => { b.append(h('span', 'ikk-arr ' + d)); return b; };
-    if (prev !== next) bar.append(arrow(key(ROOM_ICON[prev], pf.label, 'prev', () => void this.go(prev), { hint: 'Q', tone: 'dark', at: 'bottom' }), 'l'));
+    if (prev !== next) bar.append(arrow(key(ROOM_ICON[prev], ROOM_SHORT[prev], 'prev', () => void this.go(prev), { hint: 'Q', tone: 'dark', at: 'bottom' }), 'l'));
     bar.append(key('eye', 'Monitors', 'home', () => void this.back(), { hint: 'Esc', tone: 'yellow', at: 'bottom' }));
-    bar.append(arrow(key(ROOM_ICON[next], nf.label, 'next', () => void this.go(next), { hint: 'E', tone: 'dark', at: 'bottom' }), 'r'));
+    bar.append(arrow(key(ROOM_ICON[next], ROOM_SHORT[next], 'next', () => void this.go(next), { hint: 'E', tone: 'dark', at: 'bottom' }), 'r'));
     hud.append(acts, bar);
     requestAnimationFrame(() => (acts.querySelector('button') as HTMLElement | null ?? bar.querySelector('.home') as HTMLElement | null)?.focus({ preventScroll: true }));
   }

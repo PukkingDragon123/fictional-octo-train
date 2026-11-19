@@ -1153,6 +1153,14 @@ export function mxIconSpin(kind: IconKind, size = 72, rate: [number, number] = [
   tickOf.set(cv, t); clock(t);
   return { cv, hot: (v: boolean) => { on = v; wake(cv); }, wake: () => wake(cv) };
 }
+/**
+ * round 22: an icon's turntable at k texels per unit and no baked shadow, for the floating pixel sprites
+ * (src/ui/floatIcon.ts): frame f is the model turned f / frames of the way round
+ */
+export function iconSheet(kind: IconKind, size: number, frames: number, k = 0.5): HTMLCanvasElement | null {
+  if (!mxOk()) return null;
+  return sheet(`icoP|${kind}|${size}|${frames}|${k}`, size, size, 4, frames, (f) => iconModel(kind, size, (f / frames) * TAU), { shear: [0, 0], shadowA: 0, k });
+}
 /** bake an icon's turntable sheet ahead of time (idle), so the band's home turns at once when it opens */
 export function mxIconSpinWarm(kind: IconKind, size = 72) { if (mxOk()) sheet(`icoS|${kind}|${size}`, size, size, 4, SPIN_F, (f) => iconModel(kind, size, (f / SPIN_F) * TAU), FREE); }
 /** a little 3D icon (cached): a canvas of size + 2 x 3 px */

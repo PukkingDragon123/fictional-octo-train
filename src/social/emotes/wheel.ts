@@ -77,7 +77,7 @@ export class EmoteWheel {
       tunes.append(k); this.tuneKeys.push(k);
     });
     this.lineKey = mxButton('LINE', () => this.onPick({ kind: 'card' }), { w: 140, h: 26, cls: 'ew-line', tone: 'dark', lamp: 'amber', sound: 'relay' });
-    const shop = mxButton('JUKEBOX', () => this.onPick({ kind: 'shop' }), { w: 140, h: 32, cls: 'ew-shop', tone: 'yellow', lamp: 'red', sound: 'plate', icon: mxOk() ? mxIcon('coin', 22) : null });
+    const shop = mxButton('JUKEBOX', () => this.onPick({ kind: 'shop' }), { w: 140, h: 32, cls: 'ew-shop', tone: 'yellow', lamp: 'red', sound: 'plate', iconKind: 'reel', iconSize: 28 });
     const tl = document.createElement('small'); tl.className = 'ew-tl'; tl.textContent = 'WHISTLE · Q';
     this.hub.append(head, tl, tunes, this.lineKey, shop);
     if (mxOk()) {

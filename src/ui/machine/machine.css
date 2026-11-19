@@ -125,3 +125,26 @@ html .ft-menu.mx :is(.ft-md, .ft-sm) .ft-lab { font-size: 24px; color: inherit; 
 .pb.pb-mx.has-i { padding-right: 28px !important; }
 .pb.pb-mx.has-i > .mxi-cv { right: 7px; }
 html .ft-menu.mx.in .ft-item { transition-delay: 0s; }
+
+/* ---- round 22: no boxed keys. A skinned key floats free: its words are floating Alagard with a stepped extrusion,
+   it lifts and glows when hot, dips when pressed, keeps a warm glow when latched (kit.ts mxSkinKey / mxButton) */
+html .mxk.mxflt { --mx-cx: 0px; --mx-cw: 100%; --mx-dx: 0px; --mx-dy: 0px; background: none !important; border: 0 !important; border-image: none !important; box-shadow: none !important;
+  color: #ecead8; font-family: var(--font-new); cursor: var(--cur-hand, pointer);
+  text-shadow: 1px 1px 0 #26302a, 2px 2px 0 #1a221d, 3px 3px 0 #10160f, 0 0 2px #000, 4px 7px 8px rgba(0, 0, 0, .6);
+  transition: transform .2s cubic-bezier(.2, .9, .3, 1.4), filter .16s, color .15s; transform-origin: 50% 80%; }
+html .mxk.mxflt :is(span, small, b, em, i) { text-shadow: inherit; }
+html .mxk.mxflt.mx-hot { transform: translateY(-3px) scale(1.05); color: #fff4cf; filter: drop-shadow(0 0 6px rgba(255, 210, 120, .45)); }
+html .mxk.mxflt.mx-down { transform: translateY(1px) scale(.96); transition-duration: .05s; }
+html .mxk.mxflt.on { color: #ffe39a; filter: drop-shadow(0 0 5px rgba(255, 200, 90, .4)); }
+html .mxk.mxflt.ink-d, html .mxk.mxflt.ink-d :is(span, small, b) { color: #ffe39a !important; text-shadow: 1px 1px 0 #3a3020, 2px 2px 0 #2a2216, 3px 3px 0 #16110a, 0 0 2px #000, 4px 7px 8px rgba(0, 0, 0, .6) !important; }
+html .mxk.mxflt.mxflt-go { color: #ffe39a; }
+html .mxk.mxflt.mxflt-red, html .mxk.mxflt.danger { color: #ffb8a0; }
+html .mxk.mxflt:disabled, html .mxk.mxflt.dim { opacity: .5; filter: grayscale(.6); cursor: default; transform: none; }
+.mxb.mxflt { display: inline-flex; align-items: center; justify-content: center; text-align: center; padding: 2px 6px; }
+.mxb.mxflt .mxb-t { position: static; transform: perspective(200px) rotateX(12deg); font-size: 18px; overflow: visible; color: inherit; text-shadow: inherit; }
+.mxb.mxflt .mxb-s { position: static; transform: none; margin-left: 6px; color: rgba(236, 230, 200, .7); }
+.mxb.mxflt.has-fi { flex-direction: column; gap: 1px; }
+.mxb.mxflt .mxb-fi { line-height: 0; transition: transform .2s cubic-bezier(.2, .9, .3, 1.45); animation: fi-bob 3.6s ease-in-out infinite alternate; }
+.mxb.mxflt .mxb-fi canvas { image-rendering: pixelated; }
+.mxb.mxflt.mx-hot .mxb-fi { transform: translateY(-5px) scale(1.1); }
+.mxb.mxflt > .mxi-cv { display: none; }

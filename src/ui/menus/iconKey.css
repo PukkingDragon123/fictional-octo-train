@@ -1,35 +1,5 @@
-/* ICON KEYS (round 21, iconKey.ts): a machine key with a turning model on the cap; the name floats only while hot */
-.ikk { position: relative; flex: none; padding: 0; margin: 0; cursor: var(--cur-hand, pointer); overflow: visible; pointer-events: auto; -webkit-tap-highlight-color: transparent; font-family: var(--font-new); }
-.ikk.mxk > .ikk-m { position: absolute; right: auto; left: calc(var(--mx-cx, 8px) + var(--mx-cw, 48px) / 2); top: 50%; z-index: 2;
-  transform: translate(calc(-50% + var(--mx-dx, 0px)), calc(-50% + var(--mx-dy, 0px)));
-  transition: transform 0.18s cubic-bezier(.2,.9,.3,1.35), filter 0.16s; image-rendering: pixelated; pointer-events: none; }
-.ikk.mxk.ikk-nolamp > .ikk-m { left: 50%; }
-.ikk.mxk.hot > .ikk-m, .ikk.mxk.on > .ikk-m { transform: translate(calc(-50% + var(--mx-dx, 0px)), calc(-50% + var(--mx-dy, 0px) - 8px)) scale(1.14);
-  filter: brightness(1.18) drop-shadow(0 6px 0 rgba(8,10,4,.38)); }
-.ikk.mxk.mx-down > .ikk-m { transform: translate(calc(-50% + var(--mx-dx, 0px)), calc(-50% + var(--mx-dy, 0px) + 1px)) scale(0.96); filter: brightness(0.92); transition-duration: 0.04s; }
-.ikk.mxk:disabled > .ikk-m, .ikk.mxk.dim > .ikk-m { filter: grayscale(.75) brightness(.6); }
-.ikk-f { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: normal; font-size: 16px; color: #f2d65a; }
-
-/* the name: raised Alagard letters (an extruded edge, an ink outline), no plate behind them */
-.ikk-n { position: absolute; left: 50%; bottom: calc(100% + 10px); z-index: 6; white-space: nowrap; pointer-events: none;
-  font-size: 32px; line-height: 1; letter-spacing: 0.02em; color: #fff0b0; opacity: 0;
-  transform: translate(-50%, 8px) perspective(240px) rotateX(18deg); transform-origin: 50% 100%;
-  transition: opacity 0.12s steps(3), transform 0.2s cubic-bezier(.2,.9,.3,1.35);
-  text-shadow: -1px 0 0 #120c04, 0 -1px 0 #120c04, 1px 1px 0 #b08a2a, 2px 2px 0 #7a5a16, 3px 3px 0 #4a360c, 4px 4px 0 #1a1206, 5px 6px 0 rgba(0,0,0,.35); }
-.ikk-n i { font-style: normal; font-size: 16px; margin-left: 10px; vertical-align: 6px; color: #c8f0c0;
-  text-shadow: -1px 0 0 #06120a, 0 -1px 0 #06120a, 1px 1px 0 #3a6a3a, 2px 2px 0 #06120a; }
-.ikk.hot .ikk-n { opacity: 1; transform: translate(-50%, 0) perspective(240px) rotateX(12deg); }
-.ikk-bottom .ikk-n { bottom: auto; top: calc(100% + 8px); transform-origin: 50% 0; }
-.ikk-right .ikk-n { left: calc(100% + 14px); bottom: auto; top: 50%; transform: translate(-6px, -50%) perspective(240px) rotateY(-14deg); transform-origin: 0 50%; }
-.ikk-right.hot .ikk-n { transform: translate(0, -50%) perspective(240px) rotateY(-10deg); }
-.ikk-left .ikk-n { left: auto; right: calc(100% + 14px); bottom: auto; top: 50%; transform: translate(6px, -50%) perspective(240px) rotateY(14deg); transform-origin: 100% 50%; }
-.ikk-left.hot .ikk-n { transform: translate(0, -50%) perspective(240px) rotateY(10deg); }
-.ikk.ikk-sm .ikk-n { font-size: 16px; }
-.ikk.ikk-sm .ikk-n i { font-size: 16px; vertical-align: 0; }
-
+/* MENU ICONS (round 22): rows and placements of the floating icons (../floatIcon.css styles the icons) */
 .ikk-row { display: flex; align-items: flex-end; justify-content: center; gap: 10px; pointer-events: none; }
-@media (max-aspect-ratio: 20/21) { .ikk-n { font-size: 16px; } .ikk-n i { vertical-align: 0; } }
-@media (prefers-reduced-motion: reduce) { .ikk.mxk > .ikk-m, .ikk-n { transition: none; } }
 
 /* the banner (iconBanner): crest, booth, clearance lamps; names float under the strip while hot */
 .px-banner.ikb { pointer-events: auto; }
@@ -46,11 +16,10 @@
 .ikb > span:hover::after { opacity: 1; transform: none; }
 .ikb > span:hover > canvas { filter: brightness(1.25); }
 
-/* the title console's square keys, three to a row under the way in; the name floats clear of the console */
-.tt-ikrow { display: flex; gap: 8px; margin-top: 4px; }
-html .ft-menu.mx .ft-item.tt-ik { padding: 0 !important; justify-content: center; }
+/* the title console's icons, three to a row under the way in */
+.tt-ikrow { display: flex; gap: 6px; margin-top: 6px; justify-content: space-around; align-self: stretch; }
+html .ft-menu.mx .ft-item.tt-ik { padding: 0 4px !important; opacity: 1; transform: none; color: inherit; }
 html .ft-menu.mx .ft-item.tt-ik:is(:hover, :focus, :focus-visible, :active, .px-down) { transform: none; }
-.tt-ik.ikk-right .ikk-n { left: calc(100% + 26px + var(--ik-push, 0px)); }
 /* the settings gear names itself only while hot */
 .tt3-menu.mx > .tt4-gear .gb-l { opacity: 0; transform: translateX(-6px); transition: opacity .12s steps(3), transform .18s cubic-bezier(.2,.9,.3,1.35);
   text-shadow: -1px 0 0 #120c04, 0 -1px 0 #120c04, 1px 1px 0 #b08a2a, 2px 2px 0 #7a5a16, 3px 3px 0 #1a1206; }
@@ -63,9 +32,7 @@ html body .mr-hotcap b { font-size: 32px; color: #fff0b0;
 html body .mr-hotcap small { display: none; }
 @media (max-aspect-ratio: 20/21) { html body .mr-hotcap b { font-size: 16px; } }
 
-/* keys in a terminal's tray: the hidden name must not widen the tray (it is measured), so it is out of the flow until hot */
-.ct-keys .ikk:not(.hot) .ikk-n { display: none; }
-/* the pause console's keys stand in pairs */
-.ps2-pair { display: flex; gap: 8px; }
-/* a pause key's name clears its pair and the spanner on the console's edge */
-.ps2-ik.ikk-right .ikk-n { left: calc(100% + 34px + var(--ik-push, 0px)); }
+/* the pause console's icons stand in pairs */
+.ps2-pair { display: flex; gap: 10px; justify-content: space-around; }
+.ps2-col.mx .ps2-pair .fi-t { font-size: 16px; }
+

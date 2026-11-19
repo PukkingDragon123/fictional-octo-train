@@ -23,8 +23,9 @@ import { G } from '../../game/G';
 import { bus } from '../../core/events';
 import { sfx } from '../menus/sfx';
 import { mxOk } from '../machine/core';
-import { mxIconSpinWarm, mxIcon, type IconKind } from '../machine/decor';
+import { iconSheet, mxIcon, type IconKind } from '../machine/decor';
 import { iconChip, nameTag } from '../iconChip';
+import { floatIcon } from '../floatIcon';
 import { creditIcon, type CreditIconEl } from '../creditIcon';
 import { crtScreen, crtIcon, type Crt, type CrtIcon } from '../crt/crt';
 import { mxButton, mxKnob, mxToggleCanvas } from '../machine/kit';
@@ -90,7 +91,7 @@ export class BandOS {
     window.addEventListener('keydown', (e) => this.onKey(e), true);
     window.addEventListener('resize', () => { if (this.open) this.layout(); });
     // bake the home screen's turntables while the game idles, so the band turns at once
-    const warm = () => { if (!mxOk()) return; for (const a of APPS) mxIconSpinWarm(a.icon, this.iconSize()); };
+    const warm = () => { if (!mxOk()) return; for (const a of APPS) iconSheet(a.icon, this.iconSize(), 32, 1); };
     setTimeout(() => { const ric = (window as any).requestIdleCallback as ((f: () => void, o?: object) => void) | undefined; if (ric) ric(warm, { timeout: 4000 }); else warm(); }, 6000);
   }
 
@@ -413,9 +414,10 @@ export class BandOS {
     ];
     keyDefs.forEach(([label, fn, tone, lamp, ik, nm], i) => {
       const R = L.keys[i];
-      const b = mxButton('', fn, { tone, lamp, w: R.w, h: R.h, cls: 'wt-key', sound: 'key', icon: mxIcon(ik, Math.max(14, Math.min(26, R.h - 14))) });
-      nameTag(b, nm);
-      Object.assign(b.style, { position: 'absolute', left: R.x + 'px', top: R.y + 'px' });
+      // round 22: a floating icon with its name under it (../floatIcon.ts), centred where the old key sat
+      void tone; void lamp;
+      const b = floatIcon(ik, nm, fn, { size: Math.max(22, Math.min(34, R.h)), cls: 'wt-key wt-fi', sound: 'key' });
+      Object.assign(b.style, { position: 'absolute', left: R.x + R.w / 2 + 'px', top: R.y - 4 + 'px', transform: 'translateX(-50%)' });
       if (label === 'SAVE' && G.role === 'client') { b.disabled = true; b.classList.add('off'); }
       this.lift.append(b);
     });

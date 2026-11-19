@@ -11,7 +11,8 @@ import { uiSettings, calm } from './settings';
 import { sfx } from './sfx';
 import { mxOk } from '../machine/core';
 import { mxFrame } from '../machine/kit';
-import { mxIconSpin, type IconKind } from '../machine/decor';
+import type { IconKind } from '../machine/decor';
+import { pixSprite } from '../floatIcon';
 import './labIcons';
 import type { HousingSpec } from '../machine/parts';
 import './kit.css';
@@ -426,7 +427,8 @@ export function crtAct(label: string, onClick: () => void, o: { danger?: boolean
   b.innerHTML = `<span class="ct-act-l"></span>${o.sub ? '<small></small>' : ''}`;
   (b.querySelector('.ct-act-l') as HTMLElement).textContent = label;
   if (o.sub) (b.querySelector('small') as HTMLElement).textContent = o.sub;
-  const spin = o.icon && mxOk() ? mxIconSpin(o.icon, 30) : null;
+  // round 22: a floating pixel sprite in the phosphor over its name (../floatIcon.ts), no frame
+  const spin = o.icon && mxOk() ? pixSprite(o.icon, 34) : null;
   if (spin) {
     b.classList.add('ct-ai');
     b.setAttribute('aria-label', label + (o.sub ? ' — ' + o.sub : ''));

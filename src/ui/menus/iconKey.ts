@@ -1,78 +1,38 @@
-// ICON KEYS (round 21): the menus' words become keys with a little 3D model on the cap.
-// A machine push key (machine/kit.ts mxSkinKey: enamel cap in a steel bezel, a glass lamp) carrying
-// a model that turns slowly on its turntable (machine/decor.ts mxIconSpin, the lab's own models in
-// labIcons.ts). Under the pointer or focus the model lifts and spins up, the lamp lights and the relay
-// ticks; a press sinks the cap with a clunk. The name floats over the key only while it is hot, as
-// raised Alagard letters (no plate behind them); a key hint (Q, E, Esc) rides in the name.
-import { mxSkinKey } from '../machine/kit';
-import { mxIconSpin, mxIcon, type IconKind } from '../machine/decor';
-import { mxOk } from '../machine/core';
+// MENU ICONS (round 22): the menus' buttons are floating icons with their short name under them (../floatIcon.ts):
+// a pixel-pipeline model over a soft shadow that bobs and rocks, lifts and glows when hot, dips when pressed. The
+// round 21 boxed machine keys are gone (the user rejected them); this keeps their call signature for the menus.
+import { mxIcon, type IconKind } from '../machine/decor';
 import { pxCrestEl } from '../pxKit';
-import type { Tone } from '../machine/paint';
-import type { LampCol } from '../machine/parts';
-import { sfx, type Sfx } from './sfx';
+import type { Sfx } from './sfx';
+import { floatIcon, type FloatIcon } from '../floatIcon';
 import './labIcons';
 import './iconKey.css';
 
 export interface IconKeyOpts {
-  /** the key's size in CSS px (the cap is what is left after the lamp) */
+  /** the old key box (only its height still sizes the model) */
   w?: number; h?: number;
-  /** the model's box in px */
+  /** the model's size on screen (px) */
   model?: number;
-  tone?: Tone; lamp?: LampCol | false; seed?: number;
-  /** the key's sound when pressed (default the keyboard clack) */
+  /** (unused: no tones, lamps or seeds on a floating icon) */
+  tone?: string; lamp?: string | false; seed?: number;
   sound?: Sfx | '';
-  /** a keyboard hint shown with the name (Q, E, Esc, 1) */
+  /** a keyboard hint shown small after the name (Q, E, Esc) */
   hint?: string;
-  /** where the name floats: over the key (default) or under it */
+  /** (unused: the name always floats under the icon) */
   nameAt?: 'top' | 'bottom' | 'right' | 'left';
   cls?: string;
-  /** spoken name for screen readers (defaults to the name) */
   aria?: string;
-  /** a still model (no turntable): for long rows of small keys */
   still?: boolean;
+  /** the name only while hot */
+  nameHover?: boolean;
+  phosphor?: boolean;
 }
-export interface IconKey extends HTMLButtonElement { setOn(on: boolean): void; hot(on: boolean): void; readonly kind: IconKind }
+export type IconKey = FloatIcon;
 
-/** a push key with a turning 3D model on its cap, the name on hover */
+/** a floating icon with its name under it */
 export function iconKey(kind: IconKind, name: string, fn: () => void, o: IconKeyOpts = {}): IconKey {
-  const b = document.createElement('button') as IconKey;
-  b.type = 'button';
-  const W = o.w ?? 76, H = o.h ?? 60, S = o.model ?? Math.round(H * 0.74);
-  b.className = 'ikk ikk-' + (o.nameAt ?? 'top') + (o.lamp === false ? ' ikk-nolamp' : '') + (o.cls ? ' ' + o.cls : '');
-  b.style.width = W + 'px'; b.style.height = H + 'px';
-  b.style.setProperty('--ik-s', S + 'px');
-  b.setAttribute('aria-label', (o.aria ?? name) + (o.hint ? ` (${o.hint})` : ''));
-  (b as { kind: IconKind }).kind = kind;
-  const spin = !o.still && mxOk() ? mxIconSpin(kind, S) : null;
-  const still = !spin && mxOk() ? mxIcon(kind, S) : null;
-  const cv = spin?.cv ?? still;
-  if (cv) { cv.classList.add('ikk-m'); cv.style.width = cv.width + 'px'; cv.style.height = cv.height + 'px'; b.append(cv); }
-  else b.append(Object.assign(document.createElement('b'), { className: 'ikk-f', textContent: name.slice(0, 2).toUpperCase() }));
-  const n = document.createElement('span');
-  n.className = 'ikk-n';
-  n.setAttribute('aria-hidden', 'true');
-  n.textContent = name;
-  if (o.hint) { const k = document.createElement('i'); k.textContent = o.hint; n.append(k); }
-  b.append(n);
-  const sk = mxSkinKey(b, { tone: o.tone ?? 'olive', lamp: o.lamp === undefined ? 'amber' : o.lamp, seed: o.seed ?? 5, sound: o.sound ?? 'key', screws: false });
-  // the cap's canvas at its own size from the start (a blank canvas is 300 px wide, and a terminal measures its tray
-  // from the keys before the first paint)
-  const kc = b.querySelector('.mxk-cv') as HTMLCanvasElement | null;
-  if (kc) { kc.width = W + 10; kc.height = H + 10; kc.style.width = W + 10 + 'px'; kc.style.height = H + 10 + 'px'; }
-  let on = false;
-  // the name floats only under the pointer or the keyboard; a latched key (on) keeps its model lifted and lamp lit
-  const hot = (v: boolean) => { b.classList.toggle('hot', v); spin?.hot(v || on); };
-  // the pointer takes the focus with it, so only one key in a row is ever hot; a key focused by the room (not by
-  // the keyboard) stays quiet until the operator moves to it
-  b.addEventListener('pointerenter', (e) => { if (document.activeElement !== b) b.focus({ preventScroll: true }); hot(true); if ((e as PointerEvent).pointerType === 'mouse') sfx('tick', 0.35); });
-  b.addEventListener('pointerleave', () => { if (!b.matches(':focus-visible')) hot(false); });
-  b.addEventListener('focus', () => { if (b.matches(':focus-visible') || b.matches(':hover')) hot(true); });
-  b.addEventListener('blur', () => hot(false));
-  b.addEventListener('click', () => fn());
-  b.setOn = (v: boolean) => { on = v; b.classList.toggle('on', v); sk?.setOn(v); hot(b.matches(':hover') || b.matches(':focus-visible')); };
-  b.hot = hot;
-  return b;
+  const S = o.model ?? Math.round((o.h ?? 56) * 0.86);
+  return floatIcon(kind, name, fn, { size: S, hint: o.hint, sound: o.sound ?? 'key', cls: o.cls, aria: o.aria, nameHover: o.nameHover, phosphor: o.phosphor });
 }
 
 /** a row of icon keys in a housing-less strip (the keys stand on their own) */

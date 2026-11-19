@@ -60,7 +60,7 @@ export function openEmoteShop(o: { onClose?: () => void; select?: string } = {})
   const rar = h('span', 'ej-rar');
   const blurb = h('p', 'ej-blurb');
   const acts = h('div', 'ej-acts');
-  const buy = mxButton('BUY', () => doBuy(), { w: 138, h: 46, tone: 'yellow', lamp: 'green', sound: '', cls: 'ej-buy', icon: mxOk() ? mxIcon('coin', 24) : null });
+  const buy = mxButton('BUY', () => doBuy(), { w: 138, h: 46, tone: 'yellow', lamp: 'green', sound: '', cls: 'ej-buy', iconKind: 'credit', iconSize: 28 });
   const equip = mxButton('ON WHEEL', () => armSlots(), { w: 138, h: 34, tone: 'olive', lamp: 'amber', sound: 'key', cls: 'ej-eq' });
   acts.append(buy, equip);
   info.append(nameEl, acts, rar, blurb);

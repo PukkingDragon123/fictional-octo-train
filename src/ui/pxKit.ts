@@ -197,7 +197,7 @@ export function pxButton(label: string, fn: () => void, o: { tone?: PxTone; w?: 
   if (mxOk()) {
     // olive caps; the green-lamp key (the way forward) wears safety yellow, a red one oxblood
     const tone: Tone = o.lamp === 'green' ? 'yellow' : o.tone === 'red' || o.lamp === 'red' ? 'red' : mxTone(o.tone);
-    return mxButton(label, fn, { w: W, h: H, tone, lamp: o.lamp ?? 'amber', cls: 'pxb' + (o.cls ? ' ' + o.cls : ''), sub: o.sub, sound: o.sound ?? 'plate', icon: o.icon ? mxIcon(o.icon, Math.min(22, H - 12)) : null }) as unknown as PxButton;
+    return mxButton(label, fn, { w: W, h: H, tone, lamp: o.lamp ?? 'amber', cls: 'pxb' + (o.cls ? ' ' + o.cls : ''), sub: o.sub, sound: o.sound ?? 'plate', iconKind: o.icon, iconSize: Math.max(24, Math.min(34, H)) }) as unknown as PxButton;
   }
   const b = document.createElement('button') as PxButton;
   b.type = 'button';

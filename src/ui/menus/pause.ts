@@ -70,7 +70,7 @@ export class PauseMenu {
     const pageBtns = new Map<Page, { setOn(on: boolean): void }>();
     const pt = window.innerHeight > window.innerWidth * 1.05 || window.innerWidth < 720;
     // round 21: the column's plates are icon keys in pairs (a model on each cap; the name floats while hot)
-    const kw = pt ? 58 : 84, kh = pt ? 48 : 62;
+    const kw = pt ? 58 : 84, kh = pt ? 40 : 46;
     let pair: HTMLElement | null = null;
     const plate = (label: string, fn: () => void, o: { tone?: 'olive' | 'yellow' | 'red'; lamp?: 'amber' | 'green' | 'red'; icon: IconKind; cls?: string; hint?: string }) => {
       const b = mxOk()
@@ -86,7 +86,7 @@ export class PauseMenu {
     if (G.role !== 'client') plate('Save tape', async () => { const ok = await saveGame(); G.ui?.toast?.(ok ? 'TAPE SAVED' : 'COULD NOT SAVE', ok ? 'progress written to this browser' : '', 2); this.close(); }, { icon: 'tape' });
     gap();
     const PAGE_ICON: Record<Page, IconKind> = { main: 'clipboard', options: 'gear', controls: 'joystick', coop: 'walkie' };
-    for (const pg of pages) pageBtns.set(pg, plate(NAMES[pg][0], () => select(pages.indexOf(pg)), { icon: PAGE_ICON[pg], hint: 'Q E' }));
+    for (const pg of pages) pageBtns.set(pg, plate(NAMES[pg][0], () => select(pages.indexOf(pg)), { icon: PAGE_ICON[pg] }));
     // round 17: the emote jukebox (buy emotes for dollars, fill the wheel)
     plate('Emote jukebox', () => { void import('../../social/emotes/shop').then((m) => m.openEmoteShop()); }, { icon: 'reel' });
     gap();

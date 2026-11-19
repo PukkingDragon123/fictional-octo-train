@@ -4,6 +4,7 @@
 // with its eye) standing on a shelf lip with a state lamp and a research bar, swaying and lifting under the pointer,
 // its name floating over it. Entries nobody has met are black silhouettes.
 import { mxIcon, mxIconAnim, type IconKind } from './machine/decor';
+import { pixSprite } from './floatIcon';
 import { nameTag } from './iconChip';
 import { sfx } from './menus/sfx';
 
@@ -75,7 +76,7 @@ export function codexCard(b: HTMLButtonElement, kind: IconKind, name: string) {
   style();
   b.classList.add('cx21');
   b.setAttribute('aria-label', name);
-  const ic = mxIconAnim(kind, 36);
+  const ic = pixSprite(kind, 36);
   if (ic) { b.prepend(ic.cv); b.addEventListener('pointerenter', () => ic.hot(true)); b.addEventListener('pointerleave', () => ic.hot(false)); b.addEventListener('focus', () => ic.hot(true)); b.addEventListener('blur', () => ic.hot(false)); }
   nameTag(b, name);
   b.addEventListener('pointerdown', () => sfx('click', 0.3));

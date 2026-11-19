@@ -114,8 +114,11 @@ export async function openGame({ w = 405, h = 720, dpr = 2, seed = 1337 } = {}) 
     page.on('pageerror', (e) => console.log('[game]', e.message));
     page.on('console', (m) => { if (m.type() === 'error') console.log('[game]', m.text().slice(0, 300)); });
     await page.addInitScript(VCLOCK);
+    const t0 = Date.now(), say = (m) => console.log(`  game: ${m} (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
     await page.goto(`${srv.base}/?quick&seed=${seed}`, { waitUntil: 'load', timeout: 600000 });
+    say('page loaded');
     await page.waitForFunction(() => window.__game?.local && window.__game.view, null, { polling: 1000, timeout: 900000 });
+    say('game running');
     await page.evaluate(() => import('/release/video/reels/tools/studio/bodyScenes.ts').then((m) => m.install()));
     const shot = async (clip) => page.screenshot({ type: 'jpeg', quality: 93, clip: clip ?? { x: 0, y: 0, width: w, height: h } });
     return {

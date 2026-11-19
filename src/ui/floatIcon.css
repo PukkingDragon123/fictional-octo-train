@@ -1,0 +1,50 @@
+/* FLOATING ICONS (round 22, floatIcon.ts): the object over its soft shadow, its name floating under it. No box. */
+.fi { position: relative; display: inline-flex; flex-direction: column; align-items: center; gap: 2px; flex: none; margin: 0; padding: 0 4px;
+  border: 0 !important; background: none !important; box-shadow: none !important; outline: none; cursor: var(--cur-hand, pointer);
+  pointer-events: auto; -webkit-tap-highlight-color: transparent; font-family: var(--font-new, 'Alagard'), monospace; color: #f1f6ec;
+  --glow: #ffd27a; }
+.fi, .fi * { border-radius: 0; }
+.fi-ic { position: relative; display: block; line-height: 0; transform-origin: 50% 90%;
+  transition: transform 0.22s cubic-bezier(.2, .9, .3, 1.45), filter 0.18s ease; }
+.fi-bob { position: relative; z-index: 1; display: block; animation: fi-bob 3.6s ease-in-out var(--fi-ph, 0s) infinite alternate; }
+.fi-cv { display: block; image-rendering: pixelated; pointer-events: none; }
+.fi-fb { display: flex; align-items: center; justify-content: center; font-weight: normal; font-size: 22px; color: #f2d65a; }
+/* the soft shadow it hangs over: it tightens and fades as the object lifts */
+.fi-sh { position: absolute; left: 18%; right: 18%; bottom: -3px; height: 9px; z-index: 0; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(4, 4, 2, .5), rgba(4, 4, 2, .22) 55%, rgba(4, 4, 2, 0));
+  animation: fi-shade 3.6s ease-in-out var(--fi-ph, 0s) infinite alternate; transition: opacity .2s, transform .22s; }
+@keyframes fi-bob { from { transform: translateY(1px) rotate(-1.5deg); } to { transform: translateY(-4px) rotate(1.5deg); } }
+@keyframes fi-shade { from { transform: scaleX(1); opacity: .95; } to { transform: scaleX(.82); opacity: .7; } }
+/* the name: Alagard with a stepped dark extrusion and a cast shadow, tipped back a little (the world text's letters) */
+.fi-t { position: relative; z-index: 2; display: block; white-space: nowrap; pointer-events: none; line-height: 1;
+  font-size: calc(var(--px, 2px) * 8); letter-spacing: 0.03em; color: #f1f6ec; opacity: .92;
+  transform: perspective(200px) rotateX(16deg); transform-origin: 50% 0;
+  text-shadow: 1px 1px 0 #26302a, 2px 2px 0 #1a221d, 3px 3px 0 #10160f, 0 0 2px #000, 4px 7px 8px rgba(0, 0, 0, .6);
+  transition: color .15s, opacity .15s, transform .22s cubic-bezier(.2, .9, .3, 1.4), text-shadow .2s; }
+.fi-t i { font-style: normal; font-size: 0.7em; margin-left: 6px; color: #b8e0b0; opacity: .8; vertical-align: 0.15em; }
+/* hot: it lifts, grows, brightens and glows; the name warms */
+.fi.hot .fi-ic, .fi:focus-visible .fi-ic { transform: translateY(-9px) scale(1.12); filter: brightness(1.22) drop-shadow(0 0 7px color-mix(in srgb, var(--glow) 60%, transparent)); }
+.fi.hot .fi-sh, .fi:focus-visible .fi-sh { opacity: .45; transform: scaleX(.66); }
+.fi.hot .fi-t, .fi:focus-visible .fi-t { color: #fff4cf; opacity: 1; transform: perspective(200px) rotateX(8deg) translateY(-2px);
+  text-shadow: 1px 1px 0 #3a3020, 2px 2px 0 #2a2216, 3px 3px 0 #16110a, 0 0 2px #000, 0 0 12px color-mix(in srgb, var(--glow) 70%, transparent), 4px 7px 8px rgba(0, 0, 0, .6); }
+/* pressed: it dips */
+.fi.down .fi-ic { transform: translateY(2px) scale(.94); filter: brightness(1.35) drop-shadow(0 0 9px var(--glow)); transition-duration: .05s; }
+/* latched (the page that is open, the layer that is on): a warm glow stays under it */
+.fi.on .fi-ic { filter: brightness(1.12) drop-shadow(0 0 6px color-mix(in srgb, var(--glow) 55%, transparent)); }
+.fi.on .fi-t { color: #ffe39a; }
+.fi.on .fi-sh { background: radial-gradient(closest-side, rgba(255, 200, 90, .45), rgba(255, 170, 60, .18) 60%, rgba(255, 170, 60, 0)); }
+.fi:disabled, .fi.lock, .fi.dim { cursor: default; }
+.fi:disabled .fi-ic, .fi.lock .fi-ic, .fi.dim .fi-ic { filter: grayscale(.8) brightness(.62); }
+.fi:disabled .fi-t, .fi.lock .fi-t, .fi.dim .fi-t { opacity: .55; }
+.fi.shake { animation: fi-shake .32s steps(6) both; }
+@keyframes fi-shake { 20% { translate: -3px 0; } 40% { translate: 3px 0; } 60% { translate: -2px 0; } 80% { translate: 2px 0; } }
+.fi.ping .fi-bob { animation: fi-ping .5s cubic-bezier(.2, .9, .3, 1.6) both; }
+@keyframes fi-ping { 35% { transform: translateY(-6px) scale(1.2) rotate(8deg); } }
+/* names only while hot (the survey map has no text) */
+.fi.fi-nh .fi-t { position: absolute; top: 100%; left: 50%; opacity: 0; transform: translate(-50%, -4px); }
+.fi.fi-nh.hot .fi-t, .fi.fi-nh:focus-visible .fi-t { opacity: 1; transform: translate(-50%, 0); }
+/* in a CRT's phosphor (the band's tube, a terminal) */
+.fi.fi-ph { --glow: var(--ph, #7dffa8); }
+.fi.fi-ph .fi-cv { filter: grayscale(1) sepia(1) hue-rotate(62deg) saturate(2.6) brightness(1.08) drop-shadow(0 0 4px rgba(90, 255, 120, .45)); }
+.fi.fi-ph .fi-t { color: #c8ffd0; text-shadow: 1px 1px 0 #0a2a12, 2px 2px 0 #06180a, 0 0 6px rgba(90, 255, 120, .45); }
+@media (prefers-reduced-motion: reduce) { .fi-bob, .fi-sh { animation: none; } .fi-ic, .fi-t { transition: none; } }

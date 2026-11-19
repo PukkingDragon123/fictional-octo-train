@@ -21,6 +21,7 @@ import './crt.css';
 import { sfx } from '../menus/sfx';
 import { mxOk } from '../machine/core';
 import { mxIconSpin, type IconKind } from '../machine/decor';
+import { pixSprite } from '../floatIcon';
 
 export type Phos = 'green' | 'amber';
 export interface CrtOpts { phos?: Phos; bright?: number; /** the bulge / fringe / bloom filter (default on) */ bulge?: boolean; /** power and static sounds (default on) */ sound?: boolean }
@@ -127,8 +128,9 @@ export interface CrtIcon { readonly el: HTMLElement; hot(on: boolean): void; wak
 export function crtIcon(kind: IconKind, size = 70, o: { name?: string; num?: string | number } = {}): CrtIcon {
   const box = el('span', 'crt-ic');
   const well = el('span', 'crt-ic-m');
-  const spin = mxOk() ? mxIconSpin(kind, size) : null;
-  if (spin) { spin.cv.style.width = spin.cv.style.height = size + 8 + 'px'; well.append(spin.cv); }
+  // round 22: the floating pixel sprite (../floatIcon.ts)
+  const spin = mxOk() ? pixSprite(kind, size) : null;
+  if (spin) well.append(spin.cv);
   else { const b = el('b'); b.textContent = (o.name ?? kind).slice(0, 2).toUpperCase(); b.style.width = b.style.height = size + 'px'; well.append(b); }
   box.append(well);
   if (o.name || o.num !== undefined) {
@@ -137,7 +139,7 @@ export function crtIcon(kind: IconKind, size = 70, o: { name?: string; num?: str
     if (o.name) { const n = el('em'); n.textContent = o.name.toUpperCase(); l.append(n); }
     box.append(l);
   }
-  return { el: box, hot: (on) => { box.classList.toggle('hot', on); spin?.hot(on); }, wake: () => spin?.wake() };
+  return { el: box, hot: (on) => { box.classList.toggle('hot', on); spin?.hot(on); }, wake: () => {} };
 }
 
 // ---------------------------------------------------------------- film grain (one tile, shifted about by CSS)

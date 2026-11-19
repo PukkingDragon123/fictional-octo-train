@@ -17,7 +17,8 @@ import { kitScale } from './btnKit';
 import { sfx } from './sfx';
 import { calm } from './settings';
 import './kit.css';
-import { mxIconAnim, type IconKind } from '../machine/decor';
+import type { IconKind } from '../machine/decor';
+import { pixSprite } from '../floatIcon';
 import { mxOk } from '../machine/core';
 import './labIcons';
 
@@ -259,10 +260,9 @@ export function gearCluster(pages: string[], onPick: (i: number) => void, start 
     b.innerHTML = `<span>${p}</span>`;
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-label', p);
-    // round 21: each page is a little model beside its gear (a radio, a CRT, a joystick, a clipboard); the word
-    // floats out only while the gear is hot
+    // round 22: each page is a floating model beside its gear (a radio, a CRT, a joystick, a clipboard), its word under it
     const kind = PAGE_ICON[p.toLowerCase()];
-    const ic = kind && mxOk() ? mxIconAnim(kind, 34) : null;
+    const ic = kind && mxOk() ? pixSprite(kind, 34) : null;
     icons.push(ic);
     if (ic) {
       const w = document.createElement('i'); w.className = 'gc-i'; w.append(ic.cv); b.prepend(w); b.classList.add('has-i');

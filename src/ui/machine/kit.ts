@@ -20,6 +20,8 @@ import { shoot, sheet, disposeTree, animate, mxOk, SHEAR } from './core';
 import { housing, keyPart, keyLayout, KEY_Z, togglePart, TOG_W, TOG_H, knobPart, knobScale, gaugePart, gaugeDial, needleAngle, socketPart, SOCK, setLamp, type HousingSpec, type KeyState, type LampCol } from './parts';
 import { canvasTex, type Tone } from './paint';
 import { sfx, type Sfx } from '../menus/sfx';
+import { pixSprite } from '../floatIcon';
+import type { IconKind } from './decor';
 import './machine.css';
 
 const DPR = () => Math.max(1, Math.min(3, window.devicePixelRatio || 1));
@@ -176,44 +178,52 @@ function keyPaint(k: KeyState$) {
   el.classList.toggle('mx-down', st === 2);
 }
 
-/** skin an existing button-like element as a 3D push key; returns setOn / repaint */
+/**
+ * round 22: the boxed push keys are gone (the user rejected the green machine-kit keys). A "skinned" element now
+ * floats free: its own words become floating Alagard with a stepped extrusion, it lifts and glows under the pointer,
+ * dips when pressed and clicks (a recorded sample); a latched one (setOn) keeps a warm glow. No canvas, no bezel.
+ */
 export function mxSkinKey(el: HTMLElement, o: KeySkin = {}): { setOn(v: boolean): void; repaint(): void } | null {
   if (!mxOk()) return null;
-  const cv = document.createElement('canvas');
-  cv.className = 'mxk-cv';
-  el.classList.add('mxk');
-  el.prepend(cv);
-  const k: KeyState$ = { el, cv, o, w: 0, h: 0, st: 0, down: false, on: false };
+  el.classList.add('mxk', 'mxflt');
+  if (o.tone === 'red') el.classList.add('mxflt-red');
+  if (o.tone === 'yellow') el.classList.add('mxflt-go');
+  if (o.dim) el.classList.add('dim');
+  const k = { down: false, on: false };
   (el as any)._mxk = k;
-  const paint = () => keyPaint(k);
+  const paint = () => {
+    const dis = (el as HTMLButtonElement).disabled || !!o.dim;
+    const hot = !dis && (el.matches(':hover') || el.matches(':focus-visible') || document.activeElement === el);
+    el.classList.toggle('mx-hot', hot || (k.on && !dis));
+    el.classList.toggle('mx-down', k.down);
+  };
   el.addEventListener('pointerdown', (e) => { if ((e as PointerEvent).button > 0 || (el as HTMLButtonElement).disabled || o.dim) return; k.down = true; paint(); if (o.sound !== '') sfx(o.sound ?? 'plate', 0.55); });
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => { if (k.down) { k.down = false; paint(); } else paint(); });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) el.addEventListener(ev, () => { k.down = false; paint(); });
   for (const ev of ['pointerenter', 'focus', 'blur']) el.addEventListener(ev, () => requestAnimationFrame(paint));
-  el.addEventListener('pointerenter', (e) => { if ((e as PointerEvent).pointerType === 'mouse' && o.hover && !(el as HTMLButtonElement).disabled) sfx(o.hover, 0.35); });
-  // keyboard: Enter / Space press the key too
+  el.addEventListener('pointerenter', (e) => { if ((e as PointerEvent).pointerType === 'mouse' && !(el as HTMLButtonElement).disabled) sfx(o.hover || 'tick', 0.3); });
   el.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && !k.down) { k.down = true; paint(); setTimeout(() => { k.down = false; paint(); }, 120); } });
-  try { new ResizeObserver(() => requestAnimationFrame(paint)).observe(el); } catch { /* ignore */ }
-  try { new MutationObserver(() => paint()).observe(el, { attributes: true, attributeFilter: ['disabled', 'class'] }); } catch { /* ignore */ }
   requestAnimationFrame(paint);
   return {
-    setOn: (v: boolean) => { k.on = v; paint(); },
-    repaint: () => { k.w = 0; paint(); },
+    setOn: (v: boolean) => { k.on = v; el.classList.toggle('on', v); paint(); },
+    repaint: () => paint(),
   };
 }
 
 export interface MxButton extends HTMLButtonElement { setOn(on: boolean): void }
-/** a push key with an Alagard legend */
-export function mxButton(label: string, fn: () => void, o: KeySkin & { w?: number; h?: number; cls?: string; sub?: string; /** a little 3D model on the cap (src/ui/machine/decor.ts mxIcon) */ icon?: HTMLCanvasElement | null } = {}): MxButton {
+/** a floating button: its word in floating Alagard, a floating pixel model over it when it has one (iconKind) */
+export function mxButton(label: string, fn: () => void, o: KeySkin & { w?: number; h?: number; cls?: string; sub?: string; /** (old) a decor canvas: no longer shown */ icon?: HTMLCanvasElement | null; /** round 22: a floating model over the word (../floatIcon.ts) */ iconKind?: IconKind; iconSize?: number } = {}): MxButton {
   const b = document.createElement('button') as MxButton;
   b.type = 'button';
-  b.className = 'mxb' + (o.cls ? ' ' + o.cls : '') + (o.tone === 'yellow' ? ' ink-d' : '');
-  if (o.w) b.style.width = o.w + 'px';
-  if (o.h) b.style.height = o.h + 'px';
+  b.className = 'mxb' + (o.cls ? ' ' + o.cls : '');
+  if (o.w) b.style.minWidth = o.w + 'px';
+  const spr = o.iconKind && mxOk() ? pixSprite(o.iconKind, o.iconSize ?? 30) : null;
+  if (spr) { b.classList.add('has-fi'); const w = document.createElement('span'); w.className = 'mxb-fi'; w.append(spr.cv); b.append(w); }
+  else if (o.h) b.style.minHeight = o.h + 'px';
   const t = document.createElement('span'); t.className = 'mxb-t'; t.textContent = label;
-  b.append(t);
-  if (o.sub) { const s = document.createElement('small'); s.className = 'mxb-s'; s.textContent = o.sub; b.append(s); }
-  if (o.icon) { b.classList.add('has-i'); b.append(o.icon); }
+  if (label) b.append(t);
+  if (o.sub) { const s2 = document.createElement('small'); s2.className = 'mxb-s'; s2.textContent = o.sub; b.append(s2); }
   const sk = mxSkinKey(b, { lamp: 'amber', ...o });
+  if (spr) { for (const ev of ['pointerenter', 'focus']) b.addEventListener(ev, () => spr.hot(true)); for (const ev of ['pointerleave', 'blur']) b.addEventListener(ev, () => spr.hot(false)); }
   b.setOn = (v: boolean) => { b.classList.toggle('on', v); sk?.setOn(v); };
   b.addEventListener('click', () => fn());
   return b;
