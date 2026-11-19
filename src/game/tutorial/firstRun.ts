@@ -42,6 +42,7 @@ import { Spotlight, type SpotAt } from './spotlight';
 import { limitApps, installApp } from '../../ui/bandos/installed';
 import { setTrackerTimer, trackerEl } from '../../ui/questTracker';
 import { TUT } from './state';
+import { sfx } from '../../ui/menus/sfx';
 
 /** what the first run is doing (the quest and the tracker read it) */
 export const FIRST = { on: false, target: null as { zone: string; x: number; z: number } | null };
@@ -132,6 +133,7 @@ export class FirstRun implements GameSystem {
   private bench: TileObject | null = null;
   private escT = -9;
   private scanned = false;
+  private pinging = false;
   private cook: Record<string, boolean> = {};
   private lineDur = 0;
 
@@ -142,8 +144,12 @@ export class FirstRun implements GameSystem {
     setFlag('fr:on');
     limitApps(['tasks']);
     // the contract's first job waits for hers (a quick start may have handed it out already)
-    const q = (G.missions as unknown as { quests?: { questStatus(k: string): string; apply(k: string, r: null): void; track(k: string | null): void } }).quests;
-    if (q && q.questStatus('first_haul') === 'active') { q.apply('first_haul', null); q.track(null); }
+    // (and so does anything else a quick start handed out: they come back by themselves once hers is done)
+    const q = (G.missions as unknown as { quests?: { recs: Map<string, { s: string; n: number }>; apply(k: string, r: null): void; track(k: string | null): void } }).quests;
+    if (q) {
+      for (const [k, r] of [...q.recs]) if (k !== 'first_signal' && r.n === 0 && (r.s === 'act' || r.s === 'off')) q.apply(k, null);
+      q.track(null);
+    }
     floatQuiet(true);
     const h = G.handler as unknown as { briefed?: boolean; cine?: boolean; hush?: () => void; guide?: (t: null) => void } | null;
     if (h) { h.briefed = true; h.hush?.(); h.cine = true; h.guide?.(null); }
@@ -192,7 +198,8 @@ export class FirstRun implements GameSystem {
     if (sc?.canScan) {
       const own = Object.prototype.hasOwnProperty.call(sc, 'canScan') ? sc.canScan : undefined;
       const orig = sc.canScan.bind(sc);
-      const gated = () => (has('fr:scanner') || this.over) && orig();
+      // (while she has the unit sweep for the transistor's signal, Q only listens: no target, no lock)
+      const gated = () => (has('fr:scanner') || this.over) && !this.pinging && orig();
       sc.canScan = gated;
       this.offs.push(() => { if (sc.canScan === gated) { if (own) sc.canScan = own; else delete (sc as { canScan?: unknown }).canScan; } });
     }
@@ -301,8 +308,10 @@ export class FirstRun implements GameSystem {
     // ---- she arrives
     const s0 = spotNear(p().zoneKey, p().x, p().z, 6, 10, true) ?? spotNear(p().zoneKey, p().x, p().z, 2, 4);
     if (s0) this.calder.spawn(p().zoneKey, s0.x, s0.z);
-    this.spot.on(this.calderSpot(), 0.55);
+    // (a wide, soft pool on the unit while she runs in: walls can hide her on the way; on her once she is here)
+    this.spot.on(this.unitSpot(2.8), 0.4);
     await this.walk(p().x, p().z, true, 1.8);
+    this.spot.on(this.calderSpot(), 0.55);
     this.calder.gesture('wave');
     await this.say('There you are. Hi! I\'m Iris. Calder. The voice in your band, and today, apparently, also the legs.');
     await this.say('First time down is a lot. So we do one thing at a time. I\'ll show you, you do it. Deal?', { gesture: 'talk' });
@@ -409,12 +418,24 @@ export class FirstRun implements GameSystem {
     // ---- 8. the find
     this.step = 'find'; TUT.step = 'find';
     const tgt = this.placeTransistor();
-    await this.say('Now hear that tick? That\'s the transistor. The scanner picked it up. I marked it for you.');
     if (tgt) {
+      // the scanner finds places too: hold Q with nothing in front and it listens for a signal
+      this.spot.on(this.unitSpot(1.5), 0.45);
+      this.spot.keys(['Q']);
+      this.lock(['scan']);
+      this.pinging = true;
+      this.calder.gesture('think');
+      await this.say('The transistor fell out somewhere near. The scanner can hear it. Hold Q again, and just listen.');
+      let held = 0;
+      const dn = () => (G.input as unknown as { down: (a: Action) => boolean }).down('scan');
+      await this.gate(() => { if (dn()) held++; return held > 40; }, ['Hold Q. Nothing in front of you, just listen.', 'Keep holding Q.'], 12);
+      this.pinging = false;
+      this.spot.keys(null);
+      sfx('scan', 0.7); setTimeout(() => sfx('ding', 0.6), 380);
       const h = G.handler as unknown as { guide?: (t: { x: number; z: number } | null) => void } | null;
       h?.guide?.({ x: tgt.x, z: tgt.z });
       this.spot.on(() => this.screen(tgt.x, 0.3, tgt.z, 0.7), 0.3);
-      await this.say('Follow the arrows on the floor. I\'ll keep up.');
+      await this.say('Ping. There it is. It marks the spot on the floor: follow the arrows, I\'ll keep up.');
       this.spot.off();
       this.lock(null);
       this.calder.follow(true);

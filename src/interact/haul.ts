@@ -15,7 +15,8 @@ import { op } from '../game/ops';
 import type { Player } from '../entities/player';
 import { itemDef, itemName, type Item } from '../items/item';
 import { serializeItem } from '../items/factory';
-import { makeHeldMesh } from '../items/itemMeshes';
+import { itemGeometry } from '../items/itemMeshes';
+import { worldMaterial } from '../gfx/materials';
 import { moveCircle } from '../world/collision';
 import { dampAngle } from '../core/math';
 import { registerContextActions } from './contextMenu';
@@ -74,9 +75,13 @@ class Armload {
       if (k) {
         let y = 0;
         for (const it of p.armload!) {
-          const m = makeHeldMesh(it.key);
-          if (!m) continue;
-          const b = new THREE.Box3().setFromObject(m), s = b.getSize(_v);
+          // the item's own model (not the in-hand one, which is stood on end for a grip)
+          const g = itemGeometry(it.key);
+          if (!g) continue;
+          if (!g.boundingBox) g.computeBoundingBox();
+          const b = g.boundingBox!, s = b.getSize(_v);
+          const m = new THREE.Mesh(g, worldMaterial({}));
+          m.castShadow = true;
           // the long way across the body (left-right), lying flat on the forearms
           const piv = new THREE.Group();
           m.position.set(-(b.min.x + b.max.x) / 2, -b.min.y + y, -(b.min.z + b.max.z) / 2);

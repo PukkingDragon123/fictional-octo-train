@@ -335,7 +335,7 @@ class TitleRoom {
     const last = this.saves[0];
     const pt = this.portrait();
     const items: Item[] = [];
-    if (last) items.push({ key: 'continue', label: 'Resume', sub: `${last.character} · day ${Math.floor(last.hours / 24) + 1}`, act: () => this.play(last), size: 'lg' });
+    if (last) items.push({ key: 'continue', label: 'Go out', sub: `back in as ${last.character} · day ${Math.floor(last.hours / 24) + 1}`, act: () => this.play(last), size: 'lg' });
     items.push({ key: 'new', label: 'New unit', sub: 'to unit room 4 · the link rig · pay the debt', act: () => this.newGame(true), size: 'lg' });
     items.push({ key: 'free', label: 'Release', sub: 'free survival · no contract · no band', act: () => this.newGame(false), size: pt ? 'md' : 'lg' });
     items.push({ key: 'coop', label: 'Co-op', sub: 'call another cell · host or dial in', act: () => this.coop(), size: pt ? 'sm' : 'md' });

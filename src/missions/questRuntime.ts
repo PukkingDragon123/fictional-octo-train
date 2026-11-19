@@ -119,6 +119,8 @@ export class QuestRuntime {
   /** requirements met (quest keys completed, 'flag:' mission flags, credits quests need the contract) */
   available(d: QuestX): boolean {
     const m = this.m;
+    // the first run (src/game/tutorial/firstRun.ts) holds every other quest back until it is over
+    if (TUT.running && m.flags.has('fr:on') && !m.flags.has('fr:done') && d.key !== 'first_signal') return false;
     if (!m.enabled && (d.main || this.needsDebt(d))) return false;
     if (this.needsDebt(d) && !G.debt?.on) return false;
     for (const r of d.requires || []) {

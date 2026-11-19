@@ -504,11 +504,13 @@ export class UnitMotion {
       const qx = Math.floor(p.x + cx * d), qz = Math.floor(p.z + cz * d);
       if (!z.inb(qx, qz)) return null;
       const sol = z.solid[z.idx(qx, qz)];
-      if (sol === 2 || sol === 3) {
+      // a solid piece is vaultable too when everything blocking there is waist high (a crate, a barrel, a dresser)
+      const lowSolid = sol === 1 && z.objectsAt(qx, qz).every((o) => { const od = objDef(o.key); return !od || (od.block ?? 'solid') === 'none' || (od.height <= 1.1 && !od.tall); });
+      if (sol === 2 || sol === 3 || lowSolid) {
         // how high is it, and is the body actually up against it (its real footprint, not the tile)
         for (const o of z.objectsAt(qx, qz)) {
           const od = objDef(o.key);
-          if (!od || (od.block !== 'low' && od.block !== 'table')) continue;
+          if (!od || (od.block ?? 'solid') === 'none') continue;
           const f = objFootprint(z, o, od);
           const px = p.x + cx * d, pz = p.z + cz * d;
           if (px < f.x0 - 0.05 || px > f.x1 + 0.05 || pz < f.z0 - 0.05 || pz > f.z1 + 0.05) continue;
@@ -767,6 +769,7 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
     act(kind: 'vault' | 'slide' | 'hop', freeze = -1) {
       const p = G.local, z = G.getZone(p.zoneKey), M = motionOf(p) as any;
       G.paused = false; pin.t = -1;
+      M.reset(p); M.prone = false; p.sneaking = false; p.stance = 'stand';
       if (kind === 'vault') { const plan = M.vaultPlan(z, p, p.facing); if (!plan || !M.startVault(p, plan)) return false; }
       else if (kind === 'slide') { p.running = true; p.vx = Math.cos(p.facing) * 4.2; p.vz = Math.sin(p.facing) * 4.2; if (!M.slide(p)) return false; }
       else M.hop(p, p.facing, 0);
@@ -775,11 +778,15 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
         if (kind === 'vault') M.stepVault(z, p, 1e-3);
         pin.t = freeze * M.dur; pin.dur = M.dur;
         G.paused = true;
+        // a still frame: no look-ahead, no blur trail from the camera catching up
+        p.vx = p.vz = 0; (G as any).camera?.settle?.(); G.pr.target.set(p.x, p.y, p.z);
       }
       return true;
     },
     /** hold any named pose (or '' to let go) */
     hold(name: string, u: number, dur = 1) { const p = G.local; if (!name) { pin.t = -1; G.paused = false; p.stopAnim(); return; } p.playAnim(name, dur); pin.t = u * dur; G.paused = true; },
+    /** stop the world where it is, the camera on the unit */
+    still() { const p = G.local; G.paused = true; p.vx = p.vz = 0; (G as any).camera?.settle?.(); G.pr.target.set(p.x, p.y, p.z); },
     release() { pin.t = -1; G.paused = false; },
   };
 }
