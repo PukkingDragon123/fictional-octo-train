@@ -52,13 +52,14 @@ import { shake } from '../../gfx/juice';
 import { fontsReady } from '../../gfx/crt';
 import { itemDef } from '../../items/item';
 import { EatFp } from './eatFp';
+import { healthView } from './health3d';
 
 /** the pegboard swings in over the pump */
 const BOARD_AT: [number, number] = [PUMP_AT[0] + 2, -10];
 /** the screen margin everything keeps (CSS px) */
 export const HUD_MARGIN = 12;
 
-type Kind = 'bag' | 'lung' | 'gauge' | 'jar' | 'tool' | 'pack' | 'brain' | 'balloon' | 'watch' | 'moodle';
+type Kind = 'bag' | 'lung' | 'gauge' | 'jar' | 'tool' | 'pack' | 'brain' | 'balloon' | 'watch' | 'moodle' | 'console';
 interface Hover { kind: Kind | null; inj: Injury | null; slot: number; key: string }
 const NONE: Hover = { kind: null, inj: null, slot: -1, key: '' };
 const esc = (s: string) => s.replace(/[&<>]/g, (c) => (c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;'));
@@ -537,7 +538,7 @@ export class BodyHud {
     const it = this.tray.pick((cx - tb.left) / this.uc, (cy - tb.top) / this.uc);
     if (it && cx >= tb.left && cy >= tb.top) return { ...NONE, kind: 'moodle', key: it.key };
     this.world.updateMatrixWorld(true);
-    const targets: THREE.Object3D[] = [...this.board.hits, this.heartV.hit, this.lungV.hit, this.lungV.gaugeHit, this.jarV.hit, this.rig.packHit];
+    const targets: THREE.Object3D[] = [...this.board.hits, this.heartV.hit, this.lungV.hit, this.lungV.gaugeHit, this.jarV.hit, this.rig.packHit, this.rig.conHit];
     const h = this.st.pick(cx, cy, targets);
     if (!h) return NONE;
     const o = h.object;
@@ -547,6 +548,7 @@ export class BodyHud {
     if (o === this.lungV.hit) return { ...NONE, kind: 'lung' };
     if (o === this.lungV.gaugeHit) return { ...NONE, kind: 'gauge' };
     if (o === this.rig.packHit) return { ...NONE, kind: 'pack' };
+    if (o === this.rig.conHit) return { ...NONE, kind: 'console' };
     return { ...NONE, kind: 'jar' };
   }
   private setOver(on: boolean) {
@@ -566,7 +568,7 @@ export class BodyHud {
     }
     if (e.pointerType === 'touch') return;
     const h = this.pickAt(e.clientX, e.clientY);
-    if (h.kind !== this.hover.kind || h.key !== this.hover.key || h.inj !== this.hover.inj) { this.hover = h; if (h.kind) this.pinT = 0; }
+    if (h.kind !== this.hover.kind || h.key !== this.hover.key || h.inj !== this.hover.inj) { this.hover = h; if (h.kind) this.pinT = 0; for (const el of Object.values(this.labs)) el.classList.toggle('hot', h.kind === 'console'); }
     this.board.hover = h.kind === 'tool' ? h.slot : -1;
     this.setOver(!!h.kind);
   }
@@ -583,6 +585,8 @@ export class BodyHud {
     // every touch on the machine nudges it a little
     if (h.kind !== 'moodle' && h.kind !== 'watch') { const sp = this.st.toStage(e.clientX, e.clientY, new THREE.Vector2()); this.rig.poke(sp.x / this.k, sp.y / this.k, h.kind === 'pack' ? 0.4 : 0.2); }
     if (h.kind === 'pack') { this.openPack(); this.down = null; return; }
+    // the console's front: the health check (the unit's own body on the exam turntable)
+    if (h.kind === 'console') { this.down = null; this.closeBoard(); healthView().toggle(true); return; }
     if (h.kind === 'watch') { this.down = null; const w: any = (G as any).watch; if (w?.toggle) w.toggle(true); return; }
     if (h.kind === 'lung' || h.kind === 'gauge' || h.kind === 'balloon') { this.pumpPress(); this.lungs.wob = 0.6; if (h.kind === 'balloon') { this.vit.jolt((Math.random() - 0.5) * 50, -30); G.audio?.ui?.('hud_squeak', 0.3); } else G.audio?.ui?.('bh_squelch', 0.2); }
     else if (h.kind === 'brain') { this.vit.scare(0.3); G.audio?.ui?.('bh_squelch', 0.2); }
@@ -643,6 +647,7 @@ export class BodyHud {
     if (T && this.pinT <= 0 && !this.lungs.pumping) this.hover = NONE;
     let html = '';
     if (h.kind === 'pack') html = this.line('Backpack', null, T ? 'tap to open' : 'click to open  ·  I');
+    else if (h.kind === 'console') html = this.line('Health check', null);
     else if (h.kind === 'tool') {
       const o = this.board.slots[h.slot]?.opt;
       if (o) html = this.line(o.label, null, o.missing ? 'needs ' + o.missing : o.using ? o.using.toLowerCase() : '');

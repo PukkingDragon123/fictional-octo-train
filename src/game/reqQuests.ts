@@ -30,6 +30,9 @@ const DEFS: ReqDef[] = [
   { id: 'steady_hands', node: 'chip_mend', title: 'Steady Hands', text: 'Stitch 3 wounds without a slip', goal: 3 },
   { id: 'slipped_grip', node: 'tame_mk2', title: 'Slipped the Grip', text: 'Break free from 3 holds', goal: 3 },
   { id: 'tumblers', node: 'rc_schematics', title: 'Tumblers', text: 'Pick 3 locks', goal: 3 },
+  // round 20: the fab machines teach themselves (src/game/economy/fab.ts): a spool off the winder, prints off the bed
+  { id: 'first_spool', node: 'mx_frame', title: 'First Spool', text: 'Wind a spool at the filament maker', goal: 1 },
+  { id: 'off_the_bed', node: 'mx_motor', title: 'Off the Bed', text: 'Print 3 things at the printer', goal: 3 },
 ];
 const BY_ID = new Map(DEFS.map((d) => [d.id, d]));
 const BY_NODE = new Map(DEFS.map((d) => [d.node, d]));
@@ -58,10 +61,10 @@ export function reqBump(id: string, n = 1) {
   const p = prog(d);
   bus.emit('reqQuest', p);
   if (p.done) {
-    G.audio?.ui?.('questDone', 0.6);
+    G?.audio?.ui?.('questDone', 0.6);
     const nt = researchNode(d.node)?.title;
     voss(`Logged: ${d.title}. ${nt ? cap(nt) + ' is cleared for research.' : 'The lab has it.'}`);
-  } else G.audio?.ui?.('band_tick', 0.25);
+  } else G?.audio?.ui?.('band_tick', 0.25);
 }
 const cap = (s: string) => s.toLowerCase().replace(/(^|\s)\S/g, (m) => m.toUpperCase());
 const mine = (by: unknown) => !by || by === G.local?.id;
@@ -78,6 +81,9 @@ bus.on('scanEntry', (e: { kind: string; key: string; ref?: { id?: string } }) =>
 bus.on('scanLock', (e: { end: string }) => { if (e.end === 'clean') reqBump('clean_signal'); });
 // the press: every item fed to the hopper goes under the ram
 bus.on('deposited', (e: { by?: string; keys?: string[] }) => { if (mine(e.by) && e.by) reqBump('feed_press', e.keys?.length ?? 0); });
+// the fab machines (in the lab or at a camp)
+bus.on('spoolWound', () => reqBump('first_spool'));
+bus.on('printed', (e: { keys?: string[] }) => reqBump('off_the_bed', Math.max(1, e?.keys?.length ?? 1)));
 // the steady-hand checks (src/actions/skillCheck.ts users)
 bus.on('stitched', (e: { by?: string; clean?: boolean }) => { if (mine(e.by) && e.clean) reqBump('steady_hands'); });
 bus.on('lockPicked', (e: { by?: string }) => { if (mine(e.by)) reqBump('tumblers'); });

@@ -49,6 +49,7 @@ import { Pokes } from './pokes';
 import { TalentBench } from './talentBench';
 import { built, can, station, onLab, STATIONS, type StationKey } from '../lab/stations';
 import { buildSite, buildDressing, startRise, stepRise, type Rise } from '../lab/site';
+import { FabBay } from '../fab/bay';
 /** is o inside g (or g itself) */
 const isUnder = (o: THREE.Object3D, g: THREE.Object3D) => { for (let x: THREE.Object3D | null = o; x; x = x.parent) if (x === g) return true; return false; };
 import type { Sample } from '../../../game/codex';
@@ -88,6 +89,8 @@ const POSES: Record<string, Pose> = {
   build: P([1.2, 2.8, 3.1], [-0.1, 0.3, 0.2], 54),
   // round 18: the guided tour looks at the talent bench by the door (guide/tour.ts); set from the bench once it is built
   talent: P([-1.3, 1.6, 0.5], [-W + 0.3, 0.95, 2.3], 52),
+  // round 20: turned round to the front wall: the fab bay (the filament maker's line, the printer by the door)
+  fab: P([0.85, 1.95, 0.4], [0.85, 0.6, 3.2], 62),
 };
 
 interface Readout { cv: HTMLCanvasElement; ctx: CanvasRenderingContext2D; tex: THREE.CanvasTexture; draw: (c: CanvasRenderingContext2D, t: number) => void; every: number; acc: number }
@@ -140,6 +143,8 @@ export class ResearchLab implements StageRoom {
   lattice!: TreeLattice;
   /** the talent bench by the door: tin cans of marbles and the balance (rooms/talentBench.ts) */
   talent!: TalentBench;
+  /** round 20: the fab bay on the front wall: the filament maker and the printer (../fab/bay.ts) */
+  fab!: FabBay;
   // the fridge's racks
   private racks: { mesh: THREE.InstancedMesh; kind: string }[] = [];
   private rackSlots: THREE.Vector3[] = [];
@@ -180,7 +185,12 @@ export class ResearchLab implements StageRoom {
     this.talent = new TalentBench(this.mats, this.hots, { wallX: -W, z0: 1.53, z1: 3.15, top: 0.9 });
     this.talent.rayAt = (x, y) => this.rayAt?.(x, y) ?? null;
     S.add(this.talent.group);
-    this.stationG = { lattice: [cw], fridge: [fr, hood, scope], talent: [this.talent.group], req: [peg] };
+    this.fab = new FabBay(this.mats, this.hots, S, { front: FRONT, W, H });
+    this.fab.rayAt = (x, y) => this.rayAt?.(x, y) ?? null;
+    this.fab.project = (p) => this.talent.project?.(p) ?? null;
+    this.fab.onFocus = (on) => this.onBench?.(on);
+    S.add(this.fab.group);
+    this.stationG = { lattice: [cw], fridge: [fr, hood, scope], talent: [this.talent.group], req: [peg], filament: [this.fab.filamentGroup], printer: [this.fab.printerGroup] };
     // round 18: the guided tour's look at the bench, from wherever it stands (into the room from it, a little above)
     { const tb = new THREE.Box3().setFromObject(this.talent.group), c = tb.getCenter(new THREE.Vector3());
       if (!tb.isEmpty()) POSES.talent = P([c.x + 2.1, c.y + 0.75, c.z - 0.7], [c.x, c.y - 0.05, c.z], 52); }
@@ -200,6 +210,8 @@ export class ResearchLab implements StageRoom {
       { key: 'req', label: 'Requisition', run: () => this.focus('req', () => this.onPanel?.('req')) },
       // the Remittance Press's terminal, reached from outside the run: bank, dial, create (src/game/economy/terminal.ts)
       { key: 'press', label: 'Press terminal', run: () => { void import('../../../game/economy/terminal').then((m) => m.openPressTerminal({ from: 'lab' })); } },
+      // round 20: round to the fab bay (the filament maker and the printer, or their build sites)
+      { key: 'fab', label: 'Fab bay', run: () => { uiSound('servo', 0.4); this.focus('fab'); } },
       { key: 'file', label: 'Meridian file', run: () => this.onPanel?.('file') },
     ];
     onFile(() => { this.dirty = true; });
@@ -207,6 +219,12 @@ export class ResearchLab implements StageRoom {
     this.refresh();
     this.applyLab();
     onLab(() => this.applyLab());
+    // round 20: Dr. Calder's one line for each fab machine, once it is up
+    onLab((k) => {
+      const line = k === 'filament' ? 'The press only takes now. This spins what it keeps into filament: shred it, melt it, draw it, cool it, wind it.'
+        : k === 'printer' ? 'Anything the press used to make, you print here now. It eats spools, kilo for kilo.' : '';
+      if (line) setTimeout(() => (window as unknown as { __deco?: { guide?: { now?: (t: string) => void } } }).__deco?.guide?.now?.(line), 5200);
+    });
   }
 
   // ================================================================== round 19: the lab from zero (src/ui/menus/lab)
@@ -219,7 +237,7 @@ export class ResearchLab implements StageRoom {
   onSite?: (k: StationKey, at: THREE.Vector3) => void;
   private static ACT: Record<string, StationKey> = { tree: 'lattice', talent: 'talent', process: 'fridge', req: 'req' };
   /** the room's words: only the stations that are built */
-  get actions() { return this.allActions.filter((a) => { const k = ResearchLab.ACT[a.key]; return !k || built(k); }); }
+  get actions() { return this.allActions.filter((a) => { if (a.key === 'fab') return built('filament') || station('filament').ready(); const k = ResearchLab.ACT[a.key]; return !k || built(k); }); }
   set actions(v) { this.allActions = v; }
   /** where a station stands (its footprint on the floor), measured from its own model */
   private siteOf(groups: THREE.Object3D[]): { x: number; z: number; w: number; d: number } {
@@ -261,6 +279,8 @@ export class ResearchLab implements StageRoom {
     const feeds: { x: number; z: number; top: number }[] = [];
     const bb = new THREE.Box3(), c = new THREE.Vector3();
     for (const k of Object.keys(this.stationG) as StationKey[]) {
+      // (the fab bay has its own tray along the front wall)
+      if (k === 'filament' || k === 'printer') continue;
       const g0 = this.stationG[k]?.[0];
       if (!g0 || !built(k) || this.rises.some((r) => r.k === k)) continue;
       bb.makeEmpty().expandByObject(g0);
@@ -980,12 +1000,12 @@ export class ResearchLab implements StageRoom {
   /** fly to a pose, then run cb */
   private focus(k: string, cb?: () => void) { this.pose = k; if (cb) setTimeout(cb, 520); }
   /** back to the room view (a panel closed) */
-  unfocus() { if (!this.bench) this.pose = 'room'; this.pokes.hideNote(); }
+  unfocus() { if (this.fab.active) return; if (!this.bench) this.pose = 'room'; this.pokes.hideNote(); }
   /** the stage switched away: come back to the room view next time */
-  leave() { if (this.lattice.active) this.lattice.close(); this.talent.close(true); this.unfocus(); }
+  leave() { if (this.lattice.active) this.lattice.close(); this.talent.close(true); this.fab.close(); this.unfocus(); }
   pointer(nx: number, ny: number) { this.ptr.set(nx, ny); this.bench?.pointer(nx, ny); }
   /** dev / screenshots: skip the camera flight (software GL runs a few frames a second) */
-  settle() { this.talent.settle(); const g = this.lattice.camGoal() ?? this.talent.camGoal() ?? POSES[this.pose] ?? POSES.room; this.camP.copy(g.pos); this.camL.copy(g.look); this.camF = g.fov; this.lattice.settle(); }
+  settle() { this.talent.settle(); const g = this.lattice.camGoal() ?? this.talent.camGoal() ?? this.fab.camGoal() ?? POSES[this.pose] ?? POSES.room; this.camP.copy(g.pos); this.camL.copy(g.look); this.camF = g.fov; this.lattice.settle(); }
   setBuild(on: boolean) { this.buildT = on ? 1 : 0; }
 
   frame(aspect: number, portrait: boolean) {
@@ -1044,6 +1064,8 @@ export class ResearchLab implements StageRoom {
     if (this.bench?.usesScreen && this.readouts[0]) this.readouts[0].tex.needsUpdate = true;
     this.lattice.update(dt, t, full);
     this.talent.update(dt, t, full, this.cam, !!this.lattice.active);
+    this.fab.aside(this.pose === 'fab' || this.fab.active);
+    this.fab.update(dt, t, this.cam, { filament: built('filament') && !this.rises.some((r) => r.k === 'filament'), printer: built('printer') && !this.rises.some((r) => r.k === 'printer') }, !!this.lattice.active || this.talent.active);
     if (full && Math.random() < dt * 0.8) this.puffs.emit(this.v.set(HOOD.x + 0.1, 1.95, HOOD.z + (Math.random() - 0.5) * 0.8), new THREE.Vector3(0, 0.25, 0), { life: 2.2, s0: 0.01, s1: 0.03, color: 0xd8f0e8, rise: 0.3 });
     if (full) this.puffs.update(dt, this.cam, () => 0.6);
     if (full) this.pokes.update(dt, t, this.cam);
@@ -1055,11 +1077,11 @@ export class ResearchLab implements StageRoom {
     this.build = damp(this.build, this.buildT, 3, dt);
     const lg = this.lattice.camGoal();
     // the room's own props go quiet while the lattice is up (its sockets, lever and keys take the pointer)
-    for (const h of this.hots) if (!h.key.startsWith('lt:') && !h.key.startsWith('tb:')) h.off = !!lg || this.talent.active;
-    const goal = this.build > 0.5 ? POSES.build : lg ?? this.talent.camGoal() ?? POSES[this.pose] ?? POSES.room;
+    for (const h of this.hots) if (!h.key.startsWith('lt:') && !h.key.startsWith('tb:') && !h.key.startsWith('fm:') && !h.key.startsWith('pr:')) h.off = !!lg || this.talent.active || this.fab.active;
+    const goal = this.build > 0.5 ? POSES.build : lg ?? this.talent.camGoal() ?? this.fab.camGoal() ?? POSES[this.pose] ?? POSES.room;
     const k = 1 - Math.exp(-dt * (lg ? 3.6 : 4.5));
     this.camP.lerp(goal.pos, k); this.camL.lerp(goal.look, k); this.camF += (goal.fov - this.camF) * k;
-    const par = lg || this.talent.active ? 0.06 : this.pose === 'room' ? 1 : this.pose === 'obs' ? 0.45 : 0.25;
+    const par = lg || this.talent.active || this.fab.active ? 0.06 : this.pose === 'room' ? 1 : this.pose === 'obs' ? 0.45 : 0.25;
     this.cam.position.set(this.camP.x - this.ptrS.x * 0.18 * par + Math.sin(t * 0.27) * 0.01, this.camP.y + this.ptrS.y * 0.06 * par + Math.sin(t * 0.39) * 0.006, this.camP.z);
     this.cam.lookAt(this.v.set(this.camL.x + this.ptrS.x * 0.3 * par, this.camL.y - this.ptrS.y * 0.12 * par, this.camL.z));
   }

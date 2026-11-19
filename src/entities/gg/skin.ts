@@ -80,7 +80,7 @@ export class GGSkin {
     }
     this.data.set(this.base);
     // the overlay only visits the faces of parts that carry something (everything when wet / dirty / corrupted)
-    const parts = new Set<string>([...Object.keys(cond.blood || {}), ...Object.keys(cond.bandage || {}), ...(cond.splint || [])]);
+    const parts = new Set<string>([...Object.keys(cond.blood || {}), ...Object.keys(cond.bandage || {}), ...(cond.splint || []), ...Object.keys(cond.bruise || {}), ...Object.keys(cond.cut || {})]);
     const marks = !!((app.tattoos && Object.keys(app.tattoos).length) || (app.bodyScars && Object.keys(app.bodyScars).length));
     const all = !!(cond.wet || cond.dirt || cond.corrupt);
     this.hasOverlay = all || marks || parts.size > 0;

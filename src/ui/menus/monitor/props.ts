@@ -22,6 +22,8 @@ export const C = {
 let audioRef: { flat?: (k: string, b: 'sfx' | 'ui' | 'amb', vol?: number, rate?: number) => unknown } | null = null;
 /** the game's audio engine (title.ts hands it over), for the creature voices */
 export function setRoomAudio(a: unknown) { audioRef = a as typeof audioRef; }
+/** round 20: the same engine, for the fab bay's looped machine sounds (src/ui/menus/fab/kit.ts humFrom) */
+export const roomAudio = () => audioRef as { flat?: (k: string, b: 'sfx', vol?: number, rate?: number) => AudioBufferSourceNode | null } | null;
 /** a game sound by key (creature calls etc.), flat in the mix */
 export function gameSound(key: string, vol = 0.7, rate = 1) { try { audioRef?.flat?.(key, 'sfx', vol, rate); } catch { /* no audio yet */ } }
 export function uiSound(k: Sfx, vol = 1) { sfx(k, vol); }

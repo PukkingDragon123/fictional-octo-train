@@ -187,6 +187,8 @@ export class Guide {
     this.queue.push(...lines);
     this.idleT = 0;
   }
+  /** round 20: step out of a close-up's way (the control room's fab bay) and stay put; null lets her back into the picture */
+  aside(p: THREE.Vector3 | null) { this.close = !!p; this.checkT = 99; if (p) { this.goal.copy(p); this.walking = true; } else if (this.room) { const s = this.spot(this.room); this.goal.copy(s); this.walking = true; } }
   /** say a line now, dropping the rest of the queue */
   now(text: string, o: Partial<Line> = {}) { this.say([{ text, ...o }], true); }
   get talking() { return !!this.cur; }

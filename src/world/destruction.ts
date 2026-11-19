@@ -41,6 +41,7 @@ import { defLoot } from '../items/loot';
 import type { Player } from '../entities/player';
 import { Particles, PK } from '../gore/particles';
 import { addStat } from '../game/profile';
+import { bareStrike, surfaceOfMat, surfaceOfWall } from '../survival/impacts';
 import { Mat, objMat, objMaxHp, objColor, fracture, simulate, damageGeometry, crackOverlay, bitGeos, Piece, SimStart, SimResult } from './debris';
 import { buildHolesMesh, HOLE_STYLE } from './wallHoles';
 import { PushDrag } from './pushDrag';
@@ -444,6 +445,8 @@ export class DestructionSystem implements GameSystem {
       this.damageObject(p, o, dmg, 'melee', undefined, [fx, fz]);
       try { (p as any).anim?.impact?.(0.7); } catch { /* older rigs */ }
       if (it) this.wearWeapon(p, it, 0.6);
+      // a bare fist on a steel cabinet or a stone counter: the hand pays (src/survival/impacts.ts)
+      else bareStrike(p, surfaceOfMat(objMat(objDef(o.key)!)), { force: base / 3 });
       return true;
     }
     // a wall right in front
@@ -453,7 +456,7 @@ export class DestructionSystem implements GameSystem {
       if (!wallTool(it)) {
         G.audio?.at?.(it ? 'metal_clank' : 'body_thud', p.x + Math.cos(p.facing) * 0.6, p.z + Math.sin(p.facing) * 0.6, 0.5);
         try { (p as any).anim?.impact?.(0.9); } catch { /* older rigs */ }
-        if (!it) this.punchedWall(p);
+        if (!it) this.punchedWall(p, wh);
         else if (Math.random() < 0.35) bus.emit('think', p, 'That won\'t go through a wall. A sledgehammer would.');
         return true;
       }
@@ -462,14 +465,17 @@ export class DestructionSystem implements GameSystem {
       op('wallSmash', { z: z.key, x: wh.x, y: wh.y, side: wh.side, d: r2(base * k * (1 + p.body.skill('strength') * 0.05)), how: 'melee', by: p.id, u: r2(wh.u), h: r2(wh.h), n: wh.n } as WallArgs);
       try { (p as any).anim?.impact?.(0.8); } catch { /* older rigs */ }
       if (it) this.wearWeapon(p, it, 0.5);
-      if (!it) this.punchedWall(p);
+      if (!it) this.punchedWall(p, wh, (w.dmg ? (w.dmg[0] + w.dmg[1]) / 2 : 3) / 3);
       return true;
     }
     return false;
   }
 
-  private punchedWall(p: Player) {
-    if (Math.random() < 0.35) p.body.addInjury(Math.random() < 0.5 ? 'hand_r' : 'hand_l', 'bruise', 0.25);
+  /** a bare fist on a wall: plaster bruises, concrete splits the knuckles, steel can break the hand (src/survival/impacts.ts) */
+  private punchedWall(p: Player, wh: { x: number; y: number; side: 0 | 1 }, force = 1) {
+    const z = G.getZone(p.zoneKey), i = z.idx(wh.x, wh.y);
+    const wd = wallDef(wh.side === 0 ? z.wallN[i] : z.wallW[i]);
+    bareStrike(p, surfaceOfWall(wd?.sound), { force });
   }
 
   private wearWeapon(p: Player, it: Item, k: number) {

@@ -400,9 +400,14 @@ export class Player {
     const c: RigCondition = {};
     const blood: Record<string, number> = {}, bandage: Record<string, number> = {}, bleeding: Record<string, number> = {};
     const splint: string[] = [];
+    const bruise: Record<string, number> = {}, cut: Record<string, number> = {};
     for (const part of BODY_PARTS) {
       for (const inj of b.parts[part].injuries) {
         if (inj.heal > 0.85) continue;
+        // bruises (a fracture swells and bruises too) and open cuts show on the skin (src/survival/impacts.ts)
+        const fresh = inj.sev * (1 - inj.heal * 0.7);
+        if (inj.type === 'bruise' || inj.type === 'fracture') bruise[part] = Math.max(bruise[part] ?? 0, inj.type === 'fracture' ? 3 : fresh > 0.45 ? 3 : fresh > 0.22 ? 2 : 1);
+        else if (!inj.bandage && (inj.type === 'scratch' || inj.type === 'laceration' || inj.type === 'deep' || inj.type === 'bite' || inj.type === 'glass' || inj.type === 'bullet')) cut[part] = Math.max(cut[part] ?? 0, inj.type === 'scratch' ? 1 : inj.type === 'deep' || inj.type === 'bite' || inj.type === 'bullet' ? 3 : 2);
         const bl = b.injuryBleed(inj);
         const info = INJURY_INFO[inj.type];
         if (info.bleed > 0 && !inj.bandage) blood[part] = Math.max(blood[part] ?? 0, Math.min(3, Math.max(1, Math.round((inj.sev * 2.2 + (bl > 0.3 ? 1 : 0)) * (1 - inj.heal * 0.8)))));
@@ -417,6 +422,8 @@ export class Player {
     if (Object.keys(bandage).length) c.bandage = bandage;
     if (Object.keys(bleeding).length) c.bleeding = bleeding;
     if (splint.length) c.splint = splint.sort();
+    if (Object.keys(bruise).length) c.bruise = bruise;
+    if (Object.keys(cut).length) c.cut = cut;
     const lv = (v: number, a: number, b2: number, c3: number) => (v >= c3 ? 3 : v >= b2 ? 2 : v >= a ? 1 : 0);
     const wet = lv(b.wetness, 15, 40, 70); if (wet) c.wet = wet;
     const pale = lv(100 - b.blood, 25, 45, 65); if (pale) c.pale = pale;

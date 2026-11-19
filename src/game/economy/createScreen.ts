@@ -1,4 +1,5 @@
-// THE PRESS'S CREATE PAGE (round 17): the press's shop, in the same tube as its FEED page
+// THE PRINTER'S PATTERN SHOP (round 17 as the press's CREATE page; round 20 it moved to the Printer's console,
+// src/ui/menus/fab/console.ts, and the press only takes): the shop, in the same tube as its FEED page
 // (src/ui/crt, amber). Every pattern on file is a ware on a plinth: its real model turning
 // (src/ui/machine/itemSpin.ts), the price as numbers under it (dollars, and the kilos of matter
 // it draws, red when the bank is short). Under the pointer a ware lifts, turns quicker and
@@ -33,6 +34,18 @@ export interface CreateHost {
   calib: number;
   calibrate(): void;
   upgrades: { title: string; on: boolean }[];
+  /** round 20 (the Printer, src/ui/menus/fab/console.ts): the spools on file, drawn as little spools instead of the bank's kilos */
+  spools?: { color: string; kg: number }[];
+}
+/** a spool in pixels: dark flanges, the filament's colour wound as full as its kilos */
+function spoolGlyph(color: string, kg: number): HTMLElement {
+  const r = Math.max(1, Math.min(3, Math.round(kg * 3)));
+  const wound = `M${4 - r} ${4 - r}h${r * 2 + 1}v${r * 2 + 1}h-${r * 2 + 1}z`;
+  const s = document.createElement('i');
+  s.className = 'pc-sp';
+  s.title = `${Math.round(kg * 1000)} g`;
+  s.innerHTML = `<svg viewBox="0 0 9 9" shape-rendering="crispEdges" aria-hidden="true"><path fill="#1a120a" d="M1 0h7v1h1v7h-1v1H1v-1H0V1h1z"/><path fill="${color}" d="${wound}"/><path fill="#e8dcc0" d="M4 4h1v1H4z"/><path fill="rgba(255,255,255,.35)" d="M${4 - r} ${4 - r}h${r * 2 + 1}v1h-${r * 2 + 1}z"/></svg>`;
+  return s;
 }
 
 const esc = (s: string) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
@@ -73,11 +86,13 @@ export class CreateScreen {
     this.crt.glass.append(root);
     // ---- the top strip: purse, bank, the plate, the upgrades (numbers and lamps)
     const top = h('div', 'pc-top');
-    top.append(h('span', 'pc-num', `<i>$</i>${fmt(H.dollars)}`), h('span', 'pc-num', `<i>KG</i>${esc(fmtKg(H.bankKg).toUpperCase())}`));
+    top.append(h('span', 'pc-num', `<i>$</i>${fmt(H.dollars)}`));
+    if (H.spools) { const sp = h('span', 'pc-spools'); for (const q of H.spools) sp.append(spoolGlyph(q.color, q.kg)); if (!H.spools.length) sp.append(h('span', 'pc-num', '<i>0</i>')); top.append(sp); }
+    else top.append(h('span', 'pc-num', `<i>KG</i>${esc(fmtKg(H.bankKg).toUpperCase())}`));
     if (H.batch > 1) top.append(h('span', 'pc-num', `<i>×</i>${H.batch}`));
     const plate = h('button', 'pc-plate' + (H.calib === 2 ? ' true' : H.calib === 1 ? ' close' : ''), '<b></b><b></b><b></b>') as HTMLButtonElement;
     plate.type = 'button';
-    plate.title = H.calib === 2 ? 'plate true: the next make prints a spare' : 'calibrate the plate: a clean run prints a spare';
+    plate.title = H.spools ? (H.calib === 2 ? 'bed level: the next print makes a spare' : 'level the bed: a clean run prints a spare') : H.calib === 2 ? 'plate true: the next make prints a spare' : 'calibrate the plate: a clean run prints a spare';
     plate.disabled = H.calib === 2;
     plate.addEventListener('click', () => H.calibrate());
     top.append(plate);

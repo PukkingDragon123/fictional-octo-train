@@ -16,8 +16,9 @@
 // Round 15: the dial (src/game/economy) splits every load: REMIT credits its
 // credits value to the debt (and pays the operator dollars), KEEP banks its mass
 // as matter in the seam; the press TERMINAL (src/game/economy/terminal.ts,
-// the second verb) shows the account, sets the dial and creates things from
-// banked matter. With KEEP the crown's nixies count tenths of a kilo.
+// the second verb) shows the account and sets the dial (round 20: it no longer
+// creates anything; printing is the Printer's, src/game/economy/fab.ts). With KEEP
+// the crown's nixies count tenths of a kilo.
 //
 // Nothing about it is screen UI: the moving parts are local overlays on top
 // of the static model (src/content/furniture/zd_contract.ts): ram and piston

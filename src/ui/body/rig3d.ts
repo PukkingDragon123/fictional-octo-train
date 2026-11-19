@@ -41,6 +41,8 @@ export class Rig3D {
   readonly pivot = new THREE.Group();
   readonly inner = new THREE.Group();
   readonly packHit: THREE.Mesh;
+  /** the console's front (the readings): a click opens the health check (./health3d.ts) */
+  readonly conHit: THREE.Mesh;
   private pack = new THREE.Group();
   private cables: THREE.Group[] = [];
   private front: PrintTex;
@@ -113,6 +115,9 @@ export class Rig3D {
     this.packHit = new THREE.Mesh(new THREE.BoxGeometry(14, 17, 10), new THREE.MeshBasicMaterial());
     this.packHit.position.set(0, 7.5, 0); this.packHit.visible = false;
     this.pack.add(this.packHit);
+    this.conHit = new THREE.Mesh(new THREE.BoxGeometry(PACK_AT[0] - 8 - CON_X0, CON_H + 2, 4), new THREE.MeshBasicMaterial());
+    this.conHit.position.set((CON_X0 + PACK_AT[0] - 8) / 2, CON_TOP - CON_H / 2, FRONT + 1); this.conHit.visible = false;
+    g.add(this.conHit);
   }
 
   /** a small corporate rucksack: charcoal ballistic nylon, olive panels, a top flap with two cam buckles,

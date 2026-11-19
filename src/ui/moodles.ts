@@ -83,6 +83,8 @@ const ART: Record<string, { rows: string[]; pal: Record<string, number> }> = {
   ], pal: { k: 0x2a0404, r: 0xe02a3a, w: 0xffffff } },
 };
 ART.injured.pal.b = 0xe8c898;
+// the hands (src/survival/impacts.ts): a fist seen from the back, the knuckles bruised and split
+ART.hands = { rows: ['............', '..kkkkkkkk..', '.kpskpskpsk.', '.kpsrpsspsk.', '.kssrsssssk.', 'kkssssssssk.', 'kskssssssk..', 'kssksssssk..', '.kssssssk...', '..kssssk....', '..kcccck....', '..kkkkkk....'], pal: { k: 0x2a140a, s: 0xe8b98f, p: 0x8a4ab0, r: 0xc8201a, c: 0xe8e2cc } };
 
 // ------------------------------------------------------------------ 7x7 phosphor glyphs ('#' lit)
 const MONO: Record<string, string[]> = {
@@ -109,6 +111,7 @@ const MONO: Record<string, string[]> = {
   stuffed: ['.#####.', '#######', '#.#.#.#', '#######', '.#####.', '.......', '...##..'],
   lonely: ['.#.....', '###....', '.#.....', '###..#.', '###....', '#.#..#.', '#.#....'],
   attack: ['.##.##.', '#######', '#######', '.#####.', '#.###.#', '.#.#.#.', '...#...'],
+  hands: ['.#.#.#.', '#######', '#######', '##.####', '.######', '..####.', '..####.'],
 };
 
 /** order the moodles are shown in when several are up (worst first is done by the caller) */

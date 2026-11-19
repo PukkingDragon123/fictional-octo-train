@@ -2,7 +2,8 @@
 // the build mode can offer, as plain lists the lab's research lattice
 // (src/ui/menus/research/lattice.ts via src/game/treeData.ts) and the press
 // terminal (src/game/economy/terminal.ts) read:
-//   PATTERNS        creation recipes: what the press can make out of banked matter (+ dollars)
+//   PATTERNS        print patterns: what the PRINTER can make out of filament spools (+ dollars) (round 20: the
+//                   press only takes now; src/game/economy/fab.ts, src/ui/menus/fab)
 //   PRESS_UPGRADES  device upgrades for the Remittance Press
 //   HOMESTEAD       base-building pieces (added to the build catalogue, src/build/pieces.ts)
 //   PLANTS          backrooms crops and fungi (planters, fungus beds, forage spots)
@@ -19,6 +20,8 @@ import { defRecipe, type Recipe } from '../../items/recipes';
 import { CROP_LOOK, type PlantLook } from './plantModels';
 import type { Matter } from './matter';
 import { DOLLARS_PER_TOKEN } from './money';
+// round 20: the fab machines' camp blueprints register with the rest (src/game/economy/fabCamp.ts)
+import './fabCamp';
 
 // ------------------------------------------------------------------ creation patterns
 export interface Pattern {
@@ -27,7 +30,7 @@ export interface Pattern {
   item: string;
   /** made per print */
   n: number;
-  /** matter drawn from the bank per print (kg) */
+  /** matter drawn off the filament spools per print (kg) */
   cost: Matter;
   /** dollars per print (round 17: the retired tokens, x20) */
   tok: number;
@@ -40,7 +43,7 @@ export interface Pattern {
 // round 17: the fee is in DOLLARS (the old token count x DOLLARS_PER_TOKEN)
 const P = (key: string, item: string, cost: Matter, tok: number, rp: number, lane: string, desc: string, requires?: string[], n = 1): Pattern => ({ key, item, n, cost, tok: tok * DOLLARS_PER_TOKEN, rp, lane, requires, desc });
 export const PATTERNS: Pattern[] = [
-  P('mx_scrap', 'scrap_metal', { metal: 0.5 }, 1, 2, 'Feedstock', 'Half a kilo of banked metal pressed back out as scrap.'),
+  P('mx_scrap', 'scrap_metal', { metal: 0.5 }, 1, 2, 'Feedstock', 'Half a kilo of metal filament printed back out as scrap.'),
   P('mx_nails', 'nails', { metal: 0.3 }, 1, 3, 'Feedstock', 'A box of cut nails.', ['mx_scrap']),
   P('mx_wire', 'wire', { metal: 0.15, polymer: 0.05 }, 1, 3, 'Feedstock', 'Copper wire, sheathed.', ['mx_scrap']),
   P('mx_sheet', 'sheet_metal', { metal: 2 }, 2, 4, 'Feedstock', 'A flat sheet of steel.', ['mx_nails']),
@@ -77,8 +80,8 @@ export const PRESS_UPGRADES: Upgrade[] = [
   { key: 'pr_assay', title: 'Assay Lens', rp: 3, item: 'magnifying_glass', desc: 'A lens over the plate wired to the terminal.', gives: 'the terminal reads the plate before the lever: mass, material, credits' },
   { key: 'pr_cold', title: 'Cold Start', rp: 5, item: 'battery', desc: 'A bypass for the contract interlock.', gives: 'the press runs with no contract (free survival): every load is kept as matter' },
   { key: 'pr_stamp', title: 'Token Stamp', rp: 6, item: 'coins', desc: 'A faster die in the remittance stamp.', gives: 'the Institute pays you $1 for every 15 credits remitted (was 25)', requires: ['pr_assay'] },
-  { key: 'pr_batch', title: 'Batch Former', rp: 8, item: 'steel_frame', desc: 'A wider die for the creation cycle.', gives: 'patterns print three at a time for one fee', requires: ['pr_stamp'] },
-  { key: 'pr_relay', title: 'Seam Relay', rp: 10, item: 'walkie_talkie', desc: 'A relay from a claim beacon down to the seam.', gives: 'use the press terminal at your claim beacon; prints arrive there', requires: ['pr_batch'] },
+  { key: 'pr_batch', title: 'Batch Former', rp: 8, item: 'steel_frame', desc: 'A wider bed for the printer.', gives: 'patterns print three at a time for one fee', requires: ['pr_stamp'] },
+  { key: 'pr_relay', title: 'Seam Relay', rp: 10, item: 'walkie_talkie', desc: 'A relay from a claim beacon down to the seam.', gives: 'use the press terminal at your claim beacon', requires: ['pr_batch'] },
 ];
 
 // ------------------------------------------------------------------ plants and fungi
@@ -157,11 +160,11 @@ export const ECON_RECIPES: Recipe[] = [
 for (const r of ECON_RECIPES) defRecipe(r);
 
 // ------------------------------------------------------------------ the lattice
-treeCategory({ key: 'matter', name: 'The Press', sub: 'creation patterns · matter into things', code: 'MTR', order: 25 });
+treeCategory({ key: 'matter', name: 'The Printer', sub: 'print patterns · filament into things', code: 'MTR', order: 25 });
 treeCategory({ key: 'farm', name: 'Farming', sub: 'plants · fungus · livestock', code: 'FRM', order: 35 });
 const ITEM_FALLBACK = ['scrap_metal'];
 treeOffers([
-  ...PATTERNS.map((p): TreeOffer => ({ key: p.key, category: 'matter', lane: p.lane, title: 'Pattern: ' + p.item.replace(/_/g, ' '), cost: p.rp, requires: p.requires, item: p.item, alt: ITEM_FALLBACK, desc: p.desc + ' Made at the press terminal from banked matter and dollars.', gives: `the press can make ${p.item.replace(/_/g, ' ')} ($${p.tok})` })),
+  ...PATTERNS.map((p): TreeOffer => ({ key: p.key, category: 'matter', lane: p.lane, title: 'Pattern: ' + p.item.replace(/_/g, ' '), cost: p.rp, requires: p.requires, item: p.item, alt: ITEM_FALLBACK, desc: p.desc + ' Printed at the printer from filament spools and dollars.', gives: `the printer can make ${p.item.replace(/_/g, ' ')} ($${p.tok})` })),
   ...PRESS_UPGRADES.map((u): TreeOffer => ({ key: u.key, category: 'device', lane: 'Remittance Press', title: u.title, cost: u.rp, requires: u.requires, item: u.item, alt: ITEM_FALLBACK, desc: u.desc, gives: u.gives })),
   ...HOMESTEAD.filter((p) => p.node).map((p): TreeOffer => ({ key: p.node!, category: 'build', lane: 'Homestead', title: p.name, cost: p.key === 'pen' ? 4 : 3, item: p.key === 'pen' ? 'rope' : 'spawn_ear', alt: ['plank'], desc: p.desc, gives: 'blueprint: ' + p.name })),
   ...HUSBANDRY,

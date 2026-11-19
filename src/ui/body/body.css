@@ -12,6 +12,8 @@ body.bh-hover, body.bh-hover canvas { cursor: pointer; }
 }
 .bh-lab b { font-weight: normal; color: #ffffff; }
 .bh-lab b.low { color: #ffb066; }
+/* the console's front under the pointer: a click opens the health check; its readings light up */
+.bh-lab.hot { color: #fff8e0; filter: drop-shadow(0 0 3px rgba(255, 220, 140, 0.9)); }
 .bh-lab b.crit { color: #ff5a46; animation: bh-blink 0.8s steps(2) infinite; }
 @keyframes bh-blink { 50% { color: #ffd0b8; } }
 

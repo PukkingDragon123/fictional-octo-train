@@ -950,6 +950,33 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
   // ---------------------------------------------------------------- body marks and condition (second pass)
   const tattoos = app.tattoos || {}, scars = app.bodyScars || {};
   const bl = cond.blood || {}, band = cond.bandage || {}, splint = new Set(cond.splint || []);
+  const bru = cond.bruise || {}, cuts = cond.cut || {};
+  /** where a bruise / a cut sits on each part: height, angle round the part (deg, 0 front, + outward), radii across / along */
+  const SPOT: Record<string, { y: number; deg: number; ru: number; rv: number }> = {
+    hand: { y: P.knuckY + 0.004 * H, deg: 90, ru: 0.013 * H, rv: 0.011 * H }, farm: { y: (P.elbowY + P.wristY) / 2, deg: 30, ru: 0.02 * H, rv: 0.035 * H },
+    uarm: { y: (P.shoulderY + P.elbowY) / 2, deg: 55, ru: 0.02 * H, rv: 0.03 * H }, thigh: { y: P.kneeY + 0.07 * H, deg: 25, ru: 0.03 * H, rv: 0.04 * H },
+    shin: { y: P.kneeY - 0.012 * H, deg: 5, ru: 0.022 * H, rv: 0.03 * H }, foot: { y: P.ankleY, deg: 70, ru: 0.016 * H, rv: 0.016 * H },
+    torso_u: { y: P.bustY - 0.04 * H, deg: 48, ru: 0.038 * H, rv: 0.03 * H }, torso_l: { y: P.waistY, deg: 50, ru: 0.035 * H, rv: 0.028 * H },
+    groin: { y: P.crotchY + 0.04 * H, deg: 40, ru: 0.03 * H, rv: 0.025 * H }, neck: { y: P.neckBase + 0.02 * H, deg: 30, ru: 0.016 * H, rv: 0.016 * H },
+    head: { y: P.eyeY - 0.012 * H, deg: 24, ru: 0.016 * H, rv: 0.02 * H },
+  };
+  /** a texel's place on a part, centred on its spot: across (m, round the surface) and along (m, up the body) */
+  function spotUV(c: Ctx, part: string, key: string, sp: { y: number; deg: number }): [number, number] {
+    const arm = key === 'uarm' || key === 'farm' || key === 'hand', leg = key === 'thigh' || key === 'shin' || key === 'foot';
+    let a: number, r: number;
+    if (arm || leg) {
+      const sx = Math.sign(c.x) || 1, cx = sx * (arm ? P.shX : P.hipX), cz = arm ? P.armZ : 0;
+      const dx = (c.x - cx) * sx, dz = c.z - cz;
+      a = Math.atan2(dx, dz); r = Math.max(0.02, Math.hypot(dx, dz));
+    } else {
+      // the trunk and the head: the character's left or right by the part's own hash
+      const side = (part.length + part.charCodeAt(0)) % 2 ? 1 : -1;
+      a = Math.atan2(c.x * side, c.z); r = Math.max(0.03, Math.hypot(c.x, c.z));
+    }
+    let da = a - sp.deg * Math.PI / 180;
+    if (da > Math.PI) da -= Math.PI * 2; if (da < -Math.PI) da += Math.PI * 2;
+    return [da * r, c.y - sp.y];
+  }
   const wet = cond.wet ?? 0, dirt = cond.dirt ?? 0, corrupt = cond.corrupt ?? 0;
   /** angle round the torso / a limb (deg, 0 = front, +90 = left / outer) and the local radius */
   function spotAngle(c: Ctx, limb: boolean): [number, number] {
@@ -1012,6 +1039,43 @@ export function makePainters(sp: GGSpec, P: Props, app: Appearance, cond: RigCon
       if (side) { shadeInto(o, sx * c.nx > 0 ? [168, 130, 84] : [150, 116, 76], 0.95 + 0.1 * h2(c.i, c.j >> 2, 3)); if (Math.abs(c.e) > 0.32) over(o, INK, 0.3); }
       const mid = c.part === 'farm' ? (P.elbowY + P.wristY) / 2 : c.part === 'uarm' ? (P.shoulderY + P.elbowY) / 2 : c.part === 'thigh' ? (P.hipY + P.kneeY) / 2 : (P.kneeY + P.ankleY) / 2;
       for (const d of [-0.05, 0.05]) if (Math.abs(c.y - mid - d * H) < 0.006 * H) shadeInto(o, [60, 56, 52], 0.95);
+    }
+    // bruises and open cuts on the skin (src/survival/impacts.ts): split knuckles, a black and blue knee
+    const bz = bru[part], ct = cuts[part];
+    if ((bz || ct) && skinNow) {
+      const key = part.replace(/_[lr]$/, '');
+      const sp = SPOT[key];
+      if (sp) {
+        const [u, v] = spotUV(c, part, key, sp);
+        if (bz) {
+          const g = 0.8 + bz * 0.25, d = (u / (sp.ru * g)) ** 2 + (v / (sp.rv * g)) ** 2;
+          const n = vnoise3(c.x * 70, c.y * 70, c.z * 70, 131 + part.length), m = vnoise3(c.x * 22, c.y * 22, c.z * 22, 137);
+          const k = Math.exp(-d * 1.6) * (0.65 + 0.5 * m) + (n - 0.5) * 0.25;
+          // a purple-red core mottled with blue, a reddish halo, and round an older one a yellow-green rim
+          const blue = vnoise3(c.x * 120, c.y * 120, c.z * 120, 139) < 0.35;
+          if (k > 0.8 - bz * 0.05) over(o, blue ? [62, 46, 104] : bz >= 3 ? [88, 30, 70] : [104, 44, 84], 0.5 + 0.06 * bz);
+          else if (k > 0.56 - bz * 0.04) over(o, blue ? [96, 72, 138] : [126, 62, 104], 0.36 + 0.06 * bz);
+          else if (k > 0.38) over(o, [168, 86, 96], 0.24);
+          else if (k > 0.27 && bz >= 2) over(o, [164, 158, 84], 0.16);
+        }
+        if (ct) {
+          // knuckles split in a row across the fist; anywhere else a slash (two on a deep one)
+          const knuck = key === 'hand';
+          const n = knuck ? 3 : ct >= 3 ? 2 : 1;
+          for (let q = 0; q < n; q++) {
+            const u0 = knuck ? (q - 1) * 0.0075 * H : (q - 0.5 * (n - 1)) * 0.012 * H, v0 = knuck ? (q === 1 ? 0.002 * H : 0) : (q - 0.5 * (n - 1)) * -0.008 * H;
+            const th = knuck ? 0.15 * (q - 1) : 0.62, L = knuck ? 0.0035 * H + ct * 0.0006 * H : 0.01 * H + ct * 0.006 * H;
+            const w = Math.max(c.px * 0.8, (knuck ? 0.0011 : 0.0014) * H + 0.0005 * H * ct);
+            const du = u - u0, dv = v - v0, cs = Math.cos(th), sn = Math.sin(th);
+            const sa = du * cs + dv * sn, ta = -du * sn + dv * cs;
+            if (Math.abs(sa) > L * 1.15) continue;
+            const taper = Math.max(0, 1 - (sa / L) ** 2), at = Math.abs(ta);
+            if (at < w * taper * 0.5) over(o, [38, 4, 6], 0.95);
+            else if (at < w * taper) over(o, [140, 28, 24], 0.88);
+            else if (at < w * (taper + 0.15) * 1.9) over(o, [196, 104, 96], 0.32);
+          }
+        }
+      }
     }
     const lv = bl[part];
     if (lv) {

@@ -48,11 +48,13 @@ import {
 import { wireHomestead, penStep, homesteadUpdate } from './homestead';
 import { seedEconomyLoot } from '../../content/items/ze_economy';
 import { selfThought } from '../debt/voice';
+import { wireFabCamp } from './fabCamp';
 import './registry';
 
 export * from './matter';
 export * from './money';
 export { economyCatalogue, PATTERNS, PRESS_UPGRADES, HOMESTEAD, PLANTS, LIVESTOCK, HUSBANDRY, ECON_RECIPES } from './registry';
+export * from './fab';
 
 /** the press runs with no contract (free survival, before intake) once Cold Start is researched */
 export const pressCold = () => hasUnlock('pr_cold');
@@ -107,6 +109,7 @@ let wired = false;
 /** session start (src/game/debt/index.ts installContract) */
 export function installEconomy(g: Game) {
   wireHomestead();
+  wireFabCamp();
   try { seedEconomyLoot(); } catch (e) { console.warn('economy loot', e); }
   g.addSystem(new EconomySystem());
   setScripPerToken(hasUnlock('pr_stamp') ? 15 : 25);

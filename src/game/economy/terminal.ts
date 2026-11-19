@@ -7,18 +7,15 @@
 // Pages (Q / E or the plate keys):
 //   ACCOUNT  the three currencies (credits on the debt, the researcher's dollars, RP), the matter bank by material
 //   DIAL     REMIT / SPLIT / KEEP, and (Assay Lens) what is on the plate right now
-//   CREATE   the researched patterns: matter + dollars -> the thing on the plate
-//            (in the lab: down the chute at the start of the next run)
 //   LEDGER   the crew ledger (in a run)
+// Round 20: the press only TAKES. It has no creation page any more: printing moved to the Printer, a machine
+// the operator builds (src/game/economy/fab.ts, src/ui/menus/fab), fed by spools from the Filament Maker.
 import { mxArrive } from '../../ui/machine/kit';
 import { mxMount, mxIcon, type IconKind } from '../../ui/machine/decor';
 import { G } from '../G';
 import { bus } from '../../core/events';
-import { op } from '../ops';
 import { hasUnlock, researchPoints } from '../research';
 import { itemDef, hasItemDef, type Item } from '../../items/item';
-import { createItem, serializeItem } from '../../items/factory';
-import { itemIcon } from '../../ui/icons';
 import { terminal, type Terminal } from '../../ui/menus/terminal';
 import { plateBtn, type PlateButton } from '../../ui/menus/btnKit';
 import { FocusNav } from '../../ui/menus/nav';
@@ -26,17 +23,14 @@ import { sfx } from '../../ui/menus/sfx';
 import type { Player } from '../../entities/player';
 import type { TileObject } from '../../world/zone';
 import {
-  MATS, MODES, press, banked, bankTotal, tokens, pressMode, setPressMode, canAfford, drawMatter, dispatch, itemMatter, objMatter,
-  matterKg, scaleMatter, fmtKg, SCRIP_PER_TOKEN, type Matter, type PressMode,
+  MATS, MODES, press, banked, bankTotal, tokens, pressMode, setPressMode, itemMatter, objMatter,
+  matterKg, fmtKg, SCRIP_PER_TOKEN, type Matter, type PressMode,
 } from './matter';
-import { PATTERNS, PRESS_UPGRADES, type Pattern } from './registry';
-import { slagWords } from './crusher';
 import { FeedScreen } from './feedScreen';
-import { CreateScreen, type CreateHost } from './createScreen';
 import { INSTALLMENT_DOLLARS } from './money';
+import { spools } from './fab';
 import { itemValue } from '../debt/values';
 import './terminal.css';
-import { calibrate } from '../../ui/minigames/calibrate';
 import { panicLocks, panicFumble } from '../panic';
 
 export interface TermOpen {
@@ -48,11 +42,9 @@ export interface TermOpen {
   page?: Page;
   onClose?: () => void;
 }
-type Page = 'feed' | 'account' | 'dial' | 'create' | 'ledger';
-const PAGE_ICON: Record<Page, IconKind> = { feed: 'crate', account: 'coin', dial: 'gear', create: 'wrench', ledger: 'tape' };
-/** the plate's calibration: 0 none, 1 close, 2 true (the next make prints a spare) */
-let calib = 0;
-const PAGES: [Page, string][] = [['feed', 'Feed'], ['account', 'Account'], ['dial', 'Dial'], ['create', 'Create'], ['ledger', 'Ledger']];
+type Page = 'feed' | 'account' | 'dial' | 'ledger';
+const PAGE_ICON: Record<Page, IconKind> = { feed: 'crate', account: 'coin', dial: 'gear', ledger: 'tape' };
+const PAGES: [Page, string][] = [['feed', 'Feed'], ['account', 'Account'], ['dial', 'Dial'], ['ledger', 'Ledger']];
 /** round 17: the hopper's slots on the FEED page */
 const SLOTS = 10;
 
@@ -60,10 +52,8 @@ let open: { close: () => void } | null = null;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 const fmt = (n: number) => Math.round(n).toLocaleString('en-GB');
 const iname = (k: string) => (hasItemDef(k) ? itemDef(k).name : k.replace(/_/g, ' '));
-const itemDisplay = (it: Item) => it.name || iname(it.key);
 const h = (tag: string, cls = '', html = '') => { const e = document.createElement(tag); if (cls) e.className = cls; if (html) e.innerHTML = html; return e; };
 const costLine = (m: Matter) => MATS.filter((q) => (m[q.key] ?? 0) > 0).map((q) => `<i style="color:${q.color}">${q.code}</i> ${fmtKg(m[q.key]!)}`).join(' · ');
-const canIcon = () => !!(G as any)?.pr?.renderer;
 
 export const pressTerminalOpen = () => !!open;
 
@@ -84,7 +74,8 @@ export function openPressTerminal(o: TermOpen) {
     mxMount(t.el, 'valve', { left: 70, bottom: -34, z: 4 }, { w: 150 });
   }
   const atPress = inRun && o.from === 'press' && !!o.o;
-  let page: Page = o.page ?? (atPress ? 'feed' : 'account');
+  // (an old caller's 'create' page opens the account: printing is the Printer's now)
+  let page: Page = o.page && PAGES.some(([k]) => k === o.page) ? o.page : atPress ? 'feed' : 'account';
   const keys = new Map<Page, PlateButton>();
   const visible = PAGES.filter(([k]) => (k !== 'ledger' || inRun) && (k !== 'feed' || atPress));
   for (const [k, label] of visible) {
@@ -109,7 +100,6 @@ export function openPressTerminal(o: TermOpen) {
   let waiting = false;
   // the polished 2D screen (src/game/economy/feedScreen.ts): it keeps its counter, ram and log alive across renders
   let fs: FeedScreen | null = null;
-  let cs: CreateScreen | null = null;
   const onDeposit = (e: { hopper?: number; value?: number; out?: string[]; jack?: number; bonus?: number }) => {
     if (!wrap.isConnected || !o.o || e.hopper !== o.o.uid || !waiting) return;
     waiting = false;
@@ -126,7 +116,7 @@ export function openPressTerminal(o: TermOpen) {
     if (fs.pressKey(e.code)) { e.preventDefault(); e.stopPropagation(); }
   };
   window.addEventListener('keydown', onKey, true);
-  const unsub = [bus.on('matterChanged', off), bus.on('debtChanged', off), bus.on('deposited', onDeposit), bus.on('pressJackpot', onJack)];
+  const unsub = [bus.on('matterChanged', off), bus.on('fabChanged', off), bus.on('debtChanged', off), bus.on('deposited', onDeposit), bus.on('pressJackpot', onJack)];
   let tick = 0;
   // the plate reading follows what lands on it
   const iv = window.setInterval(() => { if (page === 'dial' && inRun) render(); if (++tick % 4 === 0) t.paint(); }, 900);
@@ -138,7 +128,6 @@ export function openPressTerminal(o: TermOpen) {
     for (const u of unsub) u();
     window.removeEventListener('keydown', onKey, true);
     fs?.destroy(); fs = null;
-    cs?.destroy(); cs = null;
     t.screen.style.transform = '';
     wrap.classList.add('off');
     setTimeout(() => wrap.remove(), 160);
@@ -153,16 +142,15 @@ export function openPressTerminal(o: TermOpen) {
   function show(k: Page) { page = k; for (const [q, b] of keys) b.classList.toggle('on', q === k); render(); }
 
   function render() {
-    const sub: Record<Page, string> = { feed: 'feed the press · item by item', account: 'account · credits · dollars · research · matter', dial: 'the dial · what the plate holds', create: 'creation patterns', ledger: 'crew ledger' };
+    const sub: Record<Page, string> = { feed: 'feed the press · item by item', account: 'account · credits · dollars · research · matter', dial: 'the dial · what the plate holds', ledger: 'crew ledger' };
     t.setHead('Remittance Press', sub[page]);
     const body = t.body;
     const keep = body.scrollTop;
     // the FEED page keeps its tube attached (re-attaching would replay the power-on): it clears its own leftovers
-    if (page !== 'feed' && page !== 'create') body.innerHTML = '';
+    if (page !== 'feed') body.innerHTML = '';
     if (page === 'feed') feed(body);
     else if (page === 'account') account(body);
     else if (page === 'dial') dial(body);
-    else if (page === 'create') create(body);
     else ledger(body);
     body.scrollTop = keep;
   }
@@ -217,7 +205,9 @@ export function openPressTerminal(o: TermOpen) {
     const rate = SCRIP_PER_TOKEN;
     row('$', 'Dollars', `$${fmt(tokens())}`, `the researcher's money · $1 per ${rate} credits remitted (${Math.round(rate - p.rem)} to the next) · +$${INSTALLMENT_DOLLARS} per installment · commissary, jukebox, creation`);
     row('RP', 'Research', `${researchPoints()}`, 'knowledge · buys patterns and upgrades on the lab lattice');
-    row('KG', 'Matter', fmtKg(bankTotal()), 'banked in the seam reservoir · creation draws it back out kilo for kilo');
+    row('KG', 'Matter', fmtKg(bankTotal()), 'banked in the seam reservoir · the filament maker spins it into spools');
+    const sp = spools();
+    row('SP', 'Spools', `${sp.length}`, sp.length ? fmtKg(sp.reduce((a, q) => a + q.kg, 0)) + ' of filament for the printer' : 'none wound yet');
     el.append(rows);
     // the bank, material by material: segmented phosphor bars on a log scale
     const bars = h('div', 'ptm-bars');
@@ -229,7 +219,7 @@ export function openPressTerminal(o: TermOpen) {
       bars.append(b);
     }
     el.append(bars);
-    el.append(h('div', 'ptm-how', `<p><b>REMIT</b> pays a load's <b>value</b> to the debt in <b>credits</b>, and the Institute pays you <b>dollars</b> for it. <b>KEEP</b> banks its <b>mass</b> as matter. <b>CREATE</b> spends matter and dollars on a pattern you have <b>researched</b>.</p><p class="dim">The seam destroys and makes equally: what goes down comes back up, kilo for kilo.</p>`));
+    el.append(h('div', 'ptm-how', `<p><b>REMIT</b> pays a load's <b>value</b> to the debt in <b>credits</b>, and the Institute pays you <b>dollars</b> for it. <b>KEEP</b> banks its <b>mass</b> as matter.</p>`));
     if (p.disp.length) el.append(h('p', 'ptm-note', `Waiting at the chute for the next run: ${esc(summarise(p.disp))}`));
   }
 
@@ -271,52 +261,6 @@ export function openPressTerminal(o: TermOpen) {
     pull.disabled = !!P?.busy?.(o.o) || (!contract && !hasUnlock('pr_cold'));
     pull.addEventListener('click', () => { const pl = o.p ?? G.local; const tgt = o.o!; close(); P?.pullAction?.(pl, tgt); });
     el.append(pull);
-  }
-
-  // ---------------------------------------------------------------- CREATE
-  // the press's shop (createScreen.ts): every pattern a ware on a plinth, its model turning, its price in numbers;
-  // hold a plinth down to buy. Calibration, the purse, the bank and the upgrades ride along the top.
-  function create(el: HTMLElement) {
-    const batch = hasUnlock('pr_batch') ? 3 : 1;
-    const busy = () => o.from === 'press' && !!o.o && !!(G.press ?? G.debt?.hoppers)?.busy?.(o.o);
-    const hostC: CreateHost = {
-      known: PATTERNS.filter((q) => hasUnlock(q.key) && hasItemDef(q.item)),
-      locked: PATTERNS.filter((q) => !hasUnlock(q.key) && hasItemDef(q.item)),
-      batch, dollars: tokens(), bankKg: bankTotal(),
-      why: (q) => (!canAfford(scaleMatter(q.cost, batch)) ? 'matter' : tokens() < q.tok ? 'dollars' : busy() ? 'busy' : ''),
-      cost: (q) => scaleMatter(q.cost, batch),
-      banked: (m) => banked(m as never),
-      make: (q) => make(q, batch),
-      calib,
-      calibrate: async () => {
-        const r = await calibrate({ title: 'Plate calibration', sub: 'stop each needle in the green · Space / E / click', dials: 3, difficulty: hasUnlock('pr_batch') ? 3 : 2 });
-        if (!r.cancelled) { calib = r.perfect ? 2 : r.hits >= 2 ? 1 : 0; sfx(r.perfect ? 'unlock' : 'error', 0.6); }
-        render();
-      },
-      upgrades: PRESS_UPGRADES.map((u) => ({ title: u.title, on: hasUnlock(u.key) })),
-    };
-    if (!cs) cs = new CreateScreen(hostC); else cs.setHost(hostC);
-    cs.render(el);
-  }
-  function make(q: Pattern, batch: number) {
-    const cost = scaleMatter(q.cost, batch);
-    if (!drawMatter(cost, q.tok)) { sfx('error'); return; }
-    const spare = calib === 2 ? 1 : 0;
-    calib = 0;
-    const keys: string[] = Array.from({ length: q.n * batch + spare }, () => q.item);
-    sfx('press', 0.7);
-    if (o.from === 'lab' || !inRun) { dispatch(keys); sfx('stamp', 0.8); render(); return; }
-    const z = G.getZone(G.local.zoneKey);
-    const tgt = o.o;
-    const cx = tgt ? tgt.x + (o.from === 'press' ? 1 : 0.5) : G.local.x, cz = tgt ? tgt.y + (o.from === 'press' ? 1 : 1.2) : G.local.z;
-    keys.forEach((k, i) => {
-      const it = createItem(k);
-      const a = Math.random() * Math.PI * 2, r = keys.length > 1 ? 0.25 : 0.05;
-      setTimeout(() => op('dropFloor', { z: z.key, item: serializeItem(it), x: cx + Math.cos(a) * r, zz: cz + Math.sin(a) * r, y: 0.12, v: [Math.cos(a) * 0.2, 1.4 + i * 0.15, Math.sin(a) * 0.2] }), 250 + i * 120);
-    });
-    if (tgt && o.from === 'press') (G.press ?? G.debt?.hoppers)?.seamFlash?.(tgt);
-    G.audio?.at?.('press_hiss', cx, cz, 0.6);
-    render();
   }
 
   // ---------------------------------------------------------------- LEDGER

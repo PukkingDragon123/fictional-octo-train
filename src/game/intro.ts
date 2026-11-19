@@ -135,7 +135,8 @@ const STRIKES: Omit<Strike, 'done' | 'swung'>[] = [
 ];
 const BEAT_END = 7.6;
 const WARM = ['guard_bark', 'baton_hit', 'body_thud', 'debtor_grunt', 'debtor_scream', 'debtor_gasp', 'remit_pierce', 'remit_chirp', 'bone_crunch', 'seam_ripple', 'seam_through', 'seam_seal',
-  'whoosh', 'holo_on', 'press_slam', 'press_crunch', 'press_hiss', 'press_lever', 'press_klaxon', 'ix_heart', 'ix_ring', 'ix_boot', 'ix_liquid', 'intro_land', 'flicker_buzz', 'cy_spark'];
+  'whoosh', 'holo_on', 'press_slam', 'press_crunch', 'press_hiss', 'press_lever', 'press_klaxon', 'ix_heart', 'ix_ring', 'ix_boot', 'ix_liquid', 'intro_land', 'flicker_buzz', 'cy_spark',
+  'gore_bone_crack', 'gore_crunch', 'gore_burst', 'gore_squelch', 'gore_spurt', 'gore_gib_land', 'gore_wet_hit', 'gore_drip'];
 
 /** the wide shots cut into the first-person script: [phase] -> [from, to, shot] (phase seconds) */
 const SHOTS: Partial<Record<Phase, [number, number, string][]>> = {
@@ -976,6 +977,7 @@ export class Intro implements GameSystem {
       c.root.traverse((m) => { m.castShadow = true; m.frustumCulled = false; });
       root.add(c.root);
       this.set.corpse = c.root;
+      this.set.corpseRig = c;
     } catch (e) { console.warn('intro corpse', e); this.corpse = null; }
   }
 

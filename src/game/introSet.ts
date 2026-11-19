@@ -37,6 +37,9 @@ import { clerkDesk, swivelChair, filingCabinet, intakeCounter, barredGate, turns
 import { GP, pressBody, ramGeo, pistonGeo, leverGeo, conveyor, junkGeo, bandRigGeo, portalFrame } from './introKit/machines';
 import { cbox, lathe, facetize, type V3 } from './introKit/poly';
 import './introKit/tex';
+import { PressGore } from './introKit/pressGore';
+import type { HumanRig } from '../entities/humanRig';
+import { G } from './G';
 
 export const STAGE = { noVis: true, noFog: true, noGrid: true };
 const SOLID = () => stageMat({ rim: 0.35 });
@@ -112,7 +115,11 @@ export class IntroSet {
   private wallSplats: THREE.Mesh[] = []; private wallI = 0;
   /** the last debtor, on the plate (a body the intro hands over); the press flattens it slam by slam */
   corpse: THREE.Object3D | null = null;
+  /** that body's rig (its chest and hips: where the ribs and the organs come out) */
+  corpseRig: HumanRig | null = null;
   private corpseSquash = 1;
+  /** ribs, bones, organs and blood out from under the die (./introKit/pressGore.ts) */
+  private gore: PressGore | null = null;
   private belt!: { mesh: THREE.Mesh; uv: Float32Array; base: Float32Array; off: number };
   private junk: { m: THREE.Mesh; z: number; y: number; vy: number; on: boolean; spin: number }[] = [];
   private coils: EmitMat | null = null;
@@ -125,6 +132,7 @@ export class IntroSet {
     this.blood = new Particles(low ? 90 : 220, false);
     this.blood.mesh.material = stageMat({ outline: 0, rim: 0 });
     root.add(this.blood.mesh);
+    this.gore = new PressGore(this, low);
     this.sparks = new Particles(low ? 80 : 180, 3.2);
     this.sparks.mesh.material = stageMat({ outline: 0, rim: 0, noHaze: true });
     this.sparks.mesh.renderOrder = 9;
@@ -619,12 +627,15 @@ export class IntroSet {
         for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) this.spark(x + sz * GP.colZ, GP.bedH + GP.ramDown * 0.2 + 0.15, z - sx * GP.colX, this.low ? 6 : 14, 3.4, [sz * 0.5, 0.7, -sx * 0.5]);
         this.spark(x + 1.4, GP.bedH + 0.1, z, this.low ? 8 : 22, 4.5, [1, 0.5, 0]);
         this.lights.sparks(new THREE.Vector3(x + 1.6, GP.bedH + 0.4, z), 1);
-        // the body on the plate goes flat; what is in it comes out the sides
+        // the body on the plate goes flat; what is in it comes out the sides (the ribs, the bones, the organs: PressGore)
         if (this.corpse) {
           this.corpseSquash = Math.max(0.12, this.corpseSquash * 0.42);
-          this.corpse.scale.set(1 + (1 - this.corpseSquash) * 0.18, this.corpseSquash, 1 + (1 - this.corpseSquash) * 0.12);
-          for (const [ddx, ddz] of [[1, 0.3], [1, -0.4], [0.6, 1], [0.6, -1], [-0.4, 1]]) this.spray(x + ddx * 0.7, GP.bedH + 0.08, z + ddz * 0.5, ddx * 1.4, 0.35, ddz * 1.4, 10, 4.2);
-          for (let i = 0; i < 6; i++) this.splat(x + 1.3 + Math.random() * 1.6, z + (Math.random() - 0.5) * 2.4, 0.5 + Math.random() * 0.6);
+          this.corpse.scale.set(1 + (1 - this.corpseSquash) * 0.22, this.corpseSquash, 1 + (1 - this.corpseSquash) * 0.16);
+          if ((G.sandbox?.gore ?? 2) > 0) {
+            for (const [ddx, ddz] of [[1, 0.3], [1, -0.4], [0.6, 1], [0.6, -1], [-0.4, 1]]) this.spray(x + ddx * 0.7, GP.bedH + 0.08, z + ddz * 0.5, ddx * 1.4, 0.35, ddz * 1.4, 10, 4.2);
+            for (let i = 0; i < 6; i++) this.splat(x + 1.3 + Math.random() * 1.6, z + (Math.random() - 0.5) * 2.4, 0.5 + Math.random() * 0.6);
+          }
+          this.gore?.slam(P.hits, x, z, this.corpseRig, this.corpse, cam);
         }
         this.lights.brownout(0.25, 0.12, ['press', 'fit', 'ante']);
         // the belt's load drops off under the ram
@@ -653,6 +664,7 @@ export class IntroSet {
     // the coils on the portal breathe with the liquid
     if (this.coils) this.coils.uniforms.uK.value = 0.2 + this.liqU.uGlow.value * (1.6 + 0.6 * Math.sin(this.t * 9));
     if (camera) this.lights.update(dt, camera);
+    this.gore?.update(dt, P.on ? P.ram.position.y : GP.ramUp);
     this.blood.update(dt, FLAT);
     this.sparks.update(dt, FLAT);
     this.liqU.uTime.value = this.t;

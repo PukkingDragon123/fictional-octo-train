@@ -15,6 +15,7 @@ import { Zone, TileObject } from './zone';
 import { objDef } from './objects';
 import { objectMatrix } from './chunkMesher';
 import { wallDef } from './defs';
+import { bareStrike, surfaceOfMat, surfaceOfWall } from '../survival/impacts';
 import { itemDef } from '../items/item';
 import type { Item } from '../items/item';
 import type { Player } from '../entities/player';
@@ -81,9 +82,8 @@ export function strikeObject(p: Player, o: TileObject, tool: ToolKind, it: Item 
   try { (p as any).anim?.impact?.(kick ? 0.5 : 0.8); } catch { /* older rigs */ }
   if (dmg > 25) { shake(0.12); hitstop(35); }
   const m = objMat(d);
-  // hands and feet are not hammers
-  if (kick && (m === 'glass' || m === 'metal') && Math.random() < 0.15) p.body.addInjury(Math.random() < 0.5 ? 'foot_r' : 'shin_r', m === 'glass' ? 'laceration' : 'bruise', 0.3);
-  if (!it && !kick && Math.random() < (m === 'glass' ? 0.5 : 0.15)) p.body.addInjury('hand_r', m === 'glass' ? 'laceration' : 'bruise', 0.3);
+  // hands and feet are not hammers (src/survival/impacts.ts)
+  if (!it || kick) bareStrike(p, surfaceOfMat(m), { kick, force: kick ? 1.2 : base / 3 });
   return dmg;
 }
 
@@ -158,7 +158,7 @@ export class SmashAction extends TimedAction {
       noise(p, at.x, at.z, this.kick ? 12 : heavy ? 20 : 15, 'smash');
       try { (p as any).anim?.impact?.(this.kick ? 0.5 : heavy ? 0.9 : 0.7); } catch { /* older rigs */ }
       op('wallSmash', { z: z.key, x: t.x, y: t.y, side: t.side, d: Math.round(base * k * overhead * (1 + str * 0.05) * 10) / 10, how: this.kick ? 'kick' : 'smash', by: p.id, u: Math.round((t.u + (Math.random() - 0.5) * 0.3) * 100) / 100, h: Math.round((this.kick ? 0.45 : t.h + (Math.random() - 0.5) * 0.4) * 100) / 100, n: t.n });
-      if (!it && !this.kick && Math.random() < 0.3) p.body.addInjury(Math.random() < 0.5 ? 'hand_r' : 'hand_l', 'bruise', 0.25);
+      if (!it || this.kick) bareStrike(p, surfaceOfWall(wd?.sound), { kick: this.kick, force: this.kick ? 1.2 : base / 3 });
     } else {
       strikeObject(p, t.o, this.tool, it, this.kick ? 'kick' : this.tool === 'axe' ? 'chop' : this.tool === 'crowbar' ? 'pry' : this.tool === 'knife' ? 'slash' : 'smash', this.kick);
     }

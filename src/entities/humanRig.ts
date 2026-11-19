@@ -84,6 +84,10 @@ export interface RigCondition {
   bandage?: Record<string, number>;
   /** splinted parts */
   splint?: string[];
+  /** bruised parts (skin only): 1 a mark, 2 swollen purple, 3 black and blue */
+  bruise?: Record<string, number>;
+  /** open cuts on the skin (lacerations, split knuckles, bites): 1 a scratch, 2 a cut, 3 a deep gash */
+  cut?: Record<string, number>;
   /** actively bleeding parts -> bleed level 1..3 (drives woundPoints, never repaints) */
   bleeding?: Record<string, number>;
   /** 0..3 */
@@ -1032,6 +1036,14 @@ export class HumanRig {
       out.push({ part, pos, rate });
     }
     return out;
+  }
+
+  /** world position of a body part's wound anchor (item part keys: head, torso_u, hand_r...), or null */
+  partPoint(part: string, out = new THREE.Vector3()): THREE.Vector3 | null {
+    const at = WOUND_AT[part]; if (!at) return null;
+    this.root.updateMatrixWorld(true);
+    const s = this.s;
+    return out.set(at[1] * s, at[2] * s, at[3] * s).applyMatrix4(this.bones[at[0]].matrixWorld);
   }
 
   /** world position of a joint */

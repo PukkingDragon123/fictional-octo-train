@@ -1,0 +1,20 @@
+/* The health check's floating names (src/ui/body/health3d.ts): no box, Alagard raised off the page
+   with a stacked ink extrusion, tilted a little toward the wound it names. */
+.hv-tag {
+  position: fixed; left: 0; top: 0; z-index: 46; pointer-events: none; white-space: nowrap;
+  display: flex; flex-direction: column; gap: 2px;
+  font-family: var(--font-new); line-height: 1; letter-spacing: 0.02em;
+  opacity: 0; transition: opacity 0.12s steps(3);
+  transform-origin: 0 50%;
+}
+.hv-tag.on { opacity: 1; }
+.hv-tag b {
+  font-weight: normal; font-size: 24px; color: #fff4d8;
+  text-shadow: 1px 1px 0 #b8925a, 2px 2px 0 #8a6a3a, 3px 3px 0 #5a4424, 4px 4px 0 #2a2014, 0 0 14px rgba(0, 0, 0, 0.55), 0 0 2px #000;
+}
+.hv-tag i {
+  font-style: normal; font-size: 16px; color: #ffd27a; padding-left: 2px;
+  text-shadow: 1px 1px 0 #6a4a1a, 2px 2px 0 #2a1c0a, 0 0 10px rgba(0, 0, 0, 0.6);
+}
+.hv-tag i.bad { color: #ff7a5a; text-shadow: 1px 1px 0 #6a1a10, 2px 2px 0 #2a0806, 0 0 10px rgba(0, 0, 0, 0.6); }
+html.nc-touch .hv-tag b { font-size: 20px; }

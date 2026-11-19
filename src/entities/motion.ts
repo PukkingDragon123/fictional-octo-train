@@ -36,6 +36,7 @@ import { noise } from '../actions/world';
 import type { Input } from '../core/input';
 import type { Player } from './player';
 import { setVaultHeight } from './motionAnims';
+import { fallImpact } from '../survival/impacts';
 
 type MState = 'free' | 'slide' | 'vault' | 'hop' | 'stumble' | 'fallen' | 'getup' | 'stagger';
 /** a vault: from where, to where, over how high (world), and what is being cleared */
@@ -74,6 +75,8 @@ export class UnitMotion {
   private lean = 0;
   private prevSp = 0;
   private accF = 0;
+  /** how hard the last fall was (knockdown strength) and how fast the body was going */
+  private fallK = 0.6; private fallV = 0;
   /** the vault in progress */
   vault: VaultPlan | null = null;
   /** slide speed at the start (it bleeds off) */
@@ -332,6 +335,7 @@ export class UnitMotion {
   knockdown(p: Player, dx: number, dz: number, strength: number, how: 'trip' | 'blow' | 'slam', speed = 0) {
     if (p.body.dead || p.body.downed || p.inVehicle) return;
     this.last = how === 'trip' ? 'fall' : 'knockdown:' + how;
+    this.fallK = strength; this.fallV = Math.max(speed, Math.hypot(p.vx, p.vz));
     this.enter('fallen', 0.95 + strength * 0.5 + (p.body.endurance < 0.1 ? 0.6 : 0));
     this.thudDone = false;
     this.dir = Math.atan2(dz, dx);
@@ -374,7 +378,8 @@ export class UnitMotion {
         audio('body_thud', p.x, p.z, 0.9); audio('debtor_gasp', p.x, p.z, 0.5);
         shake(0.35, 0.25);
         noise(p, p.x, p.z, 12, 'fall');
-        if (Math.random() < 0.55) p.body.addInjury(['hand_l', 'hand_r', 'shin_l', 'shin_r', 'torso_u'][Math.floor(Math.random() * 5)] as any, 'bruise', 0.12 + Math.random() * 0.12);
+        // what hits the floor first: a trip lands on the hands and knees, a blow throws it on its back (src/survival/impacts.ts)
+        fallImpact(p, this.last === 'fall' ? 'front' : 'back', this.fallK, this.fallV);
       }
       if (this.t >= this.dur) {
         // which way up did it land
