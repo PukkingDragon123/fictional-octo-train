@@ -920,6 +920,10 @@ export class HumanAnimator {
       // round 19: under an armload (src/interact/haul.ts puts it on these points): hands under it, elbows out
       const sw = Math.sin(t * 6.2) * 0.006 * clamp(inp.speed / 2, 0, 1);
       L.to(0.95, 0.22, 0.95 + sw, 0.31).pole(0.9, -0.45, -0.25); R.to(0.95, -0.22, 0.95 - sw, 0.31).pole(-0.9, -0.45, -0.25);
+    } else if (act === 'haul_long') {
+      // a long load along the right hip: the right hand under it behind, the left reaching across the front to hold it in
+      const sw = Math.sin(t * 6.2) * 0.006 * clamp(inp.speed / 2, 0, 1);
+      R.to(0.95, -0.27, 0.9 + sw, -0.02).pole(-0.8, -0.5, -0.4); L.to(0.95, -0.2, 0.98 - sw, 0.36).pole(0.7, -0.6, 0.1);
     } else if (act === 'pickup') {
       // the hand goes down for it, in front of the feet, at the bottom of the dip
       const u = clamp(inp.actionT / Math.max(0.2, inp.actionDur), 0, 1), d = Math.sin(u * Math.PI);

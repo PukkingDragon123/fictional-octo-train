@@ -710,7 +710,7 @@ bus.on('playerHit', (p: Player, part: string, _kind: string, h: any) => {
 // dev / screenshots: put the local unit into a movement state and hold a frame of it
 if (import.meta.env.DEV && typeof window !== 'undefined') {
   const pin = { t: -1, dur: 0 };
-  const loop = () => { const p = G.local; if (p && pin.t >= 0) { (p as any).visT = pin.t; p.actionT = pin.t; } requestAnimationFrame(loop); };
+  const loop = () => { const p = G?.local; if (p && pin.t >= 0) { (p as any).visT = pin.t; p.actionT = pin.t; } requestAnimationFrame(loop); };
   requestAnimationFrame(loop);
   (window as any).__ctrl = {
     m: () => G.local && motionOf(G.local),

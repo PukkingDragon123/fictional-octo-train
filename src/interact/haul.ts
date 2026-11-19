@@ -63,6 +63,8 @@ class Armload {
   group = new THREE.Group();
   private key = '';
   private on: Player | null = null;
+  /** carried lengthwise along the side (planks) rather than hugged square in front */
+  long = false;
   update(p: Player, dt: number) {
     const load = p.armload ?? [];
     // the load left the unit some other way (dropped from the pack view, used up): forget it
@@ -82,12 +84,14 @@ class Armload {
           const b = g.boundingBox!, s = b.getSize(_v);
           const m = new THREE.Mesh(g, worldMaterial({}));
           m.castShadow = true;
-          // the long way across the body (left-right), lying flat on the forearms
+          // a long thing (planks, pipe) lies along the right side, lengthwise, a hand under it and one across the
+          // front holding it to the hip; a box or a sheet is hugged square to the belly
           const piv = new THREE.Group();
           m.position.set(-(b.min.x + b.max.x) / 2, -b.min.y + y, -(b.min.z + b.max.z) / 2);
           piv.add(m);
-          // a long thing turns across the chest; a box sits square
-          if (s.z > s.x) piv.rotation.y = Math.PI / 2;
+          const L = Math.max(s.x, s.z), W = Math.max(0.01, Math.min(s.x, s.z));
+          if (it === p.armload![0]) this.long = L > 0.6 && L / W > 3;
+          if (this.long ? s.x > s.z : s.z > s.x) piv.rotation.y = Math.PI / 2;
           this.group.add(piv);
           y += Math.max(0.03, s.y) * 0.98;
         }
@@ -99,15 +103,23 @@ class Armload {
     const s = p.rig.s;
     const ph = p.anim.phase;
     const mv = Math.min(1, p.speed / 2);
-    this.group.position.set(Math.sin(ph) * 0.008 * mv * s, (0.96 + Math.abs(Math.cos(ph)) * 0.012 * mv) * s, 0.33 * s);
-    this.group.rotation.set(0, Math.sin(ph) * 0.035 * mv, Math.sin(ph) * 0.03 * mv);
+    const bob = Math.abs(Math.cos(ph)) * 0.012 * mv;
+    if (this.long) {
+      // along the right hip, the front end a little up (the hands at -0.25 / +0.3 along it, src/entities/humanAnim.ts 'haul_long')
+      this.group.position.set(-0.25 * s, (0.9 + bob) * s, 0.14 * s);
+      this.group.rotation.set(-0.06 + Math.sin(ph) * 0.02 * mv, Math.sin(ph) * 0.02 * mv, 0);
+    } else {
+      this.group.position.set(Math.sin(ph) * 0.008 * mv * s, (0.96 + bob) * s, 0.33 * s);
+      this.group.rotation.set(0, Math.sin(ph) * 0.035 * mv, Math.sin(ph) * 0.03 * mv);
+    }
+    (p as { armLong?: boolean }).armLong = this.long;
     void dt;
   }
 }
 const armload = new Armload();
 
 /** pick a bulky thing up into the arms (it is already in p.inv) */
-function takeIntoArms(p: Player, it: Item) {
+export function takeIntoArms(p: Player, it: Item) {
   const load = (p.armload ??= []);
   if (load.length && (load[0].key !== it.key || load.length >= ARM_MAX(it))) {
     // arms full: it goes back down where it was

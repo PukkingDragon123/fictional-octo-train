@@ -529,7 +529,7 @@ export class Player {
     }
     if (this.carrying && !action) action = 'carry';
     // round 19: an armload of planks hugged to the belly, a body dragged by the ankle (src/interact/haul.ts)
-    if (!action && local && (this as { armload?: unknown[] }).armload?.length) action = 'haul' as ActionAnim;
+    if (!action && local && (this as { armload?: unknown[] }).armload?.length) action = ((this as { armLong?: boolean }).armLong ? 'haul_long' : 'haul') as ActionAnim;
     if (!action && local && (this as { dragging?: unknown }).dragging) action = 'drag_body' as ActionAnim;
     if (!full) {
       if (this.body.dead) full = 'dead';

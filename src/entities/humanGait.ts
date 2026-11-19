@@ -162,10 +162,10 @@ export class Gait {
     const fwd = Math.sin(f.yaw) * this.dirX + Math.cos(f.yaw) * this.dirZ;
     const side = 0.55 + 0.45 * Math.abs(fwd);
     // round 19: a shorter, quicker running stride (the old one split the legs into a long stretched stance at
-    // game scale): about 2 m a cycle at a full run, a touch more time on the ground, less flight
-    const Sw = Math.min(1.55, 0.5 + 0.41 * v) * s, Sr = (0.9 + 0.27 * v) * s;
+    // game scale): about 1.75 m a cycle at a full run, quicker steps, more time on the ground, less flight
+    const Sw = Math.min(1.55, 0.5 + 0.41 * v) * s, Sr = (0.85 + 0.22 * v) * s;
     this.S = Math.max(0.35, (Sw + (Sr - Sw) * run) * (1 - 0.14 * sn) * (1 - 0.28 * f.limp) * side * (1 - f.tired * 0.12));
-    this.beta = (0.6 + 0.06 * sn) * (1 - run) + 0.36 * run;
+    this.beta = (0.6 + 0.06 * sn) * (1 - run) + 0.4 * run;
     const beta = this.beta;
     if (!this.init) this.plantAll(f, D);
     if (!f.active) { this.plantAll(f, D); this.moving = false; this.output(f, D); return; }

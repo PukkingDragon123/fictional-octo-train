@@ -18,7 +18,7 @@ const seen = (): Set<string> => { try { return new Set(JSON.parse(localStorage.g
 const mark = (id: string) => { try { const s = seen(); s.add(id); localStorage.setItem(STORE, JSON.stringify([...s])); } catch { /* storage blocked */ } };
 const tagText = () => [...document.querySelectorAll('#wprompt .wp-tag.vis')].map((e) => e.textContent || '').join(' ');
 let pickedUp = false;
-const dark = () => { const p = G.local, f = (G as unknown as { lightLevelAt?: (x: number, z: number) => number }).lightLevelAt; return !!p && !!f && f(p.x, p.z) < 0.22; };
+const dark = () => { const p = G.local, g = G as unknown as { lightLevelAt?: (x: number, z: number) => number }; try { return !!p && !!g.lightLevelAt && g.lightLevelAt(p.x, p.z) < 0.22; } catch { return false; } };
 
 const HINTS: Hint[] = [
   { id: 'move', keys: ['W', 'A', 'S', 'D'], word: 'move', done: ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'], when: (t) => t > 3 },

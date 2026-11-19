@@ -34,7 +34,7 @@ import { walkable } from '../../creatures/behaviors_b';
 import { findPath } from '../../world/path';
 import { floatText, floatQuiet } from '../../social/floatText';
 import { offscreen } from '../../ui/holo/subs';
-import { cineSay, cineClear } from '../../ui/holo/cineText';
+import { cineSay } from '../../ui/holo/cineText';
 import { subStrip } from '../../ui/menus/settings';
 import { readTime } from '../lines';
 import { RadioVoice } from '../vossVoice';

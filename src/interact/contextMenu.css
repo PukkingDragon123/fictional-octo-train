@@ -17,7 +17,8 @@
 }
 .cm-row {
   position: relative; padding: 4px 18px 4px 4px; white-space: nowrap; cursor: var(--cur-hand, pointer);
-  text-shadow: 1px 1px 0 #070805; transition: transform 0.06s, color 0.06s;
+  /* a little depth to the type: a stamped edge and its drop, like letters pressed into the plate */
+  text-shadow: 0 -1px 0 rgba(255, 246, 200, 0.12), 1px 1px 0 #070805, 2px 2px 0 rgba(7, 8, 5, 0.45); transition: transform 0.06s, color 0.06s;
 }
 /* under the pointer: amber phosphor, the row leans in, a dotted scan rule beneath it */
 .cm-row.hot { color: #ffd65a; transform: translateX(3px); text-shadow: 1px 1px 0 #070805, 0 0 7px rgba(255, 196, 56, 0.6);

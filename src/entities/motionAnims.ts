@@ -191,6 +191,19 @@ registerPose('haul', (_t, _dur, inp, time) => {
   return { pose: P, mask: ['spine', 'chest', 'neck', 'head', 'uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR'] };
 });
 
+// ------------------------------------------------------------------ haul_long: planks along the right hip, both hands on them
+registerPose('haul_long', (_t, _dur, inp, time) => {
+  const P: Pose = {};
+  const mv = clamp(inp.speed / 1.6, 0, 1);
+  const bob = Math.sin(time * 6.2) * 0.01 * mv;
+  // the trunk leans a touch away from the load and turns into it
+  S(P, 'spine', 0.04 + bob, -0.12, 0.06); S(P, 'chest', 0.04, -0.1, 0.03); S(P, 'neck', 0.08, 0.1, 0); S(P, 'head', 0.1, 0.12, 0);
+  S(P, 'uarmR', 0.1, 0, -0.32); S(P, 'farmR', -0.7, 0, 0); S(P, 'handR', -0.3, 0, -0.2);
+  S(P, 'uarmL', -0.8, -0.5, -0.2); S(P, 'farmL', -1.1, 0, 0); S(P, 'handL', -0.2, 0, 0.3);
+  P.gripL = 0.9; P.gripR = 0.9;
+  return { pose: P, mask: ['spine', 'chest', 'neck', 'head', 'uarmL', 'farmL', 'handL', 'uarmR', 'farmR', 'handR'] };
+});
+
 // ------------------------------------------------------------------ dragging a body: one hand back on an ankle, leaning into the pull
 registerPose('drag_body', (_t, _dur, inp, time) => {
   const P: Pose = {};
