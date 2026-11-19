@@ -43,8 +43,12 @@ export function installApp(key: string, quiet = false): Promise<void> {
   bus.emit('bandApps');
   const m = META[key];
   if (quiet || !m) return Promise.resolve();
-  return new Promise((res) => playInstall({ title: m.title, icon: m.icon, gives: m.gives, key: 'app:' + key, onDone: () => res() }));
+  busy++;
+  return new Promise((res) => playInstall({ title: m.title, icon: m.icon, gives: m.gives, key: 'app:' + key, onDone: () => { busy = Math.max(0, busy - 1); res(); } }));
 }
+let busy = 0;
+/** an install cinematic is on screen (the first run waits for it before the next lesson) */
+export function installBusy(): boolean { return busy > 0; }
 
 // progress installs the rest (each once, with its install moment)
 let hooked = false;

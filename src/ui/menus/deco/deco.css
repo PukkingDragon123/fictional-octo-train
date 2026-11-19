@@ -106,6 +106,8 @@ body.deco-build [data-deco-hide], body.deco-shop [data-deco-hide] { visibility: 
 .gd-sub.s-think span { color: #cfc6ad; font-style: italic; }
 .gd-sub.s-shout span { font-size: 32px; color: #fff2c8; }
 @media (max-aspect-ratio: 1/1.05) { .gd-sub { bottom: auto; top: 13vh; } .gd-sub span { font-size: 18px; } }
+/* in a lab room the feed buttons sit low: her subtitle rides above them */
+@media (min-aspect-ratio: 1/1.05) { body:has(.nx-title.mr:not([data-view="monitor"]):not(.lit)) .dk-ui > .gd-sub { bottom: calc(7vh + 116px); } }
 /* round 16: the hub keys as 3D props; they lift on hover and sink on a press */
 .dk-icon.dk-3d > .mxi-cv { position: absolute; left: -6px; top: -6px; image-rendering: pixelated; pointer-events: none; transition: transform 0.12s steps(2), filter 0.12s steps(2); }
 .dk-icon.dk-3d:hover > .mxi-cv, .dk-icon.dk-3d:focus-visible > .mxi-cv { transform: translateY(-2px); filter: brightness(1.15); }
@@ -159,3 +161,5 @@ body.touring :is(.mr-hud, .mr-hotcap, .mr-feeds, .tt3-menu, .tt3-cap, .obj15, #w
 .dk-icon.unbuilt > .mxi-cv { filter: grayscale(0.85) brightness(0.62) contrast(1.1); }
 .dk-icon.unbuilt:hover > .mxi-cv, .dk-icon.unbuilt:focus-visible > .mxi-cv { filter: grayscale(0.4) brightness(0.9); }
 .dk-icon.unbuilt .dk-icap { color: #ffd870; }
+/* a station's key whose station cannot be built yet is not there at all (the 3D keys set display themselves) */
+.dk-icon[hidden] { display: none !important; }

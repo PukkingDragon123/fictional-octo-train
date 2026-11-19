@@ -50,7 +50,8 @@ function stopsNow(): Stop[] {
     if (s.room === 'archive' && !built('archive')) continue;
     if (s.el && ![...document.querySelectorAll<HTMLElement>(s.el)].some((e) => !e.hidden)) continue;
     const k = s.hot ? STATION_HOT[s.hot] : undefined;
-    if (k && !built(k)) { out.push({ room: s.room, hot: 'site:' + k, pose: s.pose, line: EMPTY[k] ?? s.line }); continue; }
+    // (the wide shot: a wall station's site of crates stands on the floor under where it will hang)
+    if (k && !built(k)) { out.push({ room: s.room, hot: 'site:' + k, pose: 'room', line: EMPTY[k] ?? s.line }); continue; }
     out.push(s);
   }
   return out;

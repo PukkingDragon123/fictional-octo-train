@@ -5,7 +5,8 @@
 //   const s = new Spotlight();  s.on(() => ({ x, y, r }));  s.keys(['E']);  s.off();  s.update(dt);  s.dispose();
 import { cornerSheet, CORNER, CORNER_F, capEl } from '../../ui/menus/guide/tourArt';
 
-export interface SpotAt { x: number; y: number; r: number }
+/** a pool: its middle, its radius, and (for a wide, thin thing such as a line of type) a smaller vertical radius */
+export interface SpotAt { x: number; y: number; r: number; ry?: number }
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const DOWN = 3; // screen px per mask px
 
@@ -16,7 +17,7 @@ export class Spotlight {
   private capRow = document.createElement('div');
   private at: (() => SpotAt | null) | null = null;
   private k = 0; // fade 0..1
-  private cur: SpotAt = { x: 0, y: 0, r: 80 };
+  private cur = { x: 0, y: 0, r: 80, ry: 80 };
   private img: ImageData | null = null;
   private dim = 0.74;
 
@@ -87,13 +88,14 @@ body:has(.spot.on) .ct-layer, body:has(.spot.on) .ft-subs { z-index: 64; }
     if (a) {
       const s = Math.min(1, dt * 10);
       this.cur.x += (a.x - this.cur.x) * s; this.cur.y += (a.y - this.cur.y) * s; this.cur.r += (a.r - this.cur.r) * s;
+      this.cur.ry += ((a.ry ?? a.r) - this.cur.ry) * s;
     }
     this.draw(!!a);
     // the brackets and the caps follow the pool
-    const r = Math.round(this.cur.r), S = r * 2;
+    const r = Math.round(this.cur.r), ry = Math.round(this.cur.ry);
     this.ring.classList.toggle('vis', !!a);
-    Object.assign(this.ring.style, { left: Math.round(this.cur.x - r) + 'px', top: Math.round(this.cur.y - r) + 'px', width: S + 'px', height: S + 'px' });
-    Object.assign(this.capRow.style, { left: Math.round(this.cur.x) + 'px', top: Math.round(this.cur.y + r + 10) + 'px' });
+    Object.assign(this.ring.style, { left: Math.round(this.cur.x - r) + 'px', top: Math.round(this.cur.y - ry) + 'px', width: r * 2 + 'px', height: ry * 2 + 'px' });
+    Object.assign(this.capRow.style, { left: Math.round(this.cur.x) + 'px', top: Math.round(this.cur.y + ry + 10) + 'px' });
     // a slow glow on the waiting caps
     const lit = Math.floor(performance.now() / 600) % 2 === 0;
     this.capRow.querySelectorAll<HTMLElement>('.tcap:not(.down)').forEach((c) => c.classList.toggle('hot', lit));
@@ -106,13 +108,14 @@ body:has(.spot.on) .ct-layer, body:has(.spot.on) .ft-subs { z-index: 64; }
     const g = this.cv.getContext('2d')!;
     this.img ??= g.createImageData(W, H);
     const d = this.img.data;
-    const cx = this.cur.x / DOWN, cy = this.cur.y / DOWN, r = this.cur.r / DOWN, edge = Math.max(4, r * 0.35);
+    const cx = this.cur.x / DOWN, cy = this.cur.y / DOWN, r = this.cur.r / DOWN, edge = Math.max(4, Math.min(r, this.cur.ry / DOWN) * 0.35);
+    const sy = this.cur.r / Math.max(1, this.cur.ry);
     const A = Math.round(255 * this.dim);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
       const i = (y * W + x) * 4;
       let a = A;
       if (pool) {
-        const dd = Math.hypot(x - cx, y - cy);
+        const dd = Math.hypot(x - cx, (y - cy) * sy);
         if (dd < r) a = 0;
         else if (dd < r + edge) {
           // the edge: an ordered dither from light to dark, and a thin warm rim right at the pool

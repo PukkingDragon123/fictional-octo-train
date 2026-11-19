@@ -16,6 +16,8 @@ interface Hint { id: string; keys: string[]; word: string; done: string[]; when:
 const STORE = 'noclip.keyHints';
 const seen = (): Set<string> => { try { return new Set(JSON.parse(localStorage.getItem(STORE) || '[]')); } catch { return new Set(); } };
 const mark = (id: string) => { try { const s = seen(); s.add(id); localStorage.setItem(STORE, JSON.stringify([...s])); } catch { /* storage blocked */ } };
+/** keys a lesson already taught (the first run, src/game/tutorial/firstRun.ts): their hints never show */
+export function markHints(ids: string[]) { for (const id of ids) mark(id); }
 const tagText = () => [...document.querySelectorAll('#wprompt .wp-tag.vis')].map((e) => e.textContent || '').join(' ');
 let pickedUp = false;
 const dark = () => { const p = G.local, g = G as unknown as { lightLevelAt?: (x: number, z: number) => number }; try { return !!p && !!g.lightLevelAt && g.lightLevelAt(p.x, p.z) < 0.22; } catch { return false; } };

@@ -72,6 +72,8 @@ export function fundTag(k: StationKey, at: () => { x: number; y: number } | null
   const place = () => { const p = at(); if (p) { el.style.left = Math.round(p.x) + 'px'; el.style.top = Math.round(p.y) + 'px'; } };
   const frame = (now: number) => {
     raf = requestAnimationFrame(frame);
+    // built some other way meanwhile (another tag, a save loaded): nothing left to fund
+    if (!t0 && can(k) === 'built') { done(); return; }
     place();
     if (t0 && gauge) {
       const k2 = Math.min(1, (now - t0) / 650);

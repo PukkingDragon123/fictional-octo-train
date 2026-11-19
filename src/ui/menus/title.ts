@@ -52,7 +52,7 @@ import { registerMenuRoom, setActiveMenuRoom, type MenuRoomId } from './menuRoom
 import { installDecoAndGuide, onBuildMode } from './deco';
 import { pixIconEl, type PixKind } from './deco/pixIcons';
 import { runTour, tourSeen, tourRunning } from './guide/tour';
-import { built } from './lab/stations';
+import { built, onLab } from './lab/stations';
 import { fundTag } from './lab/fund';
 import { openCodex, openEntry, openFridge, openReq, openFile, panelOpen, closePanel, type PanelHost } from './research/panel';
 import * as THREE from 'three';
@@ -197,6 +197,8 @@ class TitleRoom {
     mon.onFeed = (k) => { void this.go(k); };
     // round 19: the lab from zero (src/ui/menus/lab): a build site in the control room funds its station
     const calder = (t: string) => { (window as unknown as { __deco?: { guide?: { now?: (t: string) => void } } }).__deco?.guide?.now?.(t); };
+    // a station built (or its build site back) changes the room's words
+    onLab(() => { if (this.view === 'research') this.buildHud(); });
     lab.onSite = (k, at) => {
       if (this.view !== 'research') return;
       fundTag(k, () => this.stage.project(at), () => { lab.playBuild(k); this.buildHud(); }, calder);
@@ -657,8 +659,6 @@ class TitleRoom {
     bar.append(word('Monitors', 'home', () => void this.back(), 'Back to the monitors (Esc)'));
     bar.append(word(nf.label + ' ›', 'next', () => void this.go(next), `Next feed: ${nf.label} (E)`, nf.cam + ' ›'));
     hud.append(acts, bar);
-    const tip = h('div', 'mr-tip', k === 'subject' ? 'tap a part of the unit to work on it · Q E change feed · Esc monitors' : k === 'research' ? 'tap the main computer, the fridge, the talent bench · Q E change feed · Esc monitors' : k === 'archive' ? 'tap a cabinet, pull a file, watch it project · Q E change feed · Esc monitors' : 'tap things · Q E change feed · Esc monitors');
-    hud.append(tip);
     requestAnimationFrame(() => (acts.querySelector('button') as HTMLElement | null ?? bar.querySelector('.home') as HTMLElement | null)?.focus({ preventScroll: true }));
   }
   /** a tap on a part of the unit: the lights come on and the creator starts at that part */

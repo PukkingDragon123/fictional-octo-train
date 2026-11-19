@@ -42,10 +42,11 @@ import { RadioVoice } from '../vossVoice';
 import { defQuest } from '../quests';
 import type { QuestX } from '../../missions/questRuntime';
 import { Spotlight, type SpotAt } from './spotlight';
-import { limitApps, installApp } from '../../ui/bandos/installed';
+import { limitApps, installApp, installBusy } from '../../ui/bandos/installed';
 import { setTrackerTimer, trackerEl } from '../../ui/questTracker';
 import { TUT } from './state';
 import { sfx } from '../../ui/menus/sfx';
+import { markHints } from '../../ui/keyHints';
 
 /** what the first run is doing (the quest and the tracker read it) */
 export const FIRST = { on: false, target: null as { zone: string; x: number; z: number } | null };
@@ -235,6 +236,8 @@ export class FirstRun implements GameSystem {
   }
   private deadline: number | null = null;
   private seen = new Set<string>();
+  /** the key hints (src/ui/keyHints.ts) her lessons made unneeded */
+  private taught = new Set<string>();
 
   private sleep(s: number) { const t = this.clock + s; return this.until(() => this.clock >= t); }
   private until(cond: () => boolean): Promise<void> {
@@ -304,7 +307,7 @@ export class FirstRun implements GameSystem {
   private unitSpot(metres = 1.1): () => SpotAt | null { return () => { const p = G.local!; return this.screen(p.x, p.y + 0.9, p.z, metres); }; }
   private calderSpot(): () => SpotAt | null { return () => { const c = this.calder.c; return c ? this.screen(c.x, 0.9 + (G.zones.get(c.zoneKey)?.heightAt(Math.floor(c.x), Math.floor(c.z)) ?? 0), c.z, 1.1) : null; }; }
   private domSpot(el: HTMLElement | null): () => SpotAt | null {
-    return () => { const b = el?.getBoundingClientRect(); return b && b.width ? { x: b.left + b.width / 2, y: b.top + b.height / 2, r: Math.max(40, b.width / 2 + 16) } : null; };
+    return () => { const b = el?.getBoundingClientRect(); return b && b.width ? { x: b.left + b.width / 2, y: b.top + b.height / 2, r: Math.max(40, b.width / 2 + 22), ry: Math.max(26, b.height / 2 + 16) } : null; };
   }
 
   /** walk her somewhere (she runs when it is far); resolves when she is there (or after a while, wherever she got to) */
@@ -357,6 +360,7 @@ export class FirstRun implements GameSystem {
       await this.say('Your kit came down in that bag. It\'s yours. Open it: walk up to it and press E.');
       this.lock(['interact', 'up', 'down', 'left', 'right']);
       const inv = () => (G.ui as unknown as { inventory?: { open?: boolean } } | undefined)?.inventory;
+      this.taught.add('use');
       await this.gate(() => this.seen.has('pack') || !!inv()?.open, ['E, next to the bag.', 'The bag. E. I promise there\'s nothing alive in it.']);
       this.spot.off();
       await this.say('Drag everything into your pack. All of it. You\'ll want it.');
@@ -377,6 +381,7 @@ export class FirstRun implements GameSystem {
       await this.say('Walk with me. W, A, S, D. Shift if you\'re in a hurry, which you are.');
       this.spot.keys(null); this.spot.off();
       void this.walk(bx + 1.2, bz + 0.6, false, 0.6);
+      this.taught.add('move');
       await this.gate(() => Math.hypot(p().x - bx, p().z - bz) < 2.4, ['This way. Follow me.', 'Over here, by the bench.'], 12);
       // ---- 3. the first craft
       this.step = 'craft'; TUT.step = 'craft';
@@ -427,6 +432,7 @@ export class FirstRun implements GameSystem {
     this.spot.keys(['Tab']);
     this.lock(['watch']);
     await this.say('Your band has a screen. Tab, and look at your wrist.');
+    this.taught.add('watch');
     await this.gate(() => this.seen.has('band') || bandOpen(), ['Tab. Your wrist.', 'Tab brings the band up.']);
     this.spot.off();
     await this.say('One app, for now: Tasks. That\'s the job, written down. You get more as you earn them.');
@@ -442,12 +448,18 @@ export class FirstRun implements GameSystem {
     this.spot.keys(['Q']);
     this.lock(['scan', 'whistle']);
     this.calder.gesture('present');
+    this.taught.add('scan');
     await this.say('Hold Q and look at me. Go on. I don\'t bite.');
     const t0 = this.clock;
     let held = 0;
     await this.gate(() => { held = (G.input as unknown as { down: (a: Action) => boolean }).down('scan') ? held + 1 : held; return this.scanned || (this.clock - t0 > 30 && held > 40); }, ['Hold Q. Face me.', 'Keep holding it till it locks.'], 12);
     this.spot.off();
     await this.say(pick(['Ha. "Peaceful." My ex would disagree.', 'Filed. I\'m in your codex now. Weird feeling.']));
+    // the first scan lands the codex on the band (src/ui/bandos/installed.ts): she names it once it is in
+    if (installBusy()) {
+      await this.until(() => !installBusy());
+      await this.say('That\'s your codex. Everything you scan gets filed there. Read it when you\'re bored.');
+    }
 
     // ---- 8. the find
     this.step = 'find'; TUT.step = 'find';
@@ -518,20 +530,30 @@ export class FirstRun implements GameSystem {
     const cook = (G as unknown as { cook?: { stations?: (z?: Zone) => TileObject[]; state?: () => { open?: boolean } } }).cook;
     const p = G.local!;
     const z = G.zones.get(p.zoneKey);
-    const st = cook?.stations?.(z ?? undefined)?.filter((o) => Math.hypot(o.x - p.x, o.y - p.z) < 30)?.sort((a, b) => Math.hypot(a.x - p.x, a.y - p.z) - Math.hypot(b.x - p.x, b.y - p.z))[0];
+    let st = cook?.stations?.(z ?? undefined)?.filter((o) => Math.hypot(o.x - p.x, o.y - p.z) < 30)?.sort((a, b) => Math.hypot(a.x - p.x, a.y - p.z) - Math.hypot(b.x - p.x, b.y - p.z))[0];
+    // nowhere to cook near: she sets a small fire going a few steps away (a ring of stones, two hours of wood)
+    if (!st && cook?.stations && z) {
+      const f = spotNear(p.zoneKey, p.x, p.z, 2.5, 5, false, (x, y) => !walkable(z, x, y + 1) || z.objectsAt(x, y).length > 0) ?? spotNear(p.zoneKey, p.x, p.z, 2, 7);
+      if (f) {
+        const nu = uid();
+        op('objAdd', { z: z.key, obj: { uid: nu, key: 'campfire', x: Math.floor(f.x), y: Math.floor(f.z), rot: 0, state: { lit: true, fuel: 2 }, inv: null } });
+        st = z.objects.get(nu) ?? undefined;
+      }
+    }
     if (!st) return;
+    const fire = cook?.stations && objDef(st.key)?.heat !== 'stove';
     this.step = 'cook'; TUT.step = 'cook';
     const meat = createItem('small_meat_raw');
     p.inv.add(meat); bus.emit('inventoryChanged', p);
     this.lock(['up', 'down', 'left', 'right', 'run']);
     void this.walk(st.x + 1.4, st.y + 1, false, 0.6);
     await this.say('Food next. I brought you something. Raw meat makes you sick down here, so we cook it.');
-    await this.gate(() => Math.hypot(p.x - st.x - 0.5, p.z - st.y - 0.5) < 2.6, ['This way, to the stove.'], 12);
+    await this.gate(() => Math.hypot(p.x - st!.x - 0.5, p.z - st!.y - 0.5) < 2.6, [fire ? 'This way, to the fire.' : 'This way, to the stove.'], 12);
     this.spot.on(this.objSpot(st, 1.0));
     this.spot.keys(['E']);
     this.lock(['interact', 'up', 'down', 'left', 'right']);
-    await this.say('E, at the stove.');
-    await this.gate(() => !!this.cook.open, ['The stove. E.'], 14);
+    await this.say(fire ? 'I got a fire going. E, at the fire.' : 'E, at the stove.');
+    await this.gate(() => !!this.cook.open, [fire ? 'The fire. E.' : 'The stove. E.'], 14);
     this.spot.off();
     await this.say('Meat in the pan. Drag it on.');
     await this.gate(() => !!this.cook.pan, ['Drag the meat into the pan.'], 14);
@@ -613,6 +635,7 @@ export class FirstRun implements GameSystem {
     setTimeout(() => this.spot.dispose(), 600);
     setTrackerTimer(null);
     setFlag('tut:done'); setFlag('fr:done');
+    markHints([...this.taught]);
     // the band gets what a skip skipped; a finished run keeps its earned apps and gets the basics
     for (const k of ['scanner', 'map', 'settings', 'term']) void installApp(k, true);
     if (!has('fr:radio')) { const q = (G.missions as unknown as { quests?: { track(k: string | null): void } }).quests; q?.track(null); }
