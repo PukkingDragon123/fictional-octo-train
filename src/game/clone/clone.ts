@@ -17,7 +17,6 @@ import type { Appearance } from '../../entities/humanRig';
 import { file, saveFile } from '../meridian';
 import { treeOffers } from '../treeData';
 import { dollars, spendDollars } from '../economy/money';
-import { heldCheckpoint } from '../checkpoint';
 
 /** the research node that unlocks the station */
 export const CLONE_NODE = 'clone_vat';
@@ -68,7 +67,9 @@ function freshBody(p: Player) {
 }
 
 /** where the new body is put down: the held checkpoint on this level, else the level's way in */
-function landing(p: Player): [string, number, number] {
+async function landing(p: Player): Promise<[string, number, number]> {
+  // (loaded here: the control room imports this file, and the checkpoint code belongs to the run)
+  const { heldCheckpoint } = await import('../checkpoint');
   const cp = heldCheckpoint();
   if (cp && cp.zone === p.zoneKey) return [cp.zone, cp.x, cp.y];
   const z = G.getZone(p.zoneKey);
@@ -88,7 +89,7 @@ async function revive(g: Game, p: Player) {
     await playRevive({ app: p.app, name: p.name });
   } catch (e) { console.warn('revive cutscene', e); }
   freshBody(p);
-  const [zk, x, y] = landing(p);
+  const [zk, x, y] = await landing(p);
   try {
     const nw = (g as unknown as { nearestWalkable?: (z: unknown, x: number, y: number) => [number, number] }).nearestWalkable?.(g.getZone(zk), x, y) ?? [x, y];
     g.placePlayer(p, zk, nw[0], nw[1]);
